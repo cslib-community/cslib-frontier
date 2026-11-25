@@ -112,7 +112,7 @@ theorem _root_.Cslib.IsMonadHom.map_slotM (hf : IsMonadHom m n f) (le : α → �
   induction rest with
   | nil => simp [slotM, hf.map_pure]
   | cons e rest ih =>
-    obtain ⟨k', v, c⟩ := e
+    rcases e with ⟨_, _, _⟩
     simp [slotM, hf.map_bind, hf.map_pure, apply_ite f, ih]
 
 /-- A monad morphism commutes with lookup. -/
@@ -183,7 +183,7 @@ theorem slot_eq_length_takeWhile (k : α) (rest : List (Triple α β)) :
   induction rest with
   | nil => rfl
   | cons e rest ih =>
-    obtain ⟨k', v, c⟩ := e
+    rcases e with ⟨k', _, _⟩
     by_cases hk : k ≤ k' <;> simp [slot_cons, hk, not_lt.2, lt_of_not_ge, ih]
 
 /-- The pure within-node search is the index of the first key not below `k`; this is the form
@@ -193,13 +193,12 @@ theorem slot_eq_findIdx (k : α) (rest : List (Triple α β)) :
   induction rest with
   | nil => rfl
   | cons e rest ih =>
-    obtain ⟨k', v, c⟩ := e
+    rcases e with ⟨_, _, _⟩
     simp [slot_cons, List.findIdx_cons, ih]
 
 /-- The position found by the within-node search is at most the number of keys. -/
-theorem slot_le_length (k : α) (rest : List (Triple α β)) : slot k rest ≤ rest.length := by
-  rw [slot_eq_length_takeWhile]
-  exact (List.takeWhile_sublist _).length_le
+theorem slot_le_length (k : α) (rest : List (Triple α β)) : slot k rest ≤ rest.length :=
+  slot_eq_length_takeWhile k rest ▸ (List.takeWhile_sublist _).length_le
 
 /-- Lookup in the empty tree fails. -/
 @[simp] theorem lookup_leaf (k : α) : lookup k (.leaf : BTree α β) = none := by
@@ -211,7 +210,7 @@ theorem lookup_eq_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (k : α) :
   induction h using induction_isSortedAssoc with
   | leaf => simp
   | node_nil _ _ ih => simpa using ih
-  | node_cons first k' v c rest _ _ hlt hgt ih₁ ih₂ =>
+  | node_cons _ k' v _ _ _ _ hlt hgt ih₁ ih₂ =>
     rw [lookup_node_cons, toList_node_cons, ih₁, ih₂]
     rcases lt_trichotomy k k' with hk | rfl | hk
     · rw [List.lookup_append_of_forall_gt

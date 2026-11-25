@@ -120,9 +120,7 @@ theorem majorityTester_passes_iff_sampleAccepts {n k : ℕ} [NeZero n] {δ : ℚ
     field_simp
   have hright : ((s : ℚ) / k + δ / 4) * (4 * δ.den * k * (M : ℕ)) =
       (M : ℚ) * (4 * δ.den * s + δ.num.toNat * k) := by
-    have hquarter : δ / 4 = ((δ.num.toNat : ℚ) / δ.den) / 4 :=
-      congrArg (fun q : ℚ => q / 4) hδ'
-    rw [hquarter]
+    rw [show δ / 4 = ((δ.num.toNat : ℚ) / δ.den) / 4 by rw [← hδ']]
     field_simp
   rw [hleft, hright]
   norm_cast
@@ -144,10 +142,7 @@ private theorem exists_majority_close {n : ℕ} (hn : 0 < n) (x : BitString n) :
     by_cases hi : i ∈ S <;> simp [y, ones, hi]
   have hdiff : (univ.filter fun i => x i ≠ y i) = S := by
     ext i
-    by_cases hi : i ∈ S
-    · have hx := (mem_filter.mp (hS hi)).2
-      simp [y, hi, hx]
-    · simp [y, hi]
+    by_cases hi : i ∈ S <;> simp [y, hi, fun j (hj : j ∈ S) => (mem_filter.mp (hS hj)).2]
   refine ⟨y, strictMajority_eq_true_iff.mpr ?_, ?_⟩
   · change n / 2 < #(univ.filter fun i => y i = true)
     rw [hy, card_union_of_disjoint hdisj, hcard]
@@ -183,15 +178,13 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
       apply card_equiv (equivFin w)
       simp [A]
     rw [show (univ.filter (· ∈ (A : Set (BitString w)))) = A by ext u; simp, hcard,
-      show Fintype.card (BitString w) = M from BitString.card]
-    rw [weight_zeroExtend hM x]
+      show Fintype.card (BitString w) = M from BitString.card, weight_zeroExtend hM x]
   have hemp (r : Fin k → BitString w) :
       empiricalMass A r = (weight (sampleAnswers r
         (fun i => x ((majorityTester n k δ).query r i))) : ℝ) / k := by
     rw [empiricalMass, weight_eq_sum_toNat, Nat.cast_sum]
     congr 1
-    apply sum_congr rfl
-    intro i _
+    refine sum_congr rfl fun i _ => ?_
     rw [sampleAnswers_query]
     change (if r i ∈ A then (1 : ℝ) else 0) = (x' (equivFin w (r i))).toNat
     cases h : x' (equivFin w (r i)) <;> simp [A, h]
@@ -292,27 +285,21 @@ theorem exists_majorityTester_probeBound {δ : ℝ} (hδ : 0 < δ) :
     else
       let _ : NeZero n := ⟨hn⟩
       (majorityTester n k q).decisionTree r
-  refine ⟨k, T, ?_, ?_, ?_⟩
-  · intro n r
-    by_cases hn : n = 0
-    · simp [T, hn]
-    · let _ : NeZero n := ⟨hn⟩
-      simpa only [T, dite_eq_right hn] using (majorityTester_spec hqpos hbudget).1 r
-  · intro n x hx
-    have hn : n ≠ 0 := by
-      rintro rfl
-      have := strictMajority_eq_true_iff.mp hx
-      have := weight_le_length x
-      omega
-    let _ : NeZero n := ⟨hn⟩
+  refine ⟨k, T, fun n r => ?_, fun n x hx => ?_, fun n x hx => ?_⟩ <;> by_cases hn : n = 0
+  · simp [T, hn]
+  · let _ : NeZero n := ⟨hn⟩
+    simpa only [T, dite_eq_right hn] using (majorityTester_spec hqpos hbudget).1 r
+  · subst hn
+    have := strictMajority_eq_true_iff.mp hx
+    have := weight_le_length x
+    omega
+  · let _ : NeZero n := ⟨hn⟩
     simpa only [T, dite_eq_right hn, LocalTest.acceptProb_eq_expect_decisionTree] using
       (majorityTester_spec hqpos hbudget).2.1 x hx
-  · intro n x hx
-    by_cases hn : n = 0
-    · simp [T, hn]
-    · let _ : NeZero n := ⟨hn⟩
-      simpa only [T, dite_eq_right hn, LocalTest.acceptProb_eq_expect_decisionTree] using
-        (majorityTester_spec hqpos hbudget).2.2 x (fun y hy =>
-          (mul_le_mul_of_nonneg_right hqδ.le (Nat.cast_nonneg n)).trans (hx y hy))
+  · simp [T, hn]
+  · let _ : NeZero n := ⟨hn⟩
+    simpa only [T, dite_eq_right hn, LocalTest.acceptProb_eq_expect_decisionTree] using
+      (majorityTester_spec hqpos hbudget).2.2 x (fun y hy =>
+        (mul_le_mul_of_nonneg_right hqδ.le (Nat.cast_nonneg n)).trans (hx y hy))
 
 end Cslib.BitString

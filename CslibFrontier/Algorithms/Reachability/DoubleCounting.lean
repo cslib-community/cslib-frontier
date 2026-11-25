@@ -111,11 +111,11 @@ theorem expected_bounds :
       (expected r s k).lengthSum ≤ Fintype.card α * k := by
   have hc : (round r s k).card ≤ Fintype.card α := Finset.card_le_univ _
   refine ⟨hc, ?_⟩
-  unfold expected
+  dsimp only [expected]
   calc
     ∑ v ∈ round r s k, distance r s v ≤ ∑ _ ∈ round r s k, k :=
       sum_le_sum fun _ hv => (distance_spec (mem_round.mp hv)).2
-    _ = (round r s k).card * k := by simp
+    _ = (round r s k).card * k := by rw [Finset.sum_const, nsmul_eq_mul, Nat.cast_id]
     _ ≤ _ := Nat.mul_le_mul_right k hc
 
 /-- Terminal count and length sum of the chosen walks. -/
@@ -162,11 +162,10 @@ theorem passes_iff {w : Transcript α} :
     have hsteps (v : α) (p : List α) (hp : w v = some p) :
         RelatesInSteps r s v (guessedLength w v) :=
       (hwalk v p hp).1.relatesInSteps (guessedLength_spec hp (hwalk v p hp).1)
-    have hselected : selected w = round r s k := by
-      refine Finset.eq_of_subset_of_card_le ?_ hcount.ge
-      intro v hv
-      obtain ⟨p, hp⟩ := mem_selected.mp hv
-      exact mem_round.mpr ⟨_, (hwalk v p hp).2, hsteps v p hp⟩
+    have hselected : selected w = round r s k :=
+      Finset.eq_of_subset_of_card_le
+        (fun v hv => let ⟨p, hp⟩ := mem_selected.mp hv
+          mem_round.mpr ⟨_, (hwalk v p hp).2, hsteps v p hp⟩) hcount.ge
     have hle (v : α) (hv : v ∈ selected w) : distance r s v ≤ guessedLength w v := by
       obtain ⟨p, hp⟩ := mem_selected.mp hv
       exact distance_le (hsteps v p hp)
@@ -176,9 +175,8 @@ theorem passes_iff {w : Transcript α} :
       have heq : guessedLength w v = distance r s v := by
         apply (hle v hmem).antisymm'
         by_contra! hlt
-        have hstrict := Finset.sum_lt_sum hle ⟨v, hmem, hlt⟩
         rw [← hselected] at hsum
-        exact (not_lt_of_ge hsum.le) hstrict
+        exact not_lt_of_ge hsum.le (Finset.sum_lt_sum hle ⟨v, hmem, hlt⟩)
       exact ⟨p, hp, (hwalk v p hp).1, heq ▸ guessedLength_spec hp (hwalk v p hp).1⟩
     · cases hw : w v with
       | none => rfl
@@ -193,15 +191,12 @@ theorem passes_iff {w : Transcript α} :
       · simp [hv, hout v hv]
     have hspec (v : α) (p : List α) (hp : w v = some p) :
         p.IsChainFromTo r s v ∧ guessedLength w v = distance r s v := by
-      have hv : v ∈ round r s k := hselected ▸ mem_selected.mpr ⟨p, hp⟩
-      obtain ⟨q, hq, hchain, hlen⟩ := hin v hv
-      have : p = q := Option.some.inj (hp.symm.trans hq)
-      subst q
+      obtain ⟨q, hq, hchain, hlen⟩ := hin v (hselected ▸ mem_selected.mpr ⟨p, hp⟩)
+      obtain rfl := Option.some.inj (hp.symm.trans hq)
       exact ⟨hchain, Nat.add_right_cancel ((guessedLength_spec hp hchain).symm.trans hlen)⟩
     refine ⟨fun v p hp => ?_, by rw [hselected], ?_⟩
-    · have hv : v ∈ round r s k := hselected ▸ mem_selected.mpr ⟨p, hp⟩
-      obtain ⟨hchain, hlen⟩ := hspec v p hp
-      exact ⟨hchain, hlen.symm ▸ (distance_spec (mem_round.mp hv)).2⟩
+    · obtain ⟨hc, hl⟩ := hspec v p hp
+      exact ⟨hc, hl.symm ▸ (distance_spec (mem_round.mp (hselected ▸ mem_selected.mpr ⟨p, hp⟩))).2⟩
     · refine Finset.sum_congr hselected fun v hv => ?_
       obtain ⟨p, hp, _, _⟩ := hin v hv
       exact (hspec v p hp).2
@@ -244,14 +239,12 @@ theorem existsUnique_passes_iff :
     let w' := Function.update w v (some q)
     have hw' : Passes r s k w' := by
       refine passes_iff.mpr ⟨fun u hu => ?_, fun u hu => ?_⟩
-      · by_cases heq : u = v
-        · subst u
-          exact ⟨q, Function.update_self _ _ _, hq.1, hq.2⟩
+      · rcases eq_or_ne u v with rfl | heq
+        · exact ⟨q, Function.update_self _ _ _, hq.1, hq.2⟩
         · simpa only [w', Function.update_of_ne heq] using hin u hu
-      · have hne : u ≠ v := fun heq => hu (heq.symm ▸ hv)
-        simpa only [w', Function.update_of_ne hne] using hout u hu
-    have heq := congrFun (huniq w' hw') v
-    exact Option.some.inj (by simpa [w', hp] using heq)
+      · simpa only [w', Function.update_of_ne (fun heq : u = v => hu (heq.symm ▸ hv))] using
+          hout u hu
+    exact Option.some.inj (by simpa [w', hp] using congrFun (huniq w' hw') v)
   · intro h
     obtain ⟨w, hw⟩ := exists_passes (r := r) (s := s) (k := k)
     obtain ⟨hin, hout⟩ := passes_iff.mp hw
@@ -285,8 +278,8 @@ theorem existsUnique_passes_zero {α : Type*} [Fintype α] (r : α → α → Pr
   rw [existsUnique_passes_iff, round_zero]
   intro v hv
   obtain rfl := mem_singleton.mp hv
-  have hmem : v ∈ round r v 0 := by simp [round_zero]
-  have hd := Nat.eq_zero_of_le_zero (distance_spec (mem_round.mp hmem)).2
+  have hd := Nat.eq_zero_of_le_zero
+    (distance_spec (mem_round.mp (by simp [round_zero] : v ∈ round r v 0))).2
   refine ⟨[v], ⟨List.isChainFromTo_singleton, by simp [hd]⟩, fun p hp => ?_⟩
   obtain ⟨a, rfl⟩ := List.length_eq_one_iff.mp (by simpa [hd] using hp.2)
   simpa using hp.1.getLast_eq

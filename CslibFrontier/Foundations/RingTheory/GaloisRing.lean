@@ -80,14 +80,11 @@ variable {R S : Type*} [CommRing R] [CommRing S]
 is a unit then `x y = 1 + n` for some `y` and nilpotent `n`. -/
 theorem isLocalHom_of_isNilpotent (ψ : R →+* S) (hψ : Function.Surjective ψ)
     (hnil : ∀ x, ψ x = 0 → IsNilpotent x) : IsLocalHom ψ where
-  map_nonunit x hx := by
-    obtain ⟨u, hu⟩ := hx
+  map_nonunit x := fun ⟨u, hu⟩ => by
     obtain ⟨y, hy⟩ := hψ ↑u⁻¹
     have hn : IsNilpotent (x * y - 1) :=
       hnil _ (by rw [map_sub, map_mul, map_one, hy, ← hu, Units.mul_inv, sub_self])
-    have h1 : IsUnit (x * y) := by
-      simpa only [add_sub_cancel] using hn.isUnit_one_add
-    exact isUnit_of_mul_isUnit_left h1
+    exact isUnit_of_mul_isUnit_left (by simpa only [add_sub_cancel] using hn.isUnit_one_add)
 
 /-- Over a surjection onto a field with nilpotent kernel, an element is a unit exactly when its
 image is nonzero. -/
@@ -172,9 +169,8 @@ theorem residue_digitLift_injective (hf : f.Monic) :
   simp only [residue_digitLift] at h
   rw [AdjoinRoot.mk_eq_mk, ← Finset.sum_sub_distrib] at h
   set P : (ZMod p)[X] := ∑ i, (C (c i) * X ^ (i : ℕ) - C (c' i) * X ^ (i : ℕ))
-  have hcoeff : ∀ i : Fin f.natDegree, P.coeff i = c i - c' i := fun i => by
-    simp only [P, finsetSum_coeff, coeff_sub, coeff_C_mul, coeff_X_pow, mul_ite, mul_one,
-      mul_zero]
+  have hcoeff (i : Fin f.natDegree) : P.coeff i = c i - c' i := by
+    simp only [P, finsetSum_coeff, coeff_sub, coeff_C_mul, coeff_X_pow, mul_ite, mul_one, mul_zero]
     rw [Finset.sum_eq_single i (fun j _ hji => ?_) (by simp), ite_eq_left rfl, ite_eq_left rfl]
     rw [ite_eq_right fun h => hji (Fin.ext h.symm), ite_eq_right fun h => hji (Fin.ext h.symm),
       sub_zero]
@@ -182,14 +178,11 @@ theorem residue_digitLift_injective (hf : f.Monic) :
     by_contra h0
     refine (hf.map (Int.castRingHom (ZMod p))).not_dvd_of_degree_lt h0 ?_ h
     rw [hf.degree_map, degree_eq_natDegree hf.ne_zero]
-    refine (degree_sum_le _ _).trans_lt
-      ((Finset.sup_lt_iff (WithBot.bot_lt_coe _)).mpr fun i _ => ?_)
-    refine (degree_sub_le _ _).trans_lt (max_lt ?_ ?_) <;>
+    refine (degree_sum_le _ _).trans_lt ((Finset.sup_lt_iff (WithBot.bot_lt_coe _)).mpr fun i _ =>
+      (degree_sub_le _ _).trans_lt (max_lt ?_ ?_)) <;>
       exact (degree_C_mul_X_pow_le _ _).trans_lt (by exact_mod_cast i.isLt)
   funext i
-  have := hcoeff i
-  rw [hP, coeff_zero] at this
-  exact (sub_eq_zero.mp this.symm)
+  exact sub_eq_zero.mp (by rw [← hcoeff i, hP, coeff_zero])
 
 
 /-- An element of `ℤ / p ^ n` that vanishes modulo `p` is a multiple of `p`. -/
@@ -222,9 +215,9 @@ theorem isNilpotent_of_residue_eq_zero (hf : f.Monic) {x : GaloisRing p n f}
     (hx : residue p n f x = 0) : IsNilpotent x := by
   rw [← RingHom.mem_ker, ker_residue hf, Ideal.mem_span_singleton] at hx
   obtain ⟨y, rfl⟩ := hx
-  refine ⟨n, ?_⟩
-  rw [mul_pow, ← Nat.cast_pow, ← map_natCast (AdjoinRoot.of _), ZMod.natCast_self, map_zero,
-    zero_mul]
+  exact ⟨n, by
+    rw [mul_pow, ← Nat.cast_pow, ← map_natCast (AdjoinRoot.of _), ZMod.natCast_self, map_zero,
+      zero_mul]⟩
 
 variable (hf : f.Monic) (hirr : Irreducible (f.map (Int.castRingHom (ZMod p))))
 include hf hirr

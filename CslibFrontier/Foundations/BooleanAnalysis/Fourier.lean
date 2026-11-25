@@ -299,6 +299,14 @@ theorem fourierCoeff_const_mul (c : ℝ) (f : (ι → Bool) → ℝ) (S : Finset
     fourierCoeff (fun x => c * f x) S = c * fourierCoeff f S := by
   simp only [fourierCoeff, mul_assoc, mul_expect]
 
+/-- The Fourier coefficients commute with finite linear combinations. -/
+theorem fourierCoeff_sum_mul {α : Type*} [Fintype α]
+    (c : α → ℝ) (f : α → (ι → Bool) → ℝ) (S : Finset ι) :
+    fourierCoeff (fun x => ∑ i, c i * f i x) S = ∑ i, c i * fourierCoeff (f i) S := by
+  simp only [fourierCoeff, sum_mul, mul_assoc]
+  rw [expect_sum_comm]
+  simp only [← mul_expect]
+
 /-- Multiplying by a character shifts the coefficients by the symmetric difference. -/
 theorem fourierCoeff_chi_mul (T : Finset ι) (f : (ι → Bool) → ℝ) (S : Finset ι) :
     fourierCoeff (fun x => chi ℝ T x * f x) S = fourierCoeff f (symmDiff T S) := by

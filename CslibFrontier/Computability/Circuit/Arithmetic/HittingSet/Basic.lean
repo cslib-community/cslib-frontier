@@ -95,15 +95,12 @@ private theorem X_pow_dvd_aeval_logCurve_sub (B : ℕ) (f : MvPolynomial (Fin n)
   | mul_X p i hp =>
     rw [map_mul, map_mul, MvPolynomial.aeval_X, MvPolynomial.aeval_X, Polynomial.coe_mul]
     have hi : (PowerSeries.X : F⟦X⟧) ^ B ∣
-        ((logCurve F n B i : F[X]) : F⟦X⟧) - logSeries F n i := by
-      rw [PowerSeries.X_pow_dvd_iff]
-      intro m hm
-      rw [map_sub, Polynomial.coeff_coe, logCurve, PowerSeries.coeff_trunc, ite_eq_left hm,
-        sub_self]
-    have h := dvd_add
-      (Dvd.dvd.mul_left hi ((MvPolynomial.aeval (logCurve F n B) p : F[X]) : F⟦X⟧))
-      (Dvd.dvd.mul_right hp (logSeries F n i))
-    convert h using 1
+        ((logCurve F n B i : F[X]) : F⟦X⟧) - logSeries F n i :=
+      PowerSeries.X_pow_dvd_iff.mpr fun m hm => by
+        rw [map_sub, Polynomial.coeff_coe, logCurve, PowerSeries.coeff_trunc, ite_eq_left hm,
+          sub_self]
+    convert dvd_add (hi.mul_left ((MvPolynomial.aeval (logCurve F n B) p : F[X]) : F⟦X⟧))
+      (hp.mul_right (logSeries F n i)) using 1
     ring
 
 variable {V : Submodule F (MvPolynomial (Fin n) F)}
@@ -147,19 +144,18 @@ theorem isHittingSet_logHittingSet (r d : ℕ) :
           Module.finrank F V ≤ r ∧ f ∈ V} := by
   rintro f ⟨hd, V, hV, hfin, hr, hf⟩ hf0
   classical
-  set B := n * r ^ 2 + r with hB
-  have hne := aeval_logCurve_ne_zero hV hr hf hf0
-  have hdeg : (MvPolynomial.aeval (logCurve F n B) f).natDegree < d * B + 1 :=
-    Nat.lt_succ_of_le ((MvPolynomial.natDegree_aeval_le_mul (natDegree_logCurve_le B) f).trans
-      (Nat.mul_le_mul_right _ hd))
+  set B := n * r ^ 2 + r
   by_contra hall
-  refine hne (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _
-    ((range (d * B + 1)).image fun k : ℕ => (k : F)) ?_ ?_)
-  · intro x hx
-    obtain ⟨k, hk, rfl⟩ := mem_image.1 hx
+  refine aeval_logCurve_ne_zero hV hr hf hf0
+    (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _
+      ((range (d * B + 1)).image fun k : ℕ => (k : F)) (fun x hx => ?_) ?_)
+  · obtain ⟨k, hk, rfl⟩ := mem_image.1 hx
     rw [MvPolynomial.eval_polynomial_aeval]
     exact not_not.1 fun h => hall ⟨_, mem_image.2 ⟨k, hk, rfl⟩, h⟩
-  · rwa [card_image_of_injective _ Nat.cast_injective, card_range]
+  · rw [card_image_of_injective _ Nat.cast_injective, card_range]
+    exact Nat.lt_succ_of_le
+      ((MvPolynomial.natDegree_aeval_le_mul (natDegree_logCurve_le B) f).trans
+        (Nat.mul_le_mul_right _ hd))
 
 /-- Sums of `s` `d`-th powers of linear forms in `n` variables have a hitting set of
 `d * (n * (s * (d + 1)) ^ 2 + s * (d + 1)) + 1` points. -/

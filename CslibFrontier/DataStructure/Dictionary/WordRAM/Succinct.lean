@@ -188,9 +188,8 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
         Rep U V w n_max base p.1 (Dictionary.empty U) p.2 ∧
         potential U V w n_max base p.1 p.2 ≤ 0 ∧
         Modifies (Block.mk base (space U V w n_max)).footprint x₁.mem p.2.mem := by
-  have hfit_hash : Fits w (base + hashSpace U w n_max) := by
-    refine hfit.of_le ?_
-    wram_omega
+  have hhs : base + hashSpace U w n_max ≤ base + space U V w n_max := by wram_omega
+  have hfit_hash : Fits w (base + hashSpace U w n_max) := hfit.of_le hhs
   have hc_le : 2 * reducedChunkBits
       (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) ≤ w :=
     le_of_lt (two_mul_reducedChunkBits_hash_lt hwf.2.1 (le_of_lt hwf.2.2.1) hfit)
@@ -209,11 +208,9 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
     simpa [x₂] using (ExecCodeDist.of_execWithin he_tab).rename coreReg_injective
   have hx₂_comap : x₂.comap coreReg = y_tab :=
     Data.comap_extend coreReg_injective y_tab x₁
-  have hbase₂ : (x₂.comap coreReg).regs 0 = base := by
-    rw [hx₂_comap]; exact hy_base
+  have hbase₂ : (x₂.comap coreReg).regs 0 = base := hx₂_comap ▸ hy_base
   have htab₂ : ReducedKWise.TableRep base w (qBits U n_max) (hashB n_max)
-      (totalMicroBits n_max) 3 (x₂.comap coreReg).mem := by
-    rw [hx₂_comap]; exact hy_tab
+      (totalMicroBits n_max) 3 (x₂.comap coreReg).mem := hx₂_comap ▸ hy_tab
   have hres_rand := ReducedKWise.resampleCode_execRand (x := x₂.comap coreReg)
     hbase₂ (qBits_le_of_le_pow hwf.1 (le_of_lt hwf.2.2.1)) hc_le hfit_hash
   obtain ⟨ν_core, he_res, hunif, hsupp_res⟩ :=
@@ -225,13 +222,9 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
       (fun z hz => by
         obtain ⟨hz0, htab', hseed', hframe, hsteps⟩ :=
           ReducedKWise.mem_support_resampleComp hbase₂ htab₂ hz
-        refine ⟨hz0, htab', hseed', ?_, le_of_eq hsteps⟩
-        intro a ha
+        refine ⟨hz0, htab', hseed', fun a ha => hframe a ?_, le_of_eq hsteps⟩
         simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at ha
-        apply hframe a
-        rcases ha with hlt | hge
-        · exact Or.inl hlt
-        · exact Or.inr (le_trans (Nat.add_le_add_left (Nat.le_add_right _ _) base) hge))
+        exact ha.imp_right ((Nat.add_le_add_left (Nat.le_add_right _ _) base).trans))
   have he_res_ren := he_res.rename coreReg_injective
   let lift0 : LatentState (QuotHashSeed U n_max) 240 →
       QuotHashSeed U n_max × Data rSuccinct :=
@@ -265,50 +258,27 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
     have hz_bdd : z.Bounded w := hq_bdd.extend coreReg_injective hx₂_bdd
     have hz_base : z.regs baseReg = base := by
       change (z.comap coreReg).regs 0 = base
-      rw [Data.comap_extend coreReg_injective]
-      exact hq_base
+      rwa [Data.comap_extend coreReg_injective]
+    have h240 : 240 ≤ frontierReg.val := le_rfl
     have hz_fr : z.regs frontierReg = base + space U V w n_max := by
-      dsimp only [z, x₂]
-      have h240 : 240 ≤ frontierReg.val := le_rfl
-      rw [Data.extend_regs_of_notMem _ _ (notMem_range_coreReg h240),
+      rwa [Data.extend_regs_of_notMem _ _ (notMem_range_coreReg h240),
         Data.extend_regs_of_notMem _ _ (notMem_range_coreReg h240)]
-      exact hfr
     have htable_zero : ∀ a, base + hashSpace U w n_max ≤ a →
-        a < base + space U V w n_max → z.mem a = 0 := by
-      intro a ha1 ha2
-      have ha_not_hash : a ∉ (Block.mk base (hashSpace U w n_max)).footprint := by
-        simp only [Block.mem_footprint, Block.Owns]
-        omega
-      have h1 : z.mem a = x₂.mem a := hq_mod a ha_not_hash
-      have h2 : x₂.mem a = x₁.mem a := hy_mod a (Or.inr ha1)
-      have ha_in : a ∈ (Block.mk base (space U V w n_max)).footprint := by
-        simp only [Block.mem_footprint, Block.Owns]
-        exact ⟨by omega, ha2⟩
-      rw [h1, h2, hz a ha_in]
-    have hgm0 : ∀ i, gmAt base U V w n_max (hashSpace U w n_max) z.mem i = 0 :=
-      fun i => congrFun (gmAt_zero_of_init hwf.1 htable_zero) i
-    have hlm0 : ∀ idx, lmAt base U V w n_max (hashSpace U w n_max) z.mem idx = 0 :=
-      fun idx => congrFun (lmAt_zero_of_init hwf.1 htable_zero) idx
-    obtain ⟨hdict0, hpot0⟩ :=
-      dictStateInv_of_zero (s := memoryState frontierReg z) q.latent hgm0 hlm0
+        a < base + space U V w n_max → z.mem a = 0 := fun a ha1 ha2 =>
+      ((hq_mod a (by simp only [Block.mem_footprint, Block.Owns]; omega) : z.mem a = x₂.mem a).trans
+        (hy_mod a (Or.inr ha1))).trans
+          (hz a (by simp only [Block.mem_footprint, Block.Owns]; omega))
+    obtain ⟨hdict0, hpot0⟩ := dictStateInv_of_zero (s := memoryState frontierReg z) q.latent
+      (congrFun (gmAt_zero_of_init hwf.1 htable_zero))
+      (congrFun (lmAt_zero_of_init hwf.1 htable_zero))
     have hmod_all : Modifies (Block.mk base (space U V w n_max)).footprint x₁.mem z.mem := by
       intro a ha
       simp only [Block.mem_footprint, Block.Owns] at ha
-      have ha_not_hash : a ∉ (Block.mk base (hashSpace U w n_max)).footprint := by
-        simp only [Block.mem_footprint, Block.Owns]
-        intro ⟨h1, h2⟩
-        apply ha ⟨h1, lt_of_lt_of_le h2 ?_⟩
-        wram_omega
-      have h1 : z.mem a = x₂.mem a := hq_mod a ha_not_hash
-      have h2 : x₂.mem a = x₁.mem a := by
-        apply hy_mod a
-        by_cases hlt : a < base
-        · exact Or.inl (lt_of_lt_of_le hlt (by dsimp [ReducedKWise.tabBase]; omega))
-        · refine Or.inr ?_
-          simp only [Block.mem_footprint, Block.Owns, hashSpace, not_and_or, not_le, not_lt]
-            at ha_not_hash
-          omega
-      exact h1.trans h2
+      refine (hq_mod a ?_).trans (hy_mod a ?_)
+      · simp only [Block.mem_footprint, Block.Owns]
+        omega
+      · simp only [ReducedKWise.tabBase, hashSpace, ReducedKWise.space] at hhs ⊢
+        omega
     refine ⟨hz_fr, ⟨hz_bdd, hz_base, hz_fr, hq_tab, hq_seed, hdict0⟩, ?_, hmod_all⟩
     unfold potential
     change slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) (lift0 q).2.mem) = 0
@@ -334,41 +304,25 @@ theorem tsum_mul_probeExcess_le {U V w n_max base : ℕ} (hnU : n_max ≤ U)
     split_ifs with hb_z
     · exact hb₀.hslot.single_valid hb_z
     · exact hb₀.hslot.multi_total_le (Nat.pos_of_ne_zero hb_z)
-  have herase_le : #((Dictionary.dom s_abs).erase u) ≤ n_max :=
-    Finset.card_erase_le.trans hcard_le
   let E (θ : QuotHashSeed U n_max) : ℝ≥0∞ :=
     (probeExcess n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
       (Dictionary.dom s_abs) u : ℝ≥0∞)
-  have hmap :
-      (∑' p, ν p * ((8 * opFactor : ℝ≥0∞) * E p.1)) =
-        (8 * opFactor : ℝ≥0∞) * ∑' θ, (ν.map Prod.fst) θ * E θ := by
-    rw [← ENNReal.tsum_mul_left,
-      ← Cslib.Probability.PMF.tsum_map_mul ν Prod.fst
-        (fun θ => (8 * opFactor : ℝ≥0∞) * E θ)]
-    refine tsum_congr fun p => ?_
-    ring
-  have hle_unif :
-      (∑' θ, (ν.map Prod.fst) θ * E θ) ≤
-        ∑' θ, (PMF.uniformOfFintype (QuotHashSeed U n_max)) θ * E θ := by
-    refine tsum_le_tsum fun θ => ?_
-    have hs := hseed θ
-    rw [one_mul] at hs
-    exact mul_le_mul' hs le_rfl
-  have h5 := tsum_uniform_probeExcess_reducedPolyHash_le_five hnU (Dictionary.dom s_abs) u herase_le
-  calc (∑' p, ν p *
-        ((8 * opFactor) *
-          probeExcess n_max (qStage1 U n_max p.1.1) (polyStage2 U n_max) p.1.2
-            (Dictionary.dom s_abs) u : ℕ))
-      = ∑' p, ν p * ((8 * opFactor : ℝ≥0∞) * E p.1) := by
+  calc _ = ∑' p, ν p * ((8 * opFactor : ℝ≥0∞) * E p.1) := by
         refine tsum_congr fun p => ?_
         push_cast
         rfl
-    _ = (8 * opFactor : ℝ≥0∞) * ∑' θ, (ν.map Prod.fst) θ * E θ := hmap
+    _ = (8 * opFactor : ℝ≥0∞) * ∑' θ, (ν.map Prod.fst) θ * E θ := by
+        rw [← ENNReal.tsum_mul_left,
+          ← Cslib.Probability.PMF.tsum_map_mul ν Prod.fst (fun θ => (8 * opFactor : ℝ≥0∞) * E θ)]
+        exact tsum_congr fun p => by ring
     _ ≤ (8 * opFactor : ℝ≥0∞) *
-          ∑' θ, (PMF.uniformOfFintype (QuotHashSeed U n_max)) θ * E θ :=
-        mul_le_mul' le_rfl hle_unif
-    _ ≤ (8 * opFactor : ℝ≥0∞) * 5 :=
-        mul_le_mul' le_rfl h5
+          ∑' θ, (PMF.uniformOfFintype (QuotHashSeed U n_max)) θ * E θ := by
+        gcongr with θ
+        simpa only [one_mul] using hseed θ
+    _ ≤ (8 * opFactor : ℝ≥0∞) * 5 := by
+        gcongr
+        exact tsum_uniform_probeExcess_reducedPolyHash_le_five hnU (Dictionary.dom s_abs) u
+          (Finset.card_erase_le.trans hcard_le)
     _ = (40 * opFactor : ℝ≥0∞) := by
         norm_cast; ring
 

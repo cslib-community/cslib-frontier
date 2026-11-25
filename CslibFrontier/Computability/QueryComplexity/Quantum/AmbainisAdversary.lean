@@ -129,9 +129,8 @@ theorem one_sub_two_mul_sqrt_mul_sqrt_le_two_mul_mul_sqrt {ψ₀ : State N W} (h
   have hδ : ∀ p ∈ R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ 2 * √(ε * (1 - ε)) :=
     fun p hp => norm_inner_le_two_mul_sqrt_of_measureProb (by rw [norm_run, hψ₀])
       (by rw [norm_run, hψ₀]) (h₁ p hp) (h₂ p hp) hε
-  have := one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδ hm hm' (L := l * l')
-    fun p hp i _ => Nat.mul_le_mul (hl p hp i) (hl' p hp i)
-  simpa only [Nat.cast_mul] using this
+  simpa only [Nat.cast_mul] using one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδ hm hm'
+    (L := l * l') fun p hp i _ => Nat.mul_le_mul (hl p hp i) (hl' p hp i)
 
 /-- **The adversary bound across single bit flips**, the case `l = l' = 1` of [Ambainis2002],
 Theorem 2, in which the related pairs are the neighbors `(x, x ⊕ eᵢ)` with `x ∈ A` and
@@ -166,16 +165,14 @@ theorem one_sub_mul_sqrt_le_two_mul_of_neighbors {ψ₀ : State N W} (hψ₀ : �
     exact hδ p.1 hpA i hpB
   -- at most one pair from each end differs at a given coordinate
   have hl : ∀ p ∈ R, ∀ i, #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} ≤ 1 := by
-    intro p _ i
-    refine card_le_one.2 fun q hq r hr => ?_
+    refine fun p _ i => card_le_one.2 fun q hq r hr => ?_
     obtain ⟨hqR, hqi, hq1⟩ := mem_filter.1 hq
     obtain ⟨hrR, hri, hr1⟩ := mem_filter.1 hr
     have hq2 := (update_not_eq_of_hammingDist_le_one (mem_hammingEdges.1 hqR).2.2.le hqi).symm
     have hr2 := (update_not_eq_of_hammingDist_le_one (mem_hammingEdges.1 hrR).2.2.le hri).symm
     exact Prod.ext (hq1.trans hr1.symm) (by rw [hq2, hr2, hq1, hr1])
   have hl' : ∀ p ∈ R, ∀ i, #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤ 1 := by
-    intro p _ i
-    refine card_le_one.2 fun q hq r hr => ?_
+    refine fun p _ i => card_le_one.2 fun q hq r hr => ?_
     obtain ⟨hqR, hqi, hq2⟩ := mem_filter.1 hq
     obtain ⟨hrR, hri, hr2⟩ := mem_filter.1 hr
     have hq1 := (update_not_eq_of_hammingDist_le_one
@@ -198,13 +195,11 @@ theorem one_sub_mul_sqrt_le_two_mul_of_neighbors {ψ₀ : State N W} (hψ₀ : �
       (fun i => (update p.2 i (!p.2 i), p.2)) (fun i hi => ?_) ?_)
     · refine mem_filter.2
         ⟨mem_hammingEdges.2 ⟨(mem_filter.1 hi).2, (mem_hammingEdges.1 hp).2.1, ?_⟩, rfl⟩
-      rw [hammingDist_comm]
-      exact hflip _ i
+      exact (hammingDist_comm _ _).trans (hflip _ i)
     · intro i _ j _ hij
       exact BitString.update_not_injective p.2 (congrArg Prod.fst hij)
-  have := one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδR hdeg hdeg' (L := 1)
+  simpa using one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδR hdeg hdeg' (L := 1)
     fun p hp i _ => (Nat.mul_le_mul (hl p hp i) (hl' p hp i)).trans_eq (mul_one 1)
-  simpa using this
 
 /-- **The adversary bound across single bit flips**, for Boolean outputs: let a `T`-query
 algorithm with a unit initial state accept every input in a nonempty set `A`, by an outcome in

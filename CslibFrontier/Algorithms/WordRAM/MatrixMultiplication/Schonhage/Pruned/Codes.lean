@@ -106,29 +106,22 @@ theorem card_image_queryIndex {L : ℕ} (S : Finset (OutStr L)) :
 theorem queryIndex_cons {L : ℕ} (z : OutVar) (w : OutStr L) :
     (queryIndex (Fin.cons z w) : ℕ) = (outputDigits.symm z).val + 10 * (queryIndex w).val := by
   simp only [queryIndex, Encoding.leafIndex, privateLeaf, finFunctionFinEquiv_apply,
-    Fin.sum_univ_succ, Fin.cons_zero,
-    Fin.cons_succ, Fin.val_zero, pow_zero, mul_one, Fin.val_succ, pow_succ, Finset.mul_sum]
-  congr 1
-  apply Finset.sum_congr rfl
-  intro i _
-  ring
+    Fin.sum_univ_succ, Fin.cons_zero, Fin.cons_succ, Fin.val_zero, pow_zero, mul_one, Fin.val_succ,
+    pow_succ, Finset.mul_sum]
+  exact congrArg (_ + ·) (Finset.sum_congr rfl fun _ _ => by ring)
 
 /-- Taking the first numerical digit recovers the first output variable. -/
 theorem queryIndex_mod {L : ℕ} (w : OutStr (L + 1)) :
     (queryIndex w).val % 10 = (outputDigits.symm (w 0)).val := by
-  have he := queryIndex_cons (w 0) (Fin.tail w)
-  rw [Fin.cons_self_tail] at he
-  rw [he]
-  have h := (outputDigits.symm (w 0)).isLt
+  conv_lhs => rw [← Fin.cons_self_tail w, queryIndex_cons]
+  have := (outputDigits.symm (w 0)).isLt
   omega
 
 /-- Integer division discards the first output coordinate. -/
 theorem queryIndex_div {L : ℕ} (w : OutStr (L + 1)) :
     (queryIndex w).val / 10 = (queryIndex (Fin.tail w)).val := by
-  have he := queryIndex_cons (w 0) (Fin.tail w)
-  rw [Fin.cons_self_tail] at he
-  rw [he]
-  have h := (outputDigits.symm (w 0)).isLt
+  conv_lhs => rw [← Fin.cons_self_tail w, queryIndex_cons]
+  have := (outputDigits.symm (w 0)).isLt
   omega
 
 /-- A term contributes to the inner digit or to its own outer digit. -/
@@ -147,11 +140,10 @@ def childCodes (S : Finset ℕ) (term : ℕ) : Finset ℕ :=
 theorem childCodes_bounded {n : ℕ} {S : Finset ℕ} (term : ℕ)
     (hS : ∀ q ∈ S, q < 10 ^ (n + 1)) :
     ∀ q ∈ childCodes S term, q < 10 ^ n := by
-  intro q hq
+  rintro _ hq
   obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hq
-  have h := hS p (Finset.mem_filter.mp hp).1
-  apply (Nat.div_lt_iff_lt_mul (by decide : 0 < 10)).mpr
-  simpa only [pow_succ] using h
+  exact (Nat.div_lt_iff_lt_mul (by decide)).mpr
+    (by simpa only [pow_succ] using hS p (Finset.mem_filter.mp hp).1)
 
 /-- The numerical child requests agree exactly with the existing finite pruning definition. -/
 theorem mem_childCodes {L : ℕ} (S : Finset (OutStr (L + 1))) (t : Fin 10) (w : OutStr L) :
@@ -163,37 +155,29 @@ theorem mem_childCodes {L : ℕ} (S : Finset (OutStr (L + 1))) (t : Fin 10) (w :
     obtain ⟨hparent, hmatch⟩ := Finset.mem_filter.mp hq
     obtain ⟨v, hv, rfl⟩ := Finset.mem_image.mp hparent
     rw [queryIndex_div] at htail
-    have htw : Fin.tail v = w := (queryIndex_bijective L).injective (Fin.ext htail)
-    have hc : (Encoding.termDigits t).Contributes (v 0) := by
-      rw [contributes_iff_digit]
-      simpa only [queryIndex_mod] using hmatch
-    rw [mem_childSet]
-    exact ⟨v, hv, hc, htw⟩
+    exact mem_childSet.mpr ⟨v, hv, (contributes_iff_digit t (v 0)).mpr
+      (by simpa only [queryIndex_mod] using hmatch),
+      (queryIndex_bijective L).injective (Fin.ext htail)⟩
   · intro h
-    obtain ⟨v, hv, hc, htail⟩ := mem_childSet.mp h
-    apply Finset.mem_image.mpr
-    refine ⟨(queryIndex v).val, Finset.mem_filter.mpr ⟨?_, ?_⟩, ?_⟩
-    · exact Finset.mem_image.mpr ⟨v, hv, rfl⟩
-    · rw [queryIndex_mod]
-      exact (contributes_iff_digit t (v 0)).mp hc
-    · rw [queryIndex_div, htail]
+    obtain ⟨v, hv, hc, rfl⟩ := mem_childSet.mp h
+    exact Finset.mem_image.mpr ⟨(queryIndex v).val, Finset.mem_filter.mpr
+      ⟨Finset.mem_image.mpr ⟨v, hv, rfl⟩,
+        by simpa only [queryIndex_mod] using (contributes_iff_digit t (v 0)).mp hc⟩,
+      queryIndex_div v⟩
 
 /-- The whole native child-set specification is the numerical image of the existing child set. -/
 theorem childCodes_eq_image {L : ℕ} (S : Finset (OutStr (L + 1))) (t : Fin 10) :
     childCodes (S.image fun w => (queryIndex w).val) t.val =
       (childSet S (Encoding.termDigits t)).image (fun w => (queryIndex w).val) := by
   ext q
-  constructor
-  · intro hq
-    have hbound := childCodes_bounded t.val (S := S.image fun w => (queryIndex w).val)
-      (fun p hp => by
-        obtain ⟨v, _, rfl⟩ := Finset.mem_image.mp hp
-        exact (queryIndex v).isLt) q hq
-    obtain ⟨w, hw⟩ := (queryIndex_bijective L).surjective ⟨q, hbound⟩
-    have he : (queryIndex w).val = q := congrArg Fin.val hw
-    exact Finset.mem_image.mpr ⟨w, (mem_childCodes S t w).mp (he.symm ▸ hq), he⟩
-  · intro hq
+  refine ⟨fun hq => ?_, fun hq => by
     obtain ⟨w, hw, rfl⟩ := Finset.mem_image.mp hq
-    exact (mem_childCodes S t w).mpr hw
+    exact (mem_childCodes S t w).mpr hw⟩
+  obtain ⟨w, hw⟩ := (queryIndex_bijective L).surjective ⟨q, childCodes_bounded t.val
+    (fun _ hp => by
+      obtain ⟨v, _, rfl⟩ := Finset.mem_image.mp hp
+      exact (queryIndex v).isLt) q hq⟩
+  have he : (queryIndex w).val = q := congrArg Fin.val hw
+  exact Finset.mem_image.mpr ⟨w, (mem_childCodes S t w).mp (he.symm ▸ hq), he⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

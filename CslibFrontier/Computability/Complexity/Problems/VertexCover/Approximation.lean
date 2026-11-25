@@ -76,8 +76,7 @@ theorem fromRel_declaredEdges_adj {G : Graph} {u v : ℕ} (hu : u ∈ G.vertices
     (hv : v ∈ G.vertices) :
     (SimpleGraph.fromRel fun a b => (a, b) ∈ declaredEdges G).Adj u v ↔
       G.toSimpleGraph.Adj u v := by
-  simp only [SimpleGraph.fromRel_adj, Graph.toSimpleGraph, mem_declaredEdges]
-  tauto
+  simp only [SimpleGraph.fromRel_adj, Graph.toSimpleGraph, mem_declaredEdges]; tauto
 
 /-- **Feasibility.** The returned vertices meet every edge between declared vertices. -/
 theorem isCover_approxCover (G : Graph) :
@@ -98,15 +97,14 @@ theorem approxCover_mem_VertexCover (G : Graph) :
 minimum number of vertices of a cover. -/
 theorem length_approxCover_le_two_mul_vertexCoverNum (G : Graph) :
     (approxCover G).length ≤ 2 * G.vertexCoverNum := by
-  obtain ⟨S, hSV, hS, hcard⟩ := mem_VertexCover_iff_mk.1 (G.vertexCoverNum_mem_VertexCover)
+  obtain ⟨S, _, hS, hcard⟩ := mem_VertexCover_iff_mk.1 G.vertexCoverNum_mem_VertexCover
   rw [← hcard]
   refine length_matchingCover_le_two_mul_card _ fun u v huv => ?_
-  have hdecl : u ∈ G.vertices ∧ v ∈ G.vertices := by
-    rw [SimpleGraph.fromRel_adj] at huv
-    rcases huv.2 with he | he
-    · exact ⟨(mem_declaredEdges.1 he).2.1, (mem_declaredEdges.1 he).2.2⟩
-    · exact ⟨(mem_declaredEdges.1 he).2.2, (mem_declaredEdges.1 he).2.1⟩
-  exact hS u hdecl.1 v hdecl.2 ((fromRel_declaredEdges_adj hdecl.1 hdecl.2).1 huv)
+  obtain ⟨hu, hv⟩ : u ∈ G.vertices ∧ v ∈ G.vertices := by
+    rcases ((SimpleGraph.fromRel_adj _ _ _).1 huv).2 with he | he
+    · exact (mem_declaredEdges.1 he).2
+    · exact (mem_declaredEdges.1 he).2.symm
+  exact hS u hu v hv ((fromRel_declaredEdges_adj hu hv).1 huv)
 
 /-! ### Polynomial time -/
 
@@ -126,8 +124,7 @@ private theorem length_encList_coverStep_le {G : Graph} (C : List ℕ) {e : ℕ 
   obtain ⟨-, h1, h2⟩ := mem_declaredEdges.1 he
   have hV : (encList encNat G.vertices).length ≤ (encGraph G).length := by
     rw [encGraph_apply, length_encPair]
-    dsimp
-    omega
+    dsimp; omega
   have h1 := (length_le_encList_of_mem encNat h1).trans hV
   have h2 := (length_le_encList_of_mem encNat h2).trans hV
   unfold coverStep
@@ -142,10 +139,9 @@ private theorem length_encList_coverStep_le {G : Graph} (C : List ℕ) {e : ℕ 
 @[fun_prop]
 theorem computableInPolyTime_approxCover :
     ComputableInPolyTime approxCover encGraph (encList encNat) := by
-  have heq : approxCover = fun G => (declaredEdges G).foldl (fun C e => coverStep C e) [] := by
-    funext G
-    exact matchingCover_eq_foldl_coverStep _
-  rw [heq]
+  have hfold : approxCover = fun G => (declaredEdges G).foldl (fun C e => coverStep C e) [] :=
+    funext fun _ => matchingCover_eq_foldl_coverStep _
+  rw [hfold]
   exact foldlWithInput_of_bounded_growth (encA := encPair encNat encNat)
     (encL := encList (encPair encNat encNat)) (step := fun _ C e => coverStep C e)
     (const []) ⟨computableInPolyTime_declaredEdges, by fun_prop, inferInstance, inferInstance⟩

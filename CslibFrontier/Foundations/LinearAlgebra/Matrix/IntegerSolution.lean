@@ -60,12 +60,12 @@ private lemma exists_nonneg_int_solution_independent_large {m n : ℕ}
   obtain ⟨hx, hAx⟩ := hxS
   have hcost : ∀ y : Fin n → ℤ, 0 ≤ y → 0 ≤ cost y := fun y hy =>
     Finset.sum_nonneg fun j _ => mul_nonneg (hy j) (by positivity)
-  have hmin : ∀ y, 0 ≤ y → A *ᵥ y = b → cost x ≤ cost y := by
-    intro y hy hAy
-    have h := Function.argminOn_le (fun x => (cost x).toNat) S (show y ∈ S from ⟨hy, hAy⟩)
-    change (cost x).toNat ≤ (cost y).toNat at h
-    have h' := Int.ofNat_le.mpr h
-    simpa only [Int.toNat_of_nonneg (hcost x hx), Int.toNat_of_nonneg (hcost y hy)] using h'
+  have hmin : ∀ y, 0 ≤ y → A *ᵥ y = b → cost x ≤ cost y := fun y hy hAy => by
+    have h : (cost x).toNat ≤ (cost y).toNat :=
+      Function.argminOn_le (fun x => (cost x).toNat) S ⟨hy, hAy⟩
+    have := hcost x hx
+    have := hcost y hy
+    omega
   refine ⟨x, hx, hAx, ?_⟩
   by_contra hinj
   let J := {j : Fin n // (K : ℤ) ≤ x j}
@@ -75,29 +75,25 @@ private lemma exists_nonneg_int_solution_independent_large {m n : ℕ}
       calc Fintype.card J ≤ Fintype.card (Fin n) := Fintype.card_subtype_le _
         _ ≤ n + 1 := by simp) hinj
   let c : Fin n → ℤ := fun j => if hj : (K : ℤ) ≤ x j then cJ ⟨j, hj⟩ else 0
-  have hcB : ∀ j, |c j| ≤ x j := by
-    intro j
+  have hcB (j : Fin n) : |c j| ≤ x j ∧ |c j| ≤ K := by
     by_cases hj : (K : ℤ) ≤ x j
-    · simpa only [c, dite_eq_left hj] using
-        (show |cJ ⟨j, hj⟩| ≤ K by simpa only [Fintype.card_fin] using hcJB ⟨j, hj⟩).trans hj
+    · have h : |cJ ⟨j, hj⟩| ≤ K := by simpa only [Fintype.card_fin] using hcJB ⟨j, hj⟩
+      simpa only [c, dite_eq_left hj] using ⟨h.trans hj, h⟩
     · simpa [c, hj] using hx j
   have hAc : A *ᵥ c = 0 := by
     ext i
     change ∑ j, A i j * c j = 0
     rw [← Fintype.sum_subtype_add_sum_subtype (fun j => (K : ℤ) ≤ x j)]
-    have hzero : ∑ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, A i j.1 * c j.1 = 0 := by
-      apply Finset.sum_eq_zero
-      intro j _
-      simp [c, j.2]
+    have hzero : ∑ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, A i j.1 * c j.1 = 0 :=
+      Finset.sum_eq_zero fun j _ => by simp [c, j.2]
     rw [hzero, add_zero]
     have heq : ∀ j : J, c j.1 = cJ j := fun j => by simp [c, j.2]
     simpa only [AJ, mulVec, dotProduct, submatrix_apply, id_eq, heq, Pi.zero_apply]
       using congrFun hAcJ i
   have hplus : 0 ≤ x + c := fun j => by
-    have h := (abs_le.mp (hcB j)).1
     change 0 ≤ x j + c j
-    linarith
-  have hminus : 0 ≤ x - c := fun j => sub_nonneg.mpr (le_abs_self _ |>.trans (hcB j))
+    linarith [(abs_le.mp (hcB j).1).1]
+  have hminus : 0 ≤ x - c := fun j => sub_nonneg.mpr (le_abs_self _ |>.trans (hcB j).1)
   have h1 := hmin (x + c) hplus (by rw [mulVec_add, hAx, hAc, add_zero])
   have h2 := hmin (x - c) hminus (by rw [mulVec_sub, hAx, hAc, sub_zero])
   have hcost_add : cost (x + c) = cost x + cost c := by
@@ -105,26 +101,16 @@ private lemma exists_nonneg_int_solution_independent_large {m n : ℕ}
   have hcost_sub : cost (x - c) = cost x - cost c := by
     simp [cost, sub_mul, Finset.sum_sub_distrib]
   have hc0 : cost c = 0 := by linarith
-  have hcK : ∀ j, |c j| < (K + 1 : ℤ) := by
-    intro j
-    by_cases hj : (K : ℤ) ≤ x j
-    · have h := hcJB ⟨j, hj⟩
-      have h' : |cJ ⟨j, hj⟩| ≤ K := by simpa only [Fintype.card_fin] using h
-      simpa only [c, dite_eq_left hj] using (by omega : |cJ ⟨j, hj⟩| < (K + 1 : ℤ))
-    · simp [c, hj]
   have hc_eq : c = 0 := by
     let a : ℕ → ℤ := fun j => if hj : j < n then c ⟨j, hj⟩ else 0
     have hsum : ∑ j ∈ Finset.range n, a j * (K + 1 : ℤ) ^ j = 0 := by
       rw [← Fin.sum_univ_eq_sum_range]
       simpa [a, cost] using hc0
     have h := Int.eq_zero_of_sum_mul_pow_eq_zero (a := a)
-      (fun j hj => by simpa [a, hj] using hcK ⟨j, hj⟩) hsum
+      (fun j hj => by simpa [a, hj] using Int.lt_add_one_iff.mpr (hcB ⟨j, hj⟩).2) hsum
     funext j
     simpa [a, j.isLt] using h j j.isLt
-  apply hcJ
-  funext j
-  have h := congrFun hc_eq j.1
-  simpa [c, j.2] using h
+  exact hcJ (funext fun j => by simpa [c, j.2] using congrFun hc_eq j.1)
 
 /-- An explicit bound for nonnegative integer solutions of an `m × n` integer equality system
 with coefficients and right-hand side bounded by `B`. Its logarithm is polynomial in
@@ -152,11 +138,10 @@ private theorem exists_nonneg_int_mulVec_eq_le_fin {m n B : ℕ}
   let AJ : Matrix (Fin m) J ℤ := A.submatrix id Subtype.val
   let z : Fin n → ℤ := fun j => if (K : ℤ) ≤ x j then 0 else x j
   let b' : Fin m → ℤ := b - A *ᵥ z
-  have hz : ∀ j, |z j| ≤ K := by
-    intro j
+  have hz (j : Fin n) : |z j| ≤ K := by
     by_cases hj : (K : ℤ) ≤ x j
     · simp [z, hj]
-    · simpa [z, hj, abs_of_nonneg (hx j)] using (le_of_lt (lt_of_not_ge hj))
+    · simpa [z, hj, abs_of_nonneg (hx j)] using (not_le.1 hj).le
   have hb' : ∀ i, |b' i| ≤ C := by
     intro i
     calc |b' i| ≤ |b i| + |(A *ᵥ z) i| := abs_sub _ _
@@ -171,29 +156,18 @@ private theorem exists_nonneg_int_mulVec_eq_le_fin {m n B : ℕ}
     (hA i j.1).trans (Int.ofNat_le.mpr (Nat.le_add_right B _))
   have hAJx : AJ *ᵥ (fun j : J => x j.1) = b' := by
     ext i
-    have hsplit := Fintype.sum_subtype_add_sum_subtype
-      (p := fun j : Fin n => (K : ℤ) ≤ x j) (fun j => A i j * x j)
-    have hzsum : (A *ᵥ z) i = ∑ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, A i j.1 * x j.1 := by
-      change (∑ j, A i j * z j) = _
-      rw [← Fintype.sum_subtype_add_sum_subtype (fun j => (K : ℤ) ≤ x j)]
-      have hyes : ∀ j : J, z j.1 = 0 := fun j => ite_eq_left j.2
-      have hno : ∀ j : {j : Fin n // ¬(K : ℤ) ≤ x j}, z j.1 = x j.1 := fun j => ite_eq_right j.2
-      simp only [hyes, hno, mul_zero, Finset.sum_const_zero, zero_add]
-    have hrow := congrFun hAx i
-    change (∑ j : J, A i j.1 * x j.1) = b i - (A *ᵥ z) i
-    rw [hzsum]
-    change (∑ j, A i j * x j) = b i at hrow
-    linarith
+    have h := Fintype.sum_subtype_add_sum_subtype (fun j : Fin n => (K : ℤ) ≤ x j)
+      (fun j => A i j * (x j - z j))
+    have hJ (j : J) : x j.1 - z j.1 = x j.1 := by simp [z, j.2]
+    have hJc (j : {j : Fin n // ¬(K : ℤ) ≤ x j}) : x j.1 - z j.1 = 0 := by simp [z, j.2]
+    simp only [hJ, hJc, mul_zero, sum_const_zero, add_zero, mul_sub, sum_sub_distrib] at h
+    simpa only [AJ, b', mulVec, dotProduct, ← hAx, Pi.sub_apply, submatrix_apply, id_eq] using h
   have hAJxQ : AJ.map (Int.cast : ℤ → ℚ) *ᵥ (fun j : J => (x j.1 : ℚ)) =
-      fun i => (b' i : ℚ) := by
-    ext i
-    have h := congrFun hAJx i
-    simp only [mulVec, dotProduct, map_apply] at h ⊢
-    exact_mod_cast h
+      fun i => (b' i : ℚ) := funext fun i =>
+    ((Int.castRingHom ℚ).map_mulVec AJ (fun j : J => x j.1) i).symm.trans
+      (congrArg (Int.castRingHom ℚ) (congrFun hAJx i))
   obtain ⟨d, p, hd, hp, hAp, _, hpB⟩ := exists_int_nonneg_mulVec_eq hAC hb'
-    (show (0 : J → ℚ) ≤ fun j => (x j.1 : ℚ) from fun j => by
-      change (0 : ℚ) ≤ (x j.1 : ℚ)
-      exact_mod_cast (show 0 ≤ x j.1 from hx j.1)) hAJxQ
+    (show (0 : J → ℚ) ≤ fun j => (x j.1 : ℚ) from fun j => Int.cast_nonneg (hx j.1)) hAJxQ
   have hpx : p = d • (fun j : J => x j.1) := by
     have hEq : (fun j => (p j : ℚ)) = (fun j : J => ((d * x j.1 : ℤ) : ℚ)) := by
       apply hinj
@@ -212,8 +186,7 @@ private theorem exists_nonneg_int_mulVec_eq_le_fin {m n B : ℕ}
   refine ⟨x, hx, hAx, fun j => ?_⟩
   by_cases hj : (K : ℤ) ≤ x j
   · have h := hpB ⟨j, hj⟩
-    rw [hpx] at h
-    simp only [Pi.smul_apply, smul_eq_mul, Fintype.card_fin] at h
+    simp only [hpx, Pi.smul_apply, smul_eq_mul, Fintype.card_fin] at h
     have hdx : x j ≤ d * x j := by nlinarith [hx j]
     exact (hdx.trans h |>.trans (Int.ofNat_le.mpr hbound)).trans
       (Int.ofNat_le.mpr (le_max_right _ _))
@@ -242,8 +215,7 @@ theorem exists_nonneg_int_mulVec_eq_le {m n : Type*} [Fintype m] [Fintype n]
   refine ⟨x ∘ f.symm, fun j => hx (f.symm j), ?_, fun j => hB (f.symm j)⟩
   ext i
   have h := congrFun hAx (e.symm i)
-  change (∑ j, A (e (e.symm i)) (f j) * x j) = b (e (e.symm i)) at h
-  simp only [Equiv.apply_symm_apply] at h
+  simp only [mulVec, dotProduct, Equiv.apply_symm_apply] at h
   change (∑ j, A i j * x (f.symm j)) = b i
   rw [← f.sum_comp]
   simpa only [Equiv.symm_apply_apply] using h
@@ -293,11 +265,8 @@ theorem size_nonnegIntSolutionBound_le (m n B : ℕ) :
     nlinarith
   change (max K (n.factorial * (m * C ^ 2 + 1) ^ n)).size ≤
     k + n * n + 2 + n * (m + 2 * (2 * B.size + n + k + 1) + 3)
-  rcases le_total K (n.factorial * (m * C ^ 2 + 1) ^ n) with h | h
-  · rw [max_eq_right h]
-    omega
-  · rw [max_eq_left h]
-    omega
+  rw [Monotone.map_max fun _ _ => Nat.size_le_size]
+  omega
 
 /-- **Small integer solutions of inequalities.** This is the integer small-solution step toward
 NP membership, not an NP membership assertion. A feasible integer system has a solution whose
@@ -326,12 +295,6 @@ theorem exists_int_mulVec_le_abs_le {m n : Type*} [Fintype m] [Fintype n]
     have hslack := hp (.inr (.inr i))
     simp only [Pi.add_apply, Pi.zero_apply] at h hslack
     linarith
-  · have h1 := hp (.inl j)
-    have h2 := hp (.inr (.inl j))
-    have h3 := hpB (.inl j)
-    have h4 := hpB (.inr (.inl j))
-    simp only [Pi.zero_apply] at h1 h2
-    rw [abs_le]
-    constructor <;> linarith
+  · exact abs_sub_le_of_nonneg_of_le (hp _) (hpB _) (hp _) (hpB _)
 
 end Matrix

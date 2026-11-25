@@ -85,44 +85,19 @@ private theorem lexEquiv_realize_onTupleTerm {β : Type*} {k n : ℕ} [Fact (2 �
     rcases f with f | f
     · cases f with
       | zero =>
-        have hts : ts = Fin.elim0 := Subsingleton.elim _ _
-        subst hts
+        cases Subsingleton.elim ts Fin.elim0
+        have hzero : (fun i : Fin k => (zero : qfNumericLanguage.Term (β × Fin k)).realize
+            (fun p => v p.1 p.2)) = tupleZero := funext fun _ => Fin.ext (realize_zero_val _)
         apply Fin.ext
-        have hzero :
-            (fun i : Fin k => (zero : qfNumericLanguage.Term (β × Fin k)).realize
-              (fun p => v p.1 p.2)) = tupleZero (n := n) (k := k) := by
-          funext i
-          apply Fin.ext
-          exact realize_zero_val _
-        have hrhs :
-            ((Term.func (L := qfNumericLanguage) (.inl EndpointFunction.zero) Fin.elim0).realize
-              (Sum.elim (fun b => lexEquiv (v b)) (default : Fin 0 → Fin (n ^ k)))).val = 0 := by
-          rw [← zero_eq]
-          exact realize_zero_val _
-        refine Eq.trans ?_ hrhs.symm
-        change lexRank (fun i : Fin k =>
-          (zero : qfNumericLanguage.Term (β × Fin k)).realize (fun p => v p.1 p.2)) = 0
-        rw [hzero, lexRank_tupleZero]
+        conv_rhs => rw [← zero_eq, realize_zero_val]
+        exact (congrArg lexRank hzero).trans lexRank_tupleZero
       | max =>
-        have hts : ts = Fin.elim0 := Subsingleton.elim _ _
-        subst hts
+        cases Subsingleton.elim ts Fin.elim0
+        have hmax : (fun i : Fin k => (max : qfNumericLanguage.Term (β × Fin k)).realize
+            (fun p => v p.1 p.2)) = tupleMax := funext fun _ => Fin.ext (realize_max_val _)
         apply Fin.ext
-        have hmax :
-            (fun i : Fin k => (max : qfNumericLanguage.Term (β × Fin k)).realize
-              (fun p => v p.1 p.2)) = tupleMax (n := n) (k := k) := by
-          funext i
-          apply Fin.ext
-          exact realize_max_val _
-        have hrhs :
-            ((Term.func (L := qfNumericLanguage) (.inl EndpointFunction.max) Fin.elim0).realize
-              (Sum.elim (fun b => lexEquiv (v b)) (default : Fin 0 → Fin (n ^ k)))).val =
-              n ^ k - 1 := by
-          rw [← max_eq]
-          exact realize_max_val _
-        refine Eq.trans ?_ hrhs.symm
-        change lexRank (fun i : Fin k =>
-          (max : qfNumericLanguage.Term (β × Fin k)).realize (fun p => v p.1 p.2)) = n ^ k - 1
-        rw [hmax, lexRank_tupleMax]
+        conv_rhs => rw [← max_eq, realize_max_val]
+        exact (congrArg lexRank hmax).trans lexRank_tupleMax
     · exact Empty.elim f
 
 /-- Coordinatewise equality of `k`-tuples of terms. -/
@@ -242,23 +217,16 @@ theorem isQF_onFullTuple {β : Type*} {k : ℕ} {φ : qfNumericLanguage.Formula 
     (h : φ.IsQF) : (onFullTuple k φ).IsQF := by
   rw [onFullTuple]
   induction h with
-  | falsum =>
-    rw [onBoundedFullTuple]
-    exact BoundedFormula.isQF_bot
+  | falsum => exact BoundedFormula.isQF_bot
   | of_isAtomic ha =>
     cases ha with
-    | equal t₁ t₂ =>
-      change (onBoundedFullTuple k (.equal t₁ t₂)).IsQF
-      rw [onBoundedFullTuple]
-      exact isQF_tupleEq _ _
+    | equal => exact isQF_tupleEq _ _
     | rel R ts =>
       change (onBoundedFullTuple k (.rel R ts)).IsQF
-      rcases R with R | R <;> cases R <;> rw [onBoundedFullTuple]
+      rcases R with ⟨⟨⟩⟩ | ⟨⟨⟩⟩
       · exact isQF_tupleLe _ _
       · exact isQF_tupleSucc _ _
-  | imp _ _ ih₁ ih₂ =>
-    rw [onBoundedFullTuple]
-    exact ih₁.imp ih₂
+  | imp _ _ ih₁ ih₂ => exact ih₁.imp ih₂
 
 /-- **Quantifier-free `qfNumericLanguage` block translation preserves truth** on `Fin n` for `2 ≤ n`
 and positive tuple dimension `0 < k`. -/

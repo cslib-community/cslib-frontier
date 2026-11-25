@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Foundations.Data.List.OfFn
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -88,8 +89,8 @@ theorem evalBoolRow_eq_sum (row : List ℤ) (y : List Bool) :
 
 /-- Total lookup of an evaluated row agrees with evaluating the total row lookup. -/
 theorem evalBoolMatrix_getD (M : List (List ℤ)) (y : List Bool) (i : ℕ) :
-    (evalBoolMatrix M y).getD i 0 = evalBoolRow (M.getD i []) y := by
-  exact List.getD_map M [] (n := i) (fun row => evalBoolRow row y)
+    (evalBoolMatrix M y).getD i 0 = evalBoolRow (M.getD i []) y :=
+  List.getD_map M [] (n := i) (fun row => evalBoolRow row y)
 
 /-- A target of the wrong length cannot be the matrix's complete measurement vector. -/
 theorem evalBoolMatrix_ne_of_length_ne (M : List (List ℤ)) (y : List Bool) (target : List ℤ)
@@ -198,17 +199,11 @@ theorem search_eq_none_iff_cube (matOf : C → List (List ℤ)) (targetOf : C �
     (p : C × ℕ) :
     search matOf targetOf p = none ↔ ∀ y : BitString p.2,
       evalBoolMatrix (matOf p.1) (List.ofFn y) ≠ targetOf p.1 := by
+  rcases p with ⟨c, n⟩
   rw [search_eq_none_iff]
-  constructor
-  · intro h y
-    exact h _ List.length_ofFn
-  · intro h y hy
-    let x : BitString p.2 := fun i => y.getD i false
-    have hx : List.ofFn x = y := by
-      apply List.ext_getElem (by simpa only [List.length_ofFn] using hy.symm)
-      intro i hi hi'
-      simp only [List.getElem_ofFn, x, List.getD_eq_getElem _ _ hi']
-    exact hx ▸ h x
+  refine ⟨fun h y => h _ List.length_ofFn, ?_⟩
+  rintro h y rfl
+  exact List.ofFn_getElem (xs := y) ▸ h _
 
 private theorem listTest_polyTime {encC : C ↪ List Bool}
     {matOf : C → List (List ℤ)} {targetOf : C → List ℤ}
@@ -253,11 +248,9 @@ theorem exists_computableInO_search {encC : C ↪ List Bool}
   have hc := NativeCertificate.ofPolyTime_isPolynomial optionBits_polyTime
   have hlen : PolyBounded (fun p : C × ℕ => (encPair encC encUnary p).length)
       (fun p => (encOption (encList encBool) (search matOf targetOf p)).length) := by
-    refine PolyBounded.of_forall_le 3 1 fun p => ?_
-    have h := GenericRAM.BooleanSearch.length_prefix_result_le
-      (test matOf targetOf) p (2 ^ p.2)
-    change (encOption (encList encBool) (search matOf targetOf p)).length ≤ 3 * p.2 + 1 at h
-    enc_len [pow_one]
+    unfold search GenericRAM.BooleanSearch.run
+    growth_poly [fun p => GenericRAM.BooleanSearch.length_prefix_result_le
+      (test matOf targetOf) p (2 ^ p.2)]
   refine ⟨fun p => P p + codec.time (search matOf targetOf p),
     fun p => Q p + codec.space (search matOf targetOf p),
     hP.add (hc.1.comp hlen), hQ.add (hc.2.comp hlen), ?_⟩

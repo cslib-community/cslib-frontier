@@ -70,19 +70,17 @@ theorem sandwichedPolynomial_point_bounds_of_verifier (S : CommutingStrategy Q Q
       b a).symm
   have hLT (u : Point F (n + 1)) g (b : F) : Commute ((L u).effect b) (T.effect g) :=
     (Measurement.commute_map_right (S.bob (.point u)) decodePoint _ (hT (.point u) g) b).symm
-  have hvar : weightedPointVariance S.state L T ≤ ξ := by
-    apply weightedPointVariance_le_verifier S d T haxis
-    intro u i g f
-    exact Measurement.commute_map_right _ _ _ (hT (.axis (coordinateLine u i)) g) f
+  have hvar : weightedPointVariance S.state L T ≤ ξ :=
+    weightedPointVariance_le_verifier S d T haxis fun u i g f =>
+      Measurement.commute_map_right _ _ _ (hT (.axis (coordinateLine u i)) g) f
   have hcopy : (𝔼 u : Point F (n + 1), Measurement.copyDefect S.state (R u) (L u)) ≤ 2 * δ := by
     simpa only [Measurement.copyDefect, R, L,
       S.state.norm_sub_comm ((decodedPoint S.alice _).effect _) ((decodedPoint S.bob _).effect _)]
       using decodedPoint_stateDist_le S d
-  constructor
-  · exact (average_successfulMismatch_sandwichedPolynomial_le S.state L R T hL hLR hLT).trans
-      (by gcongr)
-  · exact (majorant_sub_sandwichedPolynomial_agreement_le S.state L R T hL hLR hLT Z hslack).trans
-      (by gcongr)
+  exact ⟨(average_successfulMismatch_sandwichedPolynomial_le S.state L R T hL hLR hLT).trans
+      (by gcongr),
+    (majorant_sub_sandwichedPolynomial_agreement_le S.state L R T hL hLR hLT Z hslack).trans
+      (by gcongr)⟩
 
 /-- Strong self-consistency from the actual low-degree verifier. The two
 polynomial measurements are on the respective sides, and the majorant
@@ -119,32 +117,28 @@ theorem successfulMass_sub_sandwichedAgreement_le_of_verifier
   intro P H δ ε ξ
   let L := decodedPoint S.bob
   let R := decodedPoint S.alice
-  have hL (u : Point F (n + 1)) : (L u).IsProjective := (hLpoint u).map _
-  have hR (u : Point F (n + 1)) : (R u).IsProjective := (hRpoint u).map _
   have hLR (u v : Point F (n + 1)) (a b : F) : Commute ((L u).effect a) ((R v).effect b) :=
     (Measurement.commute_map_map _ _ (S.commute (.point v) (.point u)) decodePoint decodePoint
       b a).symm
   have hLT (u : Point F (n + 1)) g (a : F) : Commute ((L u).effect a) (T.effect g) :=
     (Measurement.commute_map_right (S.bob (.point u)) decodePoint _ (hT (.point u) g) a).symm
-  have hUR (g) (u : Point F (n + 1)) (b : F) : Commute (U.effect g) ((R u).effect b) :=
+  have hUR g (u : Point F (n + 1)) (b : F) : Commute (U.effect g) ((R u).effect b) :=
     Measurement.commute_map_right (S.alice (.point u)) decodePoint _ (hU (.point u) g) b
   have hLZ (u : Point F (n + 1)) (a : F) : Commute ((L u).effect a) Z :=
     (Measurement.commute_map_right (S.bob (.point u)) decodePoint Z
       (fun b => (hZ (.point u) b).symm) a).symm
-  have hvarL : weightedPointVariance S.state L T ≤ ξ S := by
-    apply weightedPointVariance_le_verifier S d T hLaxis
-    intro u i g f
-    exact Measurement.commute_map_right _ _ _ (hT (.axis (coordinateLine u i)) g) f
-  have hvarR : weightedPointVariance S.state R U ≤ ξ S.swap := by
-    apply weightedPointVariance_le_verifier S.swap d U hRaxis
-    intro u i g f
-    exact Measurement.commute_map_right _ _ _ (hU (.axis (coordinateLine u i)) g) f
+  have hvarL : weightedPointVariance S.state L T ≤ ξ S :=
+    weightedPointVariance_le_verifier S d T hLaxis fun u i g f =>
+      Measurement.commute_map_right _ _ _ (hT (.axis (coordinateLine u i)) g) f
+  have hvarR : weightedPointVariance S.state R U ≤ ξ S.swap :=
+    weightedPointVariance_le_verifier S.swap d U hRaxis fun u i g f =>
+      Measurement.commute_map_right _ _ _ (hU (.axis (coordinateLine u i)) g) f
   have hcopy : (𝔼 u : Point F (n + 1), Measurement.copyDefect S.state (R u) (L u)) ≤ 2 * δ S := by
     simpa only [Measurement.copyDefect, R, L,
       S.state.norm_sub_comm ((decodedPoint S.alice _).effect _) ((decodedPoint S.bob _).effect _)]
       using decodedPoint_stateDist_le S d
-  have h := successfulMass_sub_sandwichedAgreement_le S.state L R U T Z hL hR hLR hLT hUR
-    hUT hLZ hUZ hle hslack
+  have h := successfulMass_sub_sandwichedAgreement_le S.state L R U T Z
+    (fun u => (hLpoint u).map _) (fun u => (hRpoint u).map _) hLR hLT hUR hUT hLZ hUZ hle hslack
   simp only [Nat.cast_succ] at h
   exact h.trans (by gcongr)
 

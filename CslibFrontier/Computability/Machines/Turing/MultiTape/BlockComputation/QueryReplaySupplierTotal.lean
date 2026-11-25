@@ -37,10 +37,8 @@ variable {k s : ℕ} {Q : Type}
 theorem ofFn_encode_none (e : Q ≃ Fin s) (b : ℕ) [NeZero b] :
     List.ofFn (Encoding.encode (k := k) (b := b) e none) =
       List.replicate (Encoding.width k s b) false := by
-  have hzero : Encoding.encode (k := k) (b := b) e none = fun _ => false := by
-    funext j
-    unfold Encoding.encode
-    exact Fin.cases rfl (fun _ => rfl) j
+  have hzero : Encoding.encode (k := k) (b := b) e none = fun _ => false :=
+    funext fun j => Fin.cases rfl (fun _ => rfl) j
   rw [hzero]
   simp
 
@@ -85,13 +83,10 @@ theorem gate_eq_none_of_failed_parse {q : ℕ} (M : MultiTapeTM k Bool Q) (e : Q
   rcases hfailed with hp | ⟨h, δ, hp⟩
   · simp [gate, hp]
   · have hnot : ¬∀ h' δ',
-        (Encoding.NativeChecked.parse (k := k) e (b, providerWords h' δ')).isSome = true := by
-      intro hall
-      have hsome := hall h δ
-      simp [hp] at hsome
-    cases hprevious : Encoding.NativeChecked.parse (k := k) e (b, previousWord) with
-    | none => simp [gate]
-    | some previous => simp [gate, hnot]
+        (Encoding.NativeChecked.parse (k := k) e (b, providerWords h' δ')).isSome = true :=
+      fun hall => by simpa [hp] using hall h δ
+    cases hprevious : Encoding.NativeChecked.parse (k := k) e (b, previousWord) <;>
+      simp [gate, hnot]
 
 /-- On all label words of the label width, the complete native local supplier emits exactly the
 encoded existing block gate applied to the checked decoded words. Provider failure propagates at
@@ -110,19 +105,17 @@ theorem finish_prepareWords_eq_gate {q : ℕ} (M : MultiTapeTM k Bool Q) (e : Q 
   cases hcombined : Providers.Labels.combine e
       (b, ScheduleRead.providerMap k (σ, i), words.previous, words.providers) with
   | none =>
-    have hfailed := (Providers.Labels.combine_eq_none_iff e b
-      (ScheduleRead.providerMap k (σ, i)) words.previous words.providers).mp hcombined
-    have hgate := gate_eq_none_of_failed_parse M e w b (scheduleOfNat k q σ) i
-      words.previous words.providers hfailed
     rw [finish_prepareWords_of_combined_none M e w w.length b σ i b words hlength hcombined,
-      hgate, ofFn_encode_none]
+      gate_eq_none_of_failed_parse M e w b (scheduleOfNat k q σ) i words.previous
+        words.providers ((Providers.Labels.combine_eq_none_iff e b
+          (ScheduleRead.providerMap k (σ, i)) words.previous words.providers).mp hcombined),
+      ofFn_encode_none]
   | some combined =>
     cases hprevious : Encoding.NativeChecked.parse (k := k) e (b, words.previous) with
     | none =>
-      have hnone := (Providers.Labels.combine_eq_none_iff e b
-        (ScheduleRead.providerMap k (σ, i)) words.previous words.providers).mpr (Or.inl hprevious)
-      rw [hcombined] at hnone
-      contradiction
+      exact absurd ((Providers.Labels.combine_eq_none_iff e b
+        (ScheduleRead.providerMap k (σ, i)) words.previous words.providers).mpr (.inl hprevious))
+        (by simp [hcombined])
     | some previous =>
       let empty : RawResult k Q := (none, fun _ => 0, .empty, fun _ => [])
       let providers : Providers.ProviderValues k Q := fun h δ =>
@@ -132,15 +125,12 @@ theorem finish_prepareWords_eq_gate {q : ℕ} (M : MultiTapeTM k Bool Q) (e : Q 
             some (providers h δ) := by
         cases hparse : Encoding.NativeChecked.parse (k := k) e (b, words.providers h δ) with
         | none =>
-          have hnone := (Providers.Labels.combine_eq_none_iff e b
+          exact absurd ((Providers.Labels.combine_eq_none_iff e b
             (ScheduleRead.providerMap k (σ, i)) words.previous words.providers).mpr
-              (Or.inr ⟨h, δ, hparse⟩)
-          rw [hcombined] at hnone
-          contradiction
+              (.inr ⟨h, δ, hparse⟩)) (by simp [hcombined])
         | some value => simp [providers, hparse]
-      have hf := finish_prepareWords_of_parses M e w b σ i words previous providers hprevious
-        hproviders
-      simpa only [hprevious, hproviders, Option.map_some] using hf
+      simpa only [hprevious, hproviders, Option.map_some] using
+        finish_prepareWords_of_parses M e w b σ i words previous providers hprevious hproviders
 
 /-- On label words that encode values, the native local supplier emits the encoded existing block
 gate applied to those values: a caller that stores encoded views needs no parsing argument. -/

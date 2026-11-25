@@ -192,8 +192,7 @@ theorem exists_replacementDesign_withNeutralScope [Fintype κ]
     (hgroupSize : 2 * Q * r ^ 2 ≤ n)
     (htail : binomTailProb Q r A₀ R ≤ τ / ((r : ℚ) * ((b₀ + 1 : ℕ) : ℚ))) :
     Nonempty (ReplacementDesign (withNeutralScope scope) Q r A₀ R τ) := by
-  have hvar : ∀ v : Fin n, #{f : κ ⊕ Fin n | v ∈ withNeutralScope scope f} ≤ b₀ + 1 := by
-    intro v
+  have hvar (v : Fin n) : #{f : κ ⊕ Fin n | v ∈ withNeutralScope scope f} ≤ b₀ + 1 := by
     simpa only [varIncidence, withNeutralFactors_univ] using
       varIncidence_withNeutralFactors_le (hb v)
   have hM_le : (∑ f : κ ⊕ Fin n, #(withNeutralScope scope f)) ≤ (b₀ + 1) * n := by
@@ -203,9 +202,9 @@ theorem exists_replacementDesign_withNeutralScope [Fintype κ]
       (∑ f : κ ⊕ Fin n, #(withNeutralScope scope f)) = totalIncidence univ scope + n := by
     simpa only [totalIncidence, withNeutralFactors_univ, Fintype.card_fin] using
       totalIncidence_withNeutralFactors (univ : Finset κ) scope
-  refine exists_replacementDesign (withNeutralScope scope) hn (Nat.le_add_left 1 b₀) hw_pos hr
-    hR hRQ hτ hI hvar (card_withNeutralScope_le hw_pos hw) hM_le ?_ hgroupSize htail
-  rwa [hM_eq]
+  exact exists_replacementDesign (withNeutralScope scope) hn (Nat.le_add_left 1 b₀) hw_pos hr
+    hR hRQ hτ hI hvar (card_withNeutralScope_le hw_pos hw) hM_le (hM_eq.symm ▸ hincidenceSize)
+    hgroupSize htail
 
 /-! ### 2. Univariate replacement polynomials from a `ReplacementDesign` (§5.3–5.4, pp. 37–38) -/
 
@@ -288,14 +287,11 @@ theorem eval_zero_evalVarReplacementRowScaledIntPoly {F : Type*} [Fintype F]
     (evalVarReplacementRowScaledIntPoly D e x).eval 0 =
       (commonDenom Q R : ℤ) * bitVal ℤ (x (scopeVarOf scope e)) := by
   apply Int.cast_injective (α := ℚ)
-  have hmap := congrArg (fun p : Polynomial ℚ => p.eval 0)
-    (map_evalVarReplacementRowScaledIntPoly D e x)
-  rw [Polynomial.eval_mul, Polynomial.eval_C, eval_zero_evalVarReplacementRowPoly] at hmap
-  have h0 : (0 : ℚ) = Int.castRingHom ℚ 0 := rfl
-  rw [h0, Polynomial.eval_map_apply, eq_intCast] at hmap
+  have hmap := congrArg (Polynomial.eval 0) (map_evalVarReplacementRowScaledIntPoly D e x)
+  rw [Polynomial.eval_mul, Polynomial.eval_C, eval_zero_evalVarReplacementRowPoly,
+    show (0 : ℚ) = Int.castRingHom ℚ 0 from rfl, Polynomial.eval_map_apply, eq_intCast] at hmap
   rw [hmap, Int.cast_mul, Int.cast_natCast]
-  cases x (scopeVarOf scope e) <;>
-    simp only [bitVal_true, bitVal_false, Int.cast_one, Int.cast_zero]
+  cases x (scopeVarOf scope e) <;> simp
 
 /-- `evalVarReplacementRowPoly D e x` has `natDegree ≤ R - 1` by Lemma 4.3 and its
 variable-row transfer in §4.5 (4.14). -/
@@ -306,16 +302,16 @@ theorem natDegree_evalVarReplacementRowPoly_le {F : Type*} [Fintype F]
   rw [evalVarReplacementRowPoly]
   refine (Polynomial.natDegree_sum_le _ _).trans ?_
   rw [Finset.fold_max_le]
-  refine ⟨Nat.zero_le _, fun u _ => ?_⟩
-  exact (Polynomial.natDegree_C_mul_le _ _).trans (D.natDegree_replacementRow_le e u)
+  exact ⟨Nat.zero_le _, fun u _ => (Polynomial.natDegree_C_mul_le _ _).trans
+    (D.natDegree_replacementRow_le e u)⟩
 
 /-- `evalVarReplacementRowScaledIntPoly D e x` has `natDegree ≤ R - 1`. -/
 theorem natDegree_evalVarReplacementRowScaledIntPoly_le {F : Type*} [Fintype F]
     {scope : F → Finset (Fin n)} (D : ReplacementDesign scope Q r A₀ R τ)
     (e : ScopeIncidence scope) (x : Fin n → Bool) :
     (evalVarReplacementRowScaledIntPoly D e x).natDegree ≤ R - 1 := by
-  have hinj : Function.Injective (Int.castRingHom ℚ) := Int.cast_injective
-  rw [← Polynomial.natDegree_map_eq_of_injective hinj, map_evalVarReplacementRowScaledIntPoly]
+  rw [← Polynomial.natDegree_map_eq_of_injective (f := Int.castRingHom ℚ) Int.cast_injective,
+    map_evalVarReplacementRowScaledIntPoly]
   exact (Polynomial.natDegree_C_mul_le _ _).trans (natDegree_evalVarReplacementRowPoly_le D e x)
 
 /-- **Lemma 4.6 row `ℓ₁`-norm bound on Boolean inputs**:
@@ -324,23 +320,10 @@ theorem coeffNorm1_evalVarReplacementRowScaledIntPoly_le {F : Type*} [Fintype F]
     {scope : F → Finset (Fin n)} (D : ReplacementDesign scope Q r A₀ R τ)
     (e : ScopeIncidence scope) (x : Fin n → Bool) :
     (evalVarReplacementRowScaledIntPoly D e x).coeffNorm1 ≤ designRowNormBound Q R := by
-  have hsum :
-      (evalVarReplacementRowScaledIntPoly D e x).coeffNorm1 ≤
-        ∑ u : Fin n,
-          (varReplacementRowScaledInt Q r A₀ R D.place (scopeVarOf scope) e u).coeffNorm1 := by
-    rw [evalVarReplacementRowScaledIntPoly]
-    refine (Polynomial.coeffNorm1_sum_le univ _).trans (sum_le_sum fun u _ => ?_)
-    cases x u
-    · simp only [bitVal_false, Polynomial.C_0, zero_mul, Polynomial.coeffNorm1_zero, zero_le]
-    · simp only [bitVal_true, Polynomial.C_1, one_mul, le_rfl]
-  have hrow := D.sum_coeffNorm1_replacementRowScaledInt_le e
-  have hrow_nat :
-      (∑ u : Fin n,
-        (varReplacementRowScaledInt Q r A₀ R D.place (scopeVarOf scope) e u).coeffNorm1) ≤
-        designRowNormBound Q R := by
-    rw [designRowNormBound]
-    exact_mod_cast hrow
-  exact hsum.trans hrow_nat
+  rw [evalVarReplacementRowScaledIntPoly, designRowNormBound]
+  refine ((Polynomial.coeffNorm1_sum_le univ _).trans (sum_le_sum fun u _ => ?_)).trans
+    (by exact_mod_cast D.sum_coeffNorm1_replacementRowScaledInt_le e)
+  cases x u <;> simp [Polynomial.coeffNorm1_zero]
 
 /-- **Definition 3.1 (4) group-and-measurement locality at `nodePoint t`**:
 at `t : Fin Q`, `(evalVarReplacementRowPoly D e x).eval (nodePoint t)` depends only on `x`
@@ -497,8 +480,7 @@ theorem natDegree_designReplacementMap_le {F : Type*} [Fintype F]
   unfold designReplacementMap
   split_ifs with hv
   · exact natDegree_evalVarReplacementRowPoly_le D ⟨emb i, ⟨v, hv⟩⟩ x
-  · rw [Polynomial.natDegree_C]
-    exact Nat.zero_le _
+  · simp
 
 /-- `designReplacementScaledIntMap D emb x i v` has `natDegree ≤ R - 1`. -/
 theorem natDegree_designReplacementScaledIntMap_le {F : Type*} [Fintype F]
@@ -508,8 +490,7 @@ theorem natDegree_designReplacementScaledIntMap_le {F : Type*} [Fintype F]
   unfold designReplacementScaledIntMap
   split_ifs with hv
   · exact natDegree_evalVarReplacementRowScaledIntPoly_le D ⟨emb i, ⟨v, hv⟩⟩ x
-  · rw [Polynomial.natDegree_C]
-    exact Nat.zero_le _
+  · simp only [Polynomial.natDegree_C, zero_le]
 
 /-- `(designReplacementScaledIntMap D emb x i v).coeffNorm1 ≤ designRowNormBound Q R`. -/
 theorem coeffNorm1_designReplacementScaledIntMap_le {F : Type*} [Fintype F]
@@ -520,10 +501,7 @@ theorem coeffNorm1_designReplacementScaledIntMap_le {F : Type*} [Fintype F]
   split_ifs with hv
   · exact coeffNorm1_evalVarReplacementRowScaledIntPoly_le D ⟨emb i, ⟨v, hv⟩⟩ x
   · rw [Polynomial.coeffNorm1_C]
-    cases x v
-    · simp only [bitVal_false, mul_zero, Int.natAbs_zero, zero_le]
-    · simp only [bitVal_true, mul_one, Int.natAbs_natCast]
-      exact commonDenom_le_designRowNormBound Q R
+    cases x v <;> simp [commonDenom_le_designRowNormBound]
 
 /-- **Appendix B.2 Stage-1 `ℓ₁`-norm bound for `designReplacementScaledIntMap`**:
 if every monomial `M ∈ P i` has `#M ≤ k`, then
@@ -613,14 +591,13 @@ theorem coeffNorm1_univariateClearedParityCoord_design_le {F : Type*} [Fintype F
       2 ^ n *
         (ℓ * E_ℓ *
           (S_mon * designRowNormBound Q R ^ k + commonDenom Q R ^ k) ^ (2 * ℓ - 1)) ^ #I := by
-  have hbound :=
+  simpa only [Fintype.card_fin, ← Int.natCast_pow, Int.natAbs_natCast] using
     coeffNorm1_univariateClearedParityCoord_le I P (commonDenom Q R : ℤ) k ℓ
       (B := S_mon * designRowNormBound Q R ^ k) (designReplacementScaledIntMap D emb)
       (fun x i hi =>
         (coeffNorm1_clearedMonomialSumPoly_designReplacementScaledIntMap_le D emb P x
           (hk i hi)).trans (Nat.mul_le_mul_right _ (hS i hi)))
       hE s
-  simpa only [Fintype.card_fin, ← Int.natCast_pow, Int.natAbs_natCast] using hbound
 
 /-- **§5.4 & Appendix B.3 (exact modular recovery of `commonZeroCount` from coordinate quotients
 for `ReplacementDesign`)**: when `n < ℓ` and `∀ i ∈ I, ∀ M ∈ P i, #M ≤ k`, summing the exact

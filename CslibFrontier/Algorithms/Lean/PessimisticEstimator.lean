@@ -112,23 +112,16 @@ private theorem scanCandidates_spec (fixedNext : Finset ι) (x : ∀ i, α i) (i
   | a :: cs, best, hbest => by
     let val := D.condExp fixedNext (Function.update x i a)
     let next : α i × M := if val ≤ best.2 then (a, val) else best
-    have hnext_eq : next.2 = D.condExp fixedNext (Function.update x i next.1) := by
+    have hnext : next.2 = D.condExp fixedNext (Function.update x i next.1) ∧
+        next.2 ≤ best.2 ∧ next.2 ≤ val := by
       dsimp only [next, val]
-      split_ifs <;> simp [hbest]
-    have hnext_le_best : next.2 ≤ best.2 := by
-      dsimp only [next]
       split_ifs with hle
-      · exact hle
-      · exact le_rfl
-    have hnext_le_a : next.2 ≤ val := by
-      dsimp only [next]
-      split_ifs with hle
-      · exact le_rfl
-      · exact le_of_not_ge hle
-    obtain ⟨heq_out, hle_next, hforall_cs⟩ := scanCandidates_spec fixedNext x i cs next hnext_eq
-    refine ⟨heq_out, hle_next.trans hnext_le_best, fun b hb => ?_⟩
+      · exact ⟨rfl, hle, le_rfl⟩
+      · exact ⟨hbest, le_rfl, le_of_not_ge hle⟩
+    obtain ⟨heq_out, hle_next, hforall_cs⟩ := scanCandidates_spec fixedNext x i cs next hnext.1
+    refine ⟨heq_out, hle_next.trans hnext.2.1, fun b hb => ?_⟩
     rcases List.mem_cons.mp hb with rfl | hb'
-    · exact hle_next.trans hnext_le_a
+    · exact hle_next.trans hnext.2.2
     · exact hforall_cs b hb'
 
 private theorem runFrom_spec [Fintype ι] [∀ i, Fintype (α i)]

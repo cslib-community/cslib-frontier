@@ -67,9 +67,7 @@ theorem count_eq_card_bucket (values : ℕ → ℤ) (n : ℕ) {M : ℕ} (hM : 0 
     (hinj : Set.InjOn values (↑(range n) : Set ℕ)) (b : ℕ) :
     Histogram.count (fun i => residueKey M (values i)) n b =
       (bucket ((range n).image values) M b).card := by
-  rw [bucket_image values n hM b, card_image_of_injOn (hinj.mono (by
-    intro i hi
-    exact (mem_filter.mp hi).1))]
+  rw [bucket_image values n hM b, card_image_of_injOn (hinj.mono fun _ hi => (mem_filter.mp hi).1)]
   rfl
 
 /-- A member is heavy precisely when its residue bucket has at least two elements. -/
@@ -77,28 +75,15 @@ theorem mem_heavy_iff_bucket {S : Finset ℤ} {M : ℕ} {z : ℤ} (hz : z ∈ S)
     z ∈ heavy S M ↔ 1 < (bucket S M (z % (M : ℤ))).card := by
   have hzB : z ∈ bucket S M (z % (M : ℤ)) := mem_filter.mpr ⟨hz, rfl⟩
   rw [heavy, mem_filter, and_iff_right hz]
-  constructor
+  refine ⟨?_, fun hc => ?_⟩
   · rintro ⟨y, hy, hne, hd⟩
-    have hyB : y ∈ bucket S M (z % (M : ℤ)) :=
-      mem_filter.mpr ⟨hy, ((natCast_dvd_sub_iff_emod_eq M z y).mp hd).symm⟩
-    have hsub : {z, y} ⊆ bucket S M (z % (M : ℤ)) := by
-      intro a ha
-      rcases mem_insert.mp ha with rfl | ha
-      · exact hzB
-      · exact (mem_singleton.mp ha) ▸ hyB
-    have := card_le_card hsub
-    have hc : 2 ≤ (bucket S M (z % (M : ℤ))).card := by simpa [hne.symm] using this
-    omega
-  · intro hc
-    have hnot : ¬bucket S M (z % (M : ℤ)) ⊆ {z} := by
-      intro h
-      have := card_le_card h
-      simp only [card_singleton] at this
-      omega
-    obtain ⟨y, hy, hne⟩ := not_subset.mp hnot
-    obtain ⟨hyS, hyR⟩ := mem_filter.mp hy
-    exact ⟨y, hyS, by simpa only [mem_singleton] using hne,
-      (natCast_dvd_sub_iff_emod_eq M z y).mpr hyR.symm⟩
+    have h := card_le_card (insert_subset_iff.mpr ⟨hzB, singleton_subset_iff.mpr
+      (mem_filter.mpr ⟨hy, ((natCast_dvd_sub_iff_emod_eq M z y).mp hd).symm⟩)⟩)
+    exact Nat.lt_of_succ_le (by simpa [hne.symm] using h)
+  · obtain ⟨y, hy, hne⟩ := not_subset.mp fun h : bucket S M (z % (M : ℤ)) ⊆ {z} =>
+      hc.not_ge ((card_le_card h).trans_eq (card_singleton z))
+    exact ⟨y, (mem_filter.mp hy).1, by simpa only [mem_singleton] using hne,
+      (natCast_dvd_sub_iff_emod_eq M z y).mpr (mem_filter.mp hy).2.symm⟩
 
 /-- The count test in the native scan selects exactly `ChanHe.heavy`. -/
 theorem mem_heavy_iff_count (values : ℕ → ℤ) (n : ℕ) {M : ℕ} (hM : 0 < M)
@@ -119,26 +104,20 @@ theorem bucket_eq_singleton_of_count (values : ℕ → ℤ) (n : ℕ) {M : ℕ} 
     (hc : Histogram.count (fun j => residueKey M (values j)) n
       (residueKey M (values i)) = 1) :
     bucket ((range n).image values) M (residueKey M (values i)) = {values i} := by
-  have hm : values i ∈ bucket ((range n).image values) M (residueKey M (values i)) :=
-    mem_filter.mpr ⟨mem_image.mpr ⟨i, mem_range.mpr hi, rfl⟩,
-      (residueKey_cast hM _).symm⟩
-  have hcard := (count_eq_card_bucket values n hM hinj (residueKey M (values i))).symm.trans hc
-  obtain ⟨z, hz⟩ := card_eq_one.mp hcard
-  rw [hz, mem_singleton] at hm
-  exact hz.trans (congrArg singleton hm.symm)
+  obtain ⟨z, hz⟩ := card_eq_one.mp
+    ((count_eq_card_bucket values n hM hinj (residueKey M (values i))).symm.trans hc)
+  have hm : values i ∈ ({z} : Finset ℤ) :=
+    hz ▸ mem_filter.mpr ⟨mem_image.mpr ⟨i, mem_range.mpr hi, rfl⟩, (residueKey_cast hM _).symm⟩
+  exact hz.trans (congrArg singleton (mem_singleton.mp hm).symm)
 
 /-- No two distinct positions can be light in the same bucket, even before injectivity is used. -/
 theorem eq_of_count_one (values : ℕ → ℤ) (n M : ℕ) {i j : ℕ}
     (hi : i < n) (hj : j < n)
     (hc : Histogram.count (fun k => residueKey M (values k)) n (residueKey M (values i)) = 1)
     (he : residueKey M (values i) = residueKey M (values j)) : i = j := by
-  have hi' : i ∈ {k ∈ range n | residueKey M (values k) = residueKey M (values i)} :=
-    mem_filter.mpr ⟨mem_range.mpr hi, rfl⟩
-  have hj' : j ∈ {k ∈ range n | residueKey M (values k) = residueKey M (values i)} :=
-    mem_filter.mpr ⟨mem_range.mpr hj, he.symm⟩
   obtain ⟨k, hk⟩ := card_eq_one.mp hc
-  rw [hk, mem_singleton] at hi' hj'
-  exact hi'.trans hj'.symm
+  exact (mem_singleton.mp (hk ▸ mem_filter.mpr ⟨mem_range.mpr hi, rfl⟩)).trans
+    (mem_singleton.mp (hk ▸ mem_filter.mpr ⟨mem_range.mpr hj, he.symm⟩)).symm
 
 /-- Residue equality is unchanged by simultaneous negation. -/
 theorem residueKey_neg_eq_iff {M : ℕ} (hM : 0 < M) (a b : ℤ) :
@@ -156,12 +135,11 @@ theorem count_neg_residue (values : ℕ → ℤ) (n : ℕ) {M : ℕ} (hM : 0 < M
 
 /-- Every bucket at an index beyond the modulus is empty. -/
 theorem bucket_eq_empty_of_le (S : Finset ℤ) {M i : ℕ} (hM : 0 < M) (hi : M ≤ i) :
-    bucket S M i = ∅ := by
-  apply eq_empty_iff_forall_notMem.mpr
-  intro z hz
-  have he := (mem_filter.mp hz).2
-  have := Int.emod_lt_of_pos z (show (0 : ℤ) < M by omega)
-  omega
+    bucket S M i = ∅ :=
+  eq_empty_iff_forall_notMem.mpr fun z hz => by
+    have := (mem_filter.mp hz).2
+    have := Int.emod_lt_of_pos z (show (0 : ℤ) < M by omega)
+    omega
 
 /-- The first two light arrays equal their prescribed padding beyond the modulus. -/
 theorem arrXY_eq_pad_of_le (S : Finset ℤ) {M i : ℕ} (hM : 0 < M) (hi : M ≤ i) (U : ℕ) :

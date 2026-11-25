@@ -59,9 +59,8 @@ theorem boundedWhile_congr (hguard : ∀ a, guard d a ↔ guard' d' a)
   induction n generalizing a with
   | zero => rfl
   | succ n ih =>
-    by_cases hg : guard d a
-    · simp only [boundedWhile, hg, (hguard a).mp hg, ↓reduceIte, hbody, ih]
-    · simp only [boundedWhile, hg, mt (hguard a).mpr hg, ↓reduceIte]
+    by_cases hg : guard d a <;>
+      simp only [boundedWhile, ← hguard, hg, ↓reduceIte, hbody, ih]
 
 /-- The reached-state domain transfers along agreeing guards and bodies and a weaker body
 domain. The body domains are compared only where the guard holds, as only there is a body run. -/
@@ -75,8 +74,7 @@ theorem whileSafe_imp {safe : ℕ → δ × σ → Memory.State → Prop}
   | zero => exact fun hg => h ((hguard a).mpr hg)
   | succ n ih =>
     by_cases hg : guard d a
-    · simp only [whileSafe, hg, ↓reduceIte] at h
-      simp only [whileSafe, (hguard a).mp hg, ↓reduceIte, ← hbody]
+    · simp only [whileSafe, ← hguard, hg, ↓reduceIte, ← hbody] at h ⊢
       exact ⟨hsafe a s hg h.1, ih h.2⟩
     · simp only [whileSafe, mt (hguard a).mpr hg, ↓reduceIte]
 
@@ -99,9 +97,8 @@ theorem whileWork_congr {work : δ × σ → Memory.State → ℕ} {work' : δ' 
   induction n generalizing a s with
   | zero => rfl
   | succ n ih =>
-    by_cases hg : guard d a
-    · simp only [whileWork, hg, (hguard a).mp hg, ↓reduceIte, hwork, ← hbody, ih]
-    · simp only [whileWork, hg, mt (hguard a).mpr hg, ↓reduceIte]
+    by_cases hg : guard d a <;>
+      simp only [whileWork, ← hguard, hg, ↓reduceIte, hwork, ← hbody, ih]
 
 end Congr
 
@@ -119,13 +116,12 @@ theorem whileWork_le {work : δ × σ → Memory.State → ℕ} {K : ℕ} (hK : 
   | zero => exact Nat.zero_le _
   | succ n ih =>
     by_cases hg : guard d a
-    · have h₁ := hK (d, a) s
-      have h₂ := ih ((Memory.spec 0).clientResult s (body (d, a)))
+    · have := hK (d, a) s
+      have := ih ((Memory.spec 0).clientResult s (body (d, a)))
         ((Memory.spec 0).clientState s (body (d, a)))
       simp only [whileWork, hg, ↓reduceIte, Nat.succ_mul]
       omega
-    · simp only [whileWork, hg, ↓reduceIte]
-      exact Nat.zero_le _
+    · simp [whileWork, hg]
 
 /-- When every body issues a query, the loop's control work is at most its memory charge. -/
 theorem whileWork_zero_le (hquery : ∀ x s, 1 ≤ memoryCost (body x) s) (d : δ) (n : ℕ) (a : σ)
@@ -136,16 +132,12 @@ theorem whileWork_zero_le (hquery : ∀ x s, 1 ≤ memoryCost (body x) s) (d : �
   | succ n ih =>
     by_cases hg : guard d a
     · have h := while_charge_succ guard body (fun _ _ => 0) d n a s hg
-      have h₁ := hquery (d, a) s
-      have h₂ := ih ((Memory.spec 0).clientResult s (body (d, a)))
+      have := hquery (d, a) s
+      have := ih ((Memory.spec 0).clientResult s (body (d, a)))
         ((Memory.spec 0).clientState s (body (d, a)))
-      have h₃ : whileWork guard body (fun _ _ => 0) d (n + 1) a s =
-          whileWork guard body (fun _ _ => 0) d n ((Memory.spec 0).clientResult s (body (d, a)))
-            ((Memory.spec 0).clientState s (body (d, a))) + 1 := by
-        simp only [whileWork, hg, ↓reduceIte, Nat.zero_add]
+      simp only [whileWork, hg, ↓reduceIte, Nat.zero_add] at h ⊢
       omega
-    · simp only [whileWork, hg, ↓reduceIte]
-      exact Nat.zero_le _
+    · simp [whileWork, hg]
 
 end Work
 

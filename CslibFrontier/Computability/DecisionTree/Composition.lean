@@ -66,32 +66,30 @@ variable {ι κ μ β γ δ : Type*}
 theorem toFreeM_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ) :
     (t.bind k).toFreeM = PFunctor.FreeM.bind t.toFreeM (fun a => (k a).toFreeM) := by
   induction t with
-  | leaf a => rfl
-  | node i l r il ir =>
-    rw [node_bind]
-    change PFunctor.FreeM.liftBind (P := PFunctor.monomial ι Bool) i _ =
-      PFunctor.FreeM.liftBind (P := PFunctor.monomial ι Bool) i _
-    congr 1
-    funext b
-    cases b <;> assumption
+  | leaf => rfl
+  | node i _ _ il ir =>
+    exact congrArg (PFunctor.FreeM.liftBind (P := PFunctor.monomial ι Bool) i)
+      (funext fun | false => il | true => ir)
 
 /-- Replacing each leaf by itself preserves the tree. -/
 @[simp] theorem bind_leaf (t : DecisionTree ι β) : t.bind leaf = t := by
-  apply equivFreeM.injective
-  simpa only [equivFreeM_apply, toFreeM_bind, toFreeM_leaf] using PFunctor.FreeM.bind_pure t.toFreeM
+  induction t with
+  | leaf => rfl
+  | node i _ _ ihl ihr => exact congrArg₂ (node i) ihl ihr
 
 /-- Successive leaf substitutions associate. -/
 theorem bind_assoc (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
     (l : γ → DecisionTree ι δ) : (t.bind k).bind l = t.bind (fun b => (k b).bind l) := by
-  apply equivFreeM.injective
-  simp only [equivFreeM_apply, toFreeM_bind, PFunctor.FreeM.bind_assoc]
+  induction t with
+  | leaf => rfl
+  | node i _ _ ihl ihr => exact congrArg₂ (node i) ihl ihr
 
 /-- Evaluate the first tree, then its selected continuation on the same input. -/
 @[simp] theorem eval_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ) (x : ι → Bool) :
     (t.bind k).eval x = (k (t.eval x)).eval x := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr => cases h : x i <;> simp [h, ihl, ihr]
+  | node i _ _ ihl ihr => cases h : x i <;> simp [h, ihl, ihr]
 
 /-- Leaf substitution adds exactly the costs of the two executed computations. -/
 theorem weightedCost_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
@@ -132,7 +130,7 @@ outputs. -/
   | zero => exact funext fun j => j.elim0
   | succ k ih =>
     simp only [seqFin, eval_bind, ih, eval_leaf]
-    exact funext fun j => Fin.cases rfl (fun _ => rfl) j
+    exact funext (Fin.cases rfl fun _ => rfl)
 
 /-- Running `k` trees of depth at most `d` in sequence has depth at most `k * d`. -/
 theorem depth_seqFin_le {k d : ℕ} (t : Fin k → DecisionTree ι β) (ht : ∀ j, (t j).depth ≤ d) :
@@ -140,14 +138,11 @@ theorem depth_seqFin_le {k d : ℕ} (t : Fin k → DecisionTree ι β) (ht : ∀
   induction k with
   | zero => simp [seqFin]
   | succ k ih =>
-    have hrest (b : β) : ((seqFin fun j => t j.succ).bind fun bs =>
-        leaf (Fin.cons b bs : Fin (k + 1) → β)).depth ≤ k * d := by
-      have := depth_bind_le (seqFin fun j => t j.succ)
-        (fun bs => leaf (Fin.cons b bs : Fin (k + 1) → β)) (d := 0) fun _ => (depth_leaf _).le
-      exact this.trans (ih _ fun j => ht j.succ)
-    refine (depth_bind_le _ _ hrest).trans ?_
-    rw [Nat.succ_mul, Nat.add_comm (k * d)]
-    exact Nat.add_le_add_right (ht 0) _
+    refine (depth_bind_le _ _ fun b => (depth_bind_le _ _ fun _ => (depth_leaf _).le).trans
+      (ih _ fun j => ht j.succ)).trans ?_
+    have := ht 0
+    rw [Nat.succ_mul]
+    omega
 
 /-- Replace a query of `i` by the Boolean subroutine `s i`, then follow its answer.
 Every occurrence is replaced independently; answers are not memoized. -/
@@ -198,7 +193,7 @@ theorem substitute_assoc (t : DecisionTree ι β) (s : ι → DecisionTree κ Bo
     (x : κ → Bool) : (t.substitute s).eval x = t.eval (fun i => (s i).eval x) := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr =>
+  | node i _ _ ihl ihr =>
     rw [substitute_node, eval_bind, eval_node]
     cases (s i).eval x <;> simp [ihl, ihr]
 
@@ -220,7 +215,7 @@ theorem weightedCost_substitute (t : DecisionTree ι β) (s : ι → DecisionTre
       t.weightedCost (fun i => (s i).weightedCost w x) (fun i => (s i).eval x) := by
   induction t with
   | leaf => rfl
-  | node i left right ihl ihr =>
+  | node i _ _ ihl ihr =>
     rw [substitute_node, weightedCost_bind, weightedCost_node]
     cases (s i).eval x <;> simp [ihl, ihr, Nat.add_comm]
 
@@ -239,14 +234,10 @@ theorem weightedDepth_substitute_le (t : DecisionTree ι β) (s : ι → Decisio
   induction t with
   | leaf => exact le_rfl
   | node i left right ihl ihr =>
-    rw [substitute_node, weightedDepth_node]
-    refine ((s i).weightedDepth_bind_le _ w (d := max
-      (left.weightedDepth (fun j => (s j).weightedDepth w))
-      (right.weightedDepth (fun j => (s j).weightedDepth w))) ?_).trans_eq (Nat.add_comm _ _)
-    intro b
-    cases b
-    · exact ihl.trans (le_max_left _ _)
-    · exact ihr.trans (le_max_right _ _)
+    refine ((s i).weightedDepth_bind_le _ w fun
+      | false => ihl.trans (le_max_left _ _)
+      | true => ihr.trans (le_max_right _ _)).trans_eq ?_
+    exact (Nat.add_comm _ _).trans (weightedDepth_node _ _ _ _).symm
 
 /-- Substitution depth is bounded by charging each outer query the depth of its subroutine. -/
 theorem depth_substitute_le (t : DecisionTree ι β) (s : ι → DecisionTree κ Bool) :
@@ -283,12 +274,9 @@ theorem exists_computes_depth_le_blockCompose {κ : ι → Type*} [∀ i, Finite
         u.depth ≤ t.weightedDepth (fun i => complexity (g i)) := by
   classical
   choose s hs hd using fun i => exists_computes_depth_eq_complexity (g i)
-  let lifted (i : ι) : DecisionTree (Σ i, κ i) Bool := (s i).mapQueries (Sigma.mk i)
-  have hlifted (i : ι) : (lifted i).Computes (fun x => g i (fun j => x ⟨i, j⟩)) := by
-    intro x
-    exact (eval_mapQueries (Sigma.mk i) (s i) x).trans (hs i _)
-  exact ⟨t.substitute lifted, ht.substitute hlifted,
-    (t.depth_substitute_le lifted).trans_eq (by simp only [lifted, depth_mapQueries, hd])⟩
+  refine ⟨t.substitute fun i => (s i).mapQueries (Sigma.mk i),
+    ht.substitute fun i x => (eval_mapQueries _ _ _).trans (hs i _), ?_⟩
+  exact (t.depth_substitute_le _).trans_eq (by simp only [depth_mapQueries, hd])
 
 /-- A weighted complexity bound for composition with a finite total coordinate domain. -/
 theorem complexity_blockCompose_le {κ : ι → Type*} [Finite (Σ i, κ i)] [∀ i, Finite (κ i)]

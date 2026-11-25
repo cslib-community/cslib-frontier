@@ -181,14 +181,11 @@ theorem card_le_depth_of_linearTable_randomized (e : Fin N ≃ (K → Bool))
     (μ : RandomizedDecisionTree (Fin N) (K → Bool)) {F : (Fin N → Bool) → K → Bool}
     (hF : ∀ s, F (linearTable e s) = s) {ε : ℝ} (hε : ε < 1 / 2)
     (hμ : ∀ s, μ.errorProb F (linearTable e s) ≤ ε) : Fintype.card K ≤ μ.depth := by
-  by_contra hlt
-  push Not at hlt
-  have h := linearTable_randomized_lower_bound e μ hF hμ
-  have hpow : (2 : ℝ) ^ μ.depth * 2 ≤ 2 ^ Fintype.card K := by
-    rw [← pow_succ]
-    exact pow_le_pow_right₀ (by norm_num) hlt
-  have hpos : (0 : ℝ) < 2 ^ μ.depth := by positivity
-  nlinarith
+  by_contra! hlt
+  have hpow : (2 : ℝ) ^ μ.depth * 2 ≤ 2 ^ Fintype.card K :=
+    pow_succ (2 : ℝ) μ.depth ▸ pow_le_pow_right₀ (by norm_num) hlt
+  nlinarith [linearTable_randomized_lower_bound e μ hF hμ,
+    (by positivity : (0 : ℝ) < 2 ^ μ.depth)]
 
 /-- **The deterministic query complexity of Bernstein–Vazirani is `n`.** -/
 theorem complexity_linearDecode (e : Fin N ≃ (K → Bool)) :

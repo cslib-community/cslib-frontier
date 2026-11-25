@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Arithmetic.RelativeRankUpper
 public import CslibFrontier.Computability.Circuit.Arithmetic.WordPolynomial
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.ListProd
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Lower bound for set-multilinear formulas computing iterated matrix multiplication
@@ -188,14 +189,10 @@ theorem IsSetMultilinear.subst {blk : Fin n → Fin d} {blk' : Fin m → Fin d}
     · rw [subst_input, h, ← hρ i j h]
       exact .input j
   | const a =>
-    have h : SPFormula.subst ρ (SPFormula.const a : SPFormula K n) = SPFormula.const a := by
-      rw [subst_gate]
-      congr 1 with j : 1
-      exact j.elim0
-    rw [h]
-    exact .const a
-  | add c F S _ ih => exact .add c _ S ih
-  | mul F T hT _ ih => exact .mul _ T hT ih
+    exact (show SPFormula.subst ρ (.const a) = .const a from
+      congrArg (Formula.gate _) (funext fun j : Fin 0 => j.elim0)).symm ▸ .const a
+  | add c _ S _ ih => exact .add c _ S ih
+  | mul _ T hT _ ih => exact .mul _ T hT ih
 
 end SPFormula
 
@@ -281,8 +278,7 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
   -- Combine the two bounds.
   have hsum : (2 : ℝ) ^ (-(k : ℝ) / 2) ≤ 2 ^ (-((∑ i, w i).natAbs : ℝ) / 2) := by
     refine Real.rpow_le_rpow_of_exponent_le one_le_two ?_
-    have : ((∑ i, w i).natAbs : ℝ) ≤ k := by exact_mod_cast natAbs_sum_sqrtTwoWord_le k d
-    linarith
+    cast_linarith [natAbs_sum_sqrtTwoWord_le k d]
   set D := (d : ℝ) ^ (1 / (2 ^ Δ - 1 : ℝ))
   have hsplit : (2 : ℝ) ^ ((k : ℝ) * (D / 20 - 1 / 2)) * 2 ^ (-(k * D / 20)) =
       2 ^ (-(k : ℝ) / 2) := by
@@ -326,10 +322,10 @@ theorem productDepth_immFormula_le [Zero K] [One K] :
 
 /-- The sum over paths is set-multilinear on all blocks of `IMM_{n,d}`. -/
 theorem isSetMultilinear_immFormula [Zero K] [One K] :
-    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ := by
-  refine .add _ _ _ fun j => isSetMultilinear_mul_iff.2
-    ⟨fun i => {i}, fun i i' h => Finset.disjoint_singleton.2 h, fun i => ?_, by simp⟩
-  exact isSetMultilinear_input_iff.2 (by simp)
+    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ :=
+  .add _ _ _ fun _ => isSetMultilinear_mul_iff.2
+    ⟨fun i => {i}, fun _ _ h => Finset.disjoint_singleton.2 h,
+      fun _ => isSetMultilinear_input_iff.2 (by simp), by simp⟩
 
 /-- The sum over paths computes `IMM_{n,d}` on the numbered variables. -/
 theorem rename_polynomial_immFormula [CommSemiring K] :

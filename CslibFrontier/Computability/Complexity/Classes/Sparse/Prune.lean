@@ -226,9 +226,8 @@ def prune (Q : ℕ → α → List κ) (s D : ℕ) (N : List α) : List α :=
 variable {Q : ℕ → α → List κ} {s D : ℕ} {N : List α}
 
 theorem prune_sublist : (prune Q s D N).Sublist N := by
-  have h := (List.filter_sublist (l := N.zip (List.range N.length))
+  simpa [prune, List.map_fst_zip] using (List.filter_sublist (l := N.zip (List.range N.length))
     (p := fun p => decide (p.2 ∈ prunePositions Q s N D 0 [0]))).map Prod.fst
-  rwa [List.map_fst_zip (by simp)] at h
 
 /-- A node at a collected position is kept. -/
 theorem getElem_mem_prune_of_mem {h : ℕ} (hh : h < N.length)
@@ -277,18 +276,15 @@ theorem length_prunePositions_le (n d : ℕ) (starts : List ℕ) :
 theorem length_prune_le : (prune Q s D N).length ≤ 2 * D * (s + 2) ^ (2 * D) := by
   set I := prunePositions Q s N D 0 [0]
   have hnodup : (((N.zip (List.range N.length)).filter fun p => decide (p.2 ∈ I)).map
-      Prod.snd).Nodup := by
-    refine List.Nodup.sublist (List.filter_sublist.map _) ?_
-    rw [List.map_snd_zip (by simp)]
-    exact List.nodup_range
+      Prod.snd).Nodup :=
+    List.Nodup.sublist (List.filter_sublist.map _)
+      (by simpa [List.map_snd_zip] using List.nodup_range)
   have hsub : (((N.zip (List.range N.length)).filter fun p => decide (p.2 ∈ I)).map
-      Prod.snd) ⊆ I := by
-    intro i hi
+      Prod.snd) ⊆ I := fun i hi => by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hi
     simpa using (List.mem_filter.1 hp).2
-  have := (hnodup.length_le_of_subset hsub).trans (length_prunePositions_le D 0 [0])
   rw [prune, List.length_map]
-  simpa using this
+  simpa using (hnodup.length_le_of_subset hsub).trans (length_prunePositions_le D 0 [0])
 
 variable {C : ℕ → α → Prop} {K : ℕ → Set κ} {h : ℕ}
 
@@ -309,9 +305,7 @@ private theorem exists_run_end {P : ℕ → Prop} {h n : ℕ} (hP : P h) (hn : h
   · induction i, hi using Nat.le_induction with
     | base => exact hP
     | succ i hhi _ => exact (hmin i hhi (by omega)).2
-  · rcases hstop with h1 | h1
-    · omega
-    · exact h1
+  · exact hstop.resolve_left (by omega)
 
 /-- The start of the longest run of positions satisfying `P` up to `r`. -/
 private theorem exists_run_start {P : ℕ → Prop} {a r : ℕ} (ha : ∀ i, a ≤ i → i ≤ r → P i) :
@@ -465,13 +459,6 @@ theorem computableInPolyTime_prunePositions {Q : γ → ℕ → α → List κ} 
   induction n generalizing d with
   | zero => exact const _
   | succ n ih =>
-    have hQ' (j : ℕ) : ComputableInPolyTime (fun p : (γ × List ℕ) × α => Q p.1.1 j p.2)
-        (encPair (encPair encIn (encList encUnary)) encA) (encList encK) :=
-      (hQ j).comp (((fst encIn (encList encUnary)).comp (fst _ encA)).prod (snd _ encA))
-    have hs' : ComputableInPolyTime (fun p : γ × List ℕ => s p.1)
-        (encPair encIn (encList encUnary)) encUnary := hs.comp (fst _ _)
-    have hN' : ComputableInPolyTime (fun p : γ × List ℕ => N p.1)
-        (encPair encIn (encList encUnary)) (encList encA) := hN.comp (fst _ _)
     have hright : ComputableInPolyTime
         (fun p : γ × List ℕ => p.2.flatMap (searchRightFrom (Q p.1 (2 * d)) (s p.1) (N p.1)))
         (encPair encIn (encList encUnary)) (encList encUnary) :=
@@ -480,7 +467,7 @@ theorem computableInPolyTime_prunePositions {Q : γ → ℕ → α → List κ} 
         (Q := fun q => Q q.1.1 (2 * d)) (s := fun q => s q.1.1) (N := fun q => N q.1.1)
         (l := fun q => q.2)
         ((hQ (2 * d)).comp ((((fst _ _).comp (fst _ _)).comp (fst _ encA)).prod (snd _ encA)))
-        (hs.comp ((fst _ _).comp (fst _ _))) (hN.comp ((fst _ _).comp (fst _ _))) (snd _ _))
+        (by fun_prop) (by fun_prop) (snd _ _))
     have hleft : ComputableInPolyTime
         (fun p : γ × List ℕ => (p.2.flatMap (searchRightFrom (Q p.1 (2 * d)) (s p.1)
           (N p.1))).flatMap (searchLeftFrom (Q p.1 (2 * d + 1)) (s p.1) (N p.1)))
@@ -490,8 +477,7 @@ theorem computableInPolyTime_prunePositions {Q : γ → ℕ → α → List κ} 
         (Q := fun q => Q q.1.1 (2 * d + 1)) (s := fun q => s q.1.1) (N := fun q => N q.1.1)
         (r := fun q => q.2)
         ((hQ (2 * d + 1)).comp ((((fst _ _).comp (fst _ _)).comp (fst _ encA)).prod
-          (snd _ encA)))
-        (hs.comp ((fst _ _).comp (fst _ _))) (hN.comp ((fst _ _).comp (fst _ _))) (snd _ _))
+          (snd _ encA))) (by fun_prop) (by fun_prop) (snd _ _))
     have hrec := (ih (d + 1)).comp ((fst encIn (encList encUnary)).prod hleft)
     simp only [prunePositions]
     fun_prop

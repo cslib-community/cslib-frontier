@@ -17,6 +17,7 @@ import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.Bits
 
 /-!
@@ -162,9 +163,8 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   rw [← hstate] at hp
   rw [transposeAdjacent, ite_eq_left hvalid, hr]
   refine ⟨left_body _ _, hb, hJ, ?_⟩
-  rw [left_ports, hp, List.map_append]
-  rw [show R.length = (R.map (2 * ·)).length from (List.length_map _).symm]
-  rw [List.append_assoc, List.rotate_append_length_eq]
+  rw [left_ports, hp, List.map_append, show R.length = (R.map (2 * ·)).length from
+    (List.length_map _).symm, List.append_assoc, List.rotate_append_length_eq]
 
 /-- The actual directed port word has fresh middle names carrying reversed values.
 Repeated names and malformed tables need no premise. -/
@@ -196,23 +196,14 @@ theorem recover_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
   have hj := positioned_state F L x y R c
-  have ht' : (transposeTail g w J).body.eval sem τ = true := by
-    rw [← hf.1]
-    exact ht
-  dsimp only [J, I] at ht'
-  rw [hj] at ht'
-  have hrec := recover_transposeTail g w F (R ++ L) x y J.rotation τ ht'
+  have hrec := recover_transposeTail g w F (R ++ L) x y J.rotation τ (by rwa [← hj, ← hf.1])
   refine ⟨hrec.1, ?_⟩
-  have hvalid : L.length + 1 < I.ports.length := by
-    simp only [I, List.length_append, List.length_cons, List.length_nil]
-    omega
-  have hr : I.ports.length - (L.length + 2) = R.length := by
-    simp only [I, List.length_append, List.length_cons, List.length_nil]
-    omega
-  rw [transposeAdjacent, ite_eq_left hvalid, hr, left_ports, List.map_rotate, hj, hrec.2]
-  rw [List.map_append, List.append_assoc,
-    show R.length = (R.map (fun z => τ (2 * z))).length from (List.length_map _).symm,
-    List.rotate_append_length_eq]
+  have hrec2 := hrec.2
+  rw [ports_transposeTail, List.map_append, List.map_map] at hrec2
+  obtain ⟨h5, h7⟩ : τ 5 = τ (2 * y) ∧ τ 7 = τ (2 * x) := by
+    simpa using List.append_cancel_left hrec2
+  rw [ports_transposeAdjacent]
+  simp [Function.comp_def, h5, h7]
 
 /-- Exact extension at a valid selected pair. The fresh output word carries `y,x`, and
 all old even names, including unused names, agree with the original assignment. -/
@@ -395,9 +386,7 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
           exact le_max_right _ _
         · intro v hv
           obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
-          apply hentry
-          intro j
-          exact Nat.mod_lt _ (by omega)
+          exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
 
 private theorem enc_ports_perm {xs ys : List ℕ} (h : xs.Perm ys) :
     (encList encNat xs).length = (encList encNat ys).length :=
@@ -477,21 +466,12 @@ private theorem loop_size (encRel : Rel ↪ List Bool) (b : Bool) (I : State Rel
 private theorem rotationBudget_poly (encRel : Rel ↪ List Bool) :
     PolyBounded (fun I : State Rel => (encState encRel I).length)
       (rotationBudget encRel) := by
-  let input := encState encRel
-  have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have hports := encState_ports_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
-  have hrot := encState_rotation_polyTime encRel (ComputableInPolyTime.id' (encIn := input))
+  have hbody := encState_body_polyTime encRel (ComputableInPolyTime.id' (encIn := encState encRel))
   have hm : ComputableInPolyTime (fun I : State Rel => I.body.occurrences.length)
-      input encUnary := by
+      (encState encRel) encUnary := by
     simpa only [CSP.vars_length_eq_occurrences, Function.comp_def] using
       (computableInPolyTime_length_vars encRel encNat).comp hbody
-  have hp := (ComputableInPolyTime.length_list encNat).comp hports
-  have hd := (ComputableInPolyTime.length_list encNat).comp
-    (RotationCertificate.computableInPolyTime_successor.comp hrot)
-  have hD := hd.polyBounded.add ((PolyBounded.const 2).mul (hm.polyBounded.add hp.polyBounded))
-  have hS := (ComputableInPolyTime.id' (encIn := input)).polyBounded_length
-  exact (((PolyBounded.const 4).mul hS).add (.const 4)).add
-    (hD.mul (((PolyBounded.const 2).mul (hS.add hD)).add (.const 1)))
+  growth_poly
 
 private def boundedTurn (b : Bool) (I : State Rel) (n : ℕ) : State Rel :=
   (turn b)^[min I.ports.length n] I
@@ -633,10 +613,7 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
   have hs := normalized_loop_storage false H r B
     (by simpa only [hpJ, hpH] using ht.1)
     (by simpa only [hmJ, hpJ] using ht.2) hb
-  have ht : (turn false : State Rel → State Rel) = rotateLeft := by
-    funext K
-    rfl
-  rw [ht] at hs
+  rw [show (turn false : State Rel → State Rel) = rotateLeft from rfl] at hs
   rw [hout]
   refine ⟨?_, hs.2.2.2⟩
   simpa only [turn, Bool.false_eq_true, ↓reduceIte, hmH, hpH] using hs.2.2.1

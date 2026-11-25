@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.GeneratorReindex
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Game.Forgery
 import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
@@ -769,11 +770,9 @@ private theorem eval_toForgeExperiment_eq_map (M : MACScheme) {σ : Type}
         let (msg, tag) := out.1
         return (msg.length == M.msgLen n) && check msg tag out.2 &&
           M.verify sk msg tag) := by
-  simp only [toForgeExperiment, forgeExperiment, Forger.toTyped, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map]
+  simp only [toForgeExperiment, forgeExperiment, Forger.toTyped, pmf_norm]
   congr 1
   funext sk
-  dsimp only [Function.comp_apply]
   rw [← Forger.eval_runLogWith_rename_state (adversary n []) (fun w => w) (signer sk) (oracle sk)
     represent (step sk), PMF.bind_map]
   congr 1
@@ -900,12 +899,9 @@ private theorem run_limitToOneQuery_eq_oneTimeSigningPairOracle (M : MACScheme)
       | nil =>
         by_cases hadm : (msg.length == M.msgLen n) = true
         · simp only [oneTimeSigningPairOracle, signingPairOracleOn, hadm, List.isEmpty_nil,
-            Bool.and_self, ↓reduceIte,
-            Bool.not_true, SignatureScheme.oneTimeFilterHandler, Bool.false_eq_true,
-            Functor.map_map, OracleComp.interpret_map, StateT.run_map,
-            ProbOracleComp.interpret_query, PMF.monad_map_eq_map, PMF.map_comp,
-            Function.comp_def, signingPairOracle, ProbComp.eval_bind, ProbComp.eval_pure,
-            PMF.map_bind]
+            Bool.and_self, ↓reduceIte, Bool.not_true, SignatureScheme.oneTimeFilterHandler,
+            Bool.false_eq_true, Functor.map_map, OracleComp.interpret_map, StateT.run_map,
+            ProbOracleComp.interpret_query, signingPairOracle, pmf_norm]
           simp only [StateT.run, PMF.map_bind]
           refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
           simp [List.take_of_length_le (hbound msg tag htag)]
@@ -932,10 +928,8 @@ private theorem eval_toForgeExperiment_limitToOneQuery (M : MACScheme)
       ProbComp.eval
         (M.toForgeExperiment ((Signer.ofSign M.sign).restrict (·.length == M.msgLen n)).oneTime
           fresh adversary n) := by
-  simp only [toForgeExperiment, forgeExperiment, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, PMF.bind_map]
+  simp only [toForgeExperiment, forgeExperiment, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-  dsimp only [Function.comp_apply]
   have hrev :
       (ProbComp.eval (((SignatureScheme.limitToOneQuery (fun n m => m.length == M.msgLen n) bound
           adversary).toTyped n []).runLogWith
@@ -1438,8 +1432,7 @@ private theorem step_prfRealLogHandler
       OracleComp.interpret_map, ProbOracleComp.interpret_query, ProbComp.eval_bind,
       ProbComp.eval_pure, PMF.pure_bind, hsk]
     dsimp only [Functor.map, StateT.map]
-    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.pure_map,
-      List.take_of_length_le hlen_eq.le]
+    simp only [List.take_of_length_le hlen_eq.le, pmf_norm]
   · simp only [beq_eq_false_iff_ne.mpr hmsg, Bool.false_eq_true, ↓reduceIte,
       OracleComp.interpret_pure, ProbComp.eval_pure]
     rw [show (pure ([], queried) : StateT Unit PMF _) PUnit.unit =
@@ -1556,8 +1549,8 @@ private theorem eval_prfIdealGame_macToPrfDistinguisher_eq_bind (adversary : For
         (adversary n [])).run ([], fun _ => none)).bind (prfIdealPost n) := by
   classical
   dsimp only [macToPrfDistinguisher, prfIdealLogOracle]
-  simp only [OracleComp.interpret_bind, StateT.run_bind, PMF.monad_bind_eq_bind, PMF.map_bind,
-    ProbOracleComp.run_interpret_run_interpret, PMF.bind_map, Function.comp_def]
+  simp only [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.run_interpret_run_interpret,
+    pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun ⟨out, queried, cache⟩ _ => ?_
   dsimp only [prfIdealPost]
   by_cases hcond : ((out.1.length == n) && !queried.contains out.1) = true

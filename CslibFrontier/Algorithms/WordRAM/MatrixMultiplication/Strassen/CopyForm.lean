@@ -38,8 +38,7 @@ theorem exec_copyForm {w q t : ℕ} (base dst : Fin 64) (x : Data 64)
       (∀ a, a < x.regs dst ∨ x.regs dst + q ≤ a → y.mem a = x.mem a) ∧
       ∀ i, 32 ≤ i.val → i ≠ Reg.temporary → y.regs i = x.regs i := by
   have hqfit : Fits w (x.regs base + 4 * x.regs Reg.quarter + 4) := by
-    rw [hq]
-    exact hw.of_le (by omega)
+    rw [hq]; exact hw.of_le (by omega)
   apply WP.exists_execWithin
   simp only [form, ite_true]
   apply WP.seq
@@ -60,17 +59,12 @@ theorem exec_copyForm {w q t : ℕ} (base dst : Fin 64) (x : Data 64)
   have hzl : (z.comap f).regs ArrayCopy.len = q := by
     simp [hz, f, Data.comap, Reg.copyLength, ArrayCopy.len]
   have hquarter : t * q + q ≤ 4 * q := by
-    have hmul := Nat.mul_le_mul_right q (Nat.succ_le_of_lt ht)
-    simpa only [Nat.succ_mul] using hmul
+    simpa only [Nat.succ_mul] using Nat.mul_le_mul_right q (Nat.succ_le_of_lt ht)
   wram_call (ArrayCopy.exec_of_separated_or_eq (z.comap f)
       (hw.of_le (by omega))
       (by rw [hzs, hzl]; exact hw.of_le (by omega))
       (by rw [hzd, hzl]; exact hw.of_le (by omega))
-      (by
-        rw [hzs, hzd, hzl]
-        rcases hsep with h | h
-        · exact Or.inl (by omega)
-        · exact Or.inr (Or.inl (by omega)))) renamed (Fin.castLE_injective _) with
+      (by rw [hzs, hzd, hzl]; omega)) renamed (Fin.castLE_injective _) with
       y ⟨⟨hum, _, _, _⟩, hframe⟩
   have hym : y.mem = ArrayCopy.copyPrefix x.mem (x.regs base + t * q) (x.regs dst) q := by
     rw [hzs, hzd, hzl] at hum
@@ -86,11 +80,8 @@ theorem exec_copyForm {w q t : ℕ} (base dst : Fin 64) (x : Data 64)
     rw [hym]
     exact ArrayCopy.copyPrefix_outside (by omega)
   · intro i hi htemp
-    have hyi : y.regs i = z.regs i := hframe i (by
-      intro j hj
-      have hv := congrArg Fin.val hj
-      change j.val = i.val at hv
-      omega)
+    have hyi : y.regs i = z.regs i := hframe i (fun j hj => by
+      have hv := congrArg Fin.val hj; change j.val = i.val at hv; omega)
     apply hyi.trans
     have hi1 : i ≠ Reg.copyTarget := by intro h; subst i; contradiction
     have hi2 : i ≠ Reg.copyLength := by intro h; subst i; contradiction

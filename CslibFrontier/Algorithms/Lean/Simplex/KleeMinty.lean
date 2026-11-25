@@ -170,19 +170,12 @@ private theorem exists_lowest_zero {N : ℕ} (hN : N < 2 ^ n - 1) :
     push Not at h
     have hmod : N % 2 ^ n = 2 ^ n - 1 := Nat.eq_of_testBit_eq fun i => by
       rw [Nat.testBit_mod_two_pow, Nat.testBit_two_pow_sub_one]
-      by_cases hi : i < n
-      · simp only [hi, decide_true, Bool.true_and]
-        simpa using h i hi
-      · simp only [hi, decide_false, Bool.false_and]
+      by_cases hi : i < n <;> simp [hi, h]
     have := Nat.mod_le N (2 ^ n)
     omega
   classical
-  let j := Nat.find hex
-  have hjs : j < n ∧ N.testBit j = false := Nat.find_spec hex
-  refine ⟨j, hjs.1, hjs.2, fun l hl => ?_⟩
-  have := Nat.find_min hex hl
-  simp only [not_and, Bool.not_eq_false] at this
-  exact this (hl.trans hjs.1)
+  exact ⟨Nat.find hex, (Nat.find_spec hex).1, (Nat.find_spec hex).2, fun l hl =>
+    Bool.eq_true_of_not_eq_false fun h => Nat.find_min hex hl ⟨hl.trans (Nat.find_spec hex).1, h⟩⟩
 
 /-! ### Signs, values and coefficients -/
 
@@ -263,20 +256,13 @@ private theorem zVal_succ_of_gt (hj : N.testBit j = false) (hlow : ∀ l < j, N.
     rw [zVal_succ (N + 1) j, zVal_succ N j, flipped_succ hj hlow, ite_eq_left rfl,
       zVal_succ_of_le hj hlow le_rfl, bitSign_succ, bitSign_of_testBit_false hj, Nat.sub_self,
       pow_zero, rowConst]
-    cases flipped N j
-    · simp only [Bool.not_false, ↓reduceIte, Bool.false_eq_true]
-      ring
-    · simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      ring
+    cases flipped N j <;>
+      simp only [Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] <;> ring
   | succ m hm ih =>
     rw [zVal_succ (N + 1) (m + 1), zVal_succ N (m + 1), flipped_succ hj hlow,
       ite_eq_right (show m + 1 ≠ j by omega), ih, bitSign_succ N (m + 1),
       show m + 1 - j = m - j + 1 by omega, pow_succ]
-    cases flipped N (m + 1)
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      ring
-    · simp only [↓reduceIte]
-      ring
+    cases flipped N (m + 1) <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> ring
 
 private theorem rowConst_succ_self (hj : N.testBit j = false) (hlow : ∀ l < j, N.testBit l = true) :
     (rowConst (N + 1) j : K) = rowConst N j := by
@@ -319,22 +305,17 @@ private theorem rowCoeff_succ (hj : N.testBit j = false) (hlow : ∀ l < j, N.te
     · rcases lt_or_gt_of_ne hp with hpj | hpj
       · rw [rowCoeff_of_lt hpP, rowCoeff_of_lt hpP, rowCoeff_of_lt hPj, rowCoeff_of_lt hpj,
           bitSign_succ_of_le hj hlow hpj.le, bitSign_succ_of_gt hj hlow hPj,
-          bitSign_of_testBit_false hj]
-        have : (10 : K) ^ (P - p) = 10 ^ (P - j) * 10 ^ (j - p) := by
-          rw [← pow_add]; congr 1; omega
-        rw [this]
+          bitSign_of_testBit_false hj, show P - p = (P - j) + (j - p) by omega, pow_add]
         ring
       · rw [rowCoeff_of_lt hpP, rowCoeff_of_lt hpP, rowCoeff_of_gt hpj, mul_zero, add_zero,
           bitSign_succ_of_gt hj hlow hpj, bitSign_succ_of_gt hj hlow hPj]
   · subst hpP
     rw [rowCoeff_self, rowCoeff_self]
-    rcases lt_or_gt_of_ne hP with h | h
-    · rw [rowCoeff_of_gt h, zero_mul, add_zero]
-    · rw [rowCoeff_of_gt h, mul_zero, add_zero]
+    rcases lt_or_gt_of_ne hP with h | h <;> simp [rowCoeff_of_gt h]
   · rw [rowCoeff_of_gt hpP, rowCoeff_of_gt hpP]
     rcases lt_or_gt_of_ne hP with h | h
-    · rw [rowCoeff_of_gt h, zero_mul, add_zero]
-    · rw [rowCoeff_of_gt (h.trans hpP), mul_zero, add_zero]
+    · simp [rowCoeff_of_gt h]
+    · simp [rowCoeff_of_gt (h.trans hpP)]
 
 private theorem cost_succ_self (hj : N.testBit j = false) (hlow : ∀ l < j, N.testBit l = true)
     (hjn : j < n) : (cost n (N + 1) j : K) = -cost n N j := by
@@ -343,13 +324,11 @@ private theorem cost_succ_self (hj : N.testBit j = false) (hlow : ∀ l < j, N.t
 
 private theorem cost_succ_of_ne (hj : N.testBit j = false) (hlow : ∀ l < j, N.testBit l = true)
     (hjn : j < n) {p : ℕ} (hp : p ≠ j) :
-    (cost n (N + 1) p : K) = cost n N p + cost n N j * rowCoeff N j p := by
+     (cost n (N + 1) p : K) = cost n N p + cost n N j * rowCoeff N j p := by
   rcases lt_or_gt_of_ne hp with h | h
   · rw [cost, cost, cost, rowCoeff_of_lt h, bitSign_succ_of_le hj hlow h.le,
-      bitSign_succ_of_gt hj hlow hjn, bitSign_of_testBit_false hj]
-    have : (10 : K) ^ (n - 1 - p) = 10 ^ (n - 1 - j) * 10 ^ (j - p) := by
-      rw [← pow_add]; congr 1; omega
-    rw [this]
+      bitSign_succ_of_gt hj hlow hjn, bitSign_of_testBit_false hj,
+      show n - 1 - p = (n - 1 - j) + (j - p) by omega, pow_add]
     ring
   · rw [rowCoeff_of_gt h, mul_zero, add_zero, cost, cost, bitSign_succ_of_gt hj hlow h,
       bitSign_succ_of_gt hj hlow hjn]
@@ -390,8 +369,7 @@ private theorem isX_natAdd (k : Fin n) : isX (Fin.natAdd n k) = false := by
 private theorem eq_var_iff {v : Fin (n + n)} {k : Fin n} {b : Bool} :
     v = var k b ↔ pair v = k ∧ isX v = b := by
   constructor
-  · rintro rfl
-    exact ⟨pair_var k b, isX_var k b⟩
+  · rintro rfl; exact ⟨pair_var k b, isX_var k b⟩
   · rintro ⟨rfl, rfl⟩
     induction v using Fin.addCases with
     | left i => rw [pair_castAdd, isX_castAdd, var, ite_eq_left rfl]
@@ -406,21 +384,13 @@ theorem not_basic_var_not (N : ℕ) (j : Fin n) : ¬Basic N (var j (!flipped N j
 private theorem eq_var_self_iff {N : ℕ} {j : Fin n} {v : Fin (n + n)} :
     v = var j (flipped N j) ↔ pair v = j ∧ Basic N v := by
   rw [eq_var_iff, Basic]
-  constructor
-  · rintro ⟨rfl, h⟩; exact ⟨rfl, h⟩
-  · rintro ⟨rfl, h⟩; exact ⟨rfl, h⟩
+  constructor <;> rintro ⟨rfl, h⟩ <;> exact ⟨rfl, h⟩
 
 private theorem eq_var_not_iff {N : ℕ} {j : Fin n} {v : Fin (n + n)} :
     v = var j (!flipped N j) ↔ pair v = j ∧ ¬Basic N v := by
   rw [eq_var_iff, Basic]
-  constructor
-  · rintro ⟨rfl, h⟩
-    rw [h]
-    exact ⟨rfl, by simp⟩
-  · rintro ⟨rfl, h⟩
-    refine ⟨rfl, ?_⟩
-    revert h
-    cases isX v <;> cases flipped N (pair v) <;> simp
+  by_cases hp : pair v = j <;> simp only [hp, true_and, false_and]
+  cases isX v <;> cases flipped N j <;> decide
 
 private theorem basic_succ_iff {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     (hlow : ∀ l < (j : ℕ), N.testBit l = true) (v : Fin (n + n)) :
@@ -452,6 +422,12 @@ theorem dict_objCoeff {N : ℕ} {u : Fin (n + n)} (hu : ¬Basic N u) :
     (dict n N : Dictionary (Fin (n + n)) K).objCoeff u = cost n N (pair u) := by
   simp [dict, hu]
 
+private theorem dict_coeff_flipped (N : ℕ) (j : Fin n) :
+    (dict n N : Dictionary (Fin (n + n)) K).coeff (var j (flipped N j))
+      (var j (!flipped N j)) = -1 := by
+  rw [dict_coeff (basic_var_self (n := n) N j) (not_basic_var_not (n := n) N j),
+    pair_var, pair_var, rowCoeff_self]
+
 /-- **The pivot step**: at the lowest zero bit `j` of `N`, pivoting `dict n N` on the leaving
 basic variable of pair `j` and the entering nonbasic variable of pair `j` yields `dict n (N + 1)`.
 -/
@@ -461,9 +437,7 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
       dict n (N + 1) := by
   have hrb := basic_var_self (n := n) N j
   have hsb := not_basic_var_not (n := n) N j
-  have hcrs : (dict n N : Dictionary (Fin (n + n)) K).coeff (var j (flipped N j))
-      (var j (!flipped N j)) = -1 := by
-    rw [dict_coeff hrb hsb, pair_var, pair_var, rowCoeff_self]
+  have hcrs := dict_coeff_flipped (K := K) N j
   have hrr : (dict n N : Dictionary (Fin (n + n)) K).rhs (var j (flipped N j)) = rowConst N j := by
     rw [dict_rhs hrb, pair_var]
   have hcs : (dict n N : Dictionary (Fin (n + n)) K).objCoeff (var j (!flipped N j)) =
@@ -482,14 +456,10 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     · by_cases hb : Basic N v
       · exact .inl (hr ▸ eq_var_self_iff.2 ⟨h, hb⟩)
       · exact .inr (.inl (hs ▸ eq_var_not_iff.2 ⟨h, hb⟩))
-    · refine .inr (.inr ⟨h, ?_, ?_⟩) <;> rintro rfl
-      · exact h hpr
-      · exact h hps
+    · exact .inr (.inr ⟨h, fun e => h (e ▸ hpr), fun e => h (e ▸ hps)⟩)
   have hne : ∀ v : Fin (n + n), pair v ≠ j → (pair v : ℕ) ≠ j := fun v h e => h (Fin.ext e)
-  have hb1 : ∀ v : Fin (n + n), pair v ≠ j → (Basic (N + 1) v ↔ Basic N v) := by
-    intro v h
-    rw [basic_succ_iff hj hlow]
-    simp [h]
+  have hb1 : ∀ v : Fin (n + n), pair v ≠ j → (Basic (N + 1) v ↔ Basic N v) := fun v h => by
+    rw [basic_succ_iff hj hlow]; simp [h]
   apply Dictionary.ext
   · ext v
     simp only [Dictionary.mem_pivot_basis, mem_dict_basis]
@@ -563,13 +533,7 @@ private theorem zVal_nonneg_and (N k : ℕ) :
     obtain ⟨h0, h1⟩ := ih
     have hp : (0 : K) ≤ 100 ^ k := by positivity
     rw [zVal_succ]
-    split_ifs
-    · constructor
-      · nlinarith
-      · rw [pow_succ]; nlinarith
-    · constructor
-      · nlinarith
-      · rw [pow_succ]; nlinarith
+    split_ifs <;> exact ⟨by nlinarith, by rw [pow_succ]; nlinarith⟩
 
 private theorem rowConst_bounds (N k : ℕ) :
     4 * (100 : K) ^ k ≤ 5 * rowConst N k ∧ (rowConst N k : K) ≤ 100 ^ k := by
@@ -616,14 +580,10 @@ theorem dantzigEntering_dict {N : ℕ} (hN : N < 2 ^ n) {j : Fin n} (hj : N.test
         _ < 10 ^ (n - 1 - (j : ℕ)) := by rw [mul_one]; exact hle
   rw [Dictionary.dantzigEntering_eq_some_iff, mem_dict_basis]
   refine ⟨hsb, by rw [hcs]; positivity, fun u hu => ?_, fun u hu heq => ?_⟩
-  · rw [mem_dict_basis] at hu
-    by_cases hus : u = var j (!flipped N j)
-    · rw [hus]
-    · exact (hlt u hu hus).le
-  · rw [mem_dict_basis] at hu
-    by_cases hus : u = var j (!flipped N j)
-    · exact hus.symm.le
-    · exact absurd heq (hlt u hu hus).ne
+  · rcases eq_or_ne u (var j (!flipped N j)) with rfl | hus
+    exacts [le_rfl, (hlt u (mem_dict_basis.not.mp hu) hus).le]
+  · rcases eq_or_ne u (var j (!flipped N j)) with rfl | hus
+    exacts [le_rfl, absurd heq (hlt u (mem_dict_basis.not.mp hu) hus).ne]
 
 /-- At vertex `N` with lowest zero bit `j`, the ratio test leaves the basic variable of pair
 `j`: its ratio is strictly smallest. -/
@@ -632,9 +592,7 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
       some (var j (flipped N j)) := by
   have hrb := basic_var_self (n := n) N j
   have hsb := not_basic_var_not (n := n) N j
-  have hcrs : (dict n N : Dictionary (Fin (n + n)) K).coeff (var j (flipped N j))
-      (var j (!flipped N j)) = -1 := by
-    rw [dict_coeff hrb hsb, pair_var, pair_var, rowCoeff_self]
+  have hcrs := dict_coeff_flipped (K := K) N j
   have hratio : (dict n N : Dictionary (Fin (n + n)) K).ratio (var j (!flipped N j))
       (var j (flipped N j)) = rowConst N j := by
     rw [Dictionary.ratio, hcrs, dict_rhs hrb, pair_var, neg_neg, div_one]
@@ -647,10 +605,8 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     rw [dict_coeff hi hsb, pair_var] at hneg
     rw [hratio, Dictionary.ratio, dict_coeff hi hsb, dict_rhs hi, pair_var]
     have hPj : pair i ≠ j := fun h => hir (eq_var_self_iff.2 ⟨h, hi⟩)
-    have hjP : (j : ℕ) < pair i := by
-      rcases lt_or_gt_of_ne (fun e => hPj (Fin.ext e)) with h | h
-      · rw [rowCoeff_of_gt h] at hneg; exact absurd hneg (lt_irrefl 0)
-      · exact h
+    have hjP : (j : ℕ) < pair i := (lt_or_gt_of_ne fun e => hPj (Fin.ext e)).resolve_left fun h =>
+      by rw [rowCoeff_of_gt h] at hneg; exact lt_irrefl 0 hneg
     rw [rowCoeff_of_lt hjP] at hneg ⊢
     rw [lt_div_iff₀ (by linarith)]
     obtain ⟨d, hd⟩ : ∃ d, (pair i : ℕ) = j + (d + 1) := ⟨pair i - j - 1, by omega⟩
@@ -668,26 +624,19 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     obtain ⟨-, hjhi⟩ := rowConst_bounds (K := K) N j
     rw [h100] at hPlo
     have hc : -(-2 * X * bitSign N ((j : ℕ) + (d + 1))) ≤ 2 * X := by
-      have := bitSign_le_one (K := K) N ((j : ℕ) + (d + 1))
-      nlinarith
+      nlinarith [bitSign_le_one (K := K) N ((j : ℕ) + (d + 1))]
     have hpos : (0 : K) < 100 ^ (j : ℕ) := by positivity
-    have hrj := rowConst_pos (K := K) N j
-    have h1 : rowConst N j * -(-2 * X * bitSign N ((j : ℕ) + (d + 1))) ≤
-        rowConst N j * (2 * X) := mul_le_mul_of_nonneg_left hc hrj.le
-    have h2 : rowConst N j * (2 * X) ≤ 100 ^ (j : ℕ) * (2 * X) := by gcongr
-    have h3 : 0 < 100 ^ (j : ℕ) * X * (4 * X - 10) := by
-      apply mul_pos (mul_pos hpos (by linarith)); linarith
-    nlinarith
+    have hrj := (rowConst_pos (K := K) N j).le
+    nlinarith [mul_le_mul_of_nonneg_left hc hrj,
+      mul_le_mul_of_nonneg_right hjhi (by linarith : (0 : K) ≤ 2 * X),
+      mul_pos (mul_pos hpos (by linarith : (0 : K) < X))
+        (by linarith : (0 : K) < 4 * X - 10)]
   rw [Dictionary.blandLeaving_eq_some_iff, mem_dict_basis]
   refine ⟨hrb, by rw [hcrs]; norm_num, fun i hi hneg => ?_, fun i hi hneg heq => ?_⟩
-  · rw [mem_dict_basis] at hi
-    by_cases hir : i = var j (flipped N j)
-    · rw [hir]
-    · exact (hlt i hi hir hneg).le
-  · rw [mem_dict_basis] at hi
-    by_cases hir : i = var j (flipped N j)
-    · exact hir.symm.le
-    · exact absurd heq (hlt i hi hir hneg).ne'
+  · rcases eq_or_ne i (var j (flipped N j)) with rfl | hir
+    exacts [le_rfl, (hlt i (mem_dict_basis.mp hi) hir hneg).le]
+  · rcases eq_or_ne i (var j (flipped N j)) with rfl | hir
+    exacts [le_rfl, absurd heq (hlt i (mem_dict_basis.mp hi) hir hneg).ne']
 
 /-- Below the last vertex, one step of Dantzig's rule moves from vertex `N` to vertex `N + 1`. -/
 theorem dantzigStep_dict {N : ℕ} (hN : N < 2 ^ n - 1) :

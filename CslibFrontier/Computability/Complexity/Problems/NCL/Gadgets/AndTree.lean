@@ -79,13 +79,11 @@ private theorem legal_grow_iff (n : ℕ) (s : (grow n).Edge → Bool) :
   rw [legal_comp_iff, legal_tensor_iff]
   simp only [legal_id, true_and]
   rw [legal_generator_iff, legal_binary_iff]
-  have hfirst : List.appendIndexEquiv [B] (OrTree.bundle n) (.inl 0) = first n := by
-    apply Fin.ext
-    exact List.val_appendIndexEquiv_inl [B] (OrTree.bundle n) 0
+  have hfirst : List.appendIndexEquiv [B] (OrTree.bundle n) (.inl 0) = first n :=
+    Fin.ext (List.val_appendIndexEquiv_inl [B] (OrTree.bundle n) 0)
   have hrest (i : Fin (OrTree.bundle n).length) :
-      List.appendIndexEquiv [B] (OrTree.bundle n) (.inr i) = rest n i := by
-    apply Fin.ext
-    exact (List.val_appendIndexEquiv_inr [B] (OrTree.bundle n) i).trans (Nat.add_comm 1 i.val)
+      List.appendIndexEquiv [B] (OrTree.bundle n) (.inr i) = rest n i :=
+    Fin.ext ((List.val_appendIndexEquiv_inr [B] (OrTree.bundle n) i).trans (Nat.add_comm 1 i.val))
   change (((∀ i, s (.inl (List.appendIndexEquiv [B] (OrTree.bundle n) (.inr i))) = true) ∨
       s (TreeJunction.middle) = false) ∧
       (s ((grow n).bottom 0) = false ∨
@@ -97,9 +95,8 @@ private theorem source_iff (n : ℕ)
     (β : Fin (OrTree.bundle (n + 1)).length ⊕ Fin 1 → Bool) :
     ((node (n + 1)).graph Prim.interp).Legal β ↔
       β (.inr 0) = false ∨ β (.inl (first n)) = true ∧ active n β = true := by
-  rw [legal_generator_iff]
-  rw [show active n β = true ↔ ∀ i, β (.inl (rest n i)) = true from
-    Iff.of_eq decide_eq_true_eq]
+  rw [legal_generator_iff,
+    show active n β = true ↔ ∀ i, β (.inl (rest n i)) = true from Iff.of_eq decide_eq_true_eq]
   change ((∀ i : Fin ((OrTree.bundle n).length + 1), β (.inl i) = true) ∨
     β (.inr 0) = false) ↔
       (β (.inr 0) = false ∨ β (.inl 0) = true ∧
@@ -118,9 +115,8 @@ private theorem legal_put_iff (n : ℕ)
 private theorem legal_canon (n : ℕ)
     {β : Fin (OrTree.bundle (n + 1)).length ⊕ Fin 1 → Bool}
     (hβ : ((node (n + 1)).graph Prim.interp).Legal β) :
-    ((grow n).graph Prim.interp).Legal (canon n β) := by
-  apply (legal_put_iff n β _).mpr
-  exact ⟨by cases active n β <;> simp, (source_iff n β).mp hβ⟩
+    ((grow n).graph Prim.interp).Legal (canon n β) :=
+  (legal_put_iff n β _).mpr ⟨by cases active n β <;> simp, (source_iff n β).mp hβ⟩
 
 private theorem middle_inner (n : ℕ) : ¬(grow n).IsBoundary TreeJunction.middle := by
   rintro (⟨i, hi⟩ | ⟨i, hi⟩) <;> simp [TreeJunction.middle, grow, bottom] at hi
@@ -131,12 +127,9 @@ private theorem junction_bmap (n : ℕ)
 
 private theorem active_mono (n : ℕ)
     {β γ : Fin (OrTree.bundle (n + 1)).length ⊕ Fin 1 → Bool}
-    (h : ∀ i, β (.inl i) ≤ γ (.inl i)) : active n β ≤ active n γ := by
-  apply Bool.le_iff_imp.mpr
-  intro hβ
-  apply decide_eq_true
-  intro i
-  exact Bool.eq_true_of_true_le ((of_decide_eq_true hβ i) ▸ h (rest n i))
+    (h : ∀ i, β (.inl i) ≤ γ (.inl i)) : active n β ≤ active n γ :=
+  Bool.le_iff_imp.mpr fun hβ => decide_eq_true fun i =>
+    Bool.eq_true_of_true_le ((of_decide_eq_true hβ i) ▸ h (rest n i))
 
 private theorem active_eq (n : ℕ)
     {β γ : Fin (OrTree.bundle (n + 1)).length ⊕ Fin 1 → Bool}
@@ -150,9 +143,8 @@ private theorem positive_input_legal (n : ℕ)
     ((grow n).graph Prim.interp).Legal
       (TreeJunction.put (reverse β (.inl i)) (active n β)) := by
   have ham := active_mono n (β := β) (γ := reverse β (.inl i))
-    (fun k => TreeJunction.le_reverse_of_false β (.inl i) hx (.inl k))
-  apply (legal_put_iff n _ _).mpr
-  constructor
+    fun k => TreeJunction.le_reverse_of_false β (.inl i) hx (.inl k)
+  refine (legal_put_iff n _ _).mpr ⟨?_, ?_⟩
   · cases ha : active n β
     · exact Or.inr rfl
     · exact Or.inl (Bool.eq_true_of_true_le (ha ▸ ham))
@@ -214,8 +206,7 @@ theorem checkStandard : ∀ n, (diagram n).checkGens Prim.checkStandard = true
   | n + 1 => by
     change (true && (diagram n).checkGens Prim.checkStandard) &&
       binaryDiagram.checkGens Prim.checkStandard = true
-    rw [checkStandard n, binary_checkStandard]
-    rfl
+    rw [checkStandard n, binary_checkStandard]; rfl
 
 /-- Each additional input contributes fifteen standard vertices. -/
 theorem length_vertexList : ∀ n, ((diagram n).vertexList Prim.interp).length = 15 * n + 3
@@ -223,15 +214,13 @@ theorem length_vertexList : ∀ n, ((diagram n).vertexList Prim.interp).length =
   | n + 1 => by
     simp only [diagram, vertexList, List.length_append, List.length_map,
       List.length_nil, Nat.zero_add]
-    rw [length_vertexList n, binary_vertexCount]
-    omega
+    rw [length_vertexList n, binary_vertexCount]; omega
 
 /-- Each additional input contributes twenty-two created wires. -/
 theorem innerCount : ∀ n, (diagram n).innerCount = 22 * n + 5
   | 0 => by decide +kernel
   | n + 1 => by
     change 0 + (diagram n).innerCount + binaryDiagram.innerCount = _
-    rw [innerCount n, binary_innerCount]
-    omega
+    rw [innerCount n, binary_innerCount]; omega
 
 end Cslib.Complexity.NCL.Gadgets.AndTree

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Probability.Multilinear.Invariance
 public import Mathlib.Topology.EMetricSpace.Lipschitz
 import CslibFrontier.Foundations.MeasureTheory.Integral.CauchySchwarz
 import CslibFrontier.Foundations.Probability.SmoothTests
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The Basic Invariance Principle for Lipschitz test functions
@@ -61,22 +62,17 @@ private theorem mul_nine_pow_le (k : ℕ) : k * 9 ^ k ≤ 16 ^ k := by
   · norm_num
   induction k with
   | zero => norm_num
-  | succ k ih =>
-    rw [pow_succ 9, pow_succ 16]
-    have h9 : 0 ≤ 9 ^ (k + 2) := Nat.zero_le _
-    nlinarith
+  | succ k ih => rw [pow_succ 9, pow_succ 16]; nlinarith [Nat.zero_le (9 ^ (k + 2))]
 
 /-- The arithmetic of Corollary 11.68: `k 9ᵏ ε / 12 ≤ (9/16 · 2ᵏ · ε^(1/4))⁴`. -/
 private theorem mul_nine_pow_mul_div_le (k : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
     k * 9 ^ k * ε / 12 ≤ (9 / 16 * 2 ^ k * ε ^ (1 / 4 : ℝ)) ^ 4 := by
-  have hk : (k : ℝ) * 9 ^ k ≤ 16 ^ k := by exact_mod_cast mul_nine_pow_le k
   have he : (ε ^ (1 / 4 : ℝ)) ^ 4 = ε := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul hε]
-    norm_num
+    rw [← Real.rpow_natCast, ← Real.rpow_mul hε]; norm_num
   rw [mul_pow, mul_pow, he, ← pow_mul, mul_comm k 4, pow_mul]
-  have h16 : (0 : ℝ) ≤ 16 ^ k * ε := by positivity
+  have : (0 : ℝ) ≤ 16 ^ k * ε := by positivity
   norm_num
-  nlinarith
+  cast_nlinarith [mul_nine_pow_le k]
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι] (μ ν : ι → Measure ℝ)
   [∀ i, IsProbabilityMeasure (μ i)] [∀ i, IsProbabilityMeasure (ν i)]
@@ -100,10 +96,8 @@ theorem abs_integral_comp_multilinearEval_sub_le_of_lipschitzWith
   have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0)
   refine (abs_integral_comp_multilinearEval_sub_le_of_influence_le μ ν hμ hν hc hvar hε0 hε hφ
     hC).trans ?_
-  calc C / 12 * k * 9 ^ k * ε = C * (k * 9 ^ k * ε / 12) := by ring
-    _ ≤ C * (9 / 16 * 2 ^ k * ε ^ (1 / 4 : ℝ)) ^ 4 := by
-        gcongr
-        exact mul_nine_pow_mul_div_le k hε0
+  rw [show C / 12 * k * 9 ^ k * ε = C * (k * 9 ^ k * ε / 12) by ring]
+  exact mul_le_mul_of_nonneg_left (mul_nine_pow_mul_div_le k hε0) hC0
 
 /-! ### Lipschitz tests of nearby polynomials -/
 
@@ -117,14 +111,12 @@ theorem abs_integral_comp_multilinearEval_sub_le_sqrt (hμ : ∀ i, HasInvarianc
     |∫ z, ψ (multilinearEval c z) ∂Measure.pi μ - ∫ z, ψ (multilinearEval d z) ∂Measure.pi μ| ≤
       K * √(∑ S, (c S - d S) ^ 2) := by
   have hL (e : Finset ι → ℝ) : MemLp (multilinearEval e) 2 (Measure.pi μ) := by
-    have h := memLp_multilinearEval μ (p := 2) two_ne_zero
+    exact_mod_cast memLp_multilinearEval μ (p := 2) two_ne_zero
       (fun i => (hμ i).memLp_four.mono_exponent (by norm_num)) e
-    exact_mod_cast h
-  have hD (z : ι → ℝ) : multilinearEval c z - multilinearEval d z =
-      multilinearEval (c - d) z := by
-    simp only [multilinearEval_def, Pi.sub_apply, sub_mul, sum_sub_distrib]
   refine (hψ.abs_integral_comp_sub_le_sqrt (hL c) (hL d)).trans_eq ?_
-  simp_rw [hD]
+  have hsub (z) : multilinearEval c z - multilinearEval d z = multilinearEval (c - d) z := by
+    simp only [multilinearEval_def, Pi.sub_apply, sub_mul, sum_sub_distrib]
+  simp_rw [hsub]
   rw [integral_multilinearEval_sq_of_hasInvarianceMoments μ hμ]
   simp
 

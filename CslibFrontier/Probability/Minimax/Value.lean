@@ -93,10 +93,9 @@ omit [IsStrictOrderedRing K] in
 /-- A point of the standard simplex given by its weight vector. -/
 private theorem exists_stdSimplex_weights_eq {ι : Type*} [Fintype ι] {w : ι → K}
     (hw0 : ∀ k, 0 ≤ w k) (hw1 : ∑ k, w k = 1) : ∃ p : StdSimplex K ι, ⇑p.weights = w := by
-  have : w ∈ Set.range fun p : StdSimplex K ι => (p.weights : ι → K) := by
-    rw [StdSimplex.range_toFun_comp_weights]
-    exact ⟨Set.mem_iInter.2 hw0, hw1⟩
-  exact this
+  change w ∈ Set.range fun p : StdSimplex K ι => (p.weights : ι → K)
+  rw [StdSimplex.range_toFun_comp_weights]
+  exact ⟨Set.mem_iInter.2 hw0, hw1⟩
 
 omit [IsStrictOrderedRing K] in
 /-- Weight vectors `p` and `q` of mixed strategies, with `p` paying at most `v` against every
@@ -113,7 +112,7 @@ theorem IsMinimaxValue.of_weights {M : I → J → K} {v : K} {p : I → K} {q :
 strategy. -/
 private theorem sum_mul_sum_le {M : I → J → K} {c : K} {p : I → K} (q : J → K)
     (hq0 : ∀ j, 0 ≤ q j) (hq1 : ∑ j, q j = 1) (hp : ∀ j, ∑ i, p i * M i j ≤ c) :
-    ∑ i, p i * ∑ j, q j * M i j ≤ c := by
+    ∑ i, p i * ∑ j, q j * M i j ≤ c :=
   calc ∑ i, p i * ∑ j, q j * M i j = ∑ j, q j * ∑ i, p i * M i j := by
         simp only [mul_sum]
         rw [sum_comm]
@@ -141,11 +140,10 @@ theorem IsMinimaxValue.unique {M : I → J → K} {v w : K} (hv : IsMinimaxValue
     (hw : IsMinimaxValue M w) : v = w := by
   obtain ⟨⟨p, hp⟩, q, hq⟩ := hv
   obtain ⟨⟨p', hp'⟩, q', hq'⟩ := hw
-  have h₁ := sum_mul_sum_le _ q'.weights_nonneg q'.total_of_fintype hp
-  have h₂ := le_sum_mul_sum _ p.weights_nonneg p.total_of_fintype hq'
-  have h₃ := sum_mul_sum_le _ q.weights_nonneg q.total_of_fintype hp'
-  have h₄ := le_sum_mul_sum _ p'.weights_nonneg p'.total_of_fintype hq
-  linarith
+  linarith [sum_mul_sum_le _ q'.weights_nonneg q'.total_of_fintype hp,
+    le_sum_mul_sum _ p.weights_nonneg p.total_of_fintype hq',
+    sum_mul_sum_le _ q.weights_nonneg q.total_of_fintype hp',
+    le_sum_mul_sum _ p'.weights_nonneg p'.total_of_fintype hq]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 /-- Dividing a vector `w` with sum `V ≠ 0` by `V` turns the shifted payoff
@@ -212,7 +210,6 @@ theorem exists_isMinimaxValue [Nonempty I] [Nonempty J] (M : I → J → K) :
   simp only [dotProduct_one, one_dotProduct] at hxy
   replace hAx (j : J) : ∑ i, x i * (M i j + s) ≤ 1 := by
     simpa only [Matrix.mulVec, dotProduct, Matrix.of_apply, Pi.one_apply, mul_comm] using hAx j
-  replace hyA (i : I) : 1 ≤ ∑ j, y j * (M i j + s) := hyA i
   obtain ⟨hp0, hp1, hp, hq0, hq1, hq⟩ := strategies_of_canonical_pair hx hAx hy hyA hxy.symm rfl
   exact ⟨_, .of_weights hp0 hp1 hp hq0 hq1 hq⟩
 
@@ -231,10 +228,8 @@ theorem IsMinimaxValue.exists_ge {M : I → J → K} {v : K} (hv : IsMinimaxValu
   have := p.nonempty
   obtain ⟨i, hi⟩ := Finite.exists_min fun i => ∑ j, q j * M i j
   refine ⟨i, ?_⟩
-  calc ∑ j, q j * M i j = ∑ i', p.weights i' * ∑ j, q j * M i j := by
-        rw [← sum_mul, p.total_of_fintype, one_mul]
-    _ ≤ ∑ i', p.weights i' * ∑ j, q j * M i' j :=
-        sum_le_sum fun i' _ => mul_le_mul_of_nonneg_left (hi i') (p.weights_nonneg i')
+  calc ∑ j, q j * M i j ≤ ∑ i', p.weights i' * ∑ j, q j * M i' j :=
+        le_sum_mul_sum p.weights p.weights_nonneg p.total_of_fintype hi
     _ ≤ v := sum_mul_sum_le q hq0 hq1 hp
 
 end Cslib.Probability

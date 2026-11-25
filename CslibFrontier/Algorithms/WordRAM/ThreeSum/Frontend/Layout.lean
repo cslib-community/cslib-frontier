@@ -106,10 +106,8 @@ theorem select_extra (U β β' v mode : ℕ) (rs : List (ℕ × ℕ)) (hm : 3 �
 theorem array_split (U Λ : ℕ) (rs : List (ℕ × ℕ)) (t s : ℕ)
     (ht : t < 2 * Λ ^ 2) (hs : s < 3) :
     array U Λ rs (3 * t + s) = select U (t / 2 / Λ) (t / 2 % Λ) (t % 2) s rs := by
-  have hd : (3 * t + s) / 3 = t := by omega
-  have hm : (3 * t + s) % 3 = s := by omega
-  have hn : s ≠ 6 := by omega
-  simp [array, mode, hd, hm, ht, hn, beta, beta', digit]
+  simp [array, mode, show (3 * t + s) / 3 = t by omega, show (3 * t + s) % 3 = s by omega,
+    ht, show s ≠ 6 by omega, beta, beta', digit]
 
 /-- Read the three array specifications belonging to a descriptor. -/
 def root (U Λ : ℕ) (rs : List (ℕ × ℕ)) (t : ℕ) : List ℕ × List ℕ × List ℕ :=
@@ -158,17 +156,15 @@ theorem array_values {input : List ℤ} {rs : List (ℕ × ℕ)}
     u = 0 ∨ ∃ z ∈ input, u = Signed.encode z ∨ u = Signed.encode (2 * z) := by
   unfold array at hu
   split_ifs at hu
-  · exact .inl (by simpa only [List.mem_singleton] using hu)
-  · unfold select at hu
-    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hu
+  · exact .inl (List.mem_singleton.mp hu)
+  · obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hu
     obtain ⟨z, hz, he⟩ := List.mem_map.mp ((hkeys p.1).mp (List.mem_map.mpr
       ⟨p, (List.mem_filter.mp hp).1, rfl⟩))
     refine .inr ⟨z, hz, ?_⟩
     rw [← he]
     unfold value
     split_ifs
-    · exact .inr (twice_encode z)
-    · exact .inl rfl
+    exacts [.inr (twice_encode z), .inl rfl]
 
 /-- Every compact output word is a canonical signed encoding. -/
 theorem array_canonical {input : List ℤ} {rs : List (ℕ × ℕ)}
@@ -194,13 +190,10 @@ theorem array_magnitude {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
     |Signed.decode u| ≤ (2 * U : ℕ) := by
   rcases array_values hkeys U Λ j u hu with rfl | ⟨z, hz, rfl | rfl⟩
   · simp [Signed.decode]
-  · rw [Signed.decode_encode]
-    have := hvalues z hz
-    omega
-  · rw [Signed.decode_encode]
+  · simpa only [Signed.decode_encode] using (hvalues z hz).trans (by omega)
+  · rw [Signed.decode_encode, abs_le]
     have := abs_le.mp (hvalues z hz)
-    apply abs_le.mpr
-    constructor <;> omega
+    omega
 
 /-- The compact root lists before their native layout is assigned. -/
 def roots (U : ℕ) (rs : List (ℕ × ℕ)) : List (List ℕ × List ℕ × List ℕ) :=
@@ -255,7 +248,6 @@ theorem roots_indexed (U : ℕ) (rs : List (ℕ × ℕ)) :
     (List.range (2 * Λ ^ 2 + 2)).map (root U Λ rs) = roots U rs := by
   dsimp only
   let Λ := Cslib.Algorithms.ThreeSum.labelBits (2 * U)
-  have hlen : 2 * Λ ^ 2 = Λ * (Λ * 2) := by ring
   change (List.range (2 * Λ ^ 2 + 2)).map (root U Λ rs) = _
   rw [List.range_add, List.map_append]
   have hprefix : (List.range (2 * Λ ^ 2)).map (root U Λ rs) =
@@ -263,26 +255,21 @@ theorem roots_indexed (U : ℕ) (rs : List (ℕ × ℕ)) :
         [false, true].map fun v =>
           (select U β β' v.toNat 0 rs, select U β β' v.toNat 1 rs,
             select U β β' v.toNat 2 rs)) := by
-    rw [hlen, map_range_mul]
-    apply List.flatMap_congr
-    intro β hβ
+    rw [show 2 * Λ ^ 2 = Λ * (Λ * 2) by ring, map_range_mul]
+    refine List.flatMap_congr fun β hβ => ?_
     rw [map_range_mul]
-    apply List.flatMap_congr
-    intro β' hβ'
+    refine List.flatMap_congr fun β' hβ' => ?_
     have hb : β < Λ := List.mem_range.mp hβ
     have hb' : β' < Λ := List.mem_range.mp hβ'
-    have hdiv : (β * Λ + β') / Λ = β := Nat.mul_add_div_of_lt β hb'
-    have hmod : (β * Λ + β') % Λ = β' := Nat.mul_add_mod_of_lt hb'
-    have hlt0 : β * (Λ * 2) + (β' * 2 + 0) < 2 * Λ ^ 2 := by nlinarith
-    have hlt1 : β * (Λ * 2) + (β' * 2 + 1) < 2 * Λ ^ 2 := by nlinarith
-    simp only [show List.range 2 = [0, 1] from rfl, List.map_cons, List.map_nil,
-      root_split _ _ _ _ hlt0, root_split _ _ _ _ hlt1]
     have hmul : β * (Λ * 2) = 2 * (β * Λ) := by ring
-    have hd0 : (β * (Λ * 2) + (β' * 2 + 0)) / 2 = β * Λ + β' := by rw [hmul]; omega
-    have hd1 : (β * (Λ * 2) + (β' * 2 + 1)) / 2 = β * Λ + β' := by rw [hmul]; omega
-    have hm0 : (β * (Λ * 2) + (β' * 2 + 0)) % 2 = 0 := by rw [hmul]; omega
-    have hm1 : (β * (Λ * 2) + (β' * 2 + 1)) % 2 = 1 := by rw [hmul]; omega
-    simp only [hd0, hd1, hm0, hm1, hdiv, hmod, Bool.toNat_false, Bool.toNat_true]
+    simp only [show List.range 2 = [0, 1] from rfl, List.map_cons, List.map_nil,
+      root_split _ _ _ _ (by nlinarith : β * (Λ * 2) + (β' * 2 + 0) < 2 * Λ ^ 2),
+      root_split _ _ _ _ (by nlinarith : β * (Λ * 2) + (β' * 2 + 1) < 2 * Λ ^ 2),
+      show (β * (Λ * 2) + (β' * 2 + 0)) / 2 = β * Λ + β' by rw [hmul]; omega,
+      show (β * (Λ * 2) + (β' * 2 + 1)) / 2 = β * Λ + β' by rw [hmul]; omega,
+      show (β * (Λ * 2) + (β' * 2 + 0)) % 2 = 0 by rw [hmul]; omega,
+      show (β * (Λ * 2) + (β' * 2 + 1)) % 2 = 1 by rw [hmul]; omega,
+      Nat.mul_add_div_of_lt β hb', Nat.mul_add_mod_of_lt hb', Bool.toNat_false, Bool.toNat_true]
   rw [hprefix]
   simp only [show List.range 2 = [0, 1] from rfl, List.map_cons, List.map_nil,
     Nat.add_zero, (root_extras U Λ rs).1,
@@ -314,12 +301,8 @@ theorem Output.read_array {l : Layout} {U : ℕ} {rs : List (ℕ × ℕ)} {mem :
     (h : Output l U rs mem) {j : ℕ} (hj : j < l.arrays) :
     readArray mem (l.descriptors + 2 * j) = Math.array U l.digits rs j := by
   obtain ⟨hl, hp, hm⟩ := h j hj
-  unfold readArray
-  rw [hl, hp]
-  apply List.ext_getElem
-  · simp
-  · intro i hi hi'
-    simpa only [List.getElem_map, List.getElem_range] using hm.get i hi'
+  refine List.ext_getElem (by simp [readArray, hl]) fun i _ hi' => ?_
+  simpa only [readArray, hp, List.getElem_map, List.getElem_range] using hm.get i hi'
 
 /-- The descriptor table reads back as exactly the existing finite frontend list, in order. -/
 theorem Output.readback {n U : ℕ} {input : List ℤ} {rs : List (ℕ × ℕ)} {mem : ℕ → ℕ}
@@ -333,24 +316,18 @@ theorem Output.readback {n U : ℕ} {input : List ℤ} {rs : List (ℕ × ℕ)} 
   have he : readRoots l mem =
       ((List.range l.count).map (Math.root U l.digits rs)).map Math.decodeRoot := by
     simp only [readRoots, List.map_map, Function.comp_def]
-    apply List.map_congr_left
-    intro t ht
+    refine List.map_congr_left fun t ht => ?_
     have hti : t < l.count := List.mem_range.mp ht
     have hs (s : ℕ) (hs : s < 3) :
-        readArray mem (l.descriptors + 6 * t + 2 * s) = Math.array U l.digits rs (3 * t + s) := by
-      have hj : 3 * t + s < l.arrays := by dsimp only [Layout.arrays]; omega
-      have ha : l.descriptors + 6 * t + 2 * s = l.descriptors + 2 * (3 * t + s) := by omega
-      rw [ha]
-      exact h.read_array hj
-    have h0 := hs 0 (by decide)
-    have h1 := hs 1 (by decide)
-    have h2 := hs 2 (by decide)
+        readArray mem (l.descriptors + 6 * t + 2 * s) = Math.array U l.digits rs (3 * t + s) :=
+      (show l.descriptors + 6 * t + 2 * s = l.descriptors + 2 * (3 * t + s) by omega) ▸
+        h.read_array (by dsimp only [l, Layout.arrays] at hti ⊢; omega)
     simpa only [Math.root, Nat.mul_zero, Nat.add_zero, Nat.mul_one] using
-      congrArg Math.decodeRoot (congrArg₂ Prod.mk h0 (congrArg₂ Prod.mk h1 h2))
-  rw [he]
-  have hi := Math.roots_indexed U rs
-  change (List.range l.count).map (Math.root U l.digits rs) = Math.roots U rs at hi
-  rw [hi]
+      congrArg Math.decodeRoot (congrArg₂ Prod.mk (hs 0 (by decide))
+        (congrArg₂ Prod.mk (hs 1 (by decide)) (hs 2 (by decide))))
+  have hi : (List.range l.count).map (Math.root U l.digits rs) = Math.roots U rs :=
+    Math.roots_indexed U rs
+  rw [he, hi]
   exact Math.roots_decoded hkeys hcounts hvalues
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend
