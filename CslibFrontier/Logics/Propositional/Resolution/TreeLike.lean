@@ -191,9 +191,12 @@ theorem exists_of_relabel {W : Type*} [DecidableEq W] {f : V → W} (hf : Functi
   | _, resolvent v d₁ d₂ hv₁ hv₂ => by
     obtain ⟨c₁, d₁', rfl, hs₁⟩ := exists_of_relabel hf d₁
     obtain ⟨c₂, d₂', rfl, hs₂⟩ := exists_of_relabel hf d₂
-    obtain ⟨u, hu₁, rfl⟩ := Clause.mem_relabel_iff.1 hv₁
-    obtain ⟨u', hu₂, hfu⟩ := Clause.mem_relabel_iff.1 hv₂
-    obtain rfl : u = u' := (hf hfu).symm
+    obtain ⟨⟨u, b⟩, hu₁, hub⟩ := List.mem_map.1 hv₁
+    obtain ⟨⟨u', b'⟩, hu₂, hub'⟩ := List.mem_map.1 hv₂
+    simp only [Prod.map, id, Prod.mk.injEq] at hub hub'
+    obtain ⟨rfl, rfl⟩ := hub
+    obtain ⟨hu', rfl⟩ := hub'
+    obtain rfl : u = u' := (hf hu').symm
     exact ⟨_, .resolvent u d₁' d₂' hu₁ hu₂, Clause.relabel_resolvent hf .., by simp [hs₁, hs₂]⟩
 
 /-- A tree-like refutation of `φ.relabel f`, for injective `f`, gives a tree-like refutation of `φ`

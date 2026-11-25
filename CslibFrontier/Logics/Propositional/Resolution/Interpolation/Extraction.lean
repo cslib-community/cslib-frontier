@@ -206,12 +206,13 @@ theorem shared_lt {n : ℕ} {A : CNF (ℕ ⊕ Y)} {B : CNF (ℕ ⊕ Z)}
     (hA : ∀ d ∈ A, ∀ i b, (.inl i, b) ∈ d → i < n) (hB : ∀ d ∈ B, ∀ i b, (.inl i, b) ∈ d → i < n) :
     ∀ d ∈ ls, ∀ i b, (.inl i, b) ∈ d → i < n := by
   intro d hd i b hl
-  obtain ⟨e, he, sign, hle⟩ := CNF.mem_vars.1 (h.fst_mem_vars hd hl)
+  obtain ⟨l, hl', hli⟩ := List.mem_map.1 (h.fst_mem_vars hd hl)
+  obtain ⟨e, he, hle⟩ := List.mem_flatten.1 hl'
   rcases List.mem_append.1 he with he | he <;> obtain ⟨d', hd', rfl⟩ := List.mem_map.1 he <;>
-    obtain ⟨_ | _, hl', hi⟩ := Clause.mem_relabel_iff.1 hle <;>
-    simp only [Sum.map_inl, Sum.map_inr, id_eq, reduceCtorEq, Sum.inl.injEq] at hi
-  · exact hA d' hd' _ sign (hi ▸ hl')
-  · exact hB d' hd' _ sign (hi ▸ hl')
+    obtain ⟨l', hl'', rfl⟩ := List.mem_map.1 hle <;> rcases l' with ⟨_ | _, b'⟩ <;>
+    simp only [Prod.map, Sum.map_inl, Sum.map_inr, id, reduceCtorEq, Sum.inl.injEq] at hli
+  · exact hA d' hd' _ b' (hli ▸ hl'')
+  · exact hB d' hd' _ b' (hli ▸ hl'')
 
 end CNF.IsProof
 

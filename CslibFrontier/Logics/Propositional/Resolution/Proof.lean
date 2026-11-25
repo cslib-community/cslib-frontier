@@ -131,13 +131,6 @@ def CNF.RefutableInSize (φ : CNF V) (s : ℕ) : Prop :=
 def CNF.RefutableInWidth (φ : CNF V) (w : ℕ) : Prop :=
   ∃ ls, φ.IsProof ls ∧ [] ∈ ls ∧ ∀ c ∈ ls, c.width ≤ w
 
-omit [DecidableEq V] in
-/-- A literal belongs to a relabelled clause exactly when it has a preimage with the same sign. -/
-theorem Clause.mem_relabel_iff {W : Type*} {f : V → W} {c : Clause V} {w : W} {b : Bool} :
-    (w, b) ∈ c.relabel f ↔ ∃ u, (u, b) ∈ c ∧ f u = w := by
-  simp only [relabel, List.mem_map, Prod.exists, Prod.map_apply, id_eq, Prod.mk.injEq,
-    ← and_assoc, exists_eq_right]
-
 namespace CNF
 
 variable {φ ψ : CNF V} {ls ls' : List (Clause V)} {c : Clause V}
@@ -279,9 +272,12 @@ private theorem IsProof.exists_of_relabel {W : Type*} [DecidableEq W] {f : V →
     obtain ⟨ls', h', rfl⟩ := ih
     obtain ⟨c₁, hc₁, rfl⟩ := List.mem_map.1 h₁
     obtain ⟨c₂, hc₂, rfl⟩ := List.mem_map.1 h₂
-    obtain ⟨u, hu₁, rfl⟩ := Clause.mem_relabel_iff.1 hv₁
-    obtain ⟨u', hu₂, hfu⟩ := Clause.mem_relabel_iff.1 hv₂
-    obtain rfl : u = u' := (hf hfu).symm
+    obtain ⟨⟨u, b⟩, hu₁, hub⟩ := List.mem_map.1 hv₁
+    obtain ⟨⟨u', b'⟩, hu₂, hub'⟩ := List.mem_map.1 hv₂
+    simp only [Prod.map, id, Prod.mk.injEq] at hub hub'
+    obtain ⟨rfl, rfl⟩ := hub
+    obtain ⟨hu', rfl⟩ := hub'
+    obtain rfl : u = u' := (hf hu').symm
     exact ⟨_ :: ls', h'.resolvent u hc₁ hc₂ hu₁ hu₂,
       by rw [List.map_cons, Clause.relabel_resolvent hf]⟩
 
