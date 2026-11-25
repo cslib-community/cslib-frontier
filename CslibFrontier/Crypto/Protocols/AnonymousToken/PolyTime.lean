@@ -65,10 +65,11 @@ separate (#7068).
 Because word-level adversaries (`WordExtractedForgerOf`, `WordExtractedAdversary`) emit arbitrary
 bit strings `w : List Bool` as oracle queries, both reductions (`targetForgerWordOf`,
 `noteForgerHandlerWord`) and their corresponding word games (`extractedTokenWordGame`,
-`extractedConservationWordGame`, via `.toTyped`) interpret every raw query word through a total
-`Decoder` (`payloadDecoderOf D`, `wordRequestDecoder`). Malformed query words are therefore decoded
-to that decoder's total fallback value and processed as that fallback typed request, rather than
-rejected as parse errors as under a `PartialDecoder`.
+`extractedConservationWordGame`, via `.toTyped`) process every query as the typed value returned
+by its total `Decoder` (`payloadDecoderOf D`, `wordRequestDecoder`), rather than rejecting
+malformed query words as parse errors under a `PartialDecoder`. Because these total decoders
+still parse pieces of the input (e.g., pair components or the leading tag bit selecting issue
+vs. spend before decoding the tail), the resulting typed value can depend on the malformed input.
 -/
 
 @[expose] public section
@@ -204,10 +205,10 @@ def WordExtractedForgerOf.atKey {Message : Type}
     (A : WordExtractedForgerOf Message) (ck : List Bool) : WordExtractedForgerOf Message :=
   fun n spk => A n (encWordPair (spk, ck))
 
-/-- Interpret a word-level extracted forger as a typed `ExtractedForger` by decoding each word
-query with the total decoder `payloadDecoderOf D`. Malformed query words are mapped to the
-decoder's fallback `Payload` rather than rejected (`PartialDecoder`), matching the oracle view
-simulated inside `targetForgerWordOf`. -/
+/-- Interpret a word-level extracted forger as a typed `ExtractedForger` by processing every
+query as the `Payload` returned by the total decoder `payloadDecoderOf D`, rather than rejecting
+malformed query words (`PartialDecoder`), matching the oracle view simulated inside
+`targetForgerWordOf`. -/
 def WordExtractedForgerOf.toTyped {Message : Type} {encM : Message ↪ List Bool}
     (D : Decoder encM) (A : WordExtractedForgerOf Message) (n : ℕ) :
     ExtractedForger (List Bool) Message (List Bool) (List Bool) := fun pk =>
@@ -1056,10 +1057,10 @@ private theorem negligible_sampleList_add_bound (S : WordSignatureScheme)
     (PMF.apply_ne_top _ _)] using hsucc
 
 /-- Word-level extracted anonymous-token game: sample `ck ← BitString.sampleList n`, run
-`runExtractedWord` with `wordPayloadTarget H`, and accept when `extractedAccept` holds. Any
-malformed bit-string oracle query from `A` is decoded via the total `payloadDecoderOf Decoder.bits`
-(`WordExtractedForgerOf.toTyped Decoder.bits`) into a fallback `Payload`, rather than rejected as a
-parse failure (`PartialDecoder`). -/
+`runExtractedWord` with `wordPayloadTarget H`, and accept when `extractedAccept` holds. Every
+bit-string oracle query from `A` is processed as the `Payload` returned by the total decoder
+`payloadDecoderOf Decoder.bits` (`WordExtractedForgerOf.toTyped Decoder.bits`), rather than
+rejecting malformed query words (`PartialDecoder`). -/
 noncomputable def extractedTokenWordGame (S : WordSignatureScheme)
     (H : List Bool → List Bool → List Bool)
     (A : WordExtractedForgerOf (List Bool)) (n : ℕ) : ProbComp Bool := do
@@ -1306,10 +1307,10 @@ def pairScheme (S : WordSignatureScheme) (tag : List Bool → ℕ → List Bool)
 replies and outputting a context `ctx : List Bool`. -/
 abbrev WordExtractedAdversary := ℕ → List Bool → WordOracleComp Unit (List Bool)
 
-/-- Interpret a word-level conservation adversary as a typed `ExtractedAdversary` at `(n, ck)` by
-decoding each word query with the total decoder `wordRequestDecoder`. Malformed query words are
-mapped to a fallback `Request` rather than rejected (`PartialDecoder`), matching the oracle view
-simulated inside `noteForgerHandlerWord`. -/
+/-- Interpret a word-level conservation adversary as a typed `ExtractedAdversary` at `(n, ck)`
+by processing every word query as the `Request` returned by the total decoder `wordRequestDecoder`,
+rather than rejecting malformed query words (`PartialDecoder`), matching the oracle view simulated
+inside `noteForgerHandlerWord`. -/
 def WordExtractedAdversary.toTyped (A : WordExtractedAdversary) (n : ℕ) (ck : List Bool) :
     ExtractedAdversary (List Bool) (List Bool) (List Bool) (List Bool) (List Bool) (List Bool) :=
   fun spk =>
@@ -2634,9 +2635,9 @@ private noncomputable def wordNoteCommitmentScheme
 
 /-- Word-level extracted VOLE-ACT credit-conservation game: sample `ck ← BitString.sampleList n`
 and run `Conservation.extractedConservationExperiment` with `wordNoteCom H n ck`,
-`pairScheme S wordTag n`, and `A.toTyped n ck`. Any malformed bit-string oracle query from `A` is
-decoded via the total `wordRequestDecoder` (`WordExtractedAdversary.toTyped`) into a fallback
-`Request`, rather than rejected as a parse failure (`PartialDecoder`). -/
+`pairScheme S wordTag n`, and `A.toTyped n ck`. Every bit-string oracle query from `A` is
+processed as the `Request` returned by the total decoder `wordRequestDecoder`
+(`WordExtractedAdversary.toTyped`), rather than rejecting malformed words (`PartialDecoder`). -/
 noncomputable def extractedConservationWordGame (S : WordSignatureScheme)
     (H : List Bool → List Bool → List Bool) (A : WordExtractedAdversary) (n : ℕ) :
     ProbComp Bool := do

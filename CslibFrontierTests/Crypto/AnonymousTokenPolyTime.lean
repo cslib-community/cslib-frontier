@@ -100,6 +100,13 @@ example :
   have : (5 : ℕ) = 6 := congrArg ComInput.credit hinj
   cases this
 
+-- `encComInput` keeps the nested-pair word layout of the former 4-tuple encoding.
+example (r : ComInput) :
+    encComInput r =
+      (encPair encBits (encPair encBits (encPair encNat encBits)))
+        (r.nullifier, r.context, r.credit, r.opening) :=
+  rfl
+
 -- Negative boundary: `Conservation.noteBindingCollisionOrTrivial ... none` never satisfies
 -- `isBindingCollision` for any commitment scheme `CS`.
 example {K : Type} (CS : Crypto.Commitment.Scheme K (List Bool × List Bool × ℕ)
