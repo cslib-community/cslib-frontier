@@ -74,8 +74,10 @@ theorem prepared_record {n D g p : ℕ} (values : ℕ → ℤ)
     simpa only [numChunks, hcard] using hchunk
   have hgroup := ChunkCatalogue.before_add_lt count (queryCap n D) idx.residue.isLt hchunk'
   have hord : recordOrdinal n D g p values idx < records := by
-    simpa only [recordOrdinal, records, count, Nat.mul_comm] using
-      Nat.mul_add_lt_mul_of_lt_of_lt hgroup hpiece
+    change (ChunkCatalogue.before count (queryCap n D) idx.residue.val + idx.chunk) *
+      numPieces n D g + idx.piece < records
+    rw [Nat.mul_comm (_ + idx.chunk) (numPieces n D g)]
+    exact Nat.mul_add_lt_mul_of_lt_of_lt hgroup hpiece
   have hout := h.2.2.2.1
   have hheap := h.2.2.2.2.2.1
   obtain ⟨descriptor, left, right⟩ := PreparationSpec.instance_readback values wAB hp
