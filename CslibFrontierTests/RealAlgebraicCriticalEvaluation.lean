@@ -29,6 +29,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparati
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
+import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeCandidateCoverage
 import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeFiberSeparation
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
@@ -848,5 +849,28 @@ example :
   · rintro ⟨z, hz⟩
     rw [heval] at hz
     norm_num [atDegree] at hz
+
+-- The constant input 1 has an empty fiber. The theorem supplies a zero of its degree lift
+-- that belongs to the actual coordinate root grid.
+example :
+    let P : MvPolynomial (Fin (1 + 1)) ℤ := 1
+    let hP : P.totalDegree ≤ 1 := by simp [P]
+    let E := finiteRelativeValueSection (n := 1) (m := 1) (ell := 1) (by decide) P hP
+    let N := E.totalDegree
+    let D := 2 * (N + 1)
+    ∃ k ≤ N,
+      let W := degreePiecePolynomial E N k
+      ∃ y : Fin 2 → ℝ, eval y (W.map (Int.castRingHom ℝ)) = 0 ∧
+        y ∈ coordinateRootGrid (ell := 2 * (D + 1) + 1) (by omega) (W ^ 2)
+          ((totalDegree_pow W 2).trans (by
+            have h : W.totalDegree ≤ D := totalDegree_degreePiecePolynomial_le E N k
+            omega)) := by
+  intro P hP E N D
+  have hD (k : ℕ) : (degreePiecePolynomial E N k).totalDegree ≤ D :=
+    totalDegree_degreePiecePolynomial_le E N k
+  obtain ⟨k, hk, y, hy, _, hgrid⟩ := exists_degreePiece_coordinateRootGrid_of_emptyFiber
+    (n := 1) (m := 1) (by decide) (by decide) P hP (fun _ _ => by simp [P])
+    N le_rfl D hD ⟨0, by simp [P]⟩
+  exact ⟨k, hk, y, hy, hgrid⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

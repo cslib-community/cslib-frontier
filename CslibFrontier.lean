@@ -6964,6 +6964,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.AltFormula
 public import CslibFrontier.Foundations.Combinatorics.Bregman
 public import CslibFrontier.Computability.PCP.Approximation.SetCover.LundYannakakis
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.State
+public import CslibFrontier.Foundations.Data.MvPolynomial.DegreePiecePolynomial
 public import CslibFrontier.Crypto.Computational.GMW.Sequential
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.GrenetPermanent
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Exec
@@ -9848,6 +9849,7 @@ public import CslibFrontier.Foundations.FieldTheory.Finite.Trinomial
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.Witness
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.MildHardness
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Dimension
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeCandidateCoverage
 public import CslibFrontier.Foundations.Combinatorics.Expander.PairShearTranslation
 public import CslibFrontier.Computability.Circuit.Encoding.Basic
 public import CslibFrontier.Computability.Interactive.StrategyEffect
