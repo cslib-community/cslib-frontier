@@ -101,17 +101,11 @@ theorem size_sum_le {l : List ℕ} {b : ℕ} (h : ∀ n ∈ l, n.size ≤ b) :
 end Nat
 
 namespace Turing.MultiTapeTM.BinarySub
-private lemma foldl_append_singleton {α β : Type} (f : α → β) (l : List α) (out : List β) :
-    l.foldl (fun acc a => acc ++ [f a]) out = out ++ l.map f := by
-  induction l generalizing out with
-  | nil => simp
-  | cons a l ih => simp [ih]
-
 /-- Any zero-preserving bitwise operation on `ℕ` is read off by folding `op` over `digitPairs`. -/
 private lemma bitwise_eq (op : Bool → Bool → Bool) (h0 : op false false = false) (p : ℕ × ℕ) :
     Nat.bitwise op p.1 p.2 =
       ofBits ((digitPairs p).foldl (fun acc d => acc ++ [op d.1 d.2]) []) := by
-  rw [foldl_append_singleton, List.nil_append, ofBits]
+  rw [foldlMap, List.nil_append, ofBits]
   have hmap : (digitPairs p).map (fun d => op d.1 d.2) =
       (List.range (p.1.bits.length + p.2.bits.length)).map
         (Nat.bitwise op p.1 p.2).testBit := by

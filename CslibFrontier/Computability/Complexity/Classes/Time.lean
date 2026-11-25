@@ -84,6 +84,8 @@ certificate within time and space `O(t' m)`
   `Cslib.Complexity.BPTIME_mono_of_le_mul_add`: the classes absorb constant factors.
 * `Cslib.Complexity.computableInO_indicator_of_mem_DTIME`: a decider within the
   same time and space bounds up to constants.
+* `Cslib.Complexity.mem_DTIME_of_decidableInTimeAndSpace`: a decider within time `t n`, with any
+  space bound, places a problem in `DTIME enc t`.
 * `Cslib.Complexity.preimage_mem_DTIME`: `DTIME` under timed reductions.
 * `Cslib.Complexity.DTIME_mono_of_eventually_le`, `Cslib.Complexity.NTIME_mono_of_eventually_le`,
   `Cslib.Complexity.BPTIME_mono_of_eventually_le`: the classes only depend on the bound eventually.
@@ -187,6 +189,14 @@ theorem setOf_mem_DTIME_of_computableInO {enc : α ↪ List Bool} {f : α → Bo
     rw [Nat.mul_add, Nat.mul_one]
     omega
   · exact Nat.mul_le_mul_left c (Nat.add_le_add_right (hs a) 1)
+
+/-- A problem decided within time `t n`, on instances whose encoding has length `n`, is in
+`DTIME enc t`, whatever the space bound. -/
+theorem mem_DTIME_of_decidableInTimeAndSpace {enc : α ↪ List Bool} {A : Set α} {t : ℕ → ℕ}
+    {S : α → ℕ} (h : DecidableInTimeAndSpace A enc (fun a => t (enc a).length) S) :
+    A ∈ DTIME enc t := by
+  obtain ⟨s, hs⟩ := exists_le_length enc S
+  exact ⟨1, 0, s, ComputableInTimeAndSpace.mono h (fun a => by rw [Nat.one_mul, Nat.add_zero]) hs⟩
 
 section TimedReductions
 
