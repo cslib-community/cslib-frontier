@@ -678,8 +678,8 @@ theorem computableInTimeAndSpace_boundedPrefix
         · simpa [embCopy, ws₄, ws₃, tCap, tV, Function.update_apply, encUnary_apply] using hj
         · simpa [embCopy, ws₄, tV, Function.update_apply] using hj
       · rw [hx l hl]
-        simp [ws₄, Function.update_of_ne (show l ≠ tV from
-          fun h => hl ⟨1, by simp [embCopy, h, tV]⟩)]
+        have hneV : l ≠ tV := fun h => hl ⟨1, by simp [embCopy, h, tV]⟩
+        simp [ws₄, Function.update_of_ne hneV]
     have hspec5 : TransformsWordsAt m5 inp p₂ p₂ ws₄ ws₄
         (encB (f (a, raw.take N)))
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV + 4)

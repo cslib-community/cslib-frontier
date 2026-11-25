@@ -219,16 +219,19 @@ theorem boundedErrorAt_repeatMajority_sq {q p : Polynomial ℕ} {V : α × List 
       (2 * (univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
         V (a, List.ofFn r) = b).card - 2 ^ p.eval (enc a).length)) :
     BoundedErrorAt enc (2 * q ^ 2 * p) (repeatMajority enc (q ^ 2) p V) a b := by
+  have hlen : (2 * q ^ 2 * p).eval (enc a).length =
+      2 * (q ^ 2).eval (enc a).length * p.eval (enc a).length := by
+    simp only [eval_mul, eval_ofNat]
   have hsq : (q ^ 2).eval (enc a).length = q.eval (enc a).length ^ 2 := eval_pow _
   unfold BoundedErrorAt
-  rw [show ((2 * q ^ 2 * p : Polynomial ℕ).eval (enc a).length) =
-      2 * (q ^ 2).eval (enc a).length * p.eval (enc a).length by simp only [eval_mul, eval_ofNat]]
+  rw [hlen]
   refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le
     (fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = b) ?_
-  rw [show (univ.filter fun x : BitString (2 * (q ^ 2).eval (enc a).length *
+  have hnot : (univ.filter fun x : BitString (2 * (q ^ 2).eval (enc a).length *
         p.eval (enc a).length) => ¬repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = b) =
-      univ.filter fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = !b from
-    filter_congr fun _ _ => by cases b <;> simp]
+      univ.filter fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = !b :=
+    filter_congr fun _ _ => by cases b <;> simp
+  rw [hnot]
   have h1 := card_filter_repeatMajority_eq_not_le (enc := enc) (r := q ^ 2) (p := p) (V := V) a b
   have h2 := BitString.five_mul_card_filter_card_filter_block_le (q := q.eval (enc a).length)
     (fun s => V (a, List.ofFn s) = b) h

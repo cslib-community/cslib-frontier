@@ -996,12 +996,13 @@ private theorem bind_restrict_and_sum_pi_uniform {m : ℕ} (coins : ℕ) {β : T
   conv_lhs => rw [← PMF.uniformOfFintype_update ℓ, PMF.bind_bind]
   simp only [PMF.bind_map, Function.comp_def, ProbComp.eval_uniform]
   pmf_swap with r
-  simp only [show ∀ v, k (I.restrict (Function.update r ℓ v)) (∑ j, Function.update r ℓ v j) =
-      k (I.restrict r) (∑ j, Function.update r ℓ v j) from
-    fun v => by rw [restrict_update_of_notMem hℓ]]
-  rw [show (fun v => k (I.restrict r) (∑ j, Function.update r ℓ v j)) =
-      k (I.restrict r) ∘ fun v => ∑ j, Function.update r ℓ v j from rfl,
-    ← PMF.bind_map, PMF.uniformOfFintype_map_sum_update r ℓ]
+  have hsum :
+      ((PMF.uniformOfFintype (BitString coins)).bind fun v =>
+        k (I.restrict (Function.update r ℓ v)) (∑ j, Function.update r ℓ v j)) =
+      ((PMF.uniformOfFintype (BitString coins)).map
+        (fun v => ∑ j, Function.update r ℓ v j)).bind (k (I.restrict r)) := by
+    simp only [restrict_update_of_notMem hℓ, PMF.bind_map, Function.comp_def]
+  rw [hsum, PMF.uniformOfFintype_map_sum_update r ℓ]
 
 /-- Proposition 7.3.4 (Goldreich Section 7.3.1, pp. 639–640) combined with the composition theorem
 (Section 7.3.1 Application, pp. 638–639, Eq. 7.19) and Section 7.5.2.4 Eq. 7.48 (p. 707):

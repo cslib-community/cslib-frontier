@@ -305,10 +305,10 @@ theorem encodeOracle_apply {ι : Type} {E : ι → Type} {σ : Type}
     (c : I.Channel) (w : List Bool) (s : σ) :
     I.encodeOracle oracle (c, w) s =
       (oracle (I.decodeQuery c w) s).map fun x => (I.reply (I.decodeQuery c w) x.1, x.2) := by
+  have hreq : (c, I.requestNormalize c w) = I.toOracleCodec.encodeQuery (I.decodeQuery c w) :=
+    Prod.ext (I.request_decodeQuery c w).1.symm (I.request_decodeQuery c w).2.symm
   dsimp only [encodeOracle]
-  rw [show (c, I.requestNormalize c w) = I.toOracleCodec.encodeQuery (I.decodeQuery c w) from
-    Prod.ext (I.request_decodeQuery c w).1.symm (I.request_decodeQuery c w).2.symm,
-    OracleCodec.wordOracle_encodeQuery]
+  rw [hreq, OracleCodec.wordOracle_encodeQuery]
   rfl
 
 /-- Library infrastructure (no cited result): on every canonical query request

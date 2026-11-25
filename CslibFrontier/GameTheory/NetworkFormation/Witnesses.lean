@@ -371,17 +371,15 @@ theorem broadcastNetwork_socialCost_eq_optOut {k : ℕ} {ε : ℝ}
 
 theorem socialCost_broadcastDirectProfile (k : ℕ) (ε : ℝ) :
     (broadcastNetwork k ε).toCostGame.socialCost (broadcastDirectProfile k ε) = harmonic k := by
-  rw [broadcastNetwork_socialCost_eq_optOut,
-    show (fun j : Fin k => broadcastIsDirect (broadcastDirectProfile k ε j)) = fun _ => true from
-      funext broadcastIsDirect_direct,
-    CongestionGame.socialCost_optOut_true]
+  have htrue : (fun j => broadcastIsDirect (broadcastDirectProfile k ε j)) = fun _ => true :=
+    funext broadcastIsDirect_direct
+  rw [broadcastNetwork_socialCost_eq_optOut, htrue, CongestionGame.socialCost_optOut_true]
 
 theorem socialCost_broadcastSharedProfile {k : ℕ} (hk : k ≠ 0) (ε : ℝ) :
     (broadcastNetwork k ε).toCostGame.socialCost (broadcastSharedProfile k ε) = 1 + ε := by
-  rw [broadcastNetwork_socialCost_eq_optOut,
-    show (fun j : Fin k => broadcastIsDirect (broadcastSharedProfile k ε j)) = fun _ => false from
-      funext broadcastIsDirect_shared,
-    CongestionGame.socialCost_optOut_false hk]
+  have hfalse : (fun j => broadcastIsDirect (broadcastSharedProfile k ε j)) = fun _ => false :=
+    funext broadcastIsDirect_shared
+  rw [broadcastNetwork_socialCost_eq_optOut, hfalse, CongestionGame.socialCost_optOut_false hk]
 
 private theorem broadcastIsDirect_update {k : ℕ} {ε : ℝ}
     (s : ∀ i, (broadcastNetwork k ε).Path i) (i : Fin k) (b : Bool) :
@@ -440,9 +438,9 @@ theorem exists_forall_isPureNash_broadcastNetwork_mul_lt {k : ℕ} (hk : k ≠ 0
 `broadcastNetwork k 0`. -/
 theorem isPureNash_broadcastDirect_zero (k : ℕ) :
     (broadcastNetwork k 0).toCostGame.IsPureNash (broadcastDirectProfile k 0) := by
-  rw [isPureNash_broadcastNetwork_iff_optOut,
-    show (fun j : Fin k => broadcastIsDirect (broadcastDirectProfile k 0 j)) = fun _ => true from
-      funext broadcastIsDirect_direct]
+  have htrue : (fun j => broadcastIsDirect (broadcastDirectProfile k 0 j)) = fun _ => true :=
+    funext broadcastIsDirect_direct
+  rw [isPureNash_broadcastNetwork_iff_optOut, htrue]
   intro i b
   cases b
   · simp only [CongestionGame.optOut_cost, Function.update_self, Bool.false_eq_true, ↓reduceIte]
@@ -456,9 +454,9 @@ theorem isPureNash_broadcastDirect_zero (k : ℕ) :
 pure Nash equilibrium of `broadcastNetwork k 0`: each player pays `1 / k ≤ 1 / (i + 1)`. -/
 theorem isPureNash_broadcastShared_zero (k : ℕ) :
     (broadcastNetwork k 0).toCostGame.IsPureNash (broadcastSharedProfile k 0) := by
-  rw [isPureNash_broadcastNetwork_iff_optOut,
-    show (fun j : Fin k => broadcastIsDirect (broadcastSharedProfile k 0 j)) = fun _ => false from
-      funext broadcastIsDirect_shared]
+  have hfalse : (fun j => broadcastIsDirect (broadcastSharedProfile k 0 j)) = fun _ => false :=
+    funext broadcastIsDirect_shared
+  rw [isPureNash_broadcastNetwork_iff_optOut, hfalse]
   intro i b
   cases b
   · rw [Function.update_eq_self]

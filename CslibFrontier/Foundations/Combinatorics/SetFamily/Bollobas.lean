@@ -169,6 +169,13 @@ private theorem sum_inv_choose_le_one_aux {ι α K : Type*}
       exact inv_choose_add_step (hA_pos i hi)
         (Finset.card_union_of_disjoint (hdiag i hi) ▸
           Finset.card_le_card (Finset.union_subset hAU hBU))
+    have hsum : ∑ x ∈ U, ∑ i ∈ s with x ∉ B i,
+        ((#((A i).erase x) + #(B i)).choose #((A i).erase x) : K)⁻¹ ≤ (#U : K) :=
+      calc
+        ∑ x ∈ U, ∑ i ∈ s with x ∉ B i,
+            ((#((A i).erase x) + #(B i)).choose #((A i).erase x) : K)⁻¹
+          ≤ ∑ _x ∈ U, (1 : K) := Finset.sum_le_sum hU_step
+        _ = (#U : K) := by simp
     refine (mul_le_iff_le_one_right (Nat.cast_pos.mpr hU_pos)).mp ?_
     calc
       (#U : K) * ∑ i ∈ s, ((#(A i) + #(B i)).choose #(A i) : K)⁻¹
@@ -180,8 +187,7 @@ private theorem sum_inv_choose_le_one_aux {ι α K : Type*}
             ((#((A i).erase x) + #(B i)).choose #((A i).erase x) : K)⁻¹ := by
           rw [Finset.sum_comm]
           simp_rw [Finset.sum_filter]
-      _ ≤ ∑ _x ∈ U, (1 : K) := Finset.sum_le_sum hU_step
-      _ = (#U : K) := by simp
+      _ ≤ (#U : K) := hsum
 
 /-- **Bollobás's two-families inequality** [Bollobas1965] (LYM unequal-size form):
 if `(A i, B i)` for `i ∈ s` are disjoint pairs of finite sets satisfying `¬ Disjoint (A i) (B j)`

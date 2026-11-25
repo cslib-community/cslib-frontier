@@ -129,7 +129,10 @@ theorem envyEdgeCount_le (A : BundleAllocation n m) : V.envyEdgeCount A ≤ n * 
           Finset.mem_erase.2 ⟨fun hji => lt_irrefl _ (hji ▸ (Finset.mem_filter.1 hj).2),
             Finset.mem_univ j⟩
       _ = n - 1 := by simp
-  simpa [envyEdgeCount] using Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hcard i
+  calc
+    V.envyEdgeCount A = ∑ i : Fin n, (V.envyTargets A i).card := rfl
+    _ ≤ ∑ _i : Fin n, (n - 1) := Finset.sum_le_sum fun i _ => hcard i
+    _ = n * (n - 1) := by simp
 
 /-- Assigning a fresh good `g` to an unenvied agent `s` preserves `EF1` for any monotone valuation.
 -/

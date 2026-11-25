@@ -1605,18 +1605,18 @@ private theorem blsNativeROMScheme_sign_verifies (n : ℕ) (d : P.G₀.Desc)
     PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hres
   obtain ⟨r, hr, rfl⟩ := hres
   refine ⟨r.1, lookup_of_mem_support_oracle hr, ?_⟩
-  rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α,
-    show P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true from
-      DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1), Bool.true_and]
+  have hisElem : P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true :=
+    DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1)
+  rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α, hisElem, Bool.true_and]
   simp only [P.pairEncoded_encode, map_smul, LinearMap.smul_apply, decide_true]
 
 /-- **Correctness** of `blsNativeROMScheme`: every generated key pair and signature verifies. -/
 theorem blsNativeROMScheme_correct (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)] :
     (P.blsNativeROMScheme n d).Correct := by
   intro keys hkeys m _ _ cache signed hsigned verified hverified
-  rw [show (P.blsNativeROMScheme n d).keyGen =
-    ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d) from rfl,
-    PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys
+  have hkg : (P.blsNativeROMScheme n d).keyGen =
+      ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d) := rfl
+  rw [hkg, PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys
   obtain ⟨α, _, rfl⟩ := hkeys
   obtain ⟨h, hlookup, hver⟩ := P.blsNativeROMScheme_sign_verifies n d α m cache signed hsigned
   simp only [blsNativeROMScheme, interpret_map, interpret_query, StateT.run_map,
