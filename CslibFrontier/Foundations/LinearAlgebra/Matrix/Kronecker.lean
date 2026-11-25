@@ -5,7 +5,7 @@ Authors: Karn Seth
 -/
 
 module
--- upstream: candidate (Mathlib, the rank and the action on vectors of a Kronecker product)
+-- upstream: candidate (Mathlib, negation, rank and action on vectors of a Kronecker product)
 
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.Kronecker
@@ -14,6 +14,9 @@ import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 
 /-!
 # The rank of a Kronecker product, and its action on vectors
+
+Negating either factor negates a Kronecker product (`Matrix.neg_kronecker`,
+`Matrix.kronecker_neg`), as for scalar multiplication in Mathlib's `Matrix.smul_kronecker`.
 
 Over a commutative semiring, a Kronecker product acts on vectors indexed by pairs factor by factor:
 `(A ⊗ₖ B) v` is computed by applying `A` to the first index and `B` to the second
@@ -46,6 +49,20 @@ public section
 namespace Matrix
 
 open Kronecker
+
+section Neg
+
+variable {α : Type*} {l m n p : Type*} [Mul α] [HasDistribNeg α]
+
+/-- Negating the left factor negates a Kronecker product. -/
+theorem neg_kronecker (A : Matrix l m α) (B : Matrix n p α) : (-A) ⊗ₖ B = -(A ⊗ₖ B) :=
+  ext fun _ _ => neg_mul _ _
+
+/-- Negating the right factor negates a Kronecker product. -/
+theorem kronecker_neg (A : Matrix l m α) (B : Matrix n p α) : A ⊗ₖ (-B) = -(A ⊗ₖ B) :=
+  ext fun _ _ => mul_neg _ _
+
+end Neg
 
 section MulVec
 

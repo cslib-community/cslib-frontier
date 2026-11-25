@@ -21,7 +21,8 @@ import Mathlib.Data.Matrix.Block
 Matrices with the same column Gram matrix differ by a unitary on the left. The Gram
 identity first gives an isometry on the range and the finite-dimensional extension theorem
 makes it unitary on the whole space. The result gives a polar decomposition even at
-singular inputs and a variational characterization of the trace norm.
+singular inputs and a variational characterization of the trace norm. The trace norm, defined as
+the trace of the positive modulus, is nonnegative and vanishes only at zero.
 
 ## Main results
 
@@ -95,6 +96,35 @@ omit [DecidableEq m] in
 /-- The trace norm is the trace of the positive modulus `√(Aᴴ A)`. -/
 @[expose] noncomputable def traceNorm (A : Matrix m n ℂ) : ℝ :=
   (CFC.sqrt (Aᴴ * A)).trace.re
+
+omit [DecidableEq m] in
+/-- The trace norm of any rectangular matrix is nonnegative. -/
+theorem traceNorm_nonneg (A : Matrix m n ℂ) : 0 ≤ A.traceNorm := by
+  unfold traceNorm
+  exact (Complex.nonneg_iff.mp
+    (Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg (Aᴴ * A))).trace_nonneg).1
+
+omit [DecidableEq m] in
+/-- The zero matrix has trace norm zero. -/
+@[simp] theorem traceNorm_zero : (0 : Matrix m n ℂ).traceNorm = 0 := by
+  unfold traceNorm
+  simp [CFC.sqrt_zero]
+
+omit [DecidableEq m] in
+/-- A rectangular matrix has trace norm zero if and only if it is zero. -/
+theorem traceNorm_eq_zero_iff (A : Matrix m n ℂ) : A.traceNorm = 0 ↔ A = 0 := by
+  refine ⟨fun h => ?_, fun h => by rw [h, traceNorm_zero]⟩
+  let B := CFC.sqrt (Aᴴ * A)
+  have hB : B.PosSemidef := Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg _)
+  have htr : B.trace = 0 := Complex.ext h (Complex.nonneg_iff.mp hB.trace_nonneg).2.symm
+  have hB0 : B = 0 := by
+    simpa only [Matrix.mul_one] using
+      (hB.trace_mul_eq_zero_iff PosSemidef.one).mp (by simpa only [Matrix.mul_one] using htr)
+  have hAA : Aᴴ * A = 0 := by
+    rw [← CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
+    change B * B = 0
+    rw [hB0, Matrix.mul_zero]
+  exact Matrix.trace_conjTranspose_mul_self_eq_zero_iff.mp (by rw [hAA, trace_zero])
 
 /-- A square matrix is a unitary times its positive modulus. -/
 theorem exists_unitary_polar (A : Matrix n n ℂ) :
