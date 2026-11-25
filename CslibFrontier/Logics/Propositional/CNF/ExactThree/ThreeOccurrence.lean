@@ -76,8 +76,9 @@ theorem satisfiable_of_exactThreeDistinct_of_count_le_three
     intro s
     have hleft : ∀ i ∈ s, 3 ≤ ((s.biUnion t).bipartiteAbove r i).card := by
       intro i hi
-      simpa only [Finset.bipartiteAbove, r, Finset.filter_mem_eq_inter,
-        Finset.inter_eq_right.mpr (Finset.subset_biUnion_of_mem t hi)] using (ht i).ge
+      change 3 ≤ ((s.biUnion t).filter (· ∈ t i)).card
+      rw [Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr (Finset.subset_biUnion_of_mem t hi)]
+      exact (ht i).ge
     have hright : ∀ v ∈ s.biUnion t, (s.bipartiteBelow r v).card ≤ 3 := by
       intro v _
       calc
