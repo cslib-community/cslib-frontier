@@ -1097,7 +1097,8 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
             have hc : (0 : ℝ) ≤ 1 / 2 + ε / (2 * m) := by positivity
             split_ifs with h
             · linarith only [mul_le_of_le_one_right h0 h1, mul_nonneg h0 hc]
-            · rw [zero_add]; exact mul_le_mul_of_nonneg_left (le_of_not_ge h) h0
+            · rw [zero_add]
+              exact mul_le_mul_of_nonneg_left (le_of_not_ge h) h0
         _ = _ := by rw [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_mul,
             PMF.sum_toReal, one_mul]
     have hhalf : ε / m = ε / (2 * m) + ε / (2 * m) := by field_simp; ring
