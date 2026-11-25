@@ -10,9 +10,8 @@ module
 public import CslibFrontier.Logics.Propositional.CNF.ExactThree
 import Mathlib.Combinatorics.Hall.Finite
 import Mathlib.Combinatorics.Enumerative.DoubleCounting
-import Mathlib.Data.Fintype.Basic
+import Mathlib.Data.Fintype.Fin
 import Mathlib.Data.Finset.Card
-import Mathlib.Data.List.FinRange
 import Mathlib.Data.List.OfFn
 import Mathlib.Logic.Function.Basic
 
@@ -47,28 +46,18 @@ private theorem countP_mem_vars_le_count_vars (φ : CNF V) (v : V) :
     have hvars : (CNF.vars (c :: φ)).count v =
         (c.map Prod.fst).count v + (CNF.vars φ).count v := by
       simp [CNF.vars]
-    rw [hvars]
-    by_cases hv : v ∈ c.map Prod.fst
-    · have hpos : 0 < (c.map Prod.fst).count v := List.count_pos_iff.mpr hv
-      simp only [List.countP_cons, hv, decide_true, ↓reduceIte]
-      omega
-    · simp only [List.countP_cons, hv, decide_false, Bool.false_eq_true, ↓reduceIte]
-      omega
+    rw [List.countP_cons, hvars, Nat.add_comm ((c.map Prod.fst).count v)]
+    refine Nat.add_le_add ih ?_
+    split
+    · rename_i hv
+      exact List.count_pos_iff.mpr (of_decide_eq_true hv)
+    · exact Nat.zero_le _
 
 private theorem card_filter_get_mem_eq_countP (φ : CNF V) (v : V) :
     (Finset.univ.filter (fun i : Fin φ.length => v ∈ (φ.get i).map Prod.fst)).card =
       φ.countP (fun c => decide (v ∈ c.map Prod.fst)) := by
-  have hfin := (List.nodup_finRange φ.length).card_eq_countP
-    (P := fun i : Fin φ.length => v ∈ (φ.get i).map Prod.fst)
-  rw [List.toFinset_finRange] at hfin
-  calc
-    _ = (List.finRange φ.length).countP
-        (fun i => decide (v ∈ (φ.get i).map Prod.fst)) := hfin
-    _ = ((List.finRange φ.length).map φ.get).countP
-        (fun c => decide (v ∈ c.map Prod.fst)) := by
-      simp only [List.countP_map, Function.comp_def]
-    _ = φ.countP (fun c => decide (v ∈ c.map Prod.fst)) := by
-      rw [← List.ofFn_eq_map, List.ofFn_get]
+  simpa only [List.ofFn_get, decide_eq_true_eq] using
+    (List.countP_ofFn φ.get (fun c => decide (v ∈ c.map Prod.fst))).symm
 
 /-- Exact-three clauses on distinct variables with at most three occurrences per variable
 are always satisfiable. Binary clauses are excluded from this statement. -/
@@ -87,29 +76,19 @@ theorem satisfiable_of_exactThreeDistinct_of_count_le_three
     intro s
     have hleft : ∀ i ∈ s, 3 ≤ ((s.biUnion t).bipartiteAbove r i).card := by
       intro i hi
-      have he : (s.biUnion t).bipartiteAbove r i = t i := by
-        ext v
-        simp only [Finset.mem_bipartiteAbove, r, Finset.mem_biUnion]
-        constructor
-        · exact fun h => h.2
-        · exact fun hv => ⟨⟨i, hi, hv⟩, hv⟩
-      rw [he]
-      exact (ht i).symm.le
+      simpa only [Finset.bipartiteAbove, r, Finset.filter_mem_eq_inter,
+        Finset.inter_eq_right.mpr (Finset.subset_biUnion_of_mem t hi)] using (ht i).ge
     have hright : ∀ v ∈ s.biUnion t, (s.bipartiteBelow r v).card ≤ 3 := by
       intro v _
       calc
         (s.bipartiteBelow r v).card
-            ≤ (Finset.univ.filter (fun i : I => v ∈ t i)).card := by
-          apply Finset.card_le_card
-          intro i hi
-          exact Finset.mem_filter.mpr
-            ⟨Finset.mem_univ _, (Finset.mem_filter.mp hi).2⟩
+            ≤ (Finset.univ.filter (fun i : I => v ∈ t i)).card :=
+          Finset.card_le_card (Finset.filter_subset_filter _ (Finset.subset_univ s))
         _ = φ.countP (fun c => decide (v ∈ c.map Prod.fst)) :=
           by simpa only [t, List.mem_toFinset] using card_filter_get_mem_eq_countP φ v
         _ ≤ φ.vars.count v := countP_mem_vars_le_count_vars φ v
         _ ≤ 3 := ho v
-    have hcount := Finset.card_mul_le_card_mul r hleft hright
-    omega
+    exact Nat.le_of_mul_le_mul_right (Finset.card_mul_le_card_mul r hleft hright) (by decide)
   obtain ⟨f, hf, hmem⟩ := (Finset.all_card_le_biUnion_card_iff_existsInjective' t).mp hall
   have hlit : ∀ i : I, ∃ b : Bool, (f i, b) ∈ φ.get i := by
     intro i
