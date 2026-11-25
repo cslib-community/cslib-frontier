@@ -115,8 +115,7 @@ private theorem realize_leafChecks (m h k : (language L).Term α)
   · intro hc q hq
     rcases hc (fun _ => q) hq with ⟨hx, hn⟩ | ⟨hx, hn⟩
     · simpa only [hx, Bool.toNat_true] using hn
-    · have hx' : (x.realize v).val.testBit q.val = false := Bool.eq_false_iff.mpr hx
-      simpa only [hx', Bool.toNat_false] using hn
+    · simpa only [Bool.eq_false_iff.mpr hx, Bool.toNat_false] using hn
   · intro hc q hq
     have hn := hc (q ()) hq
     cases hx : (x.realize v).val.testBit (q ()).val with
@@ -164,13 +163,10 @@ private theorem count_eq_of_checks (m h k x : Fin n) (w : Fin 8 → ℕ)
     exact hz.unique (hleaf ⟨q, lt_trans hqk k.isLt⟩ hqk)
   | succ j ih =>
     have hj' : j < m.val := by lia
-    have hp : 2 ^ (m.val - (j + 1)) ≤ k.val := by
-      rw [hk]
-      exact Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _)
+    have hp : 2 ^ (m.val - (j + 1)) ≤ k.val :=
+      hk ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _)
     have hqk : q < k.val := lt_of_lt_of_le hq hp
-    have hp' : 2 ^ (m.val - j) ≤ k.val := by
-      rw [hk]
-      exact Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _)
+    have hp' : 2 ^ (m.val - j) ≤ k.val := hk ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _)
     have he : m.val - j = m.val - (j + 1) + 1 := by lia
     have hl : 2 * q < 2 ^ (m.val - j) := by rw [he, pow_succ]; lia
     have hr : 2 * q + 1 < 2 ^ (m.val - j) := by rw [he, pow_succ]; lia
@@ -210,9 +206,8 @@ private theorem exists_parameters {n : ℕ} (hn : 257 ≤ n) :
   have hh0 : h ≠ 0 := by lia
   have hk : h < 2 ^ (h.log2 + 1) := (Nat.log2_lt hh0).mp (by lia)
   have hk' : 2 ^ (h.log2 + 1) ≤ 2 * h := by
-    rw [pow_succ]
     have := Nat.log2_self_le hh0
-    lia
+    rw [pow_succ]; lia
   have hm : h.log2 + 1 ≤ h := by
     have := (Nat.log2_lt hh0).mpr (Nat.lt_two_pow_self (n := h))
     lia
@@ -268,21 +263,14 @@ private theorem packedFormula_complete (v : Fin 2 → Fin n) (hn : 257 ≤ n)
     simp only [Term.realize_var, Sum.elim_inr]
     intro t ht
     obtain ⟨ht0, ht1, ht2, ht3, ht4, ht5⟩ := ht
-    have hj : (t 0).val ≤ m := by change (t 2).val + (t 3).val = m at ht1; lia
-    have hj' : (t 2).val ≤ m := by change (t 2).val + (t 3).val = m at ht1; lia
-    have he : m - (t 2).val = (t 3).val := by
-      change (t 2).val + (t 3).val = m at ht1
-      lia
-    have hq : (t 1).val < 2 ^ (m - (t 2).val) := by rw [he, ← ht2]; exact ht3
-    have he' : m - (t 0).val = (t 3).val + 1 := by
-      change (t 2).val + (t 3).val = m at ht1
-      lia
-    have hl : (t 5).val < 2 ^ (m - (t 0).val) := by
-      rw [he', pow_succ, ← ht2]
-      lia
-    have hr : (t 6).val < 2 ^ (m - (t 0).val) := by
-      rw [he', pow_succ, ← ht2]
-      lia
+    change (t 2).val + (t 3).val = m at ht1
+    have hj : (t 0).val ≤ m := by lia
+    have hj' : (t 2).val ≤ m := by lia
+    have hq : (t 1).val < 2 ^ (m - (t 2).val) := by
+      rw [show m - (t 2).val = (t 3).val by lia, ← ht2]; exact ht3
+    have he' : m - (t 0).val = (t 3).val + 1 := by lia
+    have hl : (t 5).val < 2 ^ (m - (t 0).val) := by rw [he', pow_succ, ← ht2]; lia
+    have hr : (t 6).val < 2 ^ (m - (t 0).val) := by rw [he', pow_succ, ← ht2]; lia
     let a : Fin 3 → Fin n := ![
       ⟨BitString.sumTree (v 0).val.testBit (t 0).val (t 5).val, hcount _ _ hj⟩,
       ⟨BitString.sumTree (v 0).val.testBit (t 0).val (t 6).val, hcount _ _ hj⟩,
