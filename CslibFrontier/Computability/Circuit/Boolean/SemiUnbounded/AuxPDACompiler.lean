@@ -134,9 +134,13 @@ theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
   | refl u => exact ⟨0, .refl u.toSurface⟩
   | stay h => exact ⟨1, .stay h⟩
   | pushPop h _ ih =>
-    obtain ⟨γ, hp, hq⟩ := h; obtain ⟨d, hd⟩ := ih; exact ⟨d + 2, .pushPop hp hd hq⟩
+    obtain ⟨γ, hp, hq⟩ := h
+    obtain ⟨d, hd⟩ := ih
+    exact ⟨d + 2, .pushPop hp hd hq⟩
   | trans _ _ ihl ihr =>
-    obtain ⟨d₁, h₁⟩ := ihl; obtain ⟨d₂, h₂⟩ := ihr; exact ⟨d₁ + d₂, .trans h₁ h₂⟩
+    obtain ⟨d₁, h₁⟩ := ihl
+    obtain ⟨d₂, h₂⟩ := ihr
+    exact ⟨d₁ + d₂, .trans h₁ h₂⟩
 
 private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym State}
     (p : M.RunPath input) (hlen : p.length = 1) (hsame : SameHeightRun p) :
@@ -402,9 +406,6 @@ theorem compileAuxPDA_andLevel_le (M : AuxPDA k Bool StackSym State)
 def depthConstant (A D : ℕ) : ℕ :=
   6 * (Nat.log2 (4 * A + 3) + 1) + 6 * D + 8
 
-private lemma lt_two_pow_log2_succ (n : ℕ) : n < 2 ^ (Nat.log2 n + 1) := by
-  rw [Nat.log2_eq_log_two]; exact Nat.lt_pow_succ_log_self (by decide) n
-
 /-- **Logarithmic AND-depth in terms of circuit size `N`**: whenever
 `t ≤ A * (input.length + 1) ^ D`, every gate of `compileAuxPDA` has
 `andLevel g ≤ depthConstant A D * (Nat.log2 N + 1)`. -/
@@ -421,9 +422,9 @@ theorem compileAuxPDA_andLevel_le_log_gateCount (M : AuxPDA k Bool StackSym Stat
     input_length_add_two_le_boundedSurfaceCard mStack (mState + 1) k input.length s
   have hNge : compiledSurfaceCount mStack mState k input.length s + 3 ≤ N :=
     le_balancedGateCount _ _
-  have hltN : N < 2 ^ L := lt_two_pow_log2_succ N
+  have hltN : N < 2 ^ L := Nat.lt_log2_self
   have hn1lt : input.length + 1 < 2 ^ L := by omega
-  have hAlt : 4 * A + 3 < 2 ^ B := lt_two_pow_log2_succ (4 * A + 3)
+  have hAlt : 4 * A + 3 < 2 ^ B := Nat.lt_log2_self
   have h1lePow : 1 ≤ (input.length + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos _)
   have h4t3 : 4 * t + 3 < 2 ^ (B + D * L) := calc
     4 * t + 3 ≤ (4 * A + 3) * (input.length + 1) ^ D := by nlinarith
