@@ -267,34 +267,28 @@ private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : 
       AdjChain g mem' (top + 2) (mem' (headBase g + v))
         ((bs.set u (g.edges[j] :: bs.getD u [])).getD v []) := by
   intro mem' v hv
-  have hfr : ∀ a, nodeBase g ≤ a → a < top → mem' a = mem a := by
-    intro a ha1 ha2
+  have hfr : ∀ a, nodeBase g ≤ a → a < top → mem' a = mem a := fun a ha1 ha2 => by
     simp only [mem', Function.update_of_ne (by simp only [nodeBase] at ha1; omega :
         a ≠ headBase g + u),
-      Function.update_of_ne (by omega : a ≠ top + 1),
-      Function.update_of_ne (by omega : a ≠ top)]
+      Function.update_of_ne (by omega : a ≠ top + 1), Function.update_of_ne (by omega : a ≠ top)]
   by_cases hvu : v = u
   · subst hvu
-    rw [List.getD_set_self (hlen ▸ hu)]
-    have hhd : mem' (headBase g + v) = top := Function.update_self _ _ _
-    have hp0 : mem' top = j := by
+    rw [List.getD_set_self (hlen ▸ hu),
+      show mem' (headBase g + v) = top from Function.update_self ..]
+    refine .cons hj htop_lo le_rfl (by
       simp only [mem', Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
           top ≠ headBase g + v),
-        Function.update_of_ne (by omega : top ≠ top + 1), Function.update_self]
-    have hp1 : mem' (top + 1) = mem (headBase g + v) := by
+        Function.update_of_ne (by omega : top ≠ top + 1), Function.update_self]) ?_
+    rw [show mem' (top + 1) = mem (headBase g + v) by
       simp only [mem', Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
-          top + 1 ≠ headBase g + v), Function.update_self]
-    rw [hhd]
-    refine .cons hj htop_lo (le_refl _) hp0 ?_
-    rw [hp1]
+          top + 1 ≠ headBase g + v), Function.update_self]]
     exact (hbs v hv).frame (by omega) hfr
-  · rw [List.getD_set_ne (Ne.symm hvu)]
-    have hhd : mem' (headBase g + v) = mem (headBase g + v) := by
+  · rw [List.getD_set_ne (Ne.symm hvu), show mem' (headBase g + v) = mem (headBase g + v) by
       simp only [mem', Function.update_of_ne (by omega : headBase g + v ≠ headBase g + u),
         Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
           headBase g + v ≠ top + 1),
-        Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega : headBase g + v ≠ top)]
-    rw [hhd]
+        Function.update_of_ne (by simp only [nodeBase] at htop_lo; omega :
+          headBase g + v ≠ top)]]
     exact (hbs v hv).frame (by omega) hfr
 
 private theorem prependToSlot_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (slotReg : Fin 34)
@@ -419,59 +413,57 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
             hy1C (hy1m ▸ hyInp) hy1Src hy1J hlen_k hs_lt hj
             (by omega) (by simp only [visBase]; omega)
             (by rw [hy1NF, hy1m]; exact hyAdj) (by rw [hy1m]; exact hyZero) hw
-        by_cases hsd : g.edges[j].src = g.edges[j].dst
-        · have htail : ∃ z2, ExecWithin w
-              (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ] else [ ⟪prependToSlot rDst⟫ ];
-                    rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z1 z2 4 ∧
-              ConstRegs g z2 ∧ z2.regs rNodeFree = z1.regs rNodeFree ∧
-              z2.regs rOuterIdx = k + 1 ∧ z2.mem = z1.mem := by
-            wram_exec [hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, hz1Idx, hy1Idx, hz1C.one]
-            exact ⟨by wram_simp [hz1C], by wram_simp, by wram_simp, by wram_simp⟩
-          obtain ⟨z2, hz2, hz2C, hz2NF, hz2Idx, hz2m⟩ := htail
-          refine ⟨z2, ?_, ⟨hz2C, hz2m ▸ hz1Inp,
-            by rw [hz2NF, hz1NF, hy1NF]; omega,
-            by rw [hz2NF, hz1NF, hy1NF]; omega,
-            fun u hu => ?_, by rw [hz2m]; exact hz1Zero⟩, hz2Idx⟩
-          · exact (hy1.seq (hz1.seq hz2)).mono (by omega)
-          · rw [hbs_next, hz2NF, hz2m]
-            simp only [insertEdge, hsd, ↓reduceIte]
-            simpa only [hsd] using hz1Adj u hu
-        · have hlen_k1 : ((bsAt k).set g.edges[j].src
-              (g.edges[j] :: (bsAt k).getD g.edges[j].src [])).length = slots g := by
-            rw [List.length_set, hlen_k]
-          obtain ⟨z2, hz2, hz2C, hz2Inp, hz2NF, hz2Idx, _, _, _, hz2Adj, hz2Zero⟩ :=
-            prependToSlot_spec (w := w) g rDst z1
-              ((bsAt k).set g.edges[j].src (g.edges[j] :: (bsAt k).getD g.edges[j].src []))
-              g.edges[j].dst j (Or.inr rfl)
-              hz1C hz1Inp (hz1Dst.trans hy1Dst) hz1J hlen_k1 hd_lt hj
-              (by rw [hz1NF, hy1NF]; omega)
-              (by rw [hz1NF, hy1NF]; simp only [visBase]; omega) hz1Adj hz1Zero hw
-          have hbr : ExecWithin w
-              (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ] else [ ⟪prependToSlot rDst⟫ ] ] :
-                Code .standard 34)
-              z1 z2 9 := by
+        have hbr_step : ∃ z2, ExecWithin w
+            (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ] else [ ⟪prependToSlot rDst⟫ ] ] :
+              Code .standard 34) z1 z2 9 ∧
+            ConstRegs g z2 ∧ InputAt g z2.mem ∧
+            nodeBase g ≤ z2.regs rNodeFree ∧ z2.regs rNodeFree ≤ nodeBase g + 4 * (k + 1) ∧
+            z2.regs rOuterIdx = k ∧
+            (∀ u < slots g,
+              AdjChain g z2.mem (z2.regs rNodeFree) (z2.mem (headBase g + u))
+                ((bsAt (k + 1)).getD u [])) ∧
+            ∀ a, visBase g ≤ a → z2.mem a = 0 := by
+          by_cases hsd : g.edges[j].src = g.edges[j].dst
+          · have hbr : ∃ z2, ExecWithin w
+                (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ]
+                      else [ ⟪prependToSlot rDst⟫ ] ] : Code .standard 34) z1 z2 3 ∧
+                ConstRegs g z2 ∧ z2.regs rNodeFree = z1.regs rNodeFree ∧
+                z2.regs rOuterIdx = k ∧ z2.mem = z1.mem := by
+              wram_exec [hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, hz1Idx, hy1Idx]
+              exact ⟨by wram_simp [hz1C], by wram_simp, by wram_simp, by wram_simp⟩
+            obtain ⟨z2, hz2, hz2C, hz2NF, hz2Idx, hz2m⟩ := hbr
+            refine ⟨z2, hz2.mono (by omega), hz2C, hz2m ▸ hz1Inp,
+              by rw [hz2NF, hz1NF, hy1NF]; omega, by rw [hz2NF, hz1NF, hy1NF]; omega, hz2Idx,
+              fun u hu => by
+                rw [hbs_next, hz2NF, hz2m]; simp only [insertEdge, hsd, ↓reduceIte]
+                simpa only [hsd] using hz1Adj u hu, hz2m ▸ hz1Zero⟩
+          · obtain ⟨z2, hz2, hz2C, hz2Inp, hz2NF, hz2Idx, _, _, _, hz2Adj, hz2Zero⟩ :=
+              prependToSlot_spec (w := w) g rDst z1
+                ((bsAt k).set g.edges[j].src (g.edges[j] :: (bsAt k).getD g.edges[j].src []))
+                g.edges[j].dst j (Or.inr rfl) hz1C hz1Inp (hz1Dst.trans hy1Dst) hz1J
+                (by rw [List.length_set, hlen_k]) hd_lt hj
+                (by rw [hz1NF, hy1NF]; omega)
+                (by rw [hz1NF, hy1NF]; simp only [visBase]; omega) hz1Adj hz1Zero hw
             have hcond : ¬ (Cond.eq rSrc rDst).Holds z1 := by
               simp only [Cond.holds_eq, hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, not_false_eq_true]
-            exact ExecWithin.branch_neg hcond hz2
-          have hinc : ∃ z3, ExecWithin w
-              (ram[ rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z2 z3 1 ∧
-              ConstRegs g z3 ∧ z3.regs rNodeFree = z2.regs rNodeFree ∧
-              z3.regs rOuterIdx = k + 1 ∧ z3.mem = z2.mem := by
-            wram_exec [hz2Idx, hz1Idx, hy1Idx, hz2C.one]
-            exact ⟨by wram_simp [hz2C], by wram_simp, by wram_simp, by wram_simp⟩
-          obtain ⟨z3, hz3, hz3C, hz3NF, hz3Idx, hz3m⟩ := hinc
-          refine ⟨z3, ?_, ⟨hz3C, hz3m ▸ hz2Inp,
-            by rw [hz3NF, hz2NF, hz1NF, hy1NF]; omega,
-            by rw [hz3NF, hz2NF, hz1NF, hy1NF]; omega,
-            fun u hu => ?_, by rw [hz3m]; exact hz2Zero⟩, hz3Idx⟩
-          · exact (hy1.seq (hz1.seq (hbr.seq hz3))).mono (by omega)
-          · have hdst_get :
-                ((bsAt k).set g.edges[j].src
-                  (g.edges[j] :: (bsAt k).getD g.edges[j].src [])).getD g.edges[j].dst [] =
-                (bsAt k).getD g.edges[j].dst [] :=
-              List.getD_set_ne hsd
-            simp only [hbs_next, insertEdge, hsd, ↓reduceIte, hz3NF, hz3m, ← hdst_get]
-            exact hz2Adj u hu)
+            refine ⟨z2, ExecWithin.branch_neg hcond hz2, hz2C, hz2Inp,
+              by rw [hz2NF, hz1NF, hy1NF]; omega, by rw [hz2NF, hz1NF, hy1NF]; omega,
+              hz2Idx.trans (hz1Idx.trans hy1Idx), fun u hu => by
+                have hdst_get := List.getD_set_ne (l := bsAt k)
+                  (x := g.edges[j] :: (bsAt k).getD g.edges[j].src []) (d := []) hsd
+                simp only [hbs_next, insertEdge, hsd, ↓reduceIte, ← hdst_get]
+                exact hz2Adj u hu, hz2Zero⟩
+        obtain ⟨z2, hz2, hz2C, hz2Inp, hz2Lo, hz2Hi, hz2Idx, hz2Adj, hz2Zero⟩ := hbr_step
+        have hinc : ∃ z3, ExecWithin w
+            (ram[ rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z2 z3 1 ∧
+            ConstRegs g z3 ∧ z3.regs rNodeFree = z2.regs rNodeFree ∧
+            z3.regs rOuterIdx = k + 1 ∧ z3.mem = z2.mem := by
+          wram_exec [hz2Idx, hz2C.one]
+          exact ⟨by wram_simp [hz2C], by wram_simp, by wram_simp, by wram_simp⟩
+        obtain ⟨z3, hz3, hz3C, hz3NF, hz3Idx, hz3m⟩ := hinc
+        exact ⟨z3, (hy1.seq (hz1.seq (hz2.seq hz3))).mono (by omega),
+          ⟨hz3C, hz3m ▸ hz2Inp, hz3NF ▸ hz2Lo, hz3NF ▸ hz2Hi,
+            by simpa only [hz3NF, hz3m] using hz2Adj, by simpa only [hz3m] using hz2Zero⟩, hz3Idx⟩)
       (by rw [hidx]; exact Nat.zero_le _)
       (by rwa [hidx])
   rw [hidx, Nat.sub_zero] at hy
