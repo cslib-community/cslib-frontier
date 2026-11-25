@@ -42,6 +42,9 @@ only the bodies of `lastSlotOfProg`, `pushBackTailWriteProg`, `pushBackSlotProg`
 
 ## Main results
 
+* `Cslib.DataStructure.Dictionary.WordRAM.Succinct.validProg_iterate_of_inv`,
+  `Cslib.DataStructure.Dictionary.WordRAM.Succinct.validProg_iterate_readOnly`: loop safety,
+  admissibility and a final invariant from a step-indexed invariant, and its read-only form.
 * `Cslib.DataStructure.Dictionary.WordRAM.Succinct.validProg_queryBody`,
   `Cslib.DataStructure.Dictionary.WordRAM.Succinct.validProg_insertBody`,
   `Cslib.DataStructure.Dictionary.WordRAM.Succinct.validProg_deletePrep`,
@@ -115,6 +118,46 @@ theorem validProg_iterate {δ σ : Type} {w F : ℕ}
   | zero => exact validProg_pure a
   | succ n ih =>
     exact validProg_bind (hbody a s hsafe.1) (ih _ _ hsafe.2)
+
+/-- Bounded iteration invariant induction for `ValidProg`: if each of the first `n` steps, from
+any state satisfying the step-indexed invariant `inv k`, is safe and admissible and establishes
+`inv (k + 1)`, then the loop is safe and admissible and ends in `inv n`. Frontier, frame and
+read-only facts are carried by `inv`. -/
+theorem validProg_iterate_of_inv {δ σ : Type} {w F : ℕ}
+    {body : δ × σ → Memory.Prog σ} {safe : ℕ → δ × σ → Memory.State → Prop} {d : δ} {n : ℕ}
+    (inv : ℕ → σ → Memory.State → Prop)
+    (hstep : ∀ k < n, ∀ a s, inv k a s →
+      safe w (d, a) s ∧ ValidProg w F s (body (d, a)) ∧
+        inv (k + 1) ((Memory.spec 0).clientResult s (body (d, a)))
+          ((Memory.spec 0).clientState s (body (d, a))))
+    {a : σ} {s : Memory.State} (h₀ : inv 0 a s) :
+    iterationSafe body safe w d n a s ∧ ValidProg w F s (iterate body d n a) ∧
+      inv n ((Memory.spec 0).clientResult s (iterate body d n a))
+        ((Memory.spec 0).clientState s (iterate body d n a)) := by
+  induction n generalizing inv a s with
+  | zero => exact ⟨trivial, validProg_pure a, h₀⟩
+  | succ n ih =>
+    obtain ⟨hs, hv, h₁⟩ := hstep 0 n.succ_pos a s h₀
+    obtain ⟨hs', hv', hn⟩ :=
+      ih (fun k => inv (k + 1)) (fun k hk => hstep (k + 1) (Nat.succ_lt_succ hk)) h₁
+    refine ⟨⟨hs, by rw [clientResult_width, clientState_width]; exact hs'⟩,
+      validProg_bind hv hv', ?_⟩
+    rw [iterate, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
+    exact hn
+
+/-- A read-only loop whose `k`-th step, from `f k` at the fixed state `s`, is safe and admissible,
+leaves `s` unchanged and returns `f (k + 1)`. -/
+theorem validProg_iterate_readOnly {δ σ : Type} {w F : ℕ}
+    {body : δ × σ → Memory.Prog σ} {safe : ℕ → δ × σ → Memory.State → Prop} {d : δ} {n : ℕ}
+    {s : Memory.State} (f : ℕ → σ)
+    (hstep : ∀ k < n, safe w (d, f k) s ∧ ValidProg w F s (body (d, f k)) ∧
+      (Memory.spec 0).clientState s (body (d, f k)) = s ∧
+      (Memory.spec 0).clientResult s (body (d, f k)) = f (k + 1)) :
+    iterationSafe body safe w d n (f 0) s ∧ ValidProg w F s (iterate body d n (f 0)) ∧
+      (Memory.spec 0).clientState s (iterate body d n (f 0)) = s ∧
+      (Memory.spec 0).clientResult s (iterate body d n (f 0)) = f n :=
+  validProg_iterate_of_inv (fun k a t => t = s ∧ a = f k)
+    (fun k hk _ _ ⟨ht, ha⟩ => by subst ht ha; exact hstep k hk) ⟨rfl, rfl⟩
 
 theorem validProg_boundedWhile {δ σ : Type} {w F : ℕ}
     {guard : δ → σ → Prop} [∀ d a, Decidable (guard d a)]

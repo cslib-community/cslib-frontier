@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.HealRt
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
