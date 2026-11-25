@@ -66,10 +66,8 @@ theorem bindShared_layout {r k m l n₁ n₂ : ℕ} {frontier : Fin r} {src : Fi
         tmp (bindSharedLeft j)) ∧
       ∀ i, Fin.append src (fun a => tmp (bindSharedRight (Fin.castAdd (n₁ + 1) a))) i ≠
         frontier := by
-  have hleft : Function.Injective (tmp ∘ bindSharedLeft) := by
-    intro a b hab
-    have h := congrArg Fin.val (hi hab)
-    exact Fin.ext h
+  have hleft : Function.Injective (tmp ∘ bindSharedLeft) := fun a b hab =>
+    Fin.ext (Fin.mk.inj (hi hab))
   have hright : Function.Injective (tmp ∘ bindSharedRight) := by
     intro a b hab
     have h := hi hab
@@ -81,13 +79,12 @@ theorem bindShared_layout {r k m l n₁ n₂ : ℕ} {frontier : Fin r} {src : Fi
     intro hab
     have := hi hab
     fin_index [bindSharedRight, bindSharedLeft]
-  refine ⟨hright, hleft, fun i j => ?_, fun i => ?_⟩
-  · refine Fin.addCases (fun a => ?_) (fun b => ?_) i
-    · simpa only [Fin.append_left] using hd a (bindSharedLeft j)
-    · simpa only [Fin.append_right] using hdisjoint b j
-  · refine Fin.addCases (fun a => ?_) (fun b => ?_) i
-    · simpa only [Fin.append_left] using hs a
-    · simpa only [Fin.append_right] using hf (bindSharedRight (Fin.castAdd (n₁ + 1) b))
+  refine ⟨hright, hleft, fun i j => Fin.addCases (fun a => ?_) (fun b => ?_) i,
+    fun i => Fin.addCases (fun a => ?_) (fun b => ?_) i⟩
+  · simpa only [Fin.append_left] using hd a (bindSharedLeft j)
+  · simpa only [Fin.append_right] using hdisjoint b j
+  · simpa only [Fin.append_left] using hs a
+  · simpa only [Fin.append_right] using hf (bindSharedRight (Fin.castAdd (n₁ + 1) b))
 
 /-- After the predecessor writes `answer a` into its live tail slots and preserves registers
 outside `frontier` and `tmp ∘ bindSharedRight`, the continuation's source bank holds
@@ -114,13 +111,10 @@ theorem bindShared_appendWords {δ α : Type} {r k m l n₁ n₂ : ℕ}
 
 /-- Combine two stage cost bounds `C₁ * (t₁ + 1)` and `C₂ * (t₂ + 1)` under `max C₁ C₂`. -/
 theorem bind_cost_le {C₁ C₂ t₁ t₂ t : ℕ} (ht : t₁ + t₂ + 1 ≤ t) :
-    C₁ * (t₁ + 1) + C₂ * (t₂ + 1) ≤ max C₁ C₂ * (t + 1) := by
-  calc
-    _ ≤ max C₁ C₂ * (t₁ + 1) + max C₁ C₂ * (t₂ + 1) :=
-      Nat.add_le_add (Nat.mul_le_mul_right _ (Nat.le_max_left _ _))
-        (Nat.mul_le_mul_right _ (Nat.le_max_right _ _))
-    _ = max C₁ C₂ * (t₁ + t₂ + 1 + 1) := by ring
-    _ ≤ max C₁ C₂ * (t + 1) := Nat.mul_le_mul_left _ (Nat.add_le_add_right ht 1)
+    C₁ * (t₁ + 1) + C₂ * (t₂ + 1) ≤ max C₁ C₂ * (t + 1) :=
+  (Nat.add_le_add (Nat.mul_le_mul_right _ (Nat.le_max_left _ _))
+    (Nat.mul_le_mul_right _ (Nat.le_max_right _ _))).trans <|
+    (Nat.mul_add _ _ _).symm.trans_le (Nat.mul_le_mul_left _ (by omega))
 
 private theorem bind_intermediate {δ α β : Type} {r k m l n₁ n₂ : ℕ}
     {p : δ → Memory.Prog α} {q : δ × α → Memory.Prog β}
@@ -245,25 +239,16 @@ private theorem bind_run
     bind_intermediate (q := q) hin hsafe.2 hvQ hmP houtP hframeP hd hs
   obtain ⟨y, hy, hmQ, houtQ, hframeQ⟩ :=
     hrunQ w (d, a) z hzb hinQ hsafeQ hvalidQ
-  have hfr_le : z.regs frontier ≤ y.regs frontier := by
-    have hle := Memory.frontier_le_clientState (w := w) (memoryState frontier z) (q (d, a))
-    have hmQ_fr := congrArg Memory.State.frontier hmQ
-    change y.regs frontier =
-      ((Memory.spec w).clientState (memoryState frontier z) (q (d, a))).frontier at hmQ_fr
-    exact hmQ_fr ▸ hle
+  have hfr_le : z.regs frontier ≤ y.regs frontier :=
+    (Memory.frontier_le_clientState (w := w) (memoryState frontier z) (q (d, a))).trans_eq
+      (congrArg Memory.State.frontier hmQ).symm
   obtain ⟨hstate_bind, hres_bind⟩ :=
     clientState_clientResult_bind_width w s (p d) fun a => q (d, a)
-  refine ⟨z, y, hvP, hzb, hinQ, hmP', hsafeQ, hvalidQ, hfr_le, hz, ?_, ?_, ?_, ?_⟩
-  · simpa only [hmP'] using hy
-  · rw [hmP'] at hmQ
-    exact hmQ.trans hstate_bind.symm
-  · intro i
-    have hout := houtQ i
-    rw [hmP'] at hout
-    exact hout.trans (congrArg (output · i) hres_bind.symm)
-  · intro i hif htmp
-    exact (hframeQ i hif (fun j => htmp (left j))).trans
-      (hframeP i hif (fun j => htmp (right j)))
+  rw [hmP'] at hmQ houtQ
+  refine ⟨z, y, hvP, hzb, hinQ, hmP', hsafeQ, hvalidQ, hfr_le, hz, by simpa only [hmP'] using hy,
+    hmQ.trans hstate_bind.symm, fun i => (houtQ i).trans (congrArg (output · i) hres_bind.symm),
+    fun i hif htmp => (hframeQ i hif (fun j => htmp (left j))).trans
+      (hframeP i hif (fun j => htmp (right j)))⟩
 
 /-- Judgment-parametric sequential composition on `SpecWith`. -/
 theorem SpecWith.bind
