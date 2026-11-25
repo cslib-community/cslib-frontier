@@ -192,14 +192,8 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
     cases hc : component k with
     | none => simp [S, hc]
     | some C =>
-      change u ∉ (component k).elim ∅ (fun C => projection '' C.supp) ∧
-        v.val ∉ (component k).elim ∅ (fun C => projection '' C.supp)
-      rw [hc]
-      refine ⟨?_, ?_⟩
-      · rintro ⟨w, _, he⟩
-        exact w.val.property he
-      · rintro ⟨w, _, he⟩
-        exact w.property (Subtype.ext he)
+      simp only [S, hc, Option.elim_some]
+      exact ⟨fun ⟨w, _, he⟩ => w.val.property he, fun ⟨w, _, he⟩ => w.property (Subtype.ext he)⟩
   have disjoint : Pairwise fun i j => Disjoint (S i) (S j) := by
     intro x y hxy
     cases hc : component x with
@@ -250,16 +244,8 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
   let triple : Fin 3 → ι := ![o, i, j]
   have htriple : Function.Injective triple := by
     intro x y he
-    fin_cases x <;> fin_cases y
-    all_goals
-      first
-      | rfl
-      | exact (hoi he).elim
-      | exact (hoi he.symm).elim
-      | exact (hoj he).elim
-      | exact (hoj he.symm).elim
-      | exact (hij he).elim
-      | exact (hij he.symm).elim
+    fin_cases x <;> fin_cases y <;> dsimp [triple] at he
+    all_goals first | rfl | exact absurd he ‹_› | exact absurd he.symm ‹_›
   have compare :
       a i ∈ r.rotationInterval (a o) (a j) ↔ b i ∉ r.rotationInterval (b o) (b j) :=
     hD.opposite_orders_of_induced_reachable hsimple hR hG heven (Ne.symm v.property) hu hv

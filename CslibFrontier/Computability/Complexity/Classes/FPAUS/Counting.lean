@@ -132,11 +132,7 @@ theorem preimage_startsWith (b : Bool) :
   ext o
   simp only [Set.mem_preimage, Set.mem_singleton_iff, startsWith_eq_true_iff, Set.mem_image,
     Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨w, rfl, hw⟩
-    exact ⟨w, hw, rfl⟩
-  · rintro ⟨w, hw, rfl⟩
-    exact ⟨w, rfl, hw⟩
+  grind
 
 /-- An almost uniform sampler's frequency of outputs beginning with `b` is within its tolerance
 of the fraction of witnesses beginning with `b`. -/
@@ -295,10 +291,9 @@ theorem mem_support_step {S : α → ℕ → ProbComp (Option (List Bool))} {ℓ
     {s s' : State α} (h : s' ∈ (ProbComp.eval (R.step S ℓ p t s)).support) :
     ∃ c₀ c₁, c₀ ≤ sampleCount ℓ p t ∧ c₁ ≤ sampleCount ℓ p t ∧
       s' = R.next (sampleCount ℓ p t) s c₀ c₁ := by
-  rw [step, ProbComp.eval_bind, PMF.mem_support_bind_iff] at h
-  obtain ⟨c₀, hc₀, h⟩ := h
-  rw [ProbComp.eval_map, PMF.mem_support_map_iff] at h
-  obtain ⟨c₁, hc₁, rfl⟩ := h
+  simp only [step, ProbComp.eval_bind, PMF.mem_support_bind_iff, ProbComp.eval_map,
+    PMF.mem_support_map_iff] at h
+  obtain ⟨c₀, hc₀, c₁, hc₁, rfl⟩ := h
   exact ⟨c₀, c₁, ProbComp.countTrue_le _ _ hc₀, ProbComp.countTrue_le _ _ hc₁, rfl⟩
 
 /-- **One level fails with probability at most `2 · 2 ^ (-(t + ℓ + 1))`**, from the invariant and

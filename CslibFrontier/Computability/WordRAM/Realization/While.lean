@@ -129,9 +129,7 @@ theorem whileSafe_of_measure
         (boundedWhile guard body d n) s).mp hv
       rw [clientResult_width w, clientState_width w] at ht
       obtain ⟨hsafe, hi', hr'⟩ := hstep a s hi hg hb
-      change if guard d a then _ else True
-      rw [ite_eq_left hg]
-      exact ⟨hsafe, ih hi' (by omega) ht⟩
+      simpa only [whileSafe, hg, ↓reduceIte] using ⟨hsafe, ih hi' (by omega) ht⟩
     · simp [whileSafe, hg]
 
 /-- The reached-state domain guarantees a false guard at the actual returned source value,
@@ -295,12 +293,9 @@ private theorem whileInv_step (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ 
   refine ⟨hz, ?_, fun i => ?_, fun i => ?_, fun i hif htmp => ?_⟩
   · exact (Memory.State.ext hzm (hzf frontier fun _ => hf _) :
       memoryState frontier z = memoryState frontier u).trans hum
-  · rw [hzf _ (fun _ => (hd _ _).symm), huf _ (hs _) (fun _ => (hd _ _).symm)]
-    exact hye i
-  · rw [hzs, huo]
-    rfl
-  · rw [hzf _ (fun _ => htmp _), huf _ hif (fun _ => htmp _)]
-    exact hyframe i hif htmp
+  · simpa only [hzf _ fun _ => (hd _ _).symm, huf _ (hs _) fun _ => (hd _ _).symm] using hye i
+  · rw [hzs, huo]; rfl
+  · simpa only [hzf _ fun _ => htmp _, huf _ hif fun _ => htmp _] using hyframe i hif htmp
 
 private theorem regs_frontier_le {α : Type} {frontier : Fin r} {y z : Data r} {s : Memory.State}
     {p : Memory.Prog α} (hy : memoryState frontier y = s)
@@ -396,8 +391,7 @@ theorem With.whileBounded {B : Basis}
     | zero =>
       intro q y hI hdom _
       refine ⟨y, hmono ?_ (hloop_exit ((hcond q y hI).not.mpr hdom)), ?_⟩
-      · change 2 ≤ (C + l + 3) * (0 + 0 + 1)
-        omega
+      · simp only [boundedWhile, memoryCost_pure, whileWork]; omega
       · simpa only [boundedWhile, StateTransitionSpec.clientResult,
           StateTransitionSpec.clientState, StateTransitionSpec.runClient_pure'] using hI
     | succ fuel ih =>
@@ -430,11 +424,10 @@ theorem With.whileBounded {B : Basis}
     whileInv_entry input output hd hf hin (hbounded ha hx) ham has haf
   obtain ⟨y, hy, _, hym, _, hys, hyf⟩ := aux (cutoff (d, a₀)) (a₀, memoryState frontier x) a
     hIa hsafe hv
-  refine ⟨y, hmono (by nlinarith) (hseq (regs_frontier_le hIa.memory hym) ha hy), ?_, ?_, hyf⟩
-  · rwa [clientState_width w]
-  · intro i
-    rw [clientResult_width w]
-    exact hys i
+  refine ⟨y, hmono (by nlinarith) (hseq (regs_frontier_le hIa.memory hym) ha hy),
+    by rwa [clientState_width w], fun i => ?_, hyf⟩
+  rw [clientResult_width w]
+  exact hys i
 
 /-- One native while emitter genuinely exits on the existing encoded condition. The pure source
 cutoff depends only on explicit initial input and is not computed or stored by this emitter.

@@ -98,13 +98,9 @@ theorem isStationary_permTupleKernel {T α : Type*} [Fintype T] [Fintype α]
     [Nonempty (T ↪ α)] (ρ : PMF (Equiv.Perm α)) :
     (MarkovChain.mk (permTupleKernel (T := T) ρ)).IsStationary
       (PMF.uniformOfFintype (T ↪ α)) := by
-  have hmap (x : T ↪ α) :
-      (ρ.map fun π => (Equiv.refl T).embeddingCongr π x) =
-        ρ.bind (fun π => PMF.pure ((Equiv.refl T).embeddingCongr π x)) :=
-    (PMF.bind_pure_comp _ ρ).symm
   change (PMF.uniformOfFintype (T ↪ α)).bind
     (fun x => ρ.map fun π => (Equiv.refl T).embeddingCongr π x) = _
-  simp_rw [hmap]
+  simp_rw [← PMF.bind_pure_comp, Function.comp_def]
   rw [PMF.bind_comm]
   have hinner (π : Equiv.Perm α) :
       (PMF.uniformOfFintype (T ↪ α)).bind
@@ -154,13 +150,7 @@ private theorem permTupleKernel_composePermDist_eq_prod_ofFn {T α : Type*} :
     simp only [permTupleKernel_eq, composePermDist_zero, PMF.pure_map, List.ofFn_zero,
       List.prod_nil, MarkovChain.one_apply, Equiv.embeddingCongr_refl, Equiv.refl_apply]
   | t + 1, ρs => by
-    have hsnoc :
-        (List.ofFn fun i : Fin (t + 1) => MarkovChain.mk (permTupleKernel (T := T) (ρs i))) =
-          (List.ofFn fun i : Fin t =>
-              MarkovChain.mk (permTupleKernel (T := T) (ρs i.castSucc))) ++
-            [MarkovChain.mk (permTupleKernel (T := T) (ρs (Fin.last t)))] := by
-      rw [List.ofFn_succ', List.concat_eq_append]
-    rw [hsnoc, List.prod_append, List.prod_singleton,
+    rw [List.ofFn_succ', List.concat_eq_append, List.prod_append, List.prod_singleton,
       ← permTupleKernel_composePermDist_eq_prod_ofFn t (fun i => ρs i.castSucc)]
     ext1 x
     exact permTupleKernel_composePermDist_succ t ρs x
@@ -312,14 +302,8 @@ theorem prob_not_injective_uniform_le (T α : Type*) [Fintype T] [DecidableEq T]
       {f : T → α | ¬ Function.Injective f}).toReal ≤
       ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (Fintype.card α : ℝ)) := by
   classical
-  let E : Set (T → α) := {f | ¬ Function.Injective f}
-  change ((PMF.uniformOfFintype (T → α)).toOuterMeasure E).toReal ≤ _
-  rw [toOuterMeasure_uniformOfFintype_toReal]
-  have hfilt : univ.filter (· ∈ E) =
-      univ.filter (fun f : T → α => ¬ Function.Injective f) :=
-    filter_congr fun _ _ => Iff.rfl
-  rw [hfilt]
-  exact ratio_not_injective_fun_le T α
+  simpa only [toOuterMeasure_uniformOfFintype_toReal, Set.mem_ofPred_eq] using
+    ratio_not_injective_fun_le T α
 
 /-- Statistical distance between a uniform random injection `T ↪ α` (coerced to `T → α`) and a
 uniform random function `T → α` is at most `|T| * (|T| - 1) / (2 * |α|)`. -/

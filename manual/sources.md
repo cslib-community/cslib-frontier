@@ -1375,6 +1375,7 @@ Neither locator was checked against the printed book.
 Section 15.4 ("Longest common subsequence": Theorem 15.1, optimal substructure of an LCS, and the running example `ABCBDAB`, `BDCABA` with an LCS of length `4`) and Problem 15-5 ("Edit distance") are the edit-distance and LCS locators.
 They were checked against secondary course material, not the printed book.
 Section 15.5 ("Optimal binary search trees": the recurrence for `e[i, j]` and the five-key example with expected cost 2.75) was checked against secondary course material, not the printed book.
+Section 21.4 ("Analysis of union by rank with path compression", pp. 573–581, Lemmas 21.11–21.13 and Theorem 21.14, together with Exercise 21.4-2) gives the `(j + 1)`-fold Ackermann recurrence and `level`/`iter` node potential adapted (with an explicit `+ d` rank shift) in [InverseAckermann.lean](../CslibFrontier/Foundations/Data/Nat/InverseAckermann.lean), [UnionFind.lean](../CslibFrontier/DataStructure/DisjointSet/UnionFind.lean), and [Tarjan.lean](../CslibFrontier/DataStructure/DisjointSet/Tarjan.lean); the Section 21.4 statement numbers and page span were checked against secondary course material, not the printed book.
 Kosaraju's two-pass strongly connected components algorithm in [DFS/SCC.lean](../CslibFrontier/Algorithms/Lean/DFS/SCC.lean) cites the book without attributing a section or theorem number, as the corresponding section has not been checked against the printed book.
 
 <a id="codenottivaradarajan2007"></a>
@@ -3321,6 +3322,13 @@ Bernhard Korte and Jens Vygen.
 Springer, Algorithms and Combinatorics 21, 2018. https://doi.org/10.1007/978-3-662-56039-6 . Cited for Section 2.4 (Eulerian and bipartite graphs), which characterizes connected graphs with a closed Eulerian walk by even degrees (Euler, Hierholzer).
 The section was located from secondary sources and not checked against the printed book; its theorem number is not cited.
 
+<a id="kozen92"></a>
+## kozen92
+
+Dexter C. Kozen.
+*The Design and Analysis of Algorithms*.
+Texts and Monographs in Computer Science, Springer-Verlag, 1992 (bibliography key `Kozen1992`). https://doi.org/10.1007/978-1-4612-4400-4 . Lectures 10–11 ("Union-Find" and "Analysis of Union-Find", pp. 48–57); the book text was not inspected directly in this pass (scope and chapter numbers taken from the bibliographic/table-of-contents record).
+
 <a id="kosugexagawa2022"></a>
 ## kosugexagawa2022
 
@@ -5185,6 +5193,14 @@ Checked firsthand on 2026-11-24 against the Chapter 19 text for §19.4.1 (pp. 50
 Robert Endre Tarjan.
 "Depth-First Search and Linear Graph Algorithms."
 *SIAM Journal on Computing* 1(2), 146–160, 1972. https://doi.org/10.1137/0201010 . Bibliographic data from the DOI record; the paper was not inspected in this pass.
+
+<a id="tarjan75"></a>
+## tarjan75
+
+Robert Endre Tarjan.
+"Efficiency of a Good But Not Linear Set Union Algorithm."
+*Journal of the ACM* 22(2), 215–225, 1975 (bibliography key `Tarjan1975`). https://doi.org/10.1145/321879.321884 . Bibliographic metadata checked via the DOI record and secondary summaries; the journal PDF was not inspected directly, so internal theorem numbers are not claimed.
+[Tarjan.lean](../CslibFrontier/DataStructure/DisjointSet/Tarjan.lean) proves an abstract step-count step toward [#3558](https://github.com/cslib-community/cslib-frontier/issues/3558) and [#5441](https://github.com/cslib-community/cslib-frontier/issues/5441) over `UnionFind.impl` (omitting `init n` and using shift `d = m / n + 1` in the [CLRS2009](#clrs09) recurrence rather than Tarjan's `4 * ⌈m / n⌉` convention), not a direct Word-RAM or pointer-machine formalization of the paper.
 
 <a id="tarjan77"></a>
 ## tarjan77

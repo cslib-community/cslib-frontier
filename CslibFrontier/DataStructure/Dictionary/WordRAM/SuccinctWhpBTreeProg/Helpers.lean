@@ -136,8 +136,8 @@ theorem descendToLeaf_leaf {isRoot : Bool}
     have hchi_le : childHi (fpBits + 2) hi cnt (nodes idx).keysWord r_fin.val ≤ hi :=
       childHi_le hhi_last.le hmono
     have hfuel_c : (cs r_fin).height ≤ fuel' := by
-      rw [BTreeTree.height_branch_of_eq hht] at hfuel
-      rw [hht r_fin]; omega
+      rw [BTreeTree.height_branch_of_eq hht, ← hht r_fin] at hfuel
+      omega
     obtain ⟨cntL, loL, hiL, hhiL1, hv_leaf⟩ :=
       ih r_fin (hcs r_fin).2 (hchi_le.trans_lt hhi) hclo_q hq_chi hfuel_c
     exact ⟨cntL, loL, hiL, hhiL1.trans hchi_le,
@@ -164,16 +164,12 @@ theorem validSubtree_root_bounds {isRoot : Bool} {c n_max alloc lo hi : ℕ}
   cases T with
   | leaf idx c0 =>
     obtain ⟨hidx, hmeta, hc_le, hkw, _, hbounds, _, _⟩ := hv
-    dsimp only [BTreeTree.rootIdx] at hbits ⊢
-    have hcnt_eq : metaCount (nodes idx).metaWord = c0 := by rw [hmeta, metaCount_mkNodeMeta]
-    rw [hcnt_eq]
+    simp only [BTreeTree.rootIdx, hmeta, metaCount_mkNodeMeta] at hbits ⊢
     exact ⟨hidx, hc_le, hbits.1, hkw, hbits.2.1, hbits.2.2,
       fun j hj => ((hbounds j hj).2).trans_lt hhi⟩
   | branch idx c0 cs =>
     obtain ⟨hidx, hmeta, hdeg, hc_le, hkw, _, _, hhi_last, hmono, _, _, _, _⟩ := hv
-    dsimp only [BTreeTree.rootIdx] at hbits ⊢
-    have hcnt_eq : metaCount (nodes idx).metaWord = c0 := by rw [hmeta, metaCount_mkNodeMeta]
-    rw [hcnt_eq]
+    simp only [BTreeTree.rootIdx, hmeta, metaCount_mkNodeMeta] at hbits ⊢
     refine ⟨hidx, hc_le, hbits.1, hkw, hbits.2.1, hbits.2.2, fun j hj => ?_⟩
     rcases eq_or_lt_of_le (by omega : j ≤ c0 - 1) with rfl | hlt
     · exact hhi_last.trans hhi

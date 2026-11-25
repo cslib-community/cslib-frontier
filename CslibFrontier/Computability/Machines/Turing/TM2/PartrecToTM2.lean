@@ -77,8 +77,7 @@ private theorem stepAux_mapLabel (f : Λ → Λ₂) (q : Stmt Γ Λ σ) (v : σ)
   | branch p _ _ ih₁ ih₂ =>
     simp only [Stmt.mapLabel, stepAux]
     cases p v
-    · exact ih₂ _ _
-    · exact ih₁ _ _
+    exacts [ih₂ _ _, ih₁ _ _]
   | goto => rfl
   | halt => rfl
 
@@ -111,11 +110,8 @@ theorem eval_restrict (hS : ∀ q ∈ S, SupportsStmt S (M q)) (d : S) (c : Cfg 
       Cfg.mapLabel Subtype.val <$> StateTransition.eval (step (restrict M S d)) c := by
   refine StateTransition.tr_eval' _ _ _ (StateTransition.fun_respects.2 fun a => ?_) c
   have h := step_restrict hS d a
-  rcases ha : step (restrict M S d) a with _ | b
-  · rw [ha] at h
-    exact h.symm
-  · rw [ha] at h
-    exact Relation.TransGen.single h.symm
+  rcases ha : step (restrict M S d) a with _ | b <;> rw [ha] at h
+  exacts [h.symm, .single h.symm]
 
 end TM2
 
@@ -156,9 +152,7 @@ theorem trNat_eq_map_bits (n : ℕ) :
     · rcases h0 with ⟨rfl, rfl⟩
       simp
     · have hne : Nat.bit b n ≠ 0 := by
-        cases b <;> simp only [Nat.bit, Bool.cond_false, Bool.cond_true]
-        · intro h; exact h0 ⟨rfl, by omega⟩
-        · omega
+        cases b <;> simp_all [Nat.bit]
       rw [trNat_eq, ite_eq_right hne, Nat.bodd_bit, Nat.div2_bit,
         Nat.bits_append_bit n b (by cases b <;> simp_all), List.map_cons, ih]
 

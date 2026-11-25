@@ -174,28 +174,10 @@ theorem prgLeafProver_leafCost_zero {d sdLen comLen rowLen : ℕ}
       (prgLeafProver (Chal := Chal) expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys
         stmt w) 0 := by
   unfold prgLeafProver
-  have hz : IsCostBounded
-      (Sum.elim (fun _ => 0) (voleithLeafCost (d := d) (Seed := Seed) (IV := IV)
-        (comLen := comLen) (rowLen := rowLen) (Stmt := Stmt) (PreMsg := PreMsg)))
-      (OracleComp.liftRight (spec₁ := unifSpec)
-        (OracleComp.liftRight (spec₁ := VOLEITHLeafSpec d sdLen comLen Seed IV)
-          (OracleComp.query
-            (⟨stmt, iv, fun idx => (prgLeaf (keys idx) iv idx).com,
-              encWit w + (FAEST.convertExpandedRows d
-                (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u,
-              mkPreMsg
-                (FAEST.convertExpandedRows d
-                  (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns
-                (FAEST.convertExpandedRows d
-                  (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u
-                (encWit w + (FAEST.convertExpandedRows d
-                  (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u)⟩ :
-              FSQuery d comLen rowLen Stmt IV PreMsg))) :
-        ProbOracleComp (VOLEITHROSpec d sdLen comLen rowLen Stmt Seed IV PreMsg Chal) Chal) 0 := by
-    refine IsCostBounded.liftRight
+  simpa only [Nat.add_zero] using
+    (IsCostBounded.liftRight
       (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
-      (fun _ => le_rfl)
-  simpa only [Nat.add_zero] using hz.bind fun _ => IsCostBounded.pure _ 0
+      (fun _ => le_rfl)).bind fun _ => IsCostBounded.pure _ 0
 
 /-- Deterministic PRG proof constructed for a challenge `delta`. -/
 @[expose] def prgLeafProofOfDelta {d sdLen comLen rowLen : ℕ} {Seed IV PreMsg Chal Wit : Type}
@@ -236,29 +218,9 @@ private theorem prgLeafProver_runWith_eq_map {d sdLen comLen rowLen : ℕ}
     OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
     OracleComp.liftRight_query, OracleComp.run_interpret_query, voleithMemoize,
     RandomOracle.memoizeSum_inr]
-  have hnil : Cslib.memoize (fun _ : FSQuery d comLen rowLen Stmt IV PreMsg =>
-      PMF.uniformOfFintype Chal)
-      ⟨stmt, iv, fun idx => (prgLeaf (keys idx) iv idx).com,
-        encWit w + (FAEST.convertExpandedRows d
-          (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u,
-        mkPreMsg
-          (FAEST.convertExpandedRows d
-            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns
-          (FAEST.convertExpandedRows d
-            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u
-          (encWit w + (FAEST.convertExpandedRows d
-            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u)⟩ [] =
-      (PMF.uniformOfFintype Chal).map fun delta => (delta,
-        [(⟨stmt, iv, fun idx => (prgLeaf (keys idx) iv idx).com,
-          encWit w + (FAEST.convertExpandedRows d
-            (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u,
-          mkPreMsg
-            (FAEST.convertExpandedRows d
-              (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).columns
-            (FAEST.convertExpandedRows d
-              (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u
-            (encWit w + (FAEST.convertExpandedRows d
-              (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)).u)⟩, delta)]) := by
+  have hnil (q : FSQuery d comLen rowLen Stmt IV PreMsg) :
+      Cslib.memoize (fun _ => PMF.uniformOfFintype Chal) q [] =
+        (PMF.uniformOfFintype Chal).map fun delta => (delta, [(q, delta)]) := by
     simp [Cslib.memoize, PMF.map, Function.comp_def]
   rw [hnil, PMF.map_comp, PMF.bind_map]
   simp only [Function.comp_def, ProbOracleComp.runWith_pure, PMF.map]
@@ -672,31 +634,23 @@ private theorem prgLeaf_preimage_extractor_fails_of_not_rel {d sdLen comLen rowL
                 (fun idx => expand (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
             decide (ok = true ∧ Rel stmt wExt = false)).toOuterMeasure {true} = 1 := by
   refine ⟨hValid, ?_⟩
-  have hrun := prgLeafProver_then_verify_map expand prgLeaf encWit chalToIdx mkPreMsg checkRel
+  rw [prgLeafProver_then_verify_map expand prgLeaf encWit chalToIdx mkPreMsg checkRel
     defaultSeed iv keys stmt w hRel (fun ok prf _ =>
       let wExt := decWit (prf.dCorr +
         (FAEST.convertExpandedRows d
           (fun idx => expand (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
-      decide (ok = true ∧ Rel stmt wExt = false))
+      decide (ok = true ∧ Rel stmt wExt = false))]
   have hconst :
-      ((PMF.uniformOfFintype Chal).map fun delta =>
+      (fun delta : Chal =>
         let prf := prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv
           keys w delta
         let wExt := decWit (prf.dCorr +
           (FAEST.convertExpandedRows d
             (fun idx => expand (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
-        decide (true = true ∧ Rel stmt wExt = false)) = PMF.pure true := by
-    have hfun : (fun _ : Chal => true) = fun delta : Chal =>
-        let prf := prgLeafProofOfDelta expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv
-          keys w delta
-        let wExt := decWit (prf.dCorr +
-          (FAEST.convertExpandedRows d
-            (fun idx => expand (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
-        decide (true = true ∧ Rel stmt wExt = false) := by
-      funext delta
-      exact (decide_eq_true ⟨rfl, hExtFail⟩).symm
-    rw [← hfun, show (fun _ : Chal => true) = Function.const Chal true from rfl, PMF.map_const]
-  rw [hrun, hconst]
+        decide (true = true ∧ Rel stmt wExt = false)) = Function.const Chal true := by
+    funext delta
+    exact decide_eq_true ⟨rfl, hExtFail⟩
+  rw [hconst, PMF.map_const]
   simp
 
 

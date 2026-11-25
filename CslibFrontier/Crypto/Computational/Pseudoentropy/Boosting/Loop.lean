@@ -244,6 +244,7 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
     (fun _ => hmass) (by simpa only [hparams.gamma_mul_delta] using hdensity)
     (by simpa only [GoodPredictor, hshift, hparams.gamma_mul_delta] using hcorrelation)
   rw [hparams.gamma_mul_delta] at hstep
+  simp only [← hnext] at hstep
   have hrestored := hdensity.trans (density_vote_shift_ge source params.rate_pos.le
     (fun x => before x - if yes then 1 else 0) vote
       (fun x => (abs_le.mp (by simp [vote] : |vote x| ≤ 1)).2))
@@ -251,14 +252,9 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
   simp only [Invariant, hactiveNext, Bool.false_eq_true, ite_false]
   constructor
   · simpa only [hnext] using hrestored
-  · have hnextPotential := (show averagePotential source params.rate
-        (fun x => ((state.shift yes).add params.codeBound code).margin predict truth x -
-          ((state.shift yes).add params.codeBound code).threshold) ≤
-        averagePotential source params.rate before + (if yes then params.delta else 0) -
-          params.gamma * params.delta ^ 2 / 8 from by simpa only [hnext] using hstep)
-    have hthreshold : (((state.shift yes).add params.codeBound code).threshold : ℝ) =
+  · have hthreshold : (((state.shift yes).add params.codeBound code).threshold : ℝ) =
         state.threshold + if yes then 1 else 0 := by cases yes <;> simp [shift, add]
-    refine hnextPotential.trans ?_
+    refine hstep.trans ?_
     rw [hthreshold]
     dsimp only [before]
     push_cast

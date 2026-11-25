@@ -294,12 +294,9 @@ private theorem four_mul_sum_filter_le (hU : Fintype.card U = 2 * m + 1)
   refine sum_le_sum fun Ty hTy => ?_
   have hTy : #Ty = m := (mem_powersetCard.mp hTy).2
   have hS : #Tyᶜ = m + 1 := by
-    rw [card_compl, hU, hTy]
+    simp only [card_compl, hU, hTy]
     omega
-  have hb : (low B Ty : ℝ) ≤ 2 ^ m := by
-    have := low_le_two_pow B Ty
-    rw [hTy] at this
-    exact_mod_cast this
+  have hb : (low B Ty : ℝ) ≤ 2 ^ m := by exact_mod_cast hTy ▸ low_le_two_pow B Ty
   have hKL := four_mul_sum_card_filter_notMem_le A Tyᶜ (r := r) (j := 12 * r) (by omega)
   rw [hS] at hKL
   push_cast at hKL
@@ -477,29 +474,28 @@ private theorem sum_sum_ite_hardWeight_univ (hU : Fintype.card U = 2 * m + 1) :
         (if decide (Disjoint x y) = true then hardWeight m (x, y) else 0) = 1 / 2 ∧
       ∑ x : Finset U, ∑ y : Finset U,
         (if decide (Disjoint x y) = true then 0 else hardWeight m (x, y)) = 1 / 2 := by
-  have hP : (0 : ℝ) < #(parts U m) := by
-    exact_mod_cast card_parts_pos hU
+  have hP : (0 : ℝ) < #(parts U m) := by exact_mod_cast card_parts_pos hU
+  have h4m : (4 : ℝ) ^ m = 2 ^ m * 2 ^ m := by
+    rw [← mul_pow]
+    norm_num
   have hcompl {s : Finset U} (hs : #s = m) : #sᶜ - 1 = m := by
-    rw [card_compl, hU, hs]
+    simp only [card_compl, hU, hs]
     omega
   refine ⟨?_, ?_⟩
-  · rw [sum_sum_ite_hardWeight]
-    rw [sum_congr rfl fun T hT => by
-      rw [low_univ, low_univ, (mem_parts.mp hT).2.2.2.1,
-        (mem_parts.mp hT).2.2.2.2]]
-    rw [sum_const, nsmul_eq_mul]
+  · rw [sum_sum_ite_hardWeight, sum_congr rfl fun T hT => by
+      rw [low_univ, low_univ, (mem_parts.mp hT).2.2.2.1, (mem_parts.mp hT).2.2.2.2],
+      sum_const, nsmul_eq_mul]
     field_simp
     push_cast
-    rw [show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
+    rw [h4m]
     ring
-  · rw [sum_sum_ite_hardWeight']
-    rw [sum_congr rfl fun T hT => by
+  · rw [sum_sum_ite_hardWeight', sum_congr rfl fun T hT => by
       obtain ⟨h1, h2, -, h4, h5⟩ := mem_parts.mp hT
-      rw [high_univ h2, high_univ h1, hcompl h4, hcompl h5]]
-    rw [sum_const, nsmul_eq_mul]
+      rw [high_univ h2, high_univ h1, hcompl h4, hcompl h5],
+      sum_const, nsmul_eq_mul]
     field_simp
     push_cast
-    rw [show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
+    rw [h4m]
     ring
 
 /-- The weights add up to one, so they form a distribution (`hardDist`). -/
@@ -628,7 +624,6 @@ theorem PublicCoin.div_le_mul_ecomplexityFun_disjoint_add (hU : Fintype.card U =
       (by norm_num) h.le
     rw [Disjointness.hardDist_toOuterMeasure_disjoint] at hbound
     have hreal : (13 : ℝ) * 32 ^ r ≤ 576 * 2 ^ c * 27 ^ r := by
-      have h32 : (0 : ℝ) < 32 ^ r := by positivity
       have hdiv : (2 : ℝ) ^ c * ((27 / 32) ^ r / 2) = 2 ^ c * 27 ^ r / (2 * 32 ^ r) := by
         rw [div_pow]
         ring
@@ -636,8 +631,7 @@ theorem PublicCoin.div_le_mul_ecomplexityFun_disjoint_add (hU : Fintype.card U =
       have : (13 : ℝ) / 1152 ≤ 2 ^ c * 27 ^ r / (2 * 32 ^ r) := by linarith
       rw [le_div_iff₀ (by positivity)] at this
       linarith
-    have hnat : 13 * 32 ^ r ≤ 576 * 2 ^ c * 27 ^ r := by exact_mod_cast hreal
-    exact_mod_cast le_of_mul_pow_le hnat
+    exact_mod_cast le_of_mul_pow_le (by exact_mod_cast hreal)
 
 /-- Disjointness of subsets of `Fin k` is disjointness of their indicators as bit strings of
 length `n`, along an embedding of `Fin k` into `Fin n`. -/

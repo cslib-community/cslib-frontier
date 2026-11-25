@@ -412,50 +412,41 @@ private lemma game1Step_simulate {f : U → V} (q : IdealCipher.Query U X)
         (fun (a, st') => (IdealCipher.complete (fiberCache f st'.1)).map (a, ·)) =
       (IdealCipher.complete (fiberCache f st.1)).bind
         (fun P => (fun x => (x, P)) <$> PMF.pure (evalPerm (P (f q.1)) q.2)) := by
-  have hdrop : (withBadFlag (game1Step f) q st).bind
-        (fun (a, st') => (IdealCipher.complete (fiberCache f st'.1)).map (a, ·)) =
-      (game1Step f q st.1).bind
-        (fun (a, u', _) => (IdealCipher.complete (fiberCache f u')).map (a, ·)) := by
-    simp only [withBadFlag, PMF.bind_map, Function.comp_def]
+  refine Eq.trans ?_ (IdealCipher.answer_complete (f q.1, q.2) (fiberCache f st.1) hst)
+  simp only [withBadFlag, PMF.bind_map, Function.comp_def]
+  dsimp only [game1Step]
+  cases hqu : cachedAnswer (st.1 q.1) q.2 with
+  | some a =>
+    rw [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2))
+      (cachedAnswer_fiber_of_uCache hst hqu), PMF.pure_bind, PMF.pure_bind]
     rfl
-  rw [hdrop]
-  have hanswer_eq : (game1Step f q st.1).bind
-        (fun (a, u', _) => (IdealCipher.complete (fiberCache f u')).map (a, ·)) =
-      (IdealCipher.answer (f q.1, q.2) (fiberCache f st.1)).bind
-        (fun (a, v') => (IdealCipher.complete v').map (a, ·)) := by
-    dsimp only [game1Step]
-    cases hqu : cachedAnswer (st.1 q.1) q.2 with
+  | none =>
+    cases hqv : cachedAnswer (fiberCache f st.1 (f q.1)) q.2 with
     | some a =>
-      rw [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2))
-        (cachedAnswer_fiber_of_uCache hst hqu), PMF.pure_bind, PMF.pure_bind]
+      rw [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2)) hqv, PMF.pure_bind,
+        PMF.pure_bind]
+      rfl
     | none =>
-      cases hqv : cachedAnswer (fiberCache f st.1 (f q.1)) q.2 with
-      | some a =>
-        rw [answer_eq_pure_of_cachedAnswer_eq_some (q := (f q.1, q.2)) hqv, PMF.pure_bind,
-          PMF.pure_bind]
-      | none =>
-        have hv_ne := (hst (f q.1)).freshAnswers_nonempty hqv
-        have hu_ne : (freshAnswers (st.1 q.1) q.2).Nonempty :=
-          hv_ne.mono freshAnswers_fiber_subset
-        simp only [hu_ne, ↓reduceDIte]
-        refine (?_ : _ = ((PMF.uniformOfFinset _ hu_ne).bind fun a =>
-            if a ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2 then PMF.pure a
-            else PMF.uniformOfFinset _ hv_ne).bind fun a =>
-              (IdealCipher.complete (Function.update (fiberCache f st.1) (f q.1)
-                (PermQuery.toCacheEntry ⟨q.2, a⟩ :: fiberCache f st.1 (f q.1)))).map
-                  (a, ·)).trans ?_
-        · simp only [PMF.bind_bind]
-          refine congr_arg _ (funext fun a => ?_)
-          by_cases ha : a ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2
-          · simp [ha, complete_fiber_update_eq]
-          · simp only [ha, ↓reduceIte, hv_ne, ↓reduceDIte, PMF.bind_map]
-            refine congr_arg _ (funext fun a' => ?_)
-            simp only [Function.comp_def, complete_fiber_update_eq]
-        · rw [Probability.PMF.unifOn_rehash_eq freshAnswers_fiber_subset hu_ne hv_ne,
-            answer_eq_map_of_cachedAnswer_eq_none (q := (f q.1, q.2)) hqv hv_ne, PMF.bind_map]
-          rfl
-  rw [hanswer_eq]
-  exact IdealCipher.answer_complete (f q.1, q.2) (fiberCache f st.1) hst
+      have hv_ne := (hst (f q.1)).freshAnswers_nonempty hqv
+      have hu_ne : (freshAnswers (st.1 q.1) q.2).Nonempty :=
+        hv_ne.mono freshAnswers_fiber_subset
+      simp only [hu_ne, ↓reduceDIte]
+      refine (?_ : _ = ((PMF.uniformOfFinset _ hu_ne).bind fun a =>
+          if a ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2 then PMF.pure a
+          else PMF.uniformOfFinset _ hv_ne).bind fun a =>
+            (IdealCipher.complete (Function.update (fiberCache f st.1) (f q.1)
+              (PermQuery.toCacheEntry ⟨q.2, a⟩ :: fiberCache f st.1 (f q.1)))).map
+                (a, ·)).trans ?_
+      · simp only [PMF.bind_bind]
+        refine congr_arg _ (funext fun a => ?_)
+        by_cases ha : a ∈ freshAnswers (fiberCache f st.1 (f q.1)) q.2
+        · simp [ha, complete_fiber_update_eq]
+        · simp only [ha, ↓reduceIte, hv_ne, ↓reduceDIte, PMF.bind_map]
+          refine congr_arg _ (funext fun a' => ?_)
+          simp [complete_fiber_update_eq]
+      · rw [Probability.PMF.unifOn_rehash_eq freshAnswers_fiber_subset hu_ne hv_ne,
+          answer_eq_map_of_cachedAnswer_eq_none (q := (f q.1, q.2)) hqv hv_ne, PMF.bind_map]
+        rfl
 
 private lemma coalescedExperiment_eq_game1 (f : U → V)
     (A : ProbOracleComp (IdealCipher.Spec U X) α) :
@@ -745,21 +736,9 @@ private lemma game2_bad_eq_failureProb (f : U → V)
     ext x
     simp only [Set.mem_inter_iff, Set.mem_ofPred_eq]
     exact and_congr_left fun hmem => (hinv x hmem).2
-  rw [hcongr]
-  have hmap1 :
-      (runWith (withBadFlag (game2Step f)) A (fun _ => [], false)).toOuterMeasure
-          {x | DomainOverlap f (fun μ => cacheDomains (x.2.1 μ))} =
-        (runWith IdealCipher.answer A (fun _ => [])).toOuterMeasure
-          {x | DomainOverlap f (fun μ => cacheDomains (x.2 μ))} := by
-    rw [← game2_map_fst f A, PMF.toOuterMeasure_map_apply]
-    rfl
-  have hmap2 :
-      (runWith IdealCipher.answer A (fun _ => [])).toOuterMeasure
-          {x | DomainOverlap f (fun μ => cacheDomains (x.2 μ))} =
-        (splitExperiment A).toOuterMeasure {x | DomainOverlap f x.2} := by
-    rw [← splitExperiment_eq_answer A, PMF.toOuterMeasure_map_apply]
-    rfl
-  exact hmap1.trans hmap2
+  rw [hcongr, ← splitExperiment_eq_answer A, PMF.toOuterMeasure_map_apply,
+    ← game2_map_fst f A, PMF.toOuterMeasure_map_apply]
+  rfl
 
 omit [DecidableEq V] in
 /-- **Domain Separation Lemma** ([BonehShoup2023], Theorem 4.15, p. 161). For every function

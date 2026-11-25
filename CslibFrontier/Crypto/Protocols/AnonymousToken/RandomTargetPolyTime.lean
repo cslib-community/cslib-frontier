@@ -217,15 +217,9 @@ theorem wordClaimListDecoder_eq_some_of_raw_eq {N : ℕ} {w : List Bool}
     (h : (Decoder.list (Decoder.pair Decoder.nat Decoder.bits)).decode w =
       xs.map fun x => (x.1.val, x.2)) :
     wordClaimListDecoder N w = some (xs.map fun x => ⟨x.1, x.2⟩) := by
-  have hraw : wordClaimListRawDecoder.decode w =
-      xs.map fun x => (⟨x.1.val, x.2⟩ : WordClaim) := by
-    change (frames w).map wordClaimDecoder.decode = _
-    have hmap : (frames w).map wordClaimDecoder.decode =
-        ((Decoder.list (Decoder.pair Decoder.nat Decoder.bits)).decode w).map
-          fun p => (⟨p.1, p.2⟩ : WordClaim) := by
-      simp [Decoder.list, wordClaimDecoder, Decoder.map]
-    rw [hmap, h, List.map_map]
-    rfl
+  have hraw : wordClaimListRawDecoder.decode w = xs.map fun x => ⟨x.1.val, x.2⟩ := by
+    simpa [wordClaimListRawDecoder, Decoder.list, wordClaimDecoder, Decoder.map, Function.comp_def]
+      using congrArg (List.map fun p : ℕ × List Bool => (⟨p.1, p.2⟩ : WordClaim)) h
   simp only [wordClaimListDecoder, hraw]
   exact decodeWordClaimsChecked_map_fin N xs Prod.fst Prod.snd
 
@@ -372,60 +366,17 @@ theorem isOraclePPT_reduceRedemptionsWord {budget : ℕ → ℕ}
       (encPair encUnary encBits) encNat)
     {A : WordRedemptionAdversary} (hA : IsOraclePPT (encRedemptionTokenList encBits) A) :
     IsOraclePPT encBits (reduceRedemptionsWord budget slotWord A) := by
-  let encParam := encPair encUnary encBits
-  let encTokList := encRedemptionTokenList encBits
-  let encStepIn := encPair encParam encTokList
-  have hn : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List (Token (List Bool) Unit (List Bool)) => q.1.1)
-      encStepIn encUnary :=
-    (ComputableInPolyTime.fst encParam encTokList).fst'
-  have hout : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List (Token (List Bool) Unit (List Bool)) => q.2)
-      encStepIn encTokList :=
-    ComputableInPolyTime.snd encParam encTokList
-  have htake : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List (Token (List Bool) Unit (List Bool)) =>
-        q.2.take (budget q.1.1 + 1))
-      encStepIn encTokList :=
-    ComputableInPolyTime.listTakeWithInput hout (hbudget.comp hn)
-  let encMapIn := encPair encStepIn (encRedemptionToken encBits)
-  have hmn : ComputableInPolyTime
-      (fun r : ((ℕ × List Bool) × List (Token (List Bool) Unit (List Bool))) ×
-          Token (List Bool) Unit (List Bool) => r.1.1.1)
-      encMapIn encUnary :=
-    hn.comp (ComputableInPolyTime.fst encStepIn (encRedemptionToken encBits))
-  have hmtok : ComputableInPolyTime
-      (fun r : ((ℕ × List Bool) × List (Token (List Bool) Unit (List Bool))) ×
-          Token (List Bool) Unit (List Bool) => r.2)
-      encMapIn (encRedemptionToken encBits) :=
-    ComputableInPolyTime.snd encStepIn (encRedemptionToken encBits)
-  have hmpay := encRedemptionToken_payload_polyTime encBits hmtok
-  have hmmsg := encRedemptionPayload_message_polyTime encBits hmpay
-  have hmsig := encRedemptionToken_signature_polyTime encBits hmtok
-  have hmslot : ComputableInPolyTime
-      (fun r : ((ℕ × List Bool) × List (Token (List Bool) Unit (List Bool))) ×
-          Token (List Bool) Unit (List Bool) => slotWord r.1.1.1 r.2.payload.message)
-      encMapIn encNat :=
-    hslot.comp (hmn.prod hmmsg)
-  have hmclaim : ComputableInPolyTime
-      (fun r : ((ℕ × List Bool) × List (Token (List Bool) Unit (List Bool))) ×
-          Token (List Bool) Unit (List Bool) =>
-        (⟨slotWord r.1.1.1 r.2.payload.message, r.2.signature⟩ : WordClaim))
-      encMapIn encWordClaim :=
-    encWordClaim_mk_polyTime hmslot hmsig
-  have hmap : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List (Token (List Bool) Unit (List Bool)) =>
-        (q.2.take (budget q.1.1 + 1)).map fun tok =>
-          (⟨slotWord q.1.1 tok.payload.message, tok.signature⟩ : WordClaim))
-      encStepIn encWordClaimList :=
-    ComputableInPolyTime.mapWithInput htake hmclaim
   have henc : ComputableInPolyTime
       (fun q : (ℕ × List Bool) × List (Token (List Bool) Unit (List Bool)) =>
         encWordClaimList ((q.2.take (budget q.1.1 + 1)).map fun tok =>
           (⟨slotWord q.1.1 tok.payload.message, tok.signature⟩ : WordClaim)))
-      encStepIn encBits :=
-    (ComputableInPolyTime.of_eq (f := encWordClaimList) (encOut := encBits) fun _ => rfl).comp
-      hmap
+      (encPair (encPair encUnary encBits) (encRedemptionTokenList encBits)) encBits :=
+    (ComputableInPolyTime.of_eq (f := encWordClaimList) (encOut := encBits) fun _ => rfl).comp <|
+      ComputableInPolyTime.mapWithInput
+        (ComputableInPolyTime.listTakeWithInput
+          (ComputableInPolyTime.snd _ _)
+          (hbudget.comp (ComputableInPolyTime.fst _ _).fst'))
+        (by fun_prop)
   have hon : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun p => reduceRedemptionsWord budget slotWord A p.1 p.2) := by
     simpa only [reduceRedemptionsWord] using hA.on.map_with henc

@@ -326,10 +326,8 @@ lemma foldEmit_pass (d : Desc) (x : List ℕ) (t i : ℕ) :
   simp only
   rw [stepAt_scan]
   by_cases h : i < t
-  · have h' : ¬t - i = 0 := by omega
-    simp only [h, h', ↓reduceIte, show min i t = i by omega]
-  · have h' : t - i = 0 := by omega
-    simp only [h, h', ↓reduceIte]
+  · simp only [h, Nat.sub_ne_zero_of_lt h, ↓reduceIte, Nat.min_eq_left h.le]
+  · simp only [h, Nat.sub_eq_zero_of_le (Nat.not_lt.mp h), ↓reduceIte]
     rfl
 
 public lemma simulate_eq (d : Desc) (x : List ℕ) (t : ℕ) : simulate d x t =
@@ -645,13 +643,10 @@ public lemma scan_take (x : List ℕ) (k cur j : ℕ) :
     · simp only [List.foldr_cons] at h₅ ⊢
       omega
     · rcases Nat.lt_or_ge j (tok n).length with hj | hj
-      · rw [Nat.sub_eq_zero_of_le hj.le]
-        simp only [List.take_zero, List.foldl_nil, List.foldr_cons]
+      · simp only [Nat.sub_eq_zero_of_le hj.le, List.take_zero, List.foldl_nil, List.foldr_cons]
         omega
-      · have hp : p = (0, cur + n) := by
-          simp only [p, List.take_of_length_le hj, scan_tok, ↓reduceIte]
-        rw [hp, scan_zero]
-        simp only [List.foldr_cons]
+      · simp only [p, List.take_of_length_le hj, scan_tok, Nat.sub_self, ↓reduceIte, scan_zero,
+          List.foldr_cons]
         omega
 
 public lemma simSpace_mono (d : Desc) (x : List ℕ) {j j' : ℕ} (h : j ≤ j') :

@@ -155,13 +155,10 @@ theorem onSchedule_root_capPrecision {P C : ℕ} {G : ℕ × ExplicitTensorNetwo
     (hg : fastGuard G = true) (hC : 1 ≤ C)
     (hp : (ExplicitTensorNetwork.capPrecision (P, G)).1 ≤ C * G.2.numEdges) :
     OnSchedule C G.2.numEdges (root (ExplicitTensorNetwork.capPrecision (P, G))) := by
-  have hdeg : G.2.maxDegree ≤ degreeBound G.2.numEdges := by
-    simp only [fastGuard, decide_eq_true_eq] at hg
-    exact hg.2.2
-  rw [ExplicitTensorNetwork.maxDegree_le_iff] at hdeg
+  have hdeg := G.2.maxDegree_le_iff.mp (of_decide_eq_true hg).2.2
   refine FastContraction.onSchedule_root hC rfl rfl rfl (wf_root P hg) (fun v hv => ?_) rfl rfl hp
   simp only [root, ExplicitTensorNetwork.capPrecision, rootNet, List.mem_map] at hv
-  obtain ⟨w, hw, rfl⟩ := hv
+  rcases hv with ⟨w, hw, rfl⟩
   exact hdeg w hw
 
 /-- **The root's schedule constant.** With `m` edges, `D + 2 ≤ m` and capped precision
@@ -356,16 +353,15 @@ theorem fastSizes : FastSizes := by
     change (encNat G.1).length ≤ n
     enc_len [hn, FastContraction.encInput]
   have hV₀ : x₀.net.vertices.length ≤ n := by
-    change (List.map _ G.2.vertices).length ≤ n
-    rw [List.length_map]; omega
+    simpa only [x₀, root, q, ExplicitTensorNetwork.capPrecision, rootNet, List.length_map] using
+      hV.trans hnet
   have hfl : x₀.fl.length ≤ 32 * (n + 1) ^ 2 := (length_modulus_le m).trans
     (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 2))
   have hR₀ : ∀ w ∈ x₀.net.vertices, (VertexDesc.enc (encList encNat) w.2).length ≤ n + 1 := by
     intro w hw
-    change w ∈ List.map _ G.2.vertices at hw
     obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hw
     simp only [length_encSum, Sum.elim_inl]
-    have := hdesc v hv; omega
+    linarith [hdesc v hv]
   obtain ⟨hc, hv, hf⟩ := (Reach.shape (x₀ := x₀) rfl rfl (wf_root P hg) hx).length_le_pow
     tableEntry rfl rfl rfl (show m + 1 ≤ n + 1 by omega) (by omega) (by omega) hfl
     (fun z hz => le_one_of_mem_modulus hz) hR₀

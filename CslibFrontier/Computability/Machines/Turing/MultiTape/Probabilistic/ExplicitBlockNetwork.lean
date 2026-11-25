@@ -180,13 +180,13 @@ number of a letter (`Turing.MultiTapePTM.letterEquiv`). -/
 theorem letterCode_injective (e : State ≃ Fin s) :
     Injective (letterCode (k := k) (b := b) e) := by
   intro l l' h
-  have hlt : ∀ l : BlockLetter k State b, (letterEquiv e l : ℕ) < 2 ^ letterBits k s b :=
-    fun l => (letterEquiv e l).isLt.trans_le card_letter_le_two_pow
   refine (letterEquiv e).injective (Fin.ext (Nat.eq_of_testBit_eq fun j => ?_))
   by_cases hj : j < letterBits k s b
   · exact congrFun h ⟨j, hj⟩
-  · rw [Nat.testBit_lt_two_pow ((hlt l).trans_le (Nat.pow_le_pow_right two_pos (not_lt.mp hj))),
-      Nat.testBit_lt_two_pow ((hlt l').trans_le (Nat.pow_le_pow_right two_pos (not_lt.mp hj)))]
+  · have hlt (x : BlockLetter k State b) : (letterEquiv e x : ℕ) < 2 ^ j :=
+      ((letterEquiv e x).isLt.trans_le card_letter_le_two_pow).trans_le
+        (Nat.pow_le_pow_right two_pos (not_lt.mp hj))
+    rw [Nat.testBit_lt_two_pow (hlt l), Nat.testBit_lt_two_pow (hlt l')]
 
 instance : Nonempty (BlockLetter k State b) := ⟨.inr fun _ => none⟩
 
@@ -320,13 +320,8 @@ theorem admissible_explicitBlockNetwork {t : ℕ} (hb : b ≤ 3 * Nat.log 2 t) (
   · rw [numEdges_explicitBlockNetwork, letterBits]
     calc 2 * (q * (3 * k + 1) * ((s + k + 4) * b))
         = 2 * (3 * k + 1) * (s + k + 4) * (q * b) := by ring
-      _ ≤ 2 * (3 * k + 1) * (s + k + 4) * (2 * t) := Nat.mul_le_mul_left _ hqb
-      _ ≤ 6 * (3 * k + 1) * (s + k + 4) * t := by
-          have h4 : 2 * (3 * k + 1) * (s + k + 4) * (2 * t) =
-              4 * ((3 * k + 1) * (s + k + 4) * t) := by ring
-          have h6 : 6 * (3 * k + 1) * (s + k + 4) * t = 6 * ((3 * k + 1) * (s + k + 4) * t) := by
-            ring
-          omega
+      _ ≤ 2 * (3 * k + 1) * (s + k + 4) * (3 * t) := Nat.mul_le_mul_left _ (by omega)
+      _ = 6 * (3 * k + 1) * (s + k + 4) * t := by ring
   · refine (machine.maxDegree_explicitBlockNetwork_le input b σ e).trans ?_
     rw [letterBits]
     calc 2 * (3 * k + 1) * ((s + k + 4) * b) = 2 * (3 * k + 1) * (s + k + 4) * b := by ring

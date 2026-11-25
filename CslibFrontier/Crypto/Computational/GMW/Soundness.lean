@@ -244,20 +244,16 @@ theorem acceptProb_gmwVerifier_gmwProver {α : Type} {generator : List Bool → 
     have hr2_len :
         (honestReply2 s φ ⟨realBits φ w m₀ m₁ m₂, seeds⟩ ch).length = K * (s + 1) := by
       simpa [honestReply2, K] using length_proverReply2 s φ seeds (length_realBits φ w m₀ m₁ m₂)
-    have htake1 := List.take_of_length_le hr1_len.le
-    have htake2 := List.take_of_length_le hr2_len.le
     have hfalse_eq := congrArg Prod.fst hfinal
     dsimp only at hfalse_eq
     change false = verifyTranscript generator s m φ r
         (List.take (K * m) (honestReply1 generator m φ ⟨realBits φ w m₀ m₁ m₂, seeds⟩ r)) ch
         (List.take (K * (s + 1))
           (honestReply2 s φ ⟨realBits φ w m₀ m₁ m₂, seeds⟩ (BitString.listRow 3 0 ch))) at hfalse_eq
-    rw [hch_row, htake1, htake2] at hfalse_eq
+    rw [hch_row, List.take_of_length_le hr1_len.le, List.take_of_length_le hr2_len.le] at hfalse_eq
     exact Bool.false_ne_true (hfalse_eq.trans (verifyTranscript_honest (m₀ := m₀) (m₁ := m₁)
       (m₂ := m₂) (r := r) (ch := ch) hw hseeds_len hseeds_mem hgen_len))
-  have hsum := PMF.tsum_coe (ProbComp.eval prog)
-  rw [tsum_bool, hfalse, zero_add] at hsum
-  exact hsum
+  simpa [tsum_bool, hfalse] using PMF.tsum_coe (ProbComp.eval prog)
 
 /-! ### Soundness of `gmwVerifier` against arbitrary provers -/
 
@@ -278,10 +274,7 @@ private theorem satisfiable_of_verifyCopyBits {φ : CNF ℕ} {copy₀ copy₁ : 
       (activeTableFlags φ v).getD j false = true → (tablePart φ copy₁).getD j false = true := by
     simp only [verifyCopyBits, ↓reduceIte, List.all_eq_true, List.mem_range,
       Bool.or_eq_true, Bool.not_eq_true'] at h₁
-    intro j hj hact
-    rcases h₁ j hj with hfalse | htrue
-    · rw [hact] at hfalse; contradiction
-    · exact htrue
+    exact fun j hj hact => (h₁ j hj).resolve_left (Bool.ne_false_iff.mpr hact)
   have htab_eq : ∀ j < 8 * φ.length,
       (activeTableFlags φ v).getD j false = true → (tableBits φ m).getD j false = true := by
     intro j hj hact
@@ -392,10 +385,10 @@ private theorem mem_ThreeSAT_of_verifyTranscript_false_true
   rcases hdiff with ⟨hb₀, hb₁⟩ | ⟨hb₀, hb₁⟩ | ⟨hb₀, hb₁⟩
   · rw [hb₀] at hv₀_0; rw [hb₁] at hv₁_0
     refine satisfiable_of_verifyCopyBits hwidth hv₀_0 hv₁_0 fun i hi hf₀ hf₁ => ?_
-    have := verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := i)
-      (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy0 φ ch₀ opened₀ hi, hb₀])
-      (by rwa [getD_allOpenFlags_copy0 φ ch₁ opened₁ hi, hb₁])
-    simpa [gmwCopy0, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi] using this
+    simpa [gmwCopy0, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi] using
+      verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := i)
+        (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy0 φ ch₀ opened₀ hi, hb₀])
+        (by rwa [getD_allOpenFlags_copy0 φ ch₁ opened₁ hi, hb₁])
   · rw [hb₀] at hv₀_1; rw [hb₁] at hv₁_1
     refine satisfiable_of_verifyCopyBits hwidth hv₀_1 hv₁_1 fun i hi hf₀ hf₁ => ?_
     simpa only [gmwCopy1, List.getD_take_drop _ _ hi] using
@@ -442,8 +435,7 @@ private theorem sum_le_of_subsingleton_support {ι : Type*} [Fintype ι]
       (fun i _ hne => Decidable.byContradiction fun hfi => hne (hsub i i₀ hfi hi₀))
       (fun h => False.elim (h (Finset.mem_univ i₀)))]
     exact hle i₀
-  · push Not at hex
-    simp [hex]
+  · simp_all
 
 /-- **Soundness of the GMW protocol.** When `f a ∉ ThreeSAT` and `3 * k + 1 ≤ length k` for all `k`,
 no unbounded stateful prover `P` makes `gmwVerifier` accept with probability greater than
@@ -493,9 +485,8 @@ theorem acceptProb_gmwVerifier_le {α : Type} {generator : List Bool → List Bo
       supp_cases h [step3, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
         ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure]
       exact ⟨_, ‹_›⟩
-    obtain ⟨_, hv₁⟩ := hv hx₁
-    obtain ⟨_, hv₂⟩ := hv hx₂
-    exact hnot (mem_ThreeSAT_of_verifyTranscript_ne hbind hne hv₁ hv₂)
+    exact hnot (mem_ThreeSAT_of_verifyTranscript_ne hbind hne
+      (hv hx₁).choose_spec (hv hx₂).choose_spec)
   have hstep1_le : ∀ r, NaorBinding generator s (BitString.listRow m 0 r) →
       acceptProb (step1 r) P ≤ 1 / 8 := by
     intro r hbind

@@ -95,12 +95,10 @@ theorem Block.realizes_writeWords (mem : ℕ → ℕ) (addr : ℕ) {k : ℕ} (wo
   induction k with
   | zero => exact fun i => Fin.elim0 i
   | succ k ih =>
-    intro i
-    refine Fin.lastCases ?_ (fun j => ?_) i
-    · simp [Block.read]
-    · have hne : addr + j.val ≠ addr + k := by omega
-      simpa only [Block.read, Fin.val_castSucc, writeWords_succ, Function.update_of_ne hne] using
-        ih (fun i => words i.castSucc) j
+    refine Fin.lastCases (by simp [Block.read]) fun j => ?_
+    have hne : addr + j.val ≠ addr + k := by omega
+    simpa only [Block.read, Fin.val_castSucc, writeWords_succ, Function.update_of_ne hne] using
+      ih (fun i => words i.castSucc) j
 
 @[simp]
 theorem writeWords_add_fin (mem : ℕ → ℕ) (addr : ℕ) {k : ℕ} (words : Fin k → ℕ) (i : Fin k) :
@@ -191,11 +189,8 @@ theorem Code.preserves_appendCode {B : Basis} {r : ℕ} {c d : Code B r} {i : Fi
 theorem Code.not_readsWidth_appendCode {B : Basis} {r : ℕ} {c d : Code B r}
     (hc : ¬c.ReadsWidth) (hd : ¬d.ReadsWidth) : ¬(appendCode c d).ReadsWidth := by
   induction c with
-  | seq c₁ c₂ _ ih =>
-    have hc' : ¬c₁.ReadsWidth ∧ ¬c₂.ReadsWidth := not_or.mp hc
-    exact not_or.mpr ⟨hc'.1, ih hc'.2⟩
-  | op _ | branch _ _ _ _ _ | loop _ _ _ | rand _ _ =>
-    exact not_or.mpr ⟨hc, hd⟩
+  | seq c₁ c₂ _ ih => exact not_or.mpr ⟨(not_or.mp hc).1, ih (not_or.mp hc).2⟩
+  | op _ | branch _ _ _ _ _ | loop _ _ _ | rand _ _ => exact not_or.mpr ⟨hc, hd⟩
 
 /-- Continue symbolic `WP` execution from an exact-count routine contract. -/
 theorem WP.of_exec_spec {B : Basis} {r w T : ℕ} {c : Code B r} {x : Data r}
@@ -310,11 +305,9 @@ theorem loadCursor_preserves {k : ℕ} [inst : NeZero k] (cursor one : Fin r)
     exact (hf 0).symm
   | k + 2, _, fields, hf =>
     simp only [loadCursor, Code.Preserves, Op.dest, Op.bin, ne_eq, Option.some.injEq]
-    refine ⟨(hf 0).symm, hcur.symm,
-      loadCursor_preserves cursor one (k := k + 1) (fun i => fields i.succ) ?_⟩
-    rintro (rfl | ⟨i, rfl⟩)
-    · exact hcur rfl
-    · exact hf i.succ rfl
+    exact ⟨(hf 0).symm, hcur.symm,
+      loadCursor_preserves cursor one (k := k + 1) (fun i => fields i.succ)
+        fun h => h.elim hcur fun ⟨i, hi⟩ => hf i.succ hi⟩
 
 /-- `loadRecord` preserves every register outside `LoadRecordLocal cursor fields`. -/
 theorem loadRecord_preserves {k : ℕ} [NeZero k] (addr cursor one : Fin r)
@@ -525,12 +518,10 @@ theorem loadRecord_exec_self {k w : ℕ} [NeZero k] (addr cursor one : Fin r)
       ∀ j, j ≠ cursor → y.regs j = x.regs j := by
   obtain ⟨y, hy, hymem, hyfields, _, hyregs⟩ :=
     loadRecord_exec addr cursor one fields x hone_ne hfields_cur hfields_one hinj hone hfit
-  refine ⟨y, hy, hymem, ?_⟩
-  intro j hj
+  refine ⟨y, hy, hymem, fun j hj => ?_⟩
   by_cases hloc : LoadRecordLocal cursor fields j
   · rcases hloc with rfl | ⟨i, rfl⟩
-    · exact absurd rfl hj
-    · exact (hyfields i).trans (hmem i)
+    exacts [absurd rfl hj, (hyfields i).trans (hmem i)]
   · exact hyregs j hloc
 
 end Routines

@@ -188,8 +188,7 @@ private theorem uniform_le_of_step {n : ℕ} {f : BooleanFunction n} {S S' : Sta
   have hp := hstep.potential
   have ha := hstep.a_le
   rw [config_ca] at hp
-  have hnat : S'.W + 9 * (S.a - S'.a) ≤ S.W := by omega
-  exact_mod_cast hnat
+  exact_mod_cast (by omega : S'.W + 9 * (S.a - S'.a) ≤ S.W)
 
 /-- Non-vacuity of `StratifiedStepSound`: the uniform `(5, 3, 9)` potential of `AffineDisperser4n`
 (`ce = 1`, `w dg de = weight (dg + de)`, `bp = 3`, `c = 9`, `w_init = 5`) satisfies
@@ -262,16 +261,15 @@ private theorem exists_valid_of_baseStateOK {n : ℕ} (S : State n)
     (hp : S.params = Finset.range n) (haux : S.aux = ∅) (heq : S.eqns = ∅)
     (hpairs : S.pairs = ∅) (hphi : S.phi = fun val i => val i) (hok : baseStateOK S = true) :
     ∃ f : BooleanFunction n, S.Valid f := by
-  obtain ⟨h123, hout⟩ := Bool.and_eq_true_iff.1 hok
-  obtain ⟨h12, hreads'⟩ := Bool.and_eq_true_iff.1 h123
-  obtain ⟨hdisj', hlt'⟩ := Bool.and_eq_true_iff.1 h12
+  simp only [baseStateOK, Bool.and_eq_true, decide_eq_true_eq] at hok
+  rcases hok with ⟨⟨⟨hdisj', hlt'⟩, hreads'⟩, hout⟩
   have hwf : S.WellFormed :=
     { disjoint_params_aux := by rw [haux]; exact Finset.disjoint_empty_right _
-      disjoint_params_gates := by rw [hp]; exact of_decide_eq_true hdisj'
+      disjoint_params_gates := hp ▸ hdisj'
       disjoint_aux_gates := by rw [haux]; exact Finset.disjoint_empty_left _
-      reads_lt := of_decide_eq_true hlt'
+      reads_lt := hlt'
       reads_live := fun J hJ i hr => by
-        obtain ⟨hl, hr'⟩ := (of_decide_eq_true hreads') J hJ
+        obtain ⟨hl, hr'⟩ := hreads' J hJ
         exact hr.elim (mem_live_of_argLiveOK hp hl) (mem_live_of_argLiveOK hp hr')
       terms_subset := fun _ he => absurd (heq ▸ he) (Finset.notMem_empty _)
       card_terms_le := fun _ he => absurd (heq ▸ he) (Finset.notMem_empty _)
@@ -595,8 +593,7 @@ private theorem aopWitness_bound {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : ℕ 
   have he3 : stratifiedPotential ce w bp S₃ = 0 := by
     simp only [stratifiedPotential, h3, Finset.sum_empty, Finset.sum_singleton, h.w_zero]; ring
   change stratifiedPotential ce w bp S₃ + c * ((S₂.a - S₃.a : ℕ) : ℚ) ≤ _ at haop
-  rw [he3, he2, h3.2.2.2.2.1] at haop
-  norm_num at haop
+  rw [he3, he2, h3.2.2.2.2.1, Nat.cast_one] at haop
   linarith
 
 /-- **Original `State`-grounded bigraded Farkas `4n` barrier**: for any bigraded potential
@@ -655,9 +652,7 @@ theorem eventually_four_mul_le_size_add_explicitDisperser :
       C.Computes fullInterpretation (single (explicitDisperser N)) →
       4 * N ≤ C.size + 54 * N / (Nat.log 2 N + 1) + 9 := by
   filter_upwards [eventually_four_mul_le_cost_add_explicitDisperser] with N hN C hC
-  have := hN C hC
-  have := cost_binaryB2Cost_le_size C
-  omega
+  linarith [hN C hC, cost_binaryB2Cost_le_size C]
 
 private theorem eventually_four_mul_sub_le_cost_of_computes_explicitDisperser :
     ∀ᶠ N in atTop, ∀ (C : Circuit (fullSignature 2 Bool) N 1),
@@ -687,9 +682,8 @@ theorem exists_mem_P_eventually_four_mul_sub_le_cost :
         4 * (N : ℝ) - 54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) - 9 ≤
           (C.program.cost binaryB2Cost : ℝ) := by
   refine ⟨explicitDisperserLanguage, explicitDisperserLanguage_mem_P, ?_⟩
-  filter_upwards [eventually_four_mul_sub_le_cost_of_computes_explicitDisperser] with N hN C hC
-  rw [slice_explicitDisperserLanguage] at hC
-  exact hN C hC
+  simpa only [slice_explicitDisperserLanguage] using
+    eventually_four_mul_sub_le_cost_of_computes_explicitDisperser
 
 /-- There exists an explicit language in `P` (`explicitDisperserLanguage`) whose `N`-bit slices
 require Boolean circuits of size at least `4 * N - 54 * N / (Nat.log 2 N + 1) - 9`. -/
@@ -699,9 +693,8 @@ theorem exists_mem_P_eventually_four_mul_sub_le_size :
         C.Computes fullInterpretation (single (L.slice N)) →
         4 * (N : ℝ) - 54 * (N : ℝ) / ((Nat.log 2 N : ℝ) + 1) - 9 ≤ (C.size : ℝ) := by
   refine ⟨explicitDisperserLanguage, explicitDisperserLanguage_mem_P, ?_⟩
-  filter_upwards [eventually_four_mul_sub_le_size_of_computes_explicitDisperser] with N hN C hC
-  rw [slice_explicitDisperserLanguage] at hC
-  exact hN C hC
+  simpa only [slice_explicitDisperserLanguage] using
+    eventually_four_mul_sub_le_size_of_computes_explicitDisperser
 
 /-! ### Unconditional `4N - O(N ^ (4 / 5))` lower bounds in `P` via `Li.primeDisperser` -/
 

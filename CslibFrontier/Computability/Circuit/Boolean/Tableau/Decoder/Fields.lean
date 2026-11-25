@@ -371,31 +371,20 @@ theorem fieldVal_true (idx : ℕ) : fieldVal s cb tb x n T idx (4 + (s + cb + tb
 
 theorem fieldVal_not (idx : ℕ) {j : ℕ} (hj : j < 4 + (s + cb + tb)) :
     fieldVal s cb tb x n T idx (4 + (s + cb + tb) + 2 + j) = !idx.testBit j := by
-  have h₁ : ¬ 4 + (s + cb + tb) + 2 + j < 4 + (s + cb + tb) := by omega
-  have h₂ : 4 + (s + cb + tb) + 2 + j ≠ 4 + (s + cb + tb) := by omega
-  have h₃ : 4 + (s + cb + tb) + 2 + j ≠ 4 + (s + cb + tb) + 1 := by omega
-  have h₄ : 4 + (s + cb + tb) + 2 + j < chainBase (4 + (s + cb + tb)) := by
-    simp only [chainBase]; omega
-  simp only [fieldVal, h₁, h₂, h₃, h₄, ↓reduceIte, Nat.add_sub_cancel_left]
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by omega)]
+  rw [ite_eq_left (by simp only [chainBase]; omega), Nat.add_sub_cancel_left]
 
 theorem fieldVal_chain (idx : ℕ) {k i : ℕ} (hk : k < 14) (hi : i < s + cb + tb) :
     fieldVal s cb tb x n T idx (chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i) =
       chainVal (chain s cb tb x.length n T k) idx (i + 1) := by
   have hw := chainWire_lt hk hi
-  have h₁ : ¬ chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i < 4 + (s + cb + tb) := by
-    simp only [chainBase]; omega
-  have h₂ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i ≠ 4 + (s + cb + tb) := by
-    simp only [chainBase]; omega
-  have h₃ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i ≠ 4 + (s + cb + tb) + 1 := by
-    simp only [chainBase]; omega
-  have h₄ : ¬ chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i <
-      chainBase (4 + (s + cb + tb)) := by omega
-  have h₅ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i <
-      treeBase (4 + (s + cb + tb)) (s + cb + tb) := by simp only [treeBase]; omega
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by simp only [chainBase]; omega)]
+  rw [ite_eq_left (by simp only [treeBase]; omega)]
   have h₆ : chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + i -
       chainBase (4 + (s + cb + tb)) = k * (s + cb + tb) + i := by omega
-  simp only [fieldVal, h₁, h₂, h₃, h₄, h₅, h₆, ↓reduceIte,
-    Nat.mul_add_div_of_lt k hi, Nat.mul_add_mod_of_lt hi]
+  simp only [h₆, Nat.mul_add_div_of_lt k hi, Nat.mul_add_mod_of_lt hi]
 
 theorem fieldVal_tree (idx : ℕ) {ℓ q : ℕ} (hℓ : ℓ ≤ Nat.size x.length) (hq : q < 2 ^ ℓ) :
     fieldVal s cb tb x n T idx (treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q) =
@@ -404,43 +393,22 @@ theorem fieldVal_tree (idx : ℕ) {ℓ q : ℕ} (hℓ : ℓ ≤ Nat.size x.lengt
     calc 2 ^ ℓ + q < 2 ^ (ℓ + 1) := by rw [Nat.pow_succ]; omega
       _ ≤ 2 ^ (Nat.size x.length + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
   have h1 := Nat.one_le_two_pow (n := ℓ)
-  have h₀ : ¬ treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      treeBase (4 + (s + cb + tb)) (s + cb + tb) := by omega
-  have h₁ : ¬ treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      4 + (s + cb + tb) := by simp only [treeBase, chainBase]; omega
-  have h₂ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q ≠ 4 + (s + cb + tb) := by
-    simp only [treeBase, chainBase]; omega
-  have h₃ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q ≠
-      4 + (s + cb + tb) + 1 := by simp only [treeBase, chainBase]; omega
-  have h₄ : ¬ treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      chainBase (4 + (s + cb + tb)) := by simp only [treeBase]; omega
-  have h₅ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q <
-      orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) := by
-    simp only [orBase]; omega
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by simp only [treeBase, chainBase]; omega)]
+  rw [ite_eq_left (by simp only [orBase]; omega)]
   have h₆ : treeBase (4 + (s + cb + tb)) (s + cb + tb) + (2 ^ ℓ - 1) + q -
       treeBase (4 + (s + cb + tb)) (s + cb + tb) + 1 = 2 ^ ℓ + q := by omega
   have hlog : Nat.log 2 (2 ^ ℓ + q) = ℓ :=
     Nat.log_eq_of_pow_le_of_lt_pow (by omega) (by rw [Nat.pow_succ]; omega)
-  simp only [fieldVal, h₀, h₁, h₂, h₃, h₄, h₅, h₆, ↓reduceIte, hlog,
-    Nat.add_sub_cancel_left]
+  simp only [h₆, hlog, Nat.add_sub_cancel_left]
 
 theorem fieldVal_or (idx : ℕ) (i : ℕ) :
     fieldVal s cb tb x n T idx (orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i) =
       (decide (idx / 16 % 2 ^ Nat.size x.length ≤ i) &&
         x.getD (idx / 16 % 2 ^ Nat.size x.length) false) := by
-  have h₀ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) := by omega
-  have h₁ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      4 + (s + cb + tb) := by simp only [orBase, treeBase, chainBase]; omega
-  have h₂ : orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i ≠
-      4 + (s + cb + tb) := by simp only [orBase, treeBase, chainBase]; omega
-  have h₃ : orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i ≠
-      4 + (s + cb + tb) + 1 := by simp only [orBase, treeBase, chainBase]; omega
-  have h₄ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      chainBase (4 + (s + cb + tb)) := by simp only [orBase, treeBase]; omega
-  have h₅ : ¬ orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length) + i <
-      treeBase (4 + (s + cb + tb)) (s + cb + tb) := by simp only [orBase]; omega
-  simp only [fieldVal, h₀, h₁, h₂, h₃, h₄, h₅, ↓reduceIte, Nat.add_sub_cancel_left]
+  rw [fieldVal]
+  repeat rw [ite_eq_right (by simp only [orBase, treeBase, chainBase]; omega)]
+  rw [Nat.add_sub_cancel_left]
 
 /-- The literal of a chain gate is the bit of its field, or its negation. -/
 private theorem fieldVal_chainLit (idx : ℕ) (k i : ℕ) :
@@ -570,12 +538,8 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
         chainVal (chain s cb tb x.length n T k) idx i := by
       by_cases h₀ : i = 0
       · subst h₀
-        cases h₁ : (chain s cb tb x.length n T k).init
-        · simp only [↓reduceIte, Bool.false_eq_true, fieldVal_false, chainVal, cmp, pow_zero,
-            Nat.mod_one, h₁]
-          simp
-        · simp only [↓reduceIte, fieldVal_true, chainVal, cmp, pow_zero, Nat.mod_one, h₁]
-          simp
+        cases h₁ : (chain s cb tb x.length n T k).init <;>
+          simp [fieldVal_false, fieldVal_true, chainVal, cmp, Nat.mod_one, h₁]
       · simp only [h₀, ↓reduceIte]
         rw [fieldVal_chain idx hk (by omega), Nat.sub_add_cancel (by omega)]
     rw [hprev, chainVal, chainVal, cmp_succ]

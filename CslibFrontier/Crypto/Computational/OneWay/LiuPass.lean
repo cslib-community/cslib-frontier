@@ -172,16 +172,13 @@ private theorem lt_stretchLen_seedLen (γ m : ℕ) :
   have hn₀_spec : stretchLen γ n₀ ≤ m :=
     Nat.findGreatest_spec (P := fun k => stretchLen γ k ≤ m) (Nat.zero_le m) (by simp [stretchLen])
   have hgt : m < stretchLen γ (n₀ + 1) := by
-    by_cases hlt : n₀ < m
+    rcases hn₀_le_m.lt_or_eq with hlt | heq
     · exact Nat.lt_of_not_ge (Nat.findGreatest_is_greatest
         (P := fun k => stretchLen γ k ≤ m) (Nat.lt_succ_self n₀) (by omega))
-    · have heq : n₀ = m := by omega
-      rw [heq]
+    · rw [heq]
       dsimp [stretchLen]
       omega
-  have hle : stretchLen γ (n₀ + 1) ≤ m + γ + 1 :=
-    (stretchLen_succ_le γ n₀).trans (by omega)
-  exact ⟨hgt, hle⟩
+  exact ⟨hgt, (stretchLen_succ_le γ n₀).trans (by omega)⟩
 
 private theorem seedLen_bound (γ m : ℕ) : m < (γ + 1) * seedLen γ m := by
   have hgt := (lt_stretchLen_seedLen γ m).1
@@ -191,11 +188,9 @@ private theorem seedLen_bound (γ m : ℕ) : m < (γ + 1) * seedLen γ m := by
 
 private theorem tendsto_seedLen (γ : ℕ) : Tendsto (seedLen γ) atTop atTop := by
   rw [tendsto_atTop_atTop]
-  intro N
-  refine ⟨(γ + 1) * N, fun m hm => ?_⟩
-  have h := seedLen_bound γ m
-  by_contra! hlt
-  have : (γ + 1) * seedLen γ m ≤ (γ + 1) * N := Nat.mul_le_mul_left (γ + 1) hlt.le
+  refine fun N => ⟨(γ + 1) * N, fun m hm => by_contra fun hlt => ?_⟩
+  have := seedLen_bound γ m
+  have := Nat.mul_le_mul_left (γ + 1) (Nat.le_of_not_ge hlt)
   omega
 
 /-! ### Truncated generator and threshold distinguisher for Theorem 5.2 -/
@@ -270,9 +265,7 @@ private theorem threshold_arith_bounds {γ d C₀ n c m : ℕ}
       4 * (m : ℝ) ≤ (n : ℝ) ^ 2 := by
   set m₀ := n + γ * Nat.log 2 n with hm₀_def
   have hγ_log_ge : γ + 1 ≤ γ * Nat.log 2 n := by nlinarith
-  have hm_ge_n : n ≤ m := by omega
   have hm_le_m₀ : m ≤ m₀ := by omega
-  have hm4 : 4 ≤ m := by omega
   have hlog_le : Nat.log 2 n ≤ n := Nat.log_le_self 2 n
   have hm₀_le : m ≤ (γ + 1) * n := by nlinarith only [hm_le_m₀, hm₀_def, hlog_le]
   have hm_le_nat : 4 * m ≤ n * n := by
@@ -289,16 +282,12 @@ private theorem threshold_arith_bounds {γ d C₀ n c m : ℕ}
           Nat.mul_lt_mul'' hn_lt_pow hn_lt_pow
         _ = 2 ^ (2 * Nat.log 2 n + 2) := by rw [← pow_add]; congr 1; omega
     exact Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega) hm_lt_pow)
-  have hKt_low_arith : n + C₀ < m - (2 * Nat.log 2 n + 3) - d * (Nat.log 2 m + 1) := by
-    have hd_log : d * (Nat.log 2 m + 1) ≤ 2 * d * Nat.log 2 n + 2 * d := by
-      nlinarith only [hlog_m_le]
-    have hγ_split : 2 * d * Nat.log 2 n + 2 * Nat.log 2 n + Nat.log 2 n ≤ γ * Nat.log 2 n := by
-      nlinarith only [hγ]
-    omega
-  have hm_le_nsq : 4 * (m : ℝ) ≤ (n : ℝ) ^ 2 := by
-    have h' : (4 : ℝ) * (m : ℝ) ≤ (n : ℝ) * (n : ℝ) := by exact_mod_cast hm_le_nat
-    linarith only [h', sq (n : ℝ)]
-  exact ⟨hm_ge_n, hm_le_m₀, hm4, hKt_low_arith, hm_le_nsq⟩
+  have hd_log : d * (Nat.log 2 m + 1) ≤ 2 * d * Nat.log 2 n + 2 * d := by
+    nlinarith only [hlog_m_le]
+  have hγ_split : 2 * d * Nat.log 2 n + 2 * Nat.log 2 n + Nat.log 2 n ≤ γ * Nat.log 2 n := by
+    nlinarith only [hγ]
+  refine ⟨by omega, by omega, by omega, by omega, ?_⟩
+  simpa only [sq] using (show (4 : ℝ) * m ≤ n * n by exact_mod_cast hm_le_nat)
 
 private theorem condEPPRG_real_threshold_accept_le
     {G : List Bool → List Bool} {γ α d : ℕ}
@@ -353,15 +342,14 @@ private theorem condEPPRG_real_threshold_accept_le
     simp only [pmf_norm, thresholdDistinguisher, ← hm₀_def, ← hm_def, hthr_eq]
   set B : ℝ := (n : ℝ) - (α : ℝ) * (Nat.log 2 n : ℝ) - (c : ℝ) with hB_def
   have hB3 : 3 ≤ B := by
-    have hlog_real : ((γ : ℝ) + 5) + (α : ℝ) * (Nat.log 2 n : ℝ) ≤ (n : ℝ) := by
+    have hlog_real : ((γ : ℝ) + 5) + (α : ℝ) * (Nat.log 2 n : ℝ) ≤ n := by
       exact_mod_cast hlog_bound
-    have hc_real : (c : ℝ) ≤ (γ : ℝ) + 1 := by exact_mod_cast hc_le
+    have hc_real : (c : ℝ) ≤ γ + 1 := by exact_mod_cast hc_le
     linarith only [hB_def, hlog_real, hc_real]
   have hent_pG : B ≤ PMF.entropy pG_dist := by
     have htake := entropy_ofList_take_ge hm_le_m₀ p_full
-    have hsub : ((m₀ - m : ℕ) : ℝ) = (c : ℝ) := by congr 1; omega
-    rw [hsub] at htake
-    linarith only [hB_def, hn_ent, htake]
+    have hsub : ((m₀ - m : ℕ) : ℝ) = c := by exact_mod_cast (show m₀ - m = c by omega)
+    linarith only [hB_def, hn_ent, htake, hsub]
   have hlow : ∀ y ∈ pG_dist.support, timeBoundedNat t (List.ofFn y) < m - k - g_err := by
     intro y hy
     have hy' : List.ofFn y ∈ (pG_dist.map List.ofFn).support :=

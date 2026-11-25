@@ -158,13 +158,7 @@ private def Inv (cfg : Config) : Prop :=
 private theorem inv_mk {l c n p cur steps v : ℕ} :
     Inv G (l, [c, n, p, cur, steps, v]) ↔
       c ≤ 1 ∧ Bounded G n p cur steps v ∧ Phase G l n p cur steps v := by
-  constructor
-  · rintro ⟨c, n, p, cur, steps, v, h, hc⟩
-    simp only [List.cons.injEq, and_true] at h
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-    exact hc
-  · intro h
-    exact ⟨c, n, p, cur, steps, v, rfl, h⟩
+  simp [Inv]
 
 /-- The weight of one step of a walk. -/
 private def stepWeight : ℕ := 3 * G.n + 12

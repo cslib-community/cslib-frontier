@@ -120,9 +120,7 @@ def decodeCiphertext (m w : ℕ) (word : List Bool) : Ciphertext m w :=
 /-- Canonical ciphertext words roundtrip through `decodeCiphertext`. -/
 @[simp] theorem decodeCiphertext_serializeCiphertext {m w : ℕ} (c : Ciphertext m w) :
     decodeCiphertext m w (serializeCiphertext c) = c := by
-  ext i
-  · simp [decodeCiphertext, serializeCiphertext, Cslib.Matrix.ofBinary_toBinary]
-  · simp [decodeCiphertext, serializeCiphertext, Cslib.Matrix.ofBinary_toBinary]
+  ext i <;> simp [decodeCiphertext, serializeCiphertext, Cslib.Matrix.ofBinary_toBinary]
 
 /-- A serialized ciphertext has exact bit length `(m + 1) * w`. -/
 @[simp] theorem length_serializeCiphertext {m w : ℕ} (c : Ciphertext m w) :
@@ -235,37 +233,23 @@ theorem eval_keyGenSerialized (n m w : ℕ) :
         (fun keys => (serializePublicKey keys.1, serializeSecret keys.2)) := by
   have hbits := ProbComp.eval_replicateFin_map
     (PMF.map_id (ProbComp.eval (ProbComp.uniform Bool))).symm m
-  have hlhs : ProbComp.eval (keyGenSerialized n m w) =
-      (PMF.uniformOfFintype (_root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
-        (PMF.uniformOfFintype (Fin m → Bool)).bind fun bits =>
-          PMF.pure (serializePublicKey (publicKeyOf A fun i => (bits i).toNat),
-            serializeSecret fun i => (bits i).toNat) := by
-    unfold keyGenSerialized sampleKeyInputsSerialized
-    simp only [pmf_norm, ProbComp.eval_replicate_replicate_sampleBinaryNat, hbits,
-      ProbComp.eval_replicateFin, ProbComp.eval_uniform, PMF.pi_uniformOfFintype, _root_.Matrix,
-      publicKeySerialized_eq]
-    congr 1 with A : 1
-    congr 1 with bits : 1
-    refine congrArg PMF.pure (Prod.ext (congrArg serializePublicKey ?_) ?_)
-    · congr 1
-      · ext i j
-        simp [decodeKeyInputs]
-      · funext i
-        simp [decodeKeyInputs]
-    · simp only [secretSerialized, serializeSecret, List.map_range_eq_ofFn, List.getD_ofFn]
-      congr 1 with i : 1
-      change bits i = decide (((bits i).toNat : ℤ) ≠ 0)
-      cases bits i <;> rfl
-  have hrhs : (ProbComp.eval (keyGen n m w)).map
-        (fun keys => (serializePublicKey keys.1, serializeSecret keys.2)) =
-      (PMF.uniformOfFintype (_root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
-        (PMF.uniformOfFintype (Fin m → Bool)).bind fun bits =>
-          PMF.pure (serializePublicKey (publicKeyOf A fun i => (bits i).toNat),
-            serializeSecret fun i => (bits i).toNat) := by
-    unfold keyGen
-    simp only [pmf_norm, LWE.eval_sampleMatrix, ProbComp.eval_replicateFin, ProbComp.eval_uniform,
-      PMF.pi_uniformOfFintype]
-  exact hlhs.trans hrhs.symm
+  unfold keyGenSerialized sampleKeyInputsSerialized keyGen
+  simp only [pmf_norm, LWE.eval_sampleMatrix, ProbComp.eval_replicate_replicate_sampleBinaryNat,
+    hbits, ProbComp.eval_replicateFin, ProbComp.eval_uniform, PMF.pi_uniformOfFintype,
+    publicKeySerialized_eq]
+  dsimp only [_root_.Matrix]
+  congr 1 with A : 1
+  congr 1 with bits : 1
+  refine congrArg PMF.pure (Prod.ext (congrArg serializePublicKey ?_) ?_)
+  · congr 1
+    · ext i j
+      simp [decodeKeyInputs]
+    · funext i
+      simp [decodeKeyInputs]
+  · simp only [secretSerialized, serializeSecret, List.map_range_eq_ofFn, List.getD_ofFn, id_eq]
+    congr 1 with i : 1
+    change bits i = decide (((bits i).toNat : ℤ) ≠ 0)
+    cases bits i <;> rfl
 
 /-- The public-key marginal of serialized key generation matches typed `DualRegev.keyGen`. -/
 theorem eval_keyGenSerialized_fst (n m w : ℕ) :
@@ -470,17 +454,14 @@ theorem keyGenSerialized_encryptSerialized_correct {n m w η : ℕ} (hw : 0 < w)
     (hc : ciphertext ∈ (ProbComp.eval (encryptSerialized n m w η keys.1 μ)).support) :
     decryptSerialized m w keys.2 ciphertext = μ := by
   rw [eval_keyGenSerialized, PMF.mem_support_map_iff] at hkeys
-  obtain ⟨typedKeys, htypedKeys, rfl⟩ := hkeys
+  obtain ⟨⟨pk, e⟩, htypedKeys, rfl⟩ := hkeys
   rw [eval_encryptSerialized_serializePublicKey, PMF.mem_support_map_iff] at hc
   obtain ⟨typedCiphertext, htypedCiphertext, rfl⟩ := hc
-  have hbits : ∃ bits : Fin m → Bool, typedKeys.2 = fun i => ((bits i).toNat : ℤ) := by
-    rcases typedKeys with ⟨pk, e⟩
-    simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at htypedKeys
-    obtain ⟨_, -, bits, -, _, rfl⟩ := htypedKeys
-    exact ⟨bits, rfl⟩
-  obtain ⟨bits, hbits⟩ := hbits
-  rw [hbits, decryptSerialized_serialize, ← hbits]
+  have htypedKeys' := htypedKeys
+  simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_pure_iff, Prod.mk.injEq] at htypedKeys'
+  obtain ⟨_, -, bits, -, _, rfl⟩ := htypedKeys'
+  rw [decryptSerialized_serialize]
   exact keyGen_encrypt_correct hw hmargin htypedKeys μ htypedCiphertext
 
 /-! ### Uniform polynomial-time certificates for honest algorithms -/
@@ -963,11 +944,6 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
         (distinguishingGame (LWE.uniformEnsemble n (fun k => m k + 1) w security)
           (lweDistinguisher n m w adversary security)) +
         hidingError (n security) (m security) (w security) := by
-  have hpk : (ProbComp.eval (keyGenSerialized (n security) (m security) (w security))).map
-      Prod.fst =
-      (ProbComp.eval (keyGen (n security) (m security) (w security))).map
-        (fun keys => serializePublicKey keys.1) :=
-    eval_keyGenSerialized_fst (n security) (m security) (w security)
   let enc := fun k => encryptSerialized (n k) (m k) (w k) (η k)
   let realPK := (ProbComp.eval (keyGen (n security) (m security) (w security))).map
     (fun keys => serializePublicKey keys.1)
@@ -981,7 +957,8 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
         Game.advantage
           (Encryption.publicKeyGame unifPK enc adversary false security)
           (Encryption.publicKeyGame unifPK enc adversary true security) := by
-    simp only [Encryption.advantage, Encryption.eval_game_eq_publicKeyGame, hpk]
+    simp only [Encryption.advantage, Encryption.eval_game_eq_publicKeyGame,
+      eval_keyGenSerialized_fst]
     exact Encryption.advantage_publicKeyGame_le realPK unifPK enc adversary security
   have hdistPK :
       (2 : ℝ) * Game.advantage
@@ -1012,10 +989,8 @@ theorem advantage_game_le (n m w η : ℕ → ℕ) (adversary : Encryption.Adver
             let u ← PMF.uniformOfFintype (Fin (n security) → ZMod (2 ^ w security))
             return (A, u)).bind fun pk => ProbComp.eval
               (Encryption.keyDistinguisher enc adversary security (serializePublicKey pk)) := by
-        unfold unifPK uniformPublicKeyWord
-        simp only [distinguishingGame_eq_bind]
-        rw [← PMF.uniformOfFintype_prod]
-        simp only [pmf_norm]
+        simp only [unifPK, uniformPublicKeyWord, distinguishingGame_eq_bind,
+          ← PMF.uniformOfFintype_prod, pmf_norm]
       rw [hLHS, hRHS]
       exact Probability.PMF.dist_bind_le _ _ _
     have hbound := hd.trans (dist_keyGen_uniform_le (n security) (m security) (w security))

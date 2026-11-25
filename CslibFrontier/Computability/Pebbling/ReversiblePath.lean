@@ -453,27 +453,17 @@ theorem persistentReversiblePebblingPrice_pathDigraph (v : ℕ) :
 theorem reversiblePebblingPrice_pathDigraph_two_pow_sub_one (k : ℕ) :
     reversiblePebblingPrice pathDigraph (2 ^ k - 1) = k + 1 := by
   have hpos : 0 < 2 ^ k := Nat.two_pow_pos k
-  refine reversiblePebblingPrice_eq (reversiblePebblable_pathDigraph_iff.2 ?_) fun s h => ?_
-  · rw [pow_succ]
-    omega
-  · have h := reversiblePebblable_pathDigraph_iff.1 h
-    by_contra hs
-    have := Nat.pow_le_pow_right Nat.two_pos (show s ≤ k by omega)
-    omega
+  have heq : 2 ^ k - 1 + 2 = 2 ^ k + 1 := by omega
+  rw [reversiblePebblingPrice_pathDigraph, heq]
+  exact le_antisymm ((Nat.clog_le_iff_le_pow Nat.one_lt_two).2 (by rw [pow_succ]; omega))
+    ((Nat.lt_clog_iff_pow_lt Nat.one_lt_two).2 (Nat.lt_succ_self _))
 
 /-- **Optimality of Bennett's strategy.** Ending with only the last vertex `2 ^ k - 1` of a path of
 `2 ^ k` vertices pebbled costs exactly `k + 1` pebbles, the budget of
 `exists_mTr_bennett_pathDigraph`. -/
 theorem persistentReversiblePebblingPrice_pathDigraph_two_pow_sub_one (k : ℕ) :
     persistentReversiblePebblingPrice pathDigraph (2 ^ k - 1) = k + 1 := by
-  have hpos : 0 < 2 ^ k := Nat.two_pow_pos k
-  refine persistentReversiblePebblingPrice_eq
-    (persistentReversiblePebblable_pathDigraph_iff.2 ?_) fun s h => ?_
-  · rw [pow_succ]
-    omega
-  · have h := persistentReversiblePebblable_pathDigraph_iff.1 h
-    by_contra hs
-    have := Nat.pow_le_pow_right Nat.two_pos (show s ≤ k by omega)
-    omega
+  rw [persistentReversiblePebblingPrice_pathDigraph, Nat.sub_add_cancel (Nat.two_pow_pos k),
+    Nat.clog_pow _ _ Nat.one_lt_two]
 
 end Cslib.Pebbling

@@ -110,13 +110,10 @@ theorem card_filter_trialTuple (P : Finset (Fin k)) (b₀ : Fin k → U) (x : U)
   ext y
   simp only [mem_filter, mem_univ, true_and, mem_insert, forall_eq_or_imp,
     Function.update_self]
-  constructor
-  · rintro ⟨⟨hx, hP⟩, hq⟩
-    refine ⟨fun i hi => ?_, hx, hq⟩
-    rw [hP i hi, Function.update_of_ne (fun h : i = j => hj (h ▸ hi))]
-  · rintro ⟨hP, hx, hq⟩
-    refine ⟨⟨hx, fun i hi => ?_⟩, hq⟩
-    rw [hP i hi, Function.update_of_ne (fun h : i = j => hj (h ▸ hi))]
+  have hupd (y : Fin k → U) : (∀ i ∈ P, y i = Function.update b₀ j x i) ↔ ∀ i ∈ P, y i = b₀ i :=
+    forall₂_congr fun i hi => by rw [Function.update_of_ne (ne_of_mem_of_not_mem hi hj)]
+  simp only [hupd]
+  tauto
 
 variable {V : Type*} [DecidableEq V]
 
@@ -259,11 +256,7 @@ theorem badPairs_eq_filter (C' : (Fin k → U) → Fin k → V) (f : U → V) (P
         fun p => p.2 p.1 = x := by
   ext p
   simp only [badPairs, consistent, mem_filter, mem_univ, true_and, mem_product, mem_compl]
-  constructor
-  · rintro ⟨h1, h2, rfl, h3, h4⟩
-    exact ⟨⟨⟨h1, h2, h3⟩, h4⟩, rfl⟩
-  · rintro ⟨⟨⟨h1, h2, h3⟩, h4⟩, rfl⟩
-    exact ⟨h1, h2, rfl, h3, h4⟩
+  grind
 
 /-- **Accepted pairs by input**: weighting the accepted pairs at `x` by `g x` and summing over
 `x` is summing `g (y j)` over the free positions `j` of the consistent tuples `y`. -/
@@ -325,10 +318,9 @@ theorem card_filter_acceptedPairs_lt_mul_le (C' : (Fin k → U) → Fin k → V)
     rw [← sum_card_acceptedPairs_nsmul]
     simp [nsmul_eq_mul]
   have hlow : ∑ x, (#(acceptedPairs C' P b₀ x) : ℝ) * F x ≤ #L * (#S * w / (4 * n)) := by
-    rw [← sum_filter_add_sum_filter_not univ (· ∈ L)]
-    have h0 : ∑ x ∈ univ.filter (· ∉ L), (#(acceptedPairs C' P b₀ x) : ℝ) * F x = 0 :=
-      sum_eq_zero fun x hx => by simp [F, (mem_filter.1 hx).2]
-    rw [h0, add_zero, filter_mem_eq_inter, univ_inter, ← nsmul_eq_mul, ← sum_const]
+    rw [← sum_filter_add_sum_filter_not univ (· ∈ L),
+      sum_eq_zero (s := univ.filter (· ∉ L)) fun x hx => by simp [F, (mem_filter.1 hx).2],
+      add_zero, filter_mem_eq_inter, univ_inter, ← nsmul_eq_mul, ← sum_const]
     exact sum_le_sum fun x hx => by
       simpa only [F, hx, ite_true, mul_one] using (mem_filter.1 hx).2.le
   rw [hsum] at hrob
@@ -341,9 +333,7 @@ theorem card_filter_acceptedPairs_lt_mul_le (C' : (Fin k → U) → Fin k → V)
   rcases Nat.eq_zero_or_pos w with hw0 | hw0
   · rw [hw0, Nat.cast_zero, mul_zero]
     positivity
-  have hpos : 0 < μL * w := by
-    have : (0 : ℝ) < #L := by exact_mod_cast hL.card_pos
-    positivity
+  have hpos : 0 < μL * w := mul_pos (div_pos (Nat.cast_pos.2 hL.card_pos) hn) (Nat.cast_pos.2 hw0)
   have h1 : (#S : ℝ) / 2 ≤ n ^ w * Real.exp (-(μL * w / 8)) := le_of_mul_le_mul_right hkey hpos
   have h2 : μ / 2 ≤ Real.exp (-(μL * w / 8)) := by
     have hnw : (0 : ℝ) < n ^ w := by positivity
@@ -382,9 +372,7 @@ theorem card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f : U �
     exact_mod_cast pow_pos Fintype.card_pos _
   have hN0 : (0 : ℝ) < N := (mul_pos hc0 ha0).trans_le (by exact_mod_cast hca)
   have hR : (E : ℝ) * a ≤ B * N ^ m + a * ((N : ℝ) - c * a) ^ m := by
-    have := (Nat.cast_le (α := ℝ)).2 h
-    push_cast [hca] at this
-    exact this
+    simpa [Nat.cast_sub hca] using (Nat.cast_le (α := ℝ)).2 h
   have hpow : ((N : ℝ) - c * a) ^ m ≤ N ^ m * Real.exp (-(m * (c * θ / N))) := by
     rw [show (N : ℝ) - c * a = N * (1 - c * a / N) by field_simp, mul_pow]
     exact mul_le_mul_of_nonneg_left
@@ -396,10 +384,8 @@ theorem card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f : U �
   have hE : (E : ℝ) ≤ B * N ^ m / a + N ^ m * Real.exp (-(m * (c * θ / N))) := by
     rw [div_add' _ _ _ ha0.ne', le_div_iff₀ ha0]
     nlinarith
-  have hcast : (c : ℝ) = (Fintype.card U : ℝ) ^ (#P + 1) := by simp [c]
-  rw [hcast] at hE
-  have := div_le_div_of_nonneg_left (by positivity : (0 : ℝ) ≤ B * N ^ m) hθ ha
-  linarith
+  simp only [c, Nat.cast_pow] at hE
+  linarith [div_le_div_of_nonneg_left (by positivity : (0 : ℝ) ≤ B * N ^ m) hθ ha]
 
 /-- The disagreement positions of a tuple: where `C'` differs from `f` coordinatewise. -/
 def disagreements (C' : (Fin k → U) → Fin k → V) (f : U → V) (y : Fin k → U) : Finset (Fin k) :=

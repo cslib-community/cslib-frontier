@@ -156,21 +156,13 @@ private theorem mem_addClauseEdges {adj : Literal V → List (Literal V)} {c : C
     ⟨fun h => h ▸ negate_negate a, fun h => h ▸ (negate_negate ℓ).symm⟩
   rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, cs⟩⟩⟩
   · simp at hc1
-  · by_cases ha : ℓ.negate = a
-    · subst ha
-      simp [addClauseEdges, or_comm]
-    · simp [addClauseEdges, hneg, ha]
-  · by_cases ha : ℓ.negate = a <;> by_cases hb : ℓ.negate = b
-    · subst ha hb
-      simp [addClauseEdges]
-      tauto
-    · subst ha
-      simp [addClauseEdges, hneg, hb, Ne.symm hb]
-      tauto
-    · subst hb
-      simp [addClauseEdges, hneg, ha, Ne.symm ha]
-      tauto
-    · simp [addClauseEdges, Function.update_apply, hneg, ha, hb]
+  · simp only [addClauseEdges, Function.update_apply, hneg, List.mem_cons, List.not_mem_nil,
+      or_false, forall_eq]
+    obtain rfl | ha := eq_or_ne ℓ.negate a <;> simp [*, or_comm]
+  · simp only [addClauseEdges, Function.update_apply, hneg, List.mem_cons, List.not_mem_nil,
+      or_false, forall_eq_or_imp, forall_eq]
+    obtain rfl | ha := eq_or_ne ℓ.negate a <;> obtain rfl | hb := eq_or_ne ℓ.negate b <;>
+      simp [*] <;> grind
   · simp at hc2
 
 private theorem foldl_addClauseEdges_mem :
