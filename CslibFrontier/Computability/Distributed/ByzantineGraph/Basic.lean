@@ -199,14 +199,10 @@ omit [DecidableEq P] in
 against any number of faults and for any decision round `R`. -/
 theorem solvesByzantineAgreement_ownInput [DecidableEq P] [Subsingleton P] (G : SimpleGraph P)
     (t R : ℕ) : (ownInput G).SolvesByzantineAgreement t R := by
-  have hstate : ∀ F adv x r i, (ownInput G).state F adv x r i = x i := by
-    intro F adv x r i
-    induction r with
-    | zero => rfl
-    | succ r ih => exact ih
-  refine ⟨fun F _ adv x i _ j _ => by rw [Subsingleton.elim i j], fun F _ adv x v hv i hi => ?_⟩
-  rw [decision, hstate]
-  exact hv i hi
+  have hstate (F adv x r i) : (ownInput G).state F adv x r i = x i := by
+    induction r <;> [rfl; assumption]
+  exact ⟨fun _ _ _ _ i _ j _ => by rw [Subsingleton.elim i j],
+    fun F _ adv x v hv i hi => (hstate F adv x R i).trans (hv i hi)⟩
 
 /-! ### Supergraph simulation and complete-graph equivalence -/
 
@@ -231,20 +227,13 @@ private theorem toSupergraph_state_eq_state [DecidableRel G.Adj] {H : SimpleGrap
   | 0 => rfl
   | r + 1 => by
     have ih := toSupergraph_state_eq_state hle F advH x r
-    funext i
-    dsimp only [state]
-    change π.update r i ((π.toSupergraph hle).state F advH x r i) _ =
-      π.update r i (π.state F _ x r i) _
-    congr 1
-    · exact congrFun ih i
-    · funext j hji
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte]
-        change (if hij : G.Adj j i then
-            some (π.send r j ((π.toSupergraph hle).state F advH x r j) i hij)
-          else none).getD _ = π.send r j (π.state F _ x r j) i hji
-        rw [dite_eq_left_of_eq_true (eq_true hji), Option.getD_some, congrFun ih j]
+    funext i; dsimp only [state]
+    refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
+    by_cases hj : j ∈ F
+    · simp only [hj, ↓reduceIte]
+    · simp only [hj, ↓reduceIte, congrFun ih j]
+      dsimp only [toSupergraph]
+      simp [dite_eq_left_of_eq_true (eq_true hji)]
 
 private theorem state_eq_toSupergraph_state [DecidableRel G.Adj] {H : SimpleGraph P}
     (hle : G ≤ H) (F : Finset P) (advG : ℕ → ∀ j i : P, G.Adj j i → M) (x : P → Bool) :
@@ -254,39 +243,32 @@ private theorem state_eq_toSupergraph_state [DecidableRel G.Adj] {H : SimpleGrap
   | 0 => rfl
   | r + 1 => by
     have ih := state_eq_toSupergraph_state hle F advG x r
-    funext i
-    dsimp only [state]
-    change π.update r i (π.state F advG x r i) _ =
-      π.update r i ((π.toSupergraph hle).state F _ x r i) _
-    congr 1
-    · exact congrFun ih i
-    · funext j hji
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte, dite_eq_left_of_eq_true (eq_true hji), Option.getD_some]
-      · simp only [hj, ↓reduceIte]
-        change π.send r j (π.state F advG x r j) i hji =
-          (if hij : G.Adj j i then
-            some (π.send r j ((π.toSupergraph hle).state F _ x r j) i hij)
-          else none).getD _
-        rw [dite_eq_left_of_eq_true (eq_true hji), Option.getD_some, congrFun ih j]
+    funext i; dsimp only [state]
+    refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
+    by_cases hj : j ∈ F
+    · simp [hj, dite_eq_left_of_eq_true (eq_true hji)]
+    · simp only [hj, ↓reduceIte, congrFun ih j]
+      dsimp only [toSupergraph]
+      simp [dite_eq_left_of_eq_true (eq_true hji)]
 
 /-- Supergraph simulation preserves `SolvesByzantineAgreement` in both directions. -/
 theorem solvesByzantineAgreement_toSupergraph_iff [DecidableRel G.Adj] {H : SimpleGraph P}
     (hle : G ≤ H) (t R : ℕ) :
-    (π.toSupergraph hle).SolvesByzantineAgreement t R ↔ π.SolvesByzantineAgreement t R := by
-  constructor
-  · intro h
-    refine ⟨fun F hF advG x i hi j hj => ?_, fun F hF advG x v hv i hi => ?_⟩
-    · simp only [decision, π.state_eq_toSupergraph_state hle F advG x R]
-      exact h.agreement F hF _ x i hi j hj
-    · simp only [decision, π.state_eq_toSupergraph_state hle F advG x R]
-      exact h.validity F hF _ x v hv i hi
-  · intro h
-    refine ⟨fun F hF advH x i hi j hj => ?_, fun F hF advH x v hv i hi => ?_⟩
-    · simp only [decision, π.toSupergraph_state_eq_state hle F advH x R]
-      exact h.agreement F hF _ x i hi j hj
-    · simp only [decision, π.toSupergraph_state_eq_state hle F advH x R]
-      exact h.validity F hF _ x v hv i hi
+    (π.toSupergraph hle).SolvesByzantineAgreement t R ↔ π.SolvesByzantineAgreement t R :=
+  ⟨fun h =>
+    ⟨fun F hF advG x i hi j hj => by
+      simp only [decision, π.state_eq_toSupergraph_state hle F advG x R]
+      exact h.agreement F hF _ x i hi j hj,
+     fun F hF advG x v hv i hi => by
+      simp only [decision, π.state_eq_toSupergraph_state hle F advG x R]
+      exact h.validity F hF _ x v hv i hi⟩,
+   fun h =>
+    ⟨fun F hF advH x i hi j hj => by
+      simp only [decision, π.toSupergraph_state_eq_state hle F advH x R]
+      exact h.agreement F hF _ x i hi j hj,
+     fun F hF advH x v hv i hi => by
+      simp only [decision, π.toSupergraph_state_eq_state hle F advH x R]
+      exact h.validity F hF _ x v hv i hi⟩⟩
 
 /-- View a `GraphProtocol` on the complete simple graph `⊤` as a complete-network
 `Cslib.Distributed.Byzantine.Protocol` with `Option M` payloads (`none` on self-loops). -/
@@ -305,19 +287,14 @@ private theorem toProtocol_state_eq_state (π : GraphProtocol (⊤ : SimpleGraph
   | 0 => rfl
   | r + 1 => by
     have ih := toProtocol_state_eq_state π F adv x r
-    funext i
-    dsimp only [Byzantine.Protocol.state, state]
-    change π.update r i (π.toProtocol.state F adv x r i) _ = π.update r i _ _
-    congr 1
-    · exact congrFun ih i
-    · funext j hji
-      have hne : j ≠ i := hji
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte]
-        change (if hij : j ≠ i then some (π.send r j (π.toProtocol.state F adv x r j) i hij)
-          else none).getD _ = π.send r j (π.state F _ x r j) i hji
-        rw [dite_eq_left_of_eq_true (eq_true hne), Option.getD_some, congrFun ih j]
+    funext i; dsimp only [Byzantine.Protocol.state, state]
+    refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
+    have hne : j ≠ i := hji
+    by_cases hj : j ∈ F
+    · simp only [hj, ↓reduceIte]
+    · simp only [hj, ↓reduceIte, congrFun ih j]
+      dsimp only [toProtocol]
+      simp [dite_eq_left_of_eq_true (eq_true hne)]
 
 private theorem state_eq_toProtocol_state (π : GraphProtocol (⊤ : SimpleGraph P) S M)
     (F : Finset P) (advG : ℕ → ∀ j i : P, (⊤ : SimpleGraph P).Adj j i → M) (x : P → Bool) :
@@ -327,39 +304,34 @@ private theorem state_eq_toProtocol_state (π : GraphProtocol (⊤ : SimpleGraph
   | 0 => rfl
   | r + 1 => by
     have ih := state_eq_toProtocol_state π F advG x r
-    funext i
-    dsimp only [Byzantine.Protocol.state, state]
-    change π.update r i _ _ = π.update r i (π.toProtocol.state F _ x r i) _
-    congr 1
-    · exact congrFun ih i
-    · funext j hji
-      have hne : j ≠ i := hji
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte, dite_eq_left_of_eq_true (eq_true hne), Option.getD_some]
-      · simp only [hj, ↓reduceIte]
-        change π.send r j (π.state F advG x r j) i hji =
-          (if hij : j ≠ i then some (π.send r j (π.toProtocol.state F _ x r j) i hij)
-          else none).getD _
-        rw [dite_eq_left_of_eq_true (eq_true hne), Option.getD_some, congrFun ih j]
+    funext i; dsimp only [Byzantine.Protocol.state, state]
+    refine congrArg₂ (π.update r i) (congrFun ih i) (funext fun j => funext fun hji => ?_)
+    have hne : j ≠ i := hji
+    by_cases hj : j ∈ F
+    · simp [hj, dite_eq_left_of_eq_true (eq_true hne)]
+    · simp only [hj, ↓reduceIte, congrFun ih j]
+      dsimp only [toProtocol]
+      simp [dite_eq_left_of_eq_true (eq_true hne)]
 
 /-- A protocol on the complete simple graph `⊤` solves Byzantine agreement iff its
 `Byzantine.Protocol` translation does. -/
 theorem solvesByzantineAgreement_toProtocol_iff (π : GraphProtocol (⊤ : SimpleGraph P) S M)
     (t R : ℕ) :
-    π.toProtocol.SolvesByzantineAgreement t R ↔ π.SolvesByzantineAgreement t R := by
-  constructor
-  · intro h
-    refine ⟨fun F hF advG x i hi j hj => ?_, fun F hF advG x v hv i hi => ?_⟩
-    · simp only [decision, state_eq_toProtocol_state π F advG x R]
-      exact h.agreement F hF _ x i hi j hj
-    · simp only [decision, state_eq_toProtocol_state π F advG x R]
-      exact h.validity F hF _ x v hv i hi
-  · intro h
-    refine ⟨fun F hF adv x i hi j hj => ?_, fun F hF adv x v hv i hi => ?_⟩
-    · simp only [Byzantine.Protocol.decision, toProtocol_state_eq_state π F adv x R]
-      exact h.agreement F hF _ x i hi j hj
-    · simp only [Byzantine.Protocol.decision, toProtocol_state_eq_state π F adv x R]
-      exact h.validity F hF _ x v hv i hi
+    π.toProtocol.SolvesByzantineAgreement t R ↔ π.SolvesByzantineAgreement t R :=
+  ⟨fun h =>
+    ⟨fun F hF advG x i hi j hj => by
+      simp only [decision, state_eq_toProtocol_state π F advG x R]
+      exact h.agreement F hF _ x i hi j hj,
+     fun F hF advG x v hv i hi => by
+      simp only [decision, state_eq_toProtocol_state π F advG x R]
+      exact h.validity F hF _ x v hv i hi⟩,
+   fun h =>
+    ⟨fun F hF adv x i hi j hj => by
+      simp only [Byzantine.Protocol.decision, toProtocol_state_eq_state π F adv x R]
+      exact h.agreement F hF _ x i hi j hj,
+     fun F hF adv x v hv i hi => by
+      simp only [Byzantine.Protocol.decision, toProtocol_state_eq_state π F adv x R]
+      exact h.validity F hF _ x v hv i hi⟩⟩
 
 /-- Restrict a complete-network `Cslib.Distributed.Byzantine.Protocol` to `GraphProtocol ⊤`,
 computing self-messages locally from the process's own current state. -/
@@ -378,20 +350,16 @@ private theorem ofProtocol_state_eq_state (π : Byzantine.Protocol P S M) (F : F
   | 0, _, _ => rfl
   | r + 1, i, hi => by
     dsimp only [state, Byzantine.Protocol.state]
-    change π.update r i ((ofProtocol π).state F _ x r i) _ = π.update r i (π.state F adv x r i) _
-    congr 1
-    · exact ofProtocol_state_eq_state π F adv x r i hi
-    · funext j
-      by_cases hji : j = i
-      · subst hji
-        simp only [↓reduceDIte, hi, ↓reduceIte]
-        rw [ofProtocol_state_eq_state π F adv x r j hi]
-      · simp only [hji, ↓reduceDIte]
-        by_cases hj : j ∈ F
-        · simp only [hj, ↓reduceIte]
-        · simp only [hj, ↓reduceIte]
-          change π.send r j ((ofProtocol π).state F _ x r j) i = π.send r j (π.state F adv x r j) i
-          rw [ofProtocol_state_eq_state π F adv x r j hj]
+    refine congrArg₂ (π.update r i) (ofProtocol_state_eq_state π F adv x r i hi)
+      (funext fun j => ?_)
+    by_cases hji : j = i
+    · subst hji
+      simp only [↓reduceDIte, hi, ↓reduceIte, ofProtocol_state_eq_state π F adv x r j hi]
+    · simp only [hji, ↓reduceDIte]
+      by_cases hj : j ∈ F
+      · simp only [hj, ↓reduceIte]
+      · simp only [hj, ↓reduceIte, ← ofProtocol_state_eq_state π F adv x r j hj]
+        rfl
 
 private theorem state_eq_ofProtocol_state (π : Byzantine.Protocol P S M) (F : Finset P)
     (advG : ℕ → ∀ j i : P, (⊤ : SimpleGraph P).Adj j i → M) (x : P → Bool) (r : ℕ) (i : P)
@@ -402,33 +370,32 @@ private theorem state_eq_ofProtocol_state (π : Byzantine.Protocol P S M) (F : F
         else advG r j i hji) x r i := by
   let adv : ℕ → P → P → M := fun r j i =>
     if hji : j = i then π.send r j (π.init j false) i else advG r j i hji
-  have hadv : advG = fun r j i _ => adv r j i := by
-    funext r j i hji
-    have hne : j ≠ i := hji
-    simp only [adv, hne, ↓reduceDIte]
+  have hadv : advG = fun r j i _ => adv r j i :=
+    funext fun r => funext fun j => funext fun i => funext fun (hji : j ≠ i) =>
+      (dite_eq_right hji).symm
   exact (congrArg (fun a => (ofProtocol π).state F a x r i) hadv).trans
     (ofProtocol_state_eq_state π F adv x r i hi)
 
 /-- Restricting a `Byzantine.Protocol` to `GraphProtocol ⊤` preserves `SolvesByzantineAgreement` in
 both directions, keeping the state and message types unchanged. -/
 theorem solvesByzantineAgreement_ofProtocol_iff (π : Byzantine.Protocol P S M) (t R : ℕ) :
-    (ofProtocol π).SolvesByzantineAgreement t R ↔ π.SolvesByzantineAgreement t R := by
-  constructor
-  · intro h
-    refine ⟨fun F hF adv x i hi j hj => ?_, fun F hF adv x v hv i hi => ?_⟩
-    · rw [Byzantine.Protocol.decision, Byzantine.Protocol.decision,
-        ← ofProtocol_state_eq_state π F adv x R i hi,
+    (ofProtocol π).SolvesByzantineAgreement t R ↔ π.SolvesByzantineAgreement t R :=
+  ⟨fun h =>
+    ⟨fun F hF adv x i hi j hj => by
+      simp only [Byzantine.Protocol.decision, ← ofProtocol_state_eq_state π F adv x R i hi,
         ← ofProtocol_state_eq_state π F adv x R j hj]
-      exact h.agreement F hF _ x i hi j hj
-    · rw [Byzantine.Protocol.decision, ← ofProtocol_state_eq_state π F adv x R i hi]
-      exact h.validity F hF _ x v hv i hi
-  · intro h
-    refine ⟨fun F hF advG x i hi j hj => ?_, fun F hF advG x v hv i hi => ?_⟩
-    · rw [decision, decision, state_eq_ofProtocol_state π F advG x R i hi,
+      exact h.agreement F hF _ x i hi j hj,
+     fun F hF adv x v hv i hi => by
+      simp only [Byzantine.Protocol.decision, ← ofProtocol_state_eq_state π F adv x R i hi]
+      exact h.validity F hF _ x v hv i hi⟩,
+   fun h =>
+    ⟨fun F hF advG x i hi j hj => by
+      simp only [decision, state_eq_ofProtocol_state π F advG x R i hi,
         state_eq_ofProtocol_state π F advG x R j hj]
-      exact h.agreement F hF _ x i hi j hj
-    · rw [decision, state_eq_ofProtocol_state π F advG x R i hi]
-      exact h.validity F hF _ x v hv i hi
+      exact h.agreement F hF _ x i hi j hj,
+     fun F hF advG x v hv i hi => by
+      simp only [decision, state_eq_ofProtocol_state π F advG x R i hi]
+      exact h.validity F hF _ x v hv i hi⟩⟩
 
 /-- **No synchronous Boolean consensus with `n ≤ 3t` processes on any graph**
 ([PeaseShostakLamport1980]; [FischerLynchMerritt1985], Theorem 1, §3.1, pp. 61–62): on any
@@ -461,19 +428,14 @@ private theorem update_congr_label {r : ℕ} {i l : P} (hl : i = l) {s₁ s₂ :
     {m₁ : ∀ j : P, G.Adj j i → M} {m₂ : ∀ j : P, G.Adj j l → M}
     (hm : ∀ j (hji : G.Adj j i), m₁ j hji = m₂ j (hl ▸ hji)) :
     π.update r i s₁ m₁ = π.update r l s₂ m₂ := by
-  subst hl
-  subst hs
-  congr
-  funext j hji
-  exact hm j hji
+  subst hl hs
+  exact congrArg _ (funext fun j => funext (hm j))
 
 omit [DecidableEq P] in
 private theorem send_congr_target {r : ℕ} {j : P} {s₁ s₂ : S} (hs : s₁ = s₂) {i l : P}
     (hl : i = l) (hji : G.Adj j i) :
     π.send r j s₁ i hji = π.send r j s₂ l (hl ▸ hji) := by
-  subst hl
-  subst hs
-  rfl
+  subst hl hs; rfl
 
 /-- **The graph covering lemma** (after [Fischer, Lynch and Merritt][FischerLynchMerritt1985], §2,
 pp. 60–61). Suppose the correct processes embed into a covering network by `e`, preserving their

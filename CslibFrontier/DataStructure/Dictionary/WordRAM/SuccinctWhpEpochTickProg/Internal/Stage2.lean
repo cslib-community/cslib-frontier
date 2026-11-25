@@ -89,55 +89,48 @@ private theorem stage2_rebScan16_facts {c U V w n_max base : ℕ}
   rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
     ite_eq_right (by omega : ¬(fs.rebStage = 1)), ite_eq_left hs2] at hpre
   obtain ⟨_, _, hd3, _, _, _, hreb_fn⟩ := hpre
-  have hb : fs.dirtyBuckets fs.dirtyIdx < numBucketsWhp n_max := hd3 _ hdi_lt
+  set b := fs.dirtyBuckets fs.dirtyIdx
+  have hb : b < numBucketsWhp n_max := hd3 _ hdi_lt
   obtain ⟨hcur_r, _, rm0, hvr0, _⟩ := hreb_fn hcs_lt
-  have hcnt_le : fs.bktCount (fs.dirtyBuckets fs.dirtyIdx) ≤ totalLocalCoordsWhp n_max :=
-    hcore.bktCount_le _ hb
-  have hcnt_3L : fs.bktCount (fs.dirtyBuckets fs.dirtyIdx) ≤ 3 * (slabScale n_max) ^ 12 :=
+  have hcnt_le : fs.bktCount b ≤ totalLocalCoordsWhp n_max := hcore.bktCount_le _ hb
+  have hcnt_3L : fs.bktCount b ≤ 3 * (slabScale n_max) ^ 12 :=
     hcnt_le.trans totalLocalCoordsWhp_le_three_mul
   have h2tl := (large_index_bounds hth).2.2.1
   have h4096 : 4096 ≤ (slabScale n_max) ^ 12 :=
     Nat.pow_le_pow_left (two_le_slabScale n_max) 12
+  have h8L_lt := (large_bounds_lt_n_max hth).2.2.2.1
   have hcur16 : fs.rebScanCursor + 16 ≤ n_max := by
     rcases hcur_r with ⟨h0, _⟩ | ⟨_, hle, _⟩ <;> omega
   have hins16 : fs.rebInsCount + 16 ≤ 8 * (slabScale n_max) ^ 12 := by
     rcases hcur_r with ⟨_, hi0⟩ | ⟨_, _, hins_le⟩ <;> omega
-  have hrIdx : fs.rebSliceIdx (fs.dirtyBuckets fs.dirtyIdx) < 3 * numBucketsWhp n_max :=
-    rebSliceIdx_lt_of_core hcore hb
+  have hrIdx := rebSliceIdx_lt_of_core hcore hb
   have hpres := rebScanSteps_preserved θ (fs.dirtyBuckets fs.dirtyIdx) 16 fs
-  set b := fs.dirtyBuckets fs.dirtyIdx
   set fsScan := rebScanSteps c U n_max θ b 16 fs
   have hrIdxS : fsScan.rebSliceIdx b < 3 * numBucketsWhp n_max := by
     dsimp only [FastState.rebSliceIdx, FastState.rebRole]
-    rw [hpres.liveRole, hpres.overmarsRole]; exact hrIdx
-  have h8L_lt := (large_bounds_lt_n_max hth).2.2.2.1
-  have hcandS_lt : fsScan.rebCandSalt < sMaxWhp c n_max := hpres.rebCandSalt ▸ hcs_lt
+    rwa [hpres.liveRole, hpres.overmarsRole]
   have hinsS_le : fsScan.rebInsCount ≤ n_max := by have := hpres.rebInsCount_le; omega
   have hrv := hcore.roles_valid b hb
-  have hdiS : fsScan.dirtyIdx < fsScan.dirtyCount := by
-    rw [hpres.dirtyIdx, hpres.dirtyCount]; exact hdi_lt
-  have hnxtS : fsScan.dirtyIdx + 1 < fsScan.dirtyCount →
-      fsScan.dirtyBuckets (fsScan.dirtyIdx + 1) < numBucketsWhp n_max ∧
-      ({ fsScan with liveRole := Function.update fsScan.liveRole b (fsScan.rebRole b) } :
-        FastState).rebSliceIdx (fsScan.dirtyBuckets (fsScan.dirtyIdx + 1)) <
-        3 * numBucketsWhp n_max := by
-    intro hlt_n
-    rw [hpres.dirtyIdx, hpres.dirtyCount] at hlt_n
-    have hbN : fs.dirtyBuckets (fs.dirtyIdx + 1) < numBucketsWhp n_max := hd3 _ hlt_n
-    rw [hpres.dirtyBuckets, hpres.dirtyIdx]
-    refine ⟨hbN, ?_⟩
-    dsimp only [FastState.rebSliceIdx, FastState.rebRole]
-    rw [hpres.liveRole, hpres.overmarsRole]
-    by_cases hbb : fs.dirtyBuckets (fs.dirtyIdx + 1) = b
-    · rw [hbb, Function.update_self]
-      have := hrv.1; have := hrv.2.1; have := hrv.2.2; omega
-    · rw [Function.update_of_ne hbb]
-      exact rebSliceIdx_lt_of_core hcore hbN
-  exact ⟨hb, hrIdx, hcnt_le, fun p => (hcore.qv_global p).1,
+  refine ⟨hb, hrIdx, hcnt_le, fun p => (hcore.qv_global p).1,
     fun idx hidx => (hcore.backPtr_valid b hb idx hidx).1, fun _ => ⟨hcur16, hins16, rm0, hvr0⟩,
     ⟨hpres.liveRole ▸ hrv.1, hpres.overmarsRole ▸ hrv.2.1,
       by rw [hpres.liveRole, hpres.overmarsRole]; exact hrv.2.2⟩,
-    hrIdxS, hcandS_lt, hinsS_le, hdiS, hnxtS⟩
+    hrIdxS, hpres.rebCandSalt ▸ hcs_lt, hinsS_le,
+    by rwa [hpres.dirtyIdx, hpres.dirtyCount], fun hlt_n => ?_⟩
+  rw [hpres.dirtyIdx, hpres.dirtyCount] at hlt_n
+  have hbN := hd3 _ hlt_n
+  rw [hpres.dirtyBuckets, hpres.dirtyIdx]
+  refine ⟨hbN, ?_⟩
+  dsimp only [FastState.rebSliceIdx, FastState.rebRole]
+  rw [hpres.liveRole, hpres.overmarsRole]
+  by_cases hbb : fs.dirtyBuckets (fs.dirtyIdx + 1) = b
+  · rw [hbb, Function.update_self]
+    have := hrv.1
+    have := hrv.2.1
+    have := hrv.2.2
+    omega
+  · rw [Function.update_of_ne hbb]
+    exact rebSliceIdx_lt_of_core hcore hbN
 
 /-- `Realizes .exact` certificate for `epochTickStage2GenProg`. -/
 theorem realizes_epochTickStage2Gen :
@@ -166,7 +159,8 @@ theorem realizes_epochTickStage2Gen :
     dsimp only at *
     try simp only [Prod.mk.eta] at *
     obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, heq_wp, hseed, hrep, hcore, hpre, hs2⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    have hw_eq := henv.2.2.1
+    subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
     have hh := fastMemHdrs hrep
     have h2w := henv.two_le_w
@@ -181,8 +175,7 @@ theorem realizes_epochTickStage2Gen :
       (by dsimp [hdrDirtyCount]; omega) (s := s)
     rw [hh.dirtyIdx] at hdi_res
     rw [hh.dirtyCount] at hdc_res
-    simp only [hcp_eq] at *
-    simp only [hdi_st, hdi_res, hdc_st, hdc_res, wp_large_sMax hth] at *
+    simp only [hcp_eq, hdi_st, hdi_res, hdc_st, hdc_res, wp_large_sMax hth] at *
     first
     | exact h2w
     | exact henv.fits_const (by decide)
@@ -244,11 +237,9 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
   unfold epochTickStage2GenProg; dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
   simp only [pure_bind, hsmax_cp]
-  dsimp only [epochTickStage2]
   by_cases hdi_lt : fs.dirtyIdx < fs.dirtyCount
-  · rw [ite_eq_left hdi_lt]
-    dsimp only [ValidEpochStagePreTick] at hpre
-    have hpre2 := hpre
+  · have hpre2 := hpre
+    dsimp only [ValidEpochStagePreTick] at hpre2
     rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
       ite_eq_right (by omega : ¬(fs.rebStage = 1)), ite_eq_left hs2] at hpre2
     set b := fs.dirtyBuckets fs.dirtyIdx
@@ -259,62 +250,62 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
       (by dsimp [hdrRebCandSalt]; omega) (s := s)
     rw [hh.rebCandSalt] at hcd_res
+    set pCs := if fs.rebCandSalt < sMaxWhp c n_max then
+        rebScanLoopGenProg ((((mkWhpParams c U V w n_max, base), b), ()), 16) >>= fun _ =>
+          stage2PostScanGenProg ((cp, base), b)
+      else pure ()
+    suffices hbody :
+        memoryCost pCs s + memoryCost (readDirtyBucketGenProg ((cp, base), fs.dirtyIdx)) s + 3 ≤
+          32 * hashEvalCostWhp c + 43930 ∧
+        ValidProg w (base + largeSpaceWhp c U V w n_max) s pCs ∧
+        FastStateStep base c U V w n_max θ (epochTickStage2 c U n_max θ fs) s
+          ((Memory.spec 0).clientState s pCs) by
+      refine ⟨?_, ?_, ?_⟩
+      · have := hbody.1
+        dsimp only [pCs, cp, b] at hrd_st hrd_res hrd_mc hcd_mc this ⊢
+        simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind] at this ⊢
+        rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_left hdi_lt]
+        simp only [memoryCost_bind]
+        rw [hrd_mc] at this
+        rw [hrd_st, hrd_res, hrd_mc, hcd_st, hcd_res, hcd_mc]; omega
+      · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
+        refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
+        refine validProg_bind hrd_vp ?_; rw [hrd_st, hrd_res]
+        refine validProg_bind hcd_vp ?_
+        rw [hcd_st, hcd_res]; exact hbody.2.1
+      · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
+          ite_eq_left hdi_lt, clientState_bind, hrd_st, hrd_res, clientState_bind, hcd_st, hcd_res]
+        exact hbody.2.2
+    dsimp only [epochTickStage2]; rw [ite_eq_left hdi_lt]
     by_cases hcs_lt : fs.rebCandSalt < sMaxWhp c n_max
-    · rw [ite_eq_left hcs_lt]
+    · dsimp only [pCs]; rw [ite_eq_left hcs_lt, ite_eq_left hcs_lt]
       obtain ⟨_, hrIdx, hcnt_le, hq_all, hbp_v, hcoll_k, hrvS, hrIdxS, hcandS_lt,
-        hinsS_le, hdiS, hnxtS⟩ :=
-        stage2_rebScan16_facts henv hcore hpre hs2 hdi_lt hcs_lt
+        hinsS_le, hdiS, hnxtS⟩ := stage2_rebScan16_facts henv hcore hpre hs2 hdi_lt hcs_lt
       obtain ⟨_, hscan_mc, hscan_vp, hscan_step⟩ := rebScanLoop_spec henv hb θ 16 fs s
         hcore.curEp_or hrIdx hcnt_le hq_all hbp_v hcoll_k hseed hrep
       set sScan := (Memory.spec 0).clientState s
         (rebScanLoopGenProg ((((mkWhpParams c U V w n_max, base), b), ()), 16))
-      set fsScan := rebScanSteps c U n_max θ b 16 fs
       obtain ⟨hps_mc, hps_vp, hps_step⟩ :=
-        stage2PostScanGenProg_fastStep (fsScan := fsScan) henv hb hrvS
-          hrIdxS hcandS_lt hinsS_le hdiS hnxtS
+        stage2PostScanGenProg_fastStep (fsScan := rebScanSteps c U n_max θ b 16 fs)
+          henv hb hrvS hrIdxS hcandS_lt hinsS_le hdiS hnxtS
           hscan_step.2.1 hscan_step.2.2.1 (s := sScan)
-      refine ⟨?_, ?_, ?_⟩
+      refine ⟨?_, validProg_bind hscan_vp hps_vp, ?_⟩
       · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_left hdi_lt]
-        simp only [memoryCost_bind]
-        rw [hrd_st, hrd_res, hrd_mc, hcd_st, hcd_res, hcd_mc, ite_eq_left hcs_lt]
-        simp only [memoryCost_bind]
-        dsimp only [sScan, cp, b] at hscan_mc hps_mc ⊢; omega
-      · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
-        refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
-        refine validProg_bind hrd_vp ?_; rw [hrd_st, hrd_res]
-        refine validProg_bind hcd_vp ?_; rw [hcd_st, hcd_res, ite_eq_left hcs_lt]
-        exact validProg_bind hscan_vp hps_vp
-      · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
-          ite_eq_left hdi_lt, clientState_bind, hrd_st, hrd_res,
-          clientState_bind, hcd_st, hcd_res, ite_eq_left hcs_lt, clientState_bind]
-        exact hscan_step.trans hps_step
-    · rw [ite_eq_right hcs_lt]
-      refine ⟨?_, ?_, ?_⟩
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_left hdi_lt]
-        simp only [memoryCost_bind]
-        rw [hrd_st, hrd_res, hrd_mc, hcd_st, hcd_res, hcd_mc, ite_eq_right hcs_lt,
-          memoryCost_pure]; omega
-      · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
-        refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
-        refine validProg_bind hrd_vp ?_; rw [hrd_st, hrd_res]
-        refine validProg_bind hcd_vp ?_; rw [hcd_st, hcd_res, ite_eq_right hcs_lt]
-        exact validProg_pure _
-      · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
-          ite_eq_left hdi_lt, clientState_bind, hrd_st, hrd_res,
-          clientState_bind, hcd_st, hcd_res, ite_eq_right hcs_lt, clientState_pure_whp]
-        exact FastStateStep.refl hseed hrep
-  · rw [ite_eq_right hdi_lt]
+        dsimp only [sScan, cp, b] at hrd_mc hscan_mc hps_mc ⊢; omega
+      · rw [clientState_bind]; exact hscan_step.trans hps_step
+    · dsimp only [pCs]; rw [ite_eq_right hcs_lt, ite_eq_right hcs_lt, clientState_pure_whp]
+      refine ⟨?_, validProg_pure _, FastStateStep.refl hseed hrep⟩
+      simp only [memoryCost_pure]
+      dsimp only [cp] at hrd_mc ⊢; omega
+  · dsimp only [epochTickStage2]; rw [ite_eq_right hdi_lt]
     obtain ⟨ht3_mc, ht3_vp, ht3_step⟩ := tickToStage3Prog_fastStep henv hseed hrep (s := s)
     refine ⟨?_, ?_, ?_⟩
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
       rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_right hdi_lt]; omega
     · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
-      refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_right hdi_lt]
-      exact ht3_vp
-    · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
-        ite_eq_right hdi_lt]
+      refine validProg_bind hdc_vp ?_
+      rw [hdc_st, hdc_res, ite_eq_right hdi_lt]; exact ht3_vp
+    · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res, ite_eq_right hdi_lt]
       exact ht3_step
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal
