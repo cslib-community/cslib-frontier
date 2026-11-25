@@ -525,62 +525,67 @@ private theorem toNat_lengthWord {cLen : Circuit signature m K}
   rw [hLen, word_lengthBits, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (D.length_lt _)]
   rfl
 
+private theorem synthesis_classCircuit (c : Circuit signature m K) :
+    Synthesis interpretation (inputs (m + K))
+      (wordWires (fun x => BitString.equivBitVec
+        (c.eval interpretation (fun i => x (Fin.castAdd K i))))) c.size := by
+  simpa only [wordWires, BitString.getLsbD_equivBitVec] using
+    Synthesis.circuit (I := interpretation) (s := inputs (m + K)) c
+      (fun i x => x (Fin.castAdd K i)) (fun i => ⟨Fin.castAdd K i, rfl⟩)
+
+private theorem wordWires_posWord_subset :
+    wordWires (PrimeCycles.posWord (m := m) (K := K)) ⊆ inputs (m + K) := by
+  rintro _ ⟨i, rfl⟩
+  exact ⟨Fin.natAdd m i, by simp only [PrimeCycles.posWord, BitString.getLsbD_equivBitVec]⟩
+
+private theorem wires_pack_subset {p : BitString (m + K) → BitVec K}
+    {s : Set (BooleanFunction (m + K))}
+    (hinputs : inputs (m + K) ⊆ s) (hpos : wordWires p ⊆ s) :
+    wires (fun x => PrimeCycles.pack (PrimeCycles.classWord x) (p x)) ⊆ s := by
+  rintro _ ⟨bit, rfl⟩
+  induction bit using Fin.addCases with
+  | left i =>
+    apply hinputs
+    exact ⟨Fin.castAdd K i, by
+      simp only [PrimeCycles.pack, Fin.append_left, PrimeCycles.classWord,
+        BitString.getLsbD_equivBitVec]⟩
+  | right i =>
+    apply hpos
+    exact ⟨i, by simp only [PrimeCycles.pack, Fin.append_right]⟩
+
 /-- Given a circuit `cLen` computing the `K`-bit class length `D.lengthBits`, the single-step
 permutation `D.step` has a circuit of size at most `cLen.size + 50 * K + 20`. -/
 theorem step_circuit (cLen : Circuit signature m K)
     (hLen : cLen.Computes interpretation D.lengthBits) :
     ∃ out : Circuit signature (m + K) (m + K),
       out.Computes interpretation D.step ∧ out.size ≤ cLen.size + 50 * K + 20 := by
-  let init : BitString (m + K) → BitString m := fun x i => x (Fin.castAdd K i)
-  let a := fun x : BitString (m + K) => BitString.equivBitVec (cLen.eval interpretation (init x))
+  let a := fun x : BitString (m + K) =>
+    BitString.equivBitVec (cLen.eval interpretation (fun i => x (Fin.castAdd K i)))
   let b := PrimeCycles.posWord (m := m) (K := K)
   let constants : Set (BooleanFunction (m + K)) := {fun _ => false, fun _ => true}
-  let s0 := inputs (m + K) ∪ wires (fun x => cLen.eval interpretation (init x))
-  let src := s0 ∪ constants
-  have hc (v : Bool) : (fun _ : BitString (m + K) => v) ∈ src := by
-    cases v <;> simp [src, constants]
-  have ha (i : Fin K) : (fun x => (a x).getLsbD i.val) ∈ src := by
-    left; right
-    simpa only [a, BitString.getLsbD_equivBitVec] using
-      (show (fun x => cLen.eval interpretation (init x) i) ∈
-        wires (fun x => cLen.eval interpretation (init x)) from ⟨i, rfl⟩)
-  have hb (i : Fin K) : (fun x => (b x).getLsbD i.val) ∈ src := by
-    left; left
-    exact ⟨Fin.natAdd m i, by funext x; simp [b, PrimeCycles.posWord]⟩
-  have hcirc := Synthesis.circuit (I := interpretation) (s := inputs (m + K)) cLen
-    (fun i x => init x i) (fun i => ⟨Fin.castAdd K i, rfl⟩)
-  have hconst : Synthesis interpretation s0 constants 2 :=
+  let s0 := (Synthesis.Builder.start interpretation (inputs (m + K))).add
+    (synthesis_classCircuit cLen)
+  have hconst : Synthesis interpretation s0.wires constants 2 :=
     (Synthesis.const false).union (Synthesis.const true)
-  have hstep := ModulusCounter.synthesis_stepValue src a b ha hb hc
-  have htotal : Synthesis interpretation (inputs (m + K))
-      (s0 ∪ (constants ∪ wordWires (fun x => ModulusCounter.stepValue (a x) (b x))))
-      (cLen.size + 50 * K + 20) := by
-    have h1 : Synthesis interpretation (inputs (m + K))
-        (s0 ∪ (constants ∪ wordWires (fun x => ModulusCounter.stepValue (a x) (b x))))
-        (0 + (cLen.size + (2 + (50 * K + 18)))) := by
-      simpa only [s0, wires, Set.union_assoc] using
-        (Synthesis.of_subset (I := interpretation)
-          (s := inputs (m + K)) (t := inputs (m + K)) Set.Subset.rfl).union
-          (hcirc.comp (hconst.comp hstep))
-    exact h1.mono Set.Subset.rfl Set.Subset.rfl (by omega)
-  have hwires : wires D.step ⊆
-      s0 ∪ (constants ∪ wordWires (fun x => ModulusCounter.stepValue (a x) (b x))) := by
-    rintro _ ⟨bit, rfl⟩
-    induction bit using Fin.addCases with
-    | left i =>
-      left; left
-      exact ⟨Fin.castAdd K i, by
-        funext x
-        simp only [step, PrimeCycles.step, PrimeCycles.power, PrimeCycles.pack, Fin.append_left,
-          PrimeCycles.classWord, BitString.getLsbD_equivBitVec]⟩
-    | right i =>
-      right; right
-      refine ⟨i, ?_⟩
-      funext x
-      simp only [step, PrimeCycles.step, PrimeCycles.power, PrimeCycles.pack, Fin.append_right]
-      have ha_toNat : (a x).toNat = D.length (PrimeCycles.classWord x) := D.toNat_lengthWord hLen x
-      rw [← ha_toNat, ← ModulusCounter.stepValue_spec]
-  exact (htotal.mono Set.Subset.rfl hwires le_rfl).exists_circuit_outputs
+  let src := s0.add hconst
+  have ha : wordWires a ⊆ src.wires := Set.subset_union_right.trans Set.subset_union_left
+  have hinputs : inputs (m + K) ⊆ src.wires :=
+    Set.subset_union_left.trans Set.subset_union_left
+  have hc (v : Bool) : (fun _ : BitString (m + K) => v) ∈ src.wires := by
+    apply Set.subset_union_right (s := s0.wires)
+    cases v <;> simp [constants]
+  let out := src.add (ModulusCounter.synthesis_stepValue src.wires a b
+    (fun i => ha ⟨i, rfl⟩) (fun i => hinputs (wordWires_posWord_subset ⟨i, rfl⟩)) hc)
+  have hpack : (fun x => PrimeCycles.pack (PrimeCycles.classWord x)
+      (ModulusCounter.stepValue (a x) (b x))) = D.step := by
+    funext x
+    rw [ModulusCounter.stepValue_spec, D.toNat_lengthWord hLen x]
+    rfl
+  apply (out.finish ?_ ?_).exists_circuit_outputs
+  · rw [← hpack]
+    exact wires_pack_subset (hinputs.trans Set.subset_union_left) Set.subset_union_right
+  · change 0 + cLen.size + 2 + (50 * K + 18) ≤ _
+    lia
 
 /-- Given circuits `cLen` for `D.lengthBits` and `cRem` for `D.remainderBits T`, the `T`-th power
 `D.step^[T]` has a circuit of size at most `cLen.size + cRem.size + 100 * (K + 1)`. -/
@@ -594,37 +599,12 @@ theorem power_circuit (T : ℕ) (cLen cRem : Circuit signature m K)
   let a := fun x : BitString (m + K) => BitString.equivBitVec (cLen.eval interpretation (init x))
   let b := PrimeCycles.posWord (m := m) (K := K)
   let r := fun x : BitString (m + K) => BitString.equivBitVec (cRem.eval interpretation (init x))
-  let s := inputs (m + K) ∪
-    (wires (fun x => cLen.eval interpretation (init x)) ∪
-      wires (fun x => cRem.eval interpretation (init x)))
-  have ha : wordWires a ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    right; left
-    simpa only [a, BitString.getLsbD_equivBitVec] using
-      (show (fun x => cLen.eval interpretation (init x) i) ∈
-        wires (fun x => cLen.eval interpretation (init x)) from ⟨i, rfl⟩)
-  have hb : wordWires b ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    left
-    exact ⟨Fin.natAdd m i, by funext x; simp [b, PrimeCycles.posWord]⟩
-  have hr : wordWires r ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    right; right
-    simpa only [r, BitString.getLsbD_equivBitVec] using
-      (show (fun x => cRem.eval interpretation (init x) i) ∈
-        wires (fun x => cRem.eval interpretation (init x)) from ⟨i, rfl⟩)
-  have hs := synthesis_addResidue s a b r ha hb hr
-  have hcircLen := Synthesis.circuit (I := interpretation) (s := inputs (m + K)) cLen
-    (fun i x => init x i) (fun i => ⟨Fin.castAdd K i, rfl⟩)
-  have hcircRem := Synthesis.circuit (I := interpretation) (s := inputs (m + K)) cRem
-    (fun i x => init x i) (fun i => ⟨Fin.castAdd K i, rfl⟩)
-  have htotal : Synthesis interpretation (inputs (m + K))
-      (s ∪ wordWires (fun x => addResidue (a x) (b x) (r x)))
-      (cLen.size + cRem.size + 100 * (K + 1)) := by
-    simpa only [s, wires, Set.union_assoc, Nat.zero_add] using
-      (Synthesis.of_subset (I := interpretation)
-        (s := inputs (m + K)) (t := inputs (m + K)) Set.Subset.rfl).union
-        ((hcircLen.union hcircRem).comp hs)
+  let src := (Synthesis.Builder.start interpretation (inputs (m + K))).add
+    ((synthesis_classCircuit cLen).union (synthesis_classCircuit cRem))
+  let out := src.add (synthesis_addResidue src.wires a b r
+    (Set.subset_union_left.trans Set.subset_union_right)
+    (wordWires_posWord_subset.trans Set.subset_union_left)
+    (Set.subset_union_right.trans Set.subset_union_right))
   have hspec (x : BitString (m + K)) :
       addResidue (a x) (b x) (r x) =
         BitVec.ofNat K
@@ -644,23 +624,18 @@ theorem power_circuit (T : ℕ) (cLen cRem : Circuit signature m K)
     rw [hr_eq]
     simp only [hpos, ↓reduceIte, BitVec.toNat_ofNat]
     exact Nat.mod_eq_of_lt ((Nat.mod_lt T hpos).trans (D.length_lt _))
-  have hwires : wires (D.step^[T]) ⊆
-      s ∪ wordWires (fun x => addResidue (a x) (b x) (r x)) := by
+  have hpack : (fun x => PrimeCycles.pack (PrimeCycles.classWord x)
+      (addResidue (a x) (b x) (r x))) = D.step^[T] := by
     rw [step, PrimeCycles.iterate_step D.length D.length_lt]
-    rintro _ ⟨bit, rfl⟩
-    induction bit using Fin.addCases with
-    | left i =>
-      left; left
-      exact ⟨Fin.castAdd K i, by
-        funext x
-        simp only [PrimeCycles.power, PrimeCycles.pack, Fin.append_left, PrimeCycles.classWord,
-          BitString.getLsbD_equivBitVec]⟩
-    | right i =>
-      right
-      refine ⟨i, ?_⟩
-      funext x
-      simp only [hspec, PrimeCycles.power, PrimeCycles.pack, Fin.append_right, b]
-  exact (htotal.mono Set.Subset.rfl hwires le_rfl).exists_circuit_outputs
+    funext x
+    rw [hspec]
+    rfl
+  apply (out.finish ?_ ?_).exists_circuit_outputs
+  · rw [← hpack]
+    exact wires_pack_subset (Set.subset_union_left.trans Set.subset_union_left)
+      Set.subset_union_right
+  · change 0 + (cLen.size + cRem.size) + 100 * (K + 1) ≤ _
+    simp only [Nat.zero_add, le_refl]
 
 /-- Construct `PrimeCycleData` from the hash-class prime construction `PrimeCycles.classPrime`. -/
 def ofHash (m g : ℕ) (f : ℕ → ℕ) (hf : ∀ z, f z < 2 ^ m) :
