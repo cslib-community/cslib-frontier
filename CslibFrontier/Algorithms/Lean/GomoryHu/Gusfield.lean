@@ -409,13 +409,11 @@ private theorem GInv.disjoint_farSide (hsym : ∀ X, f Xᶜ = f X) {r : V} {P : 
   have hY : ∀ x, x ∈ Y ↔ p x ∈ Y := by
     intro x
     simp only [Y, Finset.mem_inter]
-    by_cases hxk : x = k
-    · subst hxk
-      have h2 : p x ∉ farSide S t k' := fun h => hnot hk hk' hne ((I.mem_farSide_iff hk' hne).mpr h)
+    obtain rfl | hxk := eq_or_ne x k
+    · have h2 : p x ∉ farSide S t k' := fun h => hnot hk hk' hne ((I.mem_farSide_iff hk' hne).mpr h)
       exact iff_of_false (fun h => hnot hk hk' hne h.2) (fun h => h2 h.2)
-    by_cases hxk' : x = k'
-    · subst hxk'
-      have h2 : p x ∉ farSide S t k := fun h =>
+    obtain rfl | hxk' := eq_or_ne x k'
+    · have h2 : p x ∉ farSide S t k := fun h =>
         hnot hk' hk (Ne.symm hne) ((I.mem_farSide_iff hk (Ne.symm hne)).mpr h)
       exact iff_of_false (fun h => hnot hk' hk (Ne.symm hne) h.1) (fun h => h2 h.1)
     rw [I.mem_farSide_iff hk hxk, I.mem_farSide_iff hk' hxk']
@@ -434,16 +432,14 @@ private theorem GInv.cover {r : V} {P : Finset V} {p : V → V} {S : V → Finse
   | @head w c hwc _ ih =>
     rcases ih with ⟨k, hk, hck⟩ | hct | ⟨hcP, hpc⟩
     · -- `c` is on the far side of `(k, p k)`; so is `w` unless the step crosses that edge.
-      by_cases hwk : w = k
-      · subst hwk
-        rcases I.edgesAt_cases hk with ⟨htk, -⟩ | ⟨-, hkt⟩
+      obtain rfl | hwk := eq_or_ne w k
+      · rcases I.edgesAt_cases hk with ⟨htk, -⟩ | ⟨-, hkt⟩
         · exact .inl ⟨w, hk, I.self_mem_farSide hk htk⟩
         · exact .inr (.inl hkt)
       rcases hwc with h | h
       · exact .inl ⟨k, hk, (I.mem_farSide_iff hk hwk).mpr (h ▸ hck)⟩
-      · by_cases hck' : c = k
-        · subst hck'
-          rcases I.edgesAt_cases hk with ⟨-, hpk⟩ | ⟨htk, -⟩
+      · obtain rfl | hck' := eq_or_ne c k
+        · rcases I.edgesAt_cases hk with ⟨-, hpk⟩ | ⟨htk, -⟩
           · exact .inr (.inl (h.symm.trans hpk))
           · obtain ⟨hcP, hcr, -⟩ := mem_edgesAt.mp hk
             simp only [farSide, htk, ↓reduceIte, Finset.mem_compl] at hck
