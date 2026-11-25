@@ -69,21 +69,15 @@ theorem card_filter_mac_eq_le {n : ℕ} [NeZero n] {x x' : ZMod n} (m m' : ZMod 
       n / n.minFac := by
   classical
   let f : (ZMod n)[X] := C (x - x') * X + C (m - m')
-  have hlead : x - x' ≠ 0 := sub_ne_zero.mpr hne.symm
-  have h1 : f.coeff 1 = x - x' := by simp [f, coeff_C]
-  have hf : f ≠ 0 := fun h => hlead (by rw [← h1, h, coeff_zero])
-  have hdeg : f.natDegree ≤ 1 := natDegree_linear_le
+  have hf : f ≠ 0 := fun h => sub_ne_zero.mpr hne.symm <| by
+    simpa [f, coeff_C] using congrArg (fun p : (ZMod n)[X] => p.coeff 1) h
   have hsub : (Finset.univ.filter fun delta : ZMod n => x * delta + m = x' * delta + m') ⊆
-      Finset.univ.filter fun delta : ZMod n => f.eval delta = 0 := by
-    intro delta hdelta
-    rw [Finset.mem_filter] at hdelta ⊢
-    refine ⟨Finset.mem_univ _, ?_⟩
-    simp only [f, eval_add, eval_mul, eval_C, eval_X]
-    linear_combination hdelta.2
-  calc _ ≤ _ := Finset.card_le_card hsub
-    _ ≤ f.natDegree * (n / n.minFac) := ZMod.card_filter_eval_eq_zero_le hf
-    _ ≤ 1 * (n / n.minFac) := Nat.mul_le_mul_right _ hdeg
-    _ = n / n.minFac := one_mul _
+      Finset.univ.filter fun delta : ZMod n => f.eval delta = 0 := fun delta hdelta => by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, f, eval_add, eval_mul, eval_C,
+      eval_X] at hdelta ⊢
+    linear_combination hdelta
+  exact (Finset.card_le_card hsub).trans <| (ZMod.card_filter_eval_eq_zero_le hf).trans <|
+    (Nat.mul_le_mul_right _ natDegree_linear_le).trans_eq (one_mul _)
 
 /-- **IT-MAC binding over `ZMod n`** ([HazayYang2024], §5.1, Lemma 3). For opened value vectors
 `x' ≠ x`, a forged opening passes verification under a uniform global key with probability at
@@ -97,17 +91,13 @@ theorem toOuterMeasure_voleVerifyOpening_le_minFac {n k : ℕ} [NeZero n]
       1 / (n.minFac : ℝ≥0∞) := by
   classical
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
-  calc _ ≤ (PMF.uniformOfFintype (ZMod n)).toOuterMeasure
-        {delta : ZMod n | x i * delta + v i = x' i * delta + v' i} := by
-        apply MeasureTheory.measure_mono
-        intro delta h
-        exact h i
-    _ ≤ ((1 : ℕ) : ℝ≥0∞) / (n.minFac : ℝ≥0∞) := by
-        refine PMF.toOuterMeasure_uniformOfFintype_le_div (Nat.minFac_pos n) ?_
-        rw [ZMod.card, one_mul]
-        exact (Nat.mul_le_mul_left _ (card_filter_mac_eq_le (v i) (v' i) hi)).trans
-          (Nat.mul_div_le n n.minFac)
-    _ = 1 / (n.minFac : ℝ≥0∞) := by rw [Nat.cast_one]
+  have hsub : {delta : ZMod n | ∀ j, x j * delta + v j = x' j * delta + v' j} ⊆
+      {delta : ZMod n | x i * delta + v i = x' i * delta + v' i} := fun _ h => h i
+  refine ((PMF.uniformOfFintype (ZMod n)).toOuterMeasure.mono hsub).trans ?_
+  exact (PMF.toOuterMeasure_uniformOfFintype_le_div (Nat.minFac_pos n) (by
+    rw [ZMod.card n, one_mul]
+    exact (Nat.mul_le_mul_left _ (card_filter_mac_eq_le (v i) (v' i) hi)).trans
+      (Nat.mul_div_le n n.minFac))).trans_eq (by rw [Nat.cast_one])
 
 /-! ### Quadratic root bound -/
 
@@ -119,17 +109,14 @@ theorem card_filter_quadratic_eq_zero_le {n : ℕ} [NeZero n] {a : ZMod n} (b c 
       2 * (n / n.minFac) := by
   classical
   let f : (ZMod n)[X] := C a * X ^ 2 + C b * X + C c
-  have h2 : f.coeff 2 = a := by simp [f]
-  have hf : f ≠ 0 := fun h => ha (by rw [← h2, h, coeff_zero])
+  have hf : f ≠ 0 := fun h => ha <| by
+    simpa [f] using congrArg (fun p : (ZMod n)[X] => p.coeff 2) h
   have hsub : (Finset.univ.filter fun χ : ZMod n => a * χ ^ 2 + b * χ + c = 0) ⊆
-      Finset.univ.filter fun χ : ZMod n => f.eval χ = 0 := by
-    intro χ hχ
-    rw [Finset.mem_filter] at hχ ⊢
-    refine ⟨Finset.mem_univ _, ?_⟩
-    simpa [f] using hχ.2
-  calc _ ≤ _ := Finset.card_le_card hsub
-    _ ≤ f.natDegree * (n / n.minFac) := ZMod.card_filter_eval_eq_zero_le hf
-    _ ≤ 2 * (n / n.minFac) := Nat.mul_le_mul_right _ natDegree_quadratic_le
+      Finset.univ.filter fun χ : ZMod n => f.eval χ = 0 := fun χ hχ => by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hχ ⊢
+    simpa [f] using hχ
+  exact (Finset.card_le_card hsub).trans <| (ZMod.card_filter_eval_eq_zero_le hf).trans <|
+    Nat.mul_le_mul_right _ natDegree_quadratic_le
 
 /-! ### Sharpness -/
 
@@ -144,21 +131,19 @@ theorem ringMacGap_mul_eq_zero_iff {n : ℕ} [NeZero n] (y : ZMod n) :
   have hd : 0 < n / n.minFac :=
     Nat.div_pos (Nat.minFac_le (Nat.pos_of_ne_zero (NeZero.ne n))) (Nat.minFac_pos n)
   have key : n ∣ n / n.minFac * y.val ↔ n.minFac ∣ y.val := by
-    have h := Nat.mul_dvd_mul_iff_left hd (b := n.minFac) (c := y.val)
-    rwa [Nat.div_mul_cancel (Nat.minFac_dvd n)] at h
-  have hy : ringMacGap n * y = ((n / n.minFac * y.val : ℕ) : ZMod n) := by
-    rw [ringMacGap, Nat.cast_mul, ZMod.natCast_zmod_val]
-  rw [hy, ZMod.natCast_eq_zero_iff, key, ZMod.castHom_apply, ZMod.cast_eq_val,
-    ZMod.natCast_eq_zero_iff]
+    simpa [Nat.div_mul_cancel (Nat.minFac_dvd n)] using
+      Nat.mul_dvd_mul_iff_left hd (b := n.minFac) (c := y.val)
+  rw [show ringMacGap n * y = ((n / n.minFac * y.val : ℕ) : ZMod n) by
+      rw [ringMacGap, Nat.cast_mul, ZMod.natCast_zmod_val],
+    ZMod.natCast_eq_zero_iff, key, ZMod.castHom_apply, ZMod.cast_eq_val, ZMod.natCast_eq_zero_iff]
 
 /-- For `n > 1`, `ringMacGap n` is nonzero. -/
 theorem ringMacGap_ne_zero {n : ℕ} (hn : 1 < n) : ringMacGap n ≠ 0 := by
   have : NeZero n := ⟨by omega⟩
-  intro h
-  have h1 := (ringMacGap_mul_eq_zero_iff (1 : ZMod n)).1 (by rw [h, zero_mul])
-  rw [map_one] at h1
   have : Fact (1 < n.minFac) := ⟨(Nat.minFac_prime (by omega)).one_lt⟩
-  exact one_ne_zero h1
+  intro h
+  exact one_ne_zero <| by
+    simpa only [map_one] using (ringMacGap_mul_eq_zero_iff (1 : ZMod n)).1 (by simp [h])
 
 /-- **Lemma 3 is sharp.** Shifting the value by `ringMacGap n` leaves exactly `n / n.minFac`
 accepting keys. -/
@@ -179,8 +164,7 @@ theorem card_filter_quadratic_ringMacGap {n : ℕ} [NeZero n] (hn : 1 < n) :
     (Finset.univ.filter fun χ : ZMod n =>
       ringMacGap n * χ ^ 2 + -ringMacGap n * χ + 0 = 0).card = 2 * (n / n.minFac) := by
   classical
-  have hp := Nat.minFac_prime (show n ≠ 1 by omega)
-  have : Fact n.minFac.Prime := ⟨hp⟩
+  have : Fact n.minFac.Prime := ⟨Nat.minFac_prime (by omega)⟩
   set g := ZMod.castHom (Nat.minFac_dvd n) (ZMod n.minFac)
   have hsplit : (Finset.univ.filter fun χ : ZMod n =>
       ringMacGap n * χ ^ 2 + -ringMacGap n * χ + 0 = 0) =
@@ -188,14 +172,10 @@ theorem card_filter_quadratic_ringMacGap {n : ℕ} [NeZero n] (hn : 1 < n) :
         Finset.univ.filter fun χ : ZMod n => g χ = 1 := by
     ext χ
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union]
-    rw [show ringMacGap n * χ ^ 2 + -ringMacGap n * χ + 0 = ringMacGap n * (χ * (χ - 1)) by
-      ring, ringMacGap_mul_eq_zero_iff, map_mul, map_sub, map_one, mul_eq_zero, sub_eq_zero]
-  have hdisj : Disjoint (Finset.univ.filter fun χ : ZMod n => g χ = 0)
-      (Finset.univ.filter fun χ : ZMod n => g χ = 1) := by
-    rw [Finset.disjoint_filter]
-    intro χ _ h0 h1
-    exact zero_ne_one (h0.symm.trans h1)
-  rw [hsplit, Finset.card_union_of_disjoint hdisj,
+    rw [show ringMacGap n * χ ^ 2 + -ringMacGap n * χ + 0 = ringMacGap n * (χ * (χ - 1)) by ring,
+      ringMacGap_mul_eq_zero_iff, map_mul, map_sub, map_one, mul_eq_zero, sub_eq_zero]
+  rw [hsplit, Finset.card_union_of_disjoint (Finset.disjoint_filter.mpr fun _ _ h0 h1 =>
+      zero_ne_one (h0.symm.trans h1)),
     ZMod.card_filter_castHom_eq (Nat.minFac_dvd n),
     ZMod.card_filter_castHom_eq (Nat.minFac_dvd n), two_mul]
 
