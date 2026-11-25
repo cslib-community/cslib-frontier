@@ -255,12 +255,14 @@ private theorem pair_rightwards (hD : WellFormed N slots M D)
   obtain ⟨w', hw'⟩ := exists_succ hp hq (rowNode_ne_topNode _ _ _)
   rcases pairLeft_nbrs hs (Or.inr (hw.rel hch)) with rfl | rfl | ⟨d, hd, hdi, hds, rfl⟩
   · exact absurd hw (h.asymm hnd)
-  · refine hsucc_q hw' (fun he => hw'.asymm hnd (he ▸ hw)) fun d _ _ _ he => ?_
+  · -- `p → q`: the successor of `q` is neither `p` nor a clause node of the slot.
+    refine hsucc_q hw' (fun he => hw'.asymm hnd (he ▸ hw)) fun d _ _ _ he => ?_
     subst he
     rcases separator_dir_succ hp hi hs with ⟨h₁, -⟩ | ⟨-, h₁⟩
     · exact clauseNode_ne_rowNode _ _ _ (hw'.right_unique hnd h₁)
     · simpa using hw.left_unique hnd h₁
-  · exact hsucc_q hw' (fun he => by subst he; simpa using hw'.left_unique hnd h)
+  · -- `p → c`: the successor of `q` is neither `p` nor a clause node of the slot.
+    exact hsucc_q hw' (fun he => by subst he; simpa using hw'.left_unique hnd h)
       fun d' hd' hdi' hds' he => by
         rw [he, ← clauseNode_eq_of_slot hD hd hd' hdi hds hdi' hds'] at hw'
         simpa using hw'.left_unique hnd hw

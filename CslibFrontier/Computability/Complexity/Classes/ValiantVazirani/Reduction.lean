@@ -386,6 +386,7 @@ theorem reduceWith_mem_USAT {φ : CNF ℕ} {k : ℕ} {w : List Bool}
       CNF.eval_append, Bool.and_eq_true, σ']
     exact ⟨hσ, eval_hashCNF_extend hhash⟩
   simp only [reduceWith, CNF.eval_relabel, CNF.eval_append, Bool.and_eq_true] at hτ
+  -- the point of `τ` is a solution hashing to zero, hence it is the point of `σ`
   have hpoint : point φ.vars ((τ ∘ splitVarToNat) ∘ Sum.inl) = point φ.vars σ :=
     Finset.mem_singleton.1 (hx₀ ▸ Finset.mem_filter.2
       ⟨mem_solutions.2 ⟨_, hτ.1, rfl⟩, hash_point_eq_zero_of_eval hτ.2⟩)
@@ -528,6 +529,7 @@ private theorem three_mul_two_pow_le_card {φ : CNF ℕ} (hφ : φ.Satisfiable) 
   set t := hashBits φ
   set k := goodRows φ
   set n := φ.vars.length
+  -- the event: the selector bits read `k`, and the equations isolate a solution
   have hsub : (Finset.univ.filter fun r : Fin m → Bool =>
       BitString.binaryValue ((List.ofFn r).take t) = k ∧
         Isolates φ (matrix k n ((List.ofFn r).drop t), offset k n ((List.ofFn r).drop t))) ⊆

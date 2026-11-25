@@ -196,11 +196,13 @@ theorem forall_hadamardCode_tensor_equationCoeff_iff {C : α → α → Prop}
   rw [forall_hadamardCode_tensor_equationCoeff_iff_and]
   refine ⟨?_, ?_⟩
   · rintro ⟨hpair, hsum⟩
+    -- Every end has a set variable.
     have hex (b : Fin 2) : ∃ a, x (b, a) = true := by
       by_contra! h
       exact absurd ((sum_eq_zero fun a _ ↦ by simp [h a, Bool.zero_eq_false]).symm.trans (hsum b))
         (by decide)
     choose σ hσ using hex
+    -- Two variables of the same end, or of the two ends violating `C`, are never both set.
     have hboth {p p' : Fin 2 × α} (hp : x p = true) (hp' : x p' = true) : Compatible C p p' :=
       by_contra fun hpp' ↦ by simpa [hp, hp'] using hpair p p' hpp'
     refine ⟨σ, ?_, funext fun ⟨b, a⟩ ↦ ?_⟩
@@ -366,6 +368,7 @@ private theorem expect_hammingDist_div_le_one_sub_acceptProb_inputTest
     (hf : (hammingDist f (hadamardCode x) : ℝ) / 2 ^ Fintype.card (Fin 2 × α) ≤ ε) :
     𝔼 b, (hammingDist (T b) (fun r ↦ hadamardCode x (endEmbed b r)) : ℝ) / 2 ^ Fintype.card α ≤
       1 - (inputTest α).acceptProb (Sum.elim (fun p ↦ T p.1 p.2) f) + 2 * ε := by
+  -- Self-correction reads the encoding of `x` correctly with probability at least `1 - 2ε`.
   have hsc (b : Fin 2) (r : α → Bool) : 𝔼 y, (1 - if selfCorrect f (endEmbed b r) y =
       hadamardCode x (endEmbed b r) then (1 : ℝ) else 0) ≤ 2 * ε := by
     have := one_sub_two_mul_le_expect_selfCorrect_hadamardCode hf (endEmbed b r)

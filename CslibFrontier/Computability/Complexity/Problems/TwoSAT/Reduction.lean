@@ -92,6 +92,7 @@ theorem mem_reachabilityFormula {I : STCONInstance} {c : Clause ℕ} :
 excluding `I` from `STCON`. -/
 private theorem notMem_STCON_of_eval_reachabilityFormula {I : STCONInstance} {σ : ℕ → Bool}
     (hσ : (reachabilityFormula I).eval σ = true) : I ∉ STCON := by
+  -- a satisfying assignment makes every reachable vertex true
   rw [mem_STCON]
   intro hst
   have hcl (c) (hc : c ∈ reachabilityFormula I) : ∃ l ∈ c, σ l.1 = l.2 :=
@@ -118,6 +119,7 @@ theorem reachabilityFormula_mem_TwoSAT_iff (I : STCONInstance) :
     rcases mem_reachabilityFormula.mp hc with rfl | rfl | ⟨_, _, -, rfl⟩ <;> simp
   rw [mem_TwoSAT, and_iff_right hw]
   refine ⟨fun ⟨_, hσ⟩ => notMem_STCON_of_eval_reachabilityFormula hσ, fun hst => ?_⟩
+  -- the reachable vertices give a satisfying assignment
   rw [mem_STCON] at hst
   classical
   let σ (x : ℕ) := decide (∃ h : x < I.n, Relation.ReflTransGen I.Adj I.s ⟨x, h⟩)
@@ -277,6 +279,7 @@ private theorem reachesOut_entry (hB : I.n ≤ B) {u v : ℕ} (hu : u < I.n) (hv
     writer.ReachesOut I.encode (writer.Active B)
       (60, [I.n, I.s, I.t, u, v, 0]) (59, [I.n, I.s, I.t, u, v, 0])
       (if arc I u v then literalBits u false ++ literalBits v true ++ [false] else []) := by
+  -- an entry of the matrix
   have hs := I.s.isLt
   have ht := I.t.isLt
   have hb : ∀ z ∈ [I.n, (I.s : ℕ), (I.t : ℕ), u, v, 0], z ≤ B :=
