@@ -178,23 +178,18 @@ def HasWinningStrategy : Prop := ∃ σ : F.Strategy, σ.IsWinning
 with an edge so labelled, and contains a response to every move of ∀ at each of its members. -/
 theorem hasWinningStrategy_iff : F.HasWinningStrategy ↔ ∃ W : Set F.Position,
     (∀ a, ∃ P ∈ W, ∃ m n, P.network m n = a) ∧ ∀ P ∈ W, ∀ v : P.Move, ∃ Q ∈ W, Q.Answers v := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    exact ⟨{P | σ.Reachable P}, fun a => ⟨_, .opening a, hσ.opening a⟩,
-      fun P hP v => ⟨_, .answer v hP, hσ.answer v hP⟩⟩
-  · rintro ⟨W, hopen, hW⟩
-    choose opening hopenW hopen using hopen
-    have hW (P : F.Position) (v : P.Move) : ∃ Q, P ∈ W → Q ∈ W ∧ Q.Answers v := by
-      by_cases hP : P ∈ W
-      · obtain ⟨Q, hQ⟩ := hW P hP v
-        exact ⟨Q, fun _ => hQ⟩
-      · exact ⟨P, fun h => (hP h).elim⟩
-    choose answer hanswer using hW
-    have hreach (P : F.Position) (hP : Strategy.Reachable ⟨opening, answer⟩ P) : P ∈ W := by
-      induction hP with
-      | opening a => exact hopenW a
-      | answer v _ ih => exact (hanswer _ v ih).1
-    exact ⟨⟨opening, answer⟩, hopen, fun {P} v hP => (hanswer P v (hreach P hP)).2⟩
+  classical
+  refine ⟨fun ⟨σ, hσ⟩ => ⟨{P | σ.Reachable P}, fun a => ⟨_, .opening a, hσ.opening a⟩,
+      fun _ hP v => ⟨_, .answer v hP, hσ.answer v hP⟩⟩, fun ⟨W, hopen, hW⟩ => ?_⟩
+  choose opening hopenW hopen using hopen
+  have hW' (P : F.Position) (v : P.Move) : ∃ Q, P ∈ W → Q ∈ W ∧ Q.Answers v :=
+    if hP : P ∈ W then let ⟨Q, hQ⟩ := hW P hP v; ⟨Q, fun _ => hQ⟩ else ⟨P, fun h => (hP h).elim⟩
+  choose answer hanswer using hW'
+  have hreach (P : F.Position) (hP : Strategy.Reachable ⟨opening, answer⟩ P) : P ∈ W := by
+    induction hP with
+    | opening a => exact hopenW a
+    | answer v _ ih => exact (hanswer _ v ih).1
+  exact ⟨⟨opening, answer⟩, hopen, fun {P} v hP => (hanswer P v (hreach P hP)).2⟩
 
 /-- The form of [HirschHodkinson2001], Convention 1, parts (1) and (2): to win, it is enough that
 ∃ answers the moves that have no witness yet, each by adding a single node as the witness. -/
@@ -205,40 +200,37 @@ theorem HasWinningStrategy.of_forall_exists_comap_castSucc
       (∀ p, N i p = a → N p j ≠ b) → ∃ N' ∈ W (n + 1), N'.comap Fin.castSuccEmb = N ∧
         N' i.castSucc (Fin.last n) = a ∧ N' (Fin.last n) j.castSucc = b) :
     F.HasWinningStrategy := by
-  refine hasWinningStrategy_iff.mpr ⟨{P | P.network ∈ W P.size}, fun a => ?_, ?_⟩
-  · obtain ⟨n, N, hN, h⟩ := opening a
-    exact ⟨⟨n, N⟩, hN, h⟩
-  · rintro ⟨n, N⟩ hN ⟨i, j, a, b, hab⟩
-    by_cases hp : ∃ p, N i p = a ∧ N p j = b
-    · exact ⟨⟨n, N⟩, hN, le_rfl, hp⟩
-    · obtain ⟨N', hN', hNN', hab'⟩ := answer n N hN i j a b hab fun p ha hb => hp ⟨p, ha, hb⟩
-      exact ⟨⟨n + 1, N'⟩, hN', ⟨n.le_succ, hNN'⟩, Fin.last n, hab'⟩
+  classical
+  exact hasWinningStrategy_iff.mpr ⟨{P | P.network ∈ W P.size},
+    fun a => let ⟨n, N, hN, h⟩ := opening a; ⟨⟨n, N⟩, hN, h⟩,
+    fun ⟨n, N⟩ hN ⟨i, j, a, b, hab⟩ =>
+      if hp : ∃ p, N i p = a ∧ N p j = b then ⟨⟨n, N⟩, hN, le_rfl, hp⟩
+      else let ⟨N', hN', hNN', hab'⟩ := answer n N hN i j a b hab fun p ha hb => hp ⟨p, ha, hb⟩
+        ⟨⟨n + 1, N'⟩, hN', ⟨n.le_succ, hNN'⟩, Fin.last n, hab'⟩⟩
 
 /-- If every atom labels an edge of some saturated network, then ∃ has a winning strategy: she
 plays finite subnetworks of these networks. -/
 theorem HasWinningStrategy.of_saturated
     (h : ∀ a, ∃ (D : Type w) (N : AtomicNetwork F D), N.Saturated ∧ ∃ m n, N m n = a) :
     F.HasWinningStrategy := by
-  -- a finite set of nodes can be enlarged to contain any further node
+  classical
   have extend {D : Type w} {k : ℕ} (f : Fin k ↪ D) (p : D) : ∃ (k' : ℕ) (f' : Fin k' ↪ D)
-      (hk : k ≤ k'), (∀ i, f' (i.castLE hk) = f i) ∧ p ∈ Set.range f' := by
-    by_cases hp : p ∈ Set.range f
-    · exact ⟨k, f, le_rfl, fun _ => rfl, hp⟩
-    · exact ⟨k + 1, ⟨Fin.snoc f p, Fin.snoc_injective_of_injective f.injective hp⟩, k.le_succ,
-        fun i => Fin.snoc_castSucc (α := fun _ => D) p f i,
-        Fin.last k, Fin.snoc_last (α := fun _ => D) p f⟩
+      (hk : k ≤ k'), (∀ i, f' (i.castLE hk) = f i) ∧ p ∈ Set.range f' :=
+    if hp : p ∈ Set.range f then ⟨k, f, le_rfl, fun _ => rfl, hp⟩
+    else ⟨k + 1, ⟨Fin.snoc f p, Fin.snoc_injective_of_injective f.injective hp⟩, k.le_succ,
+      fun i => Fin.snoc_castSucc (α := fun _ => D) p f i,
+      Fin.last k, Fin.snoc_last (α := fun _ => D) p f⟩
   refine hasWinningStrategy_iff.mpr ⟨{P | ∃ (D : Type w) (N : AtomicNetwork F D)
     (f : Fin P.size ↪ D), N.Saturated ∧ N.comap f = P.network}, fun a => ?_, ?_⟩
   · obtain ⟨D, N, hN, m, n, rfl⟩ := h a
-    obtain ⟨k₁, f₁, -, -, i, rfl⟩ := extend (.ofIsEmpty : Fin 0 ↪ D) m
+    obtain ⟨_, f₁, -, -, i, rfl⟩ := extend (.ofIsEmpty : Fin 0 ↪ D) m
     obtain ⟨k₂, f₂, hk, hf, j, rfl⟩ := extend f₁ n
     exact ⟨⟨k₂, N.comap f₂⟩, ⟨D, N, f₂, hN, rfl⟩, i.castLE hk, j, by simp [hf]⟩
   · rintro P ⟨D, N, f, hN, hP⟩ ⟨m, n, a, b, hab⟩
-    rw [← hP] at hab
-    obtain ⟨p, rfl, rfl⟩ := hN hab
+    obtain ⟨p, rfl, rfl⟩ := hN (hP ▸ hab)
     obtain ⟨k', f', hk, hf, q, rfl⟩ := extend f p
     exact ⟨⟨k', N.comap f'⟩, ⟨D, N, f', hN, rfl⟩,
-      ⟨hk, hP ▸ AtomicNetwork.ext fun i j => by simp [hf]⟩, q, by simp [hf], by simp [hf]⟩
+      ⟨hk, hP ▸ AtomicNetwork.ext fun _ _ => by simp [hf]⟩, q, by simp [hf], by simp [hf]⟩
 
 /-- If ∃ has a winning strategy and there are countably many atoms, then every atom labels an edge
 of a saturated network: the limit of a play in which ∀ picks the atom and then makes every move
@@ -249,44 +241,34 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
   obtain ⟨P₀, hP₀, m₀, n₀, ha⟩ := hopen a
   have : Nonempty α := ⟨a⟩
   obtain ⟨e, he⟩ := exists_surjective_nat (ℕ × ℕ × α × α)
-  -- a round in which ∀ makes the move coded by `d`, if `d` codes a move
   have step (P : W) (d : ℕ × ℕ × α × α) : ∃ Q : W, P.1 ≤ Q.1 ∧
       ∀ v : P.1.Move, (v.m.1, v.n.1, v.a, v.b) = d → Q.1.Answers v := by
     by_cases hd : ∃ v : P.1.Move, (v.m.1, v.n.1, v.a, v.b) = d
-    · obtain ⟨v, rfl⟩ := hd
-      obtain ⟨Q, hQ, hQv⟩ := hW P.1 P.2 v
-      refine ⟨⟨Q, hQ⟩, hQv.1, ?_⟩
-      rintro ⟨m, n, a, b, _⟩ hv
-      obtain ⟨m', n', a', b', _⟩ := v
-      simp only [Prod.mk.injEq, Fin.val_inj] at hv
-      obtain ⟨rfl, rfl, rfl, rfl⟩ := hv
-      exact hQv
+    · obtain ⟨v, rfl⟩ := hd; obtain ⟨Q, hQ, hQv⟩ := hW P.1 P.2 v
+      refine ⟨⟨Q, hQ⟩, hQv.1, fun ⟨_, _, _, _, _⟩ hv => ?_⟩
+      cases v; simp only [Prod.mk.injEq, Fin.val_inj] at hv
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := hv; exact hQv
     · exact ⟨P, le_rfl, fun v hv => (hd ⟨v, hv⟩).elim⟩
   choose next hle hnext using step
-  -- the play in which the moves of ∀ follow `e`, each code recurring infinitely often
   let play : ℕ → W := fun k => k.rec ⟨P₀, hP₀⟩ fun k P => next P (e k.unpair.1)
   have hplay : Monotone fun k => (play k).1 := monotone_nat_of_le_succ fun k => hle _ _
   have lt_size {i k l : ℕ} (hkl : k ≤ l) (hi : i < (play k).1.size) : i < (play l).1.size :=
     hi.trans_le (Position.size_mono (hplay hkl))
-  -- its limit
   let D : Type := {i : ℕ // ∃ k, i < (play k).1.size}
   have common (d e : D) : ∃ k, d.1 < (play k).1.size ∧ e.1 < (play k).1.size :=
-    let ⟨k, hk⟩ := d.2
-    let ⟨l, hl⟩ := e.2
+    let ⟨k, hk⟩ := d.2; let ⟨l, hl⟩ := e.2
     ⟨max k l, lt_size (le_max_left k l) hk, lt_size (le_max_right k l) hl⟩
   choose lvl hlvl using common
   let label (d e : D) : α := (play (lvl d e)).1.network ⟨d, (hlvl d e).1⟩ ⟨e, (hlvl d e).2⟩
   have label_eq (d e : D) (k : ℕ) (hd : d.1 < (play k).1.size) (he : e.1 < (play k).1.size) :
-      label d e = (play k).1.network ⟨d, hd⟩ ⟨e, he⟩ := by
-    obtain hk | hk := le_total k (lvl d e)
-    · exact Position.network_castLE (hplay hk) ⟨d, hd⟩ ⟨e, he⟩
-    · exact (Position.network_castLE (hplay hk) ⟨d, (hlvl d e).1⟩ ⟨e, (hlvl d e).2⟩).symm
+      label d e = (play k).1.network ⟨d, hd⟩ ⟨e, he⟩ :=
+    (le_total k (lvl d e)).elim (fun hk => Position.network_castLE (hplay hk) ⟨d, hd⟩ ⟨e, he⟩)
+      fun hk => (Position.network_castLE (hplay hk) ⟨d, (hlvl d e).1⟩ ⟨e, (hlvl d e).2⟩).symm
   let N : AtomicNetwork F D :=
     { label := label
       label_mem_id := (AtomicNetwork.label_mem_id _).trans (Fin.ext_iff.trans Subtype.ext_iff.symm)
       conv_label := fun d e => by
-        rw [label_eq e d _ (hlvl d e).2 (hlvl d e).1]
-        exact AtomicNetwork.conv_label _ _ _
+        rw [label_eq e d _ (hlvl d e).2 (hlvl d e).1]; exact AtomicNetwork.conv_label _ _ _
       label_mem_cycles := fun d e f => by
         obtain ⟨l, hf⟩ := f.2
         have hd := lt_size (le_max_left (lvl d e) l) (hlvl d e).1
@@ -294,18 +276,16 @@ theorem HasWinningStrategy.exists_saturated [Countable α] (h : F.HasWinningStra
         have hf := lt_size (le_max_right (lvl d e) l) hf
         rw [label_eq d e _ hd he, label_eq e f _ he hf, label_eq d f _ hd hf]
         exact AtomicNetwork.label_mem_cycles _ _ _ _ }
-  refine ⟨D, N, fun m n a b hab => ?_, ⟨m₀, 0, m₀.2⟩, ⟨n₀, 0, n₀.2⟩, ?_⟩
-  · obtain ⟨j, hj⟩ := he (m, n, a, b)
-    obtain ⟨k, hk, hle⟩ : ∃ k, k.unpair.1 = j ∧ lvl m n ≤ k :=
-      ⟨Nat.pair j (lvl m n), by rw [Nat.unpair_pair], Nat.right_le_pair _ _⟩
-    have hm := lt_size hle (hlvl m n).1
-    have hn := lt_size hle (hlvl m n).2
-    obtain ⟨hPQ, p, hpa, hpb⟩ := hnext (play k) (e k.unpair.1)
-      ⟨⟨m, hm⟩, ⟨n, hn⟩, a, b, label_eq m n k hm hn ▸ hab⟩ (by rw [hk, hj])
-    have hp : p.1 < (play (k + 1)).1.size := p.2
-    exact ⟨⟨p, k + 1, hp⟩, (label_eq _ _ (k + 1) (lt_size k.le_succ hm) hp).trans hpa,
-      (label_eq _ _ (k + 1) hp (lt_size k.le_succ hn)).trans hpb⟩
-  · exact (label_eq _ _ 0 m₀.2 n₀.2).trans ha
+  refine ⟨D, N, fun m n a b hab => ?_, ⟨m₀, 0, m₀.2⟩, ⟨n₀, 0, n₀.2⟩,
+    (label_eq _ _ 0 m₀.2 n₀.2).trans ha⟩
+  obtain ⟨j, hj⟩ := he (m, n, a, b)
+  let k := Nat.pair j (lvl m n)
+  have hm := lt_size (Nat.right_le_pair j (lvl m n)) (hlvl m n).1
+  have hn := lt_size (Nat.right_le_pair j (lvl m n)) (hlvl m n).2
+  obtain ⟨_, p, hpa, hpb⟩ := hnext (play k) (e k.unpair.1)
+    ⟨⟨m, hm⟩, ⟨n, hn⟩, a, b, label_eq m n k hm hn ▸ hab⟩ (by rw [Nat.unpair_pair, hj])
+  exact ⟨⟨p, k + 1, p.2⟩, (label_eq _ _ (k + 1) (lt_size k.le_succ hm) p.2).trans hpa,
+    (label_eq _ _ (k + 1) p.2 (lt_size k.le_succ hn)).trans hpb⟩
 
 end AtomFrame
 
@@ -374,14 +354,13 @@ theorem AtomFrame.HasWinningStrategy.representable [Countable α]
 /-- If the complex algebra of a finite atom structure has a representation, with index and base
 types in any universes, then ∃ has a winning strategy in its game. -/
 theorem Representation.hasWinningStrategy [Finite α] {ι : Type v} {β : ι → Type w}
-    (r : Representation (ComplexAlgebra A) ι β) : A.frame.HasWinningStrategy := by
-  refine .of_saturated fun a => ?_
-  have hne : r.hom ⟨{a}⟩ ≠ ⊥ := fun h =>
-    (congr(a ∈ $(r.injective (h.trans (map_bot r.hom).symm)))).mp rfl
-  obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
-  obtain ⟨⟨x, y⟩, hxy⟩ := Set.nonempty_iff_ne_empty.mpr hi
-  obtain ⟨N, hN, hmem⟩ := ((RelationAlgebraHom.eval _ i).comp r.hom).exists_saturated
-  exact ⟨β i, N, hN, x, y, (hmem _ x y).mp hxy⟩
+    (r : Representation (ComplexAlgebra A) ι β) : A.frame.HasWinningStrategy :=
+  .of_saturated fun a => by
+    obtain ⟨i, hi⟩ := Function.ne_iff.mp (show r.hom ⟨{a}⟩ ≠ ⊥ from fun h =>
+      (congr(a ∈ $(r.injective (h.trans (map_bot r.hom).symm)))).mp rfl)
+    obtain ⟨⟨x, y⟩, hxy⟩ := Set.nonempty_iff_ne_empty.mpr hi
+    obtain ⟨N, hN, hmem⟩ := ((RelationAlgebraHom.eval _ i).comp r.hom).exists_saturated
+    exact ⟨β i, N, hN, x, y, (hmem _ x y).mp hxy⟩
 
 /-- **Theorem 1 of [HirschHodkinson2001]**: the complex algebra of a finite atom structure is
 representable if and only if ∃ has a winning strategy in its game. -/
