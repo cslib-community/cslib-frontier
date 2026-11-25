@@ -81,8 +81,6 @@ open Finset Function Real Convexity Cslib.Probability
 
 variable {I J : Type*} [Fintype I] [Fintype J]
 
-/-! ### Constant-sum value duality and Theorem 4.9 -/
-
 private theorem sum_mul_sum_comm (p : I → ℝ) (q : J → ℝ) (M : I → J → ℝ) :
     ∑ j, q j * ∑ i, p i * M i j = ∑ i, p i * ∑ j, q j * M i j := by
   simp only [mul_sum]
@@ -94,6 +92,8 @@ private theorem sum_mul_mem_Icc {K : Type*} [Fintype K] {w f : K → ℝ} (hw0 :
     ∑ k, w k * f k ∈ Set.Icc (0 : ℝ) 1 :=
   ⟨sum_nonneg fun k _ => mul_nonneg (hw0 k) (hf k).1,
     (sum_le_sum fun k _ => mul_le_of_le_one_right (hw0 k) (hf k).2).trans_eq hw1⟩
+
+/-! ### Constant-sum value duality and Theorem 4.9 -/
 
 /-- If `s₁` and `s₂` sum to `c` on every outcome and `s₁` has minimax value `v₁`, then player 2's
 transposed loss matrix `Function.swap s₂` has minimax value `c - v₁`
