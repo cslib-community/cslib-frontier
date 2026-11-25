@@ -183,10 +183,8 @@ theorem arcCost_parentDigraph [Fintype V] [DecidableEq V] [AddCommMonoid β] (r 
     simp only [Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true,
       Finset.mem_filter, true_and, Digraph.parentDigraph_adj, Prod.mk.injEq]
     constructor
-    · rintro ⟨u, hu, rfl, rfl⟩
-      exact ⟨hu, rfl⟩
-    · rintro ⟨hv, rfl⟩
-      exact ⟨v, hv, rfl, rfl⟩
+    · rintro ⟨u, hu, rfl, rfl⟩; exact ⟨hu, rfl⟩
+    · rintro ⟨hv, rfl⟩; exact ⟨v, hv, rfl, rfl⟩
   rw [← himg, Finset.sum_image fun x _ y _ h => (Prod.mk.inj h).1]
 
 end Bridge
