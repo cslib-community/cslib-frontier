@@ -85,12 +85,6 @@ private theorem pairIndex_of_lt {n k : ℕ} (hk : k < n * n) :
   exact ⟨⟨k / n, (Nat.div_lt_iff_lt_mul hn_pos).mpr hk⟩, ⟨k % n, Nat.mod_lt _ hn_pos⟩,
     by rw [Nat.mul_comm, Nat.div_add_mod]⟩
 
-private theorem runClient_read_then {α : Type} (s : Memory.State) (addr : ℕ)
-    (next : ℕ → Memory.Prog α) :
-    (Memory.spec 0).runClient s (Memory.read addr >>= next) =
-      let r := (Memory.spec 0).runClient s (next (s.mem addr))
-      (r.1, r.2.1, Memory.Op.read addr :: r.2.2) := rfl
-
 /-! ### Scanning input costs for `M ≤ maxMag` -/
 
 private def scanMaxStep (x : ScanArgs × ScanState) : Memory.Prog ScanState := do
@@ -164,7 +158,7 @@ theorem scanMaxProg_spec {w n matBase maxM : ℕ} {cost : Fin n × Fin n → ℤ
       have run : (Memory.spec 0).runClient s₀ (scanMaxStep (d, st)) =
           (next, s₀, [.read addr]) := by
         unfold scanMaxStep
-        rw [runClient_read_then]
+        rw [← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind, runClient_read]
         dsimp only [d, next, addr]
         split_ifs with h
         · rw [max_eq_right h.le]
@@ -326,7 +320,7 @@ theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → �
           (k + 1, ⟨Function.update s.mem (ws.bC + k) written, s.frontier⟩,
             [.read (ws.matBase + k), .write (ws.bC + k) written]) := by
         unfold fillCStep
-        rw [runClient_read_then]
+        rw [← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind, runClient_read]
         dsimp only [written]
         split_ifs <;> rfl
       have hv : (Memory.spec w).ValidHistory s
