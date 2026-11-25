@@ -505,13 +505,13 @@ theorem expectedMakespan_kpTwoUnitUniform :
     · rw [hl j]
       (by_cases h0 : A 0 = j <;> by_cases h1 : A 1 = j <;> simp only [h0, h1, ↓reduceIte]) <;>
         (try split_ifs) <;> norm_num
-    · calc (if A 0 = A 1 then (2 : ℝ) else 1)
-          ≤ kpTwoUnit.load A (A 0) := by
-            rw [hl (A 0)]
-            by_cases h : A 0 = A 1
-            · simp only [h, ↓reduceIte]; norm_num
-            · simp only [h, Ne.symm h, ↓reduceIte]; norm_num
-        _ ≤ kpTwoUnit.makespan A := kpTwoUnit.load_le_makespan A (A 0)
+    · split_ifs with h
+      · calc (2 : ℝ) = kpTwoUnit.load A (A 0) := by
+              rw [hl (A 0), ite_eq_left rfl, ite_eq_left h.symm]; norm_num
+          _ ≤ kpTwoUnit.makespan A := kpTwoUnit.load_le_makespan A (A 0)
+      · calc (1 : ℝ) ≤ kpTwoUnit.load A (A 0) := by
+              rw [hl (A 0), ite_eq_left rfl, ite_eq_right (Ne.symm h)]; norm_num
+          _ ≤ kpTwoUnit.makespan A := kpTwoUnit.load_le_makespan A (A 0)
   simp_rw [hprod, hms, ← mul_sum]
   rw [← (finTwoArrowEquiv (Fin 2)).symm.sum_comp, Fintype.sum_prod_type]
   simp only [Fin.sum_univ_two, finTwoArrowEquiv_symm_apply, Matrix.cons_val_zero,

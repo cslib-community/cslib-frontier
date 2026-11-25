@@ -152,11 +152,11 @@ private theorem computableInPolyTime_check :
 private theorem zeroCount_eq (x : FeedbackVertexSetInstance × List ℕ) :
     zeroCount x =
       (x.1.graph.vertices.toFinset.filter fun v => colorOf x.1.graph x.2 v = 0).card := by
+  have hset : x.1.graph.distinctVertices.toFinset = x.1.graph.vertices.toFinset := by
+    ext v
+    simp only [List.mem_toFinset, mem_distinctVertices]
   rw [zeroCount, List.countP_eq_length_filter,
-    ← List.toFinset_card_of_nodup ((nodup_distinctVertices _).filter _), List.toFinset_filter,
-    show x.1.graph.distinctVertices.toFinset = x.1.graph.vertices.toFinset by
-      ext v
-      simp [mem_distinctVertices]]
+    ← List.toFinset_card_of_nodup ((nodup_distinctVertices _).filter _), List.toFinset_filter, hset]
   simp only [decide_eq_true_eq]
 
 private theorem check_iff (x : FeedbackVertexSetInstance × List ℕ) :

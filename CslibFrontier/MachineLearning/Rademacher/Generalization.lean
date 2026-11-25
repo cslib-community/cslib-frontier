@@ -225,14 +225,17 @@ private theorem sum_sum_ciSup_le (D : PMF Z) {m : ℕ} {F : Set (Z → ℝ)} {B 
   have hsym (σ : Fin m → Bool) : ∑ p, W p * G p = ∑ p, W p * G (swapSamples σ p) :=
     (Fintype.sum_equiv (Function.Involutive.toPerm _ (swapSamples_involutive σ)) _ _ fun p =>
       congrArg (· * G (swapSamples σ p)) (weight_swapSamples D σ p).symm).symm
+  have hexp : ∑ p, W p * G p = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) :=
+    calc ∑ p, W p * G p = 𝔼 σ : Fin m → Bool, ∑ p, W p * G p := (Fintype.expect_const _).symm
+      _ = 𝔼 σ : Fin m → Bool, ∑ p, W p * G (swapSamples σ p) :=
+          Finset.expect_congr rfl fun σ _ => hsym σ
+      _ = ∑ p, 𝔼 σ : Fin m → Bool, W p * G (swapSamples σ p) := Finset.expect_sum_comm ..
+      _ = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := by simp only [Finset.mul_expect]
   calc ∑ S : Fin m → Z, (P S).toReal * ∑ S' : Fin m → Z, (P S').toReal * G (S, S')
       = ∑ p, W p * G p := by
         rw [← Finset.univ_product_univ, Finset.sum_product]
         simp only [Finset.mul_sum, mul_assoc, W]
-    _ = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := by
-        rw [← Fintype.expect_const (ι := Fin m → Bool) (∑ p, W p * G p),
-          Finset.expect_congr rfl fun σ _ => hsym σ, Finset.expect_sum_comm]
-        simp only [Finset.mul_expect]
+    _ = ∑ p, W p * 𝔼 σ : Fin m → Bool, G (swapSamples σ p) := hexp
     _ ≤ ∑ p, W p * (empiricalRademacherComplexity F p.2 + empiricalRademacherComplexity F p.1) := by
         gcongr with p
         exact expect_ciSup_swapSamples_le hF p

@@ -541,12 +541,13 @@ theorem measureProb_run_twice [DecidableEq W] {T : ℕ} {U : ℕ → State N W �
   have hprod (f₁ f₂ : Fin N × Bool × W → ℝ) :
       ∑ p : Fin N × Bool × (W × QueryBasis N W), f₁ (fstCopy p) * f₂ (sndCopy p) =
         (∑ q, f₁ q) * ∑ g, f₂ g := by
-    rw [sum_split]
-    simp_rw [show ∀ g : QueryBasis N W,
+    have hinner (g : QueryBasis N W) :
         (∑ q : Fin N × Bool × W, f₁ (fstCopy (splitEquiv.symm (g, q))) *
           f₂ (sndCopy (splitEquiv.symm (g, q)))) =
-        ∑ q : Fin N × Bool × W, f₁ q * f₂ (QueryBasis.equiv g) from
-      fun _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl]
+        ∑ q : Fin N × Bool × W, f₁ q * f₂ (QueryBasis.equiv g) :=
+      sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
+    rw [sum_split]
+    simp_rw [hinner]
     rw [Fintype.sum_equiv QueryBasis.equiv _ (fun r => ∑ q, f₁ q * f₂ r) fun _ => rfl,
       sum_mul_sum, sum_comm]
   have hF : ∑ q, f q = 1 := by

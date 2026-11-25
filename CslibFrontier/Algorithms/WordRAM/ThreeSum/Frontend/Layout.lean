@@ -332,8 +332,9 @@ theorem Output.readback {n U : ℕ} {input : List ℤ} {rs : List (ℕ × ℕ)} 
     simpa only [Math.root, Nat.mul_zero, Nat.add_zero, Nat.mul_one] using
       congrArg Math.decodeRoot (congrArg₂ Prod.mk (hs 0 (by decide))
         (congrArg₂ Prod.mk (hs 1 (by decide)) (hs 2 (by decide))))
-  rw [he, show (List.range l.count).map (Math.root U l.digits rs) = Math.roots U rs from
-    Math.roots_indexed U rs]
+  have hi : (List.range l.count).map (Math.root U l.digits rs) = Math.roots U rs :=
+    Math.roots_indexed U rs
+  rw [he, hi]
   exact Math.roots_decoded hkeys hcounts hvalues
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend

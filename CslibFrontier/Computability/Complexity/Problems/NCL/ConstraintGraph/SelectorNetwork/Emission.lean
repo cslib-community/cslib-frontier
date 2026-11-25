@@ -108,10 +108,11 @@ private theorem instantiate_template
   refine List.map_congr_left fun w _ => ?_
   unfold Template.instantiateVertex
   simp only [Function.comp_def]
-  rw [Vertex.map_map, show WireRef.resolve (context N A order budget v) ∘ (cell N A v).wireRef =
+  have hnames : WireRef.resolve (context N A order budget v) ∘ (cell N A v).wireRef =
       localCode N A order budget v ∘
-        Diagram.Replacement.label (cell N A v).openSim (port N A v) from
-    funext (resolve_wireRef N A order budget v),
+        Diagram.Replacement.label (cell N A v).openSim (port N A v) :=
+    funext (resolve_wireRef N A order budget v)
+  rw [Vertex.map_map, hnames,
     map_reorient (w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v)))
       (localCode N A order budget v) (Sum.elim (polarity N A v) (fun _ => false))
       (fun e : ℕ => (context N A order budget v).reverse &&
@@ -129,10 +130,10 @@ private theorem enumerated_vertices {a b : List Color} (D : Diagram Prim a b)
       (D.vertexList Prim.interp).map f := by
   rw [List.map_ofFn]
   simp only [Function.comp_def]
-  rw [show (fun i => f (D.graph Prim.interp ((Diagram.vertexEquiv Prim.interp D).symm i))) =
-      fun i => f ((D.vertexList Prim.interp).get i) from
-    funext fun i => congrArg f (get_vertexList Prim.interp D i).symm,
-    List.ofFn_comp', List.ofFn_get]
+  have h : (fun i => f (D.graph Prim.interp ((Diagram.vertexEquiv Prim.interp D).symm i))) =
+      fun i => f ((D.vertexList Prim.interp).get i) :=
+    funext fun i => congrArg f (get_vertexList Prim.interp D i).symm
+  rw [h, List.ofFn_comp', List.ofFn_get]
 
 /-- Complete portable emission is the original standard graph with sparse edge names. -/
 private theorem rawVertices_eq

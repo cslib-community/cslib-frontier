@@ -94,9 +94,11 @@ theorem computableInPolyTime_numVars [DecidableEq V] (encRel : Rel ↪ List Bool
     (encV : V ↪ List Bool) :
     ComputableInPolyTime (CSP.numVars (Rel := Rel) (V := V))
       (encCSP encRel encV) encUnary := by
-  rw [show (CSP.numVars (Rel := Rel) (V := V)) = fun F => F.varCNF.numVars from
-    funext fun F => (numVars_varCNF F).symm]
-  exact (CNF.computableInPolyTime_numVars encV).comp (computableInPolyTime_varCNF encRel encV)
+  have heq : (CSP.numVars (Rel := Rel) (V := V)) = fun F => F.varCNF.numVars :=
+    funext fun F => (numVars_varCNF F).symm
+  rw [heq]
+  exact (CNF.computableInPolyTime_numVars encV).comp
+    (computableInPolyTime_varCNF encRel encV)
 
 /-- Dense variable relabeling `CSP.denseRelabel` is computable in polynomial time. -/
 @[fun_prop]

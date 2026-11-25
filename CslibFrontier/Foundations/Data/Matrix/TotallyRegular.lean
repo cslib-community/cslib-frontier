@@ -177,10 +177,11 @@ theorem det_cauchy_ne_zero [Fintype n] [DecidableEq n] {x y : n → F}
   have hP : Lagrange.interpolate Finset.univ y w = 0 :=
     Polynomial.eq_zero_of_degree_lt_of_eval_index_eq_zero Finset.univ hx.injOn
       (Lagrange.degree_interpolate_lt w hy.injOn) fun i _ => by
-        rw [Lagrange.eval_interpolate_not_at_node w fun j _ => hxy i j, show
-          ∑ j, Lagrange.nodalWeight Finset.univ y j * (x i - y j)⁻¹ * w j = (cauchy x y *ᵥ v) i from
-            Finset.sum_congr rfl fun j _ => by simp only [cauchy_apply, w]; field_simp [hweight j],
-          hv, Pi.zero_apply, mul_zero]
+        have hsum : ∑ j, Lagrange.nodalWeight Finset.univ y j * (x i - y j)⁻¹ * w j =
+            (cauchy x y *ᵥ v) i := Finset.sum_congr rfl fun j _ => by
+          simp only [cauchy_apply, w]; field_simp [hweight j]
+        rw [Lagrange.eval_interpolate_not_at_node w fun j _ => hxy i j,
+          hsum, hv, Pi.zero_apply, mul_zero]
   refine hv0 (funext fun j => ?_)
   have h := Lagrange.eval_interpolate_at_node w hy.injOn (Finset.mem_univ j)
   rw [hP, Polynomial.eval_zero] at h

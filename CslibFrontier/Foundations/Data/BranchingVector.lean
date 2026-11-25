@@ -568,7 +568,9 @@ For `k = 1, 2, 3` this gives `3 / 2`, `7 / 4`, `15 / 8`, all strictly below `2`.
 theorem one_lt_prefixBranchFactor {k : ℕ} (hk : 1 ≤ k) : 1 < prefixBranchFactor k := by
   unfold prefixBranchFactor
   have hpow : (1 / 2 : ℝ) ^ k ≤ 1 / 2 := by
-    simpa only [pow_one] using pow_le_pow_of_le_one (by norm_num) (by norm_num) hk
+    calc
+      (1 / 2 : ℝ) ^ k ≤ (1 / 2 : ℝ) ^ 1 := pow_le_pow_of_le_one (by norm_num) (by norm_num) hk
+      _ = 1 / 2 := pow_one _
   linarith
 
 /-- `prefixBranchFactor k < 2` for every `k`. -/
