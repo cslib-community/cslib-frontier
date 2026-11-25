@@ -338,7 +338,11 @@ are polynomial in `n + N n` (representing PPT one-more unforgeability when `N n`
 bounded, whereas super-polynomial `N n` allows `2^{O(n)}`-time adversaries); and (4) claim outputs
 are processed via the lenient total decoder `wordClaimListDecoder` (rejecting any index `i ≥ N n`,
 while decoding malformed bit words via `Decoder.list (Decoder.pair Decoder.nat Decoder.bits)`).
--/
+No implication to or from [PoMFRIT2026] Definition 3.1 is established here; it holds
+unconditionally at the pigeonhole boundary `N n = 1 < budget n + 1`
+(`wordOneMoreUnforgeable_one_slot`), fails on colliding targets
+(`not_wordOneMoreUnforgeable_constTargets`), and for `N n ≥ budget n + 1` with efficient `targets`
+proving it unconditionally would imply one-way functions. -/
 @[expose] def WordOneMoreUnforgeable (S : WordSignatureScheme) (N : ℕ → ℕ)
     (targets : ∀ n, List Bool → ProbComp (Fin (N n) → List Bool)) (budget : ℕ → ℕ) : Prop :=
   Game.Indistinguishable
