@@ -61,6 +61,29 @@ class CanonicalTest(unittest.TestCase):
                 "Hard break.  \nKept. As is.\n\n- Item. Nested:\n  - Inner. Kept.\n")
         self.assertEqual(sf.canonical(kept), kept)
 
+    def test_setext_headings_and_reference_definitions_are_kept(self) -> None:
+        for text in ("Source note. Heading\n===\n",
+                     "Source note. Heading\n---\n",
+                     "Heading\n--\n",
+                     "  Heading. Two.\n   ===\n",
+                     "- Item. Heading\n  ===\n",
+                     '[key]: https://example.org "One. Two."\n[key2]: https://example.org/2\n'):
+            with self.subTest(text):
+                self.assertEqual(sf.canonical(text), text)
+                self.assertEqual(sf.compare(text, sf.canonical(text)), [])
+        # Turning a Setext heading into a paragraph keeps the words yet changes the block structure.
+        self.assertTrue(any("block 1 differs" in d
+                            for d in sf.compare("Source note. Heading\n===\n",
+                                                "Source note.\nHeading ===\n")))
+
+    def test_compare_distinguishes_paragraph_breaks_from_sentence_wraps(self) -> None:
+        self.assertEqual(sf.compare("One. Two.\nThree.\n", "One.\nTwo.\nThree.\n"), [])
+        for old, new in (("One. Two.\n\nThree.\n", "One.\nTwo.\nThree.\n"),
+                         ("One. Two. Three.\n", "One.\n\nTwo.\nThree.\n"),
+                         ("- One.\n- Two.\n", "- One. - Two.\n")):
+            with self.subTest((old, new)):
+                self.assertTrue(any("block " in d for d in sf.compare(old, new)))
+
     def test_formatting_is_idempotent_and_keeps_the_words(self) -> None:
         text = sf.SOURCES.read_text(encoding="utf-8")
         formatted = sf.canonical(text)
@@ -101,6 +124,10 @@ class CommandTest(unittest.TestCase):
             status, output = self.run_main("--compare", str(old), str(path))
             self.assertEqual(status, 1)
             self.assertIn("word 4 differs", output)
+            path.write_text("# Sources\n\nOne.\n\nTwo.\nThree.\n", encoding="utf-8")
+            status, output = self.run_main("--compare", str(old), str(path))
+            self.assertEqual(status, 1)
+            self.assertIn("block 3 differs", output)
 
 
 if __name__ == "__main__":

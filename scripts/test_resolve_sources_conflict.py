@@ -116,6 +116,60 @@ class MergeTest(unittest.TestCase):
                     with self.assertRaisesRegex(rsc.Refusal, reason):
                         rsc.merge_sources(BASE, *sides)
 
+    def test_partial_overlap_insertions_are_refused_symmetrically(self) -> None:
+        unconverted = page(entry("alpha", "Alpha one. Alpha two."), preamble="# Sources")
+        cases = {
+            "shared paragraph lead-in": (
+                BASE,
+                edit(BASE, "Alpha three.",
+                     "Alpha three.\n\nRead in the same edition.\nTheorem 1.1 is proved in Foo."),
+                edit(BASE, "Alpha three.",
+                     "Alpha three.\n\nRead in the same edition.\nTheorem 2.2 is proved in Bar."),
+            ),
+            "shared lead-in before conversion": (
+                unconverted,
+                edit(unconverted, "Alpha two.",
+                     "Alpha two.\n\nRead in the same edition. Theorem 1.1 is proved in Foo."),
+                edit(unconverted, "Alpha two.",
+                     "Alpha two.\n\nRead in the same edition. Theorem 2.2 is proved in Bar."),
+            ),
+            "shared sentence continuing a paragraph": (
+                BASE,
+                edit(BASE, "Alpha three.",
+                     "Alpha three.\nRead in the same edition.\nTheorem 1.1 is proved in Foo."),
+                edit(BASE, "Alpha three.",
+                     "Alpha three.\nRead in the same edition.\nTheorem 2.2 is proved in Bar."),
+            ),
+            "subset insertion": (
+                BASE,
+                edit(BASE, "Alpha three.", "Alpha three.\nShared note."),
+                edit(BASE, "Alpha three.", "Alpha three.\nShared note.\nExtra note."),
+            ),
+            "adjacent replace and insert adding the same sentence": (
+                BASE,
+                edit(BASE, "Alpha three.", "Alpha three, revised.\nRead in the same edition."),
+                edit(BASE, "Alpha three.", "Alpha three.\nRead in the same edition."),
+            ),
+        }
+        for label, (base, ours, theirs) in cases.items():
+            with self.subTest(label):
+                for sides in ((ours, theirs), (theirs, ours)):
+                    with self.assertRaisesRegex(rsc.Refusal,
+                                                r"overlapping (?:lines|sentences) in entry `alpha`"):
+                        rsc.merge_sources(base, *sides)
+
+    def test_setext_headings_are_preserved_or_refused_in_merge(self) -> None:
+        ours = edit(BASE, "Alpha three.", "Alpha three.\n\nSource note. Heading\n===")
+        theirs = edit(BASE, "Beta one.", "Beta one, revised.")
+        merged = self.merged(BASE, ours, theirs)
+        self.assertIn("Source note. Heading\n===\n", merged)
+        # Synthesizing a Setext heading from one side's text and the other side's `===` is refused.
+        ours_text = edit(BASE, "Alpha three.", "Alpha three.\nHeading")
+        theirs_bar = edit(BASE, "Alpha three.", "Alpha three.\n===")
+        for sides in ((ours_text, theirs_bar), (theirs_bar, ours_text)):
+            with self.assertRaisesRegex(rsc.Refusal, "Setext heading"):
+                rsc.merge_sources(BASE, *sides)
+
     def test_malformed_versions_are_refused(self) -> None:
         cases = {
             "duplicate entries": BASE + "\n" + entry("alpha", "Again.") + "\n",

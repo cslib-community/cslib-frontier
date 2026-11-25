@@ -748,6 +748,27 @@ class RestackTests(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("manual/sources.md", out)
 
+    def test_partially_overlapping_provenance_insertion_is_reported(self) -> None:
+        approved = self.sources_conflict(
+            ("Alpha two.", "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved."),
+            ("Alpha two.", "Alpha two.\n\nRead in the same edition.\nTheorem 2.2 is proved."))
+        for candidate in (
+            # Keeping both paragraphs duplicates the shared lead-in.
+            "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved.\n\n"
+            "Read in the same edition.\nTheorem 2.2 is proved.",
+            # Combining them by hand needs delta review rather than carrying approval mechanically.
+            "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved.\n"
+            "Theorem 2.2 is proved.",
+        ):
+            with self.subTest(candidate=candidate):
+                self.git("checkout", "-q", "feature")
+                self.git("reset", "--hard", approved)
+                new = self.merge_main({"manual/sources.md": SOURCES.replace("Alpha two.",
+                                                                            candidate)})
+                code, out = self.check(approved, new)
+                self.assertEqual(code, 1, out)
+                self.assertIn("manual/sources.md", out)
+
     def test_hidden_submodule_pointer_change_is_reported(self) -> None:
         self.git("checkout", "-q", "-b", "feature", "main")
         self.git("update-index", "--add", "--cacheinfo", f"160000,{'1' * 40},sub")
