@@ -1068,7 +1068,9 @@ private theorem lastStep_mem {φ : CNF ℕ} {o : Occurrence ℕ}
   dsimp only [lastStep]
   rw [List.getLastD_eq_getLast?, List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega),
     Option.getD_some]
-  change r[r.length - 2 + 1] = r[r.length - 1]; congr 1; omega
+  change r[r.length - 2 + 1] = r[r.length - 1]
+  congr 1
+  omega
 
 private theorem lastStep_not_prefix {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :

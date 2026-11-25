@@ -765,7 +765,9 @@ theorem idealPermGame_feistel3RepeatedKeyCPAAttack_true_le [Nonempty G] (x : G)
   have hM1r : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
   rw [Finset.card_singleton, Nat.descFactorial_one, Finset.card_erase_of_mem (Finset.mem_univ _),
     Finset.card_univ, Nat.cast_descFactorial_two ℝ _, Nat.cast_sub Fintype.card_pos]
-  simp only [Fintype.card_prod, Nat.cast_mul, Nat.cast_one]; field_simp; ring
+  simp only [Fintype.card_prod, Nat.cast_mul, Nat.cast_one]
+  field_simp
+  ring
 
 /-- Over any group of exponent two (`∀ a : G, -a = a`) with `2 ≤ Fintype.card G`,
 `feistel3RepeatedKeyCPAAttack x` distinguishes any repeated-key 3-round Feistel network

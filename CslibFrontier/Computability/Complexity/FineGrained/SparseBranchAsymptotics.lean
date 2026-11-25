@@ -400,7 +400,10 @@ theorem Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale [Fi
       (Real.rpow_le_rpow_of_exponent_le one_le_two (by push_cast; nlinarith))
   refine (mul_le_mul hpre_pow hexp_pow (Real.exp_pos _).le (by positivity)).trans_eq ?_
   rw [← Real.rpow_add two_pos]; congr 1
-  unfold branchExamScaleCoeff; dsimp only [M_coeff]; push_cast; ring
+  unfold branchExamScaleCoeff
+  dsimp only [M_coeff]
+  push_cast
+  ring
 
 /-- **Branch-assignment sum bound against `interpolationScale`:**
 Whenever `16384 ≤ Fintype.card ι` and

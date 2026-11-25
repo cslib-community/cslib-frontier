@@ -586,7 +586,10 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
     rw [get_push_ne S hne] at hvn
     exact (hframe _ (by wram_omega) (by omega) (by wram_omega)).trans (hS.vis_none v hv hvn)
   · by_cases huv : u = v
-    · subst huv; rw [get_push_self (hS.len_table ▸ hu)] at hvf; cases hvf; exact ⟨hvis, hrow⟩
+    · subst huv
+      rw [get_push_self (hS.len_table ▸ hu)] at hvf
+      cases hvf
+      exact ⟨hvis, hrow⟩
     · rw [get_push_ne S huv] at hvf
       obtain ⟨hv1, hvtab⟩ := hS.vis_some v hv fn hvf
       exact ⟨(hframe _ (by wram_omega) (by omega) (by wram_omega)).trans hv1, fun a ha =>

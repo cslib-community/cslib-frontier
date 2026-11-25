@@ -1210,7 +1210,9 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       exact (list_lookup_map_snd (fun e : (Bool × ZMod (P.G₀.order d)) × ℕ => (proj e.1, e.2))
         _ _).trans (by dsimp only; rw [hlast_look]; cases f1.2.1.lookup f1.1.1.1 <;> rfl)
     have hidx_eq : idxFn α s hs = ⟨iStar, hiK⟩ := by
-      dsimp only [idxFn]; rw [hres_look]; simp [hiK]
+      dsimp only [idxFn]
+      rw [hres_look]
+      simp [hiK]
     have hstar_eq : (match f1.2.1.lookup f1.1.1.1 with
         | some (sample, _) => sample | none => samples.getD f1.2.2 (false, 0)) =
         (true, rhos (idxFn α s hs)) := by
@@ -1265,11 +1267,15 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
     obtain ⟨iStar, hlookStar, _, hiStar_lt⟩ := hstep0.2.2.2.1
     have hiK : iStar < K := by omega
     have hidx0 : idxFn α s hs = ⟨iStar, hiK⟩ := by
-      dsimp only [idxFn, resFn]; rw [hcore0]; dsimp only
+      dsimp only [idxFn, resFn]
+      rw [hcore0]
+      dsimp only
       rw [hlookStar]; simp only [hiK, ↓reduceDIte]
     refine ⟨?_, ?_⟩
     · intro hmem
-      dsimp only [RFn, resFn] at hmem; rw [hcore0] at hmem; dsimp only at hmem
+      dsimp only [RFn, resFn] at hmem
+      rw [hcore0] at hmem
+      dsimp only at hmem
       obtain ⟨m, hm_signed, hm_eq⟩ := List.mem_filterMap.mp (List.mem_toFinset.mp hmem)
       change Option.bind ((bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup m) _ = _
         at hm_eq

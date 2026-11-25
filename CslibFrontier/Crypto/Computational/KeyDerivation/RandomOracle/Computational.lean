@@ -664,7 +664,9 @@ theorem SecretGuessHard.negligible_roAdvantage {X S T : ℕ → Type}
       simpa only [encBits_apply, encUnary_apply, List.length_replicate, maxT] using
         hlenT n (encT n t) (by rw [ProbComp.eval_map, PMF.mem_support_map_iff]; exact ⟨t, ht, rfl⟩)
     have hlen : (encWordROInput encX ⟨n, info n s, encT n t⟩).length ≤ M n := by
-      rw [encWordROInput_apply]; dsimp only [M]; enc_len
+      rw [encWordROInput_apply]
+      dsimp only [M]
+      enc_len
     exact Nat.mul_le_mul_left cD (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) dD)
   have hguess_red := hguess _
     (isPPT_lazyROToGuess (width := fun n => n) .id' hQ hdefault hdecS hisSome hsampleT hD)

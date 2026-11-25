@@ -509,7 +509,9 @@ theorem exists_basis_pqc_of_unentangled {p : PMF K}
   have hscale :
       ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ * ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ =
         (Fintype.card Q : ℂ)⁻¹ := by
-    rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg _)]; push_cast; rfl
+    rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg _)]
+    push_cast
+    rfl
   let B : Matrix (Q × Q) (Q × Q) ℂ :=
     Matrix.of fun yz ab => ((Real.sqrt (Fintype.card Q) : ℂ))⁻¹ *
       pauliString ab.1 ab.2 yz.1 yz.2

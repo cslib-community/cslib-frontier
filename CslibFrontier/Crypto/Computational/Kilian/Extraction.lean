@@ -863,7 +863,9 @@ private theorem kilianSingleRun_bound_of_threshold
         = (ProbComp.eval (kilianChallenges V n cm.stmt)).toOuterMeasure
             {ρs | ∀ ρ ∈ ρs, decide (ρ ∈ good) = true} := by
             rw [← hmap, PMF.toOuterMeasure_map_apply]
-            congr 1; ext y; simp
+            congr 1
+            ext y
+            simp
       _ = ((ProbComp.eval (BitString.sampleList r)).toOuterMeasure
             {ρ | decide (ρ ∈ good) = true}) ^ n :=
             ProbComp.toOuterMeasure_replicate_forall _ _ n
@@ -1133,7 +1135,9 @@ theorem succProbability_kilianAcceptGame_le_extracted
                 (map_apply_true collected _).symm]
             gcongr
         _ ≤ errConst + bKernel s true + eKernel s true := by
-            simp only [errConst]; gcongr; exact le_add_of_nonneg_left zero_le
+            simp only [errConst]
+            gcongr
+            exact le_add_of_nonneg_left zero_le
   have hENN : ProbComp.eval (kilianAcceptGame H V P n) true ≤
       errConst +
         ProbComp.eval (merkleBindingGame H (fun _ leaf => leaf.length == 1)

@@ -1295,7 +1295,9 @@ theorem CoCDH.eufCma_blsNativeROMScheme (P : DecodablePairingGroupFamily)
             (P.G₀.coCdhGame P.G₁ (fun m => PMF.pure (description m)) adv n) : ℝ) +
             (K n : ℝ) / 2 ^ n) + 1 / 2 ^ n := by
         have hK_eq : (budget n : ℝ) + (budget n : ℝ) + 1 = (K n : ℝ) := by
-          dsimp only [K]; push_cast; ring
+          dsimp only [K]
+          push_cast
+          ring
         rw [hK_eq] at hadv
         exact add_le_add (mul_le_mul_of_nonneg_left hadv (by positivity)) le_rfl
     _ ≤ 3 * ((2 * (budget n + 1) : ℕ) : ℝ) *

@@ -211,7 +211,9 @@ theorem card_smoothPos_le (P : Scheme ι S R Q A) [Fintype S] [Fintype Q] [Decid
         rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one,
           ← Finset.sum_mul]
     _ = ((Fintype.card S + 1) * Fintype.card S * Fintype.card Q : ℕ) := by
-        rw [Fintype.card_prod, hsum_all]; push_cast [l]; ring
+        rw [Fintype.card_prod, hsum_all]
+        push_cast [l]
+        ring
 
 /-- Two-server specialization of `card_smoothPos_le`: `m ≤ 6 · |Q|`
 ([GKST, Lemma 7.1][GoldreichKarloffSchulmanTrevisan2006];

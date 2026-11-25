@@ -563,7 +563,9 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
     fun x y => Prod.ext (BitString.sub_eq_add _ _) (BooleanRing.sub_eq_add _ _)] at hgateA
   simp only [slotTweak, hwa, hwb, hindex] at hgateA
   have hi : idx < 2 ^ (toCircuit f).topology.arity g := by
-    rw [harity]; dsimp only [idx]; cases (A wa).2 <;> cases (A wb).2 <;> decide
+    rw [harity]
+    dsimp only [idx]
+    cases (A wa).2 <;> cases (A wb).2 <;> decide
   rw [show idx = (⟨idx, hi⟩ : Fin (2 ^ (toCircuit f).topology.arity g)).val from rfl,
     BitString.listRow_flatten_ofFn _ fun _ => length_labelBits _]
   simp only

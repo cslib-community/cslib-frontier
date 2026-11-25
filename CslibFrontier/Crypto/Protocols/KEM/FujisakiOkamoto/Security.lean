@@ -655,7 +655,9 @@ theorem interpret_decapsNotBotM {ι : Type} {spec : OracleSpec ι} {n : Type →
   rw [decapsNotBotM_eq, decapsNotBotM_eq]
   cases S.pke.dec dk.sk c
   · rfl
-  · simp only [OracleComp.interpret_bind]; congr 1 with r'; split_ifs <;> rfl
+  · simp only [OracleComp.interpret_bind]
+    congr 1 with r'
+    split_ifs <;> rfl
 
 omit [DecidableEq M] in
 /-- Interpreting `decapsBotM` against oracle calls runs it against the interpreted calls. -/
@@ -669,7 +671,9 @@ theorem interpret_decapsBotM {ι : Type} {spec : OracleSpec ι} {n : Type → Ty
   rw [decapsBotM_eq, decapsBotM_eq]
   cases S.pke.dec sk c
   · simp
-  · simp only [OracleComp.interpret_bind]; congr 1 with r'; split_ifs <;> simp
+  · simp only [OracleComp.interpret_bind]
+    congr 1 with r'
+    split_ifs <;> simp
 
 /-- The joined cache represented by the two list caches of an `ROCache`. -/
 private abbrev roTables (st : ROCache M R CT K) : RandomOracle.Cache (ROSpec M R CT K) :=

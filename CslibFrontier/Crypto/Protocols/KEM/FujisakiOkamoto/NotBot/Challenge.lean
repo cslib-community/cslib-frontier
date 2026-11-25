@@ -96,7 +96,9 @@ private theorem lookup_filter_ne (x y : α) (L : List (α × β)) (hy : y ≠ x)
   induction L with
   | nil => rfl
   | cons e L ih =>
-    obtain ⟨a, b⟩ := e; simp only [List.filter_cons]; split_ifs with ha
+    obtain ⟨a, b⟩ := e
+    simp only [List.filter_cons]
+    split_ifs with ha
     · by_cases hya : y = a <;> simp [List.lookup_cons, hya, ih]
     · simp [List.lookup_cons, beq_eq_false_iff_ne.mpr ((by simpa using ha : a = x).symm ▸ hy), ih]
 
@@ -105,7 +107,9 @@ private theorem lookup_filter_self (x : α) (L : List (α × β)) :
   induction L with
   | nil => rfl
   | cons e L ih =>
-    obtain ⟨a, b⟩ := e; simp only [List.filter_cons]; split_ifs with ha
+    obtain ⟨a, b⟩ := e
+    simp only [List.filter_cons]
+    split_ifs with ha
     · simp [List.lookup_cons, beq_eq_false_iff_ne.mpr (by simpa [ne_comm] using ha), ih]
     · exact ih
 
@@ -179,7 +183,9 @@ private theorem simHashG_support {sc : ProbComp R} {m : M} {st : SimState M R CT
   · dsimp only at hl hnext ⊢; subst hnext
     obtain ⟨l₁, l₂, hlist, -⟩ := List.lookup_eq_some_iff.mp hl
     exact ⟨by simp [hlist], List.Subset.refl _, rfl⟩
-  · dsimp only at hnext ⊢; subst hnext; exact ⟨by simp, List.subset_cons_self _ _, rfl⟩
+  · dsimp only at hnext ⊢
+    subst hnext
+    exact ⟨by simp, List.subset_cons_self _ _, rfl⟩
 
 omit [DecidableEq M] in
 /-- A supported transition of `simHashHq c` keeps `gCache` and only adds the key `c` to
@@ -381,7 +387,9 @@ private theorem eval_genHandler_H_false (S : Scheme PK SK M R CT K)
         else ProbComp.eval (simHashHRaw S.sampleKey (false, m, c) z.2) := by
   change ProbComp.eval (genHashG gs m s >>= fun z =>
     (if t m c z.1 then genHashHq hs c else simHashHRaw S.sampleKey (false, m, c)) z.2) = _
-  rw [ProbComp.eval_bind]; congr 1 with z : 1; split_ifs <;> rfl
+  rw [ProbComp.eval_bind]
+  congr 1 with z : 1
+  split_ifs <;> rfl
 
 private theorem eval_genHandler_decaps (S : Scheme PK SK M R CT K)
     (d : List (M × R) → CT → Bool) (t : M → CT → R → Prop) [∀ m c, DecidablePred (t m c)]
@@ -453,7 +461,10 @@ private theorem genHandler_invariant (S : Scheme PK SK M R CT K) (d : List (M ×
     · exact hraw (hG m s z hs₀ hz) (simHashHRaw_support hx).1 (simHashHRaw_support hx).2
   · exact hraw hs₀ (simHashHRaw_support hx).1 (simHashHRaw_support hx).2
   · by_cases hc : c = cStar
-    · subst hc; rw [S.eval_genHandler_decaps_self] at hx; supp_cases hx; exact hs₀
+    · subst hc
+      rw [S.eval_genHandler_decaps_self] at hx
+      supp_cases hx
+      exact hs₀
     · rw [S.eval_genHandler_decaps d t gs hs cStar c hc] at hx
       supp_cases hx with ⟨-, z, hz, rfl⟩ | ⟨-, rfl⟩; exacts [hHq_ne c s z hc hs₀ hz, hs₀]
 
@@ -541,7 +552,9 @@ private theorem zoomMemoize_agree {α β σ : Type} [BEq α] [LawfulBEq α]
       refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_
       supp_cases hmem with ⟨p, hp, rfl⟩
       have h := lookup_isSome_of_mem_support_memoize _ x (get s) hs p hp
-      dsimp only at hz; rw [hget] at hz; simp [hz] at h
+      dsimp only at hz
+      rw [hget] at hz
+      simp [hz] at h
     rw [hzero, hzero]
   · cases (get s).lookup x <;> simp [memoize, hd x hx]
 
@@ -626,7 +639,9 @@ private theorem lookupNoneOr_memoize {α β : Type} [DecidableEq α] (d : PMF β
   · exact h ▸ hL
   · rw [h]
     by_cases hy : y = x
-    · subst hy; simp only [↓reduceIte, PMF.mem_support_pure_iff] at hw; exact Or.inr (by simp [hw])
+    · subst hy
+      simp only [↓reduceIte, PMF.mem_support_pure_iff] at hw
+      exact Or.inr (by simp [hw])
     · simpa [LookupNoneOr, List.lookup_cons, beq_eq_false_iff_ne.mpr (Ne.symm hy)] using hL
 
 /-- Moving the programmed entries to the end of their caches. -/

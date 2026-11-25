@@ -187,7 +187,9 @@ theorem positiveExterior_contacts {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   have hmem₁ : φ[i][k].1 ∈ φ.vars := CNF.mem_vars.mpr
     ⟨φ[i], List.getElem_mem hi, φ[i][k].2, List.getElem_mem hk⟩
   refine ⟨(List.idxOf_inj (CNF.mem_distinctVars.mpr hmem₁)).mp heq, ?_⟩
-  rw [positiveVariablePoint_source φ d hmem₁, realPoint_add]; dsimp only; rw [hxq]
+  rw [positiveVariablePoint_source φ d hmem₁, realPoint_add]
+  dsimp only
+  rw [hxq]
   congr 2; rw [sourceFinish, sourceEdgeIndex_edge φ hi hk]
 
 /-- Source-placeholder metadata for an actual local row. -/

@@ -209,7 +209,9 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
   rw [List.length_reverse] at hstk2
   have hrest_le : rest.length < slots g := by
     have hp : S.potential ≤ slots g := hS.pot_le
-    unfold State.potential at hp; simp only [hst, List.length_cons] at hp; omega
+    unfold State.potential at hp
+    simp only [hst, List.length_cons] at hp
+    omega
   set S1 : State (Fin L) := { S with stack := rest, comp := u :: S.comp }
   have hpop_raw : ∃ x1, ExecWithin w scanPop x x1 8 ∧
       ConstRegs g x1 ∧ x1.regs rStackLen = rest.length ∧

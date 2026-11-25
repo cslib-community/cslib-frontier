@@ -702,7 +702,10 @@ private theorem shoupPowers_spec {K L : Type*} [Field K] [Field L]
     (shoupPowers q f β).length = q + 1 ∧
       ∀ c < q + 1, evalL ζ y q ((shoupPowers q f β).getD c []) = (evalL ζ y q β) ^ c := by
   refine ⟨?_, fun c hc => ?_⟩
-  · unfold shoupPowers; dsimp only; rw [shoupPowers_foldl (fun x => shoupLMul q f x β)]; simp
+  · unfold shoupPowers
+    dsimp only
+    rw [shoupPowers_foldl (fun x => shoupLMul q f x β)]
+    simp
   · rw [shoupPowers_getD q f β hc]
     clear hc
     induction c with
@@ -858,7 +861,9 @@ private theorem shoupBeta_minpoly_natDegree {K L : Type*} [Field K] [Field L]
       add_mem' := fun hx hy => by dsimp at hx hy ⊢; rw [add_pow_char_pow, hx, hy]
       zero_mem' := zero_pow (by positivity)
       algebraMap_mem' := fun c => by
-        dsimp; rw [← map_pow]; congr 1
+        dsimp
+        rw [← map_pow]
+        congr 1
         fin_cases c <;> [exact zero_pow (by positivity); exact one_pow _]
       inv_mem' := fun {x} hx => by dsimp at hx ⊢; rw [inv_pow, hx] }
   have hE_le : E ≤ S_if :=

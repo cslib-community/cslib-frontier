@@ -378,7 +378,9 @@ private theorem numHits_sq_le_add_sum (A : V → WalkLabels D T → α) (σ : V 
       ≤ ∑ j, ((if i = j then h j else 0) + if i = j then 0 else c i * c j) := by
         refine sum_le_sum fun j _ ↦ ?_
         by_cases hij : i = j
-        · subst hij; simp only [↓reduceIte, add_zero, h]; split_ifs <;> norm_num
+        · subst hij
+          simp only [↓reduceIte, add_zero, h]
+          split_ifs <;> norm_num
         · simp only [hij, ↓reduceIte, zero_add]
           exact mul_le_mul (hhc i) (hhc j) (hh₀ j) ((hh₀ i).trans (hhc i))
     _ = h i + ∑ j, if i = j then 0 else c i * c j := by
@@ -436,7 +438,9 @@ private theorem ite_expect_walkDart_mem_unsatEdges_mul_le (σ : V → α) (i j :
   rcases lt_trichotomy i j with hij | rfl | hij
   · rw [ite_eq_right hij.ne, ite_eq_left hij]
     linarith [hlt hij, mul_nonneg hε (hg j i)]
-  · rw [ite_eq_left rfl]; have := mul_nonneg hε (hg i i); positivity
+  · rw [ite_eq_left rfl]
+    have := mul_nonneg hε (hg i i)
+    positivity
   · rw [ite_eq_right hij.ne', expect_congr rfl fun p _ ↦ mul_comm _ _, ite_eq_left hij]
     linarith [hlt hij, mul_nonneg hε (hg i j)]
 

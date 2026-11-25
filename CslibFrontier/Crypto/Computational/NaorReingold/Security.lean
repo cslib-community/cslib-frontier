@@ -1217,7 +1217,10 @@ private theorem advantage_probNaorReingold_le (F : PrimeOrderGroupFamily)
     eval_sampleNaorReingoldExp_eq_map_val F n d,
     eval_replicate_sampleNaorReingoldExp_eq_iid F n m d,
     PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  congr 1; funext α₀; congr 1; funext α
+  congr 1
+  funext α₀
+  congr 1
+  funext α
   dsimp only [detRun]
   congr 1; funext q
   cases q with
@@ -1482,7 +1485,9 @@ private theorem run_eager_bitStringTable_eq_presample {m ℓ Q : ℕ}
             PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_const]
       · simp [OracleComp.sumHandler, hq, step, PMF.bind_const]
   · rw [← hpre, PMF.map_bind, PMF.iid_map, PMF.iid_eq_pi, PMF.map_comp, PMF.bind_map]
-    congr 1; funext tbl; simp only [Function.comp_def, PMF.map_comp, step]
+    congr 1
+    funext tbl
+    simp only [Function.comp_def, PMF.map_comp, step]
 
 private theorem advantage_naorReingoldHashedIdeal_at_le (F : PrimeOrderGroupFamily)
     (inLen outLen : ℕ → ℕ) (bound : F.Desc → ℕ) (adversary : OracleDistinguisher)
@@ -1548,7 +1553,9 @@ private theorem advantage_naorReingoldHashedIdeal_at_le (F : PrimeOrderGroupFami
           simp_rw [PMF.map_comp]
           rw [PMF.pi_map, PMF.pi_uniformOfFintype]; rfl,
         PMF.bind_map]
-      congr 1; funext B; dsimp only [Function.comp_apply]
+      congr 1
+      funext B
+      dsimp only [Function.comp_apply]
       congr 1; funext q
       cases q with
       | inl _ => rfl

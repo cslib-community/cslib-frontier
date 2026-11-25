@@ -153,7 +153,9 @@ theorem matrix_fiber_correlation_le {n count initial rest : ℕ} {Image : Type*}
       simp only [source, collisionProbability_map_of_injective _ _ Subtype.val_injective,
         collisionProbability_uniform, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
         Nat.cast_pow, Nat.cast_ofNat, ← div_eq_mul_inv] at hdist
-      rw [Nat.card_eq_fintype_card]; dsimp only [source]; linarith only [hdist]
+      rw [Nat.card_eq_fintype_card]
+      dsimp only [source]
+      linarith only [hdist]
   simp only [source, sum_map_mul, hash, Equiv.apply_symm_apply,
     guessInverter_equiv f predictor seed precision image append, Fintype.card_fun,
     Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at h
@@ -297,7 +299,9 @@ theorem matrixPrediction_correlation_le {n count : ℕ} [NeZero count] {Image : 
       (div_le_div_of_nonneg_right
         (b := (Nat.log 2 (Nat.card {y // f y = f x}) : ℝ) + 23 / 4)
         (by linarith only [hlog]) (Nat.cast_nonneg count)).trans_eq (by ring)
-    rw [hgroup]; dsimp only [success]; linarith only [h, hmargin]
+    rw [hgroup]
+    dsimp only [success]
+    linarith only [h, hmargin]
   have havg := Finset.sum_le_sum (s := Finset.univ) (fun x _ =>
     mul_le_mul_of_nonneg_left (hpoint x) (ENNReal.toReal_nonneg (a := source x)))
   have ha (value : ℝ) : 2 * value - 1 = -1 + 2 * value := by ring

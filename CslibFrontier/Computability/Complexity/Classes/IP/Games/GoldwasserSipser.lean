@@ -429,7 +429,9 @@ theorem IPGameClass_subset_AMGameClass {enc : α ↪ List Bool} (π : List IPMov
       Nat.one_le_iff_ne_zero.2 (by rw [hRn]; exact Nat.mul_ne_zero (by omega) (by omega))
     have hb : B.eval n + 1 ≤ 2 * R.eval n ^ 2 := by
       have := Nat.mul_le_mul_left (R.eval n) hWr
-      have := Nat.mul_le_mul hr1 hr1; rw [hBn]; nlinarith
+      have := Nat.mul_le_mul hr1 hr1
+      rw [hBn]
+      nlinarith
     have hM : 72 * c ^ 2 * (B.eval n + 1) ^ 2 ≤ 288 * c ^ 2 * R.eval n ^ 4 := by
       have := Nat.pow_le_pow_left hb 2; nlinarith
     calc 6 * (72 * c ^ 2 * (B.eval n + 1) ^ 2) ^ c * 2 ^ R.eval n

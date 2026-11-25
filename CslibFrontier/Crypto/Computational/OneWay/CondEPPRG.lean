@@ -746,7 +746,9 @@ private theorem condSeedSet_nonempty (imgLen : ℕ → ℕ) (d γ_core : ℕ)
     (S : ∀ k, Finset (BitString k)) (hS : ∀ k, (S k).Nonempty)
     (r : ∀ k, Fin (k + 1)) (n : ℕ) :
     (condSeedSet imgLen d γ_core S r n).Nonempty := by
-  unfold condSeedSet; dsimp only; split_ifs
+  unfold condSeedSet
+  dsimp only
+  split_ifs
   · exact Finset.map_nonempty.mpr ((hS _).product Finset.univ_nonempty)
   · exact Finset.univ_nonempty
 
@@ -1040,7 +1042,15 @@ private theorem entropy_fullGen_condSeedSet_ge (g : List Bool → List Bool) (im
     dsimp only [D_lhl, coreLHLDist, packLHL]
     rw [uniformOfFinset_condSeedSet_map_ofFn imgLen d γ_core S hS r rfl hfits hS_reg hS_eq]
     simp only [pmf_norm]
-    congr 1; funext x; congr 1; funext h1; congr 1; funext h2; congr 1; funext pad; congr 1
+    congr 1
+    funext x
+    congr 1
+    funext h1
+    congr 1
+    funext h2
+    congr 1
+    funext pad
+    congr 1
     rw [fullGen_packSeedWords g imgLen d γ_core γ n (r k).val
       (Nat.le_of_lt_succ (r k).isLt) hfits hk_2d (x, h1, h2, pad)]
     set u := List.ofFn pad ++ List.ofFn h1 ++

@@ -192,7 +192,11 @@ private theorem uniformOfFintype_map_counterWords (P : Params) {w count : ℕ}
   have h := BitString.uniformOfFintype_map_readPrefixes ⟨_, hinj⟩ (fun i => width i)
     fun i => hwidth i i.2
   rw [Fin.sum_univ_eq_sum_range (fun N => width N) count] at h
-  rw [← h]; congr 1; funext table; rw [List.flatMap_def]; congr 1
+  rw [← h]
+  congr 1
+  funext table
+  rw [List.flatMap_def]
+  congr 1
   exact List.ext_getElem (by simp) fun _ _ _ => by simp [randomFunctionOracle]
 
 /-! ### Efficiency of reading the noise -/
@@ -491,7 +495,10 @@ theorem eval_prfIdealGame_encPRFReduction (κ : ℕ) :
       · exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_right _ _))
   have hsum : ∑ N ∈ Finset.range (2 * (P κ).k + 1), encWidth (P κ) N = coinLength (P κ) := by
     have hw₁ (N) (hN : N ∈ Finset.range (P κ).k) : encWidth (P κ) N = (P κ).n * (2 * (P κ).η₁) := by
-      have := Finset.mem_range.mp hN; unfold encWidth; split_ifs; omega
+      have := Finset.mem_range.mp hN
+      unfold encWidth
+      split_ifs
+      omega
     have hw₂ (N) (_ : N ∈ Finset.range (P κ).k) :
         encWidth (P κ) ((P κ).k + N) = (P κ).n * (2 * (P κ).η₂) := by
       unfold encWidth; split_ifs <;> omega

@@ -866,8 +866,13 @@ theorem micaliProofBits_micaliProvePure_le {hTree : List Bool → List Bool}
   have hdepth : (hFS (x, kilianCommit (fun _ => hTree) V [] x table)).length *
       (q * (1 + kilianDepth V x * k₀.length)) ≤
       m * (q * (1 + (V.coins x + Nat.clog 2 q) * σ)) := by
-    rw [hm, hk₀]; gcongr; exact kilianDepth_le hq
-  unfold micaliProofBits micaliProvePure; dsimp only; rw [hrespond]; omega
+    rw [hm, hk₀]
+    gcongr
+    exact kilianDepth_le hq
+  unfold micaliProofBits micaliProvePure
+  dsimp only
+  rw [hrespond]
+  omega
 
 /-- **Polylogarithmic Micali proof size**: for a verifier with at most `c * (log₂ |enc x| + 1)`
 random bits and at most `q` queries per random string, the honest proof `micaliProvePure` with

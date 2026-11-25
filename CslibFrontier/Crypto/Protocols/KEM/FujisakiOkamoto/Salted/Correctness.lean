@@ -783,7 +783,9 @@ private theorem mem_support_cacheJoint_iff
         rcases hbranch with ⟨htarget, hvalid, hdec, rfl⟩ |
             ⟨htarget, hvalid, hdec, hk, rfl⟩ | ⟨hn, hk, rfl⟩
         · rw [ite_eq_left htarget]; simp [hvalid, hdec]
-        · rw [PMF.mem_support_iff] at hk; rw [ite_eq_left htarget]; simp [hvalid, hdec, hk]
+        · rw [PMF.mem_support_iff] at hk
+          rw [ite_eq_left htarget]
+          simp [hvalid, hdec, hk]
         · rw [PMF.mem_support_iff] at hk
           by_cases htarget : input = S.jointInput pk input.message input.salt
           · rw [ite_eq_left htarget]
@@ -1324,7 +1326,9 @@ private theorem dispatch_cacheJoint_jointCache_subset
     · cases hdec : S.pke.dec sk ciphertext.pke with
       | none =>
         supp_cases hy [decapsWithJoint, hdec, StateT.map_apply] with ⟨x, hx, rfl⟩
-        intro entry hentry; dsimp only; rwa [S.decapsKey_jointCache_eq ciphertext hx]
+        intro entry hentry
+        dsimp only
+        rwa [S.decapsKey_jointCache_eq ciphertext hx]
       | some message =>
         classical
         supp_cases hy [decapsWithJoint, hdec, StateT.bind_apply] with ⟨z, hz, hy⟩

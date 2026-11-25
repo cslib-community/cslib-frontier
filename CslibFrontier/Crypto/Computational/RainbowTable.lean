@@ -234,7 +234,9 @@ theorem lookup_evalPure_rainbowPreprocess [DecidableEq P] (h : P → Y) (g : ℕ
       starts.find? fun pw₀ => rainbowChainPure h g 0 τ pw₀ == z := by
   rw [evalPure_rainbowPreprocess, List.lookup_eq_findSome?, List.findSome?_map,
     List.find?_eq_findSome?_guard]
-  congr 1; funext pw₀; simp [Option.guard, @eq_comm _ z]
+  congr 1
+  funext pw₀
+  simp [Option.guard, @eq_comm _ z]
 
 /-- **Endpoint lookup in `A₀`'s table.** `List.lookup z` on the preprocessed table returns
 `some pw₀` if and only if `pw₀`'s `τ`-step chain ends at `z` and no earlier element of `starts`
@@ -373,7 +375,9 @@ theorem rainbowAttack_sound {h : P → Y} {lookup : P → Option P} {g : ℕ →
   cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
   | none => simp [hlk] at hk
   | some pw₀ =>
-    rw [hlk] at hk; dsimp only at hk; split_ifs at hk with hcheck
+    rw [hlk] at hk
+    dsimp only at hk
+    split_ifs at hk with hcheck
     exact Option.some.inj hk ▸ hcheck
 
 /-- **Completeness of rainbow-table inversion on covered points** ([BonehShoup2023], Section 18.7,

@@ -834,7 +834,9 @@ theorem extractorRealizedBy_parallelExtractWord
     · simp only [Nat.ne_of_gt hk, ↓reduceIte, hk, ↓reduceDIte, List.map_ofFn,
         List.getD_ofFn_of_lt _ hk]
       exact hf i y (t ⟨0, hk⟩) (c ⟨0, hk⟩) (z ⟨0, hk⟩) (c' ⟨0, hk⟩) (z' ⟨0, hk⟩)
-    · have hk0 := Nat.eq_zero_of_not_pos hk; simp only [hk0, ↓reduceIte]; exact hdef_eq i hk0
+    · have hk0 := Nat.eq_zero_of_not_pos hk
+      simp only [hk0, ↓reduceIte]
+      exact hdef_eq i hk0
   | some j =>
     simp only [Option.map_some, Option.elim_some, List.map_ofFn, List.getD_ofFn,
       Function.comp_apply]

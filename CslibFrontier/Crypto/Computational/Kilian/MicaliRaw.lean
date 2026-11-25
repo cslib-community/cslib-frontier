@@ -368,11 +368,6 @@ section PureMachineComplexity
 
 variable {α : Type} {enc : α ↪ List Bool}
 
-private theorem computableInPolyTime_unframe :
-    ComputableInPolyTime unframe encBits encBits :=
-  (ComputableInPolyTime.fst encBits encBits).comp
-    (Decoder.pair Decoder.bits Decoder.bits).computableInPolyTime
-
 private theorem computableInPolyTime_coins_unary {V : PCPVerifier α} (hV : V.PolyTime enc) {c : ℕ}
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime V.coins enc encUnary :=
@@ -399,7 +394,7 @@ private theorem computableInPolyTime_micaliHasRootPrefix :
         (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
           (ComputableInPolyTime.fst encUnary encBits))
         (ComputableInPolyTime.const 1))
-  have hroot := computableInPolyTime_unframe.comp hpfx
+  have hroot := ComputableInPolyTime.unframe.comp hpfx
   exact ComputableInPolyTime.bool_and'
     (ComputableInPolyTime.unary_le.comp
       ((ComputableInPolyTime.length_bits.comp hroot).prod
@@ -483,7 +478,7 @@ theorem computableInPolyTime_micaliVerifyRawBoundedPure
   have hx := (ComputableInPolyTime.snd encUnary enc).comp hpars
   have hroot : ComputableInPolyTime (fun p : (ℕ × α) × List Bool => unframe (p.2.take (2 * σ + 1)))
       E encBits :=
-    computableInPolyTime_unframe.comp
+    ComputableInPolyTime.unframe.comp
       (ComputableInPolyTime.bitsTakeWithInput hraw (ComputableInPolyTime.const (2 * σ + 1)))
   have hρs : ComputableInPolyTime
       (fun p : (ℕ × α) × List Bool => hFS (p.1.2, unframe (p.2.take (2 * σ + 1))))
@@ -507,7 +502,9 @@ theorem computableInPolyTime_micaliVerifyRawBoundedPure
           (ρs.length == p.1.1 && ρs.all fun ρ => ρ.length == V.coins p.1.2)) &&
         kilianVerifyRawBounded H' V ⟨List.replicate σ false, p.1.2, ρs⟩ p.2 := by
     funext ⟨⟨m, x⟩, rawProof⟩
-    unfold micaliVerifyRawBoundedPure; dsimp only; congr 1
+    unfold micaliVerifyRawBoundedPure
+    dsimp only
+    congr 1
     exact kilianVerifyRawBounded_congr_key V _ rawProof (by funext y; simp [H'])
   rw [heq]
   exact ComputableInPolyTime.bool_and'
@@ -1226,7 +1223,9 @@ private theorem merkleWordStep_preserve (p : ℕ × (List (List Bool) × List Bo
         List.mem_of_mem_drop (i := j) (by rw [← hinv.1, hrem]; exact List.mem_cons_self)
       have hle := SizedListEncoding.length_elem_le (encA := encBits) (encL := encList encBits)
         p.2.1 h hmem
-      simp only [encBits_apply] at hle; rw [List.headD_cons]; omega
+      simp only [encBits_apply] at hle
+      rw [List.headD_cons]
+      omega
   have htakeLen : (reply.take p.1).length ≤ p.1 := List.length_take_le _ _
   refine ⟨by rw [hinv.1, List.tail_drop, Nat.add_comm], (Nat.div_le_self _ _).trans hinv.2.1, ?_⟩
   dsimp only
@@ -1240,7 +1239,9 @@ private theorem merkleWordLoop_bound (p : ℕ × (List (List Bool) × List Bool 
   have hremLen : (encList encBits st.1).length ≤ (encList encBits p.2.1).length :=
     hinv.1 ▸ SizedListEncoding.length_drop_le (encA := encBits) (encL := encList encBits) p.2.1 j
   simp only [merkleStateEnc, length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-  have := hinv.2.1; have := hinv.2.2; omega
+  have := hinv.2.1
+  have := hinv.2.2
+  omega
 
 private theorem isOraclePPTOn_merkleWordLoop :
     IsOraclePPTOn (encPair encUnary merkleStateEnc) merkleStateEnc
@@ -1475,7 +1476,7 @@ theorem isOraclePPTOn_micaliVerifyRawWordCore
   have hroot : ComputableInPolyTime
       (fun p : MicaliRawInput α × List Bool => unframe (p.2.take (2 * p.1.sigma + 1)))
       E_in encBits :=
-    computableInPolyTime_unframe.comp (ComputableInPolyTime.bitsTakeWithInput hraw
+    ComputableInPolyTime.unframe.comp (ComputableInPolyTime.bitsTakeWithInput hraw
       (ComputableInPolyTime.unary_add'
         (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hσ)
         (ComputableInPolyTime.const 1)))
@@ -1802,7 +1803,9 @@ private theorem isCostBounded_micaliMTCost_micaliVerify_sanitizeRaw (V : PCPVeri
           ∀ ans ∈ (micaliProofDecoder.decode rawProof).response,
             ans.length ≤ d ∧ ∀ o ∈ ans, o.path.length = kilianDepth V x
       · have hsanEq : san = micaliProofDecoder.decode rawProof := by
-          dsimp only [san, sanitizeRaw]; split_ifs; rfl
+          dsimp only [san, sanitizeRaw]
+          split_ifs
+          rfl
         rw [hsanEq]
         have hkv : OracleComp.IsQueryBounded
             (kilianVerifyProg V x (micaliProofDecoder.decode rawProof).root ρs
@@ -1821,7 +1824,9 @@ private theorem isCostBounded_micaliMTCost_micaliVerify_sanitizeRaw (V : PCPVeri
                   [o.leaf] o.path
         exact (Nat.mul_assoc m d _ ▸ hkv).liftLeft fun _ => le_rfl
       · have hsanEq : san = ⟨unframe (rawProof.take (2 * σ + 1)), []⟩ := by
-          dsimp only [san, sanitizeRaw]; split_ifs; rfl
+          dsimp only [san, sanitizeRaw]
+          split_ifs
+          rfl
         rw [hsanEq]
         have hkv : OracleComp.IsQueryBounded
             (kilianVerifyProg V x (unframe (rawProof.take (2 * σ + 1))) ρs []) 0 := by
@@ -1844,7 +1849,9 @@ private theorem map_fst_runWith_micaliVerifyRawBounded_le {State : Type}
       ∀ ans ∈ (micaliProofDecoder.decode rawProof).response,
         ans.length ≤ d ∧ ∀ o ∈ ans, o.path.length = kilianDepth V x
   · have hsanEq : sanitizeRaw V σ m d x rawProof = micaliProofDecoder.decode rawProof := by
-      dsimp only [sanitizeRaw]; split_ifs; rfl
+      dsimp only [sanitizeRaw]
+      split_ifs
+      rfl
     have hroot : (micaliProofDecoder.decode rawProof).root =
         unframe (rawProof.take (2 * σ + 1)) := by
       simpa [micaliProofDecoder, Decoder.map, kilianProverMsgDecoder, Decoder.pair, Decoder.bits]

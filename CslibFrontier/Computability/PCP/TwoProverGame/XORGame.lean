@@ -1030,7 +1030,9 @@ theorem winProb_oddCycleGame_parity {n : ℕ} [NeZero n] (hn : Odd n) (hn3 : 3 �
       Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ, ZMod.card,
       nsmul_eq_mul]
   rw [h1, Finset.sum_const, Finset.card_univ, ZMod.card, nsmul_eq_mul, Nat.cast_sub (by omega)]
-  push_cast; field_simp; ring
+  push_cast
+  field_simp
+  ring
 
 /-- **Classical value of the Odd-Cycle game**
 ([Cleve, Høyer, Toner, Watrous, §3.2][CleveHoyerTonerWatrous2004]):
@@ -1188,7 +1190,9 @@ theorem quantumWinProb_oddCycleGame_oddCycleStrategy {n : ℕ} [NeZero n]
         obtain ⟨k, hk⟩ := hn
         have hn_eq : (n : ℝ) = 2 * (k : ℝ) + 1 := by exact_mod_cast hk
         have hn_sub : ((n - 1 : ℕ) : ℝ) = 2 * (k : ℝ) := by
-          rw [hk, show 2 * k + 1 - 1 = 2 * k by omega]; push_cast; rfl
+          rw [hk, show 2 * k + 1 - 1 = 2 * k by omega]
+          push_cast
+          rfl
         rw [show 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
             -(π - π / (2 * (n : ℝ))) + (k : ℝ) * (2 * π) by
           unfold oddCycleAliceAngle oddCycleBobAngle

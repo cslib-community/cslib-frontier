@@ -169,7 +169,9 @@ private theorem cast_le_inv_two_pow_mul {q m c : ℕ} (h : 2 ^ q * c ≤ 2 ^ m) 
 private theorem one_sub_inv_two_pow_mul_le {q m c : ℕ} (hc : c ≤ 2 ^ m)
     (h : 2 ^ q * (2 ^ m - c) ≤ 2 ^ m) : (1 - ((2 : ℝ) ^ q)⁻¹) * 2 ^ m ≤ c := by
   have := cast_le_inv_two_pow_mul h
-  rw [Nat.cast_sub hc] at this; push_cast at this; linarith
+  rw [Nat.cast_sub hc] at this
+  push_cast at this
+  linarith
 
 /-- A density of at least `1 / 2 + 1 / q` among `2 ^ m` strings, in natural-number form. -/
 private theorem two_mul_le_mul_sub_of_le {m g q : ℕ} (hq : 0 < q)
@@ -359,7 +361,9 @@ theorem two_pow_le_two_mul_acceptCount_repeatAny {q p : Polynomial ℕ}
   have hone := acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := p.eval (enc a).length)
   have hc := acceptCount_le_two_pow (V := V) (a := a) (n := p.eval (enc a).length)
   rw [eval_mul] at hsum ⊢
-  set k := q.eval (enc a).length; set m := p.eval (enc a).length; set c := acceptCount V a m
+  set k := q.eval (enc a).length
+  set m := p.eval (enc a).length
+  set c := acceptCount V a m
   set F := (univ.filter fun u : Fin m → Bool => V (a, List.ofFn u) = false).card
   have hpos : (0 : ℝ) < 2 ^ m := by positivity
   obtain ⟨x, hx⟩ : ∃ x : ℝ, x = c / 2 ^ m := ⟨_, rfl⟩
@@ -368,7 +372,9 @@ theorem two_pow_le_two_mul_acceptCount_repeatAny {q p : Polynomial ℕ}
     rw [hx, ← mul_div_assoc, le_div_iff₀ hpos, one_mul]; exact_mod_cast h
   have hB := Cslib.one_sub_pow_mul_one_add_mul_le_one (by rw [hx]; positivity) hx₁ k
   have hFr : (F : ℝ) = 2 ^ m * (1 - x) := by
-    rw [hx, show F = 2 ^ m - c by omega, Nat.cast_sub hc]; push_cast; field_simp
+    rw [hx, show F = 2 ^ m - c by omega, Nat.cast_sub hc]
+    push_cast
+    field_simp
   have hpow : 2 * F ^ k ≤ 2 ^ (k * m) := by
     suffices (2 : ℝ) * (F : ℝ) ^ k ≤ (2 : ℝ) ^ (k * m) by exact_mod_cast this
     rw [hFr, mul_pow, ← pow_mul, mul_comm m]

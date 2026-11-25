@@ -364,7 +364,9 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
           simp only [accBound, List.length_append, List.length_singleton, hv', ← hn]
           exact Nat.mul_le_mul (Nat.pow_le_pow_left hb 4) (Nat.pow_le_pow_left hw 4)
       _ = 81 * (CD + 3) ^ 4 * 2 ^ (8 * ((k + 1) * (n + 2))) := by
-          rw [hVdef]; simp only [mul_pow, ← pow_mul]; ring
+          rw [hVdef]
+          simp only [mul_pow, ← pow_mul]
+          ring
       _ ≤ 81 * (CD + 3) ^ 4 * (2 ^ (16 * k + 16) * M) :=
           Nat.mul_le_mul_left _ (two_pow_le_two_pow_mul (by ring_nf; omega))
       _ = A₂ * M := by ring
