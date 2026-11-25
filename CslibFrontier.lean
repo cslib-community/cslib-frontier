@@ -8128,7 +8128,6 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SparseNaviga
 public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.Inversion
 public import CslibFrontier.Foundations.Quantum.Algebra.SequentialBinomial
-public import CslibFrontier.Foundations.Data.List.Chunks
 public import CslibFrontier.Foundations.RingTheory.RootsOfUnity.SeparatedSums
 public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Header
@@ -9469,6 +9468,7 @@ public import CslibFrontier.Foundations.Data.Fintype.FiberEquiv
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT.ImplDeg
 public import CslibFrontier.Algorithms.WordRAM.EditDistance
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
+public import CslibFrontier.Foundations.Data.List.ToChunks
 public import CslibFrontier.Foundations.Combinatorics.Expander.Contraction
 public import CslibFrontier.Logics.Propositional.CSP.Permanent
 public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder

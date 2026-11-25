@@ -8,6 +8,9 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.DataStructure.Rope.Basic
+-- `import all` so that `decide +kernel` can evaluate `Rope.ofList` on concrete inputs through
+-- `List.toChunks`, whose body Batteries does not expose.
+import all Batteries.Data.List.Basic
 
 /-!
 # Rope well-formedness and model examples

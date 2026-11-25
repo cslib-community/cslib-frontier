@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.List.BalancedFold
-public import CslibFrontier.Foundations.Data.List.Chunks
+public import CslibFrontier.Foundations.Data.List.ToChunks
 
 /-!
 # Ropes: structure, list model and basic API
@@ -40,8 +40,8 @@ other modules.
 * `Rope.mkNode`: a node with recomputed caches, eliminating empty children.
 * `Rope.toList`, `Rope.get?`, `Rope.map`, `Rope.foldl`, `Rope.foldr`, `Rope.singleton`: the
   list model and the basic operations.
-* `Rope.ofList`: bulk construction from the chunks `List.chunks B xs` of `max 1 B` elements,
-  combined by `List.balancedFold`.
+* `Rope.ofList`: bulk construction from the chunks `xs.toChunks (max 1 B)`, combined by
+  `List.balancedFold`.
 
 ## Main results
 
@@ -258,11 +258,11 @@ that conses each element once. -/
 /-- The one-element rope. -/
 @[expose] def singleton (x : α) : Rope α := .leaf [x]
 
-/-- Bulk construction: one leaf per chunk of `xs.chunks B`, combined by `List.balancedFold`. At
-every node the two sides receive `⌊n / 2⌋` and `⌈n / 2⌉` of the `n` chunks, so the shape depends
-only on the number of chunks. -/
+/-- Bulk construction: one leaf per chunk of `xs.toChunks (max 1 B)`, combined by
+`List.balancedFold`. At every node the two sides receive `⌊n / 2⌋` and `⌈n / 2⌉` of the `n`
+chunks, so the shape depends only on the number of chunks. -/
 @[expose] def ofList (B : ℕ) (xs : List α) : Rope α :=
-  (xs.chunks B).balancedFold mkNode .empty leaf
+  (xs.toChunks (max 1 B)).balancedFold mkNode .empty leaf
 
 instance : Membership α (Rope α) := ⟨fun t x => x ∈ t.toList⟩
 
@@ -357,7 +357,7 @@ theorem isWF_singleton {B : ℕ} (hB : 1 ≤ B) (x : α) : IsWF B (singleton x) 
   unfold ofList
   refine (List.balancedFold_induction (op := mkNode) (e := .empty) (f := leaf)
     (p := fun cs (t : Rope α) => t.toList = cs.flatten) rfl (by simp)
-    (fun _ _ _ _ _ _ hx hy => ?_) (xs.chunks B)).trans (xs.flatten_chunks B)
+    (fun _ _ _ _ _ _ hx hy => ?_) (xs.toChunks (max 1 B))).trans (xs.flatten_toChunks _)
   simp [hx, hy]
 
 theorem cacheCorrect_ofList (B : ℕ) (xs : List α) : CacheCorrect (ofList B xs) :=
@@ -372,8 +372,8 @@ theorem chunked_ofList {B : ℕ} (hB : 1 ≤ B) (xs : List α) : Chunked B (ofLi
     (p := fun cs (t : Rope α) => (∀ c ∈ cs, 0 < c.length ∧ c.length ≤ B) → Chunked B t)
     (fun _ => trivial) (fun c h => h c (List.mem_singleton_self c))
     (fun _ _ _ _ _ _ hx hy h => chunked_mkNode (hx fun c hc => h c (List.mem_append_left _ hc))
-      (hy fun c hc => h c (List.mem_append_right _ hc))) (xs.chunks B) fun c hc => ?_
-  have := List.length_pos_and_le_of_mem_chunks hc
+      (hy fun c hc => h c (List.mem_append_right _ hc))) (xs.toChunks (max 1 B)) fun c hc => ?_
+  have := List.length_pos_and_le_of_mem_toChunks (by omega) hc
   omega
 
 end Model
