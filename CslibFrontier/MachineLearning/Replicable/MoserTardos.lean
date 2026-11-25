@@ -195,21 +195,13 @@ private theorem toOuterMeasure_readSeed {β : V → Type*} [∀ v, Finite (β v)
   have hread : Measurable read := measurable_pi_iff.2 fun q => measurable_pi_apply _
   have hE' : E = read ⁻¹' (read '' E) := by
     ext T
-    refine ⟨fun h => ⟨T, h, rfl⟩, fun ⟨T', hT', heq⟩ => ?_⟩
-    have : T' ∈ E ↔ T ∈ E := by
-      refine iff_of_eq (hE fun p hp => ?_)
-      simp only [coe_product, coe_univ, coe_range, Set.mem_prod, Set.mem_univ, Set.mem_Iio,
-        true_and] at hp
-      exact congrFun heq (p.1, ⟨p.2, hp⟩)
-    exact this.1 hT'
+    exact ⟨fun h => ⟨T, h, rfl⟩, fun ⟨T', hT', heq⟩ =>
+      (hE fun p hp => congrFun heq (p.1, ⟨p.2, by simpa using hp⟩)).mp hT'⟩
   have himage : MeasurableSet (read '' E) := (Set.to_countable _).measurableSet
   have htable : (Measure.infinitePi fun p : V × ℕ => κ p.1).map read =
       Measure.pi fun q => κ q.1 := by
-    have hinj : Function.Injective fun q : V × Fin (B + 1) => ((q.1, q.2.val) : V × ℕ) :=
-      fun q q' h => by
-        simp only [Prod.mk.injEq] at h
-        exact Prod.ext h.1 (Fin.ext h.2)
-    rw [Measure.map_infinitePi_infinitePi_of_inj (P := fun p : V × ℕ => κ p.1) hinj,
+    rw [Measure.map_infinitePi_infinitePi_of_inj (P := fun p : V × ℕ => κ p.1)
+      (fun q q' h => Prod.ext (Prod.mk.inj h).1 (Fin.ext (Prod.mk.inj h).2)),
       Measure.infinitePi_eq_pi]
   have hseed : ((Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map
       (readSeed B G)).toMeasure.map read = Measure.pi fun q => κ q.1 := by
@@ -306,10 +298,7 @@ private theorem length_run_of_budgetedOutput_eq_none {ι : Type*} {vbl : ι → 
     (run (historyRule vbl r) T (B + 1)).length = B + 1 := by
   have hB : historyRule vbl r T (run (historyRule vbl r) T B) ≠ none := by
     unfold budgetedOutput at h
-    split at h
-    · cases h
-    · simp only [historyRule]
-      simp_all
+    split at h <;> simp_all [historyRule]
   have hstep : ∀ m ≤ B, historyRule vbl r T (run (historyRule vbl r) T m) ≠ none :=
     fun m hm hm' => hB (by rw [run_eq_of_eq_none hm' hm]; exact hm')
   have hlen : ∀ m ≤ B + 1, (run (historyRule vbl r) T m).length = m := by
