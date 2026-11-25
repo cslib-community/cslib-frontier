@@ -184,7 +184,6 @@ theorem assumeLoop_spec (ls : List (Literal ℕ)) (trail : List (Literal ℕ)) (
       hw.of_le (by omega)
     have : Fits w (T + (litCode (Std.Sat.Literal.negate l) +
         litCode (Std.Sat.Literal.negate l) + 1)) := hw.of_le (by omega)
-    have : Fits w (x.regs lptr + 1) := hw.of_le (by omega)
     have hOA : OnlyAsg T x.mem
         (Function.update x.mem (acell T (litCode (Std.Sat.Literal.negate l))) s) :=
       OnlyAsg.update T _ s x.mem
@@ -227,13 +226,6 @@ theorem rupStep_spec (db : List (ℕ × Clause ℕ)) (i : ℕ) (c : Clause ℕ) 
   obtain ⟨hlen, hl⟩ := holdsList_cons_iff.mp hl
   obtain ⟨hlits, hl⟩ := holdsList_append_iff.mp hl
   simp only [List.length_map] at hl
-  have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
-  have : Fits w (x.regs ptr + 1 + 1) := hw.of_le (by omega)
-  have : Fits w (x.regs ptr + 1 + 1 + c.length) := hw.of_le (by omega)
-  have : Fits w i := hw.of_le (by omega)
-  have : Fits w (i + i) := hw.of_le (by omega)
-  have : Fits w (T + (i + i)) := hw.of_le (by omega)
-  have : Fits w (s + 1) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold rupStep
   wram_exec [hli, hone, hlen]
@@ -309,9 +301,6 @@ theorem delLoop_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 
     have hc : (Cond.lt ptr hend).Holds x := by simp only [Cond.holds_lt, hhe]; omega
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp hl
     have hhM := hM h (by simp)
-    have : Fits w (h + h) := hw.of_le (by omega)
-    have : Fits w (T + (h + h)) := hw.of_le (by omega)
-    have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold delBody
     wram_exec [hlit, hT, hzero, hone]
@@ -337,8 +326,6 @@ theorem delStep_spec (db : List (ℕ × Clause ℕ)) (ids : List ℕ) (x : Data 
       TableAt y.mem T (db.filter fun e => !ids.contains e.1) ∧ Fresh y.mem T s ∧
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = T ∧ ∀ a < T, y.mem a = x.mem a := by
   obtain ⟨hlen, hrest⟩ := holdsList_cons_iff.mp hl
-  have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
-  have : Fits w (x.regs ptr + 1 + ids.length) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold delStep
   wram_exec [hlen, hone]
@@ -401,7 +388,6 @@ theorem stepLoop_spec (rest : List LRAT.IntAction) (db : List (ℕ × Clause ℕ
     have hpos : 0 < (encodeAction a).length := by cases a <;> simp [encodeAction]
     have hc : (Cond.lt ptr endp).Holds x := by simp only [Cond.holds_lt, hinv.endp]; omega
     have hw := hinv.fits
-    have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
     have hMa : ∀ v ∈ encodeAction a, v + 1 ≤ M := fun v hv => hM v (List.mem_append_left _ hv)
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold stepBody

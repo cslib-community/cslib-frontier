@@ -317,7 +317,7 @@ def readMany : ℕ → Memory.Prog Unit
 /--
 error: realize: unsupported client form
   readMany d
-Expected `bind`, `pure`, a memory query, `if` on a word comparison,
+Expected `bind`, `map`, `pure`, a memory query, `if` on a word comparison,
 a `match` on an optional answer, `iterate` or `boundedWhile`.
 Write recursion on a runtime value as one of these loops.
 -/

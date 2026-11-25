@@ -154,12 +154,6 @@ theorem loadLoop_spec (done ψ : CNF ℕ) (x : Data 28) (M T : ℕ)
     obtain ⟨hcl, hrest⟩ := holdsList_append_iff.mp hl
     obtain ⟨hlen, -⟩ := holdsList_cons_iff.mp hcl
     simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hrest
-    have : Fits w (done.length + 1 + (done.length + 1)) := hw.of_le (by omega)
-    have : Fits w (T + (done.length + 1 + (done.length + 1))) := hw.of_le (by omega)
-    have : Fits w (x.regs ptr + 1) := hw.of_le (by omega)
-    have : Fits w (x.regs ptr + 1 + c.length) := hw.of_le (by omega)
-    have : Fits w (done.length + 1 + 1) := hw.of_le (by omega)
-    have : Fits w (done.length + 1) := hw.of_le (by omega)
     have hnone : (numbered done 1).find? (·.1 == done.length + 1) = none := by
       rw [List.find?_eq_none]
       intro e he
@@ -219,7 +213,6 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   set L := input.length
   set T := L + 1
   set M := input.foldr max 0 + 1
-  have hTL : T = L + 1 := rfl
   have hM : ∀ v ∈ input, v + 1 ≤ M := fun v hv => by have := List.le_max_of_le' 0 hv le_rfl; omega
   have hw' : Fits w (T + 2 * M + 2) := hw.of_le (by simp only [wordBound, T, M, L, hinput]; omega)
   set F := φ.flatMap encodeClause
@@ -242,14 +235,6 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   have hm1 : (Data.init input : Data 28).mem 1 = φ.length := by
     rw [Data.init_mem_succ]; simp [hinputeq]
   have hφM : φ.length + 1 ≤ M := hM _ (by simp [hinputeq])
-  have : Fits w 1 := hw'.of_le (by omega)
-  have : Fits w 2 := hw'.of_le (by omega)
-  have : Fits w 3 := hw'.of_le (by omega)
-  have : Fits w L := hw'.of_le (by omega)
-  have : Fits w (L + 1) := hw'.of_le (by omega)
-  have : Fits w φ.length := hw'.of_le (by omega)
-  have : Fits w (1 + 1) := hw'.of_le (by omega)
-  have hinit0 : (Data.init input : Data 28).regs zero = 0 := rfl
   have hFl : (List.flatMap encodeClause φ).length = F.length := rfl
   have hLl : input.length = L := rfl
   have hSW : (stepWords cert.toList).length = C.length := rfl
