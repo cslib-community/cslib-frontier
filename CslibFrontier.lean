@@ -1577,6 +1577,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.DepthTime
 public import CslibFrontier.Computability.Circuit.Boolean.DepthTime.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.DuplicateFlags
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.CircuitLowerBound
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding.Certificate
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime

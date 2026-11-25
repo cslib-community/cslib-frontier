@@ -38,6 +38,19 @@ rev = "98f9a62ac1fafa0d5091bbd78bc24091c5923aab"
 [[lean_lib]]
 name = "CslibFrontier"
 
+# Published proof of the finite-field list-volume theorem used by the circuit lower bound.
+[[lean_lib]]
+name = "OAI"
+srcDir = "vendor/matrixexponent"
+roots = []
+globs = ["OAI.+"]
+leanOptions = [
+  ["backward.privateInPublic", true],
+  ["backward.privateInPublic.warn", false],
+  ["weak.linter.mathlibStandardSet", false],
+  ["weak.linter.flexible", false],
+]
+
 [[lean_lib]]
 name = "CslibFrontierResults"
 leanOptions = {weak.linter.style.header = false}
