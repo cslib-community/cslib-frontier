@@ -52,11 +52,9 @@ omit [DecidableEq V] in
 theorem outgoing_subset_used (es : Log F) : es.outgoing ⊆ es.used := by
   induction es with
   | nil => exact List.Subset.refl _
-  | cons e es ih =>
-    intro o ho
-    rcases List.mem_append.mp ho with ho | ho
-    · exact List.mem_cons_of_mem _ (List.mem_append_left _ ho)
-    · exact List.mem_cons_of_mem _ (List.mem_append_right _ (ih ho))
+  | cons _ _ ih =>
+    exact fun _ ho => List.mem_cons_of_mem _ ((List.mem_append.mp ho).elim
+      (List.mem_append_left _) fun h => List.mem_append_right _ (ih h))
 
 omit [DecidableEq V] in
 /-- Every recorded outgoing arc uses a discovery port. -/
@@ -64,9 +62,9 @@ theorem mem_outgoing_of_arc {es : Log F} {a : Arc F}
     (ha : a ∈ es.arcs) (hi : a.incoming = false) : a.occurrence ∈ es.outgoing := by
   induction es with
   | nil => simp [arcs] at ha
-  | cons e es ih =>
+  | cons _ _ ih =>
     simp only [arcs, List.mem_cons, List.mem_append, List.mem_map] at ha
-    rcases ha with rfl | ⟨o, ho, rfl⟩ | ha
+    rcases ha with rfl | ⟨_, ho, rfl⟩ | ha
     · cases hi
     · exact List.mem_append_left _ ho
     · exact List.mem_append_right _ (ih ha)
@@ -77,34 +75,26 @@ theorem parent?_sound (es : Log F) (v : V) {p : Parent F}
     p.output ∈ es.outgoing ∧ p.output.var = v ∧ p.time < es.length := by
   induction es with
   | nil => simp [parent?] at hp
-  | cons e es ih =>
-    simp only [parent?] at hp
-    split at hp
-    next o ho =>
-      cases hp
-      exact ⟨List.mem_append_left _ (List.mem_of_find?_eq_some ho),
-        by simpa only [beq_iff_eq] using List.find?_some ho, Nat.lt_succ_self _⟩
-    next =>
-      obtain ⟨hm, hv, ht⟩ := ih hp
-      exact ⟨List.mem_append_right _ hm, hv, ht.trans (Nat.lt_succ_self _)⟩
+  | cons _ _ ih =>
+    simp only [parent?] at hp; split at hp
+    next o ho => cases hp; exact ⟨List.mem_append_left _ (List.mem_of_find?_eq_some ho),
+      by simpa only [beq_iff_eq] using List.find?_some ho, Nat.lt_succ_self _⟩
+    next => obtain ⟨hm, hv, ht⟩ := ih hp
+            exact ⟨List.mem_append_right _ hm, hv, ht.trans (Nat.lt_succ_self _)⟩
 
 /-- A skipped partner already has an actual output port at this original constraint. -/
 theorem SameParent.exists_output {es : Log F} {v : V} {i : Fin F.length}
     (h : es.SameParent v i) :
     ∃ o ∈ es.outgoing, o.var = v ∧ o.1 = i := by
-  unfold SameParent at h
-  split at h
-  · exact False.elim h
-  next p hp =>
-    obtain ⟨hm, hv, _⟩ := es.parent?_sound v hp
-    exact ⟨p.output, hm, hv, h⟩
+  unfold SameParent at h; split at h
+  · exact h.elim
+  next p hp => let ⟨hm, hv, _⟩ := es.parent?_sound v hp; exact ⟨p.output, hm, hv, h⟩
 
 /-- In an edge instance a skipped feasible partner is the exact already-used positional port.
 This uses the source's distinct-variable-within-a-scope convention. -/
 theorem SameParent.mem_outgoing (hF : EdgeInstance F) {es : Log F} {b : Occurrence F}
-    (h : es.SameParent b.var b.1) : b ∈ es.outgoing := by
-  obtain ⟨o, ho, hv, hi⟩ := h.exists_output
-  exact hF.eq_of_constraint_eq hv hi ▸ ho
+    (h : es.SameParent b.var b.1) : b ∈ es.outgoing :=
+  let ⟨_, ho, hv, hi⟩ := h.exists_output; hF.eq_of_constraint_eq hv hi ▸ ho
 
 omit [DecidableEq V] in
 /-- Every recorded arc uses a recorded port, at a strictly earlier timestamp than the next
@@ -113,33 +103,27 @@ theorem mem_arcs (es : Log F) {a : Arc F} (ha : a ∈ es.arcs) :
     a.occurrence ∈ es.used ∧ a.time < es.length := by
   induction es with
   | nil => simp [arcs] at ha
-  | cons e es ih =>
+  | cons _ _ ih =>
     simp only [arcs, List.mem_cons, List.mem_append, List.mem_map] at ha
-    rcases ha with rfl | ⟨o, ho, rfl⟩ | ha
+    rcases ha with rfl | ⟨_, ho, rfl⟩ | ha
     · exact ⟨List.mem_cons_self, Nat.lt_succ_self _⟩
     · exact ⟨List.mem_cons_of_mem _ (List.mem_append_left _ ho), Nat.lt_succ_self _⟩
-    · obtain ⟨ho, ht⟩ := ih ha
-      exact ⟨List.mem_cons_of_mem _ (List.mem_append_right _ ho),
-        ht.trans (Nat.lt_succ_self _)⟩
+    · let ⟨ho, ht⟩ := ih ha
+      exact ⟨List.mem_cons_of_mem _ (List.mem_append_right _ ho), ht.trans (Nat.lt_succ_self _)⟩
 
 /-- All arcs of the converted DAG have supported endpoints, including isolated roots. -/
-theorem toDAG_supported (rs : List V) (es : Log F) : (es.toDAG rs).Supported := by
-  intro a ha
-  have hm : a ∈ es.arcs := List.mem_toFinset.mp ha
-  refine ⟨List.mem_toFinset.mpr (List.mem_append_right _
-    (List.mem_map.mpr ⟨a.occurrence, (es.mem_arcs hm).1, rfl⟩)), ?_⟩
-  exact List.mem_toFinset.mpr (List.mem_map.mpr ⟨a, hm, rfl⟩)
+theorem toDAG_supported (rs : List V) (es : Log F) : (es.toDAG rs).Supported :=
+  fun a ha => let hm := List.mem_toFinset.mp ha
+  ⟨List.mem_toFinset.mpr (List.mem_append_right _
+    (List.mem_map.mpr ⟨a.occurrence, (es.mem_arcs hm).1, rfl⟩)),
+   List.mem_toFinset.mpr (List.mem_map.mpr ⟨a, hm, rfl⟩)⟩
 
 /-- A visited variable belongs to the converted DAG even when it is an isolated root. -/
 theorem Visited.mem_vars {rs : List V} {es : Log F} {v : V}
-    (hv : es.Visited rs v) : v ∈ (es.toDAG rs).vars := by
-  apply List.mem_toFinset.mpr
-  rcases hv with hv | hv
-  · exact List.mem_append_left _ hv
-  · rw [children_eq_map_outgoing] at hv
-    obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hv
-    exact List.mem_append_right _
-      (List.mem_map.mpr ⟨o, es.outgoing_subset_used ho, rfl⟩)
+    (hv : es.Visited rs v) : v ∈ (es.toDAG rs).vars :=
+  List.mem_toFinset.mpr <| hv.elim (List.mem_append_left _) fun hv =>
+    let ⟨o, ho, h⟩ := List.mem_map.mp (children_eq_map_outgoing es ▸ hv)
+    List.mem_append_right _ (List.mem_map.mpr ⟨o, es.outgoing_subset_used ho, h⟩)
 
 omit [DecidableEq V] in
 /-- Original occurrences of converted arcs are exactly the used ports. -/
@@ -147,18 +131,14 @@ theorem exists_arc_iff (es : Log F) (o : Occurrence F) :
     (∃ a ∈ es.arcs, a.occurrence = o) ↔ o ∈ es.used := by
   induction es with
   | nil => simp [arcs, used]
-  | cons e es ih =>
+  | cons _ _ ih =>
     simp only [arcs, used, List.mem_cons, List.mem_append, List.mem_map]
-    constructor
-    · rintro ⟨a, rfl | ⟨p, hp, rfl⟩ | ha, rfl⟩
-      · exact Or.inl rfl
-      · exact Or.inr (Or.inl hp)
-      · exact Or.inr (Or.inr (ih.mp ⟨a, ha, rfl⟩))
-    · rintro (rfl | ho | ho)
-      · exact ⟨_, Or.inl rfl, rfl⟩
-      · exact ⟨_, Or.inr (Or.inl ⟨o, ho, rfl⟩), rfl⟩
-      · obtain ⟨a, ha, he⟩ := ih.mpr ho
-        exact ⟨a, Or.inr (Or.inr ha), he⟩
+    exact ⟨fun ⟨_, h, he⟩ => h.elim (fun h' => Or.inl (he.symm.trans (congrArg Arc.occurrence h')))
+        fun h' => h'.elim (fun ⟨_, hp, h''⟩ => Or.inr (Or.inl (he ▸ h'' ▸ hp)))
+          fun ha => Or.inr (Or.inr (ih.mp ⟨_, ha, he⟩)),
+      fun h => h.elim (fun h' => ⟨_, Or.inl rfl, h'.symm⟩) fun h' => h'.elim
+        (fun ho => ⟨_, Or.inr (Or.inl ⟨o, ho, rfl⟩), rfl⟩)
+        fun ho => let ⟨a, ha, he⟩ := ih.mpr ho; ⟨a, Or.inr (Or.inr ha), he⟩⟩
 
 end Log
 
@@ -168,11 +148,9 @@ theorem scan_outputs_mono (rs : List V) (es : Log F) (input : Occurrence F)
     (h : scan rs es input os bs = .continued out) : os ⊆ out := by
   induction bs generalizing os with
   | nil => cases h; exact List.Subset.refl _
-  | cons b bs ih =>
-    simp only [scan] at h
-    split at h
-    · intro o ho
-      exact ih _ h (List.mem_append_left _ ho)
+  | cons _ _ ih =>
+    simp only [scan] at h; split at h
+    · exact fun _ ho => ih _ h (List.mem_append_left _ ho)
     · split at h
       · exact ih _ h
       · cases h
@@ -191,25 +169,21 @@ theorem scan_saturated (hF : EdgeInstance F) (rs : List V) (es : Log F)
     simp only [scan] at h
     have htail : ∀ c ∈ bs, c.1 = input.1 := fun c hc => hbs c (List.mem_cons_of_mem b hc)
     split at h
-    next hn =>
-      have hm := scan_outputs_mono rs es input bs (os ++ [b]) h
-      intro c hc
-      rcases List.mem_cons.mp hc with rfl | hc
-      · exact List.mem_append_left _ (hm (by simp))
-      · exact ih _ htail h c hc
-    next hv =>
-      split at h
+    · intro c hc
+      exact (List.mem_cons.mp hc).elim
+        (fun hcb => List.mem_append_left _ (scan_outputs_mono rs es input bs (os ++ [b]) h
+          (hcb ▸ by simp)))
+        (ih _ htail h c)
+    · split at h
       next hp =>
-        have hb : b ∈ os ++ es.outgoing := by
-          change b ∈ Log.outgoing ((⟨input, os⟩ : Expansion F) :: es)
-          apply Log.SameParent.mem_outgoing hF
-          simpa only [hbs b List.mem_cons_self] using hp
-        intro c hc
-        rcases List.mem_cons.mp hc with rfl | hc
-        · rcases List.mem_append.mp hb with hb | hb
-          · exact List.mem_append_left _ (scan_outputs_mono rs es input bs os h hb)
-          · exact List.mem_append_right _ hb
-        · exact ih _ htail h c hc
+        have hb : b ∈ os ++ es.outgoing :=
+          Log.SameParent.mem_outgoing (es := (⟨input, os⟩ : Expansion F) :: es) hF
+            (by simpa only [hbs b List.mem_cons_self] using hp)
+        exact fun c hc => (List.mem_cons.mp hc).elim
+          (fun hcb => hcb ▸ (List.mem_append.mp hb).elim
+            (fun h' => List.mem_append_left _ (scan_outputs_mono rs es input bs os h h'))
+            (List.mem_append_right _))
+          (ih _ htail h c)
       next => cases h
 
 end Cslib.Logic.PL.CSP.Forest

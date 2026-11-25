@@ -84,29 +84,37 @@ theorem mono {program : OracleComp spec α} {n m : ℕ} (h : IsCostBounded cost 
 /-- A budget for a call's continuations, from a budget for the call. -/
 theorem liftBind_iff {q : ι} {cont : spec q → OracleComp spec α} {n : ℕ} :
     IsCostBounded cost (PFunctor.FreeM.liftBind q cont) n ↔
-      cost q ≤ n ∧ ∀ a, IsCostBounded cost (cont a) (n - cost q) :=
-  ⟨by rintro (_ | ⟨_, _, _, hcont⟩); exact ⟨Nat.le_add_left _ _, fun a => by simpa using hcont a⟩,
-   fun ⟨hle, hcont⟩ => Nat.sub_add_cancel hle ▸ .liftBind q cont _ hcont⟩
+      cost q ≤ n ∧ ∀ a, IsCostBounded cost (cont a) (n - cost q) := by
+  constructor
+  · rintro (_ | ⟨_, _, n, hcont⟩)
+    exact ⟨by omega, fun a => by rw [Nat.add_sub_cancel]; exact hcont a⟩
+  · rintro ⟨hle, hcont⟩
+    rw [show n = n - cost q + cost q by omega]
+    exact .liftBind q cont _ hcont
 
 /-- One call costs its cost. -/
-theorem query (q : ι) : IsCostBounded cost (OracleComp.query (spec := spec) q) (cost q) :=
-  Nat.zero_add (cost q) ▸
-    IsCostBounded.liftBind (spec := spec) q PFunctor.FreeM.pure 0 fun a => .pure a 0
+theorem query (q : ι) : IsCostBounded cost (OracleComp.query (spec := spec) q) (cost q) := by
+  have h := IsCostBounded.liftBind (spec := spec) (cost := cost) q
+    (fun a : spec q => PFunctor.FreeM.pure a) 0 fun a => .pure a 0
+  rw [Nat.zero_add] at h
+  exact h
 
 /-- Budgets add under sequencing. -/
 theorem bind {program : OracleComp spec α} {next : α → OracleComp spec β} {n m : ℕ}
     (h : IsCostBounded cost program n) (hnext : ∀ a, IsCostBounded cost (next a) m) :
     IsCostBounded cost (program >>= next) (n + m) := by
   induction h with
-  | pure a _ => exact (hnext a).mono (Nat.le_add_left _ _)
-  | liftBind q _ _ _ ih => exact Nat.add_right_comm _ _ _ ▸ .liftBind q _ _ ih
+  | pure a n => exact (hnext a).mono (by omega)
+  | liftBind q cont n _ ih =>
+    rw [show n + cost q + m = n + m + cost q by omega]
+    exact .liftBind q _ (n + m) ih
 
 /-- Calls that cost nothing fit in a zero budget. -/
 theorem of_forall_cost_eq_zero (hcost : ∀ q, cost q = 0) (program : OracleComp spec α) :
     IsCostBounded cost program 0 := by
   induction program with
   | pure a => exact .pure a 0
-  | liftBind q _ ih =>
+  | liftBind q cont ih =>
     exact liftBind_iff.mpr ⟨(hcost q).le, fun a => by simpa [hcost q] using ih a⟩
 
 /-- A budget for a cost is one for every smaller cost. -/
@@ -115,19 +123,18 @@ theorem of_le {cost' : ι → ℕ} {program : OracleComp spec α} {n : ℕ}
     IsCostBounded cost' program n := by
   induction h with
   | pure a n => exact .pure a n
-  | liftBind q _ n _ ih =>
-    exact (IsCostBounded.liftBind q _ n ih).mono (Nat.add_le_add_left (hcost q) n)
+  | liftBind q cont n _ ih => exact (IsCostBounded.liftBind q cont n ih).mono (by simp [hcost q])
 
 /-- Budgets for two costs give a budget for their sum. -/
 theorem add {cost' : ι → ℕ} {program : OracleComp spec α} {n n' : ℕ}
     (h : IsCostBounded cost program n) (h' : IsCostBounded cost' program n') :
     IsCostBounded (fun q => cost q + cost' q) program (n + n') := by
   induction h generalizing n' with
-  | pure a _ => exact .pure a _
-  | liftBind q _ n _ ih =>
+  | pure a n => exact .pure a _
+  | liftBind q cont n _ ih =>
     obtain ⟨hle, hcont⟩ := liftBind_iff.mp h'
-    exact (show n + (n' - cost' q) + (cost q + cost' q) = n + cost q + n' by omega) ▸
-      .liftBind q _ _ fun a => ih a (hcont a)
+    rw [show n + cost q + n' = n + (n' - cost' q) + (cost q + cost' q) by omega]
+    exact .liftBind q cont _ fun a => ih a (hcont a)
 
 /-- A program whose calls are replaced by programs over another interface, each call `q` costing
 at most `cost q` there, costs at most `n` there when its own calls cost at most `n`. -/
@@ -138,7 +145,7 @@ theorem interpret {κ : Type x} {target : OracleSpec.{x, v} κ} {cost' : κ → 
     IsCostBounded cost' (OracleComp.interpret handler program) n := by
   induction h with
   | pure a n => exact .pure a n
-  | liftBind q _ _ _ ih =>
+  | liftBind q cont n _ ih =>
     rw [interpret_bind, interpret_query, Nat.add_comm]
     exact (hhandler q).bind ih
 
@@ -150,24 +157,27 @@ theorem run_interpret {κ : Type u} {target : OracleSpec.{u, v} κ} {cost' : κ 
     {program : OracleComp spec α} {n : ℕ} (h : IsCostBounded cost program n) (s : σ) :
     IsCostBounded cost' ((OracleComp.interpret handler program).run s) n := by
   induction h generalizing s with
-  | pure a _ => exact .pure (a, s) _
-  | liftBind q _ _ _ ih =>
+  | pure a n => exact .pure (a, s) _
+  | liftBind q cont n _ ih =>
     simp only [interp_norm]
-    exact Nat.add_comm _ _ ▸ (hhandler q s).bind fun result => ih result.1 result.2
+    rw [Nat.add_comm]
+    exact (hhandler q s).bind fun result => ih result.1 result.2
 
 end IsCostBounded
 
 /-- Postprocessing the result makes no call. -/
 @[simp] theorem isCostBounded_map_iff {cost : ι → ℕ} (f : α → β) (program : OracleComp spec α)
     (n : ℕ) : IsCostBounded cost (f <$> program) n ↔ IsCostBounded cost program n := by
-  refine ⟨fun h => ?_, fun h => by
+  constructor
+  · intro h
+    induction program generalizing n with
+    | pure a => exact .pure a n
+    | liftBind q cont ih =>
+      obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp h
+      exact IsCostBounded.liftBind_iff.mpr ⟨hle, fun a => ih a _ (hcont a)⟩
+  · intro h
     rw [← bind_pure_comp]
-    simpa using h.bind fun a => IsCostBounded.pure (f a) 0⟩
-  induction program generalizing n with
-  | pure a => exact .pure a n
-  | liftBind q _ ih =>
-    obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp h
-    exact IsCostBounded.liftBind_iff.mpr ⟨hle, fun a => ih a _ (hcont a)⟩
+    simpa using h.bind fun a => IsCostBounded.pure (f a) 0
 
 /-! ### Every call satisfies a predicate -/
 
@@ -187,8 +197,9 @@ theorem liftBind_iff {q : ι} {cont : spec q → OracleComp spec α} :
     QueriesSatisfy p (PFunctor.FreeM.liftBind q cont) ↔
       p q ∧ ∀ a, QueriesSatisfy p (cont a) := by
   classical
-  rw [QueriesSatisfy, IsCostBounded.liftBind_iff]
-  by_cases hq : p q <;> simp [hq, QueriesSatisfy]
+  unfold QueriesSatisfy
+  rw [IsCostBounded.liftBind_iff]
+  by_cases hq : p q <;> simp [hq]
 
 /-- Returning a value makes no call. -/
 theorem pure (a : α) : QueriesSatisfy p (Pure.pure a : OracleComp spec α) :=
@@ -197,8 +208,8 @@ theorem pure (a : α) : QueriesSatisfy p (Pure.pure a : OracleComp spec α) :=
 /-- A single call satisfies `p` when its query does. -/
 theorem query {q : ι} (hq : p q) : QueriesSatisfy p (OracleComp.query (spec := spec) q) := by
   classical
-  simpa [QueriesSatisfy, hq] using
-    IsCostBounded.query (spec := spec) (cost := fun q => if p q then 0 else 1) q
+  have h := IsCostBounded.query (spec := spec) (cost := fun q => if p q then 0 else 1) q
+  simpa [QueriesSatisfy, hq] using h
 
 /-- Sequencing preserves the predicate. -/
 theorem bind {program : OracleComp spec α} {next : α → OracleComp spec β}
@@ -217,7 +228,7 @@ theorem mono {program : OracleComp spec α} (h : QueriesSatisfy p program)
   refine IsCostBounded.of_le h fun q => ?_
   by_cases hq : p q
   · simp [hq, hp q hq]
-  · split_ifs <;> simp
+  · by_cases hq' : p' q <;> simp [hq, hq']
 
 end QueriesSatisfy
 
@@ -242,12 +253,12 @@ theorem IsCostBounded.measure_le {cost : Query → ℕ} {program : OracleComp Re
     (hmem : (result, s') ∈ ((OracleComp.interpret oracle program).run s).support) :
     size s' ≤ size s + n := by
   induction h generalizing s with
-  | pure _ _ =>
+  | pure a n =>
     simp only [run_interpret_pure, Probability.PMF.monad_pure_eq_pure,
       PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
     rcases hmem with ⟨-, rfl⟩
-    exact Nat.le_add_right _ _
-  | liftBind q _ n _ ih =>
+    omega
+  | liftBind q cont n _ ih =>
     simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
     obtain ⟨⟨ans, s₁⟩, hans, hcont⟩ := hmem
     have h₁ := hstep q s ans s₁ hans
@@ -263,13 +274,25 @@ theorem IsCostBounded.transcript_cost_le {cost : Query → ℕ} {program : Oracl
     (hmem : (result, s', transcript) ∈
       ((OracleComp.interpret (withTranscript oracle) program).run (s, [])).support) :
     (transcript.map fun entry => cost entry.1).sum ≤ n := by
-  simpa using h.measure_le (withTranscript oracle)
-    (fun st => (st.2.map fun entry => cost entry.1).sum)
-    (fun q ⟨s, tr⟩ ans ⟨s', tr'⟩ hstep => by
-      simp only [withTranscript, PMF.mem_support_map_iff] at hstep
-      obtain ⟨⟨_, _⟩, -, heq⟩ := hstep
-      cases heq
-      simp [Nat.add_comm]) hmem
+  induction h generalizing s s' result transcript with
+  | pure a n =>
+    simp only [run_interpret_pure, Probability.PMF.monad_pure_eq_pure,
+      PMF.mem_support_pure_iff] at hmem
+    cases hmem
+    simp
+  | liftBind q cont n _ ih =>
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
+    obtain ⟨⟨a, middle, seen⟩, hfirst, hrest⟩ := hmem
+    simp only [StateT.run, withTranscript, PMF.mem_support_map_iff] at hfirst
+    obtain ⟨⟨answer, next⟩, -, heq⟩ := hfirst
+    cases heq
+    rw [run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hrest
+    obtain ⟨⟨result', final, fresh⟩, hfresh, heq⟩ := hrest
+    cases heq
+    have := ih answer hfresh
+    simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
+      List.sum_nil]
+    omega
 
 /-- Against every stateful oracle, a supported run records at most `n` calls. -/
 theorem IsQueryBounded.length_transcript_le {program : OracleComp Response γ} {n : ℕ}
