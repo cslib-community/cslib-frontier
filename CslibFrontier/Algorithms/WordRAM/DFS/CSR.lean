@@ -89,20 +89,6 @@ end Reg
 
 open Reg
 
-local macro "reg_ne" : tactic =>
-  `(tactic| exact Fin.ne_of_val_ne (by
-    simp only [ne_eq, Fin.ext_iff, cZero, cOne, cThree, nVerts, offB, edgeB, visB, finB, stkB,
-      curB, revOffB, revEdgeB, ordB, compB, iReg, pReg, finCnt, compIdxReg, oldFinReg, uReg, vReg,
-      jReg, jEndReg, addr, outReg] at *
-    omega))
-
-local macro "regs_lt" : tactic =>
-  `(tactic| (
-    repeat (first
-      | rw [Data.write_regs_apply]
-      | rw [Data.set_regs_of_ne (by reg_ne)])
-    try rfl))
-
 local macro "mem_upd" : tactic =>
   `(tactic| simp only [Data.set_mem, Data.set_mem_apply, Data.write_mem])
 
@@ -242,8 +228,8 @@ theorem zeroBlockCode_spec {w : ℕ} (baseReg : Fin 28) (hbr : baseReg.val < 18)
   refine ⟨_, (hprep.seq hzf.within).mono (by omega), fun i hi => ?_, fun a ha => ?_, fun r hr => ?_⟩
   · exact clear_of_owns ⟨Nat.le_add_right B i, Nat.add_lt_add_left hi B⟩
   · exact clear_of_not_owns ha
-  · simp only [x₁, Function.update_of_ne (show r ≠ addr by reg_ne)]
-    regs_lt
+  · simp only [Function.update_of_ne (show r ≠ addr by rintro rfl; exact absurd hr (by decide))]
+    wram_simp [x₁]
 
 /-- `zeroBlockCode baseReg` does not read the word width. -/
 theorem not_readsWidth_zeroBlockCode (baseReg : Fin 28) :
@@ -293,7 +279,7 @@ theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
       simp [Function.update_of_ne hne, Function.update_of_ne hu, hmem u]
   · mem_upd
     exact Function.update_of_ne (by omega) _ _
-  · regs_lt
+  · wram_simp [h1, h2]
 
 /-- Compute CSR prefix sums `offB[0..N]` from degrees in `curB[0..N)` and set
 `curB[u] := offB[u + 1]` in `9 * N + 5` instructions. -/
@@ -342,8 +328,7 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       (ram[ *offB ← cZero; pReg ← cZero; iReg ← cZero ]) x x₀ 3 ∧ PrepPost x₀
     wram_exec [hc0, hoffB]
     dsimp only [PrepPost]
-    refine ⟨by wram_simp, by wram_simp, by wram_simp, fun r hr => ?_⟩
-    regs_lt
+    exact ⟨by wram_simp, by wram_simp, by wram_simp, fun r hr => by wram_simp⟩
   obtain ⟨x₀, hx₀_ex, hx₀_mem, hx₀_p, hx₀_i, hx₀_fr⟩ := hprep
   let P (k : ℕ) (y : Data 28) : Prop :=
     (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) ∧
@@ -371,7 +356,7 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
     wram_exec [hy_fr, hc1, hdegB, hoffB, hy_p, hdeg_k]
     dsimp only [BodyPost, P]
     refine ⟨⟨fun r hr => ?_, ?_, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩, by wram_simp⟩
-    · regs_lt; exact hy_fr r hr
+    · wram_simp [hy_fr r hr]
     · wram_simp; exact hoff_succ.symm
     · mem_upd
       by_cases huk : u = y.regs iReg + 1
@@ -577,7 +562,7 @@ theorem backfillStepCode_spec {N w : ℕ}
   refine ⟨?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd; exact hstep.1
   · mem_upd; exact hstep.2 a ha
-  · regs_lt
+  · wram_simp [h1, h2]
 
 
 -- Shared purely mathematical offset identity used by both `Transpose` and `Kosaraju`.
