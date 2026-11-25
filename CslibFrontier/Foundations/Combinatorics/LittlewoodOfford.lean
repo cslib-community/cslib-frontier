@@ -302,7 +302,9 @@ theorem card_mem_blockLiveSet_le {κ τ ι : Type*} [Fintype κ] [DecidableEq κ
     have htau_pos : (0 : ℝ) < Fintype.card τ := Nat.cast_pos.mpr (Fintype.card_pos_iff.mpr ⟨t₀⟩)
     rw [show #{σ : κ → τ | blockVar j₀ t₀ ∈ blockLiveSet blockVar σ} =
         #{σ : κ → τ | σ j₀ = t₀} by
-      congr 1; ext σ; simp only [mem_filter, mem_univ, true_and, mem_blockLiveSet]
+      congr 1
+      ext σ
+      simp only [mem_filter, mem_univ, true_and, mem_blockLiveSet]
       exact ⟨fun ⟨j, hj⟩ => let ⟨e, h⟩ := hinj j (σ j) j₀ t₀ hj; e ▸ h, fun h => ⟨j₀, h ▸ rfl⟩⟩,
       one_div_mul_eq_div, le_div_iff₀ htau_pos]
     exact_mod_cast (card_filter_eval_eq j₀ t₀).le
@@ -338,7 +340,9 @@ theorem card_mem_and_mem_blockLiveSet_le {κ τ ι : Type*} [Fintype κ] [Decida
     · rw [show #{σ : κ → τ | blockVar j₁ t₁ ∈ blockLiveSet blockVar σ ∧
           blockVar j₂ t₂ ∈ blockLiveSet blockVar σ} =
           #{σ : κ → τ | σ j₁ = t₁ ∧ σ j₂ = t₂} by
-        congr 1; ext σ; simp only [mem_filter, mem_univ, true_and, mem_blockLiveSet]
+        congr 1
+        ext σ
+        simp only [mem_filter, mem_univ, true_and, mem_blockLiveSet]
         exact ⟨fun ⟨⟨j', hj'⟩, ⟨j'', hj''⟩⟩ =>
             ⟨let ⟨e, h⟩ := hinj j' (σ j') j₁ t₁ hj'; e ▸ h,
              let ⟨e, h⟩ := hinj j'' (σ j'') j₂ t₂ hj''; e ▸ h⟩,
