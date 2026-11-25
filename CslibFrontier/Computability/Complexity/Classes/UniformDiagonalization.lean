@@ -120,11 +120,7 @@ def disagree (u v : Option Bool) : Bool :=
 
 theorem disagree_iff {u v : Option Bool} :
     disagree u v = true ↔ ∃ b, u = some b ∧ v = some !b := by
-  cases u with
-  | none => simp [disagree]
-  | some a => cases v with
-    | none => simp [disagree]
-    | some c => cases a <;> cases c <;> simp [disagree]
+  rcases u with _ | (_ | _) <;> rcases v with _ | (_ | _) <;> simp [disagree]
 
 /-- Whether a word with index below `T.length` separates the mixed set from the set diagonalized at
 stage `k`, as seen by runs of `T.length` steps. -/
@@ -367,34 +363,23 @@ theorem exists_mem_P_forall_ite_ne {A₁ A₂ : Set (List Bool)} (hA₁ : IsDeci
     (h₂ : ∀ i, (A₂ ∆ {w | F₂ (i, w) = true}).Infinite) :
     ∃ G ∈ P encBits, ∀ i, G.ite A₁ A₂ ≠ {w | F₁ (i, w) = true} ∧
       G.ite A₁ A₂ ≠ {w | F₂ (i, w) = true} := by
-  obtain ⟨f₁, hf₁, hA₁'⟩ := hA₁.exists_isComputable
-  obtain ⟨f₂, hf₂, hA₂'⟩ := hA₂.exists_isComputable
-  obtain ⟨a₁, sa₁, ca₁⟩ := hf₁.exists_runBool
-  obtain ⟨a₂, sa₂, ca₂⟩ := hf₂.exists_runBool
-  obtain ⟨e₁, se₁, ce₁⟩ := hF₁.exists_runBool
-  obtain ⟨e₂, se₂, ce₂⟩ := hF₂.exists_runBool
-  let dA : Bool → Desc := fun b => if b then a₁ else a₂
-  let dF : Bool → Desc := fun b => if b then e₁ else e₂
   let A : Bool → Set (List Bool) := fun b => if b then A₁ else A₂
-  let F : Bool → ℕ → Set (List Bool) := fun b i =>
-    if b then {w | F₁ (i, w) = true} else {w | F₂ (i, w) = true}
+  let Fp : Bool → ℕ × List Bool → Bool := fun b => if b then F₁ else F₂
+  let F : Bool → ℕ → Set (List Bool) := fun b i => {w | Fp b (i, w) = true}
+  choose f hf hA' using fun b => (show IsDecidable (A b) encBits by
+    cases b
+    · exact hA₂
+    · exact hA₁).exists_isComputable
+  choose dA sa ca using fun b => (hf b).exists_runBool
+  choose dF se ce using fun b => (show IsComputable (Fp b) (encPair encUnary encBits) encBool by
+    cases b
+    · exact hF₂
+    · exact hF₁).exists_runBool
   have hS : Spec dA dF A F :=
-    { soundA := fun b w t c h => by
-        cases b
-        · rw [sa₂ w t c h]; exact (hA₂' w).symm
-        · rw [sa₁ w t c h]; exact (hA₁' w).symm
-      completeA := fun b w => by
-        cases b
-        · obtain ⟨T, hT⟩ := ca₂ w; exact ⟨T, fun t ht => ⟨_, hT t ht⟩⟩
-        · obtain ⟨T, hT⟩ := ca₁ w; exact ⟨T, fun t ht => ⟨_, hT t ht⟩⟩
-      soundF := fun b i w t c h => by
-        cases b
-        · rw [se₂ (i, w) t c h]; exact Iff.rfl
-        · rw [se₁ (i, w) t c h]; exact Iff.rfl
-      completeF := fun b i w => by
-        cases b
-        · obtain ⟨T, hT⟩ := ce₂ (i, w); exact ⟨T, fun t ht => ⟨_, hT t ht⟩⟩
-        · obtain ⟨T, hT⟩ := ce₁ (i, w); exact ⟨T, fun t ht => ⟨_, hT t ht⟩⟩ }
+    { soundA := fun b w t c h => sa b w t c h ▸ (hA' b w).symm
+      completeA := fun b w => (ca b w).imp fun _ hT t ht => ⟨_, hT t ht⟩
+      soundF := fun b i w t c h => se b (i, w) t c h ▸ Iff.rfl
+      completeF := fun b i w => (ce b (i, w)).imp fun _ hT t ht => ⟨_, hT t ht⟩ }
   have hinf : ∀ b i, (A b ∆ F b i).Infinite := fun b i => by
     cases b
     · exact h₂ i
@@ -403,11 +388,8 @@ theorem exists_mem_P_forall_ite_ne {A₁ A₂ : Set (List Bool)} (hA₁ : IsDeci
     ext w
     simp only [Set.ite, D, Set.mem_union, Set.mem_inter_iff, Set.mem_sdiff, Set.mem_ofPred_eq]
     cases side (stage dA dF w.length) <;> simp [A]
-  refine ⟨_, setOf_side_stage_mem_P dA dF, fun i => ⟨?_, ?_⟩⟩
-  · rw [hD]
-    exact D_ne hS hinf true i
-  · rw [hD]
-    exact D_ne hS hinf false i
+  exact ⟨_, setOf_side_stage_mem_P dA dF,
+    fun i => ⟨hD ▸ D_ne hS hinf true i, hD ▸ D_ne hS hinf false i⟩⟩
 
 /-- **Schöning's uniform diagonalization theorem.** Let `C₁`, `C₂` be recursively presentable
 classes of sets of words, closed under finite variations, and `A₁ ∉ C₁`, `A₂ ∉ C₂` decidable. Some
@@ -509,27 +491,18 @@ theorem isDecidable_markedUnion {A B : Set (List Bool)}
 theorem markedUnion_mem_NP {A B : Set (List Bool)}
     (hA : A ∈ NP encBits) (hB : B ∈ NP encBits) :
     markedUnion A B ∈ NP encBits := by
-  have hL :
-      {w : List Bool | (w.isEmpty = false ∧ w.headD false = false) ∧ w.tail ∈ A} ∈ NP encBits := by
-    have h₁ : {w : List Bool | w.isEmpty = false ∧ w.headD false = false} ∈ P encBits :=
-      ⟨fun w => !w.isEmpty && !w.headD false, by fun_prop, fun w => by
-        cases w with
-        | nil => simp
-        | cons b u => cases b <;> simp⟩
-    have h₂ : {w : List Bool | w.tail ∈ A} ∈ NP encBits :=
-      PolyTimeReducible.mem_NP ⟨List.tail, by fun_prop, fun _ => Iff.rfl⟩ hA
-    exact inter_mem_NP (P_subset_NP h₁) h₂
-  have hR :
-      {w : List Bool | (w.isEmpty = false ∧ w.headD false = true) ∧ w.tail ∈ B} ∈ NP encBits := by
-    have h₁ : {w : List Bool | w.isEmpty = false ∧ w.headD false = true} ∈ P encBits :=
-      ⟨fun w => !w.isEmpty && w.headD false, by fun_prop, fun w => by
-        cases w with
-        | nil => simp
-        | cons b u => cases b <;> simp⟩
-    have h₂ : {w : List Bool | w.tail ∈ B} ∈ NP encBits :=
-      PolyTimeReducible.mem_NP ⟨List.tail, by fun_prop, fun _ => Iff.rfl⟩ hB
-    exact inter_mem_NP (P_subset_NP h₁) h₂
-  convert union_mem_NP hL hR using 1
+  have hside (b : Bool) {S : Set (List Bool)} (hS : S ∈ NP encBits) :
+      {w : List Bool | (w.isEmpty = false ∧ w.headD false = b) ∧ w.tail ∈ S} ∈ NP encBits := by
+    have h₁ : {w : List Bool | w.isEmpty = false ∧ w.headD false = b} ∈ P encBits :=
+      ⟨fun w => !w.isEmpty && (if b then w.headD false else !w.headD false),
+        by cases b <;> fun_prop, fun w => by
+          cases w with
+          | nil => simp
+          | cons c u => cases b <;> cases c <;> simp⟩
+    exact inter_mem_NP (P_subset_NP h₁)
+      (PolyTimeReducible.mem_NP (A := {w : List Bool | w.tail ∈ S})
+        ⟨List.tail, by fun_prop, fun _ => Iff.rfl⟩ hS)
+  convert union_mem_NP (hside false hA) (hside true hB) using 1
   ext w
   cases w with
   | nil =>
@@ -560,12 +533,9 @@ theorem polyTimeReducible_ite_of_mem_P {α : Type} {enc : α ↪ List Bool} {G A
   refine ⟨fun a => if g a then (if f a then y₁ else y₀) else a, ?_, fun a => ?_⟩
   · have hid : ComputableInPolyTime (fun a : α => a) enc enc := .id'
     fun_prop
-  · by_cases ha : a ∈ G
-    · by_cases ha₁ : a ∈ A₁
-      · simp [Set.ite, ha, ha₁, (hG' a).mp ha, (hA₁' a).mp ha₁, hy₁]
-      · simp [Set.ite, ha, ha₁, (hG' a).mp ha, (Bool.not_eq_true _).mp (mt (hA₁' a).mpr ha₁),
-          hy₀]
-    · simp [Set.ite, ha, (Bool.not_eq_true _).mp (mt (hG' a).mpr ha)]
+  · have := hG' a
+    have := hA₁' a
+    by_cases ha : a ∈ G <;> by_cases ha₁ : a ∈ A₁ <;> simp_all [Set.ite]
 
 /-- **Schöning's theorem for `P` against a second class.** -/
 theorem exists_mem_P_ite_notMem_P {C : Set (Set (List Bool))}

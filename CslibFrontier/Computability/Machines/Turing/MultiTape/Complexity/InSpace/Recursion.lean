@@ -69,7 +69,7 @@ structure Registers (φ β : Type) where
 /-- Registers as their fields: the framed pair of the frame in control and the returned value,
 the framed list of waiting frames, and the stopping bit. -/
 private enc_structure encRegisters (φ : Type) (β : Type) (encF : φ ↪ List Bool)
-    (encB : β ↪ List Bool) : Registers φ β where
+    (encB : β ↪ List Bool) : Registers φ β logspace where
   config : (encPair encF (encOption encB)), callers : (encList encF), done : encBool
 
 /-- The registers after the body has answered: a call saves the resumed frame and gives control
@@ -137,13 +137,9 @@ theorem step_inSpace (d : φ) {body : (φ × Option β) × α → (φ × φ) ⊕
       fun p => (encRegisters φ β encF encB p.1).length + Nat.log2 (encA p.2).length :=
     (ComputableInLogSpace.fst _ encA).inSpace_context (.of_le fun _ => Nat.le_add_right _ _)
   -- the frame in control and the input: a logspace rearrangement of the registers and the input
-  have hfields : ComputableInLogSpace (fun r : Registers φ β => (r.config, r.callers, r.done))
-      (encRegisters φ β encF encB) (encRegistersFields φ β encF encB) :=
-    .of_eq fun r => (encRegisters_apply φ β encF encB r).symm
   have hproj : ComputableInLogSpace (fun p : Registers φ β × α => (p.1.config, p.2))
       (encPair (encRegisters φ β encF encB) encA)
-      (encPair (encPair encF (encOption encB)) encA) :=
-    .pair (hfields.fst'.comp' (.fst _ encA)) (.snd _ encA)
+      (encPair (encPair encF (encOption encB)) encA) := by fun_prop
   have hbody' : ComputableInSpace (fun p : Registers φ β × α => body (p.1.config, p.2))
       (encPair (encRegisters φ β encF encB) encA) (encSum (encPair encF encF) encB)
       fun p => T (p.1.config, p.2) + (encRegisters φ β encF encB p.1).length +

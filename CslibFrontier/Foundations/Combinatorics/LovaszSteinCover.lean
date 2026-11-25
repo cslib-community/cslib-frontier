@@ -53,6 +53,13 @@ namespace Cslib
 
 open Finset
 
+/-- Double counting of incidences between `U` and the tests in `S`. -/
+private theorem sum_card_filter_hit_comm {S β : Type*} [Fintype S] (U : Finset β)
+    (hit : S → β → Prop) [DecidableRel hit] :
+    ∑ w ∈ U, ((univ.filter (hit · w)).card : ℝ) = ∑ s : S, ((U.filter (hit s ·)).card : ℝ) := by
+  simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+  exact sum_comm
+
 /-- **Greedy covering from fractional density**: if every `w ∈ W` (`W` nonempty) is hit by at least
 `p * |S|` elements of `S` (`p > 0`), some subset `G ⊆ S` covers `W` with
 `|G| ≤ (1 + ln |W|) / p` [Jukna2011, §1.2]. -/
@@ -97,112 +104,72 @@ theorem exists_cover_card_le_of_mul_le_card_hit {S β : Type*} [Fintype S] [None
     have hsum : (U i).card * (p * Fintype.card S) ≤
         (Fintype.card S : ℝ) * ((U i).filter (hit (pick (U i)) ·)).card := by
       calc (U i).card * (p * Fintype.card S)
-          = ∑ _w ∈ U i, p * Fintype.card S := by
-              rw [sum_const, nsmul_eq_mul]
+          = ∑ _w ∈ U i, p * Fintype.card S := by rw [sum_const, nsmul_eq_mul]
         _ ≤ ∑ w ∈ U i, ((univ.filter (hit · w)).card : ℝ) :=
               sum_le_sum fun w hw => hdeg w (hU_sub i hw)
-        _ = ∑ w ∈ U i, ∑ s : S, (if hit s w then (1 : ℝ) else 0) := by
-              refine sum_congr rfl fun w _ => ?_
-              rw [card_filter, Nat.cast_sum]
-              exact sum_congr rfl fun s _ => by split_ifs <;> simp
-        _ = ∑ s : S, ∑ w ∈ U i, (if hit s w then (1 : ℝ) else 0) := sum_comm
-        _ = ∑ s : S, (((U i).filter (hit s ·)).card : ℝ) := by
-              refine sum_congr rfl fun s _ => ?_
-              rw [card_filter, Nat.cast_sum]
-              exact sum_congr rfl fun w _ => by split_ifs <;> simp
+        _ = ∑ s : S, (((U i).filter (hit s ·)).card : ℝ) := sum_card_filter_hit_comm _ _
         _ ≤ ∑ _s : S, (((U i).filter (hit (pick (U i)) ·)).card : ℝ) :=
               sum_le_sum fun s _ => by exact_mod_cast hpick (U i) s
-        _ = (Fintype.card S : ℝ) * ((U i).filter (hit (pick (U i)) ·)).card := by
-              rw [sum_const, card_univ, nsmul_eq_mul]
-    have hhit_ge : (U i).card * p ≤ ((U i).filter (hit (pick (U i)) ·)).card := by
-      nlinarith
+        _ = _ := by rw [sum_const, card_univ, nsmul_eq_mul]
     have hpart :
         (((U i).filter (hit (pick (U i)) ·)).card : ℝ) + (U (i + 1)).card = (U i).card := by
       exact_mod_cast card_filter_add_card_filter_not (p := fun w => hit (pick (U i)) w) (s := U i)
+    have hhit_ge : (U i).card * p ≤ ((U i).filter (hit (pick (U i)) ·)).card := by
+      nlinarith
     linarith
   have hU_pow : ∀ k, ((U k).card : ℝ) ≤ W.card * (1 - p) ^ k := by
     intro k
     induction k with
     | zero =>
-      change (W.card : ℝ) ≤ W.card * (1 - p) ^ 0
-      simp
+      simp only [pow_zero, mul_one]
+      exact le_rfl
     | succ k ih =>
-      calc ((U (k + 1)).card : ℝ)
-          ≤ (U k).card * (1 - p) := hU_step k
-        _ ≤ W.card * (1 - p) ^ k * (1 - p) :=
-              mul_le_mul_of_nonneg_right ih (by linarith)
-        _ = W.card * (1 - p) ^ (k + 1) := by rw [pow_succ, mul_assoc]
-  have hWpos : 1 ≤ W.card := hW.card_pos
-  have hWreal : (1 : ℝ) ≤ W.card := by exact_mod_cast hWpos
+      rw [pow_succ, ← mul_assoc]
+      exact (hU_step k).trans (mul_le_mul_of_nonneg_right ih (by linarith))
+  have hempty (k : ℕ) (h : ((U k).card : ℝ) < 1) : U k = ∅ :=
+    card_eq_zero.1 (Nat.lt_one_iff.1 (by exact_mod_cast h))
+  have hWreal : (1 : ℝ) ≤ W.card := by exact_mod_cast hW.card_pos
   have hlog_nonneg : 0 ≤ Real.log W.card := Real.log_nonneg hWreal
-  by_cases hsmall : W.card = 1 ∨ p = 1
-  · have hU1 : ((U 1).card : ℝ) < 1 := by
-      have h1 := hU_pow 1
-      rcases hsmall with hW1 | hp_eq
-      · rw [hW1, Nat.cast_one, one_mul, pow_one] at h1
+  obtain ⟨k, hUk, hk⟩ : ∃ k : ℕ, U k = ∅ ∧ (k : ℝ) ≤ (1 + Real.log W.card) / p := by
+    by_cases hsmall : W.card = 1 ∨ p = 1
+    · refine ⟨1, hempty 1 ?_, ?_⟩
+      · have h1 := hU_pow 1
+        rw [pow_one] at h1
+        rcases hsmall with hW1 | rfl
+        · rw [hW1, Nat.cast_one] at h1
+          linarith
+        · linarith
+      · rw [Nat.cast_one, le_div_iff₀ hp]
         linarith
-      · rw [hp_eq, sub_self, pow_one, mul_zero] at h1
-        linarith
-    have hU1_nat : (U 1).card < 1 := by exact_mod_cast hU1
-    have hU1_zero : U 1 = ∅ := card_eq_zero.1 (Nat.lt_one_iff.1 hU1_nat)
-    refine ⟨{pick (U 0)}, fun w hw => ?_, ?_⟩
-    · rcases hU_cov 1 w hw with hw1 | ⟨i, hi, hhit⟩
-      · rw [hU1_zero] at hw1
-        exact absurd hw1 (notMem_empty w)
-      · obtain rfl : i = 0 := by omega
-        exact ⟨pick (U 0), mem_singleton_self _, hhit⟩
-    · rw [card_singleton, Nat.cast_one, le_div_iff₀ hp]
-      linarith
-  · push Not at hsmall
-    obtain ⟨hWne1, hpne1⟩ := hsmall
-    have hWgt1 : (1 : ℝ) < W.card := by exact_mod_cast (show 1 < W.card by omega)
-    have hp_lt1 : p < 1 := lt_of_le_of_ne hp1 hpne1
+    push Not at hsmall
+    have hWgt1 : (1 : ℝ) < W.card := by
+      exact_mod_cast (show 1 < W.card by have := hW.card_pos; omega)
     have hlog_pos : 0 < Real.log W.card := Real.log_pos hWgt1
     let k : ℕ := Nat.ceil (Real.log W.card / p)
-    have hk_pos : 1 ≤ k := Nat.ceil_pos.2 (div_pos hlog_pos hp)
-    have hUk_lt : ((U k).card : ℝ) < 1 := by
-      have hexp : 1 - p < Real.exp (-p) := by
-        have h := Real.add_one_lt_exp (neg_ne_zero.2 hp.ne')
-        linarith
-      have hpow_lt : (1 - p) ^ k < Real.exp (-(k : ℝ) * p) := by
-        calc (1 - p) ^ k
-            < (Real.exp (-p)) ^ k :=
-              pow_lt_pow_left₀ hexp (by linarith) (by omega)
-          _ = Real.exp (-(k : ℝ) * p) := by
-              rw [← Real.exp_nat_mul]
-              ring_nf
-      have hkp : Real.log W.card ≤ (k : ℝ) * p :=
-        (div_le_iff₀ hp).1 (Nat.le_ceil _)
-      have hexp_le : Real.exp (-(k : ℝ) * p) ≤ (W.card : ℝ)⁻¹ := by
-        calc Real.exp (-(k : ℝ) * p)
-            ≤ Real.exp (-Real.log W.card) := Real.exp_le_exp.2 (by linarith)
-          _ = (Real.exp (Real.log W.card))⁻¹ := Real.exp_neg _
-          _ = (W.card : ℝ)⁻¹ := by rw [Real.exp_log (by positivity)]
+    refine ⟨k, hempty k ?_, ?_⟩
+    · have hpow_lt : (1 - p) ^ k < Real.exp (-p) ^ k :=
+        pow_lt_pow_left₀ (by linarith [Real.add_one_lt_exp (neg_ne_zero.2 hp.ne')])
+          (by linarith [lt_of_le_of_ne hp1 hsmall.2])
+          (Nat.ceil_pos.2 (div_pos hlog_pos hp)).ne'
+      have hkp : Real.log W.card ≤ (k : ℝ) * p := (div_le_iff₀ hp).1 (Nat.le_ceil _)
+      have hexp_le : Real.exp (-p) ^ k ≤ (W.card : ℝ)⁻¹ := by
+        rw [← Real.exp_nat_mul, ← Real.exp_log (by positivity : (0 : ℝ) < W.card),
+          ← Real.exp_neg]
+        exact Real.exp_le_exp.2 (by linarith)
       calc ((U k).card : ℝ)
           ≤ W.card * (1 - p) ^ k := hU_pow k
-        _ < W.card * Real.exp (-(k : ℝ) * p) :=
-              mul_lt_mul_of_pos_left hpow_lt (by positivity)
-        _ ≤ W.card * (W.card : ℝ)⁻¹ :=
-              mul_le_mul_of_nonneg_left hexp_le (by positivity)
+        _ < W.card * (W.card : ℝ)⁻¹ :=
+              mul_lt_mul_of_pos_left (hpow_lt.trans_le hexp_le) (by positivity)
         _ = 1 := mul_inv_cancel₀ (by positivity)
-    have hUk_nat : (U k).card < 1 := by exact_mod_cast hUk_lt
-    have hUk_zero : U k = ∅ := card_eq_zero.1 (Nat.lt_one_iff.1 hUk_nat)
-    let G : Finset S := (range k).image fun i => pick (U i)
-    refine ⟨G, fun w hw => ?_, ?_⟩
-    · rcases hU_cov k w hw with hwk | ⟨i, hi, hhit⟩
-      · rw [hUk_zero] at hwk
-        exact absurd hwk (notMem_empty w)
-      · exact ⟨pick (U i), mem_image.2 ⟨i, mem_range.2 hi, rfl⟩, hhit⟩
-    · have hG_le : (G.card : ℝ) ≤ k := by
-        exact_mod_cast card_image_le.trans_eq (card_range k)
-      have hk_lt : (k : ℝ) < Real.log W.card / p + 1 :=
-        Nat.ceil_lt_add_one (by positivity)
+    · have hk_lt : (k : ℝ) < Real.log W.card / p + 1 := Nat.ceil_lt_add_one (by positivity)
       have hone_le : 1 ≤ 1 / p := (one_le_div hp).2 hp1
-      calc (G.card : ℝ)
-          ≤ k := hG_le
-        _ ≤ Real.log W.card / p + 1 := hk_lt.le
-        _ ≤ Real.log W.card / p + 1 / p := by linarith
+      calc (k : ℝ) ≤ Real.log W.card / p + 1 / p := by linarith
         _ = (1 + Real.log W.card) / p := by ring
+  refine ⟨(range k).image fun i => pick (U i), fun w hw => ?_, ?_⟩
+  · rcases hU_cov k w hw with hwk | ⟨i, hi, hhit⟩
+    · simp [hUk] at hwk
+    · exact ⟨pick (U i), mem_image.2 ⟨i, mem_range.2 hi, rfl⟩, hhit⟩
+  · exact (show _ ≤ (k : ℝ) by exact_mod_cast card_image_le.trans_eq (card_range k)).trans hk
 
 /-- **Greedy covering from constant hit count and total incidences**: if every element of `W` (`W`
 nonempty) is hit by the same number of tests in `S` and the total number of incidences is at least
@@ -214,35 +181,24 @@ theorem exists_cover_card_le_of_const_hit {S β : Type*} [Fintype S] [Nonempty S
     {M : ℝ} (hM0 : 0 < M) (hM : M ≤ ∑ s : S, ((W.filter (hit s ·)).card : ℝ)) :
     ∃ G : Finset S, (∀ w ∈ W, ∃ s ∈ G, hit s w) ∧
       (G.card : ℝ) ≤ (1 + Real.log W.card) * W.card * Fintype.card S / M := by
-  have hw₀_ex : ∃ w₀, w₀ ∈ W := hW
-  obtain ⟨w₀, hw₀⟩ := hw₀_ex
+  obtain ⟨w₀, hw₀⟩ := id hW
   let d : ℕ := (univ.filter (hit · w₀)).card
+  have hd (w : β) (hw : w ∈ W) : ((univ.filter (hit · w)).card : ℝ) = d := by
+    exact_mod_cast hconst w hw w₀ hw₀
   have hWpos : (0 : ℝ) < W.card := by exact_mod_cast hW.card_pos
   have hSpos : (0 : ℝ) < Fintype.card S := by exact_mod_cast Fintype.card_pos (α := S)
   have hdouble : M ≤ W.card * (d : ℝ) := by
-    calc M ≤ ∑ s : S, ((W.filter (hit s ·)).card : ℝ) := hM
-      _ = ∑ s : S, ∑ w ∈ W, (if hit s w then (1 : ℝ) else 0) := by
-            refine sum_congr rfl fun s _ => ?_
-            rw [card_filter, Nat.cast_sum]
-            exact sum_congr rfl fun w _ => by split_ifs <;> simp
-      _ = ∑ w ∈ W, ∑ s : S, (if hit s w then (1 : ℝ) else 0) := sum_comm
-      _ = ∑ w ∈ W, ((univ.filter (hit · w)).card : ℝ) := by
-            refine sum_congr rfl fun w _ => ?_
-            rw [card_filter, Nat.cast_sum]
-            exact sum_congr rfl fun s _ => by split_ifs <;> simp
-      _ = ∑ _w ∈ W, (d : ℝ) :=
-            sum_congr rfl fun w hw => by exact_mod_cast hconst w hw w₀ hw₀
-      _ = W.card * (d : ℝ) := by rw [sum_const, nsmul_eq_mul]
+    refine (hM.trans_eq (sum_card_filter_hit_comm W hit).symm).trans_eq ?_
+    rw [← nsmul_eq_mul, ← sum_const]
+    exact sum_congr rfl hd
   let p : ℝ := M / (W.card * Fintype.card S)
   have hp : 0 < p := by positivity
   have hdeg : ∀ w ∈ W, p * Fintype.card S ≤ ((univ.filter (hit · w)).card : ℝ) := by
     intro w hw
-    have hw_eq : ((univ.filter (hit · w)).card : ℝ) = d := by exact_mod_cast hconst w hw w₀ hw₀
-    rw [hw_eq]
     have hpS : p * Fintype.card S = M / W.card := by
       simp only [p]
       field_simp
-    rw [hpS, div_le_iff₀ hWpos]
+    rw [hd w hw, hpS, div_le_iff₀ hWpos]
     linarith
   obtain ⟨G, hGcov, hGcard⟩ := exists_cover_card_le_of_mul_le_card_hit hW hit hp hdeg
   refine ⟨G, hGcov, hGcard.trans_eq ?_⟩
@@ -259,8 +215,7 @@ theorem exists_subset_cover_card_le_of_uniform {α : Type*} [DecidableEq α]
     {d : ℕ} (hd : 1 ≤ d) (hunif : ∀ x ∈ X, (F.filter (x ∈ ·)).card = d) :
     ∃ G ⊆ F, X ⊆ G.biUnion id ∧
       (G.card : ℝ) ≤ (1 + Real.log X.card) * X.card / ((∑ A ∈ F, (A.card : ℝ)) / F.card) := by
-  have hx₀_ex : ∃ x₀, x₀ ∈ X := hX
-  obtain ⟨x₀, hx₀⟩ := hx₀_ex
+  obtain ⟨x₀, hx₀⟩ := id hX
   have hpos₀ : 0 < (F.filter (x₀ ∈ ·)).card := by
     rw [hunif x₀ hx₀]
     omega
@@ -284,23 +239,13 @@ theorem exists_subset_cover_card_le_of_uniform {α : Type*} [DecidableEq α]
   let M : ℝ := ∑ A ∈ F, (A.card : ℝ)
   have hsum_eq : ∑ A : F, ((X.filter (hit A ·)).card : ℝ) = M := by
     rw [univ_eq_attach]
-    calc ∑ A ∈ F.attach, ((X.filter (hit A ·)).card : ℝ)
-        = ∑ A ∈ F.attach, (A.1.card : ℝ) := by
-            refine sum_congr rfl fun A _ => ?_
-            have hAX : A.1 ⊆ X := mem_powerset.1 (hF A.2)
-            have hfilt : X.filter (hit A ·) = A.1 := by
-              ext y
-              simp only [mem_filter, hit]
-              exact ⟨fun h => h.2, fun h => ⟨hAX h, h⟩⟩
-            rw [hfilt]
-      _ = M := sum_attach F fun A => (A.card : ℝ)
+    refine (sum_congr rfl fun A _ => ?_).trans (sum_attach F fun A => (A.card : ℝ))
+    change ((X.filter (· ∈ A.1)).card : ℝ) = _
+    rw [filter_mem_eq_inter, inter_eq_right.2 (mem_powerset.1 (hF A.2))]
   have hM0 : 0 < M := by
     obtain ⟨A₀, hA₀⟩ := card_pos.1 hpos₀
-    have hA₀F : A₀ ∈ F := (mem_filter.1 hA₀).1
-    have hx₀A₀ : x₀ ∈ A₀ := (mem_filter.1 hA₀).2
-    have hA₀pos : (0 : ℝ) < A₀.card := by exact_mod_cast card_pos.2 ⟨x₀, hx₀A₀⟩
-    exact lt_of_lt_of_le hA₀pos
-      (single_le_sum (f := fun A : Finset α => (A.card : ℝ)) (fun _ _ => Nat.cast_nonneg _) hA₀F)
+    rw [mem_filter] at hA₀
+    exact sum_pos' (fun _ _ => by positivity) ⟨A₀, hA₀.1, by exact_mod_cast card_pos.2 ⟨x₀, hA₀.2⟩⟩
   obtain ⟨G', hG'cov, hG'card⟩ :=
     exists_cover_card_le_of_const_hit hX hit hconst hM0 (le_of_eq hsum_eq.symm)
   let G : Finset (Finset α) := G'.image Subtype.val

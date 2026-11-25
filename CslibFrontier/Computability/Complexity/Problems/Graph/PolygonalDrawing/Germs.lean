@@ -7,20 +7,25 @@ Authors: Erik Demaine, OpenAI
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RegularContacts
 public import CslibFrontier.Foundations.Geometry.Polygonal.Germs
+public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
+import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
 
 /-!
-# Distinct outgoing geometric rays in a polygonal embedding
+# Distinct outgoing geometric rays in polygonal drawings
 
 Distinct incident darts of a genuine polygonal embedding have distinct outgoing ray
 directions. The proof constructs a small common point when the arguments are equal, then
 uses the actual segment contact conditions. The same-edge case treats the two ends of a
 loop using route simplicity. There is no degree bound or local-disk assumption.
+Regular drawings with simple routes also have distinct outgoing directions, since
+the open parts of distinct segments meet at most once.
 
 ## Main results
 
 * `Cslib.Complexity.Graph.PolygonalDrawing.IsEmbedding.directions_injective`.
+* `Cslib.Complexity.Graph.PolygonalDrawing.HasRegularContacts.directions_injective`.
 -/
 
 public section
@@ -67,5 +72,47 @@ theorem IsEmbedding.directions_injective {G : Graph} {D : PolygonalDrawing G}
       (Route.endTime_mem a.2 ⟨hs'.1.le, hs'.2.le⟩)
       (Route.endTime_mem b.2 ⟨ht'.1.le, ht'.2.le⟩) hpoint
     exact (D.route a.1).not_atEnd_near_end a.2 ba hs' ha
+
+/-- The segment-end occurrence corresponding to one actual graph dart. -/
+@[expose] def segmentEnd {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
+    D.SegmentIndex × Bool := (⟨d.1, (D.route d.1).endSegment d.2⟩, d.2)
+
+/-- Distinct graph darts retain distinct indexed segment ends, including loop ends. -/
+theorem segmentEnd_injective {G : Graph} (D : PolygonalDrawing G) :
+    Function.Injective D.segmentEnd := by
+  intro a b h
+  exact congrArg (fun k : D.SegmentIndex × Bool => (k.1.1, k.2)) h
+
+/-- The segment-end point of a dart is its actual named vertex. -/
+theorem segmentEnd_endpoint {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
+    rayEndpoint D.segmentStart D.segmentFinish (D.segmentEnd d) = D.vertex d.vertex := by
+  rw [← D.endpoint_eq d.1 d.2]
+  rcases d with ⟨e, tag⟩
+  cases tag <;> simp [segmentEnd, rayEndpoint, segmentStart, segmentFinish,
+    Route.endSegment, Route.endpoint, Route.start, Route.finish]
+
+/-- The outgoing vector at a dart's segment end is its actual drawing germ. -/
+theorem segmentEnd_vector {G : Graph} (D : PolygonalDrawing G) (d : Dart G) :
+    rayEndVector D.segmentStart D.segmentFinish (D.segmentEnd d) = D.germ d := by
+  rcases d with ⟨e, tag⟩
+  cases tag <;> simp [segmentEnd, rayEndVector, segmentStart, segmentFinish,
+    Route.endSegment, germ, Route.germ, Route.start, Route.finish]
+
+/-- Distinct incident darts of a regular drawing with simple routes have distinct directions.
+Equal directions would give two common points in the open parts of their end segments. -/
+theorem HasRegularContacts.directions_injective {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.HasRegularContacts) (hsimple : ∀ e, (D.route e).IsSimple) (a b : Dart G)
+    (hv : a.vertex = b.vertex) (harg : D.direction a = D.direction b) : a = b := by
+  apply D.segmentEnd_injective
+  apply rayEndVector_injective_of_open_inter_subsingleton D.segmentStart D.segmentFinish
+    (fun i => (hsimple i.1).segment_ne i.2) hD.open_inter_subsingleton
+  · rw [D.segmentEnd_endpoint, D.segmentEnd_endpoint, hv]
+  · rw [D.segmentEnd_vector, D.segmentEnd_vector]
+    have harg' : (D.germ a).arg = (D.germ b).arg := Complex.arg_coe_angle_eq_iff.mp harg
+    have hsign : (D.germ a).im < 0 ↔ (D.germ b).im < 0 := by
+      rw [← Complex.arg_neg_iff, ← Complex.arg_neg_iff, harg']
+    by_cases h : (D.germ b).im < 0
+    · simp only [turnArg, h, hsign.mpr h, harg', ↓reduceIte]
+    · simp only [turnArg, h, mt hsign.mp h, harg', ↓reduceIte]
 
 end Cslib.Complexity.Graph.PolygonalDrawing

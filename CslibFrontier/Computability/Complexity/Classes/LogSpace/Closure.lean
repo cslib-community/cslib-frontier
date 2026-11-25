@@ -102,22 +102,17 @@ private theorem exists_nuStart (hB : B ∈ NL encB) {f : α → β}
     have hL : (encNat ((encB (f a)).length + 1)).length ≤ K₂ * (Nat.log2 (enc a).length + 1) :=
       length_encNat_le_of_le_mul_pow (by nlinarith [hlen a])
     have hS := (log2_succ_le_length_encNat (encB (f a)).length).trans hL
-    have h1 : 1 ≤ Nat.log2 (enc a).length + 1 := Nat.le_add_left _ _
-    simp only [cfgSpaceBound]
-    generalize Nat.log2 (enc a).length + 1 = ℓ at *
-    generalize Nat.log2 (encB (f a)).length + 1 = m at *
-    generalize (encNat ((encB (f a)).length + 1)).length = L at *
-    have hcS : c * m ≤ c * (K₂ * ℓ) := Nat.mul_le_mul_left c hS
-    have e : ℓ * (2 * descLen D + 4 + k + (2 + 6 * (2 * descLen D + 5) * c) * K₂) =
-        (2 * descLen D + 4 + k) * ℓ + 2 * (K₂ * ℓ) + 6 * (2 * descLen D + 5) * (c * (K₂ * ℓ)) := by
-      ring
-    have hc6 : 3 * (2 * descLen D + 5) * 2 * (c * m) ≤
-        6 * (2 * descLen D + 5) * (c * (K₂ * ℓ)) := by
-      have := Nat.mul_le_mul_left (6 * (2 * descLen D + 5)) hcS
-      linarith
-    have hk : 2 * descLen D + 4 + k ≤ (2 * descLen D + 4 + k) * ℓ := Nat.le_mul_of_pos_right _ h1
+    have hc6 := Nat.mul_le_mul_left (6 * (2 * descLen D + 5)) (Nat.mul_le_mul_left c hS)
+    have hk := Nat.le_mul_of_pos_right (2 * descLen D + 4 + k)
+      (Nat.succ_pos (Nat.log2 (enc a).length))
+    dsimp only [cfgSpaceBound, K]
+    have e : (Nat.log2 (enc a).length + 1) *
+        (2 * descLen D + 4 + k + (2 + 6 * (2 * descLen D + 5) * c) * K₂) =
+      (2 * descLen D + 4 + k) * (Nat.log2 (enc a).length + 1) +
+        2 * (K₂ * (Nat.log2 (enc a).length + 1)) +
+        6 * (2 * descLen D + 5) * (c * (K₂ * (Nat.log2 (enc a).length + 1))) := by ring
     rw [e]
-    omega
+    linarith
   refine ⟨fun a => nuStart D ((Nat.log2 (enc a).length + 1) * K),
     nuStart_budget (budget_const D) (budget_inSpace K),
     ⟨40 * descLen D + 4 * K + 40, fun a choices => ?_⟩, fun a => ?_⟩
@@ -159,20 +154,19 @@ theorem union_mem_NL (hA : A ∈ NL enc) (hA' : A' ∈ NL enc) : A ∪ A' ∈ NL
         choices)).length ≤ C * (Nat.log2 (enc a).length + 1) := by
     refine ⟨2 * cs + 2 * cs' + 8, fun a choices => (length_eUnion_le _).trans ?_⟩
     have h1 : 1 ≤ Nat.log2 (enc a).length + 1 := Nat.le_add_left _ _
+    have h0 := hcs a []
+    have h0' := hcs' a []
+    simp only [run_withInit, replay_nil] at h0 h0'
     rw [run_withInit]
     rcases choices with _ | ⟨_ | _, choices⟩
-    · have h₁ := hcs a []
-      have h₂ := hcs' a []
-      simp only [run_withInit, replay_nil] at h₁ h₂ ⊢
+    · simp only [replay_nil]
       nlinarith
     · have h₁ := hcs a choices
-      have h₂ := hcs' a []
-      simp only [run_withInit, replay_nil] at h₁ h₂
+      rw [run_withInit] at h₁
       rw [replay_cons, step_union_none, replay_union_left]
       nlinarith
-    · have h₁ := hcs a []
-      have h₂ := hcs' a choices
-      simp only [run_withInit, replay_nil] at h₁ h₂
+    · have h₂ := hcs' a choices
+      rw [run_withInit] at h₂
       rw [replay_cons, step_union_none, replay_union_right]
       nlinarith
   obtain ⟨k, State, _, ntm, c, hrec⟩ := exists_recognizesInSpace (enc := enc)

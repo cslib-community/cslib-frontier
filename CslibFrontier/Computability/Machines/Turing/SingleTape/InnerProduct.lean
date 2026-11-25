@@ -73,7 +73,6 @@ theorem innerProduct_average_lower_bound {ι : Bool → Symbol} {yes : Symbol} {
   obtain ⟨r, hr⟩ : ∃ r, r = n - m := ⟨_, rfl⟩
   have hmmin : 2 * d + 2 ≤ m := by omega
   have hsplit : m + r = n := by omega
-  have hparity : n = 2 * m ∨ n = 2 * m + 1 := by omega
   subst n
   have hblock (a b : BitString r) :
       2 ^ (2 * m) * ((r + 1) * m) ≤
@@ -85,10 +84,9 @@ theorem innerProduct_average_lower_bound {ι : Bool → Symbol} {yes : Symbol} {
       (fun x y => Cslib.Language.ofFn_blocks_mem_innerProduct_iff x a y b)
       (m := m) (fun _ => by simp) (R := 2 ^ m)
       (fun U V z hUV => by
-        have hmono : ∀ x ∈ U, ∀ y ∈ V, x ⬝ᵥ y = (z ^^ (a ⬝ᵥ b)) := by
-          intro x hx y hy
-          have h := congrArg (fun c : Bool => c ^^ (a ⬝ᵥ b)) (hUV x hx y hy)
-          simpa only [Bool.xor_assoc, Bool.xor_self, Bool.xor_false] using h
+        have hmono : ∀ x ∈ U, ∀ y ∈ V, x ⬝ᵥ y = (z ^^ (a ⬝ᵥ b)) := fun x hx y hy => by
+          simpa only [Bool.xor_assoc, Bool.xor_self, Bool.xor_false] using
+            congrArg (fun c : Bool => c ^^ (a ⬝ᵥ b)) (hUV x hx y hy)
         simpa only [Fintype.card_fin] using
           BitString.card_mul_le_two_pow_of_dotProduct_eq U V (z ^^ (a ⬝ᵥ b)) hmono)
       m hmmin (by simp) (fun p => time (Fin.append p.1 a, Fin.append p.2 b))
@@ -105,21 +103,16 @@ theorem innerProduct_average_lower_bound {ι : Bool → Symbol} {yes : Symbol} {
         (Equiv.prodCongr (Fin.appendEquiv m r) (Fin.appendEquiv m r))
   have hreindex :
       (∑ ab : BitString r × BitString r, ∑ xy : BitString m × BitString m,
-        time (Fin.append xy.1 ab.1, Fin.append xy.2 ab.2)) = ∑ p, time p := by
-    rw [← Fintype.sum_prod_type']
-    exact e.sum_comp time
-  have hcount : (Fintype.card (BitString r × BitString r)) * 2 ^ (2 * m) =
-      2 ^ (2 * (m + r)) := by
-    simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
-      ← pow_add]
-    congr 1
-    omega
+        time (Fin.append xy.1 ab.1, Fin.append xy.2 ab.2)) = ∑ p, time p :=
+    (Fintype.sum_prod_type' _).symm.trans (e.sum_comp time)
+  have hcount : Fintype.card (BitString r × BitString r) * 2 ^ (2 * m) = 2 ^ (2 * (m + r)) := by
+    simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, ← pow_add]
+    exact congrArg (2 ^ ·) (by omega)
   simp only [Finset.sum_const, Finset.card_univ, Nat.nsmul_eq_mul,
     ← Finset.mul_sum, hreindex] at htotal
   rw [← Nat.mul_assoc, hcount] at htotal
   have hsq : (2 * (m + r)) ^ 2 ≤ 16 * ((r + 1) * m) := by
-    have hrparity : r = m ∨ r = m + 1 := by omega
-    rcases hrparity with rfl | rfl <;> nlinarith
+    rcases (show r = m ∨ r = m + 1 by omega) with rfl | rfl <;> nlinarith
   calc 2 ^ (2 * (m + r)) * (2 * (m + r)) ^ 2
       ≤ 16 * (2 ^ (2 * (m + r)) * ((r + 1) * m)) := by
         nlinarith [Nat.mul_le_mul_left (2 ^ (2 * (m + r))) hsq]

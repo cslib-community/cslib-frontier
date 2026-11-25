@@ -199,17 +199,17 @@ theorem evalLabels_congr (X : Fin n → K × Bool) {ct ct' : Slot C → K × Boo
       evalLabels C H tw ct X w = evalLabels C H tw ct' X w := by
     intro N
     induction N with
-    | zero => intro w hw; exact absurd hw (Nat.not_lt_zero _)
+    | zero => exact fun _ hw => absurd hw (Nat.not_lt_zero _)
     | succ N ih =>
       intro w hN hk
       rw [← hE, ← hE']
       cases w with
-      | input i => rfl
+      | input _ => rfl
       | gate g =>
         rw [Wire.toNat_gate] at hN hk
         have hl := toNat_left_lt C g
         have hr := toNat_right_lt C g
-        exact evalStep_gate_congr C H tw X g (fun h b => hct _ (by dsimp only [Slot.gate]; omega))
+        exact evalStep_gate_congr C H tw X g (fun _ _ => hct _ (by dsimp only [Slot.gate]; omega))
           (ih _ (by omega) (by omega)) (ih _ (by omega) (by omega))
   exact key _ w (Nat.lt_succ_self _) hw
 
@@ -346,16 +346,15 @@ theorem detRun_eq (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin n → K �
       detRun C H tw x f X k s = oracleTable C H tw x f X s := by
     intro k
     induction k with
-    | zero => intro s hs; exact absurd hs (Nat.not_lt_zero _)
+    | zero => exact fun _ hs => absurd hs (Nat.not_lt_zero _)
     | succ k ih =>
       intro s hs
       simp only [detRun]
       split_ifs with hk
       · rw [oracleTable, ← evalLabels_oracleTable]
-        have hl := toNat_left_lt C s.gate
-        have hr := toNat_right_lt C s.gate
-        exact entry_congr C H tw x f s (evalLabels_congr C H tw X k ih _ (by omega))
-          (evalLabels_congr C H tw X k ih _ (by omega))
+        exact entry_congr C H tw x f s
+          (evalLabels_congr C H tw X k ih _ ((toNat_left_lt C s.gate).trans_le (by omega)))
+          (evalLabels_congr C H tw X k ih _ ((toNat_right_lt C s.gate).trans_le (by omega)))
       · exact ih s (by omega)
   exact funext fun s => key _ s s.gate.isLt
 
@@ -418,23 +417,18 @@ private theorem isCostBounded_tableRun_tweak [DecidableEq T] (htw : Function.Inj
   induction k with
   | zero => exact OracleComp.IsCostBounded.pure _ _
   | succ k ih =>
-    refine OracleComp.IsCostBounded.mono
-      (ih.bind fun ct => isCostBounded_gateStep_tweak C H tw x htw X k ct t) ?_
+    refine (ih.bind fun ct => isCostBounded_gateStep_tweak C H tw x htw X k ct t).mono ?_
     by_cases h1 : ∃ s : Slot C, (s.gate : ℕ) < k ∧ tw s = t
-    · obtain ⟨s, hs, hst⟩ := h1
-      have h1' : ∃ s : Slot C, (s.gate : ℕ) < k ∧ tw s = t := ⟨s, hs, hst⟩
-      have h2 : ¬ ∃ s' : Slot C, (s'.gate : ℕ) = k ∧ tw s' = t := by
-        rintro ⟨s', hs', hs't⟩
-        have hss' : s = s' := htw (hst.trans hs't.symm)
-        subst hss'
+    · have ⟨s, hs, hst⟩ := h1
+      have h2 : ¬ ∃ s' : Slot C, (s'.gate : ℕ) = k ∧ tw s' = t := fun ⟨s', hs', hs't⟩ => by
+        cases htw (hst.trans hs't.symm)
         omega
       have h3 : ∃ s' : Slot C, (s'.gate : ℕ) < k + 1 ∧ tw s' = t := ⟨s, by omega, hst⟩
-      simp only [h1', h2, h3, ↓reduceIte, Nat.add_zero, le_refl]
+      simp only [h1, h2, h3, ↓reduceIte, Nat.add_zero, le_refl]
     · by_cases h2 : ∃ s : Slot C, (s.gate : ℕ) = k ∧ tw s = t
-      · obtain ⟨s, hs, hst⟩ := h2
-        have h2' : ∃ s : Slot C, (s.gate : ℕ) = k ∧ tw s = t := ⟨s, hs, hst⟩
+      · have ⟨s, hs, hst⟩ := h2
         have h3 : ∃ s' : Slot C, (s'.gate : ℕ) < k + 1 ∧ tw s' = t := ⟨s, by omega, hst⟩
-        simp only [h1, h2', h3, ↓reduceIte, zero_add, le_refl]
+        simp only [h1, h2, h3, ↓reduceIte, zero_add, le_refl]
       · simp only [h1, h2, ↓reduceIte, Nat.add_zero, Nat.zero_le]
 
 end Table
@@ -525,17 +519,11 @@ theorem realGame_reduction (hK : ∀ k : K, k + k = 0) (D : View C K → ProbCom
       realGame C H tw x D := by
   simp only [PRF.realExperiment, realGame, garble, ProbComp.eval_bind, ProbComp.eval_uniform,
     eval_run_reduction, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-  have hshift : ∀ (c : Fin n → K × Bool) (g : (Fin n → K × Bool) → PMF Bool),
-      (PMF.uniformOfFintype _).bind (fun Z => g (Z + c)) = (PMF.uniformOfFintype _).bind g := by
-    intro c g
-    conv_rhs => rw [← Probability.PMF.uniformOfFintype_map_equiv (Equiv.addRight c)]
-    rw [PMF.bind_map]
-    rfl
-  congr 1
-  funext R
-  refine (hshift (fun i => bitOffset (CCR.offset R) (x i)) _).symm.trans ?_
-  congr 1
-  funext Z
+  congr 1 with R : 1
+  conv_lhs =>
+    rw [← Probability.PMF.uniformOfFintype_map_equiv
+      (Equiv.addRight fun i => bitOffset (CCR.offset R) (x i)), PMF.bind_map]
+  congr 1 with Z : 1
   exact congrArg (fun V => ProbComp.eval (D V)) (view_garbleWith C hK H tw x R Z).symm
 
 variable [Fintype T] [DecidableEq T] [DecidableEq K]
@@ -549,8 +537,7 @@ theorem map_oracleTable (htw : Function.Injective tw) (X : Fin n → K × Bool) 
   have hu := congrArg (fun p => p fun s => ct s - slotKnown C H tw (evalLabels C H tw ct X) s)
     (Probability.PMF.uniformOfFintype_map_comp (R := K × Bool)
       (slotQuery_injective C tw x htw (evalLabels C H tw ct X)))
-  simp only [PMF.map_apply] at hu ⊢
-  rw [PMF.uniformOfFintype_apply] at hu ⊢
+  simp only [PMF.map_apply, PMF.uniformOfFintype_apply] at hu ⊢
   rw [← hu]
   refine tsum_congr fun f => ?_
   congr 1
@@ -563,8 +550,7 @@ theorem simGame_reduction (htw : Function.Injective tw) (D : View C K → ProbCo
   simp only [PRF.idealExperiment, simGame, simulate, ProbComp.eval_bind, ProbComp.eval_uniform,
     eval_run_reduction, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   rw [PMF.bind_comm]
-  congr 1
-  funext X
+  congr 1 with X : 1
   rw [← map_oracleTable C H tw x htw X, PMF.bind_map]
   rfl
 

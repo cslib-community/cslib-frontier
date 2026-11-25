@@ -327,17 +327,11 @@ theorem optimum_toWeighted [Fintype D] [Inhabited D] (sem : Rel → List D → B
 theorem evalScore_toRealWeighted (sem : Rel → List D → Bool) (F : MaxCSPInstance Rel V)
     (σ : V → D) :
     F.toRealWeighted.evalScore sem σ = (F.evalCount sem σ : ℝ) := by
-  rcases F with ⟨n, cs⟩
-  induction cs with
-  | nil => simp only [toRealWeighted, WeightedMaxCSP.evalScore, List.map_nil, List.sum_nil,
-      evalCount, List.countP_nil, Nat.cast_zero]
-  | cons c cs ih =>
-    simp only [toRealWeighted, WeightedMaxCSP.evalScore, List.map_cons, List.sum_cons,
-      WeightedConstraint.evalWeight, evalCount, List.countP_cons, Constraint.eval] at ih ⊢
-    rw [ih]
-    by_cases h : sem c.rel (c.scope.map σ) = true <;>
-      simp only [h, Bool.false_eq_true, ↓reduceIte, Nat.cast_add, Nat.cast_one, Nat.cast_zero] <;>
-      ring
+  rw [← F.evalScore_toWeighted sem σ]
+  simp only [toRealWeighted, toWeighted, WeightedMaxCSP.evalScore, List.map_map,
+    Function.comp_def, WeightedConstraint.evalWeight, Nat.cast_list_sum]
+  congr 1
+  exact List.map_congr_left fun c _ => by cases sem c.rel (c.scope.map σ) <;> simp
 
 @[simp]
 theorem score_toRealWeighted [Inhabited D] (sem : Rel → List D → Bool) (F : MaxCSPInstance Rel ℕ)
@@ -350,9 +344,8 @@ theorem optimum_toRealWeighted [Fintype D] [Inhabited D] (sem : Rel → List D �
     (F : MaxCSPInstance Rel ℕ) :
     F.toRealWeighted.optimum sem = (F.optimum sem : ℝ) := by
   apply le_antisymm
-  · refine WeightedMaxCSP.optimum_le_of_forall fun x => ?_
-    let x' : Fin F.numVars → D := x
-    exact (F.score_toRealWeighted sem x').le.trans (Nat.cast_le.mpr (F.score_le_optimum sem x'))
+  · exact WeightedMaxCSP.optimum_le_of_forall fun x : Fin F.numVars → D =>
+      (F.score_toRealWeighted sem x).le.trans (Nat.cast_le.mpr (F.score_le_optimum sem x))
   · obtain ⟨x, hx⟩ := F.exists_score_eq_optimum sem
     rw [← hx, ← F.score_toRealWeighted]
     exact F.toRealWeighted.score_le_optimum sem x
@@ -403,12 +396,9 @@ theorem length_constraints_ofCNF (numVars : ℕ) (φ : CNF V) :
 @[simp]
 theorem vars_ofCNF (numVars : ℕ) (φ : CNF V) :
     (ofCNF numVars φ).vars = φ.vars := by
-  induction φ with
-  | nil => rfl
-  | cons c cs ih =>
-    simp only [ofCNF, vars, CSP.vars, List.map_cons, List.flatMap_cons, Constraint.ofClause,
-      CNF.vars, List.flatten_cons, List.map_append] at ih ⊢
-    rw [ih]
+  simp only [ofCNF, vars, CSP.vars, CNF.vars, List.flatMap_map, List.flatten_eq_flatMap,
+    List.map_flatMap]
+  rfl
 
 @[simp]
 theorem workSize_ofCNF (numVars : ℕ) (φ : CNF V) :
@@ -431,11 +421,7 @@ theorem thresholdCount_ofCNF (numVars : ℕ) (φ : CNF ℕ) (q : ℕ) :
       (Finset.univ.filter fun x : BitString numVars =>
         q ≤ φ.countP (Clause.eval (MaxCSP.assignment numVars x))).card := by
   simp only [thresholdCount]
-  congr 1
-  refine Finset.filter_congr fun x _ => ?_
-  let x' : BitString numVars := x
-  change q ≤ (ofCNF numVars φ).score MaxCSP.clauseSem x' ↔ _
-  rw [score_ofCNF]
+  exact congrArg Finset.card (Finset.filter_congr fun x _ => by rw [score_ofCNF numVars φ x])
 
 theorem optimum_ofCNF (numVars : ℕ) (φ : CNF ℕ) :
     (ofCNF numVars φ).optimum MaxCSP.clauseSem =
@@ -461,35 +447,23 @@ theorem countP_eval_constraintToCNF_add_one {Rel V : Type*} (sem : Rel → List 
   set forb := (enumList c.scope.length).filter fun w => !sem c.rel w
   have hnodup : forb.Nodup := (nodup_enumList c.scope.length).filter _
   have hcount : (c.toCNF sem).countP (Clause.eval σ) =
-      forb.countP (fun w => !(c.scope.map σ == w)) := by
+      forb.countP (fun w => !(w == c.scope.map σ)) := by
     simp only [Constraint.toCNF, List.countP_map, Function.comp_def, forb]
     refine List.countP_congr fun w hw => ?_
-    have hw_len : w.length = c.scope.length := length_of_mem_enumList (List.mem_of_mem_filter hw)
-    rw [Constraint.eval_forbidClause c.scope hw_len σ]
-  have hlen : (c.toCNF sem).length = forb.length := by
-    simp only [Constraint.toCNF, List.length_map, forb]
-  have hbeq : forb.countP (fun w => c.scope.map σ == w) = forb.count (c.scope.map σ) := by
-    rw [List.count_eq_countP]
-    exact List.countP_congr fun _ _ => by rw [beq_iff_eq, beq_iff_eq, eq_comm]
-  have hneg : forb.countP (fun w => !(c.scope.map σ == w)) =
-      forb.countP (fun w => ¬(c.scope.map σ == w)) :=
-    List.countP_congr fun _ _ => by simp
-  have hsplit := List.length_eq_countP_add_countP (fun w => c.scope.map σ == w) (l := forb)
-  rw [hbeq, ← hneg] at hsplit
+    rw [Constraint.eval_forbidClause c.scope
+      (length_of_mem_enumList (List.mem_of_mem_filter hw)) σ, Bool.beq_comm]
+  have hsplit := List.length_eq_countP_add_countP (· == c.scope.map σ) (l := forb)
+  rw [← List.count_eq_countP] at hsplit
   have hmem : c.scope.map σ ∈ forb ↔ Constraint.eval sem σ c = false := by
     simp only [forb, List.mem_filter, mem_enumList, List.length_map, true_and, Constraint.eval,
       Bool.not_eq_true']
-  rw [hcount, hlen]
-  by_cases hev : Constraint.eval sem σ c = true
-  · have hnot : c.scope.map σ ∉ forb := by
-      rw [hmem]
-      simp only [hev, Bool.true_eq_false, not_false_eq_true]
-    rw [List.count_eq_zero_of_not_mem hnot] at hsplit
-    simp only [hev, Bool.cond_true]
+  rw [hcount, show (c.toCNF sem).length = forb.length from List.length_map _]
+  cases hev : Constraint.eval sem σ c
+  · rw [List.count_eq_one_of_mem hnodup (hmem.mpr hev)] at hsplit
+    simp only [Bool.cond_false, Bool.not_eq_true, Bool.decide_eq_false] at hsplit ⊢
     omega
-  · have hfalse : Constraint.eval sem σ c = false := Bool.eq_false_iff.mpr hev
-    rw [List.count_eq_one_of_mem hnodup (hmem.mpr hfalse)] at hsplit
-    simp only [hfalse, Bool.cond_false]
+  · rw [List.count_eq_zero_of_not_mem (by simp [hmem, hev])] at hsplit
+    simp only [Bool.cond_true, Bool.not_eq_true, Bool.decide_eq_false] at hsplit ⊢
     omega
 
 /-- **Exact affine score identity for `CSP.toCNF`.** On every assignment `σ : V → Bool`, the
@@ -505,7 +479,9 @@ theorem countP_eval_toCNF_add_length {Rel V : Type*} (sem : Rel → List Bool �
     have hc := countP_eval_constraintToCNF_add_one sem c σ
     simp only [CSP.toCNF, List.flatMap_cons, List.countP_append, List.length_append,
       List.length_cons, List.countP_cons] at ih ⊢
-    grind
+    cases h : Constraint.eval sem σ c <;>
+      simp only [h, Bool.cond_false, Bool.cond_true, Bool.false_eq_true, ↓reduceIte] at hc ⊢ <;>
+      omega
 
 end MaxCSP
 
@@ -517,10 +493,7 @@ theorem score_ofCNF_toCNF_add_length {Rel : Type*} (sem : Rel → List Bool → 
     (ofCNF F.numVars (F.constraints.toCNF sem)).score MaxCSP.clauseSem x + F.constraints.length =
       (F.constraints.toCNF sem).length + F.score sem x := by
   rw [score_ofCNF]
-  have h := MaxCSP.countP_eval_toCNF_add_length sem F.constraints (MaxCSP.assignment F.numVars x)
-  have hcnt : F.constraints.countP (Constraint.eval sem (MaxCSP.assignment F.numVars x)) =
-      F.score sem x := rfl
-  rwa [hcnt] at h
+  exact MaxCSP.countP_eval_toCNF_add_length sem F.constraints (MaxCSP.assignment F.numVars x)
 
 /-- **Exact optimum shift under forbidden-pattern `CSP.toCNF` compilation.** -/
 theorem optimum_ofCNF_toCNF_add_length {Rel : Type*} (sem : Rel → List Bool → Bool)
@@ -602,20 +575,15 @@ theorem map_clampedScope_eq {q N : ℕ} (hq : 0 < q) [Inhabited (Fin q)]
   let b := CSP.bitWidth q
   have hb : 0 < b := CSP.one_le_bitWidth q
   let blockBits (v : ℕ) : List Bool := (CSP.bitScope b v).map (assignment (N * b) x)
-  have hflat : (scope.flatMap (CSP.bitScope b)).map (assignment (N * b) x) =
-      scope.flatMap blockBits := by
-    simp only [List.map_flatMap, blockBits]
-  have hlen : (scope.flatMap blockBits).length = scope.length * b := by
-    refine List.length_flatMap_of_forall_length_eq fun v _ => ?_
+  have hblen (v : ℕ) : (blockBits v).length = b := by
     simp only [blockBits, List.length_map, CSP.bitScope_length]
   have hdiv : (scope.flatMap blockBits).length / b = scope.length := by
-    rw [hlen, Nat.mul_div_cancel _ hb]
+    rw [List.length_flatMap_of_forall_length_eq fun v _ => hblen v, Nat.mul_div_cancel _ hb]
   dsimp only
-  rw [hflat, hdiv, CSP.decodeChunks_flatMap b scope blockBits (fun v _ => by
-    simp only [blockBits, List.length_map, CSP.bitScope_length]), List.map_map]
+  rw [List.map_flatMap, hdiv, CSP.decodeChunks_flatMap b scope blockBits fun v _ => hblen v,
+    List.map_map]
   refine List.map_congr_left fun v hv => ?_
-  have hv_lt : v < N := hscope v hv
-  simp only [Function.comp_apply, assignment_lt _ hv_lt, decodeFinAssign, blockBits]
+  simp only [Function.comp_apply, assignment_lt _ (hscope v hv), decodeFinAssign, blockBits]
   rfl
 
 end MaxCSP

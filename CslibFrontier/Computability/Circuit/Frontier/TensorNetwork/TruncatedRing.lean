@@ -71,14 +71,12 @@ theorem getD_truncFl (ℓ i : ℕ) : (truncFl ℓ).getD i 0 = 0 := by
   by_cases h : i < ℓ
   · rw [List.getD_eq_getElem _ _ (by simpa using h)]
     simp
-  · rw [List.getD_eq_default _ _ (by simpa using h)]
+  · exact List.getD_eq_default _ _ (by simpa using h)
 
 /-- The monic polynomial with lower coefficients `truncFl ℓ` is `V ^ ℓ`. -/
 theorem monicOf_truncFl (ℓ : ℕ) : monicOf (truncFl ℓ) = X ^ ℓ := by
   rw [monicOf, length_truncFl, add_eq_left]
-  refine sum_eq_zero fun i _ => ?_
-  rw [getD_truncFl]
-  simp
+  exact sum_eq_zero fun _ _ => by simp only [getD_truncFl, Nat.cast_zero, map_zero, zero_mul]
 
 variable {P ℓ : ℕ}
 
@@ -109,12 +107,8 @@ theorem truncRingHom_eq_iff {p q : ℤ[X]} :
 
 /-- `V ^ ℓ = 0` in `B_{P,ℓ}`. -/
 theorem root_pow_truncFl : (AdjoinRoot.root _ : Ring P (truncFl ℓ)) ^ ℓ = 0 := by
-  have h := root_pow_length (p := P) (fl := truncFl ℓ)
-  rw [length_truncFl] at h
-  rw [h, neg_eq_zero]
-  refine sum_eq_zero fun i _ => ?_
-  rw [getD_truncFl]
-  simp
+  simpa only [length_truncFl, getD_truncFl, Nat.cast_zero, zero_mul, sum_const_zero, neg_zero] using
+    root_pow_length (p := P) (fl := truncFl ℓ)
 
 /-- **The map `ℕ[V] → B_{P,ℓ}`**, through `ℤ[V]`. -/
 noncomputable def truncNatHom (P ℓ : ℕ) : ℕ[X] →+* Ring P (truncFl ℓ) :=
@@ -144,14 +138,12 @@ theorem truncNatHom_ofCoeffList (c : List ℕ) :
   rw [hsum, map_sum, GaloisRingArith.val, length_truncFl]
   simp only [hterm]
   -- Both sums agree with the sum below `max |c| ℓ`.
-  have hzero : ∀ i, ¬ (i < c.length ∧ i < ℓ) →
+  have hzero (i : ℕ) (hi : ¬ (i < c.length ∧ i < ℓ)) :
       ((c.getD i 0 : ℕ) : Ring P (truncFl ℓ)) * AdjoinRoot.root _ ^ i = 0 := by
-    intro i hi
     by_cases hc : i < c.length
-    · have hℓ : ℓ ≤ i := by omega
-      rw [← Nat.add_sub_cancel' hℓ, pow_add, root_pow_truncFl, zero_mul, mul_zero]
-    · rw [List.getD_eq_default _ _ (by omega)]
-      simp
+    · rw [← Nat.add_sub_cancel' (show ℓ ≤ i by omega), pow_add, root_pow_truncFl, zero_mul,
+        mul_zero]
+    · rw [List.getD_eq_default _ _ (by omega), Nat.cast_zero, zero_mul]
   rw [← sum_subset (range_subset_range.mpr (Nat.min_le_left (c.length + 1) ℓ)) fun i _ hi =>
       hzero i (by simp only [mem_range] at hi; omega),
     ← sum_subset (range_subset_range.mpr (Nat.min_le_right (c.length + 1) ℓ)) fun i _ hi =>

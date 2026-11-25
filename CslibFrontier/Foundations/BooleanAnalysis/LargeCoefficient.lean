@@ -51,8 +51,8 @@ influence gives the book's statement. The spectral step it uses,
 `4 * K ^ 3 / (9 * ε ^ 2) * 81 ^ (K / ε)` coordinates such that the Fourier weight on the sets that
 are not subsets of `J` is at most `ε`. With `sum_fourierCoeff_sq_le_of_totalInfluence_le`
 (Proposition 3.2) it gives the book's spectral form of Friedgut's junta theorem, and
-`Cslib.BitString.exists_dependsOn_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f J` turns its
-`J` into a `J`-junta at relative Hamming distance at most `ε`; this is how
+`Cslib.BitString.exists_dependsOn_two_mul_hammingDist_div_le_sum_not_subset_fourierCoeff_sq f J`
+turns its `J` into a `J`-junta at relative Hamming distance at most `ε / 2`; this is how
 `exists_dependsOn_hammingDist_div_le_of_totalInfluence_le` is proved. Remark 9.33 needs no
 separate lemma: combine `fourierCoeff_empty` with `expect_sub_expect_sq_signVal` (in
 `CslibFrontier.Foundations.BooleanAnalysis.Variance`). Checked instances, the spectral step on a

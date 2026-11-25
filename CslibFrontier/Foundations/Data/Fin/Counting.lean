@@ -33,6 +33,6 @@ theorem card_filter_zero_tail (P : F → (Fin n → F) → Prop) [∀ t, Decidab
     #{x : Fin (n + 1) → F | P (x 0) (Fin.tail x)} = ∑ t, #{y : Fin n → F | P t y} := by
   simp only [card_filter]
   rw [← (Fin.consEquiv fun _ => F).sum_comp, Fintype.sum_prod_type]
-  simp [Fin.consEquiv]
+  simp only [Fin.consEquiv, Equiv.coe_fn_mk, Fin.cons_zero, Fin.tail_cons]
 
 end Fin

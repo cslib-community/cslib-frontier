@@ -156,12 +156,9 @@ time. The dimension is the runtime row count; no rectangularity premise is requi
     (hv : ComputableInPolyTime v encIn (encList encIntBin)) :
     ComputableInPolyTime (fun x => mulVec (rows x) (v x)) encIn (encList encIntBin) := by
   unfold mulVec
-  apply ComputableInPolyTime.mapWithInput hrows
-  exact ComputableInPolyTime.listDotProduct.comp
-    (show ComputableInPolyTime
-      (fun p : α × List ℤ => ((rows p.1).length, p.2, v p.1))
-      (encPair encIn (encList encIntBin))
-      (encPair encUnary (encPair (encList encIntBin) (encList encIntBin))) by fun_prop)
+  exact ComputableInPolyTime.mapWithInput hrows
+    (ComputableInPolyTime.listDotProduct.comp
+      (g := fun p : α × List ℤ => ((rows p.1).length, p.2, v p.1)) (by fun_prop))
 
 /-- Compute stored integer matrix-power columns in native polynomial time, uniformly in the
 binary-integer table and the unary step count and seed index. -/
@@ -188,11 +185,9 @@ binary-integer table and the unary step count and seed index. -/
     have hentry : ∀ row ∈ rows x, ∀ z ∈ row,
         z.natAbs.size ≤ (encIntTable (rows x)).length := by
       intro row hrow z hz
-      have h₁ : (encIntBin z).length ≤ (encList encIntBin row).length :=
-        SizedListEncoding.length_elem_le row z hz
-      have h₂ : (encList encIntBin row).length ≤ (encIntTable (rows x)).length :=
-        SizedListEncoding.length_elem_le (rows x) row hrow
-      have h := h₁.trans h₂
+      have h : (encIntBin z).length ≤ (encIntTable (rows x)).length :=
+        (SizedListEncoding.length_elem_le row z hz : _ ≤ (encList encIntBin row).length).trans
+          (SizedListEncoding.length_elem_le (rows x) row hrow)
       rw [length_encIntBin] at h
       omega
     apply (length_enc_powerColumn_le hentry i (seed x)).trans

@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.UC.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 
 /-!
@@ -52,18 +53,24 @@ model (not Definition 6 of [Canetti2020]).
   two `WordInterface`s.
 * `Cslib.Crypto.Protocols.UC.WordInterface.PortMap.adapt`: typed `ProbOracleComp.simulate` adapter
   induced by a `PortMap`.
-* `Cslib.Crypto.Protocols.UC.WordInterface.PortMap.inr`: right-injection `PortMap` from `iR` into
-  `iL.sum iR`.
-* `Cslib.Crypto.Protocols.UC.PPTCertificate.routeCorrupt`, `.liftRight`,
-  `.liftAdversary`: constructive `PPTCertificate` combinators for corruption routing and lifting.
+* `Cslib.Crypto.Protocols.UC.WordInterface.PortMap.inr`, `.inl`: right- and left-injection
+  `PortMap`s into `iL.sum iR`.
+* `Cslib.Crypto.Protocols.UC.HybridProtocol.IsPPT`: strict-PPT predicate for hybrid protocols in
+  this word model.
+* `Cslib.Crypto.Protocols.UC.PPTCertificate.routeCorrupt`, `.hybridWrap`, `.liftRight`,
+  `.liftAdversary`: constructive `PPTCertificate` combinators for corruption routing, hybrid
+  wrapping, and lifting.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_lowerWith_adapt`: adapting a lowered
-  strict oracle-PPT program through a `PortMap` preserves `IsOraclePPTOn`.
+* `Cslib.Crypto.Protocols.UC.WordInterface.isOraclePPTOn_lowerWith_adapt` and
+  `Cslib.Crypto.Protocols.UC.WordInterface.PortMap.support_lowerWith_adapt`: adapting a lowered
+  program through a `PortMap` preserves `IsOraclePPTOn` and (when `replyMap` is the identity)
+  `OracleComp.support`.
 * `Cslib.Crypto.Protocols.UC.Machine.IsPPTFamily.routeCorrupt`,
   `Cslib.Crypto.Protocols.UC.Protocol.IsPPT.corruptRouter`: static-corruption routing preserves
   strict PPT.
+* `Cslib.Crypto.Protocols.UC.HybridProtocol.IsPPT.hybridWrap`: `hybridWrap` preserves strict PPT.
 * `Cslib.Crypto.Protocols.UC.Machine.IsPPTFamily.liftRight`,
   `Cslib.Crypto.Protocols.UC.Adversary.IsPPT.liftAdversary`: lifting a machine family or adversary
   past an arbitrary left word interface preserves strict PPT.
@@ -120,6 +127,23 @@ program by translating each query with `queryMap` and each reply with `replyBack
     (program : ProbOracleComp J α) : ProbOracleComp K α :=
   ProbOracleComp.simulate (fun j => m.replyBack j <$> ProbOracleComp.query (m.queryMap j)) program
 
+private theorem simulate_id_map_query {ιJ ιK α : Type} {K : ιK → Type} (f : ιJ → ιK)
+    (program : ProbOracleComp (fun j => K (f j)) α) :
+    ProbOracleComp.simulate (fun j => id <$> ProbOracleComp.query (spec := K) (f j)) program =
+      OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun k => OracleComp.query (spec := probOracleSpec K) (Sum.inl k))
+          fun j => ProbOracleComp.query (spec := K) (f j))
+        program := by
+  rw [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  apply congrArg (fun h => OracleComp.interpret h program)
+  funext q
+  cases q with
+  | inl k => rfl
+  | inr j =>
+    simp only [OracleComp.sumHandler]
+    exact id_map _
+
 /-- Library construction (no cited definition): the right-injection `PortMap` embedding `iR` into
 `iL.sum iR`. Its `adapt` equals `Machine.liftRightProgram L`. -/
 @[expose] def WordInterface.PortMap.inr {ιL ιR : Type} {L : ιL → Type} {R : ιR → Type}
@@ -136,18 +160,33 @@ program by translating each query with `queryMap` and each reply with `replyBack
   wordMap_poly := ComputableInPolyTime.snd (encFinite iR.Channel) encBits
   replyMap_poly := ComputableInPolyTime.snd (encFinite iR.Channel) encBits
 
+/-- Library construction (no cited definition): the left-injection `PortMap` embedding `iL` into
+`iL.sum iR`. -/
+@[expose] def WordInterface.PortMap.inl {ιL ιR : Type} {L : ιL → Type} {R : ιR → Type}
+    (iL : WordInterface L) (iR : WordInterface R) :
+    WordInterface.PortMap iL (iL.sum iR) where
+  queryMap := Sum.inl
+  replyBack _ r := r
+  channelMap := Sum.inl
+  wordMap _ w := w
+  replyMap _ w := w
+  channelMap_channel _ := rfl
+  wordMap_request _ := rfl
+  decodeReply_replyMap _ _ := rfl
+  wordMap_poly := ComputableInPolyTime.snd (encFinite iL.Channel) encBits
+  replyMap_poly := ComputableInPolyTime.snd (encFinite iL.Channel) encBits
+
 private theorem adapt_portMap_inr {ιL ιR α : Type} {L : ιL → Type} {R : ιR → Type}
     (iL : WordInterface L) (iR : WordInterface R) (program : ProbOracleComp R α) :
-    (WordInterface.PortMap.inr iL iR).adapt program = Machine.liftRightProgram L program := by
-  rw [WordInterface.PortMap.adapt, ProbOracleComp.simulate, Machine.liftRightProgram,
-    OracleComp.substitute_eq_interpret]
-  apply congrArg (fun h => OracleComp.interpret h program)
-  funext q
-  cases q with
-  | inl k => rfl
-  | inr r =>
-    simp only [OracleComp.sumHandler, WordInterface.PortMap.inr]
-    exact id_map _
+    (WordInterface.PortMap.inr iL iR).adapt program = Machine.liftRightProgram L program :=
+  simulate_id_map_query (K := L ⊕ₒ R) Sum.inr program
+
+private theorem adapt_portMap_inl {n : ℕ} {SubIn SubOut NQ NR α : Type}
+    (subParty : WordPort (Fin n × SubIn) (Option SubOut)) (nq : WordPort NQ NR)
+    (program : ProbOracleComp (partySpec n SubIn SubOut) α) :
+    (WordInterface.PortMap.inl (WordInterface.net subParty) (WordInterface.net nq)).adapt program =
+      liftParty (NetQ := NQ) (NetR := NR) program :=
+  simulate_id_map_query (K := protocolSpec n SubIn SubOut NQ NR) Sum.inl program
 
 /-- Library infrastructure (no cited result): adapting a lowered strict oracle-PPT program through
 a `WordInterface.PortMap` preserves `IsOraclePPTOn`, provided every translated `r a`-truncated
@@ -170,38 +209,19 @@ theorem WordInterface.isOraclePPTOn_lowerWith_adapt {ιJ ιK α β : Type}
   have hhandler : IsOraclePPTOn
       (encPair input (encPair (encFinite iJ.Channel) encBits)) encBits
       (fun pair => handler pair.1 pair.2) := by
-    let EIn := encPair input (encPair (encFinite iJ.Channel) encBits)
-    have htag : ComputableInPolyTime
-        (fun pair : α × (iJ.Channel × List Bool) => m.channelMap pair.2.1)
-        EIn (encFinite iK.Channel) :=
-      (ComputableInPolyTime.of_finite m.channelMap).comp (by dsimp only [EIn]; fun_prop)
-    have hword : ComputableInPolyTime
-        (fun pair : α × (iJ.Channel × List Bool) => m.wordMap pair.2.1 pair.2.2)
-        EIn encBits :=
-      m.wordMap_poly.comp (ComputableInPolyTime.snd input (encPair (encFinite iJ.Channel) encBits))
-    have hr' : ComputableInPolyTime
-        (fun pair : α × (iJ.Channel × List Bool) => r pair.1) EIn encUnary :=
-      hr.comp (ComputableInPolyTime.fst input (encPair (encFinite iJ.Channel) encBits))
-    have hquery : IsOraclePPTOn EIn encBits
-        (fun pair => List.take (r pair.1) <$>
-          ProbOracleComp.query (spec := fun _ : iK.Channel × List Bool => List Bool)
-            (m.channelMap pair.2.1, m.wordMap pair.2.1 pair.2.2)) :=
-      IsOraclePPTOn.query_take_with htag hword hr'
-    refine hquery.map_with (f := fun pair reply => m.replyMap pair.2.1 reply) ?_
-    have hproj : ComputableInPolyTime
-        (fun x : (α × (iJ.Channel × List Bool)) × List Bool => (x.1.2.1, x.2))
-        (encPair EIn encBits) (encPair (encFinite iJ.Channel) encBits) := by
-      dsimp only [EIn]
-      fun_prop
-    exact m.replyMap_poly.comp hproj
+    refine IsOraclePPTOn.map_with
+      (f := fun (pair : α × (iJ.Channel × List Bool)) reply => m.replyMap pair.2.1 reply)
+      (IsOraclePPTOn.query_take_with (opEncoding := encFinite iK.Channel) ?_ ?_ ?_) ?_
+    · exact (ComputableInPolyTime.of_finite m.channelMap).comp (by fun_prop)
+    · exact m.wordMap_poly.comp (by fun_prop)
+    · exact hr.comp (by fun_prop)
+    · exact m.replyMap_poly.comp (show ComputableInPolyTime
+        (fun x : (α × (iJ.Channel × List Bool)) × List Bool => (x.1.2.1, x.2)) _ _ by fun_prop)
   obtain ⟨c, d, hreplyBound⟩ := m.replyMap_poly.polyBounded_length.exists_le
   let resources (a : α) (_ : List Bool) : ℕ := c * (2 * Nat.card iJ.Channel + 2 + r a) ^ d
   have hresources : ComputableInPolyTime (fun pair : α × List Bool => resources pair.1 pair.2)
       (encPair input encBits) encUnary := by
-    have hpoly : ComputableInPolyTime (fun n : ℕ => c * (2 * Nat.card iJ.Channel + 2 + n) ^ d)
-        encUnary encUnary := by
-      fun_prop
-    exact hpoly.comp (hr.comp (ComputableInPolyTime.fst input encBits))
+    dsimp only [resources]; fun_prop
   have hbound : ∀ (a : α) (req : iJ.Channel × List Bool) (reply : List Bool),
       reply ∈ OracleComp.support (handler a req) → reply.length ≤ resources a req.2 := by
     intro a req reply hmem
@@ -238,6 +258,138 @@ theorem WordInterface.isOraclePPTOn_lowerWith_adapt {ιJ ιK α β : Type}
     funext w
     rw [List.take_of_length_le (hfit a (iJ.channel j) w), m.decodeReply_replyMap j]
   rwa [heq] at hsub
+
+/-- Library infrastructure (no cited result): adapting through a `PortMap` whose word-level reply
+translation is the identity leaves the support of the lowered program unchanged. -/
+theorem WordInterface.PortMap.support_lowerWith_adapt {ιJ ιK α : Type}
+    {J : ιJ → Type} {K : ιK → Type} {iJ : WordInterface J} {iK : WordInterface K}
+    (m : WordInterface.PortMap iJ iK) (hreply : ∀ c w, m.replyMap c w = w)
+    (limit : ℕ) (program : ProbOracleComp J α) :
+    OracleComp.support (ProbOracleComp.lowerWith iK limit (m.adapt program)) =
+      OracleComp.support (ProbOracleComp.lowerWith iJ limit program) := by
+  rw [ProbOracleComp.lowerWith, ProbOracleComp.lowerWith, WordInterface.PortMap.adapt,
+    ProbOracleComp.simulate_simulate, ProbOracleComp.simulate, ProbOracleComp.simulate,
+    OracleComp.substitute_eq_interpret, OracleComp.substitute_eq_interpret]
+  unfold OracleComp.support
+  rw [OracleComp.supportWith_interpret, OracleComp.supportWith_interpret]
+  congr 1
+  funext q
+  cases q with
+  | inl k => rfl
+  | inr j =>
+    simp only [OracleComp.sumHandler, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
+      WordInterface.lowerQuery, Functor.map_map]
+    ext v
+    simp only [OracleComp.mem_supportWith_map_iff, ProbOracleComp.supportWith_query,
+      Set.mem_univ, true_and, ← m.decodeReply_replyMap j, hreply]
+
+/-- Library infrastructure (no cited result): lowering a `liftParty` program through
+`WordInterface.protocol subParty nq` has the same `OracleComp.support` as lowering the underlying
+party-interface program through `WordInterface.net subParty`. -/
+theorem support_lowerWith_liftParty {n : ℕ} {SubIn SubOut NQ NR α : Type}
+    (subParty : WordPort (Fin n × SubIn) (Option SubOut)) (nq : WordPort NQ NR)
+    (limit : ℕ) (program : ProbOracleComp (partySpec n SubIn SubOut) α) :
+    OracleComp.support
+        (ProbOracleComp.lowerWith (WordInterface.protocol subParty nq) limit
+          (liftParty (NetQ := NQ) (NetR := NR) program)) =
+      OracleComp.support (ProbOracleComp.lowerWith (WordInterface.net subParty) limit program) :=
+  adapt_portMap_inl subParty nq program ▸
+    (WordInterface.PortMap.inl (WordInterface.net subParty)
+      (WordInterface.net nq)).support_lowerWith_adapt (fun _ _ => rfl) limit program
+
+private theorem isOraclePPTOn_tagReply {Op α : Type} [DecidableEq Op]
+    {EIn : α ↪ List Bool}
+    {prog : α → WordOracleComp Op (List Bool × List Bool)} (b : Bool)
+    (h : IsOraclePPTOn (Operation := Op) EIn (encPair encBits encBits) prog) :
+    IsOraclePPTOn (Operation := Op) EIn (encPair encBits encBits)
+      (fun x => (fun out : List Bool × List Bool => (b :: out.1, out.2)) <$> prog x) :=
+  h.map ((ComputableInPolyTime.bitsCons (ComputableInPolyTime.const b)
+    (ComputableInPolyTime.fst encBits encBits)).prod (ComputableInPolyTime.snd encBits encBits))
+
+private theorem PPTCertificate.isOraclePPTOn_adapt_wordHandle
+    {n : ℕ} {ιJ ιK ιE : Type} {J : ιJ → Type} {K : ιK → Type} {E : ιE → Type}
+    {M : ℕ → Finset (Fin n) → Machine J E}
+    {iJ : WordInterface J} {iK : WordInterface K} {iE : WordInterface E}
+    {chOut : Type} [Finite chOut]
+    (cert : PPTCertificate M iJ iE) (m : WordInterface.PortMap iJ iK)
+    (hreply : ∀ c w, m.replyMap c w = w)
+    (cE : iE.Channel) (reqMap : List Bool → List Bool)
+    (hreqMap : ComputableInPolyTime reqMap encBits encBits) :
+    IsOraclePPTOn (Operation := iK.Channel)
+      (encHandlerCall (encPPTParam n) (encFinite chOut) encBits) (encPair encBits encBits)
+      (fun x : PPTParam n × (chOut × List Bool) × List Bool =>
+        (fun result => (iE.reply (iE.decodeQuery cE (reqMap x.2.1.2)) result.1,
+          (cert.codec x.1.secParam x.1.corrupted).enc result.2)) <$>
+          ProbOracleComp.lowerWith iK x.1.replyBound
+            (m.adapt (((M x.1.secParam x.1.corrupted).handle
+              (iE.decodeQuery cE (reqMap x.2.1.2))).run
+              ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2)))) := by
+  let EIn := encHandlerCall (encPPTParam n) (encFinite chOut) encBits
+  let prog (x : PPTParam n × (chOut × List Bool) × List Bool) :
+      ProbOracleComp J (List Bool × List Bool) :=
+    let q := iE.decodeQuery cE (reqMap x.2.1.2)
+    (fun result => (iE.reply q result.1,
+      (cert.codec x.1.secParam x.1.corrupted).enc result.2)) <$>
+      (((M x.1.secParam x.1.corrupted).handle q).run
+        ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2))
+  have hprog : IsOraclePPTOn (Operation := iJ.Channel) EIn (encPair encBits encBits)
+      (fun x => ProbOracleComp.lowerWith iJ x.1.replyBound (prog x)) := by
+    refine (cert.handle.preprocess
+      (prepare := fun x : PPTParam n × (chOut × List Bool) × List Bool =>
+        (x.1, (cE, reqMap x.2.1.2), x.2.2)) ?_).congr fun x _ _ _ => ?_
+    · dsimp only [EIn]
+      unfold encHandlerCall
+      fun_prop
+    · simp only [wordHandle, prog, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map]
+  have hlim : ComputableInPolyTime
+      (fun x : PPTParam n × (chOut × List Bool) × List Bool => x.1.replyBound)
+      EIn encUnary := by dsimp only [EIn]; unfold encHandlerCall; fun_prop
+  have hfit (x : PPTParam n × (chOut × List Bool) × List Bool) (c : iJ.Channel) (w : List Bool) :
+      (m.replyMap c (List.take x.1.replyBound w)).length ≤ x.1.replyBound := by
+    rw [hreply]
+    exact List.length_take_le x.1.replyBound w
+  refine (WordInterface.isOraclePPTOn_lowerWith_adapt m hprog hlim hfit).congr fun x _ _ _ => ?_
+  simp only [prog, WordInterface.PortMap.adapt, ProbOracleComp.lowerWith,
+    ProbOracleComp.simulate_map]
+
+private theorem PPTCertificate.isOraclePPTOn_forward_decodeQuery
+    {n : ℕ} {ιJ ιK ιE : Type} {J : ιJ → Type} {K : ιK → Type} {E : ιE → Type}
+    {M : ℕ → Finset (Fin n) → Machine J E}
+    {iJ : WordInterface J} {iE : WordInterface E}
+    {chOut : Type} [Finite chOut]
+    (cert : PPTCertificate M iJ iE) (iK : WordInterface K)
+    (cK : iK.Channel) (reqMap : List Bool → List Bool)
+    (hreqMap : ComputableInPolyTime reqMap encBits encBits) :
+    IsOraclePPTOn (Operation := iK.Channel)
+      (encHandlerCall (encPPTParam n) (encFinite chOut) encBits) (encPair encBits encBits)
+      (fun x : PPTParam n × (chOut × List Bool) × List Bool =>
+        (fun r => (r,
+          (cert.codec x.1.secParam x.1.corrupted).enc
+            ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2))) <$>
+          (iK.reply (iK.decodeQuery cK (reqMap x.2.1.2)) <$>
+            ProbOracleComp.lowerWith iK x.1.replyBound
+              (ProbOracleComp.query (spec := K) (iK.decodeQuery cK (reqMap x.2.1.2))))) := by
+  let EIn := encHandlerCall (encPPTParam n) (encFinite chOut) encBits
+  have hw : ComputableInPolyTime
+      (fun x : PPTParam n × (chOut × List Bool) × List Bool => reqMap x.2.1.2)
+      EIn encBits :=
+    hreqMap.comp (by dsimp only [EIn]; unfold encHandlerCall; fun_prop)
+  have hlim : ComputableInPolyTime
+      (fun x : PPTParam n × (chOut × List Bool) × List Bool => x.1.replyBound)
+      EIn encUnary := by dsimp only [EIn]; unfold encHandlerCall; fun_prop
+  have hquery := iK.isOraclePPTOn_lowerWith_decodeQuery
+    (ComputableInPolyTime.const cK) hw hlim
+  have hpairNorm : ComputableInPolyTime
+      (fun pair : (PPTParam n × (chOut × List Bool) × List Bool) × List Bool =>
+        (pair.1.1, pair.1.2.2))
+      (encPair EIn encBits) (encPair (encPPTParam n) encBits) := by
+    dsimp only [EIn]; unfold encHandlerCall; fun_prop
+  exact hquery.map_with
+    (f := fun (x : PPTParam n × (chOut × List Bool) × List Bool) r =>
+      (r,
+        (cert.codec x.1.secParam x.1.corrupted).enc
+          ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2)))
+    ((ComputableInPolyTime.snd EIn encBits).prod (cert.normalize.comp hpairNorm))
 
 /-! ### Static-corruption routing (`routeCorrupt` and `corruptRouter`) -/
 
@@ -329,18 +481,7 @@ requests. -/
   init := cert.init
   normalize := cert.normalize
   growth p w := cert.growth p w + cert.growth p w.tail
-  growth_poly := by
-    have htail : PolyBounded
-        (fun pair : PPTParam n × List Bool => (encPair (encPPTParam n) encBits pair).length)
-        (fun pair => cert.growth pair.1 pair.2.tail) := by
-      have hlen : PolyBounded
-          (fun pair : PPTParam n × List Bool => (encPair (encPPTParam n) encBits pair).length)
-          (fun pair => (encPair (encPPTParam n) encBits (pair.1, pair.2.tail)).length) :=
-        PolyBounded.self.mono fun pair => by
-          simp only [length_encPair, encBits_apply, List.length_tail]
-          omega
-      exact cert.growth_poly.comp hlen
-    exact cert.growth_poly.add htail
+  growth_poly := by growth_poly [cert.growth_poly]
   handle := by
     let iE := WordInterface.protocol party netPort
     let iE' := WordInterface.protocol party (WordPort.sum party netPort)
@@ -348,9 +489,7 @@ requests. -/
     have htag : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.1)
         EIn (encFinite iE'.Channel) := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     have hmemFin : ComputableInPolyTime
         (fun pair : Finset (Fin n) × Fin n => decide (pair.2 ∈ pair.1))
         (encPair (encFinite (Finset (Fin n))) (encFinite (Fin n))) encBool :=
@@ -358,15 +497,11 @@ requests. -/
     have hC : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.1.corrupted)
         EIn (encFinite (Finset (Fin n))) := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     have hw : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.2)
         EIn encBits := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     have hwt : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.2.tail)
         EIn encBits :=
@@ -388,9 +523,7 @@ requests. -/
     have hpairNorm : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => (x.1, x.2.2))
         EIn (encPair (encPPTParam n) encBits) := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     have hnorm : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool =>
           (cert.codec x.1.secParam x.1.corrupted).enc
@@ -412,23 +545,12 @@ requests. -/
       refine cert.handle.preprocess
         (prepare := fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool =>
           (x.1, (ch, reqMap x.2.1.2), x.2.2)) ?_
-      have hp : ComputableInPolyTime
-          (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.1)
-          EIn (encPPTParam n) := by
-        dsimp only [EIn]; unfold encHandlerCall; fun_prop
-      have hs : ComputableInPolyTime
-          (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.2)
-          EIn encBits := by
-        dsimp only [EIn]; unfold encHandlerCall; fun_prop
-      exact hp.prod (((ComputableInPolyTime.const ch).prod hreqMap).prod hs)
+      exact hpairNorm.fst'.prod (((ComputableInPolyTime.const ch).prod hreqMap).prod hpairNorm.snd')
     let mkTagged (b : Bool) (ch : iE.Channel) :
         IsOraclePPTOn (Operation := iI.Channel) EIn (encPair encBits encBits)
           (fun x => (fun out : List Bool × List Bool => (b :: out.1, out.2)) <$>
             wordHandle M iI iE cert.codec x.1 (ch, x.2.1.2.tail) x.2.2) :=
-      (mkPass ch List.tail hwt).map
-        ((ComputableInPolyTime.bitsCons (ComputableInPolyTime.const b)
-          (ComputableInPolyTime.fst encBits encBits)).prod
-          (ComputableInPolyTime.snd encBits encBits))
+      isOraclePPTOn_tagReply b (mkPass ch List.tail hwt)
     have hcases : IsOraclePPTOn (Operation := iI.Channel) EIn (encPair encBits encBits)
         (fun x =>
           routeCorruptWordStep M iI party netPort cert.codec x.1 x.2.1.1 x.2.1.2 x.2.2) := by
@@ -468,9 +590,7 @@ requests. -/
     · dsimp only at hres' ⊢
       by_cases hmem : (party.queryDecoder.decode w).1 ∈ p.corrupted
       · simp only [hmem, ↓reduceIte, (cert.codec p.secParam p.corrupted).decode_enc] at hres'
-        have heq := OracleComp.eq_of_mem_supportWith_pure hres'
-        rw [heq]
-        exact Nat.le_add_right _ _
+        rw [OracleComp.eq_of_mem_supportWith_pure hres']; exact Nat.le_add_right _ _
       · simp only [hmem, ↓reduceIte] at hres'
         have hle := cert.preserve p (.inl (), w) s' result hres'
         dsimp only at hle
@@ -485,9 +605,7 @@ requests. -/
           dsimp only at hle ⊢
           omega
         · simp only [hmem, ↓reduceIte, (cert.codec p.secParam p.corrupted).decode_enc] at hres'
-          have heq := OracleComp.eq_of_mem_supportWith_pure hres'
-          rw [heq]
-          exact Nat.le_add_right _ _
+          rw [OracleComp.eq_of_mem_supportWith_pure hres']; exact Nat.le_add_right _ _
       · simp only [hhd, ↓reduceIte, OracleComp.mem_supportWith_map_iff] at hres'
         rcases hres' with ⟨out, hout, rfl⟩
         have hle := cert.preserve p (.inr (), w.tail) s' out hout
@@ -523,30 +641,220 @@ theorem Protocol.IsPPT.corruptRouter {n : ℕ} {In Out NetQ NetR : Type}
       party (WordPort.sum party netPort) :=
   Machine.IsPPTFamily.routeCorrupt hparty h
 
+/-! ### Hybrid wrapper (`hybridWrap`) -/
+
+/-- Library construction (no cited definition; follows the typed-object-plus-encoding convention
+of `AdversaryOf.IsPPT`, not Definition 6 of [Canetti2020]): a hybrid protocol is strict PPT in this
+library's word model for its party port `party`, network port `net`, and the party port `subParty`
+of its subroutine. No implication to or from `HybridProtocol.PolyBounded` is claimed. -/
+@[expose] def HybridProtocol.IsPPT {n : ℕ} {In Out NetQ NetR SubIn SubOut : Type}
+    (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
+    (party : WordPort (Fin n × In) (Option Out)) (net : WordPort NetQ NetR)
+    (subParty : WordPort (Fin n × SubIn) (Option SubOut)) : Prop :=
+  Machine.IsPPTFamily ρ (WordInterface.net subParty) (WordInterface.protocol party net)
+
+private def hybridWrapWordStep {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
+    (party : WordPort (Fin n × In) (Option Out)) (net : WordPort NetQ NetR)
+    (subParty : WordPort (Fin n × SubIn) (Option SubOut)) (nq : WordPort NQ NR)
+    (codec : StateCodec ρ) (p : PPTParam n)
+    (ch : (WordInterface.protocol party (WordPort.sum net nq)).Channel)
+    (w state : List Bool) :
+    WordOracleComp (WordInterface.protocol subParty nq).Channel (List Bool × List Bool) :=
+  let iI' := WordInterface.protocol subParty nq
+  let iE := WordInterface.protocol party net
+  match ch with
+  | .inl () =>
+    (fun result => (iE.reply (iE.decodeQuery (.inl ()) w) result.1,
+      (codec p.secParam p.corrupted).enc result.2)) <$>
+      ProbOracleComp.lowerWith iI' p.replyBound
+        (liftParty (NetQ := NQ) (NetR := NR)
+          (((ρ p.secParam p.corrupted).handle (iE.decodeQuery (.inl ()) w)).run
+            ((codec p.secParam p.corrupted).decode state)))
+  | .inr () =>
+    if w.headD false then
+      (fun out : List Bool × List Bool => (true :: out.1, out.2)) <$>
+        ((fun r => (r,
+          (codec p.secParam p.corrupted).enc ((codec p.secParam p.corrupted).decode state))) <$>
+          (iI'.reply (iI'.decodeQuery (.inr ()) w.tail) <$>
+            ProbOracleComp.lowerWith iI' p.replyBound
+              (ProbOracleComp.query (spec := protocolSpec n SubIn SubOut NQ NR)
+                (iI'.decodeQuery (.inr ()) w.tail))))
+    else
+      (fun out : List Bool × List Bool => (false :: out.1, out.2)) <$>
+        ((fun result => (iE.reply (iE.decodeQuery (.inr ()) w.tail) result.1,
+          (codec p.secParam p.corrupted).enc result.2)) <$>
+          ProbOracleComp.lowerWith iI' p.replyBound
+            (liftParty (NetQ := NQ) (NetR := NR)
+              (((ρ p.secParam p.corrupted).handle (iE.decodeQuery (.inr ()) w.tail)).run
+                ((codec p.secParam p.corrupted).decode state))))
+
+private theorem wordHandle_hybridWrap {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
+    (party : WordPort (Fin n × In) (Option Out)) (net : WordPort NetQ NetR)
+    (subParty : WordPort (Fin n × SubIn) (Option SubOut)) (nq : WordPort NQ NR)
+    (codec : StateCodec ρ) (p : PPTParam n)
+    (ch : (WordInterface.protocol party (WordPort.sum net nq)).Channel)
+    (w state : List Bool) :
+    wordHandle (fun κ C => UC.hybridWrap (NQ := NQ) (NR := NR) (ρ κ C))
+        (WordInterface.protocol subParty nq) (WordInterface.protocol party (WordPort.sum net nq))
+        codec p (ch, w) state =
+      hybridWrapWordStep ρ party net subParty nq codec p ch w state := by
+  rcases ch with ⟨⟨⟩⟩ | ⟨⟨⟩⟩
+  · rfl
+  · dsimp only [wordHandle, hybridWrapWordStep, UC.hybridWrap]
+    cases hhd : w.headD false
+    · have hq : (WordInterface.protocol party (WordPort.sum net nq)).decodeQuery (.inr ()) w =
+          Sum.inr (Sum.inl (net.queryDecoder.decode w.tail)) := by
+        simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+          Decoder.sum, hhd, Bool.false_eq_true, ↓reduceIte]
+      have hrep : (WordInterface.protocol party (WordPort.sum net nq)).reply
+          (Sum.inr (Sum.inl (net.queryDecoder.decode w.tail))) = encSum net.reply nq.reply := rfl
+      rw [hq]
+      dsimp only
+      rw [hrep]
+      simp only [Bool.false_eq_true, ↓reduceIte, StateT.run_map, liftParty_map]
+      simp only [StateT.run, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map,
+        Functor.map_map, encSum_inl]
+      rfl
+    · have hq : (WordInterface.protocol party (WordPort.sum net nq)).decodeQuery (.inr ()) w =
+          Sum.inr (Sum.inr (nq.queryDecoder.decode w.tail)) := by
+        simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
+          Decoder.sum, hhd, ↓reduceIte]
+      have hrep : (WordInterface.protocol party (WordPort.sum net nq)).reply
+          (Sum.inr (Sum.inr (nq.queryDecoder.decode w.tail))) = encSum net.reply nq.reply := rfl
+      rw [hq]
+      dsimp only
+      rw [hrep]
+      simp only [↓reduceIte, StateT.run_lift, bind_pure_comp,
+        ProbOracleComp.lowerWith, ProbOracleComp.simulate_map, Functor.map_map, encSum_inr]
+      rfl
+
+/-- Library construction (no cited definition): lift a hybrid protocol's `PPTCertificate` through
+`hybridWrap`, preserving the state codec; subroutine-network requests are forwarded and leave the
+state word normalized. -/
+@[expose] def PPTCertificate.hybridWrap
+    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
+    {party : WordPort (Fin n × In) (Option Out)} {net : WordPort NetQ NetR}
+    {subParty : WordPort (Fin n × SubIn) (Option SubOut)} {nq : WordPort NQ NR}
+    (cert : PPTCertificate ρ (WordInterface.net subParty) (WordInterface.protocol party net)) :
+    PPTCertificate (fun κ C => UC.hybridWrap (NQ := NQ) (NR := NR) (ρ κ C))
+      (WordInterface.protocol subParty nq)
+      (WordInterface.protocol party (WordPort.sum net nq)) where
+  codec := cert.codec
+  init := cert.init
+  normalize := cert.normalize
+  growth p w := cert.growth p w + cert.growth p w.tail
+  growth_poly := by growth_poly [cert.growth_poly]
+  handle := by
+    let iI' := WordInterface.protocol subParty nq
+    let iE' := WordInterface.protocol party (WordPort.sum net nq)
+    let EIn := encHandlerCall (encPPTParam n) (encFinite iE'.Channel) encBits
+    let mInl := WordInterface.PortMap.inl (WordInterface.net subParty) (WordInterface.net nq)
+    have htag : ComputableInPolyTime
+        (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.1)
+        EIn (encFinite iE'.Channel) := by
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
+    have hhead : ComputableInPolyTime
+        (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.2.headD false)
+        EIn encBool := by
+      refine (ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp ?_
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
+    have hcases : IsOraclePPTOn (Operation := iI'.Channel) EIn (encPair encBits encBits)
+        (fun x =>
+          hybridWrapWordStep ρ party net subParty nq cert.codec x.1 x.2.1.1 x.2.1.2 x.2.2) := by
+      refine IsOraclePPTOn.finite_cases (Operation := iI'.Channel) (Tag := iE'.Channel)
+        (tagEncoding := encFinite iE'.Channel)
+        (tag := fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.1)
+        (branch := fun ch (x : PPTParam n × (iE'.Channel × List Bool) × List Bool) =>
+          hybridWrapWordStep ρ party net subParty nq cert.codec x.1 ch x.2.1.2 x.2.2)
+        htag ?_
+      rintro (⟨⟨⟩⟩ | ⟨⟨⟩⟩)
+      · have hp := cert.isOraclePPTOn_adapt_wordHandle (chOut := iE'.Channel)
+          mInl (fun _ _ => rfl) (.inl ()) (fun w => w) ComputableInPolyTime.id'
+        exact hp.congr fun x State oracle s => by
+          dsimp only [hybridWrapWordStep, iI', mInl]
+          rw [adapt_portMap_inl subParty nq]
+      · have hsub := isOraclePPTOn_tagReply true
+          (cert.isOraclePPTOn_forward_decodeQuery (chOut := iE'.Channel)
+            iI' (.inr ()) List.tail ComputableInPolyTime.bitsTail)
+        have hnet := isOraclePPTOn_tagReply false
+          (cert.isOraclePPTOn_adapt_wordHandle (chOut := iE'.Channel)
+            mInl (fun _ _ => rfl) (.inr ()) List.tail ComputableInPolyTime.bitsTail)
+        refine IsOraclePPTOn.cond hhead hsub (hnet.congr fun x State oracle s => by
+          dsimp only [mInl]
+          rw [adapt_portMap_inl subParty nq])
+    exact hcases.congr fun ⟨p, ⟨ch, w⟩, state⟩ State oracle s => by
+      rw [wordHandle_hybridWrap ρ party net subParty nq cert.codec p ch w state]
+  preserve p request s result hresult := by
+    let s' : (ρ p.secParam p.corrupted).State := s
+    have hres' : result ∈ OracleComp.support
+        (wordHandle (fun κ C => UC.hybridWrap (NQ := NQ) (NR := NR) (ρ κ C))
+          (WordInterface.protocol subParty nq) (WordInterface.protocol party (WordPort.sum net nq))
+          cert.codec p request ((cert.codec p.secParam p.corrupted).enc s')) := hresult
+    suffices hgoal : result.2.length ≤
+        ((cert.codec p.secParam p.corrupted).enc s').length +
+          (cert.growth p request.2 + cert.growth p request.2.tail) from hgoal
+    rcases request with ⟨ch, w⟩
+    rw [wordHandle_hybridWrap ρ party net subParty nq cert.codec] at hres'
+    dsimp only [hybridWrapWordStep] at hres'
+    rcases ch with ⟨⟨⟩⟩ | ⟨⟨⟩⟩
+    · rw [OracleComp.mem_supportWith_map_iff] at hres'
+      rcases hres' with ⟨x, hx, rfl⟩
+      change x ∈ OracleComp.support _ at hx
+      rw [support_lowerWith_liftParty subParty nq] at hx
+      have hmem : (party.reply x.1, (cert.codec p.secParam p.corrupted).enc x.2) ∈
+          OracleComp.support (wordHandle ρ (WordInterface.net subParty)
+            (WordInterface.protocol party net) cert.codec p (.inl (), w)
+            ((cert.codec p.secParam p.corrupted).enc s')) := by
+        rw [wordHandle, OracleComp.mem_supportWith_map_iff]; exact ⟨x, hx, rfl⟩
+      have hle := cert.preserve p (.inl (), w) s' _ hmem
+      dsimp only at hle ⊢
+      omega
+    · dsimp only at hres' ⊢
+      cases hhd : w.headD false
+      · simp only [hhd, Bool.false_eq_true, ↓reduceIte, OracleComp.mem_supportWith_map_iff] at hres'
+        rcases hres' with ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+        change x ∈ OracleComp.support _ at hx
+        rw [support_lowerWith_liftParty subParty nq] at hx
+        have hmem : (net.reply x.1, (cert.codec p.secParam p.corrupted).enc x.2) ∈
+            OracleComp.support (wordHandle ρ (WordInterface.net subParty)
+              (WordInterface.protocol party net) cert.codec p (.inr (), w.tail)
+              ((cert.codec p.secParam p.corrupted).enc s')) := by
+          rw [wordHandle, OracleComp.mem_supportWith_map_iff]; exact ⟨x, hx, rfl⟩
+        have hle := cert.preserve p (.inr (), w.tail) s' _ hmem
+        dsimp only at hle ⊢
+        omega
+      · simp only [hhd, ↓reduceIte, (cert.codec p.secParam p.corrupted).decode_enc,
+          OracleComp.mem_supportWith_map_iff] at hres'
+        rcases hres' with ⟨_, ⟨_, _, rfl⟩, rfl⟩
+        exact Nat.le_add_right _ _
+
+/-- Library infrastructure (no cited result), toward #6043: `hybridWrap` preserves strict PPT. -/
+theorem HybridProtocol.IsPPT.hybridWrap
+    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
+    {party : WordPort (Fin n × In) (Option Out)} {net : WordPort NetQ NetR}
+    {subParty : WordPort (Fin n × SubIn) (Option SubOut)} {nq : WordPort NQ NR}
+    (h : ρ.IsPPT party net subParty) :
+    Machine.IsPPTFamily (fun κ C => UC.hybridWrap (NQ := NQ) (NR := NR) (ρ κ C))
+      (WordInterface.protocol subParty nq) (WordInterface.protocol party (WordPort.sum net nq)) :=
+  let ⟨cert⟩ := h
+  ⟨cert.hybridWrap⟩
+
 /-! ### Machine lifting (`liftRight` and `liftAdversary`) -/
 
-private theorem support_lowerWith_liftRightProgram {ιL ιR α : Type}
+/-- Library infrastructure (no cited result): lowering a right-lifted program through `iL.sum iR`
+has the same `OracleComp.support` as lowering the underlying program through `iR`. -/
+theorem support_lowerWith_liftRightProgram {ιL ιR α : Type}
     {L : ιL → Type} {R : ιR → Type}
     (iL : WordInterface L) (iR : WordInterface R) (limit : ℕ) (program : ProbOracleComp R α) :
     OracleComp.support
         (ProbOracleComp.lowerWith (iL.sum iR) limit (Machine.liftRightProgram L program)) =
-      OracleComp.support (ProbOracleComp.lowerWith iR limit program) := by
-  rw [← adapt_portMap_inr iL iR program, ProbOracleComp.lowerWith, ProbOracleComp.lowerWith,
-    WordInterface.PortMap.adapt, ProbOracleComp.simulate_simulate]
-  rw [ProbOracleComp.simulate, ProbOracleComp.simulate, OracleComp.substitute_eq_interpret,
-    OracleComp.substitute_eq_interpret]
-  unfold OracleComp.support
-  rw [OracleComp.supportWith_interpret, OracleComp.supportWith_interpret]
-  congr 1
-  funext q
-  cases q with
-  | inl k => rfl
-  | inr r =>
-    simp only [OracleComp.sumHandler, WordInterface.PortMap.inr, ProbOracleComp.simulate_map,
-      ProbOracleComp.simulate_query, WordInterface.lowerQuery, WordInterface.sum]
-    ext v
-    simp only [OracleComp.mem_supportWith_map_iff, ProbOracleComp.supportWith_query,
-      Set.mem_univ, true_and, exists_eq_right]
+      OracleComp.support (ProbOracleComp.lowerWith iR limit program) :=
+  adapt_portMap_inr iL iR program ▸
+    (WordInterface.PortMap.inr iL iR).support_lowerWith_adapt (fun _ _ => rfl) limit program
 
 private theorem wordHandle_liftRight_inl {n : ℕ} {ιL ιR ιE : Type}
     {L : ιL → Type} {R : ιR → Type} {E : ιE → Type}
@@ -596,9 +904,7 @@ private theorem wordHandle_liftRight_inr {n : ℕ} {ιL ιR ιE : Type}
     have htag : ComputableInPolyTime
         (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool => x.2.1.1)
         EIn (encFinite (iL.sum iE).Channel) := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     refine IsOraclePPTOn.finite_cases (Operation := (iL.sum iR).Channel)
       (Tag := (iL.sum iE).Channel)
       (tagEncoding := encFinite (iL.sum iE).Channel)
@@ -607,89 +913,40 @@ private theorem wordHandle_liftRight_inr {n : ℕ} {ιL ιR ιE : Type}
         wordHandle (fun κ C => Machine.liftRight L (M κ C)) (iL.sum iR) (iL.sum iE) cert.codec
           x.1 (ch, x.2.1.2) x.2.2)
       htag ?_
-    let hlim : ComputableInPolyTime
-        (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool => x.1.replyBound)
-        EIn encUnary := by
-      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     rintro (cL | cE)
-    · have hw : ComputableInPolyTime
-          (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool => x.2.1.2)
-          EIn encBits := by
-        dsimp only [EIn]; unfold encHandlerCall; fun_prop
-      have hquery : IsOraclePPTOn (Operation := (iL.sum iR).Channel) EIn encBits
-          (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool =>
-            (iL.sum iR).reply (.inl (iL.decodeQuery cL x.2.1.2)) <$>
-              ProbOracleComp.lowerWith (iL.sum iR) x.1.replyBound
-                (ProbOracleComp.query (spec := L ⊕ₒ R) (.inl (iL.decodeQuery cL x.2.1.2)))) :=
-        (iL.sum iR).isOraclePPTOn_lowerWith_decodeQuery
-          (ComputableInPolyTime.const (Sum.inl cL)) hw hlim
-      have hpost : ComputableInPolyTime
-          (fun pair : (PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool) × List Bool =>
-            (pair.2,
-              (cert.codec pair.1.1.secParam pair.1.1.corrupted).enc
-                ((cert.codec pair.1.1.secParam pair.1.1.corrupted).decode pair.1.2.2)))
-          (encPair EIn encBits) (encPair encBits encBits) := by
-        have hpairNorm : ComputableInPolyTime
-            (fun pair : (PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool) × List Bool =>
-              (pair.1.1, pair.1.2.2))
-            (encPair EIn encBits) (encPair (encPPTParam n) encBits) := by
-          dsimp only [EIn]; unfold encHandlerCall; fun_prop
-        exact (ComputableInPolyTime.snd EIn encBits).prod (cert.normalize.comp hpairNorm)
-      have hbranch := hquery.map_with
-        (f := fun (x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool) r =>
-          (r,
-            (cert.codec x.1.secParam x.1.corrupted).enc
-              ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2))) hpost
+    · have hbranch := cert.isOraclePPTOn_forward_decodeQuery (chOut := (iL.sum iE).Channel)
+        (iL.sum iR) (.inl cL) (fun w => w) ComputableInPolyTime.id'
       have heq :
           (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool =>
             (fun r => (r,
               (cert.codec x.1.secParam x.1.corrupted).enc
                 ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2))) <$>
-              ((iL.sum iR).reply (.inl (iL.decodeQuery cL x.2.1.2)) <$>
+              ((iL.sum iR).reply ((iL.sum iR).decodeQuery (.inl cL) x.2.1.2) <$>
                 ProbOracleComp.lowerWith (iL.sum iR) x.1.replyBound
-                  (ProbOracleComp.query (spec := L ⊕ₒ R) (.inl (iL.decodeQuery cL x.2.1.2))))) =
+                  (ProbOracleComp.query (spec := L ⊕ₒ R)
+                    ((iL.sum iR).decodeQuery (.inl cL) x.2.1.2)))) =
           (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool =>
             wordHandle (fun κ C => Machine.liftRight L (M κ C)) (iL.sum iR) (iL.sum iE) cert.codec
               x.1 (.inl cL, x.2.1.2) x.2.2) := by
         funext ⟨p, ⟨_, w⟩, state⟩
         exact (wordHandle_liftRight_inl M iL iR iE cert.codec p cL w state).symm
       rwa [heq] at hbranch
-    · let prog (x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool) :
-          ProbOracleComp R (List Bool × List Bool) :=
-        let q := iE.decodeQuery cE x.2.1.2
-        (fun result => (iE.reply q result.1,
-          (cert.codec x.1.secParam x.1.corrupted).enc result.2)) <$>
-          (((M x.1.secParam x.1.corrupted).handle q).run
-            ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2))
-      have hprog : IsOraclePPTOn (Operation := iR.Channel) EIn (encPair encBits encBits)
-          (fun x => ProbOracleComp.lowerWith iR x.1.replyBound (prog x)) := by
-        have hpre : IsOraclePPTOn (Operation := iR.Channel) EIn (encPair encBits encBits)
-            (fun x => wordHandle M iR iE cert.codec x.1 (cE, x.2.1.2) x.2.2) := by
-          refine cert.handle.preprocess
-            (prepare := fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool =>
-              (x.1, (cE, x.2.1.2), x.2.2)) ?_
-          have hc : ComputableInPolyTime
-              (fun _ : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool => cE)
-              EIn (encFinite iE.Channel) := ComputableInPolyTime.const cE
-          dsimp only [EIn]
-          unfold encHandlerCall
-          fun_prop
-        have heq : (fun x => wordHandle M iR iE cert.codec x.1 (cE, x.2.1.2) x.2.2) =
-            (fun x => ProbOracleComp.lowerWith iR x.1.replyBound (prog x)) := by
-          funext x
-          simp only [wordHandle, prog, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map]
-        rwa [heq] at hpre
-      have hadapt := WordInterface.isOraclePPTOn_lowerWith_adapt
-        (WordInterface.PortMap.inr iL iR) hprog hlim
-        (fun x _ w => List.length_take_le x.1.replyBound w)
-      have heq : (fun x => ProbOracleComp.lowerWith (iL.sum iR) x.1.replyBound
-            ((WordInterface.PortMap.inr iL iR).adapt (prog x))) =
-          (fun x => wordHandle (fun κ C => Machine.liftRight L (M κ C)) (iL.sum iR) (iL.sum iE)
-            cert.codec x.1 (.inr cE, x.2.1.2) x.2.2) := by
-        funext x
-        rw [adapt_portMap_inr iL iR (prog x), wordHandle_liftRight_inr]
-        simp only [prog, Machine.liftRightProgram_map, ProbOracleComp.lowerWith,
-          ProbOracleComp.simulate_map]
+    · have hadapt := cert.isOraclePPTOn_adapt_wordHandle (chOut := (iL.sum iE).Channel)
+        (WordInterface.PortMap.inr iL iR) (fun _ _ => rfl) cE (fun w => w) ComputableInPolyTime.id'
+      have heq :
+          (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool =>
+            (fun result => (iE.reply (iE.decodeQuery cE x.2.1.2) result.1,
+              (cert.codec x.1.secParam x.1.corrupted).enc result.2)) <$>
+              ProbOracleComp.lowerWith (iL.sum iR) x.1.replyBound
+                ((WordInterface.PortMap.inr iL iR).adapt
+                  (((M x.1.secParam x.1.corrupted).handle (iE.decodeQuery cE x.2.1.2)).run
+                    ((cert.codec x.1.secParam x.1.corrupted).decode x.2.2)))) =
+          (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool =>
+            wordHandle (fun κ C => Machine.liftRight L (M κ C)) (iL.sum iR) (iL.sum iE) cert.codec
+              x.1 (.inr cE, x.2.1.2) x.2.2) := by
+        funext ⟨p, ⟨_, w⟩, state⟩
+        rw [adapt_portMap_inr iL iR]
+        exact (wordHandle_liftRight_inr M iL iR iE cert.codec p cE w state).symm
       rwa [heq] at hadapt
   preserve p request s result hresult := by
     let s' : (M p.secParam p.corrupted).State := s
@@ -711,8 +968,7 @@ private theorem wordHandle_liftRight_inr {n : ℕ} {ιL ιR ιE : Type}
             (cert.codec p.secParam p.corrupted).enc x.2) ∈
           OracleComp.support (wordHandle M iR iE cert.codec p (cE, w)
             ((cert.codec p.secParam p.corrupted).enc s')) := by
-        rw [wordHandle, OracleComp.mem_supportWith_map_iff]
-        exact ⟨x, hx, rfl⟩
+        rw [wordHandle, OracleComp.mem_supportWith_map_iff]; exact ⟨x, hx, rfl⟩
       exact cert.preserve p (cE, w) s' _ hmem'
 
 /-- Library infrastructure (no cited result): lifting a strict-PPT machine family past an

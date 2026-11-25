@@ -136,11 +136,8 @@ theorem exists_extend_union {k : ℕ} (S : DuplicatorStrategy φ k) {σ : V → 
     rw [Finset.card_insert_of_notMem hxe] at hde
     obtain ⟨σ', hσ', hag⟩ := ih (by omega)
     by_cases hx : x ∈ d ∪ e
-    · refine ⟨σ', ?_, hag⟩
-      rwa [Finset.union_insert, Finset.insert_eq_of_mem hx]
-    · have hcard : #(d ∪ e) < k :=
-        lt_of_le_of_lt (Finset.card_union_le _ _) (by omega)
-      obtain ⟨τ, hτ, hτm⟩ := S.extend hσ' hcard x
+    · exact ⟨σ', by rwa [Finset.union_insert, Finset.insert_eq_of_mem hx], hag⟩
+    · obtain ⟨τ, hτ, hτm⟩ := S.extend hσ' (lt_of_le_of_lt (Finset.card_union_le _ _) (by omega)) x
       exact ⟨τ, by rwa [Finset.union_insert], fun y hy =>
         (hτ y (Finset.mem_union_left _ hy)).trans (hag y hy)⟩
 
@@ -155,8 +152,7 @@ theorem not_falsifies_of_isProof (S : DuplicatorStrategy φ (w + 1)) {ls : List 
   | mem h hc ih =>
     intro c' hc' σ d hσ
     rcases List.mem_cons.1 hc' with rfl | hc'
-    · exact S.not_falsifies hσ _ hc
-    · exact ih (fun c h => hw c (List.mem_cons_of_mem _ h)) c' hc' σ d hσ
+    exacts [S.not_falsifies hσ _ hc, ih (fun c h => hw c (List.mem_cons_of_mem _ h)) c' hc' σ d hσ]
   | @resolvent ls c₁ c₂ v h h₁ h₂ hv₁ hv₂ ih =>
     intro c' hc' σ d hσ hf
     have ih' := ih (fun c h => hw c (List.mem_cons_of_mem _ h))
@@ -164,30 +160,23 @@ theorem not_falsifies_of_isProof (S : DuplicatorStrategy φ (w + 1)) {ls : List 
     · -- restrict to the variables of the resolvent and extend to `v`
       set R := c₁.resolvent c₂ v
       set d₀ := R.toFinset.image Prod.fst
-      have hd₀ : d₀ ⊆ d := by
-        intro x hx
-        obtain ⟨l, hl, rfl⟩ := Finset.mem_image.1 hx
-        exact (hf l (List.mem_toFinset.1 hl)).1
+      have hd₀ : d₀ ⊆ d :=
+        Finset.image_subset_iff.2 fun l hl => (hf l (List.mem_toFinset.1 hl)).1
       have hcard : #d₀ < w + 1 :=
         Nat.lt_succ_of_le (Finset.card_image_le.trans (hw R List.mem_cons_self))
       obtain ⟨τ, hτ, hτm⟩ := S.extend (S.restrict hσ hd₀) hcard v
-      have hfR : Falsifies τ d₀ R := fun l hl =>
-        ⟨Finset.mem_image_of_mem _ (List.mem_toFinset.2 hl),
-          by rw [hτ _ (Finset.mem_image_of_mem _ (List.mem_toFinset.2 hl))]; exact (hf l hl).2⟩
+      have hfR : Falsifies τ d₀ R := Falsifies.congr
+        (fun l hl => ⟨Finset.mem_image_of_mem _ (List.mem_toFinset.2 hl), (hf l hl).2⟩) hτ
+      have hstep {c} (hc : c ∈ ls) (b : Bool) (hb : τ v = !b)
+          (hmem : ∀ l ∈ c, l ≠ (v, b) → l ∈ R) : False :=
+        ih' c hc τ _ hτm fun l hl => by
+          by_cases hl' : l = (v, b)
+          · exact hl' ▸ ⟨Finset.mem_insert_self _ _, by simp [hb]⟩
+          · exact ⟨Finset.mem_insert_of_mem (hfR l (hmem l hl hl')).1, (hfR l (hmem l hl hl')).2⟩
       -- the extension falsifies the premise whose literal on `v` it makes false
       cases hτv : τ v
-      · refine ih' c₁ h₁ τ _ hτm fun l hl => ?_
-        by_cases hl' : l = (v, true)
-        · subst hl'
-          exact ⟨Finset.mem_insert_self _ _, by simp [hτv]⟩
-        · have := hfR l (Clause.mem_resolvent.2 (Or.inl ⟨hl, hl'⟩))
-          exact ⟨Finset.mem_insert_of_mem this.1, this.2⟩
-      · refine ih' c₂ h₂ τ _ hτm fun l hl => ?_
-        by_cases hl' : l = (v, false)
-        · subst hl'
-          exact ⟨Finset.mem_insert_self _ _, by simp [hτv]⟩
-        · have := hfR l (Clause.mem_resolvent.2 (Or.inr ⟨hl, hl'⟩))
-          exact ⟨Finset.mem_insert_of_mem this.1, this.2⟩
+      · exact hstep h₁ true hτv fun l hl hl' => Clause.mem_resolvent.2 (.inl ⟨hl, hl'⟩)
+      · exact hstep h₂ false hτv fun l hl hl' => Clause.mem_resolvent.2 (.inr ⟨hl, hl'⟩)
     · exact ih' c' hc' σ d hσ hf
 
 /-- **A Duplicator strategy with `w + 1` pebbles rules out refutations of width `w`** [Atserias and
@@ -212,14 +201,10 @@ private def Good (φ : CNF V) (w : ℕ) (σ : V → Bool) (d : Finset V) : Prop 
 private theorem width_le_of_falsifies {σ : V → Bool} {d : Finset V} {c : Clause V}
     (h : Falsifies σ d c) : c.width ≤ #d := by
   refine Finset.card_le_card_of_injOn Prod.fst (fun l hl => (h l (List.mem_toFinset.1 hl)).1) ?_
-  intro l₁ hl₁ l₂ hl₂ he
-  have h₁ := (h l₁ (List.mem_toFinset.1 hl₁)).2
-  have h₂ := (h l₂ (List.mem_toFinset.1 hl₂)).2
-  rcases l₁ with ⟨v₁, b₁⟩
-  rcases l₂ with ⟨v₂, b₂⟩
-  simp only at he h₁ h₂
-  subst he
-  cases hσ : σ v₁ <;> cases b₁ <;> cases b₂ <;> simp_all
+  rintro ⟨v, b₁⟩ hl₁ ⟨_, b₂⟩ hl₂ (rfl : v = _)
+  have h₁ := (h _ (List.mem_toFinset.1 hl₁)).2
+  have h₂ := (h _ (List.mem_toFinset.1 hl₂)).2
+  cases hσ : σ v <;> cases b₁ <;> cases b₂ <;> simp_all
 
 /-- If `φ` has no refutation of width `w`, the empty assignment is good. -/
 private theorem good_empty (h : ¬ φ.RefutableInWidth w) (σ : V → Bool) : Good φ w σ ∅ := by
@@ -232,14 +217,11 @@ private theorem good_empty (h : ¬ φ.RefutableInWidth w) (σ : V → Bool) : Go
 private theorem falsifies_update {σ : V → Bool} {d : Finset V} {x : V} {b : Bool} {c : Clause V}
     (h : Falsifies (Function.update σ x b) (insert x d) c) {l : Literal V} (hl : l ∈ c)
     (hlx : l ≠ (x, !b)) : l.1 ∈ d ∧ σ l.1 ≠ l.2 := by
-  obtain ⟨h₁, h₂⟩ := h l hl
   rcases l with ⟨v, b'⟩
-  by_cases hv : v = x
-  · subst hv
-    simp only [Function.update_self] at h₂
-    cases b <;> cases b' <;> simp_all
-  · rw [Function.update_of_ne hv] at h₂
-    exact ⟨(Finset.mem_insert.1 h₁).resolve_left hv, h₂⟩
+  obtain ⟨h₁, h₂⟩ := h (v, b') hl
+  obtain rfl | hv := eq_or_ne v x
+  · cases b <;> cases b' <;> simp_all
+  · exact ⟨(Finset.mem_insert.1 h₁).resolve_left hv, by rwa [Function.update_of_ne hv] at h₂⟩
 
 /-- **One-variable extension**: a good assignment on at most `w` variables extends to a good
 assignment on one more variable. If both extensions falsified derivable clauses, their resolvent
@@ -247,31 +229,24 @@ would be a derivable clause of width at most `w` falsified by the original assig
 private theorem Good.extend {σ : V → Bool} {d : Finset V} (h : Good φ w σ d) (hd : #d ≤ w)
     (x : V) : ∃ b, Good φ w (Function.update σ x b) (insert x d) := by
   by_contra hne
-  have hb (b : Bool) : ∃ c, WDerives φ w c ∧ Falsifies (Function.update σ x b) (insert x d) c := by
-    by_contra hc
-    exact hne ⟨b, fun c hw hf => hc ⟨c, hw, hf⟩⟩
-  obtain ⟨c₀, ⟨ls₀, hp₀, hc₀, hw₀⟩, hf₀⟩ := hb false
-  obtain ⟨c₁, ⟨ls₁, hp₁, hc₁, hw₁⟩, hf₁⟩ := hb true
   -- each clause contains the literal of `x` that its extension falsifies
-  have hx₀ : (x, true) ∈ c₀ := by
-    by_contra hx₀
-    exact h c₀ ⟨ls₀, hp₀, hc₀, hw₀⟩ fun l hl =>
-      falsifies_update hf₀ hl fun he => hx₀ (he ▸ hl)
-  have hx₁ : (x, false) ∈ c₁ := by
-    by_contra hx₁
-    exact h c₁ ⟨ls₁, hp₁, hc₁, hw₁⟩ fun l hl =>
-      falsifies_update hf₁ hl fun he => hx₁ (he ▸ hl)
+  have hb (b : Bool) : ∃ c, WDerives φ w c ∧
+      Falsifies (Function.update σ x b) (insert x d) c ∧ (x, !b) ∈ c := by
+    by_contra hc
+    refine hne ⟨b, fun c hwc hf => hc ⟨c, hwc, hf, ?_⟩⟩
+    by_contra hx
+    exact h c hwc fun l hl => falsifies_update hf hl fun he => hx (he ▸ hl)
+  obtain ⟨c₀, ⟨ls₀, hp₀, hc₀, hw₀⟩, hf₀, hx₀⟩ := hb false
+  obtain ⟨c₁, ⟨ls₁, hp₁, hc₁, hw₁⟩, hf₁, hx₁⟩ := hb true
   -- so their resolvent is a derivable clause falsified by `σ` on `d`
-  have hf : Falsifies σ d (c₀.resolvent c₁ x) := by
-    intro l hl
-    rcases Clause.mem_resolvent.1 hl with ⟨hl, hne⟩ | ⟨hl, hne⟩
-    exacts [falsifies_update hf₀ hl hne, falsifies_update hf₁ hl hne]
+  have hf : Falsifies σ d (c₀.resolvent c₁ x) := fun l hl =>
+    (Clause.mem_resolvent.1 hl).elim (fun ⟨hl, hne⟩ => falsifies_update hf₀ hl hne)
+      fun ⟨hl, hne⟩ => falsifies_update hf₁ hl hne
   refine h _ ⟨_, (hp₀.append hp₁).resolvent x (List.mem_append_left _ hc₀)
     (List.mem_append_right _ hc₁) hx₀ hx₁, List.mem_cons_self, fun c hc => ?_⟩ hf
   rcases List.mem_cons.1 hc with rfl | hc
   · exact (width_le_of_falsifies hf).trans hd
-  · rcases List.mem_append.1 hc with hc | hc
-    exacts [hw₀ c hc, hw₁ c hc]
+  · exact (List.mem_append.1 hc).elim (hw₀ c) (hw₁ c)
 
 /-- **A Duplicator strategy from the absence of narrow refutations** [Atserias and Dalmau,
 Lemma 2][AtseriasDalmau2008]: if `φ` has no clause of width exactly `w + 1` and no refutation of

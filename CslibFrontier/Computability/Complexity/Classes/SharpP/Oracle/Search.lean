@@ -40,18 +40,16 @@ variable {α : Type} {enc : α ↪ List Bool} {A : Set (List Bool)}
 /-- Comparison with a relativized count is strict-majority decidable: the gap is f(x)+1-k. -/
 theorem setOf_le_mem_PPWithOracle {f : α → ℕ} (hf : f ∈ SharpPWithOracle A enc) :
     {x : α × ℕ | x.2 ≤ f x.1} ∈ PPWithOracle A (encPair enc encNat) := by
-  have hfst := SharpPWithOracle.comp_mem hf (ComputableInPolyTime.fst enc encNat)
-  have hone : (fun _ : α × ℕ => 1) ∈ SharpPWithOracle A (encPair enc encNat) :=
-    mem_SharpPWithOracle_of_polyTime
-      ((ComputableInPolyTime.const 1).computableInPolyTimeWithOracle A)
   refine mem_PPWithOracle_iff_exists_GapPWithOracle.mpr
     ⟨fun x => ((f x.1 + 1 : ℕ) : ℤ) - (x.2 : ℤ),
-      ⟨_, SharpPWithOracle.add_mem hfst hone, _,
+      ⟨_, SharpPWithOracle.add_mem
+        (SharpPWithOracle.comp_mem hf (ComputableInPolyTime.fst enc encNat))
+        (mem_SharpPWithOracle_of_polyTime
+          ((ComputableInPolyTime.const 1).computableInPolyTimeWithOracle A)), _,
         mem_SharpPWithOracle_of_polyTime
           ((ComputableInPolyTime.snd enc encNat).computableInPolyTimeWithOracle A),
         fun _ => rfl⟩, fun x => ?_⟩
-  simp only [Set.mem_ofPred_eq, sub_pos, Nat.cast_lt]
-  omega
+  simp only [Set.mem_ofPred_eq, sub_pos, Nat.cast_lt]; omega
 
 /-- A relativized count can be recovered one level above its fixed oracle. The decoder makes
 the threshold oracle a language on all raw words; its values off valid codes are fixed by the
@@ -68,14 +66,14 @@ theorem SharpPWithOracle.mem_CountingFunction {a : ℕ} (D : Decoder enc)
         ⟨E.decode, E.computableInPolyTime, fun _ => Iff.rfl⟩).mem_PPWithOracle
           (setOf_le_mem_PPWithOracle hf)
   refine ⟨B, ⟨A, hA, hB⟩,
-    fun x => BinarySearch.search (enc x) (p.eval (enc x).length + 1), ?_, fun x => ?_⟩
-  · exact BinarySearch.isOraclePPTOn_search
-      (ComputableInPolyTime.encoding_comp ComputableInPolyTime.id') (by fun_prop)
-  · apply BinarySearch.interpret_id_search
-    · intro k
-      change (E.decode (encPair enc encNat (x, k))).2 ≤
-        f (E.decode (encPair enc encNat (x, k))).1 ↔ _
-      rw [E.decode_enc]
-    · exact (hp x).trans_lt (Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self _))
+    fun x => BinarySearch.search (enc x) (p.eval (enc x).length + 1),
+    BinarySearch.isOraclePPTOn_search
+      (ComputableInPolyTime.encoding_comp ComputableInPolyTime.id') (by fun_prop),
+    fun x => BinarySearch.interpret_id_search
+      (fun k => by
+        change (E.decode (encPair enc encNat (x, k))).2 ≤
+          f (E.decode (encPair enc encNat (x, k))).1 ↔ _
+        rw [E.decode_enc])
+      ((hp x).trans_lt (Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self _)))⟩
 
 end Cslib.Complexity

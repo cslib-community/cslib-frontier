@@ -97,12 +97,10 @@ theorem toOuterMeasure_running_antitone (cfg : Config k Symbol State Empty input
   rw [eval_runClosedConfigFrom_add, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
   refine tsum_le_tsum fun mid => ?_
   by_cases hmid : mid.tapes.state.isSome
-  · rw [Set.indicator_of_mem (show mid ∈ {final : Config k Symbol State Empty input |
-      final.tapes.state.isSome} from hmid)]
+  · rw [Set.indicator_of_mem (hmid : mid ∈ {final | final.tapes.state.isSome})]
     exact mul_le_of_le_one_right' (Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
-  · have hhalt : mid.tapes.state = none := by simpa using hmid
-    rw [eval_runClosedConfigFrom_of_halted machine m mid hhalt, PMF.toOuterMeasure_pure_apply]
-    simp [hhalt]
+  · have hhalt : mid.tapes.state = none := Option.not_isSome_iff_eq_none.mp hmid
+    simp [eval_runClosedConfigFrom_of_halted machine m mid hhalt, hhalt]
 
 /-- **The probability of having halted in a set of halted configurations increases** with the
 clock: halted configurations stay. -/
@@ -163,13 +161,11 @@ theorem expectedTime_le_of_halted {T : ℕ}
       (machine.initialConfig input))).support, final.tapes.state = none) :
     machine.expectedTime input ≤ T := by
   have hzero (t : ℕ) (ht : T ≤ t) : (ProbComp.eval (machine.runClosedConfigFrom t
-      (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome} = 0 := by
-    refine le_antisymm ((machine.toOuterMeasure_running_antitone _ ht).trans_eq ?_) (zero_le)
-    refine (PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr (Set.disjoint_left.mpr ?_)
-    intro final hfinal hrun
-    simp [h final hfinal] at hrun
-  rw [expectedTime, tsum_eq_sum (s := Finset.range T) fun t ht =>
-    hzero t (by simpa using ht)]
+      (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome} = 0 :=
+    le_antisymm ((machine.toOuterMeasure_running_antitone _ ht).trans_eq <|
+      (PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr <| Set.disjoint_left.mpr fun final hf hr => by
+        simp [h final hf] at hr) zero_le
+  rw [expectedTime, tsum_eq_sum (s := Finset.range T) fun t ht => hzero t (by simpa using ht)]
   calc _ ≤ ∑ _t ∈ Finset.range T, (1 : ℝ≥0∞) :=
         Finset.sum_le_sum fun t _ =>
           Cslib.Probability.PMF.toOuterMeasure_le_one _ _
@@ -183,9 +179,9 @@ theorem toOuterMeasure_running_eq_card (t : ℕ) :
       ((Finset.univ.filter fun r : Fin t → Bool =>
         (machine.runClosedConfigFromCoins (List.ofFn r)
           (machine.initialConfig input)).tapes.state.isSome).card : ℝ≥0∞) / 2 ^ t := by
-  have hset : {final : Config k Symbol State Empty input | final.tapes.state.isSome} =
-      (fun final => final.tapes.state.isSome) ⁻¹' {true} := rfl
-  rw [hset, ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton,
+  rw [show {final : Config k Symbol State Empty input | final.tapes.state.isSome} =
+      (fun final => final.tapes.state.isSome) ⁻¹' {true} from rfl,
+    ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton,
     eval_runClosedConfigFrom_eq_map_coins, PMF.map_comp, BitString.uniformList_map_apply]
   rfl
 
@@ -230,12 +226,10 @@ theorem exists_halted_append_of_expectedTime_ne_top (h : machine.expectedTime in
   have hlow (m : ℕ) : BitString.uniformList n coins ≤
       (ProbComp.eval (machine.runClosedConfigFrom (n + m)
         (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome} := by
-    calc BitString.uniformList n coins = (BitString.uniformList n).toOuterMeasure {coins} :=
-          (PMF.toOuterMeasure_apply_singleton _ _).symm
-      _ = ((BitString.uniformList (n + m)).map (List.take n)).toOuterMeasure {coins} := by
-          rw [BitString.uniformList_take (Nat.le_add_right n m)]
-      _ = (BitString.uniformList (n + m)).toOuterMeasure (List.take n ⁻¹' {coins}) := by
-          rw [PMF.toOuterMeasure_map_apply]
+    calc BitString.uniformList n coins
+        = (BitString.uniformList (n + m)).toOuterMeasure (List.take n ⁻¹' {coins}) := by
+          rw [← PMF.toOuterMeasure_apply_singleton,
+            ← BitString.uniformList_take (Nat.le_add_right n m), PMF.toOuterMeasure_map_apply]
       _ ≤ (BitString.uniformList (n + m)).toOuterMeasure
             ((fun word => machine.runClosedConfigFromCoins word (machine.initialConfig input)) ⁻¹'
               {final | final.tapes.state.isSome}) := by
@@ -243,8 +237,7 @@ theorem exists_halted_append_of_expectedTime_ne_top (h : machine.expectedTime in
           have hsplit : word = coins ++ word.drop n := by
             simp only [Set.mem_preimage, Set.mem_singleton_iff] at hword
             conv_lhs => rw [← List.take_append_drop n word, hword]
-          simp only [Set.mem_preimage, Set.mem_ofPred_eq]
-          rw [hsplit, Option.isSome_iff_ne_none]
+          rw [Set.mem_preimage, Set.mem_ofPred_eq, hsplit, Option.isSome_iff_ne_none]
           exact hrun _
       _ = _ := by rw [eval_runClosedConfigFrom_eq_map_coins, PMF.toOuterMeasure_map_apply]
   refine h (eq_top_iff.mpr ?_)
@@ -255,9 +248,8 @@ theorem exists_halted_append_of_expectedTime_ne_top (h : machine.expectedTime in
         tsum_le_tsum hlow
     _ ≤ machine.expectedTime input := by
         rw [expectedTime]
-        exact tsum_comp_le_tsum_of_injective (f := (n + ·))
-          (fun _ _ hm => Nat.add_left_cancel hm) fun t => (ProbComp.eval
-            (machine.runClosedConfigFrom t (machine.initialConfig input))).toOuterMeasure
-              {final | final.tapes.state.isSome}
+        exact tsum_comp_le_tsum_of_injective (f := (n + ·)) (fun _ _ => Nat.add_left_cancel)
+          fun t => (ProbComp.eval (machine.runClosedConfigFrom t
+            (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome}
 
 end Turing.MultiTapePTM

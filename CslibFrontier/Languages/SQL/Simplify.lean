@@ -208,13 +208,11 @@ theorem equiv_simpUnary (Γ : Fin n → SqlType) (op : UnOp) (e : Expr n) :
     split
     · exact Equiv.not_cmp _ _ _
     · split_ifs with h
-      · exact Equiv.not_not h
-      · rfl
+      exacts [Equiv.not_not h, Equiv.refl _]
     · exact Equiv.not_isNull _
     · exact Equiv.not_isNotNull _
     · split_ifs with h
-      · exact Equiv.neg_neg h
-      · rfl
+      exacts [Equiv.neg_neg h, Equiv.refl _]
     · rfl
 
 theorem equiv_simpBinary (Γ : Fin n → SqlType) (op : BinOp) (e₁ e₂ : Expr n) :
@@ -387,9 +385,7 @@ theorem equiv_simpSelect (p : Expr n) (q : Query S n) :
   next Γ hq =>
     have h := Equiv.select_expr (ℓ := .ordered) hq (Expr.equiv_simplify Γ p)
     split_ifs with ht
-    · rw [ht] at h
-      exact h.trans (select_true q)
-    · exact h
+    exacts [(ht ▸ h).trans (select_true q), h]
   next => rfl
 
 theorem equiv_simpProject (es : Fin k → Expr n) (q : Query S n) :
@@ -407,8 +403,7 @@ theorem equiv_simpProject (es : Fin k → Expr n) (q : Query S n) :
         funext fun i => by simpa using hcol i
       rw [hcol'] at h
       exact h.trans (project_col q)
-    · exact h
-    · exact h
+    all_goals exact h
   next => rfl
 
 theorem equiv_simpJoin (θ : Expr (n + m)) (q₁ : Query S n) (q₂ : Query S m) :
@@ -428,17 +423,16 @@ theorem equiv_pushSelect (p : Expr n) (q : Query S n) :
     next Γ hq =>
       dsimp only
       split_ifs with hp
-      · exact (Equiv.select_select_expr hq (Expr.equiv_simplify Γ p) c).trans
-          ((select_select hq hp c).trans (ih _))
-      · exact equiv_simpSelect p _
+      exacts [(Equiv.select_select_expr hq (Expr.equiv_simplify Γ p) c).trans
+          ((select_select hq hp c).trans (ih _)),
+        equiv_simpSelect p _]
     next => exact equiv_simpSelect p _
   | project es q ih =>
     rw [pushSelect]
     split
     next Γ hq =>
       split_ifs with hes
-      · exact (select_project hq hes p).trans (Equiv.project es (ih _))
-      · exact equiv_simpSelect p _
+      exacts [(select_project hq hes p).trans (Equiv.project es (ih _)), equiv_simpSelect p _]
     next => exact equiv_simpSelect p _
   | join θ q₁ q₂ ih₁ ih₂ =>
     rw [pushSelect]
@@ -464,17 +458,13 @@ theorem equiv_pushSelect (p : Expr n) (q : Query S n) :
             (Equiv.join θ (Equiv.refl _) (ih₂ _))
         next =>
           split_ifs with hT
-          · subst hT
-            exact select_join_true _ _ _
-          · exact hp.symm.trans (equiv_simpSelect p _)
+          exacts [hT ▸ select_join_true _ _ _, hp.symm.trans (equiv_simpSelect p _)]
       · rw [ite_eq_right hθ]
         exact equiv_simpSelect p _
     next => exact equiv_simpSelect p _
   | unionAll q₁ q₂ ih₁ ih₂ =>
-    rw [pushSelect]
     exact (select_unionAll p q₁ q₂).trans (Equiv.unionAll (ih₁ p) (ih₂ p))
   | distinct q ih =>
-    rw [pushSelect]
     exact (select_distinct p q).trans (Equiv.distinct (ih p))
 
 theorem equiv_fuseProject (es : Fin k → Expr n) (q : Query S n) :
@@ -485,12 +475,9 @@ theorem equiv_fuseProject (es : Fin k → Expr n) (q : Query S n) :
     split
     next Γ hq =>
       split_ifs with hg
-      · exact (project_project hq hg es).trans (ih _)
-      · exact equiv_simpProject es _
+      exacts [(project_project hq hg es).trans (ih _), equiv_simpProject es _]
     next => exact equiv_simpProject es _
-  | _ =>
-    rw [fuseProject]
-    exact equiv_simpProject es _
+  | _ => exact equiv_simpProject es _
 
 /-- The query simplifier is sound: on every conforming instance, a query and its simplification
 both fail or both succeed with the same list of rows. -/

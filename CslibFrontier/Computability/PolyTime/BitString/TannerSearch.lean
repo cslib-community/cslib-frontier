@@ -173,13 +173,9 @@ theorem smallBiasCeil_pos (r : ℕ) {p q : ℕ} (hp : 0 < p) (hq : 0 < q) :
 theorem ceil_le_smallBiasCeil (r : ℕ) {p q : ℕ} (hp : 0 < p) (hq : 0 < q) :
     Nat.ceil (4 * ((r : ℝ) + 1) / ((p : ℝ) / q) ^ 2) ≤ smallBiasCeil r p q := by
   rw [Nat.ceil_le]
-  have hp2 : (0 : ℝ) < (p ^ 2 : ℕ) := by exact_mod_cast Nat.pow_pos hp (n := 2)
-  have hleNat : 4 * (r + 1) * q ^ 2 ≤ p ^ 2 * smallBiasCeil r p q := by
-    rw [mul_comm (p ^ 2)]
-    exact Nat.le_ceilDiv_mul (Nat.pow_pos hp (n := 2))
   have hle : ((4 * (r + 1) * q ^ 2 : ℕ) : ℝ) ≤
       (p ^ 2 : ℕ) * ((smallBiasCeil r p q : ℕ) : ℝ) := by
-    exact_mod_cast hleNat
+    exact_mod_cast (mul_comm (p ^ 2) _ ▸ Nat.le_ceilDiv_mul (Nat.pow_pos hp (n := 2)))
   have hpR : (0 : ℝ) < p := by exact_mod_cast hp
   have hqR : (0 : ℝ) < q := by exact_mod_cast hq
   rw [div_le_iff₀ (by positivity)]
@@ -236,10 +232,7 @@ private theorem smallBiasCeil_polyTime {α : Type} {encIn : α ↪ List Bool} {r
     by_cases h0 : p a ^ 2 = 0
     · have hmul : p a * p a = 0 := by simpa only [sq] using h0
       rw [smallBiasCeil, h0, ceilDiv_zero, hmul, Nat.div_zero]
-    · rw [smallBiasCeil, Nat.ceilDiv_eq_add_pred_div]
-      have hp2 : p a * p a = p a ^ 2 := (sq (p a)).symm
-      have hq2 : q a * q a = q a ^ 2 := (sq (q a)).symm
-      rw [hp2, hq2]
+    · simp only [smallBiasCeil, Nat.ceilDiv_eq_add_pred_div, sq]
   rwa [heq] at hdiv
 
 /-- Input parameters for `findSmallBiasShiftsCeil`: cube dimension `r` and bias numerator `p` and
@@ -290,14 +283,10 @@ section LocalCode
 
 private theorem card_filter_nonzero_weight_lt (d h : ℕ) :
     #{w : Fin d → Bool | w ≠ 0 ∧ weight w ≤ h} < #{w : Fin d → Bool | weight w ≤ h} := by
-  refine card_lt_card ⟨fun w hw => ?_, fun hsub => ?_⟩
-  · simp only [mem_filter, mem_univ, true_and] at hw ⊢
-    exact hw.2
-  · have h0w : weight (0 : Fin d → Bool) = 0 := by simp [weight_eq_hammingNorm]
-    have h0 : (0 : Fin d → Bool) ∈ ({w : Fin d → Bool | weight w ≤ h} : Finset _) := by
-      simp only [mem_filter, mem_univ, true_and, h0w, zero_le]
-    have h0' := hsub h0
-    simp only [mem_filter, mem_univ, true_and, ne_eq, not_true_eq_false, false_and] at h0'
+  refine card_lt_card ⟨fun _ hw => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hw).2.2⟩,
+    fun hsub => ?_⟩
+  have h0 := hsub (mem_filter.mpr ⟨mem_univ 0, by simp [weight_eq_hammingNorm]⟩)
+  simp at h0
 
 /-- Unconditional correctness of `findLocalCheckMatrix c d (h + 1)` whenever fewer than `2 ^ c`
 nonzero strings in `Fin d → Bool` have weight at most `h`. -/
@@ -449,8 +438,6 @@ theorem tannerParityTests_computableInO :
         (fun q => ((encTannerParityParams q).length + 1) ^ e) := by
   let hId : ComputableInPolyTime (fun x : TannerParityParams => x)
       encTannerParityParams encTannerParityParams := of_eq fun _ => rfl
-  have p1 := encTannerParityParams_maxVerts_polyTime hId
-  have p2 := encTannerParityParams_m_polyTime hId
   have p3 := encTannerParityParams_r_polyTime hId
   have p4 := encTannerParityParams_d_polyTime hId
   have p5 := encTannerParityParams_c_polyTime hId
@@ -478,30 +465,14 @@ theorem tannerParityTests_computableInO :
   have hMax_m : ComputableInPolyTime
       (fun x : TannerParityParams × List (List Bool) × List (List Bool) => max x.1.maxVerts 1)
       encMid encUnary := by
-    have hite := ite (unary_le' hM_m (.const 1)) (.const 1) hM_m
-    have heq : (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
-        if decide (x.1.maxVerts ≤ 1) = true then 1 else x.1.maxVerts) =
-        (fun x => max x.1.maxVerts 1) := by
-      funext x
-      simp only [decide_eq_true_eq, max_def]
-    rwa [heq] at hite
+    simpa only [decide_eq_true_eq, max_def] using ite (unary_le' hM_m (.const 1)) (.const 1) hM_m
   have heff_m : ComputableInPolyTime
       (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
         effectiveCubeDim x.1.maxVerts x.1.r)
       encMid encUnary := by
-    have hite := ite (binary_le.comp ((binary_two_pow.comp hr_m).prod
-      (unary_to_binary.comp hMax_m))) hr_m (.const 0)
-    have heq : (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
-        if ((fun p : ℕ × ℕ => decide (p.1 ≤ p.2)) ∘
-          fun a => (((fun k => 2 ^ k) ∘ fun y => y.1.r) a,
-            ((fun n => n) ∘ fun y => max y.1.maxVerts 1) a)) x = true then
-          x.1.r
-        else 0) =
-        (fun x => effectiveCubeDim x.1.maxVerts x.1.r) := by
-      funext x
-      simp only [Function.comp_apply, decide_eq_true_eq]
-      rfl
-    rwa [heq] at hite
+    simpa only [Function.comp_apply, decide_eq_true_eq, effectiveCubeDim] using
+      ite (binary_le.comp ((binary_two_pow.comp hr_m).prod (unary_to_binary.comp hMax_m)))
+        hr_m (.const 0)
   have hsh_m := (fst (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
   have hlo_m := (snd (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
   have hBuild : ComputableInPolyTime

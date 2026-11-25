@@ -121,18 +121,16 @@ source `s` and sink `t`. -/
 covering the edges of `W`. -/
 theorem isMinCutBetween_ekCut {W : Fin n → Fin n → ℕ} {adj : Fin n → List (Fin n)}
     (hadj : ∀ u v, u ≠ v → 0 < W u v + W v u → v ∈ adj u) {s t : Fin n} (hst : s ≠ t) :
-    IsMinCutBetween (cutWeight W) s t (ekCut W adj s t) := by
-  obtain ⟨-, hmin, -⟩ := edmondsKarp_correct (N := Network.mk W s t) (adj := adj) hadj hst
-  exact hmin.isMinCutBetween
+    IsMinCutBetween (cutWeight W) s t (ekCut W adj s t) :=
+  (edmondsKarp_correct (N := Network.mk W s t) hadj hst).2.1.isMinCutBetween
 
 /-- The Edmonds–Karp maximum flow value equals the weight of `ekCut W adj s t`, for adjacency lists
 covering the edges of `W`. -/
 theorem ekValue_eq_cutWeight {W : Fin n → Fin n → ℕ} {adj : Fin n → List (Fin n)}
     (hadj : ∀ u v, u ≠ v → 0 < W u v + W v u → v ∈ adj u) {s t : Fin n} (hst : s ≠ t) :
     ekValue W adj s t = cutWeight W (ekCut W adj s t) := by
-  obtain ⟨-, -, hval, -⟩ := edmondsKarp_correct (N := Network.mk W s t) (adj := adj) hadj hst
   unfold ekValue ekCut
-  rw [hval]
+  rw [(edmondsKarp_correct (N := Network.mk W s t) hadj hst).2.2.1]
   rfl
 
 /-- One step of Gusfield's algorithm on the parent array `p` and weight array `fl` for vertex `s`:
@@ -156,21 +154,13 @@ theorem vget_gomoryHuStep_parent (W : Fin n → Fin n → ℕ) (adj : Fin n → 
     vget (gomoryHuStep W adj p fl s).parent z =
       gusfieldStep (vget p) s (ekCut W adj s (vget p s)) z := by
   simp only [gomoryHuStep, gusfieldStep]
-  generalize ekCut W adj s (vget p s) = X
-  have hq : ∀ z, vget (rehang p s (vget p s) X (List.finRange n) p) z =
-      if vget p z = vget p s ∧ z ∈ X then s else vget p z := fun z => by
-    simp only [vget_rehang, List.mem_finRange, true_and]
-  generalize rehang p s (vget p s) X (List.finRange n) p = q at hq ⊢
-  by_cases hzs : z = s
-  · subst hzs
-    by_cases hX : vget p (vget p z) ∈ X <;> simp only [hX, ↓reduceIte, vget_vset_self]
-  by_cases hzt : z = vget p s
-  · subst hzt
-    by_cases hX : vget p (vget p s) ∈ X <;>
-      simp only [hX, hzs, ↓reduceIte, vget_vset_ne _ _ (Ne.symm hzs), vget_vset_self]
-  by_cases hX : vget p (vget p s) ∈ X <;>
-    simp only [hX, hzs, hzt, ↓reduceIte, vget_vset_ne _ _ (Ne.symm hzs),
-      vget_vset_ne _ _ (Ne.symm hzt), hq]
+  rcases eq_or_ne z s with rfl | hzs
+  · by_cases hX : vget p (vget p z) ∈ ekCut W adj z (vget p z) <;> simp [hX]
+  rcases eq_or_ne z (vget p s) with rfl | hzt
+  · by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
+      simp [hX, hzs, vget_vset_ne _ _ hzs.symm]
+  by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
+    simp [hX, hzs, hzt, vget_vset_ne _ _ hzs.symm, vget_vset_ne _ _ hzt.symm, vget_rehang]
 
 /-- The weight array computed by `gomoryHuStep` agrees pointwise with `gusfieldStepWeight`. -/
 theorem vget_gomoryHuStep_weight (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n))
@@ -179,23 +169,13 @@ theorem vget_gomoryHuStep_weight (W : Fin n → Fin n → ℕ) (adj : Fin n → 
       gusfieldStepWeight (vget p) (vget fl) s (ekCut W adj s (vget p s))
         (ekValue W adj s (vget p s)) z := by
   simp only [gomoryHuStep, gusfieldStepWeight]
-  generalize ekCut W adj s (vget p s) = X
-  generalize ekValue W adj s (vget p s) = val
-  by_cases hX : vget p (vget p s) ∈ X
-  · simp only [hX, ↓reduceIte]
-    by_cases hzs : z = s
-    · subst hzs
-      simp only [vget_vset_self, ↓reduceIte]
-    · simp only [hzs, ↓reduceIte, vget_vset_ne _ _ (Ne.symm hzs)]
-      by_cases hzt : z = vget p s
-      · subst hzt
-        simp only [vget_vset_self, ↓reduceIte]
-      · simp only [hzt, ↓reduceIte, vget_vset_ne _ _ (Ne.symm hzt)]
-  · simp only [hX, ↓reduceIte]
-    by_cases hzs : z = s
-    · subst hzs
-      simp only [vget_vset_self, ↓reduceIte]
-    · simp only [hzs, ↓reduceIte, vget_vset_ne _ _ (Ne.symm hzs)]
+  rcases eq_or_ne z s with rfl | hzs
+  · by_cases hX : vget p (vget p z) ∈ ekCut W adj z (vget p z) <;> simp [hX]
+  rcases eq_or_ne z (vget p s) with rfl | hzt
+  · by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
+      simp [hX, hzs, vget_vset_ne _ _ hzs.symm]
+  by_cases hX : vget p (vget p s) ∈ ekCut W adj s (vget p s) <;>
+    simp [hX, hzs, hzt, vget_vset_ne _ _ hzs.symm, vget_vset_ne _ _ hzt.symm]
 
 /-- Gusfield's loop over the vertices `l`, skipping the root `r` and tracking both parent and
 edge-weight arrays. -/
@@ -217,20 +197,13 @@ theorem vget_gomoryHuLoop (W : Fin n → Fin n → ℕ) (adj : Fin n → List (F
   | [], p, fl => ⟨rfl, rfl⟩
   | s :: l, p, fl => by
     by_cases hsr : s = r
+    · simpa only [gomoryHuLoop, hsr, ↓reduceIte, gusfieldWeightLoop] using
+        vget_gomoryHuLoop W adj r l p fl
     · simp only [gomoryHuLoop, hsr, ↓reduceIte, gusfieldWeightLoop]
-      exact vget_gomoryHuLoop W adj r l p fl
-    · simp only [gomoryHuLoop, hsr, ↓reduceIte, gusfieldWeightLoop]
-      obtain ⟨hpar, hwt⟩ := vget_gomoryHuLoop W adj r l (gomoryHuStep W adj p fl s).parent
-        (gomoryHuStep W adj p fl s).weight
-      have hp : vget (gomoryHuStep W adj p fl s).parent =
-          gusfieldStep (vget p) s (ekCut W adj s (vget p s)) :=
-        funext (vget_gomoryHuStep_parent W adj p fl s)
-      have hw : vget (gomoryHuStep W adj p fl s).weight =
-          gusfieldStepWeight (vget p) (vget fl) s (ekCut W adj s (vget p s))
-            (ekValue W adj s (vget p s)) :=
-        funext (vget_gomoryHuStep_weight W adj p fl s)
-      rw [hp, hw] at hpar hwt
-      exact ⟨hpar, hwt⟩
+      simpa only [funext (vget_gomoryHuStep_parent W adj p fl s),
+        funext (vget_gomoryHuStep_weight W adj p fl s)] using
+        vget_gomoryHuLoop W adj r l (gomoryHuStep W adj p fl s).parent
+          (gomoryHuStep W adj p fl s).weight
 
 /-- **Gusfield's Gomory–Hu tree algorithm** ([Gusfield1990]) over `Fin n`: start from the star
 centred at the root `r` with `0` initial weights, and process the other vertices in order with one
@@ -246,12 +219,9 @@ private theorem vget_gomoryHu_spec (W : Fin n → Fin n → ℕ) (adj : Fin n �
         (gusfieldWithWeights (ekCut W adj) (ekValue W adj) r 0 (List.finRange n)).1 ∧
       vget (gomoryHu W adj r).weight =
         (gusfieldWithWeights (ekCut W adj) (ekValue W adj) r 0 (List.finRange n)).2 := by
-  obtain ⟨hpar, hwt⟩ :=
+  simpa only [gomoryHu, gusfieldWithWeights, funext (vget_replicate r),
+    funext (vget_replicate (n := n) 0)] using
     vget_gomoryHuLoop W adj r (List.finRange n) (Vector.replicate n r) (Vector.replicate n 0)
-  have hp : vget (Vector.replicate n r) = fun _ => r := funext (vget_replicate r)
-  have hw : vget (Vector.replicate n 0) = fun _ => 0 := funext (vget_replicate 0)
-  rw [hp, hw] at hpar hwt
-  exact ⟨hpar, hwt⟩
 
 /-- The parent array returned by `gomoryHu` agrees pointwise with the first component of
 `gusfieldWithWeights`. -/

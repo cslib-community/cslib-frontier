@@ -59,12 +59,7 @@ theorem binomialTail_eq_sum_powerset {A ι : Type*} [Ring A]
 
 @[simp] theorem binomialAtLeast_zero {A : Type*} [Ring A] (r : ℕ) (X : A) :
     binomialAtLeast 0 r X = if r = 0 then 1 else 0 := by
-  cases r with
-  | zero => simp [binomialAtLeast]
-  | succ r =>
-    simp only [binomialAtLeast, Nat.succ_ne_zero, ite_false, Nat.add_sub_cancel,
-      binomialTail, zero_add, range_one, filter_singleton, Nat.not_lt_zero]
-    simp
+  cases r <;> simp [binomialAtLeast, binomialTail, filter_singleton]
 
 private theorem binomialAtLeast_eq_sum_powerset {A ι : Type*} [Ring A]
     (s : Finset ι) (r : ℕ) (X : A) :
@@ -131,9 +126,7 @@ private theorem one_sub_binomialTail_real_le {k d : ℕ} (hk : 0 < k) {θ p : �
     (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1) :
     1 - binomialTail k d p ≤ (1 - p) / (1 - θ) + Real.exp (-(θ ^ 2 * k) / 2) := by
   let w (i : ℕ) := (k.choose i : ℝ) * p ^ i * (1 - p) ^ (k - i)
-  have hw (i : ℕ) : 0 ≤ w i := by
-    dsimp [w]
-    positivity
+  have hw (i : ℕ) : 0 ≤ w i := by dsimp [w]; positivity
   have hsum : ∑ i ∈ range (k + 1), w i = 1 := Cslib.sum_choose_mul_pow_eq_one k p
   have hcomplement : 1 - binomialTail k d p = ∑ i ∈ range (k + 1) with i ≤ d, w i := by
     apply sub_eq_iff_eq_add.mpr
@@ -149,8 +142,7 @@ private theorem one_sub_binomialTail_real_le {k d : ℕ} (hk : 0 < k) {θ p : �
     have hθk : θ * (k : ℝ) ≤ p * k :=
       mul_le_mul_of_nonneg_right (le_of_lt (lt_of_not_ge hp)) hk'.le
     have hgap : θ * k / 2 ≤ (k : ℝ) * p - d := by linarith
-    have hgap₀ : 0 ≤ (k : ℝ) * p - d := by
-      exact (by positivity : 0 ≤ θ * k / 2).trans hgap
+    have hgap₀ : 0 ≤ (k : ℝ) * p - d := (by positivity : 0 ≤ θ * k / 2).trans hgap
     have htail := Cslib.sum_filter_le_mul_sub_choose_mul_pow_le k hp₀ hp₁ hgap₀
     have hfilter : (range (k + 1)).filter (fun i => i ≤ d) =
         (range (k + 1)).filter (fun i : ℕ => k * p - d ≤ k * p - (i : ℝ)) := by
@@ -161,7 +153,7 @@ private theorem one_sub_binomialTail_real_le {k d : ℕ} (hk : 0 < k) {θ p : �
     have hexp : -2 * ((k : ℝ) * p - d) ^ 2 / k ≤ -(θ ^ 2 * k) / 2 := by
       have hsq := pow_le_pow_left₀ (by positivity : 0 ≤ θ * k / 2) hgap 2
       apply (div_le_iff₀ hk').2
-      nlinarith
+      linarith [show -(θ ^ 2 * k) / 2 * k = -2 * (θ * k / 2) ^ 2 by ring]
     exact (Real.exp_le_exp.mpr hexp).trans
       (le_add_of_nonneg_left (div_nonneg (sub_nonneg.mpr hp₁) hθ.le))
 
@@ -179,9 +171,8 @@ private theorem cfc_binomialTail (k d : ℕ) (X : A) (hX : IsSelfAdjoint X) :
       (k.choose i : Polynomial ℝ) * Polynomial.X ^ i * (1 - Polynomial.X) ^ (k - i)) = _
     rw [map_sum]
     simp [binomialTail]
-  have haeval : Polynomial.aeval X q = binomialTail k d X := by
-    simp [q, binomialTail]
-  rw [← heval, cfc_polynomial q X hX, haeval]
+  rw [← heval, cfc_polynomial q X hX]
+  simp [q, binomialTail]
 
 /-- A binomial tail of a positive contraction is again a positive contraction. -/
 theorem binomialTail_mem_Icc (k d : ℕ) {X : A} (hX₀ : 0 ≤ X) (hX₁ : X ≤ 1) :

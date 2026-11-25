@@ -152,12 +152,10 @@ theorem RefutableInDegree.of_list {F : List (MvPolynomial σ R)} {d : ℕ}
     (squares : List (R × MvPolynomial σ R)) (hw : ∀ p ∈ squares, 0 ≤ p.1)
     (hsq : ∀ p ∈ squares, 2 * p.2.totalDegree ≤ d)
     (h : (L.map fun p => p.1 * p.2).sum + (squares.map fun p => C p.1 * p.2 ^ 2).sum = -1) :
-    RefutableInDegree F d := by
-  refine of_sum (fun i : Fin L.length => (L.get i).1) (fun i => (L.get i).2)
+    RefutableInDegree F d :=
+  of_sum (fun i : Fin L.length => (L.get i).1) (fun i => (L.get i).2)
     (fun i => (hL _ (List.get_mem L i)).1) (fun i => (hL _ (List.get_mem L i)).2) squares hw hsq
-    ?_
-  rw [← h, ← Fin.sum_univ_fun_getElem L fun p => p.1 * p.2]
-  rfl
+    ((congrArg (· + _) (Fin.sum_univ_fun_getElem L fun p => p.1 * p.2)).trans h)
 
 /-- A **pseudo-expectation of degree `d`** for the polynomial equations `f = 0`, `f ∈ F`: a linear
 map `Ẽ` from polynomials to `R` with `Ẽ 1 = 1`, `Ẽ (s ^ 2) ≥ 0` whenever `2 deg s ≤ d`, and
@@ -198,18 +196,15 @@ theorem not_refutableInDegree [IsStrictOrderedRing R] (E : PseudoExpectation F d
     ¬ RefutableInDegree F d := by
   rintro ⟨r⟩
   have h := congrArg E.toLinearMap r.eq
-  rw [map_add, map_sum, map_list_sum, List.map_map, map_neg, E.map_one] at h
-  have h1 : ∑ i, E.toLinearMap (r.mult i * F.get i) = 0 :=
-    Finset.sum_eq_zero fun i _ =>
-      E.map_mul_eq_zero _ (List.get_mem F i) _ (r.totalDegree_mul_le i)
+  rw [map_add, map_sum, map_list_sum, List.map_map, map_neg, E.map_one,
+    Finset.sum_eq_zero fun i _ => E.map_mul_eq_zero _ (List.get_mem F i) _ (r.totalDegree_mul_le i),
+    zero_add] at h
   have h2 : 0 ≤ (r.squares.map (E.toLinearMap ∘ fun p => C p.1 * p.2 ^ 2)).sum :=
     List.sum_nonneg fun x hx => by
       obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hx
       rw [Function.comp_apply, C_mul', map_smul, smul_eq_mul]
       exact mul_nonneg (r.weight_nonneg p hp) (E.map_sq_nonneg _ (r.two_mul_totalDegree_le p hp))
-  rw [h1, zero_add] at h
-  have h3 : (0 : R) < 1 := zero_lt_one
-  linarith
+  linarith [zero_lt_one (α := R)]
 
 end PseudoExpectation
 

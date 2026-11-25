@@ -54,6 +54,25 @@ returning `none`. The latter interpretation requires the depth and model hypothe
         (Blossom.reference prepared (Blossom.internal b.cycle))
       Blossom.liftComparison prepared b.cycle comparison
 
+private theorem blossom_contract_hyps {F : CSP Table ℕ} {f : OccurrenceLabeling F Bool}
+    {m : Forest.Meeting F} (hF : EdgeInstance F) (hf : ValidLabeling sem f)
+    (hM : EdgeInstance.EvenConstraints sem F) (hs : Forest.search sem f = .blossom m) :
+    ∃ b, m.blossomData = some b ∧
+      let prepared := b.prepare.flip f
+      let vs := Blossom.internal b.cycle
+      b.cycle.IsBlossom sem prepared ∧ ValidLabeling sem prepared ∧
+      (defects prepared).card = (defects f).card ∧
+      (Blossom.contract prepared vs).contractionMeasure < F.contractionMeasure ∧
+      EdgeInstance (Blossom.contract prepared vs) ∧
+      ValidLabeling sem (Blossom.reference prepared vs) ∧
+      EdgeInstance.EvenConstraints sem (Blossom.contract prepared vs) := by
+  obtain ⟨b, hb, hblossom, hprepared, hcount⟩ :=
+    Forest.search_blossom_correct sem f hF hf hM hs
+  have hne := Blossom.touched_ne_nil b.cycle hblossom.steps_ne_nil
+  exact ⟨b, hb, hblossom, hprepared, hcount, Blossom.contractionMeasure_contract_lt hF hblossom,
+    Blossom.edge_contract hF _ _, Blossom.valid_reference hprepared _ hne,
+    Blossom.even_contract hprepared hM _ hne⟩
+
 /-- An adequately funded call either certifies optimality or removes exactly two defects.
 All contraction and lifting obligations are derived internally from the fresh search. -/
 theorem improve_spec (depth : ℕ) (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
@@ -72,37 +91,23 @@ theorem improve_spec (depth : ℕ) (F : CSP Table ℕ) (f : OccurrenceLabeling F
     | augment m =>
       simpa only [improve, hs] using (Forest.search_augment_correct sem f hF hf hM hs).2
     | blossom m =>
-      obtain ⟨b, hb, hblossom, hprepared, hcount⟩ :=
-        Forest.search_blossom_correct sem f hF hf hM hs
-      let prepared := b.prepare.flip f
-      let vs := Blossom.internal b.cycle
-      have hne := Blossom.touched_ne_nil b.cycle hblossom.steps_ne_nil
-      have hdec := Blossom.contractionMeasure_contract_lt hF hblossom
-      change (Blossom.contract prepared vs).contractionMeasure < F.contractionMeasure at hdec
-      have hchild := ih (Blossom.contract prepared vs) (Blossom.reference prepared vs)
-        (by omega) (Blossom.edge_contract hF prepared vs)
-        (Blossom.valid_reference hprepared vs hne)
-        (Blossom.even_contract hprepared hM vs hne)
-      cases hc : improve depth (Blossom.contract prepared vs)
-          (Blossom.reference prepared vs) with
+      obtain ⟨b, hb, hblossom, hprepared, hcount, hdec, hF', href, hM'⟩ :=
+        blossom_contract_hyps hF hf hM hs
+      have hchild := ih _ _ (by omega) hF' href hM'
+      cases hc : improve depth (Blossom.contract (b.prepare.flip f) (Blossom.internal b.cycle))
+          (Blossom.reference (b.prepare.flip f) (Blossom.internal b.cycle)) with
       | none =>
         rw [hc] at hchild
         have ho := Blossom.isOptimal_of_reference hF hblossom hprepared hM hchild
-        have horig : IsOptimalLabeling sem f :=
-          ⟨hf, fun g hg => hcount ▸ ho.2 g hg⟩
-        dsimp only [prepared, vs] at hc
-        simpa only [improve, hs, hb, Option.bind_eq_bind, Option.bind_some,
-          hc, Option.bind_none] using horig
+        have horig : IsOptimalLabeling sem f := ⟨hf, fun g hg => hcount ▸ ho.2 g hg⟩
+        simpa only [improve, hs, hb, Option.bind_eq_bind, Option.bind_some, hc, Option.bind_none]
+          using horig
       | some g =>
         rw [hc] at hchild
-        have hlt : (defects g).card < (defects (Blossom.reference prepared vs)).card := by
-          have := hchild.2
-          omega
         obtain ⟨result, hr, hv, hn⟩ := Blossom.liftComparison_spec hF hblossom hprepared hM
-          g hchild.1 hlt
-        dsimp only [prepared, vs] at hc
-        simpa only [improve, hs, hb, Option.bind_eq_bind, Option.bind_some,
-          hc, hr, hcount] using And.intro hv hn
+          g hchild.1 (by have := hchild.2; omega)
+        simpa only [improve, hs, hb, Option.bind_eq_bind, Option.bind_some, hc, hr, hcount]
+          using And.intro hv hn
 
 /-- Sufficient contraction budgets give exactly the same deterministic improvement, including
 its outside changes. Depth affects only malformed or inadequately funded executions. -/
@@ -111,29 +116,19 @@ theorem improve_depth_eq (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
     (hM : EdgeInstance.EvenConstraints sem F) (a b : ℕ)
     (ha : F.contractionMeasure < a) (hb : F.contractionMeasure < b) :
     improve a F f = improve b F f := by
-  induction hm : F.contractionMeasure using Nat.strong_induction_on generalizing F a b with
-  | ind measure ih =>
-    cases a with
+  induction a generalizing F b with
+  | zero => omega
+  | succ a ih =>
+    cases b with
     | zero => omega
-    | succ a =>
-      cases b with
-      | zero => omega
-      | succ b =>
-        cases hs : Forest.search sem f with
-        | exhausted log => simp only [improve, hs]
-        | augment m => simp only [improve, hs]
-        | blossom m =>
-          obtain ⟨data, hd, hc, hv, _⟩ := Forest.search_blossom_correct sem f hF hf hM hs
-          let prepared := data.prepare.flip f
-          let vs := Blossom.internal data.cycle
-          have hne := Blossom.touched_ne_nil data.cycle hc.steps_ne_nil
-          have hlt := Blossom.contractionMeasure_contract_lt hF hc
-          change (Blossom.contract prepared vs).contractionMeasure < F.contractionMeasure at hlt
-          have he := ih _ (by omega) (Blossom.contract prepared vs)
-            (Blossom.reference prepared vs) (Blossom.edge_contract hF prepared vs)
-            (Blossom.valid_reference hv vs hne) (Blossom.even_contract hv hM vs hne)
-            a b (by omega) (by omega) rfl
-          simp only [improve, hs, hd, Option.bind_eq_bind, Option.bind_some]
-          exact congrArg (fun r => r.bind (Blossom.liftComparison prepared data.cycle)) he
+    | succ b =>
+      cases hs : Forest.search sem f with
+      | exhausted _ | augment _ => simp only [improve, hs]
+      | blossom m =>
+        obtain ⟨data, hd, _, _, _, hlt, hF', href, hM'⟩ := blossom_contract_hyps hF hf hM hs
+        have he := ih _ _ hF' href hM' b (by omega) (by omega)
+        simp only [improve, hs, hd, Option.bind_eq_bind, Option.bind_some]
+        exact congrArg (fun r => r.bind (Blossom.liftComparison (data.prepare.flip f) data.cycle))
+          he
 
 end Cslib.Logic.PL.CSP.Solver

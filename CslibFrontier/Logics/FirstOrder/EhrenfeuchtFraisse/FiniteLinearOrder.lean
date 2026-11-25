@@ -236,8 +236,7 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
   have hc0 := C.nonneg c
   have hcm := C.lt_card c
   by_cases hx : ∃ p, ext C a p = C.pos c
-  · obtain ⟨p₀, hp₀⟩ := hx
-    rcases p₀ with _ | _ | i
+  · obtain ⟨_ | _ | i, hp₀⟩ := hx
     · simp only [ext] at hp₀; omega
     · simp only [ext] at hp₀; omega
     · refine ⟨b i, h.snoc c (b i) fun p => ?_⟩
@@ -248,20 +247,14 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
       omega
   · simp only [not_exists] at hx
     classical
-    obtain ⟨pl, hpl, hplmax⟩ : ∃ pl, ext C a pl < C.pos c ∧
-        ∀ p, ext C a p < C.pos c → ext C a p ≤ ext C a pl := by
-      have hne : (Finset.univ.filter fun p => ext C a p < C.pos c).Nonempty :=
-        ⟨none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
-      obtain ⟨pl, hmem, hmax⟩ := Finset.exists_max_image _ (ext C a) hne
-      exact ⟨pl, (Finset.mem_filter.1 hmem).2,
-        fun p hp => hmax p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hp⟩)⟩
-    obtain ⟨pr, hpr, hprmin⟩ : ∃ pr, C.pos c < ext C a pr ∧
-        ∀ p, C.pos c < ext C a p → ext C a pr ≤ ext C a p := by
-      have hne : (Finset.univ.filter fun p => C.pos c < ext C a p).Nonempty :=
-        ⟨some none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
-      obtain ⟨pr, hmem, hmin⟩ := Finset.exists_min_image _ (ext C a) hne
-      exact ⟨pr, (Finset.mem_filter.1 hmem).2,
-        fun p hp => hmin p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hp⟩)⟩
+    obtain ⟨pl, hmem_l, hmax⟩ := Finset.exists_max_image
+      (Finset.univ.filter fun p => ext C a p < C.pos c) (ext C a)
+      ⟨none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
+    obtain ⟨pr, hmem_r, hmin⟩ := Finset.exists_min_image
+      (Finset.univ.filter fun p => C.pos c < ext C a p) (ext C a)
+      ⟨some none, Finset.mem_filter.2 ⟨Finset.mem_univ _, by simp only [ext]; omega⟩⟩
+    have hpl := (Finset.mem_filter.1 hmem_l).2
+    have hpr := (Finset.mem_filter.1 hmem_r).2
     have hG := h' pl pr
     have hHpos : 0 < ext D b pr - ext D b pl := by unfold GapClose at hG; omega
     obtain ⟨v, hv0, hvH, hv1, hv2⟩ :=
@@ -272,11 +265,11 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
     refine ⟨d, h.snoc c d fun p => ?_⟩
     rw [hd]
     rcases lt_or_gt_of_ne (hx p) with hlt | hgt
-    · have hle := hplmax p hlt
+    · have hle := hmax p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hlt⟩)
       have hp := h' p pl
       unfold GapClose at hp hv1 ⊢
       omega
-    · have hle := hprmin p hgt
+    · have hle := hmin p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hgt⟩)
       have hp := h' pr p
       unfold GapClose at hp hv2 ⊢
       omega

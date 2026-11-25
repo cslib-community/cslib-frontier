@@ -67,18 +67,12 @@ abbrev Channel (P J : ℕ) := CorrectionRowTask.Channel (Fin J) (List (ZMod P))
 
 /-- Ceiling division agrees with the semantic real ceiling on the exponent grid. -/
 theorem side_eq_ceil (P k : ℕ) : side P k = ⌈(P : ℝ) * ((2 : ℝ) ^ k)⁻¹⌉₊ := by
-  apply Nat.le_antisymm
-  · apply (ceilDiv_le_iff_le_mul (by positivity : 0 < (2: ℕ) ^ k)).2
-    have h := Nat.le_ceil ((P : ℝ) / (2: ℝ) ^ k)
-    have hh := (div_le_iff₀ (by positivity : 0 < (2: ℝ) ^ k)).1 h
-    rw [div_eq_mul_inv] at hh
-    exact_mod_cast (by simpa only [mul_comm] using hh :
-      (P : ℝ) ≤ (2: ℝ) ^ k * ⌈(P : ℝ) * ((2: ℝ) ^ k)⁻¹⌉₊)
-  · apply Nat.ceil_le.2
-    rw [← div_eq_mul_inv, div_le_iff₀ (by positivity : 0 < (2: ℝ) ^ k)]
-    have h := le_smul_ceilDiv (by positivity : 0 < (2: ℕ) ^ k) (b := P)
-    have hh : (P : ℝ) ≤ (2: ℝ) ^ k * (side P k : ℕ) := by exact_mod_cast h
-    simpa only [mul_comm] using hh
+  refine Nat.le_antisymm ((ceilDiv_le_iff_le_mul (by positivity)).2 ?_) (Nat.ceil_le.2 ?_)
+  · have hh := (div_le_iff₀ (by positivity : (0 : ℝ) < 2 ^ k)).1 (Nat.le_ceil ((P : ℝ) / 2 ^ k))
+    rw [div_eq_mul_inv, mul_comm] at hh
+    exact_mod_cast hh
+  · rw [← div_eq_mul_inv, div_le_iff₀ (by positivity), mul_comm]
+    exact_mod_cast le_smul_ceilDiv (by positivity : 0 < 2 ^ k) (b := P)
 
 /-- The supplied prime is admissible only through the declared finite horizon. -/
 structure Horizon (P : ℕ) where
@@ -94,17 +88,15 @@ structure Horizon (P : ℕ) where
 /-- Every grid side is positive for a positive supplied modulus. -/
 @[positivity_lemma]
 theorem side_pos (P k : ℕ) (hP : 0 < P) : 0 < side P k := by
-  have h := le_smul_ceilDiv (by positivity : 0 < (2: ℕ) ^ k) (b := P)
-  by_contra hn
-  have hz : side P k = 0 := by omega
-  change P ≤ 2 ^ k * side P k at h
-  rw [hz, mul_zero] at h
+  by_contra! h
+  have hh := le_smul_ceilDiv (by positivity : 0 < 2 ^ k) (b := P)
+  change P ≤ 2 ^ k * side P k at hh
+  rw [Nat.le_zero.1 h, mul_zero] at hh
   omega
 
 /-- Grid sides never exceed the supplied modulus. -/
-theorem side_le (P k : ℕ) : side P k ≤ P := by
-  apply (ceilDiv_le_iff_le_mul (by positivity : 0 < 2 ^ k)).2
-  exact Nat.le_mul_of_pos_left _ (by positivity)
+theorem side_le (P k : ℕ) : side P k ≤ P :=
+  (ceilDiv_le_iff_le_mul (by positivity)).2 (Nat.le_mul_of_pos_left _ (by positivity))
 
 /-- Retention with exact natural exponents, existing padded identifiers, fixed roles. -/
 @[expose] def retains (D : ZMod P) (role : Fin J) (k : ℕ) (suffix : List (ZMod P))
@@ -142,8 +134,8 @@ noncomputable instance (s : Fin J) (L : ℕ) (a : V → ZMod P)
 
 /-- Every frame is retained by the full side-P box. -/
 theorem full_retains (A : FrameChannel P 4 1) (a : ZMod P) :
-    frameRetains P 4 P A a := by
-  exact mem_retentionBox.2 fun i => ZMod.val_lt _
+    frameRetains P 4 P A a :=
+  mem_retentionBox.2 fun _ => ZMod.val_lt _
 
 /-- Exact full-coordinate equivalence. No role is omitted or averaged externally. -/
 @[expose] noncomputable def pairEquiv (s t : Fin J) (hst : s ≠ t) (Ls Lt : ℕ)
@@ -219,11 +211,9 @@ supply the natural exponent; this extension is used only in the mathematical mod
 
 /-- The semantic fourth-root side agrees with natural ceiling division on the rate grid. -/
 theorem semanticSide_grid (P k : ℕ) : semanticSide P (rate k) = side P k := by
-  have hroot : (rate k) ^ ((4: ℝ)⁻¹) = ((2: ℝ) ^ k)⁻¹ := by
-    simpa only [rate, Nat.cast_ofNat] using
-      (Real.pow_rpow_inv_natCast (x := ((2: ℝ) ^ k)⁻¹) (n := 4) (by positivity) (by decide))
-  rw [semanticSide, hroot]
-  exact (side_eq_ceil P k).symm
+  rw [semanticSide, side_eq_ceil, rate]
+  congr 2
+  simpa using Real.pow_rpow_inv_natCast (x := ((2 : ℝ) ^ k)⁻¹) (n := 4) (by positivity) (by decide)
 
 /-- Interpret actual real-rate hierarchy channels on the full rank environment. -/
 @[expose] noncomputable def channels (D : ZMod P) (role : Fin J) (b : ℝ)
@@ -271,11 +261,9 @@ theorem horizon_admissible (H : Horizon P) {k : ℕ} (hk : k ≤ H.maxExponent) 
 the grid rate. -/
 theorem side_div_pow_four_le (H : Horizon P) {k : ℕ} (hk : k ≤ H.maxExponent) :
     ((side P k : ℝ) / P) ^ 4 ≤ 16 * rate k := by
-  have h := (affineRetains_rates (P := P) (H := 4) (horizon_admissible H hk)
-    (show ((2 : ℝ) ^ k)⁻¹ ≤ 1 from inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))).2.2.1
-  rw [← side_eq_ceil] at h
-  norm_num only [show (2 : ℝ) ^ 4 = 16 by norm_num] at h
-  exact h
+  simpa only [← side_eq_ceil, rate, show (2 : ℝ) ^ 4 = 16 by norm_num] using
+    (affineRetains_rates (P := P) (H := 4) (horizon_admissible H hk)
+      (inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))).2.2.1
 
 /-- Frame detector constants are exactly (1, 16, 32, 8), independently of P and stage. -/
 theorem retention {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P))
@@ -286,19 +274,18 @@ theorem retention {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P))
       (fun A : FrameChannel P 4 1 => fun x => frameRetains P 4 (side P k) A
         (CopyPadding.identifier D suffix x))
       (rate k) ((((side P k : ℕ): ℝ) / P) ^ 4) 1 16 32 8 := by
-  have h := retentionChannels_frameRetains_of_lt
-    (CopyPadding.identifier_injective hD suffix) (H := 4) (r := 1)
-    (by decide) (by decide) (horizon_admissible H hk)
-    (show ((2: ℝ) ^ k)⁻¹ ≤ 1 from inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))
-  simpa only [← side_eq_ceil, rate, show (2: ℝ) ^ 4 = 16 by norm_num,
-    show (2: ℝ) ^ (4 + 1) = 32 by norm_num] using h
+  simpa only [← side_eq_ceil, rate, show (2 : ℝ) ^ 4 = 16 by norm_num,
+    show (2 : ℝ) ^ (4 + 1) = 32 by norm_num] using
+    retentionChannels_frameRetains_of_lt (CopyPadding.identifier_injective hD suffix) (H := 4)
+      (r := 1) (by decide) (by decide) (horizon_admissible H hk)
+      (inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))
 
 /-- Exact full-environment marginal density, valid also for unconditioned roles. -/
 theorem density (role : Fin J) (L : ℕ) (hL : L ≤ P) (a : ZMod P) :
     (dens {σ : Environment P J | frameRetains P 4 L (σ role) a} : ℝ) = ((L: ℝ) / P) ^ 4 := by
   classical
   rw [dens_filter_pi_eval role (fun A : FrameChannel P 4 1 => frameRetains P 4 L A a)]
-  have h := congrArg (fun q : ℚ≥0 => (q: ℝ))
+  have h := congrArg (fun q : ℚ≥0 => (q : ℝ))
     (dens_eval_mem_retentionBox (P := P) (H := 4) (r := 1) (by decide) hL a)
   push_cast at h
   simpa only [nnratCast_dens] using h
@@ -389,14 +376,11 @@ theorem raw_admissible {k : ℕ} (R : RoleProfile J) (l bin : ℕ)
     (hr : r ∈ (HierarchyTask.rawRequests l bin .residual
       (gridChannel R.source ks ss) (gridChannel R.midpoint km sm)
       (gridChannel R.terminal kt st) (rate kb)).calls) : Admissible r := by
-  have hsm := R.source_midpoint
-  have hst := R.source_terminal
-  have hmt := R.midpoint_terminal
   simp only [HierarchyTask.rawRequests, HierarchyTask.RawRequests.calls,
     Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil,
     or_false] at hr
   rcases hr with (rfl | rfl | rfl) | rfl <;>
-    simp [Admissible, gridChannel, hsm, hst, hmt]
+    simp [Admissible, gridChannel, R.source_midpoint, R.source_terminal, R.midpoint_terminal]
 
 omit [Fact P.Prime] in
 /-- Copy source / terminal symbols prepend to the inherited suffix, on the actual
@@ -407,9 +391,8 @@ theorem copy_admissible {k : ℕ} (R : RoleProfile J) (l bin : ℕ)
     (hr : r ∈ HierarchyTask.routedCopyRequests l bin
       (gridChannel R.source ks ss) (gridChannel R.terminal kt st) (rate kf) (rate kb) i j) :
     Admissible r ∧ r.source.suffix = i :: ss ∧ r.terminal.suffix = j :: st := by
-  have hst := R.source_terminal
   simp only [HierarchyTask.routedCopyRequests, List.mem_cons, List.not_mem_nil, or_false] at hr
-  rcases hr with rfl | rfl <;> exact ⟨⟨hst, rfl, rfl⟩, rfl, rfl⟩
+  rcases hr with rfl | rfl <;> exact ⟨⟨R.source_terminal, rfl, rfl⟩, rfl, rfl⟩
 
 /-- Local channel predicate for the existing source / terminal product normalization. -/
 @[expose] noncomputable def coordinate (D : ZMod P) (ch : Channel P J)
@@ -597,19 +580,16 @@ theorem normalizer_full {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
     rowSliceMean (fun σ v => r.source.retains (channels D) σ (ident v))
       (fun σ v => r.usage.retains (channels D) σ (ident v)) prep x y := by
   classical
-  dsimp only
-  unfold CorrectionRowRecipe.normalizer rowSliceMean
+  dsimp only [CorrectionRowRecipe.normalizer, rowSliceMean]
   let e := (Equiv.piSplitAt r.terminal.role (fun _ : Fin J => FrameChannel P 4 1)).trans
     (Equiv.prodComm _ _)
   symm
-  apply Finset.expect_equiv e
-  · intro σ
-    simp [mem_filter, mem_univ, mem_product, e, Equiv.trans_apply,
-      Equiv.prodComm_apply, Equiv.piSplitAt_apply, coordinate,
-      CorrectionRowTask.Channel.retains, channels, hr.2.1]
-  · intro σ _
+  refine Finset.expect_equiv e (fun σ => ?_) fun σ _ => by
     change prep σ x y = prep (e.symm (e σ)) x y
     rw [Equiv.symm_apply_apply]
+  simp [mem_filter, mem_univ, mem_product, e, Equiv.trans_apply,
+    Equiv.prodComm_apply, Equiv.piSplitAt_apply, coordinate,
+    CorrectionRowTask.Channel.retains, channels, hr.2.1]
 
 /-- Identity-matrix rows witness a nonzero actual normalized dense sample,
 for every supplied prime and horizon, rather than an empty conditioning model. -/
@@ -619,16 +599,11 @@ theorem explicitDense_nonzero (D : ZMod P) (hD : D ≠ 0) (role : Fin J)
       P P (Fact.out : P.Prime).pos le_rfl le_rfl
     (𝔼 σ ∈ ({σ : Environment P J | frameRetains P 4 P (σ role)
       (CopyPadding.identifier D suffix x)} : Finset _), A.direct 1 σ x x) = 1 := by
-  have hh := explicitDense_mean D hD role suffix H 0 (Nat.zero_le _)
-    P P (Fact.out : P.Prime).pos le_rfl le_rfl (1 : Matrix (ZMod P) (ZMod P) ℝ)
-    (fun a b => by
-      change 0 ≤ if a = b then (1: ℝ) else 0
-      split_ifs <;> norm_num)
-    (fun a => by
-      change (∑ b : ZMod P, if a = b then (1: ℝ) else 0) ≤ 1
-      simp) x x
   simpa only [rate, pow_zero, inv_one, one_pow, Matrix.one_apply_eq, div_one, one_mul,
-    cutoff, polynomialSwitch4_of_ge (by norm_num : (1: ℝ) / 2 < 1) le_rfl] using hh
+    cutoff, polynomialSwitch4_of_ge (by norm_num : (1 : ℝ) / 2 < 1) le_rfl] using
+    explicitDense_mean D hD role suffix H 0 (Nat.zero_le _) P P (Fact.out : P.Prime).pos
+      le_rfl le_rfl 1 (fun a b => by by_cases h : a = b <;> simp [Matrix.one_apply, h])
+      (fun a => by simp [Matrix.one_apply]) x x
 
 /-- For `N ≤ H.maxIdentifier + 1`, `D ≠ 0` and one fixed suffix, padding in `ZMod P` is injective
 on the naturals below `N`: these unpadded naturals are below `P`, so their casts are distinct, and
@@ -637,14 +612,10 @@ on the naturals below `N`: these unpadded naturals are below `P`, so their casts
 theorem bounded_identifier_injective (H : Horizon P) {N : ℕ} (hN : N ≤ H.maxIdentifier + 1)
     {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P)) :
     Function.Injective (fun x : Fin N => CopyPadding.identifier D suffix (x: ZMod P)) := by
-  apply (CopyPadding.identifier_injective hD suffix).comp
-  intro x y h
-  have hHP := H.identifier_admissible
-  have hx : x.val < P := by omega
-  have hy : y.val < P := by omega
-  have hh := congrArg ZMod.val h
-  simp only [ZMod.val_natCast_of_lt hx, ZMod.val_natCast_of_lt hy] at hh
-  exact Fin.ext hh
+  refine (CopyPadding.identifier_injective hD suffix).comp fun x y h => Fin.ext ?_
+  have := H.identifier_admissible
+  simpa only [ZMod.val_natCast_of_lt (by omega : x.val < P),
+    ZMod.val_natCast_of_lt (by omega : y.val < P)] using congrArg ZMod.val h
 
 /-- All full-environment coordinates are recovered pointwise, including the
 unconditioned roles represented as public-id full slices. -/
@@ -779,18 +750,13 @@ theorem padding_law {D : ZMod P} (hD : D ≠ 0) (suffix : List (ZMod P))
     (E : (Fin J → ZMod P → Fin 4 → ZMod P) → Prop) [DecidablePred E] :
     dens {σ : Environment P J | E (fun c x => (σ c).eval (CopyPadding.identifier D suffix x))} =
       dens {σ : Environment P J | E (fun c => (σ c).eval)} := by
-  have h := dens_pi_eval_comp_affine (H := 4) (r := 1) (pow_ne_zero suffix.length hD)
-    (CopyPadding.identifier D suffix 0) E
-  have he : ({σ : Environment P J | E (fun c x =>
-      (σ c).eval (CopyPadding.identifier D suffix x))} : Finset _) =
-      ({σ : Environment P J | E (fun c x =>
-        (σ c).eval (D ^ suffix.length * x + CopyPadding.identifier D suffix 0))} : Finset _) := by
-    ext σ
-    simp only [mem_filter, mem_univ, true_and]
-    exact iff_of_eq (congrArg E (funext fun c => funext fun x =>
-      congrArg (σ c).eval (CopyPadding.identifier_affine D suffix x)))
-  rw [he]
-  exact h
+  rw [← dens_pi_eval_comp_affine (H := 4) (r := 1) (pow_ne_zero suffix.length hD)
+    (CopyPadding.identifier D suffix 0) E]
+  congr 1
+  ext σ
+  simp only [mem_filter, mem_univ, true_and]
+  exact iff_of_eq (congrArg E (funext₂ fun c x =>
+    congrArg (σ c).eval (CopyPadding.identifier_affine D suffix x)))
 
 /-- A fully concrete radix hierarchy prefix under one global supplied prime.
 Stage cardinalities and queried exponent horizon are explicit finite premises. -/
@@ -880,7 +846,8 @@ theorem raw_grid_bounded {k : ℕ} (R : RoleProfile J) (l bin K ks km kt kb : �
     ∃ es et eu, es ≤ K ∧ et ≤ K ∧ eu ≤ K ∧ r.source.rate = rate es ∧
       r.terminal.rate = rate et ∧ r.usage.rate = rate eu := by
   simp only [HierarchyTask.rawRequests, HierarchyTask.RawRequests.calls,
-    Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hr
+    Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil,
+    or_false] at hr
   rcases hr with (rfl | rfl | rfl) | rfl
   · exact ⟨ks, kb, max kt kb, hs, hb, max_le ht hb, rfl, rfl, rate_min kt kb⟩
   · exact ⟨ks, km, km, hs, hm, hm, rfl, rfl, rfl⟩

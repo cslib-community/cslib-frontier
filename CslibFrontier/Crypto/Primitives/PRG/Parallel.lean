@@ -120,14 +120,9 @@ private theorem parallelHybrid_bind_of_lt (G : Generator Seed Output) (n : ℕ)
           A (Function.update rest ω r)) =
       (parallelHybrid G n ω.val).bind A := by
   classical
-  rw [PMF.bind_pi_function_update (α := fun _ => Output)]
-  simp only [parallelHybrid]
-  congr 1
-  congr 1 with i
-  by_cases hi : i = ω
-  · subst hi
-    simp
-  · simp [Function.update_of_ne hi]
+  rw [PMF.bind_pi_function_update (α := fun _ => Output), parallelHybrid]
+  refine congrArg (PMF.bind · A) (congrArg PMF.pi (funext fun i => ?_))
+  by_cases hi : i = ω <;> simp [hi]
 
 private theorem parallelHybrid_succ_bind (G : Generator Seed Output) (n : ℕ)
     (A : Adversary (Fin n → Output)) (ω : Fin n) :
@@ -137,17 +132,14 @@ private theorem parallelHybrid_succ_bind (G : Generator Seed Output) (n : ℕ)
           A (Function.update rest ω r)) =
       (parallelHybrid G n (ω.val + 1)).bind A := by
   classical
-  rw [PMF.bind_pi_function_update (α := fun _ => Output)]
-  simp only [parallelHybrid]
-  congr 1
-  congr 1 with i
-  by_cases hi : i = ω
-  · subst hi
-    simp
+  rw [PMF.bind_pi_function_update (α := fun _ => Output), parallelHybrid]
+  refine congrArg (PMF.bind · A) (congrArg PMF.pi (funext fun i => ?_))
+  rcases eq_or_ne i ω with rfl | hi
+  · simp
   · have hlt : i.val < ω.val + 1 ↔ i.val < ω.val := by
-      have hne : i.val ≠ ω.val := fun h => hi (Fin.ext h)
+      have := Fin.val_ne_of_ne hi
       omega
-    simp [Function.update_of_ne hi, hlt]
+    simp [hi, hlt]
 
 /-- **Boneh–Shoup Theorem 3.2 (finite typed relation, p. 55):** For `[NeZero n]` and every
 unrestricted `PMF`-kernel adversary `A` against `G.parallel n`, `G.parallelReduction n A`
@@ -166,7 +158,7 @@ theorem advantage_parallel_eq (G : Generator Seed Output) (n : ℕ) [NeZero n]
         if ω.val < n then games ω.val else PMF.pure false := by
     unfold parallelReduction
     rw [Generator.realExperiment, PMF.bind_comm]
-    congr 1 with ω : 1
+    refine congrArg _ (funext fun ω => ?_)
     simp only [ω.isLt, ↓reduceIte, games]
     exact parallelHybrid_bind_of_lt G n A ω
   have hideal_red : Generator.idealExperiment (G.parallelReduction n A) =
@@ -174,13 +166,12 @@ theorem advantage_parallel_eq (G : Generator Seed Output) (n : ℕ) [NeZero n]
         if ω.val < n then games (ω.val + 1) else PMF.pure false := by
     unfold parallelReduction
     rw [Generator.idealExperiment, PMF.bind_comm]
-    congr 1 with ω : 1
+    refine congrArg _ (funext fun ω => ?_)
     simp only [ω.isLt, ↓reduceIte, games]
     exact parallelHybrid_succ_bind G n A ω
   rw [h0, hn_eq, ← hreal_red, ← hideal_red] at havg
   rw [Generator.advantage_eq_game, Generator.advantage_eq_game]
-  have hcoe := congrArg ((↑) : ℝ≥0 → ℝ) havg
-  simpa [NNReal.coe_mul, NNReal.coe_natCast] using hcoe
+  exact_mod_cast havg
 
 end GeneratorParallel
 

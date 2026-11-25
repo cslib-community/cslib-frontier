@@ -424,20 +424,10 @@ private theorem nizkRealExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fi
     (nizkRealExtHandler P valid q st).map (fun (a, s') => (a, s'.1)) =
       nizkRealHandler P valid q st.1 := by
   obtain ⟨cache, proved⟩ := st
-  cases q with
-  | inl xy =>
-    obtain ⟨x, y⟩ := xy
-    by_cases hv : valid x y = true
-    · simp only [nizkRealExtHandler, nizkRealHandler, hv, ↓reduceIte, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.map_bind]
-      refine congrArg (PMF.bind _) (funext fun coins => ?_)
-      refine congrArg (PMF.bind _) (funext fun (prf, cache') => ?_)
-      simp only [PMF.pure_map]
-    · simp only [Bool.not_eq_true] at hv
-      simp only [nizkRealExtHandler, nizkRealHandler, hv, Bool.false_eq_true, ↓reduceIte,
-        PMF.pure_map]
-  | inr yt =>
-    simp only [nizkRealExtHandler, nizkRealHandler, PMF.map_comp]
+  rcases q with ⟨x, y⟩ | yt
+  · by_cases hv : valid x y = true <;>
+      simp [pmf_norm, nizkRealExtHandler, nizkRealHandler, hv]
+  · simp only [nizkRealExtHandler, nizkRealHandler, PMF.map_comp]
     exact PMF.map_id _
 
 /-- Projecting away the proved-pair log from `nizkSimExtHandler` recovers `nizkSimHandler`. -/
@@ -447,19 +437,10 @@ private theorem nizkSimExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fin
     (nizkSimExtHandler simulate valid q st).map (fun (a, s') => (a, s'.1)) =
       nizkSimHandler simulate valid q st.1 := by
   obtain ⟨cache, proved⟩ := st
-  cases q with
-  | inl xy =>
-    obtain ⟨x, y⟩ := xy
-    by_cases hv : valid x y = true
-    · simp only [nizkSimExtHandler, nizkSimHandler, hv, ↓reduceIte, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.map_bind]
-      refine congrArg (PMF.bind _) (funext fun (prf, cache') => ?_)
-      simp only [PMF.pure_map]
-    · simp only [Bool.not_eq_true] at hv
-      simp only [nizkSimExtHandler, nizkSimHandler, hv, Bool.false_eq_true, ↓reduceIte,
-        PMF.pure_map]
-  | inr yt =>
-    simp only [nizkSimExtHandler, nizkSimHandler, PMF.map_comp]
+  rcases q with ⟨x, y⟩ | yt
+  · by_cases hv : valid x y = true <;>
+      simp [pmf_norm, nizkSimExtHandler, nizkSimHandler, hv]
+  · simp only [nizkSimExtHandler, nizkSimHandler, PMF.map_comp]
     exact PMF.map_id _
 
 private theorem nizkRealExtHandler_eq_lazyProgramHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
@@ -812,12 +793,8 @@ private theorem fork_plain_le_extractGame [DecidableEq Y] [DecidableEq T] [Finty
     simp only [FiatShamirNIZK.check, Prod.mk.injEq, Bool.and_eq_true, decide_eq_true_eq]
       at hpt hv hv'
     obtain ⟨hy, ht⟩ := hpt
-    have hacc : P.Accepts y o.commitment o.challenge o.response := by
-      simpa only [SigmaProtocol.Accepts, hv.1] using hv.2
-    have hacc' : P.Accepts y o.commitment o'.challenge o'.response := by
-      simpa only [SigmaProtocol.Accepts, hv'.1, ht] using hv'.2
-    have hR := hsound _ _ _ _ _ hne hacc hacc'
-    simp [hR]
+    simp [hsound _ _ _ _ _ hne (by simpa only [SigmaProtocol.Accepts, hv.1] using hv.2)
+      (by simpa only [SigmaProtocol.Accepts, hv'.1, ht] using hv'.2)]
 
 /-- Concrete extraction bound for one Sigma protocol and statement, a step toward
 [BonehShoup2023], Theorem 20.2, not the cited result (proved via the general forking inequality of
@@ -905,6 +882,11 @@ theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq 
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
+private theorem succProbability_bind_pure_eq_zero {α : Type} (μ : PMF α) (p : α → Bool)
+    (hfalse : ∀ a, p a = false) :
+    (Game.succProbability (do let a ← μ; return p a) : ℝ) = 0 := by
+  simp [Game.succProbability, hfalse]
+
 /-- Concrete soundness bound on one fixed false statement, a step toward [BonehShoup2023],
 Theorem 20.2, not the cited result: if `y` has no witness in `R`, any cheating prover making at most
 `Qro` hash calls convinces `fiatShamirNIZKVerify` with probability at most `(Qro + 1) / |C|`.
@@ -923,22 +905,13 @@ theorem succProbability_fiatShamirNIZKPokGame_le_of_false [DecidableEq Y] [Decid
     (Game.succProbability (fiatShamirNIZKPokGame P A y) : ℝ) ≤
       (Qro + 1) / Fintype.card C := by
   classical
-  have h := succProbability_fiatShamirNIZKPokGame_le hsound A y hQro
   have hzero :
       (Game.succProbability
-        (fiatShamirNIZKExtractGame R (fiatShamirNIZKExtract P extract A Qro y) y) : ℝ) = 0 := by
-    have heq :
-        fiatShamirNIZKExtractGame R (fiatShamirNIZKExtract P extract A Qro y) y =
-          PMF.pure false := by
-      simp only [fiatShamirNIZKExtractGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-      refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false)
-        fun res _ => ?_).trans (PMF.bind_const _ _)
-      cases res with
+        (fiatShamirNIZKExtractGame R (fiatShamirNIZKExtract P extract A Qro y) y) : ℝ) = 0 :=
+    succProbability_bind_pure_eq_zero _ _ fun
       | none => rfl
-      | some w => simp [hfalse w]
-    simp [heq, Game.succProbability]
-  rw [hzero, mul_zero, Real.sqrt_zero, add_zero] at h
-  exact h
+      | some w => by simp [hfalse w]
+  simpa [hzero] using succProbability_fiatShamirNIZKPokGame_le hsound A y hQro
 
 /-! ### Simulation-extractability (adaptive multi-theorem proof of knowledge) -/
 
@@ -1184,12 +1157,8 @@ private theorem fork_sim_le_simExtractGame [DecidableEq Y] [DecidableEq T] [Fint
       (fun s => A.prove s.1) (fun s => s.2) hresult
     simp only [FiatShamirNIZK.check, Prod.mk.injEq, Bool.and_eq_true] at hpt hv hv'
     obtain ⟨hy, ht⟩ := hpt
-    have hacc' :
-        P.Accepts o.message o.commitment o'.challenge o'.response := by
-      simpa only [SigmaProtocol.Accepts, hy, ht] using hv'.2
-    have hR := hsound _ _ _ _ _ _ hne hv.2 hacc'
-    have hadm := hv.1
-    simp [hadm, hR]
+    simp [hv.1, hsound _ _ _ _ _ _ hne hv.2
+      (by simpa only [SigmaProtocol.Accepts, hy, ht] using hv'.2)]
 
 /-- Concrete simulation-extraction bound against simulated proofs for one Sigma protocol, derived
 here and not a result of [BonehShoup2023] (general `SimCoinSource` and `admissible` form, via
@@ -1333,17 +1302,13 @@ theorem succProbability_fiatShamirNIZKFreshStmtGameOn_le [DecidableEq Y] [Decida
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun s _ => ?_
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun ((y, prf), (cache, proved)) _ => ?_
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun (acc, _) _ => ?_
-    by_cases hmem : (y, prf.1) ∈ proved
-    · have hy : y ∈ proved.map Prod.fst := List.mem_map_of_mem hmem
-      simp [hy]
-    · by_cases hacc : admissible y = true ∧ acc = true
-      · refine (PMF.coe_le_one _ _).trans_eq ?_
-        simp [hacc.1, hacc.2, hmem]
-      · cases hadm : admissible y <;> cases ha : acc
-        · simp
-        · simp
-        · simp
-        · exact absurd ⟨hadm, ha⟩ hacc
+    cases admissible y
+    · simp
+    · cases acc
+      · simp
+      · by_cases hmem : (y, prf.1) ∈ proved
+        · simp [List.mem_map_of_mem (f := Prod.fst) hmem]
+        · exact (PMF.coe_le_one _ _).trans_eq (by simp [hmem])
   refine le_trans ?_
     (succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred src admissible hA)
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
@@ -1368,27 +1333,18 @@ theorem succProbability_fiatShamirNIZKRealExtGameOn_le_of_false [DecidableEq Y] 
     (Game.succProbability (fiatShamirNIZKRealExtGameOn admissible P valid A) : ℝ) ≤
       Qp * (Qp + Qro) * δ + (Qro + 1) / Fintype.card C := by
   classical
-  have h := succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred src
-    admissible hA
   have hzero :
       (Game.succProbability
         (fiatShamirNIZKSimExtractGame R admissible
-          (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro)) : ℝ) = 0 := by
-    have heq :
-        fiatShamirNIZKSimExtractGame R admissible
-          (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro) =
-        PMF.pure false := by
-      simp only [fiatShamirNIZKSimExtractGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-      refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false)
-        fun res _ => ?_).trans (PMF.bind_const _ _)
-      rcases res with _ | ⟨y, w⟩
-      · rfl
-      · by_cases hadm : admissible y = true
+          (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro)) : ℝ) = 0 :=
+    succProbability_bind_pure_eq_zero _ _ fun
+      | none => rfl
+      | some (y, w) => by
+        cases hadm : admissible y
+        · simp [hadm]
         · simp [hadm, hfalse y hadm w]
-        · simp [Bool.eq_false_iff.mpr hadm]
-    simp [heq, Game.succProbability]
-  rw [hzero, mul_zero, Real.sqrt_zero, add_zero] at h
-  exact h
+  simpa [hzero] using succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred
+    src admissible hA
 
 /-! ### Specializations to `SigmaProtocol.linear` and `SigmaProtocol.schnorr` -/
 
@@ -1442,13 +1398,12 @@ theorem linear_advantage_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [Fint
       (fiatShamirNIZKRealGame (linear ψ u ι) (fun x y => decide (ψ y x = u y)) D)
       (fiatShamirNIZKSimGame (linearSimulate ψ u ι) (fun x y => decide (ψ y x = u y)) D) : ℝ) ≤
       Qp * (Qp + Qro) / Fintype.card M := by
-  have h := NNReal.coe_le_coe.mpr
-    (advantage_fiatShamirNIZKRealGame_simGame_le
-      (fun x y h => of_decide_eq_true h)
-      (linear_specialHVZK ψ u ι)
-      (linear_unpredictableCommitments_of_injective ψ u ι hinj) hD)
   simpa only [NNReal.coe_mul, NNReal.coe_add, NNReal.coe_inv, NNReal.coe_natCast,
-    div_eq_mul_inv] using h
+    div_eq_mul_inv] using NNReal.coe_le_coe.mpr
+      (advantage_fiatShamirNIZKRealGame_simGame_le
+        (fun x y h => of_decide_eq_true h)
+        (linear_specialHVZK ψ u ι)
+        (linear_unpredictableCommitments_of_injective ψ u ι hinj) hD)
 
 /-- Plain ROM proof-of-knowledge bound for `SigmaProtocol.linear` when `q` is prime. -/
 theorem linear_succProbability_fiatShamirNIZKPokGame_le [Fact q.Prime] [DecidableEq Y]
@@ -1479,13 +1434,13 @@ theorem linear_succProbability_fiatShamirNIZKRealExtGame_le [Fact q.Prime] [Deci
           (fiatShamirNIZKSimExtractGame (fun x y => ψ y x = u y) admissible
             (fiatShamirNIZKSimExtractWith (linear ψ u ι) (linearSimCoinSource ψ u ι)
               (linearExtract ι) (fun x y => decide (ψ y x = u y)) admissible A Qp Qro))) := by
-  have h := succProbability_fiatShamirNIZKRealExtGameOn_le
-    (fun x y hv => of_decide_eq_true hv)
-    (linear_specialSoundness ψ u ι)
-    (linear_specialHVZK ψ u ι)
-    (linear_unpredictableCommitments_of_injective ψ u ι hinj)
-    (linearSimCoinSource ψ u ι) admissible hA
-  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using h
+  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using
+    succProbability_fiatShamirNIZKRealExtGameOn_le
+      (fun x y hv => of_decide_eq_true hv)
+      (linear_specialSoundness ψ u ι)
+      (linear_specialHVZK ψ u ι)
+      (linear_unpredictableCommitments_of_injective ψ u ι hinj)
+      (linearSimCoinSource ψ u ι) admissible hA
 
 end Linear
 
@@ -1526,13 +1481,12 @@ theorem schnorr_advantage_fiatShamirNIZKRealGame_simGame_le [Fintype C] [Nonempt
         (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
         (fun α u => decide (α • g = u)) D) : ℝ) ≤
       Qp * (Qp + Qro) / q := by
-  have h := NNReal.coe_le_coe.mpr
-    (advantage_fiatShamirNIZKRealGame_simGame_le
-      (fun α u hv => of_decide_eq_true hv)
-      schnorr_specialHVZK
-      (schnorr_unpredictableCommitments (ι := ι) hg) hD)
   simpa only [NNReal.coe_mul, NNReal.coe_add, NNReal.coe_inv, NNReal.coe_natCast,
-    div_eq_mul_inv] using h
+    div_eq_mul_inv] using NNReal.coe_le_coe.mpr
+      (advantage_fiatShamirNIZKRealGame_simGame_le
+        (fun α u hv => of_decide_eq_true hv)
+        schnorr_specialHVZK
+        (schnorr_unpredictableCommitments (ι := ι) hg) hD)
 
 /-- Plain ROM proof-of-knowledge bound for Schnorr Fiat–Shamir NIZK proofs. -/
 theorem schnorr_succProbability_fiatShamirNIZKPokGame_le [Fintype C] [Nonempty C] [DecidableEq C]
@@ -1560,14 +1514,14 @@ theorem schnorr_succProbability_fiatShamirNIZKRealExtGame_le [Fintype C] [Nonemp
             (fiatShamirNIZKSimExtractWith (schnorr ι g)
               (linearSimCoinSource (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
               (linearExtract ι) (fun α u => decide (α • g = u)) admissible A Qp Qro))) := by
-  have h := succProbability_fiatShamirNIZKRealExtGameOn_le
-    (fun α u hv => of_decide_eq_true hv)
-    schnorr_specialSoundness
-    schnorr_specialHVZK
-    (schnorr_unpredictableCommitments (ι := ι) hg)
-    (linearSimCoinSource (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
-    admissible hA
-  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using h
+  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using
+    succProbability_fiatShamirNIZKRealExtGameOn_le
+      (fun α u hv => of_decide_eq_true hv)
+      schnorr_specialSoundness
+      schnorr_specialHVZK
+      (schnorr_unpredictableCommitments (ι := ι) hg)
+      (linearSimCoinSource (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
+      admissible hA
 
 end Schnorr
 

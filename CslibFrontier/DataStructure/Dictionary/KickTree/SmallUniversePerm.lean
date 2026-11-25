@@ -23,6 +23,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.UniformRelabel
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -288,20 +289,12 @@ theorem dist_permTupleKernel_nrBlock_le {ι₀ ι₁ ι₂ T : Type*}
         (PMF.uniformOfFintype ι₂).map fun s₂ => (L₂ s₀ s₁, R₃ s₀ s₁ s₂)
   have hμ_map : (permTupleKernel (nrBlockSeedDist a' h₀ h₁ h₂) x).map j =
       μ_pair.map splitFun := by
-    have hunif_seed : (PMF.uniformOfFintype (NRBlockSeed ι₀ ι₁ ι₂)).map
-        (nrBlockSeedEquivProd ι₀ ι₁ ι₂) = PMF.uniformOfFintype (ι₀ × ι₁ × ι₂) :=
-      uniformOfFintype_map_equiv (nrBlockSeedEquivProd ι₀ ι₁ ι₂)
-    have h1 : (permTupleKernel (nrBlockSeedDist a' h₀ h₁ h₂) x).map j =
-        (PMF.uniformOfFintype (ι₀ × ι₁ × ι₂)).map fun p =>
-          splitFun (L₂ p.1 p.2.1, R₃ p.1 p.2.1 p.2.2) := by
-      rw [← hunif_seed]
-      simp only [permTupleKernel_eq, nrBlockSeedDist, PMF.map_comp, Function.comp_def, j,
-        Equiv.embeddingCongr_apply, Function.Embedding.congr_apply, Equiv.refl_symm,
-        Equiv.refl_apply, nrBlockEquiv, Equiv.permCongr_apply, Equiv.symm_symm, nrPairBlock,
-        Equiv.trans_apply, feistelRightEquiv_apply, feistelPairEquiv_apply, feistelPair,
-        feistelHead, nrBlockSeedEquivProd, splitFun, Equiv.coe_fn_mk, L₀, R₀, R₁, L₂, R₃]
-    rw [h1, ← uniformOfFintype_prod, ← uniformOfFintype_prod]
-    simp only [μ_pair, PMF.map_bind, PMF.map_comp, Function.comp_def]
+    simp only [permTupleKernel_eq, nrBlockSeedDist, μ_pair, PMF.map_bind, PMF.map_comp,
+      Function.comp_def, j, Equiv.embeddingCongr_apply, Function.Embedding.congr_apply,
+      Equiv.refl_symm, Equiv.refl_apply, nrBlockEquiv, Equiv.permCongr_apply, Equiv.symm_symm,
+      nrPairBlock, Equiv.trans_apply, feistelRightEquiv_apply, feistelPairEquiv_apply, feistelPair,
+      feistelHead, splitFun, Equiv.coe_fn_mk, L₀, R₀, R₁, L₂, R₃]
+    relabel_uniform (nrBlockSeedEquivProd ι₀ ι₁ ι₂)
   have hunif_split : PMF.uniformOfFintype (T → Fin (2 ^ a')) =
       (PMF.uniformOfFintype ((T → Fin (2 ^ nrHalfLow a')) ×
         (T → Fin (2 ^ nrHalfHigh a')))).map splitFun :=
@@ -352,11 +345,11 @@ theorem dist_permTupleKernel_nrBlock_le {ι₀ ι₁ ι₂ T : Type*}
       hgood_dist).trans ?_
     gcongr
     rw [toOuterMeasure_uniformOfFintype_toReal]
+    have hRL : Function.Injective fun i => (R₀ i, L₀ i) := fun i₁ i₂ h =>
+      x.injective ((nrSplitEquiv a').injective
+        (Prod.ext (congrArg Prod.snd h) (congrArg Prod.fst h)))
     let S₀ : Finset (Fin (2 ^ nrHalfHigh a') × Fin (2 ^ nrHalfLow a')) :=
-      (univ : Finset T).map ⟨fun i => (R₀ i, L₀ i), fun i₁ i₂ h => by
-        have hsplit : nrSplitEquiv a' (x i₁) = nrSplitEquiv a' (x i₂) :=
-          Prod.ext (congrArg Prod.snd h) (congrArg Prod.fst h)
-        exact x.injective ((nrSplitEquiv a').injective hsplit)⟩
+      (univ : Finset T).map ⟨_, hRL⟩
     have hS₀_card : #S₀ = Fintype.card T := by simp [S₀]
     have hfeistel := dens_not_injOn_feistelHead_le (hh₀.isPairwiseIndependentHash le_rfl) S₀
     rw [hS₀_card, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast,
@@ -366,30 +359,15 @@ theorem dist_permTupleKernel_nrBlock_le {ι₀ ι₁ ι₂ T : Type*}
           (S₀ : Set (Fin (2 ^ nrHalfHigh a') × Fin (2 ^ nrHalfLow a')))} := by
       refine card_le_card fun s₀ hs₀ => ?_
       rw [mem_filter] at hs₀ ⊢
-      refine ⟨mem_univ s₀, fun hInj => hs₀.2 fun i₁ i₂ heq => ?_⟩
-      have h1 : (R₀ i₁, L₀ i₁) ∈ S₀ := mem_map.mpr ⟨i₁, mem_univ i₁, rfl⟩
-      have h2 : (R₀ i₂, L₀ i₂) ∈ S₀ := mem_map.mpr ⟨i₂, mem_univ i₂, rfl⟩
-      have heq' := hInj h1 h2 heq
-      have hsplit : nrSplitEquiv a' (x i₁) = nrSplitEquiv a' (x i₂) :=
-        Prod.ext (congrArg Prod.snd heq') (congrArg Prod.fst heq')
-      exact x.injective ((nrSplitEquiv a').injective hsplit)
+      exact ⟨mem_univ s₀, fun hInj => hs₀.2 fun i₁ i₂ heq => hRL (hInj
+        (mem_map.mpr ⟨i₁, mem_univ i₁, rfl⟩) (mem_map.mpr ⟨i₂, mem_univ i₂, rfl⟩) heq)⟩
     exact (div_le_div_of_nonneg_right (Nat.cast_le.mpr hsub) (Nat.cast_nonneg _)).trans hfeistel
-  have hpow_hi : (2 ^ nrHalfLow a' : ℝ) ≤ (2 ^ nrHalfHigh a' : ℝ) := by
-    exact_mod_cast Nat.pow_le_pow_right two_pos (nrHalfLow_le_nrHalfHigh a')
-  have hpow_a : (2 ^ nrHalfLow a' : ℝ) ≤ (2 ^ a' : ℝ) := by
-    exact_mod_cast Nat.pow_le_pow_right two_pos (nrHalfLow_le a')
-  have hdiv_hi :
-      ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ nrHalfHigh a' : ℝ)) ≤
+  have hdiv {b : ℕ} (hb : nrHalfLow a' ≤ b) :
+      ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ b : ℝ)) ≤
         ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ nrHalfLow a' : ℝ)) := by
-    gcongr
-  have hdiv_a :
-      ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ a' : ℝ)) ≤
-        ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (2 ^ nrHalfLow a' : ℝ)) := by
-    gcongr
-  set num : ℝ := ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ)
-  set den : ℝ := 2 * (2 ^ nrHalfLow a' : ℝ)
-  have hsum3 : num / den + num / den + num / den = 3 * num / den := by ring
-  linarith
+    gcongr; norm_num
+  rw [mul_div_assoc]
+  linarith [hdiv (nrHalfLow_le_nrHalfHigh a'), hdiv (nrHalfLow_le a')]
 
 
 /-! ## Section 2: Composed Naor–Reingold blocks and Case B sharded bijection -/
@@ -453,33 +431,20 @@ theorem nrComposedSeedDist_eq_composePermDist {ι₀ ι₁ ι₂ : Type*}
     simp only [nrComposedEquiv_zero]
     exact PMF.map_const _ (Equiv.refl (Fin (2 ^ a')))
   | t + 1 => by
-    let splitFin : (Fin (t + 1) → NRBlockSeed ι₀ ι₁ ι₂) ≃
-        (Fin t → NRBlockSeed ι₀ ι₁ ι₂) × NRBlockSeed ι₀ ι₁ ι₂ :=
-      { toFun := fun f => (fun i => f i.castSucc, f (Fin.last t))
-        invFun := fun p => Fin.snoc p.1 p.2
-        left_inv := fun f => by ext i; cases i using Fin.lastCases <;> simp
-        right_inv := fun p => by rcases p with ⟨f, x⟩; ext <;> simp }
-    let seedEq : NRComposedSeed (t + 1) ι₀ ι₁ ι₂ ≃
-        NRComposedSeed t ι₀ ι₁ ι₂ × NRBlockSeed ι₀ ι₁ ι₂ :=
-      (nrComposedSeedEquivFun (t + 1) ι₀ ι₁ ι₂).trans
-        (splitFin.trans (Equiv.prodCongr (nrComposedSeedEquivFun t ι₀ ι₁ ι₂).symm (Equiv.refl _)))
-    have hunif : (PMF.uniformOfFintype (NRComposedSeed (t + 1) ι₀ ι₁ ι₂)).map seedEq =
-        PMF.uniformOfFintype (NRComposedSeed t ι₀ ι₁ ι₂ × NRBlockSeed ι₀ ι₁ ι₂) :=
-      uniformOfFintype_map_equiv seedEq
-    have hstep : nrComposedSeedDist a' (t + 1) h₀ h₁ h₂ =
-        (PMF.uniformOfFintype (NRComposedSeed t ι₀ ι₁ ι₂ × NRBlockSeed ι₀ ι₁ ι₂)).map fun p =>
-          (nrComposedEquiv a' t
-            (fun r => ⟨h₀ (p.1.blocks r).s₀, h₁ (p.1.blocks r).s₁, h₂ (p.1.blocks r).s₂⟩)).trans
-          (nrBlockEquiv a' ⟨h₀ p.2.s₀, h₁ p.2.s₁, h₂ p.2.s₂⟩) := by
-      rw [nrComposedSeedDist_eq, ← hunif, PMF.map_comp]
-      refine PMF.map_congr_on_support _ _ _ fun s _ => ?_
-      simp only [Function.comp_def, nrComposedEquiv_succ, seedEq, nrComposedSeedEquivFun, splitFin,
-        Equiv.trans_apply, Equiv.prodCongr_apply, Equiv.coe_fn_mk, Equiv.coe_fn_symm_mk]
-      rfl
-    rw [hstep, ← PMF.uniformOfFintype_prod, composePermDist_succ,
-      ← nrComposedSeedDist_eq_composePermDist a' h₀ h₁ h₂ t]
-    simp only [nrComposedSeedDist_eq, nrBlockSeedDist_eq, PMF.map_bind, PMF.bind_map, PMF.map_comp,
-      Function.comp_def]
+    rw [nrComposedSeedDist_eq, composePermDist_succ, ← nrComposedSeedDist_eq_composePermDist]
+    simp only [nrComposedSeedDist_eq, nrBlockSeedDist_eq, PMF.bind_map, Function.comp_def]
+    relabel_uniform (fun s : NRComposedSeed (t + 1) ι₀ ι₁ ι₂ =>
+      ((⟨fun i => s.blocks i.castSucc⟩ : NRComposedSeed t ι₀ ι₁ ι₂), s.blocks (Fin.last t)))
+      with s
+    · rintro ⟨f₁⟩ ⟨f₂⟩ h
+      obtain ⟨h1, h2⟩ := Prod.mk.inj h
+      congr 1; funext i
+      cases i using Fin.lastCases
+      · exact h2
+      · exact congrFun (congrArg NRComposedSeed.blocks h1) _
+    · rw [Fintype.card_prod, Fintype.card_congr (nrComposedSeedEquivFun (t + 1) ι₀ ι₁ ι₂),
+        Fintype.card_congr (nrComposedSeedEquivFun t ι₀ ι₁ ι₂)]
+      simp [Fintype.card_pi, Finset.prod_const, Finset.card_univ, pow_succ]
 
 /-- **`t`-composed Naor–Reingold `k`-tuple statistical-distance contraction**: composing `t ≥ 1`
 independent 3-round Feistel Naor–Reingold blocks with `2`-wise independent `h₀` and `k`-wise
@@ -700,14 +665,9 @@ theorem dist_caseB_shardTuple_le {Top ι_sh ι₀ ι₁ ι₂ ι_aux : Type*}
       simp only [PMF.map_comp, Function.comp_def]
     have hU_all : U_all =
         U_sh.bind fun f_sh => (U_nr.bind fun e => U_aux.map (e, ·)).map (f_sh, ·) := by
-      have hp1 := (uniformOfFintype_prod (T → Fin (2 ^ shardBits m))
-        ((T ↪ Fin (2 ^ suffixBits a m)) × (T → Fin (2 ^ b_aux)))).symm
-      have hp2 := (uniformOfFintype_prod (T ↪ Fin (2 ^ suffixBits a m))
-        (T → Fin (2 ^ b_aux))).symm
-      rw [show U_all = _ from hp1]
-      refine congrArg (U_sh.bind ·) (funext fun f_sh => ?_)
-      rw [show PMF.uniformOfFintype
-          ((T ↪ Fin (2 ^ suffixBits a m)) × (T → Fin (2 ^ b_aux))) = _ from hp2]
+      dsimp only [U_all, U_sh, U_nr, U_aux]
+      relabel_uniform (Equiv.refl
+        ((T → Fin (2 ^ shardBits m)) × (T ↪ Fin (2 ^ suffixBits a m)) × (T → Fin (2 ^ b_aux))))
     have hpair_dist : dist (μ_nr.bind fun e => U_aux.map (e, ·))
         (U_nr.bind fun e => U_aux.map (e, ·)) = dist μ_nr U_nr := by
       have hcomm (ν : PMF (T ↪ Fin (2 ^ suffixBits a m))) :

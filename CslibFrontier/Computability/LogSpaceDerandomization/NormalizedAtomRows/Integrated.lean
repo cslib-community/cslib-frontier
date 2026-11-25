@@ -48,24 +48,20 @@ lemma sum_rootError_four {ι : Type*} (S : Finset ι) (ζ : ℝ) (a b : State ι
     {y ∈ S | output HP ζ (b.row y 0) (b.row y 1) (firstRank S HP.K b.defaultValue b.row) ≠ 0}
   have hT : T ⊆ S := union_subset (filter_subset _ _) (filter_subset _ _)
   have hc : T.card ≤ 2 * HP.K := (card_union_le _ _).trans (by
-    have ha := support HP S a ζ
-    have hb := support HP S b ζ
+    have := support HP S a ζ
+    have := support HP S b ζ
     omega)
   calc
-    _ = ∑ y ∈ T, |stateRootError (output HP ζ) S HP.K a b y| ^ 4 := by
-      symm
-      apply sum_subset hT
-      intro y hy hyt
-      have ha : output HP ζ (a.row y 0) (a.row y 1) (firstRank S HP.K a.defaultValue a.row) = 0 :=
-        by
-        by_contra hz
-        exact hyt (mem_union_left _ (mem_filter.mpr ⟨hy, hz⟩))
-      have hb : output HP ζ (b.row y 0) (b.row y 1) (firstRank S HP.K b.defaultValue b.row) = 0 :=
-        by
-        by_contra hz
-        exact hyt (mem_union_right _ (mem_filter.mpr ⟨hy, hz⟩))
-      simp only [stateRootError, ha, hb, Real.zero_rpow (by norm_num : (4⁻¹ : ℝ) ≠ 0), sub_self,
-        abs_zero, zero_pow (by decide : 4 ≠ 0)]
+    _ = ∑ y ∈ T, |stateRootError (output HP ζ) S HP.K a b y| ^ 4 :=
+      (sum_subset hT fun y hy hyt => by
+        have ha : output HP ζ (a.row y 0) (a.row y 1)
+            (firstRank S HP.K a.defaultValue a.row) = 0 :=
+          by_contra fun hz => hyt (mem_union_left _ (mem_filter.mpr ⟨hy, hz⟩))
+        have hb : output HP ζ (b.row y 0) (b.row y 1)
+            (firstRank S HP.K b.defaultValue b.row) = 0 :=
+          by_contra fun hz => hyt (mem_union_right _ (mem_filter.mpr ⟨hy, hz⟩))
+        simp only [stateRootError, ha, hb, Real.zero_rpow (by norm_num : (4⁻¹ : ℝ) ≠ 0), sub_self,
+          abs_zero, zero_pow (by decide : 4 ≠ 0)]).symm
     _ ≤ ∑ _y ∈ T, E ^ 4 := sum_le_sum fun y hy => pow_le_pow_left₀ (abs_nonneg _) (h y (hT hy)) 4
     _ = (T.card : ℝ) * E ^ 4 := by simp only [sum_const, nsmul_eq_mul]
     _ ≤ _ := mul_le_mul_of_nonneg_right (by exact_mod_cast hc) (by positivity)
@@ -212,17 +208,15 @@ theorem exists_compression_rowNormPow_le {scale : ℝ} (hs : 0 < scale) (hmargin
               (uncompressedRow (Δ σ x) (raw σ x) (j + 1) y)) := by
   classical
   obtain ⟨C, hC, hscales⟩ := NormalizedRow.sharp_compression HP ζ hζ hs hmargin hcapscale
-  refine ⟨C, hC, ?_⟩
-  intro η hη hmargin hη1
+  refine ⟨C, hC, fun η hη hmargin hη1 => ?_⟩
   obtain ⟨A, hA, hbound⟩ := hscales η hη hmargin
-  refine ⟨A, hA, ?_⟩
-  intro Ω V _ _ N u hNu X Y _ _ n m hcapacity Δ raw truth hfirst hsecond
-    hvanish ε εfinal hε hεfinal herr herrfinal
+  refine ⟨A, hA, fun {Ω V} _ _ N u hNu X Y _ _ n m hcapacity Δ raw truth hfirst hsecond
+    hvanish ε εfinal hε hεfinal herr herrfinal => ?_⟩
   dsimp only
   have hfalse := rowNormPow_falseFirstOverflowBefore_le HP ζ hη hη1 hNu X Y n
     (NormalizedRow.rank_pos HP) m
-    (fun i hi => (NormalizedRow.rank_pos HP).trans_le (hcapacity i hi)) Δ (fun σ x => ⟨0, raw σ
-      x⟩) truth (by intros; rfl) hfirst hvanish
+    (fun i hi => (NormalizedRow.rank_pos HP).trans_le (hcapacity i hi)) Δ
+    (fun σ x => ⟨0, raw σ x⟩) truth (fun _ _ _ => rfl) hfirst hvanish
   refine (rowNormPow_le_three_budgets_add_ite hNu X Y _ _ HP.K A C _ _ _
     fun σ x hx hf => ?_).trans (add_le_add_right hfalse _)
   exact sum_rootError_four HP _ ζ _ _

@@ -131,11 +131,7 @@ theorem IsQualified.isCappedConsistent {D : IndexedScheme Op Result cells w} {st
   refine ⟨?_, hcardA, hcardB⟩
   have hsub : (S_A ∩ S_B).filter (fun j => C_A j ≠ C_B j) ⊆
       S_A.filter (fun j => C_A j ≠ C_end j) ∪ S_B.filter (fun j => C_B j ≠ C_end j) :=
-    fun j hj => by
-      rw [Finset.mem_filter, Finset.mem_inter] at hj; obtain ⟨⟨hjA, hjB⟩, hne⟩ := hj
-      rw [Finset.mem_union, Finset.mem_filter, Finset.mem_filter]
-      exact if hAe : C_A j = C_end j then Or.inr ⟨hjB, fun hBe => hne (hAe.trans hBe.symm)⟩
-        else Or.inl ⟨hjA, hAe⟩
+    fun j hj => by simp only [Finset.mem_filter, Finset.mem_inter, Finset.mem_union] at hj ⊢; grind
   have hle : (((S_A ∩ S_B).filter (fun j => C_A j ≠ C_B j)).card : ℝ) ≤
       ((S_A.filter (fun j => C_A j ≠ C_end j)).card : ℝ) +
       ((S_B.filter (fun j => C_B j ≠ C_end j)).card : ℝ) := by
@@ -274,12 +270,8 @@ theorem quarter_fanout_le_sum_prob_isGoodSeg {Ω : Type*} [Fintype Ω]
           (if T.IsGoodSeg D initLen stride (opsOf ω) γ t ℓ b i then (1 : ℝ) else 0) := by
   set halfSet := Finset.univ.filter fun i : Fin (T.fanout (ℓ + 1)) => i.val < T.fanout (ℓ + 1) / 2
   obtain ⟨q, hq⟩ := T.even_fanout (ℓ + 1) (Nat.le_add_left 1 ℓ)
-  have hhalf_card : halfSet.card = T.fanout (ℓ + 1) / 2 := by
-    refine (Finset.card_bij (s := halfSet) (t := Finset.range (T.fanout (ℓ + 1) / 2))
-      (fun i _ => i.val) (fun _ hi => Finset.mem_range.mpr (Finset.mem_filter.mp hi).2)
-      (fun _ _ _ _ h => Fin.ext h) fun r hr => ?_).trans (Finset.card_range _)
-    exact ⟨⟨r, by have := Finset.mem_range.mp hr; omega⟩,
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hr⟩, rfl⟩
+  have hhalf_card : halfSet.card = T.fanout (ℓ + 1) / 2 :=
+    Fin.card_filter_val_lt.trans (min_eq_right (Nat.div_le_self _ _))
   have hhalf_real : (halfSet.card : ℝ) = (T.fanout (ℓ + 1) : ℝ) / 2 := by
     rw [hhalf_card, hq, Nat.mul_div_cancel_left q (by omega)]; push_cast; ring
   have hbad_half : (∑ i ∈ halfSet, ∑ ω, (p ω).toReal *

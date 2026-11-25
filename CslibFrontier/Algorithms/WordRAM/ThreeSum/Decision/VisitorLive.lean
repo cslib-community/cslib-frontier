@@ -80,12 +80,8 @@ theorem construct_consume {r κ n w : ℕ} {a : Arena} (c : Host.Callee r)
       (∀ i, i ≠ answer →
         y.regs (controllerRegisters r i) = x.regs (controllerRegisters r i)) ∧
       ∀ p < q.regs (preprocessingRegisters r ChanHe.Traversal.heap), y.mem p = q.mem p := by
-  have hheap : x.regs (preprocessingRegisters r ChanHe.Traversal.heap) ≤
-      a.ceiling := by
-    omega
   have hlocal := ChanHe.Traversal.emit_admitted false (x.comap (preprocessingRegisters r)) e
-    ha hready hc hl hv hs hbitmap
-    hfloor hheap hsrc (by intro h; cases h)
+    ha hready hc hl hv hs hbitmap hfloor (Nat.le_of_add_right_le hbudget) hsrc nofun
   obtain ⟨v, he, ⟨em⟩, hf⟩ := ExecWithin.rename_post (preprocessing_injective r) hlocal
   have hframe (i : Fin 16) :
       v.regs (controllerRegisters r i) = x.regs (controllerRegisters r i) :=
@@ -97,9 +93,7 @@ theorem construct_consume {r κ n w : ℕ} {a : Arena} (c : Host.Callee r)
     simp only [Data.comap_regs] at heh
     rw [heh]
     apply ChanHe.Traversal.allocation_le
-    · intro j
-      rw [hl.2.2]
-      exact hv.length_le j
+    · exact fun j => (hl.2.2 j).trans_le (hv.length_le j)
     · exact hc.2.2.2.1.le
     · simpa only [hc.1] using em.upper
   have hlenv : v.regs (preprocessingRegisters r ChanHe.Preprocessing.packedLength) = 4 * a.N :=
@@ -108,9 +102,7 @@ theorem construct_consume {r κ n w : ℕ} {a : Arena} (c : Host.Callee r)
   obtain ⟨y, hy, hyb, hya, hyp, hym, hyf⟩ := exec_consume_emission c e
     (x.comap (preprocessingRegisters r)) v em hc hv hw hresources (by omega) hlenv
     ((hframe _).trans henv) ((hframe _).trans hone) (by rw [hframe]; exact hb)
-  refine ⟨v, y, he, hy, ⟨em⟩, hyb, ?_, hyp, ?_, hyf⟩
-  · rw [hya, hframe]
-  · intro i hi
-    exact (hym i hi).trans (hframe i)
+  exact ⟨v, y, he, hy, ⟨em⟩, hyb, by rw [hya, hframe], hyp,
+    fun i hi => (hym i hi).trans (hframe i), hyf⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision.Visitor

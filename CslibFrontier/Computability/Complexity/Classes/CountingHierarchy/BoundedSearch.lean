@@ -35,21 +35,12 @@ theorem exists_range (D : Decoder enc) {V : α × ℕ → Bool} {r : α → ℕ}
     (hr : ComputableInPolyTime r enc encNat) :
     (fun x => decide (∃ i < r x, V (x, i) = true)) ∈
       CountingFunction (a + 1) enc encBool := by
-  have hsum := sum_range D (map hV
-    (ComputableInPolyTime.of_finite Bool.toNat)) hr
-  have h := map hsum (g := fun n : ℕ => decide (0 < n)) (by fun_prop)
-  convert h using 1
+  convert map (sum_range D (map hV (ComputableInPolyTime.of_finite Bool.toNat)) hr)
+    (g := fun n : ℕ => decide (0 < n)) (by fun_prop) using 1
   funext x
-  congr 1
-  apply propext
-  rw [Finset.sum_pos_iff]
-  simp only [Finset.mem_range]
-  constructor
-  · rintro ⟨i, hi, htrue⟩
-    exact ⟨i, hi, by simp only [htrue, Bool.toNat_true]; omega⟩
-  · rintro ⟨i, hi, hpos⟩
-    refine ⟨i, hi, ?_⟩
-    cases hvi : V (x, i) <;> simp_all
+  simp only [decide_eq_decide, Finset.sum_pos_iff, Finset.mem_range]
+  exact ⟨fun ⟨i, hi, htrue⟩ => ⟨i, hi, by simp [htrue]⟩,
+    fun ⟨i, hi, hpos⟩ => ⟨i, hi, by cases hvi : V (x, i) <;> simp_all⟩⟩
 
 open Classical in
 /-- Universal quantification over a short binary interval also costs one function level. -/
@@ -58,9 +49,8 @@ theorem forall_range (D : Decoder enc) {V : α × ℕ → Bool} {r : α → ℕ}
     (hr : ComputableInPolyTime r enc encNat) :
     (fun x => decide (∀ i < r x, V (x, i) = true)) ∈
       CountingFunction (a + 1) enc encBool := by
-  have hnot := map hV ComputableInPolyTime.bool_not
-  have h := map (exists_range D hnot hr) ComputableInPolyTime.bool_not
-  convert h using 1
+  convert map (exists_range D (map hV ComputableInPolyTime.bool_not) hr)
+    ComputableInPolyTime.bool_not using 1
   funext x
   simp only [← decide_not, Bool.not_eq_true', not_exists, not_and, Bool.not_eq_false]
 
@@ -92,23 +82,17 @@ theorem firstEventTest_mem_CountingFunction {α : Type} {enc : α ↪ List Bool}
     (hr : ComputableInPolyTime r enc encNat) :
     firstEventTest event test r ∈ CountingFunction (a + 2) enc encBool := by
   classical
-  have hnot : (fun x => !(event x)) ∈ CountingFunction a (encPair enc encNat) encBool :=
-    CountingFunction.map hevent ComputableInPolyTime.bool_not
-  have hprevious :
-      (fun x : (α × ℕ) × ℕ => !(event (x.1.1, x.2))) ∈
-        CountingFunction a (encPair (encPair enc encNat) encNat) encBool :=
-    CountingFunction.preprocess hnot (g := fun x : (α × ℕ) × ℕ => (x.1.1, x.2))
-      (by fun_prop)
   have hfirst := CountingFunction.forall_range (Decoder.pair D Decoder.nat)
-    hprevious (ComputableInPolyTime.snd _ _)
+    (CountingFunction.preprocess (CountingFunction.map hevent ComputableInPolyTime.bool_not)
+      (g := fun x : (α × ℕ) × ℕ => (x.1.1, x.2)) (by fun_prop))
+    (ComputableInPolyTime.snd _ _)
   have hguard := CountingFunction.map
     (CountingFunction.prod (CountingFunction.mono (Nat.le_succ a) hevent)
       (CountingFunction.prod (CountingFunction.mono (Nat.le_succ a) htest) hfirst))
     (g := fun p : Bool × Bool × Bool => p.1 && (p.2.1 && p.2.2)) (by fun_prop)
-  have h := CountingFunction.exists_range D hguard hr
   change (fun x => decide (∃ i < r x, event (x, i) = true ∧ test (x, i) = true ∧
     ∀ j < i, event (x, j) = false)) ∈ CountingFunction (a + 2) enc encBool
-  simpa only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true',
-    and_assoc] using h
+  simpa only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true', and_assoc] using
+    CountingFunction.exists_range D hguard hr
 
 end Cslib.Complexity

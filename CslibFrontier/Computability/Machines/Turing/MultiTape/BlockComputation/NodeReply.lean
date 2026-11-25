@@ -63,10 +63,6 @@ theorem reply_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have hother := budget_prod htag hempty
   refine (budget_ite hleaf (budget_ite hcapacity hsuccess hfailure) hother).of_enc_eq ?_
   rintro ⟨address, limit, m, r⟩
-  by_cases hc : r ≤ limit.size
-  · have hn : ¬limit.size < r := by omega
-    simp [reply, hc, hn]
-  · have hn : limit.size < r := by omega
-    simp [reply, hc, hn]
+  simp [reply]
 
 end Turing.MultiTapePTM.BlockComputation.NodeReply

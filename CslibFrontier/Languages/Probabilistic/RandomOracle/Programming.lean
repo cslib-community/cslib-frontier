@@ -13,6 +13,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Random-oracle min-entropy programming and birthday collision bounds
@@ -125,14 +126,11 @@ theorem map_comp_apply_le_of_injective {α β Query : Type*} {μ : PMF α}
   rw [← PMF.map_comp, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
   by_cases hq : ∃ b, emb b = q
   · obtain ⟨b, rfl⟩ := hq
-    have hpre : emb ⁻¹' {emb b} = {b} := by
-      ext b'
-      exact hemb.eq_iff
+    have hpre : emb ⁻¹' {emb b} = {b} := Set.ext fun _ => hemb.eq_iff
     rw [hpre, PMF.toOuterMeasure_apply_singleton]
     exact hμ b
-  · have hempty : emb ⁻¹' {q} = ∅ :=
-      Set.eq_empty_iff_forall_notMem.mpr fun b hb => hq ⟨b, hb⟩
-    simp [hempty]
+  · rw [show emb ⁻¹' {q} = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun b hb => hq ⟨b, hb⟩]
+    simp
 
 end MinEntropyLookup
 
@@ -308,11 +306,8 @@ private theorem lazyProgramStep_map_fst [BEq Query]
     split_ifs with h
     · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.map_comp]
       exact congrArg (PMF.bind _) (funext fun ts => (PMF.bind_pure_comp _ _).symm)
-    · simp only [PMF.map_comp]
-      rfl
-  | inr q =>
-    simp only [lazyProgramStep, lazyProgramHandler, PMF.map_comp]
-    rfl
+    · exact PMF.map_comp _ _ _
+  | inr q => exact PMF.map_comp _ _ _
 
 private theorem overwriteProgramStep_map_fst [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -331,11 +326,8 @@ private theorem overwriteProgramStep_map_fst [BEq Query]
     split_ifs with h
     · simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.map_comp]
       exact congrArg (PMF.bind _) (funext fun ts => (PMF.bind_pure_comp _ _).symm)
-    · simp only [PMF.map_comp]
-      rfl
-  | inr q =>
-    simp only [overwriteProgramStep, overwriteProgramHandler, PMF.map_comp]
-    rfl
+    · exact PMF.map_comp _ _ _
+  | inr q => exact PMF.map_comp _ _ _
 
 private theorem lazyProgramStep_agree_overwriteProgramStep [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -358,13 +350,9 @@ private theorem lazyProgramStep_agree_overwriteProgramStep [BEq Query]
       cases hlookup : cache.lookup (point req ts) with
       | some c₀ =>
         refine ((PMF.apply_eq_zero_iff _ _).mpr fun hx => ?_).trans
-          ((PMF.apply_eq_zero_iff _ _).mpr fun hx => ?_).symm
-        · obtain ⟨res, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-          have hb := congrArg (fun p => p.2.2) heq
-          simp at hb
-        · obtain ⟨c, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-          have hb := congrArg (fun p => p.2.2) heq
-          simp at hb
+          ((PMF.apply_eq_zero_iff _ _).mpr fun hx => ?_).symm <;>
+        · obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+          exact absurd (congrArg (·.2.2) heq) (by simp)
       | none =>
         rw [memoize_of_none _ _ _ hlookup]
         simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
@@ -424,6 +412,13 @@ theorem run_flaggedOverwriteProgramHandler_map_fst [BEq Query]
     (overwriteProgramStep_map_fst dist active inactive samplePre point finish)
     program st b
 
+private theorem grow_length_memoize {Query Digest : Type} [BEq Query]
+    (dist : PMF Digest) (key : Query) (cache : List (Query × Digest))
+    (x : Digest × List (Query × Digest))
+    (hx : x ∈ (memoize (fun _ => dist) key cache).support) :
+    x.2.length ≤ cache.length + 1 := by
+  rcases (mem_support_memoize_iff _ _ _ _).mp hx with ⟨-, h⟩ | ⟨-, -, h⟩ <;> simp [h]
+
 private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Query]
     (dist : PMF Digest) (active : Req → Bool)
     (inactive : (req : Req) → active req = false → Log → PMF (Reply req × Log))
@@ -436,18 +431,16 @@ private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Que
       {x | FlagBad x.2} ≤
       (Sum.elim (fun _ : Req => 1) (fun _ : Query => 0) q * st.1.1.length : ℕ) * δ := by
   obtain ⟨⟨cache, log⟩, b⟩ := st
-  have hb : b = false := Bool.eq_false_iff.mpr hst
+  have hb := Bool.eq_false_iff.mpr hst
   subst hb
   simp only [flaggedLazyProgramHandler, withBadFlag_false]
   cases q with
   | inl req =>
     simp only [Sum.elim_inl, one_mul, lazyProgramStep]
     split_ifs with h
-    · set inner : Coins req →
-          PMF (Reply req × ((List (Query × Digest) × Log) × Bool)) := fun ts =>
-        (memoize (fun _ => dist) (point req ts) cache).map fun res =>
-          ((finish req ts res.1 log).1, ((res.2, (finish req ts res.1 log).2),
-            (cache.lookup (point req ts)).isSome))
+    · let inner (ts : Coins req) := (memoize (fun _ => dist) (point req ts) cache).map fun res =>
+        ((finish req ts res.1 log).1, ((res.2, (finish req ts res.1 log).2),
+          (cache.lookup (point req ts)).isSome))
       change ((samplePre req).bind inner).toOuterMeasure {x | FlagBad x.2} ≤ _
       rw [PMF.toOuterMeasure_bind_apply]
       calc ∑' ts, (samplePre req) ts * (inner ts).toOuterMeasure {x | FlagBad x.2}
@@ -459,25 +452,19 @@ private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Que
                 (show ts ∈ {ts : Coins req | (cache.lookup (point req ts)).isSome} from hts),
                 Pi.one_apply]
               exact PMF.toOuterMeasure_le_one _ _
-            · rw [Set.indicator_of_notMem
-                (show ts ∉ {ts : Coins req | (cache.lookup (point req ts)).isSome} from hts)]
-              refine le_of_eq ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr ?_)
-              refine Set.disjoint_left.mpr fun x hx hbad => ?_
-              obtain ⟨res, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-              exact hts hbad
+            · rw [Set.indicator_of_notMem (show ts ∉ {ts : Coins req |
+                (cache.lookup (point req ts)).isSome} from hts)]
+              dsimp only [inner]
+              rw [PMF.toOuterMeasure_map_apply]
+              simp [FlagBad, hts]
         _ = (samplePre req).toOuterMeasure {ts | (cache.lookup (point req ts)).isSome} :=
             (PMF.toOuterMeasure_eq_tsum_mul_indicator _ _).symm
         _ ≤ cache.length * δ := toOuterMeasure_lookup_isSome_le_aux (hminEnt req h) cache
-    · refine le_of_eq_of_le ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr ?_) zero_le
-      refine Set.disjoint_left.mpr fun x hx hbad => ?_
-      obtain ⟨res, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact Bool.false_ne_true hbad
+    · rw [PMF.toOuterMeasure_map_apply]
+      simp [FlagBad]
   | inr q =>
-    simp only [Sum.elim_inr, zero_mul, Nat.cast_zero, lazyProgramStep]
-    refine le_of_eq ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr ?_)
-    refine Set.disjoint_left.mpr fun x hx hbad => ?_
-    obtain ⟨res, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-    exact Bool.false_ne_true hbad
+    simp only [Sum.elim_inr, zero_mul, Nat.cast_zero, lazyProgramStep, PMF.toOuterMeasure_map_apply]
+    simp [FlagBad]
 
 private theorem length_cache_flaggedLazyProgramHandler_le [BEq Query]
     (dist : PMF Digest) (active : Req → Bool)
@@ -491,32 +478,17 @@ private theorem length_cache_flaggedLazyProgramHandler_le [BEq Query]
       (flaggedLazyProgramHandler dist active inactive samplePre point finish q st).support) :
     x.2.1.1.length ≤ st.1.1.length + 1 := by
   obtain ⟨⟨cache, log⟩, b⟩ := st
-  simp only [flaggedLazyProgramHandler, withBadFlag, PMF.mem_support_map_iff] at hx
-  obtain ⟨⟨ans, ⟨cache', log'⟩, b'⟩, hmem, rfl⟩ := hx
+  supp_cases hx [flaggedLazyProgramHandler, withBadFlag] with ⟨⟨ans, ⟨cache', log'⟩, b'⟩, hmem, rfl⟩
   dsimp only [Prod.map, id_eq]
   cases q with
   | inl req =>
-    dsimp only [lazyProgramStep] at hmem
-    split_ifs at hmem with h
-    · obtain ⟨ts, -, hmem⟩ := (PMF.mem_support_bind_iff _ _ _).mp hmem
-      obtain ⟨res, hm, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-      have hc : res.2 = cache' := (Prod.mk.inj (Prod.mk.inj (Prod.mk.inj heq).2).1).1
-      subst hc
-      rcases (mem_support_memoize_iff _ _ _ _).mp hm with ⟨-, hnext⟩ | ⟨-, -, hnext⟩
-      · rw [hnext]; exact Nat.le_succ _
-      · rw [hnext, List.length_cons]
-    · obtain ⟨res, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-      have hc : cache = cache' := (Prod.mk.inj (Prod.mk.inj (Prod.mk.inj heq).2).1).1
-      subst hc
-      exact Nat.le_succ _
+    supp_cases hmem [lazyProgramStep] with
+      ⟨_, ts, -, res, hm, -, ⟨rfl, -⟩, -⟩ | ⟨_, res, -, -, ⟨rfl, -⟩, -⟩
+    · exact grow_length_memoize dist _ cache res hm
+    · exact Nat.le_succ _
   | inr q =>
-    dsimp only [lazyProgramStep] at hmem
-    obtain ⟨res, hm, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-    have hc : res.2 = cache' := (Prod.mk.inj (Prod.mk.inj (Prod.mk.inj heq).2).1).1
-    subst hc
-    rcases (mem_support_memoize_iff _ _ _ _).mp hm with ⟨-, hnext⟩ | ⟨-, -, hnext⟩
-    · rw [hnext]; exact Nat.le_succ _
-    · rw [hnext, List.length_cons]
+    supp_cases hmem [lazyProgramStep] with ⟨res, hm, -, ⟨rfl, -⟩, -⟩
+    exact grow_length_memoize dist q cache res hm
 
 /-- **Sharpened adaptive RO programming collision bound (`OracleComp`)**: for a program making at
 most `q_S` `.inl` calls and `q_H` `.inr` random-oracle calls from `(cache, log)`, the probability
@@ -796,10 +768,8 @@ private theorem nodup_fst_step_memoize {Query Digest : Type} [BEq Query] [Lawful
     rw [hnext, List.map_cons, List.nodup_cons]
     refine ⟨fun hkey => ?_, hc⟩
     obtain ⟨e, he, heq⟩ := List.mem_map.mp hkey
-    have hsome : (c.lookup key).isSome = true :=
-      List.lookup_isSome_iff.mpr ⟨e, he, heq ▸ beq_self_eq_true e.1⟩
-    rw [hlookup] at hsome
-    exact Bool.false_ne_true hsome
+    have hs := List.lookup_isSome_iff.mpr ⟨e, he, beq_iff_eq.mpr heq.symm⟩
+    simp [hlookup] at hs
 
 /-- `memoize` preserves key distinctness `(cache.map Prod.fst).Nodup` across every adaptive
 execution, because cache hits reuse existing entries without prepending a duplicate key. -/
@@ -818,68 +788,38 @@ equivalent to `¬(cache.map Prod.snd).Nodup`. -/
 theorem hasOutputCollision_iff_not_nodup_snd {Query Digest : Type*}
     {cache : List (Query × Digest)} (hfst : (cache.map Prod.fst).Nodup) :
     HasOutputCollision cache ↔ ¬(cache.map Prod.snd).Nodup := by
-  constructor
-  · rintro ⟨e₁, he₁, e₂, he₂, hne, heq⟩ hnodup
-    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem he₁
-    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem he₂
-    have hij : i ≠ j := fun h => hne (by subst h; rfl)
-    have hget : (cache.map Prod.snd)[i]'(by simpa using hi) =
-        (cache.map Prod.snd)[j]'(by simpa using hj) := by simp [heq]
-    exact hij ((hnodup.getElem_inj_iff).mp hget)
-  · intro hnot
-    obtain ⟨i, j, hget, hij⟩ :=
-      Function.not_injective_iff.mp (mt List.nodup_iff_injective_get.mpr hnot)
-    have hi : i.val < cache.length := by simpa using i.isLt
-    have hj : j.val < cache.length := by simpa using j.isLt
-    have hkey : cache[i.val].1 ≠ cache[j.val].1 := fun hk => by
-      have hgetFst : (cache.map Prod.fst)[i.val]'(by simpa using hi) =
-          (cache.map Prod.fst)[j.val]'(by simpa using hj) := by simp [hk]
-      exact Fin.val_ne_of_ne hij ((hfst.getElem_inj_iff).mp hgetFst)
-    refine ⟨cache[i.val], List.getElem_mem hi, cache[j.val], List.getElem_mem hj, hkey, ?_⟩
-    simpa using hget
+  rw [List.nodup_map_iff_inj_on (hfst.of_map Prod.fst)]
+  have hinj := (List.nodup_map_iff_inj_on (hfst.of_map Prod.fst)).mp hfst
+  refine ⟨fun ⟨e₁, he₁, e₂, he₂, hne, heq⟩ h => hne (congrArg Prod.fst (h e₁ he₁ e₂ he₂ heq)),
+    fun h => ?_⟩
+  push Not at h
+  obtain ⟨e₁, he₁, e₂, he₂, heq, hne⟩ := h
+  exact ⟨e₁, he₁, e₂, he₂, fun hk => hne (hinj e₁ he₁ e₂ he₂ hk), heq⟩
 
 private theorem step_not_nodup_snd_memoize_le {Query Digest : Type} [BEq Query]
     (dist : PMF Digest) {δ : ℝ≥0∞} (hdist : ∀ y, dist y ≤ δ)
     (key : Query) (cache : List (Query × Digest)) (hgood : ¬¬(cache.map Prod.snd).Nodup) :
     (memoize (fun _ => dist) key cache).toOuterMeasure
       {x | ¬(x.2.map Prod.snd).Nodup} ≤ cache.length * δ := by
-  have hnodup : (cache.map Prod.snd).Nodup := not_not.mp hgood
+  have hnodup := not_not.mp hgood
   cases hlookup : cache.lookup key with
   | some v =>
     rw [memoize_of_some _ _ _ _ hlookup]
-    simp only [PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply]
-    split_ifs with hbad
-    · exact absurd hnodup hbad
-    · exact zero_le
+    simp [PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply, hnodup]
   | none =>
-    have hnone : memoize (fun _ => dist) key cache =
-        dist.map (fun y => (y, (key, y) :: cache)) := by
-      rw [memoize_of_none _ _ _ hlookup]
-      exact PMF.bind_pure_comp _ dist
-    rw [hnone, PMF.toOuterMeasure_map_apply]
+    rw [memoize_of_none _ _ _ hlookup, show dist >>= (fun y => pure (y, (key, y) :: cache)) =
+        dist.map (fun y => (y, (key, y) :: cache)) from PMF.bind_pure_comp _ dist,
+      PMF.toOuterMeasure_map_apply]
     have hsub : (fun y => (y, (key, y) :: cache)) ⁻¹' {x | ¬(x.2.map Prod.snd).Nodup} ⊆
-        {y | ∃ e' ∈ cache.map Prod.swap, e'.1 = id y} := by
-      intro y hy
+        {y | ∃ e' ∈ cache.map Prod.swap, e'.1 = id y} := fun y hy => by
       change ¬(((key, y) :: cache).map Prod.snd).Nodup at hy
       rw [List.map_cons, List.nodup_cons] at hy
-      have hmem : y ∈ cache.map Prod.snd := by
-        by_contra hnot
-        exact hy ⟨hnot, hnodup⟩
+      have hmem : y ∈ cache.map Prod.snd := Classical.not_not.mp fun hnot => hy ⟨hnot, hnodup⟩
       obtain ⟨e, he, rfl⟩ := List.mem_map.mp hmem
       exact ⟨e.swap, List.mem_map_of_mem he, rfl⟩
     refine (MeasureTheory.measure_mono hsub).trans ?_
-    simpa only [List.length_map] using
-      toOuterMeasure_exists_mem_fst_eq_le (f := id)
-        (by simpa only [PMF.map_id] using hdist) (cache.map Prod.swap)
-
-private theorem grow_length_memoize {Query Digest : Type} [BEq Query]
-    (dist : PMF Digest) (key : Query) (cache : List (Query × Digest))
-    (x : Digest × List (Query × Digest))
-    (hx : x ∈ (memoize (fun _ => dist) key cache).support) :
-    x.2.length ≤ cache.length + 1 := by
-  rcases (mem_support_memoize_iff _ _ _ _).mp hx with ⟨-, hnext⟩ | ⟨-, -, hnext⟩
-  · rw [hnext]; exact Nat.le_succ _
-  · rw [hnext, List.length_cons]
+    simpa only [List.length_map] using toOuterMeasure_exists_mem_fst_eq_le (f := id)
+      (by simpa only [PMF.map_id] using hdist) (cache.map Prod.swap)
 
 /-- **Min-entropy random-oracle output-collision bound (`OracleComp`)**: if `∀ y, dist y ≤ δ` and
 `program` makes at most `q` queries starting from `cache` with `(cache.map Prod.snd).Nodup`, then
@@ -948,16 +888,9 @@ private theorem toOuterMeasure_hasOutputCollision_eq_not_nodup_snd {Query Digest
   simp only [PMF.toOuterMeasure_apply]
   refine tsum_congr fun ⟨res, cache'⟩ => ?_
   by_cases hmem : (res, cache') ∈ μ.support
-  · have hiff := hasOutputCollision_iff_not_nodup_snd (hnodup res cache' hmem)
-    by_cases hc : HasOutputCollision cache'
-    · rw [Set.indicator_of_mem (show (res, cache') ∈ {x | HasOutputCollision x.2} from hc),
-        Set.indicator_of_mem (show (res, cache') ∈ {x | ¬(x.2.map Prod.snd).Nodup} from
-          hiff.mp hc)]
-    · rw [Set.indicator_of_notMem (show (res, cache') ∉ {x | HasOutputCollision x.2} from hc),
-        Set.indicator_of_notMem (show (res, cache') ∉ {x | ¬(x.2.map Prod.snd).Nodup} from
-          fun hn => hc (hiff.mpr hn))]
-  · have hz : μ (res, cache') = 0 := (PMF.apply_eq_zero_iff _ _).mpr hmem
-    simp only [Set.indicator_apply, hz, ite_self]
+  · simp only [Set.indicator_apply, Set.mem_ofPred_eq,
+      hasOutputCollision_iff_not_nodup_snd (hnodup res cache' hmem)]
+  · simp only [Set.indicator_apply, (PMF.apply_eq_zero_iff _ _).mpr hmem, ite_self]
 
 /-- **Random-oracle birthday bound (`OracleComp`, distinct-key `HasOutputCollision` form)**: a
 `q`-query adaptive program against `memoize (fun _ => PMF.uniformOfFintype Digest)` from `[]`

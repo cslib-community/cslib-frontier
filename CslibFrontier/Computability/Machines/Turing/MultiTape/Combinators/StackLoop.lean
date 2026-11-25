@@ -238,20 +238,16 @@ theorem ComputableInO.stackLoop {δ α γ : Type} {encIn : δ ↪ List Bool}
   set c0 := cP + cN + cH + 100 with hc0
   set d0 := cP + cN + cH + 25 * kk + 300 with hd0
   -- the costs of the halting tests and of the rounds
-  have hH0 (x : δ) : Th (L.step^[0] (init x, [])).1 + Sh (L.step^[0] (init x, [])).1 +
-      (encA (L.step^[0] (init x, [])).1).length ≤
-      ∑ i ∈ Finset.range (n x + 1), (Th (L.step^[i] (init x, [])).1 +
-        Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length) :=
-    Finset.single_le_sum (f := fun i => Th (L.step^[i] (init x, [])).1 +
-      Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.succ_pos _))
-  have hHn (x : δ) : Th (L.step^[n x] (init x, [])).1 + Sh (L.step^[n x] (init x, [])).1 +
-      (encA (L.step^[n x] (init x, [])).1).length ≤
-      ∑ i ∈ Finset.range (n x + 1), (Th (L.step^[i] (init x, [])).1 +
-        Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length) :=
-    Finset.single_le_sum (f := fun i => Th (L.step^[i] (init x, [])).1 +
-      Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.lt_succ_self _))
+  let wCost (x : δ) (i : ℕ) := Th (L.step^[i] (init x, [])).1 +
+    Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length
+  let vCost (x : δ) (i : ℕ) := Tr (roundInput (L.step^[i] (init x, []))) +
+    Sr (roundInput (L.step^[i] (init x, []))) +
+    (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
+    (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length
+  have hH0 (x : δ) : wCost x 0 ≤ ∑ i ∈ Finset.range (n x + 1), wCost x i :=
+    Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.succ_pos _))
+  have hHn (x : δ) : wCost x (n x) ≤ ∑ i ∈ Finset.range (n x + 1), wCost x i :=
+    Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.lt_succ_self _))
   refine ComputableInO.of_bounds ⟨kk + 6, _, by infer_instance, _,
     fun x => (computesTidily_of_runsBetween (key x)).computesInTimeAndSpace⟩
     (4 * (cI + cH + c0 + 50) + 8 * (cI + cH + d0 + 20 * kk + 200) + 1) ?_ ?_ ?_
@@ -260,53 +256,40 @@ theorem ComputableInO.stackLoop {δ α γ : Type} {encIn : δ ↪ List Bool}
       (u := fun i => StackLoopKernel.roundTime encA encG L.round (fun a => cH * (Th a + 1))
         (fun z => cP * (Tr z + 1)) (fun z => cN * (Tr z + 1)) (fun i => L.step^[i] (init x, []))
         i + 1)
-      (v := fun i => Tr (roundInput (L.step^[i] (init x, []))) +
-        Sr (roundInput (L.step^[i] (init x, []))) +
-        (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-        (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length)
-      (w := fun i => Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-        (encA (L.step^[i] (init x, [])).1).length)
+      (v := vCost x) (w := wCost x)
       (fun i _ => by
         simp only [StackLoopKernel.roundTime, StackLoopKernel.zIn, roundInput,
-          Function.iterate_succ_apply', StackLoop.step]
+          Function.iterate_succ_apply', StackLoop.step, vCost, wCost]
         generalize L.step^[i] (init x, []) = st
         generalize L.round (st.2.head?, st.1) = rr
         exact round_time_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
     have h0 := hH0 x
     have hn := hHn x
+    dsimp only [wCost] at h0 hn
     exact total_time_arith (by omega) hsum (lI x) (by omega) (by omega)
   · intro x
     have hsum := sum_le_of_round (n := n x) (c := d0)
       (u := fun i => StackLoopKernel.roundSpace encA encG L.round
         (fun a => cH * (Sh a + 1) + (kk - kH)) (fun z => cP * (Sr z + 1) + (kk - kP))
         (fun z => cN * (Sr z + 1) + (kk - kN)) kk (fun i => L.step^[i] (init x, [])) i + (kk + 6))
-      (v := fun i => Tr (roundInput (L.step^[i] (init x, []))) +
-        Sr (roundInput (L.step^[i] (init x, []))) +
-        (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-        (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length)
-      (w := fun i => Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-        (encA (L.step^[i] (init x, [])).1).length)
+      (v := vCost x) (w := wCost x)
       (fun i _ => by
         simp only [StackLoopKernel.roundSpace, StackLoopKernel.zIn, roundInput,
-          Function.iterate_succ_apply', StackLoop.step]
+          Function.iterate_succ_apply', StackLoop.step, vCost, wCost]
         generalize L.step^[i] (init x, []) = st
         generalize L.round (st.2.head?, st.1) = rr
         exact round_space_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
     have h0 := hH0 x
     have hn := hHn x
+    dsimp only [wCost] at h0 hn
     exact total_space_arith (by omega) hsum (lI x) (by omega) (by omega)
   · intro x
     have hn := hHn x
-    have hK := Nat.le_mul_of_pos_left ((encIn x).length + Ti x + Si x +
-        ∑ i ∈ Finset.range (n x + 1),
-          (Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-            (encA (L.step^[i] (init x, [])).1).length) +
-        ∑ i ∈ Finset.range (n x),
-          (Tr (roundInput (L.step^[i] (init x, []))) + Sr (roundInput (L.step^[i] (init x, []))) +
-            (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-            (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length) +
-          1)
+    have hK := Nat.le_mul_of_pos_left
+      ((encIn x).length + Ti x + Si x + ∑ i ∈ Finset.range (n x + 1), wCost x i +
+        ∑ i ∈ Finset.range (n x), vCost x i + 1)
       (show 0 < 4 * (cI + cH + c0 + 50) + 8 * (cI + cH + d0 + 20 * kk + 200) + 1 by omega)
+    dsimp only [wCost, vCost] at hn hK
     omega
 
 end Turing.MultiTapeTM

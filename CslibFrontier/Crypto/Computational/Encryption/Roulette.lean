@@ -302,14 +302,11 @@ private theorem isPPT_rouletteToDEMAdversary_choose {encIndex : Fin 37 ↪ List 
         encNat encIndex :=
     ((ComputableInPolyTime.unary_finMod (by decide : 0 < 37) encIndex).comp hmod_unary).of_enc_eq
       (fun x => congrArg encIndex (Fin.ext (Nat.mod_mod x 37).symm))
-  have hpack :
-      ComputableInPolyTime
-        (fun r : Fin 37 => ((r, (0 : Fin 37)), encUnary r.val))
-        encIndex (encChoiceOut encIndex) :=
-    ComputableInPolyTime.of_finite _
   exact IsPPTOn.isPPT (by
     simpa [rouletteToDEMAdversary, rouletteReduction, bind_assoc, pure_bind,
-      Function.comp_def] using hsample.map (hpack.comp hfin))
+      Function.comp_def] using hsample.map
+        ((ComputableInPolyTime.of_finite (encOut := encChoiceOut encIndex)
+          fun r : Fin 37 => ((r, (0 : Fin 37)), encUnary r.val)).comp hfin))
 
 private theorem isPPT_rouletteToDEMAdversary_guess (width : ℕ → ℕ)
     {encBet : RouletteBet ↪ List Bool}
@@ -319,34 +316,17 @@ private theorem isPPT_rouletteToDEMAdversary_guess (width : ℕ → ℕ)
   let encFin37 : Fin 37 ↪ List Bool := encFinite (Fin 37)
   have hfirst :
       IsPPTOn encGuessInput encBet (fun p : ℕ × List Bool × List Bool => A p.1 p.2.2) :=
-    hA.on.preprocess
-      ((ComputableInPolyTime.fst encUnary (encPair encBits encBits)).prod
-        ((ComputableInPolyTime.snd encBits encBits).comp
-          (ComputableInPolyTime.snd encUnary (encPair encBits encBits))))
-  have hlen :
-      ComputableInPolyTime (fun p : (ℕ × List Bool × List Bool) × RouletteBet => p.1.2.1.length)
-        (encPair encGuessInput encBet) encUnary :=
-    ComputableInPolyTime.length_bits_comp
-      ((ComputableInPolyTime.fst encBits encBits).comp
-        ((ComputableInPolyTime.snd encUnary (encPair encBits encBits)).comp
-          (ComputableInPolyTime.fst encGuessInput encBet)))
+    hA.on.preprocess (prepare := fun p : ℕ × List Bool × List Bool => (p.1, p.2.2)) (by fun_prop)
   have hidx :
       ComputableInPolyTime
         (fun p : (ℕ × List Bool × List Bool) × RouletteBet =>
           (⟨p.1.2.1.length % 37, Nat.mod_lt _ (by decide)⟩ : Fin 37))
         (encPair encGuessInput encBet) encFin37 :=
-    (ComputableInPolyTime.unary_finMod (by decide : 0 < 37) encFin37).comp hlen
-  have hbet :
-      ComputableInPolyTime
-        (fun p : (ℕ × List Bool × List Bool) × RouletteBet => p.2)
-        (encPair encGuessInput encBet) encBet :=
-    ComputableInPolyTime.snd encGuessInput encBet
-  have hwin :
-      ComputableInPolyTime (fun q : Fin 37 × RouletteBet => rouletteWin q.1 q.2)
-        (encPair encFin37 encBet) encBool :=
-    ComputableInPolyTime.of_finite _
-  simpa [rouletteToDEMAdversary] using
-    hfirst.map_with (hwin.comp (hidx.prod hbet))
+    (ComputableInPolyTime.unary_finMod (by decide : 0 < 37) encFin37).comp
+      (ComputableInPolyTime.length_bits_comp (by fun_prop))
+  simpa [rouletteToDEMAdversary] using hfirst.map_with
+    ((ComputableInPolyTime.of_finite (encOut := encBool)
+      fun q : Fin 37 × RouletteBet => rouletteWin q.1 q.2).comp (hidx.prod (by fun_prop)))
 
 /-- Whenever `width` is polynomial-time computable in unary and `A` is uniform strict PPT,
 `rouletteToDEMAdversary width A` is a uniform strict PPT `AdversaryOf (Fin 37)`. -/
@@ -398,18 +378,7 @@ private theorem eval_uniform_rouletteModGame (keyLen : ℕ → ℕ)
           (BitString.sampleList (keyLen n)) (A n)
       else
         rouletteDEMExperiment keyLen encryptSym A n) := by
-  have hcongr :
-      (fun r : Fin 37 => rouletteModGame keyLen encryptSym A n b r.val) =
-        fun r => ProbComp.eval (do
-          let k ← BitString.sampleList (keyLen n)
-          let ct ← encryptSym n k (if b then 0 else r)
-          let bet ← A n ct
-          pure (rouletteWin r bet)) := by
-    funext r
-    have hr : (⟨r.val % 37, Nat.mod_lt _ (by decide)⟩ : Fin 37) = r :=
-      Fin.ext (Nat.mod_eq_of_lt r.isLt)
-    simp only [rouletteModGame, hr]
-  rw [hcongr]
+  simp only [rouletteModGame, Nat.mod_eq_of_lt (Fin.isLt _), Fin.eta]
   cases b <;>
     simp [rouletteDEMExperiment, rouletteExperiment, idealRouletteExperiment, wordCipher,
       ProbComp.eval_bind, ProbComp.eval_uniform, PMF.map, Function.comp_def]
@@ -458,9 +427,8 @@ theorem rouletteDEMAdvantage_le_demKeyGame_add (width keyLen : ℕ → ℕ)
     rw [Game.advantage_comm]
     simpa [idealExp, dem1, E, sampleKey] using
       advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A true n
-  have hrew : rouletteDEMAdvantage keyLen encryptSym A n = rouletteAdvantage E sampleKey (A n) :=
-    rfl
-  rw [hrew, rouletteAdvantage_eq_advantage_ideal]
+  change rouletteAdvantage E sampleKey (A n) ≤ _
+  rw [rouletteAdvantage_eq_advantage_ideal]
   exact (Game.advantage_four_hop_le h0 h1).trans_eq (by ring)
 
 /-- Asymptotic Theorem 2.9 ([BonehShoup2023], Section 2.2.4, p. 23): under
@@ -478,9 +446,8 @@ theorem DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage
         (demKeyGame keyLen encryptSym (rouletteToDEMAdversary id A) true n)) :=
     hdem (rouletteToDEMAdversary id A)
       (isPPT_rouletteToDEMAdversary ComputableInPolyTime.id' hA)
-  have hstat : Negligible (fun n => (74 : ℝ≥0) / 2 ^ id n) := by
-    simpa only [Nat.cast_ofNat, id_eq] using negligible_const_div_two_pow 74
-  exact negligible_of_le (hadv.add_fun hstat)
+  exact negligible_of_le
+    (hadv.add_fun (by simpa only [Nat.cast_ofNat, id_eq] using negligible_const_div_two_pow 74))
     (rouletteDEMAdvantage_le_demKeyGame_add id keyLen encryptSym A)
 
 end Cslib.Crypto.Encryption

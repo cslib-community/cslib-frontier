@@ -87,32 +87,24 @@ theorem exists_firstOverflow_root_bound (hθ : 0 < θ) :
   have hjr : j + (m - j) = m := Nat.add_sub_of_le hj.le
   have hz : z ≤ η := stationaryState_defaultValue_le_dyadic (truth := truth) hη.le
     (by rw [ha]) (by rw [ha]; linarith) m j hj.le hover.1
-  have hloss (y : ι) (_hy : y ∈ s) (ν : Fin 2) : |loss y ν| ≤ η / 2 := by
-    have h := abs_stationaryState_row_sub_le_dyadic (truth := truth) hη.le m j hj.le
-      hover.1 y ν
+  have hloss (y : ι) (_ : y ∈ s) (ν : Fin 2) : |loss y ν| ≤ η / 2 := by
+    have h := abs_stationaryState_row_sub_le_dyadic (truth := truth) hη.le m j hj.le hover.1 y ν
     rw [stationaryState_row_sub] at h
-    change |loss y ν| ≤ η / 100 at h
-    linarith
-  have hlocalε (i : ℕ) (hi : i ≤ m - j) : 0 ≤ preloadedError ε j i := by
-    cases i with
-    | zero => exact hε j (le_refl j) hj
-    | succ i => exact hε (j + i) (Nat.le_add_right _ _) (by omega)
-  have hlocalerr (i : ℕ) (hi : i ≤ m - j) (y : ι) (hy : y ∈ s) :
-      clippedError (truth y 0) (truth y 1)
-        (uncompressedRow (preloadedIncrement Δ j) raw₀ i y) ≤ preloadedError ε j i := by
-    cases i with
-    | zero =>
-      simpa only [uncompressedRow_zero, preloadedError_zero, raw₀] using
-        (herr j (le_refl j) hj y hy)
-    | succ i =>
+    linarith [show |loss y ν| ≤ η / 100 from h]
+  have hlocalε : ∀ i ≤ m - j, 0 ≤ preloadedError ε j i
+    | 0, _ => hε j le_rfl hj
+    | i + 1, hi => hε (j + i) (Nat.le_add_right _ _) (by omega)
+  have hlocalerr : ∀ i ≤ m - j, ∀ y ∈ s, clippedError (truth y 0) (truth y 1)
+      (uncompressedRow (preloadedIncrement Δ j) raw₀ i y) ≤ preloadedError ε j i
+    | 0, _, y, hy => by
+      simpa only [uncompressedRow_zero, preloadedError_zero, raw₀] using herr j le_rfl hj y hy
+    | i + 1, hi, y, hy => by
       dsimp only [raw₀]
       rw [uncompressedRow_preloadedIncrement j (Nat.succ_pos i), preloadedError_succ]
       simpa only [Nat.add_assoc] using herr (j + i) (Nat.le_add_right _ _) (by omega) y hy
-  have hrow : raw₀ + loss = inputRow s n (fun _ => K) ρ Δ a j := by
-    funext y ν
+  have hrow : raw₀ + loss = inputRow s n (fun _ => K) ρ Δ a j := funext fun y => funext fun ν => by
     dsimp only [raw₀, loss, run, inputRow, Pi.add_apply]
-    rw [uncompressedRow_succ]
-    ring
+    rw [uncompressedRow_succ]; ring
   have hactual : iterate s (fun i => n (j + i)) (fun _ => K) (fun i => ρ (j + i))
       (preloadedIncrement Δ j) ⟨z, raw₀ + loss⟩ (m - j) = run m := by
     rw [hrow]

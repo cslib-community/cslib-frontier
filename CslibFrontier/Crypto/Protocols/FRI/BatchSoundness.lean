@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Probability.PMF.UniformBound
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Positivity
 

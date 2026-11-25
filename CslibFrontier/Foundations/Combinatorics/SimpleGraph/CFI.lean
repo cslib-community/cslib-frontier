@@ -262,13 +262,8 @@ def CFIVertex.support : CFIVertex m f → Finset (Fin m)
 /-- Every CFI vertex has base-vertex support of size at most `2`. -/
 theorem CFIVertex.card_support_le_two (x : CFIVertex m f) : x.support.card ≤ 2 := by
   cases x with
-  | gadget v _ _ => simp only [support_gadget, Finset.card_singleton, Nat.one_le_ofNat]
-  | edge e he _ =>
-    rw [support_edge]
-    exact (Sym2.card_toFinset_of_not_isDiag e he).le
-  | apex e he =>
-    rw [support_apex]
-    exact (Sym2.card_toFinset_of_not_isDiag e he).le
+  | gadget v _ _ => simp
+  | edge e he _ | apex e he => exact (Sym2.card_toFinset_of_not_isDiag e he).le
 
 /-- If two distinct base vertices `u ≠ w` both lie in `x.support`, then no third vertex `w'`
 distinct from `u` and `w` lies in `x.support`. -/
@@ -276,19 +271,10 @@ theorem CFIVertex.notMem_support_of_mem_mem_ne {u w w' : Fin m} {x : CFIVertex m
     (hu : u ∈ x.support) (hw : w ∈ x.support) (huw : u ≠ w) (huw' : w' ≠ u) (hww' : w' ≠ w) :
     w' ∉ x.support := by
   intro hw'
-  have hsub : ({u, w, w'} : Finset (Fin m)) ⊆ x.support := by
-    intro z hz
-    simp only [Finset.mem_insert, Finset.mem_singleton] at hz
-    rcases hz with rfl | rfl | rfl <;> assumption
-  have hcard := Finset.card_le_card hsub
-  have h3 : ({u, w, w'} : Finset (Fin m)).card = 3 := by
-    rw [Finset.card_insert_of_notMem, Finset.card_insert_of_notMem, Finset.card_singleton]
-    · simp only [Finset.mem_singleton]
-      exact hww'.symm
-    · simp only [Finset.mem_insert, Finset.mem_singleton, not_or]
-      exact ⟨huw, huw'.symm⟩
-  have hle := x.card_support_le_two
-  omega
+  have h3 := Finset.card_le_card (s := {u, w, w'}) (t := x.support)
+    (by simp [Finset.insert_subset_iff, *])
+  rw [Finset.card_eq_three.2 ⟨u, w, w', huw, huw'.symm, hww'.symm, rfl⟩] at h3
+  exact absurd (h3.trans x.card_support_le_two) (by omega)
 
 /-- Retype a CFI vertex from twist `f` to twist `g` when `f` and `g` agree outside `u` and
 `u ∉ x.support`. -/
@@ -334,8 +320,7 @@ private theorem pi_add_cancel_right {ι : Type*} (α β : ι → ZMod 2) : α + 
   funext fun i => CharTwo.add_cancel_right (α i) (β i)
 
 private theorem zmod_two_add_add_cancel (x a b : ZMod 2) : x + a + b + a + b = x := by
-  revert x a b
-  decide
+  decide +revert
 
 private def cfiFlipMap {f g : Fin m → ZMod 2} {u w : Fin m} (huw : u ≠ w)
     (hfg : g = f + Pi.single u 1 + Pi.single w 1) : CFIVertex m f → CFIVertex m g
@@ -387,38 +372,23 @@ private theorem cfiFlipMap_adj_gadget_edge {f g : Fin m → ZMod 2} {u w : Fin m
       (cfiFlipMap huw hfg (.edge e he b)) := by
   rw [cfiGraph_adj_gadget_edge] at hadj
   obtain ⟨z, rfl, rfl⟩ := hadj
-  by_cases hvu : v = u
-  · have hwv : w ≠ v := hvu ▸ huw.symm
-    have hedge : (s(v, z.val) = s(u, w)) ↔ z = ⟨w, hwv⟩ := by
-      rw [← hvu, Sym2.congr_right, Subtype.ext_iff]
-    by_cases hz : z = ⟨w, hwv⟩
-    · have heq : s(v, z.val) = s(u, w) := hedge.2 hz
-      rw [cfiFlipMap, dite_eq_left hvu, cfiFlipMap, ite_eq_left heq, cfiGraph_adj_gadget_edge]
-      exact ⟨z, rfl, by rw [Pi.add_apply, hz, Pi.single_eq_same]⟩
-    · have hne : s(v, z.val) ≠ s(u, w) := mt hedge.1 hz
-      rw [cfiFlipMap, dite_eq_left hvu, cfiFlipMap, ite_eq_right hne, cfiGraph_adj_gadget_edge]
-      exact ⟨z, rfl, by rw [Pi.add_apply, Pi.single_eq_of_ne hz, add_zero]⟩
-  · by_cases hvw : v = w
-    · have huv : u ≠ v := hvw ▸ huw
-      have hedge : (s(v, z.val) = s(u, w)) ↔ z = ⟨u, huv⟩ := by
-        rw [Sym2.eq_swap (a := u), ← hvw, Sym2.congr_right, Subtype.ext_iff]
-      by_cases hz : z = ⟨u, huv⟩
-      · have heq : s(v, z.val) = s(u, w) := hedge.2 hz
-        rw [cfiFlipMap, dite_eq_right hvu, dite_eq_left hvw, cfiFlipMap, ite_eq_left heq,
-          cfiGraph_adj_gadget_edge]
-        exact ⟨z, rfl, by rw [Pi.add_apply, hz, Pi.single_eq_same]⟩
-      · have hne : s(v, z.val) ≠ s(u, w) := mt hedge.1 hz
-        rw [cfiFlipMap, dite_eq_right hvu, dite_eq_left hvw, cfiFlipMap, ite_eq_right hne,
-          cfiGraph_adj_gadget_edge]
-        exact ⟨z, rfl, by rw [Pi.add_apply, Pi.single_eq_of_ne hz, add_zero]⟩
-    · have hne : s(v, z.val) ≠ s(u, w) := by
-        intro heq
-        have hvmem : v ∈ s(u, w) := heq ▸ Sym2.mem_mk_left v z.val
-        rw [Sym2.mem_iff] at hvmem
-        exact hvmem.elim hvu hvw
-      rw [cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw, cfiFlipMap, ite_eq_right hne,
-        cfiGraph_adj_gadget_edge]
-      exact ⟨z, rfl, rfl⟩
+  have hz : ∀ d : {z : Fin m // z ≠ v}, s(v, z.val) = s(v, d.val) ↔ z = d := fun d => by
+    rw [Sym2.congr_right, Subtype.ext_iff]
+  rw [cfiFlipMap, cfiFlipMap]
+  split_ifs with hvu heq hvw heq' heq''
+  all_goals rw [cfiGraph_adj_gadget_edge]; refine ⟨z, rfl, ?_⟩
+  · subst hvu
+    rw [Pi.add_apply, (hz ⟨w, huw.symm⟩).1 heq, Pi.single_eq_same]
+  · subst hvu
+    rw [Pi.add_apply, Pi.single_eq_of_ne (mt (hz ⟨w, huw.symm⟩).2 heq), add_zero]
+  · subst hvw
+    rw [Sym2.eq_swap (a := u)] at heq'
+    rw [Pi.add_apply, (hz ⟨u, huw⟩).1 heq', Pi.single_eq_same]
+  · subst hvw
+    rw [Sym2.eq_swap (a := u)] at heq'
+    rw [Pi.add_apply, Pi.single_eq_of_ne (mt (hz ⟨u, huw⟩).2 heq'), add_zero]
+  · exact absurd (heq'' ▸ Sym2.mem_mk_left v z.val) (by simp [hvu, hvw])
+  · rfl
 
 private theorem cfiFlipMap_adj {f g : Fin m → ZMod 2} {u w : Fin m} (huw : u ≠ w)
     (hfg : g = f + Pi.single u 1 + Pi.single w 1) {x y : CFIVertex m f}
@@ -437,26 +407,18 @@ private theorem cfiFlipMap_adj {f g : Fin m → ZMod 2} {u w : Fin m} (huw : u �
     | edge e₂ he₂ b₂ =>
       rw [cfiGraph_adj_edge_edge] at hadj
       obtain ⟨rfl, hne⟩ := hadj
-      by_cases heq : e₁ = s(u, w)
-      · rw [cfiFlipMap, ite_eq_left heq, cfiFlipMap, ite_eq_left heq, cfiGraph_adj_edge_edge]
-        exact ⟨rfl, fun h => hne (add_right_cancel h)⟩
-      · rw [cfiFlipMap, ite_eq_right heq, cfiFlipMap, ite_eq_right heq, cfiGraph_adj_edge_edge]
-        exact ⟨rfl, hne⟩
+      by_cases heq : e₁ = s(u, w) <;> simp [cfiFlipMap, heq, hne]
     | apex e₂ he₂ =>
       rw [cfiGraph_adj_edge_apex] at hadj
       obtain rfl : e₁ = e₂ := hadj
-      by_cases heq : e₁ = s(u, w)
-      · rw [cfiFlipMap, ite_eq_left heq, cfiFlipMap, cfiGraph_adj_edge_apex]
-      · rw [cfiFlipMap, ite_eq_right heq, cfiFlipMap, cfiGraph_adj_edge_apex]
+      by_cases heq : e₁ = s(u, w) <;> simp [cfiFlipMap, heq]
   | apex e₁ he₁ =>
     cases y with
     | gadget _ _ _ => exact absurd hadj (not_cfiGraph_adj_apex_gadget _ _ _ _ _)
     | edge e₂ he₂ b₂ =>
       rw [cfiGraph_adj_apex_edge] at hadj
       obtain rfl : e₁ = e₂ := hadj
-      by_cases heq : e₁ = s(u, w)
-      · rw [cfiFlipMap, cfiFlipMap, ite_eq_left heq, cfiGraph_adj_apex_edge]
-      · rw [cfiFlipMap, cfiFlipMap, ite_eq_right heq, cfiGraph_adj_apex_edge]
+      by_cases heq : e₁ = s(u, w) <;> simp [cfiFlipMap, heq]
     | apex _ _ => exact absurd hadj (not_cfiGraph_adj_apex_apex _ _ _ _)
 
 /-- **Edge-twist isomorphism** ([CaiFurerImmerman1992], Section 6): twisting `f` by `1` at both
@@ -483,16 +445,8 @@ def cfiFlipUpdateIso {u w : Fin m} (huw : u ≠ w) (f : Fin m → ZMod 2) :
     cfiGraph m f ≃g cfiGraph m (Function.update (Function.update f u (f u + 1)) w (f w + 1)) :=
   cfiFlipIso huw (by
     ext v
-    by_cases hvw : v = w
-    · subst hvw
-      simp only [Function.update_self, Pi.add_apply, Pi.single_eq_of_ne huw.symm,
-        Pi.single_eq_same, add_zero]
-    · by_cases hvu : v = u
-      · subst hvu
-        simp only [Function.update_of_ne hvw, Function.update_self, Pi.add_apply,
-          Pi.single_eq_same, Pi.single_eq_of_ne huw, add_zero]
-      · simp only [Function.update_of_ne hvw, Function.update_of_ne hvu, Pi.add_apply,
-          Pi.single_eq_of_ne hvu, Pi.single_eq_of_ne hvw, add_zero])
+    rcases eq_or_ne v w with rfl | hvw <;> rcases eq_or_ne v u with rfl | hvu <;>
+      simp_all)
 
 /-- Shifting a single-vertex twist from `w` to a distinct vertex `u` (`u ≠ w`) via the edge-twist
 isomorphism along `s(u, w)`. -/
@@ -520,6 +474,18 @@ private def cfiBaseMap {f g : Fin m → ZMod 2} (u w : Fin m) (hwu : w ≠ u)
   | .edge e he b => .edge e he b
   | .apex e he => .apex e he
 
+private theorem cfiBaseMap_cfiBaseMap {f g : Fin m → ZMod 2} {u w : Fin m} (hwu : w ≠ u)
+    {h₁ : g u = f u + 1} {h₁' : ∀ v ≠ u, g v = f v} {h₂ : f u = g u + 1}
+    {h₂' : ∀ v ≠ u, f v = g v} (x : CFIVertex m f) :
+    cfiBaseMap u w hwu h₂ h₂' (cfiBaseMap u w hwu h₁ h₁' x) = x := by
+  cases x with
+  | gadget v α hα =>
+    by_cases hvu : v = u
+    · rw [cfiBaseMap, dite_eq_left hvu, cfiBaseMap, dite_eq_left hvu]
+      simp only [pi_add_cancel_right]
+    · rw [cfiBaseMap, dite_eq_right hvu, cfiBaseMap, dite_eq_right hvu]
+  | edge _ _ _ | apex _ _ => rfl
+
 /-- Duplicator's local coordinate bijection `CFIVertex m 0 ≃ CFIVertex m (Pi.single u 1)`, which
 flips coordinate `w` (`w ≠ u`) on `gadget u` and acts as the identity everywhere else. -/
 def cfiBaseEquiv (u w : Fin m) (hwu : w ≠ u) :
@@ -534,24 +500,8 @@ def cfiBaseEquiv (u w : Fin m) (hwu : w ≠ u) :
     fun v hv => (haway1 v hv).symm
   { toFun := cfiBaseMap u w hwu hu1 haway1
     invFun := cfiBaseMap u w hwu hu2 haway2
-    left_inv := fun x => by
-      cases x with
-      | gadget v α hα =>
-        by_cases hvu : v = u
-        · rw [cfiBaseMap, dite_eq_left hvu, cfiBaseMap, dite_eq_left hvu]
-          simp only [pi_add_cancel_right]
-        · rw [cfiBaseMap, dite_eq_right hvu, cfiBaseMap, dite_eq_right hvu]
-      | edge _ _ _ => rfl
-      | apex _ _ => rfl
-    right_inv := fun y => by
-      cases y with
-      | gadget v α hα =>
-        by_cases hvu : v = u
-        · rw [cfiBaseMap, dite_eq_left hvu, cfiBaseMap, dite_eq_left hvu]
-          simp only [pi_add_cancel_right]
-        · rw [cfiBaseMap, dite_eq_right hvu, cfiBaseMap, dite_eq_right hvu]
-      | edge _ _ _ => rfl
-      | apex _ _ => rfl }
+    left_inv := cfiBaseMap_cfiBaseMap hwu
+    right_inv := cfiBaseMap_cfiBaseMap hwu }
 
 /-- Away from `u`, `cfiBaseEquiv u w hwu` agrees with `CFIVertex.castAway u`. -/
 theorem cfiBaseEquiv_eq_castAway {u w : Fin m} (hwu : w ≠ u)
@@ -560,13 +510,9 @@ theorem cfiBaseEquiv_eq_castAway {u w : Fin m} (hwu : w ≠ u)
     cfiBaseEquiv u w hwu x = x.castAway u hfg hu := by
   cases x with
   | gadget v α hα =>
-    have hvu : v ≠ u := fun h => hu (by simp only [CFIVertex.support_gadget,
-      Finset.mem_singleton, h.symm])
-    unfold cfiBaseEquiv
-    dsimp only [Equiv.coe_fn_mk]
-    rw [cfiBaseMap, dite_eq_right hvu, CFIVertex.castAway]
-  | edge _ _ _ => rfl
-  | apex _ _ => rfl
+    have hvu : v ≠ u := by rintro rfl; simp at hu
+    simp only [cfiBaseEquiv, Equiv.coe_fn_mk, cfiBaseMap, dite_eq_right hvu, CFIVertex.castAway]
+  | edge _ _ _ | apex _ _ => rfl
 
 /-- On vertices whose support avoids both `u` and `w`, `cfiSingleFlipIso huw` commutes with
 `CFIVertex.castAway`. -/
@@ -577,20 +523,14 @@ theorem cfiSingleFlipIso_castAway_of_notMem {u w : Fin m} (huw : u ≠ w)
     cfiSingleFlipIso huw (x.castAway w hfw hw) = x.castAway u hfu hu := by
   cases x with
   | gadget v α hα =>
-    have hvu : v ≠ u := fun h => hu (by simp only [CFIVertex.support_gadget,
-      Finset.mem_singleton, h.symm])
-    have hvw : v ≠ w := fun h => hw (by simp only [CFIVertex.support_gadget,
-      Finset.mem_singleton, h.symm])
-    unfold cfiSingleFlipIso cfiFlipIso
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
-    rw [CFIVertex.castAway, cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw, CFIVertex.castAway]
+    have hvu : v ≠ u := by rintro rfl; simp at hu
+    have hvw : v ≠ w := by rintro rfl; simp at hw
+    simp only [cfiSingleFlipIso, cfiFlipIso, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+      CFIVertex.castAway, cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw]
   | edge e he b =>
-    have hne : e ≠ s(u, w) := fun heq => hu (by
-      rw [CFIVertex.support_edge, heq, Sym2.mem_toFinset]
-      exact Sym2.mem_mk_left u w)
-    unfold cfiSingleFlipIso cfiFlipIso
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
-    rw [CFIVertex.castAway, cfiFlipMap, ite_eq_right hne, CFIVertex.castAway]
+    have hne : e ≠ s(u, w) := by rintro rfl; simp at hu
+    simp only [cfiSingleFlipIso, cfiFlipIso, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+      CFIVertex.castAway, cfiFlipMap, ite_eq_right hne]
   | apex _ _ => rfl
 
 /-- On any vertex `x` with `w ∉ x.support`, `cfiSingleFlipIso huw` carries `x.castAway w` to
@@ -601,21 +541,16 @@ theorem cfiSingleFlipIso_castAway_eq_cfiBaseEquiv {u w : Fin m} (huw : u ≠ w)
     cfiSingleFlipIso huw (x.castAway w hfw hw) = cfiBaseEquiv u w huw.symm x := by
   cases x with
   | gadget v α hα =>
-    unfold cfiSingleFlipIso cfiFlipIso cfiBaseEquiv
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
     by_cases hvu : v = u
-    · rw [CFIVertex.castAway, cfiFlipMap, dite_eq_left hvu, cfiBaseMap, dite_eq_left hvu]
-    · have hvw : v ≠ w := fun h => hw (by simp only [CFIVertex.support_gadget,
-        Finset.mem_singleton, h.symm])
-      rw [CFIVertex.castAway, cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw, cfiBaseMap,
-        dite_eq_right hvu]
+    · simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+        CFIVertex.castAway, cfiFlipMap, cfiBaseMap, dite_eq_left hvu]
+    · have hvw : v ≠ w := by rintro rfl; simp at hw
+      simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+        CFIVertex.castAway, cfiFlipMap, cfiBaseMap, dite_eq_right hvu, dite_eq_right hvw]
   | edge e he b =>
-    have hne : e ≠ s(u, w) := fun heq => hw (by
-      rw [CFIVertex.support_edge, heq, Sym2.mem_toFinset]
-      exact Sym2.mem_mk_right u w)
-    unfold cfiSingleFlipIso cfiFlipIso cfiBaseEquiv
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
-    rw [CFIVertex.castAway, cfiFlipMap, ite_eq_right hne, cfiBaseMap]
+    have hne : e ≠ s(u, w) := by rintro rfl; simp at hw
+    simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+      CFIVertex.castAway, cfiFlipMap, cfiBaseMap, ite_eq_right hne]
   | apex _ _ => rfl
 
 /-- When both `u` and `w` (`u ≠ w`) lie in `x.support` and `w'` is distinct from `u` and `w`,
@@ -625,18 +560,13 @@ theorem cfiSingleFlipIso_castAway_eq_cfiBaseEquiv_of_mem {u w w' : Fin m} (huw :
     (hfw' : ∀ v ≠ w', (0 : Fin m → ZMod 2) v = (Pi.single w' 1 : Fin m → ZMod 2) v)
     (x : CFIVertex m 0) (hu : u ∈ x.support) (hw : w ∈ x.support) (hw' : w' ∉ x.support) :
     cfiSingleFlipIso huw' (x.castAway w' hfw' hw') = cfiBaseEquiv u w huw.symm x := by
+  let _ := hww'
+  rw [cfiSingleFlipIso_castAway_eq_cfiBaseEquiv huw' hfw' x hw']
   cases x with
-  | gadget v α hα =>
-    rw [CFIVertex.support_gadget, Finset.mem_singleton] at hu hw
+  | gadget v _ _ =>
+    simp only [CFIVertex.support_gadget, Finset.mem_singleton] at hu hw
     exact absurd (hu.trans hw.symm) huw
-  | edge e he b =>
-    have hne : e ≠ s(u, w') := fun heq => by
-      rw [CFIVertex.support_edge, heq, Sym2.mem_toFinset, Sym2.mem_iff] at hw
-      exact hw.elim huw.symm hww'
-    unfold cfiSingleFlipIso cfiFlipIso cfiBaseEquiv
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
-    rw [CFIVertex.castAway, cfiFlipMap, ite_eq_right hne, cfiBaseMap]
-  | apex _ _ => rfl
+  | edge _ _ _ | apex _ _ => rfl
 
 end EdgeTwist
 
@@ -688,25 +618,14 @@ private theorem not_inTriangle_gadget {f : Fin m → ZMod 2} (v : Fin m)
     (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v) :
     ¬ InTriangle (cfiGraph m f) (.gadget v α hα) := by
   rintro ⟨y, z, hxy, hyz, hxz⟩
-  cases y with
-  | gadget _ _ _ => exact not_cfiGraph_adj_gadget_gadget _ _ _ _ _ _ hxy
-  | apex _ _ => exact not_cfiGraph_adj_gadget_apex _ _ _ _ _ hxy
-  | edge e₁ he₁ b₁ =>
-    cases z with
-    | gadget _ _ _ => exact not_cfiGraph_adj_gadget_gadget _ _ _ _ _ _ hxz
-    | apex _ _ => exact not_cfiGraph_adj_gadget_apex _ _ _ _ _ hxz
-    | edge e₂ he₂ b₂ =>
-      rw [cfiGraph_adj_gadget_edge] at hxy hxz
-      rw [cfiGraph_adj_edge_edge] at hyz
-      obtain ⟨w₁, rfl, rfl⟩ := hxy
-      obtain ⟨w₂, rfl, rfl⟩ := hxz
-      obtain ⟨heq, hne⟩ := hyz
-      have hw : w₁ = w₂ := Subtype.ext (Sym2.congr_right.1 heq)
-      exact hne (congrArg α hw)
+  cases y <;> cases z <;> simp only [cfiGraph_adj_gadget_edge, cfiGraph_adj_edge_edge,
+    not_cfiGraph_adj_gadget_gadget, not_cfiGraph_adj_gadget_apex] at hxy hyz hxz
+  obtain ⟨w₁, rfl, rfl⟩ := hxy
+  obtain ⟨w₂, rfl, rfl⟩ := hxz
+  exact hyz.2 (congrArg α (Subtype.ext (Sym2.congr_right.1 hyz.1)))
 
 private theorem zmod_two_add_one_ne_self (b : ZMod 2) : b + 1 ≠ b := by
-  revert b
-  decide
+  decide +revert
 
 private theorem inTriangle_edge {f : Fin m → ZMod 2} (e : Sym2 (Fin m)) (he : ¬ e.IsDiag)
     (b : ZMod 2) : InTriangle (cfiGraph m f) (.edge e he b) :=
@@ -730,23 +649,13 @@ private theorem isApexLike_apex {f : Fin m → ZMod 2} (e : Sym2 (Fin m)) (he : 
   | edge e' he' b => exact inTriangle_edge e' he' b
   | apex _ _ => exact absurd hy (not_cfiGraph_adj_apex_apex _ _ _ _)
 
-private theorem exists_ne_pair {m : ℕ} (hm : 3 ≤ m) (v w : Fin m) :
-    ∃ u : Fin m, u ≠ v ∧ u ≠ w := by
-  have hlt : ({v, w} : Finset (Fin m)).card < (Finset.univ : Finset (Fin m)).card := by
-    have hcard : ({v, w} : Finset (Fin m)).card ≤ 2 := Finset.card_le_two
-    rw [Finset.card_univ, Fintype.card_fin]
-    omega
-  obtain ⟨u, -, hu⟩ := Finset.exists_mem_notMem_of_card_lt_card hlt
-  rw [Finset.mem_insert, Finset.mem_singleton, not_or] at hu
-  exact ⟨u, hu⟩
-
 private theorem not_isApexLike_edge (hm : 3 ≤ m) {f : Fin m → ZMod 2}
     (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) (b : ZMod 2) :
     ¬ IsApexLike (cfiGraph m f) (.edge e he b) := by
   induction e using Sym2.ind with
   | _ v w =>
     have hvw : v ≠ w := Sym2.mk_isDiag_iff.not.1 he
-    obtain ⟨u, huv, huw⟩ := exists_ne_pair hm v w
+    obtain ⟨u, huv, huw⟩ := Fin.exists_ne_and_ne_of_two_lt v w hm
     let w' : {z : Fin m // z ≠ v} := ⟨w, hvw.symm⟩
     let u' : {z : Fin m // z ≠ v} := ⟨u, huv⟩
     have hwu' : w' ≠ u' := fun h => huw.symm (congrArg Subtype.val h)
@@ -800,7 +709,7 @@ private theorem nearApex_gadget_apex {f : Fin m → ZMod 2} (v : Fin m)
 private theorem eq_of_forall_mem_sym2_iff (hm : 3 ≤ m) {v₁ v₂ : Fin m}
     (h : ∀ (e : Sym2 (Fin m)), ¬ e.IsDiag → (v₁ ∈ e ↔ v₂ ∈ e)) : v₁ = v₂ := by
   by_contra hne
-  obtain ⟨u, huv₁, huv₂⟩ := exists_ne_pair hm v₁ v₂
+  obtain ⟨u, huv₁, huv₂⟩ := Fin.exists_ne_and_ne_of_two_lt v₁ v₂ hm
   have he : ¬ (s(v₁, u) : Sym2 (Fin m)).IsDiag := Sym2.mk_isDiag_iff.not.2 huv₁.symm
   have hv₂ : v₂ ∈ (s(v₁, u) : Sym2 (Fin m)) := (h s(v₁, u) he).1 (Sym2.mem_mk_left v₁ u)
   rw [Sym2.mem_iff] at hv₂
@@ -890,28 +799,28 @@ private theorem iso_gadgetBase_eq (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
   rw [ha_eq, φ.nearApex_iff, φ.nearApex_iff, defaultGadget, nearApex_gadget_apex,
     nearApex_gadget_apex]
 
+private theorem exists_iso_defaultGadget_eq (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
+    (φ : cfiGraph m f ≃g cfiGraph m g) {v v' : Fin m}
+    (hv : gadgetBase hm (φ (defaultGadget hm f v)) = v') :
+    ∃ β hβ, φ (defaultGadget hm f v) = .gadget v' β hβ := by
+  obtain ⟨v'', β, hβ, hv''⟩ := exists_gadget_eq_of_not_inTriangle
+    (φ.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm f v))
+  rw [hv'', gadgetBase] at hv
+  subst hv
+  exact ⟨β, hβ, hv''⟩
+
+private theorem gadgetBase_symm_defaultGadget (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
+    (φ : cfiGraph m f ≃g cfiGraph m g) (v : Fin m) :
+    gadgetBase hm (φ.symm (defaultGadget hm g (gadgetBase hm (φ (defaultGadget hm f v))))) = v := by
+  obtain ⟨β, hβ, hv'⟩ := exists_iso_defaultGadget_eq hm φ rfl
+  rw [← iso_gadgetBase_eq hm φ.symm _ β hβ, ← hv', φ.symm_apply_apply, defaultGadget, gadgetBase]
+
 private def isoBaseEquiv (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     (φ : cfiGraph m f ≃g cfiGraph m g) : Fin m ≃ Fin m where
   toFun v := gadgetBase hm (φ (defaultGadget hm f v))
   invFun v' := gadgetBase hm (φ.symm (defaultGadget hm g v'))
-  left_inv v := by
-    dsimp only
-    have hx : ¬ InTriangle (cfiGraph m g) (φ (defaultGadget hm f v)) :=
-      φ.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm f v)
-    obtain ⟨v', β, hβ, hv'⟩ := exists_gadget_eq_of_not_inTriangle hx
-    have hv'_eq : gadgetBase hm (φ (defaultGadget hm f v)) = v' := by
-      rw [hv', gadgetBase]
-    rw [hv'_eq, ← iso_gadgetBase_eq hm φ.symm v' β hβ, ← hv', φ.symm_apply_apply,
-      defaultGadget, gadgetBase]
-  right_inv v' := by
-    dsimp only
-    have hy : ¬ InTriangle (cfiGraph m f) (φ.symm (defaultGadget hm g v')) :=
-      φ.symm.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm g v')
-    obtain ⟨v, α, hα, hv⟩ := exists_gadget_eq_of_not_inTriangle hy
-    have hv_eq : gadgetBase hm (φ.symm (defaultGadget hm g v')) = v := by
-      rw [hv, gadgetBase]
-    rw [hv_eq, ← iso_gadgetBase_eq hm φ v α hα, ← hv, φ.apply_symm_apply,
-      defaultGadget, gadgetBase]
+  left_inv := gadgetBase_symm_defaultGadget hm φ
+  right_inv := gadgetBase_symm_defaultGadget hm φ.symm
 
 private theorem iso_apply_apex (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     (φ : cfiGraph m f ≃g cfiGraph m g) (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) :
@@ -919,31 +828,18 @@ private theorem iso_apply_apex (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
   set π := isoBaseEquiv hm φ
   have hapex : IsApexLike (cfiGraph m g) (φ (.apex e he)) := φ.isApexLike (isApexLike_apex e he)
   obtain ⟨e', he', hφe⟩ := exists_apex_eq_of_isApexLike hm hapex
-  have he_eq : e' = e.map π := by
+  obtain rfl : e' = e.map π := by
     ext z
     obtain ⟨u, rfl⟩ := π.surjective z
-    have hx : ¬ InTriangle (cfiGraph m g) (φ (defaultGadget hm f u)) :=
-      φ.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm f u)
-    obtain ⟨v', β, hβ, hv'⟩ := exists_gadget_eq_of_not_inTriangle hx
-    have hπu : π u = v' := by
-      change gadgetBase hm (φ (defaultGadget hm f u)) = v'
-      rw [hv', gadgetBase]
-    have hmem1 : π u ∈ e' ↔
-        NearApex (cfiGraph m g) (φ (defaultGadget hm f u)) (φ (.apex e he)) := by
-      rw [hπu, hv', hφe, nearApex_gadget_apex]
-    have hmem2 : NearApex (cfiGraph m f) (defaultGadget hm f u) (.apex e he) ↔ u ∈ e := by
-      rw [defaultGadget, nearApex_gadget_apex]
-    rw [hmem1, φ.nearApex_iff, hmem2]
-    exact ⟨fun hu => Sym2.mem_map.2 ⟨u, hu, rfl⟩, fun hmap => by
-      obtain ⟨u', hu', hu'eq⟩ := Sym2.mem_map.1 hmap
-      rwa [← π.injective hu'eq]⟩
-  subst he_eq
+    obtain ⟨β, hβ, hv'⟩ := exists_iso_defaultGadget_eq hm φ (v' := π u) rfl
+    rw [← nearApex_gadget_apex (π u) β hβ e' he', ← hv', ← hφe, φ.nearApex_iff,
+      defaultGadget, nearApex_gadget_apex, Sym2.mem_map]
+    exact ⟨fun hu => ⟨u, hu, rfl⟩, fun ⟨u', hu', h⟩ => π.injective h ▸ hu'⟩
   exact hφe
 
 private theorem zmod_two_eq_add_of_ne {c₀ c₁ : ZMod 2} (hne : c₀ ≠ c₁) (b : ZMod 2) :
     (if b = 0 then c₀ else c₁) = b + c₀ := by
-  revert c₀ c₁ b
-  decide
+  decide +revert
 
 private theorem iso_apply_edge (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     (φ : cfiGraph m f ≃g cfiGraph m g) (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) (b : ZMod 2) :
@@ -968,10 +864,8 @@ private theorem iso_apply_edge (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
   have hne : edgeBit (φ (.edge e he 0)) ≠ edgeBit (φ (.edge e he 1)) := hadj01.2
   rw [hbit b]
   congr 1
-  have hb : edgeBit (φ (.edge e he b)) =
-      if b = 0 then edgeBit (φ (.edge e he 0)) else edgeBit (φ (.edge e he 1)) := by
-    fin_cases b <;> rfl
-  rw [hb, zmod_two_eq_add_of_ne hne b]
+  exact (by fin_cases b <;> rfl : edgeBit (φ (.edge e he b)) = _).trans
+    (zmod_two_eq_add_of_ne hne b)
 
 private theorem sum_symm_zero_diag : ∀ {n : ℕ} (F : Fin n → Fin n → ZMod 2),
     (∀ i j, F i j = F j i) → (∀ i, F i i = 0) → ∑ i, ∑ j, F i j = 0
@@ -994,41 +888,24 @@ private theorem sum_eq_of_iso (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     if h : w ≠ v then σ ⟨s(v, w), Sym2.mk_isDiag_iff.not.2 h.symm⟩ else 0
   have hF_symm : ∀ v w, F v w = F w v := by
     intro v w
-    by_cases h : w ≠ v
-    · have h' : v ≠ w := h.symm
-      dsimp only [F]
-      rw [dite_eq_left h, dite_eq_left h']
-      congr 1
-      exact Subtype.ext (by dsimp only; exact Sym2.eq_swap)
-    · push Not at h
-      subst h
-      rfl
+    rcases eq_or_ne w v with rfl | h
+    · rfl
+    · simp only [F, dite_eq_left h, dite_eq_left h.symm]
+      exact congrArg σ (Subtype.ext Sym2.eq_swap)
   have hF_diag : ∀ v, F v v = 0 := fun v => by simp only [F, ne_eq, not_true_eq_false, ↓reduceDIte]
   have hv_eq : ∀ v : Fin m, g (π v) = f v + ∑ w : Fin m, F v w := by
     intro v
     let α₀ : {w : Fin m // w ≠ v} → ZMod 2 := Pi.single (defaultDir hm v) (f v)
     have hα₀ : ∑ w, α₀ w = f v := Fintype.sum_pi_single' (defaultDir hm v) (f v)
-    have hx : ¬ InTriangle (cfiGraph m g) (φ (.gadget v α₀ hα₀)) :=
-      φ.inTriangle_iff.not.2 (not_inTriangle_gadget v α₀ hα₀)
-    obtain ⟨v', β, hβ, hv'⟩ := exists_gadget_eq_of_not_inTriangle hx
-    have hπv : π v = v' := by
-      change gadgetBase hm (φ (defaultGadget hm f v)) = v'
-      rw [defaultGadget, hv', gadgetBase]
-    subst hπv
+    obtain ⟨β, hβ, hv'⟩ := exists_iso_defaultGadget_eq hm φ (v' := π v) rfl
     let eDir : {w : Fin m // w ≠ v} ≃ {z : Fin m // z ≠ π v} :=
-      { toFun := fun w => ⟨π w.val, π.injective.ne w.property⟩
-        invFun := fun z => ⟨π.symm z.val, fun h => by
-          have h' := congrArg π h
-          rw [π.apply_symm_apply] at h'
-          exact z.property h'⟩
-        left_inv := fun w => Subtype.ext (π.symm_apply_apply w.val)
-        right_inv := fun z => Subtype.ext (π.apply_symm_apply z.val) }
+      π.subtypeEquiv fun _ => π.injective.ne_iff.symm
     have hβ_apply : ∀ w : {w : Fin m // w ≠ v},
         β (eDir w) = α₀ w + σ ⟨s(v, w.val), Sym2.mk_isDiag_iff.not.2 w.property.symm⟩ := by
       intro w
       have he : ¬ (s(v, w.val) : Sym2 (Fin m)).IsDiag :=
         Sym2.mk_isDiag_iff.not.2 w.property.symm
-      have hadj : (cfiGraph m g).Adj (φ (.gadget v α₀ hα₀)) (φ (.edge s(v, w.val) he (α₀ w))) :=
+      have hadj : (cfiGraph m g).Adj (φ (defaultGadget hm f v)) (φ (.edge s(v, w.val) he (α₀ w))) :=
         φ.map_adj_iff.2 ((cfiGraph_adj_gadget_edge v α₀ hα₀ s(v, w.val) he (α₀ w)).2
           ⟨w, rfl, rfl⟩)
       rw [hv', iso_apply_edge hm φ s(v, w.val) he (α₀ w), cfiGraph_adj_gadget_edge] at hadj
@@ -1039,22 +916,12 @@ private theorem sum_eq_of_iso (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
       rw [← hz_eq, ← hbz]
     have hsum_F : ∑ w : {w : Fin m // w ≠ v},
         σ ⟨s(v, w.val), Sym2.mk_isDiag_iff.not.2 w.property.symm⟩ = ∑ w : Fin m, F v w := by
-      symm
-      rw [← Finset.sum_filter_add_sum_filter_not Finset.univ (fun w : Fin m => w ≠ v)]
-      have hzero : ∑ x ∈ Finset.univ.filter (fun w : Fin m => ¬ w ≠ v), F v x = 0 := by
-        refine Finset.sum_eq_zero fun x hx => ?_
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, not_not] at hx
-        rw [hx, hF_diag]
-      rw [hzero, add_zero, Finset.sum_subtype (p := fun w : Fin m => w ≠ v)
-        (Finset.univ.filter fun w : Fin m => w ≠ v)
-        (fun _ => by simp only [Finset.mem_filter, Finset.mem_univ, true_and])]
-      refine Finset.sum_congr rfl fun w _ => ?_
-      dsimp only [F]
-      rw [dite_eq_left w.property]
+      rw [← Fintype.sum_subtype_add_sum_subtype (fun w => w ≠ v) (F v),
+        Fintype.sum_eq_zero (fun w : {w // ¬w ≠ v} => F v w) fun w => dite_eq_right w.2, add_zero]
+      exact Fintype.sum_congr _ _ fun w => by simp only [F, dite_eq_left w.2]
     rw [← hβ, ← eDir.sum_comp β]
     simp only [hβ_apply, Finset.sum_add_distrib, hα₀, hsum_F]
-  have hsum_g : ∑ v', g v' = ∑ v, g (π v) := (π.sum_comp g).symm
-  rw [hsum_g]
+  rw [← π.sum_comp g]
   simp only [hv_eq, Finset.sum_add_distrib, sum_symm_zero_diag F hF_symm hF_diag, add_zero]
 
 /-- **Cai–Fürer–Immerman non-isomorphism** ([CaiFurerImmerman1992], Section 6): when `3 ≤ m` and
@@ -1069,8 +936,7 @@ theorem not_nonempty_iso_cfiGraph_of_sum_ne (hm : 3 ≤ m) {f g : Fin m → ZMod
   fun ⟨φ⟩ => hsum (sum_eq_of_iso hm φ)
 
 private theorem zmod_two_add_one_eq_of_ne {a b : ZMod 2} (h : a ≠ b) : a + 1 = b := by
-  revert a b
-  decide
+  decide +revert
 
 private theorem nonempty_iso_cfiGraph_of_sum_eq :
     ∀ (d : ℕ) {f g : Fin m → ZMod 2},
@@ -1083,26 +949,16 @@ private theorem nonempty_iso_cfiGraph_of_sum_eq :
     exact ⟨hfg ▸ Iso.refl⟩
   | 1, f, g, hd, hsum => by
     obtain ⟨u, hu⟩ := Finset.card_eq_one.1 hd
-    have hmem_u : u ∈ Finset.univ.filter (fun v => f v ≠ g v) := by
-      rw [hu]
-      exact Finset.mem_singleton_self u
-    have hfu : f u ≠ g u := (Finset.mem_filter.1 hmem_u).2
-    have hother : ∀ v ≠ u, f v = g v := by
-      intro v hvu
-      by_contra hfv
-      have hmem : v ∈ Finset.univ.filter (fun x => f x ≠ g x) :=
-        Finset.mem_filter.2 ⟨Finset.mem_univ v, hfv⟩
-      rw [hu, Finset.mem_singleton] at hmem
-      exact hvu hmem
-    have hgu : g u = f u + 1 := (zmod_two_add_one_eq_of_ne hfu).symm
+    have hu' : ∀ v, f v ≠ g v ↔ v = u := fun v => by simpa using Finset.ext_iff.1 hu v
+    have hother : ∀ v ≠ u, f v = g v := fun v hvu => not_not.1 (mt (hu' v).1 hvu)
+    have hgu : g u = f u + 1 := (zmod_two_add_one_eq_of_ne ((hu' u).2 rfl)).symm
     have hsum' : ∑ v, g v = ∑ v, f v + 1 := by
       rw [← Finset.add_sum_erase _ g (Finset.mem_univ u),
         ← Finset.add_sum_erase _ f (Finset.mem_univ u),
         Finset.sum_congr rfl fun v hv => (hother v (Finset.ne_of_mem_erase hv)).symm,
         hgu, add_right_comm]
     rw [hsum] at hsum'
-    exact absurd (add_left_cancel (a := ∑ v, g v) (b := 0) (c := 1)
-      (by rw [add_zero]; exact hsum')) zero_ne_one
+    simp at hsum'
   | d + 2, f, g, hd, hsum => by
     have hgt : 1 < (Finset.univ.filter fun v => f v ≠ g v).card := by omega
     obtain ⟨u, hu, w, hw, huw⟩ := Finset.one_lt_card.1 hgt
@@ -1118,20 +974,11 @@ private theorem nonempty_iso_cfiGraph_of_sum_eq :
     have hfilt : (Finset.univ.filter fun v => f' v ≠ g v) =
         ((Finset.univ.filter fun v => f v ≠ g v).erase u).erase w := by
       ext v
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase]
-      by_cases hvw : v = w
-      · subst hvw
-        simp only [hf'w, ne_eq, not_true_eq_false, false_and]
-      · by_cases hvu : v = u
-        · subst hvu
-          simp only [hf'u, ne_eq, not_true_eq_false, false_and, and_false]
-        · refine ⟨fun h => ⟨hvw, hvu, ?_⟩, fun ⟨_, _, h⟩ => ?_⟩
-          · dsimp only [f'] at h
-            rwa [Pi.add_apply, Pi.add_apply, Pi.single_eq_of_ne hvu, Pi.single_eq_of_ne hvw,
-              add_zero, add_zero] at h
-          · dsimp only [f']
-            rwa [Pi.add_apply, Pi.add_apply, Pi.single_eq_of_ne hvu, Pi.single_eq_of_ne hvw,
-              add_zero, add_zero]
+      rcases eq_or_ne v w with rfl | hvw
+      · simp [hf'w, huw.symm]
+      · rcases eq_or_ne v u with rfl | hvu
+        · simp [hf'u, hvw]
+        · simp [f', hvw, hvu]
     have hd' : (Finset.univ.filter fun v => f' v ≠ g v).card = d := by
       have hwu_mem : w ∈ (Finset.univ.filter fun v => f v ≠ g v).erase u :=
         Finset.mem_erase.2 ⟨huw.symm, hw⟩

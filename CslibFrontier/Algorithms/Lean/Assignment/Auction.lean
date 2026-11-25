@@ -11,10 +11,7 @@ public import CslibFrontier.Algorithms.Lean.Assignment.Basic
 public import Mathlib.Algebra.Order.Group.Int
 public import Mathlib.Data.List.MinMax
 import CslibFrontier.Foundations.Data.List.ArgMin
-import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.BigOperators.Ring.Finset
-import Mathlib.Algebra.Order.Group.Unbundled.Abs
-import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -285,88 +282,61 @@ theorem AuctionInv.bidStep {s : AuctionState n} (hε : 0 ≤ ε) (h : AuctionInv
   have hi : ∀ j, s.owner j ≠ some i := (h.mem_free i).1 (hs ▸ List.mem_cons_self ..)
   have hnd := h.free_nodup
   rw [hs, List.nodup_cons] at hnd
-  have hup : ∀ k, s.price k ≤ Function.update s.price j (bidPrice c ε s.price i j) k := by
-    intro k
-    by_cases hk : k = j
-    · subst hk
-      rw [Function.update_self]
-      have := le_bidPrice (ε := ε) hj
-      omega
-    · rw [Function.update_of_ne hk]
+  have hup (k : Fin n) : s.price k ≤ Function.update s.price j (bidPrice c ε s.price i j) k := by
+    rcases eq_or_ne k j with rfl | hk
+    · simpa only [Function.update_self] using (le_add_of_nonneg_right hε).trans (le_bidPrice hj)
+    · simp only [Function.update_of_ne hk, le_rfl]
   refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
   · intro j₁ j₂ i' h₁ h₂
-    by_cases e₁ : j₁ = j <;> by_cases e₂ : j₂ = j
+    by_cases e₁ : j₁ = j <;> by_cases e₂ : j₂ = j <;>
+      simp only [e₁, e₂, Function.update_self, ne_eq, not_false_eq_true,
+        Function.update_of_ne] at h₁ h₂
     · rw [e₁, e₂]
-    · rw [e₁, Function.update_self] at h₁
-      rw [Function.update_of_ne e₂] at h₂
-      cases h₁
-      exact absurd h₂ (hi j₂)
-    · rw [e₂, Function.update_self] at h₂
-      rw [Function.update_of_ne e₁] at h₁
-      cases h₂
-      exact absurd h₁ (hi j₁)
-    · rw [Function.update_of_ne e₁] at h₁
-      rw [Function.update_of_ne e₂] at h₂
-      exact h.owner_inj j₁ j₂ i' h₁ h₂
+    · exact absurd (Option.some_injective _ h₁ ▸ h₂) (hi j₂)
+    · exact absurd (Option.some_injective _ h₂ ▸ h₁) (hi j₁)
+    · exact h.owner_inj j₁ j₂ i' h₁ h₂
   · rcases ho : s.owner j with _ | i'
     · simpa using hnd.2
-    · simp only [Option.toList_some, List.singleton_append, List.nodup_cons]
-      refine ⟨fun hmem => ?_, hnd.2⟩
-      have : i' ∈ s.free := hs ▸ List.mem_cons_of_mem _ hmem
-      exact (h.mem_free i').1 this j ho
+    · exact List.nodup_cons.2 ⟨fun hmem =>
+        (h.mem_free i').1 (hs ▸ List.mem_cons_of_mem _ hmem) j ho, hnd.2⟩
   · intro x
     simp only [List.mem_append, Option.mem_toList]
     constructor
     · rintro (hx | hx) j'
       · -- `x` was the previous owner of `j`
-        have hxi : x ≠ i := fun e => hi j (e ▸ hx)
-        by_cases e : j' = j
-        · rw [e, Function.update_self]
-          exact fun h' => hxi (Option.some_injective _ h').symm
-        · rw [Function.update_of_ne e]
-          exact fun h' => e (h.owner_inj j' j x h' hx)
-      · have hxi : x ≠ i := fun e => hnd.1 (e ▸ hx)
-        have hfree : ∀ j, s.owner j ≠ some x := (h.mem_free x).1 (hs ▸ List.mem_cons_of_mem _ hx)
-        by_cases e : j' = j
-        · rw [e, Function.update_self]
-          exact fun h' => hxi (Option.some_injective _ h').symm
-        · rw [Function.update_of_ne e]
-          exact hfree j'
+        rw [Function.update_apply]
+        split_ifs with e
+        · exact fun h' => hi j (Option.some_injective _ h' ▸ hx)
+        · exact fun h' => e (h.owner_inj j' j x h' hx)
+      · rw [Function.update_apply]
+        split_ifs
+        · exact fun h' => hnd.1 (Option.some_injective _ h' ▸ hx)
+        · exact (h.mem_free x).1 (hs ▸ List.mem_cons_of_mem _ hx) j'
     · intro hx
-      have hxi : x ≠ i := fun e => hx j (by rw [Function.update_self, e])
-      by_cases ho : s.owner j = some x
-      · exact Or.inl ho
-      · right
-        have : ∀ j', s.owner j' ≠ some x := by
-          intro j'
-          by_cases e : j' = j
-          · exact e ▸ ho
-          · have := hx j'
-            rwa [Function.update_of_ne e] at this
-        have hmem := (h.mem_free x).2 this
-        rw [hs] at hmem
-        exact (List.mem_cons.1 hmem).resolve_left hxi
+      refine or_iff_not_imp_left.2 fun ho => ?_
+      have hmem := (h.mem_free x).2 fun j' => by
+        by_cases e : j' = j
+        · exact e ▸ ho
+        · simpa only [Function.update_of_ne e] using hx j'
+      rw [hs] at hmem
+      exact (List.mem_cons.1 hmem).resolve_left fun e => hx j (by rw [Function.update_self, e])
   · intro j' hj'
     by_cases e : j' = j
-    · rw [e, Function.update_self] at hj'
-      cases hj'
-    · rw [Function.update_of_ne e] at hj'
-      rw [Function.update_of_ne e]
+    · simp [e] at hj'
+    · rw [Function.update_of_ne e] at hj' ⊢
       exact h.price_unowned j' hj'
   · intro j' i' hj' k
     by_cases e : j' = j
     · subst e
-      rw [Function.update_self] at hj'
+      rw [Function.update_self] at hj' ⊢
       cases hj'
-      rw [Function.update_self]
       by_cases hk : k = j'
       · subst hk
         rw [Function.update_self]
         omega
       · rw [Function.update_of_ne hk]
         exact bidPrice_epsCS k hk
-    · rw [Function.update_of_ne e] at hj'
-      rw [Function.update_of_ne e]
+    · rw [Function.update_of_ne e] at hj' ⊢
       have := h.epsCS j' i' hj' k
       have := hup k
       omega
@@ -477,17 +447,12 @@ theorem bids_auctionLoop_le (fuel : ℕ) (s : AuctionState n) :
 theorem lt_bidBound_mul (hε : 0 < ε) (C : ℤ) :
     (n : ℤ) * (C + ε) < (bidBound n C ε : ℤ) * ε := by
   have hεn : ((ε.toNat : ℕ) : ℤ) = ε := Int.toNat_of_nonneg hε.le
-  have hpos : 0 < ε.toNat := by omega
-  have key : n * (C + ε).toNat < (n * (C + ε).toNat / ε.toNat + 1) * ε.toNat := by
-    rw [Nat.add_mul, one_mul]
-    exact Nat.lt_div_mul_add hpos
+  have key : n * (C + ε).toNat < bidBound n C ε * ε.toNat := by
+    simpa only [bidBound, Nat.add_mul, one_mul] using Nat.lt_div_mul_add (by omega : 0 < ε.toNat)
   have h1 : (n : ℤ) * (C + ε) ≤ ((n * (C + ε).toNat : ℕ) : ℤ) := by
     rw [Nat.cast_mul]
     exact mul_le_mul_of_nonneg_left (Int.self_le_toNat _) (Nat.cast_nonneg n)
-  have h2 : ((n * (C + ε).toNat : ℕ) : ℤ) < ((bidBound n C ε * ε.toNat : ℕ) : ℤ) :=
-    Nat.cast_lt.2 key
-  rw [Nat.cast_mul (bidBound n C ε), hεn] at h2
-  exact lt_of_le_of_lt h1 h2
+  exact h1.trans_lt (by simpa only [Nat.cast_mul, hεn] using (Nat.cast_lt (α := ℤ)).2 key)
 
 /-- `costSpread c` bounds every row cost range. -/
 theorem sub_le_costSpread (i j k : Fin n) : c (i, k) - c (i, j) ≤ costSpread c := by
@@ -495,12 +460,8 @@ theorem sub_le_costSpread (i j k : Fin n) : c (i, k) - c (i, j) ≤ costSpread c
     (single_le_sum (fun j _ => abs_nonneg (c (i, j))) (mem_univ j)).trans
       (single_le_sum (f := fun i => ∑ j, |c (i, j)|)
         (fun i _ => sum_nonneg fun j _ => abs_nonneg _) (mem_univ i))
-  have h1 := hrow k
-  have h2 := hrow j
-  have h3 := le_abs_self (c (i, k))
-  have h4 := neg_abs_le (c (i, j))
   unfold costSpread
-  linarith
+  linarith [hrow k, hrow j, le_abs_self (c (i, k)), neg_abs_le (c (i, j))]
 
 /-- With fuel `bidBound n C ε` for any bound `C` on the row cost ranges, the auction completes the
 assignment and maintains the invariant. -/
@@ -524,13 +485,12 @@ theorem auction_free (hε : 0 < ε) : (auction c ε).free = [] :=
 theorem bids_auction_le (hε : 0 < ε) {C : ℤ} (hC : ∀ i j k, c (i, k) - c (i, j) ≤ C) :
     (auction c ε).bids ≤ bidBound n C ε := by
   unfold auction
+  have h0 (f : ℕ) : (auctionLoop c ε f (auctionInit n)).bids ≤ f := by
+    simpa only [auctionInit, zero_add] using bids_auctionLoop_le (c := c) (ε := ε) f (auctionInit n)
   rcases le_total (bidBound n C ε) (bidBound n (costSpread c) ε) with hle | hle
   · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auctionLoop_bidBound hε hC).2]
-    have := bids_auctionLoop_le (c := c) (ε := ε) (bidBound n C ε) (auctionInit n)
-    rwa [show (auctionInit n).bids = 0 from rfl, zero_add] at this
-  · have := bids_auctionLoop_le (c := c) (ε := ε) (bidBound n (costSpread c) ε) (auctionInit n)
-    rw [show (auctionInit n).bids = 0 from rfl, zero_add] at this
-    omega
+    exact h0 _
+  · exact (h0 _).trans hle
 
 /-! ### The output permutation -/
 
@@ -541,17 +501,12 @@ variable {s : AuctionState n}
 /-- In a complete state, person `i` owns `s.objectOf i`. -/
 theorem AuctionInv.owner_objectOf (h : AuctionInv c ε s) (hs : s.free = []) (i : Fin n) :
     s.owner (s.objectOf i) = some i := by
-  have hex : ∃ j, s.owner j = some i := by
-    have := (h.mem_free i).not.1 (by rw [hs]; exact List.not_mem_nil)
-    simpa only [not_forall, not_not] using this
-  obtain ⟨j₀, hj₀⟩ := hex
+  obtain ⟨j₀, hj₀⟩ : ∃ j, s.owner j = some i := by simpa [hs] using h.mem_free i
   have hsome : ((List.finRange n).find? fun j => decide (s.owner j = some i)).isSome :=
-    List.find?_isSome.2 ⟨j₀, List.mem_finRange j₀, by simpa using hj₀⟩
+    List.find?_isSome.2 ⟨j₀, List.mem_finRange j₀, decide_eq_true hj₀⟩
   obtain ⟨j, hj⟩ := Option.isSome_iff_exists.1 hsome
-  have := List.find?_some hj
-  simp only [decide_eq_true_eq] at this
-  simp only [AuctionState.objectOf, hj, Option.getD_some]
-  exact this
+  simpa only [AuctionState.objectOf, hj, Option.getD_some, decide_eq_true_eq] using
+    List.find?_some hj
 
 /-- In a complete state, `personOf` is a left inverse of `objectOf`. -/
 theorem AuctionInv.personOf_objectOf (h : AuctionInv c ε s) (hs : s.free = []) (i : Fin n) :
@@ -689,20 +644,16 @@ private theorem min?_map_add_const {α : Type*} (l : List α) (f : α → ℤ) (
 
 private theorem bestObject_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) (p : Fin n → ℤ) (i : Fin n) :
     bestObject (fun e => c e + d) p i = bestObject c p i := by
-  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d := by
-    funext k
-    simp only [redCost]
-    omega
+  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d :=
+    funext fun k => add_right_comm _ _ _
   rw [bestObject, hrc]
   exact argmin_add_const (List.finRange n) (redCost c p i) d
 
 private theorem secondBest_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) (p : Fin n → ℤ)
     (i j : Fin n) :
     secondBest (fun e => c e + d) p i j = (secondBest c p i j).map (· + d) := by
-  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d := by
-    funext k
-    simp only [redCost]
-    omega
+  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d :=
+    funext fun k => add_right_comm _ _ _
   rw [secondBest, hrc]
   exact min?_map_add_const _ (redCost c p i) d
 
@@ -711,11 +662,7 @@ private theorem bidPrice_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (p 
     bidPrice (fun e => c e + d) ε p i j = bidPrice c ε p i j := by
   unfold bidPrice
   rw [secondBest_add_const]
-  cases secondBest c p i j with
-  | none => rfl
-  | some w =>
-    dsimp only [Option.map]
-    omega
+  cases secondBest c p i j <;> simp [add_sub_add_right_eq_sub]
 
 /-- Shifting every cost by a constant `d` leaves `bidStep` unchanged. -/
 theorem bidStep_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (s : AuctionState n) :
@@ -741,17 +688,14 @@ theorem auction_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε
     auction (fun e => c e + d) ε = auction c ε := by
   unfold auction
   rw [auctionLoop_add_const]
-  have hf1 : (auctionLoop c ε (bidBound n (costSpread c) ε) (auctionInit n)).free = [] :=
-    auction_free hε
   have hf2 :
       (auctionLoop c ε (bidBound n (costSpread fun e => c e + d) ε) (auctionInit n)).free = [] := by
     rw [← auctionLoop_add_const c d ε]
     exact auction_free (c := fun e => c e + d) hε
   rcases le_total (bidBound n (costSpread c) ε)
       (bidBound n (costSpread fun e => c e + d) ε) with hle | hle
-  · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf1]
-  · symm
-    rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
+  · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auction_free hε)]
+  · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
 
 /-- Shifting every cost by a constant `d` leaves `auctionPerm` unchanged. -/
 theorem auctionPerm_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε : 0 < ε) :

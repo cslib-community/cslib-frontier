@@ -65,7 +65,10 @@ form on pp. 135–137; [MohriRostamizadehTalwalkar2018, Theorem 7.2] states both
 * The weak learner is deterministic, with the edge as a hypothesis on the rounds (or on all
   positive distributions in `IsWeakLearner`); SSBD's weak learner may fail with probability `δ`
   (Remark 10.2), which a union bound handles outside this statement.
-* Generalization of the output (SSBD Section 10.3, MRT Corollary 7.5) is not covered.
+* Margin-based generalization bounds for AdaBoost (independent of the number of rounds `T`) are
+  provided separately in `CslibFrontier.MachineLearning.Boosting.Margin`
+  (`convexHull_margin_bound`, `adaBoost_uniform_margin_bound_vc`, and
+  `adaBoost_generalization_bound_of_edge`).
 
 ## References
 
@@ -111,8 +114,14 @@ variable (S : Fin m → α × Bool) (r : Round α m)
 /-- The weighted error of the round's hypothesis under the round's weights. -/
 noncomputable def error : ℝ := weightedError S r.weights r.hyp
 
+/-- Defining equation for `Round.error`. -/
+theorem error_def : r.error S = weightedError S r.weights r.hyp := by rw [error]
+
 /-- The vote weight of the round's hypothesis. -/
 noncomputable def vote : ℝ := voteWeight (r.error S)
+
+/-- Defining equation for `Round.vote`. -/
+theorem vote_def : r.vote S = voteWeight (r.error S) := by rw [vote]
 
 end Round
 
@@ -189,39 +198,35 @@ theorem sum_mul_exp_pointLoss {S : Fin m → α × Bool} {D : Fin m → ℝ} {h 
     (hD : ∑ i, D i = 1) (hε₀ : 0 < weightedError S D h) (hε₁ : weightedError S D h < 1) :
     ∑ i, D i * exp (pointLoss (voteWeight (weightedError S D h)) h (S i)) =
       2 * √(weightedError S D h * (1 - weightedError S D h)) := by
-  have hwrong : ∑ i with h (S i).1 ≠ (S i).2, D i = weightedError S D h := rfl
-  have hright : ∑ i with ¬h (S i).1 ≠ (S i).2, D i = 1 - weightedError S D h := by
-    rw [← hD, ← hwrong, ← sum_filter_add_sum_filter_not univ (fun i => h (S i).1 ≠ (S i).2)]
-    ring
-  have hterm : ∀ i, D i * exp (pointLoss (voteWeight (weightedError S D h)) h (S i)) =
+  have hterm (i : Fin m) : D i * exp (pointLoss (voteWeight (weightedError S D h)) h (S i)) =
       if h (S i).1 ≠ (S i).2 then D i * exp (voteWeight (weightedError S D h))
       else D i * (exp (voteWeight (weightedError S D h)))⁻¹ := by
-    intro i
-    by_cases hi : h (S i).1 = (S i).2
-    · rw [ite_eq_right (not_not.mpr hi), pointLoss, signVal_mul_signVal, ite_eq_left hi, mul_one,
-        exp_neg]
-    · rw [ite_eq_left hi, pointLoss, signVal_mul_signVal, ite_eq_right hi, mul_neg, mul_one,
-        neg_neg]
-  rw [sum_congr rfl fun i _ => hterm i, sum_ite, ← sum_mul, ← sum_mul, hwrong, hright]
+    by_cases hi : h (S i).1 = (S i).2 <;> simp [pointLoss, signVal_mul_signVal, hi, exp_neg]
+  have hright : ∑ i with ¬h (S i).1 ≠ (S i).2, D i = 1 - weightedError S D h := by
+    linarith [sum_filter_add_sum_filter_not univ (fun i => h (S i).1 ≠ (S i).2) (f := D),
+      show ∑ i with h (S i).1 ≠ (S i).2, D i = weightedError S D h from rfl]
+  rw [sum_congr rfl fun i _ => hterm i, sum_ite, ← sum_mul, ← sum_mul,
+    show ∑ i with h (S i).1 ≠ (S i).2, D i = weightedError S D h from rfl, hright]
   generalize weightedError S D h = ε at *
   have ha0 : 0 < exp (voteWeight ε) := exp_pos _
   have ha2 : exp (voteWeight ε) * exp (voteWeight ε) = (1 - ε) / ε := by
     rw [← exp_add, voteWeight, add_halves, exp_log (div_pos (by linarith) hε₀)]
   generalize exp (voteWeight ε) = a at *
-  have h1 : 1 - ε = ε * (a * a) := by
-    rw [ha2]
-    field_simp
+  have h1 : 1 - ε = ε * (a * a) := by rw [ha2]; field_simp
   have hsq : √(ε * (1 - ε)) = ε * a := by
-    rw [sqrt_eq_iff_mul_self_eq (by nlinarith) (by positivity), h1]
-    ring
+    rw [sqrt_eq_iff_mul_self_eq (by nlinarith) (by positivity), h1]; ring
   rw [hsq, h1]
-  field_simp
-  ring
+  field_simp; ring
 
 /-- The weighted vote of the first `T` rounds at `x`: the total vote weight of the hypotheses
 predicting `true` minus that of the hypotheses predicting `false` (`signVal true = -1`). -/
 noncomputable def score (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool) (T : ℕ) (x : α) : ℝ :=
   -∑ t ∈ range T, (rounds S A t).vote S * signVal ((rounds S A t).hyp x)
+
+/-- Defining equation for `score`. -/
+theorem score_def (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool) (T : ℕ) (x : α) :
+    score S A T x = -∑ t ∈ range T, (rounds S A t).vote S * signVal ((rounds S A t).hyp x) := by
+  rw [score]
 
 open Classical in
 /-- **AdaBoost** [FreundSchapire1997] run for `T` rounds on the sample `S` with the weak learner
@@ -233,6 +238,21 @@ noncomputable def adaBoost (S : Fin m → α × Bool) (A : (Fin m → ℝ) → �
   if h : ∃ t < T, (rounds S A t).error S = 0 then (rounds S A (Nat.find h)).hyp
   else fun x => decide (0 < score S A T x)
 
+open Classical in
+/-- When some round before `T` has weighted error `0`, `adaBoost` returns the hypothesis of the
+first such round. -/
+theorem adaBoost_of_exists_error_zero (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool)
+    {T : ℕ} (hz : ∃ t < T, (rounds S A t).error S = 0) :
+    adaBoost S A T = (rounds S A (Nat.find hz)).hyp := by
+  rw [adaBoost, dite_eq_left hz]
+
+/-- When no round before `T` has weighted error `0`, `adaBoost` returns the sign of `score`. -/
+theorem adaBoost_of_not_exists_error_zero (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool)
+    {T : ℕ} (hz : ¬ ∃ t < T, (rounds S A t).error S = 0) :
+    adaBoost S A T = fun x => decide (0 < score S A T x) := by
+  classical
+  rw [adaBoost, dite_eq_right hz]
+
 section Vote
 
 variable (S : Fin m → α × Bool) (A : (Fin m → ℝ) → α → Bool)
@@ -242,29 +262,25 @@ nonnegative exactly where the vote disagrees with the label. -/
 theorem sum_lossSeq (T : ℕ) (i : Fin m) :
     ∑ t ∈ range T, lossSeq S A t i = score S A T (S i).1 * signVal (S i).2 := by
   rw [score, neg_mul, sum_mul, ← sum_neg_distrib]
-  refine sum_congr rfl fun t _ => ?_
-  rw [lossSeq_apply, pointLoss, mul_assoc]
+  exact sum_congr rfl fun t _ => by rw [lossSeq_apply, pointLoss, mul_assoc]
 
 /-- Where the weighted vote errs, the cumulative loss is nonnegative. -/
 theorem sum_lossSeq_nonneg {T : ℕ} {i : Fin m} (hi : decide (0 < score S A T (S i).1) ≠ (S i).2) :
     0 ≤ ∑ t ∈ range T, lossSeq S A t i := by
   rw [sum_lossSeq]
   cases hy : (S i).2
-  · rw [hy, ne_eq, Bool.not_eq_false, decide_eq_true_eq] at hi
-    rw [signVal_false, mul_one]
+  · simp only [hy, ne_eq, Bool.not_eq_false, decide_eq_true_eq, signVal_false, mul_one] at hi ⊢
     exact hi.le
-  · rw [hy, ne_eq, Bool.not_eq_true, decide_eq_false_iff_not, not_lt] at hi
-    rw [signVal_true, mul_neg_one]
-    exact neg_nonneg.mpr hi
+  · simp only [hy, ne_eq, Bool.not_eq_true, decide_eq_false_iff_not, not_lt, signVal_true,
+      mul_neg_one, Left.nonneg_neg_iff] at hi ⊢
+    exact hi
 
 /-- A round with weighted error `0` has a hypothesis consistent with the sample, since every
 sample point has positive weight. -/
 theorem hyp_eq_of_error_eq_zero {t : ℕ} (h : (rounds S A t).error S = 0) (i : Fin m) :
     (rounds S A t).hyp (S i).1 = (S i).2 := by
   by_contra hi
-  have hpos : 0 < (rounds S A t).error S :=
-    sum_pos (fun j _ => rounds_weights_pos S A t j) ⟨i, mem_filter.mpr ⟨mem_univ i, hi⟩⟩
-  exact hpos.ne' h
+  exact (sum_pos (fun j _ => rounds_weights_pos S A t j) ⟨i, mem_filter.mpr ⟨mem_univ i, hi⟩⟩).ne' h
 
 open OnlineLearning.Experts in
 /-- The number of sample points where the weighted vote errs is at most the potential of the
@@ -274,17 +290,29 @@ theorem empiricalMiscount_le_potential (T : ℕ) :
       potential exp (lossSeq S A) T := by
   rw [empiricalMiscount, card_filter, Nat.cast_sum, potential]
   refine sum_le_sum fun i _ => ?_
-  have hw : 0 < weight exp (lossSeq S A) T i := weight_pos (fun _ _ _ => exp_pos _) i
   split_ifs with hi
-  · rw [Nat.cast_one, weight, ← exp_sum]
-    exact one_le_exp (sum_lossSeq_nonneg S A hi)
-  · rw [Nat.cast_zero]
-    exact hw.le
+  · simpa only [Nat.cast_one, weight, ← exp_sum] using one_le_exp (sum_lossSeq_nonneg S A hi)
+  · simpa only [Nat.cast_zero] using (weight_pos (fun _ _ _ => exp_pos _) i).le
 
 /-- The weighted error of every round is nonnegative. -/
 theorem rounds_error_nonneg (t : ℕ) : 0 ≤ (rounds S A t).error S := by
   rw [Round.error]
   exact sum_nonneg fun i _ => (rounds_weights_pos S A t i).le
+
+open OnlineLearning.Experts in
+/-- Exact potential of the exponential multiplicative update in AdaBoost after `T` rounds,
+when every round before `T` has weighted error in `(0, 1)`. -/
+theorem potential_lossSeq_eq [NeZero m] {T : ℕ}
+    (hz : ¬ ∃ t < T, (rounds S A t).error S = 0)
+    (hlt : ∀ t < T, (rounds S A t).error S < 1) :
+    potential exp (lossSeq S A) T =
+      m * ∏ t ∈ range T, 2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) := by
+  rw [potential_eq_card_mul_prod (fun _ _ _ => exp_pos _), Fintype.card_fin]
+  refine congrArg ((m : ℝ) * ·) (prod_congr rfl fun t ht => ?_)
+  have ht' := mem_range.mp ht
+  simp only [lossSeq_apply, ← rounds_weights, Round.vote, Round.error]
+  exact sum_mul_exp_pointLoss (sum_rounds_weights S A t)
+    ((rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht', h.symm⟩) (hlt t ht')
 
 open OnlineLearning.Experts in
 /-- **The AdaBoost training-error bound, product form** ([ShalevShwartzBenDavid2014], proof of
@@ -302,40 +330,24 @@ theorem empiricalMiscount_adaBoost_le_prod {T : ℕ} (hlt : ∀ t < T, (rounds S
   · have h0 : empiricalMiscount (adaBoost S A T) S = 0 := by
       rw [adaBoost, dite_eq_left hz, empiricalMiscount, card_eq_zero, filter_eq_empty_iff]
       exact fun i _ hi => hi (hyp_eq_of_error_eq_zero S A (Nat.find_spec hz).2 i)
-    rw [h0, Nat.cast_zero, zero_div]
-    exact hprod
+    simpa [h0] using hprod
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · rw [Nat.cast_zero, div_zero]
-    exact hprod
+  · simpa using hprod
   have : NeZero m := ⟨hm.ne'⟩
-  have hstep : ∀ t ∈ range T, ∑ i, prob exp (lossSeq S A) t i * exp (lossSeq S A t i) =
-      2 * √((rounds S A t).error S * (1 - (rounds S A t).error S)) := fun t ht => by
-    have ht' := mem_range.mp ht
-    have hε₀ : 0 < (rounds S A t).error S :=
-      (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht', h.symm⟩
-    have hε₁ := hlt t ht'
-    simp only [lossSeq_apply, ← rounds_weights, Round.vote]
-    rw [Round.error] at hε₀ hε₁ ⊢
-    exact sum_mul_exp_pointLoss (sum_rounds_weights S A t) hε₀ hε₁
   rw [adaBoost, dite_eq_right hz, div_le_iff₀ (Nat.cast_pos.mpr hm)]
   calc (empiricalMiscount (fun x => decide (0 < score S A T x)) S : ℝ)
       ≤ potential exp (lossSeq S A) T := empiricalMiscount_le_potential S A T
-    _ = _ := by
-      rw [potential_eq_card_mul_prod (fun _ _ _ => exp_pos _), Fintype.card_fin,
-        prod_congr rfl hstep, mul_comm]
+    _ = _ := by rw [potential_lossSeq_eq S A hz hlt, mul_comm]
 
 /-- The AdaBoost factor of an error `ε` is at most `exp (-2 (1/2 - ε)²)`, since
 `4 ε (1 - ε) = 1 - 4 (1/2 - ε)²`. -/
 theorem two_mul_sqrt_le_exp (ε : ℝ) : 2 * √(ε * (1 - ε)) ≤ exp (-(2 * (1 / 2 - ε) ^ 2)) := by
   have hsq : exp (-(2 * (1 / 2 - ε) ^ 2)) ^ 2 = exp (-(4 * (1 / 2 - ε) ^ 2)) := by
     rw [← exp_nat_mul]
-    congr 1
-    push_cast
-    ring
-  have h4 := add_one_le_exp (-(4 * (1 / 2 - ε) ^ 2))
+    exact congrArg exp (by push_cast; ring)
   have hsqrt : √(ε * (1 - ε)) ≤ exp (-(2 * (1 / 2 - ε) ^ 2)) / 2 := by
     rw [sqrt_le_left (by positivity), div_pow, hsq]
-    nlinarith
+    nlinarith [add_one_le_exp (-(4 * (1 / 2 - ε) ^ 2))]
   linarith
 
 /-- **The AdaBoost training-error bound in terms of the edges** [MohriRostamizadehTalwalkar2018,
@@ -389,12 +401,11 @@ theorem empiricalMiscount_adaBoost_eq_zero (hA : IsWeakLearner S A γ) (hγ : 0 
   · rw [empiricalMiscount, univ_eq_empty, filter_empty, card_empty]
   have : NeZero m := ⟨hm.ne'⟩
   have hmR : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  have h := empiricalMiscount_adaBoost_le_exp (T := T) S A hγ fun t _ => hA.rounds_error_le t
-  have hlt : exp (-(2 * γ ^ 2 * T)) < 1 / m := by
+  have hlt : (empiricalMiscount (adaBoost S A T) S : ℝ) / m < 1 / m := by
+    refine (empiricalMiscount_adaBoost_le_exp S A hγ fun t _ => hA.rounds_error_le t).trans_lt ?_
     rw [one_div, ← exp_log hmR, ← exp_neg]
     exact exp_lt_exp.mpr (by linarith)
-  have h1 := (div_lt_div_iff_of_pos_right hmR).mp (h.trans_lt hlt)
-  exact Nat.lt_one_iff.mp (by exact_mod_cast h1)
+  exact Nat.lt_one_iff.mp (by exact_mod_cast (div_lt_div_iff_of_pos_right hmR).mp hlt)
 
 /-- Under the hypotheses of `empiricalMiscount_adaBoost_eq_zero`, the output labels every sample
 point correctly. -/

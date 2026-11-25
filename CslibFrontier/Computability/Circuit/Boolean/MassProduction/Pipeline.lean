@@ -106,16 +106,8 @@ theorem complexity_directProduct_le_of_isScheduler
             ← pow_mul, mul_comm b ℓ, mul_assoc]
   have hlookup := size_batchLookupCircuit_le (metadata bits C place) t
   simp only [metaWidth] at hlookup
-  have hscatter : (scatterCircuit t p w ℓ b s copies).size ≤
-      48 * (copies * 2 ^ (ℓ * b) + t * s + 1) *
-        (Nat.clog 2 (copies * 2 ^ (ℓ * b) + t * s) + 1) ^ 2 *
-        (Nat.clog 2 copies + ℓ * b + w + 1) :=
-    size_batchOrCircuit_le _ _ _
-  have hgather : (gatherCircuit t p w ℓ b s copies).size ≤
-      48 * (t * s + copies * 2 ^ (ℓ * b) * b + 1) *
-        (Nat.clog 2 (t * s + copies * 2 ^ (ℓ * b) * b) + 1) ^ 2 *
-        (Nat.clog 2 copies + ℓ * b + Nat.clog 2 b + 1 + 1) :=
-    size_batchOrCircuit_le _ _ _
+  have hscatter : (scatterCircuit t p w ℓ b s copies).size ≤ _ := size_batchOrCircuit_le _ _ _
+  have hgather : (gatherCircuit t p w ℓ b s copies).size ≤ _ := size_batchOrCircuit_le _ _ _
   rw [hfun]
   refine (complexity_comp_le _ _).trans ?_
   have hsums := complexity_lineSums_le (t := t) (s := s)

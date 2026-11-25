@@ -94,6 +94,26 @@ private theorem card_compl_ge_sub {P : Type*} [Fintype P] [DecidableEq P]
   simp only [Finset.card_univ] at hs
   omega
 
+private theorem card_sub_le_filter_of_compl {P : Type*} [Fintype P]
+    {F : Finset P} {t : ℕ} (hF : F.card ≤ t) {p : P → Prop} [DecidablePred p]
+    (h : ∀ j ∉ F, p j) : Fintype.card P - t ≤ (Finset.univ.filter p).card := by
+  classical
+  exact (card_compl_ge_sub hF).trans (Finset.card_le_card fun j hj =>
+    Finset.mem_filter.2 ⟨Finset.mem_univ j, h j (Finset.mem_sdiff.1 hj).2⟩)
+
+private theorem succ_le_card_filter_sdiff {P : Type*} [Fintype P] [DecidableEq P]
+    {F : Finset P} {t : ℕ} (hn : 3 * t < Fintype.card P) (hF : F.card ≤ t) {p : P → Prop}
+    [DecidablePred p] (h : Fintype.card P - t ≤ (Finset.univ.filter p).card) :
+    t + 1 ≤ ((Finset.univ.filter p) \ F).card := by
+  have := Finset.le_card_sdiff F (Finset.univ.filter p)
+  omega
+
+private theorem findQuorumVal_of_compl {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {procs : List P} (hprocs : ∀ p : P, p ∈ procs) {F : Finset P} {t : ℕ} (hF : F.card ≤ t)
+    (hn : 2 * t < Fintype.card P) {f : P → Option V} {v : V} (h : ∀ j ∉ F, f j = some v) :
+    findQuorumVal procs (Fintype.card P - t) f = some v :=
+  (findQuorumVal_eq_some_iff hprocs (by omega) f v).2 (card_sub_le_filter_of_compl hF h)
+
 section ByzLiveness
 
 variable {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
@@ -115,7 +135,7 @@ private theorem subround0_lock_in_certPairs {F : Finset P}
   obtain ⟨hlt_r, hwit⟩ := byzState_locked_witness leader hprocs hn hF (6 * vStar) p hlk
   have hlt : lk.view < vStar := by omega
   refine ⟨hlt, fun i hi => ?_⟩
-  rw [show 6 * vStar + 1 = (6 * vStar) + 1 by rfl, byzQuorum_state_succ]
+  rw [byzQuorum_state_succ]
   simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega,
     show (6 * vStar) / 6 = vStar by omega, computeCertPairs, List.mem_filter, List.mem_dedup,
     List.mem_flatMap, decide_eq_true_eq, rawVoteCount, hlt, ↓reduceIte]
@@ -155,77 +175,47 @@ private theorem subround0_proper_complete {F : Finset P}
     (∀ i ∉ F, ((byzQuorumProtocol P V procs leader t).byzantineState
       F deliver adv x (6 * vStar + 1) i).properReport.allProper = true) := by
   have hH_card : Fintype.card P - t ≤ (Finset.univ \ F).card := card_compl_ge_sub hF
+  have hH_init : ∀ i ∉ F, ∀ h ∉ F,
+      extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i h) = some (x h) := by
+    intro i hi h hhF
+    simp only [byzIncoming, hhF, ↓reduceIte, hdel0 h hhF i hi, byzSend,
+      show (6 * vStar) % 6 = 0 by omega, extractRawInit, byzState_input_eq]
   by_cases hex : ∃ w₀ : V, t + 1 ≤ ((Finset.univ \ F).filter fun h => x h = w₀).card
   · obtain ⟨w₀, hw₀⟩ := hex
     refine Or.inl ⟨w₀, fun i hi => ?_⟩
-    rw [show 6 * vStar + 1 = (6 * vStar) + 1 by rfl, byzQuorum_state_succ]
+    rw [byzQuorum_state_succ]
     simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
       List.mem_filter, List.mem_dedup, List.mem_filterMap, decide_eq_true_eq]
-    have hH_init : ∀ h ∈ Finset.univ \ F,
-        extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i h) =
-          some (x h) := by
-      intro h hh
-      have hhF : h ∉ F := (Finset.mem_sdiff.1 hh).2
-      simp only [byzIncoming, hhF, ↓reduceIte, hdel0 h hhF i hi, byzSend,
-        show (6 * vStar) % 6 = 0 by omega, extractRawInit, byzState_input_eq]
     obtain ⟨h₀, hh₀⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hw₀)
-    simp only [Finset.mem_filter] at hh₀
+    simp only [Finset.mem_filter, Finset.mem_sdiff, Finset.mem_univ, true_and] at hh₀
     refine ⟨⟨h₀, hprocs h₀, ?_⟩, ?_⟩
-    · rw [hH_init h₀ hh₀.1, hh₀.2]
+    · rw [hH_init i hi h₀ hh₀.1, hh₀.2]
     · rw [countVal_eq_card hprocs]
       refine le_trans hw₀ (Finset.card_le_card fun h hh => ?_)
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hh ⊢
-      rw [hH_init h hh.1, hh.2]
+      simp only [Finset.mem_filter, Finset.mem_sdiff, Finset.mem_univ, true_and] at hh ⊢
+      rw [hH_init i hi h hh.1, hh.2]
   · refine Or.inr fun i hi => ?_
-    have hex' : ∀ w₀ : V, ((Finset.univ \ F).filter fun h => x h = w₀).card < t + 1 :=
-      fun w₀ => Nat.lt_of_not_ge fun hge => hex ⟨w₀, hge⟩
-    rw [show 6 * vStar + 1 = (6 * vStar) + 1 by rfl, byzQuorum_state_succ]
+    rw [byzQuorum_state_succ]
     simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
       decide_eq_true_eq]
-    have hH_init : ∀ h ∈ Finset.univ \ F,
-        extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i h) =
-          some (x h) := by
-      intro h hh
-      have hhF : h ∉ F := (Finset.mem_sdiff.1 hh).2
-      simp only [byzIncoming, hhF, ↓reduceIte, hdel0 h hhF i hi, byzSend,
-        show (6 * vStar) % 6 = 0 by omega, extractRawInit, byzState_input_eq]
     constructor
     · rw [length_filter_dedup_eq_card hprocs]
-      have hle := Finset.card_le_card (s := Finset.univ \ F)
-        (t := Finset.univ.filter fun j =>
-          (extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i j)).isSome =
-            true)
-        (fun h hh => by
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, hH_init h hh,
-            Option.isSome_some])
-      omega
+      refine le_trans (by omega) (card_sub_le_filter_of_compl hF fun h hhF => ?_)
+      rw [hH_init i hi h hhF, Option.isSome_some]
     · intro j hj
       simp only [List.mem_filter, List.mem_dedup] at hj
       obtain ⟨w, hw⟩ := Option.isSome_iff_exists.1 hj.2
-      have hnd : ((procs.dedup.filter fun j =>
-          (extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i j)).isSome
-            ).filter fun k =>
-          decide (extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i k) ≠
-            extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i j))).Nodup :=
-        List.Nodup.filter _ (List.Nodup.filter _ (List.nodup_dedup procs))
-      rw [← List.toFinset_card_of_nodup hnd]
-      let eqW := (Finset.univ \ F).filter fun h => x h = w
-      have hsub : (Finset.univ \ F) \ eqW ⊆
-          ((procs.dedup.filter fun j =>
-            (extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i j)).isSome
-              ).filter fun k =>
-            decide (extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i k) ≠
-              extractRawInit
-                (byzIncoming procs leader t F deliver adv x (6 * vStar) i j))).toFinset := by
-        intro h hh
-        obtain ⟨hhH, hhnot⟩ := Finset.mem_sdiff.1 hh
-        simp only [List.mem_toFinset, List.mem_filter, List.mem_dedup, hprocs h, true_and,
-          decide_eq_true_eq, hH_init h hhH, Option.isSome_some, hw, ne_eq, Option.some.injEq]
-        exact fun hx => hhnot (Finset.mem_filter.2 ⟨hhH, hx⟩)
-      have hsdiff := Finset.le_card_sdiff eqW (Finset.univ \ F)
-      have hcnt_lt : eqW.card < t + 1 := hex' w
-      have hle := Finset.card_le_card hsub
-      omega
+      rw [List.filter_filter, length_filter_dedup_eq_card hprocs]
+      have hsd := Finset.le_card_sdiff ((Finset.univ \ F).filter fun h => x h = w) (Finset.univ \ F)
+      have hlt := Nat.lt_of_not_ge fun hge => hex ⟨w, hge⟩
+      refine le_trans (by omega) (Finset.card_le_card (s := (Finset.univ \ F) \
+        (Finset.univ \ F).filter fun h => x h = w) fun h hh => ?_)
+      obtain ⟨hhH, hhnot⟩ := Finset.mem_sdiff.1 hh
+      simp only [Finset.mem_sdiff, Finset.mem_univ, true_and] at hhH
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Bool.and_eq_true,
+        decide_eq_true_eq, hH_init i hi h hhH, Option.isSome_some, hw, ne_eq, Option.some.injEq,
+        and_true]
+      exact fun hx => hhnot (Finset.mem_filter.2 ⟨Finset.mem_sdiff.2 ⟨Finset.mem_univ h, hhH⟩, hx⟩)
 
 /-- **Single-honest-view termination (`byzQuorum_terminates_in_honest_view`):** when
 `3 * t < Fintype.card P`, `F.card ≤ t`, the view coordinator `leader v*` is correct (`∉ F`), and
@@ -239,30 +229,30 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
     ∀ i ∉ F, ((byzQuorumProtocol P V procs leader t).byzantineDecision
       F deliver adv x (6 * (vStar + 1)) i).isSome = true := by
   have hlen : procs.dedup.length = Fintype.card P := dedup_length_eq_card hprocs
-  have hH_card : Fintype.card P - t ≤ (Finset.univ \ F).card := card_compl_ge_sub hF
-  have hdel0 : ∀ j ∉ F, ∀ i ∉ F, deliver (6 * vStar) j i = true :=
-    hsync (6 * vStar) (by omega) (by omega)
+  have hmod : ∀ k < 6, (6 * vStar + k) % 6 = k := fun k hk => by omega
+  have hdiv : ∀ k < 6, (6 * vStar + k) / 6 = vStar := fun k hk => by omega
+  have hdel : ∀ k < 6, ∀ j ∉ F, ∀ i ∉ F, deliver (6 * vStar + k) j i = true :=
+    fun k hk => hsync _ (by omega) (by omega)
+  have hdel0 : ∀ j ∉ F, ∀ i ∉ F, deliver (6 * vStar) j i = true := hdel 0 (by omega)
   let st := (byzQuorumProtocol P V procs leader t).byzantineState F deliver adv x
   -- Locked state of every process is unchanged from `6 * vStar` to `6 * vStar + 2`.
-  have hlk_2_eq_0 : ∀ i, (st (6 * vStar + 2) i).locked = (st (6 * vStar) i).locked := by
-    intro i
-    dsimp only [st]
-    rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega,
-      byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar + 1) (by omega),
-      byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar) (by omega)]
+  have hlk_2_eq_0 (i : P) : (st (6 * vStar + 2) i).locked = (st (6 * vStar) i).locked :=
+    (byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar + 1) (by omega) i).trans
+      (byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar) (by omega) i)
   -- Step 1 (end of Subround 1): honest leader `leader vStar` prepares `some prop` accepted by
   -- every correct voter `i ∉ F`.
   have hprop_ok : ∃ prop : Proposal V,
       (st (6 * vStar + 2) (leader vStar)).leaderProposal = some prop ∧
       ∀ i ∉ F, acceptsProposal t (st (6 * vStar + 2) i) prop = true := by
     let m1 := byzIncoming procs leader t F deliver adv x (6 * vStar + 1)
+    have hm1_mod := hmod 1 (by omega)
+    have hm1_div := hdiv 1 (by omega)
     have hm1_honest : ∀ i ∉ F, ∀ j ∉ F,
         extractCertStatus (m1 i j) =
           some ((st (6 * vStar + 1) j).properReport, (st (6 * vStar + 1) j).certPairs) := by
       intro i hi j hj
-      simp only [m1, byzIncoming, hj, ↓reduceIte,
-        hsync (6 * vStar + 1) (by omega) (by omega) j hj i hi, byzSend,
-        show (6 * vStar + 1) % 6 = 1 by omega, extractCertStatus, st]
+      simp only [m1, byzIncoming, hj, ↓reduceIte, hdel 1 (by omega) j hj i hi, byzSend, hm1_mod,
+        extractCertStatus, st]
     let allCandsL := (procs.dedup.flatMap fun j =>
       ((extractCertStatus (m1 (leader vStar) j)).map Prod.snd).getD []).dedup
     let lCerts := allCandsL.filter fun lk =>
@@ -278,18 +268,14 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
         exact hcp (leader vStar) hl
       · simp only [certSupportCount, hlt, ↓reduceIte, hlen]
         rw [length_filter_dedup_eq_card hprocs]
-        refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-        have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and,
-          hm1_honest (leader vStar) hl j hjF, decide_eq_true_eq]
+        refine card_sub_le_filter_of_compl hF fun j hjF => ?_
+        simp only [hm1_honest (leader vStar) hl j hjF, decide_eq_true_eq]
         exact hcp j hjF
-    have hm1_mod : (6 * vStar + 1) % 6 = 1 := by omega
-    have hm1_div : (6 * vStar + 1) / 6 = vStar := by omega
     cases hpm : pickMaxLock lCerts with
     | some best =>
       refine ⟨⟨best.val, some best.view⟩, ?_, fun i hi => ?_⟩
       · dsimp only [st]
-        rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
+        rw [byzQuorum_state_succ]
         simp only [byzUpdate, hm1_mod, hm1_div]
         dsimp only [lCerts, allCandsL, m1] at hpm
         rw [hpm]
@@ -304,10 +290,8 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
             (match extractCertStatus (m1 (leader vStar) j) with
               | some (_, cp) => decide (best ∈ cp)
               | none => false) = true
-          have hSL_card : t + 1 ≤ ((Finset.univ.filter predL) \ F).card := by
-            have hs := Finset.le_card_sdiff F (Finset.univ.filter predL)
-            have hc : Fintype.card P - t ≤ (Finset.univ.filter predL).card := hcntL
-            omega
+          have hSL_card : t + 1 ≤ ((Finset.univ.filter predL) \ F).card :=
+            succ_le_card_filter_sdiff hn hF hcntL
           have hSL_cp : ∀ j ∈ (Finset.univ.filter predL) \ F,
               best ∈ (st (6 * vStar + 1) j).certPairs := by
             intro j hj
@@ -317,7 +301,7 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
             exact of_decide_eq_true hj.1
           have hbest_vc : best ∈ (st (6 * vStar + 2) i).voterCerts := by
             dsimp only [st]
-            rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
+            rw [byzQuorum_state_succ]
             simp only [byzUpdate, hm1_mod, hm1_div, List.mem_filter, List.mem_dedup,
               List.mem_flatMap, decide_eq_true_eq, certSupportCount, hbv_lt, ↓reduceIte]
             obtain ⟨j₀, hj₀⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hSL_card)
@@ -344,14 +328,9 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
         · omega
     | none =>
       have hlCerts_empty : lCerts = [] := pickMaxLock_eq_none_iff.1 hpm
-      have hunlocked : ∀ i ∉ F, (st (6 * vStar) i).locked = none := by
-        intro i hi
-        cases hilk : (st (6 * vStar) i).locked with
-        | none => rfl
-        | some lk =>
-          have hmem := hlock_in_lCerts i hi lk hilk
-          rw [hlCerts_empty] at hmem
-          exact absurd hmem List.not_mem_nil
+      have hunlocked : ∀ i ∉ F, (st (6 * vStar) i).locked = none := fun i hi =>
+        Option.eq_none_iff_forall_ne_some.2 fun lk hilk => by
+          simpa only [hlCerts_empty, List.not_mem_nil] using hlock_in_lCerts i hi lk hilk
       let snapsL := procs.dedup.filterMap fun j =>
         (extractCertStatus (m1 (leader vStar) j)).map Prod.fst
       let valCands := ((st (6 * vStar + 1) (leader vStar)).input ::
@@ -361,49 +340,32 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
           decide (procs.dedup.length - t ≤ properSupportCount snapsL w)) ≠ none := by
         intro hfn
         rw [List.find?_eq_none] at hfn
+        have hcnt : ∀ w, (∀ j ∉ F, (st (6 * vStar + 1) j).properReport.allProper = true ∨
+            w ∈ (st (6 * vStar + 1) j).properReport.freqVals) →
+            decide (procs.dedup.length - t ≤ properSupportCount snapsL w) = true := by
+          intro w hw
+          simp only [snapsL, properSupportCount, filterMap_fst_filter_length, hlen,
+            length_filter_dedup_eq_card hprocs, decide_eq_true_eq]
+          refine card_sub_le_filter_of_compl hF fun j hjF => ?_
+          simp only [hm1_honest (leader vStar) hl j hjF, Bool.or_eq_true, decide_eq_true_eq]
+          exact hw j hjF
         rcases subround0_proper_complete leader hprocs hn hF
           (adv := adv) (x := x) hdel0 with ⟨w₀, hw₀⟩ | hall
-        · have hw₀_cand : w₀ ∈ valCands := by
-            simp only [valCands, List.mem_dedup, List.mem_cons, List.mem_flatMap]
-            refine Or.inr ⟨(st (6 * vStar + 1) (leader vStar)).properReport, ?_,
-              hw₀ (leader vStar) hl⟩
-            simp only [snapsL, List.mem_filterMap]
-            exact ⟨leader vStar, List.mem_dedup.2 (hprocs (leader vStar)),
-              by rw [hm1_honest (leader vStar) hl (leader vStar) hl]; rfl⟩
-          have hw₀_cnt : procs.dedup.length - t ≤ properSupportCount snapsL w₀ := by
-            simp only [snapsL, properSupportCount, filterMap_fst_filter_length, hlen,
-              length_filter_dedup_eq_card hprocs]
-            refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-            have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and,
-              hm1_honest (leader vStar) hl j hjF, Bool.or_eq_true, decide_eq_true_eq]
-            exact Or.inr (hw₀ j hjF)
-          exact hfn w₀ hw₀_cand (decide_eq_true hw₀_cnt)
-        · have hin_cand : (st (6 * vStar + 1) (leader vStar)).input ∈ valCands :=
-            List.mem_dedup.2 List.mem_cons_self
-          have hin_cnt : procs.dedup.length - t ≤
-              properSupportCount snapsL (st (6 * vStar + 1) (leader vStar)).input := by
-            simp only [snapsL, properSupportCount, filterMap_fst_filter_length, hlen,
-              length_filter_dedup_eq_card hprocs]
-            refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-            have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and,
-              hm1_honest (leader vStar) hl j hjF, Bool.or_eq_true, decide_eq_true_eq]
-            exact Or.inl (hall j hjF)
-          exact hfn _ hin_cand (decide_eq_true hin_cnt)
+        · refine hfn w₀ ?_ (hcnt w₀ fun j hj => Or.inr (hw₀ j hj))
+          simp only [valCands, List.mem_dedup, List.mem_cons, List.mem_flatMap]
+          refine Or.inr ⟨(st (6 * vStar + 1) (leader vStar)).properReport, ?_,
+            hw₀ (leader vStar) hl⟩
+          simp only [snapsL, List.mem_filterMap]
+          exact ⟨leader vStar, List.mem_dedup.2 (hprocs (leader vStar)),
+            by rw [hm1_honest (leader vStar) hl (leader vStar) hl]; rfl⟩
+        · exact hfn _ (List.mem_dedup.2 List.mem_cons_self) (hcnt _ fun j hj => Or.inl (hall j hj))
       obtain ⟨wStar, hwStar⟩ := Option.ne_none_iff_exists'.1 hfind_ne
       have hwStar_cnt : procs.dedup.length - t ≤ properSupportCount snapsL wStar := by
-        have hp := (List.find?_eq_some_iff_append.1 hwStar).1
-        exact of_decide_eq_true hp
+        simpa using List.find?_some hwStar
       refine ⟨⟨wStar, none⟩, ?_, fun i hi => ?_⟩
-      · dsimp only [st]
-        rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
-        simp only [byzUpdate, hm1_mod, hm1_div]
-        dsimp only [lCerts, allCandsL, m1] at hpm
-        rw [hpm]
-        dsimp only [valCands, snapsL, m1, st] at hwStar
-        rw [hwStar]
-        rfl
+      · dsimp only [st, lCerts, allCandsL, valCands, snapsL, m1] at hpm hwStar ⊢
+        rw [byzQuorum_state_succ]
+        simp only [byzUpdate, hm1_mod, hm1_div, hpm, hwStar, Option.map_some]
       · simp only [acceptsProposal, hlk_2_eq_0 i, hunlocked i hi, Option.isNone_none,
           Bool.true_and, decide_eq_true_eq]
         simp only [snapsL, properSupportCount, filterMap_fst_filter_length, hlen,
@@ -412,101 +374,53 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
           (match extractCertStatus (m1 (leader vStar) j) with
             | some (rep, _) => rep.allProper || decide (wStar ∈ rep.freqVals)
             | none => false) = true
-        have hSP_card : t + 1 ≤ ((Finset.univ.filter predP) \ F).card := by
-          have hs := Finset.le_card_sdiff F (Finset.univ.filter predP)
-          have hc : Fintype.card P - t ≤ (Finset.univ.filter predP).card := hwStar_cnt
-          omega
+        have hSP_card : t + 1 ≤ ((Finset.univ.filter predP) \ F).card :=
+          succ_le_card_filter_sdiff hn hF hwStar_cnt
         dsimp only [st]
-        rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
+        rw [byzQuorum_state_succ]
         simp only [byzUpdate, hm1_mod, hm1_div, properSupportCount, filterMap_fst_filter_length,
           length_filter_dedup_eq_card hprocs]
         refine le_trans hSP_card (Finset.card_le_card fun j hj => ?_)
         simp only [predP, Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
-        have hjL := hj.1
-        rw [hm1_honest (leader vStar) hl j hj.2] at hjL
-        change (match extractCertStatus (m1 i j) with
-          | some (rep, _) => rep.allProper || decide (wStar ∈ rep.freqVals)
-          | none => false) = true
-        rw [hm1_honest i hi j hj.2]
-        exact hjL
+        obtain ⟨hjL, hjF⟩ := hj
+        dsimp only [m1] at hm1_honest hjL
+        rwa [hm1_honest i hi j hjF, ← hm1_honest (leader vStar) hl j hjF]
   obtain ⟨prop, hpropL, hpropV⟩ := hprop_ok
   -- Step 2 (Subround 2 → 3): every correct `i ∉ F` sets `myEcho = some prop.val`.
   have hecho3 : ∀ i ∉ F, (st (6 * vStar + 3) i).myEcho = some prop.val := by
     intro i hi
     have hacc := hpropV i hi
     dsimp only [st] at hpropL hacc ⊢
-    rw [show 6 * vStar + 3 = (6 * vStar + 2) + 1 by omega, byzQuorum_state_succ]
-    have hm2 : (6 * vStar + 2) % 6 = 2 := by omega
-    have hd2 : (6 * vStar + 2) / 6 = vStar := by omega
-    simp only [byzUpdate, hm2, hd2, byzIncoming, hl, ↓reduceIte,
-      hsync (6 * vStar + 2) (by omega) (by omega) (leader vStar) hl i hi,
-      byzSend, hpropL, true_and, hacc]
-  -- Step 3 (Subround 3 → 4): every correct `i ∉ F` observes `≥ n - t` echoes and sets `myVote`.
-  have hvote4 : ∀ i ∉ F, (st (6 * vStar + 4) i).myVote = some prop.val := by
-    intro i hi
-    dsimp only [st]
-    rw [show 6 * vStar + 4 = (6 * vStar + 3) + 1 by omega, byzQuorum_state_succ]
-    have hm3 : (6 * vStar + 3) % 6 = 3 := by omega
-    have hd3 : (6 * vStar + 3) / 6 = vStar := by omega
-    simp only [byzUpdate, hm3, hd3, hlen]
-    have hfq : findQuorumVal procs (Fintype.card P - t)
-        (fun j => extractEcho vStar
-          (byzIncoming procs leader t F deliver adv x (6 * vStar + 3) i j)) =
-        some prop.val := by
-      rw [findQuorumVal_eq_some_iff hprocs (by omega)]
-      refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-      have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, byzIncoming, hjF, ↓reduceIte,
-        hsync (6 * vStar + 3) (by omega) (by omega) j hjF i hi, byzSend, hm3, hd3]
-      have hej : ((byzQuorumProtocol P V procs leader t).byzantineState
-          F deliver adv x (6 * vStar + 3) j).myEcho = some prop.val := hecho3 j hjF
-      simp only [hej, extractEcho, ↓reduceIte]
-    rw [hfq]
-  -- Step 4 (Subround 4 → 5): every correct `i ∉ F` observes `≥ n - t` votes and sets `myCommit`.
-  have hcommit5 : ∀ i ∉ F, (st (6 * vStar + 5) i).myCommit = some prop.val := by
-    intro i hi
-    dsimp only [st]
-    rw [show 6 * vStar + 5 = (6 * vStar + 4) + 1 by omega, byzQuorum_state_succ]
-    have hm4 : (6 * vStar + 4) % 6 = 4 := by omega
-    have hd4 : (6 * vStar + 4) / 6 = vStar := by omega
-    simp only [byzUpdate, hm4, hd4, hlen]
-    have hfq : findQuorumVal procs (Fintype.card P - t)
-        (fun j => extractVote vStar
-          (byzIncoming procs leader t F deliver adv x (6 * vStar + 4) i j)) =
-        some prop.val := by
-      rw [findQuorumVal_eq_some_iff hprocs (by omega)]
-      refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-      have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, byzIncoming, hjF, ↓reduceIte,
-        hsync (6 * vStar + 4) (by omega) (by omega) j hjF i hi, byzSend, hm4, hd4]
-      have hvj : ((byzQuorumProtocol P V procs leader t).byzantineState
-          F deliver adv x (6 * vStar + 4) j).myVote = some prop.val := hvote4 j hjF
-      simp only [hvj, extractVote, ↓reduceIte]
-    rw [hfq]
-  -- Step 5 (Subround 5 → `6 * (vStar + 1)`): every correct `i ∉ F` observes `≥ n - t` commits and
-  -- decides.
+    rw [byzQuorum_state_succ]
+    simp only [byzUpdate, hmod 2 (by omega), hdiv 2 (by omega), byzIncoming, hl, ↓reduceIte,
+      hdel 2 (by omega) (leader vStar) hl i hi, byzSend, hpropL, true_and, hacc]
+  -- Steps 3–5 (Subrounds 3 → 4 → 5 → `6 * (vStar + 1)`): every correct `i ∉ F` observes `≥ n - t`
+  -- echoes, votes and commits, setting `myVote`, `myCommit` and finally `decided`.
+  have hvote4 : ∀ i ∉ F, (st (6 * vStar + 4) i).myVote = some prop.val := fun i hi => by
+    dsimp only [st] at hecho3 ⊢
+    rw [byzQuorum_state_succ]
+    simp only [byzUpdate, hmod 3 (by omega), hdiv 3 (by omega), hlen]
+    rw [findQuorumVal_of_compl hprocs hF (by omega) (v := prop.val) fun j hjF => by
+      simp only [byzIncoming, hjF, ↓reduceIte, hdel 3 (by omega) j hjF i hi, byzSend,
+        hmod 3 (by omega), hdiv 3 (by omega), hecho3 j hjF, extractEcho]]
+  have hcommit5 : ∀ i ∉ F, (st (6 * vStar + 5) i).myCommit = some prop.val := fun i hi => by
+    dsimp only [st] at hvote4 ⊢
+    rw [byzQuorum_state_succ]
+    simp only [byzUpdate, hmod 4 (by omega), hdiv 4 (by omega), hlen]
+    rw [findQuorumVal_of_compl hprocs hF (by omega) (v := prop.val) fun j hjF => by
+      simp only [byzIncoming, hjF, ↓reduceIte, hdel 4 (by omega) j hjF i hi, byzSend,
+        hmod 4 (by omega), hdiv 4 (by omega), hvote4 j hjF, extractVote]]
   intro i hi
+  dsimp only [st] at hcommit5
   change ((byzQuorumProtocol P V procs leader t).byzantineState
     F deliver adv x ((6 * vStar + 5) + 1) i).decided.isSome = true
   rw [byzQuorum_state_succ]
-  have hm5 : (6 * vStar + 5) % 6 = 5 := by omega
-  have hd5 : (6 * vStar + 5) / 6 = vStar := by omega
-  simp only [byzUpdate, hm5, hd5, hlen]
-  have hfq : findQuorumVal procs (Fintype.card P - t)
-      (fun j => extractCommit vStar
-        (byzIncoming procs leader t F deliver adv x (6 * vStar + 5) i j)) =
-      some prop.val := by
-    rw [findQuorumVal_eq_some_iff hprocs (by omega)]
-    refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-    have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, byzIncoming, hjF, ↓reduceIte,
-      hsync (6 * vStar + 5) (by omega) (by omega) j hjF i hi, byzSend, hm5, hd5]
-    have hcj : ((byzQuorumProtocol P V procs leader t).byzantineState
-        F deliver adv x (6 * vStar + 5) j).myCommit = some prop.val := hcommit5 j hjF
-    simp only [hcj, extractCommit, ↓reduceIte]
-  rw [hfq]
+  simp only [byzUpdate, hmod 5 (by omega), hdiv 5 (by omega), hlen]
+  rw [findQuorumVal_of_compl hprocs hF (by omega) (v := prop.val) fun j hjF => by
+    simp only [byzIncoming, hjF, ↓reduceIte, hdel 5 (by omega) j hjF i hi, byzSend,
+      hmod 5 (by omega), hdiv 5 (by omega), hcommit5 j hjF, extractCommit]]
   cases ((byzQuorumProtocol P V procs leader t).byzantineState
-      F deliver adv x (6 * vStar + 5) i).decided <;> rfl
+    F deliver adv x (6 * vStar + 5) i).decided <;> rfl
 
 /-- **Post-GST bounded termination (`byzQuorum_terminates_after_gst`):** under
 `rotatingCoordinator`, once `IsGST deliver F gst` holds with `3 * t < Fintype.card P` and
@@ -528,10 +442,8 @@ theorem byzQuorum_terminates_after_gst {F : Finset P}
     (adv := adv) x hl (fun r hr_ge _ j hj i hi => hgst r (by omega) j hj i hi)
   intro i hi
   obtain ⟨val, hval⟩ := Option.isSome_iff_exists.1 (hdec i hi)
-  have hval' := byzQuorum_irrevocable (rotatingCoordinator procs fallback) F deliver adv x
-    (r₁ := 6 * (vStar + 1)) (r₂ := gst + 6 * (t + 2)) (by omega) i val hval
-  rw [hval']
-  rfl
+  exact Option.isSome_iff_exists.2 ⟨val, byzQuorum_irrevocable
+    (rotatingCoordinator procs fallback) F deliver adv x (by omega) i val hval⟩
 
 /-- `byzQuorumProtocol` with `rotatingCoordinator` solves unauthenticated Byzantine
 partial-synchrony consensus whenever `3 * t < Fintype.card P` (witnessing the existence half of
@@ -570,7 +482,6 @@ theorem omission_terminates_in_honest_view {F : Finset P}
     ∀ i ∉ F, ((omissionQuorumProtocol P V procs leader t).omissionDecision
       deliver x (3 * (vStar + 1)) i).isSome = true := by
   have hlen : procs.dedup.length = Fintype.card P := dedup_length_eq_card hprocs
-  have hH_card : Fintype.card P - t ≤ (Finset.univ \ F).card := card_compl_ge_sub hF
   let st := (omissionQuorumProtocol P V procs leader t).omissionState deliver x
   -- Subround 0 → 1: `leader vStar` receives ≥ `n - t` `.status` messages and prepares `some prop`
   -- compatible with every correct voter's lock.
@@ -581,14 +492,12 @@ theorem omission_terminates_in_honest_view {F : Finset P}
     have hcnt : procs.dedup.length - t ≤
         (procs.dedup.filter fun j => isOmissionStatus (m0 j)).length := by
       rw [hlen, length_filter_dedup_eq_card hprocs]
-      refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-      have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, m0, omissionIncoming,
+      refine card_sub_le_filter_of_compl hF fun j hjF => ?_
+      simp only [m0, omissionIncoming,
         hsync (3 * vStar) (by omega) (by omega) j hjF (leader vStar) hl, ↓reduceIte, omissionSend,
         show (3 * vStar) % 3 = 0 by omega, isOmissionStatus]
-    have hlk1_eq_0 : ∀ i, (st (3 * vStar + 1) i).locked = (st (3 * vStar) i).locked := by
-      intro i
-      exact omission_locked_unchanged_of_ne_one leader deliver x (3 * vStar) (by omega) i
+    have hlk1_eq_0 (i : P) : (st (3 * vStar + 1) i).locked = (st (3 * vStar) i).locked :=
+      omission_locked_unchanged_of_ne_one leader deliver x (3 * vStar) (by omega) i
     let locks := procs.dedup.filterMap fun j => extractStatusLock (m0 j)
     have hlock_in : ∀ i ∉ F, ∀ lk, (st (3 * vStar) i).locked = some lk → lk ∈ locks := by
       intro i hi lk hilk
@@ -601,69 +510,49 @@ theorem omission_terminates_in_honest_view {F : Finset P}
         (st (3 * vStar) i).locked)) = some lk
       rw [hilk, extractStatusLock]
     have hlProp_eq : (st (3 * vStar + 1) (leader vStar)).leaderProposal =
-        match pickMaxLock locks with
-        | some best => some ⟨best.val, some best.view⟩
-        | none => some ⟨(st (3 * vStar) (leader vStar)).input, none⟩ := by
+        some (match pickMaxLock locks with
+          | some best => ⟨best.val, some best.view⟩
+          | none => ⟨(st (3 * vStar) (leader vStar)).input, none⟩) := by
       dsimp only [m0] at hcnt
       dsimp only [st, locks, m0]
-      rw [show 3 * vStar + 1 = (3 * vStar) + 1 by rfl, omissionQuorum_state_succ]
+      rw [omissionQuorum_state_succ]
       simp only [omissionUpdate, show (3 * vStar) % 3 = 0 by omega, hcnt, ↓reduceIte]
       cases pickMaxLock _ <;> rfl
-    cases hpm : pickMaxLock locks with
-    | some best =>
-      refine ⟨⟨best.val, some best.view⟩, by rw [hlProp_eq, hpm], fun i hi => ?_⟩
-      simp only [acceptsOmissionProposal, decide_true, Bool.true_and, hlk1_eq_0 i]
-      cases hilk : (st (3 * vStar) i).locked with
-      | none => rfl
-      | some lk =>
+    refine ⟨_, hlProp_eq, fun i hi => ?_⟩
+    simp only [acceptsOmissionProposal, decide_true, Bool.true_and, hlk1_eq_0 i]
+    cases hilk : (st (3 * vStar) i).locked with
+    | none => rfl
+    | some lk =>
+      have hmem := hlock_in i hi lk hilk
+      cases hpm : pickMaxLock locks with
+      | some best =>
         simp only [decide_eq_true_eq]
-        exact Or.inr (pickMaxLock_le hpm lk (hlock_in i hi lk hilk))
-    | none =>
-      have hlocks_empty : locks = [] := pickMaxLock_eq_none_iff.1 hpm
-      refine ⟨⟨(st (3 * vStar) (leader vStar)).input, none⟩, by rw [hlProp_eq, hpm],
-        fun i hi => ?_⟩
-      simp only [acceptsOmissionProposal, decide_true, Bool.true_and, hlk1_eq_0 i]
-      cases hilk : (st (3 * vStar) i).locked with
-      | none => rfl
-      | some lk =>
-        have hmem := hlock_in i hi lk hilk
-        rw [hlocks_empty] at hmem
-        exact absurd hmem List.not_mem_nil
+        exact Or.inr (pickMaxLock_le hpm lk hmem)
+      | none => simp only [pickMaxLock_eq_none_iff.1 hpm, List.not_mem_nil] at hmem
   obtain ⟨prop, hpropL, hpropV⟩ := hprop
   -- Subround 1 → 2: every correct `i ∉ F` sets `myAck = some prop.val`.
-  have hack2 : ∀ i ∉ F, (st (3 * vStar + 2) i).myAck = some prop.val := by
-    intro i hi
+  have hack2 : ∀ i ∉ F, (st (3 * vStar + 2) i).myAck = some prop.val := fun i hi => by
     have hacc := hpropV i hi
     dsimp only [st] at hpropL hacc ⊢
-    rw [show 3 * vStar + 2 = (3 * vStar + 1) + 1 by omega, omissionQuorum_state_succ]
-    have hm1 : (3 * vStar + 1) % 3 = 1 := by omega
-    have hd1 : (3 * vStar + 1) / 3 = vStar := by omega
-    simp only [omissionUpdate, hm1, hd1, omissionIncoming,
+    rw [omissionQuorum_state_succ]
+    simp only [omissionUpdate, show (3 * vStar + 1) % 3 = 1 by omega,
+      show (3 * vStar + 1) / 3 = vStar by omega, omissionIncoming,
       hsync (3 * vStar + 1) (by omega) (by omega) (leader vStar) hl i hi,
       ↓reduceIte, omissionSend, hpropL, hacc]
   -- Subround 2 → `3 * (vStar + 1)`: every correct `i ∉ F` observes `≥ n - t` acks and decides.
   intro i hi
+  dsimp only [st] at hack2
   change ((omissionQuorumProtocol P V procs leader t).omissionState
     deliver x ((3 * vStar + 2) + 1) i).decided.isSome = true
   rw [omissionQuorum_state_succ]
-  have hm2 : (3 * vStar + 2) % 3 = 2 := by omega
-  have hd2 : (3 * vStar + 2) / 3 = vStar := by omega
-  simp only [omissionUpdate, hm2, hd2, hlen]
-  have hfq : findQuorumVal procs (Fintype.card P - t)
-      (fun j => extractAck vStar
-        (omissionIncoming procs leader t deliver x (3 * vStar + 2) i j)) =
-      some prop.val := by
-    rw [findQuorumVal_eq_some_iff hprocs (by omega)]
-    refine le_trans hH_card (Finset.card_le_card fun j hj => ?_)
-    have hjF : j ∉ F := (Finset.mem_sdiff.1 hj).2
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, omissionIncoming,
-      hsync (3 * vStar + 2) (by omega) (by omega) j hjF i hi, ↓reduceIte, omissionSend, hm2, hd2]
-    have haj : ((omissionQuorumProtocol P V procs leader t).omissionState
-        deliver x (3 * vStar + 2) j).myAck = some prop.val := hack2 j hjF
-    simp only [haj, extractAck, ↓reduceIte]
-  rw [hfq]
+  simp only [omissionUpdate, show (3 * vStar + 2) % 3 = 2 by omega,
+    show (3 * vStar + 2) / 3 = vStar by omega, hlen]
+  rw [findQuorumVal_of_compl hprocs hF hn (v := prop.val) fun j hjF => by
+    simp only [omissionIncoming, hsync (3 * vStar + 2) (by omega) (by omega) j hjF i hi,
+      ↓reduceIte, omissionSend, show (3 * vStar + 2) % 3 = 2 by omega,
+      show (3 * vStar + 2) / 3 = vStar by omega, hack2 j hjF, extractAck]]
   cases ((omissionQuorumProtocol P V procs leader t).omissionState
-      deliver x (3 * vStar + 2) i).decided <;> rfl
+    deliver x (3 * vStar + 2) i).decided <;> rfl
 
 /-- **Post-GST bounded omission termination (`omission_terminates_after_gst`):** under
 `rotatingCoordinator`, once `IsGST deliver F gst` holds with `2 * t < Fintype.card P` and
@@ -682,10 +571,8 @@ theorem omission_terminates_after_gst {F : Finset P}
     x hl (fun r hr_ge _ j hj i hi => hgst r (by omega) j hj i hi)
   intro i hi
   obtain ⟨val, hval⟩ := Option.isSome_iff_exists.1 (hdec i hi)
-  have hval' := omission_irrevocable (rotatingCoordinator procs fallback) deliver x
-    (r₁ := 3 * (vStar + 1)) (r₂ := gst + 3 * (t + 2)) (by omega) i val hval
-  rw [hval']
-  rfl
+  exact Option.isSome_iff_exists.2 ⟨val,
+    omission_irrevocable (rotatingCoordinator procs fallback) deliver x (by omega) i val hval⟩
 
 /-- `omissionQuorumProtocol` with `rotatingCoordinator` solves crash/omission partial-synchrony
 consensus whenever `2 * t < Fintype.card P` (witnessing the existence half of
@@ -729,15 +616,12 @@ theorem PartialSyncProtocol.byzantineState_always_eq_state {P V S M : Type*}
   | 0, _ => rfl
   | r + 1, i => by
     rw [PartialSyncProtocol.byzantineState, Cslib.Distributed.Byzantine.Protocol.state]
-    change π.update r i _ _ = π.update r i _ _
     congr 1
     · exact π.byzantineState_always_eq_state v₀ v₁ F adv b r i
     · funext j
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte]
-        change some (π.send r j _ i) = some (π.send r j _ i)
-        rw [π.byzantineState_always_eq_state v₀ v₁ F adv b r j]
+      by_cases hj : j ∈ F <;>
+        simp [hj, PartialSyncProtocol.toSyncProtocol,
+          π.byzantineState_always_eq_state v₀ v₁ F adv b r j]
 
 /-- **Synchronous-special-case impossibility (`not_partialSync_of_le_three_t`):** since `GST = 0`
 with `deliver = fun _ _ _ => true` embeds synchronous `Byzantine.Protocol` directly,
@@ -779,10 +663,7 @@ theorem not_partialSync_of_le_three_t {P V S M : Type*}
       (fun k hk => by simp only [x, hbit k hk]) i hi wi hwi
     change decide (π.byzantineDecision F (fun _ _ _ => true) adv x R i = some v₁) = bit
     rw [hwi, hval']
-    cases bit
-    · simp only [Bool.false_eq_true, ↓reduceIte, Option.some.injEq, decide_eq_false_iff_not]
-      exact hne
-    · simp only [↓reduceIte, decide_true]
+    cases bit <;> simp [hne]
 
 /-- **Unbounded unauthenticated Byzantine impossibility (`not_solvesByzantinePartialSync`,
 [Dwork, Lynch and Stockmeyer, §1.2 and Table I, p. 291][DworkLynchStockmeyer1988]):** when
@@ -886,16 +767,12 @@ theorem not_solvesByzantinePartialSync {P V S M : Type*}
   let σ₁ : P → Bool := fun i => decide (g i = 0)
   have hdec_a : π.byzantineDecision (Fk 1) (fun _ _ _ => true) (adv σ₁)
       (fun j => if σ₁ j then v₁ else v₀) R₂ a = some v₁ := by
-    rw [key 1 σ₁ (fun i j hi hj => hfin _ _ hi hj) R₂ a ha₁]
-    have hσa : σ₁ a = true := by simp only [σ₁, ha, decide_true]
-    rw [hσa]
-    exact hcov₂
+    simpa only [key 1 σ₁ (fun _ _ => hfin _ _) R₂ a ha₁, σ₁, ha, decide_true, ↓reduceIte] using
+      hcov₂
   have hdec_c : π.byzantineDecision (Fk 1) (fun _ _ _ => true) (adv σ₁)
       (fun j => if σ₁ j then v₁ else v₀) R₀ c = some v₀ := by
-    rw [key 1 σ₁ (fun i j hi hj => hfin _ _ hi hj) R₀ c hc₁]
-    have hσc : σ₁ c = false := by simp only [σ₁, hc]; decide
-    rw [hσc]
-    exact hcov₀
+    simpa only [key 1 σ₁ (fun _ _ => hfin _ _) R₀ c hc₁, σ₁, hc,
+      (by decide : (2 : Fin 3) ≠ 0), decide_false, Bool.false_eq_true, ↓reduceIte] using hcov₀
   have hag := h.agreement (Fk 1) (hcard 1) (fun _ _ _ => true) (adv σ₁)
     (fun j => if σ₁ j then v₁ else v₀) R₂ R₀ a ((hnotMem 1 a).2 ha₁) c ((hnotMem 1 c).2 hc₁)
     v₁ v₀ hdec_a hdec_c
@@ -956,30 +833,14 @@ theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
   let A : Finset P := Finset.univ.filter fun i => (e i : ℕ) < k
   let B : Finset P := Finset.univ \ A
   have hA_card : A.card = k := by
-    calc A.card
-        = ((Finset.univ : Finset (Fin n)).filter fun x : Fin n => (x : ℕ) < k).card := by
-          apply Finset.card_bij (fun i _ => e i)
-          · intro i hi
-            simp only [A, Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
-            exact hi
-          · intro i₁ _ i₂ _ heq
-            exact e.injective heq
-          · intro x hx
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx
-            exact ⟨e.symm x, by simp only [A, Finset.mem_filter, Finset.mem_univ,
-              Equiv.apply_symm_apply, hx, and_self], Equiv.apply_symm_apply e x⟩
-      _ = (Finset.range k).card := by
-          apply Finset.card_bij (fun (x : Fin n) _ => (x : ℕ))
-          · intro x hx
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_range] at hx ⊢
-            exact hx
-          · intro x₁ _ x₂ _ heq
-            exact Fin.ext heq
-          · intro m hm
-            rw [Finset.mem_range] at hm
-            exact ⟨⟨m, by omega⟩,
-              by simp only [Finset.mem_filter, Finset.mem_univ, hm, and_self], rfl⟩
-      _ = k := Finset.card_range k
+    rw [← Finset.card_range k]
+    refine Finset.card_bij (fun i _ => (e i : ℕ)) (fun i hi => ?_)
+      (fun _ _ _ _ h => e.injective (Fin.ext h)) (fun m hm => ?_)
+    · simpa only [A, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_range] using hi
+    · rw [Finset.mem_range] at hm
+      exact ⟨e.symm ⟨m, by omega⟩, by
+        simp only [A, Finset.mem_filter, Finset.mem_univ, Equiv.apply_symm_apply, hm, and_self],
+        congrArg Fin.val (e.apply_symm_apply _)⟩
   have hB_card : B.card = n - k := by
     have hs := Finset.card_sdiff_add_card_eq_card (Finset.subset_univ A)
     simp only [B, Finset.card_univ, n] at hs ⊢
@@ -1000,62 +861,48 @@ theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
   let partDeliver : ℕ → P → P → Bool := fun _ j i => decide (j ∈ A ↔ i ∈ A)
   let healAt (T : ℕ) : ℕ → P → P → Bool := fun r j i => if r < T then partDeliver r j i else true
   have hgst_heal : ∀ T, IsGST (healAt T) ∅ T := fun T r hr _ _ _ _ => by
-    have hlt : ¬ r < T := by omega
-    simp only [healAt, hlt, ↓reduceIte]
-  have hgstB : IsGST partDeliver B 0 := by
-    intro r _ j hj i hi
+    simp only [healAt, Nat.not_lt.mpr hr, ↓reduceIte]
+  have hgstB : IsGST partDeliver B 0 := fun _ _ j hj i hi => by
     simp only [B, Finset.mem_sdiff, Finset.mem_univ, true_and, not_not] at hj hi
     simp only [partDeliver, hj, hi, decide_true]
-  have hgstA : IsGST partDeliver A 0 := by
-    intro r _ j hj i hi
+  have hgstA : IsGST partDeliver A 0 := fun _ _ j hj i hi => by
     simp only [partDeliver, hj, hi, decide_true]
+  -- Healing a partitioned unanimous run at its decision round does not change the decision.
+  have hheal : ∀ (v : V) R p, π.omissionDecision (healAt R) (fun _ => v) R p =
+      π.omissionDecision partDeliver (fun _ => v) R p := fun v R p =>
+    congrArg (π.output p) (omissionState_eq_of_prefix π (d₁ := healAt R) (d₂ := partDeliver)
+      (x₁ := fun _ => v) (x₂ := fun _ => v) (S := fun _ => True) (fun _ _ => rfl)
+      (fun r hr _ _ _ => ⟨by simp only [healAt, hr, ↓reduceIte], fun _ => trivial⟩) R le_rfl p
+      trivial)
   -- Scenario A (`B` faulty, all inputs `v₀`): `a ∈ A` decides at `R₀`; healing at `R₀` yields `v₀`.
   obtain ⟨R₀, hR₀⟩ := hterm B hB_le partDeliver 0 (fun _ => v₀) hgstB a haB
   obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.1 hR₀
-  have hw₀_heal : π.omissionDecision (healAt R₀) (fun _ => v₀) R₀ a = some w₀ := by
-    change π.output a (π.omissionState (healAt R₀) (fun _ => v₀) R₀ a) = some w₀
-    rw [omissionState_eq_of_prefix π (d₁ := healAt R₀) (d₂ := partDeliver)
-      (x₁ := fun _ => v₀) (x₂ := fun _ => v₀) (S := fun _ => True) (fun _ _ => rfl)
-      (fun r hr j i _ => ⟨by simp only [healAt, hr, ↓reduceIte], fun _ => trivial⟩) R₀ le_rfl a
-      trivial]
-    exact hw₀
-  have hw₀_eq : w₀ = v₀ :=
-    hwu (healAt R₀) (fun _ => v₀) v₀ ⟨R₀, hgst_heal R₀⟩ (fun _ => rfl) R₀ a w₀ hw₀_heal
+  have hw₀_eq : w₀ = v₀ := hwu (healAt R₀) (fun _ => v₀) v₀ ⟨R₀, hgst_heal R₀⟩ (fun _ => rfl) R₀
+    a w₀ ((hheal v₀ R₀ a).trans hw₀)
   subst w₀
   -- Scenario B (`A` faulty, all inputs `v₁`): `b ∉ A` decides at `R₁`; healing at `R₁` yields `v₁`.
   obtain ⟨R₁, hR₁⟩ := hterm A hA_le partDeliver 0 (fun _ => v₁) hgstA b hbA
   obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.1 hR₁
-  have hw₁_heal : π.omissionDecision (healAt R₁) (fun _ => v₁) R₁ b = some w₁ := by
-    change π.output b (π.omissionState (healAt R₁) (fun _ => v₁) R₁ b) = some w₁
-    rw [omissionState_eq_of_prefix π (d₁ := healAt R₁) (d₂ := partDeliver)
-      (x₁ := fun _ => v₁) (x₂ := fun _ => v₁) (S := fun _ => True) (fun _ _ => rfl)
-      (fun r hr j i _ => ⟨by simp only [healAt, hr, ↓reduceIte], fun _ => trivial⟩) R₁ le_rfl b
-      trivial]
-    exact hw₁
-  have hw₁_eq : w₁ = v₁ :=
-    hwu (healAt R₁) (fun _ => v₁) v₁ ⟨R₁, hgst_heal R₁⟩ (fun _ => rfl) R₁ b w₁ hw₁_heal
+  have hw₁_eq : w₁ = v₁ := hwu (healAt R₁) (fun _ => v₁) v₁ ⟨R₁, hgst_heal R₁⟩ (fun _ => rfl) R₁
+    b w₁ ((hheal v₁ R₁ b).trans hw₁)
   subst w₁
   -- Scenario C (`F = ∅`, mixed inputs `xMix`, healing at `G = max R₀ R₁`).
   let G := max R₀ R₁
   let xMix : P → V := fun i => if i ∈ A then v₀ else v₁
-  have hdec_a : π.omissionDecision (healAt G) xMix R₀ a = some v₀ := by
-    change π.output a (π.omissionState (healAt G) xMix R₀ a) = some v₀
-    rw [omissionState_eq_of_prefix π (d₁ := healAt G) (d₂ := partDeliver)
+  have hdec_a : π.omissionDecision (healAt G) xMix R₀ a = some v₀ :=
+    (congrArg (π.output a) (omissionState_eq_of_prefix π (d₁ := healAt G) (d₂ := partDeliver)
       (x₁ := xMix) (x₂ := fun _ => v₀) (S := fun i => i ∈ A)
       (fun i hi => by simp only [xMix, hi, ↓reduceIte])
       (fun r hr j i hi => ⟨by simp only [healAt, G, hr, ↓reduceIte], fun hp => by
         simp only [partDeliver, hi, iff_true, decide_eq_true_eq] at hp; exact hp⟩)
-      R₀ (le_max_left R₀ R₁) a haA]
-    exact hw₀
-  have hdec_b : π.omissionDecision (healAt G) xMix R₁ b = some v₁ := by
-    change π.output b (π.omissionState (healAt G) xMix R₁ b) = some v₁
-    rw [omissionState_eq_of_prefix π (d₁ := healAt G) (d₂ := partDeliver)
+      R₀ (le_max_left R₀ R₁) a haA)).trans hw₀
+  have hdec_b : π.omissionDecision (healAt G) xMix R₁ b = some v₁ :=
+    (congrArg (π.output b) (omissionState_eq_of_prefix π (d₁ := healAt G) (d₂ := partDeliver)
       (x₁ := xMix) (x₂ := fun _ => v₁) (S := fun i => i ∉ A)
       (fun i hi => by simp only [xMix, hi, ↓reduceIte])
       (fun r hr j i hi => ⟨by simp only [healAt, G, hr, ↓reduceIte], fun hp => by
         simp only [partDeliver, hi, iff_false, decide_eq_true_eq] at hp; exact hp⟩)
-      R₁ (le_max_right R₀ R₁) b hbA]
-    exact hw₁
+      R₁ (le_max_right R₀ R₁) b hbA)).trans hw₁
   exact hne (hag (healAt G) xMix R₀ R₁ a b v₀ v₁ ⟨G, hgst_heal G⟩ hdec_a hdec_b)
 
 /-- **Crash/omission lower bound (`not_solvesOmissionPartialSync`,
@@ -1094,13 +941,11 @@ theorem exists_solvesByzantinePartialSync_iff.{u, v} (P : Type u) (V : Type v)
     · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.1 h1
       exact ⟨V, PUnit.{v + 1}, ownInputProtocol P V, solvesByzantinePartialSync_ownInput t⟩
     · let e := Fintype.equivFin P
-      let procs : List P := List.ofFn e.symm
-      have hprocs : ∀ p : P, p ∈ procs := fun p =>
-        List.mem_ofFn.2 ⟨e p, Equiv.symm_apply_apply e p⟩
-      let fallback : P := e.symm ⟨0, by omega⟩
       exact ⟨ByzViewState V, ByzViewMsg V,
-        byzQuorumProtocol P V procs (rotatingCoordinator procs fallback) t,
-        solvesByzantinePartialSync_byzQuorumProtocol hprocs fallback h3t⟩
+        byzQuorumProtocol P V (List.ofFn e.symm)
+          (rotatingCoordinator (List.ofFn e.symm) (e.symm ⟨0, by omega⟩)) t,
+        solvesByzantinePartialSync_byzQuorumProtocol
+          (fun p => List.mem_ofFn.2 ⟨e p, e.symm_apply_apply p⟩) _ h3t⟩
 
 /-- **Sharp characterization of crash/omission consensus under partial synchrony
 (`exists_solvesOmissionPartialSync_iff`,
@@ -1121,12 +966,10 @@ theorem exists_solvesOmissionPartialSync_iff.{u, v} (P : Type u) (V : Type v)
       exact ⟨V, PUnit.{v + 1}, ownInputProtocol P V,
         (solvesByzantinePartialSync_ownInput t).toOmission⟩
     · let e := Fintype.equivFin P
-      let procs : List P := List.ofFn e.symm
-      have hprocs : ∀ p : P, p ∈ procs := fun p =>
-        List.mem_ofFn.2 ⟨e p, Equiv.symm_apply_apply e p⟩
-      let fallback : P := e.symm ⟨0, by omega⟩
       exact ⟨OmissionViewState V, OmissionViewMsg V,
-        omissionQuorumProtocol P V procs (rotatingCoordinator procs fallback) t,
-        solvesOmissionPartialSync_omissionQuorumProtocol hprocs fallback h2t⟩
+        omissionQuorumProtocol P V (List.ofFn e.symm)
+          (rotatingCoordinator (List.ofFn e.symm) (e.symm ⟨0, by omega⟩)) t,
+        solvesOmissionPartialSync_omissionQuorumProtocol
+          (fun p => List.mem_ofFn.2 ⟨e p, e.symm_apply_apply p⟩) _ h2t⟩
 
 end Cslib.Distributed.PartialSynchrony

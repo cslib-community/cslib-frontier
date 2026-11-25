@@ -76,8 +76,7 @@ theorem weightNumerator_div (denominator rateNumerator threshold : ℕ)
   have hd : (0 : ℝ) < denominator := by exact_mod_cast hdenominator
   by_cases hlow : 2 * votes.count truth ≤ votes.length + threshold
   · have hm : 2 * (votes.count truth : ℝ) - votes.length - threshold ≤ 0 := by
-      have h : 2 * (votes.count truth : ℝ) ≤ votes.length + threshold := by exact_mod_cast hlow
-      linarith
+      linarith [show 2 * (votes.count truth : ℝ) ≤ votes.length + threshold by exact_mod_cast hlow]
     rw [weight_of_nonpos (by positivity) hm]
     simp [weightNumerator, Nat.sub_eq_zero_of_le hlow, hdenominator.ne']
   · let excess := 2 * votes.count truth - (votes.length + threshold)
@@ -93,16 +92,12 @@ theorem weightNumerator_div (denominator rateNumerator threshold : ℕ)
     rw [min_eq_right (max_le (by norm_num) (by linarith))]
     by_cases hcap : rateNumerator * excess ≤ denominator
     · have hratio : (rateNumerator : ℝ) / denominator * excess ≤ 1 := by
-        rw [div_mul_eq_mul_div]
-        apply (div_le_iff₀ hd).mpr
-        simp only [one_mul]
+        rw [div_mul_eq_mul_div, div_le_one hd]
         exact_mod_cast hcap
       rw [max_eq_right (by linarith), Nat.cast_sub hcap, Nat.cast_mul]
       field_simp
     · have hratio : 1 ≤ (rateNumerator : ℝ) / denominator * excess := by
-        rw [div_mul_eq_mul_div]
-        apply (le_div_iff₀ hd).mpr
-        simp only [one_mul]
+        rw [div_mul_eq_mul_div, one_le_div hd]
         exact_mod_cast (show denominator ≤ rateNumerator * excess by lia)
       rw [max_eq_left (by linarith), Nat.sub_eq_zero_of_le (by lia)]
       simp
@@ -170,9 +165,8 @@ theorem isPPTOn_sampleWeight {α : Type} {input : α ↪ List Bool}
     (hvotes : ComputableInPolyTime votes input encBits)
     (htruth : ComputableInPolyTime truth input encBool) :
     IsPPTOn input encBool (fun a =>
-      sampleWeight (bound a) (rateNumerator a) (threshold a) (votes a) (truth a)) := by
-  unfold sampleWeight
-  exact isPPTOn_sampleDyadicCoin hbound
+      sampleWeight (bound a) (rateNumerator a) (threshold a) (votes a) (truth a)) :=
+  isPPTOn_sampleDyadicCoin hbound
     (isPolyTime_weightNumerator (ComputableInPolyTime.unary_dyadicSize.comp hbound)
       hrate hthreshold hvotes htruth)
 

@@ -47,31 +47,22 @@ two extracted bit-string registers. -/
 theorem expect_pauliString_kronecker_self :
     (𝔼 a : ι → Bool, 𝔼 b : ι → Bool, pauliString a b ⊗ₖ pauliString a b) =
       pureState (maxEntangled (ι → Bool)) := by
-  have hcard : (Fintype.card (ι → Bool) : ℂ) = (2 : ℂ) ^ Fintype.card ι := by
-    rw [Fintype.card_fun, Fintype.card_bool]
-    push_cast
-    rfl
-  have hcard_ne : (Fintype.card (ι → Bool) : ℂ) ≠ 0 := by
-    exact_mod_cast Fintype.card_ne_zero
+  have hcard : (Fintype.card (ι → Bool) : ℂ) = (2 : ℂ) ^ Fintype.card ι := by simp
   have hscale :
       (((Real.sqrt (Fintype.card (ι → Bool)))⁻¹ : ℝ) : ℂ) *
         (((Real.sqrt (Fintype.card (ι → Bool)))⁻¹ : ℝ) : ℂ) =
         (Fintype.card (ι → Bool) : ℂ)⁻¹ := by
-    rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt (Nat.cast_nonneg _)]
-    push_cast
-    rfl
+    rw [← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt (Nat.cast_nonneg _),
+      Complex.ofReal_inv, Complex.ofReal_natCast]
   ext ⟨x, x'⟩ ⟨y, y'⟩
   have hentry (a b : ι → Bool) :
       (pauliString a b * single y y' (1 : ℂ) * (pauliString a b)ᴴ :
         Matrix (ι → Bool) (ι → Bool) ℂ) x x' =
         pauliString a b x y * pauliString a b x' y' := by
-    classical
-    rw [Matrix.mul_apply, sum_eq_single y']
-    · rw [mul_single_apply_same, mul_one, conjTranspose_apply]
-      by_cases hy : y' = x' + a <;> simp [pauliString_apply, hy]
-    · intro j _ hj
-      rw [mul_single_apply_of_ne _ _ _ _ _ hj, zero_mul]
-    · simp
+    rw [Matrix.mul_apply, sum_eq_single y'
+      (fun j _ hj => by rw [mul_single_apply_of_ne _ _ _ _ _ hj, zero_mul]) (by simp),
+      mul_single_apply_same, mul_one, conjTranspose_apply]
+    by_cases hy : y' = x' + a <;> simp [pauliString_apply, hy]
   have he := congrArg (fun M : Matrix (ι → Bool) (ι → Bool) ℂ => M x x')
     (sum_pauliTwirl (single y y' 1))
   simp only [Matrix.sum_apply, hentry, Matrix.smul_apply, smul_eq_mul, ← hcard] at he
@@ -79,15 +70,14 @@ theorem expect_pauliString_kronecker_self :
     ← NNRat.cast_smul_eq_nnqsmul ℂ, NNRat.cast_inv, NNRat.cast_natCast, Finset.card_univ,
     smul_eq_mul, ← mul_sum, ← mul_assoc, pureState_apply, maxEntangled_apply]
   rw [mul_assoc, he]
-  by_cases hy : y = y'
-  · subst y'
-    rw [trace_single_eq_same, mul_one, Matrix.one_apply]
+  rcases eq_or_ne y y' with rfl | hy
+  · rw [trace_single_eq_same, mul_one, Matrix.one_apply]
+    have hne : (Fintype.card (ι → Bool) : ℂ) ≠ 0 := mod_cast Fintype.card_ne_zero
     by_cases hx : x = x'
-    · simp only [hx, ite_true, inv_mul_cancel₀ hcard_ne, mul_one,
+    · simp only [hx, ite_true, inv_mul_cancel₀ hne, mul_one,
         Complex.star_def, Complex.conj_ofReal, hscale]
     · simp [hx]
-  · rw [trace_single_eq_of_ne y y' (1 : ℂ) hy]
-    simp [hy]
+  · simp [trace_single_eq_of_ne y y' (1 : ℂ) hy, hy]
 
 private theorem one_sub_involution_nonneg
     {A : Type*} [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
@@ -154,11 +144,7 @@ private theorem re_apply_one_sub_pairedPauli_le
       smul_kronecker, kronecker_smul, smul_smul, ← Complex.ofReal_mul, signVal_mul_self,
       Complex.ofReal_one, one_smul]
   have hp := φ.re_apply_mono (one_sub_mul_le_of_involutions hsU hsV hU2 hV2 hc)
-  rw [map_add, Complex.add_re] at hp
-  change _ ≤ (φ (1 - U)).re + (φ (1 - V)).re
-  rw [show pauliString a b ⊗ₖ pauliString a b = U * V by
-    simp only [U, V, ← mul_kronecker_mul, pauliString]]
-  exact hp
+  simpa only [map_add, Complex.add_re, U, V, ← mul_kronecker_mul, pauliString] using hp
 
 /-- Squared leakage is the state's weight on the complementary EPR projection. -/
 theorem norm_sub_eprProjector_sq_eq
@@ -180,24 +166,20 @@ theorem norm_sub_eprProjector_sq_le
     φ.norm (pureState (maxEntangled (ι → Bool)) - 1) ^ 2 ≤
       (1 / 2) * ((𝔼 a, φ.norm (kroneckerOne (pauliXPow a) - oneKronecker (pauliXPow a)) ^ 2) +
         (𝔼 b, φ.norm (kroneckerOne (pauliZPow b) - oneKronecker (pauliZPow b)) ^ 2)) := by
-  let E := pureState (maxEntangled (ι → Bool))
-  have havg := expect_le_expect (s := (univ : Finset (ι → Bool))) fun a _ =>
-    expect_le_expect (s := (univ : Finset (ι → Bool))) fun b _ =>
-      re_apply_one_sub_pairedPauli_le φ a b
-  have hL : (𝔼 a : ι → Bool, 𝔼 b : ι → Bool,
-      (φ (1 - pauliString a b ⊗ₖ pauliString a b)).re) = (φ (1 - E)).re := by
+  rw [norm_sub_eprProjector_sq_eq φ, ← expect_pauliString_kronecker_self]
+  have hL : (φ (1 - 𝔼 a : ι → Bool, 𝔼 b : ι → Bool, pauliString a b ⊗ₖ pauliString a b)).re =
+      𝔼 a : ι → Bool, 𝔼 b : ι → Bool, (φ (1 - pauliString a b ⊗ₖ pauliString a b)).re := by
     simp_rw [← φ.re_apply_expect, expect_sub_distrib, Fintype.expect_const]
-    rw [expect_pauliString_kronecker_self]
-  have hx (a : ι → Bool) := re_apply_one_sub_kronecker_self φ (pauliXPow a)
-    (pauliXPow_isHermitian a).isSelfAdjoint (pauliXPow_mul_self a)
-  have hz (b : ι → Bool) := re_apply_one_sub_kronecker_self φ (pauliZPow b)
-    (pauliZPow_isHermitian b).isSelfAdjoint (pauliZPow_mul_self b)
-  rw [hL] at havg
-  simp only [expect_add_distrib, Fintype.expect_const, hx, hz, div_eq_inv_mul,
-    ← mul_expect] at havg
-  change φ.norm (E - 1) ^ 2 ≤ _
-  rw [norm_sub_eprProjector_sq_eq φ]
-  linarith only [havg]
+  rw [hL]
+  refine (expect_le_expect fun a _ => expect_le_expect fun b _ =>
+    re_apply_one_sub_pairedPauli_le φ a b).trans_eq ?_
+  simp only [expect_add_distrib, Fintype.expect_const,
+    re_apply_one_sub_kronecker_self φ _
+      (pauliXPow_isHermitian _).isSelfAdjoint (pauliXPow_mul_self _),
+    re_apply_one_sub_kronecker_self φ _
+      (pauliZPow_isHermitian _).isSelfAdjoint (pauliZPow_mul_self _),
+    div_eq_inv_mul, ← mul_expect]
+  ring
 
 
 section Projection
