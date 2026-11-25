@@ -156,9 +156,8 @@ theorem reconstruct_bgwMulStep_eq_mul (params : Params F Party)
       bgwMulStep params r₁ a r₂ b r_z =
         fun i => (Polynomial.sharingPolynomial (a * b)
           (Polynomial.tailPolynomial (2 * params.threshold)
-            (mulTailCoeffs a r₁ b r₂ + r_z))).eval (params.point i) := by
-    ext i
-    exact bgwMulStep_eq_eval_sharingPolynomial params r₁ a r₂ b r_z i
+            (mulTailCoeffs a r₁ b r₂ + r_z))).eval (params.point i) :=
+    funext (bgwMulStep_eq_eval_sharingPolynomial params r₁ a r₂ b r_z)
   rw [hcongr]
   refine Polynomial.reconstruct_sharingPolynomial_eq_secret params.point_injective ?_
   refine lt_of_lt_of_le
@@ -240,9 +239,8 @@ theorem reconstruct_bgwDegreeReduceShare_mul_eq_mul (params : Params F Party)
   have hcongr :
       (fun i : s => bgwDegreeReduceShare params
         (fun j k => share params (r_sub j) (share params r₁ a j * share params r₂ b j) k) i) =
-      fun i : s => share params (bgwReducedRandomness params r_sub) (a * b) i := by
-    ext i
-    exact bgwDegreeReduceShare_mul_eq_share params h2t r₁ r₂ a b r_sub i
+      fun i : s => share params (bgwReducedRandomness params r_sub) (a * b) i :=
+    funext fun i => bgwDegreeReduceShare_mul_eq_share params h2t r₁ r₂ a b r_sub i
   rw [hcongr]
   exact reconstruct_share_eq_secret params (bgwReducedRandomness params r_sub) (a * b) hs
 
