@@ -188,29 +188,14 @@ private theorem partitionFunctionOn_split [Semiring R] [DecidableEq V] [Fintype 
           if hv : v ∈ S then p.1 ⟨v, hv⟩
           else if hrest : v ∈ T \ S then p.2 ⟨v, hrest⟩
           else default) := by
-  let eSplit := sdiffPiEquiv (D := D) hST
   rw [partitionFunctionOn]
-  calc ∑ σ : T → D, F.weight wt (fun v => if h : v ∈ T then σ ⟨v, h⟩ else default)
-      = ∑ p : (S → D) × ((T \ S : Finset V) → D),
-          F.weight wt (fun v => if h : v ∈ T then eSplit.symm p ⟨v, h⟩ else default) :=
-        Fintype.sum_equiv eSplit _ (fun p => F.weight wt _) (fun σ => by
-          congr 1; exact funext fun v => by simp [Equiv.symm_apply_apply])
-    _ = ∑ p : (S → D) × ((T \ S : Finset V) → D),
-          F.weight wt (fun v =>
-            if hv : v ∈ S then p.1 ⟨v, hv⟩
-            else if hrest : v ∈ T \ S then p.2 ⟨v, hrest⟩
-            else default) := by
-        refine Finset.sum_congr rfl fun p _ => ?_
-        congr 1
-        refine funext fun v => ?_
-        by_cases hvS : v ∈ S
-        · have hvT : v ∈ T := hST hvS
-          simp [eSplit, hvS, hvT]
-        · by_cases hvT : v ∈ T
-          · have hvRest : v ∈ T \ S := Finset.mem_sdiff.mpr ⟨hvT, hvS⟩
-            simp [eSplit, hvS, hvT, hvRest]
-          · have hvRest : v ∉ T \ S := fun h => hvT (Finset.mem_sdiff.mp h).1
-            simp [hvS, hvT, hvRest]
+  refine (Fintype.sum_equiv (sdiffPiEquiv (D := D) hST).symm _ _ fun p => ?_).symm
+  refine weight_congr fun v _ => ?_
+  by_cases hvS : v ∈ S
+  · simp [hvS, hST hvS]
+  · by_cases hvT : v ∈ T
+    · simp [hvS, hvT, Finset.mem_sdiff.mpr ⟨hvT, hvS⟩]
+    · simp [hvS, hvT]
 
 /-- Enlarging `declared` multiplies `partitionFunctionOn` by `|D| ^ (T \ S).card` whenever all
 occurring variables already lie in `S`. -/
@@ -220,25 +205,15 @@ theorem partitionFunctionOn_eq_card_pow_mul_of_subset [Semiring R] [DecidableEq 
     F.partitionFunctionOn wt T =
       ((Fintype.card D : R) ^ (T \ S).card) * F.partitionFunctionOn wt S := by
   rw [partitionFunctionOn_split wt F hST, partitionFunctionOn]
-  calc ∑ p : (S → D) × ((T \ S : Finset V) → D),
-          F.weight wt (fun v =>
-            if hv : v ∈ S then p.1 ⟨v, hv⟩
-            else if hrest : v ∈ T \ S then p.2 ⟨v, hrest⟩
-            else default)
-      = ∑ p : (S → D) × ((T \ S : Finset V) → D),
-          F.weight wt (fun v => if h : v ∈ S then p.1 ⟨v, h⟩ else default) := by
-        refine Finset.sum_congr rfl fun p _ => weight_congr fun v hv => ?_
-        have hvS : v ∈ S := hvars (List.mem_toFinset.mpr hv)
-        simp [hvS]
-    _ = ∑ _ : (T \ S : Finset V) → D, ∑ σ₁ : S → D,
-          F.weight wt (fun v => if h : v ∈ S then σ₁ ⟨v, h⟩ else default) := by
-        rw [Fintype.sum_prod_type_right]
-    _ = (Fintype.card ((T \ S : Finset V) → D) : R) *
-          ∑ σ₁ : S → D, F.weight wt (fun v => if h : v ∈ S then σ₁ ⟨v, h⟩ else default) := by
-        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-    _ = ((Fintype.card D : R) ^ (T \ S).card) *
-          ∑ σ₁ : S → D, F.weight wt (fun v => if h : v ∈ S then σ₁ ⟨v, h⟩ else default) := by
-        simp [Nat.cast_pow]
+  have hcongr : (∑ p : (S → D) × ((T \ S : Finset V) → D),
+      F.weight wt fun v => if hv : v ∈ S then p.1 ⟨v, hv⟩
+        else if hrest : v ∈ T \ S then p.2 ⟨v, hrest⟩ else default) =
+      ∑ p : (S → D) × ((T \ S : Finset V) → D),
+        F.weight wt fun v => if h : v ∈ S then p.1 ⟨v, h⟩ else default :=
+    Finset.sum_congr rfl fun p _ => weight_congr fun v hv => by
+      simp [hvars (List.mem_toFinset.mpr hv)]
+  rw [hcongr, Fintype.sum_prod_type_right]
+  simp [Finset.sum_const, nsmul_eq_mul, Nat.cast_pow]
 
 /-- Over a declared set containing all occurring variables, isolated variables contribute a factor
 of `|D| ^ (declared \ F.vars.toFinset).card`. -/
@@ -283,13 +258,9 @@ theorem partitionFunction_relabel_equiv [Semiring R] [DecidableEq V] [DecidableE
     ext w
     simp only [Finset.mem_map, Equiv.coe_toEmbedding, List.mem_toFinset, vars, relabel,
       Constraint.relabel, List.mem_flatMap, List.mem_map]
-    constructor
-    · rintro ⟨_, ⟨c, hc, rfl⟩, hw⟩
-      rw [List.mem_map] at hw
-      rcases hw with ⟨v, hv, rfl⟩
-      exact ⟨v, ⟨c, hc, hv⟩, rfl⟩
-    · rintro ⟨v, ⟨c, hc, hv⟩, rfl⟩
-      exact ⟨⟨c.rel, List.map e c.scope⟩, ⟨c, hc, rfl⟩, List.mem_map.mpr ⟨v, hv, rfl⟩⟩
+    exact ⟨fun ⟨_, ⟨c, hc, rfl⟩, hw⟩ =>
+        let ⟨v, hv, hvw⟩ := List.mem_map.mp hw; ⟨v, ⟨c, hc, hv⟩, hvw⟩,
+      fun ⟨v, ⟨c, hc, hv⟩, hvw⟩ => ⟨_, ⟨c, hc, rfl⟩, List.mem_map.mpr ⟨v, hv, hvw⟩⟩⟩
   rw [partitionFunction_eq_partitionFunctionOn, hvars]
   exact partitionFunctionOn_relabel_equiv wt e F F.vars.toFinset
 
@@ -300,37 +271,28 @@ theorem partitionFunctionOn_denseRelabel [Semiring R] [DecidableEq V] [Fintype D
     F.denseRelabel.partitionFunctionOn wt (Finset.range F.numVars) = F.partitionFunction wt := by
   let S := F.vars.toFinset
   let Rng := Finset.range F.numVars
-  have hinj : ∀ v ∈ S, ∀ w ∈ S, F.distinctVars.idxOf v = F.distinctVars.idxOf w → v = w := by
-    intro v hv w _ h
-    exact (List.idxOf_inj (mem_distinctVars.mpr (List.mem_toFinset.mp hv))).mp h
-  have hmem_range : ∀ v ∈ S, F.distinctVars.idxOf v ∈ Rng := by
-    intro v hv
+  have hmem (v : V) (hv : v ∈ S) : F.distinctVars.idxOf v ∈ Rng := by
     rw [Finset.mem_range, ← length_distinctVars]
     exact List.idxOf_lt_length_iff.mpr (mem_distinctVars.mpr (List.mem_toFinset.mp hv))
-  have hsurj : ∀ i ∈ Rng, ∃ v, ∃ hv : v ∈ S, F.distinctVars.idxOf v = i := by
-    intro i hi
-    have hi' : i ∈ F.denseRelabel.vars.toFinset := by
-      rwa [vars_denseRelabel_toFinset]
-    rw [denseRelabel, vars_relabel, List.mem_toFinset, List.mem_map] at hi'
-    rcases hi' with ⟨v, hv, rfl⟩
-    exact ⟨v, List.mem_toFinset.mpr hv, rfl⟩
-  let eVar : S ≃ Rng := Equiv.ofBijective
-    (fun v => ⟨F.distinctVars.idxOf v.1, hmem_range v.1 v.2⟩)
-    ⟨fun v w h => Subtype.ext (hinj v.1 v.2 w.1 w.2 (Subtype.mk.inj h)),
+  let eVar : S ≃ Rng := Equiv.ofBijective (fun v => ⟨F.distinctVars.idxOf v.1, hmem v.1 v.2⟩)
+    ⟨fun v w h => Subtype.ext ((List.idxOf_inj
+        (mem_distinctVars.mpr (List.mem_toFinset.mp v.2))).mp (Subtype.mk.inj h)),
      fun i => by
-       obtain ⟨v, hv, hvi⟩ := hsurj i.1 i.2
-       exact ⟨⟨v, hv⟩, Subtype.ext hvi⟩⟩
+       have hi' : i.1 ∈ F.denseRelabel.vars.toFinset := by
+         simpa only [vars_denseRelabel_toFinset, Rng] using i.2
+       simp only [denseRelabel, vars_relabel, List.mem_toFinset, List.mem_map] at hi'
+       obtain ⟨v, hv, hvi⟩ := hi'
+       exact ⟨⟨v, List.mem_toFinset.mpr hv⟩, Subtype.ext hvi⟩⟩
   let eAssign : (Rng → D) ≃ (S → D) := Equiv.piCongrLeft' (fun _ => D) eVar.symm
   rw [partitionFunctionOn, partitionFunction_eq_partitionFunctionOn, partitionFunctionOn]
   refine Fintype.sum_equiv eAssign _ _ fun σ => ?_
   rw [denseRelabel, weight_relabel]
   refine weight_congr fun v hv => ?_
   have hvS : v ∈ S := List.mem_toFinset.mpr hv
-  have hvR : F.distinctVars.idxOf v ∈ Rng := hmem_range v hvS
-  change (if h : F.distinctVars.idxOf v ∈ Rng then σ ⟨F.distinctVars.idxOf v, h⟩ else default) =
-    if h : v ∈ S then eAssign σ ⟨v, h⟩ else default
-  simp only [hvS, hvR, dite_true, eAssign]
-  congr 1
+  dsimp only [Function.comp_apply]
+  rw [dite_eq_left (hmem v hvS), dite_eq_left hvS]
+  simp only [eAssign, Equiv.piCongrLeft'_apply, Equiv.symm_symm]
+  rfl
 
 end PartitionFunctionOn
 
@@ -366,14 +328,10 @@ private theorem fillTemplate_map_ite [DecidableEq V] (S : Finset V) (α σ : V �
       vs.map fun v => if v ∈ S then α v else σ v
   | [] => rfl
   | v :: vs => by
-      have ih := fillTemplate_map_ite S α σ vs
-      by_cases hv : v ∈ S
-      · simp only [List.map_cons, List.filter_cons, decide_not, hv, decide_true, Bool.not_true,
-          ↓reduceIte, fillTemplate]
-        exact congrArg (α v :: ·) ih
-      · simp only [List.map_cons, List.filter_cons, decide_not, hv, decide_false, Bool.not_false,
-          ↓reduceIte, fillTemplate]
-        exact congrArg (σ v :: ·) ih
+    by_cases hv : v ∈ S <;>
+      simp only [List.map_cons, List.filter_cons, hv, not_true_eq_false, not_false_eq_true,
+        decide_false, decide_true, Bool.false_eq_true, ↓reduceIte, fillTemplate,
+        fillTemplate_map_ite S α σ vs]
 
 /-- Condition one constraint by pinning all variables in `S` to `α`. -/
 @[expose] def Constraint.restrictOn [DecidableEq V] (S : Finset V) (α : V → D)
@@ -396,15 +354,10 @@ theorem restrictOn_append [DecidableEq V] (S : Finset V) (α : V → D) (F₁ F�
 theorem mem_vars_restrictOn [DecidableEq V] (S : Finset V) (α : V → D) (F : CSP Rel V) (v : V) :
     v ∈ (F.restrictOn S α).vars ↔ v ∈ F.vars ∧ v ∉ S := by
   simp only [restrictOn, vars, List.mem_flatMap, List.mem_map, Constraint.restrictOn]
-  constructor
-  · rintro ⟨_, ⟨c, hc, rfl⟩, hv⟩
-    rw [List.mem_filter, decide_eq_true_eq] at hv
-    exact ⟨⟨c, hc, hv.1⟩, hv.2⟩
-  · rintro ⟨⟨c, hc, hv⟩, hvS⟩
-    refine ⟨Constraint.restrictOn S α c, ⟨c, hc, rfl⟩, ?_⟩
-    dsimp only [Constraint.restrictOn]
-    rw [List.mem_filter, decide_eq_true_eq]
-    exact ⟨hv, hvS⟩
+  exact ⟨fun ⟨_, ⟨c, hc, rfl⟩, hv⟩ =>
+      let ⟨hvc, hvS⟩ := List.mem_filter.mp hv; ⟨⟨c, hc, hvc⟩, of_decide_eq_true hvS⟩,
+    fun ⟨⟨c, hc, hvc⟩, hvS⟩ =>
+      ⟨_, ⟨c, hc, rfl⟩, List.mem_filter.mpr ⟨hvc, decide_eq_true hvS⟩⟩⟩
 
 /-- Occurring variables of `F.restrictOn S α` equal `F.vars.toFinset \ S`. -/
 @[simp]
@@ -453,34 +406,23 @@ theorem partitionFunctionOn_append_of_disjoint [CommSemiring R] [DecidableEq V] 
     (hdisj : Disjoint d₁ d₂) (h₁ : F₁.vars.toFinset ⊆ d₁) (h₂ : F₂.vars.toFinset ⊆ d₂) :
     partitionFunctionOn wt (F₁ ++ F₂) (d₁ ∪ d₂) =
       F₁.partitionFunctionOn wt d₁ * F₂.partitionFunctionOn wt d₂ := by
-  let eSplit := (Equiv.piFinsetUnion (fun _ => D) hdisj).symm
-  rw [partitionFunctionOn, partitionFunctionOn, partitionFunctionOn]
-  calc ∑ σ : (d₁ ∪ d₂ : Finset V) → D,
-          weight wt (F₁ ++ F₂) (fun v => if h : v ∈ d₁ ∪ d₂ then σ ⟨v, h⟩ else default)
-      = ∑ p : (d₁ → D) × (d₂ → D),
-          weight wt (F₁ ++ F₂)
-            (fun v => if h : v ∈ d₁ ∪ d₂ then eSplit.symm p ⟨v, h⟩ else default) :=
-        Fintype.sum_equiv eSplit _ (fun p => weight wt (F₁ ++ F₂) _) (fun σ => by
-          congr 1; exact funext fun v => by simp [Equiv.symm_apply_apply])
-    _ = ∑ p : (d₁ → D) × (d₂ → D),
-          F₁.weight wt (fun v => if h : v ∈ d₁ then p.1 ⟨v, h⟩ else default) *
-          F₂.weight wt (fun v => if h : v ∈ d₂ then p.2 ⟨v, h⟩ else default) := by
-        refine Finset.sum_congr rfl fun p _ => ?_
-        rw [weight_append]
-        congr 1
-        · refine weight_congr fun v hv => ?_
-          have hv₁ : v ∈ d₁ := h₁ (List.mem_toFinset.mpr hv)
-          have hvu : v ∈ d₁ ∪ d₂ := Finset.mem_union_left d₂ hv₁
-          simpa [eSplit, hv₁, hvu] using
-            Equiv.piFinsetUnion_left (fun _ => D) hdisj hv₁ hvu
-        · refine weight_congr fun v hv => ?_
-          have hv₂ : v ∈ d₂ := h₂ (List.mem_toFinset.mpr hv)
-          have hvu : v ∈ d₁ ∪ d₂ := Finset.mem_union_right d₁ hv₂
-          simpa [eSplit, hv₂, hvu] using
-            Equiv.piFinsetUnion_right (fun _ => D) hdisj hv₂ hvu
-    _ = (∑ σ₁ : d₁ → D, F₁.weight wt fun v => if h : v ∈ d₁ then σ₁ ⟨v, h⟩ else default) *
-          (∑ σ₂ : d₂ → D, F₂.weight wt fun v => if h : v ∈ d₂ then σ₂ ⟨v, h⟩ else default) := by
-        rw [Fintype.sum_prod_type, Finset.sum_mul_sum]
+  rw [partitionFunctionOn, partitionFunctionOn, partitionFunctionOn, Finset.sum_mul_sum]
+  let e := Equiv.piFinsetUnion (fun _ => D) hdisj
+  rw [← Fintype.sum_equiv e _
+      (fun σ => weight wt (F₁ ++ F₂) fun v => if h : v ∈ d₁ ∪ d₂ then σ ⟨v, h⟩ else default)
+      (fun _ => rfl),
+    Fintype.sum_prod_type]
+  refine Finset.sum_congr rfl fun σ₁ _ => Finset.sum_congr rfl fun σ₂ _ => ?_
+  rw [weight_append]
+  congr 1
+  · refine weight_congr fun v hv => ?_
+    have hv₁ := h₁ (List.mem_toFinset.mpr hv)
+    simpa [e, hv₁, Finset.mem_union_left d₂ hv₁] using
+      Equiv.piFinsetUnion_left (fun _ => D) hdisj hv₁ (Finset.mem_union_left d₂ hv₁)
+  · refine weight_congr fun v hv => ?_
+    have hv₂ := h₂ (List.mem_toFinset.mpr hv)
+    simpa [e, hv₂, Finset.mem_union_right d₁ hv₂] using
+      Equiv.piFinsetUnion_right (fun _ => D) hdisj hv₂ (Finset.mem_union_right d₁ hv₂)
 
 /-- Disjoint occurring variable sets yield multiplicative partition functions. -/
 theorem partitionFunction_append_of_disjoint [CommSemiring R] [DecidableEq V] [Fintype D]
@@ -548,29 +490,15 @@ theorem partitionFunction_separator [CommSemiring R] [DecidableEq V] [Fintype D]
     ext v
     simp only [Finset.mem_union, Finset.mem_sdiff, List.mem_toFinset, vars, List.flatMap_append,
       List.mem_append]
-    exact ⟨fun h => by rcases h with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ <;> exact ⟨by tauto, h₂⟩,
-      fun ⟨h₁, h₂⟩ => by
-        rcases h₁ with h₁ | h₁
-        · exact Or.inl ⟨h₁, h₂⟩
-        · exact Or.inr ⟨h₁, h₂⟩⟩
-  have hdisj : Disjoint (F₁.vars.toFinset \ S) (F₂.vars.toFinset \ S) := by
-    rw [Finset.disjoint_left]
-    intro v hv₁ hv₂
-    rw [Finset.mem_sdiff] at hv₁ hv₂
-    exact hv₁.2 (hsep (Finset.mem_inter.mpr ⟨hv₁.1, hv₂.1⟩))
-  rw [partitionFunction_eq_partitionFunctionOn]
-  calc partitionFunctionOn wt (F₁ ++ F₂) (vars (F₁ ++ F₂)).toFinset
-      = ∑ α : S → D,
-          let ext : V → D := fun v => if h : v ∈ S then α ⟨v, h⟩ else default
-          (F₁.restrictOn S ext).partitionFunctionOn (pinnedWeight wt) (F₁.vars.toFinset \ S) *
-            (F₂.restrictOn S ext).partitionFunctionOn (pinnedWeight wt) (F₂.vars.toFinset \ S) :=
-        partitionFunctionOn_separator wt hS hpart hdisj Finset.Subset.rfl Finset.Subset.rfl
-    _ = ∑ α : S → D,
-          let ext : V → D := fun v => if h : v ∈ S then α ⟨v, h⟩ else default
-          (F₁.restrictOn S ext).partitionFunction (pinnedWeight wt) *
-            (F₂.restrictOn S ext).partitionFunction (pinnedWeight wt) := by
-        refine Finset.sum_congr rfl fun α _ => ?_
-        simp [partitionFunction_eq_partitionFunctionOn]
+    tauto
+  have hdisj : Disjoint (F₁.vars.toFinset \ S) (F₂.vars.toFinset \ S) :=
+    Finset.disjoint_left.mpr fun _ hv₁ hv₂ =>
+      (Finset.mem_sdiff.mp hv₁).2
+        (hsep (Finset.mem_inter.mpr ⟨(Finset.mem_sdiff.mp hv₁).1, (Finset.mem_sdiff.mp hv₂).1⟩))
+  rw [partitionFunction_eq_partitionFunctionOn,
+    partitionFunctionOn_separator wt hS hpart hdisj Finset.Subset.rfl Finset.Subset.rfl]
+  refine Finset.sum_congr rfl fun α _ => ?_
+  simp [partitionFunction_eq_partitionFunctionOn]
 
 end DisjointAndSeparator
 

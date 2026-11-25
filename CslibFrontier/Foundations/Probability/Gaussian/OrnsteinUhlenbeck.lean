@@ -206,14 +206,11 @@ theorem integral_mul_deriv_sub_deriv_deriv_mul_gaussianReal {f g : ℝ → ℝ}
       ∫ x, deriv f x * deriv g x ∂gaussianReal 0 1 := by
   have hS := integral_sub_mul_gaussianReal (μ := 0) (v := 1) (f := fun x => deriv f x * g x)
     (fun x => (hf x).hasDerivAt.mul (hg x).hasDerivAt) h₁
-    (h₂.congr (ae_of_all _ fun x => by simp only [sub_zero, mul_assoc]))
-    (h₃.add h₄)
+    (h₂.congr (ae_of_all _ fun _ => by simp only [sub_zero, mul_assoc])) (h₃.add h₄)
   simp only [sub_zero, NNReal.coe_one, one_mul] at hS
-  have e : (fun x => (x * deriv f x - deriv (deriv f) x) * g x) =
-      fun x => x * (deriv f x * g x) - deriv (deriv f) x * g x := by
-    funext x
-    ring
-  rw [e, integral_sub (h₂.congr (ae_of_all _ fun x => by simp only [mul_assoc])) h₃, hS,
+  rw [show (fun x => (x * deriv f x - deriv (deriv f) x) * g x) =
+      fun x => x * (deriv f x * g x) - deriv (deriv f) x * g x from funext fun _ => by ring,
+    integral_sub (h₂.congr (ae_of_all _ fun _ => by simp only [mul_assoc])) h₃, hS,
     integral_add h₃ h₄, add_sub_cancel_left]
 
 /-- **Gaussian integration by parts along one coordinate**
@@ -367,17 +364,14 @@ by Parseval. -/
 theorem memOrnsteinUhlenbeckDomain_gaussianNoiseOp {f : (ι → ℝ) → ℝ}
     (hf : MemLp f 2 (Measure.pi fun _ : ι => gaussianReal 0 1)) {ρ : ℝ} (hρ : |ρ| < 1) :
     MemOrnsteinUhlenbeckDomain (gaussianNoiseOp ρ f) := by
-  have hρ2 : |ρ ^ 2| < 1 := by
-    rw [abs_pow]
-    exact pow_lt_one₀ (abs_nonneg ρ) hρ two_ne_zero
-  obtain ⟨C, hC⟩ := (tendsto_pow_const_mul_const_pow_of_abs_lt_one 2 hρ2).bddAbove_range
+  obtain ⟨C, hC⟩ := (tendsto_pow_const_mul_const_pow_of_abs_lt_one 2
+    (by rw [abs_pow]; exact pow_lt_one₀ (abs_nonneg ρ) hρ two_ne_zero : |ρ ^ 2| < 1)).bddAbove_range
   refine ⟨hf.gaussianNoiseOp hρ.le one_le_two, ((hasSum_hermiteCoeff_sq hf).summable.mul_left
     C).of_nonneg_of_le (fun _ => by positivity) fun α => ?_⟩
-  rw [hermiteCoeff_gaussianNoiseOp hρ.le hf]
-  calc ((∑ i, α i : ℕ) : ℝ) ^ 2 * (ρ ^ (∑ i, α i) * hermiteCoeff f α) ^ 2 =
-        (((∑ i, α i : ℕ) : ℝ) ^ 2 * (ρ ^ 2) ^ (∑ i, α i)) * hermiteCoeff f α ^ 2 := by ring
-    _ ≤ C * hermiteCoeff f α ^ 2 :=
-        mul_le_mul_of_nonneg_right (hC ⟨∑ i, α i, rfl⟩) (sq_nonneg _)
+  rw [hermiteCoeff_gaussianNoiseOp hρ.le hf,
+    show ((∑ i, α i : ℕ) : ℝ) ^ 2 * (ρ ^ (∑ i, α i) * hermiteCoeff f α) ^ 2 =
+      (((∑ i, α i : ℕ) : ℝ) ^ 2 * (ρ ^ 2) ^ (∑ i, α i)) * hermiteCoeff f α ^ 2 by ring]
+  exact mul_le_mul_of_nonneg_right (hC ⟨∑ i, α i, rfl⟩) (sq_nonneg _)
 
 /-- `ρ⁻¹ (m ρ ^ m c) = m ρ ^ (m - 1) c` for `ρ ≠ 0`. -/
 private theorem inv_mul_mul_pow_mul {ρ : ℝ} (hρ : ρ ≠ 0) (m : ℕ) (c : ℝ) :
@@ -481,29 +475,28 @@ private theorem hasDerivWithinAt_Icc_of_summable {f : (ι → ℝ) → ℝ}
     · filter_upwards [self_mem_nhdsWithin] with σ hσ α
       set m : ℕ := ∑ i, α i
       have h1 := abs_le.1 (abs_slope_pow_le (abs_le.2 hσ.1) hρ m)
-      have h2 : |(m : ℝ) * ρ ^ (m - 1)| ≤ m * r ^ (m - 1) := by
-        rw [abs_mul, Nat.abs_cast, abs_pow]
-        gcongr
-      have h3 := abs_le.1 h2
+      have h3 := abs_le.1 (show |(m : ℝ) * ρ ^ (m - 1)| ≤ m * r ^ (m - 1) by
+        rw [abs_mul, Nat.abs_cast, abs_pow]; gcongr)
       have h4 : (slope (fun s : ℝ => s ^ m) ρ σ - m * ρ ^ (m - 1)) ^ 2 ≤
-          (2 * (m * r ^ (m - 1))) ^ 2 := sq_le_sq' (by linarith) (by linarith)
-      have h5 := inv_mul_mul_pow_mul hr.ne' m 1
-      rw [mul_one, mul_one] at h5
+          (2 * (r⁻¹ * (m * r ^ m))) ^ 2 := by
+        have h5 := inv_mul_mul_pow_mul hr.ne' m 1
+        rw [mul_one, mul_one] at h5
+        rw [h5]
+        exact sq_le_sq' (by linarith) (by linarith)
       rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _), ← sub_mul, mul_pow]
-      calc (slope (fun s : ℝ => s ^ m) ρ σ - m * ρ ^ (m - 1)) ^ 2 * hermiteCoeff f α ^ 2 ≤
-            (2 * (r⁻¹ * (m * r ^ m))) ^ 2 * hermiteCoeff f α ^ 2 :=
-          mul_le_mul_of_nonneg_right (h5 ▸ h4) (sq_nonneg _)
-        _ = (2 * r⁻¹) ^ 2 * ((m : ℝ) ^ 2 * (r ^ m * hermiteCoeff f α) ^ 2) := by ring
+      exact (mul_le_mul_of_nonneg_right h4 (sq_nonneg _)).trans_eq (by ring)
   rw [hasDerivWithinAt_iff_tendsto_slope, tendsto_iff_norm_sub_tendsto_zero]
-  have hS := hT.sqrt
-  rw [Real.sqrt_zero] at hS
-  refine hS.congr' ?_
+  have hTs : Tendsto (fun x => √(∑' α : ι → ℕ,
+      (slope (fun s => s ^ ∑ i, α i) ρ x * hermiteCoeff f α -
+        (∑ i, α i : ℕ) * ρ ^ (∑ i, α i - 1) * hermiteCoeff f α) ^ 2))
+      (𝓝[Set.Icc (-r) r \ {ρ}] ρ) (𝓝 0) := by
+    simpa only [Real.sqrt_zero] using hT.sqrt
+  refine hTs.congr' ?_
   filter_upwards [self_mem_nhdsWithin] with σ hσ
   rw [← Real.sqrt_sq (norm_nonneg _), norm_sq_eq_tsum_hermiteBasis_repr_sq]
-  congr 1
-  refine tsum_congr fun α => ?_
-  rw [map_sub, lp.coeFn_sub, Pi.sub_apply, hermiteBasis_repr_tsum_smul hc,
-    hermiteBasis_repr_slope hf hu ((abs_le.2 hσ.1).trans hr1) (hρ.trans hr1)]
+  exact congrArg Real.sqrt (tsum_congr fun α => by
+    rw [map_sub, lp.coeFn_sub, Pi.sub_apply, hermiteBasis_repr_tsum_smul hc,
+      hermiteBasis_repr_slope hf hu ((abs_le.2 hσ.1).trans hr1) (hρ.trans hr1)])
 
 /-- **The derivative of the Gaussian noise operators on `[-1, 1]`**
 [O'Donnell, Propositions 11.27 and 11.40][ODonnell2014]: for `f` in the domain of `L` and
@@ -568,13 +561,12 @@ private theorem hermiteBasis_repr_of_hasDerivWithinAt {f : (ι → ℝ) → ℝ}
     exact continuous_const.inner continuous_id
   refine tendsto_nhds_unique ((hc.tendsto g).comp hg) ?_
   have h1 := ((hasDerivAt_iff_tendsto_slope.1 (hasDerivAt_pow (∑ i, α i) (1 : ℝ))).mono_left
-    (nhdsWithin_mono 1 fun x (hx : x ∈ Set.Iio (1 : ℝ)) =>
-      Set.mem_compl_singleton_iff.2 (ne_of_lt hx))).mul_const
-      (hermiteCoeff f α)
+    (nhdsWithin_mono 1 (s := Set.Iio 1) fun _ hx =>
+      Set.mem_compl_singleton_iff.2 (ne_of_lt hx))).mul_const (hermiteCoeff f α)
   rw [one_pow, mul_one] at h1
   refine h1.congr' ?_
-  filter_upwards [Ioo_mem_nhdsLT (show (-1 : ℝ) < 1 by norm_num)] with ρ hρ
-  rw [Function.comp_apply, hermiteBasis_repr_slope hf hu (abs_le.2 ⟨hρ.1.le, hρ.2.le⟩) (by simp)]
+  filter_upwards [Ioo_mem_nhdsLT (by norm_num : (-1 : ℝ) < 1)] with ρ hρ
+  exact (hermiteBasis_repr_slope hf hu (abs_le.2 ⟨hρ.1.le, hρ.2.le⟩) (by simp) α).symm
 
 /-- **The domain of the Ornstein–Uhlenbeck operator** [O'Donnell, Exercise 11.18][ODonnell2014],
 converse direction: if the map `ρ ↦ U_ρ f` into `L²(γⁿ)` has a left derivative at `ρ = 1`, then

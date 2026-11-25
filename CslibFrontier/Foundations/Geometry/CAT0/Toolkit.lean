@@ -73,22 +73,16 @@ theorem exists_add_mul_dist_sq_le (C : Set Y) (hC : IsClosed C) (hne : C.Nonempt
     rw [Metric.cauchySeq_iff]
     intro ε hε
     obtain ⟨N, hN⟩ := exists_nat_one_div_lt (show 0 < c / 4 * ε ^ 2 by positivity)
-    have hmono : ∀ k ≥ N, 1 / ((k : ℝ) + 1) ≤ 1 / ((N : ℝ) + 1) := fun k hk =>
-      Nat.one_div_le_one_div hk
-    refine ⟨N, fun m hm n hn => ?_⟩
-    have h1 := hconv _ (huC m) _ (huC n)
-    have h2 := hle _ (hmem _ (huC m) _ (huC n))
-    have h8 : dist (u m) (u n) ^ 2 < ε ^ 2 := by
-      refine lt_of_mul_lt_mul_left (a := c / 4) ?_ (by positivity)
-      linarith [hu m, hu n, hmono m hm, hmono n hn]
-    exact lt_of_pow_lt_pow_left₀ 2 hε.le h8
+    refine ⟨N, fun m hm n hn => lt_of_pow_lt_pow_left₀ 2 hε.le <|
+      lt_of_mul_lt_mul_left (a := c / 4) ?_ (by positivity)⟩
+    linarith [hconv _ (huC m) _ (huC n), hle _ (hmem _ (huC m) _ (huC n)),
+      hu m, hu n, Nat.one_div_le_one_div (α := ℝ) hm, Nat.one_div_le_one_div (α := ℝ) hn]
   obtain ⟨b, hb⟩ := cauchySeq_tendsto_of_complete hcauchy
   have hbC : b ∈ C := hC.mem_of_tendsto hb (Eventually.of_forall huC)
-  have hΘb : Θ b ≤ I := by
-    have h2 : Tendsto (fun n : ℕ => I + 1 / ((n : ℝ) + 1)) atTop (𝓝 (I + 0)) :=
-      tendsto_const_nhds.add tendsto_one_div_add_atTop_nhds_zero_nat
-    rw [add_zero] at h2
-    exact le_of_tendsto_of_tendsto' ((hΘ.tendsto b).comp hb) h2 fun n => (hu n).le
+  have hΘb : Θ b ≤ I := le_of_tendsto_of_tendsto' ((hΘ.tendsto b).comp hb)
+    (by simpa only [add_zero] using
+      (tendsto_const_nhds (x := I)).add tendsto_one_div_add_atTop_nhds_zero_nat)
+    fun n => (hu n).le
   refine ⟨b, hbC, ?_⟩
   -- `Θ b + c (1 − 2⁻ᵏ) |yb|² ≤ Θ y`, by induction on `k` along the midpoints of `b` and `y`
   have key : ∀ k : ℕ, ∀ y ∈ C, Θ b + c * (1 - (1 / 2) ^ k) * dist y b ^ 2 ≤ Θ y := by
@@ -98,17 +92,16 @@ theorem exists_add_mul_dist_sq_le (C : Set Y) (hC : IsClosed C) (hne : C.Nonempt
     | succ k ih =>
       intro y hy
       have h1 := ih _ (hmem b hbC y hy)
-      have h2 := hconv b hbC y hy
       rw [dist_comm _ b, dist_mid_left] at h1
       rw [dist_comm y b, pow_succ]
-      nlinarith
+      nlinarith [hconv b hbC y hy]
   intro y hy
-  have h1 : Tendsto (fun k : ℕ => Θ b + c * (1 - (1 / 2 : ℝ) ^ k) * dist y b ^ 2) atTop
-      (𝓝 (Θ b + c * (1 - 0) * dist y b ^ 2)) :=
-    ((((tendsto_pow_atTop_nhds_zero_of_lt_one (by norm_num) (by norm_num)).const_sub
-      1).const_mul c).mul_const _).const_add _
-  rw [sub_zero, mul_one] at h1
-  exact le_of_tendsto' h1 fun k => key k y hy
+  have ht : Tendsto (fun k : ℕ => Θ b + c * (1 - (1 / 2 : ℝ) ^ k) * dist y b ^ 2)
+      atTop (𝓝 (Θ b + c * (1 - 0) * dist y b ^ 2)) :=
+    tendsto_const_nhds.add (((tendsto_const_nhds.sub
+      (tendsto_pow_atTop_nhds_zero_of_lt_one (by norm_num) (by norm_num))).const_mul c).mul_const _)
+  rw [sub_zero, mul_one] at ht
+  exact le_of_tendsto' ht fun k => key k y hy
 
 /-! ### Barycenters -/
 
@@ -233,26 +226,20 @@ private theorem quadrilateral_aux (x v p p' : Y) {s t : ℝ} (hs0 : 0 ≤ s) (hs
 `s = t = τ/(1 + τ)` and lets `le_two_mul_of_forall` choose `τ`. -/
 theorem dist_sq_add_dist_sq_le (x v y u : Y) :
     dist x v ^ 2 + dist y u ^ 2 ≤ dist x u ^ 2 + dist y v ^ 2 + 2 * dist x y * dist u v := by
-  suffices key : dist x v ^ 2 + dist y u ^ 2 - dist x u ^ 2 - dist y v ^ 2 ≤
-      2 * dist x y * dist u v by linarith
-  apply le_two_mul_of_forall dist_nonneg dist_nonneg
-  intro τ hτ
-  have hs0 : 0 ≤ τ / (1 + τ) := by positivity
-  have hs1 : τ / (1 + τ) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
-  have h := quadrilateral_aux x v y u hs0 hs1 hs0 hs1
-  have e1 : 1 - τ / (1 + τ) = 1 / (1 + τ) := by field_simp; ring
-  rw [e1] at h
+  suffices dist x v ^ 2 + dist y u ^ 2 - dist x u ^ 2 - dist y v ^ 2 ≤ 2 * dist x y * dist u v by
+    linarith
+  refine le_two_mul_of_forall dist_nonneg dist_nonneg fun τ hτ => ?_
+  have hs1 : τ / (1 + τ) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
+  have h := quadrilateral_aux x v y u (by positivity) hs1 (by positivity) hs1
+  rw [show 1 - τ / (1 + τ) = 1 / (1 + τ) by field_simp; ring] at h
   have h2 := mul_le_mul_of_nonneg_left h (show 0 ≤ (1 + τ) ^ 2 / τ by positivity)
-  have e2 : (1 + τ) ^ 2 / τ * (τ / (1 + τ) * (1 / (1 + τ)) * dist x v ^ 2 +
-      τ / (1 + τ) * (1 / (1 + τ)) * dist y u ^ 2) = dist x v ^ 2 + dist y u ^ 2 := by
-    field_simp
-  have e3 : (1 + τ) ^ 2 / τ * (1 / (1 + τ) * (1 / (1 + τ)) * dist x y ^ 2 +
-      1 / (1 + τ) * (τ / (1 + τ)) * dist x u ^ 2 + τ / (1 + τ) * (1 / (1 + τ)) * dist v y ^ 2 +
-      τ / (1 + τ) * (τ / (1 + τ)) * dist v u ^ 2) =
-      dist x y ^ 2 / τ + dist x u ^ 2 + dist v y ^ 2 + τ * dist v u ^ 2 := by
-    field_simp
-  rw [e2, e3, dist_comm v y, dist_comm v u] at h2
-  linarith
+  rw [dist_comm v y, dist_comm v u] at h2
+  linarith [show (1 + τ) ^ 2 / τ * (τ / (1 + τ) * (1 / (1 + τ)) * dist x v ^ 2 +
+      τ / (1 + τ) * (1 / (1 + τ)) * dist y u ^ 2) = dist x v ^ 2 + dist y u ^ 2 by field_simp,
+    show (1 + τ) ^ 2 / τ * (1 / (1 + τ) * (1 / (1 + τ)) * dist x y ^ 2 +
+      1 / (1 + τ) * (τ / (1 + τ)) * dist x u ^ 2 + τ / (1 + τ) * (1 / (1 + τ)) * dist y v ^ 2 +
+      τ / (1 + τ) * (τ / (1 + τ)) * dist u v ^ 2) =
+      dist x y ^ 2 / τ + dist x u ^ 2 + dist y v ^ 2 + τ * dist u v ^ 2 by field_simp]
 
 /-- **Part (b).** The squared diagonals of a quadrangle add up to at most its squared sides. -/
 theorem dist_sq_add_dist_sq_le_sides (x v y u : Y) :
@@ -357,20 +344,12 @@ private theorem flat_parts (hp : dist x u = h) (hp' : dist y v = h) (hq : dist u
     (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (ht0 : 0 ≤ t) (ht1 : t ≤ 1)
     (ha : IsPointAt x u s a) (hb : IsPointAt y v t b) :
     dist x b ^ 2 + dist a y ^ 2 - δ ^ 2 - dist a b ^ 2 = 2 * s * t * h ^ 2 := by
-  have e1 := ha.dist_left hs0 hs1
-  have e2 := ha.dist_right hs0 hs1
-  have e3 := hb.dist_left ht0 ht1
-  have e4 := hb.dist_right ht0 ht1
-  rw [hp] at e1 e2
-  rw [hp'] at e3 e4
   have f1 := dist_sq_add_dist_sq_le x b a y
   have f2 := dist_sq_add_dist_sq_le x v a b
   have f3 := dist_sq_add_dist_sq_le a b u y
   have f4 := dist_sq_add_dist_sq_le a v u b
-  rw [e1, e3, hq'] at f1
-  rw [e1, e4] at f2
-  rw [e2, e3] at f3
-  rw [e2, e4, hq] at f4
+  simp only [ha.dist_left hs0 hs1, ha.dist_right hs0 hs1, hb.dist_left ht0 ht1,
+    hb.dist_right ht0 ht1, hp, hp', hq, hq'] at f1 f2 f3 f4
   linarith
 
 /-- The case `s = t`: then `|ab| = δ`, and `|xb|²`, `|ay|²` take the largest values that the
@@ -382,23 +361,15 @@ private theorem flat_same (hp : dist x u = h) (hp' : dist y v = h) (hq : dist u 
       dist a y ^ 2 = (1 - s) * δ ^ 2 + s * dist u y ^ 2 - s * (1 - s) * h ^ 2 := by
   have h1 := flat_parts hp hp' hq hq' hd hs0 hs1 hs0 hs1 ha hb
   have h2 := dist_sq_add_dist_sq_le x b y a
-  have e1 := ha.dist_left hs0 hs1
-  have e3 := hb.dist_left hs0 hs1
-  rw [hp] at e1
-  rw [hp'] at e3
-  rw [e1, e3, hq', dist_comm y a] at h2
-  have h4 : dist a b = δ := by
-    linarith [(sq_nonpos_iff (dist a b - δ)).1 (by linarith)]
   have h5 := hb x
   have h6 := ha y
-  rw [hp', hq'] at h5
-  rw [hp, dist_comm y a, dist_comm y x, dist_comm y u, hq'] at h6
   have h7 := dist_sq_add_dist_sq_le_sides x v u y
-  rw [hp, hq, hq', dist_comm v y, hp'] at h7
+  simp only [ha.dist_left hs0 hs1, hb.dist_left hs0 hs1, hp, hp', hq, hq',
+    dist_comm y a, dist_comm y x, dist_comm y u, dist_comm v y] at h2 h5 h6 h7
+  have h4 : dist a b = δ := by linarith [(sq_nonpos_iff (dist a b - δ)).1 (by linarith)]
   rw [h4] at h1
-  have h8 : dist x v ^ 2 + dist u y ^ 2 = 2 * h ^ 2 + 2 * δ ^ 2 := le_antisymm (by linarith) hd
   have h9 : s * dist x v ^ 2 + s * dist u y ^ 2 = s * (2 * h ^ 2 + 2 * δ ^ 2) := by
-    rw [← mul_add, h8]
+    rw [← mul_add, show dist x v ^ 2 + dist u y ^ 2 = 2 * h ^ 2 + 2 * δ ^ 2 by linarith]
   constructor <;> linarith
 
 /-- **Part (f), flat rectangles**, with `a` and `b` given by the inequality of the point at
@@ -410,16 +381,15 @@ theorem dist_sq_of_flat_of_isPointAt (hp : dist x u = h) (hp' : dist y v = h)
     (ha : IsPointAt x u s a) (hb : IsPointAt y v t b) :
     dist a b ^ 2 = δ ^ 2 + (s - t) ^ 2 * h ^ 2 := by
   have hd2 : 2 * h ^ 2 + 2 * δ ^ 2 ≤ dist x v ^ 2 + dist u y ^ 2 := by linarith
-  have h1 := flat_parts hp hp' hq hq' hd2 hs0 hs1 ht0 ht1 ha hb
   obtain ⟨a', ha'⟩ := exists_isPointAt x u ht0 ht1
   obtain ⟨b', hb'⟩ := exists_isPointAt y v hs0 hs1
-  have h2 := (flat_same hp hp' hq hq' hd2 ht0 ht1 ha' hb).1
-  have h3 := (flat_same hp hp' hq hq' hd2 hs0 hs1 ha hb').2
+  have h1 := flat_parts hp hp' hq hq' hd2 hs0 hs1 ht0 ht1 ha hb
   have h7 := dist_sq_add_dist_sq_le_sides x v u y
   rw [hp, hq, hq', dist_comm v y, hp'] at h7
-  have h8 : dist x v ^ 2 = h ^ 2 + δ ^ 2 := by linarith
-  have h9 : dist u y ^ 2 = h ^ 2 + δ ^ 2 := by linarith
-  rw [h2, h3, h8, h9] at h1
+  rw [(flat_same hp hp' hq hq' hd2 ht0 ht1 ha' hb).1,
+    (flat_same hp hp' hq hq' hd2 hs0 hs1 ha hb').2,
+    show dist x v ^ 2 = h ^ 2 + δ ^ 2 by linarith,
+    show dist u y ^ 2 = h ^ 2 + δ ^ 2 by linarith] at h1
   linarith
 
 /-- **Part (f), flat rectangles.** If `|xy| = |uv| = δ`, `|xu| = |yv| = h`, both diagonals have

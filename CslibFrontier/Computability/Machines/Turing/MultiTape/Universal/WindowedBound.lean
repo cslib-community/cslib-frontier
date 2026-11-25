@@ -91,19 +91,16 @@ structure WInv (D B h L : ℕ) (w : Win) : Prop where
 theorem length_eWin_le {D B h L : ℕ} {w : Win} (hw : WInv D B h L w) :
     (eWin w).length ≤ winBound D B h L := by
   obtain ⟨q, ts⟩ := w
-  have h₁ := length_eSym_le hw.state
   have h₂ := length_encList_le eTape ts (b := 2 * h + 4 + 2 * L * (2 * B + 3)) fun t ht => by
-    have hi := length_encIntUnary_le t.head
-    have hl := length_cells_le fun o ho => hw.val t ht o (List.mem_append_left t.right ho)
-    have hr := length_cells_le fun o ho => hw.val t ht o (List.mem_append_right t.left ho)
-    have hh := hw.head t ht
     have hc := Nat.mul_le_mul_right (2 * B + 3) (hw.cells t ht)
     simp only [cells] at hc
     simp only [eTape_apply, length_encPair]
-    nlinarith
-  have h₃ := Nat.mul_le_mul_right (2 * (2 * h + 4 + 2 * L * (2 * B + 3)) + 1) hw.tapes
+    nlinarith [length_encIntUnary_le t.head, hw.head t ht,
+      length_cells_le fun o ho => hw.val t ht o (List.mem_append_left t.right ho),
+      length_cells_le fun o ho => hw.val t ht o (List.mem_append_right t.left ho)]
   simp only [length_encPair, winBound]
-  nlinarith
+  nlinarith [length_eSym_le hw.state,
+    Nat.mul_le_mul_right (2 * (2 * h + 4 + 2 * L * (2 * B + 3)) + 1) hw.tapes]
 
 /-- Weakening the bounds. -/
 theorem WInv.mono {D B h L h' L' : ℕ} {w : Win} (hw : WInv D B h L w) (hh : h ≤ h')
@@ -154,23 +151,16 @@ private lemma valLe_move {B : ℕ} {t : Tape} (h : ValLe B t) (m : SignType) :
     ValLe B (t.move m) := by
   have hl : ∀ o ∈ t.left, o.getD 0 ≤ B := fun o ho => h o (List.mem_append_left _ ho)
   have hr : ∀ o ∈ t.right, o.getD 0 ≤ B := fun o ho => h o (List.mem_append_right _ ho)
-  have hd : ∀ {l : List (Option ℕ)}, (∀ o ∈ l, o.getD 0 ≤ B) → (l.headD none).getD 0 ≤ B := by
-    intro l hl
+  have hd {l : List (Option ℕ)} (hl : ∀ o ∈ l, o.getD 0 ≤ B) : (l.headD none).getD 0 ≤ B := by
     cases l with
     | nil => simp
-    | cons o l => exact hl o (List.mem_cons_self ..)
+    | cons o _ => exact hl o (List.mem_cons_self ..)
   intro o ho
   rcases m with _ | _ | _ <;>
     simp only [Tape.move, Tape.read, List.mem_append, List.mem_cons] at ho
   · exact h o (List.mem_append.mpr ho)
-  · rcases ho with ho | rfl | ho
-    · exact hl o (List.mem_of_mem_tail ho)
-    · exact hd hl
-    · exact hr o ho
-  · rcases ho with (rfl | ho) | ho
-    · exact hd hr
-    · exact hl o ho
-    · exact hr o (List.mem_of_mem_tail ho)
+  · exact ho.elim (fun hm => hl o (List.mem_of_mem_tail hm)) (·.elim (· ▸ hd hl) (hr o))
+  · exact ho.elim (·.elim (· ▸ hd hr) (hl o)) (fun hm => hr o (List.mem_of_mem_tail hm))
 
 private lemma valLe_apply {B : ℕ} {t : Tape} (h : ValLe B t) {a : TapeAct}
     (ha : (a.1.getD none).getD 0 ≤ B) : ValLe B (t.apply a) := by
@@ -178,10 +168,8 @@ private lemma valLe_apply {B : ℕ} {t : Tape} (h : ValLe B t) {a : TapeAct}
   · exact valLe_move h m
   · refine valLe_move (fun o' ho' => ?_) m
     simp only [Option.elim, Tape.write, List.mem_append, List.mem_cons] at ho'
-    rcases ho' with ho' | rfl | ho'
-    · exact h o' (List.mem_append_left _ ho')
-    · exact ha
-    · exact h o' (List.mem_append_right _ (List.mem_of_mem_tail ho'))
+    exact ho'.elim (fun hm => h o' (List.mem_append_left _ hm))
+      (·.elim (· ▸ ha) fun hm => h o' (List.mem_append_right _ (List.mem_of_mem_tail hm)))
 
 private lemma head_move (t : Tape) (m : SignType) : (t.move m).head.natAbs ≤ t.head.natAbs + 1 := by
   rcases m with _ | _ | _ <;> simp only [Tape.move] <;> omega
@@ -192,19 +180,14 @@ private lemma cells_move (t : Tape) (m : SignType) : cells (t.move m) ≤ cells 
 
 private lemma head_apply (t : Tape) (a : TapeAct) :
     (t.apply a).head.natAbs ≤ t.head.natAbs + 1 := by
-  obtain ⟨_ | o, m⟩ := a
-  · exact head_move t m
-  · exact head_move (t.write o) m
+  obtain ⟨_ | o, m⟩ := a <;> exact head_move _ m
 
 private lemma cells_apply (t : Tape) (a : TapeAct) : cells (t.apply a) ≤ cells t + 2 := by
   obtain ⟨_ | o, m⟩ := a
-  · have := cells_move t m
-    simp only [Tape.apply, Option.elim]
-    omega
-  · have := cells_move (t.write o) m
-    have : cells (t.write o) ≤ cells t + 1 := by
-      simp only [cells, Tape.write, List.length_cons, List.length_tail]; omega
-    simp only [Tape.apply, Option.elim]
+  · simpa only [Tape.apply, Option.elim] using (cells_move t m).trans (by omega)
+  · have h1 := cells_move (t.write o) m
+    simp only [Tape.apply, Option.elim, cells, Tape.write, List.length_cons,
+      List.length_tail] at h1 ⊢
     omega
 
 /-- How a window may change in `n` steps: the head moves by at most one and at most `2 * n` cells
@@ -305,10 +288,8 @@ private lemma exists_of_forall₂ {α β : Type} {R : α → β → Prop} {l₁ 
   induction h with
   | nil => simp at hb
   | cons hab _ ih =>
-    rcases List.mem_cons.mp hb with rfl | hb
-    · exact ⟨_, List.mem_cons_self .., hab⟩
-    · obtain ⟨a, ha, h⟩ := ih hb
-      exact ⟨a, List.mem_cons_of_mem _ ha, h⟩
+    exact (List.mem_cons.mp hb).elim (fun he => ⟨_, List.mem_cons_self .., he ▸ hab⟩)
+      fun hm => let ⟨a, ha, hr⟩ := ih hm; ⟨a, List.mem_cons_of_mem _ ha, hr⟩
 
 private lemma forall₂_trans {α β γ : Type} {R : α → β → Prop} {S : β → γ → Prop}
     {T : α → γ → Prop} (H : ∀ a b c, R a b → S b c → T a c) {l₁ : List α} {l₂ : List β}
@@ -316,9 +297,7 @@ private lemma forall₂_trans {α β γ : Type} {R : α → β → Prop} {S : β
     List.Forall₂ T l₁ l₃ := by
   induction h₁ generalizing l₃ with
   | nil => cases h₂; exact .nil
-  | cons h _ ih =>
-    cases h₂ with
-    | cons h' h₂ => exact .cons (H _ _ _ h h') (ih h₂)
+  | cons h _ ih => cases h₂ with | cons h' h₂ => exact .cons (H _ _ _ h h') (ih h₂)
 
 private lemma exists_of_mem_zipWith {α β γ : Type} {f : α → β → γ} {l₁ : List α} {l₂ : List β}
     {c : γ} (h : c ∈ List.zipWith f l₁ l₂) : ∃ a ∈ l₁, ∃ b ∈ l₂, c = f a b := by
@@ -328,11 +307,10 @@ private lemma exists_of_mem_zipWith {α β γ : Type} {f : α → β → γ} {l�
     cases l₂ with
     | nil => simp at h
     | cons b l₂ =>
-      simp only [List.zipWith_cons_cons, List.mem_cons] at h
-      rcases h with rfl | h
-      · exact ⟨a, List.mem_cons_self .., b, List.mem_cons_self .., rfl⟩
-      · obtain ⟨a', ha', b', hb', rfl⟩ := ih h
-        exact ⟨a', List.mem_cons_of_mem _ ha', b', List.mem_cons_of_mem _ hb', rfl⟩
+      exact (List.mem_cons.mp h).elim
+        (fun hc => ⟨a, List.mem_cons_self .., b, List.mem_cons_self .., hc⟩)
+        fun hm => let ⟨a', ha', b', hb', hc⟩ := ih hm
+          ⟨a', List.mem_cons_of_mem _ ha', b', List.mem_cons_of_mem _ hb', hc⟩
 
 private lemma valLe_restore {B r : ℕ} {outer inner : Win} (ho : ∀ t ∈ outer.2, ValLe B t)
     (hi : ∀ t ∈ inner.2, ValLe B t) : ∀ t ∈ (restore r outer inner).2, ValLe B t := by
@@ -421,15 +399,11 @@ theorem WInv.sim {d : Desc} {B h L : ℕ} (hDB : descLen d ≤ B) {w : Win}
     (hw : WInv (descLen d) B h L w) (n : ℕ) :
     WInv (descLen d) B (h + 1) (L + 2 * n) (Windowed.sim d n w).1 := by
   have hf := forall₂_sim d n w
-  refine ⟨state_sim le_rfl n hw.state, by rw [length_sim]; exact hw.tapes, fun t' ht' => ?_,
-    fun t' ht' => ?_, valLe_sim hDB n hw.val⟩ <;>
+  refine ⟨state_sim le_rfl n hw.state, by simpa only [length_sim] using hw.tapes,
+    fun t' ht' => ?_, fun t' ht' => ?_, valLe_sim hDB n hw.val⟩ <;>
     obtain ⟨t, ht, hg⟩ := exists_of_forall₂ hf ht'
-  · have := hw.head t ht
-    have := hg.1
-    omega
-  · have := hw.cells t ht
-    have := hg.2
-    omega
+  · exact hg.1.trans (Nat.add_le_add_right (hw.head t ht) 1)
+  · exact hg.2.trans (Nat.add_le_add_right (hw.cells t ht) _)
 
 /-- **The bounds after simulating on cut windows and pasting them back**: simulating `m` steps on
 the windows of radius `r` and pasting the result back adds at most `2 * m` cells to every window,
@@ -438,16 +412,12 @@ theorem WInv.restore_sim {d : Desc} {B h L : ℕ} (hDB : descLen d ≤ B) {w : W
     (hw : WInv (descLen d) B h L w) (r m : ℕ) :
     WInv (descLen d) B 0 (L + 2 * m) (restore r w (Windowed.sim d m (Windowed.extract r w)).1) := by
   have hf := forall₂_restore (forall₂_sim d m (Windowed.extract r w))
-  refine ⟨state_sim le_rfl m hw.state, ?_, fun t' ht' => ?_, fun t' ht' => ?_,
+  refine ⟨state_sim le_rfl m hw.state, hf.length_eq ▸ hw.tapes,
+    fun t' ht' => by obtain ⟨_, -, hg⟩ := exists_of_forall₂ hf ht'; simp [hg.1],
+    fun t' ht' => by
+      obtain ⟨t, ht, hg⟩ := exists_of_forall₂ hf ht'
+      exact hg.2.trans (Nat.add_le_add_right (hw.cells t ht) _),
     valLe_restore hw.val (valLe_sim hDB m (valLe_extract hw.val))⟩
-  · rw [← hf.length_eq]
-    exact hw.tapes
-  · obtain ⟨t, -, hg⟩ := exists_of_forall₂ hf ht'
-    simp [hg.1]
-  · obtain ⟨t, ht, hg⟩ := exists_of_forall₂ hf ht'
-    have := hw.cells t ht
-    have := hg.2
-    omega
 
 /-- The windowed simulation of `n` steps emits at most `n` symbols, each at most the length of the
 description. -/
