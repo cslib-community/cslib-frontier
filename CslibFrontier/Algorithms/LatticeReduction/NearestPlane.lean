@@ -113,10 +113,8 @@ private theorem norm_sq_eq_norm_sq_sub_add_sum (b : Fin n → E) (z : E) :
 /-- The projection fixes the integer span of `b`. -/
 private theorem gramSchmidtProj_eq_self {b : Fin n → E} {w : E}
     (hw : w ∈ Submodule.span ℤ (Set.range b)) : gramSchmidtProj b w = w := by
-  have hw' : w ∈ Submodule.span ℝ (Set.range (gramSchmidt ℝ b)) := by
-    rw [span_gramSchmidt ℝ b]
-    exact Submodule.span_le_restrictScalars ℤ ℝ _ hw
-  obtain ⟨a, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℝ).1 hw'
+  obtain ⟨a, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℝ).1
+    (span_gramSchmidt ℝ b ▸ Submodule.span_le_restrictScalars ℤ ℝ _ hw)
   rw [gramSchmidtProj]
   refine Finset.sum_congr rfl fun j _ => ?_
   rcases eq_or_ne (gramSchmidt ℝ b j) 0 with h | h
@@ -178,17 +176,10 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
   have hdd' : d' = d + (y - v) := by rw [hd, hd']; abel
   have hres : d' - gramSchmidtProj b d' = d - gramSchmidtProj b d := by
     rw [hdd']; exact sub_gramSchmidtProj_add d hyv
-  have hpyd := norm_sq_eq_norm_sq_sub_add_sum b d
-  have hpyd' := norm_sq_eq_norm_sq_sub_add_sum b d'
-  rw [hres] at hpyd'
-  set R := ‖d - gramSchmidtProj b d‖ ^ 2 with hR
-  have hR0 : 0 ≤ R := sq_nonneg _
   -- it suffices to compare the sums
   suffices hsum : ∑ j, T d j ≤ S * ∑ j, T d' j by
-    have h1 : ‖d‖ ^ 2 = R + ∑ j, T d j := hpyd
-    have h2 : ‖d'‖ ^ 2 = R + ∑ j, T d' j := hpyd'
-    rw [h1, h2]
-    nlinarith
+    rw [norm_sq_eq_norm_sq_sub_add_sum b d, norm_sq_eq_norm_sq_sub_add_sum b d', hres]
+    nlinarith [sq_nonneg ‖d - gramSchmidtProj b d‖]
   obtain ⟨e, he⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hyv
   rcases (Finset.univ.filter fun i => e i ≠ 0).eq_empty_or_nonempty with hz | hne
   · have hz i : e i = 0 := by simpa using Finset.filter_eq_empty_iff.1 hz (Finset.mem_univ i)
@@ -276,10 +267,8 @@ theorem IsNearestPlane.norm_sq_le_two_pow_mul {b : Fin n → E} (hb : IsReduced 
     ‖x - y‖ ^ 2 ≤ 2 ^ n * ‖x - v‖ ^ 2 := by
   cases n with
   | zero =>
-    have hspan : ∀ w ∈ Submodule.span ℤ (Set.range b), w = 0 := by
-      intro w hw
-      rw [Set.range_eq_empty, Submodule.span_empty, Submodule.mem_bot] at hw
-      exact hw
+    have hspan : ∀ w ∈ Submodule.span ℤ (Set.range b), w = 0 := fun w hw => by
+      rwa [Set.range_eq_empty, Submodule.span_empty, Submodule.mem_bot] at hw
     rw [hspan y hy.mem_span, hspan v hv, pow_zero, one_mul]
   | succ n =>
     have h := hy.norm_sq_le hb (by norm_num) (by norm_num) hv

@@ -76,17 +76,10 @@ theorem tupleOfRadix_toRadix {V : Type*} (q : ℕ) (hq : 0 < q) (scope : List V)
     simp only [List.length_cons, toRadix_cons, tupleOfRadix, List.map_cons]
     have hv_mod : (α v).val % q = (α v).val := Nat.mod_eq_of_lt (α v).isLt
     rw [hv_mod]
-    have hhead :
-        (⟨((α v).val + q * toRadix q rest (fun w => (α w).val)) % q,
-          Nat.mod_lt _ hq⟩ : Fin q) = α v := by
-      ext
-      dsimp only
-      rw [Nat.add_mul_mod_self_left, hv_mod]
-    have hdiv :
-        ((α v).val + q * toRadix q rest (fun w => (α w).val)) / q =
-          toRadix q rest (fun w => (α w).val) := by
-      rw [Nat.add_mul_div_left _ _ hq, Nat.div_eq_of_lt (α v).isLt, Nat.zero_add]
-    rw [hhead, hdiv, ih]
+    congr 1
+    · ext
+      simp only [Nat.add_mul_mod_self_left, hv_mod]
+    · rw [Nat.add_mul_div_left _ _ hq, Nat.div_eq_of_lt (α v).isLt, Nat.zero_add, ih]
 
 /-- Materialized truth table of a single constraint over `ℕ` variable indices and domain `Fin q`.
 -/
@@ -133,15 +126,9 @@ theorem ConstraintTable.eval_ofConstraint {Rel V : Type*} {q m : ℕ} (hq : 0 < 
     (ConstraintTable.ofConstraint hq e sem c).eval α = c.eval sem σ := by
   unfold ConstraintTable.eval ConstraintTable.ofConstraint Constraint.eval
   dsimp only
-  have hrad : toRadix q (c.scope.map fun v => (e v).val) α =
-      toRadix q c.scope (fun v => (σ v).val) := by
-    rw [toRadix_map]
-    exact toRadix_congr hα
-  rw [hrad]
-  have hlt : toRadix q c.scope (fun v => (σ v).val) < q ^ c.scope.length :=
-    toRadix_lt hq _ _
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa using hlt), Option.getD_some,
-    List.getElem_ofFn, tupleOfRadix_toRadix]
+  rw [toRadix_map, toRadix_congr hα, List.getD_eq_getElem?_getD,
+    List.getElem?_eq_getElem (by simpa using toRadix_lt hq c.scope (fun v => (σ v).val)),
+    Option.getD_some, List.getElem_ofFn, tupleOfRadix_toRadix]
   cases sem c.rel (c.scope.map σ) <;> rfl
 
 /-! ### Post-order serialization of `NiceTree ℕ` and pure `ℕ`-table DP -/
@@ -363,14 +350,9 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
       obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
       split_ifs with hmem
       · rw [dpAlgFold_nat]
-        have hsum : (∑ d ∈ Finset.range q,
-            (dpInstTree true q cs vars child).getD
-              (toRadix q (bagList child)
-                (Function.update (ofRadix q ((bagList child).erase v) m.val) v d)) 0) ≤
-            ∑ _d ∈ Finset.range q, q ^ child.size :=
-          Finset.sum_le_sum fun d _ => getD_le_of_forall_le ih _
-        simpa only [Finset.sum_const, Finset.card_range, smul_eq_mul, NiceTree.size_forget,
-          Nat.pow_succ, Nat.mul_comm] using hsum
+        simpa only [Finset.card_range, smul_eq_mul, NiceTree.size_forget, Nat.pow_succ,
+          Nat.mul_comm] using Finset.sum_le_card_nsmul (Finset.range q) _ (q ^ child.size)
+            fun d _ => getD_le_of_forall_le ih _
       · exact (getD_le_of_forall_le ih _).trans (Nat.pow_le_pow_right hq (by simp))
     | join left right ihl ihr =>
       intro x hx
@@ -440,12 +422,9 @@ private theorem all_ofConstraint_leaf {Rel V : Type*} {q m : ℕ} (hq : 0 < q)
   rw [List.all_map]
   refine congrArg F.all (funext fun c => ?_)
   dsimp only [Function.comp_def]
-  have hsc : decide ((ConstraintTable.ofConstraint hq e sem c).scope = []) =
-      decide (c.scope = []) := by
-    simp [ConstraintTable.ofConstraint]
-  have hev := ConstraintTable.eval_ofConstraint hq e sem c (fun _ => ⟨0, hq⟩) (fun _ => 0)
-    (fun _ _ => rfl)
-  rw [hsc, hev]
+  rw [ConstraintTable.eval_ofConstraint hq e sem c (fun _ => ⟨0, hq⟩) (fun _ => 0)
+    (fun _ _ => rfl)]
+  simp [ConstraintTable.ofConstraint]
 
 private theorem mem_map_val_iff {V : Type*} {m : ℕ} (e : V ≃ Fin m) (v : V) (vars : List V) :
     ((e v).val ∈ vars.map fun u => (e u).val) ↔ v ∈ vars :=
@@ -860,35 +839,18 @@ theorem stepBound_ofNice_le {Rel V : Type*} [DecidableEq V] {q m k : ℕ} (hq : 
     (ofNice counting q hq e sem F N).stepBound ≤
       cspNiceStepBound q N.size k F.vars.length F.length := by
   have hinj : Function.Injective (fun v : V => (e v).val) := Fin.val_injective.comp e.injective
-  have hval : (N.tree.map fun v => (e v).val).LocalValid :=
-    NiceTree.localValid_map hinj N.localValid
-  have hw_eq : (N.tree.map fun v => (e v).val).width = N.width :=
-    NiceTree.width_map hinj N.tree
-  have hexp : maxTableExp (N.tree.map fun v => (e v).val) ≤ k + 1 := by
-    refine (maxTableExp_le_width_succ hval).trans ?_
-    rw [hw_eq]
-    exact Nat.add_le_add_right hk 1
-  have hsize : (N.tree.map fun v => (e v).val).size = N.size :=
-    NiceTree.size_map _ N.tree
-  have hvars : ((ofNice counting q hq e sem F N).vars).length = F.vars.length := by
-    simp [ofNice, ofNiceTree]
-  have hcons : ((ofNice counting q hq e sem F N).constraints).length = F.length := by
-    simp [ofNice, ofNiceTree]
+  have hexp : maxTableExp (N.tree.map fun v => (e v).val) ≤ k + 1 :=
+    (maxTableExp_le_width_succ (NiceTree.localValid_map hinj N.localValid)).trans
+      (NiceTree.width_map hinj N.tree ▸ Nat.add_le_add_right hk 1)
   have harity : (ofNice counting q hq e sem F N).totalArity = F.vars.length := by
     unfold ofNice ofNiceTree totalArity CSP.vars
-    dsimp only
-    rw [List.length_flatMap, List.map_map]
-    congr 2
-    funext c
-    simp [ConstraintTable.ofConstraint]
-  unfold stepBound
+    simp [List.length_flatMap, ConstraintTable.ofConstraint, Function.comp_def]
+  have hsize : (N.tree.map fun v => (e v).val).size = N.size := NiceTree.size_map _ N.tree
+  unfold stepBound cspNiceStepBound
+  rw [harity]
+  unfold ofNice ofNiceTree
   dsimp only
-  have htree : (ofNice counting q hq e sem F N).tree = N.tree.map fun v => (e v).val := rfl
-  rw [htree, hsize, hvars, hcons, harity]
-  have hdom : (ofNice counting q hq e sem F N).domainSize = q := rfl
-  rw [hdom]
-  unfold cspNiceStepBound
-  dsimp only
+  simp only [hsize, List.length_map]
   gcongr
   omega
 
@@ -898,14 +860,12 @@ theorem stepBound_ofRooted_le {Rel V : Type*} [LinearOrder V] {q m n k : ℕ} (h
     (ofRooted counting q hq e sem F R).stepBound ≤
       cspRootedStepBound q m k F.vars.length F.length := by
   let _ : Fintype V := Fintype.ofEquiv (Fin m) e.symm
-  have hcard : Fintype.card V = m := by
-    rw [Fintype.card_congr e, Fintype.card_fin]
-  have hw : R.toNiceTreePruned.width ≤ k := R.toNiceTreePruned_width_le.trans hk
   have hs : R.toNiceTreePruned.size ≤ (3 * k + 5) * (m + 1) := by
     have h1 := R.toNiceTreePruned_size_le
-    rw [hcard] at h1
+    rw [Fintype.card_congr e, Fintype.card_fin] at h1
     exact h1.trans (Nat.mul_le_mul_right _ (by omega))
-  exact (stepBound_ofNice_le hq counting e sem F R.toNiceTreePruned hw).trans
+  exact (stepBound_ofNice_le hq counting e sem F R.toNiceTreePruned
+      (R.toNiceTreePruned_width_le.trans hk)).trans
     (cspNiceStepBound_mono hq hs le_rfl le_rfl le_rfl)
 
 end TreeCSPInstance

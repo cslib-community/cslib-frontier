@@ -105,35 +105,29 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
   intro C ε δ γ r
   obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
   have hq : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos (α := F)
-  have hdq : d ≤ Fintype.card F := by
-    have h : d ≤ 400 * (n + 1) * d := Nat.le_mul_of_pos_left d (by positivity)
-    exact (h.trans hsize).trans hfield
-  have hr : r ∈ Set.Icc (0 : ℝ) 1 :=
-    ⟨div_nonneg (Nat.cast_nonneg _) hq.le, (div_le_one hq).2 (by exact_mod_cast hdq)⟩
   by_cases hd₀ : d = 0
   · subst d
     obtain ⟨G, hG⟩ := exists_degree_zero_polynomial_POVM S (fun u => hP (.point u)) (fun u => by
       rw [hM]
       exact hP (.point u))
     have hbase := baseError_le_dimensionInductionError
-      (m := (n + 1 : ℝ)) (by linarith [Nat.cast_nonneg (α := ℝ) n]) hk hε hδ hγ.1 hr.1
+      (m := (n + 1 : ℝ)) (by linarith [Nat.cast_nonneg (α := ℝ) n]) hk hε hδ hγ.1
+      (div_nonneg (Nat.cast_nonneg 0) hq.le)
     exact ⟨G, (sub_le_sub_left hbase 1).trans hG⟩
   -- The positive-degree induction retains the sampling length and the diagonal cutoff.
-  clear hε hδ hγ hr hdq
+  clear hε hδ hγ
   induction n with
   | zero =>
     obtain ⟨G, hG⟩ := exists_one_coordinate_polynomial_POVM S hM hψ d
-    refine ⟨G, ?_⟩
-    apply le_trans ?_ hG
+    refine ⟨G, le_trans ?_ hG⟩
     obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
-    have hr : 0 ≤ r := div_nonneg (Nat.cast_nonneg _) hq.le
-    have hbase := baseError_le_dimensionInductionError (m := 1) (by norm_num) hk hε hδ hγ.1 hr
-    rw [show (branchGame (F := F) 0 d .axis).commutingWinProb S.toCommuting = 1 - ε by
-      dsimp only [ε, C]
-      exact (sub_sub_cancel 1 _).symm]
+    have hbase := baseError_le_dimensionInductionError (m := 1) (by norm_num) hk hε hδ hγ.1
+      (div_nonneg (Nat.cast_nonneg d) hq.le)
+    have hwin : (branchGame (F := F) 0 d .axis).commutingWinProb S.toCommuting = 1 - ε :=
+      (sub_sub_cancel 1 _).symm
+    rw [hwin]
     simp only [Nat.cast_zero, zero_add]
-    apply sub_le_sub_left
-    linarith only [hbase, hε.1, hδ.1]
+    exact sub_le_sub_left (by linarith only [hbase, hε.1, hδ.1]) 1
   | succ n ih =>
     let m := (n + 1 : ℝ)
     let M := (n + 2 : ℝ)
@@ -189,12 +183,9 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
         average_slice_consistency_loss_le C d D
     have hdiag : m * (𝔼 x, g x) ≤ M * γ := by
       simpa only [m, M, g, ht] using average_slice_diagonal_loss_le C d D
-    have he (x : F) : 0 ≤ e x :=
-      sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
-    have hf (x : F) : 0 ≤ f x :=
-      sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
-    have hg (x : F) : 0 ≤ g x :=
-      sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
+    have he (x : F) : 0 ≤ e x := (losses_mem_Icc (T x).toCommuting d D).1.1
+    have hf (x : F) : 0 ≤ f x := (losses_mem_Icc (T x).toCommuting d D).2.1.1
+    have hg (x : F) : 0 ≤ g x := (losses_mem_Icc (T x).toCommuting d D).2.2.1
     obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
     have hav := mul_expect_inductionLossTerm_le (show 0 < m by linarith) hmM hε.1 hδ.1 hγ.1 hr.1
       he hf hg haxis hcons hdiag
@@ -209,10 +200,8 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
       change slicePastingError M k (Fintype.card F) ε δ γ r (𝔼 x, σ x) (1 / (200 * M)) ≤ _
       rw [← hsucc] at hσ ⊢
       exact slicePastingError_le_dimensionInductionError (m := m) hm hk hq hrq hε hδ hγ hr hσ
-    rw [show ((n + 1 : ℕ) : ℝ) + 1 = M by
-      push_cast
-      dsimp only [M]
-      ring]
+    have hM_eq : ((n + 1 : ℕ) : ℝ) + 1 = M := by push_cast [M]; ring
+    rw [hM_eq]
     exact exists_matchingMass_of_complete S H (hH.trans err)
 
 private theorem exists_complete_of_matchingMass {n d : ℕ}

@@ -38,11 +38,8 @@ open RegisterMetadata
 
 private theorem src_injective : Function.Injective src := Backend.src_injective family false
 
-private theorem result_injective : Function.Injective result := by
-  intro i j h
-  have he := Backend.tmp_injective family true h
-  have hv := congrArg Fin.val he
-  exact Fin.ext hv
+private theorem result_injective : Function.Injective result := fun _ _ h => by
+  simpa using Backend.tmp_injective family true h
 
 private theorem src_ne_result (i : Fin 5) (j : Fin 4) : src i ≠ result j :=
   Backend.src_ne_tmp family false true i _
@@ -242,8 +239,7 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
   have hin : z.regs ∘ Backend.src family false = (family false).input d :=
     staged_input hr (.enqueue v)
   have hdomz : enqueueDomain w d (memoryState (Backend.frontier family) z) := by
-    rw [staged_memory]
-    exact hdom
+    rwa [staged_memory]
   obtain ⟨b, n, hb, hn, hm, ho, hbb, hframe⟩ := Backend.exists_exec_live family false d hz hin
     hdomz (valid_enqueue hdomz)
   rw [staged_memory] at hm
@@ -251,12 +247,10 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
     change n ≤ Backend.factor family * (memoryCost (enqueue d)
       (memoryState (Backend.frontier family) z) + 0 + 1) at hn
     simpa only [memoryCost_enqueue, Nat.add_zero, Nat.mul_comm] using hn
-  have h0 : b.regs (result 0) = front.length :=
-    (congrArg b.regs (enqueue_result_eq 0)).symm.trans (ho 0)
-  have hB : b.regs (result 1) = back.length + 1 :=
-    (congrArg b.regs (enqueue_result_eq 1)).symm.trans (ho 1)
   let m : Counts := ⟨front.length, back.length + 1⟩
-  have hcommit : Exec w commit b (committed m b) 2 := commit_exec h0 hB
+  have hcommit : Exec w commit b (committed m b) 2 := commit_exec
+    ((congrArg b.regs (enqueue_result_eq 0)).symm.trans (ho 0))
+    ((congrArg b.regs (enqueue_result_eq 1)).symm.trans (ho 1))
   have hcond : (Cond.eq tag zero).Holds z :=
     (staged_tag w capacity (.enqueue v) x).trans (staged_zero w capacity (.enqueue v) x).symm
   have he : Exec w program ((implementation w capacity).prepare (.enqueue v) x)
@@ -265,8 +259,6 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
   have hsrc (i : Fin 5) : b.regs (src i) = d i := by
     rw [hframe _ (src_ne_frontier i) (fun a => (Backend.src_ne_tmp family false false i a).symm)]
     exact congrFun hin i
-  have hfrontier : b.regs (Backend.frontier family) = x.regs (Backend.frontier family) :=
-    congrArg Memory.State.frontier hm
   have hmemw : b.mem =
       ((Memory.spec w).clientState (memoryState (Backend.frontier family) x) (enqueue d)).mem :=
     congrArg Memory.State.mem hm
@@ -276,7 +268,8 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
   have hcontents := enqueue_contents (d := d) front back
     (memoryState (Backend.frontier family) x) rfl rfl hs hr.front_contents hr.back_contents
   exact ⟨committed m b, 1 + (n + 1 + 2), he, by omega,
-    committed_rep (hcommit.bounded hbb) (hsrc 2) (hsrc 3) (hfrontier.trans hr.frontier_eq)
+    committed_rep (hcommit.bounded hbb) (hsrc 2) (hsrc 3)
+      ((congrArg Memory.State.frontier hm).trans hr.frontier_eq)
       (by simp only [List.length_cons]; omega) (hmem ▸ hcontents.2.1) (hmem ▸ hcontents.2.2),
     hmemw ▸ enqueue_modifies hdom⟩
 
@@ -313,8 +306,7 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
     rw [Backend.src_eq_of_val_eq family true false (a := i) (b := i) rfl]
     exact congrFun (staged_input hr .dequeue) i
   have hdomz : transferDomain w d (memoryState (Backend.frontier family) z) := by
-    rw [staged_memory]
-    exact hdom
+    rwa [staged_memory]
   obtain ⟨b, n, hb, hn, hm, ho, hbb, hframe⟩ := Backend.exists_exec_live family true d hz hin
     hdomz (by rw [staged_memory]; exact hi.1)
   rw [staged_memory] at hm hn ho
@@ -323,9 +315,7 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
       (memoryCost (dequeue d) (memoryState (Backend.frontier family) x) + 1) := by
     simpa only [Nat.add_zero] using hn
   let m : Counts := ⟨p.1.front.length, p.1.rear.length⟩
-  have h0 : b.regs (result 0) = m.front := ho 0
-  have hB : b.regs (result 1) = m.rear := ho 1
-  have hcommit : Exec w commit b (committed m b) 2 := commit_exec h0 hB
+  have hcommit : Exec w commit b (committed m b) 2 := commit_exec (ho 0) (ho 1)
   have hcond : ¬(Cond.eq tag zero).Holds z := by
     change ¬z.regs tag = z.regs zero
     rw [staged_tag, staged_zero]
@@ -344,11 +334,10 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
       ((Memory.spec 0).clientState (memoryState (Backend.frontier family) x) (dequeue d)).mem := by
     rw [← clientState_width w]
     exact congrArg Memory.State.mem hm
-  have hclock : 1 + (n + 2 + 2) + 1 ≤ Backend.factor family *
-      (memoryCost (dequeue d) (memoryState (Backend.frontier family) x) + 1) + 6 := by omega
   have hs := pairStep_length_le (w := w) (capacity := capacity) (s := ⟨front, back⟩)
     (by simpa only [Stacks.contents_length] using hr.size_le) .dequeue trivial
-  refine ⟨committed m b, 1 + (n + 2 + 2), he, hclock,
+  refine ⟨committed m b, 1 + (n + 2 + 2), he, by
+      dsimp only [d] at hn'; omega,
     committed_rep (hcommit.bounded hbb) (hsrc 2) (hsrc 3) (hfrontier.trans hr.frontier_eq)
       (by simpa only [Stacks.contents_length] using hs) (hmem ▸ hcontents.2.1)
       (hmem ▸ hcontents.2.2), ?_, hmem ▸ hi.2.2.2.2.2⟩

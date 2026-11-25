@@ -437,18 +437,12 @@ private theorem core {C : ℕ} {bins : List (List ℕ)} (hp : bins.Pairwise (Lat
     10 * C * bins.length ≤ (bins.map (W C)).sum + 8 * C ∨
       bins.length ≤ (bins.map (Big C)).sum + 1 := by
   have hperm := List.filter_append_perm (fun b : List ℕ => decide (2 ≤ b.length)) bins
-  have hlen := hperm.length_eq
-  have hW := (hperm.map (W C)).sum_eq
-  have hI := (hperm.map (Big C)).sum_eq
-  simp only [List.length_append, List.map_append, List.sum_append] at hlen hW hI
-  rw [← hlen, ← hW, ← hI]
+  rw [← hperm.length_eq, ← (hperm.map (W C)).sum_eq, ← (hperm.map (Big C)).sum_eq]
+  simp only [List.length_append, List.map_append, List.sum_append]
   refine core_split (hp.filter _) (fun g hg => by simpa using (List.mem_filter.1 hg).2)
     (hp.filter _) (fun b hb => ?_) (fun d hd hd2 g hg => ?_)
-  · rw [List.mem_filter] at hb
-    have h1 := hne b hb.1
-    have h2 : b.length < 2 := by simpa using hb.2
-    match b, h1, h2 with
-    | [], h1, _ => exact absurd rfl h1
+  · obtain ⟨hb1, hb2⟩ := List.mem_filter.1 hb
+    match b, hne b hb1, show b.length < 2 by simpa using hb2 with
     | [d], _, _ => exact ⟨d, rfl⟩
     | _ :: _ :: _, _, h2 => simp only [List.length_cons] at h2; omega
   · rw [List.mem_filter] at hd hg
@@ -457,13 +451,11 @@ private theorem core {C : ℕ} {bins : List (List ℕ)} (hp : bins.Pairwise (Lat
     rcases rel_or_rel hp hg.1 hd.1 hne' with h | h
     · simpa using h d (by simp)
     · exfalso
-      have hgle := hle g hg.1
-      match g, hg2 with
-      | c :: c' :: r, _ =>
+      match g, hg2, hle g hg.1, h with
+      | c :: c' :: _, _, hgle, h =>
         have h1 := h c (by simp)
         have h2 := h c' (by simp)
-        simp only [List.sum_cons] at h1 h2 hgle
-        simp only [List.sum_nil] at h1 h2
+        simp only [List.sum_cons, List.sum_nil] at h1 h2 hgle
         omega
 
 /-- A weight summed over the items of bins that hold exactly `l` is its sum over `l`. -/
@@ -505,15 +497,8 @@ theorem ten_mul_length_firstFit_le {C : ℕ} {l : List ℕ} {Q : List (List ℕ)
         have h1 := hs b (by simp)
         have h2 := hs b' (by simp)
         omega
-    · refine Nat.le_of_mul_le_mul_left ?_ hC
-      have : (firstFit C l).map (W C) =
-          (firstFit C l).map fun b => (b.map (firstFitWeight C)).sum := rfl
-      rw [this] at h
-      nlinarith
-  · apply key
-    have : (firstFit C l).map (Big C) = (firstFit C l).map fun b => (b.map (bigInd C)).sum := rfl
-    rw [this] at h
-    nlinarith
+    · exact Nat.le_of_mul_le_mul_left (by nlinarith) hC
+  · exact key (by nlinarith)
 
 /-- **First Fit uses at most `⌈17/10 * OPT⌉` bins**, the bound of
 [Garey, Graham, Johnson and Yao][GareyGrahamJohnsonYao1976] as reported by
@@ -522,13 +507,10 @@ theorem length_firstFit_le_ceil {C : ℕ} {l : List ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking C l Q) : (firstFit C l).length ≤ ⌈(17 / 10 : ℚ) * Q.length⌉₊ := by
   have h := ten_mul_length_firstFit_le hQ
   rcases Nat.eq_zero_or_pos (firstFit C l).length with h0 | hpos
-  · rw [h0]
-    exact Nat.zero_le _
-  · obtain ⟨n, hn⟩ : ∃ n, (firstFit C l).length = n + 1 :=
-      ⟨_, (Nat.succ_pred_eq_of_pos hpos).symm⟩
+  · simp [h0]
+  · obtain ⟨n, hn⟩ := Nat.exists_eq_add_one.mpr hpos
     rw [hn] at h ⊢
     rw [Nat.add_one_le_iff, Nat.lt_ceil]
-    have : (10 * (n + 1) : ℚ) ≤ 17 * Q.length + 8 := by exact_mod_cast h
-    linarith
+    linarith [show (10 * (n + 1) : ℚ) ≤ 17 * Q.length + 8 by exact_mod_cast h]
 
 end Cslib.Algorithms.Lean.BinPacking

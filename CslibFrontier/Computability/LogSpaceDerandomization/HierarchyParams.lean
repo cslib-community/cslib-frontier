@@ -267,10 +267,9 @@ theorem nonempty (hq : 0 < q) (hcπ : 0 < cπ) :
   · rw [div_le_div_iff₀ (by positivity) hq, one_mul]
     push_cast [m]
     nlinarith [Nat.le_ceil q, (Nat.cast_nonneg (α := ℝ) k)]
-  · have h1 : 4 * Cπ * m * k * (k + 1) ≤ (J : ℝ) := by
-      simp only [J]; push_cast
-      exact (Nat.le_ceil _).trans (by linarith)
-    linarith
+  · simp only [J]
+    push_cast
+    linarith [Nat.le_ceil (4 * Cπ * m * k * (k + 1))]
 
 variable (P : HierarchyParams q cπ Cπ Cpair Cvar)
 
@@ -404,15 +403,9 @@ theorem stage_rates [LinearOrder V] {π : ℝ} (hch : RetentionChannels X Y f π
     hτ₀ (fun t => P.χ_nonneg _) (fun t => P.χ_le_one _)
     (fun t ht => P.χ_zero _ (by rwa [div_le_iff₀ hf])) (fun t ht => P.χ_one _ (by
       rwa [le_div_iff₀ hf])) hτ₁ hcopies
-  refine ⟨fun a b => h1 (ofLex a) (ofLex b), ?_, fun a b h => h3 _ _ h, h4⟩
-  have hl : P.next X Y f C * P.proj X Y f C =
-      (copyStage (P.copyCutoff f) P.m (P.weight X Y f C) (P.residual X Y f C) *
-        copyWeight (P.weight X Y f C)).submatrix ofLex id :=
-    submatrix_mul _ _ _ _ _ ofLex.bijective
-  have hr : P.proj X Y f C * P.residual X Y f C =
-      (copyWeight (P.weight X Y f C) * P.residual X Y f C).submatrix ofLex id := rfl
-  rw [hl, hr]
-  exact congrArg (fun M => M.submatrix ofLex id) h2
+  refine ⟨fun a b => h1 (ofLex a) (ofLex b),
+    (submatrix_mul _ _ _ _ _ ofLex.bijective).trans (congrArg (fun M => M.submatrix ofLex id) h2),
+    fun a b h => h3 _ _ h, h4⟩
 
 /-- The next matrix is strictly upper triangular for the lexicographic order on the copies. -/
 theorem next_isStrictUpperTriangular [LinearOrder V] (hf : 0 < f)
@@ -484,13 +477,8 @@ theorem proj_nonneg [DecidableEq V] (a : Lex (V × Fin (P.m + 1))) (x : V) :
   · exact P.weight_nonneg _ _
   · exact le_rfl
 
-theorem proj_mulVec_one_le [DecidableEq V] : P.proj X Y f C *ᵥ 1 ≤ 1 := by
-  intro a
-  have h := copyWeight_mulVec (P.weight X Y f C) 1 (ofLex a)
-  simp only [Pi.one_apply, mul_one] at h
-  have : (P.proj X Y f C *ᵥ 1) a = (copyWeight (P.weight X Y f C) *ᵥ 1) (ofLex a) := rfl
-  rw [this, h]
-  exact P.weight_le_one _ _
+theorem proj_mulVec_one_le [DecidableEq V] : P.proj X Y f C *ᵥ 1 ≤ 1 := fun a => by
+  simpa only [proj_mulVec, Pi.one_apply, mul_one] using P.weight_le_one (ofLex a).2 (ofLex a).1
 
 /-- The primary copy projects to its parent with weight one. -/
 theorem proj_primary [DecidableEq V] (x w : V) :

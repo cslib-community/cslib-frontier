@@ -134,16 +134,8 @@ theorem replies_liftBind (g : ℕ →. ℕ) (q : ℕ) (k : ℕ → OracleComp na
     refine congrArg _ (funext fun r => ?_)
     rw [Part.bind_map, replies, Part.map_bind]
     refine congrArg _ (funext fun rs => ?_)
-    simp only [stepReplies]
-    change _ = (match nextMove (k r) rs with
-      | .inl q => (g q).map (rs ++ [·])
-      | .inr _ => Part.some rs).map (r :: ·)
-    change (match nextMove (k r) rs with
-      | .inl q => (g q).map (r :: rs ++ [·])
-      | .inr _ => Part.some (r :: rs)) = _
-    cases nextMove (k r) rs with
-    | inl q => simp [Part.map_map, Function.comp_def]
-    | inr _ => simp
+    cases h : nextMove (k r) rs <;>
+      simp [stepReplies, nextMove, h, Part.map_map, Function.comp_def]
 
 /-- A program returns `a` against `g` iff some finite reply trace leads to the result `a`. -/
 theorem mem_interpret_iff (g : ℕ →. ℕ) :
@@ -155,21 +147,14 @@ theorem mem_interpret_iff (g : ℕ →. ℕ) :
     exact ⟨fun h => ⟨0, [], Part.mem_some _, h⟩, fun ⟨_, _, _, h⟩ => h⟩
   | .liftBind q k, a => by
     change a ∈ (g q).bind (fun r => OracleComp.interpret g (k r)) ↔ _
-    constructor
-    · intro h
-      obtain ⟨r, hr, h⟩ := Part.mem_bind_iff.1 h
+    refine ⟨fun h => ?_, ?_⟩
+    · obtain ⟨r, hr, h⟩ := Part.mem_bind_iff.1 h
       obtain ⟨t, rs, hrs, hn⟩ := (mem_interpret_iff g (k r) a).1 h
-      refine ⟨t + 1, r :: rs, ?_, hn⟩
-      rw [replies_liftBind]
-      exact Part.mem_bind_iff.2 ⟨r, hr, Part.mem_map _ hrs⟩
-    · rintro ⟨t, rs, hrs, hn⟩
-      cases t with
-      | zero =>
-        obtain rfl := Part.mem_some_iff.1 hrs
-        simp [nextMove] at hn
-      | succ t =>
-        rw [replies_liftBind] at hrs
-        obtain ⟨r, hr, hrs⟩ := Part.mem_bind_iff.1 hrs
+      exact ⟨t + 1, r :: rs,
+        (replies_liftBind g q k t).symm ▸ Part.mem_bind_iff.2 ⟨r, hr, Part.mem_map _ hrs⟩, hn⟩
+    · rintro ⟨_ | t, rs, hrs, hn⟩
+      · cases Part.mem_some_iff.1 hrs ▸ hn
+      · obtain ⟨r, hr, hrs⟩ := Part.mem_bind_iff.1 (replies_liftBind g q k t ▸ hrs)
         obtain ⟨rs', hrs', rfl⟩ := (Part.mem_map_iff _).1 hrs
         exact Part.mem_bind_iff.2 ⟨r, hr, (mem_interpret_iff g (k r) a).2 ⟨t, rs', hrs', hn⟩⟩
 
@@ -201,18 +186,18 @@ theorem interpret_eq_rfind [Inhabited α] (g : ℕ →. ℕ) (T : OracleComp nat
       fun {m} hm => ?_⟩, ?_⟩
     · refine (Part.mem_map_iff _).2 ⟨(replies g T m).get (hdom m hm), Part.get_mem _, ?_⟩
       simpa using fun h => Nat.find_min hex hm ⟨_, Part.get_mem _, h⟩
-    · obtain ⟨b, hb⟩ : ∃ b, nextMove T rs₀ = .inr b := by
-        cases h : nextMove T rs₀ <;> simp_all
-      have hb' := (mem_interpret_iff g T b).2 ⟨_, rs₀, hrs₀, hb⟩
-      obtain rfl := Part.mem_unique ha hb'
-      exact (Part.mem_map_iff _).2 ⟨rs₀, hrs₀, by simp [hb]⟩
+    · cases h : nextMove T rs₀ with
+      | inl _ => simp [h] at hn₀
+      | inr b =>
+        obtain rfl := Part.mem_unique ha ((mem_interpret_iff g T b).2 ⟨_, rs₀, hrs₀, h⟩)
+        exact (Part.mem_map_iff _).2 ⟨rs₀, hrs₀, by simp [h]⟩
   · rintro ⟨t, ht, ha⟩
     obtain ⟨rs, hrs, hfl⟩ := (Part.mem_map_iff _).1 (Nat.rfind_spec ht)
     obtain ⟨rs', hrs', rfl⟩ := (Part.mem_map_iff _).1 ha
     obtain rfl := Part.mem_unique hrs hrs'
-    obtain ⟨b, hb⟩ : ∃ b, nextMove T rs = .inr b := by
-      cases h : nextMove T rs <;> simp_all
-    exact (mem_interpret_iff g T _).2 ⟨t, rs, hrs, by simp [hb]⟩
+    cases h : nextMove T rs with
+    | inl _ => simp [h] at hfl
+    | inr b => simpa [h] using (mem_interpret_iff g T b).2 ⟨t, rs, hrs, h⟩
 
 end OracleComp
 
@@ -750,7 +735,7 @@ theorem computable_play_toClocked (c : Code) : Computable (ClockedComp.play c.to
   | comp cf cg ihf ihg =>
     exact ClockedComp.computable_play_bind ihg (ClockedComp.computable_play_comp ihf snd)
   | prec cf cg ihf ihg =>
-    have h := ClockedComp.computable_play_natRec (m := fun n : ℕ => n.unpair.2)
+    simpa only [toClocked] using ClockedComp.computable_play_natRec (m := fun n : ℕ => n.unpair.2)
       (P := fun n : ℕ => toClocked cf n.unpair.1)
       (g := fun z : ℕ × ℕ × ℕ => toClocked cg (Nat.pair z.1.unpair.1 (Nat.pair z.2.1 z.2.2)))
       (snd.comp Computable.unpair)
@@ -758,9 +743,6 @@ theorem computable_play_toClocked (c : Code) : Computable (ClockedComp.play c.to
       (ClockedComp.computable_play_comp ihg
         ((Primrec₂.to_comp Primrec₂.natPair).comp (fst.comp (Computable.unpair.comp fst))
           ((Primrec₂.to_comp Primrec₂.natPair).comp (fst.comp snd) (snd.comp snd))))
-    dsimp only at h
-    rw [toClocked]
-    exact h
   | rfind' cf ihf =>
     have hp := ClockedComp.computable_play_map
       (P := fun z : ℕ × ℕ => toClocked cf (Nat.pair z.1.unpair.1 (z.2 + z.1.unpair.2)))
@@ -770,13 +752,11 @@ theorem computable_play_toClocked (c : Code) : Computable (ClockedComp.play c.to
           ((Primrec₂.to_comp _root_.Primrec.nat_add).comp snd
             (snd.comp (Computable.unpair.comp fst)))))
       (((Primrec₂.to_comp _root_.Primrec.eq.decide).comp snd (const 0)).to₂)
-    have h := ClockedComp.computable_play_map (ClockedComp.computable_play_rfind hp)
-      (f := fun (n : ℕ) (r : ℕ) => r + n.unpair.2)
-      ((Primrec₂.to_comp _root_.Primrec.nat_add).comp snd
-        (snd.comp (Computable.unpair.comp fst))).to₂
-    dsimp only at h
-    rw [toClocked]
-    exact h
+    simpa only [toClocked] using
+      ClockedComp.computable_play_map (ClockedComp.computable_play_rfind hp)
+        (f := fun (n : ℕ) (r : ℕ) => r + n.unpair.2)
+        ((Primrec₂.to_comp _root_.Primrec.nat_add).comp snd
+          (snd.comp (Computable.unpair.comp fst))).to₂
 
 /-- The dialogue of the compiled program of a code is computable. -/
 theorem computable_dialogue_toClocked (c : Code) :

@@ -118,10 +118,7 @@ theorem treeInv_init (σ : ℕ) : TreeInv σ PTrie.init where
   depth_zero := rfl
   term_zero := rfl
   str_ne_nil := fun _ hpos hlt => by simp only [PTrie.init] at hlt; omega
-  depth_eq := fun u hlt => by
-    simp only [PTrie.init] at hlt
-    have : u = 0 := by omega
-    subst this; rfl
+  depth_eq := fun u hlt => (Nat.lt_one_iff.mp hlt).symm ▸ rfl
   str_inj := fun u hu v hv _ => by simp only [PTrie.init] at hu hv; omega
   trie_lt := fun _ _ _ _ => Nat.zero_lt_one
   trie_spec := fun _ _ _ _ => Or.inl rfl
@@ -336,18 +333,10 @@ theorem build_trie_spec (P : List (List ℕ)) (σ : ℕ)
             if (ps.foldl PTrie.insertPat T).strOf u ≠ [] ∧
               (ps.foldl PTrie.insertPat T).strOf u ∈ Q ++ ps then 1 else 0) by
     exact this P [] PTrie.init hvalid (treeInv_init σ) (Nat.le_refl 1)
-        (fun u hu => by
-          simp only [PTrie.init] at hu
-          have : u = 0 := by omega
-          subst this; exact isNode_nil [])
-        (fun w hw => by
-          rcases hw with rfl | ⟨_, hp, _⟩
-          · exact ⟨0, Nat.zero_lt_one, rfl⟩
-          · exact absurd hp List.not_mem_nil)
-        (fun u hu => by
-          simp only [PTrie.init] at hu
-          have : u = 0 := by omega
-          subst this; simp [PTrie.init])
+        (fun u hu => (Nat.lt_one_iff.mp hu).symm ▸ isNode_nil [])
+        (fun w hw => hw.elim (fun h => ⟨0, Nat.zero_lt_one, h.symm⟩)
+          fun ⟨_, hp, _⟩ => (List.not_mem_nil hp).elim)
+        (fun u hu => by simp [PTrie.init, Nat.lt_one_iff.mp hu])
   intro ps
   induction ps with
   | nil =>

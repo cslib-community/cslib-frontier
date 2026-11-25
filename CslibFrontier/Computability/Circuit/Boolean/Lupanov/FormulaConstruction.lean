@@ -42,14 +42,7 @@ private noncomputable def rowSet (T : Finset (BitString c)) (pattern : T → Boo
 private theorem mem_rowSet (T : Finset (BitString c)) (pattern : T → Bool) (z : BitString c) :
     z ∈ rowSet T pattern ↔ ∃ hz : z ∈ T, pattern ⟨z, hz⟩ = true := by
   classical
-  simp only [rowSet, mem_image, mem_filter, mem_attach, true_and]
-  constructor
-  · rintro ⟨⟨w, hw⟩, hp, h⟩
-    change w = z at h
-    subst w
-    exact ⟨hw, hp⟩
-  · rintro ⟨hz, hp⟩
-    exact ⟨⟨z, hz⟩, hp, rfl⟩
+  simp [rowSet]
 
 private theorem card_rowSet_le (T : Finset (BitString c)) (pattern : T → Bool) :
     (rowSet T pattern).card ≤ T.card :=
@@ -69,18 +62,12 @@ private theorem eval_blockFormula (f : BooleanFunction (c + d)) (center : BitStr
       (decide (z ∈ T) && f (Fin.append z (BitString.flipOn {i} center))) := by
   classical
   apply Bool.eq_iff_iff.mpr
-  simp only [blockFormula, eval_orList, List.any_map, List.any_eq_true,
-    mem_toList, mem_univ, true_and, Formula.eval_and, Bool.and_eq_true, eval_rename,
-    Function.comp_def, Fin.append_left, Fin.append_right, eval_indicator,
-    decide_eq_true_eq, eval_neighborSelector_flip, mem_filter, mem_univ, true_and]
-  constructor
-  · rintro ⟨pattern, hrow, hcol⟩
-    obtain ⟨hz, hp⟩ := (mem_rowSet T pattern z).mp hrow
-    subst pattern
-    exact ⟨hz, hp⟩
-  · rintro ⟨hz, hf⟩
-    refine ⟨columnPattern f center T i, ?_, rfl⟩
-    exact (mem_rowSet _ _ _).mpr ⟨hz, hf⟩
+  simp only [blockFormula, eval_orList, List.any_map, List.any_eq_true, mem_toList, mem_univ,
+    true_and, Formula.eval_and, Bool.and_eq_true, eval_rename, Function.comp_def, Fin.append_left,
+    Fin.append_right, eval_indicator, decide_eq_true_eq, eval_neighborSelector_flip, mem_filter,
+    mem_rowSet]
+  exact ⟨fun ⟨_, ⟨hz, hp⟩, hcol⟩ => ⟨hz, (congrFun hcol ⟨z, hz⟩).trans hp⟩,
+    fun ⟨hz, hf⟩ => ⟨columnPattern f center T i, ⟨hz, hf⟩, rfl⟩⟩
 
 private theorem leafSize_blockFormula_le (f : BooleanFunction (c + d)) (center : BitString d)
     (T : Finset (BitString c)) :
@@ -146,16 +133,12 @@ private theorem eval_sphereFormula (f : BooleanFunction (c + d)) (center : BitSt
   classical
   by_cases hy : ∃ i, y = BitString.flipOn {i} center
   · obtain ⟨i, rfl⟩ := hy
+    obtain ⟨b, hb⟩ := exists_mem_rowBlock s z
     apply Bool.eq_iff_iff.mpr
     simp only [sphereFormula, eval_and, eval_rename, Function.comp_def, Fin.append_right,
       eval_openSphere, decide_eq_true_eq, Bool.and_eq_true, eval_orList, List.any_map,
       List.any_eq_true, mem_toList, mem_univ, true_and, eval_blockFormula]
-    constructor
-    · rintro ⟨_, b, hb⟩
-      exact ⟨⟨i, rfl⟩, hb.2⟩
-    · rintro ⟨_, hf⟩
-      obtain ⟨b, hb⟩ := exists_mem_rowBlock s z
-      exact ⟨⟨i, rfl⟩, b, hb, hf⟩
+    exact ⟨fun ⟨_, _, _, hf⟩ => ⟨⟨i, rfl⟩, hf⟩, fun ⟨_, hf⟩ => ⟨⟨i, rfl⟩, b, hb, hf⟩⟩
   · simp only [sphereFormula, eval_and, eval_rename, Function.comp_def, Fin.append_right,
       eval_openSphere, decide_eq_false hy, Bool.false_and]
 
@@ -169,13 +152,11 @@ private theorem leafSize_sphereFormula_le (f : BooleanFunction (c + d))
   rw [Finset.sum_map_toList]
   apply Nat.add_le_add_left
   calc
-    _ ≤ ∑ _ : Fin (2 ^ c / s + 1), (2 ^ s * c * s + d) := by
-      apply sum_le_sum
-      intro b _
-      apply (leafSize_blockFormula_le f center _).trans
-      have hb := card_rowBlock_le c s b hs
-      exact Nat.add_le_add_right
-        (Nat.mul_le_mul (Nat.mul_le_mul_right c (Nat.pow_le_pow_right two_pos hb)) hb) d
+    _ ≤ ∑ _ : Fin (2 ^ c / s + 1), (2 ^ s * c * s + d) :=
+      sum_le_sum fun b _ => (leafSize_blockFormula_le f center _).trans <| by
+        have hb := card_rowBlock_le c s b hs
+        exact Nat.add_le_add_right
+          (Nat.mul_le_mul (Nat.mul_le_mul_right c (Nat.pow_le_pow_right two_pos hb)) hb) d
     _ = _ := by simp
 
 private theorem exists_localFormula (c r s : ℕ) (hs : 0 < s)
@@ -189,21 +170,13 @@ private theorem exists_localFormula (c r s : ℕ) (hs : 0 < s)
     orList (C.toList.map fun center => sphereFormula f center s)
   have hcard' : C.card = 2 ^ (2 ^ r) / 2 ^ r := by
     rw [← hcard, Nat.mul_div_cancel _ (Nat.two_pow_pos r)]
-  refine ⟨F, ?_, ?_⟩
-  · intro x
-    have heval (z : BitString c) (y : BitString (2 ^ r)) :
-        F.eval interpretation (Fin.append z y) = f (Fin.append z y) := by
-      apply Bool.eq_iff_iff.mpr
-      simp only [F, eval_orList, List.any_map, Function.comp_def, List.any_eq_true, mem_toList,
-        eval_sphereFormula, Bool.and_eq_true, decide_eq_true_eq]
-      constructor
-      · rintro ⟨center, _, _, hf⟩
-        exact hf
-      · intro hf
-        obtain ⟨⟨⟨center, hc⟩, i⟩, hy⟩ := hbij.surjective y
-        exact ⟨center, hc, ⟨i, hy.symm⟩, hf⟩
-    simpa only [Fin.append_castAdd_natAdd] using
-      heval (fun i => x (Fin.castAdd (2 ^ r) i)) (fun i => x (Fin.natAdd c i))
+  refine ⟨F, fun x => ?_, ?_⟩
+  · obtain ⟨z, y, rfl⟩ : ∃ z y, Fin.append z y = x := ⟨_, _, Fin.append_castAdd_natAdd⟩
+    obtain ⟨⟨⟨center, hc⟩, i⟩, hy⟩ := hbij.surjective y
+    apply Bool.eq_iff_iff.mpr
+    simp only [F, eval_orList, List.any_map, Function.comp_def, List.any_eq_true, mem_toList,
+      eval_sphereFormula, Bool.and_eq_true, decide_eq_true_eq]
+    exact ⟨fun ⟨_, _, _, hf⟩ => hf, fun hf => ⟨center, hc, ⟨i, hy.symm⟩, hf⟩⟩
   · simp only [F, leafSize_orList, List.map_map, Function.comp_def]
     rw [Finset.sum_map_toList]
     calc _ ≤ ∑ _ ∈ C, ((2 ^ r) ^ 2 + (2 ^ c / s + 1) * (2 ^ s * c * s + 2 ^ r)) :=
@@ -217,26 +190,15 @@ private theorem exists_formula_of_sections {a b B : ℕ} (f : BooleanFunction (a
       F.leafSize ≤ 2 ^ a * (a + B) := by
   classical
   choose sections hsections hcost using h
-  have hsections_eval (z : BitString a) (y : BitString b) :
-      (sections z).eval interpretation y = f (Fin.append z y) := hsections z y
   let F : Formula signature (a + b) := orList ((univ : Finset (BitString a)).toList.map fun z =>
     ((minterm z).rename (Fin.castAdd b)).and ((sections z).rename (Fin.natAdd a)))
-  refine ⟨F, ?_, ?_⟩
-  · intro x
-    have heval (z : BitString a) (y : BitString b) :
-        F.eval interpretation (Fin.append z y) = f (Fin.append z y) := by
-      apply Bool.eq_iff_iff.mpr
-      simp only [F, eval_orList, List.any_map, List.any_eq_true, mem_toList, mem_univ,
-        true_and, eval_and, Bool.and_eq_true, eval_rename, Function.comp_def,
-        Fin.append_left, Fin.append_right, eval_minterm, decide_eq_true_eq, hsections_eval]
-      constructor
-      · rintro ⟨w, hw, hf⟩
-        change z = w at hw
-        subst w
-        exact hf
-      · exact fun hf => ⟨z, rfl, hf⟩
-    simpa only [Fin.append_castAdd_natAdd] using
-      heval (fun i => x (Fin.castAdd b i)) (fun i => x (Fin.natAdd a i))
+  refine ⟨F, fun x => ?_, ?_⟩
+  · obtain ⟨z, y, rfl⟩ : ∃ z y, Fin.append z y = x := ⟨_, _, Fin.append_castAdd_natAdd⟩
+    apply Bool.eq_iff_iff.mpr
+    simp only [F, eval_orList, List.any_map, List.any_eq_true, mem_toList, mem_univ, true_and,
+      eval_and, Bool.and_eq_true, eval_rename, Function.comp_def, Fin.append_left,
+      Fin.append_right, eval_minterm, decide_eq_true_eq, exists_eq_left']
+    exact (congrArg (· = true) (hsections z y)).to_iff
   · simp only [F, leafSize_orList, List.map_map, Function.comp_def, leafSize_and,
       leafSize_rename, leafSize_minterm]
     rw [Finset.sum_map_toList]

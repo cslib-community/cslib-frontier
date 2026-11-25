@@ -452,17 +452,12 @@ theorem bids_auctionLoop_le (fuel : ℕ) (s : AuctionState n) :
 theorem lt_bidBound_mul (hε : 0 < ε) (C : ℤ) :
     (n : ℤ) * (C + ε) < (bidBound n C ε : ℤ) * ε := by
   have hεn : ((ε.toNat : ℕ) : ℤ) = ε := Int.toNat_of_nonneg hε.le
-  have hpos : 0 < ε.toNat := by omega
-  have key : n * (C + ε).toNat < (n * (C + ε).toNat / ε.toNat + 1) * ε.toNat := by
-    rw [Nat.add_mul, one_mul]
-    exact Nat.lt_div_mul_add hpos
+  have key : n * (C + ε).toNat < bidBound n C ε * ε.toNat := by
+    simpa only [bidBound, Nat.add_mul, one_mul] using Nat.lt_div_mul_add (by omega : 0 < ε.toNat)
   have h1 : (n : ℤ) * (C + ε) ≤ ((n * (C + ε).toNat : ℕ) : ℤ) := by
     rw [Nat.cast_mul]
     exact mul_le_mul_of_nonneg_left (Int.self_le_toNat _) (Nat.cast_nonneg n)
-  have h2 : ((n * (C + ε).toNat : ℕ) : ℤ) < ((bidBound n C ε * ε.toNat : ℕ) : ℤ) :=
-    Nat.cast_lt.2 key
-  rw [Nat.cast_mul (bidBound n C ε), hεn] at h2
-  exact lt_of_le_of_lt h1 h2
+  exact h1.trans_lt (by simpa only [Nat.cast_mul, hεn] using (Nat.cast_lt (α := ℤ)).2 key)
 
 /-- `costSpread c` bounds every row cost range. -/
 theorem sub_le_costSpread (i j k : Fin n) : c (i, k) - c (i, j) ≤ costSpread c := by
@@ -516,17 +511,12 @@ variable {s : AuctionState n}
 /-- In a complete state, person `i` owns `s.objectOf i`. -/
 theorem AuctionInv.owner_objectOf (h : AuctionInv c ε s) (hs : s.free = []) (i : Fin n) :
     s.owner (s.objectOf i) = some i := by
-  have hex : ∃ j, s.owner j = some i := by
-    have := (h.mem_free i).not.1 (by rw [hs]; exact List.not_mem_nil)
-    simpa only [not_forall, not_not] using this
-  obtain ⟨j₀, hj₀⟩ := hex
+  obtain ⟨j₀, hj₀⟩ : ∃ j, s.owner j = some i := by simpa [hs] using h.mem_free i
   have hsome : ((List.finRange n).find? fun j => decide (s.owner j = some i)).isSome :=
-    List.find?_isSome.2 ⟨j₀, List.mem_finRange j₀, by simpa using hj₀⟩
+    List.find?_isSome.2 ⟨j₀, List.mem_finRange j₀, decide_eq_true hj₀⟩
   obtain ⟨j, hj⟩ := Option.isSome_iff_exists.1 hsome
-  have := List.find?_some hj
-  simp only [decide_eq_true_eq] at this
-  simp only [AuctionState.objectOf, hj, Option.getD_some]
-  exact this
+  simpa only [AuctionState.objectOf, hj, Option.getD_some, decide_eq_true_eq] using
+    List.find?_some hj
 
 /-- In a complete state, `personOf` is a left inverse of `objectOf`. -/
 theorem AuctionInv.personOf_objectOf (h : AuctionInv c ε s) (hs : s.free = []) (i : Fin n) :
@@ -664,20 +654,16 @@ private theorem min?_map_add_const {α : Type*} (l : List α) (f : α → ℤ) (
 
 private theorem bestObject_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) (p : Fin n → ℤ) (i : Fin n) :
     bestObject (fun e => c e + d) p i = bestObject c p i := by
-  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d := by
-    funext k
-    simp only [redCost]
-    omega
+  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d :=
+    funext fun k => add_right_comm _ _ _
   rw [bestObject, hrc]
   exact argmin_add_const (List.finRange n) (redCost c p i) d
 
 private theorem secondBest_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) (p : Fin n → ℤ)
     (i j : Fin n) :
     secondBest (fun e => c e + d) p i j = (secondBest c p i j).map (· + d) := by
-  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d := by
-    funext k
-    simp only [redCost]
-    omega
+  have hrc : redCost (fun e => c e + d) p i = fun k => redCost c p i k + d :=
+    funext fun k => add_right_comm _ _ _
   rw [secondBest, hrc]
   exact min?_map_add_const _ (redCost c p i) d
 
@@ -686,11 +672,7 @@ private theorem bidPrice_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (p 
     bidPrice (fun e => c e + d) ε p i j = bidPrice c ε p i j := by
   unfold bidPrice
   rw [secondBest_add_const]
-  cases secondBest c p i j with
-  | none => rfl
-  | some w =>
-    dsimp only [Option.map]
-    omega
+  cases secondBest c p i j <;> simp [add_sub_add_right_eq_sub]
 
 /-- Shifting every cost by a constant `d` leaves `bidStep` unchanged. -/
 theorem bidStep_add_const (c : Fin n × Fin n → ℤ) (d ε : ℤ) (s : AuctionState n) :

@@ -623,23 +623,15 @@ theorem advantage_bind_sampleExp_le (n : ℕ) (d : F.Desc)
         ((ProbComp.eval (F.sampleExp n d)).map
           (Nat.cast : ℕ → ZMod (F.order d))).bind k :=
     (PMF.bind_map _ _ _).symm
-  have hlt : F.order d < 2 ^ (encNat (F.order d)).length := by
-    simpa only [encNat_apply, ← Nat.size_eq_bits_len] using Nat.lt_size_self (F.order d)
   have hord_le : (F.order d : ℝ) ≤ 2 ^ (encNat (F.order d)).length := by
-    exact_mod_cast hlt.le
+    exact_mod_cast (by simpa only [encNat_apply, ← Nat.size_eq_bits_len] using
+      (Nat.lt_size_self (F.order d)).le)
   rw [← NNReal.coe_le_coe, hmap, Game.advantage_eq_nndist, coe_nndist]
-  refine (PMF.dist_bind_le ((ProbComp.eval (F.sampleExp n d)).map
-      (Nat.cast : ℕ → ZMod (F.order d)))
-    (PMF.uniformOfFintype (ZMod (F.order d))) k).trans ?_
-  refine (ProbComp.dist_map_natCast_eval_sampleModNat_le
-    (n + (encNat (F.order d)).length) (F.order d)).trans ?_
+  refine (PMF.dist_bind_le _ _ k).trans
+    ((ProbComp.dist_map_natCast_eval_sampleModNat_le _ _).trans ?_)
   rw [Nat.add_comm n, pow_add, ← div_div]
-  have hdiv : (F.order d : ℝ) / 2 ^ (encNat (F.order d)).length ≤ 1 :=
-    (div_le_one (by positivity)).mpr hord_le
-  have hbound :
-      (F.order d : ℝ) / 2 ^ (encNat (F.order d)).length / 2 ^ n ≤ 1 / 2 ^ n :=
-    div_le_div_of_nonneg_right hdiv (by positivity)
-  simpa only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_pow, NNReal.coe_ofNat] using hbound
+  simpa only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_pow, NNReal.coe_ofNat] using
+    div_le_div_of_nonneg_right ((div_le_one (by positivity)).mpr hord_le) (by positivity)
 
 /-- Distribution of a single modular exponent sampled via `ProbComp.sampleModNat` at parameter `n`
 and group parameters `d`, projected to `ZMod (F.order d)` (original). -/
@@ -973,10 +965,6 @@ theorem isPPT_ddhAmplifiedDecider {distinguisher : F.DDHDistinguisher} (hD : dis
     (hn.unary_add' (.const 3)).unary_mul'
       ((ComputableInPolyTime.unary_pow 2).comp ((ComputableInPolyTime.const 7).unary_mul'
         (hinvEps.comp hn)))
-  have hcmp : ComputableInPolyTime
-      (fun q : ℕ × ℕ × ℕ => decide ((q.1 - q.2.1) + (q.2.1 - q.1) ≤ (q.1 - q.2.2) + (q.2.2 - q.1)))
-      (encPair encUnary (encPair encUnary encUnary)) encBool := by
-    fun_prop
   refine IsPPTOn.bind_with
     ((hself.comp (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).countTrue
       (hN (by fun_prop))) ?_
@@ -988,11 +976,11 @@ theorem isPPT_ddhAmplifiedDecider {distinguisher : F.DDHDistinguisher} (hD : dis
     ((hself.comp (by fun_prop) (by fun_prop) (computableInPolyTime_encode_zero (by fun_prop))
       (computableInPolyTime_encode_zero (by fun_prop))
       (computableInPolyTime_encode_generator (by fun_prop))).countTrue (hN (by fun_prop))) ?_
-  have hproj : ComputableInPolyTime (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ => (p.1.1.2, p.1.2, p.2))
-      (encPair (encPair (encPair F.encDDHInput encUnary) encUnary) encUnary)
-      (encPair encUnary (encPair encUnary encUnary)) := by
-    fun_prop
-  exact (hcmp.comp hproj).isPPTOn
+  exact (show ComputableInPolyTime
+      (fun p : ((F.DDHInput × ℕ) × ℕ) × ℕ =>
+        decide ((p.1.1.2 - p.1.2) + (p.1.2 - p.1.1.2) ≤ (p.1.1.2 - p.2) + (p.2 - p.1.1.2)))
+      (encPair (encPair (encPair F.encDDHInput encUnary) encUnary) encUnary) encBool by
+    fun_prop).isPPTOn
 
 private theorem cast_sub_add_sub_eq_abs (a b : ℕ) :
     (((a - b) + (b - a) : ℕ) : ℝ) = |(a : ℝ) - (b : ℝ)| := by
@@ -1120,12 +1108,9 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
       (hcRandom : cRandom ∈ good tRandom) :
       decide ((cIn - cReal) + (cReal - cIn) ≤ (cIn - cRandom) + (cRandom - cIn)) =
         decide (γ = α * β) := by
-    have hcIn' : |(cIn : ℝ) / N - (ProbComp.eval tIn true).toReal| < ε / 7 := by
-      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hcIn
-    have hcReal' : |(cReal : ℝ) / N - (ProbComp.eval tReal true).toReal| < ε / 7 := by
-      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hcReal
-    have hcRandom' : |(cRandom : ℝ) / N - (ProbComp.eval tRandom true).toReal| < ε / 7 := by
-      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hcRandom
+    have hgood {t : ProbComp Bool} {c : ℕ} (hc : c ∈ good t) :
+        |(c : ℝ) / N - (ProbComp.eval t true).toReal| < ε / 7 := by
+      simpa only [good, Set.mem_ofPred_eq, h7eq'] using hc
     have hcmp_iff :
         ((cIn - cReal) + (cReal - cIn) ≤ (cIn - cRandom) + (cRandom - cIn)) ↔
           |(cIn : ℝ) / N - (cReal : ℝ) / N| ≤ |(cIn : ℝ) / N - (cRandom : ℝ) / N| := by
@@ -1135,11 +1120,11 @@ theorem ddhAmplifiedDecider_error_le_pow (distinguisher : F.DDHDistinguisher)
     by_cases hγ : γ = α * β
     · have hInRef : |(ProbComp.eval tIn true).toReal - pReal| ≤ ε / 12 := by
         simpa only [tIn, hγ] using hRealClose α β
-      have hlt :=
-        abs_sub_lt_abs_sub_of_close hadv' hInRef hRealRef hRandomRef hcIn' hcReal' hcRandom'
+      have hlt := abs_sub_lt_abs_sub_of_close hadv' hInRef hRealRef hRandomRef
+        (hgood hcIn) (hgood hcReal) (hgood hcRandom)
       simp only [hγ, decide_true, hcmp_iff, hlt.le]
     · have hlt := abs_sub_lt_abs_sub_of_close (abs_sub_comm pReal pRandom ▸ hadv')
-        (hRandomClose hγ) hRandomRef hRealRef hcIn' hcRandom' hcReal'
+        (hRandomClose hγ) hRandomRef hRealRef (hgood hcIn) (hgood hcRandom) (hgood hcReal)
       simp only [hγ, decide_false, hcmp_iff, not_le.mpr hlt]
   simp only [ddhAmplifiedDecider, ProbComp.eval_bind, ProbComp.eval_pure]
   exact toOuterMeasure_bind₃_failure_le_pow _ _ _ (good tIn) (good tReal) (good tRandom) _ _ n

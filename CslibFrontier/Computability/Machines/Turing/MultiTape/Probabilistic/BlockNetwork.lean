@@ -448,10 +448,8 @@ theorem notMem_blockWindow {c : Cfg k Bool State input} {h : Fin k} {j : ℤ}
   simp only [Cfg.blockIndex, Cfg.headPos_some, abs_le, not_and_or, not_le] at hj
   simp only [Cfg.blockWindow, Set.mem_Ico, not_and_or, not_le, not_lt]
   rcases hj with hj | hj
-  · right
-    nlinarith
-  · left
-    nlinarith
+  · exact .inr (by nlinarith)
+  · exact .inl (by nlinarith)
 
 /-- **The entering view is the true one.** If `x` agrees with the true run before interval `i`,
 then interval `i` reads the true control record and window contents, at the true block
@@ -857,15 +855,9 @@ theorem maxDegreeLE_blockNetwork :
         rcases e' with i' | ⟨i', h, d⟩
         · simp only [edgeTarget] at he'
           split_ifs at he'
-          cases he'
-          rfl
+          exact Set.mem_singleton_of_eq (Sum.inr.inj he')
         · simp only [edgeTarget] at he'
-          cases hc : firstAfter (InWindow σ h (portBlock σ i' h d)) i' with
-          | none =>
-            simp only [hc, Option.elim_none, Sum.inr.injEq] at he'
-            rw [he']
-            rfl
-          | some i'' => simp [hc] at he'
+          cases hc : firstAfter (InWindow σ h (portBlock σ i' h d)) i' <;> simp_all
     calc _ ≤ ({e} : Set (BlockEdge k q)).ncard := Set.ncard_le_ncard hsub (Set.toFinite _)
       _ = 1 := Set.ncard_singleton e
       _ ≤ 2 * (3 * k + 1) := by omega

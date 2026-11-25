@@ -129,33 +129,24 @@ theorem rfimEnergy_crossing_le [DecidableEq V] [Finite E] (G : Multigraph V E) (
       ((G.edgeCut (A : Set V)).ncard : ℝ) + ((G.edgeCut (B : Set V)).ncard : ℝ) := by
     rw [Finset.coe_inter, Finset.coe_union]
     exact_mod_cast G.ncard_edgeCut_inter_add_union_le (A : Set V) (B : Set V)
-  have hA_eq : A = (A ∩ B) ∪ (A \ B) := by
-    ext v; simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]; tauto
-  have hA_disj : Disjoint (A ∩ B) (A \ B) :=
-    Finset.disjoint_left.mpr fun _ h₁ h₂ => (Finset.mem_sdiff.mp h₂).2 (Finset.mem_inter.mp h₁).2
-  have hA : ∑ v ∈ A, (y v - t₁) =
-      (∑ v ∈ A ∩ B, (y v - t₁)) + ∑ v ∈ A \ B, (y v - t₁) := by
-    conv_lhs => rw [hA_eq]
-    exact Finset.sum_union hA_disj
-  have hB_eq : A ∪ B = B ∪ (A \ B) := by
-    ext v; simp only [Finset.mem_union, Finset.mem_sdiff]; tauto
-  have hB_disj : Disjoint B (A \ B) :=
-    Finset.disjoint_left.mpr fun _ h₁ h₂ => (Finset.mem_sdiff.mp h₂).2 h₁
+  have hA : ∑ v ∈ A, (y v - t₁) = (∑ v ∈ A ∩ B, (y v - t₁)) + ∑ v ∈ A \ B, (y v - t₁) := by
+    have h : A = (A ∩ B) ∪ (A \ B) := by
+      ext v
+      simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
+      tauto
+    conv_lhs => rw [h]
+    exact Finset.sum_union (Finset.disjoint_left.mpr fun _ h₁ h₂ =>
+      (Finset.mem_sdiff.mp h₂).2 (Finset.mem_inter.mp h₁).2)
   have hB : ∑ v ∈ A ∪ B, (y v - t₂) =
-      (∑ v ∈ B, (y v - t₂)) + ∑ v ∈ A \ B, (y v - t₂) := by
-    rw [hB_eq, Finset.sum_union hB_disj]
+      (∑ v ∈ A \ B, (y v - t₂)) + ∑ v ∈ B, (y v - t₂) := by
+    rw [← Finset.sdiff_union_self_eq_union, Finset.sum_union
+      (Finset.disjoint_left.mpr fun _ h₁ h₂ => (Finset.mem_sdiff.mp h₁).2 h₂)]
   have hdiff : (∑ v ∈ A \ B, (y v - t₂)) - (∑ v ∈ A \ B, (y v - t₁)) =
       -(t₂ - t₁) * ((A \ B).card : ℝ) := by
-    rw [← Finset.sum_sub_distrib]
     have hconst : ∀ v ∈ A \ B, (y v - t₂) - (y v - t₁) = -(t₂ - t₁) := fun _ _ => by ring
-    rw [Finset.sum_congr rfl hconst, Finset.sum_const, nsmul_eq_mul]
+    rw [← Finset.sum_sub_distrib, Finset.sum_congr rfl hconst, Finset.sum_const, nsmul_eq_mul]
     ring
-  have hlin : α * ((∑ v ∈ A ∩ B, (y v - t₁)) - ∑ v ∈ A, (y v - t₁)) +
-      α * ((∑ v ∈ A ∪ B, (y v - t₂)) - ∑ v ∈ B, (y v - t₂)) =
-      -α * (t₂ - t₁) * ((A \ B).card : ℝ) := by
-    rw [hA, hB]
-    linarith [congrArg (α * ·) hdiff]
-  linarith
+  linarith [congrArg (α * ·) hA, congrArg (α * ·) hB, congrArg (α * ·) hdiff]
 
 /-- At any fixed threshold `t` and coupling `α`, `rfimEnergy G y α t` is submodular. -/
 theorem rfimEnergy_inter_add_union_le [DecidableEq V] [Finite E] (G : Multigraph V E)
@@ -276,38 +267,31 @@ theorem exists_isMedianAt (G : Multigraph V E) (y : V → α) {v : V}
 
 variable [Finite E]
 
+omit [DecidableEq V] [LinearOrder α] in
+private theorem ncard_sep_add_not (s : Set E) (p : E → Prop) :
+    {e ∈ s | p e}.ncard + {e ∈ s | ¬p e}.ncard = s.ncard := by
+  have hdisj : Disjoint {e ∈ s | p e} {e ∈ s | ¬p e} :=
+    disjoint_left.mpr fun _ ha hb => hb.2 ha.2
+  have hunion : {e ∈ s | p e} ∪ {e ∈ s | ¬p e} = s := by
+    ext e
+    by_cases hp : p e <;> simp [hp]
+  rw [← ncard_union_eq hdisj, hunion]
+
 /-- At a vertex incident to three edges, the neighbor median is unique. -/
 theorem IsMedianAt.eq_of_ncard_eq_three {G : Multigraph V E} {y : V → α} {v : V} {m₁ m₂ : α}
     (h₁ : G.IsMedianAt y v m₁) (h₂ : G.IsMedianAt y v m₂)
     (hv : (G.incidenceSet v).ncard = 3) : m₁ = m₂ := by
-  have hpart (p : E → Prop) :
-      {e ∈ G.incidenceSet v | p e}.ncard + {e ∈ G.incidenceSet v | ¬p e}.ncard = 3 := by
-    have hdisj : Disjoint {e ∈ G.incidenceSet v | p e} {e ∈ G.incidenceSet v | ¬p e} :=
-      disjoint_left.mpr fun _ ha hb => hb.2 ha.2
-    have hunion : {e ∈ G.incidenceSet v | p e} ∪ {e ∈ G.incidenceSet v | ¬p e} =
-        G.incidenceSet v := by
-      ext e; by_cases hp : p e <;> simp [hp]
-    rw [← ncard_union_eq hdisj, hunion, hv]
   suffices hle : ∀ {a b : α}, G.IsMedianAt y v a → G.IsMedianAt y v b → ¬(a < b) from
     le_antisymm (not_lt.mp (hle h₂ h₁)) (not_lt.mp (hle h₁ h₂))
   intro a b ha hb hab
-  have hp₁ := hpart fun e => y (G.otherEnd v e) ≤ a
-  have ha' : {e ∈ G.incidenceSet v | ¬y (G.otherEnd v e) ≤ a} =
-      {e ∈ G.incidenceSet v | a < y (G.otherEnd v e)} := by
-    ext e; simp [not_le]
-  rw [ha'] at hp₁
-  have hge₁ : 2 ≤ {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ a}.ncard := by
-    have := ha.1; omega
-  have hp₂ := hpart fun e => b ≤ y (G.otherEnd v e)
-  have hb' : {e ∈ G.incidenceSet v | ¬b ≤ y (G.otherEnd v e)} =
-      {e ∈ G.incidenceSet v | y (G.otherEnd v e) < b} := by
-    ext e; simp [not_le]
-  rw [hb'] at hp₂
-  have hge₂ : 2 ≤ {e ∈ G.incidenceSet v | b ≤ y (G.otherEnd v e)}.ncard := by
-    have := hb.2; omega
+  have hp₁ := (ncard_sep_add_not (G.incidenceSet v) fun e => y (G.otherEnd v e) ≤ a).trans hv
+  have hp₂ := (ncard_sep_add_not (G.incidenceSet v) fun e => b ≤ y (G.otherEnd v e)).trans hv
+  simp only [not_le] at hp₁ hp₂
+  have := ha.1
+  have := hb.2
   have hdisj : Disjoint {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ a}
       {e ∈ G.incidenceSet v | b ≤ y (G.otherEnd v e)} :=
-    disjoint_left.mpr fun e he₁ he₂ => (he₁.2.trans_lt hab).not_ge he₂.2
+    disjoint_left.mpr fun _ he₁ he₂ => (he₁.2.trans_lt hab).not_ge he₂.2
   have hsub : {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ a} ∪
       {e ∈ G.incidenceSet v | b ≤ y (G.otherEnd v e)} ⊆ G.incidenceSet v :=
     union_subset (fun _ h => h.1) fun _ h => h.1
@@ -486,19 +470,8 @@ omit [DecidableEq V] [Finite E] [LinearOrder α] in
 private theorem innerCrossDeg_add_low_eq {G : Multigraph V E} {v : V} {d : ℕ}
     (hv : (G.incidenceSet v).ncard = d) (y : V → α) (t : α) :
     G.innerCrossDeg y t v + {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ t}.ncard = d := by
-  rw [innerCrossDeg]
-  have hdisj : Disjoint {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)}
-      {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ t} :=
-    disjoint_left.mpr fun _ ha hb => ha.2.not_ge hb.2
-  have hunion : {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)} ∪
-      {e ∈ G.incidenceSet v | y (G.otherEnd v e) ≤ t} = G.incidenceSet v := by
-    ext e
-    simp only [mem_union, mem_sep_iff]
-    refine ⟨fun h => h.elim And.left And.left, fun he => ?_⟩
-    rcases lt_or_ge t (y (G.otherEnd v e)) with h | h
-    · exact Or.inl ⟨he, h⟩
-    · exact Or.inr ⟨he, h⟩
-  rw [← ncard_union_eq hdisj, hunion, hv]
+  simpa only [innerCrossDeg, not_lt] using
+    (ncard_sep_add_not (G.incidenceSet v) fun e => t < y (G.otherEnd v e)).trans hv
 
 /-- On a degree-`3` vertex `v`, `nbrMedian G y v ≤ t` holds iff at most one incident edge at `v`
 enters `{y > t}`. -/
@@ -509,33 +482,22 @@ theorem nbrMedian_le_iff_innerCrossDeg_le_one (G : Multigraph V E) (y : V → α
   constructor
   · intro hmt
     have hsum := innerCrossDeg_add_low_eq hv y (G.nbrMedian y v)
-    rw [innerCrossDeg] at hsum
-    have hm_le1 : {e ∈ G.incidenceSet v | G.nbrMedian y v < y (G.otherEnd v e)}.ncard ≤ 1 := by
-      omega
-    exact (ncard_le_ncard (s := {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)})
+    rw [innerCrossDeg] at hsum ⊢
+    exact (ncard_le_ncard
+      (s := {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)})
       (t := {e ∈ G.incidenceSet v | G.nbrMedian y v < y (G.otherEnd v e)})
-      fun e he => ⟨he.1, hmt.trans_lt he.2⟩).trans hm_le1
+      fun e he => ⟨he.1, hmt.trans_lt he.2⟩).trans (by omega)
   · intro hdeg
     by_contra hnot
     have htm : t < G.nbrMedian y v := not_le.mp hnot
-    have hdisj : Disjoint {e ∈ G.incidenceSet v | y (G.otherEnd v e) < G.nbrMedian y v}
-        {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)} :=
-      disjoint_left.mpr fun _ ha hb => ha.2.not_ge hb.2
-    have hunion : {e ∈ G.incidenceSet v | y (G.otherEnd v e) < G.nbrMedian y v} ∪
-        {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)} = G.incidenceSet v := by
-      ext e
-      simp only [mem_union, mem_sep_iff]
-      refine ⟨fun h => h.elim And.left And.left, fun he => ?_⟩
-      rcases lt_or_ge (y (G.otherEnd v e)) (G.nbrMedian y v) with h | h
-      · exact Or.inl ⟨he, h⟩
-      · exact Or.inr ⟨he, h⟩
-    have hsum : {e ∈ G.incidenceSet v | y (G.otherEnd v e) < G.nbrMedian y v}.ncard +
-        {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)}.ncard = 3 := by
-      rw [← ncard_union_eq hdisj, hunion, hv]
-    have hge2 : 2 ≤ {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)}.ncard := by omega
+    have hsum := (ncard_sep_add_not (G.incidenceSet v)
+      fun e => G.nbrMedian y v ≤ y (G.otherEnd v e)).trans hv
+    simp only [not_le] at hsum
     have hle : {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)}.ncard ≤
-        G.innerCrossDeg y t v :=
-      ncard_le_ncard (t := {e ∈ G.incidenceSet v | t < y (G.otherEnd v e)})
+        G.innerCrossDeg y t v := by
+      rw [innerCrossDeg]
+      exact ncard_le_ncard
+        (s := {e ∈ G.incidenceSet v | G.nbrMedian y v ≤ y (G.otherEnd v e)})
         fun e he => ⟨he.1, htm.trans_le he.2⟩
     omega
 

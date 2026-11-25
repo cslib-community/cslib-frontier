@@ -138,13 +138,8 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
     intro d _
     by_cases hd32 : d < 32
     · interval_cases d <;> decide
-    · simp only [divisorPasses, Bool.or_eq_true, decide_eq_true_eq]
-      left
-      right
-      rw [h283_log]
-      have hlog : 5 ≤ Nat.log 2 d :=
-        Nat.le_log_of_pow_le one_lt_two (by norm_num; omega)
-      norm_num
+    · have hlog : 5 ≤ Nat.log 2 d := Nat.le_log_of_pow_le one_lt_two (by omega)
+      simp only [divisorPasses, Bool.or_eq_true, decide_eq_true_eq, h283_log]
       omega
   have h283 : (codeRange 283 1).find? pred = some 283 := by
     simp [pred, codeRange, h283_irreducible, h283_log]
@@ -190,9 +185,8 @@ noncomputable def f256EquivByte : F256 ≃ Fin 256 :=
 /-- A bounded polynomial code is unchanged by UOV's `F16` nibble encoding. -/
 theorem val_f16EquivNibble_mk_polyOfCode {c : ℕ} (hc : c < 16) :
     (f16EquivNibble (AdjoinRoot.mk (leastIrreducible 4) (polyOfCode c))).val = c := by
-  have hc' : c < 2 ^ 4 := by simpa using hc
   simpa only [f16EquivNibble] using
-    BinaryField.val_equivFin_mk_polyOfCode (w := 4) (c := c) (by norm_num) hc'
+    BinaryField.val_equivFin_mk_polyOfCode (w := 4) (c := c) (by norm_num) (by omega)
 
 /-- Decoding a nibble gives the class of the binary polynomial with that code. -/
 theorem f16EquivNibble_symm_apply (c : Fin 16) :
@@ -203,9 +197,8 @@ theorem f16EquivNibble_symm_apply (c : Fin 16) :
 /-- A bounded polynomial code is unchanged by UOV's `F256` byte encoding. -/
 theorem val_f256EquivByte_mk_polyOfCode {c : ℕ} (hc : c < 256) :
     (f256EquivByte (AdjoinRoot.mk (leastIrreducible 8) (polyOfCode c))).val = c := by
-  have hc' : c < 2 ^ 8 := by simpa using hc
   simpa only [f256EquivByte] using
-    BinaryField.val_equivFin_mk_polyOfCode (w := 8) (c := c) (by norm_num) hc'
+    BinaryField.val_equivFin_mk_polyOfCode (w := 8) (c := c) (by norm_num) (by omega)
 
 /-- Decoding a byte gives the class of the binary polynomial with that code. -/
 theorem f256EquivByte_symm_apply (c : Fin 256) :
@@ -233,11 +226,8 @@ theorem val_f16EquivNibble_root :
 
 /-- The multiplicative identity has nibble value `1`. -/
 theorem val_f16EquivNibble_one : (f16EquivNibble (1 : F16)).val = 1 := by
-  have hmk : AdjoinRoot.mk (leastIrreducible 4) (polyOfCode 1) = (1 : F16) := by
-    rw [polyOfCode_one]
-    exact map_one _
-  rw [← hmk]
-  exact val_f16EquivNibble_mk_polyOfCode (c := 1) (by norm_num)
+  simpa only [polyOfCode_one, map_one] using
+    val_f16EquivNibble_mk_polyOfCode (c := 1) (by norm_num)
 
 private theorem adjoinRoot_pow_eq_mk {w k : ℕ} {p : Polynomial (ZMod 2)}
     (h : X ^ k + p = leastIrreducible w) :

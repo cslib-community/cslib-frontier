@@ -57,31 +57,21 @@ private theorem trieMem_stepChar_new {inp : Input} {T : PTrie} {mem : ℕ → �
         dsimp only
         rw [Function.update_of_ne (by omega)]
         by_cases huc : u = u₀ ∧ c = a
-        · obtain ⟨rfl, rfl⟩ := huc
-          simp only [and_self, ↓reduceIte, Function.update_self]
-        · simp only [huc, ↓reduceIte]
-          have hne_addr : inp.trieBase + u * inp.alphabetSize + c ≠
-              inp.trieBase + u₀ * inp.alphabetSize + a := fun heq => by
-            obtain ⟨hc_eq, hu_eq⟩ := Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)
-            exact huc ⟨hu_eq, hc_eq⟩
-          rw [Function.update_of_ne hne_addr]
-          exact hM.trie_cell u hu c hc
+        · rcases huc with ⟨rfl, rfl⟩
+          simp
+        · have hne_addr : inp.trieBase + u * inp.alphabetSize + c ≠
+              inp.trieBase + u₀ * inp.alphabetSize + a := fun heq =>
+            huc (Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)).symm
+          simp [huc, Function.update_of_ne hne_addr, hM.trie_cell u hu c hc]
       depth_cell := fun u hu => by
-        dsimp only
-        by_cases hus : u = T.numStates
-        · subst hus
-          rw [Function.update_self, Function.update_self]
-        · simp (disch := omega) only [Function.update_of_ne]
-          exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.term_cell u hu
+        rcases eq_or_ne u T.numStates with rfl | hus
+        · simp
+        · simp (disch := omega) [Function.update_of_ne, hM.depth_cell u hu]
+      term_cell := fun u hu => by simp (disch := omega) [Function.update_of_ne, hM.term_cell u hu]
       zero_df := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_df addr ha1 ha2
+        simp (disch := omega) [Function.update_of_ne, hM.zero_df addr ha1 ha2]
       zero_rest := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_rest addr ha1 ha2 }
+        simp (disch := omega) [Function.update_of_ne, hM.zero_rest addr ha1 ha2] }
 
 private theorem trieMem_insertPat_pos {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
     {u₁ : ℕ} (hu₁ : u₁ < inp.maxS) (hM : TrieMem inp T mem) :
@@ -96,23 +86,17 @@ private theorem trieMem_insertPat_pos {inp : Input} {T : PTrie} {mem : ℕ → �
         simp (disch := omega) only [Function.update_of_ne]
       trie_cell := fun u hu c hc => by
         have huc_lt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.trie_cell u hu c hc
+        simp (disch := omega) [Function.update_of_ne, hM.trie_cell u hu c hc]
       depth_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.depth_cell u hu
+        simp (disch := omega) [Function.update_of_ne, hM.depth_cell u hu]
       term_cell := fun u hu => by
-        dsimp only
-        by_cases huu : u = u₁
-        · subst huu; rw [Function.update_self, Function.update_self]
-        · simp (disch := omega) only [Function.update_of_ne]
-          exact hM.term_cell u hu
+        rcases eq_or_ne u u₁ with rfl | huu
+        · simp
+        · simp (disch := omega) [Function.update_of_ne, hM.term_cell u hu]
       zero_df := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_df addr ha1 ha2
+        simp (disch := omega) [Function.update_of_ne, hM.zero_df addr ha1 ha2]
       zero_rest := fun addr ha1 ha2 => by
-        simp (disch := omega) only [Function.update_of_ne]
-        exact hM.zero_rest addr ha1 ha2 }
+        simp (disch := omega) [Function.update_of_ne, hM.zero_rest addr ha1 ha2] }
 
 private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound) :
     ∀ (chars rest : List ℕ) (T : PTrie) (x : Data 26),

@@ -261,13 +261,10 @@ theorem runSeedSchedulerFrom_exhausted {count : ℕ}
     (sourceAt : Fin count → Fin n) (source : Fin n) {seed : ℕ} (hs : 2 ^ length ≤ seed)
     (phase : Option (ℕ × Bool)) :
     runSeedSchedulerFrom scan sourceAt source seed phase = pure none := by
-  cases phase with
-  | none =>
-    simp only [runSeedSchedulerFrom, findSeedFromRank, Nat.sub_eq_zero_of_le hs, findSeedFrom]
+  rcases phase with _ | ⟨_, _⟩
+  · simp only [runSeedSchedulerFrom, findSeedFromRank, Nat.sub_eq_zero_of_le hs, findSeedFrom]
     split_ifs <;> rfl
-  | some p =>
-    rcases p with ⟨cursor, answer⟩
-    simp [runSeedSchedulerFrom, Nat.not_lt.mpr hs]
+  · simp [runSeedSchedulerFrom, Nat.not_lt.mpr hs]
 
 /-- A designated scan's pure verdict advances the seed on a tie, or starts the indexed roots
 with the designated answer. -/
@@ -464,16 +461,12 @@ theorem testSeed_correct {r : Fin n → Fin n → Prop} {target source : Fin n}
           (∀ s ∈ sources, ∀ j, ∃! w, Passes r s j w) then
         some (decide (Relation.ReflTransGen r source target)) else none) := by
   classical
-  have hsource (s : Fin n) : sourceGood controller s =
-      pure (decide (∀ j, ∃! w, Passes r s j w)) := by
-    obtain ⟨verdict, hv, hs⟩ := hc s
-    cases verdict with
-    | bad j =>
-      have hnot : ¬ ∀ i, ∃! w, Passes r s i w := fun h => hs (h j)
-      simp [sourceGood, hv, hnot]
-    | decided b => simp [sourceGood, hv, hs.1]
   have hsource' : sourceGood controller = fun s => pure (decide (∀ j, ∃! w, Passes r s j w)) :=
-    funext hsource
+    funext fun s => by
+      obtain ⟨verdict, hv, hs⟩ := hc s
+      cases verdict with
+      | bad j => simp [sourceGood, hv, show ¬ ∀ i, ∃! w, Passes r s i w from fun h => hs (h j)]
+      | decided b => simp [sourceGood, hv, hs.1]
   obtain ⟨verdict, hv, hs⟩ := hc source
   cases verdict with
   | bad j =>

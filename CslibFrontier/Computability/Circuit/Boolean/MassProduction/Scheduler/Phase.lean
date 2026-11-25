@@ -363,40 +363,30 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
   refine ⟨τ.trans π, dirs', fun m => ?_, fun m => ?_, fun m hm => ?_, fun m m' hm hm' hne => ?_⟩
   · funext jj
     rcases accepted_or_pending (hk := hk) m with ⟨m', rfl⟩ | ⟨j, rfl⟩
-    · simp only [label, next_accepted, Equiv.trans_apply, hτa]
-      exact congrFun (hlabel _) jj
-    · simp only [label, next_pending, Equiv.trans_apply, hτp, hsorted, enriched, labelBit]
-      rw [Fin.append_right, Fin.append_left]
-      exact congrFun (hlabel _) jj
+    · simp [label, next_accepted, hτa, ← hlabel]
+    · simp [label, next_pending, hτp, hsorted, enriched, labelBit,
+        Fin.append_right, Fin.append_left, ← hlabel]
   · funext β
     rcases accepted_or_pending (hk := hk) m with ⟨m', rfl⟩ | ⟨j, rfl⟩
-    · simp only [target, next_accepted, Equiv.trans_apply, hτa]
-      exact congrFun (htarget _) β
-    · simp only [target, next_pending, Equiv.trans_apply, hτp, hsorted, enriched, targetBit]
-      rw [Fin.append_right, Fin.append_right, Fin.append_left]
-      exact congrFun (htarget _) β
+    · simp [target, next_accepted, hτa, ← htarget]
+    · simp [target, next_pending, hτp, hsorted, enriched, targetBit,
+        Fin.append_right, Fin.append_left, ← htarget]
   · rcases hnew_acc m hm with ⟨m', rfl⟩ | ⟨j, rfl, hj⟩
     · rw [hda]
-      refine ⟨(hline _ m'.isLt).1, fun c => ?_⟩
-      funext β
-      simp only [line, next_accepted, Equiv.trans_apply, hτa]
-      exact congrFun ((hline _ m'.isLt).2 c) β
+      refine ⟨(hline _ m'.isLt).1, fun c => funext fun β => ?_⟩
+      simpa only [line, next_accepted, Equiv.trans_apply, hτa] using
+        congrFun ((hline _ m'.isLt).2 c) β
     · rw [hdp]
-      refine ⟨hmenu.1 e (σ j), fun c => ?_⟩
-      funext β
+      refine ⟨hmenu.1 e (σ j), fun c => funext fun β => ?_⟩
       simp only [line, next_pending, Equiv.trans_apply, hτp, hsorted, enriched, lineBit]
       rw [Fin.append_right, Fin.append_right, Fin.append_right, Equiv.symm_apply_apply, hnew,
         candidate_eq bits scalar menu htarget]
-  · simp only [Equiv.trans_apply]
-    rcases hnew_acc m hm with ⟨m₁, rfl⟩ | ⟨j, rfl, hj⟩ <;>
-      rcases hnew_acc m' hm' with ⟨m₂, rfl⟩ | ⟨j', rfl, hj'⟩
-    · rw [hτa, hτa, hda, hda]
-      exact hdisj _ _ m₁.isLt m₂.isLt hne
-    · rw [hτa, hτp, hda, hdp]
-      exact ((hfront j' hj').1.mono_right (hsub m₁)).symm
-    · rw [hτp, hτa, hdp, hda]
-      exact (hfront j hj).1.mono_right (hsub m₂)
-    · rw [hτp, hτp, hdp, hdp]
-      exact (hfront j hj).2 (σ j') fun h => hne (by rw [σ.injective h])
+  · rcases hnew_acc m hm with ⟨m₁, rfl⟩ | ⟨j, rfl, hj⟩ <;>
+      rcases hnew_acc m' hm' with ⟨m₂, rfl⟩ | ⟨j', rfl, hj'⟩ <;>
+      simp only [Equiv.trans_apply, hτa, hτp, hda, hdp]
+    · exact hdisj _ _ m₁.isLt m₂.isLt hne
+    · exact ((hfront j' hj').1.mono_right (hsub m₁)).symm
+    · exact (hfront j hj).1.mono_right (hsub m₂)
+    · exact (hfront j hj).2 (σ j') fun h => hne (by rw [σ.injective h])
 
 end Cslib.Circuits.Boolean.MassProduction.Scheduler

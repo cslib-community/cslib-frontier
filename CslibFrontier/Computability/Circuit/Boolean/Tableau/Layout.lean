@@ -522,13 +522,9 @@ theorem GlobLoc.ofIdx_idx (l : GlobLoc k State) : GlobLoc.ofIdx l.idx = l := by
 
 /-- The index of a global feature is strictly less than `Fintype.card (Option State) + 4`. -/
 theorem GFeat.idx_lt (f : GFeat State) : f.idx < Fintype.card (Option State) + 4 := by
-  rcases f with q | o
-  · have := (Fintype.equivFin (Option State) q).isLt
-    simp only [GFeat.idx]
-    omega
-  · have := o.index_lt
-    simp only [GFeat.idx]
-    omega
+  rcases f with q | o <;> simp only [GFeat.idx]
+  · exact Nat.lt_add_right 4 (Fintype.equivFin (Option State) q).isLt
+  · exact Nat.add_lt_add_left o.index_lt _
 
 /-- Decoding the index of a global feature recovers the feature. -/
 theorem GFeat.ofIdx_idx (f : GFeat State) : GFeat.ofIdx f.idx = f := by
@@ -562,33 +558,27 @@ theorem ColFeat.ofIdx_idx (f : ColFeat k) : ColFeat.ofIdx f.idx = f := by
 theorem gadgetIdx_lt (fi : ℕ) (b : Bool) (j : Fin 8) :
     gadgetIdx fi b j < 16 * (fi + 1) := by
   have := j.isLt
-  cases b <;>
-    simp only [gadgetIdx, Bool.toNat_false, Bool.toNat_true, mul_zero, mul_one, add_zero,
-      gt_iff_lt] <;> omega
+  cases b <;> simp only [gadgetIdx, Bool.toNat_false, Bool.toNat_true] <;> omega
 
 /-- Dividing `gadgetIdx fi b j` by `16` recovers the feature index `fi`. -/
 theorem gadgetIdx_div (fi : ℕ) (b : Bool) (j : Fin 8) : gadgetIdx fi b j / 16 = fi := by
   have := j.isLt
-  cases b <;>
-    simp only [gadgetIdx, Bool.toNat_false, Bool.toNat_true, mul_zero, mul_one, add_zero] <;> omega
+  cases b <;> simp only [gadgetIdx, Bool.toNat_false, Bool.toNat_true] <;> omega
 
 /-- Decoding the gate kind from `gadgetIdx fi b j` recovers `b`. -/
 theorem gadgetB_gadgetIdx (fi : ℕ) (b : Bool) (j : Fin 8) :
     gadgetB (gadgetIdx fi b j) = b := by
   have := j.isLt
-  cases b <;>
-    simp only [gadgetB, gadgetIdx, Bool.toNat_false, Bool.toNat_true, mul_zero, mul_one, add_zero,
-      Nat.mul_add_mod_self_left, decide_eq_false_iff_not, decide_eq_true_eq, not_le, ge_iff_le,
-      gt_iff_lt] <;> omega
+  cases b
+  · simp [gadgetB, gadgetIdx]; omega
+  · simp [gadgetB, gadgetIdx]; omega
 
 /-- Decoding the term index from `gadgetIdx fi b j` recovers `j`. -/
 theorem gadgetJ_gadgetIdx (fi : ℕ) (b : Bool) (j : Fin 8) :
     gadgetJ (gadgetIdx fi b j) = j := by
   have := j.isLt
   ext
-  cases b <;>
-    simp only [gadgetJ, gadgetIdx, Bool.toNat_false, Bool.toNat_true, mul_zero, mul_one,
-      add_zero] <;> omega
+  cases b <;> simp only [gadgetJ, gadgetIdx, Bool.toNat_false, Bool.toNat_true] <;> omega
 
 /-! ### Block bounds and wire division -/
 
@@ -707,11 +697,7 @@ theorem posOf_offset {c : ℕ} {l : Loc k State} (hl : l.ColOK T c) :
 /-! ### Every gate sits at a position -/
 
 private theorem symIdx_symOf {m : ℕ} (hm : m < 3) : symIdx (symOf m) = m := by
-  rcases m with _ | _ | _ | m
-  · rfl
-  · rfl
-  · rfl
-  · omega
+  rcases m with _ | _ | _ | m <;> first | rfl | omega
 
 /-- Encoding `ScanQ.ofIdx m` for `m < 3 + 3 * k` recovers `m`. -/
 theorem ScanQ.idx_ofIdx {m : ℕ} (hm : m < 3 + 3 * k) :

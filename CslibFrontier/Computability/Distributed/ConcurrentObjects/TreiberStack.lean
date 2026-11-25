@@ -391,18 +391,14 @@ theorem treiberFreshNode_cas_fail_witnesses_intervening_cas {P V : Type u} [Deci
         (states (j + 1)).head ≠ (states j).head ∧
         (states (j + 1)).threads q = .returning resp := by
   have hex_chg : ∃ j < k, (states (j + 1)).head ≠ (states j).head := by
-    by_contra hconst
+    by_contra! hconst
     have heq_all : ∀ m ≤ k, (states m).head = expected := by
       intro m hm
       induction m with
       | zero => exact hread
       | succ m' ih =>
-        have hm' : (states m').head = expected := ih (by omega)
-        have hstep_eq : (states (m' + 1)).head = (states m').head := by
-          by_contra hne
-          exact hconst ⟨m', by omega, hne⟩
-        exact hstep_eq.trans hm'
-    exact hfail (heq_all k (Nat.le_refl k))
+        exact (hconst m' (Nat.lt_of_succ_le hm)).trans (ih (Nat.le_of_succ_le hm))
+    exact hfail (heq_all k le_rfl)
   obtain ⟨j, hj_lt, hj_chg⟩ := hex_chg
   have htr_j := htr j hj_lt
   cases hlbl : labels j with
@@ -411,21 +407,13 @@ theorem treiberFreshNode_cas_fail_witnesses_intervening_cas {P V : Type u} [Deci
     rcases htr_j.2 with ⟨v, hst⟩ | hst <;> (rw [hst] at hj_chg; exact absurd rfl hj_chg)
   | exec q done =>
     rw [hlbl] at htr_j
+    dsimp only [treiberFreshNodeSystem] at htr_j
     obtain ⟨_, hstep_j⟩ := htr_j
-    have hs1 : (treiberFreshNodeStep (states j) q).1 = states (j + 1) :=
-      congrArg Prod.fst hstep_j
-    have hs2 : (treiberFreshNodeStep (states j) q).2 = done :=
-      congrArg Prod.snd hstep_j
-    have hchg' : (treiberFreshNodeStep (states j) q).1.head ≠ (states j).head := by
-      rw [hs1]; exact hj_chg
-    obtain ⟨hdone_f, resp, hret⟩ := treiberFreshNodeStep_head_ne hchg'
-    rw [hs2] at hdone_f
-    subst hdone_f
-    rw [hs1] at hret
-    have hqp : q ≠ p := fun h => by
-      subst h
-      exact hj_chg (hp_no_mod j hj_lt (by rw [hlbl]; rfl))
-    exact ⟨j, q, resp, hj_lt, hqp, hlbl, hj_chg, hret⟩
+    obtain ⟨hs1, rfl⟩ := Prod.mk.inj hstep_j
+    obtain ⟨hdone_f, resp, hret⟩ := treiberFreshNodeStep_head_ne (hs1.symm ▸ hj_chg)
+    refine ⟨j, q, resp, hj_lt, fun h => ?_, hdone_f ▸ hlbl, hj_chg, hs1 ▸ hret⟩
+    subst h
+    exact hj_chg (hp_no_mod j hj_lt (congrArg StepLabel.proc hlbl))
 
 /-! ### Spine representation and forward inductive invariant for linearizability -/
 
@@ -1028,10 +1016,8 @@ private theorem treiberInv_of_reachable {P V : Type u} [DecidableEq P]
   cases lbl with
   | invoke p => exact treiberInv_invoke hinv htr
   | exec p done =>
-    obtain ⟨hact, hstep⟩ := htr
-    have hs₂ : (treiberFreshNodeStep s₁ p).1 = s₂ := congrArg Prod.fst hstep
-    rw [← hs₂]
-    exact treiberInv_exec hinv hact
+    dsimp only [treiberFreshNodeSystem] at htr
+    exact (Prod.mk.inj htr.2).1 ▸ treiberInv_exec hinv htr.1
 
 end LinearizabilityProof
 

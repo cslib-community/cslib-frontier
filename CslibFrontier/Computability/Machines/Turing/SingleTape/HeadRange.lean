@@ -78,10 +78,9 @@ theorem step_native (M : TM0.Machine Γ Q) (c : Cfg Γ Q) :
   cases h : M q T.head with
   | none => simp only [step, TM0.step, h, Option.map_none]
   | some result =>
-    rcases result with ⟨q', action⟩
-    cases action with
-    | write a => simp only [step, TM0.step, h, Option.map_some]
-    | move d => cases d <;> simp only [step, TM0.step, h, Option.map_some]
+    rcases result with ⟨q', d | a⟩
+    · cases d <;> simp only [step, TM0.step, h, Option.map_some]
+    · simp only [step, TM0.step, h, Option.map_some]
 
 /-- A bounded coordinate path is a path of the original single-tape machine. -/
 theorem ReachesWithin.native {M : TM0.Machine Γ Q} {lo hi : ℤ} {c d : Cfg Γ Q}
@@ -121,10 +120,8 @@ theorem liftCfg_mk {S : Set Q} (q : S) (T : Tape Γ) (p : ℤ) :
 
 theorem liftCfg_injective {S : Set Q} : Function.Injective (liftCfg (Γ := Γ) (S := S)) := by
   rintro ⟨⟨q, T⟩, p⟩ ⟨⟨q', T'⟩, p'⟩ h
-  simp only [liftCfg_mk, Cfg.mk.injEq, TM0.Cfg.mk.injEq] at h
-  obtain ⟨⟨hq, rfl⟩, rfl⟩ := h
-  have he : q = q' := Subtype.ext hq
-  subst q'
+  simp only [liftCfg_mk, Cfg.mk.injEq, TM0.Cfg.mk.injEq, Subtype.val_inj] at h
+  obtain ⟨⟨rfl, rfl⟩, rfl⟩ := h
   rfl
 
 section
@@ -140,12 +137,11 @@ theorem step_liftCfg (M : TM0.Machine Γ Q) {S : Set Q} (hS : TM0.Supports M S)
   | none => simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_none,
       Option.map_none]
   | some result =>
-    rcases result with ⟨q', action⟩
-    cases action with
-    | write a => simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_some,
-        Option.map_some]
-    | move d => cases d <;> simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM,
+    rcases result with ⟨q', d | a⟩
+    · cases d <;> simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM,
         Option.pmap_some, Option.map_some]
+    · simp only [step, TM0.restrict, liftCfg, TM0.liftCfg, hM, Option.pmap_some,
+        Option.map_some]
 
 /-- A bounded native path lifts to the machine restricted to any supporting finite control set. -/
 theorem ReachesWithin.restrict {M : TM0.Machine Γ Q} {S : Set Q}

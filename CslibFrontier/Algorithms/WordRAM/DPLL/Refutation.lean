@@ -249,9 +249,8 @@ theorem decodeTree_preorder (φ : CNF ℕ) :
     cases hs : status φ π with
     | sat => cases fuel <;> simp [dfs, hs] at hd
     | conflict =>
-      have hany := any_falsifies_of_status_eq_conflict hs
-      have hidx : φ.findIdx (Falsifies π) < φ.length := List.findIdx_lt_length_of_exists
-        (by simpa using hany)
+      have hidx : φ.findIdx (Falsifies π) < φ.length :=
+        List.findIdx_lt_length_of_exists (by simpa using any_falsifies_of_status_eq_conflict hs)
       have hp : preorder φ (logOut φ) fuel π = [clauseAddr φ (φ.findIdx (Falsifies π))] := by
         cases fuel <;> simp [preorder, logOut, hs]
       have ht : searchTree φ fuel π = .leaf (falsifiedClause φ π) := by
@@ -263,8 +262,6 @@ theorem decodeTree_preorder (φ : CNF ℕ) :
       rfl
     | branch l =>
       obtain ⟨fuel, rfl, hlen⟩ := length_openVars_cons_le hs hf
-      have hlen₁ := hlen l rfl
-      have hlen₂ := hlen l.negate rfl
       rw [dfs, hs, Option.or_eq_none_iff] at hd
       have hp : preorder φ (logOut φ) (fuel + 1) π =
           (2 + (φ.flatMap encodeClause).length + litCode l) ::
@@ -273,9 +270,9 @@ theorem decodeTree_preorder (φ : CNF ℕ) :
       rw [hp] at hk ⊢
       simp only [List.length_cons, List.length_append] at hk
       obtain ⟨k, rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
-      have ih₁ := decodeTree_preorder φ fuel _ hlen₁ hd.1 k (by omega)
+      have ih₁ := decodeTree_preorder φ fuel _ (hlen l rfl) hd.1 k (by omega)
         (preorder φ (logOut φ) fuel (l.negate :: π) ++ rest)
-      have ih₂ := decodeTree_preorder φ fuel _ hlen₂ hd.2 k (by omega) rest
+      have ih₂ := decodeTree_preorder φ fuel _ (hlen l.negate rfl) hd.2 k (by omega) rest
       rw [List.cons_append, decodeTree, ite_eq_right (by omega), Nat.add_sub_cancel_left,
         List.append_assoc, ih₁]
       simp only [ih₂]
@@ -551,26 +548,20 @@ private theorem run_nodes (N : ℕ) (φ : CNF ℕ) :
   have hlen : (openVars φ (Trail.lits [])).length ≤ depth φ := by
     simp [Trail.lits, openVars_nil, depth]
   have hrun := Trail.run_add_nodes φ (depth φ) [] 0 hlen
-  rw [Nat.zero_add] at hrun
-  simp only [Trail.lits_nil] at hrun
+  simp only [Nat.zero_add, Trail.lits_nil] at hrun
   unfold Trail.answer refutationWords
   cases hd : dfs φ (depth φ) [] with
   | some π =>
     rw [hd] at hrun
-    have hs : solve φ = .sat (assignment π) := (solve_eq_sat_iff_dfs).2 ⟨π, hd, rfl⟩
+    have hs : solve φ = .sat (assignment π) := solve_eq_sat_iff_dfs.2 ⟨π, hd, rfl⟩
     refine ⟨hrun, ?_⟩
-    have ha := answerList_answer N φ
-    unfold Trail.answer at ha
-    rw [hd] at ha
-    rw [hs, List.append_nil, ← ha]
-    rfl
+    simpa [answerLog, answerList, Trail.answer, hd, hs] using answerList_answer N φ
   | none =>
     rw [hd] at hrun
     have hs : (solve φ).isSat = false := by rw [isSat_solve_eq_isSome_dfs, hd]; rfl
     refine ⟨hrun, ?_⟩
     have hlog := Trail.runLog_add_nodes φ (logOut φ) (depth φ) [] 0 hlen hd
-    rw [Nat.zero_add] at hlog
-    simp only [Trail.lits_nil] at hlog
+    simp only [Nat.zero_add, Trail.lits_nil] at hlog
     cases hsol : solve φ with
     | sat σ => rw [hsol] at hs; cases hs
     | unsat c =>

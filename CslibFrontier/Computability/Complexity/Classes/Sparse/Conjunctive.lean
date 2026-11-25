@@ -296,10 +296,8 @@ theorem atLeast_append_mem_SAT_of_le {c x : List (Literal ℕ)} (hc : IsLargest 
     (hfst : x.map Prod.fst = c.map Prod.fst) (hle : x.map Prod.snd ≤ c.map Prod.snd) :
     atLeast x ++ φ ∈ SAT := by
   obtain ⟨σ, hσ, hcσ⟩ := units_append_mem_SAT_iff.1 hc.1
-  refine atLeast_append_mem_SAT_iff.2 ⟨σ, hσ, hle.trans ?_⟩
-  have hx : (x.map fun l => σ l.1) = (x.map Prod.fst).map σ := by rw [List.map_map]; rfl
-  have hc' : (c.map fun l => σ l.1) = (c.map Prod.fst).map σ := by rw [List.map_map]; rfl
-  rw [hcσ, hx, hc', hfst]
+  refine atLeast_append_mem_SAT_iff.2 ⟨σ, hσ, hle.trans_eq ?_⟩
+  simpa only [hcσ, List.map_map, Function.comp_def] using congrArg (List.map σ) hfst.symm
 
 /-- A node above the largest satisfiable node is not in the left set. -/
 theorem atLeast_append_notMem_SAT_of_lt {c z : List (Literal ℕ)} (hc : IsLargest φ c)
@@ -308,12 +306,11 @@ theorem atLeast_append_notMem_SAT_of_lt {c z : List (Literal ℕ)} (hc : IsLarge
   rintro hz
   obtain ⟨σ, hσ, hzσ⟩ := atLeast_append_mem_SAT_iff.1 hz
   /- The node with the values of `σ` is satisfiable, so it is at most `c`. -/
-  set b := z.map fun l => (l.1, σ l.1)
-  have hb : units b ++ φ ∈ SAT := units_append_mem_SAT_iff.2 ⟨σ, hσ, by simp [b]⟩
-  have hbfst : b.map Prod.fst = z.map Prod.fst := by simp [b, Function.comp_def]
-  have hbc := hc.2 b (hbfst.trans hfst) hb
+  let b := z.map fun l => (l.1, σ l.1)
+  have hbc := hc.2 b ((by simp [b, Function.comp_def] : b.map Prod.fst = _).trans hfst)
+    (units_append_mem_SAT_iff.2 ⟨σ, hσ, by simp [b]⟩)
   have hbz : b.map Prod.snd = z.map fun l => σ l.1 := by simp [b]
-  exact absurd (hzσ.trans (hbz ▸ hbc)) (not_le_of_gt hlt)
+  exact not_le_of_gt hlt (hzσ.trans (hbz ▸ hbc))
 
 /-- Some child of the largest satisfiable node of a level is the largest satisfiable node of the
 next level. -/
@@ -341,11 +338,9 @@ theorem exists_isLargest_child {c : List (Literal ℕ)} (hc : IsLargest φ c) (v
     · obtain ⟨u, y⟩ := l
       obtain rfl : u = v := List.singleton_inj.1 hl
       exact .inr ⟨y, by rw [List.concat_eq_append, eq_of_map_fst_eq_of_map_snd_eq hfst' heq]⟩
-  have hle_true : ∀ y : Bool, c.map Prod.snd ++ [y] ≤ c.map Prod.snd ++ [true] := by
-    intro y
-    cases y
-    · exact le_of_lt (List.Lex.append_left _ (List.Lex.rel (by decide)) _)
-    · exact le_rfl
+  have hle_true : ∀ y : Bool, c.map Prod.snd ++ [y] ≤ c.map Prod.snd ++ [true]
+    | false => le_of_lt (List.Lex.append_left _ (List.Lex.rel (by decide)) _)
+    | true => le_rfl
   by_cases htrue : units (c ++ [(v, true)]) ++ φ ∈ SAT
   · refine ⟨true, htrue, fun b hfst hb => ?_⟩
     rw [List.map_append, List.map_singleton] at hfst

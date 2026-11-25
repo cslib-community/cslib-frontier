@@ -347,33 +347,26 @@ theorem isDeterministicAttack_rows [DecidableEq ρ] (hcorrect : P.IsCorrect)
       (Function.update (fun s => (P.rows ρ).answer s x (rq.2 s)) s₀
         (P.rowsFlipAttack x s₀ j₀ (rq.2 s₀))))
     Prod.fst j₀ (s₀, P.rowsFlipAttack x s₀ j₀) (fun _ => rfl) ?_ ?_
-  · intro ⟨j, i⟩ ⟨r, q⟩ hrq hj
-    dsimp only at hj
-    subst hj
+  · rintro ⟨j, i⟩ ⟨r, q⟩ hrq rfl
     rw [query_rows] at hrq
     have hproj :
         (fun s => Function.update (fun s => (P.rows ρ).answer s x (q s)) s₀
           (P.rowsFlipAttack x s₀ j (q s₀)) s j) =
         Function.update (fun s => P.answer s (fun i' => x (j, i')) (q s)) s₀
-          (!(P.answer s₀ (fun i' => x (j, i')) (q s₀))) := by
-      funext s
-      by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, answer_rows]
+          (!(P.answer s₀ (fun i' => x (j, i')) (q s₀))) :=
+      funext fun s => by by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, answer_rows]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_rows, hproj, hxor', sum_update_bool,
       ← hxor' i r (fun s => P.answer s (fun i' => x (j, i')) (q s)),
       hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq]
-    generalize P.answer s₀ (fun i' => x (j, i')) (q s₀) = a₀
-    generalize x (j, i) = b
-    cases a₀ <;> cases b <;> decide
+    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> cases x (j, i) <;> decide
   · intro ⟨j, i⟩ ⟨r, q⟩ hrq hj
-    dsimp only at hj
     rw [query_rows] at hrq
     have hproj :
         (fun s => Function.update (fun s => (P.rows ρ).answer s x (q s)) s₀
           (P.rowsFlipAttack x s₀ j₀ (q s₀)) s j) =
-        fun s => P.answer s (fun i' => x (j, i')) (q s) := by
-      funext s
-      by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, hj, answer_rows]
+        fun s => P.answer s (fun i' => x (j, i')) (q s) :=
+      funext fun s => by by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, hj, answer_rows]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_rows, hproj]
     exact hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq
@@ -421,35 +414,29 @@ theorem isDeterministicAttack_toBlock_toBitScheme [DecidableEq κ] (hcorrect : P
       (Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (rq.2 s)) s₀
         (P.toBlockBitFlipAttack x s₀ b₀ (rq.2 s₀))))
     Prod.snd b₀ (s₀, P.toBlockBitFlipAttack x s₀ b₀) (fun _ => rfl) ?_ ?_
-  · intro ⟨i, b⟩ ⟨r, q⟩ hrq hb
-    dsimp only at hb
-    subst hb
+  · rintro ⟨i, b⟩ ⟨r, q⟩ hrq rfl
     rw [query_toBitScheme, query_toBlock] at hrq
     have hproj :
         (fun s => Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (q s)) s₀
           (P.toBlockBitFlipAttack x s₀ b (q s₀)) s b) =
         Function.update (fun s => P.answer s (fun i' => x (i', b)) (q s)) s₀
-          (!(P.answer s₀ (fun i' => x (i', b)) (q s₀))) := by
-      funext s
-      by_cases hs : s = s₀ <;>
-        simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock]
+          (!(P.answer s₀ (fun i' => x (i', b)) (q s₀))) :=
+      funext fun s => by
+        by_cases hs : s = s₀ <;> simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj, hxor', sum_update_bool,
       ← hxor' i r (fun s => P.answer s (fun i' => x (i', b)) (q s)),
       hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq]
-    generalize P.answer s₀ (fun i' => x (i', b)) (q s₀) = a₀
-    generalize x (i, b) = xb
-    cases a₀ <;> cases xb <;> decide
+    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> cases x (i, b) <;> decide
   · intro ⟨i, b⟩ ⟨r, q⟩ hrq hb
-    dsimp only at hb
     rw [query_toBitScheme, query_toBlock] at hrq
     have hproj :
         (fun s => Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (q s)) s₀
           (P.toBlockBitFlipAttack x s₀ b₀ (q s₀)) s b) =
-        fun s => P.answer s (fun i' => x (i', b)) (q s) := by
-      funext s
-      by_cases hs : s = s₀ <;>
-        simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock, hb]
+        fun s => P.answer s (fun i' => x (i', b)) (q s) :=
+      funext fun s => by
+        by_cases hs : s = s₀ <;>
+          simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock, hb]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj]
     exact hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq

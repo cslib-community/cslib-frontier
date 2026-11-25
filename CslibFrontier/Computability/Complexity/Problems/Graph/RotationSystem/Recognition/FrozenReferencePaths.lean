@@ -60,20 +60,17 @@ theorem mem_frozenReferenceObstacle_iff {I : FixedRotationInput} (hI : Valid I) 
       (∃ v ∈ I.graph.vertices, z = referencePoint I v) ∨
       ∃ d : Dart I.graph, (I.orders.getD d.vertex none).isSome ∧
         z ∈ ((referenceDrawing I).route (subdivisionDart I d).1).support := by
-  rw [frozenReferenceObstacle]
+  simp only [frozenReferenceObstacle, frozenStar, Set.mem_iUnion, Set.mem_union,
+    Set.mem_singleton_iff]
   constructor
-  · intro hz
-    obtain ⟨v, hv⟩ := Set.mem_iUnion.mp hz
-    rcases hv with hv | hv
-    · exact Or.inl ⟨v.val, (original_mem_iff_lt hI v.val).mpr v.isLt, hv⟩
-    · obtain ⟨d, hd⟩ := Set.mem_iUnion.mp hv
-      exact Or.inr ⟨d.val, d.property.2, hd⟩
-  · rintro (⟨v, hv, h⟩ | ⟨d, hd, h⟩)
-    · exact Set.mem_iUnion.mpr ⟨⟨v, (original_mem_iff_lt hI v).mp hv⟩, Or.inl h⟩
+  · rintro ⟨v, hz | ⟨d, h⟩⟩
+    · exact Or.inl ⟨v.val, (original_mem_iff_lt hI v.val).mpr v.isLt, hz⟩
+    · exact Or.inr ⟨d.val, d.property.2, h⟩
+  · rintro (⟨v, hv, hz⟩ | ⟨d, hd, h⟩)
+    · exact ⟨⟨v, (original_mem_iff_lt hI v).mp hv⟩, Or.inl hz⟩
     · have hv := RotationSystem.vertex_mem
         (fun v hv => (original_mem_iff_lt hI v).mpr (hI.2.1 v hv)) d
-      refine Set.mem_iUnion.mpr ⟨⟨d.vertex, (original_mem_iff_lt hI d.vertex).mp hv⟩, Or.inr ?_⟩
-      exact Set.mem_iUnion.mpr ⟨⟨d, rfl, hd⟩, h⟩
+      exact ⟨⟨d.vertex, (original_mem_iff_lt hI d.vertex).mp hv⟩, Or.inr ⟨⟨d, rfl, hd⟩, h⟩⟩
 
 private theorem spoke_support (I : FixedRotationInput) (d : Dart I.graph) :
     ((referenceDrawing I).route (subdivisionDart I d).1).support =
@@ -95,22 +92,13 @@ private theorem spoke_support (I : FixedRotationInput) (d : Dart I.graph) :
 segments. -/
 theorem frozenReferenceObstacle_isCompact (I : FixedRotationInput) :
     IsCompact (frozenReferenceObstacle I) := by
-  unfold frozenReferenceObstacle
-  apply isCompact_iUnion
-  intro v
-  unfold frozenStar
-  apply isCompact_singleton.union
-  apply isCompact_iUnion
-  intro d
+  refine isCompact_iUnion fun v => isCompact_singleton.union (isCompact_iUnion fun d => ?_)
   rw [spoke_support, segment_eq_image_lineMap]
   exact isCompact_Icc.image AffineMap.lineMap_continuous
 
 private theorem frozenStar_starConvex (I : FixedRotationInput) (v : ℕ) :
     StarConvex ℝ (referencePoint I v) (frozenStar I v) := by
-  unfold frozenStar
-  apply (starConvex_singleton _).union
-  apply starConvex_iUnion
-  intro d
+  refine (starConvex_singleton _).union (starConvex_iUnion fun d => ?_)
   rw [spoke_support, d.property.1]
   exact (convex_segment _ _).starConvex (left_mem_segment ℝ _ _)
 

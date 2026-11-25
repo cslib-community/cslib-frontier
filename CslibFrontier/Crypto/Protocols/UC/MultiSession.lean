@@ -541,25 +541,21 @@ private theorem handle_swap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ₁ NR�
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q | ⟨j, q⟩
   · erw [liftAdversary_handle_inl, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inl, routeCorrupt_handle_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      rfl
-    · simp only [hi, ↓reduceIte]
-      erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl,
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · rfl
+    · erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl,
         runFrom_parLiftAdversary_liftMultiParty]
       repeat erw [Functor.map_map]
       rfl
   · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inl, Machine.liftRightProgram_map,
       Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl, Machine.runFrom_map,
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl, Machine.runFrom_map,
         runFrom_parLiftAdversary_liftMultiParty]
       repeat erw [Functor.map_map]
       rfl
-    · simp only [hi, ↓reduceIte]
-      rfl
+    · rfl
   · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inr_outer,
       Machine.liftRightProgram_map, Machine.liftRightProgram_query, Machine.runFrom_map,
       Machine.runFrom_query, routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr,
@@ -757,15 +753,7 @@ theorem advantage_composeFamily_le_sum {m n : ℕ}
       ∑ j : Fin m,
         advantage (π j) (φ j) (dummyAdversary n _ _) (S j) C
           (sessionHopEnv C ρ π φ S Z j) κ z := by
-  have hcongr :
-      advantage (composeFamily ρ π) (composeFamily ρ φ)
-          (dummyAdversary n _ _) (multiHybridSim S) C Z κ z =
-        SSP.advantage (absorbMultiHybrid C ρ Z κ z)
-          (sessionRouter C fun j => π j κ C)
-          (SSP.parFin fun j => execMachine (φ j) (S j) κ C) := by
-    simp only [advantage, SSP.advantage]
-    rw [exec_composeFamily_dummy, eval_exec_composeFamily_multiHybridSim]
-  rw [hcongr]
+  rw [advantage, exec_composeFamily_dummy, eval_exec_composeFamily_multiHybridSim]
   refine (SSP.advantage_parFin_le_sum
     (fun j => corruptRouter C (π j κ C))
     (fun j => execMachine (φ j) (S j) κ C)
@@ -831,15 +819,9 @@ theorem composeFamily_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ 
     {σ : Fin m → Protocol n SubIn SubOut NQ NR} {pρ pσ : Polynomial ℕ}
     (hρ : ρ.PolyBounded pρ) (hσ : ∀ j, (σ j).PolyBounded pσ) :
     (composeFamily ρ σ).PolyBounded
-      ((pρ + 1) * (Polynomial.C m * pσ + 1) + Polynomial.C m * pσ) := by
-  intro κ C
-  have hwrap :
-      (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
-        (ρ κ C)).IsBounded (pρ.eval κ + 1) :=
-    isBounded_multiHybridWrap (hρ κ C)
-  have hrouter : (sessionRouter C fun j => σ j κ C).IsBounded (m * pσ.eval κ) :=
-    SSP.isBounded_parFin fun j => isBounded_routeCorrupt C (hσ j κ C)
-  exact (hwrap.comp hrouter).mono (le_of_eq (by simp))
+      ((pρ + 1) * (Polynomial.C m * pσ + 1) + Polynomial.C m * pσ) := fun κ C =>
+  ((isBounded_multiHybridWrap (hρ κ C)).comp
+    (SSP.isBounded_parFin fun j => isBounded_routeCorrupt C (hσ j κ C))).mono (le_of_eq (by simp))
 
 /-- Parallel composition `multiHybridSim S` of `pS`-bounded simulators has polynomial call budget
 `Polynomial.C m * pS + 1`. -/
@@ -911,16 +893,12 @@ theorem sessionHopEnv_polyBounded {m n : ℕ}
       (corruptRouter C (π j κ C)).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j =>
     (isBounded_routeCorrupt C (hπ j κ C)).mono (by simp [sessionUnitPoly])
   have hideal : ∀ j : Fin m,
-      (execMachine (φ j) (S j) κ C).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j => by
-    have hcomp := (Machine.isBounded_liftRight (partySpec n SubIn SubOut) (hS j κ C)).comp
-      (isBounded_routeCorrupt C (hφ j κ C))
-    exact hcomp.mono (by simp [sessionUnitPoly])
-  have habs := absorbMultiHybrid_polyBounded C hρ hZ κ z
-  have hdist := SSP.isQueryBounded_hybridDistinguisher
-    (fun j => corruptRouter C (π j κ C))
-    (fun j => execMachine (φ j) (S j) κ C)
-    j₀ hreal hideal habs
-  refine hdist.mono (le_of_eq ?_)
+      (execMachine (φ j) (S j) κ C).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j =>
+    ((Machine.isBounded_liftRight (partySpec n SubIn SubOut) (hS j κ C)).comp
+      (isBounded_routeCorrupt C (hφ j κ C))).mono (by simp [sessionUnitPoly])
+  refine (SSP.isQueryBounded_hybridDistinguisher
+    (fun j => corruptRouter C (π j κ C)) (fun j => execMachine (φ j) (S j) κ C)
+    j₀ hreal hideal (absorbMultiHybrid_polyBounded C hρ hZ κ z)).mono (le_of_eq ?_)
   simp only [sessionHopPoly, sessionUnitPoly, absorbPoly, Polynomial.eval_add, Polynomial.eval_mul,
     Polynomial.eval_one, Polynomial.eval_C, Polynomial.eval_ofNat]
 

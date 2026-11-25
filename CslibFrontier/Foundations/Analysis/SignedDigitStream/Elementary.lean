@@ -79,15 +79,13 @@ theorem abs_ediv_sub_div_lt_one (A : ℤ) {M : ℤ} (hM : 0 < M) :
     |((A / M : ℤ) : ℝ) - (A : ℝ) / (M : ℝ)| < 1 := by
   have hM_real : (0 : ℝ) < (M : ℝ) := by exact_mod_cast hM
   have hdiv : M * (A / M) + A % M = A := by linarith [Int.emod_def A M]
-  have hr0 : (0 : ℝ) ≤ ((A % M : ℤ) : ℝ) := by exact_mod_cast Int.emod_nonneg A hM.ne'
-  have hrlt : ((A % M : ℤ) : ℝ) < (M : ℝ) := by exact_mod_cast Int.emod_lt_of_pos A hM
-  have hreal : (M : ℝ) * ((A / M : ℤ) : ℝ) + ((A % M : ℤ) : ℝ) = (A : ℝ) := by
-    exact_mod_cast hdiv
+  have hreal : (M : ℝ) * ((A / M : ℤ) : ℝ) + ((A % M : ℤ) : ℝ) = (A : ℝ) := by exact_mod_cast hdiv
   have heq : ((A / M : ℤ) : ℝ) - (A : ℝ) / (M : ℝ) = -(((A % M : ℤ) : ℝ) / (M : ℝ)) := by
     field_simp
     linarith
-  rw [heq, abs_neg, abs_div, abs_of_nonneg hr0, abs_of_pos hM_real]
-  exact (div_lt_one hM_real).mpr hrlt
+  rw [heq, abs_neg, abs_div, abs_of_nonneg (by exact_mod_cast Int.emod_nonneg A hM.ne'),
+    abs_of_pos hM_real]
+  exact (div_lt_one hM_real).mpr (by exact_mod_cast Int.emod_lt_of_pos A hM)
 
 /-- Closing step of the scaled floor-quotient approximations: if `A / M = 2 ^ t * P` over `ℝ` and
 `2 ^ t * P` is within `3 / 8` of `2 ^ t * Z`, then the floor quotient `A / M` is within scaled
@@ -139,18 +137,13 @@ theorem ratApprox_eq_ediv (r : ℚ) (t : ℕ) :
   push_cast
   ring
 
-theorem ratApprox_isScaledApprox (r : ℚ) : IsScaledApprox (r : ℝ) (ratApprox r) := by
-  intro t
-  unfold ratApprox
+theorem ratApprox_isScaledApprox (r : ℚ) : IsScaledApprox (r : ℝ) (ratApprox r) := fun t => by
   set q : ℚ := (2 : ℚ) ^ t * r
-  have hle : ((⌊q⌋ : ℤ) : ℝ) ≤ (q : ℝ) := by exact_mod_cast Int.floor_le q
+  have hle : ((⌊q⌋ : ℤ) : ℝ) ≤ q := by exact_mod_cast Int.floor_le q
   have hlt : (q : ℝ) < ((⌊q⌋ : ℤ) : ℝ) + 1 := by exact_mod_cast Int.lt_floor_add_one q
-  have hq : (q : ℝ) = (2 : ℝ) ^ t * (r : ℝ) := by
-    dsimp [q]
-    push_cast
-    rfl
-  rw [← hq, abs_lt]
-  constructor <;> linarith
+  have hq : (q : ℝ) = (2 : ℝ) ^ t * (r : ℝ) := by simp [q]
+  rw [ratApprox, ← hq, abs_lt]
+  exact ⟨by linarith, by linarith⟩
 
 theorem ratStream_isSignedStream {r : ℚ} (hr : |r| ≤ 1) : IsSignedStream (ratStream r) := by
   have hreal : |(r : ℝ)| ≤ 1 := by exact_mod_cast hr
@@ -173,14 +166,10 @@ depends only on the at most `W` digits in `Ico (K + 1 - W) (K + 1)`. -/
 theorem intPrefix_emod_eq_windowPrefix_emod (x : ℕ → ℤ) (K W : ℕ) :
     intPrefix x K % (2 : ℤ) ^ W = windowPrefix x (K + 1 - W) K % (2 : ℤ) ^ W := by
   unfold intPrefix windowPrefix
-  have hle : K + 1 - W ≤ K + 1 := Nat.sub_le _ _
-  rw [Finset.range_eq_Ico, ← sum_Ico_consecutive _ (Nat.zero_le (K + 1 - W)) hle]
-  have hdvd : (2 : ℤ) ^ W ∣ ∑ j ∈ Ico 0 (K + 1 - W), x j * (2 : ℤ) ^ (K - j) := by
-    refine dvd_sum fun j hj => ?_
-    have hjlt : j < K + 1 - W := (mem_Ico.mp hj).2
-    have hWle : W ≤ K - j := by omega
-    exact dvd_mul_of_dvd_right (pow_dvd_pow 2 hWle) (x j)
-  obtain ⟨c, hc⟩ := hdvd
+  rw [Finset.range_eq_Ico, ← sum_Ico_consecutive _ (Nat.zero_le _) (Nat.sub_le (K + 1) W)]
+  obtain ⟨c, hc⟩ : (2 : ℤ) ^ W ∣ ∑ j ∈ Ico 0 (K + 1 - W), x j * (2 : ℤ) ^ (K - j) :=
+    dvd_sum fun j hj => dvd_mul_of_dvd_right
+      (pow_dvd_pow 2 (by have := (mem_Ico.mp hj).2; omega)) (x j)
   rw [hc, Int.mul_add_emod_self_left]
 
 end ResidueWindow
@@ -215,15 +204,9 @@ theorem cmpPrefix_eq_clamp_sub {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
   | zero =>
     simp [cmpPrefix, cmpStep, intPrefix_zero]
   | succ K ih =>
-    rw [cmpPrefix, ih, intPrefix_succ, intPrefix_succ]
-    unfold cmpStep
+    rw [cmpPrefix, ih, intPrefix_succ, intPrefix_succ, cmpStep]
     have hxK := isSignedDigit_iff_le.mp (hx (K + 1))
     have hyK := isSignedDigit_iff_le.mp (hy (K + 1))
-    set D := intPrefix x K - intPrefix y K
-    set δ := x (K + 1) - y (K + 1)
-    have hdiff : (2 * intPrefix x K + x (K + 1)) - (2 * intPrefix y K + y (K + 1)) =
-        2 * D + δ := by ring
-    rw [hdiff]
     omega
 
 theorem cmpPrefix_pos_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
@@ -563,15 +546,9 @@ theorem cmpBuffered_eq_clamp {s u : ℕ → ℤ} (hs : IsSignedStream s) (hu : I
   | zero =>
     simp [cmpBuffered, cmpBufferedStep, intPrefix_zero]
   | succ K ih =>
-    rw [cmpBuffered, ih, intPrefix_succ, intPrefix_succ]
-    unfold cmpBufferedStep
+    rw [cmpBuffered, ih, intPrefix_succ, intPrefix_succ, cmpBufferedStep]
     have hsK := isSignedDigit_iff_le.mp (hs (K + 1))
     have huK := isSignedDigit_iff_le.mp (hu (K + 1))
-    set D := 2 * intPrefix s K - 3 * intPrefix u K
-    set δ := 2 * s (K + 1) - 3 * u (K + 1)
-    have hdiff : 2 * (2 * intPrefix s K + s (K + 1)) - 3 * (2 * intPrefix u K + u (K + 1)) =
-        2 * D + δ := by ring
-    rw [hdiff]
     omega
 
 theorem cmpBuffered_pos_iff {s u : ℕ → ℤ} (hs : IsSignedStream s) (hu : IsSignedStream u)

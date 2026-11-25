@@ -284,10 +284,8 @@ private theorem Runs.bind {s s₁ s₂ : (spec n K V).State} {p q : (spec n K V)
   · rw [StateTransitionSpec.clientHistory, hrun, weight_append]
     omega
 
-private theorem Runs.pure (s : (spec n K V).State) : Runs rate pU pQ s (pure ()) s 0 := by
-  refine ⟨trivial, rfl, ?_⟩
-  change weight rate [] + _ ≤ _
-  rw [weight_nil, Nat.zero_add]
+private theorem Runs.pure (s : (spec n K V).State) : Runs rate pU pQ s (pure ()) s 0 :=
+  ⟨trivial, rfl, le_rfl⟩
 
 /-- The relaxation of a tentative distance through a path of length `x`. -/
 private def relaxOpt (x : ℕ) : Option ℕ → Option ℕ
@@ -301,14 +299,12 @@ private def syncQ (T : Finset (Fin n)) (dm : Dictionary.State n) : IndexedMinPQ.
 
 private theorem unreached_update_of_none {dm : Dictionary.State n} {v : Fin n} (hv : dm v = none)
     (x : ℕ) : unreached (Function.update dm v (some x)) + 1 = unreached dm := by
-  have : (Finset.univ.filter fun w => Function.update dm v (some x) w = none) =
+  have hsub : (Finset.univ.filter fun w => Function.update dm v (some x) w = none) =
       (Finset.univ.filter fun w => dm w = none).erase v := by
     ext w
     rcases eq_or_ne w v with rfl | hw <;> simp [*]
-  rw [unreached, this, Finset.card_erase_of_mem (by simpa using hv), unreached]
-  have : 0 < (Finset.univ.filter fun w => dm w = none).card :=
-    Finset.card_pos.mpr ⟨v, by simpa using hv⟩
-  omega
+  rw [unreached, hsub, unreached]
+  exact Finset.card_erase_add_one (by simpa using hv)
 
 private theorem unreached_update_of_some {dm : Dictionary.State n} {v : Fin n} {d : ℕ}
     (hv : dm v = some d) (x : ℕ) : unreached (Function.update dm v (some x)) = unreached dm := by
@@ -673,35 +669,29 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
   induction k with
   | zero =>
     intro T dm hgood hk
-    have hcard := Finset.card_le_univ T
-    rw [Fintype.card_fin] at hcard
-    have hT : T = Finset.univ := Finset.eq_univ_of_card T (by rw [Fintype.card_fin]; omega)
-    subst hT
-    refine ⟨dm, fun v => Dijkstra.Instance.Inv.eq_dist _ hgood.inv
-      (fun v hv => absurd (Finset.mem_univ v) hv) v, ?_⟩
-    have hq : syncQ Finset.univ dm = IndexedMinPQ.empty G.n := by
-      funext v
-      simp [syncQ, IndexedMinPQ.empty]
-    rw [hq]
-    exact (Runs.pure rate _).mono rate (Nat.zero_le _)
+    have hcard : T.card ≤ G.n := by simpa using Finset.card_le_univ T
+    obtain rfl : T = Finset.univ := Finset.eq_univ_of_card T (by simp; omega)
+    have hq : syncQ Finset.univ dm = IndexedMinPQ.empty G.n :=
+      funext fun _ => by simp [syncQ, IndexedMinPQ.empty]
+    exact ⟨dm, fun v => Dijkstra.Instance.Inv.eq_dist _ hgood.inv
+      (fun v hv => absurd (Finset.mem_univ v) hv) v,
+      hq ▸ (Runs.pure rate _).mono rate (Nat.zero_le _)⟩
   | succ k ih =>
     intro T dm hgood hk
     rw [loop]
     rcases hf : IndexedMinPQ.findMin (syncQ T dm) with _ | ⟨u, du⟩
     · -- The queue is empty: every unvisited vertex is unreached.
-      have hdom := IndexedMinPQ.findMin_eq_none_iff.mp hf
       have hq : ∀ v, syncQ T dm v = none := fun v =>
-        IndexedMinPQ.notMem_dom_iff.mp (by rw [hdom]; exact Finset.notMem_empty v)
+        IndexedMinPQ.notMem_dom_iff.mp
+          (IndexedMinPQ.findMin_eq_none_iff.mp hf ▸ Finset.notMem_empty v)
       have hempty : syncQ T dm = IndexedMinPQ.empty G.n := funext hq
       have hdone : ∀ v ∉ T, tentative dm v = ⊤ := fun v hv =>
         tentative_of_none (by simpa [syncQ, hv] using hq v)
-      refine ⟨dm, Dijkstra.Instance.Inv.eq_dist _ hgood.inv hdone, ?_⟩
-      refine Runs.lift_bind rate (b := 0) (.inl .extractMin) trivial ?_ ?_
+      refine ⟨dm, Dijkstra.Instance.Inv.eq_dist _ hgood.inv hdone,
+        Runs.lift_bind rate (b := 0) (.inl .extractMin) trivial ?_ ?_⟩
       · simp only [IndexedMinPQ.step, hf]
-        rw [hempty]
-        exact Runs.pure rate _
-      · simp only [IndexedMinPQ.step, hf, kind]
-        rw [add_one_mul]
+        exact hempty ▸ Runs.pure rate _
+      · simp only [IndexedMinPQ.step, hf, kind, add_one_mul]
         omega
     · -- Visit `u`, an unvisited vertex of least tentative distance `du`.
       obtain ⟨huT, hset, hbound, hgood'⟩ := hgood.visit hK hV hf
@@ -710,9 +700,7 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       refine ⟨dist, hdist, ?_⟩
       have hsync : Function.update (syncQ T dm) u none = syncQ (insert u T) dm := by
         funext v
-        rcases eq_or_ne v u with rfl | hv
-        · simp [syncQ]
-        · simp [syncQ, hv]
+        rcases eq_or_ne v u with rfl | hv <;> simp [syncQ, *]
       have hcard : (IndexedMinPQ.dom (syncQ (insert u T) dm)).card + 1 =
           (IndexedMinPQ.dom (syncQ T dm)).card := by
         rw [← hsync, IndexedMinPQ.dom_erase_update]
@@ -763,9 +751,8 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
   refine ⟨dist, hdist, ?_⟩
   have hq₀ : Function.update (IndexedMinPQ.empty G.n) G.source (some 0) = syncQ ∅ dm₀ := by
     funext v
-    rcases eq_or_ne v G.source with rfl | hv
-    · simp [syncQ, dm₀]
-    · simp [syncQ, dm₀, hv, IndexedMinPQ.empty, Dictionary.empty]
+    rcases eq_or_ne v G.source with rfl | hv <;>
+      simp [syncQ, dm₀, IndexedMinPQ.empty, Dictionary.empty, *]
   have hrun : (spec G.n K V).runClient (init G) (dijkstra G.source) =
       ((spec G.n K V).clientResult (syncQ ∅ dm₀, dm₀, G.adj) (loop G.n),
         (spec G.n K V).clientState (syncQ ∅ dm₀, dm₀, G.adj) (loop G.n),
@@ -776,8 +763,6 @@ private theorem dijkstra_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
     rfl
   have hunr : unreached dm₀ + 1 = unreached (Dictionary.empty G.n) :=
     unreached_update_of_none rfl 0
-  have hunr₀ : unreached (Dictionary.empty G.n) = G.n := by
-    simp [unreached, Dictionary.empty]
   have hsum : ∑ v ∈ (∅ : Finset (Fin G.n))ᶜ, (G.adj v).length = G.m := by
     simp [ListInstance.m]
   refine Runs.of_runClient rate (hrun.trans (by rw [hs])) ?_ ?_

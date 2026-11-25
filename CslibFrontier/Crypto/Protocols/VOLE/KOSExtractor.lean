@@ -246,16 +246,14 @@ p. 98): three openings in `responses` at pairwise distinct challenges have a non
 never satisfy `HasKOSBadTriple`. -/
 theorem not_hasKOSBadTriple_of_length_le_two (h : V →ₗ[F] W) {responses : List (F × V)}
     (hlen : responses.length ≤ 2) : ¬ HasKOSBadTriple h responses := by
+  classical
   rintro ⟨p₀, hp₀, p₁, hp₁, p₂, hp₂, hne₀₁, hne₀₂, hne₁₂, _, _⟩
-  obtain ⟨i₀, rfl⟩ := List.mem_iff_get.mp hp₀
-  obtain ⟨i₁, rfl⟩ := List.mem_iff_get.mp hp₁
-  obtain ⟨i₂, rfl⟩ := List.mem_iff_get.mp hp₂
-  have hi₀₁ : i₀.val ≠ i₁.val := fun heq => hne₀₁ (by rw [Fin.ext heq])
-  have hi₀₂ : i₀.val ≠ i₂.val := fun heq => hne₀₂ (by rw [Fin.ext heq])
-  have hi₁₂ : i₁.val ≠ i₂.val := fun heq => hne₁₂ (by rw [Fin.ext heq])
-  have := i₀.isLt
-  have := i₁.isLt
-  have := i₂.isLt
+  have hmem {p : F × V} (hp : p ∈ responses) : p.1 ∈ (responses.map Prod.fst).toFinset :=
+    List.mem_toFinset.mpr (List.mem_map_of_mem hp)
+  have hsub : ({p₀.1, p₁.1, p₂.1} : Finset F) ⊆ (responses.map Prod.fst).toFinset := by
+    simp [Finset.insert_subset_iff, hmem hp₀, hmem hp₁, hmem hp₂]
+  have hcard := (Finset.card_le_card hsub).trans (List.toFinset_card_le _)
+  rw [Finset.card_eq_three.mpr ⟨_, _, _, hne₀₁, hne₀₂, hne₁₂, rfl⟩, List.length_map] at hcard
   omega
 
 /-- Shared accepted-opening selector for `kosExtract` and `kosFailureWitness`: filters `responses`
@@ -274,13 +272,10 @@ private theorem selectAccepted_eq_none [DecidableEq F] [DecidableEq W]
     (hsel : selectAccepted h responses target = none) :
     ∀ p ∈ responses, h p.2 ≠ target.eval p.1 := by
   intro p hp heq
-  have hmem : p ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) :=
-    List.mem_filter.mpr ⟨hp, decide_eq_true heq⟩
   unfold selectAccepted at hsel
   split at hsel
   · rename_i hfilt
-    rw [hfilt] at hmem
-    cases hmem
+    exact List.ne_nil_of_mem (List.mem_filter.mpr ⟨hp, decide_eq_true heq⟩) hfilt
   · cases hsel
 
 omit [AddCommGroup V] [Module F V] in
@@ -294,17 +289,11 @@ private theorem selectAccepted_eq_some_none [DecidableEq F] [DecidableEq W]
   · cases hsel
   · rename_i q₀ rest hfilt
     obtain ⟨rfl, hfind⟩ := Prod.mk.inj (Option.some.inj hsel)
-    have hp₀_acc : q₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-      rw [hfilt]
-      exact List.mem_cons_self
-    obtain ⟨hp₀_mem, hp₀_dec⟩ := List.mem_filter.mp hp₀_acc
-    refine ⟨hp₀_mem, of_decide_eq_true hp₀_dec, fun p hp hhash => ?_⟩
-    have hp_acc : p ∈ q₀ :: rest := by
-      rw [← hfilt]
-      exact List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
-    rcases List.mem_cons.mp hp_acc with rfl | hrest
+    obtain ⟨hp₀, h₀⟩ := List.mem_filter.mp (hfilt.symm ▸ List.mem_cons_self)
+    refine ⟨hp₀, of_decide_eq_true h₀, fun p hp hhash => ?_⟩
+    rcases List.mem_cons.mp (hfilt ▸ List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩) with rfl | hr
     · rfl
-    · simpa using List.find?_eq_none.mp hfind p hrest
+    · simpa using List.find?_eq_none.mp hfind p hr
 
 omit [AddCommGroup V] [Module F V] in
 private theorem selectAccepted_eq_some_some [DecidableEq F] [DecidableEq W]
@@ -317,15 +306,10 @@ private theorem selectAccepted_eq_some_some [DecidableEq F] [DecidableEq W]
   · cases hsel
   · rename_i q₀ rest hfilt
     obtain ⟨rfl, hfind⟩ := Prod.mk.inj (Option.some.inj hsel)
-    have hp₀_acc : q₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-      rw [hfilt]
-      exact List.mem_cons_self
-    have hp₁_acc : p₁ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-      rw [hfilt]
-      exact List.mem_cons_of_mem q₀ (List.mem_of_find?_eq_some hfind)
-    obtain ⟨hp₀_mem, hp₀_dec⟩ := List.mem_filter.mp hp₀_acc
-    obtain ⟨hp₁_mem, hp₁_dec⟩ := List.mem_filter.mp hp₁_acc
-    exact ⟨hp₀_mem, of_decide_eq_true hp₀_dec, hp₁_mem, of_decide_eq_true hp₁_dec,
+    obtain ⟨hp₀, h₀⟩ := List.mem_filter.mp (hfilt.symm ▸ List.mem_cons_self)
+    obtain ⟨hp₁, h₁⟩ := List.mem_filter.mp
+      (hfilt.symm ▸ List.mem_cons_of_mem q₀ (List.mem_of_find?_eq_some hfind))
+    exact ⟨hp₀, of_decide_eq_true h₀, hp₁, of_decide_eq_true h₁,
       by simpa using List.find?_some hfind⟩
 
 /-- Executable, total KOS affine-line extractor ([BaumEtAl2026FAEST], §10.6, Lemma 10.26 and
@@ -642,15 +626,10 @@ theorem toOuterMeasure_kosExtract_failure_le [DecidableEq F] [DecidableEq W]
       have hext_acc : kosExtract (H s) responses target = kosExtract (H s) accepted target := by
         simp [kosExtract, selectAccepted, accepted, List.filter_filter]
       have hp_acc : p ∈ accepted := List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
-      have hfail_acc : (kosExtract (H s) accepted target).eval p.1 ≠ p.2 := by
-        rwa [← hext_acc]
-      have hbad_acc : HasKOSBadTriple (H s) accepted := by
-        by_contra hnobad
-        exact hfail_acc
-          (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph_acc hnobad target hp_acc hhash)
-      rcases hbad_acc with ⟨q₀, hq₀, q₁, hq₁, q₂, hq₂, hne₀₁, hne₀₂, hne₁₂, hdef, hzero⟩
-      exact ⟨q₀, (List.mem_filter.mp hq₀).1, q₁, (List.mem_filter.mp hq₁).1,
-        q₂, (List.mem_filter.mp hq₂).1, hne₀₁, hne₀₂, hne₁₂, hdef, hzero⟩
+      let w := kosFailureWitness (H s) hgraph_acc hp_acc hhash (hext_acc ▸ hfail)
+      exact ⟨w.p₀, List.mem_of_mem_filter w.p₀_mem, w.p₁, List.mem_of_mem_filter w.p₁_mem,
+        w.p₂, List.mem_of_mem_filter w.p₂_mem, w.challenge_ne₀₁, w.challenge_ne₀₂,
+        w.challenge_ne₁₂, w.defect_ne_zero, w.map_defect_eq_zero⟩
   calc
     seed.toOuterMeasure
         {s | ∃ (target : KOSLine W) (p : F × V),

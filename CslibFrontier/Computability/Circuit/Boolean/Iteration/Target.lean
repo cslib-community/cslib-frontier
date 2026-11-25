@@ -97,9 +97,7 @@ theorem first_target_state (c : Circuit signature n n) (p : Circuit signature n 
   obtain ⟨out, hout, hs⟩ := fixed_power n g (2 ^ n) L hL hLN
   have hcard : Fintype.card (BitString n) = 2 ^ n := by simp
   have ho (x) : out.eval interpretation x = (absorb f P)^[Fintype.card (BitString n)] x := by
-    rw [hout x, hcard]
-    congr 1
-    exact funext hg
+    rw [hout x, hcard, funext hg]
   refine ⟨out, fun x => ?_, fun x hx => ?_, hs.trans ?_⟩
   · rw [ho x]
     exact absorb_iterate_card_eq_iff f P x
@@ -186,9 +184,7 @@ theorem first_target_time (c : Circuit signature n n) (p : Circuit signature n 1
         transientDepth (absorb f P) x := by
       simp only [Circuit.eval_append, Fin.append_right, hd, he, BitVec.toNat_ofNat]
       exact Nat.mod_eq_of_lt (hb.trans (Nat.pow_lt_pow_right (by decide) (by omega)))
-    dsimp only
-    rw [ht]
-    exact ⟨(first_target_depth f P x hex).1, (first_target_depth f P x hex).2, hb⟩
+    simpa only [ht] using ⟨(first_target_depth f P x hex).1, (first_target_depth f P x hex).2, hb⟩
   · have hb : powerBudget n g.size (2 ^ n) L ≤
         powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L := by
       unfold powerBudget

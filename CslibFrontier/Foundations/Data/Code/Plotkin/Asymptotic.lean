@@ -78,8 +78,7 @@ theorem logb_card_le_of_le_minDist [Nontrivial α] {C : Finset (ι → α)} {d :
   have hlog : Real.logb q (#C : ℝ) ≤ (n - m : ℕ) + (1 + Real.logb q (d : ℝ)) := by
     rcases Nat.eq_zero_or_pos #C with h0 | h0
     · rw [h0, Nat.cast_zero, Real.logb_zero]
-      have : (0 : ℝ) ≤ (n - m : ℕ) := Nat.cast_nonneg _
-      linarith
+      linarith [Nat.cast_nonneg (α := ℝ) (n - m)]
     have hCR : (#C : ℝ) ≤ (q : ℝ) ^ (n - m) * (q * d) := by exact_mod_cast hC
     calc Real.logb q (#C : ℝ) ≤ Real.logb q ((q : ℝ) ^ (n - m) * (q * d)) :=
           Real.logb_le_logb_of_le hqR (by exact_mod_cast h0) hCR
@@ -118,8 +117,7 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
     exact_mod_cast (card_le_univ (C s)).trans_eq Fintype.card_fun
   rcases hδ0.eq_or_lt with rfl | hδpos
   · refine Filter.Eventually.of_forall fun s => (htriv s).trans ?_
-    have : (0 : ℝ) ≤ Fintype.card (ιs s) := by positivity
-    nlinarith
+    nlinarith [Nat.cast_nonneg (α := ℝ) (Fintype.card (ιs s))]
   -- eventually `δ n ≥ 1`, `4 ≤ ε n / 2` and `log_q n ≤ ε n / 2`
   have h1 : ∀ᶠ s in l, 1 / δ + 8 / ε ≤ (Fintype.card (ιs s) : ℝ) :=
     hnR.eventually_ge_atTop _
@@ -151,11 +149,8 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
     exact_mod_cast this
   have hmain := logb_card_le_of_le_minDist hdmin hd0 hqd
   have hlogd : Real.logb q (d : ℝ) ≤ ε / 2 * n := by
-    have hdn : (d : ℝ) ≤ n := by
-      have : δ ≤ 1 := by nlinarith
-      nlinarith
     calc Real.logb q (d : ℝ) ≤ Real.logb q (n : ℝ) :=
-          Real.logb_le_logb_of_le hqR (by exact_mod_cast hd0) hdn
+          Real.logb_le_logb_of_le hqR (by exact_mod_cast hd0) (by nlinarith)
       _ = Real.log n / Real.log q := rfl
       _ ≤ ε / 2 * n := by
           rw [div_le_iff₀ (Real.log_pos hqR)]
@@ -165,9 +160,8 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
     have h2q : (q : ℝ) / (q - 1) ≤ 2 := by
       rw [div_le_iff₀ hq1R]
       cast_linarith [hq]
-    have hq0 : (0 : ℝ) ≤ (q : ℝ) / (q - 1) := by positivity
     rw [mul_div_right_comm]
-    linarith [mul_le_mul_of_nonneg_left hdgt.le hq0]
+    linarith [mul_le_mul_of_nonneg_left hdgt.le (by positivity : (0 : ℝ) ≤ q / (q - 1))]
   have h8 : 8 ≤ ε * n := (div_le_iff₀' hε).1 (by linarith)
   linarith
 

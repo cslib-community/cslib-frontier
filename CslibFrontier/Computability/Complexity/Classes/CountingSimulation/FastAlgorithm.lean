@@ -109,19 +109,15 @@ most `degreeBound m`, for `m` its number of edges. -/
 `L₀` on. -/
 private theorem exists_pow_ten_le (C : ℕ) : ∃ L₀, ∀ L, L₀ ≤ L → (C * L) ^ 10 ≤ 2 ^ (9 * L) := by
   have hlim := tendsto_pow_const_div_const_pow_of_one_lt 10 (r := (2 : ℝ) ^ 9) (by norm_num)
-  have hC : (0 : ℝ) < 1 / ((C : ℝ) ^ 10 + 1) := by positivity
-  obtain ⟨L₀, hL₀⟩ := eventually_atTop.mp ((tendsto_order.1 hlim).2 _ hC)
+  obtain ⟨L₀, hL₀⟩ := eventually_atTop.mp
+    ((tendsto_order.1 hlim).2 (1 / ((C : ℝ) ^ 10 + 1)) (by positivity))
   refine ⟨L₀, fun L hL => ?_⟩
-  have h := hL₀ L hL
-  have h2 : (0 : ℝ) < ((2 : ℝ) ^ 9) ^ L := by positivity
-  have h1 : (0 : ℝ) < (C : ℝ) ^ 10 + 1 := by positivity
-  rw [div_lt_div_iff₀ h2 h1, one_mul] at h
+  have h := (div_lt_div_iff₀ (by positivity) (by positivity)).1 (hL₀ L hL)
   have hL10 : (0 : ℝ) ≤ (L : ℝ) ^ 10 := by positivity
-  have hle : ((C * L) ^ 10 : ℕ) ≤ ((2 ^ (9 * L) : ℕ) : ℝ) := by
+  exact_mod_cast (show ((C * L) ^ 10 : ℕ) ≤ ((2 ^ (9 * L) : ℕ) : ℝ) by
     push_cast
     rw [mul_pow, pow_mul]
-    nlinarith
-  exact_mod_cast hle
+    nlinarith)
 
 /-- **Admissible networks failing the guard are small.** For every `C` there is `s₀` such that a
 network admissible at size `s` with constant `C` that fails `fastGuard` has `s ≤ s₀`. -/
@@ -133,8 +129,7 @@ theorem exists_le_of_fastGuard_eq_false (C : ℕ) :
   have hbig : degreeBound G.2.numEdges < G.2.maxDegree := by
     simp only [fastGuard, decide_eq_false_iff_not, not_and, not_le] at hg
     exact hg hrows htab
-  by_contra hs
-  rw [not_le] at hs
+  by_contra! hs
   have hL : L₀ ≤ Nat.log 2 s := Nat.le_log_of_pow_le one_lt_two hs.le
   have h1 : s ^ 9 ≤ G.2.numEdges ^ 9 := Nat.pow_le_pow_left hsm 9
   have h2 := pow_nine_le_degreeBound_pow_ten G.2.numEdges
@@ -501,18 +496,14 @@ noncomputable def contractionAlgorithmOfFast
 tables as descriptors keep the rows-first ports. -/
 theorem wf_root (P : ℕ) {G : ℕ × ExplicitTensorNetwork ℕ} (hg : fastGuard G = true) :
     FastContraction.WF (root (ExplicitTensorNetwork.capPrecision (P, G))) := by
-  refine ⟨irreducible_modulus _, ?_⟩
-  have hrows : G.2.IsRowsFirstBipartite G.1 := by
-    simp only [fastGuard, decide_eq_true_eq] at hg
-    exact hg.1
-  obtain ⟨h1, h2⟩ := hrows
-  refine ⟨fun v hv i hi => ?_, fun i hi => ?_⟩
+  simp only [fastGuard, decide_eq_true_eq] at hg
+  obtain ⟨h1, h2⟩ := hg.1
+  refine ⟨irreducible_modulus _, fun v hv i hi => ?_, fun i hi => ?_⟩
   · simp only [root, ExplicitTensorNetwork.capPrecision, rootNet, List.mem_map] at hv
     obtain ⟨w, hw, rfl⟩ := hv
     exact h1 w hw i hi
-  · simp only [root, ExplicitTensorNetwork.capPrecision, rootNet, ← List.map_take,
-      ← List.map_drop, List.map_map, Function.comp_def] at hi ⊢
-    exact h2 i hi
+  · simpa only [root, ExplicitTensorNetwork.capPrecision, rootNet, ← List.map_take,
+      ← List.map_drop, List.map_map, Function.comp_def] using h2 i hi
 
 /-- **The contraction algorithm from the native recursion**, given its one remaining obligation,
 the resource analysis. The components of the scheme are polynomial-time

@@ -1457,20 +1457,14 @@ theorem not_emulatesDummyWithin_fcom [DecidableEq CommitMsg] [DecidableEq OpenMs
     ¬ EmulatesDummyWithin scheme.toProtocol fcom.toProtocol pD ε := by
   rintro ⟨S, hS_poly, hadv⟩
   have hS1 : ∀ κ', (S κ' {1}).IsBounded (pD.eval κ') := fun κ' => hS_poly κ' {1}
-  have h1_false := hadv {1} (corruptReceiverEnv scheme false) (pV + 4)
-    (corruptReceiverEnv_polyBounded hV false) κ []
-  have h1_true := hadv {1} (corruptReceiverEnv scheme true) (pV + 4)
-    (corruptReceiverEnv_polyBounded hV true) κ []
-  have h0_false := hadv {0} (corruptCommitterEnv S false) (3 * pD + 4)
-    (corruptCommitterEnv_polyBounded hS1 false) κ []
-  have h0_true := hadv {0} (corruptCommitterEnv S true) (3 * pD + 4)
-    (corruptCommitterEnv_polyBounded hS1 true) κ []
-  have hbound := acceptProb_add_le_one_add_advantage scheme S S κ []
   have hle : scheme.acceptProb κ false + scheme.acceptProb κ true ≤
       1 + 2 * ε (pV + 4) κ + 2 * ε (3 * pD + 4) κ := by
-    rw [← NNReal.coe_le_coe] at h1_false h1_true h0_false h0_true hbound ⊢
-    push_cast at h1_false h1_true h0_false h0_true hbound ⊢
-    linarith
+    grw [acceptProb_add_le_one_add_advantage scheme S S κ [],
+      hadv {1} _ _ (corruptReceiverEnv_polyBounded hV false) κ [],
+      hadv {1} _ _ (corruptReceiverEnv_polyBounded hV true) κ [],
+      hadv {0} _ _ (corruptCommitterEnv_polyBounded hS1 false) κ [],
+      hadv {0} _ _ (corruptCommitterEnv_polyBounded hS1 true) κ []]
+    exact le_of_eq (by ring)
   exact not_lt_of_ge hle hgap
 
 /-- **Concrete Impossibility of UC Bit Commitment (`RealizesWithin`):** if `scheme.verify` has
@@ -1516,19 +1510,14 @@ theorem not_realizes_fcom [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     simpa using hneg 0
   have hlt : ∀ᶠ κ in Filter.atTop, 2 * ε₁ κ + 2 * ε₀ κ < c := ht.eventually_lt_const hc
   obtain ⟨κ, hκ_complete, hκ_lt⟩ := (hcomplete.and hlt).exists
-  have h1_false := hε₁ {1} (corruptReceiverEnv scheme false)
-    (corruptReceiverEnv_polyBounded hV false) κ []
-  have h1_true := hε₁ {1} (corruptReceiverEnv scheme true)
-    (corruptReceiverEnv_polyBounded hV true) κ []
-  have h0_false := hε₀ {0} (corruptCommitterEnv S false)
-    (corruptCommitterEnv_polyBounded hS1 false) κ []
-  have h0_true := hε₀ {0} (corruptCommitterEnv S true)
-    (corruptCommitterEnv_polyBounded hS1 true) κ []
-  have hbound := acceptProb_add_le_one_add_advantage scheme S S κ []
-  rw [← NNReal.coe_le_coe] at hκ_complete h1_false h1_true h0_false h0_true hbound
-  rw [← NNReal.coe_lt_coe] at hκ_lt
-  push_cast at hκ_complete hκ_lt h1_false h1_true h0_false h0_true hbound
-  linarith
+  have hle : 1 + c ≤ 1 + (2 * ε₁ κ + 2 * ε₀ κ) := by
+    grw [hκ_complete, acceptProb_add_le_one_add_advantage scheme S S κ [],
+      hε₁ {1} _ (corruptReceiverEnv_polyBounded hV false) κ [],
+      hε₁ {1} _ (corruptReceiverEnv_polyBounded hV true) κ [],
+      hε₀ {0} _ (corruptCommitterEnv_polyBounded hS1 false) κ [],
+      hε₀ {0} _ (corruptCommitterEnv_polyBounded hS1 true) κ []]
+    exact le_of_eq (by ring)
+  exact not_lt_of_ge hle (add_lt_add_right hκ_lt 1)
 
 /-- **Canetti–Fischlin Impossibility for Perfectly Complete Schemes:** no perfectly complete
 plain-model commitment scheme with polynomial-call bounded verification can UC-realize `fcom`. -/

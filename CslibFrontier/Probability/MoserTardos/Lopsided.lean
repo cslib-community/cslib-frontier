@@ -133,30 +133,24 @@ private theorem isLog_swap_cons {A : ι → Set (∀ v, α v)}
   let φ := current vbl T (a :: v)
   let hfn : ∀ x, α x := fun x => if x ∈ vbl a ∩ vbl b then g x else f x
   have h_eq_f : ∀ x, x ∉ vbl a ∩ vbl b → hfn x = f x := fun x hx => ite_eq_right hx
-  have h_eq_g : ∀ x ∈ (vbl a : Set V), hfn x = g x := by
-    intro x hx
+  have h_eq_g : ∀ x ∈ (vbl a : Set V), hfn x = g x := fun x hx => by
     have hxa : x ∈ vbl a := Finset.mem_coe.1 hx
     by_cases hxb : x ∈ vbl b
     · exact ite_eq_left (mem_inter.2 ⟨hxa, hxb⟩)
-    · dsimp [hfn]
-      rw [ite_eq_right (fun hm => hxb (mem_inter.1 hm).2)]
-      dsimp [f, g]
-      rw [current_apply, current_apply, uses_cons, ite_eq_right hxb, add_zero]
+    · dsimp only [hfn, f, g]
+      rw [ite_eq_right (by simp [hxb]), current_apply, current_apply,
+        uses_cons, ite_eq_right hxb, add_zero]
   have ha_hfn : hfn ∈ A a := (hA a h_eq_g).mpr hg
   have hnot : ¬(hfn ∉ A b ∨ f ∉ A a) := fun hbad => hab ⟨hfn, f, h_eq_f, ha_hfn, hf, hbad⟩
   rw [not_or, not_not, not_not] at hnot
-  have h_eq_φ : ∀ x ∈ (vbl b : Set V), hfn x = φ x := by
-    intro x hx
+  have h_eq_φ : ∀ x ∈ (vbl b : Set V), hfn x = φ x := fun x hx => by
     have hxb : x ∈ vbl b := Finset.mem_coe.1 hx
+    dsimp only [hfn, f, g, φ]
     by_cases hxa : x ∈ vbl a
-    · dsimp [hfn]
-      rw [ite_eq_left (mem_inter.2 ⟨hxa, hxb⟩)]
-      dsimp [g, φ]
-      rw [current_apply, current_apply, uses_cons, uses_cons, ite_eq_left hxb, ite_eq_left hxa]
-    · dsimp [hfn]
-      rw [ite_eq_right (fun hm => hxa (mem_inter.1 hm).1)]
-      dsimp [f, φ]
-      rw [current_apply, current_apply, uses_cons, ite_eq_right hxa, add_zero]
+    · rw [ite_eq_left (mem_inter.2 ⟨hxa, hxb⟩), current_apply, current_apply,
+        uses_cons, uses_cons, ite_eq_left hxb, ite_eq_left hxa]
+    · rw [ite_eq_right (by simp [hxa]), current_apply, current_apply,
+        uses_cons, ite_eq_right hxa, add_zero]
   exact ⟨(hA b h_eq_φ).mp hnot.1, hnot.2, hv⟩
 
 private theorem isLog_swap {A : ι → Set (∀ v, α v)}
@@ -541,15 +535,9 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
     have heq : {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T (j :: w)} =
         (fun T v => T (v, uses vbl w v)) ⁻¹' A j ∩ {T | IsLog vbl A T w} := by
       ext T
-      rw [Set.mem_ofPred_eq, isLog_cons]
       have hcur : current vbl T w = fun v => T (v, uses vbl w v) :=
-        funext fun v => current_apply vbl T w v
-      rw [hcur]
-      rfl
-    have hm1 : MeasurableSet ((fun (T : ∀ p : V × ℕ, α p.1) v => T (v, uses vbl w v)) ⁻¹' A j) :=
-      measurable_read (fun v => uses vbl w v) (hAm j)
-    have hm2 : MeasurableSet {T : ∀ p : V × ℕ, α p.1 | IsLog vbl A T w} :=
-      measurableSet_isLog vbl A hAm w
+        funext (current_apply vbl T w)
+      simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_preimage, isLog_cons, hcur]
     have hd1 : DependsOn
         (· ∈ (fun (T : ∀ p : V × ℕ, α p.1) v => T (v, uses vbl w v)) ⁻¹' A j)
         (((vbl j).image fun v => (v, uses vbl w v)) : Set (V × ℕ)) := fun T T' h =>
@@ -557,7 +545,8 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
         (Finset.mem_coe.2 (mem_image_of_mem _ (Finset.mem_coe.1 hv)))
     have hind := indepSet_infinitePi_of_dependsOn (P := fun p : V × ℕ => μ p.1)
       (S := (vbl j).image fun v => (v, uses vbl w v)) (T := stepCoords vbl w)
-      hm1 hm2 hd1 (isLog_dependsOn vbl A hA w) (disjoint_stepCoords vbl j w)
+      (measurable_read (fun v => uses vbl w v) (hAm j)) (measurableSet_isLog vbl A hAm w)
+      hd1 (isLog_dependsOn vbl A hA w) (disjoint_stepCoords vbl j w)
     rw [heq, table_def, hind.measure_inter_eq_mul, ← table_def, List.map_cons, List.prod_cons,
       table_isLog_eq_prod A hAm hA w]
     congr 1
@@ -566,12 +555,10 @@ theorem table_isLog_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, Measura
 private theorem table_canonList_eq_prod (A : ι → Set (∀ v, α v)) (hAm : ∀ i, MeasurableSet (A i))
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (S : Finset (ι × ℕ)) :
     table μ {T | IsLog vbl A T (canonList S)} = ∏ p ∈ S, Measure.pi μ (A p.1) := by
-  rw [table_isLog_eq_prod μ vbl A hAm hA (canonList S)]
-  have hperm : ((canonList S).map fun j => Measure.pi μ (A j)).Perm
-      (S.toList.map fun p => Measure.pi μ (A p.1)) := by
-    rw [canonList, List.map_map]
-    exact (List.mergeSort_perm S.toList _).map _
-  rw [hperm.prod_eq, Finset.prod_map_toList]
+  rw [table_isLog_eq_prod μ vbl A hAm hA (canonList S), canonList, List.map_map,
+    ((List.mergeSort_perm S.toList _).map ((fun j => Measure.pi μ (A j)) ∘ Prod.fst)).prod_eq,
+    Finset.prod_map_toList]
+  rfl
 
 open scoped Classical in
 /-- **Lemma 6.2** of [MoserTardos2010]: the probability that a fixed structure `S` occurs as the
@@ -583,11 +570,9 @@ theorem table_witness_le [DecidableEq ι] (A : ι → Set (∀ v, α v))
     table μ {T | ∃ i w, IsLog vbl A T (i :: w) ∧
         witnessRel (lopsidedAdj vbl A) i w = S} ≤
       ∏ p ∈ S, Measure.pi μ (A p.1) := by
-  have hsub : {T : ∀ p : V × ℕ, α p.1 | ∃ i w, IsLog vbl A T (i :: w) ∧
-      witnessRel (lopsidedAdj vbl A) i w = S} ⊆ {T | IsLog vbl A T (canonList S)} := by
-    intro T ⟨i, w, hlog, hS⟩
-    exact isLog_canonList vbl hA hlog hS
-  exact (measure_mono hsub).trans (table_canonList_eq_prod μ vbl A hAm hA S).le
+  refine (measure_mono ?_).trans (table_canonList_eq_prod μ vbl A hAm hA S).le
+  rintro _ ⟨_, _, hlog, hS⟩
+  exact isLog_canonList vbl hA hlog hS
 
 end Measure
 
