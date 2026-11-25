@@ -79,19 +79,12 @@ theorem consistent_append_singleton (C : Finset (α → β)) (h : List (α × β
     consistent C (h ++ [(x, y)]) = (consistent C h).filter (fun c => c x = y) := by
   ext c
   simp only [consistent, Finset.mem_filter, List.mem_append, List.mem_singleton]
-  constructor
-  · rintro ⟨hc, hp⟩
-    exact ⟨⟨hc, fun p hp' => hp p (Or.inl hp')⟩, hp (x, y) (Or.inr rfl)⟩
-  · rintro ⟨⟨hc, hp⟩, hxy⟩
-    refine ⟨hc, fun p hp' => ?_⟩
-    rcases hp' with hp' | rfl
-    · exact hp p hp'
-    · exact hxy
+  exact ⟨fun ⟨hc, hp⟩ => ⟨⟨hc, fun p hp' => hp p (.inl hp')⟩, hp _ (.inr rfl)⟩,
+    fun ⟨⟨hc, hp⟩, hxy⟩ => ⟨hc, fun p hp' => hp'.elim (hp p) (· ▸ hxy)⟩⟩
 
 theorem coe_consistent (C : Finset (α → β)) (h : List (α × β)) :
     (consistent C h : Set (α → β)) = versionSpace (C : Set (α → β)) h := by
-  ext c
-  simp [consistent, versionSpace]
+  ext c; simp [consistent, versionSpace]
 
 /-- Any learner `A` that always predicts a label with at least as many consistent voters as every
 realizable label eliminates at least half of `consistent C h` on each mistake. -/
@@ -111,29 +104,22 @@ private theorem two_pow_mistakesFrom_le_of_card_filter_le (C : Finset (α → β
     obtain ⟨x, y⟩ := p
     obtain ⟨c, hc, hcS⟩ := hS
     have hcx : c x = y := hcS (x, y) List.mem_cons_self
-    have hS' : ∃ c ∈ consistent C (h ++ [(x, y)]), ∀ p ∈ S, c p.1 = p.2 := by
-      refine ⟨c, ?_, fun p hp => hcS p (List.mem_cons_of_mem _ hp)⟩
-      rw [consistent_append_singleton, Finset.mem_filter]
-      exact ⟨hc, hcx⟩
-    have ih' := ih _ hS'
+    have ih' := ih (h ++ [(x, y)]) ⟨c, by
+        rw [consistent_append_singleton]
+        exact Finset.mem_filter.mpr ⟨hc, hcx⟩,
+      fun q hq => hcS q (List.mem_cons_of_mem _ hq)⟩
     rw [consistent_append_singleton] at ih'
     rw [mistakesFrom_cons]
     split
-    · rw [zero_add]
-      exact ih'.trans (Finset.card_filter_le _ _)
+    · rw [zero_add]; exact ih'.trans (Finset.card_filter_le _ _)
     · rename_i hne
-      let C₀ := (consistent C h).filter (fun c => c x = y)
-      let C₁ := (consistent C h).filter (fun c => c x = A h x)
-      have hle_vote : C₀.card ≤ C₁.card := hvote h x y ⟨c, hc, hcx⟩
-      have hdisj : Disjoint C₀ C₁ :=
-        Finset.disjoint_filter.mpr fun _ _ hcy hcŷ => hne (hcŷ.symm.trans hcy)
-      have hunion : (C₀ ∪ C₁).card ≤ (consistent C h).card :=
-        Finset.card_le_card (Finset.union_subset (Finset.filter_subset _ _)
-          (Finset.filter_subset _ _))
-      rw [Finset.card_union_of_disjoint hdisj] at hunion
-      change _ ≤ C₀.card at ih'
-      rw [pow_add, pow_one]
-      omega
+      have hle_vote := hvote h x y ⟨c, hc, hcx⟩
+      have hunion := Finset.card_le_card (Finset.union_subset
+        (Finset.filter_subset (fun c => c x = y) (consistent C h))
+        (Finset.filter_subset (fun c => c x = A h x) (consistent C h)))
+      rw [Finset.card_union_of_disjoint (Finset.disjoint_filter.mpr fun _ _ hcy hcŷ =>
+        hne (hcŷ.symm.trans hcy))] at hunion
+      rw [pow_add, pow_one]; omega
 
 end Consistent
 
@@ -163,15 +149,11 @@ private theorem card_filter_le_card_filter_halving (C : Finset (α → β)) (h :
   let candidates : Finset β := insert default ((consistent C h).image (fun c => c x))
   let vote : β → ℕ := fun z => ((consistent C h).filter (fun c => c x = z)).card
   have hmem : halving C h x ∈ candidates.filter (fun z => vote z = candidates.sup vote) := by
-    unfold halving
-    exact Finset.min'_mem _ _
-  have hmax : vote (halving C h x) = candidates.sup vote := (Finset.mem_filter.mp hmem).2
+    unfold halving; exact Finset.min'_mem _ _
   obtain ⟨c, hc, rfl⟩ := hy
-  have hy_cand : c x ∈ candidates :=
-    Finset.mem_insert_of_mem (Finset.mem_image.mpr ⟨c, hc, rfl⟩)
-  change vote (c x) ≤ vote (halving C h x)
-  rw [hmax]
-  exact Finset.le_sup hy_cand
+  exact (Finset.le_sup (f := vote)
+    (Finset.mem_insert_of_mem (Finset.mem_image.mpr ⟨c, hc, rfl⟩))).trans_eq
+    (Finset.mem_filter.mp hmem).2.symm
 
 /-- After the history `h`, each mistake of plurality halving eliminates at least half of the
 consistent concepts, so `2 ^ mistakes ≤ |consistent C h|` on rounds labelled by some consistent
@@ -184,12 +166,10 @@ theorem two_pow_mistakesFrom_halving_le (C : Finset (α → β)) (h S : List (α
 
 theorem mistakes_halving_le_log (C : Finset (α → β)) (S : List (α × β))
     (hS : Realizable (C : Set (α → β)) S) : mistakes (halving C) S ≤ Nat.log 2 C.card := by
-  have hS' : ∃ c ∈ consistent C [], ∀ p ∈ S, c p.1 = p.2 := by
-    obtain ⟨c, hc, hcS⟩ := realizable_iff.mp hS
-    exact ⟨c, by simpa using hc, hcS⟩
-  have h2 := two_pow_mistakesFrom_halving_le C [] S hS'
-  rw [consistent_nil] at h2
-  exact Nat.le_log_of_pow_le (by norm_num) h2
+  obtain ⟨c, hc, hcS⟩ := realizable_iff.mp hS
+  refine Nat.le_log_of_pow_le (by norm_num) ?_
+  rw [mistakes]
+  simpa using two_pow_mistakesFrom_halving_le C [] S ⟨c, by simpa using hc, hcS⟩
 
 /-- **The halving bound** [Littlestone1988, §3, Theorem 1; DanielySabatoBenDavidShalevShwartz2015]:
 on a finite class `C`, plurality halving makes at most `⌊log₂ |C|⌋` mistakes. -/
@@ -231,27 +211,24 @@ theorem two_pow_le_card_of_hasMistakeTree {d : ℕ} (C : Finset (α → β))
   induction d generalizing C with
   | zero =>
     obtain ⟨c, hc⟩ := hd
-    exact Nat.one_le_iff_ne_zero.mpr (Finset.card_ne_zero.mpr ⟨c, Finset.mem_coe.mp hc⟩)
+    exact Finset.card_pos.mpr ⟨c, Finset.mem_coe.mp hc⟩
   | succ d ih =>
     obtain ⟨x, y₀, y₁, hne, h0, h1⟩ := hd
     let C₀ := C.filter fun c => c x = y₀
     let C₁ := C.filter fun c => c x = y₁
-    have hV₀ : versionSpace (C : Set (α → β)) [(x, y₀)] = (C₀ : Set (α → β)) := by
-      ext c; simp [C₀, versionSpace]
-    have hV₁ : versionSpace (C : Set (α → β)) [(x, y₁)] = (C₁ : Set (α → β)) := by
-      ext c; simp [C₁, versionSpace]
-    rw [hV₀] at h0
-    rw [hV₁] at h1
+    rw [show versionSpace (C : Set (α → β)) [(x, y₀)] = (C₀ : Set (α → β)) by
+      ext; simp [C₀, versionSpace]] at h0
+    rw [show versionSpace (C : Set (α → β)) [(x, y₁)] = (C₁ : Set (α → β)) by
+      ext; simp [C₁, versionSpace]] at h1
     have ih₀ := ih C₀ h0
     have ih₁ := ih C₁ h1
     have hdisj : Disjoint C₀ C₁ :=
-      Finset.disjoint_filter.mpr fun c _ hc₀ hc₁ => hne (hc₀.symm.trans hc₁)
+      Finset.disjoint_filter.mpr fun _ _ hc₀ hc₁ => hne (hc₀.symm.trans hc₁)
     have hunion : (C₀ ∪ C₁).card ≤ C.card :=
       Finset.card_le_card (Finset.union_subset (Finset.filter_subset _ _)
         (Finset.filter_subset _ _))
     rw [Finset.card_union_of_disjoint hdisj] at hunion
-    rw [pow_succ]
-    omega
+    rw [pow_succ]; omega
 
 /-- The Littlestone dimension of a finite class `C` is at most `⌊log₂ |C|⌋`, without any finiteness
 or order assumptions on `β`. -/

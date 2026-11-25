@@ -70,14 +70,11 @@ theorem maskBit_mass_ge (mask : ProbComp Bool) (truth bit : Bool) {mass : ℝ}
     (hbit : bit ∈ (ProbComp.eval (maskBit mask truth)).support) :
     mass / 2 ≤ (ProbComp.eval (maskBit mask truth) bit).toReal := by
   have hpositive : 0 < (ProbComp.eval (maskBit mask truth) bit).toReal :=
-    ENNReal.toReal_pos ((ProbComp.eval _).apply_pos_iff _ |>.mpr hbit).ne'
-      (PMF.apply_ne_top _ _)
+    ENNReal.toReal_pos ((ProbComp.eval _).apply_pos_iff _ |>.mpr hbit).ne' (PMF.apply_ne_top _ _)
   rw [eval_maskBit_apply] at hpositive ⊢
-  split_ifs at hpositive ⊢ with heq
-  · have hle := toReal_apply_le_one (ProbComp.eval mask) true
-    linarith
-  · have h := hmask (by linarith)
-    linarith
+  split_ifs at hpositive ⊢
+  · linarith [toReal_apply_le_one (ProbComp.eval mask) true]
+  · linarith [hmask (by linarith)]
 
 /-- Revealing only an observation cannot decrease the contribution of any one source outcome.
 The mask need not be determined by the observation or be independent of the true label. -/
@@ -95,24 +92,16 @@ theorem maskedSample_mass_ge {α β : Type} (source : ProbComp α)
   rw [eval_maskedSample] at hpair ⊢
   simp only [PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hpair
   obtain ⟨value, hvalue, bit, hbit, rfl⟩ := hpair
-  have hbitMass := maskBit_mass_ge (mask value) (truth value) bit hmaskMass.2
-    (hmask value hvalue) hbit
-  have hmap := ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-    (le_map_apply (ProbComp.eval (maskBit (mask value) (truth value))) (observe value, ·) bit)
-  have hbind : (ProbComp.eval source value).toReal *
-      (((ProbComp.eval (maskBit (mask value) (truth value))).map (observe value, ·))
-        (observe value, bit)).toReal ≤
-      ((ProbComp.eval source).bind (fun x =>
-        (ProbComp.eval (maskBit (mask x) (truth x))).map (observe x, ·))
-          (observe value, bit)).toReal := by
-    rw [← ENNReal.toReal_mul]
-    apply ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-    rw [PMF.bind_apply]
-    exact le_tsum (f := fun x => ProbComp.eval source x *
-      ((ProbComp.eval (maskBit (mask x) (truth x))).map (observe x, ·))
-        (observe value, bit)) value
-  exact (mul_le_mul (hsource value hvalue) (hbitMass.trans hmap)
-    (div_nonneg hmaskMass.1 (by norm_num)) ENNReal.toReal_nonneg).trans hbind
+  refine (mul_le_mul (hsource value hvalue)
+    ((maskBit_mass_ge _ _ _ hmaskMass.2 (hmask value hvalue) hbit).trans
+      (ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+        (le_map_apply (ProbComp.eval (maskBit (mask value) (truth value))) (observe value, ·) bit)))
+    (div_nonneg hmaskMass.1 (by norm_num)) ENNReal.toReal_nonneg).trans ?_
+  rw [← ENNReal.toReal_mul]
+  refine ENNReal.toReal_mono (PMF.apply_ne_top _ _) ?_
+  rw [PMF.bind_apply]
+  exact le_tsum (f := fun x => ProbComp.eval source x *
+    ((ProbComp.eval (maskBit (mask x) (truth x))).map (observe x, ·)) (observe value, bit)) value
 
 /-- A dyadic lower bound on positive mask probabilities bounds the extra information carried
 by a masked label, independently of how the mask was obtained. -/
@@ -126,21 +115,12 @@ theorem maskedSample_dyadic_mass_ge {α β : Type} (source : ProbComp α)
       (maskedSample source observe truth mask)).support) :
     (2 : ℝ) ^ (-((sourceBits + Nat.log 2 bound + 2 : ℕ) : ℝ)) ≤
       (ProbComp.eval (maskedSample source observe truth mask) pair).toReal := by
-  have hdenominator : (0 : ℝ) < dyadicSize bound := by exact_mod_cast dyadicSize_pos bound
-  have hdenominator_one : (1 : ℝ) ≤ dyadicSize bound := by
-    exact_mod_cast Nat.succ_le_of_lt (dyadicSize_pos bound)
-  have h := maskedSample_mass_ge source observe truth mask
-    (sourceMass := (2 : ℝ) ^ (-(sourceBits : ℝ)))
-    (maskMass := 1 / dyadicSize bound)
-    ⟨by positivity, (div_le_iff₀ hdenominator).mpr (by simpa using hdenominator_one)⟩
-    hsource hmask pair hpair
-  have hpower : (2 : ℝ) ^ (-((sourceBits + Nat.log 2 bound + 2 : ℕ) : ℝ)) =
-      (2 : ℝ) ^ (-(sourceBits : ℝ)) * ((1 / dyadicSize bound) / 2) := by
-    simp only [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_natCast, dyadicSize, pow_add]
-    field_simp
-    push_cast
-    ring
-  simpa only [hpower] using h
+  have hden : (1 : ℝ) ≤ dyadicSize bound := mod_cast dyadicSize_pos bound
+  refine (le_of_eq ?_).trans (maskedSample_mass_ge source observe truth mask
+    ⟨by positivity, (div_le_one (by positivity)).mpr hden⟩ hsource hmask pair hpair)
+  simp only [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_natCast, dyadicSize, pow_add]
+  field_simp
+  push_cast; ring
 
 /-- A source with `sourceBits` bits of pointwise information gains at most `log₂ bound + 2`
 bits from its dyadic mask and fresh label coin. The votes and threshold do not enter this bound. -/
@@ -173,24 +153,22 @@ theorem maskedSample_dyadic_mass_ge_eventually {α β : ℕ → Type}
       ∀ pair ∈ (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask)).support,
       (2 : ℝ) ^ (-((sourceBits n + n + 2 : ℕ) : ℝ)) ≤
         (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask) pair).toReal := by
-  have hvanishes :=
-    negligible_iff_coe.mp
-      ((negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul
-        hbound) 0
+  have hvanishes := negligible_iff_coe.mp
+    ((negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul
+      hbound) 0
   simp only [pow_zero, one_mul, NNReal.coe_mul, NNReal.coe_natCast, NNReal.coe_pow,
     NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at hvanishes
-  filter_upwards [hvanishes.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn
+  filter_upwards [hvanishes.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn mask hmask
+    pair hpair
+  have hn' : (bound n : ℝ) / 2 ^ n ≤ 1 := by
+    simpa only [one_div, inv_pow, div_eq_mul_inv, one_mul] using hn
   have hpow : bound n ≤ 2 ^ n := by
-    have hratio : (bound n : ℝ) / (2 : ℝ) ^ n ≤ 1 := by
-      simpa only [one_div, inv_pow, div_eq_mul_inv, one_mul] using hn
-    exact_mod_cast (div_le_one (by positivity : (0 : ℝ) < 2 ^ n)).mp hratio
+    exact_mod_cast (div_le_one (by positivity : (0 : ℝ) < 2 ^ n)).mp hn'
   have hlog : Nat.log 2 (bound n) ≤ n := by
     simpa only [Nat.log_pow Nat.one_lt_two] using Nat.log_mono_right (b := 2) hpow
-  intro mask hmask pair hpair
-  refine le_trans ?_ (maskedSample_dyadic_mass_ge (source n) (observe n) (truth n) mask
-    (sourceBits n) (bound n) (hsource n) hmask pair hpair)
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-  exact neg_le_neg (by exact_mod_cast Nat.add_le_add_right (Nat.add_le_add_left hlog _) 2)
+  exact (Real.rpow_le_rpow_of_exponent_le (by norm_num)
+    (neg_le_neg (by exact_mod_cast Nat.add_le_add_right (Nat.add_le_add_left hlog _) 2))).trans
+    (maskedSample_dyadic_mass_ge _ _ _ _ _ _ (hsource n) hmask pair hpair)
 
 /-- The same eventual information bound holds uniformly over all executable vote masks. -/
 theorem maskedSample_weight_mass_ge_eventually {α β : ℕ → Type}
