@@ -106,7 +106,6 @@ theorem independentSet_copies_iff [Finite J] [Finite M] [Nonempty J] :
     have hS : S.ncard = Nat.card J * {x : M | RelMap sizedGraph.size ![x]}.ncard :=
       hS.trans hsize
     have hsum : S.ncard = ∑ j, {v : M | (⟨j, v⟩ : Copies J M) ∈ S}.ncard := by
-      rw [← Nat.card_coe_set_eq]
       simp only [← Nat.card_coe_set_eq]
       rw [← Nat.card_sigma]
       exact Nat.card_congr
@@ -116,8 +115,7 @@ theorem independentSet_copies_iff [Finite J] [Finite M] [Nonempty J] :
           right_inv := fun _ => rfl }
     obtain ⟨j, hj⟩ : ∃ j, {x : M | RelMap sizedGraph.size ![x]}.ncard ≤
         {v : M | (⟨j, v⟩ : Copies J M) ∈ S}.ncard := by
-      by_contra h
-      simp only [not_exists, not_le] at h
+      by_contra! h
       have hlt := Finset.sum_lt_sum_of_nonempty (Finset.univ_nonempty (α := J)) fun j _ => h j
       rw [← hsum, hS, Finset.sum_const, Finset.card_univ, smul_eq_mul, ← Nat.card_eq_fintype_card]
         at hlt
@@ -266,25 +264,17 @@ private theorem occEdge_of_clause_eq {b b' : Bool} {d d' : Fin 2 → M} {hd hd'}
   by_cases hb : b' = b
   · subst hb
     exact ⟨_, List.mem_cons_self, formula_realize_top, d', rfl, fun j i hj => by
-      fin_cases j
-      · cases hj; exact h.symm
-      · cases hj⟩
+      fin_cases j <;> cases hj; exact h.symm⟩
   · have hb' : b' = !b := by cases b <;> cases b' <;> simp_all
     subst hb'
     exact ⟨_, List.mem_cons_of_mem _ List.mem_cons_self, formula_realize_top, d', rfl,
-      fun j i hj => by
-        fin_cases j
-        · cases hj; exact h.symm
-        · cases hj⟩
+      fun j i hj => by fin_cases j <;> cases hj; exact h.symm⟩
 
 /-- Occurrences of complementary literals are adjacent. -/
 private theorem occEdge_of_complementary {b : Bool} {d d' : Fin 2 → M} {hd hd'} (h : d 1 = d' 1) :
     OccEdge (⟨.occ b, d, hd⟩ : independentSetInterpretation.Model M) ⟨.occ (!b), d', hd'⟩ :=
   ⟨_, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self),
-    formula_realize_top, d', rfl, fun j i hj => by
-      fin_cases j
-      · cases hj
-      · cases hj; exact h.symm⟩
+    formula_realize_top, d', rfl, fun j i hj => by fin_cases j <;> cases hj; exact h.symm⟩
 
 /-- The edges between occurrences join occurrences in the same clause or of complementary
 literals. -/
@@ -293,16 +283,9 @@ private theorem occEdge_cases {b b' : Bool} {d d' : Fin 2 → M} {hd hd'}
     d' 0 = d 0 ∨ (b' = !b ∧ d' 1 = d 1) := by
   obtain ⟨τ, hτ, -, y, hy, hc⟩ := h
   simp only [occurrenceEdges, List.mem_cons, List.not_mem_nil, or_false] at hτ
-  rcases hτ with rfl | rfl | rfl
-  · obtain ⟨-, h⟩ := Sigma.mk.inj_iff.1 hy
+  rcases hτ with rfl | rfl | rfl <;> obtain ⟨h₁, h⟩ := Sigma.mk.inj_iff.1 hy <;>
     cases eq_of_heq h
-    exact .inl (hc 0 0 rfl)
-  · obtain ⟨-, h⟩ := Sigma.mk.inj_iff.1 hy
-    cases eq_of_heq h
-    exact .inl (hc 0 0 rfl)
-  · obtain ⟨h₁, h⟩ := Sigma.mk.inj_iff.1 hy
-    cases eq_of_heq h
-    exact .inr ⟨OccurrenceTag.occ.inj h₁, hc 1 1 rfl⟩
+  exacts [.inl (hc 0 0 rfl), .inl (hc 0 0 rfl), .inr ⟨OccurrenceTag.occ.inj h₁, hc 1 1 rfl⟩]
 
 private theorem ncard_size :
     {x : independentSetInterpretation.Model M | RelMap sizedGraph.size ![x]}.ncard =
@@ -335,9 +318,7 @@ theorem mem_independentSet_iff_satisfiable [Finite M] [Nontrivial M] :
     -- every vertex of `s` is an occurrence
     have hocc : ∀ a ∈ s, a.1 ≠ .sizeV := by
       rintro ⟨t, d, hd⟩ ha (rfl : t = _)
-      have h2 : 1 < s.ncard := by
-        rw [hs]
-        exact Finite.one_lt_card
+      have h2 : 1 < s.ncard := hs ▸ Finite.one_lt_card
       obtain ⟨a', ha', hne⟩ := Set.exists_ne_of_one_lt_ncard h2 ⟨.sizeV, d, hd⟩
       have hsv : (⟨.sizeV, d, hd⟩ : independentSetInterpretation.Model M) = sizeVertex (d 0) :=
         Model.ext_toSigma (Sigma.ext rfl (heq_of_eq (funext fun (i : Fin 1) => by
@@ -375,9 +356,7 @@ theorem mem_independentSet_iff_satisfiable [Finite M] [Nontrivial M] :
   · rintro ⟨A, hA⟩
     choose l hl htrue using (satisfies_iff A).1 hA
     let f : M → independentSetInterpretation.Model M := fun c => occVertex c (l c) (hl c)
-    have hf : Function.Injective f := fun c c' h => by
-      have := congrArg vertexClause h
-      exact this
+    have hf : Function.Injective f := fun c c' h => congrArg vertexClause h
     refine ⟨Set.range f, ?_, ?_⟩
     · refine Eq.trans ?_ ncard_size.symm
       rw [← Set.image_univ, Set.ncard_image_of_injective _ hf, Set.ncard_univ]
