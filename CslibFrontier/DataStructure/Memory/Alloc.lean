@@ -233,11 +233,10 @@ theorem run_cost {upper : D.State → D.Op → ℕ} {Φ₀ : ℕ} (hA : A.Amorti
       A.cost + Φ₀ + D.totalCost upper A.init (D.clientHistory A.init p) := by
   have hal := A.allocates s hs hroom
   obtain ⟨Φ, hc, -, hΦ⟩ := hA s hs hroom
-  have h := hc.client p hal.inv (by rw [hal.abs_eq]; exact hv)
+  have h := hc.client p hal.inv (hal.abs_eq.symm ▸ hv)
   rw [hal.methods_eq, hal.abs_eq] at h
   rw [clientHistory_run, StateTransitionSpec.totalCost_append, StateTransitionSpec.run_runClient]
-  have := hal.cost_le
-  omega
+  linarith [hal.cost_le]
 
 /-- The cost of a run for a constant charge `K` per operation: at most the allocation's cost,
 the potential once allocated, and `K` per operation. -/
@@ -245,10 +244,8 @@ theorem run_cost_le {K Φ₀ : ℕ} (hA : A.Amortized (fun _ _ => K) Φ₀) {β 
     (p : D.Client β) {s : State} (hs : A.Pre s) (hroom : Fits w (s.frontier + A.room))
     (hv : D.ValidHistory A.init (D.clientHistory A.init p)) :
     (spec w).totalCost charge s ((spec w).clientHistory s (A.run p)) ≤
-      A.cost + Φ₀ + K * (D.clientHistory A.init p).length := by
-  have h := run_cost hA p hs hroom hv
-  rw [StateTransitionSpec.totalCost_const, Nat.mul_comm] at h
-  exact h
+      A.cost + Φ₀ + K * (D.clientHistory A.init p).length :=
+  (run_cost hA p hs hroom hv).trans_eq (by rw [StateTransitionSpec.totalCost_const, Nat.mul_comm])
 
 /-- **The exported form.** For a constant charge per operation, the memory cost of a run is
 `O(m)` in the number `m` of operations, over admissible clients of one allocator `A` from one
@@ -299,16 +296,14 @@ potential at the allocated state added. -/
 theorem Amortized.comp {R : Refinement D E} {A : Allocator E w} {hinit : R.inv A.init}
     {middle : E.State → E.Op → ℕ} {upper : D.State → D.Op → ℕ} {Φ : E.State → ℕ} {Ψ₀ : ℕ}
     (hR : R.Amortized middle upper Φ) (hA : A.Amortized middle Ψ₀) :
-    (A.comp R hinit).Amortized upper (Φ A.init + Ψ₀) := by
-  intro s hs hroom
+    (A.comp R hinit).Amortized upper (Φ A.init + Ψ₀) := fun s hs hroom => by
+  dsimp only [Allocator.comp] at hs hroom ⊢
   obtain ⟨Ψ, hc, hl, hΨ⟩ := hA s hs hroom
-  have hal := A.allocates s hs hroom
   refine ⟨fun s' => Φ ((A.framed s hs hroom).abs s') + Ψ s', Framed.amortized_comp hR hc,
     Framed.Local.add (Framed.Local.comp (Framed.Local.comp_abs _ Φ)) (Framed.Local.comp hl), ?_⟩
-  change Φ ((A.framed s hs hroom).abs ((spec w).clientState s A.alloc)) +
-    Ψ ((spec w).clientState s A.alloc) ≤ Φ A.init + Ψ₀
-  rw [hal.abs_eq]
-  omega
+  dsimp only
+  rw [(A.allocates s hs hroom).abs_eq]
+  exact Nat.add_le_add_left hΨ _
 
 /-! ## Products -/
 
@@ -347,9 +342,7 @@ variable {A₁}
 theorem room_after {s : State} (hs₁ : A₁.Pre s) {r : ℕ}
     (hroom : Fits w (s.frontier + (A₁.room + r))) :
     Fits w (((spec w).clientState s A₁.alloc).frontier + r) :=
-  hroom.of_le (by
-    have := (A₁.allocates s hs₁ (hroom.of_le (by omega))).room_le
-    omega)
+  hroom.of_le (by have := (A₁.allocates s hs₁ (hroom.of_le (by omega))).room_le; omega)
 
 /-- After allocating the first structure, the second one's precondition still holds. -/
 theorem pre_after {s : State} (hs₁ : A₁.Pre s)
@@ -487,9 +480,8 @@ variable {A₁ A₂}
 potentials once allocated by sum. -/
 theorem Amortized.prod {upper₁ : D₁.State → D₁.Op → ℕ} {upper₂ : D₂.State → D₂.Op → ℕ}
     {Φ₁ Φ₂ : ℕ} (hA₁ : A₁.Amortized upper₁ Φ₁) (hA₂ : A₂.Amortized upper₂ Φ₂) :
-    (A₁.prod A₂).Amortized (productCharge upper₁ upper₂) (Φ₁ + Φ₂) := by
-  intro s hs hroom
-  obtain ⟨hs₁, hs₂, -⟩ := hs
+    (A₁.prod A₂).Amortized (productCharge upper₁ upper₂) (Φ₁ + Φ₂) :=
+  fun s ⟨hs₁, hs₂, _⟩ hroom => by
   have hroom₁ : Fits w (s.frontier + A₁.room) := hroom.of_le (by simp only [prod_room]; omega)
   have hs₂' := pre_after A₂ hs₁ hroom hs₂
   have hroom₂ := room_after hs₁ hroom
@@ -500,15 +492,13 @@ theorem Amortized.prod {upper₁ : D₁.State → D₁.Op → ℕ} {upper₂ : D
   -- The first potential is unchanged by the second allocation.
   have h₁ := A₁.allocates s hs₁ hroom₁
   have h₂ := A₂.allocates _ hs₂' hroom₂
-  have hfit := h₁.room_le
-  have hfit₂ := h₂.room_le
-  have hkeep := hl₁ h₁.inv
+  have := h₁.room_le
+  have := h₂.room_le
+  dsimp only [Allocator.prod]
+  rw [clientState_allocPair, hl₁ h₁.inv
     (fun a ha => h₂.mem_eq a ((A₁.framed s hs₁ hroom₁).lt_frontier h₁.inv ha))
-    (frontier_le_clientState _ _) (hroom.of_le (by simp only [prod_room]; omega))
-  change Ψ₁ ((spec w).clientState s (allocPair A₁ A₂)) +
-    Ψ₂ ((spec w).clientState s (allocPair A₁ A₂)) ≤ Φ₁ + Φ₂
-  rw [clientState_allocPair, hkeep]
-  omega
+    (frontier_le_clientState _ _) (hroom.of_le (by simp only [prod_room]; omega))]
+  exact Nat.add_le_add hΨ₁ hΨ₂
 
 end Prod
 
@@ -575,9 +565,8 @@ that reads only its footprint and is at most `Φ₀` wherever the structure repr
 theorem Amortized.resident {upper : D.State → D.Op → ℕ} {Φ : State → ℕ} {Φ₀ : ℕ}
     (hc : M.Amortized charge upper Φ) (hl : M.Local Φ)
     (hΦ : ∀ s, M.inv s → M.abs s = init → Φ s ≤ Φ₀) :
-    (resident M init room).Amortized upper Φ₀ := fun s hs _ => by
-  obtain ⟨hinv, habs, -⟩ := hs
-  exact ⟨Φ, hc, hl, hΦ s hinv habs⟩
+    (resident M init room).Amortized upper Φ₀ :=
+  fun s ⟨hinv, habs, _⟩ _ => ⟨Φ, hc, hl, hΦ s hinv habs⟩
 
 end Resident
 

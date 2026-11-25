@@ -88,12 +88,8 @@ theorem truncateTotalDegree_eq_self {D : ℕ} {p : MvPolynomial V R} (h : p.tota
 
 /-- Truncation fixes precisely the polynomials whose total degree is at most the cutoff. -/
 @[simp] theorem truncateTotalDegree_eq_self_iff (D : ℕ) (p : MvPolynomial V R) :
-    truncateTotalDegree D p = p ↔ p.totalDegree ≤ D := by
-  constructor
-  · intro h
-    rw [← h]
-    exact totalDegree_truncateTotalDegree_le D p
-  · exact truncateTotalDegree_eq_self
+    truncateTotalDegree D p = p ↔ p.totalDegree ≤ D :=
+  ⟨fun h => h ▸ totalDegree_truncateTotalDegree_le D p, truncateTotalDegree_eq_self⟩
 
 /-- Applying the same truncation twice has the same effect as applying it once. -/
 @[simp] theorem truncateTotalDegree_idem (D : ℕ) (p : MvPolynomial V R) :
@@ -104,11 +100,9 @@ theorem truncateTotalDegree_eq_self {D : ℕ} {p : MvPolynomial V R} (h : p.tota
 theorem range_truncateTotalDegreeₗ (D : ℕ) :
     LinearMap.range (truncateTotalDegreeₗ (V := V) (R := R) D) = restrictTotalDegree V R D := by
   ext p
-  constructor
-  · rintro ⟨q, rfl⟩
-    exact (mem_restrictTotalDegree _ _ _).2 (totalDegree_truncateTotalDegree_le D q)
-  · intro hp
-    exact ⟨p, truncateTotalDegree_eq_self ((mem_restrictTotalDegree _ _ _).1 hp)⟩
+  exact ⟨fun ⟨q, hq⟩ =>
+      hq ▸ (mem_restrictTotalDegree _ _ _).2 (totalDegree_truncateTotalDegree_le D q),
+    fun hp => ⟨p, truncateTotalDegree_eq_self ((mem_restrictTotalDegree _ _ _).1 hp)⟩⟩
 
 /-- Truncation preserves the constant polynomial `1`. -/
 @[simp] theorem truncateTotalDegree_one (D : ℕ) :
@@ -136,18 +130,14 @@ theorem truncateTotalDegree_mul_of_gap (D : ℕ) (p q : MvPolynomial V R)
   ext m
   rw [coeff_truncateTotalDegree, coeff_mul, coeff_mul]
   have hdeg {a b : V →₀ ℕ} (hab : (a, b) ∈ Finset.antidiagonal m) :
-      m.degree = a.degree + b.degree := by
-    rw [← Finset.mem_antidiagonal.mp hab, map_add]
+      m.degree = a.degree + b.degree := by rw [← Finset.mem_antidiagonal.mp hab, map_add]
   by_cases hm : m.degree ≤ D
   · rw [ite_eq_left hm]
-    apply Finset.sum_congr rfl
-    rintro ⟨a, b⟩ hab
-    have hb : b.degree ≤ D := by have := hdeg hab; omega
-    rw [coeff_truncateTotalDegree, ite_eq_left hb]
+    exact Finset.sum_congr rfl fun ⟨a, b⟩ hab => by
+      have hb : b.degree ≤ D := by have := hdeg hab; omega
+      rw [coeff_truncateTotalDegree, ite_eq_left hb]
   · rw [ite_eq_right hm]
-    symm
-    apply Finset.sum_eq_zero
-    rintro ⟨a, b⟩ hab
+    refine (Finset.sum_eq_zero fun ⟨a, b⟩ hab => ?_).symm
     by_cases ha : p.coeff a = 0
     · simp [ha]
     by_cases hb : q.coeff b = 0

@@ -158,32 +158,15 @@ theorem matrices_filled (A : Args) (mem : ℕ → ℕ)
         encode (weightBC A.N A.s A.values A.filler b c) ∧
     A.filled mem (A.t * A.t) (A.ac + a.val * A.t + c.val) =
         encode (weightAC A.N A.s A.values A.filler a c) := by
-  have hcell (i j : Fin A.t) : i.val * A.t + j.val < A.t * A.t := by
-    have := Nat.mul_le_mul_right A.t (Nat.succ_le_of_lt i.isLt)
-    rw [Nat.succ_mul] at this
-    omega
-  have hdiv (i j : Fin A.t) : (i.val * A.t + j.val) / A.t = i.val :=
-    Nat.mul_add_div_of_lt _ j.isLt
-  have hmod (i j : Fin A.t) : (i.val * A.t + j.val) % A.t = j.val := Nat.mul_add_mod_of_lt j.isLt
-  have vAB : A.valueAB (a.val * A.t + b.val) =
-      encode (weightAB A.N A.values A.filler a b) := by
-    rw [weightAB_eq_pick]
-    rfl
-  have vBC : A.valueBC (b.val * A.t + c.val) =
-      encode (weightBC A.N A.s A.values A.filler b c) := by
-    rw [weightBC_eq_pick]
-    simp only [valueBC, hdiv, hmod]
-  have vAC : A.valueAC (a.val * A.t + c.val) =
-      encode (weightAC A.N A.s A.values A.filler a c) := by
-    rw [weightAC_eq_pick]
-    simp only [valueAC, hdiv, hmod]
+  have hcell (i j : Fin A.t) : i.val * A.t + j.val < A.t * A.t :=
+    (Nat.add_lt_add_left j.isLt _).trans_le
+      (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right A.t i.isLt)
   refine ⟨?_, ?_, ?_⟩
-  · rw [show A.ab + a.val * A.t + b.val = A.ab + (a.val * A.t + b.val) by omega,
-      A.filled_ab mem _ (hcell a b), vAB]
-  · rw [show A.bc + b.val * A.t + c.val = A.bc + (b.val * A.t + c.val) by omega,
-      A.filled_bc mem _ hbc (hcell b c), vBC]
-  · rw [show A.ac + a.val * A.t + c.val = A.ac + (a.val * A.t + c.val) by omega,
-      A.filled_ac mem _ hbc hac (hcell a c), vAC]
+  · rw [Nat.add_assoc, A.filled_ab mem _ (hcell a b), weightAB_eq_pick]; rfl
+  · rw [Nat.add_assoc, A.filled_bc mem _ hbc (hcell b c), weightBC_eq_pick]
+    simp only [valueBC, Nat.mul_add_div_of_lt _ c.isLt, Nat.mul_add_mod_of_lt c.isLt]
+  · rw [Nat.add_assoc, A.filled_ac mem _ hbc hac (hcell a c), weightAC_eq_pick]
+    simp only [valueAC, Nat.mul_add_div_of_lt _ c.isLt, Nat.mul_add_mod_of_lt c.isLt]
 
 end Args
 end Cslib.Algorithms.WordRAM.ThreeSum.Fill

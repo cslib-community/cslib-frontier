@@ -122,40 +122,37 @@ private theorem productWeight_comp_perm (π : Equiv.Perm ι) (p : ι → A → �
 
 omit [Fintype ι] [Fintype A] in
 private theorem update_comp_perm (π : Equiv.Perm ι) (s : ι → A) (i : ι) (a : A) :
-    update (s ∘ π) i a = (update s (π i) a) ∘ π := by
-  funext k
+    update (s ∘ π) i a = (update s (π i) a) ∘ π := funext fun k => by
   by_cases hk : k = i
-  · subst hk
-    simp only [Function.comp_apply, update_self]
-  · have hπk : π k ≠ π i := π.injective.ne hk
-    simp only [Function.comp_apply, update_of_ne hk, update_of_ne hπk]
+  · subst hk; simp
+  · simp [hk, π.injective.ne hk]
 
 /-- Equivariance of `expectedCost` under player permutations in a symmetric game. -/
 theorem IsSymmetric.expectedCost_comp_perm (hG : G.IsSymmetric) (π : Equiv.Perm ι)
     (p : ι → A → ℝ) (i : ι) :
     G.expectedCost (p ∘ π) i = G.expectedCost p (π i) := by
   rw [expectedCost_def, expectedCost_def, ← Equiv.sum_comp (permArrowEquiv π)]
-  refine sum_congr rfl fun s _ => ?_
-  dsimp only [permArrowEquiv, Equiv.coe_fn_mk]
-  rw [productWeight_comp_perm, hG π s i]
+  exact sum_congr rfl fun s _ => by
+    dsimp only [permArrowEquiv, Equiv.coe_fn_mk]
+    rw [productWeight_comp_perm, hG π s i]
 
 /-- Equivariance of `deviationCost` under player permutations in a symmetric game. -/
 theorem IsSymmetric.deviationCost_comp_perm (hG : G.IsSymmetric)
     (π : Equiv.Perm ι) (p : ι → A → ℝ) (i : ι) (a : A) :
     G.deviationCost (p ∘ π) i a = G.deviationCost p (π i) a := by
   rw [deviationCost_def, deviationCost_def, ← Equiv.sum_comp (permArrowEquiv π)]
-  refine sum_congr rfl fun s _ => ?_
-  dsimp only [permArrowEquiv, Equiv.coe_fn_mk]
-  rw [productWeight_comp_perm, update_comp_perm, hG π (update s (π i) a) i]
+  exact sum_congr rfl fun s _ => by
+    dsimp only [permArrowEquiv, Equiv.coe_fn_mk]
+    rw [productWeight_comp_perm, update_comp_perm, hG π (update s (π i) a) i]
 
 /-- Permuting players in a mixed Nash equilibrium of a symmetric game yields another mixed Nash
 equilibrium. -/
 theorem IsSymmetric.isMixedNash_comp_perm (hG : G.IsSymmetric)
     {p : ι → A → ℝ} (hp : G.IsMixedNash p) (π : Equiv.Perm ι) :
-    G.IsMixedNash (p ∘ π) := by
-  refine ⟨fun i => hp.1 (π i), fun i a => ?_⟩
-  rw [hG.expectedCost_comp_perm, hG.deviationCost_comp_perm]
-  exact hp.2 (π i) a
+    G.IsMixedNash (p ∘ π) :=
+  ⟨fun i => hp.1 (π i), fun i a => by
+    rw [hG.expectedCost_comp_perm, hG.deviationCost_comp_perm]
+    exact hp.2 (π i) a⟩
 
 /-- At a symmetric mixed profile `fun _ => x`, every player has the same expected cost. -/
 theorem IsSymmetric.expectedCost_const_eq (hG : G.IsSymmetric) (x : A → ℝ) (i j : ι) :
@@ -173,8 +170,7 @@ theorem IsSymmetric.deviationCost_const_eq (hG : G.IsSymmetric)
 /-- In a symmetric game, Nash's map assigns every player the same updated mixed strategy at a
 constant profile `fun _ => x`. -/
 theorem IsSymmetric.nashMap_const_eq (hG : G.IsSymmetric) (x : A → ℝ) (i j : ι) :
-    G.nashMap (fun _ => x) i = G.nashMap (fun _ => x) j := by
-  funext a
+    G.nashMap (fun _ => x) i = G.nashMap (fun _ => x) j := funext fun a => by
   rw [nashMap_apply, nashMap_apply, hG.expectedCost_const_eq x i j]
   simp_rw [hG.deviationCost_const_eq x i j]
 
@@ -184,14 +180,10 @@ theorem IsSymmetric.isSymmetricMixedNash_iff_at (hG : G.IsSymmetric) (i₀ : ι)
     {x : A → ℝ} :
     G.IsSymmetricMixedNash x ↔
       IsMixedStrategy x ∧
-        ∀ a : A, G.expectedCost (fun _ => x) i₀ ≤ G.deviationCost (fun _ => x) i₀ a := by
-  constructor
-  · intro h
-    exact ⟨h.1, fun a => h.2.2 i₀ a⟩
-  · rintro ⟨hx, hle⟩
-    refine ⟨hx, fun _ => hx, fun i a => ?_⟩
+        ∀ a : A, G.expectedCost (fun _ => x) i₀ ≤ G.deviationCost (fun _ => x) i₀ a :=
+  ⟨fun h => ⟨h.1, h.2.2 i₀⟩, fun ⟨hx, hle⟩ => ⟨hx, fun _ => hx, fun i a => by
     rw [hG.expectedCost_const_eq x i i₀, hG.deviationCost_const_eq x i i₀ a]
-    exact hle a
+    exact hle a⟩⟩
 
 /-- A symmetric pure Nash equilibrium induces a point-mass symmetric mixed Nash equilibrium. -/
 theorem IsSymmetricPureNash.isSymmetricMixedNash [DecidableEq A] {a : A}
@@ -216,26 +208,19 @@ theorem IsSymmetric.exists_isSymmetricMixedNash [Nonempty A] (hG : G.IsSymmetric
   by_cases hι : Nonempty ι
   · obtain ⟨i₀⟩ := hι
     let f : (Unit → A → ℝ) → (Unit → A → ℝ) := fun q _ => G.nashMap (fun _ => q ()) i₀
-    have hf_cont : Continuous f :=
-      continuous_pi fun _ => (continuous_apply i₀).comp
-        (G.continuous_nashMap.comp (continuous_pi fun _ => continuous_apply ()))
-    have hf_maps : Set.MapsTo f
-        {q : Unit → A → ℝ | ∀ u, (∀ a, 0 ≤ q u a) ∧ ∑ a, q u a = 1}
-        {q : Unit → A → ℝ | ∀ u, (∀ a, 0 ≤ q u a) ∧ ∑ a, q u a = 1} :=
-      fun q hq _ => isMixedStrategy_iff.1
-        (G.isMixedStrategy_nashMap (fun _ => isMixedStrategy_iff.2 (hq ())) i₀)
-    obtain ⟨q, hq, hfix⟩ := Cslib.Brouwer.exists_isFixedPt_pi_simplex hf_maps hf_cont.continuousOn
+    have hf_cont : Continuous f := continuous_pi fun _ => (continuous_apply i₀).comp
+      (G.continuous_nashMap.comp (continuous_pi fun _ => continuous_apply ()))
+    obtain ⟨q, hq, hfix⟩ := Cslib.Brouwer.exists_isFixedPt_pi_simplex
+      (fun q hq _ => isMixedStrategy_iff.1
+        (G.isMixedStrategy_nashMap (fun _ => isMixedStrategy_iff.2 (hq ())) i₀))
+      hf_cont.continuousOn
     have hx : IsMixedStrategy (q ()) := isMixedStrategy_iff.2 (hq ())
-    have hfix_nash : Function.IsFixedPt G.nashMap (fun _ => q ()) := by
-      funext i
-      rw [hG.nashMap_const_eq (q ()) i i₀]
-      exact congrFun hfix ()
-    exact ⟨q (), hx, (G.isFixedPt_nashMap_iff (fun _ => hx)).1 hfix_nash⟩
+    exact ⟨q (), hx, (G.isFixedPt_nashMap_iff (fun _ => hx)).1 <| funext fun i =>
+      (hG.nashMap_const_eq (q ()) i i₀).trans (congrFun hfix ())⟩
   · classical
     rw [not_nonempty_iff] at hι
-    let a₀ : A := Classical.arbitrary A
-    exact ⟨Pi.single a₀ 1, isMixedStrategy_single a₀, fun i => isEmptyElim i,
-      fun i => isEmptyElim i⟩
+    exact ⟨Pi.single (Classical.arbitrary A) 1, isMixedStrategy_single _,
+      isEmptyElim, isEmptyElim⟩
 
 end Existence
 

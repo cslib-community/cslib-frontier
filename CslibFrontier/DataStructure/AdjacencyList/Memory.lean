@@ -128,29 +128,27 @@ variable {L} {w : ℕ} {adj : AdjacencyList.State n}
 /-- The cells an edge query reads lie in the edge field. -/
 theorem Holds.edge_lt {m : ℕ → ℕ} (h : Holds L adj m) (u : Fin n) {i : ℕ}
     (hi : i < (adj u).length) : 2 * (m (L.offsets.base + u) + i) + 1 < L.edges.length := by
-  have h₁ := h.offset_succ u
-  have h₂ := h.end_le u
+  have := h.offset_succ u
+  have := h.end_le u
   omega
 
 /-- **Each query returns the specified answer** within three memory units, and writes nothing. -/
 theorem ops_triple (hL : L.Valid n) {s : Memory.State} (hs : Inv L adj s)
     (o : AdjacencyList.Op n) (hv : AdjacencyList.valid adj o) :
     Triple w s (ops L o) 3 fun r s' => AdjacencyList.step adj o = (adj, r) ∧ s' = s := by
-  have hoff : ∀ j ≤ n, L.offsets.base + j < s.frontier := fun j hj =>
+  have hoff (j : ℕ) (hj : j ≤ n) : L.offsets.base + j < s.frontier :=
     hs.offsets_allocated.lt_frontier (by rw [hL.offsets_length]; omega)
   cases o with
   | degree u =>
-    refine Triple.read_bind (hoff u u.isLt.le) <| Triple.read_bind (hoff (u + 1) u.isLt) <|
-      Triple.pure ⟨?_, rfl⟩
-    rw [AdjacencyList.step_degree, hs.holds.offset_succ u]
-    simp
+    exact Triple.read_bind (hoff u u.isLt.le) <| Triple.read_bind (hoff (u + 1) u.isLt) <|
+      Triple.pure ⟨by simp [AdjacencyList.step_degree, hs.holds.offset_succ u], rfl⟩
   | edge u i =>
     have hlt := hs.holds.edge_lt u hv
-    refine Triple.read_bind (hoff u u.isLt.le) <|
+    exact Triple.read_bind (hoff u u.isLt.le) <|
       Triple.read_bind (hs.edges_allocated.lt_frontier (by omega)) <|
-      Triple.read_bind (hs.edges_allocated.lt_frontier hlt) <| Triple.pure ⟨?_, rfl⟩
-    rw [AdjacencyList.step_edge _ _ hv, hs.holds.target u i hv, hs.holds.weight u i hv]
-    simp
+      Triple.read_bind (hs.edges_allocated.lt_frontier hlt) <| Triple.pure
+        ⟨by simp [AdjacencyList.step_edge _ _ hv, hs.holds.target u i hv, hs.holds.weight u i hv],
+          rfl⟩
 
 /-- The run of a query, by `ops_triple`. -/
 theorem ops_run (hL : L.Valid n) {s : Memory.State} (hs : Inv L adj s) (o : AdjacencyList.Op n)
@@ -183,24 +181,23 @@ theorem Inv.lt_frontier {s : Memory.State} (hs : Inv L adj s) {a : ℕ} (ha : a 
 theorem Inv.congr (hL : L.Valid n) {s s' : Memory.State} (hs : Inv L adj s)
     (h : ∀ a ∈ L.footprint, s'.mem a = s.mem a) (hf : s.frontier ≤ s'.frontier) :
     Inv L adj s' := by
-  have hoff : ∀ j ≤ n, s'.mem (L.offsets.base + j) = s.mem (L.offsets.base + j) := fun j hj =>
+  have hoff (j : ℕ) (hj : j ≤ n) : s'.mem (L.offsets.base + j) = s.mem (L.offsets.base + j) :=
     h _ (Finset.mem_union_left _ (Block.mem_footprint.mpr
       (Block.owns_add (by rw [hL.offsets_length]; omega))))
-  have hedge : ∀ j < L.edges.length, s'.mem (L.edges.base + j) = s.mem (L.edges.base + j) :=
-    fun j hj => h _ (Finset.mem_union_right _ (Block.mem_footprint.mpr (Block.owns_add hj)))
+  have hedge (j : ℕ) (hj : j < L.edges.length) :
+      s'.mem (L.edges.base + j) = s.mem (L.edges.base + j) :=
+    h _ (Finset.mem_union_right _ (Block.mem_footprint.mpr (Block.owns_add hj)))
   have H := hs.holds
-  refine ⟨hs.offsets_allocated.mono hf, hs.edges_allocated.mono hf, ⟨fun u => ?_, fun u => ?_,
-    fun u i hi => ?_, fun u i hi => ?_⟩⟩
-  · rw [hoff _ u.isLt, hoff _ u.isLt.le]
-    exact H.offset_succ u
-  · rw [hoff _ u.isLt]
-    exact H.end_le u
-  · have := H.edge_lt u hi
-    rw [hoff _ u.isLt.le, hedge _ (by omega)]
-    exact H.target u i hi
-  · have := H.edge_lt u hi
-    rw [hoff _ u.isLt.le, hedge _ this]
-    exact H.weight u i hi
+  exact ⟨hs.offsets_allocated.mono hf, hs.edges_allocated.mono hf,
+    fun u => by rw [hoff _ u.isLt, hoff _ u.isLt.le]; exact H.offset_succ u,
+    fun u => by rw [hoff _ u.isLt]; exact H.end_le u,
+    fun u i hi => by
+      have := H.edge_lt u hi
+      rw [hoff _ u.isLt.le, hedge _ (by omega)]
+      exact H.target u i hi,
+    fun u i hi => by
+      rw [hoff _ u.isLt.le, hedge _ (H.edge_lt u hi)]
+      exact H.weight u i hi⟩
 
 variable (adj) in
 /-- The adjacency arrays, framed by their two fields. -/
@@ -223,8 +220,7 @@ def framed (hL : L.Valid n) : Memory.Framed (AdjacencyList.spec n) w :=
 /-- **Every query costs at most three memory units.** -/
 theorem amortized (hL : L.Valid n) :
     (framed (w := w) adj hL).Amortized charge (fun _ _ => 3) fun _ => 0 :=
-  Refinement.Amortized.ofFn fun {_} o hs hv => by
-    obtain ⟨-, hc, -⟩ := ops_run (w := w) hL hs o hv
-    exact Nat.add_le_add_right hc 0
+  Refinement.Amortized.ofFn fun {_} o hs hv =>
+    Nat.add_le_add_right (ops_run (w := w) hL hs o hv).2.1 0
 
 end Cslib.DataStructure.AdjacencyList.Memory

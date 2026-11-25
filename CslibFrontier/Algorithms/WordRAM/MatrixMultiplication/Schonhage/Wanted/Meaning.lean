@@ -64,15 +64,11 @@ private theorem outer_list {L m : ℕ} (w : OutStr L) (h : (innerSetO w).card = 
     ((List.ofFn w).filter fun z => ¬z.IsInner).map (fun z => (f z).val) =
       List.ofFn (fun k => (f (w ((innerSetO w)ᶜ.orderEmbOfFin
         (Finset.card_compl_of_card_eq _ h) k))).val) := by
-  rw [Finset.ofFn_orderEmbOfFin (innerSetO w)ᶜ
-    (Finset.card_compl_of_card_eq _ h) (fun i => (f (w i)).val),
-    Finset.sort_eq_filter_finRange,
-    List.ofFn_eq_map, List.filter_map, List.map_map]
-  have hp : (fun i : Fin L => decide (¬(w i).IsInner)) =
-      (fun i => decide (i ∈ (innerSetO w)ᶜ)) := by
-    funext i
-    simp [innerSetO]
-  simp only [Function.comp_def, hp]
+  rw [Finset.ofFn_orderEmbOfFin (innerSetO w)ᶜ (Finset.card_compl_of_card_eq _ h)
+    (fun i => (f (w i)).val), Finset.sort_eq_filter_finRange, List.ofFn_eq_map,
+    List.filter_map, List.map_map]
+  simp only [Function.comp_def, show (fun i : Fin L => decide (¬(w i).IsInner)) =
+    fun i => decide (i ∈ (innerSetO w)ᶜ) from funext fun i => by simp [innerSetO]]
 
 /-- A packed mask and the ordered outer coordinates recover every original output code. -/
 theorem pack_queryIndex {L m : ℕ} (w : OutStr L) (h : (innerSetO w).card = m) :
@@ -81,21 +77,16 @@ theorem pack_queryIndex {L m : ℕ} (w : OutStr L) (h : (innerSetO w).card = m) 
       (queryIndex w).val := by
   have hm : Nat.ofDigits 2 ((List.ofFn w).map fun z => if z.IsInner then 1 else 0) =
       (MaskTable.maskCode (innerSetO w)).val := by
-    rw [List.map_ofFn]
-    calc
-      _ = Nat.ofDigits 2 (List.ofFn fun i =>
-          ((if i ∈ innerSetO w then 1 else 0) : Fin 2).val) := by
-        congr 2 with i : 1
-        by_cases hi : (w i).IsInner <;> simp [innerSetO, hi]
-      _ = _ := Nat.ofDigits_finFunctionFinEquiv _
+    rw [List.map_ofFn, Function.comp_def, show (fun i => if (w i).IsInner then 1 else 0) =
+      fun i => ((if i ∈ innerSetO w then 1 else 0) : Fin 2).val from
+        funext fun i => by by_cases hi : (w i).IsInner <;> simp [innerSetO, hi]]
+    exact Nat.ofDigits_finFunctionFinEquiv _
   have hr : Nat.ofDigits 3 (((List.ofFn w).filter fun z => ¬z.IsInner).map
       fun z => z.rowIndex.val) = (finFunctionFinEquiv (rowO w h)).val := by
-    rw [outer_list w h OutVar.rowIndex, Nat.ofDigits_finFunctionFinEquiv]
-    rfl
+    rw [outer_list w h OutVar.rowIndex, Nat.ofDigits_finFunctionFinEquiv]; rfl
   have hc : Nat.ofDigits 3 (((List.ofFn w).filter fun z => ¬z.IsInner).map
       fun z => z.colIndex.val) = (finFunctionFinEquiv (colO w h)).val := by
-    rw [outer_list w h OutVar.colIndex, Nat.ofDigits_finFunctionFinEquiv]
-    rfl
+    rw [outer_list w h OutVar.colIndex, Nat.ofDigits_finFunctionFinEquiv]; rfl
   have ho : Nat.ofDigits 10 ((List.ofFn w).map fun z => (outputDigits.symm z).val) =
       (queryIndex w).val := by
     rw [List.map_ofFn]
@@ -110,10 +101,8 @@ theorem pack_outStrOfPos {L m : ℕ} (hm : m ≤ L) (I J : ℕ) :
       (I % N0 L m) (J % N0 L m) =
       (queryIndex (outStrOfPos (MaskTable.layout hm) I J)).val := by
   let lay := MaskTable.layout hm
-  let Q := lay.table (blockOf lay I, blockOf lay J)
-  have hQ : Q.card = m := lay.table_card _
   have h := pack_queryIndex (outStrOfPos lay I J)
-    (by simpa only [outStrOfPos, innerSetO_outStrOf] using hQ)
+    (by simpa only [outStrOfPos, innerSetO_outStrOf] using lay.table_card _)
   unfold outStrOfPos at h
   rw [rowO_outStrOf, colO_outStrOf, innerSetO_outStrOf] at h
   change pack L (MaskTable.maskCode (MaskTable.maskSet

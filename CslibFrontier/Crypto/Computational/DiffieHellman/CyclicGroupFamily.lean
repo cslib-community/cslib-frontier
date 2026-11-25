@@ -201,17 +201,12 @@ private theorem encDDHInput_ddhInputEquiv (x : F.DDHInput) :
 the two input encodings agree. -/
 theorem isPPT_toCyclicGroupFamily_iff (distinguisher : F.DDHDistinguisher) :
     CyclicGroupFamily.DDHDistinguisher.IsPPT (F := F.toCyclicGroupFamily) distinguisher ↔
-      distinguisher.IsPPT := by
-  constructor
-  · rintro ⟨k, State, hfin, machine, c, e, h⟩
-    refine ⟨k, State, hfin, machine, c, e, fun a => ?_⟩
-    rw [← F.encDDHInput_ddhInputEquiv a]
-    exact h (F.ddhInputEquiv a)
-  · rintro ⟨k, State, hfin, machine, c, e, h⟩
-    refine ⟨k, State, hfin, machine, c, e, fun a => ?_⟩
-    obtain ⟨a, rfl⟩ := F.ddhInputEquiv.surjective a
-    rw [F.encDDHInput_ddhInputEquiv a]
-    exact h a
+      distinguisher.IsPPT :=
+  ⟨fun ⟨k, State, hfin, machine, c, e, h⟩ => ⟨k, State, hfin, machine, c, e, fun a => by
+    rw [← F.encDDHInput_ddhInputEquiv a]; exact h (F.ddhInputEquiv a)⟩,
+    fun ⟨k, State, hfin, machine, c, e, h⟩ => ⟨k, State, hfin, machine, c, e, fun a => by
+      obtain ⟨a, rfl⟩ := F.ddhInputEquiv.surjective a
+      rw [F.encDDHInput_ddhInputEquiv a]; exact h a⟩⟩
 
 /-- On a prime-order family the DDH assumption over cyclic group families is the prime-order
 one. -/
@@ -278,22 +273,22 @@ theorem inv_le_advantage_ddhSmallFactorDistinguisher (setup : ℕ → PMF F.Desc
     (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun d hd =>
       eval_ddhRealExperiment_ddhSmallFactorDistinguisher _ _ _ (hsupport d hd).1
         (hsupport d hd).2.1 (F.smul_generator_injective d)).trans (PMF.bind_const _ _)
-  have hfalse : (((B : ℝ≥0)⁻¹ : ℝ≥0) : ℝ≥0∞) ≤
-      F.ddhRandomGame setup (ddhSmallFactorDistinguisher F factor) n false := by
-    refine PMF.le_bind_apply_on_support _ fun d hd => ?_
-    obtain ⟨hp, hdvd, hle⟩ := hsupport d hd
-    have hadv := inv_le_ddhAdvantage_ddhSmallFactorDistinguisher (F.order d) (factor n d)
-      (F.generator d) hp hdvd (F.smul_generator_injective d)
-    rw [ddhAdvantage, Experiment.advantage,
-      eval_ddhRealExperiment_ddhSmallFactorDistinguisher _ _ _ hp hdvd
-        (F.smul_generator_injective d), Game.advantage_pure_true_left] at hadv
-    have hB : (B : ℝ≥0)⁻¹ ≤ ((factor n d : ℕ) : ℝ≥0)⁻¹ :=
-      inv_anti₀ (by exact_mod_cast hp.pos) (by exact_mod_cast hle)
-    have h := ENNReal.coe_le_coe.mpr (hB.trans hadv)
-    rw [ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at h
-    exact h
   rw [hreal, Game.advantage_pure_true_left]
-  simpa using ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hfalse
+  suffices (((B : ℝ≥0)⁻¹ : ℝ≥0) : ℝ≥0∞) ≤
+      F.ddhRandomGame setup (ddhSmallFactorDistinguisher F factor) n false by
+    simpa using ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) this
+  refine PMF.le_bind_apply_on_support _ fun d hd => ?_
+  obtain ⟨hp, hdvd, hle⟩ := hsupport d hd
+  have hadv := inv_le_ddhAdvantage_ddhSmallFactorDistinguisher (F.order d) (factor n d)
+    (F.generator d) hp hdvd (F.smul_generator_injective d)
+  rw [ddhAdvantage, Experiment.advantage,
+    eval_ddhRealExperiment_ddhSmallFactorDistinguisher _ _ _ hp hdvd
+      (F.smul_generator_injective d), Game.advantage_pure_true_left] at hadv
+  have hB : (B : ℝ≥0)⁻¹ ≤ ((factor n d : ℕ) : ℝ≥0)⁻¹ :=
+    inv_anti₀ (by exact_mod_cast hp.pos) (by exact_mod_cast hle)
+  have h := ENNReal.coe_le_coe.mpr (hB.trans hadv)
+  rw [ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at h
+  exact h
 
 /-- General prime-factor DDH failure criterion (underlying [BonehShoup2023], Exercise 10.24 and
 Exercise 16.2(a)): whenever a polynomial-time factor selector `factor` outputs, for infinitely
@@ -332,24 +327,16 @@ private theorem findGreatest_polyTime (C D : ℕ) :
       (fun p : ℕ × F.Desc =>
         Nat.findGreatest (fun i => i.Prime ∧ F.order p.2 % i = 0) (C * (p.1 + 1) ^ D))
       (encPair encUnary F.encDesc) encNat := by
-  have hbound : ComputableInPolyTime (fun p : ℕ × F.Desc => C * (p.1 + 1) ^ D)
-      (encPair encUnary F.encDesc) encUnary :=
-    (show ComputableInPolyTime (fun n => C * (n + 1) ^ D) encUnary encUnary by fun_prop).comp
-      (ComputableInPolyTime.fst _ _)
   have hmod : ComputableInPolyTime (fun p : (ℕ × F.Desc) × ℕ => F.order p.1.2 % p.2)
       (encPair (encPair encUnary F.encDesc) encUnary) encNat :=
-    ComputableInPolyTime.binary_mod'
-      (F.computableInPolyTime_order_comp
-        ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)))
-      (ComputableInPolyTime.unary_to_binary.comp
-        (ComputableInPolyTime.snd _ _))
-  have hpred : ComputableInPolyTime
-      (fun p : (ℕ × F.Desc) × ℕ => decide (p.2.Prime ∧ F.order p.1.2 % p.2 = 0))
-      (encPair (encPair encUnary F.encDesc) encUnary) encBool :=
-    (ComputableInPolyTime.unary_decide_prime.comp (ComputableInPolyTime.snd _ _)).decide_and
-      (ComputableInPolyTime.decide_eq' hmod (ComputableInPolyTime.const 0))
-  exact ComputableInPolyTime.unary_to_binary.comp
-    (ComputableInPolyTime.findGreatest hbound hpred)
+    .binary_mod' (F.computableInPolyTime_order_comp
+      ((ComputableInPolyTime.snd _ _).comp (.fst _ _)))
+      (ComputableInPolyTime.unary_to_binary.comp (.snd _ _))
+  exact ComputableInPolyTime.unary_to_binary.comp <| ComputableInPolyTime.findGreatest
+    ((show ComputableInPolyTime (fun n => C * (n + 1) ^ D) encUnary encUnary by fun_prop).comp
+      (.fst _ _))
+    ((ComputableInPolyTime.unary_decide_prime.comp (.snd _ _)).decide_and
+      (.decide_eq' hmod (.const 0)))
 
 /-- **DDH fails when a small prime factor is polynomially bounded** ([BonehShoup2023], Exercise
 16.2(a), p. 707): if for infinitely many security parameters `n`, every group `d` in the support
