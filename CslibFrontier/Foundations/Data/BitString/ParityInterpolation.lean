@@ -43,33 +43,18 @@ private theorem exists_parityOn_true_false {x y : ι → Bool} (hx : x ≠ 0) (h
     ∃ S : Finset ι, parityOn S x = true ∧ parityOn S y = false := by
   classical
   obtain ⟨i, hi⟩ := exists_true_of_ne_zero hx
-  by_cases hyi : y i = false
+  cases hyi : y i
   · exact ⟨{i}, by simpa only [parityOn_singleton] using hi,
       by simpa only [parityOn_singleton] using hyi⟩
-  have hyi : y i = true := Bool.eq_true_of_not_eq_false hyi
-  obtain ⟨j, hj⟩ : ∃ j, x j ≠ y j := by
-    by_contra! h
-    exact hxy (funext h)
-  by_cases hxj : x j = true
-  · have hyj : y j = false := by
-      cases hy : y j
-      · rfl
-      · exact (hj (hxj.trans hy.symm)).elim
-    exact ⟨{j}, by simpa only [parityOn_singleton] using hxj,
+  obtain ⟨j, hj⟩ := Function.ne_iff.mp hxy
+  cases hxj : x j <;> cases hyj : y j
+  · exact (hj (hxj.trans hyj.symm)).elim
+  · have hij : i ≠ j := fun h => by subst h; simp [hi] at hxj
+    exact ⟨{i, j}, by simp [parityOn_insert, hij, hi, hxj],
+      by simp [parityOn_insert, hij, hyi, hyj]⟩
+  · exact ⟨{j}, by simpa only [parityOn_singleton] using hxj,
       by simpa only [parityOn_singleton] using hyj⟩
-  · have hxj : x j = false := Bool.eq_false_of_not_eq_true hxj
-    have hyj : y j = true := by
-      cases hy : y j
-      · exact (hj (hxj.trans hy.symm)).elim
-      · rfl
-    have hij : i ≠ j := by
-      intro h
-      subst j
-      rw [hi] at hxj
-      contradiction
-    refine ⟨{i, j}, ?_, ?_⟩
-    · simp [parityOn_insert, hij, hi, hxj]
-    · simp [parityOn_insert, hij, hyi, hyj]
+  · exact (hj (hxj.trans hyj.symm)).elim
 
 /-- Any two answers of a table that is false at zero extend to a parity. The two points may
 coincide or be zero; no finiteness assumption on the coordinate type is needed. -/
@@ -77,45 +62,18 @@ theorem exists_parityOn_agrees_pair {f : (ι → Bool) → Bool} (hf : f 0 = fal
     (x y : ι → Bool) : ∃ S : Finset ι, parityOn S x = f x ∧ parityOn S y = f y := by
   cases hfx : f x <;> cases hfy : f y
   · exact ⟨∅, parityOn_empty x, parityOn_empty y⟩
-  · have hy : y ≠ 0 := by
-      intro h
-      rw [h, hf] at hfy
-      contradiction
-    have hyx : y ≠ x := by
-      intro h
-      rw [h, hfx] at hfy
-      contradiction
-    obtain ⟨S, hSy, hSx⟩ := exists_parityOn_true_false hy hyx
+  · obtain ⟨S, hSy, hSx⟩ := exists_parityOn_true_false (x := y) (y := x)
+      (fun h => by simp [h, hf] at hfy) (fun h => by simp [h, hfx] at hfy)
     exact ⟨S, hSx, hSy⟩
-  · have hx : x ≠ 0 := by
-      intro h
-      rw [h, hf] at hfx
-      contradiction
-    have hxy : x ≠ y := by
-      intro h
-      rw [h, hfy] at hfx
-      contradiction
-    obtain ⟨S, hSx, hSy⟩ := exists_parityOn_true_false hx hxy
-    exact ⟨S, hSx, hSy⟩
-  · have hx : x ≠ 0 := by
-      intro h
-      rw [h, hf] at hfx
-      contradiction
-    have hy : y ≠ 0 := by
-      intro h
-      rw [h, hf] at hfy
-      contradiction
-    have hxy : x ≠ x + y := by
-      intro h
-      apply hy
-      exact (add_left_cancel ((add_zero x).trans h)).symm
+  · exact exists_parityOn_true_false (x := x) (y := y)
+      (fun h => by simp [h, hf] at hfx) (fun h => by simp [h, hfy] at hfx)
+  · have hx : x ≠ 0 := fun h => by simp [h, hf] at hfx
+    have hy : y ≠ 0 := fun h => by simp [h, hf] at hfy
+    have hxy : x ≠ x + y := fun h => hy (add_left_cancel ((add_zero x).trans h)).symm
     obtain ⟨S, hSx, hSsum⟩ := exists_parityOn_true_false hx hxy
     refine ⟨S, hSx, ?_⟩
     have hadd := parityOn_add S x y
     rw [hSsum, hSx] at hadd
-    cases hSy : parityOn S y
-    · rw [hSy] at hadd
-      cases hadd
-    · rfl
+    simpa using hadd.symm
 
 end Cslib.BitString
