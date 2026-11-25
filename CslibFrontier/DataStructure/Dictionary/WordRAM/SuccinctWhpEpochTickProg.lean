@@ -282,20 +282,64 @@ theorem realizes_fastStepPureGen :
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hv.curEp_or, hv.epochClock_lt⟩
-    | (cases op <;> (
+    | (cases op with
+       | query u =>
          dsimp only [encodeOpWhp] at hop_enc
          rcases Prod.mk.inj hop_enc with ⟨rfl, hp2⟩
          rcases Prod.mk.inj hp2 with ⟨rfl, rfl⟩
          first
          | (exfalso; omega)
-         | exact ⟨c, U, V, w, n_max, θ, fs, dict, _, henv, rfl, hseed, hrep, hv, rfl⟩
-         | exact ⟨c, U, V, w, n_max, θ, fs, dict, _, henv, rfl, hseed, hrep, hv, hval_op, rfl⟩))
+         | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, rfl⟩
+       | insert u v =>
+         dsimp only [encodeOpWhp] at hop_enc
+         rcases Prod.mk.inj hop_enc with ⟨rfl, hp2⟩
+         rcases Prod.mk.inj hp2 with ⟨rfl, rfl⟩
+         first
+         | (exfalso; omega)
+         | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, hval_op, rfl⟩
+       | delete u =>
+         dsimp only [encodeOpWhp] at hop_enc
+         rcases Prod.mk.inj hop_enc with ⟨rfl, hp2⟩
+         rcases Prod.mk.inj hp2 with ⟨rfl, rfl⟩
+         first
+         | (exfalso; omega)
+         | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, rfl⟩)
   )
 
 private theorem epochTick_eq_none_of_false {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} (hle : fs.rebStage ≤ 5) (hnot : epochTickWillSucceed n_max fs = false) :
     epochTick c U n_max θ fs = none := by
-  simpa [← epochTick_isSome_iff θ hle] using hnot
+  have his := epochTick_isSome_iff θ hle
+  rw [hnot] at his
+  cases h : epochTick c U n_max θ fs with
+  | none => rfl
+  | some _ => rw [h] at his; cases his
+
+private theorem fastStepPure_notOk_tail {c U V w n_max base : ℕ} {s : Memory.State}
+    {fs : FastState} {pThen : Memory.Prog (ℕ × (ℕ × ℕ))}
+    (hnot : epochTickWillSucceed n_max fs = false)
+    (hck_st : (Memory.spec 0).clientState s
+      (checkEpochTickOkGenProg (mkWhpCoreParams c U V w n_max, base)) = s)
+    (hck_res : (Memory.spec 0).clientResult s
+      (checkEpochTickOkGenProg (mkWhpCoreParams c U V w n_max, base)) =
+      (if epochTickWillSucceed n_max fs then 1 else 0))
+    (hck_mc : memoryCost (checkEpochTickOkGenProg (mkWhpCoreParams c U V w n_max, base)) s ≤ 5)
+    (hck_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
+      (checkEpochTickOkGenProg (mkWhpCoreParams c U V w n_max, base))) :
+    let prog := checkEpochTickOkGenProg (mkWhpCoreParams c U V w n_max, base) >>= fun tickOk =>
+      if tickOk = 1 then pThen else pure (0, (0, 0))
+    memoryCost prog s ≤ 32 * cTabWhp c + 73 * hashEvalCostWhp c + 90000 ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
+    (Memory.spec 0).clientResult s prog = (0, (0, 0)) ∧
+    (Memory.spec 0).clientState s prog = s := by
+  rw [hnot] at hck_res; simp only [Bool.false_eq_true, ↓reduceIte] at hck_res
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+    rw [hck_st, hck_res]; simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]; omega
+  · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res]
+    simp only [zero_ne_one, ↓reduceIte]; exact validProg_pure _
+  · rw [clientResult_bind, hck_st, hck_res]; rfl
+  · rw [clientState_bind, hck_st, hck_res]; rfl
 
 theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} {s : Memory.State}
@@ -319,53 +363,18 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
   have hnU := henv.2.2.2.2.1
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
+  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ :=
     checkEpochTickOkGenProg_spec henv hv.curEp_or hrep (s := s)
   dsimp only [fastOpCostWhp]
-  unfold fastStepPureGenProg
-  dsimp only
-  rw [hwp1]
-  simp only [pure_bind]
-  set pDisp :=
-    if (encodeOpWhp op).1 = 0 then
-      fastStepQueryProg ((mkWhpParams c U V w n_max, base), (encodeOpWhp op).2.1)
-    else if (encodeOpWhp op).1 = 1 then
-      fastStepInsertProg
-        (((mkWhpParams c U V w n_max, base), (encodeOpWhp op).2.1), (encodeOpWhp op).2.2)
-    else
-      fastStepDeleteProg ((mkWhpParams c U V w n_max, base), (encodeOpWhp op).2.1)
-  by_cases hok : epochTickWillSucceed n_max fs = true
-  · rw [hok] at hck_res; simp only [↓reduceIte] at hck_res
-    suffices hbody :
-        memoryCost pDisp s + 5 ≤ 32 * cTabWhp c + 73 * hashEvalCostWhp c + 90000 ∧
-        ValidProg w (base + largeSpaceWhp c U V w n_max) s pDisp ∧
-        match fastStepPure c U n_max θ fs op with
-        | some (fs', res) =>
-          (Memory.spec 0).clientResult s pDisp = (1, encodeOptRes res) ∧
-          FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s pDisp)
-        | none =>
-          (Memory.spec 0).clientResult s pDisp = (0, (0, 0)) ∧
-          (Memory.spec 0).clientState s pDisp = s by
-      refine ⟨?_, ?_, ?_⟩
-      · have hmc := hbody.1
-        simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hck_st, hck_res]
-        simp only [↓reduceIte]
-        omega
-      · refine validProg_bind hck_vp ?_
-        rw [hck_st, hck_res]
-        exact hbody.2.1
-      · have h22 := hbody.2.2
-        cases hsp : fastStepPure c U n_max θ fs op <;> (
-          rw [hsp] at h22
-          rw [clientResult_bind, clientState_bind, hck_st, hck_res]
-          simpa only [↓reduceIte] using h22)
-    cases op with
-    | query u =>
-      dsimp only [pDisp, encodeOpWhp, fastStepPure]
-      simp only [↓reduceIte]
-      unfold fastStepQueryProg
-      simp only [pure_bind]
+  cases op with
+  | query u =>
+    dsimp only [encodeOpWhp, fastStepPure]
+    unfold fastStepPureGenProg fastStepQueryProg; dsimp only
+    rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+    simp only [pure_bind]
+    by_cases hok : epochTickWillSucceed n_max fs = true
+    · rw [hok] at hck_res; simp only [↓reduceIte] at hck_res
       obtain ⟨hfq_st, hfq_res, hfq_mc, hfq_vp⟩ :=
         fastQueryGenProg_spec henv hseed hrep hv u (s := s)
       obtain ⟨fs', het_eq, het_mc, het_vp, het_step⟩ :=
@@ -373,22 +382,32 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
       rw [het_eq]
       have hres_eq : (Memory.spec 0).clientResult s
           (fastQueryGenProg ((mkWhpParams c U V w n_max, base), u.val)) =
-          encodeOptRes (fastQuery c U n_max θ fs u) :=
-        hfq_res.trans (by cases fastQuery c U n_max θ fs u <;> rfl)
+          encodeOptRes (fastQuery c U n_max θ fs u) := by
+        refine hfq_res.trans ?_
+        cases fastQuery c U n_max θ fs u <;> rfl
       refine ⟨?_, ?_, ?_, ?_⟩
       · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+        dsimp only [cp] at hck_st hck_res hck_mc ⊢
+        rw [hck_st, hck_res]; simp only [↓reduceIte, memoryCost_bind]
         rw [hfq_st, hres_eq, memoryCost_pure]; omega
-      · refine validProg_bind hfq_vp ?_
-        rw [hfq_st, hres_eq]
+      · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res]; simp only [↓reduceIte]
+        refine validProg_bind hfq_vp ?_; rw [hfq_st, hres_eq]
         exact validProg_bind het_vp (validProg_pure _)
-      · rw [clientResult_bind, hfq_st, hres_eq, clientResult_bind]; rfl
-      · rw [clientState_bind, hfq_st, clientState_bind, clientState_pure_whp]
+      · rw [clientResult_bind, hck_st, hck_res]; simp only [↓reduceIte]
+        rw [clientResult_bind, hfq_st, hres_eq, clientResult_bind]; rfl
+      · rw [clientState_bind, hck_st, hck_res]; simp only [↓reduceIte]
+        rw [clientState_bind, hfq_st, clientState_bind, clientState_pure_whp]
         exact het_step
-    | insert u v =>
-      dsimp only [pDisp, encodeOpWhp, fastStepPure]
-      simp only [one_ne_zero, ↓reduceIte]
-      unfold fastStepInsertProg
-      simp only [pure_bind]
+    · have hnot : epochTickWillSucceed n_max fs = false := Bool.eq_false_iff.mpr hok
+      rw [epochTick_eq_none_of_false hv.rebStage_le hnot]
+      exact fastStepPure_notOk_tail hnot hck_st hck_res hck_mc hck_vp
+  | insert u v =>
+    dsimp only [encodeOpWhp, fastStepPure]
+    unfold fastStepPureGenProg fastStepInsertProg; dsimp only
+    rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+    simp only [pure_bind, one_ne_zero, ↓reduceIte]
+    by_cases hok : epochTickWillSucceed n_max fs = true
+    · rw [hok] at hck_res; simp only [↓reduceIte] at hck_res
       obtain ⟨hfi_mc, hfi_vp, hfi_m⟩ :=
         fastInsertGenProg_spec henv hseed hrep hv u hval_op.2 (s := s)
       set progIns := fastInsertGenProg (((mkWhpParams c U V w n_max, base), u.val), v)
@@ -398,98 +417,96 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
         rw [hins] at hfi_m
         refine ⟨?_, ?_, ?_, ?_⟩
         · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+          dsimp only [cp] at hck_st hck_res hck_mc ⊢
+          rw [hck_st, hck_res]; simp only [↓reduceIte, memoryCost_bind]
           dsimp only [progIns] at hfi_m hfi_mc ⊢
           rw [hfi_m.1]; simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]; omega
-        · refine validProg_bind hfi_vp ?_
-          dsimp only [progIns] at hfi_m
+        · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res]; simp only [↓reduceIte]
+          refine validProg_bind hfi_vp ?_; dsimp only [progIns] at hfi_m
           rw [hfi_m.1]; simp only [zero_ne_one, ↓reduceIte]; exact validProg_pure _
-        · rw [clientResult_bind]
-          dsimp only [progIns] at hfi_m
-          rw [hfi_m.1]
-          rfl
-        · rw [clientState_bind]
-          dsimp only [progIns, s1] at hfi_m
-          rw [hfi_m.1, hfi_m.2]
-          rfl
+        · rw [clientResult_bind, hck_st, hck_res]; simp only [↓reduceIte]
+          rw [clientResult_bind]; dsimp only [progIns] at hfi_m; rw [hfi_m.1]; rfl
+        · rw [clientState_bind, hck_st, hck_res]; simp only [↓reduceIte]
+          rw [clientState_bind]; dsimp only [progIns, s1] at hfi_m
+          rw [hfi_m.1, hfi_m.2]; rfl
       | some fs1 =>
         rw [hins] at hfi_m; dsimp only
         obtain ⟨hcore1, _, hst1, _⟩ := hv.fastInsert_spec hnU hval_op hins
-        have hok1 := (epochTickWillSucceed_fastInsert hv hins).trans hok
+        have hok1 : epochTickWillSucceed n_max fs1 = true :=
+          (epochTickWillSucceed_fastInsert hv hins).trans hok
         obtain ⟨fs', het_eq, het_mc, het_vp, het_step⟩ :=
           epochTickGenProg_fastStep henv hcore1 hst1.toPreTick hok1
             hfi_m.2.2.1 hfi_m.2.2.2.1 (s := s1)
         rw [het_eq]
         refine ⟨?_, ?_, ?_, ?_⟩
         · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+          dsimp only [cp] at hck_st hck_res hck_mc ⊢
+          rw [hck_st, hck_res]; simp only [↓reduceIte, memoryCost_bind]
           dsimp only [progIns, s1] at hfi_m hfi_mc het_mc ⊢
           rw [hfi_m.1]; simp only [↓reduceIte, memoryCost_bind, memoryCost_pure]; omega
-        · refine validProg_bind hfi_vp ?_
-          dsimp only [progIns] at hfi_m
-          rw [hfi_m.1]
-          simp only [↓reduceIte]
+        · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res]; simp only [↓reduceIte]
+          refine validProg_bind hfi_vp ?_; dsimp only [progIns] at hfi_m
+          rw [hfi_m.1]; simp only [↓reduceIte]
           exact validProg_bind het_vp (validProg_pure _)
-        · rw [clientResult_bind]
-          dsimp only [progIns] at hfi_m
-          rw [hfi_m.1]
+        · rw [clientResult_bind, hck_st, hck_res]; simp only [↓reduceIte]
+          rw [clientResult_bind]; dsimp only [progIns] at hfi_m; rw [hfi_m.1]
           simp only [↓reduceIte]; rw [clientResult_bind]; rfl
-        · rw [clientState_bind]
-          dsimp only [progIns] at hfi_m
-          rw [hfi_m.1]
+        · rw [clientState_bind, hck_st, hck_res]; simp only [↓reduceIte]
+          rw [clientState_bind]; dsimp only [progIns] at hfi_m; rw [hfi_m.1]
           simp only [↓reduceIte]; rw [clientState_bind, clientState_pure_whp]
           exact hfi_m.2.trans het_step
-    | delete u =>
-      dsimp only [pDisp, encodeOpWhp, fastStepPure]
-      simp only [show ¬((2 : ℕ) = 0) by decide, show ¬((2 : ℕ) = 1) by decide, ↓reduceIte]
-      unfold fastStepDeleteProg
-      simp only [pure_bind]
-      obtain ⟨hcore1, _, hpre1, _⟩ := hv.fastDelete_spec u
+    · have hnot : epochTickWillSucceed n_max fs = false := Bool.eq_false_iff.mpr hok
+      have hfail := fastStepPure_notOk_tail (fs := fs)
+        (pThen := fastInsertGenProg (((mkWhpParams c U V w n_max, base), u.val), v) >>=
+          fun insOk => if insOk = 1 then
+            epochTickGenProg (mkWhpParams c U V w n_max, base) >>= fun _ => pure (1, (0, 0))
+          else pure (0, (0, 0)))
+        hnot hck_st hck_res hck_mc hck_vp
+      refine ⟨hfail.1, hfail.2.1, ?_⟩
+      cases hins : fastInsert c U n_max θ fs u v with
+      | none => exact hfail.2.2
+      | some fs1 =>
+        obtain ⟨hcore1, _, _, _⟩ := hv.fastInsert_spec hnU hval_op hins
+        have hnot1 : epochTickWillSucceed n_max fs1 = false :=
+          (epochTickWillSucceed_fastInsert hv hins).trans hnot
+        dsimp only; rw [epochTick_eq_none_of_false hcore1.rebStage_le hnot1]
+        exact hfail.2.2
+  | delete u =>
+    dsimp only [encodeOpWhp, fastStepPure]
+    unfold fastStepPureGenProg fastStepDeleteProg; dsimp only
+    rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+    simp only [pure_bind, show ¬((2 : ℕ) = 0) by decide, show ¬((2 : ℕ) = 1) by decide,
+      ↓reduceIte]
+    obtain ⟨hcore1, _, hpre1, _⟩ := hv.fastDelete_spec u
+    by_cases hok : epochTickWillSucceed n_max fs = true
+    · rw [hok] at hck_res; simp only [↓reduceIte] at hck_res
       obtain ⟨hfd_mc, hfd_vp, hfd_step⟩ := fastDeleteGenProg_fastStep henv hseed hrep hv u (s := s)
       set s1 := (Memory.spec 0).clientState s
         (fastDeleteGenProg ((mkWhpParams c U V w n_max, base), u.val))
-      have hok1 := (epochTickWillSucceed_fastDelete hv u).trans hok
+      have hok1 : epochTickWillSucceed n_max (fastDelete c U n_max θ fs u) = true :=
+        (epochTickWillSucceed_fastDelete hv u).trans hok
       obtain ⟨fs', het_eq, het_mc, het_vp, het_step⟩ :=
         epochTickGenProg_fastStep henv hcore1 hpre1 hok1 hfd_step.2.1 hfd_step.2.2.1 (s := s1)
       rw [het_eq]
-      refine ⟨?_, validProg_bind hfd_vp (validProg_bind het_vp (validProg_pure _)),
-        by rw [clientResult_bind, clientResult_bind]; rfl, ?_⟩
+      refine ⟨?_, ?_, ?_, ?_⟩
       · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+        dsimp only [cp] at hck_st hck_res hck_mc ⊢
+        rw [hck_st, hck_res]; simp only [↓reduceIte, memoryCost_bind]
         dsimp only [s1] at hfd_mc het_mc ⊢
         rw [memoryCost_pure]; omega
-      · rw [clientState_bind, clientState_bind, clientState_pure_whp]
+      · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res]; simp only [↓reduceIte]
+        refine validProg_bind hfd_vp ?_
+        exact validProg_bind het_vp (validProg_pure _)
+      · rw [clientResult_bind, hck_st, hck_res]; simp only [↓reduceIte]
+        rw [clientResult_bind, clientResult_bind]; rfl
+      · rw [clientState_bind, hck_st, hck_res]; simp only [↓reduceIte]
+        rw [clientState_bind, clientState_bind, clientState_pure_whp]
         exact hfd_step.trans het_step
-  · have hnot : epochTickWillSucceed n_max fs = false := Bool.eq_false_iff.mpr hok
-    rw [hnot] at hck_res
-    simp only [Bool.false_eq_true, ↓reduceIte] at hck_res
-    refine ⟨?_, ?_, ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hck_st, hck_res]
-      simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]
-      omega
-    · refine validProg_bind hck_vp ?_
-      rw [hck_st, hck_res]
-      simp only [zero_ne_one, ↓reduceIte]
-      exact validProg_pure _
-    · suffices fastStepPure c U n_max θ fs op = none by
-        rw [this, clientResult_bind, clientState_bind, hck_st, hck_res]
-        exact ⟨rfl, rfl⟩
-      cases op with
-      | query u =>
-        dsimp only [fastStepPure]
-        rw [epochTick_eq_none_of_false hv.rebStage_le hnot]
-      | insert u v =>
-        dsimp only [fastStepPure]
-        cases hins : fastInsert c U n_max θ fs u v with
-        | none => rfl
-        | some fs1 =>
-          obtain ⟨hcore1, _, _, _⟩ := hv.fastInsert_spec hnU hval_op hins
-          dsimp only
-          rw [epochTick_eq_none_of_false hcore1.rebStage_le
-            ((epochTickWillSucceed_fastInsert hv hins).trans hnot)]
-      | delete u =>
-        dsimp only [fastStepPure]
-        obtain ⟨hcore1, _, _, _⟩ := hv.fastDelete_spec u
-        rw [epochTick_eq_none_of_false hcore1.rebStage_le
-          ((epochTickWillSucceed_fastDelete hv u).trans hnot)]
+    · have hnot : epochTickWillSucceed n_max fs = false := Bool.eq_false_iff.mpr hok
+      have hnot1 : epochTickWillSucceed n_max (fastDelete c U n_max θ fs u) = false :=
+        (epochTickWillSucceed_fastDelete hv u).trans hnot
+      rw [epochTick_eq_none_of_false hcore1.rebStage_le hnot1]
+      exact fastStepPure_notOk_tail hnot hck_st hck_res hck_mc hck_vp
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 
