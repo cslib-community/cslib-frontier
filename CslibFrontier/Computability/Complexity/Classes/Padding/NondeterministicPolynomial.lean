@@ -84,10 +84,8 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
   have hL (x : List Bool) :
       c * ((unframe x).length + 1) ^ (b * k) + c ≤ L x := by
     have hp := (polynomialPaddingPower_bounds (b * k) (unframe x).length).1
-    have hc' : 2 * c ≤ 2 ^ (c + 1) := by
-      have : c < 2 ^ c := Nat.lt_two_pow_self
-      rw [pow_succ]
-      omega
+    have hc' : 2 * c ≤ 2 ^ (c + 1) := (Nat.mul_le_mul_left 2 Nat.lt_two_pow_self.le).trans_eq
+      (pow_succ' 2 c).symm
     have h1 : 1 ≤ ((unframe x).length + 1) ^ (b * k) := Nat.one_le_pow _ _ (by omega)
     calc
       _ ≤ 2 * c * ((unframe x).length + 1) ^ (b * k) := by nlinarith
@@ -182,12 +180,9 @@ theorem mem_NTIME_of_polynomialPadded_mem {A : Set (List Bool)} {a k : ℕ} (ha 
     have h1 : y.length + 1 ≤ (y.length + 1) ^ (k + 1) := Nat.le_self_pow (by omega) _
     have hRy := hR y
     have h3 : (pad y).length + 1 ≤ 3 * R y := by rw [hpadlen]; omega
-    have hpow : ((pad y).length + 1) ^ a ≤ 3 ^ a * R y ^ a := by
-      rw [← mul_pow]
-      exact Nat.pow_le_pow_left h3 a
-    have hRa : R y ^ a = 2 ^ (a * (k + 1) * Nat.size (y.length + 1)) := by
-      rw [← pow_mul]
-      ring
+    have hpow : ((pad y).length + 1) ^ a ≤ 3 ^ a * R y ^ a :=
+      (Nat.pow_le_pow_left h3 a).trans_eq (mul_pow _ _ _)
+    have hRa : R y ^ a = 2 ^ (a * (k + 1) * Nat.size (y.length + 1)) := by rw [← pow_mul]; ring
     have h2 : 1 ≤ R y ^ a := Nat.one_le_pow _ _ (Nat.pos_of_ne_zero (by simp [R]))
     have hs : s ≤ 2 ^ s := Nat.lt_two_pow_self.le
     calc
@@ -218,9 +213,8 @@ theorem mem_NTIME_of_polynomialPadded_mem {A : Set (List Bool)} {a k : ℕ} (ha 
   have hka : k + 2 ≤ a * (k + 1) + 1 := by nlinarith
   have hX (e : ℕ) (he : e ≤ a * (k + 1) + 1) : (m + 1) ^ e ≤ X :=
     Nat.pow_le_pow_right (by omega) he
-  have hRb : R y ≤ 2 ^ (k + 1) * X := by
-    have := (polynomialPaddingPower_bounds (k + 1) m).2
-    exact this.trans (Nat.mul_le_mul_left _ (hX _ (by omega)))
+  have hRb : R y ≤ 2 ^ (k + 1) * X :=
+    (polynomialPaddingPower_bounds (k + 1) m).2.trans (Nat.mul_le_mul_left _ (hX _ (by omega)))
   have hW : w.length ≤ 2 ^ (a * (k + 1) + s) * X := by
     have hb' := (polynomialPaddingPower_bounds (a * (k + 1)) m).2
     rw [hw]
