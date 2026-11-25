@@ -6538,6 +6538,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OnW
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Machine
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Curvature.MidpointTerm
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Execution
+public import CslibFrontier.Computability.BranchingProgram.ReadOnceParity
 public import CslibFrontier.Crypto.Computational.Homomorphic.FixedKey.Security
 public import CslibFrontier.Foundations.Data.Code.Interleaved
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.NodeFrame
