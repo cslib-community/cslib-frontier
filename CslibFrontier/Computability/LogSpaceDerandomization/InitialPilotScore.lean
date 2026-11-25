@@ -239,16 +239,14 @@ theorem initialPilotScore_allocated
   refine ⟨L, hL, ?_⟩
   intro P J inst D R bin ks kt kb ss st cutoff h C ε hε X Y input mean steps
   have hden : (1 : ℝ) < 155648 * (J + 1) * (4 : ℝ) ^ 4 := by
-    have : (0 : ℝ) ≤ J := Nat.cast_nonneg J
-    nlinarith
+    linarith [Nat.cast_nonneg (α := ℝ) J]
   have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
   have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
     (show 0 ≤ (P : ℝ) * (L / rate kt) ^ 4 * 32 * rowNormPow 4 P (rate ks) X Y input by
       positivity) hε 0 steps (Nat.le_max_right _ _)
   simp only [pow_zero, mul_one] at hp
-  apply (herr P J D R bin ks kt kb ss st cutoff h C steps).trans
-  nlinarith only [hp]
+  exact ((herr P J D R bin ks kt kb ss st cutoff h C steps).trans_eq (by ring)).trans hp
 
 /-- If one genuine dense bin covers the base matrix, the allocated two-level call
 approximates the initial pilot score of that base. The mean is derived from dense
