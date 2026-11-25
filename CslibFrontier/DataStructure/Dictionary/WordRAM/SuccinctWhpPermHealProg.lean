@@ -1713,9 +1713,11 @@ private theorem permInnerStep_spec {c U V w n_max base mode : ℕ}
   cases running with
   | false =>
     have hs1 : (Memory.spec 0).clientState s p = s := by
-      dsimp only [p, permChainWord]; unfold permInnerStepProg; simp [pure_bind]; rfl
+      dsimp only [p, permChainWord]; unfold permInnerStepProg
+      simp only [Bool.false_eq_true, ↓reduceIte, bind_pure_comp, pure_bind]; rfl
     have hr1 : (Memory.spec 0).clientResult s p = ((0, curDest), (curQ, curV)) := by
-      dsimp only [p, permChainWord]; unfold permInnerStepProg; simp [pure_bind]; rfl
+      dsimp only [p, permChainWord]; unfold permInnerStepProg
+      simp only [Bool.false_eq_true, ↓reduceIte, bind_pure_comp, pure_bind]; rfl
     rw [hs1, hr1]
     exact ⟨rfl, ⟨htm, hinv, hcd, hcq, hcv⟩, rfl⟩
   | true =>
@@ -2273,8 +2275,7 @@ private theorem fbPrefixLoop_spec {c U V w n_max base : ℕ} {bktCount : ℕ →
     let fb := buildFbStart M bktCount
     let prt := mkPermRt c U V w n_max base
     ∀ s : Memory.State,
-      (∀ x ≤ 0,
-        readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem x = fb x) →
+      readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem 0 = fb 0 →
       (∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
         s.mem a = s₀.mem a) →
       let prog := fbPrefixLoopProg ((prt, (0, fb 0)), M)
@@ -2350,7 +2351,7 @@ private theorem fbPrefixLoop_spec {c U V w n_max base : ℕ} {bktCount : ℕ →
         split_ifs <;>
           simp only [clientResult_bind, clientResult_pure_whp] <;>
           refine ⟨Prod.ext rfl ?_, hfb1 _ ?_, hout1 _, hfr⟩ <;> omega)
-    ⟨rfl, hfb, hout, rfl⟩
+    ⟨rfl, fun x hx => by rwa [Nat.le_zero.1 hx], hout, rfl⟩
   exact ⟨hfb', hout', hfr, hvp⟩
 
 /-- Exact specification of `fastToCsrGenProg`: converts any valid `FastMemRep` into `CsrMemRep` for
@@ -2410,12 +2411,8 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
   have hdisj := perm_seg_disjoint c U V w n_max
   set m0 := writePacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem 0 0
   set s0 : Memory.State := { mem := m0, frontier := s.frontier }
-  have hfb0 : ∀ x ≤ 0,
-      readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s0.mem x = fb x := by
-    intro x hx
-    have hx0 : x = 0 := by omega
-    subst hx0
-    exact readPacked_writePacked_self _ _ _ _ _ (Nat.two_pow_pos _)
+  have hfb0 : readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s0.mem 0 =
+      fb 0 := readPacked_writePacked_self _ _ _ _ _ (Nat.two_pow_pos _)
   have hout0 : ∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
       s0.mem a = s.mem a := by
     intro a ha
