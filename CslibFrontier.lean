@@ -6617,6 +6617,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.ROBridge
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTarget
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.Interactive
@@ -6869,6 +6870,7 @@ public import CslibFrontier.Crypto.Protocols.VOLE.MaskedMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.MulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Native
 public import CslibFrontier.Crypto.Protocols.VOLE.NativePPT
+public import CslibFrontier.Crypto.Protocols.VOLE.PRGLeafSeparation
 public import CslibFrontier.Crypto.Protocols.VOLE.ROExtractor
 public import CslibFrontier.Crypto.Protocols.VOLE.RingMAC
 public import CslibFrontier.Crypto.Protocols.VOLE.RingMulCheck
