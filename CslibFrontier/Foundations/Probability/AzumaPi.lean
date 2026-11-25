@@ -75,14 +75,17 @@ theorem HasSubgaussianMGF.measure_sqrt_lt_le (h : HasSubgaussianMGF X c μ) {δ 
   have hL : 0 ≤ log (1 / δ) := log_nonneg (by rw [le_div_iff₀ hδ]; simpa using hδ1)
   rcases eq_or_ne c 0 with rfl | hc
   · have h0 : μ {ω | 0 < X ω} = 0 :=
-      measure_mono_null (Set.ofPred_subset_ofPred.2 fun ω hω => by simp [hω.ne'])
+      measure_mono_null (fun ω (hω : 0 < X ω) => by simp [hω.ne'])
         (ae_iff.1 h.ae_eq_zero_of_hasSubgaussianMGF_zero)
     simpa [measureReal_def, h0] using hδ.le
-  · have : (0 : ℝ) < c := by positivity
-    refine (measureReal_mono (Set.ofPred_subset_ofPred.2 fun _ hω => hω.le)).trans
-      ((h.measure_ge_le (sqrt_nonneg _)).trans_eq ?_)
-    rw [sq_sqrt (by positivity), one_div, log_inv,
-      show -(2 * (c : ℝ) * -log δ) / (2 * c) = log δ by field_simp, exp_log hδ]
+  · have hc' : (0 : ℝ) < c := by positivity
+    calc μ.real {ω | √(2 * c * log (1 / δ)) < X ω}
+        ≤ μ.real {ω | √(2 * c * log (1 / δ)) ≤ X ω} :=
+          measureReal_mono (Set.ofPred_subset_ofPred.2 fun _ hω => hω.le)
+      _ ≤ exp (-√(2 * c * log (1 / δ)) ^ 2 / (2 * c)) := h.measure_ge_le (sqrt_nonneg _)
+      _ = δ := by
+        rw [sq_sqrt (by positivity), one_div, log_inv,
+          show -(2 * (c : ℝ) * -log δ) / (2 * c) = log δ by field_simp, exp_log hδ]
 
 end Tail
 
@@ -107,8 +110,10 @@ private theorem abs_le_of_integral_update_eq_zero {Y : (∀ i, α i) → ℝ} {i
     simpa [hmean v] using integral_mono (integrable_const a) hint fun z => (ha z).1
   have h2 : 0 ≤ a + c := by
     simpa [hmean v] using integral_mono hint (integrable_const (a + c)) fun z => (ha z).2
-  have hv : Y v ∈ Set.Icc a (a + c) := Function.update_eq_self i v ▸ ha (v i)
-  exact abs_le.2 ⟨by linarith only [h2, hv.1], by linarith only [h1, hv.2]⟩
+  have hv := ha (v i)
+  rw [Function.update_eq_self] at hv
+  rw [abs_le]
+  constructor <;> linarith [hv.1, hv.2]
 
 /-- **Azuma–Hoeffding under a product measure, sub-Gaussian form.** Let `Y i` not depend on the
 coordinates after `i`, have mean `0` over coordinate `i`, and range over an interval of length

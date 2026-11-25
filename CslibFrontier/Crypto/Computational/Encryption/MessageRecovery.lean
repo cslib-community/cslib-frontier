@@ -221,9 +221,12 @@ theorem isPPT_messageRecoveryWordToDEMAdversary {msgLen : ℕ → ℕ}
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary)
     {A : ℕ → List Bool → ProbComp (List Bool)}
     (hA : IsPPTOn (encPair encUnary encBits) encBits (fun ⟨n, ct⟩ => A n ct)) :
-    AdversaryOf.IsPPT encBits (messageRecoveryWordToDEMAdversary msgLen A) :=
-  ⟨by dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]; ppt,
-    by dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]; ppt⟩
+    AdversaryOf.IsPPT encBits (messageRecoveryWordToDEMAdversary msgLen A) := by
+  refine ⟨?_, ?_⟩
+  · dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]
+    ppt
+  · dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]
+    ppt
 
 /-- Exact word-level advantage equality of the proof of Theorem 2.7 ([BonehShoup2023], p. 19):
 `MRadv[A, E](n) = SSadv[B, E](n)` for `B := messageRecoveryWordToDEMAdversary msgLen A`, in Attack
@@ -249,38 +252,44 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
   let A' : List Bool → ProbComp (BitString (msgLen n)) := fun c => do
     let mHat ← A n c
     return BitString.ofList (msgLen n) mHat
-  have hdecode (c : List Bool) (m₁ : BitString (msgLen n)) :
+  have hdecode : ∀ c (m₁ : BitString (msgLen n)),
       (ProbComp.eval (A n c)).bind
           (fun mHat => PMF.pure (BitString.ofList (msgLen n) mHat == m₁)) =
-        (ProbComp.eval (A n c)).bind (fun mHat => PMF.pure (mHat == List.ofFn m₁)) :=
-    Probability.PMF.bind_congr_on_support _ _ _ fun mHat hmHat => congrArg PMF.pure <| by
-      rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
-      exact ⟨fun h => by rw [← h, BitString.ofFn_ofList (hA_len n c mHat hmHat)],
-        fun h => by rw [h, BitString.ofList_ofFn]⟩
+        (ProbComp.eval (A n c)).bind (fun mHat => PMF.pure (mHat == List.ofFn m₁)) := by
+    intro c m₁
+    refine Probability.PMF.bind_congr_on_support _ _ _ fun mHat hmHat => ?_
+    have hm := hA_len n c mHat hmHat
+    congr 1
+    rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+    exact ⟨fun h => by rw [← h, BitString.ofFn_ofList hm],
+      fun h => by rw [h, BitString.ofList_ofFn]⟩
   have hmr : ProbComp.eval (messageRecoveryExperiment E sampleKey A') =
       ProbComp.eval (messageRecoveryWordExperiment msgLen keyLen encryptSym A n) := by
     simp only [messageRecoveryExperiment, messageRecoveryWordExperiment, E, sampleKey, A',
       ProbComp.eval_uniform, BitString.eval_sampleList, BitString.uniformList, pmf_norm]
-    exact congrArg _ (funext fun m => congrArg _ (funext fun _ => congrArg _ (funext fun c =>
-      hdecode c m)))
-  have hgame (bit : Bool) :
+    congr 1; funext m; congr 1; funext k; congr 1; funext c
+    exact hdecode c m
+  have hcard : (Fintype.card (BitString (msgLen n)) : ℝ≥0) = 2 ^ msgLen n := by
+    simp [BitString]
+  have hgame : ∀ bit : Bool,
       ProbComp.eval (E.oneTimeExperiment sampleKey (fun _ _ => true)
         (messageRecoveryReduction (ProbComp.uniform (BitString (msgLen n))) A') bit) =
       ProbComp.eval (demKeyGameOn
         (fun n _ m₀ m₁ => m₀.length == msgLen n && m₁.length == msgLen n)
         keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) bit n) := by
+    intro bit
     simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, demKeyGameOn,
       messageRecoveryWordToDEMAdversary, lrExperiment, ChoiceOut.msg₀, ChoiceOut.msg₁, E, sampleKey,
       A', ↓reduceIte, ProbComp.eval_uniform, BitString.eval_sampleList, BitString.uniformList,
       List.length_ofFn, beq_self_eq_true, Bool.and_self, pmf_norm]
-    refine congrArg _ (funext fun _ => congrArg _ (funext fun _ =>
-      congrArg _ (funext fun m₁ => ?_)))
+    congr 1; funext k; congr 1; funext m₀; congr 1; funext m₁
     cases bit <;> simp only [MessagePair.select_false, MessagePair.select_true,
-      Bool.false_eq_true, ↓reduceIte] <;> exact congrArg _ (funext fun c => hdecode c m₁)
+      Bool.false_eq_true, ↓reduceIte]
+    · congr 1; funext c; exact hdecode c m₁
+    · congr 1; funext c; exact hdecode c m₁
   have hconc := messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction
     E sampleKey (fun _ _ => rfl) A'
-  rw [messageRecoveryAdvantage, hmr,
-    show (Fintype.card (BitString (msgLen n)) : ℝ≥0) = 2 ^ msgLen n by simp [BitString]] at hconc
+  rw [messageRecoveryAdvantage, hmr, hcard] at hconc
   rw [messageRecoveryWordAdvantage, hconc, Experiment.advantage, hgame false, hgame true]
 
 /-- **Theorem 2.7, for the message space `{0, 1}^L`** ([BonehShoup2023], Section 2.2.3.1, p. 19):

@@ -135,11 +135,13 @@ theorem neighbor_extendLabels_of_forall_ne (v : V) {b : B} (hb : ∀ i, enc i �
 theorem toSimpleGraph_extendLabels : (G.extendLabels enc).toSimpleGraph = G.toSimpleGraph := by
   ext u v
   simp only [toSimpleGraph_adj]
-  refine and_congr_right fun huv => ⟨fun ⟨b, hb⟩ => ?_, fun ⟨i, hi⟩ => ⟨enc i, by simpa using hi⟩⟩
+  refine and_congr_right fun huv ↦ ⟨fun ⟨b, hb⟩ ↦ ?_, fun ⟨i, hi⟩ ↦ ⟨enc i, by simpa using hi⟩⟩
   by_cases h : ∃ i, enc i = b
   · obtain ⟨i, rfl⟩ := h
     exact ⟨i, by simpa using hb⟩
-  · exact (huv (G.neighbor_extendLabels_of_forall_ne enc u (not_exists.mp h) ▸ hb)).elim
+  · push Not at h
+    rw [G.neighbor_extendLabels_of_forall_ne enc u h] at hb
+    exact (huv hb).elim
 
 /-- If `B` has at least twice as many elements as `D`, at least half of the edges at every vertex of
 `G.extendLabels enc` are self-loops. -/
@@ -169,7 +171,9 @@ def slotSwap (p : V × V) : V × V :=
 /-- Exchanging the ends of an edge twice gives back the slot. -/
 theorem slotSwap_involutive : Function.Involutive (slotSwap G) := by
   rintro ⟨v, w⟩
-  by_cases h : G.Adj v w <;> simp [slotSwap, h, SimpleGraph.adj_comm]
+  by_cases h : G.Adj v w
+  · simp [slotSwap, h, h.symm]
+  · simp [slotSwap, h]
 
 /-- The three labels of the slot graph: `inl ()` for the edge of `G` at a slot, and
 `inr ((), (), false)` and `inr ((), (), true)` for the cycle of the slots of a vertex, forwards and
@@ -251,12 +255,15 @@ theorem reachable_fst_of_reachable_slotGraph {p q : V × V}
   induction h with
   | refl => rfl
   | tail _ hxy ih =>
-    obtain ⟨-, _ | ⟨_, _, _ | _⟩, rfl⟩ := hxy
+    obtain ⟨-, i, rfl⟩ := hxy
+    refine ih.trans ?_
+    rcases i with _ | ⟨_, _, _ | _⟩
     · rw [neighbor_slotGraph_inl, slotSwap]
       split_ifs with hadj
-      exacts [ih.trans hadj.reachable, ih]
-    · exact ih
-    · exact ih
+      · exact hadj.reachable
+      · rfl
+    · rfl
+    · rfl
 
 /-- **The slot graph has the connectivity of the simple graph**: if `σ` has a single cycle, the slot
 `(w, b)` is reachable from `(v, a)` exactly when `w` is reachable from `v` in `G`. -/

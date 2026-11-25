@@ -195,8 +195,10 @@ theorem editDist_triangle [Finite V] (G H K : SimpleGraph V) :
 /-- Relabelling both graphs by the same bijection preserves their edit distance. -/
 theorem editDist_comap_equiv [Finite V] {W : Type*} [Finite W] (e : V ≃ W) (G H : SimpleGraph W) :
     editDist (G.comap e) (H.comap e) = editDist G H := by
-  rw [editDist, editDist, show symmDiff (G.comap e) (H.comap e) = (symmDiff G H).comap e by
-    ext; simp [SimpleGraph.symmDiff_adj]]
+  have h : symmDiff (G.comap e) (H.comap e) = (symmDiff G H).comap e := by
+    ext a b
+    simp [SimpleGraph.symmDiff_adj]
+  rw [editDist, editDist, h]
   exact Nat.card_congr (Iso.comap e (symmDiff G H)).mapEdgeSet
 
 /-- On a finite vertex set the edit distance is the size of the symmetric difference of the edge
@@ -209,13 +211,14 @@ theorem editDist_eq_card [Fintype V] [DecidableEq V] (G H : SimpleGraph V) [Deci
 /-- Deleting a set `s` of edges of `G` changes exactly the pairs in `s`. -/
 theorem editDist_deleteEdges [Fintype V] (G : SimpleGraph V) [DecidableRel G.Adj]
     {s : Finset (Sym2 V)} (hs : s ⊆ G.edgeFinset) : editDist G (G.deleteEdges s) = #s := by
-  rw [editDist, show (symmDiff G (G.deleteEdges s)).edgeSet = s by
+  have he : (symmDiff G (G.deleteEdges s)).edgeSet = s := by
     rw [SimpleGraph.edgeSet_symmDiff, SimpleGraph.edgeSet_deleteEdges]
     ext e
     have := @hs e
     simp only [Set.mem_symmDiff, Set.mem_sdiff, Finset.mem_coe, SimpleGraph.mem_edgeFinset]
       at this ⊢
-    tauto, Nat.card_coe_set_eq, Set.ncard_coe_finset]
+    tauto
+  rw [editDist, he, Nat.card_coe_set_eq, Set.ncard_coe_finset]
 
 end EditDist
 
@@ -230,7 +233,8 @@ theorem not_isFar_of_property {G : SimpleGraph V} {P : SimpleGraph V → Prop} (
     (hε : 0 ≤ ε) : ¬ IsFar G P ε := fun h => by
   have h₁ := h G hG
   rw [editDist_self, Nat.cast_zero] at h₁
-  linarith [show (0 : ℝ) ≤ ε * (Fintype.card V ^ 2 : ℕ) by positivity]
+  have h₂ : (0 : ℝ) ≤ ε * (Fintype.card V ^ 2 : ℕ) := by positivity
+  linarith
 
 variable {G : SimpleGraph V} [DecidableRel G.Adj] {P : SimpleGraph V → Prop}
 
@@ -307,8 +311,10 @@ theorem IsOneSidedTester.evalWith_false_eq_zero {n : ℕ} {P : SimpleGraph (Fin 
     {T : Tester n} {ε : ℝ} {q : ℕ} (hT : IsOneSidedTester T P ε q) {H : SimpleGraph (Fin n)}
     (hH : P H) :
     OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle (adjOracle H)) T false = 0 := by
-  have h := (PMF.apply_eq_one_iff _ _).mp ((ENNReal.toReal_eq_one_iff _).mp (hT.accept H hH))
-  simp [PMF.apply_eq_zero_iff, h]
+  have h := hT.accept H hH
+  rw [acceptProb_eq, ENNReal.toReal_eq_one_iff, PMF.apply_eq_one_iff] at h
+  rw [PMF.apply_eq_zero_iff, h]
+  simp
 
 /-- Independent repetition multiplies acceptance probabilities. -/
 theorem acceptProb_repeatAll {n : ℕ} (T : Tester n) (G : SimpleGraph (Fin n)) (k : ℕ) :
@@ -323,7 +329,10 @@ theorem isQueryBounded_repeatAll {n : ℕ} {T : Tester n} {q : ℕ}
   | zero => exact .pure _ _
   | succ k ih =>
     rw [Nat.mul_succ, Nat.add_comm (q * k)]
-    exact hT.bind fun | false => OracleComp.IsCostBounded.pure _ _ | true => ih
+    refine hT.bind fun b => ?_
+    cases b
+    · exact OracleComp.IsCostBounded.pure _ _
+    · exact ih
 
 /-- Amplification: if the `q`-query tester `T` accepts every graph with property `P` with
 probability one and accepts every `ε`-far graph with probability at most `1 - δ`, then `k`

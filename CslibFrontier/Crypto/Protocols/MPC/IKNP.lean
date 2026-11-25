@@ -349,8 +349,9 @@ theorem realJoint_iknp_sender (H : Fin m → BitString κ → L)
         (singletonView (iknpSenderView (x 0) c.1 (fun i => iknpColumns (x 1) c.2 i (c.1 i))),
           batchOTAnswer x) := by
   rw [Protocol.realJoint, evalWith_iknp, PMF.map_comp]
-  exact congrArg (PMF.map · _) (funext fun c => by
-    simp only [Function.comp_apply, Prod.map, id, restrict_singleton, iknpReceived_zero])
+  refine congrArg (PMF.map · _) (funext fun c => ?_)
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
+  rw [iknpReceived_zero]
 
 /-- **Perfect privacy against the sender**: the ideal joint distribution with `iknpSenderSim`
 equals the real one, because the columns `tⁱ + sᵢ r` are uniform whatever `s` and `r` are. -/
@@ -419,8 +420,9 @@ private theorem iknp_simulated_pairs (H : Fin m → BitString κ → L) (X : Fin
     (fun j b => if b = r j then X j (r j) + H j (T j) else ((fun j => X j (!r j)) + w) j) =
       fun j b => X j b + if b = r j then H j (T j) else w j := by
   funext j b
-  rcases eq_or_ne b (r j) with rfl | hb
-  · simp
+  by_cases hb : b = r j
+  · subst hb
+    simp
   · obtain rfl : b = !r j := by cases b <;> cases h : r j <;> simp_all
     simp
 
@@ -447,8 +449,9 @@ theorem realJoint_iknp_receiver (H : Fin m → BitString κ → L)
           fun j b => x 0 j b + if b = x 1 j then H j (c.2 j) else H j (c.2 j + c.1)),
           batchOTAnswer x) := by
   rw [Protocol.realJoint, evalWith_iknp, PMF.map_comp]
-  exact congrArg (PMF.map · _) (funext fun c => by
-    simp only [Function.comp_apply, Prod.map, id, restrict_singleton, iknpReceived_one])
+  refine congrArg (PMF.map · _) (funext fun c => ?_)
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
+  rw [iknpReceived_one]
 
 /-- The real joint distribution for a corrupted receiver, tested by `D`, is the real
 correlation-robustness game of `iknpReduction H x D`: the unchosen entries are masked by

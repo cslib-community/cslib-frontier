@@ -112,10 +112,11 @@ theorem atoms_bigConj {l : List RawFormula} {a : ℕ × ℕ} (h : a ∈ (bigConj
   induction l with
   | nil => simp [bigConj, verum, neg, atoms] at h
   | cons ψ l ih =>
-    rcases List.mem_append.1 (by simpa [bigConj, conj, neg, atoms] using h) with h | h
-    · exact ⟨ψ, List.mem_cons_self, h⟩
+    simp only [bigConj, conj, neg, atoms, List.append_nil, List.mem_append] at h
+    rcases h with h | h
+    · exact ⟨ψ, by simp, h⟩
     · obtain ⟨φ, hφ, h⟩ := ih h
-      exact ⟨φ, List.mem_cons_of_mem _ hφ, h⟩
+      exact ⟨φ, by simp [hφ], h⟩
 
 /-! ### Existential quantification of a range of variables -/
 

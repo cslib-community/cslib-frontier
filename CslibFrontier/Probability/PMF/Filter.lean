@@ -59,7 +59,8 @@ private theorem filter_apply_eq (p : PMF α) (s : Set α) (h : ∃ a ∈ s, a �
 private theorem toOuterMeasure_ne_zero (p : PMF α) (s : Set α) (h : ∃ a ∈ s, a ∈ p.support) :
     p.toOuterMeasure s ≠ 0 := by
   obtain ⟨a, ha, hp⟩ := h
-  exact mt (PMF.toOuterMeasure_apply_eq_zero_iff p s).mp (Set.not_disjoint_iff.mpr ⟨a, hp, ha⟩)
+  rw [Ne, PMF.toOuterMeasure_apply_eq_zero_iff, Set.not_disjoint_iff]
+  exact ⟨a, hp, ha⟩
 
 /-- The conditioned masses restricted to `t` are the masses on `s ∩ t`, divided by `Pr[s]`. -/
 private theorem indicator_filter_apply (p : PMF α) (s t : Set α) (h : ∃ a ∈ s, a ∈ p.support)
@@ -76,8 +77,9 @@ theorem filter_eq_self_of_support_subset (p : PMF α) (s : Set α) (h : ∃ a �
   ext a
   rw [filter_apply_eq, (PMF.toOuterMeasure_apply_eq_one_iff p s).mpr hs, inv_one, mul_one]
   by_cases ha : a ∈ s
-  · exact Set.indicator_of_mem ha p
-  · exact (Set.indicator_of_notMem ha p).trans ((PMF.apply_eq_zero_iff p a).mpr (ha ∘ @hs a)).symm
+  · rw [Set.indicator_of_mem ha]
+  · rw [Set.indicator_of_notMem ha]
+    exact ((PMF.apply_eq_zero_iff p a).mpr fun hp => ha (hs hp)).symm
 
 /-- The probability of `t` given `s`, times the probability of `s`, is the probability of
 `s ∩ t`. -/

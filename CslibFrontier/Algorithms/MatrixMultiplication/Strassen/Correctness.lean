@@ -46,13 +46,16 @@ theorem multiply_eq_coefficients {p : ℕ} (hp : p ≠ 0) (k : ℕ)
   induction k generalizing M N a b i with
   | zero =>
     have hip : i < p := by simpa using hi
-    rw [show multiply p 0 a b i =
-        convolution p (coeff hp · (M 0 0)) (coeff hp · (N 0 0)) i from
-      convolution_congr hip
-        (fun j hj => (hA j (by simpa using hj)).trans (coefficients_of_lt hp M hj))
-        (fun j hj => (hB j (by simpa using hj)).trans (coefficients_of_lt hp N hj)),
-      ← coeff_mul_eq_convolution hp _ _ hip, coefficients_of_lt hp _ hip]
-    simp
+    calc
+      _ = convolution p (fun j => coeff hp j (M 0 0))
+          (fun j => coeff hp j (N 0 0)) i := by
+        apply convolution_congr hip
+        · intro j hj
+          exact (hA j (by simpa using hj)).trans (coefficients_of_lt hp M hj)
+        · intro j hj
+          exact (hB j (by simpa using hj)).trans (coefficients_of_lt hp N hj)
+      _ = coeff hp i (M 0 0 * N 0 0) := (coeff_mul_eq_convolution hp _ _ hip).symm
+      _ = _ := by rw [coefficients_of_lt hp _ hip]; simp
   | succ k ih =>
     let q := 4 ^ k * p
     let j := i % q
@@ -63,6 +66,7 @@ theorem multiply_eq_coefficients {p : ℕ} (hp : p ≠ 0) (k : ℕ)
     have ht : i / q < 4 := (Nat.div_lt_iff_lt_mul hq).mpr (by simpa only [← hs] using hi)
     generalize htdef : i / q = t at ht
     have he : t * q + j = i := by
+      dsimp only [j]
       rw [← htdef, Nat.mul_comm]
       exact Nat.div_add_mod i q
     -- Each quarter of an input array agrees with the corresponding quadrant.
@@ -70,32 +74,54 @@ theorem multiply_eq_coefficients {p : ℕ} (hp : p ≠ 0) (k : ℕ)
         (hA : ∀ i < 4 ^ (k + 1) * p, a i = coefficients hp M i)
         (t : ℕ) (ht : t < 4) (s : ℕ) (hs' : s < q) :
         quarter q t a s = coefficients hp (submatrix k t M) s := by
-      have := Nat.mul_le_mul_right q (show t ≤ 3 by omega)
-      exact (hA (t * q + s) (by rw [hs]; omega)).trans (quarter_coefficients hp k M ht hs')
+      have hm := Nat.mul_le_mul_right q (show t ≤ 3 by omega)
+      exact (hA (t * q + s) (by rw [hs]; omega)).trans
+        (quarter_coefficients hp k M ht hs')
     have hqa := hquarter M a hA
     have hqb := hquarter N b hB
     -- Agreement is preserved by sums and differences of quadrants.
     have hadd {x y : ℕ → ℤ} {X Y : ℕ → ℕ → CyclicIntRing p}
         (hx : ∀ s < q, x s = coefficients hp X s) (hy : ∀ s < q, y s = coefficients hp Y s) :
-        ∀ s < q, (x + y) s = coefficients hp (X + Y) s :=
-      fun s hs' => by simp only [Pi.add_apply, coefficients_add, hx s hs', hy s hs']
+        ∀ s < q, (x + y) s = coefficients hp (X + Y) s := fun s hs' => by
+      rw [coefficients_add]
+      exact congrArg₂ (· + ·) (hx s hs') (hy s hs')
     have hsub {x y : ℕ → ℤ} {X Y : ℕ → ℕ → CyclicIntRing p}
         (hx : ∀ s < q, x s = coefficients hp X s) (hy : ∀ s < q, y s = coefficients hp Y s) :
-        ∀ s < q, (x - y) s = coefficients hp (X - Y) s :=
-      fun s hs' => by simp only [Pi.sub_apply, coefficients_sub, hx s hs', hy s hs']
-    have h₁ := ih _ _ _ _ (hadd (hqa 0 (by decide)) (hqa 3 (by decide)))
+        ∀ s < q, (x - y) s = coefficients hp (X - Y) s := fun s hs' => by
+      rw [coefficients_sub]
+      exact congrArg₂ (· - ·) (hx s hs') (hy s hs')
+    have h₁ := ih (submatrix k 0 M + submatrix k 3 M) (submatrix k 0 N + submatrix k 3 N)
+      (quarter q 0 a + quarter q 3 a) (quarter q 0 b + quarter q 3 b)
+      (hadd (hqa 0 (by decide)) (hqa 3 (by decide)))
       (hadd (hqb 0 (by decide)) (hqb 3 (by decide))) hj
-    have h₂ := ih _ _ _ _ (hadd (hqa 2 (by decide)) (hqa 3 (by decide))) (hqb 0 (by decide)) hj
-    have h₃ := ih _ _ _ _ (hqa 0 (by decide)) (hsub (hqb 1 (by decide)) (hqb 3 (by decide))) hj
-    have h₄ := ih _ _ _ _ (hqa 3 (by decide)) (hsub (hqb 2 (by decide)) (hqb 0 (by decide))) hj
-    have h₅ := ih _ _ _ _ (hadd (hqa 0 (by decide)) (hqa 1 (by decide))) (hqb 3 (by decide)) hj
-    have h₆ := ih _ _ _ _ (hsub (hqa 2 (by decide)) (hqa 0 (by decide)))
+    have h₂ := ih (submatrix k 2 M + submatrix k 3 M) (submatrix k 0 N)
+      (quarter q 2 a + quarter q 3 a) (quarter q 0 b)
+      (hadd (hqa 2 (by decide)) (hqa 3 (by decide))) (hqb 0 (by decide)) hj
+    have h₃ := ih (submatrix k 0 M) (submatrix k 1 N - submatrix k 3 N)
+      (quarter q 0 a) (quarter q 1 b - quarter q 3 b)
+      (hqa 0 (by decide)) (hsub (hqb 1 (by decide)) (hqb 3 (by decide))) hj
+    have h₄ := ih (submatrix k 3 M) (submatrix k 2 N - submatrix k 0 N)
+      (quarter q 3 a) (quarter q 2 b - quarter q 0 b)
+      (hqa 3 (by decide)) (hsub (hqb 2 (by decide)) (hqb 0 (by decide))) hj
+    have h₅ := ih (submatrix k 0 M + submatrix k 1 M) (submatrix k 3 N)
+      (quarter q 0 a + quarter q 1 a) (quarter q 3 b)
+      (hadd (hqa 0 (by decide)) (hqa 1 (by decide))) (hqb 3 (by decide)) hj
+    have h₆ := ih (submatrix k 2 M - submatrix k 0 M) (submatrix k 0 N + submatrix k 1 N)
+      (quarter q 2 a - quarter q 0 a) (quarter q 0 b + quarter q 1 b)
+      (hsub (hqa 2 (by decide)) (hqa 0 (by decide)))
       (hadd (hqb 0 (by decide)) (hqb 1 (by decide))) hj
-    have h₇ := ih _ _ _ _ (hsub (hqa 1 (by decide)) (hqa 3 (by decide)))
+    have h₇ := ih (submatrix k 1 M - submatrix k 3 M) (submatrix k 2 N + submatrix k 3 N)
+      (quarter q 1 a - quarter q 3 a) (quarter q 2 b + quarter q 3 b)
+      (hsub (hqa 1 (by decide)) (hqa 3 (by decide)))
       (hadd (hqb 2 (by decide)) (hqb 3 (by decide))) hj
+    have hR : coefficients hp
+        (fun r s => ∑ c ∈ Finset.range (2 ^ (k + 1)), M r c * N c s) i =
+        coefficients hp (submatrix k t
+          (fun r s => ∑ c ∈ Finset.range (2 ^ (k + 1)), M r c * N c s)) j := by
+      rw [← he]
+      exact quarter_coefficients hp k _ ht hj
     have hjeq : i % q = j := rfl
-    rw [show coefficients hp (fun r s => ∑ c ∈ Finset.range (2 ^ (k + 1)), M r c * N c s) i =
-        coefficients hp (submatrix k t _) j by rw [← he]; exact quarter_coefficients hp k _ ht hj]
+    rw [hR]
     simp only [multiply, hqeq, assemble, htdef, hjeq, Pi.add_apply, Pi.sub_apply]
     interval_cases t <;> simp only [h₁, h₂, h₃, h₄, h₅, h₆, h₇]
     all_goals

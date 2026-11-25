@@ -74,15 +74,17 @@ private theorem exists_advice_budget_le {advice : ℕ → List Bool}
   set L := 2 * n + 1 + word.length + 1 with hL
   have hLD : L ≤ L ^ (D + 1) := Nat.le_self_pow (Nat.succ_ne_zero D) L
   have hCL : C * (n + 1) ^ D ≤ C * L ^ (D + 1) :=
-    Nat.mul_le_mul_left C ((Nat.pow_le_pow_left (by omega) D).trans
-      (Nat.pow_le_pow_right (by omega) (Nat.le_succ D)))
+    Nat.mul_le_mul_left C
+      ((Nat.pow_le_pow_left (by omega) D).trans (Nat.pow_le_pow_right (by omega) (Nat.le_succ D)))
   have hC1 : C ≤ C * L ^ (D + 1) := Nat.le_mul_of_pos_right C (by omega)
   have hbase : 2 * (2 * n + 1 + (advice n).length) + 1 + word.length + 1 ≤
       (2 * C + 4) * L ^ (D + 1) := by
     have := hC n
-    rw [add_mul, mul_assoc]; omega
-  exact (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hbase d)).trans_eq
-    (by rw [mul_pow, ← pow_mul, mul_assoc])
+    rw [add_mul, mul_assoc]
+    omega
+  calc c * (2 * (2 * n + 1 + (advice n).length) + 1 + word.length + 1) ^ d
+      ≤ c * ((2 * C + 4) * L ^ (D + 1)) ^ d := Nat.mul_le_mul_left c (Nat.pow_le_pow_left hbase d)
+    _ = c * (2 * C + 4) ^ d * L ^ ((D + 1) * d) := by rw [mul_pow, ← pow_mul, mul_assoc]
 
 /-- **The prediction gap relative to fixed advice.** If inverting `f` is hard with a polynomially
 bounded advice family, then every uniform strict PPT word predictor reading the same advice
@@ -178,9 +180,10 @@ private theorem exists_pseudoentropyPair_of_fixedOutputLength {g : List Bool →
     (ofFn_ofList (by simp [hlength])).symm
   refine ⟨HashPair.pair g hg finiteFunction encodeImage hencode, fun advice hhard hadvice =>
     (HashPair.pair_hasGapWithAdvice hg hhard hadvice finiteFunction encodeImage hencode length
-      (fun _ _ => List.length_ofFn)).mono fun n => one_div_le_one_div_of_le
-        (by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne (HashPair.hashCount n)))
-        (by exact_mod_cast HashPair.hashCount_le n)⟩
+      (fun _ _ => List.length_ofFn)).mono (fun n => ?_)⟩
+  apply one_div_le_one_div_of_le
+  · exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne (HashPair.hashCount n))
+  · exact_mod_cast HashPair.hashCount_le n
 
 /-- Every one-way word function yields an exactly samplable pseudoentropy pair with an explicit
 inverse-polynomial prediction gap. Normalization handles arbitrary original output lengths. -/

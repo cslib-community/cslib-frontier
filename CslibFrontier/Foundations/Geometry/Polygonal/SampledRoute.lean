@@ -63,10 +63,13 @@ private theorem sampled_segment (γ : ℝ → ℂ) (m : ℕ) (i : Fin (sampled �
   let b : ℝ := ((i.val : ℝ) + 1) / (m + 1 : ℝ)
   have hmpos : 0 < (m + 1 : ℝ) := by positivity
   have hiv : (i.val : ℝ) + 1 ≤ m + 1 := by exact_mod_cast i.isLt
-  refine ⟨a, b, ⟨by positivity, (div_le_one hmpos).mpr (by linarith)⟩,
-    ⟨by positivity, (div_le_one hmpos).mpr hiv⟩, by dsimp [a, b]; ring, rfl, ?_⟩
-  change γ (((i.val + 1 : ℕ) : ℝ) / (m + 1 : ℝ)) = γ b
-  rw [Nat.cast_add, Nat.cast_one]
+  have ha : a ∈ Icc 0 1 := ⟨by positivity, (div_le_one hmpos).mpr (by linarith)⟩
+  have hb : b ∈ Icc 0 1 := ⟨by positivity, (div_le_one hmpos).mpr hiv⟩
+  refine ⟨a, b, ha, hb, ?_, rfl, ?_⟩
+  · dsimp [a, b]
+    ring
+  · change γ (((i.val + 1 : ℕ) : ℝ) / (m + 1 : ℝ)) = γ b
+    rw [Nat.cast_add, Nat.cast_one]
 
 /-- All sufficiently fine uniform samples of a continuous path stay in any positive
 open metric thickening of its image, including along the interiors of the chords. -/
@@ -111,14 +114,16 @@ theorem eventually_sampled_outward (γ : ℝ → ℂ) (z : ℂ) {K : ℝ≥0}
       ‖(sampled γ m).point i.succ - (sampled γ m).point i.castSucc‖ ^ 2 <
         ‖(sampled γ m).point i.succ - z‖ ^ 2 - ‖(sampled γ m).point i.castSucc - z‖ ^ 2 := by
   have hslope : 0 < R - r := sub_pos.mpr hrR
-  filter_upwards [eventually_uniform_mesh_lt
-    (by positivity : 0 < 2 * r * (R - r) / ((K : ℝ) ^ 2 + 1))] with m hmesh i
+  have hthreshold : 0 < 2 * r * (R - r) / ((K : ℝ) ^ 2 + 1) := by positivity
+  filter_upwards [eventually_uniform_mesh_lt hthreshold] with m hmesh
+  intro i
   obtain ⟨a, b, ha, hb, hstep, hleft, hright⟩ := sampled_segment γ m i
   have hpos : 0 < b - a := by rw [hstep]; positivity
   have hchord : ‖γ b - γ a‖ ≤ (K : ℝ) * (b - a) := by
     simpa only [dist_eq_norm, Real.norm_eq_abs, abs_of_pos hpos] using hγ.dist_le_mul b hb a ha
   have hsmall : (K : ℝ) ^ 2 * (b - a) < 2 * r * (R - r) := by
-    have := (lt_div_iff₀ (by positivity : 0 < (K : ℝ) ^ 2 + 1)).mp (hstep ▸ hmesh)
+    rw [← hstep] at hmesh
+    have h := (lt_div_iff₀ (by positivity : 0 < (K : ℝ) ^ 2 + 1)).mp hmesh
     linarith
   have hsum : 2 * r ≤ AffineMap.lineMap r R b + AffineMap.lineMap r R a := by
     simp only [AffineMap.lineMap_apply_ring']
@@ -127,7 +132,9 @@ theorem eventually_sampled_outward (γ : ℝ → ℂ) (z : ℂ) {K : ℝ≥0}
     simp only [AffineMap.lineMap_apply_ring']
     ring
   rw [hleft, hright, hrad a ha, hrad b hb]
-  calc _ ≤ ((K : ℝ) * (b - a)) ^ 2 := (sq_le_sq₀ (norm_nonneg _) (by positivity)).mpr hchord
+  calc
+    _ ≤ ((K : ℝ) * (b - a)) ^ 2 :=
+      (sq_le_sq₀ (norm_nonneg _) (by positivity)).mpr hchord
     _ = ((K : ℝ) ^ 2 * (b - a)) * (b - a) := by ring
     _ < (2 * r * (R - r)) * (b - a) := mul_lt_mul_of_pos_right hsmall hpos
     _ = (AffineMap.lineMap r R b - AffineMap.lineMap r R a) * (2 * r) := by rw [hdiff]; ring
@@ -142,8 +149,11 @@ theorem exists_support_subset_of_joinedIn {U : Set ℂ} {a b : ℂ}
     (hU : IsOpen U) (h : JoinedIn U a b) :
     ∃ p : Route, p.start = a ∧ p.finish = b ∧ p.support ⊆ U := by
   let γ := h.somePath
-  obtain ⟨ε, hε, hthick⟩ := (isCompact_range (map_continuous γ)).exists_thickening_subset_open hU
-    (by rintro _ ⟨t, rfl⟩; exact h.somePath_mem t)
+  have hcompact : IsCompact (Set.range γ) := isCompact_range (map_continuous γ)
+  have hsub : Set.range γ ⊆ U := by
+    rintro z ⟨t, rfl⟩
+    exact h.somePath_mem t
+  obtain ⟨ε, hε, hthick⟩ := hcompact.exists_thickening_subset_open hU hsub
   obtain ⟨m, hm⟩ :=
     (eventually_sampled_support_subset γ.extend γ.continuous_extend.continuousOn hε).exists
   rw [γ.image_extend_of_subset Subset.rfl] at hm

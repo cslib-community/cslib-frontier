@@ -201,10 +201,15 @@ def canonicalExtension (a b : Bool) : Variable → Bool :=
 
 /-- The explicit full assignment satisfies the paired-port formula. -/
 theorem eval_canonicalExtension (a b : Bool) : formula.eval (canonicalExtension a b) = true := by
-  refine (eval_formula_iff _).2 ⟨?_, fun s => by fin_cases s <;> rfl⟩
-  rw [show canonicalExtension a b ∘ representative = Crossover.canonicalSplitExtension a b from
-    funext fun v => by cases v <;> rfl]
-  exact Crossover.eval_canonicalSplitExtension a b
+  apply (eval_formula_iff _).2
+  constructor
+  · have heq : canonicalExtension a b ∘ representative = Crossover.canonicalSplitExtension a b := by
+      funext v
+      cases v <;> rfl
+    rw [heq]
+    exact Crossover.eval_canonicalSplitExtension a b
+  · intro s
+    fin_cases s <;> rfl
 
 /-- Both lanes on the left and right carry `a`; both lanes on the top and bottom carry `b`. -/
 theorem terminal_values_canonicalExtension (a b : Bool) :

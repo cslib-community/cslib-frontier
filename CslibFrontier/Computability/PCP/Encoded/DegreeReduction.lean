@@ -250,7 +250,9 @@ theorem toGraph_degreeReduce [DecidableEq α] [DecidableEq D] (labels : List D)
         (fun p => halfEdgeNumber (p.1.val, p.2))).comap
           (g.degreeReduceEnumeration fallback rotate labels hlabels hmem).equiv := by
   apply toGraph_eq_comap _ _ (g.degreeReduceEnumeration fallback rotate labels hlabels hmem)
-  · exact fun _ => by simp only [src_degreeReduceEdge, numberDart]; rfl
+  · intro p
+    simp only [src_degreeReduceEdge, numberDart]
+    rfl
   · exact dst_degreeReduceEdge g eval fallback family rotate hrotate
   · exact rel_degreeReduceEdge g eval fallback family rotate
 
@@ -262,13 +264,17 @@ theorem wellFormed_degreeReduce (labels : List D) :
   intro e he
   obtain ⟨⟨⟨i, b⟩, tag⟩, hp, rfl⟩ := List.mem_map.mp he
   have hi := ((g.mem_degreeReduceDarts_iff labels _).mp hp).1
-  refine ⟨(src_degreeReduceEdge fallback rotate g _).symm ▸ halfEdgeNumber_lt hi, ?_⟩
-  cases tag with
-  | none => exact halfEdgeNumber_lt hi
-  | some d =>
-    change (g.degreeReduceEdge fallback rotate (numberDart ((⟨i, hi⟩, b), .inr d))).dst < _
-    rw [dst_degreeReduceEdge g (fun _ (_ _ : Unit) => true) fallback family rotate hrotate]
-    exact halfEdgeNumber_lt (Fin.isLt _)
+  constructor
+  · rw [src_degreeReduceEdge]
+    exact halfEdgeNumber_lt hi
+  · cases tag with
+    | none => exact halfEdgeNumber_lt hi
+    | some d =>
+      change (g.degreeReduceEdge fallback rotate
+        (numberDart ((⟨i, hi⟩, b), Sum.inr d))).dst < _
+      rw [dst_degreeReduceEdge g (fun _ (_ _ : Unit) => true) fallback family rotate hrotate]
+      apply halfEdgeNumber_lt
+      exact Fin.isLt _
 
 /-- Restricting half-edge numbering to existing edges is still injective. -/
 theorem halfEdgeNumber_fin_injective (edges : ℕ) :

@@ -143,14 +143,18 @@ theorem Represents.write {t : RawTape Symbol} {native : ℤ → Option Symbol} {
     · simpa [hz, show pos + z ≠ pos by omega] using h z
 
 theorem Represents.moveLeft {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}
-    (h : t.Represents native pos) : t.moveLeft.Represents native (pos - 1) := fun z => by
+    (h : t.Represents native pos) : t.moveLeft.Represents native (pos - 1) := by
+  intro z
   rw [read_moveLeft, h]
-  exact congrArg native (by omega)
+  congr 1
+  omega
 
 theorem Represents.moveRight {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}
-    (h : t.Represents native pos) : t.moveRight.Represents native (pos + 1) := fun z => by
+    (h : t.Represents native pos) : t.moveRight.Represents native (pos + 1) := by
+  intro z
   rw [read_moveRight, h]
-  exact congrArg native (by omega)
+  congr 1
+  omega
 
 /-- Raw execution preserves a native optional-write-and-move action, including erasing cells. -/
 theorem Represents.step {t : RawTape Symbol} {native : ℤ → Option Symbol} {pos : ℤ}

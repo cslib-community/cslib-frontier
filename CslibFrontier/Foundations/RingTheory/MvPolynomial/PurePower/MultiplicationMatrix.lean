@@ -65,27 +65,39 @@ theorem multiplicationMatrix_map (φ : S →+* T) (hell : 1 ≤ ell)
         (fun i => (totalDegree_map_le φ (r i)).trans_lt (hr i)) (v.map φ) := by
   classical
   let r' : Fin n → MvPolynomial (Fin n) T := fun i => (r i).map φ
+  have hr' (i : Fin n) : (r' i).totalDegree < ell :=
+    (totalDegree_map_le φ (r i)).trans_lt (hr i)
   let f := (projection ell r').toRingHom.comp (MvPolynomial.map φ)
-  have hf : relationIdeal ell r ≤ RingHom.ker f := Ideal.span_le.mpr <| by
+  have hf : relationIdeal ell r ≤ RingHom.ker f := by
+    apply Ideal.span_le.mpr
     rintro _ ⟨i, rfl⟩
     change (projection ell r') ((X i ^ ell - r i).map φ) = 0
-    rw [map_sub, map_pow, map_X, map_sub, map_pow, projection_X_pow, sub_self]
+    rw [map_sub, map_pow, map_X, map_sub, map_pow, projection_X_pow]
+    exact sub_self _
   let q : QuotientAlgebra ell r →+* QuotientAlgebra ell r' :=
-    Ideal.Quotient.lift (relationIdeal ell r) f fun _ hx => hf hx
+    Ideal.Quotient.lift (relationIdeal ell r) f (fun _ hx => hf hx)
   have hproj (w : MvPolynomial (Fin n) S) :
       q (projection ell r w) = projection ell r' (w.map φ) := rfl
   let b := normalBasis hell r hr
-  let b' := normalBasis hell r' fun i => (totalDegree_map_le φ (r i)).trans_lt (hr i)
+  let b' := normalBasis hell r' hr'
   have hb (j : NormalIndex n ell) : q (b j) = b' j := by
     simp only [b, b', normalBasis_apply, normalClass, hproj, map_monomial, map_one]
+  have hscalar (a : S) : q (algebraMap S (QuotientAlgebra ell r) a) =
+      algebraMap T (QuotientAlgebra ell r') (φ a) := by
+    rw [← (projection ell r).commutes a, ← (projection ell r').commutes (φ a),
+      hproj, MvPolynomial.algebraMap_eq, MvPolynomial.algebraMap_eq, map_C]
   have hterm (a : S) (j : NormalIndex n ell) : q (a • b j) = φ a • b' j := by
-    rw [Algebra.smul_def a (b j), map_mul, ← (projection ell r).commutes a, hproj,
-      MvPolynomial.algebraMap_eq, map_C, ← MvPolynomial.algebraMap_eq,
-      (projection ell r').commutes, hb, ← Algebra.smul_def (φ a) (b' j)]
+    calc
+      q (a • b j) = q (algebraMap S (QuotientAlgebra ell r) a * b j) :=
+        congrArg q (Algebra.smul_def a (b j))
+      _ = algebraMap T (QuotientAlgebra ell r') (φ a) * b' j := by
+        rw [map_mul, hscalar, hb]
+      _ = φ a • b' j := (Algebra.smul_def _ _).symm
   have hcoord (x : QuotientAlgebra ell r) (i : NormalIndex n ell) :
       φ (b.repr x i) = b'.repr (q x) i := by
     have hx := congrArg q (b.sum_repr x)
-    simp only [map_sum, hterm] at hx
+    rw [map_sum] at hx
+    simp_rw [hterm] at hx
     rw [← hx, b'.repr_sum_self]
   ext i j
   change φ (Algebra.leftMulMatrix b (projection ell r v) i j) =
@@ -116,7 +128,8 @@ theorem multiplicationMatrix_map_trace_pow (φ : S →+* T)
         residue (d + 1) (fun i => (r i).map φ)
           ((v.map φ) ^ k * jacobian (d + 1) (fun i => (r i).map φ)) := by
   classical
-  rw [← Matrix.map_pow, ← AddMonoidHom.map_trace, multiplicationMatrix_trace_pow d hd r hr v k,
+  rw [← Matrix.map_pow, ← AddMonoidHom.map_trace,
+    multiplicationMatrix_trace_pow d hd r hr v k,
     residue_map φ (by omega) r (fun i => (hr i).trans_lt (Nat.lt_succ_self d)),
     map_mul, map_pow, jacobian_map]
 
@@ -149,14 +162,19 @@ theorem exists_common_zero_of_rootMultiplicity_multiplicationMatrix_eq_one {K : 
   let b := normalBasis hell r hr
   let : Module.Finite K A := Module.Finite.of_basis b
   let π := projection ell r
-  rw [show (multiplicationMatrix hell r hr v).charpoly = (Algebra.lmul K A (π v)).charpoly by
+  have hchar : (multiplicationMatrix hell r hr v).charpoly =
+      (Algebra.lmul K A (π v)).charpoly := by
     change (Algebra.leftMulMatrix b (π v)).charpoly = _
-    rw [Algebra.leftMulMatrix_apply, LinearMap.charpoly_toMatrix]] at hsimple
+    rw [Algebra.leftMulMatrix_apply, LinearMap.charpoly_toMatrix]
+  rw [hchar] at hsimple
   obtain ⟨χ, hχ⟩ := Algebra.exists_algHom_of_rootMultiplicity_lmul_eq_one (π v) hsimple
   let x : Fin n → K := fun i => χ (π (X i))
+  have hcomp : χ.comp π = aeval x := by
+    apply MvPolynomial.algHom_ext
+    intro i
+    simp only [AlgHom.comp_apply, aeval_X, x]
   have heval (q : MvPolynomial (Fin n) K) : χ (π q) = aeval x q :=
-    DFunLike.congr_fun (f := χ.comp π) (g := aeval x)
-      (MvPolynomial.algHom_ext fun i => by simp [x]) q
+    congrArg (fun f : MvPolynomial (Fin n) K →ₐ[K] K => f q) hcomp
   refine ⟨x, fun i => ?_, (heval v).symm.trans hχ⟩
   rw [← heval, ← projection_X_pow ell r i]
   simp only [map_pow, x, π]

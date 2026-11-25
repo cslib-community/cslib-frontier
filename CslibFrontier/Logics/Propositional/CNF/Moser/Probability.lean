@@ -158,16 +158,21 @@ theorem lintegral_resamplings_le {k : ℕ} (hk : 3 ≤ k) (hφ : φ.IsExactDisti
   rw [lintegral_resamplings_eq_tsum hφ,
     ← Summable.sum_add_tsum_nat_add' (k := φ.length + 1) CompleteLattice.summable]
   have h1 : ∑ t ∈ range (φ.length + 1), coinFlips {x | Exhausts φ k (t + 1) x} ≤ φ.length + 1 :=
-    (sum_le_sum fun _ _ => prob_le_one).trans_eq (by simp)
+    calc _ ≤ ∑ _t ∈ range (φ.length + 1), (1 : ℝ≥0∞) := sum_le_sum fun _ _ => prob_le_one
+      _ = φ.length + 1 := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one,
+          Nat.cast_add, Nat.cast_one]
   have h2 : ∑' t : ℕ, coinFlips {x | Exhausts φ k (t + (φ.length + 1) + 1) x} ≤ 1 := by
-    refine (tsum_le_tsum (g := fun t => (2⁻¹ : ℝ≥0∞) ^ (t + 1)) fun t => ?_).trans_eq ?_
-    · refine (coinFlips_exhausts_le hk hφ hdeg _).trans_eq ?_
-      rw [show t + (φ.length + 1) + 1 = (φ.length + 1) + (t + 1) by omega,
-        pow_add (2⁻¹ : ℝ≥0∞), ← mul_assoc, ← mul_pow,
-        ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top, one_pow, one_mul]
-    · rw [ENNReal.tsum_geometric_add_one, ENNReal.one_sub_inv_two,
-        ENNReal.mul_inv_cancel (by simp) (by simp)]
-  exact (add_le_add h1 h2).trans_eq (by rw [add_assoc, one_add_one_eq_two])
+    calc _ ≤ ∑' t : ℕ, (2⁻¹ : ℝ≥0∞) ^ (t + 1) := by
+          refine tsum_le_tsum fun t => ?_
+          refine (coinFlips_exhausts_le hk hφ hdeg _).trans (le_of_eq ?_)
+          rw [show t + (φ.length + 1) + 1 = (φ.length + 1) + (t + 1) by omega,
+            pow_add (2⁻¹ : ℝ≥0∞) (φ.length + 1) (t + 1), ← mul_assoc, ← mul_pow,
+            ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top, one_pow, one_mul]
+      _ = 1 := by
+          rw [ENNReal.tsum_geometric_add_one, ENNReal.one_sub_inv_two,
+            ENNReal.mul_inv_cancel (by simp) (by simp)]
+  calc _ ≤ ((φ.length : ℝ≥0∞) + 1) + 1 := add_le_add h1 h2
+    _ = φ.length + 2 := by rw [add_assoc, one_add_one_eq_two]
 
 /-- **Termination.** If every clause of an exact `k`-CNF shares a variable with fewer than
 `2 ^ (k - 3)` other clauses, the run on fair coins stops almost surely. -/

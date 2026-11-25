@@ -122,28 +122,35 @@ private theorem isPrice_dist (hK : ¬ ContractingCase K) (k : ℕ) (V : Type) [F
   obtain ⟨w, hw, hrk⟩ := exists_sq_eq_rank hK (μ := k + 3) (by omega)
   obtain ⟨Y, _, _, φ, hY, hφ⟩ := Curvature.exists_completeCAT0Space_of_isPrice hw
   obtain ⟨F, hF⟩ := exists_cube (Y := Y) (fun S => φ (dg S)) fun S T => by
-    rw [hφ, hrk, show (dg S - dg T : Mt (k + 3)) = X 1 1 (symmDiff S T) by
+    have e : (dg S - dg T : Mt (k + 3)) = X 1 1 (symmDiff S T) := by
       ext i j
-      rcases eq_or_ne i j with rfl | hij
-      · by_cases hS : i ∈ S <;> by_cases hT : i ∈ T <;> simp [X_one, dg, hS, hT, mem_symmDiff]
-      · simp [X_one, dg, hij], rank_X]
+      by_cases hij : i = j
+      · subst hij
+        by_cases hS : i ∈ S <;> by_cases hT : i ∈ T <;> simp [X_one, dg, hS, hT, mem_symmDiff]
+      · simp [X_one, dg, hij]
+    rw [hφ, hrk, e, rank_X]
   -- the points `(E v + c) / (2c)`, padded with zeros, lie in the cube
   obtain ⟨R, hR⟩ := Finite.exists_le fun p : V × Fin k => |E p.1 p.2|
   set c := max R 1
   have hc : 0 < c := lt_max_of_lt_right one_pos
   let g : V → Fin (k + 3) → ℝ := fun v => Fin.append (fun i => (E v i + c) / (2 * c)) 0
-  have hg (v i) : 0 ≤ g v i ∧ g v i ≤ 1 := by
-    refine Fin.addCases (fun i => ?_) (fun _ => by simp [g, Fin.append_right]) i
-    have := abs_le.1 ((hR (v, i)).trans (le_max_left R 1))
-    simp only [g, Fin.append_left]
-    exact ⟨div_nonneg (by linarith) (by positivity), (div_le_one (by positivity)).2 (by linarith)⟩
-  have hdist (u v) : dist (E u) (E v) = 2 * c * dist (F (g u)) (F (g v)) := by
+  have hg : ∀ v i, 0 ≤ g v i ∧ g v i ≤ 1 := fun v i => by
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) i
+    · have := abs_le.1 ((hR (v, i)).trans (le_max_left R 1))
+      simp only [g, Fin.append_left]
+      constructor
+      · exact div_nonneg (by linarith) (by positivity)
+      · rw [div_le_one (by positivity)]; linarith
+    · simp [g, Fin.append_right]
+  have hdist : ∀ u v, dist (E u) (E v) = 2 * c * dist (F (g u)) (F (g v)) := fun u v => by
     refine (pow_left_inj₀ dist_nonneg (by positivity) two_ne_zero).1 ?_
     rw [mul_pow, hF _ _ (hg u) (hg v), Fin.sum_univ_add, EuclideanSpace.dist_eq,
-      Real.sq_sqrt (sum_nonneg fun _ _ => sq_nonneg _), mul_add, mul_sum]
+      Real.sq_sqrt (sum_nonneg fun _ _ => sq_nonneg _), mul_add, mul_sum, mul_sum]
     simp only [g, Fin.append_left, Fin.append_right, Pi.zero_apply, sub_self, Real.dist_eq, sq_abs]
     norm_num
-    exact sum_congr rfl fun i _ => by field_simp; ring
+    refine sum_congr rfl fun i _ => ?_
+    field_simp
+    ring
   simpa only [← hdist] using (hY.comp fun v => F (g v)).smul (by positivity : 0 ≤ 2 * c)
 
 /-- **Paper: Theorem D.2** (p. 30): at least one of the two hypotheses of Definition D.1 holds,

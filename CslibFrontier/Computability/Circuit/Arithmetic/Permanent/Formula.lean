@@ -87,12 +87,12 @@ private theorem permanent_toBlocks₂₂_rootedMul (M₁ : Matrix (Unit ⊕ m) (
     (M₂ : Matrix (Unit ⊕ n) (Unit ⊕ n) R)
     (h₁ : M₁.toBlocks₂₂.permanent = 1) (h₂ : M₂.toBlocks₂₂.permanent = 1) :
     (rootedMul M₁ M₂).toBlocks₂₂.permanent = 1 := by
-  rw [show (rootedMul M₁ M₂).toBlocks₂₂ =
+  have hblk : (rootedMul M₁ M₂).toBlocks₂₂ =
       fromBlocks M₁.toBlocks₂₂ (of fun i => Sum.elim (M₁.toBlocks₂₁ i) 0) 0
-        (fromBlocks (1 : Matrix Unit Unit R) M₂.toBlocks₁₂ 0 M₂.toBlocks₂₂) by
-    ext (_ | (⟨⟩ | _)) (_ | (⟨⟩ | _)) <;> rfl,
-    permanent_fromBlocks_zero₂₁, permanent_fromBlocks_zero₂₁, permanent_one, h₁, h₂,
-    mul_one, mul_one]
+        (fromBlocks (1 : Matrix Unit Unit R) M₂.toBlocks₁₂ 0 M₂.toBlocks₂₂) := by
+    ext (i₁ | (⟨⟩ | i₂)) (j₁ | (⟨⟩ | j₂)) <;> rfl
+  rw [hblk, permanent_fromBlocks_zero₂₁, permanent_fromBlocks_zero₂₁, permanent_one,
+    h₁, h₂, mul_one, mul_one]
 
 /-- Rooted permanent addition block matrix on `Unit ⊕ (m ⊕ (Unit ⊕ n))`. -/
 private def rootedAdd (M₁ : Matrix (Unit ⊕ m) (Unit ⊕ m) R) (M₂ : Matrix (Unit ⊕ n) (Unit ⊕ n) R) :
@@ -111,11 +111,12 @@ private theorem permanent_toBlocks₂₂_rootedAdd (M₁ : Matrix (Unit ⊕ m) (
     (M₂ : Matrix (Unit ⊕ n) (Unit ⊕ n) R)
     (h₁ : M₁.toBlocks₂₂.permanent = 1) (h₂ : M₂.toBlocks₂₂.permanent = 1) :
     (rootedAdd M₁ M₂).toBlocks₂₂.permanent = 1 := by
-  rw [show (rootedAdd M₁ M₂).toBlocks₂₂ = fromBlocks M₁.toBlocks₂₂ 0 0
-      (fromBlocks (1 : Matrix Unit Unit R) 0 M₂.toBlocks₂₁ M₂.toBlocks₂₂) by
-    ext (_ | (⟨⟩ | _)) (_ | (⟨⟩ | _)) <;> rfl,
-    permanent_fromBlocks_zero, permanent_fromBlocks_zero₁₂, permanent_one, h₁, h₂,
-    mul_one, mul_one]
+  have hblk : (rootedAdd M₁ M₂).toBlocks₂₂ =
+      fromBlocks M₁.toBlocks₂₂ 0 0
+        (fromBlocks (1 : Matrix Unit Unit R) 0 M₂.toBlocks₂₁ M₂.toBlocks₂₂) := by
+    ext (i₁ | (⟨⟩ | i₂)) (j₁ | (⟨⟩ | j₂)) <;> rfl
+  rw [hblk, permanent_fromBlocks_zero, permanent_fromBlocks_zero₁₂, permanent_one,
+    h₁, h₂, mul_one, mul_one]
 
 /-- If the internal blocks of `M₁` and `M₂` have permanent `1`, then the permanent of
 `rootedAdd M₁ M₂` is the sum of the permanents of `M₁` and `M₂`. -/
@@ -132,23 +133,25 @@ private theorem permanent_rootedAdd (M₁ : Matrix (Unit ⊕ m) (Unit ⊕ m) R)
     fromBlocks M₁ (fromBlocks M₂.toBlocks₁₁ M₂.toBlocks₁₂ 0 0)
       (fromBlocks (1 : Matrix Unit Unit R) 0 0 0)
       (fromBlocks (0 : Matrix Unit Unit R) 0 M₂.toBlocks₂₁ M₂.toBlocks₂₂)
-  rw [show fromBlocks M₁ (fromBlocks M₂.toBlocks₁₁ M₂.toBlocks₁₂ 0 0)
+  have hsplit : fromBlocks M₁ (fromBlocks M₂.toBlocks₁₁ M₂.toBlocks₁₂ 0 0)
         (fromBlocks (1 : Matrix Unit Unit R) 0 0 0)
         (fromBlocks (1 : Matrix Unit Unit R) 0 M₂.toBlocks₂₁ M₂.toBlocks₂₂) =
-      B₁.updateRow r (B₁ r + B₂ r) by
-    ext ((⟨⟨⟩⟩ | _) | (⟨⟨⟩⟩ | _)) ((⟨⟨⟩⟩ | _) | (⟨⟨⟩⟩ | _)) <;> simp [B₁, B₂, r],
-    permanent_updateRow_add, updateRow_eq_self, show B₁.updateRow r (B₂ r) = B₂ by
-    ext ((⟨⟨⟩⟩ | _) | (⟨⟨⟩⟩ | _)) ((⟨⟨⟩⟩ | _) | (⟨⟨⟩⟩ | _)) <;> simp [B₁, B₂, r]]
-  congr 1
-  · rw [permanent_fromBlocks_zero₂₁, permanent_fromBlocks_zero₁₂, permanent_one, h₂, mul_one,
+      B₁.updateRow r (B₁ r + B₂ r) := by
+    ext ((⟨⟨⟩⟩ | i₁) | (⟨⟨⟩⟩ | i₂)) ((⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂)) <;> simp [B₁, B₂, r]
+  have hupd : B₁.updateRow r (B₂ r) = B₂ := by
+    ext ((⟨⟨⟩⟩ | i₁) | (⟨⟨⟩⟩ | i₂)) ((⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂)) <;> simp [B₁, B₂, r]
+  have hB₁ : B₁.permanent = M₁.permanent := by
+    rw [permanent_fromBlocks_zero₂₁, permanent_fromBlocks_zero₁₂, permanent_one, h₂, mul_one,
       mul_one]
-  · rw [← permanent_submatrix_equiv_equiv (swapRootEquiv m n) (Equiv.refl _),
-      show B₂.submatrix (swapRootEquiv m n) (Equiv.refl _) =
-        fromBlocks (fromBlocks (1 : Matrix Unit Unit R) 0 M₁.toBlocks₂₁ M₁.toBlocks₂₂) 0
-          (fromBlocks M₁.toBlocks₁₁ M₁.toBlocks₁₂ 0 0) M₂ by
-        ext ((⟨⟨⟩⟩ | _) | (⟨⟨⟩⟩ | _)) ((⟨⟨⟩⟩ | _) | (⟨⟨⟩⟩ | _)) <;> rfl,
+  have hB₂_swap : B₂.submatrix (swapRootEquiv m n) (Equiv.refl _) =
+      fromBlocks (fromBlocks (1 : Matrix Unit Unit R) 0 M₁.toBlocks₂₁ M₁.toBlocks₂₂) 0
+        (fromBlocks M₁.toBlocks₁₁ M₁.toBlocks₁₂ 0 0) M₂ := by
+    ext ((⟨⟨⟩⟩ | i₁) | (⟨⟨⟩⟩ | i₂)) ((⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂)) <;> rfl
+  have hB₂ : B₂.permanent = M₂.permanent := by
+    rw [← permanent_submatrix_equiv_equiv (swapRootEquiv m n) (Equiv.refl _), hB₂_swap,
       permanent_fromBlocks_zero₁₂, permanent_fromBlocks_zero₁₂, permanent_one, h₁, mul_one,
       one_mul]
+  rw [hsplit, permanent_updateRow_add, updateRow_eq_self, hupd, hB₁, hB₂]
 
 end Matrix
 
@@ -205,7 +208,8 @@ private theorem of_isSubstEntry {P : MvPolynomial σ K} (hP : IsSubstEntry P) :
 private theorem add {α β : Type} [Fintype α] [DecidableEq α] [Fintype β] [DecidableEq β]
     {P Q : MvPolynomial σ K} (hP : IsRootedPerm α P) (hQ : IsRootedPerm β Q) :
     IsRootedPerm (α ⊕ (Unit ⊕ β)) (P + Q) := by
-  rcases hP, hQ with ⟨⟨M₁, hM₁, hU₁, rfl⟩, ⟨M₂, hM₂, hU₂, rfl⟩⟩
+  obtain ⟨M₁, hM₁, hU₁, rfl⟩ := hP
+  obtain ⟨M₂, hM₂, hU₂, rfl⟩ := hQ
   exact ⟨Matrix.rootedAdd M₁ M₂, hM₁.rootedAdd hM₂,
     Matrix.permanent_toBlocks₂₂_rootedAdd M₁ M₂ hU₁ hU₂,
     Matrix.permanent_rootedAdd M₁ M₂ hU₁ hU₂⟩
@@ -214,7 +218,8 @@ private theorem add {α β : Type} [Fintype α] [DecidableEq α] [Fintype β] [D
 private theorem mul {α β : Type} [Fintype α] [DecidableEq α] [Fintype β] [DecidableEq β]
     {P Q : MvPolynomial σ K} (hP : IsRootedPerm α P) (hQ : IsRootedPerm β Q) :
     IsRootedPerm (α ⊕ (Unit ⊕ β)) (P * Q) := by
-  rcases hP, hQ with ⟨⟨M₁, hM₁, hU₁, rfl⟩, ⟨M₂, hM₂, hU₂, rfl⟩⟩
+  obtain ⟨M₁, hM₁, hU₁, rfl⟩ := hP
+  obtain ⟨M₂, hM₂, hU₂, rfl⟩ := hQ
   exact ⟨Matrix.rootedMul M₁ M₂, hM₁.rootedMul hM₂,
     Matrix.permanent_toBlocks₂₂_rootedMul M₁ M₂ hU₁ hU₂,
     Matrix.permanent_rootedMul M₁ M₂⟩
@@ -237,10 +242,12 @@ private theorem _root_.Cslib.Circuits.Formula.exists_isRootedPerm
       Fintype.card α ≤ F.size ∧
       IsRootedPerm α (F.eval (arithInterpretationWith K C) X) := by
   induction F with
-  | input i => exact ⟨Empty, inferInstance, inferInstance, le_rfl, .of_isSubstEntry (.X i)⟩
+  | input i =>
+    exact ⟨Empty, inferInstance, inferInstance, le_rfl, .of_isSubstEntry (.X i)⟩
   | gate op args ih =>
     cases op with
-    | const c => exact ⟨Empty, inferInstance, inferInstance, Nat.zero_le _, .of_isSubstEntry (.C c)⟩
+    | const c =>
+      exact ⟨Empty, inferInstance, inferInstance, Nat.zero_le _, .of_isSubstEntry (.C c)⟩
     | add =>
       obtain ⟨α₀, _, _, h₀, hM₀⟩ := ih 0
       obtain ⟨α₁, _, _, h₁, hM₁⟩ := ih 1
@@ -260,8 +267,10 @@ theorem _root_.Cslib.Circuits.Formula.isProjection_permanent
     IsProjection (F.eval (arithInterpretationWith K C) X)
       (genericMatrix K (F.size + 1)).permanent := by
   obtain ⟨α, _, _, hα, M, hM, -, hperm⟩ := F.exists_isRootedPerm
-  exact hperm ▸ isProjection_permanent_mono
-    (by simp only [Fintype.card_sum, Fintype.card_unique]; omega) hM.isProjection_permanent
+  rw [← hperm]
+  refine isProjection_permanent_mono ?_ hM.isProjection_permanent
+  simp only [Fintype.card_sum, Fintype.card_unique]
+  omega
 
 /-- The formal polynomial `(F.toCircuit).polynomial 0` of any arithmetic formula `F` is a
 projection of `(genericMatrix K (F.size + 1)).permanent`. -/

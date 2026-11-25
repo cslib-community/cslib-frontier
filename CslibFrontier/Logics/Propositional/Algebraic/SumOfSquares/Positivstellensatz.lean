@@ -118,9 +118,10 @@ theorem degree_def (t : Summand σ R) :
 /-- The formal degree of a summand bounds the total degree of its polynomial. -/
 theorem totalDegree_toPoly_le (t : Summand σ R) : t.toPoly.totalDegree ≤ t.degree := by
   rw [toPoly, degree]
-  exact (totalDegree_mul _ _).trans (add_le_add
-    ((totalDegree_mul _ _).trans (by rw [totalDegree_C, zero_add]; exact totalDegree_pow _ _))
-    (totalDegree_finsetProd _ _))
+  refine (totalDegree_mul _ _).trans (add_le_add ?_ (totalDegree_finsetProd _ _))
+  refine (totalDegree_mul _ _).trans ?_
+  rw [totalDegree_C, zero_add]
+  exact totalDegree_pow _ _
 
 /-- Over a domain, the formal degree of a summand with nonzero weight, base and factors is the total
 degree of its polynomial. -/
@@ -200,12 +201,13 @@ theorem RefutableInDegree.of_sum {I E : Set (MvPolynomial σ R)} {d : ℕ} {ι �
     (hg : ∀ i, g i ∈ E) (hgd : ∀ i, (h i * g i).totalDegree ≤ d)
     (ht : ∀ k, ↑(t k).factors ⊆ I) (hw : ∀ k, 0 ≤ (t k).weight) (hd : ∀ k, (t k).degree ≤ d)
     (heq : ∑ i, h i * g i + ∑ k, (t k).toPoly = -1) : RefutableInDegree I E d := by
-  refine ⟨⟨Finset.univ.toList.map fun i => (h i, g i), Finset.univ.toList.map t, ?_,
-    List.forall_mem_map.2 fun i _ => hg i, List.forall_mem_map.2 fun i _ => hgd i,
-    List.forall_mem_map.2 fun k _ => ht k, List.forall_mem_map.2 fun k _ => hw k,
-    List.forall_mem_map.2 fun k _ => hd k⟩⟩
-  rw [List.map_map, List.map_map, ← heq]
-  simp only [Function.comp_def, Finset.sum_map_toList]
+  refine ⟨⟨Finset.univ.toList.map fun i => (h i, g i), Finset.univ.toList.map t, ?_, ?_, ?_, ?_,
+    ?_, ?_⟩⟩
+  · rw [List.map_map, List.map_map, ← heq]
+    simp only [Function.comp_def, Finset.sum_map_toList]
+  all_goals simp only [List.mem_map, Finset.mem_toList, Finset.mem_univ, true_and]
+  all_goals rintro _ ⟨i, rfl⟩
+  exacts [hg i, hgd i, ht i, hw i, hd i]
 
 /-- A **pseudo-expectation of degree `d`** for the constraints `f ≥ 0`, `f ∈ I`, and `g = 0`,
 `g ∈ E`: a linear map `Ẽ` from polynomials to `R` with `Ẽ 1 = 1`, `Ẽ (s ^ 2 ∏_{f ∈ S} f) ≥ 0`

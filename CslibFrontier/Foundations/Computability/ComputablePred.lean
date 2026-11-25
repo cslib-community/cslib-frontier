@@ -58,25 +58,30 @@ variable {α β : Type*} [Primcodable α] [Primcodable β]
 /-- Computable predicates are closed under conjunction. -/
 protected theorem and {p q : α → Prop} (hp : ComputablePred p) (hq : ComputablePred q) :
     ComputablePred fun a => p a ∧ q a :=
-  let ⟨_, hp⟩ := hp; let ⟨_, hq⟩ := hq
+  let ⟨_, hp⟩ := hp
+  let ⟨_, hq⟩ := hq
   Computable.computablePred <| (Primrec.and.to_comp.comp hp hq).of_eq fun _ => by simp
 
 /-- Computable predicates are closed under disjunction. -/
 protected theorem or {p q : α → Prop} (hp : ComputablePred p) (hq : ComputablePred q) :
     ComputablePred fun a => p a ∨ q a :=
-  let ⟨_, hp⟩ := hp; let ⟨_, hq⟩ := hq
+  let ⟨_, hp⟩ := hp
+  let ⟨_, hq⟩ := hq
   Computable.computablePred <| (Primrec.or.to_comp.comp hp hq).of_eq fun _ => by simp
 
 /-- Computable predicates are closed under implication. -/
 protected theorem imp {p q : α → Prop} (hp : ComputablePred p) (hq : ComputablePred q) :
     ComputablePred fun a => p a → q a :=
-  (hp.not.or hq).of_eq fun _ => by classical exact imp_iff_not_or.symm
+  (hp.not.or hq).of_eq fun _ => by
+    classical
+    exact imp_iff_not_or.symm
 
 /-- Substituting a computable function into a computable predicate gives a computable
 predicate. -/
 protected theorem comp {p : β → Prop} {f : α → β} (hp : ComputablePred p) (hf : Computable f) :
     ComputablePred fun a => p (f a) :=
-  let ⟨_, hp⟩ := hp; (hp.comp hf).computablePred
+  let ⟨_, hp⟩ := hp
+  (hp.comp hf).computablePred
 
 /-- Comparing two computable natural-number functions with `≤` is computable. -/
 theorem nat_le {f g : α → ℕ} (hf : Computable f) (hg : Computable g) :
@@ -204,9 +209,10 @@ r.e., and `P a b` ("`b` is a proof of `a`") is decidable and only points of `p` 
 some point where `p` holds has no proof. -/
 theorem exists_forall_not_of_not_rePred {p : α → Prop} {P : α → β → Prop}
     (hP : ComputablePred (Function.uncurry P)) (hp : ¬REPred p) (hsound : ∀ a b, P a b → p a) :
-    ∃ a, p a ∧ ∀ b, ¬P a b :=
-  let ⟨a, h, hS⟩ := (rePred_exists hP).exists_not_of_not_rePred hp fun a ⟨b, hb⟩ => hsound a b hb
-  ⟨a, h, fun b hb => hS ⟨b, hb⟩⟩
+    ∃ a, p a ∧ ∀ b, ¬P a b := by
+  obtain ⟨a, h, hS⟩ := (rePred_exists hP).exists_not_of_not_rePred hp
+    fun a ⟨b, hb⟩ => hsound a b hb
+  exact ⟨a, h, fun b hb => hS ⟨b, hb⟩⟩
 
 end ComputablePred
 

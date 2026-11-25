@@ -65,10 +65,17 @@ theorem card_filter_restrict_eq {k : ℕ} {h : ι → X → Y}
 theorem card_filter_eq_of_card_le [Fintype X] {k : ℕ} {h : ι → X → Y}
     (hh : IsKWiseIndependentHash k h) (hX : Fintype.card X ≤ k) (y : X → Y) :
     #{i : ι | h i = y} * Fintype.card Y ^ Fintype.card X = Fintype.card ι := by
-  have h1 := hh.card_filter_restrict_eq (T := Finset.univ) (by simpa using hX) fun a => y a.1
-  rwa [Finset.card_univ, Nat.mul_comm, show #{i : ι | (Finset.univ : Finset X).restrict (h i) =
-    fun a => y a.1} = #{i : ι | h i = y} from congrArg Finset.card
-      (by ext; simp [funext_iff, Finset.restrict])] at h1
+  let T : Finset X := Finset.univ
+  have hT : #T ≤ k := by simpa [T] using hX
+  have h1 := hh.card_filter_restrict_eq hT (fun a => y a.1)
+  have hset :
+      #{i : ι | T.restrict (h i) = fun a => y a.1} = #{i : ι | h i = y} := by
+    congr 1
+    ext i
+    simp [T, funext_iff, Finset.restrict]
+  have hT_card : #T = Fintype.card X := by simp [T]
+  rw [hset, hT_card, Nat.mul_comm] at h1
+  exact h1
 
 /-- Exact single-point fiber cardinality `|Y| * |{θ // h θ x = v₀}| = |ι|` under `(k + 1)`-wise
 independence. -/

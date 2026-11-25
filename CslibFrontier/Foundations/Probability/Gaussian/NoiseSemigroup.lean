@@ -141,20 +141,25 @@ theorem tendsto_eLpNorm_gaussianNoiseOp_sub {f : (ι → ℝ) → ℝ}
       (pos_iff_ne_zero.2 hε3),
     Ioo_mem_nhdsLT (show (-1 : ℝ) < 1 by norm_num)] with ρ hρg hρ
   have hρ : |ρ| ≤ 1 := abs_le.2 ⟨hρ.1.le, hρ.2.le⟩
+  have hadd := gaussianNoiseOp_add hρ (hf.sub hgi) hgi
+  simp only [Pi.sub_apply, sub_add_cancel] at hadd
   have hsplit : gaussianNoiseOp ρ f - f =ᵐ[γ]
       gaussianNoiseOp ρ (f - ⇑g) + (gaussianNoiseOp ρ g - ⇑g) + (⇑g - f) := by
-    filter_upwards [gaussianNoiseOp_add hρ (hf.sub hgi) hgi] with z hz
-    simp only [Pi.sub_apply, sub_add_cancel] at hz
+    filter_upwards [hadd] with z hz
     simp only [Pi.add_apply, Pi.sub_apply, hz]
     ring
   rw [eLpNorm_congr_ae hsplit]
   calc eLpNorm (gaussianNoiseOp ρ (f - ⇑g) + (gaussianNoiseOp ρ g - ⇑g) + (⇑g - f)) 1 γ
       ≤ eLpNorm (gaussianNoiseOp ρ (f - ⇑g)) 1 γ + eLpNorm (gaussianNoiseOp ρ g - ⇑g) 1 γ +
-          eLpNorm (⇑g - f) 1 γ :=
-        (eLpNorm_add_le le_rfl).trans (add_le_add (eLpNorm_add_le le_rfl) le_rfl)
-    _ ≤ ε / 3 + ε / 3 + ε / 3 :=
-        add_le_add (add_le_add ((eLpNorm_gaussianNoiseOp_le hρ le_rfl (hf.sub hgi).1).trans hfg)
-          hρg) (by rwa [eLpNorm_sub_comm])
+          eLpNorm (⇑g - f) 1 γ := by
+        refine (eLpNorm_add_le le_rfl).trans ?_
+        gcongr
+        exact eLpNorm_add_le le_rfl
+    _ ≤ ε / 3 + ε / 3 + ε / 3 := by
+        gcongr
+        · exact (eLpNorm_gaussianNoiseOp_le hρ le_rfl (hf.sub hgi).1).trans hfg
+        · rw [eLpNorm_sub_comm]
+          exact hfg
     _ = ε := ENNReal.add_thirds ε
 
 end ProbabilityTheory

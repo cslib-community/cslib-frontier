@@ -114,14 +114,20 @@ theorem IsDense.card_agreeOn_agreeOn_mul_pow_le (hX : IsDense τ F X)
     (α β : Fin n → Fin m) :
     ((agreeOn (agreeOn X J α) I β).card : ℝ) * τ ^ (I.card + J.card) ≤ X.card := by
   classical
-  rw [show agreeOn (agreeOn X J α) I β =
-      agreeOn X (J ∪ I) (fun i => if i ∈ J then α i else β i) by
-    simpa only [agreeOn] using (agreeOn_union_ite (W := X) hdisj α β).symm]
+  have heq : agreeOn (agreeOn X J α) I β =
+      agreeOn X (J ∪ I) (fun i => if i ∈ J then α i else β i) := by
+    simpa only [agreeOn] using (agreeOn_union_ite (W := X) hdisj α β).symm
+  rw [heq]
   rcases (J ∪ I).eq_empty_or_nonempty with h | h
-  · rcases union_eq_empty.mp h with ⟨rfl, rfl⟩
+  · have hJ : J = ∅ := (union_eq_empty.mp h).1
+    have hI : I = ∅ := (union_eq_empty.mp h).2
+    subst J
+    subst I
     simp [agreeOn]
-  · simpa [card_union_of_disjoint hdisj, Nat.add_comm, agreeOn] using
-      hX (J ∪ I) (union_subset hJF hIF) h (fun i => if i ∈ J then α i else β i)
+  · have hcard : (J ∪ I).card = I.card + J.card := by
+      rw [card_union_of_disjoint hdisj, Nat.add_comm]
+    simpa [hcard, agreeOn] using hX (J ∪ I) (union_subset hJF hIF) h
+      (fun i => if i ∈ J then α i else β i)
 
 /-- The conditional atom cap expressed as a ratio of finite fiber sizes. The denominator is
 the conditioning event's probability times the density power for both sets of coordinates. -/

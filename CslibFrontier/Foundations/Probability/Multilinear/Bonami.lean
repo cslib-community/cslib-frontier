@@ -117,21 +117,21 @@ private theorem bonami_step_le {C a₂ b₂ X Y Z s₂ m₄ : ℝ} {k : ℕ} (hC
     (hb₂ : 0 ≤ b₂) (hY : 0 ≤ Y) (hZ : 0 ≤ Z) (hs₂ : 0 ≤ s₂) (hX : X ≤ C ^ (k + 1) * a₂ ^ 2)
     (hYk : Y ≤ C ^ k * b₂ ^ 2) (hCS : Z ^ 2 ≤ X * Y) (hm : m₄ ≤ C * s₂ ^ 2) :
     X + 6 * Z * s₂ + Y * m₄ ≤ C ^ (k + 1) * (a₂ + b₂ * s₂) ^ 2 := by
-  have hCk : 0 ≤ C ^ k := pow_nonneg (by linarith only [hC]) k
+  have hCk : 0 ≤ C ^ k := pow_nonneg (by linarith) k
   -- `3 Z ≤ C ^ (k + 1) a₂ b₂`, using `9 ≤ C`
-  have hZ3 : 3 * Z ≤ C ^ (k + 1) * a₂ * b₂ :=
-    (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).1 <|
-      calc (3 * Z) ^ 2 = 9 * Z ^ 2 := by ring
-        _ ≤ 9 * ((C ^ (k + 1) * a₂ ^ 2) * (C ^ k * b₂ ^ 2)) :=
-            mul_le_mul_of_nonneg_left (hCS.trans (by gcongr)) (by norm_num)
-        _ ≤ C * ((C ^ (k + 1) * a₂ ^ 2) * (C ^ k * b₂ ^ 2)) := by gcongr
-        _ = (C ^ (k + 1) * a₂ * b₂) ^ 2 := by ring
+  have hZ3 : 3 * Z ≤ C ^ (k + 1) * a₂ * b₂ := by
+    refine (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).1 ?_
+    calc (3 * Z) ^ 2 = 9 * Z ^ 2 := by ring
+      _ ≤ 9 * ((C ^ (k + 1) * a₂ ^ 2) * (C ^ k * b₂ ^ 2)) := by gcongr; exact hCS.trans (by gcongr)
+      _ ≤ C * ((C ^ (k + 1) * a₂ ^ 2) * (C ^ k * b₂ ^ 2)) := by gcongr
+      _ = (C ^ (k + 1) * a₂ * b₂) ^ 2 := by ring
+  have hYm : Y * m₄ ≤ (C ^ k * b₂ ^ 2) * (C * s₂ ^ 2) :=
+    (mul_le_mul_of_nonneg_left hm hY).trans
+      (mul_le_mul_of_nonneg_right hYk (mul_nonneg (by linarith) (sq_nonneg s₂)))
+  have := mul_le_mul_of_nonneg_left hZ3 (by positivity : (0 : ℝ) ≤ 2 * s₂)
   calc X + 6 * Z * s₂ + Y * m₄
       ≤ C ^ (k + 1) * a₂ ^ 2 + 2 * s₂ * (C ^ (k + 1) * a₂ * b₂) +
-          (C ^ k * b₂ ^ 2) * (C * s₂ ^ 2) := by
-        linarith only [hX, mul_le_mul_of_nonneg_left hZ3 (by positivity : (0 : ℝ) ≤ 2 * s₂),
-          (mul_le_mul_of_nonneg_left hm hY).trans
-            (mul_le_mul_of_nonneg_right hYk (mul_nonneg (by linarith only [hC]) (sq_nonneg s₂)))]
+          (C ^ k * b₂ ^ 2) * (C * s₂ ^ 2) := by linarith
     _ = C ^ (k + 1) * (a₂ + b₂ * s₂) ^ 2 := by ring
 
 /-- The Bonami induction on the coordinates in `T` that `F` mentions, for independent
@@ -149,8 +149,8 @@ private theorem integral_multilinearEval_pow_four_le_aux {C : ℝ} (hC : 9 ≤ C
     simp only [multilinearEval_of_forall_nonempty fun S hS => hc S (by
       simpa [subset_empty, nonempty_iff_ne_empty] using hS), integral_const, probReal_univ,
       smul_eq_mul, one_mul]
-    rw [show c ∅ ^ 4 = (c ∅ ^ 2) ^ 2 by ring]
-    exact le_mul_of_one_le_left (sq_nonneg _) (one_le_pow₀ (by linarith only [hC]))
+    have : (1 : ℝ) ≤ C ^ k := one_le_pow₀ (by linarith)
+    nlinarith [sq_nonneg (c ∅ ^ 2)]
   | insert a T ha ih =>
     intro k c hc hk
     have h4 (i : ι) : MemLp id 4 (μ i) := (hμ i).memLp
@@ -168,8 +168,7 @@ private theorem integral_multilinearEval_pow_four_le_aux {C : ℝ} (hC : 9 ≤ C
         ((((continuous_multilinearEval _).pow 2).mul
           ((continuous_multilinearEval _).pow 2)).aestronglyMeasurable) (ae_of_all _ fun v => ?_)
       rw [Real.norm_eq_abs, abs_of_nonneg (by positivity), Pi.add_apply]
-      linarith only [sq_nonneg (E v ^ 2 - D v ^ 2),
-        show (E v ^ 2 - D v ^ 2) ^ 2 = E v ^ 4 - 2 * (E v ^ 2 * D v ^ 2) + D v ^ 4 by ring]
+      nlinarith [sq_nonneg (E v ^ 2 - D v ^ 2)]
     rw [← integral_integral_update μ (hint c (j := 4) le_rfl) a,
       ← integral_integral_update μ (hint c (j := 2) (by norm_num)) a]
     simp_rw [multilinearEval_update c a, integral_add_mul_pow_four (h4 a) (h1 a) (h3 a),
@@ -188,8 +187,9 @@ private theorem integral_multilinearEval_pow_four_le_aux {C : ℝ} (hC : 9 ≤ C
       (multilinearExpectCoeff_eq_zero_of_card_lt hk a)
     rcases k with _ | k
     · -- degree zero: `D_a F = 0`
-      simpa [show D = 0 from funext fun _ => by
-        simp [D, multilinearDerivCoeff_eq_zero_of_degree_zero hk a]] using hX
+      have hDz : D = 0 := funext fun v => by
+        simp [D, multilinearDerivCoeff_eq_zero_of_degree_zero hk a]
+      simpa [hDz] using hX
     · have hCS := sq_integral_mul_le (f := fun v => E v ^ 2) (g := fun v => D v ^ 2) (P := P)
         (by simpa only [← pow_mul] using hE4) (by simpa only [← pow_mul] using hD4) hED
       simp only [← pow_mul] at hCS

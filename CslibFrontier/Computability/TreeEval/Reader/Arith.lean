@@ -129,7 +129,8 @@ theorem modifyAt_addMod_wf (hp : 0 < p) {acc : List ℕ} (hacc : ∀ v ∈ acc, 
       ∀ v ∈ modifyAt acc i (addMod p a), v < p := by
   refine ⟨by simp [modifyAt], fun v hv => ?_⟩
   rcases List.mem_or_eq_of_mem_set hv with hv | rfl
-  exacts [hacc v hv, addMod_lt hp _ _]
+  · exact hacc v hv
+  · exact addMod_lt hp _ _
 
 theorem toState_scale (R : Regs) (r : Fin 3) (a : ℕ) :
     (R.scale p r a).toState p ℓ = scale r (a : ZMod p) (R.toState p ℓ) := by
@@ -152,10 +153,13 @@ theorem toState_set_modifyAt (R : Regs) (t : Fin 3) (i : Fin ℓ) (hlen : (R.get
       Function.update (R.toState p ℓ) t
         (Function.update (R.toState p ℓ t) i (g ((R.get t).getD i 0) : ZMod p)) := by
   funext r j
-  rcases eq_or_ne r t with rfl | h
-  · rcases eq_or_ne j i with rfl | hj
-    · simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, hlen]
-    · simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, Fin.val_ne_of_ne hj.symm, hj]
+  by_cases h : r = t
+  · subst h
+    by_cases hj : j = i
+    · subst hj
+      simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, hlen]
+    · have : (i : ℕ) ≠ j := fun e => hj (Fin.ext e.symm)
+      simp [Regs.toState, modifyAt, List.getD_eq_getElem?_getD, this, hj]
   · simp [Regs.toState, Regs.get_set_of_ne _ h, h]
 
 omit [Fact p.Prime] in

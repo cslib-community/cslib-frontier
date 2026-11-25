@@ -50,17 +50,23 @@ private theorem numVars_finBody (r : Rel) (n : ℕ) : (finBody r n).numVars = n 
 
 private theorem occurrences_finBody (r : Rel) (n : ℕ) :
     (finBody r n).occurrences = (List.finRange n).map (fun i => (0, i.val, i)) := by
-  simpa [finBody, CSP.occurrences, CSP.varCNF, Cslib.Logic.PL.occurrences, List.zipIdx_map,
-    List.map_map, Function.comp_def] using
-    List.ext_getElem (l₁ := (List.finRange n).zipIdx.map fun x => (0, x.2, x.1))
-      (l₂ := (List.finRange n).map fun i => (0, i.val, i)) (by simp) fun _ _ _ => by simp
+  have h : (List.finRange n).zipIdx.map (fun x => (0, x.2, x.1)) =
+      (List.finRange n).map (fun i => (0, i.val, i)) := by
+    apply List.ext_getElem
+    · simp
+    · intro i hi hj
+      simp
+  simpa [finBody, CSP.occurrences, CSP.varCNF, Cslib.Logic.PL.occurrences,
+    List.zipIdx_map, List.map_map, Function.comp_def] using h
 
 private theorem incidenceGraph_finBody (r : Rel) (n : ℕ) :
-    incidenceGraph (finBody r n) = starGraph n :=
-  Graph.ext (by rw [incidenceGraph_vertices, numVars_finBody]; rfl) (by
-    rw [incidenceGraph_edges, occurrences_finBody, distinctVars_finBody, numVars_finBody,
+    incidenceGraph (finBody r n) = starGraph n := by
+  apply Graph.ext
+  · rw [incidenceGraph_vertices, numVars_finBody]
+    rfl
+  · rw [incidenceGraph_edges, occurrences_finBody, distinctVars_finBody, numVars_finBody,
       List.map_map]
-    simp [starGraph])
+    simp [starGraph]
 
 private def finOccurrence (r : Rel) (n : ℕ) (i : Fin n) : (finBody r n).Occurrence :=
   ⟨⟨0, by simp [finBody]⟩, ⟨i.val, by simp [finBody]⟩⟩
@@ -96,8 +102,9 @@ private theorem getD_atomBodyCertificate (n : ℕ) (i : Fin n) :
 private theorem verifyArgumentOrder_finBody (r : Rel) (n : ℕ) :
     verifyArgumentOrder (finBody r n) (atomBodyCertificate n) = true := by
   simp only [verifyArgumentOrder, occurrences_finBody, List.zipIdx_map, List.all_map]
-  refine List.all_eq_true.mpr fun ⟨i, k⟩ hik => ?_
-  obtain ⟨_, he⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hik)
+  apply List.all_eq_true.mpr
+  rintro ⟨i, k⟩ hik
+  obtain ⟨hk, he⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hik)
   have hki : k = i.val := by simpa using congrArg Fin.val he
   change decide ((atomBodyCertificate n).successor.getD (2 * k + 1) 0 =
     2 * argumentNextIndex (finBody r n) 0 i.val + 1) = true

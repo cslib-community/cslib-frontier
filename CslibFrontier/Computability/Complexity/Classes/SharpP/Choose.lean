@@ -88,11 +88,13 @@ private theorem subsetTest_ofFn_iff (acc : List Bool → Bool) {K k Z : ℕ} (hk
       SubsetBlockPred acc hk (BitString.blocksEquiv v) := by
   -- the test on blocks
   have hrows : BitString.listRows K Z (List.ofFn v) =
-      List.ofFn fun j => List.ofFn (BitString.blocksEquiv v j) :=
-    (BitString.listRows_eq_ofFn K Z _).trans (by rw [BitString.ofList_ofFn]; rfl)
+      List.ofFn fun j => List.ofFn (BitString.blocksEquiv v j) := by
+    rw [BitString.listRows_eq_ofFn, BitString.ofList_ofFn]
+    rfl
   have hrow (i : ℕ) (hi : i < K) :
-      BitString.listRow Z i (List.ofFn v) = List.ofFn (BitString.blocksEquiv v ⟨i, hi⟩) :=
-    (BitString.listRow_eq_ofFn (count := K) Z ⟨i, hi⟩ _).trans (by rw [BitString.ofList_ofFn]; rfl)
+      BitString.listRow Z i (List.ofFn v) = List.ofFn (BitString.blocksEquiv v ⟨i, hi⟩) := by
+    rw [BitString.listRow_eq_ofFn (count := K) Z ⟨i, hi⟩, BitString.ofList_ofFn]
+    rfl
   simp only [subsetTest, Bool.and_eq_true, hrows, SubsetBlockPred]
   refine and_congr ?_ ?_
   · simp only [List.all_eq_true, Prod.forall]
@@ -104,14 +106,14 @@ private theorem subsetTest_ofFn_iff (acc : List Bool → Bool) {K k Z : ℕ} (hk
       exact (not_any_ofFn_eq_true_iff _).1 hj
     · rw [List.mem_zipIdx_iff_getElem?, List.getElem?_ofFn] at hw
       simp only at hw
-      obtain ⟨hjK, rfl⟩ : ∃ hjK : j < K, List.ofFn (BitString.blocksEquiv v ⟨j, hjK⟩) = w := by
-        split at hw
-        · exact ⟨‹_›, Option.some.inj hw⟩
-        · nomatch hw
-      split
-      · exact (h ⟨j, hjK⟩).1 ‹_›
-      · rename_i hjk
-        exact (not_any_ofFn_eq_true_iff _).2 ((h ⟨j, hjK⟩).2 (Nat.le_of_not_lt hjk))
+      split at hw
+      · rename_i hjK
+        rw [← Option.some.inj hw]
+        split
+        · exact (h ⟨j, hjK⟩).1 (by simpa)
+        · rename_i hjk
+          exact (not_any_ofFn_eq_true_iff _).2 ((h ⟨j, hjK⟩).2 (Nat.le_of_not_lt hjk))
+      · exact absurd hw (by simp)
   · simp only [List.all_eq_true, List.mem_range]
     refine ⟨fun h i hi => ?_, fun h i hi => ?_⟩
     · have := h i (by omega)
@@ -174,7 +176,8 @@ theorem choose_mem {f g : α → ℕ} (hf : f ∈ SharpP enc)
   have hZ : ComputableInPolyTime Z enc encUnary := by dsimp [Z]; fun_prop
   have hW : ComputableInPolyTime
       (fun x : α × List Bool => subsetTest (fun w => V (x.1, w)) (g x.1) (Z x.1) (g x.1) x.2)
-      (encPair enc encBits) encBool := by fun_prop
+      (encPair enc encBits) encBool := by
+    fun_prop
   convert mem_SharpP_of_polyTime_length hW (ComputableInPolyTime.unary_mul.comp (hg.prod hZ))
     using 1
   ext a

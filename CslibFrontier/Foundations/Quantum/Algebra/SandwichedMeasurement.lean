@@ -39,16 +39,20 @@ namespace Measurement
 private theorem sum_sandwich_le_one (M : Measurement α A) (T : Measurement β A) (f : β → α) :
     (∑ b, M.effect (f b) * T.effect b * M.effect (f b)) ≤ 1 := by
   classical
-  rw [← sum_fiberwise univ f (fun b => M.effect (f b) * T.effect b * M.effect (f b)),
-    ← M.sum_effect]
-  refine sum_le_sum fun a _ => ?_
-  rw [show (∑ b with f b = a, M.effect (f b) * T.effect b * M.effect (f b)) =
-      M.effect a * (T.map f).effect a * M.effect a by
-    rw [map_effect, mul_sum, sum_mul]
-    exact sum_congr rfl fun b hb => by rw [(mem_filter.mp hb).2]]
-  refine (?_ : _ ≤ M.effect a * M.effect a).trans (M.effect_mul_self_le a)
-  simpa only [mul_one] using
-    (M.nonneg a).isSelfAdjoint.conjugate_le_conjugate ((T.map f).effect_le_one a)
+  calc
+    _ = ∑ a, M.effect a * (T.map f).effect a * M.effect a := by
+      rw [← sum_fiberwise univ f (fun b => M.effect (f b) * T.effect b * M.effect (f b))]
+      refine sum_congr rfl fun a _ => ?_
+      rw [map_effect, mul_sum, sum_mul]
+      exact sum_congr rfl fun b hb => by rw [(mem_filter.mp hb).2]
+    _ ≤ ∑ a, M.effect a := by
+      refine sum_le_sum fun a _ => ?_
+      calc
+        _ ≤ M.effect a * M.effect a := by
+          simpa only [mul_one] using
+            (M.nonneg a).isSelfAdjoint.conjugate_le_conjugate ((T.map f).effect_le_one a)
+        _ ≤ _ := M.effect_mul_self_le a
+    _ = 1 := M.sum_effect
 
 /-- Retain a fine outcome when its image agrees with the result of the coarse
 measurement. The sandwich uses the coarse effect on both sides. For a projective
@@ -81,10 +85,11 @@ theorem sum_weighted_conj_le_sum_norm_sq (φ : AlgState A) (T : Measurement β A
   classical
   rw [← sum_fiberwise univ f (fun b => (φ (star (D (f b)) * T.effect b * D (f b))).re)]
   refine sum_le_sum fun a _ => ?_
-  rw [show (∑ b with f b = a, (φ (star (D (f b)) * T.effect b * D (f b))).re) =
-      (φ (star (D a) * (T.map f).effect a * D a)).re by
+  have he : (∑ b with f b = a, (φ (star (D (f b)) * T.effect b * D (f b))).re) =
+      (φ (star (D a) * (T.map f).effect a * D a)).re := by
     rw [Measurement.map_effect, mul_sum, sum_mul, map_sum, Complex.re_sum]
-    exact sum_congr rfl fun b hb => by rw [(mem_filter.mp hb).2], AlgState.norm_sq]
+    exact sum_congr rfl fun b hb => by rw [(mem_filter.mp hb).2]
+  rw [he, AlgState.norm_sq]
   simpa only [mul_one] using φ.re_apply_mono
     (star_left_conjugate_le_conjugate ((T.map f).effect_le_one a) (D a))
 
@@ -135,11 +140,13 @@ private theorem abs_sum_sandwich_sub_le (φ : AlgState A) (W X Y : β → A) (hW
     |(∑ b, (φ (star (X b) * W b * X b)).re) - ∑ b, (φ (star (Y b) * W b * Y b)).re| ≤
       2 * √(∑ b, (φ (star (X b - Y b) * W b * (X b - Y b))).re) := by
   choose K hK using fun b => CStarAlgebra.nonneg_iff_eq_star_mul_self.mp (hW b)
-  have he (b : β) (x : A) : φ.norm (K b * x) ^ 2 = (φ (star x * W b * x)).re := by
+  have he (b : β) (x : A) :
+      φ.norm (K b * x) ^ 2 = (φ (star x * W b * x)).re := by
     rw [AlgState.norm_sq, hK b, star_mul]
     simp only [mul_assoc]
-  simpa only [← mul_sub, he] using φ.abs_sum_norm_sq_sub_le (fun b => K b * X b)
-    (fun b => K b * Y b) (by simpa only [he] using hX) (by simpa only [he] using hY)
+  have h := φ.abs_sum_norm_sq_sub_le (fun b => K b * X b) (fun b => K b * Y b)
+    (by simpa only [he] using hX) (by simpa only [he] using hY)
+  simpa only [← mul_sub, he] using h
 
 end AlgState
 

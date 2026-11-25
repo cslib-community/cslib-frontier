@@ -202,12 +202,14 @@ noncomputable def quadraticTwistEquationEquiv {c : F} (hc : c ≠ 0) :
 
 @[simp] theorem quadraticTwistEquationEquiv_apply {c : F} (hc : c ≠ 0) {x y : F}
     (h : c * y ^ 2 = x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆) :
-    (W.quadraticTwistEquationEquiv hc ⟨(x, y), h⟩ : F × F) = (c * x, c ^ 2 * y) := by rfl
+    (W.quadraticTwistEquationEquiv hc ⟨(x, y), h⟩ : F × F) = (c * x, c ^ 2 * y) := by
+  rfl
 
 @[simp] theorem quadraticTwistEquationEquiv_symm_apply {c : F} (hc : c ≠ 0) {x y : F}
     (h : (W.quadraticTwist c).toAffine.Equation x y) :
     ((W.quadraticTwistEquationEquiv hc).symm ⟨(x, y), h⟩ : F × F) =
-      (c⁻¹ * x, (c ^ 2)⁻¹ * y) := by rfl
+      (c⁻¹ * x, (c ^ 2)⁻¹ * y) := by
+  rfl
 
 /-- For an elliptic curve `W` in `IsCharNeTwoNF` form and `c ≠ 0`, the points of
 `W.quadraticTwist c` are in bijection with the point at infinity (`0`) together with the
@@ -225,21 +227,25 @@ noncomputable def quadraticTwistPointEquiv [W.IsCharNeTwoNF] [W.IsElliptic] {c :
 
 @[simp] theorem quadraticTwistPointEquiv_zero [W.IsCharNeTwoNF] [W.IsElliptic] {c : F}
     (hc : c ≠ 0) :
-    W.quadraticTwistPointEquiv hc 0 = 0 := by rfl
+    W.quadraticTwistPointEquiv hc 0 = 0 := by
+  rfl
 
 @[simp] theorem quadraticTwistPointEquiv_symm_zero [W.IsCharNeTwoNF] [W.IsElliptic] {c : F}
     (hc : c ≠ 0) :
-    (W.quadraticTwistPointEquiv hc).symm 0 = 0 := by rfl
+    (W.quadraticTwistPointEquiv hc).symm 0 = 0 := by
+  rfl
 
 theorem quadraticTwistPointEquiv_some [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : c ≠ 0)
     {x y : F} (h : (W.quadraticTwist c).toAffine.Nonsingular x y) :
     W.quadraticTwistPointEquiv hc (.some _ _ h) =
-      WithZero.coe ((W.quadraticTwistEquationEquiv hc).symm ⟨(x, y), h.left⟩) := by rfl
+      WithZero.coe ((W.quadraticTwistEquationEquiv hc).symm ⟨(x, y), h.left⟩) := by
+  rfl
 
 theorem quadraticTwistPointEquiv_symm_coe [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : c ≠ 0)
     {x y : F} (h : c * y ^ 2 = x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆)
     (hns : (W.quadraticTwist c).toAffine.Nonsingular (c * x) (c ^ 2 * y)) :
-    (W.quadraticTwistPointEquiv hc).symm (WithZero.coe ⟨(x, y), h⟩) = .some _ _ hns := by rfl
+    (W.quadraticTwistPointEquiv hc).symm (WithZero.coe ⟨(x, y), h⟩) = .some _ _ hns := by
+  rfl
 
 /-- For an elliptic curve `W` in `IsCharNeTwoNF` form over a finite field and `c ≠ 0`, the number
 of points of `W.quadraticTwist c` is one (the point at infinity) plus the number of solutions of
@@ -272,7 +278,8 @@ variable {F : Type*} [Field F] [Fintype F]
 
 omit [Fintype F] in
 private lemma ne_zero_of_not_isSquare {c : F} (hc : ¬ IsSquare c) : c ≠ 0 := by
-  rintro rfl; exact hc IsSquare.zero
+  rintro rfl
+  exact hc IsSquare.zero
 
 /-- For `c ≠ 0`, twisting the cubic `X³ + α X² + β X + γ` by `c` multiplies its character sum
 `cubicCharSum` by `quadraticChar F c`. -/
@@ -350,10 +357,11 @@ theorem natCard_equation_add_quadraticTwist (W : WeierstrassCurve F)
       2 * Fintype.card F := by
   classical
   have hF : ringChar F ≠ 2 := fun h2 ↦ hc (FiniteField.isSquare_of_char_two h2 c)
-  have h1 := (natCard_equation hF W).trans (by rw [cubicCharSum_b₂_b₄_b₆_of_isCharNeTwoNF hF W])
-  have h2 := (natCard_equation hF (W.quadraticTwist c)).trans (by
-    rw [cubicCharSum_b₂_b₄_b₆_of_isCharNeTwoNF hF (W.quadraticTwist c), quadraticTwist_a₂,
-      quadraticTwist_a₄, quadraticTwist_a₆, cubicCharSum_mul_of_not_isSquare _ _ _ hc])
+  have h1 := natCard_equation hF W
+  have h2 := natCard_equation hF (W.quadraticTwist c)
+  rw [cubicCharSum_b₂_b₄_b₆_of_isCharNeTwoNF hF W] at h1
+  rw [cubicCharSum_b₂_b₄_b₆_of_isCharNeTwoNF hF (W.quadraticTwist c), quadraticTwist_a₂,
+    quadraticTwist_a₄, quadraticTwist_a₆, cubicCharSum_mul_of_not_isSquare _ _ _ hc] at h2
   omega
 
 /-- **Point count of the quadratic twist** ([BonehShoup2023], Section 15.3.2, p. 623). For an
@@ -377,7 +385,8 @@ theorem natCard_point_quadraticTwist_eq_of_eq_sub (W : WeierstrassCurve F)
     [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : ¬ IsSquare c) {t : ℤ}
     (ht : (Nat.card W.toAffine.Point : ℤ) = Fintype.card F + 1 - t) :
     (Nat.card (W.quadraticTwist c).toAffine.Point : ℤ) = Fintype.card F + 1 + t := by
-  have := natCard_point_add_quadraticTwist W hc; omega
+  have := natCard_point_add_quadraticTwist W hc
+  omega
 
 /-- Over `ZMod p`, an elliptic curve `W` in `IsCharNeTwoNF` form and its quadratic twist by a
 quadratic non-residue `c` satisfy `#E(F_p) + #Ẽ(F_p) = 2p + 2` ([BonehShoup2023], Section 15.3.2,

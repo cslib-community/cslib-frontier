@@ -113,7 +113,8 @@ private theorem sum_single (l : List ℕ) (hl : l.Nodup) (v : ℕ) (a : ℕ → 
     · subst w
       simp only [decide_true, ite_true]
       rfl
-    · simp only [Ne.symm h, decide_false, h, ite_false]; rfl
+    · simp only [Ne.symm h, decide_false, h, ite_false]
+      rfl
   simp_rw [heq]
   rw [← List.sum_toFinset _ hl]
   simp
@@ -124,9 +125,11 @@ private theorem sum_coefficients (l vs : List ℕ) (hl : l.Nodup)
   induction vs with
   | nil => simp [coefficient]
   | cons v vs ih =>
+    have hv := hvs v (by simp)
+    have ht : ∀ w ∈ vs, w ∈ l := fun w hw => hvs w (by simp [hw])
     simp only [coefficient, List.map_cons, List.sum_cons, add_mul]
-    rw [List.sum_map_add, sum_single l hl v a, ite_eq_left (hvs v List.mem_cons_self)]
-    exact congrArg (a v + ·) (ih fun w hw => hvs w (List.mem_cons_of_mem _ hw))
+    rw [List.sum_map_add, sum_single l hl v a, ite_eq_left hv]
+    exact congrArg (a v + ·) (ih ht)
 
 /-- Compiled rows evaluate exactly as their sparse input equations, including repetitions. -/
 theorem dot_compile_row (F : System) (e : AffineEquation ℕ) (he : e ∈ F) (a : ℕ → Bool) :
@@ -147,16 +150,23 @@ theorem holds_compile (F : System) (a : ℕ → Bool) :
 private theorem exists_assignment {l : List ℕ} (hl : l.Nodup) {a : List Bool}
     (ha : a.length = l.length) : ∃ f : ℕ → Bool, l.map f = a := by
   induction l generalizing a with
-  | nil => exact ⟨fun _ => false, (List.eq_nil_of_length_eq_zero ha).symm⟩
+  | nil =>
+    have : a = [] := List.eq_nil_of_length_eq_zero ha
+    exact ⟨fun _ => false, this.symm⟩
   | cons v l ih =>
-    rcases a with _ | ⟨b, a⟩
-    · simp at ha
-    · obtain ⟨hv, hl⟩ := List.nodup_cons.mp hl
-      obtain ⟨f, rfl⟩ := ih hl (Nat.add_right_cancel ha)
+    cases a with
+    | nil => simp at ha
+    | cons b a =>
+      obtain ⟨hv, hl⟩ := List.nodup_cons.mp hl
+      obtain ⟨f, hf⟩ := ih hl (Nat.add_right_cancel ha)
       refine ⟨Function.update f v b, ?_⟩
       rw [List.map_cons, Function.update_self]
-      exact congrArg (b :: ·) (List.map_congr_left fun w hw =>
-        Function.update_of_ne (by rintro rfl; exact hv hw) _ _)
+      congr 1
+      rw [← hf]
+      apply List.map_congr_left
+      intro w hw
+      have hwv : w ≠ v := by rintro rfl; exact hv hw
+      exact Function.update_of_ne hwv _ _
 
 /-- Sparse satisfiability is equivalent to satisfiability of the compressed dense system. -/
 theorem satisfiable_compile_iff (F : System) :
@@ -196,7 +206,8 @@ compared, never expanded into a table indexed by their numerical value. -/
 theorem computableInPolyTime_compile : ComputableInPolyTime compile encoding Dense.encInput := by
   have hvars := labels_polyTime
   have hcoeff := coefficient_polyTime
-  unfold compile; unfold encoding at hvars ⊢
+  unfold compile
+  unfold encoding at hvars ⊢
   fun_prop
 
 end

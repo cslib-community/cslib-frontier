@@ -66,11 +66,14 @@ private theorem updates_append (vs : List V) (values : List Bool)
     updates σ (vs ++ [v]) (values ++ [b]) =
       Function.update (updates σ vs values) v b := by
   induction vs generalizing values σ with
-  | nil => obtain rfl := List.eq_nil_of_length_eq_zero h.symm; rfl
+  | nil =>
+    obtain rfl := List.eq_nil_of_length_eq_zero h.symm
+    rfl
   | cons w vs ih =>
-    rcases values with _ | ⟨c, values⟩
-    · simp at h
-    · exact ih values (by simpa using h) (Function.update σ w c)
+    cases values with
+    | nil => simp at h
+    | cons c values =>
+      exact ih values (by simpa using h) (Function.update σ w c)
 
 private theorem eval_update (σ : V → Bool) (v : V) (b : Bool) (c : Clause V) :
     c.eval (Function.update σ v b) =

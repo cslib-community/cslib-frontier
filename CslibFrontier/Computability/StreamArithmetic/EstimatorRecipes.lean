@@ -687,17 +687,20 @@ private theorem shiftClipVal_inv64_scaled (r : ℕ) {c : ℝ}
     (hc : c ∈ Set.Icc (1 / 4 : ℝ) 1) :
     shiftClipVal (4 - (r : ℤ)) (1 / (64 * c)) =
       (1 / 2) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by
-  have hc0 : 0 < c := by linarith [hc.1]
-  have hr1 : (1 : ℝ) ≤ (2 : ℝ) ^ r := one_le_pow₀ (by norm_num)
-  have h0 : 0 ≤ (1 / 2 : ℝ) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by positivity
+  have hr_ge1 : (1 : ℝ) ≤ (2 : ℝ) ^ r := one_le_pow₀ (by norm_num)
+  have h4rc : 1 ≤ 4 * (2 : ℝ) ^ r * c := by nlinarith [hc.1]
+  have h0 : 0 ≤ (1 / 2 : ℝ) * ((1 / (2 : ℝ) ^ (r + 1)) * (1 / c)) := by
+    have : 0 < c := by linarith [hc.1]
+    positivity
   refine shiftClipVal_eq_of_mul_eq ?_ (by linarith) ?_
   · rw [zpow_sub₀ (by norm_num), zpow_natCast, pow_succ]
     norm_num
     field_simp
     ring
-  · rw [pow_succ', show (1 / 2 : ℝ) * (1 / (2 * 2 ^ r) * (1 / c)) = 1 / (4 * 2 ^ r * c) by
+  · have hp : (2 : ℝ) ^ (r + 1) = 2 * (2 : ℝ) ^ r := by ring
+    rw [hp, show (1 / 2 : ℝ) * ((1 / (2 * (2 : ℝ) ^ r)) * (1 / c)) = 1 / (4 * (2 : ℝ) ^ r * c) by
       field_simp; ring]
-    exact (div_le_one (by positivity)).mpr (by nlinarith [hc.1])
+    exact (div_le_one (by positivity)).mpr h4rc
 
 /-- `FixedRecipe` computing the `r`-th clamped dyadic reciprocal term `(1 / 2) * (1 / 2 ^ (r + 1)) /
 max (1 / 4) (min 1 (w / 2 ^ (r + 1)))` for `w = 2 ^ (m + 1) * max 0 (W.targetVal val sEnv)`. -/
@@ -807,7 +810,11 @@ private theorem mul_coeffs_le_of_bounds {Op : Type u} {Struct : Type v}
     UniformStreamRecipe.congrTarget, UniformStreamRecipe.weakenValid, UniformStreamRecipe.comp,
     tR, leafB, leafA1, leafA2] at hwA hwB hwC hwI ⊢
   rw [hBa, hBb, hBc, hBi]
-  exact ⟨by gcongr, by gcongr, by gcongr, (le_max_right 8 _).trans' (by gcongr)⟩
+  refine ⟨?_, ?_, ?_, (le_max_right 8 _).trans' ?_⟩
+  · gcongr
+  · gcongr
+  · gcongr
+  · gcongr
 
 private theorem coeffs_le_of_eq {Op : Type u} {Struct : Type v}
     {d : ℕ} {hd : 1 ≤ d} {V : (Op → ℕ → ℤ) → (Struct → Bool) → Prop}
@@ -818,7 +825,8 @@ private theorem coeffs_le_of_eq {Op : Type u} {Struct : Type v}
     (hC : c.coeffC ≤ mC) (hI : c.intrinsicCoeff ≤ mI) :
     F.toRecipe.coeffA ≤ mA ∧ F.toRecipe.coeffB ≤ mB ∧
       F.toRecipe.coeffC ≤ mC ∧ F.toRecipe.intrinsicCoeff ≤ mI := by
-  subst hEq; exact ⟨hA, hB, hC, hI⟩
+  subst hEq
+  exact ⟨hA, hB, hC, hI⟩
 
 private theorem max_zero_two_pow_mul_le (m : ℕ) {q : ℝ} (hq : q ≤ 1) :
     Max.max (0 : ℝ) ((2 : ℝ) ^ m * q) ≤ (2 : ℝ) ^ m :=
@@ -830,8 +838,10 @@ private theorem sum_fin_two_pow_prefix {m : ℕ} (f : ℕ → ℝ) :
       ∑ r ∈ range (m + 1), f r := by
   have hm_lt : m + 1 ≤ 2 ^ (m + 1) := (Nat.lt_two_pow_self (n := m + 1)).le
   rw [Fin.sum_univ_eq_sum_range (fun k => if k ≤ m then f k else 0), ← sum_filter]
-  refine congrArg₂ _ (Finset.ext fun k => ?_) rfl
-  simp only [mem_filter, mem_range]; omega
+  congr 1
+  ext k
+  simp only [mem_filter, mem_range]
+  omega
 
 /-- `FixedRecipe` computing `1 / (1 + max 0 (2 ^ m * R.targetVal val sEnv))` via the smooth dyadic
 partition of unity over `r ∈ {0, ..., m}`. -/

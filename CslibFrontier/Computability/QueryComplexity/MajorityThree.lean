@@ -88,10 +88,16 @@ private theorem hardCost_node_fixed (i : Fin 3) (left right : DecisionTree (Fin 
     (ρ : Restriction) (b : Bool) (hρ : ρ i = some b) :
     hardCost (.node i left right) ρ =
       (if b then hardCost right ρ else hardCost left ρ) + hardMass ρ := by
-  cases b <;>
-    simpa [hardCost, hardMass, Finset.sum_add_distrib] using
-      Finset.sum_congr rfl fun x hx => by
-        simp [(Finset.mem_filter.mp hx).2 i _ hρ]
+  have hsum : hardCost (.node i left right) ρ =
+      hardCost (if b then right else left) ρ + hardMass ρ := by
+    calc
+      _ = ∑ x ∈ hardInputs.filter ρ.Agrees, ((if b then right else left).cost x + 1) := by
+        apply Finset.sum_congr rfl
+        intro x hx
+        have hxi := (Finset.mem_filter.mp hx).2 i b hρ
+        cases b <;> simp [DecisionTree.cost_node, hxi]
+      _ = _ := by simp [hardCost, hardMass, Finset.sum_add_distrib]
+  cases b <;> exact hsum
 
 private theorem hardCost_node_free (i : Fin 3) (left right : DecisionTree (Fin 3) Bool)
     (ρ : Restriction) (hi : ρ i = none) :
@@ -194,7 +200,8 @@ private theorem hardDistribution_cost (t : DecisionTree (Fin 3) Bool) :
 theorem hardDistribution_lower (t : DecisionTree (Fin 3) Bool)
     (ht : t.Computes (majority 3)) : (8 : ℝ) / 3 ≤ t.distributionalCost hardDistribution := by
   rw [hardDistribution_cost, ← Nat.cast_sum]
-  have h : (16 : ℝ) ≤ (∑ x ∈ hardInputs, t.cost x : ℕ) := by exact_mod_cast hardCost_lower t ht
+  have h : (16 : ℝ) ≤ (∑ x ∈ hardInputs, t.cost x : ℕ) := by
+    exact_mod_cast hardCost_lower t ht
   linarith
 
 theorem algorithm_expectedCost (x : (Fin 3 → Bool)) :
@@ -208,11 +215,13 @@ end MajorityThree
 /-- Three-bit majority has zero-error expected query complexity exactly `8 / 3`. -/
 theorem zeroErrorComplexity_majority_three :
     zeroErrorComplexity (majority 3) = 8 / 3 := by
-  refine le_antisymm (zeroErrorComplexity_le MajorityThree.algorithm_computes fun x => ?_)
-    (le_zeroErrorComplexity fun μ c hμ hc => ?_)
-  · rw [MajorityThree.algorithm_expectedCost]
+  refine le_antisymm (zeroErrorComplexity_le MajorityThree.algorithm_computes ?_) ?_
+  · intro x
+    rw [MajorityThree.algorithm_expectedCost]
     split_ifs <;> norm_num
-  · obtain ⟨t, ht, hcost⟩ := hμ.exists_distributionalCost_le MajorityThree.hardDistribution hc
+  · apply le_zeroErrorComplexity
+    intro μ c hμ hc
+    obtain ⟨t, ht, hcost⟩ := hμ.exists_distributionalCost_le MajorityThree.hardDistribution hc
     exact (MajorityThree.hardDistribution_lower t ht).trans hcost
 
 end Cslib.QueryComplexity

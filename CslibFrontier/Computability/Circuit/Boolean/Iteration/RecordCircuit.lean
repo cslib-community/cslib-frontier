@@ -130,12 +130,12 @@ private theorem synthesis_collision (s : Set (BooleanFunction n)) (a b : BitStri
     Synthesis interpretation s {fun x => collision (a x) (b x)} (20 * (width n w + 1)) := by
   have hs := synthesis_bits_eq s (fun x => (a x).state) (fun x => (b x).state)
     (by rintro _ ⟨i, rfl⟩; exact state_mem ha i) (by rintro _ ⟨i, rfl⟩; exact state_mem hb i)
+  have he := synthesis_bits_eq s (fun x => encode (a x)) (fun x => encode (b x)) ha hb
   have hne : Synthesis interpretation s {fun x => decide (a x ≠ b x)} (6 * width n w + 1 + 1) := by
-    simpa only [encode_injective.eq_iff, decide_not] using
-      (synthesis_bits_eq s (fun x => encode (a x)) (fun x => encode (b x)) ha hb).not
-  exact ((((Synthesis.of_mem (padding_mem ha)).not.and
-    (Synthesis.of_mem (padding_mem hb)).not).and hs).and hne).mono
-    Set.Subset.rfl Set.Subset.rfl (by unfold width; omega)
+    simpa only [encode_injective.eq_iff, decide_not] using he.not
+  have h := (((Synthesis.of_mem (padding_mem ha)).not.and
+    (Synthesis.of_mem (padding_mem hb)).not).and hs).and hne
+  exact h.mono Set.Subset.rfl Set.Subset.rfl (by unfold width; omega)
 
 /-- The bits of a pair of records, the first record first. -/
 def pairEncode (pair : Record n w × Record n w) : BitString (width n w + width n w) :=
@@ -171,20 +171,25 @@ theorem synthesis_detect (s : Set (BooleanFunction n)) (records : BitString n �
     (fun x j => flags j x) (fun x j => pairEncode (adjacentPair (records x) j))
     (fun _ => pairEncode (pad, pad)) (fun j => Or.inr ⟨j, rfl⟩) (fun j bit => ?_)
     fun bit => Or.inl (hconst _)
-  · rw [show (pairWires fun x => detect (records x)) =
+  · have he : (pairWires fun x => detect (records x)) =
         Set.range fun bit x => chooseRecord (fun j => flags j x)
           (fun j => pairEncode (adjacentPair (records x) j)) (pairEncode (pad, pad))
-          (R - 1) bit from by
+          (R - 1) bit := by
       unfold pairWires wires detect
       congr 1 with bit x : 2
       exact congrFun (chooseRecord_map pairEncode (fun j => flags j x)
-        (adjacentPair (records x)) (pad, pad) (R - 1)) bit]
+        (adjacentPair (records x)) (pad, pad) (R - 1)) bit
+    rw [he]
     apply (hf.trans hs).mono Set.Subset.rfl Set.Subset.rfl
     simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
     nlinarith [Nat.sub_le R 1, Nat.mul_le_mul_right (width n w + 1) (Nat.sub_le R 1)]
-  · refine Fin.addCases (fun bit => Or.inl ?_) (fun bit => Or.inl ?_) bit
-    · simpa only [pairEncode, Fin.append_left, adjacentPair] using hr _ ⟨bit, rfl⟩
-    · simpa only [pairEncode, Fin.append_right, adjacentPair] using hr _ ⟨bit, rfl⟩
+  · induction bit using Fin.addCases with
+    | left bit =>
+      refine Or.inl ?_
+      simpa only [pairEncode, Fin.append_left, adjacentPair] using hr _ ⟨bit, rfl⟩
+    | right bit =>
+      refine Or.inl ?_
+      simpa only [pairEncode, Fin.append_right, adjacentPair] using hr _ ⟨bit, rfl⟩
 
 /-- The bits of every record of an available array. -/
 def recordsWires (records : BitString n → Fin R → Record n w) : Set (BooleanFunction n) :=
@@ -201,9 +206,11 @@ theorem size_sortCircuit_le (d : ℕ) :
       18 * d ^ 2 * 2 ^ d * (width n w + 1) := by
   have h := four_mul_size_bitonicSortCircuit (keyBits (n := n) (w := w)) d true
   have hite : (if width n w = 0 then 0 else 6 * (n + 1) + 6 * width n w + 2) ≤
-      12 * (width n w + 1) := by split_ifs <;> unfold width <;> omega
-  nlinarith [Nat.mul_le_mul (Nat.mul_le_mul_right (2 ^ d)
-    (show d * (d + 1) ≤ 2 * d ^ 2 by nlinarith)) hite]
+      12 * (width n w + 1) := by
+    split_ifs <;> unfold width <;> omega
+  have hd : d * (d + 1) ≤ 2 * d ^ 2 := by nlinarith
+  have := Nat.mul_le_mul (Nat.mul_le_mul_right (2 ^ d) hd) hite
+  nlinarith
 
 /-- Sorting an available array inserts one native sorting circuit. -/
 theorem synthesis_sorted (s : Set (BooleanFunction n)) (d : ℕ)

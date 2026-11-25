@@ -81,12 +81,13 @@ theorem exists_forest_anchor (hL : 0 < L)
     (hcover : ∀ x, Repeats f x L ∨ ∃ t < 2 * L, f^[t] x ∈ H)
     {y : α} (hy : y ∈ checkpointHull f H) : ∃ a, ForestAnchor f H L y a := by
   rcases forest_hull_partition f H hL hcover hy with hm | ⟨a, d, i, he, hd, hi, hiy⟩
-  · exact ⟨y, .inl ⟨hm, rfl⟩⟩
-  · refine ⟨a, .inr ⟨d, d - 1 - i, he, hd, by lia, ?_, ?_⟩⟩
+  · exact ⟨y, Or.inl ⟨hm, rfl⟩⟩
+  · refine ⟨a, Or.inr ⟨d, d - 1 - i, he, hd, by lia, ?_, ?_⟩⟩
     · rw [← hiy, transientDepth_iterate]
       exact Nat.sub_le _ _
     · rw [← hiy, ← Function.iterate_add_apply]
-      exact congrArg (fun k => f^[k] a) (by lia)
+      congr 1
+      lia
 
 /-- Every state in `checkpointHull f H` has at most one anchor. -/
 theorem forestAnchor_unique {y a₁ a₂ : α} (hy : y ∈ checkpointHull f H)
@@ -124,8 +125,10 @@ private theorem reaches_from_prefix {x y h : α} (hr : ∃ t, f^[t] x = y)
     ∃ t, f^[t] h = y := by
   obtain ⟨t, ht⟩ := hr
   obtain ⟨d, hd, rfl⟩ := hp
-  have hgt : 2 * L < t := not_le.mp fun hle => hfar t hle ht
-  exact ⟨t - d, by rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by lia)]; exact ht⟩
+  have hgt : 2 * L < t := by by_contra h; exact hfar t (by lia) ht
+  refine ⟨t - d, ?_⟩
+  rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by lia : d ≤ t)]
+  exact ht
 
 /-- Exact transient reachability using two selected records and one verification prefix. -/
 theorem forest_navigation_spec (hL : 0 < L)

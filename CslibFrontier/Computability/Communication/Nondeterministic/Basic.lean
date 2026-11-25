@@ -183,9 +183,10 @@ theorem HasCover.ecomplexity_le (h : HasCover z R A B k) : ecomplexity z R A B �
 guessed bits. -/
 theorem HasCover.mono_bits (hjk : j ≤ k) (h : HasCover z R A B j) : HasCover z R A B k := by
   obtain ⟨C, hmem, hcov⟩ := h
-  refine ⟨fun w => C fun i => w (Fin.castLE hjk i), fun _ => hmem _, fun x hx y hy hR => ?_⟩
+  refine ⟨fun w => C fun i => w (Fin.castLE hjk i), fun w => hmem _, fun x hx y hy hR => ?_⟩
   obtain ⟨w, hw⟩ := hcov x hx y hy hR
-  exact ⟨fun i => if hi : (i : ℕ) < j then w ⟨i, hi⟩ else false, by simpa using hw⟩
+  refine ⟨fun i => if hi : (i : ℕ) < j then w ⟨i, hi⟩ else false, ?_⟩
+  simpa using hw
 
 /-- Lower bounds on nondeterministic complexity are lower bounds on the number of guessed bits of
 every cover. -/
@@ -287,7 +288,8 @@ theorem le_ecomplexityFun_of_isFoolingSet {S : Finset (X × Y)} (hS : IsFoolingS
     (hSAB : ∀ q ∈ S, q.1 ∈ A ∧ q.2 ∈ B) {n : ℕ} (hn : 2 ^ n ≤ #S) :
     (n : ℕ∞) ≤ ecomplexityFun z f A B :=
   le_ecomplexityFun_iff.mpr fun _ hk => by
-    exact_mod_cast (Nat.pow_le_pow_iff_right (by norm_num)).mp (hn.trans (hk.card_le hS hSAB))
+    have := hn.trans (hk.card_le hS hSAB)
+    exact_mod_cast (Nat.pow_le_pow_iff_right (by norm_num)).mp this
 
 /-- **The rectangle-size bound.** Let `s` and `t` be finite. If every rectangle inside `s × t` on
 which `f` is constantly `z` has at most `K` pairs, then a `z`-cover of `f` on `s × t` by `2 ^ k`

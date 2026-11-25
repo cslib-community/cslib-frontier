@@ -102,9 +102,12 @@ private def untagSet (e : Φ.Var → Fin t) (c₀ c₁ : M) (S : Set (Fin (t + a
 /-- A tagged tuple lies in a tagged family exactly when its tuple lies in the family. -/
 private theorem mem_tagSet_iff {e : Φ.Var → Fin t} (he : Function.Injective e) {c₀ c₁ : M}
     (hc : c₀ ≠ c₁) (ha : ∀ i, Φ.arity i ≤ a) {R : ∀ i, Set (Fin (Φ.arity i) → M)} {i : Φ.Var}
-    {x : Fin (Φ.arity i) → M} : tagTuple (a := a) e c₀ c₁ i x ∈ tagSet e c₀ c₁ R ↔ x ∈ R i :=
-  ⟨fun ⟨_, _, hx', hy⟩ => by cases tagTuple_injective he hc ha hy; exact hx',
-    fun hx => ⟨i, x, hx, rfl⟩⟩
+    {x : Fin (Φ.arity i) → M} : tagTuple (a := a) e c₀ c₁ i x ∈ tagSet e c₀ c₁ R ↔ x ∈ R i := by
+  constructor
+  · rintro ⟨i', x', hx', hy⟩
+    cases tagTuple_injective he hc ha hy
+    exact hx'
+  · exact fun hx => ⟨i, x, hx, rfl⟩
 
 /-- Decoding a tagged family recovers it. -/
 private theorem untagSet_tagSet {e : Φ.Var → Fin t} (he : Function.Injective e) {c₀ c₁ : M}
@@ -266,7 +269,8 @@ theorem exists_lfp_realize_iff (Φ : Sentence L) (c₀ c₁ : L.Term Empty)
         (I := fun _ => LFP.interpretation) (ρ := fun _ => Operator.RelEnv.empty)
         (α := Empty ⊕ Fin C.width) (C.guard.relabel Sum.inr)).congr
         fun _ _ => Formula.realize_relabel
-      simp only [Clause.Holds, Atom.Holds, hC, Option.elim_none, imp_false, ← not_and, ← not_exists]
+      simp only [Clause.Holds, Atom.Holds, hC, Option.elim_none, imp_false,
+        ← not_and, ← not_exists]
       fo_definable
   obtain ⟨φ, hφ, hreal⟩ := key
   exact ⟨⟨φ, hφ⟩, fun m => (hreal m Empty.elim).trans (realize_iff_leastModel Φ).symm⟩

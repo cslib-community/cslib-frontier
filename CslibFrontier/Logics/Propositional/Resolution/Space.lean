@@ -154,20 +154,29 @@ private theorem three_le_of_configLTS_mTr (hφ : [] ∉ φ) {M M' : Finset (Clau
   induction h with
   | refl => exact absurd hM' hM
   | @stepL M m M₁ ms M₂ hstep _ ih =>
+    obtain ⟨hstep, hcard⟩ := hstep
     by_cases h₁ : [] ∈ M₁
-    · cases hstep.1 with
+    · cases hstep with
       | download hc =>
-        exact (Finset.mem_insert.1 h₁).elim (fun h => absurd (h ▸ hc) hφ) (fun h => absurd h hM)
+        rcases Finset.mem_insert.1 h₁ with h | h
+        exacts [absurd (h ▸ hc) hφ, absurd h hM]
       | @infer c₁ c₂ v h₁' h₂ hv₁ hv₂ =>
-        refine (Finset.mem_insert.1 h₁).elim (fun h => le_trans ?_ hstep.2) (fun h => absurd h hM)
-        -- the parents are different nonempty clauses, and the empty clause is a third one
-        refine Finset.two_lt_card.2 ⟨c₁, Finset.mem_insert_of_mem h₁', c₂,
-          Finset.mem_insert_of_mem h₂, [], Finset.mem_insert.2 (Or.inl h), ?_,
-          by rintro rfl; simp at hv₁, by rintro rfl; simp at hv₂⟩
-        rintro rfl
-        have : (v, false) ∈ c₁.resolvent c₁ v := Clause.mem_resolvent.2 (Or.inl ⟨hv₂, by simp⟩)
-        simp [← h] at this
-      | erase _ => exact absurd (Finset.mem_of_mem_erase h₁) hM
+        rcases Finset.mem_insert.1 h₁ with h | h
+        · -- the parents are different nonempty clauses, and the empty clause is a third one
+          refine le_trans ?_ hcard
+          have hne : c₁ ≠ c₂ := by
+            rintro rfl
+            have : (v, false) ∈ c₁.resolvent c₁ v := Clause.mem_resolvent.2 (Or.inl ⟨hv₂, by simp⟩)
+            rw [← h] at this
+            simp at this
+          refine Finset.two_lt_card.2 ⟨c₁, Finset.mem_insert_of_mem h₁', c₂,
+            Finset.mem_insert_of_mem h₂, [], Finset.mem_insert.2 (Or.inl h), hne, ?_, ?_⟩
+          · rintro rfl
+            simp at hv₁
+          · rintro rfl
+            simp at hv₂
+        · exact absurd h hM
+      | erase c => exact absurd (Finset.mem_of_mem_erase h₁) hM
     · exact ih h₁ hM'
 
 /-- Erasing clauses one at a time runs from a configuration to any subset of it. -/

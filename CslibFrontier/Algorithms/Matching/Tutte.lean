@@ -113,8 +113,11 @@ theorem map_eval_tutteMatrix (r : Sym2 V → R) :
 /-- An entry of the Tutte matrix has total degree at most `1`. -/
 theorem totalDegree_tutteMatrix_le (i j : V) : (tutteMatrix (R := R) G i j).totalDegree ≤ 1 := by
   simp only [tutteMatrix, tutteEval_apply]
-  split_ifs <;> [skip; rw [totalDegree_neg]; simp]
-  all_goals exact (totalDegree_monomial_le _ _).trans (by simp)
+  split_ifs
+  · exact (totalDegree_monomial_le _ _).trans (by simp)
+  · rw [totalDegree_neg]
+    exact (totalDegree_monomial_le _ _).trans (by simp)
+  · simp
 
 variable [Fintype V]
 

@@ -101,9 +101,10 @@ theorem vget_rehang (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
   | [], acc, z => by simp [rehang]
   | x :: zs, acc, z => by
     simp only [rehang, vget_rehang p s t X zs, List.mem_cons]
-    rcases eq_or_ne z x with rfl | hzx
-    · split_ifs <;> simp_all
-    · split_ifs <;> simp_all [vget_vset_ne _ _ hzx.symm]
+    by_cases hzx : z = x
+    · subst hzx
+      split_ifs <;> simp_all
+    · split_ifs <;> simp_all [vget_vset_ne _ _ (Ne.symm hzx)]
 
 /-- The minimum cut returned by the Edmonds–Karp solver on the network with capacities `W`,
 source `s` and sink `t`. -/
@@ -289,8 +290,9 @@ theorem vget_gomoryHu_weight_eq_minCutBetween {W : Fin n → Fin n → ℕ} (hW 
     vget (gomoryHu W adj r).weight u = minCutBetween W u (vget (gomoryHu W adj r).parent u) := by
   have hspec := gomoryHu_pure_spec hW hadj r
   rw [vget_gomoryHu_weight, vget_gomoryHu_parent]
-  rcases eq_or_ne u r with rfl | hur
-  · rw [hspec.2.1, hspec.2.2.1, minCutBetween_self]
+  by_cases hur : u = r
+  · subst hur
+    rw [hspec.2.1, hspec.2.2.1, minCutBetween_self]
   · obtain ⟨hcut, hw⟩ := hspec.2.2.2 u hur
     exact hw.trans ((isMinCutBetween_cutWeight_iff W).mp hcut).2.2
 

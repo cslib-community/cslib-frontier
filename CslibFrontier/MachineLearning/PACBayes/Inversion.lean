@@ -70,26 +70,36 @@ private theorem integral_empiricalRisk_eq_one_of_integral_trueRisk_eq_one {m : �
     (hS : ∀ i, trueRisk ℓ D i = 1 → empiricalRisk ℓ S i = 1)
     {Q : Measure ι} [IsProbabilityMeasure Q] (h1 : ∫ i, trueRisk ℓ D i ∂Q = 1) :
     ∫ i, empiricalRisk ℓ S i ∂Q = 1 := by
+  have hint_sub : Integrable (fun i => 1 - trueRisk ℓ D i) Q :=
+    Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
+      (ae_of_all _ fun i => ⟨sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2,
+        sub_le_self _ (trueRisk_mem_Icc ℓ D (hℓ01 i)).1⟩)
   have hint_tr : Integrable (trueRisk ℓ D) Q :=
     Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
       (ae_of_all _ fun i => trueRisk_mem_Icc ℓ D (hℓ01 i))
   have hzero : ∫ i, (1 - trueRisk ℓ D i) ∂Q = 0 := by
     rw [integral_sub (integrable_const 1) hint_tr, integral_const, probReal_univ, smul_eq_mul,
       one_mul, h1, sub_self]
-  have hae := (integral_eq_zero_iff_of_nonneg
-    (fun i => sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2) ((integrable_const 1).sub hint_tr)).1
-    hzero
-  rw [integral_congr_ae (g := fun _ => (1 : ℝ)) (by
+  have hae : ∀ᵐ i ∂Q, trueRisk ℓ D i = 1 := by
+    filter_upwards [(integral_eq_zero_iff_of_nonneg
+      (fun i => sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2) hint_sub).1 hzero] with i hi
+    rw [Pi.zero_apply] at hi
+    linarith
+  have hae_emp : empiricalRisk ℓ S =ᵐ[Q] fun _ => (1 : ℝ) := by
     filter_upwards [hae] with i hi
-    exact hS i (by simp only [Pi.zero_apply] at hi; linarith))]
+    exact hS i hi
+  rw [integral_congr_ae hae_emp]
   simp
 
 private theorem integral_risk_mem_Icc {g : ι → ℝ} (hg : ∀ i, g i ∈ Icc (0 : ℝ) 1)
     (Q : Measure ι) [IsProbabilityMeasure Q] :
-    ∫ i, g i ∂Q ∈ Icc (0 : ℝ) 1 :=
-  ⟨integral_nonneg fun i => (hg i).1,
-    (integral_mono (Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
-      (ae_of_all _ hg)) (integrable_const 1) fun i => (hg i).2).trans_eq (by simp)⟩
+    ∫ i, g i ∂Q ∈ Icc (0 : ℝ) 1 := by
+  refine ⟨integral_nonneg fun i => (hg i).1, ?_⟩
+  have hint : Integrable g Q :=
+    Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable (ae_of_all _ hg)
+  calc ∫ i, g i ∂Q ≤ ∫ _ : ι, (1 : ℝ) ∂Q :=
+        integral_mono hint (integrable_const 1) fun i => (hg i).2
+    _ = 1 := by simp
 
 omit [Countable ι] [MeasurableSingletonClass ι] in
 private theorem kl_rhs_nonneg {m : ℕ} (hm : 0 < m) (P Q : Measure ι)

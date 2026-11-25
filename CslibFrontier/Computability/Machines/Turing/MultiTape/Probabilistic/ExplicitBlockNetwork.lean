@@ -148,26 +148,27 @@ then the block contents (`Turing.MultiTapePTM.contentsEquiv`). -/
 /-- Every letter number fits in `letterBits k s b` bits. -/
 theorem card_letter_le_two_pow :
     (s + 1) * (b ^ (k + 1) * 3) + 3 ^ b ≤ 2 ^ letterBits k s b := by
-  have hb : 1 ≤ b := NeZero.one_le
+  have hb : 1 ≤ b := Nat.one_le_iff_ne_zero.mpr (NeZero.ne b)
+  have hs : s + 1 ≤ 2 ^ (s * b) :=
+    (Nat.lt_two_pow_self).trans_le (Nat.pow_le_pow_right two_pos (Nat.le_mul_of_pos_right s hb))
+  have hbk : b ^ (k + 1) ≤ 2 ^ ((k + 1) * b) := by
+    rw [mul_comm, pow_mul]
+    exact Nat.pow_le_pow_left (Nat.lt_two_pow_self).le _
+  have h3 : 3 ≤ 2 ^ (2 * b) := by
+    calc 3 ≤ 2 ^ 2 := by norm_num
+      _ ≤ 2 ^ (2 * b) := Nat.pow_le_pow_right two_pos (by omega)
   have h3b : 3 ^ b ≤ 2 ^ (2 * b) := by
     rw [pow_mul]
     exact Nat.pow_le_pow_left (by norm_num) _
-  have hctl : (s + 1) * (b ^ (k + 1) * 3) ≤ 2 ^ ((s + k + 3) * b) :=
-    calc (s + 1) * (b ^ (k + 1) * 3)
-        ≤ 2 ^ (s * b) * (2 ^ ((k + 1) * b) * 2 ^ (2 * b)) :=
-          Nat.mul_le_mul
-            (Nat.lt_two_pow_self.trans_le
-              (Nat.pow_le_pow_right two_pos (Nat.le_mul_of_pos_right s hb)))
-            (Nat.mul_le_mul
-              (by rw [mul_comm, pow_mul]; exact Nat.pow_le_pow_left Nat.lt_two_pow_self.le _)
-              ((by norm_num : 3 ≤ 2 ^ 2).trans (Nat.pow_le_pow_right two_pos (by omega))))
+  have hctl : (s + 1) * (b ^ (k + 1) * 3) ≤ 2 ^ ((s + k + 3) * b) := by
+    calc (s + 1) * (b ^ (k + 1) * 3) ≤ 2 ^ (s * b) * (2 ^ ((k + 1) * b) * 2 ^ (2 * b)) := by gcongr
       _ = 2 ^ ((s + k + 3) * b) := by rw [← pow_add, ← pow_add]; ring_nf
-  calc _ ≤ 2 ^ ((s + k + 3) * b) + 2 ^ ((s + k + 3) * b) := Nat.add_le_add hctl
-          (h3b.trans (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right b (by omega))))
+  have hcon : 3 ^ b ≤ 2 ^ ((s + k + 3) * b) :=
+    h3b.trans (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right b (by omega)))
+  calc _ ≤ 2 ^ ((s + k + 3) * b) + 2 ^ ((s + k + 3) * b) := Nat.add_le_add hctl hcon
     _ = 2 ^ ((s + k + 3) * b + 1) := by rw [pow_succ]; ring
-    _ ≤ 2 ^ letterBits k s b := Nat.pow_le_pow_right two_pos <| by
-        rw [letterBits, show (s + k + 4) * b = (s + k + 3) * b + b by ring]
-        omega
+    _ ≤ 2 ^ letterBits k s b :=
+        Nat.pow_le_pow_right two_pos (by unfold letterBits; nlinarith)
 
 /-- **The letter code**: the `letterBits k s b` binary digits, least significant first, of the
 number of a letter (`Turing.MultiTapePTM.letterEquiv`). -/
@@ -316,19 +317,21 @@ theorem admissible_explicitBlockNetwork {t : ℕ} (hb : b ≤ 3 * Nat.log 2 t) (
       (machine.explicitBlockNetwork input b σ e).maxDegree ≤
         6 * (3 * k + 1) * (s + k + 4) * Nat.log 2 t := by
   refine ⟨machine.isRowsFirstBipartite_explicitBlockNetwork input b σ e, ?_, ?_⟩
-  · rw [numEdges_explicitBlockNetwork, letterBits,
-      show 2 * (q * (3 * k + 1) * ((s + k + 4) * b)) =
-        2 * (3 * k + 1) * (s + k + 4) * (q * b) by ring]
-    refine (Nat.mul_le_mul_left _ hqb).trans ?_
-    rw [show 2 * (3 * k + 1) * (s + k + 4) * (2 * t) =
-        4 * ((3 * k + 1) * (s + k + 4) * t) by ring,
-      show 6 * (3 * k + 1) * (s + k + 4) * t =
-        6 * ((3 * k + 1) * (s + k + 4) * t) by ring]
-    omega
+  · rw [numEdges_explicitBlockNetwork, letterBits]
+    calc 2 * (q * (3 * k + 1) * ((s + k + 4) * b))
+        = 2 * (3 * k + 1) * (s + k + 4) * (q * b) := by ring
+      _ ≤ 2 * (3 * k + 1) * (s + k + 4) * (2 * t) := Nat.mul_le_mul_left _ hqb
+      _ ≤ 6 * (3 * k + 1) * (s + k + 4) * t := by
+          have h4 : 2 * (3 * k + 1) * (s + k + 4) * (2 * t) =
+              4 * ((3 * k + 1) * (s + k + 4) * t) := by ring
+          have h6 : 6 * (3 * k + 1) * (s + k + 4) * t = 6 * ((3 * k + 1) * (s + k + 4) * t) := by
+            ring
+          omega
   · refine (machine.maxDegree_explicitBlockNetwork_le input b σ e).trans ?_
-    rw [letterBits, show 2 * (3 * k + 1) * ((s + k + 4) * b) =
-      2 * (3 * k + 1) * (s + k + 4) * b by ring]
-    exact (Nat.mul_le_mul_left _ hb).trans_eq (by ring)
+    rw [letterBits]
+    calc 2 * (3 * k + 1) * ((s + k + 4) * b) = 2 * (3 * k + 1) * (s + k + 4) * b := by ring
+      _ ≤ 2 * (3 * k + 1) * (s + k + 4) * (3 * Nat.log 2 t) := Nat.mul_le_mul_left _ hb
+      _ = 6 * (3 * k + 1) * (s + k + 4) * Nat.log 2 t := by ring
 
 /-- Every table of the explicit network lists the values at all bits on its ports. -/
 theorem length_table_explicitBlockNetwork {p : List ℕ × List ℕ}

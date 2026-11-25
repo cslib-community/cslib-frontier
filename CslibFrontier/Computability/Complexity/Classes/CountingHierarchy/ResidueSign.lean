@@ -71,8 +71,10 @@ theorem residueWindowNumerator_eq_crt (Y L B k : ℕ) (residue : ℕ → ℕ) :
         (fun p : ↥(Nat.primesLE Y \ Nat.primesLE L) => (p.val : ℤ)) B
         (fun p => (primeWindowCoefficient Y L p.val k (residue p.val) : ℤ)) := by
   classical
-  have hs : Nat.primesLE Y \ Nat.primesLE L ⊆ Finset.range (Y + 1) := fun p hp =>
-    Finset.mem_range.mpr (Nat.lt_succ_of_le (Nat.mem_primesLE_sdiff_primesLE_iff.mp hp).2.2)
+  have hs : Nat.primesLE Y \ Nat.primesLE L ⊆ Finset.range (Y + 1) := by
+    intro p hp
+    exact Finset.mem_range.mpr
+      (Nat.lt_succ_of_le (Nat.mem_primesLE_sdiff_primesLE_iff.mp hp).2.2)
   unfold residueWindowNumerator
   simp only [primeWindowTest_eq_true_iff]
   rw [dyadicRangeSum_restrict_eq _ _ _ _ hs]

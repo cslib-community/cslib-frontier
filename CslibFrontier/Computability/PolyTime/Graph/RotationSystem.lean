@@ -139,7 +139,8 @@ attribute [local fun_prop] orbitBool_polyTime
 theorem range_binary :
     ComputableInPolyTime List.range encUnary (encList encNat) := by
   simpa [Function.comp_def] using
-    (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp ComputableInPolyTime.range
+    (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
+      ComputableInPolyTime.range
 
 /-- Enumerating `List.range (n x)` with binary-encoded entries from a computed unary count,
 scoped to `Cslib.Complexity.Graph.RotationCertificate` so unary `List.range` callers incur no
@@ -234,7 +235,8 @@ private theorem faceRepBool_polyTime :
       (encPair (encPair encUnary (encList encNat)) encNat) encBool := by
   unfold faceRepBool
   apply ComputableInPolyTime.allWithInput (encA := encNat) (by fun_prop)
-  exact ComputableInPolyTime.bool_or' (ComputableInPolyTime.bool_not.comp (by fun_prop))
+  exact ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp (by fun_prop))
     (ComputableInPolyTime.binary_le' (by fun_prop) (by fun_prop))
 
 private theorem faceRepBool_polyTime' {α : Type} {enc : α ↪ List Bool}
@@ -264,8 +266,9 @@ and successor table. No connectivity, permutation, or index-bound premise is req
   have hf := faceCount_polyTime
   unfold verifyEuler encGraphRotationCertificate
   apply ComputableInPolyTime.allWithInput (encA := encNat) (by fun_prop)
-  exact ComputableInPolyTime.ite (by fun_prop)
-    (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.unary_add' (by fun_prop) hf)
+  apply ComputableInPolyTime.ite (by fun_prop)
+    (ComputableInPolyTime.decide_eq'
+      (ComputableInPolyTime.unary_add' (by fun_prop) hf)
       (ComputableInPolyTime.unary_add' (by fun_prop) (ComputableInPolyTime.const 2)))
     (ComputableInPolyTime.const true)
 

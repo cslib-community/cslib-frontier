@@ -58,8 +58,11 @@ theorem treeSide_compl_of_adj {u v : ι} (huv : T.Adj u v) :
     hT.treeSide v u = (hT.treeSide u v)ᶜ := by
   ext w
   simp only [treeSide, mem_ofPred_eq, mem_compl_iff, not_lt]
-  rcases (hT.adj_iff_parent w).mp huv with ⟨hu, rfl⟩ | ⟨hv, rfl⟩ <;>
-    [have := hT.length_pathTo_parent w hu; have := hT.length_pathTo_parent w hv] <;> omega
+  rcases (hT.adj_iff_parent w).mp huv with ⟨hu, rfl⟩ | ⟨hv, rfl⟩
+  · have hlen := hT.length_pathTo_parent w hu
+    omega
+  · have hlen := hT.length_pathTo_parent w hv
+    omega
 
 /-- For an edge `T.Adj u v`, `u` lies on its own side `treeSide u v`. -/
 theorem self_mem_treeSide_of_adj {u v : ι} (huv : T.Adj u v) : u ∈ hT.treeSide u v := by

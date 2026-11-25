@@ -126,40 +126,52 @@ theorem expect_walk_pow_add_pow_four_le {f : V → ℝ} (hf : 𝔼 v, f v = 0) (
   set q : V → ℝ := fun w ↦ g w ^ 2 with hq
   set m := 𝔼 v, q v with hm
   set h := (G.walk ^ t) fun w ↦ q w - m with hh
+  have hsplit : (G.walk ^ (s + t)) f = (G.walk ^ t) g := by
+    rw [add_comm, pow_add, mul_apply_eq_comp]
   -- The walk of `q` is its mean plus the walk of the part of expectation zero.
   have hq_split (v : V) : (G.walk ^ t) q v = h v + m := by
-    rw [show q = (fun w ↦ q w - m) + fun _ ↦ m from funext fun _ ↦ (sub_add_cancel _ _).symm,
-      map_add, Pi.add_apply, walk_pow_const]
+    have : q = (fun w ↦ q w - m) + fun _ ↦ m := by
+      funext w
+      simp
+    rw [this, map_add, Pi.add_apply, walk_pow_const, ← hh]
   have hq0 : 𝔼 v, (q v - m) = 0 := by
     rw [expect_sub_distrib, Fintype.expect_const, sub_self]
+  have hh0 : 𝔼 v, h v = 0 := G.expect_walk_pow_eq_zero hq0 t
   -- Pointwise Jensen reduces the fourth moment to the second moment of the walk of `q`.
-  have h₁₂ : 𝔼 v, (G.walk ^ t) g v ^ 4 ≤ 𝔼 v, h v ^ 2 + m ^ 2 := by
-    refine (expect_le_expect (g := fun v ↦ (h v + m) ^ 2) fun v _ ↦ ?_).trans_eq ?_
-    · rw [← hq_split, show (G.walk ^ t) g v ^ 4 = ((G.walk ^ t) g v ^ 2) ^ 2 by ring]
-      exact pow_le_pow_left₀ (sq_nonneg _) (G.sq_walk_pow_le t g v) 2
-    · have hh0 : 𝔼 v, h v = 0 := G.expect_walk_pow_eq_zero hq0 t
-      simp only [add_sq, expect_add_distrib, ← expect_mul, ← mul_expect, hh0, Fintype.expect_const]
-      ring
+  have h₁ : 𝔼 v, (G.walk ^ t) g v ^ 4 ≤ 𝔼 v, (h v + m) ^ 2 := by
+    refine expect_le_expect fun v _ ↦ ?_
+    rw [← hq_split]
+    calc (G.walk ^ t) g v ^ 4 = ((G.walk ^ t) g v ^ 2) ^ 2 := by ring
+      _ ≤ _ := pow_le_pow_left₀ (sq_nonneg _) (G.sq_walk_pow_le t g v) 2
+  have h₂ : 𝔼 v, (h v + m) ^ 2 = 𝔼 v, h v ^ 2 + m ^ 2 := by
+    simp only [add_sq, expect_add_distrib, ← expect_mul, ← mul_expect, hh0,
+      Fintype.expect_const]
+    ring
   -- The part of expectation zero decays at rate `λ ^ (2 t)`.
   have h₃ : 𝔼 v, h v ^ 2 ≤ G.spectralExpansion ^ (2 * t) * 𝔼 v, f v ^ 4 := by
     refine (G.expect_walk_pow_sq_le_spectralExpansion_pow_mul hq0 t).trans
       (mul_le_mul_of_nonneg_left ?_ (pow_nonneg G.spectralExpansion_nonneg _))
-    have hqm : 𝔼 v, (q v - m) ^ 2 = 𝔼 v, g v ^ 4 - m ^ 2 := by
-      simp only [sub_sq, expect_sub_distrib, expect_add_distrib, ← expect_mul, ← mul_expect,
-        Fintype.expect_const, ← hm, show (fun v ↦ q v ^ 2) = fun v ↦ g v ^ 4 from
-          funext fun v ↦ by rw [hq]; ring]
-      ring
-    exact (hqm.trans_le (sub_le_self _ (sq_nonneg _))).trans (G.expect_walk_pow_pow_four_le s f)
+    calc 𝔼 v, (q v - m) ^ 2 = 𝔼 v, q v ^ 2 - m ^ 2 := by
+          simp only [sub_sq, expect_sub_distrib, expect_add_distrib, ← expect_mul,
+            ← mul_expect, Fintype.expect_const, ← hm]
+          ring
+      _ ≤ 𝔼 v, q v ^ 2 := sub_le_self _ (sq_nonneg _)
+      _ = 𝔼 v, g v ^ 4 := by
+          congr 1 with v : 1
+          rw [hq]
+          ring
+      _ ≤ 𝔼 v, f v ^ 4 := G.expect_walk_pow_pow_four_le s f
   -- The mean of `q` decays at rate `λ ^ (2 s)`.
   have h₄ : m ^ 2 ≤ G.spectralExpansion ^ (4 * s) * 𝔼 v, f v ^ 4 := by
-    have hm0 : 0 ≤ m := expect_nonneg fun _ _ ↦ sq_nonneg _
-    calc m ^ 2 ≤ (G.spectralExpansion ^ (2 * s) * 𝔼 v, f v ^ 2) ^ 2 :=
-          pow_le_pow_left₀ hm0 (G.expect_walk_pow_sq_le_spectralExpansion_pow_mul hf s) 2
+    have hm0 : 0 ≤ m := expect_nonneg fun v _ ↦ sq_nonneg _
+    have hms : m ≤ G.spectralExpansion ^ (2 * s) * 𝔼 v, f v ^ 2 :=
+      G.expect_walk_pow_sq_le_spectralExpansion_pow_mul hf s
+    calc m ^ 2 ≤ (G.spectralExpansion ^ (2 * s) * 𝔼 v, f v ^ 2) ^ 2 := by gcongr
       _ = G.spectralExpansion ^ (4 * s) * (𝔼 v, f v ^ 2) ^ 2 := by ring
-      _ ≤ G.spectralExpansion ^ (4 * s) * 𝔼 v, f v ^ 4 :=
-          mul_le_mul_of_nonneg_left (sq_expect_sq_le_expect_pow_four f)
-            (pow_nonneg G.spectralExpansion_nonneg _)
-  rw [add_comm, pow_add, mul_apply_eq_comp]
+      _ ≤ G.spectralExpansion ^ (4 * s) * 𝔼 v, f v ^ 4 := by
+          gcongr
+          exact sq_expect_sq_le_expect_pow_four f
+  rw [hsplit]
   linarith
 
 /-- **Fourth-moment decay over `2 t` steps**: for `𝔼 f = 0`, a walk of length `2 t` multiplies
@@ -181,12 +193,14 @@ theorem expect_walk_pow_two_mul_sub_expect_pow_four_le (f : V → ℝ) (t : ℕ)
   rcases isEmpty_or_nonempty V with hV | hV
   · simp
   set c := 𝔼 w, f w
-  have hc : 𝔼 v, (f v - c) = 0 := by rw [expect_sub_distrib, Fintype.expect_const, sub_self]
   have hsub : (G.walk ^ (2 * t)) (fun w ↦ f w - c) = fun v ↦ (G.walk ^ (2 * t)) f v - c := by
-    change (G.walk ^ (2 * t)) (f - fun _ ↦ c) = _
-    rw [map_sub, walk_pow_const]
+    have : (fun w ↦ f w - c) = f - fun _ ↦ c := rfl
+    rw [this, map_sub, walk_pow_const]
     rfl
-  simpa only [hsub] using G.expect_walk_pow_two_mul_pow_four_le hc t
+  have hc : 𝔼 v, (f v - c) = 0 := by
+    rw [expect_sub_distrib, Fintype.expect_const, sub_self]
+  have := G.expect_walk_pow_two_mul_pow_four_le hc t
+  rwa [hsub] at this
 
 end Moments
 

@@ -323,7 +323,8 @@ theorem pairedOutput_toAlgorithm (P : Program X Ω α m) (D : PMF X) :
           ProbComp.eval (P.coupledExec S₁ S₂) := by
   simp only [toAlgorithm, Algorithm.pairedOutput, eval_coupledExec]
   rw [PMF.bind_comm]
-  exact PMF.bind_congr_on_support _ _ _ fun _ _ => PMF.bind_comm _ _ _
+  refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
+  exact PMF.bind_comm _ _ _
 
 @[simp] theorem toAlgorithm_deterministic (seed : ProbComp Ω) (f : (Fin m → X) → Ω → α) :
     (deterministic seed f).toAlgorithm = Algorithm.deterministic (ProbComp.eval seed) f :=

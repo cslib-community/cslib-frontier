@@ -146,23 +146,31 @@ private theorem exists_formula_computes_parity [Finite (Σ l, L.Relations l)] (P
       simp only [sub, Function.comp_apply, atomsOf]
       obtain ⟨⟨l, R⟩, t⟩ := e.symm j
       by_cases hR : (⟨l, R⟩ : Σ l, L.Relations l) = ⟨1, P⟩
-      · rw [ite_eq_left hR, Bool.eq_iff_iff]
+      · rw [ite_eq_left hR]
+        refine Bool.eq_iff_iff.2 ?_
         simp only [Circuits.Formula.eval_gate, Circuits.Formula.eval_input,
           Unbounded.interpretation_and, decide_eq_true_iff]
         change _ ↔ (if _ then _ else _)
         rw [ite_eq_left hR]
-        exact forall_congr' fun i => by change _ ↔ t i ∈ S; simp [S]
-      · rw [ite_eq_right hR, Bool.eq_iff_iff]
+        refine forall_congr' fun i => ?_
+        change _ ↔ t i ∈ S
+        simp [S]
+      · rw [ite_eq_right hR]
+        refine Bool.eq_iff_iff.2 ?_
         simp only [eval_constUnbounded, decide_eq_true_iff]
         exact (Expansion.relMap_of_ne hR _).symm
     have hreal : (G.bind sub).eval Unbounded.interpretation y = true ↔ Even #S := by
       rw [Circuits.Formula.eval_bind, hatoms]
       exact (eval_toUnbounded_atomsOf e (M := Expansion P N S) (Equiv.refl _) φ).trans (h S)
     simp only [Circuits.Formula.eval_gate, Unbounded.interpretation_not, Matrix.cons_val_zero]
-    change (!((G.bind sub).eval Unbounded.interpretation y)) = decide (#S % 2 = 1)
-    rw [Bool.eq_iff_iff, Bool.not_eq_true', ← Bool.not_eq_true, hreal, Nat.even_iff,
-      decide_eq_true_iff]
-    omega
+    change _ = decide (#S % 2 = 1)
+    rw [Nat.even_iff] at hreal
+    cases hv : (G.bind sub).eval Unbounded.interpretation y
+    · rw [hv] at hreal
+      have : #S % 2 = 1 := by grind
+      simp [this]
+    · have := hreal.1 hv
+      simp [this]
   · -- depth
     have := depth_toUnbounded_le e φ Fin.elim0
     circuit_bound
@@ -212,13 +220,17 @@ theorem not_forall_realize_iff_even_card [Finite (Σ l, L.Relations l)] (P : L.R
   -- the numerical relations are all empty
   let N : ∀ n, L.Structure (Fin n) := fun _ => ⟨fun f => isEmptyElim f, fun _ _ => False⟩
   refine not_eventually_forall_realize_expansion_iff_even P N φ
-    (Filter.eventually_atTop.2 ⟨n₀, fun n hn S => ?_⟩)
+    (Filter.eventually_atTop.2 ⟨n₀, fun n hn => ?_⟩)
+  intro S
   have : Finite (Expansion P (N n) S) := inferInstanceAs (Finite (Fin n))
+  have hcard : Nat.card {m : Expansion P (N n) S // Structure.RelMap P ![m]} = #S := by
+    rw [← Nat.card_eq_finsetCard S]
+    refine Nat.card_congr (Equiv.subtypeEquivRight fun m => ?_)
+    rw [Expansion.relMap_self]
+    rfl
   have hn' : Nat.card (Expansion P (N n) S) = n :=
     (Nat.card_eq_fintype_card (α := Fin n)).trans (Fintype.card_fin n)
-  have hcard : Nat.card {m : Expansion P (N n) S // Structure.RelMap P ![m]} = #S :=
-    (Nat.card_congr (Equiv.subtypeEquivRight fun m => by rw [Expansion.relMap_self]; rfl)).trans
-      (Nat.card_eq_finsetCard S)
-  exact hcard ▸ h _ (hn'.symm ▸ hn)
+  rw [← hcard]
+  exact h _ (hn'.symm ▸ hn)
 
 end Cslib.Circuits.Boolean.ModelChecking

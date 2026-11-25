@@ -84,7 +84,8 @@ theorem evalTokenStack_tokens {n : ℕ} (p : ℕ) (point : List ℕ) (t : Term n
     evalTokenStack p point ((encTerm_tokens n t).map TermToken.ofFin) stack =
       some (t.evalResidue p point :: stack) := by
   induction t generalizing stack with
-  | const _ | var _ => rfl
+  | const z => rfl
+  | var i => rfl
   | add l r hl hr | mul l r hl hr =>
     simp only [evalTokenStack] at hl hr
     simp only [encTerm_tokens, List.map_append, List.map_cons, List.map_nil, evalTokenStack,

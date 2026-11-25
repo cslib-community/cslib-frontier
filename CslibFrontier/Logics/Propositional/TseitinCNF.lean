@@ -168,13 +168,15 @@ private theorem eq_tseitinExtend_of_eval_tseitinDefs {σ : Atom ⊕ Proposition 
     · rfl
     · simp [tseitinDefs, CNF.vars] at hy
   | falsum =>
-    obtain rfl : y = falsum.tseitinVar := by simpa [tseitinDefs, CNF.vars, tseitinVar] using hy
-    exact (eval_tseitinVar_of_eval_tseitinDefs h).trans (tseitinExtend_tseitinVar _ _).symm
+    have hy : y = falsum.tseitinVar := by simpa [tseitinDefs, CNF.vars, tseitinVar] using hy
+    subst hy
+    rw [eval_tseitinVar_of_eval_tseitinDefs h, tseitinExtend_tseitinVar]
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
+    have hAB := h
+    simp only [tseitinDefs, CNF.eval_append, Bool.and_eq_true] at hAB
+    obtain ⟨⟨-, hA⟩, hB⟩ := hAB
     have hself : σ (.inr _) = tseitinExtend (σ ∘ Sum.inl) (.inr _) :=
       (eval_tseitinVar_of_eval_tseitinDefs h).trans (tseitinExtend_tseitinVar _ _).symm
-    simp only [tseitinDefs, CNF.eval_append, Bool.and_eq_true] at h
-    obtain ⟨⟨-, hA⟩, hB⟩ := h
     rcases hy with rfl | hy
     · exact hself
     · obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hy

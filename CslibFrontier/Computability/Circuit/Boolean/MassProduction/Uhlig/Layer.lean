@@ -113,10 +113,14 @@ theorem pairSelect_comp_pairWires (s : Fin 2) (j : ℕ) (i : Fin t)
     (x : BitString (2 * t * (p + w))) :
     pairSelect s j (x ∘ pairWires i) =
       ![first, second] s (rank x (pairCopy 0 i)) (rank x (pairCopy 1 i)) j := by
-  have h0 : (x ∘ pairWires i) ∘ Fin.castAdd p = BitString.block x (pairCopy 0 i) ∘ Fin.castAdd w :=
-    funext fun _ => by simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_left]
-  have h1 : (x ∘ pairWires i) ∘ Fin.natAdd p = BitString.block x (pairCopy 1 i) ∘ Fin.castAdd w :=
-    funext fun _ => by simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_right]
+  have h0 : (x ∘ pairWires i) ∘ Fin.castAdd p =
+      BitString.block x (pairCopy 0 i) ∘ Fin.castAdd w := by
+    funext a
+    simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_left]
+  have h1 : (x ∘ pairWires i) ∘ Fin.natAdd p =
+      BitString.block x (pairCopy 1 i) ∘ Fin.castAdd w := by
+    funext a
+    simp only [pairWires, BitString.block, Function.comp_apply, Fin.append_right]
   simp only [pairSelect, rank, h0, h1]
 
 /-- The suffix bit `k` routed to resource `j` from pair `i`. -/
@@ -219,8 +223,10 @@ theorem complexity_directProduct_two_mul_le {B : ℕ}
   refine complexity_le_iff.mpr ⟨layer, fun x => ?_, ?_⟩
   · have hfront : cFront.eval interpretation x = Fin.append x fun q =>
         routedBit (finProdFinEquiv.symm q).1 (finProdFinEquiv.symm (finProdFinEquiv.symm q).2).1
-          (finProdFinEquiv.symm (finProdFinEquiv.symm q).2).2 x :=
-      (hcFront x).trans (funext (Fin.addCases (fun _ => by simp [front]) fun _ => by simp [front]))
+          (finProdFinEquiv.symm (finProdFinEquiv.symm q).2).2 x := by
+      rw [hcFront x]
+      funext l
+      refine Fin.addCases (fun l => ?_) (fun q => ?_) l <;> simp [front]
     funext c
     obtain ⟨⟨s, i⟩, rfl⟩ := finProdFinEquiv.surjective c
     simp only [layer, Circuit.eval_comp, hcDec _, hfront, Circuit.eval_parallel,
@@ -238,7 +244,8 @@ theorem complexity_directProduct_two_mul_le {B : ℕ}
       Fintype.card_fin, smul_eq_mul, mul_zero, zero_add] at hsFront hsDec
     simp only [layer, Circuit.size_comp, Circuit.size_parallel, Circuit.size_parallelFamily,
       Circuit.size_wiring, zero_add]
-    exact (Nat.add_le_add (Nat.add_le_add hsFront hbankSize) hsDec).trans_eq
-      (by unfold layerOverhead; ring)
+    refine (Nat.add_le_add (Nat.add_le_add hsFront hbankSize) hsDec).trans (le_of_eq ?_)
+    unfold layerOverhead
+    ring
 
 end Cslib.Circuits.Boolean.MassProduction.Uhlig

@@ -279,7 +279,8 @@ theorem reach_card_le_time (hM : M.HaltingAbsorbing) (t : ℕ)
   refine reach_card_le_of_cover M (t + 1) fun x r => ?_
   obtain ⟨s, hs, hh⟩ := ht x
   rcases le_or_gt r s with hrs | hsr
-  exacts [⟨x, r, by omega, rfl⟩, ⟨x, s, by omega, M.iterate_of_halting hM hh hsr.le⟩]
+  · exact ⟨x, r, by omega, rfl⟩
+  · exact ⟨x, s, by omega, M.iterate_of_halting hM hh hsr.le⟩
 
 omit [Fintype Q] [Fintype Γ] in
 /-- Running `τ * m` steps of a machine with rounds of length `τ` runs `m` rounds. -/
@@ -352,11 +353,12 @@ theorem inplace_fixed_power (e : Config Q Γ n h → BitString w)
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
       out.size ≤ ι.size + 40000 * powerBudget w c.size R L := by
   obtain ⟨d, hd, hs⟩ := fixed_power_encoded M.step (reach M n) e c
-    (fun _ => step_mem_reach M) hstep T L hL
-  refine ⟨d.comp ι, fun x => by rw [Circuit.eval_comp, hι, hd _ (init_mem_reach M x)], ?_⟩
-  rw [Circuit.size_comp]
-  have := powerBudget_mono (w := w) (s := c.size) (L := L) hR
-  omega
+    (fun z hz => step_mem_reach M hz) hstep T L hL
+  refine ⟨d.comp ι, fun x => ?_, ?_⟩
+  · rw [Circuit.eval_comp, hι, hd _ (init_mem_reach M x)]
+  · rw [Circuit.size_comp]
+    have := powerBudget_mono (w := w) (s := c.size) (L := L) hR
+    omega
 
 /-- The square-root form, with any upper bound `R` on the number of reachable configurations. -/
 theorem inplace_fixed_power_optimized (e : Config Q Γ n h → BitString w)

@@ -73,38 +73,56 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
         point v ∉ segment ℝ a b := by
       rw [segment_eq_image_lineMap]
       rintro ⟨t, ht, heq⟩
-      obtain ⟨side, _, hs⟩ := referenceDrawing_vertex_contacts hI e 0 ht (hvertex v)
-        ((Route.eval_line a b 0 t).trans heq)
+      have hhit : (ref.route e).eval 0 t = ref.vertex v.val :=
+        (Route.eval_line a b 0 t).trans heq
+      obtain ⟨side, _, hs⟩ := referenceDrawing_vertex_contacts hI e 0 ht (hvertex v) hhit
       exact hne side hs
     by_cases hfixed : frozen e
     · refine ⟨ref.route e, fun _ => rfl, fun _ => rfl,
-        fun _ => ⟨1, one_pos, (one_smul ℝ _).symm⟩,
-        fun v hne => show point v ∉ (Route.line a b).support from
-          Route.support_line a b ▸ havoid v hne,
-        fun v => by rw [hread, hfrozen idx v hfixed, ← Bool.zero_eq_false, add_zero]⟩
+        fun _ => ⟨1, one_pos, (one_smul ℝ _).symm⟩, ?_, ?_⟩
+      · intro v hne
+        change point v ∉ (Route.line a b).support
+        rw [Route.support_line]
+        exact havoid v hne
+      · intro v
+        rw [hread, hfrozen idx v hfixed, ← Bool.zero_eq_false, add_zero]
     let odd := (Finset.univ.filter fun v : V => moves idx v = true).map point
     have hsub : odd ⊆ points := Finset.map_subset_map.mpr (Finset.filter_subset _ _)
     have hbit (v : V) : decide (point v ∈ odd) = readMove F moves e.val v.val := by
-      rw [hread, Bool.decide_congr (show point v ∈ odd ↔ moves idx v = true by
-        simp only [odd, Finset.mem_map' point, Finset.mem_filter, Finset.mem_univ, true_and])]
-      cases moves idx v <;> rfl
-    have hmid : AffineMap.lineMap a b (1 / 2 : ℝ) ∈ Set.univ \ (↑points : Set ℂ) :=
-      ⟨Set.mem_univ _, fun h => by
-        obtain ⟨v, _, hv⟩ := Finset.mem_map.mp h
-        obtain ⟨side, hs, _⟩ := referenceDrawing_vertex_contacts hI e 0
-          (by constructor <;> norm_num) (hvertex v) ((Route.eval_line a b 0 _).trans hv.symm)
-        have ht := (Route.atEnd_line_iff a b 0 (1 / 2 : ℝ) side).mp hs
-        cases side <;> norm_num at ht⟩
+      rw [hread]
+      have hm : point v ∈ odd ↔ moves idx v = true := by
+        simp only [odd, Finset.mem_map' point, Finset.mem_filter, Finset.mem_univ, true_and]
+      calc
+        _ = decide (moves idx v = true) := Bool.decide_congr hm
+        _ = _ := by cases moves idx v <;> rfl
+    have hmid : AffineMap.lineMap a b (1 / 2 : ℝ) ∈ Set.univ \ (↑points : Set ℂ) := by
+      refine ⟨Set.mem_univ _, ?_⟩
+      intro h
+      obtain ⟨v, _, hv⟩ := Finset.mem_map.mp h
+      have hhit : (ref.route e).eval 0 (1 / 2 : ℝ) = ref.vertex v.val :=
+        (Route.eval_line a b 0 _).trans hv.symm
+      obtain ⟨side, hs, _⟩ :=
+        referenceDrawing_vertex_contacts hI e 0 (by constructor <;> norm_num) (hvertex v) hhit
+      have ht := (Route.atEnd_line_iff a b 0 (1 / 2 : ℝ) side).mp hs
+      cases side <;> norm_num at ht
     obtain ⟨r, he, hg, _, hsupport, hpar⟩ :=
       Route.exists_line_add_rayParity isOpen_univ isPathConnected_univ points odd hsub
         (fun z _ => Set.mem_univ z) a b (by constructor <;> norm_num) hmid hu
-    exact ⟨r, he, fun h => (hfixed h).elim,
-      fun side => ⟨if side then 1 - (1 / 2 : ℝ) else 1 / 2, by cases side <;> norm_num, hg side⟩,
-      fun v hne hv => (hsupport hv).elim (havoid v hne) fun h => h.2 (hpoint v),
-      fun v => hbit v ▸ hpar (point v) (hpoint v)⟩
+    refine ⟨r, he, fun h => (hfixed h).elim, ?_, ?_, ?_⟩
+    · intro side
+      refine ⟨if side then 1 - (1 / 2 : ℝ) else 1 / 2, ?_, hg side⟩
+      cases side <;> norm_num
+    · intro v hne hv
+      rcases hsupport hv with h | h
+      · exact havoid v hne h
+      · exact h.2 (hpoint v)
+    · intro v
+      rw [← hbit]
+      exact hpar (point v) (hpoint v)
   choose routes hroutes using each
-  exact ⟨⟨ref.vertex, routes, fun e side => ((hroutes e).1 side).trans (ref.endpoint_eq e side)⟩,
-    rfl, fun e => (hroutes e).2.1, fun e => (hroutes e).2.2.1,
+  let D : PolygonalDrawing G :=
+    ⟨ref.vertex, routes, fun e side => (hroutes e).1 side |>.trans (ref.endpoint_eq e side)⟩
+  exact ⟨D, rfl, fun e => (hroutes e).2.1, fun e => (hroutes e).2.2.1,
     fun e => (hroutes e).2.2.2.1, fun e => (hroutes e).2.2.2.2⟩
 
 end Cslib.Complexity.Graph.RotationRecognition

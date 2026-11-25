@@ -66,7 +66,8 @@ theorem oracleReplies_congr {g g' : List Bool → Bool} {fuel : ℕ} (input : Li
   set t' := machine.oracleReplies g' fuel input
   have hlen : t.length = fuel := machine.length_oracleReplies g fuel input
   have hlen' : t'.length = fuel := machine.length_oracleReplies g' fuel input
-  have htake : ∀ i ≤ fuel, t.take i = t'.take i := fun i hi => by
+  have htake : ∀ i ≤ fuel, t.take i = t'.take i := by
+    intro i hi
     induction i with
     | zero => rfl
     | succ i ih =>
@@ -75,8 +76,8 @@ theorem oracleReplies_congr {g g' : List Bool → Bool} {fuel : ℕ} (input : Li
       have hcfg : machine.replayPrefix input t i = machine.replayPrefix input t' i := by
         simp only [replayPrefix, ih]
       have hreq : (machine.pendingRequest (machine.replayPrefix input t i)).length < fuel :=
-        ((machine.length_pendingRequest_replayPrefix_le input t i).trans
-          (Nat.min_le_left _ _)).trans_lt hlt
+        lt_of_le_of_lt ((machine.length_pendingRequest_replayPrefix_le input t i).trans
+          (Nat.min_le_left _ _)) hlt
       have hbit : t[i]'(by omega) = t'[i]'(by omega) := by
         rw [← List.getD_eq_getElem t false, ← List.getD_eq_getElem t' false,
           machine.getD_oracleReplies g fuel input i hlt,

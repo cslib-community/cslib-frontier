@@ -203,11 +203,13 @@ theorem uniform_bind_decode_bind_apply_false_le {m n q : ℕ} [NeZero q]
       decodeGame decode s e false := by
   simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbComp.eval_uniform]
-  refine PMF.bind_apply_mono_on_support _ false fun A _ =>
-    PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
-  rcases eq_or_ne sOpt (some s) with rfl | h
-  · simp [hk]
-  · simpa only [decide_eq_false h, PMF.pure_apply_self] using PMF.coe_le_one _ _
+  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
+  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
+  by_cases h : sOpt = some s
+  · subst h
+    simp [hk]
+  · rw [decide_eq_false h, PMF.pure_apply_self]
+    exact PMF.coe_le_one _ _
 
 /-- `uniform_bind_decode_bind_apply_false_le` with the decoding failure probability bounded by
 `δ`. -/
@@ -259,9 +261,11 @@ theorem correctHammingWithError_decodeThenExtract_of_decoderCorrectWithError
     {t : ℕ} {δ : ℝ≥0}
     (hdec : DecoderCorrectWithError decode t δ)
     (ext : (Fin n → ZMod q) → Seed → Key) :
-    (decodeThenExtract m n q decode ext).CorrectHammingWithError t δ :=
-  fun w w' hdis => failProbability_reproduceGame_decodeThenExtract_le decode ext fun s =>
-    hdec s (w - w') ((hammingNorm_sub_eq_hammingDist w w').trans_le hdis)
+    (decodeThenExtract m n q decode ext).CorrectHammingWithError t δ := by
+  intro w w' hdis
+  refine failProbability_reproduceGame_decodeThenExtract_le decode ext fun s => ?_
+  refine hdec s (w - w') ?_
+  rwa [hammingNorm_sub_eq_hammingDist]
 
 /-! ### Exact uniformity for a uniform source -/
 
@@ -410,9 +414,10 @@ private theorem realGame_hardcoreKeyReduction
     (D : (Fin k → ZMod q) → DecodeHelper m (k + l) q Unit → Experiment) :
     LWE.realGame (PMF.uniformOfFintype (Fin l → ZMod q)) W (hardcoreKeyReduction D) =
       (lweFuzzyExtractor m k l q decode).realGame W D := by
+  have h := realGame_embed (k := k) W fun x₁ A c => ProbComp.eval (D x₁ ⟨A, c, ()⟩)
   simp only [pmf_norm, LWE.realGame, LWE.eval_realExperiment, hardcoreKeyReduction,
     ProbComp.eval_uniform]
-  refine (realGame_embed (k := k) W fun x₁ A c => ProbComp.eval (D x₁ ⟨A, c, ()⟩)).trans ?_
+  refine h.trans ?_
   simp only [pmf_norm, lweFuzzyExtractor, decodeThenExtract, realGame, Game.withSetup,
     realExperiment, ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
 
@@ -425,10 +430,11 @@ private theorem realGame_hardcoreUniformReduction
     (D : (Fin k → ZMod q) → DecodeHelper m (k + l) q Unit → Experiment) :
     LWE.realGame (PMF.uniformOfFintype (Fin l → ZMod q)) W (hardcoreUniformReduction D) =
       (lweFuzzyExtractor m k l q decode).idealGame W D := by
+  have h := realGame_embed (k := k) W fun _ A c =>
+    (PMF.uniformOfFintype (Fin k → ZMod q)).bind fun r => ProbComp.eval (D r ⟨A, c, ()⟩)
   simp only [pmf_norm, LWE.realGame, LWE.eval_realExperiment, hardcoreUniformReduction,
     ProbComp.eval_uniform]
-  refine (realGame_embed (k := k) W fun _ A c =>
-    (PMF.uniformOfFintype (Fin k → ZMod q)).bind fun r => ProbComp.eval (D r ⟨A, c, ()⟩)).trans ?_
+  refine h.trans ?_
   simp only [pmf_norm, lweFuzzyExtractor, decodeThenExtract, idealGame, Game.withSetup,
     idealExperiment, ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
 
@@ -468,9 +474,10 @@ theorem securityAdvantage_lweFuzzyExtractor_le
     (lweFuzzyExtractor m k l q decode).securityAdvantage W D ≤
       LWE.advantage (PMF.uniformOfFintype (Fin l → ZMod q)) W (hardcoreKeyReduction D) +
         LWE.advantage (PMF.uniformOfFintype (Fin l → ZMod q)) W (hardcoreUniformReduction D) := by
-  simp only [LWE.advantage, securityAdvantage, realGame_hardcoreKeyReduction decode,
-    realGame_hardcoreUniformReduction decode, randomGame_hardcoreKeyReduction]
-  rw [Game.advantage_comm ((lweFuzzyExtractor m k l q decode).idealGame W D)]
+  simp only [LWE.advantage, securityAdvantage]
+  rw [realGame_hardcoreKeyReduction decode, realGame_hardcoreUniformReduction decode,
+    randomGame_hardcoreKeyReduction,
+    Game.advantage_comm ((lweFuzzyExtractor m k l q decode).idealGame W D)]
   exact Game.advantage_triangle _ _ _
 
 end Hardcore

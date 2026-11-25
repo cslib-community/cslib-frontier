@@ -267,8 +267,9 @@ theorem val_coreValue (P r : ℕ) (G : DescribedNetwork T) :
     · simp only [Option.elim_some]
       split_ifs with hd
       · subst hd
-        rw [FastContraction.eq_value_of_run entry nativeMk (fuel := clock)
-          (root := rootCall) rfl hrun]
+        have hy := FastContraction.eq_value_of_run entry nativeMk (fuel := clock)
+          (root := rootCall) rfl hrun
+        rw [hy]
         exact (FastContraction.val_value entry nativeMk (FastContraction.stepCorrect_nativeMk entry)
           FastContraction.wfChildren_nativeMk _ (wf_rootCall hg)).trans
           (FastContraction.contraction_rootNet (val P (modulus G.numEdges)) entry G)

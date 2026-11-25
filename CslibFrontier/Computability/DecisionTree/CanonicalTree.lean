@@ -76,13 +76,15 @@ theorem eval_fill_of_falsifiedBy (h : t.FalsifiedBy ρ) (x : ι → Bool) :
 /-- A term that is not falsified and has no free variable is true on every input filled from the
 restriction. -/
 theorem eval_fill_of_freeVars_eq_nil (h : ¬ t.FalsifiedBy ρ) (hV : t.freeVars ρ = [])
-    (x : ι → Bool) : Term.eval (ρ.fill x) t = true :=
-  (Term.eval_eq_true_iff _ _).2 fun l hl =>
-    match hρ : ρ l.1 with
-    | none => absurd (mem_freeVars.2 ⟨l.2, hl, hρ⟩) (by simp [hV])
-    | some _ => by
-      rw [PartialAssignment.fill_of_eq_some hρ]
-      exact by_contra fun hb => h ⟨l, hl, Bool.eq_not_iff.2 hb ▸ hρ⟩
+    (x : ι → Bool) : Term.eval (ρ.fill x) t = true := by
+  rw [Term.eval_eq_true_iff]
+  intro l hl
+  cases hρ : ρ l.1 with
+  | none => exact absurd (mem_freeVars.2 ⟨l.2, hl, hρ⟩) (by simp [hV])
+  | some b =>
+    rw [PartialAssignment.fill_of_eq_some hρ]
+    by_contra hb
+    exact h ⟨l, hl, Bool.eq_not_iff.2 hb ▸ hρ⟩
 
 end Term
 
@@ -102,9 +104,12 @@ variable {F} {ρ : PartialAssignment ι}
 
 theorem free_of_mem_queried {v : ι} (hv : v ∈ F.queried ρ) : ρ v = none := by
   unfold queried at hv
-  cases h : F.firstTerm ρ <;> simp only [h, Option.map_none, Option.getD_none,
-    List.not_mem_nil, Option.map_some, Option.getD_some, Term.mem_freeVars] at hv
-  exact hv.choose_spec.2
+  cases h : F.firstTerm ρ with
+  | none => simp [h] at hv
+  | some t =>
+    simp only [h, Option.map_some, Option.getD_some] at hv
+    obtain ⟨b, -, hρ⟩ := Term.mem_freeVars.1 hv
+    exact hρ
 
 /-- When nothing is queried, the formula is constant under the restriction: true exactly when some
 term is not falsified. -/
@@ -194,10 +199,12 @@ private theorem pathLength_congr {ρ : PartialAssignment ι} {x y : ι → Bool}
     (h : ∀ i ∈ ρ.free, x i = y i) :
     F.pathLength ρ x = F.pathLength ρ y := by
   by_cases hq : F.queried ρ = []
-  · simp [pathLength_of_queried_eq_nil hq]
-  · have hassign : ρ.assign (F.queried ρ).toFinset x = ρ.assign (F.queried ρ).toFinset y :=
-      funext fun i => if hi : i ∈ (F.queried ρ).toFinset then
-        by simp [hi, h i (toFinset_queried_subset_free hi)] else by simp [hi]
+  · rw [pathLength_of_queried_eq_nil hq, pathLength_of_queried_eq_nil hq]
+  · have hassign : ρ.assign (F.queried ρ).toFinset x = ρ.assign (F.queried ρ).toFinset y := by
+      funext i
+      by_cases hi : i ∈ (F.queried ρ).toFinset
+      · simp [hi, h i (toFinset_queried_subset_free hi)]
+      · simp [hi]
     rw [pathLength_of_queried_ne_nil hq, pathLength_of_queried_ne_nil hq, hassign,
       pathLength_congr (ρ := ρ.assign (F.queried ρ).toFinset y) fun i hi => h i (by
         rw [PartialAssignment.free_assign] at hi
@@ -218,11 +225,14 @@ theorem depth_canonicalTree_le (ρ : PartialAssignment ι) :
   refine (depth_graft_le V _ _ (d := univ.sup (F.pathLength ρ) - V.length) fun a => ?_).trans
     (by omega)
   refine (depth_canonicalTree_le (ρ.assign V.toFinset a)).trans ?_
-  obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty (F.pathLength (ρ.assign V.toFinset a))
+  obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty
+    (F.pathLength (ρ.assign V.toFinset a))
+  rw [hy]
   -- The input reading `a` on `V` and `y` elsewhere has a query path through `V`.
   set x : ι → Bool := fun j => if j ∈ V then a j else y j
-  have hxa : ρ.assign V.toFinset x = ρ.assign V.toFinset a :=
-    funext fun i => by by_cases hi : i ∈ V <;> simp [x, hi]
+  have hxa : ρ.assign V.toFinset x = ρ.assign V.toFinset a := by
+    funext i
+    by_cases hi : i ∈ V <;> simp [x, hi]
   have hpath : F.pathLength ρ x = V.length + F.pathLength (ρ.assign V.toFinset a) y := by
     rw [pathLength_of_queried_ne_nil h, hxa]
     refine congrArg (V.length + ·) (pathLength_congr fun i hi => ?_)

@@ -33,20 +33,26 @@ variable {k s : ℕ} {Q : Type}
 
 private theorem symbolCode_cellOfCode (n : ℕ) (hn : n ≤ 2) :
     symbolCode (cellOfCode n) = n := by
-  rcases (by omega : n = 0 ∨ n = 1 ∨ n = 2) with rfl | rfl | rfl <;> rfl
+  have h : n = 0 ∨ n = 1 ∨ n = 2 := by omega
+  rcases h with rfl | rfl | rfl <;> rfl
 
 /-- Interpreting a raw canonical window preserves its explicit row-major cells. -/
 private theorem windowCells_toView (b : ℕ) [NeZero b] (raw : RawResult k Q)
     (h : Fin k) (hlen : (raw.2.2.2 h).length = 3 * b) :
     windowCells b ((raw.toView b).2 h) = (raw.2.2.2 h).map cellOfCode := by
-  refine List.ext_getElem (by simp [windowCells, hlen]) fun i hi hright => ?_
-  have hi' : i < 3 * b := by simpa only [windowCells, List.length_map, List.length_range] using hi
-  simp only [windowCells, List.getElem_map, List.getElem_range,
-    (Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)).mpr hi', ↓reduceDIte, RawResult.toView,
-    ZMod.val_natCast, show i / b * b + i % b = i by
-      simpa only [Nat.mul_comm] using Nat.div_add_mod i b]
-  exact congrArg cellOfCode
-    (List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hright))
+  apply List.ext_getElem
+  · simp [windowCells, hlen]
+  · intro i hi hright
+    have hi' : i < 3 * b := by simpa only [windowCells, List.length_map,
+      List.length_range] using hi
+    have hd : i / b < 3 := (Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)).mpr hi'
+    simp only [windowCells, List.getElem_map, List.getElem_range, hd, ↓reduceDIte,
+      RawResult.toView, ZMod.val_natCast]
+    have hid : i / b * b + i % b = i := by
+      simpa only [Nat.mul_comm] using Nat.div_add_mod i b
+    rw [hid]
+    have hc : i < (raw.2.2.2 h).length := by simpa only [List.length_map] using hright
+    rw [List.getD_eq_getElem _ _ hc]
 
 private theorem inputPos_eq (N b positive negative residue : ℕ) :
     inputPos N b positive negative residue =
@@ -54,13 +60,18 @@ private theorem inputPos_eq (N b positive negative residue : ℕ) :
       if 0 ≤ p ∧ p < N + 2 then p.toNat else 0 := by
   let hi := b * positive + residue % b + 1
   let lo := b * negative
-  rw [show (b : ℤ) * ((positive : ℤ) - negative) + residue % b + 1 = (hi : ℤ) - lo by
-    dsimp only [hi, lo]; push_cast; ring]
+  have hp : (b : ℤ) * ((positive : ℤ) - negative) + residue % b + 1 =
+      (hi : ℤ) - lo := by dsimp only [hi, lo]; push_cast; ring
+  rw [hp]
   change (if lo ≤ hi ∧ hi - lo < N + 2 then hi - lo else 0) = _
   by_cases hle : lo ≤ hi
-  · have hto : ((hi : ℤ) - lo).toNat = hi - lo := by rw [← Nat.cast_sub hle]; simp
-    have hlt : (hi : ℤ) - lo < N + 2 ↔ hi - lo < N + 2 := by omega
-    simp [hle, hlt, hto]
+  · have hcast : ((hi - lo : ℕ) : ℤ) = (hi : ℤ) - lo := Nat.cast_sub hle
+    have hto : ((hi : ℤ) - lo).toNat = hi - lo := by rw [← hcast]; simp
+    by_cases hb : hi - lo < N + 2
+    · have hz : (hi : ℤ) - lo < N + 2 := by omega
+      simp [hle, hb, hz, hto]
+    · have hz : ¬ (hi : ℤ) - lo < N + 2 := by omega
+      simp [hle, hb, hz]
   · simp [hle]
 
 /-- Native loading is exactly the semantic view loader. Only the input block origin is stored

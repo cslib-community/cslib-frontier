@@ -128,7 +128,8 @@ theorem duplicatorWins_succ {n k : ℕ} {a : Fin k → M} {b : Fin k → N} :
 
 theorem DuplicatorWins.partialIso {n k : ℕ} {a : Fin k → M} {b : Fin k → N}
     (h : DuplicatorWins L n a b) : PartialIso L a b := by
-  cases n; exacts [duplicatorWins_zero.1 h, (duplicatorWins_succ.1 h).1]
+  cases n
+  exacts [duplicatorWins_zero.1 h, (duplicatorWins_succ.1 h).1]
 
 theorem DuplicatorWins.forth {n k : ℕ} {a : Fin k → M} {b : Fin k → N}
     (h : DuplicatorWins L (n + 1) a b) (c : M) :
@@ -244,19 +245,27 @@ theorem DuplicatorWins.symm : ∀ {n k : ℕ} {a : Fin k → M} {b : Fin k → N
 theorem DuplicatorWins.trans : ∀ {n k : ℕ} {a : Fin k → M} {b : Fin k → N} {c : Fin k → P},
     DuplicatorWins L n a b → DuplicatorWins L n b c → DuplicatorWins L n a c
   | 0, _, _, _, _, h₁, h₂ => duplicatorWins_zero.2 (h₁.partialIso.trans h₂.partialIso)
-  | _ + 1, _, _, _, _, h₁, h₂ => duplicatorWins_succ.2 ⟨h₁.partialIso.trans h₂.partialIso,
-      fun x => let ⟨y, hy⟩ := h₁.forth x; (h₂.forth y).imp fun _ => hy.trans,
-      fun z => let ⟨y, hy⟩ := h₂.back z; (h₁.back y).imp fun _ hx => hx.trans hy⟩
+  | _ + 1, _, _, _, _, h₁, h₂ => by
+    refine duplicatorWins_succ.2 ⟨h₁.partialIso.trans h₂.partialIso, fun x => ?_, fun z => ?_⟩
+    · obtain ⟨y, hy⟩ := h₁.forth x
+      obtain ⟨z, hz⟩ := h₂.forth y
+      exact ⟨z, hy.trans hz⟩
+    · obtain ⟨y, hy⟩ := h₂.back z
+      obtain ⟨x, hx⟩ := h₁.back y
+      exact ⟨x, hx.trans hy⟩
 
 /-- Duplicator wins every game between a structure and an isomorphic copy, from a position and
 its image. -/
 theorem _root_.FirstOrder.Language.Equiv.duplicatorWins (e : M ≃[L] N) (n : ℕ) {k : ℕ}
-    (a : Fin k → M) : DuplicatorWins L n a (e ∘ a) :=
-  IsBackAndForth.duplicatorWins (I := fun _ _ a b => b = e ∘ a)
-    ⟨by rintro _ _ _ _ rfl; exact ⟨fun _ _ => e.injective.eq_iff.symm, fun _ _ => by
-          rw [Function.comp_assoc, e.map_rel]⟩,
-      by rintro _ _ _ _ rfl c; exact ⟨e c, by rw [Fin.comp_snoc]⟩,
-      by rintro _ _ _ _ rfl d; exact ⟨e.symm d, by rw [Fin.comp_snoc, e.apply_symm_apply]⟩⟩ rfl
+    (a : Fin k → M) : DuplicatorWins L n a (e ∘ a) := by
+  refine IsBackAndForth.duplicatorWins (I := fun _ _ a b => b = e ∘ a) ⟨?_, ?_, ?_⟩ rfl
+  · rintro j k a b rfl
+    refine ⟨fun i j => e.injective.eq_iff.symm, fun R f => ?_⟩
+    rw [Function.comp_assoc, e.map_rel]
+  · rintro j k a b rfl c
+    exact ⟨e c, by rw [Fin.comp_snoc]⟩
+  · rintro j k a b rfl d
+    exact ⟨e.symm d, by rw [Fin.comp_snoc, e.apply_symm_apply]⟩
 
 /-! ### The easy direction of the Ehrenfeucht–Fraïssé theorem -/
 
@@ -267,7 +276,8 @@ private def varIdx [L.IsRelational] {k : ℕ} (t : L.Term (Empty ⊕ Fin k)) : F
 
 private theorem realize_eq_varIdx [L.IsRelational] {k : ℕ} (t : L.Term (Empty ⊕ Fin k))
     (a : Fin k → M) : t.realize (Sum.elim default a) = a (varIdx t) := by
-  rw [realize_termVar, varIdx]; grind
+  rw [realize_termVar, varIdx]
+  grind
 
 /-- **Ehrenfeucht–Fraïssé, easy direction.** For a relational language, if Duplicator wins the
 `n`-round game from `(a, b)`, then `a` and `b` satisfy the same formulas of quantifier rank at
@@ -277,19 +287,26 @@ theorem DuplicatorWins.realize_iff [L.IsRelational] {n k : ℕ} {a : Fin k → M
     φ.Realize default a ↔ φ.Realize default b := by
   induction φ generalizing n with
   | falsum => exact Iff.rfl
-  | equal => simp only [BoundedFormula.Realize, realize_eq_varIdx]; exact h.partialIso.eq_iff _ _
+  | equal t₁ t₂ =>
+    simp only [BoundedFormula.Realize, realize_eq_varIdx]
+    exact h.partialIso.eq_iff _ _
   | rel R ts =>
     simp only [BoundedFormula.Realize, realize_eq_varIdx]
-    exact h.partialIso.relMap_iff R (varIdx <| ts ·)
-  | imp _ _ ihφ ihψ =>
+    exact h.partialIso.relMap_iff R (fun i => varIdx (ts i))
+  | imp φ ψ ihφ ihψ =>
     rw [quantifierRank_imp, max_le_iff] at hφ
     exact imp_congr (ihφ h hφ.1) (ihψ h hφ.2)
-  | all _ ih =>
+  | all φ ih =>
     rw [quantifierRank_all] at hφ
     obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
     simp only [BoundedFormula.realize_all]
-    exact ⟨fun hA d => let ⟨c, hc⟩ := h.back d; (ih hc (by omega)).1 (hA c),
-      fun hB c => let ⟨d, hd⟩ := h.forth c; (ih hd (by omega)).2 (hB d)⟩
+    constructor
+    · intro hA d
+      obtain ⟨c, hc⟩ := h.back d
+      exact (ih hc (by omega)).1 (hA c)
+    · intro hB c
+      obtain ⟨d, hd⟩ := h.forth c
+      exact (ih hd (by omega)).2 (hB d)
 
 /-- A bounded formula `φ` with `k` bound variables and no free variables, turned into a formula
 with free variables `Fin k` by `BoundedFormula.toFormula` and relabeling, holds of `a` exactly when

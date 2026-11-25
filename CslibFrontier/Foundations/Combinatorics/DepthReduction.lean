@@ -90,7 +90,8 @@ private theorem deleteBit_lt_deleteBit {b a c : ℕ} (hac : a < c) (hb : ¬ InCl
   rcases Nat.lt_or_ge (a / 2 ^ (b + 1)) (c / 2 ^ (b + 1)) with hlt | hge
   · -- the levels differ above bit `b`
     calc deleteBit b a < (a / 2 ^ (b + 1) + 1) * 2 ^ b := by
-          unfold deleteBit; nlinarith [hmod a]
+          unfold deleteBit
+          nlinarith [hmod a]
       _ ≤ c / 2 ^ (b + 1) * 2 ^ b := Nat.mul_le_mul_right _ hlt
       _ ≤ deleteBit b c := Nat.le_add_right _ _
   · -- the levels agree down to bit `b`, so they differ below it
@@ -106,11 +107,12 @@ private theorem deleteBit_lt_deleteBit {b a c : ℕ} (hac : a < c) (hb : ¬ InCl
 /-- Deleting a bit below `k + 1` halves the levels. -/
 private theorem deleteBit_lt {b k a : ℕ} (hb : b ≤ k) (ha : a < 2 ^ (k + 1)) :
     deleteBit b a < 2 ^ k := by
+  have h2 : 0 < 2 ^ b := Nat.pow_pos (by omega)
   have hq : a / 2 ^ (b + 1) < 2 ^ (k - b) := by
-    rw [Nat.div_lt_iff_lt_mul (by positivity), ← pow_add, show k - b + (b + 1) = k + 1 by omega]
-    exact ha
-  calc deleteBit b a < (a / 2 ^ (b + 1) + 1) * 2 ^ b := by
-        unfold deleteBit; nlinarith [Nat.mod_lt a (show 0 < 2 ^ b by positivity)]
+    rw [Nat.div_lt_iff_lt_mul (Nat.pow_pos (by omega)), ← pow_add]
+    rwa [show k - b + (b + 1) = k + 1 by omega]
+  have := Nat.mod_lt a h2
+  calc deleteBit b a < (a / 2 ^ (b + 1) + 1) * 2 ^ b := by unfold deleteBit; nlinarith
     _ ≤ 2 ^ (k - b) * 2 ^ b := Nat.mul_le_mul_right _ hq
     _ = 2 ^ k := by rw [← pow_add, Nat.sub_add_cancel hb]
 

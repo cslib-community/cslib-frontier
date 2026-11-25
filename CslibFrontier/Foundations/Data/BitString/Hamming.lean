@@ -92,34 +92,40 @@ def median (f g h : ι → Bool) : ι → Bool :=
 /-- The median is the majority of three bits at each coordinate. -/
 theorem median_apply_eq_majority (f g h : ι → Bool) (i : ι) :
     median f g h i = majority 3 ![f i, g i, h i] := by
-  rw [median]; cases f i <;> cases g i <;> cases h i <;> decide
+  rw [median]
+  cases f i <;> cases g i <;> cases h i <;> decide
 
 /-- **The majority law**: a point repeated twice is the median. -/
 @[simp] theorem median_self_left (f g : ι → Bool) : median f f g = f := by
-  funext i; simp only [median]
+  funext i
+  simp only [median]
   cases f i <;> cases g i <;> rfl
 
 /-- The median is symmetric in its first two arguments. -/
 theorem median_swap_left (f g h : ι → Bool) : median f g h = median g f h := by
-  funext i; simp only [median]
+  funext i
+  simp only [median]
   cases f i <;> cases g i <;> cases h i <;> rfl
 
 /-- The median is symmetric in its last two arguments. -/
 theorem median_swap_right (f g h : ι → Bool) : median f g h = median f h g := by
-  funext i; simp only [median]
+  funext i
+  simp only [median]
   cases f i <;> cases g i <;> cases h i <;> rfl
 
 /-- **The associative law** of median algebras. Together with the majority law and symmetry it
 makes the cube a median algebra. -/
 theorem median_assoc (f g h k : ι → Bool) :
     median (median f k g) k h = median f k (median g k h) := by
-  funext i; simp only [median]
+  funext i
+  simp only [median]
   cases f i <;> cases g i <;> cases h i <;> cases k i <;> rfl
 
 /-- **The median distributes over itself.** -/
 theorem median_median_distrib (f g h k l : ι → Bool) :
     median (median f g h) k l = median (median f k l) (median g k l) (median h k l) := by
-  funext i; simp only [median]
+  funext i
+  simp only [median]
   cases f i <;> cases g i <;> cases h i <;> cases k i <;> cases l i <;> rfl
 
 section Fintype
@@ -139,21 +145,24 @@ theorem hammingDist_and_add_hammingDist_or (f g h : ι → Bool) :
     hammingDist (fun i => f i && g i) h + hammingDist (fun i => f i || g i) h =
       hammingDist f h + hammingDist g h := by
   simp only [hammingDist_eq_sum, ← sum_add_distrib]
-  exact sum_congr rfl fun i _ => by cases f i <;> cases g i <;> cases h i <;> decide
+  refine sum_congr rfl fun i _ => ?_
+  cases f i <;> cases g i <;> cases h i <;> decide
 
 /-- **The conjunction lies on a geodesic** from `f` to `g`. -/
 theorem hammingDist_add_hammingDist_and (f g : ι → Bool) :
     hammingDist f (fun i => f i && g i) + hammingDist (fun i => f i && g i) g =
       hammingDist f g := by
   simp only [hammingDist_eq_sum, ← sum_add_distrib]
-  exact sum_congr rfl fun i _ => by cases f i <;> cases g i <;> decide
+  refine sum_congr rfl fun i _ => ?_
+  cases f i <;> cases g i <;> decide
 
 /-- **The disjunction lies on a geodesic** from `f` to `g`. -/
 theorem hammingDist_add_hammingDist_or (f g : ι → Bool) :
     hammingDist f (fun i => f i || g i) + hammingDist (fun i => f i || g i) g =
       hammingDist f g := by
   simp only [hammingDist_eq_sum, ← sum_add_distrib]
-  exact sum_congr rfl fun i _ => by cases f i <;> cases g i <;> decide
+  refine sum_congr rfl fun i _ => ?_
+  cases f i <;> cases g i <;> decide
 
 /-- Conjunction is `1`-Lipschitz in each argument. -/
 theorem hammingDist_and_le (f f' g g' : ι → Bool) :
@@ -214,12 +223,13 @@ variable [DecidableEq ι]
 the symmetric difference is true. -/
 theorem two_mul_hammingDist_parityOn {S T : Finset ι} (h : S ≠ T) :
     2 * hammingDist (parityOn S) (parityOn T) = 2 ^ Fintype.card ι := by
-  have hne : (symmDiff S T).Nonempty := symmDiff_nonempty.2 h
-  rw [hammingDist, show (univ.filter fun x : ι → Bool => parityOn S x ≠ parityOn T x) =
-      univ.filter fun x => parityOn (symmDiff S T) x = true from filter_congr fun x _ => by
+  have hfilter : (univ.filter fun x : ι → Bool => parityOn S x ≠ parityOn T x) =
+      univ.filter fun x => parityOn (symmDiff S T) x = true := by
+    refine filter_congr fun x _ => ?_
     rw [parityOn_symmDiff]
-    cases parityOn S x <;> cases parityOn T x <;> decide,
-    card_filter_parityOn_eq hne, mul_comm,
+    cases parityOn S x <;> cases parityOn T x <;> decide
+  have hne : (symmDiff S T).Nonempty := symmDiff_nonempty.2 h
+  rw [hammingDist, hfilter, card_filter_parityOn_eq hne, mul_comm,
     Nat.two_pow_pred_mul_two (Fintype.card_pos_iff.2 ⟨hne.choose⟩)]
 
 /-- **Two distinct coordinate projections differ on exactly half of the inputs**: they are the
@@ -228,7 +238,8 @@ theorem two_mul_hammingDist_proj {i j : ι} (hij : i ≠ j) :
     2 * hammingDist (fun x : ι → Bool => x i) (fun x => x j) = 2 ^ Fintype.card ι := by
   have hproj (k : ι) : (fun x : ι → Bool => x k) = parityOn {k} :=
     funext fun x => by rw [parityOn_eq_sum, sum_singleton]
-  exact hproj i ▸ hproj j ▸ two_mul_hammingDist_parityOn (singleton_injective.ne hij)
+  rw [hproj i, hproj j]
+  exact two_mul_hammingDist_parityOn (singleton_injective.ne hij)
 
 /-- The relative Hamming distance between two distinct coordinate projections is one half. -/
 theorem hammingDist_proj_div {𝕜 : Type*} [Semifield 𝕜] [CharZero 𝕜] {i j : ι} (hij : i ≠ j) :
@@ -241,7 +252,8 @@ theorem hammingDist_proj_div {𝕜 : Type*} [Semifield 𝕜] [CharZero 𝕜] {i 
 complicated the common function `f` is. -/
 theorem two_mul_hammingDist_add_proj (f : (ι → Bool) → Bool) {i j : ι} (hij : i ≠ j) :
     2 * hammingDist (f + fun x => x i) (f + fun x => x j) = 2 ^ Fintype.card ι := by
-  rw [hammingDist_add_left]; exact two_mul_hammingDist_proj hij
+  rw [hammingDist_add_left]
+  exact two_mul_hammingDist_proj hij
 
 /-! ### Coordinate flips -/
 
@@ -254,26 +266,33 @@ theorem hammingDist_flip_self (x : ι → Bool) (i : ι) :
 `hammingDist x z ≤ hammingDist (flipOn {i} x) z + 1`. -/
 theorem hammingDist_le_flip_add_one (x z : ι → Bool) (i : ι) :
     hammingDist x z ≤ hammingDist (flipOn {i} x) z + 1 := by
-  simpa only [hammingDist_flip_self, Nat.add_comm 1] using hammingDist_triangle x (flipOn {i} x) z
+  have h := hammingDist_triangle x (flipOn {i} x) z
+  rw [hammingDist_flip_self] at h
+  omega
 
 /-- A one-bit flip increases the Hamming distance to any `z` by at most one:
 `hammingDist (flipOn {i} x) z ≤ hammingDist x z + 1`. -/
 theorem hammingDist_flip_le_add_one (x z : ι → Bool) (i : ι) :
     hammingDist (flipOn {i} x) z ≤ hammingDist x z + 1 := by
-  simpa only [hammingDist_comm (flipOn {i} x) x, hammingDist_flip_self, Nat.add_comm 1] using
-    hammingDist_triangle (flipOn {i} x) x z
+  have h := hammingDist_triangle (flipOn {i} x) x z
+  rw [hammingDist_comm (flipOn {i} x) x, hammingDist_flip_self] at h
+  omega
 
 /-- If `x i = z i`, flipping coordinate `i` of `x` increases the Hamming distance to `z`
 by exactly one. -/
 theorem hammingDist_flip_eq_add_one (x z : ι → Bool) (i : ι)
     (hi : x i = z i) :
     hammingDist (flipOn {i} x) z = hammingDist x z + 1 := by
-  rw [hammingDist, show (Finset.univ.filter fun j => flipOn {i} x j ≠ z j) =
-      insert i (Finset.univ.filter fun j => x j ≠ z j) by
+  have h : (Finset.univ.filter fun j => flipOn {i} x j ≠ z j) =
+      insert i (Finset.univ.filter fun j => x j ≠ z j) := by
     ext j
-    rcases eq_or_ne j i with rfl | hj <;> cases hx : x j <;> simp_all [flipOn_apply],
-    Finset.card_insert_of_notMem (by simp [hi])]
-  rfl
+    by_cases hj : j = i
+    · subst j
+      cases hx : x i <;> simp_all [flipOn_apply]
+    · simp [flipOn_apply, hj]
+  rw [hammingDist, h, Finset.card_insert_of_notMem]
+  · rfl
+  · simp [hi]
 
 /-- Flipping one coordinate changes the Hamming distance to `z` by one: it increases by one if
 `x i = z i` and decreases by one otherwise. -/
@@ -284,7 +303,8 @@ theorem hammingDist_flip (x z : ι → Bool) (i : ι) :
   · exact hammingDist_flip_eq_add_one x z i hi
   · have h := hammingDist_flip_eq_add_one (flipOn {i} x) z i
       (by rw [flipOn_singleton_self]; cases hx : x i <;> cases hz : z i <;> simp_all)
-    rw [flipOn_flipOn] at h; omega
+    rw [flipOn_flipOn] at h
+    omega
 
 end Fintype
 

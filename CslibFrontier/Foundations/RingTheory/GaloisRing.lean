@@ -189,7 +189,8 @@ theorem residue_digitLift_injective (hf : f.Monic) :
 private theorem dvd_of_castHom_eq_zero {a : ZMod (p ^ n)}
     (ha : ZMod.castHom (dvd_pow_self p (NeZero.ne n)) (ZMod p) a = 0) : (p : ZMod (p ^ n)) ∣ a := by
   obtain ⟨k, rfl⟩ := ZMod.natCast_zmod_surjective a
-  obtain ⟨m, rfl⟩ := (ZMod.natCast_eq_zero_iff k p).mp (by rwa [map_natCast] at ha)
+  rw [map_natCast, ZMod.natCast_eq_zero_iff] at ha
+  obtain ⟨m, rfl⟩ := ha
   exact ⟨m, by push_cast; ring⟩
 
 /-- **The kernel of reduction modulo `p` is `(p)`**, when `f` is monic. -/
@@ -197,13 +198,14 @@ theorem ker_residue (hf : f.Monic) :
     RingHom.ker (residue p n f) = Ideal.span {(p : GaloisRing p n f)} := by
   ext x
   rw [RingHom.mem_ker, Ideal.mem_span_singleton]
-  refine ⟨fun hx => ?_, ?_⟩
-  · rw [residue, AdjoinRoot.map_eq_zero_iff _ (hf.map _) _
+  constructor
+  · intro hx
+    rw [residue, AdjoinRoot.map_eq_zero_iff _ (hf.map _) _
       (map_castHom_map f (dvd_pow_self p (NeZero.ne n))).symm] at hx
     obtain ⟨Q, hQ⟩ := (C_dvd_iff_dvd_coeff (p : ZMod (p ^ n)) _).mpr fun i =>
       dvd_of_castHom_eq_zero (hx i)
-    exact ⟨AdjoinRoot.mk _ Q, by
-      rw [← AdjoinRoot.mk_leftInverse (hf.map _) x, hQ, map_mul, AdjoinRoot.mk_C, map_natCast]⟩
+    refine ⟨AdjoinRoot.mk _ Q, ?_⟩
+    rw [← AdjoinRoot.mk_leftInverse (hf.map _) x, hQ, map_mul, AdjoinRoot.mk_C, map_natCast]
   · rintro ⟨y, rfl⟩
     rw [map_mul, map_natCast, ← map_natCast (AdjoinRoot.of _), ZMod.natCast_self, map_zero,
       zero_mul]

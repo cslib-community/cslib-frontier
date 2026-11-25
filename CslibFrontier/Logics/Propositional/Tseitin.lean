@@ -130,11 +130,13 @@ theorem parityOn_univ_parityOn_incidence_eq_false (σ : E → Bool) :
   simp only [parityOn_eq_sum]
   rw [sum_comm' (t' := univ) (s' := fun e => {v | v ∈ ends e ∧ ¬(ends e).IsDiag}) (by simp)]
   refine sum_eq_zero fun e _ => ?_
-  induction ends e using Sym2.ind with | _ a b =>
+  obtain ⟨a, b, hab⟩ : ∃ a b, ends e = s(a, b) := Sym2.ind (f := fun z => ∃ a b, z = s(a, b))
+    (fun a b => ⟨a, b, rfl⟩) (ends e)
   by_cases h : a = b
-  · rw [filter_false_of_mem fun v _ => by simp [h], sum_empty]
-  · rw [show ({v | v ∈ s(a, b) ∧ ¬(s(a, b) : Sym2 V).IsDiag} : Finset V) = {a, b} by
-      ext; simp [h], sum_pair h, BooleanRing.add_self]
+  · rw [filter_false_of_mem fun v _ => by simp [hab, h], sum_empty]
+  · rw [show ({v | v ∈ ends e ∧ ¬(ends e).IsDiag} : Finset V) = {a, b} by
+      ext v
+      simp [hab, h], sum_pair h, BooleanRing.add_self]
 
 /-- An assignment satisfying the constraints of all vertices has even total charge. -/
 theorem parityOn_univ_eq_false_of_forall {σ : E → Bool} {χ : V → Bool}
@@ -151,16 +153,17 @@ theorem exists_forall_parityOn_incidence_eq (hG : (Multigraph.toSimpleGraph ends
       parityOn (Multigraph.incidence ends v) σ = ((parityOn univ χ && decide (v = u)) ^^ χ v) := by
   choose τ hτ using exists_forall_parityOn_incidence_eq_xor hG u
   refine ⟨∑ w, if χ w then τ w else 0, fun v => ?_⟩
-  have hv : ∑ w, χ w * decide (v = w) = χ v := by
-    rw [sum_eq_single v (fun w _ hw => by rw [decide_eq_false hw.symm]; exact mul_zero _)
-      (by simp), decide_eq_true rfl]
-    exact mul_one _
+  have hite (b x : Bool) : (if b then x else 0) = b * x := by cases b <;> rfl
   have key : parityOn (Multigraph.incidence ends v) (∑ w, if χ w then τ w else 0) =
       ∑ w, χ w * (decide (v = u) + decide (v = w)) := by
     rw [← parityOnAddMonoidHom_apply, map_sum]
     refine sum_congr rfl fun w _ => ?_
-    rw [apply_ite (parityOnAddMonoidHom _), map_zero, parityOnAddMonoidHom_apply, hτ]
-    cases χ w <;> rfl
+    rw [apply_ite (parityOnAddMonoidHom _), map_zero, parityOnAddMonoidHom_apply, hτ, hite]
+    rfl
+  have hv : ∑ w, χ w * decide (v = w) = χ v := by
+    rw [sum_eq_single v (fun w _ hw => by rw [decide_eq_false (Ne.symm hw)]; exact mul_zero _)
+      (by simp), decide_eq_true rfl]
+    exact mul_one _
   rw [key, parityOn_eq_sum]
   simp only [mul_add, sum_add_distrib, ← sum_mul, hv]
   rfl

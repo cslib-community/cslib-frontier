@@ -48,11 +48,13 @@ private lemma length_key_le {k Q : ℕ} {State : Type} (eS : State ↪ ℕ)
     (eKey (key (eS q) (inp.map eBit) (Option.map eBit ∘ work))).length ≤
       2 * Q + 5 * k + 6 := by
   have hinp := length_eSym_map_eBit_le inp
-  have hwork : (encList eSym (List.ofFn (Option.map eBit ∘ work))).length ≤ k * 5 := by
+  have hwork :
+      (encList eSym (List.ofFn (Option.map eBit ∘ work))).length ≤ k * 5 := by
     simpa only [List.length_ofFn, Nat.mul_comm] using
-      length_encList_le eSym (List.ofFn (Option.map eBit ∘ work)) fun _ ho => by
-        obtain ⟨i, rfl⟩ := List.mem_ofFn.mp ho
-        exact length_eSym_map_eBit_le (work i)
+      length_encList_le eSym (List.ofFn (Option.map eBit ∘ work))
+        (fun o ho => by
+          obtain ⟨i, rfl⟩ := List.mem_ofFn.mp ho
+          exact length_eSym_map_eBit_le (work i))
   have hq := hS q
   simp only [eKey_apply, key, length_encPair, encUnary_apply, List.length_replicate]
   omega

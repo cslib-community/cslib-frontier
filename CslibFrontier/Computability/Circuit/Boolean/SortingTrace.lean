@@ -165,10 +165,12 @@ private theorem eval_unchain {a b n r : ℕ} (first : Circuit signature (a * 2 +
         (BitString.block (second.eval interpretation (pack (c ∘ Fin.natAdd a) x)))) := by
   simp only [unchain, Circuit.eval_comp, Circuit.eval_append, eval_select, Function.comp_id]
   congr 1 with i : 1
-  refine Fin.addCases (fun i => ?_) (fun i => ?_) i
-  · simp [circuit_simps, layout, pack, BitString.blocksEquiv_symm_apply,
+  cases i using Fin.addCases with
+  | left i =>
+    simp [circuit_simps, layout, pack, BitString.blocksEquiv_symm_apply,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
-  · simp only [Fin.append_right, pack, BitString.blocksEquiv_symm_apply, BitString.block,
+  | right i =>
+    simp only [Fin.append_right, pack, BitString.blocksEquiv_symm_apply, BitString.block,
       Prod.mk.eta, Equiv.apply_symm_apply]
 
 private theorem cost_unchain {a b n r : ℕ} (first : Circuit signature (a * 2 + n * r) (n * r))
@@ -206,12 +208,14 @@ theorem eval_bitonicUnmergeCircuit (r d : ℕ) (flags : BitString (mergeTraceSiz
   induction d with
   | zero =>
     simp only [bitonicUnmergeCircuit, BitonicSort.unrouteMerge]
-    erw [Circuit.eval_wiring]; exact records_pack _ _
+    erw [Circuit.eval_wiring]
+    exact records_pack _ _
   | succ d ih =>
     dsimp only [arity, mergeTraceSize] at flags x
     simp only [bitonicUnmergeCircuit, arity, mergeTraceSize, BitonicSort.unrouteMerge]
     erw [eval_unchain, eval_unhalves]
-    simpa only [← pairs_comp, ih] using eval_unlayer _ _ _ _
+    simp only [← pairs_comp, ih]
+    exact eval_unlayer _ _ _ _
 
 /-- The reverse sorter implements reversal for every paired trace and payload. -/
 theorem eval_bitonicUnsortCircuit (r d : ℕ) (flags : BitString (sortTraceSize d))
@@ -221,7 +225,8 @@ theorem eval_bitonicUnsortCircuit (r d : ℕ) (flags : BitString (sortTraceSize 
   induction d with
   | zero =>
     simp only [bitonicUnsortCircuit, BitonicSort.unrouteSort]
-    erw [Circuit.eval_wiring]; exact records_pack _ _
+    erw [Circuit.eval_wiring]
+    exact records_pack _ _
   | succ d ih =>
     dsimp only [arity, sortTraceSize] at flags x
     simp only [bitonicUnsortCircuit, arity, sortTraceSize, BitonicSort.unrouteSort]
@@ -257,7 +262,8 @@ theorem size_bitonicUnsortCircuit (r d : ℕ) :
     (bitonicUnsortCircuit r d).size = sortTraceSize d * (6 * r) := by
   have h := cost_program_bitonicUnsortCircuit r d (fun _ => 1)
   simp only [Program.cost_const, one_mul] at h
-  rw [h]; ring
+  rw [h]
+  ring
 
 /-- Saved controls restore transformed records, even when the answer has a different width. -/
 theorem eval_bitonicUnsortCircuit_sort {k r v : ℕ} (key : Fin k → Fin r) (d : ℕ)

@@ -130,10 +130,12 @@ theorem isHomogeneous_pairedWordPoly (σ : (Fin m → X) → (Fin m → X)) :
 
 /-- Over a nonempty alphabet, `∑_u u · σ(u)` is nonzero. -/
 theorem pairedWordPoly_ne_zero [Nontrivial K] [Nonempty X] (σ : (Fin m → X) → (Fin m → X)) :
-    pairedWordPoly (K := K) σ ≠ 0 := fun h => by
+    pairedWordPoly (K := K) σ ≠ 0 := by
   classical
-  simpa [h] using coeff_pairedWordPoly (K := K) σ (fun _ => Classical.arbitrary X)
+  intro h
+  have := coeff_pairedWordPoly (K := K) σ (fun _ => Classical.arbitrary X)
     (σ fun _ => Classical.arbitrary X)
+  simp [h] at this
 
 /-- The coefficient of `a b` in `Pal_{2m}` is `1` if `b` is the reverse of `a` and `0`
 otherwise. -/
@@ -226,14 +228,16 @@ theorem rank_nisanMatrix_doubled :
 `Pal_{2m}` has at least `|X| ^ m` vertices. -/
 theorem NoncommABP.pow_le_width_of_polynomial_eq_palindrome (A : NoncommABP K X (m + m))
     (hA : A.polynomial = palindrome K X m) : Fintype.card X ^ m ≤ A.width m := by
-  simpa [hA, rank_nisanMatrix_palindrome] using A.rank_nisanMatrix_le_width m m rfl
+  have h := A.rank_nisanMatrix_le_width m m rfl
+  rwa [hA, rank_nisanMatrix_palindrome] at h
 
 /-- **Lower bound for the double** ([Saptharishi2026Survey], Theorem 11.4, by Nisan's rank method
 [Nisan1991NonCommutative]). The middle layer of a homogeneous layered ABP computing `Doub_{2m}`
 has at least `|X| ^ m` vertices. -/
 theorem NoncommABP.pow_le_width_of_polynomial_eq_doubled (A : NoncommABP K X (m + m))
     (hA : A.polynomial = doubled K X m) : Fintype.card X ^ m ≤ A.width m := by
-  simpa [hA, rank_nisanMatrix_doubled] using A.rank_nisanMatrix_le_width m m rfl
+  have h := A.rank_nisanMatrix_le_width m m rfl
+  rwa [hA, rank_nisanMatrix_doubled] at h
 
 end Rank
 
@@ -296,7 +300,8 @@ theorem eval_palCircuit {R : Type*} [Semiring R] [Algebra K R] (n m : ℕ) (x : 
   | succ m ih =>
     rw [palCircuit, Circuit.eval_comp, Formula.eval_toCircuit, eval_palStepFormula _ (map_zero _),
       palindrome_succ, map_sum]
-    exact Finset.sum_congr rfl fun i _ => by simp [ih, Fin.append_left, Fin.append_right]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    simp [ih, Fin.append_left, Fin.append_right]
 
 /-- The palindrome circuit computes `Pal_{2m}` as a non-commutative polynomial. -/
 theorem noncommPolynomial_palCircuit (n m : ℕ) :

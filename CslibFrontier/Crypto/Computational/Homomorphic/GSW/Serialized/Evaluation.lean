@@ -78,7 +78,8 @@ theorem decodeCiphertext_apply (n w : ℕ) (word : List Bool)
     decodeCiphertext n w word (i, k) (j, l) =
       word.getD ((i.val * w + k.val) * ((n + 1) * w) + j.val * w + l.val) false := by
   simp only [decodeCiphertext, block, ofList, finProdFinEquiv, Equiv.coe_fn_mk]
-  exact congrArg₂ word.getD (by ring) rfl
+  congr 1
+  ring
 
 /-- A raw residue word is exactly the recomposition of the decoded ciphertext bits. -/
 theorem binaryEntry_eq_recompose_decodeCiphertext (n w : ℕ) (word : List Bool)
@@ -111,10 +112,12 @@ theorem decryptResidue_eq {n w : ℕ} (hw : 0 < w) (secret ciphertext : List Boo
 theorem decryptSerialized_eq (n w : ℕ) (secret ciphertext : List Bool) :
     decryptSerialized n w secret ciphertext =
       decrypt (LWE.decodeSecret n w secret) (decodeCiphertext n w ciphertext) := by
-  rcases eq_or_ne w 0 with rfl | hw
-  · simp [decryptSerialized, decryptResidue]
-  · simp only [decrypt_eq_decode_decryptionPhase (Nat.pos_of_ne_zero hw), decryptSerialized,
-      LWE.decode, decryptResidue_eq (Nat.pos_of_ne_zero hw)]
+  by_cases hw : w = 0
+  · subst w
+    simp [decryptSerialized, decryptResidue]
+  · have hpos : 0 < w := by omega
+    rw [decrypt_eq_decode_decryptionPhase hpos]
+    simp only [decryptSerialized, LWE.decode, decryptResidue_eq hpos]
 
 /-- Canonical words decrypt exactly as their typed secret and ciphertext. -/
 @[simp] theorem decryptSerialized_serialize {n w : ℕ} (secret : Fin n → ZMod (2 ^ w))
@@ -192,7 +195,8 @@ theorem nandSerialized_hasError {n w : ℕ} (secret left right : List Bool) (μ�
     (hright : HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w right) μ₂ error₂) :
     HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w (nandSerialized n w left right))
       (!(μ₁ && μ₂)) (nandError (decodeCiphertext n w left) μ₂ error₁ error₂) := by
-  simpa only [decode_nandSerialized] using nand_hasError _ _ _ _ _ _ _ hleft hright
+  rw [decode_nandSerialized]
+  exact nand_hasError _ _ _ _ _ _ _ hleft hright
 
 /-- Any raw ciphertext satisfying the modular equation decrypts under the original strict
 noise margin. The ciphertext may be an output of previous homomorphic operations. -/
@@ -201,7 +205,8 @@ theorem decryptSerialized_eq_of_hasError {n w : ℕ} (hw : 0 < w)
     (hC : HasError (LWE.decodeSecret n w secret) (decodeCiphertext n w ciphertext) μ error)
     (herror : ∀ i, 4 * (error i).natAbs < 2 ^ w) :
     decryptSerialized n w secret ciphertext = μ := by
-  simpa only [decryptSerialized_eq] using decrypt_eq_of_hasError hw _ _ _ _ hC herror
+  rw [decryptSerialized_eq]
+  exact decrypt_eq_of_hasError hw _ _ _ _ hC herror
 
 /-- Canonical actual encryption words decrypt under exactly the typed fresh-noise hypotheses. -/
 theorem decryptSerialized_encryptWithCoins {n m w bound : ℕ}

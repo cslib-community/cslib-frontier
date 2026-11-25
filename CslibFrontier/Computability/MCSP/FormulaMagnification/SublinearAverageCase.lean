@@ -123,16 +123,18 @@ theorem sqrtThreshold_le (n : ℕ) : sqrtThreshold n ≤ 2 ^ (Nat.sqrt n + 1) :=
 
 /-- The threshold `⌊2 ^ √n⌋₊` is subexponential. -/
 theorem subexponentiallyBounded_sqrtThreshold : SubexponentiallyBounded sqrtThreshold := by
-  refine SubexponentiallyBounded.mono_of_le (fun c => ?_) sqrtThreshold_le
+  refine SubexponentiallyBounded.mono_of_le ?_ sqrtThreshold_le
+  intro c
   filter_upwards [eventually_ge_atTop ((c + 2) * (c + 2))] with n hn
   have hm : c + 2 ≤ Nat.sqrt n := Nat.le_sqrt.mpr hn
-  have hclog : Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ Nat.sqrt n + 2 :=
-    (Nat.clog_le_iff_le_pow one_lt_two).mpr (by
-      rw [pow_succ 2 (Nat.sqrt n + 1)]
-      have := Nat.one_le_two_pow (n := Nat.sqrt n + 1)
-      omega)
-  exact (Nat.mul_le_mul_left c hclog).trans
-    ((by nlinarith : c * (Nat.sqrt n + 2) ≤ Nat.sqrt n * Nat.sqrt n).trans (Nat.sqrt_le n))
+  have hclog : Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ Nat.sqrt n + 2 := by
+    refine (Nat.clog_le_iff_le_pow one_lt_two).mpr ?_
+    rw [pow_succ 2 (Nat.sqrt n + 1)]
+    have := Nat.one_le_two_pow (n := Nat.sqrt n + 1)
+    omega
+  calc c * Nat.clog 2 (2 ^ (Nat.sqrt n + 1) + 1) ≤ c * (Nat.sqrt n + 2) := by gcongr
+    _ ≤ Nat.sqrt n * Nat.sqrt n := by nlinarith
+    _ ≤ n := Nat.sqrt_le n
 
 end Cslib.MCSP
 
@@ -202,12 +204,16 @@ theorem isZeroErrorDecider_ofMask {s : ℕ → ℕ} {n k r : ℕ} {F : Formula s
     (hk : k ≤ 2 ^ r) (hr : r ≤ 2 ^ n) :
     MCSP.IsZeroErrorDecider s n k (ofMask F).eval where
   correct T b h := by
-    obtain ⟨hF, rfl⟩ := by
-      simpa only [eval_eq_some_iff, unknown_ofMask, answer_ofMask, Formula.eval_const] using h
-    simpa using fun hT => Bool.false_ne_true (hF ▸ hyes T hT)
+    simp only [eval_eq_some_iff, unknown_ofMask, answer_ofMask, Formula.eval_const] at h
+    obtain ⟨hF, rfl⟩ := h
+    simp only [Bool.false_eq_true, false_iff]
+    exact fun hT => Bool.false_ne_true (hF ▸ hyes T hT)
   card_unknown_le := by
     simp only [eval_eq_none_iff, unknown_ofMask]
-    exact (Nat.mul_le_mul hk hcard).trans_eq (by rw [← pow_add, Nat.add_sub_cancel' hr])
+    calc k * (Finset.univ.filter fun T : BitString (2 ^ n) =>
+          F.eval interpretation T = true).card ≤ 2 ^ r * 2 ^ (2 ^ n - r) :=
+          Nat.mul_le_mul hk hcard
+      _ = 2 ^ 2 ^ n := by rw [← pow_add, Nat.add_sub_cancel' hr]
 
 /-- Forward form of [OliveiraSanthanam2018, Section 3.3, Theorem 27, p. 21] for ternary devices.
 If a binary language agreeing with succinct MCSP has polynomial-size formulas, then for every
@@ -241,10 +247,13 @@ private theorem isLittleO_two_pow_of_eventually_le_two_pow_half {f : ℕ → ℕ
   rw [isLittleO_iff_nat_mul_le]
   intro c
   filter_upwards [hf, eventually_ge_atTop (2 * c)] with n hfn hn
+  have hc : c ≤ 2 ^ (n - n / 2) :=
+    (show c ≤ n - n / 2 by omega).trans Nat.lt_two_pow_self.le
   have hnat : c * f n ≤ 2 ^ n :=
-    (Nat.mul_le_mul ((show c ≤ n - n / 2 by omega).trans Nat.lt_two_pow_self.le) hfn).trans_eq
-      (by rw [← pow_add, Nat.sub_add_cancel (Nat.div_le_self n 2)])
-  simpa only [Real.norm_natCast, norm_pow, Real.norm_ofNat] using mod_cast hnat
+    calc c * f n ≤ 2 ^ (n - n / 2) * 2 ^ (n / 2) := Nat.mul_le_mul hc hfn
+      _ = 2 ^ n := by rw [← pow_add, Nat.sub_add_cancel (Nat.div_le_self n 2)]
+  simp only [Real.norm_natCast, norm_pow, Real.norm_ofNat]
+  exact_mod_cast hnat
 
 /-- Hardness magnification from sublinear zero-error average-case formulas, for any
 subexponential threshold `s` and unknown fraction `1 / k n` with `k n ≤ 2 ^ n`: if no family of
@@ -260,9 +269,10 @@ theorem exists_NP_not_mem_FormulaPoly_of_zero_error_average_case_sublinear_hard 
     ∃ L : Language Bool, (L : Set (List Bool)) ∈ Complexity.NP Turing.MultiTapeTM.encBits ∧
       L ∉ FormulaPoly := by
   obtain ⟨L, hLNP, hag⟩ := SuccinctMCSP.exists_language_mem_NP
-  exact ⟨L, hLNP, fun hL => let ⟨D, hsize, hsolve⟩ :=
+  refine ⟨L, hLNP, fun hL => hhard ?_⟩
+  obtain ⟨D, hsize, hsolve⟩ :=
     exists_zeroErrorFormula_solvesOnAverage_of_mem_FormulaPoly hs hk hag hL
-    hhard ⟨D, isLittleO_two_pow_of_eventually_le_two_pow_half hsize, hsolve⟩⟩
+  exact ⟨D, isLittleO_two_pow_of_eventually_le_two_pow_half hsize, hsolve⟩
 
 /-- [OliveiraSanthanam2018, Section 1.2, Theorem 5, p. 8] with the average-case notion of
 [OliveiraSanthanam2018, Appendix A, Definition 43, p. 34]: if no family of ternary De Morgan

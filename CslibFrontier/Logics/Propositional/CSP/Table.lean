@@ -104,12 +104,18 @@ theorem length_outsidePositions_add {width : ℕ} {positions : List ℕ}
     (h : validPositions width positions = true) :
     (outsidePositions width positions).length + positions.length = width := by
   obtain ⟨hd, hr⟩ := validPositions_eq_true.mp h
+  have hs : positions.toFinset ⊆ Finset.range width := by
+    intro i hi
+    exact Finset.mem_range.mpr (hr i (List.mem_toFinset.mp hi))
   have heq : (outsidePositions width positions).toFinset =
-      Finset.range width \ positions.toFinset := by ext; simp [outsidePositions]
+      Finset.range width \ positions.toFinset := by
+    ext i
+    simp [outsidePositions]
+  have hc := Finset.card_sdiff_add_card_eq_card hs
   have ho : (outsidePositions width positions).Nodup := List.nodup_range.filter _
-  simpa only [← heq, List.toFinset_card_of_nodup ho, List.toFinset_card_of_nodup hd,
-    Finset.card_range] using Finset.card_sdiff_add_card_eq_card fun i hi =>
-      Finset.mem_range.mpr (hr i (List.mem_toFinset.mp hi))
+  rw [← heq, List.toFinset_card_of_nodup ho, List.toFinset_card_of_nodup hd,
+    Finset.card_range] at hc
+  exact hc
 
 /-- Read coordinates, with a total fallback for malformed indices. -/
 @[expose] def project (row : List Bool) (positions : List ℕ) : List Bool :=
@@ -246,10 +252,12 @@ theorem sem_exactlyOne_eq_true {V : Type*} (scope : List V) (row : List Bool) :
     (exactlyOne scope).sem row = true ↔ row.length = scope.length ∧ row.count true = 1 := by
   rw [sem_eq_true]
   simp only [wellFormed_exactlyOne, true_and]
-  refine ⟨fun h => ?_, fun ⟨hw, hc⟩ => ?_⟩
-  · obtain ⟨index, hi, rfl⟩ := List.mem_map.mp h
+  constructor
+  · intro h
+    obtain ⟨index, hi, rfl⟩ := List.mem_map.mp h
     exact ⟨by simp [BitString.listSingle], BitString.count_true_listSingle (List.mem_range.mp hi)⟩
-  · obtain ⟨index, hi, hr⟩ := BitString.exists_listSingle_of_count_true hc
+  · rintro ⟨hw, hc⟩
+    obtain ⟨index, hi, hr⟩ := BitString.exists_listSingle_of_count_true hc
     exact List.mem_map.mpr ⟨index, List.mem_range.mpr (hw ▸ hi), hw ▸ hr⟩
 
 /-- The connector relation is nonempty precisely when there is a connector. -/

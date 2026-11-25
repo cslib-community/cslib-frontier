@@ -78,7 +78,8 @@ private theorem map_reorient {E F : Type*} (v : Vertex E) (f : E → F)
     (mask : E → Bool) (target : F → Bool) (h : ∀ e, mask e = target (f e)) :
     (v.reorient mask).map f = (v.map f).reorient target := by
   simp only [Vertex.map, WeightedPort.map, Vertex.reorient, WeightedPort.reorient,
-    List.map_map, Function.comp_def, Port.map, Port.reorient, h]
+    List.map_map, Function.comp_def,
+    Port.map, Port.reorient, h]
 
 section
 
@@ -139,15 +140,17 @@ private theorem rawVertices_eq
     rawVertices N A order budget = (Numbering.vertexList N A order).map
       (fun v => (AndOr.graph N A v).map (code N A order budget)) := by
   simp only [rawVertices, Numbering.vertexList, List.sigma, List.map_flatMap, List.map_map]
-  refine List.flatMap_congr fun v _ => ?_
+  apply List.flatMap_congr
+  intro v _
   rw [instantiate_template N A order budget hbudget v]
   have hcode : localCode N A order budget v =
-      fun e => code N A order budget (Sum.map id (Sigma.mk v) e) := rfl
+      (fun e => code N A order budget (Sum.map id (Sigma.mk v) e)) := rfl
   simpa only [hcode, AndOr.graph, ConstraintGraph.Replacement.graph, localGraph,
-    ConstraintGraph.reorient, ConstraintGraph.map, Diagram.Replacement.graph, Vertex.map_map,
-    Function.comp_def, localCode] using (enumerated_vertices (cell N A v).diagram
-      fun w => ((w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v))).reorient
-        (Sum.elim (polarity N A v) (fun _ => false))).map (localCode N A order budget v)).symm
+    ConstraintGraph.reorient, ConstraintGraph.map, Diagram.Replacement.graph,
+    Vertex.map_map, Function.comp_def, localCode]
+    using (enumerated_vertices (cell N A v).diagram
+      (fun w => ((w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v))).reorient
+        (Sum.elim (polarity N A v) (fun _ => false))).map (localCode N A order budget v))).symm
 
 end
 
@@ -176,8 +179,10 @@ private theorem idxOf_map_injective {E : Type*} [BEq E] [LawfulBEq E] (f : E →
   | nil => rfl
   | cons x xs ih =>
     by_cases hx : x = e
-    · simp [hx]
-    · simp [hx, show f x ≠ f e from fun h => hx (hf h), ih]
+    · subst x
+      simp
+    · have hfx : f x ≠ f e := fun h => hx (hf h)
+      simp [hx, hfx, ih]
 
 /-- The explicit standard graph program, with sparse addresses compacted by first-index lookup. -/
 @[expose] def data : AndOrGraph where
@@ -194,6 +199,7 @@ theorem data_eq_ofFinite [DecidableEq R]
     simp only [List.map_map, Vertex.map_map, Function.comp_def]
     simp_rw [idxOf_map_injective _ (code_injective N A order budget hbudget)]
     exact (Numbering.serialize_vertices N A order).symm
-  · rw [data, names_eq, List.length_map]; rfl
+  · rw [data, names_eq, List.length_map]
+    rfl
 
 end Cslib.Complexity.NCL.SelectorNetwork.AndOr.Sparse

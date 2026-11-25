@@ -260,7 +260,9 @@ theorem Valid.linearComb {c : VOLECorrelation R n} (hc : c.Valid) (coeff : Fin n
     ∑ i, coeff i * c.w i =
       (∑ i, coeff i * c.u i) * c.delta + ∑ i, coeff i * c.v i := by
   rw [Finset.sum_mul, ← Finset.sum_add_distrib]
-  exact Finset.sum_congr rfl fun i _ => by rw [hc i]; ring
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [hc i]
+  ring
 
 end VOLECorrelation
 
@@ -510,22 +512,25 @@ theorem voleInTheHeadSigma_accepts_iff {y : Y} {t : N} {c : C} {w : Fin n → ZM
 
 /-- Completeness of `voleInTheHeadSigma`, from `SigmaProtocol.linear_complete`. -/
 theorem voleInTheHeadSigma_complete :
-    (voleInTheHeadSigma ψ target ι).Complete fun x y => ψ y x = target y :=
-  voleInTheHeadSigma_eq_linear ψ target ι ▸ SigmaProtocol.linear_complete ψ target ι
+    (voleInTheHeadSigma ψ target ι).Complete fun x y => ψ y x = target y := by
+  rw [voleInTheHeadSigma_eq_linear]
+  exact SigmaProtocol.linear_complete ψ target ι
 
 /-- Special soundness of `voleInTheHeadSigma` when `q` is prime, from
 `SigmaProtocol.linear_specialSoundness`. -/
 theorem voleInTheHeadSigma_specialSoundness [Fact q.Prime] :
     (voleInTheHeadSigma ψ target ι).SpecialSoundness (fun x y => ψ y x = target y)
-      (voleInTheHeadExtract ι) :=
-  voleInTheHeadSigma_eq_linear ψ target ι ▸ SigmaProtocol.linear_specialSoundness ψ target ι
+      (voleInTheHeadExtract ι) := by
+  rw [voleInTheHeadSigma_eq_linear]
+  exact SigmaProtocol.linear_specialSoundness ψ target ι
 
 /-- Special honest-verifier zero knowledge of `voleInTheHeadSigma`, from
 `SigmaProtocol.linear_specialHVZK`. -/
 theorem voleInTheHeadSigma_specialHVZK :
     (voleInTheHeadSigma ψ target ι).SpecialHVZK (fun x y => ψ y x = target y)
-      (voleInTheHeadSimulate ψ target ι) :=
-  voleInTheHeadSigma_eq_linear ψ target ι ▸ SigmaProtocol.linear_specialHVZK ψ target ι
+      (voleInTheHeadSimulate ψ target ι) := by
+  rw [voleInTheHeadSigma_eq_linear]
+  exact SigmaProtocol.linear_specialHVZK ψ target ι
 
 end VOLEInTheHead
 

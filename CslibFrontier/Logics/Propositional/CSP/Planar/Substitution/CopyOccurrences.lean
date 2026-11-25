@@ -74,15 +74,18 @@ def replacementOccurrence
 
 private theorem incidenceEdgeIndex_cast {H K : CSP Rel ℕ} (h : H = K)
     (o : H.Occurrence) : incidenceEdgeIndex (h ▸ o) = incidenceEdgeIndex o := by
-  cases h; rfl
+  cases h
+  rfl
 
 private theorem record_cast {H K : CSP Rel ℕ} (h : H = K) (o : H.Occurrence) :
     (h ▸ o).record = o.record := by
-  cases h; rfl
+  cases h
+  rfl
 
 private theorem argumentSuccessor_cast {H K : CSP Rel ℕ} (h : H = K) (o : H.Occurrence) :
     argumentSuccessor (h ▸ o) = h ▸ argumentSuccessor o := by
-  cases h; rfl
+  cases h
+  rfl
 
 private theorem argumentSuccessor_replacementLocalOccurrence
     (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
@@ -99,7 +102,8 @@ private theorem record_replacementLocalOccurrence
     (o : (gadgets F[i.val].rel).body.Occurrence) :
     (replacementLocalOccurrence gadgets B F i o).record =
       (instantiatedOccurrence (gadgets F[i.val].rel) B i.val F[i.val].scope o).record := by
-  unfold replacementLocalOccurrence; exact record_cast _ _
+  unfold replacementLocalOccurrence
+  exact record_cast _ _
 
 /-- The copied occurrence's edge index is the literal prefix offset used by the executed
 table. This identifies positions, without rank preservation assumptions about dense names. -/
@@ -110,14 +114,16 @@ theorem incidenceEdgeIndex_replacementOccurrence
     incidenceEdgeIndex (replacementOccurrence gadgets B F i o) =
       occurrencePrefix (fun r => (gadgets r).template) F i.val + incidenceEdgeIndex o := by
   unfold replacementOccurrence replaceGadgets
-  rw [incidenceEdgeIndex_flatMapOccurrence, show (CSP.vars ((F.zipIdx.take i.val).flatMap
-      fun entry => instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template)).length =
-      occurrencePrefix (fun r => (gadgets r).template) F i.val by
+  rw [incidenceEdgeIndex_flatMapOccurrence]
+  have hp : (CSP.vars ((F.zipIdx.take i.val).flatMap fun entry =>
+      instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template)).length =
+      occurrencePrefix (fun r => (gadgets r).template) F i.val := by
     rw [CSP.vars, List.flatMap_assoc]
     change ((F.zipIdx.take i.val).flatMap fun entry =>
       (instantiate B entry.2 entry.1.2 (gadgets entry.1.1).template).vars).length = _
-    simpa only [instantiate, vars_relabel] using
-      instantiatedPrefix_length B (fun r => (gadgets r).template) F i.val]
+    simp only [instantiate, vars_relabel]
+    exact instantiatedPrefix_length B (fun r => (gadgets r).template) F i.val
+  rw [hp]
   congr 1
   unfold replacementLocalOccurrence
   rw [incidenceEdgeIndex_cast]
@@ -187,8 +193,9 @@ theorem exists_replacementOccurrence
     ∃ (i : Fin F.length) (p : (gadgets F[i.val].rel).body.Occurrence),
       replacementOccurrence gadgets B F i p = o := by
   obtain ⟨i, hi, p, hp⟩ := exists_gadgetCopy gadgets B F (incidenceEdgeIndex_lt_vars o)
-  exact ⟨⟨i, hi⟩, p, incidenceEdgeIndex_injective
-    ((incidenceEdgeIndex_replacementOccurrence gadgets B F ⟨i, hi⟩ p).trans hp)⟩
+  refine ⟨⟨i, hi⟩, p, incidenceEdgeIndex_injective ?_⟩
+  rw [incidenceEdgeIndex_replacementOccurrence]
+  exact hp
 
 /-- Equality of copied constraint positions retains both the source copy and local body
 row. Repeated relation records and nullary rows are not identified. -/

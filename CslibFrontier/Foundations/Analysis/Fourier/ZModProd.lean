@@ -96,9 +96,13 @@ theorem sum_norm_sq_dftProd (f : ZMod N × ZMod N → ℂ) :
         refine sum_congr rfl fun w _ ↦ ?_
         rw [mul_sum]
         refine sum_congr rfl fun ξ _ ↦ ?_
-        rw [show stdAddChar (ξ.1 * (w - v).1 + ξ.2 * (w - v).2) =
-            stdAddChar (-(ξ.1 * v.1 + ξ.2 * v.2)) * stdAddChar (ξ.1 * w.1 + ξ.2 * w.2) by
-          rw [← AddChar.map_add_eq_mul]; exact congrArg _ (by simp; ring)]
+        have : stdAddChar (ξ.1 * (w - v).1 + ξ.2 * (w - v).2) =
+            stdAddChar (-(ξ.1 * v.1 + ξ.2 * v.2)) * stdAddChar (ξ.1 * w.1 + ξ.2 * w.2) := by
+          rw [← AddChar.map_add_eq_mul]
+          congr 1
+          simp only [Prod.fst_sub, Prod.snd_sub]
+          ring
+        rw [this]
         ring
     _ = (N : ℂ) ^ 2 * ∑ v, f v * conj (f v) := by
         simp only [sum_stdAddChar_mul_add, sub_eq_zero, mul_ite, mul_zero, sum_ite_eq',
@@ -112,7 +116,8 @@ theorem dftProd_comp_add (f : ZMod N × ZMod N → ℂ) (t ξ : ZMod N × ZMod N
   refine Fintype.sum_equiv (Equiv.addRight t) _ _ fun v ↦ ?_
   simp only [Equiv.coe_addRight, Prod.fst_add, Prod.snd_add, ← mul_assoc,
     ← AddChar.map_add_eq_mul]
-  exact congrArg (· * _) (congrArg _ (by ring))
+  congr 2
+  ring
 
 /-- **The shear `(x, y) ↦ (x + k * y, y)`** acts on frequencies by `(a, b) ↦ (a, b - k * a)`. -/
 theorem dftProd_comp_shearFst (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : ZMod N × ZMod N) :
@@ -120,7 +125,8 @@ theorem dftProd_comp_shearFst (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : 
   rw [dftProd, dftProd]
   refine Fintype.sum_equiv (Cslib.shearFst k) _ _ fun v ↦ ?_
   rw [Cslib.shearFst_apply]
-  exact congrArg (· * _) (congrArg _ (by ring))
+  congr 2
+  ring
 
 /-- **The shear `(x, y) ↦ (x, y + k * x)`** acts on frequencies by `(a, b) ↦ (a - k * b, b)`. -/
 theorem dftProd_comp_shearSnd (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : ZMod N × ZMod N) :
@@ -128,7 +134,8 @@ theorem dftProd_comp_shearSnd (f : ZMod N × ZMod N → ℂ) (k : ZMod N) (ξ : 
   rw [dftProd, dftProd]
   refine Fintype.sum_equiv (Cslib.shearSnd k) _ _ fun v ↦ ?_
   rw [Cslib.shearSnd_apply]
-  exact congrArg (· * _) (congrArg _ (by ring))
+  congr 2
+  ring
 
 /-- The transform is additive. -/
 theorem dftProd_add (f g : ZMod N × ZMod N → ℂ) : dftProd (f + g) = dftProd f + dftProd g := by

@@ -131,7 +131,8 @@ theorem oddExpect_mono (h : ∀ a b, a ⬝ᵥ b = true → f a b ≤ g a b) :
   rw [oddExpect_def, oddExpect_def]
   exact expect_le_expect fun a _ => expect_le_expect fun b _ => by
     split_ifs with hab
-    exacts [h a b hab, le_rfl]
+    · exact h a b hab
+    · exact le_rfl
 
 theorem oddExpect_nonneg (h : ∀ a b, a ⬝ᵥ b = true → 0 ≤ f a b) : 0 ≤ oddExpect f := by
   simpa [oddExpect_def] using oddExpect_mono (f := fun _ _ => 0) h
@@ -139,7 +140,8 @@ theorem oddExpect_nonneg (h : ∀ a b, a ⬝ᵥ b = true → 0 ≤ f a b) : 0 �
 /-- At most half of all pairs have odd inner product. -/
 theorem dens_oddPairs_le_half : ((oddPairs ι).dens : ℝ) ≤ 1 / 2 := by
   rw [dens_oddPairs]
-  linarith [show 0 ≤ ((2 : ℝ) ^ Fintype.card ι)⁻¹ by positivity]
+  have h : 0 ≤ ((2 : ℝ) ^ Fintype.card ι)⁻¹ := by positivity
+  linarith
 
 /-- The masked average is the density of the odd pairs times the conditional average over them. -/
 theorem oddExpect_eq_dens_smul (f : (ι → Bool) → (ι → Bool) → ℝ) :
@@ -175,7 +177,8 @@ theorem oddExpect_fst (g : (ι → Bool) → ℝ) :
 theorem oddExpect_swap (g : (ι → Bool) → (ι → Bool) → ℝ) :
     oddExpect (fun a b => g b a) = oddExpect g := by
   rw [oddExpect_def, oddExpect_def, Finset.expect_comm]
-  exact expect_congr rfl fun a _ => expect_congr rfl fun b _ => by rw [dotProduct_comm b a]
+  refine expect_congr rfl fun a _ => expect_congr rfl fun b _ => ?_
+  rw [dotProduct_comm b a]
 
 /-- The second marginal has the same distribution as the first. -/
 theorem oddExpect_snd (g : (ι → Bool) → ℝ) :
@@ -185,10 +188,12 @@ theorem oddExpect_snd (g : (ι → Bool) → ℝ) :
 /-- Recover the uniform average from the masked first marginal and the contribution at zero. -/
 theorem expect_eq_two_mul_oddExpect_fst_add_zero (g : (ι → Bool) → ℝ) :
     (𝔼 a, g a) = 2 * oddExpect (fun a _ => g a) + g 0 / Fintype.card (ι → Bool) := by
-  rw [show (𝔼 a, g a) = (𝔼 a, if a = 0 then 0 else g a) + (𝔼 a, if a = 0 then g a else 0) by
-      rw [← Finset.expect_add_distrib]
-      exact expect_congr rfl fun _ _ => by split_ifs <;> simp,
-    oddExpect_fst, Fintype.expect_ite_eq']
+  have hsplit : (𝔼 a, g a) = (𝔼 a, if a = 0 then 0 else g a) +
+      (𝔼 a, if a = 0 then g a else 0) := by
+    rw [← Finset.expect_add_distrib]
+    refine expect_congr rfl fun a _ => ?_
+    split_ifs <;> simp
+  rw [hsplit, oddExpect_fst, Fintype.expect_ite_eq']
   simp only [NNRat.smul_def, NNRat.cast_inv, NNRat.cast_natCast, div_eq_inv_mul]
   ring
 

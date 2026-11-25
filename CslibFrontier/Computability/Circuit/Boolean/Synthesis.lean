@@ -130,8 +130,12 @@ theorem xor (hf : Synthesis interpretation s {f} a) (hg : Synthesis interpretati
     Synthesis interpretation s {fun x => f x ^^ g x} (a + b + 4) := by
   have hf' : Synthesis interpretation {f, g} {f} 0 := of_mem (by simp)
   have hg' : Synthesis interpretation {f, g} {g} 0 := of_mem (by simp)
-  exact hf.combine hg ((show (fun x => (f x || g x) && !(f x && g x)) = fun x => f x ^^ g x from
-    funext fun x => by cases f x <;> cases g x <;> rfl) ▸ (hf'.or hg').and (hf'.and hg').not)
+  have h := (hf'.or hg').and (hf'.and hg').not
+  have heq : (fun x => (f x || g x) && !(f x && g x)) = fun x => f x ^^ g x := by
+    funext x
+    cases f x <;> cases g x <;> rfl
+  rw [heq] at h
+  exact hf.combine hg h
 
 /-- A finite sum in the Boolean ring, an exclusive or of its terms, costs four gates per term
 and a constant. -/

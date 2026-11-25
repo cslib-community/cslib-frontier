@@ -79,8 +79,11 @@ theorem CubeSplits.eq_zero_of_monotone {F : ι → ℕ → ℝ} (hF : ∀ i, Mon
     {q q' : ι → Fin m} (h : CubeSplits F θ q) (h' : CubeSplits F θ q') {d : ℕ}
     (hd : ∀ i, (q' i : ℕ) = q i + d) : d = 0 := by
   by_contra hd0
-  have := sum_le_sum (s := univ) fun i _ => hF i (show (q i : ℕ) + 1 ≤ q' i by rw [hd i]; omega)
-  linarith [(h.lt_and_le_of_monotone hF).2, (h'.lt_and_le_of_monotone hF).1]
+  have h₁ := (h.lt_and_le_of_monotone hF).2
+  have h₂ := (h'.lt_and_le_of_monotone hF).1
+  have : ∑ i, F i (q i + 1) ≤ ∑ i, F i (q' i) :=
+    sum_le_sum fun i _ => hF i (by rw [hd i]; omega)
+  linarith
 
 /-- The number of `p : ι → Fin m` with a zero coordinate is `m ^ |ι| - (m - 1) ^ |ι|`. -/
 theorem card_exists_val_eq_zero [DecidableEq ι] :
@@ -90,15 +93,15 @@ theorem card_exists_val_eq_zero [DecidableEq ι] :
     rcases m with _ | m
     · simp
     · rw [show (univ.filter fun t : Fin (m + 1) => (t : ℕ) ≠ 0) = univ.erase 0 by
-        ext t; rw [mem_filter, mem_erase, Fin.ne_iff_vne]
-        simp,
+        ext t; rw [mem_filter, mem_erase, Fin.ne_iff_vne]; simp,
         card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin]
+  have hpi : (univ.filter fun p : ι → Fin m => ¬∃ i, (p i : ℕ) = 0) =
+      Fintype.piFinset fun _ => univ.filter fun t : Fin m => (t : ℕ) ≠ 0 := by
+    ext p; simp [Fintype.mem_piFinset]
   have hsum := card_filter_add_card_filter_not
-    (s := (univ : Finset (ι → Fin m))) fun p => ∃ i, (p i : ℕ) = 0
-  rw [show (univ.filter fun p : ι → Fin m => ¬∃ i, (p i : ℕ) = 0) =
-      Fintype.piFinset fun _ => univ.filter fun t : Fin m => (t : ℕ) ≠ 0 by
-    ext p; simp [Fintype.mem_piFinset], Fintype.card_piFinset, prod_const, card_univ, hne,
-    card_univ, Fintype.card_fun, Fintype.card_fin] at hsum
+    (s := (univ : Finset (ι → Fin m))) (fun p => ∃ i, (p i : ℕ) = 0)
+  rw [hpi, Fintype.card_piFinset, prod_const, card_univ, hne, card_univ, Fintype.card_fun,
+    Fintype.card_fin] at hsum
   omega
 
 /-- **Split cubes of a monotone separable form**: if every `F i` is monotone, the threshold `θ`
@@ -125,7 +128,8 @@ theorem card_cubeSplits_le_of_monotone [DecidableEq ι] (F : ι → ℕ → ℝ)
         (hst : start q = start q') (hle : a q ≤ a q') : q = q' := by
       have hcoord (i : ι) : (q i : ℕ) - a q = q' i - a q' := congrArg Fin.val (congrFun hst i)
       have hd := hs.eq_zero_of_monotone hF hs' (d := a q' - a q) fun i => by
-        have : _ ∧ _ ∧ _ := ⟨hcoord i, ha q i, ha q' i⟩; omega
+        have : _ ∧ _ ∧ _ := ⟨hcoord i, ha q i, ha q' i⟩
+        omega
       exact funext fun i => Fin.ext (by have : _ ∧ _ ∧ _ := ⟨hcoord i, ha q i, ha q' i⟩; omega)
     intro q hq q' hq' hst
     rcases le_total (a q) (a q') with hle | hle
@@ -145,23 +149,30 @@ theorem card_cubeSplits_le [DecidableEq ι] (F : ι → ℕ → ℝ)
   have hF' (i : ι) : Monotone (F' i) := by
     by_cases hi : Monotone (F i)
     · simp [F', hi]
-    · intro s t hst
+    · have hanti := (hF i).resolve_left hi
+      intro s t hst
       simp only [F', hi, ↓reduceIte]
-      exact (hF i).resolve_left hi (Nat.sub_le_sub_left hst m)
+      exact hanti (Nat.sub_le_sub_left hst m)
   let r : (ι → Fin m) → ι → Fin m := fun q i => if Monotone (F i) then q i else (q i).rev
   have hr : Function.Injective r := fun q q' h => funext fun i => by
-    by_cases hi : Monotone (F i) <;> simpa [r, hi] using congrFun h i
-  refine (card_le_card_of_injOn r (fun q hq => ?_) hr.injOn).trans
+    have := congrFun h i
+    by_cases hi : Monotone (F i) <;> simpa [r, hi] using this
+  have hmaps : ∀ q ∈ univ.filter fun q : ι → Fin m => CubeSplits F θ q,
+      r q ∈ univ.filter fun q : ι → Fin m => CubeSplits F' θ q := fun q hq => by
+    obtain ⟨z, z', hz, hz'⟩ := (mem_filter.mp hq).2
+    let flip : (ι → Bool) → ι → Bool := fun z i => if Monotone (F i) then z i else !z i
+    have hval (z : ι → Bool) (i : ι) :
+        F' i (r q i + (flip z i).toNat) = F i (q i + (z i).toNat) := by
+      by_cases hi : Monotone (F i)
+      · simp [F', r, flip, hi]
+      · simp only [F', r, flip, hi, ↓reduceIte, Fin.val_rev]
+        congr 1
+        have := (q i).isLt
+        cases z i <;> simp <;> omega
+    refine mem_filter.mpr ⟨mem_univ _, flip z, flip z', ?_, ?_⟩
+    · simpa only [hval] using hz
+    · simpa only [hval] using hz'
+  exact (card_le_card_of_injOn r hmaps hr.injOn).trans
     (card_cubeSplits_le_of_monotone F' hF' θ)
-  obtain ⟨z, z', hz, hz'⟩ := (mem_filter.mp hq).2
-  let flip : (ι → Bool) → ι → Bool := fun z i => if Monotone (F i) then z i else !z i
-  have hval (z : ι → Bool) (i : ι) :
-      F' i (r q i + (flip z i).toNat) = F i (q i + (z i).toNat) := by
-    by_cases hi : Monotone (F i)
-    · simp [F', r, flip, hi]
-    · simp only [F', r, flip, hi, ↓reduceIte, Fin.val_rev]
-      exact congrArg (F i) (by have := (q i).isLt; cases z i <;> simp <;> omega)
-  exact mem_filter.mpr ⟨mem_univ _, flip z, flip z', by simpa only [hval] using hz,
-    by simpa only [hval] using hz'⟩
 
 end Cslib.Combinatorics

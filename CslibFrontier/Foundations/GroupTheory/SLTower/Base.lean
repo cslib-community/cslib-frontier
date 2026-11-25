@@ -40,13 +40,19 @@ theorem exists_transvections (A : SL2 h) : ∃ l : List (TransvectionStruct (Fin
     A = (l.map TransvectionStruct.toSpecialLinearGroup).prod := by
   obtain ⟨L, L', D, hD, hA⟩ :=
     SpecialLinearGroup.exists_list_transvec_mul_diagonal_mul_list_transvec A
-  have h3 (i : Fin h) : D i = 1 :=
-    (show ∀ c : ZMod 2, c ≠ 0 → c = 1 by decide) _ fun h0 => by
-      rw [det_diagonal, Finset.prod_eq_zero (mem_univ i) h0] at hD
-      exact absurd hD (by decide)
+  have h3 : ∀ i, D i = 1 := by
+    intro i
+    have h1 : ∏ i, D i = 1 := by rwa [det_diagonal] at hD
+    have h4 : D i ≠ 0 := fun h0 => by
+      rw [Finset.prod_eq_zero (mem_univ i) h0] at h1
+      exact absurd h1 (by decide)
+    have key : ∀ c : ZMod 2, c ≠ 0 → c = 1 := by decide
+    exact key _ h4
   have h5 : (⟨diagonal D, hD⟩ : SpecialLinearGroup (Fin h) (ZMod 2)) = (1 : SL2 h) := by
-    ext i j; simp [diagonal_apply, h3, Matrix.one_apply]
-  exact ⟨L ++ L', by rw [hA, h5, _root_.mul_one, List.map_append, List.prod_append]⟩
+    ext i j
+    simp [diagonal_apply, h3, Matrix.one_apply]
+  refine ⟨L ++ L', ?_⟩
+  rw [hA, h5, _root_.mul_one, List.map_append, List.prod_append]
 
 theorem th0_toSpecialLinearGroup (τ : TransvectionStruct (Fin h) (ZMod 2)) :
     (th0 0 τ.toSpecialLinearGroup : G h n) =
@@ -73,14 +79,22 @@ theorem WL.const (h3 : 3 ≤ h) (A : SL2 h) : ∃ N, WL h2 (th0 0 A : G h n) N :
   | cons τ l ih =>
     obtain ⟨N, hN⟩ := ih
     obtain ⟨M, hM⟩ := WL.transvectionStruct (n := n) (h2 := h2) h3 τ
-    exact ⟨M + N, by simpa only [List.map_cons, List.prod_cons, map_mul] using hM.mul hN⟩
+    refine ⟨M + N, ?_⟩
+    rw [List.map_cons, List.prod_cons, map_mul]
+    exact hM.mul hN
 
 theorem exists_base (h2 : 2 ≤ h) (h3 : 3 ≤ h) : ∃ C, ∀ g : G h 0, WL h2 g C := by
-  have h1 (g : G h 0) : ∃ N, WL h2 g N := by
+  have h1 : ∀ g : G h 0, ∃ N, WL h2 g N := by
+    intro g
     obtain ⟨N, hN⟩ := WL.const (n := 0) (h2 := h2) h3 (evG g)
-    have hg : th0 0 (evG g) = g := (evG_bijective_zero (h := h)).1 <|
-      Subtype.ext <| Matrix.ext fun _ _ => by rw [evG_th0, sub_zero, sub_zero]
-    exact ⟨N, hg ▸ hN⟩
+    refine ⟨N, ?_⟩
+    have : g = th0 0 (evG g) := by
+      apply evG_bijective_zero.1
+      refine Subtype.ext ?_
+      ext a b
+      rw [evG_th0, sub_zero, sub_zero]
+    rw [this]
+    exact hN
   choose N hN using h1
   exact ⟨univ.sup N, fun g => (hN g).mono (Finset.le_sup (mem_univ g))⟩
 
@@ -91,24 +105,32 @@ theorem exists_diam (h : ℕ) [NeZero h] (h2 : 2 ≤ h) (h3 : 3 ≤ h) :
   let B := h * h * (5 * (4 ^ (h + 3) * 9 * 8))
   refine ⟨C + B, fun n => ?_⟩
   induction n with
-  | zero => exact fun g => (hC g).mono (by simp)
+  | zero => intro g; exact (hC g).mono (by simp)
   | succ n ih =>
-    refine fun g => (WL.lift h3 ih g).mono ?_
-    have h6 : bQ h n ≤ 4 ^ (h + 3) * 9 * 8 * (n + 1) ^ 6 := by
-      unfold bQ
-      have : (n + 2) ^ 3 ≤ 8 * (n + 1) ^ 3 :=
-        (Nat.pow_le_pow_left (show n + 2 ≤ 2 * (n + 1) by omega) 3).trans_eq (by ring)
-      exact (by gcongr : _ ≤ 4 ^ (h + 3) * (9 * (8 * (n + 1) ^ 3)) * (n + 1) ^ 3).trans_eq (by ring)
-    have h4 : h * h * (5 * bQ h n) ≤ B * (n + 1) ^ 6 :=
-      (by gcongr : _ ≤ h * h * (5 * (4 ^ (h + 3) * 9 * 8 * (n + 1) ^ 6))).trans_eq
-        (by simp only [B]; ring)
+    intro g
+    refine (WL.lift h3 ih g).mono ?_
+    have h4 : h * h * (5 * bQ h n) ≤ B * (n + 1) ^ 6 := by
+      have h5 : (n + 2) ^ 3 ≤ 8 * (n + 1) ^ 3 := by
+        calc (n + 2) ^ 3 ≤ (2 * (n + 1)) ^ 3 := Nat.pow_le_pow_left (by omega) 3
+          _ = 8 * (n + 1) ^ 3 := by ring
+      have h6 : bQ h n ≤ 4 ^ (h + 3) * 9 * 8 * (n + 1) ^ 6 := by
+        unfold bQ
+        calc 4 ^ (h + 3) * (9 * (n + 2) ^ 3) * (n + 1) ^ 3 ≤ 4 ^ (h + 3) *
+            (9 * (8 * (n + 1) ^ 3)) * (n + 1) ^ 3 := by
+              gcongr
+          _ = _ := by ring
+      calc h * h * (5 * bQ h n) ≤ h * h * (5 * (4 ^ (h + 3) * 9 * 8 * (n + 1) ^ 6)) := by gcongr
+        _ = B * (n + 1) ^ 6 := by simp only [B]; ring
     have h7 : (n + 1) ^ 7 + (n + 1) ^ 6 ≤ (n + 1 + 1) ^ 7 := by
+      have h8 : (n + 1) ^ 6 ≤ (n + 2) ^ 6 := Nat.pow_le_pow_left (by omega) 6
       calc (n + 1) ^ 7 + (n + 1) ^ 6 = (n + 1) ^ 6 * (n + 2) := by ring
-        _ ≤ (n + 2) ^ 6 * (n + 2) := Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (by omega) 6)
+        _ ≤ (n + 2) ^ 6 * (n + 2) := Nat.mul_le_mul_right _ h8
         _ = (n + 1 + 1) ^ 7 := by ring
-    refine (Nat.add_le_add_left (h4.trans (Nat.mul_le_mul_right _ (Nat.le_add_left B C))) _).trans
-      ?_
-    rw [← mul_add]
-    exact Nat.mul_le_mul_left _ h7
+    calc (C + B) * (n + 1) ^ 7 + h * h * (5 * bQ h n) ≤ (C + B) * (n + 1) ^ 7 + B * (n + 1) ^ 6 :=
+          Nat.add_le_add_left h4 _
+      _ ≤ (C + B) * (n + 1) ^ 7 + (C + B) * (n + 1) ^ 6 := by
+          refine Nat.add_le_add_left (Nat.mul_le_mul_right _ (by omega)) _
+      _ = (C + B) * ((n + 1) ^ 7 + (n + 1) ^ 6) := by ring
+      _ ≤ (C + B) * (n + 1 + 1) ^ 7 := Nat.mul_le_mul_left _ h7
 
 end Cslib.SLTower

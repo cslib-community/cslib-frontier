@@ -161,14 +161,18 @@ theorem exists_two_pow_mul_countUnsat_le {k : ℕ} {h : ι → X → Bool}
     (hk : ∀ c ∈ φ, k ≤ c.toFinset.card) :
     ∃ i, 2 ^ k * φ.countUnsat (h i ∘ e) ≤ φ.length := by
   obtain ⟨i, hi⟩ := exists_countUnsat_le hh φ he
-  rw [List.map_congr_left (g := fun _ => (2 : ℝ)⁻¹ ^ k)
-    (fun c hc => by rw [min_eq_left (hk c hc)]),
-    List.map_const', List.sum_replicate, nsmul_eq_mul] at hi
   refine ⟨i, ?_⟩
-  suffices ((2 ^ k * φ.countUnsat (h i ∘ e) : ℕ) : ℝ) ≤ φ.length by exact_mod_cast this
-  calc ((2 ^ k * φ.countUnsat (h i ∘ e) : ℕ) : ℝ)
-      ≤ 2 ^ k * (φ.length * (2 : ℝ)⁻¹ ^ k) := by push_cast; gcongr
-    _ = φ.length := by
-        rw [inv_pow, mul_left_comm, mul_inv_cancel₀ (by positivity), mul_one]
+  have hsum : (φ.map fun c => (2 : ℝ)⁻¹ ^ min k c.toFinset.card).sum =
+      φ.length * (2 : ℝ)⁻¹ ^ k := by
+    rw [List.map_congr_left (g := fun _ => (2 : ℝ)⁻¹ ^ k) fun c hc => by
+        rw [min_eq_left (hk c hc)],
+      List.map_const', List.sum_replicate, nsmul_eq_mul]
+  rw [hsum] at hi
+  have h2 : (0 : ℝ) < 2 ^ k := by positivity
+  have : ((2 ^ k * φ.countUnsat (h i ∘ e) : ℕ) : ℝ) ≤ φ.length := by
+    push_cast
+    calc (2 : ℝ) ^ k * φ.countUnsat (h i ∘ e) ≤ 2 ^ k * (φ.length * (2 : ℝ)⁻¹ ^ k) := by gcongr
+      _ = φ.length := by rw [inv_pow, mul_left_comm, mul_inv_cancel₀ h2.ne', mul_one]
+  exact_mod_cast this
 
 end Cslib.Logic.PL

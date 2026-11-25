@@ -80,12 +80,17 @@ theorem inputTimeIterate_zero (f : BitString n → BitString n) (y : BitString (
 private theorem toNat_equivBitVec_mod_two_pow_succ (bits : BitString m) {j : ℕ} (hj : j < m) :
     (BitString.equivBitVec bits).toNat % 2 ^ (j + 1) =
       (BitString.equivBitVec bits).toNat % 2 ^ j + if bits ⟨j, hj⟩ then 2 ^ j else 0 := by
-  rw [Nat.mod_pow_succ, show (BitString.equivBitVec bits).toNat / 2 ^ j % 2 =
-      if bits ⟨j, hj⟩ then 1 else 0 by
-    rw [← BitString.getLsbD_equivBitVec bits ⟨j, hj⟩, ← BitVec.testBit_toNat,
-      Nat.testBit_eq_decide_div_mod_eq]
-    rcases Nat.mod_two_eq_zero_or_one ((BitString.equivBitVec bits).toNat / 2 ^ j) with h | h <;>
-      simp [h]]
+  have hbit : (BitString.equivBitVec bits).toNat / 2 ^ j % 2 = if bits ⟨j, hj⟩ then 1 else 0 := by
+    have ht : bits ⟨j, hj⟩ = decide ((BitString.equivBitVec bits).toNat / 2 ^ j % 2 = 1) := by
+      rw [← BitString.getLsbD_equivBitVec bits ⟨j, hj⟩, ← BitVec.testBit_toNat,
+        Nat.testBit_eq_decide_div_mod_eq]
+    have hlt := Nat.mod_lt ((BitString.equivBitVec bits).toNat / 2 ^ j) (show 0 < 2 by decide)
+    rw [ht]
+    by_cases h : (BitString.equivBitVec bits).toNat / 2 ^ j % 2 = 1
+    · simp only [h, decide_true, ite_true]
+    · simp only [h, decide_false, Bool.false_eq_true, ite_false]
+      omega
+  rw [Nat.mod_pow_succ, hbit]
   split_ifs <;> simp
 
 /-- Applying `f^[2 ^ j]` exactly when bit `j` is set extends the time read so far by that bit. -/

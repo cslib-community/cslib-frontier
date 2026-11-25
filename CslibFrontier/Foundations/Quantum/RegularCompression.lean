@@ -232,10 +232,11 @@ theorem expect_norm_sub_compress_sq_le (φ : AlgState (Matrix ι ι ℂ))
       𝔼 x, 𝔼 y, φ.norm (f x * f y - f (x * y)) ^ 2 := by
   rw [expect_comm]
   refine expect_le_expect fun y _ => ?_
-  rw [show f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
-      𝔼 x, (f x)ᴴ * (f x * f y - f (x * y)) by
+  have hdiff : f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
+      𝔼 x, (f x)ᴴ * (f x * f y - f (x * y)) := by
     simp only [regularIsometry_compress, Matrix.mul_sub, ← Matrix.mul_assoc, hf,
-      Matrix.one_mul, expect_sub_distrib, expect_const univ_nonempty]]
+      Matrix.one_mul, expect_sub_distrib, expect_const univ_nonempty]
+  rw [hdiff]
   exact φ.norm_expect_mul_sq_le _ fun x _ => by
     rw [star_eq_conjTranspose, conjTranspose_conjTranspose, mul_eq_one_comm.mp (hf x)]
 

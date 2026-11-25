@@ -103,12 +103,13 @@ theorem pow_mul_sum_filter_card_le_le_noiseStability {ρ : ℝ} (hρ : 0 ≤ ρ)
 theorem sum_filter_card_le_fourierCoeff_indicator_sq_le_three_pow (A : Set (ι → Bool)) (k : ℕ) :
     ∑ S with #S ≤ k, fourierCoeff (A.indicator 1) S ^ 2 ≤
       3 ^ k * (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ (3 / 2 : ℝ) := by
-  have h := (pow_mul_sum_filter_card_le_le_noiseStability (ρ := 1 / 3) (by norm_num)
-    (by norm_num) k (A.indicator 1)).trans (noiseStability_one_third_indicator_le A)
-  refine (?_ : _ = 3 ^ k * ((1 / 3 : ℝ) ^ k * _)).trans_le
-    (mul_le_mul_of_nonneg_left h (by positivity))
-  rw [← mul_assoc, ← mul_pow]
-  norm_num
+  have h := (pow_mul_sum_filter_card_le_le_noiseStability (by norm_num) (by norm_num) k
+    (A.indicator 1)).trans (noiseStability_one_third_indicator_le A)
+  calc ∑ S with #S ≤ k, fourierCoeff (A.indicator 1) S ^ 2
+      = 3 ^ k * ((1 / 3 : ℝ) ^ k * ∑ S with #S ≤ k, fourierCoeff (A.indicator 1) S ^ 2) := by
+        rw [← mul_assoc, ← mul_pow]
+        norm_num
+    _ ≤ _ := by gcongr
 
 /-- **The Level-`k` Inequalities**: a set `A` of volume `α` has
 `W^{≤k}[1_A] ≤ (2e / k · ln (1 / α)) ^ k α ^ 2` for `1 ≤ k ≤ 2 ln (1 / α)`

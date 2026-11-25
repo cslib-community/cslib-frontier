@@ -63,11 +63,14 @@ private theorem sameCycle_collapse_step (f : Perm α) (h : α) (x : Option α) :
 private theorem sameCycle_some_step (f : Perm α) (h a : α) :
     (insertAfter f h).SameCycle (some a) (some (f a)) := by
   by_cases ha : a = h
-  · subst ha
-    exact (show (insertAfter f a).SameCycle (some a) none by
-        rw [← insertAfter_at f a]
-        exact Perm.sameCycle_apply_right.mpr .rfl).trans
-      (by rw [← insertAfter_none f a]; exact Perm.sameCycle_apply_right.mpr .rfl)
+  · subst a
+    have h₁ : (insertAfter f h).SameCycle (some h) none := by
+      rw [← insertAfter_at f h]
+      exact Perm.sameCycle_apply_right.mpr .rfl
+    have h₂ : (insertAfter f h).SameCycle none (some (f h)) := by
+      rw [← insertAfter_none f h]
+      exact Perm.sameCycle_apply_right.mpr .rfl
+    exact h₁.trans h₂
   · rw [← insertAfter_other f h a ha]
     exact Perm.sameCycle_apply_right.mpr .rfl
 
@@ -154,7 +157,8 @@ theorem sameCycle_removeNone_iff [Finite α] (f : Perm (Option α))
   classical
   obtain ⟨h, hf⟩ := exists_insertAfter_removeNone f hn
   conv_rhs => rw [← hf]
-  exact (sameCycle_iff _ h (some a) (some b)).symm
+  rw [sameCycle_iff]
+  rfl
 
 omit [DecidableEq α] in
 /-- Deleting a non-singleton dart preserves the total number of faces or vertex cycles. -/
@@ -170,9 +174,11 @@ theorem card_orbits_removeNone [Finite α] (f : Perm (Option α)) (hn : f none �
 theorem insertAfter_twice {α : Type} [DecidableEq α] (f : Perm α) (h k : α) :
     insertAfter (insertAfter f h) (some k) = f.optionCongr.optionCongr *
       swap (some (some h)) (some none) * swap (some (some k)) none := by
+  have hm : (f.optionCongr * swap (some h) none).optionCongr =
+      f.optionCongr.optionCongr * (swap (some h) none).optionCongr := by
+    apply Equiv.ext
+    rintro (_ | z) <;> rfl
   dsimp only [insertAfter]
-  rw [show (f.optionCongr * swap (some h) none).optionCongr =
-      f.optionCongr.optionCongr * (swap (some h) none).optionCongr from
-    Equiv.ext fun | none | some _ => rfl, Equiv.optionCongr_swap]
+  rw [hm, Equiv.optionCongr_swap]
 
 end Equiv.Perm.Insertion

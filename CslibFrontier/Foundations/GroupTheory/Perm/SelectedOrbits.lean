@@ -61,13 +61,18 @@ theorem splice_preserves [DecidableEq α] (f : Perm α) (p : α → Prop)
     (hh : p h ↔ q) (hk : p k ↔ q) :
     ∀ z, extendedPredicate p q (splice f h k z) ↔ extendedPredicate p q z := by
   intro z
-  have hf : ∀ z, extendedPredicate p q (f.optionCongr.optionCongr z) ↔ extendedPredicate p q z :=
-    fun | none | some none => .rfl | some (some a) => hp a
-  change extendedPredicate p q (swap (some (some k)) none (swap (some (some h)) (some none)
-    (f.optionCongr.optionCongr (swap (some none) none z)))) ↔ _
+  have hf : ∀ z, extendedPredicate p q (f.optionCongr.optionCongr z) ↔
+      extendedPredicate p q z := by
+    rintro (_ | (_ | a))
+    · rfl
+    · rfl
+    · exact hp a
+  change extendedPredicate p q
+    (swap (some (some k)) none (swap (some (some h)) (some none)
+      (f.optionCongr.optionCongr (swap (some none) none z)))) ↔ _
   rw [Equiv.predicate_swap (extendedPredicate p q) (some (some k)) none hk,
     Equiv.predicate_swap (extendedPredicate p q) (some (some h)) (some none) hh, hf,
-    Equiv.predicate_swap (extendedPredicate p q) (some none) none .rfl]
+    Equiv.predicate_swap (extendedPredicate p q) (some none) none Iff.rfl]
 
 /-- When both new points are selected, the selected dart type is literally the old selected
 set with two indexed ends adjoined. -/
@@ -95,8 +100,11 @@ private theorem map_splice {β : Type} [DecidableEq α] [DecidableEq β]
       splice g (u h) (u k) (Option.map (Option.map u) z) := by
   let v := Option.map (Option.map u)
   have hv : Function.Injective v := Option.map_injective (Option.map_injective hu)
-  have hf : ∀ z, v (f.optionCongr.optionCongr z) = g.optionCongr.optionCongr (v z) :=
-    fun | none | some none => rfl | some (some a) => congrArg (some ∘ some) (hm a)
+  have hf : ∀ z, v (f.optionCongr.optionCongr z) = g.optionCongr.optionCongr (v z) := by
+    rintro (_ | (_ | a))
+    · rfl
+    · rfl
+    · exact congrArg (some ∘ some) (hm a)
   change v (splice f h k z) = splice g (u h) (u k) (v z)
   simp only [splice, Perm.coe_mul, Function.comp_apply]
   rw [hv.map_swap, hv.map_swap, hf, hv.map_swap]
@@ -108,10 +116,11 @@ theorem selected_splice_permCongr [DecidableEq α] (f : Perm α) (p : α → Pro
     (selectedPointEquiv p).permCongr (splice (f.subtypePerm hp) ⟨h, hh⟩ ⟨k, hk⟩) =
       (splice f h k).subtypePerm
         (splice_preserves f p hp h k True (iff_true_intro hh) (iff_true_intro hk)) := by
-  refine Equiv.ext fun z => ?_
+  apply Equiv.ext
+  intro z
   obtain ⟨z, rfl⟩ := (selectedPointEquiv p).surjective z
   simp only [Equiv.permCongr_apply, Equiv.symm_apply_apply]
-  refine Subtype.ext ?_
+  apply Subtype.ext
   change ((selectedPointEquiv p) (splice (f.subtypePerm hp) ⟨h, hh⟩ ⟨k, hk⟩ z)).val =
     splice f h k ((selectedPointEquiv p) z).val
   rw [coe_selectedPointEquiv, coe_selectedPointEquiv]
@@ -151,7 +160,8 @@ theorem unselected_splice_permCongr [DecidableEq α] (f : Perm α) (p : α → P
     (unselectedPointEquiv p).permCongr (f.subtypePerm hp) =
       (splice f h k).subtypePerm
         (splice_preserves f p hp h k False (iff_false_intro hh) (iff_false_intro hk)) := by
-  refine Equiv.ext fun z => ?_
+  apply Equiv.ext
+  intro z
   obtain ⟨a, rfl⟩ := (unselectedPointEquiv p).surjective z
   simp only [Equiv.permCongr_apply, Equiv.symm_apply_apply]
   apply Subtype.ext

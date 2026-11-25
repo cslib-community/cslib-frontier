@@ -177,7 +177,8 @@ private theorem evalStep_pt :
 private theorem length_evalStep_le (σ : ℕ → Bool) (stack : List Bool) (t : QBF.Kind × ℕ) :
     (encList encBool (QBF.evalStep σ stack t)).length ≤ (encList encBool stack).length + 4 := by
   obtain ⟨k, v⟩ := t
-  cases k <;> simp only [QBF.evalStep, QBF.evalStepAt] <;>
+  simp only [QBF.evalStep]
+  cases k <;> simp only [QBF.evalStepAt] <;>
     rcases stack with _ | ⟨a, _ | ⟨b, stack⟩⟩ <;>
     simp only [encList_cons, List.length_append, length_frame, encList_nil, List.length_nil,
       List.headD_nil, List.headD_cons, List.tail_nil, List.tail_cons, encBool_apply,

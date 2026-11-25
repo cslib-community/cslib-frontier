@@ -80,35 +80,52 @@ private theorem exists_two_mul_card_tupleCover (R : Finset α) (hR : R.Nonempty)
     (hFY : ∀ g : Fin t → α, (∀ i, g i ∈ R) → F g ∈ Y) :
     ∃ y ∈ Y, #R ≤ 2 * #(tupleCover R F y) := by
   classical
-  by_contra! hcon
+  by_contra hcon
+  push Not at hcon
   -- every tuple of elements of `R` consists of elements covered by its image
   have hcount : #(Fintype.piFinset fun _ : Fin t => R) ≤
       ∑ y ∈ Y, #(Fintype.piFinset fun _ : Fin t => tupleCover R F y) := by
-    refine (Finset.card_le_card (t := Y.biUnion fun y =>
-        (Fintype.piFinset fun _ : Fin t => R).filter fun g => F g = y) fun g hg =>
-      Finset.mem_biUnion.2 ⟨F g, hFY g (Fintype.mem_piFinset.1 hg),
-        Finset.mem_filter.2 ⟨hg, rfl⟩⟩).trans ?_
-    refine Finset.card_biUnion_le.trans (Finset.sum_le_sum fun y _ => Finset.card_le_card ?_)
-    intro g hg
-    obtain ⟨hgR, rfl⟩ := Finset.mem_filter.1 hg
-    exact Fintype.mem_piFinset.2 fun i =>
-      mem_tupleCover.2 ⟨Fintype.mem_piFinset.1 hgR i, g, Fintype.mem_piFinset.1 hgR, ⟨i, rfl⟩, rfl⟩
+    calc #(Fintype.piFinset fun _ : Fin t => R)
+        ≤ ∑ y ∈ Y, #((Fintype.piFinset fun _ : Fin t => R).filter fun g => F g = y) := by
+          rw [← Finset.card_biUnion]
+          · apply Finset.card_le_card
+            intro g hg
+            rw [Finset.mem_biUnion]
+            exact ⟨F g, hFY g (Fintype.mem_piFinset.1 hg), Finset.mem_filter.2 ⟨hg, rfl⟩⟩
+          · intro y _ y' _ hne
+            rw [Function.onFun, Finset.disjoint_filter]
+            intro g _ h1 h2
+            exact hne (h1.symm.trans h2)
+      _ ≤ ∑ y ∈ Y, #(Fintype.piFinset fun _ : Fin t => tupleCover R F y) := by
+          apply Finset.sum_le_sum
+          intro y _
+          apply Finset.card_le_card
+          intro g hg
+          rw [Finset.mem_filter, Fintype.mem_piFinset] at hg
+          rw [Fintype.mem_piFinset]
+          intro i
+          exact mem_tupleCover.2 ⟨hg.1 i, g, hg.1, ⟨i, rfl⟩, hg.2⟩
   simp only [Fintype.card_piFinset, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
     at hcount
   rcases Nat.eq_zero_or_pos t with rfl | ht
   · -- there are no values, yet the empty tuple has one
-    exact Finset.notMem_empty _
-      (Finset.card_eq_zero.1 (by simpa using hY) ▸ hFY Fin.elim0 fun i => i.elim0)
-  · obtain ⟨a, ha⟩ := hR
+    have hYe : Y = ∅ := Finset.card_eq_zero.1 (by simpa using hY)
+    have := hFY (fun i => i.elim0) (fun i => i.elim0)
+    simp [hYe] at this
+  · have hlt : ∀ y ∈ Y, 2 ^ t * #(tupleCover R F y) ^ t < #R ^ t := fun y hy => by
+      rw [← mul_pow]
+      exact Nat.pow_lt_pow_left (hcon y hy) ht.ne'
     have h1 : 2 ^ t * #R ^ t ≤ ∑ y ∈ Y, 2 ^ t * #(tupleCover R F y) ^ t := by
-      simpa only [← Finset.mul_sum] using Nat.mul_le_mul_left (2 ^ t) hcount
-    have h2 : ∑ y ∈ Y, 2 ^ t * #(tupleCover R F y) ^ t < #Y * #R ^ t := by
-      simpa only [Finset.sum_const, smul_eq_mul] using
-        Finset.sum_lt_sum_of_nonempty (f := fun y => 2 ^ t * #(tupleCover R F y) ^ t)
-          (g := fun _ => #R ^ t) ⟨_, hFY (fun _ => a) fun _ => ha⟩ fun y hy => by
-            rw [← mul_pow]
-            exact Nat.pow_lt_pow_left (hcon y hy) ht.ne'
-    exact absurd (h1.trans_lt h2) (not_lt_of_ge (Nat.mul_le_mul_right _ hY.le))
+      rw [← Finset.mul_sum]
+      exact Nat.mul_le_mul_left _ hcount
+    have hYne : Y.Nonempty := by
+      obtain ⟨a, ha⟩ := hR
+      exact ⟨_, hFY (fun _ => a) fun _ => ha⟩
+    have h2 : ∑ y ∈ Y, 2 ^ t * #(tupleCover R F y) ^ t < ∑ _y ∈ Y, #R ^ t :=
+      Finset.sum_lt_sum_of_nonempty hYne hlt
+    rw [Finset.sum_const, smul_eq_mul] at h2
+    have h3 : #Y * #R ^ t ≤ 2 ^ t * #R ^ t := Nat.mul_le_mul_right _ hY.le
+    omega
 
 /-- **Halving.** If `F` maps the `t`-tuples of elements of a nonempty finite set `R` into a set `Y`
 of fewer than `2 ^ t` values, then some value `y ∈ Y` covers at least half of `R`: a subset `C ⊆ R`
@@ -146,20 +163,23 @@ theorem exists_tupleCover (F : (Fin t → α) → β) (Y : Finset β) (hY : #Y <
   · refine ⟨{y}, Finset.singleton_subset_iff.2 hy, by simp, fun a ha => ?_⟩
     have hac : a ∈ tupleCover R F y := by
       by_contra hac
-      exact Finset.notMem_empty a (hR'e ▸ Finset.mem_sdiff.2 ⟨ha, hac⟩)
-    obtain ⟨-, g, hg, hag, rfl⟩ := mem_tupleCover.1 hac
-    exact ⟨g, hg, hag, Finset.mem_singleton_self _⟩
+      have : a ∈ R' := Finset.mem_sdiff.2 ⟨ha, hac⟩
+      simp [hR'e] at this
+    obtain ⟨-, g, hg, hag, hgy⟩ := mem_tupleCover.1 hac
+    exact ⟨g, hg, hag, by simp [hgy]⟩
   have hpos : 0 < #R' := Finset.card_pos.2 (Finset.nonempty_iff_ne_empty.2 hR'e)
   obtain ⟨S', hS'Y, hS'card, hS'⟩ := ih R' hR'R fun g hg =>
     hFY g fun i => (Finset.mem_sdiff.1 (hg i)).1
   refine ⟨insert y S', Finset.insert_subset hy hS'Y, ?_, fun a ha => ?_⟩
-  · have hcardR' : #R' * 2 ≤ #R := by
+  · have hcardR' : 2 * #R' ≤ #R := by
       rw [hR', Finset.card_sdiff_of_subset (tupleCover_subset R F y)]
       have := Finset.card_le_card (tupleCover_subset R F y)
       omega
-    have hlog := Nat.log_mono_right (b := 2) hcardR'
-    rw [Nat.log_mul_base Nat.one_lt_two hpos.ne'] at hlog
-    exact (Finset.card_insert_le _ _).trans (by omega)
+    have hlog : Nat.log 2 #R' + 1 ≤ Nat.log 2 #R := by
+      have h := Nat.log_mono_right (b := 2) hcardR'
+      rwa [mul_comm, Nat.log_mul_base Nat.one_lt_two hpos.ne'] at h
+    calc #(insert y S') ≤ #S' + 1 := Finset.card_insert_le _ _
+      _ ≤ Nat.log 2 #R + 1 := by omega
   · by_cases hac : a ∈ tupleCover R F y
     · obtain ⟨-, g, hg, hag, hgy⟩ := mem_tupleCover.1 hac
       exact ⟨g, hg, hag, hgy ▸ Finset.mem_insert_self _ _⟩

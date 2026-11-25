@@ -171,7 +171,9 @@ theorem exists_not_mem_complexityClass {t : ℕ → ℕ} (ht : Computable t) :
   obtain ⟨c, hcf, hev⟩ := mem_complexityClass.1 hmem
   obtain ⟨n, hn, hn'⟩ := ((hc c hcf).and hev).exists
   obtain ⟨m, hm⟩ := Part.dom_iff_mem.1 (Φ.dom_cost_of_total hcf n)
-  exact absurd (hn m hm) (not_lt.2 (hn' m hm))
+  have h1 := hn m hm
+  have h2 := hn' m hm
+  omega
 
 /-- No complexity class of a computable bound contains every computable function. -/
 theorem not_forall_mem_complexityClass {t : ℕ → ℕ} (ht : Computable t) :

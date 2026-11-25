@@ -73,27 +73,31 @@ private lemma card_leaves_P0 {L m f : ℕ} (hmL : m ≤ L) (hf : f ≤ m) :
 theorem card_boxes_with_P0_count (L m t f : ℕ) (hmL : m ≤ L) (hf : f ≤ m - t) :
     ((boxes L m t).filter fun π => (Cube.starLevels π).card + (Cube.P0Levels π).card = f).card
       = (f + 1) * beta L m (m - f) := by
-  rw [show (f + 1) * beta L m (m - f) =
-      ((univ.filter fun τ : Leaf L => (P0Levels τ).card = f) ×ˢ range (f + 1)).card by
-    rw [card_product, card_leaves_P0 hmL (by omega), card_range, mul_comm]]
+  have hpairs : ((univ.filter fun τ : Leaf L => (P0Levels τ).card = f) ×ˢ range (f + 1)).card
+      = (f + 1) * beta L m (m - f) := by
+    rw [card_product, card_leaves_P0 hmL (by omega), card_range, mul_comm]
+  have hpair : ∀ p ∈ (univ.filter fun τ : Leaf L => (P0Levels τ).card = f) ×ˢ range (f + 1),
+      (P0Levels p.1).card = f ∧ p.2 < f + 1 := fun p hp =>
+    ⟨(mem_filter.1 (mem_product.1 hp).1).2, mem_range.1 (mem_product.1 hp).2⟩
+  rw [← hpairs]
   refine card_bij' (fun π _ => (Cube.starsToP0 π, (Cube.starLevels π).card))
-    (fun p _ => starLowest p.2 p.1) (fun π hπ => ?_) (fun p hp => ?_)
-    -- from a box to its pair and back
-    (fun π hπ => (eq_starLowest_starsToP0 π (mem_boxes.1 (mem_filter.1 hπ).1).2).symm)
+    (fun p _ => starLowest p.2 p.1) (fun π hπ => ?_) (fun p hp => ?_) (fun π hπ => ?_)
     fun p hp => ?_
   · -- the pair of such a box is such a pair
     have hf := (mem_filter.1 hπ).2
-    simp only [mem_product, mem_filter, mem_univ, true_and, mem_range, card_P0Levels_starsToP0]
+    simp only [mem_product, mem_filter, mem_univ, true_and, mem_range,
+      card_P0Levels_starsToP0]
     omega
   · -- the cube of such a pair is such a box: its leaf is the leaf of the pair
-    obtain ⟨⟨-, hτ⟩, hp₂⟩ := (mem_product.1 hp).imp_left mem_filter.1
-    have := mem_range.1 hp₂
+    obtain ⟨hτ, -⟩ := hpair p hp
     rw [mem_filter, mem_boxes, ← card_P0Levels_starsToP0, starsToP0_starLowest]
     exact ⟨isBox_starLowest m t p.2 p.1 (by omega), hτ⟩
+  · -- from a box to its pair and back
+    exact (eq_starLowest_starsToP0 π (mem_boxes.1 (mem_filter.1 hπ).1).2).symm
   · -- from a pair `(τ, e)` to its cube and back: the cube has `min e f = e` stars
-    obtain ⟨⟨-, hτ⟩, hp₂⟩ := (mem_product.1 hp).imp_left mem_filter.1
-    have := mem_range.1 hp₂
-    rw [starsToP0_starLowest, starLevels_starLowest, card_lowest, hτ, min_eq_left (by omega)]
+    obtain ⟨hτ, he⟩ := hpair p hp
+    rw [starsToP0_starLowest, starLevels_starLowest, card_lowest, hτ,
+      min_eq_left (by omega)]
 
 /-- The total count is bounded by completed-leaf counts and at most `m + 1` star counts. -/
 theorem card_boxes_le (L m t : ℕ) (hmL : m ≤ L) (ht : t ≤ m) :
@@ -122,11 +126,15 @@ theorem card_boxes_le (L m t : ℕ) (hmL : m ≤ L) (ht : t ≤ m) :
 theorem boxesWithStars_zero_iff {L : ℕ} (m t : ℕ) (π : Cube L) :
     π ∈ boxesWithStars L m t 0 ↔ ∃ τ : Leaf L, (P0Levels τ).card ≤ m - t ∧ π = Cube.ofLeaf τ := by
   rw [mem_boxesWithStars]
-  refine ⟨fun ⟨hbox, hstar⟩ => ⟨Cube.starsToP0 π, ?_,
-    Cube.eq_ofLeaf_of_starLevels_eq_empty π (card_eq_zero.1 hstar)⟩, ?_⟩
-  · simpa only [card_P0Levels_starsToP0] using hbox.1
+  constructor
+  · rintro ⟨hbox, hstar⟩
+    refine ⟨Cube.starsToP0 π, ?_,
+      Cube.eq_ofLeaf_of_starLevels_eq_empty π (card_eq_zero.1 hstar)⟩
+    rw [card_P0Levels_starsToP0]
+    exact hbox.1
   · rintro ⟨τ, hτ, rfl⟩
-    simpa [IsBox, Cube.starLevels_ofLeaf, Cube.P0Levels_ofLeaf] using hτ
+    rw [IsBox, Cube.starLevels_ofLeaf, Cube.P0Levels_ofLeaf]
+    simpa using hτ
 
 /-- Replacing the highest star gives a box with one fewer star. -/
 theorem replace_highest_mem_boxesWithStars {L m t e : ℕ} {π : Cube L}

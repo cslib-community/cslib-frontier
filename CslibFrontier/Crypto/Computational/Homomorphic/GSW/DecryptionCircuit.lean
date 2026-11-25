@@ -78,11 +78,12 @@ private theorem inputCiphertext_apply (x : BitString (inputWidth n w))
     (i j : Fin (n + 1)) (k l : Fin w) :
     inputCiphertext x (i, k) (j, l) = x (Fin.natAdd (n * w)
       (finProdFinEquiv (finProdFinEquiv (i, k), finProdFinEquiv (j, l)))) := by
-  rw [inputCiphertext, decodeCiphertext_apply,
-    show (i.val * w + k.val) * ((n + 1) * w) + j.val * w + l.val =
-      (finProdFinEquiv (finProdFinEquiv (i, k), finProdFinEquiv (j, l))).val by
-      simp only [finProdFinEquiv, Equiv.coe_fn_mk, Fin.val_mk]; ring,
-    List.getD_ofFn, sndBits_apply]
+  rw [inputCiphertext, decodeCiphertext_apply]
+  let p := finProdFinEquiv (finProdFinEquiv (i, k), finProdFinEquiv (j, l))
+  have hp : (i.val * w + k.val) * ((n + 1) * w) + j.val * w + l.val = p.val := by
+    simp only [p, finProdFinEquiv, Equiv.coe_fn_mk, Fin.val_mk]
+    ring
+  rw [hp, List.getD_ofFn, sndBits_apply]
 
 /-- The selected row is the last binary digit of the leading expanded-secret coordinate. -/
 private def selectedRow (n w : ℕ) (hw : 0 < w) : Fin (n + 1) × Fin w :=
@@ -136,7 +137,8 @@ private theorem productSum_cast (x : BitString (inputWidth n w)) (hw : 0 < w) :
         (selectedRow n w hw) j.succ * inputSecret x j := by
   rw [productSum, Circuit.eval_comp, Circuit.eval_wiring, append_comp_productInputs,
     Modular.val_eval_innerProduct, ZMod.natCast_mod, Nat.cast_sum]
-  refine Finset.sum_congr rfl fun j _ => ?_
+  apply Finset.sum_congr rfl
+  intro j _
   rw [Nat.cast_mul, ← inputSecret_apply, block_rowTail, rowWord_cast, mul_comm]
 
 /-- Subtract the selected row's inner product from its leading word, modulo `2 ^ w`. -/
@@ -171,7 +173,8 @@ private theorem eval_decodeWord (x : BitString w) :
   have hv : ((BitString.equivFin w x : ℕ) : ZMod (2 ^ w)).val = BitString.equivFin w x := by
     rw [ZMod.val_natCast, Nat.mod_eq_of_lt (BitString.equivFin w x).isLt]
   by_cases h₀ : w = 0
-  · subst w; simp [decodeWord, interpretation]
+  · subst w
+    simp [decodeWord, interpretation]
   · by_cases h₁ : w = 1
     · subst w
       simp only [decodeWord, Nat.one_ne_zero, ↓reduceDIte, Circuit.eval_wiring,
@@ -187,7 +190,8 @@ private theorem depth_decodeWord_le (w : ℕ) : (decodeWord w).depth ≤ 3 := by
   circuit_bound [decodeWord]
 
 private theorem size_decodeWord_le (w : ℕ) : (decodeWord w).size ≤ 5 := by
-  unfold decodeWord; split_ifs <;> simp
+  unfold decodeWord
+  split_ifs <;> simp
 
 /-- The actual total GSW decryptor, with all raw secret and ciphertext bits as inputs. -/
 def circuit (n w : ℕ) : Circuit signature (inputWidth n w) 1 :=
@@ -199,8 +203,10 @@ private theorem eval_circuit (x : BitString (inputWidth n w)) :
     (circuit n w).eval interpretation x 0 = decrypt (inputSecret x) (inputCiphertext x) := by
   by_cases hw : 0 < w
   · rw [circuit, dite_eq_left hw, Circuit.eval_comp, eval_decodeWord, phase_cast x hw,
-      decrypt_eq_decode_decryptionPhase hw]; rfl
-  · obtain rfl : w = 0 := by omega
+      decrypt_eq_decode_decryptionPhase hw]
+    rfl
+  · have hz : w = 0 := by omega
+    subst w
     simp [circuit, interpretation]
 
 /-- The selected-row construction has logarithmic depth in both parameter dimensions. -/

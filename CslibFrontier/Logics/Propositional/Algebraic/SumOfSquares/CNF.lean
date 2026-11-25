@@ -163,11 +163,16 @@ polynomials and the box constraints. -/
 theorem forall_mem_cnfIneqs_iff {φ : CNF V} {p : MvPolynomial V R → Prop} :
     (∀ f ∈ cnfIneqs φ, p f) ↔
       (∀ c ∈ φ, p c.toIneq.toPoly) ∧ (∀ v, p (X v)) ∧ ∀ v, p (1 - X v) := by
-  refine ⟨fun h => ⟨fun c hc => h _ (toPoly_mem_cnfIneqs hc),
-    fun v => h _ (X_mem_cnfIneqs φ v), fun v => h _ (one_sub_X_mem_cnfIneqs φ v)⟩, ?_⟩
-  rintro ⟨hc, hX, h1⟩ _ ⟨I, (⟨c, hc', rfl⟩ | ⟨v, rfl⟩) | ⟨v, rfl⟩, rfl⟩
-  exacts [hc c hc', (Ineq.toPoly_nonneg (R := R) v).symm ▸ hX v,
-    (Ineq.toPoly_leOne (R := R) v).symm ▸ h1 v]
+  constructor
+  · intro h
+    exact ⟨fun c hc => h _ (toPoly_mem_cnfIneqs hc), fun v => h _ (X_mem_cnfIneqs φ v),
+      fun v => h _ (one_sub_X_mem_cnfIneqs φ v)⟩
+  · rintro ⟨hc, hX, h1⟩ _ ⟨I, (⟨c, hc', rfl⟩ | ⟨v, rfl⟩) | ⟨v, rfl⟩, rfl⟩
+    · exact hc c hc'
+    · rw [Ineq.toPoly_nonneg]
+      exact hX v
+    · rw [Ineq.toPoly_leOne]
+      exact h1 v
 
 omit [DecidableEq V] in
 theorem mem_booleanAxioms {g : MvPolynomial V R} :

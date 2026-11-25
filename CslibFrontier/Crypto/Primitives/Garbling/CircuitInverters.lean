@@ -282,15 +282,18 @@ def phiCirc : SideInfo ValidCircuit ValidCircuit where
 
 theorem phiTopo_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiTopo.Compatible G := fun f =>
-  let ⟨h1, h2, h3⟩ := hG.1 f; ⟨h1.symm, h2.symm, h3.symm⟩
+  let ⟨h1, h2, h3⟩ := hG.1 f
+  ⟨h1.symm, h2.symm, h3.symm⟩
 
 theorem phiSize_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiSize.Compatible G := fun f =>
-  let ⟨h1, h2, h3⟩ := hG.1 f; ⟨h1.symm, h2.symm, h3.symm⟩
+  let ⟨h1, h2, h3⟩ := hG.1 f
+  ⟨h1.symm, h2.symm, h3.symm⟩
 
 theorem phiCirc_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiCirc.Compatible G := fun f =>
-  let ⟨h1, h2, h3⟩ := hG.1 f; ⟨h1.symm, h2.symm, h3.symm⟩
+  let ⟨h1, h2, h3⟩ := hG.1 f
+  ⟨h1.symm, h2.symm, h3.symm⟩
 
 /-! ## Explicit side-information inverters -/
 
@@ -392,19 +395,26 @@ theorem evalCirc_ofTopo_mTopoGates (t : Topo) (hm : t.m ≤ t.q) (y : List Bool)
 /-- `mTopo` is a `(Φ_topo, ev)`-inverter for every circuit garbling scheme (proof of
 [BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
 theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiTopo.IsEvInverter G mTopo := fun f x _ =>
-  ⟨rfl, by rw [(hG.1 _).1]; exact List.length_replicate, by
-    rw [hG.2, hG.2]
-    exact evalCirc_ofTopo_mTopoGates f.1.topo f.2.m_le_q _ (f.1.length_evalCirc x f.2.m_le_q)⟩
+    phiTopo.IsEvInverter G mTopo := by
+  intro f x _
+  refine ⟨rfl, ?_, ?_⟩
+  · rw [(hG.1 _).1]
+    exact List.length_replicate
+  · rw [hG.2, hG.2]
+    exact evalCirc_ofTopo_mTopoGates f.1.topo f.2.m_le_q (f.1.evalCirc x)
+      (f.1.length_evalCirc x f.2.m_le_q)
 
 /-- `mSize` is a `(Φ_size, ev)`-inverter for every circuit garbling scheme (proof of
 [BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
 theorem phiSize_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiSize.IsEvInverter G mSize := fun f x _ =>
-  ⟨rfl, by rw [(hG.1 _).1]; exact List.length_replicate, by
-    rw [hG.2, hG.2]
-    exact evalCirc_ofTopo_mTopoGates (sizeTopo (phiSize.phi f)) f.2.m_le_q _
-      (f.1.length_evalCirc x f.2.m_le_q)⟩
+    phiSize.IsEvInverter G mSize := by
+  intro f x _
+  refine ⟨rfl, ?_, ?_⟩
+  · rw [(hG.1 _).1]
+    exact List.length_replicate
+  · rw [hG.2, hG.2]
+    exact evalCirc_ofTopo_mTopoGates (sizeTopo (phiSize.phi f)) f.2.m_le_q (f.1.evalCirc x)
+      (f.1.length_evalCirc x f.2.m_le_q)
 
 /-! ## Indistinguishability and simulation advantages for circuit side information -/
 

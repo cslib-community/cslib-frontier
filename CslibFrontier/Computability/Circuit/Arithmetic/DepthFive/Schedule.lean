@@ -110,10 +110,13 @@ theorem not_isV_last (t : Fin p.n) (ht : (t : ℕ) + 1 = p.n) : p.isV t = false 
 /-- No two differentiated layers are adjacent. -/
 theorem not_isV_succ {t t' : Fin p.n} (ht : p.isV t) (h : (t : ℕ) + 1 = t') :
     p.isV t' = false := by
-  obtain ⟨r, -, hr⟩ := of_decide_eq_true ht
-  exact decide_eq_false fun ⟨r', _, hr'⟩ => by
-    rcases lt_trichotomy r r' with h' | rfl | h' <;>
-      first | omega | (have := pos_add_two_le (p := p) h'; omega)
+  simp only [isV, decide_eq_true_eq, decide_eq_false_iff_not, not_exists, not_and] at ht ⊢
+  obtain ⟨r, -, hr⟩ := ht
+  intro r' _ hr'
+  rcases lt_trichotomy r r' with h' | h' | h'
+  · have := pos_add_two_le (p := p) h'; omega
+  · subst h'; omega
+  · have := pos_add_two_le (p := p) h'; omega
 
 /-- The arithmetic of the discrepancy bound: `d + 1` consecutive differentiated layers span more
 than `d * n / k` layers. -/
@@ -122,14 +125,14 @@ private theorem discrepancy_arith {r d c L : ℕ} (hk : 0 < p.k) (hc : c ≤ d +
     p.n * c ≤ p.k * L + p.n := by
   have hd₁ : p.k * (r * p.s / p.k) ≤ r * p.s := Nat.mul_div_le _ _
   have hd₂ : (r + d) * p.s < p.k * ((r + d) * p.s / p.k) + p.k := Nat.lt_mul_div_succ _ hk
-  have hn : p.n = 2 * p.k + p.s := by have := And.intro p.hkm p.hks; omega
-  obtain ⟨e, he⟩ := Nat.exists_eq_add_of_le
-    (Nat.div_le_div_right (c := p.k) (Nat.mul_le_mul_right p.s (Nat.le_add_right r d)))
+  have hn : p.n = 2 * p.k + p.s := by have := p.hkm; have := p.hks; omega
+  have hmono := Nat.div_le_div_right (c := p.k) (Nat.mul_le_mul_right p.s (Nat.le_add_right r d))
+  obtain ⟨e, he⟩ := Nat.exists_eq_add_of_le hmono
+  have hL' : 2 * d + e + 1 ≤ L := by omega
   rw [he] at hd₂
-  refine (Nat.mul_le_mul_left _ hc).trans ((?_ : _ ≤ p.k * (2 * d + e + 1) + p.n).trans
-    (Nat.add_le_add_right (Nat.mul_le_mul_left _ (by omega)) _))
-  rw [hn]
-  nlinarith
+  calc p.n * c ≤ p.n * (d + 1) := Nat.mul_le_mul_left _ hc
+    _ ≤ p.k * (2 * d + e + 1) + p.n := by rw [hn]; nlinarith
+    _ ≤ _ := by gcongr
 
 /-- An interval of layers with `a` differentiated layers among `L` has `n * a ≤ k * L + n`. -/
 private theorem discrepancy_nat (i j : ℕ) :
@@ -146,19 +149,21 @@ private theorem discrepancy_nat (i j : ℕ) :
   obtain ⟨h₂k, -, h₂j⟩ := hmem (R.max'_mem hne)
   obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le (R.min'_le _ (R.max'_mem hne))
   rw [hd] at h₂k h₂j
+  have hn₂ := pos_add_two_le_n h₂k
   refine discrepancy_arith (r := R.min' hne) (d := d) (by omega) ?_ ?_
   · have := Nat.card_Icc (R.min' hne) (R.max' hne)
     have := Finset.card_le_card (s := R) (t := Finset.Icc (R.min' hne) (R.max' hne))
       fun r hr => Finset.mem_Icc.2 ⟨R.min'_le r hr, R.le_max' r hr⟩
     omega
   · have hn₁ := pos_add_two_le_n h₁k
-    have hn₂ := pos_add_two_le_n h₂k
-    simpa only [Fin.card_Icc] using Finset.card_le_card
-      (s := Finset.Icc (⟨2 * R.min' hne + R.min' hne * p.s / p.k, by omega⟩ : Fin p.n)
-        ⟨2 * (R.min' hne + d) + (R.min' hne + d) * p.s / p.k, by omega⟩) fun t ht => by
-        simp only [Finset.mem_Icc, Fin.le_def] at ht
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-        omega
+    have := Fin.card_Icc (a := (⟨2 * R.min' hne + R.min' hne * p.s / p.k, by omega⟩ : Fin p.n))
+      (b := ⟨2 * (R.min' hne + d) + (R.min' hne + d) * p.s / p.k, by omega⟩)
+    simp only at this
+    rw [← this]
+    refine Finset.card_le_card fun t ht => ?_
+    simp only [Finset.mem_Icc, Fin.le_def] at ht
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    omega
 
 /-- Every interval of layers is balanced: the number of differentiated layers exceeds `ρ` times
 the number of multiplied layers by at most `1 + ρ` [OpenAI, §5][OpenAI2026DepthFive]. -/
@@ -173,15 +178,18 @@ theorem discrepancy_le (i j : ℕ) :
   set a := (Finset.univ.filter fun t : Fin p.n => (i ≤ t ∧ (t : ℕ) < j) ∧ p.isV t).card
   set u := (Finset.univ.filter fun t : Fin p.n => (i ≤ t ∧ (t : ℕ) < j) ∧ ¬ p.isV t).card
   rcases Nat.eq_zero_or_pos p.m with hm | hm
-  · have ha : a = 0 := Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2
-      fun t => absurd t.isLt (by have := And.intro p.hks p.hkm; omega)
-    simp [ρ, show p.k = 0 by have := p.hks; omega, ha]
+  · have hk : p.k = 0 := by have := p.hks; omega
+    have hn : p.n = 0 := by have := p.hkm; omega
+    have ha : a = 0 := Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2
+      fun t => absurd t.isLt (by omega)
+    simp [ρ, hk, ha]
   · have hm' : (0 : ℝ) < p.m := by exact_mod_cast hm
-    have hpn : (p.n : ℝ) = p.k + p.m := by exact_mod_cast p.hkm.symm
-    rw [ρ, ← sub_nonneg, show 1 + (p.k : ℝ) / p.m - (a - p.k / p.m * u) =
-      (p.k * (a + u) + p.n - p.n * a) / p.m by
-        rw [hpn]; field_simp
-        ring]
+    have hn : (p.n : ℝ) = p.k + p.m := by exact_mod_cast p.hkm.symm
+    rw [ρ, ← sub_nonneg]
+    have : 1 + (p.k : ℝ) / p.m - (a - p.k / p.m * u) =
+        (p.k * (a + u) + p.n - p.n * a) / p.m := by
+      rw [hn]; field_simp; ring
+    rw [this]
     exact div_nonneg (by cast_linarith [h]) hm'.le
 
 end Cslib.Circuits.DepthFive.Params
