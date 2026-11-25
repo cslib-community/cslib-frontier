@@ -401,6 +401,48 @@ private theorem card_dom_delete_bounds {U : ℕ} (s_abs : Dictionary.State U) (u
 private theorem targetCap_of_ne_zero {U n : ℕ} (hn : n ≠ 0) : targetCap U n = min (2 * n) U :=
   ite_eq_right hn
 
+/-- Epoch validity after an active insert that keeps the epoch capacity. -/
+private theorem epochValid_insert_keep {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
+    {v : ℕ} (hev : EpochValid U (Dictionary.dom s_abs).card N)
+    (hn0 : (Dictionary.dom s_abs).card ≠ 0) (hmig : ¬((Dictionary.dom s_abs).card = N ∧ N < U)) :
+    EpochValid U (Dictionary.dom (Function.update s_abs u (some v))).card N := by
+  obtain ⟨-, hle, h4, hNU⟩ := hev.resolve_left fun h => hn0 h.1
+  obtain ⟨h₁, h₂⟩ := card_dom_insert_bounds s_abs u v
+  refine Or.inr ⟨by omega, ?_, by omega, hNU⟩
+  rcases hle.lt_or_eq with hlt | heq
+  · omega
+  · have hNU' : N = U := by omega
+    rw [card_dom_insert_eq_of_card_eq_U (heq.trans hNU'), hNU']
+
+/-- Epoch validity at the new capacity after a capacity-doubling insert. -/
+private theorem epochValid_insert_mig {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
+    {v : ℕ} (hn0 : (Dictionary.dom s_abs).card ≠ 0)
+    (hmig : (Dictionary.dom s_abs).card = N ∧ N < U) :
+    EpochValid U (Dictionary.dom (Function.update s_abs u (some v))).card
+      (targetCap U (Dictionary.dom s_abs).card) := by
+  obtain ⟨h₁, h₂⟩ := card_dom_insert_bounds s_abs u v
+  rw [targetCap_of_ne_zero hn0]
+  exact Or.inr ⟨by omega, by omega, by omega, by omega⟩
+
+/-- Epoch validity after a delete from at least two keys that keeps the epoch capacity. -/
+private theorem epochValid_delete_keep {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
+    (hev : EpochValid U (Dictionary.dom s_abs).card N) (hn2 : 2 ≤ (Dictionary.dom s_abs).card)
+    (hmig : ¬4 * ((Dictionary.dom s_abs).card - 1) < N) :
+    EpochValid U (Dictionary.dom (Function.update s_abs u none)).card N := by
+  obtain ⟨-, hle, -, hNU⟩ := hev.resolve_left fun h => by omega
+  obtain ⟨h₁, h₂⟩ := card_dom_delete_bounds s_abs u
+  exact Or.inr ⟨by omega, by omega, by omega, hNU⟩
+
+/-- Epoch validity at the new capacity after a delete from at least two keys. -/
+private theorem epochValid_delete_mig {U N : ℕ} {s_abs : Dictionary.State U} {u : Fin U}
+    (hev : EpochValid U (Dictionary.dom s_abs).card N) (hn2 : 2 ≤ (Dictionary.dom s_abs).card) :
+    EpochValid U (Dictionary.dom (Function.update s_abs u none)).card
+      (targetCap U (Dictionary.dom s_abs).card) := by
+  obtain ⟨-, hle, -, hNU⟩ := hev.resolve_left fun h => by omega
+  obtain ⟨h₁, h₂⟩ := card_dom_delete_bounds s_abs u
+  rw [targetCap_of_ne_zero (by omega)]
+  exact Or.inr ⟨by omega, by omega, by omega, by omega⟩
+
 theorem epochAnchorInv_step {U V : ℕ} {st : EpochState U} {o : Dynamic.Op U}
     (hU_pos : 0 < U)
     (hinv : EpochAnchorInv U (Dictionary.dom st.dict).card st.cap st.initCount)
@@ -423,21 +465,13 @@ theorem epochAnchorInv_step {U V : ℕ} {st : EpochState U} {o : Dynamic.Op U}
           rw [dict_eq_empty_of_card_zero hn0, Dictionary.dom_insert, Dictionary.dom_empty]; rfl]
       exact ⟨epochValid_targetCap hU_pos, rfl, by decide, hU_pos⟩
     rw [ite_eq_right hn0, ite_eq_right hn0]
-    obtain ⟨-, hn_le_cap, hcap_le_4n, hcap_le_U⟩ := Or.resolve_left hev fun h => hn0 h.1
-    have htc : targetCap U (Dictionary.dom st.dict).card = min (2 * n) U :=
-      targetCap_of_ne_zero hn0
-    obtain ⟨hn_le_n', hn'_le_n1⟩ := card_dom_insert_bounds st.dict u v
+    have hn' := (card_dom_insert_bounds st.dict u v).1
     by_cases hmig : n = st.cap ∧ st.cap < U
     · rw [ite_eq_left hmig, ite_eq_left hmig]
-      exact ⟨Or.inr ⟨by omega, by omega, by omega, by omega⟩, rfl, ⟨by omega, by omega⟩, by omega⟩
+      exact ⟨epochValid_insert_mig hn0 hmig, rfl, ⟨by omega, by omega⟩, by omega⟩
     rw [ite_eq_right hmig, ite_eq_right hmig]
-    have hn'_le_cap : (Dictionary.dom (Function.update st.dict u (some v))).card ≤ st.cap := by
-      rcases lt_or_eq_of_le hn_le_cap with hlt | heq_n
-      · omega
-      · have hcap_U : st.cap = U := by omega
-        rw [card_dom_insert_eq_of_card_eq_U (heq_n.trans hcap_U), hcap_U]
-    exact ⟨Or.inr ⟨by omega, hn'_le_cap, by omega, hcap_le_U⟩,
-      hcap_eq, ⟨fun h => absurd h (by omega), fun h => absurd (hzero_iff.mpr h) hn0⟩, hinit_le⟩
+    exact ⟨epochValid_insert_keep hev hn0 hmig, hcap_eq,
+      ⟨fun h => absurd h (by omega), fun h => absurd (hzero_iff.mpr h) hn0⟩, hinit_le⟩
   | delete u =>
     dsimp only [st', EpochState.step, nextEpochCap, nextEpochInit]
     by_cases hn0 : n = 0
@@ -458,15 +492,13 @@ theorem epochAnchorInv_step {U V : ℕ} {st : EpochState U} {o : Dynamic.Op U}
         exact ⟨hev, hcap_eq, hzero_iff, hinit_le⟩
     rw [ite_eq_right hn1, ite_eq_right hn1]
     obtain ⟨-, hn_le_cap, -, hcap_le_U⟩ := Or.resolve_left hev fun h => hn0 h.1
-    have htc : targetCap U (Dictionary.dom st.dict).card = min (2 * n) U :=
-      targetCap_of_ne_zero hn0
-    obtain ⟨hn1_le_n', hn'_le_n⟩ := card_dom_delete_bounds st.dict u
+    have hn' := (card_dom_delete_bounds st.dict u).1
     by_cases hmig : 4 * (n - 1) < st.cap
     · rw [ite_eq_left hmig, ite_eq_left hmig]
-      exact ⟨Or.inr ⟨by omega, by omega, by omega, by omega⟩, rfl, ⟨by omega, by omega⟩, by omega⟩
+      exact ⟨epochValid_delete_mig hev (by omega), rfl, ⟨by omega, by omega⟩, by omega⟩
     rw [ite_eq_right hmig, ite_eq_right hmig]
-    exact ⟨Or.inr ⟨by omega, hn'_le_n.trans hn_le_cap, by omega, hcap_le_U⟩,
-      hcap_eq, ⟨fun h => absurd h (by omega), fun h => absurd (hzero_iff.mpr h) hn0⟩, hinit_le⟩
+    exact ⟨epochValid_delete_keep hev (by omega) hmig, hcap_eq,
+      ⟨fun h => absurd h (by omega), fun h => absurd (hzero_iff.mpr h) hn0⟩, hinit_le⟩
 
 /-- Exact peak hardware word footprint above `base` during `resizableOpCode` on `o`. -/
 @[expose]
@@ -587,91 +619,6 @@ private theorem migratePeakWords_le_succinctWords_succ {U V w N_old n : ℕ}
   dsimp only [N_new] at hm_new har
   omega
 
-/-- **`1 · OPT` Stepwise Peak Word-Space Bound (`stepExactPeakWords_le_succinctWords`):**
-Across **every** admissible operation `o` (in-epoch, `0 → 1`, `1 → 0`, capacity-doubling, and
-capacity-halving migrations), `stepExactPeakWords V w N s_abs o` never exceeds
-`Dynamic.succinctWords 2699 888 U V w (max n n')` — strictly `1 · OPT(U, V, max n n')` plus
-`O((max n n') log log (max n n'))` bits, never `2 · OPT`. -/
-theorem stepExactPeakWords_le_succinctWords {U V w N : ℕ}
-    {s_abs : Dictionary.State U} {o : Dynamic.Op U}
-    (hw : 0 < w) (hU : Fits w U) (hU_pos : 0 < U) (hV_pos : 0 < V)
-    (hev : EpochValid U (Dictionary.dom s_abs).card N)
-    (hval : (Dynamic.spec U V U).valid s_abs o) :
-    let n := (Dictionary.dom s_abs).card
-    let n' := (Dictionary.dom ((Dynamic.spec U V U).stepFn s_abs o).1).card
-    stepExactPeakWords V w N s_abs o ≤ Dynamic.succinctWords 2699 888 U V w (max n n') := by
-  intro n n'
-  have hlift : ∀ m, Dynamic.succinctWords 1355 441 U V w m ≤
-      Dynamic.succinctWords 2699 888 U V w m :=
-    fun _ => succinctWords_mono_const (by decide) (by decide)
-  cases o with
-  | query u =>
-    exact (inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos hev ⟨hval, hev⟩).trans (hlift _)
-  | insert u v =>
-    dsimp only [stepExactPeakWords]
-    by_cases hn0 : n = 0
-    · rw [ite_eq_left hn0]
-      have hn'1 : n' = 1 := by
-        dsimp only [n', Dynamic.spec, StateTransitionSpec.stepFn, Dynamic.step]
-        rw [dict_eq_empty_of_card_zero hn0, Dictionary.dom_insert, Dictionary.dom_empty]; rfl
-      rw [show max n n' = 1 by omega]
-      exact (compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos
-        (epochValid_targetCap hU_pos)).trans (hlift 1)
-    rw [ite_eq_right hn0]
-    obtain ⟨-, hn_le_cap, hcap_le_4n, hcap_le_U⟩ := Or.resolve_left hev fun h => hn0 h.1
-    obtain ⟨hn_le_n', hn'_le_n1⟩ := card_dom_insert_bounds s_abs u v
-    change n ≤ n' at hn_le_n'
-    change n' ≤ n + 1 at hn'_le_n1
-    by_cases hmig : n = N ∧ N < U
-    · rw [ite_eq_left hmig]
-      have htc : targetCap U (Dictionary.dom s_abs).card = min (2 * n) U :=
-        targetCap_of_ne_zero hn0
-      refine max_le ?_ ((inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos
-        (epochValid_targetCap (by omega))
-        ⟨hval, Or.inr ⟨by omega, by omega, by omega, by omega⟩⟩).trans (hlift _))
-      rw [Nat.max_eq_right hn_le_n']
-      rcases eq_or_lt_of_le hn_le_n' with hn'_eq | hn'_gt
-      · rw [← hn'_eq]; exact migratePeakWords_le_succinctWords hw hU (by omega) hev
-      · rw [show n' = n + 1 by omega]
-        exact migratePeakWords_le_succinctWords_succ hw hU (by omega) hmig.1 hmig.2
-    rw [ite_eq_right hmig]
-    have hn'_le_cap : n' ≤ N := by
-      rcases lt_or_eq_of_le hn_le_cap with hlt | heq_n
-      · omega
-      · have hN_U : N = U := by omega
-        dsimp only [n', Dynamic.spec, StateTransitionSpec.stepFn, Dynamic.step]
-        rw [card_dom_insert_eq_of_card_eq_U (heq_n.trans hN_U), hN_U]
-    exact (inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos hev
-      ⟨hval, Or.inr ⟨by omega, hn'_le_cap, by omega, hcap_le_U⟩⟩).trans (hlift _)
-  | delete u =>
-    dsimp only [stepExactPeakWords]
-    obtain ⟨hn1_le_n', hn'_le_n⟩ := card_dom_delete_bounds s_abs u
-    change n - 1 ≤ n' at hn1_le_n'
-    change n' ≤ n at hn'_le_n
-    have hmax : max n n' = n := Nat.max_eq_left hn'_le_n
-    by_cases hn0 : n = 0
-    · rw [ite_eq_left hn0, hmax, hn0]
-      exact (compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (Or.inl ⟨rfl, rfl⟩)).trans
-        (hlift 0)
-    rw [ite_eq_right hn0]
-    by_cases hn1 : n = 1
-    · rw [ite_eq_left hn1, hmax, hn1]
-      exact (compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (hn1 ▸ hev)).trans (hlift 1)
-    rw [ite_eq_right hn1]
-    obtain ⟨-, hn_le_cap, -, hcap_le_U⟩ := Or.resolve_left hev fun h => hn0 h.1
-    by_cases hmig : 4 * (n - 1) < N
-    · rw [ite_eq_left hmig]
-      have htc : targetCap U (Dictionary.dom s_abs).card = min (2 * n) U :=
-        targetCap_of_ne_zero hn0
-      refine max_le ?_ ((inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos
-        (epochValid_targetCap (by omega))
-        ⟨hval, Or.inr ⟨by omega, by omega, by omega, by omega⟩⟩).trans (hlift _))
-      rw [hmax]
-      exact migratePeakWords_le_succinctWords hw hU (by omega) hev
-    rw [ite_eq_right hmig]
-    exact (inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos hev
-      ⟨hval, Or.inr ⟨by omega, hn'_le_n.trans hn_le_cap, by omega, hcap_le_U⟩⟩).trans (hlift _)
-
 /-- **In-Epoch Tight `1 · OPT` Peak Word-Space Bound
 (`stepExactPeakWords_inEpoch_le_succinctWords`):**
 Whenever `(Dynamic.spec U V U).valid s_abs o` holds and `o` does not trigger active capacity
@@ -704,24 +651,11 @@ theorem stepExactPeakWords_inEpoch_le_succinctWords {U V w N : ℕ}
       exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (epochValid_targetCap hU_pos)
     have hnot := hno_mig.1 u v rfl hn0
     rw [ite_eq_right hn0, ite_eq_right hnot]
-    obtain ⟨-, hn_le_N, hN_le_4n, hN_le_U⟩ := Or.resolve_left hev fun h => hn0 h.1
-    obtain ⟨hn_le_n', hn'_le_n1⟩ := card_dom_insert_bounds s_abs u v
-    change n ≤ n' at hn_le_n'
-    change n' ≤ n + 1 at hn'_le_n1
-    have hn'_le_N : n' ≤ N := by
-      rcases lt_or_eq_of_le hn_le_N with hlt | heq_n
-      · omega
-      · have hN_U : N = U := by omega
-        dsimp only [n', Dynamic.spec, StateTransitionSpec.stepFn, Dynamic.step]
-        rw [card_dom_insert_eq_of_card_eq_U (heq_n.trans hN_U), hN_U]
     exact inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos hev
-      ⟨hval, Or.inr ⟨by omega, hn'_le_N, by omega, hN_le_U⟩⟩
+      ⟨hval, epochValid_insert_keep hev hn0 hnot⟩
   | delete u =>
     dsimp only [stepExactPeakWords]
-    obtain ⟨hn1_le_n', hn'_le_n⟩ := card_dom_delete_bounds s_abs u
-    change n - 1 ≤ n' at hn1_le_n'
-    change n' ≤ n at hn'_le_n
-    have hmax : max n n' = n := Nat.max_eq_left hn'_le_n
+    have hmax : max n n' = n := Nat.max_eq_left (card_dom_delete_bounds s_abs u).2
     by_cases hn0 : n = 0
     · rw [ite_eq_left hn0, hmax, hn0]
       exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (Or.inl ⟨rfl, rfl⟩)
@@ -731,9 +665,51 @@ theorem stepExactPeakWords_inEpoch_le_succinctWords {U V w N : ℕ}
       exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (hn1 ▸ hev)
     have hnot := hno_mig.2 u rfl (by omega)
     rw [ite_eq_right hn1, ite_eq_right hnot]
-    obtain ⟨-, hn_le_N, -, hN_le_U⟩ := Or.resolve_left hev fun h => hn0 h.1
     exact inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos hev
-      ⟨hval, Or.inr ⟨by omega, by omega, by omega, hN_le_U⟩⟩
+      ⟨hval, epochValid_delete_keep hev (by omega) hnot⟩
+
+/-- **`1 · OPT` Stepwise Peak Word-Space Bound (`stepExactPeakWords_le_succinctWords`):**
+Across **every** admissible operation `o` (in-epoch, `0 → 1`, `1 → 0`, capacity-doubling, and
+capacity-halving migrations), `stepExactPeakWords V w N s_abs o` never exceeds
+`Dynamic.succinctWords 2699 888 U V w (max n n')` — strictly `1 · OPT(U, V, max n n')` plus
+`O((max n n') log log (max n n'))` bits, never `2 · OPT`. -/
+theorem stepExactPeakWords_le_succinctWords {U V w N : ℕ}
+    {s_abs : Dictionary.State U} {o : Dynamic.Op U}
+    (hw : 0 < w) (hU : Fits w U) (hU_pos : 0 < U) (hV_pos : 0 < V)
+    (hev : EpochValid U (Dictionary.dom s_abs).card N)
+    (hval : (Dynamic.spec U V U).valid s_abs o) :
+    let n := (Dictionary.dom s_abs).card
+    let n' := (Dictionary.dom ((Dynamic.spec U V U).stepFn s_abs o).1).card
+    stepExactPeakWords V w N s_abs o ≤ Dynamic.succinctWords 2699 888 U V w (max n n') := by
+  intro n n'
+  have hlift : ∀ m, Dynamic.succinctWords 1355 441 U V w m ≤
+      Dynamic.succinctWords 2699 888 U V w m :=
+    fun _ => succinctWords_mono_const (by decide) (by decide)
+  by_cases hmig : (∃ u v, o = .insert u v ∧ n ≠ 0 ∧ n = N ∧ N < U) ∨
+      (∃ u, o = .delete u ∧ 2 ≤ n ∧ 4 * (n - 1) < N)
+  swap
+  · exact (stepExactPeakWords_inEpoch_le_succinctWords hw hU hU_pos hV_pos hev hval
+      ⟨fun u v ho hn0 hm => hmig (.inl ⟨u, v, ho, hn0, hm⟩),
+        fun u ho hn2 hm => hmig (.inr ⟨u, ho, hn2, hm⟩)⟩).trans (hlift _)
+  obtain ⟨-, hn_le_N, -, hN_le_U⟩ := hev.resolve_left fun h => by
+    rcases hmig with ⟨-, -, -, hn0, -⟩ | ⟨-, -, hn2, -⟩ <;> omega
+  rcases hmig with ⟨u, v, rfl, hn0, hm⟩ | ⟨u, rfl, hn2, hm⟩
+  · dsimp only [stepExactPeakWords]
+    rw [ite_eq_right hn0, ite_eq_left hm]
+    obtain ⟨hn_le_n', hn'_le_n1⟩ : n ≤ n' ∧ n' ≤ n + 1 := card_dom_insert_bounds s_abs u v
+    refine max_le ?_ ((inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos
+      (epochValid_targetCap (by omega)) ⟨hval, epochValid_insert_mig hn0 hm⟩).trans (hlift _))
+    rw [Nat.max_eq_right hn_le_n']
+    rcases eq_or_lt_of_le hn_le_n' with hn'_eq | hn'_gt
+    · rw [← hn'_eq]; exact migratePeakWords_le_succinctWords hw hU (by omega) hev
+    · rw [show n' = n + 1 by omega]
+      exact migratePeakWords_le_succinctWords_succ hw hU (by omega) hm.1 hm.2
+  · dsimp only [stepExactPeakWords]
+    rw [ite_eq_right (by omega : n ≠ 0), ite_eq_right (by omega : n ≠ 1), ite_eq_left hm]
+    refine max_le ?_ ((inEpochPeakWords_le_succinctWords hw hU hU_pos hV_pos
+      (epochValid_targetCap (by omega)) ⟨hval, epochValid_delete_mig hev hn2⟩).trans (hlift _))
+    rw [Nat.max_eq_left (card_dom_delete_bounds s_abs u).2]
+    exact migratePeakWords_le_succinctWords hw hU (by omega) hev
 
 /-- **`1 · OPT` Stepwise Peak Bit-Space Bound (`w_mul_stepExactPeakWords_le_bits`):**
 Multiplying `stepExactPeakWords V w N s_abs o` by `w` never exceeds
