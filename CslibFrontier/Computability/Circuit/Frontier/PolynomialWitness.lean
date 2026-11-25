@@ -988,24 +988,13 @@ theorem exists_lowDegree_rectangleFree {p : ℕ} (hp : 1 ≤ p) (n : ℕ) :
         _ = 2 ^ n * 2 ^ (n * s) * (2 * 2 ^ M) := by rw [sum_const, card_univ, hU, smul_eq_mul]
     have hss : s * s = n + n * s + (n + 4) := by simp only [s]; ring
     rw [hss, pow_add, pow_add] at hsum
-    have hpos : 0 < 2 ^ n * 2 ^ (n * s) := by positivity
-    have h16 : 16 ≤ 2 ^ (n + 4) := by
-      rw [pow_add]
-      exact Nat.le_mul_of_pos_left _ (by positivity)
-    by_contra! hge
-    have hposM : 0 < 2 ^ M * (2 ^ n * 2 ^ (n * s)) := by positivity
-    have hlow : 16 * (2 ^ M * (2 ^ n * 2 ^ (n * s))) ≤
-        #bad * (2 ^ n * 2 ^ (n * s) * 2 ^ (n + 4)) := by
-      calc 16 * (2 ^ M * (2 ^ n * 2 ^ (n * s)))
-          = 2 ^ M * ((2 ^ n * 2 ^ (n * s)) * 16) := by ring
-        _ ≤ #bad * ((2 ^ n * 2 ^ (n * s)) * 2 ^ (n + 4)) :=
-            Nat.mul_le_mul hge (Nat.mul_le_mul_left _ h16)
-    have hup : #bad * (2 ^ n * 2 ^ (n * s) * 2 ^ (n + 4)) ≤
-        2 * (2 ^ M * (2 ^ n * 2 ^ (n * s))) := by
-      calc #bad * (2 ^ n * 2 ^ (n * s) * 2 ^ (n + 4))
-          ≤ 2 ^ n * 2 ^ (n * s) * (2 * 2 ^ M) := hsum
-        _ = 2 * (2 ^ M * (2 ^ n * 2 ^ (n * s))) := by ring
-    linarith
+    -- Cancel `2 ^ n * 2 ^ (n * s)`: `16 * #bad ≤ #bad * 2 ^ (n + 4) ≤ 2 * 2 ^ M`.
+    have h2 : #bad * 2 ^ (n + 4) ≤ 2 * 2 ^ M :=
+      Nat.le_of_mul_le_mul_left (by linarith only [hsum]) (by positivity : 0 < 2 ^ n * 2 ^ (n * s))
+    have h16 := Nat.mul_le_mul_left #bad
+      (show 16 ≤ 2 ^ (n + 4) from pow_add 2 n 4 ▸ Nat.le_mul_of_pos_left _ (by positivity))
+    have : 0 < 2 ^ M := by positivity
+    omega
   have hlt_univ : #bad < #(Finset.univ : Finset (PolyIdx n (2 * p) → ZMod 2)) := by
     simpa only [card_univ, Fintype.card_fun, ZMod.card] using hcount
   obtain ⟨c, -, hc_good⟩ := exists_mem_notMem_of_card_lt_card hlt_univ
@@ -1056,6 +1045,18 @@ private theorem abs_inter_sub_half_le {α : Type*} [Finite α] (R S : Set α) :
     exact_mod_cast Set.ncard_le_ncard Set.inter_subset_left (Set.toFinite R)
   rw [abs_le]
   constructor <;> linarith [Nat.cast_nonneg (α := ℝ) (R ∩ S).ncard]
+
+/-- The bias of `S` on a disjoint union is at most the sum of the biases on the two parts. -/
+private theorem abs_inter_union_sub_half_le {α : Type*} [Finite α] {R₁ R₂ : Set α}
+    (h : Disjoint R₁ R₂) (S : Set α) :
+    |(((R₁ ∪ R₂) ∩ S).ncard : ℝ) - (R₁ ∪ R₂).ncard / 2| ≤
+      |((R₁ ∩ S).ncard : ℝ) - R₁.ncard / 2| + |((R₂ ∩ S).ncard : ℝ) - R₂.ncard / 2| := by
+  rw [Set.union_inter_distrib_right,
+    Set.ncard_union_eq (h.mono Set.inter_subset_left Set.inter_subset_left), Set.ncard_union_eq h]
+  push_cast
+  convert abs_add_le (((R₁ ∩ S).ncard : ℝ) - R₁.ncard / 2) (((R₂ ∩ S).ncard : ℝ) - R₂.ncard / 2)
+    using 2
+  ring
 
 /-- Abstract 2D greedy `s × s` rectangle peeling: if every `s × s` pivot sub-rectangle has bias at
 most `b₀`, and sides of size at least `K₀` contain `s`-element pivot subsets, then every rectangle
@@ -1119,27 +1120,13 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
           simp only [R₁, R₂, mem_rectangle, Set.mem_union, Set.mem_sdiff]
           have := @hB₀_sub (Xᶜ.domRestrict x)
           tauto
-        have hdisj_S : Disjoint (R₁ ∩ S) (R₂ ∩ S) :=
-          hdisj.mono Set.inter_subset_left Set.inter_subset_left
-        have hunion_S : (R₁ ∪ R₂) ∩ S = (R₁ ∩ S) ∪ (R₂ ∩ S) := by
-          ext x; simp only [Set.mem_inter_iff, Set.mem_union]; tauto
         have hn₁ : R₁.ncard = s * s := by rw [ncard_rectangle, hA₀_card, hB₀_card]
-        rw [hunion, hunion_S, Set.ncard_union_eq hdisj_S, Set.ncard_union_eq hdisj]
-        have hsplit_num : (((R₁ ∩ S).ncard + (R₂ ∩ S).ncard : ℕ) : ℝ) -
-            ((R₁.ncard + R₂.ncard : ℕ) : ℝ) / 2 =
-            (((R₁ ∩ S).ncard : ℝ) - (s * s : ℕ) / 2) +
-              (((R₂ ∩ S).ncard : ℝ) - R₂.ncard / 2) := by
-          rw [hn₁]; push_cast; ring
-        rw [hsplit_num]
-        have htri := abs_add_le (((R₁ ∩ S).ncard : ℝ) - (s * s : ℕ) / 2)
-          (((R₂ ∩ S).ncard : ℝ) - R₂.ncard / 2)
-        have hlin : ((s * s : ℕ) : ℝ) + (s * (B' \ B₀).ncard : ℕ) = (s * B'.ncard : ℕ) := by
-          have : s * s + s * (B' \ B₀).ncard = s * B'.ncard := by
-            rw [← mul_add, add_comm, hcard_sdiff]
-          exact_mod_cast this
+        rw [hunion]
+        refine (abs_inter_union_sub_half_le hdisj S).trans ?_
+        rw [hn₁]
         have hlin_b : b₀ * (s * s : ℕ) + b₀ * (s * (B' \ B₀).ncard : ℕ) =
             b₀ * (s * B'.ncard : ℕ) := by
-          rw [← mul_add, hlin]
+          rw [← hcard_sdiff]; push_cast; ring
         linarith
       · have hR_card : (rectangle X (Set.range a) B').ncard = s * B'.ncard := by
           rw [ncard_rectangle, hA₀_card]
@@ -1175,32 +1162,13 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
           simp only [R₁, R₂, mem_rectangle, Set.mem_union, Set.mem_sdiff]
           have := @hA₀_sub (X.domRestrict x)
           tauto
-        have hdisj_S : Disjoint (R₁ ∩ S) (R₂ ∩ S) :=
-          hdisj.mono Set.inter_subset_left Set.inter_subset_left
-        have hunion_S : (R₁ ∪ R₂) ∩ S = (R₁ ∩ S) ∪ (R₂ ∩ S) := by
-          ext x; simp only [Set.mem_inter_iff, Set.mem_union]; tauto
-        rw [hunion, hunion_S, Set.ncard_union_eq hdisj_S, Set.ncard_union_eq hdisj]
-        have hsplit_num : (((R₁ ∩ S).ncard + (R₂ ∩ S).ncard : ℕ) : ℝ) -
-            ((R₁.ncard + R₂.ncard : ℕ) : ℝ) / 2 =
-            (((R₁ ∩ S).ncard : ℝ) - R₁.ncard / 2) +
-              (((R₂ ∩ S).ncard : ℝ) - R₂.ncard / 2) := by
-          push_cast; ring
-        rw [hsplit_num]
-        have htri := abs_add_le (((R₁ ∩ S).ncard : ℝ) - R₁.ncard / 2)
-          (((R₂ ∩ S).ncard : ℝ) - R₂.ncard / 2)
-        have hlin₁ : ((s * B'.ncard : ℕ) : ℝ) + ((A' \ A₀).ncard * B'.ncard : ℕ) =
-            (A'.ncard * B'.ncard : ℕ) := by
-          have : s * B'.ncard + (A' \ A₀).ncard * B'.ncard = A'.ncard * B'.ncard := by
-            rw [← add_mul, add_comm, hcard_sdiff]
-          exact_mod_cast this
+        rw [hunion]
+        refine (abs_inter_union_sub_half_le hdisj S).trans ?_
         have hlin₁_b : b₀ * (s * B'.ncard : ℕ) + b₀ * ((A' \ A₀).ncard * B'.ncard : ℕ) =
             b₀ * (A'.ncard * B'.ncard : ℕ) := by
-          rw [← mul_add, hlin₁]
-        have hlin₂ : ((s * K₀ : ℕ) : ℝ) + ((A' \ A₀).ncard * K₀ : ℕ) =
-            (A'.ncard * K₀ : ℕ) := by
-          have : s * K₀ + (A' \ A₀).ncard * K₀ = A'.ncard * K₀ := by
-            rw [← add_mul, add_comm, hcard_sdiff]
-          exact_mod_cast this
+          rw [← hcard_sdiff]; push_cast; ring
+        have hlin₂ : ((s * K₀ : ℕ) : ℝ) + ((A' \ A₀).ncard * K₀ : ℕ) = (A'.ncard * K₀ : ℕ) := by
+          rw [← hcard_sdiff]; push_cast; ring
         linarith
       · have hle : ((rectangle X A' B').ncard : ℝ) ≤ (K₀ * B'.ncard : ℕ) := by
           rw [ncard_rectangle]
