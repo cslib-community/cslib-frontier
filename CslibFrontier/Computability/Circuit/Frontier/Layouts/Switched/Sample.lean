@@ -620,14 +620,16 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
     simp only [outEv, mem_ofPred_eq, hloc (w := v) (.inl rfl) hω, eq_iff_iff]
     exact and_congr_right fun _ => exists_congr fun u => and_congr_right fun hu => by
       rw [hloc (.inr hu.symm) hω]
-  have hdep_crossHi : ∀ v, DependsOn (· ∈ crossHiEv v) (closedBall H v (R + 1)) := fun v ω ω' hω => by
-    simp only [crossHiEv, mem_ofPred_eq, hloc (w := v) (.inl rfl) hω, eq_iff_iff]
-    exact and_congr_right fun _ => and_congr_right fun _ => forall₂_congr fun z hz => by
-      rw [hloc (.inr hz) hω]
-  have hdep_crossLo : ∀ v, DependsOn (· ∈ crossLoEv v) (closedBall H v (R + 1)) := fun v ω ω' hω => by
-    simp only [crossLoEv, mem_ofPred_eq, hloc (w := v) (.inl rfl) hω, eq_iff_iff]
-    exact and_congr_right fun _ => and_congr_right fun _ => forall₂_congr fun z hz => by
-      rw [hloc (.inr hz) hω]
+  have hdep_crossHi : ∀ v, DependsOn (· ∈ crossHiEv v) (closedBall H v (R + 1)) :=
+    fun v ω ω' hω => by
+      simp only [crossHiEv, mem_ofPred_eq, hloc (w := v) (.inl rfl) hω, eq_iff_iff]
+      exact and_congr_right fun _ => and_congr_right fun _ => forall₂_congr fun z hz => by
+        rw [hloc (.inr hz) hω]
+  have hdep_crossLo : ∀ v, DependsOn (· ∈ crossLoEv v) (closedBall H v (R + 1)) :=
+    fun v ω ω' hω => by
+      simp only [crossLoEv, mem_ofPred_eq, hloc (w := v) (.inl rfl) hω, eq_iff_iff]
+      exact and_congr_right fun _ => and_congr_right fun _ => forall₂_congr fun z hz => by
+        rw [hloc (.inr hz) hω]
   have hm_in : ∀ t v, MeasurableSet (inEv t v) := fun t v => by
     have hm := measurable_vertexScore H q R
     dsimp only [inEv]; rw [Set.ofPred_and]
