@@ -550,7 +550,9 @@ private theorem measurableSet_pullCount_eq_of_arms [Finite ι] {t : ℕ}
         by simpa [hcnt] using hs, fun _ => rfl⟩,
       fun ⟨arms, hcard, harms⟩ => by
         rw [hcnt, ← hcard]
-        congr 1; ext r; simp [harms r]⟩
+        congr 1
+        ext r
+        simp [harms r]⟩
   rw [heq]
   exact Set.Finite.measurableSet_biUnion (Finset.finite_toSet _) fun arms _ =>
     MeasurableSet.iInter fun r => hA r (arms r)
