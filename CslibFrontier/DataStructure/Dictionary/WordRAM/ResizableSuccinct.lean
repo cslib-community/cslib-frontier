@@ -287,21 +287,15 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       hs_0.seq_eq <| hs_1.seq_eq <| hs_2.seq_eq <| hs_3.seq_eq hs_4).mono
       (by decide) (fun _ h => h)
   have hzero_ge5 : ∀ off, 5 ≤ off → y_fin.mem (base + off) = 0 := fun off hoff => by
-    have h4 : base + off ≠ base + 4 := fun h => by have := Nat.add_left_cancel h; omega
-    have h3 : base + off ≠ base + 3 := fun h => by have := Nat.add_left_cancel h; omega
-    have h2 : base + off ≠ base + 2 := fun h => by have := Nat.add_left_cancel h; omega
-    have h1 : base + off ≠ base + 1 := fun h => by have := Nat.add_left_cancel h; omega
-    have h0 : base + off ≠ base + 0 := fun h => by have := Nat.add_left_cancel h; omega
-    rw [hmy_ne (base + off) h4, hm₇_ne (base + off) h3, hm₆_ne (base + off) h2,
-      hm₅_ne (base + off) h1, hm₄_ne (base + off) h0]
-    exact (congrFun hx₃_mem (base + off)).trans
-      (hx₀.zero_above (by rw [hfr₀]; exact Nat.le_add_right base off))
+    have hne (k : ℕ) (hk : k < 5) : base + off ≠ base + k :=
+      (Nat.add_lt_add_left (hk.trans_le hoff) base).ne'
+    rw [hmy_ne _ (hne 4 (by decide)), hm₇_ne _ (hne 3 (by decide)), hm₆_ne _ (hne 2 (by decide)),
+      hm₅_ne _ (hne 1 (by decide)), hm₄_ne _ (hne 0 (by decide)), hx₃_mem]
+    exact hx₀.zero_above (by rw [hfr₀]; exact Nat.le_add_right base off)
   have hbelow : ∀ addr < base, y_fin.mem addr = x₀.mem addr := fun addr hlt => by
-    have hne (k : ℕ) : addr ≠ base + k :=
-      Nat.ne_of_lt (lt_of_lt_of_le hlt (Nat.le_add_right base k))
-    rw [hmy_ne addr (hne 4), hm₇_ne addr (hne 3), hm₆_ne addr (hne 2),
-      hm₅_ne addr (hne 1), hm₄_ne addr (hne 0)]
-    exact congrFun hx₃_mem addr
+    have hne (k : ℕ) : addr ≠ base + k := (hlt.trans_le (Nat.le_add_right base k)).ne
+    rw [hmy_ne _ (hne 4), hm₇_ne _ (hne 3), hm₆_ne _ (hne 2), hm₅_ne _ (hne 1), hm₄_ne _ (hne 0),
+      hx₃_mem]
   have hne_add {a b : ℕ} (hab : a ≠ b) : base + a ≠ base + b :=
     fun h => hab (Nat.add_left_cancel h)
   have hhdr : RootHeaderValid U V w 0 0 0 base y_fin.mem := by
