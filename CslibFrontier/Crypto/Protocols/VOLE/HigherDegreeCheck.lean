@@ -50,12 +50,13 @@ wires `ρ_i(X) = v_i + w_i * X`, homogenizing every monomial of total degree `de
 whose degree-`d` coefficient is `MvPolynomial.eval w F_poly`. Adding `(d - 1)` fresh VOLE
 mask correlations `(u_m, v_m, q_m)` blinds the lower `d` coefficients via the telescoping
 QuickSilver mask coefficients `qsMaskCoeff` so the entire honest receiver view is perfectly
-simulatable for all `d ≥ 1` over arbitrary finite commutative rings. Completeness, honest-receiver
-zero-knowledge, and single-shot independent-weight soundness (`1 / |F| + (1 - 1 / |F|) * (d / |C|)`)
-are proved for `qsMaskedCheck` / `qsMaskedCheckValue`
-(`toOuterMeasure_qsMaskedCheckValue_le`, via `toOuterMeasure_qsHomogLinearBatch_le`); unmasked
-challenge-embedding soundness (`d / |C|`) and scalar-power batching (`t / |F| + d / |C|`) are
-proved in `toOuterMeasure_qsCheck_le_of_embedding` and `toOuterMeasure_qsHomogScalarBatch_le`.
+simulatable for all `d ≥ 1` over arbitrary finite commutative rings. Completeness and
+honest-receiver zero-knowledge are proved for `qsMaskedCheck`, and single-shot independent-weight
+soundness (`1 / |F| + (1 - 1 / |F|) * (d / |C|)`) is proved at the value level for
+`qsMaskedCheckValue` (`toOuterMeasure_qsMaskedCheckValue_le`, via
+`toOuterMeasure_qsHomogLinearBatch_le`); unmasked challenge-embedding soundness (`d / |C|`) and
+scalar-power batching (`t / |F| + d / |C|`) are proved in `toOuterMeasure_qsCheck_le_of_embedding`
+and `toOuterMeasure_qsHomogScalarBatch_le`.
 
 For any fixed polynomial `P` of degree at most `d` with nonzero degree-`d` coefficient and any
 challenge embedding `ι : C ↪ F`, univariate Schwartz–Zippel bounds the acceptance probability over
@@ -71,7 +72,7 @@ trailing domain byte `0x30` onto fixed-length byte messages `ByteMsg n := Fin n 
 separates ACT's RLC trailing byte from the FAEST v3 `H_i` trailing bytes (`0, 1, 3..5, 8..11`) plus
 `vole-mole`'s `H_2^4 = 12` in `faestTrailingDomainBytes`, splitting a single uniform finite random
 oracle `H_all : ByteMsg (n + 1) → Fin m → F` into independent uniform tables (`vole-mole`'s own
-7-byte `ACT_*_DST` / IHAT / PoMFRIT tags also end in `'0' = 0x30`, separated by their penultimate
+7-byte `ACT_*_DST` / IHAT / PoMFRIT tags mostly end in `'0' = 0x30`, separated by their penultimate
 purpose byte such as `'l'` in `"rata\x00l0"`, and are outside this single-trailing-byte model).
 This gives the conditional single-shot Round-2+3 interactive QuickSilver steps
 `toOuterMeasure_actV1_qs_of_zkBinding_le` (single oracle) and
@@ -105,9 +106,10 @@ and Fiat–Shamir multi-round soundness are not formalized here.
   in `src/act/spend.hpp:383` and hashed at `src/uov/circuit.hpp:63–64`), and `H_2^4` (`12`) in
   `src/voleith.hpp:126`. VOLEitH ROM extraction, end-to-end ACT protocol security, and consolidating
   `MaskedMulCheck` (`maskedMulCheck`, `maskedMulCheckView`, `maskedMulCheckSimulate` and clients
-  `AdaptiveMulCheck`, `CircuitPrivacy`, `Circuit`, `Native`) as the `d = 2` instance of
-  `qsMaskedCheck` (generalizing adaptive-receiver simulation to `d ≥ 1` and refactoring the
-  module split to avoid an import cycle) remain tracked in #7068.
+  `AdaptiveMulCheck`, `CircuitPrivacy`, `Circuit`, `CircuitSound`, `Native`) as the `d = 2`
+  instance of `qsMaskedCheck` (generalizing adaptive-receiver simulation to `d ≥ 1` and migrating
+  those `F × F` / `(left, right, output)` clients as a separate redesign) remain tracked in
+  #7068.
 
 ## Main definitions
 
@@ -117,9 +119,9 @@ and Fiat–Shamir multi-round soundness are not formalized here.
 * `Cslib.Crypto.Protocols.VOLE.qsMaskedCheckSpec`, `qsMaskedCheck`, `qsMaskedCheckView`,
   `qsMaskedCheckSimulate`: ideal-world masked degree-`d` QuickSilver protocol and simulator.
 * `Cslib.Crypto.Protocols.VOLE.grindingAcceptedEquiv`: bijection for `FAEST.Challenge` zero suffix.
-* `Cslib.Crypto.Protocols.VOLE.foldedConstraint`, `foldedResidual`, `actRLCDomainByte`,
-  `faestTrailingDomainBytes`, `ByteMsg`, `FaestTaggedMsg`, `appendDomainByteFin`,
-  `appendFaestDomainByteFin`: ACT V1 RLC and finite trailing-byte domain separation.
+* `Cslib.Crypto.Protocols.VOLE.foldedConstraint`, `actRLCDomainByte`, `faestTrailingDomainBytes`,
+  `ByteMsg`, `FaestTaggedMsg`, `appendDomainByteFin`, `appendFaestDomainByteFin`: ACT V1 RLC and
+  finite trailing-byte domain separation.
 
 ## Main results
 
@@ -1327,10 +1329,6 @@ coefficients `l : Fin m → F`. -/
 @[expose] noncomputable def foldedConstraint {m : ℕ} (P : Fin m → Polynomial F)
     (l : Fin m → F) : Polynomial F :=
   ∑ j : Fin m, Polynomial.C (l j) * P j
-
-/-- Folded V1 residual `∑ j, l j * (lhs j - rhs j)` of `m` byte/field equations. -/
-@[expose] def foldedResidual {m : ℕ} (lhs rhs : Fin m → F) (l : Fin m → F) : F :=
-  ∑ j : Fin m, l j * (lhs j - rhs j)
 
 theorem natDegree_foldedConstraint_le {m d : ℕ} {P : Fin m → Polynomial F}
     (hdeg : ∀ j, (P j).natDegree ≤ d) (l : Fin m → F) :

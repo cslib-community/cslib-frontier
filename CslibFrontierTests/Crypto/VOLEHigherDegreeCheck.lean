@@ -1229,6 +1229,10 @@ example :
   rw [heq] at h1
   exact h2 h1
 
+private def foldedResidual {F : Type} [CommRing F] {m : ℕ}
+    (lhs rhs : Fin m → F) (l : Fin m → F) : F :=
+  ∑ j : Fin m, l j * (lhs j - rhs j)
+
 private noncomputable def collidingByteAdversary :
     ProbOracleComp
       ((fun _ : ByteMsg 0 => Fin 2 → ZMod 11) ⊕ₒ (fun _ : ByteMsg 0 => Fin 2 → ZMod 11))
@@ -1301,7 +1305,7 @@ example :
 
 -- Negative test 3b (`q * δ_K` tightness for predictable challenge `K = Unit`):
 -- querying `H ()` (`1` query, `δ_K = 1`) before committing forces `foldedResidual = 0` with
--- probability `1`, matching the `1 * 1` term of `toOuterMeasure_actV1RLC_adaptive_of_zkError_le`.
+-- probability `1`, matching `q * δ_K = 1 * 1` in `toOuterMeasure_actV1_qs_of_zkBinding_le`.
 private noncomputable def adaptiveCancelAdversary :
     ProbOracleComp (fun _ : Unit => Fin 2 → ZMod 11) (Fin 2 → ZMod 11) := do
   let l ← ProbOracleComp.query ()
