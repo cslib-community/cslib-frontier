@@ -6,6 +6,7 @@ Authors: OpenAI
 
 -- upstream: candidate
 
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeEndJoin
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.VertexJoinGenus
 
 /-! Different-component vertex joins retain parallel occurrences, a closed loop and points. -/
@@ -74,6 +75,27 @@ example : Graph.RotationCertificate.verifyGenusZero
     (mergeGraph (G := dipole) (0, false) (0, true))
     (Graph.RotationCertificate.ofRotation
       (dipoleRotation.mergeVertices (0, false) (0, true) (by decide))) = false := by
+  decide +kernel
+
+-- Joining both ends retains four distinct parallel edges and the unrelated loop.
+example :
+    let a := r.faceNext h.reverse
+    let b := r.faceNext k.reverse
+    let e := mergeDartEquiv a b
+    let h' := e h.reverse
+    let k' := e k.reverse
+    ∃ (hne : a.vertex ≠ b.vertex) (hne' : h'.vertex ≠ k'.vertex),
+      ((r.mergeVertices a b hne).mergeVertices h' k' hne').NumericalGenusZero ∧
+        (mergeGraph h' k').edges = [(0, 1), (0, 1), (0, 1), (0, 1), (4, 4)] := by
+  obtain ⟨hne, hne', hz, _, _, _⟩ :=
+    r.numericalGenusZero_mergeEdgeEnds (by decide) genus h k (by decide) (by decide) different
+  refine ⟨hne, hne', hz, ?_⟩
+  have face (d e : Graph.Dart G) (he : (Graph.RotationCertificate.faceTable G c).getD d.index 0 =
+      e.index) : r.faceNext d = e := by
+    apply (Graph.Dart.indexEquiv G).injective
+    apply Fin.ext
+    exact (Graph.RotationCertificate.getD_faceTable (by decide) d).symm.trans he
+  rw [face h.reverse (1, false) (by decide), face k.reverse (3, false) (by decide)]
   decide +kernel
 
 end CslibFrontierTests.RotationVertexJoin

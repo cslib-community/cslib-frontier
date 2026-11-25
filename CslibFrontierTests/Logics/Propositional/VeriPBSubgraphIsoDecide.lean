@@ -23,9 +23,9 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 * The LAD reader on accepted and rejected texts. Each verdict is the one of CakePB's `cake_pb_iso`
   (CakeML `14856fcf`) on the same text, except for the loop, which CakePB accepts.
 * The encoding of the edge `K₂` into the path `0 - 1 - 2`, printed: it is CakePB's
-  (`cake_pb_iso` prints the same constraints in the same order, with labels `@al10 …`, the
-  variable `x(3a + u + 1)` named `xa_u`, and the per-pattern at-most-one constraints as
-  `… <= 1`; its per-target `@inj` constraints are the `>=` constraints printed here).
+  (`cake_pb_iso` prints the same constraints in the same order, with the same variable names
+  `xa_u`, with labels `@al10 …`, and with the per-pattern at-most-one constraints as `… <= 1`;
+  its per-target `@inj` constraints are the `>=` constraints printed here).
 * **Clients**, with proofs written by hand in the kernel format: `K₂` has a copy in the path
   (`SAT`, with the copy `0 ↦ 0`, `1 ↦ 1`); `K₂` has none in the graph with two vertices and no
   edge (`UNSAT`: summing `x₀₀ + x₀₁ ≥ 1`, `~x₀₀ ≥ 1` and `~x₀₁ ≥ 1` gives `0 ≥ 1`); the triangle
@@ -34,14 +34,14 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
   the empty target. Each is accepted against the LAD texts and the first three against Mathlib's
   graphs.
 
-VeriPB 3.0.2 accepts the five client proofs against the printed encoding, and
-`veripb --elaborate` returns them unchanged up to spacing. CakePB's `cake_pb_iso` accepts the same
-five against the LAD texts, with the variables renamed `x(t·a + u + 1) ↦ xa_u`, reporting
-`SUBGRAPH ISOMORPHIC` or `NOT SUBGRAPH ISOMORPHIC` as here. In the last two the at-most-one rows
-without a literal differ: `>= 0` here, `>= -1` for CakePB's `@inj0` and `@inj1` (empty pattern)
-and `<= 1` for its `@am10` (empty target). The empty target's at-least-one row `@al10` has no
-literal either but is `>= 1` in both; it is the constraint `1` of the `UNSAT` proof. These
-translated fixtures are the only evidence that a proof accepted here is accepted by CakePB.
+VeriPB 3.0.2 accepts the five client proofs against the printed encoding, and `veripb --elaborate`
+returns them unchanged up to spacing. CakePB's `cake_pb_iso` accepts the same five against the LAD
+texts, reporting `SUBGRAPH ISOMORPHIC` or `NOT SUBGRAPH ISOMORPHIC` as here. In the last two the
+at-most-one rows without a literal differ: `>= 0` here, `>= -1` for CakePB's `@inj0` and `@inj1`
+(empty pattern) and `<= 1` for its `@am10` (empty target). The empty target's at-least-one row
+`@al10` has no literal either but is `>= 1` in both; it is the constraint `1` of the `UNSAT` proof.
+Proofs of the Glasgow Subgraph Solver, elaborated by VeriPB and accepted by CakePB, are checked in
+`CslibFrontierTests.Logics.Propositional.VeriPBGlasgowDecide`.
 -/
 
 set_option linter.privateModule false
@@ -96,12 +96,13 @@ example : parseLAD "2\n2 0 1\n1 0\n" = none := by decide +kernel
 
 -- `K₂` into the path `0 - 1 - 2`, in CakePB's order.
 example : printOPB ⟨isoConstraints (⊤ : SimpleGraph (Fin 2)) (SimpleGraph.pathGraph 3), none,
-    none⟩ = "* #variable= 6 #constraint= 13 \n\
-    1 x1 1 x2 1 x3 >= 1 ; \n1 x4 1 x5 1 x6 >= 1 ; \n\
-    1 ~x1 1 ~x2 1 ~x3 >= 2 ; \n1 ~x4 1 ~x5 1 ~x6 >= 2 ; \n\
-    1 ~x1 1 ~x4 >= 1 ; \n1 ~x2 1 ~x5 >= 1 ; \n1 ~x3 1 ~x6 >= 1 ; \n\
-    1 ~x1 1 x5 >= 1 ; \n1 ~x4 1 x2 >= 1 ; \n1 ~x2 1 x4 1 x6 >= 1 ; \n\
-    1 ~x5 1 x1 1 x3 >= 1 ; \n1 ~x3 1 x5 >= 1 ; \n1 ~x6 1 x2 >= 1 ; \n" := by
+    none⟩ (isoNames 2 3) = "* #variable= 6 #constraint= 13 \n\
+    1 x0_0 1 x0_1 1 x0_2 >= 1 ; \n1 x1_0 1 x1_1 1 x1_2 >= 1 ; \n\
+    1 ~x0_0 1 ~x0_1 1 ~x0_2 >= 2 ; \n1 ~x1_0 1 ~x1_1 1 ~x1_2 >= 2 ; \n\
+    1 ~x0_0 1 ~x1_0 >= 1 ; \n1 ~x0_1 1 ~x1_1 >= 1 ; \n1 ~x0_2 1 ~x1_2 >= 1 ; \n\
+    1 ~x0_0 1 x1_1 >= 1 ; \n1 ~x1_0 1 x0_1 >= 1 ; \n\
+    1 ~x0_1 1 x1_0 1 x1_2 >= 1 ; \n1 ~x1_1 1 x0_0 1 x0_2 >= 1 ; \n\
+    1 ~x0_2 1 x1_1 >= 1 ; \n1 ~x1_2 1 x0_1 >= 1 ; \n" := by
   decide +kernel
 
 -- The graphs read from LAD have the encodings of Mathlib's.
@@ -116,7 +117,7 @@ example : (parseLAD k2Text).map (fun gp => (parseLAD p3Text).map fun gt =>
 def k2p3Proof : String := "pseudo-Boolean proof version 3.0
 f 13;
 output NONE;
-conclusion SAT : x1 ~x2 ~x3 ~x4 x5 ~x6 ;
+conclusion SAT : x0_0 ~x0_1 ~x0_2 ~x1_0 x1_1 ~x1_2 ;
 end pseudo-Boolean proof;
 "
 

@@ -14,6 +14,7 @@ import CslibFrontier.Foundations.Combinatorics.FiniteCover
 import CslibFrontier.Foundations.Data.Fintype.AgreeOn
 import CslibFrontier.Probability.BitString.LinearHash.Collisions
 import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Foundations.Data.Nat.BigOperators
 import CslibFrontier.Foundations.Data.BitString.Parity
 import Cslib.Computability.Circuit.Boolean.Synthesis
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -213,14 +214,6 @@ private theorem synthesis_table {B : Type*} [Fintype B] (pattern : B → Finset 
     Fintype.card_fin, smul_eq_mul]
   ring
 
-/-- A sum of quotients is at most the quotient of the sum. -/
-private theorem sum_div_le_div_sum {ι : Type*} (s : Finset ι) (f : ι → ℕ) (K : ℕ) :
-    ∑ i ∈ s, f i / K ≤ (∑ i ∈ s, f i) / K := by
-  rcases Nat.eq_zero_or_pos K with rfl | hK
-  · simp
-  · exact (Nat.le_div_iff_mul_le hK).mpr
-      (sum_mul s _ K ▸ sum_le_sum fun i _ => Nat.div_mul_le_self _ _)
-
 end Table
 
 /-! ### Blocks of consecutive elements -/
@@ -324,7 +317,7 @@ private theorem complexity_indicator_le_sparseTableBound {k l : ℕ} (D : Finset
           sum_le_sum fun r _ => card_image_le.trans (card_range _).le
       _ ≤ #D / K + 2 ^ l := by
           rw [sum_add_distrib, ← sum_card_rowSupport D]
-          simpa using sum_div_le_div_sum univ (fun r => #(rowSupport D r)) K
+          simpa using Nat.sum_div_le_sum_div univ (fun r => #(rowSupport D r)) K
   simp only [Fintype.card_fun, Fintype.card_option, Fintype.card_fin, sparseTableBound]
   omega
 
@@ -446,7 +439,7 @@ private theorem exists_eqOn_complexity_le_partialTableBound {k l : ℕ}
             sum_le_sum fun r _ => card_image_le.trans (card_range _).le
         _ ≤ #D / J + 2 ^ l := by
             rw [sum_add_distrib, ← sum_card_rowSupport D]
-            simpa using sum_div_le_div_sum univ (fun r => #(rowSupport D r)) J
+            simpa using Nat.sum_div_le_sum_div univ (fun r => #(rowSupport D r)) J
     have hcard : Fintype.card (Fin (2 ^ k + 1) × Fin (2 ^ k + 1) × bank) * (2 ^ k + 1) ≤
         (2 ^ k + 1) ^ 3 * (2 * 2 ^ k + 1) * 2 ^ J := by
       simp only [Fintype.card_prod, Fintype.card_fin, Fintype.card_coe]
