@@ -463,49 +463,29 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
           dsimp only [curAt, cur]
           rw [htake1, List.filter_append, List.filter_cons_of_pos (by simp [hmemC]),
             List.filter_nil]
-        have hstep : ∃ z, ExecWithin w extractStep s z 9 ∧
-            z.regs rZero = 0 ∧ z.regs rOne = 1 ∧ z.regs Reg.dim = d ∧
-            z.regs rCoordsPtr = coordsPtr ∧ z.regs rCoordsLen = cur.length + 1 ∧
-            z.regs rTrieRem = setMask C / 2 ^ (b + 1) ∧ z.regs rGenIdx = b + 1 ∧
-            z.mem = Function.update s.mem (coordsPtr + cur.length) b := by
-          unfold extractStep
-          wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
-          wram_simp [hsz, hso, hsd, hscp, hscl, hb_eq, hshr_eq]
-        obtain ⟨z, hz_ex, hzz, hzo, hzd, hzcp, hzcl, hzrem, hzidx, hzmem⟩ := hstep
-        refine ⟨z, hz_ex, ?_, hzidx⟩
+        unfold extractStep
+        wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
         dsimp only [P]
         rw [hcur1]
-        refine ⟨hzz, hzo, hzd, hzcp, by simp [hzcl], hzrem, ?_, ?_⟩
-        · intro j hj
-          rw [List.length_append, List.length_singleton] at hj
-          by_cases hj_eq : j = cur.length
-          · subst hj_eq
-            simp [hzmem, ib]
-          · have hj_lt : j < cur.length := by omega
-            rw [List.getElem_append_left hj_lt, hzmem, Function.update_of_ne (by omega)]
-            exact hsmem j hj_lt
-        · intro a ha
-          rw [List.length_append, List.length_singleton] at ha
-          rw [hzmem, Function.update_of_ne (by omega)]
-          exact hsframe a (by omega)
+        simp only [List.length_append, List.length_singleton]
+        refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by wram_simp [hscl],
+          by wram_simp [hshr_eq], fun j hj => ?_, fun a ha => ?_⟩, by wram_simp⟩
+        · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj
+          · wram_simp [List.getElem_append_left hj]; exact hsmem j hj
+          · wram_simp [List.getElem_concat_length, ib]
+        · wram_simp; exact hsframe a (by omega)
       · have hbit0 : s.regs rTrieRem &&& 1 = 0 := by simp [hbit_iff, hmemC]
         have hcur1 : curAt (b + 1) = cur := by
           dsimp only [curAt, cur]
           rw [htake1, List.filter_append, List.filter_cons_of_neg (by simp [hmemC]),
             List.filter_nil, List.append_nil]
-        have hstep : ∃ z, ExecWithin w extractStep s z 9 ∧
-            z.regs rZero = 0 ∧ z.regs rOne = 1 ∧ z.regs Reg.dim = d ∧
-            z.regs rCoordsPtr = coordsPtr ∧ z.regs rCoordsLen = cur.length ∧
-            z.regs rTrieRem = setMask C / 2 ^ (b + 1) ∧ z.regs rGenIdx = b + 1 ∧
-            z.mem = s.mem := by
-          unfold extractStep
-          wram_exec [hsz, hso, hscl, hb_eq, hbit0]
-          wram_simp [hsz, hso, hsd, hscp, hscl, hb_eq, hshr_eq]
-        obtain ⟨z, hz_ex, hzz, hzo, hzd, hzcp, hzcl, hzrem, hzidx, hzmem⟩ := hstep
-        refine ⟨z, hz_ex, ?_, hzidx⟩
+        unfold extractStep
+        wram_exec [hsz, hso, hscl, hb_eq, hbit0]
         dsimp only [P]
-        rw [hcur1, hzmem]
-        exact ⟨hzz, hzo, hzd, hzcp, hzcl, hzrem, hsmem, hsframe⟩
+        rw [hcur1]
+        exact ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+          by wram_simp [hshr_eq], by wram_simp; exact hsmem, by wram_simp; exact hsframe⟩,
+          by wram_simp⟩
     let x₀ := ((x.set rTrieRem (setMask C)).set rCoordsLen 0).set rGenIdx 0
     have hinit : ExecWithin (B := .standard) w
         (ram[ rTrieRem ← rTrieKey; rCoordsLen ← #0; rGenIdx ← #0 ]) x x₀ 3 := by
@@ -644,20 +624,14 @@ theorem exec_initIdentityCoords {w d coordsPtr : ℕ} (x : Data numRegs)
       obtain ⟨hso, hsd, hscp, hdone, hsframe⟩ := hs
       have hf_addr : Fits w (coordsPtr + b) := hfit_mem.of_le (by omega)
       have hf_b1 : Fits w (b + 1) := hfit_d.of_le (by omega)
-      have hst : ∃ z, ExecWithin w initCoordsStep s z 3 ∧
-          z.regs rOne = 1 ∧ z.regs Reg.dim = d ∧ z.regs rCoordsPtr = coordsPtr ∧
-          z.regs rGenIdx = b + 1 ∧ z.mem = Function.update s.mem (coordsPtr + b) b := by
-        unfold initCoordsStep
-        wram_exec [hso, hscp, hb_eq]
-        wram_simp [hso, hsd, hscp, hb_eq]
-      obtain ⟨z, hez, hzo, hzd, hzcp, hzb, hzm⟩ := hst
-      refine ⟨z, hez, ⟨hzo, hzd, hzcp, ?_, ?_⟩, hzb⟩
-      · intro j hj
-        by_cases hjb : j = b
-        · subst hjb; simp [hzm]
-        · rw [hzm, Function.update_of_ne (by omega)]; exact hdone j (by omega)
-      · intro a ha
-        rw [hzm, Function.update_of_ne (by omega)]; exact hsframe a (by omega)
+      unfold initCoordsStep
+      wram_exec [hso, hscp, hb_eq]
+      refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, fun j hj => ?_, fun a ha => ?_⟩,
+        by wram_simp⟩
+      · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj
+        · wram_simp; exact hdone j hj
+        · wram_simp
+      · wram_simp; exact hsframe a (by omega)
     let x₀ := x.set rGenIdx 0
     have hinit : ExecWithin (B := .standard) w (ram[ rGenIdx ← #0 ]) x x₀ 1 := by wram_exec
     have hx₀ : P (x₀.regs rGenIdx) x₀ :=
