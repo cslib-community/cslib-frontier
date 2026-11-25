@@ -229,7 +229,8 @@ private theorem card_submodule_finrank_eq_lt {r : ℕ} (hr : r ≤ Fintype.card 
     rw [hsum, sum_congr rfl hfiber, sum_const, smul_eq_mul]
   have hnum_lt : (∏ i : Fin r, (q ^ N - q ^ i.val)) < (q ^ N) ^ r :=
     (prod_lt_prod_of_nonempty₀ (fun i _ => Nat.sub_pos_of_lt (Nat.pow_lt_pow_right (by omega)
-      (i.isLt.trans_le hr))) (fun i _ => Nat.sub_lt (Nat.pow_pos (by omega)) (Nat.pow_pos (by omega)))
+      (i.isLt.trans_le hr)))
+      (fun i _ => Nat.sub_lt (Nat.pow_pos (by omega)) (Nat.pow_pos (by omega)))
       ⟨⟨0, hr0⟩, mem_univ _⟩).trans_eq (Fin.prod_const r _)
   refine Nat.lt_of_mul_lt_mul_right ?_ (a := ∏ i : Fin r, (q ^ r - q ^ i.val))
   rw [hprod_eq]
@@ -423,7 +424,8 @@ private theorem card_rigidity_lt_mul_pow_lt {r s t : ℕ}
   have h4 : 4 ≤ q ^ 2 := by nlinarith
   have hexp : 2 + L * (s - 1) + t ≤ (M - r) * (N - r) := by
     have hL : 2 ≤ L := by omega
-    have hLs : L * (s - 1) + L = L * s := by rw [← mul_add_one, Nat.sub_add_cancel (by omega : 1 ≤ s)]
+    have hLs : L * (s - 1) + L = L * s := by
+      rw [← mul_add_one, Nat.sub_add_cancel (by omega : 1 ≤ s)]
     omega
   obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le hexp
   have hmain := card_rigidity_lt_mul_lt_of_pos (m := m) (n := n) (K := K) (r := r) hs
@@ -492,8 +494,9 @@ theorem one_sub_lt_card_rigidity_eq_mul_sub_div (r : ℕ) :
         2 ^ (M * N) * q ^ (s - 1) := by
       calc (∑ j ∈ range s, (M * N).choose j * (q - 1) ^ j)
           ≤ ∑ j ∈ range s, (M * N).choose j * q ^ (s - 1) :=
-            sum_le_sum fun j hj => Nat.mul_le_mul_left _ ((Nat.pow_le_pow_left (Nat.sub_le q 1) j).trans
-              (Nat.pow_le_pow_right (by omega) (Nat.le_sub_one_of_lt (mem_range.mp hj))))
+            sum_le_sum fun j hj => Nat.mul_le_mul_left _
+              ((Nat.pow_le_pow_left (Nat.sub_le q 1) j).trans
+                (Nat.pow_le_pow_right (by omega) (Nat.le_sub_one_of_lt (mem_range.mp hj))))
         _ ≤ (∑ j ∈ range (M * N + 1), (M * N).choose j) * q ^ (s - 1) := by
             rw [← sum_mul]
             gcongr
