@@ -284,16 +284,12 @@ theorem pedersenCommitLaw_eq_uniform_of_ne_zero (d : F.Desc) {h : F.Carrier d} (
     F.pedersenCommitLaw d h m =
       (PMF.uniformOfFintype (ZMod (F.order d))).map (· • F.generator d) := by
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
-  have hα : α ≠ 0 := by
-    rintro rfl
-    exact hh (zero_smul _ _)
-  let e : ZMod (F.order d) ≃ ZMod (F.order d) :=
-    (Equiv.mulRight₀ α hα).trans (Equiv.addLeft m)
-  have hcomp : F.pedersenCommit d (α • F.generator d) m =
-      (fun γ : ZMod (F.order d) => γ • F.generator d) ∘ e := by
-    funext r
-    simp [e, pedersenCommit_smul_generator]
-  rw [pedersenCommitLaw, hcomp, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+  have hα : α ≠ 0 := fun h0 => hh (h0 ▸ zero_smul _ _)
+  let e := (Equiv.mulRight₀ α hα).trans (Equiv.addLeft m)
+  rw [pedersenCommitLaw, show F.pedersenCommit d (α • F.generator d) m =
+      (fun γ : ZMod (F.order d) => γ • F.generator d) ∘ e by
+    funext r; simp [e, pedersenCommit_smul_generator], ← PMF.map_comp,
+    PMF.uniformOfFintype_map_equiv]
 
 /-- **Perfect hiding** ([Pedersen1991], Section 3, Theorem 3.1): for any `h ≠ 0` and any two
 messages `m₀, m₁ : ZMod (F.order d)`, the commitment distributions `F.pedersenCommitLaw d h m₀` and
@@ -839,25 +835,21 @@ theorem pedersenToDLAdversary_encode
           adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩)) h := by
   simp only [pedersenToDLAdversary, pedersenToDL, pedersenScheme_encodeKey, map_bind,
     bind_map_left, map_pure]
-  congr 1
-  funext out
-  obtain ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩ := out
+  congr 1; funext ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
   have hcoll : (decide (m₀ ≠ m₁) && F.encodePedersenVerify ((d, F.encode d h), m₀, c, o₀) &&
       F.encodePedersenVerify ((d, F.encode d h), m₁, c, o₁)) =
         F.pedersenScheme.isBindingCollision ⟨d, h⟩ (c, (m₀, o₀), (m₁, o₁)) := by
-    simp only [encodePedersenVerify_encode]
-    rfl
+    simp only [encodePedersenVerify_encode]; rfl
   simp only [hcoll]
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
   cases hb : F.pedersenScheme.isBindingCollision ⟨d, α • F.generator d⟩ (c, (m₀, o₀), (m₁, o₁))
   · simp [pedersenCollisionOf, hb]
-  · have htyped := F.inv_mul_eq_of_isBindingCollision_pedersen
-      ((F.isBindingCollision_pedersenCollisionOf d _ _).trans hb)
-    have hword := F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hb
+  · have hword := F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hb
     dsimp only at hword
     have hlt : extractNat (F.order d) (ofBits o₁) (ofBits m₀) (ofBits o₀) (ofBits m₁) <
         F.order d := Nat.mod_lt _ (F.prime_order d).pos
-    simp only [↓reduceIte, htyped]
+    simp only [↓reduceIte, F.inv_mul_eq_of_isBindingCollision_pedersen
+      ((F.isBindingCollision_pedersenCollisionOf d _ _).trans hb)]
     rw [← hword, ZMod.val_cast_of_lt hlt]
 
 /-- **Exact binding-to-discrete-logarithm reduction** ([BonehShoup2023], Section 10.6.1,
@@ -900,21 +892,17 @@ theorem isPPTOn_pedersenToDLAdversary
     (prepare := fun input : ℕ × F.Desc × List Bool =>
       (input.1, encPair F.encDesc encBits input.2)) (by fun_prop)).bind_with ?_
   have hverify := F.computableInPolyTime_encodePedersenVerify
-  have hextract : ComputableInPolyTime
-      (fun p :
-          (ℕ × F.Desc × List Bool) ×
-            (List Bool × (List Bool × List Bool) × (List Bool × List Bool)) =>
-        if decide (p.2.2.1.1 ≠ p.2.2.2.1) &&
-            F.encodePedersenVerify (p.1.2, p.2.2.1.1, p.2.1, p.2.2.1.2) &&
-            F.encodePedersenVerify (p.1.2, p.2.2.2.1, p.2.1, p.2.2.2.2) then
-          (extractNat (F.order p.1.2.1)
-            (ofBits p.2.2.2.2) (ofBits p.2.2.1.1)
-            (ofBits p.2.2.1.2) (ofBits p.2.2.2.1)).bits
-        else [])
-      (encPair (encPair encUnary (encPair F.encDesc encBits))
-        (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
-      encBits := by
-    fun_prop
-  exact hextract.isPPTOn
+  exact (by fun_prop : ComputableInPolyTime
+    (fun p : (ℕ × F.Desc × List Bool) ×
+        (List Bool × (List Bool × List Bool) × (List Bool × List Bool)) =>
+      if decide (p.2.2.1.1 ≠ p.2.2.2.1) &&
+          F.encodePedersenVerify (p.1.2, p.2.2.1.1, p.2.1, p.2.2.1.2) &&
+          F.encodePedersenVerify (p.1.2, p.2.2.2.1, p.2.1, p.2.2.2.2) then
+        (extractNat (F.order p.1.2.1) (ofBits p.2.2.2.2) (ofBits p.2.2.1.1)
+          (ofBits p.2.2.1.2) (ofBits p.2.2.2.1)).bits
+      else [])
+    (encPair (encPair encUnary (encPair F.encDesc encBits))
+      (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
+    encBits).isPPTOn
 
 end Cslib.Crypto.PrimeOrderGroupFamily
