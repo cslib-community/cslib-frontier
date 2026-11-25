@@ -186,18 +186,18 @@ private theorem single_args_eq {α : Type*} (u : Fin 1 → α) :
   subst hi
   rfl
 
-private theorem relMap_complementEdges_adj (M : Structure FO.sizedGraph)
-    (u v : Fin 1 → Fin M.size) :
-    (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v] ↔
-      u ≠ v ∧ ¬ RelMap (M := M) FO.sizedGraph.adj ![u 0, v 0] := by
+private theorem relMap_complementEdges_adj (M : Structure FO.sizedGraph) {x y : M}
+    (hxy : x ≠ y) :
+    (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj
+        ![singletonTupleEquiv M.size x, singletonTupleEquiv M.size y] ↔
+      ¬ RelMap (M := M) FO.sizedGraph.adj ![x, y] := by
   rw [complementEdgesInterpretation,
     FullTupleInterpretation.relMap_tupleStructure_ofQFProjection,
     complementEdgesFormula, ProjectionFormula.realize_toFormula_branch]
-  have heq : u 0 = v 0 ↔ u = v :=
-    ⟨fun h => (singletonTupleEquiv M.size).symm.injective h, fun h => congrFun h 0⟩
   simp only [QFNumeric.realize_varEq, Matrix.cons_val_zero, Matrix.cons_val_one,
-    Matrix.cons_val_fin_one, heq, ProjectionFormula.realize_const_false, and_false, false_or,
+    Matrix.cons_val_fin_one, ProjectionFormula.realize_const_false, and_false, false_or,
     ProjectionFormula.realize_negLit, pair_args_eq]
+  exact and_iff_right hxy
 
 private theorem relMap_complementEdges_size (M : Structure FO.sizedGraph)
     (u : Fin 1 → Fin M.size) :
@@ -221,69 +221,52 @@ private theorem ncard_size_eq_of_iff (M : Structure FO.sizedGraph)
       fun ⟨x, hx, hxu⟩ => hxu ▸ hx⟩
   rw [himg, Set.ncard_image_of_injective _ (singletonTupleEquiv M.size).injective]
 
+/-- Sets of `1`-tuples of a given cardinality are the images of sets of elements. -/
+private theorem exists_ncard_image_iff {M : Structure FO.sizedGraph} {n : ℕ}
+    {P : Set (Fin 1 → Fin M.size) → Prop} :
+    (∃ t : Set (Fin 1 → Fin M.size), t.ncard = n ∧ P t) ↔
+      ∃ s : Set M, s.ncard = n ∧ P (singletonTupleEquiv M.size '' s) := by
+  rw [(Set.image_surjective.2 (singletonTupleEquiv M.size).surjective).exists]
+  simp only [Set.ncard_image_of_injective _ (singletonTupleEquiv M.size).injective]
+
 theorem mem_Clique_complementEdgesInterpretation
     {hI : complementEdgesInterpretation.toDomainInterpretation.Admissible}
     (M : Structure FO.sizedGraph) :
     complementEdgesInterpretation.toDomainInterpretation.map hI M ∈ Clique ↔
       M ∈ IndependentSet := by
-  have hiso := complementEdgesInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_Clique
-    (by decide) (hI := hI) M
-  change complementEdgesInterpretation.toDomainInterpretation.map hI M ∈
-    {N : Structure FO.sizedGraph | Bundled.of (c := FO.sizedGraph.Structure) N ∈
-      FO.sizedGraph.Clique} ↔ _
-  rw [← hiso, mem_IndependentSet]
+  refine (complementEdgesInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_Clique
+    (by decide) M).symm.trans ?_
   change (∃ t : Set (Fin 1 → Fin M.size),
     t.ncard = {u | (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
       ![u]}.ncard ∧
     t.Pairwise fun u v =>
       (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
-  rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M)]
-  let e := singletonTupleEquiv M.size
-  constructor
-  · rintro ⟨t, ht, hcl⟩
-    refine ⟨e.symm '' t, (Set.ncard_image_of_injective t e.symm.injective).trans ht, ?_⟩
-    rw [e.symm.injective.injOn.pairwise_image]
-    intro u hu v hv huv
-    obtain ⟨-, hnadj⟩ := (relMap_complementEdges_adj M u v).mp (hcl hu hv huv)
-    exact hnadj
-  · rintro ⟨s, hs, hind⟩
-    refine ⟨e '' s, (Set.ncard_image_of_injective s e.injective).trans hs, ?_⟩
-    rw [e.injective.injOn.pairwise_image]
-    intro x hx y hy hxy
-    exact (relMap_complementEdges_adj M (e x) (e y)).mpr
-      ⟨e.injective.ne hxy, hind hx hy hxy⟩
+  rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M), exists_ncard_image_iff,
+    mem_IndependentSet]
+  refine exists_congr fun s => and_congr_right fun _ => ?_
+  rw [(singletonTupleEquiv M.size).injective.injOn.pairwise_image]
+  exact ⟨fun h x hx y hy hxy => (relMap_complementEdges_adj M hxy).1 (h hx hy hxy),
+    fun h x hx y hy hxy => (relMap_complementEdges_adj M hxy).2 (h hx hy hxy)⟩
 
 theorem mem_IndependentSet_complementEdgesInterpretation
     {hI : complementEdgesInterpretation.toDomainInterpretation.Admissible}
     (M : Structure FO.sizedGraph) :
     complementEdgesInterpretation.toDomainInterpretation.map hI M ∈ IndependentSet ↔
       M ∈ Clique := by
-  have hiso := complementEdgesInterpretation.mem_of_isoClosed
-    FO.sizedGraph.isoClosed_IndependentSet (by decide) (hI := hI) M
-  change complementEdgesInterpretation.toDomainInterpretation.map hI M ∈
-    {N : Structure FO.sizedGraph | Bundled.of (c := FO.sizedGraph.Structure) N ∈
-      FO.sizedGraph.IndependentSet} ↔ _
-  rw [← hiso, mem_Clique]
+  refine (complementEdgesInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_IndependentSet
+    (by decide) M).symm.trans ?_
   change (∃ t : Set (Fin 1 → Fin M.size),
     t.ncard = {u | (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
       ![u]}.ncard ∧
     t.Pairwise fun u v =>
       ¬ (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
-  rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M)]
-  let e := singletonTupleEquiv M.size
-  constructor
-  · rintro ⟨t, ht, hind⟩
-    refine ⟨e.symm '' t, (Set.ncard_image_of_injective t e.symm.injective).trans ht, ?_⟩
-    rw [e.symm.injective.injOn.pairwise_image]
-    intro u hu v hv huv
-    by_contra hnadj
-    exact hind hu hv huv ((relMap_complementEdges_adj M u v).mpr ⟨huv, hnadj⟩)
-  · rintro ⟨s, hs, hcl⟩
-    refine ⟨e '' s, (Set.ncard_image_of_injective s e.injective).trans hs, ?_⟩
-    rw [e.injective.injOn.pairwise_image]
-    intro x hx y hy hxy hbad
-    obtain ⟨-, hnadj⟩ := (relMap_complementEdges_adj M (e x) (e y)).mp hbad
-    exact hnadj (hcl hx hy hxy)
+  rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M), exists_ncard_image_iff,
+    mem_Clique]
+  refine exists_congr fun s => and_congr_right fun _ => ?_
+  rw [(singletonTupleEquiv M.size).injective.injOn.pairwise_image]
+  exact ⟨fun h x hx y hy hxy => by_contra fun hn =>
+      h hx hy hxy ((relMap_complementEdges_adj M hxy).2 hn),
+    fun h x hx y hy hxy hn => (relMap_complementEdges_adj M hxy).1 hn (h hx hy hxy)⟩
 
 end ComplementProofs
 
@@ -322,13 +305,14 @@ theorem isQFProjection_complementSizeInterpretation :
 
 section ComplementSizeProofs
 
-private theorem relMap_complementSize_adj (M : Structure FO.sizedGraph)
-    (u v : Fin 1 → Fin M.size) :
-    (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v] ↔
-      RelMap (M := M) FO.sizedGraph.adj ![u 0, v 0] := by
+private theorem relMap_complementSize_adj (M : Structure FO.sizedGraph) (x y : M) :
+    (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj
+        ![singletonTupleEquiv M.size x, singletonTupleEquiv M.size y] ↔
+      RelMap (M := M) FO.sizedGraph.adj ![x, y] := by
   rw [complementSizeInterpretation,
     FullTupleInterpretation.relMap_tupleStructure_ofQFProjection,
     complementSizeFormula, ProjectionFormula.realize_posLit, pair_args_eq]
+  rfl
 
 private theorem relMap_complementSize_size (M : Structure FO.sizedGraph)
     (u : Fin 1 → Fin M.size) :
@@ -357,82 +341,40 @@ theorem mem_VertexCover_complementSizeInterpretation
     (M : Structure FO.sizedGraph) :
     complementSizeInterpretation.toDomainInterpretation.map hI M ∈ VertexCover ↔
       M ∈ IndependentSet := by
-  have hiso := complementSizeInterpretation.mem_of_isoClosed
-    FO.sizedGraph.isoClosed_VertexCover (by decide) (hI := hI) M
-  change complementSizeInterpretation.toDomainInterpretation.map hI M ∈
-    {N : Structure FO.sizedGraph | Bundled.of (c := FO.sizedGraph.Structure) N ∈
-      FO.sizedGraph.VertexCover} ↔ _
-  rw [← hiso, mem_IndependentSet]
+  refine (complementSizeInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_VertexCover
+    (by decide) M).symm.trans ?_
   change (∃ t : Set (Fin 1 → Fin M.size),
     t.ncard = {u | (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
       ![u]}.ncard ∧
     ∀ u v, u ≠ v →
       (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v] →
       u ∈ t ∨ v ∈ t) ↔ _
-  rw [ncard_size_complementSize M]
-  let e := singletonTupleEquiv M.size
-  constructor
-  · rintro ⟨t, ht, hcov⟩
-    let s : Set M := (e.symm '' t)ᶜ
-    have hsc : sᶜ = e.symm '' t := compl_compl _
-    refine ⟨s, FO.sizedGraph.ncard_compl_eq_iff.mp
-      (by rw [hsc, Set.ncard_image_of_injective _ e.symm.injective, ht]),
-      (FO.sizedGraph.pairwise_not_adj_iff_compl s).mpr fun x y hxy hadj => ?_⟩
-    rw [hsc]
-    have ht_or := hcov (e x) (e y) (e.injective.ne hxy)
-      ((relMap_complementSize_adj M (e x) (e y)).mpr hadj)
-    refine ht_or.imp (fun hx => ?_) (fun hy => ?_)
-    · rw [← e.symm_apply_apply x]
-      exact Set.mem_image_of_mem e.symm hx
-    · rw [← e.symm_apply_apply y]
-      exact Set.mem_image_of_mem e.symm hy
-  · rintro ⟨s, hs, hind⟩
-    refine ⟨e '' sᶜ, (Set.ncard_image_of_injective _ e.injective).trans
-      (FO.sizedGraph.ncard_compl_eq_iff.mpr hs), fun u v huv hadj => ?_⟩
-    have hcov := (FO.sizedGraph.pairwise_not_adj_iff_compl s).mp hind (u 0) (v 0)
-      (e.symm.injective.ne huv) ((relMap_complementSize_adj M u v).mp hadj)
-    refine hcov.imp (fun hu => ?_) (fun hv => ?_)
-    · rw [← e.apply_symm_apply u]
-      exact Set.mem_image_of_mem e hu
-    · rw [← e.apply_symm_apply v]
-      exact Set.mem_image_of_mem e hv
+  rw [ncard_size_complementSize M, exists_ncard_image_iff, compl_surjective.exists,
+    mem_IndependentSet]
+  refine exists_congr fun s => and_congr FO.sizedGraph.ncard_compl_eq_iff ?_
+  rw [FO.sizedGraph.pairwise_not_adj_iff_compl, (singletonTupleEquiv M.size).surjective.forall₂]
+  simp only [(singletonTupleEquiv M.size).injective.ne_iff, relMap_complementSize_adj,
+    (singletonTupleEquiv M.size).injective.mem_set_image]
 
 theorem mem_IndependentSet_complementSizeInterpretation
     {hI : complementSizeInterpretation.toDomainInterpretation.Admissible}
     (M : Structure FO.sizedGraph) :
     complementSizeInterpretation.toDomainInterpretation.map hI M ∈ IndependentSet ↔
       M ∈ VertexCover := by
-  have hiso := complementSizeInterpretation.mem_of_isoClosed
-    FO.sizedGraph.isoClosed_IndependentSet (by decide) (hI := hI) M
-  change complementSizeInterpretation.toDomainInterpretation.map hI M ∈
-    {N : Structure FO.sizedGraph | Bundled.of (c := FO.sizedGraph.Structure) N ∈
-      FO.sizedGraph.IndependentSet} ↔ _
-  rw [← hiso, mem_VertexCover]
+  refine (complementSizeInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_IndependentSet
+    (by decide) M).symm.trans ?_
   change (∃ t : Set (Fin 1 → Fin M.size),
     t.ncard = {u | (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
       ![u]}.ncard ∧
     t.Pairwise fun u v =>
       ¬ (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
-  rw [ncard_size_complementSize M]
-  let e := singletonTupleEquiv M.size
-  constructor
-  · rintro ⟨t, ht, hind⟩
-    let s : Set M := (e.symm '' t)ᶜ
-    have hsc : sᶜ = e.symm '' t := compl_compl _
-    refine ⟨s, FO.sizedGraph.ncard_compl_eq_iff.mp
-      (by rw [hsc, Set.ncard_image_of_injective _ e.symm.injective, ht]), fun x y hxy hadj => ?_⟩
-    by_contra hboth
-    simp only [s, Set.mem_compl_iff, not_or, not_not] at hboth
-    obtain ⟨⟨u, hu, rfl⟩, ⟨v, hv, rfl⟩⟩ := hboth
-    exact hind hu hv (ne_of_apply_ne e.symm hxy) ((relMap_complementSize_adj M u v).mpr hadj)
-  · rintro ⟨s, hs, hcov⟩
-    refine ⟨e '' sᶜ, (Set.ncard_image_of_injective _ e.injective).trans
-      (FO.sizedGraph.ncard_compl_eq_iff.mpr hs), ?_⟩
-    rw [e.injective.injOn.pairwise_image]
-    intro x hx y hy hxy hadj
-    rcases hcov x y hxy ((relMap_complementSize_adj M (e x) (e y)).mp hadj) with hxs | hys
-    · exact hx hxs
-    · exact hy hys
+  rw [ncard_size_complementSize M, exists_ncard_image_iff, compl_surjective.exists,
+    mem_VertexCover]
+  refine exists_congr fun s => and_congr FO.sizedGraph.ncard_compl_eq_iff ?_
+  let := complementSizeInterpretation.tupleStructure M
+  rw [FO.sizedGraph.pairwise_not_adj_iff_compl, (singletonTupleEquiv M.size).surjective.forall₂]
+  simp only [(singletonTupleEquiv M.size).injective.ne_iff, relMap_complementSize_adj,
+    Set.mem_compl_iff, (singletonTupleEquiv M.size).injective.mem_set_image, not_not]
 
 end ComplementSizeProofs
 
