@@ -117,7 +117,9 @@ private theorem exists_equiv_compl {α β Q : Type*} [Finite α] {κa : α → Q
       exact Nat.card_congr (e.subtypeEquiv fun x => by simp [A, B, he])
     have hAsBt : (A ∩ s).ncard = (B ∩ t).ncard := by
       rw [← (hh.injOn.mono Set.inter_subset_right).ncard_image]
-      congr 1; ext y; constructor
+      congr 1
+      ext y
+      constructor
       · rintro ⟨x, ⟨hxA, hxs⟩, rfl⟩; exact ⟨(hκ x hxs).trans hxA, hh.mapsTo hxs⟩
       · rintro ⟨hyB, hyt⟩
         obtain ⟨x, hxs, rfl⟩ := hh.surjOn hyt
