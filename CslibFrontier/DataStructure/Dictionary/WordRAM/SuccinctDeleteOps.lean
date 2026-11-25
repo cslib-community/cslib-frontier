@@ -112,9 +112,9 @@ theorem realizes_deletePrepGen :
       (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
       SearchMicroChainGenPre
       (fun _ _ => 0) := by
-  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, searchBucketGenProg_mk,
-    lastSlotOfGenPre_mk, lastSlotOfGenProg_mk, searchResFound, bucketCallBase,
-    bucketCallPair] using
+  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, lmEntryBase, lmEntryBucket,
+    searchBucketGenProg_mk, lastSlotOfGenPre_mk, lastSlotOfGenProg_mk, searchResFound,
+    bucketCallBase, bucketCallPair] using
     [realizes_searchBucketGen, realizes_lastSlotOfGen, realizes_readQuotGen]
   · exact h
   · exact fits_const_of_dictEnv h.1 (by decide)

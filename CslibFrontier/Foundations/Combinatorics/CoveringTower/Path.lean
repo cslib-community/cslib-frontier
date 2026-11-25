@@ -132,6 +132,11 @@ variable {h b D J r : ℕ} {T : Tower h b D J r} {m Uu : ℕ} (R : Routes T m Uu
 /-- The path from `c` to `c'` by way of `γ`. -/
 def path (c c' γ : T.X 0) : List (T.Ed 0) := R.rt c γ ++ (R.rt c' γ).reverse
 
+/-- The path from `c` to `c'` by way of `γ` is the route from `c` to `γ` followed by the reversed
+route from `c'` to `γ`. -/
+theorem path_def (c c' γ : T.X 0) : R.path c c' γ = R.rt c γ ++ (R.rt c' γ).reverse := by
+  rw [path]
+
 theorem path_walk (c c' γ : T.X 0) : T.Walk c (R.path c c' γ) c' :=
   Tower.walk_append (R.walk c γ) (Tower.walk_reverse (R.walk c' γ))
 
@@ -149,6 +154,9 @@ def pl (c c' γ : T.X 0) : ℕ := Nat.find (R.exists_end c c' γ)
 
 /-- The chamber after `s` steps. -/
 def pn (c c' γ : T.X 0) (s : ℕ) : T.X 0 := Tower.nodeAt c (R.path c c' γ) s
+
+/-- A route is at its first chamber after no steps. -/
+theorem pn_zero (c c' γ : T.X 0) : R.pn c c' γ 0 = c := by rfl
 
 theorem pn_pl (c c' γ : T.X 0) : R.pn c c' γ (R.pl c c' γ) = c' :=
     Nat.find_spec (R.exists_end c c' γ)

@@ -40,6 +40,7 @@ that the reverse is killed at the same step.
 
 ## Main definitions
 
+* `Cslib.KilledDart`: a killed-walk dart `(vertex, labels, signals)` with named component accessors.
 * `Cslib.killTime`: the step at which a walk with given kill signals is killed.
 * `Cslib.RotationMap.killedPow`: the killed power of a rotation map.
 
@@ -73,6 +74,19 @@ open Finset
 open scoped BigOperators
 
 variable {V D : Type*}
+
+/-- A dart of a killed power: starting vertex, `T` step labels, and `T` kill signals,
+`(vertex, labels, signals)`. -/
+abbrev KilledDart (V D : Type*) (T q : ℕ) := V × (Fin T → D) × (Fin T → Fin q)
+
+/-- The starting vertex of a killed-walk dart. -/
+abbrev KilledDart.vertex {T q : ℕ} (p : KilledDart V D T q) : V := p.1
+
+/-- The step labels of a killed-walk dart. -/
+abbrev KilledDart.labels {T q : ℕ} (p : KilledDart V D T q) : Fin T → D := p.2.1
+
+/-- The kill signals of a killed-walk dart. -/
+abbrev KilledDart.signals {T q : ℕ} (p : KilledDart V D T q) : Fin T → Fin q := p.2.2
 
 section KillTime
 
@@ -182,8 +196,8 @@ of length `ℓ`: summing a function of its first `ℓ` steps over the walks and 
 `ℓ` sums it `|D| ^ (T - ℓ) (q - 1) ^ ℓ q ^ (T - (ℓ + 1))` times over the walks of length `ℓ`. -/
 theorem sum_ite_killTime_eq {M : Type*} [AddCommMonoid M] {ℓ : ℕ} (hℓ : ℓ < T)
     (F : V × (Fin ℓ → D) → M) :
-    ∑ x : V × (Fin T → D) × (Fin T → Fin q),
-        (if killTime x.2.2 = ℓ then F (x.1, Fin.take ℓ hℓ.le x.2.1) else 0) =
+    ∑ x : KilledDart V D T q,
+        (if killTime x.signals = ℓ then F (x.vertex, Fin.take ℓ hℓ.le x.labels) else 0) =
       (Fintype.card D ^ (T - ℓ) * ((q - 1) ^ ℓ * q ^ (T - (ℓ + 1)))) • ∑ w, F w := by
   refine (Fintype.sum_equiv (Equiv.prodAssoc V (Fin T → D) (Fin T → Fin q)).symm _
     (fun x ↦ if killTime x.2 = ℓ then F (x.1.1, Fin.take ℓ hℓ.le x.1.2) else 0)
@@ -197,8 +211,8 @@ the walk is killed at its step `ℓ < T` and its first `ℓ` steps satisfy `P` n
 `#{w | P w} |D| ^ (T - ℓ) (q - 1) ^ ℓ q ^ (T - (ℓ + 1))`. -/
 theorem card_filter_killTime_eq_and {ℓ : ℕ} (hℓ : ℓ < T) (P : V × (Fin ℓ → D) → Prop)
     [DecidablePred P] :
-    #{x : V × (Fin T → D) × (Fin T → Fin q) |
-        killTime x.2.2 = ℓ ∧ P (x.1, Fin.take ℓ hℓ.le x.2.1)} =
+    #{x : KilledDart V D T q |
+        killTime x.signals = ℓ ∧ P (x.vertex, Fin.take ℓ hℓ.le x.labels)} =
       #{w | P w} * (Fintype.card D ^ (T - ℓ) * ((q - 1) ^ ℓ * q ^ (T - (ℓ + 1)))) := by
   rw [card_filter, card_filter, mul_comm, ← smul_eq_mul, ← sum_ite_killTime_eq hℓ]
   simp only [ite_and]
@@ -264,8 +278,8 @@ first `ℓ < T` labels, on the event that the walk is killed at step `ℓ`, aver
 `(1 - 1 / q) ^ ℓ / q` times its average over the walks of length `ℓ`. -/
 theorem expect_prod_ite_killTime_eq [Fintype V] [Nonempty D] {ℓ : ℕ} (hℓ : ℓ < T)
     (F : V × (Fin ℓ → D) → ℝ) :
-    𝔼 x : V × (Fin T → D) × (Fin T → Fin q),
-        (if killTime x.2.2 = ℓ then F (x.1, Fin.take ℓ hℓ.le x.2.1) else 0) =
+    𝔼 x : KilledDart V D T q,
+        (if killTime x.signals = ℓ then F (x.vertex, Fin.take ℓ hℓ.le x.labels) else 0) =
       (1 - (q : ℝ)⁻¹) ^ ℓ / q * 𝔼 w, F w := by
   rw [Fintype.expect_prod_type, Fintype.expect_prod_type F, mul_expect]
   exact expect_congr rfl fun v _ ↦ expect_ite_killTime_eq hℓ fun r ↦ F (v, r)
@@ -284,11 +298,11 @@ theorem card_filter_killTime_eq_and_splitWalk {T q : ℕ} [NeZero q] [Fintype V]
     {ℓ : ℕ} (hℓ : ℓ < T) (i : Fin ℓ)
     (P : V × D → (Fin i → D) → Prop) (Q : V × D → (Fin (ℓ - (i + 1)) → D) → Prop)
     [∀ d, DecidablePred (P d)] [∀ d, DecidablePred (Q d)] :
-    #{x : V × (Fin T → D) × (Fin T → Fin q) | killTime x.2.2 = ℓ ∧
-        (P (G.walkDart (x.1, Fin.take ℓ hℓ.le x.2.1) i)
-            ((G.pow i).rot (x.1, Fin.take i i.isLt.le (Fin.take ℓ hℓ.le x.2.1))).2 ∧
-          Q (G.walkDart (x.1, Fin.take ℓ hℓ.le x.2.1) i)
-            (G.walkDrop (x.1, Fin.take ℓ hℓ.le x.2.1) (i + 1)).2)} =
+    #{x : KilledDart V D T q | killTime x.signals = ℓ ∧
+        (P (G.walkDart (x.vertex, Fin.take ℓ hℓ.le x.labels) i)
+            ((G.pow i).rot (x.vertex, Fin.take i i.isLt.le (Fin.take ℓ hℓ.le x.labels))).2 ∧
+          Q (G.walkDart (x.vertex, Fin.take ℓ hℓ.le x.labels) i)
+            (G.walkDrop (x.vertex, Fin.take ℓ hℓ.le x.labels) (i + 1)).2)} =
       (∑ d, #{r | P d r} * #{s | Q d s}) *
         (Fintype.card D ^ (T - ℓ) * ((q - 1) ^ ℓ * q ^ (T - (ℓ + 1)))) := by
   rw [← G.card_filter_splitWalk i P Q]
@@ -313,15 +327,15 @@ its rotation map reverses the walk up to that step and leaves the unused labels 
 alone, so that the reverse is killed at the same step. A step of its random walk is a random walk
 on `G` killed before each step with probability `1 / q`, and stopped after `T` steps. -/
 def killedPow : RotationMap V ((Fin T → D) × (Fin T → Fin q)) where
-  rot x :=
-    (((G.pow (killTime x.2.2)).rot (x.1, Fin.take _ (killTime_le x.2.2) x.2.1)).1,
-      fun i ↦ if h : (i : ℕ) < killTime x.2.2 then
-        ((G.pow (killTime x.2.2)).rot (x.1, Fin.take _ (killTime_le x.2.2) x.2.1)).2 ⟨i, h⟩
-        else x.2.1 i,
-      x.2.2)
+  rot (x : KilledDart V D T q) :=
+    let rev := (G.pow (killTime x.signals)).rot
+      (x.vertex, Fin.take _ (killTime_le x.signals) x.labels)
+    (rev.1,
+      fun i ↦ if h : (i : ℕ) < killTime x.signals then rev.2 ⟨i, h⟩ else x.labels i,
+      x.signals)
   rot_involutive := by
     rintro ⟨v, k, c⟩
-    dsimp only
+    dsimp only [KilledDart.vertex, KilledDart.labels, KilledDart.signals]
     have hR := (G.pow (killTime c)).rot_rot (v, Fin.take _ (killTime_le c) k)
     generalize (G.pow (killTime c)).rot (v, Fin.take _ (killTime_le c) k) = R at hR ⊢
     rw [take_dite, Prod.mk.eta, hR]
@@ -337,15 +351,15 @@ theorem neighbor_killedPow (v : V) (x : (Fin T → D) × (Fin T → Fin q)) :
 
 /-- The rotation map of the killed power leaves the kill signals alone. -/
 @[simp]
-theorem snd_snd_rot_killedPow (p : V × (Fin T → D) × (Fin T → Fin q)) :
-    ((G.killedPow T q).rot p).2.2 = p.2.2 :=
+theorem snd_snd_rot_killedPow (p : KilledDart V D T q) :
+    KilledDart.signals ((G.killedPow T q).rot p) = p.signals :=
   rfl
 
 /-- The rotation map of the killed power reverses the walk up to the step at which it is killed. -/
-theorem rot_pow_killTime (p : V × (Fin T → D) × (Fin T → Fin q)) :
-    (G.pow (killTime p.2.2)).rot (p.1, Fin.take _ (killTime_le p.2.2) p.2.1) =
+theorem rot_pow_killTime (p : KilledDart V D T q) :
+    (G.pow (killTime p.signals)).rot (p.vertex, Fin.take _ (killTime_le p.signals) p.labels) =
       (((G.killedPow T q).rot p).1,
-        Fin.take _ (killTime_le p.2.2) ((G.killedPow T q).rot p).2.1) :=
+        Fin.take _ (killTime_le p.signals) (KilledDart.labels ((G.killedPow T q).rot p))) :=
   Prod.ext rfl (take_dite _ _ _).symm
 
 end KilledPow

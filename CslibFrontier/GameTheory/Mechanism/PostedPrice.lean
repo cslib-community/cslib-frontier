@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.GameTheory.Mechanism.OptimalAuction
+public import CslibFrontier.GameTheory.Mechanism.BulowKlemperer
 public import CslibFrontier.Probability.OptimalStopping.ProphetSample
 import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
@@ -18,7 +18,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Sequential posted-price mechanisms, prophet auctions, and Bulow–Klemperer
+# Sequential posted-price mechanisms and prophet auctions
 
 A *sequential posted-price mechanism* (SPM, or *order-oblivious posted-price mechanism* when the
 arrival order is adversarial; [ChawlaHartlineMalecSivan2010], §1–§2.2, pp. 1–4;
@@ -26,7 +26,7 @@ arrival order is adversarial; [ChawlaHartlineMalecSivan2010], §1–§2.2, pp. 1
 order of `ι` and offering bidder `i` a take-it-or-leave-it price `p i ≥ 0`. The first bidder who
 accepts wins the item and pays `p i`; all other bidders receive and pay nothing.
 
-This module develops four main pillars connecting prophet inequalities and simple near-optimal
+This module develops three main pillars connecting prophet inequalities and simple near-optimal
 auctions:
 
 1. **Incentives and group strategy-proofness** (`PostedPrice.acceptMechanism`,
@@ -57,10 +57,6 @@ auctions:
    inverting each virtual valuation at `t = E[maxᵢ φᵢ(vᵢ)⁺] / 2` via `reservePrice` yields a DSIC,
    IR sequential posted-price mechanism whose expected revenue is at least `1/2` of *every* DSIC, IR
    single-item mechanism (including Myerson's asymmetric optimal auction).
-4. **The Bulow–Klemperer theorem** (`bulow_klemperer`, [BulowKlemperer1996];
-   [Roughgarden2013CS364A], Lecture 6, Theorem 4.1, p. 6): for `n` i.i.d. regular bidders, the
-   prior-independent `(n + 1)`-bidder Vickrey auction with zero reserve achieves expected revenue at
-   least that of *every* DSIC, IR `n`-bidder single-item mechanism.
 
 ## Main definitions
 
@@ -87,14 +83,11 @@ auctions:
   posted-price revenue and welfare.
 * `SingleParameter.PostedPrice.integral_sum_payment_le_two_mul_virtualPostedPrices`: non-i.i.d.
   regular revenue `1/2`-approximation by sequential posted pricing.
-* `SingleParameter.HasValueDensity.integral_virtualValue_eq_zero`,
-  `SingleParameter.PostedPrice.bulow_klemperer`: **the Bulow–Klemperer theorem**.
 
 ## References
 
 * [S. Chawla, J. D. Hartline, D. L. Malec, B. Sivan, *Multi-parameter mechanism design and
   sequential posted pricing*][ChawlaHartlineMalecSivan2010]
-* [J. Bulow, P. Klemperer, *Auctions versus negotiations*][BulowKlemperer1996]
 * [A. Rubinstein, J. Z. Wang, S. M. Weinberg, *Optimal single-choice prophet inequalities from
   samples*][RubinsteinWangWeinberg2020]
 * [T. Roughgarden, *CS364A: Algorithmic Game Theory*, lecture notes][Roughgarden2013CS364A],
@@ -108,20 +101,6 @@ open scoped ENNReal NNReal
 public section
 
 namespace Cslib.GameTheory.SingleParameter
-
-/-! ### Mean-zero virtual valuation -/
-
-/-- Under a valuation distribution with density `f` on `[0, h]`, the expected virtual valuation is
-`0`: applying the one-dimensional Myerson identity to the constant allocation `g ≡ 1` equates
-`∫ φ(v) ∂μ` to `∫ (v · 1 − ∫₀ᵛ 1) ∂μ = 0`. -/
-theorem HasValueDensity.integral_virtualValue_eq_zero {μ : Measure ℝ} [IsProbabilityMeasure μ]
-    {f : ℝ → NNReal} {h : ℝ} (hμ : HasValueDensity μ f h) :
-    ∫ v, virtualValue μ f v ∂μ = 0 := by
-  have h1 := hμ.integral_payment_eq_integral_virtualValue_mul (g := fun _ => (1 : ℝ))
-    measurable_const (B := 1) fun _ _ => by norm_num
-  simp only [mul_one, intervalIntegral.integral_const, sub_zero, smul_eq_mul, sub_self,
-    integral_zero] at h1
-  exact h1.symm
 
 namespace PostedPrice
 
@@ -1261,206 +1240,6 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
   nlinarith
 
 end NonIIDRevenue
-
-/-! ### The Bulow–Klemperer theorem -/
-
-section BulowKlemperer
-
-/-- **The Bulow–Klemperer theorem** ([BulowKlemperer1996];
-[Roughgarden2013CS364A], Lecture 6, Theorem 4.1, p. 6).
-
-Setting: `n` i.i.d. bidders have valuations drawn from a regular distribution `μ` with density `f`
-on `[0, h]`.
-
-Conclusion: the prior-independent Vickrey (second-price) auction with `n + 1` i.i.d. bidders and
-*zero reserve price* collects expected revenue at least that of *every* DSIC, individually rational,
-measurable `n`-bidder single-item mechanism `M` (including Myerson's `n`-bidder optimal auction). -/
-theorem bulow_klemperer {n : ℕ} {μ : Measure ℝ} [IsProbabilityMeasure μ] {f : ℝ → NNReal}
-    {h : ℝ} (hμ : HasValueDensity μ f h) (hreg : IsRegular μ f h)
-    {M : Mechanism (Fin n)} (hM : M.IsDSIC) (hIR : M.IsIR)
-    (hMX : ∀ v, 0 ≤ v → M.allocation v ∈ Vickrey.singleItemFeasible)
-    (hMm : ∀ i, Measurable fun v => M.allocation v i) :
-    ∫ v, ∑ i : Fin n, M.payment v i ∂Measure.pi (fun _ : Fin n => μ) ≤
-      ∫ v, ∑ j : Fin (n + 1), (Vickrey.mechanism (ι := Fin (n + 1))).payment v j
-        ∂Measure.pi (fun _ : Fin (n + 1) => μ) := by
-  -- Step 1: Bound `M` by Myerson's `n`-bidder optimal virtual welfare.
-  let optAlloc : (Fin n → ℝ) → Fin n → ℝ := Vickrey.reserveAllocation (virtualValue μ f)
-  have hopt_meas : ∀ i : Fin n, Measurable fun v => optAlloc v i :=
-    fun i => Vickrey.measurable_reserveAllocation hμ.measurable_virtualValue i
-  have hopt_B : ∀ (v : Fin n → ℝ), 0 ≤ v → ∀ i, |optAlloc v i| ≤ 1 := fun v _ i => by
-    dsimp only [optAlloc]
-    rcases Vickrey.reserveAllocation_binary (virtualValue μ f) v i with h0 | h1
-    · rw [h0]; norm_num
-    · rw [h1]; norm_num
-  have hM_le : ∫ v, ∑ i : Fin n, M.payment v i ∂Measure.pi (fun _ : Fin n => μ) ≤
-      ∫ v, ∑ i : Fin n, virtualValue μ f (v i) * optAlloc v i
-        ∂Measure.pi (fun _ : Fin n => μ) := by
-    refine (Vickrey.integral_sum_payment_le_reserve hμ hreg hM hIR hMX hMm).trans_eq ?_
-    exact integral_sum_myersonPayment_eq (fun _ => hμ) hopt_meas hopt_B
-  -- Step 2: Embed `optAlloc` into `Fin (n + 1)` by awarding any unsold item to `Fin.last n`.
-  let μ₁ := fun _ : Fin (n + 1) => μ
-  let initOf : (Fin (n + 1) → ℝ) → Fin n → ℝ := fun v i => v (Fin.castSucc i)
-  let bkAlloc : (Fin (n + 1) → ℝ) → Fin (n + 1) → ℝ := fun v =>
-    Fin.lastCases (1 - ∑ i : Fin n, optAlloc (initOf v) i)
-      (fun i => optAlloc (initOf v) i)
-  have hmp_init : MeasurePreserving initOf (Measure.pi μ₁) (Measure.pi fun _ : Fin n => μ) := by
-    have h1 := measurePreserving_piFinSuccAbove μ₁ (Fin.last n)
-    have h2 : MeasurePreserving Prod.snd
-        (μ.prod (Measure.pi fun j : Fin n => μ₁ ((Fin.last n).succAbove j)))
-        (Measure.pi fun _ : Fin n => μ) := by
-      simpa only [μ₁, Fin.succAbove_last] using
-        (MeasureTheory.measurePreserving_snd (μ := μ)
-          (ν := Measure.pi fun _ : Fin n => μ))
-    have hcomp := h2.comp h1
-    have hfn : Prod.snd ∘ MeasurableEquiv.piFinSuccAbove (fun _ : Fin (n + 1) => ℝ) (Fin.last n) =
-        initOf := by
-      funext v i
-      simp [initOf, MeasurableEquiv.piFinSuccAbove, Fin.init]
-    rwa [hfn] at hcomp
-  have hm_init : Measurable initOf := hmp_init.measurable
-  -- Expected virtual welfare of the first `n` coordinates equals the `n`-bidder optimal revenue.
-  have hfirst_n : ∫ v, ∑ i : Fin n, virtualValue μ f (v (Fin.castSucc i)) * optAlloc (initOf v) i
-      ∂Measure.pi μ₁ =
-      ∫ v₀, ∑ i : Fin n, virtualValue μ f (v₀ i) * optAlloc v₀ i
-        ∂Measure.pi (fun _ : Fin n => μ) := by
-    let F : (Fin n → ℝ) → ℝ := fun v₀ => ∑ i : Fin n, virtualValue μ f (v₀ i) * optAlloc v₀ i
-    change ∫ v, F (initOf v) ∂Measure.pi μ₁ = ∫ v₀, F v₀ ∂Measure.pi (fun _ : Fin n => μ)
-    have hmF : Measurable F := Finset.measurable_sum Finset.univ fun i _ =>
-      (hμ.measurable_virtualValue.comp (measurable_pi_apply i)).mul (hopt_meas i)
-    conv_rhs => rw [← hmp_init.map_eq]
-    exact (integral_map hm_init.aemeasurable
-      (by rw [hmp_init.map_eq]; exact hmF.aestronglyMeasurable)).symm
-  -- Integrability of the first `n` coordinates and the `Fin.last n` remainder under `bkAlloc`.
-  let rem : (Fin (n + 1) → ℝ) → ℝ := fun v => 1 - ∑ i : Fin n, optAlloc (initOf v) i
-  have hm_rem : Measurable rem := measurable_const.sub
-    (Finset.measurable_sum Finset.univ fun i _ => (hopt_meas i).comp hm_init)
-  have hrem_abs : ∀ v : Fin (n + 1) → ℝ, |rem v| ≤ 1 := by
-    intro v
-    have hfeas := Vickrey.reserveAllocation_mem_singleItemFeasible (virtualValue μ f) (initOf v)
-    have hnn : 0 ≤ ∑ i : Fin n, optAlloc (initOf v) i :=
-      Finset.sum_nonneg fun i _ => Vickrey.reserveAllocation_nonneg _ _ i
-    have hle1 : ∑ i : Fin n, optAlloc (initOf v) i ≤ 1 := hfeas.2
-    rw [abs_le]
-    dsimp only [rem]
-    exact ⟨by linarith, by linarith⟩
-  have hint1 : Integrable
-      (fun (v : Fin (n + 1) → ℝ) =>
-        ∑ i : Fin n, virtualValue μ f (v (Fin.castSucc i)) * optAlloc (initOf v) i)
-      (Measure.pi μ₁) := by
-    refine integrable_finsetSum _ fun i _ => ?_
-    have hB' : ∀ (v : Fin (n + 1) → ℝ), 0 ≤ v → |optAlloc (initOf v) i| ≤ 1 :=
-      fun v hv => hopt_B (initOf v) (fun k => hv (Fin.castSucc k)) i
-    exact integrable_virtualValue_mul (x := fun v _ => optAlloc (initOf v) i)
-      (fun _ => hμ) (Fin.castSucc i) ((hopt_meas i).comp hm_init) hB'
-  have hint_last : Integrable (fun v => virtualValue μ f (v (Fin.last n)) * rem v)
-      (Measure.pi μ₁) := by
-    have hφ_int : Integrable (fun (v : Fin (n + 1) → ℝ) => virtualValue μ f (v (Fin.last n)))
-        (Measure.pi μ₁) := integrable_comp_eval hμ.integrable_virtualValue
-    refine Integrable.mono' hφ_int.norm
-      ((hμ.measurable_virtualValue.comp (measurable_pi_apply (Fin.last n))).mul
-        hm_rem).aestronglyMeasurable
-      (ae_of_all _ fun v => ?_)
-    rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_mul]
-    exact mul_le_of_le_one_right (abs_nonneg _) (hrem_abs v)
-  have hsplit : ∀ v : Fin (n + 1) → ℝ,
-      ∑ j : Fin (n + 1), virtualValue μ f (v j) * bkAlloc v j =
-        (∑ i : Fin n, virtualValue μ f (v (Fin.castSucc i)) * optAlloc (initOf v) i) +
-          virtualValue μ f (v (Fin.last n)) * rem v := by
-    intro v
-    rw [Fin.sum_univ_castSucc]
-    simp only [bkAlloc, rem, Fin.lastCases_castSucc, Fin.lastCases_last]
-  -- Expected virtual surplus of bidder `Fin.last n` under `bkAlloc` is `0`!
-  have hlast_zero : ∫ v, virtualValue μ f (v (Fin.last n)) * rem v ∂Measure.pi μ₁ = 0 := by
-    have hindep : ∀ (v : Fin (n + 1) → ℝ) (z : ℝ),
-        (fun w => virtualValue μ f w * rem (Function.update v (Fin.last n) z)) =
-          fun w => virtualValue μ f w * rem v := by
-      intro v z
-      funext w
-      have hinit_upd : initOf (Function.update v (Fin.last n) z) = initOf v := by
-        funext i
-        dsimp only [initOf]
-        exact Function.update_of_ne (Fin.castSucc_ne_last i) _ _
-      simp only [rem, hinit_upd]
-    rw [integral_apply_eval_eq_integral_integral μ₁
-      (Φ := fun v w => virtualValue μ f w * rem v) hindep hint_last]
-    dsimp only [μ₁]
-    simp_rw [integral_mul_const, hμ.integral_virtualValue_eq_zero, zero_mul]
-    exact integral_zero _ _
-  -- Step 3: Compare `bkAlloc` pointwise a.e. with `(n + 1)`-bidder `Vickrey.allocation`.
-  have hbk_eq : ∫ v, ∑ j : Fin (n + 1), virtualValue μ f (v j) * bkAlloc v j ∂Measure.pi μ₁ =
-      ∫ v₀, ∑ i : Fin n, virtualValue μ f (v₀ i) * optAlloc v₀ i
-        ∂Measure.pi (fun _ : Fin n => μ) := by
-    simp_rw [hsplit]
-    rw [integral_add hint1 hint_last, hfirst_n, hlast_zero, add_zero]
-  have hae_pos : ∀ᵐ v ∂Measure.pi μ₁, ∀ j : Fin (n + 1), 0 < v j := by
-    have hae0 : ∀ᵐ v ∂Measure.pi μ₁, ∀ j : Fin (n + 1), v j ≠ 0 := by
-      rw [ae_all_iff]
-      intro j
-      have := hμ.nullSingletonClass
-      have hz : ∀ᵐ z ∂μ₁ j, z ≠ 0 := by
-        rw [ae_iff]
-        simpa only [Classical.not_not, Set.ofPred_eq_eq_singleton] using measure_singleton (0 : ℝ)
-      exact (Measure.quasiMeasurePreserving_eval μ₁ j).ae hz
-    filter_upwards [ae_nonneg fun _ : Fin (n + 1) => hμ, hae0] with v hv0 hne j
-    exact lt_of_le_of_ne (hv0 j) (Ne.symm (hne j))
-  have hvick_B : ∀ (v : Fin (n + 1) → ℝ), 0 ≤ v →
-      ∀ j, |(Vickrey.mechanism (ι := Fin (n + 1))).allocation v j| ≤ 1 := fun v _ j => by
-    rcases Vickrey.allocation_binary v j with h0 | h1
-    · simp [Vickrey.mechanism, h0]
-    · simp [Vickrey.mechanism, h1]
-  have hvick_rev : ∫ v, ∑ j : Fin (n + 1),
-      (Vickrey.mechanism (ι := Fin (n + 1))).payment v j ∂Measure.pi μ₁ =
-      ∫ v, ∑ j : Fin (n + 1), virtualValue μ f (v j) * Vickrey.allocation v j ∂Measure.pi μ₁ :=
-    Vickrey.mechanism_isDSIC.integral_sum_payment_eq Vickrey.mechanism_isNormalized
-      (fun _ => hμ) Vickrey.measurable_allocation hvick_B
-  rw [hvick_rev]
-  refine hM_le.trans ?_
-  rw [← hbk_eq]
-  -- Pointwise bound: on `0 < v`, `∑ φ(v j) * bkAlloc v j ≤ φ(v w) = ∑ φ(v j) * Vickrey.allocation`!
-  have hint_bk_sum : Integrable
-      (fun v => ∑ j : Fin (n + 1), virtualValue μ f (v j) * bkAlloc v j) (Measure.pi μ₁) :=
-    (hint1.add hint_last).congr (ae_of_all _ fun v => (hsplit v).symm)
-  have hint_vick_sum : Integrable
-      (fun v => ∑ j : Fin (n + 1), virtualValue μ f (v j) * Vickrey.allocation v j)
-      (Measure.pi μ₁) :=
-    integrable_finsetSum _ fun j _ =>
-      integrable_virtualValue_mul (fun _ => hμ) j (Vickrey.measurable_allocation j)
-        fun v hv => hvick_B v hv j
-  refine integral_mono_ae hint_bk_sum hint_vick_sum ?_
-  filter_upwards [hae_pos] with v hvpos
-  obtain ⟨w, hw⟩ := Vickrey.exists_wins v
-  have hφle : ∀ j : Fin (n + 1), virtualValue μ f (v j) ≤ virtualValue μ f (v w) := by
-    intro j
-    rcases eq_or_ne j w with rfl | hjw
-    · exact le_rfl
-    · exact (hreg.strictMonoOn_Ioi hμ).monotoneOn (hvpos j) (hvpos w) (hw j hjw).1
-  have hbk_nn : ∀ j : Fin (n + 1), 0 ≤ bkAlloc v j := by
-    intro j
-    refine j.lastCases ?_ (fun i => ?_)
-    · simp only [bkAlloc, Fin.lastCases_last]
-      have hfeas := Vickrey.reserveAllocation_mem_singleItemFeasible (virtualValue μ f) (initOf v)
-      linarith [hfeas.2]
-    · simp only [bkAlloc, Fin.lastCases_castSucc]
-      exact Vickrey.reserveAllocation_nonneg _ _ i
-  have hbk_sum1 : ∑ j : Fin (n + 1), bkAlloc v j = 1 := by
-    rw [Fin.sum_univ_castSucc]
-    simp only [bkAlloc, Fin.lastCases_castSucc, Fin.lastCases_last]
-    ring
-  have hvick_sum : ∑ j : Fin (n + 1), virtualValue μ f (v j) * Vickrey.allocation v j =
-      virtualValue μ f (v w) := by
-    rw [Finset.sum_eq_single w
-      (fun j _ hj => by
-        rw [Vickrey.allocation_eq_zero_iff.mpr fun hjw => hj (hjw.unique hw), mul_zero])
-      (fun hm => absurd (Finset.mem_univ w) hm),
-      Vickrey.allocation_eq_one_iff.mpr hw, mul_one]
-  rw [hvick_sum]
-  calc ∑ j : Fin (n + 1), virtualValue μ f (v j) * bkAlloc v j
-      ≤ ∑ j : Fin (n + 1), virtualValue μ f (v w) * bkAlloc v j :=
-        Finset.sum_le_sum fun j _ => mul_le_mul_of_nonneg_right (hφle j) (hbk_nn j)
-    _ = virtualValue μ f (v w) * ∑ j : Fin (n + 1), bkAlloc v j := by rw [Finset.mul_sum]
-    _ = virtualValue μ f (v w) := by rw [hbk_sum1, mul_one]
-
-end BulowKlemperer
 
 end PostedPrice
 

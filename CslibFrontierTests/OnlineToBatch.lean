@@ -107,7 +107,7 @@ example : IsPACLearnable (thresholdClassUpTo 7) (realizableDistributions (thresh
 
 /-- The class of all thresholds has no finite optimal mistake bound, so the online-to-batch theorem
 does not apply to it, although it has VC dimension `1` and is PAC learnable by VC theory. -/
-example : optimalMistakeBound thresholdClass = ⊤ := by
+example : optimalMistakeBound (thresholdClass ℕ) = ⊤ := by
   rw [optimalMistakeBound_eq_littlestoneDim, littlestoneDim_thresholdClass]
 
 end CslibFrontierTests.OnlineToBatch
