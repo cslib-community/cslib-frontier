@@ -259,12 +259,9 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     rw [clientState_bind_read, hcurI, clientState_bind, hs_b, hbj, clientState_bind, hs_s]
     change (Memory.spec 0).clientState s₀ (pBranch >>= _) = _
     rw [clientState_bind, hs_p, hres_p, clientState_bind_write, clientState_bind_read]
-    dsimp only
     simp only [hold_s_mid]
     rw [clientState_bind_write]
-    split_ifs
-    · exact clientState_pure _ _
-    · rw [clientState_bind_write, clientState_pure]
+    split_ifs <;> rfl
   have hrun_res : (Memory.spec 0).clientResult s₀ (bidStepProg (ws, st.free.length)) =
       if (st.owner j₀).elim ws.n Fin.val = ws.n then
         st.free.length - 1
@@ -275,12 +272,9 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     rw [clientResult_bind_read, hcurI, clientResult_bind, hs_b, hbj, clientResult_bind, hs_s]
     change (Memory.spec 0).clientResult s₀ (pBranch >>= _) = _
     rw [clientResult_bind, hs_p, hres_p, clientResult_bind_write, clientResult_bind_read]
-    dsimp only
     simp only [hold_s_mid]
     rw [clientResult_bind_write]
-    split_ifs
-    · exact clientResult_pure _ _
-    · rw [clientResult_bind_write, clientResult_pure]
+    split_ifs <;> rfl
   refine ⟨hsafe_all, ?_, ?_, ?_, ?_, ?_⟩
   · -- ValidHistory
     unfold bidStepProg
@@ -384,15 +378,9 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       simp only [Option.elim_some, hne, ↓reduceIte, Option.toList_some, List.singleton_append]
       refine ⟨fun i j => ?_, fun j => ?_, fun j => ?_, fun k hk => ?_⟩
       · have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
-        dsimp only
-        rw [Function.update_of_ne (by omega)]
-        exact hs_mid_c i j
-      · dsimp only
-        rw [Function.update_of_ne (by omega)]
-        exact hs_mid_owner j
-      · dsimp only
-        rw [Function.update_of_ne (by omega)]
-        exact hs_mid_price j
+        exact (Function.update_of_ne (by omega) _ _).trans (hs_mid_c i j)
+      · exact (Function.update_of_ne (by omega) _ _).trans (hs_mid_owner j)
+      · exact (Function.update_of_ne (by omega) _ _).trans (hs_mid_price j)
       · simp only [List.length_cons] at hk ⊢
         rcases Nat.lt_succ_iff_lt_or_eq.mp hk with hlt_r | rfl
         · dsimp only [s_mid]
