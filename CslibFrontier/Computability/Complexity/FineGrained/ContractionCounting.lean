@@ -148,18 +148,14 @@ theorem count_eq {k : ℕ} {φ : CNF ℕ} (hk : ∀ c ∈ φ, c.length ≤ k) :
     unfold fallback
     cases φ with
     | nil =>
-      rw [← CNF.modelCountOn_vars, CNF.modelCountOn_nil]
-      rfl
+      rw [← CNF.modelCountOn_vars, CNF.modelCountOn_nil]; rfl
     | cons c φ =>
       have hnil : [] ∈ c :: φ := by
         by_contra hnil
-        apply hg
-        refine guard_eq_true_iff.mpr ⟨List.cons_ne_nil _ _, fun c' hc' => ⟨?_, hk c' hc'⟩⟩
-        rcases Nat.eq_zero_or_pos c'.length with h0 | h0
-        · exact (hnil (List.length_eq_zero_iff.mp h0 ▸ hc')).elim
-        · exact h0
-      rw [← CNF.modelCountOn_vars, CNF.modelCountOn_eq_zero_of_nil_mem hnil]
-      simp
+        exact hg (guard_eq_true_iff.mpr ⟨List.cons_ne_nil _ _, fun c' hc' =>
+          ⟨Nat.pos_iff_ne_zero.mpr (mt List.length_eq_zero_iff.mp fun h0 => hnil (h0 ▸ hc')),
+            hk c' hc'⟩⟩)
+      simp [← CNF.modelCountOn_vars, CNF.modelCountOn_eq_zero_of_nil_mem hnil]
 
 
 /-! ### Resources -/
@@ -233,12 +229,10 @@ theorem exists_modelCounter (k : ℕ) :
           ((encCNF φ).length + 1) ^ e)
         (fun φ => ((encCNF φ).length + 1) ^ b) := by
   obtain ⟨K, h⟩ := expTimePolySpace_certificate k
-  have hc := h (fun φ => 3 * k * K * (φ.length + 1) / Nat.sqrt (Nat.log 2 (φ.numVars + 2)))
-    fun φ hg => by
-      obtain ⟨hN, -, hk⟩ := guard_vars_bounds hg
-      exact exponent_le hN (CNF.length_vars_le_mul_length hk) (CNF.numVars_le_length_vars φ)
-  obtain ⟨e, he⟩ := hc.computableInO
-  exact ⟨count k, 3 * k * K, e, e, fun φ hk => count_eq hk, he⟩
+  obtain ⟨e, he⟩ := (h _ fun φ hg => exponent_le (guard_vars_bounds hg).1
+    (CNF.length_vars_le_mul_length (guard_vars_bounds hg).2.2)
+    (CNF.numVars_le_length_vars φ)).computableInO
+  exact ⟨count k, 3 * k * K, e, e, fun _ => count_eq, he⟩
 
 /-- **Model counting by tensor contraction, measured by literal occurrences.** For each clause
 width `k`, one machine computes `φ.modelCount` on every formula `φ` whose clauses have at most `k`

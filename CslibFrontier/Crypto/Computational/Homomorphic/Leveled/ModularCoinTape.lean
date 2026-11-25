@@ -207,18 +207,12 @@ including arbitrary malformed words. The small allocated seed law separately req
     Scheme.computableInPolyTime_modLinkGuessCoins hchoose hencrypt hguess bit hchooseCoins
       hencCoins hcapacity hn htailtail hchallenge htape
   unfold modLeveledGuessCoins
-  apply ComputableInPolyTime.ite_decide
-  · simpa [Function.comp_def] using hfirst
-  · apply ComputableInPolyTime.ite_decide
-    · simpa [Function.comp_def] using hsecond
-    · exact .const _
-    · exact hguess.comp (show ComputableInPolyTime (fun a =>
+  refine .ite_decide (by simpa [Function.comp_def] using hfirst) ?_ ?_
+  · refine .ite_decide (by simpa [Function.comp_def] using hsecond) (.const _)
+      (hguess.comp (show ComputableInPolyTime (fun a =>
         ((n a, (state a).tail.tail, false :: challenge a), (tape a).take (guessCoins (n a))))
-        input (encPair Encryption.encGuessInput encBits) by fun_prop)
-  · apply ComputableInPolyTime.ite_decide
-    · simpa [Function.comp_def] using hsecond
-    · exact hlink true
-    · exact hlink false
+        input (encPair Encryption.encGuessInput encBits) by fun_prop))
+  · exact .ite_decide (by simpa [Function.comp_def] using hsecond) (hlink true) (hlink false)
 
 /-- Replay the actual modular selector and the selected branch. Link branches use a prefix
 of the common payload; zero-link branches discard the three selector blocks. No ideal uniform
@@ -381,21 +375,10 @@ unary caps. The zero-link callback supplies its own already-certified actual rep
       (Encryption.encChoiceOut encBool) (Encryption.encChoiceOut encBool) :=
     (hchoice.fst'.snd'.prod hchoice.fst'.fst').prod hchoice.snd'
   unfold modLeveledChooseCoins
-  apply ComputableInPolyTime.ite_decide
-  · fun_prop
-  · apply ComputableInPolyTime.ite_decide
-    · fun_prop
-    · exact (htag false false).comp hlink
-    · apply ComputableInPolyTime.ite_decide
-      · fun_prop
-      · exact (htag false true).comp (hswap.comp hlink)
-      · apply ComputableInPolyTime.ite_decide
-        · fun_prop
-        · apply ComputableInPolyTime.ite_decide
-          · fun_prop
-          · exact (htag true false).comp hzeroActive
-          · exact .const _
-        · exact .const _
-  · exact (htag true false).comp hzeroFallback
+  refine .ite_decide (by fun_prop) ?_ ((htag true false).comp hzeroFallback)
+  refine .ite_decide (by fun_prop) ((htag false false).comp hlink) ?_
+  refine .ite_decide (by fun_prop) ((htag false true).comp (hswap.comp hlink)) ?_
+  refine .ite_decide (by fun_prop) ?_ (.const _)
+  exact .ite_decide (by fun_prop) ((htag true false).comp hzeroActive) (.const _)
 
 end Cslib.Crypto.Homomorphic.Leveled

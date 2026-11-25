@@ -75,12 +75,8 @@ theorem realizes_transfer : Realizes .exact transfer (.refl Input) counts
         ((Memory.spec 0).clientState t (move ![m.front, m.rear, d 2, d 3, d 4])) := by
       rw [← clientState_width w, ← (Memory.spec w).run_runClient]
       exact hwt.run hb
-    refine ⟨hw', ?_, ?_⟩
-    · change (m.front + 1) + (m.rear - 1) ≤ d 3
-      omega
-    · exact hfrontier
-  · change m.rear - 1 < m.rear
-    omega
+    exact ⟨hw', show (m.front + 1) + (m.rear - 1) ≤ d 3 by omega, hfrontier⟩
+  · exact show m.rear - 1 < m.rear by omega
 
 /-- The existing defined-evaluation simulation gives the same literal memory semantics on the
 standard word-RAM basis used by the original queue. No overflow/underflow behavior is weakened. -/

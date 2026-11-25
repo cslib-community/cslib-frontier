@@ -182,11 +182,7 @@ theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : �
     apply congrArg (PMF.map · _)
     funext seed
     simp only [f]
-    cases H.keyGen s seed with
-    | none => rfl
-    | some k =>
-      simp only [Option.bind_eq_bind, Option.bind_some]
-      cases H.expandA s (k.publicKey.take 32) <;> rfl
+    cases H.keyGen s seed <;> simp
   rw [← eq]
   have on (H : Xofs) : (matrixSetup H s).map f (some A) ≤ (U.map some) (some A) := by
     rw [← uniform_programmedMatrixSetup, PMF.map_bind]
@@ -230,20 +226,15 @@ theorem randomPrefixGame_eq_matrixTrial (C : QuantumSigningForger) (s : Level)
     (base : Xofs) {a b : ℕ} (ha : 272 ≤ a) (hb : 894 ≤ b) :
     C.randomPrefixGame s base a b = (base.uniformPrefixes a b).bind fun H =>
       (C.matrixTrial s H).map (·.any SignedMatrixTrial.wins) := by
-  have joint : ((base.uniformPrefixes a b).bind fun H => matrixSetup H s) =
-      (base.uniformPrefixes a b).bind (fun H =>
-        (PMF.uniformOfFintype (FixedBytes 32)).map (readSetup s H)) :=
-    uniformPrefixes_matrixSetup base s ha hb
   have eq := congrArg (fun p => PMF.bind p fun z =>
-    (C.runAtSetup s z).map (·.any SignedMatrixTrial.wins)) joint
-  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, forgery_from_setup] at eq
+    (C.runAtSetup s z).map (·.any SignedMatrixTrial.wins))
+    (uniformPrefixes_matrixSetup base s ha hb)
+  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at eq
   unfold randomPrefixGame forgeryGame Xofs.keyExperiment
-  simp only [matrixTrial, PMF.monad_bind_eq_bind, PMF.map_bind]
-  rw [eq]
-  apply congrArg (fun f => (base.uniformPrefixes a b).bind f)
-  funext H
-  apply congrArg (fun f => (PMF.uniformOfFintype (FixedBytes 32)).bind f)
-  funext seed
+  simp only [matrixTrial, PMF.monad_bind_eq_bind, PMF.map_bind, eq]
+  refine PMF.bind_congr_on_support _ _ _ fun H _ =>
+    PMF.bind_congr_on_support _ _ _ fun seed _ => ?_
+  rw [show (_, _) = readSetup s H seed from rfl, forgery_from_setup]
   cases H.keyGen s seed <;> rfl
 
 /-- The strong-forgery probability in the finite random-XOF experiment is bounded by the
@@ -264,9 +255,8 @@ theorem randomPrefixGame_forgery_le (C : QuantumSigningForger) (s : Level) (base
   intro R trial
   let run (A : PublicMatrix s) := R.bind fun H => C.programmedTrial s H A
   have eq : (PMF.uniformOfFintype (PublicMatrix s)).bind run = trial := by
-    unfold run trial
-    rw [PMF.bind_comm]
-    simp only [C.uniform_programmedTrial]
+    simpa only [run, trial, C.uniform_programmedTrial] using
+      PMF.bind_comm (PMF.uniformOfFintype (PublicMatrix s)) R fun A H => C.programmedTrial s H A
   have bound := SignedMatrixTrial.bound_of_verifiedLog run (by
     intro A u hu
     obtain ⟨H, _, h⟩ := (PMF.mem_support_bind_iff ..).mp hu

@@ -90,28 +90,15 @@ theorem eval_bind_sampleExp_apply_le (F : PrimeOrderGroupFamily)
     have hadv : Game.advantage gReal gIdeal ≤ 1 / 2 ^ n :=
       F.advantage_bind_sampleExp_le n d (fun β => PMF.pure (decide (β = β₀)))
     have hideal : gIdeal.succProbability = (F.order d : ℝ≥0)⁻¹ := by
-      apply NNReal.eq
-      rw [Game.succProbability]
-      have hval : gIdeal true = (F.order d : ℝ≥0∞)⁻¹ := by
-        dsimp only [gIdeal]
-        rw [PMF.bind_apply, tsum_fintype]
-        simp [PMF.uniformOfFintype_apply, PMF.pure_apply, ZMod.card]
-      rw [hval]
-      simp
+      simp [Game.succProbability, gIdeal, PMF.bind_apply, tsum_fintype,
+        PMF.uniformOfFintype_apply, ZMod.card]
     have hreal_le : gReal.succProbability ≤ (F.order d : ℝ≥0)⁻¹ + 1 / 2 ^ n := by
       rw [← NNReal.coe_le_coe, NNReal.coe_add, ← hideal]
-      have hadv' : |(gReal.succProbability : ℝ) - gIdeal.succProbability| ≤
-          ((1 / 2 ^ n : ℝ≥0) : ℝ) := by
-        rw [← Game.coe_advantage]
-        exact NNReal.coe_le_coe.mpr hadv
+      have hadv' := Game.coe_advantage gReal gIdeal ▸ NNReal.coe_le_coe.mpr hadv
       linarith [le_abs_self ((gReal.succProbability : ℝ) - gIdeal.succProbability)]
     exact (ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hle_ind).trans hreal_le
   · push Not at hex
-    have hzero : (ProbComp.eval (do let b ← F.sampleExp n d; body b)) x = 0 := by
-      rw [ProbComp.eval_bind, PMF.bind_apply]
-      simp [hex]
-    rw [hzero]
-    simp
+    simp [ProbComp.eval_bind, PMF.bind_apply, hex]
 
 /-- At each security parameter `n`, multiplicative ElGamal encryption `elGamalEncryptProb` has
 ciphertext hit bound `(F.order (d n) : ℝ≥0)⁻¹ + 1 / 2 ^ n`, uniformly over all public keys and

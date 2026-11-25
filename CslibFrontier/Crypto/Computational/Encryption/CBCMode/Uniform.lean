@@ -204,12 +204,9 @@ private theorem length_of_mem_cbcChainWords {g : List Bool → List Bool} {n : �
   induction ms generalizing prev with
   | nil => simp [cbcChainWords] at hc
   | cons m ms ih =>
-    have hm : m.length = n := hms m List.mem_cons_self
-    have hxor : (List.zipWith xor prev m).length = n := by simp [hprev, hm]
-    have hgLen : (g (List.zipWith xor prev m)).length = n := hg _ hxor
-    have hc' : ((g (List.zipWith xor prev m)).take n).length = n := by simp [hgLen]
-    simp only [cbcChainWords, List.mem_cons] at hc
-    rcases hc with rfl | hc
+    have hc' : ((g (List.zipWith xor prev m)).take n).length = n := by
+      rw [List.length_take, hg _ (by simp [hprev, hms m List.mem_cons_self]), Nat.min_self]
+    rcases List.mem_cons.mp hc with rfl | hc
     · exact hc'
     · exact ih hc' (fun b hb => hms b (List.mem_cons_of_mem _ hb)) hc
 
@@ -227,13 +224,9 @@ private theorem foldl_cbcDecStep_cbcChainWords {g gInv : List Bool → List Bool
     have hm : m.length = n := hms m List.mem_cons_self
     have hxor : (List.zipWith xor prev m).length = n := by simp [hprev, hm]
     have hgLen : (g (List.zipWith xor prev m)).length = n := hg _ hxor
-    have htakeC : (g (List.zipWith xor prev m)).take n = g (List.zipWith xor prev m) :=
-      List.take_of_length_le hgLen.le
-    have hdec : (gInv (g (List.zipWith xor prev m))).take n = List.zipWith xor prev m := by
-      rw [hinv _ hxor, List.take_of_length_le hxor.le]
-    have hrec : List.zipWith xor prev (List.zipWith xor prev m) = m :=
-      BitString.zipWith_xor_self_left prev m (hprev.trans hm.symm)
-    simp only [cbcChainWords, List.foldl_cons, htakeC, hdec, hrec, List.flatten_cons]
+    simp only [cbcChainWords, List.foldl_cons, List.take_of_length_le hgLen.le, hinv _ hxor,
+      List.take_of_length_le hxor.le, BitString.zipWith_xor_self_left prev m (hprev.trans hm.symm),
+      List.flatten_cons]
     rw [ih hgLen (acc ++ m) fun b hb => hms b (List.mem_cons_of_mem _ hb), List.append_assoc]
 
 /-- **Decryption inverts encryption** on whole-block messages whenever `encFamily k` preserves
@@ -595,13 +588,9 @@ private theorem cbcChainWords_randomFunction_map_ofFn {n : ℕ} (f : BitString n
   induction ms generalizing iv with
   | nil => rfl
   | cons m ms ih =>
-    have hxor : List.zipWith xor (List.ofFn iv) (List.ofFn m) = List.ofFn (iv + m) :=
-      (BitString.ofFn_add iv m).symm
-    have horacle : (randomFunctionOracle n f (List.ofFn (iv + m))).take n =
-        List.ofFn (f (iv + m)) := by
-      simp [randomFunctionOracle]
-    simp only [List.map_cons, cbcChainWords, hxor, horacle, cbcEncryptBlocks_cons]
-    rw [ih]
+    simp only [List.map_cons, cbcChainWords, ← BitString.ofFn_add iv m, randomFunctionOracle,
+      List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn,
+      List.take_of_length_le (List.length_ofFn (f := f (iv + m))).le, cbcEncryptBlocks_cons, ih]
 
 private theorem cbcWordBody_randomFunction_ofFn {n : ℕ} (f : BitString n → BitString n)
     (iv : BitString n) (m : List Bool) :

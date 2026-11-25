@@ -426,17 +426,13 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
             !r.2.2.contains (0, r.1.2.1) && S.verify kc.1 0 r.1.2.1 r.1.2.2) true := by
     obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap b (otherSk := ko.2) (hbound kc hkc)
       (adversary n (doublePlantPk b kc.1 ko.1))
-    have h1 : encPair encBits encBits ((if b then ko else kc).2, (if b then kc else ko).2) =
-        if b then encPair encBits encBits (ko.2, kc.2)
-        else encPair encBits encBits (kc.2, ko.2) := by cases b <;> rfl
-    have h2 : encPair encBits encBits ((if b then ko else kc).1, (if b then kc else ko).1) =
-        doublePlantPk b kc.1 ko.1 := by cases b <;> rfl
-    have h3 : (if b then (if b then kc else ko).1 else (if b then ko else kc).1) = kc.1 := by
-      cases b <;> rfl
-    dsimp only [slotEvent] at heq ⊢
-    rw [h1, h2, h3, ← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-    apply PMF.bind_apply_mono_on_support; intro r hr
-    exact hslot_step b (hinv r hr)
+    cases b
+    · simp only [slotEvent, doublePlantPk, Bool.false_eq_true, ↓reduceIte] at heq ⊢
+      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
+      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step false (hinv r hr)
+    · simp only [slotEvent, doublePlantPk, ↓reduceIte] at heq ⊢
+      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
+      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step true (hinv r hr)
   have hslot (b : Bool) :
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
         (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent b k₀ k₁) true ≤
@@ -465,18 +461,11 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     · simp
     · rcases out with ⟨⟨_ | _ | u, msg, σ⟩, signed⟩ <;>
         simp [doubleKeyDecoder.decode_enc, -encPair_apply]
-  have htotal :
-      (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) true ≤
-        (2 : ℝ≥0∞) *
-          (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) true := by
-    rw [htwo]
-    exact hgame.trans (add_le_add (hslot false) (hslot true))
   have hne : (2 : ℝ≥0∞) *
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) true ≠ ⊤ :=
     ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)
-  unfold Game.succProbability
-  simpa only [ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
-    ENNReal.toNNReal_mono hne htotal
+  simpa only [Game.succProbability, ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
+    ENNReal.toNNReal_mono hne (htwo ▸ hgame.trans (add_le_add (hslot false) (hslot true)))
 
 /-! ### Strict oracle-PPT efficiency of `doubleForger` -/
 
