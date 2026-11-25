@@ -84,8 +84,7 @@ private def corrToCutSym {α : Type*} (y : (α × α) → K) : Option α → Opt
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem corrToCutSym_symm {α : Type*} (y : (α × α) → K) (u v : Option α) :
     corrToCutSym y u v = corrToCutSym y v u := by
-  cases u <;> cases v <;> simp only [corrToCutSym]
-  abel
+  cases u <;> cases v <;> simp only [corrToCutSym]; abel
 
 private def corrToCutLinear (K : Type*) [Field K]
     (α : Type*) : ((α × α) → K) →ₗ[K] (↥(⊤ : SimpleGraph (Option α)).edgeSet → K) where
@@ -130,57 +129,40 @@ omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem cutVertex_compl {V : Type*} [Fintype V] [DecidableEq V] (X : Finset V) :
     cutVertex K (Finset.univ \ X) = cutVertex K X := by
   ext ⟨e, he⟩
-  induction e using Sym2.ind with
-  | _ u v =>
-      have hiff : ((u ∈ Finset.univ \ X) ≠ (v ∈ Finset.univ \ X)) ↔ ((u ∈ X) ≠ (v ∈ X)) := by
-        simp only [Finset.mem_sdiff, Finset.mem_univ, true_and]
-        by_cases hu : u ∈ X <;> by_cases hv : v ∈ X <;>
-          simp only [hu, hv, not_true_eq_false, not_false_eq_true, ne_eq, true_ne_false,
-            false_ne_true]
-      simp only [cutVertex, Sym2.lift_mk, hiff]
+  induction e using Sym2.ind with | _ u v => ?_
+  simp only [cutVertex, Sym2.lift_mk, Finset.mem_sdiff, Finset.mem_univ, true_and]
+  by_cases hu : u ∈ X <;> by_cases hv : v ∈ X <;> simp [hu, hv]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem corrToCutLinear_corrVertex {α : Type*} [DecidableEq α] (b : Finset α) :
     corrToCutLinear K α (corrVertex K b) = cutVertex K (b.image some) := by
   ext ⟨e, he⟩
-  induction e using Sym2.ind with
-  | _ u v =>
-      cases u <;> cases v
-      · simp only [SimpleGraph.mem_edgeSet, SimpleGraph.top_adj, ne_eq, not_true_eq_false] at he
-      · rename_i j
-        simp only [corrToCutLinear, LinearMap.coe_mk, AddHom.coe_mk, Sym2.lift_mk,
-          corrToCutSym, corrVertex, Finset.mem_image, Option.some.injEq, reduceCtorEq,
-          and_false, exists_false, cutVertex]
-        by_cases hj : j ∈ b
-        · simp only [hj, ↓reduceIte, ne_eq, exists_eq_right, false_ne_true, not_false_eq_true,
-            and_self]
-        · simp only [hj, ↓reduceIte, ne_eq, false_and, exists_eq_right, not_true_eq_false]
-      · rename_i i
-        simp only [corrToCutLinear, LinearMap.coe_mk, AddHom.coe_mk, Sym2.lift_mk,
-          corrToCutSym, corrVertex, Finset.mem_image, Option.some.injEq, reduceCtorEq,
-          and_false, exists_false, cutVertex]
-        by_cases hi : i ∈ b
-        · simp only [hi, ↓reduceIte, ne_eq, exists_eq_right, true_ne_false, not_false_eq_true,
-            and_self]
-        · simp only [hi, ↓reduceIte, ne_eq, false_and, exists_eq_right, not_true_eq_false]
-      · rename_i i j
-        simp only [corrToCutLinear, LinearMap.coe_mk, AddHom.coe_mk, Sym2.lift_mk,
-          corrToCutSym, corrVertex, cutVertex, Finset.mem_image, Option.some.injEq,
-          exists_eq_right]
-        by_cases hi : i ∈ b <;> by_cases hj : j ∈ b <;>
-          simp only [hi, hj, and_self, and_true, ↓reduceIte, ne_eq, not_true_eq_false,
-            true_ne_false, false_ne_true] <;> norm_num
+  induction e using Sym2.ind with | _ u v => ?_
+  rcases u with _ | i <;> rcases v with _ | j
+  · simp only [SimpleGraph.mem_edgeSet, SimpleGraph.top_adj, ne_eq, not_true_eq_false] at he
+  · simp only [corrToCutLinear, LinearMap.coe_mk, AddHom.coe_mk, Sym2.lift_mk, corrToCutSym,
+      corrVertex, Finset.mem_image, Option.some.injEq, reduceCtorEq, and_false, exists_false,
+      cutVertex, exists_eq_right]
+    by_cases hj : j ∈ b <;> simp [hj]
+  · simp only [corrToCutLinear, LinearMap.coe_mk, AddHom.coe_mk, Sym2.lift_mk, corrToCutSym,
+      corrVertex, Finset.mem_image, Option.some.injEq, reduceCtorEq, and_false, exists_false,
+      cutVertex, exists_eq_right]
+    by_cases hi : i ∈ b <;> simp [hi]
+  · simp only [corrToCutLinear, LinearMap.coe_mk, AddHom.coe_mk, Sym2.lift_mk,
+      corrToCutSym, corrVertex, cutVertex, Finset.mem_image, Option.some.injEq, exists_eq_right]
+    by_cases hi : i ∈ b <;> by_cases hj : j ∈ b <;>
+      simp only [hi, hj, and_self, and_true, ↓reduceIte, ne_eq, not_true_eq_false,
+        true_ne_false, false_ne_true] <;> norm_num
 
 private theorem cutToCorrLinear_cutVertex_image {α : Type*} [DecidableEq α] (b : Finset α) :
     cutToCorrLinear K α (cutVertex K (b.image some)) = corrVertex K b := by
   ext ⟨i, j⟩
-  simp only [cutToCorrLinear, LinearMap.coe_mk, AddHom.coe_mk, cutVertex,
-    Sym2.lift_mk, Finset.mem_image, Option.some.injEq, exists_eq_right, reduceCtorEq, and_false,
-    exists_false, corrVertex]
+  simp only [cutToCorrLinear, LinearMap.coe_mk, AddHom.coe_mk, cutVertex, Sym2.lift_mk,
+    Finset.mem_image, Option.some.injEq, exists_eq_right, reduceCtorEq, and_false, exists_false,
+    corrVertex]
   by_cases hij : i = j <;> by_cases hi : i ∈ b <;> by_cases hj : j ∈ b <;>
     simp only [hij, hi, hj, ↓reduceDIte, ↓reduceIte, ne_eq, not_true_eq_false, and_self,
-      and_true, true_ne_false, false_ne_true] <;>
-    norm_num
+      and_true, true_ne_false, false_ne_true] <;> norm_num
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem cutVertex_eq_image_some {α : Type*} [Finite α] [DecidableEq α]
@@ -189,52 +171,34 @@ private theorem cutVertex_eq_image_some {α : Type*} [Finite α] [DecidableEq α
   let : Fintype α := Fintype.ofFinite α
   let X' : Finset (Option α) := if none ∈ X then Finset.univ \ X else X
   have hX' : cutVertex K X' = cutVertex K X := by
-    dsimp only [X']
-    split_ifs
-    · exact cutVertex_compl X
-    · rfl
+    dsimp only [X']; split_ifs <;> [exact cutVertex_compl X; rfl]
   have hnone : none ∉ X' := by
-    dsimp only [X']
-    split_ifs with h
+    dsimp only [X']; split_ifs with h
     · simp only [Finset.mem_sdiff, Finset.mem_univ, true_and, h, not_true_eq_false,
         not_false_eq_true]
     · exact h
-  refine ⟨Finset.univ.filter fun i => some i ∈ X', ?_⟩
-  rw [← hX']
-  congr 1
-  ext u
-  cases u with
-  | none =>
-      simp only [hnone, Finset.mem_image, reduceCtorEq, and_false, exists_false]
-  | some i =>
-      simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and, Option.some.injEq,
-        exists_eq_right]
+  refine ⟨Finset.univ.filter (some · ∈ X'), hX'.symm.trans (congrArg (cutVertex K) ?_)⟩
+  ext (_ | i) <;>
+    simp only [hnone, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and,
+      Option.some.injEq, exists_eq_right, reduceCtorEq, and_false, exists_false]
 
 /-- `CUT(Option α)` and `CORR(α)` have identical extension complexity
 [DeSimone1990]; [FioriniMassarPokuttaTiwaryDeWolf2015, Theorem 5]. -/
 theorem extensionComplexity_cutPolytope_option_eq (α : Type*) [Fintype α] [DecidableEq α] :
     extensionComplexity (cutPolytope K (Option α)) = extensionComplexity (corrPolytope K α) := by
-  have him₁ : corrToCutLinear K α '' Set.range (corrVertex K) = Set.range (cutVertex K) := by
-    ext z
-    simp only [Set.mem_image, Set.mem_range]
-    constructor
-    · rintro ⟨_, ⟨b, rfl⟩, rfl⟩
-      exact ⟨b.image some, (corrToCutLinear_corrVertex b).symm⟩
+  refine extensionComplexity_eq_of_linearMaps (corrToCutLinear K α) (cutToCorrLinear K α) ?_ ?_
+  · rw [corrPolytope, LinearMap.image_convexHull, cutPolytope, ← Set.range_comp]
+    refine congrArg (convexHull K) (Set.ext fun z => ⟨?_, ?_⟩)
+    · rintro ⟨b, rfl⟩; exact ⟨b.image some, (corrToCutLinear_corrVertex b).symm⟩
     · rintro ⟨X, rfl⟩
       obtain ⟨b, hb⟩ := cutVertex_eq_image_some (K := K) X
-      exact ⟨corrVertex K b, ⟨b, rfl⟩, by rw [hb, corrToCutLinear_corrVertex]⟩
-  have him₂ : cutToCorrLinear K α '' Set.range (cutVertex K) = Set.range (corrVertex K) := by
-    ext y
-    simp only [Set.mem_image, Set.mem_range]
-    constructor
-    · rintro ⟨_, ⟨X, rfl⟩, rfl⟩
-      obtain ⟨b, hb⟩ := cutVertex_eq_image_some (K := K) X
-      exact ⟨b, by rw [hb, cutToCorrLinear_cutVertex_image]⟩
-    · rintro ⟨b, rfl⟩
-      exact ⟨cutVertex K (b.image some), ⟨b.image some, rfl⟩, cutToCorrLinear_cutVertex_image b⟩
-  refine extensionComplexity_eq_of_linearMaps (corrToCutLinear K α) (cutToCorrLinear K α) ?_ ?_
-  · rw [corrPolytope, LinearMap.image_convexHull, him₁, cutPolytope]
-  · rw [cutPolytope, LinearMap.image_convexHull, him₂, corrPolytope]
+      exact ⟨b, (corrToCutLinear_corrVertex b).trans hb.symm⟩
+  · rw [cutPolytope, LinearMap.image_convexHull, corrPolytope, ← Set.range_comp]
+    refine congrArg (convexHull K) (Set.ext fun y => ⟨?_, fun ⟨b, hb⟩ =>
+      ⟨b.image some, (cutToCorrLinear_cutVertex_image b).trans hb⟩⟩)
+    rintro ⟨X, rfl⟩
+    obtain ⟨b, hb⟩ := cutVertex_eq_image_some (K := K) X
+    exact ⟨b, by simp only [Function.comp_apply, hb, cutToCorrLinear_cutVertex_image]⟩
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem cutVertex_funLeft {V₁ V₂ : Type*} [DecidableEq V₁] [DecidableEq V₂]
@@ -242,14 +206,9 @@ private theorem cutVertex_funLeft {V₁ V₂ : Type*} [DecidableEq V₁] [Decida
     LinearMap.funLeft K K (SimpleGraph.Iso.completeGraph e).mapEdgeSet (cutVertex K Y) =
       cutVertex K (Y.image e.symm) := by
   ext ⟨s, hs⟩
-  induction s using Sym2.ind with
-  | _ u v =>
-      change cutVertex K Y ⟨s(e u, e v), _⟩ = cutVertex K (Y.image e.symm) ⟨s(u, v), hs⟩
-      simp only [cutVertex, Sym2.lift_mk, Finset.mem_image]
-      have hiff : ∀ w : V₁, (∃ a ∈ Y, e.symm a = w) ↔ e w ∈ Y := fun w =>
-        ⟨fun ⟨a, ha, haw⟩ => haw ▸ (e.apply_symm_apply a).symm ▸ ha,
-          fun hw => ⟨e w, hw, e.symm_apply_apply w⟩⟩
-      simp only [hiff]
+  induction s using Sym2.ind with | _ u v => ?_
+  change cutVertex K Y ⟨s(e u, e v), _⟩ = cutVertex K (Y.image e.symm) ⟨s(u, v), hs⟩
+  simp only [cutVertex, Sym2.lift_mk, Finset.mem_image, Equiv.symm_apply_eq, exists_eq_right]
 
 omit [IsStrictOrderedRing K] in
 private theorem image_cutPolytope_funLeft {V W : Type*}
@@ -257,29 +216,23 @@ private theorem image_cutPolytope_funLeft {V W : Type*}
     (LinearMap.funLeft K K (SimpleGraph.Iso.completeGraph e).mapEdgeSet) ''
         (cutPolytope K (V := W)) =
       cutPolytope K (V := V) := by
-  rw [cutPolytope, LinearMap.image_convexHull, cutPolytope]
-  congr 1
-  ext z
-  simp only [Set.mem_image, Set.mem_range]
-  constructor
-  · rintro ⟨_, ⟨Y, rfl⟩, rfl⟩
-    exact ⟨Y.image e.symm, (cutVertex_funLeft e Y).symm⟩
+  rw [cutPolytope, LinearMap.image_convexHull, cutPolytope, ← Set.range_comp]
+  refine congrArg (convexHull K) (Set.ext fun z => ⟨?_, ?_⟩)
+  · rintro ⟨Y, rfl⟩; exact ⟨Y.image e.symm, (cutVertex_funLeft e Y).symm⟩
   · rintro ⟨X, rfl⟩
-    refine ⟨cutVertex K (X.image e), ⟨X.image e, rfl⟩, ?_⟩
-    rw [cutVertex_funLeft e, Finset.image_image]
-    simp only [Equiv.symm_comp_self, Finset.image_id]
+    exact ⟨X.image e, by
+      simp only [Function.comp_apply, cutVertex_funLeft, Finset.image_image, Equiv.symm_comp_self,
+        Finset.image_id]⟩
 
 omit [IsStrictOrderedRing K] in
 private theorem extensionComplexity_cutPolytope_congr {V W : Type*} [Fintype V] [Fintype W]
     [DecidableEq V] [DecidableEq W] (e : V ≃ W) :
-    extensionComplexity (cutPolytope K V) = extensionComplexity (cutPolytope K W) := by
-  let f : (↥(⊤ : SimpleGraph V).edgeSet → K) →ₗ[K] (↥(⊤ : SimpleGraph W).edgeSet → K) :=
-    LinearMap.funLeft K K (SimpleGraph.Iso.completeGraph e.symm).mapEdgeSet
-  let g : (↥(⊤ : SimpleGraph W).edgeSet → K) →ₗ[K] (↥(⊤ : SimpleGraph V).edgeSet → K) :=
-    LinearMap.funLeft K K (SimpleGraph.Iso.completeGraph e).mapEdgeSet
-  refine extensionComplexity_eq_of_linearMaps g f ?_ ?_
-  · exact image_cutPolytope_funLeft e
-  · simpa only [Equiv.symm_symm] using image_cutPolytope_funLeft e.symm
+    extensionComplexity (cutPolytope K V) = extensionComplexity (cutPolytope K W) :=
+  extensionComplexity_eq_of_linearMaps
+    (LinearMap.funLeft K K (SimpleGraph.Iso.completeGraph e).mapEdgeSet)
+    (LinearMap.funLeft K K (SimpleGraph.Iso.completeGraph e.symm).mapEdgeSet)
+    (image_cutPolytope_funLeft e)
+    (by simpa only [Equiv.symm_symm] using image_cutPolytope_funLeft e.symm)
 
 end Iso
 
@@ -303,29 +256,14 @@ theorem three_pow_le_two_pow_mul_extensionComplexity_cutPolytope
     (V : Type*) [Fintype V] [DecidableEq V] (hV : 2 ≤ Fintype.card V) :
     ((3 ^ (Fintype.card V - 1) : ℕ) : ℕ∞) ≤
       (2 ^ (Fintype.card V - 1) : ℕ∞) * extensionComplexity (cutPolytope K V) := by
-  have hnt : Nontrivial V := Fintype.one_lt_card_iff_nontrivial.1 (by omega)
-  let v₀ : V := Classical.arbitrary V
-  obtain ⟨v₁, hv₁⟩ := exists_ne v₀
-  let α := {v : V // v ≠ v₀}
-  have : Nonempty α := ⟨⟨v₁, hv₁⟩⟩
-  let e : V ≃ Option α :=
-    { toFun := fun v => if h : v = v₀ then none else some ⟨v, h⟩
-      invFun := Option.elim' v₀ Subtype.val
-      left_inv := fun v => by
-        by_cases h : v = v₀ <;> simp only [h, ↓reduceDIte, Option.elim'_none, Option.elim'_some]
-      right_inv := fun o => by
-        cases o with
-        | none => simp only [Option.elim'_none, ↓reduceDIte]
-        | some a =>
-            dsimp only [Option.elim'_some]
-            simp only [a.2, ↓reduceDIte]
-            rfl }
-  have hcard : Fintype.card α = Fintype.card V - 1 := by
-    have := Fintype.card_congr e
-    rw [Fintype.card_option] at this
-    omega
+  have : Nontrivial V := Fintype.one_lt_card_iff_nontrivial.1 (by omega)
+  obtain ⟨v₀, v₁, hv⟩ := exists_pair_ne V
+  have : Nonempty {v : V // v ≠ v₀} := ⟨⟨v₁, hv.symm⟩⟩
+  let e : V ≃ Option {v : V // v ≠ v₀} := (Equiv.optionSubtypeNe v₀).symm
+  have hcard : Fintype.card {v : V // v ≠ v₀} = Fintype.card V - 1 := by
+    have := Fintype.card_congr e; rw [Fintype.card_option] at this; omega
   rw [extensionComplexity_cutPolytope_congr e, ← hcard]
-  exact three_pow_le_two_pow_mul_extensionComplexity_cutPolytope_option α
+  exact three_pow_le_two_pow_mul_extensionComplexity_cutPolytope_option _
 
 /-- Field-valued exponential lower bound: any extended formulation of `cutPolytope K V`
 (`|V| ≥ 2`) with `r` inequalities satisfies `(3 / 2 : F) ^ (|V| - 1) ≤ r`. -/
