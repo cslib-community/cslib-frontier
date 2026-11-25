@@ -208,21 +208,16 @@ private theorem map_condLaw_apply
   -- A sample with the pairs `q` has a mass that does not depend on its bits.
   have hcond : ∀ d, condLaw G C ha hb hC (d, q) =
       (if q ∈ winsOnPairs G C ha hb then (2 ^ #Cᶜ)⁻¹ * ∏ i, G.questions (q i) else 0) *
-        (∑' ω, (winsOnSample G C ha hb).indicator (sampleLaw G C) ω)⁻¹ := by
-    intro d
+        (∑' ω, (winsOnSample G C ha hb).indicator (sampleLaw G C) ω)⁻¹ := fun d => by
     rw [condLaw, PMF.filter_apply, Set.indicator_apply, sampleLaw_apply]
     rfl
   rw [PMF.map_apply, tsum_fintype, Fintype.sum_prod_type, Finset.sum_comm]
   simp only [Prod.mk.injEq]
   -- Only the pairs `q` contribute.
-  rw [Finset.sum_eq_single q]
-  rotate_left
-  · intro q' _ hq'
-    refine Finset.sum_eq_zero fun d _ => ite_eq_right ?_
+  refine (Finset.sum_eq_single_of_mem q (Finset.mem_univ _) fun q' _ hq' => ?_).trans ?_
+  · refine Finset.sum_eq_zero fun d _ => ite_eq_right ?_
     rintro ⟨-, hxs, hys⟩
     exact hq' (funext fun i => Prod.ext (congrFun hxs i).symm (congrFun hys i).symm)
-  · intro h
-    exact absurd (Finset.mem_univ _) h
   simp only [hcond, and_true, pairFactor, aliceFactor, bobFactor, Function.comp_apply]
   -- Unless Alice's, Bob's and the common conditions hold, both sides vanish.
   by_cases hA : (q j).1 = x ∧ ∀ i : C, (sq i).1 = (q i).1 ∧ (sa i).1 = ha (Prod.fst ∘ q) i
@@ -244,9 +239,7 @@ private theorem map_condLaw_apply
   obtain ⟨rfl, hBC⟩ := hB
   by_cases hst : (⟨sq, sh, sa⟩ : Shared X Y A B C j) = t
   swap
-  · have hP : ¬((⟨sq, sh, sa⟩ : Shared X Y A B C j) = t ∧
-        ∀ i : C, G.accepts (sq i).1 (sq i).2 (sa i).1 (sa i).2) := fun h => hst h.1
-    rw [ite_eq_right hP, zero_mul, zero_mul]
+  · rw [ite_eq_right (show ¬(_ ∧ _) from fun h => hst h.1), zero_mul, zero_mul]
     refine Finset.sum_eq_zero fun d _ => ite_eq_right ?_
     rintro ⟨⟨-, hs⟩, -, ht⟩
     exact hst (hs.trans ht.symm)
@@ -290,11 +283,8 @@ private theorem map_condLaw_apply
     simp only [mul_sum_reveal]
   calc _ = 2 * (2 ^ #Cᶜ)⁻¹ * (∑' ω, (winsOnSample G C ha hb).indicator (sampleLaw G C) ω)⁻¹ *
         ((∏ i, G.questions (q i)) * ∏ i : {i : {i // i ∉ C} // i ≠ j},
-          ∑ b : Bool, if sh i = reveal b (q i) then 1 else 0) := by
-        ring
-    _ = _ := by
-        rw [hprod]
-        ring
+          ∑ b : Bool, if sh i = reveal b (q i) then 1 else 0) := by ring
+    _ = _ := by rw [hprod]; ring
 
 /-- **The product form (5.5) of the conditioned law** [Holenstein, proof of Lemma 6.4,
 (6.17)–(6.19), and (5.5)][Holenstein2009]. Under `W_C`, the mass of
