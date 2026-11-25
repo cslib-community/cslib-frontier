@@ -145,11 +145,9 @@ theorem two_mul_qG_mul_cG_le_three_mul {n m B : ℕ} (hn : 1 ≤ n) (hm : 1 ≤ 
   rcases Nat.eq_zero_or_pos (ellG m B) with h0 | hpos
   · have hq : qG m B = 1 := by simp only [qG, h0, pow_zero]
     have h1 := le_qG_mul_dG hm hB; have h2 : dG m B ≤ m := Nat.min_le_left _ _
-    have hd : dG m B = m := by rw [hq, one_mul] at h1; omega
-    rw [hq, mul_one]; rw [hd] at hmul
-    have : B * (8 * cG m B) = 8 * B * cG m B := by ring
-    have : B * (12 * n) = 12 * (B * n) := by ring
-    have := Nat.lt_of_mul_lt_mul_left (by omega : B * (8 * cG m B) < B * (12 * n)); omega
+    rw [hq, one_mul] at h1; rw [hq, mul_one]
+    have : 8 * B * cG m B + 1 ≤ m + 8 * B := by omega
+    nlinarith
   · have h8_le_dG : 8 * B ≤ dG m B := by
       rw [dG_eq_of_ellG_pos hpos, initialRowWeightBound]
       have := Nat.mul_le_mul_left (320000 * B)
@@ -157,12 +155,8 @@ theorem two_mul_qG_mul_cG_le_three_mul {n m B : ℕ} (hn : 1 ≤ n) (hm : 1 ≤ 
       have : 320000 * B * (B * (Nat.log 2 m + 1) ^ 3) =
         320000 * B ^ 2 * (Nat.log 2 m + 1) ^ 3 := by ring
       omega
-    have : B * (4 * (2 * qG m B * cG m B)) = qG m B * (8 * B * cG m B) := by ring
     have := Nat.mul_le_mul_left (qG m B) (by omega : 8 * B * cG m B ≤ 2 * dG m B)
-    have : qG m B * (2 * dG m B) = 2 * (qG m B * dG m B) := by ring
-    have := qG_mul_dG_lt_two_mul hm hB; have : B * (4 * (3 * n)) = 12 * (B * n) := by ring
-    have : B * (4 * (2 * qG m B * cG m B)) < B * (4 * (3 * n)) := by omega
-    have := Nat.lt_of_mul_lt_mul_left this; omega
+    nlinarith [qG_mul_dG_lt_two_mul hm hB]
 private theorem hDist_succ_eq {m B : ℕ} (hm : 1 ≤ m) (hB : 1 ≤ B) :
     hDist m B + 1 = (dG m B + 100 * B * mu m - 1) / (100 * B * mu m) := by
   have hd : 1 ≤ dG m B := dG_pos hm hB; have hM : 0 < 100 * B * mu m := by positivity
@@ -892,11 +886,9 @@ theorem le_mul_weight_of_buildShortenedTannerRows_params {n m B : ℕ}
       (greedyRowListLength B m : ℝ) = (dG m B : ℝ) * ((qG m B * dG m B : ℕ) : ℝ) := by
     dsimp only [D]; unfold greedyRowListLength qG mu; push_cast; field_simp; ring
   rw [hP_ident] at hmulP
-  have hle : ((qG m B * dG m B : ℕ) : ℝ) ≤ ((greedyRowListLength B m * weight z : ℕ) : ℝ) :=
-    le_of_mul_le_mul_left (hmulP.trans_eq (show (dG m B : ℝ) * (weight z : ℝ) *
-      (greedyRowListLength B m : ℝ) = (dG m B : ℝ) * ((greedyRowListLength B m * weight z : ℕ) : ℝ)
-        by push_cast; ring)) (by exact_mod_cast hd)
-  exact (le_qG_mul_dG hm hB).trans (Nat.cast_le.mp hle)
+  have := le_of_mul_le_mul_left (hmulP.trans_eq ((mul_right_comm _ _ _).trans (mul_assoc _ _ _)))
+    (by exact_mod_cast hd : (0 : ℝ) < dG m B)
+  exact (le_qG_mul_dG hm hB).trans (by exact_mod_cast this)
 /-- Plain polynomial-time certificate for `buildShortenedTannerRows` when `2 ^ ell ≤ bound`. -/
 theorem buildShortenedTannerRows_polyTime {α : Type} {encIn : α ↪ List Bool}
     {m ell d c bound : α → ℕ} {shifts H0 : α → List (List Bool)}
@@ -955,14 +947,11 @@ private theorem exists_shifts_params {m B : ℕ} [NeZero (dG m B)] (hB : 1 ≤ B
       push_cast; field_simp; ring
     rw [Fintype.card_fin, hexp, Real.exp_neg, mul_inv_lt_iff₀ (Real.exp_pos _), one_mul]
     have hell_mu := ellG_le_mu m B
-    have h8 : (2 : ℝ) * 2 ^ ellG m B ≤ (8 : ℝ) ^ mu m :=
-      calc (2 : ℝ) * 2 ^ ellG m B = (2 : ℝ) ^ (ellG m B + 1) := by rw [pow_succ']
-        _ ≤ (2 : ℝ) ^ (3 * mu m) := pow_le_pow_right₀ (by norm_num) (by omega)
-        _ = (8 : ℝ) ^ mu m := by rw [pow_mul]; norm_num
+    have h8 : (2 : ℝ) * 2 ^ ellG m B ≤ (8 : ℝ) ^ mu m := by
+      rw [← pow_succ', show (8 : ℝ) = 2 ^ 3 by norm_num, ← pow_mul]
+      exact pow_le_pow_right₀ (by norm_num) (by omega)
     have he4 : (8 : ℝ) < Real.exp 4 := by
-      rw [show Real.exp 4 = Real.exp 1 ^ 4 by rw [← Real.exp_nat_mul]; norm_num]
-      exact (by norm_num : (8 : ℝ) < 2 ^ 4).trans
-        (pow_lt_pow_left₀ Real.exp_one_gt_two (by norm_num) (by decide : (4 : ℕ) ≠ 0))
+      linarith [Real.quadratic_le_exp_of_nonneg (by norm_num : (0 : ℝ) ≤ 4)]
     rw [show (4 : ℝ) * (mu m : ℝ) = (mu m : ℝ) * 4 by ring, Real.exp_nat_mul]
     exact h8.trans_lt (pow_lt_pow_left₀ he4 (by norm_num) (by omega))
 private theorem exists_localMatrix_params {m B : ℕ} (hm : 1 ≤ m) (hB : 1 ≤ B) :
@@ -1050,8 +1039,7 @@ private theorem linear_mb_le_two_pow (m B : ℕ) :
     (Nat.pow_le_pow_right (by decide : 0 < 2) (by dsimp only [X]; omega))
   have hB : B < 2 ^ (X + 1) := Nat.lt_two_pow_self.trans_le
     (Nat.pow_le_pow_right (by decide : 0 < 2) (by dsimp only [X]; omega))
-  have : 2 ^ (X + 4) = 8 * 2 ^ (X + 1) := by
-    rw [show X + 4 = (X + 1) + 3 by omega, Nat.pow_add]; ring
+  have : 2 ^ (X + 4) = 8 * 2 ^ (X + 1) := by ring
   omega
 private theorem exists_pow_of_polyBounded_mb {u : ℕ × ℕ → ℕ}
     (hu : PolyBounded (fun p => (encMB p).length) u) :
@@ -1146,8 +1134,7 @@ theorem initialTestsRows_computableInO_nmb :
       enc_len [encNMB, encMB]
     have h1 := Nat.pow_le_pow_right (by decide : 0 < 2) (by omega : X + 4 ≤ q X + (X + 4))
     have h2 := Nat.pow_le_pow_right (by decide : 0 < 2) (by omega : q X ≤ q X + (X + 4))
-    have h3 : 2 ^ q' X = 2 * 2 ^ (q X + (X + 4)) := by
-      dsimp only [q']; rw [show q X + (X + 5) = (q X + (X + 4)) + 1 by omega, Nat.pow_succ']
+    have h3 : 2 ^ q' X = 2 * 2 ^ (q X + (X + 4)) := by dsimp only [q']; ring
     have hmb : 2 * p.2.1 + 2 + p.2.2 ≤ 2 ^ (X + 4) := linear_mb_le_two_pow p.2.1 p.2.2; omega
   · change (encNMB p).length + S (p.2.1 + p.2.2) ≤ 2 * (S' (p.1 + p.2.1 + p.2.2) + 1)
     have hs : (encNMB p).length + S (p.2.1 + p.2.2) ≤ S' (p.1 + p.2.1 + p.2.2) := hSpace p; omega
