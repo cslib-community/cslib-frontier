@@ -42,19 +42,21 @@ model (`#7068`), including:
    `balancePartitionRefundAdversary` (`T₀ = T₁`, distinct pre-challenge refunds `x'₀ ≠ x'₁`) break
    `unguardedUnlinkabilityExperiment` with `Game.advantage = 1`, while the cross-branch non-abort
    guard in `unlinkabilityExperiment` collapses both attacks to `Game.advantage = 0`.
-3. **Theorem 1A — black-box unlinkability reduction (`unlinkabilityExperiment_advantage_le`)**:
+3. **Black-box adaptive unlinkability reduction (`unlinkabilityExperiment_advantage_le`)**:
    constructing explicit query-bounded ZK distinguisher `zkDistinguisher` (`≤ 2 + preRounds +
    challengeSpends` queries) and `TwoStage` hiding reduction `unlinkHidingReduction`, proving
-   `Adv^unlink ≤ 2 * Adv^ZK + 2 * (2 + preRounds + challengeSpends) * Adv^hide`. Here the leading
-   factor of `2` arises from `Game.advantage_le_two_mul_uniform_bool_xor` in the library's `[0, 1]`
-   two-world advantage convention, and all `2 + preRounds + challengeSpends` emitted commitments
-   (reducing to `2 + challengeSpends` when `preRounds = 0`) are replaced sequentially because
-   `choosePre` chooses client branches adaptively.
-4. **Theorem 1B non-black-box step — `G8 → G8.5` CRT witness-reuse decoupling
-   (`crtDecouple_advantage_le`)**: connecting the coupled `REUSE_CRT_WITNESS` simulation `g8Game`
-   (`d_j = r_j + u_j`, `H5`-programmed `cmult`) via `IdenticalUntilBad` to decoupled `g85Game`,
-   and reducing `BadH5` via `badH5HidingReduction` and `badH5BindingReduction` (using provably
-   distinct `CommitMsg.bumpBal`) to `qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb`.
+   `Adv^unlink ≤ 2 * Adv^ZK + 2 * (2 + preRounds + challengeSpends) * Adv^hide` (original to
+   this library; `[VOLEACT2026]` `#proof-status` leaves the unlinkability proof open). Here the
+   leading factor of `2` arises from `Game.advantage_le_two_mul_uniform_bool_xor` in the library's
+   `[0, 1]` two-world advantage convention, and all `2 + preRounds + challengeSpends` emitted
+   commitments (reducing to `2 + challengeSpends` when `preRounds = 0`) are replaced sequentially
+   because `choosePre` chooses client branches adaptively.
+4. **Non-black-box `G8 → G8.5` CRT witness-reuse decoupling (`crtDecouple_advantage_le`)**:
+   connecting the coupled CRT witness-reuse simulation `g8Game` (`d_j = r_j + u_j`, `H5`-derived
+   `cmult`) via `IdenticalUntilBad` to decoupled `g85Game`, and reducing `BadH5` via
+   `badH5HidingReduction` and `badH5BindingReduction` (using provably distinct
+   `CommitMsg.bumpBal`) to `qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb` (original to this
+   library).
 
 As in `CRTHazard.lean`, all games and reductions are finite query-bounded constructions (`#7068`);
 asymptotic polynomial-time certificates are outside this module's scope.
@@ -1154,7 +1156,7 @@ end BalancePartitionAttacks
 
 end UnlinkabilityGame
 
-section Theorem1A
+section UnlinkabilityReduction
 
 variable {CommitKey PK C Context Nullifier O Sig Target SK Proof State : Type}
 
@@ -1171,9 +1173,10 @@ private def NoteInv [DecidableEq C]
 
 section SimHybrid
 
-/-- Explicit multi-instance ZK distinguisher for Theorem 1A: draws a uniform challenge bit
-`b ← Bool`, runs `unlinkOracleProgram` on `b`, and tests whether the adversary's output equals `b`
-(giving the factor of `2` via `Game.advantage_le_two_mul_uniform_bool_xor`). -/
+/-- Explicit multi-instance ZK distinguisher for the adaptive unlinkability reduction: draws a
+uniform challenge bit `b ← Bool`, runs `unlinkOracleProgram` on `b`, and tests whether the
+adversary's output equals `b` (giving the factor of `2` via
+`Game.advantage_le_two_mul_uniform_bool_xor`). -/
 noncomputable def zkDistinguisher
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
@@ -1317,9 +1320,9 @@ theorem zkDistinguisher_isQueryBounded
 
 end SimHybrid
 
-end Theorem1A
+end UnlinkabilityReduction
 
-section Theorem1AContinuation
+section UnlinkabilityReductionContinuation
 
 variable {CommitKey PK C Context Nullifier O Sig Target SK Proof State : Type}
 
@@ -2327,10 +2330,10 @@ private lemma pmfBind_comm2 {α β γ δ : Type} (p : PMF α) (q : PMF β) (r : 
   conv_lhs => enter [2, a]; rw [PMF.bind_comm]
   rw [PMF.bind_comm]
 
-/-- Explicit `TwoStage` commitment-hiding reduction for Theorem 1A: samples uniform challenge bit
-`b ← Bool` and random commitment hybrid slot `hop ← Fin (2 + preRounds + challengeSpends)`,
-runs the simulator up to `hop`, submits `(msgReal, msgDummy)` to `Com.toScheme`, and tests
-whether the resumed adversary guesses `b`. -/
+/-- Explicit `TwoStage` commitment-hiding reduction for the adaptive unlinkability reduction:
+samples uniform challenge bit `b ← Bool` and random commitment hybrid slot
+`hop ← Fin (2 + preRounds + challengeSpends)`, runs the simulator up to `hop`, submits
+`(msgReal, msgDummy)` to `Com.toScheme`, and tests whether the resumed adversary guesses `b`. -/
 noncomputable def unlinkHidingReduction [DecidableEq C] {preRounds challengeSpends : ℕ}
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier)
@@ -2625,8 +2628,8 @@ private lemma g4_false_eq_true {preRounds challengeSpends : ℕ}
           initOut.t0 0 initOut.t1 0 issResp.st
   rw [heq false, heq true]
 
-/-- **Theorem 1A — Adaptive malicious-issuer unlinkability reduction** (finite query-bounded
-formalization; `[VOLEACT2026]`, `#issuance` and `#spending`):
+/-- **Adaptive malicious-issuer unlinkability reduction** (original finite query-bounded
+formalization for `[VOLEACT2026]`, `#issuance` and `#spending`):
 for any adaptive adversary `adv` against `unlinkabilityExperiment`,
 `Adv^unlink ≤ 2 * Adv^ZK + 2 * (2 + preRounds + challengeSpends) * Adv^hide`
 via `zkDistinguisher` and `unlinkHidingReduction`.
@@ -2872,9 +2875,9 @@ theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challeng
         Game.coe_succProbability]
       ring
 
-end Theorem1AContinuation
+end UnlinkabilityReductionContinuation
 
-section Theorem1B
+section CRTDecoupling
 
 open CRTHazard
 
@@ -2894,7 +2897,7 @@ structure CRTProofToken (C IV : Type) (nMult lam nMask : ℕ) where
   /-- Garbled gate multiplier table `cmult`. -/
   cmult : Fin nMult → Fin nMask → ZMod 2
 
-/-- Configuration for Theorem 1B non-black-box CRT witness-reuse decoupling (`G8 → G8.5`):
+/-- Configuration for non-black-box CRT witness-reuse decoupling (`G8 → G8.5`):
 `qTok` token events (`0 < qTok`) with commitment openings `Fin lam → ZMod 2`, IV generator
 `ivGen`, gate labels `baseLabel`, and adaptive `H5`-querying distinguisher `adv`. -/
 structure G85Setup
@@ -3198,7 +3201,7 @@ noncomputable def badH5BindingReduction [DecidableEq C] [Fintype IV]
       opening₁ := 0
     }
 
-/-- **Theorem 1B non-black-box CRT decoupling (`G8 → G8.5`)**:
+/-- **Non-black-box CRT witness-reuse decoupling (`G8 → G8.5`)** (original to this library):
 assuming `0 < qTok` (`NeZero qTok`), any adaptive `H5`-querying distinguisher has advantage between
 coupled `g8Game` and decoupled `g85Game` at most
 `qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb` via `badH5HidingReduction` and
@@ -3926,7 +3929,7 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
   rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)] at hadv_le
   exact hadv_le.trans (add_le_add hbad_real (le_refl _))
 
-end Theorem1B
+end CRTDecoupling
 
 
 end Cslib.Crypto.AnonymousToken.Unlinkability

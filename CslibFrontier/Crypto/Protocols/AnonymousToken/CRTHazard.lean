@@ -30,20 +30,21 @@ ordering and the witness-order repair that places fresh uniform opening randomne
 
 In `[VOLEACT2026]` (Protocol Specification / Initial Issuance and Spending), the Issuance witness
 is listed as `(nf, r)` and the Spend witness as `(t, r, x, s, nf', t', r')`, without mandating
-witness byte offsets or addressing CRT mask reuse. In the reference `vole-mole` /
-`faest-arch-opt` implementation (`REUSE_CRT_WITNESS = true`, background in `[BaumEtAl2026FAEST]`),
-the `H5` garbling mask check compresses `nMult` gate tables across `nMask` masks using an
-`F : Matrix (Fin nMult) (Fin lam) (ZMod 2)` linear map (`nMult = 312`, `lam = 128`, `nMask = 12` in
-the `FAEST-EM-128f` CRT instantiation). Whenever `F.rank < nMult` (in particular whenever
-`lam < nMult`), `Fᵀ` has a nontrivial kernel of dimension at least `nMult - lam`, exposing
-linear parity equations satisfied identically by any valid witness prefix and rejecting independent
-random guesses with probability `(2 : ℝ≥0∞)⁻¹ ^ (nMask * r)` across `r` independent parity
-checks (`r = 14`, `kGates = 27` queries in the first three small CRT places).
+witness byte offsets or addressing CRT mask reuse (`[VOLEACT2026]` `#proof-status` leaves the
+unlinkability proof open). When FAEST-style CRT VOLE masks (general FAEST v3 specification
+background in `[BaumEtAl2026FAEST]`) reuse the first `lam` witness bits as Free-XOR garbled-circuit
+label offsets, an `H5`-style garbling mask check compressing `nMult` gate tables across `nMask`
+masks introduces an `F : Matrix (Fin nMult) (Fin lam) (ZMod 2)` linear map. Whenever
+`F.rank < nMult` (in particular whenever `lam < nMult`), `Fᵀ` has a nontrivial kernel of dimension
+at least `nMult - lam`, exposing linear parity equations satisfied identically by any valid witness
+prefix and rejecting independent random guesses with probability `(2 : ℝ≥0∞)⁻¹ ^ (nMask * r)`
+across `r` independent parity checks (for example, `nMult = 312`, `lam = 128`, `nMask = 12`,
+`r = 14`, `kGates = 27` in small CRT parameters).
 
-All matrix bounds, random-oracle `H5` distinguishers, query bounds, unlinkability games, and
-witness-order repair statements in this module are finite, query-bounded steps (`#7068`);
-asymptotic PPT certificates and concrete lookup tables for `FAEST-EM-128f` are outside this
-module's scope.
+This formalization, its matrix bounds, random-oracle `H5` distinguishers, query bounds,
+unlinkability games, and witness-order repair statements are original to this library as finite,
+query-bounded steps (`#7068`); asymptotic PPT certificates and concrete circuit lookup tables
+are outside this module's scope.
 
 ## Main definitions
 
