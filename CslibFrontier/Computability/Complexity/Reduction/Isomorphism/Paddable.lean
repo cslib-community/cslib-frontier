@@ -136,18 +136,12 @@ theorem polyTimeInvertibleLengthIncreasingOneOneReducible (hA : Paddable encA A)
   let k : β → ℕ := fun b => c * ((encB b).length + 1) ^ d
   let w : β → List Bool := fun b => frame (encB b) ++ List.replicate (k b) true
   have hk : ComputableInPolyTime k encB encUnary := by
-    have hlen : ComputableInPolyTime (fun b => (encB b).length + 1) encB encUnary :=
-      ComputableInPolyTime.unary_add' (ComputableInPolyTime.encoding_length encB)
-        (ComputableInPolyTime.const 1)
-    exact ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const c)
-      ((ComputableInPolyTime.unary_pow d).comp hlen)
-  have hw : ComputableInPolyTime w encB encBits := by
-    have hframe : ComputableInPolyTime (fun b => frame (encB b)) encB encBits :=
-      ComputableInPolyTime.frame.comp
-        (ComputableInPolyTime.id'.of_enc_eq (g := fun b => encB b) fun _ => rfl)
-    have hrep : ComputableInPolyTime (fun b => List.replicate (k b) true) encB encBits :=
-      hk.of_enc_eq fun _ => rfl
-    exact ComputableInPolyTime.bitsAppend hframe hrep
+    dsimp only [k]
+    fun_prop
+  have hw : ComputableInPolyTime w encB encBits :=
+    ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.frame.comp (ComputableInPolyTime.id'.of_enc_eq fun _ => rfl))
+      (hk.of_enc_eq fun _ => rfl)
   refine ⟨fun b => pad (r b) (w b), ⟨fun a => D.decode (unframe (unpad a)), ?_, ?_, ?_, ?_⟩,
     fun b => (hrBA b).trans (hmem (r b) (w b)).symm⟩
   · exact hpad.comp (hr.prod hw)
@@ -155,11 +149,10 @@ theorem polyTimeInvertibleLengthIncreasingOneOneReducible (hA : Paddable encA A)
   · intro b
     simp only [hdec, w, unframe_frame_append, D.decode_enc]
   · intro b
+    dsimp only
     refine Nat.lt_of_not_le fun hle => ?_
-    change (encA (pad (r b) (w b))).length ≤ (encB b).length at hle
     have h1 : (w b).length ≤ c * ((encA (pad (r b) (w b))).length + 1) ^ d := by
-      have := hcd (pad (r b) (w b))
-      rwa [hdec] at this
+      simpa only [encBits_apply, hdec] using hcd (pad (r b) (w b))
     have h2 : (w b).length = 2 * (encB b).length + 1 + k b := by
       simp only [w, List.length_append, length_frame, List.length_replicate]
     have h3 : c * ((encA (pad (r b) (w b))).length + 1) ^ d ≤ k b :=
