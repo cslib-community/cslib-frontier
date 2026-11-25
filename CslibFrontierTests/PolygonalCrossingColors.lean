@@ -363,6 +363,23 @@ example :
       rw [crossing_parity true] at hp
       exact hp
 
+-- The reversed straight segment and a forward zigzag segment retain distinct labels and
+-- their own evaluation rules in the concatenated route.
+example :
+    let path : Fin 2 → Dart G := ![(0, true), (1, false)]
+    let p := (drawing true).dartSequenceRoute path
+    ∃ e : ((i : Fin 2) × Fin ((drawing true).route (path i).1).segments) ≃ Fin p.segments,
+      e ⟨0, 0⟩ ≠ e ⟨1, 2⟩ ∧ ∀ t : ℝ,
+        p.eval (e ⟨0, 0⟩) t = straight.eval 0 (1 - t) ∧
+        p.eval (e ⟨1, 2⟩) t = (zig true).eval 2 t := by
+  dsimp only
+  let path : Fin 2 → Dart G := ![(0, true), (1, false)]
+  have hstep : ∀ i : Fin 1, (path i.castSucc).reverse.vertex = (path i.succ).vertex := by decide
+  obtain ⟨e, he⟩ := (drawing true).exists_dartSequenceRoute_segment_equiv path hstep
+  refine ⟨e, ?_, fun t => ⟨he 0 0 t, he 1 2 t⟩⟩
+  intro h
+  exact (by decide : (0 : Fin 2) ≠ 1) (congrArg Sigma.fst (e.injective h))
+
 private theorem all_selected_even : G.VertexEven (fun _ => true) := by
   intro v
   classical
