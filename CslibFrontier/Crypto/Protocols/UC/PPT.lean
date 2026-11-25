@@ -618,20 +618,11 @@ theorem IdealFunctionality.IsPPT.toProtocol {n : ℕ} {In Out BackQ BackR : Type
   · intro p request s result hresult
     rcases request with ⟨ch, req⟩
     rw [wordHandle, (codec p.secParam p.corrupted).decode_enc] at hresult
-    cases ch with
-    | inl u =>
-      cases u
+    rcases ch with ⟨⟨⟩⟩ | ⟨⟨⟩⟩ <;>
       simp only [IdealFunctionality.toProtocol, codec, WordInterface.protocol, WordInterface.sum,
         WordInterface.net, StateT.run, ProbOracleComp.lowerWith, ProbOracleComp.simulate_sample,
-        OracleComp.mem_supportWith_map_iff, ProbOracleComp.support_sample] at hresult
-      rcases hresult with ⟨r, hr, rfl⟩
-      exact cert.preserve_onInput req s r hr
-    | inr u =>
-      cases u
-      simp only [IdealFunctionality.toProtocol, codec, WordInterface.protocol, WordInterface.sum,
-        WordInterface.net, StateT.run, ProbOracleComp.lowerWith, ProbOracleComp.simulate_sample,
-        OracleComp.mem_supportWith_map_iff, ProbOracleComp.support_sample] at hresult
-      rcases hresult with ⟨r, hr, rfl⟩
-      exact cert.preserve_onBackdoor req s r hr
+        OracleComp.mem_supportWith_map_iff, ProbOracleComp.support_sample] at hresult <;>
+      obtain ⟨r, hr, rfl⟩ := hresult
+    exacts [cert.preserve_onInput req s r hr, cert.preserve_onBackdoor req s r hr]
 
 end Cslib.Crypto.Protocols.UC
