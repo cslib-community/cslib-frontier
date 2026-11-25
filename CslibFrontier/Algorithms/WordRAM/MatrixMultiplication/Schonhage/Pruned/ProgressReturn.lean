@@ -79,8 +79,7 @@ theorem exec_progress_return {w L f a0 b0 n d p E A B : ℕ}
     (hmid _ (notMem_nodeWrites_list hd.le (hi.trans_le hx.card_le))).trans (hy.requests i hi)
   have hquery : ∀ i < S.card, ∃ q ∈ S, (queryIndex q).val = input i :=
     fun i hi => hx.exists_of_read hi
-  have hcodes : ∀ i < S.card, input i < 10 ^ L :=
-    fun i hi => (hx.read_lt hi).trans_le hpow
+  have hcodes : ∀ i < S.card, input i < 10 ^ L := fun i hi => (hx.read_lt hi).trans_le hpow
   let V := fun c => if h : c < 10 ^ (n + 1) then
     partialValue a b S (queryAt ⟨c, h⟩) k.val else 0
   let C := fun c => if h : c < 10 ^ n then
