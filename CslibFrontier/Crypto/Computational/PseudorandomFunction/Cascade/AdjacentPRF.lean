@@ -91,21 +91,13 @@ theorem advantage_cascadePrefixHybridGame_succ_eq
     simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, id_eq,
       ProbOracleComp.eval_run_eq_evalWith, ProbComp.eval_pure,
       cascadeChildDistinguisher, reduction, router, ideal]
-  have horacle (key : BitString n) (query : List Bool) :
-      prfOracle family (inLen n) (List.ofFn key) query =
-        randomFunctionOracle (inLen n)
-          (fun block => BitString.ofList n (family (List.ofFn key) (List.ofFn block))) query := by
-    by_cases hq : query.length = inLen n
-    · have hvalue := hfixedLen (List.ofFn key) query List.length_ofFn hq
-      simp only [prfOracle, randomFunctionOracle, ite_eq_left hq, BitString.ofFn_ofList hq,
-        BitString.ofFn_ofList hvalue]
-    · simp only [prfOracle, randomFunctionOracle, ite_eq_right hq]
   have hreal : ProbComp.eval (prfRealGame inLen family reduction n) =
       cascadeChildChallengeGame (count n) (2 ^ indexBits n) real ideal real router := by
     rw [← hgame real]
     simp only [prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList, BitString.uniformList,
       ProbOracleComp.eval_run_eq_evalWith, ProbComp.eval_pure,
-      real, cascadeKeyedChildFunctionLaw, PMF.bind_map, Function.comp_def, horacle,
+      real, cascadeKeyedChildFunctionLaw, PMF.bind_map, Function.comp_def,
+      randomFunctionOracle_keyed hfixedLen,
       cascadeChildDistinguisher, reduction, router]
   have hbefore : ProbComp.eval (cascadePrefixHybridGame valid inLen family adversary n (depth n)) =
       (ProbOracleComp.runWith (cascadeChildChannelOracle real) router []).map Prod.fst := by
