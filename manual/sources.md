@@ -2523,6 +2523,21 @@ characteristic coefficients, real geometry and the ETR theorem remain outside th
 
 OpenAI. *Exact Derandomization of Logarithmic Space: L = RL = BPL*. Preprint, 23 September 2026, not peer reviewed; cited here only for construction provenance. Accompanying Lean file at revision `7ef5c0cc5ca4b0e072b7a050fca09ab24bc6fa3a`: https://github.com/openai/math/blob/7ef5c0cc5ca4b0e072b7a050fca09ab24bc6fa3a/lean/OAI/Computability/Logspace/CatalyticComparison.lean .
 
+<a id="openai-metric-ports26"></a>
+## openai-metric-ports26
+
+OpenAI. *Circuit Lower Bounds for Hamiltonian Cycle and the Permanent*, Lemma 4.1 and
+Theorem 4.2, and *Euclidean Geometry in the Asymptotic Spectrum of Tensors*, Definition 11.1.
+AI-authored, unrefereed preprints dated 24 November 2026. Bibliography keys
+`OpenAI2026HamiltonianPermanent` and `OpenAI2026EuclideanSpectrum`.
+The [graph obstruction](../CslibFrontier/Probability/MarkovChain/PortObstruction.lean)
+smooths a walk by barycentric averaging, realizes it with a finite set of labels and replaces
+each vertex by a copy of the candidate graph. This gives the explicit integer bound
+`n < (8d)^(2 ⌈7000(1+b)⌉)` on the order of a degree-`d` graph with uniform squared
+Poincaré constant `b` in a family of complete CAT(0) spaces without ports.
+[Graph amplification](https://github.com/openai/math/blob/3344da59991ed94f9ba711217b29c1d760badfa6/preprints/Circuit-lower-bounds-for-Hamiltonian-cycle-and-the-permanent-November-24-2026/build/entropy.tex#L54-L117).
+[Ports](https://github.com/openai/math/blob/3344da59991ed94f9ba711217b29c1d760badfa6/preprints/Euclidean-geometry-in-the-asymptotic-spectrum-of-tensors-November-24-2026/build/port-graphs.tex#L10-L36).
+
 <a id="openaieth26"></a>
 ## openaieth26
 

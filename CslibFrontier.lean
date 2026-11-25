@@ -7997,6 +7997,7 @@ public import CslibFrontier.Foundations.Combinatorics.ErdosSzekeres
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffineFamily
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffinePlane
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffineTower
+public import CslibFrontier.Foundations.Combinatorics.Expander.AveragedPower
 public import CslibFrontier.Foundations.Combinatorics.Expander.Basic
 public import CslibFrontier.Foundations.Combinatorics.Expander.Bipartite
 public import CslibFrontier.Foundations.Combinatorics.Expander.BipartiteRotation
@@ -8023,6 +8024,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Loops
 public import CslibFrontier.Foundations.Combinatorics.Expander.LowerBound
 public import CslibFrontier.Foundations.Combinatorics.Expander.MatchingPaths
 public import CslibFrontier.Foundations.Combinatorics.Expander.MatchingPencil
+public import CslibFrontier.Foundations.Combinatorics.Expander.MetricReplacement
 public import CslibFrontier.Foundations.Combinatorics.Expander.Mixing
 public import CslibFrontier.Foundations.Combinatorics.Expander.Multigraph
 public import CslibFrontier.Foundations.Combinatorics.Expander.MultigraphExistence
@@ -10427,11 +10429,14 @@ public import CslibFrontier.Probability.MarkovChain.Coloring.Count
 public import CslibFrontier.Probability.MarkovChain.Coloring.Ratio
 public import CslibFrontier.Probability.MarkovChain.Coupling
 public import CslibFrontier.Probability.MarkovChain.HittingTime
+public import CslibFrontier.Probability.MarkovChain.MetricSmoothing
 public import CslibFrontier.Probability.MarkovChain.Metropolis
 public import CslibFrontier.Probability.MarkovChain.Mixing
 public import CslibFrontier.Probability.MarkovChain.PathCoupling
+public import CslibFrontier.Probability.MarkovChain.PortObstruction
 public import CslibFrontier.Probability.MarkovChain.RandomWalk
 public import CslibFrontier.Probability.MarkovChain.RotationMap
+public import CslibFrontier.Probability.MarkovChain.RotationSmoothing
 public import CslibFrontier.Probability.MarkovChain.Spectral
 public import CslibFrontier.Probability.MedianOfMeans
 public import CslibFrontier.Probability.MedianTrick
