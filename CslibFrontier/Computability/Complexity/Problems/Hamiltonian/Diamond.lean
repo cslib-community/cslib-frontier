@@ -146,17 +146,11 @@ private theorem link_step {R : ℕ → ℕ → Prop} {a b : ℕ} (hrow : R (rowN
   rw [head?_step, Option.mem_some_iff] at hy
   subst hy
   unfold step at hx
-  cases hv : o a with
-  | none =>
-    simp only [hv, Option.map_none, Option.toList_none, List.getLast?_singleton,
-      Option.mem_def, Option.some.injEq] at hx
+  cases hv : o a <;>
+    simp only [hv, Option.map_none, Option.map_some, Option.toList_none, Option.toList_some,
+      List.getLast?_cons_cons, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx <;>
     subst hx
-    exact hrow
-  | some j =>
-    simp only [hv, Option.map_some, Option.toList_some, List.getLast?_cons_cons,
-      List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
-    subst hx
-    exact hclause j hv
+  exacts [hrow, hclause _ hv]
 
 /-- Steps over distinct row nodes, visiting each clause after at most one of them, have no
 repetitions. -/
@@ -205,10 +199,9 @@ private theorem visit_eq_some_iff {i s j : ℕ} :
     visit M pick i s = some j ↔ j < M ∧ (pick j).row = i ∧ (pick j).slot = s := by
   constructor
   · intro h
-    have hmem := List.mem_of_find?_eq_some h
     have hp := List.find?_some h
     simp only [decide_eq_true_eq] at hp
-    exact ⟨List.mem_range.1 hmem, hp⟩
+    exact ⟨List.mem_range.1 (List.mem_of_find?_eq_some h), hp⟩
   · rintro ⟨hj, hi, hs⟩
     cases hv : visit M pick i s with
     | none =>
@@ -218,11 +211,9 @@ private theorem visit_eq_some_iff {i s j : ℕ} :
       have hmem := List.mem_range.1 (List.mem_of_find?_eq_some hv)
       have hp := List.find?_some hv
       simp only [decide_eq_true_eq] at hp
-      have h₁ := (hpick j hj).2.1
-      have h₂ := (hpick j' hmem).2.1
       have := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp.1.symm)
         (hs.trans hp.2.symm)
-      rw [h₁, h₂] at this
+      rw [(hpick j hj).2.1, (hpick j' hmem).2.1] at this
       rw [this]
 
 /-- A rightward traversal visits clause `j` after row node `a` exactly when `a` starts the slot
@@ -379,9 +370,8 @@ private theorem isDirHamPath_hamPath :
     fun _ => List.cons_ne_nil _ _
   have hmem_block : ∀ {i v}, v ∈ topNode i :: rowPath slots M dir pick i ↔ v = topNode i ∨
       (∃ a < rowLength slots i, v = rowNode i a) ∨
-      (∃ j < M, (pick j).row = i ∧ v = clauseNode j) := by
-    intro i v
-    rw [List.mem_cons, mem_rowPath hD hpick]
+      (∃ j < M, (pick j).row = i ∧ v = clauseNode j) :=
+    List.mem_cons.trans (or_congr_right (mem_rowPath hD hpick))
   refine ⟨?_, fun v => ?_, ?_, ?_, ?_⟩
   · -- No repetitions.
     rw [hamPath, List.nodup_append, List.nodup_flatMap]
@@ -396,15 +386,10 @@ private theorem isDirHamPath_hamPath :
         simp only [topNode_inj, rowNode_inj, clauseNode_inj, topNode_ne_rowNode,
           rowNode_ne_topNode, topNode_ne_clauseNode, clauseNode_ne_topNode,
           rowNode_ne_clauseNode, clauseNode_ne_rowNode] at h <;> grind
-    · rw [List.mem_singleton] at hw
-      subst hw
+    · obtain rfl := List.mem_singleton.1 hw
       obtain ⟨i, hi, hv⟩ := List.mem_flatMap.1 hv
-      rw [List.mem_range] at hi
-      rcases hmem_block.1 hv with rfl | ⟨a, -, rfl⟩ | ⟨j, -, -, rfl⟩
-      · simp only [ne_eq, topNode_inj]
-        omega
-      · simp
-      · simp
+      rcases hmem_block.1 hv with rfl | ⟨a, -, rfl⟩ | ⟨j, -, -, rfl⟩ <;>
+        simp [(List.mem_range.1 hi).ne]
   · -- Every vertex is visited.
     change v ∈ hamPath N slots M dir pick ↔ v ∈ vertices N slots M
     rw [mem_vertices, hamPath, List.mem_append, List.mem_flatMap, List.mem_singleton]
