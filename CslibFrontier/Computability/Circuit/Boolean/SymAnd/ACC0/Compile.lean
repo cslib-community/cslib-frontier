@@ -2375,6 +2375,11 @@ private noncomputable def slotEquiv (n g m ℓ : ℕ) :
 private theorem slotEquiv_val (t : Seed ℓ × Slot n g m) :
     (slotEquiv n g m ℓ t).val = slotToNat t := rfl
 
+private theorem slotToNat_slotEquiv_symm {a : ℕ}
+    (ha : a < 2 ^ (2 * ℓ + 2) * (n + g + g * ((m + 1) * (m + 1)))) :
+    slotToNat ((slotEquiv n g m ℓ).symm ⟨a, ha⟩) = a :=
+  congrArg Fin.val ((slotEquiv n g m ℓ).apply_symm_apply ⟨a, ha⟩)
+
 private theorem card_seed_slot_eq (n g m ℓ : ℕ) :
     Fintype.card (Seed ℓ × Slot n g m) = 2 ^ (2 * ℓ + 2) * (n + g + g * ((m + 1) * (m + 1))) := by
   simpa only [Fintype.card_fin] using Fintype.card_congr (slotEquiv n g m ℓ)
@@ -2396,11 +2401,19 @@ private theorem card_decodeIdxSet {S : List ℕ} (hnd : S.Nodup)
       (fun t ht => List.mem_toFinset.2 (mem_decodeIdxSet.1 ht))
       (fun a _ b _ h => slotToNat_injective h) fun a ha => ?_
     have haS := List.mem_toFinset.1 ha
-    have hval : slotToNat ((slotEquiv n g m ℓ).symm ⟨a, hlt a haS⟩) = a := by
-      simpa only [slotEquiv_val] using
-        congrArg Fin.val ((slotEquiv n g m ℓ).apply_symm_apply ⟨a, hlt a haS⟩)
+    have hval := slotToNat_slotEquiv_symm (hlt a haS)
     exact ⟨(slotEquiv n g m ℓ).symm ⟨a, hlt a haS⟩, mem_decodeIdxSet.2 (hval.symm ▸ haS), hval⟩
   rw [hbij, List.toFinset_card_of_nodup hnd]
+
+/-- Index lists below the slot count that decode to the same set have the same elements. -/
+private theorem mem_iff_of_decodeIdxSet_eq {u₁ u₂ : List ℕ}
+    (h₁ : ∀ a ∈ u₁, a < 2 ^ (2 * ℓ + 2) * (n + g + g * ((m + 1) * (m + 1))))
+    (h₂ : ∀ a ∈ u₂, a < 2 ^ (2 * ℓ + 2) * (n + g + g * ((m + 1) * (m + 1))))
+    (heq : decodeIdxSet n g m ℓ u₁ = decodeIdxSet n g m ℓ u₂) (a : ℕ) : a ∈ u₁ ↔ a ∈ u₂ := by
+  by_cases ha : a < 2 ^ (2 * ℓ + 2) * (n + g + g * ((m + 1) * (m + 1)))
+  · simpa only [mem_decodeIdxSet, slotToNat_slotEquiv_symm] using
+      Finset.ext_iff.1 heq ((slotEquiv n g m ℓ).symm ⟨a, ha⟩)
+  · exact iff_of_false (fun h => ha (h₁ a h)) (fun h => ha (h₂ a h))
 
 /-- Decode a weighted gate list `W` into a `Multiset (Finset (Seed ℓ × Slot n g m))`. -/
 private noncomputable def decodeWList (n g m ℓ : ℕ) (W : List WGate) :
@@ -2461,21 +2474,6 @@ private theorem subsetsUpToCapped_uncapped {N D U : ℕ} (hU : (N + 1) ^ D ≤ U
       (∀ s ∈ L, s.Pairwise (· < ·) ∧ s.length ≤ k ∧ ∀ a ∈ s, a < N) →
       L.length ≤ #{S : Finset (Fin N) | #S ≤ k} := by
     intro L k hnd hL
-    have hinj : ∀ s₁ ∈ L, ∀ s₂ ∈ L,
-        (s₁.toFinset.subtype fun a => a < N) = (s₂.toFinset.subtype fun a => a < N) → s₁ = s₂ := by
-      intro s₁ hs₁ s₂ hs₂ heq
-      have hset : s₁.toFinset = s₂.toFinset := by
-        ext a
-        by_cases ha : a < N
-        · have := Finset.ext_iff.1 heq ⟨a, ha⟩
-          simpa using this
-        · exact iff_of_false (fun h => ha ((hL s₁ hs₁).2.2 a (List.mem_toFinset.1 h)))
-            (fun h => ha ((hL s₂ hs₂).2.2 a (List.mem_toFinset.1 h)))
-      have hperm : s₁.Perm s₂ := (List.toFinset_eq_iff_perm_dedup.1 hset).trans
-        (by rw [(hL s₂ hs₂).1.nodup.dedup]) |> fun h =>
-        (by rw [(hL s₁ hs₁).1.nodup.dedup] at h; exact h)
-      exact List.Perm.eq_of_pairwise (fun _ _ _ _ h1 h2 => absurd (h1.trans h2) (lt_irrefl _))
-        (hL s₁ hs₁).1 (hL s₂ hs₂).1 hperm
     have hcard : L.length = (L.toFinset).card := (List.toFinset_card_of_nodup hnd).symm
     rw [hcard]
     refine Finset.card_le_card_of_injOn (fun s => Finset.univ.filter fun i : Fin N => i.1 ∈ s)
@@ -2488,20 +2486,12 @@ private theorem subsetsUpToCapped_uncapped {N D U : ℕ} (hU : (N + 1) ^ D ≤ U
               (fun _ _ _ _ h => Fin.ext h)
         _ ≤ s.length := List.toFinset_card_le s
         _ ≤ k := (hL s hs').2.1
-    · have hs₁' := List.mem_toFinset.1 hs₁
-      have hs₂' := List.mem_toFinset.1 hs₂
-      have hset : s₁.toFinset = s₂.toFinset := by
-        ext a
-        by_cases ha : a < N
-        · have := Finset.ext_iff.1 heq ⟨a, ha⟩
-          simpa using this
-        · exact iff_of_false (fun h => ha ((hL s₁ hs₁').2.2 a (List.mem_toFinset.1 h)))
-            (fun h => ha ((hL s₂ hs₂').2.2 a (List.mem_toFinset.1 h)))
-      have hperm : s₁.Perm s₂ := by
-        have := List.toFinset_eq_iff_perm_dedup.1 hset
-        rwa [(hL s₁ hs₁').1.nodup.dedup, (hL s₂ hs₂').1.nodup.dedup] at this
-      exact List.Perm.eq_of_pairwise (fun _ _ _ _ h1 h2 => absurd (h1.trans h2) (lt_irrefl _))
-        (hL s₁ hs₁').1 (hL s₂ hs₂').1 hperm
+    · obtain ⟨hp₁, -, hlt₁⟩ := hL s₁ (List.mem_toFinset.1 hs₁)
+      obtain ⟨hp₂, -, hlt₂⟩ := hL s₂ (List.mem_toFinset.1 hs₂)
+      refine hp₁.eq_of_mem_iff hp₂ fun a => ?_
+      by_cases ha : a < N
+      · simpa using Finset.ext_iff.1 heq ⟨a, ha⟩
+      · exact iff_of_false (fun h => ha (hlt₁ a h)) (fun h => ha (hlt₂ a h))
   have hind : ∀ k ≤ D,
       let st := (List.range k).foldl (extendSubsetsStep (N, U)) ([[]], [[]])
       st.1.Nodup ∧ st.2.Nodup ∧
@@ -2747,17 +2737,10 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
       rw [hgate_getD k]
       have hdedup_getD : ctx.gatesDedup.getD k.1 [] =
           (List.ofFn fun a => ((P.lines k).wires a).toNat).eraseDupsBy
-            fun a b => decide (a = b) := by
-        have hklt : k.1 < ctx.gatesDedup.length := by
-          simp only [ctx, buildCtx, List.length_map]; rw [Circuit.length_code_fst]; exact k.isLt
-        rw [List.getD_eq_getElem _ _ hklt]
-        simp only [ctx, buildCtx, List.getElem_map]
-        have h := hgate_getD k
-        have hklt2 : k.1 < ctx.gates.length := by
-          simp only [ctx, buildCtx, List.length_map]; rw [Circuit.length_code_fst]; exact k.isLt
-        rw [List.getD_eq_getElem _ _ hklt2] at h
-        simp only [ctx, buildCtx, List.getElem_map] at h
-        exact congrArg (fun x => x.2.eraseDupsBy fun a b => decide (a = b)) h
+            fun a b => decide (a = b) :=
+        (List.getD_map (l := ctx.gates) (d := (0, [])) (n := k.1) fun line : ℕ × List ℕ =>
+          line.2.eraseDupsBy fun a b => decide (a = b)).trans
+          (congrArg (fun x => x.2.eraseDupsBy fun a b => decide (a = b)) (hgate_getD k))
       have hpows_getD : ctx.seedPows.getD rIdx [] =
           seedPowsForSeed (fieldTable w) w (c.1 + c.2.size) rIdx := by
         have hrlt' : rIdx < ctx.seedPows.length := by
@@ -2783,10 +2766,6 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
           fun a b => decide (a = b)
         set sp := seedPowsForSeed (fieldTable w) w (c.1 + c.2.size) rIdx
         obtain ⟨hsp_len, hsp_val⟩ := seedPowsForSeed_spec hw (c.1 + c.2.size) hrLt
-        have hwire_inj : ∀ {w₁ w₂ : Wire c.1 c.2.size}, w₁.toNat = w₂.toNat → w₁ = w₂ := by
-          intro w₁ w₂ h
-          rw [← Wire.ofNat_toNat w₁, ← Wire.ofNat_toNat w₂]
-          simp only [h]
         have hcnt_eq : ∀ j : Fin w,
             (wsD.countP fun wire =>
               ((sp.getD wire []).getD j.1 false) &&
@@ -2796,46 +2775,14 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
                 bitVal ℤ (xor neg (decide ((r, Sum.inl wire) ∈ decodeIdxSet c.1 c.2.size m
                   (Nat.log 2 (c.1 + c.2.size) + 1) uSub))) := by
           intro j
-          have hnd_wsD : wsD.Nodup := List.nodup_eraseDupsBy_eq _
-          have hmem_wsD : ∀ wireIdx : ℕ, wireIdx ∈ wsD ↔
-              ∃ a, (ws a).toNat = wireIdx := by
-            intro wireIdx
-            rw [List.mem_eraseDupsBy_eq, List.mem_ofFn]
-          rw [List.countP_eq_length_filter]
-          have hcard_eq : (wsD.filter fun wire =>
-              ((sp.getD wire []).getD j.1 false) &&
-                xor neg (uSub.any fun x => decide (x = rIdx * nSlot + wire))).length =
-              #{wire ∈ Finset.univ.image ws |
-                (((sp.getD wire.toNat []).getD j.1 false) &&
-                  xor neg (decide (rIdx * nSlot + wire.toNat ∈ uSub))) = true} := by
-            rw [← List.toFinset_card_of_nodup (hnd_wsD.filter _)]
-            refine Finset.card_bij (fun wireIdx h =>
-              Wire.ofNat wireIdx (by
-                have hw := (List.mem_filter.1 (List.mem_toFinset.1 h)).1
-                obtain ⟨a, rfl⟩ := (hmem_wsD wireIdx).1 hw
-                exact Wire.toNat_lt _)) ?_ ?_ ?_
-            · intro wireIdx h
-              have hf := List.mem_filter.1 (List.mem_toFinset.1 h)
-              obtain ⟨a, ha⟩ := (hmem_wsD wireIdx).1 hf.1
-              have hlt' : wireIdx < c.1 + c.2.size := ha ▸ Wire.toNat_lt _
-              rw [Finset.mem_filter, Finset.mem_image]
-              refine ⟨⟨a, Finset.mem_univ _, ?_⟩, ?_⟩
-              · exact hwire_inj (by rw [Wire.toNat_ofNat wireIdx hlt', ha])
-              · simpa only [Wire.toNat_ofNat wireIdx hlt', hmem_iff] using hf.2
-            · intro x hx y hy hxy
-              have hx' := (List.mem_filter.1 (List.mem_toFinset.1 hx)).1
-              have hy' := (List.mem_filter.1 (List.mem_toFinset.1 hy)).1
-              obtain ⟨ax, rfl⟩ := (hmem_wsD x).1 hx'
-              obtain ⟨ay, rfl⟩ := (hmem_wsD y).1 hy'
-              have := congrArg Wire.toNat hxy
-              simpa [Wire.toNat_ofNat] using this
-            · intro wire hwire
-              rw [Finset.mem_filter, Finset.mem_image] at hwire
-              obtain ⟨⟨a, _, rfl⟩, hcond⟩ := hwire
-              refine ⟨(ws a).toNat, List.mem_toFinset.2 (List.mem_filter.2
-                ⟨(hmem_wsD _).2 ⟨a, rfl⟩, by simpa only [hmem_iff] using hcond⟩), ?_⟩
-              exact Wire.ofNat_toNat _
-          rw [hcard_eq, Finset.card_filter, Nat.cast_sum]
+          have hwsD : wsD.toFinset = (Finset.univ.image ws).image Wire.toNat := by
+            ext x
+            rw [List.mem_toFinset, List.mem_eraseDupsBy_eq, List.mem_ofFn, Finset.image_image]
+            simp
+          rw [List.countP_eq_length_filter,
+            ← List.toFinset_card_of_nodup ((List.nodup_eraseDupsBy_eq _).filter _),
+            List.toFinset_filter, hwsD, Finset.filter_image,
+            Finset.card_image_of_injective _ Wire.toNat_injective, Finset.card_filter, Nat.cast_sum]
           refine Finset.sum_congr rfl fun wire _ => ?_
           have hwlt : wire.toNat < c.1 + c.2.size := Wire.toNat_lt wire
           have hsp_lt : wire.toNat < sp.length := by rw [hsp_len]; exact hwlt
@@ -2849,7 +2796,7 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
             rw [ht1] at hfv
             rw [← hfv, seedBasis, repr_fieldOfBits]
             cases (sp[wire.toNat]'hsp_lt).getD j.1 false <;> rfl
-          simp only [hrepr, mem_decodeIdxSet, hwire_idx wire]
+          simp only [hrepr, mem_decodeIdxSet, hwire_idx wire, hmem_iff]
           cases (sp.getD wire.toNat []).getD j.1 false <;>
             cases xor neg (decide (rIdx * nSlot + wire.toNat ∈ uSub)) <;> simp [bitVal]
         -- Relate `foldl` over `List.range w` to `∏ j : Fin w`
@@ -3087,20 +3034,12 @@ private theorem amplifiedCountMod_modEq {m M k : ℕ} (hm : 0 < m) (hM : 0 < M)
       have haS : a ∉ S := fun h => hnd.2.2 a h a List.mem_cons_self rfl
       have haLt := hlt a (List.mem_append_right _ List.mem_cons_self)
       set ta := (slotEquiv c.1 c.2.size m ℓ).symm ⟨a, haLt⟩
-      have hta_val : slotToNat ta = a := by
-        have := congrArg Fin.val ((slotEquiv c.1 c.2.size m ℓ).apply_symm_apply ⟨a, haLt⟩)
-        simpa only [slotEquiv_val] using this
+      have hta_val : slotToNat ta = a := slotToNat_slotEquiv_symm haLt
       have hset : decodeIdxSet c.1 c.2.size m ℓ (S ++ [a]) =
           insert ta (decodeIdxSet c.1 c.2.size m ℓ S) := by
         ext t
         simp only [mem_decodeIdxSet, List.mem_append, List.mem_singleton, Finset.mem_insert]
-        constructor
-        · rintro (h | h)
-          · exact Or.inr h
-          · exact Or.inl (slotToNat_injective (h.trans hta_val.symm))
-        · rintro (rfl | h)
-          · exact Or.inr hta_val
-          · exact Or.inl h
+        rw [← hta_val, slotToNat_injective.eq_iff, or_comm]
       have hta_not : ta ∉ decodeIdxSet c.1 c.2.size m ℓ S := by
         rw [mem_decodeIdxSet, hta_val]; exact haS
       rw [List.foldl_append, List.foldl_cons, List.foldl_nil, hset, Finset.prod_insert hta_not,
@@ -3270,16 +3209,9 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
           · intro u₁ hu₁ u₂ hu₂ heq
             have h1 := hsubs_sub u₁ (List.mem_toFinset.1 hu₁)
             have h2 := hsubs_sub u₂ (List.mem_toFinset.1 hu₂)
-            have hset : u₁.toFinset = u₂.toFinset := by
-              ext a
-              by_cases ha : a < N
-              · have := Finset.ext_iff.1 heq ((slotEquiv c.1 c.2.size m ℓ).symm ⟨a, ha⟩)
-                have hval : slotToNat ((slotEquiv c.1 c.2.size m ℓ).symm ⟨a, ha⟩) = a := by
-                  simpa only [slotEquiv_val] using
-                    congrArg Fin.val ((slotEquiv c.1 c.2.size m ℓ).apply_symm_apply ⟨a, ha⟩)
-                simpa only [mem_decodeIdxSet, hval, List.mem_toFinset] using this
-              · exact iff_of_false (fun h => ha (hSlt a (h1.2 (List.mem_toFinset.1 h))))
-                  (fun h => ha (hSlt a (h2.2 (List.mem_toFinset.1 h))))
+            have hset : u₁.toFinset = u₂.toFinset := Finset.ext fun a => by
+              simpa only [List.mem_toFinset] using mem_iff_of_decodeIdxSet_eq
+                (fun a ha => hSlt a (h1.2 ha)) (fun a ha => hSlt a (h2.2 ha)) heq a
             obtain ⟨_, _, huniq⟩ := hsubs_bij u₁.toFinset (fun x hx =>
               List.mem_toFinset.2 (h1.2 (List.mem_toFinset.1 hx)))
             exact (huniq u₁ ⟨List.mem_toFinset.1 hu₁, rfl⟩).trans
@@ -3292,8 +3224,7 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
             obtain ⟨uSub, ⟨huMem, huEq⟩, _⟩ := hsubs_bij (U'.image slotToNat) hsubT
             refine ⟨uSub, List.mem_toFinset.2 huMem, ?_⟩
             ext t
-            rw [mem_decodeIdxSet, ← List.mem_toFinset, huEq, Finset.mem_image]
-            exact ⟨fun ⟨t', ht', h⟩ => slotToNat_injective h ▸ ht', fun ht => ⟨t, ht, rfl⟩⟩
+            rw [mem_decodeIdxSet, ← List.mem_toFinset, huEq, slotToNat_injective.mem_finset_image]
           · intro uSub hu
             have hsub := hsubs_sub uSub (List.mem_toFinset.1 hu)
             rw [card_decodeIdxSet hSnd hSlt,
@@ -3352,21 +3283,7 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
         refine hcand_nd.map_on fun s₁ hs₁ s₂ hs₂ heq => ?_
         obtain ⟨hp₁, _, hlt₁⟩ := (hcand_mem s₁).1 hs₁
         obtain ⟨hp₂, _, hlt₂⟩ := (hcand_mem s₂).1 hs₂
-        have hset : s₁.toFinset = s₂.toFinset := by
-          ext a
-          by_cases ha : a < N
-          · have := Finset.ext_iff.1 heq ((slotEquiv c.1 c.2.size m ℓ).symm ⟨a, ha⟩)
-            have hval : slotToNat ((slotEquiv c.1 c.2.size m ℓ).symm ⟨a, ha⟩) = a := by
-              simpa only [slotEquiv_val] using
-                congrArg Fin.val ((slotEquiv c.1 c.2.size m ℓ).apply_symm_apply ⟨a, ha⟩)
-            simpa only [mem_decodeIdxSet, hval, List.mem_toFinset] using this
-          · exact iff_of_false (fun h => ha (hlt₁ a (List.mem_toFinset.1 h)))
-              (fun h => ha (hlt₂ a (List.mem_toFinset.1 h)))
-        have hperm : s₁.Perm s₂ := by
-          have := List.toFinset_eq_iff_perm_dedup.1 hset
-          rwa [hp₁.nodup.dedup, hp₂.nodup.dedup] at this
-        exact List.Perm.eq_of_pairwise (fun _ _ _ _ h1 h2 => absurd (h1.trans h2) (lt_irrefl _))
-          hp₁ hp₂ hperm
+        exact hp₁.eq_of_mem_iff hp₂ (mem_iff_of_decodeIdxSet_eq hlt₁ hlt₂ heq)
       rw [Multiset.map_coe]
       refine (Multiset.Nodup.ext (Multiset.coe_nodup.2 hnd_img)
         (Finset.nodup _)).2 fun S => ?_
@@ -3383,18 +3300,13 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
           ((Finset.pairwise_sort (S.image slotToNat) (· ≤ ·)).and
             (Finset.sort_nodup (S.image slotToNat) (· ≤ ·))).imp
               fun {a b} h => lt_of_le_of_ne h.1 h.2
-        have hsl : s.length ≤ D := by
-          rw [Finset.length_sort]
+        refine ⟨s, (hcand_mem s).2 ⟨hsp', ?_, fun a ha => ?_⟩, ?_⟩
+        · rw [Finset.length_sort]
           exact Finset.card_image_le.trans hScard
-        have hslt : ∀ a ∈ s, a < N := by
-          intro a ha
-          rw [Finset.mem_sort, Finset.mem_image] at ha
-          obtain ⟨t, _, rfl⟩ := ha
+        · obtain ⟨t, _, rfl⟩ := Finset.mem_image.1 (Finset.mem_sort _ |>.1 ha)
           exact slotToNat_lt t
-        refine ⟨s, (hcand_mem s).2 ⟨hsp', hsl, hslt⟩, ?_⟩
-        ext t
-        rw [mem_decodeIdxSet, Finset.mem_sort, Finset.mem_image]
-        exact ⟨fun ⟨t', ht', h⟩ => slotToNat_injective h ▸ ht', fun ht => ⟨t, ht, rfl⟩⟩
+        · ext t
+          rw [mem_decodeIdxSet, Finset.mem_sort, slotToNat_injective.mem_finset_image]
     rw [← hmap_sets, Multiset.bind_map]
     refine Multiset.bind_congr fun S hS => ?_
     rw [hcoeff_eq S hS]
@@ -3650,12 +3562,9 @@ private theorem restrictAndExpand_spec {m U : ℕ}
       · intro h t ht
         exact (hSlot_mod t).1.1 (h (slotToNat t) ht)
       · intro h a ha
-        set t := (slotEquiv c.1 c.2.size m ℓ).symm ⟨a, hlt a ha⟩
-        have ht_val : slotToNat t = a := by
-          simpa only [slotEquiv_val] using
-            congrArg Fin.val ((slotEquiv c.1 c.2.size m ℓ).apply_symm_apply ⟨a, hlt a ha⟩)
+        have ht_val := slotToNat_slotEquiv_symm (hlt a ha)
         rw [← ht_val]
-        exact (hSlot_mod t).1.2 (h t (ht_val.symm ▸ ha))
+        exact (hSlot_mod _).1.2 (h _ (ht_val.symm ▸ ha))
     have hGateSet_eq : ∀ e ∈ W,
         gateSet c.1 ((List.range c.1).map fun i => e.1.any fun a => decide (a % nSlot = i)) =
           (decodeIdxSet c.1 c.2.size m ℓ e.1).biUnion fun t => (slotInput t).toFinset := by
@@ -3669,11 +3578,8 @@ private theorem restrictAndExpand_spec {m U : ℕ}
       simp only [decide_eq_true_eq]
       constructor
       · rintro ⟨a, ha, hmod⟩
-        set t := (slotEquiv c.1 c.2.size m ℓ).symm ⟨a, hlt a ha⟩
-        have ht_val : slotToNat t = a := by
-          simpa only [slotEquiv_val] using
-            congrArg Fin.val ((slotEquiv c.1 c.2.size m ℓ).apply_symm_apply ⟨a, hlt a ha⟩)
-        exact ⟨t, ht_val.symm ▸ ha, (hSlot_mod t).2 i |>.1 (ht_val.symm ▸ hmod)⟩
+        have ht_val := slotToNat_slotEquiv_symm (hlt a ha)
+        exact ⟨_, ht_val.symm ▸ ha, (hSlot_mod _).2 i |>.1 (ht_val.symm ▸ hmod)⟩
       · rintro ⟨t, ht, hopt⟩
         exact ⟨slotToNat t, ht, (hSlot_mod t).2 i |>.2 hopt⟩
     have hfilt_rep : ∀ (p : Finset (Seed ℓ × Slot c.1 c.2.size m) → Prop) [DecidablePred p]
