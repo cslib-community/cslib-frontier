@@ -123,18 +123,15 @@ def verifier (x : MaxTwoSATInstance × List Bool) : Bool :=
 /-- `MaxTwoSAT.verifier` verifies `MaxTwoSAT` with certificates as long as the encoded instance:
 the certificate lists the values of the variables in order of first occurrence. -/
 theorem isVerifier : IsVerifier encMaxTwoSAT Polynomial.X verifier MaxTwoSAT := by
-  refine IsVerifier.of_padding (fun x w _ h => ?_) fun x hx => ?_
+  refine IsVerifier.of_padding (fun x w _ h => ?_) fun x ⟨hlen, σ, hσ⟩ => ?_
   · simp only [verifier, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
     exact ⟨h.1, _, h.2⟩
-  · obtain ⟨hlen, σ, hσ⟩ := hx
-    have hvars : x.formula.vars.length ≤ (encMaxTwoSAT x).length :=
-      (SAT.length_vars_le x.formula).trans
-        (by rw [encMaxTwoSAT_apply]
-            exact length_le_encPair_left encCNF encNat (x.formula, x.target))
-    refine ⟨x.formula.vars.map σ, by simpa using hvars, fun k => ?_⟩
-    simp only [verifier, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
-    refine ⟨hlen, hσ.trans (CNF.countP_eval_congr fun v hv => ?_).le⟩
-    exact (SAT.assignment_vars_map_append _ σ _ hv).symm
+  · refine ⟨x.formula.vars.map σ, ?_, fun k => ?_⟩
+    · simpa [encMaxTwoSAT_apply] using (SAT.length_vars_le x.formula).trans
+        (length_le_encPair_left encCNF encNat (x.formula, x.target))
+    · simp only [verifier, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
+      exact ⟨hlen, hσ.trans (CNF.countP_eval_congr fun v hv =>
+        (SAT.assignment_vars_map_append _ σ _ hv).symm).le⟩
 
 /-- Checking the clause widths and counting the satisfied clauses is polynomial-time: the count
 is computed in unary and compared with the binary target. -/
@@ -144,17 +141,10 @@ theorem computableInPolyTime_verifier :
   have hφ : ComputableInPolyTime (fun x : MaxTwoSATInstance × List Bool => x.1.formula)
       (encPair encMaxTwoSAT encBits) (encList (encList (encPair encNat encBool))) :=
     encMaxTwoSAT_formula_polyTime (fst _ _)
-  have hcount : ComputableInPolyTime
-      (fun x : MaxTwoSATInstance × List Bool =>
-        x.1.formula.countP (Clause.eval (SAT.assignment x.1.formula x.2)))
-      (encPair encMaxTwoSAT encBits) encNat :=
-    unary_to_binary.comp (countPWithInput hφ (SAT.computableInPolyTime_clause.comp
-      (((hφ.comp (fst _ _)).prod ((snd _ _).comp (fst _ _))).prod (snd _ _))))
-  have hwidth : ComputableInPolyTime
-      (fun x : MaxTwoSATInstance × List Bool => x.1.formula.all fun c => decide (c.length ≤ 2))
-      (encPair encMaxTwoSAT encBits) encBool :=
-    (computableInPolyTime_all_length_le 2).comp (encMaxTwoSAT_formula_polyTime (fst _ _))
-  exact bool_and' hwidth (binary_le' (encMaxTwoSAT_target_polyTime (fst _ _)) hcount)
+  exact bool_and' ((computableInPolyTime_all_length_le 2).comp hφ)
+    (binary_le' (encMaxTwoSAT_target_polyTime (fst _ _))
+      (unary_to_binary.comp (countPWithInput hφ (SAT.computableInPolyTime_clause.comp
+        (((hφ.comp (fst _ _)).prod ((snd _ _).comp (fst _ _))).prod (snd _ _))))))
 
 /-- `MaxTwoSAT` belongs to `NP`. -/
 theorem mem_NP : MaxTwoSAT ∈ NP encMaxTwoSAT :=
@@ -241,9 +231,8 @@ def toMaxTwoSAT (φ : CNF ℕ) : MaxTwoSATInstance :=
 gadgets. -/
 private theorem MaxTwoSAT.countP_flatMap_clauseGadget (σ : ℕ → Bool) (φ : CNF ℕ) :
     (φ.zipIdx.flatMap fun c => clauseGadget c.1 c.2).countP (Clause.eval σ) =
-      (φ.zipIdx.map fun c => (clauseGadget c.1 c.2).countP (Clause.eval σ)).sum := by
-  rw [List.countP_flatMap]
-  rfl
+      (φ.zipIdx.map fun c => (clauseGadget c.1 c.2).countP (Clause.eval σ)).sum :=
+  List.countP_flatMap ..
 
 /-- On a clause of three literals, the gadget score under `σ` is that of the three literal values
 under any `τ` with `τ v = σ (2 v)`. -/
@@ -251,10 +240,8 @@ private theorem MaxTwoSAT.countP_clauseGadget (σ τ : ℕ → Bool) (hτ : ∀ 
     (a b c : Literal ℕ) (i : ℕ) :
     (clauseGadget [a, b, c] i).countP (Clause.eval σ) =
       gadgetScore (Literal.eval τ a) (Literal.eval τ b) (Literal.eval τ c) (σ (2 * i + 1)) := by
-  have hτ' : τ = fun v => σ (2 * v) := funext hτ
-  subst hτ'
-  rw [clauseGadget, countP_gadget]
-  rfl
+  cases funext hτ
+  exact countP_gadget _ _ _ _ _
 
 /-- A formula is in `ExactThreeSAT` exactly when its image under `toMaxTwoSAT` is in
 `MaxTwoSAT`. -/
@@ -272,51 +259,43 @@ theorem mem_MaxTwoSAT_toMaxTwoSAT_iff (φ : CNF ℕ) :
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
       have hmem : (φ[i], i) ∈ φ.zipIdx :=
         List.mem_zipIdx_iff_getElem?.2 (List.getElem?_eq_getElem hi)
-      refine absurd hσ (not_le.2 ?_)
-      have hlt := List.sum_lt_sum (l := φ.zipIdx)
-        (fun p => (clauseGadget p.1 p.2).countP (Clause.eval σ)) (fun _ => 7)
-        (fun ⟨c, j⟩ hp => by
-          obtain ⟨a, b, d, rfl⟩ := hzip c j hp
-          rw [countP_clauseGadget σ _ fun _ => rfl]
-          exact gadgetScore_le _ _ _ _)
-        ⟨(φ[i], i), hmem, by
-          obtain ⟨a, b, d, hp⟩ := hzip _ _ hmem
-          dsimp only
-          rw [hp, countP_clauseGadget σ _ fun _ => rfl]
-          rw [hp] at hfalse
-          simp only [Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.not_eq_true,
-            Bool.or_eq_false_iff] at hfalse
-          obtain ⟨ha, hb, hd⟩ := hfalse
-          rw [ha, hb, hd]
-          exact Nat.lt_of_le_of_lt (gadgetScore_false_le _) (by norm_num)⟩
-      simpa [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm] using hlt
+      refine not_lt_of_ge hσ ?_
+      simpa [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm] using
+        List.sum_lt_sum (l := φ.zipIdx)
+          (fun p => (clauseGadget p.1 p.2).countP (Clause.eval σ)) (fun _ => 7)
+          (fun ⟨c, j⟩ hp => by
+            obtain ⟨a, b, d, rfl⟩ := hzip c j hp
+            rw [countP_clauseGadget σ _ fun _ => rfl]
+            exact gadgetScore_le _ _ _ _)
+          ⟨(φ[i], i), hmem, by
+            obtain ⟨a, b, d, hp⟩ := hzip _ _ hmem
+            simp only [hp, Clause.eval_cons, Clause.eval_nil, Bool.or_false, Bool.not_eq_true,
+              Bool.or_eq_false_iff] at hfalse
+            rcases hfalse with ⟨ha, hb, hd⟩
+            dsimp only
+            rw [hp, countP_clauseGadget σ _ fun _ => rfl, ha, hb, hd]
+            exact (gadgetScore_false_le _).trans_lt (by decide)⟩
     · rintro ⟨-, τ, hτ⟩
-      refine ⟨fun d hd => ?_, fun n => if n % 2 = 0 then τ (n / 2) else
-        majority (Literal.eval τ ((φ.getD (n / 2) []).headD (0, true)))
-          (Literal.eval τ ((φ.getD (n / 2) []).tail.headD (0, true)))
-          (Literal.eval τ ((φ.getD (n / 2) []).tail.tail.headD (0, true))), ?_⟩
-      · obtain ⟨p, -, hd⟩ := List.mem_flatMap.1 hd
-        exact length_le_of_mem_gadget hd
-      · refine le_of_eq ?_
-        rw [List.map_congr_left (g := fun _ => 7) fun p hp => ?_]
-        · simp [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm]
-        obtain ⟨c, j⟩ := p
-        obtain ⟨a, b, d, rfl⟩ := hzip c j hp
-        have hget : φ[j]? = some [a, b, d] := List.mem_zipIdx_iff_getElem?.1 hp
-        have hc : Clause.eval τ [a, b, d] = true :=
-          (CNF.eval_eq_true_iff _ _).1 hτ _ (List.mem_of_getElem? hget)
-        dsimp only
-        rw [countP_clauseGadget _ τ fun v => by simp]
-        have hodd : ¬(2 * j + 1) % 2 = 0 := by omega
-        have hdiv : (2 * j + 1) / 2 = j := by omega
-        simp only [hodd, hdiv, ↓reduceIte, List.getD_eq_getElem?_getD, hget, Option.getD_some,
-          List.headD_cons, List.tail_cons]
-        simp only [Clause.eval_cons, Clause.eval_nil, Bool.or_false] at hc
-        exact gadgetScore_majority (by simpa [Bool.or_assoc] using hc)
+      refine ⟨fun d hd => (let ⟨_, _, hd⟩ := List.mem_flatMap.1 hd; length_le_of_mem_gadget hd),
+        fun n => if n % 2 = 0 then τ (n / 2) else
+          majority (Literal.eval τ ((φ.getD (n / 2) []).headD (0, true)))
+            (Literal.eval τ ((φ.getD (n / 2) []).tail.headD (0, true)))
+            (Literal.eval τ ((φ.getD (n / 2) []).tail.tail.headD (0, true))),
+        le_of_eq ?_⟩
+      rw [List.map_congr_left (g := fun _ => 7) fun p hp => ?_]
+      · simp [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm]
+      rcases p with ⟨c, j⟩
+      obtain ⟨a, b, d, rfl⟩ := hzip c j hp
+      have hget : φ[j]? = some [a, b, d] := List.mem_zipIdx_iff_getElem?.1 hp
+      have hc := (CNF.eval_eq_true_iff _ _).1 hτ _ (List.mem_of_getElem? hget)
+      dsimp only
+      rw [countP_clauseGadget _ τ fun _ => by simp]
+      simp only [show ¬(2 * j + 1) % 2 = 0 by omega, show (2 * j + 1) / 2 = j by omega,
+        ↓reduceIte, List.getD_eq_getElem?_getD, hget, Option.getD_some, List.headD_cons,
+        List.tail_cons]
+      exact gadgetScore_majority (by simpa [Clause.eval_cons, Bool.or_assoc] using hc)
   · simp only [toMaxTwoSAT, hall, Bool.false_eq_true, ↓reduceIte]
-    refine iff_of_false (fun ⟨_, σ, hσ⟩ => ?_) fun ⟨h3, _⟩ => hall ?_
-    · simp at hσ
-    · simpa using h3
+    exact iff_of_false (fun ⟨_, _, hσ⟩ => by simp at hσ) fun ⟨h3, _⟩ => hall (by simpa using h3)
 
 /-! ### Polynomial time -/
 
@@ -361,8 +340,8 @@ private theorem computableInPolyTime_target :
 
 private theorem computableInPolyTime_gadgets :
     ComputableInPolyTime (fun φ : CNF ℕ => φ.zipIdx.flatMap fun c => clauseGadget c.1 c.2) encCNF
-      encCNF := by
-  exact flatMapWithInput computableInPolyTime_zipIdx_cnf computableInPolyTime_clauseGadget
+      encCNF :=
+  flatMapWithInput computableInPolyTime_zipIdx_cnf computableInPolyTime_clauseGadget
 
 /-- The reduction `toMaxTwoSAT` is computable in polynomial time. -/
 @[fun_prop]
