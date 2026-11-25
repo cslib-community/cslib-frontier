@@ -55,10 +55,9 @@ theorem full_kernelVecAt (A : Fin r → Fin n → (Fin N → F) → F) (hA : ∀
   let K : Fin n → Fin n → (Fin N → F) → F := fun i l x => kernelBasis (fun k l => A k l x) i l
   let build := Builder.start (fullInterpretation (k := 2)) s
   let build := build.add (full_kernelBasis A hA)
-  have hK : ∀ i l, K i l ∈ build.wires := fun i l => Set.mem_union_right _ ⟨(i, l), rfl⟩
   -- the flags of the first member whose entry `j` is nonzero
   let sel : Fin n → (Fin N → F) → F := fun i x => firstFlags (fun i' => K i' j x) i
-  let build := build.add (full_firstFlags (s := build.wires) (fun i => K i j) fun i => hK i j)
+  synthesis_step build using full_firstFlags fun i => K i j
   -- the selected member
   let u : Fin n → (Fin N → F) → F := fun l x => ∑ i, sel i x * K i l x
   let build := build.add (family (I := fullInterpretation (k := 2)) (s := build.wires)

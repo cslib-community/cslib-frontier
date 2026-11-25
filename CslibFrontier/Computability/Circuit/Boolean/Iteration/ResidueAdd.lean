@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.Word
+import CslibFrontier.Computability.Circuit.Boolean.Word.Rewire
 import CslibFrontier.Tactic.Synthesis
 
 /-!
@@ -86,21 +87,16 @@ theorem synthesis_addResidue (s : Set (BitString n → Bool)) (a b r : BitString
   -- Widening selects existing wires; each arithmetic construction is charged once.
   let build := Synthesis.Builder.start Boolean.interpretation s
   let build := build.add (Synthesis.const false)
-  have hw (v : BitString n → BitVec k) (hv : wordWires v ⊆ s) :=
-    wordWires_setWidth_subset (v := k + 1) (s := build.wires) (value := v)
-      (by synthesis_available) (by synthesis_available)
-  have haw := hw a ha
-  let build := build.add (Synthesis.word_add (fun x => (b x).setWidth (k + 1))
-    (fun x => (r x).setWidth (k + 1))
-    (fun i => hw b hb ⟨i, rfl⟩) (fun i => hw r hr ⟨i, rfl⟩))
-  synthesis_step build using Synthesis.word_sub sum aw
-  synthesis_step build using Synthesis.word_ult sum aw
+  synthesis_step [wordWires_subset_iff.mp, wordWires_setWidth_subset] build using
+    Synthesis.word_add (fun x => (b x).setWidth (k + 1)) (fun x => (r x).setWidth (k + 1))
+  synthesis_step [wordWires_subset_iff.mp, wordWires_setWidth_subset] build using
+    Synthesis.word_sub sum aw
+  synthesis_step [wordWires_subset_iff.mp, wordWires_setWidth_subset] build using
+    Synthesis.word_ult sum aw
   synthesis_step build using
     Synthesis.word_mux sum (fun x => sum x - aw x) (fun x => (sum x).ult (aw x))
-  have hre := wordWires_setWidth_subset (v := k) (s := build.wires) (value := reduced)
-    (by synthesis_available) (by synthesis_available)
   synthesis_step build using Synthesis.word_ult b a
-  synthesis_step build using
+  synthesis_step [wordWires_subset_iff.mp, wordWires_setWidth_subset] build using
     Synthesis.word_mux (fun x => (reduced x).setWidth k) b (fun x => (b x).ult (a x))
   exact build.finish (by synthesis_available)
     (by dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]; omega)

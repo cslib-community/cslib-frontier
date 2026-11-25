@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.HintDecoding
 public import CslibFrontier.Foundations.Data.Code.SelfCorrection
+import CslibFrontier.Tactic.Synthesis
 
 /-!
 # Circuits for the arithmetic of Reed–Muller decoding
@@ -52,12 +53,12 @@ variable {F : Type*} [Field F] [DecidableEq F] {N : ℕ} {s : Set ((Fin N → F)
 theorem full_firstNonzero {m : ℕ} (u : Fin m → (Fin N → F) → F) (hu : ∀ i, u i ∈ s) :
     Synthesis (fullInterpretation (k := 2)) s {fun x => firstNonzero fun i => u i x}
       (4 * m + 2) := by
-  have h₁ := full_firstFlags (s := s) u hu
-  have h₂ := full_dot (s := s ∪ Set.range fun i x => firstFlags (fun j => u j x) i) univ
-    (fun i x => firstFlags (fun j => u j x) i) u
-    (fun i _ => Set.mem_union_right _ ⟨i, rfl⟩) (fun i _ => Set.mem_union_left _ (hu i))
-  refine (h₁.trans h₂).mono Set.Subset.rfl (Set.singleton_subset_iff.2 rfl) ?_
-  simp only [card_univ, Fintype.card_fin]
+  let build := Builder.start (fullInterpretation (k := 2)) s
+  let build := build.add (full_firstFlags u hu)
+  synthesis_step build using full_dot univ (fun i x => firstFlags (fun j => u j x) i) u
+  refine build.finish (by synthesis_available) ?_
+  dsimp +zetaDelta [Builder.add, Builder.start]
+  simp only [Fintype.card_fin]
   omega
 
 /-- **The points of a line by a circuit.** Given the coordinates of `x` as available functions
@@ -72,28 +73,24 @@ theorem full_linePoints [Fintype F] {m : ℕ} (x : Fin m → (Fin N → F) → F
         | some (t, i) => ((fun i => x i v) + t • (firstNonzero (z - fun i => x i v))⁻¹ •
             (z - fun i => x i v)) i)
       ((Fintype.card F + 5) * m + 2) := by
+  let build := Builder.start (fullInterpretation (k := 2)) s
   -- the differences
-  have h₁ := family (I := fullInterpretation (k := 2)) (s := s) (fun i v => z i - x i v)
-    (fun _ => 1) (fun i => full_unary (fun a => z i - a) (hx i))
-  set s₁ := s ∪ Set.range fun i v => z i - x i v
+  let build := build.add (family (I := fullInterpretation (k := 2)) (s := build.wires)
+    (fun i v => z i - x i v) (fun _ => 1) fun i => full_unary (fun a => z i - a) (hx i))
   -- the hint position
-  have h₂ := full_firstNonzero (s := s₁) (fun i v => z i - x i v) fun i =>
-    Set.mem_union_right _ ⟨i, rfl⟩
-  set s₂ := s₁ ∪ {fun v => firstNonzero fun i => z i - x i v}
+  synthesis_step build using full_firstNonzero (fun i v => z i - x i v)
   -- the points
-  have h₃ := family (I := fullInterpretation (k := 2)) (s := s₂)
+  let build := build.add (family (I := fullInterpretation (k := 2)) (s := build.wires)
     (fun ti : F × Fin m => fun v => x ti.2 v + ti.1 * ((firstNonzero fun i => z i - x i v)⁻¹ *
       (z ti.2 - x ti.2 v))) (fun _ => 1)
     (fun ti => full_binary_mem (fun a c => a + ti.1 * (c⁻¹ * (z ti.2 - a)))
-      (Set.mem_union_left _ (Set.mem_union_left _ (hx ti.2))) (Set.mem_union_right _ rfl))
-  refine (h₁.comp (h₂.comp h₃)).mono Set.Subset.rfl ?_ ?_
+      (by synthesis_available) (by synthesis_available)))
+  refine build.finish ?_ ?_
   · rintro _ ⟨o, rfl⟩
-    rcases o with _ | ⟨t, i⟩
-    · exact Set.mem_union_right _ (Set.mem_union_left _ rfl)
-    · refine Set.mem_union_right _ (Set.mem_union_right _ ⟨(t, i), funext fun v => ?_⟩)
-      simp only [Pi.add_apply, Pi.smul_apply, Pi.sub_apply, smul_eq_mul]
-      rfl
-  · simp only [sum_const, card_univ, Fintype.card_fin, Fintype.card_prod, smul_eq_mul, mul_one]
+    rcases o with _ | ⟨t, i⟩ <;>
+      simp only [Pi.add_apply, Pi.smul_apply, Pi.sub_apply, smul_eq_mul] <;> synthesis_available
+  · dsimp +zetaDelta [Builder.add, Builder.start]
+    simp only [sum_const, card_univ, Fintype.card_fin, Fintype.card_prod, smul_eq_mul, mul_one]
     nlinarith
 
 omit [DecidableEq F] in
@@ -114,17 +111,9 @@ theorem full_weightedSum {ι : Type*} [Fintype ι] (c : ι → F) (f : ι → (F
 /-- A majority of three available functions costs four gates. -/
 private theorem full_maj3 {a b c : (Fin N → F) → F} (ha : a ∈ s) (hb : b ∈ s) (hc : c ∈ s) :
     Synthesis (fullInterpretation (k := 2)) s {fun x => maj3 (a x) (b x) (c x)} 4 := by
-  have h₁ := full_binary_mem (s := s) (fun u v => if u = v then (1 : F) else 0) ha hb
-  have h₂ := full_binary_mem (s := s ∪ {fun x => if a x = b x then (1 : F) else 0})
-    (· - ·) (Set.mem_union_left _ ha) (Set.mem_union_left _ hc)
-  set s₂ := (s ∪ {fun x => if a x = b x then (1 : F) else 0}) ∪ {fun x => a x - c x}
-  have h₃ := full_binary_mem (s := s₂) (· * ·) (Set.mem_union_left _ (Set.mem_union_right _ rfl))
-    (Set.mem_union_right _ rfl)
-  have h₄ := full_binary_mem (s := s₂ ∪ {fun x => (if a x = b x then (1 : F) else 0) *
-    (a x - c x)}) (fun u v => u + v)
-    (Set.mem_union_left _ (Set.mem_union_left _ (Set.mem_union_left _ hc)))
-    (Set.mem_union_right _ rfl)
-  refine (h₁.trans (h₂.trans (h₃.trans h₄))).mono Set.Subset.rfl
+  have heq := full_binary_mem (fun u v => if u = v then (1 : F) else 0) ha hb
+  have hdiff := full_binary_mem (· - ·) ha hc
+  refine (full_binary (of_mem hc) (full_binary heq hdiff (· * ·)) (· + ·)).mono Set.Subset.rfl
     (Set.singleton_subset_iff.2 (funext fun x => ?_)) le_rfl
   simp only [maj3]
   split_ifs with h
@@ -141,17 +130,14 @@ theorem full_majTree (L : ℕ) (f : Fin (3 ^ L) → (Fin N → F) → F) (hf : �
   | zero =>
     exact (of_mem (hf _)).mono Set.Subset.rfl Set.Subset.rfl (by omega)
   | succ L ih =>
-    have h₀ := ih (s := s) (fun k => f (tripleEquiv L (0, k))) fun k => hf _
-    have h₁ := ih (s := s) (fun k => f (tripleEquiv L (1, k))) fun k => hf _
-    have h₂ := ih (s := s) (fun k => f (tripleEquiv L (2, k))) fun k => hf _
-    have h₃ := full_maj3 (s := s ∪ ({fun x => majTree L fun k => f (tripleEquiv L (0, k)) x} ∪
-        ({fun x => majTree L fun k => f (tripleEquiv L (1, k)) x} ∪
-          {fun x => majTree L fun k => f (tripleEquiv L (2, k)) x})))
-      (Set.mem_union_right _ (Set.mem_union_left _ rfl))
-      (Set.mem_union_right _ (Set.mem_union_right _ (Set.mem_union_left _ rfl)))
-      (Set.mem_union_right _ (Set.mem_union_right _ (Set.mem_union_right _ rfl)))
-    refine ((h₀.union (h₁.union h₂)).trans h₃).mono Set.Subset.rfl
-      (Set.singleton_subset_iff.2 rfl) ?_
+    let g : Fin 3 → (Fin N → F) → F := fun i x => majTree L fun k => f (tripleEquiv L (i, k)) x
+    let build := Builder.start (fullInterpretation (k := 2)) s
+    let build := build.add (family (I := fullInterpretation (k := 2)) (s := build.wires)
+      g (fun _ => 2 * 3 ^ L - 2) fun i => ih (fun k => f (tripleEquiv L (i, k))) fun _ => hf _)
+    synthesis_step build using full_maj3 (a := g 0) (b := g 1) (c := g 2)
+    refine build.finish (by synthesis_available) ?_
+    dsimp +zetaDelta [Builder.add, Builder.start]
+    simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
     rw [pow_succ]
     have : 1 ≤ 3 ^ L := Nat.one_le_pow _ _ (by decide)
     omega

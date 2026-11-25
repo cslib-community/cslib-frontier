@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Synthesis
+public meta import Lean.Elab.Tactic
 
 /-!
 # Finding available circuit wires
@@ -17,32 +18,65 @@ indexed bundles, and local availability hypotheses. It also finds the wires reta
 `Synthesis.Builder`. Semantic rewrites and bounds on indices remain ordinary local lemmas.
 The tactic never adds a gate or invokes a synthesis theorem.
 
-It first tries `synthesis_union`, which matches syntactic members of a union
-`A₀ ∪ T₁ ∪ ⋯ ∪ Tₖ` at reducible transparency. This is the shape that a chain of
-`Synthesis.extend` steps produces. Only if that fails does it run the general search, which
+It first exposes the `wires` field of concrete builders, without unfolding any of their wire
+functions, and matches syntactic members of the resulting union `A₀ ∪ T₁ ∪ ⋯ ∪ Tₖ` at reducible
+transparency. Only if that fails does it run the general search, which
 compares wire functions at default transparency. On wire families of equal width, such as the
 bits of `BitVec` words, those comparisons unfold the word operations before they fail.
 On a fifteen-step chain they exhaust the default heartbeat budget.
 
+`synthesis_available [rules]` never runs the general search. It applies the listed zero-cost
+rewiring lemmas and the local hypotheses to whole goals at reducible transparency, and tries the
+syntactic match on every goal, so a missing wire is reported at once. `synthesis_available []`
+lists no lemma: it is the syntactic match together with the local hypotheses applied to whole
+goals. Inside a union a hypothesis is used only by `assumption`, so the rule-list form finds
+neither a quantified hypothesis about one member, until it is instantiated, nor a hypothesis
+stated about an earlier builder's `wires`. The plain form finds both.
+
 ## Main definitions
 
 * `synthesis_available`: close an available-wire obligation by structural proof search.
-* `synthesis_union`: close it when the wires are syntactically a member of a union, or are
-  in one by a local hypothesis, without unfolding any definition.
 * `synthesis_step b using rule`: append a certified construction to `b`, finding its input wires.
+  `synthesis_step [rules] b using rule` finds them with `synthesis_available [rules]`.
 -/
 
 public section
 
+open Lean Meta Elab Tactic
+
+/-- Expose only the wire fields of concrete builders. Reducing the builder to its constructor
+does not reduce its fields, so equal-width word operations remain opaque to the union search. -/
+private meta def exposeBuilderWires : TacticM Unit := withMainContext do
+  let goal ← getMainGoal
+  let some info ← getProjectionFnInfo? ``Cslib.Circuits.Synthesis.Builder.wires
+    | throwError "missing Builder.wires projection information"
+  let target ← Meta.transform (← instantiateMVars (← goal.getType)) (pre := fun e => do
+    let builder? := match e with
+      | .proj ``Cslib.Circuits.Synthesis.Builder 0 builder => some (builder, #[])
+      | _ =>
+        if e.isAppOf ``Cslib.Circuits.Synthesis.Builder.wires then
+          let args := e.getAppArgs
+          args[info.numParams]?.map fun builder =>
+            (builder, args.extract (info.numParams + 1) args.size)
+        else none
+    let some (builder, trailing) := builder? | return .continue
+    let builder ← withDefault <| whnf builder
+    unless builder.isAppOf info.ctorName do return .continue
+    let some wires := builder.getAppArgs[info.numParams + info.i]? | return .continue
+    return .visit (mkAppN wires trailing))
+  replaceMainGoal [← goal.replaceTargetDefEq target]
+
 /-- Close `X ⊆ A₀ ∪ T₁ ∪ ⋯ ∪ Tₖ` when `X` is syntactically `A₀` or some `Tᵢ`, or is contained in
-one of them by a local hypothesis, and close `f ∈ A₀ ∪ T₁ ∪ ⋯ ∪ Tₖ` from a local hypothesis
-`f ∈ A₀` or `f ∈ Tᵢ`. Matching is at reducible transparency and never looks inside a wire family.
+one of them by a local hypothesis, and close `f ∈ A₀ ∪ T₁ ∪ ⋯ ∪ Tₖ` from a singleton `{f}` or a
+local hypothesis `f ∈ A₀` or `f ∈ Tᵢ`. Matching is at reducible transparency and never looks inside
+a wire family.
 Each step uses `refine`, which unifies the goal before recursing, so the search ends after one
 step per union in the goal and fails quickly on any other goal. -/
-syntax (name := synthesisUnion) "synthesis_union" : tactic
+local syntax (name := synthesisUnion) "synthesis_union" : tactic
 macro_rules | `(tactic| synthesis_union) => `(tactic| first
   | with_reducible assumption
   | with_reducible exact Set.Subset.rfl
+  | with_reducible exact Set.mem_singleton _
   | with_reducible exact Set.subset_union_right
   | (with_reducible refine Set.subset_union_of_subset_left ?_ _); synthesis_union
   | (with_reducible refine Set.mem_union_right _ ?_); synthesis_union
@@ -50,11 +84,14 @@ macro_rules | `(tactic| synthesis_union) => `(tactic| first
   | (with_reducible refine Set.subset_union_of_subset_right ?_ _); with_reducible assumption)
 
 /-- The recursive search behind `synthesis_available`. Its failures are discarded by the
-alternatives that call it, so only `synthesis_available` reports one. -/
-syntax (name := synthesisAvailableSearch) "synthesis_available_search" : tactic
+alternatives that call it, so only `synthesis_available` reports one. A pair-indexed range is
+tried before a singly indexed one: the pair form fails at once on any other index type, whereas
+`Set.mem_range_self _` is slow to fail on a pair-indexed family. -/
+local syntax (name := synthesisAvailableSearch) "synthesis_available_search" : tactic
 macro_rules | `(tactic| synthesis_available_search) => `(tactic|
   first
   | assumption
+  | exact Set.mem_range.mpr ⟨(_, _), rfl⟩
   | exact Set.mem_range_self _
   | rfl
   | (solve | apply Set.mem_union_right; synthesis_available_search)
@@ -71,22 +108,49 @@ macro_rules | `(tactic| synthesis_available_search) => `(tactic|
       (constructor := false) (intro := false) [Set.mem_range_self]
   | (solve | intro i; synthesis_available_search))
 
-/-- Find already available wires, without synthesizing new functions. Tries the syntactic
-`synthesis_union` first, then the general search. -/
-syntax (name := synthesisAvailable) "synthesis_available" : tactic
-macro_rules | `(tactic| synthesis_available) => `(tactic|
-  first
-  | synthesis_union
-  | synthesis_available_search
-  | fail "synthesis_available could not find these wires among the available ones. It follows \
-      unions, indexed families, the wires of a `Synthesis.Builder` and local hypotheses, but \
-      never adds a gate: append the missing construction first, with `synthesis_step` or \
-      `Builder.add`.")
+-- Close structural leaves before applying another rewiring rule. In particular, a rule with
+-- a premise `X ⊆ A` should use a stored copy of `X`, rather than explore rewiring it again.
+local syntax "synthesis_available_rewire" " [" term,* "]" : tactic
+elab_rules : tactic
+  | `(tactic| synthesis_available_rewire [$rules,*]) => withMainContext do
+    let union ← `(tactic| synthesis_union)
+    let cfg : Lean.Meta.SolveByElim.SolveByElimConfig := {
+      maxDepth := 32, transparency := .reducible, symm := false, exfalso := false,
+      constructor := false, intro := false }
+    let cfg := cfg.mainGoalProc fun g => do
+      let some goals ← observing? <| Term.TermElabM.run' <| run g (evalTactic union)
+        | failure
+      pure goals
+    replaceMainGoal (← Lean.Elab.Tactic.SolveByElim.processSyntax cfg true true
+      rules.getElems.toList [] #[] [← getMainGoal])
 
-/-- Append a synthesis rule to the named builder, solving its available-wire premises. -/
-syntax (name := synthesisStep) "synthesis_step " ident " using " term : tactic
+/-- Find already available wires, without synthesizing new functions. Exposes concrete builders'
+wire fields, matches members of the resulting union syntactically, then runs the general search.
+`synthesis_available [rules]` instead applies the supplied availability lemmas and the local
+hypotheses to whole goals at reducible transparency, trying the syntactic match on every goal, and
+never runs the general search: this supports zero-cost rewiring without unfolding the functions
+computed by the circuit, and fails at once when a wire is missing. -/
+syntax (name := synthesisAvailable) "synthesis_available" (" [" term,* "]")? : tactic
+elab_rules : tactic
+  | `(tactic| synthesis_available $[[$rules,*]]?) => do
+    exposeBuilderWires
+    let (find, follows) ← match rules with
+      | some rules => pure (← `(tactic| synthesis_available_rewire [$rules,*]),
+          "With a rule list it applies the listed lemmas and the local hypotheses to whole goals \
+          and matches the members of a union syntactically; it does not follow indexed families.")
+      | none => pure (← `(tactic| first | synthesis_union | synthesis_available_search),
+          "It follows unions, indexed families, the wires of a `Synthesis.Builder` and local \
+          hypotheses.")
+    let message := "synthesis_available could not find these wires among the available ones. " ++
+      follows ++ " It never adds a gate: append the missing construction first, with \
+      `synthesis_step` or `Builder.add`."
+    evalTactic (← `(tactic| first | $find:tactic | fail $(Syntax.mkStrLit message):str))
+
+/-- Append a synthesis rule to the named builder, solving its available-wire premises with
+`synthesis_available`, or with `synthesis_available [rules]` when a rule list is given. -/
+syntax (name := synthesisStep) "synthesis_step " (" [" term,* "] ")? ident " using " term : tactic
 macro_rules
-  | `(tactic| synthesis_step $b:ident using $rule:term) =>
-    `(tactic| let $b := ($b).add (by apply $rule <;> synthesis_available))
+  | `(tactic| synthesis_step $[[$rules,*]]? $b:ident using $rule:term) =>
+    `(tactic| let $b := ($b).add (by apply $rule <;> synthesis_available $[[$rules,*]]?))
 
 end

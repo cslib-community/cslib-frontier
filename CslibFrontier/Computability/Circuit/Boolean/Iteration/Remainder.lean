@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Word
+import CslibFrontier.Computability.Circuit.Boolean.Word.Rewire
 public import CslibFrontier.Foundations.Data.Nat.Div
 public import Mathlib.Data.Nat.ModEq
 import CslibFrontier.Tactic.Synthesis
@@ -320,10 +321,9 @@ theorem synthesis_periodicTimeIndex (s : Set (BooleanFunction a)) (K : ℕ)
   synthesis_step b using synthesis_streamRemainder b.wires d bits
   synthesis_step b using synthesis_subMod b.wires rem bound d
   synthesis_step b using Synthesis.word_add bound diff
-  have hresize := wordWires_setWidth_subset (v := w) (s := b.wires) (value := tword)
-    (by synthesis_available) (by synthesis_available)
-  synthesis_step b using Synthesis.word_mux (fun x => (tword x).setWidth w)
-    (fun x => bound x + diff x) short
+  have hfalse := hc false
+  synthesis_step [wordWires_subset_iff.mp, wordWires_setWidth_subset] b using
+    Synthesis.word_mux (fun x => (tword x).setWidth w) (fun x => bound x + diff x) short
   exact b.finish (by synthesis_available)
     (by dsimp +zetaDelta [Synthesis.Builder.start, Synthesis.Builder.add]; lia)
 
