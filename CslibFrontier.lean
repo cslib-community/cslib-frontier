@@ -10132,6 +10132,7 @@ public import CslibFrontier.Logics.SecondOrder.Horn.GuardElimination
 public import CslibFrontier.Logics.SecondOrder.Horn.LeastFixedPoint
 public import CslibFrontier.Logics.SecondOrder.Horn.Ordered
 public import CslibFrontier.Logics.SecondOrder.IndependentSet
+public import CslibFrontier.Logics.SecondOrder.LeastFixedPoint
 public import CslibFrontier.Logics.SecondOrder.Ordered.Grounding
 public import CslibFrontier.Logics.SecondOrder.Projection
 public import CslibFrontier.Logics.SecondOrder.Reduction
