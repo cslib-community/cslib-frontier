@@ -103,13 +103,11 @@ theorem mono_rules (h : LineProof R Γ ls) (hR : R ⊆ R') : LineProof R' Γ ls 
 
 /-- A derivation uses only the hypotheses that appear among its lines. -/
 theorem restrict (h : LineProof R Γ ls) : LineProof R (Γ ∩ {x | x ∈ ls}) ls := by
-  suffices ∀ ls', ls ⊆ ls' → LineProof R (Γ ∩ {x | x ∈ ls'}) ls from
-    this ls (List.Subset.refl _)
+  suffices ∀ ls', ls ⊆ ls' → LineProof R (Γ ∩ {x | x ∈ ls'}) ls from this ls (List.Subset.refl _)
   intro ls' hsub
   induction h with
   | nil => exact .nil
-  | hyp _ hx ih =>
-    exact (ih (List.cons_subset.1 hsub).2).hyp ⟨hx, (List.cons_subset.1 hsub).1⟩
+  | hyp _ hx ih => exact (ih (List.cons_subset.1 hsub).2).hyp ⟨hx, (List.cons_subset.1 hsub).1⟩
   | step _ hr hp ih => exact (ih (List.cons_subset.1 hsub).2).step hr hp
 
 /-- Placing a derivation `ls` on top of a derivation `ls'` from the same rules and hypotheses gives
@@ -182,30 +180,30 @@ theorem refl (h : LineProof R Γ ls₁) : Grows R Γ ls₁ ls₁ 0 :=
 
 /-- Growth composes, adding the line bounds. -/
 theorem trans (h₁ : Grows R Γ ls₁ ls₂ m) (h₂ : Grows R Γ ls₂ ls₃ n) :
-    Grows R Γ ls₁ ls₃ (m + n) := by
-  obtain ⟨m₁, rfl, -, hm₁⟩ := h₁
-  obtain ⟨m₂, rfl, hp, hm₂⟩ := h₂
-  exact ⟨m₂ ++ m₁, by simp, hp, by simp; omega⟩
+    Grows R Γ ls₁ ls₃ (m + n) :=
+  let ⟨m₁, e₁, _, hm₁⟩ := h₁
+  let ⟨m₂, e₂, hp, hm₂⟩ := h₂
+  ⟨m₂ ++ m₁, by simp [e₁, e₂], hp, by simp; omega⟩
 
 /-- The extended list is a valid derivation. -/
-theorem lineProof (h : Grows R Γ ls₁ ls₂ n) : LineProof R Γ ls₂ := by
-  obtain ⟨_, _, hp, _⟩ := h
-  exact hp
+theorem lineProof (h : Grows R Γ ls₁ ls₂ n) : LineProof R Γ ls₂ :=
+  let ⟨_, _, hp, _⟩ := h
+  hp
 
 /-- Growth preserves all earlier lines. -/
-theorem subset (h : Grows R Γ ls₁ ls₂ n) : ls₁ ⊆ ls₂ := by
-  obtain ⟨_, rfl, -, -⟩ := h
-  exact List.subset_append_right _ _
+theorem subset (h : Grows R Γ ls₁ ls₂ n) : ls₁ ⊆ ls₂ :=
+  let ⟨_, e, _, _⟩ := h
+  e ▸ List.subset_append_right _ _
 
 /-- Growth within `m` lines is growth within any `n ≥ m` lines. -/
-theorem mono (h : Grows R Γ ls₁ ls₂ m) (hmn : m ≤ n) : Grows R Γ ls₁ ls₂ n := by
-  obtain ⟨m₁, rfl, hp, hm₁⟩ := h
-  exact ⟨m₁, rfl, hp, hm₁.trans hmn⟩
+theorem mono (h : Grows R Γ ls₁ ls₂ m) (hmn : m ≤ n) : Grows R Γ ls₁ ls₂ n :=
+  let ⟨m₁, e, hp, hm₁⟩ := h
+  ⟨m₁, e, hp, hm₁.trans hmn⟩
 
 /-- Growing the empty derivation by at most `n` lines yields at most `n` lines. -/
-theorem length_of_nil (h : Grows R Γ [] ls₁ n) : ls₁.length ≤ n := by
-  obtain ⟨m₁, rfl, -, hm₁⟩ := h
-  simpa using hm₁
+theorem length_of_nil (h : Grows R Γ [] ls₁ n) : ls₁.length ≤ n :=
+  let ⟨_, e, _, hm₁⟩ := h
+  by simpa [e] using hm₁
 
 /-- Prepending a list `m₁` of at most `n` lines when `m₁ ++ ls₁` is a derivation. -/
 theorem of_append {m₁ : List L} (h : LineProof R Γ (m₁ ++ ls₁)) (hlen : m₁.length ≤ n) :
@@ -233,13 +231,11 @@ theorem comp (hΔ : LineProof R Δ ls') (h : LineProof R Γ ls₁)
 most `xs.length` new lines. -/
 theorem collect (h : LineProof R Γ ls₁) {xs : List L} (hxs : ∀ x ∈ xs, x ∈ Γ ∨ x ∈ ls₁) :
     ∃ ls₂, Grows R Γ ls₁ ls₂ xs.length ∧ ∀ x ∈ xs, x ∈ ls₂ := by
-  have hxsProof : ∀ (ys : List L) (S : Set L), (∀ x ∈ ys, x ∈ S) → LineProof R S ys := by
-    intro ys S hS
+  have hp : ∀ ys : List L, LineProof R {x | x ∈ ys} ys := fun ys => by
     induction ys with
     | nil => exact .nil
-    | cons x ys ih =>
-      exact (ih fun y hy => hS y (List.mem_cons_of_mem _ hy)).hyp (hS x List.mem_cons_self)
-  exact comp (hxsProof xs {x | x ∈ xs} fun _ hx => hx) h hxs
+    | cons x ys ih => exact (ih.mono_hyp fun _ => List.mem_cons_of_mem x).hyp List.mem_cons_self
+  exact comp (hp xs) h hxs
 
 /-- **Stepwise simulation over an existing prefix**: if each hypothesis and rule step of `ls` can
 extend any target derivation already containing the translated premises by at most `k` lines to
@@ -255,17 +251,15 @@ theorem simulate {L₁ L₂ : Type*} {R₁ : Set (LineRule L₁)} {Γ₁ : Set L
     ∃ ls', Grows R₂ Γ₂ ls₀ ls' (k * ls.length) ∧ ∀ x ∈ ls, tr x ∈ ls' := by
   induction h with
   | nil => exact ⟨ls₀, (refl h₀).mono (Nat.zero_le _), by simp⟩
-  | @hyp ls_prev x _ hx ih =>
-    obtain ⟨ls₁, g₁, h₁⟩ := ih
-      (fun h' y hy hyl => hhyp h' y hy (List.mem_cons_of_mem _ hyl))
+  | @hyp _ x _ hx ih =>
+    obtain ⟨ls₁, g₁, h₁⟩ := ih (fun h' y hy hyl => hhyp h' y hy (List.mem_cons_of_mem _ hyl))
       (fun h' r hr hc hp => hstep h' r hr (List.mem_cons_of_mem _ hc)
         fun p hp' => ⟨List.mem_cons_of_mem _ (hp p hp').1, (hp p hp').2⟩)
     obtain ⟨ls₂, g₂, h₂⟩ := hhyp g₁.lineProof x hx List.mem_cons_self
     exact ⟨ls₂, (g₁.trans g₂).mono (le_of_eq (by rw [List.length_cons, Nat.mul_succ])),
       List.forall_mem_cons.2 ⟨h₂, fun y hy => g₂.subset (h₁ y hy)⟩⟩
-  | @step ls_prev r _ hr hp ih =>
-    obtain ⟨ls₁, g₁, h₁⟩ := ih
-      (fun h' y hy hyl => hhyp h' y hy (List.mem_cons_of_mem _ hyl))
+  | @step _ r _ hr hp ih =>
+    obtain ⟨ls₁, g₁, h₁⟩ := ih (fun h' y hy hyl => hhyp h' y hy (List.mem_cons_of_mem _ hyl))
       (fun h' r' hr' hc hp' => hstep h' r' hr' (List.mem_cons_of_mem _ hc)
         fun p hp'' => ⟨List.mem_cons_of_mem _ (hp' p hp'').1, (hp' p hp'').2⟩)
     obtain ⟨ls₂, g₂, h₂⟩ := hstep g₁.lineProof r hr List.mem_cons_self
@@ -289,18 +283,13 @@ theorem simulate {L₁ L₂ : Type*} {R₁ : Set (LineRule L₁)} {Γ₁ : Set L
         tr r.concl ∈ m ∧ m.length ≤ k) :
     ∃ ls', LineProof R₂ Γ₂ ls' ∧ (∀ x ∈ ls, tr x ∈ ls') ∧ ls'.length ≤ k * ls.length := by
   obtain ⟨ls', g, hmem⟩ := Grows.simulate tr k h .nil
-    (fun h' x hx hxls => by
-      obtain ⟨m, hm, hxm, hmlen⟩ := hhyp x hx hxls
-      obtain ⟨ls'', g'', hm_mem⟩ := Grows.comp hm h' fun _ hy => Or.inl hy
-      exact ⟨ls'', g''.mono hmlen, hm_mem _ hxm⟩)
-    (fun h' r hr hc hp => by
-      obtain ⟨m, hm, hcm, hmlen⟩ := hstep r hr hc fun p hp' => (hp p hp').1
-      obtain ⟨ls'', g'', hm_mem⟩ := Grows.comp hm h' fun y hy => by
-        rcases hy with hy | hy
-        · exact Or.inl hy
-        · obtain ⟨p, hp', rfl⟩ := List.mem_map.1 hy
-          exact Or.inr (hp p hp').2
-      exact ⟨ls'', g''.mono hmlen, hm_mem _ hcm⟩)
+    (fun h' x hx hxls => let ⟨m, hm, hxm, hlen⟩ := hhyp x hx hxls
+      let ⟨ls'', g'', hmem⟩ := Grows.comp hm h' fun _ => .inl
+      ⟨ls'', g''.mono hlen, hmem _ hxm⟩)
+    (fun h' r hr hc hp => let ⟨m, hm, hcm, hlen⟩ := hstep r hr hc fun p hp' => (hp p hp').1
+      let ⟨ls'', g'', hmem⟩ := Grows.comp hm h' fun _ hy =>
+        hy.imp id fun hy => let ⟨p, hp', e⟩ := List.mem_map.1 hy; e ▸ (hp p hp').2
+      ⟨ls'', g''.mono hlen, hmem _ hcm⟩)
   exact ⟨ls', g.lineProof, hmem, g.length_of_nil⟩
 
 end LineProof
