@@ -30,6 +30,95 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
 open Cslib.WordRAM
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
+private theorem thin_envelopes_of_bounds {L m N Q A Z : ℕ}
+    (hz : 1 ≤ Z) (hN0 : N ≤ Z) (hQ0 : Q ≤ Z) (hA0 : A ≤ Z)
+    (h10 : 10 ^ L ≤ Z) (h2 : 2 ^ L ≤ Z) (h7 : 7 ^ L ≤ Z) (hL : L ≤ Z)
+    (hD : D m ≤ Z) (hB : numBands L m N ≤ Z) (hall : PrunedQuery.epochAllowance L ≤ 2 * Z) :
+    magnitudeBound L A + wordBudget L m N Q + 1 ≤ 2 ^ 40 * Z ^ 5 ∧
+      memoryEnd L m N Q ≤ 128 * Z ^ 2 := by
+  have hz1 : 1 ≤ Z ^ 2 := Nat.one_le_pow _ _ hz
+  have hz2 : Z ≤ Z ^ 2 := Nat.le_self_pow (by decide) _
+  have hz23 : Z ^ 2 ≤ Z ^ 3 := Nat.pow_le_pow_right hz (by decide)
+  have hz35 : Z ^ 3 ≤ Z ^ 5 := Nat.pow_le_pow_right hz (by decide)
+  have hZ1 : (Z + 1) * Z = Z ^ 2 + Z := by rw [Nat.add_mul, Nat.one_mul, ← sq]
+  have hii : inputEnd m N Q ≤ 9 * Z ^ 2 := by
+    calc inputEnd m N Q ≤ 5 + 2 * (Z * Z) + 2 * Z := by dsimp only [inputEnd]; gcongr
+      _ ≤ 9 * Z ^ 2 := by rw [← sq]; omega
+  have hbe : BandPreparation.memoryEnd L m N ≤ 21 * Z ^ 2 := by
+    calc BandPreparation.memoryEnd L m N
+        ≤ ((4 + 2 * (Z * Z) + (2 + Z + Z) + Z) + (4 + 2 * (Z * Z)) + Z + Z) + 2 * Z * Z := by
+          simp only [BandPreparation.memoryEnd, BandPreparation.catalogueBase,
+            BandPreparation.tableBase, BandPreparation.inverseBase, BandPreparation.snapshotBase,
+            BandPreparation.inputEnd, Encoding.scratchBase, Encoding.outputBase]
+          gcongr
+      _ ≤ 21 * Z ^ 2 := by rw [mul_assoc 2 Z Z, ← sq]; omega
+  have hwe : Wanted.memoryLimit L m N Q ≤ 15 * Z ^ 2 := by
+    calc Wanted.memoryLimit L m N Q ≤ 6 + 4 * Z + 2 * Z + 3 * Z ^ 2 := by
+          rw [Wanted.memoryLimit_eq]; gcongr
+      _ ≤ 15 * Z ^ 2 := by omega
+  have hcc : codeBase L m N Q ≤ 56 * Z ^ 2 := by
+    calc codeBase L m N Q ≤ (21 * Z ^ 2 + 15 * Z ^ 2 + 9 * Z ^ 2) + 9 * Z ^ 2 + Z ^ 2 + 1 := by
+          dsimp only [codeBase, offsetBase, snapshotBase]; gcongr
+      _ ≤ 56 * Z ^ 2 := by omega
+  have hou : outputBase L m N Q ≤ 59 * Z ^ 2 := by
+    calc outputBase L m N Q ≤ 56 * Z ^ 2 + Z + Z + Z := by
+          dsimp only [outputBase, groupedBase, originalBase]; gcongr
+      _ ≤ 59 * Z ^ 2 := by omega
+  have hff : scratchBase L m N Q ≤ 60 * Z ^ 2 := by
+    calc scratchBase L m N Q ≤ 59 * Z ^ 2 + Z := by dsimp only [scratchBase]; gcongr
+      _ ≤ 60 * Z ^ 2 := by omega
+  have hee : memoryEnd L m N Q ≤ 128 * Z ^ 2 := by
+    calc memoryEnd L m N Q ≤ 60 * Z ^ 2 + 4 * (Z + 1) + 2 * (Z + 1) * Z + Z := by
+          dsimp only [memoryEnd, stampBase]; gcongr
+      _ ≤ 128 * Z ^ 2 := by rw [Nat.mul_assoc 2, hZ1]; omega
+  have hep : epochBound L m N ≤ 3 * Z ^ 3 := by
+    calc epochBound L m N ≤ Z ^ 2 * (1 + 2 * Z) := by dsimp only [epochBound]; gcongr
+      _ = Z ^ 2 + 2 * Z ^ 3 := by
+          rw [Nat.mul_add, Nat.mul_one, ← Nat.mul_assoc, Nat.mul_comm (Z ^ 2) 2, Nat.mul_assoc,
+            ← pow_succ]
+      _ ≤ 3 * Z ^ 3 := by omega
+  have hbb : BandPreparation.wordBudget L m N ≤ 2048 * Z ^ 2 := by
+    calc BandPreparation.wordBudget L m N
+        ≤ 256 * (Z + Z + Z * Z + Z + Z + 2 * Z * Z + 1) := by
+          dsimp only [BandPreparation.wordBudget]; gcongr
+      _ ≤ 2048 * Z ^ 2 := by rw [mul_assoc 2 Z Z, ← sq]; omega
+  have hwb : Wanted.wordBudget L m N Q ≤ 2 ^ 20 * Z ^ 2 := by
+    have hrb : Wanted.routeBudget L m N (Wanted.tableAddress L Q) ≤ 1024 * Z ^ 2 := by
+      calc Wanted.routeBudget L m N (Wanted.tableAddress L Q)
+          ≤ 64 * (Z + Z + (Z * 2 + 5 + Z) + Z ^ 2 + Z + Z + 1) := by
+            dsimp only [Wanted.routeBudget, Wanted.tableAddress, Wanted.inputLimit]; gcongr
+        _ ≤ 1024 * Z ^ 2 := by omega
+    calc Wanted.wordBudget L m N Q
+        ≤ 256 * (2048 * Z ^ 2 + 1024 * Z ^ 2 + 15 * Z ^ 2 + Z + Z + Z + Z ^ 2 + Z + Z + 16) := by
+          dsimp only [Wanted.wordBudget]; gcongr
+      _ ≤ 2 ^ 20 * Z ^ 2 := by omega
+  have hkb : PrunedQuery.kernelBudget L (scratchBase L m N Q)
+      (BandPreparation.memoryEnd L m N) (BandPreparation.memoryEnd L m N)
+      (codeBase L m N Q) (outputBase L m N Q) Q (epochBound L m N) ≤ 4096 * Z ^ 3 := by
+    calc PrunedQuery.kernelBudget L (scratchBase L m N Q)
+          (BandPreparation.memoryEnd L m N) (BandPreparation.memoryEnd L m N)
+          (codeBase L m N Q) (outputBase L m N Q) Q (epochBound L m N)
+        ≤ (256 * (Z + 1) * Z + 32 * Z + 512) +
+            ((8 * (60 * Z ^ 2) + 64 * (Z + 1) * Z + 21 * Z ^ 2 + 21 * Z ^ 2 + 2 * Z +
+              (3 * Z ^ 3 + 1) + 2 * Z + 128) + 4 * (56 * Z ^ 2 + 59 * Z ^ 2 + Z + 1)) := by
+          dsimp only [PrunedQuery.kernelBudget, PrunedQuery.addressBound,
+            PrunedQuery.evaluationBudget, PrunedQuery.nodeBudget]
+          gcongr
+      _ ≤ 4096 * Z ^ 3 := by rw [Nat.mul_assoc 256, Nat.mul_assoc 64, hZ1]; omega
+  have hab : wordBudget L m N Q ≤ 2 ^ 32 * Z ^ 3 := by
+    calc wordBudget L m N Q
+        ≤ 1024 * (2048 * Z ^ 2 + 2 ^ 20 * Z ^ 2 + 4096 * Z ^ 3 + 128 * Z ^ 2 +
+            9 * Z ^ 2 + Z + Z + Z + 16) := by
+          dsimp only [wordBudget]; gcongr
+      _ ≤ 2 ^ 32 * Z ^ 3 := by omega
+  have hmg : magnitudeBound L A ≤ 4 * Z ^ 5 := by
+    calc magnitudeBound L A ≤ Z * Z + Z * Z + Z * ((Z * Z) * (Z * Z)) + Z := by
+          dsimp only [magnitudeBound, PrunedQuery.magnitudeBound]; gcongr
+      _ ≤ 4 * Z ^ 5 := by
+          have hZ5 : Z * ((Z * Z) * (Z * Z)) = Z ^ 5 := by ring
+          rw [hZ5, ← sq]; omega
+  exact ⟨by omega, hee⟩
+
 /-- **Thin-regime envelopes at any level up to `21 * m`.** In the source regime
 `D m ^ 18 ≤ N`, at every level `L` with `m ≤ L ≤ 21 * m`, the layout's magnitude, word budget
 and memory end are bounded by explicit polynomials in `N + Q + A + 2`. The deliberately loose
@@ -73,103 +162,7 @@ public theorem thin_envelopes_of_le (L m N Q A : ℕ) (hm : m ≤ L) (hL21 : L �
   have hall : PrunedQuery.epochAllowance L ≤ 2 * Z := by
     unfold PrunedQuery.epochAllowance
     omega
-  let bi := 4 + 2 * (Z * Z)
-  let bc := (bi + (2 + Z + Z) + Z) + bi + Z + Z
-  let be := bc + 2 * Z * Z
-  let we := 6 + 4 * Z + 2 * Z + 3 * Z ^ 2
-  let ii := 5 + 2 * (Z * Z) + 2 * Z
-  let ss := be + we + ii
-  let oo := ss + ii
-  let cc := oo + Z ^ 2 + 1
-  let ou := cc + Z + Z + Z
-  let ff := ou + Z
-  let ee := ff + 4 * (Z + 1) + 2 * (Z + 1) * Z + Z
-  let ep := Z ^ 2 * (1 + 2 * Z)
-  have hbc : BandPreparation.catalogueBase L m N ≤ bc := by
-    dsimp only [bc, bi]
-    simp only [BandPreparation.catalogueBase, BandPreparation.tableBase,
-      BandPreparation.inverseBase, BandPreparation.snapshotBase, BandPreparation.inputEnd,
-      Encoding.scratchBase, Encoding.outputBase]
-    gcongr
-  have hbe : BandPreparation.memoryEnd L m N ≤ be := by
-    dsimp only [be]
-    unfold BandPreparation.memoryEnd
-    gcongr
-  have hwe : Wanted.memoryLimit L m N Q ≤ we := by
-    dsimp only [we]
-    rw [Wanted.memoryLimit_eq]
-    gcongr
-  have hii : inputEnd m N Q ≤ ii := by dsimp only [ii, inputEnd]; gcongr
-  have hss : snapshotBase L m N Q ≤ ss := by
-    dsimp only [ss, snapshotBase]
-    gcongr
-  have hoo : offsetBase L m N Q ≤ oo := by
-    dsimp only [oo, offsetBase]
-    gcongr
-  have hcc : codeBase L m N Q ≤ cc := by
-    dsimp only [cc, codeBase]
-    gcongr
-  have hou : outputBase L m N Q ≤ ou := by
-    dsimp only [ou, outputBase, groupedBase, originalBase]
-    gcongr
-  have hff : scratchBase L m N Q ≤ ff := by
-    dsimp only [ff, scratchBase]
-    gcongr
-  have hee : memoryEnd L m N Q ≤ ee := by
-    dsimp only [ee, memoryEnd, stampBase]
-    gcongr
-  have hep : epochBound L m N ≤ ep := by
-    dsimp only [ep, epochBound]
-    gcongr
-  let bb := 256 * (Z + Z + Z * Z + Z + Z + 2 * Z * Z + 1)
-  let tab := Z * 2 + 5 + Z
-  let rb := 64 * (Z + Z + tab + Z ^ 2 + Z + Z + 1)
-  let wb := 256 * (bb + rb + we + Z + Z + Z + Z ^ 2 + Z + Z + 16)
-  let kb := (256 * (Z + 1) * Z + 32 * Z + 512) +
-    ((8 * ff + 64 * (Z + 1) * Z + be + be + 2 * Z + (ep + 1) + 2 * Z + 128) +
-      4 * (cc + ou + Z + 1))
-  let ab := 1024 * (bb + wb + kb + ee + ii + Z + Z + Z + 16)
-  let mg := Z * Z + Z * Z + Z * ((Z * Z) * (Z * Z)) + Z
-  have hbb : BandPreparation.wordBudget L m N ≤ bb := by
-    dsimp only [bb, BandPreparation.wordBudget]
-    gcongr
-  have htab : Wanted.tableAddress L Q ≤ tab := by
-    dsimp only [tab, Wanted.tableAddress, Wanted.inputLimit]
-    gcongr
-  have hrb : Wanted.routeBudget L m N (Wanted.tableAddress L Q) ≤ rb := by
-    dsimp only [rb, Wanted.routeBudget]
-    gcongr
-  have hwb : Wanted.wordBudget L m N Q ≤ wb := by
-    dsimp only [wb, Wanted.wordBudget]
-    gcongr
-  have hkb : PrunedQuery.kernelBudget L (scratchBase L m N Q)
-      (BandPreparation.memoryEnd L m N) (BandPreparation.memoryEnd L m N)
-      (codeBase L m N Q) (outputBase L m N Q) Q (epochBound L m N) ≤ kb := by
-    dsimp only [kb, PrunedQuery.kernelBudget, PrunedQuery.addressBound,
-      PrunedQuery.evaluationBudget, PrunedQuery.nodeBudget]
-    gcongr
-  have hab : wordBudget L m N Q ≤ ab := by
-    dsimp only [ab, wordBudget]
-    gcongr
-  have hmg : magnitudeBound L A ≤ mg := by
-    dsimp only [mg, magnitudeBound, PrunedQuery.magnitudeBound]
-    gcongr
-  have h0 : 1 ≤ Z ^ 5 := Nat.one_le_pow _ _ hz
-  have h1 : Z ≤ Z ^ 5 := Nat.le_self_pow (by decide) _
-  have h2' : Z ^ 2 ≤ Z ^ 5 := Nat.pow_le_pow_right hz (by decide)
-  have h3 : Z ^ 3 ≤ Z ^ 5 := Nat.pow_le_pow_right hz (by decide)
-  have htotal : mg + ab + 1 ≤ 2 ^ 40 * Z ^ 5 := by
-    dsimp only [mg, ab, wb, bb, rb, tab, kb, ee, ff, ou, cc, oo, ss, be, bc, bi, we, ii, ep]
-    nlinarith only [h0, h1, h2', h3]
-  have hmem : ee ≤ 128 * Z ^ 2 := by
-    have hz2 := Nat.le_self_pow (by decide : 2 ≠ 0) Z
-    have h02 : 1 ≤ Z ^ 2 := Nat.one_le_pow _ _ hz
-    dsimp only [ee, ff, ou, cc, oo, ss, be, bc, bi, we, ii]
-    nlinarith only [hz2, h02]
-  constructor
-  · have h := (Nat.add_le_add_right (Nat.add_le_add hmg hab) 1).trans htotal
-    simpa only [Z, S, ← pow_mul, Nat.reduceMul] using h
-  · have h := hee.trans hmem
-    simpa only [Z, S, ← pow_mul, Nat.reduceMul] using h
+  simpa only [Z, S, ← pow_mul, Nat.reduceMul] using
+    thin_envelopes_of_bounds hz hN0 hQ0 hA0 h10 h2 h7 hL hD hB hall
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
