@@ -724,42 +724,30 @@ theorem mem_dfsSubtreeMeta_iff (st : P.TreeState) {ℓ : ℕ} (h1 : 1 ≤ ℓ) (
     item ∈ st.dfsSubtreeMeta ℓ h1 hℓ u ↔
       ∃ (j : ℕ) (hj1 : 1 ≤ j) (hjd : j ≤ P.depth) (v : Fin (P.numNodes j)),
         P.InSubtree ℓ u j v ∧ st.nodeMeta j hj1 hjd v = item := by
-  have hgen : ∀ (k m : ℕ), m + k = P.depth → (hm1 : 1 ≤ m) → (hmd : m ≤ P.depth) →
-      ∀ (v₀ : Fin (P.numNodes m)),
-        item ∈ st.dfsSubtreeMeta m hm1 hmd v₀ ↔
-          ∃ (j : ℕ) (hj1 : 1 ≤ j) (hjd : j ≤ P.depth) (v : Fin (P.numNodes j)),
-            P.InSubtree m v₀ j v ∧ st.nodeMeta j hj1 hjd v = item := by
-    intro k
-    induction k with
-    | zero =>
-      intro m hsum hm1 hmd v₀
-      obtain rfl : m = P.depth := by omega
-      unfold dfsSubtreeMeta
-      rw [dite_eq_right (lt_irrefl _), List.mem_singleton]
-      constructor
-      · rintro rfl
-        exact ⟨P.depth, hm1, hmd, v₀, P.inSubtree_refl v₀, rfl⟩
-      · rintro ⟨j, _, _, v, ⟨_, hanc⟩, hmeta⟩
-        obtain rfl : j = P.depth := by omega
-        obtain rfl : v = v₀ := by simpa only [P.ancestorAt_refl] using hanc
-        exact hmeta.symm
-    | succ k ih =>
-      intro m hsum hm1 hmd v₀
-      have hlt : m < P.depth := by omega
-      unfold dfsSubtreeMeta
-      rw [dite_eq_left hlt, List.mem_cons, List.mem_flatMap]
-      constructor
-      · rintro (rfl | ⟨b, _, hmem⟩)
-        · exact ⟨m, hm1, hmd, v₀, P.inSubtree_refl v₀, rfl⟩
-        · obtain ⟨j, hj1, hjd, v, hsub, hmeta⟩ :=
-            (ih (m + 1) (by omega) (by omega) hlt (P.childNodeEquiv m (v₀, b))).mp hmem
-          exact ⟨j, hj1, hjd, v, (P.inSubtree_step_iff v₀ v).mpr (Or.inr ⟨b, hsub⟩), hmeta⟩
-      · rintro ⟨j, hj1, hjd, v, hsub, hmeta⟩
-        rcases (P.inSubtree_step_iff v₀ v).mp hsub with ⟨rfl, rfl⟩ | ⟨b, hsub'⟩
-        · exact Or.inl hmeta.symm
-        · exact Or.inr ⟨b, List.mem_finRange b,
-            (ih (m + 1) (by omega) (by omega) hlt _).mpr ⟨j, hj1, hjd, v, hsub', hmeta⟩⟩
-  exact hgen (P.depth - ℓ) ℓ (by omega) h1 hℓ u
+  induction hℓ using Nat.decreasingInduction with
+  | self =>
+    unfold dfsSubtreeMeta
+    rw [dite_eq_right (lt_irrefl _), List.mem_singleton]
+    constructor
+    · rintro rfl
+      exact ⟨P.depth, h1, le_rfl, u, P.inSubtree_refl u, rfl⟩
+    · rintro ⟨j, _, _, v, ⟨_, hanc⟩, hmeta⟩
+      obtain rfl : j = P.depth := by omega
+      obtain rfl : v = u := by simpa only [P.ancestorAt_refl] using hanc
+      exact hmeta.symm
+  | of_succ m hlt ih =>
+    unfold dfsSubtreeMeta
+    rw [dite_eq_left hlt, List.mem_cons, List.mem_flatMap]
+    constructor
+    · rintro (rfl | ⟨b, _, hmem⟩)
+      · exact ⟨m, h1, hlt.le, u, P.inSubtree_refl u, rfl⟩
+      · obtain ⟨j, hj1, hjd, v, hsub, hmeta⟩ := (ih (by omega) (P.childNodeEquiv m (u, b))).mp hmem
+        exact ⟨j, hj1, hjd, v, (P.inSubtree_step_iff u v).mpr (Or.inr ⟨b, hsub⟩), hmeta⟩
+    · rintro ⟨j, hj1, hjd, v, hsub, hmeta⟩
+      rcases (P.inSubtree_step_iff u v).mp hsub with ⟨rfl, rfl⟩ | ⟨b, hsub'⟩
+      · exact Or.inl hmeta.symm
+      · exact Or.inr ⟨b, List.mem_finRange b,
+          (ih (by omega) _).mpr ⟨j, hj1, hjd, v, hsub', hmeta⟩⟩
 
 private theorem numNodes_dvd {m j : ℕ} (hmj : m ≤ j) : P.numNodes m ∣ P.numNodes j := by
   induction j with
@@ -790,42 +778,32 @@ theorem length_dfsSubtreeMeta (st : P.TreeState) {ℓ : ℕ} (h1 : 1 ≤ ℓ) (h
     (u : Fin (P.numNodes ℓ)) :
     (st.dfsSubtreeMeta ℓ h1 hℓ u).length =
       ∑ j ∈ Finset.Icc ℓ P.depth, P.numNodes j / P.numNodes ℓ := by
-  have hgen : ∀ (k m : ℕ), m + k = P.depth → (hm1 : 1 ≤ m) → (hmd : m ≤ P.depth) →
-      ∀ (v₀ : Fin (P.numNodes m)),
-        (st.dfsSubtreeMeta m hm1 hmd v₀).length =
-          ∑ j ∈ Finset.Icc m P.depth, P.numNodes j / P.numNodes m := by
-    intro k
-    induction k with
-    | zero =>
-      intro m hsum hm1 hmd v₀
-      obtain rfl : m = P.depth := by omega
-      unfold dfsSubtreeMeta
-      rw [dite_eq_right (lt_irrefl _), List.length_singleton, Finset.Icc_self,
-        Finset.sum_singleton, Nat.div_self (P.numNodes_pos P.depth)]
-    | succ k ih =>
-      intro m hsum hm1 hmd v₀
-      have hlt : m < P.depth := by omega
-      unfold dfsSubtreeMeta
-      rw [dite_eq_left hlt, List.length_cons, List.length_flatMap]
-      have hmap : List.map (fun b => (st.dfsSubtreeMeta (m + 1) (by omega) hlt
-            (P.childNodeEquiv m (v₀, b))).length) (List.finRange (2 ^ P.branchBits m)) =
-          List.replicate (2 ^ P.branchBits m)
-            (∑ j ∈ Finset.Icc (m + 1) P.depth, P.numNodes j / P.numNodes (m + 1)) := by
-        refine List.eq_replicate_iff.mpr ⟨by simp, ?_⟩
-        intro x hx
-        obtain ⟨b, _, rfl⟩ := List.mem_map.mp hx
-        exact ih (m + 1) (by omega) (by omega) hlt _
-      rw [hmap, List.sum_replicate, smul_eq_mul, Finset.mul_sum]
-      have hsum_step : ∑ x ∈ Finset.Icc (m + 1) P.depth,
-          2 ^ P.branchBits m * (P.numNodes x / P.numNodes (m + 1)) =
-          ∑ x ∈ Finset.Icc (m + 1) P.depth, P.numNodes x / P.numNodes m :=
-        Finset.sum_congr rfl fun x hx =>
-          branchFactor_mul_numNodes_div (P := P) (Finset.mem_Icc.mp hx).1
-      have hnotMem : m ∉ Finset.Icc (m + 1) P.depth := by simp
-      rw [hsum_step, ← Finset.insert_Icc_add_one_left_eq_Icc hmd,
-        Finset.sum_insert hnotMem, Nat.div_self (P.numNodes_pos m)]
-      omega
-  exact hgen (P.depth - ℓ) ℓ (by omega) h1 hℓ u
+  induction hℓ using Nat.decreasingInduction with
+  | self =>
+    unfold dfsSubtreeMeta
+    rw [dite_eq_right (lt_irrefl _), List.length_singleton, Finset.Icc_self,
+      Finset.sum_singleton, Nat.div_self (P.numNodes_pos P.depth)]
+  | of_succ m hlt ih =>
+    unfold dfsSubtreeMeta
+    rw [dite_eq_left hlt, List.length_cons, List.length_flatMap]
+    have hmap : List.map (fun b => (st.dfsSubtreeMeta (m + 1) (by omega) hlt
+          (P.childNodeEquiv m (u, b))).length) (List.finRange (2 ^ P.branchBits m)) =
+        List.replicate (2 ^ P.branchBits m)
+          (∑ j ∈ Finset.Icc (m + 1) P.depth, P.numNodes j / P.numNodes (m + 1)) := by
+      refine List.eq_replicate_iff.mpr ⟨by simp, ?_⟩
+      intro x hx
+      obtain ⟨b, _, rfl⟩ := List.mem_map.mp hx
+      exact ih (by omega) _
+    rw [hmap, List.sum_replicate, smul_eq_mul, Finset.mul_sum]
+    have hsum_step : ∑ x ∈ Finset.Icc (m + 1) P.depth,
+        2 ^ P.branchBits m * (P.numNodes x / P.numNodes (m + 1)) =
+        ∑ x ∈ Finset.Icc (m + 1) P.depth, P.numNodes x / P.numNodes m :=
+      Finset.sum_congr rfl fun x hx =>
+        branchFactor_mul_numNodes_div (P := P) (Finset.mem_Icc.mp hx).1
+    have hnotMem : m ∉ Finset.Icc (m + 1) P.depth := by simp
+    rw [hsum_step, ← Finset.insert_Icc_add_one_left_eq_Icc hlt.le,
+      Finset.sum_insert hnotMem, Nat.div_self (P.numNodes_pos m)]
+    omega
 
 /-- Total number of keys currently stored in level-1 root tables across all `N_1` roots. -/
 def rootKeyCount (st : P.TreeState) : ℕ :=
@@ -952,45 +930,36 @@ theorem ValidStoreLvl.subtree_card_eq_nLow {P : TreeSchedule} {seeds : P.SeedAss
     (hvsl : ValidStoreLvl seeds S storeLvl) {ℓ : ℕ} (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth)
     (u : Fin (P.numNodes ℓ)) :
     ((seeds.activeAt S ℓ hℓ u).filter fun x => ℓ ≤ storeLvl x).card = P.nLow ℓ := by
-  have hgen : ∀ (k m : ℕ), m + k = P.depth → 2 ≤ m → (hml : m ≤ P.depth) →
-      ∀ u' : Fin (P.numNodes m),
-        ((seeds.activeAt S m hml u').filter fun x => m ≤ storeLvl x).card = P.nLow m := by
-    intro k
-    induction k with
-    | zero =>
-      intro m hsum _ hml u'
-      obtain rfl : m = P.depth := by omega
-      have hfeq : ((seeds.activeAt S P.depth hml u').filter fun x => P.depth ≤ storeLvl x) =
-          (seeds.activeAt S P.depth hml u').filter fun x => storeLvl x = P.depth :=
-        filter_congr fun x hx => by
-          have hb := hvsl.bounds x (SeedAssignment.mem_activeAt_iff.mp hx).1; omega
-      rw [hfeq, hvsl.leaf_card u']
-    | succ k ih =>
-      intro m hsum hm2 hml u'
-      have hmlt : m < P.depth := by omega
-      have hsplit : ((seeds.activeAt S m hml u').filter fun x => m ≤ storeLvl x) =
-          ((seeds.activeAt S m hml u').filter fun x => storeLvl x = m) ∪
-          ((seeds.activeAt S m hml u').filter fun x => m + 1 ≤ storeLvl x) := by
-        ext x; simp only [mem_filter, mem_union]
-        exact ⟨fun ⟨hx, hle⟩ => if he : storeLvl x = m then Or.inl ⟨hx, he⟩
-          else Or.inr ⟨hx, by omega⟩, fun h => h.elim (fun ⟨hx, he⟩ => ⟨hx, by omega⟩)
-          (fun ⟨hx, hge⟩ => ⟨hx, by omega⟩)⟩
-      have hdisj : Disjoint
-          ((seeds.activeAt S m hml u').filter fun x => storeLvl x = m)
-          ((seeds.activeAt S m hml u').filter fun x => m + 1 ≤ storeLvl x) := by
-        rw [Finset.disjoint_left]; intro x h1 h2
-        have := (mem_filter.mp h1).2; have := (mem_filter.mp h2).2; omega
-      have hchildren : ((seeds.activeAt S m hml u').filter
-          fun x => m + 1 ≤ storeLvl x).card = P.branchFactor m * P.nLow (m + 1) := by
-        rw [TreeState.activeAt_filter_card_eq_sum_children seeds S hmlt u']
-        have hc : ∀ b : Fin (2 ^ P.branchBits m),
-            ((seeds.activeAt S (m + 1) hmlt (P.childNodeEquiv m (u', b))).filter
-              fun x => m + 1 ≤ storeLvl x).card = P.nLow (m + 1) :=
-          fun b => ih (m + 1) (by omega) (by omega) hmlt _
-        simp only [hc, sum_const, card_univ, Fintype.card_fin, smul_eq_mul, branchFactor]
-      rw [hsplit, card_union_of_disjoint hdisj, hvsl.inner_card m hm2 hmlt u', hchildren,
-        P.tableCap_add_branchFactor_mul_nLow_succ hm2 hmlt]
-  exact hgen (P.depth - ℓ) ℓ (by omega) h2 hℓ u
+  induction hℓ using Nat.decreasingInduction with
+  | self =>
+    have hfeq : ((seeds.activeAt S P.depth le_rfl u).filter fun x => P.depth ≤ storeLvl x) =
+        (seeds.activeAt S P.depth le_rfl u).filter fun x => storeLvl x = P.depth :=
+      filter_congr fun x hx => by
+        have hb := hvsl.bounds x (SeedAssignment.mem_activeAt_iff.mp hx).1; omega
+    rw [hfeq, hvsl.leaf_card u]
+  | of_succ m hmlt ih =>
+    have hsplit : ((seeds.activeAt S m hmlt.le u).filter fun x => m ≤ storeLvl x) =
+        ((seeds.activeAt S m hmlt.le u).filter fun x => storeLvl x = m) ∪
+        ((seeds.activeAt S m hmlt.le u).filter fun x => m + 1 ≤ storeLvl x) := by
+      ext x; simp only [mem_filter, mem_union]
+      exact ⟨fun ⟨hx, hle⟩ => if he : storeLvl x = m then Or.inl ⟨hx, he⟩
+        else Or.inr ⟨hx, by omega⟩, fun h => h.elim (fun ⟨hx, he⟩ => ⟨hx, by omega⟩)
+        (fun ⟨hx, hge⟩ => ⟨hx, by omega⟩)⟩
+    have hdisj : Disjoint
+        ((seeds.activeAt S m hmlt.le u).filter fun x => storeLvl x = m)
+        ((seeds.activeAt S m hmlt.le u).filter fun x => m + 1 ≤ storeLvl x) := by
+      rw [Finset.disjoint_left]; intro x h1 h2
+      have := (mem_filter.mp h1).2; have := (mem_filter.mp h2).2; omega
+    have hchildren : ((seeds.activeAt S m hmlt.le u).filter
+        fun x => m + 1 ≤ storeLvl x).card = P.branchFactor m * P.nLow (m + 1) := by
+      rw [TreeState.activeAt_filter_card_eq_sum_children seeds S hmlt u]
+      have hc : ∀ b : Fin (2 ^ P.branchBits m),
+          ((seeds.activeAt S (m + 1) hmlt (P.childNodeEquiv m (u, b))).filter
+            fun x => m + 1 ≤ storeLvl x).card = P.nLow (m + 1) :=
+        fun b => ih (by omega) _
+      simp only [hc, sum_const, card_univ, Fintype.card_fin, smul_eq_mul, branchFactor]
+    rw [hsplit, card_union_of_disjoint hdisj, hvsl.inner_card m h2 hmlt u, hchildren,
+      P.tableCap_add_branchFactor_mul_nLow_succ h2 hmlt]
 
 /-- At `(ℓ, u)`, the active keys stored above level `ℓ` and the `nLow ℓ` keys stored in the
 subtree partition `activeAt ℓ u`. -/
