@@ -424,20 +424,10 @@ private theorem nizkRealExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fi
     (nizkRealExtHandler P valid q st).map (fun (a, s') => (a, s'.1)) =
       nizkRealHandler P valid q st.1 := by
   obtain ⟨cache, proved⟩ := st
-  cases q with
-  | inl xy =>
-    obtain ⟨x, y⟩ := xy
-    by_cases hv : valid x y = true
-    · simp only [nizkRealExtHandler, nizkRealHandler, hv, ↓reduceIte, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.map_bind]
-      refine congrArg (PMF.bind _) (funext fun coins => ?_)
-      refine congrArg (PMF.bind _) (funext fun (prf, cache') => ?_)
-      simp only [PMF.pure_map]
-    · simp only [Bool.not_eq_true] at hv
-      simp only [nizkRealExtHandler, nizkRealHandler, hv, Bool.false_eq_true, ↓reduceIte,
-        PMF.pure_map]
-  | inr yt =>
-    simp only [nizkRealExtHandler, nizkRealHandler, PMF.map_comp]
+  rcases q with ⟨x, y⟩ | yt
+  · by_cases hv : valid x y = true <;>
+      simp [pmf_norm, nizkRealExtHandler, nizkRealHandler, hv]
+  · simp only [nizkRealExtHandler, nizkRealHandler, PMF.map_comp]
     exact PMF.map_id _
 
 /-- Projecting away the proved-pair log from `nizkSimExtHandler` recovers `nizkSimHandler`. -/
@@ -447,19 +437,10 @@ private theorem nizkSimExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fin
     (nizkSimExtHandler simulate valid q st).map (fun (a, s') => (a, s'.1)) =
       nizkSimHandler simulate valid q st.1 := by
   obtain ⟨cache, proved⟩ := st
-  cases q with
-  | inl xy =>
-    obtain ⟨x, y⟩ := xy
-    by_cases hv : valid x y = true
-    · simp only [nizkSimExtHandler, nizkSimHandler, hv, ↓reduceIte, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.map_bind]
-      refine congrArg (PMF.bind _) (funext fun (prf, cache') => ?_)
-      simp only [PMF.pure_map]
-    · simp only [Bool.not_eq_true] at hv
-      simp only [nizkSimExtHandler, nizkSimHandler, hv, Bool.false_eq_true, ↓reduceIte,
-        PMF.pure_map]
-  | inr yt =>
-    simp only [nizkSimExtHandler, nizkSimHandler, PMF.map_comp]
+  rcases q with ⟨x, y⟩ | yt
+  · by_cases hv : valid x y = true <;>
+      simp [pmf_norm, nizkSimExtHandler, nizkSimHandler, hv]
+  · simp only [nizkSimExtHandler, nizkSimHandler, PMF.map_comp]
     exact PMF.map_id _
 
 private theorem nizkRealExtHandler_eq_lazyProgramHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
@@ -905,6 +886,11 @@ theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq 
   push_cast at h ⊢
   linarith [ENNReal.toReal_zero]
 
+private theorem succProbability_bind_pure_eq_zero {α : Type} (μ : PMF α) (p : α → Bool)
+    (hfalse : ∀ a, p a = false) :
+    (Game.succProbability (do let a ← μ; return p a) : ℝ) = 0 := by
+  simp [Game.succProbability, hfalse]
+
 /-- Concrete soundness bound on one fixed false statement, a step toward [BonehShoup2023],
 Theorem 20.2, not the cited result: if `y` has no witness in `R`, any cheating prover making at most
 `Qro` hash calls convinces `fiatShamirNIZKVerify` with probability at most `(Qro + 1) / |C|`.
@@ -926,17 +912,11 @@ theorem succProbability_fiatShamirNIZKPokGame_le_of_false [DecidableEq Y] [Decid
   have h := succProbability_fiatShamirNIZKPokGame_le hsound A y hQro
   have hzero :
       (Game.succProbability
-        (fiatShamirNIZKExtractGame R (fiatShamirNIZKExtract P extract A Qro y) y) : ℝ) = 0 := by
-    have heq :
-        fiatShamirNIZKExtractGame R (fiatShamirNIZKExtract P extract A Qro y) y =
-          PMF.pure false := by
-      simp only [fiatShamirNIZKExtractGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-      refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false)
-        fun res _ => ?_).trans (PMF.bind_const _ _)
+        (fiatShamirNIZKExtractGame R (fiatShamirNIZKExtract P extract A Qro y) y) : ℝ) = 0 :=
+    succProbability_bind_pure_eq_zero _ _ fun res => by
       cases res with
       | none => rfl
       | some w => simp [hfalse w]
-    simp [heq, Game.succProbability]
   rw [hzero, mul_zero, Real.sqrt_zero, add_zero] at h
   exact h
 
@@ -1333,17 +1313,13 @@ theorem succProbability_fiatShamirNIZKFreshStmtGameOn_le [DecidableEq Y] [Decida
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun s _ => ?_
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun ((y, prf), (cache, proved)) _ => ?_
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun (acc, _) _ => ?_
-    by_cases hmem : (y, prf.1) ∈ proved
-    · have hy : y ∈ proved.map Prod.fst := List.mem_map_of_mem hmem
-      simp [hy]
-    · by_cases hacc : admissible y = true ∧ acc = true
-      · refine (PMF.coe_le_one _ _).trans_eq ?_
-        simp [hacc.1, hacc.2, hmem]
-      · cases hadm : admissible y <;> cases ha : acc
-        · simp
-        · simp
-        · simp
-        · exact absurd ⟨hadm, ha⟩ hacc
+    cases admissible y
+    · simp
+    · cases acc
+      · simp
+      · by_cases hmem : (y, prf.1) ∈ proved
+        · simp [List.mem_map_of_mem (f := Prod.fst) hmem]
+        · exact (PMF.coe_le_one _ _).trans_eq (by simp [hmem])
   refine le_trans ?_
     (succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred src admissible hA)
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
@@ -1373,20 +1349,13 @@ theorem succProbability_fiatShamirNIZKRealExtGameOn_le_of_false [DecidableEq Y] 
   have hzero :
       (Game.succProbability
         (fiatShamirNIZKSimExtractGame R admissible
-          (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro)) : ℝ) = 0 := by
-    have heq :
-        fiatShamirNIZKSimExtractGame R admissible
-          (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro) =
-        PMF.pure false := by
-      simp only [fiatShamirNIZKSimExtractGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-      refine (Probability.PMF.bind_congr_on_support _ _ (fun _ => PMF.pure false)
-        fun res _ => ?_).trans (PMF.bind_const _ _)
+          (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro)) : ℝ) = 0 :=
+    succProbability_bind_pure_eq_zero _ _ fun res => by
       rcases res with _ | ⟨y, w⟩
       · rfl
-      · by_cases hadm : admissible y = true
-        · simp [hadm, hfalse y hadm w]
-        · simp [Bool.eq_false_iff.mpr hadm]
-    simp [heq, Game.succProbability]
+      · cases hadm : admissible y with
+        | false => simp [hadm]
+        | true => simp [hadm, hfalse y hadm w]
   rw [hzero, mul_zero, Real.sqrt_zero, add_zero] at h
   exact h
 
