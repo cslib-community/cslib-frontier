@@ -619,12 +619,18 @@ omit [AddGroup G] in
 (original bound). -/
 theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (idealPermGame (feistel1CPAAttack l₀ r₀) true).toReal ≤ (Fintype.card G : ℝ)⁻¹ := by
-  simp only [interp_norm, pmf_norm, idealPermGame, feistel1CPAAttack]
+  have hgame :
+      idealPermGame (feistel1CPAAttack l₀ r₀) =
+        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
+          PMF.pure (decide ((π (l₀, r₀)).1 = r₀)) := by
+    simp [idealPermGame, feistel1CPAAttack, PMF.monad_bind_eq_bind]
+  rw [hgame]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset G) (k := 1)
     (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _)
     (fun w => ![(r₀, w)])
     fun π hπ => ⟨(π (l₀, r₀)).2, Finset.mem_univ _,
       Fin.forall_fin_one.mpr (Prod.ext hπ rfl)⟩).trans_eq ?_
+  have hN : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
   simp [Finset.card_univ, Fintype.card_prod]
 
 /-- `feistel1CPAAttack l₀ r₀` distinguishes any 1-round Feistel network `feistelRoundEquiv f` from
