@@ -91,9 +91,8 @@ private theorem exists_nodup_of_length_le {k : ℕ} {F : DNF ι} (hk : ∀ T ∈
     constructor
     · rintro ⟨T, hT, hx⟩
       obtain ⟨T₀, h₀, rfl⟩ := List.mem_map.1 (List.mem_filter.1 hT).1
-      refine ⟨T₀, h₀, ?_⟩
-      rw [Term.eval_eq_true_iff] at hx ⊢
-      exact fun l hl => hx l (List.mem_dedup.2 hl)
+      exact ⟨T₀, h₀, (Term.eval_eq_true_iff _ _).2 fun l hl =>
+        (Term.eval_eq_true_iff _ _).1 hx l (List.mem_dedup.2 hl)⟩
     · rintro ⟨T₀, h₀, hx⟩
       rw [Term.eval_eq_true_iff] at hx
       refine ⟨T₀.dedup, List.mem_filter.2 ⟨List.mem_map_of_mem h₀, ?_⟩, ?_⟩
@@ -116,10 +115,7 @@ private theorem complexity_fill_le_card_free (ρ : PartialAssignment ι) (f : (�
   rw [eval_queryAll]
   congr 1
   funext i
-  by_cases hi : ρ i = none
-  · simp [hi]
-  · obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 hi
-    simp [hb]
+  cases hi : ρ i <;> simp [hi]
 
 /-! ### Terms of one literal -/
 

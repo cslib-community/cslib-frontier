@@ -119,9 +119,6 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
   have hcap : p ≤ Nat.sqrt (D (ParameterChoice.level n)) := Nat.le_sqrt.mpr
     (by simpa only [pow_two] using (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).2.2.le)
   let q := r.set CallableFixedPrime.Reg.prime p
-  have deliver : ExecWithin (B := .standard) W
-      (.op (.copy CallableFixedPrime.Reg.prime (selectorBank PrimeSelection.Reg.best))) r q 1 :=
-    ExecWithin.copy
   have qkeep (j : Fin 640) (hj : 143 ≤ j.val := by decide)
       (hdj : j ≠ CallableFixedPrime.Reg.dimension := by decide)
       (hgj : j ≠ CallableFixedPrime.Reg.groups := by decide)
@@ -145,11 +142,8 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
       (fun u hu => by rw [qB]; exact (same _ (by omega)).trans (vbc u hu))
       (fun u hu => by rw [qc]; exact (same _ (by omega)).trans (vac u hu))
       (hfit.of_le (Nat.add_le_add_right (Nat.add_le_add_left (Nat.mul_le_mul_left 4 hm) b) 1024))
-  have hsolve : ExecWithin W solve r y
-      (1 + CallableFixedPrime.timeBound (m := ParameterChoice.level n) hn
-        (ParameterChoice.groups n) p values a.mem) := deliver.seq hy
   refine ⟨p, a, hprime, hout, y, ?_, yf, yiff, ys, ?_, ?_⟩
-  · exact (hs.seq (hr.seq hsolve)).mono (le_of_eq (by ring))
+  · exact (hs.seq (hr.seq (ExecWithin.copy.seq hy))).mono (le_of_eq (by ring))
   · intro u hu
     refine (yframe u ?_).trans ((rframe u ?_).trans (congrFun sm u))
     · exact hu.imp_right fun h => (Nat.add_le_add_left hm b).trans ((le_max_right _ _).trans h)
@@ -157,9 +151,8 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
   · intro j hj
     have hj' : (143 ≤ j.val ∧ j.val < 160) ∨ j.val = 600 ∨ (604 ≤ j.val ∧ j.val ≤ 607) :=
       hj.imp_right (Or.imp_left (congrArg Fin.val))
-    have hne (i : Fin 640) (hi : 601 ≤ i.val ∧ i.val ≤ 603) : j ≠ i := fun heq => by
-      have := congrArg Fin.val heq
-      omega
+    have hne (i : Fin 640) (hi : 601 ≤ i.val ∧ i.val ≤ 603) : j ≠ i :=
+      Fin.ne_of_val_ne (by omega)
     exact (yr j (by omega)).trans (qkeep j (by omega) (hne _ (by decide))
       (hne _ (by decide)) (hne _ (by decide)))
 

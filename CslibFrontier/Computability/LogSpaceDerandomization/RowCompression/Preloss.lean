@@ -106,19 +106,13 @@ theorem abs_update_sub_le_mul_clippedError {s : Finset ι} {n K : ℕ} {ρ z η 
   by_cases hlarge : 3 * threshold s n ρ z w ≤ entrySize (w y)
   · rw [update_eq_self_of_three_mul_le hlarge, sub_self, abs_zero]
     exact mul_nonneg (mul_nonneg hC hρ) (clippedError_nonneg _ _ _)
-  have hsize : entrySize (w y) < 3 * threshold s n ρ z w := lt_of_not_ge hlarge
   have hraw : raw 0 ≤ 4 * ρ := by
-    have hw := (le_abs_self (w y 0)).trans (abs_apply_le_entrySize (w y) 0)
-    have hp := (abs_le.mp hprev).1
-    linarith
+    linarith [(le_abs_self (w y 0)).trans (abs_apply_le_entrySize (w y) 0), (abs_le.mp hprev).1]
   have he : η / (2 * (1 + η)) ≤ clippedError d v raw :=
     (le_clipped_relative_error hη hd hsmall hraw).trans (le_max_left _ _)
-  have hcancel : (12 * (1 + η) / η) * ρ * (η / (2 * (1 + η))) = 6 * ρ := by
-    field_simp
-    ring
   calc |update s n K ρ z w y ν - w y ν| ≤ 6 * ρ :=
       (abs_update_sub_le_six_mul y ν).trans (mul_le_mul_of_nonneg_left hno (by norm_num))
-    _ = (12 * (1 + η) / η) * ρ * (η / (2 * (1 + η))) := hcancel.symm
+    _ = (12 * (1 + η) / η) * ρ * (η / (2 * (1 + η))) := by field_simp; ring
     _ ≤ (12 * (1 + η) / η) * ρ * clippedError d v raw := by gcongr
 
 /-- The weighted preloss estimate [OpenAI2026LogSpace, Lemma 8.2, (8.9)] for actual iterates.
@@ -171,11 +165,10 @@ theorem abs_iterate_sub_uncompressed_le_weighted_dyadic {s : Finset ι} {n K : �
     |(iterate s n K (dyadicFloor η m) Δ a j).row y ν - uncompressedRow Δ a.row j y ν| ≤
       (12 * (1 + η) / η) * ∑ i ∈ range j,
         dyadicFloor η m i * clippedError d v (uncompressedRow Δ a.row (i + 1) y) := by
-  apply abs_iterate_sub_uncompressed_le_weighted hη hd j hno
-  · exact fun i _ => eight_mul_dyadicFloor_le hη.le m i
-  · intro i hi
-    have hsum := six_sum_range_dyadicFloor_le hη.le (hi.trans_le hj)
-    have hfloor := dyadicFloor_nonneg hη.le m i
-    linarith
+  exact abs_iterate_sub_uncompressed_le_weighted (v := v) hη hd j hno
+    (fun i _ => eight_mul_dyadicFloor_le hη.le m i)
+    (fun i hi => by
+      linarith [six_sum_range_dyadicFloor_le hη.le (hi.trans_le hj), dyadicFloor_nonneg hη.le m i])
+    y ν
 
 end Cslib.RowCompression

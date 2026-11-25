@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.FlattenScope
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -289,10 +290,8 @@ theorem buildOutScope_spec {w : ℕ} {args : BuildOutScopeArgs}
         2 + args.bucketLen * (3 + 2 * maxScope + maxScope * (2 + W_out)) := by
   dsimp only
   unfold buildOutScope
-  have hK_le : (bucket.flatMap FactorTable.scope).length ≤ args.bucketLen * maxScope := by
-    rw [← hlen, List.length_flatMap]
-    simpa using
-      List.sum_le_length_nsmul (bucket.map (·.scope.length)) maxScope (by simpa using hmax)
+  have hK_le : (bucket.flatMap FactorTable.scope).length ≤ args.bucketLen * maxScope :=
+    hlen ▸ List.length_flatMap_le hmax
   have hss_cost := sumScopeLen_cost ⟨args.bucketPtr, args.bucketLen⟩ s
   obtain ⟨hfl_val, hfl_fr, hfl_pres, hfl_res, hfl_holds, hfl_cost⟩ :=
     flattenScopes_spec (w := w) (args := ⟨args.bucketPtr, args.bucketLen, _⟩) hwf hb hlen rfl hmax

@@ -115,9 +115,7 @@ private theorem edist_le_of_not_disjoint {v w : V} {r : ℕ}
   obtain ⟨z, hvz, hwz⟩ := not_disjoint_iff.mp h
   calc G.toSimpleGraph.edist v w ≤ G.toSimpleGraph.edist v z + G.toSimpleGraph.edist z w :=
         SimpleGraph.edist_triangle
-    _ = G.toSimpleGraph.edist v z + G.toSimpleGraph.edist w z := by
-        rw [SimpleGraph.edist_comm (u := z)]
-    _ ≤ r + r := add_le_add hvz hwz
+    _ ≤ r + r := add_le_add hvz ((SimpleGraph.edist_comm (u := z) (v := w)).trans_le hwz)
     _ = ((2 * r : ℕ) : ℕ∞) := by push_cast; ring
 
 omit [Fintype V] in
@@ -127,17 +125,15 @@ theorem closedBall_subset_of_mem_incidenceSet {e : E} {v w : V} (hv : e ∈ G.in
     (hw : e ∈ G.incidenceSet w) (r : ℕ) :
     closedBall G.toSimpleGraph w r ⊆ closedBall G.toSimpleGraph v (r + 1) := by
   intro z (hz : G.toSimpleGraph.edist w z ≤ r)
-  have h : G.toSimpleGraph.edist v z ≤ G.toSimpleGraph.edist w z + 1 := by
-    by_cases hvw : v = w
-    · rw [hvw]
-      exact le_self_add
-    · refine SimpleGraph.Adj.edist_le_edist_add_one
-        (Multigraph.toSimpleGraph_adj.mpr ⟨hvw, e, ?_⟩) z
-      rcases hv with hv | hv <;> rcases hw with hw | hw <;>
-        simp_all [Multigraph.ends, Sym2.eq_swap]
   change G.toSimpleGraph.edist v z ≤ ((r + 1 : ℕ) : ℕ∞)
   push_cast
-  exact h.trans (add_le_add_left hz 1)
+  refine (?_ : G.toSimpleGraph.edist v z ≤ G.toSimpleGraph.edist w z + 1).trans
+    (add_le_add_left hz 1)
+  by_cases hvw : v = w
+  · exact hvw ▸ le_self_add
+  · refine SimpleGraph.Adj.edist_le_edist_add_one
+      (Multigraph.toSimpleGraph_adj.mpr ⟨hvw, e, ?_⟩) z
+    rcases hv with hv | hv <;> rcases hw with hw | hw <;> simp_all [Multigraph.ends, Sym2.eq_swap]
 
 omit [Fintype V] in
 /-- The closed ball of radius `r` around the target of an edge lies in the closed ball of radius
@@ -289,12 +285,10 @@ theorem measureReal_window_le {y : EuclideanSpace ℝ V} (hy : ‖y‖ = 1) (a :
     (hδ : 0 ≤ δ) :
     (Measure.pi fun _ : V => gaussianReal 0 1).real
         {ω | a ≤ ⟪y, WithLp.toLp 2 ω⟫ ∧ ⟪y, WithLp.toLp 2 ω⟫ < a + δ} ≤ δ / √(2 * π) := by
-  have hy0 : y ≠ 0 := by
-    rintro rfl
-    simp at hy
+  have hy0 : y ≠ 0 := fun h => by simp [h] at hy
   refine (measureReal_pi_gaussianReal_eq (s := {x | ⟪y, x⟫ ∈ Ico a (a + δ)})
-    ((by fun_prop : Measurable fun x : EuclideanSpace ℝ V => ⟪y, x⟫) measurableSet_Ico)).trans_le
-    ?_
+    ((by fun_prop : Measurable fun x : EuclideanSpace ℝ V => ⟪y, x⟫)
+      measurableSet_Ico)).trans_le ?_
   rw [measureReal_def]
   refine ENNReal.toReal_le_of_le_ofReal (by positivity)
     ((stdGaussian_inner_mem_le hy0 measurableSet_Ico).trans ?_)
@@ -309,9 +303,8 @@ theorem measureReal_le_abs_le {y : EuclideanSpace ℝ V} (hy : ‖y‖ = 1) {T :
   refine (measureReal_pi_gaussianReal_eq (s := {x | T ≤ |⟪y, x⟫|})
     (measurableSet_le measurable_const (by fun_prop))).trans_le ?_
   rw [measureReal_def]
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity)
-    ((stdGaussian_le_abs_inner_le y hT).trans ?_)
-  rw [hy, one_pow]
+  exact ENNReal.toReal_le_of_le_ofReal (by positivity)
+    ((stdGaussian_le_abs_inner_le y hT).trans (by rw [hy, one_pow]))
 
 /-- **Sheppard's bound for the sample.** Two projections of the sample onto vectors of equal
 norm are separated by a threshold with probability at most their angle over `π`. -/
@@ -328,10 +321,7 @@ theorem inner_toLp_congr {y : EuclideanSpace ℝ V} {S : Set V} (hy : ∀ z ∉ 
     {ω ω' : V → ℝ} (h : ∀ z ∈ S, ω z = ω' z) :
     ⟪y, WithLp.toLp 2 ω⟫ = ⟪y, WithLp.toLp 2 ω'⟫ := by
   simp only [PiLp.inner_apply]
-  refine Finset.sum_congr rfl fun z _ => ?_
-  by_cases hz : z ∈ S
-  · simp [h z hz]
-  · simp [hy z hz]
+  exact Finset.sum_congr rfl fun z _ => by by_cases hz : z ∈ S <;> simp [hz, h, hy]
 
 end Projections
 
@@ -366,8 +356,7 @@ noncomputable def vertexCorrelation (d : ℕ) : ℝ :=
 
 /-- The limiting adjacent correlation `vertexCorrelation d` is positive for `d ≥ 2`. -/
 theorem vertexCorrelation_pos {d : ℕ} (hd : 2 ≤ d) : 0 < vertexCorrelation d := by
-  have hd' : (2 : ℝ) ≤ d := by exact_mod_cast hd
-  have : 0 < (d : ℝ) - 1 := by linarith
+  have : 0 < (d : ℝ) - 1 := by linarith [(Nat.ofNat_le_cast.mpr hd : (2 : ℝ) ≤ d)]
   unfold vertexCorrelation
   positivity
 
@@ -377,52 +366,38 @@ radius `R`. -/
 theorem exists_decay_radius_degree {d : ℕ} (hd : 2 ≤ d) {ρ : ℝ}
     (hρ : ρ < vertexCorrelation d) :
     ∃ (q : ℝ) (R : ℕ), 0 ≤ q ∧ ρ ≤ 2 * q / (1 + q ^ 2) - d * ((d - 1) * q ^ 2) ^ R := by
-  set D : ℝ := (d : ℝ)
-  have hD : 2 ≤ D := by
-    simp only [D]
-    exact_mod_cast hd
-  set g := vertexCorrelation d
-  set q₀ := √(D - 1) / (D - 1)
+  let D : ℝ := d
+  have hD : 2 ≤ D := Nat.ofNat_le_cast.mpr hd
   have hu : 0 < D - 1 := by linarith
+  let g := vertexCorrelation d
+  let q₀ := √(D - 1) / (D - 1)
   have hq₀ : 0 < q₀ := by positivity
-  have hs : √(D - 1) ^ 2 = D - 1 := sq_sqrt hu.le
-  have hsq : q₀ ^ 2 = 1 / (D - 1) := by
-    simp only [q₀]
-    rw [div_pow, hs]
-    field_simp
+  have hsq : q₀ ^ 2 = 1 / (D - 1) := by rw [div_pow, sq_sqrt hu.le]; field_simp
   have hlim : 2 * q₀ / (1 + q₀ ^ 2) = g := by
+    have : D ≠ 0 := by linarith
+    have := hu.ne'
     rw [hsq]
-    have hD0 : D ≠ 0 := (by linarith : (0 : ℝ) < D).ne'
-    have hu0 := hu.ne'
     change 2 * (√(D - 1) / (D - 1)) / (1 + 1 / (D - 1)) = 2 * √(D - 1) / D
-    field_simp
-    ring
+    field_simp; ring
   obtain ⟨δ, hδ, hκ⟩ := Metric.continuousAt_iff.mp continuous_correlation.continuousAt
     ((g - ρ) / 2) (by linarith)
-  set q := q₀ - min δ q₀ / 2
+  let q := q₀ - min δ q₀ / 2
   have hmin : 0 < min δ q₀ := lt_min hδ hq₀
-  have hq0 : 0 ≤ q := by
-    simp only [q]
-    linarith [min_le_right δ q₀]
-  have hqq : q < q₀ := by
-    simp only [q]
-    linarith
-  have hκq : g - (g - ρ) / 2 < 2 * q / (1 + q ^ 2) := by
-    have hdist : dist q q₀ < δ := by
-      rw [Real.dist_eq, show q - q₀ = -(min δ q₀ / 2) by simp only [q]; ring, abs_neg,
-        abs_of_pos (by positivity)]
-      linarith [min_le_left δ q₀]
-    have H := hκ hdist
-    rw [Real.dist_eq, hlim] at H
-    linarith [neg_abs_le (2 * q / (1 + q ^ 2) - g)]
+  have hq0 : 0 ≤ q := by dsimp [q]; linarith [min_le_right δ q₀]
+  have hdist : dist q q₀ < δ := by
+    rw [Real.dist_eq, show q - q₀ = -(min δ q₀ / 2) by dsimp [q]; ring, abs_neg,
+      abs_of_pos (by positivity)]
+    linarith [min_le_left δ q₀]
+  have H := hκ hdist
+  rw [Real.dist_eq, hlim] at H
   have hdecay : (D - 1) * q ^ 2 < 1 := by
-    have hq2 : q ^ 2 < q₀ ^ 2 := by gcongr
-    have hq2' := mul_lt_mul_of_pos_left hq2 hu
-    rwa [hsq, mul_one_div_cancel hu.ne'] at hq2'
+    have hqq : q < q₀ := by dsimp [q]; linarith
+    have hq2 := mul_lt_mul_of_pos_left (show q ^ 2 < q₀ ^ 2 by gcongr) hu
+    rwa [hsq, mul_one_div_cancel hu.ne'] at hq2
   obtain ⟨R, hR⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < (g - ρ) / (2 * D)) hdecay
   have hR' := mul_lt_mul_of_pos_left hR (by linarith : 0 < D)
-  have hcancel : D * ((g - ρ) / (2 * D)) = (g - ρ) / 2 := by field_simp
-  rw [hcancel] at hR'
-  exact ⟨q, R, hq0, by linarith⟩
+  have hD0 : D ≠ 0 := by linarith
+  rw [show D * ((g - ρ) / (2 * D)) = (g - ρ) / 2 by field_simp] at hR'
+  exact ⟨q, R, hq0, by linarith [neg_abs_le (2 * q / (1 + q ^ 2) - g)]⟩
 
 end Cslib.Circuits.Frontier.Gaussian

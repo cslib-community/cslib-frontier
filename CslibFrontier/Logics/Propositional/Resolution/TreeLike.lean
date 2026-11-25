@@ -445,16 +445,13 @@ theorem RefutableInWidth.of_derivation {k b : ℕ} (hk : ∀ c ∈ φ, c.width �
   cases d with
   | mem hmem =>
     subst hc
-    exact RefutableInWidth.mono ⟨[[]], IsProof.nil.mem hmem, List.mem_singleton_self _,
-      by simp⟩ (Nat.zero_le _)
+    exact ⟨[[]], IsProof.nil.mem hmem, List.mem_singleton_self _, by simp⟩
   | @resolvent c₁ c₂ v d₁ d₂ hv₁ hv₂ =>
     simp only [Derivation.size_resolvent] at hn hd
     -- the premises are the unit clauses of `v` and of its negation
     have hnil : ∀ l, l ∉ c₁.resolvent c₂ v := fun l => by simp [hc]
-    have hl₁ : ∀ l ∈ c₁, l = (v, true) := fun l hl =>
-      by_contra fun hne => hnil l (Clause.mem_resolvent.2 (.inl ⟨hl, hne⟩))
-    have hl₂ : ∀ l ∈ c₂, l = (v, false) := fun l hl =>
-      by_contra fun hne => hnil l (Clause.mem_resolvent.2 (.inr ⟨hl, hne⟩))
+    have hl₁ (l) (hl : l ∈ c₁) := Clause.eq_of_mem_of_notMem_resolvent_left hl (hnil l)
+    have hl₂ (l) (hl : l ∈ c₂) := Clause.eq_of_mem_of_notMem_resolvent_right hl (hnil l)
     obtain ⟨c₁', d₁', hsub₁, hsize₁⟩ := d₁.restrict v false fun h => by simpa using hl₁ _ h
     obtain ⟨c₂', d₂', hsub₂, hsize₂⟩ := d₂.restrict v true fun h => by simpa using hl₂ _ h
     obtain rfl : c₁' = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>

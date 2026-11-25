@@ -131,9 +131,8 @@ theorem integral_sum_payment_le_myerson (hμ : ∀ i, HasValueDensity (μ i) (f 
     (hxm : ∀ i, Measurable fun v => x v i) {M : Mechanism ι} (hM : M.IsDSIC) (hIR : M.IsIR)
     (hMX : ∀ v, 0 ≤ v → M.allocation v ∈ X) (hMm : ∀ i, Measurable fun v => M.allocation v i) :
     ∫ v, ∑ i, M.payment v i ∂Measure.pi μ ≤ ∫ v, ∑ i, (myerson x).payment v i ∂Measure.pi μ := by
-  have hbound : ∀ y ∈ X, ∀ i, |y i| ≤ 1 := fun y hy i => by
-    rw [abs_of_nonneg (hX y hy i).1]
-    exact (hX y hy i).2
+  have hbound : ∀ y ∈ X, ∀ i, |y i| ≤ 1 := fun y hy i =>
+    (abs_of_nonneg (hX y hy i).1).trans_le (hX y hy i).2
   have hMB : ∀ v, 0 ≤ v → ∀ i, |M.allocation v i| ≤ 1 := fun v hv => hbound _ (hMX v hv)
   have hxB : ∀ v, 0 ≤ v → ∀ i, |x v i| ≤ 1 := fun v hv => hbound _ (hx v hv).1
   refine (hM.integral_sum_payment_le hIR hμ hMm hMB).trans ?_
@@ -163,14 +162,10 @@ jumps over `0`. -/
 /-- A reserve threshold is unique. -/
 theorem IsReserveThreshold.unique {φ : ℝ → ℝ} {r r' : ℝ} (hr : IsReserveThreshold φ r)
     (hr' : IsReserveThreshold φ r') : r = r' := by
-  have key : ∀ {s s' : ℝ}, IsReserveThreshold φ s → IsReserveThreshold φ s' → s ≤ s' := by
-    intro s s' hs hs'
-    by_contra hcon
-    have hlt : s' < s := lt_of_not_ge hcon
-    have h1 : s' < (s' + s) / 2 := by linarith
-    have h2 : (s' + s) / 2 < s := by linarith
-    have := hs.2.2 _ (hs'.1.trans_lt h1) (hs'.2.1 _ h1)
-    linarith
+  have key {s s' : ℝ} (hs : IsReserveThreshold φ s) (hs' : IsReserveThreshold φ s') : s ≤ s' :=
+    le_of_not_gt fun hlt => by
+      have h1 : s' < (s' + s) / 2 := by linarith
+      linarith [hs.2.2 _ (hs'.1.trans_lt h1) (hs'.2.1 _ h1)]
   exact le_antisymm (key hr hr') (key hr' hr)
 
 /-- The **reserve price** for `φ`: the infimum of the positive bids with nonnegative virtual
@@ -239,30 +234,20 @@ nonnegative. Requiring `0 < b i` prevents a zero bid from winning via the divisi
 theorem reserveAllocation_binary (φ : ℝ → ℝ) (b : ι → ℝ) (i : ι) :
     reserveAllocation φ b i = 0 ∨ reserveAllocation φ b i = 1 := by
   unfold reserveAllocation
-  split_ifs
-  · exact Or.inr rfl
-  · exact Or.inl rfl
+  split_ifs <;> simp
 
 theorem reserveAllocation_eq_one_iff {φ : ℝ → ℝ} {b : ι → ℝ} {i : ι} :
     reserveAllocation φ b i = 1 ↔ Wins b i ∧ 0 < b i ∧ 0 ≤ φ (b i) := by
-  unfold reserveAllocation
-  split_ifs with h
-  · exact iff_of_true rfl h
-  · exact iff_of_false zero_ne_one h
+  simp [reserveAllocation]
 
 theorem reserveAllocation_eq_zero_iff {φ : ℝ → ℝ} {b : ι → ℝ} {i : ι} :
     reserveAllocation φ b i = 0 ↔ ¬ (Wins b i ∧ 0 < b i ∧ 0 ≤ φ (b i)) := by
-  unfold reserveAllocation
-  split_ifs with h
-  · exact iff_of_false one_ne_zero (not_not_intro h)
-  · exact iff_of_true rfl h
+  simp [reserveAllocation]
 
 theorem reserveAllocation_nonneg (φ : ℝ → ℝ) (b : ι → ℝ) (i : ι) :
     0 ≤ reserveAllocation φ b i := by
-  rcases reserveAllocation_binary φ b i with h | h
-  · rw [h]
-  · rw [h]
-    exact zero_le_one
+  unfold reserveAllocation
+  split_ifs <;> norm_num
 
 theorem isBinary_reserveAllocation (φ : ℝ → ℝ) : IsBinary (reserveAllocation (ι := ι) φ) :=
   fun b _ i => reserveAllocation_binary φ b i
@@ -270,14 +255,8 @@ theorem isBinary_reserveAllocation (φ : ℝ → ℝ) : IsBinary (reserveAllocat
 /-- The reserve rule awards the item only to the Vickrey winner. -/
 theorem reserveAllocation_le_allocation (φ : ℝ → ℝ) (b : ι → ℝ) (i : ι) :
     reserveAllocation φ b i ≤ allocation b i := by
-  rcases reserveAllocation_binary φ b i with h | h
-  · rw [h]
-    rcases allocation_binary b i with h' | h'
-    · rw [h']
-    · rw [h']
-      exact zero_le_one
-  · have : allocation b i = 1 := allocation_eq_one_iff.2 (reserveAllocation_eq_one_iff.1 h).1
-    rw [h, this]
+  unfold reserveAllocation allocation
+  split_ifs <;> simp_all
 
 /-- The reserve rule is monotone when `φ` is nondecreasing on `(0, ∞)`. -/
 theorem isMonotone_reserveAllocation {φ : ℝ → ℝ} (hφ : MonotoneOn φ (Ioi 0)) :
@@ -286,17 +265,12 @@ theorem isMonotone_reserveAllocation {φ : ℝ → ℝ} (hφ : MonotoneOn φ (Io
   change reserveAllocation φ (Function.update b i z) i ≤
     reserveAllocation φ (Function.update b i z') i
   rcases reserveAllocation_binary φ (Function.update b i z) i with h | h
-  · rw [h]
-    exact reserveAllocation_nonneg φ _ i
+  · exact h ▸ reserveAllocation_nonneg φ _ i
   · obtain ⟨hW, hzpos, h0⟩ := reserveAllocation_eq_one_iff.1 h
     rw [Function.update_self] at hzpos h0
-    have h' : reserveAllocation φ (Function.update b i z') i = 1 := by
-      refine reserveAllocation_eq_one_iff.2 ⟨hW.update_of_le hzz', ?_, ?_⟩
-      · rw [Function.update_self]
-        exact hzpos.trans_le hzz'
-      · rw [Function.update_self]
-        exact h0.trans (hφ hzpos (hzpos.trans_le hzz') hzz')
-    rw [h, h']
+    rw [h, reserveAllocation_eq_one_iff.2 ⟨hW.update_of_le hzz', ?_, ?_⟩]
+    · simpa only [Function.update_self] using hzpos.trans_le hzz'
+    · simpa only [Function.update_self] using h0.trans (hφ hzpos (hzpos.trans_le hzz') hzz')
 
 /-- The set of bid profiles at which bidder `i` wins is measurable. -/
 theorem measurableSet_wins [Countable ι] (i : ι) : MeasurableSet {b : ι → ℝ | Wins b i} :=
@@ -314,12 +288,10 @@ theorem measurable_allocation [Countable ι] (i : ι) :
 /-- The reserve rule is measurable in the bid profile. -/
 theorem measurable_reserveAllocation [Countable ι] {φ : ℝ → ℝ} (hφ : Measurable φ) (i : ι) :
     Measurable fun b : ι → ℝ => reserveAllocation φ b i := by
-  have hP : MeasurableSet {b : ι → ℝ | 0 < b i} :=
-    measurableSet_lt measurable_const (measurable_pi_apply i)
-  have hR : MeasurableSet {b : ι → ℝ | 0 ≤ φ (b i)} :=
-    measurableSet_le measurable_const (hφ.comp (measurable_pi_apply i))
   unfold reserveAllocation
-  exact Measurable.ite ((measurableSet_wins i).inter (hP.inter hR))
+  exact Measurable.ite ((measurableSet_wins i).inter
+    ((measurableSet_lt measurable_const (measurable_pi_apply i)).inter
+      (measurableSet_le measurable_const (hφ.comp (measurable_pi_apply i)))))
     measurable_const measurable_const
 
 variable [Fintype ι]
@@ -342,46 +314,34 @@ theorem isVirtualWelfareMaximizing_reserveAllocation {φ : ℝ → ℝ} (hφ : M
   rcases isEmpty_or_nonempty ι with hι | hι
   · simp only [Finset.univ_eq_empty, Finset.sum_empty, le_refl]
   obtain ⟨w, hw⟩ := exists_wins b
-  have hle : ∀ j, φ (b j) ≤ max 0 (φ (b w)) := fun j => by
+  have hle (j : ι) : φ (b j) ≤ max 0 (φ (b w)) := by
     rcases (hb j).eq_or_lt with hj0 | hjpos
     · rw [← hj0]
       exact hφ0.trans (le_max_left _ _)
-    · by_cases hj : j = w
-      · rw [hj]
-        exact le_max_right _ _
+    · rcases eq_or_ne j w with rfl | hj
+      · exact le_max_right _ _
       · have hbw : b j ≤ b w := (hw j hj).1
         exact (hφ hjpos (hjpos.trans_le hbw) hbw).trans (le_max_right _ _)
-  have hy0 : ∀ j, 0 ≤ y j := fun j => by
-    rcases hy.1 j with h | h
-    · rw [h]
-    · rw [h]
-      exact zero_le_one
+  have hy0 (j : ι) : 0 ≤ y j := by rcases hy.1 j with h | h <;> simp [h]
   have hL : ∑ j, φ (b j) * y j ≤ max 0 (φ (b w)) :=
     calc ∑ j, φ (b j) * y j ≤ ∑ j, max 0 (φ (b w)) * y j :=
           Finset.sum_le_sum fun j _ => mul_le_mul_of_nonneg_right (hle j) (hy0 j)
-      _ = max 0 (φ (b w)) * ∑ j, y j := by rw [Finset.mul_sum]
+      _ = max 0 (φ (b w)) * ∑ j, y j := (Finset.mul_sum _ _ _).symm
       _ ≤ max 0 (φ (b w)) * 1 := mul_le_mul_of_nonneg_left hy.2 (le_max_left _ _)
       _ = max 0 (φ (b w)) := mul_one _
-  have hoff : ∀ j, j ≠ w → reserveAllocation φ b j = 0 := fun j hj => by
-    rcases reserveAllocation_binary φ b j with h | h
-    · exact h
-    · exact absurd ((reserveAllocation_eq_one_iff.1 h).1.unique hw) hj
   have hR : ∑ j, φ (b j) * reserveAllocation φ b j = max 0 (φ (b w)) := by
-    rw [Finset.sum_eq_single w (fun j _ hj => by rw [hoff j hj, mul_zero])
+    rw [Finset.sum_eq_single w
+      (fun j _ hj => by
+        rw [reserveAllocation_eq_zero_iff.2 fun h => hj (h.1.unique hw), mul_zero])
       (fun hw' => absurd (Finset.mem_univ w) hw')]
     by_cases h0 : 0 < b w ∧ 0 ≤ φ (b w)
     · rw [reserveAllocation_eq_one_iff.2 ⟨hw, h0.1, h0.2⟩, mul_one, max_eq_right h0.2]
-    · have hz : reserveAllocation φ b w = 0 := by
-        rcases reserveAllocation_binary φ b w with h | h
-        · exact h
-        · exact absurd (reserveAllocation_eq_one_iff.1 h).2 h0
-      have hφle : φ (b w) ≤ 0 := by
+    · have hφle : φ (b w) ≤ 0 := by
         rcases (hb w).eq_or_lt with hbw0 | hbwpos
         · rwa [← hbw0]
         · exact le_of_not_ge fun hφnonneg => h0 ⟨hbwpos, hφnonneg⟩
-      rw [hz, mul_zero, max_eq_left hφle]
-  rw [hR]
-  exact hL
+      rw [reserveAllocation_eq_zero_iff.2 fun h => h0 h.2, mul_zero, max_eq_left hφle]
+  exact hR ▸ hL
 
 /-- **Myerson's optimal single-item auction** ([Roughgarden2013CS364A], Lecture 5, §3.1).
 
@@ -413,10 +373,8 @@ theorem criticalBid_reserveAllocation {φ : ℝ → ℝ} {r : ℝ} (hr : IsReser
   refine criticalBid_eq_of_threshold (le_max_of_le_left hr.1) (fun z hz => ?_) fun z hz h => ?_
   · refine reserveAllocation_eq_one_iff.2
       ⟨wins_update_of_lt ((le_max_right _ _).trans_lt hz), ?_, ?_⟩
-    · rw [Function.update_self]
-      exact (hr.1.trans (le_max_left _ _)).trans_lt hz
-    · rw [Function.update_self]
-      exact hr.2.1 z ((le_max_left _ _).trans_lt hz)
+    · simpa only [Function.update_self] using (hr.1.trans (le_max_left _ _)).trans_lt hz
+    · simpa only [Function.update_self] using hr.2.1 z ((le_max_left _ _).trans_lt hz)
   · obtain ⟨hW, hzpos, h0⟩ := reserveAllocation_eq_one_iff.1 h
     rw [Function.update_self] at hzpos h0
     exact max_le (hr.2.2 z hzpos h0) (highestOtherBid_le_of_wins hz hW)

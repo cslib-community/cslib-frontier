@@ -116,8 +116,8 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
     Nonempty (CompiledQuantumNet d e q_extra C) := by
   have htwo : TwoLocal C := by
     rcases hd with rfl | rfl
-    · simp only [↓reduceIte] at hmodel; exact fun g hg => (hmodel g hg).1
-    · simp only [(by decide : 4 ≠ 3), ↓reduceIte] at hmodel; exact hmodel
+    · exact fun g hg => (hmodel g hg).1
+    · exact hmodel
   classical
   set Aset := activeSet e q_extra C
   have heA : Set.range e ⊆ Aset := range_subset_activeSet e q_extra C
@@ -128,112 +128,79 @@ theorem exists_compiledQuantumNet {n N d : ℕ} (hd : d = 3 ∨ d = 4)
   have hcap : CappedWireNet d ↥Aset (evalAct L) (twoQubitCount C) := by
     rw [← hlenL]
     rcases hd with rfl | rfl
-    · simp only [↓reduceIte] at hmodel
-      exact (exists_cappedWireNet L).2 (hbondL hmodel)
+    · exact (exists_cappedWireNet L).2 (hbondL hmodel)
     · exact (exists_cappedWireNet L).1
   obtain ⟨V_fin, E_fin, instFV, _, instFE, instDE, G, inVert, outVert, F,
     hG_loop, hG_deg, hdisj_io, _, hreach, hV_card, hG_ρ, hcontract, hloc_in, hloc_out, hloc_edge⟩ :=
     hcap.exists_net
-  let leafIn : Fin n ↪ V_fin :=
-    ⟨fun i => inVert ⟨e i, heA ⟨i, rfl⟩⟩,
-      fun i j h => e.injective (congrArg Subtype.val (inVert.injective h))⟩
-  let leafOut : Fin n ↪ V_fin :=
-    ⟨fun i => outVert ⟨e i, heA ⟨i, rfl⟩⟩,
-      fun i j h => e.injective (congrArg Subtype.val (outVert.injective h))⟩
+  let embA : Fin n ↪ ↥Aset :=
+    ⟨fun i => ⟨e i, heA ⟨i, rfl⟩⟩, fun _ _ h => e.injective (congrArg Subtype.val h)⟩
+  let leafIn : Fin n ↪ V_fin := embA.trans inVert
+  let leafOut : Fin n ↪ V_fin := embA.trans outVert
   let leaf2n : Fin (2 * n) ↪ V_fin :=
-    ⟨fun k => if hk : k.1 < n then inVert ⟨e ⟨k.1, hk⟩, heA ⟨⟨k.1, hk⟩, rfl⟩⟩
-        else outVert ⟨e ⟨k.1 - n, by omega⟩, heA ⟨⟨k.1 - n, by omega⟩, rfl⟩⟩,
+    ⟨fun k => if hk : k.1 < n then leafIn ⟨k.1, hk⟩ else leafOut ⟨k.1 - n, by omega⟩,
       fun k₁ k₂ hk => by
         dsimp only at hk
-        by_cases h1 : k₁.1 < n <;> by_cases h2 : k₂.1 < n
-        · simp only [h1, h2, ↓reduceDIte] at hk
-          exact Fin.ext (Fin.mk.inj (e.injective (congrArg Subtype.val (inVert.injective hk))))
-        · simp only [h1, h2, ↓reduceDIte] at hk
-          exact False.elim (Set.disjoint_left.mp hdisj_io ⟨_, rfl⟩ ⟨_, hk.symm⟩)
-        · simp only [h1, h2, ↓reduceDIte] at hk
-          exact False.elim (Set.disjoint_left.mp hdisj_io ⟨_, rfl⟩ ⟨_, hk⟩)
-        · simp only [h1, h2, ↓reduceDIte] at hk
-          have heq := Fin.mk.inj (e.injective (congrArg Subtype.val (outVert.injective hk)))
+        by_cases h1 : k₁.1 < n <;> by_cases h2 : k₂.1 < n <;> simp only [h1, h2, ↓reduceDIte] at hk
+        · exact Fin.ext (Fin.mk.inj (leafIn.injective hk))
+        · exact (Set.disjoint_left.mp hdisj_io ⟨_, rfl⟩ ⟨_, hk.symm⟩).elim
+        · exact (Set.disjoint_left.mp hdisj_io ⟨_, rfl⟩ ⟨_, hk⟩).elim
+        · have := Fin.mk.inj (leafOut.injective hk)
           ext; omega⟩
-  have hleaf_in (i : Fin n) : leaf2n (inl2n n i) = inVert ⟨e i, heA ⟨i, rfl⟩⟩ := by
-    change (if hk : (inl2n n i).1 < n then
-      inVert ⟨e ⟨(inl2n n i).1, hk⟩, _⟩ else _) = _
-    simp only [inl2n, i.isLt, ↓reduceDIte]
-  have hleaf_out (j : Fin n) : leaf2n (inr2n n j) = outVert ⟨e j, heA ⟨j, rfl⟩⟩ := by
-    have hnot : ¬(n + j.1 < n) := by omega
-    change (if hk : (inr2n n j).1 < n then _
-      else outVert ⟨e ⟨(inr2n n j).1 - n, _⟩, _⟩) = _
-    simp only [inr2n, hnot, ↓reduceDIte]
-    congr 1; apply Subtype.ext; dsimp only; congr 1; apply Fin.ext; dsimp only; omega
+  have hleaf_in (i : Fin n) : leaf2n (inl2n n i) = leafIn i := dite_eq_left i.isLt
+  have hleaf_out (j : Fin n) : leaf2n (inr2n n j) = leafOut j := by
+    change (if hk : n + j.1 < n then _ else leafOut ⟨n + j.1 - n, _⟩) = _
+    rw [dite_eq_right (by omega)]
+    exact congrArg leafOut (Fin.ext (by dsimp; omega))
   have hV_ub : (Nat.card V_fin : ℝ) ≤ 2 * n + 6 * (twoQubitCount C : ℝ) + 2 := by
     rw [Nat.card_eq_fintype_card]
     have hA_card : Fintype.card ↥Aset ≤ n + 2 * twoQubitCount C + 1 := by
       rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
       exact ncard_activeSet_le e q_extra htwo
-    have hV_nat : Fintype.card V_fin ≤ 2 * n + 6 * twoQubitCount C + 2 := by omega
-    exact_mod_cast hV_nat
-  let embA : Fin n ↪ ↥Aset :=
-    ⟨fun i => ⟨e i, heA ⟨i, rfl⟩⟩, fun i j h => e.injective (congrArg Subtype.val h)⟩
-  have hin_le_act (Comp : Set V_fin) :
-      {i : Fin n | leafIn i ∈ Comp}.ncard ≤ {q : ↥Aset | inVert q ∈ Comp}.ncard := by
+    exact_mod_cast (by omega : Fintype.card V_fin ≤ 2 * n + 6 * twoQubitCount C + 2)
+  have hcard_le (Comp : Set V_fin) (f : Fin n → V_fin)
+      (hf : ∀ i, f i ∈ Comp → inVert (embA i) ∈ Comp) :
+      {i : Fin n | f i ∈ Comp}.ncard ≤ {q : ↥Aset | inVert q ∈ Comp}.ncard := by
     rw [← ncard_image_of_injective _ embA.injective]
-    exact ncard_le_ncard (by rintro _ ⟨i, hi, rfl⟩; exact hi) (toFinite _)
-  have hreach_closed (Comp : Set V_fin) (hcut : G.edgeCut Comp = ∅) (q : ↥Aset) :
-      inVert q ∈ Comp ↔ outVert q ∈ Comp :=
-    mem_closed_iff_of_reachable hcut (hreach q)
+    refine ncard_le_ncard ?_ (toFinite _)
+    rintro _ ⟨i, hi, rfl⟩
+    exact hf i hi
+  have hout_le (Comp : Set V_fin) (hcut : G.edgeCut Comp = ∅) :=
+    hcard_le Comp leafOut fun i hi => (mem_closed_iff_of_reachable hcut (hreach (embA i))).mpr hi
   refine ⟨{
-    V := V_fin
-    E := E_fin
-    instFV := instFV
-    instFE := instFE
-    instDE := instDE
-    G := G
-    loopless := hG_loop
-    maxDeg := hG_deg
-    card_V_le := hV_ub
-    leafIn := leafIn
-    leafOut := leafOut
-    leaf2n := leaf2n
+    V := V_fin, E := E_fin, instFV, instFE, instDE, G
+    loopless := hG_loop, maxDeg := hG_deg, card_V_le := hV_ub, leafIn, leafOut, leaf2n
     cycleRank_leafIn_le := fun Comp hcut hconn => by
-      have := hin_le_act Comp
+      have := hcard_le Comp leafIn fun _ h => h
       have := hG_ρ Comp hcut hconn
       omega
     cycleRank_leafOut_le := fun Comp hcut hconn => by
-      have hout_le_in : {i : Fin n | leafOut i ∈ Comp}.ncard ≤
-          {q : ↥Aset | inVert q ∈ Comp}.ncard := by
-        rw [← ncard_image_of_injective _ embA.injective]
-        refine ncard_le_ncard ?_ (toFinite _)
-        rintro _ ⟨i, hi, rfl⟩
-        exact (hreach_closed Comp hcut ⟨e i, heA ⟨i, rfl⟩⟩).mpr hi
+      have := hout_le Comp hcut
       have := hG_ρ Comp hcut hconn
       omega
     cycleRank_leaf2n_le := fun Comp hcut hconn => by
       have hsub2n : {k : Fin (2 * n) | leaf2n k ∈ Comp} ⊆
-          inl2n n '' {i | leafIn i ∈ Comp} ∪ inr2n n '' {j | leafIn j ∈ Comp} := by
-        intro k hk
+          inl2n n '' {i | leafIn i ∈ Comp} ∪ inr2n n '' {j | leafOut j ∈ Comp} := fun k hk => by
+        change (if hk : k.1 < n then leafIn ⟨k.1, hk⟩ else leafOut ⟨k.1 - n, _⟩) ∈ Comp at hk
         by_cases hk_lt : k.1 < n
-        · refine Or.inl ⟨⟨k.1, hk_lt⟩, ?_, Fin.ext rfl⟩
-          have heq := hleaf_in ⟨k.1, hk_lt⟩
-          change leaf2n k ∈ Comp at hk
-          have hk_eq : inl2n n ⟨k.1, hk_lt⟩ = k := Fin.ext rfl
-          rwa [← hk_eq, heq] at hk
-        · refine Or.inr ⟨⟨k.1 - n, by omega⟩, ?_, Fin.ext (by simp [inr2n]; omega)⟩
-          have heq := hleaf_out ⟨k.1 - n, by omega⟩
-          change leaf2n k ∈ Comp at hk
-          have hk_eq : inr2n n ⟨k.1 - n, by omega⟩ = k := Fin.ext (by simp [inr2n]; omega)
-          rw [← hk_eq, heq] at hk
-          exact (hreach_closed Comp hcut ⟨e ⟨k.1 - n, by omega⟩, _⟩).mpr hk
+        · simp only [hk_lt, ↓reduceDIte] at hk
+          exact .inl ⟨⟨k.1, hk_lt⟩, hk, Fin.ext rfl⟩
+        · simp only [hk_lt, ↓reduceDIte] at hk
+          refine .inr ⟨⟨k.1 - n, by omega⟩, hk, Fin.ext ?_⟩
+          simp only [inr2n]
+          omega
       have hcard2n : {k : Fin (2 * n) | leaf2n k ∈ Comp}.ncard ≤
-          2 * {q : ↥Aset | inVert q ∈ Comp}.ncard := by
+          2 * {q : ↥Aset | inVert q ∈ Comp}.ncard :=
         calc {k : Fin (2 * n) | leaf2n k ∈ Comp}.ncard
             ≤ (inl2n n '' {i | leafIn i ∈ Comp}).ncard +
-                (inr2n n '' {j | leafIn j ∈ Comp}).ncard :=
+                (inr2n n '' {j | leafOut j ∈ Comp}).ncard :=
               (ncard_le_ncard hsub2n (toFinite _)).trans (ncard_union_le _ _)
-          _ = 2 * {i : Fin n | leafIn i ∈ Comp}.ncard := by
+          _ = {i : Fin n | leafIn i ∈ Comp}.ncard + {j : Fin n | leafOut j ∈ Comp}.ncard := by
               rw [ncard_image_of_injective _ (inl2n_injective n),
-                ncard_image_of_injective _ (inr2n_injective n), two_mul]
-          _ ≤ 2 * {q : ↥Aset | inVert q ∈ Comp}.ncard :=
-              Nat.mul_le_mul_left 2 (hin_le_act Comp)
+                ncard_image_of_injective _ (inr2n_injective n)]
+          _ ≤ 2 * {q : ↥Aset | inVert q ∈ Comp}.ncard := by
+              rw [two_mul]
+              exact add_le_add (hcard_le Comp leafIn fun _ h => h) (hout_le Comp hcut)
       have := hG_ρ Comp hcut hconn
       omega
     sq_quantumCorrelation_mul_le := fun x₀ Q P =>

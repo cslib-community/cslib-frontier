@@ -95,13 +95,10 @@ private theorem FixedCoupled.writeQuot_slotOf {metaBase itemBase U V w N b j q :
     · rw [compQuotAt_writeCompQuot_of_ne hw s.mem hdeq]
       have hg_ne : physByBase N (gm 0 * slabSize N) (compDTAt metaBase U w N s.mem) d' ≠ g := by
         intro heq
-        apply hdeq
         obtain ⟨hb'_lt, hj'_lt, hd'_eq⟩ := ownerBucketOfDense_lt_and_slotOf hslot htd hd'
-        have hv' := physOfDense_eq_slotOf_owner hslot htd hd'
-        change physOfDense N gm (compDTAt metaBase U w N s.mem) d' = g at heq
-        rw [hv'] at heq
-        obtain ⟨rfl, rfl⟩ := (slotOf_lt_and_injective hslot).2 _ hb'_lt _ hj'_lt b hb j hj heq
-        exact hd'_eq.symm
+        obtain ⟨rfl, rfl⟩ := (slotOf_lt_and_injective hslot).2 _ hb'_lt _ hj'_lt b hb j hj
+          ((physOfDense_eq_slotOf_owner hslot htd hd').symm.trans heq)
+        exact hdeq hd'_eq.symm
       rw [Function.update_of_ne hg_ne]
       exact hcpl.quot_eq d' hd'
   · rw [hgm_f] at hd' ⊢
@@ -120,9 +117,7 @@ private theorem clientState_compResolveCopyPairProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compResolveCopyPairProg d) = s := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, phys_del⟩
-  unfold StateTransitionSpec.clientState
-  dsimp only [compResolveCopyPairProg]
-  simp only [prog_runClient_state_bind, StateTransitionSpec.clientState,
+  simp only [StateTransitionSpec.clientState, compResolveCopyPairProg, prog_runClient_state_bind,
     runClient_state_compLastSlotOfGenProg, runClient_state_denseOfPhysGenProg,
     prog_runClient_state_pure]
 
@@ -251,12 +246,6 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
       clientResult_compResolveCopyPairProg henv hcpl hslot hb hj_del,
       clientState_copyCompItemGenProg (m_items := epochTotalSlots N gm) hd_src_lt,
       hq_src, hv_src]
-  have hslot_fix : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) := by
-    rw [← hcpl.gm_eq]; exact hslot
-  have hbc_fix : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b := by
-    rw [← hcpl.gm_eq]; exact hbc
   have hphys_last_lt : phys_last < N := (slotOf_lt_and_injective hslot).1 b hb j_last hj_last
   have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState
       ((Memory.spec 0).clientState s_fix
@@ -271,7 +260,7 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
     simp only [lastSlotOfGenProg_mk, readQuotGenProg_mk, readValGenProg_mk,
       writeQuotGenProg_mk, writeValGenProg_mk]
     rw [StateTransitionSpec.clientState_bind, clientState_lastSlotOfProg,
-      clientResult_lastSlotOfProg (0, b) s_fix hslot_fix hb hbc_fix]
+      clientResult_lastSlotOfProg (0, b) s_fix (hcpl.gm_eq ▸ hslot) hb (hcpl.gm_eq ▸ hbc)]
     simp only [← hcpl.gm_eq]
     rw [StateTransitionSpec.clientState_bind, clientState_readQuotProg,
       clientResult_readQuotProg s_fix hphys_last_lt,
@@ -294,7 +283,6 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
   have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
   have hj_del1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del
   have hcpl2 := hcpl1.writeVal_slotOf henv.pos_w henv.meta_le_item hslot1 hb hj_del1 hv_lt
-  dsimp only [s₁] at hcpl2
   simp only [hgm1, htd1] at hcpl2
   rw [hs'_eq, hs_fix'_eq]
   refine ⟨⟨rfl, fun a _ hi => ?_⟩, hcpl2⟩
@@ -500,15 +488,10 @@ private theorem compDeleteSwap_stages
     compCopyLastPayloadGenProg_effect henv1 hcpl1 hslot1 hm_cap1 hb hj_del_bc1
   have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del = phys_del := by rw [hgm1]
   rw [hphys_eq1] at hfr2 hcpl2
-  have hslot_sf1 : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
-  have hbc_sf1 : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; omega
+  have hgm_sf1 := eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm
   have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (phys_del := phys_del)
-    hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
+    hwg (hgm_sf1.symm ▸ hslot) hb (hgm_sf1.symm ▸ Nat.one_le_of_lt hj_last_bc) hphys_del_lt
   obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
   have hold2 : lmHead N (compLmAt metaBase U w N s₂.mem) b m_last ≤ effBucketCap N := by
     rw [hcpl2.lm_eq, eff_c.2.2.2.2.1]
@@ -641,26 +624,16 @@ private theorem compGmAt_compDeleteSwapGenProg
   set sf₁ := (Memory.spec 0).clientState s_fix
     (unlinkIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
       (((0, b), m_last), j_last))
-  have hslot_sf1 : SlotStoreInv N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact hslot
-  have hbc_sf1 : 1 ≤ bCount N
-      (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem) b := by
-    rw [eff_u.2.2.2.2.1, ← hcpl.gm_eq]; exact Nat.one_le_of_lt hj_last_bc
+  have hgm_sf1 := eff_u.2.2.2.2.1.trans hcpl.gm_eq.symm
   have eff_c := copyLastPayloadProg_effect (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (phys_del := phys_del)
-    hwg hslot_sf1 hb hbc_sf1 hphys_del_lt
+    hwg (hgm_sf1.symm ▸ hslot) hb (hgm_sf1.symm ▸ Nat.one_le_of_lt hj_last_bc) hphys_del_lt
   obtain ⟨L₁, hval₁, _⟩ := eff_u.2.2.2.2.2
   set sf₂ := (Memory.spec 0).clientState sf₁
     (copyLastPayloadProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) ((0, b), phys_del))
-  have hold_sf2 :
-      lmHead N (lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₂.mem) b m_last ≤
-        effBucketCap N := by
-    rw [eff_c.2.2.2.2.1]
-    exact (hval₁.1 b hb m_last hm_last).head_le_cap
   have hgm_pr := gmAt_prependIfIndexedProg (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) (base := 0) (b := b) (m := m_last) (j_new := j_del)
-    hwg hb hm_last sf₂ hold_sf2
+    hwg hb hm_last sf₂ (eff_c.2.2.2.2.1.symm ▸ (hval₁.1 b hb m_last hm_last).head_le_cap)
   have hst_fix_sw : (Memory.spec 0).clientState s_fix
       (deleteSwapProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
         ((((0, b), j_del), phys_del), (m_last, j_last))) =

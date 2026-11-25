@@ -181,19 +181,13 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
       · rw [htot1] at hidx ⊢
         have hlt0 : idx < gm₀ 0 := by omega
         rw [compQuotAt_of_lt s₁.mem hidx hlt0, congrFun hfr1.quot_eq idx, hq_f1]
-        have hq0 := hcpl.quot_eq idx (by unfold epochTotalSlots; rw [ite_eq_left hb0]; exact hlt0)
-        unfold epochTotalSlots at hq0
-        unfold physByBase at hq0 ⊢
-        simp only [hb0, ↓reduceIte] at hq0 ⊢
-        exact hq0
+        simpa only [epochTotalSlots, physByBase, hb0, ↓reduceIte] using
+          hcpl.quot_eq idx (by simpa only [epochTotalSlots, hb0, ↓reduceIte] using hlt0)
       · rw [htot1] at hidx ⊢
         have hlt0 : idx < gm₀ 0 := by omega
         rw [compValAt_of_lt s₁.mem hidx hlt0, congrFun hfr1.val_eq idx, hv_f1]
-        have hv0 := hcpl.val_eq idx (by unfold epochTotalSlots; rw [ite_eq_left hb0]; exact hlt0)
-        unfold epochTotalSlots at hv0
-        unfold physByBase at hv0 ⊢
-        simp only [hb0, ↓reduceIte] at hv0 ⊢
-        exact hv0
+        simpa only [epochTotalSlots, physByBase, hb0, ↓reduceIte] using
+          hcpl.val_eq idx (by simpa only [epochTotalSlots, hb0, ↓reduceIte] using hlt0)
     · have hcost : memoryCost (compPopBackSlotGenProg d) s = 6 := by
         dsimp only [d, compPopBackSlotGenProg, compPopBackSingleGenProg]; simp [hb0]
       have hpot' : slotPotential N (compGmAt metaBase U w N s'.mem) = 0 := by
@@ -236,131 +230,92 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
         gm₀ (gmRIdx b) - 1 := by rw [← hcpl1.gm_eq, hrb1_s]
     have hqb1_f : gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix₁.mem (gmQIdx b) =
         gm₀ (gmQIdx b) := by rw [← hcpl1.gm_eq, hqb1_s]
-    by_cases hr0 : gm₀ (gmRIdx b) - 1 = 0
-    · by_cases hq_pos : 0 < gm₀ (gmQIdx b)
-      · have hs'_eq : s' = (Memory.spec 0).clientState s₁ (compDemoteSlabGenProg d) := by
-          dsimp only [s', d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
-          simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq]
-          rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-            clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
-            StateTransitionSpec.clientState_bind, clientResult_readCompGMGenProg hq_idx_lt,
-            clientState_readCompGMGenProg, hrb1_s, hqb1_s, ite_eq_left hr0, ite_eq_left hq_pos]
-        have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState s_fix₁
-            (demoteSlabProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
-          dsimp only [s_fix', popBackSlotProg, popBackSlotGenProg]
-          simp only [p_bucketBits_mk, hb0, ↓reduceIte, removeLastTailItemGenProg_mk,
-            readGMGenProg_mk, demoteSlabGenProg_mk, hq_eq_fix, hr_eq_fix]
-          rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-            clientState_readGMProg, clientResult_readGMProg s_fix₁ hr_idx_lt,
-            StateTransitionSpec.clientState_bind, clientState_readGMProg,
-            clientResult_readGMProg s_fix₁ hq_idx_lt, hrb1_f, hqb1_f,
-            ite_eq_left hr0, ite_eq_left hq_pos]
-        have hSN0 := hslot.multi_total_le hb_pos
-        have hpre_dem : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N)
-            0 b s_fix₁ := by
-          refine ⟨hb, ?_, ?_, ?_, ?_, fun b' hb' hne => ?_, ?_⟩
-          · rw [← hcpl1.gm_eq, hgm1_eq]; exact htail1
-          · rw [← hcpl1.gm_eq, hgm1_eq]; exact hslab1
-          · rw [hrb1_f, hr0]
-          · rw [hqb1_f]; omega
-          · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne, hpres1.2.2.2.2.1 b' hb']
-            exact hslot.multi_r_bounds hb_pos b' hb'
-          · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
-        have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := by
-          unfold totalSlots at hm_cap ⊢; rw [ite_eq_right hb0] at hm_cap ⊢
-          rw [hgm1_eq, hpres1.1, hpres1.2.1]; omega
-        obtain ⟨hfr2, hcpl2, hcost2⟩ :=
-          compDemoteSlab_effect (henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq]))
-            hb_pos hpre_dem hcpl1 hm_cap1
-        obtain ⟨_, _, _, _, hqb_f2, hrb_f2, hother_f2, _, _, _⟩ :=
-          demoteSlabProg_effect hwg hb_pos s_fix₁ hpre_dem
-        have hcost_tot : memoryCost (compPopBackSlotGenProg d) s ≤ 76 + (58 * slabSize N + 68) := by
-          dsimp only [d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
-          simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq,
-            Realization.memoryCost_bind', memoryCost_compRemoveLastTailItemGenProg,
-            memoryCost_readCompGMGenProg]
-          rw [clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
-            clientResult_readCompGMGenProg hq_idx_lt, clientState_readCompGMGenProg,
-            hrb1_s, hqb1_s, ite_eq_left hr0, ite_eq_left hq_pos]
-          dsimp only [s₁, d] at hcost2
-          omega
-        have hr1_eq : gm₀ (gmRIdx b) = 1 := by omega
-        have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
-              (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-            compGmAt metaBase U w N s'.mem (gmRIdx b) =
-              (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-          unfold popBackCounts
-          rw [hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩, hs'_eq, hcpl2.gm_eq]
-          exact ⟨hqb_f2.trans (congrArg (· - 1) hqb1_f), hrb_f2⟩
-        have hother_all : ∀ b' < numBuckets N, b' ≠ b →
-            compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-            compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-          intro b' hb' hne
-          rw [hs'_eq, hcpl2.gm_eq]
-          exact ⟨(hother_f2 b' hb' hne).1.trans (by
-              rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.2.1 b' hb']),
-            (hother_f2 b' hb' hne).2.trans (by
-              rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne])⟩
-        have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
-        have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = slabSize N := by
-          unfold popBackWork; rw [hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩]
-        rw [hwork] at hpot
-        have h58_le : 58 * slabSize N ≤ 98 * slabSize N := Nat.mul_le_mul_right _ (by decide)
-        exact ⟨by rw [hs'_eq]; exact hfr1.trans hfr2,
-          by rw [hs'_eq, hs_fix'_eq]; exact hcpl2,
-          by omega⟩
-      · have hs'_eq : s' = s₁ := by
-          dsimp only [s', d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
-          simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq]
-          rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-            clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
-            StateTransitionSpec.clientState_bind, clientResult_readCompGMGenProg hq_idx_lt,
-            clientState_readCompGMGenProg, hrb1_s, hqb1_s, ite_eq_left hr0, ite_eq_right hq_pos,
-            StateTransitionSpec.clientState_pure]
-        have hs_fix'_eq : s_fix' = s_fix₁ := by
-          dsimp only [s_fix', popBackSlotProg, popBackSlotGenProg]
-          simp only [p_bucketBits_mk, hb0, ↓reduceIte, removeLastTailItemGenProg_mk,
-            readGMGenProg_mk, demoteSlabGenProg_mk, hq_eq_fix, hr_eq_fix]
-          rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-            clientState_readGMProg, clientResult_readGMProg s_fix₁ hr_idx_lt,
-            StateTransitionSpec.clientState_bind, clientState_readGMProg,
-            clientResult_readGMProg s_fix₁ hq_idx_lt, hrb1_f, hqb1_f,
-            ite_eq_left hr0, ite_eq_right hq_pos, StateTransitionSpec.clientState_pure]
-        have hcost_tot : memoryCost (compPopBackSlotGenProg d) s = 76 := by
-          dsimp only [d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
-          simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq,
-            Realization.memoryCost_bind', memoryCost_compRemoveLastTailItemGenProg,
-            memoryCost_readCompGMGenProg]
-          rw [clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
-            clientResult_readCompGMGenProg hq_idx_lt, clientState_readCompGMGenProg,
-            hrb1_s, hqb1_s, ite_eq_left hr0, ite_eq_right hq_pos, memoryCost_pure, Nat.add_zero]
-        have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
-              (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
-            compGmAt metaBase U w N s'.mem (gmRIdx b) =
-              (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-          unfold popBackCounts
-          rw [ite_eq_right (fun h => hq_pos h.2), hs'_eq, hqb1_s, hrb1_s]; exact ⟨rfl, rfl⟩
-        have hother_all : ∀ b' < numBuckets N, b' ≠ b →
-            compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-            compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-          intro b' hb' hne
-          rw [hs'_eq, hgm1_eq]
-          exact ⟨hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne⟩
-        have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
-        have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = 0 := by
-          unfold popBackWork; rw [ite_eq_right (fun h => hq_pos h.2)]
-        rw [hwork, Nat.add_zero] at hpot
-        exact ⟨by rw [hs'_eq]; exact hfr1,
-          by rw [hs'_eq, hs_fix'_eq]; exact hcpl1,
-          by omega⟩
-    · have hs'_eq : s' = s₁ := by
+    by_cases hdem : gm₀ (gmRIdx b) - 1 = 0 ∧ 0 < gm₀ (gmQIdx b)
+    · obtain ⟨hr0, hq_pos⟩ := hdem
+      have hs'_eq : s' = (Memory.spec 0).clientState s₁ (compDemoteSlabGenProg d) := by
         dsimp only [s', d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
         simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq]
         rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
           clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
           StateTransitionSpec.clientState_bind, clientResult_readCompGMGenProg hq_idx_lt,
-          clientState_readCompGMGenProg, hrb1_s, ite_eq_right hr0,
-          StateTransitionSpec.clientState_pure]
+          clientState_readCompGMGenProg, hrb1_s, hqb1_s, ite_eq_left hr0, ite_eq_left hq_pos]
+      have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState s_fix₁
+          (demoteSlabProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
+        dsimp only [s_fix', popBackSlotProg, popBackSlotGenProg]
+        simp only [p_bucketBits_mk, hb0, ↓reduceIte, removeLastTailItemGenProg_mk,
+          readGMGenProg_mk, demoteSlabGenProg_mk, hq_eq_fix, hr_eq_fix]
+        rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
+          clientState_readGMProg, clientResult_readGMProg s_fix₁ hr_idx_lt,
+          StateTransitionSpec.clientState_bind, clientState_readGMProg,
+          clientResult_readGMProg s_fix₁ hq_idx_lt, hrb1_f, hqb1_f,
+          ite_eq_left hr0, ite_eq_left hq_pos]
+      have hSN0 := hslot.multi_total_le hb_pos
+      have hpre_dem : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N)
+          0 b s_fix₁ := by
+        refine ⟨hb, ?_, ?_, ?_, ?_, fun b' hb' hne => ?_, ?_⟩
+        · exact hcpl1.gm_eq ▸ hgm1_eq ▸ htail1
+        · exact hcpl1.gm_eq ▸ hgm1_eq ▸ hslab1
+        · rw [hrb1_f, hr0]
+        · rw [hqb1_f]; omega
+        · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne, hpres1.2.2.2.2.1 b' hb']
+          exact hslot.multi_r_bounds hb_pos b' hb'
+        · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
+      have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := by
+        unfold totalSlots at hm_cap ⊢
+        rw [ite_eq_right hb0] at hm_cap ⊢
+        rw [hgm1_eq, hpres1.1, hpres1.2.1]; omega
+      obtain ⟨hfr2, hcpl2, hcost2⟩ :=
+        compDemoteSlab_effect (henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq]))
+          hb_pos hpre_dem hcpl1 hm_cap1
+      obtain ⟨_, _, _, _, hqb_f2, hrb_f2, hother_f2, _, _, _⟩ :=
+        demoteSlabProg_effect hwg hb_pos s_fix₁ hpre_dem
+      have hcost_tot : memoryCost (compPopBackSlotGenProg d) s ≤ 76 + (58 * slabSize N + 68) := by
+        dsimp only [d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
+        simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq,
+          Realization.memoryCost_bind', memoryCost_compRemoveLastTailItemGenProg,
+          memoryCost_readCompGMGenProg]
+        rw [clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
+          clientResult_readCompGMGenProg hq_idx_lt, clientState_readCompGMGenProg,
+          hrb1_s, hqb1_s, ite_eq_left hr0, ite_eq_left hq_pos]
+        dsimp only [s₁, d] at hcost2
+        omega
+      have hr1_eq : gm₀ (gmRIdx b) = 1 := by omega
+      have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
+            (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
+          compGmAt metaBase U w N s'.mem (gmRIdx b) =
+            (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
+        unfold popBackCounts
+        rw [hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩, hs'_eq, hcpl2.gm_eq]
+        exact ⟨hqb_f2.trans (congrArg (· - 1) hqb1_f), hrb_f2⟩
+      have hother_all : ∀ b' < numBuckets N, b' ≠ b →
+          compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
+          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
+        intro b' hb' hne
+        rw [hs'_eq, hcpl2.gm_eq]
+        exact ⟨(hother_f2 b' hb' hne).1.trans (by
+            rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.2.1 b' hb']),
+          (hother_f2 b' hb' hne).2.trans (by
+            rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne])⟩
+      have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
+      have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = slabSize N := by
+        unfold popBackWork
+        rw [hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩]
+      rw [hwork] at hpot
+      have h58_le : 58 * slabSize N ≤ 98 * slabSize N := Nat.mul_le_mul_right _ (by decide)
+      exact ⟨hs'_eq ▸ hfr1.trans hfr2, hs'_eq ▸ hs_fix'_eq ▸ hcpl2, by omega⟩
+    · have hndem1 : ¬ (gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)) :=
+        fun ⟨h1, h2⟩ => hdem ⟨by omega, h2⟩
+      have hs'_eq : s' = s₁ := by
+        dsimp only [s', d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
+        simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq]
+        rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
+          clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
+          StateTransitionSpec.clientState_bind, clientResult_readCompGMGenProg hq_idx_lt,
+          clientState_readCompGMGenProg, hrb1_s, hqb1_s]
+        split_ifs with hr0 hq_pos
+        · exact absurd ⟨hr0, hq_pos⟩ hdem
+        · exact StateTransitionSpec.clientState_pure _ _
+        · exact StateTransitionSpec.clientState_pure _ _
       have hs_fix'_eq : s_fix' = s_fix₁ := by
         dsimp only [s_fix', popBackSlotProg, popBackSlotGenProg]
         simp only [p_bucketBits_mk, hb0, ↓reduceIte, removeLastTailItemGenProg_mk,
@@ -368,8 +323,11 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
         rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
           clientState_readGMProg, clientResult_readGMProg s_fix₁ hr_idx_lt,
           StateTransitionSpec.clientState_bind, clientState_readGMProg,
-          clientResult_readGMProg s_fix₁ hq_idx_lt, hrb1_f,
-          ite_eq_right hr0, StateTransitionSpec.clientState_pure]
+          clientResult_readGMProg s_fix₁ hq_idx_lt, hrb1_f, hqb1_f]
+        split_ifs with hr0 hq_pos
+        · exact absurd ⟨hr0, hq_pos⟩ hdem
+        · exact StateTransitionSpec.clientState_pure _ _
+        · exact StateTransitionSpec.clientState_pure _ _
       have hcost_tot : memoryCost (compPopBackSlotGenProg d) s = 76 := by
         dsimp only [d, compPopBackSlotGenProg, compPopBackMultiGenProg, compPopBackFinishProg]
         simp only [cpBucketBits_mk, hb0, ↓reduceIte, hq_eq, hr_eq,
@@ -377,27 +335,29 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
           memoryCost_readCompGMGenProg]
         rw [clientResult_readCompGMGenProg hr_idx_lt, clientState_readCompGMGenProg,
           clientResult_readCompGMGenProg hq_idx_lt, clientState_readCompGMGenProg,
-          hrb1_s, ite_eq_right hr0, memoryCost_pure, Nat.add_zero]
-      have hne1 : gm₀ (gmRIdx b) ≠ 1 := fun h1 => hr0 (by omega)
+          hrb1_s, hqb1_s]
+        split_ifs with hr0 hq_pos
+        · exact absurd ⟨hr0, hq_pos⟩ hdem
+        · rw [memoryCost_pure, Nat.add_zero]
+        · rw [memoryCost_pure, Nat.add_zero]
       have hupd : compGmAt metaBase U w N s'.mem (gmQIdx b) =
             (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
           compGmAt metaBase U w N s'.mem (gmRIdx b) =
             (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
         unfold popBackCounts
-        rw [ite_eq_right (fun h => hne1 h.1), hs'_eq, hqb1_s, hrb1_s]; exact ⟨rfl, rfl⟩
+        rw [ite_eq_right hndem1, hs'_eq, hqb1_s, hrb1_s]
+        exact ⟨rfl, rfl⟩
       have hother_all : ∀ b' < numBuckets N, b' ≠ b →
           compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
+          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := fun b' hb' hne => by
         rw [hs'_eq, hgm1_eq]
         exact ⟨hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne⟩
       have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
       have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = 0 := by
-        unfold popBackWork; rw [ite_eq_right (fun h => hne1 h.1)]
+        unfold popBackWork
+        exact ite_eq_right hndem1
       rw [hwork, Nat.add_zero] at hpot
-      exact ⟨by rw [hs'_eq]; exact hfr1,
-        by rw [hs'_eq, hs_fix'_eq]; exact hcpl1,
-        by omega⟩
+      exact ⟨hs'_eq ▸ hfr1, hs'_eq ▸ hs_fix'_eq ▸ hcpl1, by omega⟩
 
 private def CompPopBackFinishPre (w : ℕ) :
     ((CompParams × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ) → Memory.State → Prop

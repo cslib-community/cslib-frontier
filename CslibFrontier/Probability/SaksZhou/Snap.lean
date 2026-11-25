@@ -121,13 +121,10 @@ theorem exists_snap_eq (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
   refine ⟨(⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋).toNat, ?_⟩
   rw [snap_def]
   rcases le_total 0 ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ with h | h
-  · have e : ((⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋.toNat : ℕ) : ℝ) =
-        ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ := by
-      exact_mod_cast Int.toNat_of_nonneg h
-    have h' : (0 : ℝ) ≤ ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ := by exact_mod_cast h
-    rw [max_eq_left (div_nonneg h' (by positivity)), e]
-  · have h' : (⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ : ℝ) ≤ 0 := by exact_mod_cast h
-    rw [Int.toNat_eq_zero.2 h, max_eq_right (div_nonpos_of_nonpos_of_nonneg h' (by positivity))]
+  · rw [max_eq_left (div_nonneg (by exact_mod_cast h) (by positivity))]
+    exact congrArg (· / 2 ^ d) (by exact_mod_cast (Int.toNat_of_nonneg h).symm)
+  · rw [Int.toNat_eq_zero.2 h,
+      max_eq_right (div_nonpos_of_nonpos_of_nonneg (by exact_mod_cast h) (by positivity))]
     simp
 
 /-- Hermite's identity over a reversed complete residue system:
@@ -165,14 +162,10 @@ theorem card_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
   set g : Fin (2 ^ d) → ℤ := fun t => ⌊b * 2 ^ d - (t : ℝ) / 2 ^ d⌋ with hg
   have hfg : ∀ t, f t ≤ g t := fun t => Int.floor_mono (by gcongr)
   have hsub : ({y : Fin (2 ^ d) | snap d a y ≠ snap d b y} : Finset _) ⊆
-      ({t | f t < g t} : Finset _) := by
-    intro t
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    intro hne
-    refine lt_of_le_of_ne (hfg t) fun heq => hne ?_
-    rw [snap_def, snap_def]
-    change max ((f t : ℝ) / 2 ^ d) 0 = max ((g t : ℝ) / 2 ^ d) 0
-    rw [heq]
+      ({t | f t < g t} : Finset _) := fun t ht => by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, snap_def] at ht ⊢
+    exact lt_of_le_of_ne (hfg t) fun heq =>
+      ht (congrArg (fun z : ℤ => max ((z : ℝ) / 2 ^ d) 0) heq)
   have hcount : ((#{t | f t < g t} : ℕ) : ℤ) ≤ ∑ t, (g t - f t) := by
     rw [Finset.card_filter, Nat.cast_sum]
     refine Finset.sum_le_sum fun t _ => ?_

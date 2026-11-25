@@ -113,14 +113,13 @@ theorem sum_card_running (p s : J → ℕ) :
   simp only [running, card_filter]
   rw [sum_comm]
   refine sum_congr rfl fun j _ => ?_
-  rw [← card_filter]
   have hj := le_makespan p s j
-  rw [show (range (makespan p s)).filter (fun t => s j ≤ t ∧ t < s j + p j) =
-      Ico (s j) (s j + p j) by
+  have hfilter : (range (makespan p s)).filter (fun t => s j ≤ t ∧ t < s j + p j) =
+      Ico (s j) (s j + p j) := by
     ext t
     simp only [mem_filter, mem_range, mem_Ico]
-    omega]
-  rw [Nat.card_Ico]
+    omega
+  rw [← card_filter, hfilter, Nat.card_Ico]
   omega
 
 omit [Fintype J] in
@@ -379,20 +378,15 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
   refine ⟨D ∪ A, s', ⟨?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · intro j hj
     rcases mem_union.mp hj with hj | hj
-    · rw [hs'D j hj]
-      have := h.lt_of_mem j hj
-      omega
-    · rw [hs'A j hj]
-      omega
+    · exact hs'D j hj ▸ Nat.lt_succ_of_lt (h.lt_of_mem j hj)
+    · simp [hs'A j hj]
   · exact fun j hj => hs'out j (hj ∘ mem_union_left _) (hj ∘ mem_union_right _)
   · intro i j hij hj
     rcases mem_union.mp hj with hjD | hjA
     · obtain ⟨hiD, hle⟩ := h.prec_le i j hij hjD
-      refine ⟨mem_union_left _ hiD, ?_⟩
-      rwa [hs'D i hiD, hs'D j hjD]
+      exact ⟨mem_union_left _ hiD, by simpa only [hs'D i hiD, hs'D j hjD] using hle⟩
     · obtain ⟨hiD, hle⟩ := (mem_filter.mp (hAR hjA)).2.2 i hij
-      refine ⟨mem_union_left _ hiD, ?_⟩
-      rwa [hs'D i hiD, hs'A j hjA]
+      exact ⟨mem_union_left _ hiD, by simpa only [hs'D i hiD, hs'A j hjA] using hle⟩
   · intro t
     by_cases ht : t < N
     · have hsub : running p s' t ∩ (D ∪ A) ⊆ running p s t ∩ D := by
@@ -423,13 +417,8 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       · rwa [hs'D i hiD]
       · have := hs'N i hiD
         omega
-    · have hjD : j ∉ D := fun hjD => by
-        rw [hs'D j hjD] at htj
-        have := h.lt_of_mem j hjD
-        omega
-      have hjA : j ∉ A := fun hjA => by
-        rw [hs'A j hjA] at htj
-        omega
+    · have hjD : j ∉ D := fun hjD => (h.lt_of_mem j hjD).not_ge (hs'D j hjD ▸ htj).le
+      have hjA : j ∉ A := fun hjA => (hs'A j hjA ▸ htj).false
       have hjR : j ∉ R := by rwa [← hAR_eq hm]
       rw [hR, mem_filter] at hjR
       simp only [mem_univ, true_and, not_and, not_forall] at hjR
@@ -445,13 +434,12 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       hDA (eq_univ_iff_forall.mpr fun x => mem_union_left _ (hD ▸ mem_univ x))
     rcases Nat.lt_succ_iff_lt_or_eq.mp ht with ht | ht
     · obtain ⟨k, hk⟩ := h.busy t ht hD
-      refine ⟨k, ?_⟩
-      rw [mem_inter, hrun_lt t ht]
-      exact ⟨(mem_inter.mp hk).1, mem_union_left _ (mem_inter.mp hk).2⟩
-    · rw [ht]
-      suffices hne : (running p s N ∩ D ∪ A).Nonempty by
-        obtain ⟨k, hk⟩ := hne
-        exact ⟨k, mem_inter.mpr ⟨hrunN ▸ hk, union_subset_union inter_subset_right subset_rfl hk⟩⟩
+      exact ⟨k, mem_inter.mpr ⟨(hrun_lt t ht).symm ▸ (mem_inter.mp hk).1,
+        mem_union_left _ (mem_inter.mp hk).2⟩⟩
+    · subst t
+      suffices hne : (running p s N ∩ D ∪ A).Nonempty from
+        hne.imp fun k hk =>
+          mem_inter.mpr ⟨hrunN ▸ hk, union_subset_union inter_subset_right subset_rfl hk⟩
       rcases A.eq_empty_or_nonempty with hAne | ⟨a, ha⟩
       · obtain ⟨k, hkD, hkmin⟩ :=
           hwf.has_min {j | j ∉ D} (by simpa [eq_univ_iff_forall, Set.Nonempty] using hD)

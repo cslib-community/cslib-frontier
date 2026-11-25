@@ -405,11 +405,8 @@ private theorem isPPTOn_run_cramerShoupPhase1Oracle
     (resources := fun a req => (F.cramerShoupPhase1Reply hasAD H isElem (d a) (sk a) req).length)
     (by polytime) ?_ (.const ()) (fun _ _ => True)
     (fun _ => trivial) (by polytime)
-    (fun a request state _ result hresult => by
-      have hresEq : result =
-          (F.cramerShoupPhase1Reply hasAD H isElem (d a) (sk a) request.2, state) := by
-        simpa [cramerShoupPhase1Oracle] using hresult
-      subst hresEq
+    (fun _ _ _ _ result hresult => by
+      obtain rfl : result = _ := by simpa [cramerShoupPhase1Oracle] using hresult
       exact ⟨trivial, le_rfl, Nat.le_add_right _ _⟩)
   ppt [cramerShoupPhase1Oracle]
 
@@ -441,11 +438,8 @@ private theorem isPPTOn_run_cramerShoupPhase2Oracle
     (by polytime) ?_
     (ComputableInPolyTime.const ()) (fun _ _ => True)
     (fun _ => trivial) (by polytime)
-    (fun a request st _ result hresult => by
-      have hresEq : result =
-          (F.cramerShoupPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) request.2, st) := by
-        simpa [cramerShoupPhase2Oracle] using hresult
-      subst hresEq
+    (fun _ _ _ _ result hresult => by
+      obtain rfl : result = _ := by simpa [cramerShoupPhase2Oracle] using hresult
       exact ⟨trivial, le_rfl, Nat.le_add_right _ _⟩)
   ppt [cramerShoupPhase2Oracle]
 
@@ -493,17 +487,11 @@ private theorem isPPTOn_run_cramerShoupCollisionPhase2Oracle
     (by polytime) ?_
     (ComputableInPolyTime.const (none : Option (List Bool))) (fun _ _ => True)
     (fun _ => trivial) (by polytime)
-    (fun a request st _ result hresult => by
-      let q := splitCramerShoupQuery hasAD request.2
-      have hresEq : result =
-          (F.cramerShoupCollisionPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) request.2,
-           if F.isCramerShoupCollision H (d a) q.1 q.2 (ct a) (ad a) &&
-               F.isCramerShoupHashInput hasAD isElem (d a) (extractCramerShoupTuple q.1 q.2) then
-             some (extractCramerShoupTuple q.1 q.2)
-           else st) := by
-        simpa [cramerShoupCollisionPhase2Oracle, finderPhase2Oracle, q] using hresult
-      subst hresEq; dsimp only [q]
+    (fun _ _ _ _ result hresult => by
+      obtain rfl : result = _ := by
+        simpa [cramerShoupCollisionPhase2Oracle, finderPhase2Oracle] using hresult
       refine ⟨trivial, Nat.le_add_right _ _, ?_⟩
+      dsimp only
       split_ifs <;> omega)
   ppt [cramerShoupCollisionPhase2Oracle, finderPhase2Oracle]
 
@@ -787,11 +775,8 @@ theorem decodeCramerShoup_eq_skNatOfZMod
     obtain ⟨w, hw⟩ := (hmem d _).mp hvw.2
     simp only [← hv, ← hw, skNatOfZMod, encodeProjHash2_encode, encodeProjHash_encode,
       csSkS, csSkT, csSkS₁, csSkT₁, csSkS₂, csSkT₂, ZMod.natCast_zmod_val]
-  · have hfalse : ((encBits4 (decodeBits4 ct) == ct) && isElem (d, csCtV (decodeBits4 ct)) &&
-        isElem (d, csCtW (decodeBits4 ct)) && isElem (d, csCtE (decodeBits4 ct))) = false := by
-      revert hvw
-      cases isElem (d, csCtV (decodeBits4 ct)) <;> cases isElem (d, csCtW (decodeBits4 ct)) <;> simp
-    simp [hfalse]
+  · cases hv : isElem (d, csCtV (decodeBits4 ct)) <;>
+      cases hw : isElem (d, csCtW (decodeBits4 ct)) <;> simp_all
 
 /-- `cramerShoupPhase1Oracle` depends on `sk` only through its residues modulo `F.order d`. -/
 theorem cramerShoupPhase1Oracle_eq_skNatOfZMod

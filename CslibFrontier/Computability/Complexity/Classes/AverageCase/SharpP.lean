@@ -96,8 +96,8 @@ private theorem eq_div_of_div_eq_div_add_div {a b c d k N : ℕ} (hb : b ≠ 0) 
       push_cast
       linear_combination hreal
     exact_mod_cast this
-  rw [hnat, Nat.add_sub_cancel_left, Nat.mul_div_cancel _ (Nat.mul_pos (Nat.pos_of_ne_zero hb)
-    (Nat.pos_of_ne_zero hd))]
+  rw [hnat, Nat.add_sub_cancel_left,
+    Nat.mul_div_cancel _ (Nat.mul_pos (Nat.pos_of_ne_zero hb) (Nat.pos_of_ne_zero hd))]
 
 variable (V : List Bool × List Bool → Bool) (p : Polynomial ℕ)
 
@@ -130,11 +130,6 @@ private noncomputable def countingEnsemble : Ensemble where
     rw [BitString.length_of_mem_support_uniformList hr, seedLength]
     omega
 
-private theorem computableInPolyTime_seedLength :
-    ComputableInPolyTime (seedLength p) encUnary encUnary := by
-  unfold seedLength
-  fun_prop
-
 private theorem computableInPolyTime_countingWord
     (hV : ComputableInPolyTime V (encPair encBits encBits) encBool) :
     ComputableInPolyTime (fun q : ℕ × List Bool => countingWord V q.1 q.2)
@@ -149,7 +144,10 @@ private theorem pSamp_countingEnsemble
   refine ⟨countingSampler V p, ?_, fun _ => rfl⟩
   unfold countingSampler
   exact Probability.IsPPTOn.of_seeded (f := fun q : ℕ × List Bool => countingWord V q.1 q.2)
-    (computableInPolyTime_seedLength p) (computableInPolyTime_countingWord V hV)
+    (by
+      unfold seedLength
+      fun_prop)
+    (computableInPolyTime_countingWord V hV)
 
 /-- The word `x ++ [true]` has probability `#{w ∈ {0,1}^{p(|x|)} : V(x, w)} / 2^{|x| + p(|x|)}`
 under the counting ensemble. -/
@@ -163,25 +161,17 @@ private theorem countingEnsemble_dist_append_true (x : List Bool) :
   rw [countingSampler, hseed, ProbComp.eval_map, BitString.eval_sampleList,
     BitString.uniformList_map_apply]
   congr 2
-  have hiff : ∀ r : Fin (x.length + p.eval x.length) → Bool,
+  have hiff (r : Fin (x.length + p.eval x.length) → Bool) :
       countingWord V (x.length + 1) (List.ofFn r) = x ++ [true] ↔
-        (List.ofFn r).take x.length = x ∧
-          V (x, (List.ofFn r).drop x.length) = true := by
-    intro r
-    have hlen : ((List.ofFn r).take x.length).length = x.length := by
-      simp
+        (List.ofFn r).take x.length = x ∧ V (x, (List.ofFn r).drop x.length) = true := by
     simp only [countingWord, Nat.add_sub_cancel]
-    rw [List.take_of_length_le (by simp [hlen])]
-    constructor
-    · intro h
-      obtain ⟨h1, h2⟩ := List.append_inj' h rfl
-      simp only [List.cons.injEq, and_true] at h2
-      rw [h1] at h2
-      exact ⟨h1, h2⟩
-    · rintro ⟨h1, h2⟩
-      rw [h1, h2]
-  simp only [hiff]
-  rw [BitString.card_filter_ofFn_add x.length (p.eval x.length)
+    rw [List.take_of_length_le (by simp)]
+    refine ⟨fun h => ?_, fun ⟨h1, h2⟩ => by rw [h1, h2]⟩
+    obtain ⟨h1, h2⟩ := List.append_inj' h rfl
+    simp only [List.cons.injEq, and_true] at h2
+    rw [h1] at h2
+    exact ⟨h1, h2⟩
+  simp only [hiff, BitString.card_filter_ofFn_add x.length (p.eval x.length)
     (fun u w => u = x ∧ V (x, w) = true)]
   rw [Finset.sum_eq_single x.get]
   · simp [List.ofFn_get, acceptCount]
@@ -203,13 +193,11 @@ private theorem computableInPolyTime_recoveredCount {num den : List Bool → ℕ
     (hnum : ComputableInPolyTime num encBits encNat)
     (hden : ComputableInPolyTime den encBits encNat) :
     ComputableInPolyTime (recoveredCount p num den) encBits encNat := by
-  have hK : ComputableInPolyTime (fun x : List Bool => x.length + p.eval x.length)
-      encBits encUnary :=
-    ComputableInPolyTime.unary_add' ComputableInPolyTime.length_bits
-      ((ComputableInPolyTime.unary_eval p).comp ComputableInPolyTime.length_bits)
   have hpow : ComputableInPolyTime (fun x : List Bool => 2 ^ (x.length + p.eval x.length))
       encBits encNat :=
-    ComputableInPolyTime.binary_two_pow.comp hK
+    ComputableInPolyTime.binary_two_pow.comp
+      (ComputableInPolyTime.unary_add' .length_bits
+        ((ComputableInPolyTime.unary_eval p).comp .length_bits))
   have hmul {f g : List Bool → ℕ} (hf : ComputableInPolyTime f encBits encNat)
       (hg : ComputableInPolyTime g encBits encNat) :
       ComputableInPolyTime (fun x => f x * g x) encBits encNat :=
@@ -228,11 +216,9 @@ private theorem acceptCount_eq_recoveredCount {num den : List Bool → ℕ}
     (hden0 : ∀ x, den x ≠ 0)
     (hcdf : ∀ x, (countingEnsemble V p).cdf x = (num x : ℝ≥0∞) / den x) (x : List Bool) :
     acceptCount V x (p.eval x.length) = recoveredCount p num den x := by
-  unfold recoveredCount
   refine eq_div_of_div_eq_div_add_div (hden0 _) (hden0 _) (by positivity) ?_
   rw [← hcdf, ← hcdf, cdf_append_true, countingEnsemble_dist_append_true]
-  push_cast
-  rfl
+  push_cast; rfl
 
 /-- **A computable counting ensemble makes the count easy**: if the counting ensemble of `V` and
 `p` is polynomial-time computable, the count `x ↦ #{w ∈ {0,1}^{p(|x|)} : V(x, w)}` is computable
@@ -258,8 +244,7 @@ theorem exists_pSamp_not_pComp_of_not_SharpP_subset
     ∃ D : Ensemble, D.PSamp ∧ ¬ D.PComp := by
   obtain ⟨f, ⟨p, V, hV, hf⟩, hnot⟩ := Set.not_subset.mp h
   refine ⟨countingEnsemble V p, pSamp_countingEnsemble V p hV, fun hc => hnot ?_⟩
-  have hf' : f = fun x => acceptCount V x (p.eval x.length) := funext hf
-  rw [Set.mem_ofPred_eq, hf']
+  rw [Set.mem_ofPred_eq, funext hf]
   exact computableInPolyTime_acceptCount_of_pComp V p hc
 
 /-- **Arora–Barak, Chapter 15, Exercise 4**, for ensembles: if `P ≠ P^#P`, then some

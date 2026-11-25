@@ -34,10 +34,8 @@ namespace Cslib.BitString
 variable {ι : Type*}
 
 private theorem exists_true_of_ne_zero {x : ι → Bool} (hx : x ≠ 0) : ∃ i, x i = true := by
-  obtain ⟨i, hi⟩ : ∃ i, x i ≠ false := by
-    by_contra! h
-    exact hx (funext h)
-  exact ⟨i, Bool.eq_true_of_not_eq_false hi⟩
+  by_contra! h
+  exact hx (funext fun i => Bool.eq_false_iff.mpr (h i))
 
 private theorem exists_parityOn_true_false {x y : ι → Bool} (hx : x ≠ 0) (hxy : x ≠ y) :
     ∃ S : Finset ι, parityOn S x = true ∧ parityOn S y = false := by
@@ -69,11 +67,8 @@ theorem exists_parityOn_agrees_pair {f : (ι → Bool) → Bool} (hf : f 0 = fal
       (fun h => by simp [h, hf] at hfx) (fun h => by simp [h, hfy] at hfx)
   · have hx : x ≠ 0 := fun h => by simp [h, hf] at hfx
     have hy : y ≠ 0 := fun h => by simp [h, hf] at hfy
-    have hxy : x ≠ x + y := fun h => hy (add_left_cancel ((add_zero x).trans h)).symm
-    obtain ⟨S, hSx, hSsum⟩ := exists_parityOn_true_false hx hxy
-    refine ⟨S, hSx, ?_⟩
-    have hadd := parityOn_add S x y
-    rw [hSsum, hSx] at hadd
-    simpa using hadd.symm
+    obtain ⟨S, hSx, hSsum⟩ :=
+      exists_parityOn_true_false hx fun h => hy (add_left_cancel ((add_zero x).trans h)).symm
+    exact ⟨S, hSx, by simpa [hSx, hSsum] using (parityOn_add S x y).symm⟩
 
 end Cslib.BitString

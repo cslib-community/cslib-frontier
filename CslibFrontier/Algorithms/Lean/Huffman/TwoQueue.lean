@@ -243,16 +243,12 @@ theorem popMin_spec_toList {α β : Type u} [LE β] [DecidableRel (· ≤ · : �
     cases q₁ <;> simp [hnil]
   | cons y f =>
     rcases FifoQueue.front_cons_spec h2 with ⟨hto, hwf'⟩
-    cases q₁ with
-    | nil =>
-      rw [hto]
-      exact ⟨FifoQueue.checkf f q₂.back, rfl, hwf', rfl⟩
-    | cons x xs =>
-      rw [hto]
-      dsimp only
-      split_ifs with hle
-      · rfl
-      · exact ⟨FifoQueue.checkf f q₂.back, rfl, hwf', rfl⟩
+    rw [hto]
+    rcases q₁ with _ | ⟨x, xs⟩
+    · exact ⟨FifoQueue.checkf f q₂.back, rfl, hwf', rfl⟩
+    · dsimp only
+      split_ifs
+      exacts [rfl, ⟨FifoQueue.checkf f q₂.back, rfl, hwf', rfl⟩]
 
 private theorem popMin_size_eq {α β : Type u} [LE β] [DecidableRel (· ≤ · : β → β → Prop)]
     {q₁ q₁' : List (WeightedTree α β)} {q₂ q₂' : FifoQueue (WeightedTree α β)}
@@ -301,25 +297,18 @@ private theorem twoQueueSteps_eq_twoQueueLoop {α β : Type u} [Add β] [LE β]
       have hf : q₂.front = [] := List.length_eq_zero_iff.mp (by rw [FifoQueue.size] at hsz; omega)
       simp [twoQueueSteps, popMin, hq₁, hf]
     · simp only [twoQueueSteps]
-      cases hr₁ : popMin q₁ q₂ with
-      | none => rfl
-      | some res₁ =>
-        rcases res₁ with ⟨a, q₁', q₂'⟩
-        have hsz₁ := popMin_size_eq hr₁
+      rcases hr₁ : popMin q₁ q₂ with _ | ⟨a, q₁', q₂'⟩
+      · rfl
+      · have hsz₁ := popMin_size_eq hr₁
         dsimp only
-        cases hr₂ : popMin q₁' q₂' with
-        | none => rfl
-        | some res₂ =>
-          rcases res₂ with ⟨b, q₁'', q₂''⟩
-          have hsz₂ := popMin_size_eq hr₂
-          dsimp only
+        rcases hr₂ : popMin q₁' q₂' with _ | ⟨b, q₁'', q₂''⟩
+        · rfl
+        · have hsz₂ := popMin_size_eq hr₂
           let q_next := q₂''.enqueue ⟨.branch a.tree b.tree, a.wt + b.wt⟩
-          have hle_fuel : q₁''.length + q_next.size ≤ fuel := by
-            simp only [q_next, FifoQueue.size_enqueue]; omega
-          have hle_n : q₁''.length + q_next.size ≤ n := by
-            simp only [q_next, FifoQueue.size_enqueue]; omega
-          exact (twoQueueSteps_eq_twoQueueLoop fuel q₁'' q_next hle_fuel).trans
-            (twoQueueSteps_eq_twoQueueLoop n q₁'' q_next hle_n).symm
+          exact (twoQueueSteps_eq_twoQueueLoop fuel q₁'' q_next
+              (by simp only [q_next, FifoQueue.size_enqueue]; omega)).trans
+            (twoQueueSteps_eq_twoQueueLoop n q₁'' q_next
+              (by simp only [q_next, FifoQueue.size_enqueue]; omega)).symm
 
 /-- Fuel-free unfolding equation for `twoQueueLoop`. -/
 theorem twoQueueLoop_step {α β : Type u} [Add β] [LE β] [DecidableRel (· ≤ · : β → β → Prop)]
@@ -334,18 +323,13 @@ theorem twoQueueLoop_step {α β : Type u} [Add β] [LE β] [DecidableRel (· �
           twoQueueLoop q₁'' (q₂''.enqueue ⟨.branch a.tree b.tree, a.wt + b.wt⟩) := by
   rw [← twoQueueSteps_eq_twoQueueLoop (q₁.length + q₂.size + 1) q₁ q₂ (Nat.le_succ _)]
   simp only [twoQueueSteps]
-  cases hr₁ : popMin q₁ q₂ with
-  | none => rfl
-  | some res₁ =>
-    rcases res₁ with ⟨a, q₁', q₂'⟩
-    have hsz₁ := popMin_size_eq hr₁
+  rcases hr₁ : popMin q₁ q₂ with _ | ⟨a, q₁', q₂'⟩
+  · rfl
+  · have hsz₁ := popMin_size_eq hr₁
     dsimp only
-    cases hr₂ : popMin q₁' q₂' with
-    | none => rfl
-    | some res₂ =>
-      rcases res₂ with ⟨b, q₁'', q₂''⟩
-      have hsz₂ := popMin_size_eq hr₂
-      dsimp only
+    rcases hr₂ : popMin q₁' q₂' with _ | ⟨b, q₁'', q₂''⟩
+    · rfl
+    · have hsz₂ := popMin_size_eq hr₂
       exact twoQueueSteps_eq_twoQueueLoop _ _ _ (by simp only [FifoQueue.size_enqueue]; omega)
 
 /-- Two-queue Huffman construction from a symbol list `syms` sorted by `w` ([VanLeeuwen1976]). -/
@@ -551,14 +535,11 @@ theorem huffmanFromSorted_spec {α β : Type u}
     simp only [FifoQueue.toList_empty, List.append_nil, q₁, List.mem_map] at he
     rcases he with ⟨a, ha, rfl⟩
     exact ⟨rfl, hw a ha⟩
-  have hne_q : q₁ ++ (FifoQueue.empty : FifoQueue (WeightedTree α β)).toList ≠ [] := by
-    simpa [q₁, FifoQueue.toList_empty] using hne
-  rcases twoQueueLoop_correct hinv hne_q with ⟨T, hT_ret, hT_build⟩
-  have hmap_trees : ((q₁ ++ (FifoQueue.empty : FifoQueue (WeightedTree α β)).toList).map
-      WeightedTree.tree) = syms.map .leaf := by
-    simp [q₁, List.map_map, Function.comp_def]
-  rw [hmap_trees] at hT_build
-  exact ⟨T, hT_ret, hT_build, hT_build.leaves_perm⟩
+  rcases twoQueueLoop_correct hinv (by simpa [q₁, FifoQueue.toList_empty] using hne) with
+    ⟨T, hT_ret, hT_build⟩
+  have hT_build' : IsHuffmanBuild w (syms.map .leaf) T := by
+    simpa [q₁, List.map_map, Function.comp_def] using hT_build
+  exact ⟨T, hT_ret, hT_build', hT_build'.leaves_perm⟩
 
 /-- **End-to-End Correctness of `huffman`**: on any nonempty symbol list `syms` with nonnegative
 weights, `huffman w syms` returns `some T` satisfying `IsHuffmanBuild w (syms.map .leaf) T` and

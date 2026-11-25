@@ -87,27 +87,18 @@ theorem Clause.eval_eq_true_of_subclause [DecidableEq V] {c d : Clause V}
 theorem CNF.eval_cons_of_subsumed [DecidableEq V] {φ : CNF V} {c d : Clause V} (hd : d ∈ φ)
     (hsub : CNF.Sparsification.subclause d c = true) (σ : V → Bool) :
     CNF.eval σ (c :: φ) = φ.eval σ := by
-  rw [CNF.eval_cons]
-  cases hφ : φ.eval σ
-  · simp
-  · have hd_true : d.eval σ = true := (CNF.eval_eq_true_iff σ φ).mp hφ d hd
-    have hc_true : c.eval σ = true := Clause.eval_eq_true_of_subclause hsub hd_true
-    simp [hc_true]
+  rw [Bool.eq_iff_iff, CNF.eval_cons, Bool.and_eq_true, CNF.eval_eq_true_iff]
+  exact ⟨And.right, fun h => ⟨Clause.eval_eq_true_of_subclause hsub (h d hd), h⟩⟩
 
 /-- Removing a clause subsumed by another distinct clause of `φ` preserves evaluation. -/
 theorem CNF.eval_filter_ne_of_subsumed [DecidableEq V] {φ : CNF V} {c d : Clause V}
     (hd : d ∈ φ) (hne : d ≠ c) (hsub : CNF.Sparsification.subclause d c = true) (σ : V → Bool) :
     CNF.eval σ (φ.filter (· ≠ c)) = φ.eval σ := by
   rw [Bool.eq_iff_iff, CNF.eval_eq_true_iff, CNF.eval_eq_true_iff]
-  constructor
-  · intro h e he
-    by_cases hec : e = c
-    · subst hec
-      have hd' : d ∈ φ.filter (· ≠ e) := List.mem_filter.mpr ⟨hd, by simpa using hne⟩
-      exact Clause.eval_eq_true_of_subclause hsub (h d hd')
-    · exact h e (List.mem_filter.mpr ⟨he, by simpa using hec⟩)
-  · intro h e he
-    exact h e (List.mem_filter.mp he).1
+  simp only [List.mem_filter, decide_eq_true_eq]
+  exact ⟨fun h e he => if hec : e = c then
+    hec ▸ Clause.eval_eq_true_of_subclause hsub (h d ⟨hd, hne⟩) else h e ⟨he, hec⟩,
+    fun h e he => h e he.1⟩
 
 /-- Removing a subsumed clause preserves satisfiability. -/
 theorem CNF.satisfiable_filter_ne_of_subsumed [DecidableEq V] {φ : CNF V} {c d : Clause V}
@@ -132,9 +123,8 @@ variable [DecidableEq V]
 /-- Every clause of `normalize φ` is duplicate-free. -/
 theorem nodup_of_mem_normalize {φ : CNF V} {C : Clause V} (hC : C ∈ normalize φ) :
     C.Nodup := by
-  have hsub : normalize φ <+ φ.map dedup :=
-    (reduce_sublist _).trans (dedupClauses_sublist _)
-  obtain ⟨D, _, rfl⟩ := List.mem_map.mp (hsub.subset hC)
+  obtain ⟨D, _, rfl⟩ :=
+    List.mem_map.mp (((reduce_sublist _).trans (dedupClauses_sublist _)).subset hC)
   exact nodup_dedup D
 
 /-- Every clause of `countingNormalize φ` is duplicate-free. -/
@@ -147,8 +137,8 @@ theorem nodup_of_mem_countingNormalize {φ : CNF V} {C : Clause V}
 /-- Literal deduplication preserves clause evaluation. -/
 @[simp] theorem eval_dedup (C : Clause V) (σ : V → Bool) :
     Clause.eval σ (dedup C) = C.eval σ := by
-  rw [Bool.eq_iff_iff, Clause.eval_eq_true_iff, Clause.eval_eq_true_iff]
-  simp only [mem_dedup]
+  rw [Bool.eq_iff_iff]
+  simp only [Clause.eval_eq_true_iff, mem_dedup]
 
 /-- Literal deduplication across all clauses preserves formula evaluation. -/
 @[simp] theorem eval_map_dedup (φ : CNF V) (σ : V → Bool) :
@@ -222,33 +212,25 @@ theorem satisfiable_countingNormalize_iff (φ : CNF V) :
 
 private theorem vars_toFinset_sublist {ψ φ : CNF V} (hsub : ψ <+ φ) :
     ψ.vars.toFinset ⊆ φ.vars.toFinset := by
-  intro v hv
-  obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp hv)
-  exact List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨c, hsub.subset hc, b, hb⟩)
+  intro v
+  simp only [List.mem_toFinset, CNF.mem_vars]
+  exact fun ⟨c, hc, b, hb⟩ => ⟨c, hsub.subset hc, b, hb⟩
 
 /-- Literal deduplication preserves the occurring variable set. -/
 @[simp] theorem vars_toFinset_map_dedup (φ : CNF V) :
     (CNF.vars (φ.map dedup)).toFinset = φ.vars.toFinset := by
   ext v
-  simp only [List.mem_toFinset, CNF.mem_vars, List.mem_map]
-  constructor
-  · rintro ⟨_, ⟨c, hc, rfl⟩, b, hb⟩
-    exact ⟨c, hc, b, mem_dedup.mp hb⟩
-  · rintro ⟨c, hc, b, hb⟩
-    exact ⟨dedup c, ⟨c, hc, rfl⟩, b, mem_dedup.mpr hb⟩
+  simp [CNF.mem_vars, mem_dedup]
 
 /-- Clause deduplication preserves the occurring variable set. -/
 @[simp] theorem vars_toFinset_dedupClauses (φ : CNF V) :
     (dedupClauses φ).vars.toFinset = φ.vars.toFinset := by
-  refine Subset.antisymm (vars_toFinset_sublist (dedupClauses_sublist φ)) ?_
-  intro v hv
+  refine Subset.antisymm (vars_toFinset_sublist (dedupClauses_sublist φ)) fun v hv => ?_
   obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp hv)
-  have hmem : c.toFinset ∈ (dedupClauses φ).toClauseSet := by
-    rw [toClauseSet_dedupClauses]
-    exact mem_toClauseSet.mpr ⟨c, hc, rfl⟩
-  obtain ⟨d, hd, hdeq⟩ := mem_toClauseSet.mp hmem
-  have hbd : (v, b) ∈ d := List.mem_toFinset.mp (hdeq ▸ List.mem_toFinset.mpr hb)
-  exact List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨d, hd, b, hbd⟩)
+  obtain ⟨d, hd, hdeq⟩ := mem_toClauseSet.mp
+    (toClauseSet_dedupClauses φ ▸ mem_toClauseSet.mpr ⟨c, hc, rfl⟩)
+  exact List.mem_toFinset.mpr (CNF.mem_vars.mpr
+    ⟨d, hd, b, List.mem_toFinset.mp (hdeq ▸ List.mem_toFinset.mpr hb)⟩)
 
 /-- `removeTautologies` never introduces new variables. -/
 theorem vars_toFinset_removeTautologies_subset (φ : CNF V) :
@@ -263,9 +245,7 @@ theorem vars_toFinset_reduce_subset (φ : CNF V) :
 /-- `normalize` never introduces new variables. -/
 theorem vars_toFinset_normalize_subset (φ : CNF V) :
     (normalize φ).vars.toFinset ⊆ φ.vars.toFinset := by
-  rw [normalize]
-  exact (vars_toFinset_reduce_subset _).trans
-    (by rw [vars_toFinset_dedupClauses, vars_toFinset_map_dedup])
+  simpa [normalize] using vars_toFinset_reduce_subset (dedupClauses (φ.map dedup))
 
 /-- `countingNormalize` never introduces new variables. -/
 theorem vars_toFinset_countingNormalize_subset (φ : CNF V) :
@@ -275,14 +255,12 @@ theorem vars_toFinset_countingNormalize_subset (φ : CNF V) :
 /-- Literal deduplication preserves `CNF.modelCount` exactly. -/
 @[simp] theorem modelCount_map_dedup (φ : CNF V) :
     CNF.modelCount (φ.map dedup) = φ.modelCount := by
-  have h1 := CNF.modelCountOn_vars (φ.map dedup)
-  rw [← h1, vars_toFinset_map_dedup, modelCountOn_map_dedup, CNF.modelCountOn_vars]
+  simp only [← CNF.modelCountOn_vars, vars_toFinset_map_dedup, modelCountOn_map_dedup]
 
 /-- Clause deduplication preserves `CNF.modelCount` exactly. -/
 @[simp] theorem modelCount_dedupClauses (φ : CNF V) :
     (dedupClauses φ).modelCount = φ.modelCount := by
-  rw [← CNF.modelCountOn_vars, vars_toFinset_dedupClauses, modelCountOn_dedupClauses,
-    CNF.modelCountOn_vars]
+  simp only [← CNF.modelCountOn_vars, vars_toFinset_dedupClauses, modelCountOn_dedupClauses]
 
 /-- Tautology elimination scales `CNF.modelCount` by `2` for each variable dropped because all its
 clauses were tautological. -/
@@ -330,18 +308,14 @@ theorem length_reduce_le (φ : CNF V) :
 
 /-- `normalize` never increases clause count. -/
 theorem length_normalize_le (φ : CNF V) :
-    (normalize φ).length ≤ φ.length := by
-  rw [normalize]
-  exact (length_reduce_le _).trans ((length_dedupClauses_le _).trans (List.length_map _).le)
+    (normalize φ).length ≤ φ.length :=
+  ((length_reduce_le _).trans (length_dedupClauses_le _)).trans (List.length_map _).le
 
 omit [DecidableEq V] in
 private theorem vars_length_sublist_le {ψ φ : CNF V} (hsub : ψ <+ φ) :
     ψ.vars.length ≤ φ.vars.length := by
   rw [CNF.length_vars, CNF.length_vars]
-  induction hsub with
-  | slnil => exact le_rfl
-  | cons a _ ih => simp only [List.map_cons, List.sum_cons]; omega
-  | cons_cons a _ ih => simp only [List.map_cons, List.sum_cons]; omega
+  induction hsub <;> simp only [List.map_cons, List.sum_cons, le_rfl] <;> omega
 
 /-- Literal deduplication does not increase total literal occurrences (`φ.vars.length`). -/
 theorem vars_length_map_dedup_le (φ : CNF V) :
@@ -349,7 +323,7 @@ theorem vars_length_map_dedup_le (φ : CNF V) :
   rw [CNF.length_vars, CNF.length_vars, List.map_map]
   induction φ with
   | nil => exact le_rfl
-  | cons c ψ ih =>
+  | cons c _ ih =>
     simp only [List.map_cons, Function.comp_apply, List.sum_cons]
     exact Nat.add_le_add (length_dedup_le c) ih
 
@@ -370,10 +344,9 @@ theorem vars_length_removeTautologies_le (φ : CNF V) :
 
 /-- `normalize` does not increase total literal occurrences. -/
 theorem vars_length_normalize_le (φ : CNF V) :
-    (normalize φ).vars.length ≤ φ.vars.length := by
-  rw [normalize]
-  exact (vars_length_reduce_le _).trans
-    ((vars_length_dedupClauses_le _).trans (vars_length_map_dedup_le φ))
+    (normalize φ).vars.length ≤ φ.vars.length :=
+  (vars_length_reduce_le _).trans <|
+    (vars_length_dedupClauses_le _).trans (vars_length_map_dedup_le φ)
 
 /-- `countingNormalize` does not increase total literal occurrences. -/
 theorem vars_length_countingNormalize_le (φ : CNF V) :
@@ -382,20 +355,13 @@ theorem vars_length_countingNormalize_le (φ : CNF V) :
 
 /-- Any sublist of a CNF formula has at most as many clause occurrences of each variable. -/
 theorem occurrences_sublist_le {ψ φ : CNF V} (hsub : ψ <+ φ) (v : V) :
-    ψ.occurrences v ≤ φ.occurrences v := by
-  unfold CNF.occurrences
-  exact hsub.countP_le
+    ψ.occurrences v ≤ φ.occurrences v :=
+  hsub.countP_le
 
 /-- Literal deduplication preserves the number of clauses mentioning `v`. -/
 @[simp] theorem occurrences_map_dedup (φ : CNF V) (v : V) :
     CNF.occurrences (φ.map dedup) v = φ.occurrences v := by
-  unfold CNF.occurrences
-  rw [List.countP_map]
-  congr 1
-  funext c
-  dsimp only [Function.comp_apply]
-  rw [decide_eq_decide]
-  simp only [mem_dedup]
+  simp only [CNF.occurrences, List.countP_map, Function.comp_def, mem_dedup]
 
 /-- Tautology elimination never increases clause occurrences. -/
 theorem occurrences_removeTautologies_le (φ : CNF V) (v : V) :
@@ -414,10 +380,9 @@ theorem occurrences_reduce_le (φ : CNF V) (v : V) :
 
 /-- `normalize` never increases clause occurrences. -/
 theorem occurrences_normalize_le (φ : CNF V) (v : V) :
-    (normalize φ).occurrences v ≤ φ.occurrences v := by
-  rw [normalize]
-  exact (occurrences_reduce_le _ v).trans
-    ((occurrences_dedupClauses_le _ v).trans (occurrences_map_dedup φ v).le)
+    (normalize φ).occurrences v ≤ φ.occurrences v :=
+  (occurrences_reduce_le _ v).trans <|
+    (occurrences_dedupClauses_le _ v).trans (occurrences_map_dedup φ v).le
 
 /-- `countingNormalize` never increases clause occurrences. -/
 theorem occurrences_countingNormalize_le (φ : CNF V) (v : V) :

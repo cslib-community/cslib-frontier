@@ -49,22 +49,18 @@ variable {p d r b H : ℕ}
 theorem length_paddedResidue_le [NeZero p] (x : ZMod p) :
     (encNat (p + x.val)).length ≤ 2 * p.size := by
   have hp : 0 < p.size := Nat.size_pos.mpr (NeZero.pos p)
-  have hx := ZMod.val_lt x
-  have hpow := Nat.lt_size_self p
   have hfit : p + x.val < 2 ^ (p.size + 1) := by
     rw [pow_succ]
-    omega
+    linarith [ZMod.val_lt x, Nat.lt_size_self p]
   rw [length_encNat_eq_size]
   exact (Nat.size_le.mpr hfit).trans (by omega)
 
 /-- All padded bank entries and their framing are charged once. -/
 theorem length_encBank_ofRegs_le [NeZero p] (S : Ary.State (ZMod p) d r) :
-    (encList encNat (ofRegs S)).length ≤ (d + 1) * r * (4 * p.size + 1) := by
-  have hlist := length_encList_le encNat (ofRegs S) (fun v hv => by
-    obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv
-    exact length_paddedResidue_le _)
-  have heq : 2 * (2 * p.size) + 1 = 4 * p.size + 1 := by omega
-  simpa only [length_ofRegs, heq] using hlist
+    (encList encNat (ofRegs S)).length ≤ (d + 1) * r * (4 * p.size + 1) :=
+  (length_encList_le encNat (ofRegs S) fun _ hv => by
+    obtain ⟨_, rfl⟩ := List.mem_ofFn.mp hv
+    exact length_paddedResidue_le _).trans_eq (by rw [length_ofRegs]; ring)
 
 /-- Bits reserved for a single round-bounded frame, independent of register width. -/
 @[expose] def frameSpace (p d : ℕ) : ℕ :=
@@ -151,13 +147,10 @@ theorem length_encBank_packed_le (hd : 0 < d) (hb : 0 < b)
 private theorem selected_parameter_sizes (hd : 0 < d) (hb : 0 < b) :
     d.size ≤ chunkWidth d b ∧ (chunkCount d b).size ≤ chunkWidth d b ∧
       (d + 1).size ≤ chunkWidth d b + 2 := by
-  have hdle : d ≤ d * b := Nat.le_mul_of_pos_right d hb
-  have hble : b ≤ d * b := by nlinarith
-  have hdsize := Nat.size_le_size hdle
-  have hrsize := Nat.size_le_size ((chunkCount_le hd hb).trans hble)
+  have hdsize := Nat.size_le_size (Nat.le_mul_of_pos_right d hb)
+  have hrsize := Nat.size_le_size ((chunkCount_le hd hb).trans (Nat.le_mul_of_pos_left b hd))
   have hsucc := Turing.MultiTapeTM.length_encNat_add_le_add d 1
-  have hone : (encNat 1).length = 1 := rfl
-  simp only [hone, length_encNat_eq_size, chunkWidth] at *
+  simp only [show (encNat 1).length = 1 from rfl, length_encNat_eq_size, chunkWidth] at *
   omega
 
 /-- Explicit selected-parameter accounting for the runtime header, padded bank and stack. -/

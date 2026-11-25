@@ -326,14 +326,8 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
   set gen : α → List Bool → List Bool := fun x z => (G z).take (p.eval (enc x).length)
   -- the running time
   have hgen : ComputableInPolyTime (fun q : α × List Bool => gen q.1 q.2) (encPair enc encBits)
-      encBits := by
-    have h₁ : ComputableInPolyTime (fun q : α × List Bool => G q.2) (encPair enc encBits)
-        encBits := hG.polyTime.comp (ComputableInPolyTime.snd enc encBits)
-    have h₂ : ComputableInPolyTime (fun q : α × List Bool => p.eval (enc q.1).length)
-        (encPair enc encBits) encUnary :=
-      (ComputableInPolyTime.unary_eval p).comp
-        ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
-    exact ComputableInPolyTime.bitsTakeWithInput h₁ h₂
+      encBits :=
+    ComputableInPolyTime.bitsTakeWithInput (hG.polyTime.comp (by fun_prop)) (by fun_prop)
   have hseed : ComputableInPolyTime seed enc encUnary := by
     have hlen := hr.comp (ComputableInPolyTime.encoding_length enc)
     fun_prop
@@ -436,16 +430,12 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
       (readCertificate q.2.length (q.1.1 ^ c) q.1.2).2)
   have htest : IsPPTOn encAdvisedInput encBool test := by
     have hk : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1)
-        encAdvisedInput encUnary :=
-      (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)
-    have hw : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.2)
-        encAdvisedInput encBits :=
-      (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
+        encAdvisedInput encUnary := (ComputableInPolyTime.fst _ _).comp (.fst _ _)
     have hx : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.2)
-        encAdvisedInput encBits := ComputableInPolyTime.snd _ _
+        encAdvisedInput encBits := .snd _ _
     have hread := computableInPolyTime_readCertificate (ComputableInPolyTime.length_bits.comp hx)
-      (by fun_prop : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1 ^ c)
-        encAdvisedInput encUnary) hw
+      (by fun_prop : ComputableInPolyTime (fun q => q.1.1 ^ c) encAdvisedInput encUnary)
+      ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
     exact (computableInPolyTime_evalOutput hx ((ComputableInPolyTime.fst _ _).comp hread)
       ((ComputableInPolyTime.snd _ _).comp hread)).isPPTOn
   have hneg := hG.secure advice hadvice test htest

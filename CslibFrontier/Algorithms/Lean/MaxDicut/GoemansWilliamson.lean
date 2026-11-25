@@ -193,8 +193,7 @@ theorem integral_hyperplaneSide_ne_and_eq {v : V → F} (hv : ∀ x, ‖v x‖ =
   rw [hid, integral_hyperplaneSide_ne hv i j, integral_hyperplaneSide_ne hv i k,
     integral_hyperplaneSide_eq hv j k, inner_neg_left, inner_neg_left, arccos_neg, arccos_neg]
   have hpi := pi_ne_zero
-  field_simp
-  ring
+  field_simp; ring
 
 end TripleGaussian
 
@@ -240,13 +239,12 @@ theorem tripleCutValue_le_tripleSdpValue_add {triples : ι → V × V × V} {c d
     (side : V → Bool) : tripleCutValue triples c d side ≤ tripleSdpValue triples c d v + ε := by
   cases isEmpty_or_nonempty ι with
   | inl _ =>
-    have := hopt v hv
-    simp only [tripleCutValue, tripleSdpValue, Finset.univ_eq_empty, Finset.sum_empty] at this ⊢
-    exact this
+    simpa only [tripleCutValue, tripleSdpValue, Finset.univ_eq_empty, Finset.sum_empty] using
+      hopt v hv
   | inr h =>
     obtain ⟨e⟩ := h
-    rw [← tripleSdpValue_signVector triples c d (hv (triples e).1) side]
-    exact hopt _ (norm_signVector (hv (triples e).1) side)
+    exact tripleSdpValue_signVector triples c d (hv (triples e).1) side ▸
+      hopt _ (norm_signVector (hv (triples e).1) side)
 
 section TripleMeasurable
 
@@ -510,13 +508,13 @@ theorem two_mul_dicutValue_eq_cutValue_of_isBalancedDigraph {ends : ι → V × 
   have h0 : ∑ e, w e * (if S (ends e).1 then (1 : ℝ) else 0) =
       ∑ e, w e * (if S (ends e).2 then (1 : ℝ) else 0) :=
     hbal fun x => if S x then 1 else 0
-  have hid : ∀ e : ι,
+  have hid (e : ι) :
       2 * (if S (ends e).1 = true ∧ S (ends e).2 = false then w e else 0) -
         (if S (ends e).1 ≠ S (ends e).2 then w e else 0) =
         w e * (if S (ends e).1 then (1 : ℝ) else 0) -
           w e * (if S (ends e).2 then (1 : ℝ) else 0) := by
-    intro e
-    cases S (ends e).1 <;> cases S (ends e).2 <;> simp; ring
+    cases S (ends e).1 <;> cases S (ends e).2 <;> simp
+    ring
   have hsum : 2 * dicutValue ends w S - cutValue ends w S =
       (∑ e, w e * (if S (ends e).1 then (1 : ℝ) else 0)) -
         ∑ e, w e * (if S (ends e).2 then (1 : ℝ) else 0) := by
@@ -538,8 +536,7 @@ theorem two_mul_dicutSdpValue_eq_sdpValue_of_isBalancedDigraph {ends : ι → V 
       (∑ e, w e * ⟪v (some (ends e).1), v none⟫ - ∑ e, w e * ⟪v (some (ends e).2), v none⟫) /
         2 := by
     rw [Finset.mul_sum, ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib, Finset.sum_div]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    ring
+    exact Finset.sum_congr rfl fun _ _ => by ring
   linarith
 
 variable [MeasurableSpace F] [BorelSpace F] [FiniteDimensional ℝ F] in
@@ -575,9 +572,7 @@ theorem goemansWilliamsonConstant_mul_sub_le_integral_of_isBalancedDigraph (ends
   have hsdp := goemansWilliamsonConstant_mul_sdpValue_le_integral ends hw
     (v := fun x => v (some x)) (fun x => hv (some x))
   rw [← two_mul_dicutSdpValue_eq_sdpValue_of_isBalancedDigraph hbal v] at hsdp
-  have hbound : goemansWilliamsonConstant * dicutSdpValue ends w v ≤
-      (∫ r, cutValue ends w (hyperplaneSide (fun x => v (some x)) r) ∂stdGaussian F) / 2 := by
-    linarith
-  exact (mul_le_mul_of_nonneg_left (by linarith) goemansWilliamsonConstant_nonneg).trans hbound
+  exact (mul_le_mul_of_nonneg_left (sub_le_iff_le_add.mpr h1)
+    goemansWilliamsonConstant_nonneg).trans (by linarith)
 
 end Cslib.Algorithms.Lean.MaxDicut

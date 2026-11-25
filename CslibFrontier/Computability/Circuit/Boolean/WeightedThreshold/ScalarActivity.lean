@@ -93,11 +93,7 @@ variable {n g : ℕ}
 private theorem sum_inputWeight_eq_mul_weightedSum {p : Program signature n g} {w : Fin n → ℝ}
     {j : Fin g} {c : ℝ} (hc : inputWeight p j = c • w) (x : Fin n → Bool) :
     (∑ i : Fin n, inputWeight p j i * (x i).toNat) = c * weightedSum w x := by
-  have hfun := fun i => congrFun hc i
-  simp only [Pi.smul_apply, smul_eq_mul] at hfun
-  simp only [weightedSum, mul_sum]
-  refine sum_congr rfl fun i _ => ?_
-  rw [hfun i, mul_assoc]
+  simp only [hc, Pi.smul_apply, smul_eq_mul, weightedSum, mul_sum, mul_assoc]
 
 /-- **Order-convexity of gate evaluations along a scalar direction**: if every gate's input weight
 vector is a multiple of `w`, `weightedSum w x₁ ≤ weightedSum w x₂ ≤ weightedSum w x₃`, and
@@ -362,9 +358,7 @@ theorem length_le_card_attainableTranscripts_of_isChain {β : Type*} (p : Progra
   have hpos := card_attainableTranscripts_pos p
   have hmap : (xs.map (weightedSum w)).map (scalarReadout p w readout) =
       xs.map fun x => readout (p.eval interpretation x) := by
-    rw [List.map_map]
-    refine List.map_congr_left fun x _ => ?_
-    exact scalarReadout_weightedSum p w hw readout x
+    simp only [List.map_map, Function.comp_def, scalarReadout_weightedSum p w hw]
   have hlen := (changesAtMost_scalarReadout p w hw readout).length_le_succ_of_isChain
     hmono (hmap.symm ▸ halt)
   rw [List.length_map] at hlen

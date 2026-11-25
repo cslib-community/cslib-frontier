@@ -102,14 +102,9 @@ theorem signedCutValue_le_signedSdpValue_add {ends : ι → V × V} {a b : ι �
     (hopt : ∀ v' : V → F, (∀ i, ‖v' i‖ = 1) →
       signedSdpValue ends a b v' ≤ signedSdpValue ends a b v + ε)
     (side : V → Bool) : signedCutValue ends a b side ≤ signedSdpValue ends a b v + ε := by
-  cases isEmpty_or_nonempty ι with
-  | inl _ =>
-    have := hopt v hv
-    simp only [signedCutValue, signedSdpValue, Finset.univ_eq_empty, Finset.sum_empty] at this ⊢
-    exact this
-  | inr h =>
-    obtain ⟨e⟩ := h
-    rw [← signedSdpValue_signVector ends a b (hv (ends e).1) side]
+  rcases isEmpty_or_nonempty ι with _ | ⟨⟨e⟩⟩
+  · simpa [signedCutValue, signedSdpValue] using hopt v hv
+  · rw [← signedSdpValue_signVector ends a b (hv (ends e).1) side]
     exact hopt _ (norm_signVector (hv (ends e).1) side)
 
 section SignedMeasurable
@@ -296,10 +291,9 @@ theorem satSdpValue_liftAssignment (clauses : ι → Clause V)
     satSdpValue clauses w (liftAssignment u σ) = satValue clauses w σ := by
   unfold satSdpValue satValue liftAssignment
   refine Finset.sum_congr rfl fun j _ => ?_
-  rw [satSdpClause_signVector hu _ (hc j)]
-  have htr : truthAssignment (fun o : Option V => o.elim true σ) = σ := by
-    ext x; simp [truthAssignment]
-  rw [htr]
+  have htr : truthAssignment (fun o : Option V => o.elim true σ) = σ :=
+    funext fun x => by simp [truthAssignment]
+  rw [satSdpClause_signVector hu _ (hc j), htr]
   split_ifs <;> ring
 
 /-- `ε`-optimal unit vectors for `satSdpValue` beat every Boolean assignment up to `ε`. -/
@@ -431,9 +425,8 @@ theorem goemansWilliamsonConstant_mul_satSdpValue_le_integral (clauses : ι → 
         w j * (if (clauses j).eval (satHyperplaneAssignment v r) then (1 : ℝ) else 0) := by
     ext r; split_ifs <;> ring
   rw [hmul, integral_const_mul]
-  have hcl := mul_le_mul_of_nonneg_left
+  simpa only [mul_left_comm] using mul_le_mul_of_nonneg_left
     (goemansWilliamsonConstant_mul_satSdpClause_le_integral hv (hc j)) (hw j)
-  simpa only [mul_left_comm] using hcl
 
 /-- **Goemans–Williamson MAX-2SAT `ε`-optimal guarantee.** If `v` are within `ε` of optimal for
 `satSdpValue`, then for every Boolean assignment `σ`, the expected rounded satisfied weight is at

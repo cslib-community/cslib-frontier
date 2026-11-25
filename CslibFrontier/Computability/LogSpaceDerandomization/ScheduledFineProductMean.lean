@@ -111,12 +111,7 @@ theorem scheduled_fineProductMean_le {Γ Υ : Type*} [Fintype Γ] [Fintype Υ]
           (2 ^ (2 * (4 - 1)) * (4 : ℝ) ^ 4) *
           (CB * Kr * (C * (2 : ℝ) ^ (-Real.logb 2 c₁ / 2) * payment) ^ 4 +
             CF * Kc * (C * payment) ^ 4)) := by
-  dsimp only
-  let payment := (2 : ℝ) ^ (-precision (16 * c) A M i a u - A +
-    (d : ℝ) / (16 * c) + 1 / 16) * scaleMajorant offset
-  let E : (Γ × Υ) → V → V → ℝ := fun σ x y =>
-    (∑ z ∈ ({z | Z σ z} : Finset V), F σ x z * B σ z y) -
-      ∑ z ∈ ({z | Z σ z} : Finset V), F' σ x z * B' σ z y
+  intro payment E
   have ha := hb.trans_le hba
   have hf : 0 < f := (mul_pos hc₁ hb).trans_le hbf
   have hπb : 0 < πb := (mul_pos hcb hb).trans_le hlower
@@ -236,15 +231,12 @@ theorem scheduled_fine_correctionAtom_denseAtom_mean_le
           ((2 * AB) * KB * (C * (2 : ℝ) ^ (-Real.logb 2 c₁ / 2) * payment) ^ 4 +
             (2 * AF) * Kc * (C * payment) ^ 4)) := by
   classical
-  dsimp only
-  intro hleftError hrightBroad
+  intro F F' B B' Xu Zf payment hleftError hrightBroad
   have hf : 0 < f := hu.trans_le huf
   have hrightError := (Cslib.rowNormPow_mono_terminal (p := 4) (by positivity : 0 ≤ N * f)
-    (X := fun (σ : Γ × Υ) z => Zt (drawF σ.1).2 z)
-    (Y := fun σ y => Yt (drawB σ.2) y) (Y' := fun σ y => Y (drawB σ.2) y)
+    (X := Zf) (Y := fun σ y => Yt (drawB σ.2) y) (Y' := fun σ y => Y (drawB σ.2) y)
     (fun σ y => hYt (drawB σ.2) y)
-    (fun σ z y => (denseAtom Y Yt k hB ρB KB b (H σ) (drawB σ.2) z y) ^ (4⁻¹ : ℝ) -
-      (denseAtom Y Yt k hB ρB KB b (H' σ) (drawB σ.2) z y) ^ (4⁻¹ : ℝ))).trans hrightBroad
+    (fun σ z y => B σ z y ^ (4⁻¹ : ℝ) - B' σ z y ^ (4⁻¹ : ℝ))).trans hrightBroad
   have hFbound (J : Matrix V V ℝ) (v : V → ℝ) (hv0 : ∀ z, 0 ≤ v z)
       (hv1 : ∀ z, v z ≤ 1) (t : ι × κ) (x z : V) :
       correctionAtom I τ KF Kc f J X Z Zt Q hF ρF v t x z ≤ 2 * AF :=
@@ -262,8 +254,7 @@ theorem scheduled_fine_correctionAtom_denseAtom_mean_le
         correctionAtom I τ KF Kc f J X Z Zt Q hF ρF v t x z ≠ 0} ≤ KF :=
     (card_le_card (filter_subset_filter _ fun z => by simpa using hZt t.2 z)).trans
       (card_filter_correctionAtom_row_ne_zero_lt hKF heF hQzero hrF hρFclose t x).le
-  refine scheduled_fineProductMean_le (fun γ x => X (drawF γ).1 x) Ya
-    (fun t y => Yt (drawB t) y) (fun σ z => Zt (drawF σ.1).2 z)
+  refine scheduled_fineProductMean_le Xu Ya (fun t y => Yt (drawB t) y) Zf
     hN hu hb hba hCa hcb hupper hlower hYaπ hYbπ hsub
     (by positivity) (by positivity)
     (fun σ => correctionAtom_nonneg hQ0 hρF0 hτ0 (hg0 σ) (drawF σ.1))

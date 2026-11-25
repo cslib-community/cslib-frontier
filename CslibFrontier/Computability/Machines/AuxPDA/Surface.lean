@@ -335,51 +335,38 @@ theorem Realizable.exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
       p.length = d ∧ SameHeightRun p := by
   induction h generalizing c₁ with
   | refl s =>
-    refine ⟨RelSeries.singleton _ c₁, rfl, hc₁, rfl, rfl, rfl, fun i => ?_⟩
+    refine ⟨RelSeries.singleton _ c₁, rfl, hc₁, rfl, rfl, rfl, fun _ => ?_⟩
     rw [RelSeries.head_singleton]
     exact le_rfl
   | stay hstay =>
+    subst hc₁
     rcases hstay with ⟨hhalt, rfl⟩ | ⟨q, act, hq, htr, hstay, rfl⟩
-    · have hcHalt : c₁.Halted := by rw [← hc₁] at hhalt; exact hhalt
-      have hstep : M.Step c₁ c₁ := (step_of_halt hcHalt).mpr rfl
-      refine ⟨runPathOfStep hstep, rfl, hc₁, rfl, rfl, rfl, fun i => ?_⟩
+    · refine ⟨runPathOfStep ((step_of_halt hhalt).mpr rfl), rfl, rfl, rfl, rfl, rfl, fun i => ?_⟩
       fin_cases i <;> exact le_rfl
-    · have hq' : c₁.tapes.state = some q := by rw [← hc₁] at hq; exact hq
-      have htr' : M.Tr q c₁.tapes.inputSymbol c₁.tapes.workTapeSymbols c₁.topSym act := by
-        rw [← hc₁] at htr; exact htr
-      let c₂ : Cfg k Bool StackSym State input := ⟨act.tape.apply c₁.tapes, c₁.stack⟩
+    · let c₂ : Cfg k Bool StackSym State input := ⟨act.tape.apply c₁.tapes, c₁.stack⟩
       have hstep : M.Step c₁ c₂ := by
-        simp only [Step, hq']
-        exact ⟨act, htr', Action.apply?_eq_some_iff.mpr ⟨c₁.stack, by rw [hstay]; rfl, rfl⟩⟩
-      have hc₂surf : c₂.surface = applySurfaceTapes act.tape c₁.surface c₁.surface.topSym :=
-        surface_apply_eq_applySurfaceTapes act.tape c₁ c₁.stack
-      refine ⟨runPathOfStep hstep, rfl, by change c₂.surface = _; simpa [hc₁] using hc₂surf,
+        simp only [Step, show c₁.tapes.state = some q from hq]
+        exact ⟨act, htr, Action.apply?_eq_some_iff.mpr ⟨c₁.stack, by rw [hstay]; rfl, rfl⟩⟩
+      refine ⟨runPathOfStep hstep, rfl, surface_apply_eq_applySurfaceTapes act.tape c₁ c₁.stack,
         rfl, rfl, rfl, fun i => ?_⟩
       fin_cases i <;> exact le_rfl
   | @pushPop s₁ s₂ s' s'' γ d hpush hmid hpop ih =>
+    subst hc₁
     obtain ⟨q₁, act₁, hq₁, htr₁, hpushOp, hs'⟩ := hpush
-    have hq₁' : c₁.tapes.state = some q₁ := by rw [← hc₁] at hq₁; exact hq₁
-    have htr₁' : M.Tr q₁ c₁.tapes.inputSymbol c₁.tapes.workTapeSymbols c₁.topSym act₁ := by
-      rw [← hc₁] at htr₁; exact htr₁
     let c' : Cfg k Bool StackSym State input := ⟨act₁.tape.apply c₁.tapes, γ :: c₁.stack⟩
     have hstep₁ : M.Step c₁ c' := by
-      simp only [Step, hq₁']
-      exact ⟨act₁, htr₁', Action.apply?_eq_some_iff.mpr ⟨γ :: c₁.stack, by rw [hpushOp]; rfl, rfl⟩⟩
-    have hc'surf : c'.surface = s' := by
-      rw [hs', ← hc₁]
-      exact surface_apply_eq_applySurfaceTapes act₁.tape c₁ (γ :: c₁.stack)
+      simp only [Step, show c₁.tapes.state = some q₁ from hq₁]
+      exact ⟨act₁, htr₁, Action.apply?_eq_some_iff.mpr ⟨γ :: c₁.stack, by rw [hpushOp]; rfl, rfl⟩⟩
+    have hc'surf : c'.surface = s' :=
+      (surface_apply_eq_applySurfaceTapes act₁.tape c₁ (γ :: c₁.stack)).trans hs'.symm
     obtain ⟨pmid, hmidHead, hmidSurf, hmidStack, hmidLen, -, hmidGe⟩ := ih hc'surf
-    obtain ⟨htop'', q₂, act₂, hq₂, htr₂, hpopOp, hs₂⟩ := hpop
-    have hq₂' : pmid.last.tapes.state = some q₂ := by rw [← hmidSurf] at hq₂; exact hq₂
-    have htop₂' : pmid.last.topSym = some γ := by
-      change pmid.last.stack.head? = some γ
-      rw [hmidStack]
-      rfl
+    obtain ⟨_, q₂, act₂, hq₂, htr₂, hpopOp, hs₂⟩ := hpop
+    have htop₂' : pmid.last.topSym = some γ := congrArg List.head? hmidStack
+    have hq₂' : pmid.last.tapes.state = some q₂ := by rwa [← hmidSurf] at hq₂
     have htr₂' : M.Tr q₂ pmid.last.tapes.inputSymbol pmid.last.tapes.workTapeSymbols
         pmid.last.topSym act₂ := by
       rw [← hmidSurf] at htr₂
-      rw [htop₂']
-      exact htr₂
+      rwa [htop₂']
     let c₂ : Cfg k Bool StackSym State input := ⟨act₂.tape.apply pmid.last.tapes, c₁.stack⟩
     have hstep₂ : M.Step pmid.last c₂ := by
       simp only [Step, hq₂']
@@ -387,44 +374,37 @@ theorem Realizable.exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
       rw [hpopOp, hmidStack]
       rfl
     have hc₂surf : c₂.surface = s₂ := by
-      rw [hs₂, ← hmidSurf, ← hc₁]
+      rw [hs₂, ← hmidSurf]
       exact surface_apply_eq_applySurfaceTapes act₂.tape pmid.last c₁.stack
-    have hstep₁' : M.Step c₁ pmid.head := hmidHead.symm ▸ hstep₁
-    have hstep₂' : M.Step (pmid.cons c₁ hstep₁').last c₂ := by simpa using hstep₂
-    let p : M.RunPath input := (pmid.cons c₁ hstep₁').snoc c₂ hstep₂'
+    let p : M.RunPath input :=
+      (pmid.cons c₁ (hmidHead.symm ▸ hstep₁)).snoc c₂ (by simpa using hstep₂)
     refine ⟨p, by simp [p], by simpa [p] using hc₂surf, by simp [p, c₂], by simp [p, hmidLen],
       by simp [p, c₂], fun i => ?_⟩
     rw [show p.head = c₁ by simp [p]]
-    have hmem : p i ∈ p := ⟨i, rfl⟩
-    rcases RelSeries.mem_snoc.mp hmem with hcons | heq
+    rcases RelSeries.mem_snoc.mp (⟨i, rfl⟩ : p i ∈ p) with hcons | heq
     · rw [← RelSeries.mem_toList, RelSeries.toList_cons, List.mem_cons,
         RelSeries.mem_toList] at hcons
-      rcases hcons with heq₁ | ⟨k, hk⟩
+      rcases hcons with heq₁ | ⟨j, hj⟩
       · rw [heq₁]
-      · rw [← hk]
-        have hkGe := hmidGe k
-        rw [hmidHead] at hkGe
+      · have hkGe := hmidGe j
+        rw [hj, hmidHead] at hkGe
         simp only [c', List.length_cons] at hkGe
         omega
     · rw [heq]
   | @trans s₁ s_mid s₂ d₁ d₂ h₁ h₂ ih₁ ih₂ =>
     obtain ⟨p₁, hp₁Head, hp₁Surf, hp₁Stack, hp₁Len, -, hp₁Ge⟩ := ih₁ hc₁
     obtain ⟨p₂, hp₂Head, hp₂Surf, hp₂Stack, hp₂Len, -, hp₂Ge⟩ := ih₂ hp₁Surf
-    have hjoin : p₁.last = p₂.head := hp₂Head.symm
-    let p : M.RunPath input := p₁.smash p₂ hjoin
+    let p : M.RunPath input := p₁.smash p₂ hp₂Head.symm
     refine ⟨p, by simp [p, hp₁Head], by simpa [p] using hp₂Surf,
       by rw [RelSeries.last_smash, hp₂Stack, hp₁Stack], by simp [p, hp₁Len, hp₂Len],
-      by rw [RelSeries.last_smash, RelSeries.head_smash, hp₁Head, hp₂Stack, hp₁Stack],
-      fun i => ?_⟩
-    have hmem : p i ∈ p := ⟨i, rfl⟩
+      by rw [RelSeries.last_smash, RelSeries.head_smash, hp₁Head, hp₂Stack, hp₁Stack], fun i => ?_⟩
     rw [show p.head = c₁ by simp [p, hp₁Head]]
-    rcases RelSeries.mem_or_mem_of_mem_smash hmem with ⟨j, hj⟩ | ⟨j, hj⟩
+    rcases RelSeries.mem_or_mem_of_mem_smash (⟨i, rfl⟩ : p i ∈ p) with ⟨j, hj⟩ | ⟨j, hj⟩
     · rw [← hj, ← hp₁Head]
       exact hp₁Ge j
     · rw [← hj]
       have hge := hp₂Ge j
-      rw [hp₂Head, hp₁Stack] at hge
-      exact hge
+      rwa [hp₂Head, hp₁Stack] at hge
 
 private lemma stackOp_pop_length {s s' : List StackSym}
     (h : StackOp.pop.apply? s = some s') : s'.length + 1 = s.length := by
@@ -458,36 +438,28 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
   · left
     obtain ⟨j, hjpos, hjlt, hjlen⟩ := hmid
     refine ⟨j, hjpos, hjlt, ?_, ?_⟩
-    · refine ⟨by rw [RelSeries.last_take, RelSeries.head_take]; exact hjlen, fun i => ?_⟩
+    · refine ⟨by simpa only [RelSeries.last_take, RelSeries.head_take] using hjlen, fun i => ?_⟩
       rw [RelSeries.head_take]
       exact hge (Fin.castLE j.isLt i)
-    · refine ⟨by rw [RelSeries.last_drop, RelSeries.head_drop, hjlen]; exact hlastLen, fun i => ?_⟩
-      rcases i with ⟨iv, hiv⟩
+    · refine ⟨by simpa only [RelSeries.last_drop, RelSeries.head_drop, hjlen] using hlastLen,
+        fun ⟨iv, hiv⟩ => ?_⟩
       rw [RelSeries.head_drop, hjlen]
-      have hi : iv + j.val < p.length + 1 := by
-        dsimp only [RelSeries.drop] at hiv
-        omega
-      exact hge ⟨iv + j.val, hi⟩
+      exact hge ⟨iv + j.val, by dsimp only [RelSeries.drop] at hiv; omega⟩
   · right
     push Not at hmid
-    have hstrict : ∀ j : Fin (p.length + 1), 0 < j.val → j.val < p.length →
-        p.head.stack.length + 1 ≤ (p j).stack.length := fun j hj0 hjlt => by
-      have hgej := hge j
-      have hnej := hmid j hj0 hjlt
-      omega
+    have hstrict (j : Fin (p.length + 1)) (hj0 : 0 < j.val) (hjlt : j.val < p.length) :
+        p.head.stack.length + 1 ≤ (p j).stack.length :=
+      Nat.lt_of_le_of_ne (hge j) (Ne.symm (hmid j hj0 hjlt))
     have h1lt : 1 < p.length + 1 := by omega
     have hstep1 : M.Step p.head (p ⟨1, h1lt⟩) := p.step ⟨0, by omega⟩
     have h1eq : (p ⟨1, h1lt⟩).stack.length = p.head.stack.length + 1 := by
-      have := hstrict ⟨1, h1lt⟩ (by change 0 < 1; omega) (by change 1 < p.length; omega)
+      have := hstrict ⟨1, h1lt⟩ Nat.zero_lt_one (by simp; omega)
       have := Step.stackHeight_le hstep1
       omega
     obtain ⟨γ, h1stack, hpush⟩ : ∃ γ, (p ⟨1, h1lt⟩).stack = γ :: p.head.stack ∧
         M.PushStep p.head.surface γ (p ⟨1, h1lt⟩).surface := by
       cases hq : p.head.tapes.state with
-      | none =>
-        have heq := (step_of_halt hq).mp hstep1
-        rw [heq] at h1eq
-        omega
+      | none => rw [(step_of_halt hq).mp hstep1] at h1eq; omega
       | some q =>
         simp only [Step, hq] at hstep1
         obtain ⟨act, htr, hact⟩ := hstep1
@@ -497,48 +469,42 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
           rw [hop, StackOp.apply?_stay, Option.some.injEq] at hstack
           subst hstack; simp [h1cfg] at h1eq
         | pop =>
-          have hlenPop := stackOp_pop_length (hop ▸ hstack)
+          have := stackOp_pop_length (hop ▸ hstack)
           simp only [h1cfg] at h1eq
           omega
         | push γ =>
           rw [hop, StackOp.apply?_push, Option.some.injEq] at hstack
           subst hstack
-          have hsurf : (p ⟨1, h1lt⟩).surface =
-              applySurfaceTapes act.tape p.head.surface (some γ) := by
-            rw [h1cfg]
-            exact surface_apply_eq_applySurfaceTapes act.tape p.head (γ :: p.head.stack)
-          exact ⟨γ, by simp [h1cfg], ⟨q, act, hq, htr, hop, hsurf⟩⟩
+          exact ⟨γ, by simp [h1cfg], ⟨q, act, hq, htr, hop,
+            h1cfg ▸ surface_apply_eq_applySurfaceTapes act.tape p.head (γ :: p.head.stack)⟩⟩
     have hpenlt : p.length - 1 < p.length + 1 := by omega
     have hstepLast : M.Step (p ⟨p.length - 1, hpenlt⟩) p.last := by
       have hs := p.step ⟨p.length - 1, by omega⟩
       have hl : p ⟨p.length - 1 + 1, by omega⟩ = p.last :=
-        congrArg p (Fin.ext (by change p.length - 1 + 1 = p.length; omega))
+        congrArg p (Fin.ext (by simp; omega))
       simpa [hl] using hs
     have hpeneq : (p ⟨p.length - 1, hpenlt⟩).stack.length = p.head.stack.length + 1 := by
-      have := hstrict ⟨p.length - 1, hpenlt⟩ (by change 0 < p.length - 1; omega)
-        (by change p.length - 1 < p.length; omega)
+      have := hstrict ⟨p.length - 1, hpenlt⟩
+        (by simp; omega)
+        (by simp; omega)
       have := Step.le_stackHeight_add_one hstepLast
       omega
     let pmid : M.RunPath input :=
       ⟨d', fun i => p ⟨i.val + 1, by omega⟩, fun i => p.step ⟨i.val + 1, by omega⟩⟩
-    have hmidHead : pmid.head = p ⟨1, h1lt⟩ := rfl
     have hmidLast : pmid.last = p ⟨p.length - 1, hpenlt⟩ :=
-      congrArg p (Fin.ext (by change d' + 1 = p.length - 1; omega))
-    have hmidSame : SameHeightRun pmid := by
-      refine ⟨by rw [hmidHead, hmidLast, hpeneq, h1eq], fun i => ?_⟩
-      rw [hmidHead, h1eq]
-      have hilt : i.val < d' + 1 := i.isLt
-      exact hstrict ⟨i.val + 1, by omega⟩ (by change 0 < i.val + 1; omega)
-        (by change i.val + 1 < p.length; omega)
+      congrArg p (Fin.ext (by simp [pmid]; omega))
+    have hmidSame : SameHeightRun pmid :=
+      ⟨(congrArg List.length (congrArg Cfg.stack hmidLast)).trans (hpeneq.trans h1eq.symm),
+        fun i => by
+          have : i.val < d' + 1 := i.isLt
+          exact h1eq.trans_le (hstrict ⟨i.val + 1, by omega⟩ (Nat.succ_pos _)
+            (by simp; omega))⟩
     refine ⟨γ, pmid, rfl, hmidSame,
       fun _ ⟨i, hi⟩ => ⟨⟨i.val + 1, by have := i.isLt; dsimp only [pmid] at this; omega⟩, hi⟩,
-      hmidHead ▸ h1stack, hmidHead ▸ hpush, fun hpenStack => ?_⟩
+      h1stack, hpush, fun hpenStack => ?_⟩
     rw [hmidLast] at hpenStack ⊢
     cases hq : (p ⟨p.length - 1, hpenlt⟩).tapes.state with
-    | none =>
-      have heq := (step_of_halt hq).mp hstepLast
-      rw [heq] at hlastLen
-      omega
+    | none => rw [(step_of_halt hq).mp hstepLast] at hlastLen; omega
     | some q =>
       simp only [Step, hq] at hstepLast
       obtain ⟨act, htr, hact⟩ := hstepLast
@@ -553,21 +519,10 @@ theorem sameHeightRun_split_ge_two {M : AuxPDA k Bool StackSym State} {d' : ℕ}
       | pop =>
         rw [hop, hpenStack, StackOp.apply?_pop_cons, Option.some.injEq] at hstack
         subst hstack
-        have hlastStack : p.last.stack = p.head.stack := by simp [hlastCfg]
         have htopPen : (p ⟨p.length - 1, hpenlt⟩).surface.topSym = some γ := by
-          change (p ⟨p.length - 1, hpenlt⟩).stack.head? = some γ
-          rw [hpenStack]
-          rfl
-        have htr' : M.Tr q (p ⟨p.length - 1, hpenlt⟩).surface.inputSymbol
-            (p ⟨p.length - 1, hpenlt⟩).surface.workTapeSymbols (some γ) act := by
-          rw [← htopPen]
-          exact htr
-        have hsurf : p.last.surface =
-            applySurfaceTapes act.tape (p ⟨p.length - 1, hpenlt⟩).surface
-              p.head.surface.topSym := by
-          rw [hlastCfg]
-          exact surface_apply_eq_applySurfaceTapes act.tape _ p.head.stack
-        exact ⟨hlastStack, htopPen, q, act, hq, htr', hop, hsurf⟩
+          simp [Cfg.surface, Cfg.topSym, hpenStack]
+        exact ⟨by simp [hlastCfg], htopPen, q, act, hq, htopPen ▸ htr, hop,
+          hlastCfg ▸ surface_apply_eq_applySurfaceTapes act.tape _ p.head.stack⟩
 
 /-- Completeness and stack preservation for concrete same-height non-dipping runs. -/
 private theorem sameHeightRun_stack_and_realizable {M : AuxPDA k Bool StackSym State} (d : ℕ) :
@@ -578,20 +533,17 @@ private theorem sameHeightRun_stack_and_realizable {M : AuxPDA k Bool StackSym S
     intro p hlen hsame
     match d with
     | 0 =>
-      have hlast : p.last = p.head := congrArg p (Fin.ext hlen)
-      rw [hlast]
+      rw [show p.last = p.head from congrArg p (Fin.ext hlen)]
       exact ⟨rfl, .refl _⟩
     | 1 =>
       have hstep : M.Step p.head p.last := by
         have hs : M.Step (p ⟨0, by omega⟩) (p ⟨1, by omega⟩) := p.step ⟨0, by omega⟩
         have h1 : p ⟨1, by omega⟩ = p.last :=
-          congrArg p (Fin.ext (by change 1 = p.length; omega))
-        rw [h1] at hs
-        exact hs
+          congrArg p (Fin.ext (by simp; omega))
+        rwa [h1] at hs
       cases hq : p.head.tapes.state with
       | none =>
-        have heq : p.last = p.head := (step_of_halt hq).mp hstep
-        rw [heq]
+        rw [(step_of_halt hq).mp hstep]
         exact ⟨rfl, .stay (.inl ⟨hq, rfl⟩)⟩
       | some q =>
         simp only [Step, hq] at hstep
@@ -601,19 +553,15 @@ private theorem sameHeightRun_stack_and_realizable {M : AuxPDA k Bool StackSym S
         | stay =>
           rw [hop, StackOp.apply?_stay, Option.some.injEq] at hstack
           subst hstack
-          have hlastStack : p.last.stack = p.head.stack := by simp [hpLast]
-          have hsurf : p.last.surface =
-              applySurfaceTapes act.tape p.head.surface p.head.surface.topSym := by
-            rw [hpLast]
-            exact surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack
-          exact ⟨hlastStack, .stay (.inr ⟨q, act, hq, htr, hop, hsurf⟩)⟩
+          exact ⟨by simp [hpLast], .stay (.inr ⟨q, act, hq, htr, hop,
+            hpLast ▸ surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack⟩)⟩
         | push γ =>
           rw [hop, StackOp.apply?_push, Option.some.injEq] at hstack
           subst hstack; have := hsame.1; simp [hpLast] at this
         | pop =>
-          have hlenPop := stackOp_pop_length (hop ▸ hstack)
-          have hlast := hsame.1
-          simp only [hpLast] at hlast
+          have := stackOp_pop_length (hop ▸ hstack)
+          have := hsame.1
+          simp only [hpLast] at this
           omega
     | d' + 2 =>
       rcases sameHeightRun_split_ge_two p hlen hsame with
@@ -623,8 +571,8 @@ private theorem sameHeightRun_stack_and_realizable {M : AuxPDA k Bool StackSym S
           ih (p.length - j.val) (by omega) (p.drop j) (RelSeries.drop_length p j) h2
         rw [RelSeries.head_take, RelSeries.last_take] at h1Stack h1Real
         rw [RelSeries.head_drop, RelSeries.last_drop] at h2Stack h2Real
-        have hsum : j.val + (p.length - j.val) = d' + 2 := by omega
-        exact ⟨h2Stack.trans h1Stack, hsum ▸ .trans h1Real h2Real⟩
+        exact ⟨h2Stack.trans h1Stack, (show j.val + (p.length - j.val) = d' + 2 by omega) ▸
+          .trans h1Real h2Real⟩
       · obtain ⟨hmidStack, hmidReal⟩ := ih d' (by omega) pmid hmidLen hmidSame
         obtain ⟨hlastStack, hpop⟩ := hpopFn (hmidStack.trans hmidHeadStack)
         exact ⟨hlastStack, .pushPop hpush hmidReal hpop⟩
@@ -644,13 +592,10 @@ theorem realizable_iff_exists_sameHeightRun {M : AuxPDA k Bool StackSym State}
     M.Realizable input s₁ s₂ d ↔
       ∃ p : M.RunPath input, p.head = c₁ ∧ p.last.surface = s₂ ∧ p.length = d ∧
         SameHeightRun p := by
-  constructor
-  · intro h
-    obtain ⟨p, hhead, hsurf, -, hlen, hsame⟩ := h.exists_sameHeightRun hc₁
+  refine ⟨fun h => ?_, fun ⟨p, hhead, hsurf, hlen, hsame⟩ => ?_⟩
+  · obtain ⟨p, hhead, hsurf, -, hlen, hsame⟩ := h.exists_sameHeightRun hc₁
     exact ⟨p, hhead, hsurf, hlen, hsame⟩
-  · rintro ⟨p, hhead, hsurf, hlen, hsame⟩
-    have hreal := (sameHeightRun_stack_and_realizable d p hlen hsame).2
-    rwa [hhead, hc₁, hsurf] at hreal
+  · simpa only [hhead, hc₁, hsurf] using (sameHeightRun_stack_and_realizable d p hlen hsame).2
 
 /-- **Surface-pair realizability decomposition** (Ruzzo / Venkateswaran): for `d ≥ 2`, a surface
 pair `(s₁, s₂)` is realizable in `d` steps iff it either splits as a matched push-pop pair
@@ -887,6 +832,15 @@ private theorem withEmptyStackHalt_lift_running {Symbol : Type*} {input : List S
       have hstep'' : M.withEmptyStackHalt.Step r.last _ := hrLast.symm ▸ hstep'
       exact ⟨r.snoc _ hstep'', by simpa using hrHead, by simp⟩
 
+private theorem visitedByTapeHead_snoc_of_pos_eq {Symbol : Type*} {input : List Symbol}
+    {M : AuxPDA k Symbol StackSym State} {r : M.RunPath input}
+    {c : Cfg k Symbol StackSym State input} (hc : M.Step r.last c)
+    (hwp : c.tapes.workTapePos = r.last.tapes.workTapePos) (i : Fin k) :
+    RunPath.visitedByTapeHead (r.snoc c hc) i = RunPath.visitedByTapeHead r i := by
+  rw [RunPath.visitedByTapeHead_snoc, hwp, Finset.insert_eq_of_mem]
+  rw [RunPath.mem_visitedByTapeHead]
+  exact ⟨r.last, r.last_mem, rfl⟩
+
 /-- Project a computation path of `M.withEmptyStackHalt` onto a computation path `q` of `M` that
 takes no post-halting steps and visits the exact same work-tape cells. -/
 private theorem withEmptyStackHalt_project {Symbol : Type*} {input : List Symbol}
@@ -908,39 +862,36 @@ private theorem withEmptyStackHalt_project {Symbol : Type*} {input : List Symbol
     simp only [RelSeries.head_singleton] at hr
     subst hr
     refine ⟨⟨RelSeries.singleton _ (M.initCfg input), rfl⟩, 0,
-      fun i hi => by simp at hi, fun i => ?_, fun h => by simp [withEmptyStackHalt] at h,
-      fun h => by simp [withEmptyStackHalt] at h, fun s hs => ?_⟩
-    · exact Finset.image_congr fun _ _ => rfl
-    · simp only [RelSeries.last_singleton, initCfg, Cfg.init, Turing.Cfg.init, withEmptyStackHalt,
-        Option.some.injEq] at hs
-      subst hs
-      exact ⟨by ext <;> rfl, rfl⟩
+      fun _ hi => by simp at hi, fun _ => Finset.image_congr fun _ _ => rfl,
+      fun h => by simp [withEmptyStackHalt] at h,
+      fun h => by simp [withEmptyStackHalt] at h,
+      fun _ hs => ?_⟩
+    simp only [RelSeries.last_singleton, initCfg, Cfg.init, Turing.Cfg.init, withEmptyStackHalt,
+      Option.some.injEq] at hs
+    subst hs
+    exact ⟨by ext <;> rfl, rfl⟩
   | snoc r c hc ih =>
     obtain ⟨q, d, hnoPost, hvis, hnone, hdrain, hrun⟩ := ih (by simpa using hr)
     rcases withEmptyStackHalt_step_cases hc with
-      ⟨hrNone, rfl⟩ | ⟨hrDrain, hw, hwp, hip, hout, hcase⟩ | ⟨st, hrRun, hstep, q', hq'⟩
-    · refine ⟨q, d, hnoPost, fun i => ?_, fun _ => by simpa using hnone hrNone,
-        fun h => by simp [hrNone] at h, fun _ h => by simp [hrNone] at h⟩
-      rw [RunPath.visitedByTapeHead_snoc, ← hvis i, Finset.insert_eq_of_mem]
-      rw [hvis i, RunPath.mem_visitedByTapeHead]
-      exact ⟨r.last, r.last_mem, rfl⟩
+      ⟨hrNone, rfl⟩ | ⟨hrDrain, _, hwp, _, hout, hcase⟩ | ⟨st, hrRun, hstep, q', hq'⟩
+    · exact ⟨q, d, hnoPost,
+        fun i => (hvis i).trans (visitedByTapeHead_snoc_of_pos_eq hc rfl i).symm,
+        fun _ => by simpa using hnone hrNone,
+        fun h => by simp [hrNone] at h,
+        fun _ h => by simp [hrNone] at h⟩
     · obtain ⟨hqHalt, hqOut, hstEq, htmEq⟩ := hdrain hrDrain
-      have hvis' (i : Fin k) : RunPath.visitedByTapeHead q.toRunPath i =
-          RunPath.visitedByTapeHead (r.snoc c hc) i := by
-        rw [RunPath.visitedByTapeHead_snoc, hwp, ← hvis i, Finset.insert_eq_of_mem]
-        rw [hvis i, RunPath.mem_visitedByTapeHead]
-        exact ⟨r.last, r.last_mem, rfl⟩
-      rcases hcase with ⟨_, hcNone, _⟩ | ⟨γ, rest, hrStack, hcDrain, hcStack⟩
-      · refine ⟨q, d, hnoPost, hvis', fun _ => ⟨hqHalt, by simpa [hout] using hqOut⟩,
-          fun h => by simp [hcNone] at h, fun _ h => by simp [hcNone] at h⟩
-      · refine ⟨q, d + 1, hnoPost, hvis', fun h => by simp [hcDrain] at h, fun _ => ?_,
+      have hvis' (i : Fin k) := (hvis i).trans (visitedByTapeHead_snoc_of_pos_eq hc hwp i).symm
+      rcases hcase with ⟨_, hcNone, _⟩ | ⟨_, _, hrStack, hcDrain, hcStack⟩
+      · exact ⟨q, d, hnoPost, hvis', fun _ => ⟨hqHalt, by simpa [hout] using hqOut⟩,
+          fun h => by simp [hcNone] at h,
+          fun _ h => by simp [hcNone] at h⟩
+      · refine ⟨q, d + 1, hnoPost, hvis', fun h => by simp [hcDrain] at h,
+          fun _ => ⟨hqHalt, by simpa [hout] using hqOut, ?_, ?_⟩,
           fun _ h => by simp [hcDrain] at h⟩
-        refine ⟨hqHalt, by simpa [hout] using hqOut, ?_, ?_⟩
         · simp only [RelSeries.last_snoc, hcStack]
           rw [hrStack, List.length_cons] at hstEq
           omega
-        · simp only [RelSeries.snoc_length]
-          omega
+        · simp only [RelSeries.snoc_length]; omega
     · obtain ⟨hproj, htm⟩ := hrun st hrRun
       have hstep' : M.Step q.last (projectDrainCfg c) := hproj ▸ hstep
       let q'Path : M.ComputationPath input :=
@@ -954,8 +905,7 @@ private theorem withEmptyStackHalt_project {Symbol : Type*} {input : List Symbol
           have he : q'Path.toRunPath i = q.toRunPath ⟨i.val, hi'⟩ :=
             (congrArg (q.toRunPath.snoc (projectDrainCfg c) hstep') (Fin.ext rfl)).trans
               (RelSeries.snoc_castSucc q.toRunPath (projectDrainCfg c) hstep' ⟨i.val, hi'⟩)
-          rw [he]
-          exact hnoPost ⟨i.val, hi'⟩ hlt
+          exact he ▸ hnoPost ⟨i.val, hi'⟩ hlt
         · have he : q'Path.toRunPath i = q.last :=
             (congrArg (q.toRunPath.snoc (projectDrainCfg c) hstep') (Fin.ext heq)).trans
               (RelSeries.snoc_castSucc q.toRunPath (projectDrainCfg c) hstep' (Fin.last _))
@@ -963,21 +913,19 @@ private theorem withEmptyStackHalt_project {Symbol : Type*} {input : List Symbol
           simp [projectDrainCfg, Cfg.Halted, Turing.Cfg.Halted, hrRun]
       have hvis' (i : Fin k) : RunPath.visitedByTapeHead q'Path.toRunPath i =
           RunPath.visitedByTapeHead (r.snoc c hc) i := by
-        simp only [q'Path, RunPath.visitedByTapeHead_snoc, hvis i]
-        rfl
+        simp only [q'Path, RunPath.visitedByTapeHead_snoc, hvis i]; rfl
       cases q' with
       | none =>
-        refine ⟨q'Path, 0, hnoPost', hvis', fun h => by simp [hq'] at h, fun _ => ?_,
+        refine ⟨q'Path, 0, hnoPost', hvis', fun h => by simp [hq'] at h,
+          fun _ => ⟨by simp [q'Path, projectDrainCfg, Cfg.Halted, Turing.Cfg.Halted, hq'],
+            by simp [q'Path, projectDrainCfg], by simp [q'Path, projectDrainCfg], ?_⟩,
           fun _ h => by simp [hq'] at h⟩
-        refine ⟨by simp [q'Path, projectDrainCfg, Cfg.Halted, Turing.Cfg.Halted, hq'],
-          by simp [q'Path, projectDrainCfg], by simp [q'Path, projectDrainCfg], ?_⟩
         simp only [q'Path, ComputationPath.time, RunPath.time, RelSeries.snoc_length] at htm ⊢
         omega
       | some st' =>
         refine ⟨q'Path, 0, hnoPost', hvis', fun h => by simp [hq'] at h,
-          fun h => by simp [hq'] at h, fun s hs => ?_⟩
-        simp only [RelSeries.last_snoc] at hs
-        refine ⟨by simp [q'Path], ?_⟩
+          fun h => by simp [hq'] at h,
+          fun _ _ => ⟨by simp [q'Path], ?_⟩⟩
         simp only [q'Path, ComputationPath.time, RunPath.time, RelSeries.snoc_length] at htm ⊢
         omega
 
@@ -990,8 +938,7 @@ theorem withEmptyStackHalt_runsInSpace {Symbol : Type*} {input : List Symbol} {s
   have hspace : p.space = q.space := by
     simp only [ComputationPath.space, RunPath.space, RunPath.spaceUsedByTape]
     exact Finset.sum_congr rfl fun i _ => congrArg Finset.card (hvis i).symm
-  rw [hspace]
-  exact h q
+  exact hspace ▸ h q
 
 /-- `withEmptyStackHalt` preserves all-branches time bounds with at most `2 * t + 1` steps. -/
 theorem withEmptyStackHalt_runsInTime {Symbol : Type*} {input : List Symbol} {t : ℕ}
@@ -1005,10 +952,8 @@ theorem withEmptyStackHalt_runsInTime {Symbol : Type*} {input : List Symbol} {t 
     have htlt : t < q.length + 1 := by simp only [ComputationPath.time, RunPath.time] at hgt; omega
     let qt : M.ComputationPath input :=
       ⟨q.toRunPath.take ⟨t, htlt⟩, by rw [RelSeries.head_take]; exact q.head_eq⟩
-    have hqt : qt.last.Halted := h qt (by simp [qt, ComputationPath.time, RunPath.time])
-    have hlast : qt.last = q.toRunPath ⟨t, htlt⟩ := RelSeries.last_take _ _
-    exact hnoPost ⟨t, htlt⟩ (by simp only [ComputationPath.time, RunPath.time] at hgt; exact hgt)
-      (hlast ▸ hqt)
+    exact hnoPost ⟨t, htlt⟩ hgt
+      ((RelSeries.last_take _ _) ▸ h qt (by simp [qt, ComputationPath.time, RunPath.time]))
   cases hs : p.last.tapes.state with
   | none => exact hs
   | some qs =>
@@ -1016,12 +961,10 @@ theorem withEmptyStackHalt_runsInTime {Symbol : Type*} {input : List Symbol} {t 
     | none =>
       obtain ⟨-, -, hstEq, htmEq⟩ := hdrain hs
       have hstack := q.stackHeight_le
-      simp only [ComputationPath.time, RunPath.time] at hp hqTime hstack htmEq
-      omega
+      simp only [ComputationPath.time, RunPath.time] at hp hqTime hstack htmEq; omega
     | some st =>
-      obtain ⟨hproj, htm⟩ := hrun st hs
-      simp only [ComputationPath.time, RunPath.time] at hp hqTime htm
-      omega
+      obtain ⟨_, htm⟩ := hrun st hs
+      simp only [ComputationPath.time, RunPath.time] at hp hqTime htm; omega
 
 /-- `withEmptyStackHalt` preserves acceptance exactly. -/
 theorem withEmptyStackHalt_accepts_iff {M : AuxPDA k Bool StackSym State} :
@@ -1029,22 +972,17 @@ theorem withEmptyStackHalt_accepts_iff {M : AuxPDA k Bool StackSym State} :
   constructor
   · rintro ⟨p, hhalt, hout⟩
     obtain ⟨q, -, -, -, hnone, -, -⟩ := withEmptyStackHalt_project p.toRunPath p.head_eq
-    obtain ⟨hqHalt, hqOut⟩ := hnone hhalt
-    exact ⟨q, hqHalt, hqOut.trans hout⟩
+    exact ⟨q, (hnone hhalt).1, (hnone hhalt).2.trans hout⟩
   · rintro ⟨p, hhalt, hout⟩
     obtain ⟨qrun, hhead, hlast, -, -⟩ := RunPath.exists_running p.toRunPath hhalt
     obtain ⟨r, hrHead, hrLast⟩ := withEmptyStackHalt_lift_running M qrun
     have hrDrainState : r.last.tapes.state = some none := by
-      rw [hrLast, hlast]
-      simp only [liftCfgToDrain, Turing.Cfg.mapState_state]
-      rw [hhalt]
+      simp only [hrLast, hlast, liftCfgToDrain, Turing.Cfg.mapState_state, hhalt]
     obtain ⟨qdrain, hdHead, -, hdHalt, -, hdOut⟩ :=
       withEmptyStackHalt_drain_from M r.last hrDrainState
     let full : M.withEmptyStackHalt.RunPath input := r.smash qdrain hdHead.symm
-    have hfullHead : full.head = M.withEmptyStackHalt.initCfg input := by
-      rw [RelSeries.head_smash, hrHead, hhead, p.head_eq]
-      rfl
-    refine ⟨⟨full, hfullHead⟩, by simpa [full] using hdHalt, ?_⟩
+    refine ⟨⟨full, by rw [RelSeries.head_smash, hrHead, hhead, p.head_eq]; rfl⟩,
+      by simpa [full] using hdHalt, ?_⟩
     rw [show full.last = qdrain.last from RelSeries.last_smash hdHead.symm, hdOut, hrLast, hlast]
     exact hout
 
@@ -1092,8 +1030,7 @@ theorem encard_reachable_surfaceCfg_le [Fintype StackSym] [Fintype State]
     {M : AuxPDA k Bool StackSym State} {s : ℕ} (hs : M.RunsInSpace input s) :
     (Set.range fun p : M.ComputationPath input => p.last.surface).encard ≤
       surfaceCfgBound StackSym State k input.length (k * s) := by
-  have hsum : ∑ _ : Fin k, s ≤ k * s := by simp
-  refine le_trans (Set.encard_le_encard ?_) (encard_surfaceCfg_fitsIn_le hsum)
+  refine (Set.encard_le_encard ?_).trans (encard_surfaceCfg_fitsIn_le (w := fun _ => s) (by simp))
   rintro _ ⟨p, rfl⟩
   have hle : ∀ i, p.spaceUsedByTape i ≤ s := fun i =>
     (Finset.single_le_sum (fun j _ => Nat.zero_le (p.spaceUsedByTape j)) (Finset.mem_univ i)).trans

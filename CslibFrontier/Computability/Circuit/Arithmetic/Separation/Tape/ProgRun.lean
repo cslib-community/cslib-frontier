@@ -59,10 +59,8 @@ private theorem ofFn_getElem? {Ω : Type*} (w : List Ω) (t : ℕ) (h : w.length
 theorem emit_idle {Γ S J : Type*} [DecidableEq S] [DecidableEq J]
     (w : List (Ch S J × Γ)) (j : ℕ) :
     emit (w.map some ++ List.replicate j none) = proj w := by
-  have hred : (w.map some ++ List.replicate j none).reduceOption = w := by
-    rw [List.reduceOption_append]
-    simp [List.reduceOption]
-  rw [emit, hred]
+  rw [emit, List.reduceOption_append]
+  simp [List.reduceOption]
 
 section Runs
 
@@ -81,11 +79,9 @@ theorem exists_run {n : ℕ} {P : Series F (Ch S J × Γ)} (hP : RatLe n P) :
             hat P (tup W u) := by
   obtain ⟨Q, i1, i2, mu, i, e, hcard, hmu⟩ := hP.idle.normal
   refine ⟨Q, i1, i2, mu, i, e, hcard, fun t ht u => ?_⟩
-  have hne : ∀ o : Fin t → Letter S J Γ, List.ofFn o ≠ [] := by
-    intro o h
-    have hlen := congrArg List.length h
-    simp at hlen
-    omega
+  have hne (o : Fin t → Letter S J Γ) (h : List.ofFn o = []) : False := by
+    have := congrArg List.length h
+    simp at this; omega
   rw [runVal, Finset.sum_congr rfl fun o _ => by rw [hmu _ (hne o)]]
   simp only [hat]
   rw [Finset.sum_sigma']
@@ -97,27 +93,18 @@ theorem exists_run {n : ℕ} {P : Series F (Ch S J × Γ)} (hP : RatLe n P) :
       rw [← sum_length_proj w, hx.2, sum_length_tup]; exact hx.1.2
     have l2 : w'.length ≤ t := by
       rw [← sum_length_proj w', hx'.2, sum_length_tup]; exact hx'.1.2
-    have hw : w = w' := by
-      apply List.ext_getElem?
-      intro k
+    obtain rfl : w = w' := List.ext_getElem? fun k => by
       by_cases hk : k < t
       · exact congrFun h ⟨k, hk⟩
       · rw [List.getElem?_eq_none (by omega), List.getElem?_eq_none (by omega)]
-    subst hw
-    have hW : W = W' := by
-      funext s
-      exact congrFun (hx.2.symm.trans hx'.2) (.tp s false)
-    rw [hW]
+    obtain rfl : W = W' := funext fun s => congrFun (hx.2.symm.trans hx'.2) (.tp s false)
+    rfl
   · intro o _ ho
     by_contra hcon
-    have hm : Matched (List.ofFn o) u := by
-      by_contra hm
-      exact hcon (ite_eq_right hm)
+    have hm : Matched (List.ofFn o) u := of_not_not fun hm => hcon (ite_eq_right hm)
     rw [ite_eq_left hm] at hcon
     obtain ⟨w, j, hw⟩ := idle_ne_zero P _ hcon
-    have hlen : w.length + j = t := by
-      have := congrArg List.length hw
-      simpa using this.symm
+    have hlen : w.length + j = t := by simpa using (congrArg List.length hw).symm
     apply ho
     have hproj : proj w = tup (fun s => proj w (.tp s false)) u := by
       rw [Matched, hw, emit_idle] at hm

@@ -120,23 +120,15 @@ variable {enc : α ↪ List Bool}
 
 /-- **Exact quantum time is nondeterministic quantum time**: a probability that is `0` or `1` is
 positive exactly when it is `1`. -/
-theorem EQTIME_subset_NQTIME (t : ℕ → ℕ) : EQTIME enc t ⊆ NQTIME enc t := by
-  rintro A ⟨F, c₁, c₂, hgates, hF⟩
-  refine ⟨F, c₁, c₂, hgates, fun a => ⟨fun ha => ?_, fun hp => ?_⟩⟩
-  · rw [(hF a).1 ha]
-    exact one_pos
-  · by_contra ha
-    rw [(hF a).2 ha] at hp
-    exact lt_irrefl 0 hp
+theorem EQTIME_subset_NQTIME (t : ℕ → ℕ) : EQTIME enc t ⊆ NQTIME enc t :=
+  fun _ ⟨F, c₁, c₂, hg, hF⟩ =>
+  ⟨F, c₁, c₂, hg, fun a => ⟨fun ha => (hF a).1 ha ▸ one_pos,
+    fun hp => by_contra fun ha => lt_irrefl (0 : ℝ) ((hF a).2 ha ▸ hp)⟩⟩
 
 /-- **Exact quantum time is bounded-error quantum time.** -/
-theorem EQTIME_subset_BQTIME (t : ℕ → ℕ) : EQTIME enc t ⊆ BQTIME enc t := by
-  rintro A ⟨F, c₁, c₂, hgates, hF⟩
-  refine ⟨F, c₁, c₂, hgates, fun a => ⟨fun ha => ?_, fun ha => ?_⟩⟩
-  · rw [(hF a).1 ha]
-    norm_num
-  · rw [(hF a).2 ha]
-    norm_num
+theorem EQTIME_subset_BQTIME (t : ℕ → ℕ) : EQTIME enc t ⊆ BQTIME enc t :=
+  fun _ ⟨F, c₁, c₂, hg, hF⟩ => ⟨F, c₁, c₂, hg, fun a =>
+    ⟨fun ha => (hF a).1 ha ▸ by norm_num, fun ha => (hF a).2 ha ▸ by norm_num⟩⟩
 
 /-- Every `BQTIME` class lies in `BQP`. -/
 theorem BQTIME_subset_BQP (t : ℕ → ℕ) : BQTIME enc t ⊆ BQP enc :=
@@ -145,8 +137,7 @@ theorem BQTIME_subset_BQP (t : ℕ → ℕ) : BQTIME enc t ⊆ BQP enc :=
 /-- **`BQP` is the union of the polynomial quantum time classes** `BQTIME[n ^ k]`: the circuits of
 a polynomial-time uniform family have polynomially many gates. -/
 theorem BQP_eq_iUnion_BQTIME : BQP enc = ⋃ k : ℕ, BQTIME enc fun n => n ^ k := by
-  refine Set.Subset.antisymm (fun A ⟨F, hF⟩ => ?_)
-    (Set.iUnion_subset fun k => BQTIME_subset_BQP _)
+  refine Set.Subset.antisymm (fun A ⟨F, hF⟩ => ?_) (Set.iUnion_subset fun _ => BQTIME_subset_BQP _)
   obtain ⟨c, d, hc⟩ := F.computableInPolyTime_gates.polyBounded_length.exists_le
   refine Set.mem_iUnion.mpr ⟨d, F, c * 2 ^ d, c, fun n => ?_, hF⟩
   have h1 := (Turing.MultiTapeTM.length_le_length_encList encGateCode (F.gates n)).trans (hc n)

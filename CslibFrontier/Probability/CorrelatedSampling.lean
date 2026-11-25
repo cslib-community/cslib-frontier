@@ -153,72 +153,51 @@ theorem map_firstIn_weightedOrderAux (w : Ω → ℝ≥0) :
           rw [inter_erase, erase_eq_of_notMem fun h => haR (mem_inter.mp h).1]
         rw [ite_eq_right haR, show firstIn R ∘ (a :: ·) = firstIn R from
           funext fun l => by simp [firstIn_cons, haR],
-          map_firstIn_weightedOrderAux w m (U.erase a) R (by rw [card_erase_of_mem haU]; omega)
+          map_firstIn_weightedOrderAux w m (U.erase a) R (by rw [card_erase_of_mem haU]; lia)
             (hRU ▸ hR)]
         simp only [hRU]
     rw [Cslib.Probability.PMF.bind_congr_on_support _ _ _ hcont]
-    have hrhs : ∀ c, (PMF.map some (weightedDraw w (R ∩ U) hR)) (some c) =
-        weightedDraw w (R ∩ U) hR c := fun c => by
-      rw [PMF.map_apply, tsum_fintype]
-      simp
+    set draw := weightedDraw w U hU0
+    set restricted := weightedDraw w (R ∩ U) hR
+    set weightU := ∑ a ∈ U, (w a : ℝ≥0∞)
+    set weightR := ∑ a ∈ R ∩ U, (w a : ℝ≥0∞)
+    have hweightR : weightR ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
+    have hcancel := ENNReal.inv_mul_cancel hR hweightR
+    -- Inside the region, the original and restricted draws differ by one normalization factor.
+    have hhit (a : Ω) : (if a ∈ R then draw a else 0) =
+        restricted a * (weightR * weightU⁻¹) := by
+      by_cases haR : a ∈ R <;> by_cases haU : a ∈ U
+      · simp only [draw, restricted, weightedDraw_apply, haR, haU, mem_inter, and_self,
+          ↓reduceIte]
+        rw [mul_assoc, ← mul_assoc weightR⁻¹, hcancel, one_mul]
+      all_goals simp [draw, restricted, weightedDraw_apply, haR, haU]
+    have sum_draw (p : PMF Ω) : ∑ a, p a = 1 := (tsum_fintype p).symm.trans p.tsum_coe
+    have hmass : weightR * weightU⁻¹ + ∑ a, (if a ∈ R then 0 else draw a) = 1 := by
+      have hsum : ∑ a, (if a ∈ R then draw a else 0) = weightR * weightU⁻¹ := by
+        simp only [hhit, ← sum_mul, sum_draw, one_mul]
+      rw [← hsum, ← sum_add_distrib, ← sum_draw draw]
+      exact sum_congr rfl fun a _ => by split_ifs <;> simp
     ext o
     rcases o with _ | c
     · rw [PMF.bind_apply, PMF.map_apply]
       simp only [reduceCtorEq, ite_false, tsum_zero]
       refine tsum_eq_zero_iff.mpr fun a => ?_
       split_ifs <;> simp [PMF.map_apply]
-    rw [PMF.bind_apply, tsum_fintype, hrhs]
-    set du := weightedDraw w U hU0
-    set D := weightedDraw w (R ∩ U) hR
-    by_cases hc : c ∈ R ∩ U
-    · set WU := ∑ b ∈ U, (w b : ℝ≥0∞)
-      set WRU := ∑ b ∈ R ∩ U, (w b : ℝ≥0∞)
-      have hterm : ∀ a, du a *
-          (if a ∈ R then PMF.pure (some a) else PMF.map some D) (some c) =
-          (if a = c then (w c : ℝ≥0∞) * WU⁻¹ else 0) +
-            (if a ∈ U.filter (· ∉ R) then (w a : ℝ≥0∞) * WU⁻¹ * ((w c : ℝ≥0∞) * WRU⁻¹)
-              else 0) := by
-        intro a
-        by_cases haR : a ∈ R
-        · rw [ite_eq_left haR, PMF.pure_apply]
-          by_cases hac : a = c
-          · subst hac
-            simp only [weightedDraw_apply, (mem_inter.mp hc).2, ↓reduceIte, mul_one, mem_filter,
-              haR, not_true_eq_false, and_false, add_zero, du]
-            rfl
-          · simp [hac, Ne.symm hac, haR]
-        · rw [ite_eq_right haR, hrhs]
-          have hac : a ≠ c := fun h => haR (h ▸ (mem_inter.mp hc).1)
-          by_cases haU : a ∈ U
-          · simp [du, D, weightedDraw_apply, hac, haR, haU, hc, WU, WRU]
-          · simp [du, weightedDraw_apply, hac, haU]
-      rw [sum_congr rfl fun a _ => hterm a, sum_add_distrib, sum_ite_eq', ite_eq_left (mem_univ _),
-        sum_ite_mem, univ_inter, ← sum_mul, ← sum_mul]
-      have hsplit : WU = WRU + ∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞) := by
-        simp only [WU, WRU]
-        rw [← sum_filter_add_sum_filter_not U (· ∈ R), filter_mem_eq_inter, inter_comm]
-      have hWU : WU ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
-      have hWRU : WRU ≠ ⊤ := ENNReal.sum_ne_top.mpr fun _ _ => ENNReal.coe_ne_top
-      have h1 : WRU * WRU⁻¹ = 1 := ENNReal.mul_inv_cancel hR hWRU
-      have h2 : WU⁻¹ * WU = 1 := ENNReal.inv_mul_cancel hU0 hWU
-      rw [show D c = (w c : ℝ≥0∞) * WRU⁻¹ by simp [D, weightedDraw_apply, hc, WRU]]
-      calc (w c : ℝ≥0∞) * WU⁻¹ + (∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞)) * WU⁻¹ *
-            ((w c : ℝ≥0∞) * WRU⁻¹)
-          = (w c : ℝ≥0∞) * WRU⁻¹ * (WU⁻¹ * (WRU + ∑ b ∈ U.filter (· ∉ R), (w b : ℝ≥0∞))) := by
-            rw [← mul_one ((w c : ℝ≥0∞) * WU⁻¹), ← h1]
-            ring
-        _ = (w c : ℝ≥0∞) * WRU⁻¹ := by rw [← hsplit, h2, mul_one]
-    · have hDc : D c = 0 := by simp [D, weightedDraw_apply, hc]
-      rw [hDc]
-      refine sum_eq_zero fun a _ => ?_
-      by_cases haR : a ∈ R
-      · rw [ite_eq_left haR, PMF.pure_apply]
-        by_cases hac : c = a
-        · subst hac
-          have hcU : c ∉ U := fun hcU => hc (mem_inter.mpr ⟨haR, hcU⟩)
-          simp [du, weightedDraw_apply, hcU]
-        · simp [hac]
-      · rw [ite_eq_right haR, hrhs, hDc, mul_zero]
+    have hsome : (restricted.map some) (some c) = restricted c := by
+      simp [PMF.map_apply]
+    rw [PMF.bind_apply, tsum_fintype, hsome]
+    -- A hit contributes only at the target, while a miss restarts the restricted draw.
+    have hterm (a : Ω) : draw a *
+        (if a ∈ R then PMF.pure (some a) else restricted.map some) (some c) =
+        (if c = a then (if c ∈ R then draw a else 0) else 0) +
+          (if a ∈ R then 0 else draw a) * restricted c := by
+      by_cases h : c = a
+      · subst a
+        by_cases hc : c ∈ R <;> simp [hc, hsome, PMF.pure_apply]
+      · by_cases ha : a ∈ R <;> simp [h, ha, hsome, PMF.pure_apply]
+    rw [sum_congr rfl fun a _ => hterm a, sum_add_distrib, sum_ite_eq,
+      ite_eq_left (mem_univ _), hhit, ← sum_mul, mul_comm (restricted c),
+      ← add_mul, hmass, one_mul]
 
 /-- In a weighted order of all elements, the first element of `R` is distributed as a single
 weighted draw from `R`. -/

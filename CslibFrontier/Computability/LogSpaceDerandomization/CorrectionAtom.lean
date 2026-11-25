@@ -98,13 +98,9 @@ theorem card_filter_le_card_filter_mul_le {ι : Type*} (X : ι → V → Prop) [
     exact sum_comm
   have hterm : ∀ w ∈ D, (#{s ∈ S | X s w} : ℝ) ≤ (if x = w then (#S : ℝ) else 0) + p * #S := by
     intro w hw
-    by_cases hxw : x = w
-    · have hle : (#{s ∈ S | X s w} : ℝ) ≤ #S := by exact_mod_cast card_filter_le _ _
-      have : 0 ≤ p * #S := by positivity
-      simp only [hxw, ↓reduceIte]
-      linarith
-    · simp only [hxw, ↓reduceIte, zero_add]
-      exact hpair w hw (Ne.symm hxw)
+    split_ifs with hxw
+    · exact (Nat.cast_le.mpr (card_filter_le _ _)).trans (le_add_of_nonneg_right (by positivity))
+    · simpa only [zero_add] using hpair w hw (Ne.symm hxw)
   calc (#{s ∈ S | K ≤ #{w ∈ D | X s w}} : ℝ) * K
       ≤ ∑ w ∈ D, ((if x = w then (#S : ℝ) else 0) + p * #S) :=
         hMarkov.trans (hswap ▸ sum_le_sum hterm)
@@ -290,10 +286,7 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
   by_cases hz : Q (G x y / f) * g₀ y = 0
   · rw [hz]
     refine expect_eq_zero fun d _ => ?_
-    rw [correctionAtom]
-    split_ifs
-    · rcases mul_eq_zero.mp hz with h0 | h0 <;> simp [h0]
-    · rfl
+    rcases mul_eq_zero.mp hz with h0 | h0 <;> simp [correctionAtom, h0]
   obtain ⟨hQ0, hg0⟩ := mul_ne_zero_iff.mp hz
   have hh1 : h (G x y / f) = 1 := hQh _ hQ0
   have hSxr : (0 : ℝ) < #Sx := by exact_mod_cast hSx.card_pos

@@ -252,26 +252,24 @@ omit [DecidableEq State] in
 private theorem resolve_prev_lt (ht : 1 ≤ t) {l' : Loc k State} {cs : ColSel} {g : Guard}
     (h : g.test n T c = true → cs.apply T c < numCols T) :
     (Ref.node true l' cs g).resolve n T t c < wire n T t l c := by
-  simp only [Ref.resolve, ↓reduceIte]
+  simp only [Ref.resolve, wire, ↓reduceIte]
   split_ifs with hg
   · have := Loc.offset_lt_of_lt (l := l') (h hg)
-    simp only [wire]
     have : (t - 1) * blockSize k State T + blockSize k State T = t * blockSize k State T := by
       rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel ht]
     omega
-  · simp only [wire]; omega
+  · omega
 
 omit [DecidableEq State] in
 /-- A reference to an earlier position of the current block reads an earlier wire. -/
 private theorem resolve_cur_lt {l' : Loc k State} {cs : ColSel} {g : Guard}
     (h : g.test n T c = true → l'.offset T (cs.apply T c) < l.offset T c) :
     (Ref.node false l' cs g).resolve n T t c < wire n T t l c := by
-  simp only [Ref.resolve, Bool.false_eq_true, ↓reduceIte]
+  simp only [Ref.resolve, wire, Bool.false_eq_true, ↓reduceIte]
   split_ifs with hg
   · have := h hg
-    simp only [wire]
     omega
-  · simp only [wire]; omega
+  · omega
 
 end Earlier
 
@@ -490,8 +488,7 @@ earlier wires. -/
 theorem gateCode_wf {n T g : ℕ} (hg : g < numGates k State T) :
     (gateCode tm n T g).2.length = signature.Arity (gateCode tm n T g).1 ∧
       ∀ i ∈ (gateCode tm n T g).2, i < n + g := by
-  have h := (isCodeFrom_gates tm n T).getElem g (by simpa [gates] using hg)
-  simpa [gates] using h
+  simpa [gates] using (isCodeFrom_gates tm n T).getElem g (by simpa [gates] using hg)
 
 omit [DecidableEq State] in
 /-- The output wire index is strictly less than the total number of wires
@@ -509,9 +506,7 @@ theorem isSome_ofCode (n T : ℕ) :
     (Circuit.ofCode n 1 (gates tm n T, [outWire k State n T]) :
       Option (Circuit signature n 1)).isSome := by
   rw [Circuit.isSome_ofCode_iff]
-  refine ⟨isCodeFrom_gates tm n T, rfl, fun i hi => ?_⟩
-  simp only [List.mem_singleton] at hi
-  subst hi
+  refine ⟨isCodeFrom_gates tm n T, rfl, ?_⟩
   simpa [gates] using outWire_lt (k := k) (State := State) n T
 
 /-- **The tableau circuit** of `tm` for `T` steps on inputs of length `n`. -/

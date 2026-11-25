@@ -135,17 +135,16 @@ theorem isCostBounded_bcsMTCost_bcsVerifyROM (iop : PublicCoinIOP r d Stmt Wit S
     IsCostBounded bcsMTCost (bcsVerifyROM iop encSym x prf)
       (bcsOpeningsMerkleQueries prf.openings) := by
   refine isCostBounded_bcsMTCost_bcsVerifyROM_of_le iop encSym x prf fun chals => ?_
-  have htake : ∀ (qs : List (Fin r × Fin (2 ^ d))) (ops : List (MerkleOpening Sym)),
-      ((qs.zip ops).map fun (_, o) => o.path.length + 1).sum ≤ bcsOpeningsMerkleQueries ops := by
-    intro qs
-    induction qs with
-    | nil => intro _; exact Nat.zero_le _
-    | cons _ _ ih =>
-      intro ops; cases ops with
-      | nil => exact le_rfl
-      | cons op _ =>
-        exact Nat.add_le_add_left (ih _) (op.path.length + 1)
-  exact htake _ _
+  suffices ∀ (qs : List (Fin r × Fin (2 ^ d))) (ops : List (MerkleOpening Sym)),
+      ((qs.zip ops).map fun (_, o) => o.path.length + 1).sum ≤ bcsOpeningsMerkleQueries ops from
+    this _ _
+  intro qs
+  induction qs with
+  | nil => exact fun _ => Nat.zero_le _
+  | cons _ _ ih =>
+    rintro (_ | ⟨op, _⟩)
+    · exact le_rfl
+    · exact Nat.add_le_add_left (ih _) _
 
 /-- If `iop.queries x chals` makes at most `q_iop` oracle queries for every `chals` and every
 authentication path in `prf.openings` has length at most `L_path`, then
@@ -161,11 +160,13 @@ theorem isCostBounded_bcsMTCost_bcsVerifyROM_of_queries_le
       ≤ ((iop.queries x chals).zip prf.openings).length * (L_path + 1) := by
         simpa [List.length_map] using List.sum_le_length_nsmul
           (((iop.queries x chals).zip prf.openings).map fun (_, o) => o.path.length + 1)
-          (L_path + 1) fun x hx => by
+          (L_path + 1) fun _ hx => by
             rcases List.mem_map.mp hx with ⟨p, hp, rfl⟩
             exact Nat.add_le_add_right (hops p.2 (List.of_mem_zip hp).2) 1
-    _ ≤ q_iop * (L_path + 1) :=
-        Nat.mul_le_mul_right _ (by rw [List.length_zip]; exact (Nat.min_le_left _ _).trans (hqs _))
+    _ ≤ q_iop * (L_path + 1) := by
+        refine Nat.mul_le_mul_right _ ?_
+        rw [List.length_zip]
+        exact (Nat.min_le_left _ _).trans (hqs _)
 
 end CostBounds
 
@@ -227,9 +228,7 @@ private theorem validFSChain_of_mem_support_bcsChallengesProg
       ((OracleComp.interpret (memoize (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal))
         (bcsChallengesProg x roots)).run tr_FS).support) :
     ValidFSChain tr_FS' x (List.ofFn roots) (List.ofFn chals) := by
-  have htake : (List.ofFn roots).take r = List.ofFn roots :=
-    List.take_of_length_le (by simp)
-  simpa only [htake] using
+  simpa only [List.take_of_length_le (by simp : (List.ofFn roots).length ≤ r)] using
     validFSChain_of_mem_support_bcsChallengesAuxProg x roots r le_rfl hnodup hsupp hmem
 
 /-- Core trace soundness/consistency lemma for `bcsVerifyROM`: when `bcsVerifyROM iop encSym x prf`
@@ -261,19 +260,16 @@ private theorem exists_validFSChain_and_iopVerify_of_mem_support_bcsVerifyROM
     ⟨_, ⟨⟨chals', tr_FS₂'⟩, hch_mem, rfl⟩, hMT_call⟩
   supp_cases hMT_call [RandomOracle.run_interpret_memoizeSum_liftLeft] with
     ⟨⟨_, tr_MT₃'⟩, hmt_mem, rfl, rfl, rfl⟩
-  obtain ⟨-, hnodup_FS₂, -, heval_FS⟩ := mem_support_run_memoize_invariant
-    (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
+  obtain ⟨-, hnodup_FS₂, -, heval_FS⟩ := mem_support_run_memoize_invariant _
     (bcsChallengesProg x prf.roots) hnodup_FS₁ hsupp_FS₁ hch_mem
-  obtain ⟨-, hnodup_MT₃, -, heval_MT⟩ := mem_support_run_memoize_invariant
-    (fun _ : List Bool => BitString.uniformList σ)
+  obtain ⟨-, hnodup_MT₃, -, heval_MT⟩ := mem_support_run_memoize_invariant _
     (bcsVerifyOpeningsProg iop encSym x prf chals') hnodup_MT₁ hsupp_MT₁ hmt_mem
-  set hTree : List Bool → List Bool := fun q => (tr_MT₃'.lookup q).getD []
   have hcons_MT := traceConsistentWith_lookup_of_nodup tr_MT₃' [] hnodup_MT₃
   let dChal : Chal := Classical.choice ‹Nonempty Chal›
-  set f : BCSFSQuery Stmt Chal → Chal := fun fsq => (tr_FS₂'.lookup fsq).getD dChal
-  have hchals_eq : chals' = bcsChallenge (chainedFS f) x prf.roots := by
+  have hchals_eq : chals' =
+      bcsChallenge (chainedFS fun q => (tr_FS₂'.lookup q).getD dChal) x prf.roots := by
     simpa only [evalPure_bcsChallengesProg] using
-      heval_FS f (traceConsistentWith_lookup_of_nodup tr_FS₂' dChal hnodup_FS₂)
+      heval_FS _ (traceConsistentWith_lookup_of_nodup tr_FS₂' dChal hnodup_FS₂)
   refine ⟨chals',
     validFSChain_of_mem_support_bcsChallengesProg x prf.roots hnodup_FS₁ hsupp_FS₁ hch_mem, ?_⟩
   supp_cases hmt_mem [bcsVerifyOpeningsProg, run_interpret_bind, run_interpret_pure] with
@@ -285,7 +281,7 @@ private theorem exists_validFSChain_and_iopVerify_of_mem_support_bcsVerifyROM
       (fun (_, o) => encSym o.leaf) (fun (_, o) => o.path) (fun ⟨⟨_, _⟩, ⟨_, _⟩⟩ => rfl)
       hcons_MT _ (hchals_eq ▸ hq)) ?_
   simpa only [bcsVerify, evalPure_bcsVerifyOpeningsProg, hchals_eq] using
-    (heval_MT hTree hcons_MT).symm
+    (heval_MT _ hcons_MT).symm
 
 /-- An accepting verification that ends in a good state yields a doomed accepted IOP transcript:
 if a prover run from `([], [])` reaches `st₁`, `bcsVerifyROM iop encSym x prf` accepts from `st₁`
@@ -310,9 +306,7 @@ private theorem exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM
         (bcsExtractOracles decSym defaultSym st₃.1 d prf.roots j, chals j)) ∧
       iopVerify iop x chals (bcsExtractOracles decSym defaultSym st₃.1 d prf.roots) = true := by
   obtain ⟨⟨hnodup_MT, hsupp_MT⟩, hnodup_FS, hsupp_FS⟩ :=
-    RandomOracle.mem_support_run_interpret_memoizeSum
-      (fun _ : List Bool => BitString.uniformList σ)
-      (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
+    RandomOracle.mem_support_run_interpret_memoizeSum _ _
       (fun tr => (tr.map Prod.fst).Nodup ∧ ∀ e ∈ tr, e.2 ∈ (BitString.uniformList σ).support)
       (fun tr => (tr.map Prod.fst).Nodup ∧ ∀ e ∈ tr, e.2 ∈ (PMF.uniformOfFintype Chal).support)
       (fun q _ _ _ h hmem => (mem_support_memoize_nodup _ q h.1 h.2 hmem).2.2)
@@ -321,9 +315,8 @@ private theorem exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM
   obtain ⟨chals, hchain, hacc⟩ :=
     exists_validFSChain_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ x prf
       hnodup_MT hsupp_MT hnodup_FS hsupp_FS hV hgood.1
-  refine ⟨chals, hchain, ?_, hacc⟩
-  rw [← bcsExtractTranscript_ofFn]
-  exact hgood.2 x hx (List.ofFn prf.roots) (List.ofFn chals) (by simp) hchain
+  exact ⟨chals, hchain, bcsExtractTranscript_ofFn .. ▸
+    hgood.2 x hx _ _ (by simp) hchain, hacc⟩
 
 end SupportInvariants
 

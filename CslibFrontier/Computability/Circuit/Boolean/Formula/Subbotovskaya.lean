@@ -146,18 +146,17 @@ theorem IsLeafMinimal.arg {op : Op} {args : Fin (signature.Arity op) → Formula
       ((gate op args).eval interpretation) := fun x => by
     simp only [eval_gate]
     congr 1 with k : 1
-    by_cases hk : k = j
-    · subst hk
-      simpa using hG x
+    rcases eq_or_ne k j with rfl | hk
+    · simpa using hG x
     · simp [hk]
   have hle := hF (gate op (update args j G)) hcomp
   simp only [leafSize_gate] at hle
-  have hsum1 := add_sum_erase univ (fun k => (args k).leafSize) (mem_univ j)
-  have hsum2 := add_sum_erase univ (fun k => (update args j G k).leafSize) (mem_univ j)
   have heq : ∑ k ∈ univ.erase j, (update args j G k).leafSize =
       ∑ k ∈ univ.erase j, (args k).leafSize :=
     sum_congr rfl fun k hk => by simp [ne_of_mem_erase hk]
-  rw [← hsum1, ← hsum2, update_self, heq] at hle
+  rw [← add_sum_erase univ (fun k => (args k).leafSize) (mem_univ j),
+    ← add_sum_erase univ (fun k => (update args j G k).leafSize) (mem_univ j),
+    update_self, heq] at hle
   omega
 
 theorem IsLeafMinimal.of_not {F : Formula signature n} (h : F.not.IsLeafMinimal) :
@@ -200,12 +199,8 @@ private theorem exists_restrictAt_eq_const_of_leafSize_eq_one {G : Formula signa
   change G.restrictAt i false = const c₀ at hc₀
   change G.restrictAt i true = const c₁ at hc₁
   have heval (x : BitString n) : G.eval interpretation x = if x i then c₁ else c₀ := by
-    have hx : G.eval interpretation (update x i (x i)) = G.eval interpretation x := by
-      rw [update_eq_self]
-    rw [← hx, ← eval_restrictAt]
-    cases x i
-    · rw [hc₀, eval_const]; rfl
-    · rw [hc₁, eval_const]; rfl
+    conv_lhs => rw [← update_eq_self i x, ← eval_restrictAt]
+    cases x i <;> simp [hc₀, hc₁]
   have hne : c₀ ≠ c₁ := by
     rintro rfl
     have := hG (const c₀) fun x => by rw [eval_const, heval]; cases x i <;> rfl
@@ -275,11 +270,8 @@ theorem IsLeafMinimal.leafSize_restrictAt_false_add_true_le {F : Formula signatu
     | const c => simp [restrictAt, restrict]
     | not =>
       rw [gate_not_eq] at hF hnu ⊢
-      have hnu' : ¬ ((args 0).leafSize = 1 ∧ (args 0).leafSizeIn {i} = 1) := by simpa using hnu
-      have h0 := ih 0 hF.of_not hnu'
-      rw [restrictAt_not, restrictAt_not, leafSize_mkNot, leafSize_mkNot, leafSize_not,
-        leafSizeIn_not]
-      exact h0
+      simpa only [restrictAt_not, leafSize_mkNot, leafSize_not, leafSizeIn_not] using
+        ih 0 hF.of_not (by simpa only [leafSize_not, leafSizeIn_not] using hnu)
     | and =>
       rw [gate_and_eq] at hF hnu ⊢
       have hG : (args 0).IsLeafMinimal := hF.left_of_and
@@ -373,24 +365,21 @@ theorem sum_formulaSize_restrict_update_le (f : BooleanFunction n)
     have hi₀_eq : F.leafSizeIn {i₀} = 1 := by
       have := single_le_sum (fun i _ => Nat.zero_le (F.leafSizeIn {i})) hi₀
       omega
-    have h0_false : (F.restrictAt i₀ false).leafSize = 0 := by
-      have := leafSize_restrictAt_add_leafSizeIn_le F i₀ false; omega
-    have h0_true : (F.restrictAt i₀ true).leafSize = 0 := by
-      have := leafSize_restrictAt_add_leafSizeIn_le F i₀ true; omega
+    have hbound (i : Fin n) (hi : i ∈ ρ.free) (b : Bool) :
+        formulaSize (f ∘ PartialAssignment.fill (update ρ i (some b))) +
+          F.leafSizeIn {i} ≤ 1 :=
+      (Nat.add_le_add_right (hle_i i hi b) _).trans
+        ((leafSize_restrictAt_add_leafSizeIn_le F i b).trans_eq (hL.trans hL1))
     have hterm_le (i : Fin n) (hi : i ∈ ρ.free) :
         formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) +
           formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true))) ≤
           if i = i₀ then 0 else 2 := by
+      have := hbound i hi false
+      have := hbound i hi true
       split_ifs with h
       · subst h
-        have := hle_i i hi false
-        have := hle_i i hi true
         omega
-      · have := (hle_i i hi false).trans
-          ((Nat.le_add_right _ _).trans (leafSize_restrictAt_add_leafSizeIn_le F i false))
-        have := (hle_i i hi true).trans
-          ((Nat.le_add_right _ _).trans (leafSize_restrictAt_add_leafSizeIn_le F i true))
-        omega
+      · omega
     calc ∑ i ∈ ρ.free, (formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) +
             formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true)))) + 2
         ≤ ∑ i ∈ ρ.free, (if i = i₀ then 0 else 2) + 2 :=
@@ -445,21 +434,20 @@ theorem exists_mem_free_formulaSize_sq_mul_pow_three_le (f : BooleanFunction n)
   generalize hL_eq : formulaSize (f ∘ ρ.fill) = L at hsum ⊢
   by_cases hL1 : L = 1
   · simp only [hL1, ↓reduceIte, mul_one] at hsum
-    have hex : ∃ i ∈ ρ.free,
+    obtain ⟨i, hi, hlt⟩ : ∃ i ∈ ρ.free,
         formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) +
           formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true))) < 2 := by
       by_contra! hall
       have := sum_le_sum hall
       rw [sum_const, hs_eq, smul_eq_mul] at this
       omega
-    obtain ⟨i, hi, hlt⟩ := hex
     by_cases h0 : formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) = 0
     · exact ⟨i, hi, false, by rw [h0]; simp⟩
     · have h1 : formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true))) = 0 := by omega
       exact ⟨i, hi, true, by rw [h1]; simp⟩
   · simp only [hL1, ↓reduceIte] at hsum
     obtain ⟨d, rfl⟩ : ∃ d, s = d + 2 := ⟨s - 2, by omega⟩
-    have hex : ∃ i ∈ ρ.free,
+    obtain ⟨i, hi, hle⟩ : ∃ i ∈ ρ.free,
         (d + 2) * (formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) +
           formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true)))) ≤
           (2 * (d + 2) - 3) * L := by
@@ -471,15 +459,13 @@ theorem exists_mem_free_formulaSize_sq_mul_pow_three_le (f : BooleanFunction n)
         sum_le_sum fun i hi => hall i hi
       rw [sum_const, hs_eq, smul_eq_mul, ← mul_sum] at hsum'
       nlinarith
-    obtain ⟨i, hi, hle⟩ := hex
-    have hmin : ∃ b : Bool,
+    obtain ⟨b, hb⟩ : ∃ b : Bool,
         2 * (d + 2) * formulaSize (f ∘ PartialAssignment.fill (update ρ i (some b))) ≤
           (2 * (d + 2) - 3) * L := by
       by_cases hab : formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) ≤
           formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true)))
       · exact ⟨false, by nlinarith⟩
       · exact ⟨true, by nlinarith⟩
-    obtain ⟨b, hb⟩ := hmin
     refine ⟨i, hi, b, ?_⟩
     set L' := formulaSize (f ∘ PartialAssignment.fill (update ρ i (some b)))
     have hsq : (2 * (d + 2) * L') ^ 2 ≤ ((2 * (d + 2) - 3) * L) ^ 2 := Nat.pow_le_pow_left hb 2
@@ -566,12 +552,9 @@ theorem pow_three_le_formulaSize_parity_sq (n : ℕ) :
       rw [hF, hF, comp_apply, comp_apply,
         PartialAssignment.fill_update_of_eq_none (PartialAssignment.mem_free.1 hi)] at hconst
       have hflip := parity_update_not (ρ.fill fun _ => false) i
-      have : update (ρ.fill fun _ => false) i true =
-          update (ρ.fill fun _ => false) i (!(ρ.fill (fun _ => false) i)) := by
-        rw [PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 hi)]
-        rfl
-      rw [this, hflip] at hconst
-      exact Bool.self_ne_not _ hconst
+      rw [PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 hi), Bool.not_false]
+        at hflip
+      exact Bool.self_ne_not _ (hconst.trans hflip)
     have hmul : 1 * n ^ 3 ≤ formulaSize (parity n ∘ ρ.fill) ^ 2 * n ^ 3 :=
       Nat.mul_le_mul_right _ (by nlinarith)
     linarith
@@ -604,18 +587,15 @@ theorem sum_extensions_formulaSize_sub_sq_le (f : BooleanFunction n)
     have hexts : ρ₀.extensions s = {ρ₀} := by
       ext ρ
       simp only [PartialAssignment.mem_extensions, mem_singleton]
-      refine ⟨fun ⟨hext, hfree⟩ => ?_, ?_⟩
-      · have hsub : ρ.free = ρ₀.free := eq_of_subset_of_card_le hext.free_subset (by rw [hfree])
-        funext i
-        by_cases hi : i ∈ ρ₀.free
-        · have hi' : i ∈ ρ.free := hsub ▸ hi
-          rw [PartialAssignment.mem_free.1 hi, PartialAssignment.mem_free.1 hi']
-        · obtain ⟨c, hc⟩ :=
-            Option.ne_none_iff_exists'.1 fun h => hi (PartialAssignment.mem_free.2 h)
-          rw [hc, hext i c hc]
-      · intro h
-        rw [h]
-        exact ⟨.refl ρ₀, rfl⟩
+      refine ⟨fun ⟨hext, hfree⟩ => ?_, fun h => h.symm ▸ (⟨.refl ρ₀, rfl⟩ : _ ∧ _)⟩
+      have hsub : ρ.free = ρ₀.free := eq_of_subset_of_card_le hext.free_subset (by rw [hfree])
+      funext i
+      by_cases hi : i ∈ ρ₀.free
+      · have hi' : i ∈ ρ.free := hsub ▸ hi
+        rw [PartialAssignment.mem_free.1 hi, PartialAssignment.mem_free.1 hi']
+      · obtain ⟨c, hc⟩ :=
+          Option.ne_none_iff_exists'.1 fun h => hi (PartialAssignment.mem_free.2 h)
+        rw [hc, hext i c hc]
     rw [hexts, sum_singleton, card_singleton, mul_one, one_pow, mul_one]
     have : (L₀ - s) ^ 2 ≤ L₀ ^ 2 := Nat.pow_le_pow_left (Nat.sub_le L₀ s) 2
     exact Nat.mul_le_mul_right (s ^ 3) this
@@ -629,11 +609,10 @@ theorem sum_extensions_formulaSize_sub_sq_le (f : BooleanFunction n)
     set S_k := ∑ ρ ∈ ρ₀.extensions k, formulaSize (f ∘ ρ.fill)
     set N_k := #(ρ₀.extensions k)
     have hstep_rec : (s - k) * S_k ≤ (2 * t - 3) * S_t + N_t := by
-      have hdc := (PartialAssignment.sum_extensions_update ρ₀ (by omega : 1 ≤ t)
-        (fun ρ => formulaSize (f ∘ ρ.fill))).symm
-      have htk : t - 1 = k := by omega
-      rw [htk] at hdc
-      rw [hdc]
+      dsimp only [S_k]
+      rw [← Nat.add_sub_cancel k 1,
+        ← PartialAssignment.sum_extensions_update ρ₀ (by omega : 1 ≤ t)
+          (fun ρ => formulaSize (f ∘ ρ.fill))]
       calc ∑ ρ ∈ ρ₀.extensions t, ∑ i ∈ ρ.free,
             (formulaSize (f ∘ PartialAssignment.fill (update ρ i (some false))) +
               formulaSize (f ∘ PartialAssignment.fill (update ρ i (some true))))

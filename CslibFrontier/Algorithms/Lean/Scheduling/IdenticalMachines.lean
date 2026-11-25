@@ -182,6 +182,7 @@ theorem optMakespan_le (p : Fin n → α) (σ : Fin n → Fin m) :
     optMakespan m p ≤ makespan p σ :=
   inf'_le _ (mem_univ σ)
 
+variable (m) in
 theorem exists_makespan_eq_optMakespan (p : Fin n → α) :
     ∃ σ : Fin n → Fin m, makespan p σ = optMakespan m p := by
   obtain ⟨σ, -, h⟩ := exists_mem_eq_inf' (univ_nonempty (α := Fin n → Fin m)) (makespan p)
@@ -210,14 +211,14 @@ theorem le_makespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (σ : Fin n → F
 
 /-- Average-load lower bound on the optimum, `∑ p ≤ m · OPT` ([WilliamsonShmoys2011], (2.4)). -/
 theorem sum_le_card_nsmul_optMakespan (p : Fin n → α) : ∑ j, p j ≤ m • optMakespan m p := by
-  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
   rw [← hσ]
   exact sum_le_card_nsmul_makespan p σ
 
 /-- Longest-job lower bound on the optimum ([WilliamsonShmoys2011], (2.3)). -/
 theorem le_optMakespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (j : Fin n) :
     p j ≤ optMakespan m p := by
-  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
   rw [← hσ]
   exact le_makespan p hp σ j
 
@@ -232,20 +233,16 @@ machine load is at most `B`. -/
 theorem load_le_of_forall_completion_le (p : Fin n → α) (σ : Fin n → Fin m) {B : α}
     (hB : 0 ≤ B) (h : ∀ j : Fin n, prefixLoad p σ j (σ j) + p j ≤ B) (i : Fin m) :
     load p σ i ≤ B := by
-  have key : ∀ k ≤ n, prefixLoad p σ k i ≤ B := by
-    intro k
-    induction k with
-    | zero => intro; rw [prefixLoad_zero]; exact hB
-    | succ k ih =>
-      intro hk
-      have := prefixLoad_succ p σ ⟨k, hk⟩ i
-      simp only at this
-      rw [this]
-      split_ifs with hσ
-      · rw [← hσ]; exact h ⟨k, hk⟩
-      · rw [add_zero]; exact ih (by omega)
   rw [← prefixLoad_of_le p σ le_rfl]
-  exact key n le_rfl
+  suffices ∀ k ≤ n, prefixLoad p σ k i ≤ B from this n le_rfl
+  intro k hk
+  induction k with
+  | zero => simpa [prefixLoad_zero] using hB
+  | succ k ih =>
+    rw [show k + 1 = (⟨k, hk⟩ : Fin n).val + 1 from rfl, prefixLoad_succ]
+    split_ifs with hσ
+    · exact hσ ▸ h ⟨k, hk⟩
+    · simpa using ih (Nat.le_of_succ_le hk)
 
 end Completion
 
@@ -286,31 +283,25 @@ theorem IsListSchedule.card_mul_makespan_le {p : Fin n → α} {σ : Fin n → F
   have hsum := sum_le_card_nsmul_makespan p τ
   rw [nsmul_eq_mul] at hsum
   have hT : 0 ≤ makespan p τ := by
-    have : (0 : α) ≤ ∑ j, p j := sum_nonneg fun j _ => hp j
-    nlinarith
-  have hB : 0 ≤ (2 * m - 1) * makespan p τ / m := by
-    apply div_nonneg _ (by linarith)
-    exact mul_nonneg (by linarith) hT
+    nlinarith [sum_nonneg fun j (_ : j ∈ univ) => hp j]
+  have hB : 0 ≤ (2 * m - 1) * makespan p τ / m :=
+    div_nonneg (mul_nonneg (by linarith) hT) (by linarith)
   have hmpos : (0 : α) < m := by linarith
   rw [← le_div_iff₀' hmpos, makespan_le_iff]
   refine load_le_of_forall_completion_le p σ hB fun j => ?_
   rw [le_div_iff₀' hmpos]
-  have := hσ.completion_le hp j
-  have hj := le_makespan p hp τ j
-  nlinarith
+  nlinarith [hσ.completion_le hp j, le_makespan p hp τ j]
 
 /-- **Graham's bound against the optimum**: `C_LS ≤ (2 - 1/m) · OPT`. -/
 theorem IsListSchedule.makespan_le_optMakespan {p : Fin n → α} {σ : Fin n → Fin m}
     (hσ : IsListSchedule p σ) (hp : ∀ j, 0 ≤ p j) :
     makespan p σ ≤ (2 - 1 / m) * optMakespan m p := by
-  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan (m := m) p
-  have h := hσ.card_mul_makespan_le hp τ
-  rw [hτ] at h
+  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan m p
   have hmpos : (0 : α) < m := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne m)
-  rw [show (2 - 1 / (m : α)) * optMakespan m p =
-    (2 * m - 1) * optMakespan m p / m by field_simp]
-  rw [le_div_iff₀' hmpos]
-  exact h
+  have hdiv : (2 - 1 / (m : α)) * optMakespan m p = (2 * m - 1) * optMakespan m p / m := by
+    field_simp
+  rw [hdiv, le_div_iff₀' hmpos, ← hτ]
+  exact hσ.card_mul_makespan_le hp τ
 
 end Graham
 
@@ -360,16 +351,13 @@ theorem listSchedule_succ (p : Fin (n + 1) → α) :
   have hlen := length_listScheduleAux (m := m) (Fin.init p)
   induction j using Fin.lastCases with
   | last =>
-    rw [Fin.snoc_last]
-    unfold listSchedule
+    rw [Fin.snoc_last, listSchedule]
     simp only [listScheduleAux, Fin.val_last]
-    rw [List.getD_append_right _ _ _ _ (by omega), hlen, Nat.sub_self]
-    rfl
+    rw [List.getD_append_right _ _ _ _ hlen.le, hlen, Nat.sub_self]; rfl
   | cast j =>
-    rw [Fin.snoc_castSucc]
-    unfold listSchedule
+    rw [Fin.snoc_castSucc, listSchedule]
     simp only [listScheduleAux, Fin.val_castSucc]
-    rw [List.getD_append _ _ _ _ (by omega)]
+    rw [List.getD_append _ _ _ _ (by omega)]; rfl
 
 omit [LinearOrder α] [NeZero m] in
 private theorem prefixLoad_snoc (p : Fin (n + 1) → α) (σ : Fin n → Fin m) (x : Fin m) {k : ℕ}

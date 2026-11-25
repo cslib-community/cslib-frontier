@@ -56,10 +56,9 @@ private theorem colorAtIndex_incidenceDart {α V : Type} [DecidableEq V] {G : CS
     (P : Dart (incidenceGraph G) → Bool) (o : G.Occurrence) :
     (Dart.colorAtIndex P (2 * incidenceEdgeIndex o),
       Dart.colorAtIndex P (2 * incidenceEdgeIndex o + 1)) =
-      (P (incidenceDart o false), P (incidenceDart o true)) := by
-  have h0 : (incidenceDart o false).index = 2 * incidenceEdgeIndex o := Nat.add_zero _
-  have h1 : (incidenceDart o true).index = 2 * incidenceEdgeIndex o + 1 := rfl
-  rw [← h1, ← h0, Dart.colorAtIndex_index, Dart.colorAtIndex_index]
+      (P (incidenceDart o false), P (incidenceDart o true)) :=
+  Prod.mk.injEq _ _ _ _ ▸ ⟨Dart.colorAtIndex_index P (incidenceDart o false),
+    Dart.colorAtIndex_index P (incidenceDart o true)⟩
 
 private theorem exists_copy_colorShifts (hF : WellFormed srcArity F)
     (x : Fin (incidenceGraph (replaceGadgets B (fun r => (gadgets r).template) F)).edges.length →
@@ -133,7 +132,6 @@ private theorem replacementColors_incidenceDart
   dsimp only [replacementColors]
   rw [← incidenceDartEquiv_apply (replacementOccurrence gadgets B F i o, side),
     Equiv.symm_apply_apply]
-  dsimp only
   have ho := (replacementOccurrenceEquiv gadgets B F).symm_apply_apply ⟨i, o⟩
   rw [replacementOccurrenceEquiv_apply] at ho
   rw [ho]
@@ -153,16 +151,14 @@ private theorem replacementColors_xor_reverse
   intro d
   obtain ⟨o, ho⟩ := exists_incidenceDart d
   obtain ⟨i, p, rfl⟩ := exists_replacementOccurrence gadgets B F o
-  have hd : d = incidenceDart (replacementOccurrence gadgets B F i p) d.2 := ho.symm
-  generalize d.2 = side at hd
-  subst hd
-  change (replacementColors gadgets B F Pg K (incidenceDart _ side) ^^
-    replacementColors gadgets B F Pg K (incidenceDart _ (!side))) = _
+  rw [← ho]
+  change (replacementColors gadgets B F Pg K (incidenceDart _ d.2) ^^
+    replacementColors gadgets B F Pg K (incidenceDart _ (!d.2))) = _
   rw [replacementColors_incidenceDart, replacementColors_incidenceDart,
     Bool.xor_assoc, Bool.xor_left_comm (K i), Bool.xor_self, Bool.xor_false,
-    ← copiedProbeLabels_bodyOccurrence gadgets witnesses B F i x p side]
+    ← copiedProbeLabels_bodyOccurrence gadgets witnesses B F i x p d.2]
   exact hxg i (incidenceDart
-    (bodyOccurrence (gadgets F[i.val].rel).body (List.ofFn Sum.inl) p) side)
+    (bodyOccurrence (gadgets F[i.val].rel).body (List.ofFn Sum.inl) p) d.2)
 
 private theorem replacementColors_rotate_constraint
     (hB : ∀ r, (gadgets r).numAux ≤ B) (hF : WellFormed srcArity F)
@@ -346,18 +342,12 @@ theorem numericalGenusZero_replacementRotation
     (sourceEdgeLabels gadgets witnesses B F x)).mp
       ((r.vertexEven_iff_exists_faceColors (incidenceVertices_declared F) hrgenus _).mp
         (vertexEven_sourceEdgeLabels gadgets witnesses B hB F hF c hraw x hx))
-  have hlocal (i : Fin F.length) : ∃ P : Dart (incidenceGraph
-      (probeBody (gadgets F[i.val].rel).body (List.ofFn Sum.inl))) → Bool,
-      (∀ d : Dart (incidenceGraph
-        (probeBody (gadgets F[i.val].rel).body (List.ofFn Sum.inl))),
-        P ((witnesses F[i.val].rel).probeRotation.rotate d) = P d.reverse) ∧
-        ∀ d : Dart (incidenceGraph
-          (probeBody (gadgets F[i.val].rel).body (List.ofFn Sum.inl))),
-          (P d ^^ P d.reverse) = copiedProbeLabels gadgets witnesses B F i x d.1 := by
-    apply ((witnesses F[i.val].rel).probeRotation.exists_faceColors_iff_exists_dartColors _).mp
-    apply ((witnesses F[i.val].rel).probeRotation.vertexEven_iff_exists_faceColors
-      (incidenceVertices_declared _) (witnesses F[i.val].rel).numericalGenusZero_probeRotation _).mp
-    exact vertexEven_copiedProbeLabels gadgets witnesses B hB F i x hx
+  have hlocal (i : Fin F.length) :=
+    ((witnesses F[i.val].rel).probeRotation.exists_faceColors_iff_exists_dartColors _).mp
+      (((witnesses F[i.val].rel).probeRotation.vertexEven_iff_exists_faceColors
+        (incidenceVertices_declared _)
+        (witnesses F[i.val].rel).numericalGenusZero_probeRotation _).mp
+        (vertexEven_copiedProbeLabels gadgets witnesses B hB F i x hx))
   choose Pg hg hxg using hlocal
   choose K hKzero hKcenter hKvar using
     exists_copy_colorShifts gadgets witnesses B F hF x r hrorder Ps hs hxs Pg hg hxg

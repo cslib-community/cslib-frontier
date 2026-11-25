@@ -53,10 +53,9 @@ private theorem tracks_step {M : TM0.Machine Γ Q} {lo hi : ℤ} {c : Cfg Γ Q}
     (hs : HeadPosition.StepWithin M lo hi x y) :
     ∃ d, step M c = some d ∧ Tracks lo hi d y := by
   rcases c with ⟨q, a, L, R⟩
-  rcases x with ⟨native, p⟩
+  rcases x with ⟨_, p⟩
   obtain ⟨he, hL, hR⟩ := hc
-  have hn : native = TM0.cfgOf q a L R := he.symm
-  subst native
+  obtain rfl : _ = TM0.cfgOf q a L R := he.symm
   cases hM : M q a with
   | none => simp only [HeadPosition.StepWithin, HeadPosition.step, TM0.cfgOf, hM,
       Option.map_none] at hs; cases hs.1
@@ -113,10 +112,7 @@ private theorem step_eq_none_of_native {M : TM0.Machine Γ Q} {c : Cfg Γ Q}
     (h : TM0.step M c.toNative = none) : step M c = none := by
   cases hs : step M c with
   | none => rfl
-  | some d =>
-    have hn := step_native hs
-    rw [h] at hn
-    cases hn
+  | some _ => cases h.symm.trans (step_native hs)
 
 end
 
@@ -175,16 +171,9 @@ private theorem reaches_of_headRange [Inhabited Q] {M : TM0.Machine Γ Q}
     (hcL : c.left.length = 1) (hcR : c.right.length = radius)
     (hdL : d.left.length = 1) (hdR : d.right.length = radius) :
     StateTransition.Reaches (step M) c d := by
-  obtain ⟨e, hce, he, hL, hR⟩ := headRange_reaches hr c rfl (by simp only [hcL]; omega)
-    (by simp only [hcR]; omega)
-  have heL : e.left.length = d.left.length := by
-    change (e.left.length : ℤ) = 0 - -1 at hL
-    omega
-  have heR : e.right.length = d.right.length := by
-    change (e.right.length : ℤ) = (radius : ℤ) - 0 at hR
-    omega
-  have hed : e = d := toNative_injective_of_lengths heL heR he
-  exact hed ▸ hce
+  obtain ⟨e, hce, he, hL, hR⟩ := headRange_reaches hr c rfl (by simp [hcL]) (by simp [hcR])
+  dsimp only at hL hR
+  exact toNative_injective_of_lengths (by omega) (by omega) he ▸ hce
 
 /-- Filling an origin window is polynomial-time in its control, tape list and unary radius. -/
 theorem computableInPolyTime_ofList {Γ Q α : Type} [Inhabited Γ] {encIn : α ↪ List Bool}

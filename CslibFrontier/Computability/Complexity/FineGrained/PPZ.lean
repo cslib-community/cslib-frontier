@@ -196,9 +196,7 @@ theorem forced_eq {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : φ.eval σ = t
     have := hall l hl
     split_ifs at this with hx
     · rw [← hx, hls, this]
-    · have := hτ _ _ this
-      rw [hls] at this
-      cases l.2 <;> simp at this
+    · exact absurd (hτ _ _ this) (by simp [hls])
   unfold forced at h
   split_ifs at h with h1 h2 <;> cases h
   exacts [key true h1, key false h2]
@@ -339,10 +337,8 @@ theorem eq_none_of_mem_support_runWith {O : (Fin n → Option Bool) → Fin n �
     · rw [runWith_succ O π h, PMF.mem_support_bind_iff] at hτ
       obtain ⟨τ', hτ', hmap⟩ := hτ
       obtain ⟨b, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hmap
-      have hyx : y ≠ π ⟨i, h⟩ := by
-        rintro rfl
-        simp [mem_prefixSet] at hy
-      exact (Function.update_of_ne hyx _ _).trans (ih hτ' hy')
+      exact (Function.update_of_ne (fun e => hy (by simp [e, mem_prefixSet])) _ _).trans
+        (ih hτ' hy')
     · rw [runWith_succ_of_le O π (by omega)] at hτ
       exact ih hτ hy'
 
@@ -425,9 +421,7 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
           rcases eq_or_ne y x with rfl | hy
           · rw [eq_none_of_mem_support_runWith hsupp hxi]
             simp [T, restrict, hxi]
-          · have := congrFun e y
-            rw [Function.update_of_ne hy, hT'x, Function.update_of_ne hy] at this
-            exact this.symm
+          · simpa only [hT'x, x, Function.update_of_ne hy] using (congrFun e y).symm
         · rw [(PMF.apply_eq_zero_iff _ _).mpr hsupp, zero_mul]
     · have hle : n ≤ i := not_lt.mp h
       have hpref : prefixSet π (i + 1) = prefixSet π i := by
@@ -739,9 +733,8 @@ theorem round_success_of_satisfiable {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)}
     rw [← Real.rpow_natCast 2 (Cslib.BitString.isolation S σ), ← Real.rpow_natCast 2 n,
       ← Real.rpow_sub two_pos, ← Real.rpow_add two_pos, hiso]
     apply Real.rpow_le_rpow_of_exponent_le one_le_two
-    have : ((I.card : ℝ) - n) ≤ ((I.card : ℝ) - n) / k := by
-      rw [le_div_iff₀ (by linarith)]
-      nlinarith
+    have : ((I.card : ℝ) - n) ≤ ((I.card : ℝ) - n) / k :=
+      (le_div_iff₀ (by linarith)).2 (by nlinarith)
     have hrw : -((n : ℝ) - I.card / k) = -((1 - 1 / (k : ℝ)) * n) + ((I.card : ℝ) - n) / k := by
       field_simp
       ring

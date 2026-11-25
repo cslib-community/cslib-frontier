@@ -69,13 +69,11 @@ theorem vars_hardCore (n : ℕ) (E : List (ℕ × ℕ)) :
 theorem mem_vars_hardCore (hE : ∀ e ∈ E, e.1 < n ∧ e.2 < n) {v : ℕ} :
     v ∈ (hardCore n E).vars ↔ v < n := by
   rw [vars_hardCore, List.mem_append, List.mem_range, List.mem_flatMap]
-  constructor
-  · rintro (h | ⟨e, he, hv⟩)
-    · exact h
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-      rcases hv with rfl | rfl
-      exacts [(hE e he).1, (hE e he).2]
-  · exact Or.inl
+  refine ⟨?_, Or.inl⟩
+  rintro (h | ⟨e, he, hv⟩)
+  · exact h
+  · rcases (by simpa using hv : v = e.1 ∨ v = e.2) with rfl | rfl
+    exacts [(hE e he).1, (hE e he).2]
 
 theorem numVars_hardCore (hE : ∀ e ∈ E, e.1 < n ∧ e.2 < n) : (hardCore n E).numVars = n := by
   rw [numVars, show (hardCore n E).vars.toFinset = Finset.range n by
@@ -119,9 +117,8 @@ theorem partitionFunction_hardCore (t : ℕ) (hE : ∀ e ∈ E, e.1 < n ∧ e.2 
     rw [List.mem_toFinset, mem_vars_hardCore hE, Finset.mem_range]
   rw [partitionFunction_eq_sum_powerset, hX, Finset.sum_filter]
   refine Finset.sum_congr rfl fun S hS => ?_
-  have hS' : (Finset.range n).filter (fun v => v ∈ S) = S :=
-    Finset.filter_mem_eq_inter.trans (Finset.inter_eq_right.mpr (Finset.mem_powerset.mp hS))
-  simp only [weight_hardCore, decide_eq_true_eq, hS']
+  simp only [weight_hardCore, decide_eq_true_eq,
+    Finset.filter_mem_eq_inter.trans (Finset.inter_eq_right.mpr (Finset.mem_powerset.mp hS))]
   split_ifs <;> simp
 
 end Cslib.Logic.PL.CSP

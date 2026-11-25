@@ -106,13 +106,9 @@ theorem length_pairsToBits (e : α ≃ Fin k) (i : ℕ) (ps : List (ℕ × α)) 
   induction ps generalizing i with
   | nil => simp [pairsToBits]
   | cons p ps ih =>
-    obtain ⟨j, a⟩ := p
     simp only [pairsToBits, List.length_append, length_lowBits, ih, List.length_cons,
       Finset.sum_range_succ', Nat.add_zero]
-    have : ∀ x ∈ Finset.range ps.length, Nat.clog 2 (i + 1 + x + 1) + Nat.clog 2 k =
-        Nat.clog 2 (i + (x + 1) + 1) + Nat.clog 2 k := fun x _ => by
-      rw [show i + 1 + x + 1 = i + (x + 1) + 1 by omega]
-    rw [Finset.sum_congr rfl this]
+    rw [Finset.sum_congr rfl fun x _ => by rw [show i + 1 + x + 1 = i + (x + 1) + 1 by omega]]
     omega
 
 /-- The pointers are in range: the pair at position `i` points below `i + 1`. -/
@@ -127,62 +123,48 @@ private theorem pointersLt_encodePhrases [DecidableEq α] (dict ws : List (List 
   | cons w ws ih =>
     obtain ⟨⟨q, hq, a, rfl⟩, ht⟩ := (isTreeStructured_cons _ _ _).1 ht
     simp only [encodePhrases, List.getLast?_concat, List.dropLast_concat, PointersLt]
-    refine ⟨?_, ?_⟩
-    · have := List.idxOf_lt_length_of_mem hq
-      simpa using this
-    · have := ih _ ht
-      simpa using this
+    exact ⟨by simpa using List.idxOf_lt_length_of_mem hq, by simpa using ih _ ht⟩
 
 private theorem length_lt_length_pairsToBits (e : α ≃ Fin k) (hk : 2 ≤ k) (i : ℕ)
     (ps : List (ℕ × α)) : ps.length ≤ (pairsToBits e i ps).length := by
-  have hb : 1 ≤ Nat.clog 2 k := Nat.succ_le_of_lt (Nat.clog_pos (by norm_num) hk)
+  have hb : 1 ≤ Nat.clog 2 k := Nat.clog_pos (by norm_num) hk
   rw [length_pairsToBits]
   calc ps.length = ∑ _j ∈ Finset.range ps.length, 1 := by simp
-    _ ≤ _ := Finset.sum_le_sum fun j _ => by omega
+    _ ≤ _ := Finset.sum_le_sum fun _ _ => by omega
 
 private theorem bitsToPairs_pairsToBits (e : α ≃ Fin k) (hk : 2 ≤ k) (ps : List (ℕ × α))
     (i fuel : ℕ) (hp : PointersLt i ps) (hfuel : ps.length < fuel) :
     bitsToPairs e fuel i (pairsToBits e i ps) = some ps := by
   induction ps generalizing i fuel with
   | nil =>
-    obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 := ⟨fuel - 1, by rw [List.length_nil] at hfuel; omega⟩
-    simp [pairsToBits, bitsToPairs]
+    rcases fuel with _ | fuel
+    · simp at hfuel
+    · simp [pairsToBits, bitsToPairs]
   | cons p ps ih =>
-    obtain ⟨j, a⟩ := p
+    rcases p, fuel with ⟨⟨j, a⟩, _ | fuel⟩
+    · simp at hfuel
     obtain ⟨hj, hp⟩ := hp
-    obtain ⟨fuel, rfl⟩ : ∃ f, fuel = f + 1 :=
-      ⟨fuel - 1, by rw [List.length_cons] at hfuel; omega⟩
-    have hb : 1 ≤ Nat.clog 2 k := Nat.succ_le_of_lt (Nat.clog_pos (by norm_num) hk)
-    have hjw : j < 2 ^ Nat.clog 2 (i + 1) :=
-      lt_of_lt_of_le hj (Nat.le_pow_clog (by norm_num) _)
-    have haw : ((e a : Fin k) : ℕ) < 2 ^ Nat.clog 2 k :=
-      lt_of_lt_of_le (e a).isLt (Nat.le_pow_clog (by norm_num) _)
+    have hb : 1 ≤ Nat.clog 2 k := Nat.clog_pos (by norm_num) hk
     set w := Nat.clog 2 (i + 1)
     set b := Nat.clog 2 k
     set rest := pairsToBits e (i + 1) ps
-    have hbits : pairsToBits e i ((j, a) :: ps) = lowBits w j ++ lowBits b (e a) ++ rest := rfl
-    have hne : lowBits w j ++ lowBits b (e a) ++ rest ≠ [] := by
-      grind [List.length_append, length_lowBits, List.length_nil]
-    have hlen : w + b ≤ (lowBits w j ++ lowBits b (e a) ++ rest).length := by
-      simp only [List.length_append, length_lowBits]; omega
-    have hdrop1 : (lowBits w j ++ lowBits b (e a) ++ rest).drop w = lowBits b (e a) ++ rest := by
+    have hdrop : (lowBits w j ++ lowBits b (e a) ++ rest).drop w = lowBits b (e a) ++ rest := by
       rw [List.append_assoc, List.drop_left' (length_lowBits w j)]
-    have htake1 : (lowBits w j ++ lowBits b (e a) ++ rest).take w = lowBits w j := by
-      rw [List.append_assoc, List.take_left' (length_lowBits w j)]
-    have hsym : (lowBits b (e a) ++ rest).take b = lowBits b (e a) :=
-      List.take_left' (length_lowBits b _)
-    have hdrop2 : (lowBits w j ++ lowBits b (e a) ++ rest).drop (w + b) = rest := by
-      rw [← List.drop_drop, hdrop1, List.drop_left' (length_lowBits b _)]
     have hv : lsbValue (((lowBits w j ++ lowBits b (e a) ++ rest).drop w).take b) = e a := by
-      rw [hdrop1, hsym, lsbValue_lowBits haw]
+      rw [hdrop, List.take_left' (length_lowBits b _),
+        lsbValue_lowBits ((e a).isLt.trans_le (Nat.le_pow_clog (by norm_num) _))]
+    have hne : lowBits w j ++ lowBits b (e a) ++ rest ≠ [] :=
+      List.ne_nil_of_length_pos (by simp [length_lowBits]; omega)
+    have hlen : w + b ≤ (lowBits w j ++ lowBits b (e a) ++ rest).length := by
+      simp [length_lowBits]
     have hvk : lsbValue (((lowBits w j ++ lowBits b (e a) ++ rest).drop w).take b) < k := by
       rw [hv]; exact (e a).isLt
-    have hsa : e.symm ⟨_, hvk⟩ = a := by
-      rw [Equiv.symm_apply_eq]
-      exact Fin.ext hv
-    rw [hbits, bitsToPairs, ite_eq_right hne, ite_eq_left hlen, dite_eq_left hvk, hdrop2,
-      ih (i + 1) fuel hp (by rw [List.length_cons] at hfuel; omega), Option.map_some, htake1,
-      lsbValue_lowBits hjw, hsa]
+    have hsa : e.symm ⟨_, hvk⟩ = a := (Equiv.symm_apply_eq e).2 (Fin.ext hv)
+    rw [pairsToBits, bitsToPairs, ite_eq_right hne, ite_eq_left hlen, dite_eq_left hvk, hsa,
+      ← List.drop_drop, hdrop, List.drop_left' (length_lowBits b _),
+      ih (i + 1) fuel hp (Nat.lt_of_succ_lt_succ hfuel), Option.map_some, List.append_assoc,
+      List.take_left' (length_lowBits w j),
+      lsbValue_lowBits (hj.trans_le (Nat.le_pow_clog (by norm_num) _))]
 
 /-- **The LZ78 bit code is lossless** for an alphabet of size `k ≥ 2`. -/
 theorem decodeBits_encodeBits [DecidableEq α] (e : α ≃ Fin k) (hk : 2 ≤ k) (x : List α) :
@@ -197,20 +179,15 @@ the number of phrases. -/
 theorem length_encodeBits [DecidableEq α] (e : α ≃ Fin k) (x : List α) :
     (encodeBits e x).length =
       ∑ i ∈ Finset.range (parse x).length, (Nat.clog 2 (i + 1) + Nat.clog 2 k) := by
-  rw [encodeBits, length_pairsToBits, length_encode]
-  simp only [Nat.zero_add]
+  simp [encodeBits, length_pairsToBits, length_encode]
 
 /-- The LZ78 bit code of an input with `c` phrases has at most `c (⌈log₂ c⌉ + ⌈log₂ k⌉)` bits. -/
 theorem length_encodeBits_le [DecidableEq α] (e : α ≃ Fin k) (x : List α) :
     (encodeBits e x).length ≤
       (parse x).length * (Nat.clog 2 (parse x).length + Nat.clog 2 k) := by
   rw [length_encodeBits]
-  calc ∑ i ∈ Finset.range (parse x).length, (Nat.clog 2 (i + 1) + Nat.clog 2 k)
-      ≤ ∑ _i ∈ Finset.range (parse x).length,
-          (Nat.clog 2 (parse x).length + Nat.clog 2 k) :=
-        Finset.sum_le_sum fun i hi => Nat.add_le_add_right
-          (Nat.clog_mono_right 2 (Finset.mem_range.1 hi)) _
-    _ = _ := by simp
+  simpa using Finset.sum_le_sum fun i (hi : i ∈ Finset.range (parse x).length) =>
+    Nat.add_le_add_right (Nat.clog_mono_right 2 (Finset.mem_range.1 hi)) (Nat.clog 2 k)
 
 /-- **Finite length bound.** For an alphabet of size `k ≥ 2`, the LZ78 bit code of an input of
 length `n` with `c` phrases has at most `⌈log₂ k⌉ (n + 4c)` bits. -/
@@ -223,19 +200,16 @@ theorem length_encodeBits_le_mul_add [DecidableEq α] (e : α ≃ Fin k) (hk : 2
   set b := Nat.clog 2 k
   set L := Nat.log k c
   have hlog : c * L ≤ x.length + 2 * c := by
-    have := length_parse_mul_log_le x
-    rwa [hcard] at this
+    simpa only [L, c, hcard] using length_parse_mul_log_le x
   -- `⌈log₂ c⌉ ≤ b (L + 1)`, since `c < k ^ (L + 1) ≤ 2 ^ (b (L + 1))`.
-  have hclog : Nat.clog 2 c ≤ b * (L + 1) := by
-    refine Nat.clog_le_of_le_pow ?_
-    calc c ≤ k ^ (L + 1) := (Nat.lt_pow_succ_log_self (by omega) c).le
-      _ ≤ (2 ^ b) ^ (L + 1) := Nat.pow_le_pow_left (Nat.le_pow_clog (by norm_num) k) _
-      _ = 2 ^ (b * (L + 1)) := by rw [← pow_mul]
+  have hclog : Nat.clog 2 c ≤ b * (L + 1) := Nat.clog_le_of_le_pow <| calc
+    c ≤ k ^ (L + 1) := (Nat.lt_pow_succ_log_self (by omega) c).le
+    _ ≤ (2 ^ b) ^ (L + 1) := Nat.pow_le_pow_left (Nat.le_pow_clog (by norm_num) k) _
+    _ = 2 ^ (b * (L + 1)) := by rw [← pow_mul]
   calc (encodeBits e x).length ≤ c * (Nat.clog 2 c + b) := length_encodeBits_le e x
     _ ≤ c * (b * (L + 1) + b) := Nat.mul_le_mul_left _ (Nat.add_le_add_right hclog _)
     _ = b * (c * L) + 2 * b * c := by ring
-    _ ≤ b * (x.length + 2 * c) + 2 * b * c := by
-        exact Nat.add_le_add_right (Nat.mul_le_mul_left _ hlog) _
+    _ ≤ b * (x.length + 2 * c) + 2 * b * c := Nat.add_le_add_right (Nat.mul_le_mul_left _ hlog) _
     _ = b * (x.length + 4 * c) := by ring
 
 /-- **Worst-case length `n (1 + o(1))`.** For an alphabet of size `k ≥ 2` and an input of length
@@ -248,24 +222,16 @@ theorem length_encodeBits_le_mul_one_add [DecidableEq α] (e : α ≃ Fin k) (hk
       Nat.clog 2 k * x.length * (1 + 4 / ((1 - epsilon k x.length) * Real.logb k x.length)) := by
   let _ : Fintype α := Fintype.ofEquiv (Fin k) e.symm
   have hcard : Fintype.card α = k := by rw [Fintype.card_congr e, Fintype.card_fin]
-  have hk1 : (1 : ℝ) < k := by exact_mod_cast hk
-  have hLpos : 0 < Real.logb k x.length := Real.logb_pos hk1 (by exact_mod_cast hn)
   have hD : 0 < (1 - epsilon k x.length) * Real.logb k x.length :=
-    mul_pos (by linarith) hLpos
+    mul_pos (by linarith) (Real.logb_pos (by exact_mod_cast hk) (by exact_mod_cast hn))
   have hc : ((parse x).length : ℝ) ≤
       x.length / ((1 - epsilon k x.length) * Real.logb k x.length) := by
-    have := length_parse_le_div (hcard ▸ hk) x hn (by rwa [hcard])
-    rwa [hcard] at this
-  have hbits : ((encodeBits e x).length : ℝ) ≤
-      Nat.clog 2 k * (x.length + 4 * (parse x).length) := by
-    exact_mod_cast length_encodeBits_le_mul_add e hk x
-  have hb : (0 : ℝ) ≤ Nat.clog 2 k := Nat.cast_nonneg _
-  calc ((encodeBits e x).length : ℝ) ≤ Nat.clog 2 k * (x.length + 4 * (parse x).length) := hbits
+    simpa only [hcard] using length_parse_le_div (hcard ▸ hk) x hn (hcard.symm ▸ hε)
+  calc ((encodeBits e x).length : ℝ) ≤ Nat.clog 2 k * (x.length + 4 * (parse x).length) := by
+        exact_mod_cast length_encodeBits_le_mul_add e hk x
     _ ≤ Nat.clog 2 k * (x.length + 4 * (x.length /
           ((1 - epsilon k x.length) * Real.logb k x.length))) := by gcongr
-    _ = Nat.clog 2 k * x.length *
-          (1 + 4 / ((1 - epsilon k x.length) * Real.logb k x.length)) := by
-        field_simp
+    _ = _ := by field_simp
 
 /-- The overhead factor `4 / ((1 - ε_n) log_k n)` of the worst-case LZ78 length tends to `0`. -/
 theorem tendsto_four_div_one_sub_epsilon_mul_logb (hk : 2 ≤ k) :

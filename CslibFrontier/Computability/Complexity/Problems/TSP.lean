@@ -309,12 +309,10 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
   unfold toTSP
   generalize G.distinctVertices = V at hVnd hmemV hlenV ⊢
   split_ifs with hn
-  · constructor
-    · rintro ⟨p, hp, hlen⟩
-      rw [show p = [0] by simpa using hp] at hlen
-      simp [TSP.tourLength, TSP.dist] at hlen
-    · rintro ⟨q, hq, hcov, h3, -⟩
-      exact absurd (hlenV q hq hcov) (by omega)
+  · refine ⟨fun ⟨p, hp, hlen⟩ => ?_, fun ⟨q, hq, hcov, h3, _⟩ =>
+      absurd (hlenV q hq hcov) (by omega)⟩
+    rw [show p = [0] by simpa using hp] at hlen
+    simp [TSP.tourLength, TSP.dist] at hlen
   · push Not at hn
     simp only [TSP, Set.mem_ofPred_eq, List.length_map]
     constructor
@@ -348,14 +346,11 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
         rw [List.getD_eq_getElem _ _ (hplt i hi), List.getD_eq_getElem _ _ (hplt j hj)] at hij
         exact hVnd.getElem_inj_iff.1 hij
       · rw [← hmemV, List.mem_map]
-        constructor
-        · rintro ⟨i, hi, rfl⟩
-          rw [List.getD_eq_getElem _ _ (hplt i hi)]
-          exact List.getElem_mem _
-        · intro hv
-          have hlt := List.idxOf_lt_length_iff.2 hv
-          refine ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 hlt), ?_⟩
-          rw [List.getD_eq_getElem _ _ hlt, List.getElem_idxOf]
+        refine ⟨fun ⟨i, hi, hv⟩ =>
+          hv ▸ (List.getD_eq_getElem _ _ (hplt i hi) ▸ List.getElem_mem _), fun hv => ?_⟩
+        have hlt := List.idxOf_lt_length_iff.2 hv
+        exact ⟨V.idxOf v, hp.mem_iff.2 (List.mem_range.2 hlt),
+          (List.getD_eq_getElem _ _ hlt).trans (List.getElem_idxOf _)⟩
       · have hp'len : (p ++ p.take 1).length = V.length + 1 := by
           enc_len [List.length_take, hplen]
         rw [chain_iff]
@@ -368,12 +363,10 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
       have hqlen := hlenV q hq hcov
       have hqV : ∀ v ∈ q, v ∈ V := fun v hv => (hmemV v).2 ((hcov v).1 hv)
       refine ⟨q.map V.idxOf, ?_, ?_⟩
-      · have hnd : (q.map V.idxOf).Nodup :=
-          hq.map_on fun u hu v _ h => (List.idxOf_inj (hqV u hu)).1 h
-        have hsub : q.map V.idxOf ⊆ List.range V.length := fun i hi => by
+      · exact ((hq.map_on fun u hu _ _ h => (List.idxOf_inj (hqV u hu)).1 h).subperm fun i hi => by
           obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hi
-          exact List.mem_range.2 (List.idxOf_lt_length_iff.2 (hqV v hv))
-        exact (hnd.subperm hsub).perm_of_length_le (by simp [hqlen])
+          exact List.mem_range.2 (List.idxOf_lt_length_iff.2 (hqV v hv))).perm_of_length_le
+          (by simp [hqlen])
       · rw [TSP.tourLength_eq_sum]
         refine (List.sum_le_length_nsmul _ 1 fun a ha => ?_).trans (by simp [hqlen])
         obtain ⟨k, hk, rfl⟩ := List.mem_map.1 ha

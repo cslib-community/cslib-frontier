@@ -199,17 +199,12 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
       let U : Set ((β ⊕ (α × Bool)) → Bool) := {x | (fun i => x (E i)) ∈ T}
       have he : BitString.trace U = BitString.trace T := by
         ext x
-        constructor
-        · rintro ⟨z, hz⟩
-          refine ⟨fun a => z (e.symm a), ?_⟩
-          change _ ∈ T at hz ⊢
-          convert hz using 1
+        have hfun (z : α → Bool) : (fun i => Sum.elim x (fun p => z p.1) (E i)) =
+            Sum.elim x (fun p => z (e.symm p.1)) := by
           ext (i | ⟨k, b⟩) <;> rfl
-        · rintro ⟨z, hz⟩
-          refine ⟨fun a => z (e a), ?_⟩
-          change _ ∈ T
-          convert hz using 1
-          ext (i | ⟨k, b⟩) <;> simp [E]
+        simp only [BitString.trace, U, Set.mem_ofPred_eq]
+        exact ⟨fun ⟨z, hz⟩ => ⟨z ∘ e.symm, hfun z ▸ hz⟩,
+          fun ⟨z, hz⟩ => ⟨z ∘ e, (hfun (z ∘ e)).symm ▸ by simpa [Function.comp_def] using hz⟩⟩
       rw [← he]
       exact ih β U (hT.reindex E) (he.symm ▸ hn)
     · intro _ β _ T hT hn
@@ -218,20 +213,15 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
           invFun := Sum.inl
           left_inv := by rintro (i | ⟨⟨⟩, _⟩); rfl
           right_inv := fun _ => rfl }
+      have hfun (x : β → Bool) (z : PEmpty → Bool) :
+          Sum.elim x (fun p : PEmpty × Bool => z p.1) = fun i => x (E i) := by
+        ext (i | ⟨⟨⟩, _⟩)
+        rfl
       have he : BitString.trace T = {x | (fun i => x (E i)) ∈ T} := by
         ext x
-        constructor
-        · rintro ⟨z, hz⟩
-          change _ ∈ T
-          convert hz using 1
-          ext (i | ⟨⟨⟩, _⟩)
-          rfl
-        · intro hx
-          refine ⟨PEmpty.elim, ?_⟩
-          change _ ∈ T at hx ⊢
-          convert hx using 1
-          ext (i | ⟨⟨⟩, _⟩)
-          rfl
+        simp only [BitString.trace, Set.mem_ofPred_eq]
+        exact ⟨fun ⟨z, hz⟩ => hfun x z ▸ hz,
+          fun hx => ⟨PEmpty.elim, (hfun x PEmpty.elim).symm ▸ hx⟩⟩
       rw [he]
       exact hT.reindex E
     · intro α _ ih _ β _ T hT hn

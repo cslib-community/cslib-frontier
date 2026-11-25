@@ -286,11 +286,9 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   have hyb : y.Bounded w := (hs₁₃b.set hfit225).set hfit_hb
   have hyf : y.frontier = peakF := hs₁₃f_eq
   have hym : y.mem = s₁₃.mem := rfl
-  have hold_meta_eq : ∀ a, base + epochHdrWords ≤ a ∧ a < newMeta → y.mem a = s₈.mem a :=
-    fun a ha => by
-      rw [hym, hs₁₃_mem_eq,
-        hframe_wp2 a (fun h => by linarith only [ha.2, h.1]), hs₁₁_mem_eq]
-      exact hout_cr a (fun h => by linarith only [ha.2, h.1, hnm_le_oid])
+  have hold_lt_nm : ∀ a < newMeta, y.mem a = s₈.mem a := fun a ha => by
+    rw [hym, hs₁₃_mem_eq, hframe_wp2 a (fun h => by linarith only [ha, h.1]), hs₁₁_mem_eq]
+    exact hout_cr a (fun h => by linarith only [ha, h.1, hnm_le_oid])
   have hold_item_eq : ∀ j < iwOld, y.mem (oldItemDst + j) = s₈.mem (newMeta + j) :=
     fun j hj => by
       rw [hym, hs₁₃_mem_eq,
@@ -303,18 +301,17 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
       (totalMicroBits N_old) 3 θ_old y.mem := by
     have hlm : offCompLM U w N_old ≤ offCompItems U w N_old := by
       unfold offCompItems offDenseToTail offTailToDense offCompGM; omega
-    refine ⟨ReducedKWise.tableRep_congr hsplit₈.hash_rep.1 fun a h₁ h₂ =>
-        (hold_meta_eq a ⟨h₁, ?_⟩).symm,
-      ReducedKWise.seedRep_congr (w := w) hsplit₈.hash_rep.2 fun a h₁ h₂ =>
-        (hold_meta_eq a ⟨h₁, ?_⟩).symm⟩
+    refine ⟨ReducedKWise.tableRep_congr hsplit₈.hash_rep.1 fun a _ h₂ =>
+        (hold_lt_nm a ?_).symm,
+      ReducedKWise.seedRep_congr (w := w) hsplit₈.hash_rep.2 fun a _ h₂ =>
+        (hold_lt_nm a ?_).symm⟩
     all_goals dsimp only [newMeta, offCompLM, epochHdrWords, epochHashSpace, epochQBits,
       epochHashB, qBits, hashB] at hlm h₂ ⊢
     all_goals linarith only [h₂, hlm]
   obtain ⟨s_fix_old, hinv_old, htot_old, hcpl_old⟩ := hsplit₈.coupled
-  have hlm_old_ge : epochHdrWords ≤ offCompLM U w N_old := Nat.le_add_right _ _
   obtain ⟨hcpl_old_y, hgm_old_y⟩ := fixedCoupled_of_shift (s₀ := ⟨s₈.mem, s₈.frontier⟩)
     (s₁ := ⟨y.mem, y.frontier⟩) (dstItemBase := oldItemDst) hw hcpl_old htot_old
-    (fun a ha => hold_meta_eq a ⟨by linarith only [ha.1, hlm_old_ge], ha.2⟩) hold_item_eq
+    (fun a ha => hold_lt_nm a ha.2) hold_item_eq
   have hkeep_8_to_y : ∀ reg : Fin rResize, reg.val < 160 →
       reg ∉ ([mFr, mTmpA, mRes, mCur, mIdx, mZero, mOne, mOffNew, mHSpaceNew, mHashBase] :
         List (Fin rResize)) →
@@ -356,14 +353,8 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
     fun i => ?_, fun i => ?_, fun i => ?_, fun i => ?_⟩
   · exact abiPreserved_trans habi₈ (abiPreserved_of_lt_five fun r h5 hr =>
       hkeep_8_to_y r (by omega) (by clear * - h5 hr; simp [Fin.ext_iff] at hr ⊢; omega))
-  · intro addr haddr
-    rw [hym, hs₁₃_mem_eq,
-      hframe_wp2 addr (fun h => by dsimp only [newMeta] at h; linarith only [haddr, h.1]),
-      hs₁₁_mem_eq,
-      hout_cr addr (fun h => by
-        dsimp only [newMeta] at hnm_le_oid
-        linarith only [haddr, h.1, hnm_le_oid])]
-    exact hbelow₈ addr haddr
+  · exact fun addr haddr =>
+      (hold_lt_nm addr (haddr.trans_le (Nat.le_add_right _ _))).trans (hbelow₈ addr haddr)
   · exact (hkeep_8_to_y mBase (mReg_lt_160 _) (by simp)).trans hs₈_base
   · exact (hkeep_8_to_y mCnt (mReg_lt_160 _) (by simp)).trans hs₈_cnt
   · simp [y, s₁₄, RData.set, hs₁₃_fr_reg]

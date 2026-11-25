@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.BuildEntries
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.OutScope
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Partition
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Tactic.Realize
 import Mathlib.Tactic.Ring
 
@@ -436,15 +437,9 @@ theorem elimVarProg_realizes :
       _ = max 1 d.dom * stateCap es := by unfold stateCap; ring
   · exact h1
   · rw [memScan_state]
-    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW := by
-      have hfl : (bucket.flatMap FactorTable.scope).length ≤ bucket.length * SW := by
-        rw [List.length_flatMap]
-        have hsum := List.sum_le_length_nsmul (bucket.map fun a => a.scope.length) SW
-          fun _ hn => by
-            rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
-            exact hb_SW f hf
-        simpa [smul_eq_mul] using hsum
-      exact hfl.trans (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
+    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW :=
+      (List.length_flatMap_le hb_SW).trans
+        (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
     refine ⟨bucket, hpl_bLen.symm, hpl_bH, hfit_fr.of_le ?_⟩
     rw [hpl_fr, hfn_fr]
     dsimp only [stepMemDelta]

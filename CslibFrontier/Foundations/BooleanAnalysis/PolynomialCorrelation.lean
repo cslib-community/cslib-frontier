@@ -126,13 +126,10 @@ theorem exists_eq_add_majority_mul {m : ℕ} (f : BitString (2 * m + 1) → R) :
     fun x => f (fun i => !x i) - q (fun i => !x i)
   refine ⟨q, hq, _, comp_not_mem_lowDegree hr, fun x => ?_⟩
   by_cases hx : weight x ≤ m
-  · have hmaj : majority (2 * m + 1) x = false := by
-      rw [← Bool.not_eq_true, majority_eq_true_iff]
-      omega
+  · have hmaj : majority (2 * m + 1) x = false :=
+      Bool.eq_false_iff.2 (majority_eq_true_iff.not.2 (by omega))
     simp [hmaj, hqf x hx]
-  · have hmaj : majority (2 * m + 1) x = true := by
-      rw [majority_eq_true_iff]
-      omega
+  · have hmaj : majority (2 * m + 1) x = true := majority_eq_true_iff.2 (by omega)
     have hnot : weight (fun i => !x i) ≤ m := by
       rw [weight_not, Fintype.card_fin]
       omega
@@ -208,10 +205,7 @@ private theorem ite_firstFlagUnset_add_flipFirst (a : Fin k → α × Bool) :
     have h' : ¬∀ i, ¬g (a i).1 := fun h' => h.elim fun i hi => h' i hi
     cases hb : (a (Fin.find _ h)).2 <;> simp_all
   · push Not at h
-    have h₁ : FirstFlagUnset g a := fun i hi => absurd hi (h i)
-    have h₂ : FirstFlagUnset g (flipFirst g a) := fun i hi =>
-      absurd (by rwa [fst_flipFirst] at hi) (h i)
-    simp [h₁, h₂, h]
+    simp [FirstFlagUnset, fst_flipFirst, h]
 
 /-- Flipping the flag of the first coordinate whose first component satisfies `g` pairs the tuples
 in which that flag is unset with the others, except for the tuples without such a coordinate. -/
@@ -321,16 +315,12 @@ private theorem bitVal_mul_atom_mem {c : Finset (Fin (2 * m + 1)) × Bool} (hc :
   obtain ⟨A, b⟩ := c
   by_cases h : b = false ∧ #A < m
   · obtain ⟨rfl, hA⟩ := h
-    have hcard := card_insert_le j A
     refine Submodule.subset_span
-      ⟨(insert j A, false), ⟨show #(insert j A) ≤ m by omega, ?_⟩, ?_⟩
-    · simp only [atomWeight, Bool.false_eq_true, ↓reduceIte]
-      omega
-    · rw [atom_false, atom_false, ← monomial_singleton, monomial_mul, insert_eq]
+      ⟨(insert j A, false), ⟨(card_insert_le j A).trans hA, card_insert_le j A⟩, ?_⟩
+    rw [atom_false, atom_false, ← monomial_singleton, monomial_mul, insert_eq]
   · refine atomSpan_mono ?_ (atomSpan_eq_top (m := m) ▸ Submodule.mem_top)
     cases b
-    · simp only [true_and, not_lt] at h
-      simp only [atomWeight, Bool.false_eq_true, ↓reduceIte]
+    · simp only [atomWeight, Bool.false_eq_true, ↓reduceIte, true_and, not_lt] at h ⊢
       omega
     · simp [atomWeight]
 
@@ -633,12 +623,9 @@ theorem abs_expect_signVal_xorMajority_mul_signVal_le_card {k m d : ℕ}
   have hinj (a b : Bool) : bitVal (ZMod 2) a = bitVal (ZMod 2) b ↔ a = b := by
     cases a <;> cases b <;> decide
   have h₁ := two_mul_card_agree_xorMajority_le hp
-  have h₂ := two_mul_card_agree_xorMajority_le (P := fun x => bitVal (ZMod 2) (!p x)) (by
-    have h : (fun x => bitVal (ZMod 2) (!p x)) = 1 - fun x => bitVal (ZMod 2) (p x) := by
-      funext x
-      simp [bitVal_not]
-    rw [h]
-    exact one_sub_mem_lowDegree hp)
+  have hnot_eq : (fun x => bitVal (ZMod 2) (!p x)) = 1 - fun x => bitVal (ZMod 2) (p x) :=
+    funext fun x => by simp [bitVal_not]
+  have h₂ := two_mul_card_agree_xorMajority_le (hnot_eq ▸ one_sub_mem_lowDegree hp)
   simp only [hinj] at h₁ h₂
   rw [div_pow, ← pow_mul, Nat.mul_comm (2 * m + 1)]
   exact abs_expect_signVal_mul_le_of_two_mul_card_le (by exact_mod_cast h₁) (by exact_mod_cast h₂)

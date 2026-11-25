@@ -208,7 +208,7 @@ theorem ten_add_two_mul_le_bandMargin (k : ℕ) : 10 + 2 * k ≤ bandMargin k :=
   · decide
   · decide
   · decide
-  · unfold bandMargin mulBaseMargin bandStart
+  · dsimp only [bandMargin, mulBaseMargin, bandStart]
     have hm : 2 * m ≤ 2 ^ m := by
       induction m with
       | zero => decide
@@ -220,27 +220,16 @@ theorem ten_add_two_mul_le_bandMargin (k : ℕ) : 10 + 2 * k ≤ bandMargin k :=
           calc 2 * (n + 1 + 1) = 2 * (n + 1) + 2 := by ring
             _ ≤ 2 ^ (n + 1) + 2 * 2 ^ n := Nat.add_le_add ih (by omega)
             _ = 2 ^ (n + 1 + 1) := by ring
-    have hpow : 2 ^ (m + 2) / 4 = 2 ^ m := by
-      have hp : 2 ^ (m + 2) = 4 * 2 ^ m := by ring
-      rw [hp, Nat.mul_div_right _ (by decide)]
-    rw [hpow]
+    have hp : 2 ^ (m + 2) = 4 * 2 ^ m := by ring
     omega
 
 theorem two_mul_bandStart_gt_of_maxBand_le {t k : ℕ} (hk : maxBand t ≤ k) :
     t + bandMargin k < 2 * bandStart k := by
-  have hk2 : 2 ≤ k := by
-    unfold maxBand at hk
-    omega
-  have hbase_lt : t + mulBaseMargin < bandStart (maxBand t) := by
-    unfold maxBand bandStart
-    exact Nat.lt_pow_succ_log_self (by decide) (t + mulBaseMargin)
+  have hbase_lt : t + mulBaseMargin < bandStart (maxBand t) :=
+    Nat.lt_pow_succ_log_self (by decide) (t + mulBaseMargin)
   have hD_ge : bandStart (maxBand t) ≤ bandStart k := bandStart_mono hk
-  have hD2 : 2 ≤ bandStart k := by
-    have h2 : bandStart 2 = 2 := rfl
-    rw [← h2]
-    exact bandStart_mono hk2
+  have hD2 : 2 ≤ bandStart k := bandStart_mono (show 2 ≤ k by rw [maxBand] at hk; omega)
   unfold bandMargin
-  set D := bandStart k
   omega
 
 /-- **Clock-drop latency inequality** [OpenAI2026LogSpace, (10.12)]: for any retained pair `(i, j)`
@@ -298,19 +287,14 @@ theorem bandFoldMod_eq_bandFold_emod (x y : ℕ → ℤ) (t q : ℕ) :
   | rem + 1, hrem => by
     simp only [bandFoldMod, bandFold]
     set k := maxBand t - (rem + 1)
-    have hk_succ : maxBand t - rem = k + 1 := by omega
-    have hle_rem : rem ≤ maxBand t := by omega
-    have ih := bandFoldMod_eq_bandFold_emod x y t q rem hle_rem
-    rw [hk_succ] at ih
+    have ih := bandFoldMod_eq_bandFold_emod x y t q rem (by omega)
+    rw [show maxBand t - rem = k + 1 by omega] at ih
     set shift := bandMargin (k + 1) - bandMargin k
     have hmargin_add : (q + bandMargin k) + shift = q + bandMargin (k + 1) := by
       have hmono : bandMargin k ≤ bandMargin (k + 1) := bandMargin_mono (Nat.le_succ k)
       omega
-    have hdiv_mod : bandFoldMod x y t q rem / (2 : ℤ) ^ shift =
-        (bandFold x y t rem / (2 : ℤ) ^ shift) % (2 : ℤ) ^ (q + bandMargin k) := by
-      rw [ih, ← hmargin_add, ← ediv_two_pow_emod_eq]
-    rw [hdiv_mod, Int.add_emod, ← bandSum_emod_eq_bandWindowSum_emod, Int.emod_emod,
-      ← Int.add_emod]
+    rw [ih, ← hmargin_add, ← ediv_two_pow_emod_eq, Int.add_emod,
+      ← bandSum_emod_eq_bandWindowSum_emod, Int.emod_emod, ← Int.add_emod]
 
 /-- **Windowed modular product residue theorem** [OpenAI2026LogSpace, Lemma 10.4]:
 `mulResidue x y t q` computes the exact mod-`2^q` Euclidean residue of `mulApprox x y t` while
@@ -652,9 +636,7 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
   have hpre_err : |(2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N) -
       (2 : ℝ) ^ t * (streamVal x * streamVal y)| ≤ 144 / (2 : ℝ) ^ 20 := by
     have hx_pre : |streamPrefix x N| ≤ 12 := by
-      have h := abs_streamPrefix_le hx N
-      have hpos : (0 : ℝ) ≤ 6 / (2 : ℝ) ^ N := by positivity
-      linarith
+      linarith [abs_streamPrefix_le hx N, (by positivity : (0 : ℝ) ≤ 6 / (2 : ℝ) ^ N)]
     have hy_val : |streamVal y| ≤ 12 := abs_streamVal_le_twelve hy
     have hx_tail := abs_streamVal_sub_streamPrefix_le hx N
     have hy_tail := abs_streamVal_sub_streamPrefix_le hy N
@@ -671,10 +653,8 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
         _ ≤ 12 * (6 / (2 : ℝ) ^ N) + (6 / (2 : ℝ) ^ N) * 12 := by gcongr
         _ = 144 / (2 : ℝ) ^ N := by ring
     rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
-    have hN_ge : t + 20 ≤ N := by omega
-    have hpow_ge : (2 : ℝ) ^ t * (2 : ℝ) ^ 20 ≤ (2 : ℝ) ^ N := by
-      rw [← pow_add]
-      exact pow_le_pow_right₀ (by norm_num) hN_ge
+    have hpow_ge : (2 : ℝ) ^ t * (2 : ℝ) ^ 20 ≤ (2 : ℝ) ^ N :=
+      pow_add (2 : ℝ) t 20 ▸ pow_le_pow_right₀ (by norm_num) (by omega)
     calc (2 : ℝ) ^ t * |streamPrefix x N * streamPrefix y N - streamVal x * streamVal y|
         ≤ (2 : ℝ) ^ t * (144 / (2 : ℝ) ^ N) :=
           mul_le_mul_of_nonneg_left hprod_err (by positivity)

@@ -56,10 +56,8 @@ theorem trace_eq_residue (d : ℕ) (hd : 1 ≤ d)
   have heval (q : MvPolynomial (Fin n) S) : eval x (q.map φ) = π q := by
     rw [eval_map]
     exact congrArg (fun f : MvPolynomial (Fin n) S →ₐ[S] A => f q) (aeval_unique π).symm
-  have hx (i : Fin n) : eval x (r' i) = x i ^ (d + 1) := by
-    rw [heval]
-    exact (projection_X_pow (d + 1) r i).symm
-  obtain ⟨K, hk, hdiag⟩ := purePower_reproducing_kernel x d hd r' hrA hx
+  obtain ⟨K, hk, hdiag⟩ := purePower_reproducing_kernel x d hd r' hrA
+    fun i => (heval _).trans (projection_X_pow (d + 1) r i).symm
   let L := quotientFunctional hell r hrS
   let m : (Fin n →₀ ℕ) → A := fun e => π (monomial e 1)
   let c : (Fin n →₀ ℕ) → A := fun e => K.coeff e
@@ -68,32 +66,25 @@ theorem trace_eq_residue (d : ℕ) (hd : 1 ≤ d)
     change (∑ e ∈ K.support, L (m e * π q) • c e) = π q
     have hsum := (residue_kernel_expansion φ hell r hrS K q).symm.trans (hk (q.map φ))
     rw [heval] at hsum
-    have hterm (e : Fin n →₀ ℕ) :
-        L (m e * π q) • c e = K.coeff e * φ (residue (d + 1) r (monomial e 1 * q)) := by
-      change quotientFunctional hell r hrS
-        (projection (d + 1) r (monomial e 1) * projection (d + 1) r q) • K.coeff e = _
-      rw [← map_mul, quotientFunctional_projection]
-      exact (Algebra.smul_def (residue (d + 1) r (monomial e 1 * q))
-        (K.coeff e)).trans (mul_comm _ _)
-    rw [Finset.sum_congr rfl (fun e _ => hterm e)]
-    exact hsum
+    refine (Finset.sum_congr rfl fun e _ => ?_).trans hsum
+    change quotientFunctional hell r hrS
+      (projection (d + 1) r (monomial e 1) * projection (d + 1) r q) • K.coeff e = _
+    rw [← map_mul, quotientFunctional_projection]
+    exact (Algebra.smul_def (residue (d + 1) r (monomial e 1 * q)) (K.coeff e)).trans (mul_comm _ _)
   have hJac : Matrix.det (Matrix.of (fun i j => eval x (pderiv j (X i ^ (d + 1) - r' i)))) =
-      π (jacobian (d + 1) r) := by
-    calc
-      _ = eval x (jacobian (d + 1) r') := by
-        unfold jacobian
-        exact ((eval x).map_det (Matrix.of (fun i j =>
-          pderiv j (X i ^ (d + 1) - r' i)))).symm
-      _ = _ := by
-        change eval x (jacobian (d + 1) (fun i => (r i).map φ)) = _
-        rw [← jacobian_map φ (d + 1) r, heval]
+      π (jacobian (d + 1) r) := calc
+    _ = eval x (jacobian (d + 1) r') := by
+      unfold jacobian
+      exact ((eval x).map_det (Matrix.of fun i j => pderiv j (X i ^ (d + 1) - r' i))).symm
+    _ = _ := by
+      change eval x (jacobian (d + 1) fun i => (r i).map φ) = _
+      rw [← jacobian_map φ (d + 1) r, heval]
   have heuler : (∑ e ∈ K.support, c e * m e) = π (jacobian (d + 1) r) := by
     calc
       _ = eval x K := by
         conv_rhs => rw [K.as_sum]
         rw [map_sum]
-        apply Finset.sum_congr rfl
-        intro e _
+        refine Finset.sum_congr rfl fun e _ => ?_
         have hm := heval (monomial e 1)
         simp only [map_monomial, map_one] at hm
         rw [show m e = eval x (monomial e 1) from hm.symm]

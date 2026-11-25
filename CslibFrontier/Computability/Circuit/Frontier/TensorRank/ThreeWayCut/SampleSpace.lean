@@ -69,14 +69,12 @@ private theorem measurePreserving_dot2_unit {u : ℝ × ℝ} (hu : u.1 ^ 2 + u.2
     dsimp [v]
     rw [sq_abs, sq_abs, hu, sqrt_one]
   have hv_nn : ‖v‖₊ ^ 2 = 1 := by ext; simp [hv_norm]
-  have hmp1 := (measurePreserving_finTwoArrow (gaussianReal 0 1)).symm
-  have hmp2 := measurePreserving_toLp_pi_gaussianReal (Fin 2)
   have hmp3 : MeasurePreserving (fun x : EuclideanSpace ℝ (Fin 2) => ⟪v, x⟫)
       (stdGaussian (EuclideanSpace ℝ (Fin 2))) (gaussianReal 0 1) :=
     ⟨by fun_prop, by rw [stdGaussian_map_inner, hv_nn]⟩
-  have hcomp := (hmp3.comp hmp2).comp hmp1
   unfold gauss2
-  convert hcomp using 1
+  convert ((hmp3.comp (measurePreserving_toLp_pi_gaussianReal (Fin 2))).comp
+    (measurePreserving_finTwoArrow (gaussianReal 0 1)).symm) using 1
   funext p
   simp only [Function.comp_apply, PiLp.inner_apply, Fin.sum_univ_two, v,
     Matrix.cons_val_zero, Matrix.cons_val_one, RCLike.inner_apply, conj_trivial]
@@ -101,15 +99,13 @@ private theorem measurePreserving_ortho2 {u₀ u₁ : ℝ × ℝ}
       simp only [RCLike.inner_apply, conj_trivial]
       dsimp [v]
       linarith only [horth]
-  have hmp1 := (measurePreserving_finTwoArrow (gaussianReal 0 1)).symm
-  have hmp2 := measurePreserving_toLp_pi_gaussianReal (Fin 2)
   have hmp3 : MeasurePreserving (fun x (i : Fin 2) => ⟪v i, x⟫)
       (stdGaussian (EuclideanSpace ℝ (Fin 2))) (Measure.pi fun _ : Fin 2 => gaussianReal 0 1) :=
     ⟨by fun_prop, stdGaussian_map_inner_pi hv_norm hv_orth⟩
-  have hmp4 := measurePreserving_finTwoArrow (gaussianReal 0 1)
-  have hcomp := hmp4.comp ((hmp3.comp hmp2).comp hmp1)
   unfold gauss2
-  convert hcomp using 1
+  convert (measurePreserving_finTwoArrow (gaussianReal 0 1)).comp
+    ((hmp3.comp (measurePreserving_toLp_pi_gaussianReal (Fin 2))).comp
+      (measurePreserving_finTwoArrow (gaussianReal 0 1)).symm) using 1
   funext p
   ext <;> simp only [Function.comp_apply, MeasurableEquiv.finTwoArrow_apply, PiLp.inner_apply,
       Fin.sum_univ_two, v, Matrix.cons_val_zero, Matrix.cons_val_one,
@@ -201,19 +197,12 @@ private theorem gaussTie_not_injective_zero :
   have hcov : {τ : Fin 3 → ℝ | ¬Function.Injective τ} ⊆
       {τ | τ 0 = τ 1} ∪ ({τ | τ 1 = τ 2} ∪ {τ | τ 2 = τ 0}) := by
     intro τ hτ
-    change ¬(∀ a₁ a₂ : Fin 3, τ a₁ = τ a₂ → a₁ = a₂) at hτ
-    push Not at hτ
-    obtain ⟨c₁, c₂, heq, hne⟩ := hτ
+    obtain ⟨c₁, c₂, heq, hne⟩ := Function.not_injective_iff.mp hτ
+    clear * - heq hne
     fin_cases c₁ <;> fin_cases c₂
-    · exact absurd rfl hne
-    · exact Or.inl heq
-    · exact Or.inr (Or.inr heq.symm)
-    · exact Or.inl heq.symm
-    · exact absurd rfl hne
-    · exact Or.inr (Or.inl heq)
-    · exact Or.inr (Or.inr heq)
-    · exact Or.inr (Or.inl heq.symm)
-    · exact absurd rfl hne
+    all_goals
+      simp only [mem_union, mem_ofPred_eq]
+      grind
   have h (c₁ c₂ : Fin 3) (hne : c₁ ≠ c₂) :=
     (measureReal_eq_zero_iff (measure_ne_top _ _)).mp (hpair c₁ c₂ hne)
   exact (measureReal_eq_zero_iff (measure_ne_top _ _)).mpr (measure_mono_null hcov
@@ -294,13 +283,9 @@ private theorem measureReal_pi_prod_det2_eq_zero {ι : Type*} [Fintype ι]
   let u : Fin 2 → EuclideanSpace ℝ ι := ![y₁, u₂]
   have hu_norm (i : Fin 2) : ‖u i‖ = 1 := by
     fin_cases i <;> simp [u, hy₁, hu₂_norm]
-  have hu_orth : Pairwise fun i j : Fin 2 => ⟪u i, u j⟫ = 0 := by
-    intro i j hij
-    fin_cases i <;> fin_cases j
-    · exact absurd rfl hij
-    · exact hy₁u₂
-    · rw [real_inner_comm]; exact hy₁u₂
-    · exact absurd rfl hij
+  have hu_orth : Pairwise fun i j : Fin 2 => ⟪u i, u j⟫ = 0 := fun i j hij => by
+    clear * - u hy₁u₂ hij
+    fin_cases i <;> fin_cases j <;> simp [u, hy₁u₂, real_inner_comm y₁ u₂] at hij ⊢
   let proj (x : EuclideanSpace ℝ ι) : ℝ × ℝ := (⟪y₁, x⟫, ⟪u₂, x⟫)
   have hmp_single : MeasurePreserving proj
       (stdGaussian (EuclideanSpace ℝ ι)) gauss2 := by

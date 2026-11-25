@@ -189,8 +189,8 @@ theorem sum_dist_questions_given_wins_le (S : RepeatedStrategy)
     ∑ j : Free, dist (Q.map fun r => (r.1, r.2 j))
         ((Q.map Prod.fst).bind fun (t, v) => (pairGiven G α C j t).map ((t, v), ·)) ≤
       Real.sqrt (Fintype.card Free * Real.log (Fintype.card CheckedAnswers /
-        (P.toOuterMeasure W).toReal) / 2) := by
-  exact sum_dist_filter_sideJoint_le (infoLaw G α C) (pairGiven G α C)
+        (P.toOuterMeasure W).toReal) / 2) :=
+  sum_dist_filter_sideJoint_le (infoLaw G α C) (pairGiven G α C)
     (sideKernel G α C S) (map_fst_sideKernel G α C S) _ hW
 
 /-- **BVY Lemma 4.6(1)** in the squared-sum form used in its proof. -/
@@ -210,16 +210,11 @@ theorem sum_sq_dist_freeTrials_given_wins_le (S : RepeatedStrategy)
     let (_, qs, answers) := r
     ∀ i : C, (G.anchored α).accepts (qs i).1 (qs i).2 (answers i).1 (answers i).2}
   have hpre : F ⁻¹' event = W := rfl
-  have he : ∃ x ∈ event, x ∈ (P.map F).support := by
-    obtain ⟨x, hx, hxp⟩ := hW
-    refine ⟨F x, hx, ?_⟩
-    rw [PMF.mem_support_map_iff]
-    exact ⟨x, hxp, rfl⟩
-  have hprior : (P.map F).map Prod.fst = pi fun _ : Free => law G.questions α := by
-    rw [PMF.map_comp]
-    exact map_freeTrials_transcriptLaw G α C S
+  have he : ∃ x ∈ event, x ∈ (P.map F).support :=
+    let ⟨x, hx, hxp⟩ := hW
+    ⟨F x, hx, (PMF.mem_support_map_iff _ _ _).mpr ⟨x, hxp, rfl⟩⟩
   have h := sum_sq_dist_map_filter_le (fun _ : Free => law G.questions α)
-    (P.map F) hprior event he
+    (P.map F) ((PMF.map_comp ..).trans (map_freeTrials_transcriptLaw G α C S)) event he
   have hfilter : (P.map F).filter event he = (P.filter W hW).map F := by
     subst W
     exact filter_map P F event he hW

@@ -99,8 +99,7 @@ private theorem prob_asymmetricLinearity
   simp only [asymmetricLinearity, prob, Measurement.average, withLinearityDummy, map, Finset.expect]
   have hcoeff (t : ℚ≥0) (z : ℂ) : ((t : ℂ) * z).re = t • z.re := by
     rw [← RCLike.ofReal_nnratCast (K := ℂ)]
-    change ((↑(t : ℝ) : ℂ) * z).re = _
-    rw [Complex.re_ofReal_mul, NNRat.smul_def]
+    exact (Complex.re_ofReal_mul (t : ℝ) z).trans (NNRat.smul_def t z.re).symm
   rw [← NNRat.cast_smul_eq_nnqsmul ℂ, smul_mul_assoc, map_smul, sum_mul, map_sum, smul_eq_mul,
     hcoeff, Complex.re_sum]
 
@@ -112,10 +111,8 @@ private theorem linearityTestProb_asymmetricLinearity
         (S.withLinearityDummy d).prob (linearityQuery k a b) (a, b) γ r else 0 := by
   unfold linearityTestProb
   refine expect_congr rfl fun k _ => expect_congr rfl fun a _ => expect_congr rfl fun b _ => ?_
-  rw [expect_sum_comm]
   simp_rw [expect_sum_comm, prob_asymmetricLinearity]
-  refine sum_congr rfl fun γ _ => sum_congr rfl fun r _ => ?_
-  split_ifs <;> simp
+  exact sum_congr rfl fun γ _ => sum_congr rfl fun r _ => by split_ifs <;> simp
 
 omit [Module ℚ≥0 𝒜] [PosSMulMono ℚ≥0 𝒜] in
 private theorem symmetricLinearityRound_eq
@@ -131,12 +128,11 @@ private theorem symmetricLinearityRound_eq
       (logical.withLinearityDummy dummy).prob (linearityQuery k a b) (a, b) γ r else 0 := by
   classical
   intro game seed logical
-  have h := logical.sum_ite_prob_map (fun c => sortPair (c, dummy)) sortPair
-    (fun c r => (unsortAnswer (c, dummy) r).1) unsortAnswer (linearityQuery k a b) (a, b)
-    (fun γ r => γ = linearityCheck k r)
   change _ = ∑ γ, ∑ r, if γ = linearityCheck k r then
     (logical.map _ _ _ _).prob (linearityQuery k a b) (a, b) γ r else 0
-  rw [h]
+  rw [logical.sum_ite_prob_map (fun c => sortPair (c, dummy)) sortPair
+    (fun c r => (unsortAnswer (c, dummy) r).1) unsortAnswer (linearityQuery k a b) (a, b)
+    (fun γ r => γ = linearityCheck k r)]
   cases roles
   · simp only [game, seed, logical, symmetricLinearityGame, sortPair, unsortAnswer,
       Bool.cond_false, id_eq, prob_swap]
@@ -162,12 +158,12 @@ theorem commutingWinProb_symmetricLinearityGame
   calc
     _ = 𝔼 seed, f seed := game.commutingWinProb_eq_expect_of_uniform rfl S
     _ = 𝔼 t, f (e.symm t) :=
-      Fintype.expect_equiv e f (fun t => f (e.symm t)) (fun s => by rw [e.symm_apply_apply])
+      Fintype.expect_equiv e f (fun t => f (e.symm t)) fun s => by rw [e.symm_apply_apply]
     _ = _ := by
       simp only [Fintype.expect_prod_type, linearityTestProb_asymmetricLinearity]
-      refine expect_congr rfl fun roles _ => expect_congr rfl fun k _ =>
-        expect_congr rfl fun a _ => expect_congr rfl fun b _ => expect_congr rfl fun d _ => ?_
-      exact symmetricLinearityRound_eq S roles k a b d
+      exact expect_congr rfl fun roles _ => expect_congr rfl fun k _ =>
+        expect_congr rfl fun a _ => expect_congr rfl fun b _ => expect_congr rfl fun d _ =>
+          symmetricLinearityRound_eq S roles k a b d
 
 end Algebra
 

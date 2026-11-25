@@ -53,14 +53,13 @@ private theorem computableInPolyTime_checkPerm {α : Type} [DecidableEq α]
     (encA : α ↪ List Bool) : ComputableInPolyTime
       (fun p : List α × List α => checkPerm p.1 p.2)
       (encPair (encList encA) (encList encA)) encBool := by
-  have hc : ComputableInPolyTime
-      (fun p : (List α × List α) × α =>
-        p.1.1.countP (· == p.2) == p.1.2.countP (· == p.2))
-      (encPair (encPair (encList encA) (encList encA)) encA) encBool := by fun_prop
-  have hl : ComputableInPolyTime (fun p : List α × List α => p.1 ++ p.2)
-      (encPair (encList encA) (encList encA)) (encList encA) := by fun_prop
   unfold checkPerm
-  exact ComputableInPolyTime.allWithEncoding hc (ComputableInPolyTime.id') hl
+  exact ComputableInPolyTime.allWithEncoding
+    (by fun_prop : ComputableInPolyTime
+      (fun p : (List α × List α) × α => p.1.1.countP (· == p.2) == p.1.2.countP (· == p.2))
+      (encPair (encPair (encList encA) (encList encA)) encA) encBool)
+    .id' (by fun_prop : ComputableInPolyTime (fun p : List α × List α => p.1 ++ p.2)
+      (encPair (encList encA) (encList encA)) (encList encA))
 
 private def localPorts (cs : List Color) (side : Bool) : List (WeightedPort (Bool × ℕ)) :=
   (List.range cs.length).map fun i => ⟨⟨(side, i), side⟩, (cs.getD i .red).weight⟩
@@ -69,17 +68,10 @@ private theorem localPorts_genVertex (a b : List Color) :
     ((Diagram.genVertex a b 0).map Slice.localIndex).ports =
       localPorts a true ++ localPorts b false := by
   simp only [Diagram.genVertex, Vertex.map, List.map_append, List.map_map, localPorts]
-  congr 1
-  · apply List.ext_getElem
-    · simp
-    · intro i hi hj
-      simp only [List.length_map, List.length_finRange, List.length_range] at hi hj
-      simp [WeightedPort.map, Port.map, Slice.localIndex, hi]
-  · apply List.ext_getElem
-    · simp
-    · intro i hi hj
-      simp only [List.length_map, List.length_finRange, List.length_range] at hi hj
-      simp [WeightedPort.map, Port.map, Slice.localIndex, hi]
+  congr 1 <;> (
+    refine List.ext_getElem (by simp) fun i hi _ => ?_
+    simp only [List.length_map, List.length_finRange] at hi
+    simp [WeightedPort.map, Port.map, Slice.localIndex, hi])
 
 private def checkPlaneData (d : Slice.Data) : Bool :=
   !d.isSwap && ((d.vertices.length == 1) && (d.vertices.all Vertex.checkAndOr &&
@@ -91,23 +83,15 @@ private theorem checkPlaneData_data (sl : Slice) : checkPlaneData sl.data = sl.c
   | swap _ => rfl
   | gen k a b vs =>
     have hi := Slice.localIndex_injective (n := a.length) (m := b.length)
-    have hp : Function.Injective (WeightedPort.map Slice.localIndex) :=
-      WeightedPort.map_injective hi
     have he : checkPerm ((vs.map (Vertex.map Slice.localIndex)).flatMap Vertex.ports)
         (localPorts a true ++ localPorts b false) = Prim.interp.checkPorts vs := by
       rw [← localPorts_genVertex, Bool.eq_iff_iff, checkPerm_eq_true_iff]
       change _ ↔ decide ((vs.flatMap Vertex.ports).Perm (Diagram.genVertex a b 0).ports) = true
-      rw [decide_eq_true_eq]
-      have hl : ((vs.map (Vertex.map Slice.localIndex)).flatMap Vertex.ports) =
-          (vs.flatMap Vertex.ports).map (WeightedPort.map Slice.localIndex) := by
-        simp only [Vertex.map, List.flatMap_map, List.map_flatMap]
-      rw [hl]
-      exact List.map_perm_map_iff hp
+      simpa only [Vertex.map, List.flatMap_map, ← List.map_flatMap, decide_eq_true_eq] using
+        List.map_perm_map_iff (WeightedPort.map_injective hi)
     simp only [checkPlaneData, Slice.data, Slice.checkPlane, Bool.not_false, Bool.true_and,
-      List.length_map, Prim.checkStandard]
-    rw [he]
-    simp only [List.all_map, Function.comp_def, Vertex.checkAndOr_map,
-      Vertex.checkLoopFree_map _ hi]
+      List.length_map, Prim.checkStandard, he, List.all_map, Function.comp_def,
+      Vertex.checkAndOr_map, Vertex.checkLoopFree_map _ hi]
 
 private theorem computableInPolyTime_colorWeight :
     ComputableInPolyTime Color.weight encColor encNat := by
@@ -126,8 +110,7 @@ private theorem computableInPolyTime_checkLoopFree :
     ComputableInPolyTime (Vertex.checkLoopFree : Vertex (Bool × ℕ) → Bool)
       (encVertex (encPair encBool encUnary)) encBool := by
   unfold Vertex.checkLoopFree
-  apply ComputableInPolyTime.decide_nodup
-  fun_prop
+  exact .decide_nodup (by fun_prop)
 
 private theorem computableInPolyTime_checkPlaneData :
     ComputableInPolyTime checkPlaneData Slice.encData encBool := by
@@ -142,18 +125,17 @@ private theorem computableInPolyTime_checkPlaneData :
 @[fun_prop]
 theorem Slice.computableInPolyTime_checkPlane :
     ComputableInPolyTime Slice.checkPlane encSlice encBool := by
-  have h := computableInPolyTime_checkPlaneData.comp Slice.computableInPolyTime_data
-  simpa only [Function.comp_def, checkPlaneData_data] using h
+  simpa only [Function.comp_def, checkPlaneData_data] using
+    computableInPolyTime_checkPlaneData.comp Slice.computableInPolyTime_data
 
 /-- Check every layer of a structurally encoded word for plane vertex shape in polynomial time. -/
 @[fun_prop]
 theorem Word.computableInPolyTime_checkPlane :
     ComputableInPolyTime Word.checkPlane encWord encBool := by
-  have hs : ComputableInPolyTime (fun p : Word × Slice => p.2.checkPlane)
-      (encPair encWord encSlice) encBool :=
-    Slice.computableInPolyTime_checkPlane.comp (ComputableInPolyTime.snd _ _)
   unfold Word.checkPlane encWord
-  exact ComputableInPolyTime.allWithEncoding hs ComputableInPolyTime.id'
-    (ComputableInPolyTime.of_eq (fun _ => rfl))
+  exact .allWithEncoding
+    (by fun_prop : ComputableInPolyTime (fun p : Word × Slice => p.2.checkPlane)
+      (encPair encWord encSlice) encBool)
+    .id' (.of_eq fun _ => rfl)
 
 end Cslib.Complexity.NCL

@@ -178,8 +178,7 @@ theorem synthesis_fixed_dictionary {a v M Q : ℕ} (s : Set (BooleanFunction a))
     simpa [records, stored] using congrFun (lookupOr_of_eq stored hkeys hi) bit.succ
   · rintro _ (⟨j, rfl⟩ | h)
     · exact Set.mem_iUnion.mpr ⟨j, 0, rfl⟩
-    · obtain ⟨j, hj⟩ := Set.mem_iUnion.mp h
-      obtain ⟨bit, rfl⟩ := hj
+    · obtain ⟨j, bit, rfl⟩ := Set.mem_iUnion.mp h
       exact Set.mem_iUnion.mpr ⟨j, bit.succ, rfl⟩
   · unfold dictionaryCost
     have hclog : Nat.clog 2 (Q + M) ≤ Nat.clog 2 (M + Q + 1) :=
@@ -229,15 +228,11 @@ theorem exists_forest_circuit_tables (f : BitString n → BitString n) (L : ℕ)
   obtain ⟨edgeTable⟩ := exists_forest_edge_table f H L hL hcover
   let M := forestMarks f H
   let marks : Fin M.card → BitString n := fun j => (M.equivFin.symm j).val
-  have hmarks_inj : Function.Injective marks := by
-    intro i j hij
-    exact M.equivFin.symm.injective (Subtype.ext hij)
-  have hmarks_mem (x : BitString n) : x ∈ forestMarks f H ↔ ∃ i, marks i = x := by
-    constructor
-    · intro hx
-      exact ⟨M.equivFin ⟨x, hx⟩, by simp [marks]⟩
-    · rintro ⟨i, rfl⟩
-      exact (M.equivFin.symm i).property
+  have hmarks_inj : Function.Injective marks :=
+    fun _ _ hij => M.equivFin.symm.injective (Subtype.ext hij)
+  have hmarks_mem (x : BitString n) : x ∈ forestMarks f H ↔ ∃ i, marks i = x :=
+    ⟨fun hx => ⟨M.equivFin ⟨x, hx⟩, by simp [marks]⟩,
+      fun ⟨i, hi⟩ => hi ▸ (M.equivFin.symm i).property⟩
   have hMcard : M.card ≤ 2 * (2 ^ n / L) :=
     (forestMarks_card f H).trans (Nat.mul_le_mul_left 2 hHcard')
   exact ⟨⟨H, hcover, low, high, hinterval, M.card, marks, hmarks_inj, hmarks_mem, hMcard,

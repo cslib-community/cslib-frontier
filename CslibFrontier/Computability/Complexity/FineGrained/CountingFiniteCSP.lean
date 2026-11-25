@@ -179,8 +179,7 @@ theorem computableInPolyTime_semBoolean_of_forall (encRel : Rel ↪ List Bool) (
         dsimp only [CSP.semBoolean]
         simp only [hq, ↓reduceDIte]
         change encBool ((ok && sem R (vals.map (CSP.toFin q hq)))) = encBool false
-        have hok_false : ok = false := Bool.eq_false_iff.mpr hok
-        rw [hok_false, Bool.false_and]
+        rw [Bool.eq_false_iff.mpr hok, Bool.false_and]
     · refine (ComputableInPolyTime.const (encOut := encBool) false).of_enc_eq fun R => ?_
       dsimp only [CSP.semBoolean]
       simp only [hq, ↓reduceDIte]
@@ -231,10 +230,7 @@ theorem exists_declaredCounter_toBoolean [Finite Rel]
   refine ⟨count, T, S, A, c, e, a, b_space, hcount, fun x hw hvars => ?_,
     fun x => hT { numVars := x.numVars * b, formula := x.formula.toBoolean q x.numVars },
     fun x => hS { numVars := x.numVars * b, formula := x.formula.toBoolean q x.numVars }⟩
-  rw [hspec { numVars := x.numVars * b, formula := x.formula.toBoolean q x.numVars }]
-  have hvalid := CSP.validDeclaredCSP_toBoolean (q := q) hw hvars
-  rw [hvalid]
-  simp only [↓reduceIte]
+  rw [hspec, CSP.validDeclaredCSP_toBoolean (q := q) hw hvars, ite_eq_left rfl]
   exact CSP.modelCountOn_toBoolean q x.numVars sem x.formula hvars
 
 /-- **General polynomial-time reduction to declared-variable finite-domain `#CSP`:**
@@ -356,9 +352,8 @@ theorem exists_modelCounter_finiteDomain_of_forall [DecidableEq V] (encRel : Rel
     exists_counter_of_polyTime_toFiniteDeclaredCSP encRel q k sem hsem hf hvalid fun F hF =>
       validDeclaredCSP_denseRelabel (by simpa only [List.all_eq_true, decide_eq_true_eq] using hF)
   refine ⟨count, T, S, A, c, e, a, b_space, hcount, fun F hF => ?_, hT, hS⟩
-  have hv : (F.all fun c => decide (c.scope.length ≤ k)) = true := by
-    simpa only [List.all_eq_true, decide_eq_true_eq] using hF
-  simp only [hspec F, hv, ↓reduceIte, modelCountOn_denseRelabel]
+  rw [hspec F, ite_eq_left (List.all_eq_true.mpr fun c hc => decide_eq_true (hF c hc)),
+    modelCountOn_denseRelabel]
 
 /-- **Occurring-variable exact counting for bounded-arity finite-domain `#CSP` over a finite
 relation alphabet.** -/

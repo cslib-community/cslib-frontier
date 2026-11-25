@@ -115,9 +115,8 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
     exact hfix_spec.2.2.1
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add]
-    have hgm_eq : compGmAt metaBase U w N s.mem =
-        gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem := hcpl.gm_eq
-    rw [hgm_eq] at hcost_qb
+    rw [hcpl.gm_eq, show epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N from rfl]
+      at hcost_qb
     dsimp only [b, q, m] at hcost_qb hlen_pr hovf_pr ⊢
     unfold probeExcess
     omega
@@ -201,22 +200,16 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
           (slotOf N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b j) = q
     · rw [ite_eq_left hex] at hres_branch
       obtain ⟨_, hj_lt, _, hphys_eq⟩ := hres_branch
-      have hj_lt' : res_sb.1.2 <
-          bCount N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b := hj_lt
-      have hphys_eq' : res_sb.2 =
-          slotOf N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b
-            res_sb.1.2 := hphys_eq
       rw [hcpl.gm_eq]
-      exact ⟨res_sb.1.2, hj_lt', hphys_eq'⟩
+      exact ⟨res_sb.1.2, hj_lt, hphys_eq⟩
     · rw [ite_eq_right hex] at hres_branch
       change sbFound res_sb = 0 at hres_branch
       omega
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add,
       memoryCost_bind_of_clientState_eq hst_sb _, memoryCost_compPackInsertSearchResProg, add_zero]
-    have hgm_eq : compGmAt metaBase U w N s.mem =
-        gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem := hcpl.gm_eq
-    rw [hgm_eq] at hcost_sb
+    rw [hcpl.gm_eq, show epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N from rfl]
+      at hcost_sb
     dsimp only [b, q, m] at hcost_sb hlen_pr hovf_pr ⊢
     unfold probeExcess
     omega
@@ -390,13 +383,10 @@ theorem compInsertMiss_dict_spec {metaBase itemBase U V w N m_cap : ℕ}
   have hslot : SlotStoreInv N (compGmAt metaBase U w N s_grown.mem) := by
     rw [hmem_grown, hcpl.gm_eq]; exact hb_inv.hslot
   have hcpl_grown : FixedCoupled metaBase itemBase U V w N s_fix s_grown :=
-    ⟨by simp only [hmem_grown]; exact hcpl.gm_eq,
-     by simp only [hmem_grown]; exact hcpl.lm_eq,
-     by simp only [hmem_grown]; exact hcpl.win_inv,
-     fun i => by simp only [hmem_grown]; exact hcpl.td_lt i,
-     fun i => by simp only [hmem_grown]; exact hcpl.dt_lt i,
-     fun d hd => by simp only [hmem_grown] at hd ⊢; exact hcpl.quot_eq d hd,
-     fun d hd => by simp only [hmem_grown] at hd ⊢; exact hcpl.val_eq d hd⟩
+    ⟨hmem_grown ▸ hcpl.gm_eq, hmem_grown ▸ hcpl.lm_eq, hmem_grown ▸ hcpl.win_inv,
+     fun i => hmem_grown ▸ hcpl.td_lt i, fun i => hmem_grown ▸ hcpl.dt_lt i,
+     fun d hd => hmem_grown ▸ hcpl.quot_eq d (hmem_grown ▸ hd),
+     fun d hd => hmem_grown ▸ hcpl.val_eq d (hmem_grown ▸ hd)⟩
   have htot_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) < N := by
     rwa [hmem_grown]
   have hm_cap_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) + 1 ≤ m_cap := by

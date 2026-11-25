@@ -168,10 +168,9 @@ theorem map_fst_bind_prodMk (μ : PMF V) (P : V → PMF X) :
 /-- Second marginal of the observation-first joint law `μ.bind fun v => (P v).map (·, v)`. -/
 theorem map_snd_bind_prodMk (μ : PMF V) (P : V → PMF X) :
     (μ.bind fun v => (P v).map (·, v)).map Prod.snd = μ := by
-  rw [_root_.PMF.map_bind]
-  have hconst : (fun v : V => ((P v).map (·, v)).map Prod.snd) = _root_.PMF.pure :=
-    funext fun v => (_root_.PMF.map_comp _ _ _).trans (_root_.PMF.map_const (P v) v)
-  rw [hconst, _root_.PMF.bind_pure]
+  simpa only [_root_.PMF.map_bind, _root_.PMF.bind_pure] using congrArg μ.bind
+    (funext fun v => (_root_.PMF.map_comp (·, v) (P v) Prod.snd).trans
+      (_root_.PMF.map_const (P v) v))
 
 /-- Real probability mass of the observation-first joint law `μ.bind fun v => (P v).map (·, v)` at
 `(x, v)`. -/
@@ -181,10 +180,7 @@ theorem toReal_bind_map_prodMk_apply (μ : PMF V) (P : V → PMF X) (x : X) (v :
   simp only [_root_.PMF.bind_apply, _root_.PMF.map_apply, Prod.mk.injEq]
   have hsingle (w : V) : (μ w * ∑' x' : X, if x = x' ∧ v = w then P w x' else 0) =
       if w = v then μ v * P v x else 0 := by
-    by_cases hwv : w = v
-    · subst hwv
-      simp only [and_true, tsum_ite_eq', ↓reduceIte]
-    · simp only [Ne.symm hwv, and_false, hwv, ↓reduceIte, tsum_zero, mul_zero]
+    by_cases hwv : w = v <;> simp [hwv, Ne.symm]
   rw [tsum_congr hsingle, tsum_ite_eq, ENNReal.toReal_mul]
 
 private theorem support_bind_subset_of_forall {μ : PMF V} {P : V → PMF X} {Q : PMF X}
@@ -242,14 +238,12 @@ theorem mutualInfo_bind_mul_log_two_eq_sum_klDiv_sub [Fintype V] [Finite X]
     · simp [hμv]
     by_cases hPvx : P v x = 0
     · simp [hPvx]
-    have hv_supp : v ∈ μ.support := (_root_.PMF.mem_support_iff μ v).mpr hμv
-    have hx_Pv : x ∈ (P v).support := (_root_.PMF.mem_support_iff (P v) x).mpr hPvx
-    have hx_Q : Q x ≠ 0 := (_root_.PMF.mem_support_iff Q x).mp (hQ v hv_supp hx_Pv)
-    have hx_bar : (μ.bind P) x ≠ 0 := (_root_.PMF.mem_support_iff (μ.bind P) x).mp
-      ((_root_.PMF.mem_support_bind_iff μ P x).mpr ⟨v, hv_supp, hx_Pv⟩)
+    have hx_bar : (μ.bind P) x ≠ 0 := (_root_.PMF.mem_support_iff _ _).mp
+      ((_root_.PMF.mem_support_bind_iff μ P x).mpr ⟨v, hμv, hPvx⟩)
     have hμv_r : (μ v).toReal ≠ 0 := by ennreal_to_real using hμv
     have hPvx_r : (P v x).toReal ≠ 0 := by ennreal_to_real using hPvx
-    have hQx_r : (Q x).toReal ≠ 0 := by ennreal_to_real using hx_Q
+    have hQx_r : (Q x).toReal ≠ 0 := by
+      ennreal_to_real using (_root_.PMF.mem_support_iff Q x).mp (hQ v hμv hPvx)
     have hbar_r : ((μ.bind P) x).toReal ≠ 0 := by ennreal_to_real using hx_bar
     have hratio : ((μ v).toReal * (P v x).toReal) / (((μ.bind P) x).toReal * (μ v).toReal) =
         ((P v x).toReal / (Q x).toReal) / (((μ.bind P) x).toReal / (Q x).toReal) := by

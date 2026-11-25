@@ -179,8 +179,7 @@ private theorem elimOrderStep_spec {w : ℕ} (env : ElimLoopEnv) {R M SW W B x :
     scope_elimVar_le_of_le env.dom x es hSW hW.1 hW_SW, hW.2,
     (Nat.mul_le_mul_left _ (stateCap_elimVar_le env.dom x es)).trans hcap₁,
     hfit.of_le (by rw [Nat.add_one_mul]; omega)⟩, by omega⟩
-  rw [show env.orderPtr + (st.idx + 1) = env.orderPtr + st.idx + 1 by omega]
-  exact hord_tail.mono_frontier hvp_pres
+  simpa only [Nat.add_assoc] using hord_tail.mono_frontier hvp_pres
 
 private theorem elimOrderLoop_aux {w : ℕ} (env : ElimLoopEnv) {R M SW W B : ℕ}
     (hW_SW : W ≤ SW) (hB : Fits w B) (h1 : Fits w 1) (hpowSW : Fits w ((max 1 env.dom) ^ SW)) :

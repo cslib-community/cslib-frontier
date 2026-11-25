@@ -180,16 +180,11 @@ private theorem not_solvesByzantineAgreement_of_bipartition_cut {t R : ℕ}
   have hcompat : ∀ i ∉ C₁, ∀ j ∉ C₁, G.Adj j i → (inB i ^^ cross i j) = inB j := by
     intro i hi j hj hji
     cases hbi : inB i <;> cases hbj : inB j
-    · simp only [cross, hbi, hbj, Bool.false_and, Bool.and_false, Bool.or_self, Bool.false_xor]
-    · have hiC₂ : i ∈ C₂ := (hcut j i hji hbj hbi).resolve_left hi
-      simp only [cross, hbi, hbj, decide_eq_true hiC₂, Bool.false_and, Bool.and_true,
-        Bool.false_or, Bool.false_xor]
-    · have hjC₂ : j ∈ C₂ := (hcut i j hji.symm hbi hbj).resolve_left hj
-      simp only [cross, hbi, hbj, decide_eq_true hjC₂, Bool.true_and, Bool.true_or]
-      rfl
-    · have hiC₂ : i ∉ C₂ := fun hmem => by rw [hBC₂ i hmem] at hbi; cases hbi
-      have hjC₂ : j ∉ C₂ := fun hmem => by rw [hBC₂ j hmem] at hbj; cases hbj
-      rw [hcross_not_C₂ i hiC₂ j hjC₂]
+    · simp [cross, hbi, hbj]
+    · simp [cross, hbi, hbj, (hcut j i hji hbj hbi).resolve_left hi]
+    · simp [cross, hbi, hbj, (hcut i j hji.symm hbi hbj).resolve_left hj]
+    · rw [hcross_not_C₂ i (fun h => Bool.noConfusion (hbi.symm.trans (hBC₂ i h))) j
+        (fun h => Bool.noConfusion (hbj.symm.trans (hBC₂ j h)))]
       rfl
   have h₂ := h.agreement C₁ hC₁ (adv inB) inB u huC₁ v hvC₁
   rw [key C₁ inB hcompat u huC₁, key C₁ inB hcompat v hvC₁, huB, hvB, h₀, h₁] at h₂
@@ -262,12 +257,8 @@ theorem not_solvesByzantineAgreement_of_not_isVertexConnected [Fintype P] {t R :
   rw [SimpleGraph.isVertexConnected_iff_forall_isVertexSeparator,
     ENat.card_eq_coe_fintype_card] at hconn
   by_cases hgt : 2 * t + 1 < Fintype.card P
-  · have hsep_ex : ∃ u v : P, u ≠ v ∧ ∃ T : Finset P, G.IsVertexSeparator u v T ∧
-        T.card < 2 * t + 1 := by
-      by_contra hall
-      push Not at hall
-      exact hconn ⟨by exact_mod_cast hgt, fun u v huv T hT => hall u v huv T hT⟩
-    obtain ⟨u, v, -, C, hsep, hlt⟩ := hsep_ex
+  · push Not at hconn
+    obtain ⟨u, v, -, C, hsep, hlt⟩ := hconn (by exact_mod_cast hgt)
     exact π.not_solvesByzantineAgreement_of_isVertexSeparator hsep (by omega)
   · exact π.not_solvesByzantineAgreement h2 (by omega)
 
@@ -528,19 +519,10 @@ private theorem purifiedOM_omTree_epoch_succ (hF : F.card ≤ t) (v : ℕ) {i u 
       ((purifiedOM t routes).state F adv x ((v + 1) * epochLen P) i).buf := by
     unfold curBuf
     rw [ite_eq_right (by omega), Nat.add_mul, one_mul]
-  have hnext :
-      ((purifiedOM t routes).state F adv x ((v + 1) * epochLen P) i).omTree (u :: τ) =
-        if hu_eq : u = i then
-          ((purifiedOM t routes).state F adv x (v * epochLen P + (epochLen P - 1)) i).omTree τ
-        else
-          strictMajorityOn Finset.univ fun m =>
-            ((purifiedOM t routes).state F adv x ((v + 1) * epochLen P) i).buf
-              (routes.path i u (Ne.symm hu_eq) m).support.tail τ := by
-    conv_lhs => rw [hr_eq]
-    rw [purifiedOM_state_succ_omTree, hmod, hdiv, ite_eq_left (by omega)]
-    dsimp only
-    rw [ite_eq_left hτ, ← hr_eq]
-  rw [hnext]
+  conv_lhs => rw [hr_eq]
+  rw [purifiedOM_state_succ_omTree, hmod, hdiv, ite_eq_left (by omega)]
+  dsimp only
+  rw [ite_eq_left hτ, ← hr_eq]
   split_ifs with hu_eq
   · subst hu_eq
     rw [purifiedOM_omTree_epoch_offset routes F adv x v u hpred_lt]
@@ -622,21 +604,13 @@ theorem solvesByzantineAgreement_purifiedOM {P : Type*} [Fintype P] [DecidableEq
     (hn : 3 * t < Fintype.card P) {R : ℕ} (hR : (t + 1) * epochLen P ≤ R) :
     (purifiedOM t routes).SolvesByzantineAgreement t R where
   agreement F hF adv x i hi j hj := by
-    dsimp only [GraphProtocol.decision]
-    change (strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve i ((purifiedOM t routes).state F adv x R i).omTree t [c]) =
-      strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve j ((purifiedOM t routes).state F adv x R j).omTree t [c]
-    congr 1 with c : 1
+    refine congrArg (strictMajorityOn Finset.univ) (funext fun c => ?_)
     rw [omResolve_purifiedOM_eq_frozenTree routes F adv x hR i c,
       omResolve_purifiedOM_eq_frozenTree routes F adv x hR j c]
     exact Byzantine.omResolve_eq_omResolve
       (fun _ hp _ hq τ => frozenTree_cons routes F adv x hF hp hq τ) t c [] List.not_mem_nil
       (by simpa using hF) (by simpa using hn) i hi j hj
   validity F hF adv x v hv i hi := by
-    dsimp only [GraphProtocol.decision]
-    change (strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve i ((purifiedOM t routes).state F adv x R i).omTree t [c]) = v
     refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun c _ hc => ?_) ?_
     · rw [omResolve_purifiedOM_eq_frozenTree routes F adv x hR i c,
         Byzantine.omResolve_eq_of_notMem
@@ -705,10 +679,8 @@ private theorem uliftProtocol_state.{u, s₀, m₀, v, w} {P : Type u} [Decidabl
     congr 1
     · exact uliftProtocol_state π F adv x r i
     · funext j hji
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte]
-        exact congrArg (fun s => π.send r j s i hji) (uliftProtocol_state π F adv x r j)
+      by_cases hj : j ∈ F <;> simp only [hj, ↓reduceIte]
+      exact congrArg (fun s => π.send r j s i hji) (uliftProtocol_state π F adv x r j)
 
 private theorem solvesByzantineAgreement_ulift.{u, s₀, m₀, v, w} {P : Type u} [DecidableEq P]
     {G : SimpleGraph P} {S : Type s₀} {M : Type m₀} {π : GraphProtocol G S M} {t R : ℕ}

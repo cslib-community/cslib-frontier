@@ -147,23 +147,15 @@ abbrev Seed (ℓ : ℕ) : Type := Cslib.BinaryField (2 * ℓ + 2)
 /-- The wire numbering is injective. -/
 theorem widx_injective {n g : ℕ} : Function.Injective (widx (n := n) (g := g)) := by
   intro w w' h
-  cases w with
-  | input i =>
-    cases w' with
-    | input i' => exact congrArg Wire.input (Fin.ext h)
-    | gate k' => exact absurd h (by simp only [widx]; have := i.isLt; omega)
-  | gate k =>
-    cases w' with
-    | input i' => exact absurd h (by simp only [widx]; have := i'.isLt; omega)
-    | gate k' =>
-      simp only [widx, Nat.add_left_cancel_iff] at h
-      exact congrArg Wire.gate (Fin.ext h)
+  cases w <;> cases w' <;> simp only [widx, Nat.add_left_cancel_iff] at h
+  · exact congrArg Wire.input (Fin.ext h)
+  · omega
+  · omega
+  · exact congrArg Wire.gate (Fin.ext h)
 
 /-- The wire numbering takes values below `n + g`. -/
 theorem widx_lt {n g : ℕ} (w : Wire n g) : widx w < n + g := by
-  cases w with
-  | input i => simp only [widx]; have := i.isLt; omega
-  | gate k => simp only [widx]; have := k.isLt; omega
+  cases w <;> simp only [widx] <;> omega
 
 variable {n g m ℓ : ℕ}
 
@@ -346,19 +338,15 @@ private theorem linePoly_correct (r : Seed ℓ) (k : Fin g) (op : Unbounded.ExtO
       rw [haux pi hpi, decide_eq_true_iff] at h
       exact ⟨pi.1, pi.2, (mem_rel.1 hpi).1, (mem_rel.1 hpi).2, h⟩
     · rintro ⟨p, i, hp, hpm, h⟩
-      have hp1 : p < m + 1 := by
-        have := Nat.le_of_dvd hm ((dvd_pow_self p i.succ_ne_zero).trans hpm)
-        omega
+      have hp1 : p < m + 1 :=
+        Nat.lt_succ_of_le (Nat.le_of_dvd hm ((dvd_pow_self p i.succ_ne_zero).trans hpm))
       have him : i < m + 1 := by
-        have h1 : i + 1 < 2 ^ (i + 1) := Nat.lt_two_pow_self
-        have h2 : 2 ^ (i + 1) ≤ p ^ (i + 1) := Nat.pow_le_pow_left hp.two_le _
-        have h3 : p ^ (i + 1) ≤ m := Nat.le_of_dvd hm hpm
+        have := (Nat.lt_two_pow_self (n := i + 1)).trans_le
+          ((Nat.pow_le_pow_left hp.two_le _).trans (Nat.le_of_dvd hm hpm))
         omega
       have hmem : ((⟨p, hp1⟩ : Fin (m + 1)), (⟨i, him⟩ : Fin (m + 1))) ∈ rel m :=
         mem_rel.2 ⟨hp, hpm⟩
-      refine ⟨_, hmem, ?_⟩
-      rw [haux _ hmem]
-      simpa using h
+      exact ⟨_, hmem, by simpa [haux _ hmem] using h⟩
 
 /-- **The digit layers.** Running the `MOD_p` digit layers for the primes in `ps` keeps the wire
 slots and sets the digit test slot `(k, p, i)` of each relevant `p ∈ ps`. -/
@@ -824,28 +812,24 @@ private theorem exists_symAnd_of_mem_AC0Mod_of_pos {m : ℕ} (hm : 0 < m) {L : L
   have hlog : Nat.log 2 (n + C.size) ≤ e * (Nat.log 2 n + 1) :=
     (Nat.log_mono_right (by omega)).trans ((Nat.log_le_clog 2 _).trans (he n))
   have hbase : 2 * (3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2)) ≤ K * (Nat.log 2 n + 1) := by
-    have h6 : 6 * ((m + 1) ^ 2 + e + 2) ≤ K := le_max_left _ _
     have h1 : 2 * (3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2)) ≤
         6 * ((m + 1) ^ 2 + e + 2) * (Nat.log 2 n + 1) := by
-      have : 6 * ((m + 1) ^ 2 + e + 2) * (Nat.log 2 n + 1) =
+      have hring : 6 * ((m + 1) ^ 2 + e + 2) * (Nat.log 2 n + 1) =
           6 * ((m + 1) ^ 2 * (Nat.log 2 n + 1)) + 6 * (e * (Nat.log 2 n + 1)) +
             12 * (Nat.log 2 n + 1) := by ring
-      have h7 : (m + 1) ^ 2 ≤ (m + 1) ^ 2 * (Nat.log 2 n + 1) :=
+      have hmul : (m + 1) ^ 2 ≤ (m + 1) ^ 2 * (Nat.log 2 n + 1) :=
         Nat.le_mul_of_pos_right _ (by omega)
       omega
-    exact h1.trans (Nat.mul_le_mul_right _ h6)
-  have hK1 : 1 ≤ K * (Nat.log 2 n + 1) := by
-    have : 1 ≤ K := le_trans (by omega) (le_max_left _ _)
-    exact Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by omega) (by omega))
+    exact h1.trans (Nat.mul_le_mul_right _ (le_max_left _ _))
+  have hK1 : 1 ≤ K * (Nat.log 2 n + 1) :=
+    Nat.mul_pos (lt_of_lt_of_le (by omega) (le_max_left _ _)) (by omega)
   have hexp : 5 ^ (C.depth * (m + 2)) ≤ K :=
     (Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_right _ hd)).trans (le_max_right _ _)
   have hfan : (2 * (3 * ((m + 1) ^ 2 + Nat.log 2 (n + C.size) + 2))) ^ 5 ^ (C.depth * (m + 2)) ≤
       (K * (Nat.log 2 n + 1)) ^ K :=
     (Nat.pow_le_pow_left hbase _).trans (Nat.pow_le_pow_right hK1 hexp)
-  refine ⟨C', ?_, hf.trans hfan, hsize.trans (Nat.pow_le_pow_right (by norm_num) hfan)⟩
-  rw [hev]
-  funext x
-  simpa using congrFun (hCc x) 0
+  exact ⟨C', funext fun x => by simpa [hev] using congrFun (hCc x) 0,
+    hf.trans hfan, hsize.trans (Nat.pow_le_pow_right (by norm_num) hfan)⟩
 
 /-- **`ACC⁰` has quasi-polynomial `SYM ∘ AND` circuits** (Yao; Beigel–Tarui
 [BeigelTarui1994, Theorem 1.1]). Every language of `ACC0` is decided at every length `n` by

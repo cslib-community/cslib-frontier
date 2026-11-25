@@ -311,6 +311,14 @@ private structure FixedRegs (I : OptimalBSTInstance) (st : Data 22) : Prop where
   one : st.regs regOne = 1
   zero : st.regs regZero = 0
 
+private theorem fixedRegs_of_regs_eq {I : OptimalBSTInstance} {s₁ s₂ : Data 22}
+    (h : FixedRegs I s₁) (hr : ∀ idx : Fin 22, idx.val < 7 → s₂.regs idx = s₁.regs idx) :
+    FixedRegs I s₂ :=
+  ⟨(hr _ (by decide)).trans h.n, (hr _ (by decide)).trans h.str,
+   (hr _ (by decide)).trans h.wb, (hr _ (by decide)).trans h.cb,
+   (hr _ (by decide)).trans h.rb, (hr _ (by decide)).trans h.one,
+   (hr _ (by decide)).trans h.zero⟩
+
 private def bstSetup : Code .standard 22 :=
   ram[
     regZero ← #0;
@@ -532,9 +540,7 @@ private theorem midDiagMem_finish (I : OptimalBSTInstance) {d : ℕ} {mem : ℕ 
   refine ⟨hm.1, fun a b hb hab => ?_⟩
   by_cases hle : b - a ≤ d
   · exact hm.2.1 a b hb hle
-  · have hab_lt : a < b := by omega
-    have hbj : b = a + d + 1 := by omega
-    subst hbj
+  · obtain rfl : b = a + d + 1 := by omega
     exact hm.2.2 a (by omega)
 
 private theorem memTable_write_cell (I : OptimalBSTInstance) (mem : ℕ → ℕ)
@@ -548,11 +554,8 @@ private theorem memTable_write_cell (I : OptimalBSTInstance) (mem : ℕ → ℕ)
     dsimp only [costAddr, rootAddr, rootBase]; omega
   refine ⟨?_, fun a b hne => ?_⟩
   · rw [memTable_in_bounds I mem' hi hj]
-    have h1 : mem' (costAddr I i j) = c := by
-      dsimp only [mem']
-      rw [Function.update_of_ne hcr_ne, Function.update_self]
-    have h2 : mem' (rootAddr I i j) = r := Function.update_self _ _ _
-    rw [h1, h2]
+    dsimp only [mem']
+    rw [Function.update_of_ne hcr_ne, Function.update_self, Function.update_self]
   · unfold memTable
     split_ifs with hab
     · have hoff_ab := offset_lt_sq I hab.1 hab.2
@@ -604,14 +607,8 @@ private theorem exec_bstSetup {w : ℕ} (I : OptimalBSTInstance) (hwAddr : Fits 
   have hm1 : (Data.init I.encode : Data 22).mem 1 = I.numKeys := by simp [OptimalBSTInstance.encode]
   unfold bstSetup
   wram_exec *
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, by wram_simp *, rfl⟩
-  · wram_simp *
-  · wram_simp *
-  · wram_simp *
-  · wram_simp *
-  · wram_simp *
-  · wram_simp *
-  · wram_simp *
+  refine ⟨?_, by wram_simp *, rfl⟩
+  constructor <;> wram_simp *
 
 private theorem set5_regs_lt18 (s : Data 22) {r1 r2 r3 r4 r5 : Fin 22} {v1 v2 v3 v4 v5 : ℕ}
     (h1 : 18 ≤ r1.val) (h2 : 18 ≤ r2.val) (h3 : 18 ≤ r3.val) (h4 : 18 ≤ r4.val)
@@ -672,11 +669,7 @@ private theorem exec_evalCandCode {w : ℕ} (I : OptimalBSTInstance)
         by wram_simp * [hm_left]⟩
     all_goals exact hwAddr.of_le (by dsimp only [stride, costBase, rootBase]; omega)
   obtain ⟨s1, he1, hm1, hr1, ht0_s1⟩ := hleft
-  have hfix1 : FixedRegs I s1 :=
-    ⟨(hr1 _ (by decide)).trans hfix.n, (hr1 _ (by decide)).trans hfix.str,
-     (hr1 _ (by decide)).trans hfix.wb, (hr1 _ (by decide)).trans hfix.cb,
-     (hr1 _ (by decide)).trans hfix.rb, (hr1 _ (by decide)).trans hfix.one,
-     (hr1 _ (by decide)).trans hfix.zero⟩
+  have hfix1 : FixedRegs I s1 := fixedRegs_of_regs_eq hfix fun _ h => hr1 _ (by omega)
   have hk_s1 : s1.regs regK = k := (hr1 _ (by decide)).trans hk_r
   have hj_s1 : s1.regs regJ = j := (hr1 _ (by decide)).trans hj_r
   have hm_right1 : s1.mem (costBase I + (k * stride I + j)) = optCost I.weightFn k j := by
@@ -723,29 +716,23 @@ private theorem exec_scanInitCode {w : ℕ} (I : OptimalBSTInstance)
   have hr0 : ∀ idx : Fin 22, idx ≠ regK → st0.regs idx = st.regs idx :=
     fun idx hne => Data.set_regs_of_ne hne _
   have hfix0 : FixedRegs I st0 :=
-    ⟨(hr0 _ (by decide)).trans hfix.n, (hr0 _ (by decide)).trans hfix.str,
-     (hr0 _ (by decide)).trans hfix.wb, (hr0 _ (by decide)).trans hfix.cb,
-     (hr0 _ (by decide)).trans hfix.rb, (hr0 _ (by decide)).trans hfix.one,
-     (hr0 _ (by decide)).trans hfix.zero⟩
+    fixedRegs_of_regs_eq hfix fun _ h => hr0 _ (Fin.ne_of_val_ne (by dsimp only [regK]; omega))
   obtain ⟨st1, he1, hm1, hr1, hcand1⟩ :=
     exec_evalCandCode I hwAddr hwVal hd hj_eq hj hlo (hlohi.trans hhi) st0 hfix0
       ((hr0 _ (by decide)).trans hi_r) ((hr0 _ (by decide)).trans hj_r)
       (Data.set_regs_self st regK lo) hT
   have hcand1' : st1.regs regCand = (memTable I st.mem).candidate i j lo := hcand1
-  have hfix1 : FixedRegs I st1 :=
-    ⟨(hr1 _ (by decide)).trans hfix0.n, (hr1 _ (by decide)).trans hfix0.str,
-     (hr1 _ (by decide)).trans hfix0.wb, (hr1 _ (by decide)).trans hfix0.cb,
-     (hr1 _ (by decide)).trans hfix0.rb, (hr1 _ (by decide)).trans hfix0.one,
-     (hr1 _ (by decide)).trans hfix0.zero⟩
-  have hd1 : st1.regs regD = d := (hr1 _ (by decide)).trans ((hr0 _ (by decide)).trans hd_r)
-  have hlen1 : st1.regs regLen = d + 1 :=
-    (hr1 _ (by decide)).trans ((hr0 _ (by decide)).trans hlen_r)
-  have hilim1 : st1.regs regILim = I.numKeys - d :=
-    (hr1 _ (by decide)).trans ((hr0 _ (by decide)).trans hilim_r)
-  have hi1 : st1.regs regI = i := (hr1 _ (by decide)).trans ((hr0 _ (by decide)).trans hi_r)
-  have hj1 : st1.regs regJ = j := (hr1 _ (by decide)).trans ((hr0 _ (by decide)).trans hj_r)
-  have hlo1 : st1.regs regLo = lo := (hr1 _ (by decide)).trans ((hr0 _ (by decide)).trans hlo_r)
-  have hhi1 : st1.regs regHi = hi := (hr1 _ (by decide)).trans ((hr0 _ (by decide)).trans hhi_r)
+  have hr01 : ∀ idx : Fin 22, idx.val < 14 → st1.regs idx = st.regs idx := fun _ h =>
+    (hr1 _ (by omega)).trans
+      (hr0 _ (Fin.ne_of_val_ne (by dsimp only [regK]; omega)))
+  have hfix1 : FixedRegs I st1 := fixedRegs_of_regs_eq hfix fun _ h => hr01 _ (by omega)
+  have hd1 : st1.regs regD = d := (hr01 _ (by decide)).trans hd_r
+  have hlen1 : st1.regs regLen = d + 1 := (hr01 _ (by decide)).trans hlen_r
+  have hilim1 : st1.regs regILim = I.numKeys - d := (hr01 _ (by decide)).trans hilim_r
+  have hi1 : st1.regs regI = i := (hr01 _ (by decide)).trans hi_r
+  have hj1 : st1.regs regJ = j := (hr01 _ (by decide)).trans hj_r
+  have hlo1 : st1.regs regLo = lo := (hr01 _ (by decide)).trans hlo_r
+  have hhi1 : st1.regs regHi = hi := (hr01 _ (by decide)).trans hhi_r
   have hetail : ∃ st2, ExecWithin w (ram[
         regBestCost ← regCand;
         regBestRoot ← regLo;
@@ -762,9 +749,7 @@ private theorem exec_scanInitCode {w : ℕ} (I : OptimalBSTInstance)
     refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
       by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *,
       by wram_simp *, ?_⟩
-    ext
-    · wram_simp *
-    · wram_simp *
+    ext <;> wram_simp *
   obtain ⟨st2, he2, hm2, hrest⟩ := hetail
   unfold scanInitCode
   exact ⟨st2, (he0.seq (he1.seq he2)).mono (by omega), hm2.trans hm1, hrest⟩
@@ -831,28 +816,18 @@ private theorem exec_scanLoop {w : ℕ} (I : OptimalBSTInstance)
       exec_scanUpdateCode c curBest k st1
         ((hr1 _ (by decide)).trans hbc) ((hr1 _ (by decide)).trans hbr)
         hcand1 ((hr1 _ (by decide)).trans hk_reg)
-    have hfix2 : FixedRegs I st2 :=
-      ⟨(hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hfix.n),
-       (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hfix.str),
-       (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hfix.wb),
-       (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hfix.cb),
-       (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hfix.rb),
-       (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hfix.one),
-       (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hfix.zero)⟩
-    have hk2 : st2.regs regK = k :=
-      (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hk_reg)
-    have hd2 : st2.regs regD = d :=
-      (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hd_r)
-    have hlen2 : st2.regs regLen = d + 1 :=
-      (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hlen_r)
-    have hilim2 : st2.regs regILim = I.numKeys - d :=
-      (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hilim_r)
-    have hi2 : st2.regs regI = i :=
-      (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hi_r)
-    have hj2 : st2.regs regJ = j :=
-      (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hj_r)
-    have hklim2 : st2.regs regKLim = hi + 1 :=
-      (hr2 _ (by decide) (by decide)).trans ((hr1 _ (by decide)).trans hklim_r)
+    have hr12 : ∀ idx : Fin 22, idx.val < 16 → st2.regs idx = st.regs idx := fun _ h =>
+      (hr2 _ (Fin.ne_of_val_ne (by dsimp only [regBestCost]; omega))
+        (Fin.ne_of_val_ne (by dsimp only [regBestRoot]; omega))).trans
+        (hr1 _ (by omega))
+    have hfix2 : FixedRegs I st2 := fixedRegs_of_regs_eq hfix fun _ h => hr12 _ (by omega)
+    have hk2 : st2.regs regK = k := (hr12 _ (by decide)).trans hk_reg
+    have hd2 : st2.regs regD = d := (hr12 _ (by decide)).trans hd_r
+    have hlen2 : st2.regs regLen = d + 1 := (hr12 _ (by decide)).trans hlen_r
+    have hilim2 : st2.regs regILim = I.numKeys - d := (hr12 _ (by decide)).trans hilim_r
+    have hi2 : st2.regs regI = i := (hr12 _ (by decide)).trans hi_r
+    have hj2 : st2.regs regJ = j := (hr12 _ (by decide)).trans hj_r
+    have hklim2 : st2.regs regKLim = hi + 1 := (hr12 _ (by decide)).trans hklim_r
     have hbc2 : st2.regs regBestCost = (bestStep c curBest k).cost := congrArg Entry.cost hbest2
     have hbr2 : st2.regs regBestRoot = (bestStep c curBest k).root := congrArg Entry.root hbest2
     have hfold_step : bestStep c curBest k =
@@ -1173,15 +1148,12 @@ theorem computesInTime_plainBST :
     plainBSTProgram.ComputesInTime (fun _ => OptimalBSTInstance.encode)
       (fun I _ => 17 * (I.numKeys + 1) ^ 3)
       OptimalBSTInstance.FitsWidth
-      (fun I => (plainBST I.weightFn I.numKeys).cost) := by
-  refine ((bstCode plainWindowCode).computesInTime_program regOut
+      (fun I => (plainBST I.weightFn I.numKeys).cost) :=
+  ((bstCode plainWindowCode).computesInTime_program regOut
     (time := fun I _ =>
-      17 * I.numKeys ^ 3 + 15 * I.numKeys ^ 2 + 8 * I.numKeys + 15) ?_).mono ?_
-    (fun _ _ h => h)
-  · intro I w hw _
-    exact exec_plainBSTCode I hw
-  · intro I _
-    nlinarith
+      17 * I.numKeys ^ 3 + 15 * I.numKeys ^ 2 + 8 * I.numKeys + 15)
+    (fun I _ hw _ => exec_plainBSTCode I hw)).mono
+    (fun _ _ => by nlinarith) (fun _ _ h => h)
 
 /-- Uniform `O(n³)` Word-RAM computability of `plainBST` cost, bundling width admissibility. -/
 theorem uniformComputableInTime_plainBST :
@@ -1271,15 +1243,12 @@ theorem computesInTime_knuthBST :
       (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.1.encode)
       (fun I _ => 58 * (I.1.numKeys + 1) ^ 2)
       (fun I w => I.1.FitsWidth w)
-      (fun I => (knuthBST I.1.weightFn I.1.numKeys).cost) := by
-  refine ((bstCode knuthWindowCode).computesInTime_program regOut
+      (fun I => (knuthBST I.1.weightFn I.1.numKeys).cost) :=
+  ((bstCode knuthWindowCode).computesInTime_program regOut
     (time := fun (I : {I : OptimalBSTInstance // I.IsKnuthValid}) _ =>
-      58 * I.1.numKeys ^ 2 + 8 * I.1.numKeys + 15) ?_).mono ?_
-    (fun _ _ h => h)
-  · intro ⟨I, hqi, hmono⟩ w hw _
-    exact exec_knuthBSTCode I hqi hmono hw
-  · intro ⟨I, _⟩ _
-    nlinarith
+      58 * I.1.numKeys ^ 2 + 8 * I.1.numKeys + 15)
+    (fun ⟨I, hqi, hmono⟩ _ hw _ => exec_knuthBSTCode I hqi hmono hw)).mono
+    (fun ⟨_, _⟩ _ => by nlinarith) (fun _ _ h => h)
 
 /-- **Word-RAM quadratic running time of Knuth's optimal-BST algorithm.** Whenever `I.weightFn`
 satisfies `QuadrangleIneq` and `MonotoneOnIntervals`, `knuthBSTProgram` halts within

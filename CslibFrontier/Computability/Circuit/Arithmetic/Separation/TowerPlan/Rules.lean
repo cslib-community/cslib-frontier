@@ -62,23 +62,19 @@ section Plan
 
 variable {n : Fin A → Fin A → Fin (U0 + 1)} {o o' : (moves R FL Pl).Channel → Fin U1}
 
-private theorem slotInput_ne_done (z : MoveSlot R ch FL) : slotInput R FL z ≠ .done := by
-  rcases z with ⟨⟨x, hx⟩ | l, e⟩ <;> simp [slotInput]
-
 private theorem time_slotInput_le (z : MoveSlot R ch FL) :
     (slotInput R FL z).time ≤ z.1.time := by
-  rcases z with ⟨⟨x, hx⟩ | l, e⟩
-  · exact x.time_input_le
-  · exact le_rfl
+  rcases z with ⟨⟨x, _⟩ | _, _⟩
+  exacts [x.time_input_le, le_rfl]
 
 /-- A unit is given at one slot at most. -/
 private theorem givenUnits_unique {z z' : MoveSlot R ch FL} {u : PlanUnit R FL Pl U0 U1}
     (hu : u ∈ givenUnits R FL Pl lhat n o z) (hu' : u ∈ givenUnits R FL Pl lhat n o z') :
     z = z' := by
-  rcases z with ⟨⟨x, hx⟩ | l, e⟩ <;> rcases z' with ⟨⟨x', hx'⟩ | l', e'⟩
+  rcases z with ⟨⟨x, hx⟩ | ⟨j, i, ω, d⟩, e⟩ <;> rcases z' with ⟨⟨x', hx'⟩ | ⟨j', i', ω', d'⟩, e'⟩
   · obtain ⟨h1, -, h2⟩ := mem_givenUnits_relay.1 hu
     obtain ⟨h1', -, h2'⟩ := mem_givenUnits_relay.1 hu'
-    obtain rfl := Relay.eq_of_input_eq hx hx' h1 h1' (h2.symm.trans h2')
+    cases Relay.eq_of_input_eq hx hx' h1 h1' (h2.symm.trans h2')
     rfl
   · exact absurd ((mem_givenUnits_relay.1 hu).2.2.symm.trans (mem_givenUnits_vertex.1 hu').2.2.1)
       Relay.input_ne_segment
@@ -86,13 +82,10 @@ private theorem givenUnits_unique {z z' : MoveSlot R ch FL} {u : PlanUnit R FL P
       Relay.input_ne_segment
   · obtain ⟨h1, -, h2, h3, h4⟩ := mem_givenUnits_vertex.1 hu
     obtain ⟨h1', -, h2', h3', h4'⟩ := mem_givenUnits_vertex.1 hu'
-    obtain ⟨j, i, ω, d⟩ := l
-    obtain ⟨j', i', ω', d'⟩ := l'
     obtain ⟨rfl, rfl, hω, hq⟩ := Target.segment.inj (h2.symm.trans h2')
-    obtain rfl := eq_of_heq hω
-    obtain rfl : d = d' := VertexMove.kind_eq_of_isPicked (l := ⟨j, i, ω, d⟩) h1 h1'
-    obtain rfl := slotRank_inj hq
-      ((Nat.div_eq_of_lt_le h3 h4).symm.trans (Nat.div_eq_of_lt_le h3' h4'))
+    cases hω
+    cases VertexMove.kind_eq_of_isPicked (l := ⟨j, i, ω, d⟩) h1 h1'
+    cases slotRank_inj hq ((Nat.div_eq_of_lt_le h3 h4).symm.trans (Nat.div_eq_of_lt_le h3' h4'))
     rfl
 
 /-- The holders of a unit are the parties of the nodes of its target. -/
@@ -114,15 +107,15 @@ private theorem slotParty_eq (z : (moves R FL Pl).Slot) :
     s((moves R FL Pl).slotParty z false, (moves R FL Pl).slotParty z true) =
       ((slotInput R FL (moveSlotEquiv R FL Pl z)).holders R ch).map Pl.party := by
   rw [slotParty_moves, slotParty_moves]
-  generalize moveSlotEquiv R FL Pl z = w
-  rcases w with ⟨⟨x, hx⟩ | l, e⟩
+  rcases moveSlotEquiv R FL Pl z with ⟨⟨x, _⟩ | _, _⟩
   · have h1 : x.input.holders R ch = s(x.party R ch .source, x.party R ch .sink) := by
-      rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e
+      rcases x with _ | _ | ⟨_, _, s⟩ | _
       · rfl
       · rfl
       · simp only [Relay.input]
         split_ifs with hs
-        · subst hs; rfl
+        · subst hs
+          rfl
         · rfl
       · rfl
     rw [slotInput, h1]
@@ -180,22 +173,17 @@ private theorem givenUnits_subset_cur {z : (moves R FL Pl).Slot} {u : PlanUnit R
     (hu : u ∈ givenUnits R FL Pl lhat n o (moveSlotEquiv R FL Pl z)) :
     u ∈ (towerPlan R FL Pl lhat U0 U1).cur n o z.1 := by
   obtain ⟨h1, h2⟩ := isAlive_of_mem_givenUnits hu
-  refine Plan.mem_cur.2 ⟨?_, fun z' hz' hu' => ?_⟩
-  · cases u with
-    | init a c k => exact Plan.init_mem_seenAt.2 h1.2
-    | new ν k =>
-      have h3 := (((moveChannelEquiv R FL Pl ν).1.time_lt_time_target _).trans_le
-        (h2 ▸ time_slotInput_le _))
-      have h4 : alive lhat (initialCounts n) (outcomeOf R FL Pl o)
-          (moveChannelEquiv R FL Pl ν) ≤ outcomeOf R FL Pl o (moveChannelEquiv R FL Pl ν) :=
-        aliveGiven_le _ _
-      have h5 : (k : ℕ) < alive lhat (initialCounts n) (outcomeOf R FL Pl o)
+  refine Plan.mem_cur.2 ⟨?_, fun z' hz' hu' =>
+    lt_irrefl _ ((moveSlotEquiv R FL Pl).injective (givenUnits_unique hu hu') ▸ hz')⟩
+  cases u with
+  | init a c k => exact Plan.init_mem_seenAt.2 h1.2
+  | new ν k =>
+    refine Plan.new_mem_seenAt.2 ⟨lt_of_time_moveOrder_lt
+      (((moveChannelEquiv R FL Pl ν).1.time_lt_time_target _).trans_le
+        (h2 ▸ time_slotInput_le _)), Fin.le_def.2 ?_⟩
+    have hle : (k : ℕ) < alive lhat (initialCounts n) (outcomeOf R FL Pl o)
         (moveChannelEquiv R FL Pl ν) := h1
-      have h6 : outcomeOf R FL Pl o (moveChannelEquiv R FL Pl ν) = (o ν : ℕ) := by
-        simp [outcomeOf]
-      exact Plan.new_mem_seenAt.2 ⟨lt_of_time_moveOrder_lt h3, Fin.le_def.2 (by omega)⟩
-  · obtain rfl := (moveSlotEquiv R FL Pl).injective (givenUnits_unique hu hu')
-    exact lt_irrefl _ hz'
+    simpa [outcomeOf] using (hle.trans_le (aliveGiven_le _ _)).le
 
 /-- **The tower plan obeys the rules.** The bound `cap` for the numbers of units of the moves is
 a hypothesis. -/
@@ -215,7 +203,9 @@ theorem towerPlan_ok (hr : 0 < r) (hb : 0 < b) {cap : ℕ}
   given_subset n o z u hu := givenUnits_subset_cur hu
   holder_given n o z u hu := by
     have h2 := (isAlive_of_mem_givenUnits hu).2
-    have h3 := holder_eq (u := u) (h2 ▸ slotInput_ne_done _)
+    have hne : slotInput R FL (moveSlotEquiv R FL Pl z) ≠ .done := by
+      rcases moveSlotEquiv R FL Pl z with ⟨⟨_, _⟩ | _, _⟩ <;> simp [slotInput]
+    have h3 := holder_eq (u := u) (h2 ▸ hne)
     rw [h2, ← slotParty_eq] at h3
     rcases Sym2.eq_iff.1 h3 with h | h
     · exact ⟨false, by rintro (_ | _) <;> simp [h]⟩

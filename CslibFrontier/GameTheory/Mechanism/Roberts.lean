@@ -183,30 +183,23 @@ theorem weightedGroves_isDSIC_of_nonneg [Fintype ι] [DecidableEq ι] {f : (ι �
         w i * (∑ j ∈ Finset.univ.erase i, (w j / w i) * b j ω + c ω / w i) =
           ∑ j ∈ Finset.univ.erase i, w j * b j ω + c ω := fun ω => by
       rw [mul_add, Finset.mul_sum, mul_div_cancel₀ _ hwi]
-      congr 1
-      exact Finset.sum_congr rfl fun j _ => by
-        rw [← mul_assoc, mul_div_cancel₀ _ hwi]
+      exact congrArg (· + c ω) (Finset.sum_congr rfl fun j _ => by
+        rw [← mul_assoc, mul_div_cancel₀ _ hwi])
     refine le_of_mul_le_mul_left ?_ hpos
     simp only [utility, weightedGroves, hwi, ↓reduceIte, hh i b v, sum_erase_weighted_update]
-    calc
-      w i * (v (f b) - (h i b -
-          (∑ j ∈ Finset.univ.erase i, (w j / w i) * b j (f b) + c (f b) / w i)))
-          = w i * v (f b) - w i * h i b +
-              w i * (∑ j ∈ Finset.univ.erase i, (w j / w i) * b j (f b) + c (f b) / w i) := by
-            ring
+    calc w i * (v (f b) - (h i b -
+            (∑ j ∈ Finset.univ.erase i, (w j / w i) * b j (f b) + c (f b) / w i)))
       _ = w i * v (f b) - w i * h i b +
-            (∑ j ∈ Finset.univ.erase i, w j * b j (f b) + c (f b)) := by rw [hmul_eq]
+            (∑ j ∈ Finset.univ.erase i, w j * b j (f b) + c (f b)) := by
+          rw [← hmul_eq]; ring
       _ ≤ w i * v (f (Function.update b i v)) - w i * h i b +
             (∑ j ∈ Finset.univ.erase i, w j * b j (f (Function.update b i v)) +
               c (f (Function.update b i v))) := by linarith
-      _ = w i * v (f (Function.update b i v)) - w i * h i b +
-            w i * (∑ j ∈ Finset.univ.erase i,
-              (w j / w i) * b j (f (Function.update b i v)) +
-                c (f (Function.update b i v)) / w i) := by rw [hmul_eq]
       _ = w i * (v (f (Function.update b i v)) - (h i b -
             (∑ j ∈ Finset.univ.erase i,
               (w j / w i) * b j (f (Function.update b i v)) +
-                c (f (Function.update b i v)) / w i))) := by ring
+                c (f (Function.update b i v)) / w i))) := by
+          rw [← hmul_eq]; ring
 
 /-- **Weighted Groves mechanisms are DSIC** ([Nisan2007], Proposition 9.31, §9.5.3, p. 228): if `f`
 maximizes the affine score `c ω + ∑ i, w i * b i ω` over a subrange `A ⊆ Ω` with strictly positive
@@ -256,38 +249,25 @@ private theorem pad_range_of_isWeaklyMonotoneOn [Finite ι] [DecidableEq ι]
     f v' = f v := by
   have := Fintype.ofFinite ι
   let hybrid (S : Finset ι) (j : ι) : Ω → ℝ := if j ∈ S then v' j else v j
-  have hhyb : ∀ S : Finset ι, f (hybrid S) = f v := by
-    intro S
+  have hhyb : ∀ S : Finset ι, f (hybrid S) = f v := fun S => by
     induction S using Finset.induction_on with
     | empty =>
-      have : hybrid ∅ = v :=
-        funext fun j => by simp only [hybrid, Finset.notMem_empty, ↓reduceIte]
-      rw [this]
+      rw [show hybrid ∅ = v from funext fun _ => by simp [hybrid]]
     | @insert i S hi ih =>
       have hdom : ∀ j, j ≠ i → hybrid S j ∈ V j := fun j _ => by
-        by_cases hj : j ∈ S
-        · simp only [hybrid, hj, ↓reduceIte]; exact hv' j
-        · simp only [hybrid, hj, ↓reduceIte]; exact hv j
+        by_cases hj : j ∈ S <;> simp [hybrid, hj, hv' j, hv j]
       have h1 : Function.update (hybrid S) i (v i) = hybrid S := by
-        ext j ω
-        by_cases hji : j = i
-        · subst hji; simp only [Function.update_self, hybrid, hi, ↓reduceIte]
-        · rw [Function.update_of_ne hji]
+        ext j
+        by_cases h : j = i <;> simp [h, hybrid, hi]
       have h2 : Function.update (hybrid S) i (v' i) = hybrid (insert i S) := by
-        ext j ω
-        by_cases hji : j = i
-        · subst hji; simp only [Function.update_self, hybrid, Finset.mem_insert_self, ↓reduceIte]
-        · rw [Function.update_of_ne hji]
-          simp only [hybrid, Finset.mem_insert, hji, false_or]
+        ext j
+        by_cases h : j = i <;> simp [h, hybrid]
       by_contra hne
       have hw := hf i (hybrid S) (v i) (v' i) hdom (hv i) (hv' i)
       rw [h1, h2, ih] at hw
-      have hstr := hinc i (f (hybrid (insert i S))) (Set.mem_range_self _) hne
-      linarith
-  have huniv : hybrid Finset.univ = v' :=
-    funext fun j => by simp only [hybrid, Finset.mem_univ, ↓reduceIte]
-  rw [← huniv]
-  exact hhyb Finset.univ
+      linarith [hinc i (f (hybrid (insert i S))) (Set.mem_range_self _) hne]
+  simpa only [show hybrid Finset.univ = v' from funext fun _ => by simp [hybrid]] using
+    hhyb Finset.univ
 
 /-- **Weak monotonicity implies PAD** ([Lavi2007], Claim 12.28, §12.4, p. 318): with finitely many
 agents, every weakly monotone (hence every DSIC-implementable) rule on any domain `V` satisfies
@@ -319,45 +299,30 @@ theorem isGeneralizedWMON_of_isPAD {f : (ι → Ω → ℝ) → Ω}
   set y := f v'
   have hxy : x ≠ y := hne
   let Δ : ι → ℝ := fun i => (v' i x - v' i y) - (v i x - v i y)
-  have hΔ : ∀ i, 0 < Δ i := fun i => by
-    have := hcon i
-    change v' i y - v i y < v' i x - v i x at this
-    simp only [Δ]
-    linarith
+  have hΔ : ∀ i, 0 < Δ i := fun i => by linarith [hcon i]
   let v'' : ι → Ω → ℝ := fun i z =>
     if z = x then v i x + Δ i / 2
     else if z = y then v i y
     else min (v i z + Δ i / 2) (v' i z + (v i y - v' i y)) - 1
   have hfx : f v'' = x :=
-    hf v v'' (fun _ => Set.mem_univ _) (fun _ => Set.mem_univ _) fun i z hz => by
+    hf v v'' (fun _ => trivial) (fun _ => trivial) fun i z hz => by
       change z ≠ x at hz
-      have hvx : v'' i x = v i x + Δ i / 2 := by simp only [v'', ↓reduceIte]
-      rw [hvx]
+      change v'' i z - v i z < v'' i x - v i x
       by_cases hzy : z = y
-      · have hvy : v'' i z = v i z := by
-          rw [hzy]
-          simp only [v'', hxy.symm, ↓reduceIte]
-        rw [hvy]
+      · subst hzy
+        simp only [v'', hxy.symm, ↓reduceIte]
         linarith [hΔ i]
-      · have hvz : v'' i z = min (v i z + Δ i / 2) (v' i z + (v i y - v' i y)) - 1 := by
-          simp only [v'', hz, hzy, ↓reduceIte]
-        rw [hvz]
+      · simp only [v'', hz, hzy, ↓reduceIte]
         linarith [min_le_left (v i z + Δ i / 2) (v' i z + (v i y - v' i y))]
   have hfy : f v'' = y :=
-    hf v' v'' (fun _ => Set.mem_univ _) (fun _ => Set.mem_univ _) fun i z hz => by
+    hf v' v'' (fun _ => trivial) (fun _ => trivial) fun i z hz => by
       change z ≠ y at hz
-      have hvy : v'' i y = v i y := by simp only [v'', hxy.symm, ↓reduceIte]
-      rw [hvy]
+      change v'' i z - v' i z < v'' i y - v' i y
       by_cases hzx : z = x
-      · have hvx : v'' i z = v i z + Δ i / 2 := by
-          rw [hzx]
-          simp only [v'', ↓reduceIte]
-        rw [hvx, hzx]
-        have hdef : Δ i = (v' i x - v' i y) - (v i x - v i y) := rfl
-        linarith [hΔ i, hdef]
-      · have hvz : v'' i z = min (v i z + Δ i / 2) (v' i z + (v i y - v' i y)) - 1 := by
-          simp only [v'', hzx, hz, ↓reduceIte]
-        rw [hvz]
+      · subst hzx
+        simp only [v'', hxy.symm, ↓reduceIte]
+        linarith [hΔ i, show Δ i = (v' i x - v' i y) - (v i x - v i y) from rfl]
+      · simp only [v'', hzx, hz, hxy.symm, ↓reduceIte]
         linarith [min_le_right (v i z + Δ i / 2) (v' i z + (v i y - v' i y))]
   exact hxy (hfx.symm.trans hfy)
 
@@ -407,15 +372,12 @@ private theorem diffSet_upward {f : (ι → Ω → ℝ) → Ω}
   classical
   obtain ⟨v, hdiff, hfx⟩ := hα
   let v' : ι → Ω → ℝ := fun i z => if z = x then v i x + (β i - α i) else v i z
-  have hfv' : f v' = x := by
-    rw [← hfx]
-    refine hpad v v' (fun _ => Set.mem_univ _) (fun _ => Set.mem_univ _) fun i z hz => ?_
-    rw [hfx] at hz ⊢
-    simp only [v', hz, ↓reduceIte]
-    linarith [hlt i]
-  refine ⟨v', fun i => ?_, hfv'⟩
-  simp only [v', hxy.symm, ↓reduceIte]
-  linarith [hdiff i]
+  refine ⟨v', fun i => by simp only [v', hxy.symm, ↓reduceIte]; linarith [hdiff i], ?_⟩
+  rw [← hfx]
+  refine hpad v v' (fun _ => trivial) (fun _ => trivial) fun i z hz => ?_
+  rw [hfx] at hz ⊢
+  simp only [v', hz, ↓reduceIte]
+  linarith [hlt i]
 
 /-- Contrapositive core behind Claim 12.31(i) ([Lavi2007], p. 319). -/
 private theorem exists_add_nonneg_of_mem_diffSet {f : (ι → Ω → ℝ) → Ω}
@@ -424,11 +386,9 @@ private theorem exists_add_nonneg_of_mem_diffSet {f : (ι → Ω → ℝ) → Ω
     ∃ i, 0 ≤ α i + β i := by
   obtain ⟨u, hud, hfu⟩ := hα
   obtain ⟨v, hvd, hfv⟩ := hβ
-  have hne : f u ≠ f v := by rw [hfu, hfv]; exact hxy
-  obtain ⟨i, hi⟩ := hgw u v (fun _ => Set.mem_univ _) (fun _ => Set.mem_univ _) hne
+  obtain ⟨i, hi⟩ := hgw u v (fun _ => trivial) (fun _ => trivial) fun h => hxy (hfu ▸ hfv ▸ h)
   rw [hfu, hfv] at hi
-  refine ⟨i, ?_⟩
-  linarith [hud i, hvd i]
+  exact ⟨i, by linarith [hud i, hvd i]⟩
 
 /-- Claim 12.31(ii) ([Lavi2007], p. 319): `α ∉ P(x, y) → -α ∈ P(y, x)`. -/
 private theorem neg_mem_diffSet_of_notMem {f : (ι → Ω → ℝ) → Ω}
@@ -438,25 +398,13 @@ private theorem neg_mem_diffSet_of_notMem {f : (ι → Ω → ℝ) → Ω}
   classical
   choose β hβ using fun z : Ω => diffSet_nonempty hf_onto x z
   let v : ι → Ω → ℝ := fun i z =>
-    if z = x then α i
-    else if z = y then 0
-    else α i - (β z i + 1)
-  have hnotz : ∀ z, z ≠ x → z ≠ y → f v ≠ z := by
-    intro z hzx hzy hfz
-    have hmem : (fun i => v i z - v i x) ∈ diffSet f z x := ⟨v, fun _ => rfl, hfz⟩
-    obtain ⟨i, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hzx (hmem) (hβ z)
-    simp only [v, hzx, hzy, ↓reduceIte] at hi
-    linarith
-  have hnotx : f v ≠ x := by
-    intro hfx
-    apply hα
-    refine ⟨v, fun i => ?_, hfx⟩
-    simp only [v, hxy.symm, ↓reduceIte, sub_zero]
-  have hfy : f v = y := by
-    by_contra hne
-    exact hnotz (f v) hnotx hne rfl
-  refine ⟨v, fun i => ?_, hfy⟩
-  simp only [v, hxy.symm, ↓reduceIte, Pi.neg_apply, zero_sub]
+    if z = x then α i else if z = y then 0 else α i - (β z i + 1)
+  refine ⟨v, fun i => by simp [v, hxy.symm], by_contra fun hne => ?_⟩
+  have hnotx : f v ≠ x := fun hfx =>
+    hα ⟨v, fun i => by simp [v, hxy.symm], hfx⟩
+  obtain ⟨i, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hnotx ⟨v, fun _ => rfl, rfl⟩ (hβ (f v))
+  simp only [v, hnotx, hne, ↓reduceIte] at hi
+  linarith
 
 /-- Claim 12.32 ([Lavi2007], p. 319): strict triangle/addition law for `P`. -/
 private theorem add_shift_mem_diffSet {f : (ι → Ω → ℝ) → Ω}
@@ -468,30 +416,17 @@ private theorem add_shift_mem_diffSet {f : (ι → Ω → ℝ) → Ω}
   classical
   choose η hη using fun w : Ω => diffSet_nonempty hf_onto x w
   let v : ι → Ω → ℝ := fun i w =>
-    if w = x then α i + β i + δ
-    else if w = y then β i + δ / 2
-    else if w = z then 0
-    else (α i + β i + δ) - (η w i + 1)
-  have hnoty : f v ≠ y := by
-    intro hfy
+    if w = x then α i + β i + δ else if w = y then β i + δ / 2
+    else if w = z then 0 else (α i + β i + δ) - (η w i + 1)
+  have hnoty : f v ≠ y := fun hfy => by
     obtain ⟨i, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hxy hα ⟨v, fun _ => rfl, hfy⟩
-    simp only [v, hxy.symm, ↓reduceIte] at hi
-    linarith
-  have hnotz : f v ≠ z := by
-    intro hfz
+    simp only [v, hxy.symm, ↓reduceIte] at hi; linarith
+  have hnotz : f v ≠ z := fun hfz => by
     obtain ⟨i, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hyz hβ ⟨v, fun _ => rfl, hfz⟩
-    simp only [v, hxy.symm, hxz.symm, hyz.symm, ↓reduceIte] at hi
-    linarith
-  have hnotw : ∀ w, w ≠ x → w ≠ y → w ≠ z → f v ≠ w := by
-    intro w hwx hwy hwz hfw
-    obtain ⟨i, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hwx ⟨v, fun _ => rfl, hfw⟩ (hη w)
-    simp only [v, hwx, hwy, hwz, ↓reduceIte] at hi
-    linarith
-  have hfx : f v = x := by
-    by_contra hne
-    exact hnotw (f v) hne hnoty hnotz rfl
-  refine ⟨v, fun i => ?_, hfx⟩
-  simp only [v, hxz.symm, hyz.symm, ↓reduceIte, sub_zero]
+    simp only [v, hxy.symm, hxz.symm, hyz.symm, ↓reduceIte] at hi; linarith
+  refine ⟨v, fun i => by simp [v, hxz.symm, hyz.symm], by_contra fun hne => ?_⟩
+  obtain ⟨i, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hne ⟨v, fun _ => rfl, rfl⟩ (hη (f v))
+  simp only [v, hne, hnoty, hnotz, ↓reduceIte] at hi; linarith
 
 private theorem gammaSet_nonempty [Finite ι] [Nonempty ι]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -499,11 +434,8 @@ private theorem gammaSet_nonempty [Finite ι] [Nonempty ι]
     {p : ℝ | (fun _ : ι => p) ∈ diffSet f x y}.Nonempty := by
   have := Fintype.ofFinite ι
   obtain ⟨α, hα⟩ := diffSet_nonempty hf_onto x y
-  let M : ℝ := Finset.univ.sup' Finset.univ_nonempty α + 1
-  refine ⟨M, diffSet_upward hpad hxy hα fun i => ?_⟩
-  have hle : α i ≤ Finset.univ.sup' Finset.univ_nonempty α :=
-    Finset.le_sup' α (Finset.mem_univ i)
-  linarith
+  exact ⟨Finset.univ.sup' Finset.univ_nonempty α + 1,
+    diffSet_upward hpad hxy hα fun i => by linarith [Finset.le_sup' α (Finset.mem_univ i)]⟩
 
 private theorem gammaSet_bddBelow [Finite ι] [Nonempty ι]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -513,9 +445,7 @@ private theorem gammaSet_bddBelow [Finite ι] [Nonempty ι]
   obtain ⟨β, hβ⟩ := diffSet_nonempty hf_onto y x
   refine ⟨Finset.univ.inf' Finset.univ_nonempty (fun i => -β i), fun p hp => ?_⟩
   obtain ⟨i, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hxy hp hβ
-  have hle : Finset.univ.inf' Finset.univ_nonempty (fun i => -β i) ≤ -β i :=
-    Finset.inf'_le (fun i => -β i) (Finset.mem_univ i)
-  linarith
+  linarith [Finset.inf'_le (fun i => -β i) (Finset.mem_univ i)]
 
 private theorem const_mem_diffSet_of_gamma_lt [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -531,10 +461,8 @@ private theorem const_notMem_diffSet_of_lt_gamma [Finite ι] [Nonempty ι] [Deci
     (hgw : IsGeneralizedWMONOn f (fun _ => Set.univ)) {x y : Ω} (hxy : x ≠ y)
     {p : ℝ} (hp : p < gamma f x y) :
     (fun _ : ι => p) ∉ diffSet f x y := fun hmem => by
-  have hle : gamma f x y ≤ p := by
-    simp only [gamma, hxy, ↓reduceIte]
-    exact csInf_le (gammaSet_bddBelow hf_onto hgw hxy) hmem
-  linarith
+  simp only [gamma, hxy, ↓reduceIte] at hp
+  exact hp.not_ge (csInf_le (gammaSet_bddBelow hf_onto hgw hxy) hmem)
 
 private theorem gamma_neg [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -543,28 +471,23 @@ private theorem gamma_neg [Finite ι] [Nonempty ι] [DecidableEq Ω]
     gamma f x y = -gamma f y x := by
   by_cases hxy : x = y
   · subst hxy; simp [gamma]
-  · refine le_antisymm ?_ ?_
-    · refine le_of_forall_pos_le_add fun ε hε => ?_
-      have hnot : (fun _ : ι => gamma f y x - ε) ∉ diffSet f y x :=
-        const_notMem_diffSet_of_lt_gamma hf_onto hgw (Ne.symm hxy) (by linarith)
-      have hmem := neg_mem_diffSet_of_notMem hf_onto hgw (Ne.symm hxy) hnot
-      have hmem' : (fun _ : ι => -gamma f y x + ε) ∈ diffSet f x y := by
-        convert hmem using 1
-        ext _; simp only [Pi.neg_apply]; ring
-      have hle : gamma f x y ≤ -gamma f y x + ε := by
-        simp only [gamma, hxy, ↓reduceIte]
-        exact csInf_le (gammaSet_bddBelow hf_onto hgw hxy) hmem'
-      exact hle
-    · have hnonneg : 0 ≤ gamma f x y + gamma f y x := by
-        by_contra hlt
-        push Not at hlt
-        have hε : 0 < -(gamma f x y + gamma f y x) / 4 := by linarith
-        have h1 := const_mem_diffSet_of_gamma_lt hf_onto hpad hxy
-          (p := gamma f x y + -(gamma f x y + gamma f y x) / 4) (by linarith)
-        have h2 := const_mem_diffSet_of_gamma_lt hf_onto hpad (Ne.symm hxy)
-          (p := gamma f y x + -(gamma f x y + gamma f y x) / 4) (by linarith)
-        obtain ⟨_, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hxy h1 h2
-        linarith
+  · refine le_antisymm (le_of_forall_pos_le_add fun ε hε => ?_) ?_
+    · simp only [gamma, hxy, ↓reduceIte]
+      refine csInf_le (gammaSet_bddBelow hf_onto hgw hxy) ?_
+      change (fun _ : ι => -gamma f y x + ε) ∈ diffSet f x y
+      convert neg_mem_diffSet_of_notMem hf_onto hgw (Ne.symm hxy)
+        (const_notMem_diffSet_of_lt_gamma hf_onto hgw (Ne.symm hxy)
+          (by linarith : gamma f y x - ε < gamma f y x)) using 1
+      ext
+      simp only [Pi.neg_apply]
+      ring
+    · by_contra hlt
+      push Not at hlt
+      obtain ⟨_, hi⟩ := exists_add_nonneg_of_mem_diffSet hgw hxy
+        (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy
+          (p := gamma f x y - (gamma f x y + gamma f y x) / 4) (by linarith))
+        (const_mem_diffSet_of_gamma_lt hf_onto hpad (Ne.symm hxy)
+          (p := gamma f y x - (gamma f x y + gamma f y x) / 4) (by linarith))
       linarith
 
 private theorem gamma_add_le [Finite ι] [Nonempty ι] [DecidableEq Ω]
@@ -579,15 +502,15 @@ private theorem gamma_add_le [Finite ι] [Nonempty ι] [DecidableEq Ω]
   by_cases hxz : x = z
   · subst hxz; rw [gamma_neg hf_onto hpad hgw y x]; simp [gamma]
   refine le_of_forall_pos_le_add fun ε hε => ?_
-  have h1 := const_mem_diffSet_of_gamma_lt hf_onto hpad hxy (p := gamma f x y + ε / 3)
-    (by linarith)
-  have h2 := const_mem_diffSet_of_gamma_lt hf_onto hpad hyz (p := gamma f y z + ε / 3)
-    (by linarith)
-  have h3 := add_shift_mem_diffSet hf_onto hgw hxy hyz hxz h1 h2 (δ := ε / 3) (by linarith)
-  have h3' : (fun _ : ι => gamma f x y + gamma f y z + ε) ∈ diffSet f x z := by
-    convert h3 using 1; ext _; ring
   simp only [gamma, hxz, ↓reduceIte]
-  exact csInf_le (gammaSet_bddBelow hf_onto hgw hxz) h3'
+  refine csInf_le (gammaSet_bddBelow hf_onto hgw hxz) ?_
+  change (fun _ : ι => gamma f x y + gamma f y z + ε) ∈ diffSet f x z
+  convert add_shift_mem_diffSet hf_onto hgw hxy hyz hxz
+    (const_mem_diffSet_of_gamma_lt hf_onto hpad hxy (p := gamma f x y + ε / 3) (by linarith))
+    (const_mem_diffSet_of_gamma_lt hf_onto hpad hyz (p := gamma f y z + ε / 3) (by linarith))
+    (δ := ε / 3) (by linarith) using 1
+  ext
+  ring
 
 private theorem gamma_add [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -690,14 +613,11 @@ private theorem openShifted_isOpen [Finite ι] [DecidableEq Ω]
     {x y : Ω} (hxy : x ≠ y) : IsOpen (openShifted f x y) := by
   rw [isOpen_iff_forall_mem_open]
   rintro α ⟨ε, hε, hmem⟩
-  refine ⟨Set.pi Set.univ fun i => Set.Ioi (α i - ε / 2), ?_, ?_, ?_⟩
-  · intro β hβ
-    refine ⟨ε / 2, by linarith, diffSet_upward hpad hxy hmem fun i => ?_⟩
-    have hi : α i - ε / 2 < β i := hβ i (Set.mem_univ i)
-    linarith
-  · exact isOpen_set_pi Set.finite_univ fun _ _ => isOpen_Ioi
-  · intro i _
-    simp only [Set.mem_Ioi]
+  refine ⟨Set.pi Set.univ fun i => Set.Ioi (α i - ε / 2), ?_,
+    isOpen_set_pi Set.finite_univ fun _ _ => isOpen_Ioi, fun i _ => ?_⟩
+  · exact fun β hβ => ⟨ε / 2, half_pos hε, diffSet_upward hpad hxy hmem fun i =>
+      by linarith [Set.mem_Ioi.1 (hβ i (Set.mem_univ i))]⟩
+  · simp only [Set.mem_Ioi]
     linarith
 
 private theorem openShifted_upward [DecidableEq Ω] {f : (ι → Ω → ℝ) → Ω}
@@ -705,8 +625,7 @@ private theorem openShifted_upward [DecidableEq Ω] {f : (ι → Ω → ℝ) →
     {α β : ι → ℝ} (hα : α ∈ openShifted f x y) (hle : ∀ i, α i ≤ β i) :
     β ∈ openShifted f x y := by
   obtain ⟨ε, hε, hmem⟩ := hα
-  refine ⟨ε / 2, by linarith, diffSet_upward hpad hxy hmem fun i => ?_⟩
-  linarith [hle i]
+  exact ⟨ε / 2, half_pos hε, diffSet_upward hpad hxy hmem fun i => by linarith [hle i]⟩
 
 private theorem openShifted_add [Finite ι] [Nonempty ι] [Fintype Ω] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -716,10 +635,9 @@ private theorem openShifted_add [Finite ι] [Nonempty ι] [Fintype Ω] [Decidabl
     {α β : ι → ℝ} (hα : α ∈ openShifted f x₀ y₀) (hβ : β ∈ openShifted f x₀ y₀) :
     α + β ∈ openShifted f x₀ y₀ := by
   obtain ⟨z₀, hzx, hzy⟩ := exists_ne_pair hcard x₀ y₀
-  have hβ' : β ∈ openShifted f y₀ z₀ := by
-    rwa [openShifted_eq hf_onto hpad hgw hcard hxy hzy.symm] at hβ
-  have hmem_sum := openShifted_trans_add hf_onto hpad hgw hxy hzy.symm hzx.symm hα hβ'
-  rwa [openShifted_eq hf_onto hpad hgw hcard hxy hzx.symm]
+  rw [openShifted_eq hf_onto hpad hgw hcard hxy hzy.symm] at hβ
+  rw [openShifted_eq hf_onto hpad hgw hcard hxy hzx.symm]
+  exact openShifted_trans_add hf_onto hpad hgw hxy hzy.symm hzx.symm hα hβ
 
 private theorem openShifted_half [Finite ι] [Nonempty ι] [Fintype Ω] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -730,28 +648,27 @@ private theorem openShifted_half [Finite ι] [Nonempty ι] [Fintype Ω] [Decidab
     ((1 / 2 : ℝ) • α) ∈ openShifted f x₀ y₀ := by
   by_contra hnot
   obtain ⟨ε, hε, hmem⟩ := hα
-  have hnot_diff : (fun i => α i / 2 + gamma f x₀ y₀ - ε / 8) ∉ diffSet f x₀ y₀ := by
-    intro h
-    exact hnot ⟨ε / 8, by linarith, by
-      convert h using 1; ext i; simp only [Pi.smul_apply, smul_eq_mul]; ring⟩
-  have hneg := neg_mem_diffSet_of_notMem hf_onto hgw hxy hnot_diff
-  have h2 : (fun i => -α i / 2 + ε / 4) ∈ openShifted f y₀ x₀ := by
+  have hnot_diff : (fun i => α i / 2 + gamma f x₀ y₀ - ε / 8) ∉ diffSet f x₀ y₀ := fun h =>
+    hnot ⟨ε / 8, by linarith,
+      by
+        convert h using 1
+        ext
+        simp only [Pi.smul_apply, smul_eq_mul]
+        ring⟩
+  have h2 : (fun i => -α i / 2 + ε / 4) ∈ openShifted f x₀ y₀ := by
+    rw [openShifted_eq hf_onto hpad hgw hcard hxy hxy.symm]
     refine ⟨ε / 8, by linarith, ?_⟩
-    convert hneg using 1
-    ext i
-    simp only [Pi.neg_apply]
-    rw [gamma_neg hf_onto hpad hgw y₀ x₀]
+    convert neg_mem_diffSet_of_notMem hf_onto hgw hxy hnot_diff using 1
+    ext
+    simp only [Pi.neg_apply, gamma_neg hf_onto hpad hgw y₀ x₀]
     ring
-  rw [openShifted_eq hf_onto hpad hgw hcard hxy.symm hxy] at h2
-  have h1 : (fun i => α i - ε / 2) ∈ openShifted f x₀ y₀ := by
-    refine ⟨ε / 2, by linarith, ?_⟩
-    convert hmem using 1; ext i; ring
-  have hsum := openShifted_add hf_onto hpad hgw hcard hxy h1 h2
-  have hlt : ∀ i, ((fun i => α i - ε / 2) + (fun i => -α i / 2 + ε / 4)) i ≤
-      ((1 / 2 : ℝ) • α) i := fun i => by
-    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    linarith
-  exact hnot (openShifted_upward hpad hxy hsum hlt)
+  have h1 : (fun i => α i - ε / 2) ∈ openShifted f x₀ y₀ :=
+    ⟨ε / 2, half_pos hε, by
+      convert hmem using 1
+      ext
+      ring⟩
+  exact hnot <| openShifted_upward hpad hxy (openShifted_add hf_onto hpad hgw hcard hxy h1 h2)
+    fun i => by simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]; linarith
 
 private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -770,8 +687,9 @@ private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [Dec
       rcases k with _ | k
       · simpa using hβ
       · have hsucc : ((k + 2 : ℕ) : ℝ) • β = ((k + 1 : ℕ) : ℝ) • β + β := by
-          ext i; simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Nat.cast_add,
-            Nat.cast_one]; ring
+          ext
+          simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Nat.cast_add, Nat.cast_one]
+          ring
         rw [hsucc]
         exact openShifted_add hf_onto hpad hgw hcard hxy (ih (by omega)) hβ
   have hpow : ∀ (m : ℕ) (β : ι → ℝ), β ∈ openShifted f x₀ y₀ →
@@ -780,83 +698,60 @@ private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [Dec
     induction m with
     | zero => simpa using hβ
     | succ m ih =>
-      have heq : ((1 / 2 : ℝ) ^ (m + 1)) • β = (1 / 2 : ℝ) • (((1 / 2 : ℝ) ^ m) • β) := by
-        rw [smul_smul, pow_succ']
-      rw [heq]
+      rw [pow_succ', ← smul_smul]
       exact openShifted_half hf_onto hpad hgw hcard hxy ih
   obtain ⟨ε, hε, hmem⟩ := hα
   let r : ℝ := ε / 2
   have hr : 0 < r := half_pos hε
   let α' : ι → ℝ := fun i => α i - r
-  have hα' : α' ∈ openShifted f x₀ y₀ := by
-    refine ⟨ε / 2, by linarith, ?_⟩
-    convert hmem using 1; ext i; simp only [α', r]; ring
+  have hα' : α' ∈ openShifted f x₀ y₀ :=
+    ⟨ε / 2, hr, by
+      convert hmem using 1
+      ext
+      simp only [α', r]
+      ring⟩
   let M : ℝ := Finset.univ.sup' Finset.univ_nonempty (fun i => |α i|) + 1
-  have hM : 0 < M := by
-    have ⟨i₀⟩ := ‹Nonempty ι›
-    have h0 : |α i₀| ≤ Finset.univ.sup' Finset.univ_nonempty (fun i => |α i|) :=
-      Finset.le_sup' (fun i => |α i|) (Finset.mem_univ i₀)
-    have : 0 ≤ |α i₀| := abs_nonneg _
-    change 0 < Finset.univ.sup' Finset.univ_nonempty (fun i => |α i|) + 1
-    linarith
-  have hM_le : ∀ i, |α i| ≤ M := fun i => by
-    have h := Finset.le_sup' (fun i => |α i|) (Finset.mem_univ i)
-    change |α i| ≤ Finset.univ.sup' Finset.univ_nonempty (fun i => |α i|) + 1
-    linarith
+  have hM_le : ∀ i, |α i| ≤ M := fun i =>
+    le_add_of_le_of_nonneg (Finset.le_sup' (fun i => |α i|) (Finset.mem_univ i)) zero_le_one
+  have ⟨i₀⟩ := ‹Nonempty ι›
+  have hM : 0 < M := lt_of_le_of_lt (abs_nonneg (α i₀))
+    (lt_of_le_of_lt (Finset.le_sup' (fun i => |α i|) (Finset.mem_univ i₀)) (lt_add_one _))
   let η : ℝ := min (t / 2) (t * r / (2 * M))
   have hη : 0 < η := lt_min (half_pos ht) (div_pos (mul_pos ht hr) (mul_pos two_pos hM))
   obtain ⟨m, hm⟩ := exists_pow_lt_of_lt_one hη (by norm_num : (1 / 2 : ℝ) < 1)
   have h2m_pos : (0 : ℝ) < (2 : ℝ) ^ m := pow_pos (by norm_num) m
   have hinv : (1 / 2 : ℝ) ^ m = 1 / (2 : ℝ) ^ m := by rw [one_div, inv_pow, one_div]
-  have hδ : 1 / (2 : ℝ) ^ m < η := by rwa [← hinv]
+  have hδ : 1 / (2 : ℝ) ^ m < η := hinv ▸ hm
   set n : ℕ := ⌊t * (2 : ℝ) ^ m⌋₊
   set d : ℝ := (n : ℝ) / (2 : ℝ) ^ m
-  have hdt_le : d ≤ t := by
-    rw [div_le_iff₀ h2m_pos]
-    exact Nat.floor_le (mul_nonneg ht.le h2m_pos.le)
-  have hdt_lt : t - 1 / (2 : ℝ) ^ m < d := by
-    have hfl : t * (2 : ℝ) ^ m < (n : ℝ) + 1 := Nat.lt_floor_add_one _
-    have h2ne : (2 : ℝ) ^ m ≠ 0 := h2m_pos.ne'
-    have hprod : (t - 1 / (2 : ℝ) ^ m) * (2 : ℝ) ^ m = t * (2 : ℝ) ^ m - 1 := by
-      field_simp
-    have : (t - 1 / (2 : ℝ) ^ m) * (2 : ℝ) ^ m < (n : ℝ) := by linarith
-    exact (lt_div_iff₀ h2m_pos).2 this
-  have htd_half : t / 2 < d := by
-    have : 1 / (2 : ℝ) ^ m < t / 2 := lt_of_lt_of_le hδ (min_le_left _ _)
-    linarith
-  have hd_pos : 0 < d := by linarith
-  have hn_pos : 0 < n := by
-    by_contra h0
-    have : n = 0 := by omega
-    simp only [d, this, Nat.cast_zero, zero_div] at hd_pos
+  have hdt_le : d ≤ t := (div_le_iff₀ h2m_pos).2 (Nat.floor_le (mul_nonneg ht.le h2m_pos.le))
+  have hdt_lt : t - 1 / (2 : ℝ) ^ m < d := (lt_div_iff₀ h2m_pos).2 <| by
+    have h2ne := h2m_pos.ne'
+    linarith [Nat.lt_floor_add_one (t * (2 : ℝ) ^ m),
+      show (t - 1 / (2 : ℝ) ^ m) * (2 : ℝ) ^ m = t * (2 : ℝ) ^ m - 1 by field_simp]
+  have htd_half : t / 2 < d := by linarith [min_le_left (t / 2) (t * r / (2 * M))]
+  have hn_pos : 0 < n := Nat.pos_of_ne_zero fun h0 => by
+    simp only [d, h0, Nat.cast_zero, zero_div] at htd_half
     linarith
   have hd_mem : d • α' ∈ openShifted f x₀ y₀ := by
-    have heq : d • α' = ((1 / 2 : ℝ) ^ m) • ((n : ℝ) • α') := by
-      rw [smul_smul, hinv]
-      congr 1; simp only [d]; ring
-    rw [heq]
-    exact hpow m _ (hnsmul n α' hn_pos hα')
+    convert hpow m _ (hnsmul n α' hn_pos hα') using 1
+    rw [smul_smul, hinv]
+    congr 1
+    simp only [d]
+    ring
   refine openShifted_upward hpad hxy hd_mem fun i => ?_
   simp only [Pi.smul_apply, smul_eq_mul, α']
-  have htd_nonneg : 0 ≤ t - d := by linarith
   have htd_lt_bound : t - d < t * r / (2 * M) := by
-    have hη2 : η ≤ t * r / (2 * M) := min_le_right _ _
-    linarith
-  have habs_mul : (t - d) * |α i| ≤ t * r / 2 := by
-    have h1 : (t - d) * |α i| ≤ (t - d) * M := mul_le_mul_of_nonneg_left (hM_le i) htd_nonneg
-    have h2 : (t - d) * M ≤ (t * r / (2 * M)) * M :=
-      mul_le_mul_of_nonneg_right htd_lt_bound.le hM.le
-    have h3 : (t * r / (2 * M)) * M = t * r / 2 := by
-      have hMne : M ≠ 0 := hM.ne'
-      field_simp
-    linarith
-  have hlow : -(t - d) * |α i| ≤ (t - d) * α i := by
-    have hneg : -|α i| ≤ α i := neg_abs_le (α i)
-    calc
-      -(t - d) * |α i| = (t - d) * (-|α i|) := by ring
-      _ ≤ (t - d) * α i := mul_le_mul_of_nonneg_left hneg htd_nonneg
-  have hdr : t * r / 2 ≤ d * r := by nlinarith
-  linarith
+    linarith [min_le_right (t / 2) (t * r / (2 * M))]
+  have habs_mul : (t - d) * |α i| ≤ t * r / 2 :=
+    calc (t - d) * |α i|
+      _ ≤ (t - d) * M := mul_le_mul_of_nonneg_left (hM_le i) (by linarith)
+      _ ≤ (t * r / (2 * M)) * M := mul_le_mul_of_nonneg_right htd_lt_bound.le hM.le
+      _ = t * r / 2 := by
+            have hMne := hM.ne'
+            field_simp
+  have hlow := mul_le_mul_of_nonneg_left (neg_abs_le (α i)) (by linarith : 0 ≤ t - d)
+  nlinarith
 
 private theorem openShifted_convex [Finite ι] [Nonempty ι] [Fintype Ω] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -896,114 +791,89 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
     isGeneralizedWMON_of_isPAD hpad
   obtain ⟨y₀, hy₀, _⟩ := exists_ne_pair hcard x₀ x₀
   have hxy : x₀ ≠ y₀ := hy₀.symm
-  have hconv : Convex ℝ (openShifted f x₀ y₀) :=
-    openShifted_convex hf_onto hpad hgw hcard hxy
-  have hopen : IsOpen (openShifted f x₀ y₀) := openShifted_isOpen hpad hxy
-  have hzero : (0 : ι → ℝ) ∉ openShifted f x₀ y₀ := zero_notMem_openShifted hf_onto hgw hxy
-  obtain ⟨L, hL⟩ := geometric_hahn_banach_point_open hconv hopen hzero
-  have hL_pos : ∀ α ∈ openShifted f x₀ y₀, 0 < L α := fun α hα => by
-    have := hL α hα
-    rwa [map_zero] at this
+  obtain ⟨L, hL⟩ := geometric_hahn_banach_point_open
+    (openShifted_convex hf_onto hpad hgw hcard hxy) (openShifted_isOpen hpad hxy)
+    (zero_notMem_openShifted hf_onto hgw hxy)
+  have hL_pos : ∀ α ∈ openShifted f x₀ y₀, 0 < L α := fun α hα => by simpa using hL α hα
   let w₀ : ι → ℝ := fun i => L (Pi.single i 1)
   have hL_eq : ∀ α : ι → ℝ, L α = ∑ i, w₀ i * α i := fun α => by
     have hdecomp : α = ∑ i : ι, α i • Pi.single i (1 : ℝ) := by
       ext j
-      rw [Finset.sum_apply]
-      simp only [Pi.smul_apply, smul_eq_mul, Pi.single_apply, mul_ite, mul_one, mul_zero]
-      rw [Finset.sum_ite_eq Finset.univ j α]
-      simp only [Finset.mem_univ, ↓reduceIte]
+      simp [Finset.sum_apply, Pi.single_apply]
     conv_lhs => rw [hdecomp]
     rw [map_sum]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    rw [map_smul, smul_eq_mul, mul_comm]
-  have hone_mem : (fun _ : ι => (1 : ℝ)) ∈ openShifted f x₀ y₀ :=
-    const_pos_mem_openShifted hf_onto hpad hxy zero_lt_one
-  have hsum_pos : 0 < ∑ i, w₀ i := by
-    have h := hL_pos (fun _ => 1) hone_mem
-    rw [hL_eq] at h
-    simpa only [mul_one] using h
-  have hw₀_nonneg : ∀ i, 0 ≤ w₀ i := by
-    intro i
+    exact Finset.sum_congr rfl fun i _ => by rw [map_smul, smul_eq_mul, mul_comm]
+  have hone_mem := const_pos_mem_openShifted hf_onto hpad hxy zero_lt_one
+  have hsum_pos : 0 < ∑ i, w₀ i := by simpa only [hL_eq, mul_one] using hL_pos _ hone_mem
+  have hw₀_nonneg : ∀ i, 0 ≤ w₀ i := fun i => by
     by_contra hneg
     push Not at hneg
-    have hneg' : 0 < -w₀ i := by linarith
     let t : ℝ := (∑ j, w₀ j) / (-w₀ i) + 1
-    have ht : 0 ≤ t := by
-      have hdiv_nn : 0 ≤ (∑ j, w₀ j) / (-w₀ i) := div_nonneg hsum_pos.le hneg'.le
-      change 0 ≤ (∑ j, w₀ j) / (-w₀ i) + 1
-      linarith
-    have hmem : (fun _ : ι => (1 : ℝ)) + t • Pi.single i (1 : ℝ) ∈ openShifted f x₀ y₀ := by
-      refine openShifted_upward hpad hxy hone_mem fun j => ?_
-      simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Pi.single_apply]
-      split_ifs <;> linarith
-    have hlt := hL_pos _ hmem
+    have ht : 0 ≤ t := add_nonneg (div_nonneg hsum_pos.le (by linarith)) zero_le_one
+    have hlt := hL_pos ((fun _ : ι => (1 : ℝ)) + t • Pi.single i (1 : ℝ))
+      (openShifted_upward hpad hxy hone_mem fun j => by
+        simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Pi.single_apply]
+        split_ifs <;> linarith)
     rw [map_add, map_smul, smul_eq_mul, hL_eq] at hlt
     simp only [mul_one] at hlt
     have hwi_ne : w₀ i ≠ 0 := hneg.ne
-    have hcalc : t * w₀ i = -(∑ j, w₀ j) + w₀ i := by
-      change ((∑ j, w₀ j) / (-w₀ i) + 1) * w₀ i = -(∑ j, w₀ j) + w₀ i
-      field_simp [hwi_ne]
+    have hcalc : t * w₀ i = -(∑ j, w₀ j) + w₀ i := by dsimp [t]; field_simp [hwi_ne]
     change 0 < ∑ j, w₀ j + t * w₀ i at hlt
     linarith
   let S : ℝ := ∑ i, w₀ i
   have hSne : S ≠ 0 := hsum_pos.ne'
   let w : ι → ℝ := fun i => w₀ i / S
   refine ⟨w, fun i => div_nonneg (hw₀_nonneg i) hsum_pos.le, ?_, fun b => ⟨Set.mem_univ _, ?_⟩⟩
-  · have hmul : (∑ i, w i) * S = S := by
-      simp only [w, Finset.sum_mul]
-      calc
-        ∑ i, w₀ i / S * S = ∑ i, w₀ i :=
-          Finset.sum_congr rfl fun i _ => div_mul_cancel₀ _ hSne
-        _ = S := rfl
-    exact eq_of_sub_eq_zero (mul_right_cancel₀ hSne (by linarith))
+  · simp only [w, div_eq_mul_inv, ← Finset.sum_mul]
+    exact mul_inv_cancel₀ hSne
   · intro y _
     set x := f b
     by_cases heq : y = x
     · subst heq; exact le_rfl
-    have hdiff : (fun i => b i x - b i y) ∈ diffSet f x y := ⟨b, fun _ => rfl, rfl⟩
     have hnonneg : 0 ≤ ∑ i, w₀ i * ((b i x - b i y) - gamma f x y) := by
       by_contra hlt
       push Not at hlt
       let ε : ℝ := -(∑ i, w₀ i * ((b i x - b i y) - gamma f x y)) / (2 * S)
       have hε : 0 < ε := div_pos (by linarith) (mul_pos two_pos hsum_pos)
       let α : ι → ℝ := fun i => b i x - b i y - gamma f x y + ε
-      have hα_xy : α ∈ openShifted f x y := by
-        refine ⟨ε, hε, ?_⟩
-        convert hdiff using 1; ext i; simp only [α]; ring
-      have hα : α ∈ openShifted f x₀ y₀ := by
-        rwa [openShifted_eq hf_onto hpad hgw hcard (Ne.symm heq) hxy] at hα_xy
-      have hpos := hL_pos α hα
-      rw [hL_eq] at hpos
-      have hexp : ∑ i, w₀ i * α i =
-          ∑ i, w₀ i * ((b i x - b i y) - gamma f x y) + ε * S := by
-        simp only [α, mul_add, Finset.sum_add_distrib, ← Finset.sum_mul, S]
+      have hα_diff : (fun i => α i + gamma f x y - ε) ∈ diffSet f x y := by
+        have hdiff : (fun i => b i x - b i y) ∈ diffSet f x y := ⟨b, fun _ => rfl, rfl⟩
+        convert hdiff using 1
+        ext
+        simp only [α]
         ring
-      have hεS : ε * S = -(∑ i, w₀ i * ((b i x - b i y) - gamma f x y)) / 2 := by
-        change (-(∑ i, w₀ i * ((b i x - b i y) - gamma f x y)) / (2 * S)) * S = _
-        field_simp [hSne]
-      linarith
+      have hα : α ∈ openShifted f x₀ y₀ := by
+        rw [← openShifted_eq hf_onto hpad hgw hcard (Ne.symm heq) hxy]
+        exact ⟨ε, hε, hα_diff⟩
+      have hexp : L α = (∑ i, w₀ i * ((b i x - b i y) - gamma f x y)) / 2 :=
+        calc L α
+          _ = ∑ i, w₀ i * α i := hL_eq α
+          _ = ∑ i, w₀ i * ((b i x - b i y) - gamma f x y) + ε * S := by
+                simp only [α, mul_add, Finset.sum_add_distrib, ← Finset.sum_mul, S]
+                ring
+          _ = (∑ i, w₀ i * ((b i x - b i y) - gamma f x y)) / 2 := by
+                have hεS : ε * S = -(∑ i, w₀ i * ((b i x - b i y) - gamma f x y)) / 2 := by
+                  dsimp [ε]
+                  field_simp [hSne]
+                linarith
+      linarith [hL_pos α hα]
     have hdiv : 0 ≤ ∑ i, w i * (b i x - b i y) - gamma f x y := by
       refine nonneg_of_mul_nonneg_left ?_ hsum_pos
+      have hsum_eq : ∑ i, w i * (b i x - b i y) * S = ∑ i, w₀ i * (b i x - b i y) :=
+        Finset.sum_congr rfl fun i _ => by
+          dsimp only [w]
+          rw [mul_right_comm, div_mul_cancel₀ _ hSne]
       have h1 : (∑ i, w i * (b i x - b i y) - gamma f x y) * S =
           ∑ i, w₀ i * ((b i x - b i y) - gamma f x y) := by
-        rw [sub_mul, Finset.sum_mul]
-        have hsum_eq : ∑ i, w i * (b i x - b i y) * S = ∑ i, w₀ i * (b i x - b i y) :=
-          Finset.sum_congr rfl fun i _ => by
-            simp only [w]
-            rw [mul_right_comm, div_mul_cancel₀ _ hSne]
-        rw [hsum_eq]
+        rw [sub_mul, Finset.sum_mul, hsum_eq]
         simp only [mul_sub, Finset.sum_sub_distrib, ← Finset.sum_mul, S]
         ring
       change 0 ≤ (∑ i, w i * (b i x - b i y) - gamma f x y) * S
-      rw [h1]
-      exact hnonneg
-    have hcocycle : gamma f x y = gamma f x₀ y - gamma f x₀ x := by
-      have h := gamma_add hf_onto hpad hgw x₀ x y
-      linarith
+      rwa [h1]
     simp only [affineScore]
-    have hsub : ∑ i, w i * (b i x - b i y) = ∑ i, w i * b i x - ∑ i, w i * b i y := by
-      simp only [mul_sub, Finset.sum_sub_distrib]
-    linarith
+    linarith [gamma_add hf_onto hpad hgw x₀ x y,
+      show ∑ i, w i * (b i x - b i y) = ∑ i, w i * b i x - ∑ i, w i * b i y by
+        simp only [mul_sub, Finset.sum_sub_distrib]]
 
 /-! ### Headline theorems (Roberts' theorem and neutral Roberts' theorem) -/
 
@@ -1040,12 +910,9 @@ theorem IsImplementable.isAffineMaximizer [Fintype ι] [DecidableEq ι]
     [Fintype Ω] {f : (ι → Ω → ℝ) → Ω} (hcard : 3 ≤ Fintype.card Ω)
     (hf_onto : Function.Surjective f) (hf : IsImplementable f) : IsAffineMaximizer f := by
   obtain ⟨w, c, hw, hsum, hmax⟩ := exists_isAffineMaximizerFor_of_isImplementable hcard hf_onto hf
-  have hne : ∃ i, 0 < w i := by
-    by_contra h
-    push Not at h
-    have h0 : ∑ i, w i = 0 := Finset.sum_eq_zero fun i _ => le_antisymm (h i) (hw i)
-    linarith
-  exact ⟨Set.univ, w, c, hw, hne, hmax⟩
+  refine ⟨Set.univ, w, c, hw, ?_, hmax⟩
+  by_contra! h
+  linarith [Finset.sum_nonpos (s := Finset.univ) fun i _ => h i]
 
 /-- Mechanism form of **Roberts' theorem** ([Nisan2007], Theorem 9.32, p. 228): if `M` is DSIC on
 the unrestricted domain `ℝ^Ω` with `3 ≤ |Ω|` and `M.outcome` is surjective, then `M.outcome` is an
@@ -1117,8 +984,7 @@ theorem exists_isAffineMaximizerFor_range_of_isWeaklyMonotone [Fintype ι] [Deci
   classical
   let _ : Fintype (Set.range f) := hfin.fintype
   have hcardR : 3 ≤ Fintype.card (Set.range f) := by
-    have heq : (Set.range f).ncard = Fintype.card (Set.range f) :=
-      Set.ncard_eq_toFinset_card' (Set.range f) |>.trans (Set.toFinset_card _)
+    have := (Set.ncard_eq_toFinset_card' (Set.range f)).trans (Set.toFinset_card _)
     omega
   let ext (u : ι → Set.range f → ℝ) : ι → Ω → ℝ :=
     fun i ω => if h : ω ∈ Set.range f then u i ⟨ω, h⟩ else 0
@@ -1127,32 +993,22 @@ theorem exists_isAffineMaximizerFor_range_of_isWeaklyMonotone [Fintype ι] [Deci
       (∀ i, ∀ y ∈ Set.range f, y ≠ f v → v' i y - v i y < v' i (f v) - v i (f v)) →
       f v' = f v := fun hinc =>
     pad_range_of_isWeaklyMonotoneOn (isWeaklyMonotoneOn_univ_iff.2 hf_wmon)
-      (fun _ => Set.mem_univ _) (fun _ => Set.mem_univ _) hinc
-  have hg_wmon : IsWeaklyMonotone g := by
-    intro i u v v'
-    let vv : Ω → ℝ := fun ω => if h : ω ∈ Set.range f then v ⟨ω, h⟩ else 0
-    let vv' : Ω → ℝ := fun ω => if h : ω ∈ Set.range f then v' ⟨ω, h⟩ else 0
-    have hu1 : ext (Function.update u i v) = Function.update (ext u) i vv := by
-      ext j ω
-      by_cases hji : j = i
-      · subst hji; simp only [ext, Function.update_self, vv]
-      · simp only [ext, Function.update_of_ne hji]
-    have hu2 : ext (Function.update u i v') = Function.update (ext u) i vv' := by
-      ext j ω
-      by_cases hji : j = i
-      · subst hji; simp only [ext, Function.update_self, vv']
-      · simp only [ext, Function.update_of_ne hji]
-    have hw := hf_wmon i (ext u) vv vv'
-    rw [← hu1, ← hu2] at hw
-    simpa only [g, vv, vv', Set.mem_range_self, ↓reduceDIte] using hw
+      (fun _ => trivial) (fun _ => trivial) hinc
+  have hext_upd (u : ι → Set.range f → ℝ) (i : ι) (v : Set.range f → ℝ) :
+      ext (Function.update u i v) =
+        Function.update (ext u) i (fun ω => if h : ω ∈ Set.range f then v ⟨ω, h⟩ else 0) := by
+    ext j ω
+    by_cases h : j = i <;> simp [h, ext]
+  have hg_wmon : IsWeaklyMonotone g := fun i u v v' => by
+    have hw := hf_wmon i (ext u) (fun ω => if h : ω ∈ Set.range f then v ⟨ω, h⟩ else 0)
+      (fun ω => if h : ω ∈ Set.range f then v' ⟨ω, h⟩ else 0)
+    rw [← hext_upd, ← hext_upd] at hw
+    simpa only [g, Set.mem_range_self, ↓reduceDIte] using hw
   have hg_onto : Function.Surjective g := by
     rintro ⟨a, v, rfl⟩
-    let u : ι → Set.range f → ℝ :=
-      fun i r => if r.val = f v then v i r.val + 1 else v i r.val
-    refine ⟨u, Subtype.ext ?_⟩
-    exact hpad fun i y hy hyne => by
-      simp only [ext, hy, Set.mem_range_self, ↓reduceDIte, u, hyne, ↓reduceIte]
-      linarith
+    refine ⟨fun i r => if r.val = f v then v i r.val + 1 else v i r.val,
+      Subtype.ext <| hpad fun i y hy hyne => ?_⟩
+    simp only [ext, hy, Set.mem_range_self, ↓reduceDIte, hyne, ↓reduceIte]; linarith
   obtain ⟨w, c', hw, hsum, hmax⟩ :=
     exists_isAffineMaximizerFor_of_isWeaklyMonotone hcardR hg_onto hg_wmon
   let c : Ω → ℝ := fun ω => if h : ω ∈ Set.range f then c' ⟨ω, h⟩ else 0
@@ -1165,30 +1021,18 @@ theorem exists_isAffineMaximizerFor_range_of_isWeaklyMonotone [Fintype ι] [Deci
     fun i r => if r.val = x then b i x + ε else b i r.val
   have hfu : f (ext u) = x := hpad fun i z hz hzne => by
     change z ≠ x at hzne
-    have hz_eq : ext u i z = b i z := by
-      simp only [ext, hz, ↓reduceDIte, u, hzne, ↓reduceIte]
-    have hx_eq : ext u i (f b) = b i x + ε := by
-      simp only [ext, Set.mem_range_self b, ↓reduceDIte, u, x, ↓reduceIte]
-    rw [hz_eq, hx_eq]
-    change b i z - b i z < b i x + ε - b i x
-    linarith
-  have hgu : g u = ⟨x, Set.mem_range_self b⟩ := Subtype.ext hfu
+    simp only [ext, hz, Set.mem_range_self b, ↓reduceDIte, u, hzne, x, ↓reduceIte]; linarith
   have hle := (hmax u).2 ⟨y, hy⟩ (Set.mem_univ _)
-  rw [hgu] at hle
-  have hcy : c y = c' ⟨y, hy⟩ := dite_eq_left hy
-  have hcx : c x = c' ⟨x, Set.mem_range_self b⟩ := dite_eq_left (Set.mem_range_self b)
-  have hs1 : ∑ i, w i * u i ⟨y, hy⟩ = ∑ i, w i * b i y :=
-    Finset.sum_congr rfl fun i _ => by simp only [u, hyx, ↓reduceIte]
-  have hs2 : ∑ i, w i * u i ⟨x, Set.mem_range_self b⟩ = ∑ i, w i * b i x + ε := by
-    calc
-      ∑ i, w i * u i ⟨x, Set.mem_range_self b⟩
-          = ∑ i, (w i * b i x + w i * ε) :=
-        Finset.sum_congr rfl fun i _ => by simp only [u, ↓reduceIte]; ring
-      _ = ∑ i, w i * b i x + (∑ i, w i) * ε := by rw [Finset.sum_add_distrib, ← Finset.sum_mul]
-      _ = ∑ i, w i * b i x + ε := by rw [hsum, one_mul]
-  change c y + ∑ i, w i * b i y ≤ c x + ∑ i, w i * b i x + ε
-  simp only [affineScore] at hle
-  rw [hcy, hcx]
-  linarith
+  rw [show g u = ⟨x, Set.mem_range_self b⟩ from Subtype.ext hfu] at hle
+  calc affineScore w c b y
+    _ = affineScore w c' u ⟨y, hy⟩ := by
+          simp only [affineScore, c, hy, ↓reduceDIte]
+          exact congrArg (c' ⟨y, hy⟩ + ·)
+            (Finset.sum_congr rfl fun i _ => by simp only [u, hyx, ↓reduceIte])
+    _ ≤ affineScore w c' u ⟨x, Set.mem_range_self b⟩ := hle
+    _ = affineScore w c b x + ε := by
+          simp only [affineScore, c, u, ↓reduceIte, mul_add, Finset.sum_add_distrib,
+            ← Finset.sum_mul, hsum, one_mul, add_assoc]
+          rw [dite_eq_left (Set.mem_range_self b)]
 
 end Cslib.GameTheory.Mechanism

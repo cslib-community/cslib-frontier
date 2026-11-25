@@ -72,8 +72,6 @@ theorem exists_projective_polynomial_POVMs {k : ℕ} (D : ℕ)
   let φ := C.state
   let L := QuantumStrategy.leftMeasurement (κ := κ) Gₐ
   let R := QuantumStrategy.rightMeasurement (ι := ι) Gᵦ
-  let A := decodedPoint C.alice
-  let B := decodedPoint C.bob
   let f (u : Pt) (g : Poly) := MvPolynomial.eval u g.val
   have hLR : 1 - ζ ≤ Measurement.agreement φ L R := by
     change 1 - Measurement.agreement φ L R ≤ ζ at hpoly
@@ -84,39 +82,34 @@ theorem exists_projective_polynomial_POVMs {k : ℕ} (D : ℕ)
   let PR := QuantumStrategy.rightMeasurement (ι := ι) Pᵦ
   change (∑ a, φ.norm (L.effect a - PL.effect a) ^ 2) ≤ 18 * ζ at hL
   change (∑ a, φ.norm (R.effect a - PR.effect a) ^ 2) ≤ 18 * ζ at hR
-  have hrev : 1 - ζ ≤ Measurement.agreement φ R L := by
-    rw [← Measurement.agreement_comm φ L R
-      (fun a => QuantumStrategy.commute_liftedEffects Gₐ Gᵦ a a)]
-    exact hLR
-  have hdistR (u : Pt) :
-      (∑ a, φ.norm ((R.map (f u)).effect a - (PR.map (f u)).effect a) ^ 2) ≤
-        8 * ζ + 4 * √(18 * ζ) :=
-    Measurement.sum_norm_sub_sq_map_le_of_agreement φ L R PR (f u)
-      (QuantumStrategy.commute_liftedEffects Gₐ Gᵦ)
-      (QuantumStrategy.commute_liftedEffects Gₐ Pᵦ) hLR hR
-  have hdistL (u : Pt) :
-      (∑ a, φ.norm ((L.map (f u)).effect a - (PL.map (f u)).effect a) ^ 2) ≤
-        8 * ζ + 4 * √(18 * ζ) :=
-    Measurement.sum_norm_sub_sq_map_le_of_agreement φ R L PL (f u)
-      (fun a b => (QuantumStrategy.commute_liftedEffects Gₐ Gᵦ b a).symm)
-      (fun a b => (QuantumStrategy.commute_liftedEffects Pₐ Gᵦ b a).symm) hrev hL
   have hswapPoint (M : POVM Poly ι) (u : Pt) :
-      Measurement.agreement φ ((QuantumStrategy.leftMeasurement (κ := κ) M).map (f u)) (B u) =
-        Measurement.agreement φ (B u) ((QuantumStrategy.leftMeasurement (κ := κ) M).map (f u)) := by
-    apply Measurement.agreement_comm
-    exact fun a => Measurement.commute_map_map _ _
+      Measurement.agreement φ ((QuantumStrategy.leftMeasurement (κ := κ) M).map (f u))
+        (decodedPoint C.bob u) =
+        Measurement.agreement φ (decodedPoint C.bob u)
+          ((QuantumStrategy.leftMeasurement (κ := κ) M).map (f u)) :=
+    Measurement.agreement_comm _ _ _ fun a => Measurement.commute_map_map _ _
       (QuantumStrategy.commute_liftedEffects M (S.bob (.point u))) (f u) decodePoint a a
-  refine ⟨Pₐ, Pᵦ, hPₐ, hPᵦ, ?_, ?_, ?_⟩
-  · exact Measurement.expect_one_sub_agreement_le_of_distance φ A (fun u => R.map (f u))
-      (fun u => PR.map (f u)) hpointB
-      ((expect_le_expect fun u _ => hdistR u).trans_eq (Fintype.expect_const _))
-  · change (𝔼 u : Pt, (1 - Measurement.agreement φ (PL.map (f u)) (B u))) ≤ pointError
+  refine ⟨Pₐ, Pᵦ, hPₐ, hPᵦ,
+    Measurement.expect_one_sub_agreement_le_of_distance φ (decodedPoint C.alice)
+      (fun u => R.map (f u)) (fun u => PR.map (f u)) hpointB
+      ((expect_le_expect fun u _ => Measurement.sum_norm_sub_sq_map_le_of_agreement φ L R PR (f u)
+        (QuantumStrategy.commute_liftedEffects Gₐ Gᵦ)
+        (QuantumStrategy.commute_liftedEffects Gₐ Pᵦ) hLR hR).trans_eq (Fintype.expect_const _)),
+    ?_, ?_⟩
+  · change (𝔼 u : Pt, (1 - Measurement.agreement φ (PL.map (f u)) (decodedPoint C.bob u))) ≤
+      pointError
     simp only [PL, hswapPoint Pₐ]
-    apply Measurement.expect_one_sub_agreement_le_of_distance φ B (fun u => L.map (f u))
-      (fun u => PL.map (f u))
-    · change (𝔼 u : Pt, (1 - Measurement.agreement φ (L.map (f u)) (B u))) ≤ σ at hpointA
-      simpa only [L, hswapPoint Gₐ] using hpointA
-    · exact (expect_le_expect fun u _ => hdistL u).trans_eq (Fintype.expect_const _)
+    refine Measurement.expect_one_sub_agreement_le_of_distance φ (decodedPoint C.bob)
+      (fun u => L.map (f u)) (fun u => PL.map (f u)) ?_
+      ((expect_le_expect fun u _ => Measurement.sum_norm_sub_sq_map_le_of_agreement φ R L PL (f u)
+        (fun a b => (QuantumStrategy.commute_liftedEffects Gₐ Gᵦ b a).symm)
+        (fun a b => (QuantumStrategy.commute_liftedEffects Pₐ Gᵦ b a).symm)
+        (Measurement.agreement_comm φ L R (fun a =>
+          QuantumStrategy.commute_liftedEffects Gₐ Gᵦ a a) ▸ hLR) hL).trans_eq
+        (Fintype.expect_const _))
+    change (𝔼 u : Pt, (1 - Measurement.agreement φ (L.map (f u)) (decodedPoint C.bob u))) ≤ σ
+      at hpointA
+    simpa only [L, hswapPoint Gₐ] using hpointA
   · change 1 - Measurement.agreement φ PL PR ≤ ζ + 2 * √(18 * ζ)
     have hright := (Measurement.abs_agreement_sub_right_le φ L R PR).trans (Real.sqrt_le_sqrt hR)
     have hleft := (Measurement.abs_agreement_sub_right_le φ PR L PL).trans (Real.sqrt_le_sqrt hL)
@@ -173,11 +166,11 @@ theorem exists_projective_polynomial_POVMs_of_winProb {k : ℕ}
       3 * (1 - (game (F := F) n d).quantumWinProb S)
     rw [← TwoProverGame.commutingWinProb_toCommuting (game n d)]
     exact branch_loss_le_three_mul n d b C.answers
-  have hnonneg (b : Branch) : 0 ≤ loss b :=
-    sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
   have hσ : σ₀ ≤ σ := by
     dsimp only [σ₀, σ, dimensionInductionError, inductionLossTerm]
-    gcongr <;> first | exact hnonneg _ | exact hloss _
+    gcongr <;> first
+      | exact sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
+      | exact hloss _
   have hζ : ζ₀ ≤ ζ := by
     dsimp only [ζ₀, ζ]
     gcongr

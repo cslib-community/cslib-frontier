@@ -95,12 +95,8 @@ theorem lcsLength_cons_cons (a b : α) (x y : List α) :
 
 /-- Every common subsequence of `x` and `y` has length at most `lcsLength x y`. -/
 theorem length_le_lcsLength : ∀ {x y z : List α}, z <+ x → z <+ y → z.length ≤ lcsLength x y
-  | [], _, z, hx, _ => by
-    rw [List.sublist_nil.1 hx]
-    exact Nat.zero_le _
-  | _ :: _, [], z, _, hy => by
-    rw [List.sublist_nil.1 hy]
-    exact Nat.zero_le _
+  | [], _, z, hx, _ => by simp [List.sublist_nil.1 hx]
+  | _ :: _, [], z, _, hy => by simp [List.sublist_nil.1 hy]
   | a :: x, b :: y, [], _, _ => Nat.zero_le _
   | a :: x, b :: y, c :: z, hx, hy => by
     rw [lcsLength_cons_cons]
@@ -111,10 +107,8 @@ theorem length_le_lcsLength : ∀ {x y z : List α}, z <+ x → z <+ y → z.len
       omega
     · by_cases hca : c = a
       · subst hca
-        have := length_le_lcsLength hx (hy.of_cons_of_ne hab)
-        omega
-      · have := length_le_lcsLength (hx.of_cons_of_ne hca) hy
-        omega
+        exact (length_le_lcsLength hx (hy.of_cons_of_ne hab)).trans (le_max_right _ _)
+      · exact (length_le_lcsLength (hx.of_cons_of_ne hca) hy).trans (le_max_left _ _)
 termination_by x y => x.length + y.length
 
 /-- A longest common subsequence of `x` and `y`, read off the table. Ties prefer dropping the
@@ -307,18 +301,9 @@ theorem editDist_indel_le_length_add (x y : List α) :
 /-- A common subsequence `z` of `x` and `y` gives a script keeping `z`. -/
 theorem editDist_indel_add_two_mul_le : ∀ {x y z : List α}, z <+ x → z <+ y →
     editDist Costs.indel x y + 2 * z.length ≤ x.length + y.length
-  | [], y, z, hx, _ => by
-    rw [List.sublist_nil.1 hx, editDist_indel_nil_left]
-    simp only [List.length_nil]
-    omega
-  | a :: x, [], z, _, hy => by
-    rw [List.sublist_nil.1 hy, editDist_indel_nil_right]
-    simp only [List.length_nil]
-    omega
-  | a :: x, b :: y, [], _, _ => by
-    have := editDist_indel_le_length_add (a :: x) (b :: y)
-    simp only [List.length_nil]
-    omega
+  | [], y, z, hx, _ => by simp [List.sublist_nil.1 hx, editDist_indel_nil_left]
+  | a :: x, [], z, _, hy => by simp [List.sublist_nil.1 hy, editDist_indel_nil_right]
+  | a :: x, b :: y, [], _, _ => by simpa using editDist_indel_le_length_add (a :: x) (b :: y)
   | a :: x, b :: y, c :: z, hx, hy => by
     by_cases hca : c = a
     · subst hca
@@ -361,12 +346,10 @@ of insertions and deletions turning `x` into `y`. The witness splits the replace
 `optScript Costs.indel x y`. -/
 theorem isLeast_editDist_indel (x y : List α) :
     IsLeast {c | ∃ s : EditScript α, s.IsIndel ∧ s.src = x ∧ s.tgt = y ∧ s.cost Costs.indel = c}
-      (editDist Costs.indel x y) := by
-  refine ⟨⟨splitSubs (optScript Costs.indel x y), isIndel_splitSubs _, ?_, ?_, ?_⟩, ?_⟩
-  · rw [src_splitSubs, src_optScript]
-  · rw [tgt_splitSubs, tgt_optScript]
-  · rw [cost_indel_splitSubs, cost_optScript]
-  · rintro c ⟨s, -, rfl, rfl, rfl⟩
-    exact editDist_le_cost Costs.indel s
+      (editDist Costs.indel x y) :=
+  ⟨⟨splitSubs (optScript Costs.indel x y), isIndel_splitSubs _,
+    (src_splitSubs _).trans (src_optScript _ _ _), (tgt_splitSubs _).trans (tgt_optScript _ _ _),
+    (cost_indel_splitSubs _).trans (cost_optScript _ _ _)⟩,
+    fun _ ⟨s, _, hx, hy, hc⟩ => hc ▸ hx ▸ hy ▸ editDist_le_cost Costs.indel s⟩
 
 end Cslib.Algorithms.Lean.EditDistance

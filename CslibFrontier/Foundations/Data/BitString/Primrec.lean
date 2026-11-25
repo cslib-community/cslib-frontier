@@ -36,13 +36,8 @@ theorem primrec_enumList : Primrec enumList := by
           (Primrec.const []))
     exact Primrec₂.mk <| Primrec.list_flatMap Primrec.snd hcons
   refine (Primrec.nat_rec₁ [[]] hh).of_eq fun k => ?_
-  have hrec : ∀ m : ℕ, Nat.rec [[]]
-      (fun _ IH => IH.flatMap fun word => [false :: word, true :: word]) m =
-      enumList m := by
-    intro m
-    induction m with
-    | zero => rfl
-    | succ m ih => rw [enumList_succ, ← ih]
-  exact hrec k
+  induction k with
+  | zero => rfl
+  | succ m ih => rw [enumList_succ, ← ih]
 
 end Cslib.BitString

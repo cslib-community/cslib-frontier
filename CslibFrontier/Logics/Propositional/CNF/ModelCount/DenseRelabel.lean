@@ -176,20 +176,11 @@ theorem computableInPolyTime_denseRelabel (enc : W ↪ List Bool) :
     ComputableInPolyTime (CNF.denseRelabel (V := W))
       (encList (encList (encPair enc encBool)))
       Cslib.Complexity.encCNF := by
-  have h1 : ComputableInPolyTime (CNF.denseRelabel (V := W))
-      (encList (encList (encPair enc encBool)))
-      (encList (encList (encPair encUnary encBool))) :=
-    computableInPolyTime_denseRelabel_unary enc
-  have h2 : ComputableInPolyTime (CNF.relabel (id : ℕ → ℕ))
-      (encList (encList (encPair encUnary encBool)))
-      (encList (encList (encPair encNat encBool))) :=
-    CNF.computableInPolyTime_relabel (encV := encUnary) (encW := encNat)
-      unary_to_binary
-  have heq : (CNF.denseRelabel (V := W)) = fun φ => (CNF.denseRelabel φ).relabel id := by
-    funext φ
-    exact (CNF.relabel_id _).symm
+  have heq : CNF.denseRelabel (V := W) = fun φ => (CNF.denseRelabel φ).relabel id :=
+    funext fun _ => (CNF.relabel_id _).symm
   rw [heq]
-  exact h2.comp h1
+  exact (CNF.computableInPolyTime_relabel unary_to_binary).comp
+    (computableInPolyTime_denseRelabel_unary enc)
 
 end PolyTime
 

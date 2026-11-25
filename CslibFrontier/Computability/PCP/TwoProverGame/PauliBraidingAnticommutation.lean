@@ -210,13 +210,8 @@ theorem expect_chshDeficit_pauliBraiding_le
   have hdef : (𝔼 r : Bool, deficit r) = Real.cos (π / 8) ^ 2 -
       (𝔼 r : Bool, 𝔼 p : ↥(oddPairs (Fin n)),
         (pauliBraidingCHSHGame n r p).commutingWinProb S) := by
-    have hrow (r : Bool) : deficit r = Real.cos (π / 8) ^ 2 -
-        (𝔼 p : ↥(oddPairs (Fin n)), (pauliBraidingCHSHGame n r p).commutingWinProb S) := by
-      unfold deficit
-      let := oddPairs_nonempty (ι := Fin n)
-      rw [Finset.expect_sub_distrib, Fintype.expect_const]
-    simp_rw [hrow]
-    rw [Finset.expect_sub_distrib, Fintype.expect_const]
+    let := oddPairs_nonempty (ι := Fin n)
+    simp only [deficit, Finset.expect_sub_distrib, Fintype.expect_const]
   rw [← hdef, Fintype.expect_eq_sum_div_card, Fintype.sum_bool, Fintype.card_bool]
   cases roles <;> push_cast <;> linarith [hnonneg false, hnonneg true]
 
@@ -286,10 +281,8 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
       (fun _ => Sum.elim (fun _ : Bool × Bool => false) id)
   let M := pauliBraidingBasisBitMeasurement measure
   have hspecial (q : Bool) (p : P) : star (special q id p) * special q id p ≤ 1 := by
-    have heq : ((pauliBraidingCHSHStrategy S roles p).bob q).observable = special q id p :=
-      pauliBraidingCHSHStrategy_bob_observable S roles p q
-    rw [← heq]
-    exact ((pauliBraidingCHSHStrategy S roles p).bob q).star_observable_mul_self_le_one
+    simpa only [special, pauliBraidingCHSHStrategy_bob_observable] using
+      ((pauliBraidingCHSHStrategy S roles p).bob q).star_observable_mul_self_le_one
   have hcomm (basis q : Bool) (x : Fin n → Bool) (p : P) :
       Commute (𝔼 d, (M basis x d).observable) (special q id p) := by
     rw [← Measurement.observable_average]

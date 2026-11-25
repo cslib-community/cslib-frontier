@@ -120,10 +120,8 @@ open scoped TensorNetwork
 /-- A node of positive multiplicity has valuation below `u`. -/
 theorem padicValInt_lt_of_taperMult_pos_left {u h : ℕ} {t : ℤ} (hq : 0 < taperMult u h t) :
     padicValInt 2 t < u := by
-  unfold taperMult at hq
   by_contra hc
-  rw [Nat.sub_eq_zero_of_le (not_lt.mp hc), mul_zero] at hq
-  exact lt_irrefl 0 hq
+  simp [taperMult, Nat.sub_eq_zero_of_le (not_lt.mp hc)] at hq
 
 /-- A node of positive multiplicity has valuation below `u`, so below `a` when `u ≤ a`. -/
 theorem padicValInt_lt_of_taperMult_pos {u h a : ℕ} {t : ℤ} (hq : 0 < taperMult u h t)
@@ -458,7 +456,7 @@ theorem exists_callValue_eq_add {rec : ContractionOracle B} (hrec : rec.Correct)
     push_cast
     rfl
   refine ⟨⟨b, hb⟩, ?_⟩
-  rw [callValue, dite_eq_left (by rw [hx']; exact (N.contraction + 2 ^ p * ⟨b, hb⟩).2)]
+  rw [callValue, dite_eq_left (hx' ▸ (N.contraction + 2 ^ p * ⟨b, hb⟩).2)]
   exact Subtype.ext hx'
 
 end Call
@@ -484,21 +482,19 @@ theorem rowsToColumnsLE_child {Δ a : ℕ} {slot : E → ℕ} (hrow : ∀ v, #{e
   src_le := by
     rintro (v | q)
     · rw [S.card_child_src_inl]
-      by_cases hv : S.side v.1
-      · have h0 : #{e | N.tgt e = v.1} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
-          fun e _ he => by
-            have := S.side_tgt e
-            rw [he, hv] at this
-            exact absurd this (by decide)
-        rw [h0, add_zero]
-        exact hrow _
-      · have h0 : #{e | N.src e = v.1} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
-          fun e _ he => by
-            have := S.side_src e
-            rw [he] at this
-            exact hv this
+      cases hv : S.side v.1
+      · have h0 : #{e | N.src e = v.1} = 0 := by
+          refine card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => ?_)
+          rw [← he, S.side_src] at hv
+          cases hv
         rw [h0, zero_add]
         exact hcol _
+      · have h0 : #{e | N.tgt e = v.1} = 0 := by
+          refine card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => ?_)
+          rw [← he, S.side_tgt] at hv
+          cases hv
+        rw [h0, add_zero]
+        exact hrow _
     · rw [S.card_child_src_inr]
       exact Nat.zero_le _
   tgt_le := by

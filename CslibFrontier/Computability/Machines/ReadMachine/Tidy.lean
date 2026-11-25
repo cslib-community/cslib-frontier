@@ -195,19 +195,10 @@ def stepBy (m : ReadMachine σ) (p : (σ × ℕ) × Option Bool) : (σ × ℕ) �
 theorem stepBy_eq (p : (σ × ℕ) × Option Bool) : stepBy m p = (m.toStepMachine).step p.1 p.2 := by
   obtain ⟨⟨q, pos⟩, a⟩ := p
   simp only [stepBy, toStepMachine, stepAt]
-  rcases hA : m.addr q with _ | A
+  rcases m.addr q with _ | A
   · simp
-  · by_cases h₁ : pos = A + 1
-    · simp [h₁]
-    · by_cases h₂ : pos < A + 1
-      · by_cases h₃ : a = none ∧ pos ≠ 0
-        · obtain ⟨rfl, h₄⟩ := h₃
-          simp [h₁, h₂, h₄]
-        · rcases a with _ | a
-          · have h₄ : pos = 0 := by simpa using h₃
-            simp [h₄]
-          · simp [h₁, h₂]
-      · simp [h₁, h₂]
+  · rcases a with _ | a <;> by_cases h₁ : pos = A + 1 <;> by_cases h₂ : pos < A + 1 <;>
+      by_cases h₀ : pos = 0 <;> simp [h₁, h₂, h₀]
 
 /-- The time bound of a state of the simulating machine. -/
 abbrev stateT (encS : σ ↪ List Bool) (T S : σ → ℕ) (q : σ × ℕ) : ℕ :=

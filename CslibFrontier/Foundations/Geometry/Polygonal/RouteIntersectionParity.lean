@@ -179,20 +179,14 @@ theorem sum_intersectionParity_eq_false_of_even {ι κ : Type*} [Fintype ι] [Fi
       exact ⟨pointP _, pointP _, pointQ _, pointQ _⟩)
     (even_mul_segment_endpoints p x hu hx) (even_mul_segment_endpoints q y hu hy)
   rw [← Bool.zero_eq_false, ← h, Fintype.sum_sigma]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   simp only [Fintype.sum_sigma, Finset.mul_sum]
   rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro i _
+  refine Finset.sum_congr rfl fun i _ => ?_
   rw [← intersectionParity_mulComplex (p i) (q j) hu, intersectionParity]
   simp only [Finset.mul_sum]
   rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro l _
-  apply Finset.sum_congr rfl
-  intro k _
-  congr 2
+  exact Finset.sum_congr rfl fun l _ => Finset.sum_congr rfl fun k _ => by congr 2
 
 /-- The ray-parity difference of a closed route at the ends of a second route equals
 their indexed intersection parity. Each route's listed nodes avoid the other support,

@@ -161,26 +161,16 @@ and `tr'` the tree with its key erased. -/
 theorem eraseMin?_eq_some_iff (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β} :
     eraseMin? t tr = some (p, tr') ↔ tr.toList.head? = some p ∧ tr' = erase t p.1 tr := by
   rw [eraseMin?_eq h, Option.map_eq_some_iff]
-  constructor
-  · rintro ⟨q, hq, hpq⟩
-    simp only [Prod.mk.injEq] at hpq
-    obtain ⟨rfl, rfl⟩ := hpq
-    exact ⟨hq, rfl⟩
-  · rintro ⟨hp, rfl⟩
-    exact ⟨p, hp, rfl⟩
+  simp only [Prod.mk.injEq]
+  exact ⟨fun ⟨_, hq, rfl, htr⟩ => ⟨hq, htr.symm⟩, fun ⟨hp, htr⟩ => ⟨p, hp, rfl, htr.symm⟩⟩
 
 /-- On a well-formed tree, `eraseMax?` returns `p` and `tr'` exactly when `p` is the last entry
 and `tr'` the tree with its key erased. -/
 theorem eraseMax?_eq_some_iff (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β} :
     eraseMax? t tr = some (p, tr') ↔ tr.toList.getLast? = some p ∧ tr' = erase t p.1 tr := by
   rw [eraseMax?_eq h, Option.map_eq_some_iff]
-  constructor
-  · rintro ⟨q, hq, hpq⟩
-    simp only [Prod.mk.injEq] at hpq
-    obtain ⟨rfl, rfl⟩ := hpq
-    exact ⟨hq, rfl⟩
-  · rintro ⟨hp, rfl⟩
-    exact ⟨p, hp, rfl⟩
+  simp only [Prod.mk.injEq]
+  exact ⟨fun ⟨_, hq, rfl, htr⟩ => ⟨hq, htr.symm⟩, fun ⟨hp, htr⟩ => ⟨p, hp, rfl, htr.symm⟩⟩
 
 /-- On a well-formed tree, the tree that `eraseMin?` returns has the entries after the first. -/
 theorem toList_of_eraseMin?_eq_some (h : IsWF t tr) {p : α × β} {tr' : BPlusTree α β}

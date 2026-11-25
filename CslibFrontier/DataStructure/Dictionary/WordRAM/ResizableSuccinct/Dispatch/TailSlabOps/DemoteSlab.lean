@@ -149,6 +149,59 @@ private def CompDemoteSlabPre (w : ℕ) : (CompParams × (ℕ × ℕ)) × ℕ �
       FixedCoupled metaBase itemBase U V w N s_fix s ∧
       totalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap
 
+private theorem compDemoteSlab_loop_step {metaBase itemBase U V w N m_cap b : ℕ}
+    {s_fix s : Memory.State}
+    (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
+    (hb_pos : 0 < bucketBits N)
+    (hpre : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix)
+    (hcpl : FixedCoupled metaBase itemBase U V w N s_fix s)
+    (hm_cap : totalSlots N (compGmAt metaBase U w N s.mem) ≤ m_cap) :
+    let d_env := ((mkCompParams U V w N, (metaBase, itemBase)), b)
+    let s₁ := (Memory.spec 0).clientState s (iterate compDemoteStepGenProg d_env (slabSize N) 0)
+    let s_fix₁ := (Memory.spec 0).clientState s_fix
+      (iterate (demoteStepProg U V (ghostW w) N (epochHashSpace U (ghostW w) N))
+        (0, b) (slabSize N) 0)
+    CompOpFrame metaBase itemBase U V w N m_cap s s₁ ∧
+    WindowCoupled metaBase itemBase U V w N
+      ((compGmAt metaBase U w N s₁.mem 0 - 1) * slabSize N)
+      (compGmAt metaBase U w N s₁.mem 1)
+      ((compGmAt metaBase U w N s₁.mem 0 - 1) * slabSize N + compGmAt metaBase U w N s₁.mem 1)
+      s_fix₁ s₁ ∧
+    DemoteLoopInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix (slabSize N) s_fix₁ ∧
+    memoryCost (iterate compDemoteStepGenProg d_env (slabSize N) 0) s = 58 * slabSize N ∧
+    iterationSafe compDemoteStepGenProg CompDemoteStepPre w d_env (slabSize N) 0 s := by
+  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
+  have hwg : 0 < ghostW w := by dsimp only [ghostW]; omega
+  have hloop0 := demoteLoopInv_zero hpre
+  have hslab0 := slabBijection_of_gm_eq hcpl.gm_eq hpre.2.2.1
+  have hqb0 : 1 ≤ compGmAt metaBase U w N s.mem (gmQIdx b) := hcpl.gm_eq ▸ hpre.2.2.2.2.1
+  have hp_del_lt : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) <
+      compGmAt metaBase U w N s.mem 0 :=
+    hslab0.top_lt hpre.1 (by omega)
+  have hgm0_mul : (compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0) =
+      compGmAt metaBase U w N s.mem 0 * slabSize N := by
+    rw [Nat.sub_zero, ← Nat.add_one_mul, Nat.sub_add_cancel (by omega)]
+  have hcpl0 : WindowCoupled metaBase itemBase U V w N
+      ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0))
+      (compGmAt metaBase U w N s.mem 1)
+      (((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
+        compGmAt metaBase U w N s.mem 1)
+      s_fix s := by
+    have hc := hcpl
+    unfold FixedCoupled epochTotalSlots at hc
+    simp only [hb0, ↓reduceIte] at hc
+    simpa only [hgm0_mul] using hc
+  have hm_cap0 : ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
+      compGmAt metaBase U w N s.mem 1 ≤ m_cap := by
+    simpa only [totalSlots, hb0, ↓reduceIte, ← hgm0_mul] using hm_cap
+  obtain ⟨hfr_loop, hcpl_loop, hcost_loop, hsafe_loop⟩ :=
+    iterate_compDemoteStep_spec hb_pos (slabSize N) 0 s_fix s (by omega) henv hloop0 hcpl0 hm_cap0
+  obtain ⟨hloopK, _, _⟩ :=
+    iterate_demoteStepProg_spec (w := ghostW w) hwg hb_pos (slabSize N) 0 s_fix (by omega) hloop0
+  rw [Nat.zero_add, Nat.sub_self, Nat.add_zero] at hcpl_loop
+  rw [Nat.zero_add] at hloopK
+  exact ⟨hfr_loop, hcpl_loop, hloopK, hcost_loop, hsafe_loop⟩
+
 private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     {s_fix s : Memory.State}
     (henv : CompEpochEnv U V w N metaBase itemBase m_cap s)
@@ -165,42 +218,14 @@ private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     memoryCost (compDemoteSlabGenProg d) s ≤ 58 * slabSize N + 68 := by
   intro d s' s_fix'
   have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hwg : 0 < ghostW w := by unfold ghostW; omega
-  have hloop0 := demoteLoopInv_zero hpre
-  have hslab0 := slabBijection_of_gm_eq hcpl.gm_eq hpre.2.2.1
-  have hqb0 : 1 ≤ compGmAt metaBase U w N s.mem (gmQIdx b) := by
-    rw [hcpl.gm_eq]; exact hpre.2.2.2.2.1
-  have hp_del_lt : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) <
-      compGmAt metaBase U w N s.mem 0 :=
-    hslab0.top_lt hpre.1 (by omega)
-  have hgm0_mul : (compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0) =
-      compGmAt metaBase U w N s.mem 0 * slabSize N := by
-    rw [Nat.sub_zero, ← Nat.add_one_mul, Nat.sub_add_cancel (by omega)]
-  have hcpl0 : WindowCoupled metaBase itemBase U V w N
-      ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0))
-      (compGmAt metaBase U w N s.mem 1)
-      (((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
-        compGmAt metaBase U w N s.mem 1)
-      s_fix s := by
-    have hc := hcpl; unfold FixedCoupled epochTotalSlots at hc
-    simp only [hb0, ↓reduceIte] at hc
-    simpa only [hgm0_mul] using hc
-  have hm_cap0 : ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
-      compGmAt metaBase U w N s.mem 1 ≤ m_cap := by
-    rw [hgm0_mul]; unfold totalSlots at hm_cap; rw [ite_eq_right hb0] at hm_cap; exact hm_cap
-  obtain ⟨hfr_loop, hcpl_loop, hcost_loop, _⟩ :=
-    iterate_compDemoteStep_spec hb_pos (slabSize N) 0 s_fix s (by omega) henv hloop0 hcpl0 hm_cap0
-  obtain ⟨hloopK, _, _⟩ :=
-    iterate_demoteStepProg_spec (w := ghostW w) hwg hb_pos (slabSize N) 0 s_fix (by omega) hloop0
-  rw [Nat.zero_add, Nat.sub_self, Nat.add_zero] at hcpl_loop
-  rw [Nat.zero_add] at hloopK
-  set s₁ := (Memory.spec 0).clientState s
-    (compDemoteLoopGenProg ((d, 0), slabSize N))
+  have hwg : 0 < ghostW w := by dsimp only [ghostW]; omega
+  obtain ⟨hfr_loop, hcpl_loop, hloopK, hcost_loop, _⟩ :=
+    compDemoteSlab_loop_step henv hb_pos hpre hcpl hm_cap
+  set s₁ := (Memory.spec 0).clientState s (compDemoteLoopGenProg ((d, 0), slabSize N))
   set s_fix₁ := (Memory.spec 0).clientState s_fix
     (demoteLoopProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), 0), slabSize N))
   have hs1_eq : s₁ = (Memory.spec 0).clientState s
-      (iterate compDemoteStepGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)
-        (slabSize N) 0) := rfl
+      (iterate compDemoteStepGenProg d (slabSize N) 0) := rfl
   have hs_fix1_eq : s_fix₁ = (Memory.spec 0).clientState s_fix
       (iterate (demoteStepProg U V (ghostW w) N (epochHashSpace U (ghostW w) N))
         (0, b) (slabSize N) 0) := rfl
@@ -288,38 +313,10 @@ private theorem realizesBounded_compDemoteSlabGen :
     rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
     dsimp only at *
     obtain ⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hpre, hcpl, hm_cap⟩ := h
-    have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-    have hwg : 0 < ghostW w := by unfold ghostW; omega
-    have hloop0 := demoteLoopInv_zero hpre
-    have hslab0 := slabBijection_of_gm_eq hcpl.gm_eq hpre.2.2.1
-    have hqb0 : 1 ≤ compGmAt metaBase U w N s.mem (gmQIdx b) := by
-      rw [hcpl.gm_eq]; exact hpre.2.2.2.2.1
-    have hp_del_lt : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) <
-        compGmAt metaBase U w N s.mem 0 :=
-      hslab0.top_lt hpre.1 (by omega)
-    have hgm0_mul : (compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0) =
-        compGmAt metaBase U w N s.mem 0 * slabSize N := by
-      rw [Nat.sub_zero, ← Nat.add_one_mul, Nat.sub_add_cancel (by omega)]
-    have hcpl0 : WindowCoupled metaBase itemBase U V w N
-        ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0))
-        (compGmAt metaBase U w N s.mem 1)
-        (((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
-          compGmAt metaBase U w N s.mem 1)
-        s_fix s := by
-      have hc := hcpl; unfold FixedCoupled epochTotalSlots at hc
-      simp only [hb0, ↓reduceIte] at hc; simpa only [hgm0_mul] using hc
-    have hm_cap0 : ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
-        compGmAt metaBase U w N s.mem 1 ≤ m_cap := by
-      rw [hgm0_mul]; unfold totalSlots at hm_cap; rw [ite_eq_right hb0] at hm_cap; exact hm_cap
-    obtain ⟨hfr_loop, hcpl_loop, _, hsafe_loop⟩ :=
-      iterate_compDemoteStep_spec hb_pos (slabSize N) 0 s_fix s (by omega) henv hloop0 hcpl0
-        hm_cap0)
+    obtain ⟨hfr_loop, hcpl_loop, hloopK, _, hsafe_loop⟩ :=
+      compDemoteSlab_loop_step henv hb_pos hpre hcpl hm_cap)
   · simpa only [cpSlabSize_mk] using hsafe_loop
   · simp only [cpSlabSize_mk, compDemoteLoopGenProg]
-    obtain ⟨hloopK, _, _⟩ :=
-      iterate_demoteStepProg_spec (w := ghostW w) hwg hb_pos (slabSize N) 0 s_fix (by omega)
-        hloop0
-    rw [Nat.zero_add] at hcpl_loop hloopK
     refine ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V, rfl,
       ?_, hb_pos, hloopK.b_lt,
       slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij, ?_⟩
@@ -331,34 +328,8 @@ private theorem validProg_compDemoteSlabGen {w : ℕ} {d : (CompParams × (ℕ �
     ValidProg w 0 s (compDemoteSlabGenProg d) := by
   rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
   obtain ⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hpre, hcpl, hm_cap⟩ := h
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hwg : 0 < ghostW w := by unfold ghostW; omega
-  have hloop0 := demoteLoopInv_zero hpre
-  have hslab0 := slabBijection_of_gm_eq hcpl.gm_eq hpre.2.2.1
-  have hqb0 : 1 ≤ compGmAt metaBase U w N s.mem (gmQIdx b) := by
-    rw [hcpl.gm_eq]; exact hpre.2.2.2.2.1
-  have hp_del_lt : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) <
-      compGmAt metaBase U w N s.mem 0 :=
-    hslab0.top_lt hpre.1 (by omega)
-  have hgm0_mul : (compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0) =
-      compGmAt metaBase U w N s.mem 0 * slabSize N := by
-    rw [Nat.sub_zero, ← Nat.add_one_mul, Nat.sub_add_cancel (by omega)]
-  have hcpl0 : WindowCoupled metaBase itemBase U V w N
-      ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0))
-      (compGmAt metaBase U w N s.mem 1)
-      (((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
-        compGmAt metaBase U w N s.mem 1)
-      s_fix s := by
-    have hc := hcpl; unfold FixedCoupled epochTotalSlots at hc
-    simp only [hb0, ↓reduceIte] at hc; simpa only [hgm0_mul] using hc
-  have hm_cap0 : ((compGmAt metaBase U w N s.mem 0 - 1) * slabSize N + (slabSize N - 0)) +
-      compGmAt metaBase U w N s.mem 1 ≤ m_cap := by
-    rw [hgm0_mul]; unfold totalSlots at hm_cap; rw [ite_eq_right hb0] at hm_cap; exact hm_cap
-  obtain ⟨hfr_loop, hcpl_loop, _, hsafe_loop⟩ :=
-    iterate_compDemoteStep_spec hb_pos (slabSize N) 0 s_fix s (by omega) henv hloop0 hcpl0 hm_cap0
-  obtain ⟨hloopK, _, _⟩ :=
-    iterate_demoteStepProg_spec (w := ghostW w) hwg hb_pos (slabSize N) 0 s_fix (by omega) hloop0
-  rw [Nat.zero_add] at hcpl_loop hloopK
+  obtain ⟨hfr_loop, hcpl_loop, hloopK, _, hsafe_loop⟩ :=
+    compDemoteSlab_loop_step henv hb_pos hpre hcpl hm_cap
   dsimp only [compDemoteSlabGenProg]
   simp only [pure_bind, cpSlabSize_mk]
   refine validProg_bind

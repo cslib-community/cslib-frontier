@@ -42,35 +42,25 @@ private theorem place_subset {G : Graph} {D : PolygonalDrawing G} (hD : D.IsEmbe
   classical
   induction s using Finset.induction_on with
   | empty =>
-    refine ⟨D, hD, ?_, fun _ => ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩, ?_⟩
-    · intro v _
-      simp
-    · intro e
-      simp
+    exact ⟨D, hD, fun _ _ => rfl, fun _ => ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩, fun _ => by simp⟩
   | @insert v s hv ih =>
     have hvs : v ∈ G.vertices := List.mem_toFinset.mp (hs (Finset.mem_insert_self v s))
-    obtain ⟨E, hE, hpos, hgerm, hcount⟩ :=
-      ih (fun _ hw => hs (Finset.mem_insert_of_mem hw))
-    have hfree : ∀ w ∈ G.vertices, w ≠ v → q v ≠ E.vertex w := by
-      intro w hw hwv
-      rw [hpos w hw]
-      split_ifs
-      · exact fun he => hwv (hq hvs hw he).symm
-      · exact hvacant v hvs w hw
+    obtain ⟨E, hE, hpos, hgerm, hcount⟩ := ih fun _ hw => hs (Finset.mem_insert_of_mem hw)
     obtain ⟨F, hF, hfpos, hfgerm, _, hfcount, _⟩ :=
-      hE.exists_single_vertex_transport hG v hvs (q v) hfree
-    refine ⟨F, hF, ?_, ?_, ?_⟩
-    · intro w hw
-      by_cases hwv : w = v
+      hE.exists_single_vertex_transport hG v hvs (q v) fun w hw hwv => by
+        rw [hpos w hw]
+        split_ifs
+        · exact fun he => hwv (hq hvs hw he).symm
+        · exact hvacant v hvs w hw
+    refine ⟨F, hF, fun w hw => ?_, fun a => ?_, fun e => ?_⟩
+    · by_cases hwv : w = v
       · subst w
         simpa only [ite_true, Finset.mem_insert_self] using hfpos v hw
       · simpa only [hwv, ite_false, Finset.mem_insert, false_or, hpos w hw] using hfpos w hw
-    · intro a
-      obtain ⟨c, hc, he⟩ := hgerm a
+    · obtain ⟨c, hc, he⟩ := hgerm a
       obtain ⟨d, hd, hf⟩ := hfgerm a
       exact ⟨d * c, mul_pos hd hc, by rw [hf, he, mul_smul]⟩
-    · intro e
-      rw [Finset.card_insert_of_notMem hv, pow_succ', mul_assoc]
+    · rw [Finset.card_insert_of_notMem hv, pow_succ', mul_assoc]
       exact (hfcount e).trans (Nat.mul_le_mul_left _ (hcount e))
 
 /-- Assign distinct prescribed positions to all declared vertices of an actual embedding.
@@ -89,51 +79,36 @@ theorem IsEmbedding.exists_vertex_placement {G : Graph} {D : PolygonalDrawing G}
       ((∀ v ∈ G.vertices, D.vertex v = q v) → E = D) := by
   classical
   by_cases hsame : ∀ v ∈ G.vertices, D.vertex v = q v
-  · refine ⟨D, hD, hsame, fun _ => ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩,
-      fun _ => rfl, ?_, fun _ => rfl⟩
-    intro e
-    have hpow : 1 ≤ (625 : ℕ) ^ G.vertices.toFinset.card := pow_pos (by decide : 0 < (625 : ℕ)) _
-    simpa only [one_mul] using Nat.mul_le_mul_right (D.route e).segments hpow
+  · exact ⟨D, hD, hsame, fun _ => ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩, fun _ => rfl,
+      fun _ => Nat.le_mul_of_pos_left _ (pow_pos (by decide) _), fun _ => rfl⟩
   let s := G.vertices.toFinset
   let pairs := s ×ˢ s
-  let bad := pairs.image (fun p => D.vertex p.2 - q p.1) ∪
-    pairs.image (fun p => q p.2 - q p.1)
-  obtain ⟨z, hz⟩ := bad.exists_notMem
+  obtain ⟨z, hz⟩ := (pairs.image (fun p => D.vertex p.2 - q p.1) ∪
+    pairs.image (fun p => q p.2 - q p.1)).exists_notMem
   let u (v : ℕ) := q v + z
   have hpair {v w : ℕ} (hv : v ∈ G.vertices) (hw : w ∈ G.vertices) :
       (v, w) ∈ pairs :=
     Finset.mem_product.mpr ⟨List.mem_toFinset.mpr hv, List.mem_toFinset.mpr hw⟩
-  have hu : Set.InjOn u {v | v ∈ G.vertices} :=
-    fun _ hv _ hw he => hq hv hw (add_right_cancel he)
-  have huD (v : ℕ) (hv : v ∈ G.vertices) (w : ℕ) (hw : w ∈ G.vertices) :
-      u v ≠ D.vertex w := by
-    intro he
-    exact hz (Finset.mem_union_left _ (Finset.mem_image.mpr
-      ⟨(v, w), hpair hv hw, (eq_sub_of_add_eq' he).symm⟩))
-  have huq (v : ℕ) (hv : v ∈ G.vertices) (w : ℕ) (hw : w ∈ G.vertices) :
-      u v ≠ q w := by
-    intro he
-    exact hz (Finset.mem_union_right _ (Finset.mem_image.mpr
-      ⟨(v, w), hpair hv hw, (eq_sub_of_add_eq' he).symm⟩))
-  obtain ⟨F, hF, hfpos, hfgerm, hfcount⟩ := place_subset hD hG u hu huD s (by rfl)
-  have hFpos (w : ℕ) (hw : w ∈ G.vertices) : F.vertex w = u w := by
-    have hw' : w ∈ s := List.mem_toFinset.mpr hw
-    simpa only [hw', ite_true] using hfpos w hw
+  obtain ⟨F, hF, hfpos, hfgerm, hfcount⟩ := place_subset hD hG u
+    (fun _ hv _ hw he => hq hv hw (add_right_cancel he))
+    (fun v hv w hw he => hz <| Finset.mem_union_left _ <| Finset.mem_image.mpr
+      ⟨(v, w), hpair hv hw, (eq_sub_of_add_eq' he).symm⟩) s (by rfl)
   obtain ⟨E, hE, hepos, hegerm, hecount⟩ := place_subset hF hG q hq
-    (fun v hv w hw => by rw [hFpos w hw]; exact (huq w hw v hv).symm) s (by rfl)
+    (fun v hv w hw he => hz <| Finset.mem_union_right _ <| Finset.mem_image.mpr
+      ⟨(w, v), hpair hw hv, (eq_sub_of_add_eq' (by
+        simp only [hfpos w hw, s, List.mem_toFinset.mpr hw, ↓reduceIte] at he
+        exact he.symm)).symm⟩)
+    s (by rfl)
   have hg (a : Dart G) : ∃ c : ℝ, 0 < c ∧ E.germ a = c • D.germ a := by
     obtain ⟨c, hc, he⟩ := hfgerm a
     obtain ⟨d, hd, hf⟩ := hegerm a
     exact ⟨d * c, mul_pos hd hc, by rw [hf, he, mul_smul]⟩
-  refine ⟨E, hE, ?_, hg, ?_, ?_, fun he => (hsame he).elim⟩
-  · intro v hv
-    have hv' : v ∈ s := List.mem_toFinset.mpr hv
-    simpa only [hv', ite_true] using hepos v hv
-  · intro a
-    obtain ⟨c, hc, he⟩ := hg a
+  refine ⟨E, hE, fun v hv => by
+      simpa only [s, List.mem_toFinset.mpr hv, ↓reduceIte] using hepos v hv,
+    hg, fun a => ?_, fun e => ?_, fun he => (hsame he).elim⟩
+  · obtain ⟨c, hc, he⟩ := hg a
     simp only [direction, he, Complex.real_smul, Complex.arg_real_mul _ hc]
-  · intro e
-    calc
+  · calc
       _ ≤ 25 ^ s.card * (F.route e).segments := hecount e
       _ ≤ 25 ^ s.card * (25 ^ s.card * (D.route e).segments) :=
         Nat.mul_le_mul_left _ (hfcount e)

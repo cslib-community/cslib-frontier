@@ -266,17 +266,15 @@ private theorem exists_step (S : Finset α) (r : α → α → Prop) [IsLinearOr
     refine ⟨moveToTop r a, isLinearOrder_moveToTop r a, agreeOn_moveToTop hUa.2,
       key _ (agreeOn_moveToTop hUa.2) (fun h => ?_)
         fun _ => ⟨fun h => absurd h.1 hUa.2, fun _ => hUa.1⟩⟩
-    rcases moveToTop_iff.mp h with h | ⟨h, -⟩
-    · exact absurd h.symm hab
-    · exact absurd rfl h
+    exact False.elim ((moveToTop_iff.mp h).elim (fun h => hab h.symm) fun h => h.1 rfl)
   by_cases hUb : FoundAbove r T b ∧ ¬ FoundBelow r T b
   · -- `b` has only been found above: raise it, so that `a ≤ b` is true.
-    refine ⟨moveToTop r b, isLinearOrder_moveToTop r b, agreeOn_moveToTop hUb.2,
+    exact ⟨moveToTop r b, isLinearOrder_moveToTop r b, agreeOn_moveToTop hUb.2,
       key _ (agreeOn_moveToTop hUb.2) (fun _ => ⟨fun h => absurd h.1 hUb.2, fun _ => hUb.1⟩)
         fun h => absurd (moveToTop_top r b a) h⟩
   by_cases hDa : FoundBelow r T a ∧ ¬ FoundAbove r T a
   · -- `a` has only been found below: lower it, so that `a ≤ b` is true.
-    refine ⟨moveToBot r a, isLinearOrder_moveToBot r a, agreeOn_moveToBot hDa.2,
+    exact ⟨moveToBot r a, isLinearOrder_moveToBot r a, agreeOn_moveToBot hDa.2,
       key _ (agreeOn_moveToBot hDa.2) (fun _ => ⟨fun _ => hDa.1, fun h => absurd h.1 hDa.2⟩)
         fun h => absurd (moveToBot_bot r a b) h⟩
   by_cases hDb : FoundBelow r T b ∧ ¬ FoundAbove r T b
@@ -284,9 +282,7 @@ private theorem exists_step (S : Finset α) (r : α → α → Prop) [IsLinearOr
     refine ⟨moveToBot r b, isLinearOrder_moveToBot r b, agreeOn_moveToBot hDb.2,
       key _ (agreeOn_moveToBot hDb.2) (fun h => ?_)
         fun _ => ⟨fun _ => hDb.1, fun h => absurd h.1 hDb.2⟩⟩
-    rcases moveToBot_iff.mp h with h | ⟨h, -⟩
-    · exact absurd h hab
-    · exact absurd rfl h
+    exact False.elim ((moveToBot_iff.mp h).elim (fun h => hab h) fun h => h.1 rfl)
   -- Otherwise keep `r`.
   exact ⟨r, inferInstance, AgreeOn.refl r T, key r (AgreeOn.refl r T)
     (fun _ => ⟨fun h => absurd ⟨h.1, h.2⟩ hDb, fun h => absurd ⟨h.1, h.2⟩ hUa⟩)
@@ -366,30 +362,24 @@ theorem IsMinMaxAlg.exists_card_toFinset_le_countQueries [DecidableEq α]
     simp only [oracle, LEQuery.oracleOf_le, f]
   obtain ⟨m, M, hmM, -, -, hbound⟩ := halg.correct r oracle horacle xs hxs
   set Q := LEQuery.queriedPairs oracle (alg xs)
-  have habove : ∀ x ∈ S, x ≠ m → FoundAbove r Q x := by
-    intro x hx hxm
+  have habove (x : α) (hx : x ∈ S) (hxm : x ≠ m) : FoundAbove r Q x := by
     by_contra hnot
     have := isLinearOrder_moveToBot r x
     obtain ⟨m', M', hmM', -, -, hbound'⟩ := halg.correct (moveToBot r x)
       (LEQuery.oracleOf fun a b => decide (moveToBot r x a b)) (fun _ _ => rfl) xs hxs
     rw [eval_moveToBot_eq oracle horacle (alg xs) hnot, hmM, Option.some.injEq,
       Prod.mk.injEq] at hmM'
-    obtain ⟨rfl, -⟩ := hmM'
-    rcases moveToBot_iff.mp (hbound' x (List.mem_toFinset.mp hx)).1 with h | ⟨h, -⟩
-    · exact hxm h.symm
-    · exact h rfl
-  have hbelow : ∀ x ∈ S, x ≠ M → FoundBelow r Q x := by
-    intro x hx hxM
+    exact (moveToBot_iff.mp (hbound' x (List.mem_toFinset.mp hx)).1).elim
+      (fun h => hxm (hmM'.1 ▸ h.symm)) fun h => h.1 rfl
+  have hbelow (x : α) (hx : x ∈ S) (hxM : x ≠ M) : FoundBelow r Q x := by
     by_contra hnot
     have := isLinearOrder_moveToTop r x
     obtain ⟨m', M', hmM', -, -, hbound'⟩ := halg.correct (moveToTop r x)
       (LEQuery.oracleOf fun a b => decide (moveToTop r x a b)) (fun _ _ => rfl) xs hxs
     rw [eval_moveToTop_eq oracle horacle (alg xs) hnot, hmM, Option.some.injEq,
       Prod.mk.injEq] at hmM'
-    obtain ⟨-, rfl⟩ := hmM'
-    rcases moveToTop_iff.mp (hbound' x (List.mem_toFinset.mp hx)).2 with h | ⟨h, -⟩
-    · exact hxM h.symm
-    · exact h rfl
+    exact (moveToTop_iff.mp (hbound' x (List.mem_toFinset.mp hx)).2).elim
+      (fun h => hxM (hmM'.2 ▸ h.symm)) fun h => h.1 rfl
   have hge := potential_ge S r Q m M habove hbelow
   have hpot' : potential S r Q ≤ S.card + 2 * (alg xs).countQueries oracle := hpot
   omega

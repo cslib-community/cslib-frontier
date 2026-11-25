@@ -136,11 +136,9 @@ private noncomputable def topChoice (u : Fin 3 → ℝ) : Fin 3 :=
   Tuple.sortDesc u 0
 
 private theorem le_topChoice (u : Fin 3 → ℝ) (k : Fin 3) :
-    u k ≤ u (topChoice u) := by
-  let σ := Tuple.sortDesc u
-  have hk : u k = u (σ (σ.symm k)) := by rw [Equiv.apply_symm_apply]
-  rw [hk, topChoice]
-  exact Tuple.antitone_sortDesc u (Fin.zero_le (σ.symm k))
+    u k ≤ u (topChoice u) :=
+  Equiv.apply_symm_apply (Tuple.sortDesc u) k ▸
+    Tuple.antitone_sortDesc u (Fin.zero_le _)
 
 /-- Best index maximizing `u : Fin 3 → ℝ` among `{k | k ≠ taken}`. -/
 private noncomputable def bestOther (u : Fin 3 → ℝ) (taken : Fin 3) : Fin 3 :=
@@ -153,10 +151,7 @@ private theorem bestOther_ne (u : Fin 3 → ℝ) (taken : Fin 3) :
   set σ := Tuple.sortDesc u
   split_ifs with h0
   · exact h0
-  · push Not at h0
-    intro h1
-    have heq : (1 : Fin 3) = 0 := σ.injective (h1.trans h0.symm)
-    exact absurd heq (by decide)
+  · exact fun h1 => absurd (σ.injective (h1.trans (not_ne_iff.mp h0).symm)) (by decide)
 
 private theorem le_bestOther_of_ne (u : Fin 3 → ℝ) {taken k : Fin 3} (hk : k ≠ taken) :
     u k ≤ u (bestOther u taken) := by
@@ -164,29 +159,15 @@ private theorem le_bestOther_of_ne (u : Fin 3 → ℝ) {taken k : Fin 3} (hk : k
   set σ := Tuple.sortDesc u
   split_ifs with h0
   · exact le_topChoice u k
-  · push Not at h0
-    have hsymm_ne : σ.symm k ≠ 0 := by
-      intro hz
-      apply hk
-      rw [← h0, ← hz, Equiv.apply_symm_apply]
-    have h1_le : (1 : Fin 3) ≤ σ.symm k := by
-      revert hsymm_ne
-      generalize σ.symm k = j
-      fin_cases j <;> decide
-    have hk_eq : u k = u (σ (σ.symm k)) := by rw [Equiv.apply_symm_apply]
-    rw [hk_eq]
-    exact Tuple.antitone_sortDesc u h1_le
+  · have hsymm_ne : σ.symm k ≠ 0 := fun hz =>
+      hk (by rw [← not_ne_iff.mp h0, ← hz, Equiv.apply_symm_apply])
+    exact Equiv.apply_symm_apply σ k ▸
+      Tuple.antitone_sortDesc u (Nat.succ_le_of_lt (Fin.pos_iff_ne_zero.mpr hsymm_ne))
 
 private theorem perm_interleave_three {α : Type} (a0 b0 a1 b1 a2 b2 : α) :
     [a0, b0, a1, b1, a2, b2].Perm [a0, a1, a2, b0, b1, b2] := by
-  refine List.Perm.cons a0 ?_
-  have h1 : [b0, a1, b1, a2, b2].Perm [a1, b0, b1, a2, b2] :=
-    List.Perm.swap a1 b0 [b1, a2, b2]
-  have h2 : [a1, b0, b1, a2, b2].Perm [a1, a2, b0, b1, b2] :=
-    List.Perm.cons a1
-      ((List.Perm.cons b0 (List.Perm.swap a2 b1 [b2])).trans
-        (List.Perm.swap a2 b0 [b1, b2]))
-  exact h1.trans h2
+  simpa using (show ([0, 3, 1, 4, 2, 5] : List (Fin 6)).Perm [0, 1, 2, 3, 4, 5] by decide).map
+    ![a0, a1, a2, b0, b1, b2]
 
 /-! ### Pure Piece Constructors and Staged Sub-Programs -/
 
@@ -216,20 +197,13 @@ private theorem cutIntoThirds_spec {v : Fin 3 → CakeValuation}
   obtain ⟨⟨hu1_a, hu1_b⟩, hvu1⟩ :=
     ho.eval_cutIn_spec i (α := α) ha hab hb (by linarith) (by linarith)
   set u1 := (RWQuery.cutIn i a b α).eval oracle
-  have hrem : v i u1 b = 2 * α := by
-    have hadd := (v i).val_add ha hu1_a hu1_b hb
-    linarith
+  have hrem : v i u1 b = 2 * α := by linarith [(v i).val_add ha hu1_a hu1_b hb]
   obtain ⟨⟨hu2_u1, hu2_b⟩, hvu2⟩ :=
     ho.eval_cutIn_spec i (α := α) (ha.trans hu1_a) hu1_b hb (by linarith) (by linarith)
   set u2 := (RWQuery.cutIn i u1 b α).eval oracle
-  have hvu3 : v i u2 b = α := by
-    have hadd := (v i).val_add (ha.trans hu1_a) hu2_u1 hu2_b hb
-    linarith
+  have hvu3 : v i u2 b = α := by linarith [(v i).val_add (ha.trans hu1_a) hu2_u1 hu2_b hb]
   refine ⟨hu1_a, hu2_u1, hu2_b, fun k => ?_⟩
-  fin_cases k
-  · exact hvu1
-  · exact hvu2
-  · exact hvu3
+  fin_cases k <;> assumption
 
 private noncomputable def scBuildUntrimmed (c1 c2 : ℝ) (u1 u2 : Fin 3 → ℝ) : DividedCake 3 :=
   let X := scInitialPieces c1 c2
@@ -307,14 +281,22 @@ noncomputable def selfridgeConwayQ : FreeM (RWQuery (Fin 3)) (DividedCake 3) := 
 
 /-! ### Cut-Count, Query-Count, and Partition Validity Proofs -/
 
-private theorem numCuts_scBuildUntrimmed (c1 c2 : ℝ) (u1 u2 : Fin 3 → ℝ) :
-    (scBuildUntrimmed c1 c2 u1 u2).numCuts = 2 := rfl
-
-private theorem numCuts_scBuildTrimmed (c1 c2 : ℝ) (p0 p1 : Fin 3) (t : ℝ)
-    (q2 : Fin 3) (u_cut1 u_cut2 : ℝ) (w_pa w_0 : Fin 3 → ℝ) :
-    (scBuildTrimmed c1 c2 p0 p1 t q2 u_cut1 u_cut2 w_pa w_0).numCuts = 5 := by
-  dsimp only [scBuildTrimmed, DividedCake.numCuts]
-  fin_cases p0 <;> rfl
+private theorem numCuts_selfridgeConwayQ_eq
+    (oracle : {ι : Type} → RWQuery (Fin 3) ι → ι) :
+    let c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
+    let c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
+    let u1 := (evalThree 1 (scInitialPieces c1 c2)).eval oracle
+    let σ1 := Tuple.sortDesc u1
+    (selfridgeConwayQ.eval oracle).numCuts = if u1 (σ1 0) ≤ u1 (σ1 1) then 2 else 5 := by
+  have h5 (c1 c2 : ℝ) (p0 p1 : Fin 3) (t : ℝ) (q2 : Fin 3) (u_cut1 u_cut2 : ℝ)
+      (w_pa w_0 : Fin 3 → ℝ) :
+      (scBuildTrimmed c1 c2 p0 p1 t q2 u_cut1 u_cut2 w_pa w_0).numCuts = 5 := by
+    fin_cases p0 <;> rfl
+  rw [selfridgeConwayQ]
+  simp only [FreeM.eval_bind]
+  split_ifs <;> simp only [scUntrimmedBranchQ, scTrimmedBranchQ, FreeM.eval_bind,
+    FreeM.eval_pure, h5]
+  rfl
 
 /-- `selfridgeConwayQ` makes either `2` physical cuts (untrimmed branch) or `5` physical cuts
 (trimmed branch). -/
@@ -322,19 +304,8 @@ theorem numCuts_selfridgeConwayQ_eq_two_or_five
     (oracle : {ι : Type} → RWQuery (Fin 3) ι → ι) :
     (selfridgeConwayQ.eval oracle).numCuts = 2 ∨
       (selfridgeConwayQ.eval oracle).numCuts = 5 := by
-  rw [selfridgeConwayQ]
-  simp only [FreeM.eval_bind]
-  set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
-  set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
-  set u1 := (evalThree 1 (scInitialPieces c1 c2)).eval oracle
-  set σ1 := Tuple.sortDesc u1
-  by_cases htie : u1 (σ1 0) ≤ u1 (σ1 1)
-  · left
-    rw [ite_eq_left htie]
-    simp only [scUntrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure, numCuts_scBuildUntrimmed]
-  · right
-    rw [ite_eq_right htie]
-    simp only [scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure, numCuts_scBuildTrimmed]
+  rw [numCuts_selfridgeConwayQ_eq]
+  split_ifs <;> simp
 
 /-- When Player `1` shares Player `0`'s valuation (`v 1 = v 0`), all three initial thirds have
 equal `v₁`-value `1 / 3`, so `selfridgeConwayQ` takes the untrimmed `2`-cut branch. -/
@@ -345,19 +316,14 @@ theorem numCuts_selfridgeConwayQ_eq_two_of_eq {v : Fin 3 → CakeValuation}
   obtain ⟨_, _, _, hv0_X⟩ :=
     cutIntoThirds_spec ho 0 le_rfl (by norm_num : (0 : ℝ) ≤ 1) le_rfl
       (α := 1 / 3) (by rw [(v 0).apply_zero_one])
+  rw [numCuts_selfridgeConwayQ_eq]
   set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
   set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
   have hu1_const : (evalThree 1 (scInitialPieces c1 c2)).eval oracle = fun _ => 1 / 3 := by
     rw [eval_evalThree ho 1]
     funext k
     simpa only [CakeValuation.pieceVal, h10] using hv0_X k
-  rw [selfridgeConwayQ]
-  simp only [FreeM.eval_bind]
-  set u1 := (evalThree 1 (scInitialPieces c1 c2)).eval oracle
-  have htie : u1 (Tuple.sortDesc u1 0) ≤ u1 (Tuple.sortDesc u1 1) := by
-    rw [hu1_const]
-  rw [ite_eq_left htie]
-  simp only [scUntrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure, numCuts_scBuildUntrimmed]
+  simp [hu1_const]
 
 /-- When Player `1` has a unique strictly largest initial piece among `[0, c₁], [c₁, c₂], [c₂, 1]`,
 `selfridgeConwayQ` takes the trimmed `5`-cut branch. -/
@@ -370,31 +336,20 @@ theorem numCuts_selfridgeConwayQ_eq_five_of_strict_max {v : Fin 3 → CakeValuat
       let X : Fin 3 → CakePiece := fun | 0 => ⟨0, c1⟩ | 1 => ⟨c1, c2⟩ | 2 => ⟨c2, 1⟩
       (v 1).pieceVal (X j) < (v 1).pieceVal (X k)) :
     (selfridgeConwayQ.eval oracle).numCuts = 5 := by
-  rw [selfridgeConwayQ]
-  simp only [FreeM.eval_bind]
+  rw [numCuts_selfridgeConwayQ_eq]
   set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
   set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
-  have hu1_eq : (evalThree 1 (scInitialPieces c1 c2)).eval oracle =
-      fun j => (v 1).pieceVal (scInitialPieces c1 c2 j) :=
-    eval_evalThree ho 1 _
   set u1 := (evalThree 1 (scInitialPieces c1 c2)).eval oracle
   set σ1 := Tuple.sortDesc u1
-  have hp0_ne_p1 : σ1 0 ≠ σ1 1 := fun h => absurd (σ1.injective h) (by decide)
-  have hnot_tie : ¬ u1 (σ1 0) ≤ u1 (σ1 1) := by
-    have hk_le_p0 : u1 k ≤ u1 (σ1 0) := le_topChoice u1 k
-    have hp0_eq_k : σ1 0 = k := by
-      by_contra hne
-      have hlt : u1 (σ1 0) < u1 k := by
-        rw [hu1_eq]
-        exact hstrict (σ1 0) hne
-      linarith
-    have hp1_lt_k : u1 (σ1 1) < u1 k := by
-      rw [hu1_eq]
-      exact hstrict (σ1 1) (hp0_eq_k ▸ hp0_ne_p1.symm)
-    rw [hp0_eq_k]
-    linarith
-  rw [ite_eq_right hnot_tie]
-  simp only [scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure, numCuts_scBuildTrimmed]
+  have hu1_eq : u1 = fun j => (v 1).pieceVal (scInitialPieces c1 c2 j) :=
+    eval_evalThree ho 1 (scInitialPieces c1 c2)
+  have hlt (j : Fin 3) (hne : j ≠ k) : u1 j < u1 k := by
+    rw [hu1_eq]
+    exact hstrict j hne
+  have hp0_eq_k : σ1 0 = k :=
+    by_contra fun hne => not_lt_of_ge (le_topChoice u1 k) (hlt (σ1 0) hne)
+  have hp1_ne_k : σ1 1 ≠ k := fun h => absurd (σ1.injective (hp0_eq_k.trans h.symm)) (by decide)
+  exact ite_eq_right (not_le.mpr (hp0_eq_k ▸ hlt (σ1 1) hp1_ne_k))
 
 /-- **Five-cut bound:** `selfridgeConwayQ` makes at most `5` physical cuts (`2` in the untrimmed
 branch and `5` in the trimmed branch) against every oracle. -/
@@ -409,17 +364,8 @@ theorem length_pieces_selfridgeConwayQ_le
     ((selfridgeConwayQ.eval oracle).pieces i).length ≤ 2 := by
   rw [selfridgeConwayQ]
   simp only [FreeM.eval_bind]
-  set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
-  set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
-  set u1 := (evalThree 1 (scInitialPieces c1 c2)).eval oracle
-  set σ1 := Tuple.sortDesc u1
-  by_cases htie : u1 (σ1 0) ≤ u1 (σ1 1)
-  · rw [ite_eq_left htie]
-    simp only [scUntrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure, scBuildUntrimmed]
-    fin_cases i <;> simp only [List.length_singleton, Nat.one_le_ofNat]
-  · rw [ite_eq_right htie]
-    simp only [scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure, scBuildTrimmed]
-    fin_cases i <;> simp only [List.length_cons, List.length_nil, le_refl]
+  split_ifs <;> simp only [scUntrimmedBranchQ, scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure,
+    scBuildUntrimmed, scBuildTrimmed] <;> fin_cases i <;> simp
 
 /-- `selfridgeConwayQ` makes at most `18` Robertson–Webb queries (`8` untrimmed or `18` trimmed)
 against every oracle. -/
@@ -428,19 +374,9 @@ theorem countQueries_selfridgeConwayQ_le
     selfridgeConwayQ.countQueries oracle ≤ 18 := by
   rw [selfridgeConwayQ]
   simp only [FreeM.countQueries_bind, RWQuery.countQueries_cutIn, countQueries_evalThree]
-  set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
-  set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
-  set u1 := (evalThree 1 (scInitialPieces c1 c2)).eval oracle
-  set σ1 := Tuple.sortDesc u1
-  by_cases htie : u1 (σ1 0) ≤ u1 (σ1 1)
-  · rw [ite_eq_left htie]
-    simp only [scUntrimmedBranchQ, FreeM.countQueries_bind, countQueries_evalThree,
-      FreeM.countQueries_pure]
-    omega
-  · rw [ite_eq_right htie]
-    simp only [scTrimmedBranchQ, FreeM.countQueries_bind, RWQuery.countQueries_cutIn,
-      countQueries_evalThree, RWQuery.countQueries_evalAsk, FreeM.countQueries_pure]
-    omega
+  split_ifs <;> simp only [scUntrimmedBranchQ, scTrimmedBranchQ, FreeM.countQueries_bind,
+    RWQuery.countQueries_cutIn, countQueries_evalThree, RWQuery.countQueries_evalAsk,
+    FreeM.countQueries_pure] <;> omega
 
 private theorem isValidPartition_scBuildUntrimmed {c1 c2 : ℝ}
     (hc1 : 0 ≤ c1) (hc12 : c1 ≤ c2) (hc2 : c2 ≤ 1) (u1 u2 : Fin 3 → ℝ) :
@@ -607,27 +543,15 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
       split_ifs
       · rfl
       · exact hu1_tie_eq.symm
-    have h1_fav : ∀ k : Fin 3, (v 1).pieceVal (X k) ≤ (v 1).pieceVal (X q1) := by
-      intro k
-      have hk : u1 k ≤ u1 q1 := hq1_val ▸ hu1_top k
-      simpa only [u1, hu1_eq] using hk
-    have h2_fav : ∀ k : Fin 3, (v 2).pieceVal (X k) ≤ (v 2).pieceVal (X q2) := by
-      intro k
-      have hk : u2 k ≤ u2 q2 := le_topChoice u2 k
-      simpa only [u2, hu2_eq] using hk
+    have h1_fav (k : Fin 3) : (v 1).pieceVal (X k) ≤ (v 1).pieceVal (X q1) := by
+      simpa only [hu1_eq] using (hq1_val ▸ hu1_top k : u1 k ≤ u1 q1)
+    have h2_fav (k : Fin 3) : (v 2).pieceVal (X k) ≤ (v 2).pieceVal (X q2) :=
+      (congrFun hu2_eq k).symm.le.trans ((le_topChoice u2 k).trans (congrFun hu2_eq q2).le)
     intro i j
-    dsimp only [scBuildUntrimmed]
-    fin_cases i <;> fin_cases j <;>
-      simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue, hbundle1]
-    · exact le_rfl
-    · change (v 0).pieceVal (X q1) ≤ (v 0).pieceVal (X q0); linarith [hv0_X q0, hv0_X q1]
-    · change (v 0).pieceVal (X q2) ≤ (v 0).pieceVal (X q0); linarith [hv0_X q0, hv0_X q2]
-    · exact h1_fav q0
-    · exact le_rfl
-    · exact h1_fav q2
-    · exact h2_fav q0
-    · exact h2_fav q1
-    · exact le_rfl
+    fin_cases i <;> fin_cases j <;> simp only [scBuildUntrimmed, Fin.zero_eta, Fin.mk_one,
+      Fin.reduceFinMk, Fin.isValue, hbundle1]
+    exacts [le_rfl, (hv0_X q1).trans_le (hv0_X q0).ge, (hv0_X q2).trans_le (hv0_X q0).ge,
+      h1_fav q0, le_rfl, h1_fav q2, h2_fav q0, h2_fav q1, le_rfl]
   · -- Branch B: Trim needed (`u1 p1 < u1 p0`), 5 cuts total.
     rw [ite_eq_right htie]
     simp only [scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
@@ -647,35 +571,22 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     set Y := scTrimmedPieces c1 c2 p0 t
     -- Player 1 values Y p0 and Y p1 equally at u1 p1, dominating every Y k.
     have hv1_Y_p0 : (v 1).pieceVal (Y p0) = u1 p1 := by
-      dsimp only [Y, scTrimmedPieces]
-      simp only [↓reduceIte, CakeValuation.pieceVal]
-      exact hvt1
-    have hv1_Y_p1 : (v 1).pieceVal (Y p1) = u1 p1 := by
-      dsimp only [Y, scTrimmedPieces]
-      simp only [hp0_ne_p1.symm, ↓reduceIte]
-      rw [show u1 p1 = (v 1).pieceVal (X p1) by rw [hu1_eq]]
-    have hv1_Y_le : ∀ k : Fin 3, (v 1).pieceVal (Y k) ≤ u1 p1 := by
-      intro k
+      simpa only [Y, scTrimmedPieces, ↓reduceIte, CakeValuation.pieceVal] using hvt1
+    have hv1_Y_p1 : (v 1).pieceVal (Y p1) = u1 p1 :=
+      (congrArg (v 1).pieceVal (ite_eq_right hp0_ne_p1.symm)).trans (congrFun hu1_eq p1).symm
+    have hv1_Y_le (k : Fin 3) : (v 1).pieceVal (Y k) ≤ u1 p1 := by
       by_cases hk0 : k = p0
       · rw [hk0, hv1_Y_p0]
-      · dsimp only [Y, scTrimmedPieces]
-        simp only [hk0, ↓reduceIte]
-        change (v 1).pieceVal (X k) ≤ u1 p1
-        rw [← congrFun hu1_eq k]
-        have h := le_bestOther_of_ne u1 hk0
-        have hbo : bestOther u1 p0 = p1 := by
-          dsimp only [bestOther, p0, p1, σ1]
-          simp only [ne_eq, not_true_eq_false, ↓reduceIte]
-        rwa [hbo] at h
+      · have hbo : bestOther u1 p0 = p1 := ite_eq_right (not_not.mpr rfl)
+        simpa only [Y, scTrimmedPieces, hk0, ↓reduceIte, hu1_eq] using
+          (hbo ▸ le_bestOther_of_ne u1 hk0 : u1 k ≤ u1 p1)
     -- Player 2 chooses favorite Y q2.
     have hu2_eq : (evalThree 2 Y).eval oracle = fun k => (v 2).pieceVal (Y k) :=
       eval_evalThree ho 2 Y
     set u2 := (evalThree 2 Y).eval oracle
     set q2 := topChoice u2
-    have hv2_Y_le : ∀ k : Fin 3, (v 2).pieceVal (Y k) ≤ (v 2).pieceVal (Y q2) := by
-      intro k
-      have hk : u2 k ≤ u2 q2 := le_topChoice u2 k
-      exact congrFun hu2_eq k ▸ congrFun hu2_eq q2 ▸ hk
+    have hv2_Y_le (k : Fin 3) : (v 2).pieceVal (Y k) ≤ (v 2).pieceVal (Y q2) :=
+      (congrFun hu2_eq k).symm.le.trans ((le_topChoice u2 k).trans (congrFun hu2_eq q2).le)
     set q1 : Fin 3 := if q2 = p0 then p1 else p0
     have hq21 : q2 ≠ q1 := by
       by_cases hq : q2 = p0
@@ -723,10 +634,8 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     set s_0 := bestOther w_0 s_pa
     have hspa0 : s_pa ≠ s_0 := (bestOther_ne w_0 s_pa).symm
     set s_pd := thirdFin3 s_pa s_0
-    have hv_pa_T_le : ∀ m : Fin 3, (v pa).pieceVal (T_sub m) ≤ (v pa).pieceVal (T_sub s_pa) := by
-      intro m
-      have hm : w_pa m ≤ w_pa s_pa := le_topChoice w_pa m
-      exact congrFun hw_pa_eq m ▸ congrFun hw_pa_eq s_pa ▸ hm
+    have hv_pa_T_le (m : Fin 3) : (v pa).pieceVal (T_sub m) ≤ (v pa).pieceVal (T_sub s_pa) :=
+      (congrFun hw_pa_eq m).symm.le.trans ((le_topChoice w_pa m).trans (congrFun hw_pa_eq s_pa).le)
     have hv0_T_pd_le_0 : (v 0).pieceVal (T_sub s_pd) ≤ (v 0).pieceVal (T_sub s_0) := by
       have hm := le_bestOther_of_ne w_0 (thirdFin3_ne_left hspa0)
       simpa only [w_0, hw_0_eq, s_0, s_pd] using hm
@@ -755,66 +664,37 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
         u.bundleVal [a, b] = u.pieceVal a + u.pieceVal b :=
       fun u a b => by rw [CakeValuation.bundleVal_cons, hbundle1]
     -- Case split on who holds the trimmed piece: q2 = p0 vs q2 ≠ p0.
+    have h1_T : ∀ m : Fin 3, (v 1).pieceVal (T_sub m) ≤ (v 1).pieceVal (T_sub s1) := fun m => by
+      by_cases hq : q2 = p0 <;> simp only [pd, pa, s1, hq, ↓reduceIte] at hv_pd_T hv_pa_T_le ⊢
+      · -- Subcase B1: Player 2 took the trimmed piece (pa = 2, pd = 1, q1 = p1 ≠ p0).
+        rw [hv_pd_T m, hv_pd_T s_pd]
+      · -- Subcase B2: Player 2 took an untrimmed piece, so Player 1 took Y p0 (pa = 1, pd = 2).
+        exact hv_pa_T_le m
+    have h2_T : ∀ m : Fin 3, (v 2).pieceVal (T_sub m) ≤ (v 2).pieceVal (T_sub s2) := fun m => by
+      by_cases hq : q2 = p0 <;> simp only [pd, pa, s2, hq, ↓reduceIte] at hv_pd_T hv_pa_T_le ⊢
+      · exact hv_pa_T_le m
+      · rw [hv_pd_T m, hv_pd_T s_pd]
+    have h0_other : ∀ (qk sk : Fin 3), (qk = p0 ∧ sk = s_pa) ∨ (qk ≠ p0 ∧ sk = s_pd) →
+        (v 0).pieceVal (Y qk) + (v 0).pieceVal (T_sub sk) ≤
+          (v 0).pieceVal (Y q0) + (v 0).pieceVal (T_sub s_0) := by
+      rintro qk sk (⟨rfl, rfl⟩ | ⟨hne, rfl⟩)
+      · linarith [hv0_Y_q0, hv0_irrevocable, hT_nonneg 0 s_0]
+      · have hY : (v 0).pieceVal (Y qk) = 1 / 3 := by
+          simp only [Y, scTrimmedPieces, hne, ↓reduceIte, hv0_X qk]
+        linarith [hv0_Y_q0, hY, hv0_T_pd_le_0]
     intro i j
-    let bundles : Fin 3 → List CakePiece := fun
-      | 0 => [Y q0, T_sub s_0]
-      | 1 => [Y q1, T_sub s1]
-      | 2 => [Y q2, T_sub s2]
-    change (v i).bundleVal (bundles j) ≤ (v i).bundleVal (bundles i)
-    by_cases hq : q2 = p0
-    · -- Subcase B1: Player 2 took the trimmed piece (pa = 2, pd = 1, q1 = p1 ≠ p0).
-      have hpa : pa = 2 := by simp only [pa, hq, ↓reduceIte]
-      have hpd : pd = 1 := by simp only [pd, hq, ↓reduceIte]
-      have hs1 : s1 = s_pd := by simp only [s1, hq, ↓reduceIte]
-      have hs2 : s2 = s_pa := by simp only [s2, hq, ↓reduceIte]
-      have hq1_eq : q1 = p1 := by simp only [q1, hq, ↓reduceIte]
-      have hv0_Y_q1 : (v 0).pieceVal (Y q1) = 1 / 3 := by
-        rw [hq1_eq]
-        dsimp only [Y, scTrimmedPieces]
-        simp only [hp0_ne_p1.symm, ↓reduceIte]
-        exact hv0_X p1
-      have h1_T : ∀ m : Fin 3, (v 1).pieceVal (T_sub m) = w_pd / 3 := hpd ▸ hv_pd_T
-      have h2_T : ∀ m : Fin 3, (v 2).pieceVal (T_sub m) ≤ (v 2).pieceVal (T_sub s_pa) :=
-        hpa ▸ hv_pa_T_le
-      fin_cases i <;> fin_cases j <;>
-        simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue, bundles, hbundle2,
-          hs1, hs2]
+    fin_cases i
+    · fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
+        Fin.isValue, hbundle2]
       · exact le_rfl
-      · linarith [hv0_Y_q0, hv0_Y_q1, hv0_T_pd_le_0]
-      · have hq2_Y : (v 0).pieceVal (Y q2) = (v 0).pieceVal (Y p0) := by rw [hq]
-        linarith [hv0_Y_q0, hv0_irrevocable, hT_nonneg 0 s_0, hq2_Y]
-      · linarith [hv1_Y_q1, hv1_Y_le q0, h1_T s_0, h1_T s_pd]
-      · exact le_rfl
-      · linarith [hv1_Y_q1, hv1_Y_le q2, h1_T s_pa, h1_T s_pd]
-      · linarith [hv2_Y_le q0, h2_T s_0]
-      · linarith [hv2_Y_le q1, h2_T s_pd]
-      · exact le_rfl
-    · -- Subcase B2: Player 2 took an untrimmed piece, so Player 1 took Y p0 (pa = 1, pd = 2).
-      have hpa : pa = 1 := by simp only [pa, hq, ↓reduceIte]
-      have hpd : pd = 2 := by simp only [pd, hq, ↓reduceIte]
-      have hs1 : s1 = s_pa := by simp only [s1, hq, ↓reduceIte]
-      have hs2 : s2 = s_pd := by simp only [s2, hq, ↓reduceIte]
-      have hq1_eq : q1 = p0 := by simp only [q1, hq, ↓reduceIte]
-      have hv0_Y_q2 : (v 0).pieceVal (Y q2) = 1 / 3 := by
-        dsimp only [Y, scTrimmedPieces]
-        simp only [hq, ↓reduceIte]
-        exact hv0_X q2
-      have h1_T : ∀ m : Fin 3, (v 1).pieceVal (T_sub m) ≤ (v 1).pieceVal (T_sub s_pa) :=
-        hpa ▸ hv_pa_T_le
-      have h2_T : ∀ m : Fin 3, (v 2).pieceVal (T_sub m) = w_pd / 3 := hpd ▸ hv_pd_T
-      fin_cases i <;> fin_cases j <;>
-        simp only [Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk, Fin.isValue, bundles, hbundle2,
-          hs1, hs2]
-      · exact le_rfl
-      · have hq1_Y : (v 0).pieceVal (Y q1) = (v 0).pieceVal (Y p0) := by rw [hq1_eq]
-        linarith [hv0_Y_q0, hv0_irrevocable, hT_nonneg 0 s_0, hq1_Y]
-      · linarith [hv0_Y_q0, hv0_Y_q2, hv0_T_pd_le_0]
-      · linarith [hv1_Y_q1, hv1_Y_le q0, h1_T s_0]
-      · exact le_rfl
-      · linarith [hv1_Y_q1, hv1_Y_le q2, h1_T s_pd]
-      · linarith [hv2_Y_le q0, h2_T s_0, h2_T s_pd]
-      · linarith [hv2_Y_le q1, h2_T s_pa, h2_T s_pd]
-      · exact le_rfl
+      · exact h0_other q1 s1 (by by_cases hq : q2 = p0 <;> simp [q1, s1, hq, hp0_ne_p1.symm])
+      · exact h0_other q2 s2 (by by_cases hq : q2 = p0 <;> simp [s2, hq])
+    · fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
+        Fin.isValue, hbundle2] <;>
+        linarith [hv1_Y_q1, hv1_Y_le q0, hv1_Y_le q2, h1_T s_0, h1_T s1, h1_T s2]
+    · fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
+        Fin.isValue, hbundle2] <;>
+        linarith [hv2_Y_le q0, hv2_Y_le q1, h2_T s_0, h2_T s1, h2_T s2]
 
 /-- **Selfridge–Conway Proportionality Corollary:** under any valid Robertson–Webb oracle, every
 player receives at least `1 / 3` of the cake according to their own valuation. -/

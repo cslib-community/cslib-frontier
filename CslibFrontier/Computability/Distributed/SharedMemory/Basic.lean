@@ -321,9 +321,7 @@ theorem step_comm_of_ne_target (π : Protocol P objs S V) {p q : P} {c : Config 
     π.step_mem_of_ne_target hq htarget
   rw [π.step_of_active hq', π.step_of_active hp', hproc_q, hproc_p, hmem_q, hmem_p,
     π.step_of_active hp, π.step_of_active hq]
-  refine Config.ext ?_ ?_
-  · exact Function.update_comm htarget _ _ c.mem
-  · exact Function.update_comm hpq _ _ c.proc
+  exact Config.ext (Function.update_comm htarget _ _ c.mem) (Function.update_comm hpq _ _ c.proc)
 
 /-- Decisions are write-once across single steps: once `p` decides `v`, every step preserves it. -/
 theorem procDecided_step (π : Protocol P objs S V) {p : P} (q : P) {c : Config P ObjState S V}
@@ -474,9 +472,7 @@ theorem soloRun_mem_proc_eq (π : Protocol P objs S V) (p : P)
   | intro c₁ ha₁ ih =>
     intro c₂ ha₂ hmem hproc
     by_cases h₁ : c₁.Active p
-    · have h₂ : c₂.Active p := by
-        simp only [Config.Active] at h₁ ⊢
-        rw [← hproc, h₁]
+    · have h₂ : c₂.Active p := by simpa only [Config.Active, ← hproc] using h₁
       rw [π.soloRun_of_active p (Acc.intro c₁ ha₁) h₁, π.soloRun_of_active p ha₂ h₂]
       apply ih (π.step p c₁) ⟨p, h₁, rfl⟩ (ha₂.inv ⟨p, h₂, rfl⟩)
       · rw [π.step_of_active h₁, π.step_of_active h₂]
@@ -485,9 +481,7 @@ theorem soloRun_mem_proc_eq (π : Protocol P objs S V) (p : P)
       · rw [π.step_of_active h₁, π.step_of_active h₂]
         dsimp only
         rw [hproc, hmem, Function.update_self, Function.update_self]
-    · have h₂ : ¬ c₂.Active p := by
-        simp only [Config.Active] at h₁ ⊢
-        rwa [← hproc]
+    · have h₂ : ¬ c₂.Active p := by simpa only [Config.Active, ← hproc] using h₁
       rw [π.soloRun_of_not_active p (Acc.intro c₁ ha₁) h₁, π.soloRun_of_not_active p ha₂ h₂]
       exact ⟨hmem, hproc⟩
 
@@ -623,18 +617,12 @@ theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
   have hn_pos : 0 < n := by omega
   let p₀ : P := e.symm ⟨0, hn_pos⟩
   let inpK : ℕ → P → Bool := fun k p => decide ((e p).val < k)
-  have hinp0 : inpK 0 = fun _ => false := by
-    funext p
-    simp only [inpK, Nat.not_lt_zero, decide_false]
-  have hinpN : inpK n = fun _ => true := by
-    funext p
-    simp only [inpK, (e p).isLt, decide_true]
   have hu0 : π.IsUnivalent (π.initConfig (inpK 0)) false := by
-    rw [hinp0]
-    exact univalent_initConfig_const hcons p₀ false
+    convert univalent_initConfig_const hcons p₀ false with p
+    simp only [inpK, Nat.not_lt_zero, decide_false]
   have huN : π.IsUnivalent (π.initConfig (inpK n)) true := by
-    rw [hinpN]
-    exact univalent_initConfig_const hcons p₀ true
+    convert univalent_initConfig_const hcons p₀ true with p
+    simp only [inpK, (e p).isLt, decide_true]
   have huniv : ∀ k, π.IsUnivalent (π.initConfig (inpK k)) false ∨
       π.IsUnivalent (π.initConfig (inpK k)) true := by
     intro k
@@ -654,12 +642,7 @@ theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
   obtain ⟨k, hk, huf, hut⟩ := hex_switch
   let q : P := e.symm ⟨k, hk⟩
   obtain ⟨p, hpq⟩ := Fintype.exists_ne_of_one_lt_card (by omega : 1 < Fintype.card P) q
-  have hval_ne : (e p).val ≠ k := by
-    intro heq
-    apply hpq
-    apply e.injective
-    ext
-    simp only [q, Equiv.apply_symm_apply, heq]
+  have hval_ne : (e p).val ≠ k := fun heq => hpq (e.injective (Fin.ext (by simp [q, heq])))
   have hinp_eq : inpK k p = inpK (k + 1) p := by
     simp only [inpK, decide_eq_decide]
     omega
@@ -714,10 +697,7 @@ theorem exists_critical_config (π : Protocol P objs S Bool)
       exacts [⟨hcan_p, hcan_opp⟩, ⟨hcan_opp, hcan_p⟩]
   obtain ⟨p, hp⟩ := hex_step false
   obtain ⟨q, hq⟩ := hex_step true
-  have hpq : p ≠ q := by
-    rintro rfl
-    exact hq.2 hp.1
-  exact ⟨cstar, p, q, hreach, hcrit, hall_act, hpq, hp, hq⟩
+  exact ⟨cstar, p, q, hreach, hcrit, hall_act, fun h => hq.2 (h ▸ hp.1), hp, hq⟩
 
 end Bivalence
 

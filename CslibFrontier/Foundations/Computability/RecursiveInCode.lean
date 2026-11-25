@@ -258,16 +258,13 @@ theorem evaln_mono_of_agree {σ₁ σ₂ : List ℕ} {K : ℕ}
   | k + 1, k₂ + 1, c, n, x, hK, hl, h => by
     have hl' := Nat.le_of_succ_le_succ hl
     have hK' : k ≤ K := Nat.le_of_succ_le hK
-    have :
-      ∀ {k k₂ n x : ℕ} {o₁ o₂ : Option ℕ},
-        k ≤ k₂ → (n ≤ k → x ∈ o₁ → x ∈ o₂) →
-          x ∈ do { guard (n ≤ k); o₁ } → x ∈ do { guard (n ≤ k₂); o₂ } := by
+    have hguard {k k₂ n x : ℕ} {o₁ o₂ : Option ℕ} (h : k ≤ k₂) (h₁ : n ≤ k → x ∈ o₁ → x ∈ o₂) :
+        x ∈ do { guard (n ≤ k); o₁ } → x ∈ do { guard (n ≤ k₂); o₂ } := by
       simp only [Option.mem_def, bind, Option.bind_eq_some_iff, Option.guard_eq_some',
         exists_and_left, exists_const, and_imp]
-      introv h h₁ h₂ h₃
-      exact ⟨le_trans h₂ h, h₁ h₂ h₃⟩
+      exact fun h₂ h₃ => ⟨h₂.trans h, h₁ h₂ h₃⟩
     simp only [Option.mem_def] at h ⊢
-    induction c generalizing x n <;> rw [evaln] at h ⊢ <;> refine this hl' (fun hn h => ?_) h
+    induction c generalizing x n <;> rw [evaln] at h ⊢ <;> refine hguard hl' (fun hn h => ?_) h
     on_goal 1 2 3 4 => exact h
     case oracle => exact hσ n (by omega) x h
     case pair cf cg hf hg _ =>
@@ -529,15 +526,13 @@ theorem rfind' {O : Set (ℕ →. ℕ)} {f : ℕ →. ℕ} (hf : Nat.RecursiveIn
   have hq : Nat.Primrec fun p => Nat.pair p.unpair.1.unpair.1 (p.unpair.2 + p.unpair.1.unpair.2) :=
     Nat.Primrec.pair (Nat.Primrec.left.comp Nat.Primrec.left)
       ((Nat.Primrec.add.comp (Nat.Primrec.pair Nat.Primrec.right
-        (Nat.Primrec.right.comp Nat.Primrec.left))).of_eq fun n => by simp)
-  have h1 := hf.comp hq.recursiveIn
-  have h2 := Nat.RecursiveIn.rfind h1
+        (Nat.Primrec.right.comp Nat.Primrec.left))).of_eq fun _ => by simp)
   have hadd : Nat.Primrec fun p => p.unpair.1 + p.unpair.2.unpair.2 :=
     (Nat.Primrec.add.comp (Nat.Primrec.pair Nat.Primrec.left
-      (Nat.Primrec.right.comp Nat.Primrec.right))).of_eq fun n => by simp
-  have h3 := hadd.recursiveIn.comp (h2.pair (Nat.Primrec.id.recursiveIn (O := O)))
+      (Nat.Primrec.right.comp Nat.Primrec.right))).of_eq fun _ => by simp
   have hb : ∀ x, (Part.some x >>= f) = f x := fun x => Part.bind_some x f
-  refine h3.of_eq fun n => ?_
+  refine (hadd.recursiveIn.comp ((Nat.RecursiveIn.rfind (hf.comp hq.recursiveIn)).pair
+    (Nat.Primrec.id.recursiveIn (O := O)))).of_eq fun n => ?_
   simp [Seq.seq, Nat.unpaired, Part.map_eq_map, Part.bind_eq_bind, hb,
     Part.bind_some_eq_map, Part.map_map, Function.comp_def]
 

@@ -226,7 +226,6 @@ theorem wlRefine_eq_wlRefine_iff [Fintype W] {χ : (Fin k → V) → β} {ψ : (
 theorem wlColoring_zero_eq_iff [Fintype W] {u : Fin k → V} {w : Fin k → W} :
     G.wlColoring 0 u = H.wlColoring 0 w ↔
       ∀ i j, (u i = u j ↔ w i = w j) ∧ (G.Adj (u i) (u j) ↔ H.Adj (w i) (w j)) := by
-  change G.tupleAtom u = H.tupleAtom w ↔ _
   exact tupleAtom_eq_iff
 
 theorem wlColoring_succ_eq_iff [Fintype W] {n : ℕ} {u : Fin k → V} {w : Fin k → W} :
@@ -234,7 +233,6 @@ theorem wlColoring_succ_eq_iff [Fintype W] {n : ℕ} {u : Fin k → V} {w : Fin 
       G.wlColoring n u = H.wlColoring n w ∧
         (univ : Finset V).val.map (G.wlStepProfile (G.wlColoring n) u) =
           (univ : Finset W).val.map (H.wlStepProfile (H.wlColoring n) w) := by
-  change G.wlRefine (G.wlColoring n) u = H.wlRefine (H.wlColoring n) w ↔ _
   exact wlRefine_eq_wlRefine_iff
 
 /-- If `χ₁ u = ψ₁ w` implies `χ₂ u = ψ₂ w` for all `k`-tuples, then the same implication holds
@@ -279,14 +277,12 @@ private theorem ker_eq_of_antitone_step {X : Type*} [Fintype X] {C : ℕ → Typ
       Setoid.ker (Φ (n + 2)) = Setoid.ker (Φ (n + 1)))
     {m : ℕ} (hm : Fintype.card X - blocks (Setoid.ker (Φ 0)) ≤ m) :
     Setoid.ker (Φ m) = Setoid.ker (Φ (Fintype.card X - blocks (Setoid.ker (Φ 0)))) := by
-  have hprop : ∀ {n r}, Setoid.ker (Φ (n + 1)) = Setoid.ker (Φ n) → n ≤ r →
+  have hprop {n r} (hn : Setoid.ker (Φ (n + 1)) = Setoid.ker (Φ n)) (hnr : n ≤ r) :
       Setoid.ker (Φ r) = Setoid.ker (Φ n) := by
-    intro n r hn hnr
-    have hsucc : ∀ t, n ≤ t → Setoid.ker (Φ (t + 1)) = Setoid.ker (Φ t) := by
-      intro t hnt
+    have hsucc (t) (hnt : n ≤ t) : Setoid.ker (Φ (t + 1)) = Setoid.ker (Φ t) := by
       induction t, hnt using Nat.le_induction with
       | base => exact hn
-      | succ t hnt ih => exact hstep t ih
+      | succ t _ ih => exact hstep t ih
     induction r, hnr using Nat.le_induction with
     | base => rfl
     | succ t hnt ih => rw [hsucc t hnt, ih]
@@ -294,15 +290,12 @@ private theorem ker_eq_of_antitone_step {X : Type*} [Fintype X] {C : ℕ → Typ
   suffices ∃ i ≤ N, Setoid.ker (Φ (i + 1)) = Setoid.ker (Φ i) by
     obtain ⟨i, hi, h⟩ := this
     rw [hprop h (hi.trans hm), hprop h hi]
-  by_contra hne
-  push Not at hne
-  have key : ∀ i ≤ N + 1, blocks (Setoid.ker (Φ 0)) + i ≤ blocks (Setoid.ker (Φ i)) := by
-    intro i hi
+  by_contra! hne
+  have key (i) (hi : i ≤ N + 1) : blocks (Setoid.ker (Φ 0)) + i ≤ blocks (Setoid.ker (Φ i)) := by
     induction i with
     | zero => exact le_rfl
     | succ i ih =>
-      have hlt : blocks (Setoid.ker (Φ i)) < blocks (Setoid.ker (Φ (i + 1))) :=
-        blocks_lt_of_lt (lt_of_le_of_ne (hle i) (hne i (by omega)))
+      have := blocks_lt_of_lt (lt_of_le_of_ne (hle i) (hne i (by omega)))
       have := ih (by omega)
       omega
   have h1 := key (N + 1) le_rfl
@@ -332,13 +325,11 @@ theorem ker_wlColoring_eq_of_succ_eq {n : ℕ}
     (h : Setoid.ker (G.wlColoring (k := k) (n + 1)) = Setoid.ker (G.wlColoring (k := k) n))
     {m : ℕ} (hm : n ≤ m) :
     Setoid.ker (G.wlColoring (k := k) m) = Setoid.ker (G.wlColoring (k := k) n) := by
-  have hsucc : ∀ t, n ≤ t → Setoid.ker (G.wlColoring (k := k) (t + 1)) =
-      Setoid.ker (G.wlColoring (k := k) t) := by
-    intro t hnt
+  have hsucc (t) (hnt : n ≤ t) :
+      Setoid.ker (G.wlColoring (k := k) (t + 1)) = Setoid.ker (G.wlColoring (k := k) t) := by
     induction t, hnt using Nat.le_induction with
     | base => exact h
-    | succ t _ ih =>
-      exact le_antisymm (ker_wlColoring_succ_le _) (ker_wlRefine_mono (G := G) ih.ge)
+    | succ t _ ih => exact le_antisymm (ker_wlColoring_succ_le _) (ker_wlRefine_mono ih.ge)
   induction m, hm using Nat.le_induction with
   | base => rfl
   | succ t hnt ih => rw [hsucc t hnt, ih]
@@ -387,21 +378,15 @@ variable [Fintype V] [Fintype W] {G : SimpleGraph V} {H : SimpleGraph W} {k : �
 theorem Iso.wlColoring_comp (e : G ≃g H) (n : ℕ) (u : Fin k → V) :
     H.wlColoring n (e ∘ u) = G.wlColoring n u := by
   induction n generalizing u with
-  | zero =>
-    rw [wlColoring_zero, wlColoring_zero]
-    exact e.tupleAtom_comp u
+  | zero => exact e.tupleAtom_comp u
   | succ n ih =>
     refine wlColoring_succ_eq_iff.2 ⟨ih u, ?_⟩
     rw [← Finset.map_univ_equiv e.toEquiv, Finset.map_val, Multiset.map_map]
     congr 1
     funext v
-    change H.wlStepProfile (H.wlColoring n) (e ∘ u) (e v) =
-      G.wlStepProfile (G.wlColoring n) u v
     refine wlStepProfile_eq_iff.2 ⟨?_, fun i => ?_⟩
-    · rw [← Fin.comp_snoc]
-      exact e.tupleAtom_comp (Fin.snoc u v)
-    · rw [← Function.comp_update]
-      exact ih (Function.update u i v)
+    · simpa only [RelIso.coe_toEmbedding, Fin.comp_snoc] using e.tupleAtom_comp (Fin.snoc u v)
+    · simpa only [RelIso.coe_toEmbedding, Function.comp_update] using ih (Function.update u i v)
 
 /-- Isomorphic finite graphs have the same `k`-WL histogram in every round. -/
 theorem Iso.wlHistogram_eq (e : G ≃g H) (k n : ℕ) :
@@ -475,23 +460,19 @@ private theorem ker_sum_wlColoring_le {m : ℕ}
     fun n => Sum.elim (G.wlColoring n) (H.wlColoring n)
   have hle : ∀ n, Setoid.ker (Φ (n + 1)) ≤ Setoid.ker (Φ n) := by
     rintro n (u₁ | w₁) (u₂ | w₂) h <;> exact wlColoring_eq_of_le (Nat.le_succ n) h
-  have hstep : ∀ n, Setoid.ker (Φ (n + 1)) = Setoid.ker (Φ n) →
+  have hstep (n) (hn : Setoid.ker (Φ (n + 1)) = Setoid.ker (Φ n)) :
       Setoid.ker (Φ (n + 2)) = Setoid.ker (Φ (n + 1)) := by
-    intro n hn
     refine le_antisymm (hle (n + 1)) ?_
     rintro (u₁ | w₁) (u₂ | w₂) h1
-    · exact wlRefine_eq_of_imp (fun u u' hu => hn.ge (x := .inl u) (y := .inl u') hu) h1
-    · exact wlRefine_eq_of_imp (fun u w hu => hn.ge (x := .inl u) (y := .inr w) hu) h1
-    · exact wlRefine_eq_of_imp (fun w u hw => hn.ge (x := .inr w) (y := .inl u) hw) h1
-    · exact wlRefine_eq_of_imp (fun w w' hw => hn.ge (x := .inr w) (y := .inr w') hw) h1
+    · exact wlRefine_eq_of_imp (fun a b hab => hn.ge (x := .inl a) (y := .inl b) hab) h1
+    · exact wlRefine_eq_of_imp (fun a b hab => hn.ge (x := .inl a) (y := .inr b) hab) h1
+    · exact wlRefine_eq_of_imp (fun a b hab => hn.ge (x := .inr a) (y := .inl b) hab) h1
+    · exact wlRefine_eq_of_imp (fun a b hab => hn.ge (x := .inr a) (y := .inr b) hab) h1
   have hcard : Fintype.card ((Fin k → V) ⊕ (Fin k → W)) =
       Fintype.card V ^ k + Fintype.card W ^ k := by
     rw [Fintype.card_sum, Fintype.card_fun, Fintype.card_fun, Fintype.card_fin]
-  have hN := ker_eq_of_antitone_step Φ hle hstep (m := Fintype.card V ^ k + Fintype.card W ^ k)
-    (by rw [hcard]; exact Nat.sub_le _ _)
-  have hm' := ker_eq_of_antitone_step Φ hle hstep (m := m)
-    (by rw [hcard]; exact (Nat.sub_le _ _).trans hm)
-  exact (hN.trans hm'.symm).le
+  exact ((ker_eq_of_antitone_step Φ hle hstep (hcard ▸ Nat.sub_le _ _)).trans
+    (ker_eq_of_antitone_step Φ hle hstep (hcard ▸ (Nat.sub_le _ _).trans hm)).symm).le
 
 /-- `k`-WL distinguishes two `k`-tuples of `G` and `H` in some round if and only if it
 distinguishes them in round `|V| ^ k + |W| ^ k`. -/
@@ -513,16 +494,12 @@ theorem forall_wlHistogram_eq_iff :
   refine ⟨fun h => h _, fun h m => ?_⟩
   rcases le_total m (Fintype.card V ^ k + Fintype.card W ^ k) with hm | hm
   · exact wlHistogram_eq_of_le hm h
-  let Φ : (n : ℕ) → (Fin k → V) ⊕ (Fin k → W) → WLColor k n :=
-    fun n => Sum.elim (G.wlColoring n) (H.wlColoring n)
-  have hG : ∀ n, G.wlHistogram k n =
-      ((univ : Finset (Fin k → V)).val.map Sum.inl).map (Φ n) := fun n => by
-    rw [wlHistogram, Multiset.map_map]
-    rfl
-  have hH : ∀ n, H.wlHistogram k n =
-      ((univ : Finset (Fin k → W)).val.map Sum.inr).map (Φ n) := fun n => by
-    rw [wlHistogram, Multiset.map_map]
-    rfl
+  let Φ (n : ℕ) : (Fin k → V) ⊕ (Fin k → W) → WLColor k n :=
+    Sum.elim (G.wlColoring n) (H.wlColoring n)
+  have hG (n) : G.wlHistogram k n = ((univ : Finset (Fin k → V)).val.map Sum.inl).map (Φ n) := by
+    rw [wlHistogram, Multiset.map_map]; rfl
+  have hH (n) : H.wlHistogram k n = ((univ : Finset (Fin k → W)).val.map Sum.inr).map (Φ n) := by
+    rw [wlHistogram, Multiset.map_map]; rfl
   rw [hG, hH] at h ⊢
   exact Multiset.map_eq_map_of_ker_le (ker_sum_wlColoring_le hm) h
 

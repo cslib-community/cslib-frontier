@@ -268,41 +268,28 @@ theorem Operator.natDegree_apply_le (o : Operator) (t : R) {p q : R[X]} {d : ℕ
     (hp : p.natDegree ≤ d) (hq : q.natDegree ≤ d) :
     (o.apply (C t) p q).natDegree ≤ o.degMul * d := by
   cases o
-  · refine (natDegree_one_sub_le _).trans (natDegree_mul_le.trans ?_)
-    have := natDegree_one_sub_le p
+  · have := natDegree_one_sub_le p
     have := natDegree_one_sub_le q
-    simp only [degMul]
-    omega
-  · refine natDegree_mul_le.trans ?_
-    simp only [degMul]
-    omega
-  · refine (natDegree_add_le _ _).trans (max_le ?_ ?_)
-    · refine natDegree_mul_le.trans ?_
-      rw [← C_1, ← C_sub, natDegree_C, degMul, one_mul, zero_add]
-      exact hp
-    · refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, degMul, one_mul, zero_add]
-      exact hq
+    exact (natDegree_one_sub_le _).trans (natDegree_mul_le.trans (by simp only [degMul]; omega))
+  · exact natDegree_mul_le.trans (by simp only [degMul]; omega)
+  · refine (natDegree_add_le _ _).trans (max_le (natDegree_mul_le.trans ?_)
+      (natDegree_mul_le.trans ?_))
+    · rw [← C_1, ← C_sub]
+      simpa only [natDegree_C, degMul, one_mul, zero_add] using hp
+    · simpa only [natDegree_C, degMul, one_mul, zero_add] using hq
 
 /-- Applying an operator at `X` to constant polynomials `C a` and `C b` has degree at most `1`. -/
 theorem Operator.natDegree_apply_X_le (o : Operator) (a b : R) :
     (o.apply X (C a) (C b)).natDegree ≤ 1 := by
   cases o
-  · refine (natDegree_one_sub_le _).trans (natDegree_mul_le.trans ?_)
-    have := natDegree_one_sub_le (C a)
-    have := natDegree_one_sub_le (C b)
-    rw [natDegree_C] at *
-    omega
-  · refine natDegree_mul_le.trans ?_
-    rw [natDegree_C, natDegree_C]
-    omega
-  · refine (natDegree_add_le _ _).trans (max_le ?_ ?_)
-    · refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, add_zero]
-      exact (natDegree_one_sub_le X).trans natDegree_X_le
-    · refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, add_zero]
-      exact natDegree_X_le
+  · have h₁ := (natDegree_one_sub_le (C a)).trans_eq (natDegree_C a)
+    have h₂ := (natDegree_one_sub_le (C b)).trans_eq (natDegree_C b)
+    exact (natDegree_one_sub_le _).trans (natDegree_mul_le.trans (by omega))
+  · exact natDegree_mul_le.trans (by simp only [natDegree_C]; omega)
+  · exact (natDegree_add_le _ _).trans (max_le
+      (natDegree_mul_le.trans (by
+        simpa only [natDegree_C, add_zero] using (natDegree_one_sub_le X).trans natDegree_X_le))
+      (natDegree_mul_le.trans (by simpa only [natDegree_C, add_zero] using natDegree_X_le)))
 
 /-- The restriction of a formula to `x` has degree at most `degBound x`. -/
 theorem natDegree_restrict_le (x : V) : (e.restrict r x).natDegree ≤ e.degBound x := by
@@ -468,9 +455,7 @@ formula has value `1` or `0` according to the truth value of the formula without
 linearizations. -/
 theorem eval_boolean (σ : V → Bool) :
     e.eval (fun w => if σ w then (1 : R) else 0) = if e.toQBF.eval σ then 1 else 0 := by
-  have h := eval_cond (R := R) e σ
-  simp only [Bool.cond_eq_ite] at h
-  exact h
+  simpa only [Bool.cond_eq_ite] using eval_cond (R := R) e σ
 
 /-! ### Linearization -/
 
@@ -673,19 +658,14 @@ theorem roundDegree_arithmetize_le {xs : List V} {φ : QBF V} (hxs : ∀ v ∈ �
     simp only [arithmetize, ArithQBF.roundDegree, size]
     refine (Nat.add_le_add h₁ h₂).trans ?_
     rw [← Nat.mul_add]
-    refine Nat.mul_le_mul_left _ ?_
-    have hexp : (φ.size + ψ.size + 1) ^ 2 =
-        φ.size ^ 2 + ψ.size ^ 2 + 2 * φ.size * ψ.size + 2 * (φ.size + ψ.size) + 1 := by ring
-    omega
+    exact Nat.mul_le_mul_left _ (by rw [add_sq, add_sq]; omega)
   | ex v φ ih | all v φ ih =>
     simp only [vars, List.mem_cons] at hxs
     have hxs' : ∀ w ∈ φ.vars, w ∈ xs := fun w hw => hxs w (Or.inr hw)
     refine (roundDegree_arithmetize_op_le hxs' _ (by decide) v).trans ?_
     refine (Nat.add_le_add_left (ih hxs') _).trans ?_
     rw [← Nat.mul_add, size]
-    refine Nat.mul_le_mul_left _ ?_
-    have hexp : (φ.size + 1) ^ 2 = φ.size ^ 2 + 2 * φ.size + 1 := by ring
-    omega
+    exact Nat.mul_le_mul_left _ (by rw [add_sq]; omega)
 
 omit [DecidableEq V] in
 /-- Every variable of the arithmetization is a variable of `φ` or of `xs`. -/

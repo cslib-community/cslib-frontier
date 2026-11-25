@@ -145,14 +145,11 @@ theorem orderOf_two_zmod_three_pow (t : ℕ) :
 theorem irreducible_trinomial (t : ℕ) : Irreducible (trinomial t) := by
   have : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
   have hndvd : ¬ 2 ∣ 3 ^ (t + 1) := fun h => absurd (Nat.prime_two.dvd_of_dvd_pow h) (by decide)
-  refine ZMod.irreducible_of_dvd_cyclotomic_of_natDegree hndvd ?_ ?_
-  · exact ⟨1, by rw [← trinomial_eq_cyclotomic, mul_one]⟩
-  · rw [natDegree_trinomial]
-    have hunit : orderOf (ZMod.unitOfCoprime 2 (Nat.prime_two.coprime_iff_not_dvd.mpr hndvd)) =
-        orderOf (2 : ZMod (3 ^ (t + 1))) := by
-      rw [← orderOf_injective (Units.coeHom (ZMod (3 ^ (t + 1)))) Units.coeHom_injective]
-      rfl
-    rw [hunit, orderOf_two_zmod_three_pow]
+  refine ZMod.irreducible_of_dvd_cyclotomic_of_natDegree hndvd
+    ⟨1, by rw [← trinomial_eq_cyclotomic, mul_one]⟩ ?_
+  rw [natDegree_trinomial, ← orderOf_two_zmod_three_pow,
+    ← orderOf_injective (Units.coeHom (ZMod (3 ^ (t + 1)))) Units.coeHom_injective]
+  rfl
 
 /-! ## Bitwise operations, carryless multiplication, and 4-limb reduction on `polyOfCode` -/
 
@@ -310,12 +307,10 @@ theorem clmul_lt_two_pow {a b m n : ℕ} (ha : a < 2 ^ m) (hb : b < 2 ^ n) :
   induction n generalizing b with
   | zero =>
     obtain rfl : b = 0 := by omega
-    simp only [clmul_zero_right, add_zero]
-    positivity
+    simp
   | succ n ih =>
     rcases eq_or_ne b 0 with rfl | hb0
-    · simp only [clmul_zero_right]
-      positivity
+    · simp
     · rw [clmul, ite_eq_right hb0]
       have hrec := ih (show b / 2 < 2 ^ n by rw [pow_succ] at hb; omega)
       have hsh : clmul a (b / 2) <<< 1 < 2 ^ (m + (n + 1)) := by

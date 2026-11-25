@@ -141,19 +141,14 @@ theorem recover_sound {I : FixedRotationInput} {c : RotationCertificate}
     (h : recover I = some c) :
     RotationCertificate.verifyGenusZero I.graph c = true ∧ verifyFixed I c = true := by
   unfold recover at h
-  split at h
-  · cases hx : recoverOrders I with
-    | none => simp [hx] at h
-    | some J =>
-      simp only [hx, Option.elim_some] at h
-      split at h
-      · have hc : certificate J = c := Option.some.inj h
-        subst c
-        simpa only [Bool.and_eq_true] using (show
-          (RotationCertificate.verifyGenusZero I.graph (certificate J) &&
-            verifyFixed I (certificate J)) = true from by assumption)
-      · contradiction
-  · contradiction
+  split_ifs at h with hq
+  cases hx : recoverOrders I with
+  | none => simp [hx] at h
+  | some J =>
+    simp only [hx, Option.elim_some] at h
+    split_ifs at h with hv
+    obtain rfl := Option.some.inj h
+    simpa only [Bool.and_eq_true] using hv
 
 /-- Every returned CSP candidate passes precisely the existing original CSP checker. -/
 theorem recoverCSP_sound {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
@@ -164,10 +159,7 @@ theorem recoverCSP_sound {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
   | none => simp [hx] at h
   | some d =>
     simp only [hx, Option.elim_some] at h
-    split at h
-    · have hc : d = c := Option.some.inj h
-      subst c
-      assumption
-    · contradiction
+    split_ifs at h with hv
+    exact Option.some.inj h ▸ hv
 
 end Cslib.Complexity.Graph.RotationRecognition

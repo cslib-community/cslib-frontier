@@ -269,12 +269,9 @@ theorem length_compile : ∀ {Γ : List ℕ} {α : Type w} (fv : α → ℕ) (ba
       List.length_nil]
     omega
   | _, _, fv, base, .op k body args, true, b, T, R => by
-    simp only [compile, len, length_tcCode]
-    rw [length_compile]
+    simp only [compile, len, length_tcCode, length_compile]
   | _, _, fv, base, .op k body args, false, b, T, R => by
-    simp only [compile, len, length_countCode, length_countTestCode]
-    rw [length_compile, length_compile, length_compile, length_compile, length_compile,
-      length_compile]
+    simp only [compile, len, length_countCode, length_countTestCode, length_compile]
     omega
 
 variable {v}
@@ -411,14 +408,9 @@ theorem correct_conj (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
       hP' 1 (by simp)
     have hPφ : P.CodeAt (b + 2) (compile v fv base φ false (b + 2) T R) :=
       codeAt_right (codeAt_left hP') rfl
-    have hlen : b + 2 + len φ false = b + ([(Instr.lt (const 0) (const 0) (b + 1) (b + 1)).shift,
-        .lt (reg 0) (const 1) (b + 2) (b + 2 + len φ false)] ++
-        compile v fv base φ false (b + 2) T R).length := by
-      simp only [List.length_append, List.length_cons, List.length_nil, length_compile]
-      omega
     have hPψ : P.CodeAt (b + 2 + len φ false)
         (compile v fv base ψ false (b + 2 + len φ false) T R) :=
-      codeAt_right hP' hlen
+      codeAt_right hP' (by simp [length_compile]; omega)
     obtain ⟨sφ, cφ⟩ :=
       ihφ hΓ false hWφ fv base val ρ (b + 2) T regs hPφ hbase hfv hdφ h0 hv hregs
     obtain ⟨sψ, cψ⟩ := ihψ hΓ false hWψ fv base val ρ (b + 2 + len φ false) T regs hPψ hbase
@@ -476,14 +468,11 @@ theorem correct_ex (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
     refine ⟨(Sound.guess hE.one_le hPg hE.halts hE.post hlen hN (hN' ▸ hE.card_le) hregs).bind
       ?_, ?_⟩
     · rintro _ ⟨m, hm, rfl⟩
-      rw [hN'] at hm
-      exact ((hbody ⟨m, hm⟩).1).mono fun regs' h =>
-        ⟨Kept.of_set h.1, ⟨⟨m, hm⟩, h.2⟩⟩
+      exact ((hbody ⟨m, hN' ▸ hm⟩).1).mono fun _ h => ⟨Kept.of_set h.1, ⟨⟨m, hN' ▸ hm⟩, h.2⟩⟩
     · rintro ⟨x, hx⟩
       refine (Complete.guess hPg hlen hN (hN' ▸ hE.card_le) hregs
-        (m := x) (by rw [hN']; exact x.isLt)).bind ?_
-      rintro _ rfl
-      exact ((hbody x).2 hx).mono fun regs' h => Kept.of_set h
+        (m := x) (hN'.symm ▸ x.isLt)).bind fun _ h => ?_
+      exact h ▸ ((hbody x).2 hx).mono fun _ => Kept.of_set
   | false =>
     have hP' : P.CodeAt b ([(Instr.assign base (const 0) (b + 1)).shift,
         (Instr.lt (reg base) (reg 0) (b + 2) T).shift] ++
@@ -495,14 +484,8 @@ theorem correct_ex (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
     have hPφ : P.CodeAt (b + 2) (compile v (fun x => x.elim base fv) (base + 1) φ false (b + 2)
         (b + 2 + len φ false) R) := codeAt_right (codeAt_left hP') rfl
     have h₂ : P.instr (b + 2 + len φ false) =
-        (Instr.assign base (add (reg base) (const 1)) (b + 1)).shift := by
-      have := hP' (2 + len φ false) (by
-        simp only [List.length_append, List.length_cons, List.length_nil, length_compile]; omega)
-      rw [← Nat.add_assoc] at this
-      rw [this, List.getElem_append_right (by
-        simp only [List.length_append, List.length_cons, List.length_nil, length_compile]; omega)]
-      simp only [List.length_append, List.length_cons, List.length_nil, length_compile,
-        Nat.sub_self, List.getElem_cons_zero]
+        (Instr.assign base (add (reg base) (const 1)) (b + 1)).shift :=
+      codeAt_right hP' (by simp [length_compile]; omega) 0 Nat.zero_lt_one
     -- the state at the loop test: `m` checked values, all false
     have hbody : ∀ (x : Fin a.1) (regs₁ : List ℕ), Kept B base regs regs₁ →
         regs₁.getD base 0 = x →

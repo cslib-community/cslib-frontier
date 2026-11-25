@@ -103,10 +103,7 @@ private theorem fullPrefix_observe (h : FullPrefix N edge source s)
     FullPrefix N edge source
       { s with candidate := s.candidate + 1, selected := s.selected + 1 } := by
   classical
-  unfold FullPrefix at h ⊢
-  dsimp only
-  rw [filter_below_succ]
-  simp only [hu, ↓reduceIte]
+  simp only [FullPrefix, filter_below_succ, hu, ↓reduceIte] at h ⊢
   rw [Finset.card_insert_of_notMem (by simp), h]
 
 private theorem fullPrefix_end (h : FullPrefix N edge source s) (hc : RoundCorrect N edge source s)
@@ -199,11 +196,10 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
     obtain ⟨hf, v, hx, hv, he, hw⟩ := hh
     cases hb : s.bits with
     | zero =>
-      have hgv : s.guess = v := binaryExtension_zero (hb ▸ hx)
+      obtain rfl := binaryExtension_zero (hb ▸ hx)
       refine ⟨false, ?_, by simp [ChoiceFits, hb]⟩
-      have hg : s.guess < N := hgv ▸ hv
-      simp only [instruction, hp, hb, hg, ↓reduceIte, Honest]
-      exact ⟨hf, hgv ▸ he, hgv ▸ hw⟩
+      simp only [instruction, hp, hb, hv, ↓reduceIte, Honest]
+      exact ⟨hf, he, hw⟩
     | succ bits =>
       rw [hb] at hx
       cases hx with
@@ -415,12 +411,7 @@ theorem accepts_iff_not_reachable (hsource : source < N) (hwidth : N ≤ 2 ^ wid
     Accepts N width source edge (fun u => u == target) ↔
       ¬ Relation.ReflTransGen (Graph N edge) source target := by
   rw [accepts_iff hsource hwidth]
-  constructor
-  · intro h hr
-    simpa using h target hr
-  · intro h u hu
-    rcases eq_or_ne u target with rfl | he
-    · exact (h hu).elim
-    · simp [he]
+  exact ⟨fun h hr => by simpa using h target hr,
+    fun h u hu => beq_false_of_ne fun hEq => h (hEq ▸ hu)⟩
 
 end Cslib.InductiveCounting

@@ -109,19 +109,15 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
             ((2 ^ m) ^ ((k * 3 + 1) * r), m, r)) else _ else _) : State k Q) = _
         rw [ite_eq_left htag, ite_eq_left hz]
       refine ⟨0, InitialVector.values M e ((2 ^ m) ^ ((k * 3 + 1) * r), m, r),
-        ?_, ?_, ?_, ?_⟩
-      · exact hstart ▸ rfl
-      · exact hstart ▸ rfl
-      · intro j
-        rw [hnode]
+        hstart ▸ rfl, hstart ▸ rfl, fun j => ?_, fun t ht => ?_⟩
+      · rw [hnode]
         change _ = Packed.gateExtension h (Packed.packBits hb) (Packed.unpackBits hb)
           (codeGate (MultiTapePTM.ofDeterministic M) w b (scheduleOfNat k q σ)
             (Encoding.encode e) (Encoding.decode e) index) x j
         rw [hz]
         exact InitialVector.values_gateExtension_zero M e w _ b
           (scheduleOfNat k q σ) hcapacity hb h hh x j
-      · intro t ht
-        obtain rfl : t = 0 := by omega
+      · obtain rfl : t = 0 := by omega
         have hsource := source_encoding_le M e ((2 ^ m) ^ ((k * 3 + 1) * r)) b
           hcapacity hb hsp
         change (encState ((machine M e).runFrom w (initial M e (address, params)) 0)).length ≤ _
@@ -168,15 +164,11 @@ theorem exists_runFrom_nodeAt_bounded {k q s p r m : ℕ} {Q : Type} [Finite Q] 
     have hstart : initial M e (address, params) = .inl (0, []) := by
       change ((if ImplicitNode.classify k address = 2 then _ else .inl (0, [])) : State k Q) = _
       rw [ite_eq_right htag]
-    refine ⟨0, [], ?_, ?_, ?_, ?_⟩
-    · exact hstart ▸ rfl
-    · exact hstart ▸ rfl
-    · intro j
-      rw [encodedTree, tree, Descending.nodeAt_tree]
+    refine ⟨0, [], hstart ▸ rfl, hstart ▸ rfl, fun j => ?_, fun t ht => ?_⟩
+    · rw [encodedTree, tree, Descending.nodeAt_tree]
       simp only [Descending.lookup, hdepth, ↓reduceIte]
       by_cases heq : path.length = q <;> simp [heq]
-    · intro t ht
-      obtain rfl : t = 0 := by omega
+    · obtain rfl : t = 0 := by omega
       change (encState ((machine M e).runFrom w (initial M e (address, params)) 0)).length ≤ _
       rw [QueryMachine.runFrom_zero, hstart,
         show (encState (.inl (0, []) : State k Q)).length = 2 from rfl]

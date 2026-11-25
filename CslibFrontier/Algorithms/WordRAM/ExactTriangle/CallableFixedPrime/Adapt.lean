@@ -37,16 +37,10 @@ theorem matrixWordSum_eq_rawTotal {n ab bc ac : ℕ} (mem : ℕ → ℕ) (values
     (vbc : ∀ q < n * n, mem (bc + q) = Signed.encode (values.getD (n * n + q) 0))
     (vac : ∀ q < n * n, mem (ac + q) = Signed.encode (values.getD (2 * (n * n) + q) 0)) :
     matrixWordSum mem n ab bc ac = rawTotal n values := by
-  have ha : ArrayCopySum.wordSum mem ab (n * n) =
-      ∑ q ∈ Finset.range (n * n), Signed.encode (values.getD q 0) :=
-    Finset.sum_congr rfl (fun q hq => vab q (Finset.mem_range.mp hq))
-  have hb : ArrayCopySum.wordSum mem bc (n * n) =
-      ∑ q ∈ Finset.range (n * n), Signed.encode (values.getD (n * n + q) 0) :=
-    Finset.sum_congr rfl (fun q hq => vbc q (Finset.mem_range.mp hq))
-  have hc : ArrayCopySum.wordSum mem ac (n * n) =
-      ∑ q ∈ Finset.range (n * n), Signed.encode (values.getD (2 * (n * n) + q) 0) :=
-    Finset.sum_congr rfl (fun q hq => vac q (Finset.mem_range.mp hq))
-  rw [matrixWordSum, ha, hb, hc, rawTotal_split]
+  dsimp only [matrixWordSum, ArrayCopySum.wordSum]
+  rw [Finset.sum_congr rfl fun q hq => vab q (Finset.mem_range.mp hq),
+    Finset.sum_congr rfl fun q hq => vbc q (Finset.mem_range.mp hq),
+    Finset.sum_congr rfl fun q hq => vac q (Finset.mem_range.mp hq), rawTotal_split]
 
 /-- One copy call of `exec_adapt`: copy the `N` words of a source square `s` below the workspace
 base `b` to `D ≥ b`, adding their original sum to the running total `S`. The copy registers other
@@ -103,12 +97,10 @@ theorem exec_adapt {W : ℕ} (x : Data 640)
   let T := Sa + Sb + Sc
   have fit : Fits W (b + 4 * N + T + 1024) := hfit
   have h1 : Fits W 1 := fit.of_le (by omega)
-  obtain ⟨h, hh, harea, hconstant, hmem, hregs⟩ := exec_header x (fit.of_le (by
-    change b + 4 * N + 1024 ≤ b + 4 * N + T + 1024
-    omega))
-  have hbelow (q : ℕ) (hq : q < b) : h.mem q = x.mem q := by
-    rw [hmem]
-    exact headerMemory_below _ _ _ _ _ _ _ hq
+  obtain ⟨h, hh, harea, hconstant, hmem, hregs⟩ := exec_header x
+    (fit.of_le (show b + 4 * N + 1024 ≤ b + 4 * N + T + 1024 by omega))
+  have hbelow (q : ℕ) (hq : q < b) : h.mem q = x.mem q :=
+    hmem ▸ headerMemory_below _ _ _ _ _ _ _ hq
   obtain ⟨a, ha, amem, asrc, adst, alen, atotal, aregs⟩ := exec_firstCopy h hconstant
     (by rw [hregs Reg.base (by decide)]; exact fit.of_le (by omega))
   obtain ⟨c₁, hc₁', c₁_dst, c₁_len, c₁_total, c₁_meta, cm₁, c₁_below⟩ :=

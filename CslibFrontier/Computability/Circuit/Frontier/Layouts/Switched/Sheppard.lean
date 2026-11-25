@@ -76,9 +76,8 @@ theorem measureReal_neg_preimage_stdGaussian {s : Set E} (hs : MeasurableSet s) 
 /-- Under `stdGaussian E`, a nonzero linear projection vanishes with probability zero. -/
 theorem measure_stdGaussian_inner_eq_zero {u : E} (hu : u ≠ 0) :
     stdGaussian E {x | ⟪u, x⟫ = 0} = 0 := by
-  have hle := stdGaussian_inner_mem_le hu (measurableSet_singleton (0 : ℝ))
-  simp only [Real.volume_singleton, mul_zero, nonpos_iff_eq_zero] at hle
-  exact hle
+  simpa only [Real.volume_singleton, mul_zero, nonpos_iff_eq_zero, Set.mem_singleton_iff] using
+    stdGaussian_inner_mem_le hu (measurableSet_singleton (0 : ℝ))
 
 /-- Almost surely under `stdGaussian E`, `⟪u, x⟫ ≠ 0` for any nonzero `u`. -/
 theorem stdGaussian_inner_ne_zero_ae {u : E} (hu : u ≠ 0) :
@@ -94,16 +93,15 @@ theorem stdGaussian_unit_inner_ne_zero_ae {u : E} (hu : ⟪u, u⟫ = 1) :
 /-- Under `stdGaussian E`, a unit vector projects to `gaussianReal 0 1`. -/
 theorem stdGaussian_map_inner_unit {u : E} (hu : ‖u‖ = 1) :
     (stdGaussian E).map (fun x => ⟪u, x⟫) = gaussianReal 0 1 := by
-  rw [stdGaussian_map_inner]
   have hn : ‖u‖₊ = 1 := NNReal.eq hu
-  simp only [hn, one_pow]
+  simp [stdGaussian_map_inner, hn]
 
 /-- The covariance of two linear projections under `stdGaussian E` equals their inner product. -/
 theorem cov_inner_stdGaussian (u v : E) :
     cov[fun x => ⟪u, x⟫, fun x => ⟪v, x⟫; stdGaussian E] = ⟪u, v⟫ := by
-  have h := covarianceBilin_apply_eq_cov (μ := stdGaussian E) IsGaussian.memLp_two_id u v
-  rw [covarianceBilin_stdGaussian] at h
-  exact h.symm
+  rw [← covarianceBilin_apply_eq_cov (μ := stdGaussian E) IsGaussian.memLp_two_id,
+    covarianceBilin_stdGaussian]
+  rfl
 
 /-- Pairwise sign-disagreement probability for unit vectors, using the strict/non-strict sign
 predicate `0 < ⟪u, x⟫`. -/
@@ -116,14 +114,10 @@ theorem measureReal_stdGaussian_sign_disagree {u v : E} (hu : ‖u‖ = 1) (hv :
     filter_upwards [stdGaussian_inner_ne_zero_ae hu0, stdGaussian_inner_ne_zero_ae hv0] with x hx hy
     simp only [Set.mem_uIoc]
     rcases lt_or_gt_of_ne hx with hxn | hxp <;> rcases lt_or_gt_of_ne hy with hyn | hyp
-    · constructor <;> intro h
-      · exact absurd ⟨fun h' => absurd h' hxn.not_gt, fun h' => absurd h' hyn.not_gt⟩ h
-      · rcases h with ⟨_, h⟩ | ⟨_, h⟩ <;> linarith
-    · exact iff_of_true (fun h => hxn.not_gt (h.mpr hyp)) (Or.inl ⟨hxn, hyp.le⟩)
-    · exact iff_of_true (fun h => hyn.not_gt (h.mp hxp)) (Or.inr ⟨hyn, hxp.le⟩)
-    · constructor <;> intro h
-      · exact absurd ⟨fun _ => hyp, fun _ => hxp⟩ h
-      · rcases h with ⟨h, _⟩ | ⟨h, _⟩ <;> linarith
+    · simp [hxn.not_gt, hyn.not_gt, hxn.not_ge, hyn.not_ge]
+    · simp [hxn.not_gt, hyp, hxn, hyp.le]
+    · simp [hxp, hyn.not_gt, hyn, hxp.le]
+    · simp [hxp, hyp, hxp.not_gt, hyp.not_gt]
   rw [measureReal_congr hae, measureReal_stdGaussian_zero_mem_uIoc_eq_arccos hu hv]
 
 /-- The three-sign algebraic identity. -/

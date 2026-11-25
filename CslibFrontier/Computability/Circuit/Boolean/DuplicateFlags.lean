@@ -98,15 +98,9 @@ private theorem cost_program_adjacentDuplicateCircuit {input count k : ℕ}
 
 private theorem duplicate_iff_not_unique {α β : Type*} (f : α → β) (i : α) :
     (∃ j, j ≠ i ∧ f j = f i) ↔ ¬ ∃! j, f j = f i := by
-  classical
-  constructor
-  · rintro ⟨j, hn, hj⟩ ⟨w, hw, hu⟩
-    exact hn ((hu j hj).trans (hu i rfl).symm)
-  · intro hn
-    by_contra h
-    exact hn ⟨i, rfl, fun j hj => by
-      by_contra hji
-      exact h ⟨j, hji, hj⟩⟩
+  refine ⟨fun ⟨j, hn, hj⟩ ⟨_, _, hu⟩ => hn ((hu j hj).trans (hu i rfl).symm), fun hn => ?_⟩
+  by_contra! h
+  exact hn ⟨i, rfl, fun j hj => not_ne_iff.mp fun hji => h j hji hj⟩
 
 namespace duplicateFlagsCircuit
 
@@ -119,9 +113,8 @@ def outputs (count : ℕ) : Circuit signature (count * 1) count :=
   Circuit.wiring signature fun i => finProdFinEquiv (i, 0)
 
 private theorem eval_outputs (count : ℕ) (x : BitString (count * 1)) (i : Fin count) :
-    (outputs count).eval interpretation x i = BitString.block x i 0 := by
-  rw [outputs, Circuit.eval_wiring]
-  rfl
+    (outputs count).eval interpretation x i = BitString.block x i 0 :=
+  congrFun (Circuit.eval_wiring _ _ _) i
 
 private theorem eval_rows (count : ℕ) (x : BitString count) :
     BitString.block ((rows count).eval interpretation x) = fun i _ => x i := by
@@ -202,10 +195,9 @@ theorem size_duplicateFlagsCircuit {r k : ℕ} (key : Fin k → Fin r) (d : ℕ)
       (1 + (BitonicSort.arity d - 1) * (6 * k + 1)) + BitonicSort.arity d := by
   have hc := cost_program_duplicateFlagsCircuit key d (fun _ => 1)
   rw [cost_program_adjacentEqualityCircuit] at hc
-  simp only [Program.cost_const, one_mul,
-    size_bitonicSortTraceCircuit] at hc
-  rw [hc]
-  rw [ite_eq_right (by simp [BitonicSort.arity_eq_two_pow])]
+  simp only [Program.cost_const, one_mul, size_bitonicSortTraceCircuit,
+    BitonicSort.arity_eq_two_pow, (Nat.two_pow_pos d).ne', ↓reduceIte] at hc
+  rw [hc, BitonicSort.arity_eq_two_pow]
   ring
 
 end Cslib.Circuits.Boolean

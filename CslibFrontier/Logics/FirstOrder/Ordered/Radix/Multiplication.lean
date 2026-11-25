@@ -108,9 +108,12 @@ theorem realize_multiply {d m : ℕ} (B : (language L).Term α)
       (fun i => ((y i).realize v).val)
     choose R hR hRv using fun i : Fin (m + 1) =>
       exists_word (B.realize v) (lt_of_le_of_lt (Nat.mul_le_mul_left X (hqb i)) hXY)
-    choose T hT hTv using fun i : Fin m => exists_word (B.realize v)
-      (lt_of_le_of_lt (Nat.mul_le_mul_left X (show ((y i).realize v).val ≤ Y by
-        have := hqs i; have := hqb i.castSucc; dsimp [Y]; lia)) hXY)
+    have hyY (i : Fin m) : ((y i).realize v).val ≤ Y := by
+      have hbound : ((y i).realize v).val + (B.realize v).val * q i.succ ≤ Y :=
+        (hqs i).symm.le.trans (hqb i.castSucc)
+      exact (Nat.le_add_right _ _).trans hbound
+    choose T hT hTv using fun i : Fin m =>
+      exists_word (B.realize v) (lt_of_le_of_lt (Nat.mul_le_mul_left X (hyY i)) hXY)
     refine ⟨hx, hy, hz, (fun p => Sum.elim (fun i => R i p.2) (fun i => T i p.2) p.1),
       ?_, ?_, ?_⟩
     · exact congrFun (Nat.ofDigits_ofFn_inj (x := fun j => (R 0 j).val) hB (hR 0) hz
@@ -123,8 +126,7 @@ theorem realize_multiply {d m : ℕ} (B : (language L).Term α)
         hR i.succ, hT i, hR i.castSucc, ?_⟩
       · simpa only [X, Sum.elim_inr, Nat.mul_comm] using (hTv i).symm
       · simp only [Sum.elim_inl, Sum.elim_inr]
-        rw [hRv, hTv, hRv, hqs i]
-        dsimp [X]
-        ring
+        rw [hRv, hTv, hRv, hqs i, Nat.mul_add]
+        ac_rfl
 
 end Cslib.Logic.FO.Ordered.Radix

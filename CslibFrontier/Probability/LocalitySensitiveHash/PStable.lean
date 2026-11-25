@@ -170,9 +170,8 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
   have hper : Function.Periodic (Int.fract : ℝ → ℝ) 1 := fun z => by
     simpa only [add_comm] using Int.fract_add_one z
   have hf_eq (u : ℝ) : ∫ b in (0 : ℝ)..1, Int.fract (u + b) = ∫ b in (0 : ℝ)..1, Int.fract b := by
-    have h1 := intervalIntegral.integral_comp_add_left (Int.fract : ℝ → ℝ) u (a := 0) (b := 1)
-    simp only [add_zero] at h1
-    rw [h1, hper.intervalIntegral_add_eq u 0, zero_add]
+    rw [intervalIntegral.integral_comp_add_left (Int.fract : ℝ → ℝ) u, add_zero,
+      hper.intervalIntegral_add_eq u 0, zero_add]
   have hix := intervalIntegrable_fract_add x
   have hiy := intervalIntegrable_fract_add y
   have hic : IntervalIntegrable (fun _ : ℝ => y - x) volume 0 1 := intervalIntegrable_const
@@ -300,18 +299,31 @@ theorem measureCollisionProb_intervalFloorHash_of_map {α X : Type*} [Measurable
   rw [h1, hmap, h2]
   simp only [abs_mul, abs_of_nonneg hc, stableCollisionProb]
 
+private theorem continuous_stableKernel (r c : ℝ) :
+    Continuous (fun z : ℝ => max (0 : ℝ) (1 - c * |z| / r)) :=
+  continuous_const.max (continuous_const.sub ((continuous_const.mul continuous_abs).div_const r))
+
+private theorem stableKernel_mem_Icc {r c : ℝ} (hr : 0 < r) (hc : 0 ≤ c) (z : ℝ) :
+    max (0 : ℝ) (1 - c * |z| / r) ∈ Set.Icc 0 1 :=
+  ⟨le_max_left _ _,
+    max_le zero_le_one (sub_le_self 1 (div_nonneg (mul_nonneg hc (abs_nonneg z)) hr.le))⟩
+
+private theorem stableKernel_antitone {r : ℝ} (hr : 0 < r) (z : ℝ) :
+    Antitone fun c : ℝ => max (0 : ℝ) (1 - c * |z| / r) := by
+  intro c₁ c₂ hle
+  exact max_le_max le_rfl (sub_le_sub_left
+    (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_right hle (abs_nonneg z)) hr.le) 1)
+
 /-- Integrability of `z ↦ f z * max 0 (1 - c * |z| / r)` when `f ≥ 0` is integrable,
 continuous, `r > 0`, and `c ≥ 0`. -/
 private theorem integrable_mul_stableKernel' {f : ℝ → ℝ} (hf_cont : Continuous f)
     (hf_nonneg : ∀ z, 0 ≤ f z) (hf_int : Integrable f) {r c : ℝ} (hr : 0 < r) (hc : 0 ≤ c) :
     Integrable (fun z : ℝ => f z * max (0 : ℝ) (1 - c * |z| / r)) := by
-  have hm : Continuous fun z : ℝ => f z * max (0 : ℝ) (1 - c * |z| / r) :=
-    hf_cont.mul (continuous_const.max
-      (continuous_const.sub ((continuous_const.mul continuous_abs).div_const r)))
-  refine Integrable.mono' hf_int hm.aestronglyMeasurable (ae_of_all _ fun z => ?_)
-  rw [Real.norm_of_nonneg (mul_nonneg (hf_nonneg z) (le_max_left _ _))]
-  exact mul_le_of_le_one_right (hf_nonneg z)
-    (max_le zero_le_one (sub_le_self 1 (div_nonneg (mul_nonneg hc (abs_nonneg z)) hr.le)))
+  refine Integrable.mono' hf_int (hf_cont.mul (continuous_stableKernel r c)).aestronglyMeasurable
+    (ae_of_all _ fun z => ?_)
+  obtain ⟨hlo, hhi⟩ := stableKernel_mem_Icc hr hc z
+  rw [Real.norm_of_nonneg (mul_nonneg (hf_nonneg z) hlo)]
+  exact mul_le_of_le_one_right (hf_nonneg z) hhi
 
 theorem stableCollisionProb_zero (μ : Measure ℝ) [IsProbabilityMeasure μ] (r : ℝ) :
     stableCollisionProb μ r 0 = 1 := by
@@ -324,52 +336,20 @@ theorem stableCollisionProb_nonneg (μ : Measure ℝ) (r c : ℝ) :
 private theorem integrable_stableKernel (μ : Measure ℝ) [IsFiniteMeasure μ]
     {r c : ℝ} (hr : 0 < r) (hc : 0 ≤ c) :
     Integrable (fun z : ℝ => max (0 : ℝ) (1 - c * |z| / r)) μ := by
-  have hcont : Continuous fun z : ℝ => max (0 : ℝ) (1 - c * |z| / r) :=
-    continuous_const.max
-      (continuous_const.sub ((continuous_const.mul continuous_abs).div_const r))
-  refine Integrable.of_bound hcont.aestronglyMeasurable 1 (ae_of_all _ fun z => ?_)
-  rw [Real.norm_of_nonneg (le_max_left _ _)]
-  exact max_le zero_le_one (sub_le_self 1 (div_nonneg (mul_nonneg hc (abs_nonneg z)) hr.le))
-
-private theorem mul_abs_div_le_half {r c z : ℝ} (hr : 0 < r) (hc : 0 ≤ c) (hz0 : 0 ≤ z)
-    (hz : z ≤ r / (2 * (c + 1))) : c * |z| / r ≤ 1 / 2 := by
-  rw [abs_of_nonneg hz0, div_le_iff₀ hr]
-  calc c * z ≤ c * (r / (2 * (c + 1))) := mul_le_mul_of_nonneg_left hz hc
-    _ = (c / (c + 1)) * ((1 / 2) * r) := by
-        have : c + 1 ≠ 0 := by positivity
-        field_simp
-    _ ≤ 1 * ((1 / 2) * r) := by
-        gcongr
-        exact (div_le_one (by positivity)).2 (by linarith)
-    _ = 1 / 2 * r := one_mul _
+  exact Integrable.of_mem_Icc 0 1 (continuous_stableKernel r c).aemeasurable
+    (ae_of_all _ (stableKernel_mem_Icc hr hc))
 
 theorem stableCollisionProb_le_one (μ : Measure ℝ) [IsProbabilityMeasure μ] {r c : ℝ}
     (hr : 0 < r) (hc : 0 ≤ c) : stableCollisionProb μ r c ≤ 1 := by
   have h := integral_mono (integrable_stableKernel μ hr hc) (integrable_const (1 : ℝ)) fun z =>
-    max_le zero_le_one (sub_le_self 1 (div_nonneg (mul_nonneg hc (abs_nonneg z)) hr.le))
+    (stableKernel_mem_Icc hr hc z).2
   simpa [stableCollisionProb] using h
 
 theorem stableCollisionProb_anti (μ : Measure ℝ) [IsProbabilityMeasure μ] {r : ℝ} (hr : 0 < r)
     {c₁ c₂ : ℝ} (hc₁ : 0 ≤ c₁) (hle : c₁ ≤ c₂) :
     stableCollisionProb μ r c₂ ≤ stableCollisionProb μ r c₁ := by
-  refine integral_mono (integrable_stableKernel μ hr (hc₁.trans hle))
-    (integrable_stableKernel μ hr hc₁) fun z => max_le_max le_rfl ?_
-  gcongr
-
-/-- An integrable nonnegative function bounded away from zero on `[a, b]` (`a < b`) has strictly
-positive integral on `ℝ`. -/
-private theorem pos_integral_of_bound_Icc {g : ℝ → ℝ} (hg_int : Integrable g)
-    (hg_nonneg : ∀ z, 0 ≤ g z) {a b m : ℝ} (hab : a < b) (hm : 0 < m)
-    (hmin : ∀ z ∈ Set.Icc a b, m ≤ g z) : 0 < ∫ z : ℝ, g z := by
-  have hsub : (b - a) * m ≤ ∫ z in Set.Ioc a b, g z := by
-    have hconst : ∫ _ in Set.Ioc a b, m = (b - a) * m := by
-      rw [setIntegral_const, Real.volume_real_Ioc, smul_eq_mul, max_eq_left (sub_nonneg.2 hab.le)]
-    rw [← hconst]
-    exact setIntegral_mono_on (integrableOn_const (hs := by simp [Real.volume_Ioc]))
-      hg_int.integrableOn measurableSet_Ioc fun z hz => hmin z ⟨hz.1.le, hz.2⟩
-  have hle : ∫ z in Set.Ioc a b, g z ≤ ∫ z : ℝ, g z :=
-    setIntegral_le_integral hg_int (ae_of_all _ hg_nonneg)
-  exact lt_of_lt_of_le (mul_pos (sub_pos.2 hab) hm) (hsub.trans hle)
+  exact integral_mono (integrable_stableKernel μ hr (hc₁.trans hle))
+    (integrable_stableKernel μ hr hc₁) fun z => stableKernel_antitone hr z hle
 
 /-- `stableCollisionProb` against a strictly positive continuous integrable density `f` is
 strictly positive. -/
@@ -381,15 +361,11 @@ private theorem stableCollisionProb_withDensity_pos {f : ℝ → ℝ}
   rw [stableCollisionProb, integral_withDensity_eq_integral_toReal_smul hm
     (ae_of_all _ fun _ => ENNReal.ofReal_lt_top)]
   simp_rw [ENNReal.toReal_ofReal (hf_pos _).le, smul_eq_mul]
-  set δ : ℝ := r / (2 * (c + 1))
-  have hδ : 0 < δ := by positivity
-  obtain ⟨z₀, -, hz₀⟩ := (isCompact_Icc (a := (0 : ℝ)) (b := δ)).exists_isMinOn
-    ⟨0, left_mem_Icc.2 hδ.le⟩ hf_cont.continuousOn
-  have hg_int := integrable_mul_stableKernel' hf_cont (fun z => (hf_pos z).le) hf_int hr hc
-  refine pos_integral_of_bound_Icc hg_int (fun z => mul_nonneg (hf_pos z).le (le_max_left _ _))
-    hδ (mul_pos (hf_pos z₀) (by norm_num : (0 : ℝ) < 1 / 2)) fun z hz => ?_
-  have hcδ : c * |z| / r ≤ 1 / 2 := mul_abs_div_le_half hr hc hz.1 hz.2
-  exact mul_le_mul (hz₀ hz) (le_max_of_le_right (by linarith)) (by norm_num) (hf_pos z).le
+  refine integral_pos_of_integrable_nonneg_ne_zero (x := 0)
+    (hf_cont.mul (continuous_stableKernel r c))
+    (integrable_mul_stableKernel' hf_cont (fun z => (hf_pos z).le) hf_int hr hc)
+    (fun z => mul_nonneg (hf_pos z).le (le_max_left _ _)) ?_
+  simpa using (hf_pos 0).ne'
 
 /-- `stableCollisionProb` against a strictly positive continuous integrable density `f` is
 strictly decreasing in `c ≥ 0`. -/
@@ -399,7 +375,6 @@ private theorem stableCollisionProb_withDensity_strictAnti {f : ℝ → ℝ}
     stableCollisionProb (volume.withDensity fun z => ENNReal.ofReal (f z)) r c₂ <
       stableCollisionProb (volume.withDensity fun z => ENNReal.ofReal (f z)) r c₁ := by
   have hc₂ : 0 ≤ c₂ := hc₁.trans hlt.le
-  have hdiff_c : 0 < c₂ - c₁ := sub_pos.2 hlt
   have hm : Measurable (fun z => ENNReal.ofReal (f z)) := by fun_prop
   rw [stableCollisionProb, stableCollisionProb,
     integral_withDensity_eq_integral_toReal_smul hm (ae_of_all _ fun _ => ENNReal.ofReal_lt_top),
@@ -408,30 +383,23 @@ private theorem stableCollisionProb_withDensity_strictAnti {f : ℝ → ℝ}
   have hi1 := integrable_mul_stableKernel' hf_cont (fun z => (hf_pos z).le) hf_int hr hc₁
   have hi2 := integrable_mul_stableKernel' hf_cont (fun z => (hf_pos z).le) hf_int hr hc₂
   rw [← sub_pos, ← integral_sub hi1 hi2]
-  set δ : ℝ := r / (2 * (c₂ + 1))
-  have hδ : 0 < δ := by positivity
-  obtain ⟨z₀, -, hz₀⟩ := (isCompact_Icc (a := δ / 2) (b := δ)).exists_isMinOn
-    ⟨δ / 2, left_mem_Icc.2 (by linarith)⟩ hf_cont.continuousOn
-  have hdiff_nonneg : ∀ z, 0 ≤ f z * max (0 : ℝ) (1 - c₁ * |z| / r) -
-      f z * max (0 : ℝ) (1 - c₂ * |z| / r) := fun z => by
-    rw [← mul_sub]
-    refine mul_nonneg (hf_pos z).le (sub_nonneg.2 (max_le_max le_rfl ?_))
-    gcongr
-  refine pos_integral_of_bound_Icc (hi1.sub hi2) hdiff_nonneg (show δ / 2 < δ by linarith)
-    (mul_pos (hf_pos z₀) (div_pos (mul_pos hdiff_c (half_pos hδ)) hr)) fun z hz => ?_
-  have hz0 : 0 ≤ z := by linarith [hz.1]
-  have hc2δ : c₂ * |z| / r ≤ 1 / 2 := mul_abs_div_le_half hr hc₂ hz0 hz.2
-  have hc1δ : c₁ * |z| / r ≤ 1 / 2 :=
-    (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_right hlt.le (abs_nonneg z)) hr.le).trans hc2δ
-  rw [← mul_sub, max_eq_right (by linarith : 0 ≤ 1 - c₁ * |z| / r),
-    max_eq_right (by linarith : 0 ≤ 1 - c₂ * |z| / r)]
-  have hgap : (c₂ - c₁) * (δ / 2) / r ≤ (1 - c₁ * |z| / r) - (1 - c₂ * |z| / r) := by
-    rw [abs_of_nonneg hz0]
-    have heq : (1 - c₁ * z / r) - (1 - c₂ * z / r) = (c₂ - c₁) * z / r := by ring
-    rw [heq]
-    gcongr
-    exact hz.1
-  exact mul_le_mul (hz₀ hz) hgap (by positivity) (hf_pos z).le
+  let z : ℝ := r / (c₂ + 1)
+  have hz : 0 < z := by positivity
+  have hratio : c₂ * |z| / r < 1 := by
+    rw [abs_of_pos hz, div_lt_one hr]
+    dsimp only [z]
+    rw [← mul_div_assoc, div_lt_iff₀ (by positivity)]
+    linarith
+  have hcompare : c₁ * |z| / r < c₂ * |z| / r :=
+    div_lt_div_of_pos_right (mul_lt_mul_of_pos_right hlt (abs_pos.mpr hz.ne')) hr
+  refine integral_pos_of_integrable_nonneg_ne_zero (x := z)
+    ((hf_cont.mul (continuous_stableKernel r c₁)).sub (hf_cont.mul (continuous_stableKernel r c₂)))
+    (hi1.sub hi2) (fun x => ?_) ?_
+  · rw [Pi.zero_apply, ← mul_sub]
+    exact mul_nonneg (hf_pos x).le (sub_nonneg.mpr (stableKernel_antitone hr x hlt.le))
+  · rw [← mul_sub, max_eq_right (sub_nonneg.mpr (hcompare.trans hratio).le),
+      max_eq_right (sub_nonneg.mpr hratio.le)]
+    exact (mul_pos (hf_pos z) (sub_pos.mpr (sub_lt_sub_left hcompare 1))).ne'
 
 /-- For an even, continuous, integrable density `f`, `stableCollisionProb` reduces to
 `2 * ∫ z in 0..(r / c), (1 - c * z / r) * f z`. -/
@@ -522,13 +490,10 @@ theorem p2StableProb_strictAnti {r c₁ c₂ : ℝ} (hr : 0 < r) (hc₁ : 0 ≤ 
 private theorem p2StableProb_eq_two_mul {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     p2StableProb r c =
       2 * ∫ z in (0 : ℝ)..(r / c), (1 - c * z / r) * gaussianPDFReal 0 1 z := by
-  have heven : ∀ z, gaussianPDFReal 0 1 (-z) = gaussianPDFReal 0 1 z := fun z => by
-    simp [gaussianPDFReal_def]
-  have h2 := stableCollisionProb_withDensity_eq_two_mul (continuous_gaussianPDFReal 0 1)
-    (fun z => (gaussianPDFReal_pos 0 1 z one_ne_zero).le) (integrable_gaussianPDFReal 0 1)
-    heven hr hc
   rw [p2StableProb, gaussianReal_of_var_ne_zero 0 one_ne_zero]
-  exact h2
+  exact stableCollisionProb_withDensity_eq_two_mul (continuous_gaussianPDFReal 0 1)
+    (fun z => (gaussianPDFReal_pos 0 1 z one_ne_zero).le) (integrable_gaussianPDFReal 0 1)
+    (fun z => by simp [gaussianPDFReal_def]) hr hc
 
 /-- **Exact integral representation for `p = 2`** ([DatarImmorlicaIndykMirrokni2004]): for `r > 0`
 and `c > 0`, `p2StableProb r c = ∫ t in 0..r, (2 / c) * gaussianPDFReal 0 1 (t / c) * (1 - t / r)`.
@@ -593,8 +558,6 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
       intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv hie]
     simp only [zero_pow (by decide : 2 ≠ 0), neg_zero, zero_div, Real.exp_zero]
     have hsqrt : 2 * (√(2 * π))⁻¹ = √(2 / π) := by
-      have h2ne : √(2 : ℝ) ≠ 0 := Real.sqrt_ne_zero'.2 zero_lt_two
-      have hpne : √π ≠ 0 := Real.sqrt_ne_zero'.2 pi_pos
       rw [Real.sqrt_div zero_le_two, Real.sqrt_mul zero_le_two]
       field_simp
       rw [Real.sq_sqrt zero_le_two]
@@ -683,14 +646,10 @@ theorem p1StableProb_strictAnti {r c₁ c₂ : ℝ} (hr : 0 < r) (hc₁ : 0 ≤ 
 `p1StableProb r c = (2 / π) arctan (r / c) - (c / (π r)) log (1 + (r / c) ^ 2)`. -/
 theorem p1StableProb_eq {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     p1StableProb r c = 2 / π * Real.arctan (r / c) - c / (π * r) * Real.log (1 + (r / c) ^ 2) := by
-  have heven : ∀ z, cauchyPDFReal 0 1 (-z) = cauchyPDFReal 0 1 z := fun z => by
-    simp [cauchyPDFReal_def]
-  have h2 := stableCollisionProb_withDensity_eq_two_mul continuous_cauchyPDFReal
-    (fun z => (cauchyPDF_pos 0 one_ne_zero z).le) (integrable_cauchyPDFReal 0) heven hr hc
   rw [p1StableProb, cauchyMeasure_of_scale_ne_zero 0 one_ne_zero]
-  change stableCollisionProb
-    (volume.withDensity fun z => ENNReal.ofReal (cauchyPDFReal 0 1 z)) r c = _
-  rw [h2]
+  refine (stableCollisionProb_withDensity_eq_two_mul continuous_cauchyPDFReal
+    (fun z => (cauchyPDF_pos 0 one_ne_zero z).le) (integrable_cauchyPDFReal 0)
+    (fun z => by simp [cauchyPDFReal_def]) hr hc).trans ?_
   have hcongr : (fun z : ℝ => (1 - c * z / r) * cauchyPDFReal 0 1 z) =
       fun z => π⁻¹ * (1 + z ^ 2)⁻¹ - (c / (π * r)) * (z * (1 + z ^ 2)⁻¹) := by
     funext z

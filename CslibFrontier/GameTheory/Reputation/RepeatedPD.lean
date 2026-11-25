@@ -165,39 +165,37 @@ theorem discountedPayoff_const {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) 
 theorem discountedPayoff_cons {δ B : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) {u : ℕ → ℝ}
     (hu : ∀ t, |u t| ≤ B) :
     discountedPayoff δ u = (1 - δ) * u 0 + δ * discountedPayoff δ (fun t => u (t + 1)) := by
-  have hsum : Summable fun t : ℕ => δ ^ t * u t := summable_pow_mul_of_bdd hδ₀ hδ₁ hu
-  have htail : (fun t : ℕ => δ ^ (t + 1) * u (t + 1)) =
-      fun t : ℕ => δ * (δ ^ t * u (t + 1)) := by
-    ext t
-    ring
+  have hsum := summable_pow_mul_of_bdd hδ₀ hδ₁ hu
+  have htail : (fun t : ℕ => δ ^ (t + 1) * u (t + 1)) = fun t => δ * (δ ^ t * u (t + 1)) :=
+    funext fun _ => by ring
   rw [discountedPayoff, hsum.tsum_eq_zero_add, pow_zero, one_mul, htail, tsum_mul_left,
     discountedPayoff]
   ring
 
+private theorem discountedPayoff_ite_zero {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (a c : ℝ) :
+    discountedPayoff δ (fun t => if t = 0 then a else c) = (1 - δ) * a + δ * c := by
+  have hbd : ∀ t : ℕ, |(if t = 0 then a else c)| ≤ |a| + |c| := fun t => by
+    split_ifs <;> linarith [abs_nonneg a, abs_nonneg c]
+  rw [discountedPayoff_cons hδ₀ hδ₁ hbd]
+  simp [discountedPayoff_const hδ₀ hδ₁]
+
 theorem discountedPayoff_le_of_forall_le {δ B : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) {u v : ℕ → ℝ}
     (hu : ∀ t, |u t| ≤ B) (hv : ∀ t, |v t| ≤ B) (huv : ∀ t, u t ≤ v t) :
-    discountedPayoff δ u ≤ discountedPayoff δ v := by
-  refine mul_le_mul_of_nonneg_left ?_ (by linarith)
-  exact (summable_pow_mul_of_bdd hδ₀ hδ₁ hu).tsum_le_tsum
-    (fun t => mul_le_mul_of_nonneg_left (huv t) (pow_nonneg hδ₀ t))
-    (summable_pow_mul_of_bdd hδ₀ hδ₁ hv)
+    discountedPayoff δ u ≤ discountedPayoff δ v :=
+  mul_le_mul_of_nonneg_left
+    ((summable_pow_mul_of_bdd hδ₀ hδ₁ hu).tsum_le_tsum
+      (fun t => mul_le_mul_of_nonneg_left (huv t) (pow_nonneg hδ₀ t))
+      (summable_pow_mul_of_bdd hδ₀ hδ₁ hv))
+    (by linarith)
 
 theorem abs_discountedPayoff_le {δ B : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) {u : ℕ → ℝ}
     (hu : ∀ t, |u t| ≤ B) : |discountedPayoff δ u| ≤ B := by
-  have hB : 0 ≤ B := (abs_nonneg (u 0)).trans (hu 0)
-  have hconst : ∀ c : ℝ, ∀ t : ℕ, |(fun _ : ℕ => c) t| ≤ |c| := fun c _ => le_rfl
-  rw [abs_le]
-  constructor
-  · have hlo := discountedPayoff_le_of_forall_le hδ₀ hδ₁ (B := max B |-B|)
-      (fun t => (le_rfl : |(-B : ℝ)| ≤ |-B|).trans (le_max_right _ _))
-      (fun t => (hu t).trans (le_max_left _ _))
-      (fun t => (abs_le.mp (hu t)).1)
-    rwa [discountedPayoff_const hδ₀ hδ₁] at hlo
-  · have hhi := discountedPayoff_le_of_forall_le hδ₀ hδ₁ (B := max B |B|)
-      (fun t => (hu t).trans (le_max_left _ _))
-      (fun t => (hconst B t).trans (le_max_right _ _))
-      (fun t => (abs_le.mp (hu t)).2)
-    rwa [discountedPayoff_const hδ₀ hδ₁] at hhi
+  have hB : 0 ≤ B := (abs_nonneg _).trans (hu 0)
+  refine abs_le.mpr ⟨?_, ?_⟩
+  · simpa [discountedPayoff_const hδ₀ hδ₁] using discountedPayoff_le_of_forall_le hδ₀ hδ₁
+      (fun _ => by simp [abs_of_nonneg hB]) hu fun t => (abs_le.mp (hu t)).1
+  · simpa [discountedPayoff_const hδ₀ hδ₁] using discountedPayoff_le_of_forall_le hδ₀ hδ₁
+      hu (fun _ => by simp [abs_of_nonneg hB]) fun t => (abs_le.mp (hu t)).2
 
 /-! ### Public histories, continuation payoffs, and the one-shot deviation principle -/
 
@@ -273,13 +271,9 @@ private theorem historyAfter_swapStrategy (σ₁ σ₂ : PDStrategy) (h : PDHist
   induction t generalizing h with
   | zero => rfl
   | succ t ih =>
-    have hmap : h.map PDRound.swap ++
-        [PDRound.mk (swapStrategy σ₂ (h.map PDRound.swap))
-          (swapStrategy σ₁ (h.map PDRound.swap))] =
-        (h ++ [PDRound.mk (σ₁ h) (σ₂ h)]).map PDRound.swap := by
-      simp [swapStrategy, List.map_map, Function.comp_def, PDRound.swap]
-    simp only [historyAfter]
-    rw [hmap, ih]
+    simp only [historyAfter, ← ih]
+    congr 1
+    simp [swapStrategy, List.map_map, Function.comp_def, PDRound.swap]
 
 private theorem contPayoff₂_eq_contPayoff₁_swap (δ : ℝ) (σ₁ σ₂ : PDStrategy) (h : PDHistory) :
     contPayoff₂ δ σ₁ σ₂ h =
@@ -347,84 +341,75 @@ private theorem roundAt_congr_of_gt {σ₁ σ₁' σ₂ σ₂' : PDStrategy} {n 
   have heq := historyAfter_congr_of_gt h₁ h₂ t h hn
   simp only [roundAt, heq, h₁ _ hlen, h₂ _ hlen]
 
+private theorem forall_contPayoff₁_le_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1)
+    (σ₁ σ₂ : PDStrategy) :
+    (∀ h : PDHistory, ∀ σ₁' : PDStrategy, contPayoff₁ δ σ₁' σ₂ h ≤ contPayoff₁ δ σ₁ σ₂ h) ↔
+      ∀ h : PDHistory, ∀ a : PDAction,
+        (1 - δ) * pdPayoff a (σ₂ h) + δ * contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) ≤
+          contPayoff₁ δ σ₁ σ₂ h := by
+  refine ⟨fun h₁ h a => ?_, fun h₁ h σ₁' => ?_⟩
+  · let σ₁' : PDStrategy := fun h' => if h' = h then a else σ₁ h'
+    have hgt (h' : PDHistory) (hlen : h.length < h'.length) : σ₁' h' = σ₁ h' :=
+      ite_eq_right fun heq => Nat.lt_irrefl _ (heq ▸ hlen)
+    have htail : contPayoff₁ δ σ₁' σ₂ (h ++ [⟨a, σ₂ h⟩]) =
+        contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) := by
+      unfold contPayoff₁
+      congr 1
+      ext t
+      rw [roundAt_congr_of_gt hgt (fun _ _ => rfl) (by simp)]
+    have hbell := contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h
+    simp only [σ₁', ↓reduceIte, htail] at hbell
+    exact hbell ▸ h₁ h σ₁'
+  · have hbd (n : ℕ) : ∀ h' : PDHistory,
+        contPayoff₁ δ σ₁' σ₂ h' - contPayoff₁ δ σ₁ σ₂ h' ≤ 4 * δ ^ n := by
+      induction n with
+      | zero =>
+        intro h'
+        linarith [(abs_le.mp (abs_contPayoff₁_le_two hδ₀ hδ₁ σ₁' σ₂ h')).2,
+          (abs_le.mp (abs_contPayoff₁_le_two hδ₀ hδ₁ σ₁ σ₂ h')).1, pow_zero δ]
+      | succ n ih =>
+        intro h'
+        rw [contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h', pow_succ']
+        linarith [mul_le_mul_of_nonneg_left (ih (h' ++ [⟨σ₁' h', σ₂ h'⟩])) hδ₀, h₁ h' (σ₁' h')]
+    have hlim : Filter.Tendsto (fun n : ℕ => 4 * δ ^ n) Filter.atTop (nhds 0) := by
+      simpa using (tendsto_pow_atTop_nhds_zero_of_lt_one hδ₀ hδ₁).const_mul 4
+    linarith [le_of_tendsto_of_tendsto' tendsto_const_nhds hlim fun n => hbd n h]
+
 /-- **One-shot deviation principle** for the infinitely repeated Prisoner's Dilemma
 ([FriedmanResnickSami2007, §27.2, p. 681]): for `0 ≤ δ < 1`, `(σ₁, σ₂)` is an SPNE if and only if
 neither player has a profitable one-shot deviation after any finite history. -/
 theorem isSPNE_iff_noOneShotDev {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (σ₁ σ₂ : PDStrategy) :
     IsSPNE δ σ₁ σ₂ ↔ NoOneShotDev δ σ₁ σ₂ := by
-  constructor
-  · rintro ⟨h₁, h₂⟩
-    refine ⟨fun h a => ?_, fun h b => ?_⟩
-    · let σ₁' : PDStrategy := fun h' => if h' = h then a else σ₁ h'
-      have hgt : ∀ h' : PDHistory, h.length < h'.length → σ₁' h' = σ₁ h' := by
-        intro h' hlen
-        have hne : h' ≠ h := fun heq => Nat.lt_irrefl _ (heq ▸ hlen)
-        simp [σ₁', hne]
-      have htail : contPayoff₁ δ σ₁' σ₂ (h ++ [⟨a, σ₂ h⟩]) =
-          contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) := by
-        unfold contPayoff₁
-        congr 1; ext t
-        rw [roundAt_congr_of_gt hgt (fun _ _ => rfl) (by simp)]
-      have hbell := contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h
-      simp only [σ₁', ↓reduceIte, htail] at hbell
-      exact hbell ▸ h₁ h σ₁'
-    · let σ₂' : PDStrategy := fun h' => if h' = h then b else σ₂ h'
-      have hgt : ∀ h' : PDHistory, h.length < h'.length → σ₂' h' = σ₂ h' := by
-        intro h' hlen
-        have hne : h' ≠ h := fun heq => Nat.lt_irrefl _ (heq ▸ hlen)
-        simp [σ₂', hne]
-      have htail : contPayoff₂ δ σ₁ σ₂' (h ++ [⟨σ₁ h, b⟩]) =
-          contPayoff₂ δ σ₁ σ₂ (h ++ [⟨σ₁ h, b⟩]) := by
-        unfold contPayoff₂
-        congr 1; ext t
-        rw [roundAt_congr_of_gt (fun _ _ => rfl) hgt (by simp)]
-      have hbell := contPayoff₂_bellman hδ₀ hδ₁ σ₁ σ₂' h
-      simp only [σ₂', ↓reduceIte, htail] at hbell
-      exact hbell ▸ h₂ h σ₂'
-  · rintro ⟨h₁, h₂⟩
-    refine ⟨fun h σ₁' => ?_, fun h σ₂' => ?_⟩
-    · have hbd : ∀ n (h' : PDHistory),
-          contPayoff₁ δ σ₁' σ₂ h' - contPayoff₁ δ σ₁ σ₂ h' ≤ 4 * δ ^ n := by
-        intro n
-        induction n with
-        | zero =>
-          intro h'
-          have ha := (abs_le.mp (abs_contPayoff₁_le_two hδ₀ hδ₁ σ₁' σ₂ h')).2
-          have hb := (abs_le.mp (abs_contPayoff₁_le_two hδ₀ hδ₁ σ₁ σ₂ h')).1
-          linarith [pow_zero δ]
-        | succ n ih =>
-          intro h'
-          rw [contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h']
-          have hstep := mul_le_mul_of_nonneg_left
-            (ih (h' ++ [⟨σ₁' h', σ₂ h'⟩])) hδ₀
-          have hosd := h₁ h' (σ₁' h')
-          rw [pow_succ']
-          linarith
-      have hlim : Filter.Tendsto (fun n : ℕ => 4 * δ ^ n) Filter.atTop (nhds 0) := by
-        simpa using (tendsto_pow_atTop_nhds_zero_of_lt_one hδ₀ hδ₁).const_mul 4
-      have hle := le_of_tendsto_of_tendsto' tendsto_const_nhds hlim fun n => hbd n h
-      linarith
-    · have hbd : ∀ n (h' : PDHistory),
-          contPayoff₂ δ σ₁ σ₂' h' - contPayoff₂ δ σ₁ σ₂ h' ≤ 4 * δ ^ n := by
-        intro n
-        induction n with
-        | zero =>
-          intro h'
-          have ha := (abs_le.mp (abs_contPayoff₂_le_two hδ₀ hδ₁ σ₁ σ₂' h')).2
-          have hb := (abs_le.mp (abs_contPayoff₂_le_two hδ₀ hδ₁ σ₁ σ₂ h')).1
-          linarith [pow_zero δ]
-        | succ n ih =>
-          intro h'
-          rw [contPayoff₂_bellman hδ₀ hδ₁ σ₁ σ₂' h']
-          have hstep := mul_le_mul_of_nonneg_left
-            (ih (h' ++ [⟨σ₁ h', σ₂' h'⟩])) hδ₀
-          have hosd := h₂ h' (σ₂' h')
-          rw [pow_succ']
-          linarith
-      have hlim : Filter.Tendsto (fun n : ℕ => 4 * δ ^ n) Filter.atTop (nhds 0) := by
-        simpa using (tendsto_pow_atTop_nhds_zero_of_lt_one hδ₀ hδ₁).const_mul 4
-      have hle := le_of_tendsto_of_tendsto' tendsto_const_nhds hlim fun n => hbd n h
-      linarith
+  have hmap_inv (h : PDHistory) : (h.map PDRound.swap).map PDRound.swap = h := by
+    simp [List.map_map, Function.comp_def]
+  have hsw_inv (σ : PDStrategy) : swapStrategy (swapStrategy σ) = σ := by
+    ext h
+    simp [swapStrategy, hmap_inv]
+  refine and_congr (forall_contPayoff₁_le_iff hδ₀ hδ₁ σ₁ σ₂) ?_
+  have h2 := forall_contPayoff₁_le_iff hδ₀ hδ₁ (swapStrategy σ₂) (swapStrategy σ₁)
+  refine ⟨fun hp2 h b => ?_, fun hosd2 h σ₂' => ?_⟩
+  · have hstep := (h2.mp fun h' τ => by
+      have := hp2 (h'.map PDRound.swap) (swapStrategy τ)
+      rwa [contPayoff₂_eq_contPayoff₁_swap, contPayoff₂_eq_contPayoff₁_swap,
+        hsw_inv, hmap_inv] at this) (h.map PDRound.swap) b
+    rw [contPayoff₂_eq_contPayoff₁_swap, contPayoff₂_eq_contPayoff₁_swap]
+    simpa [swapStrategy, hmap_inv, PDRound.swap] using hstep
+  · rw [contPayoff₂_eq_contPayoff₁_swap, contPayoff₂_eq_contPayoff₁_swap]
+    exact (h2.mpr fun h' b => by
+      have := hosd2 (h'.map PDRound.swap) b
+      rw [contPayoff₂_eq_contPayoff₁_swap, contPayoff₂_eq_contPayoff₁_swap] at this
+      simpa [swapStrategy, hmap_inv, PDRound.swap] using this) _ _
+
+private theorem noOneShotDev_of_swapStrategy {δ : ℝ} {σ₁ σ₂ : PDStrategy}
+    (hsw₁ : swapStrategy σ₁ = σ₂) (hsw₂ : swapStrategy σ₂ = σ₁)
+    (h₁ : ∀ h a, (1 - δ) * pdPayoff a (σ₂ h) + δ * contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) ≤
+      contPayoff₁ δ σ₁ σ₂ h) :
+    NoOneShotDev δ σ₁ σ₂ := by
+  refine ⟨h₁, fun h b => ?_⟩
+  have hsym := h₁ (h.map PDRound.swap) b
+  have hs1 : σ₂ (h.map PDRound.swap) = σ₁ h := congrFun hsw₂ h
+  rw [contPayoff₂_eq_contPayoff₁_swap, contPayoff₂_eq_contPayoff₁_swap, hsw₁, hsw₂]
+  simpa [hs1, PDRound.swap] using hsym
 
 /-! ### Grim trigger, Naive Grim, and Tit-for-Tat -/
 
@@ -437,42 +422,32 @@ def allCooperated (h : PDHistory) : Bool :=
 def grim (h : PDHistory) : PDAction :=
   if allCooperated h then .cooperate else .defect
 
+private theorem allCooperated_snoc (h : PDHistory) (a b : PDAction) :
+    allCooperated (h ++ [⟨a, b⟩]) =
+      (allCooperated h && decide (a = .cooperate ∧ b = .cooperate)) := by
+  simp only [allCooperated, List.all_append, List.all_cons, List.all_nil, Bool.and_true]
+
 private theorem historyAfter_grim_of_allCooperated {h : PDHistory} (hc : allCooperated h = true)
     (t : ℕ) : allCooperated (historyAfter grim grim h t) = true := by
   induction t generalizing h with
   | zero => exact hc
   | succ t ih =>
-    have hstep : allCooperated (h ++ [⟨grim h, grim h⟩]) = true := by
-      have hg : grim h = .cooperate := by simp [grim, hc]
-      rw [hg]
-      simp only [allCooperated, List.all_append, Bool.and_eq_true]
-      exact ⟨hc, by decide⟩
-    exact ih hstep
+    exact ih (by
+      simp only [allCooperated_snoc, grim, hc, ↓reduceIte, and_self, decide_true, Bool.and_self])
 
 private theorem historyAfter_grim_of_not_allCooperated {h : PDHistory}
     (hc : allCooperated h = false) (t : ℕ) :
     allCooperated (historyAfter grim grim h t) = false := by
   induction t generalizing h with
   | zero => exact hc
-  | succ t ih =>
-    have hstep : allCooperated (h ++ [⟨grim h, grim h⟩]) = false := by
-      simp only [allCooperated, List.all_append, Bool.and_eq_false_imp]
-      intro hall
-      exact absurd hall (by simpa [allCooperated] using hc)
-    exact ih hstep
+  | succ t ih => exact ih (by simp only [allCooperated_snoc, hc, Bool.false_and])
 
 private theorem allCooperated_map_swap (h : PDHistory) :
     allCooperated (h.map PDRound.swap) = allCooperated h := by
-  induction h with
-  | nil => rfl
-  | cons r hs ih =>
-    cases r
-    simp only [List.map_cons, allCooperated, List.all_cons, PDRound.swap]
-    rw [show hs.all (fun r => decide (r.act₁ = .cooperate ∧ r.act₂ = .cooperate)) =
-        allCooperated hs from rfl,
-      show (hs.map PDRound.swap).all (fun r => decide (r.act₁ = .cooperate ∧ r.act₂ = .cooperate)) =
-        allCooperated (hs.map PDRound.swap) from rfl, ih]
-    simp [and_comm]
+  simp only [allCooperated, List.all_map]
+  congr 1
+  ext ⟨a₁, a₂⟩
+  cases a₁ <;> cases a₂ <;> rfl
 
 private theorem swapStrategy_grim : swapStrategy grim = grim := by
   ext h
@@ -504,44 +479,17 @@ theorem isSPNE_grim_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
   constructor
   · intro h
     have hosd := h.1 [] .defect
-    have hg0 : grim [] = .cooperate := rfl
-    have hc1 : allCooperated ([] : PDHistory) = true := rfl
-    have hc2 : allCooperated ([⟨.defect, .cooperate⟩] : PDHistory) = false := rfl
-    rw [hg0, List.nil_append, contPayoff₁_grim hδ₀ hδ₁ [],
-      contPayoff₁_grim hδ₀ hδ₁ [⟨.defect, .cooperate⟩]] at hosd
-    simp only [hc1, hc2, Bool.false_eq_true, ↓reduceIte, pdPayoff] at hosd
+    rw [contPayoff₁_grim hδ₀ hδ₁, contPayoff₁_grim hδ₀ hδ₁] at hosd
+    simp only [grim, allCooperated, List.nil_append, List.all_nil, List.all_cons, reduceCtorEq,
+      false_and, decide_false, Bool.and_true, Bool.false_eq_true, ↓reduceIte, pdPayoff] at hosd
     linarith
   · intro hδ
-    have h₁ : ∀ (h : PDHistory) (a : PDAction),
-        (1 - δ) * pdPayoff a (grim h) + δ * contPayoff₁ δ grim grim (h ++ [⟨a, grim h⟩]) ≤
-          contPayoff₁ δ grim grim h := by
-      intro h a
-      rw [contPayoff₁_grim hδ₀ hδ₁ h, contPayoff₁_grim hδ₀ hδ₁]
-      cases hc : allCooperated h
-      · have hc' : allCooperated (h ++ [⟨a, grim h⟩]) = false := by
-          simp only [allCooperated, List.all_append, Bool.and_eq_false_imp]
-          intro hall; exact absurd hall (by simpa [allCooperated] using hc)
-        rw [hc']
-        cases a <;> simp only [grim, hc, Bool.false_eq_true, ↓reduceIte, pdPayoff] <;> linarith
-      · cases a
-        · have hc' : allCooperated (h ++ [⟨.cooperate, grim h⟩]) = true := by
-            have hg : grim h = .cooperate := by simp [grim, hc]
-            rw [hg]; simp only [allCooperated, List.all_append, Bool.and_eq_true]
-            exact ⟨hc, by decide⟩
-          rw [hc']; simp only [grim, hc, ↓reduceIte, pdPayoff]
-          linarith
-        · have hc' : allCooperated (h ++ [⟨.defect, grim h⟩]) = false := by
-            simp [allCooperated]
-          rw [hc']; simp only [grim, hc, Bool.false_eq_true, ↓reduceIte, pdPayoff]
-          linarith
-    refine ⟨h₁, fun h b => ?_⟩
-    have hsym := h₁ (h.map PDRound.swap) b
-    have hgm : grim (h.map PDRound.swap) = grim h := by simp [grim, allCooperated_map_swap]
-    have hmap : h.map PDRound.swap ++ [PDRound.mk b (grim (h.map PDRound.swap))] =
-        (h ++ [PDRound.mk (grim h) b]).map PDRound.swap := by
-      simp [hgm, PDRound.swap]
-    rw [contPayoff₂_eq_contPayoff₁_swap, contPayoff₂_eq_contPayoff₁_swap, swapStrategy_grim]
-    simpa [hgm, hmap, PDRound.swap] using hsym
+    refine noOneShotDev_of_swapStrategy swapStrategy_grim swapStrategy_grim fun h a => ?_
+    rw [contPayoff₁_grim hδ₀ hδ₁ h, contPayoff₁_grim hδ₀ hδ₁, allCooperated_snoc]
+    cases hc : allCooperated h <;> cases a <;>
+      simp only [grim, hc, Bool.false_and, Bool.true_and, and_self, and_false, false_and,
+        reduceCtorEq, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte, pdPayoff] <;>
+      linarith
 
 /-- Naive Grim for player 1: cooperate unless *player 2* has defected in a previous round
 [FriedmanResnickSami2007, Exercise 27.3, p. 696]. -/
@@ -563,8 +511,10 @@ private theorem roundAt_naiveGrim_both_defected {h : PDHistory}
     simp only [naiveGrim₁, naiveGrim₂, h₁, h₂, Bool.false_eq_true, ↓reduceIte]
   | succ t ih =>
     apply ih
-    · simp only [List.all_append, Bool.and_eq_false_imp]; intro ha; exact absurd ha (by simp [h₁])
-    · simp only [List.all_append, Bool.and_eq_false_imp]; intro ha; exact absurd ha (by simp [h₂])
+    · simp only [List.all_append, Bool.and_eq_false_imp]
+      exact fun ha => absurd ha (by simp [h₁])
+    · simp only [List.all_append, Bool.and_eq_false_imp]
+      exact fun ha => absurd ha (by simp [h₂])
 
 /-- **Exercise 27.3** ([FriedmanResnickSami2007, p. 696]): defining Grim as "cooperate unless the
 *other* player has defected" fails subgame perfection for *every* `0 ≤ δ < 1`, because after the
@@ -575,28 +525,17 @@ theorem not_isSPNE_naiveGrim {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
   rw [isSPNE_iff_noOneShotDev hδ₀ hδ₁]
   rintro ⟨h₁, _⟩
   let h0 : PDHistory := [⟨.defect, .cooperate⟩]
-  have hosd := h₁ h0 .defect
-  have hfollow : contPayoff₁ δ naiveGrim₁ naiveGrim₂ h0 = -(1 - δ) := by
-    rw [contPayoff₁_bellman hδ₀ hδ₁]
-    have ha : naiveGrim₁ h0 = .cooperate := rfl
-    have hb : naiveGrim₂ h0 = .defect := rfl
-    rw [ha, hb]
-    have hcont : contPayoff₁ δ naiveGrim₁ naiveGrim₂ (h0 ++ [⟨.cooperate, .defect⟩]) = 0 := by
-      have hr : ∀ t, roundAt naiveGrim₁ naiveGrim₂ (h0 ++ [⟨.cooperate, .defect⟩]) t =
-          ⟨.defect, .defect⟩ :=
-        roundAt_naiveGrim_both_defected rfl rfl
-      simp [contPayoff₁, hr, pdPayoff, discountedPayoff_const hδ₀ hδ₁]
-    rw [hcont]
-    norm_num [pdPayoff]
-  have hdev : contPayoff₁ δ naiveGrim₁ naiveGrim₂ (h0 ++ [⟨.defect, naiveGrim₂ h0⟩]) = 0 := by
-    have hr : ∀ t, roundAt naiveGrim₁ naiveGrim₂ (h0 ++ [⟨.defect, .defect⟩]) t =
-        ⟨.defect, .defect⟩ :=
-      roundAt_naiveGrim_both_defected rfl rfl
-    change contPayoff₁ δ naiveGrim₁ naiveGrim₂ (h0 ++ [⟨.defect, .defect⟩]) = 0
-    simp [contPayoff₁, hr, pdPayoff, discountedPayoff_const hδ₀ hδ₁]
-  rw [hfollow, hdev] at hosd
+  have ha : naiveGrim₁ h0 = .cooperate := rfl
   have hb : naiveGrim₂ h0 = .defect := rfl
-  rw [hb] at hosd
+  have hosd := h₁ h0 .defect
+  have hzero (a : PDAction) :
+      contPayoff₁ δ naiveGrim₁ naiveGrim₂ (h0 ++ [⟨a, .defect⟩]) = 0 := by
+    simp [contPayoff₁, roundAt_naiveGrim_both_defected (h := h0 ++ [⟨a, .defect⟩]) rfl rfl,
+      pdPayoff, discountedPayoff_const hδ₀ hδ₁]
+  have hfollow : contPayoff₁ δ naiveGrim₁ naiveGrim₂ h0 = -(1 - δ) := by
+    rw [contPayoff₁_bellman hδ₀ hδ₁, ha, hb, hzero]
+    norm_num [pdPayoff]
+  rw [hb, hfollow, hzero] at hosd
   norm_num [pdPayoff] at hosd
   linarith
 
@@ -623,15 +562,10 @@ private theorem roundAt_titForTat_of_getLast {h : PDHistory} {r : PDRound}
     rw [roundAt_zero]
     simp [titForTat₁, titForTat₂, hl, PDRound.swap]
   | succ t ih =>
-    rw [roundAt_succ]
     have hl' : (h ++ [PDRound.mk (titForTat₁ h) (titForTat₂ h)]).getLast? = some r.swap := by
       simp [titForTat₁, titForTat₂, hl, PDRound.swap]
-    rw [ih hl']
-    by_cases ht : Even t
-    · have hnt : ¬ Even (t + 1) := by simpa [Nat.even_add_one] using ht
-      simp [ht, hnt]
-    · have hnt : Even (t + 1) := by simpa [Nat.even_add_one] using ht
-      simp [ht, hnt]
+    rw [roundAt_succ, ih hl']
+    by_cases ht : Even t <;> simp [Nat.even_add_one, ht]
 
 private theorem contPayoff₁_titForTat_some {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) {h : PDHistory}
     {r : PDRound} (hl : h.getLast? = some r) :
@@ -727,31 +661,19 @@ theorem isSPNE_titForTat_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
       nlinarith
     linarith
   · rintro rfl
-    refine ⟨fun h a => ?_, fun h b => ?_⟩
-    · cases hl : h.getLast? with
-      | none =>
-        have hnil : h = [] := List.getLast?_eq_none_iff.mp hl
-        subst hnil
-        rw [contPayoff₁_titForTat_nil hδ₀ hδ₁,
-          contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
-        cases a <;> norm_num [titForTat₂, pdPayoff]
-      | some r =>
-        rcases r with ⟨a₁, a₂⟩
-        rw [contPayoff₁_titForTat_some hδ₀ hδ₁ hl,
-          contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
-        cases a₁ <;> cases a₂ <;> cases a <;> norm_num [titForTat₂, hl, pdPayoff]
-    · cases hl : h.getLast? with
-      | none =>
-        have hnil : h = [] := List.getLast?_eq_none_iff.mp hl
-        subst hnil
-        rw [contPayoff₂_titForTat_nil hδ₀ hδ₁,
-          contPayoff₂_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
-        cases b <;> norm_num [titForTat₁, pdPayoff]
-      | some r =>
-        rcases r with ⟨a₁, a₂⟩
-        rw [contPayoff₂_titForTat_some hδ₀ hδ₁ hl,
-          contPayoff₂_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
-        cases a₁ <;> cases a₂ <;> cases b <;> norm_num [titForTat₁, hl, pdPayoff]
+    refine noOneShotDev_of_swapStrategy swapStrategy_titForTat₁ swapStrategy_titForTat₂
+      fun h a => ?_
+    cases hl : h.getLast? with
+    | none =>
+      obtain rfl := List.getLast?_eq_none_iff.mp hl
+      rw [contPayoff₁_titForTat_nil hδ₀ hδ₁,
+        contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
+      cases a <;> norm_num [titForTat₂, pdPayoff]
+    | some r =>
+      rcases r with ⟨a₁, a₂⟩
+      rw [contPayoff₁_titForTat_some hδ₀ hδ₁ hl,
+        contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
+      cases a₁ <;> cases a₂ <;> cases a <;> norm_num [titForTat₂, hl, pdPayoff]
 
 theorem not_isSPNE_titForTat_of_ne {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (hne : δ ≠ 1 / 2) :
     ¬ IsSPNE δ titForTat₁ titForTat₂ :=
@@ -774,27 +696,14 @@ expected stream `personalizedGrimDevPayoff δ N` for `N ≥ 1` potential partner
 theorem personalizedGrim_incentive_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) {N : ℕ}
     (hN : 1 ≤ N) :
     personalizedGrimDevPayoff δ N ≤ 1 ↔ (N : ℝ) / ((N : ℝ) + 1) ≤ δ := by
-  have hNpos : (0 : ℝ) < N := Nat.cast_pos.mpr (Nat.one_le_iff_ne_zero.mp hN |> Nat.pos_of_ne_zero)
-  have hN1pos : (0 : ℝ) < (N : ℝ) + 1 := by positivity
-  have hbd : ∀ t : ℕ, |(if t = 0 then (2 : ℝ) else ((N : ℝ) - 1) / (N : ℝ))| ≤ 2 := by
-    intro t
-    split_ifs with ht
-    · norm_num
-    · rw [abs_of_nonneg (div_nonneg (by have : (1 : ℝ) ≤ N := Nat.one_le_cast.mpr hN; linarith)
-        hNpos.le)]
-      rw [div_le_iff₀ hNpos]
-      linarith
-  have heval : personalizedGrimDevPayoff δ N =
-      (1 - δ) * 2 + δ * (((N : ℝ) - 1) / (N : ℝ)) := by
-    rw [personalizedGrimDevPayoff, discountedPayoff_cons hδ₀ hδ₁ hbd]
-    simp only [↓reduceIte, Nat.succ_ne_zero, discountedPayoff_const hδ₀ hδ₁]
-  rw [heval, div_le_iff₀ hN1pos]
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast Nat.pos_of_ne_zero (by omega)
+  rw [personalizedGrimDevPayoff, discountedPayoff_ite_zero hδ₀ hδ₁, div_le_iff₀ (by positivity)]
   constructor <;> intro h
   · have hmul := mul_le_mul_of_nonneg_right h hNpos.le
-    have hsimp : (((N : ℝ) - 1) / (N : ℝ)) * (N : ℝ) = (N : ℝ) - 1 := div_mul_cancel₀ _ hNpos.ne'
+    have := div_mul_cancel₀ ((N : ℝ) - 1) hNpos.ne'
     nlinarith
   · rw [show (1 - δ) * 2 + δ * (((N : ℝ) - 1) / (N : ℝ)) =
-      ((2 * (1 - δ) * (N : ℝ) + δ * ((N : ℝ) - 1))) / (N : ℝ) by field_simp [hNpos.ne'],
+      (2 * (1 - δ) * (N : ℝ) + δ * ((N : ℝ) - 1)) / (N : ℝ) by field_simp [hNpos.ne'],
       div_le_one hNpos]
     nlinarith
 
@@ -818,37 +727,18 @@ noncomputable def perpetualWhitewashPayoff (δ f : ℝ) : ℝ :=
 
 theorem honestEntryPayoff_eq {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (f : ℝ) :
     honestEntryPayoff δ f = 1 - (1 - δ) * f := by
-  have hbd : ∀ t : ℕ, |(if t = 0 then 1 - f else (1 : ℝ))| ≤ |1 - f| + 1 := by
-    intro t
-    rcases eq_or_ne t 0 with rfl | ht
-    · simp
-    · simp only [ht, ↓reduceIte, abs_one]; linarith [abs_nonneg (1 - f)]
-  rw [honestEntryPayoff, discountedPayoff_cons hδ₀ hδ₁ hbd]
-  simp only [↓reduceIte, Nat.succ_ne_zero, discountedPayoff_const hδ₀ hδ₁]
+  rw [honestEntryPayoff, discountedPayoff_ite_zero hδ₀ hδ₁]
   ring
 
 theorem oneShotWhitewashPayoff_eq {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) (f : ℝ) :
     oneShotWhitewashPayoff δ f = 1 + (1 - δ) * (1 - (1 + δ) * f) := by
-  have hbd1 : ∀ t : ℕ,
+  have hbd : ∀ t : ℕ,
       |(if t = 0 then 2 - f else if t = 1 then 1 - f else (1 : ℝ))| ≤ |2 - f| + |1 - f| + 1 := by
     intro t
-    rcases eq_or_ne t 0 with rfl | ht0
-    · simp only [↓reduceIte]; linarith [abs_nonneg (1 - f)]
-    · rcases eq_or_ne t 1 with rfl | ht1
-      · simp only [one_ne_zero, ↓reduceIte]; linarith [abs_nonneg (2 - f)]
-      · simp only [ht0, ht1, ↓reduceIte, abs_one]
-        linarith [abs_nonneg (2 - f), abs_nonneg (1 - f)]
-  have hbd2 : ∀ t : ℕ,
-      |(if t + 1 = 1 then 1 - f else (1 : ℝ))| ≤ |1 - f| + 1 := by
-    intro t
-    rcases eq_or_ne (t + 1) 1 with ht | ht
-    · simp [ht]
-    · simp only [ht, ↓reduceIte, abs_one]; linarith [abs_nonneg (1 - f)]
-  rw [oneShotWhitewashPayoff, discountedPayoff_cons hδ₀ hδ₁ hbd1]
-  simp only [↓reduceIte, Nat.succ_ne_zero]
-  rw [discountedPayoff_cons hδ₀ hδ₁ hbd2]
-  simp only [Nat.reduceAdd, ↓reduceIte, Nat.add_eq_right, Nat.succ_ne_zero,
-    discountedPayoff_const hδ₀ hδ₁]
+    split_ifs <;> linarith [abs_nonneg (2 - f), abs_nonneg (1 - f), abs_one (α := ℝ)]
+  rw [oneShotWhitewashPayoff, discountedPayoff_cons hδ₀ hδ₁ hbd]
+  simp only [↓reduceIte, Nat.succ_ne_zero, Nat.add_eq_right]
+  rw [discountedPayoff_ite_zero hδ₀ hδ₁]
   ring
 
 /-- **Entry-fee deterrence of whitewashing** ([FriedmanResnickSami2007, §27.3, p. 682];

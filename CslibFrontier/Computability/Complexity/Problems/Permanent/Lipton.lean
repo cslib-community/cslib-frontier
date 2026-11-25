@@ -225,10 +225,9 @@ theorem length_transcript_liptonPermanentTrial {State : Type}
         (liptonPermanentTrial ν A) (s, [])).support) :
     transcript.length = n + 1 := by
   simp only [liptonPermanentTrial, bind_pure_comp, ProbOracleComp.runWith_sample_bind,
-    ProbOracleComp.runWith_map, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-  obtain ⟨R, -, ⟨y, s₂, tr⟩, hy, heq⟩ := hmem
-  simp only [Prod.map, id_eq, Prod.mk.injEq] at heq
-  rcases heq with ⟨-, rfl, rfl⟩
+    ProbOracleComp.runWith_map, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.map,
+    id_eq, Prod.mk.injEq] at hmem
+  obtain ⟨R, -, ⟨y, _, _⟩, hy, -, rfl, rfl⟩ := hmem
   exact length_transcript_pi_query oracle (fun i : Fin (n + 1) => A + ν i • R) hy
 
 /-- **Single-trial failure probability bound.** Against a deterministic oracle `O`, the probability
@@ -256,13 +255,13 @@ theorem one_sub_le_eval_run_liptonPermanentTrial (ν : Fin (n + 1) ↪ F)
   set p := ProbComp.eval ((liptonPermanentTrial ν A).run (fun M => pure (O M)))
   have hcompl := Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal p ({A.permanent} : Set F)
   rw [PMF.toOuterMeasure_apply_singleton] at hcompl
-  have hcompl_set : ({A.permanent} : Set F)ᶜ = {y | y ≠ A.permanent} := rfl
-  rw [hcompl_set] at hcompl
-  have hle := toOuterMeasure_run_liptonPermanentTrial_ne_le ν hν O A
-  have hne_top := Cslib.Probability.PMF.toOuterMeasure_ne_top p {y | y ≠ A.permanent}
+  change p A.permanent + p.toOuterMeasure {y | y ≠ A.permanent} = 1 at hcompl
   calc 1 - (((n + 1) * #{M | O M ≠ M.permanent} : ℕ) : ℝ≥0∞) / (Fintype.card F ^ (n * n) : ℕ)
-      ≤ 1 - p.toOuterMeasure {y | y ≠ A.permanent} := tsub_le_tsub_left hle 1
-    _ = p A.permanent := by rw [← hcompl, ENNReal.add_sub_cancel_right hne_top]
+      ≤ 1 - p.toOuterMeasure {y | y ≠ A.permanent} :=
+        tsub_le_tsub_left (toOuterMeasure_run_liptonPermanentTrial_ne_le ν hν O A) 1
+    _ = p A.permanent := by
+        rw [← hcompl,
+          ENNReal.add_sub_cancel_right (Cslib.Probability.PMF.toOuterMeasure_ne_top p _)]
 
 /-- **Single-trial query-complexity bound (after Arora–Barak Theorem 8.30):** in the
 `ProbOracleComp` query-complexity model, if `O` errs on at most `|F|^{n²} / (3 * n)` matrices and
@@ -311,8 +310,7 @@ theorem one_sub_le_eval_run_liptonPermanentTrial_toReal (ν : Fin (n + 1) ↪ F)
   set p := ProbComp.eval ((liptonPermanentTrial ν A).run (fun M => pure (O M)))
   have hcompl := Cslib.Probability.PMF.toOuterMeasure_toReal_add_compl p ({A.permanent} : Set F)
   rw [PMF.toOuterMeasure_apply_singleton] at hcompl
-  have hcompl_set : ({A.permanent} : Set F)ᶜ = {y | y ≠ A.permanent} := rfl
-  rw [hcompl_set] at hcompl
+  change (p A.permanent).toReal + (p.toOuterMeasure {y | y ≠ A.permanent}).toReal = 1 at hcompl
   linarith [toOuterMeasure_run_liptonPermanentTrial_ne_toReal_le ν hν O A]
 
 private theorem error_ratio_le_of_le_div {d : ℕ} (hd : 0 < d)
@@ -409,10 +407,9 @@ theorem length_transcript_liptonPermanentPlurality {State : Type}
       (ProbOracleComp.runWith (OracleComp.withTranscript oracle)
         (liptonPermanentPlurality k ν A) (s, [])).support) :
     transcript.length = k * (n + 1) := by
-  simp only [liptonPermanentPlurality, ProbOracleComp.runWith_map, PMF.mem_support_map_iff] at hmem
-  obtain ⟨⟨xs, s₂, tr⟩, hxs, heq⟩ := hmem
-  simp only [Prod.map, id_eq, Prod.mk.injEq] at heq
-  rcases heq with ⟨-, rfl, rfl⟩
+  simp only [liptonPermanentPlurality, ProbOracleComp.runWith_map, PMF.mem_support_map_iff,
+    Prod.map, id_eq, Prod.mk.injEq] at hmem
+  obtain ⟨⟨xs, _, _⟩, hxs, -, rfl, rfl⟩ := hmem
   exact length_transcript_replicate oracle k (length_transcript_liptonPermanentTrial oracle ν A) hxs
 
 /-- **General plurality corollary for Lipton's algorithm.** Whenever the single-trial error bound
@@ -443,16 +440,15 @@ theorem liptonPermanentPlurality_prob_toReal_ge (hn : 3 ≤ n) (k : ℕ) (ν : F
     1 - (2 : ℝ) ^ (-((k : ℝ) / 162)) ≤
       (ProbComp.eval ((liptonPermanentPlurality k ν A).run (fun M => pure (O M)))
         A.permanent).toReal := by
-  have h1 : 1 ≤ n := by omega
-  have htrial := liptonPermanentTrial_prob_toReal_ge h1 ν hν O hO A
+  have h1 : ((n + 1) * #{M | O M ≠ M.permanent} : ℝ) / (Fintype.card F ^ (n * n) : ℝ) ≤
+      (n + 1 : ℝ) / (3 * n) := by
+    simpa only [Nat.cast_mul, Nat.cast_ofNat] using error_ratio_le_of_le_div (by omega) O hO
   have hn_real : (3 : ℝ) ≤ n := by exact_mod_cast hn
-  have h3n_pos : (0 : ℝ) < 3 * n := by positivity
-  have hfrac : (n + 1 : ℝ) / (3 * n) ≤ 4 / 9 := by
-    rw [div_le_iff₀ h3n_pos]
+  have h2 : (n + 1 : ℝ) / (3 * n) ≤ 4 / 9 := by
+    rw [div_le_iff₀ (by positivity)]
     linarith
-  rw [run_liptonPermanentPlurality, show -((k : ℝ) / 162) = -(2 * (1 / 18 : ℝ) ^ 2 * k) by ring]
-  refine one_sub_two_rpow_le_eval_plurality_replicate_toReal 0 A.permanent k _ (by norm_num) ?_
-  linarith
+  rw [show -((k : ℝ) / 162) = -(2 * (1 / 18 : ℝ) ^ 2 * k) by ring]
+  exact liptonPermanentPlurality_prob_toReal_ge_of_margin k ν hν O (by norm_num) (by linarith) A
 
 /-- `ℝ≥0∞`-valued form of `liptonPermanentPlurality_prob_toReal_ge` for `3 ≤ n`. -/
 theorem liptonPermanentPlurality_prob_ge (hn : 3 ≤ n) (k : ℕ) (ν : Fin (n + 1) ↪ F)
@@ -510,9 +506,8 @@ theorem liptonPermanentPlurality_prob_toReal_ge_of_three_mul_succ (k : ℕ)
       (n + 1 : ℝ) / (3 * (n + 1)) := by
     simpa only [Nat.cast_mul, Nat.cast_add, Nat.cast_one, Nat.cast_ofNat] using
       error_ratio_le_of_le_div (by omega) O hO
-  have h2 : (n + 1 : ℝ) / (3 * (n + 1)) = 1 / 3 := by
-    have hn1 : (n + 1 : ℝ) ≠ 0 := by positivity
-    field_simp
+  have h2 : (n + 1 : ℝ) / (3 * (n + 1)) = 1 / 3 :=
+    (div_eq_iff (by positivity)).mpr (by ring)
   rw [show -((k : ℝ) / 18) = -(2 * (1 / 6 : ℝ) ^ 2 * k) by ring]
   exact liptonPermanentPlurality_prob_toReal_ge_of_margin k ν hν O (by norm_num) (by linarith) A
 

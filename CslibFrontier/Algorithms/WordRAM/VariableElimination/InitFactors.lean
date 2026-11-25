@@ -47,7 +47,7 @@ private theorem holdsIn_encodeFactor_cons {curRaw : ℕ} {f : FactorTable ℕ �
     List.append_assoc] at hraw
   obtain ⟨h1, hm_sc, hr1⟩ := holdsIn_cons_shift hraw
   obtain ⟨h2, hm_en, hr2⟩ := holdsIn_cons_shift hr1
-  rw [show curRaw + 1 + 1 = curRaw + 2 by omega] at hr2
+  rw [Nat.add_assoc] at hr2
   obtain ⟨hsc, hr3⟩ := holdsIn_append_split hr2
   obtain ⟨hen, hrest⟩ := holdsIn_append_split hr3
   exact ⟨h1, h2, hm_sc, hm_en, hsc, hen, by simpa [Array.length_toList] using hrest⟩

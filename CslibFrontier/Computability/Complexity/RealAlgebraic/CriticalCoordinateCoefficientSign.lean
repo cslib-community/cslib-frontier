@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ResidueS
 import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelPrecision
 import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import Mathlib.Tactic.GCongr
 
 /-!
 # Signs of doubly indexed coordinate characteristic coefficients
@@ -39,6 +40,7 @@ The prescribed-root fingerprint evaluator also delays this substitution, preserv
 `a + 20` counting bound of `ControlledIndexedLabels` in lean-canny at the pinned revision.
 For supplied fingerprint parameters, `criticalCoordinateFingerprintLabels` packages this
 evaluator as a controlled univariate family with binary degree, norm and cutoff bounds.
+The leading deformation coefficients themselves form a controlled family at level `a + 18`.
 The counting endpoints remain open in
 [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
@@ -592,18 +594,132 @@ private theorem univariate_bounds (P : Polynomial ℤ) :
     · intro e _
       rw [hcoeff]
 
+private theorem leadingCoordinateBounds {n d mass : ℕ} (hd : 1 ≤ d)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ d + 1)
+    (hmass : F.coeffNorm1 ≤ 2 ^ mass) (i : Fin n) :
+    let P := parametricCoordinatePolynomial (by omega : 1 ≤ d + 1) F hF i
+    let Q := (Polynomial.Bivariate.swap P).leadingCoeff
+    Q.natDegree ≤ (d + 1) ^ n ∧
+      Q.coeffNorm1 ≤ 2 ^ parametricCoordinateCoeffNormExponent n (d + 1) mass := by
+  intro P Q
+  rw [show Q = (Polynomial.Bivariate.swap P).coeff (Polynomial.Bivariate.swap P).natDegree
+    from Polynomial.coeff_natDegree.symm]
+  exact ⟨coordinateCoefficient_natDegree_le (by omega) F hF i _,
+    (Polynomial.coeffNorm1_coeff_swap_le P _).trans
+      (parametricCoordinatePolynomial_bivariateCoeffNorm1_le (by omega) F hF hmass i)⟩
+
+private def leadingCoordinateCutoff (n d source : ℕ) : ℕ :=
+  let D := (d + 1) ^ n
+  max source (max ((d + 1) * (D + n * d + 1) + 1)
+    (max (D * D) (coordinateParameterDegreeBound n d) + 1))
+
+private theorem leadingCoordinateCutoff_polyTime {α : Type} {enc : α ↪ List Bool}
+    {n d source : α → ℕ} (hn : ComputableInPolyTime n enc encUnary)
+    (hd : ComputableInPolyTime d enc encNat) (hs : ComputableInPolyTime source enc encNat) :
+    ComputableInPolyTime (fun w => leadingCoordinateCutoff (n w) (d w) (source w)) enc encNat := by
+  have hell := binary_add' hd (.const 1)
+  have hD := binary_pow' hell hn
+  have hH := binary_max' (binary_mul' hD hD) (coordinateParameterDegreeBound_polyTime hn hd)
+  have hK := binary_add' (binary_mul' hell (binary_add'
+    (binary_add' hD (binary_mul' (unary_to_binary.comp hn) hd)) (.const 1))) (.const 1)
+  exact binary_max' hs (binary_max' hK (binary_add' hH (.const 1)))
+
+private theorem leadingCoordinateCutoff_spec {n d source p : ℕ}
+    (h : leadingCoordinateCutoff n d source < p) :
+    source < p ∧ (d + 1) * ((d + 1) ^ n + n * d + 1) + 1 < p ∧
+      (d + 1) ^ n * (d + 1) ^ n < p - 1 ∧ coordinateParameterDegreeBound n d < p - 1 := by
+  simp only [leadingCoordinateCutoff, max_lt_iff] at h
+  have hbound : max ((d + 1) ^ n * (d + 1) ^ n) (coordinateParameterDegreeBound n d) <
+      p - 1 := by omega
+  exact ⟨h.1, h.2.1, max_lt_iff.mp hbound⟩
+
+private theorem evaluation_univariate (P : Polynomial ℤ) (p : ℕ) (z : List ℕ) :
+    evaluation ((MvPolynomial.uniqueAlgEquiv ℤ (Fin 1)).symm P) p z =
+      (P.eval₂ (Int.castRingHom (ZMod p)) (z.getD 0 0 : ZMod p)).val := by
+  rw [evaluation, MvPolynomial.eval₂_uniqueAlgEquiv_symm]
+  have hzero : (default : Fin 1).val = 0 := rfl
+  rw [hzero, ← List.getD_eq_getElem?_getD]
+
+/-- Package the leading deformation coefficient of the selected coordinate characteristic
+polynomial as a controlled univariate family. Evaluation at level `a + 18` computes the
+deformation degree over the integers and then reads that coefficient modulo the query prime. -/
+noncomputable def criticalCoordinateEquations {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (i : (w : α) → Fin (n w)) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat) :
+    let Q (w : α) := (Polynomial.Bivariate.swap (parametricCoordinatePolynomial
+      (by omega : 1 ≤ d w + 1) (F w) (hF w) (i w))).leadingCoeff
+    Controlled (fun w => (MvPolynomial.uniqueAlgEquiv ℤ (Fin 1)).symm (Q w)) enc (a + 18) := by
+  intro Q
+  have hell := binary_add' hd (.const 1)
+  have hb (w : α) := leadingCoordinateBounds (hdpos w) (F w) (hF w) (C.mass_le w) (i w)
+  refine {
+    arity_computable := .const 1
+    degreeBound := fun w => (d w + 1) ^ n w
+    degree_computable := binary_pow' hell C.arity_computable
+    degree_le := fun w => (univariate_bounds (Q w)).1.trans (hb w).1
+    massExponent := fun w =>
+      parametricCoordinateCoeffNormExponent (n w) (d w + 1) (C.massExponent w)
+    mass_computable :=
+      parametricCoordinateCoeffNormExponent_polyTime C.arity_computable hell C.mass_computable
+    mass_le := fun w => (univariate_bounds (Q w)).2.trans_le (hb w).2
+    cutoff := fun w => leadingCoordinateCutoff (n w) (d w) (C.cutoff w)
+    cutoff_computable := leadingCoordinateCutoff_polyTime C.arity_computable hd C.cutoff_computable
+    evaluate := fun (w, p, z) => C.criticalCoordinateLeadingValue i hF (w, p, z.getD 0 0) % p
+    evaluate_mem := ?_
+    evaluate_eq := ?_
+  }
+  · let args := encPair encNat (encList encNat)
+    have hw := fst enc args
+    have hargs := snd enc args
+    have hp := (fst encNat (encList encNat)).comp hargs
+    have hz := (listGetD (encA := encNat) 0).comp
+      (((snd encNat (encList encNat)).comp hargs).prod (.const 0))
+    have hres := CountingFunction.preprocess (C.criticalCoordinateLeadingValue_mem E i hdpos hF
+      hd hi) (hw.prod (hp.prod hz))
+    exact CountingFunction.map (CountingFunction.prod hres (CountingFunction.of_polyTime hp))
+      binary_mod
+  · intro w p z hp hc
+    let : Fact p.Prime := ⟨hp⟩
+    obtain ⟨hsource, hK, hdegree, hparam⟩ := leadingCoordinateCutoff_spec hc
+    have hr := C.criticalCoordinateLeadingValue_cast i hF w (hdpos w) (z.getD 0 0)
+      hsource hK hdegree hparam
+    rw [evaluation_univariate]
+    simpa only [ZMod.val_natCast] using congrArg ZMod.val hr
+
+/-- The coordinate-equation bounds depend only on the arity, deformation degree,
+source norm exponent and source prime cutoff. -/
+theorem criticalCoordinateEquations_bounds_eq {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d : α → ℕ}
+    (i : (w : α) → Fin (n w)) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat)
+    (u v : α) (hn : n u = n v) (hduv : d u = d v)
+    (hm : C.massExponent u = C.massExponent v) (hc : C.cutoff u = C.cutoff v) :
+    let equations := C.criticalCoordinateEquations E i hdpos hF hd hi
+    equations.degreeBound u = equations.degreeBound v ∧
+      equations.massExponent u = equations.massExponent v ∧
+      equations.cutoff u = equations.cutoff v := by
+  simp [criticalCoordinateEquations, hn, hduv, hm, hc]
+
 /-- Package the coordinate fingerprint polynomials for supplied binary parameters as a controlled
-univariate family. This is the controlled-family step of lean-canny's `ControlledIndexedLabels`
-at commit `970f28a5ecefc1327402ade16c068aa4b1b2c183`, before witness-word decoding. -/
+univariate family. The degree and norm bounds use a supplied upper bound on the modulus.
+The polynomials and evaluator use the actual modulus. This adapts the controlled-family step of
+lean-canny's `ControlledIndexedLabels` at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. -/
 noncomputable def criticalCoordinateFingerprintLabels {α : Type} {n : α → ℕ}
     {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
-    (C : Controlled F enc a) (E : Decoder enc) {d μ t : α → ℕ} {target : α → ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d μ μBound t : α → ℕ} {target : α → ℤ}
     (i : (w : α) → Fin (n w)) (hdpos : ∀ w, 1 ≤ d w)
     (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
     (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat)
     (hμ : ComputableInPolyTime μ enc encNat) (ht : ComputableInPolyTime t enc encNat)
     (htarget : ComputableInPolyTime target enc encIntBin)
-    (hμpos : ∀ w, 0 < μ w) (htargetBound : ∀ w, (target w).natAbs ≤ (d w + 1) ^ n w * μ w) :
+    (hμpos : ∀ w, 0 < μ w) (hμBound : ComputableInPolyTime μBound enc encNat)
+    (hμle : ∀ w, μ w ≤ μBound w)
+    (htargetBound : ∀ w, (target w).natAbs ≤ (d w + 1) ^ n w * μ w) :
     let P (w : α) := parametricCoordinatePolynomial (by omega : 1 ≤ d w + 1) (F w) (hF w) (i w)
     let D (w : α) := (d w + 1) ^ n w
     let b (w : α) := parametricCoordinateCoeffNormExponent (n w) (d w + 1) (C.massExponent w)
@@ -614,17 +730,14 @@ noncomputable def criticalCoordinateFingerprintLabels {α : Type} {n : α → �
   let L (w : α) := Polynomial.fingerprintIntegerRootLabel
     (Polynomial.Bivariate.swap (P w)).leadingCoeff 1 (D w) (b w) (μ w) (t w) (target w)
   let B (w : α) := Polynomial.derivativeRootLabelPrecision (D w) (b w)
-  let M (w : α) := D w * μ w
+  let M (w : α) := D w * μBound w
   let β (w : α) := Polynomial.iterateDerivativeNormExponent (D w) (b w)
-  let H (w : α) := max (D w * D w) (coordinateParameterDegreeBound (n w) (d w))
-  let K (w : α) := (d w + 1) * (D w + n w * d w + 1) + 1
-  let cutoff (w : α) := max (C.cutoff w) (max (K w) (H w + 1))
   have hell := binary_add' hd (.const 1)
   have hD : ComputableInPolyTime D enc encNat := binary_pow' hell C.arity_computable
   have hb : ComputableInPolyTime b enc encNat :=
     parametricCoordinateCoeffNormExponent_polyTime C.arity_computable hell C.mass_computable
   have hB : ComputableInPolyTime B enc encNat := derivativeRootLabelPrecision_polyTime hD hb
-  have hM : ComputableInPolyTime M enc encNat := binary_mul' hD hμ
+  have hM : ComputableInPolyTime M enc encNat := binary_mul' hD hμBound
   have hβ : ComputableInPolyTime β enc encNat := iterateDerivativeNormExponent_polyTime hD hb
   have hscale := binary_mul' (.const 2) (binary_add' hM (.const 1))
   have hprecision := binary_add' (binary_mul' (.const 2) hB) (.const 1)
@@ -632,17 +745,17 @@ noncomputable def criticalCoordinateFingerprintLabels {α : Type} {n : α → �
   have hL (w : α) : (L w).natDegree ≤ Polynomial.fingerprintLabelDegreeBound (D w) (B w) (M w)
       (D w) ∧ (L w).coeffNorm1 ≤ 2 ^ Polynomial.fingerprintLabelNormExponent (D w) (B w)
         (M w) (β w) := by
-    let Q := Polynomial.Bivariate.swap (P w)
-    have hn : Q.leadingCoeff.natDegree ≤ D w := by
-      rw [← Polynomial.coeff_natDegree]
-      exact coordinateCoefficient_natDegree_le (by omega) (F w) (hF w) (i w) Q.natDegree
-    have hm : Q.leadingCoeff.coeffNorm1 ≤ 2 ^ b w := by
-      rw [← Polynomial.coeff_natDegree]
-      exact (Polynomial.coeffNorm1_coeff_swap_le (P w) Q.natDegree).trans
-        (parametricCoordinatePolynomial_bivariateCoeffNorm1_le (by have := hdpos w; omega)
-          (F w) (hF w) (C.mass_le w) (i w))
-    exact Polynomial.fingerprintIntegerRootLabel_bounds (t w) (hμpos w) hn
-      (by simp) hm (by rw [Polynomial.coeffNorm1_one]; exact Nat.one_le_two_pow) (htargetBound w)
+    obtain ⟨hn, hm⟩ := leadingCoordinateBounds (hdpos w) (F w) (hF w) (C.mass_le w) (i w)
+    obtain ⟨hdegree, hnorm⟩ :=
+      Polynomial.fingerprintIntegerRootLabel_bounds (q := 1) (t w) (hμpos w) hn
+        (by simp) hm (by rw [Polynomial.coeffNorm1_one]; exact Nat.one_le_two_pow) (htargetBound w)
+    have hweight : D w * μ w ≤ M w := Nat.mul_le_mul_left _ (hμle w)
+    refine ⟨hdegree.trans ?_, hnorm.trans (Nat.pow_le_pow_right (by decide) ?_)⟩
+    · unfold Polynomial.fingerprintLabelDegreeBound
+      gcongr
+    · unfold Polynomial.fingerprintLabelNormExponent
+      have hsize := Nat.size_le_size hweight
+      gcongr
   refine {
     arity_computable := .const 1
     degreeBound := fun w => Polynomial.fingerprintLabelDegreeBound (D w) (B w) (M w) (D w)
@@ -652,8 +765,8 @@ noncomputable def criticalCoordinateFingerprintLabels {α : Type} {n : α → �
     massExponent := fun w => Polynomial.fingerprintLabelNormExponent (D w) (B w) (M w) (β w)
     mass_computable := ?_
     mass_le := fun w => (univariate_bounds (L w)).2.trans_le (hL w).2
-    cutoff := cutoff
-    cutoff_computable := ?_
+    cutoff := fun w => leadingCoordinateCutoff (n w) (d w) (C.cutoff w)
+    cutoff_computable := leadingCoordinateCutoff_polyTime C.arity_computable hd C.cutoff_computable
     evaluate := fun (w, p, z) =>
       C.criticalCoordinateFingerprintLabelResidue i hF w p (μ w) (t w) (z.getD 0 0) (target w) % p
     evaluate_mem := ?_
@@ -665,14 +778,6 @@ noncomputable def criticalCoordinateFingerprintLabels {α : Type} {n : α → �
       (binary_mul' (.const 2) (binary_add'
         (binary_add' hsize (binary_mul' hslots (binary_add' hterm (.const 1)))) (.const 1)))
       (.const 4)
-  · have hH : ComputableInPolyTime H enc encNat :=
-      binary_max' (binary_mul' hD hD) (coordinateParameterDegreeBound_polyTime
-        C.arity_computable hd)
-    have hK : ComputableInPolyTime K enc encNat :=
-      binary_add' (binary_mul' hell (binary_add'
-        (binary_add' hD (binary_mul' (unary_to_binary.comp C.arity_computable) hd))
-        (.const 1))) (.const 1)
-    exact binary_max' C.cutoff_computable (binary_max' hK (binary_add' hH (.const 1)))
   · let args := encPair encNat (encList encNat)
     have hw := fst enc args
     have hargs := snd enc args
@@ -688,21 +793,33 @@ noncomputable def criticalCoordinateFingerprintLabels {α : Type} {n : α → �
       binary_mod
   · intro w p z hp hc
     let : Fact p.Prime := ⟨hp⟩
-    have hsource : C.cutoff w < p := (le_max_left _ _).trans_lt hc
-    have hK : K w < p := (le_max_of_le_right (le_max_left _ _)).trans_lt hc
-    have hH : H w + 1 < p := (le_max_of_le_right (le_max_right _ _)).trans_lt hc
-    have hbound : H w < p - 1 := by omega
-    have hdegree := (le_max_left (D w * D w) (coordinateParameterDegreeBound (n w) (d w))).trans_lt
-      hbound
-    have hparam := (le_max_right (D w * D w) (coordinateParameterDegreeBound (n w) (d w))).trans_lt
-      hbound
+    obtain ⟨hsource, hK, hdegree, hparam⟩ := leadingCoordinateCutoff_spec hc
     have hr := C.criticalCoordinateFingerprintLabelResidue_cast i hF w (hdpos w)
       (μ w) (t w) (z.getD 0 0) (Nat.ne_of_gt (hμpos w)) (target w) hsource hK hdegree hparam
-    rw [evaluation, MvPolynomial.eval₂_uniqueAlgEquiv_symm]
-    have hzero : (default : Fin 1).val = 0 := rfl
-    rw [hzero, ← List.getD_eq_getElem?_getD]
-    have hval := congrArg ZMod.val hr
-    rw [ZMod.val_natCast] at hval
-    exact hval
+    rw [evaluation_univariate]
+    simpa only [ZMod.val_natCast] using congrArg ZMod.val hr
+
+/-- The fingerprint bounds depend only on the source arity, deformation degree, source
+norm exponent and cutoff, and the common modulus bound. -/
+theorem criticalCoordinateFingerprintLabels_bounds_eq {α : Type} {n : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {F : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled F enc a) (E : Decoder enc) {d μ μBound t : α → ℕ} {target : α → ℤ}
+    (i : (w : α) → Fin (n w)) (hdpos : ∀ w, 1 ≤ d w)
+    (hF : ∀ w, (F w).totalDegree ≤ d w + 1) (hd : ComputableInPolyTime d enc encNat)
+    (hi : ComputableInPolyTime (fun w => (i w).val) enc encNat)
+    (hμ : ComputableInPolyTime μ enc encNat) (ht : ComputableInPolyTime t enc encNat)
+    (htarget : ComputableInPolyTime target enc encIntBin)
+    (hμpos : ∀ w, 0 < μ w) (hμBound : ComputableInPolyTime μBound enc encNat)
+    (hμle : ∀ w, μ w ≤ μBound w)
+    (htargetBound : ∀ w, (target w).natAbs ≤ (d w + 1) ^ n w * μ w)
+    (u v : α) (hn : n u = n v) (hduv : d u = d v)
+    (hm : C.massExponent u = C.massExponent v) (hc : C.cutoff u = C.cutoff v)
+    (hcap : μBound u = μBound v) :
+    let labels := C.criticalCoordinateFingerprintLabels E i hdpos hF hd hi hμ ht htarget
+      hμpos hμBound hμle htargetBound
+    labels.degreeBound u = labels.degreeBound v ∧
+      labels.massExponent u = labels.massExponent v ∧
+      labels.cutoff u = labels.cutoff v := by
+  simp [criticalCoordinateFingerprintLabels, hn, hduv, hm, hc, hcap]
 
 end Cslib.Complexity.RealAlgebraic.Controlled

@@ -69,14 +69,11 @@ private theorem eventually_chebyshevFactor_le :
   have hq : 10 * q ≤ s := Nat.mul_div_le s 10
   have hq' : s < 10 * (q + 1) := by omega
   have hqQ : Q ≤ q := by omega
+  have hsS : S ≤ s := by omega
   -- `4 L + 1 ≤ 5 (s + 1) ^ 2 ≤ 500 (q + 1) ^ 2 ≤ 2 ^ q`
-  have h1 : 4 * L + 1 ≤ 2 ^ q := by
-    have := hQ q hqQ
-    nlinarith
+  have h1 : 4 * L + 1 ≤ 2 ^ q := by nlinarith [hQ q hqQ]
   -- `64 (3 L + 3) ≤ 384 (s + 1) ^ 2 ≤ 2 ^ s`
-  have h2 : 64 * (3 * L + 3) ≤ 2 ^ s := by
-    have := hS s (by omega)
-    nlinarith
+  have h2 : 64 * (3 * L + 3) ≤ 2 ^ s := by nlinarith [hS s hsS]
   have h3 : s + q * (8 * s + 10) ≤ L := by nlinarith
   calc 64 * (3 * L + 3) * (4 * L + 1) ^ (8 * s + 10) ≤ 2 ^ s * (2 ^ q) ^ (8 * s + 10) :=
         Nat.mul_le_mul h2 (Nat.pow_le_pow_left h1 _)
@@ -110,7 +107,7 @@ private theorem explicitThreshold_le_add (N : ℕ) (hT1 : 1 ≤ N / (Nat.log 2 N
     omega
   have hmax : r * max (r + 1) (subfieldExp N) ≤ r * (r + 1) + r * subfieldExp N := by
     rw [← Nat.mul_add]
-    exact Nat.mul_le_mul_left _ (max_le (by omega) (by omega))
+    exact Nat.mul_le_mul_left _ (max_le (Nat.le_add_right _ _) (Nat.le_add_left _ _))
   have hrs : r * subfieldExp N ≤ N / (L + 1) :=
     (Nat.mul_div_le_mul_div_assoc r n (L + 1)).trans (Nat.div_le_div_right hrn)
   have hnt : n * symDegree N ≤ N / (ℓ + 1) :=
@@ -267,14 +264,12 @@ theorem isBigO_explicitThreshold :
   rw [Real.norm_natCast, Real.norm_of_nonneg (by positivity)]
   -- `log N < (⌊log₂ N⌋ + 1) log 2 ≤ ⌊log₂ N⌋ + 1`
   have hlog : Real.log N ≤ Nat.log 2 N + 1 := by
-    have h1 : (N : ℝ) < 2 ^ (Nat.log 2 N + 1) := by
-      exact_mod_cast Nat.lt_pow_succ_log_self one_lt_two N
-    have h2 := Real.log_lt_log (by positivity) h1
+    have h2 := Real.log_lt_log (by positivity)
+      (show (N : ℝ) < 2 ^ (Nat.log 2 N + 1) by
+        exact_mod_cast Nat.lt_pow_succ_log_self one_lt_two N)
     rw [Real.log_pow] at h2
-    have h3 : Real.log 2 < 1 := Real.log_two_lt_one
-    have h4 : 0 < Real.log 2 := Real.log_pos one_lt_two
     push_cast at h2
-    nlinarith
+    nlinarith [Real.log_two_lt_one, Real.log_pos one_lt_two]
   have h' : ((Nat.log 2 N + 1 : ℕ) : ℝ) * explicitThreshold N ≤ 6 * N := by exact_mod_cast h
   push_cast at h'
   rw [← mul_div_assoc, le_div_iff₀ hlogpos]

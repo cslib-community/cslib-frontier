@@ -112,10 +112,9 @@ noncomputable def truthTableExtension (h : BitString b ↪ F) (f : BooleanFuncti
 degree `m * (2 ^ b - 1)`. -/
 theorem truthTableExtension_mem_reedMuller (h : BitString b ↪ F) (f : BooleanFunction (m * b)) :
     truthTableExtension h f ∈ reedMuller F m (m * (2 ^ b - 1)) := by
-  have := lowDegreeExtension_mem_reedMuller h fun u =>
-    if f (BitString.blocksEquiv.symm u) then (1 : F) else 0
-  rw [BitString.card] at this
-  exact this
+  simpa only [truthTableExtension, BitString.card] using
+    lowDegreeExtension_mem_reedMuller h fun u =>
+      if f (BitString.blocksEquiv.symm u) then (1 : F) else 0
 
 /-- On the grid, the extension of a truth table is the truth table: at the point whose coordinates
 embed the blocks of `x`, it is `1` if `f x` and `0` otherwise. -/
@@ -215,11 +214,8 @@ theorem exists_glPredictor_agree (enc : F ≃ BitString w) (h : BitString b ↪ 
         Equiv.apply_symm_apply]
       rfl
     · simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hx ⊢
-      simp only [glPredictor]
-      rw [show (fun r => C (Fin.append (BitString.pointBits enc
-          ((BitString.pointEquiv enc).symm x)) r)) = pred x by
-        rw [BitString.pointBits_pointEquiv_symm]]
-      rw [hx, Equiv.symm_apply_apply]
+      simp only [glPredictor, BitString.pointBits_pointEquiv_symm,
+        show (fun r => C (Fin.append x r)) = pred x from rfl, hx, target, Equiv.symm_apply_apply]
   rw [hcount]
   have : (#good : ℝ) ≤ 2 ^ (K + 1) *
       #{x | Crypto.GoldreichLevin.candidate (pred x) masks guess = target x} := by
@@ -330,23 +326,19 @@ private theorem reconstruction_ranges {q d D K m : ℕ} {ε : ℝ} (hq2 : 2 ≤ 
     have : (D : ℝ) < q := by linarith only [h8D, hq1]
     exact_mod_cast this
   refine ⟨hD1, hDq, ?_⟩
-  have h6 : 6 * ((d : ℝ) + 1) * (D / (q - 1)) ≤ 1 := by
-    refine le_trans (mul_le_mul_of_nonneg_left ?_ (by positivity)) herr
-    have h1 : (0 : ℝ) ≤ 1 / (q : ℝ) ^ m := by positivity
-    have h2 : (0 : ℝ) ≤ 2 ^ (K + 4) / (q * ε) := by positivity
-    linarith only [h1, h2]
+  have hpos_sum : (0 : ℝ) ≤ 1 / (q : ℝ) ^ m + 2 ^ (K + 4) / (q * ε) := by positivity
+  have h6 : 6 * ((d : ℝ) + 1) * (D / (q - 1)) ≤ 1 :=
+    (mul_le_mul_of_nonneg_left (by linarith only [hpos_sum])
+      (by positivity)).trans herr
   have h6' : 6 * ((d : ℝ) + 1) * D ≤ q - 1 := by
     rwa [mul_div_assoc', div_le_one (by linarith only [hq1])] at h6
   have hD1' : (1 : ℝ) ≤ D := by exact_mod_cast hD1
-  have hd0 : (0 : ℝ) ≤ d := Nat.cast_nonneg d
-  have hle : ((d : ℝ) + 1) ≤ q - 1 := by
-    linarith only [h6', le_mul_of_one_le_right (by positivity : (0 : ℝ) ≤ 6 * ((d : ℝ) + 1)) hD1',
-      hd0]
-  have : ((d + 1 : ℕ) : ℝ) ≤ ((q - 1 : ℕ) : ℝ) := by
+  have hle : ((d + 1 : ℕ) : ℝ) ≤ ((q - 1 : ℕ) : ℝ) := by
     rw [Nat.cast_sub (by omega)]
     push_cast
-    exact hle
-  exact_mod_cast this
+    linarith only [h6', le_mul_of_one_le_right (by positivity : (0 : ℝ) ≤ 6 * ((d : ℝ) + 1)) hD1',
+      Nat.cast_nonneg (α := ℝ) d]
+  exact_mod_cast hle
 
 omit [DecidableEq F] in
 /-- **The reconstruction theorem** [SudanTrevisanVadhan2001]. Let `F` be a field of `q` elements
@@ -397,14 +389,8 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
   have hε1 : ε ≤ 1 / 2 := le_half_of_agree hagree
   obtain ⟨hD1, hDq, hdq⟩ := reconstruction_ranges hq2 hε hε1 hn hmargin herr
   set Q : ℝ := (q : ℝ) ^ m with hQ_def
-  have hQ : (Fintype.card (Fin m → F) : ℝ) = Q := by
-    rw [Fintype.card_fun, Fintype.card_fin]
-    push_cast
-    rfl
-  have hQ2 : (2 : ℝ) ^ (m * w) = Q := by
-    rw [hQ_def, hqw]
-    push_cast
-    rw [← pow_mul, mul_comm]
+  have hQ : (Fintype.card (Fin m → F) : ℝ) = Q := by simp [Q, q]
+  have hQ2 : (2 : ℝ) ^ (m * w) = Q := by simp [Q, hqw, ← pow_mul, mul_comm]
   have hQ1 : (1 : ℝ) ≤ Q := one_le_pow₀ hq1.le
   set a := (#{x | G x = p x} : ℕ)
   have ha : ε * Q ≤ 2 ^ (K + 2) * a := by rw [← hQ2]; exact hgl
@@ -479,12 +465,10 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
     refine hcirc.mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, funext fun x => ?_⟩)
       hsize
     refine (congrFun (hc _) 0).trans ?_
-    have hgx : (fun i => gp i x) ∈ grid := mem_image.2 ⟨x, mem_univ _, rfl⟩
-    have hUx : U (fun i => gp i x) = if f x then 1 else 0 := by
-      rw [show U (fun i => gp i x) = p (fun i => gp i x) from hV _ hgx]
-      exact truthTableExtension_block h f x
-    simp only [single_apply, Function.comp_id, bitsOf, Equiv.symm_apply_apply]
-    rw [hUx]
+    have hUx : U (fun i => gp i x) = p (fun i => gp i x) :=
+      hV _ (mem_image.2 ⟨x, mem_univ _, rfl⟩)
+    simp only [single_apply, Function.comp_id, bitsOf, Equiv.symm_apply_apply,
+      hUx, p, gp, truthTableExtension_block]
     cases f x <;> simp
   have htotal := hemb.trans (hUs.trans hout)
   refine le_trans htotal.complexity_le ?_
@@ -650,14 +634,9 @@ theorem complexity_le_pow_of_agree_hardnessEncode (enc : F ≃ BitString w)
   have hε1 : ε ≤ 1 / 2 := le_half_of_agree hagree
   obtain ⟨-, hDq, hdq⟩ := reconstruction_ranges hq2 hε hε1 hn hmargin herr
   refine reconstructionCost_le hqw ?_ ?_ ?_ hDq ?_ (by omega)
-  · by_contra hw
-    rw [Nat.lt_one_iff.1 (not_le.1 hw), pow_zero] at hqw
-    omega
-  · by_contra hm
-    rw [Nat.lt_one_iff.1 (not_le.1 hm), zero_mul] at hd
-    omega
-  · have := Fintype.card_le_of_embedding h
-    simpa [BitString] using this
+  · exact Nat.pos_of_ne_zero fun hw => by rw [hw, pow_zero] at hqw; omega
+  · exact Nat.pos_of_ne_zero fun hm => by simp [hm] at hd
+  · simpa [BitString] using Fintype.card_le_of_embedding h
   · calc #(Sudan.monomials (m * (2 ^ b - 1)) D) ≤ #(range (D + 1) ×ˢ range (D + 1)) :=
           card_filter_le _ _
       _ = (D + 1) * (D + 1) := by rw [card_product, card_range]

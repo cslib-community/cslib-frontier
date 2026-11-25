@@ -173,14 +173,12 @@ variable {f : Cslib.BooleanFunction n} {H : Type*}
 
 private theorem reachable_zero (D : BlockDecomposition f H) (U : Finset (Fin n)) :
     Reachable D U 0 (2 ^ U.card) (2 ^ Uᶜ.card) := by
-  refine ⟨Finset.univ, Finset.univ, fun _ => D.history 0 (fun _ => false), ?_, ?_, ?_⟩
+  refine ⟨Finset.univ, Finset.univ, fun _ => D.history 0 (fun _ => false), ?_, ?_,
+    fun _ _ _ _ => D.history_zero _ _⟩
   · simp [Finset.card_univ, Fintype.card_bool]
   · simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool]
     change 2 ^ Uᶜ.card ≤ 2 ^ Fintype.card {i : Fin n // i ∉ U}
-    rw [Fintype.card_subtype_compl]
-    simp [Finset.card_compl]
-  · intro p _ q _
-    exact D.history_zero _ _
+    simp [Fintype.card_subtype_compl, Finset.card_compl]
 
 private theorem reachable_succ (D : BlockDecomposition f H) (U : Finset (Fin n)) {i NP NQ : ℕ}
     (hi : i < D.length) (h : Reachable D U i NP NQ) :
@@ -261,21 +259,16 @@ private theorem not_reachable {K : ℕ}
     rw [← D.output_history, hη p hp q hq]
   have hsplit := Finset.card_filter_add_card_filter_not (s := Q) (fun q => o q = true)
   simp only [Bool.not_eq_true] at hsplit
-  have hlarge : ∃ b : Bool, K ≤ (Q.filter fun q => o q = b).card := by
+  obtain ⟨b, hb⟩ : ∃ b : Bool, K ≤ (Q.filter fun q => o q = b).card := by
     by_contra! hno
-    have h1 := hno true
-    have h2 := hno false
-    omega
-  obtain ⟨b, hb⟩ := hlarge
+    linarith [hno true, hno false]
   have hrect : Frontier.rectangle (↑U) (↑P)
       (↑(Q.filter fun q => o q = b)) ⊆ {x | f x = b} := by
     intro x hx
-    have h := hf' _ hx.1 _ (Finset.mem_filter.mp hx.2).1
     have hx' : glue U ((↑U : Set (Fin n)).domRestrict x)
         ((↑U : Set (Fin n))ᶜ.domRestrict x) = x :=
       (Equiv.piEquivPiSubtypeProd (· ∈ U) fun _ => Bool).symm_apply_apply x
-    rw [hx'] at h
-    exact h.trans (Finset.mem_filter.mp hx.2).2
+    exact hx' ▸ (hf' _ hx.1 _ (Finset.mem_filter.mp hx.2).1).trans (Finset.mem_filter.mp hx.2).2
   rcases (hf b).ncard_lt_or _ _ _ hrect with h | h <;>
     simp only [Set.ncard_coe_finset] at h <;> omega
 

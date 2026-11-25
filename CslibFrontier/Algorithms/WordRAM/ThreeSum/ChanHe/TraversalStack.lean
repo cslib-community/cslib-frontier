@@ -136,10 +136,7 @@ theorem exec_push {w base capacity : ℕ} (h2 : Fits w 2) (hcap : Fits w (base +
   by_cases hi : i.val < vs.length
   · wram_simp [prepare, show base + i.val ≠ base + vs.length by omega]
     simpa [List.reverse_cons, List.getElem_append, hi] using hr.contents ⟨i.val, hi⟩
-  · have hi' : i.val = vs.length := by
-      have := i.isLt
-      simp only [List.length_cons] at this
-      omega
+  · have hi' : i.val = vs.length := by grind
     wram_simp [hi']
     simp [List.reverse_cons]
 
@@ -222,10 +219,9 @@ theorem pushRecord_exec (reg : Fin 9 → Fin r) (hi : Function.Injective reg)
       ∀ j, (∀ i, j ≠ reg i) → y.regs j = x.regs j := by
   induction n generalizing x vs with
   | zero =>
-    have he : Exec (B := .standard) w (.op (.copy idle idle)) x x 1 := by
-      simpa [Data.set] using (Exec.copy (B := Basis.standard) (w := w) (x := x)
-        (d := idle) (s := idle))
-    exact ⟨x, he, hr, fun _ _ => rfl, fun _ _ => rfl⟩
+    refine ⟨x, ?_, hr, fun _ _ => rfl, fun _ _ => rfl⟩
+    simpa [pushRecord, Data.set] using
+      (Exec.copy (B := .standard) (w := w) (x := x) (d := idle) (s := idle))
   | succ n ih =>
     let q := (x.set (reg tag) 0).set (reg arg) (x.regs (src (Fin.last n)))
     have hp : Exec (B := .standard) w
@@ -270,10 +266,9 @@ theorem popRecord_exec (reg : Fin 9 → Fin r) (hi : Function.Injective reg)
       ∀ j, (∀ i, j ≠ reg i) → (∀ i, j ≠ dst i) → y.regs j = x.regs j := by
   induction n generalizing x with
   | zero =>
-    have he : Exec (B := .standard) w (.op (.copy idle idle)) x x 1 := by
-      simpa [Data.set] using (Exec.copy (B := Basis.standard) (w := w) (x := x)
-        (d := idle) (s := idle))
-    exact ⟨x, he, hr, fun i => Fin.elim0 i, fun _ _ => rfl, fun _ _ _ => rfl⟩
+    refine ⟨x, ?_, hr, fun i => Fin.elim0 i, fun _ _ => rfl, fun _ _ _ => rfl⟩
+    simpa [popRecord, Data.set] using
+      (Exec.copy (B := .standard) (w := w) (x := x) (d := idle) (s := idle))
   | succ n ih =>
     rw [List.ofFn_succ, List.cons_append] at hr
     let q := (x.set (reg tag) 1).set (reg arg) 0
@@ -388,10 +383,7 @@ theorem popFrame_exec {w base capacity : ℕ} (x : Data 128) (vs : List ℕ) (a 
     WordStack.popRecord_exec registers registers_injective slot (slot 0)
       (fun _ _ h => Fin.ext (Nat.add_left_cancel (congrArg Fin.val h)))
       slot_ne_registers x vs a h2 hcap hr'
-  refine ⟨y, hy, hry, hya, hfy, ?_⟩
-  intro j hj hj'
-  apply hpy j (outside_ne j hj)
-  intro i h
+  refine ⟨y, hy, hry, hya, hfy, fun j hj hj' => hpy j (outside_ne j hj) fun i h => ?_⟩
   have := congrArg Fin.val h
   dsimp [slot] at this
   omega

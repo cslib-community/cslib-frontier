@@ -53,9 +53,7 @@ theorem not_rayCrosses_of_im_eq {a b : ℂ} (hab : a.im = b.im) (z : ℂ) :
 theorem horizontalIntercept_reverse {a b : ℂ} (hab : a.im ≠ b.im) (h : ℝ) :
     horizontalIntercept b a h = horizontalIntercept a b h := by
   unfold horizontalIntercept
-  have hab' : b.im - a.im ≠ 0 := sub_ne_zero.mpr hab.symm
-  have hba' : a.im - b.im ≠ 0 := sub_ne_zero.mpr hab
-  field_simp
+  field_simp [sub_ne_zero.mpr hab.symm, sub_ne_zero.mpr hab]
   ring
 
 /-- The half-open convention depends on height, not on the order of the endpoints. -/
@@ -145,13 +143,9 @@ private theorem decide_rayCrosses_split_of_im_lt {a b : ℂ} (hab : a.im < b.im)
   change decide (RayCrosses a m z) + decide (RayCrosses m b z) =
     decide (RayCrosses a b z)
   have ham : a.im < m.im := by
-    change a.im < (AffineMap.lineMap a b t).im
-    rw [lineMap_im]
-    nlinarith [mul_pos ht.1 (sub_pos.mpr hab)]
+    simp only [m, lineMap_im]; nlinarith [mul_pos ht.1 (sub_pos.mpr hab)]
   have hmb : m.im < b.im := by
-    change (AffineMap.lineMap a b t).im < b.im
-    rw [lineMap_im]
-    nlinarith [mul_pos (sub_pos.mpr ht.2) (sub_pos.mpr hab)]
+    simp only [m, lineMap_im]; nlinarith [mul_pos (sub_pos.mpr ht.2) (sub_pos.mpr hab)]
   have hleft : horizontalIntercept a m z.im = horizontalIntercept a b z.im :=
     intercept_lineMap_left hab.ne (ne_of_gt ht.1) z.im
   have hright : horizontalIntercept m b z.im = horizontalIntercept a b z.im := by
@@ -271,23 +265,16 @@ theorem eventually_rayCrosses_endpoint_jump (a b z : ℂ) (hab : a.im ≠ b.im)
     filter_upwards [hcompare,
       Complex.continuous_im.continuousAt.eventually_lt continuousAt_const hz'] with w hw hwb
     have hcw : RayCrosses a b w ↔ z.im ≤ w.im ∧ z.re < a.re := by
-      unfold RayCrosses
-      rw [min_eq_left hab.le, max_eq_right hab.le, ← hz]
-      simp only [hw, hwb, true_and]
+      simp [RayCrosses, ← hz, hw, hwb]
     have hcz : RayCrosses a b z ↔ z.re < a.re := by
-      simp only [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hz,
-        le_refl, hab, horizontalIntercept_left, true_and]
+      simp [RayCrosses, min_eq_left hab.le, max_eq_right hab.le, hz, hab]
     by_cases hw' : z.im ≤ w.im <;> by_cases hx' : z.re < a.re <;> simp [hcw, hcz, hw', hx']
   · have hz' : b.im < z.im := hz ▸ hab
     filter_upwards [hcompare,
       continuousAt_const.eventually_lt Complex.continuous_im.continuousAt hz'] with w hw hbw
     have hcw : RayCrosses a b w ↔ w.im < z.im ∧ z.re < a.re := by
-      unfold RayCrosses
-      rw [min_eq_right hab.le, max_eq_left hab.le, ← hz]
-      simp only [hw, hbw.le, true_and]
-    have hcz : ¬RayCrosses a b z := by
-      simp only [RayCrosses, max_eq_left hab.le, hz, lt_self_iff_false, false_and,
-        and_false, not_false_eq_true]
+      simp [RayCrosses, ← hz, hw, hbw.le]
+    have hcz : ¬RayCrosses a b z := by simp [RayCrosses, max_eq_left hab.le, hz]
     by_cases hw' : z.im ≤ w.im <;> by_cases hx' : z.re < a.re <;>
       simp [hcw, hcz, hw', hx', ← not_le]
 

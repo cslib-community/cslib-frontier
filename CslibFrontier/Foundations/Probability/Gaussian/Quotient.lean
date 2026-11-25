@@ -148,18 +148,15 @@ theorem tvDist_gaussian_quotient_le (s : ℝ) (hs : 0 < s) {F : Set E}
   have hlin : ∫⁻ y, f y ∂U = 1 := by
     simpa only [withDensity_apply f MeasurableSet.univ, Measure.restrict_univ] using
       (measure_univ (μ := U.withDensity f))
-  have hfi : Integrable f U := by
-    refine ⟨hf.aestronglyMeasurable, ?_⟩
-    rw [hasFiniteIntegral_iff_eNorm]
-    simpa only [eNorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
+  have hfi : Integrable f U :=
+    ⟨hf.aestronglyMeasurable, hasFiniteIntegral_iff_eNorm.mpr (by simp [hlin])⟩
   have hbound (y : E ⧸ L.toAddSubgroup) : |1 - (f y).toReal| ≤
       gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 := by
     induction y using Quotient.inductionOn with | _ x
     have hpos : 0 ≤ A (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup) := by
       dsimp only [A]
       rw [automorphize_gaussianWeight_coe]
-      exact mul_nonneg (div_pos (covolume_pos L volume) (pow_pos hs _)).le
-        (gaussianMass_pos L s hs (-x)).le
+      positivity [covolume_pos L volume, gaussianMass_pos L s hs (-x)]
     rw [show (f (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup)).toReal =
       A (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup) from ENNReal.toReal_ofReal hpos,
       abs_sub_comm]
@@ -180,12 +177,10 @@ private theorem map_add_gaussianWeight_withDensity (s : ℝ) (c : E) :
       (fun x : E ↦ ENNReal.ofReal (gaussianWeight s (x - c) / s ^ finrank ℝ E)) := by
   ext A hA
   rw [Measure.map_apply (measurable_add_const c) hA,
-    withDensity_apply _ ((measurable_add_const c) hA),
-    withDensity_apply _ hA]
-  rw [← lintegral_indicator ((measurable_add_const c) hA), ← lintegral_sub_right_eq_self _ c,
+    withDensity_apply _ ((measurable_add_const c) hA), withDensity_apply _ hA,
+    ← lintegral_indicator ((measurable_add_const c) hA), ← lintegral_sub_right_eq_self _ c,
     ← lintegral_indicator hA]
-  congr 1
-  funext y
+  congr 1 with y
   by_cases hy : y ∈ A <;> simp [hy]
 
 /-- Dual-mass form of [MicciancioRegev2007], Lemma 4.1 (p. 12 of the December 27, 2005 author
@@ -219,10 +214,8 @@ theorem tvDist_gaussian_shift_quotient_le (s : ℝ) (hs : 0 < s) (c : E) {F : Se
     rw [← map_add_gaussianWeight_withDensity s c,
       Measure.map_map hq (measurable_add_const c),
       Measure.map_map (measurable_const_add (q c)) hq]
-    congr 1
-    funext x
-    change QuotientAddGroup.mk (x + c) = QuotientAddGroup.mk c + QuotientAddGroup.mk x
-    rw [QuotientAddGroup.mk_add, add_comm]
+    exact congrArg₂ Measure.map
+      (funext fun x => by simp [q, QuotientAddGroup.mk_add, add_comm]) rfl
   have hU : Measure.map (fun y : E ⧸ L.toAddSubgroup ↦ q c + y) U = U :=
     map_add_left_eq_self U (q c)
   change tvDist

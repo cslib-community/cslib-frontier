@@ -107,11 +107,7 @@ private theorem mem_uncrossList_of_mem {X : Finset V} {a : ι → V} {A : ι →
       · exact iff_of_false (fun h' => (Finset.mem_sdiff.mp h').2 hz) h
     · have hz' : z ∉ A k' := fun h => Finset.disjoint_left.mp (hdisj.1 k hk) h hz
       unfold uncrossList
-      split_ifs
-      · rw [Finset.mem_union, ih hdisj.2 hk]
-        simp [hz']
-      · rw [Finset.mem_sdiff, ih hdisj.2 hk]
-        simp [hz']
+      split_ifs <;> simp [ih hdisj.2 hk, hz']
 
 private theorem mem_uncrossList_of_forall_notMem {X : Finset V} {a : ι → V} {A : ι → Finset V}
     {ks : List ι} {z : V} (hz : ∀ k ∈ ks, z ∉ A k) : z ∈ uncrossList X a A ks ↔ z ∈ X := by
@@ -119,13 +115,8 @@ private theorem mem_uncrossList_of_forall_notMem {X : Finset V} {a : ι → V} {
   | nil => rfl
   | cons k ks ih =>
     have hzk : z ∉ A k := hz k (by simp)
-    have ih' := ih fun j hj => hz j (by simp [hj])
     unfold uncrossList
-    split_ifs
-    · rw [Finset.mem_union, ih']
-      simp [hzk]
-    · rw [Finset.mem_sdiff, ih']
-      simp [hzk]
+    split_ifs <;> simp [ih fun j hj => hz j (by simp [hj]), hzk]
 
 private theorem isMinCutBetween_uncrossList [Fintype V] [AddCommMonoid β] [LinearOrder β]
     [IsOrderedCancelAddMonoid β] {f : Finset V → β} (hsym : ∀ X, f Xᶜ = f X)
@@ -351,14 +342,9 @@ private theorem GInv.isMinCutBetween_farSide (hsym : ∀ X, f Xᶜ = f X) {r : V
     (hk : k ∈ edgesAt r P p t) :
     IsMinCutBetween f (farEnd p S t k) t (farSide S t k) := by
   obtain ⟨hkP, hkr, -⟩ := mem_edgesAt.mp hk
-  have hc := I.cut k hkP hkr
-  rcases I.edgesAt_cases hk with ⟨htk, hpk⟩ | ⟨htk, hkt⟩
-  · simp only [farEnd, farSide, htk, ↓reduceIte]
-    rwa [hpk] at hc
-  · simp only [farEnd, farSide, htk, ↓reduceIte]
-    have hcc := hc.compl hsym
-    rw [hkt] at hcc ⊢
-    exact hcc
+  rcases I.edgesAt_cases hk with ⟨htk, rfl⟩ | ⟨htk, rfl⟩
+  · simpa only [farEnd, farSide, htk, ↓reduceIte] using I.cut k hkP hkr
+  · simpa only [farEnd, farSide, htk, ↓reduceIte] using (I.cut k hkP hkr).compl hsym
 
 /-- Far sides are closed under the parent pointers other than their own edge. -/
 private theorem GInv.mem_farSide_iff {r : V} {P : Finset V} {p : V → V} {S : V → Finset V}
@@ -813,21 +799,18 @@ private theorem gInv_isGomoryHuTree (hsym : ∀ X, f Xᶜ = f X) {r : V} {p : V 
   have hedge : (parentGraph p).edgeFinset =
       (Finset.univ.erase r).image fun i => s(i, p i) := by
     ext e
-    induction e using Sym2.ind with
-    | _ x y =>
-      rw [SimpleGraph.mem_edgeFinset, SimpleGraph.mem_edgeSet, parentGraph_adj, Finset.mem_image]
-      constructor
-      · rintro ⟨hxy, h | h⟩
-        · refine ⟨x, Finset.mem_erase.mpr ⟨fun hxr => hxy ?_, Finset.mem_univ x⟩, by rw [h]⟩
-          rw [← h, hxr, I.parent_root]
-        · refine ⟨y, Finset.mem_erase.mpr ⟨fun hyr => hxy ?_, Finset.mem_univ y⟩, ?_⟩
-          · rw [← h, hyr, I.parent_root]
-          · rw [h, Sym2.eq_swap]
-      · rintro ⟨i, hi, he⟩
-        have hir := (Finset.mem_erase.mp hi).1
-        rcases Sym2.eq_iff.mp he with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-        · exact ⟨(hne i hir).symm, Or.inl rfl⟩
-        · exact ⟨hne i hir, Or.inr rfl⟩
+    induction e using Sym2.ind with | _ x y => ?_
+    rw [SimpleGraph.mem_edgeFinset, SimpleGraph.mem_edgeSet, parentGraph_adj, Finset.mem_image]
+    constructor
+    · rintro ⟨hxy, rfl | rfl⟩
+      · exact ⟨x, Finset.mem_erase.mpr ⟨fun hxr => hxy (hxr ▸ I.parent_root).symm,
+          Finset.mem_univ x⟩, rfl⟩
+      · exact ⟨y, Finset.mem_erase.mpr ⟨fun hyr => hxy (hyr ▸ I.parent_root),
+          Finset.mem_univ y⟩, Sym2.eq_swap⟩
+    · rintro ⟨i, hi, he⟩
+      rcases Sym2.eq_iff.mp he with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+      · exact ⟨(hne i (Finset.mem_erase.mp hi).1).symm, Or.inl rfl⟩
+      · exact ⟨hne i (Finset.mem_erase.mp hi).1, Or.inr rfl⟩
   have hinj : Set.InjOn (fun i => s(i, p i)) ↑(Finset.univ.erase r) := by
     intro i hi j hj hij
     replace hi := (Finset.mem_erase.mp (Finset.mem_coe.mp hi)).1
@@ -869,19 +852,11 @@ private theorem gInv_gusfieldWithWeights [Fintype V] [DecidableEq V] [AddCommMon
     let res := gusfieldWithWeights C val r w₀ l
     ∃ S, GInv f r Finset.univ res.1 S res.2 ∧ res.2 r = w₀ := by
   obtain ⟨S, I, hwr⟩ := gInv_loop hsym hsub hC hval l (gInv_init f r (fun _ => ∅) fun _ => w₀)
-    hnd fun x _ => by
-      by_cases hx : x = r
-      · exact Or.inr hx
-      · exact Or.inl (fun h => hx (Finset.mem_singleton.mp h))
-  have huniv : ({r} : Finset V) ∪ l.toFinset = Finset.univ := by
-    ext x
-    simp only [Finset.mem_union, Finset.mem_singleton, List.mem_toFinset, Finset.mem_univ,
-      iff_true]
-    by_cases hx : x = r
-    · exact Or.inl hx
-    · exact Or.inr (hl x hx)
-  rw [huniv] at I
-  exact ⟨S, I, hwr⟩
+    hnd fun x _ => if hx : x = r then Or.inr hx else Or.inl (hx ∘ Finset.mem_singleton.mp)
+  have huniv : ({r} : Finset V) ∪ l.toFinset = Finset.univ :=
+    Finset.eq_univ_iff_forall.mpr fun x => by
+      by_cases hx : x = r <;> simp [hx, hl]
+  exact ⟨S, huniv ▸ I, hwr⟩
 
 /-- **Correctness of Gusfield's algorithm** ([Gusfield1990]). For a symmetric submodular `f`, a
 cut oracle `C` returning a minimum `s`–`t` cut for all `s ≠ t`, a root `r` and a duplicate-free

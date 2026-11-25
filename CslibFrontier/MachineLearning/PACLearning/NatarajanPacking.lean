@@ -79,11 +79,8 @@ theorem natarajanSum_le_exp_mul_pow (n k d : ℕ) {T : ℝ} (hT : 1 ≤ T) :
     refine sum_le_sum fun i hi => Nat.mul_le_mul_left _ ?_
     exact (Nat.pow_le_pow_left hKk i).trans
       (Nat.pow_le_pow_right hK1 (Nat.lt_succ_iff.mp (mem_range.mp hi)))
-  have hsum_real : (natarajanSum n k d : ℝ) ≤
-      (∑ i ∈ range (d + 1), (n.choose i : ℝ)) * (K : ℝ) ^ d := by
-    exact_mod_cast hsum_nat
   calc (natarajanSum n k d : ℝ)
-      ≤ (∑ i ∈ range (d + 1), (n.choose i : ℝ)) * (K : ℝ) ^ d := hsum_real
+      ≤ (∑ i ∈ range (d + 1), (n.choose i : ℝ)) * (K : ℝ) ^ d := by exact_mod_cast hsum_nat
     _ ≤ (Real.exp (n / T) * T ^ d) * (K : ℝ) ^ d := by
         gcongr
         exact Cslib.sum_choose_le_exp_mul_pow n d T hT
@@ -122,9 +119,8 @@ theorem card_le_div_pow_of_natarajanShatters [Fintype β] [DecidableEq β] {C : 
   have hK1 : (1 : ℝ) ≤ (max 1 ((Fintype.card β).choose 2) : ℕ) := by
     exact_mod_cast le_max_left 1 ((Fintype.card β).choose 2)
   refine card_le_div_pow_of_forall_two_mul_log_card_lt hK1 hε hε1 fun {r T} hm hlog hT1 => ?_
-  have hcard : (P.card : ℝ) ≤ natarajanSum r (Fintype.card β) d := by
-    exact_mod_cast card_le_natarajanSum_of_two_mul_log_card_lt hC hm hPC hP hlog
-  exact hcard.trans (natarajanSum_le_exp_mul_pow r (Fintype.card β) d hT1)
+  exact (Nat.cast_le.mpr (card_le_natarajanSum_of_two_mul_log_card_lt hC hm hPC hP hlog)).trans
+    (natarajanSum_le_exp_mul_pow r (Fintype.card β) d hT1)
 
 /-- Multiclass Natarajan packing bound for nontrivial label alphabets (`2 ≤ |β|`):
 `(P.card : ℝ) ≤ (8 · (|β| choose 2) / ε) ^ (2 d)`. At `β = Bool` (`2 choose 2 = 1`), this reduces

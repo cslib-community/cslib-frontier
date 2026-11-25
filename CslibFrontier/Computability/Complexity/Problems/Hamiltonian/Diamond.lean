@@ -162,14 +162,11 @@ private theorem nodup_flatMap_step {l : List ℕ} (hl : l.Nodup)
     cases o a <;> simp
   · intro x hx hx'
     rw [mem_step] at hx hx'
-    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩
-    · simp only [rowNode_inj] at h'
-      omega
-    · simp at h'
-    · simp at h'
-    · rw [clauseNode_inj] at h'
-      subst h'
-      exact hab (ho a b j hv hv')
+    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩ <;>
+      simp only [rowNode_inj, clauseNode_inj, rowNode_ne_clauseNode,
+        clauseNode_ne_rowNode] at h'
+    · exact absurd h'.2 hab
+    · exact hab (ho a b j hv (h' ▸ hv'))
 
 end Step
 
@@ -199,22 +196,18 @@ private theorem visit_eq_some_iff {i s j : ℕ} :
     visit M pick i s = some j ↔ j < M ∧ (pick j).row = i ∧ (pick j).slot = s := by
   constructor
   · intro h
-    have hp := List.find?_some h
-    simp only [decide_eq_true_eq] at hp
-    exact ⟨List.mem_range.1 (List.mem_of_find?_eq_some h), hp⟩
+    exact ⟨List.mem_range.1 (List.mem_of_find?_eq_some h), by simpa using List.find?_some h⟩
   · rintro ⟨hj, hi, hs⟩
     cases hv : visit M pick i s with
     | none =>
-      rw [visit, List.find?_eq_none] at hv
-      exact absurd (by simp [hi, hs]) (hv j (List.mem_range.2 hj))
+      exact absurd (by simp [hi, hs]) ((List.find?_eq_none.1 hv) j (List.mem_range.2 hj))
     | some j' =>
       have hmem := List.mem_range.1 (List.mem_of_find?_eq_some hv)
-      have hp := List.find?_some hv
-      simp only [decide_eq_true_eq] at hp
-      have := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp.1.symm)
-        (hs.trans hp.2.symm)
-      rw [(hpick j hj).2.1, (hpick j' hmem).2.1] at this
-      rw [this]
+      obtain ⟨hp1, hp2⟩ : (pick j').row = i ∧ (pick j').slot = s := by
+        simpa using List.find?_some hv
+      have hcl := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp1.symm)
+        (hs.trans hp2.symm)
+      rw [← (hpick j hj).2.1, hcl, (hpick j' hmem).2.1]
 
 /-- A rightward traversal visits clause `j` after row node `a` exactly when `a` starts the slot
 of its picked detour. -/
@@ -222,11 +215,7 @@ private theorem rightVisit_eq_some_iff {i a j : ℕ} :
     rightVisit M pick i a = some j ↔
       j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 2 := by
   unfold rightVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 /-- A leftward traversal visits clause `j` after row node `a` exactly when `a` ends the slot of
 its picked detour. -/
@@ -234,11 +223,7 @@ private theorem leftVisit_eq_some_iff {i a j : ℕ} :
     leftVisit M pick i a = some j ↔
       j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 3 := by
   unfold leftVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 omit hD in
 /-- The arcs of the picked detour of a clause, in the direction of its row. -/
@@ -252,11 +237,9 @@ private theorem arc_detour {j : ℕ} (hj : j < M) :
   obtain ⟨hmem, hcl, hdir⟩ := hpick j hj
   have harc : ∀ e ∈ detourArcs (pick j), e ∈ arcs N slots D := fun e he =>
     List.mem_append_right _ (List.mem_flatMap.2 ⟨pick j, hmem, he⟩)
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · have hb : (pick j).leftToRight = true := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
-  · have hb : (pick j).leftToRight = false := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
+  refine ⟨fun h => ?_, fun h => ?_⟩ <;>
+    exact ⟨harc _ (by simp [detourArcs, ← hdir, h, hcl]),
+      harc _ (by simp [detourArcs, ← hdir, h, hcl])⟩
 
 /-- No clause is visited across the right end of a row. -/
 private theorem visit_last (i : ℕ) : visit M pick i (slots i) = none := by
@@ -511,22 +494,14 @@ theorem computableInPolyTime_graph {α : Type} {encIn : α ↪ List Bool} {N M :
     (hM : ComputableInPolyTime M encIn encUnary)
     (hD : ComputableInPolyTime D encIn (encList encDetour)) :
     ComputableInPolyTime (fun a => graph (N a) (slots a) (M a) (D a)) encIn encGraph := by
-  have hvert : ComputableInPolyTime (fun a => vertices (N a) (slots a) (M a)) encIn
-      (encList encNat) := by
-    unfold vertices rowLength
-    fun_prop
   have hdiam : ComputableInPolyTime (fun p : α × ℕ => diamondArcs (slots p.1) p.2)
       (encPair encIn encUnary) (encList (encPair encNat encNat)) := by
-    unfold diamondArcs rowLength
-    fun_prop
+    fun_prop [diamondArcs, rowLength]
   have hdet : ComputableInPolyTime detourArcs encDetour (encList (encPair encNat encNat)) := by
-    unfold detourArcs
-    fun_prop
-  have harcs : ComputableInPolyTime (fun a => arcs (N a) (slots a) (D a)) encIn
-      (encList (encPair encNat encNat)) := by
-    unfold arcs
-    fun_prop
-  exact encGraph_mk_polyTime hvert harcs
+    fun_prop [detourArcs]
+  exact encGraph_mk_polyTime
+    (by fun_prop [vertices, rowLength])
+    (by fun_prop [arcs])
 
 /-- A closed diamond graph is computable in polynomial time from a layout computable in polynomial
 time, with the numbers of diamonds, slots and clauses in unary. -/

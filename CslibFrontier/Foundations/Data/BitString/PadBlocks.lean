@@ -53,10 +53,9 @@ def padBlocks (n L : ℕ) (x : List Bool) : List (BitString n) :=
 /-- Bit `j` of block `i` of `padBlocks n L x` is bit `i * n + j` of `x`, or `false` past its end. -/
 theorem padBlocks_getElem_apply (n L : ℕ) (x : List Bool) (i : ℕ) (hi : i < L / n) (j : Fin n) :
     ((padBlocks n L x)[i]'(by simpa using hi)) j = x.getD (i * n + j) false := by
-  have h : ∀ (l : List (BitString n)) (hl : l = padBlocks n L x) (h' : i < l.length),
+  have h : ∀ (l : List (BitString n)) (_ : l = padBlocks n L x) (h' : i < l.length),
       l[i] j = x.getD (i * n + j) false := by
-    rintro l hl h'
-    subst hl
+    rintro _ rfl h'
     unfold padBlocks at h' ⊢
     rw [List.getElem_ofFn]
     simp only [listBlock, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt j.isLt,
@@ -77,25 +76,22 @@ theorem getElem?_toBlocks (n : ℕ) (x : List Bool) (i : ℕ) :
 /-- The blocks of a list, read position by position. -/
 theorem toBlocks_eq_map_range (n : ℕ) (x : List Bool) :
     toBlocks n x =
-      (List.range (x.length / n)).map fun i => (fun j : Fin n => x.getD (i * n + j) false) := by
-  refine List.ext_getElem? fun i => ?_
-  rw [getElem?_toBlocks]
-  by_cases hi : i < x.length / n <;> simp [hi]
+      (List.range (x.length / n)).map fun i => (fun j : Fin n => x.getD (i * n + j) false) :=
+  List.ext_getElem? fun i => by
+    rw [getElem?_toBlocks]
+    by_cases hi : i < x.length / n <;> simp [hi]
 /-- A list made of whole `n`-bit blocks is the concatenation of its blocks. -/
 theorem flatMap_ofFn_toBlocks {n : ℕ} {x : List Bool} (hx : n ∣ x.length) :
     (toBlocks n x).flatMap List.ofFn = x := by
-  have hlen : x.length / n * n = x.length := Nat.div_mul_cancel hx
   have hblocks : toBlocks n x =
       List.ofFn (block (fun p : Fin (x.length / n * n) => x.getD p false)) := by
     unfold toBlocks
-    refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-    funext j
+    refine List.ext_getElem (by simp) fun i h₁ _ => funext fun j => ?_
     rw [padBlocks_getElem_apply n x.length x i (by simpa using h₁), List.getElem_ofFn, block_apply]
-    simp only [finProdFinEquiv_apply_val]
-    rw [Nat.add_comm, Nat.mul_comm]
+    simp only [finProdFinEquiv_apply_val, Nat.add_comm, Nat.mul_comm]
   rw [hblocks, List.flatMap_def, List.map_ofFn, Function.comp_def, ← ofFn_blocksEquiv_symm,
     blocksEquiv_symm_block]
-  refine List.ext_getElem (by simp [hlen]) fun p h₁ h₂ => ?_
+  refine List.ext_getElem (by simp [Nat.div_mul_cancel hx]) fun p _ h₂ => ?_
   simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₂]
 /-- `listRows (L / n) n x` is the word view of `padBlocks n L x`. -/
 theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
@@ -119,18 +115,16 @@ theorem toBlocks_append {n : ℕ} {a : List Bool} (ha : n ∣ a.length) (b : Lis
   · have h0 (x : List Bool) : toBlocks 0 x = [] := List.eq_nil_of_length_eq_zero (by simp)
     rw [h0, h0, h0, List.append_nil]
   obtain ⟨k, hk⟩ := ha
-  have hka : (toBlocks n a).length = k := by
-    rw [length_toBlocks, hk, Nat.mul_div_cancel_left _ hn]
+  have hka : (toBlocks n a).length = k := by simp [hk, Nat.mul_div_cancel_left _ hn]
   refine List.ext_getElem? fun j => ?_
   rcases Nat.lt_or_ge j k with hj | hj
-  · rw [List.getElem?_append_left (by rw [hka]; exact hj), getElem?_toBlocks, getElem?_toBlocks,
+  · rw [List.getElem?_append_left (hka ▸ hj), getElem?_toBlocks, getElem?_toBlocks,
       List.length_append, hk, Nat.mul_add_div hn, Nat.mul_div_cancel_left _ hn]
     simp only [Nat.lt_add_right _ hj, hj, ↓reduceIte, Option.some.injEq]
-    funext i
-    exact List.getD_append _ _ _ _ (by
-      rw [hk]; nlinarith [i.isLt, Nat.mul_le_mul_right n (show j + 1 ≤ k from hj)])
+    exact funext fun i => List.getD_append _ _ _ _
+      (by rw [hk]; nlinarith [i.isLt, Nat.mul_le_mul_right n (show j + 1 ≤ k from hj)])
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hj
-    rw [List.getElem?_append_right (by rw [hka]; exact hj), hka, Nat.add_sub_cancel_left,
+    rw [List.getElem?_append_right (hka ▸ hj), hka, Nat.add_sub_cancel_left,
       getElem?_toBlocks, getElem?_toBlocks, List.length_append, hk, Nat.mul_add_div hn]
     simp only [Nat.add_lt_add_iff_left]
     split_ifs

@@ -171,20 +171,15 @@ theorem program_spec_of_wellFormed {L w : ℕ} [NeZero L] {g : Graph (Fin L → 
     ∃ n ≤ (16 * L + 80) * g.vertices + (120 * L + 300) * g.edges.length + 80,
       ExecutesList w program (.init (encode g))
         (encodeSolution g.vertices (solve (List.finRange L) g)) n := by
-  obtain ⟨n, hn, hex⟩ := program_spec (w := w) g hw
-  rw [timeBound, slots_eq_vertices hg] at hn
-  rw [slots_eq_vertices hg] at hex
-  exact ⟨n, hn, hex⟩
+  simpa only [timeBound, slots_eq_vertices hg] using program_spec (w := w) g hw
 
 /-- `program` uniformly computes `encodeSolution (slots g) (solve (List.finRange L) g)` in
 `timeBound g` instructions at every width `w` fitting `wordBound g`. -/
 theorem computesListInTime_program (L : ℕ) [NeZero L] :
     program.ComputesListInTime (fun _ (g : Graph (Fin L → Fin L)) => encode g)
       (fun g _ => timeBound g) (fun g w => Fits w (wordBound g))
-      (fun g => encodeSolution (slots g) (solve (List.finRange L) g)) := by
-  intro g w hw _
-  obtain ⟨n, hn, hex⟩ := program_spec (w := w) g hw
-  exact ⟨n, hex, hn⟩
+      (fun g => encodeSolution (slots g) (solve (List.finRange L) g)) :=
+  fun g _ hw _ => (program_spec g hw).elim fun n ⟨hn, hex⟩ => ⟨n, hex, hn⟩
 
 /-- **Word-RAM label propagation decision certificate (`Executes`).** On any instance
 `g : Graph (Fin L → Fin L)` (`[NeZero L]`) and any word width `w` fitting `wordBound g`,
@@ -204,9 +199,7 @@ instructions at every width `w` fitting `wordBound g`. -/
 theorem computesInTime_decideProgram (L : ℕ) [NeZero L] :
     decideProgram.ComputesInTime (fun _ (g : Graph (Fin L → Fin L)) => encode g)
       (fun g _ => timeBound g) (fun g w => Fits w (wordBound g))
-      (fun g => (solve (List.finRange L) g).isSome.toNat) := by
-  intro g w hw _
-  obtain ⟨n, hn, hex⟩ := decideProgram_spec (w := w) g hw
-  exact ⟨n, hex, hn⟩
+      (fun g => (solve (List.finRange L) g).isSome.toNat) :=
+  fun g _ hw _ => (decideProgram_spec g hw).elim fun n ⟨hn, hex⟩ => ⟨n, hex, hn⟩
 
 end Cslib.Complexity.UniqueGames.Propagation

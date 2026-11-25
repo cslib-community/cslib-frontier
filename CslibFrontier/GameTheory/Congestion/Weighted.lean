@@ -153,16 +153,12 @@ theorem isPureNash_toCostGame_iff [DecidableEq ι] (hw : ∀ i, 0 < W.weight i) 
 resources weights each resource `e` by `load s e`. -/
 theorem sum_weight_mul_sum_resources [Fintype E] (s : ∀ i, S i) (f : E → ℝ) :
     ∑ i, W.weight i * ∑ e ∈ W.resources i (s i), f e = ∑ e, W.load s e * f e := by
-  have hlhs : ∀ i, W.weight i * ∑ e ∈ W.resources i (s i), f e =
-      ∑ e : E, if e ∈ W.resources i (s i) then W.weight i * f e else 0 := fun i => by
-    rw [Finset.mul_sum, ← Finset.sum_filter]
-    refine Finset.sum_congr ?_ fun _ _ => rfl
-    ext e
-    simp
+  have hlhs (i : ι) : W.weight i * ∑ e ∈ W.resources i (s i), f e =
+      ∑ e : E, if e ∈ W.resources i (s i) then W.weight i * f e else 0 := by
+    rw [Finset.mul_sum, ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
   simp only [hlhs]
   rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun e _ => ?_
-  rw [← Finset.sum_filter, load, Finset.sum_mul]
+  exact Finset.sum_congr rfl fun _ _ => by rw [← Finset.sum_filter, load, Finset.sum_mul]
 
 /-- The social cost of a weighted congestion game is `∑ e, load s e * latency e (load s e)`. -/
 theorem socialCost_toCostGame [Fintype E] (s : ∀ i, S i) :
@@ -177,9 +173,7 @@ theorem load_nonneg (hw : ∀ i, 0 ≤ W.weight i) (s : ∀ i, S i) (e : E) : 0 
 theorem load_eq_ite_add_erase [DecidableEq ι] (t : ∀ j, S j) (i : ι) (e : E) :
     W.load t e = (if e ∈ W.resources i (t i) then W.weight i else 0) +
       ∑ j ∈ Finset.univ.erase i, if e ∈ W.resources j (t j) then W.weight j else 0 := by
-  have heq : W.load t e = ∑ j : ι, if e ∈ W.resources j (t j) then W.weight j else 0 := by
-    rw [load, ← Finset.sum_filter]
-  rw [heq, ← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
+  rw [load, Finset.sum_filter, ← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
 
 section Deviation
 
@@ -191,14 +185,14 @@ theorem load_update (s : ∀ j, S j) (i : ι) (a : S i) (e : E) :
     W.load (Function.update s i a) e =
       W.load s e + (if e ∈ W.resources i a then W.weight i else 0) -
         (if e ∈ W.resources i (s i) then W.weight i else 0) := by
-  rw [W.load_eq_ite_add_erase (Function.update s i a) i e, W.load_eq_ite_add_erase s i e,
-    Function.update_self]
-  have hsum : (∑ j ∈ Finset.univ.erase i,
-        if e ∈ W.resources j (Function.update s i a j) then W.weight j else 0) =
+  have hrest : (∑ j ∈ Finset.univ.erase i,
+      if e ∈ W.resources j (Function.update s i a j) then W.weight j else 0) =
       ∑ j ∈ Finset.univ.erase i, if e ∈ W.resources j (s j) then W.weight j else 0 :=
     Finset.sum_congr rfl fun j hj => by
       simp only [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-  linarith
+  rw [W.load_eq_ite_add_erase (Function.update s i a) i e, W.load_eq_ite_add_erase s i e,
+    Function.update_self, hrest]
+  ring
 
 /-- For nonnegative player weight `weight i`, a unilateral deviation of player `i` increases the
 load on any resource by at most `weight i`. -/
@@ -282,43 +276,34 @@ theorem affinePotential_update_sub [DecidableEq ι] [Fintype E] {a b : E → ℝ
   let s' := Function.update s i a'
   change W.affinePotential s' - W.affinePotential s =
     2 * W.weight i * (W.unitCost i s' - W.unitCost i s)
-  have hself : ∀ (t : ∀ j, S j) (e : E),
+  have hself (t : ∀ j, S j) (e : E) :
       (∑ j with e ∈ W.resources j (t j), W.weight j * W.latency e (W.weight j)) =
         (if e ∈ W.resources i (t i) then W.weight i * W.latency e (W.weight i) else 0) +
           ∑ j ∈ Finset.univ.erase i,
-            if e ∈ W.resources j (t j) then W.weight j * W.latency e (W.weight j) else 0 :=
-    fun t e => by
-      have heq : (∑ j with e ∈ W.resources j (t j), W.weight j * W.latency e (W.weight j)) =
-          ∑ j : ι,
             if e ∈ W.resources j (t j) then W.weight j * W.latency e (W.weight j) else 0 := by
-        rw [← Finset.sum_filter]
-      rw [heq, ← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-  have hpt : ∀ e : E,
+    rw [Finset.sum_filter, ← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
+  have hpt (e : E) :
       (W.load s' e * W.latency e (W.load s' e) +
           ∑ j with e ∈ W.resources j (s' j), W.weight j * W.latency e (W.weight j)) -
         (W.load s e * W.latency e (W.load s e) +
           ∑ j with e ∈ W.resources j (s j), W.weight j * W.latency e (W.weight j)) =
       2 * W.weight i *
         ((if e ∈ W.resources i a' then W.latency e (W.load s' e) else 0) -
-          (if e ∈ W.resources i (s i) then W.latency e (W.load s e) else 0)) := fun e => by
-    have hM_eq : (∑ j ∈ Finset.univ.erase i,
-          if e ∈ W.resources j (s' j) then W.weight j * W.latency e (W.weight j) else 0) =
+          (if e ∈ W.resources i (s i) then W.latency e (W.load s e) else 0)) := by
+    have hrest : (∑ j ∈ Finset.univ.erase i,
+        if e ∈ W.resources j (s' j) then W.weight j * W.latency e (W.weight j) else 0) =
         ∑ j ∈ Finset.univ.erase i,
           if e ∈ W.resources j (s j) then W.weight j * W.latency e (W.weight j) else 0 :=
       Finset.sum_congr rfl fun j hj => by
         simp only [s', Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-    rw [hself s' e, hself s e, hM_eq]
-    have hs'_i : s' i = a' := Function.update_self i a' s
-    rw [hs'_i, show W.load s' e = W.load (Function.update s i a') e from rfl,
-      W.load_update s i a' e]
+    rw [hself s' e, hself s e, hrest, show s' i = a' from Function.update_self i a' s,
+      show W.load s' e = W.load (Function.update s i a') e from rfl, W.load_update s i a' e]
     simp only [hl]
     by_cases h1 : e ∈ W.resources i (s i) <;> by_cases h2 : e ∈ W.resources i a' <;>
       simp only [h1, h2, ↓reduceIte] <;> ring
   rw [affinePotential_def, affinePotential_def, ← Finset.sum_sub_distrib]
   simp only [hpt, ← Finset.mul_sum, Finset.sum_sub_distrib, Finset.sum_ite_mem, Finset.univ_inter]
-  have hu' : W.unitCost i s' = ∑ e ∈ W.resources i a', W.latency e (W.load s' e) := by
-    simp only [unitCost, s', Function.update_self]
-  rw [hu', unitCost]
+  rw [unitCost, unitCost, show s' i = a' from Function.update_self i a' s]
 
 /-- Half of `affinePotential` is an **exact potential** of `toCostGame` whenever latencies are
 affine ([NisanRoughgardenTardosVazirani2007], Chapter 18, Exercise 18.4 and Chapter 19,
@@ -376,15 +361,9 @@ theorem HasAffineLatencies.socialCost_le_affinePotential [Fintype E]
     W.toCostGame.socialCost s ≤ W.affinePotential s := by
   obtain ⟨a, b, ha, hb, hl⟩ := h
   rw [W.socialCost_toCostGame, affinePotential_def]
-  refine Finset.sum_le_sum fun e _ => ?_
-  have hnonneg : 0 ≤ ∑ i with e ∈ W.resources i (s i), W.weight i * W.latency e (W.weight i) :=
-    Finset.sum_nonneg fun i _ => by
-      rw [hl]
-      have hwi := hw i
-      have hae := ha e
-      have hbe := hb e
-      positivity
-  linarith
+  refine Finset.sum_le_sum fun e _ => le_add_of_nonneg_right <| Finset.sum_nonneg fun i _ => ?_
+  rw [hl]
+  exact mul_nonneg (hw i) (add_nonneg (mul_nonneg (ha e) (hw i)) (hb e))
 
 theorem HasAffineLatencies.affinePotential_le_two_mul_socialCost [Fintype E]
     (h : W.HasAffineLatencies) (hw : ∀ i, 0 ≤ W.weight i) (s : ∀ i, S i) :
@@ -394,11 +373,8 @@ theorem HasAffineLatencies.affinePotential_le_two_mul_socialCost [Fintype E]
   have hle : ∑ i with e ∈ W.resources i (s i), W.weight i * W.latency e (W.weight i) ≤
       W.load s e * W.latency e (W.load s e) := by
     rw [load, Finset.sum_mul]
-    refine Finset.sum_le_sum fun i hi => ?_
-    have hi_le : W.weight i ≤ W.load s e := by
-      rw [load]
-      exact Finset.single_le_sum (fun j _ => hw j) hi
-    exact mul_le_mul_of_nonneg_left (h.monotone_latency e hi_le) (hw i)
+    exact Finset.sum_le_sum fun i hi => mul_le_mul_of_nonneg_left
+      (h.monotone_latency e (Finset.single_le_sum (fun j _ => hw j) hi)) (hw i)
   linarith
 
 /-- **Price of stability at most `2` for weighted affine congestion games**: every finite nonempty

@@ -450,10 +450,8 @@ theorem secureKDF_linearHashKDF {setup : ℕ → PMF F.Desc} {keyLen bound : F.D
       (F.linearHashKDF keyLen bound) msgLen := by
   intro distinguisher _
   have hsqrt : Negligible fun n => NNReal.sqrt ((2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0)) / 2 := by
-    have h1 : Negligible fun n =>
-        (2⁻¹ : ℝ≥0) * NNReal.sqrt ((2 : ℝ≥0) ^ (msgLen n) / (qMin n : ℝ≥0)) :=
+    simpa only [Negligible, div_eq_inv_mul] using
       (Negligible.sqrt h.negligible).const_mul (2⁻¹ : ℝ≥0)
-    simpa only [div_eq_inv_mul] using h1
   exact negligible_of_le hsqrt fun n =>
     F.advantage_kdfGame_linearHashKDF_le setup keyLen bound msgLen distinguisher n (qMin n)
       (h.qMin_pos n) (h.keyLen_eq n) (h.length_encode_le n) (h.qMin_le_order n)
@@ -471,9 +469,7 @@ theorem secureKDF_linearHashKDF_const (setup : ℕ → PMF F.Desc)
     F.withSeed.SecureKDF (F.seededSetup setup (F.linearHashSeedLen (fun _ => k) bound))
       (F.linearHashKDF (fun _ => k) bound) (fun _ => k) := by
   refine F.secureKDF_linearHashKDF ⟨hq0, fun _ _ _ => rfl, hbound, hq, ?_⟩
-  have hk : Negligible fun n => (2 : ℝ≥0) ^ k * (1 / qMin n : ℝ≥0) :=
-    hneg.const_mul ((2 : ℝ≥0) ^ k)
-  simpa only [div_eq_mul_inv, one_mul] using hk
+  simpa only [Negligible, div_eq_mul_inv, one_mul] using hneg.const_mul ((2 : ℝ≥0) ^ k)
 
 /-- **Existence of a polynomial-time non-degenerate `SecureKDF` for any `PrimeOrderGroupFamily`**
 with super-polynomial group order: using the canonical polynomial encoding-length bound from
@@ -494,13 +490,11 @@ theorem exists_secureKDF_withSeed (setup : ℕ → PMF F.Desc) (k : ℕ) {qMin :
   obtain ⟨c, e, hce⟩ := F.exists_length_encode_le
   let bound : F.Desc → ℕ := fun d => c * ((F.encDesc d).length + 1) ^ e
   have hbound_poly : ComputableInPolyTime bound F.encDesc encUnary := by
-    dsimp [bound]
+    dsimp only [bound]
     fun_prop
-  have hkey_poly : ComputableInPolyTime (fun _ : F.Desc => k) F.encDesc encUnary := by fun_prop
-  have hmsg_poly : ComputableInPolyTime (fun _ : ℕ => k) encUnary encUnary := by fun_prop
-  refine ⟨F.linearHashSeedLen (fun _ => k) bound, F.linearHashKDF (fun _ => k) bound,
-    F.computableInPolyTime_linearHashSeedLen hmsg_poly hbound_poly,
-    F.computableInPolyTime_linearHashKDF hkey_poly hbound_poly,
+  exact ⟨F.linearHashSeedLen (fun _ => k) bound, F.linearHashKDF (fun _ => k) bound,
+    F.computableInPolyTime_linearHashSeedLen (by fun_prop) hbound_poly,
+    F.computableInPolyTime_linearHashKDF (by fun_prop) hbound_poly,
     fun ds w => F.length_linearHashKDF (fun _ => k) bound (ds, w),
     F.secureKDF_linearHashKDF_const setup bound k hq0 (fun _ d _ x => hce d x) hq hneg⟩
 

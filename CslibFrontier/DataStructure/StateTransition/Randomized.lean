@@ -221,17 +221,13 @@ theorem expectedCost_bind (charge : D.State → D.Op → ℕ) (p : OracleComp D.
   induction p generalizing s with
   | pure a =>
     change D.expectedCost charge (k a) s = 0 + ∑' x, PMF.pure (a, s) x * _
-    rw [zero_add, tsum_eq_single (a, s)]
-    · simp
-    · intro x hx
-      simp [PMF.pure_apply, hx]
+    rw [zero_add, tsum_eq_single (a, s) fun x hx => by simp [PMF.pure_apply, hx]]
+    simp
   | liftBind o cont ih =>
     change D.expectedCost charge (.liftBind o fun r => cont r >>= k) s = _
     rw [expectedCost_liftBind, expectedCost_liftBind, run_liftBind,
       Probability.PMF.tsum_bind_mul, add_assoc, ← tsum_add]
-    congr 1
-    refine tsum_congr fun x => ?_
-    rw [ih, mul_add]
+    exact congrArg _ (tsum_congr fun x => by rw [ih, mul_add])
 
 /-- With charges independent of the state, a query budget bounds the expected charge. -/
 theorem expectedCost_le_of_isCostBounded {cost : D.Op → ℕ} {p : OracleComp D.Result α} {n : ℕ}
@@ -325,11 +321,9 @@ theorem demonicValid_sample_bind {q : ProbComp β} {k : β → OracleComp D.with
   | liftBind n cont ih =>
     refine StateTransitionSpec.DemonicValid.liftBind (D := D.withCoins.toSpec) (Sum.inl n)
       (fun i => ProbOracleComp.sample (cont i) >>= k) trivial fun s' i hstep => ?_
-    have hs : s' = s := by
-      change (i, s') ∈ ((ProbComp.unifOracle n).bind fun i => PMF.pure (i, s)).support at hstep
-      obtain ⟨_, _, h⟩ := (PMF.mem_support_bind_iff _ _ _).mp hstep
-      exact (Prod.ext_iff.mp ((PMF.mem_support_pure_iff _ _).mp h)).2
-    subst hs
+    change (i, s') ∈ ((ProbComp.unifOracle n).bind fun i => PMF.pure (i, s)).support at hstep
+    obtain ⟨_, _, h⟩ := (PMF.mem_support_bind_iff _ _ _).mp hstep
+    obtain ⟨-, rfl⟩ := Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp h)
     exact ih i
 
 /-- A closed sampler followed by a continuation draws a value, then runs the continuation from
@@ -418,13 +412,7 @@ theorem toRandomized_step_iff (s s' : D.State) (o : D.Op) (a : D.Result o) :
     D.toRandomized.toSpec.step s o s' a ↔ D.step s o s' a := by
   rw [D.step_iff_stepFn]
   change (a, s') ∈ (PMF.pure ((D.stepFn s o).2, (D.stepFn s o).1)).support ↔ _
-  rw [PMF.mem_support_pure_iff]
-  constructor
-  · intro h
-    obtain ⟨ha, hs⟩ := Prod.mk.inj h
-    exact Prod.ext hs ha
-  · intro h
-    rw [← h]
+  simp only [PMF.mem_support_pure_iff, Prod.ext_iff, and_comm]
 
 /-- Admissibility on a deterministic specification is admissibility on its support. -/
 theorem toRandomized_demonicValid {p : D.Client α} {s : D.State} (h : D.DemonicValid s p) :
@@ -601,10 +589,8 @@ theorem bind_apply_le_of_identicalUntilBad (real : Methods D.toSpec F.toSpec)
     ((F.run (link real p) e).bind fun (a, e') => next (a, M.abs e')) b ≤
       (D.run p (M.abs e)).bind next b +
         (F.run (link real p) e).toOuterMeasure {x | bad x.2} := by
-  have hle := h.bind_apply_le p e (fun (a, e') => next (a, M.abs e')) b
-  rw [run_interpret_handler, run_interpret_handler] at hle
-  rw [← M.run_link p he hv, PMF.bind_map]
-  exact hle
+  simpa only [run_interpret_handler, ← M.run_link p he hv, PMF.bind_map, Function.comp_def] using
+    h.bind_apply_le p e (fun (a, e') => next (a, M.abs e')) b
 
 /-- **The identical-until-bad step, two-sided.** The acceptance probabilities of the real client
 and of the specification differ by at most the probability that the real run reaches a bad
@@ -617,10 +603,8 @@ theorem abs_sub_le_of_identicalUntilBad (real : Methods D.toSpec F.toSpec)
     |(((F.run (link real p) e).bind fun (a, e') => next (a, M.abs e')) b).toReal -
         ((D.run p (M.abs e)).bind next b).toReal| ≤
       ((F.run (link real p) e).toOuterMeasure {x | bad x.2}).toReal := by
-  have hle := h.abs_sub_le p e (fun (a, e') => next (a, M.abs e')) b
-  rw [run_interpret_handler, run_interpret_handler] at hle
-  rw [← M.run_link p he hv, PMF.bind_map]
-  exact hle
+  simpa only [run_interpret_handler, ← M.run_link p he hv, PMF.bind_map, Function.comp_def] using
+    h.abs_sub_le p e (fun (a, e') => next (a, M.abs e')) b
 
 /-! ## Expected amortized costs -/
 
@@ -649,10 +633,8 @@ theorem ExpectedAmortized.client (A : M.ExpectedAmortized lower upper potential)
   induction p generalizing e with
   | pure a =>
     change 0 + ∑' x, PMF.pure (a, e) x * potential x.2 ≤ 0 + potential e
-    rw [tsum_eq_single (a, e)]
-    · simp
-    · intro x hx
-      simp [PMF.pure_apply, hx]
+    rw [tsum_eq_single (a, e) fun x hx => by simp [PMF.pure_apply, hx]]
+    simp
   | liftBind o k ih =>
     obtain ⟨hv_o, hv_k⟩ := (D.toSpec.demonicValid_liftBind_iff _ o k).mp hv
     change F.expectedCost lower (M.methods o >>= fun r => link M.methods (k r)) e +
@@ -661,22 +643,20 @@ theorem ExpectedAmortized.client (A : M.ExpectedAmortized lower upper potential)
       ← tsum_add]
     simp only [← mul_add]
     calc _ ≤ F.expectedCost lower (M.methods o) e + ∑' x, F.run (M.methods o) e x *
-          (D.expectedCost upper (k x.1) (M.abs x.2) + potential x.2) := by
-          refine add_le_add le_rfl (tsum_le_tsum fun x => ?_)
-          by_cases hx : x ∈ (F.run (M.methods o) e).support
-          · exact mul_le_mul_of_nonneg_left (ih x.1 (M.inv_of_mem_support o he hv_o hx)
-              (hv_k _ _ (M.step_of_mem_support o he hv_o hx))) zero_le
-          · rw [(PMF.apply_eq_zero_iff _ _).mpr hx, zero_mul, zero_mul]
+          (D.expectedCost upper (k x.1) (M.abs x.2) + potential x.2) :=
+          add_le_add le_rfl <| tsum_le_tsum fun x => by
+            by_cases hx : x ∈ (F.run (M.methods o) e).support
+            · exact mul_le_mul_of_nonneg_left (ih x.1 (M.inv_of_mem_support o he hv_o hx)
+                (hv_k _ _ (M.step_of_mem_support o he hv_o hx))) zero_le
+            · rw [(PMF.apply_eq_zero_iff _ _).mpr hx, zero_mul, zero_mul]
       _ = (F.expectedCost lower (M.methods o) e +
             ∑' x, F.run (M.methods o) e x * potential x.2) +
           ∑' x, D.law o (M.abs e) x * D.expectedCost upper (k x.1) x.2 := by
           rw [← M.law o he hv_o, Probability.PMF.tsum_map_mul]
-          simp only [mul_add, tsum_add]
-          ring
-      _ ≤ (upper (M.abs e) o + potential e) +
-          ∑' x, D.law o (M.abs e) x * D.expectedCost upper (k x.1) x.2 :=
-          add_le_add (A.step o he hv_o) le_rfl
-      _ = _ := by rw [D.expectedCost_liftBind]; ring
+          simp only [mul_add, tsum_add]; ring
+      _ ≤ _ := by
+          rw [D.expectedCost_liftBind, add_right_comm (upper (M.abs e) o : ℝ≥0∞)]
+          exact add_le_add (A.step o he hv_o) le_rfl
 
 /-- **Expected potentials stack across composition.** The composite is amortized in
 expectation with the upper potential, read through the lower abstraction, plus the lower

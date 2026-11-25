@@ -165,11 +165,7 @@ theorem step?_eq_some_iff (M : CountingAuxPDA k Symbol StackSym State)
     M.step? cfg index = some final ↔
       ∃ h : index < (M.actions cfg).length, (M.actions cfg)[index].apply? cfg = some final := by
   simp only [step?, Option.bind_eq_some_iff, List.getElem?_eq_some_iff]
-  constructor
-  · rintro ⟨act, ⟨h, rfl⟩, hact⟩
-    exact ⟨h, hact⟩
-  · rintro ⟨h, hact⟩
-    exact ⟨_, ⟨h, rfl⟩, hact⟩
+  exact ⟨fun ⟨_, ⟨h, rfl⟩, hact⟩ => ⟨h, hact⟩, fun ⟨h, hact⟩ => ⟨_, ⟨h, rfl⟩, hact⟩⟩
 
 /-- Before halting, an unlabelled `toAuxPDA` step is precisely a valid occurrence index. -/
 theorem step_toAuxPDA_iff (M : CountingAuxPDA k Symbol StackSym State)
@@ -556,16 +552,13 @@ theorem ofMultiTapeCTM_toAuxPDA (M : MultiTapeCTM k Symbol State) :
   cases M
   simp only [toAuxPDA, ofMultiTapeCTM, AuxPDA.ofMultiTapeNTM, MultiTapeCTM.toNTM]
   congr 1
-  funext q inp work top act
-  simp only [List.mem_map, eq_iff_iff]
+  funext q inp work top ⟨tape, stackOp⟩
+  simp only [List.mem_map, AuxPDA.Action.mk.injEq, eq_iff_iff]
   constructor
-  · rintro ⟨a, ha, rfl⟩
+  · rintro ⟨a, ha, rfl, rfl⟩
     exact ⟨rfl, by simpa using ha⟩
-  · rintro ⟨hstay, ha⟩
-    refine ⟨MultiTapeMachine.Action.emptyOracleEquiv.symm act.tape, ha, ?_⟩
-    obtain ⟨tape, stackOp⟩ := act
-    obtain rfl : stackOp = .stay := hstay
-    simp
+  · rintro ⟨rfl, ha⟩
+    exact ⟨MultiTapeMachine.Action.emptyOracleEquiv.symm tape, ha, by simp, rfl⟩
 
 lemma ofMultiTapeCTM_step? (M : MultiTapeCTM k Symbol State)
     (c : Turing.Cfg k Symbol State input) (s : List PUnit) (i : ℕ) :

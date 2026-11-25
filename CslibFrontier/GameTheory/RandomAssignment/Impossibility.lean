@@ -11,6 +11,7 @@ public import CslibFrontier.GameTheory.RandomAssignment.Basic
 public import CslibFrontier.GameTheory.RandomAssignment.RandomSerialDictatorship
 
 import Mathlib.Data.Fin.VecNotation
+import Mathlib.Logic.Equiv.Fin.Basic
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -219,6 +220,14 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     le_antisymm (not_lt.mp h) (hnn p i o)
   have hcol : ∀ p o, φ p 0 o + φ p 1 o + φ p 2 o + φ p 3 o = 1 := fun p =>
     col_sum_four (hfeas p)
+  have hclass {p : Profile 4} (i j : Fin 4) (hp : ∀ k ≠ j, p k = p i) (o : Fin 4) :
+      3 * φ p i o + φ p j o = 1 := by
+    have h := Finset.sum_erase_add Finset.univ (fun k => φ p k o) (Finset.mem_univ j)
+    rw [(mem_doublyStochastic_iff_sum.mp (hfeas p)).2.2 o] at h
+    rw [Finset.sum_congr rfl (fun k hk => congrFun (hete p k i (hp k
+      (Finset.mem_erase.mp hk).1)) o), Finset.sum_const,
+      Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ, Fintype.card_fin] at h
+    simpa only [nsmul_eq_mul, Nat.reduceSub, Nat.cast_ofNat] using h
   -- 1. Profile pA = (abcd, abcd, abcd, abcd): all entries = 1/4.
   have hA : ∀ i o : Fin 4, φ pA i o = 1 / 4 := fun i o => by
     rw [hpA_const]; exact uniform_of_ete hfeas hete prefABCD i o
@@ -232,20 +241,11 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     zero_of_noTwoCycle_col (hfeas pB) (hntc pB) 2 0 1 (by linarith only [hB2_ab])
       hlt_bacd_10 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
   have hB2_b : φ pB 2 1 = 1 / 2 := by linarith only [hB2_ab, hB2_a0]
-  have hB_ete01 : φ pB 0 = φ pB 1 := hete pB 0 1 rfl
-  have hB_ete03 : φ pB 0 = φ pB 3 := hete pB 0 3 rfl
-  have hB0_a : φ pB 0 0 = 1 / 3 := by
-    linarith only [hcol pB 0, congrFun hB_ete01 0, congrFun hB_ete03 0, hB2_a0]
-  have hB0_b : φ pB 0 1 = 1 / 6 := by
-    linarith only [hcol pB 1, congrFun hB_ete01 1, congrFun hB_ete03 1, hB2_b]
-  have hB0_c : φ pB 0 2 = 1 / 4 := by
-    linarith only [hcol pB 2, congrFun hB_ete01 2, congrFun hB_ete03 2, hB2_c]
-  have hB3_a : φ pB 3 0 = 1 / 3 := by rw [← congrFun hB_ete03 0, hB0_a]
-  have hB3_b : φ pB 3 1 = 1 / 6 := by rw [← congrFun hB_ete03 1, hB0_b]
-  have hB3_c : φ pB 3 2 = 1 / 4 := by rw [← congrFun hB_ete03 2, hB0_c]
-  have hB1_a : φ pB 1 0 = 1 / 3 := by rw [← congrFun hB_ete01 0, hB0_a]
-  have hB1_b : φ pB 1 1 = 1 / 6 := by rw [← congrFun hB_ete01 1, hB0_b]
-  have hB1_c : φ pB 1 2 = 1 / 4 := by rw [← congrFun hB_ete01 2, hB0_c]
+  have hBcol := hclass (p := pB) 0 2 fun k hk => by
+    fin_cases k <;> first | exact absurd rfl hk | rfl
+  have hB0_a : φ pB 0 0 = 1 / 3 := by linarith only [hBcol 0, hB2_a0]
+  have hB0_b : φ pB 0 1 = 1 / 6 := by linarith only [hBcol 1, hB2_b]
+  have hB0_c : φ pB 0 2 = 1 / 4 := by linarith only [hBcol 2, hB2_c]
   -- 3. Profile pC = (abcd, abcd, abcd, acbd): row 3 = (1/4, 0, 1/2, 1/4).
   have hC3_sw := inv_bc_swap hsp pA 3 rfl
   rw [huAC] at hC3_sw
@@ -256,22 +256,19 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     zero_of_noTwoCycle_col (hfeas pC) (hntc pC) 3 1 2 (by linarith only [hC3_bc])
       hlt_acbd_21 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
   have hC3_c : φ pC 3 2 = 1 / 2 := by linarith only [hC3_bc, hC3_b0]
-  have hC_ete02 : φ pC 0 = φ pC 2 := hete pC 0 2 rfl
-  have hC_ete12 : φ pC 1 = φ pC 2 := hete pC 1 2 rfl
-  have hC2_a : φ pC 2 0 = 1 / 4 := by
-    linarith only [hcol pC 0, congrFun hC_ete02 0, congrFun hC_ete12 0, hC3_a]
-  have hC2_b : φ pC 2 1 = 1 / 3 := by
-    linarith only [hcol pC 1, congrFun hC_ete02 1, congrFun hC_ete12 1, hC3_b0]
-  have hC2_c : φ pC 2 2 = 1 / 6 := by
-    linarith only [hcol pC 2, congrFun hC_ete02 2, congrFun hC_ete12 2, hC3_c]
+  have hCcol := hclass (p := pC) 2 3 fun k hk => by
+    fin_cases k <;> first | exact absurd rfl hk | rfl
+  have hC2_a : φ pC 2 0 = 1 / 4 := by linarith only [hCcol 0, hC3_a]
+  have hC2_b : φ pC 2 1 = 1 / 3 := by linarith only [hCcol 1, hC3_b0]
+  have hC2_c : φ pC 2 2 = 1 / 6 := by linarith only [hCcol 2, hC3_c]
   -- 4. Profile pR = (abcd, abcd, bacd, acbd): rows 0,1 = (1/3, 5/24, 5/24, 1/4).
   have hR3_sw := inv_bc_swap hsp pB 3 rfl
   rw [huBR] at hR3_sw
   have hR2_sw := inv_ab_swap hsp pC 2 rfl
   rw [huCR] at hR2_sw
-  have hR3_a : φ pR 3 0 = 1 / 3 := by rw [hR3_sw.1, hB3_a]
+  have hR3_a : φ pR 3 0 = 1 / 3 := by rw [hR3_sw.1, hete pB 3 0 rfl, hB0_a]
   have hR3_bc : φ pR 3 1 + φ pR 3 2 = 5 / 12 := by
-    rw [hR3_sw.2.2, hB3_b, hB3_c]; norm_num
+    rw [hR3_sw.2.2, hete pB 3 0 rfl, hB0_b, hB0_c]; norm_num
   have hR2_ab : φ pR 2 0 + φ pR 2 1 = 7 / 12 := by
     rw [hR2_sw.2.2, hC2_a, hC2_b]; norm_num
   have hR2_c : φ pR 2 2 = 1 / 6 := by rw [hR2_sw.1, hC2_c]
@@ -292,9 +289,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   -- 5. Profile pP2 = (abcd, bacd, bacd, abcd): rows 0,3 = (1/2, 0, 1/4, 1/4).
   have hP2_sw := inv_ab_swap hsp pB 1 rfl
   rw [huBP2] at hP2_sw
-  have hP2_1c : φ pP2 1 2 = 1 / 4 := by rw [hP2_sw.1, hB1_c]
+  have hP2_1c : φ pP2 1 2 = 1 / 4 := by rw [hP2_sw.1, hete pB 1 0 rfl, hB0_c]
   have hP2_1ab : φ pP2 1 0 + φ pP2 1 1 = 1 / 2 := by
-    rw [hP2_sw.2.2, hB1_a, hB1_b]; norm_num
+    rw [hP2_sw.2.2, hete pB 1 0 rfl, hB0_a, hB0_b]; norm_num
   have hP2_ete12 : φ pP2 1 = φ pP2 2 := hete pP2 1 2 rfl
   have hP2_ete03 : φ pP2 0 = φ pP2 3 := hete pP2 0 3 rfl
   have hP2_1a0 : φ pP2 1 0 = 0 := hz pP2 1 0 fun hpos => by
@@ -345,10 +342,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     zero_of_noTwoCycle_col (hfeas pC') (hntc pC') 3 1 2 (by linarith only [hC'3_bc])
       hlt_acbd_21 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
   have hC'3_c : φ pC' 3 2 = 1 / 4 := by linarith only [hC'3_bc, hC'3_b0]
-  have hC'_ete01 : φ pC' 0 = φ pC' 1 := hete pC' 0 1 rfl
-  have hC'_ete02 : φ pC' 0 = φ pC' 2 := hete pC' 0 2 rfl
-  have hC'0_c : φ pC' 0 2 = 1 / 4 := by
-    linarith only [hcol pC' 2, congrFun hC'_ete01 2, congrFun hC'_ete02 2, hC'3_c]
+  have hC'col := hclass (p := pC') 0 3 fun k hk => by
+    fin_cases k <;> first | exact absurd rfl hk | rfl
+  have hC'0_c : φ pC' 0 2 = 1 / 4 := by linarith only [hC'col 2, hC'3_c]
   -- Final step: agent 0 swaps b ↔ a from pC' to pU, keeping φ · 0 2 unchanged: 1/3 = 1/4!
   have hC'U_sw := inv_ba_swap hsp pC' 0 rfl
   rw [huC'U] at hC'U_sw
@@ -356,41 +352,20 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
 
 /-- Embed a `4`-agent strict ordering `π : Equiv.Perm (Fin 4)` into `Equiv.Perm (Fin n)` for
 `n ≥ 4`, fixing every dummy index `k ≥ 4`. -/
-private def padPerm {n : ℕ} (hn : 4 ≤ n) (π : Equiv.Perm (Fin 4)) : Equiv.Perm (Fin n) where
-  toFun r := if h : r.val < 4 then ⟨(π ⟨r.val, h⟩).val, by omega⟩ else r
-  invFun o := if h : o.val < 4 then ⟨(π.symm ⟨o.val, h⟩).val, by omega⟩ else o
-  left_inv r := by
-    by_cases h : r.val < 4
-    · have h2 : (π ⟨r.val, h⟩).val < 4 := (π ⟨r.val, h⟩).isLt
-      simp only [h, ↓reduceDIte, h2]
-      apply Fin.ext
-      change (π.symm (π ⟨r.val, h⟩)).val = r.val
-      simp
-    · simp [h]
-  right_inv o := by
-    by_cases h : o.val < 4
-    · have h2 : (π.symm ⟨o.val, h⟩).val < 4 := (π.symm ⟨o.val, h⟩).isLt
-      simp only [h, ↓reduceDIte, h2]
-      apply Fin.ext
-      change (π (π.symm ⟨o.val, h⟩)).val = o.val
-      simp
-    · simp [h]
+private def padPerm {n : ℕ} (hn : 4 ≤ n) (π : Equiv.Perm (Fin 4)) : Equiv.Perm (Fin n) :=
+  π.extendDomain (Fin.castLEquiv hn)
 
 private lemma padPerm_apply_lt {n : ℕ} (hn : 4 ≤ n) (π : Equiv.Perm (Fin 4)) (r : Fin 4) :
-    padPerm hn π ⟨r.val, by omega⟩ = ⟨(π r).val, by omega⟩ := by
-  simp [padPerm, r.isLt]
+    padPerm hn π ⟨r.val, by lia⟩ = ⟨(π r).val, by lia⟩ :=
+  π.extendDomain_apply_image (Fin.castLEquiv hn) r
 
 private lemma padPerm_symm_lt {n : ℕ} (hn : 4 ≤ n) (π : Equiv.Perm (Fin 4)) (o : Fin 4) :
-    (padPerm hn π).symm ⟨o.val, by omega⟩ = ⟨(π.symm o).val, by omega⟩ := by
-  change (padPerm hn π).invFun ⟨o.val, by omega⟩ = _
-  simp [padPerm, o.isLt]
+    (padPerm hn π).symm ⟨o.val, by lia⟩ = ⟨(π.symm o).val, by lia⟩ :=
+  padPerm_apply_lt hn π.symm o
 
 private lemma padPerm_symm_ge {n : ℕ} (hn : 4 ≤ n) (π : Equiv.Perm (Fin 4))
-    (o : Fin n) (ho : 4 ≤ o.val) :
-    (padPerm hn π).symm o = o := by
-  change (padPerm hn π).invFun o = o
-  have hnot : ¬ o.val < 4 := by omega
-  simp [padPerm, hnot]
+    (o : Fin n) (ho : 4 ≤ o.val) : (padPerm hn π).symm o = o :=
+  Equiv.Perm.extendDomain_apply_not_subtype π.symm (Fin.castLEquiv hn) ho.not_gt
 
 /-- Pad a 4-agent profile `p : Profile 4` into `Profile n` (`n ≥ 4`): agents `i < 4` use `padPerm`
 (ranking `{0, 1, 2, 3}` strictly above `{4, …, n - 1}`), and dummy agents `k ≥ 4` rank object `k`
@@ -405,15 +380,11 @@ private lemma padProfile_update {n : ℕ} (hn : 4 ≤ n) (p : Profile 4) (i : Fi
       Function.update (padProfile hn p) ⟨i.val, by omega⟩ (padPerm hn π') := by
   funext j
   by_cases hj : j.val < 4
-  · by_cases heq : j = ⟨i.val, by omega⟩
-    · rw [heq]
-      simp only [padProfile, i.isLt, ↓reduceDIte, Function.update_self]
-    · have hne : (⟨j.val, hj⟩ : Fin 4) ≠ i := fun h => by
-        have hv : j.val = i.val := congrArg Fin.val h
-        exact heq (Fin.ext hv)
-      rw [Function.update_of_ne heq]
-      simp only [padProfile, hj, ↓reduceDIte, Function.update_of_ne hne]
-  · have hne : j ≠ ⟨i.val, by omega⟩ := fun h => hj (by rw [h]; exact i.isLt)
+  · rcases Decidable.eq_or_ne j ⟨i.val, i.isLt.trans_le hn⟩ with rfl | heq
+    · simp only [padProfile, i.isLt, ↓reduceDIte, Function.update_self]
+    · have hne : (⟨j.val, hj⟩ : Fin 4) ≠ i := fun h => heq (Fin.ext (congrArg (·.val) h))
+      simp only [padProfile, hj, ↓reduceDIte, Function.update_of_ne heq, Function.update_of_ne hne]
+  · have hne : j ≠ ⟨i.val, i.isLt.trans_le hn⟩ := fun h => hj (h ▸ i.isLt)
     simp only [padProfile, hj, ↓reduceDIte, Function.update_of_ne hne]
 
 /-- Under any `sd`-efficient assignment `M` for `padProfile hn p`, every dummy agent `k ≥ 4`
@@ -468,26 +439,18 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
       -- `k' ≥ 4` gets positive mass of some `o < 4`.
       let lo : Finset (Fin n) := Finset.univ.filter fun x => x.val < 4
       let hi : Finset (Fin n) := Finset.univ.filter fun x => ¬ x.val < 4
-      have hsum_rows : ∑ a ∈ lo, ∑ o : Fin n, M a o = (lo.card : ℝ) := by
-        simp [hMds.2.1]
-      have hsum_cols : ∑ o ∈ lo, ∑ a : Fin n, M a o = (lo.card : ℝ) := by
-        simp [hMds.2.2]
       have hpart : ∀ (f : Fin n → ℝ),
           ∑ x : Fin n, f x = ∑ x ∈ lo, f x + ∑ x ∈ hi, f x := fun f =>
         (Finset.sum_filter_add_sum_filter_not _ _ f).symm
-      have hsplit_r : ∑ a ∈ lo, ∑ o ∈ hi, M a o =
-          (lo.card : ℝ) - ∑ a ∈ lo, ∑ o ∈ lo, M a o := by
-        have : ∑ a ∈ lo, (∑ o ∈ lo, M a o + ∑ o ∈ hi, M a o) = (lo.card : ℝ) := by
-          simpa [← hpart] using hsum_rows
-        rw [Finset.sum_add_distrib] at this
-        linarith
-      have hsplit_c : ∑ a ∈ hi, ∑ o ∈ lo, M a o =
-          (lo.card : ℝ) - ∑ a ∈ lo, ∑ o ∈ lo, M a o := by
-        have h1 : ∑ o ∈ lo, (∑ a ∈ lo, M a o + ∑ a ∈ hi, M a o) = (lo.card : ℝ) := by
-          simpa [← hpart] using hsum_cols
-        rw [Finset.sum_add_distrib, Finset.sum_comm (s := lo) (t := lo),
-          Finset.sum_comm (s := lo) (t := hi)] at h1
-        linarith
+      have hsplit (W : Matrix (Fin n) (Fin n) ℝ) (hrow : ∀ a, ∑ o : Fin n, W a o = 1) :
+          ∑ a ∈ lo, ∑ o ∈ hi, W a o = (lo.card : ℝ) - ∑ a ∈ lo, ∑ o ∈ lo, W a o := by
+        apply eq_sub_of_add_eq
+        rw [add_comm, ← Finset.sum_add_distrib]
+        simp [← hpart, hrow]
+      have hsplit_r := hsplit M hMds.2.1
+      have hsplit_c := hsplit M.transpose hMds.2.2
+      simp only [Matrix.transpose_apply] at hsplit_c
+      rw [Finset.sum_comm (s := lo) (t := hi), Finset.sum_comm (s := lo) (t := lo)] at hsplit_c
       have hpos_lo_hi : 0 < ∑ a ∈ lo, ∑ o ∈ hi, M a o := by
         have hjlo : j ∈ lo := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
         have hvhi : v ∈ hi := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
@@ -497,13 +460,10 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
           Finset.single_le_sum (fun a _ => Finset.sum_nonneg fun o _ => hMds.1 a o) hjlo
         linarith
       have hpos_hi_lo : 0 < ∑ a ∈ hi, ∑ o ∈ lo, M a o := by linarith
-      have hex_pair : ∃ a ∈ hi, ∃ o ∈ lo, 0 < M a o := by
-        by_contra! hall
-        have : ∑ a ∈ hi, ∑ o ∈ lo, M a o = 0 :=
-          Finset.sum_eq_zero fun a ha => Finset.sum_eq_zero fun o ho =>
-            le_antisymm (hall a ha o ho) (hMds.1 a o)
-        linarith
-      obtain ⟨a, ha_hi, o, ho_lo, hMao⟩ := hex_pair
+      obtain ⟨a, ha_hi, hrow_pos⟩ :=
+        (Finset.sum_pos_iff_of_nonneg fun a _ => Finset.sum_nonneg fun o _ => hMds.1 a o).mp
+          hpos_hi_lo
+      obtain ⟨o, ho_lo, hMao⟩ := (Finset.sum_pos_iff_of_nonneg fun o _ => hMds.1 a o).mp hrow_pos
       have ha4 : 4 ≤ a.val := not_lt.mp (Finset.mem_filter.mp ha_hi).2
       have ho4 : o.val < 4 := (Finset.mem_filter.mp ho_lo).2
       have hoS : o ∈ S := Finset.mem_filter.mpr ⟨Finset.mem_univ _, Or.inl ⟨ho4, a, ha4, hMao⟩⟩
