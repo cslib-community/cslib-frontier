@@ -7,6 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (ordinary-import tests for drawings with crossings)
 
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.IntersectionParity
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Converse
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
@@ -327,6 +328,40 @@ private theorem crossing_parity (odd : Bool) :
       openSegment ℝ ((zig odd).point j.castSucc) ((zig odd).point j.succ)).Nonempty)) = odd
   rw [Fin.sum_univ_one, Finset.sum_congr rfl (fun j _ => Bool.decide_congr (hit_iff odd j))]
   cases odd <;> decide
+
+-- Reversing the straight edge preserves its actual odd crossing with the zigzag.
+-- Returning along the same edge counts that crossing a second time.
+example :
+    (∃ p : Route, p.start = right ∧ p.finish = left ∧
+      p.germ false = (drawing true).germ (0, true) ∧ p.intersectionParity (zig true) = true) ∧
+    (∃ p : Route, p.start = right ∧ p.finish = right ∧
+      p.support = straight.support ∧ p.intersectionParity (zig true) = false) := by
+  constructor
+  · let path : Fin 1 → Dart G := fun _ => (0, true)
+    let p := (drawing true).dartSequenceRoute path
+    obtain ⟨hstart, hfinish, hfirst, _, _, hparity⟩ :=
+      (drawing true).dartSequenceRoute_spec path (fun i => i.elim0)
+    refine ⟨p, hstart, hfinish, hfirst, ?_⟩
+    have hp := hparity 1
+    rw [Fin.sum_univ_one] at hp
+    exact hp.trans (crossing_parity true)
+  · let path : Fin 2 → Dart G := ![(0, true), (0, false)]
+    let p := (drawing true).dartSequenceRoute path
+    have hstep : ∀ i : Fin 1, (path i.castSucc).reverse.vertex = (path i.succ).vertex :=
+      by decide
+    obtain ⟨hstart, hfinish, _, _, hsupport, hparity⟩ :=
+      (drawing true).dartSequenceRoute_spec path hstep
+    refine ⟨p, hstart, hfinish, ?_, ?_⟩
+    · have hedge (i : Fin 2) : (path i).1 = 0 := by fin_cases i <;> rfl
+      have hstraight : (drawing true).route 0 = straight := rfl
+      exact hsupport.trans (Set.iUnion_eq_const fun i =>
+        congrArg Route.support ((congrArg (drawing true).route (hedge i)).trans hstraight))
+    · have hp := hparity 1
+      rw [Fin.sum_univ_two] at hp
+      change p.intersectionParity (zig true) =
+        straight.intersectionParity (zig true) + straight.intersectionParity (zig true) at hp
+      rw [crossing_parity true] at hp
+      exact hp
 
 private theorem all_selected_even : G.VertexEven (fun _ => true) := by
   intro v
