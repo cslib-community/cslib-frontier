@@ -108,17 +108,15 @@ zeros, whenever `r` has at most `n` entries. -/
 theorem rowDot_eq_sum [NonUnitalNonAssocSemiring α] {n : ℕ} {r : List α} (s : List α)
     (hr : r.length ≤ n) : rowDot r s = ∑ k : Fin n, r.getD k 0 * s.getD k 0 := by
   induction n generalizing r s with
-  | zero =>
-    rw [List.length_eq_zero_iff.1 (Nat.le_zero.1 hr)]
-    simp [rowDot]
+  | zero => simp [List.eq_nil_of_length_eq_zero (Nat.le_zero.1 hr), rowDot]
   | succ n ih =>
     rw [Fin.sum_univ_succ]
-    match r, s with
-    | [], _ => simp [rowDot]
-    | _ :: _, [] => simp [rowDot]
-    | a :: r, b :: s =>
-      simp only [rowDot, Fin.val_zero, List.getD_cons_zero, Fin.val_succ, List.getD_cons_succ]
-      rw [ih s (by simpa using hr)]
+    rcases r with _ | ⟨a, r⟩ <;> rcases s with _ | ⟨b, s⟩
+    · simp [rowDot]
+    · simp [rowDot]
+    · simp [rowDot]
+    · simp only [rowDot, Fin.val_zero, List.getD_cons_zero, Fin.val_succ, List.getD_cons_succ,
+        ih _ (Nat.le_of_succ_le_succ hr)]
 
 /-- The product of `A`, read as `l × m`, and `B`, read as `m × n`, as `l` rows of `n` entries:
 Mathlib's `Mathlib.Tactic.Matrix.ListMatrix.mul` with `rowDot` in place of its sealed dot
@@ -131,13 +129,10 @@ product, so that the kernel evaluates it. -/
 /-- `rowsMul` computes the matrix product, with no shape hypothesis on `A` or `B`. -/
 theorem ofLists_rowsMul [NonUnitalNonAssocSemiring α] (l m n : ℕ) (A B : List (List α)) :
     ofLists l n (rowsMul l m n A B) = ofLists l m A * ofLists m n B := by
-  rw [ofLists_mul]
-  congr 1
-  simp only [rowsMul, ListMatrix.mul]
+  rw [ofLists_mul]; congr 1
   refine List.map_congr_left fun row _ => List.map_congr_left fun col _ => ?_
-  rw [rowDot_eq_sum (n := m) _ (by simp), ListMatrix.dotProduct_eq]
-  refine Finset.sum_congr rfl fun k _ => ?_
-  simp [ofList_apply, List.getD_eq_getElem?_getD]
+  rw [rowDot_eq_sum _ (List.length_take_le _ _), ListMatrix.dotProduct_eq]
+  exact Finset.sum_congr rfl fun _ _ => by simp [ofList_apply, List.getD_eq_getElem?_getD]
 
 /-- `f` applied to corresponding entries of the first `n` entries of two lists, padded with
 zeros. -/
@@ -201,14 +196,13 @@ private theorem foldl_lcm_spec (r : List ℚ) (acc : ℕ) :
   | nil => simp
   | cons q r ih =>
     obtain ⟨h₁, h₂⟩ := ih (acc.lcm q.den)
-    refine ⟨(Nat.dvd_lcm_left _ _).trans h₁, ?_⟩
-    simp only [List.mem_cons, forall_eq_or_imp, List.foldl_cons]
-    exact ⟨(Nat.dvd_lcm_right _ _).trans h₁, h₂⟩
+    exact ⟨(Nat.dvd_lcm_left _ _).trans h₁,
+      List.forall_mem_cons.2 ⟨(Nat.dvd_lcm_right _ _).trans h₁, h₂⟩⟩
 
 private theorem foldl_lcm_pos (r : List ℚ) {acc : ℕ} (h : 0 < acc) :
     0 < r.foldl (fun a q => a.lcm q.den) acc := by
   induction r generalizing acc with
-  | nil => simpa using h
+  | nil => exact h
   | cons q r ih => exact ih (Nat.lcm_pos h q.den_pos)
 
 /-- The denominators' lcm is positive. -/
@@ -221,11 +215,10 @@ theorem den_dvd_denLcm {r : List ℚ} {q : ℚ} (hq : q ∈ r) : q.den ∣ denLc
 /-- `scaleRow (denLcm r) r` is `denLcm r` times `r`, entrywise and with zero padding. -/
 private theorem cast_getD_scaleRow (r : List ℚ) (k : ℕ) :
     (((scaleRow (denLcm r) r).getD k 0 : ℤ) : ℚ) = denLcm r * r.getD k 0 := by
-  rcases Nat.lt_or_ge k r.length with hk | hk
-  · rw [List.getD_eq_getElem _ _ (by simpa [scaleRow] using hk), List.getD_eq_getElem _ _ hk]
-    simpa [scaleRow] using (Rat.clearDenom_entry (den_dvd_denLcm (List.getElem_mem hk))).symm
-  · rw [List.getD_eq_default _ _ (by simpa [scaleRow] using hk), List.getD_eq_default _ _ hk]
-    simp
+  simp only [scaleRow, List.getD_eq_getElem?_getD, List.getElem?_map]
+  cases h : r[k]? with
+  | none => simp
+  | some q => simpa using (Rat.clearDenom_entry (den_dvd_denLcm (List.mem_of_getElem? h))).symm
 
 /-! ### `LDLᵀ` certificates -/
 
@@ -295,12 +288,10 @@ private theorem unitLowerFrom_spec {i : ℕ} {rows : List (List ℚ)}
   | nil => simp at hk
   | cons r rows ih =>
     simp only [unitLowerFrom, Bool.and_eq_true, beq_iff_eq] at h
-    obtain ⟨⟨hlen, hlast⟩, hrest⟩ := h
-    cases k with
-    | zero => exact ⟨by simpa using hlen, by simpa using hlast⟩
-    | succ k =>
-      obtain ⟨h₁, h₂⟩ := ih hrest k (by simpa using hk)
-      exact ⟨by simp only [List.getElem_cons_succ, h₁]; omega, by simpa using h₂⟩
+    rcases k with _ | k
+    · simpa using h.1
+    · obtain ⟨h₁, h₂⟩ := ih h.2 k (Nat.lt_of_succ_lt_succ hk)
+      exact ⟨by simp only [List.getElem_cons_succ, h₁]; omega, h₂⟩
 
 private theorem L_apply {c : LDLCert} (i j : Fin n) :
     c.L n i j = (c.lower.getD i []).getD j 0 := by
@@ -311,16 +302,15 @@ private theorem isLowerTriangular_L {c : LDLCert} (hlen : c.lower.length = n)
   intro i j hij
   have hi : (i : ℕ) < c.lower.length := hlen ▸ i.is_lt
   have hrow := (unitLowerFrom_spec hl i hi).1
-  rw [L_apply, List.getD_eq_getElem _ _ hi, List.getD_eq_default]
-  have : (i : ℕ) < j := hij
-  omega
+  have hij' : (i : ℕ) < j := hij
+  rw [L_apply, List.getD_eq_getElem _ _ hi, List.getD_eq_default _ _ (by omega)]
 
 private theorem L_apply_self {c : LDLCert} (hlen : c.lower.length = n)
     (hl : unitLowerFrom 0 c.lower = true) (i : Fin n) : c.L n i i = 1 := by
   have hi : (i : ℕ) < c.lower.length := hlen ▸ i.is_lt
   obtain ⟨hrow, hlast⟩ := unitLowerFrom_spec hl i hi
-  rw [L_apply, List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ (by omega)]
   rw [List.getLast?_eq_getElem?, hrow, List.getElem?_eq_getElem (by omega)] at hlast
+  rw [L_apply, List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ (by omega)]
   simpa using hlast
 
 /-- `List.zipWith (· * ·)`, read entrywise with zero padding. -/
@@ -332,47 +322,36 @@ private theorem getD_zipWith_mul (a b : List ℤ) (k : ℕ) :
 /-- The integer check of one entry, read back over `ℚ`. -/
 private theorem entry_eq_of_scaled {q : ℚ} {S : ℕ} {D : ℤ}
     (h : q.num * (S : ℤ) = D * q.den) : q * S = D := by
-  have hden : (q.den : ℚ) ≠ 0 := by positivity
   have h' : (q.num : ℚ) * S = D * q.den := by exact_mod_cast h
   rw [← Rat.mul_den_eq_num] at h'
-  apply mul_right_cancel₀ hden
-  linear_combination h'
+  exact mul_right_cancel₀ (by positivity : (q.den : ℚ) ≠ 0) (by linear_combination h')
 
 /-- An accepted witness factors the matrix: `M = L * diagonal d * Lᵀ` over `ℚ`. -/
 theorem eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows = true) :
     ofLists n n rows = c.L n * diagonal (c.d n) * (c.L n)ᵀ := by
   simp only [factors, isShape, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at h
-  obtain ⟨⟨⟨⟨⟨hrows, hrow⟩, hlen⟩, hdlen⟩, hl⟩, hcheck⟩ := h
+  obtain ⟨⟨⟨⟨⟨hrows, hrow⟩, hlen⟩, hdlen⟩, -⟩, hcheck⟩ := h
   ext i j
   have hi : (i : ℕ) < c.lower.length := hlen ▸ i.is_lt
   have hj : (j : ℕ) < c.lower.length := hlen ▸ j.is_lt
   have hMi : (i : ℕ) < rows.length := hrows ▸ i.is_lt
-  have hMij : (j : ℕ) < rows[(i : ℕ)].length := by
-    rw [hrow _ (List.getElem_mem hMi)]
-    exact j.is_lt
-  -- the integer identity at entry `(i, j)`
-  have h₁ := all_zip_getElem hcheck (i := i) hMi (by simpa using hi)
-  simp only [List.getElem_map] at h₁
-  have h₂ := all_zip_getElem h₁ (i := j) hMij (by simpa using hj)
-  simp only [List.getElem_map, beq_iff_eq] at h₂
-  have hq := entry_eq_of_scaled h₂
-  -- the integer dot product, as a sum over `Fin n`
+  have hMij : (j : ℕ) < rows[(i : ℕ)].length := by rw [hrow _ (List.getElem_mem hMi)]; exact j.is_lt
+  have h₁ := all_zip_getElem hcheck hMi (by simpa using hi)
+  have h₂ := all_zip_getElem (by simpa only [List.getElem_map] using h₁) hMij (by simpa using hj)
+  have hq := entry_eq_of_scaled (by simpa only [List.getElem_map, beq_iff_eq] using h₂)
   rw [rowDot_eq_sum (n := n) _ (by simp [scaleRow, hdlen])] at hq
   simp only [getD_zipWith_mul, Int.cast_sum, Int.cast_mul, cast_getD_scaleRow] at hq
-  -- divide out the scales
-  have hS : ((denLcm c.lower[(i : ℕ)] * denLcm c.lower[(j : ℕ)] * denLcm c.diag : ℕ) : ℚ)
-      ≠ 0 := by
-    have := Nat.mul_pos (Nat.mul_pos (denLcm_pos c.lower[(i : ℕ)]) (denLcm_pos c.lower[(j : ℕ)]))
-      (denLcm_pos c.diag)
-    exact_mod_cast this.ne'
-  apply mul_right_cancel₀ hS
+  have := denLcm_pos c.lower[(i : ℕ)]
+  have := denLcm_pos c.lower[(j : ℕ)]
+  have := denLcm_pos c.diag
+  apply mul_right_cancel₀ (by positivity :
+    ((denLcm c.lower[(i : ℕ)] * denLcm c.lower[(j : ℕ)] * denLcm c.diag : ℕ) : ℚ) ≠ 0)
   rw [ofLists_apply, ofList_apply, List.getD_eq_getElem _ _ hMi, List.getD_eq_getElem _ _ hMij,
     hq, Matrix.mul_apply]
   simp only [mul_diagonal, transpose_apply, L_apply, d, ofList_apply, Finset.sum_mul,
     List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj]
   push_cast
-  refine Finset.sum_congr rfl fun k _ => ?_
-  ring
+  exact Finset.sum_congr rfl fun _ _ => by ring
 
 /-- Casting a product of rational matrices to `ℝ`. -/
 private theorem map_ratCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℚ)
@@ -382,12 +361,16 @@ private theorem map_ratCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℚ)
 
 /-- The real form of an accepted factorization, with `L` unit lower triangular. -/
 private theorem map_eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows = true) :
-    ∃ L : Matrix (Fin n) (Fin n) ℝ, L.IsLowerTriangular ∧ (∀ i, L i i = 1) ∧
-      (ofLists n n rows).map ((↑) : ℚ → ℝ) = L * diagonal (fun i => (c.d n i : ℝ)) * Lᴴ := by
+    (∀ i, c.d n i ∈ c.diag) ∧
+      ∃ L : Matrix (Fin n) (Fin n) ℝ, L.IsLowerTriangular ∧ (∀ i, L i i = 1) ∧
+        (ofLists n n rows).map ((↑) : ℚ → ℝ) = L * diagonal (fun i => (c.d n i : ℝ)) * Lᴴ := by
   have hM := c.eq_of_factors h
   simp only [factors, Bool.and_eq_true, beq_iff_eq] at h
-  obtain ⟨⟨⟨⟨-, hlen⟩, -⟩, hl⟩, -⟩ := h
-  refine ⟨(c.L n).map (↑), fun i j hij => ?_, fun i => ?_, ?_⟩
+  obtain ⟨⟨⟨⟨-, hlen⟩, hdlen⟩, hl⟩, -⟩ := h
+  refine ⟨fun i => ?_, (c.L n).map (↑), fun i j hij => ?_, fun i => ?_, ?_⟩
+  · have hi : (i : ℕ) < c.diag.length := hdlen ▸ i.is_lt
+    rw [d, ofList_apply, List.getD_eq_getElem _ _ hi]
+    exact List.getElem_mem hi
   · rw [map_apply, isLowerTriangular_L hlen hl hij, Rat.cast_zero]
   · rw [map_apply, L_apply_self hlen hl i, Rat.cast_one]
   · rw [conjTranspose_eq_transpose_of_trivial, hM, map_ratCast_mul, map_ratCast_mul,
@@ -398,17 +381,9 @@ private theorem map_eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows
 theorem posDef_of_checkPosDef {rows : List (List ℚ)} (h : c.checkPosDef n rows = true) :
     ((ofLists n n rows).map ((↑) : ℚ → ℝ)).PosDef := by
   simp only [checkPosDef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
-  obtain ⟨hf, hd⟩ := h
-  obtain ⟨L, hL, h1, hM⟩ := c.map_eq_of_factors hf
+  obtain ⟨hdmem, L, hL, h1, hM⟩ := c.map_eq_of_factors h.1
   rw [hM, posDef_mul_diagonal_mul_conjTranspose_iff hL h1]
-  intro i
-  have hi : (i : ℕ) < c.diag.length := by
-    simp only [factors, Bool.and_eq_true, beq_iff_eq] at hf
-    exact hf.1.1.2 ▸ i.is_lt
-  have : 0 < c.d n i := by
-    rw [d, ofList_apply, List.getD_eq_getElem _ _ hi]
-    exact hd _ (List.getElem_mem hi)
-  exact_mod_cast this
+  exact fun i => Rat.cast_pos.2 (h.2 _ (hdmem i))
 
 /-- **Soundness for `⪰ 0`.** An accepted witness proves the matrix positive semidefinite over
 `ℝ`, including a singular one, whose witnesses have some `d i = 0`. -/
@@ -416,17 +391,9 @@ theorem posSemidef_of_checkPosSemidef {rows : List (List ℚ)}
     (h : c.checkPosSemidef n rows = true) :
     ((ofLists n n rows).map ((↑) : ℚ → ℝ)).PosSemidef := by
   simp only [checkPosSemidef, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
-  obtain ⟨hf, hd⟩ := h
-  obtain ⟨L, hL, h1, hM⟩ := c.map_eq_of_factors hf
+  obtain ⟨hdmem, L, hL, h1, hM⟩ := c.map_eq_of_factors h.1
   rw [hM, posSemidef_mul_diagonal_mul_conjTranspose_iff hL h1]
-  intro i
-  have : 0 ≤ c.d n i := by
-    rw [d, ofList_apply]
-    rcases Nat.lt_or_ge i c.diag.length with hi | hi
-    · rw [List.getD_eq_getElem _ _ hi]
-      exact hd _ (List.getElem_mem hi)
-    · rw [List.getD_eq_default _ _ hi]
-  exact_mod_cast this
+  exact fun i => Rat.cast_nonneg.2 (h.2 _ (hdmem i))
 
 end LDLCert
 
