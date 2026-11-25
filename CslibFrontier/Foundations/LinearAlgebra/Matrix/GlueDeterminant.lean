@@ -79,64 +79,51 @@ private theorem det_glue_eq_zero_of_card_lt (rg cg : ι → Prop) [DecidablePred
   rw [det_apply]
   refine Finset.sum_eq_zero fun σ _ => ?_
   obtain ⟨j, hj⟩ : ∃ j, rg (σ j) ∧ ¬ cg j := by
-    by_contra hcon
-    push Not at hcon
-    refine absurd h (not_lt.2 ?_)
-    refine Finset.card_le_card_of_injOn (fun i => σ.symm i) ?_
-        (fun i _ j _ hij => σ.symm.injective hij)
-    intro i hi
-    have hi' : rg i := (Finset.mem_filter.1 hi).2
-    have := hcon (σ.symm i) (by simpa using hi')
-    simpa using this
-  have : ∏ i, glue rg cg N₁ N₂ (σ i) i = 0 :=
-    Finset.prod_eq_zero (Finset.mem_univ j) (by simp [glue_apply, hj.1, hj.2])
-  rw [this, smul_zero]
+    by_contra! hcon
+    exact h.not_ge (Finset.card_le_card_of_injOn σ.symm
+      (fun i hi => by simpa using hcon (σ.symm i) (by simpa using (Finset.mem_filter.1 hi).2))
+      (fun _ _ _ _ hij => σ.symm.injective hij))
+  rw [Finset.prod_eq_zero (Finset.mem_univ j) (by simp [glue_apply, hj.1, hj.2]), smul_zero]
 
 theorem det_glue_eq_zero_of_card_ne (rg cg : ι → Prop) [DecidablePred rg] [DecidablePred cg]
     (N₁ N₂ : Matrix ι ι R) (h : (univ.filter rg).card ≠ (univ.filter cg).card) :
     (glue rg cg N₁ N₂).det = 0 := by
   rcases lt_or_gt_of_ne h with h | h
-  · rw [← det_transpose]
-    have : (glue rg cg N₁ N₂)ᵀ = glue cg rg N₁ᵀ N₂ᵀ := by
+  · have ht : (glue rg cg N₁ N₂)ᵀ = glue cg rg N₁ᵀ N₂ᵀ := by
       ext i j
       by_cases h1 : cg i <;> by_cases h2 : rg j <;> simp [glue_apply, h1, h2]
-    rw [this]
+    rw [← det_transpose, ht]
     exact det_glue_eq_zero_of_card_lt cg rg _ _ h
   · exact det_glue_eq_zero_of_card_lt rg cg _ _ h
 
 /-- A glued determinant is a product. -/
 theorem exists_det_glue_eq_mul (rg cg : ι → Prop) [DecidablePred rg] [DecidablePred cg] :
     ∃ (α β : Matrix ι ι R → R), ∀ N₁ N₂, (glue rg cg N₁ N₂).det = α N₁ * β N₂ := by
-  by_cases h : (univ.filter rg).card = (univ.filter cg).card
-  swap
-  · exact ⟨fun _ => 0, fun _ => 0,
+  if h : (univ.filter rg).card = (univ.filter cg).card then
+    have hc : Fintype.card {i // cg i} = Fintype.card {i // rg i} := by
+      simp only [Fintype.card_subtype, h]
+    let e : {i // cg i} ≃ {i // rg i} := Fintype.equivOfCardEq hc
+    let τ : Equiv.Perm ι := Equiv.extendSubtype e
+    have h1 : ∀ i, cg i → rg (τ i) := Equiv.extendSubtype_mem e
+    have h2 : ∀ i, ¬ cg i → ¬ rg (τ i) := Equiv.extendSubtype_not_mem e
+    refine ⟨fun N₁ => ((Equiv.Perm.sign τ : ℤ) : R) *
+        (toSquareBlockProp (N₁.submatrix τ id) cg).det,
+      fun N₂ => (toSquareBlockProp (N₂.submatrix τ id) fun i => ¬ cg i).det, fun N₁ N₂ => ?_⟩
+    have hp := det_permute τ (glue rg cg N₁ N₂)
+    have hs : ((Equiv.Perm.sign τ : ℤ) : R) * ((Equiv.Perm.sign τ : ℤ) : R) = 1 := by
+      rw [← Int.cast_mul, Int.units_coe_mul_self, Int.cast_one]
+    rw [twoBlockTriangular_det _ cg fun i hi j hj => by simp [glue_apply, h2 i hi, hj]] at hp
+    have hb1 : toSquareBlockProp ((glue rg cg N₁ N₂).submatrix τ id) cg =
+        toSquareBlockProp (N₁.submatrix τ id) cg :=
+      ext fun i j => by simp [toSquareBlockProp, glue, h1 i i.2, j.2]
+    have hb2 : toSquareBlockProp ((glue rg cg N₁ N₂).submatrix τ id) (fun i => ¬ cg i) =
+        toSquareBlockProp (N₂.submatrix τ id) (fun i => ¬ cg i) :=
+      ext fun i j => by simp [toSquareBlockProp, glue, h2 i i.2, j.2]
+    rw [hb1, hb2] at hp
+    linear_combination (-(glue rg cg N₁ N₂).det) * hs - ((Equiv.Perm.sign τ : ℤ) : R) * hp
+  else
+    exact ⟨fun _ => 0, fun _ => 0,
       fun N₁ N₂ => by rw [det_glue_eq_zero_of_card_ne _ _ _ _ h, zero_mul]⟩
-  have hc : Fintype.card {i // cg i} = Fintype.card {i // rg i} := by
-    rw [Fintype.card_subtype, Fintype.card_subtype, h]
-  let e : {i // cg i} ≃ {i // rg i} := Fintype.equivOfCardEq hc
-  let τ : Equiv.Perm ι := Equiv.extendSubtype e
-  have h1 : ∀ i, cg i → rg (τ i) := fun i hi => Equiv.extendSubtype_mem e i hi
-  have h2 : ∀ i, ¬ cg i → ¬ rg (τ i) := fun i hi => Equiv.extendSubtype_not_mem e i hi
-  refine ⟨fun N₁ => ((Equiv.Perm.sign τ : ℤ) : R) * (toSquareBlockProp (N₁.submatrix τ id) cg).det,
-    fun N₂ => (toSquareBlockProp (N₂.submatrix τ id) fun i => ¬ cg i).det, fun N₁ N₂ => ?_⟩
-  have hp := det_permute τ (glue rg cg N₁ N₂)
-  have hs : ((Equiv.Perm.sign τ : ℤ) : R) * ((Equiv.Perm.sign τ : ℤ) : R) = 1 := by
-    rw [← Int.cast_mul, Int.units_coe_mul_self, Int.cast_one]
-  have hb : ((glue rg cg N₁ N₂).submatrix τ id).det =
-      (toSquareBlockProp (N₁.submatrix τ id) cg).det *
-        (toSquareBlockProp (N₂.submatrix τ id) fun i => ¬ cg i).det := by
-    rw [twoBlockTriangular_det _ cg]
-    · congr 1
-      · congr 1
-        ext i j
-        simp [toSquareBlockProp, glue, h1 i i.2, j.2]
-      · congr 1
-        ext i j
-        simp [toSquareBlockProp, glue, h2 i i.2, j.2]
-    · intro i hi j hj
-      simp [glue_apply, h2 i hi, hj]
-  rw [hb] at hp
-  linear_combination (-(glue rg cg N₁ N₂).det) * hs - ((Equiv.Perm.sign τ : ℤ) : R) * hp
 
 end split
 
@@ -152,24 +139,13 @@ theorem det_sumElim_smul_add (P : n → (n ⊕ m) → R) (l : m → R) (v e : m 
         (of (Sum.elim P (T.piecewise v e)) : Matrix (n ⊕ m) (n ⊕ m) R).det := by
   let g : (m → (n ⊕ m) → R) →ₘₗ[R] R :=
     (MultilinearMap.currySum (detRowAlternating (n := n ⊕ m) (R := R)).toMultilinearMap) P
-  have hg : ∀ w : m → (n ⊕ m) → R, g w = (of (Sum.elim P w) : Matrix (n ⊕ m) (n ⊕ m) R).det := by
-    intro w
-    rfl
-  have h1 := g.map_add_univ (fun r => l r • v r) e
-  have h2 : ∀ T : Finset m, g (T.piecewise (fun r => l r • v r) e) =
-      (∏ r ∈ T, l r) * g (T.piecewise v e) := by
-    intro T
-    have := g.map_piecewise_smul l (T.piecewise v e) T
-    rw [smul_eq_mul] at this
-    simp only [RingHom.id_apply] at this
-    rw [← this]
-    congr 1
+  refine (g.map_add_univ (fun r => l r • v r) e).trans (Finset.sum_congr rfl fun T _ => ?_)
+  have hT : T.piecewise (fun r => l r • v r) e =
+      T.piecewise (fun r => l r • T.piecewise v e r) (T.piecewise v e) := by
     ext r : 1
     by_cases hr : r ∈ T <;> simp [hr]
-  calc (of (Sum.elim P (fun r => l r • v r + e r)) : Matrix (n ⊕ m) (n ⊕ m) R).det
-      = g ((fun r => l r • v r) + e) := rfl
-    _ = ∑ T : Finset m, g (T.piecewise (fun r => l r • v r) e) := h1
-    _ = _ := Finset.sum_congr rfl fun T _ => by rw [h2, hg]
+  rw [hT, g.map_piecewise_smul, smul_eq_mul]
+  rfl
 
 end expand
 
@@ -178,10 +154,8 @@ theorem dvd_det_sub {R n : Type*} [CommRing R] [Fintype n] [DecidableEq n] (d : 
     (M N : Matrix n n R)
     (h : ∀ i j, d ∣ M i j - N i j) : d ∣ M.det - N.det := by
   rw [← Ideal.mem_span_singleton, ← Ideal.Quotient.eq, RingHom.map_det, RingHom.map_det]
-  congr 1
-  ext i j
-  simp only [RingHom.mapMatrix_apply, Matrix.map_apply]
-  rw [Ideal.Quotient.eq, Ideal.mem_span_singleton]
-  exact h i j
+  exact congrArg det (ext fun i j => by
+    simpa only [RingHom.mapMatrix_apply, Matrix.map_apply, Ideal.Quotient.eq,
+      Ideal.mem_span_singleton] using h i j)
 
 end Matrix

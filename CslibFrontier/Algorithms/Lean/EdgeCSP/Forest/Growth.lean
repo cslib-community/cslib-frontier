@@ -50,32 +50,21 @@ theorem scan_outputs (rs : List V) (es : Log F) (input : Occurrence F)
     simp only [scan]
     split
     next hnew =>
-      have hb : ¬ es.Visited rs b.var := fun hv => hnew (Or.imp_right
-        (fun hm => List.mem_append_right _ hm) hv)
-      have hbos : b.var ∉ os.map Occurrence.var := fun hm =>
-        hnew (Or.inr (List.mem_append_left _ hm))
-      have hf : ∀ o ∈ os ++ [b], ¬ es.Visited rs o.var := by
-        intro o ho
-        rcases List.mem_append.mp ho with ho | ho
-        · exact hfresh o ho
-        · exact List.mem_singleton.mp ho ▸ hb
+      have hf : ∀ o ∈ os ++ [b], ¬ es.Visited rs o.var := fun o ho =>
+        (List.mem_append.mp ho).elim (hfresh o) fun ho =>
+          List.mem_singleton.mp ho ▸ fun hv => hnew (hv.imp_right (List.mem_append_right _))
       have hn : ((os ++ [b]).map Occurrence.var).Nodup := by
         rw [List.map_append, List.map_singleton, List.nodup_append]
-        refine ⟨hnodup, by simp, ?_⟩
-        intro v hv w hw he
-        have hwb : w = b.var := List.mem_singleton.mp hw
-        exact hbos ((he.trans hwb) ▸ hv)
+        refine ⟨hnodup, List.nodup_singleton _, fun v hv w hw he => hnew (Or.inr
+          (List.mem_append_left _ ((he.trans (List.mem_singleton.mp hw)) ▸ hv)))⟩
       obtain ⟨hf, hn, hs⟩ := ih (os ++ [b]) hf hn
-      refine ⟨hf, hn, fun o ho => ?_⟩
-      have hm := hs ho
-      simpa only [List.append_assoc, List.singleton_append] using hm
+      exact ⟨hf, hn, fun o ho => by
+        simpa only [List.append_assoc, List.singleton_append] using hs ho⟩
     next =>
       split
       · obtain ⟨hf, hn, hs⟩ := ih os hfresh hnodup
-        refine ⟨hf, hn, fun o ho => ?_⟩
-        rcases List.mem_append.mp (hs ho) with ho | ho
-        · exact List.mem_append_left _ ho
-        · exact List.mem_append_right _ (List.mem_cons_of_mem b ho)
+        exact ⟨hf, hn, fun o ho => (List.mem_append.mp (hs ho)).elim (List.mem_append_left _)
+          fun h => List.mem_append_right _ (List.mem_cons_of_mem b h)⟩
       · exact ⟨hfresh, hnodup, List.subset_append_left _ _⟩
 
 /-- Every expansion can be justified by a previously grown forest, a genuinely unused input
@@ -118,11 +107,9 @@ theorem Grown.of_scan {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling
       .continued os) : Grown sem f rs (⟨input, os⟩ :: es) := by
   have h := scan_outputs rs es input (partners sem f input) [] (by simp) (by simp)
   rw [hs] at h
-  refine .cons hg hv hu h.1 h.2.1 ?_ ?_
-  · intro o ho
-    exact h.2.2 ho
-  · exact scan_saturated hF rs es input _ []
-      (fun o ho => (mem_partners sem f input o).mp ho |>.1.symm) hs
+  exact .cons hg hv hu h.1 h.2.1 (fun _ ho => h.2.2 ho)
+    (scan_saturated hF rs es input _ []
+      (fun o ho => ((mem_partners sem f input o).mp ho).1.symm) hs)
 
 namespace Log
 
@@ -135,10 +122,10 @@ theorem Grown.used_visited {sem : Rel → List Bool → Bool}
   | nil => simp [used] at ho
   | @cons es e hp hv hu hf hn hfe hs ih =>
     rcases List.mem_cons.mp ho with rfl | ho
-    · exact hv.imp_right (fun hm => List.mem_append_right _ hm)
-    · rcases List.mem_append.mp ho with ho | ho
-      · exact Or.inr (List.mem_append_left _ (List.mem_map.mpr ⟨o, ho, rfl⟩))
-      · exact (ih ho).imp_right (fun hm => List.mem_append_right _ hm)
+    · exact hv.imp_right (List.mem_append_right _)
+    · exact (List.mem_append.mp ho).elim
+        (fun ho => Or.inr (List.mem_append_left _ (List.mem_map.mpr ⟨o, ho, rfl⟩)))
+        fun ho => (ih ho).imp_right (List.mem_append_right _)
 
 /-- Every fresh output port is distinct from every older used port. -/
 theorem Grown.output_not_used {sem : Rel → List Bool → Bool}
@@ -154,9 +141,7 @@ theorem Grown.output_var_ne {sem : Rel → List Bool → Bool}
     (hg : Forest.Grown sem f rs (e :: es)) {o : Occurrence F} (ho : o ∈ e.outputs) :
     e.input.var ≠ o.var := by
   cases hg with
-  | cons _ hv _ hf =>
-    intro he
-    exact hf o ho (he ▸ hv)
+  | cons _ hv _ hf => exact fun he => hf o ho (he ▸ hv)
 
 end Log
 
@@ -180,15 +165,12 @@ theorem run_grown (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
   next input hi =>
     have hv : es.Visited rs input.var := by
       simpa only [decide_eq_true_eq] using List.find?_some hi
-    have huinput := hu input (List.mem_of_find?_eq_some hi)
     split
-    next os o =>
-      dsimp only
-      split <;> exact hg
+    · dsimp only; split <;> exact hg
     next os hs =>
-      apply run_grown sem f hF rs _ _ (hg.of_scan hF hv huinput hs)
-      intro o ho
-      exact of_decide_eq_true (List.mem_filter.mp ho).2
+      exact run_grown sem f hF rs _ _
+        (hg.of_scan hF hv (hu input (List.mem_of_find?_eq_some hi)) hs)
+        fun _ ho => of_decide_eq_true (List.mem_filter.mp ho).2
 termination_by remaining.length
 decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some ‹_›)
 

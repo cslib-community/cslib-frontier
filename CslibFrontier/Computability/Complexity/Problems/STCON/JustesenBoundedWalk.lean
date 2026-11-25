@@ -69,22 +69,20 @@ theorem configurationJustesenBoundedWalk_init_inSpace (ntm : MultiTapeNTM k Bool
       encIn (Runtime.encState encJustesenSubdivisionContext encJustesenSubdivisionState)
       (fun a => Nat.log2 (encIn a).length) := by
   let ctx (a : α) := configurationJustesenSubdivisionContext ntm c (encIn a) (rank a)
-  let budget (a : α) := Nat.log2 (encIn a).length
-  have hctx : ComputableInSpace ctx encIn encJustesenSubdivisionContext budget :=
-    configurationJustesenSubdivisionContext_inSpace ntm c hrank hrank_lt
-  have hsize := encJustesenSubdivisionContext_subdivision_budget hctx
+  have hctx := configurationJustesenSubdivisionContext_inSpace ntm c hrank hrank_lt
   have hdim : ComputableInSpace
       (fun a =>
         (configurationSeedSearchSetup ntm c (encIn a)).parameters.search.subdivision.vertexCount)
-      encIn encNat budget :=
-    (encSubdivisionSize_vertexCount_budget hsize).of_enc_eq fun a => by
+      encIn encNat (fun a => Nat.log2 (encIn a).length) :=
+    (encSubdivisionSize_vertexCount_budget
+      (encJustesenSubdivisionContext_subdivision_budget hctx)).of_enc_eq fun a => by
       simp only [(configurationSeedSearchSetup_endpoints ntm c (encIn a)).1,
-        ctx, configurationJustesenSubdivisionContext]
-  have hentry := Runtime.entry_budget (justesenWeightedSubdivisionCallback ntm)
+        configurationJustesenSubdivisionContext]
+  exact (Runtime.entry_budget (justesenWeightedSubdivisionCallback ntm)
     (fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)) callbackVerdict 3
-    encJustesenSubdivisionContext encJustesenSubdivisionState hctx hdim hcurrent htarget hfuel
-  exact hentry.of_enc_eq fun _ => by
-    simp only [configurationJustesenBoundedWalk, Runtime.machine_init, ctx]
+    encJustesenSubdivisionContext encJustesenSubdivisionState hctx hdim hcurrent htarget
+    hfuel).of_enc_eq fun _ => by
+    simp only [configurationJustesenBoundedWalk, Runtime.machine_init]
 
 /-- A successful first halt uses exactly the canonical selectors of a typed walk on the
 Justesen-weighted subdivision, and returns the same unused fuel. -/
@@ -106,11 +104,11 @@ theorem configurationJustesenBoundedWalk_firstHalting_iff (ntm : MultiTapeNTM k 
   let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
   have hcall := configurationJustesenSubdivisionEdge_halts_and_agrees ntm c w seed
   let initial := Runtime.entry edge start callbackVerdict 3 ctx r
-  let walk := Runtime.machine edge start callbackVerdict 3 initial
-  have hinit : walk.init = initial := Runtime.machine_init edge start callbackVerdict 3 initial
-  change walk.FirstHalting w bits walk.init ∧
-    Runtime.remainingFuel (walk.run w bits) = some left ↔ _
-  rw [NondeterministicQueryMachine.run, hinit]
+  change (Runtime.machine edge start callbackVerdict 3 initial).FirstHalting w bits
+      (Runtime.machine edge start callbackVerdict 3 initial).init ∧
+    Runtime.remainingFuel ((Runtime.machine edge start callbackVerdict 3 initial).run w bits) =
+      some left ↔ _
+  rw [NondeterministicQueryMachine.run, Runtime.machine_init]
   exact Runtime.firstHalting_remainingFuel_iff edge start callbackVerdict 3 initial ctx r w adjacent
     (fun u v => (hcall u v).1) (fun u v => (hcall u v).2) bits left
 
@@ -150,14 +148,11 @@ theorem configurationJustesenBoundedWalk_stateBound_le_log (ntm : MultiTapeNTM k
   refine ⟨2 * D + 22 * P + 31, fun w => ?_⟩
   intro I size seed fuel calleeBound hfuel
   have hctx := hcontext w seed.val seed.isLt
-  have hvertices := hvertices w
+  have hv : (encNat size.vertexCount).length ≤ _ := hvertices w
   have hwidth : Nat.log2 size.vertexCount.size ≤ (encNat size.vertexCount).length := by
-    rw [length_encNat_eq_size]
-    exact Nat.log2_le_self _
+    rw [length_encNat_eq_size]; exact Nat.log2_le_self _
   have hf := length_encNat_mono hfuel
   have hclock : (encNat 3).length = 2 := rfl
-  have hlog : 1 ≤ Nat.log2 w.length + 1 := Nat.succ_le_succ (Nat.zero_le _)
-  change (encNat size.vertexCount).length ≤ _ at hvertices
   simp only [Runtime.stateBound, hclock, Nat.add_mul, Nat.mul_assoc]
   omega
 
@@ -182,12 +177,10 @@ theorem configurationJustesenBoundedWalk_bounds (ntm : MultiTapeNTM k Bool State
   let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
   let b := Nat.log2 w.length + 1
   refine ⟨Runtime.haltsWithin edge start callbackVerdict 3 ctx r w, fun bits => ?_⟩
-  have hcallee (u v : Fin size.vertexCount) (t : ℕ) (ht : t ≤ 3) :
-      (encJustesenSubdivisionState (edge.runFrom w (start ctx u.val v.val) t)).length ≤ A * b :=
-    (hcall w seed u v).2.2.2 t ht
-  have hrun := Runtime.length_run_le edge start callbackVerdict 3 ctx r w bits
-    encJustesenSubdivisionContext encJustesenSubdivisionState (A * b) hcallee
-  exact hrun.trans (by simpa only [b, Nat.add_mul] using hbound w seed r.fuel (A * b) hfuel)
+  refine (Runtime.length_run_le edge start callbackVerdict 3 ctx r w bits
+    encJustesenSubdivisionContext encJustesenSubdivisionState (A * b)
+    fun u v t ht => (hcall w seed u v).2.2.2 t ht).trans ?_
+  simpa only [b, Nat.add_mul] using hbound w seed r.fuel (A * b) hfuel
 
 /-- A common selector clock for fuel at most the initialized subdivision vertex count. -/
 @[expose] noncomputable def configurationJustesenBoundedWalkClock (ntm : MultiTapeNTM k Bool State)
@@ -216,11 +209,11 @@ theorem configurationJustesenBoundedWalk_haltsWithin_clock
       (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount) :
     (configurationJustesenBoundedWalk ntm c w rank r).HaltsWithin w
       (configurationJustesenBoundedWalkClock ntm c w) := by
-  have h := Runtime.haltsWithin (justesenWeightedSubdivisionCallback ntm)
-    (fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)) callbackVerdict 3
-    (configurationJustesenSubdivisionContext ntm c w rank) r w
   unfold configurationJustesenBoundedWalk configurationJustesenBoundedWalkClock
-  exact NondeterministicQueryMachine.HaltsWithin.mono _ _ h
+  exact NondeterministicQueryMachine.HaltsWithin.mono _ _
+    (Runtime.haltsWithin (justesenWeightedSubdivisionCallback ntm)
+      (fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)) callbackVerdict 3
+      (configurationJustesenSubdivisionContext ntm c w rank) r w)
     (Nat.add_le_add_right (Nat.mul_le_mul_right _ hfuel) _)
 
 end Cslib.Complexity.STCON

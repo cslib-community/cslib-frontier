@@ -58,31 +58,24 @@ private theorem boundary_index_maps_polyTime {α : Type} {input : α ↪ List Bo
     ComputableInPolyTime (fun p : α × ℕ =>
       boundaryIndexMap (m p.1) (n p.1) (fun j => (j + n p.1 - 1) % n p.1) p.2)
       (encPair input encNat) encNat := by
-  have hM : ComputableInPolyTime (fun p : α × ℕ => m p.1) (encPair input encNat) encNat := by
-    fun_prop
-  have hN : ComputableInPolyTime (fun p : α × ℕ => n p.1) (encPair input encNat) encNat := by
-    fun_prop
+  have hM : ComputableInPolyTime (fun p : α × ℕ => m p.1) (encPair input encNat) encNat :=
+    hm.comp (.fst input encNat)
+  have hN : ComputableInPolyTime (fun p : α × ℕ => n p.1) (encPair input encNat) encNat :=
+    hn.comp (.fst input encNat)
   have hi := ComputableInPolyTime.snd input encNat
-  have hwin := ComputableInPolyTime.decide_and
-    (ComputableInPolyTime.binary_le' (ComputableInPolyTime.binary_mul' (.const 2) hM) hi)
-    (ComputableInPolyTime.binary_lt' hi
-      (ComputableInPolyTime.binary_mul' (.const 2) (ComputableInPolyTime.binary_add' hM hN)))
-  have hslot := ComputableInPolyTime.binary_sub'
-    (ComputableInPolyTime.binary_div' hi (.const 2)) hM
-  have hside := ComputableInPolyTime.binary_mod' hi (.const 2)
-  have hnext := ComputableInPolyTime.binary_mod'
-    (ComputableInPolyTime.binary_add' hslot (.const 1)) hN
-  have hprev := ComputableInPolyTime.binary_mod'
-    (ComputableInPolyTime.binary_sub' (ComputableInPolyTime.binary_add' hslot hN) (.const 1)) hN
+  have htwo := ComputableInPolyTime.const (encIn := encPair input encNat) (encOut := encNat) 2
+  have hone := ComputableInPolyTime.const (encIn := encPair input encNat) (encOut := encNat) 1
+  have hwin := ((htwo.binary_mul' hM).binary_le' hi).decide_and
+    (hi.binary_lt' (htwo.binary_mul' (hM.binary_add' hN)))
+  have hslot := (hi.binary_div' htwo).binary_sub' hM
+  have hside := hi.binary_mod' htwo
   simp only [boundaryIndexMap]
-  exact ⟨ComputableInPolyTime.ite_decide hwin
-      (ComputableInPolyTime.binary_add'
-        (ComputableInPolyTime.binary_mul' (.const 2) (ComputableInPolyTime.binary_add' hM hnext))
+  exact ⟨hwin.ite_decide
+      ((htwo.binary_mul' (hM.binary_add' ((hslot.binary_add' hone).binary_mod' hN))).binary_add'
         hside) hi,
-    ComputableInPolyTime.ite_decide hwin
-      (ComputableInPolyTime.binary_add'
-        (ComputableInPolyTime.binary_mul' (.const 2) (ComputableInPolyTime.binary_add' hM hprev))
-        hside) hi⟩
+    hwin.ite_decide
+      ((htwo.binary_mul' (hM.binary_add' (((hslot.binary_add' hN).binary_sub' hone).binary_mod'
+        hN))).binary_add' hside) hi⟩
 
 private theorem state_tables_polyTime (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (fun I : State Rel => rotateBoundaryCertificate
@@ -93,8 +86,7 @@ private theorem state_tables_polyTime (encRel : Rel ↪ List Bool) :
       (encState encRel) encRotationCertificate := by
   simp only [← CSP.vars_length_eq_occurrences]
   have hmaps := boundary_index_maps_polyTime (input := encState encRel)
-    (m := fun I : State Rel => I.body.vars.length)
-    (n := fun I : State Rel => I.ports.length)
+    (m := fun I : State Rel => I.body.vars.length) (n := fun I : State Rel => I.ports.length)
     (by polytime) (by polytime)
   have hreindex := RotationCertificate.computableInPolyTime_reindex
     (table := State.rotation) (count := fun I => 2 * (I.body.vars.length + I.ports.length))
@@ -125,13 +117,8 @@ theorem computableInPolyTime_rotateLeft (encRel : Rel ↪ List Bool) :
         ⟨I.body, I.ports.tail ++ [I.ports.headD 0],
           rotateBoundaryCertificate I.body.occurrences.length I.ports.length I.rotation⟩)
       (encState encRel) (encState encRel) := by polytime
-  apply hbranch.of_enc_eq
-  intro I
-  apply congrArg (encState encRel)
-  rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => rfl
-  | cons x ps => cases ps <;> simp [rotateLeft]
+  refine hbranch.of_enc_eq fun ⟨F, ports, c⟩ => congrArg (encState encRel) ?_
+  rcases ports with _ | ⟨x, _ | _⟩ <;> simp [rotateLeft]
 
 /-- One RIGHT rotation is plain polynomial time on EVERY raw state with the unchanged
 encoding. Unary clocks use actual lists; binary names/entries have no magnitude bound.
@@ -150,12 +137,7 @@ theorem computableInPolyTime_rotateRight (encRel : Rel ↪ List Bool) :
           rotateBoundaryCertificateRight I.body.occurrences.length I.ports.length I.rotation⟩)
       (encState encRel) (encState encRel) :=
     ComputableInPolyTime.ite_decide (by fun_prop) (by fun_prop) (by fun_prop)
-  apply hbranch.of_enc_eq
-  intro I
-  apply congrArg (encState encRel)
-  rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => rfl
-  | cons x ps => cases ps <;> simp [rotateRight]
+  refine hbranch.of_enc_eq fun ⟨F, ports, c⟩ => congrArg (encState encRel) ?_
+  rcases ports with _ | ⟨x, _ | _⟩ <;> simp [rotateRight]
 
 end Cslib.Complexity.CSP.CrossInsertion
