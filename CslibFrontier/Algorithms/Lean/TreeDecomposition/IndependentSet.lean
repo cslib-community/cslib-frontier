@@ -338,9 +338,8 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
     have hstep : tables R w (t + 1) = step R w (tables R w t) j := by rw [hj]; rfl
     rw [hstep]
     unfold step
-    by_cases hi : i = R.parent j
-    · subst hi
-      rw [Function.update_self]
+    obtain rfl | hi := eq_or_ne i (R.parent j)
+    · rw [Function.update_self]
       -- The table of `j` is complete: all its children are processed.
       have hjopt : ∀ T ⊆ R.bag j, G.IsIndepSet (↑T : Set V) →
           tables R w t j T = opt R w j T := by
