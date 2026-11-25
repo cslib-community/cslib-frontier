@@ -125,10 +125,9 @@ theorem setOf_mem_boolAxioms [Fintype σ] :
 
 /-- A Boolean axiom has total degree at most two. -/
 theorem totalDegree_boolAxiom_le (i : σ) : (boolAxiom i : MvPolynomial σ R).totalDegree ≤ 2 := by
-  refine (totalDegree_sub _ _).trans (max_le ?_ ?_)
-  · rw [X_pow_eq_monomial]
-    exact (totalDegree_monomial_le _ _).trans (by simp)
-  · exact (totalDegree_monomial_le _ _).trans (by simp)
+  refine (totalDegree_sub _ _).trans (max_le ?_ ((totalDegree_monomial_le _ _).trans (by simp)))
+  rw [X_pow_eq_monomial]
+  exact (totalDegree_monomial_le _ _).trans (by simp)
 
 /-- Over a nontrivial ring, a Boolean axiom is nonzero: its coefficient at `X i ^ 2` is `1`. -/
 theorem boolAxiom_ne_zero [Nontrivial R] (i : σ) : (boolAxiom i : MvPolynomial σ R) ≠ 0 := by
@@ -141,10 +140,8 @@ theorem boolAxiom_ne_zero [Nontrivial R] (i : σ) : (boolAxiom i : MvPolynomial 
 one without them. -/
 theorem isBoolSolution_append_boolAxioms [Fintype σ] (F : List (MvPolynomial σ R))
     (x : σ → Bool) : IsBoolSolution (F ++ boolAxioms σ R) x ↔ IsBoolSolution F x := by
-  simp only [IsBoolSolution, List.mem_append, or_imp, forall_and, and_iff_left_iff_imp]
-  intro _ p hp
-  obtain ⟨i, rfl⟩ := mem_boolAxioms.1 hp
-  exact eval_boolAxiom x i
+  simp only [IsBoolSolution, List.mem_append, or_imp, forall_and, and_iff_left_iff_imp,
+    mem_boolAxioms, forall_exists_index, forall_apply_eq_imp_iff, eval_boolAxiom, implies_true]
 
 end Algebraic
 
@@ -156,19 +153,17 @@ variable {σ R : Type*} [CommRing R] [Nontrivial R] [Fintype σ]
 Boolean axioms, over a nontrivial commutative ring, leaves `F` without Boolean solutions. -/
 theorem NS.IsProof.not_isBoolSolution {F : List (MvPolynomial σ R)}
     {P : Fin (F ++ boolAxioms σ R).length → MvPolynomial σ R}
-    (h : NS.IsProof (F ++ boolAxioms σ R) P 1) (x : σ → Bool) : ¬ IsBoolSolution F x := by
-  intro hx
-  obtain ⟨f, hf, hne⟩ := h.exists_eval_ne_zero (bitPoint x)
-  exact hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
+    (h : NS.IsProof (F ++ boolAxioms σ R) P 1) (x : σ → Bool) : ¬ IsBoolSolution F x :=
+  fun hx => let ⟨f, hf, hne⟩ := h.exists_eval_ne_zero (bitPoint x)
+    hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
 
 /-- **Soundness of polynomial calculus.** A polynomial calculus refutation of `F` together with
 the Boolean axioms, over a nontrivial commutative ring, leaves `F` without Boolean solutions. -/
 theorem PC.IsProof.not_isBoolSolution {F ls : List (MvPolynomial σ R)}
     (h : PC.IsProof (F ++ boolAxioms σ R) ls) (h1 : 1 ∈ ls) (x : σ → Bool) :
-    ¬ IsBoolSolution F x := by
-  intro hx
-  obtain ⟨f, hf, hne⟩ := h.exists_eval_ne_zero h1 (bitPoint x)
-  exact hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
+    ¬ IsBoolSolution F x :=
+  fun hx => let ⟨f, hf, hne⟩ := h.exists_eval_ne_zero h1 (bitPoint x)
+    hne ((isBoolSolution_append_boolAxioms F x).2 hx f hf)
 
 /-- Soundness of Nullstellensatz, for refutability in some degree. -/
 theorem NS.RefutableInDegree.not_isBoolSolution {F : List (MvPolynomial σ R)} {d : ℕ}
@@ -196,9 +191,7 @@ omit [Fintype σ] in
 private theorem exists_bitPoint_eq [DecidableEq K] {z : σ → K}
     (hz : ∀ i, z i ∈ ({0, 1} : Finset K)) : ∃ x : σ → Bool, bitPoint x = z := by
   refine ⟨fun i => decide (z i = 1), funext fun i => ?_⟩
-  have h := hz i
-  rw [Finset.mem_insert, Finset.mem_singleton] at h
-  rcases h with h | h <;> simp [bitVal, h]
+  rcases (by simpa using hz i : z i = 0 ∨ z i = 1) with h | h <;> simp [bitVal, h]
 
 /-- **Completeness of Nullstellensatz.** Over a field, if every input has total degree at most `D`
 in the finitely many variables `σ` and there is no Boolean solution, then the inputs together
@@ -207,30 +200,29 @@ theorem NS.refutableInDegree_of_forall_not_isBoolSolution {F : List (MvPolynomia
     (hF : ∀ f ∈ F, f.totalDegree ≤ D) (h : ∀ x, ¬ IsBoolSolution F x) :
     NS.RefutableInDegree (F ++ boolAxioms σ K) (Fintype.card σ + D) := by
   classical
-  have hk : ∀ x : σ → Bool, ∃ f ∈ F, eval (bitPoint x) f ≠ 0 := fun x => by
-    simpa [IsBoolSolution] using h x
-  choose f hfF hf using hk
+  choose f hfF hf using fun x : σ → Bool =>
+    show ∃ f ∈ F, eval (bitPoint x) f ≠ 0 by simpa [IsBoolSolution] using h x
   -- `g x * f x` is `1` at `x` and `0` at the other points of the cube
   let g : (σ → Bool) → MvPolynomial σ K :=
     fun x => C (eval (bitPoint x) (f x))⁻¹ * indicatorPoly x
-  have hG : ∀ z : σ → K, (∀ i, z i ∈ ({0, 1} : Finset K)) →
+  have hG (z : σ → K) (hz : ∀ i, z i ∈ ({0, 1} : Finset K)) :
       eval z (1 - ∑ x, f x * g x) = 0 := by
-    intro z hz
     obtain ⟨y, rfl⟩ := exists_bitPoint_eq hz
     simp only [g, map_sub, map_one, map_sum, map_mul, eval_C, eval_indicatorPoly, mul_ite,
-      mul_one, mul_zero, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
-    rw [mul_inv_cancel₀ (hf y), sub_self]
+      mul_one, mul_zero, Finset.sum_ite_eq', Finset.mem_univ, ite_true, mul_inv_cancel₀ (hf y),
+      sub_self]
   obtain ⟨b, hb, hbeq⟩ := combinatorial_nullstellensatz_exists_linearCombination
     (fun _ => ({0, 1} : Finset K)) (fun _ => Finset.insert_nonempty _ _) _ hG
   simp only [prod_bool_eq_boolAxiom] at hb hbeq
   rw [Finsupp.linearCombination_apply, Finsupp.sum_fintype _ _ (by simp)] at hbeq
-  have hgdeg : ∀ x, (g x).totalDegree ≤ Fintype.card σ := fun x =>
+  have hgdeg (x) : (g x).totalDegree ≤ Fintype.card σ :=
     (totalDegree_mul _ _).trans (by
       rw [totalDegree_C, zero_add]; exact totalDegree_indicatorPoly_le x)
   have hGdeg : (1 - ∑ x, f x * g x).totalDegree ≤ Fintype.card σ + D :=
     (totalDegree_sub _ _).trans (max_le (by rw [totalDegree_one]; omega)
       ((totalDegree_finsetSum _ _).trans (Finset.sup_le fun x _ =>
-        (totalDegree_mul _ _).trans (by have := hF _ (hfF x); have := hgdeg x; omega))))
+        (totalDegree_mul _ _).trans
+          ((Nat.add_le_add (hF _ (hfF x)) (hgdeg x)).trans_eq (Nat.add_comm _ _)))))
   have hsum : ∑ t : (σ → Bool) ⊕ σ, Sum.elim f boolAxiom t * Sum.elim g b t = 1 := by
     rw [Fintype.sum_sum_type]
     simp only [Sum.elim_inl, Sum.elim_inr, smul_eq_mul] at hbeq ⊢
@@ -238,21 +230,17 @@ theorem NS.refutableInDegree_of_forall_not_isBoolSolution {F : List (MvPolynomia
       Finset.sum_congr rfl fun i _ => mul_comm _ _, ← hbeq]
     ring
   have hmem : ∀ t ∈ (Finset.univ : Finset ((σ → Bool) ⊕ σ)),
-      Sum.elim f boolAxiom t ∈ F ++ boolAxioms σ K := by
-    rintro (x | i) _
-    · exact List.mem_append_left _ (hfF x)
-    · exact List.mem_append_right _ (boolAxiom_mem_boolAxioms i)
+      Sum.elim f boolAxiom t ∈ F ++ boolAxioms σ K :=
+    fun | .inl x, _ => List.mem_append_left _ (hfF x)
+        | .inr i, _ => List.mem_append_right _ (boolAxiom_mem_boolAxioms i)
   have hdeg : ∀ t ∈ (Finset.univ : Finset ((σ → Bool) ⊕ σ)), Sum.elim g b t ≠ 0 →
       (Sum.elim f boolAxiom t).totalDegree + (Sum.elim g b t).totalDegree ≤
         Fintype.card σ + D := by
     rintro (x | i) _ hne
-    · have := hF _ (hfF x)
-      have := hgdeg x
-      simp only [Sum.elim_inl]
-      omega
+    · simpa only [Sum.elim_inl, Nat.add_comm D] using Nat.add_le_add (hF _ (hfF x)) (hgdeg x)
     · simp only [Sum.elim_inr] at hne ⊢
-      rw [← totalDegree_mul_of_isDomain (boolAxiom_ne_zero i) hne]
-      exact (hb i).trans hGdeg
+      exact (totalDegree_mul_of_isDomain (boolAxiom_ne_zero i) hne).symm.trans_le
+        ((hb i).trans hGdeg)
   obtain ⟨P, hP, hPd⟩ := NS.exists_isProof_of_sum Finset.univ _ _ hmem hdeg
   exact ⟨P, hsum ▸ hP, hPd⟩
 

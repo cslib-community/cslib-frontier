@@ -80,15 +80,14 @@ private theorem tagTuple_injective {e : Φ.Var → Fin t} (he : Function.Injecti
     (hc : c₀ ≠ c₁) (ha : ∀ i, Φ.arity i ≤ a) {i i' : Φ.Var} {x : Fin (Φ.arity i) → M}
     {x' : Fin (Φ.arity i') → M} (h : tagTuple (a := a) e c₀ c₁ i x = tagTuple e c₀ c₁ i' x') :
     (⟨i, x⟩ : Σ i, Fin (Φ.arity i) → M) = ⟨i', x'⟩ := by
-  have hi : i = i' := by
+  obtain rfl : i = i' := by
     by_contra hne
     have htag := congrFun h (Fin.castAdd a (e i))
     simp only [tagTuple, Fin.append_left, ↓reduceIte, he.ne hne] at htag
     exact hc htag.symm
-  subst hi
   refine Sigma.ext rfl (heq_of_eq (funext fun p => ?_))
-  have hp := congrFun h (Fin.natAdd t ⟨p.val, lt_of_lt_of_le p.isLt (ha i)⟩)
-  simpa only [tagTuple, Fin.append_right, Fin.val_mk, p.isLt, ↓reduceDIte, Fin.eta] using hp
+  simpa only [tagTuple, Fin.append_right, Fin.val_mk, p.isLt, ↓reduceDIte, Fin.eta] using
+    congrFun h (Fin.natAdd t ⟨p.val, p.isLt.trans_le (ha i)⟩)
 
 /-- Tagged tuples of a family of relations. -/
 private def tagSet (e : Φ.Var → Fin t) (c₀ c₁ : M) (R : ∀ i, Set (Fin (Φ.arity i) → M)) :
@@ -103,12 +102,9 @@ private def untagSet (e : Φ.Var → Fin t) (c₀ c₁ : M) (S : Set (Fin (t + a
 /-- A tagged tuple lies in a tagged family exactly when its tuple lies in the family. -/
 private theorem mem_tagSet_iff {e : Φ.Var → Fin t} (he : Function.Injective e) {c₀ c₁ : M}
     (hc : c₀ ≠ c₁) (ha : ∀ i, Φ.arity i ≤ a) {R : ∀ i, Set (Fin (Φ.arity i) → M)} {i : Φ.Var}
-    {x : Fin (Φ.arity i) → M} : tagTuple (a := a) e c₀ c₁ i x ∈ tagSet e c₀ c₁ R ↔ x ∈ R i := by
-  constructor
-  · rintro ⟨i', x', hx', hy⟩
-    cases tagTuple_injective he hc ha hy
-    exact hx'
-  · exact fun hx => ⟨i, x, hx, rfl⟩
+    {x : Fin (Φ.arity i) → M} : tagTuple (a := a) e c₀ c₁ i x ∈ tagSet e c₀ c₁ R ↔ x ∈ R i :=
+  ⟨fun ⟨_, _, hx', hy⟩ => by cases tagTuple_injective he hc ha hy; exact hx',
+    fun hx => ⟨i, x, hx, rfl⟩⟩
 
 /-- Decoding a tagged family recovers it. -/
 private theorem untagSet_tagSet {e : Φ.Var → Fin t} (he : Function.Injective e) {c₀ c₁ : M}
@@ -141,9 +137,8 @@ private theorem lfp_tagStep [L.Structure M] {e : Φ.Var → Fin t} (he : Functio
     {c₀ c₁ : M} (hc : c₀ ≠ c₁) (ha : ∀ i, Φ.arity i ≤ a) :
     (tagStep (a := a) e c₀ c₁).lfp = tagSet e c₀ c₁ (Φ.leastModel M) := by
   have hid : ((Φ.consequence M).comp (untagHom e c₀ c₁)).comp (tagHom (a := a) e c₀ c₁) =
-      Φ.consequence M := by
-    refine OrderHom.ext _ _ (funext fun R => ?_)
-    exact congrArg (Φ.consequence M) (untagSet_tagSet he hc ha R)
+      Φ.consequence M :=
+    OrderHom.ext _ _ (funext fun R => congrArg (Φ.consequence M) (untagSet_tagSet he hc ha R))
   rw [leastModel, ← hid]
   exact ((tagHom e c₀ c₁).map_lfp_comp _).symm
 
@@ -154,8 +149,8 @@ private theorem mem_tagStep_iff [L.Structure M] (e : Φ.Var → Fin t) (c₀ c�
     y ∈ tagStep e c₀ c₁ S ↔ ∃ C ∈ Φ.clauses, ∃ h, C.head = some h ∧ ∃ w : Fin C.width → M,
       C.guard.Realize w ∧ (∀ b ∈ C.body, tagTuple e c₀ c₁ b.rel (w ∘ b.args) ∈ S) ∧
         tagTuple e c₀ c₁ h.rel (w ∘ h.args) = y := by
-  constructor
-  · rintro ⟨i, x, ⟨C, hC, h, hh, w, hg, hb, he⟩, rfl⟩
+  refine ⟨?_, ?_⟩
+  · rintro ⟨_, _, ⟨C, hC, h, hh, w, hg, hb, he⟩, rfl⟩
     cases he
     exact ⟨C, hC, h, hh, w, hg, hb, rfl⟩
   · rintro ⟨C, hC, h, hh, w, hg, hb, rfl⟩
@@ -193,13 +188,11 @@ private theorem realize_tagTerms {β : Type*} {N : Type*} [L.Structure N] (e : �
     (fun p => (tagTerms (a := a) e c₀ c₁ i args p).realize v) =
       tagTuple e (c₀.realize Empty.elim) (c₁.realize Empty.elim) i (v ∘ args) := by
   funext p
-  refine Fin.addCases (fun j => ?_) (fun j => ?_) p
-  · simp only [tagTerms, tagTuple, Fin.append_left]
-    split_ifs <;> exact realize_relabel_empty _ v
-  · simp only [tagTerms, tagTuple, Fin.append_right]
-    split_ifs
-    · rfl
-    · exact realize_relabel_empty _ v
+  refine Fin.addCases (fun _ => ?_) (fun _ => ?_) p <;>
+    simp only [tagTerms, tagTuple, Fin.append_left, Fin.append_right]
+  · split_ifs <;> exact realize_relabel_empty _ v
+  · split_ifs
+    exacts [rfl, realize_relabel_empty _ v]
 
 /-- The packed operator has a positive defining formula. It is a finite disjunction over the
 definite clauses; each disjunct existentially quantifies the clause variables, keeps the guard
@@ -226,11 +219,11 @@ private theorem tagStep_polarityDefinable (e : Φ.Var → Fin t) (c₀ c₁ : L.
       (Operator.PolarityDefinable.iAll fun p => Operator.PolarityDefinable.equal
         (tagTerms e c₀ c₁ h.rel (Sum.inr ∘ h.args) p)
         (.var (Sum.inl (Sum.inr p)))))).congr fun j v => ?_
-    refine and_congr Formula.realize_relabel (and_congr (forall₂_congr fun b _ => ?_) ?_)
-    · exact Iff.of_eq (congrArg (· ∈ j.2) (realize_tagTerms e c₀ c₁ b.rel _ v))
-    · have hr := realize_tagTerms (a := a) e c₀ c₁ h.rel (Sum.inr ∘ h.args) v
-      refine ⟨fun hp => funext fun p => (congrFun hr p).symm.trans (hp p),
-        fun hp p => (congrFun hr p).trans (congrFun hp p)⟩
+    refine and_congr Formula.realize_relabel (and_congr
+      (forall₂_congr fun b _ =>
+        Iff.of_eq (congrArg (· ∈ j.2) (realize_tagTerms e c₀ c₁ b.rel _ v)))
+      (funext_iff.symm.trans (Iff.of_eq (congrArg (· = (v ∘ Sum.inl) ∘ Sum.inr)
+        (realize_tagTerms (a := a) e c₀ c₁ h.rel (Sum.inr ∘ h.args) v)))))
 
 end Definability
 
@@ -273,8 +266,7 @@ theorem exists_lfp_realize_iff (Φ : Sentence L) (c₀ c₁ : L.Term Empty)
         (I := fun _ => LFP.interpretation) (ρ := fun _ => Operator.RelEnv.empty)
         (α := Empty ⊕ Fin C.width) (C.guard.relabel Sum.inr)).congr
         fun _ _ => Formula.realize_relabel
-      simp only [Clause.Holds, Atom.Holds, hC, Option.elim_none, imp_false,
-        ← not_and, ← not_exists]
+      simp only [Clause.Holds, Atom.Holds, hC, Option.elim_none, imp_false, ← not_and, ← not_exists]
       fo_definable
   obtain ⟨φ, hφ, hreal⟩ := key
   exact ⟨⟨φ, hφ⟩, fun m => (hreal m Empty.elim).trans (realize_iff_leastModel Φ).symm⟩

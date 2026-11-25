@@ -61,18 +61,13 @@ theorem splice_preserves [DecidableEq α] (f : Perm α) (p : α → Prop)
     (hh : p h ↔ q) (hk : p k ↔ q) :
     ∀ z, extendedPredicate p q (splice f h k z) ↔ extendedPredicate p q z := by
   intro z
-  have hf : ∀ z, extendedPredicate p q (f.optionCongr.optionCongr z) ↔
-      extendedPredicate p q z := by
-    rintro (_ | (_ | a))
-    · rfl
-    · rfl
-    · exact hp a
-  change extendedPredicate p q
-    (swap (some (some k)) none (swap (some (some h)) (some none)
-      (f.optionCongr.optionCongr (swap (some none) none z)))) ↔ _
+  have hf : ∀ z, extendedPredicate p q (f.optionCongr.optionCongr z) ↔ extendedPredicate p q z :=
+    fun | none | some none => .rfl | some (some a) => hp a
+  change extendedPredicate p q (swap (some (some k)) none (swap (some (some h)) (some none)
+    (f.optionCongr.optionCongr (swap (some none) none z)))) ↔ _
   rw [Equiv.predicate_swap (extendedPredicate p q) (some (some k)) none hk,
     Equiv.predicate_swap (extendedPredicate p q) (some (some h)) (some none) hh, hf,
-    Equiv.predicate_swap (extendedPredicate p q) (some none) none Iff.rfl]
+    Equiv.predicate_swap (extendedPredicate p q) (some none) none .rfl]
 
 /-- When both new points are selected, the selected dart type is literally the old selected
 set with two indexed ends adjoined. -/
@@ -100,11 +95,8 @@ private theorem map_splice {β : Type} [DecidableEq α] [DecidableEq β]
       splice g (u h) (u k) (Option.map (Option.map u) z) := by
   let v := Option.map (Option.map u)
   have hv : Function.Injective v := Option.map_injective (Option.map_injective hu)
-  have hf : ∀ z, v (f.optionCongr.optionCongr z) = g.optionCongr.optionCongr (v z) := by
-    rintro (_ | (_ | a))
-    · rfl
-    · rfl
-    · exact congrArg (some ∘ some) (hm a)
+  have hf : ∀ z, v (f.optionCongr.optionCongr z) = g.optionCongr.optionCongr (v z) :=
+    fun | none | some none => rfl | some (some a) => congrArg (some ∘ some) (hm a)
   change v (splice f h k z) = splice g (u h) (u k) (v z)
   simp only [splice, Perm.coe_mul, Function.comp_apply]
   rw [hv.map_swap, hv.map_swap, hf, hv.map_swap]
@@ -116,11 +108,10 @@ theorem selected_splice_permCongr [DecidableEq α] (f : Perm α) (p : α → Pro
     (selectedPointEquiv p).permCongr (splice (f.subtypePerm hp) ⟨h, hh⟩ ⟨k, hk⟩) =
       (splice f h k).subtypePerm
         (splice_preserves f p hp h k True (iff_true_intro hh) (iff_true_intro hk)) := by
-  apply Equiv.ext
-  intro z
+  refine Equiv.ext fun z => ?_
   obtain ⟨z, rfl⟩ := (selectedPointEquiv p).surjective z
   simp only [Equiv.permCongr_apply, Equiv.symm_apply_apply]
-  apply Subtype.ext
+  refine Subtype.ext ?_
   change ((selectedPointEquiv p) (splice (f.subtypePerm hp) ⟨h, hh⟩ ⟨k, hk⟩ z)).val =
     splice f h k ((selectedPointEquiv p) z).val
   rw [coe_selectedPointEquiv, coe_selectedPointEquiv]
@@ -160,8 +151,7 @@ theorem unselected_splice_permCongr [DecidableEq α] (f : Perm α) (p : α → P
     (unselectedPointEquiv p).permCongr (f.subtypePerm hp) =
       (splice f h k).subtypePerm
         (splice_preserves f p hp h k False (iff_false_intro hh) (iff_false_intro hk)) := by
-  apply Equiv.ext
-  intro z
+  refine Equiv.ext fun z => ?_
   obtain ⟨a, rfl⟩ := (unselectedPointEquiv p).surjective z
   simp only [Equiv.permCongr_apply, Equiv.symm_apply_apply]
   apply Subtype.ext
@@ -226,27 +216,18 @@ theorem card_orbitOn_swap_mul (f : Perm α) (p : α → Prop) (hp : ∀ a, p (f 
     (Equiv.predicate_swap p h k hm (f a)).trans (hp a)
   rw [← Nat.card_congr (subtypeOrbitEquiv (swap h k * f) p hp')]
   by_cases hh : p h
-  · have hk := hm.mp hh
-    let h' : {a // p a} := ⟨h, hh⟩
-    let k' : {a // p a} := ⟨k, hk⟩
-    have he : (swap h k * f).subtypePerm hp' = swap h' k' * f.subtypePerm hp := by
-      apply Equiv.ext
-      intro a
-      apply Subtype.ext
-      change swap h k (f a.val) = (swap h' k' (f.subtypePerm hp a)).val
-      exact (Subtype.val_injective.map_swap h' k' (f.subtypePerm hp a)).symm
-    rw [he]
+  · let h' : {a // p a} := ⟨h, hh⟩
+    let k' : {a // p a} := ⟨k, hm.mp hh⟩
+    have he : (swap h k * f).subtypePerm hp' = swap h' k' * f.subtypePerm hp :=
+      Equiv.ext fun a => Subtype.ext
+        (Subtype.val_injective.map_swap h' k' (f.subtypePerm hp a)).symm
     have h₁ := (card_orbits_swap_mul (f.subtypePerm hp) h' k'
       (fun he => hne (congrArg Subtype.val he))).1 (Perm.sameCycle_subtypePerm.mpr hc)
-    rw [h₁, Nat.card_congr (subtypeOrbitEquiv f p hp)]
+    rw [he, h₁, Nat.card_congr (subtypeOrbitEquiv f p hp)]
     simp only [hh, ite_true]
   · have hk : ¬ p k := fun hk => hh (hm.mpr hk)
-    have he : (swap h k * f).subtypePerm hp' = f.subtypePerm hp := by
-      apply Equiv.ext
-      intro a
-      apply Subtype.ext
-      change swap h k (f a.val) = f a.val
-      exact swap_apply_of_ne_of_ne
+    have he : (swap h k * f).subtypePerm hp' = f.subtypePerm hp :=
+      Equiv.ext fun a => Subtype.ext <| swap_apply_of_ne_of_ne
         (fun he => hh (he ▸ (hp a.val).mpr a.property))
         (fun he => hk (he ▸ (hp a.val).mpr a.property))
     rw [he, Nat.card_congr (subtypeOrbitEquiv f p hp)]
