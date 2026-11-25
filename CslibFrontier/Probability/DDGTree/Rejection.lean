@@ -509,8 +509,10 @@ private theorem singleLaw_finCutoffSpec_some {n k : ℕ} (hnk : n ≤ 2 ^ k) (i 
     tsum_fintype, Finset.sum_eq_single ⟨i.val, i.isLt.trans_le hnk⟩]
   · simp [f, i.isLt, PMF.uniformOfFintype_apply]
   · intro j _ hj
-    simp only [Function.comp_apply, f, Fin.ofNat?]
-    split_ifs <;> simp_all [Fin.ext_iff]
+    refine ite_eq_right fun heq => hj (Fin.ext ?_)
+    simp only [Function.comp_apply, f, Fin.ofNat?] at heq
+    split_ifs at heq
+    exact (congrArg Fin.val (Option.some.inj heq)).symm
   · simp
 
 private theorem acceptProb_finCutoffSpec {n k : ℕ} (hnk : n ≤ 2 ^ k) :
@@ -687,12 +689,15 @@ private theorem singleLaw_subsetDyadicSpec_some {α : Type*} [DecidableEq α] {m
     rw [Finset.sum_eq_single ⟨i.val, i.isLt.trans_le hmk⟩]
     · simp [g, i.isLt, haS, PMF.uniformOfFintype_apply, dyadicSize]
     · intro j _ hj
-      simp only [Function.comp_apply, g]
-      split_ifs <;> simp_all [hinj.eq_iff, Fin.ext_iff]
+      refine ite_eq_right fun heq => hj (Fin.ext ?_)
+      simp only [Function.comp_apply, g] at heq
+      split_ifs at heq with hlt hmS
+      exact (congrArg Fin.val (hinj (Option.some.inj heq))).symm
     · simp
-  · refine Finset.sum_eq_zero fun j _ => ?_
-    simp only [Function.comp_apply, g]
-    split_ifs <;> simp_all
+  · refine Finset.sum_eq_zero fun j _ => ite_eq_right fun heq => ?_
+    simp only [Function.comp_apply, g] at heq
+    split_ifs at heq with hlt hmS
+    exact haS (Option.some.inj heq ▸ hmS)
 
 theorem acceptProb_subsetDyadicSpec {α : Type*} [DecidableEq α] {m : ℕ} {enum : Fin m → α}
     (hinj : Function.Injective enum) {S : Finset α}
