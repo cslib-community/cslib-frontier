@@ -509,24 +509,21 @@ theorem criticalMechanism_isDSICNoEarlyArrival {τ : Type*} [LinearOrder τ]
   · exact criticalMechanism_isDSIC hmono i θ θ_true ⟨ha, hd⟩
   · push Not at hd
     have hir : 0 ≤ π.criticalMechanism.utility i θ_true (Function.update θ i θ_true) := by
-      have := π.criticalMechanism_isIR i (Function.update θ i θ_true)
-      simpa only [Function.update_self] using this
+      simpa only [Function.update_self] using
+        π.criticalMechanism_isIR i (Function.update θ i θ_true)
     cases hrep : π.alloc θ i with
     | none =>
-      rw [Mechanism.utility_of_alloc_none _ hrep,
+      rwa [Mechanism.utility_of_alloc_none _ hrep,
         π.criticalMechanism_isLoserZero i θ hrep, neg_zero]
-      exact hir
     | some t_rep =>
       have ht_eq : t_rep = (θ i).departure := hlate θ i t_rep hrep
-      have hnotwin : ¬ θ_true.InWindow t_rep := fun hin =>
-        not_le_of_gt hd (ht_eq ▸ hin.2)
+      have hnotwin : ¬ θ_true.InWindow t_rep := fun hin => not_le_of_gt hd (ht_eq ▸ hin.2)
       have hutil_rep :
           π.criticalMechanism.utility i θ_true θ = -π.criticalMechanism.payment θ i := by
         simp only [Mechanism.utility, criticalMechanism, hrep,
           AgentType.realizedValue_some_of_not_inWindow hnotwin, zero_sub]
-      have hnpt := π.criticalMechanism_isNPT i θ
       rw [hutil_rep]
-      linarith
+      linarith [π.criticalMechanism_isNPT i θ]
 
 end Policy
 
@@ -545,11 +542,9 @@ theorem IsDSIC.isMonotone {M : Mechanism ι τ} (hdsic : M.IsDSIC) (hir : M.IsIR
   have hmis : θ₂.IsValidMisreport θ₁ := ⟨ha, hd⟩
   have hir₁ := hir i (Function.update θ i θ₁)
   rw [M.utility_of_alloc_some ht₁, Function.update_self] at hir₁
-  have hin₂ : θ₂.InWindow t₁ := by
-    have hin₁ : θ₁.InWindow t₁ := by
-      simpa only [Function.update_self] using
-        M.policy.alloc_in_window (Function.update θ i θ₁) i t₁ ht₁
-    exact AgentType.InWindow.of_isValidMisreport hmis hin₁
+  have hin₂ : θ₂.InWindow t₁ := .of_isValidMisreport hmis (by
+    simpa only [Function.update_self] using
+      M.policy.alloc_in_window (Function.update θ i θ₁) i t₁ ht₁)
   have hdsic₂ :=
     hdsic i (Function.update θ i θ₁) θ₂ (by simpa only [Function.update_self] using hmis)
   rw [Function.update_idem] at hdsic₂
