@@ -910,10 +910,8 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
     dsimp only [L_peak]; rw [hpeak_eq]; exact Nat.add_le_add_left (le_max_right _ _) base
   obtain ⟨zMid, T_mig, hex_mig, hmid_all, hcost_mig⟩ :=
     migrateActiveCode_execRCodeDist hx hn hanc.1 hfr (hfit_peak.of_le hle_m) hsplit hbase
-  have hev_tc : EpochValid U n N_new := by
-    have hNU : st.cap ≤ U := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, _, _, hU'⟩ <;> omega
-    have hn_le : n ≤ st.cap := by rcases hanc.1 with ⟨h0, _⟩ | ⟨_, hle, _, _⟩ <;> omega
-    exact epochValid_targetCap (hn_le.trans hNU)
+  obtain ⟨-, hn_le, -, hNU⟩ := hanc.1.resolve_left fun h => by omega
+  have hev_tc : EpochValid U n N_new := epochValid_targetCap (hn_le.trans hNU)
   have hop_all : ∀ θ_new : QuotHashSeed U N_new,
       ∃ (zFin : RData rResize) (stepsOp : ℕ),
         RDemonicExec w (base + inEpochPeakWords V w N_new n st.dict o)
@@ -973,10 +971,7 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
     rw [Cslib.Probability.PMF.tsum_map_mul]
     exact tsum_congr fun θ_new => by dsimp only [extMid]; rw [hext_id θ_new]
   -- Bound expected `stepsOp + inEpochPotential` under `μ_u`
-  have hN_new_U : N_new ≤ U := by
-    rcases hev_tc with ⟨h0, _⟩ | ⟨_, _, _, hU'⟩ <;> omega
-  have hn_N_new : n ≤ N_new := by
-    rcases hev_tc with ⟨h0, _⟩ | ⟨_, hle, _, _⟩ <;> omega
+  obtain ⟨-, hn_N_new, -, hN_new_U⟩ := hev_tc.resolve_left fun h => by omega
   have hS_le : ((Dictionary.dom st.dict).erase (opKey o)).card ≤ N_new :=
     (Finset.card_erase_le (s := Dictionary.dom st.dict) (a := opKey o)).trans hn_N_new
   have hpr_le :=
@@ -987,55 +982,20 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
         (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞)) ≤
       (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞)) +
         (inEpochCharge : ℝ≥0∞) := by
-    rw [← CompleteLattice.summable.tsum_add CompleteLattice.summable]
-    have hpt : ∀ θ_new,
-        μ_u θ_new * (((stepsOp θ_new : ℕ) : ℝ≥0∞) +
-            (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞)) ≤
-          μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞) +
-            (μ_u θ_new * (inEpochBaseCharge : ℝ≥0∞) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                (μ_u θ_new * (probeExcess N_new (qStage1 U N_new θ_new.1)
-                  (polyStage2 U N_new) θ_new.2 (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞))) :=
-      fun θ_new => by
-        have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr (hop_spec θ_new).2.2.2.2.2.2.2
-        simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hc
-        calc μ_u θ_new * (((stepsOp θ_new : ℕ) : ℝ≥0∞) +
-                (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞))
-            ≤ μ_u θ_new * ((inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞) +
-                (inEpochBaseCharge : ℝ≥0∞) +
-                  (12 * inEpochFactor : ℝ≥0∞) *
-                    (probeExcess N_new (qStage1 U N_new θ_new.1) (polyStage2 U N_new) θ_new.2
-                      (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞)) := by gcongr
-          _ = μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞) +
-                (μ_u θ_new * (inEpochBaseCharge : ℝ≥0∞) +
-                  (12 * inEpochFactor : ℝ≥0∞) *
-                    (μ_u θ_new * (probeExcess N_new (qStage1 U N_new θ_new.1)
-                      (polyStage2 U N_new) θ_new.2 (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞))) :=
-              by ring
-    calc (∑' θ_new, (μ_u θ_new * ((stepsOp θ_new : ℕ) : ℝ≥0∞) +
-            μ_u θ_new * (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞)))
-        = ∑' θ_new, μ_u θ_new * (((stepsOp θ_new : ℕ) : ℝ≥0∞) +
-            (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞)) :=
-          tsum_congr fun _ => (mul_add _ _ _).symm
-      _ ≤ ∑' θ_new, (μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞) +
-            (μ_u θ_new * (inEpochBaseCharge : ℝ≥0∞) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                (μ_u θ_new * (probeExcess N_new (qStage1 U N_new θ_new.1)
-                  (polyStage2 U N_new) θ_new.2 (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞)))) :=
-          tsum_le_tsum hpt
-      _ = (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞)) +
-            ((∑' θ_new, μ_u θ_new * (inEpochBaseCharge : ℝ≥0∞)) +
-              (12 * inEpochFactor : ℝ≥0∞) *
-                ∑' θ_new, μ_u θ_new * (probeExcess N_new (qStage1 U N_new θ_new.1)
-                  (polyStage2 U N_new) θ_new.2 (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞)) := by
-          rw [CompleteLattice.summable.tsum_add CompleteLattice.summable,
-            CompleteLattice.summable.tsum_add CompleteLattice.summable, ENNReal.tsum_mul_left]
-      _ ≤ (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞)) +
-            ((inEpochBaseCharge : ℝ≥0∞) + (12 * inEpochFactor : ℝ≥0∞) * 5) := by
-          rw [ENNReal.tsum_mul_right, μ_u.tsum_coe, one_mul]; gcongr
-      _ = (∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞)) +
-            (inEpochCharge : ℝ≥0∞) := by
-          unfold inEpochCharge; push_cast; ring
+    rw [← tsum_add]
+    calc _ ≤ ∑' θ_new, (μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞) +
+            μ_u θ_new * (inEpochBaseCharge : ℝ≥0∞) + (12 * inEpochFactor : ℝ≥0∞) *
+              (μ_u θ_new * (probeExcess N_new (qStage1 U N_new θ_new.1)
+                (polyStage2 U N_new) θ_new.2 (Dictionary.dom st.dict) (opKey o) : ℝ≥0∞))) :=
+          tsum_le_tsum fun θ_new => by
+            have hc := (Nat.cast_le (α := ℝ≥0∞)).mpr (hop_spec θ_new).2.2.2.2.2.2.2
+            push_cast at hc
+            rw [← mul_add]; exact (mul_le_mul_right hc _).trans_eq (by ring)
+      _ ≤ _ := by
+          rw [tsum_add, tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right,
+            μ_u.tsum_coe, one_mul, add_assoc]
+          calc _ ≤ _ + ((inEpochBaseCharge : ℝ≥0∞) + (12 * inEpochFactor : ℝ≥0∞) * 5) := by gcongr
+            _ = _ := by unfold inEpochCharge; push_cast; ring
   refine ⟨μ_out, _, hex_seq.congr_dist hmap_data le_rfl, fun q hq => ?_, ?_, ?_⟩
   · dsimp only [μ_out] at hq
     rw [PMF.mem_support_map_iff] at hq
@@ -1088,49 +1048,26 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
     set E_mid := ∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zMid θ_new) : ℝ≥0∞)
     set E_op := ∑' θ_new, μ_u θ_new * ((stepsOp θ_new : ℕ) : ℝ≥0∞)
     set E_fin := ∑' θ_new, μ_u θ_new * (inEpochPotential U w N_new base (zFin θ_new) : ℝ≥0∞)
-    have h_comb : T_mig + E_op + E_fin ≤
-        ((migLinearFactor * n : ℕ) : ℝ≥0∞) + (inEpochCharge : ℝ≥0∞) := by
-      calc T_mig + E_op + E_fin
-          = T_mig + (E_op + E_fin) := by ac_rfl
-        _ ≤ T_mig + (E_mid + (inEpochCharge : ℝ≥0∞)) := add_le_add le_rfl hop_expect
-        _ = (T_mig + E_mid) + (inEpochCharge : ℝ≥0∞) := by ac_rfl
-        _ ≤ ((migLinearFactor * n : ℕ) : ℝ≥0∞) + (inEpochCharge : ℝ≥0∞) :=
-            add_le_add hcost_mig le_rfl
     have hmig_le_pot : ((migLinearFactor * n : ℕ) : ℝ≥0∞) ≤
-        (resizablePotential U w st.cap n st.initCount base x₀ : ℝ≥0∞) := by
-      refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
-      unfold resizablePotential
-      have hmul : migLinearFactor * n ≤ (2 * migLinearFactor) * Nat.dist n st.initCount := by
-        calc migLinearFactor * n
-            ≤ migLinearFactor * (2 * Nat.dist n st.initCount) :=
-              Nat.mul_le_mul_left migLinearFactor hdist_rel
-          _ = (2 * migLinearFactor) * Nat.dist n st.initCount := by ring
-      exact hmul.trans (Nat.le_add_left _ _)
+        (resizablePotential U w st.cap n st.initCount base x₀ : ℝ≥0∞) :=
+      Nat.cast_le.mpr <| ((Nat.mul_le_mul_left _ hdist_rel).trans_eq (by ring)).trans
+        (Nat.le_add_left _ _)
     have hrem_le : (overhead : ℝ≥0∞) + (inEpochCharge : ℝ≥0∞) +
         (((2 * migLinearFactor) * Nat.dist n' n : ℕ) : ℝ≥0∞) ≤ (resizableBaseCharge : ℝ≥0∞) := by
-      rw [← Nat.cast_add, ← Nat.cast_add]
-      refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
-      have hd_le : (2 * migLinearFactor) * Nat.dist n' n ≤ 2 * migLinearFactor := by
-        calc (2 * migLinearFactor) * Nat.dist n' n
-            ≤ (2 * migLinearFactor) * 1 := Nat.mul_le_mul_left _ hdist_post
-          _ = 2 * migLinearFactor := Nat.mul_one _
-      have hb_ge : inEpochCharge + 2 * migLinearFactor + 50 ≤ resizableBaseCharge := by
+      have hd : 2 * migLinearFactor * Nat.dist n' n ≤ 2 * migLinearFactor * 1 :=
+        Nat.mul_le_mul_left _ hdist_post
+      have hb : inEpochCharge + 2 * migLinearFactor + 50 ≤ resizableBaseCharge := by
         unfold resizableBaseCharge
         exact Nat.add_le_add_right (le_max_of_le_right (le_max_right _ _)) 50
-      linarith only [h_ov, hd_le, hb_ge]
-    calc ((overhead : ℝ≥0∞) + (T_mig + E_op)) +
-          (E_fin + (((2 * migLinearFactor) * Nat.dist n' n : ℕ) : ℝ≥0∞))
-        = (T_mig + E_op + E_fin) +
-            ((overhead : ℝ≥0∞) + (((2 * migLinearFactor) * Nat.dist n' n : ℕ) : ℝ≥0∞)) := by
-            ac_rfl
-      _ ≤ (((migLinearFactor * n : ℕ) : ℝ≥0∞) + (inEpochCharge : ℝ≥0∞)) +
-            ((overhead : ℝ≥0∞) + (((2 * migLinearFactor) * Nat.dist n' n : ℕ) : ℝ≥0∞)) :=
-            add_le_add h_comb le_rfl
-      _ = ((migLinearFactor * n : ℕ) : ℝ≥0∞) +
-            ((overhead : ℝ≥0∞) + (inEpochCharge : ℝ≥0∞) +
-              (((2 * migLinearFactor) * Nat.dist n' n : ℕ) : ℝ≥0∞)) := by ac_rfl
-      _ ≤ (resizablePotential U w st.cap n st.initCount base x₀ : ℝ≥0∞) +
-            (resizableBaseCharge : ℝ≥0∞) := add_le_add hmig_le_pot hrem_le
+      exact_mod_cast (show overhead + inEpochCharge + 2 * migLinearFactor * Nat.dist n' n ≤
+        resizableBaseCharge by omega)
+    set D : ℝ≥0∞ := (((2 * migLinearFactor) * Nat.dist n' n : ℕ) : ℝ≥0∞)
+    calc ((overhead : ℝ≥0∞) + (T_mig + E_op)) + (E_fin + D)
+        = T_mig + (E_op + E_fin) + ((overhead : ℝ≥0∞) + D) := by ring
+      _ ≤ T_mig + (E_mid + (inEpochCharge : ℝ≥0∞)) + ((overhead : ℝ≥0∞) + D) := by
+          gcongr T_mig + ?_ + _
+      _ = (T_mig + E_mid) + ((overhead : ℝ≥0∞) + (inEpochCharge : ℝ≥0∞) + D) := by ring
+      _ ≤ _ := add_le_add (hcost_mig.trans hmig_le_pot) hrem_le
 
 /-- Execute an active in-epoch branch (`inEpochOpCode.rename epochEmb`) with no migration. -/
 private theorem exec_inEpoch_branch {U V w base overhead : ℕ}
