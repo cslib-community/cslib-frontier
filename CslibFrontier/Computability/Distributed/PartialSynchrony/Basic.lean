@@ -946,9 +946,11 @@ private theorem votedViews_unique_in_view [Fintype P] {F : Finset P} {deliver : 
     (fun _ hhF _ hw => honest_echo_eq leader hhF hw)
     (votedViews_origin leader hprocs hn r₁ i₁ h₁).2 (votedViews_origin leader hprocs hn r₂ i₂ h₂).2
 
+omit [DecidableEq P] in
 /-- A duplicate-free list of more than `t ≥ F.card` processes contains a correct one. -/
 private theorem exists_mem_notMem_of_lt_length {F : Finset P} (hF : F.card ≤ t) {l : List P}
     (hl : l.Nodup) (h : t < l.length) : ∃ j ∈ l, j ∉ F := by
+  classical
   rw [← List.toFinset_card_of_nodup hl] at h
   obtain ⟨j, hj, hjF⟩ := Finset.exists_mem_notMem_of_card_lt_card (hF.trans_lt h)
   exact ⟨j, List.mem_toFinset.1 hj, hjF⟩
