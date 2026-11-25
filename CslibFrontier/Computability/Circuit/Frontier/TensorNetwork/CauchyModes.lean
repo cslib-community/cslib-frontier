@@ -289,10 +289,7 @@ theorem kernelValue_eq_sum (κ : ℤ₍₂₎ →+* R) (ζ : R) {p a i : ℕ} (h
       = kernelValue κ ζ a t d * ((1 - ρ * j) * ∑ b ∈ range p, (ρ * (j : R)) ^ b) := by
         rw [hgeom, mul_one]
     _ = kernelValue κ ζ a t d₀ * ∑ b ∈ range p, (ρ * (j : R)) ^ b := by rw [← mul_assoc, hcancel]
-    _ = _ := by
-        rw [mul_sum]
-        refine sum_congr rfl fun b _ => ?_
-        rw [mul_pow, mul_assoc]
+    _ = _ := by simp only [mul_sum, mul_pow, mul_assoc]
 
 /-- **The coefficients of (D.12) have weight `b + 1`.** When `d₀ ≠ t`, the coefficient
 `W_{d₀}(T) ρ ^ b` of `j ^ b` is divisible by `2 ^ (b + 1)`. -/
@@ -331,35 +328,25 @@ theorem not_dvd_sub_sub_of_testBit_eq {t : ℤ} {i x y₀ : ℕ} (hti : (2 : ℤ
   -- Digit `i` of both is `h`; write `x = K (2 q + h) + lx` and `y₀ = K h + ly`.
   have hy₀K : y₀ / K < 2 := Nat.div_lt_of_lt_mul hy₀'
   have hh : x / K % 2 = y₀ / K := by grind
-  have hx := Nat.div_add_mod x K
-  have hx2 := Nat.div_add_mod (x / K) 2
+  have hx : K * (2 * (x / K / 2) + y₀ / K) + x % K = x := by
+    rw [← hh, Nat.div_add_mod (x / K) 2, Nat.div_add_mod x K]
   have hy := Nat.div_add_mod y₀ K
   have hlx := Nat.mod_lt x hKpos
   have hly := Nat.mod_lt y₀ hKpos
-  obtain ⟨lx, hlxd⟩ : ∃ lx, x % K = lx := ⟨_, rfl⟩
-  obtain ⟨ly, hlyd⟩ : ∃ ly, y₀ % K = ly := ⟨_, rfl⟩
-  obtain ⟨q, hqd⟩ : ∃ q, x / K / 2 = q := ⟨_, rfl⟩
-  obtain ⟨h, hhd⟩ : ∃ h, y₀ / K = h := ⟨_, rfl⟩
-  rw [hlxd] at hx hlx
-  rw [hlyd] at hy hly
-  rw [hqd, hh, hhd] at hx2
-  rw [hhd] at hy
-  rw [← hx2] at hx
-  have hxZ : (x : ℤ) = K * (2 * q + h) + lx := by exact_mod_cast hx.symm
-  have hyZ : (y₀ : ℤ) = K * h + ly := by exact_mod_cast hy.symm
+  generalize x / K / 2 = q, y₀ / K = h, x % K = lx, y₀ % K = ly at hx hy hlx hly
+  subst hx hy
+  -- Then `0 < K + lx - ly < 2 K` would be a multiple of `2 K`.
+  push_cast at hn
   have hlx' : (lx : ℤ) < K := by exact_mod_cast hlx
   have hly' : (ly : ℤ) < K := by exact_mod_cast hly
-  have hK' : (0 : ℤ) < K := by exact_mod_cast hKpos
-  have hlx0 : (0 : ℤ) ≤ lx := Int.natCast_nonneg lx
-  have hly0 : (0 : ℤ) ≤ ly := Int.natCast_nonneg ly
-  -- Then `0 < K + lx - ly < 2 K` would be a multiple of `2 K`.
-  rw [hxZ, hyZ] at hn
+  have h2K : (0 : ℤ) ≤ 2 * K := by positivity
   have hw : (K : ℤ) + lx - ly = 2 * K * (n - c - q) := by linear_combination hn
-  rcases le_or_gt (n - c - q) 0 with h0 | h0
-  · have : (2 * K : ℤ) * (n - c - q) ≤ 0 := mul_nonpos_of_nonneg_of_nonpos (by positivity) h0
-    linarith
-  · have : (2 * K : ℤ) * 1 ≤ 2 * K * (n - c - q) := by gcongr; omega
-    linarith
+  have h1 : 0 < n - c - q :=
+    pos_of_mul_pos_right (by linarith [Int.natCast_nonneg lx]) h2K
+  have h2 : n - c - q < 1 :=
+    lt_of_mul_lt_mul_left (by linarith [Int.natCast_nonneg ly] :
+      2 * (K : ℤ) * (n - c - q) < 2 * K * 1) h2K
+  omega
 
 namespace TensorNetwork
 
@@ -437,13 +424,10 @@ private theorem cauchyValueMatrix_eq_add_sum
         packet e = Z.1 ∧ packet e' = Z.1 ∧ (sym Z.1).1 ≠ (sym Z.1).2 ∧
           (slot e).testBit i = (Z.2.1 : ℕ).testBit i ∧ slot e' % 2 ^ (i + 1) = Z.2.1 := by
     intro Z hZ
-    have hc := left_ne_zero_of_mul hZ
-    have hf := right_ne_zero_of_mul hZ
-    unfold cauchyModeCoeff at hc
-    unfold cauchyModeForm at hf
-    obtain ⟨h1, h2, h3⟩ := not_not.mp fun h => hc (ite_eq_right h)
-    obtain ⟨h4, -, h5⟩ := not_not.mp fun h => hf (ite_eq_right h)
-    exact ⟨h1, h4, h2, h3, h5⟩
+    unfold cauchyModeCoeff cauchyModeForm at hZ
+    split_ifs at hZ with h1 h2
+    · exact ⟨h1.1, h2.1, h1.2.1, h1.2.2, h2.2.2⟩
+    all_goals simp at hZ
   have hbit' : ∀ y₀ : ℕ, slot e' % 2 ^ (i + 1) = y₀ → (slot e').testBit i = y₀.testBit i := by
     rintro y₀ rfl
     rw [Nat.testBit_mod_two_pow]
@@ -469,9 +453,8 @@ private theorem cauchyValueMatrix_eq_add_sum
       by_contra hb
       apply hloc
       rw [htgt, hsrc, ← hq]
-      rcases Bool.eq_false_or_eq_true ((slot e).testBit i) with h1 | h1 <;>
-        rcases Bool.eq_false_or_eq_true ((slot e').testBit i) with h2 | h2 <;>
-        simp only [h1, h2, ite_true, Bool.false_eq_true, ite_false, not_true_eq_false] at hb ⊢
+      revert hb
+      cases (slot e).testBit i <;> cases (slot e').testBit i <;> simp
     have h2a : 2 ^ (i + 1) ≤ 2 ^ a := Nat.pow_le_pow_right two_pos hia
     have hy₀lt : slot e' % 2 ^ (i + 1) < 2 ^ (i + 1) := Nat.mod_lt _ (by positivity)
     obtain ⟨y₀, hy₀⟩ : ∃ y₀ : Fin (2 ^ (i + 1)), (y₀ : ℕ) = slot e' % 2 ^ (i + 1) :=

@@ -233,21 +233,10 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
     · intro idx
       refine Fin.addCases (fun i => ?_) (fun j => ?_) idx
       · refine ⟨⟨0, fun A B => ?_⟩, ⟨Pi.single (finProdFinEquiv.symm i) 1, fun A B => ?_⟩,
-          ⟨0, fun A B => ?_⟩⟩
-        · simp [Program.trace, bivMatInputs, bivCoeff]
-        · simp [Program.trace, bivMatInputs, bivCoeff, Pi.single_apply]
-        · simp [Program.trace, bivMatInputs, bivCoeff]
+          ⟨0, fun A B => ?_⟩⟩ <;> simp [Program.trace, bivMatInputs, bivCoeff, Pi.single_apply]
       · refine ⟨⟨0, fun A B => ?_⟩, ⟨0, fun A B => ?_⟩,
-          ⟨Pi.single (finProdFinEquiv.symm j) 1, fun A B => ?_⟩⟩
-        · change bivCoeff 0 0 (bivMatInputs A B (Fin.natAdd (n * n) j)) = 0
-          rw [bivMatInputs, Fin.append_right]
-          simp [bivCoeff]
-        · change bivCoeff 1 0 (bivMatInputs A B (Fin.natAdd (n * n) j)) = _
-          rw [bivMatInputs, Fin.append_right]
-          simp [bivCoeff]
-        · change bivCoeff 0 1 (bivMatInputs A B (Fin.natAdd (n * n) j)) = _
-          rw [bivMatInputs, Fin.append_right]
-          simp [bivCoeff, Pi.single_apply]
+          ⟨Pi.single (finProdFinEquiv.symm j) 1, fun A B => ?_⟩⟩ <;>
+          simp [Program.trace, bivMatInputs, bivCoeff, Pi.single_apply, -Fin.natAdd_eq_addNat]
     · intro k ih
       rcases hop : (C.program.lines k).op with _ | _ | c
       · let s0 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 0
@@ -325,11 +314,8 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
   · intro idx
     refine ⟨0, fun A B => ?_⟩
     simp only [Pi.zero_apply, zero_mul, Finset.sum_const_zero]
-    refine Fin.addCases (fun i => ?_) (fun j => ?_) idx
-    · simp [Program.trace, bivMatInputs, bivCoeff]
-    · change bivCoeff 1 1 (bivMatInputs A B (Fin.natAdd (n * n) j)) = 0
-      rw [bivMatInputs, Fin.append_right]
-      simp [bivCoeff]
+    refine Fin.addCases (fun i => ?_) (fun j => ?_) idx <;>
+      simp [Program.trace, bivMatInputs, bivCoeff, -Fin.natAdd_eq_addNat]
   · intro k ih
     rcases hop : (C.program.lines k).op with _ | _ | c
     · let s0 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 0
@@ -355,38 +341,15 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
       obtain ⟨γ1, hγ1⟩ := ih s1
       let slot0 : Fin (2 * m) := e (0, ⟨k, hop⟩)
       let slot1 : Fin (2 * m) := e (1, ⟨k, hop⟩)
-      have hα0 : α slot0 = fA w0 := by
-        dsimp only [α, slot0, w0, s0]
-        rw [e.symm_apply_apply]
-        simp
-      have hβ0 : β slot0 = fB w1 := by
-        dsimp only [β, slot0, w1, s1]
-        rw [e.symm_apply_apply]
-        simp
-      have hα1 : α slot1 = fA w1 := by
-        dsimp only [α, slot1, w1, s1]
-        rw [e.symm_apply_apply]
-        simp
-      have hβ1 : β slot1 = fB w0 := by
-        dsimp only [β, slot1, w0, s0]
-        rw [e.symm_apply_apply]
-        simp
+      have hαβ : α slot0 = fA w0 ∧ β slot0 = fB w1 ∧ α slot1 = fA w1 ∧ β slot1 = fB w0 := by
+        refine ⟨?_, ?_, ?_, ?_⟩ <;> dsimp only [α, β, slot0, slot1, w0, w1, s0, s1] <;>
+          rw [e.symm_apply_apply] <;> simp
       refine ⟨c₀ w0 • γ1 + c₀ w1 • γ0 + Pi.single slot0 1 + Pi.single slot1 1,
         fun A B => ?_⟩
       rw [htr, bivCoeff_mul_11, hc₀ w0, hc₀ w1, hfA w0, hfB w1, hfA w1, hfB w0, hγ0, hγ1]
       simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, add_mul, Finset.sum_add_distrib,
-        mul_assoc, ← Finset.mul_sum]
-      have hs0_sum : (∑ ν, (Pi.single slot0 (1 : K) : Fin (2 * m) → K) ν *
-          ((∑ x, α ν x * A x) * ∑ y, β ν y * B y)) =
-          (∑ x, fA w0 x * A x) * ∑ y, fB w1 y * B y := by
-        rw [Fintype.sum_eq_single slot0 (fun ν hne => by simp [Pi.single_eq_of_ne hne])]
-        simp [hα0, hβ0]
-      have hs1_sum : (∑ ν, (Pi.single slot1 (1 : K) : Fin (2 * m) → K) ν *
-          ((∑ x, α ν x * A x) * ∑ y, β ν y * B y)) =
-          (∑ x, fA w1 x * A x) * ∑ y, fB w0 y * B y := by
-        rw [Fintype.sum_eq_single slot1 (fun ν hne => by simp [Pi.single_eq_of_ne hne])]
-        simp [hα1, hβ1]
-      rw [hs0_sum, hs1_sum]
+        mul_assoc, ← Finset.mul_sum, Pi.single_apply, ite_mul, one_mul, zero_mul,
+        Finset.sum_ite_eq', Finset.mem_univ, ite_true, hαβ]
       ring
     · have htr (A B) : C.program.trace I (bivMatInputs A B) (.gate k) =
           Polynomial.C (Polynomial.C c) :=

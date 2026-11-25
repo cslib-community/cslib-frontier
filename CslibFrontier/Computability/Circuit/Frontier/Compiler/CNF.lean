@@ -194,14 +194,7 @@ private theorem eval_gateConstraint_eq_true_iff {σ : Signature} {m : ℕ}
     {outWire : ℕ} {g : σ.Op × List ℕ} (hlen : g.2.length = σ.Arity g.1) (τ : ℕ → Bool) :
     Cslib.Logic.PL.Constraint.eval (circuitSem I acc) τ ⟨Sum.inl g.1, outWire :: g.2⟩ = true ↔
       τ outWire = I g.1 (fun a => τ (g.2[a.val]'(a.isLt.trans_eq hlen.symm))) := by
-  simp only [Cslib.Logic.PL.Constraint.eval, List.map_cons, circuitSem, List.length_map, hlen,
-    decide_true, Bool.true_and, beq_iff_eq]
-  refine ⟨fun h => h.trans (congrArg (I g.1) (funext fun a => ?_)),
-    fun h => h.trans (congrArg (I g.1) (funext fun a => ?_))⟩
-  · have ha : a.val < g.2.length := a.isLt.trans_eq hlen.symm
-    simp [List.getD_eq_getElem?_getD, ha]
-  · have ha : a.val < g.2.length := a.isLt.trans_eq hlen.symm
-    simp [List.getD_eq_getElem?_getD, ha]
+  simp [Cslib.Logic.PL.Constraint.eval, circuitSem, hlen, List.getD_eq_getElem?_getD]
 
 /-! ### Equivalence of `reachWiresCode` and `Compiler.Reach` -/
 
@@ -217,26 +210,25 @@ private theorem mem_foldl_reachStep_of_mem {σ : Signature} (n : ℕ)
     · exact List.mem_append_right _ hi
     · exact hi
 
-private theorem mem_reachWiresCode_iff {σ : Signature} {n m : ℕ} (c : Circuit σ n m) (i : ℕ) :
-    i ∈ reachWiresCode n c.code ↔ ∃ w : Wire n c.size, w.toNat = i ∧ Reach c w := by
+private theorem zipIdx_code {σ : Signature} {n m : ℕ} (c : Circuit σ n m) :
+    c.code.1.zipIdx = (List.finRange c.size).map fun j => ((c.program.lines j).code, j.val) := by
   have hcode1 : c.code.1 = List.ofFn fun j : Fin c.size => (c.program.lines j).code :=
     Program.code_eq_ofFn_lines c.program
+  exact List.ext_getElem (by simp) fun _ _ _ => by simp [hcode1]
+
+private theorem mem_reachWiresCode_iff {σ : Signature} {n m : ℕ} (c : Circuit σ n m) (i : ℕ) :
+    i ∈ reachWiresCode n c.code ↔ ∃ w : Wire n c.size, w.toNat = i ∧ Reach c w := by
   let L : List ((σ.Op × List ℕ) × ℕ) := c.code.1.zipIdx.reverse
   have hL_len : L.length = c.size := by simp [L]
   constructor
   · -- Soundness: every wire in `reachWiresCode` is reachable in `c`.
     suffices hsound : ∀ (l : List ((σ.Op × List ℕ) × ℕ)) (seen : List ℕ),
-        (∀ gj ∈ l, ∃ j : Fin c.size, gj = ((c.program.lines j).code, j.val)) →
+        (∀ gj ∈ l, ∃ j : Fin c.size, ((c.program.lines j).code, j.val) = gj) →
         (∀ x ∈ seen, ∃ w : Wire n c.size, w.toNat = x ∧ Reach c w) →
         ∀ x ∈ l.foldl (reachStep n) seen, ∃ w : Wire n c.size, w.toNat = x ∧ Reach c w by
       exact hsound L c.code.2 (fun gj hgj => by
-        simp only [L, List.mem_reverse, List.mem_zipIdx_iff_getElem?] at hgj
-        obtain ⟨hj_lt, hget⟩ := List.getElem?_eq_some_iff.mp hgj
-        have hj : gj.2 < c.size := by simpa using hj_lt
-        refine ⟨⟨gj.2, hj⟩, Prod.ext ?_ rfl⟩
-        have hget' : c.code.1[gj.2]'hj_lt = (c.program.lines ⟨gj.2, hj⟩).code := by
-          simp [hcode1]
-        exact hget.symm.trans hget') (fun x hx => by
+        simpa only [L, List.mem_reverse, zipIdx_code, List.mem_map, List.mem_finRange,
+          true_and] using hgj) (fun x hx => by
         simp only [Circuit.code, List.mem_ofFn] at hx
         obtain ⟨o, rfl⟩ := hx
         exact ⟨c.outputs o, rfl, .output o⟩) i
@@ -288,7 +280,7 @@ private theorem mem_reachWiresCode_iff {σ : Signature} {n m : ℕ} (c : Circuit
       have hk_mem : n + k.val ∈ accAt (c.size - 1 - k.val) := ih.2 k rfl
       set t := c.size - 1 - k.val
       have ht_lt : t < L.length := by rw [hL_len]; omega
-      have hLt : L[t]'ht_lt = ((c.program.lines k).code, k.val) := by grind
+      have hLt : L[t]'ht_lt = ((c.program.lines k).code, k.val) := by grind [zipIdx_code]
       have hstep_mem : ((c.program.lines k).wires a).toNat ∈ accAt (t + 1) := by
         have htake : L.take (t + 1) = L.take t ++ [L[t]'ht_lt] :=
           List.take_succ_eq_append_getElem ht_lt
@@ -310,6 +302,13 @@ private theorem mem_reachWiresCode_iff {σ : Signature} {n m : ℕ} (c : Circuit
       have hnat : ((c.program.lines k).wires a).toNat = n + j.val := by simp [hj]
       exact hnat ▸ hmono ht_le hstep_mem
 
+private theorem any_reachWiresCode_iff {σ : Signature} {n m : ℕ} (c : Circuit σ n m)
+    (j : Fin c.size) :
+    (reachWiresCode n c.code).any (· == n + j.val) = true ↔ Reach c (.gate j) := by
+  simp only [List.any_eq_true, beq_iff_eq, exists_eq_right, mem_reachWiresCode_iff]
+  exact ⟨fun ⟨w, hw_nat, hw⟩ => (Wire.toNat_injective (hw_nat.trans rfl) : w = .gate j) ▸ hw,
+    fun hr => ⟨.gate j, rfl, hr⟩⟩
+
 /-! ### Structural bounds on `toCSP` and `toCNF` -/
 
 section StructuralBounds
@@ -320,20 +319,11 @@ variable {σ : Signature} {n m : ℕ}
 theorem length_scope_le_of_mem_toCSP {c : Circuit σ n m} {k : ℕ} (hfan : c.FanInAtMost k)
     {con : Cslib.Logic.PL.Constraint (CircuitRel σ m) ℕ} (hcon : con ∈ toCSP c) :
     con.scope.length ≤ k + 1 := by
-  have hcode1 : c.code.1 = List.ofFn fun j : Fin c.size => (c.program.lines j).code :=
-    Program.code_eq_ofFn_lines c.program
   simp only [toCSP, toCSPCode, List.mem_append] at hcon
   rcases hcon with hg | ho
-  · simp only [List.mem_map, List.mem_filter, List.mem_zipIdx_iff_getElem?] at hg
-    obtain ⟨⟨g, j⟩, ⟨hget, _⟩, rfl⟩ := hg
-    obtain ⟨hj_lt, hgj⟩ := List.getElem?_eq_some_iff.mp hget
-    have hj : j < c.size := by simpa using hj_lt
-    have hg_eq : g = (c.program.lines ⟨j, hj⟩).code := by
-      have hline : c.code.1[j]'hj_lt = (c.program.lines ⟨j, hj⟩).code := by simp [hcode1]
-      exact hgj.symm.trans hline
-    subst hg_eq
-    have harity : σ.Arity (c.program.lines ⟨j, hj⟩).op ≤ k :=
-      Program.fanInAtMost_iff.mp hfan ⟨j, hj⟩
+  · simp only [List.mem_map, List.mem_filter, zipIdx_code, List.mem_finRange, true_and] at hg
+    obtain ⟨_, ⟨⟨j, rfl⟩, _⟩, rfl⟩ := hg
+    have harity : σ.Arity (c.program.lines j).op ≤ k := Program.fanInAtMost_iff.mp hfan j
     simp only [List.length_cons, Line.length_code_snd]
     omega
   · simp only [List.mem_map, List.mem_finRange, true_and] at ho
@@ -351,32 +341,21 @@ theorem length_le_of_mem_toCNF {c : Circuit σ n m} (I : Interpretation σ Bool)
 /-- Every variable occurring in `toCSP c` belongs to `(reachWiresCode n c.code).toFinset`. -/
 theorem vars_toCSP_subset (c : Circuit σ n m) :
     (toCSP c).vars.toFinset ⊆ (reachWiresCode n c.code).toFinset := by
-  have hcode1 : c.code.1 = List.ofFn fun j : Fin c.size => (c.program.lines j).code :=
-    Program.code_eq_ofFn_lines c.program
   intro v hv
   rw [List.mem_toFinset, CSP.vars, List.mem_flatMap] at hv
   rw [List.mem_toFinset, mem_reachWiresCode_iff]
   obtain ⟨con, hcon, hv_mem⟩ := hv
   simp only [toCSP, toCSPCode, List.mem_append] at hcon
   rcases hcon with hg | ho
-  · simp only [List.mem_map, List.mem_filter, List.mem_zipIdx_iff_getElem?] at hg
-    obtain ⟨⟨g, j⟩, ⟨hget, hreach⟩, rfl⟩ := hg
-    obtain ⟨hj_lt, hgj⟩ := List.getElem?_eq_some_iff.mp hget
-    have hj : j < c.size := by simpa using hj_lt
-    have hg_eq : g = (c.program.lines ⟨j, hj⟩).code := by
-      have hline : c.code.1[j]'hj_lt = (c.program.lines ⟨j, hj⟩).code := by simp [hcode1]
-      exact hgj.symm.trans hline
-    subst hg_eq
-    simp only [List.any_eq_true, beq_iff_eq] at hreach
-    obtain ⟨_, hmem_r, rfl⟩ := hreach
-    obtain ⟨w, hw_nat, hw_reach⟩ := (mem_reachWiresCode_iff c (n + j)).mp hmem_r
-    obtain rfl : w = .gate ⟨j, hj⟩ := Wire.toNat_injective (hw_nat.trans rfl)
+  · simp only [List.mem_map, List.mem_filter, zipIdx_code, List.mem_finRange, true_and] at hg
+    obtain ⟨_, ⟨⟨j, rfl⟩, hreach⟩, rfl⟩ := hg
+    have hw_reach := (any_reachWiresCode_iff c j).mp hreach
     simp only [List.mem_cons] at hv_mem
     rcases hv_mem with rfl | harg
-    · exact ⟨.gate ⟨j, hj⟩, rfl, hw_reach⟩
+    · exact ⟨.gate j, rfl, hw_reach⟩
     · simp only [Line.code, List.mem_ofFn] at harg
       obtain ⟨a, rfl⟩ := harg
-      exact ⟨(c.program.lines ⟨j, hj⟩).wires a, rfl, .arg a hw_reach⟩
+      exact ⟨(c.program.lines j).wires a, rfl, .arg a hw_reach⟩
   · simp only [List.mem_map, List.mem_finRange, true_and] at ho
     obtain ⟨o, rfl⟩ := ho
     simp only [List.mem_singleton] at hv_mem
@@ -409,12 +388,7 @@ theorem card_reachWiresCode_toFinset (c : Circuit σ n m) :
           exact hof.symm ▸ hw⟩
       left_inv := fun w => Subtype.ext (by simp)
       right_inv := fun i => Subtype.ext (by simp) }
-  calc (reachWiresCode n c.code).toFinset.card
-      = Fintype.card {i : ℕ // i ∈ (reachWiresCode n c.code).toFinset} :=
-        (Fintype.card_coe _).symm
-    _ = Nat.card {i : ℕ // i ∈ (reachWiresCode n c.code).toFinset} :=
-        Nat.card_eq_fintype_card.symm
-    _ = Nat.card (Signal c) := Nat.card_congr e.symm
+  exact (Nat.card_eq_finsetCard _).symm.trans (Nat.card_congr e.symm)
 
 /-- When `c.FanInAtMost k`, `toCNF c I acc` uses at most `k * c.size + m` distinct variables. -/
 theorem numVars_toCNF_le {c : Circuit σ n m} (I : Interpretation σ Bool)
@@ -515,25 +489,10 @@ private theorem reachGateCountCode_eq_card_filter (c : Circuit σ n m) :
   classical
   let S := (reachWiresCode n c.code).toFinset
   let p (j : Fin c.size) : Bool := (reachWiresCode n c.code).any (· == n + j.val)
-  have hp_iff (j : Fin c.size) : p j = true ↔ Reach c (.gate j) := by
-    simp only [p, List.any_eq_true, beq_iff_eq]
-    constructor
-    · rintro ⟨_, hmem, rfl⟩
-      obtain ⟨w, hw_nat, hw_reach⟩ := (mem_reachWiresCode_iff c (n + j.val)).mp hmem
-      obtain rfl : w = .gate j := Wire.toNat_injective (hw_nat.trans rfl)
-      exact hw_reach
-    · intro hr
-      exact ⟨n + j.val, (mem_reachWiresCode_iff c (n + j.val)).mpr ⟨.gate j, rfl, hr⟩, rfl⟩
+  have hp_iff (j : Fin c.size) : p j = true ↔ Reach c (.gate j) := any_reachWiresCode_iff c j
   have hcount : reachGateCountCode n c.code =
       (Finset.univ.filter fun j : Fin c.size => p j = true).card := by
-    have hzip : c.code.1.zipIdx =
-        (List.finRange c.size).map fun j => ((c.program.lines j).code, j.val) := by
-      apply List.ext_getElem (by simp)
-      intro idx h1 h2
-      have hcode1 : c.code.1 = List.ofFn fun j : Fin c.size => (c.program.lines j).code :=
-        Program.code_eq_ofFn_lines c.program
-      simp [hcode1]
-    rw [reachGateCountCode, hzip, List.countP_map, Function.comp_def]
+    rw [reachGateCountCode, zipIdx_code, List.countP_map, Function.comp_def]
     change (List.finRange c.size).countP p = _
     rw [List.countP_eq_length_filter]
     have hnodup : ((List.finRange c.size).filter p).Nodup :=
@@ -560,8 +519,6 @@ private theorem eval_toCSP_iff_satisfies_network (c : Circuit σ n m) (I : Inter
     (toCSP c).eval (circuitSem I acc) τ = true ↔
       (network c I (accSet acc)).Satisfies (fun i => τ i.val)
         (fun e => τ e.signal.1.toNat) := by
-  have hcode1 : c.code.1 = List.ofFn fun j : Fin c.size => (c.program.lines j).code :=
-    Program.code_eq_ofFn_lines c.program
   have hout_iff :
       (∀ con ∈ (List.finRange m).map (fun o => ⟨Sum.inr o, [c.code.2.getD o.val 0]⟩),
         Cslib.Logic.PL.Constraint.eval (circuitSem I acc) τ con = true) ↔
@@ -573,7 +530,8 @@ private theorem eval_toCSP_iff_satisfies_network (c : Circuit σ n m) (I : Inter
     rw [hget]
   rw [CSP.eval, toCSP, toCSPCode, List.all_append, Bool.and_eq_true, List.all_map,
     List.all_eq_true, List.all_eq_true, hout_iff]
-  simp only [Function.comp_def, List.mem_filter, List.mem_zipIdx_iff_getElem?]
+  simp only [Function.comp_def, List.mem_filter, zipIdx_code, List.mem_map, List.mem_finRange,
+    true_and, and_imp, forall_exists_index, forall_apply_eq_imp_iff]
   constructor
   · rintro ⟨hgates, houts⟩ v
     cases v with
@@ -582,18 +540,8 @@ private theorem eval_toCSP_iff_satisfies_network (c : Circuit σ n m) (I : Inter
       cases w with
       | input i => rfl
       | gate g =>
-        have hmem_r : n + g.val ∈ reachWiresCode n c.code :=
-          (mem_reachWiresCode_iff c (n + g.val)).mpr ⟨.gate g, rfl, hw⟩
-        have hany : ((reachWiresCode n c.code).any fun x => x == n + g.val) = true := by
-          simp only [List.any_eq_true, beq_iff_eq]
-          exact ⟨n + g.val, hmem_r, rfl⟩
-        have hg_lt : g.val < c.code.1.length := by simp [g.isLt]
-        have hget : c.code.1[g.val]? = some (c.program.lines g).code := by
-          rw [List.getElem?_eq_getElem hg_lt]
-          simp [hcode1]
-        have hcl := hgates ((c.program.lines g).code, g.val) ⟨hget, hany⟩
+        have hcl := hgates g ((any_reachWiresCode_iff c g).mpr hw)
         have heq := (eval_gateConstraint_eq_true_iff I acc (Line.length_code_snd _) τ).mp hcl
-        dsimp only at heq
         refine heq.trans (congrArg (I (c.program.lines g).op) (funext fun a => ?_))
         simp only [Line.code, List.getElem_ofFn, argEdge, signal_deliverEdge, consumed]
         rfl
@@ -609,22 +557,13 @@ private theorem eval_toCSP_iff_satisfies_network (c : Circuit σ n m) (I : Inter
       rw [signal_deliverEdge]
       exact houts o
   · intro hsat
-    refine ⟨fun ⟨g, j⟩ ⟨hget, hany⟩ => ?_, fun o => ?_⟩
-    · obtain ⟨hj_lt, hgj⟩ := List.getElem?_eq_some_iff.mp hget
-      have hj : j < c.size := by simpa using hj_lt
-      have hg_eq : g = (c.program.lines ⟨j, hj⟩).code := by
-        have hline : c.code.1[j]'hj_lt = (c.program.lines ⟨j, hj⟩).code := by simp [hcode1]
-        exact hgj.symm.trans hline
-      subst hg_eq
-      simp only [List.any_eq_true, beq_iff_eq] at hany
-      obtain ⟨_, hmem_r, rfl⟩ := hany
-      obtain ⟨w, hw_nat, hw_reach⟩ := (mem_reachWiresCode_iff c (n + j)).mp hmem_r
-      obtain rfl : w = .gate ⟨j, hj⟩ := Wire.toNat_injective (hw_nat.trans rfl)
+    refine ⟨fun g hany => ?_, fun o => ?_⟩
+    · have hw_reach := (any_reachWiresCode_iff c g).mp hany
       rw [eval_gateConstraint_eq_true_iff I acc (Line.length_code_snd _) τ]
-      have hsig : τ (n + j) =
-          I (c.program.lines ⟨j, hj⟩).op (fun a => τ (argEdge hw_reach a).signal.1.toNat) :=
-        hsat (.signal ⟨.gate ⟨j, hj⟩, hw_reach⟩)
-      refine hsig.trans (congrArg (I (c.program.lines ⟨j, hj⟩).op) (funext fun a => ?_))
+      have hsig : τ (n + g) =
+          I (c.program.lines g).op (fun a => τ (argEdge hw_reach a).signal.1.toNat) :=
+        hsat (.signal ⟨.gate g, hw_reach⟩)
+      refine hsig.trans (congrArg (I (c.program.lines g).op) (funext fun a => ?_))
       simp only [Line.code, List.getElem_ofFn, argEdge, signal_deliverEdge, consumed]
     · have hout : τ (outEdge c o).signal.1.toNat ∈ accSet acc o := hsat (.output o)
       rwa [signal_deliverEdge] at hout
@@ -661,23 +600,19 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
     let toR (τ : S → Bool) (i : R) : Bool :=
       τ ⟨i.1.val, (hmemS_input i.1).mpr i.2⟩
     have hext_eq (τ : S → Bool) (i : Fin n) : extendR (toR τ) i = extendS τ i.val := by grind
+    have hsat (τ : S → Bool) (h : (toCNF c I acc).eval (extendS τ) = true) :
+        N.Satisfies (extendR (toR τ)) fun e => extendS τ e.signal.1.toNat := by
+      have := (eval_toCNF_iff_satisfies_network c I acc (extendS τ)).mp h
+      rwa [show (fun i : Fin n => extendS τ i.val) = extendR (toR τ) from
+        funext fun i => (hext_eq τ i).symm] at this
     refine Finset.card_bij (fun τ _ => toR τ) (fun τ hτ => ?_) (fun τ₁ h₁ τ₂ h₂ h => ?_)
       (fun x₀ hx₀ => ?_)
     · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hτ ⊢
-      have hsat := (eval_toCNF_iff_satisfies_network c I acc (extendS τ)).mp hτ
-      have hfun : (fun i : Fin n => extendS τ i.val) = extendR (toR τ) :=
-        funext fun i => (hext_eq τ i).symm
-      rw [hfun] at hsat
-      exact ⟨_, hsat⟩
+      exact ⟨_, hsat τ hτ⟩
     · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at h₁ h₂
-      have hsat₁ := (eval_toCNF_iff_satisfies_network c I acc (extendS τ₁)).mp h₁
-      have hsat₂ := (eval_toCNF_iff_satisfies_network c I acc (extendS τ₂)).mp h₂
-      have hfun₁ : (fun i : Fin n => extendS τ₁ i.val) = extendR (toR τ₁) :=
-        funext fun i => (hext_eq τ₁ i).symm
-      have hfun₂ : (fun i : Fin n => extendS τ₂ i.val) = extendR (toR τ₂) :=
-        funext fun i => (hext_eq τ₂ i).symm
-      rw [hfun₁] at hsat₁
-      rw [hfun₂, ← h] at hsat₂
+      have hsat₁ := hsat τ₁ h₁
+      have hsat₂ := hsat τ₂ h₂
+      rw [← h] at hsat₂
       funext ⟨v, hv⟩
       obtain ⟨w, rfl, hw⟩ := (mem_reachWiresCode_iff c v).mp (List.mem_toFinset.mp hv)
       have he₁ := eq_trace hsat₁ (head ⟨w, hw⟩)
@@ -746,15 +681,7 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
   suffices hexp : n - R.card + (S.card - (toCNF c I acc).numVars) = freeShift c I acc by
     rw [hexp]
   have hS_split : S.card = (S.filter (· < n)).card + (S.filter (n ≤ ·)).card := by
-    have hdisj : Disjoint (S.filter (· < n)) (S.filter (n ≤ ·)) :=
-      Finset.disjoint_filter.mpr fun _ _ h1 h2 => by omega
-    rw [← Finset.card_union_of_disjoint hdisj]
-    congr 1
-    ext x
-    simp only [Finset.mem_union, Finset.mem_filter]
-    rcases lt_or_ge x n with hlt | hge
-    · simp [hlt, not_le.mpr hlt]
-    · simp [hge, not_lt.mpr hge]
+    simp only [← not_lt, Finset.card_filter_add_card_filter_not]
   have hR_card : (S.filter (· < n)).card = R.card := by
     refine Finset.card_bij (fun (i : ℕ) hi => ⟨i, (Finset.mem_filter.mp hi).2⟩)
       (fun i hi => ?_) (fun _ _ _ _ h => Fin.mk.inj_iff.mp h) (fun i hi => ?_)
@@ -762,8 +689,7 @@ theorem acceptCount_eq_two_pow_freeShift_mul_modelCount (c : Circuit σ n m)
     · exact ⟨i.val, Finset.mem_filter.mpr ⟨(hmemS_input i).mpr hi, i.isLt⟩, rfl⟩
   have hgate_card : reachGateCountCode n c.code = (S.filter (n ≤ ·)).card :=
     reachGateCountCode_eq_card_filter c
-  have hR_le : R.card ≤ n := by
-    simpa using Finset.card_le_univ R
+  have hR_le : R.card ≤ n := by simpa using Finset.card_le_univ R
   have hnum_le : (toCNF c I acc).numVars ≤ S.card :=
     Finset.card_le_card (vars_toCNF_subset c I acc)
   simp only [freeShift, freeShiftCode, toCNF] at hnum_le ⊢

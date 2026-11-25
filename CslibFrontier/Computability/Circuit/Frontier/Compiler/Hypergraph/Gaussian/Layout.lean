@@ -203,34 +203,16 @@ private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ}
     have h := sum_card_hyperEdge_le hfan
     rw [Fintype.sum_sum_type] at h
     exact_mod_cast h
-  have hB_nn : 0 ≤ B_main := by
-    have hgate_nn (g : LiveGate c) : (0 : ℝ) ≤ (a : ℝ) * (hyperEdge c (.inr g)).card + b := by
-      have hk2 : (2 : ℝ) ≤ (hyperEdge c (.inr g)).card :=
-        Nat.ofNat_le_cast.mpr (two_le_card_hyperEdge_gate c g)
-      nlinarith
-    have hinp_nn (i : LiveInput c) :
-        (0 : ℝ) ≤ (a : ℝ) * (hyperEdge c (.inl i)).card + max (b : ℝ) (-a) := by
-      have hk1 : (1 : ℝ) ≤ (hyperEdge c (.inl i)).card :=
-        Nat.one_le_cast.mpr (card_hyperEdge_pos c (.inl i))
-      nlinarith [le_max_right (b : ℝ) (-a)]
-    have hsum_nn : 0 ≤ (∑ g : LiveGate c, ((a : ℝ) * (hyperEdge c (.inr g)).card + b)) +
-        ∑ i : LiveInput c, ((a : ℝ) * (hyperEdge c (.inl i)).card + max (b : ℝ) (-a)) :=
-      add_nonneg (Finset.sum_nonneg fun g _ => hgate_nn g)
-        (Finset.sum_nonneg fun i _ => hinp_nn i)
-    have hsum_le : (∑ g : LiveGate c, ((a : ℝ) * (hyperEdge c (.inr g)).card + b)) +
-        (∑ i : LiveInput c, ((a : ℝ) * (hyperEdge c (.inl i)).card + max (b : ℝ) (-a))) ≤
-        B_main := by
-      rw [Finset.sum_add_distrib, Finset.sum_add_distrib, Finset.sum_const, Finset.sum_const,
-        Finset.card_univ, Finset.card_univ, nsmul_eq_mul, nsmul_eq_mul, ← Finset.mul_sum,
-        ← Finset.mul_sum]
-      dsimp only [B_main]
-      nlinarith [hpin]
-    exact hsum_nn.trans hsum_le
-  refine ⟨hB_nn, ?_⟩
-  let wt : LiveSignal c → ℝ := fun w => match w with
-    | .inr g => (a : ℝ) * (hyperEdge c (.inr g)).card + b + η₀
-    | .inl i => (a : ℝ) * (hyperEdge c (.inl i)).card + max (b : ℝ) (-a) + η₀
-  have hwt_nn (w : LiveSignal c) : 0 ≤ wt w := by
+  have hsig : (Fintype.card (LiveInput c) : ℝ) + Fintype.card (LiveGate c) ≤
+      ((r + 1 : ℕ) : ℝ) * Nat.card (HyperNode c) := by
+    have hs := card_liveSignal_le hfan
+    rw [Fintype.card_sum] at hs
+    exact_mod_cast hs
+  -- Per-signal weights with slack `η`; `η = 0` gives `0 ≤ B_main`, `η = η₀` the sum bound.
+  let wt (η : ℝ) : LiveSignal c → ℝ := fun w => match w with
+    | .inr g => (a : ℝ) * (hyperEdge c (.inr g)).card + b + η
+    | .inl i => (a : ℝ) * (hyperEdge c (.inl i)).card + max (b : ℝ) (-a) + η
+  have hwt_nn {η : ℝ} (hη : 0 ≤ η) (w : LiveSignal c) : 0 ≤ wt η w := by
     rcases w with i | g
     · have hk1 : (1 : ℝ) ≤ (hyperEdge c (.inl i)).card :=
         Nat.one_le_cast.mpr (card_hyperEdge_pos c (.inl i))
@@ -240,55 +222,44 @@ private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ}
         Nat.ofNat_le_cast.mpr (two_le_card_hyperEdge_gate c g)
       dsimp only [wt]
       nlinarith
-  have hwt_ge (w : LiveSignal c) : (a : ℝ) * (hyperEdge c w).card + b + η₀ ≤ wt w := by
+  have htot_wt {η : ℝ} (hη : 0 ≤ η) : ∑ w : LiveSignal c, wt η w ≤
+      B_main + (Nat.card (HyperNode c) : ℝ) * (η * ((r + 1 : ℕ) : ℝ)) := by
+    rw [Fintype.sum_sum_type]
+    dsimp only [wt, B_main]
+    simp only [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
+      ← Finset.mul_sum]
+    nlinarith [hpin, hsig]
+  refine ⟨by linarith [(Finset.sum_nonneg fun w _ => hwt_nn le_rfl w).trans (htot_wt le_rfl)], ?_⟩
+  have hwt_ge (w : LiveSignal c) : (a : ℝ) * (hyperEdge c w).card + b + η₀ ≤ wt η₀ w := by
     rcases w with i | g
     · dsimp only [wt]; linarith [le_max_left (b : ℝ) (-a)]
     · exact le_rfl
   let F_mid := (Finset.univ : Finset (LiveSignal c)).filter fun w =>
     2 ≤ (hyperEdge c w).card ∧ (hyperEdge c w).card ≤ K₀
   let S_big := (Finset.univ : Finset (LiveSignal c)).filter fun w => K₀ < (hyperEdge c w).card
-  have hdisj : Disjoint F_mid S_big := by
-    rw [Finset.disjoint_left]
-    intro w h1 h2
-    have := (Finset.mem_filter.mp h1).2.2
-    have := (Finset.mem_filter.mp h2).2
-    omega
-  have hsum_pruned : ∑ e : PrunedEdge c K₀, P_cross e ≤ ∑ w ∈ F_mid, wt w := by
+  have hdisj : Disjoint F_mid S_big := Finset.disjoint_filter.mpr fun w _ h1 h2 => by omega
+  have hsum_pruned : ∑ e : PrunedEdge c K₀, P_cross e ≤ ∑ w ∈ F_mid, wt η₀ w := by
     calc ∑ e : PrunedEdge c K₀, P_cross e
-        ≤ ∑ e : PrunedEdge c K₀, wt e.1 := Finset.sum_le_sum fun e _ => (hP e).trans (hwt_ge e.1)
-      _ = ∑ w ∈ F_mid, wt w :=
+        ≤ ∑ e : PrunedEdge c K₀, wt η₀ e.1 := Finset.sum_le_sum fun e _ => (hP e).trans (hwt_ge e.1)
+      _ = ∑ w ∈ F_mid, wt η₀ w :=
           Finset.sum_bij (fun e _ => e.1)
             (fun e _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, e.2⟩)
             (fun _ _ _ _ h => Subtype.ext h)
             (fun w hw => ⟨⟨w, (Finset.mem_filter.mp hw).2⟩, Finset.mem_univ _, rfl⟩)
             (fun _ _ => rfl)
-  have hsum_big : (S_big.card : ℝ) ≤ ∑ w ∈ S_big, wt w := by
-    calc (S_big.card : ℝ) = ∑ _w ∈ S_big, (1 : ℝ) := by simp
-      _ ≤ ∑ w ∈ S_big, wt w := Finset.sum_le_sum fun w hw => by
-          have hk_gt : (K₀ + 1 : ℝ) ≤ (hyperEdge c w).card := by
-            have : K₀ + 1 ≤ (hyperEdge c w).card := (Finset.mem_filter.mp hw).2
-            exact_mod_cast this
-          have htailR : (1 : ℝ) ≤ (a : ℝ) * (K₀ + 1) + b := by exact_mod_cast hcert.htail
-          have h1 : (1 : ℝ) ≤ (a : ℝ) * (hyperEdge c w).card + b + η₀ := by nlinarith
-          exact h1.trans (hwt_ge w)
-  have hsig : (Fintype.card (LiveInput c) : ℝ) + Fintype.card (LiveGate c) ≤
-      ((r + 1 : ℕ) : ℝ) * Nat.card (HyperNode c) := by
-    have hs := card_liveSignal_le hfan
-    rw [Fintype.card_sum] at hs
-    exact_mod_cast hs
-  have htot_wt : ∑ w : LiveSignal c, wt w ≤
-      B_main + (Nat.card (HyperNode c) : ℝ) * (η₀ * ((r + 1 : ℕ) : ℝ)) := by
-    rw [Fintype.sum_sum_type]
-    dsimp only [wt, B_main]
-    simp only [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
-      ← Finset.mul_sum]
-    nlinarith [hpin, hsig]
+  have hsum_big : (S_big.card : ℝ) ≤ ∑ w ∈ S_big, wt η₀ w := by
+    rw [← Nat.smul_one_eq_cast]
+    refine Finset.card_nsmul_le_sum _ _ _ fun w hw => le_trans ?_ (hwt_ge w)
+    have hk_gt : (K₀ + 1 : ℝ) ≤ (hyperEdge c w).card := by
+      exact_mod_cast (Finset.mem_filter.mp hw).2
+    have htailR : (1 : ℝ) ≤ (a : ℝ) * (K₀ + 1) + b := by exact_mod_cast hcert.htail
+    nlinarith
   calc (∑ e : PrunedEdge c K₀, P_cross e) + (S_big.card : ℝ)
-      ≤ (∑ w ∈ F_mid, wt w) + ∑ w ∈ S_big, wt w := add_le_add hsum_pruned hsum_big
-    _ = ∑ w ∈ F_mid ∪ S_big, wt w := (Finset.sum_union hdisj).symm
-    _ ≤ ∑ w : LiveSignal c, wt w :=
-        Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun w _ _ => hwt_nn w
-    _ ≤ B_main + (Nat.card (HyperNode c) : ℝ) * (η₀ * ((r + 1 : ℕ) : ℝ)) := htot_wt
+      ≤ (∑ w ∈ F_mid, wt η₀ w) + ∑ w ∈ S_big, wt η₀ w := add_le_add hsum_pruned hsum_big
+    _ = ∑ w ∈ F_mid ∪ S_big, wt η₀ w := (Finset.sum_union hdisj).symm
+    _ ≤ ∑ w : LiveSignal c, wt η₀ w :=
+        Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun w _ _ => hwt_nn hη₀ w
+    _ ≤ B_main + (Nat.card (HyperNode c) : ℝ) * (η₀ * ((r + 1 : ℕ) : ℝ)) := htot_wt hη₀
 
 private def hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ) (t : ℝ)
     (e : PrunedEdge c K₀) : Set (HyperNode c → ℝ) :=
@@ -611,8 +582,8 @@ theorem exists_layout_hyperWidth_le {r K₀ : ℕ} {a b : ℚ} (hcert : HyperDua
             B_main + h * (η₀ * dr) + c_dev :=
           card_hyperCut_threshold_le hcert hfan hη₀.le θ S ω (-T + i * δ)
             (fun e => hprob_unif c hfan e (-T + i * δ)) (hmid i hi).1
-        have hW_le := ncard_hyperWindow_le hδ_pos.le (hmid i hi).2
-        have hmult := mul_le_mul_of_nonneg_left hW_le hdr_pos.le
+        have hmult := mul_le_mul_of_nonneg_left (ncard_hyperWindow_le hδ_pos.le (hmid i hi).2)
+          hdr_pos.le
         have htail_nn : 0 ≤ h * (dr / T ^ 2) := by positivity
         have hid : B = (B_main + h * (η₀ * dr) + c_dev) + dr * (h * (δ / √(2 * π)) + c_dev) +
             h * (dr / T ^ 2) := by
@@ -628,23 +599,15 @@ theorem exists_layout_hyperWidth_le {r K₀ : ℕ} {a b : ℚ} (hcert : HyperDua
   · -- Small circuit (`Nat.card (HyperNode c) ≤ N₀`): any layout works deterministically.
     have hle_N₀ : (Nat.card (HyperNode c) : ℝ) ≤ (N₀ : ℝ) := Nat.cast_le.mpr (not_lt.mp hbig)
     let lay : Layout (HyperNode c) := Finite.equivFin (HyperNode c)
-    have hw_le : (hyperWidth c lay : ℝ) ≤ dr * (N₀ : ℝ) := by
-      have hsup : hyperWidth c lay ≤ (r + 1) * Nat.card (HyperNode c) := by
-        unfold hyperWidth
-        refine Finset.sup_le fun t _ => ?_
-        exact (Finset.card_le_univ _).trans (card_liveSignal_le hfan)
-      have hsupR : (hyperWidth c lay : ℝ) ≤ ((r + 1 : ℕ) : ℝ) * Nat.card (HyperNode c) := by
-        exact_mod_cast hsup
-      exact hsupR.trans (mul_le_mul_of_nonneg_left hle_N₀ hdr_pos.le)
-    have hinp_le : (Fintype.card (LiveInput c) : ℝ) ≤ dr * (N₀ : ℝ) := by
-      have hinp_nat : Fintype.card (LiveInput c) ≤ (r + 1) * Nat.card (HyperNode c) := by
-        have hs := card_liveSignal_le hfan
-        rw [Fintype.card_sum] at hs
-        omega
-      have hinpR : (Fintype.card (LiveInput c) : ℝ) ≤
-          ((r + 1 : ℕ) : ℝ) * Nat.card (HyperNode c) := by
-        exact_mod_cast hinp_nat
-      exact hinpR.trans (mul_le_mul_of_nonneg_left hle_N₀ hdr_pos.le)
+    have hcast {m : ℕ} (hm : m ≤ (r + 1) * Nat.card (HyperNode c)) : (m : ℝ) ≤ dr * (N₀ : ℝ) := by
+      have hmR : (m : ℝ) ≤ ((r + 1 : ℕ) : ℝ) * Nat.card (HyperNode c) := by exact_mod_cast hm
+      exact hmR.trans (mul_le_mul_of_nonneg_left hle_N₀ hdr_pos.le)
+    have hsig := card_liveSignal_le hfan
+    have hw_le := hcast (m := hyperWidth c lay) (by
+      unfold hyperWidth
+      exact Finset.sup_le fun t _ => (Finset.card_le_univ _).trans hsig)
+    rw [Fintype.card_sum] at hsig
+    have hinp_le := hcast (m := Fintype.card (LiveInput c)) (by omega)
     have hgate_nn : 0 ≤ (dr * a + b) * Fintype.card (LiveGate c) := by
       have hd_pos : (0 : ℝ) < dr * a + b := by
         have hq := Rat.cast_pos (K := ℝ).mpr hcert.hdenom

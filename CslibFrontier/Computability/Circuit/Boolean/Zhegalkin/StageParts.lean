@@ -246,29 +246,14 @@ inductive ZhegPartIdx (M : ℕ) where
 theorem card_zhegRowParts_le (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < s) (hp : 0 < p)
     (r : Fin (2 * M)) :
     #(zhegRowParts d s p r) ≤ p + s + 1 := by
+  have hite (P : Prop) [Decidable P] (z : ZhegPartIdx M) : #(if P then {z} else ∅) ≤ 1 := by
+    split_ifs <;> simp
   unfold zhegRowParts
-  set p1 : Finset (ZhegPartIdx M) := if d.cH r then {.constOne} else ∅
-  set p2 : Finset (ZhegPartIdx M) :=
-    ((sectionPeers p r).filter fun r' =>
-        (pairedCols (hasZhegCol d s) p (r.1 / p) (min r r') (max r r')).Nonempty).map (peerEmb M)
-  set p3 : Finset (ZhegPartIdx M) :=
-    if (oddCols (hasZhegCol d s) p r).Nonempty then {.odd} else ∅
-  set p4 : Finset (ZhegPartIdx M) :=
-    if (Additive.matrixTailSet d.aX s r).Nonempty then {.xTail} else ∅
-  set p5 : Finset (ZhegPartIdx M) := (intraGSet d s r).map (intraEmb M)
-  have hc1 : #p1 ≤ 1 := by dsimp only [p1]; split_ifs <;> simp
-  have hc2 : #p2 ≤ p - 1 := by
-    rw [card_map]
-    exact (card_le_card (filter_subset _ _)).trans (card_sectionPeers_le hp r)
-  have hc3 : #p3 ≤ 1 := by dsimp only [p3]; split_ifs <;> simp
-  have hc4 : #p4 ≤ 1 := by dsimp only [p4]; split_ifs <;> simp
-  have hc5 : #p5 ≤ s - 1 := by
-    rw [card_map]
-    exact card_intraGSet_le d hs r
-  have hu4 := card_union_le (p1 ∪ p2 ∪ p3 ∪ p4) p5
-  have hu3 := card_union_le (p1 ∪ p2 ∪ p3) p4
-  have hu2 := card_union_le (p1 ∪ p2) p3
-  have hu1 := card_union_le p1 p2
+  -- Bound the five parts by `1`, `p - 1`, `1`, `1` and `s - 1`.
+  refine (card_union_le _ _).trans <| (add_le_add ((card_union_le _ _).trans <| add_le_add
+    ((card_union_le _ _).trans <| add_le_add ((card_union_le _ _).trans <| add_le_add (hite _ _)
+      ((card_map _).trans_le <| (card_filter_le _ _).trans (card_sectionPeers_le hp r)))
+      (hite _ _)) (hite _ _)) ((card_map _).trans_le (card_intraGSet_le d hs r))).trans ?_
   omega
 
 theorem sum_zhegRowParts_eq (d : PaddedDecomp f M k) {s : ℕ} (hs : 0 < s) (p : ℕ)
@@ -331,26 +316,15 @@ theorem sum_zhegRowParts_eq (d : PaddedDecomp f M k) {s : ℕ} (hs : 0 < s) (p :
       (∑ r' ∈ (sectionPeers p r).filter (fun r' =>
           (pairedCols (hasZhegCol d s) p (r.1 / p) (min r r') (max r r')).Nonempty),
         zhegPartVal d s p r (peerEmb M r') x) =
-      ∑ r' ∈ sectionPeers p r, zhegPairVal d s p (r.1 / p, (min r r', max r r')) x := by
-    rw [sum_filter]
-    refine sum_congr rfl fun r' _ => ?_
-    split_ifs with hne
-    · rfl
-    · rw [not_nonempty_iff_eq_empty] at hne
-      simp [zhegPairVal, hne]
+      ∑ r' ∈ sectionPeers p r, zhegPairVal d s p (r.1 / p, (min r r', max r r')) x :=
+    sum_filter_of_ne fun _ _ h => nonempty_of_sum_ne_zero h
   have hs3 : (∑ z ∈ p3, zhegPartVal d s p r z x) = zhegOddVal d s p r x := by
-    dsimp only [p3]
-    split_ifs with hne
-    · simp [zhegPartVal]
-    · rw [not_nonempty_iff_eq_empty] at hne
-      simp [zhegOddVal, hne]
+    rcases (oddCols (hasZhegCol d s) p r).eq_empty_or_nonempty with h | h <;>
+      simp [p3, h, zhegPartVal, zhegOddVal]
   have hs4 : (∑ z ∈ p4, zhegPartVal d s p r z x) =
       ∑ j ∈ Additive.matrixTailSet d.aX s r, x j := by
-    dsimp only [p4]
-    split_ifs with hne
-    · simp [zhegPartVal]
-    · rw [not_nonempty_iff_eq_empty] at hne
-      simp [hne]
+    rcases (Additive.matrixTailSet d.aX s r).eq_empty_or_nonempty with h | h <;>
+      simp [p4, h, zhegPartVal]
   change (∑ z ∈ p1, zhegPartVal d s p r z x) +
       (∑ r' ∈ (sectionPeers p r).filter _, zhegPartVal d s p r (peerEmb M r') x) +
       (∑ z ∈ p3, zhegPartVal d s p r z x) +
@@ -371,18 +345,7 @@ theorem sum_zhegRowParts_eq (d : PaddedDecomp f M k) {s : ℕ} (hs : 0 < s) (p :
     rw [hfull, sum_filter, Fintype.sum_sum_type, ← sum_filter, ← sum_filter]
     rfl
   -- Combine `p2 + p3` using `hcol_sum`.
-  have hassoc :
-      (if d.cH r then true else (0 : Bool)) +
-        (∑ r' ∈ sectionPeers p r, zhegPairVal d s p (r.1 / p, (min r r', max r r')) x) +
-        zhegOddVal d s p r x +
-        (∑ j ∈ Additive.matrixTailSet d.aX s r, x j) +
-        (∑ ℓ ∈ intraGSet d s r, d.gFn ℓ x) =
-      (if d.cH r then true else (0 : Bool)) +
-        (((∑ r' ∈ sectionPeers p r, zhegPairVal d s p (r.1 / p, (min r r', max r r')) x) +
-          zhegOddVal d s p r x)) +
-        (∑ j ∈ Additive.matrixTailSet d.aX s r, x j) +
-        (∑ ℓ ∈ intraGSet d s r, d.gFn ℓ x) := by abel
-  rw [hassoc, hcol_sum]
+  rw [add_assoc _ _ (zhegOddVal d s p r x), hcol_sum]
   have hx_eq := Additive.sum_row_eq_fullCol_add_tail d.aX hs r x
   -- Show the `g`-blocks plus `intraGSet` equal `∑ ℓ : Fin M, if d.aG r ℓ then d.gFn ℓ x else 0`.
   have hg_early :

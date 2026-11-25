@@ -650,20 +650,11 @@ private theorem gateFanout_oneGate_comp_le_one (op : σ.Op) (c : Circuit σ n (�
         (∑ h : Fin (c.size + 1),
             (Finset.univ.filter fun a =>
               (d.program.lines h).wires a = .gate (Fin.last c.size)).card) = 0 := by
-      refine Finset.sum_eq_zero fun h _ => ?_
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro a _ heq
-      have hlt := d.program.lt_of_lines_wires_eq_gate h a (Fin.last c.size) heq
-      have := h.isLt
-      change c.size < (h : ℕ) at hlt
-      change (h : ℕ) < c.size + 1 at this
-      omega
-    have hout :
-        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate (Fin.last c.size)).card ≤ 1 :=
-      (Finset.card_filter_le _ _).trans_eq (by simp)
+      exact Finset.sum_eq_zero fun h _ => Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2
+        fun a _ heq => (Fin.le_last h).not_gt (d.program.lt_of_lines_wires_eq_gate h a _ heq)
     dsimp only [Circuit.gateFanout]
     rw [hlines, zero_add]
-    exact hout
+    exact (Finset.card_filter_le _ _).trans_eq (by simp)
   | cast g =>
     have hcast_iff (w : Wire n c.size) :
         Wire.Renaming.castSucc w = .gate g.castSucc ↔ w = .gate g := by
@@ -697,12 +688,9 @@ private theorem gateFanout_oneGate_comp_le_one (op : σ.Op) (c : Circuit σ n (�
       simp only [hprev, hlast]
       exact card_filter_wire_emb_eq c Wire.Renaming.castSucc g hcast_iff
     have hout :
-        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate g.castSucc).card = 0 := by
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro o _
-      rw [hout_eq o]
-      intro heq
-      exact Fin.castSucc_ne_last g (Wire.gate.inj heq).symm
+        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate g.castSucc).card = 0 :=
+      Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2 fun o _ heq =>
+        Fin.castSucc_ne_last g (Wire.gate.inj ((hout_eq o).symm.trans heq)).symm
     dsimp only [Circuit.gateFanout]
     rw [hlines, hout, add_zero]
     exact hc g
@@ -1105,11 +1093,8 @@ theorem ncard_frontier_steinerGraph_eq (t : ℕ) :
         omega
       have hj1_ge : t ≤ (π (supportNode c π w ⟨j.1 + 1, hj1⟩) : ℕ) := by
         by_contra! hlt'
-        have hmem : (⟨j.1 + 1, hj1⟩ : Fin (support c w).ncard) ∈ S :=
-          Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩
-        have hmax := Fin.le_iff_val_le_val.mp (S.le_max' _ hmem)
-        change j.1 + 1 ≤ j.1 at hmax
-        omega
+        exact (Fin.le_iff_val_le_val.mp (S.le_max' ⟨j.1 + 1, hj1⟩
+          (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩))).not_gt (Nat.lt_succ_self j.1)
       exact ⟨⟨w, ⟨j.1, by omega⟩⟩, mem_frontier_steinerGraph_iff.mpr ⟨hj_lt, hj1_ge⟩, rfl⟩
   rw [← himg]
   exact (InjOn.ncard_image fun e₁ h₁ e₂ h₂ hw => steinerEdge_eq_of_mem_frontier h₁ h₂ hw).symm
@@ -1142,26 +1127,20 @@ theorem maxDegreeLE_steinerGraph {r : ℕ} (hfan : c.FanInAtMost r) :
     rintro ⟨⟨w₁, j₁⟩, he₁⟩ ⟨⟨w₂, j₂⟩, he₂⟩ h
     dsimp only [φ] at h
     split_ifs at h with hs₁ hs₂ hs₂
-    · obtain ⟨hw, -⟩ := Prod.mk.inj h
-      cases Subtype.mk.inj hw
+    · cases Subtype.mk.inj (Prod.mk.inj h).1
       have hpi : π (supportNode c π w₁ ⟨j₁.1, _⟩) = π (supportNode c π w₁ ⟨j₂.1, _⟩) :=
         congrArg π (hs₁.trans hs₂.symm)
       rw [pi_supportNode, pi_supportNode] at hpi
-      have hidx := (supportEmb c π w₁).injective hpi
-      have hj : j₁.1 = j₂.1 := Fin.mk.inj hidx
-      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext hj)))
+      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext
+        (Fin.mk.inj ((supportEmb c π w₁).injective hpi)))))
     · cases (Prod.mk.inj h).2
     · cases (Prod.mk.inj h).2
-    · obtain ⟨hw, -⟩ := Prod.mk.inj h
-      cases Subtype.mk.inj hw
-      have ht₁ : steinerTgt c π ⟨w₁, j₁⟩ = u := he₁.resolve_left hs₁
-      have ht₂ : steinerTgt c π ⟨w₁, j₂⟩ = u := he₂.resolve_left hs₂
+    · cases Subtype.mk.inj (Prod.mk.inj h).1
       have hpi : π (supportNode c π w₁ ⟨j₁.1 + 1, _⟩) = π (supportNode c π w₁ ⟨j₂.1 + 1, _⟩) :=
-        congrArg π (ht₁.trans ht₂.symm)
+        congrArg π ((he₁.resolve_left hs₁).trans (he₂.resolve_left hs₂).symm)
       rw [pi_supportNode, pi_supportNode] at hpi
-      have hidx := (supportEmb c π w₁).injective hpi
-      have hj : j₁.1 = j₂.1 := Nat.succ.inj (Fin.mk.inj hidx)
-      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext hj)))
+      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext
+        (Nat.succ.inj (Fin.mk.inj ((supportEmb c π w₁).injective hpi))))))
   rw [← Nat.card_coe_set_eq]
   calc Nat.card {e : SteinerEdge c // e ∈ (steinerGraph c π).incidenceSet u}
       ≤ Nat.card ({w : ActiveSignal c // u ∈ support c w} × Bool) :=
@@ -1479,12 +1458,7 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
       refine ⟨fun u hu => ?_, hed⟩
       dsimp only [wireValAt]
       split_ifs with h2
-      · rcases he : canonicalEdge π (hu (.input i hi) rfl) h2 with ⟨aw_e, j_e⟩
-        have haw : aw_e.wire = .input i := by
-          have hf := canonicalEdge_fst π (hu (.input i hi) rfl) h2
-          rw [he] at hf
-          exact congrArg ActiveSignal.wire hf
-        exact hed aw_e haw j_e
+      · exact hed _ (congrArg ActiveSignal.wire (canonicalEdge_fst π (hu (.input i hi) rfl) h2)) _
       · rfl
     · by_cases ha0 : σ.Arity (c.program.lines g).op = 0
       · refine ⟨fun u _ => ?_, fun aw haw _ => ?_⟩
@@ -1517,22 +1491,15 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
               omega
             change α ⟨.gate ig, ⟨j.1, by omega⟩⟩ = c.program.trace I x (.gate g)
             rcases he_can : canonicalEdge π (gate_mem_support ig) h2 with ⟨w_c, j_c⟩
-            have he1 : w_c = .gate ig := by
-              have hf := canonicalEdge_fst π (gate_mem_support ig) h2
-              rwa [he_can] at hf
-            subst he1
+            obtain rfl : w_c = .gate ig :=
+              (congrArg Sigma.fst he_can).symm.trans (canonicalEdge_fst π _ h2)
             rw [he_can] at htrace_g
             rw [steiner_edge_eq_zero hα (.gate ig) h2 j.1 hjlt,
               ← steiner_edge_eq_zero hα (.gate ig) h2 j_c.1 (by have := j_c.isLt; omega)]
             exact htrace_g
         refine ⟨fun u hu => ?_, hed⟩
         simp only [wireValAt, ha0, ↓reduceDIte]
-        rcases he : canonicalEdge π (hu (.gate ig) rfl) h2 with ⟨aw_e, j_e⟩
-        have haw : aw_e.wire = .gate g := by
-          have hf := canonicalEdge_fst π (hu (.gate ig) rfl) h2
-          rw [he] at hf
-          exact congrArg ActiveSignal.wire hf
-        exact hed aw_e haw j_e
+        exact hed _ (congrArg ActiveSignal.wire (canonicalEdge_fst π (hu (.gate ig) rfl) h2)) _
   intro e
   exact (hval e.1.wire e.1.reach).2 e.1 rfl e.2
 
