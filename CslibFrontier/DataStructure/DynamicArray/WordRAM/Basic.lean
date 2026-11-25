@@ -216,12 +216,7 @@ theorem append_exec {w : ℕ} {vs : List ℕ} {x : Data 12} (hr : Rep vs x)
       (∀ a, a < x.regs ptr ∨ y.regs frontier ≤ a → y.mem a = x.mem a) ∧
       n + potential (vs ++ [x.regs arg]) y ≤ 49 + potential vs x ∧
       n + potential (vs ++ [x.regs arg]) y - potential vs x ≤ 49 := by
-  have hcap_pos := hr.capacity_pos
-  have hlen_eq := hr.length_eq
-  have hlen_le := hr.length_le
-  have hcap_le := hr.capacity_le
-  have hptr_eq := hr.pointer_eq
-  have hfront_eq := hr.frontier_eq
+  have ⟨hlen_eq, hcap_pos, hlen_le, hcap_le, hptr_eq, hfront_eq, _⟩ := hr
   have h1 : Fits w 1 := hw.of_le (by omega)
   unfold program writeAt
   wram_exec
@@ -365,24 +360,17 @@ theorem arguments_fit {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} (o : Op)
   | append v =>
     change Fits w (if i = dest then 0 else v)
     split
-    · exact fits_zero w
-    · exact hv.1
+    exacts [fits_zero w, hv.1]
   | get idx =>
     change Fits w (if i = dest then 1 else idx)
     split
-    · exact h1
-    · exact hv.2
+    exacts [h1, hv.2]
 
 /-- Argument delivery preserves `Rep` because `dest` and `arg` are not persistent representation
 registers. -/
 private theorem prepare_rep {vs : List ℕ} {x : Data 12} (hr : Rep vs x) (w : ℕ) (o : Op) :
-    Rep vs ((implementation w).prepare o x) :=
-  hr.of_eq
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    rfl
+    Rep vs ((implementation w).prepare o x) := by
+  refine hr.of_eq ?_ ?_ ?_ ?_ rfl <;> simp +decide [implementation, DynamicProgram.prepare]
 
 /-- Every admissible operation executes `dispatch`, preserves `BoundedRep`, modifies only
 cells below `y.regs frontier`, and satisfies the potential inequality with `charge o`
