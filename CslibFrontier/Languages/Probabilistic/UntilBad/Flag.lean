@@ -128,6 +128,12 @@ theorem IdenticalUntilBad.closeTo_bind (h : IdenticalUntilBad first second bad)
       (((interpret first program).run s).toOuterMeasure {x | bad x.2}) :=
   (h.closeTo_run program s).bind_left next
 
+private theorem snd_eq_of_mem_support_lift {γ σ : Type} {μ : PMF γ} {s : σ} {x : γ × σ}
+    (hx : x ∈ (StateT.lift (σ := σ) μ s).support) : x.2 = s := by
+  change x ∈ (μ.map (·, s)).support at hx
+  obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+  rfl
+
 /-- Lifting a memoryless handler on the left of `sumHandler` preserves `IdenticalUntilBad` on the
 right. -/
 theorem IdenticalUntilBad.sumHandler_lift_left {ι₁ : Type} {spec₁ : ι₁ → Type}
@@ -141,17 +147,11 @@ theorem IdenticalUntilBad.sumHandler_lift_left {ι₁ : Type} {spec₁ : ι₁ �
     | inr q₂ => exact h.agree q₂ s hs a s' hs'
   absorb_first q s hs x hx := by
     cases q with
-    | inl q₁ =>
-      change x ∈ ((left q₁).map (·, s)).support at hx
-      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
+    | inl q₁ => exact (snd_eq_of_mem_support_lift hx).symm ▸ hs
     | inr q₂ => exact h.absorb_first q₂ s hs x hx
   absorb_second q s hs x hx := by
     cases q with
-    | inl q₁ =>
-      change x ∈ ((left q₁).map (·, s)).support at hx
-      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
+    | inl q₁ => exact (snd_eq_of_mem_support_lift hx).symm ▸ hs
     | inr q₂ => exact h.absorb_second q₂ s hs x hx
 
 end CloseToAndSum
@@ -407,11 +407,9 @@ private theorem toOuterMeasure_lift_unif_bad_eq_zero {bad : State → Prop} {s :
     (hs : ¬bad s) (m : ℕ) :
     (StateT.lift (σ := State) (ProbComp.unifOracle m) s).toOuterMeasure
       {x : Fin (m + 1) × State | bad x.2} = 0 := by
-  change ((ProbComp.unifOracle m).map (·, s)).toOuterMeasure {x | bad x.2} = 0
   rw [PMF.toOuterMeasure_apply_eq_zero_iff]
-  refine Set.disjoint_left.mpr fun x hx hbad => hs ?_
-  obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-  exact hbad
+  exact Set.disjoint_left.mpr fun x hx hbad =>
+    hs (OracleComp.snd_eq_of_mem_support_lift hx ▸ hbad)
 
 /-- **Accumulated probability of a bad state under `ProbOracleComp.runWith`.** Let each external
 call `q` from a good state turn bad with probability at most `cost q * budget s` and raise `budget`
@@ -435,10 +433,7 @@ theorem toOuterMeasure_bad_le {handler : (q : Query) → StateT State PMF (spec 
       | inr q => simpa only [Sum.elim_inr, mul_zero, add_zero] using hstep q st hst)
     (fun q st hst x hx hgood => by
       cases q with
-      | inl m =>
-        change x ∈ ((ProbComp.unifOracle m).map (·, st)).support at hx
-        obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        simp
+      | inl m => simp [OracleComp.snd_eq_of_mem_support_lift hx]
       | inr q =>
         simpa only [Sum.elim_inr, mul_zero, add_zero, Nat.cast_one, one_mul] using
           hgrow q st hst x hx hgood)
@@ -475,10 +470,7 @@ theorem toOuterMeasure_bad_choose_two_cost_le {handler : (q : Query) → StateT 
       | inr q => exact hstep q st hst)
     (fun q st hst x hx hgood => by
       cases q with
-      | inl m =>
-        change x ∈ ((ProbComp.unifOracle m).map (·, st)).support at hx
-        obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        simp
+      | inl m => simp [OracleComp.snd_eq_of_mem_support_lift hx]
       | inr q => exact hgrow q st hst x hx hgood)
     hk₁ hk₂ hs
 
