@@ -91,9 +91,8 @@ private def encodeLabel (label : SelectedAlphabet) : Fin (FinEnum.card (Fin 6) +
 private def decodeLabel (bits : Fin (FinEnum.card (Fin 6) + 1) → Bool) : SelectedAlphabet :=
   (bits 0, fun query => bits (FinEnum.equiv query).succ)
 
-private theorem decode_encodeLabel : Function.LeftInverse decodeLabel encodeLabel := by
-  intro label
-  simp [decodeLabel, encodeLabel]
+private theorem decode_encodeLabel : Function.LeftInverse decodeLabel encodeLabel :=
+  fun _ => by simp [decodeLabel, encodeLabel]
 
 private theorem exists_pcpVerifier_of_gap {Input : Type} (input : Input ↪ List Bool)
     {A : Set Input} {graph : Input → Graph (SelectedAlphabet → SelectedAlphabet → Bool)}
@@ -113,6 +112,15 @@ private theorem exists_pcpVerifier_of_gap {Input : Type} (input : Input ↪ List
       IsPCPVerifier input (fun n => c * (Nat.log 2 n + 1)) (fun _ => d) V A ∧
       ComputableInPolyTime compile (encPair input encBits) encBits ∧
       (∀ x w, W x w → V.tableVerifier (x, compile (x, w)) = true) := by
+  obtain ⟨repeats, hrepeats⟩ := exists_pow_lt_of_lt_one (by norm_num : (0 : ℝ) < 1 / 2)
+    (by linarith [gap_pos] : 1 - gap / 2 < 1)
+  obtain ⟨c₀, d₀, hbound⟩ :=
+    (by fun_prop : ComputableInPolyTime (fun x => (graph x).edges.length) input
+      encUnary).polyBounded_length.exists_le
+  obtain ⟨constant, hconstant⟩ := PolynomiallyBounded.exists_clog_le_mul_log
+    (by fun_prop : PolynomiallyBounded fun n => c₀ * (n + 1) ^ d₀)
+  let width := FinEnum.card (Fin 6) + 1
+  let V : PCPVerifier Input := Graph.reductionVerifier graph width repeats decodeLabel id
   have heval : ComputableInPolyTime
       (fun p : (SelectedAlphabet → SelectedAlphabet → Bool) ×
         SelectedAlphabet × SelectedAlphabet => p.1 p.2.1 p.2.2)
@@ -120,19 +128,9 @@ private theorem exists_pcpVerifier_of_gap {Input : Type} (input : Input ↪ List
         (encPair (encPair encBool (encPi encBool)) (encPair encBool (encPi encBool))))
       encBool :=
     Graph.isPolyTime_constraintTableEval (encPair encBool (encPi encBool))
-  obtain ⟨repeats, hrepeats⟩ := exists_pow_lt_of_lt_one (by norm_num : (0 : ℝ) < 1 / 2)
-    (by linarith [gap_pos] : 1 - gap / 2 < 1)
-  have hlength : ComputableInPolyTime (fun x => (graph x).edges.length) input encUnary := by
-    fun_prop
-  obtain ⟨c₀, d₀, hbound⟩ := hlength.polyBounded_length.exists_le
-  have hpoly : PolynomiallyBounded (fun n => c₀ * (n + 1) ^ d₀) := by fun_prop
-  obtain ⟨constant, hconstant⟩ := PolynomiallyBounded.exists_clog_le_mul_log hpoly
-  let width := FinEnum.card (Fin 6) + 1
-  let V : PCPVerifier Input := Graph.reductionVerifier graph width repeats decodeLabel id
   have hV : V.PolyTime input :=
     Graph.polyTime_reductionVerifier width repeats decodeLabel hgraph heval
-  have hcoins : ∀ x, V.coins x ≤ repeats * constant * (Nat.log 2 (input x).length + 1) := by
-    intro x
+  have hcoins (x : Input) : V.coins x ≤ repeats * constant * (Nat.log 2 (input x).length + 1) := by
     change repeats * Nat.clog 2 (graph x).edges.length ≤
       repeats * constant * (Nat.log 2 (input x).length + 1)
     have hb : (graph x).edges.length ≤ c₀ * ((input x).length + 1) ^ d₀ := by
@@ -143,19 +141,10 @@ private theorem exists_pcpVerifier_of_gap {Input : Type} (input : Input ↪ List
       _ = _ := (Nat.mul_assoc _ _ _).symm
   let compile : Input × List Bool → List Bool :=
     fun p => PCPVerifier.answers (proof p) (V.queryTable p.1)
-  have hcompile : ComputableInPolyTime compile (encPair input encBits) encBits := by
-    simpa only [compile, Function.comp_def] using
-      (PCPVerifier.isPolyTime_answers hV hcoins).comp
-        ((ComputableInPolyTime.fst input encBits).prod hproof)
-  have hacc : ∀ x w, W x w → ∀ random, V.accepts x (proof (x, w)) random = true := by
-    intro x w hw random
-    obtain ⟨labels, _, hproofEq, hsat⟩ := hproof_eq x w hw
-    rw [PCPVerifier.accepts, hproofEq]
-    exact Graph.repeated_accepts_proofOfLabels width repeats encodeLabel decodeLabel
-      decode_encodeLabel id (hwellFormed x)
-      (fun v => labels.getD v defaultSelectedAlphabet) hsat random
   refine ⟨V, compile, repeats * constant, repeats * (2 * width), hV, ⟨hcoins, ?_, ?_, ?_⟩,
-    hcompile, fun x w hw => ?_⟩
+    by simpa only [compile, Function.comp_def] using
+      (PCPVerifier.isPolyTime_answers hV hcoins).comp
+        ((ComputableInPolyTime.fst input encBits).prod hproof), ?_⟩
   · intro x random _
     simp only [V, Graph.reductionVerifier, Graph.length_queries_repeatedEdgeVerifier, le_refl]
   · intro x hx
@@ -169,11 +158,16 @@ private theorem exists_pcpVerifier_of_gap {Input : Type} (input : Input ↪ List
       (fun random => (Graph.repeatedEdgeVerifier width repeats decodeLabel id).accepts
         (graph x) proofStr random)) true).toReal ≤ 1 / 2
     rw [Graph.acceptProb_repeatedEdgeVerifier, ENNReal.toReal_pow]
-    have h := Graph.acceptProb_edgeVerifier_le width decodeLabel id (graph x) proofStr
-    have hs := hsound x hx
-    exact (pow_le_pow_left₀ ENNReal.toReal_nonneg (by linarith) repeats).trans hrepeats.le
-  · simpa only [compile, List.append_nil] using
-      PCPVerifier.tableVerifier_complete x (proof (x, w)) [] fun ρ _ => hacc x w hw ρ
+    have := Graph.acceptProb_edgeVerifier_le width decodeLabel id (graph x) proofStr
+    exact (pow_le_pow_left₀ ENNReal.toReal_nonneg (by linarith [hsound x hx]) repeats).trans
+      hrepeats.le
+  · intro x w hw
+    obtain ⟨labels, _, hproofEq, hsat⟩ := hproof_eq x w hw
+    simpa only [List.append_nil] using
+      PCPVerifier.tableVerifier_complete x (proof (x, w)) [] fun ρ _ => by
+        rw [PCPVerifier.accepts, hproofEq]
+        exact Graph.repeated_accepts_proofOfLabels width repeats encodeLabel decodeLabel
+          decode_encodeLabel id (hwellFormed x) _ hsat ρ
 
 /-- Every NP relation has a polynomial-time PCP verifier with logarithmic randomness and constantly
 many nonadaptive proof queries, together with a polynomial-time witness compiler sending any
@@ -186,11 +180,8 @@ theorem exists_pcpVerifier_of_npRelation {Input : Type} (input : Input ↪ List 
       ComputableInPolyTime compile (encPair input encBits) encBits ∧
       (∀ x w, R.IsWitness x w → V.tableVerifier (x, compile (x, w)) = true) := by
   obtain ⟨lev⟩ := CookLevin.SAT_levinHard input R
-  have hmem : ∀ x, x ∈ R.language ↔ (lev.toFun x).Satisfiable := by
-    intro x
-    have hsat := lev.mem_language_iff x
-    rw [SAT.language_npRelation] at hsat
-    simpa [SAT] using hsat
+  have hmem (x : Input) : x ∈ R.language ↔ (lev.toFun x).Satisfiable := by
+    simpa [SAT, SAT.language_npRelation] using lev.mem_language_iff x
   let labels : Input × List Bool → List SelectedAlphabet :=
     fun p => gapGraphLabels (lev.toFun p.1) (lev.forwardWitness p)
   have hlabels :
@@ -198,20 +189,18 @@ theorem exists_pcpVerifier_of_npRelation {Input : Type} (input : Input ↪ List 
     isPolyTime_gapGraphLabels
       (lev.computableInPolyTime_toFun.comp (ComputableInPolyTime.fst input encBits))
       lev.computableInPolyTime_forwardWitness
-  have hproof := Graph.isPolyTime_proofOfLabelList encodeLabel hlabels
   refine exists_pcpVerifier_of_gap input
     (isPolyTime_gapGraph lev.computableInPolyTime_toFun)
     (fun x => wellFormed_gapGraph (lev.toFun x))
     (fun x hx => (satisfiable_gapGraph_iff _).mpr ((hmem x).mp hx))
     (fun x hx => gap_le_unsatVal_gapGraph _ fun h => hx ((hmem x).mpr h))
-    hproof fun x w hw => ?_
-  have hwSAT : SAT.npRelation.IsWitness (lev.toFun x) (lev.forwardWitness (x, w)) :=
-    lev.isWitness_forwardWitness x w hw
+    (Graph.isPolyTime_proofOfLabelList encodeLabel hlabels) fun x w hw => ?_
   have hlen : (labels (x, w)).length = (gapGraph (lev.toFun x)).vertices :=
     length_gapGraphLabels _ _
-  refine ⟨labels (x, w), hlen, ?_, fun e => satisfies_gapGraphLabels hwSAT e⟩
-  simpa only [hlen] using Graph.proofOfLabelList_eq_proofOfLabels encodeLabel
-    defaultSelectedAlphabet (labels (x, w))
+  refine ⟨labels (x, w), hlen, ?_,
+    fun e => satisfies_gapGraphLabels (lev.isWitness_forwardWitness x w hw) e⟩
+  simpa only [hlen] using
+    Graph.proofOfLabelList_eq_proofOfLabels encodeLabel defaultSelectedAlphabet (labels (x, w))
 
 /-- Every NP language has a polynomial-time verifier with logarithmic randomness and constantly
 many nonadaptive proof queries, perfect completeness, and soundness at most one half. -/

@@ -77,18 +77,15 @@ theorem description_budget_lt_period (k : ℕ) (hk : 64 ≤ k) :
     signature.orderedBudget (k + k) (k + k) (lowerBudget k) < ModulusCounter.period k := by
   let q := lowerBudget k
   let E := 3 * q + (k + 2) * (2 * q + (k + k) + 1)
-  have hb : signature.orderedBudget (k + k) (k + k) q ≤ 2 ^ E :=
-    boolean_orderedBudget_le_pow _ _ _ _ (lowerBudget_wire_bound k hk)
-  have he : E + k < 2 ^ k - 1 := lowerBudget_description_exponent k hk
-  have hp : 2 ^ (E + k) < 2 ^ (2 ^ k - 1) := Nat.pow_lt_pow_right (by decide) he
+  have hb := Nat.mul_le_mul_right (2 ^ k)
+    (boolean_orderedBudget_le_pow (k + k) (k + k) q (k + 2) (lowerBudget_wire_bound k hk))
+  have hp : 2 ^ E * 2 ^ k < 2 ^ (2 ^ k - 1) := by
+    rw [← pow_add]
+    exact Nat.pow_lt_pow_right (by decide) (lowerBudget_description_exponent k hk)
   have hl := Chebyshev.two_pow_le_mul_lcmUpto (2 ^ k - 1)
-  have hN : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-  rw [Nat.sub_add_cancel hN] at hl
-  have hh := (Nat.mul_le_mul_right (2 ^ k) hb).trans_lt
-    (by rw [← pow_add]; exact hp)
-  have hh' := hh.trans_le hl
-  change _ < 2 ^ k * ModulusCounter.period k at hh'
-  nlinarith
+  rw [Nat.sub_add_cancel Nat.one_le_two_pow] at hl
+  exact Nat.lt_of_mul_lt_mul_right
+    ((hb.trans_lt hp).trans_le (by simpa only [ModulusCounter.period, Nat.mul_comm] using hl))
 
 /-- For every `k ≥ 64`, some exponent `T < ModulusCounter.period k` requires more than
 `lowerBudget k` gates. -/
@@ -98,15 +95,11 @@ theorem exists_hard_counter_power (k : ℕ) (hk : 64 ≤ k) :
         out.Computes interpretation (ModulusCounter.power (k := k) T) →
           lowerBudget k < out.size := by
   classical
-  let family := Finset.univ.image (fun T : Fin (ModulusCounter.period k) =>
-    ModulusCounter.power (k := k) T.val)
-  have hcard : family.card = ModulusCounter.period k := counter_family_card k
-  obtain ⟨target, ht, hh⟩ := Circuit.exists_hard_in_family (G := lowerBudget k)
-    interpretation family (by rw [hcard]; exact description_budget_lt_period k hk)
+  obtain ⟨_, ht, hh⟩ := Circuit.exists_hard_in_family (G := lowerBudget k) interpretation
+    (Finset.univ.image fun T : Fin (ModulusCounter.period k) => ModulusCounter.power (k := k) T.val)
+    ((counter_family_card k).symm ▸ description_budget_lt_period k hk)
   obtain ⟨T, _, rfl⟩ := Finset.mem_image.mp ht
-  refine ⟨T.val, T.isLt, fun out hcomp => ?_⟩
-  by_contra hn
-  exact hh out (by omega) hcomp
+  exact ⟨T.val, T.isLt, fun out hcomp => not_le.mp fun hn => hh out hn hcomp⟩
 
 /-- **Matching exponential lower bound.** For every `k ≥ 64`, there is a bijective circuit `c` on
 `2 k` bits of size at most `50 * (k + 1)` with a power `c^[T]` (`T < ModulusCounter.period k`)
@@ -121,10 +114,8 @@ theorem counter_power_lower_bound (k : ℕ) (hk : 64 ≤ k) :
   obtain ⟨c, hc, hs⟩ := ModulusCounter.exists_linear_circuit k
   obtain ⟨T, hT, hh⟩ := exists_hard_counter_power k hk
   have he : c.eval interpretation = ModulusCounter.power (k := k) 1 := funext hc
-  refine ⟨c, by omega, he ▸ ModulusCounter.power_bijective, T, hT, ?_⟩
-  intro out hout
-  rw [he, ModulusCounter.iterate_power] at hout
-  exact hh out hout
+  refine ⟨c, by omega, he ▸ ModulusCounter.power_bijective, T, hT, fun out hout => hh out ?_⟩
+  rwa [he, ModulusCounter.iterate_power] at hout
 
 /-- Exponents below `ModulusCounter.period k` whose power has a circuit of size at most `q`. -/
 noncomputable def easyCounterPowers (k q : ℕ) : Finset (Fin (ModulusCounter.period k)) :=
@@ -148,30 +139,22 @@ theorem mem_easyCounterPowers (k q : ℕ) (T : Fin (ModulusCounter.period k)) :
 private theorem easyCounterPowers_card_le (k q : ℕ) :
     (easyCounterPowers k q).card ≤ signature.orderedBudget (k + k) (k + k) q := by
   classical
-  have hsub : (easyCounterPowers k q).image (fun T => ModulusCounter.power (k := k) T.val) ⊆
-      Circuit.functionsAtMost interpretation (k + k) (k + k) q := by
-    intro target ht
-    obtain ⟨T, hT, rfl⟩ := Finset.mem_image.mp ht
-    exact (Finset.mem_filter.mp hT).2
   calc
     _ = ((easyCounterPowers k q).image (fun T => ModulusCounter.power (k := k) T.val)).card :=
       (Finset.card_image_of_injective _ ModulusCounter.powers_injective).symm
-    _ ≤ _ := (Finset.card_le_card hsub).trans
-      (Circuit.card_functionsAtMost_le interpretation)
+    _ ≤ _ := (Finset.card_le_card fun _ ht => by
+      obtain ⟨T, hT, rfl⟩ := Finset.mem_image.mp ht
+      exact (Finset.mem_filter.mp hT).2).trans (Circuit.card_functionsAtMost_le interpretation)
 
 /-- At least `ModulusCounter.period k - signature.orderedBudget (k + k) (k + k) q` exponents below
 `ModulusCounter.period k` require more than `q` gates. -/
 theorem hardCounterPowers_card_ge (k q : ℕ) :
     ModulusCounter.period k - signature.orderedBudget (k + k) (k + k) q ≤
       (hardCounterPowers k q).card := by
-  have hcard : (easyCounterPowers k q).card + (hardCounterPowers k q).card =
-      ModulusCounter.period k := by
-    classical
-    have hsub : easyCounterPowers k q ⊆ Finset.univ := Finset.subset_univ _
-    rw [hardCounterPowers, add_comm, Finset.card_sdiff_add_card_eq_card hsub,
-      Finset.card_univ, Fintype.card_fin]
-  have hle := easyCounterPowers_card_le k q
-  omega
+  classical
+  rw [hardCounterPowers, Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ,
+    Fintype.card_fin]
+  exact Nat.sub_le_sub_left (easyCounterPowers_card_le k q) _
 
 /-- **Almost every counter power is hard.** At most a `2 ^ (-2 ^ (k - 1))` fraction of exponents
 below `ModulusCounter.period k` have circuits of size at most `lowerBudget k`. -/
@@ -184,57 +167,44 @@ theorem almost_all_counter_powers_hard (k : ℕ) (hk : 64 ≤ k) :
       (boolean_orderedBudget_le_pow _ _ _ _ (lowerBudget_wire_bound k hk))
   have he : E + 2 ^ (k - 1) + k ≤ 2 ^ k - 1 := by
     have := lowerBudget_description_margin k hk
-    dsimp only at this
-    dsimp [E]
+    dsimp [E] at this ⊢
     omega
   have hl := Chebyshev.two_pow_le_mul_lcmUpto (2 ^ k - 1)
   rw [Nat.sub_add_cancel (Nat.one_le_two_pow (n := k))] at hl
-  have hscaled : ((easyCounterPowers k (lowerBudget k)).card * 2 ^ (2 ^ (k - 1))) * 2 ^ k ≤
-      ModulusCounter.period k * 2 ^ k := by
-    calc
-      _ ≤ (2 ^ E * 2 ^ (2 ^ (k - 1))) * 2 ^ k := by gcongr
-      _ = 2 ^ (E + 2 ^ (k - 1) + k) := by rw [← pow_add, ← pow_add]
-      _ ≤ 2 ^ (2 ^ k - 1) := Nat.pow_le_pow_right (by decide) he
-      _ ≤ _ := by simpa only [ModulusCounter.period, Nat.mul_comm] using hl
-  exact Nat.le_of_mul_le_mul_right hscaled (by positivity)
+  refine Nat.le_of_mul_le_mul_right (c := 2 ^ k) ?_ (by positivity)
+  calc ((easyCounterPowers k (lowerBudget k)).card * 2 ^ (2 ^ (k - 1))) * 2 ^ k
+      ≤ (2 ^ E * 2 ^ (2 ^ (k - 1))) * 2 ^ k := by gcongr
+    _ ≤ 2 ^ (2 ^ k - 1) := by
+      rw [← pow_add, ← pow_add]
+      exact Nat.pow_le_pow_right (by decide) he
+    _ ≤ ModulusCounter.period k * 2 ^ k := by
+      simpa only [ModulusCounter.period, Nat.mul_comm] using hl
 
 /-- For `k ≥ 64`, more than half of the exponents below `ModulusCounter.period k` lie in
 `hardCounterPowers k (lowerBudget k)`. -/
 theorem counter_powers_average_complexity (k : ℕ) (hk : 64 ≤ k) :
     ModulusCounter.period k < 2 * (hardCounterPowers k (lowerBudget k)).card := by
-  have hcard : (easyCounterPowers k (lowerBudget k)).card +
-      (hardCounterPowers k (lowerBudget k)).card = ModulusCounter.period k := by
-    classical
-    have hsub : easyCounterPowers k (lowerBudget k) ⊆ Finset.univ := Finset.subset_univ _
-    rw [hardCounterPowers, add_comm, Finset.card_sdiff_add_card_eq_card hsub,
-      Finset.card_univ, Fintype.card_fin]
+  classical
+  have hcard :=
+    Finset.card_sdiff_add_card_eq_card (s := easyCounterPowers k (lowerBudget k))
+      (Finset.subset_univ _)
+  rw [← hardCounterPowers, Finset.card_univ, Fintype.card_fin] at hcard
   have halmost := almost_all_counter_powers_hard k hk
-  have hpow : 2 < 2 ^ (2 ^ (k - 1)) := by
-    have hk1 : 1 < 2 ^ (k - 1) := Nat.one_lt_two_pow (by omega)
-    exact (show 2 = 2 ^ 1 by rfl) ▸ Nat.pow_lt_pow_right (by decide) hk1
+  have hpow : 2 < 2 ^ (2 ^ (k - 1)) :=
+    (show 2 = 2 ^ 1 from rfl) ▸ Nat.pow_lt_pow_right (by decide) (Nat.one_lt_two_pow (by omega))
   have hpos : 0 < ModulusCounter.period k := Nat.lcmUpto_pos _
   by_contra! hle
-  have heasy_ge : ModulusCounter.period k ≤ 2 * (easyCounterPowers k (lowerBudget k)).card := by
-    omega
   have h1 : 0 < (easyCounterPowers k (lowerBudget k)).card := by omega
-  have h2 : 2 * (easyCounterPowers k (lowerBudget k)).card <
-      (easyCounterPowers k (lowerBudget k)).card * 2 ^ (2 ^ (k - 1)) := by
-    calc
-      2 * (easyCounterPowers k (lowerBudget k)).card =
-          (easyCounterPowers k (lowerBudget k)).card * 2 := Nat.mul_comm _ _
-      _ < (easyCounterPowers k (lowerBudget k)).card * 2 ^ (2 ^ (k - 1)) :=
-        Nat.mul_lt_mul_of_pos_left hpow h1
+  have h2 := Nat.mul_lt_mul_of_pos_left hpow h1
   omega
 
 /-- All powers `ModulusCounter.power T` for `T < M` with `M ≤ ModulusCounter.period k` are
 pairwise distinct. -/
 theorem distinct_counter_powers_up_to {M : ℕ} (hM : M ≤ ModulusCounter.period k) :
-    Function.Injective (fun T : Fin M => ModulusCounter.power (k := k) T.val) := by
-  intro S T h
-  have heq := ModulusCounter.powers_injective
-    (a₁ := ⟨S.val, Nat.lt_of_lt_of_le S.isLt hM⟩)
-    (a₂ := ⟨T.val, Nat.lt_of_lt_of_le T.isLt hM⟩) h
-  exact Fin.ext (congrArg (fun a : Fin (ModulusCounter.period k) => a.val) heq)
+    Function.Injective (fun T : Fin M => ModulusCounter.power (k := k) T.val) :=
+  fun S T h => Fin.ext <| congrArg (fun a : Fin (ModulusCounter.period k) => a.val) <|
+    ModulusCounter.powers_injective (a₁ := ⟨S.val, S.isLt.trans_le hM⟩)
+      (a₂ := ⟨T.val, T.isLt.trans_le hM⟩) h
 
 /-- If `signature.orderedBudget (k + k) (k + k) q < M` and `M ≤ ModulusCounter.period k`, some
 exponent `T < M` requires more than `q` gates. -/
@@ -243,15 +213,11 @@ theorem exists_hard_counter_power_up_to {M q : ℕ} (hM : M ≤ ModulusCounter.p
     ∃ T < M, ∀ out : Circuit signature (k + k) (k + k),
       out.Computes interpretation (ModulusCounter.power (k := k) T) → q < out.size := by
   classical
-  let family := Finset.univ.image (fun T : Fin M => ModulusCounter.power (k := k) T.val)
-  have hcard : family.card = M := by
-    rw [Finset.card_image_of_injective _ (distinct_counter_powers_up_to hM), Finset.card_univ,
-      Fintype.card_fin]
-  obtain ⟨target, ht, hh⟩ := Circuit.exists_hard_in_family (G := q)
-    interpretation family (by rw [hcard]; exact large)
+  obtain ⟨_, ht, hh⟩ := Circuit.exists_hard_in_family (G := q) interpretation
+    (Finset.univ.image fun T : Fin M => ModulusCounter.power (k := k) T.val)
+    (by rwa [Finset.card_image_of_injective _ (distinct_counter_powers_up_to hM),
+      Finset.card_univ, Fintype.card_fin])
   obtain ⟨T, _, rfl⟩ := Finset.mem_image.mp ht
-  refine ⟨T.val, T.isLt, fun out hcomp => ?_⟩
-  by_contra hn
-  exact hh out (by omega) hcomp
+  exact ⟨T.val, T.isLt, fun out hcomp => not_le.mp fun hn => hh out hn hcomp⟩
 
 end Cslib.Circuits.Boolean.Iteration

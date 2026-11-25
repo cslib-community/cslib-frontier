@@ -835,6 +835,49 @@ example :
     · simpa [bend] using hε
   exact hmove (bend m).point rfl rfl hdist w hw
 
+-- The observation is the route start. The next node stays fixed and a later bend can move.
+open Classical in
+example :
+    let p (m : ℂ) : Route := ⟨2, ![0, 1, m, 3]⟩
+    ∃ ε : ℝ, 0 < ε ∧ ∀ m : ℂ, dist m ⟨2, 1⟩ < ε →
+      (0 : ℂ) ∈ segment ℝ ((p m).point 0) ((p m).point 1) ∧
+        ∀ u : ℂ, (p m).rayParity u 0 = (p ⟨2, 1⟩).rayParity u 0 := by
+  let p (m : ℂ) : Route := ⟨2, ![0, 1, m, 3]⟩
+  let c : ℂ := ⟨2, 1⟩
+  let K := Complex.reLm ⁻¹' Set.Ici (1 : ℝ)
+  have hK : Convex ℝ K := (convex_Ici _).linear_preimage Complex.reLm
+  have haway {a b : ℂ} (ha : a ∈ K) (hb : b ∈ K) :
+      (0 : ℂ) ∉ segment ℝ a b := by
+    intro h
+    have hh := hK.segment_subset ha hb h
+    change (1 : ℝ) ≤ (0 : ℂ).re at hh
+    norm_num at hh
+  obtain ⟨ε, hε, hmove⟩ :=
+    (p c).exists_pos_rayParity_eq_of_fixed_observation_segments {0}
+  refine ⟨ε, hε, fun m hm => ?_⟩
+  have hdist (i : Fin ((p c).segments + 1)) : dist ((p m).point i) ((p c).point i) < ε := by
+    fin_cases i
+    · simpa [p] using hε
+    · simpa [p] using hε
+    · exact hm
+    · simpa [p] using hε
+  have hfixed (i : Fin (p c).segments)
+      (h : ∃ z ∈ ({0} : Finset ℂ), z ∈ segment ℝ ((p c).point i.castSucc) ((p c).point i.succ)) :
+      (p m).point i.castSucc = (p c).point i.castSucc ∧
+        (p m).point i.succ = (p c).point i.succ := by
+    obtain ⟨z, hz, hzseg⟩ := h
+    rw [Finset.mem_singleton] at hz
+    subst z
+    fin_cases i
+    · exact ⟨rfl, rfl⟩
+    · change (0 : ℂ) ∈ segment ℝ 1 c at hzseg
+      exact (haway (by norm_num [K]) (by norm_num [K, c]) hzseg).elim
+    · change (0 : ℂ) ∈ segment ℝ c 3 at hzseg
+      exact (haway (by norm_num [K, c]) (by norm_num [K]) hzseg).elim
+  obtain ⟨hseg, hpar⟩ :=
+    hmove (p m).point rfl rfl hdist hfixed 0 (Finset.mem_singleton_self 0)
+  exact ⟨(hseg 0).mpr (left_mem_segment ℝ (0 : ℂ) 1), hpar⟩
+
 private def retracedSegment (a b : ℂ) : Route where
   bends := 1
   point i := if i.val = 1 then b else a

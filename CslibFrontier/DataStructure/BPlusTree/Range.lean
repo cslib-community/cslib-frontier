@@ -161,20 +161,18 @@ theorem Occupied.ne_nil_of_mem_leaves (ht : 2 ≤ t) (ho : Occupied t tr) :
     ∀ l ∈ tr.leaves, l ≠ [] := by
   induction tr with
   | leaf entries =>
-    intro l hl
+    rintro l hl
+    obtain rfl : l = entries := by simpa [leaves_leaf] using hl
     have := ho.le_width
-    simp only [leaves_leaf, List.mem_singleton] at hl
     simp only [width_leaf] at this
-    subst hl
     exact List.ne_nil_of_length_pos (by omega)
   | node first rest ih₁ ih₂ =>
     intro l hl
     simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
     rcases hl with hl | ⟨e, he, hl⟩
     · exact ih₁ ho.first l hl
-    · exact ih₂ e he (ho.of_mem_children (by
-        simp only [children_node, List.mem_cons, List.mem_map]
-        exact Or.inr ⟨e, he, rfl⟩)) l hl
+    · exact ih₂ e he
+        (ho.of_mem_children (List.mem_cons_of_mem _ (List.mem_map_of_mem he))) l hl
 
 /-- On a well-formed tree, the output of a range query is the restriction of a contiguous run of
 leaves in which every leaf contributes and every leaf other than the first and last is returned
@@ -189,17 +187,15 @@ theorem range_eq_flatten_run (h : IsWF t tr) (lo hi : α) :
   · exact SortedAssoc.exists_run_range_flatten h.sorted hne lo hi
   · cases tr with
     | leaf entries =>
-      have he : entries = [] := by simpa using hne
-      subst he
+      obtain rfl : entries = [] := by simpa using hne
       exact ⟨[[]], [], [], by simp, by simp, by simp, by simp⟩
     | node first rest =>
       refine absurd (fun l hl => ?_) hne
       simp only [leaves_node, leavesRest_eq_flatMap, List.mem_append, List.mem_flatMap] at hl
       rcases hl with hl | ⟨e, he, hl⟩
       · exact (h.occupied_of_mem_children first (by simp)).ne_nil_of_mem_leaves h.two_le l hl
-      · exact (h.occupied_of_mem_children e.child (by
-          simp only [children_node, List.mem_cons, List.mem_map]
-          exact Or.inr ⟨e, he, rfl⟩)).ne_nil_of_mem_leaves h.two_le l hl
+      · exact (h.occupied_of_mem_children e.child
+          (List.mem_cons_of_mem _ (List.mem_map_of_mem he))).ne_nil_of_mem_leaves h.two_le l hl
 
 end Pure
 

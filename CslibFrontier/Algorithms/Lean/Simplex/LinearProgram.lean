@@ -221,21 +221,17 @@ omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem isSolution_slackDictionary_iff {x : Fin (n + m) → K} :
     (slackDictionary A b c).IsSolution x ↔
       ∀ i, x (Fin.natAdd n i) = b i - ∑ j, A i j * x (Fin.castAdd m j) := by
-  have key : ∀ i, (slackDictionary A b c).rhs (Fin.natAdd n i) +
+  have key (i) : (slackDictionary A b c).rhs (Fin.natAdd n i) +
       ∑ j ∈ (slackDictionary A b c).basisᶜ,
         (slackDictionary A b c).coeff (Fin.natAdd n i) j * x j =
       b i - ∑ j, A i j * x (Fin.castAdd m j) := by
-    intro i
     rw [sum_compl_slack]
     simp only [slackDictionary, Fin.append_right, Fin.append_left, neg_mul,
       Finset.sum_neg_distrib, sub_eq_add_neg]
-  constructor
-  · intro h i
-    rw [h _ (natAdd_mem_slackDictionary_basis A b c i), key]
-  · intro h i hi
-    induction i using Fin.addCases with
-    | left j => exact absurd hi (castAdd_notMem_slackDictionary_basis A b c j)
-    | right i => rw [h i, key]
+  refine ⟨fun h i => by rw [h _ (natAdd_mem_slackDictionary_basis A b c i), key], fun h i hi => ?_⟩
+  induction i using Fin.addCases with
+  | left j => exact absurd hi (castAdd_notMem_slackDictionary_basis A b c j)
+  | right i => rw [h i, key]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem slackMatrix_mulVec (x : Fin (n + m) → K) (i : Fin m) :
@@ -251,29 +247,24 @@ omit [LinearOrder K] [IsStrictOrderedRing K] in
 `A *ᵥ x ≤ b`, `x ≥ 0`, with the objective `c` extended by zeros. -/
 theorem slackDictionary_represents :
     (slackDictionary A b c).Represents (slackMatrix A) b (Fin.append c 0) := by
-  constructor
-  · intro x
-    rw [isSolution_slackDictionary_iff, funext_iff]
+  refine ⟨fun x => ?_, fun x _ => ?_⟩
+  · rw [isSolution_slackDictionary_iff, funext_iff]
     refine forall_congr' fun i => ?_
     rw [slackMatrix_mulVec]
     constructor <;> intro h <;> linear_combination h
-  · intro x _
-    rw [Dictionary.value, sum_compl_slack, dotProduct, Fin.sum_univ_add]
+  · rw [Dictionary.value, sum_compl_slack, dotProduct, Fin.sum_univ_add]
     simp only [slackDictionary, Fin.append_left, Fin.append_right, Pi.zero_apply, zero_mul,
       Finset.sum_const_zero, add_zero, zero_add]
 
 omit [IsStrictOrderedRing K] in
 /-- The slack dictionary is feasible exactly when `b ≥ 0`. -/
 theorem feasible_slackDictionary_iff : (slackDictionary A b c).Feasible ↔ 0 ≤ b := by
-  constructor
-  · intro h i
-    have := h _ (natAdd_mem_slackDictionary_basis A b c i)
-    simp only [slackDictionary, Fin.append_right] at this
-    exact this
-  · intro hb i hi
-    induction i using Fin.addCases with
-    | left j => exact absurd hi (castAdd_notMem_slackDictionary_basis A b c j)
-    | right i => simp only [slackDictionary, Fin.append_right]; exact hb i
+  refine ⟨fun h i => by
+    simpa only [slackDictionary, Fin.append_right, Pi.zero_apply] using
+      h _ (natAdd_mem_slackDictionary_basis A b c i), fun hb i hi => ?_⟩
+  induction i using Fin.addCases with
+  | left j => exact absurd hi (castAdd_notMem_slackDictionary_basis A b c j)
+  | right i => simpa only [slackDictionary, Fin.append_right, Pi.zero_apply] using hb i
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem withSlack_castAdd (x : Fin n → K) (j : Fin n) :
@@ -322,13 +313,12 @@ theorem image_value_slackDictionary :
     (slackDictionary A b c).value '' (slackDictionary A b c).feasibleSet =
       (c ⬝ᵥ ·) '' {x | 0 ≤ x ∧ A *ᵥ x ≤ b} := by
   ext v
-  constructor
-  · rintro ⟨z, hz, rfl⟩
-    have hzx := eq_withSlack_of_isSolution A b c ((Dictionary.mem_feasibleSet _).1 hz).1
-    rw [hzx] at hz ⊢
-    exact ⟨_, (withSlack_mem_feasibleSet_iff A b c _).1 hz, (value_withSlack A b c _).symm⟩
-  · rintro ⟨x, hx, rfl⟩
-    exact ⟨_, (withSlack_mem_feasibleSet_iff A b c x).2 hx, value_withSlack A b c x⟩
+  refine ⟨?_, fun ⟨x, hx, h⟩ => ⟨_, (withSlack_mem_feasibleSet_iff A b c x).2 hx,
+    (value_withSlack A b c x).trans h⟩⟩
+  rintro ⟨z, hz, rfl⟩
+  have hzx := eq_withSlack_of_isSolution A b c ((Dictionary.mem_feasibleSet _).1 hz).1
+  rw [hzx] at hz ⊢
+  exact ⟨_, (withSlack_mem_feasibleSet_iff A b c _).1 hz, (value_withSlack A b c _).symm⟩
 
 /-- **The simplex method with Bland's rule for `max c ⬝ᵥ x` subject to `x ≥ 0`, `A *ᵥ x ≤ b`**
 with `b ≥ 0`, started from the slack dictionary: it finds an optimal solution, read off the
@@ -372,40 +362,37 @@ private theorem slackDual_spec (hb : 0 ≤ b) {D : Dictionary (Fin (n + m)) K}
   set S := slackDictionary A b c
   obtain ⟨hequiv, -, -, hopt⟩ := S.run_eq_optimal ((feasible_slackDictionary_iff A b c).2 hb) h
   set g : Fin (n + m) → K := fun j => if j ∈ D.basis then 0 else D.objCoeff j with hg
-  have hgle : ∀ j, g j ≤ 0 := fun j => by
-    simp only [hg]; split_ifs with hj
-    · exact le_rfl
-    · exact hopt j hj
-  have hvalue : ∀ z, D.value z = D.objConst + ∑ j, g j * z j := fun z => by
-    rw [Dictionary.value, ← Finset.sum_compl_add_sum D.basis, Finset.sum_eq_zero (s := D.basis)
-      fun j hj => by simp only [hg, hj, ↓reduceIte, zero_mul], add_zero]
-    congr 1
-    exact Finset.sum_congr rfl fun j hj => by
-      simp only [hg, Finset.mem_compl.1 hj, ↓reduceIte]
-  have hy : D.slackDual = fun i => -g (Fin.natAdd n i) := funext fun i => by
-    simp only [Dictionary.slackDual, hg]
-    split_ifs <;> simp only [neg_zero]
+  have hgle (j) : g j ≤ 0 := by
+    dsimp [g]
+    split_ifs with hj
+    exacts [le_rfl, hopt j hj]
+  have hvalue (z) : D.value z = D.objConst + ∑ j, g j * z j := by
+    rw [Dictionary.value, ← Finset.sum_compl_add_sum D.basis,
+      Finset.sum_eq_zero (s := D.basis) fun j hj => by simp only [hg, hj, ↓reduceIte, zero_mul],
+      add_zero]
+    exact congrArg (D.objConst + ·) (Finset.sum_congr rfl fun j hj => by
+      simp only [hg, Finset.mem_compl.1 hj, ↓reduceIte])
+  have hy : D.slackDual = fun i => -g (Fin.natAdd n i) :=
+    funext fun i => by
+      simp only [Dictionary.slackDual, hg]
+      split_ifs <;> simp only [neg_zero]
   set y := D.slackDual
-  have key : ∀ x : Fin n → K, c ⬝ᵥ x =
+  have key (x : Fin n → K) : c ⬝ᵥ x =
       D.objConst - y ⬝ᵥ b + ∑ k, g (Fin.castAdd m k) * x k + (y ᵥ* A) ⬝ᵥ x := by
-    intro x
     rw [← value_withSlack A b c, hequiv.value_eq _ (isSolution_withSlack A b c x), hvalue,
       Fin.sum_univ_add, ← dotProduct_mulVec, hy]
     simp only [withSlack_castAdd, withSlack_natAdd, dotProduct, mul_sub,
       Finset.sum_sub_distrib, neg_mul, Finset.sum_neg_distrib]
     ring
   have hv : y ⬝ᵥ b = D.objConst := by
-    have := key 0
-    simp only [dotProduct_zero, Pi.zero_apply, mul_zero, Finset.sum_const_zero,
-      add_zero] at this
+    have h0 := key 0
+    simp only [dotProduct_zero, Pi.zero_apply, mul_zero, Finset.sum_const_zero, add_zero] at h0
     linarith
-  refine ⟨fun i => ?_, fun k => ?_, hv⟩
-  · rw [hy]
-    exact neg_nonneg.2 (hgle _)
-  have := key (Pi.single k 1)
-  rw [dotProduct_single_one, dotProduct_single_one, hv, sub_self, zero_add] at this
-  rw [Finset.sum_eq_single k (fun j _ hj => by rw [Pi.single_eq_of_ne hj, mul_zero])
-    (fun h => absurd (Finset.mem_univ k) h), Pi.single_eq_same, mul_one] at this
+  refine ⟨fun i => hy ▸ neg_nonneg.2 (hgle _), fun k => ?_, hv⟩
+  have hk := key (Pi.single k 1)
+  rw [dotProduct_single_one, dotProduct_single_one, hv, sub_self, zero_add,
+    Finset.sum_eq_single k (fun j _ hj => by rw [Pi.single_eq_of_ne hj, mul_zero])
+      (fun h => absurd (Finset.mem_univ k) h), Pi.single_eq_same, mul_one] at hk
   linarith [hgle (Fin.castAdd m k)]
 
 /-- The dual solution read off the final dictionary is nonnegative ([Chvatal1983], Chapter 5):
@@ -440,13 +427,8 @@ theorem isLeast_dotProduct_slackDual (hb : 0 ≤ b) {D : Dictionary (Fin (n + m)
   refine ⟨⟨hy, hcy⟩, ⟨D.slackDual, ⟨hy, hcy⟩, hyb⟩, ?_⟩
   rintro _ ⟨y', ⟨hy', hcy'⟩, rfl⟩
   rcases simplex_slackDictionary_spec A b c hb with
-    ⟨D', hD', -, hx, hAx, hval⟩ | ⟨⟨D', s, hD'⟩, -⟩
-  · rw [h] at hD'
-    cases hD'
-    rw [← hval]
-    exact dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx hAx hy' hcy'
-  · rw [h] at hD'
-    cases hD'
+    ⟨D', hD', -, hx, hAx, hval⟩ | ⟨⟨D', s, hD'⟩, -⟩ <;> rw [h] at hD' <;> cases hD'
+  exact hval ▸ dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx hAx hy' hcy'
 
 end Slack
 

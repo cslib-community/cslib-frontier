@@ -108,16 +108,9 @@ theorem oracleReplies_succ (g : List Bool → Bool) (fuel : ℕ) (input : List B
     unfold oracleReplies
     rw [take_oracleRepliesFrom, Nat.min_eq_left (Nat.le_succ fuel)]
   have hbit := machine.getD_oracleReplies g (fuel + 1) input fuel (Nat.lt_succ_self fuel)
-  rw [List.getD_eq_getElem _ _ (by omega)] at hbit
-  have hcfg : machine.replayPrefix input (machine.oracleReplies g (fuel + 1) input) fuel =
-      machine.replayConfig input (machine.oracleReplies g fuel input) := by
-    rw [replayPrefix, htake]
-  rw [hcfg] at hbit
-  calc machine.oracleReplies g (fuel + 1) input
-      = (machine.oracleReplies g (fuel + 1) input).take fuel ++
-          [(machine.oracleReplies g (fuel + 1) input)[fuel]'(by omega)] := by
-        rw [← List.take_succ_eq_append_getElem (by omega), List.take_of_length_le (by omega)]
-    _ = _ := by rw [htake, hbit]
+  rw [List.getD_eq_getElem _ _ (by omega), replayPrefix, htake] at hbit
+  rw [← List.take_of_length_le (l := machine.oracleReplies g (fuel + 1) input) hlen.le,
+    List.take_succ_eq_append_getElem (by omega), htake, hbit]
 
 /-- **Iterating the step builds the transcript** of the list oracle. -/
 theorem iterate_listReplyStep (input : List Bool) (ℓ : List (List Bool)) (fuel : ℕ) :

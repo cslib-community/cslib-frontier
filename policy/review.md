@@ -284,10 +284,10 @@ gh api graphql -f id="$(gh pr view <PR> --json id --jq .id)" -f query='
 Dequeueing merges nothing, so the author may do it; the new head is queued again only by a
 non-author, once the `check_restack.py` check below passes or the delta is reviewed.
 
-When the only conflicts with `main` are in the aggregates or `references.bib`,
+When the only conflicts with `main` are in the aggregates, `references.bib` or `manual/sources.md`,
 `python3 scripts/restack_mechanical.py <PR> --approved-head <approved head>` does the whole restack
 without running the PR's code. It requires the `check_restack.py` check below to pass for the
-current head, merges `origin/main` with both drivers, writes the aggregates as `lake exe mk_all`
+current head, merges `origin/main` with their drivers, writes the aggregates as `lake exe mk_all`
 would for the merged tree, and runs the check on the result, both times from a checkout of
 `origin/main`. It refuses any other conflict and is a dry run unless given `--push`, which pushes
 the merge only when the check passes and the PR's branch still points at the head it merged. It
@@ -300,8 +300,9 @@ the new head is based on, which is what the merge queue would have built from th
 and passes only when the new head's tree is exactly that replay. The one exception is the
 `mk_all` import aggregates, which must instead be exactly what `lake exe mk_all` writes for the new
 head's tree. A conflict in the replay elsewhere, and any other difference, fails it. The replay
-merges `references.bib` entry by entry, as `scripts/resolve_bib_conflict.py` does, so a
-bibliography merge written by that script, with nothing else changed, passes. After
+merges `references.bib` and `manual/sources.md` entry by entry, as
+`scripts/resolve_bib_conflict.py` and `scripts/resolve_sources_conflict.py` do, so a merge
+written by those scripts, with nothing else changed, passes. After
 `git fetch origin`, run the script from a checkout of current `origin/main`, not of the PR's
 branch, which could change it.
 An approval given while a PR is based on another branch also names that branch's head, and the
