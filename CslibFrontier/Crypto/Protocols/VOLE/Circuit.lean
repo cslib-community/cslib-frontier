@@ -55,6 +55,16 @@ noncomputable instance instFintypeCircuitMulGate
   ((Wire.equiv (p + k) C.size).trans finSumFinEquiv)
     ((C.program.lines i.val).wires (Fin.cast (by rw [i.property]) side))
 
+private theorem circuitMulInput_wires (C : Circuit (arithSignature F) (p + k) m)
+    (i : CircuitMulGate C) {wires : Fin 2 → Wire (p + k) C.size}
+    (he : C.program.lines i.val = ⟨.mul, wires⟩) (side : Fin 2) :
+    circuitMulInput C i side = ((Wire.equiv (p + k) C.size).trans finSumFinEquiv) (wires side) := by
+  have h : ∀ (line : Line (arithSignature F) (p + k) C.size) (hl : line = ⟨.mul, wires⟩)
+      (hop : line.op = .mul), line.wires (Fin.cast (by rw [hop]) side) = wires side := by
+    rintro _ rfl _
+    rfl
+  rw [circuitMulInput, h _ he i.property]
+
 /-- The multiplication gate's output in the same layout. -/
 @[expose] def circuitMulOutput (C : Circuit (arithSignature F) (p + k) m)
     (i : CircuitMulGate C) : Fin ((p + k) + C.size) :=
@@ -114,22 +124,15 @@ theorem circuitTrace_linear (x : Fin p → F) (w : Fin k → F) (y : Fin m → F
   · rw [linear_input]
     simp [circuitTrace, circuitLinearTargets, Wire.equiv]
   · have h := C.program.trace_gate (arithInterpretation F) (Fin.append x w) i
-    cases he : C.program.lines i with
-    | mk op wires =>
-      rw [he] at h
-      cases op with
-      | add =>
-        change C.program.trace (arithInterpretation F) (Fin.append x w) (.gate i) =
-          C.program.trace (arithInterpretation F) (Fin.append x w) (wires 0) +
-            C.program.trace (arithInterpretation F) (Fin.append x w) (wires 1) at h
-        simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, circuitTrace,
-          dotProduct, Finset.sum_add_distrib, Finset.sum_sub_distrib, add_mul, sub_mul,
-          Pi.single_apply] using sub_eq_zero.mpr h.symm
-      | mul => simp [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec]
-      | const c =>
-        change C.program.trace (arithInterpretation F) (Fin.append x w) (.gate i) = c at h
-        simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, circuitTrace]
-          using h
+    rcases he : C.program.lines i with ⟨_ | _ | c, wires⟩ <;> rw [he] at h
+    · change C.program.trace _ _ (.gate i) =
+        C.program.trace _ _ (wires 0) + C.program.trace _ _ (wires 1) at h
+      simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, circuitTrace,
+        dotProduct, Finset.sum_add_distrib, Finset.sum_sub_distrib, add_mul, sub_mul,
+        Pi.single_apply] using sub_eq_zero.mpr h.symm
+    · simp [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec]
+    · change C.program.trace _ _ (.gate i) = c at h
+      simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, circuitTrace] using h
   · rw [linear_output]
     simpa [circuitTrace, circuitLinearTargets, Circuit.eval] using congrFun hy j
 
@@ -138,21 +141,15 @@ theorem circuitTrace_mul (x : Fin p → F) (w : Fin k → F) (i : CircuitMulGate
     circuitTrace C x w (circuitMulInput C i 0) *
       circuitTrace C x w (circuitMulInput C i 1) =
         circuitTrace C x w (circuitMulOutput C i) := by
+  rcases he : C.program.lines i.val with ⟨op, wires⟩
+  cases he ▸ i.property
   have h := C.program.trace_gate (arithInterpretation F) (Fin.append x w) i.val
-  have ho : circuitMulOutput C i =
-      ((Wire.equiv (p + k) C.size).trans finSumFinEquiv) (.gate i.val) := rfl
-  simp only [ho, circuitTrace, circuitMulInput, Function.comp_apply, Equiv.symm_apply_apply]
-  have evalMul (line : Line (arithSignature F) (p + k) C.size) (hm : line.op = .mul) :
-      arithInterpretation F line.op (fun j =>
-        C.program.trace (arithInterpretation F) (Fin.append x w) (line.wires j)) =
-      C.program.trace (arithInterpretation F) (Fin.append x w)
-          (line.wires (Fin.cast (by rw [hm]) 0)) *
-        C.program.trace (arithInterpretation F) (Fin.append x w)
-          (line.wires (Fin.cast (by rw [hm]) 1)) := by
-    rcases line with ⟨op, wires⟩
-    cases hm
-    rfl
-  exact (evalMul _ i.property).symm.trans h.symm
+  rw [he] at h
+  simp only [circuitMulInput_wires C i he,
+    show circuitMulOutput C i =
+      ((Wire.equiv (p + k) C.size).trans finSumFinEquiv) (.gate i.val) from rfl,
+    circuitTrace, Function.comp_apply, Equiv.symm_apply_apply]
+  exact h.symm
 
 /-- A wire assignment satisfying all public linear equations and multiplication gates gives
 an actual private input witness for the public circuit output. -/
@@ -168,44 +165,30 @@ theorem exists_witness_of_circuitChecks (x : Fin p → F) (y : Fin m → F)
   have hinput (i : Fin (p + k)) : v (.input i) = Fin.append x w i := by
     induction i using Fin.addCases with
     | left i =>
-      have hi := congrFun hlinear (.inl i)
-      simpa [linear_input, circuitLinearTargets, v, index, Wire.equiv, Wire.elim] using hi
+      simpa [linear_input, circuitLinearTargets, v, index, Wire.equiv, Wire.elim] using
+        congrFun hlinear (.inl i)
     | right i => simp [w]
   have hgate (i : Fin C.size) :
       v (.gate i) = arithInterpretation F (C.program.lines i).op
         (fun j => v ((C.program.lines i).wires j)) := by
     have hi := congrFun hlinear (.inr (.inl i))
-    cases he : C.program.lines i with
-    | mk op wires =>
-      cases op with
-      | add =>
-        change v (.gate i) = v (wires 0) + v (wires 1)
-        have hz : v (wires 0) + v (wires 1) - v (.gate i) = 0 := by
-          simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, dotProduct,
-            Finset.sum_add_distrib, Finset.sum_sub_distrib, add_mul, sub_mul, Pi.single_apply,
-            v, index] using hi
-        exact (sub_eq_zero.mp hz).symm
-      | mul =>
-        change v (.gate i) = v (wires 0) * v (wires 1)
-        have h := hmul ⟨i, by rw [he]⟩
-        simp only [circuitMulInput, circuitMulOutput] at h
-        have wireEq (line : Line (arithSignature F) (p + k) C.size)
-            (ws : Fin 2 → Wire (p + k) C.size) (hl : line = ⟨.mul, ws⟩)
-            (hop : line.op = .mul) (side : Fin 2) :
-            line.wires (Fin.cast (by rw [hop]) side) = ws side := by
-          subst line
-          rfl
-        rw [wireEq _ wires he (by rw [he]) 0, wireEq _ wires he (by rw [he]) 1] at h
-        simpa [v, index, Wire.equiv, Wire.elim] using h.symm
-      | const c =>
-        change v (.gate i) = c
-        simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, v, index] using hi
-  have htrace := Program.eq_trace_of_forall_gate hinput hgate
+    rcases he : C.program.lines i with ⟨_ | _ | c, wires⟩
+    · change v (.gate i) = v (wires 0) + v (wires 1)
+      exact (sub_eq_zero.mp (by
+        simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, dotProduct,
+          Finset.sum_add_distrib, Finset.sum_sub_distrib, add_mul, sub_mul, Pi.single_apply,
+          v, index] using hi)).symm
+    · change v (.gate i) = v (wires 0) * v (wires 1)
+      have h := hmul ⟨i, by rw [he]⟩
+      rw [circuitMulInput_wires C _ he 0, circuitMulInput_wires C _ he 1] at h
+      simpa [circuitMulOutput, v, index, Wire.equiv, Wire.elim] using h.symm
+    · change v (.gate i) = c
+      simpa [circuitLinearCoeffs, circuitLinearTargets, he, Matrix.mulVec, v, index] using hi
   refine ⟨w, funext fun j => ?_⟩
   change C.program.trace (arithInterpretation F) (Fin.append x w) (C.outputs j) = y j
-  rw [← htrace]
-  have hj := congrFun hlinear (.inr (.inr j))
-  simpa only [linear_output, circuitLinearTargets, v, index, Function.comp_apply] using hj
+  rw [← Program.eq_trace_of_forall_gate hinput hgate]
+  simpa only [linear_output, circuitLinearTargets, v, index, Function.comp_apply] using
+    congrFun hlinear (.inr (.inr j))
 
 /-- The circuit messages use the existing three-move shape: corrections and linear MAC masks,
 public multiplication weights, then the masked affine reply. -/
@@ -302,16 +285,12 @@ theorem circuitVerify_correct (x : Fin p → F) (w : Fin k → F) (y : Fin m →
       (maskedMulCheckReply (fun i => circuitMulInput C i 0) (fun i => circuitMulInput C i 1)
         (circuitMulOutput C) (circuitTrace C x w) c.u c.v r) = true := by
   rw [circuitVerify, decide_eq_true_eq]
-  refine ⟨?_, maskedMulCheckReply_correct _ _ _ _ c hc r (circuitTrace_mul C x w)⟩
-  intro i
-  change (circuitLinearCoeffs C *ᵥ
-    voleAdjustReceiver (Fin.init c.w) (voleCommitWitness (circuitTrace C x w) (Fin.init c.u))
-      c.delta) _ = _
-  rw [circuitLinear_adjusted C c hc]
-  have hadd : Fin.init c.u + voleCommitWitness (circuitTrace C x w) (Fin.init c.u) =
-      circuitTrace C x w := by
-    simp [voleCommitWitness]
-  rw [hadd, circuitTrace_linear C x w y hy]
+  refine ⟨fun i => ?_, maskedMulCheckReply_correct _ _ _ _ c hc r (circuitTrace_mul C x w)⟩
+  change (circuitLinearCoeffs C *ᵥ voleAdjustReceiver (Fin.init c.w) _ c.delta) _ = _
+  rw [circuitLinear_adjusted C c hc,
+    show Fin.init c.u + voleCommitWitness (circuitTrace C x w) (Fin.init c.u) =
+      circuitTrace C x w by simp [voleCommitWitness],
+    circuitTrace_linear C x w y hy]
   rfl
 
 /-- The actual role-local reduction has perfect completeness for the public circuit relation. -/
@@ -342,9 +321,8 @@ theorem circuitCheck_complete :
     simp only [circuitVerify_correct C x w y hy c (valid_of_mem_support_voleIdealDist hc) r,
       ite_true]
   rw [hrun]
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq,
-    Interactive.Accept]
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_bind_apply,
+    PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq, Interactive.Accept]
   simp
 
 end Cslib.Crypto.Protocols.VOLE
