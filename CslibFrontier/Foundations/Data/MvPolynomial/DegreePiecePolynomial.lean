@@ -8,8 +8,10 @@ module
 -- upstream: candidate (Mathlib, specialization of multivariate polynomials)
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import Mathlib.Algebra.MvPolynomial.Equiv
 public import Mathlib.Basic.Real.Basic
+public import Mathlib.Data.Nat.Size
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 import Mathlib.Algebra.MvPolynomial.CommRing
@@ -94,5 +96,47 @@ theorem totalDegree_degreePiecePolynomial_le (P : MvPolynomial (Fin (m + 1)) R) 
   refine max_le ((totalDegree_pow _ _).trans (Nat.mul_le_mul_left 2 hinverse)) ?_
   exact totalDegree_finsetSum_le fun j _ =>
     (totalDegree_pow _ _).trans (Nat.mul_le_mul_left 2 ((ha j).trans (Nat.le_succ _)))
+
+/-- A coefficient norm exponent shared by all lifts with coefficient cutoff `N`
+and source coefficient norm at most `2 ^ b`. -/
+@[expose] def degreePieceMassExponent (N b : ℕ) : ℕ := (N + 2).size + 2 * (b + 1)
+
+/-- The sum of absolute coefficients of a degree-piece polynomial is bounded
+uniformly over the selected degree. -/
+theorem coeffNorm1_degreePiecePolynomial_le (P : MvPolynomial (Fin (m + 1)) ℤ)
+    (N k b : ℕ) (hb : P.coeffNorm1 ≤ 2 ^ b) :
+    (degreePiecePolynomial P N k).coeffNorm1 ≤ 2 ^ degreePieceMassExponent N b := by
+  let A (j : ℕ) := rename Fin.succ ((finSuccEquiv ℤ m P).coeff j)
+  have hA (j : ℕ) : (A j).coeffNorm1 ≤ 2 ^ b :=
+    (coeffNorm1_rename_le _ _).trans ((coeffNorm1_coeff_finSuccEquiv_le P j).trans hb)
+  have hbase : (A k * X 0 - 1).coeffNorm1 ≤ 2 ^ (b + 1) := by
+    apply (coeffNorm1_sub_le _ _).trans
+    rw [coeffNorm1_one, pow_succ]
+    have hmul : (A k * X 0).coeffNorm1 ≤ 2 ^ b :=
+      (coeffNorm1_mul_le _ _).trans (by simpa only [coeffNorm1_X, Nat.mul_one] using hA k)
+    have hp : 1 ≤ 2 ^ b := Nat.one_le_two_pow
+    omega
+  have hsquare (Q : MvPolynomial (Fin (m + 1)) ℤ) (hQ : Q.coeffNorm1 ≤ 2 ^ (b + 1)) :
+      (Q ^ 2).coeffNorm1 ≤ 2 ^ (2 * (b + 1)) :=
+    (coeffNorm1_pow_le _ _).trans ((Nat.pow_le_pow_left hQ 2).trans_eq (by
+      rw [← pow_mul, Nat.mul_comm]))
+  have hterm (j : ℕ) : (if k < j then A j else 0).coeffNorm1 ≤ 2 ^ (b + 1) := by
+    split
+    · exact (hA j).trans (Nat.pow_le_pow_right (by decide) (Nat.le_succ b))
+    · simp only [coeffNorm1_zero, Nat.zero_le]
+  rw [degreePiecePolynomial_eq_sum_range]
+  change ((A k * X 0 - 1) ^ 2 +
+    ∑ j ∈ Finset.range (N + 1), (if k < j then A j else 0) ^ 2).coeffNorm1 ≤ _
+  apply (coeffNorm1_add_le _ _).trans
+  apply (Nat.add_le_add (hsquare _ hbase)
+    ((coeffNorm1_sum_le _ _).trans (Finset.sum_le_sum fun j _ => hsquare _ (hterm j)))).trans
+  simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  calc
+    _ = (N + 2) * 2 ^ (2 * (b + 1)) := by
+      simp only [Nat.cast_id, Nat.add_mul, Nat.one_mul]
+      omega
+    _ ≤ 2 ^ (N + 2).size * 2 ^ (2 * (b + 1)) :=
+      Nat.mul_le_mul_right _ (Nat.lt_size_self _).le
+    _ = _ := (pow_add 2 _ _).symm
 
 end MvPolynomial
