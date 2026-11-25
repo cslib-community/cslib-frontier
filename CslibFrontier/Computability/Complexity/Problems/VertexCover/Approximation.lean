@@ -139,8 +139,9 @@ private theorem length_encList_coverStep_le {G : Graph} (C : List ℕ) {e : ℕ 
 @[fun_prop]
 theorem computableInPolyTime_approxCover :
     ComputableInPolyTime approxCover encGraph (encList encNat) := by
-  rw [show approxCover = fun G => (declaredEdges G).foldl (fun C e => coverStep C e) [] from
-    funext fun _ => matchingCover_eq_foldl_coverStep _]
+  have hfold : approxCover = fun G => (declaredEdges G).foldl (fun C e => coverStep C e) [] :=
+    funext fun _ => matchingCover_eq_foldl_coverStep _
+  rw [hfold]
   exact foldlWithInput_of_bounded_growth (encA := encPair encNat encNat)
     (encL := encList (encPair encNat encNat)) (step := fun _ C e => coverStep C e)
     (const []) ⟨computableInPolyTime_declaredEdges, by fun_prop, inferInstance, inferInstance⟩
