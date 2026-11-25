@@ -282,10 +282,9 @@ theorem levelWeight_signVal_majority_of_odd (m j : ℕ) :
         ((m.choose j : ℝ) / (2 * m).choose (2 * j) * ((2 * m).choose m / 4 ^ m)) ^ 2 := by
   rw [levelWeight, sum_congr rfl fun S hS => by
     rw [fourierCoeff_signVal_majority_of_card_eq m j (mem_filter.1 hS).2]]
-  have hc : #{S : Finset (Fin (2 * m + 1)) | #S = 2 * j + 1} =
-      (2 * m + 1).choose (2 * j + 1) := by simp
-  rw [sum_const, hc, nsmul_eq_mul]
+  rw [sum_const, nsmul_eq_mul]
   congr 1
+  · simp
   rw [mul_div_assoc, mul_assoc, mul_pow, ← pow_mul, mul_comm j 2, pow_mul]
   norm_num
 
@@ -319,12 +318,10 @@ theorem abs_fourierCoeff_signVal_majority_le_singleton (m : ℕ) (S : Finset (Fi
     abs_pow, abs_neg, abs_one, one_pow, one_mul, abs_of_nonneg (by positivity),
     abs_of_nonneg (by positivity)]
   refine mul_le_of_le_one_left (by positivity) (div_le_one_of_le₀ ?_ (by positivity))
-  have hc : m.choose j ≤ (2 * m).choose (2 * j) := by
-    rcases le_or_gt j m with hjm | hjm
-    · rw [two_mul j]
-      exact (Nat.choose_le_choose_add_add m j j).trans (Nat.choose_le_choose _ (by omega))
-    · simp [Nat.choose_eq_zero_of_lt hjm]
-  exact_mod_cast hc
+  rcases le_or_gt j m with hjm | hjm
+  · exact_mod_cast two_mul j ▸
+      (Nat.choose_le_choose_add_add m j j).trans (Nat.choose_le_choose _ (by omega))
+  · simp [Nat.choose_eq_zero_of_lt hjm]
 
 /-- One step of the decrease: from level `2 j + 1 ≤ m` to level `2 j + 3`, the coefficients of
 majority shrink by the factor `(2 j + 1) / (2 m - 2 j - 1) ≤ 1`. -/
@@ -339,10 +336,8 @@ private theorem choose_div_choose_succ_le {m j : ℕ} (hjm : 2 * j + 1 ≤ m) :
     show j + 1 + r - (j + 1) = r by omega, show j + 1 + r - j = r + 1 by omega]
   simp only [mul_add, mul_one, Nat.factorial_succ]
   push_cast
-  have hq : (2 * (j : ℝ) + 1) / (2 * r + 1) ≤ 1 := by
-    rw [div_le_one (by positivity)]
-    have : (j : ℝ) ≤ r := by exact_mod_cast (by omega : j ≤ r)
-    linarith
+  have hq : (2 * (j : ℝ) + 1) / (2 * r + 1) ≤ 1 :=
+    (div_le_one (by positivity)).2 (by gcongr; omega)
   refine le_of_eq_of_le ?_ (mul_le_of_le_one_right (by positivity) hq)
   field_simp
   ring
@@ -477,18 +472,16 @@ theorem noiseStability_signVal_majority_succ_lt (m : ℕ) {ρ : ℝ} (h0 : 0 < �
       rcases Nat.even_or_odd k with he | ⟨j, rfl⟩
       · simp only [hW, levelWeight_signVal_majority_of_even _ he, le_refl]
       · exact (levelWeight_signVal_majority_succ_lt m j (by omega)).le
-    · have ha : W (2 * m + 1) k = 0 := levelWeight_eq_zero_of_card_lt (by simpa using hk) _
-      rw [ha]
+    · rw [show W (2 * m + 1) k = 0 from levelWeight_eq_zero_of_card_lt (by simpa using hk) _]
       nlinarith [pow_le_pow_of_le_one h0.le h1.le hk.le, levelWeight_nonneg k
         fun x : Fin (2 * (m + 1) + 1) → Bool => signVal (majority (2 * (m + 1) + 1) x)]
-  · have ha : W (2 * m + 1) (2 * (m + 1) + 1) = 0 :=
-      levelWeight_eq_zero_of_card_lt (by simp) _
+  · rw [show W (2 * m + 1) (2 * (m + 1) + 1) = 0 from
+      levelWeight_eq_zero_of_card_lt (by simp) _]
     have hb : 0 < W (2 * (m + 1) + 1) (2 * (m + 1) + 1) := by
       simp only [hW, levelWeight_signVal_majority_of_odd, Nat.choose_self, Nat.cast_one, div_one,
         one_mul]
       have := Nat.choose_pos (by omega : m + 1 ≤ 2 * (m + 1))
       positivity
-    rw [ha]
     nlinarith
 
 end Cslib.BitString
