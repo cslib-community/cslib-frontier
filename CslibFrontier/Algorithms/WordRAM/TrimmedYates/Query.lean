@@ -240,7 +240,8 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
       hw₁_dlen hys_sub hw₁_dom (by rw [hys_len]; exact hfit_space.of_le (by omega)) hfit_mask
   have hhigh_len : (ys.map (C \ ·)).length = H_q := by simp [hys_len]
   have hhigh_nd : (ys.map (C \ ·)).Nodup := hys_spec.1.map_on fun Y₁ h₁ Y₂ h₂ heq => by
-    rw [← Finset.sdiff_sdiff_eq_self (hys_sub Y₁ h₁), heq, Finset.sdiff_sdiff_eq_self (hys_sub Y₂ h₂)]
+    rw [← Finset.sdiff_sdiff_eq_self (hys_sub Y₁ h₁), heq,
+      Finset.sdiff_sdiff_eq_self (hys_sub Y₂ h₂)]
   have hhigh_mem : ∀ X, X ∈ ys.map (C \ ·) ↔ X ⊆ C ∧ s ≤ #X := by
     intro X
     simp only [List.mem_map]
@@ -250,7 +251,8 @@ private theorem exec_qLongBranch {w d s baseFree outBase qWorkStart rootF rootG 
       rw [Finset.card_sdiff_of_subset (hys_sub Y hY)]
       exact ⟨sdiff_subset, by omega⟩
     · rintro ⟨hXC, hsX⟩
-      refine ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset, ?_⟩, Finset.sdiff_sdiff_eq_self hXC⟩
+      refine ⟨C \ X, (hys_spec.2 _).mpr ⟨hcList_tf ▸ sdiff_subset, ?_⟩,
+        Finset.sdiff_sdiff_eq_self hXC⟩
       rw [Finset.card_sdiff_of_subset hXC]; omega
   -- Run the three high-domain Yates transforms with the precomputed low stages as fallback.
   obtain ⟨w₃, he_w3, hw₃_dp, hw₃_dl, hw₃_fr, hw₃_cut, hw₃_mem⟩ :
@@ -430,7 +432,8 @@ theorem exec_queryStep {w d s baseFree outBase rootF rootG qPtr preFs preGs preH
   have hf_out_q1 : Fits w (outBase + (q + 1)) := hfit_space.of_le (by omega)
   obtain ⟨z, he_wr, hz_qi, hz_mem⟩ : ∃ z, ExecWithin w qWriteCode u_ans z 3 ∧
       z.regs rQueryIdx = q + 1 ∧
-      z.mem = Function.update u_ans.mem (outBase + (q + 1)) (Signed.encode (coveringProduct f g C)) := by
+      z.mem = Function.update u_ans.mem (outBase + (q + 1))
+        (Signed.encode (coveringProduct f g C)) := by
     unfold qWriteCode
     wram_exec [hu_qi, hu_one, hu_out, hu_val]
     wram_simp
