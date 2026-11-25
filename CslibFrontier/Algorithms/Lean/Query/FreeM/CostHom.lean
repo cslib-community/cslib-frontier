@@ -22,6 +22,7 @@ with weights `weight` is the cost with weights `f ∘ weight`. For example, with
 ## Main results
 
 * `Cslib.FreeM.map_cost`: `f (p.cost oracle weight) = p.cost oracle (f ∘ weight)`.
+* `Cslib.FreeM.cost_zero`: with zero weights, the cost is zero.
 -/
 
 public section
@@ -43,5 +44,10 @@ theorem map_cost {T : Type t} {T' : Type w} {G : Type x} [AddMonoid T] [AddMonoi
     change f ((FreeM.lift op >>= cont).cost oracle weight) =
       (FreeM.lift op >>= cont).cost oracle (fun q => f (weight q))
     rw [cost_liftBind, cost_liftBind, map_add, ih]
+
+/-- With every query weighted zero, the cost is zero: `map_cost` for the zero homomorphism. -/
+@[simp] theorem cost_zero {T : Type t} [AddMonoid T] (oracle : {ι : Type u} → F ι → ι)
+    (p : FreeM F α) : p.cost oracle (fun _ => (0 : T)) = 0 := by
+  simpa using (map_cost (0 : T →+ T) oracle (fun _ => (0 : T)) p).symm
 
 end Cslib.FreeM

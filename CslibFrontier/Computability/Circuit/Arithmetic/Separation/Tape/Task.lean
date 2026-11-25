@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.Automata.Weighted.Loop
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Data.Fintype.Prod
 public import Mathlib.Data.Fintype.Sum
-public import Mathlib.Data.Set.Finite.List
+public import CslibFrontier.Foundations.Data.List.WordsLe
 
 /-!
 # Tasks on tape and input channels
@@ -73,14 +73,14 @@ instance instFintypeCh {S J : Type*} [Fintype S] [Fintype J] : Fintype (Ch S J) 
 @[expose] noncomputable def contents (S Γ : Type*) [Fintype S] [DecidableEq S] [Finite Γ]
     (t : ℕ) : Finset (S → List Γ) :=
   open Classical in
-  (Fintype.piFinset fun _ => (List.finite_length_le Γ t).toFinset).filter
+  (Fintype.piFinset fun _ => List.wordsLe Γ t).filter
     fun W => ∑ s, (W s).length ≤ t
 
 theorem mem_contents {S Γ : Type*} [Fintype S] [DecidableEq S] [Finite Γ]
     {t : ℕ} {W : S → List Γ} :
     W ∈ contents S Γ t ↔ ∑ s, (W s).length ≤ t := by
   classical
-  simp only [contents, Finset.mem_filter, Fintype.mem_piFinset, Set.Finite.mem_toFinset]
+  simp only [contents, Finset.mem_filter, Fintype.mem_piFinset, List.mem_wordsLe]
   constructor
   · exact fun h => h.2
   · intro h

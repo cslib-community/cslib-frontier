@@ -151,7 +151,7 @@ end
 
 -- Local `simp`-indexed forms matching `StateTransitionSpec.fst_snd_runClient_bind`.
 attribute [local client_simps] StateTransitionSpec.clientState
-  runClient_read runClient_write runClient_allocDirty runClient_ite map_eq_pure_bind
+  runClient_read runClient_write runClient_allocDirty runClient_ite
 
 /-! ### Pure combinatorics and `maSearch` / `run` bridges -/
 

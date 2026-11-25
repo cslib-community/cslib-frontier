@@ -205,9 +205,7 @@ def isEmpty : Prog Bool := do
 through the typed indexed-PQ operations; the program accepts the runtime index word directly. -/
 def getKey (v : ℕ) : Prog (Option ℕ) := do
   let p ← L.pos.get v
-  if p = 0 then pure none else do
-    let k ← L.key.get v
-    pure (some k)
+  if p = 0 then pure none else some <$> L.key.get v
 
 /-- Insert the absent handle `v` with key `k`: store the key, append `v` at the end of the heap,
 and sift it up. -/

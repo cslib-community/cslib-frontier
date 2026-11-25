@@ -124,8 +124,9 @@ not cited results, and nothing here asks them to invent a cited endpoint.
 - **A step.** It is presented as an intermediate step under
   [Faithful headlines](#faithful-headlines) rule 2, and meets every condition of that rule.
 
-Registration requires the independent check of the statement against the source, by a reviewer
-from outside the authoring fleet ([Review cycle](review.md#review-cycle)). A new theorem that
+Registration requires the independent check of the statement against the source, by a non-author
+working in a separate context, who may be an agent of the authoring fleet
+([Review cycle](review.md#review-cycle)). A new theorem that
 presents a cited result therefore lands with its entry, with the check made on its pull request,
 or lands as a step and is registered by a later change once the check has been made.
 The check opens the definitions that the statement names (its games, schemes, predicates and

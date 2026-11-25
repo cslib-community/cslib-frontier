@@ -8,6 +8,10 @@ module
 -- upstream: candidate (Mathlib Data/List)
 
 public import CslibFrontier.Init
+public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
+public import Mathlib.Data.Fintype.Fin
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fin.Basic
 import Mathlib.Data.List.OfFn
 import Mathlib.Logic.Function.Basic
@@ -33,6 +37,8 @@ From *VP ≠ VNP over every field* [AnthropicVPVNP2026], module `Nc.Tape.Refine`
   concatenation.
 * `List.StairRefinement.IsRef.unique`: uniqueness of the common refinement matrix.
 * `List.StairRefinement.IsRef.exists`: existence of a common refinement given equal concatenations.
+* `List.StairRefinement.cat_add`, `List.StairRefinement.sum_length_cat`,
+  `List.StairRefinement.length_le_cat`: concatenations of a sequence split in two, and lengths.
 -/
 
 public section
@@ -272,5 +278,32 @@ theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRe
         · intro j hj; rw [Function.update_of_ne hj.ne]; exact hrow j hj b'
         · simp
       · rw [upd_col_ne _ _ _ _ e, hX.col, Function.update_of_ne e]
+
+section Lengths
+
+variable {K' : ℕ}
+
+/-- The concatenation of `K + K'` words is that of the first `K` and then of the last `K'`. -/
+theorem cat_add (X : Fin (K + K') → List Γ) :
+    cat X = cat (fun κ => X (Fin.castAdd K' κ)) ++ cat fun κ => X (Fin.natAdd K κ) := by
+  simp only [cat]
+  rw [List.ofFn_add, List.flatten_append]
+  rfl
+
+/-- The length of a concatenation is the sum of the lengths. -/
+theorem sum_length_cat (X : Fin K → List Γ) : ∑ b, (X b).length = (cat X).length := by
+  rw [cat, List.length_flatten, List.map_ofFn, List.sum_ofFn]
+  rfl
+
+/-- Every word of a sequence is at most as long as the concatenation. -/
+theorem length_le_cat (X : Fin K → List Γ) (b : Fin K) : (X b).length ≤ (cat X).length :=
+  (Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ b)).trans_eq
+    (sum_length_cat X)
+
+/-- Staircase support is decidable. -/
+instance (X : Fin K → Fin K → List Γ) : Decidable (Stair X) :=
+  inferInstanceAs (Decidable (∀ a a' b b', X a b ≠ [] → X a' b' ≠ [] → a < a' → b ≤ b'))
+
+end Lengths
 
 end List.StairRefinement

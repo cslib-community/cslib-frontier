@@ -9,8 +9,11 @@ module
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 import CslibFrontier.Foundations.Geometry.SegmentSign
+import Mathlib.Analysis.Convex.StrictConvexBetween
 import Mathlib.Analysis.Convex.StrictConvexSpace
 import Mathlib.Analysis.InnerProductSpace.Convex
+import Mathlib.Analysis.Normed.Affine.AddTorsor
+import Mathlib.Analysis.Normed.Affine.Convex
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -22,7 +25,9 @@ The midpoint of a chord is an interior point of the circle. The two open circula
 arcs cut out by its endpoints are exactly the two strict affine half-planes of the
 chord. This works for both major and minor arcs, including a diameter.
 `circle_chord_inter_iff_alternates` characterizes an interior contact between chords
-with four distinct endpoints by alternation around their common circle.
+with four distinct endpoints by alternation around their common circle. A segment through
+the center can be cut at the circle, with an exact interval of parameters in the disk.
+The chords joining two antipodal pairs across the original diameters are disjoint.
 -/
 
 public section
@@ -70,6 +75,88 @@ theorem midpoint_mem_ball_of_mem_sphere {z p q : ℂ} {ρ : ℝ}
   exact (strictConvex_closedBall ℝ z ρ).openSegment_subset
     (Metric.sphere_subset_closedBall hp) (Metric.sphere_subset_closedBall hq) hpq
     (midpoint_mem_openSegment p q)
+
+/-- A segment through the center with endpoints outside the closed disk has two strictly
+interior cuts on the circle. The cut points are antipodal, and the cut interval describes
+the whole preimage of the disk under the affine parameterization. -/
+theorem exists_closedBall_lineMap_cuts {a b z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
+    (hz : z ∈ openSegment ℝ a b) (ha : a ∉ Metric.closedBall z ρ)
+    (hb : b ∉ Metric.closedBall z ρ) :
+    ∃ l u : ℝ, 0 < l ∧ l < u ∧ u < 1 ∧
+      (∀ t, AffineMap.lineMap a b t ∈ Metric.closedBall z ρ ↔ t ∈ Set.Icc l u) ∧
+      (∀ t, AffineMap.lineMap a b t ∈ Metric.sphere z ρ ↔ t = l ∨ t = u) ∧
+      midpoint ℝ (AffineMap.lineMap a b l) (AffineMap.lineMap a b u) = z := by
+  rw [openSegment_eq_image_lineMap] at hz
+  obtain ⟨s, hs, rfl⟩ := hz
+  have hab : a ≠ b := by
+    rintro rfl
+    apply ha
+    rw [AffineMap.lineMap_same_apply]
+    exact Metric.mem_closedBall_self hρ.le
+  have hd : 0 < dist a b := dist_pos.mpr hab
+  let δ := ρ / dist a b
+  have hδ : 0 < δ := div_pos hρ hd
+  have hdist (t : ℝ) : dist (AffineMap.lineMap a b t) (AffineMap.lineMap a b s) =
+      |t - s| * dist a b := by rw [dist_lineMap_lineMap, Real.dist_eq]
+  have hclosed (t : ℝ) :
+      AffineMap.lineMap a b t ∈ Metric.closedBall (AffineMap.lineMap a b s) ρ ↔
+        t ∈ Set.Icc (s - δ) (s + δ) := by
+    rw [Metric.mem_closedBall, hdist, ← le_div_iff₀ hd, abs_le]
+    constructor <;> rintro ⟨hl, hu⟩ <;> exact ⟨by linarith, by linarith⟩
+  have hleft : 0 < s - δ := by
+    by_contra! h
+    apply ha
+    simpa only [AffineMap.lineMap_apply_zero] using
+      (hclosed 0).mpr ⟨h, by linarith [hs.1]⟩
+  have hright : s + δ < 1 := by
+    by_contra! h
+    apply hb
+    simpa only [AffineMap.lineMap_apply_one] using
+      (hclosed 1).mpr ⟨by linarith [hs.2], h⟩
+  refine ⟨s - δ, s + δ, hleft, by linarith, hright, hclosed, ?_, ?_⟩
+  · intro t
+    rw [Metric.mem_sphere, hdist, ← eq_div_iff hd.ne']
+    change |t - s| = δ ↔ _
+    have habs : |t - s| = δ ↔ t - s = δ ∨ t - s = -δ := by
+      rw [← abs_eq_abs, abs_of_pos hδ]
+    rw [habs]
+    constructor
+    · rintro (h | h)
+      · exact Or.inr (by linarith)
+      · exact Or.inl (by linarith)
+    · rintro (rfl | rfl)
+      · exact Or.inr (by ring)
+      · exact Or.inl (by ring)
+  · rw [← AffineMap.map_midpoint]
+    congr 1
+    rw [midpoint_eq_smul_add, smul_eq_mul, invOf_eq_inv]
+    ring
+
+/-- Join `p` to `q` and join their antipodes `x` to `y`. These closed chords are disjoint
+whenever `p` and `q` lie on the same circle and `q` is not the antipode of `p`. -/
+theorem disjoint_segments_of_antipodal_pairs {z p q x y : ℂ} {ρ : ℝ}
+    (hp : p ∈ Metric.sphere z ρ) (hq : q ∈ Metric.sphere z ρ)
+    (hqx : q ≠ x) (hpx : midpoint ℝ p x = z) (hqy : midpoint ℝ q y = z) :
+    Disjoint (segment ℝ p q) (segment ℝ x y) := by
+  let reflect := AffineEquiv.pointReflection ℝ z
+  have hx : reflect p = x := midpoint_eq_iff.mp hpx
+  have hy : reflect q = y := midpoint_eq_iff.mp hqy
+  have himage : reflect.toAffineMap '' segment ℝ p q = segment ℝ x y := by
+    rw [image_segment, AffineEquiv.coe_toAffineMap, hx, hy]
+  apply Set.disjoint_left.mpr
+  intro w hw hwr
+  rw [← himage] at hwr
+  obtain ⟨v, hv, hvw⟩ := hwr
+  have hmid : midpoint ℝ v w = z := midpoint_eq_iff.mpr hvw
+  have hconv : Convex ℝ (segment ℝ p q) := convex_segment p q
+  have hz : z ∈ segment ℝ p q := hmid ▸ hconv.midpoint_mem hv hw
+  have hzmid : midpoint ℝ p q = z := by
+    have hdist := dist_add_dist_of_mem_segment hz
+    have hp' := Metric.mem_sphere.mp hp
+    have hq' := (dist_comm z q).trans (Metric.mem_sphere.mp hq)
+    exact (eq_midpoint_of_dist_eq_half
+      (by linarith only [hdist, hp', hq']) (by linarith only [hdist, hp', hq'])).symm
+  exact hqx ((midpoint_eq_iff.mp hzmid).symm.trans hx)
 
 /-- The signed coordinate perpendicular to a chord, scaled so its normal has unit
 coordinate. The first endpoint fixes the sign; its counterclockwise arc is positive. -/

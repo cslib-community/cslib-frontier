@@ -18,12 +18,12 @@ open Cslib.MachineLearning.PACLearning Cslib.MachineLearning.OnlineLearning.Mist
 
 /-- The thresholds on `ℕ` shatter no two points. -/
 theorem card_le_one_of_setShatters_thresholdClass (W : Finset ℕ)
-    (hW : SetShatters thresholdClass ↑W) : W.card ≤ 1 :=
+    (hW : SetShatters (thresholdClass ℕ) ↑W) : W.card ≤ 1 :=
   not_lt.1 fun h => not_setShatters_thresholdClass h hW
 
 /-- Voting over subsamples for the thresholds, at accuracy `1/3` and confidence `1/2`. -/
 theorem exists_pmf_subsample {m : ℕ} (hm : 0 < m) {S : LabeledSample ℕ Bool m}
-    (hS : Realizable thresholdClass S) :
+    (hS : Realizable (thresholdClass ℕ) S) :
     ∃ A : Learner ℕ Bool ⌈vcSampleSize 1 (1 / 3) (1 / 2)⌉₊, ∃ μ : PMF (Fin _ → Fin m),
       ∀ i, μ.toOuterMeasure {b | A (S ∘ b) (S i).1 ≠ (S i).2} ≤ ENNReal.ofReal (1 / 3) := by
   obtain ⟨A, hA⟩ := exists_isConsistent (m := ⌈vcSampleSize 1 (1 / 3) (1 / 2)⌉₊)

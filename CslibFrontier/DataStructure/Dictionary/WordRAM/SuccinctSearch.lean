@@ -1248,7 +1248,8 @@ theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
     ovfSearchFound, ovfSearchIdx] at *
   have h1 := searchMicroChainProg_spec henv hb hm hinv hchain hc_lt
   have h2 := searchOverflowProg_spec (d := d.1) henv hb hinv
-  dsimp only [ovfBucketBase, ovfBucketIdx, ovfSearchFound, ovfSearchIdx] at h1 h2
+  dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx, microAccStatus, microAccIdx,
+    ovfBucketBase, ovfBucketIdx, ovfSearchFound, ovfSearchIdx] at h1 h2
   unfold searchBucketProg
   simp only [pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
@@ -1276,9 +1277,9 @@ theorem realizes_searchBucketGen :
       (fun _ _ => 0) := by
   have hm := realizes_searchMicroChainGen
   have ho := realizes_searchOverflowGen
-  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, searchMicroChainGenProg_mk,
-    searchOverflowGenPre_mk, SearchOverflowPre, searchOverflowGenProg_mk,
-    microSearchFound, microSearchIdx, searchBucketGenQuery]
+  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, lmEntryBase, lmEntryBucket,
+    searchMicroChainGenProg_mk, searchOverflowGenPre_mk, SearchOverflowPre,
+    searchOverflowGenProg_mk, microSearchFound, microSearchIdx, searchBucketGenQuery]
   · exact h
   · exact fits_const_of_dictEnv h.1 (by decide)
   · obtain ⟨L, hchain, hc_lt⟩ := h.2.2.2.2
