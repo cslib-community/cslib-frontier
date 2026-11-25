@@ -117,8 +117,7 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
     (inverseBase L m N) (tableBase L m N) c (by regs_frame) (Nat.le_refl _) (tables_fit hfit)
   have htp : BandParameters L m N t := by regs_frame
   have h2L := Nat.zero_le (2 ^ L)
-  have hinv : inverseBase L m N ≤ catalogueBase L m N := by
-    unfold catalogueBase tableBase; omega
+  have hinv : inverseBase L m N ≤ catalogueBase L m N := by unfold catalogueBase tableBase; omega
   have hsnapshot (a : ℕ) (ha : a < inputEnd m N) :
       t.mem (snapshotBase L m N + a) = x.mem a := by
     rw [htframe _ (by unfold inverseBase; omega) (by unfold tableBase inverseBase; omega),
@@ -162,10 +161,8 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
     cases side
     · have : β * 10 ^ L + p < numBands L m N * 10 ^ L := by
         nlinarith only [hβ, hp, Nat.one_le_pow L 10 (by decide)]
-      rw [hrframe _ ?_ ?_]
-      · exact hlvalues β hβ p hp
-      all_goals
-        simp only [catalogueAddress, Bool.false_eq_true, ↓reduceIte, Nat.zero_add, Nat.add_zero]
+      refine (hrframe _ ?_ ?_).trans (hlvalues β hβ p hp) <;>
+        simp only [catalogueAddress, Bool.false_eq_true, ↓reduceIte, Nat.zero_add, Nat.add_zero] <;>
         omega
     · exact hrvalues β hβ p hp
   · intro gh
