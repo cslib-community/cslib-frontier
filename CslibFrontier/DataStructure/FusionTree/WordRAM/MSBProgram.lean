@@ -135,9 +135,8 @@ private theorem values_output_msb (s x : ℕ) (hx : 0 < x) :
 /-- With the width-dependent cluster size, the final source value is the highest
 set-bit index. This is a source-graph result, without a RAM execution assertion. -/
 theorem values_output {w x : ℕ} (hx0 : 0 < x) (hx : x < 2 ^ w) :
-    values (clusterSize w) x 43 = x.log2 := by
-  rw [values_output_msb _ _ hx0]
-  exact widthMSB_eq_log2 hx
+    values (clusterSize w) x 43 = x.log2 :=
+  values_output_msb _ _ hx0 ▸ widthMSB_eq_log2 hx
 
 /-- Each virtual value occurs in an audited stage list, apart from the unit constant,
 the selected-cluster offset, the unmasked selected input, and the final output. -/
@@ -160,23 +159,19 @@ private theorem values_lt {w x : ℕ} (hw : 0 < w) (hx0 : 0 < x) (hx : x < 2 ^ w
   · exact hc _ h
   · exact hz _ h
   · exact hv _ h
-  · rw [h]
-    exact Nat.one_lt_two_pow (by omega)
-  · rw [h]
-    exact hoff
+  · exact h ▸ Nat.one_lt_two_pow (by omega)
+  · exact h ▸ hoff
   · rw [h, Nat.shiftRight_eq_div_pow]
     exact (Nat.div_le_self _ _).trans_lt
       (hx.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
-  · rw [h, values_output_msb _ _ hx0]
-    exact hout
+  · rwa [h, values_output_msb _ _ hx0]
 
 /-- At widths at least three, the precomputed cluster size is strictly smaller than
 the physical width. -/
 private theorem clusterSize_lt {w : ℕ} (hw : 3 ≤ w) : clusterSize w < w := by
   obtain ⟨_, _, hsq, hsw⟩ := clusterSize_bounds (show 0 < w by omega)
   by_contra h
-  have he : clusterSize w = w := by omega
-  rw [he] at hsq
+  rw [show clusterSize w = w by omega] at hsq
   nlinarith
 
 /-- The two guarded comparison inputs and their sums fit in physical words. -/
@@ -184,11 +179,9 @@ private theorem guarded_fits {w z : ℕ} (hw : 3 ≤ w) (hz : z < 2 ^ clusterSiz
     Fits w (2 ^ clusterSize w) ∧ Fits w z ∧ Fits w (2 ^ clusterSize w + z) := by
   have hs := clusterSize_lt hw
   have hp : 2 ^ clusterSize w < 2 ^ w := Nat.pow_lt_pow_right (by decide) hs
-  refine ⟨hp, hz.trans hp, ?_⟩
-  have hadd : 2 ^ clusterSize w + z < 2 ^ (clusterSize w + 1) := by
-    rw [pow_succ]
-    omega
-  exact hadd.trans_le (Nat.pow_le_pow_right (by decide) (by omega))
+  refine ⟨hp, hz.trans hp, lt_of_lt_of_le (b := 2 ^ (clusterSize w + 1)) ?_
+    (Nat.pow_le_pow_right (by decide) (by omega))⟩
+  rw [pow_succ]; omega
 
 /-- Every shift count used by the source graph fits in one physical word. -/
 private theorem shift_amounts_fit {w x : ℕ} (hw : 3 ≤ w) :
@@ -199,15 +192,11 @@ private theorem shift_amounts_fit {w x : ℕ} (hw : 3 ≤ w) :
   obtain ⟨hs, _, hsq, hsw⟩ := clusterSize_bounds (show 0 < w by omega)
   have htw := Nat.two_mul_lt_two_pow hw
   have hc := smallMSB_lt hs (clusterSummary_lt (clusterSize w) x)
-  refine ⟨hsq.trans_lt htw, ?_, ?_, ?_⟩
-  · exact hsw.trans_lt (by have := Nat.lt_two_pow_self (n := w); exact this)
-  · have hpred : (clusterSize w - 1) * (clusterSize w + 1) ≤
-        clusterSize w * clusterSize w := by
-      have hp : clusterSize w - 1 + 1 = clusterSize w := by omega
-      nlinarith
-    exact (hpred.trans hsq).trans_lt htw
-  · have hmul := Nat.mul_le_mul_right (clusterSize w) hc.le
-    exact (hmul.trans hsq).trans_lt htw
+  refine ⟨hsq.trans_lt htw, hsw.trans_lt Nat.lt_two_pow_self, ?_,
+    ((Nat.mul_le_mul_right _ hc.le).trans hsq).trans_lt htw⟩
+  exact ((show (clusterSize w - 1) * (clusterSize w + 1) ≤ clusterSize w * clusterSize w by
+    have : clusterSize w - 1 + 1 = clusterSize w := by omega
+    nlinarith).trans hsq).trans_lt htw
 
 /-- The final addition has fitting operands and result. -/
 private theorem output_add_fits {w x : ℕ} (hx0 : 0 < x) (hx : x < 2 ^ w) :
@@ -216,13 +205,11 @@ private theorem output_add_fits {w x : ℕ} (hx0 : 0 < x) (hx : x < 2 ^ w) :
     let v := (x >>> (c * s)) &&& (2 ^ s - 1)
     Fits w (c * s) ∧ Fits w (smallMSB s v) ∧ Fits w (c * s + smallMSB s v) := by
   dsimp only
-  have he := values_output hx0 hx
-  change smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) * clusterSize w +
-    smallMSB (clusterSize w)
-      ((x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
-        clusterSize w)) &&& (2 ^ clusterSize w - 1)) = x.log2 at he
-  have hl : x.log2 < w := (Nat.log2_lt (by omega)).mpr hx
-  have hfit : x.log2 < 2 ^ w := hl.trans Nat.lt_two_pow_self
+  have he : smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) * clusterSize w +
+      smallMSB (clusterSize w)
+        ((x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
+          clusterSize w)) &&& (2 ^ clusterSize w - 1)) = x.log2 := values_output hx0 hx
+  have hfit : x.log2 < 2 ^ w := ((Nat.log2_lt (by omega)).mpr hx).trans Nat.lt_two_pow_self
   fits
 
 /-- Every executed node satisfies the concrete multiword compiler's admissibility
@@ -230,28 +217,17 @@ contract. Only the additions and shift counts require physical-word bounds. -/
 private theorem ops_admissible {w x : ℕ} (hw : 3 ≤ w) (hx0 : 0 < x) (hx : x < 2 ^ w)
     (i : Fin 44) (hi : i ≠ 0) :
     (ops (clusterSize w) i).Admissible w (values (clusterSize w) x) := by
-  have hbound : (ops (clusterSize w) i).eval (values (clusterSize w) x) <
-      2 ^ (6 * w) := by
-    rw [eval_ops _ _ _ hi]
-    exact values_lt (by omega) hx0 hx i
   have hz := guarded_fits hw (clusterSummary_lt (clusterSize w) x)
   have hv := guarded_fits hw (z :=
       (x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
-        clusterSize w)) &&& (2 ^ clusterSize w - 1)) (by
-    rw [Nat.and_two_pow_sub_one_eq_mod]
-    exact Nat.mod_lt _ (Nat.two_pow_pos _))
+        clusterSize w)) &&& (2 ^ clusterSize w - 1)) <| by
+    rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
   have hs := shift_amounts_fit (x := x) hw
   have ho := output_add_fits hx0 hx
-  refine ⟨hbound, ?_⟩
+  refine ⟨eval_ops _ _ _ hi ▸ values_lt (by omega) hx0 hx i, ?_⟩
   fin_cases i <;> first
-    | exact True.intro
-    | exact hz
-    | exact hv
-    | exact ho
-    | exact hs.1
-    | exact hs.2.1
-    | exact hs.2.2.1
-    | exact hs.2.2.2
+    | exact True.intro | exact hz | exact hv | exact ho
+    | exact hs.1 | exact hs.2.1 | exact hs.2.2.1 | exact hs.2.2.2
 
 open Cslib.WordRAM
 open Cslib.WordRAM.Multiword
@@ -287,20 +263,17 @@ private theorem exec_positiveCode {w z : ℕ} (hw : 3 ≤ w) (hz0 : 0 < z) (hz :
       have hine : i ≠ 0 := by intro h; subst i; simp at hi
       exact ⟨ops_earlier _ i, eval_ops _ _ i hine, ops_admissible hw hz0 hz i hine⟩)
     x hx
-  have hp : Circuit.prefix (values (clusterSize w) z) (1 + 43) =
-      values (clusterSize w) z := by
-    funext i
-    exact ite_eq_left i.isLt
+  have hp : Circuit.prefix (values (clusterSize w) z) (1 + 43) = values (clusterSize w) z :=
+    funext fun i => ite_eq_left i.isLt
   rw [hp] at hu
   have hval : Multiword.value (radix w) u (Bank.regs (43 : Fin 44)) = z.log2 :=
     (hu 43).2.trans (values_output hz0 hz)
-  have hfit : Fits w (Multiword.value (radix w) u (Bank.regs (43 : Fin 44))) := by
-    rw [hval]
-    exact ((Nat.log2_lt (by omega : z ≠ 0)).mpr hz).trans Nat.lt_two_pow_self
+  have hfit : Fits w (Multiword.value (radix w) u (Bank.regs (43 : Fin 44))) :=
+    hval.symm ▸ ((Nat.log2_lt (by omega : z ≠ 0)).mpr hz).trans Nat.lt_two_pow_self
   obtain ⟨y, hey, hy, hyf, _⟩ := Transfer.exec_assemble (by omega)
     (Bank.regs (43 : Fin 44)) output (Bank.digit_regs 43) u hfit
-  refine ⟨y, ?_, hy.trans hval, hyf.1.trans hum⟩
-  simpa only [positiveCode, Bank.length_regs] using heu.seq hey.within
+  exact ⟨y, by simpa only [positiveCode, Bank.length_regs] using heu.seq hey.within,
+    hy.trans hval, hyf.1.trans hum⟩
 
 /-- Width two needs only division by two: its possible indices are zero and one. -/
 def twoBitCode : Code .standard (Bank.capacity 44 + 4) := ram[
@@ -345,12 +318,9 @@ private theorem exec_finishCode {w z : ℕ} (hw : 3 ≤ w) (hz : z < 2 ^ w)
     have htp : Bank.Encodes w t (Circuit.prefix (values (clusterSize w) z) 1) := by
       intro j
       have he (i : Fin (Bank.capacity 44 + 4)) (hi : i ∈ Bank.regs j) : t.regs i = x.regs i := by
-        have := Bank.mem_regs hi
-        subst ht
-        apply Data.set_regs_of_ne
-        rintro rfl
-        have : zeroTest.val = 5 := rfl
-        omega
+        have := Bank.mem_regs hi; subst ht
+        apply Data.set_regs_of_ne; rintro rfl
+        have : zeroTest.val = 5 := rfl; omega
       have hpj : Function.update (fun _ => 0) (0 : Fin 44) z j =
           Circuit.prefix (values (clusterSize w) z) 1 j := by
         by_cases hj : j = 0
@@ -412,17 +382,15 @@ theorem exec_scalarCode {w : ℕ} (hw : 3 ≤ w) (x : Data (Bank.capacity 44 + 4
   have htbank := Bank.encodes_update hu (0 : Fin 44) _ htb htv
     (fun i hi hid => htp i (by wram_omega) hid)
   rw [hin] at htbank
-  have hnot : (Bank.inputReg : Fin (Bank.capacity 44 + 4)) ∉ Bank.regs (0 : Fin 44) := by
-    intro hi
+  have hnot : (Bank.inputReg : Fin (Bank.capacity 44 + 4)) ∉ Bank.regs (0 : Fin 44) := fun hi => by
     have hh := Bank.mem_regs hi
-    dsimp only [Bank.inputReg] at hh
-    omega
+    dsimp only [Bank.inputReg] at hh; omega
   have htin : t.regs Bank.inputReg = x.regs Bank.inputReg :=
     (htp Bank.inputReg (by dsimp [Workspace.IsDigit, Bank.inputReg]; omega) hnot).trans hin
   obtain ⟨y, hey, hy, hym⟩ := exec_finishCode hw hz t htbank htin
-  refine ⟨y, ?_, hy, hym.trans (htf.1.trans hum)⟩
-  have hh := heu.within.seq (het.within.seq hey)
-  simpa only [scalarCode] using hh.mono (by decide : 172885 ≤ 200000)
+  exact ⟨y, by simpa only [scalarCode] using
+    (heu.within.seq (het.within.seq hey)).mono (by decide : 172885 ≤ 200000),
+    hy, hym.trans (htf.1.trans hum)⟩
 
 /-- The complete flat standard-basis program, with its final halt charged separately. -/
 def program (w : ℕ) : Cslib.WordRAM.Program .standard (Bank.capacity 44 + 4) :=
@@ -440,8 +408,7 @@ returning zero. The register count and the time bound are independent of physica
 theorem executes_program {w z : ℕ} (hw : 2 ≤ w) (hz : z < 2 ^ w) :
     ∃ t ≤ 200001, Executes w (program w) (State.init [z]) z.log2 t := by
   obtain ⟨y, ⟨t, ht, he⟩, hy, _⟩ := exec_code hw hz
-  refine ⟨t + 1, by omega, ?_⟩
-  simpa only [program, State.init, hy] using he.executes output
+  exact ⟨t + 1, by omega, by simpa only [program, State.init, hy] using he.executes output⟩
 
 end Cslib.DataStructure.FusionTree.WordRAM.MSB.Program
 

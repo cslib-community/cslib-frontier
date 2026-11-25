@@ -107,38 +107,31 @@ theorem Entry.read_eq (e : Entry) (j : Fin 3) (i : ℕ) (hi : i < (e.data j).len
 theorem Entry.image_read (e : Entry) (j : Fin 3) :
     (Finset.range (e.data j).length).image (e.read j) = (e.data j).toFinset := by
   ext z
-  constructor
-  · intro hz
-    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hz
-    have hi' := Finset.mem_range.mp hi
-    rw [e.read_eq j i hi', List.mem_toFinset]
-    exact List.getElem_mem hi'
-  · intro hz
-    obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp (List.mem_toFinset.mp hz)
+  refine ⟨fun hz => ?_, fun hz => ?_⟩
+  · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hz
+    rw [e.read_eq j i (Finset.mem_range.mp hi), List.mem_toFinset]
+    exact List.getElem_mem _
+  · obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp (List.mem_toFinset.mp hz)
     exact Finset.mem_image.mpr ⟨i, Finset.mem_range.mpr hi, (e.read_eq j i hi).trans he⟩
 
 /-- A duplicate-free compact list meets the actual native collision-counting premise. -/
 theorem Entry.read_injOn (e : Entry) (j : Fin 3) (h : (e.data j).Nodup) :
     Set.InjOn (e.read j) (↑(Finset.range (e.data j).length) : Set ℕ) := by
   intro i hi k hk he
-  have hi' := Finset.mem_range.mp hi
-  have hk' := Finset.mem_range.mp hk
-  rw [e.read_eq j i hi', e.read_eq j k hk'] at he
+  rw [e.read_eq j i (Finset.mem_range.mp hi), e.read_eq j k (Finset.mem_range.mp hk)] at he
   exact h.getElem_inj_iff.mp he
 
 /-- Exact readback in the native array-call format, derived from the generic block realization. -/
 theorem Entry.Stored.input {e : Entry} {mem : ℕ → ℕ} (h : e.Stored mem)
     (j : Fin 3) (i : ℕ) (hi : i < (e.data j).length) :
-    mem (e.source j + i) = Signed.encode (e.read j i) := by
-  rw [e.read_eq j i hi]
-  exact h j ⟨i, hi⟩
+    mem (e.source j + i) = Signed.encode (e.read j i) :=
+  e.read_eq j i hi ▸ h j ⟨i, hi⟩
 
 /-- Readback transfers along a memory equality on the three live blocks. -/
 theorem Entry.Stored.congr {e : Entry} {before after : ℕ → ℕ} (h : e.Stored before)
     (hf : ∀ j i, i < (e.data j).length → after (e.source j + i) = before (e.source j + i)) :
-    e.Stored after := by
-  intro j i
-  exact (hf j i.val i.isLt).trans (h j i)
+    e.Stored after :=
+  fun j i => (hf j i.val i.isLt).trans (h j i)
 
 /-- A prefix frame preserves every pending list whose block ends before the fresh allocation. -/
 theorem Entry.Stored.of_prefix {e : Entry} {before after : ℕ → ℕ} (h : e.Stored before)
@@ -165,8 +158,7 @@ theorem Entry.task_child (e : Entry) (j : Fin 3) (base : ℕ) (zs : List ℤ) :
   unfold Entry.child Entry.task
   congr 1 with k : 1
   by_cases he : k = j
-  · subst k
-    simp only [Function.update_self]
+  · subst k; simp only [Function.update_self]
   · simp only [Function.update_of_ne he]
 
 /-- The native child-record words represent exactly the changed data block, with the two
@@ -177,14 +169,12 @@ theorem Entry.child_words {e : Entry} {x : Data 128} (h : e.Loaded x)
     (hn : ∀ j, x.regs (heavyLength j) = (zs j).length) (j : Fin 3) :
     childWords x j = (e.child j (bases j) (zs j)).words := by
   obtain ⟨hf, hs, hl⟩ := h
-  have hs₀ : x.regs (slot 1) = e.source 0 := hs 0
-  have hs₁ : x.regs (slot 3) = e.source 1 := hs 1
-  have hs₂ : x.regs (slot 5) = e.source 2 := hs 2
-  have hl₀ : x.regs (slot 2) = (e.data 0).length := hl 0
-  have hl₁ : x.regs (slot 4) = (e.data 1).length := hl 1
-  have hl₂ : x.regs (slot 6) = (e.data 2).length := hl 2
   fin_cases j <;> simp +decide [childWords, Entry.child, Entry.words, hf,
-    hs₀, hs₁, hs₂, hl₀, hl₁, hl₂, hb, hn]
+    show x.regs (slot 1) = e.source 0 from hs 0, show x.regs (slot 3) = e.source 1 from hs 1,
+    show x.regs (slot 5) = e.source 2 from hs 2,
+    show x.regs (slot 2) = (e.data 0).length from hl 0,
+    show x.regs (slot 4) = (e.data 1).length from hl 1,
+    show x.regs (slot 6) = (e.data 2).length from hl 2, hb, hn]
 
 /-- The size and magnitude assumptions are the existing finite three-set admissibility notion;
 duplicate-free enumeration is the additional native-array obligation. -/
@@ -212,12 +202,9 @@ theorem Entry.Valid.length_le {e : Entry} {n U : ℕ} (h : e.Valid n U) (j : Fin
 /-- The existing finite-set magnitude promise bounds every actual native array element. -/
 theorem Entry.Valid.natAbs_le {e : Entry} {n U : ℕ} (h : e.Valid n U)
     (j : Fin 3) (i : ℕ) (hi : i < (e.data j).length) : (e.read j i).natAbs ≤ U := by
-  have hz : e.read j i ∈ (e.data j).toFinset := by
-    rw [e.read_eq j i hi, List.mem_toFinset]
-    exact List.getElem_mem hi
-  have hb := h.bdd j _ hz
-  rw [← Int.natCast_natAbs] at hb
-  exact_mod_cast hb
+  have hb := h.bdd j (e.read j i)
+    (by rw [e.read_eq j i hi, List.mem_toFinset]; exact List.getElem_mem hi)
+  rw [← Int.natCast_natAbs] at hb; exact_mod_cast hb
 
 /-- Replacing a column by a duplicate-free subset preserves the existing size/magnitude promises. -/
 theorem Entry.Valid.child {e : Entry} {n U : ℕ} (h : e.Valid n U)
@@ -225,13 +212,11 @@ theorem Entry.Valid.child {e : Entry} {n U : ℕ} (h : e.Valid n U)
     (hsub : zs.toFinset ⊆ (e.data j).toFinset) : (e.child j base zs).Valid n U := by
   have hsub' (k : Fin 3) : ((e.child j base zs).data k).toFinset ⊆ (e.data k).toFinset := by
     by_cases he : k = j
-    · subst k
-      simpa only [Entry.child, Function.update_self] using hsub
+    · subst k; simpa only [Entry.child, Function.update_self] using hsub
     · simp only [Entry.child, Function.update_of_ne he, Finset.Subset.rfl]
   refine ⟨fun k => ?_, h.2.mono (hsub' 0) (hsub' 1) (hsub' 2)⟩
   by_cases he : k = j
-  · subst k
-    simpa only [Entry.child, Function.update_self] using hnd
+  · subst k; simpa only [Entry.child, Function.update_self] using hnd
   · simpa only [Entry.child, Function.update_of_ne he] using h.1 k
 
 /-- A child reuses both untouched data blocks and the actual newly written heavy block. -/
@@ -242,12 +227,10 @@ theorem Entry.Stored.child {e : Entry} {mem : ℕ → ℕ} (h : e.Stored mem)
   intro k i
   by_cases he : k = j
   · subst k
-    have hi : i.val < zs.length := by
-      simpa only [Entry.child, Function.update_self] using i.isLt
-    simpa only [Entry.child, Block.read, Function.update_self] using hz ⟨i.val, hi⟩
-  · have hi : i.val < (e.data k).length := by
-      simpa only [Entry.child, Function.update_of_ne he] using i.isLt
-    simpa only [Entry.child, Block.read, Function.update_of_ne he] using h k ⟨i.val, hi⟩
+    simpa only [Entry.child, Block.read, Function.update_self] using
+      hz ⟨i.val, by simpa only [Entry.child, Function.update_self] using i.isLt⟩
+  · simpa only [Entry.child, Block.read, Function.update_of_ne he] using
+      h k ⟨i.val, by simpa only [Entry.child, Function.update_of_ne he] using i.isLt⟩
 
 /-- Actual heavy lists and bases give exactly the existing ordered three-child worklist. -/
 theorem Entry.task_children (e : Entry) (Q : Finset ℕ) (Λ : ℕ)
@@ -257,25 +240,19 @@ theorem Entry.task_children (e : Entry) (Q : Finset ℕ) (Λ : ℕ)
     [(e.child 0 (bases 0) (zs 0)).task, (e.child 1 (bases 1) (zs 1)).task,
       (e.child 2 (bases 2) (zs 2)).task] = e.task.children Q Λ (e.fuel - 1) := by
   let M := (e.task.node Q Λ).M
-  have h₀ : Function.update e.task.sets 0
-      (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 0) M) =
-      ![Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 0) M,
-        e.task.sets 1, e.task.sets 2] := by
-    funext j
-    fin_cases j <;> rfl
-  have h₁ : Function.update e.task.sets 1
-      (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 1) M) =
-      ![e.task.sets 0, Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 1) M,
-        e.task.sets 2] := by
-    funext j
-    fin_cases j <;> rfl
-  have h₂ : Function.update e.task.sets 2
-      (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 2) M) =
-      ![e.task.sets 0, e.task.sets 1,
-        Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 2) M] := by
-    funext j
-    fin_cases j <;> rfl
-  rw [Entry.task_child, Entry.task_child, Entry.task_child, hz 0, hz 1, hz 2, h₀, h₁, h₂]
+  rw [Entry.task_child, Entry.task_child, Entry.task_child, hz 0, hz 1, hz 2,
+    show Function.update e.task.sets 0
+        (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 0) M) =
+      ![Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 0) M, e.task.sets 1, e.task.sets 2]
+      by funext j; fin_cases j <;> rfl,
+    show Function.update e.task.sets 1
+        (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 1) M) =
+      ![e.task.sets 0, Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 1) M, e.task.sets 2]
+      by funext j; fin_cases j <;> rfl,
+    show Function.update e.task.sets 2
+        (Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 2) M) =
+      ![e.task.sets 0, e.task.sets 1, Cslib.Algorithms.ThreeSum.ChanHe.heavy (e.task.sets 2) M]
+      by funext j; fin_cases j <;> rfl]
   rfl
 
 /-- The native word-stack length records exactly seven cells per pending entry. -/

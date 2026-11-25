@@ -85,12 +85,8 @@ theorem finish_loop_eq (d : Env) (fuel k : ℕ) (hf : Nat.log 2 k ≤ fuel) :
       pure ()) = PriorityQueue.BinaryHeap.Memory.siftUp d.layout k := by
   induction fuel generalizing k with
   | zero =>
-    have hk : ¬2 ≤ k := by
-      intro hk
-      have := Nat.log_of_one_lt_of_le one_lt_two hk
-      omega
-    rw [PriorityQueue.BinaryHeap.Memory.siftUp, ite_eq_right hk]
-    rfl
+    have hk : ¬2 ≤ k := fun hk => by have := Nat.log_of_one_lt_of_le one_lt_two hk; omega
+    rw [PriorityQueue.BinaryHeap.Memory.siftUp, ite_eq_right hk]; rfl
   | succ fuel ih =>
     rw [PriorityQueue.BinaryHeap.Memory.siftUp]
     by_cases hk : 2 ≤ k
@@ -139,9 +135,8 @@ theorem step_triple {w : ℕ} {d : Env} {k : ℕ} {s : Memory.State}
   split
   · obtain ⟨hshape', -, -, -, -, -⟩ :=
       hshape.swap (a := k) (b := k / 2) hk1 hkS (by omega) (by omega) (by omega)
-    refine PriorityQueue.BinaryHeap.Memory.swap_bind hn hA (by omega) (by omega) hvk hvp <|
-      Triple.pure ?_
-    exact ⟨⟨hn, hA, S, by omega, by omega, hshape'⟩, by omega⟩
+    exact PriorityQueue.BinaryHeap.Memory.swap_bind hn hA (by omega) (by omega) hvk hvp <|
+      Triple.pure ⟨⟨hn, hA, S, by omega, by omega, hshape'⟩, by omega⟩
   · exact Triple.pure ⟨⟨hn, hA, S, by omega, by omega, hshape⟩, by simp; omega⟩
 
 /-- Eight source-memory units and one continuing-control unit per logarithmic rank level.
@@ -202,9 +197,7 @@ theorem realizes_loop :
   realize [realizes_step]
   intro hv
   refine whileSafe_of_measure _ _ _ w _ (Shape w d.1) (fun k _ => Nat.log 2 k)
-    (fun k _ _ hz hk => by
-      have := Nat.log_of_one_lt_of_le one_lt_two hk
-      omega)
+    (fun k _ _ _ hk => by have := Nat.log_of_one_lt_of_le one_lt_two hk; omega)
     (fun k t hi hg _ => ?_) h le_rfl hv
   obtain ⟨_, _, hp⟩ := triple_iff.mp (step_triple hi hg)
   rw [clientResult_width w, clientState_width w] at hp
@@ -224,14 +217,10 @@ theorem realizes_siftUp :
       (fun d : IndexArgument => PriorityQueue.BinaryHeap.Memory.siftUp d.layout d.index)
       indexWords (Equiv.ofUnique Unit (Fin 0 → ℕ)).toEmbedding
       (fun w d s => Shape w (d.heap, ()) d.index s) (fun _ _ => 0) := by
-  have hquery : ∀ x t, 1 ≤ memoryCost (step x) t := by
-    intro x t
-    change 1 ≤ 1 + _
-    omega
-  have hLoop := realizes_loop.mono_mul (work' := fun _ _ => 0) 1 (fun (d, k) s => by
+  have hquery (x t) : 1 ≤ memoryCost (step x) t := by change 1 ≤ 1 + _; omega
+  have hLoop := realizes_loop.mono_mul (work' := fun _ _ => 0) 1 fun (d, k) s => by
     have hc := whileWork_zero_le guard step hquery d (Nat.log 2 k) k s
-    dsimp only
-    omega)
+    dsimp only; omega
   let p (d : IndexArgument) : Memory.Prog Unit := do
     let _ ← boundedWhile guard step (d.heap, ()) (Nat.log 2 d.index) d.index
     pure ()
@@ -243,9 +232,7 @@ theorem realizes_siftUp :
       | exact h
       | obtain ⟨hn, _, S, hk, hkS, hshape⟩ := h
         exact hn.of_le (hk.trans (hkS.trans hshape.size_le))
-  refine hp.congr ?_
-  intro d
-  exact finish_loop_eq (d.heap, ()) (Nat.log 2 d.index) d.index le_rfl
+  exact hp.congr fun d => finish_loop_eq (d.heap, ()) (Nat.log 2 d.index) d.index le_rfl
 
 /-- The actual combined currency is logarithmic. The premise is admissibility of the original
 program's complete history, not an assumed cost of a different implementation. -/
@@ -284,32 +271,22 @@ theorem exec_siftUp {r : ℕ} (frontier : Fin r) (src : Fin 5 → Fin r)
         (memoryState frontier x) (memoryState frontier y) ∧
       ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i := by
   have hn : Fits w n := by
-    have h : Fits w ((x.regs ∘ src) 0) := hx.1 (src 0)
-    rw [hin] at h
-    exact h
+    have h : Fits w ((x.regs ∘ src) 0) := hx.1 (src 0); rwa [hin] at h
   obtain ⟨hv, _, hpost⟩ := triple_iff.mp
     (PriorityQueue.BinaryHeap.Memory.siftUp_triple hn hA hk hkS hshape hord)
   have hI : Shape w ((⟨n, L⟩ : HeapLayout), ()) k (memoryState frontier x) :=
     ⟨hn, hA, S, hk, hkS, hshape⟩
   obtain ⟨y, hy, hm, _, hframe⟩ :=
     (realizes_siftUp.code_spec frontier src tmp hi hd hf hs).2 w (⟨n, L⟩, k) x hx hin hI hv
-  have hc := combined_le (d := (⟨n, L⟩, k)) hI hv
-  change memoryCost (PriorityQueue.BinaryHeap.Memory.siftUp L k) (memoryState frontier x) +
-    localWork (⟨n, L⟩, k) (memoryState frontier x) ≤ 9 * Nat.log 2 k + 2 at hc
+  have hc : memoryCost (PriorityQueue.BinaryHeap.Memory.siftUp L k) (memoryState frontier x) +
+      localWork (⟨n, L⟩, k) (memoryState frontier x) ≤ 9 * Nat.log 2 k + 2 :=
+    combined_le (d := (⟨n, L⟩, k)) hI hv
   have hlog := Nat.log_mono_right (b := 2) (hkS.trans hshape.size_le)
-  have hbound : realizes_siftUp.factor *
-      (memoryCost (PriorityQueue.BinaryHeap.Memory.siftUp L k) (memoryState frontier x) +
-        localWork (⟨n, L⟩, k) (memoryState frontier x) + 1) ≤
-      9 * realizes_siftUp.factor * (Nat.log 2 n + 1) := by
-    calc
-      _ ≤ realizes_siftUp.factor * (9 * (Nat.log 2 n + 1)) :=
-        Nat.mul_le_mul_left _ (by omega)
-      _ = _ := by ring
   rw [← hm] at hpost
-  refine ⟨y, hy.mono (le_trans ?_ hbound), hm, hpost.1, hpost.2, hframe⟩
-  apply Nat.mul_le_mul_left
-  change memoryCost (PriorityQueue.BinaryHeap.Memory.siftUp L k) (memoryState frontier x) +
-      0 + 1 ≤ _
-  omega
+  refine ⟨y, hy.mono ?_, hm, hpost.1, hpost.2, hframe⟩
+  calc realizes_siftUp.factor *
+        (memoryCost (PriorityQueue.BinaryHeap.Memory.siftUp L k) (memoryState frontier x) + 0 + 1)
+      ≤ realizes_siftUp.factor * (9 * (Nat.log 2 n + 1)) := Nat.mul_le_mul_left _ (by omega)
+    _ = 9 * realizes_siftUp.factor * (Nat.log 2 n + 1) := by ring
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Native.SiftUp
