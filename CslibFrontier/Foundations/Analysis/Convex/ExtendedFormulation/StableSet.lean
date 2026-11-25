@@ -201,44 +201,28 @@ private def liftCorrIndep {n : ℕ} (b : Finset (Fin n)) : Finset (CorrGadgetV n
     Finset.univ.image fun e : CorrPairIdx n =>
       CorrGadgetV.edge e (decide (e.fst ∈ b)) (decide (e.snd ∈ b))
 
+private theorem vertex_mem_liftCorrIndep {n : ℕ} {b : Finset (Fin n)} {i : Fin n} {c : Bool} :
+    CorrGadgetV.vertex i c ∈ liftCorrIndep b ↔ decide (i ∈ b) = c := by
+  simp [liftCorrIndep]
+
+private theorem edge_mem_liftCorrIndep {n : ℕ} {b : Finset (Fin n)} {e : CorrPairIdx n}
+    {c₁ c₂ : Bool} : CorrGadgetV.edge e c₁ c₂ ∈ liftCorrIndep b ↔
+      decide (e.fst ∈ b) = c₁ ∧ decide (e.snd ∈ b) = c₂ := by
+  simp [liftCorrIndep]
+
 private theorem isIndepSet_liftCorrIndep {n : ℕ} (b : Finset (Fin n)) :
     (corrGadgetGraph n).IsIndepSet (liftCorrIndep b : Set (CorrGadgetV n)) := by
-  intro u hu v hv hne hadj
-  simp only [Finset.mem_coe, liftCorrIndep, Finset.mem_union, Finset.mem_image,
-    Finset.mem_univ, true_and] at hu hv
-  rcases hu with ⟨i, rfl⟩ | ⟨e₁, rfl⟩ <;> rcases hv with ⟨j, rfl⟩ | ⟨e₂, rfl⟩
-  · simp only [corrGadgetGraph, corrGadgetAdjRel] at hadj
-    obtain ⟨h1, h2⟩ := hadj
-    subst h1
-    exact h2 rfl
-  · simp only [corrGadgetGraph, corrGadgetAdjRel] at hadj
-    rcases hadj with ⟨rfl, hb⟩ | ⟨rfl, hb⟩ <;> exact hb rfl
-  · simp only [corrGadgetGraph, corrGadgetAdjRel] at hadj
-    rcases hadj with ⟨rfl, hb⟩ | ⟨rfl, hb⟩ <;> exact hb rfl
-  · simp only [corrGadgetGraph, corrGadgetAdjRel] at hadj
-    obtain ⟨h1, h2⟩ := hadj
-    subst h1
-    rcases h2 with h | h <;> exact h rfl
+  intro u hu v hv _ hadj
+  cases u <;> cases v <;>
+    simp only [Finset.mem_coe, vertex_mem_liftCorrIndep, edge_mem_liftCorrIndep] at hu hv <;>
+    simp only [corrGadgetGraph, corrGadgetAdjRel] at hadj <;> grind
 
 private theorem card_liftCorrIndep {n : ℕ} (b : Finset (Fin n)) :
     (liftCorrIndep b).card = n + Fintype.card (CorrPairIdx n) := by
-  have hdisj : Disjoint
-      (Finset.univ.image fun i => CorrGadgetV.vertex i (decide (i ∈ b)))
-      (Finset.univ.image fun e : CorrPairIdx n =>
-        CorrGadgetV.edge e (decide (e.fst ∈ b)) (decide (e.snd ∈ b))) := by
-    rw [Finset.disjoint_left]
-    intro x hx hy
-    simp only [Finset.mem_image] at hx hy
-    obtain ⟨i, _, rfl⟩ := hx
-    obtain ⟨e, _, he⟩ := hy
-    cases he
-  have h1 : (Finset.univ.image fun i => CorrGadgetV.vertex i (decide (i ∈ b))).card = n := by
-    rw [Finset.card_image_of_injective _ fun i j h => by cases h; rfl, Finset.card_fin]
-  have h2 : (Finset.univ.image fun e : CorrPairIdx n =>
-      CorrGadgetV.edge e (decide (e.fst ∈ b)) (decide (e.snd ∈ b))).card =
-      Fintype.card (CorrPairIdx n) := by
-    rw [Finset.card_image_of_injective _ fun e₁ e₂ h => by cases h; rfl, Finset.card_univ]
-  rw [liftCorrIndep, Finset.card_union_of_disjoint hdisj, h1, h2]
+  rw [liftCorrIndep, Finset.card_union_of_disjoint (by simp [Finset.disjoint_left]),
+    Finset.card_image_of_injective _ fun i j h => by cases h; rfl,
+    Finset.card_image_of_injective _ fun e₁ e₂ h => by cases h; rfl, Finset.card_fin,
+    Finset.card_univ]
 
 private def stabToCorrLinear (K : Type*) [Semiring K] (n : ℕ) :
     (CorrGadgetV n → K) →ₗ[K] ((Fin n × Fin n) → K) where
@@ -259,27 +243,12 @@ private theorem stabToCorrLinear_lift {K : Type*} [Semiring K]
     {n : ℕ} (b : Finset (Fin n)) :
     stabToCorrLinear K n (stabVertex K (liftCorrIndep b)) = corrVertex K b := by
   ext ⟨i, j⟩
-  simp only [stabToCorrLinear, LinearMap.coe_mk, AddHom.coe_mk, stabVertex, liftCorrIndep,
-    Finset.mem_union, Finset.mem_image, Finset.mem_univ, true_and, corrVertex]
+  simp only [stabToCorrLinear, LinearMap.coe_mk, AddHom.coe_mk, stabVertex, corrVertex,
+    vertex_mem_liftCorrIndep, edge_mem_liftCorrIndep, decide_eq_true_eq]
   by_cases hij : i = j
   · subst hij
-    simp only [↓reduceDIte, and_self, reduceCtorEq, exists_false, or_false,
-      CorrGadgetV.vertex.injEq, decide_eq_true_eq, exists_eq_left]
-  · simp only [hij, ↓reduceDIte]
-    have hiff (u v : Fin n) (hlt' : u < v) :
-        (∃ e : CorrPairIdx n, CorrGadgetV.edge e (decide (e.fst ∈ b)) (decide (e.snd ∈ b)) =
-          CorrGadgetV.edge ⟨u, v, hlt'⟩ true true) ↔ u ∈ b ∧ v ∈ b := by
-      constructor
-      · rintro ⟨e, he⟩
-        simp only [CorrGadgetV.edge.injEq] at he
-        rcases he with ⟨rfl, h1, h2⟩
-        exact ⟨of_decide_eq_true h1, of_decide_eq_true h2⟩
-      · rintro ⟨hu, hv⟩
-        exact ⟨⟨u, v, hlt'⟩, by simp only [hu, hv, decide_true]⟩
-    by_cases hlt : i < j
-    · simp only [hlt, ↓reduceDIte, reduceCtorEq, exists_false, false_or, hiff i j hlt]
-    · simp only [hlt, ↓reduceDIte, reduceCtorEq, exists_false, false_or,
-        hiff j i ((lt_or_gt_of_ne hij).resolve_left hlt), and_comm]
+    simp
+  · rcases lt_or_gt_of_ne hij with h | h <;> simp [hij, h, h.not_gt, and_comm]
 
 private theorem stabToCorrLinear_tight {K : Type*} [Semiring K]
     {n : ℕ} {S : Finset (CorrGadgetV n)}
