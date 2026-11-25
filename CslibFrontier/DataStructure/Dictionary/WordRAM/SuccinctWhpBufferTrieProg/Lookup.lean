@@ -169,26 +169,12 @@ theorem bufLookupGenProg_spec {c U V w n_max base ep rKey : ℕ}
     fun u hu hnz => hv.bounds.2.2.2 u hu hnz
   obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
+  obtain ⟨-, -, -, -, -, -, hrep_meta, hrep_items⟩ := bufTrieMemRep_iff_rt.mp hrep
   set rt := mkBufRt c U V w n_max base ep
   obtain ⟨_, hw_st, hw_mc, hw_vp, _, hw_a1⟩ :=
     bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
   have hw1 := hw_a1 rfl
   obtain ⟨_, _, _, hm_seg, hi_seg⟩ := rt_seg_le c U V w n_max base ep hep
-  have hrep_meta : ∀ u < tr.nodeAlloc,
-      readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 2) =
-        tr.nodeLeafItem u ∧
-      (tr.nodeLeafItem u ≠ 0 →
-        readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 3) =
-          tr.nodeActive u) := by
-    have hm := hrep.2.2.2.2.2.2.1
-    rcases hep with rfl | rfl <;> exact hm
-  have hrep_items : ∀ id < tr.itemAlloc,
-      readPacked (base + brOffItems rt) (globalPtrBits n_max) w s.mem (qEpochWhp n_max + id) =
-        tr.itemBucket id ∧
-      readPacked (base + brOffItems rt) (globalPtrBits n_max) w s.mem (2 * qEpochWhp n_max + id) =
-        tr.itemLoc id := by
-    have hi := hrep.2.2.2.2.2.2.2
-    rcases hep with rfl | rfl <;> exact fun id hid => (hi id hid).2
   unfold bufLookupGenProg
   simp only [pure_bind]
   set wprog := bufWalkLoopGenProg ((rt, (1, (0, rKey))), cTabWhp c)
@@ -239,7 +225,7 @@ theorem bufLookupGenProg_spec {c U V w n_max base ep rKey : ℕ}
           simp only [hli0, hact0, false_or, ↓reduceIte]
           have hid_lt : tr.nodeLeafItem leaf - 1 < tr.itemAlloc := by
             have := hleaf_ia leaf hlf_lt hli0; omega
-          obtain ⟨hb_eq, hloc_eq⟩ := hrep_items (tr.nodeLeafItem leaf - 1) hid_lt
+          obtain ⟨-, hb_eq, hloc_eq⟩ := hrep_items (tr.nodeLeafItem leaf - 1) hid_lt
           rw [bufReadItemPairRtProg_eq]
           simp only [pure_bind, clientResult_bind,
             clientResult_readPackedGen, StateTransitionSpec.clientResult_pure]

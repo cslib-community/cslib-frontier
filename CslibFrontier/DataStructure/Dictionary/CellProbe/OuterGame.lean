@@ -348,6 +348,24 @@ private theorem blockPerm_apply {F m : ℕ} (δ : Fin F → Equiv.Perm (Fin m))
   simp [blockPerm, blockProdPerm]
 
 open Classical in
+/-- Averaging the uniform distribution over a family of permutations `act`: `|G|` times the
+probability of `f = b` is the expected number of `γ` with `f (act γ s) = b`. -/
+private theorem toReal_map_uniform_mul_card {Ω β G : Type*} [Fintype Ω] [Nonempty Ω]
+    [Fintype G] (act : G → Equiv.Perm Ω) (f : Ω → β) (b : β) :
+    (((PMF.uniformOfFintype Ω).map f) b).toReal * (Fintype.card G : ℝ) =
+      ∑ s, ((PMF.uniformOfFintype Ω) s).toReal *
+        ((Finset.univ.filter fun γ : G => f (act γ s) = b).card : ℝ) := by
+  have hperm (γ : G) : (((PMF.uniformOfFintype Ω).map f) b).toReal =
+      ∑ s, ((PMF.uniformOfFintype Ω) s).toReal * (if f (act γ s) = b then 1 else 0) := by
+    rw [PMF.map_apply_toReal, ← Equiv.sum_comp (act γ)]
+    refine Finset.sum_congr rfl fun s _ => ?_
+    simp [PMF.uniformOfFintype_apply, eq_comm]
+  rw [mul_comm, ← nsmul_eq_mul, ← Finset.card_univ, ← Finset.sum_const,
+    Finset.sum_congr rfl fun γ _ => hperm γ, Finset.sum_comm]
+  refine Finset.sum_congr rfl fun s _ => ?_
+  rw [← Finset.mul_sum, Finset.card_filter]; push_cast; rfl
+
+open Classical in
 /-- Eq. (1) of [LiLiangYuZhou2023] (Section 4.1, p. 14 / PDF p. 15): given Bob's observation
 `bobOuterObsOf`, the ordered partition `outerTarget` has conditional entropy at least
 `∑_{i < F} log₂ C((F - i) * m, m) = log₂ (F * m)! - F * log₂ m!`. -/
@@ -392,12 +410,13 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
         congrArg s.keys (actInsKeyPerm_lt ht_end γ (by omega))
       dsimp only [initInsertSeq]; refine List.map_congr_left fun i _ => ?_
       rw [hk ⟨i.val, by omega⟩ i.isLt]
-    cases withQueries
-    · simp only [HardKeyValSeed.modeOps, Bool.false_eq_true, ↓reduceIte,
-        HardKeyValSeed.updateOps, modeStride, take_insertDeleteSeq]
+    cases withQueries <;>
+      simp only [HardKeyValSeed.modeOps, Bool.false_eq_true, ↓reduceIte, HardKeyValSeed.ops,
+        HardKeyValSeed.updateOps, modeStride, take_insertDeleteSeq, take_insertQueryDeleteSeq] <;>
       rw [show (actInsSeed t_st (F * m) ht_end γ s).kv = s.kv from rfl,
-        show (actInsSeed t_st (F * m) ht_end γ s).delPerm = s.delPerm from rfl, hinit]
-      congr 1; refine List.flatMap_congr fun j hj => ?_
+        show (actInsSeed t_st (F * m) ht_end γ s).delPerm = s.delPerm from rfl, hinit] <;>
+      congr 1 <;> refine List.flatMap_congr fun j hj => ?_
+    all_goals
       have hj_lt : j.val < t_st := by
         obtain ⟨r, hr, heq⟩ := List.mem_take_iff_getElem.mp hj
         have hfr : ((List.finRange n)[r]'(by simp at hr; omega)).val = r := by simp
@@ -409,24 +428,7 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
       have h2 : (actInsSeed t_st (F * m) ht_end γ s).keys ⟨n + j.val, by omega⟩ =
           s.keys ⟨n + j.val, by omega⟩ :=
         congrArg s.keys (actInsKeyPerm_lt ht_end γ (show n + j.val < n + t_st by omega))
-      dsimp only [deleteInsertMetaOp]; rw [h1, h2]
-    · simp only [HardKeyValSeed.modeOps, ↓reduceIte, HardKeyValSeed.ops, modeStride,
-        take_insertQueryDeleteSeq]
-      rw [show (actInsSeed t_st (F * m) ht_end γ s).kv = s.kv from rfl,
-        show (actInsSeed t_st (F * m) ht_end γ s).delPerm = s.delPerm from rfl, hinit]
-      congr 1; refine List.flatMap_congr fun j hj => ?_
-      have hj_lt : j.val < t_st := by
-        obtain ⟨r, hr, heq⟩ := List.mem_take_iff_getElem.mp hj
-        have hfr : ((List.finRange n)[r]'(by simp at hr; omega)).val = r := by simp
-        have hval := congrArg Fin.val heq; rw [hfr] at hval; simp at hr; omega
-      have h1 : (actInsSeed t_st (F * m) ht_end γ s).keys ⟨(s.delPerm j).val, by omega⟩ =
-          s.keys ⟨(s.delPerm j).val, by omega⟩ :=
-        congrArg s.keys (actInsKeyPerm_lt ht_end γ
-          (by have := (s.delPerm j).isLt; dsimp; omega))
-      have h2 : (actInsSeed t_st (F * m) ht_end γ s).keys ⟨n + j.val, by omega⟩ =
-          s.keys ⟨n + j.val, by omega⟩ :=
-        congrArg s.keys (actInsKeyPerm_lt ht_end γ (by dsimp; omega))
-      dsimp only [queryDeleteInsertMetaOp]; rw [h1, h2]
+      dsimp only [deleteInsertMetaOp, queryDeleteInsertMetaOp]; rw [h1, h2]
   have hseg_eq (γ : G) (s : HardKeyValSeed U V n) (i : Fin F) (r : Fin m) :
       segInsertedKeys (actInsSeed t_st (F * m) ht_end γ s).keys (t_st + i.val * m) m
           (by have := i.isLt; nlinarith) r =
@@ -443,26 +445,16 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
   have hA_inv (γ : G) (s : HardKeyValSeed U V n) :
       (actInsSeed t_st (F * m) ht_end γ s).insertedSet t_st (F * m) ht_end =
         s.insertedSet t_st (F * m) ht_end := by
-    ext u; simp only [HardKeyValSeed.insertedSet, segInsertedKeys_apply, Finset.mem_image,
-      Finset.mem_univ, true_and]
-    constructor
-    · rintro ⟨r, rfl⟩
-      simp only [actInsSeed, Equiv.coe_fn_mk, Function.Embedding.trans_apply,
-        Equiv.coe_toEmbedding]
-      have hidx : (⟨n + (t_st + r.val), by have := r.isLt; omega⟩ : Fin (2 * n)) =
-          ⟨n + t_st + r.val, by have := r.isLt; omega⟩ := Fin.ext (by dsimp; omega)
-      rw [hidx, actInsKeyPerm_ins ht_end γ]
-      exact ⟨γ r, congrArg s.keys (Fin.ext (by dsimp; omega))⟩
-    · rintro ⟨r, rfl⟩
-      refine ⟨γ.symm r, ?_⟩
-      simp only [actInsSeed, Equiv.coe_fn_mk, Function.Embedding.trans_apply,
-        Equiv.coe_toEmbedding]
-      have hidx : (⟨n + (t_st + (γ.symm r).val), by have := (γ.symm r).isLt; omega⟩ :
-          Fin (2 * n)) = ⟨n + t_st + (γ.symm r).val, by have := (γ.symm r).isLt; omega⟩ :=
-        Fin.ext (by dsimp; omega)
-      rw [hidx, actInsKeyPerm_ins ht_end γ]
-      refine congrArg s.keys (Fin.ext ?_)
-      simp; omega
+    have hseg : segInsertedKeys (actInsSeed t_st (F * m) ht_end γ s).keys t_st (F * m) ht_end =
+        γ.toEmbedding.trans (segInsertedKeys s.keys t_st (F * m) ht_end) :=
+      Function.Embedding.ext fun r => by
+        simp only [actInsSeed, segInsertedKeys_apply, Equiv.coe_fn_mk,
+          Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
+        have hidx : (⟨n + (t_st + r.val), by have := r.isLt; omega⟩ : Fin (2 * n)) =
+            ⟨n + t_st + r.val, by have := r.isLt; omega⟩ := Fin.ext (by dsimp; omega)
+        rw [hidx, actInsKeyPerm_ins ht_end γ]
+        exact congrArg s.keys (Fin.ext (by dsimp; omega))
+    rw [HardKeyValSeed.insertedSet, HardKeyValSeed.insertedSet, hseg, image_perm_trans]
   have hd_inv (γ : G) (s : HardKeyValSeed U V n) :
       (fun r => segDeletedKeys (actInsSeed t_st (F * m) ht_end γ s).keys s.delPerm
         t_st (F * m) ht_end r) =
@@ -540,25 +532,13 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
           (Finset.univ.filter fun γ : G =>
             piOf (actInsSeed t_st (F * m) ht_end γ s) = π₂).card := by
       let δ : H := fun i => (π₂ i).trans (π₁ i).symm
-      refine Finset.card_bij (fun γ _ => (blockPerm δ).trans γ)
-        (fun γ hγ => ?_)
-        (fun γ₁ _ γ₂ _ h => by
-          ext x
-          have hx := congrArg (fun e : G => e ((blockPerm δ).symm x)) h
-          change ((blockPerm δ).trans γ₁) ((blockPerm δ).symm x) =
-            ((blockPerm δ).trans γ₂) ((blockPerm δ).symm x) at hx
-          rw [Equiv.trans_apply, Equiv.trans_apply, Equiv.apply_symm_apply] at hx
-          exact congrArg Fin.val hx)
-        (fun γ hγ => ⟨(blockPerm δ).symm.trans γ, ?_, by ext x; simp⟩)
-      · rw [Finset.mem_filter] at hγ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
-        rw [hpi_block, hγ.2]; funext i; ext r; simp [δ]
-      · rw [Finset.mem_filter] at hγ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
-        have hsymm : (blockPerm δ).symm = blockPerm (fun i => (δ i).symm) := by
-          apply Equiv.ext; intro x
-          obtain ⟨⟨i, r⟩, rfl⟩ := finProdFinEquiv.surjective x
-          apply (blockPerm δ).injective
-          rw [Equiv.apply_symm_apply, blockPerm_apply, blockPerm_apply, Equiv.apply_symm_apply]
-        rw [hsymm, hpi_block, hγ.2]; funext i; ext r; simp [δ]
+      refine Finset.card_equiv (Equiv.mulRight (blockPerm δ)) fun γ => ?_
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Equiv.coe_mulRight]
+      rw [show γ * blockPerm δ = (blockPerm δ).trans γ from rfl, hpi_block]
+      refine ⟨fun h => h ▸ funext fun i => ?_, fun h => funext fun i => ?_⟩
+      · ext r; simp [δ]
+      · exact Equiv.ext fun r => by
+          simpa [δ] using congrArg (fun e => e ((π₂ i).symm (π₁ i r))) (congrFun h i)
     have hpart : ∑ π' : H,
         (Finset.univ.filter fun γ : G => piOf (actInsSeed t_st (F * m) ht_end γ s) = π').card =
           Fintype.card G := by
@@ -611,89 +591,15 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
       rw [hemp, Finset.card_empty, Nat.cast_zero, zero_mul]
       exact Nat.cast_nonneg _
   rw [le_div_iff₀ hM_pos]
-  have havg_pair : ((μ.map fun s => (obs s, tgt s)) (o, P)).toReal * (Fintype.card G : ℝ) =
-      ∑ s : HardKeyValSeed U V n, (μ s).toReal *
-        ((Finset.univ.filter fun γ : G =>
-          obs (actInsSeed t_st (F * m) ht_end γ s) = o ∧
-            tgt (actInsSeed t_st (F * m) ht_end γ s) = P).card : ℝ) := by
-    have hperm (γ : G) : ((μ.map fun s => (obs s, tgt s)) (o, P)).toReal =
-        ∑ s : HardKeyValSeed U V n, (μ s).toReal *
-          (if obs (actInsSeed t_st (F * m) ht_end γ s) = o ∧
-              tgt (actInsSeed t_st (F * m) ht_end γ s) = P then 1 else 0) := by
-      rw [PMF.map_apply_toReal, ← (actInsSeed t_st (F * m) ht_end γ).sum_comp]
-      refine Finset.sum_congr rfl fun s _ => ?_
-      have hμ : μ (actInsSeed t_st (F * m) ht_end γ s) = μ s := by
-        simp [μ, PMF.uniformOfFintype_apply]
-      rw [hμ]
-      by_cases h1 : obs (actInsSeed t_st (F * m) ht_end γ s) = o ∧
-          tgt (actInsSeed t_st (F * m) ht_end γ s) = P
-      · rcases h1 with ⟨ha, hb⟩; simp [ha, hb]
-      · have hne : (o, P) ≠ (obs (actInsSeed t_st (F * m) ht_end γ s),
-            tgt (actInsSeed t_st (F * m) ht_end γ s)) := fun h =>
-          h1 ⟨(Prod.mk.inj h).1.symm, (Prod.mk.inj h).2.symm⟩
-        simp [h1, hne]
-    calc ((μ.map fun s => (obs s, tgt s)) (o, P)).toReal * (Fintype.card G : ℝ)
-        = ∑ γ : G, ((μ.map fun s => (obs s, tgt s)) (o, P)).toReal := by
-            rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_comm]
-      _ = ∑ γ : G, ∑ s, (μ s).toReal *
-            (if obs (actInsSeed t_st (F * m) ht_end γ s) = o ∧
-                tgt (actInsSeed t_st (F * m) ht_end γ s) = P then 1 else 0) :=
-            Finset.sum_congr rfl fun γ _ => hperm γ
-      _ = ∑ s, (μ s).toReal * ∑ γ : G,
-            (if obs (actInsSeed t_st (F * m) ht_end γ s) = o ∧
-                tgt (actInsSeed t_st (F * m) ht_end γ s) = P then (1 : ℝ) else 0) := by
-            rw [Finset.sum_comm]; refine Finset.sum_congr rfl fun s _ => ?_
-            rw [Finset.mul_sum]
-      _ = _ := by
-            refine Finset.sum_congr rfl fun s _ => ?_
-            rw [Finset.card_filter]; push_cast; rfl
-  have havg_obs : ((μ.map obs) o).toReal * (Fintype.card G : ℝ) =
-      ∑ s : HardKeyValSeed U V n, (μ s).toReal *
-        ((Finset.univ.filter fun γ : G =>
-          obs (actInsSeed t_st (F * m) ht_end γ s) = o).card : ℝ) := by
-    have hperm (γ : G) : ((μ.map obs) o).toReal =
-        ∑ s : HardKeyValSeed U V n, (μ s).toReal *
-          (if obs (actInsSeed t_st (F * m) ht_end γ s) = o then 1 else 0) := by
-      rw [PMF.map_apply_toReal, ← (actInsSeed t_st (F * m) ht_end γ).sum_comp]
-      refine Finset.sum_congr rfl fun s _ => ?_
-      have hμ : μ (actInsSeed t_st (F * m) ht_end γ s) = μ s := by
-        simp [μ, PMF.uniformOfFintype_apply]
-      rw [hμ]
-      by_cases h1 : obs (actInsSeed t_st (F * m) ht_end γ s) = o
-      · simp [h1]
-      · simp [h1, Ne.symm h1]
-    calc ((μ.map obs) o).toReal * (Fintype.card G : ℝ)
-        = ∑ γ : G, ((μ.map obs) o).toReal := by
-            rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_comm]
-      _ = ∑ γ : G, ∑ s, (μ s).toReal *
-            (if obs (actInsSeed t_st (F * m) ht_end γ s) = o then 1 else 0) :=
-            Finset.sum_congr rfl fun γ _ => hperm γ
-      _ = ∑ s, (μ s).toReal * ∑ γ : G,
-            (if obs (actInsSeed t_st (F * m) ht_end γ s) = o then (1 : ℝ) else 0) := by
-            rw [Finset.sum_comm]; refine Finset.sum_congr rfl fun s _ => ?_
-            rw [Finset.mul_sum]
-      _ = _ := by
-            refine Finset.sum_congr rfl fun s _ => ?_
-            rw [Finset.card_filter]; push_cast; rfl
-  have hG_pos : (0 : ℝ) < (Fintype.card G : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-  have hmul_le : (((μ.map fun s => (obs s, tgt s)) (o, P)).toReal * (M_nat : ℝ)) *
-      (Fintype.card G : ℝ) ≤ ((μ.map obs) o).toReal * (Fintype.card G : ℝ) := by
-    calc (((μ.map fun s => (obs s, tgt s)) (o, P)).toReal * (M_nat : ℝ)) * (Fintype.card G : ℝ)
-        = (((μ.map fun s => (obs s, tgt s)) (o, P)).toReal * (Fintype.card G : ℝ)) *
-            (M_nat : ℝ) := by ring
-      _ = ∑ s, (μ s).toReal *
-            (((Finset.univ.filter fun γ : G =>
-                obs (actInsSeed t_st (F * m) ht_end γ s) = o ∧
-                  tgt (actInsSeed t_st (F * m) ht_end γ s) = P).card : ℝ) * (M_nat : ℝ)) := by
-            rw [havg_pair, Finset.sum_mul]
-            exact Finset.sum_congr rfl fun _ _ => by ring
-      _ ≤ ∑ s, (μ s).toReal *
-            ((Finset.univ.filter fun γ : G =>
-              obs (actInsSeed t_st (F * m) ht_end γ s) = o).card : ℝ) :=
-            Finset.sum_le_sum fun s _ => mul_le_mul_of_nonneg_left (horbit_ineq s)
-              ENNReal.toReal_nonneg
-      _ = ((μ.map obs) o).toReal * (Fintype.card G : ℝ) := havg_obs.symm
-  exact le_of_mul_le_mul_right hmul_le hG_pos
+  have havg_pair := toReal_map_uniform_mul_card (fun γ : G => actInsSeed t_st (F * m) ht_end γ)
+    (fun s => (obs s, tgt s)) (o, P)
+  have havg_obs := toReal_map_uniform_mul_card (fun γ : G => actInsSeed t_st (F * m) ht_end γ) obs o
+  simp only [Prod.mk.injEq] at havg_pair
+  refine le_of_mul_le_mul_right ?_ (Nat.cast_pos.mpr Fintype.card_pos : (0 : ℝ) < Fintype.card G)
+  rw [mul_right_comm, havg_pair, havg_obs, Finset.sum_mul]
+  exact Finset.sum_le_sum fun s _ => by
+    rw [mul_assoc]; exact mul_le_mul_of_nonneg_left (by convert horbit_ineq s)
+      ENNReal.toReal_nonneg
 
 /-! ### Protocol 1 candidate sets, message encoding, and Claims 4.1–4.2 -/
 
@@ -1277,17 +1183,12 @@ theorem outer_node_lower_bound (withQueries : Bool) {U V n cells w : ℕ} {R_out
   have hm_ge2 : 2 ≤ m :=
     (Nat.pow_le_pow_right (by omega) hℓ).trans (T.two_pow_le_blockSize ℓ)
   have hF_even : 2 ∣ F := T.even_fanout (ℓ + 1) (Nat.le_add_left 1 ℓ)
-  have hexp_cost : (∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
-        (T.nodeCost D_det n stride ops ℓ b : ℝ)) =
-      ∑ s, (μ s).toReal * (T.nodeCost D_det n stride (s.modeOps withQueries) ℓ b : ℝ) := by
+  have hexp (f : List (Dynamic.Op U) → ℕ) :
+      ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (f ops : ℝ) =
+        ∑ s, (μ s).toReal * (f (s.modeOps withQueries) : ℝ) := by
     rw [← map_modeOps_uniformOfFintype_hardKeyValSeed]
     exact PMF.tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
-  have hexp_probe : (∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
-        (T.nodeProbes D_det n stride ops (ℓ + 1) b : ℝ)) =
-      ∑ s, (μ s).toReal * (T.nodeProbes D_det n stride (s.modeOps withQueries) (ℓ + 1) b : ℝ) := by
-    rw [← map_modeOps_uniformOfFintype_hardKeyValSeed]
-    exact PMF.tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
-  rw [hexp_cost, hexp_probe]
+  rw [hexp, hexp]
   by_contra hnot
   push Not at hnot
   rcases hnot with ⟨hcost_lt, hprobe_lt⟩
@@ -1444,12 +1345,7 @@ theorem outer_node_lower_bound (withQueries : Bool) {U V n cells w : ℕ} {R_out
   have hclaim41 := T.quarter_fanout_le_sum_prob_isGoodSeg D_det n stride μ
     (HardKeyValSeed.modeOps withQueries) hγ ht ℓ b hcost_lt.le hprobe_lt.le
   have hhalf_card : (halfSet.card : ℝ) ≤ (F : ℝ) / 2 := by
-    have hc : halfSet.card = F / 2 := by
-      refine (Finset.card_bij (s := halfSet) (t := Finset.range (F / 2))
-        (fun i _ => i.val) (fun _ hi => Finset.mem_range.mpr (Finset.mem_filter.mp hi).2)
-        (fun _ _ _ _ h => Fin.ext h) fun r hr => ?_).trans (Finset.card_range _)
-      exact ⟨⟨r, by have := Finset.mem_range.mp hr; omega⟩,
-        Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hr⟩, rfl⟩
+    have hc : halfSet.card = F / 2 := Fin.card_filter_val_lt.trans (by omega)
     obtain ⟨q, hq⟩ := hF_even
     rw [hc, hq, Nat.mul_div_cancel_left q (by omega)]; push_cast; linarith
   have hclaim42_sum : (∑ i ∈ halfSet, ∑ s, (μ s).toReal *
@@ -1483,10 +1379,7 @@ theorem outer_node_lower_bound (withQueries : Bool) {U V n cells w : ℕ} {R_out
                 outerNbrCandidates T ℓ b ht_stop s i) ∧
               T.IsGoodSeg D_det n stride (s.modeOps withQueries) γ t ℓ b i
             then (1 : ℝ) else 0)) := by
-      rw [← Finset.sum_sub_distrib]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      rw [← Finset.sum_sub_distrib]
-      exact Finset.sum_congr rfl fun s _ => by rw [← mul_sub, hpt_id i s]
+      simp_rw [← Finset.sum_sub_distrib, ← mul_sub, hpt_id]
     linarith
   have hblock : (T.blockSize (ℓ + 1) : ℝ) = (m : ℝ) * (F : ℝ) := by simp [m, F]
   have hm_real : (2 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm_ge2
@@ -1544,31 +1437,10 @@ theorem outer_lemma_insertQueryDelete {U V n cells w : ℕ} {R_outer R_inner γ 
           Nat.mul_le_mul_right _ hFh
         classical
         dsimp only
-        have hfilt (s : HardKeyValSeed U V n) :
-            ((((s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
-              ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
-              (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard
-              (T.blockSize ℓ)).filter fun B =>
-              (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) ∩ B).card <
-                T.blockSize ℓ / 2).filter
-              (IsModeSeedConsistent true D_det
-                (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) γ t s)) =
-            ((((s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
-              ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
-              (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard
-              (T.blockSize ℓ)).filter fun B =>
-              (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) ∩ B).card <
-                T.blockSize ℓ / 2).filter
-              (IsSeedConsistent D_det
-                (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) γ t s)) :=
+        have hfilt (t₀ m : ℕ) (h : t₀ + m ≤ n) (s : HardKeyValSeed U V n)
+            (P : Finset (Finset (Fin U))) :
+            P.filter (IsModeSeedConsistent true D_det t₀ m h γ t s) =
+              P.filter (IsSeedConsistent D_det t₀ m h γ t s) :=
           Finset.filter_congr fun B _ => isModeSeedConsistent_true_iff D_det _ _ _ γ t s B
         simp_rw [hfilt]
         exact expected_card_cappedConsistent_segmentRest_lt_half_le hU hV hm_n hγ hm_lo

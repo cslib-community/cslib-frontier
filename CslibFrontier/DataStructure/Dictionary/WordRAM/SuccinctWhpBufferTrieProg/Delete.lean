@@ -143,6 +143,7 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
     fun v ch hnz => hv.bounds.2.2.1 v ch hnz
   obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
+  obtain ⟨hna, hia, hhna, hhia, hch, hpar, hrep_meta, hit⟩ := bufTrieMemRep_iff_rt.mp hrep
   set rt := mkBufRt c U V w n_max base ep
   obtain ⟨_, hw_st, hw_mc, hw_vp, _, hw_a1⟩ :=
     bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
@@ -156,13 +157,6 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
         brOffMeta rt ∧
       brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
         brOffItems rt := rt_disj_le c U V w n_max base ep hep
-  have hrep_meta : ∀ u < tr.nodeAlloc,
-      readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 2) =
-        tr.nodeLeafItem u ∧
-      (tr.nodeLeafItem u ≠ 0 →
-        readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 3) =
-          tr.nodeActive u) :=
-    (bufTrieMemRep_iff_rt.mp hrep).2.2.2.2.2.2.1
   dsimp only
   unfold bufDeleteGenProg
   simp only [pure_bind]
@@ -274,10 +268,9 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
           bufEpFrame_writeMeta hw hep hidx3
         have h0_lt : 0 < 2 ^ globalPtrBits n_max := Nat.two_pow_pos _
         refine ⟨rfl, hmc_all, hvp_all, ?_, hfr⟩
-        obtain ⟨hna, hia, hhna, hhia, hch, hpar, hlf, hit⟩ := bufTrieMemRep_iff_rt.mp hrep
         rw [bufTrieMemRep_iff_rt]
         dsimp only
-        rw [← show rt = mkBufRt c U V w n_max base ep from rfl] at hhna hhia hch hpar hlf hit ⊢
+        rw [← show rt = mkBufRt c U V w n_max base ep from rfl]
         refine ⟨hna, hia,
           (writePacked_outside hw _ hidx3 _ (by omega)).trans hhna,
           (writePacked_outside hw _ hidx3 _ (by omega)).trans hhia,
@@ -285,7 +278,8 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
           fun u hu1 hu => ⟨(readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans
             (hpar u hu1 hu).1,
             (readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans (hpar u hu1 hu).2⟩,
-          fun u hu => ⟨(readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans (hlf u hu).1,
+          fun u hu => ⟨(readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans
+              (hrep_meta u hu).1,
             fun hnz => by
               by_cases hul : u = leaf
               · subst hul
@@ -293,7 +287,7 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
                 exact readPacked_writePacked_self _ _ _ s.mem (4 * u + 3) h0_lt
               · rw [Function.update_of_ne hul]
                 exact (readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans
-                  ((hlf u hu).2 hnz)⟩,
+                  ((hrep_meta u hu).2 hnz)⟩,
           fun id hid => ⟨(readPacked_writePacked_disjoint hw
               (show id < 6 * qEpochWhp n_max + 6 by omega) hidx3 (Or.inr (by omega))).trans
               (hit id hid).1,
@@ -304,11 +298,7 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
               (show 2 * qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) hidx3
               (Or.inr (by omega))).trans (hit id hid).2.2⟩⟩
         have huc_lt : u * 2 ^ bCharWhp n_max + ch' < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc u * 2 ^ bCharWhp n_max + ch'
-              < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch' _
-            _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
+          unfold trieChildEntriesWhp; exact mul_add_lt_mul_bound hu hch'
         exact (readPacked_writePacked_disjoint hw huc_lt hidx3 (Or.inl (by omega))).trans
           (hch u hu ch' hch')
 

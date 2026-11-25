@@ -218,8 +218,7 @@ theorem threeNodeWrites_and_alloc_sliceRep
   dsimp only at hfr4 hmc4 hvp4 hrep4 hoth4 hbm4 hout4 ⊢
   have hs'_eq : (Memory.spec 0).clientState s (w1 >>= fun _ => w2 >>= fun _ => w3 >>= fun _ => w4) =
       (Memory.spec 0).clientState s3 w4 := by
-    rw [clientState_bind, clientState_bind,
-      clientState_bind]
+    rw [clientState_bind, clientState_bind, clientState_bind]
   dsimp only [w1, w2, w3, w4] at hs'_eq ⊢
   rw [hs'_eq]
   refine ⟨hfr4.trans (hfr3.trans (hfr2.trans hfr1)), ?_, ?_, hrep4, ?_, ?_, ?_⟩
@@ -347,24 +346,12 @@ private theorem realizes_writeSplitFourBody :
       wp_large_offBtMeta hth, wp_large_nodeMetaBits hth,
       wp_large_offBtKeys hth, wp_large_keysWordBits hth,
       wp_large_offBtVals hth, wp_large_valsWordBits hth] at hsIdx hu1 hu2 hu3 ⊢
-    have hidx1 : sIdx * nSliceWhp n_max + u1 < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx * nSliceWhp n_max + u1 < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu1 _
-        _ = (sIdx + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
-    have hidx2 : sIdx * nSliceWhp n_max + u2 < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx * nSliceWhp n_max + u2 < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu2 _
-        _ = (sIdx + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
-    have hidx3 : sIdx * nSliceWhp n_max + u3 < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx * nSliceWhp n_max + u3 < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu3 _
-        _ = (sIdx + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
+    have hidx1 : sIdx * nSliceWhp n_max + u1 < totalBTreeNodesWhp n_max :=
+      mul_add_lt_mul_bound hsIdx hu1
+    have hidx2 : sIdx * nSliceWhp n_max + u2 < totalBTreeNodesWhp n_max :=
+      mul_add_lt_mul_bound hsIdx hu2
+    have hidx3 : sIdx * nSliceWhp n_max + u3 < totalBTreeNodesWhp n_max :=
+      mul_add_lt_mul_bound hsIdx hu3
     first
     | decide
     | exact henv.fits_const (by decide)

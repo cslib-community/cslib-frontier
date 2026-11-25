@@ -123,26 +123,14 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
       change obs8 t₀ m ht₀ (actSeed8Equiv (Equiv.Perm.ofSubtype γ.1) γ.2 s, B) = (a_fn, B, d_fn)
       dsimp only [obs8]
       refine Prod.ext (funext fun r => ?_) (Prod.ext rfl (funext fun r => ?_))
-      · dsimp only
-        have hr_mem : segInsertedKeys s.keys t₀ m ht₀ r ∈ obsFixedSet (a_fn, B, d_fn) :=
-          Finset.mem_union_left _ (Finset.mem_union_left _
-            (Finset.mem_image.mpr ⟨r, Finset.mem_univ r, congrFun ha.symm r⟩))
-        have h1 : segInsertedKeys (actSeed8Equiv (Equiv.Perm.ofSubtype γ.1) γ.2 s).keys
-            t₀ m ht₀ r = Equiv.Perm.ofSubtype γ.1 (segInsertedKeys s.keys t₀ m ht₀ r) := by
-          simp only [segInsertedKeys_apply, actSeed8Equiv, Equiv.coe_fn_mk,
-            Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
-        rw [h1, hfix γ.1 hr_mem, ← ha]
-      · dsimp only
-        have hr_mem : segDeletedKeys s.keys s.delPerm t₀ m ht₀ r ∈
-            obsFixedSet (a_fn, B, d_fn) :=
-          Finset.mem_union_right _
-            (Finset.mem_image.mpr ⟨r, Finset.mem_univ r, congrFun hd.symm r⟩)
-        have h1 : segDeletedKeys (actSeed8Equiv (Equiv.Perm.ofSubtype γ.1) γ.2 s).keys
-            (actSeed8Equiv (Equiv.Perm.ofSubtype γ.1) γ.2 s).delPerm t₀ m ht₀ r =
-            Equiv.Perm.ofSubtype γ.1 (segDeletedKeys s.keys s.delPerm t₀ m ht₀ r) := by
-          simp only [segDeletedKeys_apply, actSeed8Equiv, Equiv.coe_fn_mk,
-            Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
-        rw [h1, hfix γ.1 hr_mem, ← hd]
+      · simpa only [segInsertedKeys_apply, actSeed8Equiv, Equiv.coe_fn_mk,
+          Function.Embedding.trans_apply, Equiv.coe_toEmbedding] using
+          (hfix γ.1 (Finset.mem_union_left _ (Finset.mem_union_left _ (Finset.mem_image.mpr
+            ⟨r, Finset.mem_univ r, congrFun ha.symm r⟩)))).trans (congrFun ha r)
+      · simpa only [segDeletedKeys_apply, actSeed8Equiv, Equiv.coe_fn_mk,
+          Function.Embedding.trans_apply, Equiv.coe_toEmbedding] using
+          (hfix γ.1 (Finset.mem_union_right _ (Finset.mem_image.mpr
+            ⟨r, Finset.mem_univ r, congrFun hd.symm r⟩))).trans (congrFun hd r)
     have hobs_iff (γ : G) (sb : HardKeyValSeed U V n × Finset (Fin U)) :
         obs8 t₀ m ht₀ (actG γ sb) = o ↔ obs8 t₀ m ht₀ sb = o := by
       refine ⟨fun h => ?_, hobs_fwd γ sb⟩
@@ -207,10 +195,9 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
           rw [hd_eq] at huD'
           exact huD huD'
       have hS_comp_ge : U - 3 * m ≤ S_comp.card := by
-        have h1 : (Finset.univ.image o.1).card ≤ m :=
-          Finset.card_image_le.trans (by simp only [Finset.card_univ, Fintype.card_fin, le_rfl])
-        have h3 : (Finset.univ.image o.2.2).card ≤ m :=
-          Finset.card_image_le.trans (by simp only [Finset.card_univ, Fintype.card_fin, le_rfl])
+        have h1 := (Finset.card_image_le (s := Finset.univ) (f := o.1)).trans_eq (Finset.card_fin m)
+        have h3 := (Finset.card_image_le (s := Finset.univ) (f := o.2.2)).trans_eq
+          (Finset.card_fin m)
         have ho_le : (obsFixedSet o).card ≤ 3 * m :=
           (Finset.card_union_le _ _).trans (by
             have := Finset.card_union_le (Finset.univ.image o.1) o.2.1; omega)
@@ -224,49 +211,24 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
         by_cases hKr : K_rem ∈ S_comp.powersetCard (n - m)
         · have hstab_eq (K' : Finset (Fin U)) (hK' : K' ∈ S_comp.powersetCard (n - m)) :
               (stab K_rem).card = (stab K').card := by
-            let subSet (A : Finset (Fin U)) : Finset ↥S_comp := Finset.univ.filter fun x => x.1 ∈ A
+            let subSet (A : Finset (Fin U)) : Finset ↥S_comp := A.subtype (· ∈ S_comp)
+            have hsub_map (A : Finset (Fin U)) (hA : A ∈ S_comp.powersetCard (n - m)) :
+                (subSet A).map (Function.Embedding.subtype _) = A :=
+              Finset.subtype_map_of_mem fun _ hx => (Finset.mem_powersetCard.mp hA).1 hx
             have hsub_card (A : Finset (Fin U)) (hA : A ∈ S_comp.powersetCard (n - m)) :
                 (subSet A).card = n - m := by
-              obtain ⟨hA_sub, hA_c⟩ := Finset.mem_powersetCard.mp hA
-              rw [← hA_c]
-              exact Finset.card_bij (fun x _ => x.1) (fun x hx => (Finset.mem_filter.mp hx).2)
-                (fun _ _ _ _ h => Subtype.ext h) fun y hy =>
-                  ⟨⟨y, hA_sub hy⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩, rfl⟩
+              rw [← Finset.card_map, hsub_map A hA, (Finset.mem_powersetCard.mp hA).2]
             obtain ⟨σ_sub, hσ_sub_map⟩ := Equiv.Perm.exists_map_finset_eq
               (subSet K_rem) (subSet K') ((hsub_card K_rem hKr).trans (hsub_card K' hK').symm)
             have hσ_map : K_rem.map (Equiv.Perm.ofSubtype σ_sub).toEmbedding = K' := by
-              obtain ⟨hKr_sub, _⟩ := Finset.mem_powersetCard.mp hKr
-              obtain ⟨hK'_sub, _⟩ := Finset.mem_powersetCard.mp hK'
-              ext y; simp only [Finset.mem_map, Equiv.coe_toEmbedding]
-              constructor
-              · rintro ⟨x, hx, rfl⟩
-                have hxS := hKr_sub hx
-                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub hxS]
-                have hmem : σ_sub ⟨x, hxS⟩ ∈ subSet K' := by
-                  rw [← hσ_sub_map]
-                  exact Finset.mem_map.mpr ⟨⟨x, hxS⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩,
-                    rfl⟩
-                exact (Finset.mem_filter.mp hmem).2
-              · intro hy
-                have hyK' : (⟨y, hK'_sub hy⟩ : ↥S_comp) ∈ subSet K' :=
-                  Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩
-                rw [← hσ_sub_map] at hyK'
-                obtain ⟨x_sub, hxKr, hx_eq⟩ := Finset.mem_map.mp hyK'
-                refine ⟨x_sub.1, (Finset.mem_filter.mp hxKr).2, ?_⟩
-                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub x_sub.2]
-                exact congrArg Subtype.val hx_eq
-            refine Finset.card_bij (fun π_sub _ => π_sub.trans σ_sub) (fun π_sub hπ => ?_)
-              (fun _ _ _ _ h => Equiv.Perm.ext fun x => σ_sub.injective (Equiv.Perm.ext_iff.mp h x))
-              (fun π' hπ' => ⟨π'.trans σ_sub.symm, ?_, by
-                ext x; simp only [Equiv.trans_apply, Equiv.apply_symm_apply]⟩)
-            · rw [Finset.mem_filter] at hπ ⊢
-              refine ⟨Finset.mem_univ _, ?_⟩
-              rw [ofSubtype_trans, ← Finset.map_map, hπ.2, hσ_map]
-            · rw [Finset.mem_filter] at hπ' ⊢
-              refine ⟨Finset.mem_univ _, ?_⟩
-              apply Finset.map_injective (Equiv.Perm.ofSubtype σ_sub).toEmbedding
-              rw [Finset.map_map, ← ofSubtype_trans, Equiv.trans_assoc, Equiv.symm_trans_self,
-                Equiv.trans_refl, hπ'.2, hσ_map]
+              rw [← hsub_map K_rem hKr, ← hsub_map K' hK', ← hσ_sub_map, Finset.map_map,
+                Finset.map_map]
+              congr 1; ext x : 1; exact Equiv.Perm.ofSubtype_apply_coe σ_sub x
+            refine Finset.card_equiv (Equiv.mulLeft σ_sub) fun π_sub => ?_
+            simp only [stab, Finset.mem_filter, Finset.mem_univ, true_and, Equiv.coe_mulLeft]
+            rw [show σ_sub * π_sub = π_sub.trans σ_sub from rfl, ofSubtype_trans, ← Finset.map_map,
+              ← hσ_map]
+            exact Finset.map_inj.symm
           have hdisj : ((S_comp.powersetCard (n - m) : Set (Finset (Fin U)))).PairwiseDisjoint
               stab := fun K₁ _ K₂ _ hne => Finset.disjoint_left.mpr fun π_sub h₁ h₂ =>
             hne ((Finset.mem_filter.mp h₁).2.symm.trans (Finset.mem_filter.mp h₂).2)
@@ -357,19 +319,10 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
             K₀.map (Equiv.Perm.ofSubtype π_sub).toEmbedding
           dsimp only [K₀]
           rw [actSeed8Equiv_activeKeys, actSeed8Equiv_deletedSet, Finset.map_sdiff]
-        rw [← Finset.card_sigma]
-        refine Finset.card_bij (fun γ _ => ⟨γ.1, γ.2⟩)
-          (fun γ hγ => by
-            have hpair := Prod.mk.inj (Finset.mem_filter.mp hγ).2
-            exact Finset.mem_sigma.mpr ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-              by rw [← hfst γ.1 γ.2]; exact hpair.1⟩,
-              Finset.mem_filter.mpr ⟨Finset.mem_univ _, hpair.2⟩⟩)
-          (fun ⟨_, _⟩ _ ⟨_, _⟩ _ h => by injection h with ha hb; exact Prod.ext ha hb)
-          (fun ⟨π_sub, δ⟩ hσ => ⟨(π_sub, δ), by
-            obtain ⟨hπ, hδ⟩ := Finset.mem_sigma.mp hσ
-            refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, Prod.ext ?_
-              (Finset.mem_filter.mp hδ).2⟩
-            rw [hfst]; exact (Finset.mem_filter.mp hπ).2, rfl⟩)
+        rw [Finset.card_filter, Fintype.sum_prod_type, Finset.sum_filter]
+        refine Finset.sum_congr rfl fun π_sub _ => ?_
+        simp only [Prod.ext_iff, hfst, Finset.card_filter]
+        split_ifs with h <;> simp [h]
       have hnat_ineq : (Finset.univ.filter fun γ : G =>
             target8 t₀ m ht₀ (actG γ (s, B)) = (K_rem, kv_opt)).card * M_nat ≤
           Fintype.card G := by
@@ -403,22 +356,9 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
               rw [PMF.map_apply_toReal, ← (actG γ).sum_comp]
               refine Finset.sum_congr rfl fun sb _ => ?_
               by_cases ho_sb : obs8 t₀ m ht₀ sb = o
-              · have ho_act := (hobs_iff γ sb).mpr ho_sb
-                rw [hμ_obs γ sb ho_sb]
-                by_cases ht_act : target8 t₀ m ht₀ (actG γ sb) = T
-                · have heq : (o, T) =
-                      (obs8 t₀ m ht₀ (actG γ sb), target8 t₀ m ht₀ (actG γ sb)) :=
-                    Prod.ext ho_act.symm ht_act.symm
-                  rw [ite_eq_left heq, ite_eq_left ⟨ho_sb, ht_act⟩, mul_one]
-                · have hne_p : (o, T) ≠
-                      (obs8 t₀ m ht₀ (actG γ sb), target8 t₀ m ht₀ (actG γ sb)) :=
-                    fun h => ht_act (Prod.mk.inj h).2.symm
-                  rw [ite_eq_right hne_p, ite_eq_right fun h => ht_act h.2, mul_zero]
-              · have ho_act : obs8 t₀ m ht₀ (actG γ sb) ≠ o := mt (hobs_iff γ sb).mp ho_sb
-                have hne_p : (o, T) ≠
-                    (obs8 t₀ m ht₀ (actG γ sb), target8 t₀ m ht₀ (actG γ sb)) :=
-                  fun h => ho_act (Prod.mk.inj h).1.symm
-                rw [ite_eq_right hne_p, ite_eq_right fun h => ho_sb h.1, mul_zero]
+              · rw [hμ_obs γ sb ho_sb]
+                simp [Prod.mk.injEq, ho_sb, (hobs_iff γ sb).mpr ho_sb, @eq_comm _ T]
+              · simp [Prod.mk.injEq, ho_sb, mt (hobs_iff γ sb).mp ho_sb, @eq_comm _ o]
         _ = _ := by
               rw [Finset.sum_comm]
               refine Finset.sum_congr rfl fun sb _ => ?_
@@ -426,40 +366,19 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
     have havg_obs : ((μ_g.map (obs8 t₀ m ht₀)) o).toReal * (Fintype.card G : ℝ) =
         ∑ sb, (μ_g sb).toReal * (if obs8 t₀ m ht₀ sb = o then (Fintype.card G : ℝ) else 0) := by
       rw [PMF.map_apply_toReal, Finset.sum_mul]
-      refine Finset.sum_congr rfl fun sb _ => ?_
-      by_cases ho_sb : obs8 t₀ m ht₀ sb = o
-      · rw [ite_eq_left ho_sb.symm, ite_eq_left ho_sb]
-      · rw [ite_eq_right (Ne.symm ho_sb), zero_mul, ite_eq_right ho_sb, mul_zero]
+      exact Finset.sum_congr rfl fun sb _ => by
+        by_cases ho_sb : obs8 t₀ m ht₀ sb = o <;> simp [ho_sb, eq_comm (a := o)]
     have hG_pos : (0 : ℝ) < (Fintype.card G : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
     refine le_of_mul_le_mul_right ?_ hG_pos
-    calc ((((μ_g.map fun sb => (obs8 t₀ m ht₀ sb, target8 t₀ m ht₀ sb)) (o, T)).toReal) *
-            (M_nat : ℝ)) * (Fintype.card G : ℝ)
-        = ((((μ_g.map fun sb => (obs8 t₀ m ht₀ sb, target8 t₀ m ht₀ sb)) (o, T)).toReal) *
-            (Fintype.card G : ℝ)) * (M_nat : ℝ) := by ring
-      _ = ∑ sb, (μ_g sb).toReal *
-            (((Finset.univ.filter fun γ : G =>
-              obs8 t₀ m ht₀ sb = o ∧ target8 t₀ m ht₀ (actG γ sb) = T).card : ℝ) *
-                (M_nat : ℝ)) := by
-            rw [havg_pair, Finset.sum_mul]
-            exact Finset.sum_congr rfl fun _ _ => by ring
-      _ ≤ ∑ sb, (μ_g sb).toReal * (if obs8 t₀ m ht₀ sb = o then (Fintype.card G : ℝ) else 0) := by
-            refine Finset.sum_le_sum fun sb _ => ?_
-            by_cases hsupp : sb.2 ∈ ctx.Fg sb.1
-            · by_cases ho_sb : obs8 t₀ m ht₀ sb = o
-              · rw [ite_eq_left ho_sb]
-                have hfilt_eq : (Finset.univ.filter fun γ : G =>
-                    obs8 t₀ m ht₀ sb = o ∧ target8 t₀ m ht₀ (actG γ sb) = T) =
-                    Finset.univ.filter fun γ : G => target8 t₀ m ht₀ (actG γ sb) = T := by
-                  ext γ; simp only [Finset.mem_filter, Finset.mem_univ, ho_sb, true_and]
-                rw [hfilt_eq]
-                exact mul_le_mul_of_nonneg_left (horbit_le sb ho_sb hsupp) ENNReal.toReal_nonneg
-              · simp only [ho_sb, false_and, Finset.filter_false, Finset.card_empty,
-                  Nat.cast_zero, zero_mul, ↓reduceIte, mul_zero, le_rfl]
-            · have h0 : (μ_g sb).toReal = 0 := by
-                dsimp only [μ_g]
-                rw [toReal_innerPoolDist_apply, ite_eq_right hsupp]
-              rw [h0, zero_mul, zero_mul]
-      _ = ((μ_g.map (obs8 t₀ m ht₀)) o).toReal * (Fintype.card G : ℝ) := havg_obs.symm
+    rw [mul_right_comm, havg_pair, Finset.sum_mul, havg_obs]
+    refine Finset.sum_le_sum fun sb _ => ?_
+    rw [mul_assoc]
+    by_cases ho_sb : obs8 t₀ m ht₀ sb = o
+    · by_cases hsupp : sb.2 ∈ ctx.Fg sb.1
+      · simp only [ho_sb, true_and, ↓reduceIte]
+        exact mul_le_mul_of_nonneg_left (horbit_le sb ho_sb hsupp) ENNReal.toReal_nonneg
+      · dsimp only [μ_g]; rw [toReal_innerPoolDist_apply, ite_eq_right hsupp, zero_mul, zero_mul]
+    · simp [ho_sb]
   · have hzero : ((μ_g.map fun sb => (obs8 t₀ m ht₀ sb, target8 t₀ m ht₀ sb)) (o, T)).toReal =
         0 := by
       rw [PMF.map_apply_toReal]

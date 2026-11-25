@@ -208,27 +208,9 @@ theorem bufCheckSlotGenProg_spec {c U V w n_max base ep id : ℕ}
   obtain ⟨hna_lt_sp, hia_lt_sp, _, hm_seg, hi_seg⟩ := rt_seg_le c U V w n_max base ep hep
   obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
+  obtain ⟨hna_max, hia_le, hmem_na, hmem_ia, -, -, hrep_meta, hrep_items⟩ :=
+    bufTrieMemRep_iff_rt.mp hrep
   set rt := mkBufRt c U V w n_max base ep
-  have hmem_na : s.mem (base + brHdrNA rt) = tr.nodeAlloc := by
-    have h := hrep.2.2.1; rcases hep with rfl | rfl <;> exact h
-  have hmem_ia : s.mem (base + brHdrIA rt) = tr.itemAlloc := by
-    have h := hrep.2.2.2.1; rcases hep with rfl | rfl <;> exact h
-  have hna_max := hrep.1
-  have hia_le := hrep.2.1
-  have hrep_meta : ∀ u < tr.nodeAlloc,
-      readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 2) =
-        tr.nodeLeafItem u ∧
-      (tr.nodeLeafItem u ≠ 0 →
-        readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 3) =
-          tr.nodeActive u) := by
-    have hm := hrep.2.2.2.2.2.2.1; rcases hep with rfl | rfl <;> exact hm
-  have hrep_items : ∀ j < tr.itemAlloc,
-      readPacked (base + brOffItems rt) (globalPtrBits n_max) w s.mem j = tr.itemLeaf j ∧
-      readPacked (base + brOffItems rt) (globalPtrBits n_max) w s.mem (qEpochWhp n_max + j) =
-        tr.itemBucket j ∧
-      readPacked (base + brOffItems rt) (globalPtrBits n_max) w s.mem (2 * qEpochWhp n_max + j) =
-        tr.itemLoc j := by
-    have hi := hrep.2.2.2.2.2.2.2; rcases hep with rfl | rfl <;> exact hi
   unfold bufCheckSlotGenProg
   simp only [pure_bind]
   dsimp only [bufCheckSlot]

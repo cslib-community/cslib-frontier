@@ -337,25 +337,15 @@ theorem valid_add {α : Type*} [AddCommMonoid α]
     have hsum_eq :
         ∑ i ∈ Finset.Ico (idx - lowbit idx) idx, (PrefixSums.addAt s pos δ).getD i 0 =
         ∑ i ∈ Finset.Ico (idx - lowbit idx) idx,
-          (s.getD i 0 + if i = pos then δ else 0) := by
-      refine Finset.sum_congr rfl fun i _ => ?_
-      rw [PrefixSums.getD_addAt s δ hpos_s i]
-      split_ifs <;> simp only [add_zero]
+          (s.getD i 0 + if i = pos then δ else 0) :=
+      Finset.sum_congr rfl fun i _ => by
+        rw [PrefixSums.getD_addAt s δ hpos_s i]; split_ifs <;> simp only [add_zero]
     rw [hsum_eq, Finset.sum_add_distrib]
     by_cases hmem : pos ∈ Finset.Ico (idx - lowbit idx) idx
-    · simp only [hmem, ↓reduceIte]
-      have hsingle : ∑ i ∈ Finset.Ico (idx - lowbit idx) idx, (if i = pos then δ else 0) = δ := by
-        rw [Finset.sum_eq_single pos (fun i _ hne => by simp only [hne, ↓reduceIte])
-          (fun hnot => False.elim (hnot hmem))]
-        simp only [↓reduceIte]
-      rw [hsingle]
-    · simp only [hmem, ↓reduceIte]
-      have hzero : ∑ i ∈ Finset.Ico (idx - lowbit idx) idx, (if i = pos then δ else 0) = 0 := by
-        apply Finset.sum_eq_zero
-        intro i hi
-        have hne : i ≠ pos := fun h => hmem (h ▸ hi)
-        simp only [hne, ↓reduceIte]
-      rw [hzero, add_zero]
+    · rw [ite_eq_left hmem, Finset.sum_eq_single_of_mem pos hmem fun i _ hne => ite_eq_right hne,
+        ite_eq_left rfl]
+    · rw [ite_eq_right hmem, Finset.sum_eq_zero fun i hi =>
+        ite_eq_right fun (h : i = pos) => hmem (h ▸ hi), add_zero]
   · have hge : s.length ≤ pos := by have := hv.1; omega
     rwa [PrefixSums.addAt_of_length_le δ hge]
 
@@ -443,11 +433,9 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
   have hm_val : tree[m - 1]'(by omega) =
       ∑ i ∈ Finset.Ico (m - lowbit m) m, s.getD i 0 := by
     rw [hinv.todo_eq m hm1 (Nat.le_refl m) hmt]
-    have hfilt : (fenwickChildren m).filter (· < m) = fenwickChildren m := by
-      apply Finset.filter_true_of_mem
-      intro c hc
-      simp only [fenwickChildren, Finset.mem_filter, Finset.mem_Icc] at hc
-      omega
+    have hfilt : (fenwickChildren m).filter (· < m) = fenwickChildren m :=
+      Finset.filter_true_of_mem fun c hc => by
+        simp only [fenwickChildren, Finset.mem_filter, Finset.mem_Icc] at hc; omega
     rw [hfilt]
     conv_rhs =>
       rw [← insert_biUnion_fenwickChildren hm1,
@@ -490,14 +478,7 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
           insert m ((fenwickChildren p).filter (· < m)) := by
         ext c
         simp only [Finset.mem_filter, Finset.mem_insert]
-        constructor
-        · rintro ⟨hc, hclt⟩
-          rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hclt) with hlt | rfl
-          · exact Or.inr ⟨hc, hlt⟩
-          · exact Or.inl rfl
-        · rintro (rfl | ⟨hc, hlt⟩)
-          · exact ⟨hm_mem, by omega⟩
-          · exact ⟨hc, by omega⟩
+        grind
       have hm_not : m ∉ (fenwickChildren p).filter (· < m) := by
         simp only [Finset.mem_filter, Nat.lt_irrefl, and_false, not_false_eq_true]
       rw [hfilt_eq, Finset.sum_insert hm_not, add_assoc]
@@ -507,17 +488,10 @@ theorem BuildInv.step {α : Type*} [AddCommMonoid α]
       rw [htree'_ne, hinv.todo_eq idx hidx1 (by omega) hidx_sz]
       have hfilt_eq : (fenwickChildren idx).filter (· < m + 1) =
           (fenwickChildren idx).filter (· < m) := by
-        ext c
-        simp only [Finset.mem_filter]
-        constructor
-        · rintro ⟨hc, hclt⟩
-          refine ⟨hc, ?_⟩
-          rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hclt) with hlt | rfl
-          · exact hlt
-          · simp only [fenwickChildren, Finset.mem_filter] at hc
-            exact False.elim (hpeq hc.2.symm)
-        · rintro ⟨hc, hlt⟩
-          exact ⟨hc, by omega⟩
+        refine Finset.filter_congr fun c hc => ⟨fun hclt => ?_, fun _ => by omega⟩
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hclt with hlt | rfl
+        · exact hlt
+        · simp only [fenwickChildren, Finset.mem_filter] at hc; exact absurd hc.2.symm hpeq
       rw [hfilt_eq]
 
 /-- At completion (`m = s.length + 1`), `BuildInv` implies `Valid`. -/

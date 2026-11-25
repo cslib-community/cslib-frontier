@@ -188,30 +188,27 @@ theorem ExecRand.tsum_le_eval_runRand_assemble {w : ℕ} {c : Code B r} {x : Dat
   induction h generalizing pc T with
   | @op o x y ho =>
     rw [ProbComp.eval_pure, tsum_eq_single (y, 1) (fun z hz => by simp [PMF.pure_apply, hz])]
-    simp only [PMF.pure_apply_self, one_mul, Code.size]
-    by_cases h1 : 1 ≤ T
-    · obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-      simp only [h1, ↓reduceIte, Nat.add_sub_cancel, runRand_succ,
-        stepRand_op (s := ⟨pc, x⟩) hp.head ho, pure_bind, le_rfl]
-    · simp [h1]
+    rcases T with _ | k
+    · simp
+    simp only [PMF.pure_apply_self, one_mul, Code.size, Nat.le_add_left, ↓reduceIte,
+      Nat.add_sub_cancel, runRand_succ, stepRand_op (s := ⟨pc, x⟩) hp.head ho, pure_bind, le_rfl]
   | @rand dst src x hfit =>
-    by_cases h1 : 1 ≤ T
-    · obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-      have hrhs :
-          (runRand w p (k + 1) (.running ⟨pc, x⟩)).eval cfg₀ =
-            ∑' s : Fin (x.regs src + 1),
-              (ProbComp.unifFin (x.regs src)).eval s *
-                (runRand w p k (.running ⟨pc + 1, x.set dst s.val⟩)).eval cfg₀ := by
-        rw [runRand_succ, stepRand_rand_of_fits (s := ⟨pc, x⟩) hp.head hfit, bind_assoc]
-        simp only [pure_bind, ProbComp.eval_bind, PMF.bind_apply]
-      rw [hrhs, ProbComp.eval_bind, Cslib.Probability.PMF.tsum_bind_mul]
-      refine tsum_le_tsum fun s => ?_
-      rw [ProbComp.eval_pure, tsum_eq_single (x.set dst s.val, 1)
-        (fun z hz => by simp [PMF.pure_apply, hz])]
-      simp [h1, Code.size]
+    rcases T with _ | k
     · refine le_trans (le_of_eq (tsum_mul_ite_le_eq_zero _ _ fun z hz => ?_)) zero_le
       supp_cases hz with ⟨_, rfl⟩
-      exact h1
+      simp
+    have hrhs :
+        (runRand w p (k + 1) (.running ⟨pc, x⟩)).eval cfg₀ =
+          ∑' s : Fin (x.regs src + 1),
+            (ProbComp.unifFin (x.regs src)).eval s *
+              (runRand w p k (.running ⟨pc + 1, x.set dst s.val⟩)).eval cfg₀ := by
+      rw [runRand_succ, stepRand_rand_of_fits (s := ⟨pc, x⟩) hp.head hfit, bind_assoc]
+      simp only [pure_bind, ProbComp.eval_bind, PMF.bind_apply]
+    rw [hrhs, ProbComp.eval_bind, Cslib.Probability.PMF.tsum_bind_mul]
+    refine tsum_le_tsum fun s => ?_
+    rw [ProbComp.eval_pure, tsum_eq_single (x.set dst s.val, 1)
+      (fun z hz => by simp [PMF.pure_apply, hz])]
+    simp [Code.size]
   | @seq c₁ c₂ x m₁ m₂ _ _ ih₁ ih₂ =>
     have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
       simpa using hp.append_right
@@ -232,43 +229,38 @@ theorem ExecRand.tsum_le_eval_runRand_assemble {w : ℕ} {c : Code B r} {x : Dat
     · rw [(PMF.apply_eq_zero_iff _ _).mpr hz₁, zero_mul, zero_mul]
   | @branch_pos cond pos neg x m hc _ ih =>
     rw [ProbComp.eval_map, Cslib.Probability.PMF.tsum_map_mul]
-    by_cases h1 : 1 ≤ T
-    · obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-      rw [eval_runRand_step_branch_pos hp.head hc]
-      have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-      rw [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
-      refine le_trans (le_of_eq ?_) (ih hc' k)
-      refine tsum_congr fun z => congrArg (m.eval z * ·) ?_
-      simp [Code.size, show (z.2 + 1 ≤ k + 1) ↔ (z.2 ≤ k) by omega,
-        show pc + (neg.size + pos.size + 2) = pc + neg.size + 2 + pos.size by omega]
-    · exact le_trans (le_of_eq (tsum_eq_zero_iff.mpr fun z : Data r × ℕ => by
-        simp [show ¬z.2 + 1 ≤ T by omega])) zero_le
+    rcases T with _ | k
+    · simp
+    rw [eval_runRand_step_branch_pos hp.head hc]
+    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
+    rw [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
+    refine le_trans (le_of_eq ?_) (ih hc' k)
+    refine tsum_congr fun z => congrArg (m.eval z * ·) ?_
+    simp [Code.size, show pc + (neg.size + pos.size + 2) = pc + neg.size + 2 + pos.size by omega]
   | @branch_neg cond pos neg x m hc _ ih =>
     rw [ProbComp.eval_map, Cslib.Probability.PMF.tsum_map_mul]
-    by_cases h2 : 2 ≤ T
-    · obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by omega⟩
-      rw [show k + 2 = (k + 1) + 1 by omega, eval_runRand_step_branch_neg hp.head hc]
-      have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-        simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
-      refine le_trans (tsum_le_tsum fun z => ?_) (ih hp.cons_tail.append_left (k + 1))
-      refine mul_le_mul_right ?_ _
-      by_cases hzk : z.2 ≤ k
-      · simp only [Code.size, show z.2 + 2 ≤ k + 1 + 1 by omega, show z.2 ≤ k + 1 by omega,
-          ↓reduceIte]
-        rw [show k + 1 - z.2 = (k + 1 + 1 - (z.2 + 2)) + 1 by omega, eval_runRand_step_jump hj]
-        exact le_of_eq (by simp [Nat.add_assoc])
-      · simp [show ¬z.2 + 2 ≤ k + 1 + 1 by omega]
-    · exact le_trans (le_of_eq (tsum_eq_zero_iff.mpr fun z : Data r × ℕ => by
-        simp [show ¬z.2 + 2 ≤ T by omega])) zero_le
+    rcases T with _ | _ | k
+    · simp
+    · simp
+    rw [eval_runRand_step_branch_neg hp.head hc]
+    have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
+      simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
+    refine le_trans (tsum_le_tsum fun z => ?_) (ih hp.cons_tail.append_left (k + 1))
+    refine mul_le_mul_right ?_ _
+    by_cases hzk : z.2 ≤ k
+    · simp only [Code.size, show z.2 + 2 ≤ k + 1 + 1 by omega, show z.2 ≤ k + 1 by omega,
+        ↓reduceIte]
+      rw [show k + 1 - z.2 = (k + 1 + 1 - (z.2 + 2)) + 1 by omega, eval_runRand_step_jump hj]
+      exact le_of_eq (by simp [Nat.add_assoc])
+    · simp [show ¬z.2 + 2 ≤ k + 1 + 1 by omega]
   | @loop_exit cond body x hc =>
     rw [ProbComp.eval_pure, tsum_eq_single (x, 2) (fun z hz => by simp [PMF.pure_apply, hz])]
     simp only [PMF.pure_apply_self, one_mul, Code.size]
-    by_cases h2 : 2 ≤ T
-    · obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by omega⟩
-      rw [show k + 2 = (k + 1) + 1 by omega, eval_runRand_step_branch_neg hp.head hc,
-        eval_runRand_step_jump hp.cons_tail.head]
-      simp [show 2 ≤ k + 1 + 1 by omega, show k + 1 + 1 - 2 = k by omega, Nat.add_assoc]
-    · simp [h2]
+    rcases T with _ | _ | k
+    · simp
+    · simp
+    rw [eval_runRand_step_branch_neg hp.head hc, eval_runRand_step_jump hp.cons_tail.head]
+    simp [show k + 1 + 1 - 2 = k by omega, Nat.add_assoc]
   | @loop_iter cond body x mb ml hc _ _ ihb ihl =>
     by_cases h2 : 2 ≤ T
     · obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by omega⟩
@@ -337,48 +329,16 @@ theorem ExecRand.one_sub_le_evalRand_program {w : ℕ} {c : Code B r} {x : Data 
     (one_sub_le_toOuterMeasure_le m.eval Prod.snd B_hor hfail).trans
       (PMF.toOuterMeasure_mono _ fun z ⟨hle, hz⟩ => ⟨hQ z hz, hle⟩)
   refine hfast.trans ?_
-  have hpart :
-      m.eval.toOuterMeasure {z | Q z.1 ∧ z.2 ≤ B_hor} =
-        ∑' y : Data r,
-          if Q y then m.eval.toOuterMeasure {z | z.1 = y ∧ z.2 ≤ B_hor} else 0 := by
-    rw [PMF.toOuterMeasure_apply]
-    have hinner : ∀ y : Data r,
-        (if Q y then m.eval.toOuterMeasure {z | z.1 = y ∧ z.2 ≤ B_hor} else 0) =
-          ∑' z : Data r × ℕ,
-            if z.1 = y ∧ Q y ∧ z.2 ≤ B_hor then m.eval z else 0 := by
-      intro y
-      by_cases hQy : Q y
-      · simp only [hQy, ↓reduceIte, true_and, PMF.toOuterMeasure_apply]
-        exact tsum_congr fun z => by by_cases heq : z.1 = y ∧ z.2 ≤ B_hor <;> simp [heq]
-      · simp [hQy]
-    simp_rw [hinner]
-    rw [tsum_comm]
-    refine tsum_congr fun z => ?_
-    rw [tsum_eq_single z.1 (fun y hy => by simp [hy.symm])]
-    by_cases hzQ : Q z.1 ∧ z.2 ≤ B_hor <;> simp [hzQ]
-  rw [hpart, PMF.toOuterMeasure_apply]
-  have hinj : Function.Injective (fun y : Data r => RandCfg.halted (y.regs out) y) :=
-    fun _ _ heq => (RandCfg.halted.inj heq).2
-  calc
-    (∑' y : Data r,
-        if Q y then m.eval.toOuterMeasure {z | z.1 = y ∧ z.2 ≤ B_hor} else 0)
-      ≤ ∑' y : Data r,
-          Set.indicator {cfg | ∃ y', cfg = .halted (y'.regs out) y' ∧ Q y'}
-            (evalRand w (c.program out) (B_hor + 1) ⟨0, x⟩) (.halted (y.regs out) y) := by
-        refine tsum_le_tsum fun y => ?_
-        by_cases hQy : Q y
-        · simp only [hQy, ↓reduceIte]
-          have hmem :
-              RandCfg.halted (y.regs out) y ∈
-                {cfg : RandCfg r | ∃ y', cfg = .halted (y'.regs out) y' ∧ Q y'} :=
-            ⟨y, rfl, hQy⟩
-          rw [Set.indicator_of_mem hmem]
-          exact h.toOuterMeasure_le_evalRand_program out B_hor y
-        · simp [hQy]
-    _ ≤ ∑' cfg : RandCfg r,
-          Set.indicator {cfg | ∃ y', cfg = .halted (y'.regs out) y' ∧ Q y'}
-            (evalRand w (c.program out) (B_hor + 1) ⟨0, x⟩) cfg :=
-        tsum_comp_le_tsum_of_injective hinj _
+  rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, tsum_prod']
+  refine (tsum_le_tsum fun y => ?_).trans (tsum_comp_le_tsum_of_injective
+    (f := fun y : Data r => RandCfg.halted (y.regs out) y)
+    (fun _ _ he => (RandCfg.halted.inj he).2) _)
+  by_cases hQy : Q y
+  · refine le_trans (le_of_eq ?_) ((h.toOuterMeasure_le_evalRand_program out B_hor y).trans_eq
+      (Set.indicator_of_mem (by exact ⟨y, rfl, hQy⟩) _).symm)
+    rw [PMF.toOuterMeasure_apply, tsum_prod', tsum_eq_single y fun y' hy' => by simp [hy']]
+    simp [Set.indicator_apply, hQy]
+  · simp [hQy]
 
 end PartialHorizon
 
@@ -1254,21 +1214,14 @@ theorem step_whp (C : HighProbStateTransitionImpl P D w base params s₀)
         supp_cases hz with ⟨p, hp, rfl⟩
         obtain ⟨a, hst, hdec, hrep_p, hmod_p⟩ := hp_t p hp
         exact ⟨p.1, a, rfl, hst, hdec, hrep_p, C.bounded hrep_p, hmod_p⟩
-      have hm_le : (μ_op t).toOuterMeasure {p | p.2 ≤ C.worstCaseTime} =
+      have hm_le : (μ_op t).toOuterMeasure {p | p.2 ≤ C.worstCaseTime} ≤
           1 - (m_op t).eval.toOuterMeasure {z | C.worstCaseTime < z.2} := by
-        have hsum := PMF.toOuterMeasure_add_compl_ennreal (μ_op t) {p | C.worstCaseTime < p.2}
-        have hcomp : ({p : CoupledState C.Seed D.State r_ds × ℕ | C.worstCaseTime < p.2}ᶜ) =
-            {p | p.2 ≤ C.worstCaseTime} := by ext p; simp
-        have hmap : (m_op t).eval.toOuterMeasure {z | C.worstCaseTime < z.2} =
-            (μ_op t).toOuterMeasure {p | C.worstCaseTime < p.2} := by
-          change (m_step (prepMap t)).eval.toOuterMeasure _ = _
-          rw [← heval_t, PMF.toOuterMeasure_map_apply]; rfl
-        rw [hcomp, add_comm] at hsum
-        rw [hmap]
-        exact ENNReal.eq_sub_of_add_eq (PMF.toOuterMeasure_ne_top _ _) hsum
-      rw [hm_le]
-      refine (hm_t.one_sub_le_evalRand_program out C.worstCaseTime hQ_t le_rfl).trans ?_
-      refine MeasureTheory.measure_mono fun cfg hcfg => ?_
+        change _ ≤ 1 - (m_step (prepMap t)).eval.toOuterMeasure _
+        rw [← heval_t, PMF.toOuterMeasure_map_apply]
+        simpa [Set.compl_ofPred] using
+          PMF.toOuterMeasure_compl_le_one_sub (μ_op t) {p | C.worstCaseTime < p.2} le_rfl
+      refine hm_le.trans ((hm_t.one_sub_le_evalRand_program out C.worstCaseTime hQ_t le_rfl).trans
+        (MeasureTheory.measure_mono fun cfg hcfg => ?_))
       rcases hcfg with ⟨y, rfl, q, a, rfl, hst, hdec, hrep_q, hbdd_q, hmod_q⟩
       exact ⟨t, q, a, ht, rfl, hst, hdec, hrep_q, hbdd_q, hmod_q⟩
     · simp [(PMF.apply_eq_zero_iff _ _).mpr ht]
@@ -1454,12 +1407,8 @@ theorem steps_whp (C : HighProbStateTransitionImpl P D w base params s₀)
       τ.bind fun tr => (μ_step tr.current).map fun p => tr.appendStep o p.1.1 p.1.2 p.2
     have hproj : ∀ t, (μ_step t).map (fun p => (p.1.1, p.2)) = μ_op t := fun t => by
       dsimp only [μ_step]; rw [PMF.map_comp]
-      have hfn : ((fun p : (CoupledState C.Seed D.State r_ds × D.Result o) × ℕ => (p.1.1, p.2)) ∘
-          fun p => if hp : t ∈ ν.support ∧ p ∈ (μ_op t).support then
-            ((p.1, Classical.choose ((hstep_o t hp.1).2.2.2.2 p hp.2)), p.2)
-          else ((p.1, Classical.arbitrary (D.Result o)), p.2)) = id := by
-        funext p; dsimp only [Function.comp_apply, id_eq]; split_ifs <;> rfl
-      rw [hfn, PMF.map_id]
+      convert PMF.map_id (μ_op t) using 2
+      funext p; dsimp only [Function.comp_apply, id_eq]; split_ifs <;> rfl
     have hcur₁ : τ₁.map WhpSeqOutcome.current = (ν.bind μ_op).map Prod.fst := by
       dsimp only [τ₁, ν]
       rw [PMF.map_bind, PMF.bind_map, PMF.map_bind]
@@ -1468,23 +1417,13 @@ theorem steps_whp (C : HighProbStateTransitionImpl P D w base params s₀)
       change (μ_step tr.current).map (Prod.fst ∘ fun p => (p.1.1, p.2)) = _
       rw [← PMF.map_comp, hproj tr.current]
       rfl
-    have hmem_src : ∀ q ∈ (τ₁.map WhpSeqOutcome.current).support,
-        ∃ t ∈ ν.support, ∃ p ∈ (μ_op t).support, p.1 = q := by
+    have hv₁ : ∀ q ∈ (τ₁.map WhpSeqOutcome.current).support,
+        D.ValidOpSeq q.state os ∧ C.ghostRep (C.ghostStep g o) q.seed q.state q.data := by
       intro q hq
       rw [hcur₁] at hq
       supp_cases hq with ⟨p, ⟨t, ht, hp_op⟩, rfl⟩
-      exact ⟨t, ht, p, hp_op, rfl⟩
-    have hv₁ : ∀ q ∈ (τ₁.map WhpSeqOutcome.current).support, D.ValidOpSeq q.state os := by
-      intro q hq
-      obtain ⟨t, ht, p, hp_op, rfl⟩ := hmem_src q hq
-      obtain ⟨a, hst, -, -, -, -⟩ := (hstep_o t ht).2.2.2.2 p hp_op
-      exact (hv t ht).2 p.1.state a hst
-    have hrep₁ : ∀ q ∈ (τ₁.map WhpSeqOutcome.current).support,
-        C.ghostRep (C.ghostStep g o) q.seed q.state q.data := by
-      intro q hq
-      obtain ⟨t, ht, p, hp_op, rfl⟩ := hmem_src q hq
-      obtain ⟨_, -, -, hrep_p, -, -⟩ := (hstep_o t ht).2.2.2.2 p hp_op
-      exact hrep_p
+      obtain ⟨a, hst, -, hrep_p, -, -⟩ := (hstep_o t ht).2.2.2.2 p hp_op
+      exact ⟨(hv t ht).2 p.1.state a hst, hrep_p⟩
     have hsingle₁' : C.singleState → ∃ s', ∀ q ∈ (τ₁.map WhpSeqOutcome.current).support,
         q.state = s' := fun hd =>
       let ⟨s', hs'⟩ := hsingle₁ hd
@@ -1497,7 +1436,7 @@ theorem steps_whp (C : HighProbStateTransitionImpl P D w base params s₀)
           τ.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps} + C.failureProb :=
       (toOuterMeasure_appendStep_gt_le τ o μ_step μ_op hproj).trans (add_le_add le_rfl hfail₁)
     obtain ⟨τ_final, hex_rest, hseed_final, hrep_final, hfail_rest⟩ :=
-      ih τ₁ hv₁ (hcur₁ ▸ hseed₁) hrep₁ hsingle₁'
+      ih τ₁ (fun q hq => (hv₁ q hq).1) (hcur₁ ▸ hseed₁) (fun q hq => (hv₁ q hq).2) hsingle₁'
     refine ⟨τ_final, .cons m_op μ_step (fun t ht => ?_) hex_rest, hseed_final, hrep_final, ?_⟩
     · obtain ⟨hff, hm, hev, hreach, hq⟩ := hstep_o t ht
       refine ⟨hff, hm, ?_, hreach, fun p' hp' => ?_⟩
@@ -1508,16 +1447,9 @@ theorem steps_whp (C : HighProbStateTransitionImpl P D w base params s₀)
         simp only [show t ∈ ν.support ∧ p ∈ (μ_op t).support from ⟨ht, hp⟩]
         obtain ⟨hst_p, hdec_p, hgrep_p, hbdd_p, hmod_p⟩ := Classical.choose_spec (hq p hp)
         exact ⟨hst_p, hdec_p, ⟨C.ghostStep g o, hgrep_p⟩, hbdd_p, hmod_p⟩
-    · calc
-      τ_final.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps}
-        ≤ τ₁.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps} +
-            (os.length : ℝ≥0∞) * C.failureProb := hfail_rest
-      _ ≤ (τ.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps} + C.failureProb) +
-            (os.length : ℝ≥0∞) * C.failureProb := add_le_add hfail_step le_rfl
-      _ = τ.toOuterMeasure {tr | C.worstCaseTime < tr.maxSteps} +
-            ((o :: os).length : ℝ≥0∞) * C.failureProb := by
-          simp only [List.length_cons, Nat.cast_add, Nat.cast_one, add_mul, one_mul]
-          ac_rfl
+    · refine hfail_rest.trans ((add_le_add hfail_step le_rfl).trans_eq ?_)
+      simp only [List.length_cons, Nat.cast_add, Nat.cast_one, add_mul, one_mul]
+      ac_rfl
 
 /-- **End-to-end whole-sequence with-high-probability theorem from fresh initialization
 (`seq_whp`).**
