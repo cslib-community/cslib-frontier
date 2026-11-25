@@ -4208,6 +4208,7 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Watch
 public import CslibFrontier.Foundations.Analysis.Lattice.Fourier
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.VisitScheduleCircuits
 public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFirstCoefficient
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Program
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Parsing
@@ -4714,6 +4715,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.StableInfluence
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Signature.Programming
 public import CslibFrontier.Crypto.Computational.ElGamal.Unpredictable
 public import CslibFrontier.Logics.FirstOrder.Operator.DeterministicTransitiveClosure.Tuple
+public import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Program
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Reduction
 public import CslibFrontier.Foundations.Data.Code.LocalListDecoding

@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateKronecker
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 
 /-!
 # Nonvanishing of the relative critical-value section
@@ -100,18 +101,7 @@ theorem eval_specializedRelativeValueSection (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (y : T) :
     (specializedRelativeValueSection hell F hF x).eval y =
       eval₂ (Int.castRingHom T) (Fin.cons y x) (finiteRelativeValueSection hell F hF) := by
-  let φ := Int.castRingHom T
-  have h : (Polynomial.eval₂RingHom (eval₂Hom φ x) y).comp (finSuccEquiv ℤ m).toRingHom =
-      eval₂Hom φ (Fin.cons y x) := by
-    apply MvPolynomial.ringHom_ext
-    · intro c
-      simp [φ]
-    · intro i
-      refine Fin.cases ?_ (fun j => ?_) i
-      · simp [finSuccEquiv_X_zero]
-      · simp [finSuccEquiv_X_succ]
-  rw [specializedRelativeValueSection, Polynomial.eval_map]
-  exact DFunLike.congr_fun h (finiteRelativeValueSection hell F hF)
+  rw [specializedRelativeValueSection, Polynomial.eval_map, eval₂_finSuccEquiv]
 
 /-- Evaluate the section by substituting the prescribed power of the critical value for the
 penalty in the bivariate polynomial. -/
