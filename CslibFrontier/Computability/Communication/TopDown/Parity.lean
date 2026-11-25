@@ -36,7 +36,7 @@ Karchmer–Wigderson game of parity once `16 (32768 · 194 ^ d (m + 1)) ^ d ≤ 
 * [O. Korten, *Top-Down Lower Bounds for All Depths*][Korten2026]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Communication
 
