@@ -31,15 +31,16 @@ ordering and the witness-order repair that places fresh uniform opening randomne
 In `[VOLEACT2026]` (Protocol Specification / Initial Issuance and Spending), the Issuance witness
 is listed as `(nf, r)` and the Spend witness as `(t, r, x, s, nf', t', r')`, without mandating
 witness byte offsets or addressing CRT mask reuse (`[VOLEACT2026]` `#proof-status` leaves the
-unlinkability proof open). When FAEST-style CRT VOLE masks (general FAEST v3 specification
-background in `[BaumEtAl2026FAEST]`) reuse the first `lam` witness bits as Free-XOR garbled-circuit
-label offsets, an `H5`-style garbling mask check compressing `nMult` gate tables across `nMask`
-masks introduces an `F : Matrix (Fin nMult) (Fin lam) (ZMod 2)` linear map. Whenever
-`F.rank < nMult` (in particular whenever `lam < nMult`), `Fᵀ` has a nontrivial kernel of dimension
-at least `nMult - lam`, exposing linear parity equations satisfied identically by any valid witness
-prefix and rejecting independent random guesses with probability `(2 : ℝ≥0∞)⁻¹ ^ (nMask * r)`
-across `r` independent parity checks (for example, `nMult = 312`, `lam = 128`, `nMask = 12`,
-`r = 14`, `kGates = 27` in small CRT parameters).
+unlinkability proof open). When FAEST-style CRT VOLE masks (`[BaumEtAl2026FAEST]`, §§3.1–3.3 pp.
+13–18, §6 pp. 35–43 / Figs. 6.1–6.3, and §10.10 Games `G6`–`G11` pp. 115–121 as background) reuse
+the first `lam` witness bits as Free-XOR garbled-circuit label offsets, an `H5`-style garbling mask
+check compressing `nMult` gate tables across `nMask` masks introduces an
+`F : Matrix (Fin nMult) (Fin lam) (ZMod 2)` linear map. Whenever `F.rank < nMult` (in particular
+whenever `lam < nMult`), `Fᵀ` has a nontrivial kernel of dimension at least `nMult - lam`, exposing
+linear parity equations satisfied identically by any valid witness prefix and rejecting independent
+random guesses with probability `(2 : ℝ≥0∞)⁻¹ ^ (nMask * r)` across `r` independent parity checks
+(for example, `nMult = 312`, `lam = 128`, `nMask = 12`, `r = 14`, `kGates = 27` in illustrative CRT
+parameters; FAEST-128s uses `nmult = 312` and `nmask = dzk + 3`).
 
 This formalization, its matrix bounds, random-oracle `H5` distinguishers, query bounds,
 unlinkability games, and witness-order repair statements are original to this library as finite,
@@ -73,16 +74,18 @@ are outside this module's scope.
 * `crtSpendPrefixTest_isQueryBounded`, `crtSpendPrefixTest_correct`,
   `crtSpendPrefixTest_wrong_t_le`, `crtSpendBalancePrefix_advantage_ge`: Spend-time `(t, r_lo)`
   brute-force distinguishing bound.
-* `rFirstCRTMaskView_eq`, `rFirst_breaks_witnessKnowingZK`: placing uniform `r` first makes the
-  `H5`-unqueried CRT view independent of all semantic state (`Game.advantage = 0`) while a
-  witness-knowing distinguisher given `r` still distinguishes real tables from uniform ones.
+* `rFirstCRTMaskView_eq_decoupled`, `rFirstCRTMaskView_eq`, `rFirst_breaks_witnessKnowingZK`:
+  placing uniform `r` first makes the `H5`-unqueried CRT view equal `rFirstDecoupledView`
+  and independent of semantic metadata (`Game.advantage = 0`), while a witness-knowing
+  distinguisher given `r` still distinguishes real tables from uniform ones.
 
 ## References
 
-* [*VOLE-ACT*][VOLEACT2026], Protocol Specification / Initial Issuance (`#issuance`) and Spending
-  (`#spending`).
-* [C. Baum et al., *FAEST v3: Algorithm Specifications*][BaumEtAl2026FAEST], background on
-  CRT VOLE masks and Free-XOR label derivation.
+* [*VOLE-ACT*][VOLEACT2026], Protocol Specification / Initial Issuance (`#issuance`), Spending
+  (`#spending`), and Proof status (`#proof-status`).
+* [C. Baum et al., *FAEST v3: Algorithm Specifications*][BaumEtAl2026FAEST], §§3.1–3.3 (pp. 13–18),
+  §6 (pp. 35–43, Figs. 6.1–6.3), and §10.10 (pp. 115–121) for CRT VOLE masks and Free-XOR label
+  derivation.
 -/
 
 @[expose] public section
@@ -1208,23 +1211,22 @@ theorem crtSpendBalancePrefix_advantage_ge {IV : Type} [Fintype IV] [DecidableEq
   exact le_trans (by linarith) (le_abs_self _)
 
 /-- Witness-order repair view (`REUSE_CRT_WITNESS = true` with fresh uniform opening `r` placed at
-bytes `0..lam` and `H5` unqueried on complementary labels): when `r` and `uPrefix` (or decoupled
-`dPrefix`) are uniform and independent of semantic metadata `(nf, ctx, t, x)`, the CRT table
-marginal is identical across any semantic metadata. -/
+bytes `0..lam` and `H5` unqueried on complementary labels): given public `L0` and `active`, the
+uniform opening `r`, uniform VOLE secret `u`, and uniform `H5` mask padding `hXor` produce
+`dPrefix := r + u` and `cmult` shifted by `F *ᵥ maskInput metaData`. -/
 noncomputable def rFirstCRTMaskView {IV Meta : Type} {nMult lam nMask : ℕ}
-    (iv : IV) (L0 : Meta → Fin nMult → (Fin lam → ZMod 2))
-    (active : Meta → Fin nMult → Bool)
+    (iv : IV) (L0 : Fin nMult → (Fin lam → ZMod 2)) (active : Fin nMult → Bool)
     (F : Matrix (Fin nMult) (Fin lam) (ZMod 2))
-    (maskInput : Fin nMask → (Fin lam → ZMod 2))
-    (h0 h1 : Meta → Fin nMult → Fin nMask → ZMod 2)
+    (maskInput : Meta → Fin nMask → (Fin lam → ZMod 2))
     (metaData : Meta) : PMF (CRTMaskTable IV nMult lam nMask) := do
   let r ← uniformOfFintype (Fin lam → ZMod 2)
   let u ← uniformOfFintype (Fin lam → ZMod 2)
+  let hXor ← uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)
   return {
     iv := iv
-    activeLabel := fun e => if active metaData e then L0 metaData e + u else L0 metaData e
+    activeLabel := fun e => if active e then L0 e + u else L0 e
     dPrefix := r + u
-    cmult := fun mask e => h0 metaData e mask + h1 metaData e mask + (F *ᵥ maskInput mask) e }
+    cmult := fun mask e => hXor mask e + (F *ᵥ maskInput metaData mask) e }
 
 /-- Idealized decoupled `G8.5` CRT table distribution with uniform `dPrefix` and `cmult`,
 independent of the witness opening `r`. -/
@@ -1235,46 +1237,53 @@ noncomputable def rFirstDecoupledView {IV : Type} {nMult lam nMask : ℕ}
   let c ← uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)
   return ⟨iv, activeLabel, d, c⟩
 
-/-- When `H5` answers on `L0` and `L0 + u` are uniform (before `H5` is queried on the hidden
-complementary label) and opening `r` is placed first as fresh uniform bits, the coupled CRT mask
-view equals `rFirstDecoupledView` with uniform `(dPrefix, cmult)` and does not depend on semantic
-metadata except through the verifier's own public `activeLabel` distribution. In particular, when
-`L0` and `active` are public constants independent of `(nf, ctx, t, x)`, any distinguisher without
-the `r`-opening query has advantage zero (`rFirstCRTMaskView_eq`). -/
+/-- When `H5` answers on active and complementary labels are uniform and fresh uniform opening
+`r` is placed first, both `r ↦ r + u` and `hXor ↦ hXor + F *ᵥ maskInput metaData` are uniform
+bijections, so `rFirstCRTMaskView` equals `(uniformOfFintype _).bind (fun u => rFirstDecoupledView
+...)`, completely decoupling `(dPrefix, cmult)` from `u` and `metaData`. -/
+theorem rFirstCRTMaskView_eq_decoupled {IV Meta : Type} {nMult lam nMask : ℕ}
+    (iv : IV) (L0 : Fin nMult → (Fin lam → ZMod 2)) (active : Fin nMult → Bool)
+    (F : Matrix (Fin nMult) (Fin lam) (ZMod 2))
+    (maskInput : Meta → Fin nMask → (Fin lam → ZMod 2))
+    (metaData : Meta) :
+    rFirstCRTMaskView iv L0 active F maskInput metaData =
+      (uniformOfFintype (Fin lam → ZMod 2)).bind fun u =>
+        rFirstDecoupledView iv (fun e => if active e then L0 e + u else L0 e) := by
+  dsimp only [rFirstCRTMaskView, rFirstDecoupledView, bind, pure]
+  rw [PMF.bind_comm]
+  refine congrArg (PMF.bind (uniformOfFintype (Fin lam → ZMod 2))) (funext fun u => ?_)
+  let eD : (Fin lam → ZMod 2) ≃ (Fin lam → ZMod 2) :=
+    { toFun := fun r => r + u
+      invFun := fun d => d + u
+      left_inv := fun r => funext fun k => by
+        dsimp only [Pi.add_apply]; rw [add_assoc, CharTwo.add_self_eq_zero, add_zero]
+      right_inv := fun d => funext fun k => by
+        dsimp only [Pi.add_apply]; rw [add_assoc, CharTwo.add_self_eq_zero, add_zero] }
+  refine (uniformOfFintype_bind_equiv eD (fun d =>
+    (uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun hXor =>
+      PMF.pure (CRTMaskTable.mk iv (fun e => if active e then L0 e + u else L0 e) d
+        fun mask e => hXor mask e + (F *ᵥ maskInput metaData mask) e))).trans ?_
+  refine congrArg (PMF.bind (uniformOfFintype (Fin lam → ZMod 2))) (funext fun d => ?_)
+  let eC : (Fin nMask → Fin nMult → ZMod 2) ≃ (Fin nMask → Fin nMult → ZMod 2) :=
+    { toFun := fun hXor mask e => hXor mask e + (F *ᵥ maskInput metaData mask) e
+      invFun := fun cmult mask e => cmult mask e + (F *ᵥ maskInput metaData mask) e
+      left_inv := fun hXor => funext fun mask => funext fun e => by
+        dsimp only; rw [add_assoc, CharTwo.add_self_eq_zero, add_zero]
+      right_inv := fun cmult => funext fun mask => funext fun e => by
+        dsimp only; rw [add_assoc, CharTwo.add_self_eq_zero, add_zero] }
+  exact uniformOfFintype_bind_equiv eC fun c =>
+    PMF.pure (CRTMaskTable.mk iv (fun e => if active e then L0 e + u else L0 e) d c)
+
+/-- Corollary: `rFirstCRTMaskView` is identically distributed across arbitrary semantic metadata
+`meta₀` and `meta₁` once `r` is placed first and `H5` answers are unqueried. -/
 theorem rFirstCRTMaskView_eq {IV Meta : Type} {nMult lam nMask : ℕ}
     (iv : IV) (L0 : Fin nMult → (Fin lam → ZMod 2)) (active : Fin nMult → Bool)
     (F : Matrix (Fin nMult) (Fin lam) (ZMod 2))
     (maskInput : Meta → Fin nMask → (Fin lam → ZMod 2))
     (meta₀ meta₁ : Meta) :
-    ((uniformOfFintype (Fin lam → ZMod 2)).bind fun r =>
-      (uniformOfFintype (Fin lam → ZMod 2)).bind fun u =>
-      (uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun hXor =>
-        PMF.pure (CRTMaskTable.mk iv (fun e => if active e then L0 e + u else L0 e)
-          (r + u) (fun mask e => hXor mask e + (F *ᵥ maskInput meta₀ mask) e))) =
-    ((uniformOfFintype (Fin lam → ZMod 2)).bind fun r =>
-      (uniformOfFintype (Fin lam → ZMod 2)).bind fun u =>
-      (uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun hXor =>
-        PMF.pure (CRTMaskTable.mk iv (fun e => if active e then L0 e + u else L0 e)
-          (r + u) (fun mask e => hXor mask e + (F *ᵥ maskInput meta₁ mask) e))) := by
-  have hshift (m : Meta) (r u : Fin lam → ZMod 2) :
-      ((uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun hXor =>
-        PMF.pure (CRTMaskTable.mk iv (fun e => if active e then L0 e + u else L0 e)
-          (r + u) (fun mask e => hXor mask e + (F *ᵥ maskInput m mask) e))) =
-      ((uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun cmult =>
-        PMF.pure (CRTMaskTable.mk iv (fun e => if active e then L0 e + u else L0 e)
-          (r + u) cmult)) := by
-    let eShift : (Fin nMask → Fin nMult → ZMod 2) ≃ (Fin nMask → Fin nMult → ZMod 2) :=
-      { toFun := fun hXor mask e => hXor mask e + (F *ᵥ maskInput m mask) e
-        invFun := fun cmult mask e => cmult mask e + (F *ᵥ maskInput m mask) e
-        left_inv := fun hXor => funext fun mask => funext fun e => by
-          dsimp only
-          rw [add_assoc, CharTwo.add_self_eq_zero, add_zero]
-        right_inv := fun cmult => funext fun mask => funext fun e => by
-          dsimp only
-          rw [add_assoc, CharTwo.add_self_eq_zero, add_zero] }
-    exact uniformOfFintype_bind_equiv eShift fun cmult =>
-      PMF.pure (CRTMaskTable.mk iv (fun e => if active e then L0 e + u else L0 e) (r + u) cmult)
-  simp_rw [hshift]
+    rFirstCRTMaskView iv L0 active F maskInput meta₀ =
+      rFirstCRTMaskView iv L0 active F maskInput meta₁ := by
+  rw [rFirstCRTMaskView_eq_decoupled, rFirstCRTMaskView_eq_decoupled]
 
 /-- Even when `r` is placed first, a **witness-knowing** ZK distinguisher (supplied with `r`) runs
 `crtPrefixTest` on `w* = r` and distinguishes real `honestCRTMaskTable` tables from uniform

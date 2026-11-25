@@ -420,18 +420,14 @@ example
             let tbl : CRTMaskTable (Fin 2) 6 4 2 := ⟨0, actL, dSim, cmultSim⟩
             let hActive : Fin 6 → Fin 2 → ZMod 2 := fun i => h5 ⟨0, sub i, actL (sub i)⟩
             ProbComp.eval ((crtPrefixTest sub testH6 tbl hActive r).run (fun q => pure (h5 q)))
-    ((uniformOfFintype (Fin 4 → ZMod 2)).bind fun r' =>
-      (uniformOfFintype (Fin 4 → ZMod 2)).bind fun u =>
-      (uniformOfFintype (Fin 2 → Fin 6 → ZMod 2)).bind fun hXor =>
-        PMF.pure (CRTMaskTable.mk (0 : Fin 2) (fun e => if active e then L0 e + u else L0 e)
-          (r' + u) (fun mask e => hXor mask e + (testF6 *ᵥ maskInputMeta false mask) e))) =
-      ((uniformOfFintype (Fin 4 → ZMod 2)).bind fun r' =>
-        (uniformOfFintype (Fin 4 → ZMod 2)).bind fun u =>
-        (uniformOfFintype (Fin 2 → Fin 6 → ZMod 2)).bind fun hXor =>
-          PMF.pure (CRTMaskTable.mk (0 : Fin 2) (fun e => if active e then L0 e + u else L0 e)
-            (r' + u) (fun mask e => hXor mask e + (testF6 *ᵥ maskInputMeta true mask) e))) ∧
+    rFirstCRTMaskView (0 : Fin 2) L0 active testF6 maskInputMeta false =
+        (uniformOfFintype (Fin 4 → ZMod 2)).bind (fun u =>
+          rFirstDecoupledView (0 : Fin 2) (fun e => if active e then L0 e + u else L0 e)) ∧
+      rFirstCRTMaskView (0 : Fin 2) L0 active testF6 maskInputMeta false =
+        rFirstCRTMaskView (0 : Fin 2) L0 active testF6 maskInputMeta true ∧
       (15 / 16 : ℝ) ≤ (Game.advantage gReal gSim : ℝ) := by
-  refine ⟨rFirstCRTMaskView_eq (0 : Fin 2) L0 active testF6 maskInputMeta false true, ?_⟩
+  refine ⟨rFirstCRTMaskView_eq_decoupled (0 : Fin 2) L0 active testF6 maskInputMeta false,
+    rFirstCRTMaskView_eq (0 : Fin 2) L0 active testF6 maskInputMeta false true, ?_⟩
   have hge := rFirst_breaks_witnessKnowingZK (Function.Embedding.refl (Fin 6)) testH6 testF6
     testH6_mul_sub_testF6 testH6_surjective (0 : Fin 2) L0 uPrefix r active (maskInputMeta false)
   norm_num at hge
