@@ -170,9 +170,8 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
   have hper : Function.Periodic (Int.fract : ℝ → ℝ) 1 := fun z => by
     simpa only [add_comm] using Int.fract_add_one z
   have hf_eq (u : ℝ) : ∫ b in (0 : ℝ)..1, Int.fract (u + b) = ∫ b in (0 : ℝ)..1, Int.fract b := by
-    have h1 := intervalIntegral.integral_comp_add_left (Int.fract : ℝ → ℝ) u (a := 0) (b := 1)
-    simp only [add_zero] at h1
-    rw [h1, hper.intervalIntegral_add_eq u 0, zero_add]
+    rw [intervalIntegral.integral_comp_add_left (Int.fract : ℝ → ℝ) u, add_zero,
+      hper.intervalIntegral_add_eq u 0, zero_add]
   have hix := intervalIntegrable_fract_add x
   have hiy := intervalIntegrable_fract_add y
   have hic : IntervalIntegrable (fun _ : ℝ => y - x) volume 0 1 := intervalIntegrable_const
@@ -491,13 +490,10 @@ theorem p2StableProb_strictAnti {r c₁ c₂ : ℝ} (hr : 0 < r) (hc₁ : 0 ≤ 
 private theorem p2StableProb_eq_two_mul {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     p2StableProb r c =
       2 * ∫ z in (0 : ℝ)..(r / c), (1 - c * z / r) * gaussianPDFReal 0 1 z := by
-  have heven : ∀ z, gaussianPDFReal 0 1 (-z) = gaussianPDFReal 0 1 z := fun z => by
-    simp [gaussianPDFReal_def]
-  have h2 := stableCollisionProb_withDensity_eq_two_mul (continuous_gaussianPDFReal 0 1)
-    (fun z => (gaussianPDFReal_pos 0 1 z one_ne_zero).le) (integrable_gaussianPDFReal 0 1)
-    heven hr hc
   rw [p2StableProb, gaussianReal_of_var_ne_zero 0 one_ne_zero]
-  exact h2
+  exact stableCollisionProb_withDensity_eq_two_mul (continuous_gaussianPDFReal 0 1)
+    (fun z => (gaussianPDFReal_pos 0 1 z one_ne_zero).le) (integrable_gaussianPDFReal 0 1)
+    (fun z => by simp [gaussianPDFReal_def]) hr hc
 
 /-- **Exact integral representation for `p = 2`** ([DatarImmorlicaIndykMirrokni2004]): for `r > 0`
 and `c > 0`, `p2StableProb r c = ∫ t in 0..r, (2 / c) * gaussianPDFReal 0 1 (t / c) * (1 - t / r)`.
@@ -562,8 +558,6 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
       intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv hie]
     simp only [zero_pow (by decide : 2 ≠ 0), neg_zero, zero_div, Real.exp_zero]
     have hsqrt : 2 * (√(2 * π))⁻¹ = √(2 / π) := by
-      have h2ne : √(2 : ℝ) ≠ 0 := Real.sqrt_ne_zero'.2 zero_lt_two
-      have hpne : √π ≠ 0 := Real.sqrt_ne_zero'.2 pi_pos
       rw [Real.sqrt_div zero_le_two, Real.sqrt_mul zero_le_two]
       field_simp
       rw [Real.sq_sqrt zero_le_two]
@@ -652,14 +646,10 @@ theorem p1StableProb_strictAnti {r c₁ c₂ : ℝ} (hr : 0 < r) (hc₁ : 0 ≤ 
 `p1StableProb r c = (2 / π) arctan (r / c) - (c / (π r)) log (1 + (r / c) ^ 2)`. -/
 theorem p1StableProb_eq {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     p1StableProb r c = 2 / π * Real.arctan (r / c) - c / (π * r) * Real.log (1 + (r / c) ^ 2) := by
-  have heven : ∀ z, cauchyPDFReal 0 1 (-z) = cauchyPDFReal 0 1 z := fun z => by
-    simp [cauchyPDFReal_def]
-  have h2 := stableCollisionProb_withDensity_eq_two_mul continuous_cauchyPDFReal
-    (fun z => (cauchyPDF_pos 0 one_ne_zero z).le) (integrable_cauchyPDFReal 0) heven hr hc
   rw [p1StableProb, cauchyMeasure_of_scale_ne_zero 0 one_ne_zero]
-  change stableCollisionProb
-    (volume.withDensity fun z => ENNReal.ofReal (cauchyPDFReal 0 1 z)) r c = _
-  rw [h2]
+  refine (stableCollisionProb_withDensity_eq_two_mul continuous_cauchyPDFReal
+    (fun z => (cauchyPDF_pos 0 one_ne_zero z).le) (integrable_cauchyPDFReal 0)
+    (fun z => by simp [cauchyPDFReal_def]) hr hc).trans ?_
   have hcongr : (fun z : ℝ => (1 - c * z / r) * cauchyPDFReal 0 1 z) =
       fun z => π⁻¹ * (1 + z ^ 2)⁻¹ - (c / (π * r)) * (z * (1 + z ^ 2)⁻¹) := by
     funext z

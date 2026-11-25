@@ -485,9 +485,7 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
       simp only [hmem_len]; rfl
     have hres_step' : (Memory.spec 0).clientResult st (initNodeStep (descBase, ⟨curRaw, k⟩)) =
         ⟨bagPtr + bagLen, k + 1⟩ := by
-      rw [hres_step]
-      dsimp only [bagPtr, bagLen]
-      simp only [hmem_len]
+      simpa only [bagPtr, bagLen, hmem_len] using hres_step
     have hv_step : (Memory.spec w).ValidHistory st
         ((Memory.spec w).clientHistory st (initNodeStep (descBase, ⟨curRaw, k⟩))) := by
       unfold initNodeStep
@@ -585,9 +583,7 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
       ih (k + 1) (bagPtr + bagLen) st₁ (by omega)
         (by change descBase + 4 * count ≤ st.frontier + tblLen; omega)
         hfr_next_le hpres₁ hrest_st₁ (by dsimp only [bagPtr, bagLen] at *; omega) hinv₁
-    have hiter_eq : iterate initNodeStep descBase (rem + 1) ⟨curRaw, k⟩ =
-        (initNodeStep (descBase, ⟨curRaw, k⟩) >>= iterate initNodeStep descBase rem) := rfl
-    rw [hiter_eq]
+    rw [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step', hres_step']), ?_, ?_⟩
     · rw [StateTransitionSpec.clientState_bind, hst_step', hres_step']
       exact hprops_rem
@@ -628,20 +624,13 @@ theorem initNodesProg_realizes :
         HoldsIn st.curRaw ((bags.drop st.curIdx).flatMap encodeBag) t ∧
         st.curRaw + ((bags.drop st.curIdx).flatMap encodeBag).length ≤ descBase)
       (fun j st t ⟨hj_le, hidx, hfr_lo, hfr_hi, hrem_raw, hrem_end⟩ => ?_)
-      ⟨le_rfl, Nat.zero_add _, le_rfl, by simp [descBase],
-        by
-          dsimp only
-          rw [List.drop_zero]
-          exact hraw_h.mono_frontier hp_d,
-        hraw_h.1⟩
+      ⟨le_rfl, Nat.zero_add _, le_rfl, by simp [descBase], hraw_h.mono_frontier hp_d, hraw_h.1⟩
     have hk_lt : st.curIdx < bags.length := by omega
     have hdrop_cons : bags.drop st.curIdx = bags[st.curIdx] :: bags.drop (st.curIdx + 1) :=
       List.drop_eq_getElem_cons hk_lt
     rw [hdrop_cons, List.flatMap_cons, encodeBag, List.cons_append] at hrem_raw hrem_end
-    rw [HoldsIn.cons_iff] at hrem_raw
-    obtain ⟨_, hmem_len, hafter_len⟩ := hrem_raw
-    rw [HoldsIn.append_iff] at hafter_len
-    obtain ⟨_, hrest_raw⟩ := hafter_len
+    obtain ⟨_, hmem_len, hafter_len⟩ := HoldsIn.cons_iff.mp hrem_raw
+    obtain ⟨_, hrest_raw⟩ := HoldsIn.append_iff.mp hafter_len
     have hblen_le : t.mem st.curRaw ≤ M := by
       rw [hmem_len]
       exact hbags_M _ (List.getElem_mem hk_lt)

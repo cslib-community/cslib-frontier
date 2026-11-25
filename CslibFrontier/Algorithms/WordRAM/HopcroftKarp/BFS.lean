@@ -318,12 +318,10 @@ private theorem exec_seedBfsCode {w bOff : ℕ} {inst : SparseInstance}
       (ram[ if qHead < qTail then [ active ← one ] else [ active ← zero ] ] : Code .standard 34)
       y₂ y₃ 3 := WP.execWithin <| by
     by_cases hne : 0 < p.2.length
-    · have hne_nil : p.2 ≠ [] := List.ne_nil_of_length_pos hne
-      wram_exec [hqh₂, hqt₂, hb₂.hone, hb₂.hzero, hne]
-      simp [hy₃, hne_nil]
-    · have hnil : p.2 = [] := List.eq_nil_of_length_eq_zero (by omega)
-      wram_exec [hqh₂, hqt₂, hb₂.hone, hb₂.hzero, hne]
-      simp [hy₃, hnil]
+    · wram_exec [hqh₂, hqt₂, hb₂.hone, hb₂.hzero, hne]
+      simp [hy₃, List.ne_nil_of_length_pos hne]
+    · wram_exec [hqh₂, hqt₂, hb₂.hone, hb₂.hzero, hne]
+      simp [hy₃, List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_not_pos hne)]
   refine ⟨y₃, (he₁.seq (he₀.seq (hl.seq he_act))).mono (by simp; omega),
     fun i hi => by wram_simp [hy₃, hr₂ i hi], hdM₂, hqM₂,
     by wram_simp [hy₃, hqh₂],
@@ -517,20 +515,17 @@ private theorem exec_bfsEdgeLoop {w bOff : ℕ} {inst : SparseInstance}
         have hqt_lt_m : le + (sk (y.regs idx)).next.length < inst.m := by omega
         wram_exec [hby.hbEdges, hby.hbColMate, hby.hbDist, hby.hbQueue, hby.hrm, hby.hzero,
           hby.hone, hby.htwo, hrk_y, hqt_y, hedge_y, hmate_v, henc, hw_ne, hdist_w, henc_d]
-        have hfilt_eq : Finset.univ.filter
-            (fun x₀ => vget (vset (sk (y.regs idx)).dist w₀ (some (j + 1))) x₀ = none) =
-            (Finset.univ.filter (fun x₀ => vget (sk (y.regs idx)).dist x₀ = none)).erase w₀ := by
-          ext x₀
-          rcases eq_or_ne x₀ w₀ with rfl | hne
-          · simp
-          · simp [hne, vget_vset_ne _ _ hne.symm]
         have hcard_erase :
             (Finset.univ.filter
               (fun x₀ => vget (vset (sk (y.regs idx)).dist w₀ (some (j + 1))) x₀ = none)).card +
               1 =
             (Finset.univ.filter (fun x₀ => vget (sk (y.regs idx)).dist x₀ = none)).card := by
-          rw [hfilt_eq]
-          exact Finset.card_erase_add_one hw_in_filt
+          rw [← Finset.card_erase_add_one hw_in_filt]
+          congr 2
+          ext x₀
+          rcases eq_or_ne x₀ w₀ with rfl | hne
+          · simp
+          · simp [hne, vget_vset_ne _ _ hne.symm]
         refine ⟨⟨by omega, fun i hi => by wram_simp [hr i hi], by wram_simp [hlim_y], ?_,
           ?_, ?_, by wram_simp [hrk_y], ?_, by wram_simp [hqh_y], by wram_simp [hle_y],
           ?_, by wram_simp [hact_y], ?_, ?_, fun a ha => ?_⟩, by wram_simp⟩
@@ -711,11 +706,7 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
           a < bOff + inst.m + 1 + inst.numEdges + inst.r + 3 * inst.m) → y.mem a = x.mem a) := by
   induction fuel generalizing j qh dist frontier x with
   | zero =>
-    have hnil : frontier = [] := by
-      cases frontier with
-      | nil => rfl
-      | cons _ _ => simp only [List.length_cons] at hbound; omega
-    subst hnil
+    obtain rfl : frontier = [] := List.eq_nil_of_length_eq_zero (by omega)
     have hc : ¬(Cond.eq active one).Holds x := by
       rw [Cond.holds_eq, hact, hb.hone]
       simp

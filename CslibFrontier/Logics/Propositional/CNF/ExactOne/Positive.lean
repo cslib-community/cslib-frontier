@@ -153,11 +153,7 @@ theorem evalOne_clauseClauses_iff (τ : Variable V → Bool) (i : ℕ) (c : Clau
         ∀ a ∈ c.zipIdx, CNF.evalOne τ (complementBlock i a.2 a.1) = true := by
   simp only [clauseClauses, CNF.evalOne_append, Bool.and_eq_true,
     CNF.evalOne_cons, CNF.evalOne_nil, Bool.and_true, CNF.evalOne_flatMap_eq_true_iff]
-  constructor
-  · rintro ⟨hmain, hcomp⟩
-    exact ⟨(evalOne_inheritedClause τ i c hcomp) ▸ hmain, hcomp⟩
-  · rintro ⟨hmain, hcomp⟩
-    exact ⟨(evalOne_inheritedClause τ i c hcomp).symm ▸ hmain, hcomp⟩
+  exact and_congr_left fun hcomp => by rw [evalOne_inheritedClause τ i c hcomp]
 
 /-- A satisfying positive output assignment restricts to a satisfying source assignment. -/
 theorem evalOne_of_formula (φ : CNF V) (τ : Variable V → Bool)
@@ -247,9 +243,7 @@ theorem complementBlock_assignments_agree (σ τ : Variable V → Bool) (i j : �
     have hs := (evalOne_complementClauses_iff σ _ _ _ _ _ _).mp hσ
     have ht := (evalOne_complementClauses_iff τ _ _ _ _ _ _).mp hτ
     have hy : σ (auxiliary i j 0) = τ (auxiliary i j 0) := by
-      have he := hs.1.symm.trans (hsource.trans ht.1)
-      have he' := congrArg Bool.not he
-      simpa using he'
+      simpa using congrArg Bool.not (hs.1.symm.trans (hsource.trans ht.1))
     intro v hv
     simp only [complementBlock, Bool.false_eq_true, ↓reduceIte, complementClauses,
       forceFalseClauses, CNF.vars, List.flatten_cons, List.flatten_nil, List.cons_append,
@@ -317,22 +311,10 @@ theorem oneModelCount_formula [DecidableEq V] (φ : CNF V) :
   have houtput := CNF.oneModelCount_eq_card_filter
     (φ := formula φ) (fun τ (v : φ.vars.toFinset) => τ (.inl v)) P
     (fun σ τ hσ hτ => by
-      rw [funext_iff]
-      constructor
-      · intro hh
-        apply (assignments_agree_iff hσ hτ).mpr
-        intro v hv
-        exact hh ⟨v, List.mem_toFinset.mpr hv⟩
-      · intro hh v
-        exact (assignments_agree_iff hσ hτ).mp hh v (List.mem_toFinset.mp v.property))
-    (fun a => by
-      constructor
-      · rintro ⟨σ, hσ, ha⟩
-        refine ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ, ?_⟩
-        funext v
-        exact ha v
-      · rintro ⟨τ, hτ, ha⟩
-        exact ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ, fun v => congrFun ha v⟩)
+      simp only [funext_iff, Subtype.forall, List.mem_toFinset, assignments_agree_iff hσ hτ])
+    (fun a =>
+      ⟨fun ⟨σ, hσ, ha⟩ => ⟨extend φ σ, (evalOne_formula_extend φ σ).trans hσ, funext ha⟩,
+       fun ⟨τ, hτ, ha⟩ => ⟨fun v => τ (.inl v), evalOne_of_formula φ τ hτ, congrFun ha⟩⟩)
   exact houtput.trans hsource.symm
 
 /-- A positive literal introduces no complement clauses. -/

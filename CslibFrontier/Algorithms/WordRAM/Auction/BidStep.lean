@@ -133,7 +133,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       s'.frontier = s₀.frontier ∧
       (Memory.spec 0).clientResult s₀ (bidStepProg (ws, sp)) = st'.free.length ∧
       AuctionMem ws C st' s' := by
-  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  have ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
   have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i j k => by
     have := hC_le i k
@@ -141,19 +141,15 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
   have hp_le : ∀ j : Fin ws.n, st.price j ≤ (W + ws.eps : ℤ) := fun j =>
     hinv.price_le (by simp [hs_free]) hC_spread (by positivity) j
   have hlen_le : st.free.length ≤ ws.n := by
-    have := hinv.free_nodup.length_le_card
-    rwa [Fintype.card_fin] at this
+    simpa using hinv.free_nodup.length_le_card
   have hsp_eq : st.free.length = rest.length + 1 := by simp [hs_free]
   have htop : st.free.length - 1 = rest.length := by rw [hsp_eq, Nat.add_sub_cancel]
   have hcurI : s₀.mem (ws.bStack + (st.free.length - 1)) = i₀.val := by
-    have h := ham.hStack (st.free.length - 1) (by omega)
-    simpa [hs_free, Nat.sub_self] using h
-  have hbest := findBest_spec ws s₀ ⟨hbO, hbP, hbS, hout, hfr⟩ ham hC_le hp_nn hp_le i₀
-    hfit1 hfit_ws (hfit_p.of_le (by omega))
-  obtain ⟨hsafe_b, hv_b, hmc_b, hs_b, j₀, hbo, hj₀_min, hbj, hbv⟩ := hbest
-  have hsec := findSecond_spec ws s₀ ⟨hbO, hbP, hbS, hout, hfr⟩ ham hC_le hp_nn hp_le i₀ j₀
-    hfit1 hfit_ws (hfit_p.of_le (by omega))
-  obtain ⟨hsafe_s, hv_s, hmc_s, hs_s, hsec_spec⟩ := hsec
+    simpa [hs_free, Nat.sub_self] using ham.hStack (st.free.length - 1) (by omega)
+  obtain ⟨hsafe_b, hv_b, hmc_b, hs_b, j₀, hbo, hj₀_min, hbj, hbv⟩ :=
+    findBest_spec ws s₀ hws ham hC_le hp_nn hp_le i₀ hfit1 hfit_ws (hfit_p.of_le (by omega))
+  obtain ⟨hsafe_s, hv_s, hmc_s, hs_s, hsec_spec⟩ :=
+    findSecond_spec ws s₀ hws ham hC_le hp_nn hp_le i₀ j₀ hfit1 hfit_ws (hfit_p.of_le (by omega))
   let rowBase := ws.bC + i₀.val * ws.n
   let dSec : ScanSecondArgs := ⟨ws.n, rowBase, ws.bPrice, j₀.val⟩
   let sec := (Memory.spec 0).clientResult s₀ (findSecondProg dSec)
@@ -167,8 +163,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
   have hnewP_nn : 0 ≤ newPZ := by
     have := le_bidPrice (c := cZ) (ε := (ws.eps : ℤ)) hj₀_min
     have := hp_nn j₀
-    dsimp only [newPZ]
-    omega
+    dsimp only [newPZ]; omega
   let pBranch : Memory.Prog ℕ := computeNewP ws rowBase j₀.val sec
   have hpBranch :
       (sec.hasSecond = 0 → Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps)) ∧
@@ -350,19 +345,13 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
         exact ham.hPrice j
     have hstack_tail : ∀ k (hk : k < rest.length),
         s₀.mem (ws.bStack + k) = (rest[rest.length - 1 - k]'(by omega)).val := fun k hk => by
-      have hk' : k < st.free.length := by rw [hsp_eq]; omega
-      have h := ham.hStack k hk'
-      simp only [hs_free, List.length_cons,
-        show rest.length + 1 - 1 - k = rest.length - k by omega,
-        show rest.length - k = (rest.length - 1 - k) + 1 by omega,
-        List.getElem_cons_succ] at h
-      exact h
-    have ownerBeforePrice (j : Fin ws.n) : ws.bOwner + j.val < ws.bPrice := by
-      rw [hbP]
-      exact Nat.add_lt_add_left j.isLt _
-    have priceBeforeStack (j : Fin ws.n) : ws.bPrice + j.val < ws.bStack := by
-      rw [hbS]
-      exact Nat.add_lt_add_left j.isLt _
+      have hidx : rest.length + 1 - 1 - k = (rest.length - 1 - k) + 1 := by omega
+      simpa only [hs_free, List.length_cons, hidx, List.getElem_cons_succ] using
+        ham.hStack k (by omega)
+    have ownerBeforePrice (j : Fin ws.n) : ws.bOwner + j.val < ws.bPrice :=
+      hbP ▸ Nat.add_lt_add_left j.isLt _
+    have priceBeforeStack (j : Fin ws.n) : ws.bPrice + j.val < ws.bStack :=
+      hbS ▸ Nat.add_lt_add_left j.isLt _
     have ownerBeforeStack (j : Fin ws.n) : ws.bOwner + j.val < ws.bStack :=
       (ownerBeforePrice j).trans_le ((Nat.le_add_right _ _).trans (priceBeforeStack j).le)
     have hstack_mid (k : ℕ) : s_mid.mem (ws.bStack + k) = s₀.mem (ws.bStack + k) := by
@@ -398,9 +387,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
           change Function.update s_mid.mem (ws.bStack + rest.length) prevI.val
             (ws.bStack + k) = _
           rw [Function.update_of_ne hne, hstack_mid, hstack_tail k hlt_r]
-          have hpred : rest.length - 1 - k + 1 = rest.length - k := by
-            rw [Nat.sub_right_comm]
-            exact Nat.sub_add_cancel (Nat.sub_pos_of_lt hlt_r)
+          have hpred : rest.length - 1 - k + 1 = rest.length - k := by omega
           simp only [Nat.add_sub_cancel, ← hpred, List.getElem_cons_succ]
         · rw [Function.update_self]
           simp only [Nat.add_sub_cancel, Nat.sub_self, List.getElem_cons_zero]
