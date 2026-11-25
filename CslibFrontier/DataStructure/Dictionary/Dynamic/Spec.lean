@@ -324,11 +324,16 @@ theorem logLogFactor_four_mul_le_add_two (n : ℕ) :
   exact (logLogFactor_two_mul_le_add_one (2 * n)).trans
     (Nat.add_le_add_right (logLogFactor_two_mul_le_add_one n) 1)
 
+/-- Whenever `N ≤ 4 * n_t`, `logLogFactor N ≤ 3 * logLogFactor n_t`. -/
+theorem logLogFactor_le_three_mul_of_le_four_mul {N n_t : ℕ} (hle : N ≤ 4 * n_t) :
+    logLogFactor N ≤ 3 * logLogFactor n_t := by
+  have h1 := (logLogFactor_mono hle).trans (logLogFactor_four_mul_le_add_two n_t)
+  have h2 := one_le_logLogFactor n_t
+  omega
+
 /-- Quadrupling `n` increases `logLogFactor` by at most a factor of `4`. -/
 theorem logLogFactor_four_mul_le (n : ℕ) :
-    logLogFactor (4 * n) ≤ 4 * logLogFactor n := by
-  have h1 := logLogFactor_four_mul_le_add_two n
-  have h2 := one_le_logLogFactor n
-  omega
+    logLogFactor (4 * n) ≤ 4 * logLogFactor n :=
+  (logLogFactor_le_three_mul_of_le_four_mul le_rfl).trans (by omega)
 
 end Cslib.DataStructure.Dictionary.Dynamic

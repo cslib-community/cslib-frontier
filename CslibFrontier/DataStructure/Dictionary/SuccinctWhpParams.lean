@@ -147,6 +147,11 @@ bound and all polylogarithmic scale inequalities. Kept non-exposed so `whnf` nev
 @[wram_arith] def codeExpWhp (c : ℕ) : ℕ :=
   320 + 16 * (cTabWhp c + 1) ^ 2 * qTabWhp c
 
+/-- Explicit unfolding equation for `codeExpWhp`. -/
+theorem codeExpWhp_eq (c : ℕ) :
+    codeExpWhp c = 320 + 16 * (cTabWhp c + 1) ^ 2 * qTabWhp c := by
+  rfl
+
 /-- Logarithmic exponent multiplier `codeExpWhp c` is at least `320`. -/
 theorem le_codeExpWhp (c : ℕ) : 320 ≤ codeExpWhp c := by wram_omega
 
@@ -154,6 +159,11 @@ theorem le_codeExpWhp (c : ℕ) : 320 ≤ codeExpWhp c := by wram_omega
 Kept non-exposed so `whnf` never unrolls `whpThreshold c = 2 ^ bMinWhp c`. -/
 def bMinWhp (c : ℕ) : ℕ :=
   64 * (codeExpWhp c) ^ 2 + 16 * codeExpWhp c
+
+/-- Explicit unfolding equation for `bMinWhp`. -/
+theorem bMinWhp_eq (c : ℕ) :
+    bMinWhp c = 64 * (codeExpWhp c) ^ 2 + 16 * codeExpWhp c := by
+  rfl
 
 /-- Minimum log-capacity threshold `bMinWhp c` is at least `6553600`. -/
 theorem le_bMinWhp (c : ℕ) : 6553600 ≤ bMinWhp c := by
