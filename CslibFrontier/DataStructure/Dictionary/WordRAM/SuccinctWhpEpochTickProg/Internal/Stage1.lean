@@ -38,7 +38,8 @@ private theorem validProg_bind_read_eq {α β : Type} {w F : ℕ} {s : Memory.St
     (hp : ValidProg w F s p) (hst : (Memory.spec 0).clientState s p = s)
     (hres : (Memory.spec 0).clientResult s p = v) (hk : ValidProg w F s (k v)) :
     ValidProg w F s (p >>= k) := by
-  refine validProg_bind hp ?_; rwa [hst, hres]
+  refine validProg_bind hp ?_
+  rwa [hst, hres]
 
 private theorem stage1_pos_after_queue {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U} {b₀ : ℕ}
@@ -54,13 +55,15 @@ private theorem stage1_pos_after_queue {c U V n_max : ℕ} {θ : SeedWhp c U n_m
     0 < fs_q.dirtyCount →
       fs_q.dirtyBuckets 0 < numBucketsWhp n_max ∧
       fs_q.rebSliceIdx (fs_q.dirtyBuckets 0) < 3 * numBucketsWhp n_max := by
-  intro fs_q; dsimp only [fs_q]
+  intro fs_q
+  dsimp only [fs_q]
   by_cases hrq0 : fs.rebQueued b₀ = 0
   · rw [ite_eq_left hrq0]; intro _
     have hb_z : Function.update fs.dirtyBuckets fs.dirtyCount b₀ 0 < numBucketsWhp n_max := by
       by_cases hdc0 : fs.dirtyCount = 0
       · rw [hdc0, Function.update_self]; exact hb₀
-      · rw [Function.update_of_ne (Ne.symm hdc0)]; exact hd0 (Nat.pos_of_ne_zero hdc0)
+      · rw [Function.update_of_ne (Ne.symm hdc0)]
+        exact hd0 (Nat.pos_of_ne_zero hdc0)
     exact ⟨hb_z, rebSliceIdx_lt_of_core hc hb_z⟩
   · rw [ite_eq_right hrq0]
     intro hpos

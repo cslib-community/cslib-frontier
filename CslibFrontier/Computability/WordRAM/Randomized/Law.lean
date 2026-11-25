@@ -105,7 +105,8 @@ theorem withSupport (h : ExecRandLaw w c x P T R f μ) :
     ExecRandLaw w c x (fun y => P y ∧ f y ∈ μ.support) T R f μ := by
   obtain ⟨m, hm, hq, hsup, hlaw⟩ := h
   refine ⟨m, hm, hq, fun z hz => ⟨⟨(hsup z hz).1, ?_⟩, (hsup z hz).2⟩, hlaw⟩
-  rw [← hlaw, ProbComp.eval_map, PMF.support_map, ProbComp.support_eval]; exact ⟨z, hz, rfl⟩
+  rw [← hlaw, ProbComp.eval_map, PMF.support_map, ProbComp.support_eval]
+  exact ⟨z, hz, rfl⟩
 
 /-- Strengthening the postcondition with a register that `c` never writes. -/
 theorem withPreserves {i : Fin r} (h : ExecRandLaw w c x P T R f μ) (hi : c.Preserves i) :
@@ -130,7 +131,8 @@ theorem of_execWithin {y : Data r} (h : ExecWithin w c x y T) (hy : P y) :
     ExecRandLaw w c x P T 0 f (PMF.pure (f y)) := by
   obtain ⟨n, hn, he⟩ := h
   refine ⟨pure (y, n), he.execRand, .pure _ 0, fun z hz => ?_, by rw [map_pure, ProbComp.eval_pure]⟩
-  cases OracleComp.eq_of_mem_supportWith_pure hz; exact ⟨hy, hn⟩
+  cases OracleComp.eq_of_mem_supportWith_pure hz
+  exact ⟨hy, hn⟩
 
 /-- `Code.rand dst src` draws `k` uniformly from `[0, x.regs src]` and observes `x.set dst k`. -/
 theorem rand {dst src : Fin r} (hfit : Fits w (x.regs src))
@@ -186,7 +188,8 @@ theorem foldr_seq_det {y : Data r} (cs : List (Code B r)) {last : Code B r}
   induction cs generalizing x T₁ with
   | nil => exact seq_det h₁ h₂
   | cons hd tl ih =>
-    obtain ⟨_, hn, he⟩ := h₁; cases he with
+    obtain ⟨_, hn, he⟩ := h₁
+    cases he with
     | seq ha hb => exact (seq_det ha.within (ih hb.within)).mono (fun _ h => h) (by omega) le_rfl
 
 /-- A deterministic suffix that keeps the observation does not change the law. -/

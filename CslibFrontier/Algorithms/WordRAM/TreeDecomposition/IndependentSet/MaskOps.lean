@@ -281,7 +281,8 @@ theorem keyMaskProg_state (args : MaskTransArgs) (s : Memory.State) :
   rw [StateTransitionSpec.clientState_bind]
   refine clientState_iterate_eq_of keyMaskStep ⟨args.bagBPtr, args.bagBLen, args.mask⟩
     (fun st m => ?_) args.bagPLen ⟨args.bagPPtr, 1, 0⟩ s
-  unfold keyMaskStep; dsimp only
+  unfold keyMaskStep
+  dsimp only
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
     selMemBagProg_state]
   rfl
@@ -342,7 +343,8 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
       rw [hmem_u]
       exact validHistory_bind_step hv_sel (validHistory_pure w _ _)
     have hst_step : (Memory.spec 0).clientState s (keyMaskStep (env, ⟨curP, pow2, acc⟩)) = s := by
-      unfold keyMaskStep; dsimp only
+      unfold keyMaskStep
+      dsimp only
       rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
         selMemBagProg_state]
       rfl

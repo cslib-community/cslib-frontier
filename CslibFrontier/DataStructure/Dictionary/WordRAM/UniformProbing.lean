@@ -278,7 +278,8 @@ theorem two_mul_rawStrideHash_add_one_lt {c_exp U n_max : ℕ} (θ : Seed c_exp 
     2 * (rawStrideHash θ u).val + 1 < numBuckets n_max := by
   have := (rawStrideHash θ u).isLt
   have : 2 * 2 ^ (bucketBits n_max - 1) = numBuckets n_max := by
-    dsimp only [numBuckets]; rw [← pow_succ', Nat.sub_add_cancel (bucketBits_pos n_max)]
+    dsimp only [numBuckets]
+    rw [← pow_succ', Nat.sub_add_cancel (bucketBits_pos n_max)]
   omega
 
 /-- Odd probe stride `2 * (rawStrideHash θ u).val + 1 ∈ Fin (numBuckets n_max)`. -/

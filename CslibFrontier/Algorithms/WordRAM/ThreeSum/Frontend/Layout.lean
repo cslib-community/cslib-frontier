@@ -275,7 +275,8 @@ theorem roots_indexed (U : ℕ) (rs : List (ℕ × ℕ)) :
       Nat.mul_add_div_of_lt β hb', Nat.mul_add_mod_of_lt hb', Bool.toNat_false, Bool.toNat_true]
   rw [hprefix]
   simp only [show List.range 2 = [0, 1] from rfl, List.map_cons, List.map_nil,
-    Nat.add_zero, (root_extras U Λ rs).1, (root_extras U Λ rs).2]
+    Nat.add_zero, (root_extras U Λ rs).1,
+    (root_extras U Λ rs).2]
   rfl
 
 end Math

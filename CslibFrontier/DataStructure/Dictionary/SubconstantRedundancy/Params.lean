@@ -451,16 +451,20 @@ theorem totalTreeBits_le_infoBits_add {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     (canonicalSchedule h).totalTreeBits ≤ infoBits U V n + spaceConst * R := by
   have hU3 : 3 * (canonicalSchedule h).cap ≤ (canonicalSchedule h).paddedUniv := by
-    have h2n := h.two_mul_n_le_univ; have hpad := (canonicalSchedule h).univ_le_padded
+    have h2n := h.two_mul_n_le_univ
+    have hpad := (canonicalSchedule h).univ_le_padded
     rw [canonicalSchedule_univ, canonicalSchedule_cap] at hpad
-    rw [canonicalSchedule_cap]; dsimp only [TreeSchedule.paddedUniv, TreeSchedule.branchFactor]
+    rw [canonicalSchedule_cap]
+    dsimp only [TreeSchedule.paddedUniv, TreeSchedule.branchFactor]
     omega
   have htot := (canonicalSchedule h).totalTreeBits_le_padded_infoBits_add (fun ℓ _ hlt => by
     rw [canonicalSchedule_cap, canonicalSchedule_nFloor_div_eq h hlt.le]
     exact (Nat.lt_mul_div_succ n ((canonicalSchedule h).numNodes_pos ℓ)).le) hU3
   rw [canonicalSchedule_valBound, canonicalSchedule_cap] at htot
-  have := infoBits_paddedUniv_le h; have := redundancySlack_le_mul_effRedundancy h
-  have := effRedundancy_pos h.redundancy_pos n; have := effRedundancy_le n R
+  have := infoBits_paddedUniv_le h
+  have := redundancySlack_le_mul_effRedundancy h
+  have := effRedundancy_pos h.redundancy_pos n
+  have := effRedundancy_le n R
   dsimp only [spaceConst]; omega
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

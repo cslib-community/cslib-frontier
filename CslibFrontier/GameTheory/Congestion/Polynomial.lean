@@ -150,7 +150,8 @@ theorem existsUnique_polynomialRoot {d : ℕ} (hd : 1 ≤ d) :
     norm_num at h2 ⊢
     linarith
   have hfd : f ((d : ℝ) + 1) < 0 := by
-    dsimp [f]; rw [show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring]
+    dsimp [f]
+    rw [show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring]
     linarith [add_two_pow_lt_add_one_pow_succ hd]
   obtain ⟨φ, hφ_mem, hφ_zero⟩ := intermediate_value_Icc'
     (by linarith [Nat.cast_nonneg (α := ℝ) d]) hf_cont ⟨hfd.le, hf1.le⟩
@@ -159,17 +160,20 @@ theorem existsUnique_polynomialRoot {d : ℕ} (hd : 1 ≤ d) :
   refine ⟨φ, ⟨hφ_pos, hφ_eq⟩, fun y ⟨hy_pos, hy_eq⟩ => ?_⟩
   rcases lt_trichotomy y φ with hlt | rfl | hgt
   · have h := pow_succ_mul_one_add_pow_lt (d := d) hy_pos hlt
-    rw [hy_eq, hφ_eq, mul_comm] at h; exact absurd h (lt_irrefl _)
+    rw [hy_eq, hφ_eq, mul_comm] at h
+    exact absurd h (lt_irrefl _)
   · rfl
   · have h := pow_succ_mul_one_add_pow_lt (d := d) hφ_pos hgt
-    rw [hφ_eq, hy_eq, mul_comm] at h; exact absurd h (lt_irrefl _)
+    rw [hφ_eq, hy_eq, mul_comm] at h
+    exact absurd h (lt_irrefl _)
 
 /-- Characteristic root `φ_d` of `φ ^ (d + 1) = (1 + φ) ^ d` for `d ≥ 1` (and `1` for `d = 0`). -/
 noncomputable def polynomialRoot (d : ℕ) : ℝ :=
   if hd : 1 ≤ d then Classical.choose (existsUnique_polynomialRoot hd).exists else 1
 
 theorem polynomialRoot_pos (d : ℕ) : 0 < polynomialRoot d := by
-  unfold polynomialRoot; split_ifs with hd
+  unfold polynomialRoot
+  split_ifs with hd
   · exact (Classical.choose_spec (existsUnique_polynomialRoot hd).exists).1
   · exact zero_lt_one
 
@@ -302,7 +306,8 @@ theorem polynomialSmoothLam_mono {j d : ℕ} (hjd : j ≤ d) :
   | @step m hjm ih =>
     refine ih.trans ?_
     rcases Nat.eq_zero_or_pos m with rfl | hm1
-    · simp only [polynomialSmoothLam, ↓reduceIte]; exact one_le_polynomialSmoothLam 1
+    · simp only [polynomialSmoothLam, ↓reduceIte]
+      exact one_le_polynomialSmoothLam 1
     have hm_succ : 1 ≤ m + 1 := by omega
     have hφm_lt := polynomialRoot_lt_succ hm1
     have hφ_inc := polynomialRoot_strictMono hm1 (Nat.lt_succ_self m)
@@ -587,7 +592,8 @@ theorem isSmooth_quadratic (h : C.HasPolynomialLatencies 2) :
   have hmono := h.monotone_latency
   obtain ⟨c, hc, hl⟩ := h
   refine isSmooth_of_latency_bound hmono fun e y z => ?_
-  rw [hl, hl, hl]; simp only [sum_range_succ, sum_range_zero, zero_add, pow_zero, pow_one]
+  rw [hl, hl, hl]
+  simp only [sum_range_succ, sum_range_zero, zero_add, pow_zero, pow_one]
   push_cast
   have hlin : (y : ℝ) * ((z : ℝ) + 1) ≤ 115 / 19 * (y : ℝ) ^ 2 + 7 / 19 * (z : ℝ) ^ 2 := by
     rcases eq_or_ne y 0 with rfl | hy0

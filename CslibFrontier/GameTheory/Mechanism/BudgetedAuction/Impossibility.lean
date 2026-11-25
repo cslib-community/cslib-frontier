@@ -192,7 +192,8 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
     linarith
   refine ⟨hall_m t BigB ht hBigB, le_antisymm ?_ ?_⟩
   · -- Upper bound `payment j ≤ (θ i).val * m` by taking `w₂ = (θ i).val + ε → (θ i).val`.
-    by_contra hgt; push Not at hgt
+    by_contra hgt
+    push Not at hgt
     let p := (M.outcome (Function.update θ j ⟨t, BigB⟩)).payment j
     let w₂ := (θ i).val + (p - (θ i).val * m) / (2 * m)
     have hw₂ : (θ i).val < w₂ := by
@@ -203,7 +204,8 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
       dsimp only [w₂]; field_simp [hm.ne']
     linarith
   · -- Lower bound `(θ i).val * m ≤ payment j` via deviation from `s < (θ i).val`.
-    by_contra hlt; push Not at hlt
+    by_contra hlt
+    push Not at hlt
     let p := (M.outcome (Function.update θ j ⟨t, BigB⟩)).payment j
     have hp_nn : 0 ≤ p := hnn _ (update_pos hθ j ⟨ht_pos, hBigB_pos⟩) j
     let s := max ((θ i).val / 2) ((θ i).val - ((θ i).val * m - p) / (2 * m))
@@ -382,7 +384,8 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
           (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).payment j ≤ (θ j).budget := by
         simpa only [Function.update_self] using hbf _ hθw j
       have h1 := hic θ hθ j ⟨w, (θ j).budget⟩ ⟨hv_i_pos.trans hw, hB_j_pos⟩ hp_le
-      dsimp only [Outcome.utility] at h1; rw [hpj_eq] at h1
+      dsimp only [Outcome.utility] at h1
+      rw [hpj_eq] at h1
       have hxw_le : (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j ≤
           (M.outcome θ).alloc j :=
         le_of_mul_le_mul_left (by linarith : (θ j).val * _ ≤ (θ j).val * _) (hθ j).1
@@ -415,9 +418,11 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
   let prof : Fin 10 → (ι → BidderType) := fun k => Function.update θbase i ⟨t k, 10⟩
   have hprof_pos (k : Fin 10) (r : ι) : (prof k r).IsPos := by
     rcases eq_or_ne r i with rfl | hri
-    · simp only [prof, Function.update_self]; exact ⟨by positivity, by norm_num⟩
+    · simp only [prof, Function.update_self]
+      exact ⟨by positivity, by norm_num⟩
     · rcases eq_or_ne r j with rfl | hrj
-      · simp only [prof, Function.update_of_ne hri, hbase_j]; exact ⟨by positivity, zero_lt_one⟩
+      · simp only [prof, Function.update_of_ne hri, hbase_j]
+        exact ⟨by positivity, zero_lt_one⟩
       · simp only [prof, Function.update_of_ne hri, hbase_rest r hri hrj]
         exact ⟨by positivity, zero_lt_one⟩
   have ht_bounds (k : Fin 10) : 1 / m ≤ t k ∧ t k ≤ 5 / (2 * m) := by
@@ -467,7 +472,8 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
     rw [halloc_i k.succ, halloc_i k.castSucc] at hic_k
     have hdiff : t k.succ * ((m - 1 / t k.succ) - (m - 1 / t k.castSucc)) =
         1 / ((k.val : ℝ) + 6) := by
-      dsimp only [t]; simp only [Fin.val_succ, Fin.val_castSucc, Nat.cast_add, Nat.cast_one]
+      dsimp only [t]
+      simp only [Fin.val_succ, Fin.val_castSucc, Nat.cast_add, Nat.cast_one]
       have hk1 : ((k.val : ℝ) + 6) ≠ 0 := by positivity
       have hk2 : ((k.val : ℝ) + 1 + 6) ≠ 0 := by positivity
       field_simp [hm.ne', hk1, hk2]; ring
@@ -505,7 +511,8 @@ theorem not_exists_privateBudgetDSIC_isParetoOptimal {m : ℝ} (hm : 0 < m)
   let θstar : ι → BidderType := fun k =>
     if k = i₀ ∨ k = i₁ then ⟨100 / m, 1⟩ else ⟨1 / (2 * m), 1⟩
   have hθ_pos (k : ι) : (θstar k).IsPos := by
-    dsimp only [θstar]; split_ifs
+    dsimp only [θstar]
+    split_ifs
     · exact ⟨div_pos (by norm_num) hm, zero_lt_one⟩
     · exact ⟨div_pos zero_lt_one (by positivity), zero_lt_one⟩
   have h0_eq : θstar i₀ = ⟨100 / m, 1⟩ := by simp [θstar]
@@ -521,7 +528,8 @@ theorem not_exists_privateBudgetDSIC_isParetoOptimal {m : ℝ} (hm : 0 < m)
   have hic0 := hic θstar hθ_pos i₀ ⟨5 / (2 * m), 10⟩ hdev_pos (by simpa [h0_eq] using hp0.le)
   have hic1 := hic θstar hθ_pos i₁ ⟨5 / (2 * m), 10⟩ hdev_pos (by simpa [h1_eq] using hp1.le)
   dsimp only [Outcome.utility] at hic0 hic1
-  rw [h0_eq, hx0] at hic0; rw [h1_eq, hx1] at hic1
+  rw [h0_eq, hx0] at hic0
+  rw [h1_eq, hx1] at hic1
   have h100_mul : (100 / m) * (3 / 5 * m) = 60 := by field_simp [hm.ne']; ring
   have halloc_sum : (M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁ ≤ m := by
     rw [← Finset.sum_pair hne]

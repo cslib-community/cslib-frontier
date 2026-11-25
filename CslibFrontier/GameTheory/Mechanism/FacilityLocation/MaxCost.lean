@@ -208,7 +208,8 @@ theorem maxECost_eq_ofReal_maxCost (x : ι → G) (y : G) :
   rcases isEmpty_or_nonempty ι with _ | _
   · simp [maxCost]
   · obtain ⟨i, hi⟩ := exists_dist_eq_maxCost x y
-    rw [← hi, ← edist_dist]; exact edist_le_maxECost x y i
+    rw [← hi, ← edist_dist]
+    exact edist_le_maxECost x y i
 
 /-- `y ↦ maxECost x y` is continuous on `G`. -/
 theorem continuous_maxECost (x : ι → G) : Continuous (maxECost x) := by
@@ -238,7 +239,8 @@ theorem le_optMaxCost_iff [Nonempty G] {x : ι → G} {c : ℝ} :
 theorem le_mul_optMaxCost [Nonempty G] {x : ι → G} {α c : ℝ} (hα : 0 ≤ α)
     (h : ∀ y : G, c ≤ α * maxCost x y) : c ≤ α * optMaxCost x := by
   rcases hα.eq_or_lt with rfl | hpos
-  · obtain ⟨y⟩ := ‹Nonempty G›; simpa only [zero_mul] using h y
+  · obtain ⟨y⟩ := ‹Nonempty G›
+    simpa only [zero_mul] using h y
   · rw [mul_comm, ← div_le_iff₀ hpos, le_optMaxCost_iff]
     exact fun y => by rw [div_le_iff₀ hpos, mul_comm]; exact h y
 
@@ -395,7 +397,8 @@ theorem exists_expectedCost_ge_half_dist {μ : ProbabilityMeasure G} (hfin : Has
       show dist a b = ∫ _ : G, dist a b ∂(μ : Measure G) by simp]
     exact integral_mono (integrable_const _) ((hfin a).add (hfin b)) fun y => by
       simpa only [dist_comm y b] using dist_triangle a y b
-  by_contra! h; linarith
+  by_contra! h
+  linarith
 
 end Measurable
 
@@ -870,8 +873,10 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
     obtain ⟨i, hi, hle⟩ := h
     exact ⟨i, hi, (expectedECost_le_iff_expectedCost_le
       (lrmMechanism_hasFiniteCost x (x i)) (lrmMechanism_hasFiniteCost x' (x i))).mpr hle⟩
-  set l := leftmost x; set r := rightmost x
-  set l' := leftmost x'; set r' := rightmost x'
+  set l := leftmost x
+  set r := rightmost x
+  set l' := leftmost x'
+  set r' := rightmost x'
   have hlr : l ≤ r := leftmost_le_rightmost x
   have hlr' : l' ≤ r' := leftmost_le_rightmost x'
   have hleft_mem : l < l' → ∃ i ∈ A, x i = l := fun _ => by
@@ -899,13 +904,15 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
     · -- Case 1: `l' ≤ l` and `r ≤ r'` (interval expands on both sides).
       obtain ⟨i, hiA⟩ := hA
       refine ⟨i, hiA, ?_⟩
-      have hxi_l := leftmost_le x i; have hxi_r := le_rightmost x i
+      have hxi_l := leftmost_le x i
+      have hxi_r := le_rightmost x i
       rw [expectedCost_lrmMechanism, expectedCost_lrmMechanism,
         abs_of_nonneg (sub_nonneg.mpr hxi_l), abs_of_nonpos (sub_nonpos.mpr hxi_r),
         abs_of_nonneg (a := x i - l') (by linarith),
         abs_of_nonpos (a := x i - r') (by linarith)]
       have hcen_diff : |center x' - center x| ≤ ((l - l') + (r' - r)) / 2 := by
-        rw [abs_le]; dsimp [center]
+        rw [abs_le]
+        dsimp [center]
         constructor <;> linarith
       change 1 / 4 * (x i - l) + 1 / 4 * -(x i - r) + 1 / 2 * |x i - center x| ≤
         1 / 4 * (x i - l') + 1 / 4 * -(x i - r') + 1 / 2 * |x i - center x'|

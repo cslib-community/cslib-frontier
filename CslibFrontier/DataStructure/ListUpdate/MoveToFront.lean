@@ -132,9 +132,11 @@ theorem inversions_moveToFront {l : List α} (hl : IsArrangement l) (r : α) :
   obtain rfl : y = r := by
     by_contra hyr
     by_cases hxr : x = r
-    · subst hxr; rw [idxOf_moveToFront_self] at h
+    · subst hxr
+      rw [idxOf_moveToFront_self] at h
       omega
-    · have := (idxOf_moveToFront_lt_iff hyr hxr l).1 h.2; omega
+    · have := (idxOf_moveToFront_lt_iff hyr hxr l).1 h.2
+      omega
   exact Finset.mem_map.2 ⟨x, Finset.mem_filter.2 ⟨Finset.mem_univ _, h.1⟩, rfl⟩
 
 /-- Move-to-front pays exactly the position of the requested item. -/
@@ -157,14 +159,16 @@ theorem inversions_moveToFront_le {m L : List α} (hm : IsArrangement m) (hL : I
     by_cases hxr : x = r
     · exact Or.inl (hxr ▸ Finset.mem_map.2 ⟨y, Finset.mem_filter.2 ⟨Finset.mem_univ _, h.2⟩, rfl⟩)
     · by_cases hyr : y = r
-      · subst hyr; rw [idxOf_moveToFront_self] at h
+      · subst hyr
+        rw [idxOf_moveToFront_self] at h
         omega
       · exact Or.inr ⟨⟨(idxOf_moveToFront_lt_iff hxr hyr m).1 h.1, h.2⟩, hxr, hyr⟩
   have h₁ := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
   rw [Finset.card_map, card_filter_idxOf_lt hL r] at h₁
   have h₂ := card_filter_ne_add_card_crossBefore_le m L r
   have h₃ := idxOf_le_card_crossBefore_add hm hL r
-  unfold inversions at h₂ ⊢; omega
+  unfold inversions at h₂ ⊢
+  omega
 
 /-- **Move-to-front bound** ([SleatorTarjan1985], Theorem 1 and the remark after its proof): for
 every valid offline schedule `states` serving `reqs` from `s₀`, move-to-front started from `m₀`
@@ -178,7 +182,8 @@ theorem mtf_costFrom_add_inversions_add_length_le {m₀ s₀ : List α} (hm₀ :
       2 * accessCost reqs states + exchangeCost s₀ reqs states + inversions m₀ s₀ := by
   induction hv using Problem.ValidSchedule.induction (P := problem α) generalizing m₀ with
   | nil s₀ =>
-    change 0 + inversions m₀ s₀ + 0 ≤ 2 * 0 + 0 + inversions m₀ s₀; omega
+    change 0 + inversions m₀ s₀ + 0 ≤ 2 * 0 + 0 + inversions m₀ s₀
+    omega
   | cons s₀ r rs s' ss hvalid _ ih =>
     have hih := ih (isArrangement_moveToFront hm₀ r) hvalid.2
     have hstep := inversions_moveToFront_le hm₀ hvalid.2 r
@@ -223,6 +228,7 @@ theorem mtf_isCompetitiveAnyInit :
     (mtf α).IsCompetitiveAnyInit 2 (Fintype.card α * (Fintype.card α - 1) / 2) := by
   intro m₀ s₀ reqs states hm₀ hs₀ hv
   have := mtf_cost_add_length_le hm₀ hs₀ hv
-  have := two_mul_inversions_le m₀ s₀; omega
+  have := two_mul_inversions_le m₀ s₀
+  omega
 
 end Cslib.DataStructure.ListUpdate

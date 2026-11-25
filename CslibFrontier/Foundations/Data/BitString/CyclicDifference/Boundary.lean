@@ -58,11 +58,13 @@ port with port 0 and keep port 0. All other free ports keep their order. -/
 private theorem val_zeroPort {n : ℕ} (i j : Fin (n + 2)) :
     (zeroPort i j).val = if j.val ≤ i.val ∧ j.val < n + 1 then j.val
       else if i.val = n + 1 then 0 else j.val - 1 := by
-  unfold zeroPort; split_ifs <;> rfl
+  unfold zeroPort
+  split_ifs <;> rfl
 
 private theorem val_retainPort {n : ℕ} (i : Fin (n + 2)) (j : Fin (n + 1)) :
     (retainPort i j).val = if j.val ≤ i.val then j.val else j.val + 1 := by
-  unfold retainPort; split_ifs <;> rfl
+  unfold retainPort
+  split_ifs <;> rfl
 
 private theorem val_differencePort {n : ℕ} (i : Fin (n + 2)) (j : Fin (n + 1)) :
     (differencePort i j).val = if j.val < i.val then j.val else j.val + 1 := by
@@ -139,7 +141,8 @@ theorem retainPort_zeroPort {n : ℕ} (i j : Fin (n + 2)) :
 theorem comp_retainPort_zeroPort {n : ℕ} (i : Fin (n + 2)) (x : Fin (n + 2) → Bool)
     (h : cyclicDifference x i = false) : (x ∘ retainPort i) ∘ zeroPort i = x := by
   have he : x i = x (finRotate (n + 2) i) := by
-    revert h; dsimp [cyclicDifference]
+    revert h
+    dsimp [cyclicDifference]
     cases x i <;> cases x (finRotate (n + 2) i) <;> decide
   funext j
   rcases retainPort_zeroPort i j with hj | ⟨rfl, hj⟩ | ⟨rfl, hj⟩
@@ -234,12 +237,14 @@ theorem cyclicDifference_capPort_pair {n : ℕ} (y : Fin (n + 2) → Bool)
     (z : Fin 1 → Bool) :
     cyclicDifference ((Sum.elim y z) ∘ capPort) 1 =
       cyclicDifference ((Sum.elim y z) ∘ capPort) 2 := by
-  change (y 1 ^^ z 0) = (z 0 ^^ y 1); exact Bool.xor_comm _ _
+  change (y 1 ^^ z 0) = (z 0 ^^ y 1)
+  exact Bool.xor_comm _ _
 
 /-- Equality of adjacent differences is equality of the two outside ports. -/
 theorem cyclicDifference_pair_eq_iff {n : ℕ} (x : Fin (n + 4) → Bool) :
     cyclicDifference x 1 = cyclicDifference x 2 ↔ x 1 = x 3 := by
-  change (x 1 ^^ x 2) = (x 2 ^^ x 3) ↔ _; cases x 1 <;> cases x 2 <;> cases x 3 <;> decide
+  change (x 1 ^^ x 2) = (x 2 ^^ x 3) ↔ _
+  cases x 1 <;> cases x 2 <;> cases x 3 <;> decide
 
 /-- Reconstruct an old assignment from its retained and hidden cap ports. -/
 theorem comp_capRetainPort_capPort {n : ℕ} (x : Fin (n + 4) → Bool)
@@ -247,9 +252,11 @@ theorem comp_capRetainPort_capPort {n : ℕ} (x : Fin (n + 4) → Bool)
     (Sum.elim (x ∘ capRetainPort) (fun _ : Fin 1 => x 2)) ∘ capPort = x := by
   funext j
   by_cases h2 : j.val = 2
-  · obtain rfl : j = 2 := Fin.ext h2; rfl
+  · obtain rfl : j = 2 := Fin.ext h2
+    rfl
   by_cases h3 : j.val = 3
-  · obtain rfl : j = 3 := Fin.ext h3; exact h
+  · obtain rfl : j = 3 := Fin.ext h3
+    exact h
   by_cases hlt : j.val < 2
   · simp only [Function.comp_apply, capPort, h2, ite_false, hlt, dite_true,
       Sum.elim_inl, capRetainPort]
@@ -308,7 +315,8 @@ theorem eq_pair_of_zero_restriction {n : ℕ} (i : Fin (n + 2)) (hi : i ≠ 0)
 
 private theorem val_capDifferencePort {n : ℕ} (j : Fin (n + 2)) :
     (capDifferencePort j).val = if j.val = 0 then 0 else j.val + 2 := by
-  unfold capDifferencePort; split_ifs <;> rfl
+  unfold capDifferencePort
+  split_ifs <;> rfl
 
 /-- The cap's retained differences are distinct. -/
 theorem capDifferencePort_injective {n : ℕ} :
@@ -364,7 +372,8 @@ theorem eq_pair_or_quartet_of_cap {n : ℕ} (j : Fin (n + 2)) (hj : j ≠ 0)
   | false =>
     refine Or.inl (funext fun k => ?_)
     by_cases hk1 : k = 1
-    · subst k; simp [flipOn, hb, Ne.symm (capDifferencePort_ne_one j)]
+    · subst k
+      simp [flipOn, hb, Ne.symm (capDifferencePort_ne_one j)]
     by_cases hk2 : k = 2
     · subst k; simp [flipOn, ← hs, hb, Ne.symm (capDifferencePort_ne_two j), Fin.ext_iff,
         Nat.mod_eq_of_lt (by omega : 2 < n + 4)]
@@ -372,9 +381,11 @@ theorem eq_pair_or_quartet_of_cap {n : ℕ} (j : Fin (n + 2)) (hj : j ≠ 0)
   | true =>
     refine Or.inr (funext fun k => ?_)
     by_cases hk1 : k = 1
-    · subst k; simp [flipOn, hb]
+    · subst k
+      simp [flipOn, hb]
     by_cases hk2 : k = 2
-    · subst k; simp [flipOn, ← hs, hb]
+    · subst k
+      simp [flipOn, ← hs, hb]
     simpa [flipOn, hk1, hk2] using he k hk1 hk2
 
 /-- Cyclic translation commutes with cyclic differences; orientation is preserved. -/

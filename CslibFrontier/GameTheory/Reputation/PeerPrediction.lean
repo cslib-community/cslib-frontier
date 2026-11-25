@@ -254,7 +254,8 @@ theorem sum_condSignalProb_mul_ref [DecidableEq S] {I : Type*} [Fintype I]
       invFun := fun ⟨si, sr, rest⟩ j =>
         if hji : j = i then si else if hjr : j = r then sr else rest ⟨j, hji, hjr⟩
       left_inv := fun f => by
-        ext j; dsimp only
+        ext j
+        dsimp only
         split_ifs <;> subst_vars <;> rfl
       right_inv := fun ⟨si, sr, rest⟩ =>
         Prod.ext (by simp) (Prod.ext (by simp [hri]) (by ext ⟨j, hji, hjr⟩; simp [hji, hjr])) }

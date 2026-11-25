@@ -477,7 +477,8 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
             simp only [Nat.add_zero, hmem_in]
             rw [Function.update_of_ne (by omega), Function.update_self]
           hsp := by
-            simp only [Nat.add_zero, List.length_nil, hmem_in]; exact Function.update_self _ _ _
+            simp only [Nat.add_zero, List.length_nil, hmem_in]
+            exact Function.update_self _ _ _
           hrk := (hr_in rk (by decide)).trans hrk
           hrd := hrd_in
           hal := hal_in
@@ -514,7 +515,8 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
               (2 + ((8 + t_dfs + 1) + 1)) := by
           have hqh_mid : s_mid.regs qHead = pre.length :=
             (hr_mid qHead (by decide)).trans ((hr_in qHead (by decide)).trans hqh)
-          have hone_mid : s_mid.regs one = 1 := (hr_mid one (by decide)).trans hfr_in.hb.hone
+          have hone_mid : s_mid.regs one = 1 :=
+            (hr_mid one (by decide)).trans hfr_in.hb.hone
           have hinc : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34)
               s_mid (s_mid.set qHead (pre.length + 1)) 1 :=
             WP.execWithin (by wram_exec [hqh_mid, hone_mid]; rfl)

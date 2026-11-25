@@ -109,8 +109,10 @@ theorem Instr.mapOp_additiveHomStandard_isAdditive (i : Instr .additive r) :
   | op o =>
     cases o with
     | alu f _ _ =>
-      rcases f with ⟨_, hf⟩; simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
-      rcases hf with rfl | rfl; exacts [Or.inl rfl, Or.inr rfl]
+      rcases f with ⟨_, hf⟩
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
+      rcases hf with rfl | rfl
+      exacts [Or.inl rfl, Or.inr rfl]
     | _ => trivial
   | _ => trivial
 
@@ -268,12 +270,14 @@ private theorem Reaches.step {p : RAM.Program} {s : RAM.State} {i : RAM.Instr}
 
 private theorem Reaches.trans {p : RAM.Program} {s t u : RAM.State} {T U : ℕ}
     (h : Reaches p s t T) (h' : Reaches p t u U) : Reaches p s u (T + U) :=
-  let ⟨m, hm, ht⟩ := h; let ⟨n, hn, hu⟩ := h'
+  let ⟨m, hm, ht⟩ := h
+  let ⟨n, hn, hu⟩ := h'
   ⟨m + n, by rw [RAM.run_add, hm, hn], by rw [RAM.time_add, hm]; exact Nat.add_le_add ht hu⟩
 
 private theorem Reaches.mono {p : RAM.Program} {s t : RAM.State} {T U : ℕ}
     (h : Reaches p s t T) (hTU : T ≤ U) : Reaches p s t U :=
-  let ⟨n, hn, ht⟩ := h; ⟨n, hn, ht.trans hTU⟩
+  let ⟨n, hn, ht⟩ := h
+  ⟨n, hn, ht.trans hTU⟩
 
 private theorem reaches_jump {p : RAM.Program} {pc target : ℕ} {σ : URM.Regs}
     (hi : p[pc]? = some (.jpos (one r) target)) (hσ : σ.read (one r) = 1) :

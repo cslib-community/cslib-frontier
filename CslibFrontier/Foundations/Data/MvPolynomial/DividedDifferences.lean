@@ -57,13 +57,15 @@ private theorem monomial_divided_differences (x : Fin n → A) (e : Fin n →₀
   · obtain ⟨i, hi⟩ := Finsupp.ne_iff.mp he0
     have hi : e i ≠ 0 := by simpa only [Finsupp.zero_apply] using hi
     let e' := e - Finsupp.single i 1
-    have hres : e' + Finsupp.single i 1 = e := Finsupp.sub_add_single_one_cancel hi
+    have hres : e' + Finsupp.single i 1 = e :=
+      Finsupp.sub_add_single_one_cancel hi
     have hdeg : e'.degree + 1 = e.degree := by
       simpa only [map_add, Finsupp.degree_single] using congrArg Finsupp.degree hres
     have hlt : e'.degree < e.degree := by omega
     obtain ⟨d, hd, hbound, hzero, hdiag⟩ := monomial_divided_differences x e' a
     let q : MvPolynomial (Fin n) A := monomial e' a
-    have hq : q * X i = monomial e a := by rw [← pow_one (X i), ← monomial_add_single, hres]
+    have hq : q * X i = monomial e a := by
+      rw [← pow_one (X i), ← monomial_add_single, hres]
     let D : Fin n → MvPolynomial (Fin n) A := fun j =>
       d j * X i + if j = i then C (eval x q) else 0
     refine ⟨D, ?_, fun j => ?_, fun hz => by omega, fun j => ?_⟩
@@ -73,7 +75,8 @@ private theorem monomial_divided_differences (x : Fin n → A) (e : Fin n →₀
           Finset.mem_univ, ↓reduceIte, Finset.sum_mul]
         exact congrArg (· + _) (Finset.sum_congr rfl fun _ _ => by ring)
       rw [hsum, ← hd, ← hq, map_mul, eval_X, map_mul]
-      change C (eval x q) * C (x i) - q * X i = _; ring
+      change C (eval x q) * C (x i) - q * X i = _
+      ring
     · have hX : (X i : MvPolynomial (Fin n) A).totalDegree ≤ 1 := totalDegree_X_le i
       have hC :
           (if j = i then C (eval x q) else (0 : MvPolynomial (Fin n) A)).totalDegree = 0 := by
@@ -82,12 +85,14 @@ private theorem monomial_divided_differences (x : Fin n → A) (e : Fin n →₀
         by_cases hz : e'.degree = 0
         · simp [hzero hz j]
         · have := totalDegree_mul (d j) (X i)
-          have := hbound j; omega
+          have := hbound j
+          omega
       exact (totalDegree_add _ _).trans (by rw [hC]; omega)
     · rw [← hq, pderiv_mul]
       simp only [D, map_add, map_mul, eval_X, hdiag]
       by_cases hj : j = i
-      · subst j; simp [q]
+      · subst j
+        simp [q]
       · simp [q, hj, Ne.symm hj]
 termination_by e.degree
 decreasing_by exact hlt
@@ -116,7 +121,8 @@ theorem polynomial_divided_differences (x : Fin n → A)
         simp_rw [hdiff]
         rw [Finset.sum_comm]
         simp only [Finset.sum_mul]
-  · rw [map_sum]; simp_rw [hdiag]
+  · rw [map_sum]
+    simp_rw [hdiag]
     conv_rhs => rw [p.as_sum]
     simp only [map_sum]
 

@@ -181,7 +181,8 @@ are uniquely determined as the strict top element). -/
 @[ext] theorem ext {R₁ R₂ : Preference a b} (h : R₁.ranking = R₂.ranking) : R₁ = R₂ := by
   have hpeak : R₁.peak = R₂.peak := by_contra fun hne =>
     R₁.ranking.prefers_asymm (R₁.prefers_peak (Ne.symm hne)) (h ▸ R₂.prefers_peak hne)
-  cases R₁; cases R₂
+  cases R₁
+  cases R₂
   exact mk.injEq .. ▸ ⟨h, hpeak⟩
 
 /-- Equivalence between the order-theoretic betweenness condition and the convex-combination
@@ -208,12 +209,14 @@ theorem isSinglePeaked_iff_convex (R : WeakRanking (Set.Icc a b)) (p : Set.Icc a
             (div_lt_one (by linarith)).mpr (by linarith)⟩
         · refine ⟨div_nonneg_of_nonpos (by linarith) (by linarith), ?_⟩
           rw [show t = ((p : ℝ) - y) / ((p : ℝ) - x) by
-            dsimp [t]; rw [← neg_div_neg_eq]
+            dsimp [t]
+            rw [← neg_div_neg_eq]
             congr 1 <;> ring]
           exact (div_lt_one (by linarith)).mpr (by linarith)
       have hy_eq : (⟨t * x + (1 - t) * p,
           ⟨by nlinarith [x.2.1, p.2.1], by nlinarith [x.2.2, p.2.2]⟩⟩ : Set.Icc a b) = y := by
-        ext; dsimp [t]
+        ext
+        dsimp [t]
         field_simp [hne]; ring
       exact hy_eq ▸ hconv x hxp t ht.1 ht.2
     exact ⟨fun hpy hyx => hstep (fun h => by rw [h] at hyx; linarith) (.inl ⟨hpy, hyx⟩),
@@ -653,7 +656,8 @@ theorem IsStrategyProof.isClosed_optionSet (hf : f.IsStrategyProof)
   rw [show Subtype.val '' f.optionSet P i =
       ((Subtype.val '' f.optionSet P i) ∩ Set.Iic z) ∪
       ((Subtype.val '' f.optionSet P i) ∩ Set.Ici z) by
-    ext t; simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_Iic, Set.mem_Ici]
+    ext t
+    simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_Iic, Set.mem_Ici]
     exact ⟨fun ht => (le_total t z).imp (⟨ht, ·⟩) (⟨ht, ·⟩), fun h => h.elim And.left And.left⟩,
     closure_union] at hz
   rcases hz with hzL | hzR
@@ -696,7 +700,8 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
   have hPO : f.IsParetoOptimal := (hf.surjective_iff_isParetoOptimal).mp hsurj
   set l := f (Function.update P i (Preference.leftExtreme hab))
   set u := f (Function.update P i (Preference.rightExtreme hab))
-  ext z; simp only [Set.mem_Icc]
+  ext z
+  simp only [Set.mem_Icc]
   refine ⟨fun ⟨Q, hQ, hQz⟩ => ?_, fun ⟨hlz, hzu⟩ => ?_⟩
   · subst hQz
     refine ⟨?_, ?_⟩
@@ -733,7 +738,8 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
       have hfQL_le : (f Q_L : ℝ) ≤ z := Function.update_induction (x := P_L) (y := Q_L)
         (P := fun R => (f R : ℝ) ≤ z) hxL_le fun R _ hR j hjP hjne => by
         have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by_contra fun hnot => hjne <| by
-          rw [hjP]; dsimp only [P_L, Q_L]
+          rw [hjP]
+          dsimp only [P_L, Q_L]
           rw [Function.update_of_ne fun h => hnot (.inl h), ite_eq_right hnot]
         set yL := f (Function.update R j (Q_L j))
         refine not_lt.mp fun hgt => Preference.preferLeft_prefers_of_le_of_gt hR hgt ?_
@@ -770,7 +776,8 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
           dsimp only [P_R, Q_R]
           rw [Function.update_self, ite_eq_left (.inl rfl)]
         have hj_le : ((P j).peak : ℝ) ≤ z := by_contra fun hgt => hjne <| by
-          rw [hjPR]; dsimp only [P_R, Q_R]
+          rw [hjPR]
+          dsimp only [P_R, Q_R]
           rw [Function.update_of_ne hj_not_i, ite_eq_right (not_or.mpr ⟨hj_not_i, hgt⟩)]
         have hQRj : Q_R j = Preference.preferRight z := ite_eq_left (.inr hj_le)
         set y := f (Function.update R j (Q_R j))

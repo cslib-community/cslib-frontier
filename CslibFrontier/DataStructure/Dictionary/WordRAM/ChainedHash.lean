@@ -489,7 +489,9 @@ theorem IsChain.lt_sz {mem : ℕ → ℕ} {nextBase sz ptr : ℕ} {L : List ℕ}
     (h : IsChain mem nextBase sz ptr L) : ∀ idx ∈ L, idx < sz := by
   induction h with
   | nil => simp
-  | cons hlt _ _ ih => rintro _ (_ | ⟨_, hm'⟩); exacts [hlt, ih _ hm']
+  | cons hlt _ _ ih =>
+    rintro _ (_ | ⟨_, hm'⟩)
+    exacts [hlt, ih _ hm']
 
 theorem IsChain.unique {mem : ℕ → ℕ} {nextBase sz₁ sz₂ ptr : ℕ} {L₁ L₂ : List ℕ}
     (h₁ : IsChain mem nextBase sz₁ ptr L₁) (h₂ : IsChain mem nextBase sz₂ ptr L₂) :
@@ -661,7 +663,8 @@ theorem Rep.unique {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max - 1)
     rw [Fin.ext (hk₁.symm.trans hk), ha] at hs₁
     exact (Fin.ext (hk₂.symm.trans hk) ▸ hs₂).trans hs₁.symm
   rcases h₁ : s₁ u with _ | v₁
-  · rcases h₂ : s₂ u with _ | v₂; exacts [rfl, absurd (lookup hb₂ hb₁ h₂) (by simp [h₁])]
+  · rcases h₂ : s₂ u with _ | v₂
+    exacts [rfl, absurd (lookup hb₂ hb₁ h₂) (by simp [h₁])]
   · exact (lookup hb₁ hb₂ h₁).symm
 
 theorem Rep.supported {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max - 1))}

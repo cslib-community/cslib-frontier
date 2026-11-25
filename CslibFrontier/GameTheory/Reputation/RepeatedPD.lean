@@ -168,7 +168,8 @@ theorem discountedPayoff_cons {δ B : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1)
   have hsum := summable_pow_mul_of_bdd hδ₀ hδ₁ hu
   rw [discountedPayoff, hsum.tsum_eq_zero_add, pow_zero, one_mul,
     show (fun t : ℕ => δ ^ (t + 1) * u (t + 1)) = fun t => δ * (δ ^ t * u (t + 1)) by
-      ext t; ring,
+      ext t
+      ring,
     tsum_mul_left, discountedPayoff]
   ring
 
@@ -386,7 +387,8 @@ theorem isSPNE_iff_noOneShotDev {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1)
   have hmap_inv (h : PDHistory) : (h.map PDRound.swap).map PDRound.swap = h := by
     simp [List.map_map, Function.comp_def]
   have hsw_inv (σ : PDStrategy) : swapStrategy (swapStrategy σ) = σ := by
-    ext h; simp [swapStrategy, hmap_inv]
+    ext h
+    simp [swapStrategy, hmap_inv]
   refine and_congr (forall_contPayoff₁_le_iff hδ₀ hδ₁ σ₁ σ₂) ?_
   have h2 := forall_contPayoff₁_le_iff hδ₀ hδ₁ (swapStrategy σ₂) (swapStrategy σ₁)
   refine ⟨fun hp2 h b => ?_, fun hosd2 h σ₂' => ?_⟩

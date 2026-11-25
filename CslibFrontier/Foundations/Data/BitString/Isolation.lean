@@ -63,7 +63,8 @@ private theorem update_cons_succ (b : Bool) (τ : Fin n → Bool) (j : Fin n) (c
   ext i
   refine Fin.cases (by simp [Function.update_of_ne (Fin.succ_ne_zero j).symm]) (fun k => ?_) i
   by_cases hk : k = j
-  · subst hk; simp
+  · subst hk
+    simp
   · simp [Function.update_of_ne hk, Function.update_of_ne (fun e => hk (Fin.succ_injective _ e))]
 
 /-- Flipping the first coordinate of `Fin.cons b τ`. -/
@@ -92,7 +93,8 @@ theorem isolation_cons_ge (S : Finset (Fin (n + 1) → Bool)) (b : Bool) (τ : F
   split_ifs with h
   · simpa using card_le_card hA
   · have h0 : (0 : Fin (n + 1)) ∈ B := by
-      simp only [B, mem_filter, mem_univ, true_and, Fin.cons_zero]; rwa [update_cons_zero]
+      simp only [B, mem_filter, mem_univ, true_and, Fin.cons_zero]
+      rwa [update_cons_zero]
     rw [← card_map (Fin.succEmb n),
       ← card_insert_of_notMem (a := (0 : Fin (n + 1))) (by simp [Fin.succ_ne_zero])]
     exact card_le_card (insert_subset h0 hA)

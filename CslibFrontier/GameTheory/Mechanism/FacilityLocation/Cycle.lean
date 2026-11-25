@@ -865,7 +865,8 @@ private theorem orientation_dichotomy_circle {V : Type*} (W : WeightedGraph V) [
       rw [← sub_add_cancel u L, ← sub_add_cancel v L, circleMap_periodic hs.1,
         circleMap_periodic hs.1]
       exact hr (u - L) (v - L) (by linarith) (sub_le_sub_right huv L) (by linarith)⟩
-  rcases disjoint_open_periodic_dichotomy hL (hopen gL) (hopen gR) hdisj hper_r hclass with h | h
+  rcases disjoint_open_periodic_dichotomy hL (hopen gL) (hopen gR) hdisj hper_r hclass with
+    h | h
   · obtain ⟨δ₀, hδ₀, hs₀⟩ := uniform_step_of_periodic_local hL gL (fun s _ => h (Set.mem_univ s))
       fun u v m h => by simpa only [gL, L, circleMap_add_int_mul hs.1] using h
     exact ⟨δ₀, hδ₀, Or.inl hs₀⟩
@@ -921,7 +922,8 @@ private theorem eq_of_circle_shift_bounds {V : Type*} (W : WeightedGraph V) [Fin
       (by linarith [hη'.1, hη'.2]) (by linarith [(abs_le.mp hσρ).1, hη'.2, hη_L])] at hb
     linarith
   · have hρ0 : ρ = 0 := by
-      have h := congrArg (σ * ·) hzero; rwa [← mul_assoc, hσ_sq, one_mul, mul_zero] at h
+      have h := congrArg (σ * ·) hzero
+      rwa [← mul_assoc, hσ_sq, one_mul, mul_zero] at h
     simpa only [hρ0, add_zero] using hy_cm
   · rw [hy_cm, hshift R, dist_circleMap_add_mul_dir hs hnegσ _ _
       (by linarith [(abs_le.mp hσρ).2]) (by linarith)] at hb₀
@@ -987,7 +989,9 @@ private theorem exists_shared_vertex_of_dist_edgePoint_le {V : Type*} (W : Weigh
   have hmatch {x x' : V} {p q : ℝ} (_ : 0 ≤ p) (_ : 0 ≤ q)
       (h : p + W.graph.vertexDist W.weight x x' + q ≤ η') : x' = x ∧ p + q ≤ η' := by
     obtain rfl : x = x' := by
-      by_contra hne; have hv := hvmin x x' hne; rw [dist_vertex] at hv; linarith
+      by_contra hne
+      have hv := hvmin x x' hne
+      rw [dist_vertex] at hv; linarith
     rw [vertexDist_self W.weight_nonneg, add_zero] at h; exact ⟨rfl, h⟩
   obtain ⟨isFst, hdis⟩ : ∃ isFst : Bool,
       ((if isFst then t else unitInterval.symm t : unitInterval) : ℝ) *

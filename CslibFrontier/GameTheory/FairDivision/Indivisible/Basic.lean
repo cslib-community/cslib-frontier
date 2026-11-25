@@ -724,7 +724,8 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
       have hq_pos : ∀ t ∈ T', 1 ≤ t.val / n := fun t ht => by
         obtain ⟨ht_turn, ht_ne⟩ := Finset.mem_sdiff.1 ht
         have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht_turn).2
-        have hne_val : t.val ≠ j.val := fun hv => Finset.notMem_singleton.1 ht_ne (Fin.ext hv)
+        have hne_val : t.val ≠ j.val := fun hv =>
+          Finset.notMem_singleton.1 ht_ne (Fin.ext hv)
         have hdiv := Nat.div_add_mod t.val n
         rcases Nat.eq_zero_or_pos (t.val / n) with hq0 | hpos
         · rw [hq0, Nat.mul_zero, zero_add, hmod] at hdiv

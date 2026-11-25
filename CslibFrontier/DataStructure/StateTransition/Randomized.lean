@@ -645,7 +645,8 @@ theorem ExpectedAmortized.client (A : M.ExpectedAmortized lower upper potential)
     obtain ⟨hv_o, hv_k⟩ := (D.toSpec.demonicValid_liftBind_iff _ o k).mp hv
     change F.expectedCost lower (M.methods o >>= fun r => link M.methods (k r)) e +
       ∑' x, F.run (M.methods o >>= fun r => link M.methods (k r)) e x * potential x.2 ≤ _
-    rw [F.expectedCost_bind, F.run_bind, Probability.PMF.tsum_bind_mul, add_assoc, ← tsum_add]
+    rw [F.expectedCost_bind, F.run_bind, Probability.PMF.tsum_bind_mul, add_assoc,
+      ← tsum_add]
     simp only [← mul_add]
     calc _ ≤ F.expectedCost lower (M.methods o) e + ∑' x, F.run (M.methods o) e x *
           (D.expectedCost upper (k x.1) (M.abs x.2) + potential x.2) :=

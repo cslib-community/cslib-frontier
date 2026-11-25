@@ -156,7 +156,8 @@ private theorem clarkePivot_unassigned [Fintype ι] [DecidableEq ι]
       exact hσ.antitone hab
     · rw [Function.update_of_ne (fun h => hx ⟨i, h⟩)]
       by_cases hjx : j = x
-      · subst hjx; simpa only [Function.update_self] using hv _
+      · subst hjx
+        simpa only [Function.update_self] using hv _
       · simpa only [Function.update_of_ne hjx] using hσ.unassigned_le i j hj
   refine le_antisymm (Finset.sup'_le _ _ fun ω _ => ?_)
     (Finset.le_sup' (fun ω => ∑ j ∈ Finset.univ.erase x, linearProfile (slotAlloc μ) v j ω)
@@ -178,7 +179,8 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
     · subst hr; simp only [v', Function.update_self, mul_zero, ↓reduceIte]
     · simp only [hr, ↓reduceIte, v', Function.update_of_ne (σ.injective.ne hr)]
   have hsplit : (Finset.univ : Finset (Fin k)) = Finset.Iio t ∪ Finset.Ici t := by
-    ext r; simp [lt_or_ge]
+    ext r
+    simp [lt_or_ge]
   have hdisj : Disjoint (Finset.Iio t) (Finset.Ici t) :=
     Finset.disjoint_left.mpr fun _ hr1 hr2 =>
       not_le_of_gt (Finset.mem_Iio.mp hr1) (Finset.mem_Ici.mp hr2)
@@ -332,7 +334,8 @@ theorem vcg_payment_slot_eq_minEnvyFreePrice [Fintype ι] [DecidableEq ι]
     have hval : Function.update v (σ t) 0 (σ t) = maxUnassignedValue v σ := by
       simp [maxUnassignedValue, hne]
     refine hsolve (σ t) htail hval (shiftUp_isAssortative hσ t (σ t) htail ?_ ?_)
-    · intro r; simpa only [Function.update_self] using hv (σ r)
+    · intro r
+      simpa only [Function.update_self] using hv (σ r)
     · intro j hj
       have hsurj : j ∈ Set.range σ := by
         by_contra hnot

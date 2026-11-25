@@ -137,7 +137,8 @@ private lemma card_inter_eq_one_of_acl {m n : ℕ} (hcard : Fintype.card κ = m 
     (hacl : ∀ k, k ≠ k₀ → k ∈ T₁ ∨ k ∈ T₂) (hk₀ : k₀ ∉ T₁ ∪ T₂) :
     (T₁ ∩ T₂).card = 1 := by
   have hunion : T₁ ∪ T₂ = Finset.univ.erase k₀ := by
-    ext k; simp only [Finset.mem_union, Finset.mem_erase, Finset.mem_univ, and_true]
+    ext k
+    simp only [Finset.mem_union, Finset.mem_erase, Finset.mem_univ, and_true]
     exact ⟨fun h hkeq => hk₀ (Finset.mem_union.2 (hkeq ▸ h)), hacl k⟩
   have hadd := Finset.card_union_add_card_inter T₁ T₂
   rw [hT₁, hT₂, hunion, Finset.card_erase_of_mem (Finset.mem_univ k₀), Finset.card_univ,
@@ -151,7 +152,8 @@ lemma inter_eq_empty_of_mem_union {m n : ℕ} (hcard : Fintype.card κ = m + n)
     (hacl : ∀ k, k ≠ k₀ → k ∈ T₁ ∨ k ∈ T₂) (hk₀ : k₀ ∈ T₁ ∪ T₂) :
     T₁ ∩ T₂ = ∅ := by
   have hunion : T₁ ∪ T₂ = Finset.univ := by
-    ext k; simp only [Finset.mem_univ, iff_true, Finset.mem_union]
+    ext k
+    simp only [Finset.mem_univ, iff_true, Finset.mem_union]
     exact if hk : k = k₀ then hk ▸ Finset.mem_union.1 hk₀ else hacl k hk
   have hadd := Finset.card_union_add_card_inter T₁ T₂
   rw [hT₁, hT₂, hunion, Finset.card_univ, hcard] at hadd
@@ -164,7 +166,8 @@ lemma mem_inter_of_acl_not_mem {m n : ℕ} (hcard : Fintype.card κ = m + n)
   obtain ⟨l, hl⟩ := Finset.card_eq_one.1 (card_inter_eq_one_of_acl hcard hT₁ hT₂ hacl hk₀)
   have hne : (T₁ ∩ T₂).Nonempty := ⟨l, by simp [hl]⟩
   have hleave : leaveLabel T₁ T₂ k₀ = l := by
-    rw [leaveLabel, ite_eq_right hk₀, dite_eq_left hne]; simp [hl]
+    rw [leaveLabel, ite_eq_right hk₀, dite_eq_left hne]
+    simp [hl]
   exact hleave ▸ ⟨by simp [hl], hl⟩
 
 private lemma halfEdgeFun_bijective_left {m n : ℕ} (hcard : Fintype.card κ = m + n)
@@ -182,7 +185,8 @@ private lemma halfEdgeFun_bijective_left {m n : ℕ} (hcard : Fintype.card κ = 
         Sum.elim (fun i => (ord₁ i : κ)) (fun j => (ord₂ j : κ)) x := by
       rcases x with i | j
       · simp only [halfEdgeFun, Sum.elim_inl, leaveLabel, hk₀, ↓reduceIte]
-        split_ifs with h; · exact h.symm
+        split_ifs with h
+        · exact h.symm
         · rfl
       · rfl
     rw [hval a, hval b] at hab
@@ -200,9 +204,11 @@ private lemma halfEdgeFun_bijective_left {m n : ℕ} (hcard : Fintype.card κ = 
       split_ifs at h with h1
       · exact hact (h ▸ (ord₂ j).2)
       · have hm : (ord₁ i : κ) ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨(ord₁ i).2, h ▸ (ord₂ j).2⟩
-        rw [hinter, Finset.mem_singleton] at hm; exact h1 hm
+        rw [hinter, Finset.mem_singleton] at hm
+        exact h1 hm
     rcases a with i₁ | j₁ <;> rcases b with i₂ | j₂
-    · simp only [halfEdgeFun, Sum.elim_inl] at hab; split_ifs at hab with h1 h2
+    · simp only [halfEdgeFun, Sum.elim_inl] at hab
+      split_ifs at hab with h1 h2
       · exact congrArg Sum.inl (ord₁.injective (Subtype.ext (h1.trans h2.symm)))
       · exact absurd (hab.symm ▸ (ord₁ i₂).2) hk₀1
       · exact absurd (hab ▸ (ord₁ i₁).2) hk₀1
@@ -271,11 +277,13 @@ private lemma halfEdgeIndex_swap {m n : ℕ} (A₁ : Matrix κ ι₁ K) (A₂ : 
   by_cases hbij : Function.Bijective (halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side)
   · have hbij' : Function.Bijective (halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side)) :=
       hcomp ▸ hbij.comp (Equiv.sumComm (Fin n) (Fin m)).bijective
-    rw [halfEdgeIndex, dite_eq_left hbij', halfEdgeIndex, dite_eq_left hbij]; dsimp only
+    rw [halfEdgeIndex, dite_eq_left hbij', halfEdgeIndex, dite_eq_left hbij]
+    dsimp only
     have hπ : (Equiv.ofBijective _ hbij').trans ((Equiv.sumComm (Fin n) (Fin m)).trans ref).symm =
         Equiv.permCongr (Equiv.sumComm (Fin m) (Fin n))
           ((Equiv.ofBijective _ hbij).trans ref.symm) := by
-      ext x; simp [hcomp, Equiv.permCongr_apply]
+      ext x
+      simp [hcomp, Equiv.permCongr_apply]
     rw [hπ, Equiv.Perm.sign_permCongr]; ring
   · have hbij' : ¬ Function.Bijective (halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side)) := fun h => by
       have hc2 := halfEdgeFun_swap T₂ T₁ hT₂ hT₁ k₀ (!side)
@@ -406,7 +414,8 @@ private lemma exists_unique_entering_of_pivot {m : ℕ} {T₁ T₁' : Finset κ}
   obtain ⟨l', hl's⟩ := Finset.card_eq_one.1 hsdiff
   have hl'm : l' ∈ T₁' \ T₁.erase l := hl's ▸ Finset.mem_singleton_self l'
   refine ⟨l', (Finset.mem_sdiff.1 hl'm).1, ?_⟩
-  ext k; simp only [Finset.mem_erase]
+  ext k
+  simp only [Finset.mem_erase]
   refine ⟨fun hk => ⟨fun h => (Finset.mem_sdiff.1 hl'm).2 (h ▸ Finset.mem_erase.2 hk),
     hsub (Finset.mem_erase.2 hk)⟩, fun ⟨hkne, hkT'⟩ => ?_⟩
   by_contra hnot
@@ -486,7 +495,8 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
   have hbij_p :=
     halfEdgeFun_bijective_of_acl hcard hT₁p hT₂p p.almostCompletelyLabeled (side := false) hk₀2
   have hbij_q := halfEdgeFun_bijective_of_acl hcard hT₁q hT₂p hacl_q (side := false) hk₀2
-  rw [halfEdgeIndex, dite_eq_left hbij_q, halfEdgeIndex, dite_eq_left hbij_p]; dsimp only
+  rw [halfEdgeIndex, dite_eq_left hbij_q, halfEdgeIndex, dite_eq_left hbij_p]
+  dsimp only
   let ord₁p := (T₁p.orderIsoOfFin hT₁p).toEquiv
   let ord₁q := (T₁q.orderIsoOfFin hT₁q).toEquiv
   let e_piv : Fin m ≃ T₁q := pivotBasisEquiv ord₁p hlp hl'q herase
@@ -663,9 +673,11 @@ theorem halfEdgeIndex_zero_zero {m n : ℕ}
       · exact hσ₂_val j
   have hbij : Function.Bijective (halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side) :=
     hcomp ▸ ref.bijective.comp (Equiv.sumCongr σ₁ σ₂).bijective
-  rw [halfEdgeIndex, dite_eq_left hbij]; dsimp only
+  rw [halfEdgeIndex, dite_eq_left hbij]
+  dsimp only
   have hπ : (Equiv.ofBijective _ hbij).trans ref.symm = Equiv.sumCongr σ₁ σ₂ := by
-    ext x; simp [hcomp]
+    ext x
+    simp [hcomp]
   rw [hπ, Equiv.Perm.sign_sumCongr, Units.val_mul, hs₁, hs₂]
   calc ((Equiv.Perm.sign σ₁ : ℤ) * (Equiv.Perm.sign σ₂ : ℤ)) *
         ((Equiv.Perm.sign σ₁ : ℤ) * (-1 : ℤ) ^ m) *

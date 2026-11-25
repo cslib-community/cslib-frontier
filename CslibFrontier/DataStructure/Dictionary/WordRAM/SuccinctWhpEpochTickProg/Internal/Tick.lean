@@ -136,7 +136,8 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
     exact ⟨hclk.1, hclk.2.1, by omega⟩
   rw [ite_eq_right hs3]
   by_cases hs4 : fs.rebStage = 4
-  · rw [ite_eq_left hs4]; dsimp only [epochTickStage4]
+  · rw [ite_eq_left hs4]
+    dsimp only [epochTickStage4]
     by_cases h8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8 <;> simp [hs4, h8]
   rw [ite_eq_right hs4]
   have hs5 : fs.rebStage = 5 := by omega
@@ -246,7 +247,9 @@ private theorem readHdr_bind_fastStep {c U V w n_max base hdrOff v cost : ℕ}
   dsimp only
   refine ⟨?_, ?_, by rw [clientState_bind, hst, hres]; exact hk.2.2⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst, hres, hmc]; have := hk.1; omega
+    rw [hst, hres, hmc]
+    have := hk.1
+    omega
   · refine validProg_bind hvp ?_
     rw [hst, hres]
     exact hk.2.1
@@ -279,23 +282,28 @@ private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
   dsimp only [epochTickStage]
   by_cases hs0 : fs.rebStage = 0
   · obtain ⟨m, v, st⟩ := epochTickStage0GenProg_fastStep henv hcore hs0 hseed hrep (s := s)
-    simp only [hs0, ↓reduceIte]; exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
+    simp only [hs0, ↓reduceIte]
+    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
   rw [ite_eq_right hs0, ite_eq_right hs0]
   by_cases hs1 : fs.rebStage = 1
   · obtain ⟨m, v, st⟩ := epochTickStage1GenProg_fastStep henv hcore hpre hs1 hseed hrep (s := s)
-    simp only [hs1, ↓reduceIte]; exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
+    simp only [hs1, ↓reduceIte]
+    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
   rw [ite_eq_right hs1, ite_eq_right hs1]
   by_cases hs2 : fs.rebStage = 2
   · obtain ⟨m, v, st⟩ := epochTickStage2GenProg_fastStep henv hcore hpre hs2 hseed hrep (s := s)
-    simp only [hs2, ↓reduceIte]; exact ⟨by omega, v, st⟩
+    simp only [hs2, ↓reduceIte]
+    exact ⟨by omega, v, st⟩
   rw [ite_eq_right hs2, ite_eq_right hs2]
   by_cases hs3 : fs.rebStage = 3
   · obtain ⟨m, v, st⟩ := epochTickStage3GenProg_fastStep henv hcore hs3 hseed hrep (s := s)
-    simp only [hs3, ↓reduceIte]; exact ⟨by omega, v, st⟩
+    simp only [hs3, ↓reduceIte]
+    exact ⟨by omega, v, st⟩
   rw [ite_eq_right hs3, ite_eq_right hs3]
   by_cases hs4 : fs.rebStage = 4
   · obtain ⟨m, v, st⟩ := epochTickStage4GenProg_fastStep henv hcore hs4 hseed hrep (s := s)
-    simp only [hs4, ↓reduceIte]; exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
+    simp only [hs4, ↓reduceIte]
+    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
   rw [ite_eq_right hs4, ite_eq_right hs4]
   exact ⟨by simp [memoryCost_pure], validProg_pure _, FastStateStep.refl hseed hrep⟩
 

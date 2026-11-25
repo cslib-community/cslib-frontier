@@ -141,7 +141,8 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
         let τ := SeqVar.infoSeqExt hpr h₁.2 (Classical.arbitrary (Act i h₁.1))
         have hle := Finset.le_sup (f := List.length) (mem_occursSeqFinset.2 τ.2)
         have hlenτ : τ.1.length = k + 1 := by
-          dsimp [τ, k]; rw [SeqVar.infoSeqExt_val, hh₁, List.length_append, List.length_singleton]
+          dsimp [τ, k]
+          rw [SeqVar.infoSeqExt_val, hh₁, List.length_append, List.length_singleton]
         omega
       have hterm : ∀ h ∈ U, -(M * r ^ (maxLen - (k + 1))) ≤
           p (some h) * (if T.infoSeq i h.1 = σ.1 then (-1 : ℝ) else 0) := fun h _ => by
@@ -280,13 +281,15 @@ private theorem isRealizationPlan_max_iff_dual [DecidableEq ι] [∀ j h, Fintyp
       rw [Matrix.dotProduct_mulVec, Matrix.vecMul_transpose, hx'.2, seqRhs_dotProduct]
   have hweak : ∀ x' q, T.IsRealizationPlan i x' → c ≤ (seqMat T i)ᵀ *ᵥ q → c ⬝ᵥ x' ≤ q none :=
     fun x' q hx' hq => by
-      rw [dotProduct_comm, ← hxEq x' q hx']; exact dotProduct_le_dotProduct_of_nonneg_left hq hx'.1
+      rw [dotProduct_comm, ← hxEq x' q hx']
+      exact dotProduct_le_dotProduct_of_nonneg_left hq hx'.1
   refine ⟨fun ⟨hx, hbest⟩ => ?_, fun ⟨hx, q, hq, hcs⟩ => ⟨hx, fun x' hx' => ?_⟩⟩
   · obtain ⟨v, ⟨⟨xMax, hxMax, hvx⟩, hmax⟩, ⟨⟨q, hq, hvq⟩, _⟩⟩ :=
       exists_isGreatest_isLeast_seqLP hpr c
     have hv_eq : c ⬝ᵥ x = v := le_antisymm (hmax ⟨x, hx, rfl⟩) (hvx ▸ hbest xMax hxMax)
     have hgap0 : x ⬝ᵥ ((seqMat T i)ᵀ *ᵥ q - c) = 0 := by
-      dsimp only at hvq; rw [seqRhs_dotProduct] at hvq
+      dsimp only at hvq
+      rw [seqRhs_dotProduct] at hvq
       rw [dotProduct_sub, hxEq x q hx, hvq, dotProduct_comm x c, hv_eq, sub_self]
     refine ⟨hx, q, hq, fun σ => ?_⟩
     have hz := (sum_eq_zero_iff_of_nonneg fun τ _ =>
@@ -582,7 +585,8 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
   · refine .inl ⟨hnil, funext fun τ => ?_⟩
     simp only [ExtensiveTree.behaviorToRealizationPlan_apply, Pi.single_apply]
     by_cases hτ : τ = σ
-    · subst hτ; simp [hnil]
+    · subst hτ
+      simp [hnil]
     · cases ht : τ.1 with
       | nil => exact absurd (Subtype.ext (ht.trans hnil.symm)) hτ
       | cons _ _ => simp [hτ]
@@ -595,7 +599,8 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
     refine .inr ⟨β₁, β₀, funext fun τ => ?_⟩
     simp only [Pi.sub_apply, ExtensiveTree.behaviorToRealizationPlan_apply, Pi.single_apply]
     by_cases hτ : τ = SeqVar.infoSeqExt hpr hh₀ a₀
-    · rw [hτ]; simp only [↓reduceIte, SeqVar.infoSeqExt_val]
+    · rw [hτ]
+      simp only [↓reduceIte, SeqVar.infoSeqExt_val]
       change realizationProbBehavior β₁ target - realizationProbBehavior β₀ target = 1
       rw [realizationProbBehavior_eq_one_of_forall β₁ fun p hp => by simp [β₁, hp],
         realizationProbBehavior_eq_zero_of_exists β₀ (by simp [target] : ⟨h₀, a₀⟩ ∈ target)
@@ -618,7 +623,8 @@ private theorem exists_behavior_diff_eq_single [∀ i h, Nonempty (Act i h)]
             rw [← hz, List.map_append] at hzn
             have hnodup : (τ.1.map Sigma.fst).Nodup := List.Nodup.of_append_left hzn
             rw [show τ.1 = target ++ q :: post' by
-                rw [hsplit, hpre_eq]; simp [target, List.append_assoc],
+                rw [hsplit, hpre_eq]
+                simp [target, List.append_assoc],
               List.map_append, List.nodup_append] at hnodup
             exact hnodup.2.2 q.1 hq_fst q.1 List.mem_cons_self rfl
         · rw [realizationProbBehavior_congr β₁ β₀ fun ⟨ph, pa⟩ hp => by
@@ -772,53 +778,67 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
   have hM_mulVec : ∀ (x : SeqVar T false → ℝ) (q : S₂ → ℝ),
       M *ᵥ Sum.elim x q ≤ rhs ↔ T.IsRealizationPlan false x ∧ E₂ᵀ *ᵥ q ≤ A₀ᵀ *ᵥ x := fun x q => by
     have hl : ∀ σ₀, (M *ᵥ Sum.elim x q) (.inl σ₀) = -x σ₀ := fun σ₀ => by
-      rw [Matrix.mulVec, dotProduct]; dsimp only [Col]
-      rw [Fintype.sum_sum_type]; dsimp only [M]
+      rw [Matrix.mulVec, dotProduct]
+      dsimp only [Col]
+      rw [Fintype.sum_sum_type]
+      dsimp only [M]
       simp only [Sum.elim_inl, Sum.elim_inr, zero_mul, sum_const_zero, add_zero]
       rw [sum_eq_single σ₀ (fun _ _ hne => by simp [hne.symm]) (fun h => absurd (mem_univ σ₀) h)]
       simp
     have he1 : ∀ row₁, (M *ᵥ Sum.elim x q) (.inr (.inl row₁)) = (E₁ *ᵥ x) row₁ := fun row₁ => by
-      rw [Matrix.mulVec, dotProduct]; dsimp only [Col]
-      rw [Fintype.sum_sum_type]; dsimp only [M]
+      rw [Matrix.mulVec, dotProduct]
+      dsimp only [Col]
+      rw [Fintype.sum_sum_type]
+      dsimp only [M]
       simp only [Sum.elim_inl, Sum.elim_inr, zero_mul, sum_const_zero, add_zero]; rfl
     have he1n : ∀ row₁, (M *ᵥ Sum.elim x q) (.inr (.inr (.inl row₁))) = -(E₁ *ᵥ x) row₁ :=
       fun row₁ => by
-        rw [Matrix.mulVec, dotProduct]; dsimp only [Col]
-        rw [Fintype.sum_sum_type]; dsimp only [M]
+        rw [Matrix.mulVec, dotProduct]
+        dsimp only [Col]
+        rw [Fintype.sum_sum_type]
+        dsimp only [M]
         simp only [Sum.elim_inl, Sum.elim_inr, zero_mul, sum_const_zero, add_zero, neg_mul,
           sum_neg_distrib]; rfl
     have hlcp : ∀ τ, (M *ᵥ Sum.elim x q) (.inr (.inr (.inr τ))) =
         -((A₀ᵀ *ᵥ x) τ) + (E₂ᵀ *ᵥ q) τ := fun τ => by
-      rw [Matrix.mulVec, dotProduct]; dsimp only [Col]
-      rw [Fintype.sum_sum_type]; dsimp only [M]
+      rw [Matrix.mulVec, dotProduct]
+      dsimp only [Col]
+      rw [Fintype.sum_sum_type]
+      dsimp only [M]
       simp only [Sum.elim_inl, Sum.elim_inr, neg_mul, sum_neg_distrib, Matrix.mulVec, dotProduct,
         Matrix.transpose_apply]
       rfl
     refine ⟨fun hle => ⟨⟨fun σ => ?_, funext fun row₁ => ?_⟩, fun τ => ?_⟩,
       fun ⟨⟨hxnn, hxeq⟩, hqle⟩ r => ?_⟩
     · have h := hle (.inl σ)
-      rw [hl] at h; dsimp only [rhs] at h
+      rw [hl] at h
+      dsimp only [rhs] at h
       linarith
     · have h1 := hle (.inr (.inl row₁))
       have h2 := hle (.inr (.inr (.inl row₁)))
-      rw [he1] at h1; rw [he1n] at h2
+      rw [he1] at h1
+      rw [he1n] at h2
       dsimp only [rhs] at h1 h2; linarith
     · have h := hle (.inr (.inr (.inr τ)))
-      rw [hlcp] at h; dsimp only [rhs] at h
+      rw [hlcp] at h
+      dsimp only [rhs] at h
       linarith
     · rcases r with σ₀ | (row₁ | (row₁ | τ))
-      · rw [hl]; dsimp only [rhs]
+      · rw [hl]
+        dsimp only [rhs]
         linarith [hxnn σ₀]
       · rw [he1, hxeq]
       · rw [he1n, hxeq]
-      · rw [hlcp]; dsimp only [rhs]
+      · rw [hlcp]
+        dsimp only [rhs]
         linarith [hqle τ]
   have hM_vecMul : ∀ (s : SeqVar T false → ℝ) (p₁ p₂ : S₁ → ℝ) (y : SeqVar T true → ℝ),
       Sum.elim s (Sum.elim p₁ (Sum.elim p₂ y)) ᵥ* M = obj ↔
         s = E₁ᵀ *ᵥ (p₁ - p₂) - A₀ *ᵥ y ∧ E₂ *ᵥ y = e₂ := fun s p₁ p₂ y => by
     have hL : ∀ σ, (Sum.elim s (Sum.elim p₁ (Sum.elim p₂ y)) ᵥ* M) (.inl σ) =
         -s σ + (E₁ᵀ *ᵥ (p₁ - p₂)) σ - (A₀ *ᵥ y) σ := fun σ => by
-      rw [vecMul, dotProduct]; dsimp only [M, Row]
+      rw [vecMul, dotProduct]
+      dsimp only [M, Row]
       rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_sum_type]
       simp only [Sum.elim_inl, Sum.elim_inr]
       have hs : ∑ σ₀ : SeqVar T false, s σ₀ * (if σ₀ = σ then (-1 : ℝ) else 0) = -s σ := by
@@ -827,12 +847,14 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
       simp only [Matrix.mulVec, dotProduct, Matrix.transpose_apply, Pi.sub_apply, mul_neg,
         sum_neg_distrib, sub_eq_add_neg]
       have hc1 : ∑ x, p₁ x * E₁ x σ - ∑ x, p₂ x * E₁ x σ = ∑ x, E₁ x σ * (p₁ x + -p₂ x) := by
-        rw [← sum_sub_distrib]; exact sum_congr rfl fun _ _ => by ring
+        rw [← sum_sub_distrib]
+        exact sum_congr rfl fun _ _ => by ring
       have hc2 : ∑ x, y x * A₀ σ x = ∑ x, A₀ σ x * y x := sum_congr rfl fun _ _ => mul_comm _ _
       linarith
     have hR : ∀ row₂, (Sum.elim s (Sum.elim p₁ (Sum.elim p₂ y)) ᵥ* M) (.inr row₂) =
         (E₂ *ᵥ y) row₂ := fun row₂ => by
-      rw [vecMul, dotProduct]; dsimp only [M, Row]
+      rw [vecMul, dotProduct]
+      dsimp only [M, Row]
       rw [Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_sum_type]
       simp only [Sum.elim_inl, Sum.elim_inr, mul_zero, sum_const_zero, zero_add,
         Matrix.mulVec, dotProduct]
@@ -840,18 +862,24 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
     refine ⟨fun heq => ⟨funext fun σ => ?_, funext fun row₂ => ?_⟩,
       fun ⟨hs, hy⟩ => funext fun c => ?_⟩
     · have h := congrFun heq (.inl σ)
-      rw [hL] at h; dsimp only [obj] at h
+      rw [hL] at h
+      dsimp only [obj] at h
       simp only [Sum.elim_inl, Pi.zero_apply] at h
-      change s σ = (E₁ᵀ *ᵥ (p₁ - p₂)) σ - (A₀ *ᵥ y) σ; linarith
-    · have h := congrFun heq (.inr row₂); rwa [hR] at h
+      change s σ = (E₁ᵀ *ᵥ (p₁ - p₂)) σ - (A₀ *ᵥ y) σ
+      linarith
+    · have h := congrFun heq (.inr row₂)
+      rwa [hR] at h
     · rcases c with σ | row₂
-      · rw [hL]; have hσ := congrFun hs σ
+      · rw [hL]
+        have hσ := congrFun hs σ
         change s σ = (E₁ᵀ *ᵥ (p₁ - p₂)) σ - (A₀ *ᵥ y) σ at hσ
         dsimp only [obj]
         simp only [Sum.elim_inl, Pi.zero_apply]; linarith
-      · rw [hR]; exact congrFun hy row₂
+      · rw [hR]
+        exact congrFun hy row₂
   have hobj_eval : ∀ x q, obj ⬝ᵥ Sum.elim x q = q none := fun x q => by
-    dsimp only [obj, dotProduct, Col]; rw [Fintype.sum_sum_type]
+    dsimp only [obj, dotProduct, Col]
+    rw [Fintype.sum_sum_type]
     simp only [e₂, Sum.elim_inl, Sum.elim_inr, Pi.zero_apply, zero_mul, sum_const_zero, zero_add]
     exact seqRhs_dotProduct T true q
   have hrhs_eval : ∀ s p₁ p₂ y,
@@ -876,14 +904,16 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
         · exact le_max_right _ _
         · exact le_max_right _ _
         · exact hy.1 τ
-      · dsimp only [liftDual]; rw [hrhs_eval]
+      · dsimp only [liftDual]
+        rw [hrhs_eval]
         exact max_sub_max_neg (p none)
   have hP : ∃ u : Col → ℝ, M *ᵥ u ≤ rhs := by
     let x₀ := T.pureToRealizationPlan false (fun _ => Classical.arbitrary _)
     obtain ⟨qNeg, hqNeg⟩ := exists_seqMat_transpose_mulVec_ge (hpr true) (-(A₀ᵀ *ᵥ x₀))
     refine ⟨Sum.elim x₀ (-qNeg), (hM_mulVec x₀ (-qNeg)).2
       ⟨isRealizationPlan_pureToRealizationPlan (hpr false) _, fun τ => ?_⟩⟩
-    have hτ := hqNeg τ; rw [Matrix.mulVec_neg, Pi.neg_apply]
+    have hτ := hqNeg τ
+    rw [Matrix.mulVec_neg, Pi.neg_apply]
     linarith [show -((A₀ᵀ *ᵥ x₀) τ) ≤ (E₂ᵀ *ᵥ qNeg) τ from hτ]
   have hD : ∃ v : Row → ℝ, 0 ≤ v ∧ v ᵥ* M = obj := by
     let y₀ := T.pureToRealizationPlan true (fun _ => Classical.arbitrary _)
@@ -904,7 +934,8 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
   let p₂Star : S₁ → ℝ := fun r => vStar (.inr (.inr (.inl r)))
   let yStar : SeqVar T true → ℝ := fun τ => vStar (.inr (.inr (.inr τ)))
   have hvStar_split : vStar = Sum.elim sStar (Sum.elim p₁Star (Sum.elim p₂Star yStar)) := by
-    ext r; rcases r with _ | (_ | (_ | _)) <;> rfl
+    ext r
+    rcases r with _ | (_ | (_ | _)) <;> rfl
   have hvStar_rel := (hM_vecMul sStar p₁Star p₂Star yStar).1 (hvStar_split ▸ hvStar_eq)
   let pStar : S₁ → ℝ := p₁Star - p₂Star
   have hyStar_feas : T.IsRealizationPlan true yStar :=
@@ -912,7 +943,8 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
   have hpStar_feas : A₀ *ᵥ yStar ≤ E₁ᵀ *ᵥ pStar := fun σ => by
     have hsσ : 0 ≤ sStar σ := hvStar_nn (.inl σ)
     have heq := congrFun hvStar_rel.1 σ
-    change sStar σ = (E₁ᵀ *ᵥ pStar) σ - (A₀ *ᵥ yStar) σ at heq; linarith
+    change sStar σ = (E₁ᵀ *ᵥ pStar) σ - (A₀ *ᵥ yStar) σ at heq
+    linarith
   have hpStar_val : pStar none = val := by rw [← hval_v, hvStar_split, hrhs_eval]; rfl
   have hweak_opt := seq_weak_duality hxStar_qStar.1 hyStar_feas hxStar_qStar.2 hpStar_feas
   have hmid : xStar ⬝ᵥ (A₀ *ᵥ yStar) = val :=
@@ -933,11 +965,13 @@ theorem exists_seq_lp_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (A
     ⟨⟨(yStar, pStar), ⟨hyStar_feas, hpStar_feas⟩, hpStar_val⟩, ?_⟩⟩
   · rintro _ ⟨⟨x, q⟩, hxq, rfl⟩
     have hle := hmax ⟨Sum.elim x q, (hM_mulVec x q).2 hxq, rfl⟩
-    dsimp only at hle ⊢; rwa [hobj_eval] at hle
+    dsimp only at hle ⊢
+    rwa [hobj_eval] at hle
   · rintro _ ⟨⟨y, p⟩, ⟨hy, hp⟩, rfl⟩
     obtain ⟨hfeas, hobj⟩ := hliftDual y p hy hp
     have hle := hmin ⟨liftDual y p, hfeas, rfl⟩
-    dsimp only at hle ⊢; rwa [hobj] at hle
+    dsimp only at hle ⊢
+    rwa [hobj] at hle
 
 /-- In a zero-sum extensive-form game with perfect recall, LP strong duality also constructs an
 explicit minimax behavioral Nash equilibrium profile `β` realizing the minimax game value. -/

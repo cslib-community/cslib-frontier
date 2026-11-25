@@ -89,7 +89,8 @@ theorem support_add_support (P : Profile V A) {a b : A} (hab : a ≠ b) :
   unfold support
   rw [show (Finset.univ.filter fun i => (P i).Prefers b a) =
       Finset.univ.filter fun i => ¬ (P i).Prefers a b by
-    ext i; simp [((P i).not_prefers_iff hab).symm],
+    ext i
+    simp [((P i).not_prefers_iff hab).symm],
     Finset.card_filter_add_card_filter_not, Finset.card_univ]
 
 theorem support_eq_card_of_forall {P : Profile V A} {a b : A}
@@ -173,7 +174,8 @@ private theorem card_filter_fin_lt (e : V ≃ Fin (Fintype.card V)) {m : ℕ}
   let emb : Fin m ↪ V := ⟨fun k => e.symm ⟨k.1, k.2.trans_le hm⟩,
     fun _ _ h => Fin.ext (Fin.mk.inj (e.symm.injective h))⟩
   rw [show (Finset.univ.filter fun i : V => (e i : ℕ) < m) = Finset.univ.map emb by
-    ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map]
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map]
     exact ⟨fun hi => ⟨⟨e i, hi⟩, e.symm_apply_apply i⟩,
       by rintro ⟨k, rfl⟩; change (e (e.symm ⟨k.1, _⟩) : ℕ) < m; simp [k.2]⟩,
     Finset.card_map, Finset.card_univ, Fintype.card_fin]
@@ -204,7 +206,8 @@ private theorem card_filter_threeBlock (e : V ≃ Fin (Fintype.card V)) {c₀ c�
   have huniv : (Finset.univ : Finset V) = (s₀ ∪ (s₀₁ \ s₀)) ∪ (Finset.univ \ s₀₁) := by
     rw [Finset.union_sdiff_of_subset hsub₀, Finset.union_sdiff_of_subset (Finset.subset_univ s₀₁)]
   have hd₁₂ : Disjoint (s₀ ∪ (s₀₁ \ s₀)) (Finset.univ \ s₀₁) := by
-    rw [Finset.union_sdiff_of_subset hsub₀]; exact disjoint_sdiff_self_right
+    rw [Finset.union_sdiff_of_subset hsub₀]
+    exact disjoint_sdiff_self_right
   rw [huniv, Finset.filter_union, Finset.card_union_of_disjoint
       (hd₁₂.mono (Finset.filter_subset _ _) (Finset.filter_subset _ _)),
     Finset.filter_union, Finset.card_union_of_disjoint
@@ -233,7 +236,8 @@ private theorem exists_cyclicThreeBlock (hV : 3 ≤ Fintype.card V)
   obtain ⟨r⟩ := Ranking.nonempty A
   let e := Fintype.equivFin V
   let n := Fintype.card V
-  let c₀ := (n + 2) / 3; let c₁ := (n + 1) / 3
+  let c₀ := (n + 2) / 3
+  let c₁ := (n + 1) / 3
   have hc : c₀ + c₁ ≤ n := by omega
   let r₀ := tripleTop r a b c
   let r₁ := tripleTop r b c a
@@ -256,7 +260,8 @@ private theorem exists_cyclicThreeBlock (hV : 3 ≤ Fintype.card V)
       (tripleTop r b c a).asymm (tripleTop_prefers_second_third r hbc hab.symm hac.symm),
       (tripleTop r c a b).asymm (tripleTop_isTop r c a b a hac), ↓reduceIte, n, c₀, c₁]
     omega
-  · unfold threeBlockProfile; split_ifs
+  · unfold threeBlockProfile
+    split_ifs
     · exact tripleTop_isTop r a b c x hxa
     · unfold r₁ tripleTop
       rw [((r.toTop a).toTop c).toTop_prefers_of_ne hab hxb,
@@ -275,7 +280,8 @@ theorem exists_condorcetCycle (hV : 3 ≤ Fintype.card V) (hV4 : Fintype.card V 
   obtain ⟨P, hab', hbc', hsupp, -⟩ := exists_cyclicThreeBlock hV hab hac hbc
   refine ⟨P, hab', hbc', ?_⟩
   have := support_add_support P hac
-  unfold MajorityPrefers; omega
+  unfold MajorityPrefers
+  omega
 
 /-- With at least three voters and at least three alternatives, there is a preference profile that
 has no Condorcet winner (including `|V| = 4`, where two alternatives tie and every alternative
@@ -291,11 +297,14 @@ theorem exists_profile_forall_not_isCondorcetWinner (hV : 3 ≤ Fintype.card V)
   · subst hxa
     have h_ac := hx c hac.symm
     have := support_add_support P hac
-    unfold MajorityPrefers at h_ac; omega
+    unfold MajorityPrefers at h_ac
+    omega
   by_cases hxb : x = b
-  · subst hxb; exact hab'.asymm (hx a hab)
+  · subst hxb
+    exact hab'.asymm (hx a hab)
   by_cases hxc : x = c
-  · subst hxc; exact hbc'.asymm (hx b hbc)
+  · subst hxc
+    exact hbc'.asymm (hx b hbc)
   exact (majorityPrefers_of_forall (hother x hxa hxb hxc)).asymm (hx a (Ne.symm hxa))
 
 /-! ### Plurality rule -/
@@ -397,7 +406,8 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
   have hcnt_m : pluralityCount P m = Fintype.card V - 1 := by
     rw [pluralityCount, show (Finset.univ.filter fun j : V => (P j).IsTop m) =
         Finset.univ.erase i by
-      ext j; by_cases hj : j = i
+      ext j
+      by_cases hj : j = i
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase, ne_eq,
           P, hj, ↓reduceIte, not_true_eq_false, false_and, iff_false]
         exact fun h => ham ((t.isTop_toTop a).unique h)
@@ -406,7 +416,8 @@ theorem not_isDictator_plurality [Finite A] [Nontrivial A] (t : Ranking A)
   have hPm : plurality t P = m := plurality_eq_of_isTop t fun x hxm => by
     rw [pluralityRanking_prefers, hcnt_m]
     by_cases hxa : x = a
-    · subst hxa; rw [hcnt_a]
+    · subst hxa
+      rw [hcnt_a]
       by_cases hgt : 1 < Fintype.card V - 1
       · exact .inl hgt
       · exact .inr ⟨by omega, t.isTop_top x hxm⟩
@@ -476,7 +487,8 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
       omega
     -- Every voter ranks `w` above any `x ∉ {m, w, y}`.
     refine majorityPrefers_of_forall fun i => ?_
-    unfold P threeBlockProfile; split_ifs
+    unfold P threeBlockProfile
+    split_ifs
     · exact ((t.toTop y).toTop w).toTop_prefers_of_ne hwm hxm |>.2 ((t.toTop y).isTop_toTop w x hxw)
     · exact ((t.toTop m).toTop w).toTop_prefers_of_ne hwy hxy |>.2 ((t.toTop m).isTop_toTop w x hxw)
     · exact tripleTop_isTop t w m y x hxw
@@ -492,14 +504,17 @@ theorem not_isCondorcetConsistent_plurality [Finite A] [Nonempty A] (hV : 3 ≤ 
     rw [pluralityRanking_prefers, hcnt m, hcnt x]
     simp only [↓reduceIte, hym.symm, hwm.symm, add_zero]
     by_cases hxy : x = y
-    · rw [hxy]; simp only [hym, hwy.symm, ↓reduceIte]
+    · rw [hxy]
+      simp only [hym, hwy.symm, ↓reduceIte]
       exact .inr ⟨by omega, t.isTop_top y hym⟩
     by_cases hxw : x = w
-    · rw [hxw]; simp only [hwm, hwy, ↓reduceIte]
+    · rw [hxw]
+      simp only [hwm, hwy, ↓reduceIte]
       by_cases hlt : n - (k + k) < k
       · exact .inl (by omega)
       · exact .inr ⟨by omega, t.isTop_top w hwm⟩
-    · simp only [hxm, hxy, hxw, ↓reduceIte]; exact .inl (by omega)
+    · simp only [hxm, hxy, hxw, ↓reduceIte]
+      exact .inl (by omega)
   exact fun hcc => hwm ((hcc P w hcw).symm.trans (plurality_eq_of_isTop t htop_m))
 
 end SocialChoiceFunction
@@ -578,7 +593,8 @@ theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) 
       (Finset.univ.filter fun x => (P j).Prefers a x).card =
         if j = i then Fintype.card A - 1 else 0 by
       by_cases hj : j = i
-      · simp only [P, hj, ↓reduceIte]; exact hcard_top htop_a
+      · simp only [P, hj, ↓reduceIte]
+        exact hcard_top htop_a
       · simp only [P, hj, ↓reduceIte]
         exact hcard_bot fun x hxa => r.reverse_prefers.2 (htop_a x hxa)]
     simp
@@ -587,7 +603,8 @@ theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) 
       (Finset.univ.filter fun x => (P j).Prefers b x).card =
         if j = i then 0 else Fintype.card A - 1 by
       by_cases hj : j = i
-      · simp only [P, hj, ↓reduceIte]; exact hcard_bot hbot_b
+      · simp only [P, hj, ↓reduceIte]
+        exact hcard_bot hbot_b
       · simp only [P, hj, ↓reduceIte]
         exact hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb),
       Finset.sum_ite, Finset.sum_const_zero, zero_add,

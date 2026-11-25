@@ -221,13 +221,20 @@ private theorem ops_admissible {w x : ℕ} (hw : 3 ≤ w) (hx0 : 0 < x) (hx : x 
   have hv := guarded_fits hw (z :=
       (x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
         clusterSize w)) &&& (2 ^ clusterSize w - 1)) <| by
-    rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
+    rw [Nat.and_two_pow_sub_one_eq_mod]
+    exact Nat.mod_lt _ (Nat.two_pow_pos _)
   have hs := shift_amounts_fit (x := x) hw
   have ho := output_add_fits hx0 hx
   refine ⟨eval_ops _ _ _ hi ▸ values_lt (by omega) hx0 hx i, ?_⟩
   fin_cases i <;> first
-    | exact True.intro | exact hz | exact hv | exact ho
-    | exact hs.1 | exact hs.2.1 | exact hs.2.2.1 | exact hs.2.2.2
+    | exact True.intro
+    | exact hz
+    | exact hv
+    | exact ho
+    | exact hs.1
+    | exact hs.2.1
+    | exact hs.2.2.1
+    | exact hs.2.2.2
 
 open Cslib.WordRAM
 open Cslib.WordRAM.Multiword
@@ -318,9 +325,12 @@ private theorem exec_finishCode {w z : ℕ} (hw : 3 ≤ w) (hz : z < 2 ^ w)
     have htp : Bank.Encodes w t (Circuit.prefix (values (clusterSize w) z) 1) := by
       intro j
       have he (i : Fin (Bank.capacity 44 + 4)) (hi : i ∈ Bank.regs j) : t.regs i = x.regs i := by
-        have := Bank.mem_regs hi; subst ht
-        apply Data.set_regs_of_ne; rintro rfl
-        have : zeroTest.val = 5 := rfl; omega
+        have := Bank.mem_regs hi
+        subst ht
+        apply Data.set_regs_of_ne
+        rintro rfl
+        have : zeroTest.val = 5 := rfl
+        omega
       have hpj : Function.update (fun _ => 0) (0 : Fin 44) z j =
           Circuit.prefix (values (clusterSize w) z) 1 j := by
         by_cases hj : j = 0

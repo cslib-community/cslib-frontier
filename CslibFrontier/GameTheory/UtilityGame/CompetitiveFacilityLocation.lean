@@ -597,7 +597,8 @@ theorem isBasic_withOpeningCost [Fintype ι] [DecidableEq ι] [∀ i, DecidableE
   isSubmodular := by
     convert G.isBasic_toUtilityGame.isSubmodular.add
       (Submodular.isSubmodular_modularSum fun x : Σ i, S i => -openingCost x.1 x.2) using 1
-    ext T; simp [Submodular.modularSum, Finset.sum_neg_distrib, sub_eq_add_neg]
+    ext T
+    simp [Submodular.modularSum, Finset.sum_neg_distrib, sub_eq_add_neg]
   sum_utility_le s := by
     have h := G.isBasic_toUtilityGame.sum_utility_le s
     simp only [toUtilityGame_utility, toUtilityGame_profileValue] at h

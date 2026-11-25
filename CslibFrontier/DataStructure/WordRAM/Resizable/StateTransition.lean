@@ -550,13 +550,21 @@ theorem prepare_bounded (C : StateTransitionImpl P D w base params s₀)
 theorem prepare_rep (C : StateTransitionImpl P D w base params s₀)
     {s : D.State} {o : D.Op} {x : RData r_ds} (hr : C.rep s x) (hv : D.valid s o) :
     C.rep s (C.prepare o x) :=
-  C.rep_supported (fun _ hi => P.prepare_regs_of_not_input hi o x) rfl (fun _ _ _ => rfl)
-    (C.prepare_bounded (C.bounded hr) hv) hr
+  C.rep_supported
+    (fun _ hi => P.prepare_regs_of_not_input hi o x)
+    rfl
+    (fun _ _ _ => rfl)
+    (C.prepare_bounded (C.bounded hr) hv)
+    hr
 
 theorem prepare_potential (C : StateTransitionImpl P D w base params s₀)
     {s : D.State} {o : D.Op} {x : RData r_ds} (hr : C.rep s x) :
     C.potential (C.prepare o x) = C.potential x :=
-  C.potential_supported (fun _ hi => P.prepare_regs_of_not_input hi o x) rfl (fun _ _ _ => rfl) hr
+  C.potential_supported
+    (fun _ hi => P.prepare_regs_of_not_input hi o x)
+    rfl
+    (fun _ _ _ => rfl)
+    hr
 
 theorem prepare_argMatch (C : StateTransitionImpl P D w base params s₀)
     (o : D.Op) (x : RData r_ds) :
@@ -628,7 +636,8 @@ theorem steps_amortized (C : StateTransitionImpl P D w base params s₀) :
     rw [C.prepare_potential hr] at hpot_n
     obtain ⟨tr, s_fin, z, rest, hrest, hops, htr, hr_z, hcaller_z, hpot_rest⟩ :=
       C.steps_amortized ops hr_y (hv_rest s₁ a hstep) (hfit_rest s₁ a hstep)
-    refine ⟨⟨o, a, s₁⟩ :: tr, s_fin, z, n + rest, .cons he_op hstep hdec hr_y hcaller_y hrest,
+    refine ⟨⟨o, a, s₁⟩ :: tr, s_fin, z, n + rest,
+      .cons he_op hstep hdec hr_y hcaller_y hrest,
       congrArg (o :: ·) hops, .cons _ hv_o hstep htr, hr_z,
       fun addr hlt => (hcaller_z addr hlt).trans (hcaller_y addr hlt), ?_⟩
     simp only [StateTransitionSpec.totalCostTranscript_cons]; omega
@@ -672,7 +681,8 @@ theorem steps_amortized_ofFn
       (∀ addr < base, z.mem addr = x.mem addr) ∧
       t_ops + C.potential z ≤ D.totalCost C.charge s ops + C.potential x := by
   obtain ⟨tr, s_fin, z, t_ops, hsteps, hops, htr, hr_z, hcaller, hbound⟩ :=
-    C.steps_amortized ops hr ((D.validOpSeq_iff_validHistory s ops).mpr hv)
+    C.steps_amortized ops hr
+      ((D.validOpSeq_iff_validHistory s ops).mpr hv)
       ((peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s ops).mpr hfit)
   obtain ⟨_, hs_fin, htr_eq⟩ := (D.validTranscript_iff_run s tr s_fin).mp htr
   rw [hops] at hs_fin htr_eq
@@ -792,7 +802,8 @@ theorem seq_program_amortized (C : StateTransitionImpl P D w base params s₀)
     | cons lbl tr_tail ih =>
       rcases lbl with ⟨_, _, s_next⟩
       simp only [StateTransitionSpec.totalCostTranscript_cons, List.length_cons]
-      have := ih (s_c := s_next); omega
+      have := ih (s_c := s_next)
+      omega
   refine ⟨y₀, tr, s_fin, z, t_ops + ops.length,
     by simpa [SubroutineCode.initProg, Nat.cast_add, Nat.cast_one] using
       (ExecRCodeDist.of_demonicExec he_init).toExecRProgramDist out,
@@ -825,9 +836,10 @@ theorem seq_program_amortized_ofFn
         (C.initTime + 1) + C.initPotential +
           D.totalCost (fun st o => C.charge st o + 1) s₀ ops := by
   obtain ⟨y₀, tr, s_fin, z, t_prog, hinit, hr₀, hcaller₀, hprog, hops, htr, hr_z, hcaller_z,
-      hbound⟩ := C.seq_program_amortized out ops hx₀ hfr₀ hpar hfit₀
-    ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
-    ((peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s₀ ops).mpr hfit_ops)
+      hbound⟩ :=
+    C.seq_program_amortized out ops hx₀ hfr₀ hpar hfit₀
+      ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
+      ((peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s₀ ops).mpr hfit_ops)
   obtain ⟨_, hs_fin, htr_eq⟩ := (D.validTranscript_iff_run s₀ tr s_fin).mp htr
   rw [hops] at hs_fin htr_eq
   subst hs_fin; subst htr_eq
@@ -844,7 +856,8 @@ theorem not_execProgramSteps_halt (C : StateTransitionImpl P D w base params s�
     (hbad : ∀ s₁ a, D.step s o s₁ a →
       ¬(C.decode o (C.prepare o x).regs = some a ∧ C.rep s₁ (C.prepare o x))) :
     ¬C.ExecProgramSteps [.halt out] out s x (o :: ops) tr s_fin z t_prog := by
-  intro h; cases h with
+  intro h
+  cases h with
   | @cons _ s₁ _ _ y _ _ _ a _ _ _ hprog hstep hdec hrep _ _ =>
     exact (eq_or_ne y (C.prepare o x)).elim (fun hyx => hbad s₁ a hstep (hyx ▸ ⟨hdec, hrep⟩))
       fun hyx => not_execRProgramDist_halt (by simp) hyx hprog

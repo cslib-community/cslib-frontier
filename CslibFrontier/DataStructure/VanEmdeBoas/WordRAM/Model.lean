@@ -107,7 +107,8 @@ theorem childSpan_le_span (d : ℕ) : childSpan d ≤ span d := by
 theorem maximum_lt_universe {d p m M : ℕ} {t : Tree d} {mem : ℕ → ℕ}
     (ht : t.Valid) (hr : Rep t p mem) (hb : t.bounds = some (m, M)) :
     mem (p + 2) = M ∧ M < universeSize d := by
-  have hh := hr.header; simp only [Header, hb] at hh
+  have hh := hr.header
+  simp only [Header, hb] at hh
   exact ⟨hh.2.1.2, (ht.extrema_of_bounds hb).2.1⟩
 
 /-- The cached-maximum guard makes every computed cluster index valid, even for a query
@@ -219,13 +220,16 @@ theorem rep_replace_cluster {d p : ℕ} {b : Option (ℕ × ℕ)} {s : Tree d}
   · have := summary_end_le_clusterOffset d i.val
     exact hf a (Or.inl (by omega))
   · by_cases hji : j = i
-    · subst j; simpa only [Function.update_self] using ht
+    · subst j
+      simpa only [Function.update_self] using ht
     · rw [Function.update_of_ne hji]
       refine rep_frame (hr.2.2 j) fun a hlo hhi => ?_
       have hne : j.val ≠ i.val := fun h => hji (Fin.ext h)
       rcases lt_or_gt_of_ne hne with hlt | hlt
-      · have := cluster_end_le_clusterOffset d hlt; exact hf a (Or.inl (by omega))
-      · have := cluster_end_le_clusterOffset d hlt; exact hf a (Or.inr (by omega))
+      · have := cluster_end_le_clusterOffset d hlt
+        exact hf a (Or.inl (by omega))
+      · have := cluster_end_le_clusterOffset d hlt
+        exact hf a (Or.inr (by omega))
 
 /-- Replacing the summary interval preserves the parent header and every cluster. -/
 theorem rep_replace_summary {d p : ℕ} {b : Option (ℕ × ℕ)} {s s' : Tree d}

@@ -220,7 +220,8 @@ theorem sum_cost_update_le_socialCost_add [Fintype E] {a b : E → ℝ} (ha : �
   calc ∑ i, W.toCostGame.cost i (Function.update s i (s' i))
     _ ≤ (∑ i, W.weight i * ∑ e ∈ W.resources i (s' i), (a e * W.load s e + b e)) +
           ∑ i, ∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2 := by
-          rw [← Finset.sum_add_distrib]; exact Finset.sum_le_sum fun i _ => hdev i
+          rw [← Finset.sum_add_distrib]
+          exact Finset.sum_le_sum fun i _ => hdev i
     _ = (∑ e, W.load s' e * (a e * W.load s e + b e)) +
           ∑ e, a e * ∑ i with e ∈ W.resources i (s' i), W.weight i ^ 2 := by
           rw [W.sum_weight_mul_sum_resources s' (fun e => a e * W.load s e + b e), hexch_sq]
@@ -383,7 +384,8 @@ theorem aaeTriangleGame_weighted_golden :
   have huniv4 : (Finset.univ : Finset (Fin 4)) = {0, 1, 2, 3} := by decide
   have htrue : (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => true) = 2 * φ ^ 2 + 2 := by
     simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
-    norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]; ring
+    norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
+    ring
   refine ⟨fun i a => ?_, by rw [htrue]; positivity, ?_⟩
   · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
       norm_num [aaeTriangleGame, aaeTrianglePaths, Function.update, Fin.isValue] <;>
@@ -430,7 +432,8 @@ theorem exists_three_player_socialCost_eq_golden_mul :
     ring
   have htrue : W.toCostGame.socialCost (fun _ => true) = 2 + 2 * φ ^ 2 := by
     simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]
-    norm_num [W, threePlayerGoldenPaths, Fin.isValue]; ring
+    norm_num [W, threePlayerGoldenPaths, Fin.isValue]
+    ring
   refine ⟨W, fun _ => false, fun _ => true,
     ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun _ x => by simp [W]⟩,
     fun i => by fin_cases i <;> simp [W, hφ_pos],
@@ -484,8 +487,10 @@ private lemma twoPlayer_linear_edge_le {w₀ w₁ : ℝ} (hw₀ : 0 ≤ w₀) (h
     D * ld ^ 2 + D * (w₀ * ((if b'_0 then ld0 else 0) - (if b_0 then ld else 0))) +
       Y₁ * (w₁ * ((if b'_1 then ld1 else 0) - (if b_1 then ld else 0))) ≤ N * ld' ^ 2 := by
   intro D N Y₁ ld' ld ld0 ld1
-  set d := w₁ - w₀; have hd : 0 ≤ d := sub_nonneg.mpr hw₀₁
-  rw [← sub_nonneg]; dsimp only [D, N, Y₁, ld', ld, ld0, ld1]
+  set d := w₁ - w₀
+  have hd : 0 ≤ d := sub_nonneg.mpr hw₀₁
+  rw [← sub_nonneg]
+  dsimp only [D, N, Y₁, ld', ld, ld0, ld1]
   rw [show w₁ = w₀ + d by dsimp [d]; ring]
   cases b'_0 <;> cases b'_1 <;> cases b_0 <;> cases b_1 <;>
     simp only [Bool.false_eq_true, ↓reduceIte] <;> ring_nf <;> positivity
@@ -500,8 +505,10 @@ private lemma twoPlayer_const_edge_le {w₀ w₁ : ℝ} (hw₀ : 0 ≤ w₀) (hw
     D * ld + D * (w₀ * ((if b'_0 then 1 else 0) - (if b_0 then 1 else 0))) +
       Y₁ * (w₁ * ((if b'_1 then 1 else 0) - (if b_1 then 1 else 0))) ≤ N * ld' := by
   intro D N Y₁ ld' ld
-  set d := w₁ - w₀; have hd : 0 ≤ d := sub_nonneg.mpr hw₀₁
-  rw [← sub_nonneg]; dsimp only [D, N, Y₁, ld', ld]
+  set d := w₁ - w₀
+  have hd : 0 ≤ d := sub_nonneg.mpr hw₀₁
+  rw [← sub_nonneg]
+  dsimp only [D, N, Y₁, ld', ld]
   rw [show w₁ = w₀ + d by dsimp [d]; ring]
   cases b'_0 <;> cases b'_1 <;> cases b_0 <;> cases b_1 <;>
     simp only [Bool.false_eq_true, ↓reduceIte] <;> ring_nf <;> positivity
@@ -518,7 +525,8 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
       W.toCostGame.socialCost s' := by
   have := Fintype.ofFinite E
   obtain ⟨a, b, ha, hb, hl⟩ := h
-  let w₀ := W.weight 0; let w₁ := W.weight 1
+  let w₀ := W.weight 0
+  let w₁ := W.weight 1
   let D := w₀ ^ 3 + w₀ ^ 2 * w₁ + w₁ ^ 3
   let N := (w₀ + w₁) * (w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2)
   let Y₁ := w₁ * (w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2)
@@ -566,7 +574,8 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
   simp only [Finset.sum_add_distrib, ← Finset.mul_sum] at hsum
   rw [← W.socialCost_toCostGame s, ← W.socialCost_toCostGame s',
     ← hcost_diff 0 (s' 0), ← hcost_diff 1 (s' 1)] at hsum
-  unfold twoPlayerRatio; rw [div_mul_eq_mul_div, le_div_iff₀ hD_pos]
+  unfold twoPlayerRatio
+  rw [div_mul_eq_mul_div, le_div_iff₀ hD_pos]
   linarith [mul_nonneg hD_pos.le (sub_nonneg.mpr (hs 0 (s' 0))),
     mul_nonneg hY₁_nonneg (sub_nonneg.mpr (hs 1 (s' 1)))]
 
@@ -621,7 +630,8 @@ theorem exists_two_player_socialCost_eq_twoPlayerRatio_mul {w₀ w₁ : ℝ}
   have htrue : (twoPlayerTightGame w₀ w₁).toCostGame.socialCost (fun _ => true) =
       w₀ ^ 3 + w₀ ^ 2 * w₁ + w₁ ^ 3 := by
     simp only [CostGame.socialCost, huniv2, toCostGame_cost, unitCost, twoPlayerTightLoad_eq]
-    norm_num [twoPlayerTightGame, twoPlayerTightPaths, Fin.isValue]; ring
+    norm_num [twoPlayerTightGame, twoPlayerTightPaths, Fin.isValue]
+    ring
   have hden_pos : 0 < w₀ ^ 3 + w₀ ^ 2 * w₁ + w₁ ^ 3 := by positivity
   refine ⟨fun i a => ?_, htrue ▸ hden_pos, ?_⟩
   · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, twoPlayerTightLoad_eq] <;>
@@ -700,8 +710,9 @@ theorem exists_two_player_socialCost_eq_two_mul :
         C.toCostGame.socialCost s = 2 * C.toCostGame.socialCost s' := by
   let W := WeightedCongestionGame.twoPlayerTightGame 1 1
   let C := W.toUniformCongestionGame 1
-  have hto : C.toCostGame = W.toCostGame := W.toCostGame_toUniformCongestionGame 1 fun i => by
-    fin_cases i <;> simp [W, WeightedCongestionGame.twoPlayerTightGame]
+  have hto : C.toCostGame = W.toCostGame :=
+    W.toCostGame_toUniformCongestionGame 1 fun i => by
+      fin_cases i <;> simp [W, WeightedCongestionGame.twoPlayerTightGame]
   obtain ⟨hne, hpos, heq⟩ :=
     WeightedCongestionGame.exists_two_player_socialCost_eq_twoPlayerRatio_mul
       zero_lt_one zero_lt_one

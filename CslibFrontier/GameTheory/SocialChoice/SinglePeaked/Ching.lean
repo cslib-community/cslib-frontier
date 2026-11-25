@@ -424,7 +424,8 @@ theorem isStrategyProof_surjective_isIR_left_iff [Nonempty ι]
     congr 1
     cases E with
     | mk alpha mem_Icc antitone boundary_empty boundary_univ =>
-      congr 1; funext T
+      congr 1
+      funext T
       by_cases hT : T = ∅
       · subst hT; simp only [boundary_empty, ↓reduceIte]
       · simp only [hT, ↓reduceIte]
@@ -458,7 +459,8 @@ theorem isStrategyProof_surjective_isIR_right_iff [Nonempty ι]
     congr 1
     cases E with
     | mk alpha mem_Icc antitone boundary_empty boundary_univ =>
-      congr 1; funext T
+      congr 1
+      funext T
       by_cases hT : T = Finset.univ
       · subst hT; simp only [boundary_univ, ↓reduceIte]
       · simp only [hT, ↓reduceIte]

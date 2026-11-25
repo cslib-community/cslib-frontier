@@ -156,7 +156,8 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
     rw [f.map_smul, smul_eq_mul, mul_comm]
   -- Step 1: `0 ≤ u` via small uniform negative vectors `fun _ => -ε ∈ negOrthant G`.
   have hu_nn : 0 ≤ u := by
-    by_contra hu_neg; push Not at hu_neg
+    by_contra hu_neg
+    push Not at hu_neg
     set S : ℝ := ∑ g : G, |p g|
     have hS_nn : 0 ≤ S := sum_nonneg fun g _ => abs_nonneg _
     set ε : ℝ := (-u) / (2 * (1 + S))
@@ -167,7 +168,8 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
       simp only [expenditure_eq_sum, S, mul_sum]
       exact sum_le_sum fun g _ => by nlinarith [le_abs_self (p g)]
     have hεS_le : ε * S ≤ (-u) / 2 := by
-      dsimp only [ε]; rw [div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by positivity)]
+      dsimp only [ε]
+      rw [div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by positivity)]
       nlinarith
     linarith
   -- Step 2: `∀ g, 0 ≤ p g` by scaling `-Pi.single g₀ 1` inside `negOrthant G`.
@@ -192,7 +194,8 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
     linarith [sum_le_sum fun g (_ : g ∈ univ) => le_abs_self (p g), le_abs_self u]
   -- Step 3: `∃ g, 0 < p g` since `p = 0` collapses `f` to `0`.
   have hp_pos : ∃ g : G, 0 < p g := by
-    by_contra hall; push Not at hall
+    by_contra hall
+    push Not at hall
     have hp0 : ∀ g : G, p g = 0 := fun g => le_antisymm (hall g) (hp_nn g)
     obtain ⟨z₀, hz₀⟩ := hK_ne
     have h1 := hlt (fun _ => (-1 : ℝ)) (fun _ => by norm_num)
@@ -201,10 +204,12 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
     linarith
   -- Step 4: `u ≤ 0` from `hzero`, hence `0 ≤ expenditure p z` on `K`.
   have hu_le : u ≤ 0 := by
-    by_contra hu_pos; push Not at hu_pos
+    by_contra hu_pos
+    push Not at hu_pos
     obtain ⟨g₀, hpg₀⟩ := hp_pos
     set P : ℝ := ∑ g : G, p g
-    have hP_pos : 0 < P := lt_of_lt_of_le hpg₀ (single_le_sum (fun g _ => hp_nn g) (mem_univ g₀))
+    have hP_pos : 0 < P :=
+      lt_of_lt_of_le hpg₀ (single_le_sum (fun g _ => hp_nn g) (mem_univ g₀))
     obtain ⟨z, hzK, hz_norm⟩ := hzero (u / (2 * P)) (by positivity)
     have hz_ge : u ≤ expenditure p z := by simpa only [hf_eq] using hge z hzK
     have hz_le : expenditure p z ≤ u / 2 := calc
@@ -411,7 +416,8 @@ theorem IsQuasiDemand.mem_demandSet_of_budget_pos {u : (G → ℝ) → ℝ} {p :
     x ∈ demandSet u p m := by
   rw [mem_demandSet]
   refine ⟨hq.1, fun b hb => ?_⟩
-  by_contra hlt; push Not at hlt
+  by_contra hlt
+  push Not at hlt
   have hcw : ContinuousWithinAt (fun c : ℝ => u (c • b)) (Set.Ici 0) 1 :=
     (hcont.comp (continuous_id.smul continuous_const).continuousOn
       fun c hc g => mul_nonneg hc (hb.1 g)).continuousWithinAt (by norm_num)
@@ -785,7 +791,8 @@ theorem IsEquilibrium.budget_mul_utility_le {M : LinearFisherMarket I G}
     rw [linearUtility_smul] at hopt
     have hmul := mul_le_mul_of_nonneg_left hopt hbj_pos.le
     have hcancel : M.budget j * ((M.budget i / M.budget j) * linearUtility (M.utility i) (x j)) =
-        M.budget i * linearUtility (M.utility i) (x j) := by field_simp [hbj_pos.ne']
+        M.budget i * linearUtility (M.utility i) (x j) := by
+      field_simp [hbj_pos.ne']
     linarith
 
 /-- **Equal-budget envy-freeness of linear Fisher equilibria:** when `M.budget i = M.budget j`,
@@ -810,7 +817,8 @@ theorem IsEquilibrium.proportional_share {M : LinearFisherMarket I G}
   have hB_eq : M.toFisherMarket.totalBudget = ∑ k : I, M.budget k := by
     simp [FisherMarket.totalBudget_eq_sum]
   have hlns : ∀ k, IsLocallyNonsatiated (M.toFisherMarket.utility k) := fun k => by
-    rw [M.toFisherMarket_utility]; exact (isLocallyNonsatiated_linearUtility_iff _).2 (hns k)
+    rw [M.toFisherMarket_utility]
+    exact (isLocallyNonsatiated_linearUtility_iff _).2 (hns k)
   have h := FisherMarket.IsEquilibrium.utility_budgetShare_supply_le heq hlns (hB_eq.symm ▸ hB) i
   rwa [M.toFisherMarket_utility, M.toFisherMarket_budget, M.toFisherMarket_supply, hB_eq,
     ← M.buyerUtility_eq, linearUtility_smul] at h

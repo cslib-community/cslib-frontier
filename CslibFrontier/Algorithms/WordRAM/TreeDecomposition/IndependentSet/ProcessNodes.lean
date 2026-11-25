@@ -234,14 +234,18 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
   subst ha
   let a : ProcessNodesArgs := ⟨inst.numVerts, 3 + inst.numVerts, 3,
     3 + inst.numVerts + inst.numVerts * inst.numVerts, descBase, inst.numNodes⟩
-  let m := inst.numVerts; let n := inst.numNodes
-  let M := inst.maxBagLen; let W := inst.maxWeight; let B := M * W
+  let m := inst.numVerts
+  let n := inst.numNodes
+  let M := inst.maxBagLen
+  let W := inst.maxWeight
+  let B := M * W
   let jFin : Fin (inst.numNodes + 1) := ⟨k + 1, by omega⟩
   have hj_val : jFin.val = k + 1 := rfl
   let pFin := inst.parFin jFin
   have hp_idx : k + 1 < inst.parents.length := by rw [inst.parents_len]; omega
   have hp_lt : pFin.val < k + 1 := by
-    dsimp only [pFin, MWISInstance.parFin, jFin]; rw [dite_eq_left (by omega)]
+    dsimp only [pFin, MWISInstance.parFin, jFin]
+    rw [dite_eq_left (by omega)]
     exact inst.parents_lt ⟨k + 1, hp_idx⟩ (by omega)
   have hp_read :
       t.mem (3 + inst.numVerts + inst.numVerts * inst.numVerts + (k + 1)) = pFin.val := by
@@ -309,13 +313,15 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     hbest_init List.length_replicate
     (fun x hx => by rw [List.eq_of_mem_replicate hx]; exact Nat.zero_le _) hcand_le hfit_capB
   let t_c := (Memory.spec 0).clientState t_a (childPassProg cpArgs)
-  have hlay_c : NodeLayout inst descBase tblList t_c := hlay.mono_frontier (hp_a.trans hp_cp)
+  have hlay_c : NodeLayout inst descBase tblList t_c :=
+    hlay.mono_frontier (hp_a.trans hp_cp)
   let bestL := childPassList inst.adj inst.wt (inst.bagAt jFin) (inst.bagAt pFin)
     (tblList jFin) (List.replicate tblPLen 0) (2 ^ (inst.bagAt jFin).length)
   have hbestL_le : ∀ x ∈ bestL, x ≤ capB :=
     mem_childPassList_le
       (fun x hx => by rw [List.eq_of_mem_replicate hx]; exact Nat.zero_le _) hcand_le
-  have hbestL_len : bestL.length = tblPLen := by rw [length_childPassList, List.length_replicate]
+  have hbestL_len : bestL.length = tblPLen := by
+    rw [length_childPassList, List.length_replicate]
   have hp_mem_c (off : ℕ) (hoff : off < 4) :
       t_c.mem (descBase + 4 * pFin.val + off) = t.mem (descBase + 4 * pFin.val + off) :=
     (hp_a.trans hp_cp).2.2 _ (by have := hlay.desc_hi; have := pFin.isLt; omega)
@@ -336,7 +342,8 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
   let t_p := (Memory.spec 0).clientState t_c (parentPassProg ppArgs)
   obtain ⟨hst_ev, hres_ev⟩ := processNodeStep_eval a (k + 1) t
   have hst_eq : (Memory.spec 0).clientState t (processNodeStep (a, k + 1)) = t_p := by
-    rw [hst_ev]; dsimp only [a, m, n, t_p, t_c, t_a, ppArgs, cpArgs, tblPLen, bestPtr, jFin]
+    rw [hst_ev]
+    dsimp only [a, m, n, t_p, t_c, t_a, ppArgs, cpArgs, tblPLen, bestPtr, jFin]
     rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
   have hlay_p : NodeLayout inst descBase
       (Function.update tblList pFin
@@ -373,8 +380,10 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     omega
   have hv_step : (Memory.spec w).ValidHistory t
       ((Memory.spec w).clientHistory t (processNodeStep (a, k + 1))) := by
-    unfold processNodeStep; dsimp only
-    refine validHistory_read_bind hpar_lt_fr ?_; rw [hp_read]
+    unfold processNodeStep
+    dsimp only
+    refine validHistory_read_bind hpar_lt_fr ?_
+    rw [hp_read]
     refine validHistory_read_bind (by simpa only [Nat.add_zero] using hdJ_lt 0 (by decide)) <|
       validHistory_read_bind (hdJ_lt 1 (by decide)) <|
       validHistory_read_bind (hdJ_lt 2 (by decide)) <|
@@ -390,7 +399,8 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
       10 + 2 ^ M * (5 * M ^ 2 + 5 * M + 7) := by
     have hr_s (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
     have hr_r (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
-    unfold processNodeStep; dsimp only
+    unfold processNodeStep
+    dsimp only
     iterate 9 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
     rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m, memoryCost_bind', memoryCost_alloc,
       show (Memory.spec 0).clientState t (Memory.alloc tblPLen) = t_a from rfl,
@@ -398,7 +408,8 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
       memoryCost_bind', memoryCost_bind', memoryCost_pure, Nat.add_zero]
     have hc_cp_M : memoryCost (childPassProg cpArgs) t_a ≤ 2 ^ M * (4 * M ^ 2 + 4 * M + 3) :=
       hc_cp.trans (Nat.mul_le_mul hj_pow_le (cp_cost_poly_le hj_len_le hp_len_le))
-    have hc_pp_M : memoryCost (parentPassProg ppArgs) t_c ≤ 2 ^ M * (M ^ 2 + M + 3) :=
+    have hc_pp_M : memoryCost (parentPassProg ppArgs) t_c ≤
+        2 ^ M * (M ^ 2 + M + 3) :=
       hc_pp.trans (Nat.mul_le_mul hp_pow_le (pp_cost_poly_le hj_len_le hp_len_le))
     have hsum_pow := step_pow_sum_le hp_pow_le M
     change 1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + ((tblPLen + 1) +
@@ -429,14 +440,17 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
       by have : (inst.bagAt jFin).length * inst.maxWeight ≤ B := Nat.mul_le_mul_right _ hj_len_le
          dsimp only [cpArgs, capB, B, W, M, MWISInstance.maxWeight] at *; omega,
       hfit_tfr.of_le (by
-        have h := hlay.adj_holds.1; rw [inst.adjMatrix_len] at h
+        have h := hlay.adj_holds.1
+        rw [inst.adjMatrix_len] at h
         dsimp only [cpArgs, m]; omega),
       hfit_tfr.of_le (by
-        have h := hlay.wt_holds.1; rw [inst.weights_len] at h
+        have h := hlay.wt_holds.1
+        rw [inst.weights_len] at h
         dsimp only [cpArgs]; omega),
       hfit_tfr.of_le (by have := hj_bag.1; dsimp only [cpArgs, jFin]; omega),
       hfit_tfr.of_le (by
-        have h := hj_tbl.1; rw [hj_tlen] at h
+        have h := hj_tbl.1
+        rw [hj_tlen] at h
         dsimp only [cpArgs, jFin]; omega),
       hfit_tfr.of_le (by have := hp_bag.1; dsimp only [cpArgs]; omega),
       hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
@@ -453,7 +467,8 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
       hfit_tfr.of_le (by have := hj_bag.1; dsimp only [ppArgs, jFin]; omega),
       hfit_tfr.of_le (by have := hp_bag.1; dsimp only [ppArgs]; omega),
       hfit_tfr.of_le (by
-        have h := hp_tbl.1; rw [hp_tlen] at h
+        have h := hp_tbl.1
+        rw [hp_tlen] at h
         dsimp only [ppArgs, tblPLen]; omega),
       hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
       hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _), hfit_sum⟩
@@ -537,7 +552,8 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
   | zero =>
     intro st tblList _ hfr hlay hpfx hagree
     have h0 : iterate processNodeStep args 0 0 = pure 0 := rfl
-    rw [h0]; simp only [Nat.sub_zero] at hfr hpfx hagree
+    rw [h0]
+    simp only [Nat.sub_zero] at hfr hpfx hagree
     exact ⟨validHistory_pure w st 0, ⟨hfr, tblList, hlay, hpfx, hagree⟩, by simp [memoryCost_pure]⟩
   | succ k ih =>
     intro st tblList hk hfr hlay hpfx hagree
@@ -560,7 +576,8 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
       rw [show n - k = (n - (k + 1)) + 1 by omega, tablesInst_succ]
       simp only [hj_ofNat]
       by_cases hip : i = pFin
-      · subst hip; dsimp only [tblList']
+      · subst hip
+        dsimp only [tblList']
         have hs_lt_old : s < (tblList pFin).length := (hlay.tbl_holds pFin).1.symm ▸ hs
         have hold_eq : (tblList pFin)[s] =
             (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt

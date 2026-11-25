@@ -299,7 +299,9 @@ theorem empiricalDist_isApproxInternalCorrelatedEquilibrium_iff [∀ i, Decidabl
   have hdiff : (∑ t ∈ range T, if s t i = a then G.cost i (s t) else 0) -
       (∑ t ∈ range T, if s t i = a then G.cost i (update (s t) i b) else 0) =
       ∑ t ∈ range T, if s t i = a then G.cost i (s t) - G.cost i (update (s t) i b) else 0 := by
-    rw [← sum_sub_distrib]; refine sum_congr rfl fun t _ => ?_; split_ifs <;> ring
+    rw [← sum_sub_distrib]
+    refine sum_congr rfl fun t _ => ?_
+    split_ifs <;> ring
   rw [empiricalDist_sum, empiricalDist_sum, ← hdiff, sub_div, sub_le_iff_le_add']
 
 /-- **Exact deterministic external-regret bridge**: `empiricalDist s T hT` is an `ε`-coarse

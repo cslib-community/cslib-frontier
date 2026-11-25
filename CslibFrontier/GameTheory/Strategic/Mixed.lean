@@ -165,7 +165,8 @@ theorem sum_mul_sum_productWeight_update (p : ∀ i, S i → ℝ) {i : ι} (hp :
         Fintype.sum_equiv ⟨fun x => (x.2 i, Function.update x.2 i x.1),
           fun x => (x.2 i, Function.update x.2 i x.1), fun _ => by simp, fun _ => by simp⟩ _ _
           fun x => by
-            dsimp only [Equiv.coe_fn_mk]; rw [← mul_assoc, ← mul_assoc, productWeight_update]
+            dsimp only [Equiv.coe_fn_mk]
+            rw [← mul_assoc, ← mul_assoc, productWeight_update]
     _ = ∑ s, productWeight p s * f s := by
         simp only [Fintype.sum_prod_type, ← mul_sum, ← sum_mul, hp, one_mul]
 

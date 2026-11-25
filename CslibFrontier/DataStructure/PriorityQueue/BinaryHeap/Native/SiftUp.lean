@@ -271,7 +271,8 @@ theorem exec_siftUp {r : ℕ} (frontier : Fin r) (src : Fin 5 → Fin r)
         (memoryState frontier x) (memoryState frontier y) ∧
       ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i := by
   have hn : Fits w n := by
-    have h : Fits w ((x.regs ∘ src) 0) := hx.1 (src 0); rwa [hin] at h
+    have h : Fits w ((x.regs ∘ src) 0) := hx.1 (src 0)
+    rwa [hin] at h
   obtain ⟨hv, _, hpost⟩ := triple_iff.mp
     (PriorityQueue.BinaryHeap.Memory.siftUp_triple hn hA hk hkS hshape hord)
   have hI : Shape w ((⟨n, L⟩ : HeapLayout), ()) k (memoryState frontier x) :=

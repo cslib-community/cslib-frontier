@@ -240,11 +240,15 @@ private theorem map_buildM (hf : IsMonadHom m n f) (t : ℕ) (visit : m Unit) (f
     f (buildM t visit fuel first rest) = buildM t (f visit) fuel first rest := by
   induction fuel generalizing first rest with
   | zero =>
-    rcases rest with _ | ⟨e, es⟩; · simp [hf.map_pure]
-    rw [buildM_cons, buildM_cons]; split <;> simp [hf.map_bind, hf.map_pure]
+    rcases rest with _ | ⟨e, es⟩
+    · simp [hf.map_pure]
+    rw [buildM_cons, buildM_cons]
+    split <;> simp [hf.map_bind, hf.map_pure]
   | succ fuel ih =>
-    rcases rest with _ | ⟨e, es⟩; · simp [hf.map_pure]
-    rw [buildM_cons, buildM_cons]; split <;> simp [hf.map_bind, hf.map_pure, map_packM hf, ih]
+    rcases rest with _ | ⟨e, es⟩
+    · simp [hf.map_pure]
+    rw [buildM_cons, buildM_cons]
+    split <;> simp [hf.map_bind, hf.map_pure, map_packM hf, ih]
 
 /-- A monad morphism commutes with bulk loading. -/
 theorem map_ofSortedListM (hf : IsMonadHom m n f) (t : ℕ) (visit : m Unit)
@@ -369,7 +373,8 @@ private theorem toList_leafBranches (ss : List ℕ) (l : List (α × β)) :
   induction ss generalizing l with
   | nil => cases l <;> simp [leafBranches_nil, leafBranches_nil_cons]
   | cons s ss ih =>
-    rcases l with _ | ⟨p, l⟩; · simp [leafBranches_nil]
+    rcases l with _ | ⟨p, l⟩
+    · simp [leafBranches_nil]
     rw [leafBranches_cons_cons, List.flatMap_cons, ih, Branch.child_mk, toList_leaf,
       List.take_append_drop]
 
@@ -415,7 +420,8 @@ private theorem toList_build (fuel : ℕ) (first : BPlusTree α β) (rest : List
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with h | h
     · rw [build_succ_of_lt h, ih, toList_pack]
-    · rcases rest with _ | ⟨e, es⟩; · simp [build_nil]
+    · rcases rest with _ | ⟨e, es⟩
+      · simp [build_nil]
       rw [build_of_length_le (List.cons_ne_nil e es) h, toList_node]
 
 /-- Bulk loading keeps the entries in order, for every list and every `t`. -/
@@ -724,15 +730,19 @@ private theorem separated_build (fuel : ℕ) {first : BPlusTree α β} {rest : L
     Separated (build t fuel first rest) := by
   induction fuel generalizing first rest with
   | zero =>
-    rcases rest with _ | ⟨e, es⟩; · rwa [build_nil]
-    rw [build_zero_cons]; exact separated_node hf hr hk hs
+    rcases rest with _ | ⟨e, es⟩
+    · rwa [build_nil]
+    rw [build_zero_cons]
+    exact separated_node hf hr hk hs
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with hlt | hle
     · rw [build_succ_of_lt hlt]
       obtain ⟨hf', hr'⟩ := separated_pack (BTree.groupSizes t rest.length rest.length) hf hr hk hs
       exact ih hf' (fun e he => (hr' e he).1) (fun e he => (hr' e he).2) (by rwa [toList_pack])
-    · rcases rest with _ | ⟨e, es⟩; · rwa [build_nil]
-      rw [build_of_length_le (List.cons_ne_nil e es) hle]; exact separated_node hf hr hk hs
+    · rcases rest with _ | ⟨e, es⟩
+      · rwa [build_nil]
+      rw [build_of_length_le (List.cons_ne_nil e es) hle]
+      exact separated_node hf hr hk hs
 
 /-- A tree of the bottom level is a leaf, hence separated. -/
 private theorem Good.separated {c : BPlusTree α β} (h : Good t 1 c) : Separated c := by

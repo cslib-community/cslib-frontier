@@ -329,7 +329,8 @@ private theorem exists_singleAgentVal [Fintype ι] [DecidableEq Ω] (i₀ : ι)
     fun i ti ω => ?_, fun i ti => by simp only [ite_eq_right hω, dite_eq_ite, ite_self],
     hval_i₀, fun D hEff t => ?_⟩
   · by_cases h₁ : i = i₀
-    · subst h₁; by_cases h₂ : ω = ω₁ <;> simp [h₂, zero_le_one.trans (hv₀ ti)]
+    · subst h₁
+      by_cases h₂ : ω = ω₁ <;> simp [h₂, zero_le_one.trans (hv₀ ti)]
     · simp [h₁]
   · by_contra hne
     have hw (ω : Ω) :

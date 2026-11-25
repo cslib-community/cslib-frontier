@@ -345,12 +345,14 @@ theorem tableEntries_lt_normalFormEntries (M : GraphicalGame ι S) [DecidableRel
           exact lt_mul_of_one_lt_left hpos (by have := hcard k₀; omega)
       _ ≤ ∏ j : ι, Fintype.card (S j) :=
           Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ _) fun j _ _ => by
-            have := hcard j; omega
+            have := hcard j
+            omega
   have hle : ∀ i ∈ (univ : Finset ι),
       ∏ j ∈ insert i (M.graph.neighborFinset i), Fintype.card (S j) ≤
         ∏ j : ι, Fintype.card (S j) := fun i _ =>
     Finset.prod_le_prod_of_subset_of_one_le (Finset.subset_univ _) fun j _ _ => by
-      have := hcard j; omega
+      have := hcard j
+      omega
   simpa only [Finset.sum_const, card_univ, smul_eq_mul] using
     Finset.sum_lt_sum hle ⟨i₀, mem_univ i₀, hlt⟩
 

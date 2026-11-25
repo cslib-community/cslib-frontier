@@ -211,7 +211,9 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
       (expected_utility_ge_of_cce hσ i 0)
   have hir_sum : 0 ≤ σ.weights.sum (fun b w =>
       w * ∑ i, M.utility i (v i) (fun j => (b j : ℝ))) := by
-    simp only [Finsupp.sum, mul_sum]; rw [sum_comm]; exact sum_nonneg fun i _ => hir i
+    simp only [Finsupp.sum, mul_sum]
+    rw [sum_comm]
+    exact sum_nonneg fun i _ => hir i
   have hpay_exp : 0 ≤ σ.weights.sum (fun b w => w * ∑ i, M.payment (fun j => (b j : ℝ)) i) := by
     simp only [Finsupp.sum]
     exact sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
@@ -223,10 +225,12 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
           wt * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ))) =
         (D i).weights.sum (fun z wt => wt * σ.weights.sum fun b w =>
           w * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ))) := by
-      simp only [Finsupp.sum, mul_sum]; rw [sum_comm]
+      simp only [Finsupp.sum, mul_sum]
+      rw [sum_comm]
       exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
     have hDtot : ∑ z ∈ (D i).weights.support, (D i).weights z = 1 := (D i).total
-    rw [hswap]; simp only [Finsupp.sum]
+    rw [hswap]
+    simp only [Finsupp.sum]
     refine (sum_le_sum fun z _ => mul_le_mul_of_nonneg_left (expected_utility_ge_of_cce hσ i z)
       (Convexity.StdSimplex.weights_nonneg z)).trans_eq ?_
     rw [← sum_mul, hDtot, one_mul, Finsupp.sum]
@@ -395,18 +399,21 @@ theorem IsSmoothMechanism.integral_welfare_ge_of_isBayesNash {X : Set (ι → �
     rw [← M.integral_interimSliceUtil_eq (hutil_eq i)]
     refine integral_nonneg_of_ae ?_
     filter_upwards [hbox] with v hv
-    dsimp only [Pi.zero_apply]; rw [hslice_eq i (hv i)]
+    dsimp only [Pi.zero_apply]
+    rw [hslice_eq i (hv i)]
     have hbn := (hβ i (v i) (hv i)).2 0 le_rfl
     have h0_eq := (M.integral_utility_update_eq (halloc_dev i 0 le_rfl)
       (hpay_dev i 0 le_rfl) (v i)).symm
     have h0_nn : 0 ≤ ∫ w, M.utility i (v i) (update (fun j => β j (w j)) i 0) ∂Measure.pi ν := by
-      refine integral_nonneg_of_ae ?_; filter_upwards [hbox] with w hw
+      refine integral_nonneg_of_ae ?_
+      filter_upwards [hbox] with w hw
       exact h0.utility_zero_nonneg (fun j => hβ.nonneg (hw j)) (hv i).1
     linarith
   have hpay_sum_int : Integrable (fun w => ∑ i, M.payment (fun j => β j (w j)) i) (Measure.pi ν) :=
     integrable_finsetSum _ fun i _ => hpay_eq i
   have hpay_nonneg : 0 ≤ ∫ w, ∑ i, M.payment (fun j => β j (w j)) i ∂Measure.pi ν := by
-    refine integral_nonneg_of_ae ?_; filter_upwards [hbox] with w hw
+    refine integral_nonneg_of_ae ?_
+    filter_upwards [hbox] with w hw
     exact hpay _ fun j => hβ.nonneg (hw j)
   set P := ∫ w, ∑ i, M.payment (fun j => β j (w j)) i ∂Measure.pi ν
   have hpt : ∀ᵐ v ∂Measure.pi ν,
@@ -426,7 +433,8 @@ theorem IsSmoothMechanism.integral_welfare_ge_of_isBayesNash {X : Set (ι → �
       probReal_univ, one_smul, integral_const_mul,
       integral_finsetSum _ fun i _ => hR_int_i i] at hint_le
     refine hint_le.trans (sum_le_sum fun i _ => ?_)
-    rw [hslice_eq i (hv i)]; simp only [Finsupp.sum]
+    rw [hslice_eq i (hv i)]
+    simp only [Finsupp.sum]
     rw [integral_finsetSum (D i).weights.support fun (z : ℝ≥0) _ =>
       (hdev_int i (z : ℝ) z.coe_nonneg (v i)).const_mul _]
     refine (le_of_eq <| sum_congr rfl fun z _ => by
@@ -600,7 +608,8 @@ private theorem isSmoothMechanism_of_winner {lam : ℝ}
       fun i => if i = i₀ then D₀ else Convexity.StdSimplex.single 0
     refine ⟨D, fun b hb => ?_⟩
     have hsw : socialWelfare v x = v i₀ := by
-      rw [socialWelfare, sum_eq_single i₀ (fun j _ hj => by rw [hj0 j hj, mul_zero])
+      rw [socialWelfare, sum_eq_single i₀
+        (fun j _ hj => by rw [hj0 j hj, mul_zero])
         (fun h => absurd (Finset.mem_univ i₀) h), hi₀, mul_one]
     rw [hsw, one_mul, ← add_sum_erase _ (fun i => (D i).weights.sum fun z w =>
       w * FirstPrice.mechanism.utility i (v i) (update b i (z : ℝ))) (Finset.mem_univ i₀)]
@@ -643,10 +652,13 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
   have hq_lt1 : q < 1 := Real.exp_lt_one_iff.2
     (by rw [neg_div]; exact neg_neg_of_pos (by positivity))
   have hqK : q ^ K = Real.exp (-1) := by
-    dsimp [q]; rw [← Real.exp_nat_mul]
-    congr 1; field_simp
+    dsimp [q]
+    rw [← Real.exp_nat_mul]
+    congr 1
+    field_simp
   have h1q_le : 1 - q ≤ 1 / (K : ℝ) := by
-    dsimp [q]; rw [neg_div]
+    dsimp [q]
+    rw [neg_div]
     linarith [Real.add_one_le_exp (-(1 / (K : ℝ)))]
   refine isSmoothMechanism_of_winner fun v hv i₀ => ?_
   let grid (k : Fin K) : ℝ≥0 :=
@@ -663,7 +675,8 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
   · rw [hqK] at hhigh
     have hterm_nn : 0 ≤ ∑ k : Fin K, 1 / (K : ℝ) *
         FirstPrice.mechanism.utility i₀ (v i₀) (update b i₀ (grid k : ℝ)) :=
-      sum_nonneg fun k _ => mul_nonneg (by positivity) (utility_nonneg_of_le b i₀ (hgrid_le k))
+      sum_nonneg fun k _ => mul_nonneg (by positivity)
+        (utility_nonneg_of_le b i₀ (hgrid_le k))
     have hexp_lt1 : Real.exp (-1) < 1 := Real.exp_lt_one_iff.2 (by norm_num)
     nlinarith [hv i₀, hq_lt1.le]
   · push Not at hhigh
@@ -690,7 +703,8 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
           (pow_le_pow_of_le_one hq_pos.le hq_lt1.le (Nat.add_le_add_right hk 1)) (hv i₀)
         linarith
       rw [utility_eq_sub_of_highestOtherBid_lt b i₀ (v i₀) hBk]
-      change v i₀ * q ^ (k.val + 1) ≤ v i₀ - v i₀ * (1 - q ^ (k.val + 1)); linarith
+      change v i₀ * q ^ (k.val + 1) ≤ v i₀ - v i₀ * (1 - q ^ (k.val + 1))
+      linarith
     have hsum_flt : ∑ k ∈ univ.filter (fun k : Fin K => k₀.val ≤ k.val),
           1 / (K : ℝ) * (v i₀ * q ^ (k.val + 1)) ≤
         ∑ k : Fin K, 1 / (K : ℝ) *
@@ -709,7 +723,8 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
     have hsum_sub : ∑ m ∈ Ico k₀.val K, (q ^ m - q ^ (m + 1)) = q ^ k₀.val - q ^ K := by
       suffices ∀ n, k₀.val ≤ n → ∑ m ∈ Ico k₀.val n, (q ^ m - q ^ (m + 1)) = q ^ k₀.val - q ^ n from
         this K k₀.isLt.le
-      intro n hn; induction hn with
+      intro n hn
+      induction hn with
       | refl => simp
       | @step m hkm ih => rw [Finset.sum_Ico_succ_top hkm, ih, pow_succ]; ring
     have htele : q * v i₀ * (q ^ k₀.val - q ^ K) ≤
@@ -727,11 +742,13 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
 
 private theorem le_of_forall_exp_neg_inv_mul_le {A W : ℝ} (hW : 0 ≤ W)
     (hK : ∀ K : ℕ, 1 ≤ K → Real.exp (-1 / (K : ℝ)) * W ≤ A) : W ≤ A := by
-  by_contra hlt; push Not at hlt
+  by_contra hlt
+  push Not at hlt
   have hW_pos : 0 < W := lt_of_le_of_ne hW fun h => by subst h; linarith [hK 1 le_rfl]
   obtain ⟨K, hK_gt⟩ := exists_nat_gt (W / (W - A))
   have hK_pos : 0 < K := Nat.pos_of_ne_zero fun h => by
-    subst h; linarith [div_pos hW_pos (by linarith : 0 < W - A)]
+    subst h
+    linarith [div_pos hW_pos (by linarith : 0 < W - A)]
   have hKR : (0 : ℝ) < K := Nat.cast_pos.2 hK_pos
   have hexp_ge : 1 - 1 / (K : ℝ) ≤ Real.exp (-1 / (K : ℝ)) := by
     rw [neg_div]; linarith [Real.add_one_le_exp (-(1 / (K : ℝ)))]
@@ -800,7 +817,8 @@ theorem integral_welfare_ge_one_sub_exp_neg_one
     Filter.eventually_all.2 fun i =>
       (measurePreserving_eval ν i).quasiMeasurePreserving.ae (hsupp i)
   have hint_nonneg : 0 ≤ ∫ v, socialWelfare v (x v) ∂Measure.pi ν := by
-    refine integral_nonneg_of_ae ?_; filter_upwards [hbox] with v hv
+    refine integral_nonneg_of_ae ?_
+    filter_upwards [hbox] with v hv
     exact socialWelfare_nonneg_of_singleItemFeasible (fun i => (hv i).1) (hx_mem v hv)
   refine le_of_forall_exp_neg_inv_mul_le (mul_nonneg (by linarith) hint_nonneg) fun K hK => ?_
   have hgrid := (isSmoothMechanism_grid (ι := ι) hK).integral_welfare_ge_of_isBayesNash
@@ -866,10 +884,12 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
     exact sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
       (sum_nonneg fun i _ => mul_nonneg (hv i) (vickrey_allocation_nonneg _ i))
   · have hsw : socialWelfare v x = v i₀ := by
-      rw [socialWelfare, sum_eq_single i₀ (fun j _ hj => by rw [hj0 j hj, mul_zero])
+      rw [socialWelfare, sum_eq_single i₀
+        (fun j _ hj => by rw [hj0 j hj, mul_zero])
         (fun h => absurd (Finset.mem_univ i₀) h), hi₀, mul_one]
     have hcce_i₀ : σ.weights.sum (fun b w =>
-          w * Vickrey.mechanism.utility i₀ (v i₀) (update (fun j => (b j : ℝ)) i₀ (v i₀))) ≤
+          w * Vickrey.mechanism.utility i₀ (v i₀)
+            (update (fun j => (b j : ℝ)) i₀ (v i₀))) ≤
         σ.weights.sum (fun b w =>
           w * Vickrey.mechanism.utility i₀ (v i₀) (fun j => (b j : ℝ))) :=
       Mechanism.expected_utility_ge_of_cce hσ i₀ ⟨v i₀, hv i₀⟩
@@ -961,7 +981,8 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
     rw [hslice_eq i ht]
     have h0_nn : 0 ≤ ∫ w, Vickrey.mechanism.utility i t (update (fun j => β j (w j)) i 0)
         ∂Measure.pi ν := by
-      refine integral_nonneg_of_ae ?_; filter_upwards [hbox] with w hw
+      refine integral_nonneg_of_ae ?_
+      filter_upwards [hbox] with w hw
       dsimp only [Pi.zero_apply]
       rw [Mechanism.utility, mechanism_isNormalized i _ (fun j => hβ.nonneg (hw j)), sub_zero]
       exact mul_nonneg ht.1 (vickrey_allocation_nonneg _ i)
@@ -974,11 +995,13 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
     rcases FirstPrice.singleItemFeasible_cases (hx_mem v hv) with hall0 | ⟨i₀, hi₀, hj0⟩
     · have hsw : socialWelfare v (x v) = 0 := sum_eq_zero fun i _ => by rw [hall0 i, mul_zero]
       have hwel_nn : 0 ≤ W_eq := by
-        refine integral_nonneg_of_ae ?_; filter_upwards [hbox] with w hw
+        refine integral_nonneg_of_ae ?_
+        filter_upwards [hbox] with w hw
         exact sum_nonneg fun i _ => mul_nonneg (hw i).1 (vickrey_allocation_nonneg _ i)
       linarith [sum_nonneg fun i (_ : i ∈ univ) => hslice_nonneg i (hv i)]
     · have hsw : socialWelfare v (x v) = v i₀ := by
-        rw [socialWelfare, sum_eq_single i₀ (fun j _ hj => by rw [hj0 j hj, mul_zero])
+        rw [socialWelfare, sum_eq_single i₀
+          (fun j _ hj => by rw [hj0 j hj, mul_zero])
           (fun h => absurd (Finset.mem_univ i₀) h), hi₀, mul_one]
       have hdev_i₀ : Integrable
           (fun w => Vickrey.mechanism.utility i₀ (v i₀) (update (fun j => β j (w j)) i₀ (v i₀)))
@@ -1010,7 +1033,8 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
     ← integral_finsetSum _ fun i _ => hutil_eq i] at hmain
   have hpay_nonneg :
       0 ≤ ∫ w, ∑ i, Vickrey.mechanism.payment (fun j => β j (w j)) i ∂Measure.pi ν := by
-    refine integral_nonneg_of_ae ?_; filter_upwards [hbox] with w _
+    refine integral_nonneg_of_ae ?_
+    filter_upwards [hbox] with w _
     exact sum_payment_nonneg_vickrey _
   linarith [Vickrey.mechanism.integral_welfare_eq_add_payment hutil_eq hpay_eq]
 
@@ -1037,7 +1061,8 @@ theorem exists_overbidding_isPureNash_welfare_zero :
     · have hob0 : highestOtherBid (fun j : Fin 2 => (b j : ℝ)) 0 = 0 :=
         le_antisymm (highestOtherBid_le_iff.2 ⟨le_rfl, fun j hj => by
           fin_cases j <;> simp_all [b]⟩) (highestOtherBid_nonneg _ _)
-      dsimp [Mechanism.toCostGame]; rw [Mechanism.coe_update_nnreal b 0 z]
+      dsimp [Mechanism.toCostGame]
+      rw [Mechanism.coe_update_nnreal b 0 z]
       simp [Mechanism.utility, Vickrey.mechanism, v, highestOtherBid_update, hob0]
     · have hob1 : highestOtherBid (fun j : Fin 2 => (b j : ℝ)) 1 = 2 := by
         refine le_antisymm (highestOtherBid_le_iff.2 ⟨by norm_num, fun j hj => by
@@ -1045,7 +1070,8 @@ theorem exists_overbidding_isPureNash_welfare_zero :
         have hle := le_highestOtherBid (b := fun j : Fin 2 => (b j : ℝ))
           (i := 1) (j := 0) (by decide)
         simpa [b] using hle
-      dsimp [Mechanism.toCostGame]; rw [Mechanism.coe_update_nnreal b 1 z]
+      dsimp [Mechanism.toCostGame]
+      rw [Mechanism.coe_update_nnreal b 1 z]
       simp only [Mechanism.utility, Vickrey.mechanism, hlose, mul_zero, sub_self, neg_zero,
         v, Fin.isValue, one_ne_zero, ↓reduceIte, one_mul, highestOtherBid_update, hob1]
       rcases allocation_binary (update (fun j : Fin 2 => (b j : ℝ)) 1 (z : ℝ)) 1 with h0 | h1

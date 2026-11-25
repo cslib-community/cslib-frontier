@@ -158,7 +158,8 @@ theorem Entry.task_child (e : Entry) (j : Fin 3) (base : ℕ) (zs : List ℤ) :
   unfold Entry.child Entry.task
   congr 1 with k : 1
   by_cases he : k = j
-  · subst k; simp only [Function.update_self]
+  · subst k
+    simp only [Function.update_self]
   · simp only [Function.update_of_ne he]
 
 /-- The native child-record words represent exactly the changed data block, with the two
@@ -204,7 +205,8 @@ theorem Entry.Valid.natAbs_le {e : Entry} {n U : ℕ} (h : e.Valid n U)
     (j : Fin 3) (i : ℕ) (hi : i < (e.data j).length) : (e.read j i).natAbs ≤ U := by
   have hb := h.bdd j (e.read j i)
     (by rw [e.read_eq j i hi, List.mem_toFinset]; exact List.getElem_mem hi)
-  rw [← Int.natCast_natAbs] at hb; exact_mod_cast hb
+  rw [← Int.natCast_natAbs] at hb
+  exact_mod_cast hb
 
 /-- Replacing a column by a duplicate-free subset preserves the existing size/magnitude promises. -/
 theorem Entry.Valid.child {e : Entry} {n U : ℕ} (h : e.Valid n U)
@@ -212,11 +214,13 @@ theorem Entry.Valid.child {e : Entry} {n U : ℕ} (h : e.Valid n U)
     (hsub : zs.toFinset ⊆ (e.data j).toFinset) : (e.child j base zs).Valid n U := by
   have hsub' (k : Fin 3) : ((e.child j base zs).data k).toFinset ⊆ (e.data k).toFinset := by
     by_cases he : k = j
-    · subst k; simpa only [Entry.child, Function.update_self] using hsub
+    · subst k
+      simpa only [Entry.child, Function.update_self] using hsub
     · simp only [Entry.child, Function.update_of_ne he, Finset.Subset.rfl]
   refine ⟨fun k => ?_, h.2.mono (hsub' 0) (hsub' 1) (hsub' 2)⟩
   by_cases he : k = j
-  · subst k; simpa only [Entry.child, Function.update_self] using hnd
+  · subst k
+    simpa only [Entry.child, Function.update_self] using hnd
   · simpa only [Entry.child, Function.update_of_ne he] using h.1 k
 
 /-- A child reuses both untouched data blocks and the actual newly written heavy block. -/

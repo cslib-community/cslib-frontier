@@ -138,7 +138,8 @@ private theorem card_le_aux (hP : ∀ u v, u <:+: v → P v → P u) :
         simp only [Finset.mem_filter] at hs hs'
         have := hTP s hs.1 s' hs'.1 (by omega)
         rwa [show s = v.length + (s - v.length) by omega,
-          show s' + 1 = v.length + (s' - v.length + 1) by omega, extract_append_left] at this
+          show s' + 1 = v.length + (s' - v.length + 1) by omega,
+          extract_append_left] at this
 
 /-- If `w` splits into at most `K` factors satisfying an infix-closed `P`, then every set `T` of
 positions of `w` such that no two of them lie in a common factor satisfying `P` has at most `K`

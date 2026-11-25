@@ -58,7 +58,8 @@ private theorem disjoint_insertedSet_activeKeys {U V n t₀ r : ℕ} (s : HardKe
   simp only [HardKeyValSeed.insertedSet, segInsertedKeys_apply, HardKeyValSeed.activeKeys,
     HardKeyValSeed.permKeyEmb, Finset.mem_image, Finset.mem_map, Finset.mem_univ, true_and,
     windowEmb_apply, Function.Embedding.trans_apply, Equiv.coe_toEmbedding] at hu hact
-  obtain ⟨j, rfl⟩ := hu; obtain ⟨k, hk⟩ := hact
+  obtain ⟨j, rfl⟩ := hu
+  obtain ⟨k, hk⟩ := hact
   have hge : s.keys (liftDelPerm s.delPerm ⟨n + (t₀ + j.val), by have := j.isLt; omega⟩) =
       s.keys ⟨n + (t₀ + j.val), by have := j.isLt; omega⟩ :=
     congrArg s.keys (liftDelPerm_apply_ge s.delPerm (by omega) (by have := j.isLt; omega))
@@ -119,7 +120,8 @@ theorem prob_isModeSeedConsistent_queryFreeInnerDist_le (withQueries : Bool)
       hact := fun τ _ s => ?_, Fg := _, hFg := fun _ => rfl, hne := fun s => ?_ }
   · dsimp only [pool]
     rw [actSeed8Equiv_activeKeys, Finset.map_sdiff]
-    congr 1; ext x
+    congr 1
+    ext x
     simp only [Finset.mem_univ, Finset.mem_map, Equiv.coe_toEmbedding, true_iff]
     exact ⟨τ.symm x, trivial, τ.apply_symm_apply x⟩
   · rw [← Finset.card_pos, card_inter_filter_powersetCard (hA s) (card_insertedSet s ht₀), hcard]
@@ -150,11 +152,13 @@ theorem expected_card_modeConsistent_segmentRest_lt_half_le (withQueries : Bool)
   dsimp only
   let ht₀ : t₀ + m ≤ n := by omega
   let pool (s : HardKeyValSeed U V n) := s.insertedSet t₀ r_rest hrest
-  have hcard_pool (s : HardKeyValSeed U V n) : (pool s).card = r_rest := card_insertedSet s hrest
+  have hcard_pool (s : HardKeyValSeed U V n) : (pool s).card = r_rest :=
+    card_insertedSet s hrest
   have hA_pool (s : HardKeyValSeed U V n) : s.insertedSet t₀ m ht₀ ⊆ pool s := fun u hu => by
     simp only [pool, HardKeyValSeed.insertedSet, segInsertedKeys_apply, Finset.mem_image,
       Finset.mem_univ, true_and] at hu ⊢
-    obtain ⟨r, rfl⟩ := hu; exact ⟨⟨r.val, by omega⟩, rfl⟩
+    obtain ⟨r, rfl⟩ := hu
+    exact ⟨⟨r.val, by omega⟩, rfl⟩
   have hne (s : HardKeyValSeed U V n) :
       (((pool s).powersetCard m).filter fun B =>
         (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2).Nonempty := by

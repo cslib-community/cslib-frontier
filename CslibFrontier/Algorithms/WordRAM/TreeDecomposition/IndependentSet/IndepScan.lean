@@ -247,7 +247,8 @@ private theorem noAdjScanProg_realizes :
       (Nat.add_lt_add_left hu_lt _).trans_le
         (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right m hx_lt)
     have hcur_fit : Fits w (st.cur + 1) := hptr_fit.of_le (by omega)
-    have hmul_fit : Fits w (d.x * d.numVerts) := by rw [hnv]; exact hadj_fit.of_le (by omega)
+    have hmul_fit : Fits w (d.x * d.numVerts) := by
+      rw [hnv]; exact hadj_fit.of_le (by omega)
     have hsum1_fit : Fits w (d.adjPtr + d.x * d.numVerts) := by
       rw [hnv]; exact hadj_fit.of_le (by omega)
     have hsum2_fit : Fits w (d.adjPtr + d.x * d.numVerts + t.mem st.cur) := by

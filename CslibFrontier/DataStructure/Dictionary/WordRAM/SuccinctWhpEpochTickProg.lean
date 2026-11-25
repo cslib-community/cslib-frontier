@@ -322,7 +322,8 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
   obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ :=
     checkEpochTickOkGenProg_spec henv hv.curEp_or hrep (s := s)
   dsimp only [fastOpCostWhp]
-  unfold fastStepPureGenProg; dsimp only
+  unfold fastStepPureGenProg
+  dsimp only
   rw [hwp1]
   simp only [pure_bind]
   set pDisp :=
@@ -352,7 +353,8 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
         simp only [↓reduceIte]
         omega
       · refine validProg_bind hck_vp ?_
-        rw [hck_st, hck_res]; exact hbody.2.1
+        rw [hck_st, hck_res]
+        exact hbody.2.1
       · have h22 := hbody.2.2
         cases hsp : fastStepPure c U n_max θ fs op <;> (
           rw [hsp] at h22
@@ -362,7 +364,8 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
     | query u =>
       dsimp only [pDisp, encodeOpWhp, fastStepPure]
       simp only [↓reduceIte]
-      unfold fastStepQueryProg; simp only [pure_bind]
+      unfold fastStepQueryProg
+      simp only [pure_bind]
       obtain ⟨hfq_st, hfq_res, hfq_mc, hfq_vp⟩ :=
         fastQueryGenProg_spec henv hseed hrep hv u (s := s)
       obtain ⟨fs', het_eq, het_mc, het_vp, het_step⟩ :=
@@ -384,7 +387,8 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
     | insert u v =>
       dsimp only [pDisp, encodeOpWhp, fastStepPure]
       simp only [one_ne_zero, ↓reduceIte]
-      unfold fastStepInsertProg; simp only [pure_bind]
+      unfold fastStepInsertProg
+      simp only [pure_bind]
       obtain ⟨hfi_mc, hfi_vp, hfi_m⟩ :=
         fastInsertGenProg_spec henv hseed hrep hv u hval_op.2 (s := s)
       set progIns := fastInsertGenProg (((mkWhpParams c U V w n_max, base), u.val), v)
@@ -436,7 +440,8 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
     | delete u =>
       dsimp only [pDisp, encodeOpWhp, fastStepPure]
       simp only [show ¬((2 : ℕ) = 0) by decide, show ¬((2 : ℕ) = 1) by decide, ↓reduceIte]
-      unfold fastStepDeleteProg; simp only [pure_bind]
+      unfold fastStepDeleteProg
+      simp only [pure_bind]
       obtain ⟨hcore1, _, hpre1, _⟩ := hv.fastDelete_spec u
       obtain ⟨hfd_mc, hfd_vp, hfd_step⟩ := fastDeleteGenProg_fastStep henv hseed hrep hv u (s := s)
       set s1 := (Memory.spec 0).clientState s
