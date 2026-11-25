@@ -406,6 +406,71 @@ private theorem uniform_fin_guess_mul {N : ℕ} [NeZero N] (μ : PMF (Bool × Fi
   | false => simp
   | true => simp
 
+private theorem targetHit_le_yAtJ_check
+    {PK SK Target Preimage : Type} [DecidableEq Target] [Fintype Target] [Nonempty Target]
+    (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK)
+    (sigStar : Option Preimage) (notSigned : Bool) {q_H : ℕ} (hCount : ℕ) (jStar : Fin (q_H + 1))
+    (yAtJ : Option Target) (hit : Option (Target × Option ℕ))
+    (hcount_le : hCount ≤ q_H)
+    (hnone : hCount ≤ jStar.val → yAtJ = none)
+    (hhit_none : ∀ y, hit = some (y, none) → notSigned = false)
+    (hhit_lt : ∀ y k, hit = some (y, some k) → k < hCount)
+    (hhit_j : ∀ y, hit = some (y, some jStar.val) → yAtJ = some y) :
+    ((match hit with
+      | some (y, idxOpt) =>
+          PMF.pure ((sys.check pk y sigStar && notSigned) &&
+            decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar))
+      | none =>
+          (PMF.uniformOfFintype Target).map fun y =>
+            (sys.check pk y sigStar && notSigned) &&
+              decide (Fin.ofNat (q_H + 1) hCount = jStar)) true) ≤
+    ((match yAtJ with
+      | some yStar => PMF.pure (sys.check pk yStar sigStar)
+      | none =>
+          (PMF.uniformOfFintype Target).map fun yStar => sys.check pk yStar sigStar) true) := by
+  cases hit with
+  | some yk =>
+    rcases yk with ⟨y, idxOpt⟩
+    dsimp only
+    by_cases hwin : (sys.check pk y sigStar && notSigned) &&
+        decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar) = true
+    · simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin
+      obtain ⟨⟨hchk, hnot_signed⟩, hidx_eq⟩ := hwin
+      cases idxOpt with
+      | none => exact absurd (hhit_none y rfl) (by simp [hnot_signed])
+      | some k =>
+        have hk_lt : k < q_H + 1 := Nat.lt_succ_of_le ((hhit_lt y k rfl).le.trans hcount_le)
+        have hk_eq : k = jStar.val := by
+          have := congrArg Fin.val hidx_eq
+          simpa [Fin.val_ofNat, Nat.mod_eq_of_lt hk_lt] using this
+        subst hk_eq
+        rw [hhit_j y rfl]
+        simp [hchk, hnot_signed]
+    · have hfalse : ((sys.check pk y sigStar && notSigned) &&
+          decide (Fin.ofNat (q_H + 1) (idxOpt.getD hCount) = jStar)) = false :=
+        Bool.eq_false_iff.mpr hwin
+      rw [hfalse]
+      simp only [PMF.pure_apply, Bool.true_eq_false, ↓reduceIte]
+      exact zero_le
+  | none =>
+    dsimp only
+    by_cases hidx_eq : Fin.ofNat (q_H + 1) hCount = jStar
+    · have hcnt_eq : hCount = jStar.val := by
+        have := congrArg Fin.val hidx_eq
+        simpa [Fin.val_ofNat, Nat.mod_eq_of_lt (Nat.lt_succ_of_le hcount_le)] using this
+      rw [hnone (le_of_eq hcnt_eq)]
+      dsimp only
+      simp only [hidx_eq, decide_true, Bool.and_true]
+      refine PMF.map_true_mono _ fun y _ h => (Bool.and_eq_true_iff.mp h).1
+    · have hzero :
+          ((PMF.uniformOfFintype Target).map fun y =>
+            (sys.check pk y sigStar && notSigned) &&
+              decide (Fin.ofNat (q_H + 1) hCount = jStar)) true = 0 := by
+        simp only [decide_eq_false hidx_eq, Bool.and_false, PMF.map_apply, Bool.true_eq_false,
+          ↓reduceIte, tsum_zero]
+      rw [hzero]
+      exact zero_le
+
 end GuessingHelper
 
 /-! ### Classical ROM EUF-CMA for salted hash-and-sign -/
@@ -494,30 +559,22 @@ theorem saltedPSDistinguisher_queryBound {Salt : Type} [DecidableEq M] [Decidabl
           exact (ProbOracleComp.IsQueryBounded.sample
             (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Target)).bind
               fun y => OracleComp.IsCostBounded.pure _ 0
-  have hpost :
-      ∀ res : (M × Salt × Option Preimage) × List ((M × Salt) × Target) × List M,
-        ProbOracleComp.IsQueryBounded
-          (let ((mStar, rStar, sigStar), (cache, signed)) := res
-           do
-            let yStar ←
-              match cache.lookup (mStar, rStar) with
-              | some y => pure y
-              | none => (ProbOracleComp.sample
-                  (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Target))
-            return sys.check pk yStar sigStar && !signed.contains mStar) 0 := by
-    rintro ⟨⟨mStar, rStar, sigStar⟩, cache, signed⟩
-    dsimp only
-    cases cache.lookup (mStar, rStar) with
-    | some y =>
-      simpa only [pure_bind] using
-        (OracleComp.IsCostBounded.pure (cost := Sum.elim (fun _ => 0) fun _ => 1)
-          (sys.check pk y sigStar && !signed.contains mStar) 0)
-    | none =>
-      exact (ProbOracleComp.IsQueryBounded.sample
+  dsimp only [saltedPSDistinguisher]
+  rw [← Nat.add_zero q_S]
+  refine hbody.bind ?_
+  rintro ⟨⟨mStar, rStar, sigStar⟩, cache, signed⟩
+  dsimp only
+  cases cache.lookup (mStar, rStar) with
+  | some y =>
+    simpa only [pure_bind] using
+      (OracleComp.IsCostBounded.pure (cost := Sum.elim (fun _ => 0) fun _ => 1)
+        (sys.check pk y sigStar && !signed.contains mStar) 0)
+  | none =>
+    simpa only [add_zero] using
+      (ProbOracleComp.IsQueryBounded.sample
         (spec := fun _ : Unit => Target × Option Preimage) (ProbComp.uniform Target)).bind
-          fun y' => OracleComp.IsCostBounded.pure
-            (sys.check pk y' sigStar && !signed.contains mStar) 0
-  simpa only [saltedPSDistinguisher, add_zero] using hbody.bind hpost
+        fun y' => OracleComp.IsCostBounded.pure
+          (sys.check pk y' sigStar && !signed.contains mStar) 0
 
 /-- Stateful handler of `saltedInverter`: signing simulates `(y, x) ← sampleSimPair pk` and
 overwrites the cache without advancing `hCount`; the `jStar`-th fresh direct hash query embeds
@@ -1346,52 +1403,43 @@ private theorem saltedSim_le_mul_targetExperiment {Salt : Type} [DecidableEq M] 
   rw [PMF.map_bind]
   refine PMF.bind_apply_mono_on_support _ _ fun ⟨⟨mStar, rStar, sigStar⟩, st⟩ hmem => ?_
   obtain ⟨hcount_le, hnone, hsign, hlt, hyj⟩ := hbound_hCount (mStar, (rStar, sigStar)) st hmem
-  cases hlu : st.cache.lookup (mStar, rStar) with
-  | some yk =>
-    obtain ⟨y, idxOpt⟩ := yk
-    have hpair_mem : ((mStar, rStar), (y, idxOpt)) ∈ st.cache :=
-      mem_of_lookup_eq_some hlu
-    simp only [PMF.pure_map]
-    by_cases hwin : (sys.check pk y sigStar && !st.signed.contains mStar) &&
-        decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar) = true
-    · simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
-        decide_eq_false_iff_not, decide_eq_true_eq] at hwin
-      obtain ⟨⟨hchk, hnot_signed⟩, hidx_eq⟩ := hwin
-      cases idxOpt with
-      | none => exact absurd (hsign mStar rStar y hpair_mem) hnot_signed
-      | some k =>
-        have hk_lt : k < q_H + 1 := Nat.lt_succ_of_le (Nat.le_of_lt_succ (Nat.lt_succ_of_lt
-          ((hlt (mStar, rStar) y k hpair_mem).trans_le hcount_le)))
-        have hk_eq : k = jStar.val := by
-          have := congrArg Fin.val hidx_eq
-          simpa [Fin.val_ofNat, Nat.mod_eq_of_lt hk_lt] using this
-        subst hk_eq
-        have hyj_eq : st.yAtJ = some y := hyj (mStar, rStar) y hpair_mem
-        simp [saltedRelate, hyj_eq, hchk, hnot_signed]
-    · have hfalse : ((sys.check pk y sigStar && !st.signed.contains mStar) &&
-          decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar)) = false :=
-        Bool.eq_false_iff.mpr hwin
-      rw [hfalse]
-      simp only [PMF.pure_apply, Bool.true_eq_false, ↓reduceIte]
-      exact zero_le
-  | none =>
-    simp only [PMF.map_comp, Function.comp_def]
-    by_cases hidx_eq : Fin.ofNat (q_H + 1) st.hCount = jStar
-    · have hcnt_eq : st.hCount = jStar.val := by
-        have := congrArg Fin.val hidx_eq
-        simpa [Fin.val_ofNat, Nat.mod_eq_of_lt (Nat.lt_succ_of_le hcount_le)] using this
-      have hyj_none : st.yAtJ = none := hnone (le_of_eq hcnt_eq)
-      simp only [saltedRelate, hyj_none, PMF.map_comp, Function.comp_def, hidx_eq, decide_true,
-        Bool.and_true]
-      refine PMF.map_true_mono _ fun y _ h => (Bool.and_eq_true_iff.mp h).1
-    · have hzero :
-          (PMF.map (fun y => (sys.check pk y sigStar && !st.signed.contains mStar) &&
-            decide (Fin.ofNat (q_H + 1) st.hCount = jStar))
-            (PMF.uniformOfFintype Target)) true = 0 := by
-        simp only [decide_eq_false hidx_eq, Bool.and_false, PMF.map_apply, Bool.true_eq_false,
-          ↓reduceIte, tsum_zero]
-      rw [hzero]
-      exact zero_le
+  have hL :
+      ((match st.cache.lookup (mStar, rStar) with
+        | some (y, idxOpt) =>
+            PMF.pure (sys.check pk y sigStar && !st.signed.contains mStar,
+              Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount))
+        | none =>
+            (PMF.uniformOfFintype Target).map fun y =>
+              (sys.check pk y sigStar && !st.signed.contains mStar,
+                Fin.ofNat (q_H + 1) st.hCount)).map
+        fun (p : Bool × Fin (q_H + 1)) => p.1 && decide (p.2 = jStar)) true =
+      ((match st.cache.lookup (mStar, rStar) with
+        | some (y, idxOpt) =>
+            PMF.pure ((sys.check pk y sigStar && !st.signed.contains mStar) &&
+              decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar))
+        | none =>
+            (PMF.uniformOfFintype Target).map fun y =>
+              (sys.check pk y sigStar && !st.signed.contains mStar) &&
+                decide (Fin.ofNat (q_H + 1) st.hCount = jStar)) true) := by
+    cases st.cache.lookup (mStar, rStar) <;>
+      simp [PMF.pure_map, PMF.map_comp, Function.comp_def]
+  have hR :
+      ((saltedRelate st).map fun ⟨_, yStar⟩ => sys.check pk yStar sigStar) true =
+      ((match st.yAtJ with
+        | some yStar => PMF.pure (sys.check pk yStar sigStar)
+        | none => (PMF.uniformOfFintype Target).map fun yStar => sys.check pk yStar sigStar)
+        true) := by
+    cases hy : st.yAtJ <;>
+      simp [saltedRelate, hy, PMF.pure_map, PMF.map_comp, Function.comp_def]
+  rw [hL, hR]
+  refine targetHit_le_yAtJ_check sys pk sigStar (!st.signed.contains mStar) st.hCount jStar
+    st.yAtJ (st.cache.lookup (mStar, rStar)) hcount_le hnone ?_ ?_ ?_
+  · intro y hlu
+    simp [hsign mStar rStar y (mem_of_lookup_eq_some hlu)]
+  · intro y k hlu
+    exact hlt (mStar, rStar) y k (mem_of_lookup_eq_some hlu)
+  · intro y hlu
+    exact hyj (mStar, rStar) y (mem_of_lookup_eq_some hlu)
 
 /-- **Classical ROM EUF-CMA reduction for salted hash-and-sign (`ProbOracleComp` form)**,
 after `[KosugeXagawa2022]`, Theorem 1 (classical-ROM specialization, p. 18) and Figure 4, adapted
@@ -3199,6 +3247,27 @@ private theorem detOneInv_init {M Target Preimage : Type} (jStar : ℕ) :
   · intro m y xOpt k hm; cases hm
   · intro m y xOpt hm; cases hm
 
+private theorem detOneInv_cons_cache {M Target Preimage : Type} {jStar : ℕ}
+    {st : DetOneState M Target Preimage} {m : M} {y : Target} {xOpt : Option (Option Preimage)}
+    {yAtJ' : Option Target}
+    (hsign : ∀ m' y' x', (m', (y', x', none)) ∈ st.cache → m' ∈ st.signed)
+    (hlt : ∀ m' y' x' k, (m', (y', x', some k)) ∈ st.cache → k < st.hCount)
+    (hnone' : st.hCount + 1 ≤ jStar → yAtJ' = none)
+    (hyj' : ∀ m' y' x', (m', (y', x', some jStar)) ∈ (m, (y, xOpt, some st.hCount)) :: st.cache →
+      yAtJ' = some y') :
+    DetOneInv jStar
+      ⟨(m, (y, xOpt, some st.hCount)) :: st.cache, st.signed, st.hCount + 1, yAtJ'⟩ := by
+  refine ⟨hnone', ?_, ?_, hyj'⟩
+  · intro m' y' x' hm'
+    rcases List.mem_cons.mp hm' with hhd | htl
+    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
+    · exact hsign m' y' x' htl
+  · intro m' y' x' k hm'
+    rcases List.mem_cons.mp hm' with hhd | htl
+    · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
+      injection h4 with hk; subst hk; dsimp only; omega
+    · exact Nat.lt_succ_of_lt (hlt m' y' x' k htl)
+
 private theorem detOneInv_step [DecidableEq M]
     (sys : TrapdoorPreimageSystem PK SK Target Preimage) (pk : PK) (jStar : ℕ)
     (μStar : PMF Target) :
@@ -3253,39 +3322,21 @@ private theorem detOneInv_step [DecidableEq M]
         obtain ⟨y, -, hpair⟩ := hstep
         rw [Prod.mk.injEq] at hpair
         obtain ⟨-, rfl⟩ := hpair
-        refine ⟨fun hle => by dsimp only at hle; omega, ?_, ?_, ?_⟩
-        · intro m' y' x' hm'
-          rcases List.mem_cons.mp hm' with hhd | htl
-          · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-          · exact hsign m' y' x' htl
-        · intro m' y' x' k hm'
-          rcases List.mem_cons.mp hm' with hhd | htl
-          · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-            injection h4 with hk; subst hk; dsimp only; omega
-          · exact Nat.lt_succ_of_lt (hlt m' y' x' k htl)
-        · intro m' y' x' hm'
-          rcases List.mem_cons.mp hm' with hhd | htl
-          · injection hhd with _ h2; injection h2 with hy' _; subst hy'; rfl
-          · have := hlt m' y' x' jStar htl; omega
+        refine detOneInv_cons_cache hsign hlt (fun hle => by omega) ?_
+        intro m' y' x' hm'
+        rcases List.mem_cons.mp hm' with hhd | htl
+        · injection hhd with _ h2; injection h2 with hy' _; subst hy'; rfl
+        · have := hlt m' y' x' jStar htl; omega
       · rw [PMF.mem_support_map_iff] at hstep
         obtain ⟨yx, -, hpair⟩ := hstep
         rw [Prod.mk.injEq] at hpair
         obtain ⟨-, rfl⟩ := hpair
-        refine ⟨fun hle => hnone (Nat.le_of_succ_le hle), ?_, ?_, ?_⟩
-        · intro m' y' x' hm'
-          rcases List.mem_cons.mp hm' with hhd | htl
-          · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4; cases h4
-          · exact hsign m' y' x' htl
-        · intro m' y' x' k hm'
-          rcases List.mem_cons.mp hm' with hhd | htl
-          · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-            injection h4 with hk; subst hk; dsimp only; omega
-          · exact Nat.lt_succ_of_lt (hlt m' y' x' k htl)
-        · intro m' y' x' hm'
-          rcases List.mem_cons.mp hm' with hhd | htl
-          · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
-            injection h4 with hk; exact absurd hk.symm heq
-          · exact hyj m' y' x' htl
+        refine detOneInv_cons_cache hsign hlt (fun hle => hnone (Nat.le_of_succ_le hle)) ?_
+        intro m' y' x' hm'
+        rcases List.mem_cons.mp hm' with hhd | htl
+        · injection hhd with _ h2; injection h2 with _ h3; injection h3 with _ h4
+          injection h4 with hk; exact absurd hk.symm heq
+        · exact hyj m' y' x' htl
 
 /-- Unified upfront-vs-lazy embedding simulation for `detScheme`, parameterized by any `μStar`. -/
 private theorem detOneTrack_sim_detOneEmbed [DecidableEq M]
@@ -4279,51 +4330,52 @@ private theorem detPSOneReal_le_targetExperiment [DecidableEq M] [DecidableEq Ta
   refine PMF.bind_apply_mono_on_support _ _ fun ⟨⟨mStar, sigStar⟩, st⟩ hmem => ?_
   obtain ⟨hcount_le, hnone, hsign, hlt, hyj⟩ := hbound_one (mStar, sigStar) st hmem
   dsimp only
-  cases hlu : st.cache.lookup mStar with
-  | some yxk =>
-    dsimp only
-    rcases yxk with ⟨y, xOpt, idxOpt⟩
-    have hpmem := mem_of_lookup_eq_some hlu
-    by_cases hwin : (sys.check pk y sigStar && !st.signed.contains mStar) &&
-        decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar) = true
-    · simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
-        decide_eq_false_iff_not, decide_eq_true_eq] at hwin
-      obtain ⟨⟨hchk, hnot_signed⟩, hidx_eq⟩ := hwin
-      cases idxOpt with
-      | none => exact absurd (hsign mStar y xOpt hpmem) hnot_signed
-      | some k =>
-        have hk_lt : k < q_H + 1 := Nat.lt_succ_of_le
-          ((hlt mStar y xOpt k hpmem).le.trans hcount_le)
-        have hk_eq : k = jStar.val := by
-          have := congrArg Fin.val hidx_eq
-          simpa [Fin.val_ofNat, Nat.mod_eq_of_lt hk_lt] using this
-        subst hk_eq
-        have hyj_eq : st.yAtJ = some y := hyj mStar y xOpt hpmem
-        simp [detOneRelate, hyj_eq, hchk, hnot_signed]
-    · have hfalse : ((sys.check pk y sigStar && !st.signed.contains mStar) &&
-          decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar)) = false :=
-        Bool.eq_false_iff.mpr hwin
-      rw [hfalse]
-      simp only [PMF.pure_apply, Bool.true_eq_false, ↓reduceIte]
-      exact zero_le
-  | none =>
-    dsimp only
-    by_cases hidx_eq : Fin.ofNat (q_H + 1) st.hCount = jStar
-    · have hcnt_eq : st.hCount = jStar.val := by
-        have := congrArg Fin.val hidx_eq
-        simpa [Fin.val_ofNat, Nat.mod_eq_of_lt (Nat.lt_succ_of_le hcount_le)] using this
-      have hyj_none : st.yAtJ = none := hnone (le_of_eq hcnt_eq)
-      simp only [detOneRelate, hyj_none, PMF.map_comp, Function.comp_def, hidx_eq, decide_true,
-        Bool.and_true]
-      refine PMF.map_true_mono _ fun y _ h => (Bool.and_eq_true_iff.mp h).1
-    · have hzero :
-          (PMF.map (fun y => (sys.check pk y sigStar && !st.signed.contains mStar) &&
-            decide (Fin.ofNat (q_H + 1) st.hCount = jStar))
-            (PMF.uniformOfFintype Target)) true = 0 := by
-        simp only [decide_eq_false hidx_eq, Bool.and_false, PMF.map_apply, Bool.true_eq_false,
-          ↓reduceIte, tsum_zero]
-      rw [hzero]
-      exact zero_le
+  let hit : Option (Target × Option ℕ) :=
+    (st.cache.lookup mStar).map fun ⟨y, _, idxOpt⟩ => (y, idxOpt)
+  have hL :
+      (match st.cache.lookup mStar with
+        | some (y, _, idxOpt) =>
+            PMF.pure ((sys.check pk y sigStar && !st.signed.contains mStar) &&
+              decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar))
+        | none =>
+            (PMF.uniformOfFintype Target).map fun y =>
+              (sys.check pk y sigStar && !st.signed.contains mStar) &&
+                decide (Fin.ofNat (q_H + 1) st.hCount = jStar)) true =
+      ((match hit with
+        | some (y, idxOpt) =>
+            PMF.pure ((sys.check pk y sigStar && !st.signed.contains mStar) &&
+              decide (Fin.ofNat (q_H + 1) (idxOpt.getD st.hCount) = jStar))
+        | none =>
+            (PMF.uniformOfFintype Target).map fun y =>
+              (sys.check pk y sigStar && !st.signed.contains mStar) &&
+                decide (Fin.ofNat (q_H + 1) st.hCount = jStar)) true) := by
+    dsimp only [hit]
+    cases st.cache.lookup mStar <;> rfl
+  have hR :
+      ((detOneRelate (PMF.uniformOfFintype Target) st).map fun (_, yStar) =>
+          sys.check pk yStar sigStar) true =
+      ((match st.yAtJ with
+        | some yStar => PMF.pure (sys.check pk yStar sigStar)
+        | none => (PMF.uniformOfFintype Target).map fun yStar => sys.check pk yStar sigStar)
+        true) := by
+    cases hy : st.yAtJ <;>
+      simp [detOneRelate, hy, PMF.pure_map, PMF.map_comp, Function.comp_def]
+  rw [hL, hR]
+  refine targetHit_le_yAtJ_check sys pk sigStar (!st.signed.contains mStar) st.hCount jStar
+    st.yAtJ hit hcount_le hnone
+    ?_ ?_ ?_
+  · intro y hlu
+    rcases Option.map_eq_some_iff.mp hlu with ⟨⟨y', xOpt, idxOpt⟩, hlu', hpair⟩
+    cases hpair
+    simp [hsign mStar y xOpt (mem_of_lookup_eq_some hlu')]
+  · intro y k hlu
+    rcases Option.map_eq_some_iff.mp hlu with ⟨⟨y', xOpt, idxOpt⟩, hlu', hpair⟩
+    cases hpair
+    exact hlt mStar y xOpt k (mem_of_lookup_eq_some hlu')
+  · intro y hlu
+    rcases Option.map_eq_some_iff.mp hlu with ⟨⟨y', xOpt, idxOpt⟩, hlu', hpair⟩
+    cases hpair
+    exact hyj mStar y xOpt (mem_of_lookup_eq_some hlu')
 
 /-- **Classical ROM EUF-CMA reduction for deterministic unsalted hash-and-sign
 (`ProbOracleComp` form)**, original to this library (adapting the `(q_H + 1)` programming
@@ -4866,29 +4918,11 @@ def romFindBindingCollision
     (accepted :
       List (AnonymousToken.Conservation.Request Nullifier Context Opening Commitment Sig)) :
     Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening :=
-  let fallback :
-      Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening :=
-    { commitment := com default default 0 default
-      msg₀ := (default, default, 0)
-      opening₀ := default
-      msg₁ := (default, default, 0)
-      opening₁ := default }
-  match AnonymousToken.Conservation.findNoteForgery accepted with
-  | none => fallback
-  | some tok =>
-    let tgt := AnonymousToken.Credit.target com Prod.mk tok.payload.message tok.payload.opening
-    match accepted.find? fun r => decide (r.signedMessage Prod.mk = tgt) with
-    | none => fallback
-    | some r =>
-      let n₀ := tok.payload.message
-      let r₀ := tok.payload.opening
-      let n₁ := r.outputPayload.message
-      let r₁ := r.outputPayload.opening
-      { commitment := com n₀.nullifier n₀.context n₀.credit r₀
-        msg₀ := (n₀.nullifier, n₀.context, n₀.credit)
-        opening₀ := r₀
-        msg₁ := (n₁.nullifier, n₁.context, n₁.credit)
-        opening₁ := r₁ }
+  AnonymousToken.Conservation.noteBindingCollisionOrTrivial com
+    ((AnonymousToken.Conservation.findNoteForgery accepted).bind fun tok =>
+      let tgt := AnonymousToken.Credit.target com Prod.mk tok.payload.message tok.payload.opening
+      (accepted.find? fun r => decide (r.signedMessage Prod.mk = tgt)).map
+        fun r => ⟨tok.payload, r.outputPayload⟩)
 
 /-- Generic ROM commitment-binding experiment induced by `runROMExtractedConservation` against a
 keyless commitment scheme `CS`. -/
@@ -5533,8 +5567,10 @@ theorem romExtractedConservationExperiment_succProbability_le
           have hcoll :
               CS.isBindingCollision k (romFindBindingCollision com accepted) = true := by
             dsimp only [tgt] at hr_find
-            simp only [romFindBindingCollision, hfn,
-              AnonymousToken.Conservation.SpendRequest.inputPayload, hr_find,
+            simp only [romFindBindingCollision, hfn, Option.bind_some, hr_find, Option.map_some,
+              AnonymousToken.Conservation.noteBindingCollisionOrTrivial,
+              AnonymousToken.Conservation.noteBindingCollision,
+              AnonymousToken.Conservation.SpendRequest.inputPayload,
               Crypto.Commitment.Scheme.isBindingCollision, Bool.and_eq_true, decide_eq_true_eq]
             refine ⟨⟨hne, ?_⟩, ?_⟩
             · rw [hverify]; exact decide_eq_true rfl
