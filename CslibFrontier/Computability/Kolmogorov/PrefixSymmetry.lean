@@ -112,20 +112,34 @@ theorem condUniversalPrefix_produces_iff {y : ℕ} {q : List Bool} {x : ℕ} :
     (condUniversalPrefix y).Produces q x ↔
       ∃ c p, parseCodeHeader q = some (c, p) ∧ (ofPrefixCode (c.curry y)).Produces p x := by
   simp only [Produces, condUniversalPrefix]
-  cases h : parseCodeHeader q with
-  | none =>
-    simp only [Computation.notMem_empty, false_iff, not_exists, not_and]
-    intro c p hc
-    cases hc
-  | some cp =>
-    rcases cp with ⟨c, p⟩
-    simp
+  rcases parseCodeHeader q with _ | ⟨c, p⟩ <;> simp [Computation.notMem_empty]
 
 theorem condUniversalPrefix_produces_codeHeader_append {y : ℕ} {c : Code} {p : List Bool}
     {x : ℕ} :
     (condUniversalPrefix y).Produces (codeHeader c ++ p) x ↔
       (ofPrefixCode (c.curry y)).Produces p x := by
   rw [Produces, condUniversalPrefix_run_codeHeader_append, Produces]
+
+/-- A natural-number bound on the extended complexity also bounds the complexity. -/
+private theorem complexity_le_of_ecomplexity_le {α : Type*} {M : DescriptionMethod α} {x : α}
+    {n : ℕ} (h : M.ecomplexity x ≤ n) : M.complexity x ≤ n :=
+  ENat.natCast_le_natCast.mp
+    ((natCast_complexity (ne_top_of_le_ne_top (ENat.natCast_ne_top n) h)).trans_le h)
+
+/-- A finite complexity is attained by a program of exactly that length. -/
+private theorem exists_length_eq_complexity {α : Type*} {M : DescriptionMethod α} {x : α}
+    (h : M.ecomplexity x ≠ ⊤) : ∃ p, M.Produces p x ∧ p.length = M.complexity x := by
+  obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity h
+  exact ⟨p, hp, ENat.natCast_inj.mp (hlen.trans (natCast_complexity h).symm)⟩
+
+/-- If every `N`-program `q` for `z` yields `C_M(w) ≤ |q| + c`, then `C_M(w) ≤ C_N(z) + c`. -/
+private theorem complexity_le_complexity_add {α β : Type*} {M : DescriptionMethod α}
+    {N : DescriptionMethod β} {w : α} {z : β} {c : ℕ} (hz : N.ecomplexity z ≠ ⊤)
+    (h : ∀ q, N.Produces q z → M.ecomplexity w ≤ q.length + c) :
+    M.complexity w ≤ N.complexity z + c := by
+  obtain ⟨q, hq, hlen⟩ := exists_length_eq_complexity hz
+  rw [← hlen]
+  exact complexity_le_of_ecomplexity_le (mod_cast h q hq)
 
 /-- For every condition `y`, `condUniversalPrefix y` is prefix-free. -/
 theorem isPrefixFree_condUniversalPrefix (y : ℕ) : (condUniversalPrefix y).IsPrefixFree := by
@@ -186,18 +200,14 @@ theorem exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ {f : ℕ → Lis
     ∃ c : ℕ, ∀ y q x, x ∈ f y q → (condUniversalPrefix y).ecomplexity x ≤ q.length + c := by
   obtain ⟨c, hc⟩ := Code.exists_code.mp hf
   refine ⟨(codeHeader c).length, fun y q x hx => ?_⟩
-  have hcode_pf : (ofCode (c.curry y)).IsPrefixFree := by
-    rintro p₁ ⟨x₁, h₁⟩ p₂ ⟨x₂, h₂⟩ hp
-    rw [ofCode_produces_iff, Code.eval_curry, hc] at h₁ h₂
-    have h₁' : (f y p₁).Dom := Part.dom_iff_mem.mpr ⟨x₁, by simpa using h₁⟩
-    have h₂' : (f y p₂).Dom := Part.dom_iff_mem.mpr ⟨x₂, by simpa using h₂⟩
-    exact hpf y p₁ h₁' p₂ h₂' hp
-  have hprod : (ofCode (c.curry y)).Produces q x := by
+  have hiff : ∀ p z, (ofCode (c.curry y)).Produces p z ↔ z ∈ f y p := fun p z => by
     rw [ofCode_produces_iff, Code.eval_curry, hc]
-    simpa using hx
+    simp
+  have hcode_pf : (ofCode (c.curry y)).IsPrefixFree :=
+    (hpf y).anti fun p ⟨z, hz⟩ => Part.dom_iff_mem.mpr ⟨z, (hiff p z).mp hz⟩
   have hcond : (condUniversalPrefix y).Produces (codeHeader c ++ q) x :=
     condUniversalPrefix_produces_codeHeader_append.mpr
-      ((ofPrefixCode_produces_iff_of_isPrefixFree hcode_pf).mpr hprod)
+      ((ofPrefixCode_produces_iff_of_isPrefixFree hcode_pf).mpr ((hiff q x).mpr hx))
   exact (ecomplexity_le_length hcond).trans (by rw [List.length_append, Nat.cast_add, add_comm])
 
 /-- Conditional prefix-free invariance for conditional description methods. -/
@@ -205,12 +215,8 @@ theorem IsCondPartrec.exists_ecomplexity_condUniversalPrefix_le
     {N : ℕ → DescriptionMethod ℕ} (hN : IsCondPartrec N) (hpf : ∀ y, (N y).IsPrefixFree) :
     ∃ c : ℕ, ∀ y x, (condUniversalPrefix y).ecomplexity x ≤ (N y).ecomplexity x + c := by
   obtain ⟨f, hf, hN_eq⟩ := hN
-  have hf_pf : ∀ y, InformationTheory.IsPrefixFree {p | (f y p).Dom} := by
-    intro y p₁ h₁ p₂ h₂ hp
-    obtain ⟨x₁, hx₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨x₂, hx₂⟩ := Part.dom_iff_mem.mp h₂
-    exact hpf y p₁ ⟨x₁, (hN_eq y p₁ x₁).mpr hx₁⟩ p₂ ⟨x₂, (hN_eq y p₂ x₂).mpr hx₂⟩ hp
-  obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ hf hf_pf
+  obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ hf fun y =>
+    (hpf y).anti fun p h => (Part.dom_iff_mem.mp h).imp fun x => (hN_eq y p x).mpr
   refine ⟨c, fun y x => ?_⟩
   by_cases h : (N y).ecomplexity x = ⊤
   · simp [h]
@@ -221,14 +227,10 @@ theorem IsCondPartrec.exists_ecomplexity_condUniversalPrefix_le
 private theorem exists_ecomplexity_condUniversalPrefix_le :
     ∃ c : ℕ, ∀ y x, (condUniversalPrefix y).ecomplexity x ≤ universalPrefix.ecomplexity x + c := by
   obtain ⟨f, hf, hU⟩ := isPartrec_universalPrefix
-  have hpf : ∀ _ : ℕ, InformationTheory.IsPrefixFree {p | (f p).Dom} := by
-    intro _ p₁ h₁ p₂ h₂ hp
-    obtain ⟨x₁, hx₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨x₂, hx₂⟩ := Part.dom_iff_mem.mp h₂
-    exact isPrefixFree_universalPrefix p₁ ⟨x₁, (hU p₁ x₁).mpr hx₁⟩
-      p₂ ⟨x₂, (hU p₂ x₂).mpr hx₂⟩ hp
   obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂
-    (f := fun _ q => f q) (hf.comp Computable.snd) hpf
+    (f := fun _ q => f q) (hf.comp Computable.snd) fun _ =>
+      isPrefixFree_universalPrefix.anti fun p h =>
+        (Part.dom_iff_mem.mp h).imp fun x => (hU p x).mpr
   refine ⟨c, fun y x => ?_⟩
   obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universalPrefix_ne_top x)
   rw [← hlen]
@@ -251,10 +253,7 @@ theorem natCast_complexity_condUniversalPrefix (y x : ℕ) :
 theorem exists_complexity_condUniversalPrefix_le :
     ∃ c : ℕ, ∀ y x, (condUniversalPrefix y).complexity x ≤ universalPrefix.complexity x + c := by
   obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le
-  refine ⟨c, fun y x => ?_⟩
-  have h := hc y x
-  rw [← natCast_complexity_universalPrefix, ← natCast_complexity_condUniversalPrefix] at h
-  exact_mod_cast h
+  exact ⟨c, fun y x => complexity_le_of_ecomplexity_le (by simpa using hc y x)⟩
 
 /-- Self-complexity bound: `K(y | y) ≤ c`. -/
 theorem exists_complexity_condUniversalPrefix_self_le :
@@ -266,23 +265,16 @@ theorem exists_complexity_condUniversalPrefix_self_le :
     Primrec.ite (Primrec.eq.comp (Primrec.snd.comp Primrec.fst) (Primrec.const []))
       (Primrec.option_some.comp (Primrec.fst.comp Primrec.fst)) (Primrec.const Option.none)
   have hf : Partrec₂ f := Partrec.rfindOpt hstep.to_comp
-  have hpf : ∀ y : ℕ, InformationTheory.IsPrefixFree {q | (f y q).Dom} := by
-    intro y q₁ h₁ q₂ h₂ _
-    obtain ⟨_, hm₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨_, hm₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨_, hk₁⟩ := Nat.rfindOpt_spec hm₁
-    obtain ⟨_, hk₂⟩ := Nat.rfindOpt_spec hm₂
-    split_ifs at hk₁ with hq₁
-    · split_ifs at hk₂ with hq₂
-      · exact hq₁.trans hq₂.symm
-      · cases hk₂
-    · cases hk₁
-  obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ hf hpf
-  refine ⟨c, fun y => ?_⟩
+  have hnil : ∀ y q, (f y q).Dom → q = [] := fun y q h => by
+    obtain ⟨_, hm⟩ := Part.dom_iff_mem.mp h
+    obtain ⟨_, hk⟩ := Nat.rfindOpt_spec hm
+    by_contra hq
+    simp [hq] at hk
+  obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ hf
+    fun y q₁ h₁ q₂ h₂ _ => (hnil y q₁ h₁).trans (hnil y q₂ h₂).symm
+  refine ⟨c, fun y => complexity_le_of_ecomplexity_le ?_⟩
   have hy : y ∈ f y [] := Nat.rfindOpt_mono (fun _ h => h) |>.mpr ⟨0, by simp⟩
-  have h := hc y [] y hy
-  rw [← natCast_complexity_condUniversalPrefix, List.length_nil, Nat.cast_zero, zero_add] at h
-  exact_mod_cast h
+  simpa using hc y [] y hy
 
 private theorem exists_complexity_universalPrefix_bind_le {f : ℕ →. ℕ} (hf : Partrec f) :
     ∃ c : ℕ, ∀ x y : ℕ, y ∈ f x →
@@ -290,20 +282,14 @@ private theorem exists_complexity_universalPrefix_bind_le {f : ℕ →. ℕ} (hf
   obtain ⟨eval, heval, hU⟩ := isPartrec_universalPrefix
   let g : List Bool →. ℕ := fun q => (eval q).bind f
   have hg : Partrec g := Partrec.bind heval (hf.comp Computable.snd)
-  have hpf : InformationTheory.IsPrefixFree {q | (g q).Dom} := by
-    rintro q₁ h₁ q₂ h₂ hp
-    obtain ⟨y₁, hy₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨y₂, hy₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨x₁, hx₁, -⟩ := Part.mem_bind_iff.mp hy₁
-    obtain ⟨x₂, hx₂, -⟩ := Part.mem_bind_iff.mp hy₂
-    exact isPrefixFree_universalPrefix q₁ ⟨x₁, (hU q₁ x₁).mpr hx₁⟩
-      q₂ ⟨x₂, (hU q₂ x₂).mpr hx₂⟩ hp
+  have hpf : InformationTheory.IsPrefixFree {q | (g q).Dom} :=
+    isPrefixFree_universalPrefix.anti fun q h => by
+      obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp h
+      obtain ⟨x, hx, -⟩ := Part.mem_bind_iff.mp hy
+      exact ⟨x, (hU q x).mpr hx⟩
   obtain ⟨c, hc⟩ := minorizesPrefixPartrec_universalPrefix g hg hpf
-  refine ⟨c, fun x y hy => ?_⟩
-  obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universalPrefix_ne_top x)
-  have hpx := hc p y (Part.mem_bind_iff.mpr ⟨x, (hU p x).mp hp, hy⟩)
-  rw [hlen, ← natCast_complexity_universalPrefix, ← natCast_complexity_universalPrefix] at hpx
-  exact_mod_cast hpx
+  exact ⟨c, fun x y hy => complexity_le_complexity_add (ecomplexity_universalPrefix_ne_top x)
+    fun p hp => hc p y (Part.mem_bind_iff.mpr ⟨x, (hU p x).mp hp, hy⟩)⟩
 
 /-- Computing a computable transformation `φ : ℕ → ℕ` increases prefix-free complexity by at most
 a constant: `K(φ x) ≤ K(x) + c`. -/
@@ -332,13 +318,9 @@ theorem exists_complexity_condUniversalPrefix_le_of_partrec_map {g : ℕ →. �
     exact isPrefixFree_condUniversalPrefix x₁ q₁ ⟨z₁, (hC x₁ q₁ z₁).mpr hq₁⟩
       q₂ ⟨z₂, (hC x₁ q₂ z₂).mpr hq₂⟩ hpref
   obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ hf hpf
-  refine ⟨c, fun y x z hx => ?_⟩
-  obtain ⟨q, hq, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_condUniversalPrefix_ne_top x z)
-  have hf_mem : z ∈ f y q := Part.mem_bind_iff.mpr ⟨x, hx, (hC x q z).mp hq⟩
-  have h := hc y q z hf_mem
-  rw [hlen, ← natCast_complexity_condUniversalPrefix, ← natCast_complexity_condUniversalPrefix]
-    at h
-  exact_mod_cast h
+  exact ⟨c, fun y x z hx => complexity_le_complexity_add
+    (ecomplexity_condUniversalPrefix_ne_top x z)
+    fun q hq => hc y q z (Part.mem_bind_iff.mpr ⟨x, hx, (hC x q z).mp hq⟩)⟩
 
 /-- Conditional computable postprocessing: `K(φ y z | y) ≤ K(z | y) + c`. -/
 theorem exists_complexity_condUniversalPrefix_comp_le {φ : ℕ → ℕ → ℕ} (hφ : Computable₂ φ) :
@@ -348,21 +330,14 @@ theorem exists_complexity_condUniversalPrefix_comp_le {φ : ℕ → ℕ → ℕ}
   let f : ℕ → List Bool →. ℕ := fun y q => (evalC y q).map (φ y)
   have hf : Partrec₂ f :=
     hevalC.map (hφ.comp (Computable.fst.comp Computable.fst) Computable.snd).to₂
-  have hpf : ∀ y : ℕ, InformationTheory.IsPrefixFree {q | (f y q).Dom} := by
-    intro y q₁ h₁ q₂ h₂ hpref
-    obtain ⟨w₁, hw₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨w₂, hw₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨z₁, hz₁, -⟩ := (Part.mem_map_iff _).mp hw₁
-    obtain ⟨z₂, hz₂, -⟩ := (Part.mem_map_iff _).mp hw₂
-    exact isPrefixFree_condUniversalPrefix y q₁ ⟨z₁, (hC y q₁ z₁).mpr hz₁⟩
-      q₂ ⟨z₂, (hC y q₂ z₂).mpr hz₂⟩ hpref
+  have hpf : ∀ y : ℕ, InformationTheory.IsPrefixFree {q | (f y q).Dom} := fun y =>
+    (isPrefixFree_condUniversalPrefix y).anti fun q h => by
+      obtain ⟨w, hw⟩ := Part.dom_iff_mem.mp h
+      obtain ⟨z, hz, -⟩ := (Part.mem_map_iff _).mp hw
+      exact ⟨z, (hC y q z).mpr hz⟩
   obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ hf hpf
-  refine ⟨c, fun y z => ?_⟩
-  obtain ⟨q, hq, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_condUniversalPrefix_ne_top y z)
-  have h := hc y q (φ y z) (Part.mem_map (φ y) ((hC y q z).mp hq))
-  rw [hlen, ← natCast_complexity_condUniversalPrefix, ← natCast_complexity_condUniversalPrefix]
-    at h
-  exact_mod_cast h
+  exact ⟨c, fun y z => complexity_le_complexity_add (ecomplexity_condUniversalPrefix_ne_top y z)
+    fun q hq => hc y q (φ y z) (Part.mem_map (φ y) ((hC y q z).mp hq))⟩
 
 /-- Binary-string conditional universal prefix-free description method. -/
 @[expose] noncomputable def condUniversalPrefixBits (y : List Bool) :
@@ -401,23 +376,16 @@ private theorem exists_complexity_universalPrefix_comp_universalPrefixBits_le
     hψ.comp (Computable.option_getD Computable.decode (Computable.const ([] : List Bool)))
   let g : List Bool →. ℕ := fun q => (f q).map φ
   have hg : Partrec g := hf.map (hφ.comp Computable.snd).to₂
-  have hpf : InformationTheory.IsPrefixFree {q | (g q).Dom} := by
-    rintro q₁ h₁ q₂ h₂ hp
-    obtain ⟨x₁, hx₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨x₂, hx₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨n₁, hn₁, -⟩ := (Part.mem_map_iff _).mp hx₁
-    obtain ⟨n₂, hn₂, -⟩ := (Part.mem_map_iff _).mp hx₂
-    exact isPrefixFree_universalPrefix q₁ ⟨n₁, (hU q₁ n₁).mpr hn₁⟩
-      q₂ ⟨n₂, (hU q₂ n₂).mpr hn₂⟩ hp
+  have hpf : InformationTheory.IsPrefixFree {q | (g q).Dom} :=
+    isPrefixFree_universalPrefix.anti fun q h => by
+      obtain ⟨x, hx⟩ := Part.dom_iff_mem.mp h
+      obtain ⟨n, hn, -⟩ := (Part.mem_map_iff _).mp hx
+      exact ⟨n, (hU q n).mpr hn⟩
   obtain ⟨c, hc⟩ := minorizesPrefixPartrec_universalPrefix g hg hpf
-  refine ⟨c, fun x => ?_⟩
-  obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universalPrefixBits_ne_top x)
-  rw [universalPrefixBits, map_produces_iff] at hp
-  obtain ⟨n, hpn, hnx⟩ := hp
-  have hmem : ψ x ∈ g p := (Part.mem_map_iff _).mpr ⟨n, (hU p n).mp hpn, congrArg ψ hnx⟩
-  have h := hc p (ψ x) hmem
-  rw [hlen, ← natCast_complexity_universalPrefixBits, ← natCast_complexity_universalPrefix] at h
-  exact_mod_cast h
+  refine ⟨c, fun x => complexity_le_complexity_add (ecomplexity_universalPrefixBits_ne_top x)
+    fun p hp => ?_⟩
+  obtain ⟨n, hpn, hnx⟩ := map_produces_iff.mp hp
+  exact hc p (ψ x) ((Part.mem_map_iff _).mpr ⟨n, (hU p n).mp hpn, congrArg ψ hnx⟩)
 
 private theorem exists_complexity_bits_encode_le_universalPrefixBits :
     ∃ c : ℕ, ∀ x : List Bool,
@@ -425,12 +393,10 @@ private theorem exists_complexity_bits_encode_le_universalPrefixBits :
   exists_complexity_universalPrefix_comp_universalPrefixBits_le Primrec.encode.to_comp
 
 private theorem complexity_universalPrefixBits_le_encode (x : List Bool) :
-    universalPrefixBits.complexity x ≤ universalPrefix.complexity (encode x) := by
-  have hle : universalPrefixBits.ecomplexity x ≤ universalPrefix.ecomplexity (encode x) := by
+    universalPrefixBits.complexity x ≤ universalPrefix.complexity (encode x) :=
+  complexity_le_of_ecomplexity_le <| by
     simpa [universalPrefixBits, encodek] using
       universalPrefix.ecomplexity_map_le (fun n => (decode (α := List Bool) n).getD []) (encode x)
-  rw [← natCast_complexity_universalPrefixBits, ← natCast_complexity_universalPrefix] at hle
-  exact_mod_cast hle
 
 private theorem exists_complexity_condBits_encode_le_condUniversalPrefixBits :
     ∃ c : ℕ, ∀ y x : List Bool,
@@ -443,34 +409,23 @@ private theorem exists_complexity_condBits_encode_le_condUniversalPrefixBits :
       (Computable.option_getD Computable.decode (Computable.const ([] : List Bool)))
   let f : ℕ → List Bool →. ℕ := fun m q => (evalC m q).map decEnc
   have hf : Partrec₂ f := hevalC.map (hdecEnc.comp Computable.snd).to₂
-  have hpf : ∀ m : ℕ, InformationTheory.IsPrefixFree {q | (f m q).Dom} := by
-    intro m q₁ h₁ q₂ h₂ hp
-    obtain ⟨x₁, hx₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨x₂, hx₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨n₁, hn₁, -⟩ := (Part.mem_map_iff _).mp hx₁
-    obtain ⟨n₂, hn₂, -⟩ := (Part.mem_map_iff _).mp hx₂
-    exact isPrefixFree_condUniversalPrefix m q₁ ⟨n₁, (hC m q₁ n₁).mpr hn₁⟩
-      q₂ ⟨n₂, (hC m q₂ n₂).mpr hn₂⟩ hp
+  have hpf : ∀ m : ℕ, InformationTheory.IsPrefixFree {q | (f m q).Dom} := fun m =>
+    (isPrefixFree_condUniversalPrefix m).anti fun q h => by
+      obtain ⟨x, hx⟩ := Part.dom_iff_mem.mp h
+      obtain ⟨n, hn, -⟩ := (Part.mem_map_iff _).mp hx
+      exact ⟨n, (hC m q n).mpr hn⟩
   obtain ⟨c, hc⟩ := exists_ecomplexity_condUniversalPrefix_le_of_partrec₂ hf hpf
-  refine ⟨c, fun y x => ?_⟩
-  obtain ⟨p, hp, hlen⟩ :=
-    exists_length_eq_ecomplexity (ecomplexity_condUniversalPrefixBits_ne_top y x)
-  rw [condUniversalPrefixBits, map_produces_iff] at hp
-  obtain ⟨n, hpn, hnx⟩ := hp
-  have hmem : encode x ∈ f (encode y) p :=
-    (Part.mem_map_iff _).mpr ⟨n, (hC (encode y) p n).mp hpn, congrArg encode hnx⟩
-  have h := hc (encode y) p (encode x) hmem
-  rw [hlen, ← natCast_complexity_condUniversalPrefixBits,
-    ← natCast_complexity_condUniversalPrefix] at h
-  exact_mod_cast h
+  refine ⟨c, fun y x => complexity_le_complexity_add
+    (ecomplexity_condUniversalPrefixBits_ne_top y x) fun p hp => ?_⟩
+  obtain ⟨n, hpn, hnx⟩ := map_produces_iff.mp hp
+  exact hc (encode y) p (encode x)
+    ((Part.mem_map_iff _).mpr ⟨n, (hC (encode y) p n).mp hpn, congrArg encode hnx⟩)
 
 private theorem complexity_condUniversalPrefixBits_le_encode (y x : List Bool) :
     (condUniversalPrefixBits y).complexity x ≤
-      (condUniversalPrefix (encode y)).complexity (encode x) := by
-  have hle := ecomplexity_condUniversalPrefixBits_le_encode y x
-  rw [← natCast_complexity_condUniversalPrefixBits, ← natCast_complexity_condUniversalPrefix]
-    at hle
-  exact_mod_cast hle
+      (condUniversalPrefix (encode y)).complexity (encode x) :=
+  complexity_le_of_ecomplexity_le <| by
+    simpa using ecomplexity_condUniversalPrefixBits_le_encode y x
 
 /-! ### Prefix-free chain rule -/
 
@@ -493,51 +448,45 @@ private theorem primrec₂_firstPrefixMatch : Primrec₂ firstPrefixMatch := by
   exact Primrec₂.mk <| (Primrec.list_foldr Primrec.snd (Primrec.const Option.none) hh).of_eq
     fun _ => rfl
 
+/-- A `foldr` returning the image of the first element satisfying `P` is `find?` followed by
+`map`. -/
+private theorem foldr_ite_some_eq_find?_map {α β : Type*} (P : α → Prop) [DecidablePred P]
+    (f : α → β) (L : List α) :
+    L.foldr (fun a acc => if P a then some (f a) else acc) Option.none =
+      (L.find? fun a => P a).map f := by
+  induction L with
+  | nil => rfl
+  | cons hd tl ih => by_cases h : P hd <;> simp [h, ih]
+
+private theorem firstPrefixMatch_eq_find? (r : List Bool) (L : List (List Bool × ℕ)) :
+    firstPrefixMatch r L = L.find? fun px => px.1 <+: r :=
+  (foldr_ite_some_eq_find?_map (fun px : List Bool × ℕ => px.1 <+: r) id L).trans (by simp)
+
 private theorem firstPrefixMatch_append_of_some {r : List Bool}
     {L₁ L₂ : List (List Bool × ℕ)} {px : List Bool × ℕ}
     (h : firstPrefixMatch r L₁ = some px) :
     firstPrefixMatch r (L₁ ++ L₂) = some px := by
-  induction L₁ with
-  | nil => simp [firstPrefixMatch] at h
-  | cons hd tl ih =>
-    simp only [firstPrefixMatch, List.cons_append, List.foldr_cons] at h ⊢
-    by_cases hp : hd.1 <+: r
-    · simp only [hp, ↓reduceIte] at h ⊢
-      exact h
-    · simp only [hp, ↓reduceIte] at h ⊢
-      exact ih h
+  rw [firstPrefixMatch_eq_find?] at h ⊢
+  rw [List.find?_append, h, Option.some_or]
 
 private theorem firstPrefixMatch_spec {r : List Bool} {L : List (List Bool × ℕ)}
     {px : List Bool × ℕ} (h : firstPrefixMatch r L = some px) :
     px ∈ L ∧ px.1 <+: r := by
-  induction L with
-  | nil => simp [firstPrefixMatch] at h
-  | cons hd tl ih =>
-    simp only [firstPrefixMatch, List.foldr_cons] at h
-    by_cases hp : hd.1 <+: r
-    · simp only [hp, ↓reduceIte, Option.some.injEq] at h
-      subst h
-      exact ⟨List.mem_cons_self, hp⟩
-    · simp only [hp, ↓reduceIte] at h
-      obtain ⟨hmem, hpref⟩ := ih h
-      exact ⟨List.mem_cons_of_mem hd hmem, hpref⟩
+  rw [firstPrefixMatch_eq_find?] at h
+  exact ⟨List.mem_of_find?_eq_some h, by simpa using List.find?_some h⟩
 
 private theorem exists_firstPrefixMatch_of_mem {r : List Bool} {L : List (List Bool × ℕ)}
     {px : List Bool × ℕ} (hmem : px ∈ L) (hp : px.1 <+: r) :
     ∃ px', firstPrefixMatch r L = some px' := by
-  induction L with
-  | nil => simp at hmem
-  | cons hd tl ih =>
-    simp only [firstPrefixMatch, List.foldr_cons]
-    by_cases hhd : hd.1 <+: r
-    · exact ⟨hd, by simp [hhd]⟩
-    · rcases List.mem_cons.mp hmem with rfl | htl
-      · exact absurd hp hhd
-      · obtain ⟨px', hpx'⟩ := ih htl
-        refine ⟨px', ?_⟩
-        rw [firstPrefixMatch] at hpx'
-        simp only [hhd, ↓reduceIte]
-        exact hpx'
+  rw [firstPrefixMatch_eq_find?, ← Option.isSome_iff_exists, List.find?_isSome]
+  exact ⟨px, hmem, decide_eq_true hp⟩
+
+/-- Two halting programs of a prefix-free method that are prefixes of one string coincide. -/
+private theorem IsPrefixFree.eq_of_prefix {α : Type*} {M : DescriptionMethod α}
+    (hM : M.IsPrefixFree) {p₁ p₂ r : List Bool} {x₁ x₂ : α} (h₁ : M.Produces p₁ x₁)
+    (h₂ : M.Produces p₂ x₂) (hp₁ : p₁ <+: r) (hp₂ : p₂ <+: r) : p₁ = p₂ :=
+  (List.prefix_or_prefix_of_prefix hp₁ hp₂).elim (hM p₁ ⟨x₁, h₁⟩ p₂ ⟨x₂, h₂⟩)
+    fun h => (hM p₂ ⟨x₂, h₂⟩ p₁ ⟨x₁, h₁⟩ h).symm
 
 private def chainPairStep (key : List Bool × ℕ → ℕ) (r : List Bool) (n : ℕ) : Option ℕ :=
   (firstPrefixMatch r (universalPrefixTable n)).bind fun px =>
@@ -592,48 +541,34 @@ private theorem exists_complexity_universalPrefix_pair_le_add_key
     refine ⟨px, htail ▸ firstPrefixMatch_append_of_some hm, cp, hcp, y, ?_, rfl⟩
     exact lookup_prefixAccepted_mono hmn hy
   have hspec : ∀ {r : List Bool} {z : ℕ}, z ∈ evalChain r →
-      ∃ p x c q y, p <+: r ∧ universalPrefix.Produces p x ∧
-        parseCodeHeader (r.drop p.length) = some (c, q) ∧
-        (condUniversalPrefix (key (p, x))).Produces (r.drop p.length) y ∧
-        z = Nat.pair x y := by
+      ∃ p x y, p <+: r ∧ universalPrefix.Produces p x ∧
+        (condUniversalPrefix (key (p, x))).Produces (r.drop p.length) y := by
     intro r z hz
     obtain ⟨n, hn⟩ := (Nat.rfindOpt_mono (hmono (r := r))).mp hz
     simp only [chainPairStep, Option.mem_def, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hn
     obtain ⟨⟨p, x⟩, hm, ⟨c, q⟩, hcp, y, hy, rfl⟩ := hn
     obtain ⟨hmem, hp⟩ := firstPrefixMatch_spec hm
-    have hx : universalPrefix.Produces p x := mem_universalPrefixTable_produces hmem
-    have hy' : (condUniversalPrefix (key (p, x))).Produces (r.drop p.length) y :=
-      condUniversalPrefix_produces_iff.mpr
-        ⟨c, q, hcp, ofPrefixCode_produces_iff.mpr ⟨n, mem_prefixAccepted_iff_lookup.mpr hy⟩⟩
-    exact ⟨p, x, c, q, y, hp, hx, hcp, hy', rfl⟩
+    exact ⟨p, x, y, hp, mem_universalPrefixTable_produces hmem, condUniversalPrefix_produces_iff.mpr
+      ⟨c, q, hcp, ofPrefixCode_produces_iff.mpr ⟨n, mem_prefixAccepted_iff_lookup.mpr hy⟩⟩⟩
   have hpf : InformationTheory.IsPrefixFree {r | (evalChain r).Dom} := by
     intro r₁ h₁ r₂ h₂ hpref
     obtain ⟨z₁, hz₁⟩ := Part.dom_iff_mem.mp h₁
     obtain ⟨z₂, hz₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨p₁, x₁, _, _, y₁, hp₁, hx₁, _, hy₁, _⟩ := hspec hz₁
-    obtain ⟨p₂, x₂, _, _, y₂, hp₂, hx₂, _, hy₂, _⟩ := hspec hz₂
-    have hp₁₂ : p₁ = p₂ := by
-      rcases List.prefix_or_prefix_of_prefix (hp₁.trans hpref) hp₂ with h | h
-      · exact isPrefixFree_universalPrefix p₁ ⟨x₁, hx₁⟩ p₂ ⟨x₂, hx₂⟩ h
-      · exact (isPrefixFree_universalPrefix p₂ ⟨x₂, hx₂⟩ p₁ ⟨x₁, hx₁⟩ h).symm
-    subst hp₁₂
-    have hx₁₂ : x₁ = x₂ := hx₁.unique hx₂
-    subst hx₁₂
-    have hdrop_pref : r₁.drop p₁.length <+: r₂.drop p₁.length :=
-      hpref.drop p₁.length
-    have hdrop_eq : r₁.drop p₁.length = r₂.drop p₁.length :=
-      isPrefixFree_condUniversalPrefix (key (p₁, x₁)) _ ⟨y₁, hy₁⟩ _ ⟨y₂, hy₂⟩ hdrop_pref
-    have hr1 : r₁ = p₁ ++ r₁.drop p₁.length := by
-      rcases hp₁ with ⟨tail₁, rfl⟩
-      simp
-    have hr2 : r₂ = p₁ ++ r₂.drop p₁.length := by
-      rcases hp₂ with ⟨tail₂, rfl⟩
-      simp
-    rw [hr1, hr2, hdrop_eq]
+    obtain ⟨p₁, x₁, y₁, hp₁, hx₁, hy₁⟩ := hspec hz₁
+    obtain ⟨p₂, x₂, y₂, hp₂, hx₂, hy₂⟩ := hspec hz₂
+    obtain rfl := isPrefixFree_universalPrefix.eq_of_prefix hx₁ hx₂ (hp₁.trans hpref) hp₂
+    obtain rfl := hx₁.unique hx₂
+    have hdrop := isPrefixFree_condUniversalPrefix (key (p₁, x₁)) _ ⟨y₁, hy₁⟩ _ ⟨y₂, hy₂⟩
+      (hpref.drop p₁.length)
+    obtain ⟨t₁, rfl⟩ := hp₁
+    obtain ⟨t₂, rfl⟩ := hp₂
+    rw [List.drop_left, List.drop_left] at hdrop
+    rw [hdrop]
   obtain ⟨c, hc⟩ := minorizesPrefixPartrec_universalPrefix evalChain hevalChain hpf
   refine ⟨c, fun p x y hp => ?_⟩
-  obtain ⟨q, hq, hqlen⟩ :=
-    exists_length_eq_ecomplexity (ecomplexity_condUniversalPrefix_ne_top (key (p, x)) y)
+  suffices h : universalPrefix.complexity (Nat.pair x y) ≤
+      (condUniversalPrefix (key (p, x))).complexity y + (p.length + c) by omega
+  refine complexity_le_complexity_add (ecomplexity_condUniversalPrefix_ne_top _ y) fun q hq => ?_
   obtain ⟨n₁, hn₁⟩ := produces_iff_exists_mem_universalPrefixTable.mp hp
   obtain ⟨c₀, q₀, hcp₀, hq₀⟩ := condUniversalPrefix_produces_iff.mp hq
   obtain ⟨n₂, hn₂⟩ := ofPrefixCode_produces_iff.mp hq₀
@@ -643,30 +578,17 @@ private theorem exists_complexity_universalPrefix_pair_le_add_key
   obtain ⟨⟨p', x'⟩, hmatch⟩ := exists_firstPrefixMatch_of_mem hn₁' (List.prefix_append p q)
   obtain ⟨hmem', hp'⟩ := firstPrefixMatch_spec hmatch
   have hx' : universalPrefix.Produces p' x' := mem_universalPrefixTable_produces hmem'
-  have hpeq : p' = p := by
-    rcases List.prefix_or_prefix_of_prefix hp' (List.prefix_append p q) with h | h
-    · exact isPrefixFree_universalPrefix p' ⟨x', hx'⟩ p ⟨x, hp⟩ h
-    · exact (isPrefixFree_universalPrefix p ⟨x, hp⟩ p' ⟨x', hx'⟩ h).symm
-  have hxeq : x' = x := (hpeq ▸ hx').unique hp
-  have hmatch' : firstPrefixMatch (p ++ q) (universalPrefixTable n) = some (p, x) := by
-    rw [hmatch, hpeq, hxeq]
+  obtain rfl : p = p' :=
+    isPrefixFree_universalPrefix.eq_of_prefix hp hx' (List.prefix_append p q) hp'
+  obtain rfl : x = x' := hp.unique hx'
   have hstep : Nat.pair x y ∈ chainPairStep key (p ++ q) n := by
-    simp only [chainPairStep, hmatch', Option.bind_some, List.drop_left, hcp₀, Option.mem_def,
+    simp only [chainPairStep, hmatch, Option.bind_some, List.drop_left, hcp₀, Option.mem_def,
       Option.map_eq_some_iff]
-    refine ⟨y, ?_, rfl⟩
-    exact mem_prefixAccepted_iff_lookup.mp
-      ((prefixAccepted_prefix (c₀.curry (key (p, x))) (le_max_right n₁ n₂)).subset hn₂)
-  have hev : Nat.pair x y ∈ evalChain (p ++ q) :=
-    (Nat.rfindOpt_mono (hmono (r := p ++ q))).mpr ⟨n, hstep⟩
-  have hbound := hc (p ++ q) (Nat.pair x y) hev
-  rw [List.length_append, Nat.cast_add, add_assoc] at hbound
-  rw [← natCast_complexity_universalPrefix] at hbound
-  rw [← natCast_complexity_condUniversalPrefix] at hqlen
-  have hbound' : universalPrefix.complexity (Nat.pair x y) ≤ p.length + (q.length + c) := by
-    exact_mod_cast hbound
-  have hq_nat : q.length = (condUniversalPrefix (key (p, x))).complexity y := by
-    exact_mod_cast hqlen
-  omega
+    exact ⟨y, mem_prefixAccepted_iff_lookup.mp
+      ((prefixAccepted_prefix (c₀.curry (key (p, x))) (le_max_right n₁ n₂)).subset hn₂), rfl⟩
+  have hev := hc (p ++ q) (Nat.pair x y) ((Nat.rfindOpt_mono (hmono (r := p ++ q))).mpr ⟨n, hstep⟩)
+  rw [List.length_append] at hev
+  exact hev.trans_eq (by push_cast; ring)
 
 /-- **Prefix-free chain rule** (no logarithmic overhead): `K(x, y) ≤ K(x) + K(y | x) + c`
 [LiVitanyi2019, ShenUspenskyVereshchagin2017]. -/
@@ -676,11 +598,8 @@ theorem exists_complexity_universalPrefix_pair_le_add :
         universalPrefix.complexity x + (condUniversalPrefix x).complexity y + c := by
   obtain ⟨c, hc⟩ := exists_complexity_universalPrefix_pair_le_add_key Primrec.snd
   refine ⟨c, fun x y => ?_⟩
-  obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universalPrefix_ne_top x)
-  have hp_nat : p.length = universalPrefix.complexity x := by
-    rw [← natCast_complexity_universalPrefix] at hlen
-    exact_mod_cast hlen
-  simpa [hp_nat] using hc p x y hp
+  obtain ⟨p, hp, hlen⟩ := exists_length_eq_complexity (ecomplexity_universalPrefix_ne_top x)
+  simpa [hlen] using hc p x y hp
 
 /-- Prefix-free chain rule conditioned on `(x, K(x))`: `K(x, y) ≤ K(x) + K(y | x, K(x)) + c`. -/
 theorem exists_complexity_universalPrefix_pair_le_add_pair :
@@ -691,11 +610,8 @@ theorem exists_complexity_universalPrefix_pair_le_add_pair :
   obtain ⟨c, hc⟩ := exists_complexity_universalPrefix_pair_le_add_key
     (Primrec₂.natPair.comp Primrec.snd (Primrec.list_length.comp Primrec.fst))
   refine ⟨c, fun x y => ?_⟩
-  obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universalPrefix_ne_top x)
-  have hp_nat : p.length = universalPrefix.complexity x := by
-    rw [← natCast_complexity_universalPrefix] at hlen
-    exact_mod_cast hlen
-  simpa [hp_nat] using hc p x y hp
+  obtain ⟨p, hp, hlen⟩ := exists_length_eq_complexity (ecomplexity_universalPrefix_ne_top x)
+  simpa [hlen] using hc p x y hp
 
 /-! ### Uniform conditional Kraft–Chaitin theorem -/
 
@@ -710,15 +626,8 @@ theorem condKraftChaitin_of_sum_le_one {req : ℕ → ℕ → Option (ℕ × ℕ
       (match (req y i).map Prod.fst with
       | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ) ≤ 1 := by
     intro y n
-    have hcast :
-        (((∑ i ∈ Finset.range n,
-          (match (req y i).map Prod.fst with
-          | Option.none => (0 : ℚ) | some ℓ => (2 : ℚ)⁻¹ ^ ℓ)) : ℚ) : ℝ) =
-          ∑ i ∈ Finset.range n,
-            (match req y i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) := by
-      rw [Rat.cast_sum]
-      exact Finset.sum_congr rfl fun i _ => by cases req y i <;> simp
-    exact_mod_cast (hcast ▸ hbound y n)
+    rw [← Rat.cast_le (K := ℝ), Rat.cast_sum, Rat.cast_one]
+    exact (Finset.sum_congr rfl fun i _ => by cases req y i <;> simp).trans_le (hbound y n)
   let eval : ℕ → List Bool →. ℕ := fun y p => Nat.rfindOpt (kcStreamEval (req y) p)
   have heval : Partrec₂ eval := Partrec.rfindOpt (computable_kcStreamEval hreq)
   have hpf : ∀ y : ℕ, InformationTheory.IsPrefixFree {p | (eval y p).Dom} :=
@@ -757,63 +666,26 @@ private theorem primrec_firstProgCand :
   exact (Primrec.list_foldr (primrec_universalPrefixTable.comp Primrec.snd)
     (Primrec.const Option.none) hcons).of_eq fun _ => rfl
 
-private theorem firstProgCand_append_of_some {x k : ℕ} {L₁ L₂ : List (List Bool × ℕ)}
-    {p : List Bool}
-    (h : L₁.foldr (fun py acc => if py.2 = x ∧ py.1.length = k then some py.1 else acc)
-      Option.none = some p) :
-    (L₁ ++ L₂).foldr (fun py acc => if py.2 = x ∧ py.1.length = k then some py.1 else acc)
-      Option.none = some p := by
-  induction L₁ with
-  | nil => simp at h
-  | cons hd tl ih =>
-    simp only [List.cons_append, List.foldr_cons] at h ⊢
-    by_cases hp : hd.2 = x ∧ hd.1.length = k
-    · simp only [hp] at h ⊢
-      exact h
-    · simp only [hp] at h ⊢
-      exact ih h
+private theorem firstProgCand_eq_find? (x k n : ℕ) :
+    firstProgCand x k n =
+      ((universalPrefixTable n).find? fun py => py.2 = x ∧ py.1.length = k).map Prod.fst :=
+  foldr_ite_some_eq_find?_map (fun py : List Bool × ℕ => py.2 = x ∧ py.1.length = k) Prod.fst _
 
 private theorem firstProgCand_spec {x k n : ℕ} {p : List Bool}
     (h : firstProgCand x k n = some p) :
     universalPrefix.Produces p x ∧ p.length = k := by
-  have aux : ∀ L : List (List Bool × ℕ),
-      L.foldr (fun py acc => if py.2 = x ∧ py.1.length = k then some py.1 else acc)
-        Option.none = some p → (p, x) ∈ L ∧ p.length = k := by
-    intro L hL
-    induction L with
-    | nil => simp at hL
-    | cons hd tl ih =>
-      simp only [List.foldr_cons] at hL
-      split_ifs at hL with hp
-      · rw [Option.some.injEq] at hL
-        subst hL
-        rcases hp with ⟨h2, hlen⟩
-        have hhd : (hd.1, x) = hd := Prod.ext rfl h2.symm
-        exact ⟨hhd ▸ List.mem_cons_self, hlen⟩
-      · obtain ⟨hmem, hlen⟩ := ih hL
-        exact ⟨List.mem_cons_of_mem hd hmem, hlen⟩
-  obtain ⟨hmem, hlen⟩ := aux _ h
-  exact ⟨mem_universalPrefixTable_produces hmem, hlen⟩
+  rw [firstProgCand_eq_find?] at h
+  obtain ⟨⟨p', x'⟩, hfind, rfl⟩ := Option.map_eq_some_iff.mp h
+  obtain ⟨rfl, hlen⟩ : x' = x ∧ p'.length = k := by simpa using List.find?_some hfind
+  exact ⟨mem_universalPrefixTable_produces (List.mem_of_find?_eq_some hfind), hlen⟩
 
 private theorem exists_firstProgCand_of_produces {x k : ℕ} {p : List Bool}
     (hp : universalPrefix.Produces p x) (hlen : p.length = k) :
     ∃ n p', firstProgCand x k n = some p' := by
   obtain ⟨n, hn⟩ := produces_iff_exists_mem_universalPrefixTable.mp hp
   refine ⟨n, ?_⟩
-  have aux : ∀ L : List (List Bool × ℕ), (p, x) ∈ L →
-      ∃ p', L.foldr (fun py acc => if py.2 = x ∧ py.1.length = k then some py.1 else acc)
-        Option.none = some p' := by
-    intro L hL
-    induction L with
-    | nil => simp at hL
-    | cons hd tl ih =>
-      simp only [List.foldr_cons]
-      split_ifs with hhd
-      · exact ⟨hd.1, rfl⟩
-      · rcases List.mem_cons.mp hL with rfl | htl
-        · exact absurd ⟨rfl, hlen⟩ hhd
-        · exact ih htl
-  exact aux _ hn
+  rw [firstProgCand_eq_find?, ← Option.isSome_iff_exists, Option.isSome_map, List.find?_isSome]
+  exact ⟨(p, x), hn, by simpa using hlen⟩
 
 private noncomputable def firstProgSearch (xk : ℕ) : Part (List Bool) :=
   Nat.rfindOpt (firstProgCand xk.unpair.1 xk.unpair.2)
@@ -829,17 +701,13 @@ private theorem mem_firstProgSearch_iff {x k : ℕ} {p : List Bool} :
       z ∈ firstProgCand x k m → z ∈ firstProgCand x k n := by
     intro z m n hmn hz
     obtain ⟨tail, htail⟩ := universalPrefixTable_prefix hmn
-    change firstProgCand x k n = some z
-    rw [firstProgCand, ← htail]
-    exact firstProgCand_append_of_some hz
+    rw [Option.mem_def, firstProgCand_eq_find?] at hz ⊢
+    rw [← htail, List.find?_append, Option.map_or, hz, Option.some_or]
   simpa [firstProgSearch] using Nat.rfindOpt_mono hmono
 
 private theorem dom_firstProgSearch_complexity (x : ℕ) :
     (firstProgSearch (Nat.pair x (universalPrefix.complexity x))).Dom := by
-  obtain ⟨p, hp, hlen⟩ := exists_length_eq_ecomplexity (ecomplexity_universalPrefix_ne_top x)
-  have hplen : p.length = universalPrefix.complexity x := by
-    rw [← natCast_complexity_universalPrefix] at hlen
-    exact_mod_cast hlen
+  obtain ⟨p, hp, hplen⟩ := exists_length_eq_complexity (ecomplexity_universalPrefix_ne_top x)
   obtain ⟨n, p', hn⟩ := exists_firstProgCand_of_produces hp hplen
   exact Part.dom_iff_mem.mpr ⟨p', mem_firstProgSearch_iff.mpr ⟨n, hn⟩⟩
 
