@@ -341,7 +341,8 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
           (sum_matrixRowParts_eq A hs p r x).symm.trans (by rw [hempty, sum_empty]))
     -- At least one row is empty, so `1 + #nonempRows * p ≤ m * p`.
     have hcost4 := Nat.mul_le_mul_right p
-      (show #nonempRows + 1 ≤ m from lt_of_le_of_ne ((card_filter_le _ _).trans_eq (by simp)) hall_ne)
+      (show #nonempRows + 1 ≤ m from
+        lt_of_le_of_ne ((card_filter_le _ _).trans_eq (by simp)) hall_ne)
     rw [add_one_mul] at hcost4
     have hcost :
         ((n * 2 ^ s) / s + A.activeSquare / (2 * s) + (m ⌈/⌉ p) * 2 ^ s * (n ⌈/⌉ s)) +

@@ -83,7 +83,8 @@ private theorem exists_radius_mul_pow_lt {θ : ℝ} (hθ0 : 0 < θ) (hθ1 : θ <
   obtain ⟨N, hN⟩ := eventually_atTop.mp
     (((tendsto_pow_atTop_nhds_zero_of_lt_one hθ0.le hθ1).const_mul C).eventually_lt_const
       (by simpa using hε))
-  exact ⟨max 1 N, le_max_left _ _, fun S hS S' hS' => hN S' ((le_max_right _ _).trans (hS.trans hS'))⟩
+  exact ⟨max 1 N, le_max_left _ _,
+    fun S hS S' hS' => hN S' ((le_max_right _ _).trans (hS.trans hS'))⟩
 
 /-- Slack selection: if `F` is continuous at `x₀` with `F x₀ < v`, some `δ ∈ (0, c]` keeps
 `F (x₀ - 3 * δ / 4) ≤ v`. -/
@@ -146,8 +147,9 @@ private theorem measureReal_hyperedgeStraddles_le_of_sum_angle {r k K₀ S : ℕ
   rw [hev]
   exact hprob.trans harc
 
-private theorem cast_card_offDiag {α : Type*} [DecidableEq α] (s : Finset α) :
+private theorem cast_card_offDiag {α : Type*} (s : Finset α) :
     (s.offDiag.card : ℝ) = s.card * (s.card - 1) := by
+  classical
   rw [Finset.offDiag_card, Nat.cast_sub (Nat.le_mul_self _), Nat.cast_mul]
   ring
 
@@ -285,7 +287,8 @@ private theorem exists_theta_radius_starCone {r k K₀ : ℕ} (hr : 2 ≤ r) (hk
             {ω | HyperedgeStraddles (hyperEdge c e.1)
               {v | hyperScore c K₀ r θ S ω v < t}} ≤ p + η := by
   have hk3R : (3 : ℝ) ≤ k := by exact_mod_cast hk3
-  have hm_pos : 0 < (r : ℝ) * ((k : ℝ) - 1) := mul_pos (by exact_mod_cast (by omega : 0 < r)) (by linarith)
+  have hm_pos : 0 < (r : ℝ) * ((k : ℝ) - 1) :=
+    mul_pos (by exact_mod_cast (by omega : 0 < r)) (by linarith)
   set q₂ := 1 / √((r : ℝ) * ((k : ℝ) - 1))
   set ρ₀ := coneCorr r k
   have hρ₀_pos : 0 < ρ₀ := by
