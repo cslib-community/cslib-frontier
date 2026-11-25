@@ -301,15 +301,6 @@ theorem inputPos_step_le (hc : c.inputPos ≤ xs.length + 1) :
     · exact hc
     · exact moveInput_le hc _
 
-/-- A step keeps the number of work tapes. -/
-theorem length_workTapes_step : (step d xs c).1.workTapes.length = c.workTapes.length := by
-  obtain ⟨_ | q, p, ws⟩ := c
-  · rfl
-  · simp only [step]
-    split
-    · rfl
-    · exact length_applyTapes_eq _ _
-
 end Tapes
 
 /-! ### Redirecting the input -/

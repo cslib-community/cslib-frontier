@@ -281,22 +281,11 @@ open Turing.MultiTapeTM
 
 variable {α : Type} {encIn : α ↪ List Bool}
 
-private theorem lengthPolyTime {β : Type} {encB : β ↪ List Bool} {l : α → List β}
-    (hl : ComputableInPolyTime l encIn (encList encB)) :
-    ComputableInPolyTime (fun x => (l x).length) encIn encUnary :=
-  (ComputableInPolyTime.length_list encB).comp hl
-
-private theorem getDPolyTime {P : α → List (List ℕ)} {k : α → ℕ}
-    (hP : ComputableInPolyTime P encIn (encList (encList encNat)))
-    (hk : ComputableInPolyTime k encIn encUnary) :
-    ComputableInPolyTime (fun x => (P x).getD (k x) []) encIn (encList encNat) :=
-  (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp (hP.prod hk)
-
 /-- The zero element is polynomial-time. -/
 theorem computableInPolyTime_zero {fl : α → List ℕ}
     (hfl : ComputableInPolyTime fl encIn (encList encNat)) :
     ComputableInPolyTime (fun x => zero (fl x)) encIn (encList encNat) :=
-  computableInPolyTime_tabulate (g := fun _ _ => 0) (lengthPolyTime hfl)
+  computableInPolyTime_tabulate (g := fun _ _ => 0) hfl.length_list'
     (ComputableInPolyTime.const 0)
 
 /-- **Division of the coordinates by `2 ^ Δ` is polynomial-time**, with `Δ` in unary. -/
@@ -339,8 +328,8 @@ theorem computableInPolyTime_cauchyCoeff {p j : α → ℕ} {fl : α → List �
     have hacc := (ComputableInPolyTime.snd encIn (encList encNat)).comp hq
     have hi := ComputableInPolyTime.snd (encPair encIn (encList encNat)) encUnary
     exact computableInPolyTime_add (hp.comp hx) (hfl.comp hx) hacc
-      (computableInPolyTime_mul (hp.comp hx) (hfl.comp hx) (getDPolyTime (hP.comp hx) hi)
-        (getDPolyTime (hR.comp hx) (ComputableInPolyTime.unary_sub' (hj.comp hx) hi)))
+      (computableInPolyTime_mul (hp.comp hx) (hfl.comp hx) ((hP.comp hx).listGetDWithInput hi [])
+        ((hR.comp hx).listGetDWithInput (ComputableInPolyTime.unary_sub' (hj.comp hx) hi) []))
   exact ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encUnary) (encL := encList encUnary)
     (step := fun x acc i => add (p x) (fl x) acc (mul (p x) (fl x) ((P x).getD i [])

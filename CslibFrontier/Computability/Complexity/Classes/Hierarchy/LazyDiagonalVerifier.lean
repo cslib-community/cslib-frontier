@@ -170,7 +170,7 @@ theorem exists_computableInO_sizeLength_le
   have hq := hQ p
   have ht := hT p
   have hs := Nat.size_le.mpr (Nat.lt_two_pow_self (n := (z p).length))
-  have he := Universal.length_encNat_le (z p).length
+  have he := length_encNat_le_self (z p).length
   have hsquare : ((z p).length + 1) ^ 2 ≤
       (2 * (encPair encBits encBits p).length + 4 + E p) ^ 2 :=
     Nat.pow_le_pow_left (by omega) 2

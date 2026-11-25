@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Bell
 public import CslibFrontier.Foundations.Quantum.Pauli
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Kronecker
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.UnitaryGroup
 
 /-!
@@ -87,16 +88,6 @@ theorem pauliX_mul_pauliY : pauliX * pauliY = -(pauliY * pauliX) := by
 
 /-! ### Recursive `2k`-generator Clifford system on `k` qubits -/
 
-private theorem neg_kronecker_left {m n p q : Type*} (A : Matrix m n ℂ) (B : Matrix p q ℂ) :
-    (-A) ⊗ₖ B = -(A ⊗ₖ B) := by
-  ext ⟨i, k⟩ ⟨j, l⟩
-  exact neg_mul _ _
-
-private theorem neg_kronecker_right {m n p q : Type*} (A : Matrix m n ℂ) (B : Matrix p q ℂ) :
-    A ⊗ₖ (-B) = -(A ⊗ₖ B) := by
-  ext ⟨i, k⟩ ⟨j, l⟩
-  exact mul_neg _ _
-
 private noncomputable def cliffordStep {m : ℕ} {α : Type*} [DecidableEq α]
     (G : Fin m → Matrix α α ℂ) (i : Fin (m + 2)) : Matrix (Bool × α) (Bool × α) ℂ :=
   if hlt : i.1 < m then pauliZ ⊗ₖ G ⟨i.1, hlt⟩
@@ -132,34 +123,34 @@ private theorem cliffordStep_anticommute {m : ℕ} {α : Type*} [Fintype α] [De
     · have hne : (⟨i.1, hi1⟩ : Fin m) ≠ ⟨j.1, hj1⟩ := fun h => hij_val (Fin.mk.inj h)
       simp only [cliffordStep, hi1, hj1, ↓reduceDIte]
       rw [← mul_kronecker_mul, ← mul_kronecker_mul, pauliZ_mul_self, hanti hne,
-        neg_kronecker_right]
+        kronecker_neg]
     · by_cases hj2 : j.1 = m
       · simp only [cliffordStep, hi1, hj2, lt_irrefl, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul,
-          pauliZ_mul_pauliX, neg_kronecker_left]
+          pauliZ_mul_pauliX, neg_kronecker]
       · simp only [cliffordStep, hi1, hj1, hj2, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul,
-          pauliZ_mul_pauliY, neg_kronecker_left]
+          pauliZ_mul_pauliY, neg_kronecker]
   · by_cases hi2 : i.1 = m
     · by_cases hj1 : j.1 < m
       · have hZX : pauliX * pauliZ = -(pauliZ * pauliX) := by rw [pauliZ_mul_pauliX, neg_neg]
         simp only [cliffordStep, hi2, lt_irrefl, hj1, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.one_mul, Matrix.mul_one,
-          hZX, neg_kronecker_left]
+          hZX, neg_kronecker]
       · have hj2 : j.1 ≠ m := fun h => hij_val (hi2.trans h.symm)
         simp only [cliffordStep, hi2, lt_irrefl, hj1, hj2, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one,
-          pauliX_mul_pauliY, neg_kronecker_left]
+          pauliX_mul_pauliY, neg_kronecker]
     · by_cases hj1 : j.1 < m
       · have hZY : pauliY * pauliZ = -(pauliZ * pauliY) := by rw [pauliZ_mul_pauliY, neg_neg]
         simp only [cliffordStep, hi1, hi2, hj1, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.one_mul, Matrix.mul_one,
-          hZY, neg_kronecker_left]
+          hZY, neg_kronecker]
       · have hj2 : j.1 = m := by omega
         have hYX : pauliY * pauliX = -(pauliX * pauliY) := by rw [pauliX_mul_pauliY, neg_neg]
         simp only [cliffordStep, hi1, hi2, hj2, lt_irrefl, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one,
-          hYX, neg_kronecker_left]
+          hYX, neg_kronecker]
 
 /-- Splitting an `(k + 1)`-qubit basis string into its head bit and `k`-qubit tail. -/
 private def qubitConsEquiv (k : ℕ) : (Fin (k + 1) → Bool) ≃ Bool × (Fin k → Bool) :=

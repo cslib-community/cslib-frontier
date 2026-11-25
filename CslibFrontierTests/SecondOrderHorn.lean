@@ -631,7 +631,7 @@ theorem sizeTwoGraphs_mem_P :
     sizeTwoGraphs.encodedLanguage graphVocabulary ∈ P encStructure := by
   refine ⟨fun a => graphVocabulary.checkShape a && decide (Prod.fst a = 2),
     ComputableInPolyTime.bool_and' graphVocabulary.computableInPolyTime_checkShape
-      (ComputableInPolyTime.unary_eq' (ComputableInPolyTime.fst encUnary (encList encBits))
+      (ComputableInPolyTime.unary_decide_eq (ComputableInPolyTime.fst encUnary (encList encBits))
         (ComputableInPolyTime.const 2)),
     fun a => ?_⟩
   rcases a with ⟨n, tables⟩

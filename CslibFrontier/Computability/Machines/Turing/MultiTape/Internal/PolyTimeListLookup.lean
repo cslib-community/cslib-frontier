@@ -16,7 +16,9 @@ import Mathlib.Data.List.GetD
 /-! # Direct plain list lookup and first occurrence
 
 Unary dropping uses the existing full-prefix fold and the codec's bare tail machine.
-Fixed-default lookup uses the bare head machine, without an inhabitedness assumption.
+Reading the head with a fixed fallback (`Turing.MultiTapeTM.ComputableInPolyTime.headD`) uses the
+bare head machine, without an inhabitedness assumption, and fixed-default lookup composes it with
+unary dropping.
 First occurrence uses the original credited Boolean/counter fold.
 -/
 
@@ -25,9 +27,11 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 open Cslib Internal.ListIndex
 variable {α : Type} {encA : α ↪ List Bool}
 
-private theorem headPlain {encL : List α ↪ List Bool} [ListEncoding encA encL] (d : α) :
-    ComputableInPolyTime (fun l : List α => l.headD d) encL encA := by
-  exact (ListEncoding.headD (enc₁ := encA) (enc := encL) d).computableInPolyTime
+/-- Read the head of any list encoding with a fixed fallback. -/
+@[fun_prop]
+theorem headD {encL : List α ↪ List Bool} [ListEncoding encA encL] (fallback : α) :
+    ComputableInPolyTime (fun list => list.headD fallback) encL encA :=
+  (ListEncoding.headD (enc₁ := encA) (enc := encL) fallback).computableInPolyTime
 
 /-- Drop a unary number of elements, retaining arbitrary sized list encodings. -/
 theorem dropUnary {encL : List α ↪ List Bool} [ListEncoding encA encL]
@@ -58,7 +62,7 @@ theorem head? (enc : α ↪ List Bool) {encL : List α ↪ List Bool}
   · obtain ⟨fallback⟩ := h
     have hempty : ComputableInPolyTime List.isEmpty encL encBool := by
       exact (ListEncoding.isEmpty (enc₁ := enc) (enc := encL)).computableInPolyTime
-    have hread := hempty.ite (const none) ((optionSome enc).comp (headPlain fallback))
+    have hread := hempty.ite (const none) ((optionSome enc).comp (headD fallback))
     convert hread using 1
     funext values
     cases values <;> rfl
@@ -83,7 +87,7 @@ theorem listGetD {encL : List α ↪ List Bool} [ListEncoding encA encL]
     ComputableInPolyTime (fun p : List α × ℕ => p.1.getD p.2 d)
       (encPair encL encUnary) encA := by
   simpa only [Function.comp_def, List.headD_eq_head?_getD, List.head?_drop,
-    List.getD_eq_getElem?_getD] using (headPlain d).comp (dropUnary (encA := encA))
+    List.getD_eq_getElem?_getD] using (headD d).comp (dropUnary (encA := encA))
 
 /-- The first occurrence, or the list length when absent; the returned index is unary. -/
 @[fun_prop]

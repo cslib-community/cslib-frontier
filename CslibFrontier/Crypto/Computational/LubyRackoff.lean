@@ -555,7 +555,7 @@ theorem isOraclePPT_lubyRackoffAdversary {adversary : OracleDistinguisher}
     (encPair (encFinEnum Unit) encBits)).snd'
   refine isOraclePPT_interpret_handler hadversary
     (IsOraclePPTOn.ite
-      (ComputableInPolyTime.unary_eq' (hblock.trans ComputableInPolyTime.length_bits)
+      (ComputableInPolyTime.unary_decide_eq (hblock.trans ComputableInPolyTime.length_bits)
         (ComputableInPolyTime.unary_mul' (.const 2) hn))
       (isOraclePPTOn_feistelNetworkQuery [0, 1, 2] hn hblock)
       ((ComputableInPolyTime.const ([] : List Bool)).isPPTOn.isOraclePPTOn (Operation := Fin 3)))
@@ -933,7 +933,7 @@ theorem isOraclePPT_strongLubyRackoffAdversary {adversary : StrongPRPDistinguish
   have hblock := hreq.snd'
   refine isOraclePPT_interpret_handler hadversary
     (IsOraclePPTOn.ite
-      (ComputableInPolyTime.unary_eq' (hblock.trans ComputableInPolyTime.length_bits)
+      (ComputableInPolyTime.unary_decide_eq (hblock.trans ComputableInPolyTime.length_bits)
         (ComputableInPolyTime.unary_mul' (.const 2) hn))
       (IsOraclePPTOn.cond (hreq.fst'.trans (.of_finite id))
         (isOraclePPTOn_feistelNetworkInvQuery [0, 1, 2, 3] hn hblock)

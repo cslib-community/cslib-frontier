@@ -47,8 +47,8 @@ theorem computableInPolyTime_table (r : Σ n, L.Relations n)
 theorem computableInPolyTime_checkShape :
     ComputableInPolyTime v.checkShape encStructure encBool := by
   unfold Vocabulary.checkShape
-  refine bool_and' (unary_beq' ((length_list encBits).comp (snd encUnary (encList encBits)))
-    (const v.count)) (allConst _ fun i _ => unary_beq' ?_ ?_)
+  refine bool_and' (unary_beq ((length_list encBits).comp (snd encUnary (encList encBits)))
+    (const v.count)) (allConst _ fun i _ => unary_beq ?_ ?_)
   · exact length_bits_comp (listGetDWithInput (snd encUnary (encList encBits))
       (const (i : ℕ)) [])
   · exact (unary_pow _).comp (fst encUnary (encList encBits))

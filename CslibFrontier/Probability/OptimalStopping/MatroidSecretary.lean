@@ -13,6 +13,7 @@ public import CslibFrontier.Algorithms.Lean.Matroid.PSystem
 public import CslibFrontier.Probability.OptimalStopping.Secretary
 public import CslibFrontier.Probability.PMF.Uniform
 public import Mathlib.Combinatorics.Matroid.Rank.ENat
+import CslibFrontier.Foundations.Data.Fin.CardFilter
 import CslibFrontier.Foundations.GroupTheory.Perm.Fixing
 import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
@@ -182,28 +183,6 @@ private theorem card_filter_perm_eq_two {n : ℕ} {i j : Fin n} (hij : i ≠ j)
   rw [Fintype.card_fin, hUcard] at hres
   convert hres
 
-private theorem card_filter_fin_lt (n s : ℕ) (hs : s ≤ n) :
-    (Finset.univ.filter fun p : Fin n => p.val < s).card = s := by
-  have hset : (Finset.univ.filter fun p : Fin n => p.val < s) =
-      (Finset.univ : Finset (Fin s)).map
-        ⟨fun k => ⟨k.val, k.isLt.trans_le hs⟩,
-          fun a b h => Fin.ext (by simpa using congrArg Fin.val h)⟩ := by
-    ext p
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map]
-    constructor
-    · intro hp
-      exact ⟨⟨p.val, hp⟩, Fin.ext rfl⟩
-    · rintro ⟨k, rfl⟩
-      exact k.isLt
-  rw [hset, Finset.card_map, Finset.card_univ, Fintype.card_fin]
-
-private theorem card_filter_fin_ge (n s : ℕ) (hs : s ≤ n) :
-    (Finset.univ.filter fun q : Fin n => s ≤ q.val).card = n - s := by
-  have hpart := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin n)))
-    (p := fun q : Fin n => q.val < s)
-  simp only [Finset.card_univ, Fintype.card_fin, card_filter_fin_lt n s hs, not_lt] at hpart
-  omega
-
 /-- For any two distinct elements `a ≠ b` and sample size `s ≤ |α|`, exactly
 `s * (|α| - s) * (|α| - 2)!` arrival orders place `a` in the sample and `b` after the sample. -/
 theorem card_filter_mem_sample_not_mem_sample {a b : α} (hab : a ≠ b) {s : ℕ}
@@ -261,7 +240,7 @@ theorem card_filter_mem_sample_not_mem_sample {a b : α} (hab : a ≠ b) {s : �
       omega
     exact card_filter_perm_eq_two (e.injective.ne hab) hpqne
   rw [Finset.sum_congr rfl hfib, Finset.sum_const, Finset.card_product, smul_eq_mul,
-    card_filter_fin_lt n s hs, card_filter_fin_ge n s hs]
+    Fin.card_filter_val_lt, min_eq_right hs, Fin.card_filter_le_val]
 
 /-- Under a uniformly random arrival order of `n ≥ 2` elements, observing `s = (n + 1) / 2`
 elements puts any chosen `a` in the sample and any distinct `b` after the sample with probability
@@ -1542,7 +1521,8 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
       calc q = qFin.card := rfl
         _ ≤ (Finset.univ.filter fun u : Fin xs.length => u.val < t.val).card :=
           Finset.card_le_card hsub
-        _ = t.val := card_filter_fin_lt xs.length t.val (t.isLt.le.trans hq_le_len)
+        _ = t.val := by
+          rw [Fin.card_filter_val_lt, min_eq_right (t.isLt.le.trans hq_le_len)]
     exact absurd t.isLt (not_lt.mpr hcard)
   have hge_q_lt : ∀ t : Fin xs.length, q ≤ t.val → v t.val < w x1 / (k : ℝ) := by
     intro t ht
@@ -1591,7 +1571,7 @@ theorem sum_le_mul_expectedThresholdPrice (M : Matroid α)
     have htail : ∑ t ∈ Finset.univ.filter (fun u : Fin xs.length => q ≤ u.val), v t.val ≤
         ∑ j : Fin q, v j.val := by
       have hcard_tail : (Finset.univ.filter fun u : Fin xs.length => q ≤ u.val).card =
-          xs.length - q := card_filter_fin_ge xs.length q hq_le_len
+          xs.length - q := Fin.card_filter_le_val q
       have hstep : ∑ t ∈ Finset.univ.filter (fun u : Fin xs.length => q ≤ u.val), v t.val ≤
           ((xs.length - q : ℕ) : ℝ) * (w x1 / (k : ℝ)) := by
         calc ∑ t ∈ Finset.univ.filter (fun u : Fin xs.length => q ≤ u.val), v t.val

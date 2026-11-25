@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.Basic
 public import CslibFrontier.Foundations.Data.Code.Interleaved
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.VecMul
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
@@ -377,12 +378,6 @@ private lemma ligeroProximityReduction_rbrSound_of_rowBound
     split_ifs at hout with hchk
     exact hS hchk
 
-private lemma vecMul_eq_sum_smul_swap {F : Type*} [CommSemiring F] {m n : ℕ}
-    (r : Fin m → F) (M : Matrix (Fin m) (Fin n) F) :
-    r ᵥ* M = fun j => ∑ i : Fin m, r i • Function.swap M j i := by
-  funext j
-  simp only [Matrix.vecMul, dotProduct, Function.swap, smul_eq_mul]
-
 /-- Step toward `#643` and `#5968` after [AmesHazayIshaiVenkitasubramaniam2017] (locator not
 re-verified against primary PDF; round-by-round soundness of `ligeroProximityReduction` within
 `d / 3` against all prover strategies): when `3 * (e : ℕ∞) < minDist (codeOfGenerator G)`, the
@@ -402,7 +397,7 @@ theorem ligeroProximityReduction_rbrSound_of_three_mul_lt_minDist
     intro V hV
     by_contra hle
     exact hM ⟨V, hV, Nat.le_of_not_lt hle⟩
-  simpa only [vecMul_eq_sum_smul_swap] using
+  simpa only [Matrix.vecMul_eq_sum_smul_swap] using
     toOuterMeasure_sum_smul_close_le_of_three_mul_lt_minDist hmin hfar
 
 /-- **Plain-model soundness of the Ligero proximity reduction within `d / 3`** against every
@@ -440,7 +435,7 @@ theorem ligeroProximityReduction_reedSolomon_rbrSound
     rwa [codeOfGenerator_reedSolomonGenerator]
   have hbound := toOuterMeasure_sum_smul_reedSolomon_close_le hα
     (by simpa only [Fintype.card_fin] using hunique) hfar
-  simpa only [codeOfGenerator_reedSolomonGenerator, vecMul_eq_sum_smul_swap,
+  simpa only [codeOfGenerator_reedSolomonGenerator, Matrix.vecMul_eq_sum_smul_swap,
     Fintype.card_fin] using hbound
 
 /-- **Plain-model soundness of the Reed–Solomon Ligero proximity reduction across the full
@@ -488,8 +483,8 @@ theorem toOuterMeasure_ligeroEvalCheck_false_le {F : Type} [CommRing F] [Decidab
         (v ᵥ* G) (vecMul_mem_codeOfGenerator G v)
         (ligeroRowComb b U ᵥ* G) (vecMul_mem_codeOfGenerator G _) hcw_ne
     have hclose_row : hammingDist (b ᵥ* M) (ligeroRowComb b U ᵥ* G) ≤ e := by
-      rw [ligeroRowComb_mul, vecMul_eq_sum_smul_swap b M,
-        vecMul_eq_sum_smul_swap b (U * G)]
+      rw [ligeroRowComb_mul, Matrix.vecMul_eq_sum_smul_swap b M,
+        Matrix.vecMul_eq_sum_smul_swap b (U * G)]
       exact (hammingDist_sum_smul_le b (Function.swap M) (Function.swap (U * G))).trans hclose
     have htri := hammingDist_triangle (v ᵥ* G) (b ᵥ* M) (ligeroRowComb b U ᵥ* G)
     rw [hammingDist_comm (v ᵥ* G) (b ᵥ* M)] at htri

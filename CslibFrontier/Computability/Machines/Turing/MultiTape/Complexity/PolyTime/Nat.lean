@@ -31,8 +31,8 @@ operations support polynomially bounded counters and list enumeration in reducti
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.indexed_polynomial_bound`: a uniform polynomial
   bound over a polynomially bounded range of indices, without computing the selected index.
-* `Turing.MultiTapeTM.ComputableInPolyTime.unary_add`, `.unary_sub`, `.unary_mul`:
-  arithmetic on unary naturals.
+* `Turing.MultiTapeTM.ComputableInPolyTime.unary_add`, `.unary_sub`, `.unary_mul`,
+  `.unary_sum`: arithmetic on unary naturals.
 * `Turing.MultiTapeTM.ComputableInPolyTime.unary_min`, `.unary_max`:
   the smaller and larger of two unary naturals.
 * `Turing.MultiTapeTM.ComputableInPolyTime.unary_le`, `.unary_lt`, `.unary_pair`:
@@ -96,6 +96,20 @@ theorem unary_mul : ComputableInPolyTime (fun p : ℕ × ℕ => p.1 * p.2)
     (growth := Prod.fst) (fst encUnary encUnary).polyBounded
     (by intros; simp)
   simpa [List.foldl_const, Nat.mul_comm] using h
+
+/-- The sum of a list of unary naturals, by a left fold of unary additions. -/
+@[fun_prop]
+theorem unary_sum : ComputableInPolyTime List.sum (encList encUnary) encUnary := by
+  have hq := fst (encPair (encList encUnary) encUnary) encUnary
+  have h := foldlWith_of_bounded_growth (encA := encUnary) (encL := encList encUnary)
+    (encB := encUnary) (par := fun l : List ℕ => l) (list := fun l => l)
+    (step := fun _ s a => s + a) id' id' (const 0) (unary_add.comp (hq.snd'.prod (snd _ _)))
+    (growth := fun l => (encList encUnary l).length) .self
+    (fun l s a ha => by
+      have := length_le_encList_of_mem encUnary ha
+      simp only [encUnary_apply, List.length_replicate] at this ⊢
+      lia)
+  simpa only [← List.sum_eq_foldl_nat] using h
 
 /-- Take the smaller of two unary naturals. -/
 @[fun_prop]

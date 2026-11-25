@@ -46,10 +46,10 @@ theorem unary_padicValNat_two :
     unfold padicValStep
     have h0 : ComputableInPolyTime (fun state : ℕ × ℕ => decide (state.1 = 0))
         (encPair encUnary encUnary) encBool :=
-      unary_eq' (fst encUnary encUnary) (const 0)
+      unary_decide_eq (fst encUnary encUnary) (const 0)
     have hmod : ComputableInPolyTime (fun state : ℕ × ℕ => decide (state.1 % 2 = 0))
         (encPair encUnary encUnary) encBool :=
-      unary_eq' (unary_mod.comp ((fst encUnary encUnary).prod (const 2))) (const 0)
+      unary_decide_eq (unary_mod.comp ((fst encUnary encUnary).prod (const 2))) (const 0)
     have hnext : ComputableInPolyTime (fun state : ℕ × ℕ => (state.1 / 2, state.2 + 1))
         (encPair encUnary encUnary) (encPair encUnary encUnary) := by
       fun_prop

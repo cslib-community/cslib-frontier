@@ -369,17 +369,6 @@ open Turing.MultiTapeTM
 
 variable {α : Type} {encIn : α ↪ List Bool}
 
-private theorem lengthPolyTime {β : Type} {encB : β ↪ List Bool} {l : α → List β}
-    (hl : ComputableInPolyTime l encIn (encList encB)) :
-    ComputableInPolyTime (fun x => (l x).length) encIn encUnary :=
-  (ComputableInPolyTime.length_list encB).comp hl
-
-private theorem getDPolyTime {P : α → List (List ℕ)} {k : α → ℕ}
-    (hP : ComputableInPolyTime P encIn (encList (encList encNat)))
-    (hk : ComputableInPolyTime k encIn encUnary) :
-    ComputableInPolyTime (fun x => (P x).getD (k x) []) encIn (encList encNat) :=
-  (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp (hP.prod hk)
-
 /-- **Addition of polynomials is polynomial-time**, with the precision in unary. -/
 @[fun_prop]
 theorem computableInPolyTime_padd {p : α → ℕ} {fl : α → List ℕ} {P Q : α → List (List ℕ)}
@@ -390,12 +379,12 @@ theorem computableInPolyTime_padd {p : α → ℕ} {fl : α → List ℕ} {P Q :
   have h1 := ComputableInPolyTime.fst encIn encUnary
   have h2 := ComputableInPolyTime.snd encIn encUnary
   have hmax : ComputableInPolyTime (fun x => max (P x).length (Q x).length) encIn encUnary :=
-    (ComputableInPolyTime.unary_add' (lengthPolyTime hP)
-      (ComputableInPolyTime.unary_sub' (lengthPolyTime hQ) (lengthPolyTime hP))).of_enc_eq
+    (ComputableInPolyTime.unary_add' hP.length_list'
+      (ComputableInPolyTime.unary_sub' hQ.length_list' hP.length_list')).of_enc_eq
       fun x => by congr 1; omega
   exact ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hmax)
-    (computableInPolyTime_add (hp.comp h1) (hfl.comp h1) (getDPolyTime (hP.comp h1) h2)
-      (getDPolyTime (hQ.comp h1) h2))
+    (computableInPolyTime_add (hp.comp h1) (hfl.comp h1) ((hP.comp h1).listGetDWithInput h2 [])
+      ((hQ.comp h1).listGetDWithInput h2 []))
 
 /-- **Scaling a polynomial is polynomial-time**, with the precision in unary. -/
 @[fun_prop]
@@ -419,12 +408,12 @@ theorem computableInPolyTime_pmulLinear {p : α → ℕ} {fl v : α → List ℕ
   have h1 := ComputableInPolyTime.fst encIn encUnary
   have h2 := ComputableInPolyTime.snd encIn encUnary
   exact ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp
-    (ComputableInPolyTime.unary_add' (lengthPolyTime hP) (ComputableInPolyTime.const 1)))
+    (ComputableInPolyTime.unary_add' hP.length_list' (ComputableInPolyTime.const 1)))
     (computableInPolyTime_sub (hp.comp h1) (hfl.comp h1)
-      (getDPolyTime (ComputableInPolyTime.cons' (ComputableInPolyTime.const [])
-        (hP.comp h1)) h2)
+      ((ComputableInPolyTime.cons' (ComputableInPolyTime.const []) (hP.comp h1)).listGetDWithInput
+        h2 [])
       (computableInPolyTime_mul (hp.comp h1) (hfl.comp h1) (hv.comp h1)
-        (getDPolyTime (hP.comp h1) h2)))
+        ((hP.comp h1).listGetDWithInput h2 [])))
 
 /-- The bound `n (2 e (2 (p + 1) + 1) + 1)` of `length_encPoly_le`, on the encoding of at most `n`
 small coefficient lists, is polynomially bounded when `n` is. -/
@@ -450,7 +439,7 @@ theorem computableInPolyTime_peval {p : α → ℕ} {fl z : α → List ℕ} {P 
         (z q.1.1) q.1.2)) (encPair (encPair encIn (encList encNat)) (encList encNat))
       (encList encNat) := by fun_prop
   have hzero : ComputableInPolyTime (fun x => zero (fl x)) encIn (encList encNat) :=
-    computableInPolyTime_tabulate (g := fun _ _ => 0) (lengthPolyTime hfl)
+    computableInPolyTime_tabulate (g := fun _ _ => 0) hfl.length_list'
       (ComputableInPolyTime.const 0)
   exact ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encList encNat) (encL := encList (encList encNat))
@@ -478,7 +467,7 @@ theorem computableInPolyTime_basisNum {p : α → ℕ} {fl : α → List ℕ} {v
   have hfold := ComputableInPolyTime.foldlWith_spec (encA := encUnary)
     (encL := encList encUnary) (par := fun x => x)
     (step := fun x P j => if j = i x then P else pmulLinear (p x) (fl x) ((v x).getD j []) P)
-    ComputableInPolyTime.id' (ComputableInPolyTime.range.comp (lengthPolyTime hv))
+    ComputableInPolyTime.id' (ComputableInPolyTime.range.comp hv.length_list')
     (ComputableInPolyTime.cons' (computableInPolyTime_one hfl) (ComputableInPolyTime.const []))
     hstep (fun x consumed P => P.length ≤ consumed.length + 1 ∧ ∀ c ∈ P, Small (p x) (fl x) c)
     (fun x => ⟨by simp, by simp [small_one]⟩)
@@ -518,7 +507,7 @@ theorem computableInPolyTime_basisDen {p : α → ℕ} {fl : α → List ℕ} {v
     (step := fun x d j => if j = i x then d
       else mul (p x) (fl x) d (sub (p x) (fl x) ((v x).getD (i x) []) ((v x).getD j [])))
     (computableInPolyTime_one hfl)
-    ⟨ComputableInPolyTime.range.comp (lengthPolyTime hv), hstep, inferInstance, inferInstance⟩
+    ⟨ComputableInPolyTime.range.comp hv.length_list', hstep, inferInstance, inferInstance⟩
     ⟨polyBounded_polyLength hp hfl (PolyBounded.const 1), fun x d j _ => by
       split
       · omega
@@ -546,7 +535,7 @@ theorem computableInPolyTime_interp {p : α → ℕ} {fl : α → List ℕ} {v y
     (step := fun x P i => padd (p x) (fl x) P
       (psmul (p x) (fl x) (mul (p x) (fl x) ((y x).getD i []) (inv (p x) (fl x)
         (basisDen (p x) (fl x) (v x) i))) (basisNum (p x) (fl x) (v x) i)))
-    ComputableInPolyTime.id' (ComputableInPolyTime.range.comp (lengthPolyTime hv))
+    ComputableInPolyTime.id' (ComputableInPolyTime.range.comp hv.length_list')
     (ComputableInPolyTime.const []) hstep
     (fun x _ P => P.length ≤ (v x).length + 1 ∧ ∀ c ∈ P, Small (p x) (fl x) c)
     (fun x => ⟨by simp, by simp⟩)

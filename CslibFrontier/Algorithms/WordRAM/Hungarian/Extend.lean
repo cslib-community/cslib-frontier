@@ -123,18 +123,14 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
       Function.update_of_ne (by have := j₁.isLt; omega)]
   -- Loop 1: relaxBestRowCode
   let dB := bC + n * n + 6 * n
-  let eB : ℕ → ℕ := fun k => if hk : k < n then (bestRow' ⟨k, hk⟩).val else 0
-  let PB (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (dB + j) = eB j) ∧
-      (∀ a, ¬(dB ≤ a ∧ a < dB + k) → y.mem a = y₀.mem a)
-  have hbodyB (y : Data 28) (hy : PB (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w relaxBestRowBody y z 23 ∧ PB (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    let j : Fin n := ⟨y.regs idx, hlt⟩
-    have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
-    have hri0_y : y.regs ri0 = i₀.val := (hr ri0 (by decide)).trans hri0
+  have hb₀ : BaseRegs n bC M y₀ := hb.of_eq fun i hi => hr₀ i (by omega)
+  have hri0₀ : y₀.regs ri0 = i₀.val := (hr₀ ri0 (by decide)).trans hri0
+  obtain ⟨y₁, he₁, hr₁, hbest₁, hf₁⟩ := exec_prefixWriteLoop (w := w) (T := 23) (d := dB)
+      (body := relaxBestRowBody) y₀ (fun j => (bestRow' j).val) hb₀.hrn (by decide) <| by
+    intro y hr hlt hf
+    set j : Fin n := ⟨y.regs idx, hlt⟩
+    have hby : BaseRegs n bC M y := hb₀.of_eq fun i hi => hr i (by omega)
+    have hri0_y : y.regs ri0 = i₀.val := (hr ri0 (by decide)).trans hri0₀
     have hbest_j : y.mem (bC + n * n + 6 * n + y.regs idx) = (bestRow j).val := by
       rw [hf _ (by simp only [dB]; omega), hout₀ _ (by have := j.isLt; omega)]
       exact hSM.hbest j
@@ -173,77 +169,50 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
       hfit.of_le (by omega)
     have hf10 : Fits w (bC + n * n + 5 * n + y.regs idx) := hfit.of_le (by omega)
     have hf11 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    have hstep : ∃ z, ExecWithin w relaxBestRowBody y z 23 ∧
-        z.mem = Function.update y.mem (dB + y.regs idx) (eB (y.regs idx)) ∧
-        (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
-        z.regs idx = y.regs idx + 1 := by
-      refine WP.exists_execWithin ?_
-      unfold relaxBestRowBody
-      by_cases hu : vget used' j = true
-      · have hu_val : (if vget used' j = true then 1 else 0) = 1 := ite_eq_left hu
-        have heq_e : (bestRow j).val = eB (y.regs idx) := by
-          simp only [eB, hlt, dite_true]
-          change _ = (bestRow' j).val
-          simp [bestRow', hu]
-        wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone,
-          hbest_j, hu_j, hu_val, hf1, hf2, hf11]
+    refine WP.exists_execWithin ?_
+    unfold relaxBestRowBody
+    by_cases hu : vget used' j = true
+    · have hu_val : (if vget used' j = true then 1 else 0) = 1 := ite_eq_left hu
+      have heq_e : (bestRow j).val = (bestRow' j).val := by
+        simp [bestRow', hu]
+      wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone,
+        hbest_j, hu_j, hu_val, hf1, hf2, hf11]
+      exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+    · have huf : vget used' j = false := Bool.eq_false_iff.mpr hu
+      have hu_val : (if vget used' j = true then 1 else 0) = 0 := ite_eq_right hu
+      by_cases hlt_r : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat <
+          (vget s.minv j).toNat
+      · have hlt_z : hgRed c s.y s.z i₀ j < vget s.minv j := by
+          rw [hred_eq'] at hlt_r
+          omega
+        have heq_e : i₀.val = (bestRow' j).val := by
+          simp [bestRow', huf, hlt_z]
+        wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
+          hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hri0_y, hbest_j, hu_j, hu_val,
+          hC_ij, hnz_j, hy_i, hm_j, hle_sub, hlt_r,
+          hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11]
         exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-      · have huf : vget used' j = false := Bool.eq_false_iff.mpr hu
-        have hu_val : (if vget used' j = true then 1 else 0) = 0 := ite_eq_right hu
-        by_cases hlt_r : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat <
-            (vget s.minv j).toNat
-        · have hlt_z : hgRed c s.y s.z i₀ j < vget s.minv j := by
-            rw [hred_eq'] at hlt_r
-            omega
-          have heq_e : i₀.val = eB (y.regs idx) := by
-            simp only [eB, hlt, dite_true]
-            change _ = (bestRow' j).val
-            simp [bestRow', huf, hlt_z]
-          wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hri0_y, hbest_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hm_j, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11]
-          exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-        · have hlt_z : ¬hgRed c s.y s.z i₀ j < vget s.minv j := by
-            rw [hred_eq'] at hlt_r
-            omega
-          have heq_e : (bestRow j).val = eB (y.regs idx) := by
-            simp only [eB, hlt, dite_true]
-            change _ = (bestRow' j).val
-            simp [bestRow', huf, hlt_z]
-          wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hri0_y, hbest_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hm_j, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11]
-          exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-    obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
-    exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
-  have hexecB : ∃ y₁, ExecWithin w relaxBestRowCode y₀ y₁ (25 * n + 3) ∧
-      (∀ i : Fin 28, i.val < 21 → y₁.regs i = x.regs i) ∧
-      (∀ j : Fin n, y₁.mem (dB + j.val) = (bestRow' j).val) ∧
-      (∀ a, ¬(dB ≤ a ∧ a < dB + n) → y₁.mem a = y₀.mem a) := by
-    obtain ⟨y₁, he₁, hr₁, hm₁, hf₁⟩ := exec_forLoop PB
-      (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbodyB (x := y₀)
-      ⟨fun i hi => by wram_simp [hr₀ i hi], fun _ hj => by omega, fun _ _ => rfl⟩
-    refine ⟨y₁, he₁.mono (by omega), hr₁, fun j => ?_, hf₁⟩
-    simpa [dB, eB, j.isLt] using hm₁ j.val j.isLt
-  obtain ⟨y₁, he₁, hr₁, hbest₁, hf₁⟩ := hexecB
+      · have hlt_z : ¬hgRed c s.y s.z i₀ j < vget s.minv j := by
+          rw [hred_eq'] at hlt_r
+          omega
+        have heq_e : (bestRow j).val = (bestRow' j).val := by
+          simp [bestRow', huf, hlt_z]
+        wram_exec [hby.hbaseBestRow, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
+          hby.hbaseNZ, hby.hbaseY, hby.hbaseMinv, hri0_y, hbest_j, hu_j, hu_val,
+          hC_ij, hnz_j, hy_i, hm_j, hle_sub, hlt_r,
+          hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11]
+        exact ⟨by wram_simp [dB, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
   -- Loop 2: relaxMinvCode
   let dM := bC + n * n + 5 * n
-  let eM : ℕ → ℕ := fun k =>
-    if hk : k < n then (vget (hgExtend c s j₁ i₀).minv ⟨k, hk⟩).toNat else 0
-  let PM (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (dM + j) = eM j) ∧
-      (∀ a, ¬(dM ≤ a ∧ a < dM + k) → y.mem a = y₁.mem a)
-  have hbodyM (y : Data 28) (hy : PM (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w relaxMinvBody y z 21 ∧ PM (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    let j : Fin n := ⟨y.regs idx, hlt⟩
-    have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
-    have hri0_y : y.regs ri0 = i₀.val := (hr ri0 (by decide)).trans hri0
+  have hb₁ : BaseRegs n bC M y₁ := hb₀.of_eq fun i hi => hr₁ i (by omega)
+  have hri0₁ : y₁.regs ri0 = i₀.val := (hr₁ ri0 (by decide)).trans hri0₀
+  obtain ⟨y₂, he₂, hr₂, hminv₂, hf₂⟩ := exec_prefixWriteLoop (w := w) (T := 21) (d := dM)
+      (body := relaxMinvBody) y₁ (fun j => (vget (hgExtend c s j₁ i₀).minv j).toNat) hb₁.hrn
+      (by decide) <| by
+    intro y hr hlt hf
+    set j : Fin n := ⟨y.regs idx, hlt⟩
+    have hby : BaseRegs n bC M y := hb₁.of_eq fun i hi => hr i (by omega)
+    have hri0_y : y.regs ri0 = i₀.val := (hr ri0 (by decide)).trans hri0₁
     have hm_j : y.mem (bC + n * n + 5 * n + y.regs idx) = (vget s.minv j).toNat := by
       rw [hf _ (by simp only [dM]; omega), hf₁ _ (by simp only [dB]; omega),
         hout₀ _ (by omega)]
@@ -285,65 +254,43 @@ theorem exec_extendCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ 
         if vget used' j = true then vget s.minv j
         else min (vget s.minv j) (hgRed c s.y s.z i₀ j) := by
       simpa only [hgExtend] using hgRelax_minv (c := c) _ i₀ j₁ j
-    have hstep : ∃ z, ExecWithin w relaxMinvBody y z 21 ∧
-        z.mem = Function.update y.mem (dM + y.regs idx) (eM (y.regs idx)) ∧
-        (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
-        z.regs idx = y.regs idx + 1 := by
-      refine WP.exists_execWithin ?_
-      unfold relaxMinvBody
-      by_cases hu : vget used' j = true
-      · have hu_val : (if vget used' j = true then 1 else 0) = 1 := ite_eq_left hu
-        have heq_e : (vget s.minv j).toNat = eM (y.regs idx) := by
-          simp only [eM, hlt, dite_true]
-          change _ = (vget (hgExtend c s j₁ i₀).minv j).toNat
-          rw [hminv_ext, ite_eq_left hu]
-        wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone,
-          hm_j, hu_j, hu_val, hf1, hf2, hf10]
+    refine WP.exists_execWithin ?_
+    unfold relaxMinvBody
+    by_cases hu : vget used' j = true
+    · have hu_val : (if vget used' j = true then 1 else 0) = 1 := ite_eq_left hu
+      have heq_e : (vget s.minv j).toNat = (vget (hgExtend c s j₁ i₀).minv j).toNat := by
+        rw [hminv_ext, ite_eq_left hu]
+      wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone,
+        hm_j, hu_j, hu_val, hf1, hf2, hf10]
+      exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+    · have hu_val : (if vget used' j = true then 1 else 0) = 0 := ite_eq_right hu
+      by_cases hlt_r : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat <
+          (vget s.minv j).toNat
+      · have heq_e : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat =
+            (vget (hgExtend c s j₁ i₀).minv j).toNat := by
+          rw [hminv_ext, ite_eq_right hu, hred_eq']
+          simp only [min_def]
+          split_ifs <;> omega
+        wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
+          hby.hbaseNZ, hby.hbaseY, hri0_y, hm_j, hu_j, hu_val,
+          hC_ij, hnz_j, hy_i, hle_sub, hlt_r,
+          hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10]
         exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-      · have hu_val : (if vget used' j = true then 1 else 0) = 0 := ite_eq_right hu
-        by_cases hlt_r : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat <
-            (vget s.minv j).toNat
-        · have heq_e : C (i₀, j) + (-vget s.z j).toNat - (vget s.y i₀).toNat =
-              eM (y.regs idx) := by
-            simp only [eM, hlt, dite_true]
-            change _ = (vget (hgExtend c s j₁ i₀).minv j).toNat
-            rw [hminv_ext, ite_eq_right hu, hred_eq']
-            simp only [min_def]
-            split_ifs <;> omega
-          wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hri0_y, hm_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10]
-          exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-        · have heq_e : (vget s.minv j).toNat = eM (y.regs idx) := by
-            simp only [eM, hlt, dite_true]
-            change _ = (vget (hgExtend c s j₁ i₀).minv j).toNat
-            rw [hminv_ext, ite_eq_right hu]
-            rw [hred_eq'] at hlt_r
-            simp only [min_def]
-            split_ifs <;> omega
-          wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
-            hby.hbaseNZ, hby.hbaseY, hri0_y, hm_j, hu_j, hu_val,
-            hC_ij, hnz_j, hy_i, hle_sub, hlt_r,
-            hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10]
-          exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-    obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
-    exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
-  have hexecM : ∃ y₂, ExecWithin w relaxMinvCode y₁ y₂ (23 * n + 3) ∧
-      (∀ i : Fin 28, i.val < 21 → y₂.regs i = x.regs i) ∧
-      (∀ j : Fin n, y₂.mem (dM + j.val) = (vget (hgExtend c s j₁ i₀).minv j).toNat) ∧
-      (∀ a, ¬(dM ≤ a ∧ a < dM + n) → y₂.mem a = y₁.mem a) := by
-    obtain ⟨y₂, he₂, hr₂, hm₂, hf₂⟩ := exec_forLoop PM
-      (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbodyM (x := y₁)
-      ⟨fun i hi => by wram_simp [hr₁ i hi], fun _ hj => by omega, fun _ _ => rfl⟩
-    refine ⟨y₂, he₂.mono (by omega), hr₂, fun j => ?_, hf₂⟩
-    simpa [dM, eM, j.isLt] using hm₂ j.val j.isLt
-  obtain ⟨y₂, he₂, hr₂, hminv₂, hf₂⟩ := hexecM
+      · have heq_e : (vget s.minv j).toNat = (vget (hgExtend c s j₁ i₀).minv j).toNat := by
+          rw [hminv_ext, ite_eq_right hu]
+          rw [hred_eq'] at hlt_r
+          simp only [min_def]
+          split_ifs <;> omega
+        wram_exec [hby.hbaseMinv, hby.hbaseUsed, hby.hzero, hby.hone, hby.hrn, hby.hbaseC,
+          hby.hbaseNZ, hby.hbaseY, hri0_y, hm_j, hu_j, hu_val,
+          hC_ij, hnz_j, hy_i, hle_sub, hlt_r,
+          hf1, hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10]
+        exact ⟨by wram_simp [dM, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
   have hout : ∀ a, ¬(bC + n * n + 3 * n ≤ a ∧ a < bC + n * n + 7 * n) → y₂.mem a = x.mem a :=
     fun a ha => (hf₂ a (by simp only [dM]; omega)).trans
       ((hf₁ a (by simp only [dB]; omega)).trans (hout₀ a (by omega)))
-  refine ⟨y₂, (he₀.seq (he₁.seq he₂)).mono (by omega), hr₂,
+  refine ⟨y₂, (he₀.seq (he₁.seq he₂)).mono (by omega),
+    fun i hi => ((hr₂ i hi).trans (hr₁ i hi)).trans (hr₀ i hi),
     ⟨⟨fun i => ?_, fun j => ?_, fun j => ?_, fun j i hm => ?_, fun i hm => ?_⟩,
       fun j => ?_, fun i => ?_, hminv₂, fun j => ?_⟩,
     fun a ha => hout a (by omega)⟩

@@ -21,9 +21,10 @@ For quantum states `ρ, σ` on `ℂ^ι`, `Cslib.Quantum.traceDistance ρ σ = (�
 total variation distance. Using `Matrix.traceNorm_eq_max_re_trace`
 (`CslibFrontier/Foundations/LinearAlgebra/Matrix/PolarDecomposition.lean`), this file proves:
 
-* **Norm and metric laws** (`Matrix.traceNorm_add_le`, `Matrix.traceNorm_eq_zero_iff`,
+* **Norm and metric laws** (`Matrix.traceNorm_add_le`, `Matrix.traceNorm_smul`,
   `Cslib.Quantum.traceDistance_triangle`, `Cslib.Quantum.traceDistance_sum_smul_le`): `traceNorm`
-  is a norm on matrices (nonnegative, zero iff zero, homogeneous, subadditive), making
+  is a norm on matrices (nonnegative and zero only at zero by `Matrix.traceNorm_nonneg` and
+  `Matrix.traceNorm_eq_zero_iff`, homogeneous, subadditive), making
   `traceDistance` a `[0, 1]`-valued metric on density matrices that is jointly convex in mixtures.
 * **Data-processing inequality under CPTP maps** (`Cslib.Quantum.traceDistance_densityConj`,
   `Cslib.Quantum.traceDistance_partialTraceRight_le`, `Cslib.Quantum.traceDistance_kraus_le`):
@@ -50,8 +51,8 @@ total variation distance. Using `Matrix.traceNorm_eq_max_re_trace`
 
 ## Main results
 
-* `Matrix.traceNorm_nonneg`, `Matrix.traceNorm_eq_zero_iff`, `Matrix.traceNorm_smul`,
-  `Matrix.traceNorm_add_le`: norm properties of `Matrix.traceNorm`.
+* `Matrix.traceNorm_smul`, `Matrix.traceNorm_add_le`: homogeneity and subadditivity of
+  `Matrix.traceNorm`.
 * `Matrix.traceNorm_isometry_conj`: `(V * A * Vᴴ).traceNorm = A.traceNorm` when `Vᴴ * V = 1`.
 * `Matrix.IsHermitian.traceNorm_eq_sum_abs_eigenvalues`: for Hermitian `H`, `H.traceNorm` is the sum
   of absolute eigenvalues.
@@ -83,32 +84,6 @@ namespace Matrix
 section TraceNorm
 
 variable {m n p : Type*} [Fintype m] [Fintype n] [Fintype p]
-
-/-- The trace norm of any rectangular matrix is nonnegative. -/
-theorem traceNorm_nonneg [DecidableEq n] (A : Matrix m n ℂ) : 0 ≤ A.traceNorm := by
-  unfold traceNorm
-  exact (Complex.nonneg_iff.mp
-    (Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg (Aᴴ * A))).trace_nonneg).1
-
-/-- The zero matrix has trace norm zero. -/
-@[simp] theorem traceNorm_zero [DecidableEq n] : (0 : Matrix m n ℂ).traceNorm = 0 := by
-  unfold traceNorm
-  simp [CFC.sqrt_zero]
-
-/-- A rectangular matrix has trace norm zero if and only if it is zero. -/
-theorem traceNorm_eq_zero_iff [DecidableEq n] (A : Matrix m n ℂ) : A.traceNorm = 0 ↔ A = 0 := by
-  refine ⟨fun h => ?_, fun h => by rw [h, traceNorm_zero]⟩
-  let B := CFC.sqrt (Aᴴ * A)
-  have hB : B.PosSemidef := Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg _)
-  have htr : B.trace = 0 := Complex.ext h (Complex.nonneg_iff.mp hB.trace_nonneg).2.symm
-  have hB0 : B = 0 := by
-    simpa only [Matrix.mul_one] using
-      (hB.trace_mul_eq_zero_iff PosSemidef.one).mp (by simpa only [Matrix.mul_one] using htr)
-  have hAA : Aᴴ * A = 0 := by
-    rw [← CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
-    change B * B = 0
-    rw [hB0, Matrix.mul_zero]
-  exact Matrix.trace_conjTranspose_mul_self_eq_zero_iff.mp (by rw [hAA, trace_zero])
 
 /-- Negation preserves the trace norm. -/
 @[simp] theorem traceNorm_neg [DecidableEq n] (A : Matrix m n ℂ) :

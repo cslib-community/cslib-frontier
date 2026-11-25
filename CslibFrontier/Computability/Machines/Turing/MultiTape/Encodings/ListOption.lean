@@ -22,6 +22,8 @@ include the option tag and a possible default. These facts do not require a comp
   list.
 * `Turing.MultiTapeTM.length_enc_getD_le`: bound an encoded selected value by the option and its
   default.
+* `Turing.MultiTapeTM.length_encOption_encBool_le`: an encoded optional Boolean has at most two
+  symbols.
 -/
 
 public section
@@ -40,6 +42,10 @@ theorem length_encOption_head?_le (l : List β) :
       (b :: l) b List.mem_cons_self
     simp only [List.head?_cons, encOption_some, List.length_cons]
     omega
+
+/-- An encoded optional Boolean has at most two symbols: the tag and the bit. -/
+theorem length_encOption_encBool_le (o : Option Bool) : (encOption encBool o).length ≤ 2 := by
+  cases o <;> simp
 
 /-- Selecting an option value or its default charges the option and the encoded default. -/
 theorem length_enc_getD_le [Inhabited γ] (o : Option γ) :

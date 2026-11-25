@@ -480,7 +480,7 @@ theorem isPPTOn_sign :
   have hk := (ComputableInPolyTime.fst encBits encBits).trans keyDecoder.computableInPolyTime
   have hp1 := ComputableInPolyTime.fst (encPair encBits encBits) encBits
   exact IsPPTOn.ite
-    ((ComputableInPolyTime.snd encBits encBits).length_bits_comp.unary_eq' hk.fst')
+    ((ComputableInPolyTime.snd encBits encBits).length_bits_comp.unary_decide_eq hk.fst')
     (IsPPTOn.bind_with (left := encBits)
       (ComputableInPolyTime.sampleList (hk.fst'.trans hdepth))
       (((hp1.trans hk).prod
@@ -561,8 +561,8 @@ theorem computableInPolyTime_verify :
   have hlast := hleaf.bitsGetDWithInput (hleaf.length_bits_comp.unary_sub' (.const 1)) false
   simpa only [verify, chainCheck, List.dropLast_eq_take, List.getLastD_eq_getLast?,
     List.getLast?_eq_getElem?, ← List.getD_eq_getElem?_getD] using
-    (((hleaf.length_bits_comp.unary_beq' hdp).bool_and'
-      (((hcerts.trans (.length_list _)).unary_add' (.const 1)).unary_beq' hdp)).bool_and'
+    (((hleaf.length_bits_comp.unary_beq hdp).bool_and'
+      (((hcerts.trans (.length_list _)).unary_add' (.const 1)).unary_beq hdp)).bool_and'
       hr.fst').bool_and'
       ((hr.snd'.prod ((hlast.trans (.of_finite Bool.toNat)).prod
         (hp2.fst'.prod hs.snd'.snd'))).trans S.verify_polyTime)

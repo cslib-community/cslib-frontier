@@ -305,7 +305,7 @@ theorem computableInPolyTime_moveLength {γ : Type} {encIn : γ ↪ List Bool}
     exact (ComputableInPolyTime.const (encOut := encUnary) 0).of_enc_eq fun x => by
       simp [moveLength, evalShape]
   | cons y G ih =>
-    have h := ComputableInPolyTime.ite' (ComputableInPolyTime.unary_beq' hj
+    have h := ComputableInPolyTime.ite' (ComputableInPolyTime.unary_beq hj
       (ComputableInPolyTime.const 0)) ((ComputableInPolyTime.unary_eval y.2).comp hlen)
       (ih (ComputableInPolyTime.unary_sub' hj (ComputableInPolyTime.const 1)))
     refine h.of_enc_eq fun x => congrArg _ ?_
@@ -325,7 +325,7 @@ theorem computableInPolyTime_copyTranscript_take {γ : Type} {encIn : γ ↪ Lis
   | cons y G ih =>
     have hn : ComputableInPolyTime (fun x => y.2.eval (len x)) encIn encUnary :=
       (ComputableInPolyTime.unary_eval y.2).comp hlen
-    have h := ComputableInPolyTime.ite' (ComputableInPolyTime.unary_beq' hj
+    have h := ComputableInPolyTime.ite' (ComputableInPolyTime.unary_beq hj
       (ComputableInPolyTime.const 0)) (ComputableInPolyTime.const [])
       (ComputableInPolyTime.bitsAppend (.bitsRowWithInput hn hi hw)
         (ih (ComputableInPolyTime.unary_sub' hj (ComputableInPolyTime.const 1))

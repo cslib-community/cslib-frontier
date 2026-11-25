@@ -98,27 +98,9 @@ private theorem norm_purifySqrt {ρ : Matrix ι ι ℂ} (hρ : IsDensityMatrix �
     exact_mod_cast ht
   exact (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp hsq
 
-private theorem traceNorm_eq_zero_iff {m n : Type*} [Fintype m] [Fintype n] [DecidableEq n]
-    (A : Matrix m n ℂ) : A.traceNorm = 0 ↔ A = 0 := by
-  refine ⟨fun h => ?_, fun h => by subst h; unfold Matrix.traceNorm; simp [CFC.sqrt_zero]⟩
-  let B := CFC.sqrt (Aᴴ * A)
-  have hB : B.PosSemidef := Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg _)
-  have htr : B.trace = 0 :=
-    Complex.ext h (Complex.nonneg_iff.mp hB.trace_nonneg).2.symm
-  have hB0 : B = 0 := by
-    simpa only [Matrix.mul_one] using
-      (hB.trace_mul_eq_zero_iff PosSemidef.one).mp (by simpa only [Matrix.mul_one] using htr)
-  have hAA : Aᴴ * A = 0 := by
-    rw [← CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
-    change B * B = 0
-    rw [hB0, Matrix.mul_zero]
-  exact Matrix.trace_conjTranspose_mul_self_eq_zero_iff.mp (by rw [hAA, trace_zero])
-
 /-- Root fidelity is nonnegative for arbitrary square matrices. -/
-theorem rootFidelity_nonneg (ρ σ : Matrix ι ι ℂ) : 0 ≤ rootFidelity ρ σ := by
-  unfold rootFidelity Matrix.traceNorm
-  exact (Complex.nonneg_iff.mp
-    (Matrix.nonneg_iff_posSemidef.mp (CFC.sqrt_nonneg _)).trace_nonneg).1
+theorem rootFidelity_nonneg (ρ σ : Matrix ι ι ℂ) : 0 ≤ rootFidelity ρ σ :=
+  Matrix.traceNorm_nonneg _
 
 /-- Root fidelity of two density matrices is at most `1`. -/
 theorem rootFidelity_le_one {ρ σ : Matrix ι ι ℂ}

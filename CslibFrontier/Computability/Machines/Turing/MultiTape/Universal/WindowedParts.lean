@@ -347,7 +347,7 @@ private lemma length_eWCtx_wCtx_le (x : Desc × Win) :
   have h₂ := length_read_headD_le x.2.2
   have h₃ := length_encList_sublist eTape (List.tail_sublist x.2.2)
   have h₄ : (encNat (inPos (wHead x).read)).length ≤ 1 :=
-    (length_encNat_le _).trans (inPos_le _)
+    (length_encNat_le_self _).trans (inPos_le _)
   simp only [wCtx, wHead, eCfg_apply, length_encPair] at *
   omega
 
@@ -363,7 +363,7 @@ private lemma wTime_wCtx_le (x : Desc × Win) :
     simp only [wCtx, eDesc_apply, length_encPair]
     omega
   have h₃ : (encNat (wCtx x).1.2.inputPos).length ≤ 1 :=
-    (length_encNat_le _).trans (inPos_le _)
+    (length_encNat_le_self _).trans (inPos_le _)
   have hN : (encList eTape x.2.2).length + (eDesc x.1).length ≤ (encPair eDesc eWin x).length := by
     simp only [length_encPair]
     omega

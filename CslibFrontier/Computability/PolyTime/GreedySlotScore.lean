@@ -95,11 +95,6 @@ open scoped BigOperators
 
 /-! ### Section 1: Radix-`r` candidate word decoder and bijections -/
 
-/-- Binary bit-length bound for `r ^ Q`: at most `Q * |encNat r| + 1`. -/
-theorem length_encNat_pow_le (r Q : ℕ) :
-    (encNat (r ^ Q)).length ≤ Q * (encNat r).length + 1 := by
-  simp only [encNat_apply, Nat.size_eq_bits_len]; exact Nat.size_pow_le r Q
-
 /-- Decode binary candidate index `j` into the length-`Q` radix-`r` word of digits via
 `Cslib.Radix.digit` ([OpenAI2026ETH], Lemma 4.5, p. 31). -/
 def decodeLabelWord (r Q j : ℕ) : List ℕ :=

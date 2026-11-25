@@ -49,12 +49,13 @@ theorem BufEpFrame.mem_outside {base c U V w n_max ep a : ℕ} {m₁ m₂ : ℕ 
             a ≠ base + brHdrIA (mkBufRt c U V w n_max base ep)) ∨
           base + largeSpaceWhp c U V w n_max ≤ a) :
     m₂ a = m₁ a := by
-  have hseg := rt_seg_le c U V w n_max base ep hep
+  obtain ⟨-, -, hc_seg, hm_seg, hi_seg⟩ := rt_seg_le c U V w n_max base ep hep
   have hch := largeOffsetChain c U V w n_max
   rcases hep with rfl | rfl <;>
     (dsimp only [mkBufRt, brHdrNA, brHdrIA, brOffChild, brOffMeta, brOffItems,
-       hdrBuf0NodeAlloc, hdrBuf0ItemAlloc, hdrBuf1NodeAlloc, hdrBuf1ItemAlloc] at ha hseg ⊢
-     simp only [↓reduceIte, Nat.one_ne_zero] at ha hseg
+       hdrBuf0NodeAlloc, hdrBuf0ItemAlloc, hdrBuf1NodeAlloc, hdrBuf1ItemAlloc]
+       at ha hc_seg hm_seg hi_seg ⊢
+     simp only [↓reduceIte, Nat.one_ne_zero] at ha hc_seg hm_seg hi_seg
      exact hf.1 a
        (by dsimp [mkBufRt, brHdrNA, hdrBuf0NodeAlloc, hdrBuf1NodeAlloc]; omega)
        (by dsimp [mkBufRt, brHdrIA, hdrBuf0ItemAlloc, hdrBuf1ItemAlloc]; omega)
@@ -108,12 +109,8 @@ theorem BufEpFrame.other_bufTrieMemRep {base c U V w n_max ep : ℕ} {tr : BufTr
         by dsimp [mkBufRt, brHdrNA, hdrBuf0NodeAlloc, hdrBuf1ItemAlloc]; omega,
         by dsimp [mkBufRt, brHdrIA, hdrBuf0ItemAlloc, hdrBuf1ItemAlloc]; omega⟩)).trans hhdr_ia,
       fun u hu ch hch_lt => ?_, fun u hu1 hu => ?_, fun u hu => ?_, fun id hid => ?_⟩
-    · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-              Nat.add_lt_add_left hch_lt _
-          _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
+    · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hu hch_lt
       exact (readPacked_congr hw (hidx := hidx) (fun a ⟨ha1,
         ha2⟩ => hmem_c1 a ha1 ha2)).trans (hch u hu ch hch_lt)
     · exact ⟨(readPacked_congr hw (hidx := show 4 * u + 0 < 6 * maxTrieNodesWhp c n_max by omega)
@@ -169,12 +166,8 @@ theorem BufEpFrame.other_bufTrieMemRep {base c U V w n_max ep : ℕ} {tr : BufTr
         by dsimp [mkBufRt, brHdrNA, hdrBuf0ItemAlloc, hdrBuf1NodeAlloc]; omega,
         by dsimp [mkBufRt, brHdrIA, hdrBuf0ItemAlloc, hdrBuf1ItemAlloc]; omega⟩)).trans hhdr_ia,
       fun u hu ch hch_lt => ?_, fun u hu1 hu => ?_, fun u hu => ?_, fun id hid => ?_⟩
-    · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc u * 2 ^ bCharWhp n_max + ch < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max :=
-              Nat.add_lt_add_left hch_lt _
-          _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
+    · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hu hch_lt
       exact (readPacked_congr hw (hidx := hidx) (fun a ⟨ha1,
         ha2⟩ => hmem_c0 a ha1 ha2)).trans (hch u hu ch hch_lt)
     · exact ⟨(readPacked_congr hw (hidx := show 4 * u + 0 < 6 * maxTrieNodesWhp c n_max by omega)

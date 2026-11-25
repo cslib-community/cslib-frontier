@@ -57,12 +57,6 @@ private def bitsGetElemProgram : CounterProgram where
      halt []]
   registers := 4
 
-private theorem bounded4_regs {B a₀ a₁ a₂ a₃ : ℕ}
-    (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B) (h₃ : a₃ ≤ B) :
-    ∀ r ∈ [a₀, a₁, a₂, a₃], r ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
 private def valBits : List Bool → ℕ
   | [] => 0
   | b :: bs => (if b then 1 else 0) + 2 * valBits bs
@@ -111,21 +105,21 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
     | zero =>
       obtain rfl : j = w.length := by omega
       refine CounterProgram.Reaches.read (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
+        (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
       simpa [getElem?_frame_append_length, readLabel] using
         CounterProgram.Reaches.refl (2, [w.length, 0, 0, 0])
     | succ _ ih =>
       refine CounterProgram.Reaches.read (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
+        (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
       simp only [eval_mul, eval_const, eval_reg, List.getD_cons_zero,
         (getElem?_frame_append w i.bits (show j < w.length by omega)).1, readLabel]
       refine CounterProgram.Reaches.assign (by rfl)
-        (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
+        (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
       simpa using ih (j + 1) (by omega) (by omega)
   have setPow : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
       (2, [w.length, 0, 0, 0]) (3, [w.length, 0, 2 ^ 0, valBits (i.bits.take 0)]) := by
     refine CounterProgram.Reaches.assign (by rfl)
-      (bounded4_regs (by omega) (by omega) (by omega) (by omega)) ?_
+      (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
     simpa [valBits] using CounterProgram.Reaches.refl (3, [w.length, 0, 1, 0])
   have loop : ∀ j ≤ i.bits.length, 2 ^ j ≤ 2 * w.length + 1 →
       valBits (i.bits.take j) ≤ 2 * w.length →
@@ -141,7 +135,7 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
       have hval_eq : valBits (i.bits.take i.bits.length) = i := by
         rw [List.take_length, valBits_bits]
       rw [hval_eq] at hrem ⊢
-      have hb := bounded4_regs (B := B) (a₀ := w.length) (a₁ := i.bits.length)
+      have hb := forall_mem_four_le (B := B) (a₀ := w.length) (a₁ := i.bits.length)
         (a₂ := 2 ^ i.bits.length) (a₃ := i) (by omega) (by omega) (by omega) (by omega)
       have h3 : bitsGetElemProgram.Reaches (frame w ++ i.bits) (bitsGetElemProgram.Running B)
           (3, [w.length, i.bits.length, 2 ^ i.bits.length, i])
@@ -170,7 +164,7 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
     | succ _ ih =>
       intro hpow hrem
       have hj_lt : j < i.bits.length := by omega
-      have hb := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ j)
+      have hb := forall_mem_four_le (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ j)
         (a₃ := valBits (i.bits.take j)) (by omega) (by omega) (by omega) (by omega)
       by_cases hgt : w.length < 2 ^ j
       · have hj_sz : j < i.size := Nat.size_eq_bits_len i ▸ hj_lt
@@ -196,9 +190,9 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
           omega
         obtain ⟨s, hs, hout, hsB⟩ := ih (j + 1) (by omega) (by omega) hnext_pow hnext_rem
         refine ⟨s, ?_, hout, hsB⟩
-        have hb7 := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ j)
+        have hb7 := forall_mem_four_le (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ j)
           (a₃ := valBits (i.bits.take (j + 1))) (by omega) (by omega) (by omega) (by omega)
-        have hb8 := bounded4_regs (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ (j + 1))
+        have hb8 := forall_mem_four_le (B := B) (a₀ := w.length) (a₁ := j) (a₂ := 2 ^ (j + 1))
           (a₃ := valBits (i.bits.take (j + 1))) (by omega) (by omega) (by omega) (by omega)
         have htail7 : bitsGetElemProgram.Reaches (frame w ++ i.bits)
             (bitsGetElemProgram.Running B) (7, [w.length, j, 2 ^ j, valBits (i.bits.take (j + 1))])

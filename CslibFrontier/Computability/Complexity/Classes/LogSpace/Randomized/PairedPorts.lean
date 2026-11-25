@@ -49,8 +49,6 @@ Turing-machine register encodings.
   `Turing.MultiTapePTM.ConfigurationGraph.clockedCompactPairedPorts_inPort_val`,
   `Turing.MultiTapePTM.ConfigurationGraph.clockedCompactPairedPorts_outWeight`: exact value
   agreement with `clockedOutPort`, `clockedInPort`, and `clockedOutCount`.
-* `Cslib.Complexity.exists_compactTimeLayer_of_mem_RL`: one-sided error clocked matrix reduction
-  for `RL`.
 * `Cslib.Complexity.exists_pairedTimeLayerFamily_of_mem_BPL`,
   `Cslib.Complexity.exists_pairedTimeLayerFamily_of_mem_RL`: complete Lemma 2.1 paired-port
   time-layered reductions for `BPL` and `RL`.
@@ -384,44 +382,6 @@ open _root_.Turing _root_.Turing.MultiTapeTM
   MultiTapeNTM.ConfigurationGraph MultiTapePTM.ConfigurationGraph Matrix
 
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α}
-
-/-- **The enumerated clocked RL matrix.** One-sided error counterpart of
-`Cslib.Complexity.exists_compactTimeLayer_of_mem_BPL`: members achieve potential at least `1 / 2`
-at `x₀`, while non-members have potential `0` at `x₀`. -/
-theorem exists_compactTimeLayer_of_mem_RL (h : A ∈ RL enc) :
-    ∃ (k : ℕ) (State : Type) (_ : Fintype State) (M : MultiTapePTM k Bool State) (c d : ℕ),
-      ∀ a, ∃ hs : M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1)),
-        let w := enc a
-        let D := radixExponent State c
-        let B := radix D w.length
-        let N := vertexBound (k := k) B
-        let T := polyClock d w.length
-        let P := compactCoinMatrix M ℝ B w
-        let e₀ := compactAcceptVec (k := k) (State := State) ℝ B w.length
-        let S := finTimeLayer T P
-        let e := finTimeLayerReward T e₀
-        let p := finTimeLayerPotential T P e₀
-        let x₀ := (timeLayerEquiv T N).symm (toLex (0, compactStart M c hs))
-        M.toNTM.RunsInTime w T ∧
-        Fintype.card (Fin ((T + 1) * N)) ≤
-          (2 * (w.length + 1)) ^ (D * Fintype.card (Register k) + d + 2) ∧
-        S.IsStrictUpperTriangular ∧ (∀ x y, 0 ≤ S x y) ∧ S *ᵥ 1 ≤ 1 ∧
-        (∀ x, e x = 0 ∨ e x = 1) ∧ (1 - S) *ᵥ p = e ∧ (1 - S)⁻¹ *ᵥ e = p ∧
-        p ∈ Set.Icc 0 1 ∧
-        (a ∈ A → 1 / 2 ≤ p x₀) ∧ (a ∉ A → p x₀ = 0) := by
-  classical
-  obtain ⟨k, State, _, M, c, d, hM, herr⟩ := exists_polyClock_of_mem_RL h
-  let : Fintype State := Fintype.ofFinite State
-  refine ⟨k, State, inferInstance, M, c, d, fun a => ⟨hM.runsInSpace a, ?_⟩⟩
-  obtain ⟨hmem, hnot⟩ := herr a
-  obtain ⟨hcard, hS, hS0, hS1, he, hp, hinv, hIcc⟩ := compactTimeLayer_polyClock M c d (enc a)
-  refine ⟨hM.runsInTime a, hcard, hS, hS0, hS1, he, hp, hinv, hIcc, fun ha => ?_, fun ha => ?_⟩
-  · rw [finTimeLayer_compactCoinMatrix_acceptance, le_div_iff₀ (by positivity)]
-    have hc := (Nat.cast_le (α := ℝ)).mpr (hmem ha)
-    push_cast at hc
-    linarith
-  · rw [finTimeLayer_compactCoinMatrix_acceptance]
-    simp [hnot ha]
 
 /-- Port queries `(a, u, p)` of a `Cslib.Complexity.PairedTimeLayerFamily`: the instance `a` under
 `enc`, framed, then the vertex `u`, framed, and the port `p`, both in binary. -/

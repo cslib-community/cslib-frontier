@@ -475,31 +475,6 @@ private lemma polyLimit_pt {γ : Type} {encIn : γ ↪ List Bool} {p D : γ → 
   have hw := elemWidth_pt hp
   exact unary_mul.comp (h1.prod hw)
 
-private lemma unary_sum_pt : ComputableInPolyTime List.sum (encList encUnary) encUnary := by
-  have hfold := foldl' (encA := encUnary) (encL := encList encUnary) (encB := encUnary)
-    (list := fun l => l) (init := fun _ => 0) (step := (· + ·))
-    id' (const 0) unary_add
-    (B := fun l => (encList encUnary l).length) .self fun l i _ => by
-      have htake : ((l.take i).foldl (· + ·) 0) = (l.take i).sum :=
-        (List.sum_eq_foldl_nat (xs := l.take i)).symm
-      rw [htake]
-      simp only [encUnary_apply, List.length_replicate]
-      have hsub : (l.take i).sum ≤ l.sum := by
-        calc (l.take i).sum ≤ (l.take i).sum + (l.drop i).sum := Nat.le_add_right _ _
-          _ = ((l.take i) ++ l.drop i).sum := (List.sum_append).symm
-          _ = l.sum := by rw [List.take_append_drop]
-      have hlen : ∀ xs : List ℕ, xs.sum ≤ (encList encUnary xs).length := by
-        intro xs
-        rw [length_encList]
-        induction xs with
-        | nil => simp
-        | cons a xs ih =>
-          rw [List.sum_cons, List.map_cons, List.sum_cons]
-          have ha : (encUnary a).length = a := by simp [encUnary_apply]
-          omega
-      exact hsub.trans (hlen l)
-  simpa only [← List.sum_eq_foldl_nat, id_eq] using hfold
-
 private lemma challengeCount_pt {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
     ComputableInPolyTime (fun ι => challengeCount (F.circuit ι)) encI encUnary := by
@@ -512,7 +487,7 @@ private lemma challengeCount_pt {I : Type} {encI : I ↪ List Bool}
   have hterm : ComputableInPolyTime (fun q : I × ℕ => 2 * (F.circuit q.1).width q.2 + 1)
       (encPair encI encUnary) encUnary :=
     ((const 2).unary_mul' hw).unary_add' (const 1)
-  exact hwd.unary_add' (unary_sum_pt.comp (mapWith hterm id' hrng))
+  exact hwd.unary_add' (unary_sum.comp (mapWith hterm id' hrng))
 
 private lemma layerCost_pt {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :
@@ -526,7 +501,7 @@ private lemma layerCost_pt {I : Type} {encI : I ↪ List Bool}
   have hterm : ComputableInPolyTime (fun q : I × ℕ => 5 * (F.circuit q.1).width q.2)
       (encPair encI encUnary) encUnary :=
     (const 5).unary_mul' hw
-  exact ((const 1).unary_add' hwd).unary_add' (unary_sum_pt.comp (mapWith hterm id' hrng))
+  exact ((const 1).unary_add' hwd).unary_add' (unary_sum.comp (mapWith hterm id' hrng))
 
 private lemma minModulus_pt {I : Type} {encI : I ↪ List Bool}
     (F : UniformGKRFamily I encI) :

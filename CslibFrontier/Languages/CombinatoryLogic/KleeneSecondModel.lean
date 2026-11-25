@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Computability.RecursiveInClockedJoin
 public import CslibFrontier.Foundations.Computability.RecursiveInContinuous
 public import CslibFrontier.Languages.CombinatoryLogic.PartialCombinatoryAlgebra
+import CslibFrontier.Foundations.Data.PFun
 
 /-!
 # Kleene's second model
@@ -180,7 +181,8 @@ private theorem eval_apCode {h : ℕ →. ℕ} {cf cg : Code} {y z : ℕ → ℕ
     Partrec.join_coe _ _
   rw [← hj] at hu
   simp [apCode, Code.eval, hf, hg, eval_subst, hq, Seq.seq, pure, PFun.pure, univ, hu,
-    kleeneTwoEval, bind_pfun, Part.bind_some_eq_map, Part.map_map, Function.comp_def, Part.map_id']
+    kleeneTwoEval, Part.bind_pfun, Part.bind_some_eq_map, Part.map_map, Function.comp_def,
+    Part.map_id']
 
 private theorem dom_of_dom_apCode {h : ℕ →. ℕ} {cf cg : Code} {n : ℕ}
     (hd : (Code.eval h (apCode cf cg) n).Dom) :

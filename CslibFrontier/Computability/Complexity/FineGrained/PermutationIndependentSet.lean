@@ -802,21 +802,6 @@ theorem mem_ThreeColoring_iff_exists_bpisOfColoring (H : Graph) :
 attribute [local irreducible] ComputableInPolyTime
 
 @[local fun_prop]
-private theorem computableInPolyTime_unary_log_two :
-    ComputableInPolyTime (Nat.log 2) encUnary encUnary :=
-  binary_log_two.comp unary_to_binary
-
-@[local fun_prop]
-private theorem computableInPolyTime_bool_toUnary :
-    ComputableInPolyTime Bool.toNat encBool encUnary :=
-  of_finite _
-
-@[local fun_prop]
-private theorem computableInPolyTime_nat_bits :
-    ComputableInPolyTime Nat.bits encNat encBits :=
-  of_eq fun _ => rfl
-
-@[local fun_prop]
 private theorem computableInPolyTime_blockSize :
     ComputableInPolyTime blockSize encUnary encUnary := by
   unfold blockSize

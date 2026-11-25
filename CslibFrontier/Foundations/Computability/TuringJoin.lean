@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Computability.TuringDegree
+-- vendored: `Part.bind_pfun` lets `simp` see through binds into partial functions under the
+-- module system; the Mathlib PR needs no such lemma.
+import CslibFrontier.Foundations.Data.PFun
 
 /-!
 # The Turing join and the join semilattice of Turing degrees
@@ -88,10 +91,6 @@ end Partrec
 
 open scoped Partrec
 
--- vendored: under the module system `ℕ →. ℕ` does not unfold to `ℕ → Part ℕ` for `simp`, so
--- binds into partial functions are eta-expanded before Mathlib's `Part.bind` lemmas apply.
-private theorem bind_pfun (x : Part ℕ) (f : ℕ →. ℕ) : x >>= f = x.bind fun y => f y := rfl
-
 namespace Nat.RecursiveIn
 
 variable {O : Set (ℕ →. ℕ)}
@@ -156,7 +155,7 @@ theorem cond_const {c : ℕ → Bool} {f : ℕ →. ℕ}
   refine (comp (prec (Nat.Primrec.recursiveIn (.const k))
     ((comp hf left).of_eq fun _ => by aesop))
     (pair hid hcode)).of_eq fun n => ?_
-  cases h : c n <;> simp [Seq.seq, Nat.unpair_pair, bind_pfun] <;> aesop
+  cases h : c n <;> simp [Seq.seq, Nat.unpair_pair, Part.bind_pfun] <;> aesop
 
 -- vendored: the PR derives the join from its general conditional `cond'`; here it is the sum of
 -- the two branches, each guarded with fallback `0` by `cond_const`.
@@ -169,7 +168,7 @@ private theorem join {f g : ℕ →. ℕ} (hf : Nat.RecursiveIn O f) (hg : Nat.R
   refine (hadd.comp ((cond_const (Primrec.not.comp Primrec.nat_bodd).to_comp hf.encode_even 0).pair
     (cond_const Primrec.nat_bodd.to_comp hg.encode_odd 0))).of_eq fun n => ?_
   cases h : n.bodd <;>
-    simp [Partrec.join, h, Seq.seq, bind_pfun, Part.bind_some_eq_map, Part.map_map,
+    simp [Partrec.join, h, Seq.seq, Part.bind_pfun, Part.bind_some_eq_map, Part.map_map,
       Function.comp_def]
 
 end Nat.RecursiveIn
@@ -181,13 +180,13 @@ lemma left_le_join (f g : ℕ →. ℕ) : f ≤ᵀ (f ⊕ g) :=
   -- vendored: on the pinned Mathlib `≤ᵀ` is the encoded `RecursiveIn`, hence `iff_nat`
   RecursiveIn.iff_nat.2 <| (Nat.RecursiveIn.div2.comp
     (Nat.RecursiveIn.oracle_self _).comp_at_even).of_eq fun n => by
-    simp [bind_pfun, Part.bind_some_eq_map, Part.map_map, Function.comp_def, Part.map_id']
+    simp [Part.bind_pfun, Part.bind_some_eq_map, Part.map_map, Function.comp_def, Part.map_id']
 
 /-- `g` is Turing reducible to the join `f ⊕ g`. -/
 lemma right_le_join (f g : ℕ →. ℕ) : g ≤ᵀ (f ⊕ g) :=
   RecursiveIn.iff_nat.2 <| (Nat.RecursiveIn.div2.comp
     (Nat.RecursiveIn.oracle_self _).comp_at_odd).of_eq fun n => by
-    simp [bind_pfun, Part.bind_some_eq_map, Part.map_map, Function.comp_def, Part.map_id']
+    simp [Part.bind_pfun, Part.bind_some_eq_map, Part.map_map, Function.comp_def, Part.map_id']
 
 /-- The join is recursive in the pair of oracles `{f, g}`. -/
 lemma join_recursiveIn_pair (f g : ℕ →. ℕ) :

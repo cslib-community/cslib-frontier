@@ -16,9 +16,8 @@ import CslibFrontier.Tactic.Realize
 # Runtime Bundle, Capacity Bounds, and Monadic Step Combinators for `SuccinctWhp` Self-Healing
 
 This internal support module provides the 16-word `HealRt` runtime parameter bundle, bucket/pool
-conservation bounds under `GoodSeedOnState`, `clampSubProg`, stateless loop-safety induction
-`iterationSafe_of_stateless_step`, and bundled `StepSpec` monadic bind/read/write combinators shared
-across the parallel `csrToFastGenProg` phase modules.
+conservation bounds under `GoodSeedOnState`, `clampSubProg`, and bundled `StepSpec` monadic
+bind/read/write combinators shared across the parallel `csrToFastGenProg` phase modules.
 
 ## Main definitions
 
@@ -36,8 +35,6 @@ across the parallel `csrToFastGenProg` phase modules.
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.realizes_mkHealRtGen`,
   `mkHealRtGenProg_spec`, `realizes_clampSub`, `clampSubProg_spec`: realization and exactness
   specifications for `mkHealRtGenProg` and `clampSubProg`.
-* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.iterationSafe_of_stateless_step`: generic
-  `iterationSafe` induction for counter-incrementing loops with state-independent preconditions.
 -/
 
 public section
@@ -328,25 +325,7 @@ theorem clampSubProg_spec {ps tb w F : ℕ} (hle : tb ≤ ps) (s : Memory.State)
   rw [ite_eq_left hle]
   exact ⟨rfl, rfl, validProg_pure _⟩
 
-/-! ## Shared Loop-Safety & Monadic `StepSpec` Combinators -/
-
-/-- Generic `iterationSafe` induction for counter-incrementing loops `Cfg × ℕ → Memory.Prog ℕ`
-whose step precondition holds for every `i < N` independently of memory state. -/
-theorem iterationSafe_of_stateless_step {Cfg : Type} (step : Cfg × ℕ → Memory.Prog ℕ)
-    (Pre : ℕ → Cfg × ℕ → Memory.State → Prop) {w N : ℕ} {cfg : Cfg}
-    (hpre : ∀ i < N, ∀ s, Pre w (cfg, i) s)
-    (hres : ∀ i < N, ∀ s, (Memory.spec 0).clientResult s (step (cfg, i)) = i + 1) :
-    ∀ rem i₀ (s : Memory.State), i₀ + rem ≤ N →
-      iterationSafe step Pre w cfg rem i₀ s := by
-  intro rem
-  induction rem with
-  | zero => intro _ _ _; exact trivial
-  | succ rem ih =>
-    intro i₀ s hle
-    have hi : i₀ < N := by omega
-    refine ⟨hpre i₀ hi s, ?_⟩
-    rw [clientState_width, clientResult_width, hres i₀ hi s]
-    exact ih (i₀ + 1) _ (by omega)
+/-! ## Shared Monadic `StepSpec` Combinators -/
 
 /-- Bundled `clientState`, `clientResult`, and `ValidProg` specification for `Memory.spec 0`,
 allowing monadic `do`-blocks to be discharged in a single pass instead of three separate passes. -/

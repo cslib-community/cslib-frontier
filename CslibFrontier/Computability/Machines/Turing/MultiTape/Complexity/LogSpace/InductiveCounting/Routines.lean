@@ -10,7 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.InductiveCounting.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 
 /-!
 # Native controller routines for inductive counting
@@ -69,13 +70,6 @@ theorem unaryToBinary_inSpace :
     omega
   · simp [List.foldl_const, ComputableInO.iterate_succ_eq]
 
-/-- Binary powers of two from unary exponents, without an exponential unary intermediate. -/
-theorem unaryTwoPow_inSpace :
-    ComputableInSpace (fun n : ℕ => 2 ^ n) encUnary encNat
-      fun n => (encUnary n).length := by
-  simpa only [encUnary_apply, List.length_replicate] using
-    (of_inO (ComputableInDegree.two_pow_length encUnary).inO_one)
-
 /-- Reading the encoded product underlying a controller state. -/
 theorem stateData_budget {s : α → State}
     (hs : ComputableInSpace s enc encState S) :
@@ -118,18 +112,6 @@ theorem register_budget {s : α → State}
     | zero => exact registers_budget hs
     | succ i ih => simpa only [List.tail_drop] using budget_tail ih
   exact budget_headD 0 (hdrop i)
-
-private theorem and_budget {f g : α → Bool}
-    (hf : ComputableInSpace f enc encBool S)
-    (hg : ComputableInSpace g enc encBool S) :
-    ComputableInSpace (fun a => f a && g a) enc encBool S :=
-  budget_finite (fun p : Bool × Bool => p.1 && p.2) (budget_prod hf hg)
-
-private theorem or_budget {f g : α → Bool}
-    (hf : ComputableInSpace f enc encBool S)
-    (hg : ComputableInSpace g enc encBool S) :
-    ComputableInSpace (fun a => f a || g a) enc encBool S :=
-  budget_finite (fun p : Bool × Bool => p.1 || p.2) (budget_prod hf hg)
 
 private theorem dispatch_budget {κ β : Type} {encB : β ↪ List Bool}
     (l : List κ) (d : κ) (F : κ → α → β)
@@ -255,11 +237,6 @@ private theorem toNat_budget {f : α → Bool}
     ComputableInSpace (fun a => (f a).toNat) enc encNat S :=
   budget_finite Bool.toNat hf
 
-private theorem not_budget {f : α → Bool}
-    (hf : ComputableInSpace f enc encBool S) :
-    ComputableInSpace (fun a => !(f a)) enc encBool S :=
-  budget_finite Bool.not hf
-
 /-- Halt detection reads only the finite phase. -/
 theorem halted_budget {s : α → State}
     (hs : ComputableInSpace s enc encState S) :
@@ -285,7 +262,7 @@ theorem registerBound_budget (hN : ComputableInSpace N enc encNat S)
     (hw : ComputableInSpace width enc encUnary S) :
     ComputableInSpace (fun a => registerBound (N a) (width a)) enc encNat S :=
   budget_natAdd (budget_natAdd (budget_natAdd hN
-    (budget_comp_linear unaryTwoPow_inSpace hw)) (widthBinary_budget hw))
+    (budget_comp_linear twoPowUnary hw)) (widthBinary_budget hw))
     (budget_const 2)
 
 /-- A native certificate for the underlying local instruction, with no validity assumption. -/
@@ -312,8 +289,8 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
   have h_finalScan := finalScan_budget hs
   have hguessStep := budget_natAdd (budget_natMul (budget_const 2) h_guess)
     (toNat_budget hchoice)
-  have hhitStep := or_budget (or_budget h_hit hanswer)
-    (and_budget (not_budget h_finalScan) (natBEq_budget h_candidate h_target))
+  have hhitStep := budget_boolOr (budget_boolOr h_hit hanswer)
+    (budget_boolAnd (budget_boolNot h_finalScan) (natBEq_budget h_candidate h_target))
   have hbranches (p : Phase) : ComputableInSpace
       (fun a => instruction (N a) (width a) (source a)
         { s a with phase := p } (answer a) (choice a)) enc encState S := by
@@ -367,7 +344,7 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
           hguessStep (budget_natPred h_bits) h_hit h_finalScan))
     | edge =>
-      exact (budget_ite (or_budget (natBEq_budget h_current h_guess) hanswer)
+      exact (budget_ite (budget_boolOr (natBEq_budget h_current h_guess) hanswer)
         (state_budget (budget_const 3)
           h_round h_count h_target h_nextCount h_candidate h_selected (budget_natPred h_remaining)
             h_guess h_guess h_bits h_hit h_finalScan)
@@ -476,15 +453,15 @@ theorem bounded_budget (hN : ComputableInSpace N enc encNat S)
     ComputableInSpace (fun a => decide (Bounded (N a) (width a) (s a)))
       enc encBool S := by
   have hB := registerBound_budget hN hw
-  have h := and_budget (budget_natLt (round_budget hs) hB)
-    (and_budget (budget_natLt (count_budget hs) hB)
-    (and_budget (budget_natLt (target_budget hs) hB)
-    (and_budget (budget_natLt (nextCount_budget hs) hB)
-    (and_budget (budget_natLt (candidate_budget hs) hB)
-    (and_budget (budget_natLt (selected_budget hs) hB)
-    (and_budget (budget_natLt (remaining_budget hs) hB)
-    (and_budget (budget_natLt (current_budget hs) hB)
-    (and_budget (budget_natLt (guess_budget hs) hB)
+  have h := budget_boolAnd (budget_natLt (round_budget hs) hB)
+    (budget_boolAnd (budget_natLt (count_budget hs) hB)
+    (budget_boolAnd (budget_natLt (target_budget hs) hB)
+    (budget_boolAnd (budget_natLt (nextCount_budget hs) hB)
+    (budget_boolAnd (budget_natLt (candidate_budget hs) hB)
+    (budget_boolAnd (budget_natLt (selected_budget hs) hB)
+    (budget_boolAnd (budget_natLt (remaining_budget hs) hB)
+    (budget_boolAnd (budget_natLt (current_budget hs) hB)
+    (budget_boolAnd (budget_natLt (guess_budget hs) hB)
     (budget_natLt (bits_budget hs) hB)))))))))
   exact h.of_enc_eq fun a => by
     congr 1
@@ -505,7 +482,7 @@ theorem advance_budget (hN : ComputableInSpace N enc encNat S)
   have hi := instruction_budget hN hw' hsource hs hanswer hchoice
   have hb := bounded_budget hN hw hi
   have hr := budget_natLt (rank_budget hN hw' hi) (rank_budget hN hw' hs)
-  have hcheck := (and_budget hb hr).of_enc_eq (encC := encBool)
+  have hcheck := (budget_boolAnd hb hr).of_enc_eq (encC := encBool)
     (g := fun a => decide (Bounded (N a) (width a)
       (instruction (N a) (width a) (source a) (s a) (answer a) (choice a)) ∧
       rank (N a) (width a)

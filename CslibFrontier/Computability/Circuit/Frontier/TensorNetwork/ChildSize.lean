@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ModeExpansion
+import CslibFrontier.Foundations.Data.Fintype.Sum
 import Mathlib.Data.Fintype.Sum
 
 /-!
@@ -50,13 +51,6 @@ variable {R V E G P M : Type*} [CommRing R] [Fintype M] {N : TensorNetwork R Boo
   {W : Matrix E E R} (S : N.ModeSplitting W G P M) [Fintype E] [DecidableEq E] [DecidableEq P]
   [DecidableEq G] [DecidableEq M] [DecidableEq V]
 
-/-- Counting the elements of a sum type with a property. -/
-private theorem card_filter_sum {A B : Type*} [Fintype A] [Fintype B] (p : A ⊕ B → Prop)
-    [DecidablePred p] :
-    #{x | p x} = #{a | p (.inl a)} + #{b | p (.inr b)} := by
-  rw [← Fintype.card_subtype, Fintype.card_congr Equiv.subtypeSum, Fintype.card_sum,
-    Fintype.card_subtype, Fintype.card_subtype]
-
 /-- Counting the elements of a subtype with a property. -/
 private theorem card_filter_subtype {A : Type*} [Fintype A] (Q : A → Prop) [DecidablePred Q]
     (f : A → Prop) [DecidablePred f] : #{e : {e // Q e} | f e.1} = #{e | Q e ∧ f e} := by
@@ -67,7 +61,7 @@ private theorem card_filter_subtype {A : Type*} [Fintype A] (Q : A → Prop) [De
 at it. -/
 theorem card_child_src_inl (β : M → ℕ) (g : G) (v : {v // S.group v = g}) :
     #{x | (S.child β g).src x = .inl v} = #{e | N.src e = v.1} + #{e | N.tgt e = v.1} := by
-  rw [card_filter_sum]
+  rw [Sum.card_filter_univ]
   congr 1
   · simp only [child_src_inl, Sum.inl.injEq, Subtype.ext_iff]
     rw [card_filter_subtype (fun e => S.group (N.src e) = g) (fun e => N.src e = v.1)]
@@ -79,13 +73,13 @@ theorem card_child_src_inl (β : M → ℕ) (g : G) (v : {v // S.group v = g}) :
 /-- Every edge of a child ends at a packet vertex. -/
 theorem card_child_tgt_inl (β : M → ℕ) (g : G) (v : {v // S.group v = g}) :
     #{x | (S.child β g).tgt x = .inl v} = 0 := by
-  rw [card_filter_sum]
+  rw [Sum.card_filter_univ]
   simp
 
 /-- Every edge of a child starts at an old vertex. -/
 theorem card_child_src_inr (β : M → ℕ) (g : G) (q : P) :
     #{x | (S.child β g).src x = .inr q} = 0 := by
-  rw [card_filter_sum]
+  rw [Sum.card_filter_univ]
   simp
 
 /-- A packet vertex of a child has one port for each port of its group in its packet. -/
@@ -93,7 +87,7 @@ theorem card_child_tgt_inr (β : M → ℕ) (g : G) (q : P) :
     #{x | (S.child β g).tgt x = .inr q} =
       #{e | S.group (N.src e) = g ∧ S.packet e = q} +
         #{e | S.group (N.tgt e) = g ∧ S.packet e = q} := by
-  rw [card_filter_sum]
+  rw [Sum.card_filter_univ]
   simp only [child_tgt_inl, child_tgt_inr, Sum.inr.injEq]
   rw [card_filter_subtype (fun e => S.group (N.src e) = g) (fun e => S.packet e = q),
     card_filter_subtype (fun e => S.group (N.tgt e) = g) (fun e => S.packet e = q)]

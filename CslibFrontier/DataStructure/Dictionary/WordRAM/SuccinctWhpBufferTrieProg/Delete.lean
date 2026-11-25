@@ -136,26 +136,14 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     BufTrieMemRep base c U V w n_max ep tr' s'.mem ∧
     BufEpFrame base c U V w n_max ep s.mem s'.mem := by
-  have hth := henv.2.2.2.1
   have hw := henv.2.1
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
-  have hchild : ∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc :=
-    fun v ch hnz => hv.bounds.2.2.1 v ch hnz
-  obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
-    (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
+  obtain ⟨hnone, hsome⟩ :=
+    bufWalkLoop_root_bind_spec (rKey := rKey) () bufDeleteLeafRtProg henv hep hrep hv
   set rt := mkBufRt c U V w n_max base ep
-  obtain ⟨_, hw_st, hw_mc, hw_vp, _, hw_a1⟩ :=
-    bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
-  have hw1 := hw_a1 rfl
-  have hm_seg : base + brOffMeta rt +
-      packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := (rt_seg_le c U V w n_max base ep hep).2.2.2.1
-  obtain ⟨hna32, hia32, _, h32_c, hc_le_m, hm_le_i⟩ :
-      brHdrNA rt < 32 ∧ brHdrIA rt < 32 ∧ brHdrNA rt ≠ brHdrIA rt ∧ 32 ≤ brOffChild rt ∧
-      brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffMeta rt ∧
-      brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffItems rt := rt_disj_le c U V w n_max base ep hep
+  have hm_seg := (rt_seg_le c U V w n_max base ep hep).meta_le
+  obtain ⟨hna32, hia32, _, h32_c, hc_le_m, hm_le_i⟩ : BufRtDisj c w n_max rt :=
+      rt_disj_le c U V w n_max base ep hep
   have hrep_meta : ∀ u < tr.nodeAlloc,
       readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 2) =
         tr.nodeLeafItem u ∧
@@ -166,151 +154,107 @@ theorem bufDeleteGenProg_spec {c U V w n_max base ep rKey : ℕ}
   dsimp only
   unfold bufDeleteGenProg
   simp only [pure_bind]
-  have hbr_cTab : brCTab rt = cTabWhp c := rfl
-  set wprog := bufWalkLoopGenProg ((rt, (1, (0, rKey))), cTabWhp c)
-  set wres := (Memory.spec 0).clientResult s wprog
-  have hs'_pre : (Memory.spec 0).clientState s
-      (mkBufRtGenProg ((mkWhpCoreParams c U V w n_max, base), ep) >>= fun rt' =>
-        bufWalkLoopGenProg ((rt', (1, (0, rKey))), brCTab rt') >>= fun wr =>
-          if wr.1 = 0 then pure () else bufDeleteLeafRtProg (rt', wr.2.1)) =
-      (Memory.spec 0).clientState s
-        (if wres.1 = 0 then pure () else bufDeleteLeafRtProg (rt, wres.2.1)) := by
-    rw [clientState_bind, hrt_st, hrt_res, hbr_cTab,
-      clientState_bind, hw_st]
-  rw [hs'_pre]
   dsimp only [bufDelete]
   rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf
-  · rw [hwk] at hw1
-    rw [ite_eq_left hw1]
-    have hst_pure : (Memory.spec 0).clientState s (pure ()) = s := rfl
-    rw [hst_pure]
-    refine ⟨rfl, ?_, ?_, hrep, BufEpFrame.refl _⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hrt_st, hrt_res, hrt_mc, hbr_cTab, hw_st, hw_mc, ite_eq_left hw1]
-      change 0 + (2 * cTabWhp c + 0) ≤ _; omega
-    · refine validProg_bind hrt_vp ?_
-      rw [hrt_st, hrt_res, hbr_cTab]
-      refine validProg_bind hw_vp ?_
-      rw [hw_st, ite_eq_left hw1]
-      exact validProg_pure _
-  · rw [hwk] at hw1
-    dsimp only
-    obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
-    have hw_one : wres.1 = 1 := congrArg Prod.fst hw_eq
-    have hw_lf : wres.2.1 = leaf := congrArg (fun p => p.2.1) hw_eq
-    have hna_max := hrep.1
-    have hidx2 : 4 * leaf + 2 < 6 * maxTrieNodesWhp c n_max := by omega
-    have hidx3 : 4 * leaf + 3 < 6 * maxTrieNodesWhp c n_max := by omega
-    obtain ⟨hli_eq, hact_eq⟩ := hrep_meta leaf hlf_lt
-    have hwres_nz : wres.1 ≠ 0 := by omega
-    rw [ite_eq_right hwres_nz, hw_lf]
-    have hmc_all : memoryCost
-        (mkBufRtGenProg ((mkWhpCoreParams c U V w n_max, base), ep) >>= fun rt' =>
-          bufWalkLoopGenProg ((rt', (1, (0, rKey))), brCTab rt') >>= fun wr =>
-            if wr.1 = 0 then pure () else bufDeleteLeafRtProg (rt', wr.2.1)) s ≤
-        2 * cTabWhp c + 8 := by
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hrt_st, hrt_res, hrt_mc, hbr_cTab, hw_st, hw_mc, ite_eq_right hwres_nz, hw_lf,
-        bufDeleteLeafRtProg_eq]
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-        memoryCost_readPackedGen]
-      split_ifs with h1
-      · change 0 + (2 * cTabWhp c + (2 + 0)) ≤ _; omega
-      · simp only [memoryCost_bind, memoryCost_readPackedGen]
-        split_ifs with h2
-        · change 0 + (2 * cTabWhp c + (2 + (2 + 0))) ≤ _; omega
-        · rw [memoryCost_writePackedGen]
-          omega
-    have hvp_all : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (mkBufRtGenProg ((mkWhpCoreParams c U V w n_max, base), ep) >>= fun rt' =>
-          bufWalkLoopGenProg ((rt', (1, (0, rKey))), brCTab rt') >>= fun wr =>
-            if wr.1 = 0 then pure () else bufDeleteLeafRtProg (rt', wr.2.1)) := by
-      refine validProg_bind hrt_vp ?_
-      rw [hrt_st, hrt_res, hbr_cTab]
-      refine validProg_bind hw_vp ?_
-      rw [hw_st, ite_eq_right hwres_nz, hw_lf, bufDeleteLeafRtProg_eq]
-      simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw hidx2 hm_seg) ?_
+  · obtain ⟨hst, -, hmc, hvp⟩ := hnone hwk
+    rw [hst]
+    exact ⟨rfl, hmc.trans_le (Nat.le_add_right _ _), hvp, hrep, BufEpFrame.refl _⟩
+  obtain ⟨hlf_lt, hst, -, hmc, hvp⟩ := hsome leaf hwk
+  have hna_max := hrep.1
+  have hidx2 : 4 * leaf + 2 < 6 * maxTrieNodesWhp c n_max := by omega
+  have hidx3 : 4 * leaf + 3 < 6 * maxTrieNodesWhp c n_max := by omega
+  obtain ⟨hli_eq, hact_eq⟩ := hrep_meta leaf hlf_lt
+  have hleaf_mc : memoryCost (bufDeleteLeafRtProg (rt, leaf)) s ≤ 8 := by
+    rw [bufDeleteLeafRtProg_eq]
+    simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+      memoryCost_readPackedGen]
+    split_ifs with h1
+    · change 2 + 0 ≤ _; omega
+    · simp only [memoryCost_bind, memoryCost_readPackedGen]
+      split_ifs with h2
+      · change 2 + (2 + 0) ≤ _; omega
+      · rw [memoryCost_writePackedGen]
+  have hmc_all := hmc.trans_le (Nat.add_le_add_left hleaf_mc _)
+  have hvp_all := hvp (by
+    rw [bufDeleteLeafRtProg_eq]
+    simp only [pure_bind]
+    refine validProg_bind (validProg_readPacked hw hidx2 hm_seg) ?_
+    rw [clientState_readPackedGen]
+    split_ifs with h1
+    · exact validProg_pure _
+    · refine validProg_bind (validProg_readPacked hw hidx3 hm_seg) ?_
       rw [clientState_readPackedGen]
-      split_ifs with h1
+      split_ifs with h2
       · exact validProg_pure _
-      · refine validProg_bind (validProg_readPacked hw hidx3 hm_seg) ?_
-        rw [clientState_readPackedGen]
-        split_ifs with h2
-        · exact validProg_pure _
-        · exact validProg_writePacked hw hgk hidx3 hm_seg
-    have hleaf_st : (Memory.spec 0).clientState s (bufDeleteLeafRtProg (rt, leaf)) =
-        if tr.nodeLeafItem leaf = 0 then s
-        else if tr.nodeActive leaf = 0 then s
-        else
-          { mem := writePacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * leaf + 3) 0,
-            frontier := s.frontier } := by
-      rw [bufDeleteLeafRtProg_eq]
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_readPackedGen,
-        clientResult_readPackedGen, show brBase rt = base from rfl,
-        show brGBits rt = globalPtrBits n_max from rfl, show brW rt = w from rfl, hli_eq]
-      by_cases hli0 : tr.nodeLeafItem leaf = 0
-      · rw [ite_eq_left hli0, ite_eq_left hli0]; rfl
-      · rw [ite_eq_right hli0, ite_eq_right hli0, clientState_bind,
-          clientState_readPackedGen, clientResult_readPackedGen, hact_eq hli0]
-        by_cases hact0 : tr.nodeActive leaf = 0
-        · rw [ite_eq_left hact0, ite_eq_left hact0]; rfl
-        · rw [ite_eq_right hact0, ite_eq_right hact0, clientState_writePackedGen]
-    rw [hleaf_st]
+      · exact validProg_writePacked hw hgk hidx3 hm_seg)
+  have hleaf_st : (Memory.spec 0).clientState s (bufDeleteLeafRtProg (rt, leaf)) =
+      if tr.nodeLeafItem leaf = 0 then s
+      else if tr.nodeActive leaf = 0 then s
+      else
+        { mem := writePacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * leaf + 3) 0,
+          frontier := s.frontier } := by
+    rw [bufDeleteLeafRtProg_eq]
+    simp only [pure_bind]
+    rw [clientState_bind, clientState_readPackedGen,
+      clientResult_readPackedGen, show brBase rt = base from rfl,
+      show brGBits rt = globalPtrBits n_max from rfl, show brW rt = w from rfl, hli_eq]
     by_cases hli0 : tr.nodeLeafItem leaf = 0
-    · rw [ite_eq_left hli0, ite_eq_left (Or.inl hli0)]
-      exact ⟨rfl, hmc_all, hvp_all, hrep, BufEpFrame.refl _⟩
-    · rw [ite_eq_right hli0]
+    · rw [ite_eq_left hli0, ite_eq_left hli0]; rfl
+    · rw [ite_eq_right hli0, ite_eq_right hli0, clientState_bind,
+        clientState_readPackedGen, clientResult_readPackedGen, hact_eq hli0]
       by_cases hact0 : tr.nodeActive leaf = 0
-      · rw [ite_eq_left hact0, ite_eq_left (Or.inr hact0)]
-        exact ⟨rfl, hmc_all, hvp_all, hrep, BufEpFrame.refl _⟩
-      · have hnot_or : ¬(tr.nodeLeafItem leaf = 0 ∨ tr.nodeActive leaf = 0) :=
-          fun h => h.elim hli0 hact0
-        rw [ite_eq_right hact0, ite_eq_right hnot_or]
-        set mem' := writePacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem
-          (4 * leaf + 3) 0
-        have hfr : BufEpFrame base c U V w n_max ep s.mem mem' :=
-          bufEpFrame_writeMeta hw hep hidx3
-        have h0_lt : 0 < 2 ^ globalPtrBits n_max := Nat.two_pow_pos _
-        refine ⟨rfl, hmc_all, hvp_all, ?_, hfr⟩
-        obtain ⟨hna, hia, hhna, hhia, hch, hpar, hlf, hit⟩ := bufTrieMemRep_iff_rt.mp hrep
-        rw [bufTrieMemRep_iff_rt]
-        dsimp only
-        rw [← show rt = mkBufRt c U V w n_max base ep from rfl] at hhna hhia hch hpar hlf hit ⊢
-        refine ⟨hna, hia,
-          (writePacked_outside hw _ hidx3 _ (by omega)).trans hhna,
-          (writePacked_outside hw _ hidx3 _ (by omega)).trans hhia,
-          fun u hu ch' hch' => ?_,
-          fun u hu1 hu => ⟨(readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans
-            (hpar u hu1 hu).1,
-            (readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans (hpar u hu1 hu).2⟩,
-          fun u hu => ⟨(readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans (hlf u hu).1,
-            fun hnz => by
-              by_cases hul : u = leaf
-              · subst hul
-                rw [Function.update_self]
-                exact readPacked_writePacked_self _ _ _ s.mem (4 * u + 3) h0_lt
-              · rw [Function.update_of_ne hul]
-                exact (readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans
-                  ((hlf u hu).2 hnz)⟩,
-          fun id hid => ⟨(readPacked_writePacked_disjoint hw
-              (show id < 6 * qEpochWhp n_max + 6 by omega) hidx3 (Or.inr (by omega))).trans
-              (hit id hid).1,
-            (readPacked_writePacked_disjoint hw
-              (show qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) hidx3
-              (Or.inr (by omega))).trans (hit id hid).2.1,
-            (readPacked_writePacked_disjoint hw
-              (show 2 * qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) hidx3
-              (Or.inr (by omega))).trans (hit id hid).2.2⟩⟩
-        have huc_lt : u * 2 ^ bCharWhp n_max + ch' < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc u * 2 ^ bCharWhp n_max + ch'
-              < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch' _
-            _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
-        exact (readPacked_writePacked_disjoint hw huc_lt hidx3 (Or.inl (by omega))).trans
-          (hch u hu ch' hch')
+      · rw [ite_eq_left hact0, ite_eq_left hact0]; rfl
+      · rw [ite_eq_right hact0, ite_eq_right hact0, clientState_writePackedGen]
+  rw [hst, hleaf_st]
+  dsimp only
+  by_cases hli0 : tr.nodeLeafItem leaf = 0
+  · rw [ite_eq_left hli0, ite_eq_left (Or.inl hli0)]
+    exact ⟨rfl, hmc_all, hvp_all, hrep, BufEpFrame.refl _⟩
+  · rw [ite_eq_right hli0]
+    by_cases hact0 : tr.nodeActive leaf = 0
+    · rw [ite_eq_left hact0, ite_eq_left (Or.inr hact0)]
+      exact ⟨rfl, hmc_all, hvp_all, hrep, BufEpFrame.refl _⟩
+    · have hnot_or : ¬(tr.nodeLeafItem leaf = 0 ∨ tr.nodeActive leaf = 0) :=
+        fun h => h.elim hli0 hact0
+      rw [ite_eq_right hact0, ite_eq_right hnot_or]
+      set mem' := writePacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem
+        (4 * leaf + 3) 0
+      have hfr : BufEpFrame base c U V w n_max ep s.mem mem' :=
+        bufEpFrame_writeMeta hw hep hidx3
+      have h0_lt : 0 < 2 ^ globalPtrBits n_max := Nat.two_pow_pos _
+      refine ⟨rfl, hmc_all, hvp_all, ?_, hfr⟩
+      obtain ⟨hna, hia, hhna, hhia, hch, hpar, hlf, hit⟩ := bufTrieMemRep_iff_rt.mp hrep
+      rw [bufTrieMemRep_iff_rt]
+      dsimp only
+      rw [← show rt = mkBufRt c U V w n_max base ep from rfl] at hhna hhia hch hpar hlf hit ⊢
+      refine ⟨hna, hia,
+        (writePacked_outside hw _ hidx3 _ (by omega)).trans hhna,
+        (writePacked_outside hw _ hidx3 _ (by omega)).trans hhia,
+        fun u hu ch' hch' => ?_,
+        fun u hu1 hu => ⟨(readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans
+          (hpar u hu1 hu).1,
+          (readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans (hpar u hu1 hu).2⟩,
+        fun u hu => ⟨(readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans (hlf u hu).1,
+          fun hnz => by
+            by_cases hul : u = leaf
+            · subst hul
+              rw [Function.update_self]
+              exact readPacked_writePacked_self _ _ _ s.mem (4 * u + 3) h0_lt
+            · rw [Function.update_of_ne hul]
+              exact (readPacked_writePacked_of_ne hw s.mem (by omega) 0).trans
+                ((hlf u hu).2 hnz)⟩,
+        fun id hid => ⟨(readPacked_writePacked_disjoint hw
+            (show id < 6 * qEpochWhp n_max + 6 by omega) hidx3 (Or.inr (by omega))).trans
+            (hit id hid).1,
+          (readPacked_writePacked_disjoint hw
+            (show qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) hidx3
+            (Or.inr (by omega))).trans (hit id hid).2.1,
+          (readPacked_writePacked_disjoint hw
+            (show 2 * qEpochWhp n_max + id < 6 * qEpochWhp n_max + 6 by omega) hidx3
+            (Or.inr (by omega))).trans (hit id hid).2.2⟩⟩
+      exact (readPacked_writePacked_disjoint hw
+        (show _ < trieChildEntriesWhp c n_max from mul_add_lt_mul_bound hu hch') hidx3
+        (Or.inl (by omega))).trans (hch u hu ch' hch')
 
 theorem realizes_bufDeleteGen :
     Realizes .exact bufDeleteGenProg
@@ -329,12 +273,10 @@ theorem realizes_bufDeleteGen :
     have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
-    have hchild : ∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc :=
-      fun v ch hnz => hv.bounds.2.2.1 v ch hnz
     obtain ⟨hrt_st, hrt_res, _, _⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
     obtain ⟨hsafe, hw_st, _, _, _, hw_a1⟩ :=
-      bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
+      bufWalkLoop_spec henv hep hrep hv.bounds.1 hv.bounds.2.2.1 (cTabWhp c) 1 0 rKey hv.bounds.1
     have hw1 := hw_a1 rfl
     simp only [hrt_st, hrt_res] at *
     first

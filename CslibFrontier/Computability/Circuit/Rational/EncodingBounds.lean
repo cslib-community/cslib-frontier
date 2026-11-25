@@ -192,9 +192,6 @@ private lemma mul_monomials (a b m i j : ℕ) :
   rw [pow_add]
   ac_rfl
 
-private lemma lift_power (c m i j : ℕ) (hm : 1 ≤ m) (hij : i ≤ j) : c * m ^ i ≤ c * m ^ j :=
-  Nat.mul_le_mul_left c (Nat.pow_le_pow_right hm hij)
-
 /-- Exponent bounding all denominator-cleared matrix entries by a power of 2. -/
 def logarithmic (n s : ℕ) : ℕ :=
   4 * Parameters.ambientDimension n s + 4 * Parameters.ambientDimension n s * (n + 1) +
@@ -213,7 +210,7 @@ theorem logarithmic_bound (n s : ℕ) :
   have h₁ : 4 * Parameters.ambientDimension n s ≤ 64 * m ^ 22 := by
     calc _ ≤ 4 * (16 * m ^ 5) := Nat.mul_le_mul_left 4 hM
          _ = 64 * m ^ 5 := by rw [← Nat.mul_assoc]
-         _ ≤ _ := lift_power _ _ _ _ hm (by omega)
+         _ ≤ _ := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hm (by omega))
   have h₂ : 4 * Parameters.ambientDimension n s * (n + 1) ≤ 64 * m ^ 22 := by
     calc _ ≤ (64 * m ^ 5) * m := by
                apply Nat.mul_le_mul
@@ -221,7 +218,7 @@ theorem logarithmic_bound (n s : ℕ) :
                       _ = _ := by rw [← Nat.mul_assoc]
                · dsimp [m]; omega
          _ = 64 * m ^ 6 := by rw [show m ^ 6 = m ^ 5 * m from pow_succ m 5, Nat.mul_assoc]
-         _ ≤ _ := lift_power _ _ _ _ hm (by omega)
+         _ ≤ _ := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hm (by omega))
   have h₃ : 3 * Parameters.ambientDimension n s * Parameters.gridSize n s ≤
       (3 * 16 * 49153) * m ^ 22 := by
     calc _ ≤ (3 * (16 * m ^ 5)) * (49153 * m ^ 17) := by gcongr
@@ -241,7 +238,7 @@ private theorem normalized_bits_bound (m D b : ℕ) (hm : 1 ≤ m)
   have h₁ : D * D ≤ (256 * 256) * m ^ 32 := by
     calc _ ≤ (256 * m ^ 10) * (256 * m ^ 10) := Nat.mul_le_mul hD hD
          _ = (256 * 256) * m ^ 20 := mul_monomials ..
-         _ ≤ _ := lift_power _ _ _ _ hm (by omega)
+         _ ≤ _ := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hm (by omega))
   have h₂ : D * b ≤ (256 * logConstant) * m ^ 32 := by
     calc _ ≤ (256 * m ^ 10) * (logConstant * m ^ 22) := Nat.mul_le_mul hD hb
          _ = _ := mul_monomials ..
@@ -260,8 +257,10 @@ private theorem output_bits_bound (n m D L B : ℕ) (hm : 1 ≤ m) (hn : n ≤ m
     (hD : D ≤ 256 * m ^ 10) (hL : L ≤ 49153 ^ 3 * m ^ 51) (hB : B ≤ bitConstant * m ^ 32) :
     2 * (D + 1) + 1 + 2 * (L + 1) + 1 + L * n * D * D * B ≤ outputConstant * m ^ 104 := by
   have hp := Nat.one_le_pow 104 m hm
-  have hd : D ≤ 256 * m ^ 104 := hD.trans (lift_power _ _ _ _ hm (by omega))
-  have hl : L ≤ 49153 ^ 3 * m ^ 104 := hL.trans (lift_power _ _ _ _ hm (by omega))
+  have hd : D ≤ 256 * m ^ 104 :=
+    hD.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hm (by omega)))
+  have hl : L ≤ 49153 ^ 3 * m ^ 104 :=
+    hL.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hm (by omega)))
   have hproduct : L * n * D * D * B ≤ (49153 ^ 3 * 256 * 256 * bitConstant) * m ^ 104 := by
     calc _ ≤ (49153 ^ 3 * m ^ 51) * m * (256 * m ^ 10) * (256 * m ^ 10) *
           (bitConstant * m ^ 32) := by gcongr

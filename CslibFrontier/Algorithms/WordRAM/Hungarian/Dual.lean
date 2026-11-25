@@ -65,64 +65,40 @@ private theorem exec_condAddCode {w n bC M : ℕ}
       (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
       (∀ k : Fin n, y.mem (bT + k.val) = if flag k = true then cur k + delta else cur k) ∧
       (∀ a, ¬(bT ≤ a ∧ a < bT + n) → y.mem a = x.mem a) := by
-  let e : ℕ → ℕ := fun k =>
-    if hk : k < n then if flag ⟨k, hk⟩ = true then cur ⟨k, hk⟩ + delta else cur ⟨k, hk⟩ else 0
-  let P (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (bT + j) = e j) ∧
-      (∀ a, ¬(bT ≤ a ∧ a < bT + k) → y.mem a = x.mem a)
-  have hbody (y : Data 28) (hy : P (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w (condAddBody flagBase targetBase) y z 9 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    let k₀ : Fin n := ⟨y.regs idx, hlt⟩
-    have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
-    have hbF_y : y.regs flagBase = bF := (hr flagBase hf_lt).trans hbF
-    have hbT_y : y.regs targetBase = bT := (hr targetBase ht_lt).trans hbT
-    have hdel_y : y.regs rdelta = delta := (hr rdelta (by decide)).trans hdelta
-    have hfk : y.mem (bF + y.regs idx) = if flag k₀ = true then 1 else 0 := by
-      rw [hf _ (by omega)]
-      exact hflag k₀
-    have hck : y.mem (bT + y.regs idx) = cur k₀ := by
-      rw [hf _ (by omega)]
-      exact hcur k₀
-    have hf1 : Fits w (bF + y.regs idx) := hfitF.of_le (by omega)
-    have hf2 : Fits w (bT + y.regs idx) := hfitT.of_le (by omega)
-    have hf3 : Fits w (y.regs idx + 1) := hfitN.of_le (by omega)
-    have hta : targetBase ≠ addr := fun h => by subst h; simp at ht_lt
-    have htv : targetBase ≠ val := fun h => by subst h; simp at ht_lt
-    have hstep : ∃ z, ExecWithin w (condAddBody flagBase targetBase) y z 9 ∧
-        z.mem = Function.update y.mem (bT + y.regs idx) (e (y.regs idx)) ∧
-        (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
-        z.regs idx = y.regs idx + 1 := by
-      refine WP.exists_execWithin ?_
-      unfold condAddBody
-      by_cases ht : flag k₀ = true
-      · have ht_val : (if flag k₀ = true then 1 else 0) = 1 := ite_eq_left ht
-        have heq_e : cur k₀ + delta = e (y.regs idx) := by
-          simp only [e, hlt, dite_true]
-          exact (ite_eq_left ht).symm
-        have hf4 : Fits w (cur k₀ + delta) := hfitAdd k₀ ht
-        wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y,
-          hfk, ht_val, hck, hf1, hf2, hf3, hf4]
-        exact ⟨by wram_simp [hta, htv, hbT_y, heq_e], fun i hi => by wram_simp [hr i hi],
-          by wram_simp⟩
-      · have ht_val : (if flag k₀ = true then 1 else 0) = 0 := ite_eq_right ht
-        have heq_e : cur k₀ = e (y.regs idx) := by
-          simp only [e, hlt, dite_true]
-          exact (ite_eq_right ht).symm
-        wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y,
-          hfk, ht_val, hck, hf1, hf2, hf3]
-        exact ⟨by wram_simp [hta, htv, hbT_y, hck, heq_e], fun i hi => by wram_simp [hr i hi],
-          by wram_simp⟩
-    obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
-    exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
-  obtain ⟨y, he, hr, hm, hf⟩ := exec_forLoop P
-    (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbody (x := x)
-    ⟨fun i hi => by wram_simp, fun _ hj => by omega, fun _ _ => rfl⟩
-  refine ⟨y, he.mono (by omega), hr, fun k => ?_, hf⟩
-  simpa [e, k.isLt] using hm k.val k.isLt
+  refine (exec_prefixWriteLoop (T := 9) (d := bT) x
+    (fun k => if flag k = true then cur k + delta else cur k) hb.hrn (by decide) ?_).imp
+    fun y h => ⟨h.1.mono (by omega), h.2⟩
+  intro y hr hlt hf
+  set k₀ : Fin n := ⟨y.regs idx, hlt⟩
+  have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
+  have hbF_y : y.regs flagBase = bF := (hr flagBase hf_lt).trans hbF
+  have hbT_y : y.regs targetBase = bT := (hr targetBase ht_lt).trans hbT
+  have hdel_y : y.regs rdelta = delta := (hr rdelta (by decide)).trans hdelta
+  have hfk : y.mem (bF + y.regs idx) = if flag k₀ = true then 1 else 0 := by
+    rw [hf _ (by omega)]
+    exact hflag k₀
+  have hck : y.mem (bT + y.regs idx) = cur k₀ := by
+    rw [hf _ (by omega)]
+    exact hcur k₀
+  have hf1 : Fits w (bF + y.regs idx) := hfitF.of_le (by omega)
+  have hf2 : Fits w (bT + y.regs idx) := hfitT.of_le (by omega)
+  have hf3 : Fits w (y.regs idx + 1) := hfitN.of_le (by omega)
+  have hta : targetBase ≠ addr := fun h => by subst h; simp at ht_lt
+  have htv : targetBase ≠ val := fun h => by subst h; simp at ht_lt
+  refine WP.exists_execWithin ?_
+  unfold condAddBody
+  by_cases ht : flag k₀ = true
+  · have ht_val : (if flag k₀ = true then 1 else 0) = 1 := ite_eq_left ht
+    have hf4 : Fits w (cur k₀ + delta) := hfitAdd k₀ ht
+    wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y,
+      hfk, ht_val, hck, hf1, hf2, hf3, hf4]
+    exact ⟨by wram_simp [hta, htv, hbT_y, ht], fun i hi => by wram_simp [hr i hi],
+      by wram_simp⟩
+  · have ht_val : (if flag k₀ = true then 1 else 0) = 0 := ite_eq_right ht
+    wram_exec [hbF_y, hbT_y, hta, htv, hby.hone, hby.hzero, hdel_y,
+      hfk, ht_val, hck, hf1, hf2, hf3]
+    exact ⟨by wram_simp [hta, htv, hbT_y, hck, ite_eq_right ht], fun i hi => by wram_simp [hr i hi],
+      by wram_simp⟩
 
 private theorem exec_dualYCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ : Fin n}
     {s : HgState n} {bestRow : Fin n → Fin n}
@@ -206,69 +182,49 @@ private theorem exec_dualMinvCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ
         (vget (hgDual s (vget s.minv j₁)).minv j).toNat) ∧
       (∀ a, ¬(bC + n * n + 5 * n ≤ a ∧ a < bC + n * n + 6 * n) → y.mem a = x.mem a) := by
   let d := bC + n * n + 5 * n
-  let e : ℕ → ℕ := fun k =>
-    if hk : k < n then (vget (hgDual s (vget s.minv j₁)).minv ⟨k, hk⟩).toNat else 0
-  let P (k : ℕ) (y : Data 28) : Prop :=
-    (∀ i : Fin 28, i.val < 21 → y.regs i = x.regs i) ∧
-      (∀ j < k, y.mem (d + j) = e j) ∧
-      (∀ a, ¬(d ≤ a ∧ a < d + k) → y.mem a = x.mem a)
-  have hbody (y : Data 28) (hy : P (y.regs idx) y) (hlt : y.regs idx < n) :
-      ∃ z, ExecWithin w dualMinvBody y z 9 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hr, hm, hf⟩ := hy
-    let j : Fin n := ⟨y.regs idx, hlt⟩
-    have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
-    have hdel_y : y.regs rdelta = (vget s.minv j₁).toNat := (hr rdelta (by decide)).trans hdelta
-    have hu_j : y.mem (bC + n * n + 3 * n + y.regs idx) =
-        if vget s.used j = true then 1 else 0 := by
-      rw [hf _ (by omega)]
-      exact hused_x j
-    have hm_j : y.mem (bC + n * n + 5 * n + y.regs idx) = (vget s.minv j).toNat := by
-      rw [hf _ (by simp only [d]; omega)]
-      exact hminv_x j
-    have hmb := hSI.minv_bounds j
-    have hdb := hSI.minv_bounds j₁
-    have hf1 : Fits w (bC + n * n + 3 * n + y.regs idx) := hfit.of_le (by omega)
-    have hf2 : Fits w (d + y.regs idx) := hfit.of_le (by omega)
-    have hf3 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
-    have hstep : ∃ z, ExecWithin w dualMinvBody y z 9 ∧
-        z.mem = Function.update y.mem (d + y.regs idx) (e (y.regs idx)) ∧
-        (∀ i : Fin 28, i.val < 21 → z.regs i = x.regs i) ∧
-        z.regs idx = y.regs idx + 1 := by
-      refine WP.exists_execWithin ?_
-      unfold dualMinvBody
-      by_cases hu : vget s.used j = true
-      · have hu_val : (if vget s.used j = true then 1 else 0) = 1 := ite_eq_left hu
-        have heq_e : (vget s.minv j).toNat = e (y.regs idx) := by
-          simp only [e, hlt, dite_true]
-          change _ = (vget (hgDual s (vget s.minv j₁)).minv j).toNat
-          rw [hgDual_minv, ite_eq_left hu]
-        wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hone, hby.hzero, hdel_y,
-          hu_j, hu_val, hm_j, hf1, hf2, hf3]
-        exact ⟨by wram_simp [d, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-      · have huf : vget s.used j = false := Bool.eq_false_iff.mpr hu
-        have hu_val : (if vget s.used j = true then 1 else 0) = 0 := ite_eq_right hu
-        have hle_m : (vget s.minv j₁).toNat ≤ (vget s.minv j).toNat := by
-          have := hmin j huf
-          omega
-        have heq_e : (vget s.minv j).toNat - (vget s.minv j₁).toNat = e (y.regs idx) := by
-          simp only [e, hlt, dite_true]
-          change _ = (vget (hgDual s (vget s.minv j₁)).minv j).toNat
-          rw [hgDual_minv, ite_eq_right hu]
-          have := hmin j huf
-          omega
-        have hf4 : Fits w ((vget s.minv j).toNat - (vget s.minv j₁).toNat) := hfit.of_le (by omega)
-        wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hone, hby.hzero, hdel_y,
-          hu_j, hu_val, hm_j, hle_m, hf1, hf2, hf3, hf4]
-        exact ⟨by wram_simp [d, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-    obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
-    obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
-    exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
-  obtain ⟨y, he, hr, hm, hf⟩ := exec_forLoop P
-    (fun y hy => (hy.1 rn (by decide)).trans hb.hrn) hbody (x := x)
-    ⟨fun i hi => by wram_simp, fun _ hj => by omega, fun _ _ => rfl⟩
-  refine ⟨y, he.mono (by omega), hr, fun j => ?_, fun a ha => hf a (by simp only [d]; omega)⟩
-  simpa [d, e, j.isLt] using hm j.val j.isLt
+  refine (exec_prefixWriteLoop (T := 9) (d := d) x
+    (fun j => (vget (hgDual s (vget s.minv j₁)).minv j).toNat) hb.hrn (by decide) ?_).imp
+    fun y ⟨he, hr, hm, hf⟩ =>
+      ⟨he.mono (by omega), hr, hm, fun a ha => hf a (by simp only [d]; omega)⟩
+  intro y hr hlt hf
+  set j : Fin n := ⟨y.regs idx, hlt⟩
+  have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
+  have hdel_y : y.regs rdelta = (vget s.minv j₁).toNat := (hr rdelta (by decide)).trans hdelta
+  have hu_j : y.mem (bC + n * n + 3 * n + y.regs idx) =
+      if vget s.used j = true then 1 else 0 := by
+    rw [hf _ (by omega)]
+    exact hused_x j
+  have hm_j : y.mem (bC + n * n + 5 * n + y.regs idx) = (vget s.minv j).toNat := by
+    rw [hf _ (by simp only [d]; omega)]
+    exact hminv_x j
+  have hmb := hSI.minv_bounds j
+  have hdb := hSI.minv_bounds j₁
+  have hf1 : Fits w (bC + n * n + 3 * n + y.regs idx) := hfit.of_le (by omega)
+  have hf2 : Fits w (d + y.regs idx) := hfit.of_le (by omega)
+  have hf3 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
+  refine WP.exists_execWithin ?_
+  unfold dualMinvBody
+  by_cases hu : vget s.used j = true
+  · have hu_val : (if vget s.used j = true then 1 else 0) = 1 := ite_eq_left hu
+    have heq_e : (vget s.minv j).toNat = (vget (hgDual s (vget s.minv j₁)).minv j).toNat := by
+      rw [hgDual_minv, ite_eq_left hu]
+    wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hone, hby.hzero, hdel_y,
+      hu_j, hu_val, hm_j, hf1, hf2, hf3]
+    exact ⟨by wram_simp [d, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+  · have huf : vget s.used j = false := Bool.eq_false_iff.mpr hu
+    have hu_val : (if vget s.used j = true then 1 else 0) = 0 := ite_eq_right hu
+    have hle_m : (vget s.minv j₁).toNat ≤ (vget s.minv j).toNat := by
+      have := hmin j huf
+      omega
+    have heq_e : (vget s.minv j).toNat - (vget s.minv j₁).toNat =
+        (vget (hgDual s (vget s.minv j₁)).minv j).toNat := by
+      rw [hgDual_minv, ite_eq_right hu]
+      have := hmin j huf
+      omega
+    have hf4 : Fits w ((vget s.minv j).toNat - (vget s.minv j₁).toNat) := hfit.of_le (by omega)
+    wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hone, hby.hzero, hdel_y,
+      hu_j, hu_val, hm_j, hle_m, hf1, hf2, hf3, hf4]
+    exact ⟨by wram_simp [d, heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
 
 theorem exec_dualCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ} {r j₁ : Fin n}
     {s : HgState n} {bestRow : Fin n → Fin n}

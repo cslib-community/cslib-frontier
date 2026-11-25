@@ -12,19 +12,24 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.TimeLayer.Fin
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.CounterBounds
 
 /-!
-# The clocked BPL matrix on consecutive compact identifiers
+# The clocked BPL and RL matrices on consecutive compact identifiers
 
 The entire compact configuration box is clocked and indexed by the explicit integer
 `clock * vertexBound + baseID`. Its real-valued matrix is nonnegative, substochastic and strictly
 forward in that numeric order. Terminal rewards and the remaining-time potential satisfy the
-linear and inverse equations, with potential in `[0,1]` at every ID, and retain the actual BPL
-acceptance gap at the encoded initial configuration.
+linear and inverse equations, with potential in `[0,1]` at every ID, and retain the actual BPL or
+RL acceptance gap at the encoded initial configuration.
 
 The endpoint preserves the original logarithmic-space constant and derives the fitting radix
 from it. It does not choose an arbitrary ordering of reachable views. The ordinary entries are
 the counts written by the native initialized table, via `compactCoinMatrix_eq_coinTable`.
 The initialized clocked payload is supplied by `Randomized.ClockedTable`. Complete instance
 packaging, paired ports and the native recursive estimator remain open.
+
+## Main definitions
+
+* `Cslib.Complexity.HasCompactTimeLayer`: a clocked compact layer with a given acceptance gap at
+  the start.
 
 ## Main results
 
@@ -34,6 +39,8 @@ packaging, paired ports and the native recursive estimator remain open.
   matrix, reward and potential facts at the polynomial clock, shared by the `RL` and `BPL` layers.
 * `Cslib.Complexity.exists_compactTimeLayer_of_mem_BPL`: the canonical polynomial-size
   strict-forward real matrix with the actual `2/3` versus `1/3` BPL gap.
+* `Cslib.Complexity.exists_compactTimeLayer_of_mem_RL`: the same matrix with the one-sided
+  `1/2` versus `0` RL gap.
 
 ## References
 
@@ -107,49 +114,85 @@ open _root_.Turing MultiTapeNTM.ConfigurationGraph MultiTapePTM.ConfigurationGra
 
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α}
 
+/-- **A clocked compact layer with acceptance gap `yes`/`no`.** One fixed machine, space constant
+and polynomial clock exponent such that, on every encoded word, the machine stays within its
+logarithmic space bound and halts within the clock `T`, and the full compact box clocked at `T`,
+with numeric clock/base IDs, gives a real strict-forward substochastic matrix `S` of explicitly
+polynomial dimension and a `0`/`1` terminal reward `e`, whose bounded inverse potential `p`
+satisfies `yes` on members and `no` on non-members at the encoded initial configuration `x₀`.
+
+`exists_compactTimeLayer_of_mem_BPL` and `exists_compactTimeLayer_of_mem_RL` supply it with the
+`BPL` and `RL` gaps. -/
+abbrev HasCompactTimeLayer (enc : α ↪ List Bool) (A : Set α) (yes no : ℝ → Prop) : Prop :=
+  ∃ (k : ℕ) (State : Type) (_ : Fintype State) (M : MultiTapePTM k Bool State) (c d : ℕ),
+    ∀ a, ∃ hs : M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1)),
+      let w := enc a
+      let D := radixExponent State c
+      let B := radix D w.length
+      let N := vertexBound (k := k) B
+      let T := polyClock d w.length
+      let P := compactCoinMatrix M ℝ B w
+      let e₀ := compactAcceptVec (k := k) (State := State) ℝ B w.length
+      let S := finTimeLayer T P
+      let e := finTimeLayerReward T e₀
+      let p := finTimeLayerPotential T P e₀
+      let x₀ := (timeLayerEquiv T N).symm (toLex (0, compactStart M c hs))
+      M.toNTM.RunsInTime w T ∧
+      Fintype.card (Fin ((T + 1) * N)) ≤
+        (2 * (w.length + 1)) ^ (D * Fintype.card (Register k) + d + 2) ∧
+      S.IsStrictUpperTriangular ∧ (∀ x y, 0 ≤ S x y) ∧ S *ᵥ 1 ≤ 1 ∧
+      (∀ x, e x = 0 ∨ e x = 1) ∧ (1 - S) *ᵥ p = e ∧ (1 - S)⁻¹ *ᵥ e = p ∧
+      p ∈ Set.Icc 0 1 ∧
+      (a ∈ A → yes (p x₀)) ∧ (a ∉ A → no (p x₀))
+
+/-- A logarithmic-space machine with a polynomial clock whose acceptance probability at the clock
+satisfies `yes` on members and `no` on non-members has a clocked compact layer with that gap: the
+potential at the start is that acceptance probability. -/
+private theorem hasCompactTimeLayer_of_runsInLogSpace {yes no : ℝ → Prop} {k : ℕ} {State : Type}
+    [Finite State] {M : MultiTapePTM k Bool State} {c d : ℕ} (hM : M.RunsInLogSpace enc c d)
+    (hgap : ∀ a, let T := polyClock d (enc a).length
+      (a ∈ A → yes ((M.acceptCoins (enc a) T : ℝ) / 2 ^ T)) ∧
+        (a ∉ A → no ((M.acceptCoins (enc a) T : ℝ) / 2 ^ T))) :
+    HasCompactTimeLayer enc A yes no := by
+  let : Fintype State := Fintype.ofFinite State
+  refine ⟨k, State, inferInstance, M, c, d, fun a => ⟨hM.runsInSpace a, ?_⟩⟩
+  obtain ⟨hcard, hS, hS0, hS1, he, hp, hinv, hIcc⟩ := compactTimeLayer_polyClock M c d (enc a)
+  refine ⟨hM.runsInTime a, hcard, hS, hS0, hS1, he, hp, hinv, hIcc, ?_⟩
+  simpa only [finTimeLayer_compactCoinMatrix_acceptance] using hgap a
+
 /-- **The enumerated clocked BPL matrix.** An actual BPL witness supplies one fixed machine,
 space constant and polynomial horizon. On every encoded word the full compact box, with numeric
 clock/base IDs, gives a real strict-forward substochastic matrix and a terminal reward whose
-bounded inverse potential has the original acceptance gap. The dimension is explicitly polynomial.
+bounded inverse potential has the original acceptance gap `2 / 3` versus `1 / 3`. The dimension is
+explicitly polynomial.
 
 The space witness is produced by this theorem, and all radix, start and representation bounds
 are derived from it. `Randomized.ClockedTable` supplies the initialized native matrix payload;
 complete instance packaging and incoming paired-port computation remain separate. -/
 theorem exists_compactTimeLayer_of_mem_BPL (h : A ∈ BPL enc) :
-    ∃ (k : ℕ) (State : Type) (_ : Fintype State) (M : MultiTapePTM k Bool State) (c d : ℕ),
-      ∀ a, ∃ hs : M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1)),
-        let w := enc a
-        let D := radixExponent State c
-        let B := radix D w.length
-        let N := vertexBound (k := k) B
-        let T := polyClock d w.length
-        let P := compactCoinMatrix M ℝ B w
-        let e₀ := compactAcceptVec (k := k) (State := State) ℝ B w.length
-        let S := finTimeLayer T P
-        let e := finTimeLayerReward T e₀
-        let p := finTimeLayerPotential T P e₀
-        let x₀ := (timeLayerEquiv T N).symm (toLex (0, compactStart M c hs))
-        M.toNTM.RunsInTime w T ∧
-        Fintype.card (Fin ((T + 1) * N)) ≤
-          (2 * (w.length + 1)) ^ (D * Fintype.card (Register k) + d + 2) ∧
-        S.IsStrictUpperTriangular ∧ (∀ x y, 0 ≤ S x y) ∧ S *ᵥ 1 ≤ 1 ∧
-        (∀ x, e x = 0 ∨ e x = 1) ∧ (1 - S) *ᵥ p = e ∧ (1 - S)⁻¹ *ᵥ e = p ∧
-        p ∈ Set.Icc 0 1 ∧
-        (a ∈ A → 2 / 3 ≤ p x₀) ∧ (a ∉ A → p x₀ ≤ 1 / 3) := by
-  classical
+    HasCompactTimeLayer enc A (2 / 3 ≤ ·) (· ≤ 1 / 3) := by
   obtain ⟨k, State, _, M, c, d, hM, herr⟩ := exists_polyClock_of_mem_BPL h
-  let : Fintype State := Fintype.ofFinite State
-  refine ⟨k, State, inferInstance, M, c, d, fun a => ⟨hM.runsInSpace a, ?_⟩⟩
-  obtain ⟨hmem, hnot⟩ := herr a
-  obtain ⟨hcard, hS, hS0, hS1, he, hp, hinv, hIcc⟩ := compactTimeLayer_polyClock M c d (enc a)
-  refine ⟨hM.runsInTime a, hcard, hS, hS0, hS1, he, hp, hinv, hIcc, fun ha => ?_, fun ha => ?_⟩
-  · rw [finTimeLayer_compactCoinMatrix_acceptance, le_div_iff₀ (by positivity)]
-    have hc := (Nat.cast_le (α := ℝ)).mpr (hmem ha)
+  refine hasCompactTimeLayer_of_runsInLogSpace hM fun a => ⟨fun ha => ?_, fun ha => ?_⟩
+  · rw [le_div_iff₀ (by positivity)]
+    have hc := (Nat.cast_le (α := ℝ)).mpr ((herr a).1 ha)
     push_cast at hc
     linarith
-  · rw [finTimeLayer_compactCoinMatrix_acceptance, div_le_iff₀ (by positivity)]
-    have hc := (Nat.cast_le (α := ℝ)).mpr (hnot ha)
+  · rw [div_le_iff₀ (by positivity)]
+    have hc := (Nat.cast_le (α := ℝ)).mpr ((herr a).2 ha)
     push_cast at hc
     linarith
+
+/-- **The enumerated clocked RL matrix.** One-sided error counterpart of
+`Cslib.Complexity.exists_compactTimeLayer_of_mem_BPL`: members achieve potential at least `1 / 2`
+at `x₀`, while non-members have potential `0` at `x₀`. -/
+theorem exists_compactTimeLayer_of_mem_RL (h : A ∈ RL enc) :
+    HasCompactTimeLayer enc A (1 / 2 ≤ ·) (· = 0) := by
+  obtain ⟨k, State, _, M, c, d, hM, herr⟩ := exists_polyClock_of_mem_RL h
+  refine hasCompactTimeLayer_of_runsInLogSpace hM fun a => ⟨fun ha => ?_, fun ha => ?_⟩
+  · rw [le_div_iff₀ (by positivity)]
+    have hc := (Nat.cast_le (α := ℝ)).mpr ((herr a).1 ha)
+    push_cast at hc
+    linarith
+  · simp [(herr a).2 ha]
 
 end Cslib.Complexity

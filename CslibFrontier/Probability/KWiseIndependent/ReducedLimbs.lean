@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.KWiseIndependent.Reduced
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 import Mathlib.Data.Nat.Bitwise
 
 /-!
@@ -144,8 +145,6 @@ theorem oddMulModWord_parts_lt {w₀ α_val u_val : ℕ} (hw₀ : 0 < w₀)
     ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) < 2 ^ w₀ ∧
     (u_val &&& 1) + ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) < 2 ^ w₀ := by
   intro m h x' α₀ α₁ x₀ x₁ p₀ p₁ p₂ p₃ s₁ s₂ hm
-  have mask_lt (a n : ℕ) : a &&& (2 ^ n - 1) < 2 ^ n :=
-    Nat.and_lt_two_pow a (Nat.sub_lt (Nat.two_pow_pos n) one_pos)
   have shr_lt {a n k : ℕ} (hk : k ≤ n) (ha : a < 2 ^ n) : a >>> k < 2 ^ (n - k) := by
     rw [Nat.shiftRight_eq_div_pow]
     exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, Nat.add_sub_of_le hk])
@@ -155,20 +154,22 @@ theorem oddMulModWord_parts_lt {w₀ α_val u_val : ℕ} (hw₀ : 0 < w₀)
   have hm_lt : 2 ^ m < 2 ^ w₀ := by have := Nat.two_pow_pos m; omega
   have h_le : h ≤ m := Nat.div_le_self m 2
   have h2_le : 2 * h ≤ m := Nat.mul_div_le m 2
-  have hp₀_raw : α₀ * x₀ < 2 ^ m := (Nat.mul_lt_mul'' (mask_lt _ h) (mask_lt _ h)).trans_le
-    (by rw [← pow_add, ← two_mul]; exact Nat.pow_le_pow_right two_pos h2_le)
-  have hp₁_raw : α₀ * x₁ < 2 ^ m := (Nat.mul_lt_mul'' (mask_lt _ h)
-    (shr_lt h_le (mask_lt _ m))).trans_eq (by rw [← pow_add, Nat.add_sub_of_le h_le])
+  have hp₀_raw : α₀ * x₀ < 2 ^ m :=
+    (Nat.mul_lt_mul'' (Nat.and_two_pow_sub_one_lt _ h) (Nat.and_two_pow_sub_one_lt _ h)).trans_le
+      (by rw [← pow_add, ← two_mul]; exact Nat.pow_le_pow_right two_pos h2_le)
+  have hp₁_raw : α₀ * x₁ < 2 ^ m := (Nat.mul_lt_mul'' (Nat.and_two_pow_sub_one_lt _ h)
+    (shr_lt h_le (Nat.and_two_pow_sub_one_lt _ m))).trans_eq
+      (by rw [← pow_add, Nat.add_sub_of_le h_le])
   have hp₂_raw : α₁ * x₀ < 2 ^ m := (Nat.mul_lt_mul'' (shr_lt h_le hα)
-    (mask_lt _ h)).trans_eq (by rw [← pow_add, Nat.sub_add_cancel h_le])
+    (Nat.and_two_pow_sub_one_lt _ h)).trans_eq (by rw [← pow_add, Nat.sub_add_cancel h_le])
   have hp₃_mul := mul_and_lt_of_le_one (a := α₁) (b := x₁) (d := m - 2 * h) (by omega)
-  have hp₁_lt : p₁ < 2 ^ m := shl_lt h_le (mask_lt _ _)
-  have hp₂_lt : p₂ < 2 ^ m := shl_lt h_le (mask_lt _ _)
+  have hp₁_lt : p₁ < 2 ^ m := shl_lt h_le (Nat.and_two_pow_sub_one_lt _ _)
+  have hp₂_lt : p₂ < 2 ^ m := shl_lt h_le (Nat.and_two_pow_sub_one_lt _ _)
   have hp₃_lt : p₃ < 2 ^ m := shl_lt h2_le hp₃_mul
-  have hp₀_lt : p₀ < 2 ^ m := mask_lt _ m
-  have hs₁_lt : s₁ < 2 ^ m := mask_lt _ m
-  have hs₂_lt : s₂ < 2 ^ m := mask_lt _ m
-  have hhm_lt : hm < 2 ^ m := mask_lt _ m
+  have hp₀_lt : p₀ < 2 ^ m := Nat.and_two_pow_sub_one_lt _ m
+  have hs₁_lt : s₁ < 2 ^ m := Nat.and_two_pow_sub_one_lt _ m
+  have hs₂_lt : s₂ < 2 ^ m := Nat.and_two_pow_sub_one_lt _ m
+  have hhm_lt : hm < 2 ^ m := Nat.and_two_pow_sub_one_lt _ m
   have hu_shr : u_val >>> 1 < 2 ^ m := shr_lt hw₀ hu
   have hodd : (u_val &&& 1) + ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) < 2 ^ w₀ :=
     oddMulModWord_lt hw₀ α_val u_val

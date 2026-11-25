@@ -27,6 +27,7 @@ into the vocabulary of `Finset.expect` (`𝔼`) and `Finset.dens`.
 
 ## Main results
 
+* `Cslib.Probability.PMF.tsum_mul_const`: the expectation of a constant is that constant.
 * `Cslib.Probability.PMF.sum_le_affine`: average pointwise affine bounds.
 * `Cslib.Probability.PMF.sum_map_mul`, `.sum_bind_mul`, `.tsum_toReal_map_mul_natCast`: average
   deterministic and random scores (including finite-source pushforwards onto arbitrary codomains).
@@ -47,6 +48,10 @@ namespace Cslib.Probability.PMF
 
 open Finset
 open scoped BigOperators ENNReal
+
+/-- The expectation of a constant `c : ℝ≥0∞` under any `p : PMF α` is `c`. -/
+theorem tsum_mul_const {α : Type*} (p : PMF α) (c : ℝ≥0∞) : ∑' a, p a * c = c := by
+  rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
 /-- Expectation of `k : β → ℝ≥0∞` under `p.map g` equals expectation of `k ∘ g` under `p`. -/
 theorem tsum_map_mul {α β : Type*} (p : PMF α) (g : α → β) (k : β → ℝ≥0∞) :

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork
 public import CslibFrontier.Foundations.Data.BitString.Counter
+import CslibFrontier.Foundations.Data.List.OfFnGetD
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Set.Card
@@ -204,12 +205,6 @@ theorem length_le_maxDegree {v : List ℕ × List R} (hv : v ∈ d.vertices) :
 
 end ExplicitTensorNetwork
 
-private theorem getD_ofFn {n : ℕ} (x : Fin n → Bool) (i : ℕ) :
-    (List.ofFn x).getD i false = if h : i < n then x ⟨i, h⟩ else false := by
-  by_cases h : i < n
-  · rw [dite_eq_left h, List.getD_eq_getElem _ _ (by simpa using h), List.getElem_ofFn]
-  · rw [dite_eq_right h, List.getD_eq_default _ _ (by simp only [List.length_ofFn]; omega)]
-
 /-- **Explicit networks**: with table lookup as the evaluator, the contraction of a described
 network is that of the explicit network. -/
 theorem DescribedNetwork.contraction_entry {R : Type*} [CommSemiring R]
@@ -220,7 +215,7 @@ theorem DescribedNetwork.contraction_entry {R : Type*} [CommSemiring R]
   congr 1
   refine List.map_congr_left fun v _ => ?_
   congr 2 with i : 1
-  exact getD_ofFn x i
+  exact List.getD_ofFn_eq_dite x i false
 
 /-! ### Writing a tensor network out -/
 

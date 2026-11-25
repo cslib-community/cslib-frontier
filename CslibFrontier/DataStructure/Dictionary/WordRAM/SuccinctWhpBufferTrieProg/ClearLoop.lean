@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Rt
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Helpers
 import CslibFrontier.Tactic.Realize
 
@@ -90,12 +91,8 @@ private theorem realizes_bufClearEdgeRt :
     have htc_n : trieChildEntriesWhp c n_max ≤ n_max :=
       (Nat.le_mul_of_pos_right _ hg_pos).trans htc_le
     have hidx_lt : ch < 2 ^ bCharWhp n_max →
-        par * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := fun hch => by
-      unfold trieChildEntriesWhp
-      calc par * 2 ^ bCharWhp n_max + ch
-          < par * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch _
-        _ = (par + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hpar
+        par * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := fun hch =>
+      mul_add_lt_mul_bound hpar hch
     first
     | exact henv.fits_of_le_n_max ((hidx_lt (by omega)).le.trans htc_n)
     | exact rt_child_safe henv hep (hidx_lt (by omega))
@@ -300,7 +297,7 @@ private theorem realizes_bufClearOneRt :
     have hw_eq := henv.2.2.1
     subst hw_eq
     have hna32 : brHdrNA (mkBufRt c U V w n_max base ep) < 32 :=
-      (rt_disj_le c U V w n_max base ep hep).1
+      (rt_disj_le c U V w n_max base ep hep).hdrNA_lt
     have hmem_na : s.mem (base + brHdrNA (mkBufRt c U V w n_max base ep)) = tr.nodeAlloc := by
       have hn := hrep.2.2.1; rcases hep with rfl | rfl <;> exact hn
     simp only [hcs_r, hcr_r] at *
@@ -341,21 +338,10 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
   have hw := henv.2.1
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   set rt := mkBufRt c U V w n_max base ep
-  obtain ⟨hna_lt_sp, hia_lt_sp, hc_seg, hm_seg, _⟩ :
-      base + brHdrNA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brHdrIA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffItems rt + packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max := rt_seg_le c U V w n_max base ep hep
-  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ :
-      brHdrNA rt < 32 ∧ brHdrIA rt < 32 ∧ brHdrNA rt ≠ brHdrIA rt ∧ 32 ≤ brOffChild rt ∧
-      brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffMeta rt ∧
-      brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffItems rt := rt_disj_le c U V w n_max base ep hep
+  obtain ⟨hna_lt_sp, hia_lt_sp, hc_seg, hm_seg, _⟩ : BufRtSegLe c U V w n_max base rt :=
+      rt_seg_le c U V w n_max base ep hep
+  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ : BufRtDisj c w n_max rt :=
+      rt_disj_le c U V w n_max base ep hep
   have hmt_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.1
   have h0_g : 0 < 2 ^ globalPtrBits n_max := Nat.two_pow_pos _
   have h0_fit : Fits w 0 := Nat.two_pow_pos w
@@ -406,12 +392,8 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
       by_cases hch_lt : ch < 2 ^ bCharWhp n_max
       · have hch_br : ch < brPowBChar rt := hch_lt
         set idxE := par * 2 ^ bCharWhp n_max + ch
-        have hidxE : idxE < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc par * 2 ^ bCharWhp n_max + ch
-              < par * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
-            _ = (par + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hpar_max
+        have hidxE : idxE < trieChildEntriesWhp c n_max :=
+          mul_add_lt_mul_bound hpar_max hch_lt
         have hse_eq : se =
             { mem := writePacked (base + brOffChild rt) (globalPtrBits n_max) w s.mem idxE 0,
               frontier := s.frontier } := by
@@ -530,12 +512,8 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
           (v * 2 ^ bCharWhp n_max + c') =
           Function.update tr.trieChild par (Function.update (tr.trieChild par) ch 0) v c' := by
       intro v hv c' hc'
-      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc v * 2 ^ bCharWhp n_max + c'
-            < v * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hc' _
-          _ = (v + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hv
+      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hv hc'
       dsimp only [m3, m2, m1]
       rw [readPacked_update_outside hw hvc_lt (Or.inl (by omega)),
         readPacked_update_outside hw hvc_lt (Or.inl (by omega)),
@@ -617,12 +595,8 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w s.mem
             (v * 2 ^ bCharWhp n_max + c') := by
       intro v hv c' hc'
-      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc v * 2 ^ bCharWhp n_max + c'
-            < v * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hc' _
-          _ = (v + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hv
+      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hv hc'
       dsimp only [m3, m2, m1]
       exact (readPacked_update_outside hw hvc_lt (Or.inl (by omega))).trans
         ((readPacked_update_outside hw hvc_lt (Or.inl (by omega))).trans
@@ -676,41 +650,35 @@ theorem bufClearLoop_spec {c U V w n_max base ep : ℕ}
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
       BufTrieMemRep base c U V w n_max ep tr' s'.mem ∧
       BufEpFrame base c U V w n_max ep s.mem s'.mem := by
-  intro rt k
-  induction k with
-  | zero =>
-    intro tr s hrep _
-    exact ⟨trivial, rfl, Nat.zero_le _, validProg_pure _, hrep, BufEpFrame.refl _⟩
-  | succ k ih =>
-    intro tr s hrep hclr
-    have hpre : BufClearOnePre w (rt, ()) s :=
-      ⟨c, U, V, w, n_max, base, ep, tr, henv, hep, rfl, hrep, hclr⟩
-    obtain ⟨hfr1, hmc1, hvp1, hrep1, hbfr1⟩ := bufClearOneRtProg_spec henv hep hrep hclr (s := s)
-    set s1 := (Memory.spec 0).clientState s (bufClearOneRtProg (rt, ()))
-    have hclr1 : ClearableBufTrie (bufClearOne tr) := hclr.clearOne_step.1
-    obtain ⟨hsafe_k, hfr_k, hmc_k, hvp_k, hrep_k, hbfr_k⟩ := ih (bufClearOne tr) s1 hrep1 hclr1
-    have hu_eq : (Memory.spec 0).clientResult s (bufClearOneRtProg (rt, ())) = () := rfl
-    dsimp only
-    have hst_all : (Memory.spec 0).clientState s (bufClearLoopGenProg ((rt, ()), k + 1)) =
-        (Memory.spec 0).clientState s1 (bufClearLoopGenProg ((rt, ()), k)) := by
-      change (Memory.spec 0).clientState s
-        (bufClearOneRtProg (rt, ()) >>= fun s' => iterate bufClearOneRtProg rt k s') = _
-      rw [clientState_bind, hu_eq]
-      rfl
-    rw [hst_all]
-    refine ⟨⟨hpre, ?_⟩, hfr_k.trans hfr1, ?_, ?_, hrep_k, hbfr1.trans hbfr_k⟩
-    · rw [clientState_width, clientResult_width]
-      exact hsafe_k
-    · change memoryCost (bufClearOneRtProg (rt, ()) >>= fun s' => iterate bufClearOneRtProg rt k s')
-        s ≤ 15 * (k + 1)
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      change memoryCost (bufClearOneRtProg (rt, ())) s +
-        memoryCost (bufClearLoopGenProg ((rt, ()), k)) s1 ≤ 15 * (k + 1)
-      dsimp only [rt] at hmc1 hmc_k ⊢
-      omega
-    · change ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (bufClearOneRtProg (rt, ()) >>= fun s' => iterate bufClearOneRtProg rt k s')
-      exact validProg_bind hvp1 hvp_k
+  intro rt k tr s hrep hclr
+  -- `J r () t`: `r` steps remain from `t`, which represents a clearable trie `tr'` reaching the
+  -- target.
+  let J : ℕ → Unit → Memory.State → Prop := fun r _ t => ∃ tr',
+    bufClearSteps r tr' = bufClearSteps k tr ∧ ClearableBufTrie tr' ∧
+    BufTrieMemRep base c U V w n_max ep tr' t.mem ∧ t.frontier = s.frontier ∧
+    BufEpFrame base c U V w n_max ep s.mem t.mem
+  have hJ : ∀ r t, J (r + 1) () t →
+      BufClearOnePre w (rt, ()) t ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) t (bufClearOneRtProg (rt, ())) ∧
+      memoryCost (bufClearOneRtProg (rt, ())) t ≤ 15 ∧
+      J r () ((Memory.spec 0).clientState t (bufClearOneRtProg (rt, ()))) := by
+    rintro r t ⟨tr', heq, hclr', hrep', hfr, hbfr⟩
+    obtain ⟨hfr1, hmc1, hvp1, hrep1, hbfr1⟩ := bufClearOneRtProg_spec henv hep hrep' hclr' (s := t)
+    exact ⟨⟨c, U, V, w, n_max, base, ep, tr', henv, hep, rfl, hrep', hclr'⟩, hvp1, hmc1,
+      bufClearOne tr', heq, hclr'.clearOne_step.1, hrep1, hfr1.trans hfr, hbfr.trans hbfr1⟩
+  have hJk : J k () s := ⟨tr, rfl, hclr, hrep, rfl, BufEpFrame.refl _⟩
+  obtain ⟨hsafe, hvp, tr', htr', -, hrep', hfr', hbfr'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := bufClearOneRtProg)
+    (safe := BufClearOnePre) (d := rt) (n := k) (fun j => J (k - j))
+    (fun j hj _ t h => by
+      obtain ⟨hpre, hvp1, -, hJ'⟩ :=
+        hJ (k - (j + 1)) t (by rwa [show k - (j + 1) + 1 = k - j by omega])
+      exact ⟨hpre, hvp1, hJ'⟩)
+    (a := ()) (s := s) (by rwa [Nat.sub_zero])
+  have hmc := memoryCost_iterate_le_potential bufClearOneRtProg rt J (fun _ _ => 0) _
+    (fun j _ t h => ⟨(hJ j t h).2.2.2, Nat.add_le_add_right (hJ j t h).2.2.1 0⟩) k () s hJk
+  obtain rfl : tr' = bufClearSteps k tr := by rwa [Nat.sub_self] at htr'
+  exact ⟨hsafe, hfr', hmc, hvp, hrep', hbfr'⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

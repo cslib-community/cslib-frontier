@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListToBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+import CslibFrontier.Foundations.Data.List.OfFnGetD
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.List
@@ -163,19 +164,13 @@ private theorem foldl_mul_mod {α : Type*} (f : α → ℕ) (m : ℕ) (l : List 
   | cons v l ih =>
     rw [List.foldl_cons, Nat.mod_mul_mod, ih, List.map_cons, List.prod_cons, Nat.mul_assoc]
 
-private theorem getD_ofFn {n : ℕ} (x : Fin n → Bool) (i : ℕ) :
-    (List.ofFn x).getD i false = if h : i < n then x ⟨i, h⟩ else false := by
-  by_cases h : i < n
-  · rw [dite_eq_left h, List.getD_eq_getElem _ _ (by simpa using h), List.getElem_ofFn]
-  · rw [dite_eq_right h, List.getD_eq_default _ _ (by simp only [List.length_ofFn]; omega)]
-
 /-- **The weight of an assignment.** On the word of an assignment `x` to the edges, `weightMod` is
 the product of the table entries at the bits on the ports, modulo `2 ^ P`. -/
 theorem weightMod_ofFn (P : ℕ) (d : ExplicitTensorNetwork ℕ) (x : Fin d.numEdges → Bool) :
     weightMod P d (List.ofFn x) =
       (d.vertices.map fun v => entry v.2 (d.portBits x v.1)).prod % 2 ^ P := by
   rw [weightMod, foldl_mul_mod, Nat.one_mul]
-  simp only [portBits, getD_ofFn]
+  simp only [portBits, List.getD_ofFn_eq_dite]
 
 private theorem foldl_sumStep (P n : ℕ) (d : ExplicitTensorNetwork ℕ) (words : List (List Bool))
     (a : ℕ) :

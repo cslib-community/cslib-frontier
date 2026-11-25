@@ -932,7 +932,7 @@ private theorem isOraclePPTOn_simulateTreeGame_aux {adversary : Forger}
   have hmsg := hg.snd'.fst'.fst'
   have hv := (computableInPolyTime_verify (S := S) (depth := depth) hdepth).comp'
     (hpk.prod (hmsg.prod hg.snd'.fst'.snd'))
-  have hchk := (hmsg.length_bits_comp.unary_beq' hg.fst'.fst').bool_and'
+  have hchk := (hmsg.length_bits_comp.unary_beq hg.fst'.fst').bool_and'
     (ComputableInPolyTime.bool_not.comp'
       (ComputableInPolyTime.anyWithInput (test := fun q b => b == q.2.1.1) hg.snd'.snd'
         (((ComputableInPolyTime.snd _ encBits).beq (hmsg.comp' (.fst _ encBits))).of_enc_eq

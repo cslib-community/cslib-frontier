@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Data.Nat.Log
 import Batteries.Data.Nat.Lemmas
 import Mathlib.Tactic.Linarith
@@ -39,11 +40,6 @@ private theorem sixteen_mul_le_pow {h : ℕ} (hh : 8 ≤ h) : 16 * h ≤ 2 ^ h :
   | base => decide
   | succ h hh ih => rw [pow_succ]; lia
 
-private theorem sq_le_pow {d : ℕ} (hd : 4 ≤ d) : d * d ≤ 2 ^ d := by
-  induction d, hd using Nat.le_induction with
-  | base => decide
-  | succ d hd ih => rw [pow_succ]; nlinarith
-
 /-- Powers of two give a block size and terminal column whose packed carries fit in a fixed
 number of words. The first pair characterizes the actual highest bit of `n-1`. -/
 theorem exists_parameters {n : ℕ} (hn : 257 ≤ n) :
@@ -65,7 +61,7 @@ theorem exists_parameters {n : ℕ} (hn : 257 ≤ n) :
   have hpowlo : 2 ^ (d - 1) ≤ h := by simpa [d] using Nat.log2_self_le (by lia : h ≠ 0)
   have hpowhi : h < 2 ^ d := (Nat.log2_lt (by lia : h ≠ 0)).mp (by dsimp [d]; lia)
   have hd2 : d * d ≤ 2 * h := by
-    have hs := sq_le_pow hd4
+    have hs : d * d ≤ 2 ^ d := (sq d).symm.trans_le (Nat.sq_le_two_pow hd4)
     have he : d = d - 1 + 1 := by lia
     rw [he, pow_succ] at hs
     nlinarith

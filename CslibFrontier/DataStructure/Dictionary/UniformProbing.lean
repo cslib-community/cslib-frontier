@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Probability.PMF.Expect
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.Product
+import CslibFrontier.Foundations.Data.Fin.CardFilter
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.UniformBound
 import Mathlib.Data.Fintype.Perm
@@ -376,15 +377,6 @@ private theorem card_filter_occPermSet_eq_succ {m : ℕ} (O : Finset (Fin m)) {k
   simp only [Finset.mem_filter, mem_occPermSet, allOccupied_succ_iff hk, Equiv.coe_mulRight,
     allOccupied_mul_swap_iff hk hj, Equiv.Perm.mul_apply, Equiv.swap_apply_left]
 
-/-- Cardinality of `{i : Fin m | k ≤ i.val}` when `k ≤ m`. -/
-private theorem card_filter_val_ge {m k : ℕ} (hk : k ≤ m) :
-    (Finset.univ.filter fun i : Fin m => k ≤ i.val).card = m - k := by
-  have hpart := Finset.card_filter_add_card_filter_not
-    (s := (Finset.univ : Finset (Fin m))) (fun i => i.val < k)
-  simp only [not_lt, Fin.card_filter_val_lt, min_eq_right hk, Finset.card_univ,
-    Fintype.card_fin] at hpart
-  omega
-
 /-- For any `σ ∈ occPermSet O k` with `k ≤ m`, the number of remaining indices `j ≥ k` satisfying
 `σ j ∈ O` is `O.card - k` (and `k ≤ O.card`). -/
 private theorem card_filter_ge_and_mem {m : ℕ} {O : Finset (Fin m)} {k : ℕ} (hk : k ≤ m)
@@ -413,7 +405,7 @@ theorem mul_card_occPermSet_succ {m : ℕ} (O : Finset (Fin m)) {k : ℕ} (hk : 
         (m - k) * (occPermSet O (k + 1)).card := by
     rw [Finset.sum_congr rfl
       fun j hj => card_filter_occPermSet_eq_succ O hk (Finset.mem_filter.mp hj).2,
-      Finset.sum_const, smul_eq_mul, card_filter_val_ge hk.le]
+      Finset.sum_const, smul_eq_mul, Fin.card_filter_le_val]
   have hsum_σ :
       ∑ j ∈ J_ge, ((occPermSet O k).filter fun σ => σ j ∈ O).card =
         (O.card - k) * (occPermSet O k).card := by

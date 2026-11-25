@@ -103,10 +103,6 @@ theorem tsum_jointLaw_nil_mul (k : List α → ℝ≥0∞) :
   · intro xs hxs
     simp [PMF.pure_apply, hxs]
 
-/-- The expectation of a constant is that constant. -/
-theorem tsum_pmf_mul_const (μ : PMF α) (c : ℝ≥0∞) : ∑' x, μ x * c = c := by
-  rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-
 /-- The reward collected by the rule `stop` on the remaining observations `xs` after the history
 `past` (most recent first): it stops at the first `x` with `stop (x :: past)` and collects
 `reward (x :: past) future`, where `future` are the observations after `x`. A rule that never

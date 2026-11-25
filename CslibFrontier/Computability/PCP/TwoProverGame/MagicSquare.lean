@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Bell
 public import CslibFrontier.Foundations.Quantum.Pauli
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Kronecker
 import CslibFrontier.Probability.PMF.Event
 
 /-!
@@ -483,16 +484,6 @@ end MagicSquareSolution
 open Matrix Quantum
 open scoped Kronecker MatrixOrder ComplexOrder
 
-private theorem neg_kronecker' {l m n p : Type*} (A : Matrix l m ℂ) (B : Matrix n p ℂ) :
-    (-A) ⊗ₖ B = -(A ⊗ₖ B) := by
-  ext ⟨i, k⟩ ⟨j, l⟩
-  simp [kroneckerMap_apply]
-
-private theorem kronecker_neg' {l m n p : Type*} (A : Matrix l m ℂ) (B : Matrix n p ℂ) :
-    A ⊗ₖ (-B) = -(A ⊗ₖ B) := by
-  ext ⟨i, k⟩ ⟨j, l⟩
-  simp [kroneckerMap_apply]
-
 private theorem pauliX_mul_pauliX_mul (M : Matrix Bool Bool ℂ) : pauliX * (pauliX * M) = M := by
   rw [← Matrix.mul_assoc, pauliX_mul_self, Matrix.one_mul]
 
@@ -512,7 +503,7 @@ noncomputable def pauliSquare : Fin 3 → Fin 3 → Matrix (Bool × Bool) (Bool 
 
 attribute [local simp] pauliX_mul_self pauliZ_mul_self pauliZ_mul_pauliX pauliX_mul_pauliX_mul
   pauliZ_mul_pauliZ_mul pauliZ_mul_pauliX_mul Matrix.mul_assoc Matrix.neg_mul Matrix.mul_neg
-  neg_neg Matrix.one_mul Matrix.mul_one one_kronecker_one neg_kronecker' kronecker_neg' pauliSquare
+  neg_neg Matrix.one_mul Matrix.mul_one one_kronecker_one neg_kronecker kronecker_neg pauliSquare
   conjTranspose_kronecker conjTranspose_one conjTranspose_neg conjTranspose_mul
 
 /-- The Mermin–Peres square is an operator solution of the magic square. -/

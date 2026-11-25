@@ -10,7 +10,7 @@ Use editor or MCP diagnostics and goal inspection. A partial diagnostic response
 |---|---|---|
 | Unknown declaration or tactic | Import, namespace, revision | Compare the full checked client's imports and openings |
 | `fun_prop` or `polytime` cannot close a composition | Each routine's certificate and encodings | Supply the missing certificate or expose a local wrapper's registered head |
-| `polytime` cannot certify a length guard such as `if w.length = n then … else …` | Whether the comparison's natural-number encoding is ambiguous | Import [`PolyTime/Nat/Eq.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Eq.lean), whose `unary_eq'` fixes both operands to unary |
+| `polytime` cannot certify a length guard such as `if w.length = n then … else …` | Whether the comparison's natural-number encoding is ambiguous | Import [`PolyTime/Nat/Eq.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Eq.lean), whose `unary_decide_eq` fixes both operands to unary |
 | A loop leaves obligations | Iteration count, invariant, encoded state growth | Prove the growth/count premise and use the appropriate iteration rule |
 | A projection fails despite a supplied certificate | Its input/output representations | Match the encodings or supply the conversion certificate |
 | `Expected a definition with an exposed body`, or `omega`, `decide` or a projection cannot see through an imported definition | Whether the definition's module exposes its body | Use the module's characterizing lemmas, or add `@[expose]` to that definition alone ([module surface](../../CONTRIBUTING.md#public-surface-under-the-module-system)) |

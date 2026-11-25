@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise.ParamsInit
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -93,7 +94,7 @@ private theorem realizesBounded_innerClmulStepGen :
       two_pow_reducedPackShift_mul_le (le_of_lt hc_lt)
     have hpow2c : 2 ^ (2 * rChunk w₀ b b') < 2 ^ w := by wram_omega
     have hpowc : 2 ^ rChunk w₀ b b' < 2 ^ w := by wram_omega
-    have hv_lt := and_two_pow_sub_one_lt curR (rChunk w₀ b b')
+    have hv_lt := Nat.and_two_pow_sub_one_lt curR (rChunk w₀ b b')
     have hu_sh_lt : uLimb <<< rChunk w₀ b b' < 2 ^ (2 * rChunk w₀ b b') := by
       rw [Nat.shiftLeft_eq, two_mul, pow_add]
       exact Nat.mul_lt_mul_of_pos_right hu_lt (Nat.two_pow_pos _)
@@ -112,16 +113,16 @@ private theorem realizesBounded_innerClmulStepGen :
     have hsh_lt :
         (((uLimb <<< rChunk w₀ b b') + (curR &&& (2 ^ rChunk w₀ b b' - 1))) &&&
           (2 ^ rPack w w₀ b b' - 1)) * (2 * rChunk w₀ b b') < w :=
-      (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt _ _)
+      (Nat.mul_lt_mul_of_pos_right (Nat.and_two_pow_sub_one_lt _ _)
         (have := reducedChunkBits_pos (rStep w₀ b b'); by omega)).trans_le hpack_le)
   all_goals try omega
   all_goals try fits [hmem.1]
   all_goals try wram_omega [hmem.1]
   all_goals (try
     exact Nat.xor_lt_two_pow (hmem.2 _)
-      ((and_two_pow_sub_one_lt _ (rChunk w₀ b b')).trans hpowc))
+      ((Nat.and_two_pow_sub_one_lt _ (rChunk w₀ b b')).trans hpowc))
   refine Nat.xor_lt_two_pow ?_ ((Nat.shiftRight_le _ _).trans_lt
-    ((and_two_pow_sub_one_lt _ (2 * rChunk w₀ b b')).trans hpow2c))
+    ((Nat.and_two_pow_sub_one_lt _ (2 * rChunk w₀ b b')).trans hpow2c))
   rw [Function.update_of_ne (by omega)]; exact hmem.2 _
 
 private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVal : ℕ}
@@ -163,7 +164,7 @@ private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVa
         subst hst
         let curR := rVal >>> (m * rChunk w₀ b b')
         let vLimb := curR &&& (2 ^ rChunk w₀ b b' - 1)
-        have hv_lt : vLimb < 2 ^ rChunk w₀ b b' := and_two_pow_sub_one_lt curR _
+        have hv_lt : vLimb < 2 ^ rChunk w₀ b b' := Nat.and_two_pow_sub_one_lt curR _
         let idx := (uLimb <<< rChunk w₀ b b') + vLimb
         have hidx_lt : idx < 2 ^ (2 * rChunk w₀ b b') := by
           dsimp only [idx]; rw [Nat.shiftLeft_eq]
@@ -190,7 +191,7 @@ private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVa
         have hcl_lt := clmul_lt_two_pow_two_mul hu_lt hv_lt
         let lo := clmul uLimb vLimb &&& (2 ^ rChunk w₀ b b' - 1)
         let hi := clmul uLimb vLimb >>> rChunk w₀ b b'
-        have hlo_lt : lo < 2 ^ rChunk w₀ b b' := and_two_pow_sub_one_lt _ _
+        have hlo_lt : lo < 2 ^ rChunk w₀ b b' := Nat.and_two_pow_sub_one_lt _ _
         have hhi_lt : hi < 2 ^ rChunk w₀ b b' := by
           dsimp only [hi]; rw [Nat.shiftRight_eq_div_pow]
           exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, ← two_mul])
@@ -234,7 +235,7 @@ private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVa
             hpTwoC_mk, hpMask2C_mk]
           refine ⟨hlt_t, hlt_p0, ⟨hlt_p0,
             (Nat.xor_lt_two_pow (hprod_s (i + m) (by omega))
-              (and_two_pow_sub_one_lt _ _)).trans hpowc⟩, hlt_p1, ⟨hlt_p1, ?_⟩, trivial⟩
+              (Nat.and_two_pow_sub_one_lt _ _)).trans hpowc⟩, hlt_p1, ⟨hlt_p1, ?_⟩, trivial⟩
           change Fits w (Function.update s.mem (prodBase + (i + m)) _ (prodBase + (
             i + m) + 1) ^^^ _)
           rw [Function.update_of_ne (by omega), hcl_eq]

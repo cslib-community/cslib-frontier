@@ -161,18 +161,12 @@ theorem bufLookupGenProg_spec {c U V w n_max base ep rKey : ℕ}
        | some (b, loc) => (1, (b, loc))) ∧
     memoryCost prog s ≤ 2 * cTabWhp c + 8 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hchild : ∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc :=
-    fun v ch hnz => hv.bounds.2.2.1 v ch hnz
-  have hleaf_ia : ∀ u < tr.nodeAlloc, tr.nodeLeafItem u ≠ 0 → tr.nodeLeafItem u ≤ tr.itemAlloc :=
-    fun u hu hnz => hv.bounds.2.2.2 u hu hnz
-  obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
-    (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
+  have hna_max := hrep.1
+  have hia_le := hrep.2.1
+  obtain ⟨hnone, hsome⟩ :=
+    bufWalkLoop_root_bind_spec (rKey := rKey) (0, (0, 0)) bufLookupLeafRtProg henv hep hrep hv
   set rt := mkBufRt c U V w n_max base ep
-  obtain ⟨_, hw_st, hw_mc, hw_vp, _, hw_a1⟩ :=
-    bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
-  have hw1 := hw_a1 rfl
   obtain ⟨_, _, _, hm_seg, hi_seg⟩ := rt_seg_le c U V w n_max base ep hep
   have hrep_meta : ∀ u < tr.nodeAlloc,
       readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 2) =
@@ -191,120 +185,81 @@ theorem bufLookupGenProg_spec {c U V w n_max base ep rKey : ℕ}
     rcases hep with rfl | rfl <;> exact fun id hid => (hi id hid).2
   unfold bufLookupGenProg
   simp only [pure_bind]
-  set wprog := bufWalkLoopGenProg ((rt, (1, (0, rKey))), cTabWhp c)
-  set wres := (Memory.spec 0).clientResult s wprog
-  have hbr_cTab : brCTab rt = cTabWhp c := rfl
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hrt_st, hrt_res, hbr_cTab,
-      clientState_bind, hw_st]
-    split_ifs with hz
+  dsimp only [bufLookup]
+  rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf
+  · obtain ⟨hst, hres, hmc, hvp⟩ := hnone hwk
+    exact ⟨hst, hres, hmc.trans_le (Nat.le_add_right _ _), hvp⟩
+  obtain ⟨hlf_lt, hst, hres, hmc, hvp⟩ := hsome leaf hwk
+  obtain ⟨hli_eq, hact_eq⟩ := hrep_meta leaf hlf_lt
+  have hid_lt (hli0 : tr.nodeLeafItem leaf ≠ 0) : tr.nodeLeafItem leaf - 1 < tr.itemAlloc := by
+    have := hv.bounds.2.2.2 leaf hlf_lt hli0; omega
+  rw [bufLookupLeafRtProg_eq] at hst hres hmc hvp
+  simp only [pure_bind] at hst hres hmc hvp
+  refine ⟨hst.trans ?_, hres.trans ?_, hmc.trans_le ?_, hvp ?_⟩
+  · rw [clientState_bind, clientState_readPackedGen]
+    split_ifs with h1
     · rfl
-    · rw [bufLookupLeafRtProg_eq]
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_readPackedGen]
-      split_ifs with h1
+    · rw [clientState_bind, clientState_readPackedGen]
+      split_ifs with h2
       · rfl
-      · rw [clientState_bind, clientState_readPackedGen]
-        split_ifs with h2
-        · rfl
-        · rw [bufReadItemPairRtProg_eq]
-          simp only [pure_bind]
-          rw [clientState_bind, clientState_readPackedGen,
-            clientState_bind, clientState_readPackedGen]
-          rfl
-  · rw [clientResult_bind, hrt_st, hrt_res, hbr_cTab,
-      clientResult_bind, hw_st]
-    dsimp only [bufLookup]
-    rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf
-    · rw [hwk] at hw1
-      rw [ite_eq_left hw1]; rfl
-    · rw [hwk] at hw1
-      obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
-      have hw_one : wres.1 = 1 := congrArg Prod.fst hw_eq
-      have hw_lf : wres.2.1 = leaf := congrArg (fun p => p.2.1) hw_eq
-      rw [ite_eq_right (by omega : wres.1 ≠ 0), hw_lf, bufLookupLeafRtProg_eq]
-      simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedGen,
-        clientResult_readPackedGen, show brBase rt = base from rfl,
-        show brGBits rt = globalPtrBits n_max from rfl, show brW rt = w from rfl]
-      obtain ⟨hli_eq, hact_eq⟩ := hrep_meta leaf hlf_lt
-      rw [hli_eq]
-      by_cases hli0 : tr.nodeLeafItem leaf = 0
-      · simp [hli0]
-      · rw [ite_eq_right hli0, clientResult_bind,
-          clientState_readPackedGen, clientResult_readPackedGen, hact_eq hli0]
-        by_cases hact0 : tr.nodeActive leaf = 0
-        · simp [hli0, hact0]
-        · rw [ite_eq_right hact0]
-          simp only [hli0, hact0, false_or, ↓reduceIte]
-          have hid_lt : tr.nodeLeafItem leaf - 1 < tr.itemAlloc := by
-            have := hleaf_ia leaf hlf_lt hli0; omega
-          obtain ⟨hb_eq, hloc_eq⟩ := hrep_items (tr.nodeLeafItem leaf - 1) hid_lt
-          rw [bufReadItemPairRtProg_eq]
-          simp only [pure_bind, clientResult_bind,
-            clientResult_readPackedGen, StateTransitionSpec.clientResult_pure]
-          exact Prod.ext rfl (Prod.ext hb_eq hloc_eq)
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hrt_st, hrt_res, hrt_mc, hbr_cTab, hw_st, hw_mc]
-    split_ifs with hz
-    · change 0 + (2 * cTabWhp c + 0) ≤ _; omega
-    · rw [bufLookupLeafRtProg_eq]
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-        memoryCost_readPackedGen]
-      split_ifs with h1
-      · change 0 + (2 * cTabWhp c + (2 + 0)) ≤ _; omega
-      · simp only [memoryCost_bind, memoryCost_readPackedGen]
-        split_ifs with h2
-        · change 0 + (2 * cTabWhp c + (2 + (2 + 0))) ≤ _; omega
-        · rw [bufReadItemPairRtProg_eq]
-          simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-            memoryCost_readPackedGen]
-          change 0 + (2 * cTabWhp c + (2 + (2 + (2 + (2 + 0))))) ≤ _; omega
-  · refine validProg_bind hrt_vp ?_
-    rw [hrt_st, hrt_res, hbr_cTab]
-    refine validProg_bind hw_vp ?_
-    rw [hw_st]
-    split_ifs with hz
+      · rw [bufReadItemPairRtProg_eq]
+        simp only [pure_bind]
+        rw [clientState_bind, clientState_readPackedGen,
+          clientState_bind, clientState_readPackedGen]
+        rfl
+  · rw [clientResult_bind, clientState_readPackedGen,
+      clientResult_readPackedGen, show brBase rt = base from rfl,
+      show brGBits rt = globalPtrBits n_max from rfl, show brW rt = w from rfl, hli_eq]
+    by_cases hli0 : tr.nodeLeafItem leaf = 0
+    · simp [hli0]
+    · rw [ite_eq_right hli0, clientResult_bind,
+        clientState_readPackedGen, clientResult_readPackedGen, hact_eq hli0]
+      by_cases hact0 : tr.nodeActive leaf = 0
+      · simp [hli0, hact0]
+      · rw [ite_eq_right hact0]
+        simp only [hli0, hact0, false_or, ↓reduceIte]
+        obtain ⟨hb_eq, hloc_eq⟩ := hrep_items (tr.nodeLeafItem leaf - 1) (hid_lt hli0)
+        rw [bufReadItemPairRtProg_eq]
+        simp only [pure_bind, clientResult_bind,
+          clientResult_readPackedGen, StateTransitionSpec.clientResult_pure]
+        exact Prod.ext rfl (Prod.ext hb_eq hloc_eq)
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_readPackedGen]
+    split_ifs with h1
+    · change 2 * cTabWhp c + (2 + 0) ≤ _; omega
+    · simp only [memoryCost_bind, memoryCost_readPackedGen]
+      split_ifs with h2
+      · change 2 * cTabWhp c + (2 + (2 + 0)) ≤ _; omega
+      · rw [bufReadItemPairRtProg_eq]
+        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+          memoryCost_readPackedGen]
+        change 2 * cTabWhp c + (2 + (2 + (2 + (2 + 0)))) ≤ _; omega
+  · refine validProg_bind
+      (validProg_readPacked hw (show 4 * leaf + 2 < 6 * maxTrieNodesWhp c n_max by omega)
+        hm_seg) ?_
+    rw [clientState_readPackedGen, clientResult_readPackedGen,
+      show brBase rt = base from rfl, show brGBits rt = globalPtrBits n_max from rfl,
+      show brW rt = w from rfl, hli_eq]
+    split_ifs with hli0
     · exact validProg_pure _
-    · rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf
-      · rw [hwk] at hw1; exact absurd hw1 hz
-      · rw [hwk] at hw1
-        obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
-        have hw_lf : wres.2.1 = leaf := congrArg (fun p => p.2.1) hw_eq
-        change ValidProg w (base + largeSpaceWhp c U V w n_max) s
-          (bufLookupLeafRtProg (rt, wres.2.1))
-        rw [hw_lf, bufLookupLeafRtProg_eq]
-        have hna_max := hrep.1
-        have hia_le := hrep.2.1
+    · refine validProg_bind
+        (validProg_readPacked hw (show 4 * leaf + 3 < 6 * maxTrieNodesWhp c n_max by omega)
+          hm_seg) ?_
+      rw [clientState_readPackedGen]
+      split_ifs with hact0
+      · exact validProg_pure _
+      · have := hid_lt hli0
+        rw [bufReadItemPairRtProg_eq]
         simp only [pure_bind]
         refine validProg_bind
-          (validProg_readPacked hw (show 4 * leaf + 2 < 6 * maxTrieNodesWhp c n_max by omega)
-            hm_seg) ?_
-        rw [clientState_readPackedGen, clientResult_readPackedGen,
-          show brBase rt = base from rfl, show brGBits rt = globalPtrBits n_max from rfl,
-          show brW rt = w from rfl, (hrep_meta leaf hlf_lt).1]
-        split_ifs with hli0
-        · exact validProg_pure _
-        · refine validProg_bind
-            (validProg_readPacked hw (show 4 * leaf + 3 < 6 * maxTrieNodesWhp c n_max by omega)
-              hm_seg) ?_
-          rw [clientState_readPackedGen]
-          split_ifs with hact0
-          · exact validProg_pure _
-          · have hid_lt : tr.nodeLeafItem leaf - 1 < tr.itemAlloc := by
-              have := hleaf_ia leaf hlf_lt hli0; omega
-            rw [bufReadItemPairRtProg_eq]
-            simp only [pure_bind]
-            refine validProg_bind
-              (validProg_readPacked hw
-                (show brQEp rt + (tr.nodeLeafItem leaf - 1) < 6 * qEpochWhp n_max + 6
-                  by dsimp [rt, mkBufRt, brQEp]; omega) hi_seg) ?_
-            rw [clientState_readPackedGen]
-            exact validProg_bind
-              (validProg_readPacked hw
-                (show 2 * brQEp rt + (tr.nodeLeafItem leaf - 1) < 6 * qEpochWhp n_max + 6
-                  by dsimp [rt, mkBufRt, brQEp]; omega) hi_seg)
-              (validProg_pure _)
+          (validProg_readPacked hw
+            (show brQEp rt + (tr.nodeLeafItem leaf - 1) < 6 * qEpochWhp n_max + 6
+              by dsimp [rt, mkBufRt, brQEp]; omega) hi_seg) ?_
+        rw [clientState_readPackedGen]
+        exact validProg_bind
+          (validProg_readPacked hw
+            (show 2 * brQEp rt + (tr.nodeLeafItem leaf - 1) < 6 * qEpochWhp n_max + 6
+              by dsimp [rt, mkBufRt, brQEp]; omega) hi_seg)
+          (validProg_pure _)
 
 theorem realizes_bufLookupGen :
     Realizes .exact bufLookupGenProg
@@ -323,14 +278,10 @@ theorem realizes_bufLookupGen :
     have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
-    have hchild : ∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc :=
-      fun v ch hnz => hv.bounds.2.2.1 v ch hnz
-    have hleaf_ia : ∀ u < tr.nodeAlloc, tr.nodeLeafItem u ≠ 0 → tr.nodeLeafItem u ≤ tr.itemAlloc :=
-      fun u hu hnz => hv.bounds.2.2.2 u hu hnz
     obtain ⟨hrt_st, hrt_res, _, _⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
     obtain ⟨hsafe, hw_st, _, _, _, hw_a1⟩ :=
-      bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
+      bufWalkLoop_spec henv hep hrep hv.bounds.1 hv.bounds.2.2.1 (cTabWhp c) 1 0 rKey hv.bounds.1
     have hw1 := hw_a1 rfl
     simp only [hrt_st, hrt_res] at *
     first
@@ -346,7 +297,7 @@ theorem realizes_bufLookupGen :
          obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
          have hw_lf := congrArg (fun p => p.2.1) hw_eq
          exact ⟨c, U, V, w, n_max, base, ep, tr, henv, hep, rfl, hrep,
-           hw_lf ▸ hlf_lt, fun hnz => hleaf_ia _ (hw_lf ▸ hlf_lt) hnz⟩)
+           hw_lf ▸ hlf_lt, fun hnz => hv.bounds.2.2.2 _ (hw_lf ▸ hlf_lt) hnz⟩)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

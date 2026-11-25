@@ -317,12 +317,6 @@ end Main
 
 section Bits
 
-private theorem foldl_snoc_map {β γ : Type} (g : β → γ) (l : List β) (acc : List γ) :
-    l.foldl (fun acc b => acc ++ [g b]) acc = acc ++ l.map g := by
-  induction l generalizing acc with
-  | nil => simp
-  | cons b l ih => simp [ih]
-
 private theorem foldl_succ (l : List Bool) (m : ℕ) :
     l.foldl (fun n _ => n + 1) m = m + l.length := by
   induction l generalizing m with
@@ -341,7 +335,7 @@ theorem bitsToNats_degree :
     (step := fun acc b => acc ++ [b.toNat]) (of_eq fun _ => rfl) (const _) hstep
     (B := fun l => 3 * (encBits l).length) (DegreeBounded.self.smul 3)
     (fun l i hi => by
-      rw [foldl_snoc_map, List.nil_append, length_encList]
+      rw [foldlMap, List.nil_append, length_encList]
       have hle : ∀ x ∈ (l.take i).map Bool.toNat, 2 * (encNat x).length + 1 ≤ 3 := by
         intro x hx
         obtain ⟨b, -, rfl⟩ := List.mem_map.mp hx
@@ -356,7 +350,7 @@ theorem bitsToNats_degree :
           omega)
   convert h.mono (d' := 2) (e' := 1) using 1
   funext l
-  rw [foldl_snoc_map, List.nil_append]
+  rw [foldlMap, List.nil_append]
 
 /-- The length of a bit list in binary, in quadratic time. -/
 theorem lengthBinary_degree :

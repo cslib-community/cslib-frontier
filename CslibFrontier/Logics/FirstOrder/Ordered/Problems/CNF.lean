@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Reduction
 public import CslibFrontier.Logics.FirstOrder.Problems.CNF
+import CslibFrontier.Foundations.Data.Set.Card
 import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
 
 /-!
@@ -497,14 +498,6 @@ private theorem relMap_on_untagged (M : Structure FO.cnf) (b : Bool)
   exact ⟨fun | .inl ⟨t, _, hm, _⟩ => False.elim (hun t hm) | .inr ⟨_, hv⟩ => hv,
     fun hv => .inr ⟨fun t _ => hun t, hv⟩⟩
 
-private theorem encard_le_three_of_subset_triple {α : Type*} {s : Set α} (a b d : α)
-    (hs : s ⊆ {a, b, d}) : s.encard ≤ 3 := by
-  calc
-    s.encard ≤ ({a, b, d} : Set α).encard := Set.encard_mono hs
-    _ ≤ ({b, d} : Set α).encard + 1 := Set.encard_insert_le {b, d} a
-    _ ≤ ({d} : Set α).encard + 1 + 1 := add_le_add (Set.encard_insert_le {d} b) le_rfl
-    _ = 3 := by rw [Set.encard_singleton]; rfl
-
 private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
     letI := satToThreeSATInterpretation.tupleStructure M
     FO.cnf.IsThreeCNF (Fin (3 + 2) → Fin M.size) := by
@@ -514,7 +507,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
   · obtain ⟨t, hm⟩ := htag
     cases t
     · by_cases hz : u pay1 = 0
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varX 0) (false, varPos (u pay0) 0) (false, varPos (u pay0) 0) ?_
         rintro ⟨b, v⟩ hbv
         rw [FO.cnf.mem_literals, relMap_on_tagged M b .posStart u v hm] at hbv
@@ -530,7 +523,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             Matrix.cons_val_zero, hz, true_and, not_true_eq_false, false_and, or_false,
             ProjectionFormula.realize_guardAnd, realize_isVarXZero] at hbv
           simp [hbv.1]
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varX 0) (false, varX 0) (false, varX 0) ?_
         rintro ⟨b, v⟩ hbv
         rw [FO.cnf.mem_literals, relMap_on_tagged M b .posStart u v hm] at hbv
@@ -541,7 +534,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             realize_tautHalf] at hbv
           simp [hbv]
     · by_cases hx : u pay1 ≠ QFNumeric.maxFin M.size
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varPos (u pay0) (u pay1))
           (true, varX (nextFin (u pay1) hx))
           (false, varPos (u pay0) (nextFin (u pay1) hx)) ?_
@@ -562,7 +555,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             ProjectionFormula.realize_guardAnd, realize_isVarXSucc hx] at hbv
           rcases hbv with rfl | ⟨_, rfl, -⟩ <;> simp
       · push Not at hx
-        refine encard_le_three_of_subset_triple
+        refine Set.encard_le_three_of_subset
           (true, varX 0) (false, varX 0) (false, varX 0) ?_
         rintro ⟨b, v⟩ hbv
         rw [FO.cnf.mem_literals, relMap_on_tagged M b .posStep u v hm] at hbv
@@ -573,7 +566,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             not_false_eq_true, true_and, false_or, realize_tautHalf] at hbv
           simp [hbv]
     · by_cases hz : u pay1 = 0
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varPos (u pay0) (QFNumeric.maxFin M.size))
           (false, varNeg (u pay0) 0)
           (false, varX 0) ?_
@@ -592,7 +585,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             ProjectionFormula.realize_guardAnd, realize_isVarPosMax,
             ProjectionFormula.realize_const_true, and_true] at hbv
           simp [hbv]
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varX 0) (false, varX 0) (false, varX 0) ?_
         rintro ⟨b, v⟩ hbv
         rw [FO.cnf.mem_literals, relMap_on_tagged M b .bridge u v hm] at hbv
@@ -603,7 +596,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             realize_tautHalf] at hbv
           simp [hbv]
     · by_cases hx : u pay1 ≠ QFNumeric.maxFin M.size
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varNeg (u pay0) (u pay1))
           (false, varNeg (u pay0) (nextFin (u pay1) hx))
           (false, varX (nextFin (u pay1) hx)) ?_
@@ -624,7 +617,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             realize_isVarNegSame, ProjectionFormula.realize_const_true, and_true] at hbv
           simp [hbv]
       · push Not at hx
-        refine encard_le_three_of_subset_triple
+        refine Set.encard_le_three_of_subset
           (true, varX 0) (false, varX 0) (false, varX 0) ?_
         rintro ⟨b, v⟩ hbv
         rw [FO.cnf.mem_literals, relMap_on_tagged M b .negStep u v hm] at hbv
@@ -635,7 +628,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             not_false_eq_true, true_and, false_or, realize_tautHalf] at hbv
           simp [hbv]
     · by_cases hz : u pay1 = 0
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varNeg (u pay0) (QFNumeric.maxFin M.size))
           (true, varNeg (u pay0) (QFNumeric.maxFin M.size))
           (true, varNeg (u pay0) (QFNumeric.maxFin M.size)) ?_
@@ -652,7 +645,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             ProjectionFormula.realize_guardAnd, realize_isVarNegMax,
             ProjectionFormula.realize_const_true, and_true] at hbv
           simp [hbv]
-      · refine encard_le_three_of_subset_triple
+      · refine Set.encard_le_three_of_subset
           (true, varX 0) (false, varX 0) (false, varX 0) ?_
         rintro ⟨b, v⟩ hbv
         rw [FO.cnf.mem_literals, relMap_on_tagged M b .goal u v hm] at hbv
@@ -663,7 +656,7 @@ private theorem isThreeCNF_tupleStructure (M : Structure FO.cnf) :
             realize_tautHalf] at hbv
           simp [hbv]
   · push Not at htag
-    refine encard_le_three_of_subset_triple
+    refine Set.encard_le_three_of_subset
       (true, varX 0) (false, varX 0) (false, varX 0) ?_
     rintro ⟨b, v⟩ hbv
     rw [FO.cnf.mem_literals, relMap_on_untagged M b u v htag] at hbv

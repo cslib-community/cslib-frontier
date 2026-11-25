@@ -1031,6 +1031,7 @@ public import CslibFrontier.Algorithms.WordRAM.PPSZ.Round
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Amplify
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Forced
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Round
+public import CslibFrontier.Algorithms.WordRAM.PatternTextInput
 public import CslibFrontier.Algorithms.WordRAM.PrimeTable
 public import CslibFrontier.Algorithms.WordRAM.PrimeTrial
 public import CslibFrontier.Algorithms.WordRAM.PushRelabel
@@ -7671,6 +7672,7 @@ public import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 public import CslibFrontier.Foundations.Algebra.Group.ZPowCoprime
 public import CslibFrontier.Foundations.Algebra.Module.ZLattice.CoefficientFiber
 public import CslibFrontier.Foundations.Algebra.Negacyclic
+public import CslibFrontier.Foundations.Algebra.Order.Ring.MaxZero
 public import CslibFrontier.Foundations.Algebra.Order.Star.Pi
 public import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
 public import CslibFrontier.Foundations.Algebra.Polynomial.BivariateKronecker
@@ -7698,6 +7700,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Sturm
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SturmBitBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalIsolation
+public import CslibFrontier.Foundations.Algebra.Polynomial.Roots
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 public import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 public import CslibFrontier.Foundations.Algebra.Quaternion.BpInfinity
@@ -8386,6 +8389,7 @@ public import CslibFrontier.Foundations.Data.ENat.IInf
 public import CslibFrontier.Foundations.Data.Fin.AddFlip
 public import CslibFrontier.Foundations.Data.Fin.Append
 public import CslibFrontier.Foundations.Data.Fin.BalancedBlocks
+public import CslibFrontier.Foundations.Data.Fin.CardFilter
 public import CslibFrontier.Foundations.Data.Fin.Counting
 public import CslibFrontier.Foundations.Data.Fin.Decode
 public import CslibFrontier.Foundations.Data.Fin.Embedding
@@ -8393,6 +8397,7 @@ public import CslibFrontier.Foundations.Data.Fin.Fold
 public import CslibFrontier.Foundations.Data.Fin.Order
 public import CslibFrontier.Foundations.Data.Fin.Prod
 public import CslibFrontier.Foundations.Data.Fin.Tuple
+public import CslibFrontier.Foundations.Data.Fin.VecNotation
 public import CslibFrontier.Foundations.Data.Finset.ApplyUpdate
 public import CslibFrontier.Foundations.Data.Finset.Average
 public import CslibFrontier.Foundations.Data.Finset.BigHalf
@@ -8438,6 +8443,7 @@ public import CslibFrontier.Foundations.Data.Fintype.FiberEquiv
 public import CslibFrontier.Foundations.Data.Fintype.Grid
 public import CslibFrontier.Foundations.Data.Fintype.OrderStatistic
 public import CslibFrontier.Foundations.Data.Fintype.RestrictInjective
+public import CslibFrontier.Foundations.Data.Fintype.Sum
 public import CslibFrontier.Foundations.Data.Fintype.UpdateInduction
 public import CslibFrontier.Foundations.Data.Hamming
 public import CslibFrontier.Foundations.Data.Hamming.Expansion
@@ -8599,6 +8605,7 @@ public import CslibFrontier.Foundations.Data.Nat.Bits.Halving
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Carry
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.CommonPrefix
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.HighestDiff
+public import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Multiplication
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.PackedCount
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Packing
@@ -8675,6 +8682,7 @@ public import CslibFrontier.Foundations.Data.Nat.Totient
 public import CslibFrontier.Foundations.Data.Nat.TwoAdicInterval
 public import CslibFrontier.Foundations.Data.Option
 public import CslibFrontier.Foundations.Data.Option.Rel
+public import CslibFrontier.Foundations.Data.PFun
 public import CslibFrontier.Foundations.Data.PFunctor.Free.Eval
 public import CslibFrontier.Foundations.Data.Polynomial.BinaryDigits
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
@@ -8934,6 +8942,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Transvection
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UniformGram
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UnitaryGroup
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UpperTriangularQuadratic
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.VecMul
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Vertex
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.VertexExtremePoints
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.VertexOrientation

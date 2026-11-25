@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSmallCsrProg
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -797,131 +798,6 @@ theorem realizes_scanBucketLoop :
     realizes_scanBucketStep
     memoryCost_scanBucketStep_pos
 
-private def scanFrom (arr : ℕ → ℕ) (target : ℕ) : ℕ → ℕ → ℕ → ℕ
-  | 0, _, acc => acc
-  | r + 1, k₀, acc =>
-    let acc1 := if target < arr k₀ then acc else if target < arr (k₀ + 1) then k₀ else acc
-    scanFrom arr target r (k₀ + 1) acc1
-
-private theorem scanFrom_step_last (arr : ℕ → ℕ) (target : ℕ) :
-    ∀ r k₀ acc,
-      scanFrom arr target (r + 1) k₀ acc =
-        (let prev := scanFrom arr target r k₀ acc
-         if target < arr (k₀ + r) then prev
-         else if target < arr (k₀ + r + 1) then k₀ + r
-         else prev) := by
-  intro r
-  induction r with
-  | zero =>
-    intro k₀ acc
-    simp only [scanFrom, Nat.add_zero]
-  | succ r ih =>
-    intro k₀ acc
-    change scanFrom arr target (r + 1) (k₀ + 1) _ = _
-    rw [ih (k₀ + 1)]
-    have h1 : k₀ + 1 + r = k₀ + (r + 1) := by omega
-    rw [h1]
-    rfl
-
-private theorem scanFrom_zero_eq_csrBucketOfIdx (arr : ℕ → ℕ) (target : ℕ) :
-    ∀ rem, scanFrom arr target rem 0 0 = csrBucketOfIdx arr target rem := by
-  intro rem
-  induction rem with
-  | zero => rfl
-  | succ rem ih =>
-    rw [scanFrom_step_last, Nat.zero_add, ih]
-    dsimp only [csrBucketOfIdx]
-    by_cases h1 : arr rem ≤ target
-    · have hnlt : ¬(target < arr rem) := Nat.not_lt.mpr h1
-      by_cases h2 : target < arr (rem + 1) <;> simp [h1, hnlt, h2]
-    · have hlt : target < arr rem := Nat.lt_of_not_ge h1
-      simp [h1, hlt]
-
-private theorem scanBucketLoop_spec {c U V w n_max base offArr stride target : ℕ}
-    {arr : ℕ → ℕ} {s : Memory.State} (henv : WhpLargeEnv c U V w n_max w base)
-    (hmode : (stride = 1 ∧ offArr = offFbStart c U V w n_max) ∨
-             (stride = 2 ∧ offArr = offBktMeta c U V w n_max))
-    (harr : ∀ x ≤ numBucketsWhp n_max,
-      readPacked (base + offArr) (globalPtrBits n_max) w s.mem (stride * x) = arr x) :
-    let cfg := (((base, offArr), (globalPtrBits n_max, w)), (stride, target))
-    ∀ rem k₀ acc,
-      k₀ + rem ≤ numBucketsWhp n_max →
-      let prog := scanBucketLoopProg ((cfg, (k₀, acc)), rem)
-      iterationSafe scanBucketStepProg ScanBucketStepPre w cfg rem (k₀, acc) s ∧
-      (Memory.spec 0).clientState s prog = s ∧
-      (Memory.spec 0).clientResult s prog = (k₀ + rem, scanFrom arr target rem k₀ acc) ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro cfg rem
-  have hw := henv.2.1
-  have h16M := (perm_bounds henv).2.2.1
-  have hseg := WhpLargeEnv.seg_end_le c U V w n_max
-  induction rem with
-  | zero =>
-    intro k₀ acc _
-    unfold scanBucketLoopProg iterate
-    exact ⟨trivial, rfl, Prod.ext (Nat.add_zero k₀).symm rfl, validProg_pure _⟩
-  | succ rem ih =>
-    intro k₀ acc hle
-    have hk_lt : k₀ < numBucketsWhp n_max := by omega
-    have hpre : ScanBucketStepPre w (cfg, (k₀, acc)) s :=
-      ⟨c, U, V, w, n_max, henv, rfl, rfl, hk_lt, hmode⟩
-    have hst1 : (Memory.spec 0).clientState s (scanBucketStepProg (cfg, (k₀, acc))) = s := by
-      unfold scanBucketStepProg
-      dsimp only [cfg]
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_readPackedGen,
-        clientState_bind, clientState_readPackedGen]
-      split_ifs <;> rfl
-    set acc1 := if target < arr k₀ then acc else if target < arr (k₀ + 1) then k₀ else acc
-    have hres1 : (Memory.spec 0).clientResult s (scanBucketStepProg (cfg, (k₀, acc))) =
-        (k₀ + 1, acc1) := by
-      unfold scanBucketStepProg
-      dsimp only [cfg]
-      simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
-        clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
-        harr k₀ hk_lt.le, harr (k₀ + 1) hk_lt]
-      dsimp only [acc1]
-      split_ifs <;> rfl
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (scanBucketStepProg (cfg, (k₀, acc))) := by
-      unfold scanBucketStepProg
-      dsimp only [cfg]
-      simp only [pure_bind]
-      rcases hmode with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-      · have hfb_b : base + offFbStart c U V w n_max +
-            packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w ≤
-            base + largeSpaceWhp c U V w n_max := by
-          rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.2.2.2.1 _
-        refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
-        rw [clientState_readPackedGen]
-        refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
-        split_ifs <;> exact validProg_pure _
-      · have hbm_b : base + offBktMeta c U V w n_max +
-            packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤
-            base + largeSpaceWhp c U V w n_max := by
-          rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.2.2.1 _
-        refine validProg_bind (validProg_readPacked hw (by omega) hbm_b) ?_
-        rw [clientState_readPackedGen]
-        refine validProg_bind (validProg_readPacked hw (by omega) hbm_b) ?_
-        split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_r, hst_r, hres_r, hvp_r⟩ := ih (k₀ + 1) acc1 (by omega)
-    dsimp only at hst_r hres_r hvp_r ⊢
-    unfold scanBucketLoopProg at hst_r hres_r hvp_r ⊢
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hst1, hres1]
-      exact hsafe_r
-    · change (Memory.spec 0).clientState s (scanBucketStepProg (cfg, (k₀, acc)) >>= _) = s
-      rw [clientState_bind, hst1, hres1]
-      exact hst_r
-    · change (Memory.spec 0).clientResult s (scanBucketStepProg (cfg, (k₀, acc)) >>= _) = _
-      rw [clientResult_bind, hst1, hres1, hres_r]
-      exact Prod.ext (by omega) rfl
-    · change ValidProg _ _ s (scanBucketStepProg (cfg, (k₀, acc)) >>= _)
-      refine validProg_bind hvp1 ?_
-      rw [hst1, hres1]
-      exact hvp_r
-
 theorem scanBucketLoop_invariant {c U V w n_max base offArr stride target : ℕ}
     {s : Memory.State} (henv : WhpLargeEnv c U V w n_max w base)
     (hmode : (stride = 1 ∧ offArr = offFbStart c U V w n_max) ∨
@@ -934,10 +810,42 @@ theorem scanBucketLoop_invariant {c U V w n_max base offArr stride target : ℕ}
     (Memory.spec 0).clientResult s prog =
       (numBucketsWhp n_max, csrBucketOfIdx arr target (numBucketsWhp n_max)) ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  set arr := fun x => readPacked (base + offArr) (globalPtrBits n_max) w s.mem (stride * x)
-  obtain ⟨hsf, hst, hres, hvp⟩ := scanBucketLoop_spec (target := target) (arr := arr)
-    henv hmode (fun _ _ => rfl) (numBucketsWhp n_max) 0 0 (by omega)
-  rw [Nat.zero_add, scanFrom_zero_eq_csrBucketOfIdx] at hres
+  intro arr cfg
+  have hw := henv.2.1
+  have h16M := (perm_bounds henv).2.2.1
+  have hseg := WhpLargeEnv.seg_end_le c U V w n_max
+  unfold scanBucketLoopProg
+  obtain ⟨hsf, hvp, hst, hres⟩ := validProg_iterate_readOnly (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := scanBucketStepProg)
+    (safe := ScanBucketStepPre) (d := cfg) (n := numBucketsWhp n_max) (s := s)
+    (fun k => (k, csrBucketOfIdx arr target k)) fun k hk => by
+      refine ⟨⟨c, U, V, w, n_max, henv, rfl, rfl, hk, hmode⟩, ?_, ?_, ?_⟩ <;>
+        unfold scanBucketStepProg <;> dsimp only [cfg] <;> simp only [pure_bind]
+      · rcases hmode with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+        · have hfb_b : base + offFbStart c U V w n_max +
+              packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w ≤
+              base + largeSpaceWhp c U V w n_max := by
+            rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.2.2.2.1 _
+          refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
+          rw [clientState_readPackedGen]
+          refine validProg_bind (validProg_readPacked hw (by omega) hfb_b) ?_
+          split_ifs <;> exact validProg_pure _
+        · have hbm_b : base + offBktMeta c U V w n_max +
+              packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤
+              base + largeSpaceWhp c U V w n_max := by
+            rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.2.2.1 _
+          refine validProg_bind (validProg_readPacked hw (by omega) hbm_b) ?_
+          rw [clientState_readPackedGen]
+          refine validProg_bind (validProg_readPacked hw (by omega) hbm_b) ?_
+          split_ifs <;> exact validProg_pure _
+      · rw [clientState_bind, clientState_readPackedGen, clientState_bind,
+          clientState_readPackedGen]
+        split_ifs <;> rfl
+      · rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
+          clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
+        split_ifs with h1 h2 <;>
+          simp [csrBucketOfIdx, arr, StateTransitionSpec.clientResult_pure, h1] <;>
+          omega
   exact ⟨hsf, hst, hres, hvp⟩
 
 /-- Evaluate `(actBit, destVal)` for `permuteByTarget` in mode `1` (`fastToCsr`) or mode `0`
@@ -1443,7 +1351,7 @@ private theorem permInnerLoop_safe_and_valid {c U V w n_max base mode : ℕ}
       iterationSafe permInnerStepProg PermInnerStepPre w (prt, mode) k st s ∧
       ((Memory.spec 0).clientResult s prog).1.2 < n_max ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro prt k
+  intro prt k st s hcd
   have hw := henv.2.1
   obtain ⟨_, _, _, _, _, hpa_w, hqk_w, hvk_w, _⟩ := perm_bounds henv
   have hseg := WhpLargeEnv.seg_end_le c U V w n_max
@@ -1460,19 +1368,14 @@ private theorem permInnerLoop_safe_and_valid {c U V w n_max base mode : ℕ}
     have : 32 ≤ largeSpaceWhp c U V w n_max := by
       dsimp only [largeSpaceWhp]; omega
     omega
-  induction k with
-  | zero =>
-    intro st s hcd
-    unfold permInnerLoopProg
-    exact ⟨trivial, hcd, validProg_pure _⟩
-  | succ k ih =>
-    intro ⟨⟨running, curDest⟩, curQ, curV⟩ s hcd
-    have hpre : PermInnerStepPre w ((prt, mode), ((running, curDest), (curQ, curV))) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hcd⟩
-    have hstep :
-        let p1 := permInnerStepProg ((prt, mode), ((running, curDest), (curQ, curV)))
-        ((Memory.spec 0).clientResult s p1).1.2 < n_max ∧
-        ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
+  unfold permInnerLoopProg
+  obtain ⟨hsafe, hvp, hcd'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := permInnerStepProg) (d := (prt, mode))
+    (n := k) (safe := PermInnerStepPre) (fun _ (st : (ℕ × ℕ) × (ℕ × ℕ)) _ => st.1.2 < n_max)
+    (fun _ _ st s hcd => by
+      obtain ⟨⟨running, curDest⟩, curQ, curV⟩ := st
+      replace hcd : curDest < n_max := hcd
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hcd⟩, And.symm ?_⟩
       unfold permInnerStepProg
       dsimp only [prt, mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
         prOffQuot, prOffVal, prOffPermAct]
@@ -1520,21 +1423,8 @@ private theorem permInnerLoop_safe_and_valid {c U V w n_max base mode : ℕ}
             simp only [ha, ↓reduceIte]
             refine validProg_bind (validProg_writePacked hw hqk_w hcd hq_b) ?_
             refine validProg_bind (validProg_writePacked hw hvk_w hcd hv_b) ?_
-            exact validProg_pure _
-    set p1 := permInnerStepProg ((prt, mode), ((running, curDest), (curQ, curV)))
-    obtain ⟨hcd1, hvp1⟩ := hstep
-    obtain ⟨hsafe_k, hcd_k, hvp_k⟩ :=
-      ih ((Memory.spec 0).clientResult s p1) ((Memory.spec 0).clientState s p1) hcd1
-    unfold permInnerLoopProg at hcd_k hvp_k ⊢
-    dsimp only [iterate]
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width]
-      exact hsafe_k
-    · change ((Memory.spec 0).clientResult s
-        (p1 >>= fun s' => iterate permInnerStepProg (prt, mode) k s')).1.2 < n_max
-      rw [clientResult_bind]
-      exact hcd_k
-    · exact validProg_bind hvp1 hvp_k
+            exact validProg_pure _) hcd
+  exact ⟨hsafe, hcd', hvp⟩
 
 /-- Outer step of `permuteOuterLoop` at slot `idx` (`d = ((prt, mode), idx)`). -/
 @[irreducible] private def permOuterStepProg (d : (PermRt × ℕ) × ℕ) : Memory.Prog ℕ := do
@@ -1630,71 +1520,15 @@ private theorem realizes_permOuterLoop :
   let _ ← permOuterLoopProg ((d, zero_v), nMax)
   pure ()
 
-private theorem permInitActLoop_safe {c U V w n_max base mode : ℕ}
-    (henv : WhpLargeEnv c U V w n_max w base) :
-    let prt := mkPermRt c U V w n_max base
-    ∀ rem k₀ (s : Memory.State),
-      k₀ + rem ≤ n_max →
-      iterationSafe permInitActStepProg PermEvalPre w (prt, mode) rem k₀ s ∧
-      ((Memory.spec 0).clientResult s (permInitActLoopProg (((prt, mode), k₀), rem))) =
-        k₀ + rem := by
-  intro prt rem
-  induction rem with
-  | zero =>
-    intro k₀ _ _
-    unfold permInitActLoopProg iterate
-    exact ⟨trivial, (Nat.add_zero k₀).symm⟩
-  | succ rem ih =>
-    intro k₀ s hle
-    have hk_lt : k₀ < n_max := by omega
-    have hpre : PermEvalPre w ((prt, mode), k₀) s := ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hk_lt⟩
-    have hres1 : (Memory.spec 0).clientResult s (permInitActStepProg ((prt, mode), k₀)) =
-        k₀ + 1 := by
-      unfold permInitActStepProg
-      simp only [pure_bind, clientResult_bind, StateTransitionSpec.clientResult_pure]
-    obtain ⟨hsafe_r, hres_r⟩ :=
-      ih (k₀ + 1) ((Memory.spec 0).clientState s (permInitActStepProg ((prt, mode), k₀))) (by omega)
-    refine ⟨⟨hpre, ?_⟩, ?_⟩
-    · rw [clientState_width, clientResult_width, hres1]
-      exact hsafe_r
-    · unfold permInitActLoopProg at hres_r ⊢
-      change (Memory.spec 0).clientResult s (permInitActStepProg ((prt, mode), k₀) >>= _) = _
-      rw [clientResult_bind, hres1, hres_r]
-      omega
-
-private theorem permOuterLoop_safe {c U V w n_max base mode : ℕ}
-    (henv : WhpLargeEnv c U V w n_max w base) :
-    let prt := mkPermRt c U V w n_max base
-    ∀ rem k₀ (s : Memory.State),
-      k₀ + rem ≤ n_max →
-      iterationSafe permOuterStepProg PermEvalPre w (prt, mode) rem k₀ s ∧
-      ((Memory.spec 0).clientResult s (permOuterLoopProg (((prt, mode), k₀), rem))) =
-        k₀ + rem := by
-  intro prt rem
-  induction rem with
-  | zero =>
-    intro k₀ _ _
-    unfold permOuterLoopProg iterate
-    exact ⟨trivial, (Nat.add_zero k₀).symm⟩
-  | succ rem ih =>
-    intro k₀ s hle
-    have hk_lt : k₀ < n_max := by omega
-    have hpre : PermEvalPre w ((prt, mode), k₀) s := ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hk_lt⟩
-    have hres1 : (Memory.spec 0).clientResult s (permOuterStepProg ((prt, mode), k₀)) =
-        k₀ + 1 := by
-      unfold permOuterStepProg
-      simp only [pure_bind, clientResult_bind]
-      split_ifs <;>
-        simp only [clientResult_bind, StateTransitionSpec.clientResult_pure]
-    obtain ⟨hsafe_r, hres_r⟩ :=
-      ih (k₀ + 1) ((Memory.spec 0).clientState s (permOuterStepProg ((prt, mode), k₀))) (by omega)
-    refine ⟨⟨hpre, ?_⟩, ?_⟩
-    · rw [clientState_width, clientResult_width, hres1]
-      exact hsafe_r
-    · unfold permOuterLoopProg at hres_r ⊢
-      change (Memory.spec 0).clientResult s (permOuterStepProg ((prt, mode), k₀) >>= _) = _
-      rw [clientResult_bind, hres1, hres_r]
-      omega
+/-- A loop over slots `0 .. n_max - 1` whose step returns the next slot is safe under
+`PermEvalPre`. -/
+private theorem permSlotLoop_safe {c U V w n_max base mode : ℕ}
+    (henv : WhpLargeEnv c U V w n_max w base) {step : (PermRt × ℕ) × ℕ → Memory.Prog ℕ}
+    (hres : ∀ d s, (Memory.spec 0).clientResult s (step d) = d.2 + 1) (s : Memory.State) :
+    iterationSafe step PermEvalPre w (mkPermRt c U V w n_max base, mode) n_max 0 s :=
+  iterationSafe_of_stateless_step step PermEvalPre
+    (fun _ hi _ => ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hi⟩) (fun _ _ s => hres _ s) n_max 0 s
+    (Nat.zero_add _).le
 
 theorem realizes_permuteByTarget :
     Realizes .exact permuteByTargetProg
@@ -1714,8 +1548,13 @@ theorem realizes_permuteByTarget :
     dsimp only [prNMax] at *
     rw [heq_prt]
     first
-    | exact (permInitActLoop_safe henv n_max 0 s (by omega)).1
-    | exact (permOuterLoop_safe henv n_max 0 _ (by omega)).1
+    | exact permSlotLoop_safe henv (fun _ _ => by
+        unfold permInitActStepProg
+        simp only [pure_bind, clientResult_bind, StateTransitionSpec.clientResult_pure]) _
+    | exact permSlotLoop_safe henv (fun _ _ => by
+        unfold permOuterStepProg
+        simp only [pure_bind, clientResult_bind]
+        split_ifs <;> simp only [clientResult_bind, StateTransitionSpec.clientResult_pure]) _
   )
 
 section PermuteSpec
@@ -1744,10 +1583,10 @@ private def PermTripleMem (base c U V w n_max : ℕ) (act : ℕ → Bool) (qArr 
 private theorem permInitActLoop_spec {c U V w n_max base mode : ℕ}
     {act₀ : ℕ → Bool} {qArr vArr : ℕ → ℕ} {s₀ : Memory.State}
     (henv : WhpLargeEnv c U V w n_max w base)
-    (_hq : ∀ i < n_max,
+    (hq : ∀ i < n_max,
       readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s₀.mem i = qArr i ∧
       qArr i < 2 ^ quotBitsWhp U n_max)
-    (_hv : ∀ i < n_max,
+    (hv : ∀ i < n_max,
       readPacked (base + offValWhp c U w n_max) (valBits V) w s₀.mem i = vArr i ∧
       vArr i < 2 ^ valBits V)
     (heval : ∀ x < n_max, ∀ s' : Memory.State,
@@ -1756,32 +1595,19 @@ private theorem permInitActLoop_spec {c U V w n_max base mode : ℕ}
       ((Memory.spec 0).clientResult s'
         (permEvalActDestProg ((mkPermRt c U V w n_max base, mode), x))).1 =
         (if act₀ x then 1 else 0)) :
-    let prt := mkPermRt c U V w n_max base
-    ∀ rem k₀ (s : Memory.State),
-      k₀ + rem ≤ n_max →
-      (∀ i < k₀,
-        readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w s.mem i =
-          if act₀ i then 1 else 0) →
-      (∀ i < n_max,
-        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s.mem i = qArr i) →
-      (∀ i < n_max,
-        readPacked (base + offValWhp c U w n_max) (valBits V) w s.mem i = vArr i) →
-      (∀ a, (a < base + offQuotWhp c w n_max ∨ base + offLocState c U V w n_max ≤ a) →
-        s.mem a = s₀.mem a) →
-      let prog := permInitActLoopProg (((prt, mode), k₀), rem)
-      let s' := (Memory.spec 0).clientState s prog
-      (∀ i < k₀ + rem,
-        readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w s'.mem i =
-          if act₀ i then 1 else 0) ∧
-      (∀ i < n_max,
-        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s'.mem i = qArr i) ∧
-      (∀ i < n_max,
-        readPacked (base + offValWhp c U w n_max) (valBits V) w s'.mem i = vArr i) ∧
-      (∀ a, (a < base + offQuotWhp c w n_max ∨ base + offLocState c U V w n_max ≤ a) →
-        s'.mem a = s₀.mem a) ∧
-      s'.frontier = s.frontier ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro prt rem
+    let prog := permInitActLoopProg (((mkPermRt c U V w n_max base, mode), 0), n_max)
+    let s' := (Memory.spec 0).clientState s₀ prog
+    (∀ i < n_max,
+      readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w s'.mem i =
+        if act₀ i then 1 else 0) ∧
+    (∀ i < n_max,
+      readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s'.mem i = qArr i) ∧
+    (∀ i < n_max,
+      readPacked (base + offValWhp c U w n_max) (valBits V) w s'.mem i = vArr i) ∧
+    (∀ a, (a < base + offQuotWhp c w n_max ∨ base + offLocState c U V w n_max ≤ a) →
+      s'.mem a = s₀.mem a) ∧
+    s'.frontier = s₀.frontier ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s₀ prog := by
   have hw := henv.2.1
   obtain ⟨_, _, _, _, _, hpa_w, _, _, _⟩ := perm_bounds henv
   have hdisj := perm_seg_disjoint c U V w n_max
@@ -1791,87 +1617,254 @@ private theorem permInitActLoop_spec {c U V w n_max base mode : ℕ}
     rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.1 _
   have hbit_lt : ∀ b : Bool, (if b then 1 else 0) < 2 ^ (12 * logLogFactor n_max + 4) := by
     intro b; cases b <;> simp
-  induction rem with
-  | zero =>
-    intro k₀ s _ hact hqr hvr hout
-    unfold permInitActLoopProg iterate
-    have hs' : (Memory.spec 0).clientState s (pure k₀) = s := rfl
-    dsimp only
-    rw [hs']
-    exact ⟨hact, hqr, hvr, hout, rfl, validProg_pure _⟩
-  | succ rem ih =>
-    intro k₀ s hle hact hqr hvr hout
-    have hk_lt : k₀ < n_max := by omega
-    obtain ⟨hpe_st, _, hpe_vp⟩ := permEvalActDestProg_invariant (mode := mode) henv hk_lt (s := s)
-    have had1 := heval k₀ hk_lt s hout
-    set p1 := permInitActStepProg ((prt, mode), k₀)
-    have hs1 : (Memory.spec 0).clientState s p1 =
-        { mem := writePacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w s.mem
-            k₀ (if act₀ k₀ then 1 else 0)
-          frontier := s.frontier } := by
-      dsimp only [p1]; unfold permInitActStepProg
-      dsimp only [prt, mkPermRt, prBase, prOffPermAct, prPermActBits, prW]
-      simp only [pure_bind]
-      dsimp only [mkPermRt] at hpe_st had1
-      rw [clientState_bind, hpe_st, had1, clientState_bind]
-      rfl
-    have hr1 : (Memory.spec 0).clientResult s p1 = k₀ + 1 := by
-      dsimp only [p1]; unfold permInitActStepProg
-      simp only [pure_bind, clientResult_bind, StateTransitionSpec.clientResult_pure]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold permInitActStepProg
-      simp only [pure_bind]
-      refine validProg_bind hpe_vp ?_
-      rw [hpe_st]
-      exact validProg_bind (validProg_writePacked hw hpa_w hk_lt hpa_b)
-        (validProg_pure _)
-    set s1 := (Memory.spec 0).clientState s p1
-    have hact1 : ∀ i < k₀ + 1,
-        readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w s1.mem i =
-          if act₀ i then 1 else 0 := by
-      intro i hi
-      rw [hs1]; dsimp only
-      by_cases heq : i = k₀
-      · subst heq
-        exact readPacked_writePacked_self _ _ _ _ _ (hbit_lt _)
-      · rw [readPacked_writePacked_of_ne hw s.mem heq _]
-        exact hact i (by omega)
-    have hqr1 : ∀ i < n_max,
-        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s1.mem i = qArr i := by
-      intro i hi
-      rw [hs1]; dsimp only
-      rw [readPacked_writePacked_disjoint hw hi hk_lt (Or.inl (by omega))]
-      exact hqr i hi
-    have hvr1 : ∀ i < n_max,
-        readPacked (base + offValWhp c U w n_max) (valBits V) w s1.mem i = vArr i := by
-      intro i hi
-      rw [hs1]; dsimp only
-      rw [readPacked_writePacked_disjoint hw hi hk_lt (Or.inl (by omega))]
-      exact hvr i hi
-    have hout1 : ∀ a, (a < base + offQuotWhp c w n_max ∨ base + offLocState c U V w n_max ≤ a) →
-        s1.mem a = s₀.mem a := by
-      intro a ha
-      rw [hs1]; dsimp only
-      rw [writePacked_outside hw _ hk_lt _ (by omega)]
-      exact hout a ha
-    obtain ⟨ha_r, hq_r, hv_r, ho_r, hf_r, hvp_r⟩ :=
-      ih (k₀ + 1) s1 (by omega) hact1 hqr1 hvr1 hout1
-    unfold permInitActLoopProg at ha_r hq_r hv_r ho_r hf_r hvp_r ⊢
-    dsimp only [iterate]
-    change _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ ValidProg _ _ s (p1 >>= _)
-    have hst_eq : (Memory.spec 0).clientState s
-        (p1 >>= fun s' => iterate permInitActStepProg (prt, mode) rem s') =
-        (Memory.spec 0).clientState s1 (iterate permInitActStepProg (prt, mode) rem (k₀ + 1)) := by
-      rw [clientState_bind, hr1]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro i hi; rw [hst_eq]; exact ha_r i (by omega)
-    · intro i hi; rw [hst_eq]; exact hq_r i hi
-    · intro i hi; rw [hst_eq]; exact hv_r i hi
-    · intro a ha; rw [hst_eq]; exact ho_r a ha
-    · rw [hst_eq, hf_r, hs1]
-    · refine validProg_bind hvp1 ?_
-      rw [hr1]; exact hvp_r
+  unfold permInitActLoopProg
+  obtain ⟨-, hvp, -, hact, hqr, hvr, hout, hfr⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := permInitActStepProg)
+    (d := (mkPermRt c U V w n_max base, mode)) (n := n_max) (safe := fun _ _ _ => True)
+    (fun k i t => i = k ∧
+      (∀ j < k, readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+        t.mem j = if act₀ j then 1 else 0) ∧
+      (∀ j < n_max,
+        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w t.mem j = qArr j) ∧
+      (∀ j < n_max, readPacked (base + offValWhp c U w n_max) (valBits V) w t.mem j = vArr j) ∧
+      (∀ a, (a < base + offQuotWhp c w n_max ∨ base + offLocState c U V w n_max ≤ a) →
+        t.mem a = s₀.mem a) ∧
+      t.frontier = s₀.frontier)
+    (fun k hk a t ⟨ha, hact, hqr, hvr, hout, hfr⟩ => by
+      subst a
+      obtain ⟨hpe_st, _, hpe_vp⟩ := permEvalActDestProg_invariant (mode := mode) henv hk (s := t)
+      have had1 := heval k hk t hout
+      have hs1 : (Memory.spec 0).clientState t
+          (permInitActStepProg ((mkPermRt c U V w n_max base, mode), k)) =
+          { mem := writePacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+              t.mem k (if act₀ k then 1 else 0)
+            frontier := t.frontier } := by
+        unfold permInitActStepProg
+        dsimp only [mkPermRt, prBase, prOffPermAct, prPermActBits, prW]
+        simp only [pure_bind]
+        dsimp only [mkPermRt] at hpe_st had1
+        rw [clientState_bind, hpe_st, had1, clientState_bind]
+        rfl
+      refine ⟨trivial, ?_, ?_⟩
+      · unfold permInitActStepProg
+        simp only [pure_bind]
+        refine validProg_bind hpe_vp ?_
+        rw [hpe_st]
+        exact validProg_bind (validProg_writePacked hw hpa_w hk hpa_b) (validProg_pure _)
+      rw [hs1]
+      dsimp only
+      refine ⟨?_, fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun a ha => ?_, hfr⟩
+      · unfold permInitActStepProg
+        simp only [pure_bind, clientResult_bind, StateTransitionSpec.clientResult_pure]
+      · by_cases heq : i = k
+        · subst heq
+          exact readPacked_writePacked_self _ _ _ _ _ (hbit_lt _)
+        · rw [readPacked_writePacked_of_ne hw t.mem heq _]
+          exact hact i (by omega)
+      · rw [readPacked_writePacked_disjoint hw hi hk (Or.inl (by omega))]
+        exact hqr i hi
+      · rw [readPacked_writePacked_disjoint hw hi hk (Or.inl (by omega))]
+        exact hvr i hi
+      · rw [writePacked_outside hw _ hk _ (by omega)]
+        exact hout a ha)
+    ⟨rfl, fun _ h => absurd h (Nat.not_lt_zero _), fun i hi => (hq i hi).1,
+      fun i hi => (hv i hi).1, fun _ _ => rfl, rfl⟩
+  exact ⟨hact, hqr, hvr, hout, hfr, hvp⟩
 
+/-- The words `((running, curDest), (curQ, curV))` that `permInnerStepProg` carries for a chain
+state. -/
+private def permChainWord : PermChainState → (ℕ × ℕ) × (ℕ × ℕ)
+  | (running, curDest, curQ, curV, _) => ((if running then 1 else 0, curDest), (curQ, curV))
+
+/-- Invariant of the chain loop: the packed arrays hold the state's `(act, q, v)`, every active
+slot is an initially active slot below `n_max`, and the carried slot and pair fit their fields. -/
+private def PermChainInv (base c U V w n_max : ℕ) (act₀ : ℕ → Bool) (mem₀ mem : ℕ → ℕ)
+    (st : PermChainState) : Prop :=
+  let (_, curDest, curQ, curV, act, q, v) := st
+  PermTripleMem base c U V w n_max act q v mem₀ mem ∧
+  (∀ i, act i = true → i < n_max ∧ act₀ i = true) ∧
+  curDest < n_max ∧ curQ < 2 ^ quotBitsWhp U n_max ∧ curV < 2 ^ valBits V
+
+/-- One step of `permInnerStepProg` performs `permuteInnerStep` on the packed arrays. -/
+private theorem permInnerStep_spec {c U V w n_max base mode : ℕ}
+    {act₀ : ℕ → Bool} {dest : ℕ → ℕ} {s₀ : Memory.State}
+    (henv : WhpLargeEnv c U V w n_max w base)
+    (heval : ∀ x < n_max, ∀ s' : Memory.State,
+      (∀ a, (a < base + offQuotWhp c w n_max ∨ base + offLocState c U V w n_max ≤ a) →
+        s'.mem a = s₀.mem a) →
+      act₀ x = true →
+      ((Memory.spec 0).clientResult s'
+        (permEvalActDestProg ((mkPermRt c U V w n_max base, mode), x))).2 = dest x ∧
+      dest x < n_max)
+    (st : PermChainState) (s : Memory.State)
+    (hst : PermChainInv base c U V w n_max act₀ s₀.mem s.mem st) :
+    let p := permInnerStepProg ((mkPermRt c U V w n_max base, mode), permChainWord st)
+    (Memory.spec 0).clientResult s p = permChainWord (permuteInnerStep dest st) ∧
+    PermChainInv base c U V w n_max act₀ s₀.mem ((Memory.spec 0).clientState s p).mem
+      (permuteInnerStep dest st) ∧
+    ((Memory.spec 0).clientState s p).frontier = s.frontier := by
+  intro p
+  obtain ⟨running, curDest, curQ, curV, act, q, v⟩ := st
+  obtain ⟨htm, hinv, hcd, hcq, hcv⟩ := hst
+  have hw := henv.2.1
+  obtain ⟨_, _, _, _, _, hpa_w, hqk_w, hvk_w, _⟩ := perm_bounds henv
+  have hdisj := perm_seg_disjoint c U V w n_max
+  have h0_lt : 0 < 2 ^ (12 * logLogFactor n_max + 4) := Nat.two_pow_pos _
+  cases running with
+  | false =>
+    have hs1 : (Memory.spec 0).clientState s p = s := by
+      dsimp only [p, permChainWord]; unfold permInnerStepProg
+      simp only [Bool.false_eq_true, ↓reduceIte, bind_pure_comp, pure_bind]; rfl
+    have hr1 : (Memory.spec 0).clientResult s p = ((0, curDest), (curQ, curV)) := by
+      dsimp only [p, permChainWord]; unfold permInnerStepProg
+      simp only [Bool.false_eq_true, ↓reduceIte, bind_pure_comp, pure_bind]; rfl
+    rw [hs1, hr1]
+    exact ⟨rfl, ⟨htm, hinv, hcd, hcq, hcv⟩, rfl⟩
+  | true =>
+    have hpa_cd := htm.1 curDest hcd
+    by_cases ha : act curDest = true
+    · obtain ⟨_, ha0⟩ := hinv curDest ha
+      obtain ⟨had2_eq, hdest_lt⟩ := heval curDest hcd s htm.2.2.2 ha0
+      obtain ⟨hpe_st, _, _⟩ := permEvalActDestProg_invariant (mode := mode) henv hcd (s := s)
+      dsimp only [mkPermRt] at hpe_st had2_eq
+      have hpa1 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+          s.mem curDest = 1 := by simpa [ha] using hpa_cd
+      set m1 := writePacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+        s.mem curDest 0
+      set m2 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w m1 curDest curQ
+      set m3 := writePacked (base + offValWhp c U w n_max) (valBits V) w m2 curDest curV
+      have hs1 : (Memory.spec 0).clientState s p = { mem := m3, frontier := s.frontier } := by
+        dsimp only [p, permChainWord]; unfold permInnerStepProg
+        dsimp only [mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
+          prOffQuot, prOffVal, prOffPermAct]
+        simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
+        rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
+        simp only [hpa1, ↓reduceIte]
+        rw [clientState_bind, hpe_st,
+          clientState_bind, clientState_readPackedGen,
+          clientState_bind, clientState_readPackedGen,
+          clientState_bind, clientState_bind, clientState_bind]
+        rfl
+      have hr1 : (Memory.spec 0).clientResult s p =
+          ((1, dest curDest), (q curDest, v curDest)) := by
+        dsimp only [p, permChainWord]; unfold permInnerStepProg
+        dsimp only [mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
+          prOffQuot, prOffVal, prOffPermAct]
+        simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
+        rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
+        simp only [hpa1, ↓reduceIte]
+        rw [clientResult_bind, hpe_st, had2_eq,
+          clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
+          clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
+          (htm.2.1 curDest hcd).1, (htm.2.2.1 curDest hcd).1,
+          clientResult_bind, clientResult_bind, clientResult_bind,
+          StateTransitionSpec.clientResult_pure]
+      have htm1 : PermTripleMem base c U V w n_max
+          (Function.update act curDest false)
+          (Function.update q curDest curQ)
+          (Function.update v curDest curV)
+          s₀.mem m3 := by
+        refine ⟨fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun a ha_out => ?_⟩
+        · dsimp only [m3, m2, m1]
+          rw [readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
+            readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega))]
+          by_cases heq : i = curDest
+          · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ h0_lt]
+          · rw [readPacked_writePacked_of_ne hw s.mem heq 0, Function.update_of_ne heq,
+              htm.1 i hi]
+        · dsimp only [m3, m2, m1]
+          rw [readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega))]
+          by_cases heq : i = curDest
+          · subst heq
+            simp [readPacked_writePacked_self _ _ _ _ _ hcq, hcq]
+          · rw [readPacked_writePacked_of_ne hw m1 heq curQ,
+              readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega)),
+              Function.update_of_ne heq]
+            exact htm.2.1 i hi
+        · dsimp only [m3, m2, m1]
+          by_cases heq : i = curDest
+          · subst heq
+            simp [readPacked_writePacked_self _ _ _ _ _ hcv, hcv]
+          · rw [readPacked_writePacked_of_ne hw m2 heq curV,
+              readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
+              readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega)),
+              Function.update_of_ne heq]
+            exact htm.2.2.1 i hi
+        · dsimp only [m3, m2, m1]
+          rw [writePacked_outside hw _ hcd _ (by omega),
+            writePacked_outside hw _ hcd _ (by omega),
+            writePacked_outside hw _ hcd _ (by omega)]
+          exact htm.2.2.2 a ha_out
+      have hinv1 : ∀ i, Function.update act curDest false i = true →
+          i < n_max ∧ act₀ i = true := by
+        intro i hi
+        by_cases heq : i = curDest
+        · subst heq; simp at hi
+        · rw [Function.update_of_ne heq] at hi; exact hinv i hi
+      have hstep_p : permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
+          (true, dest curDest, q curDest, v curDest, Function.update act curDest false,
+            Function.update q curDest curQ, Function.update v curDest curV) := by
+        simp [permuteInnerStep, ha]
+      rw [hs1, hr1, hstep_p]
+      exact ⟨rfl, ⟨htm1, hinv1, hdest_lt, (htm.2.1 curDest hcd).2, (htm.2.2.1 curDest hcd).2⟩,
+        rfl⟩
+    · have haf : act curDest = false := by revert ha; cases act curDest <;> simp
+      have hpa0 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+          s.mem curDest = 0 := by simpa [haf] using hpa_cd
+      set m2 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
+        s.mem curDest curQ
+      set m3 := writePacked (base + offValWhp c U w n_max) (valBits V) w m2 curDest curV
+      have hs1 : (Memory.spec 0).clientState s p = { mem := m3, frontier := s.frontier } := by
+        dsimp only [p, permChainWord]; unfold permInnerStepProg
+        dsimp only [mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
+          prOffQuot, prOffVal, prOffPermAct]
+        simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
+        rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
+        simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
+        rw [clientState_bind, clientState_bind]
+        rfl
+      have hr1 : (Memory.spec 0).clientResult s p = ((0, curDest), (curQ, curV)) := by
+        dsimp only [p, permChainWord]; unfold permInnerStepProg
+        dsimp only [mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
+          prOffQuot, prOffVal, prOffPermAct]
+        simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
+        rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
+        simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
+        rw [clientResult_bind, clientResult_bind, StateTransitionSpec.clientResult_pure]
+      have htm1 : PermTripleMem base c U V w n_max act
+          (Function.update q curDest curQ)
+          (Function.update v curDest curV)
+          s₀.mem m3 := by
+        refine ⟨fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun a ha_out => ?_⟩
+        · dsimp only [m3, m2]
+          rw [readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
+            readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega))]
+          exact htm.1 i hi
+        · dsimp only [m3, m2]
+          rw [readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega))]
+          by_cases heq : i = curDest
+          · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ hcq, hcq]
+          · rw [readPacked_writePacked_of_ne hw s.mem heq curQ, Function.update_of_ne heq]
+            exact htm.2.1 i hi
+        · dsimp only [m3, m2]
+          by_cases heq : i = curDest
+          · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ hcv, hcv]
+          · rw [readPacked_writePacked_of_ne hw m2 heq curV,
+              readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
+              Function.update_of_ne heq]
+            exact htm.2.2.1 i hi
+        · dsimp only [m3, m2]
+          rw [writePacked_outside hw _ hcd _ (by omega),
+            writePacked_outside hw _ hcd _ (by omega)]
+          exact htm.2.2.2 a ha_out
+      have hstep_p : permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
+          (false, curDest, curQ, curV, act,
+            Function.update q curDest curQ, Function.update v curDest curV) := by
+        simp [permuteInnerStep, haf]
+      rw [hs1, hr1, hstep_p]
+      exact ⟨rfl, ⟨htm1, hinv, hcd, hcq, hcv⟩, rfl⟩
+
+/-- `k` steps of `permInnerLoopProg` perform `permuteInnerLoop dest k` on the packed arrays. -/
 private theorem permInnerLoop_spec {c U V w n_max base mode : ℕ}
     {act₀ : ℕ → Bool} {dest : ℕ → ℕ} {s₀ : Memory.State}
     (henv : WhpLargeEnv c U V w n_max w base)
@@ -1881,226 +1874,27 @@ private theorem permInnerLoop_spec {c U V w n_max base mode : ℕ}
       act₀ x = true →
       ((Memory.spec 0).clientResult s'
         (permEvalActDestProg ((mkPermRt c U V w n_max base, mode), x))).2 = dest x ∧
-      dest x < n_max) :
-    let prt := mkPermRt c U V w n_max base
-    ∀ k (st : PermChainState) (s : Memory.State),
-      let (running, curDest, curQ, curV, act, q, v) := st
-      PermTripleMem base c U V w n_max act q v s₀.mem s.mem →
-      (∀ i, act i = true → i < n_max ∧ act₀ i = true) →
-      curDest < n_max →
-      curQ < 2 ^ quotBitsWhp U n_max →
-      curV < 2 ^ valBits V →
-      let prog := permInnerLoopProg
-        (((prt, mode), ((if running then 1 else 0, curDest), (curQ, curV))), k)
-      let s' := (Memory.spec 0).clientState s prog
-      let st' := permuteInnerLoop dest k st
-      PermTripleMem base c U V w n_max st'.2.2.2.2.1 st'.2.2.2.2.2.1 st'.2.2.2.2.2.2
-        s₀.mem s'.mem ∧
-      (∀ i, st'.2.2.2.2.1 i = true → i < n_max ∧ act₀ i = true) ∧
-      s'.frontier = s.frontier := by
-  intro prt k
-  have hw := henv.2.1
-  obtain ⟨_, _, _, _, _, hpa_w, hqk_w, hvk_w, _⟩ := perm_bounds henv
-  have hdisj := perm_seg_disjoint c U V w n_max
-  have h0_lt : 0 < 2 ^ (12 * logLogFactor n_max + 4) := Nat.two_pow_pos _
-  induction k with
-  | zero =>
-    intro ⟨running, curDest, curQ, curV, act, q, v⟩ s htm hinv _ _ _
-    unfold permInnerLoopProg iterate
-    exact ⟨htm, hinv, rfl⟩
-  | succ k ih =>
-    intro ⟨running, curDest, curQ, curV, act, q, v⟩ s htm hinv hcd hcq hcv
-    set runBit := if running then 1 else 0
-    set p1 := permInnerStepProg ((prt, mode), ((runBit, curDest), (curQ, curV)))
-    cases running with
-    | false =>
-      have hs1 : (Memory.spec 0).clientState s p1 = s := by
-        dsimp only [p1, runBit]; unfold permInnerStepProg; simp [pure_bind]; rfl
-      have hr1 : (Memory.spec 0).clientResult s p1 = ((0, curDest), (curQ, curV)) := by
-        dsimp only [p1, runBit]; unfold permInnerStepProg; simp [pure_bind]; rfl
-      obtain ⟨htm', hinv', hf'⟩ :=
-        ih (false, curDest, curQ, curV, act, q, v) s htm hinv hcd hcq hcv
-      unfold permInnerLoopProg at htm' hf' ⊢
-      dsimp only [iterate, permuteInnerLoop]
-      have hstep_p : permuteInnerStep dest (false, curDest, curQ, curV, act, q, v) =
-          (false, curDest, curQ, curV, act, q, v) := rfl
-      have hst_eq : (Memory.spec 0).clientState s
-          (p1 >>= fun s' => iterate permInnerStepProg (prt, mode) k s') =
-          (Memory.spec 0).clientState s
-            (iterate permInnerStepProg (prt, mode) k ((0, curDest), (curQ, curV))) := by
-        rw [clientState_bind, hs1, hr1]
-      rw [hstep_p, hst_eq]
-      exact ⟨htm', hinv', hf'⟩
-    | true =>
-      have hpa_cd := htm.1 curDest hcd
-      by_cases ha : act curDest = true
-      · obtain ⟨_, ha0⟩ := hinv curDest ha
-        obtain ⟨had2_eq, hdest_lt⟩ := heval curDest hcd s htm.2.2.2 ha0
-        obtain ⟨hpe_st, _, _⟩ := permEvalActDestProg_invariant (mode := mode) henv hcd (s := s)
-        dsimp only [mkPermRt] at hpe_st had2_eq
-        have hpa1 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
-            s.mem curDest = 1 := by simpa [ha] using hpa_cd
-        set m1 := writePacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
-          s.mem curDest 0
-        set m2 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w m1 curDest curQ
-        set m3 := writePacked (base + offValWhp c U w n_max) (valBits V) w m2 curDest curV
-        have hs1 : (Memory.spec 0).clientState s p1 = { mem := m3, frontier := s.frontier } := by
-          dsimp only [p1, runBit]; unfold permInnerStepProg
-          dsimp only [prt, mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
-            prOffQuot, prOffVal, prOffPermAct]
-          simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
-          rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
-          simp only [hpa1, ↓reduceIte]
-          rw [clientState_bind, hpe_st,
-            clientState_bind, clientState_readPackedGen,
-            clientState_bind, clientState_readPackedGen,
-            clientState_bind, clientState_bind, clientState_bind]
-          rfl
-        have hr1 : (Memory.spec 0).clientResult s p1 =
-            ((1, dest curDest), (q curDest, v curDest)) := by
-          dsimp only [p1, runBit]; unfold permInnerStepProg
-          dsimp only [prt, mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
-            prOffQuot, prOffVal, prOffPermAct]
-          simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
-          rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
-          simp only [hpa1, ↓reduceIte]
-          rw [clientResult_bind, hpe_st, had2_eq,
-            clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
-            clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen,
-            (htm.2.1 curDest hcd).1, (htm.2.2.1 curDest hcd).1,
-            clientResult_bind, clientResult_bind, clientResult_bind,
-            StateTransitionSpec.clientResult_pure]
-        have htm1 : PermTripleMem base c U V w n_max
-            (Function.update act curDest false)
-            (Function.update q curDest curQ)
-            (Function.update v curDest curV)
-            s₀.mem m3 := by
-          refine ⟨fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun a ha_out => ?_⟩
-          · dsimp only [m3, m2, m1]
-            rw [readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
-              readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega))]
-            by_cases heq : i = curDest
-            · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ h0_lt]
-            · rw [readPacked_writePacked_of_ne hw s.mem heq 0, Function.update_of_ne heq,
-                htm.1 i hi]
-          · dsimp only [m3, m2, m1]
-            rw [readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega))]
-            by_cases heq : i = curDest
-            · subst heq
-              simp [readPacked_writePacked_self _ _ _ _ _ hcq, hcq]
-            · rw [readPacked_writePacked_of_ne hw m1 heq curQ,
-                readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega)),
-                Function.update_of_ne heq]
-              exact htm.2.1 i hi
-          · dsimp only [m3, m2, m1]
-            by_cases heq : i = curDest
-            · subst heq
-              simp [readPacked_writePacked_self _ _ _ _ _ hcv, hcv]
-            · rw [readPacked_writePacked_of_ne hw m2 heq curV,
-                readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
-                readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega)),
-                Function.update_of_ne heq]
-              exact htm.2.2.1 i hi
-          · dsimp only [m3, m2, m1]
-            rw [writePacked_outside hw _ hcd _ (by omega),
-              writePacked_outside hw _ hcd _ (by omega),
-              writePacked_outside hw _ hcd _ (by omega)]
-            exact htm.2.2.2 a ha_out
-        have hinv1 : ∀ i, Function.update act curDest false i = true →
-            i < n_max ∧ act₀ i = true := by
-          intro i hi
-          by_cases heq : i = curDest
-          · subst heq; simp at hi
-          · rw [Function.update_of_ne heq] at hi; exact hinv i hi
-        obtain ⟨htm', hinv', hf'⟩ := ih
-          (true, dest curDest, q curDest, v curDest,
-            Function.update act curDest false,
-            Function.update q curDest curQ,
-            Function.update v curDest curV)
-          { mem := m3, frontier := s.frontier }
-          htm1 hinv1 hdest_lt (htm.2.1 curDest hcd).2 (htm.2.2.1 curDest hcd).2
-        unfold permInnerLoopProg at htm' hf' ⊢
-        dsimp only [iterate, permuteInnerLoop]
-        have hstep_p : permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
-            (true, dest curDest, q curDest, v curDest,
-              Function.update act curDest false,
-              Function.update q curDest curQ,
-              Function.update v curDest curV) := by simp [permuteInnerStep, ha]
-        have hst_eq : (Memory.spec 0).clientState s
-            (p1 >>= fun s' => iterate permInnerStepProg (prt, mode) k s') =
-            (Memory.spec 0).clientState { mem := m3, frontier := s.frontier }
-              (iterate permInnerStepProg (prt, mode) k
-                ((1, dest curDest), (q curDest, v curDest))) := by
-          rw [clientState_bind, hs1, hr1]
-        rw [hstep_p, hst_eq]
-        exact ⟨htm', hinv', hf'⟩
-      · have haf : act curDest = false := by revert ha; cases act curDest <;> simp
-        have hpa0 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
-            s.mem curDest = 0 := by simpa [haf] using hpa_cd
-        set m2 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w
-          s.mem curDest curQ
-        set m3 := writePacked (base + offValWhp c U w n_max) (valBits V) w m2 curDest curV
-        have hs1 : (Memory.spec 0).clientState s p1 = { mem := m3, frontier := s.frontier } := by
-          dsimp only [p1, runBit]; unfold permInnerStepProg
-          dsimp only [prt, mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
-            prOffQuot, prOffVal, prOffPermAct]
-          simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
-          rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
-          simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
-          rw [clientState_bind, clientState_bind]
-          rfl
-        have hr1 : (Memory.spec 0).clientResult s p1 = ((0, curDest), (curQ, curV)) := by
-          dsimp only [p1, runBit]; unfold permInnerStepProg
-          dsimp only [prt, mkPermRt, prBase, prW, prQuotBits, prValBits, prPermActBits,
-            prOffQuot, prOffVal, prOffPermAct]
-          simp only [pure_bind, ↓reduceIte, Nat.one_ne_zero]
-          rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
-          simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
-          rw [clientResult_bind, clientResult_bind, StateTransitionSpec.clientResult_pure]
-        have htm1 : PermTripleMem base c U V w n_max act
-            (Function.update q curDest curQ)
-            (Function.update v curDest curV)
-            s₀.mem m3 := by
-          refine ⟨fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun a ha_out => ?_⟩
-          · dsimp only [m3, m2]
-            rw [readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
-              readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega))]
-            exact htm.1 i hi
-          · dsimp only [m3, m2]
-            rw [readPacked_writePacked_disjoint hw hi hcd (Or.inl (by omega))]
-            by_cases heq : i = curDest
-            · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ hcq, hcq]
-            · rw [readPacked_writePacked_of_ne hw s.mem heq curQ, Function.update_of_ne heq]
-              exact htm.2.1 i hi
-          · dsimp only [m3, m2]
-            by_cases heq : i = curDest
-            · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ hcv, hcv]
-            · rw [readPacked_writePacked_of_ne hw m2 heq curV,
-                readPacked_writePacked_disjoint hw hi hcd (Or.inr (by omega)),
-                Function.update_of_ne heq]
-              exact htm.2.2.1 i hi
-          · dsimp only [m3, m2]
-            rw [writePacked_outside hw _ hcd _ (by omega),
-              writePacked_outside hw _ hcd _ (by omega)]
-            exact htm.2.2.2 a ha_out
-        obtain ⟨htm', hinv', hf'⟩ := ih
-          (false, curDest, curQ, curV, act,
-            Function.update q curDest curQ, Function.update v curDest curV)
-          { mem := m3, frontier := s.frontier }
-          htm1 hinv hcd hcq hcv
-        unfold permInnerLoopProg at htm' hf' ⊢
-        dsimp only [iterate, permuteInnerLoop]
-        have hstep_p : permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
-            (false, curDest, curQ, curV, act,
-              Function.update q curDest curQ, Function.update v curDest curV) := by
-          simp [permuteInnerStep, haf]
-        have hst_eq : (Memory.spec 0).clientState s
-            (p1 >>= fun s' => iterate permInnerStepProg (prt, mode) k s') =
-            (Memory.spec 0).clientState { mem := m3, frontier := s.frontier }
-              (iterate permInnerStepProg (prt, mode) k ((0, curDest), (curQ, curV))) := by
-          rw [clientState_bind, hs1, hr1]
-        rw [hstep_p, hst_eq]
-        exact ⟨htm', hinv', hf'⟩
+      dest x < n_max)
+    (k : ℕ) (st : PermChainState) (s : Memory.State)
+    (hst : PermChainInv base c U V w n_max act₀ s₀.mem s.mem st) :
+    let s' := (Memory.spec 0).clientState s
+      (permInnerLoopProg (((mkPermRt c U V w n_max base, mode), permChainWord st), k))
+    PermChainInv base c U V w n_max act₀ s₀.mem s'.mem (permuteInnerLoop dest k st) ∧
+    s'.frontier = s.frontier := by
+  unfold permInnerLoopProg
+  obtain ⟨st', -, hinv, hfr, heq⟩ := iterate_invariant_of permInnerStepProg
+    (mkPermRt c U V w n_max base, mode)
+    (fun j a t => ∃ st', a = permChainWord st' ∧
+      PermChainInv base c U V w n_max act₀ s₀.mem t.mem st' ∧ t.frontier = s.frontier ∧
+      permuteInnerLoop dest j st' = permuteInnerLoop dest k st)
+    (fun _ _ t ⟨st', ha, hinv, hfr, heq⟩ => by
+      subst ha
+      obtain ⟨hr, hinv', hfr'⟩ := permInnerStep_spec (mode := mode) henv heval st' t hinv
+      exact ⟨_, hr, hinv', hfr'.trans hfr, heq⟩)
+    ⟨st, rfl, hst, rfl, rfl⟩
+  change st' = _ at heq
+  subst heq
+  exact ⟨hinv, hfr⟩
 
 private theorem permOuterLoop_spec {c U V w n_max base mode : ℕ}
     {act₀ : ℕ → Bool} {dest qArr vArr : ℕ → ℕ} {s₀ : Memory.State}
@@ -2114,22 +1908,17 @@ private theorem permOuterLoop_spec {c U V w n_max base mode : ℕ}
       dest x < n_max) :
     let prt := mkPermRt c U V w n_max base
     let actInit : ℕ → Bool := fun i => decide (i < n_max) && act₀ i
-    ∀ rem k₀ (s : Memory.State),
-      k₀ + rem ≤ n_max →
-      PermTripleMem base c U V w n_max
-        (permuteOuterLoop n_max dest k₀ (actInit, qArr, vArr)).1
-        (permuteOuterLoop n_max dest k₀ (actInit, qArr, vArr)).2.1
-        (permuteOuterLoop n_max dest k₀ (actInit, qArr, vArr)).2.2 s₀.mem s.mem →
-      (∀ i, (permuteOuterLoop n_max dest k₀ (actInit, qArr, vArr)).1 i = true →
-        i < n_max ∧ act₀ i = true) →
-      let prog := permOuterLoopProg (((prt, mode), k₀), rem)
-      let s' := (Memory.spec 0).clientState s prog
-      let fin := permuteOuterLoop n_max dest (k₀ + rem) (actInit, qArr, vArr)
+    ∀ s₁ : Memory.State,
+      PermTripleMem base c U V w n_max actInit qArr vArr s₀.mem s₁.mem →
+      (∀ i, actInit i = true → i < n_max ∧ act₀ i = true) →
+      let prog := permOuterLoopProg (((prt, mode), 0), n_max)
+      let s' := (Memory.spec 0).clientState s₁ prog
+      let fin := permuteOuterLoop n_max dest n_max (actInit, qArr, vArr)
       PermTripleMem base c U V w n_max fin.1 fin.2.1 fin.2.2 s₀.mem s'.mem ∧
       (∀ i, fin.1 i = true → i < n_max ∧ act₀ i = true) ∧
-      s'.frontier = s.frontier ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro prt actInit rem
+      s'.frontier = s₁.frontier ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s₁ prog := by
+  intro prt actInit s₁ htm₁ hinv₁
   have hw := henv.2.1
   obtain ⟨_, _, _, _, _, hpa_w, hqk_w, hvk_w, _⟩ := perm_bounds henv
   have hdisj := perm_seg_disjoint c U V w n_max
@@ -2144,165 +1933,131 @@ private theorem permOuterLoop_spec {c U V w n_max base mode : ℕ}
       packedWords n_max (12 * logLogFactor n_max + 4) w ≤ base + largeSpaceWhp c U V w n_max := by
     rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.1 _
   have h0_lt : 0 < 2 ^ (12 * logLogFactor n_max + 4) := Nat.two_pow_pos _
-  induction rem with
-  | zero =>
-    intro k₀ s _ htm hinv
-    unfold permOuterLoopProg iterate
-    have hs' : (Memory.spec 0).clientState s (pure k₀) = s := rfl
-    dsimp only
-    rw [hs']
-    exact ⟨htm, hinv, rfl, validProg_pure _⟩
-  | succ rem ih =>
-    intro k₀ s hle htm hinv
-    have hk_lt : k₀ < n_max := by omega
-    set cur := permuteOuterLoop n_max dest k₀ (actInit, qArr, vArr)
-    rcases hcur : cur with ⟨act, q, v⟩
-    have hcur_eq : permuteOuterLoop n_max dest k₀ (actInit, qArr, vArr) = (act, q, v) := hcur
-    rw [hcur] at htm hinv
-    set p1 := permOuterStepProg ((prt, mode), k₀)
-    have hr1 : (Memory.spec 0).clientResult s p1 = k₀ + 1 := by
-      dsimp only [p1]; unfold permOuterStepProg
-      simp only [pure_bind, clientResult_bind]
-      split_ifs <;> simp only [clientResult_bind, StateTransitionSpec.clientResult_pure]
-    have hpa_k := htm.1 k₀ hk_lt
-    by_cases ha : act k₀ = true
-    · obtain ⟨_, ha0⟩ := hinv k₀ ha
-      obtain ⟨had2_eq, hdest_lt⟩ := heval k₀ hk_lt s htm.2.2.2 ha0
-      obtain ⟨hpe_st, _, hpe_vp⟩ := permEvalActDestProg_invariant (mode := mode) henv hk_lt (s := s)
-      dsimp only [mkPermRt] at hpe_st had2_eq
-      have hpa1 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
-          s.mem k₀ = 1 := by simpa [ha] using hpa_k
-      set m_clr := writePacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
-        s.mem k₀ 0
-      set s_clr : Memory.State := { mem := m_clr, frontier := s.frontier }
-      have htm_clr : PermTripleMem base c U V w n_max (Function.update act k₀ false) q v
-          s₀.mem s_clr.mem := by
-        refine ⟨fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun a ha_out => ?_⟩
-        · dsimp only [s_clr, m_clr]
+  unfold permOuterLoopProg
+  obtain ⟨-, hvp, -, htm', hinv', hfr'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := permOuterStepProg) (d := (prt, mode))
+    (n := n_max) (safe := fun _ _ _ => True)
+    (fun k i t => i = k ∧
+      PermTripleMem base c U V w n_max (permuteOuterLoop n_max dest k (actInit, qArr, vArr)).1
+        (permuteOuterLoop n_max dest k (actInit, qArr, vArr)).2.1
+        (permuteOuterLoop n_max dest k (actInit, qArr, vArr)).2.2 s₀.mem t.mem ∧
+      (∀ i, (permuteOuterLoop n_max dest k (actInit, qArr, vArr)).1 i = true →
+        i < n_max ∧ act₀ i = true) ∧
+      t.frontier = s₁.frontier)
+    (fun k₀ hk_lt a s ⟨ha, htm, hinv, hfr⟩ => by
+      subst a
+      set cur := permuteOuterLoop n_max dest k₀ (actInit, qArr, vArr)
+      rcases hcur : cur with ⟨act, q, v⟩
+      rw [hcur] at htm hinv
+      set p1 := permOuterStepProg ((prt, mode), k₀)
+      have hr1 : (Memory.spec 0).clientResult s p1 = k₀ + 1 := by
+        dsimp only [p1]; unfold permOuterStepProg
+        simp only [pure_bind, clientResult_bind]
+        split_ifs <;> simp only [clientResult_bind, StateTransitionSpec.clientResult_pure]
+      have hpa_k := htm.1 k₀ hk_lt
+      by_cases ha : act k₀ = true
+      · obtain ⟨_, ha0⟩ := hinv k₀ ha
+        obtain ⟨had2_eq, hdest_lt⟩ := heval k₀ hk_lt s htm.2.2.2 ha0
+        obtain ⟨hpe_st, _, hpe_vp⟩ :=
+          permEvalActDestProg_invariant (mode := mode) henv hk_lt (s := s)
+        dsimp only [mkPermRt] at hpe_st had2_eq
+        have hpa1 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+            s.mem k₀ = 1 := by simpa [ha] using hpa_k
+        set m_clr := writePacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+          s.mem k₀ 0
+        set s_clr : Memory.State := { mem := m_clr, frontier := s.frontier }
+        have htm_clr : PermTripleMem base c U V w n_max (Function.update act k₀ false) q v
+            s₀.mem s_clr.mem := by
+          refine ⟨fun i hi => ?_, fun i hi => ?_, fun i hi => ?_, fun a ha_out => ?_⟩
+          · dsimp only [s_clr, m_clr]
+            by_cases heq : i = k₀
+            · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ h0_lt]
+            · rw [readPacked_writePacked_of_ne hw s.mem heq, Function.update_of_ne heq,
+                htm.1 i hi]
+          · dsimp only [s_clr, m_clr]
+            rw [readPacked_writePacked_disjoint hw hi hk_lt (Or.inl (by omega))]
+            exact htm.2.1 i hi
+          · dsimp only [s_clr, m_clr]
+            rw [readPacked_writePacked_disjoint hw hi hk_lt (Or.inl (by omega))]
+            exact htm.2.2.1 i hi
+          · dsimp only [s_clr, m_clr]
+            rw [writePacked_outside hw _ hk_lt _ (by omega)]
+            exact htm.2.2.2 a ha_out
+        have hinv_clr : ∀ i, Function.update act k₀ false i = true →
+            i < n_max ∧ act₀ i = true := by
+          intro i hi
           by_cases heq : i = k₀
-          · subst heq; simp [readPacked_writePacked_self _ _ _ _ _ h0_lt]
-          · rw [readPacked_writePacked_of_ne hw s.mem heq, Function.update_of_ne heq, htm.1 i hi]
-        · dsimp only [s_clr, m_clr]
-          rw [readPacked_writePacked_disjoint hw hi hk_lt (Or.inl (by omega))]
-          exact htm.2.1 i hi
-        · dsimp only [s_clr, m_clr]
-          rw [readPacked_writePacked_disjoint hw hi hk_lt (Or.inl (by omega))]
-          exact htm.2.2.1 i hi
-        · dsimp only [s_clr, m_clr]
-          rw [writePacked_outside hw _ hk_lt _ (by omega)]
-          exact htm.2.2.2 a ha_out
-      have hinv_clr : ∀ i, Function.update act k₀ false i = true →
-          i < n_max ∧ act₀ i = true := by
-        intro i hi
-        by_cases heq : i = k₀
-        · subst heq; simp at hi
-        · rw [Function.update_of_ne heq] at hi; exact hinv i hi
-      obtain ⟨htm_in, hinv_in, hf_in⟩ := permInnerLoop_spec (mode := mode) henv heval n_max
-        (true, dest k₀, q k₀, v k₀, Function.update act k₀ false, q, v) s_clr
-        htm_clr hinv_clr hdest_lt (htm.2.1 k₀ hk_lt).2 (htm.2.2.1 k₀ hk_lt).2
-      have hvp_in := (permInnerLoop_safe_and_valid (mode := mode) henv n_max
-        ((1, dest k₀), (q k₀, v k₀)) s_clr hdest_lt).2.2
-      set s_in := (Memory.spec 0).clientState s_clr
-        (permInnerLoopProg (((prt, mode), ((1, dest k₀), (q k₀, v k₀))), n_max))
-      have hs1 : (Memory.spec 0).clientState s p1 = s_in := by
+          · subst heq; simp at hi
+          · rw [Function.update_of_ne heq] at hi; exact hinv i hi
+        obtain ⟨⟨htm_in, hinv_in, -⟩, hf_in⟩ := permInnerLoop_spec (mode := mode) henv heval n_max
+          (true, dest k₀, q k₀, v k₀, Function.update act k₀ false, q, v) s_clr
+          ⟨htm_clr, hinv_clr, hdest_lt, (htm.2.1 k₀ hk_lt).2, (htm.2.2.1 k₀ hk_lt).2⟩
+        have hvp_in := (permInnerLoop_safe_and_valid (mode := mode) henv n_max
+          ((1, dest k₀), (q k₀, v k₀)) s_clr hdest_lt).2.2
+        set s_in := (Memory.spec 0).clientState s_clr
+          (permInnerLoopProg (((prt, mode), ((1, dest k₀), (q k₀, v k₀))), n_max))
+        have hs1 : (Memory.spec 0).clientState s p1 = s_in := by
+          dsimp only [p1]; unfold permOuterStepProg
+          dsimp only [prt, mkPermRt, prBase, prW, prNMax, prQuotBits, prValBits, prPermActBits,
+            prOffQuot, prOffVal, prOffPermAct]
+          simp only [pure_bind]
+          rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
+          simp only [hpa1, ↓reduceIte]
+          rw [clientState_bind, hpe_st, had2_eq,
+            clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
+            clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
+            (htm.2.1 k₀ hk_lt).1, (htm.2.2.1 k₀ hk_lt).1,
+            clientState_bind, clientState_bind]
+          rfl
+        have hstep_cur : permuteOuterLoop n_max dest (k₀ + 1) (actInit, qArr, vArr) =
+            (let (_, _, _, _, act', q', v') :=
+               permuteInnerLoop dest n_max
+                 (true, dest k₀, q k₀, v k₀, Function.update act k₀ false, q, v)
+             (act', q', v')) := by
+          change permuteOuterStep n_max dest k₀ cur = _
+          rw [hcur]
+          simp [permuteOuterStep, ha]
+        refine ⟨trivial, ?_, ?_⟩
+        · dsimp only [p1]; unfold permOuterStepProg
+          dsimp only [prt, mkPermRt, prBase, prW, prNMax, prQuotBits, prValBits, prPermActBits,
+            prOffQuot, prOffVal, prOffPermAct]
+          simp only [pure_bind]
+          refine validProg_bind (validProg_readPacked hw hk_lt hpa_b) ?_
+          rw [clientState_readPackedGen, clientResult_readPackedGen]
+          simp only [hpa1, ↓reduceIte]
+          dsimp only [mkPermRt] at hpe_vp hvp_in
+          refine validProg_bind hpe_vp ?_
+          rw [hpe_st, had2_eq]
+          refine validProg_bind (validProg_readPacked hw hk_lt hq_b) ?_
+          rw [clientState_readPackedGen, clientResult_readPackedGen, (htm.2.1 k₀ hk_lt).1]
+          refine validProg_bind (validProg_readPacked hw hk_lt hv_b) ?_
+          rw [clientState_readPackedGen, clientResult_readPackedGen, (htm.2.2.1 k₀ hk_lt).1]
+          refine validProg_bind (validProg_writePacked hw hpa_w hk_lt hpa_b) ?_
+          exact validProg_bind hvp_in (validProg_pure _)
+        rw [hs1, hr1, hstep_cur]
+        exact ⟨rfl, htm_in, hinv_in, hf_in.trans hfr⟩
+      · have haf : act k₀ = false := by revert ha; cases act k₀ <;> simp
+        have hpa0 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
+            s.mem k₀ = 0 := by simpa [haf] using hpa_k
+        have hstep_cur : permuteOuterLoop n_max dest (k₀ + 1) (actInit, qArr, vArr) =
+            (act, q, v) := by
+          change permuteOuterStep n_max dest k₀ cur = _
+          rw [hcur]
+          simp [permuteOuterStep, haf]
         dsimp only [p1]; unfold permOuterStepProg
         dsimp only [prt, mkPermRt, prBase, prW, prNMax, prQuotBits, prValBits, prPermActBits,
           prOffQuot, prOffVal, prOffPermAct]
         simp only [pure_bind]
-        rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
-        simp only [hpa1, ↓reduceIte]
-        rw [clientState_bind, hpe_st, had2_eq,
-          clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
-          clientState_bind, clientState_readPackedGen, clientResult_readPackedGen,
-          (htm.2.1 k₀ hk_lt).1, (htm.2.2.1 k₀ hk_lt).1,
-          clientState_bind, clientState_bind]
-        rfl
-      have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-        dsimp only [p1]; unfold permOuterStepProg
-        dsimp only [prt, mkPermRt, prBase, prW, prNMax, prQuotBits, prValBits, prPermActBits,
-          prOffQuot, prOffVal, prOffPermAct]
-        simp only [pure_bind]
-        refine validProg_bind (validProg_readPacked hw hk_lt hpa_b) ?_
-        rw [clientState_readPackedGen, clientResult_readPackedGen]
-        simp only [hpa1, ↓reduceIte]
-        dsimp only [mkPermRt] at hpe_vp hvp_in
-        refine validProg_bind hpe_vp ?_
-        rw [hpe_st, had2_eq]
-        refine validProg_bind (validProg_readPacked hw hk_lt hq_b) ?_
-        rw [clientState_readPackedGen, clientResult_readPackedGen, (htm.2.1 k₀ hk_lt).1]
-        refine validProg_bind (validProg_readPacked hw hk_lt hv_b) ?_
-        rw [clientState_readPackedGen, clientResult_readPackedGen, (htm.2.2.1 k₀ hk_lt).1]
-        refine validProg_bind (validProg_writePacked hw hpa_w hk_lt hpa_b) ?_
-        exact validProg_bind hvp_in (validProg_pure _)
-      have hstep_cur : permuteOuterLoop n_max dest (k₀ + 1) (actInit, qArr, vArr) =
-          (let (_, _, _, _, act', q', v') :=
-             permuteInnerLoop dest n_max
-               (true, dest k₀, q k₀, v k₀, Function.update act k₀ false, q, v)
-           (act', q', v')) := by
-        change permuteOuterStep n_max dest k₀ cur = _
-        rw [hcur]
-        simp [permuteOuterStep, ha]
-      obtain ⟨htm_r, hinv_r, hf_r, hvp_r⟩ := ih (k₀ + 1) s_in (by omega)
-        (by rw [hstep_cur]; exact htm_in)
-        (by rw [hstep_cur]; exact hinv_in)
-      unfold permOuterLoopProg at htm_r hf_r hvp_r ⊢
-      dsimp only [iterate]
-      have hst_eq : (Memory.spec 0).clientState s
-          (p1 >>= fun s' => iterate permOuterStepProg (prt, mode) rem s') =
-          (Memory.spec 0).clientState s_in
-            (iterate permOuterStepProg (prt, mode) rem (k₀ + 1)) := by
-        rw [clientState_bind, hs1, hr1]
-      have hadd : k₀ + 1 + rem = k₀ + (rem + 1) := by omega
-      rw [hadd] at htm_r hinv_r
-      refine ⟨?_, hinv_r, ?_, ?_⟩
-      · rw [hst_eq]; exact htm_r
-      · rw [hst_eq, hf_r]; exact hf_in
-      · change ValidProg _ _ s (p1 >>= _)
-        refine validProg_bind hvp1 ?_
-        rw [hs1, hr1]; exact hvp_r
-    · have haf : act k₀ = false := by revert ha; cases act k₀ <;> simp
-      have hpa0 : readPacked (base + offPermAct c U V w n_max) (12 * logLogFactor n_max + 4) w
-          s.mem k₀ = 0 := by simpa [haf] using hpa_k
-      have hs1 : (Memory.spec 0).clientState s p1 = s := by
-        dsimp only [p1]; unfold permOuterStepProg
-        dsimp only [prt, mkPermRt, prBase, prW, prNMax, prQuotBits, prValBits, prPermActBits,
-          prOffQuot, prOffVal, prOffPermAct]
-        simp only [pure_bind]
-        rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen]
+        refine ⟨trivial, validProg_bind (validProg_readPacked hw hk_lt hpa_b) ?_, ?_⟩
+        · rw [clientState_readPackedGen, clientResult_readPackedGen]
+          simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
+          exact validProg_pure _
+        rw [clientState_bind, clientResult_bind, clientState_readPackedGen,
+          clientResult_readPackedGen, hstep_cur]
         simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
-        rfl
-      have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-        dsimp only [p1]; unfold permOuterStepProg
-        dsimp only [prt, mkPermRt, prBase, prW, prNMax, prQuotBits, prValBits, prPermActBits,
-          prOffQuot, prOffVal, prOffPermAct]
-        simp only [pure_bind]
-        refine validProg_bind (validProg_readPacked hw hk_lt hpa_b) ?_
-        rw [clientState_readPackedGen, clientResult_readPackedGen]
-        simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
-        exact validProg_pure _
-      have hstep_cur : permuteOuterLoop n_max dest (k₀ + 1) (actInit, qArr, vArr) =
-          (act, q, v) := by
-        change permuteOuterStep n_max dest k₀ cur = _
-        rw [hcur]
-        simp [permuteOuterStep, haf]
-      obtain ⟨htm_r, hinv_r, hf_r, hvp_r⟩ := ih (k₀ + 1) s (by omega)
-        (by rw [hstep_cur]; exact htm)
-        (by rw [hstep_cur]; exact hinv)
-      unfold permOuterLoopProg at htm_r hf_r hvp_r ⊢
-      dsimp only [iterate]
-      have hst_eq : (Memory.spec 0).clientState s
-          (p1 >>= fun s' => iterate permOuterStepProg (prt, mode) rem s') =
-          (Memory.spec 0).clientState s
-            (iterate permOuterStepProg (prt, mode) rem (k₀ + 1)) := by
-        rw [clientState_bind, hs1, hr1]
-      have hadd : k₀ + 1 + rem = k₀ + (rem + 1) := by omega
-      rw [hadd] at htm_r hinv_r
-      refine ⟨?_, hinv_r, ?_, ?_⟩
-      · rw [hst_eq]; exact htm_r
-      · rw [hst_eq, hf_r]
-      · change ValidProg _ _ s (p1 >>= _)
-        refine validProg_bind hvp1 ?_
-        rw [hs1, hr1]; exact hvp_r
+        exact ⟨rfl, htm, hinv, hfr⟩)
+    ⟨rfl, htm₁, hinv₁, rfl⟩
+  exact ⟨htm', hinv', hfr', hvp⟩
 
 /-- Exact memory specification of `permuteByTargetProg`: rearranges `offQuotWhp` and `offValWhp`
 according to `permuteByTarget n_max dest act₀ qArr vArr` while leaving all memory words outside
@@ -2338,10 +2093,7 @@ theorem permuteByTargetProg_spec {c U V w n_max base mode : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   set prt := mkPermRt c U V w n_max base
   obtain ⟨hia_a, hia_q, hia_v, hia_o, hia_f, hia_vp⟩ := permInitActLoop_spec (mode := mode) henv
-    hq hv (fun x hx s' hout => (heval x hx s' hout).1) n_max 0 s (by omega)
-    (fun _ h => absurd h (Nat.not_lt_zero _))
-    (fun i hi => (hq i hi).1) (fun i hi => (hv i hi).1) (fun _ _ => rfl)
-  rw [Nat.zero_add] at hia_a
+    hq hv (fun x hx s' hout => (heval x hx s' hout).1)
   set s1 := (Memory.spec 0).clientState s (permInitActLoopProg (((prt, mode), 0), n_max))
   let actInit : ℕ → Bool := fun i => decide (i < n_max) && act₀ i
   have htm1 : PermTripleMem base c U V w n_max actInit qArr vArr s.mem s1.mem := by
@@ -2355,9 +2107,7 @@ theorem permuteByTargetProg_spec {c U V w n_max base mode : ℕ}
     dsimp only [actInit] at hi
     simpa only [Bool.and_eq_true, decide_eq_true_eq] using hi
   obtain ⟨hol_tm, _, hol_f, hol_vp⟩ := permOuterLoop_spec (mode := mode) (qArr := qArr)
-    (vArr := vArr) henv (fun x hx s' hout ha0 => (heval x hx s' hout).2 ha0)
-    n_max 0 s1 (by omega) htm1 hinv1
-  rw [Nat.zero_add] at hol_tm
+    (vArr := vArr) henv (fun x hx s' hout ha0 => (heval x hx s' hout).2 ha0) s1 htm1 hinv1
   set s2 := (Memory.spec 0).clientState s1 (permOuterLoopProg (((prt, mode), 0), n_max))
   have hst_eq : (Memory.spec 0).clientState s (permuteByTargetProg (prt, mode)) = s2 := by
     unfold permuteByTargetProg
@@ -2466,24 +2216,15 @@ private theorem fbPrefixLoop_safe {c U V w n_max base : ℕ}
     ∀ rem b₀ acc (s : Memory.State),
       b₀ + rem ≤ numBucketsWhp n_max →
       iterationSafe fbPrefixStepProg FbPrefixStepPre w prt rem (b₀, acc) s := by
-  intro prt rem
-  induction rem with
-  | zero => intro _ _ _ _; exact trivial
-  | succ rem ih =>
-    intro b₀ acc s hle
-    have hb_lt : b₀ < numBucketsWhp n_max := by omega
-    have hpre : FbPrefixStepPre w (prt, (b₀, acc)) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hb_lt⟩
-    have hr1 : ((Memory.spec 0).clientResult s (fbPrefixStepProg (prt, (b₀, acc)))).1 = b₀ + 1 := by
-      unfold fbPrefixStepProg
-      simp only [pure_bind, clientResult_bind]
-      split_ifs <;> simp only [clientResult_bind, StateTransitionSpec.clientResult_pure]
-    refine ⟨hpre, ?_⟩
-    rw [clientState_width, clientResult_width]
-    set res := (Memory.spec 0).clientResult s (fbPrefixStepProg (prt, (b₀, acc)))
-    have hres_eta : res = (b₀ + 1, res.2) := Prod.ext hr1 rfl
-    rw [hres_eta]
-    exact ih (b₀ + 1) res.2 _ (by omega)
+  intro prt rem b₀ acc s hle
+  refine iterationSafe_of_stepInv _ _ _ _ (fun j p _ => p.1 + j ≤ numBucketsWhp n_max)
+    (fun j p t (h : p.1 + (j + 1) ≤ _) => ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩,
+      show p.1 < numBucketsWhp n_max by omega⟩, ?_⟩) hle
+  show _ + j ≤ _
+  obtain ⟨b, acc⟩ := p
+  unfold fbPrefixStepProg
+  simp only [pure_bind, clientResult_bind]
+  split_ifs <;> simp only [clientResult_bind, StateTransitionSpec.clientResult_pure] <;> omega
 
 /-- Convert `FastMemRep` in place to `CsrMemRep` (`d = (cp, base)`). -/
 @[irreducible] def fastToCsrGenProg (d : WhpCoreParams × ℕ) : Memory.Prog Unit := do
@@ -2533,21 +2274,19 @@ private theorem fbPrefixLoop_spec {c U V w n_max base : ℕ} {bktCount : ℕ →
     let M := numBucketsWhp n_max
     let fb := buildFbStart M bktCount
     let prt := mkPermRt c U V w n_max base
-    ∀ rem b₀ (s : Memory.State),
-      b₀ + rem ≤ M →
-      (∀ x ≤ b₀,
-        readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem x = fb x) →
+    ∀ s : Memory.State,
+      readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem 0 = fb 0 →
       (∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
         s.mem a = s₀.mem a) →
-      let prog := fbPrefixLoopProg ((prt, (b₀, fb b₀)), rem)
+      let prog := fbPrefixLoopProg ((prt, (0, fb 0)), M)
       let s' := (Memory.spec 0).clientState s prog
-      (∀ x ≤ b₀ + rem,
+      (∀ x ≤ M,
         readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s'.mem x = fb x) ∧
       (∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
         s'.mem a = s₀.mem a) ∧
       s'.frontier = s.frontier ∧
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  intro M fb prt rem
+  intro M fb prt s hfb hout
   have hw := henv.2.1
   obtain ⟨_, _, h16M, _, _, _, _, _, hg_w⟩ := perm_bounds henv
   have hseg := WhpLargeEnv.seg_end_le c U V w n_max
@@ -2561,99 +2300,59 @@ private theorem fbPrefixLoop_spec {c U V w n_max base : ℕ} {bktCount : ℕ →
       packedWords (16 * M) (globalPtrBits n_max) w = offFbStart c U V w n_max := rfl
   have hfb_end : offFbStart c U V w n_max +
       packedWords (M + 1) (globalPtrBits n_max) w = offBackPtr c U V w n_max := rfl
-  induction rem with
-  | zero =>
-    intro b₀ s _ hfb hout
-    unfold fbPrefixLoopProg iterate
-    have hs' : (Memory.spec 0).clientState s (pure (b₀, fb b₀)) = s := rfl
-    dsimp only
-    rw [hs']
-    exact ⟨hfb, hout, rfl, validProg_pure _⟩
-  | succ rem ih =>
-    intro b₀ s hle hfb hout
-    have hb_lt : b₀ < M := by omega
-    have hfb_next_eq : fb (b₀ + 1) = fb b₀ + bktCount b₀ := by
-      dsimp only [fb, buildFbStart]
-      simp [hb_lt]
-    have hfb1_le : fb (b₀ + 1) ≤ n_max := hsum_le (b₀ + 1) hb_lt
-    have hfb1_pow : fb (b₀ + 1) < 2 ^ globalPtrBits n_max :=
-      lt_two_pow_globalPtrBits_of_le_n_max hfb1_le
-    have hcnt_s : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem
-        (16 * b₀) = bktCount b₀ := by
-      rw [readPacked_congr hw (hidx := show 16 * b₀ < 16 * M by omega)
-        (fun a ⟨ha1, ha2⟩ => hout a (Or.inl (by omega)))]
-      exact hbm b₀ hb_lt
-    have hacc1_eq :
-        (if fb b₀ < n_max then
-           if n_max - fb b₀ < bktCount b₀ then n_max else fb b₀ + bktCount b₀
-         else n_max) = fb (b₀ + 1) := by
-      split_ifs <;> omega
-    set p1 := fbPrefixStepProg (prt, (b₀, fb b₀))
-    set m1 := writePacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem
-      (b₀ + 1) (fb (b₀ + 1))
-    have hs1 : (Memory.spec 0).clientState s p1 = { mem := m1, frontier := s.frontier } := by
-      dsimp only [p1]; unfold fbPrefixStepProg
-      dsimp only [prt, mkPermRt, prBase, prW, prNMax, prGBits, prOffBktMeta, prOffFbStart]
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen, hcnt_s]
+  unfold fbPrefixLoopProg
+  obtain ⟨-, hvp, -, hfb', hout', hfr⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := fbPrefixStepProg) (d := prt) (n := M)
+    (safe := fun _ _ _ => True)
+    (fun k p t => p = (k, fb k) ∧
+      (∀ x ≤ k, readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem x =
+        fb x) ∧
+      (∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
+        t.mem a = s₀.mem a) ∧
+      t.frontier = s.frontier)
+    (fun b₀ hb_lt _ t ⟨hp, hfb, hout, hfr⟩ => by
+      subst hp
+      have hfb_next_eq : fb (b₀ + 1) = fb b₀ + bktCount b₀ := by
+        dsimp only [fb, buildFbStart]
+        simp [hb_lt]
+      have hfb1_le : fb (b₀ + 1) ≤ n_max := hsum_le (b₀ + 1) hb_lt
       have hle : fb b₀ + bktCount b₀ ≤ n_max := hfb_next_eq ▸ hfb1_le
-      split_ifs with h1 h2
-      · exfalso; omega
-      · dsimp only [m1]
-        rw [clientState_bind, clientState_writePackedGen, clientState_pure_whp, hfb_next_eq]
-      · dsimp only [m1]
-        have heq_n : fb (b₀ + 1) = n_max := by omega
-        rw [clientState_bind, clientState_writePackedGen, clientState_pure_whp, heq_n]
-    have hr1 : (Memory.spec 0).clientResult s p1 = (b₀ + 1, fb (b₀ + 1)) := by
-      dsimp only [p1]; unfold fbPrefixStepProg
+      have hcnt_s : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w t.mem
+          (16 * b₀) = bktCount b₀ := by
+        rw [readPacked_congr hw (hidx := show 16 * b₀ < 16 * M by omega)
+          (fun a ⟨ha1, ha2⟩ => hout a (Or.inl (by omega)))]
+        exact hbm b₀ hb_lt
+      have hfb1 : ∀ v, v = fb (b₀ + 1) → ∀ x ≤ b₀ + 1,
+          readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w
+            (writePacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem
+              (b₀ + 1) v) x = fb x := by
+        rintro v rfl x hx
+        by_cases heq : x = b₀ + 1
+        · subst heq
+          exact readPacked_writePacked_self _ _ _ _ _
+            (lt_two_pow_globalPtrBits_of_le_n_max hfb1_le)
+        · rw [readPacked_writePacked_of_ne hw t.mem heq (fb (b₀ + 1))]
+          exact hfb x (by omega)
+      have hout1 : ∀ v a,
+          (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
+          writePacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem
+            (b₀ + 1) v a = s₀.mem a := fun v a ha => by
+        rw [writePacked_outside hw _ (by omega : b₀ + 1 < M + 1) _ (by omega)]
+        exact hout a ha
+      unfold fbPrefixStepProg
       dsimp only [prt, mkPermRt, prBase, prW, prNMax, prGBits, prOffBktMeta, prOffFbStart]
       simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen, hcnt_s]
-      have hle : fb b₀ + bktCount b₀ ≤ n_max := hfb_next_eq ▸ hfb1_le
-      split_ifs with h1 h2
-      · exfalso; omega
-      · rw [clientResult_bind, clientResult_pure_whp, hfb_next_eq]
-      · have heq_n : fb (b₀ + 1) = n_max := by omega
-        rw [clientResult_bind, clientResult_pure_whp, heq_n]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold fbPrefixStepProg
-      dsimp only [prt, mkPermRt, prBase, prW, prNMax, prGBits, prOffBktMeta, prOffFbStart]
-      simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw (by omega) hbm_b) ?_
-      rw [clientState_readPackedGen, clientResult_readPackedGen, hcnt_s]
-      split_ifs <;>
-        exact validProg_bind (validProg_writePacked hw hg_w (by omega) hfb_b)
-          (validProg_pure _)
-    set s1 : Memory.State := { mem := m1, frontier := s.frontier }
-    have hfb1 : ∀ x ≤ b₀ + 1,
-        readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s1.mem x = fb x := by
-      intro x hx
-      dsimp only [s1, m1]
-      by_cases heq : x = b₀ + 1
-      · subst heq; exact readPacked_writePacked_self _ _ _ _ _ hfb1_pow
-      · rw [readPacked_writePacked_of_ne hw s.mem heq (fb (b₀ + 1))]
-        exact hfb x (by omega)
-    have hout1 : ∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
-        s1.mem a = s₀.mem a := by
-      intro a ha
-      dsimp only [s1, m1]
-      rw [writePacked_outside hw _ (by omega : b₀ + 1 < M + 1) _ (by omega)]
-      exact hout a ha
-    obtain ⟨hfb_r, ho_r, hf_r, hvp_r⟩ := ih (b₀ + 1) s1 (by omega) hfb1 hout1
-    unfold fbPrefixLoopProg at hfb_r ho_r hf_r hvp_r ⊢
-    dsimp only [iterate]
-    have hst_eq : (Memory.spec 0).clientState s
-        (p1 >>= fun s' => iterate fbPrefixStepProg prt rem s') =
-        (Memory.spec 0).clientState s1
-          (iterate fbPrefixStepProg prt rem (b₀ + 1, fb (b₀ + 1))) := by
-      rw [clientState_bind, hs1, hr1]
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · intro x hx; rw [hst_eq]; exact hfb_r x (by omega)
-    · intro a ha; rw [hst_eq]; exact ho_r a ha
-    · rw [hst_eq, hf_r]
-    · change ValidProg _ _ s (p1 >>= _)
-      refine validProg_bind hvp1 ?_
-      rw [hs1, hr1]; exact hvp_r
+      refine ⟨trivial, validProg_bind (validProg_readPacked hw (by omega) hbm_b) ?_, ?_⟩
+      · rw [clientState_readPackedGen, clientResult_readPackedGen, hcnt_s]
+        split_ifs <;>
+          exact validProg_bind (validProg_writePacked hw hg_w (by omega) hfb_b) (validProg_pure _)
+      · rw [clientState_bind, clientResult_bind, clientState_readPackedGen,
+          clientResult_readPackedGen, hcnt_s]
+        split_ifs <;>
+          simp only [clientResult_bind, clientResult_pure_whp] <;>
+          refine ⟨Prod.ext rfl ?_, hfb1 _ ?_, hout1 _, hfr⟩ <;> omega)
+    ⟨rfl, fun x hx => by rwa [Nat.le_zero.1 hx], hout, rfl⟩
+  exact ⟨hfb', hout', hfr, hvp⟩
 
 /-- Exact specification of `fastToCsrGenProg`: converts any valid `FastMemRep` into `CsrMemRep` for
 `fastToCsr n_max fs` while preserving `SeedWhpMemRep` and leaving memory outside
@@ -2712,12 +2411,8 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
   have hdisj := perm_seg_disjoint c U V w n_max
   set m0 := writePacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem 0 0
   set s0 : Memory.State := { mem := m0, frontier := s.frontier }
-  have hfb0 : ∀ x ≤ 0,
-      readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s0.mem x = fb x := by
-    intro x hx
-    have hx0 : x = 0 := by omega
-    subst hx0
-    exact readPacked_writePacked_self _ _ _ _ _ (Nat.two_pow_pos _)
+  have hfb0 : readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s0.mem 0 =
+      fb 0 := readPacked_writePacked_self _ _ _ _ _ (Nat.two_pow_pos _)
   have hout0 : ∀ a, (a < base + offFbStart c U V w n_max ∨ base + offBackPtr c U V w n_max ≤ a) →
       s0.mem a = s.mem a := by
     intro a ha
@@ -2729,8 +2424,7 @@ theorem fastToCsrGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max
         fs.bktCount b := fun b hb => by
     simpa only [Nat.add_zero] using (hrep.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1 b hb).1
   obtain ⟨hfb_all, hout_fb, hf_fb, hvp_fb⟩ :=
-    fbPrefixLoop_spec henv hbm_rep hfb_le_n M 0 s0 (by omega) hfb0 hout0
-  rw [Nat.zero_add] at hfb_all
+    fbPrefixLoop_spec henv hbm_rep hfb_le_n s0 hfb0 hout0
   set s_fb := (Memory.spec 0).clientState s0 (fbPrefixLoopProg ((prt, (0, fb 0)), M))
   have hv_pow : ∀ p, fs.valArr p < 2 ^ valBits V := by
     intro p

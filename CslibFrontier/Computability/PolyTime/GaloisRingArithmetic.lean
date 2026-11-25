@@ -464,11 +464,6 @@ theorem computableInPolyTime_tabulate {n : α → ℕ} {g : α → ℕ → ℕ}
     ComputableInPolyTime (fun x => (List.range (n x)).map (g x)) encIn (encList encNat) :=
   ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hn) hg
 
-private theorem length_polyTime {fl : α → List ℕ}
-    (hfl : ComputableInPolyTime fl encIn (encList encNat)) :
-    ComputableInPolyTime (fun x => (fl x).length) encIn encUnary :=
-  (ComputableInPolyTime.length_list encNat).comp hfl
-
 /-- **Addition is polynomial-time**, with the precision in unary. -/
 @[fun_prop]
 theorem computableInPolyTime_add {p : α → ℕ} {fl c d : α → List ℕ}
@@ -479,7 +474,7 @@ theorem computableInPolyTime_add {p : α → ℕ} {fl c d : α → List ℕ}
     ComputableInPolyTime (fun x => add (p x) (fl x) (c x) (d x)) encIn (encList encNat) := by
   have h1 := ComputableInPolyTime.fst encIn encUnary
   have h2 := ComputableInPolyTime.snd encIn encUnary
-  exact computableInPolyTime_tabulate (length_polyTime hfl)
+  exact computableInPolyTime_tabulate hfl.length_list'
     (computableInPolyTime_mod_two_pow (ComputableInPolyTime.binary_add.comp
       ((computableInPolyTime_getD (hc.comp h1) h2).prod
         (computableInPolyTime_getD (hd.comp h1) h2))) (hp.comp h1))
@@ -496,7 +491,7 @@ theorem computableInPolyTime_addSmul {p k : α → ℕ} {fl c d : α → List �
       (encList encNat) := by
   have h1 := ComputableInPolyTime.fst encIn encUnary
   have h2 := ComputableInPolyTime.snd encIn encUnary
-  exact computableInPolyTime_tabulate (length_polyTime hfl)
+  exact computableInPolyTime_tabulate hfl.length_list'
     (computableInPolyTime_mod_two_pow (ComputableInPolyTime.binary_add.comp
       ((computableInPolyTime_getD (hc.comp h1) h2).prod
         (ComputableInPolyTime.binary_mul' (hk.comp h1)
@@ -514,12 +509,12 @@ theorem computableInPolyTime_mulX {p : α → ℕ} {fl c : α → List ℕ}
   have hshift := computableInPolyTime_getD
     (ComputableInPolyTime.cons' (ComputableInPolyTime.const 0) (hc.comp h1)) h2
   have htop := computableInPolyTime_getD (hc.comp h1)
-    (ComputableInPolyTime.unary_sub' (length_polyTime (hfl.comp h1))
+    (ComputableInPolyTime.unary_sub' (hfl.comp h1).length_list'
       (ComputableInPolyTime.const 1))
   have hsub := computableInPolyTime_mod_two_pow
     (ComputableInPolyTime.binary_mul' htop (computableInPolyTime_getD (hfl.comp h1) h2))
     (hp.comp h1)
-  exact computableInPolyTime_tabulate (length_polyTime hfl)
+  exact computableInPolyTime_tabulate hfl.length_list'
     (computableInPolyTime_mod_two_pow (ComputableInPolyTime.binary_add.comp (hshift.prod
       (ComputableInPolyTime.binary_sub' (ComputableInPolyTime.binary_two_pow.comp (hp.comp h1))
         hsub))) (hp.comp h1))
@@ -547,7 +542,7 @@ theorem computableInPolyTime_one {fl : α → List ℕ}
     ComputableInPolyTime (fun x => one (fl x)) encIn (encList encNat) := by
   have h2 := ComputableInPolyTime.snd encIn encUnary
   refine computableInPolyTime_tabulate (g := fun _ i => if i = 0 then 1 else 0)
-    (length_polyTime hfl) ?_
+    hfl.length_list' ?_
   refine (ComputableInPolyTime.ite (encMid := encNat) (c := fun q : α × ℕ => q.2 == 0)
     ((ComputableInPolyTime.beq (h2) (ComputableInPolyTime.const 0)))
     (ComputableInPolyTime.const 1) (ComputableInPolyTime.const 0)).of_enc_eq fun q => ?_
@@ -579,11 +574,11 @@ theorem computableInPolyTime_mul {p : α → ℕ} {fl c d : α → List ℕ}
     ComputableInPolyTime (fun x => mul (p x) (fl x) (c x) (d x)) encIn (encList encNat) := by
   let encS := encPair (encList encNat) (encList encNat)
   have hinit : ComputableInPolyTime (fun x => (d x, zero (fl x))) encIn encS :=
-    hd.prod (computableInPolyTime_tabulate (g := fun _ _ => 0) (length_polyTime hfl)
+    hd.prod (computableInPolyTime_tabulate (g := fun _ _ => 0) hfl.length_list'
       (ComputableInPolyTime.const 0))
   have hrange : ComputableInPolyTime (fun x => List.range (fl x).length) encIn
       (encList encUnary) :=
-    ComputableInPolyTime.range.comp (length_polyTime hfl)
+    ComputableInPolyTime.range.comp hfl.length_list'
   -- The step, on the input, the state and the unary index.
   have hstep : ComputableInPolyTime
       (fun q : (α × (List ℕ × List ℕ)) × ℕ => mulStep (p q.1.1) (fl q.1.1) (c q.1.1) q.1.2 q.2)
@@ -643,7 +638,7 @@ theorem computableInPolyTime_neg {p : α → ℕ} {fl c : α → List ℕ}
     ComputableInPolyTime (fun x => neg (p x) (fl x) (c x)) encIn (encList encNat) := by
   have h1 := ComputableInPolyTime.fst encIn encUnary
   have h2 := ComputableInPolyTime.snd encIn encUnary
-  exact computableInPolyTime_tabulate (length_polyTime hfl)
+  exact computableInPolyTime_tabulate hfl.length_list'
     (computableInPolyTime_mod_two_pow (ComputableInPolyTime.binary_sub'
       (ComputableInPolyTime.binary_two_pow.comp (hp.comp h1))
       (computableInPolyTime_mod_two_pow (computableInPolyTime_getD (hc.comp h1) h2)
@@ -693,7 +688,7 @@ theorem computableInPolyTime_seed {p : α → ℕ} {fl x : α → List ℕ}
     (encA := encUnary) (encL := encList encUnary)
     (step := fun a s _ => seedStep (p a) (fl a) s)
     (hx.prod (computableInPolyTime_one hfl))
-    ⟨ComputableInPolyTime.range.comp (ComputableInPolyTime.unary_sub' (length_polyTime hfl)
+    ⟨ComputableInPolyTime.range.comp (ComputableInPolyTime.unary_sub' hfl.length_list'
       (ComputableInPolyTime.const 1)), hstep, inferInstance, inferInstance⟩
     ⟨polyBounded_reduced hp hfl, fun a s _ _ => ?_⟩
   · exact (ComputableInPolyTime.snd (encList encNat) (encList encNat)).comp hfold

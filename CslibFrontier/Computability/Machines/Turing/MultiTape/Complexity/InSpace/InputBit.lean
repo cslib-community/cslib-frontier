@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ListOption
 
 /-!
 # Reading the input at a stored position
@@ -29,9 +30,6 @@ public section
 
 namespace Turing.MultiTapeTM
 
-private theorem length_encOption_bool_le (o : Option Bool) : (encOption encBool o).length ≤ 2 := by
-  cases o <;> simp
-
 /-- **Reading the input at a stored position.** The bit of the encoded input `a` at the position
 `i`, `none` past its end, as a function of the stored binary index and the input, within the
 binary length of the index plus the logarithm of the length of the input. The index is the first
@@ -44,6 +42,6 @@ theorem ComputableInSpace.inputBit {α : Type} (encA : α ↪ List Bool) :
     ((ComputableInLogSpace.of_eq (encMid := encBits) fun _ => rfl).comp'
       (ComputableInLogSpace.snd encNat encA))
     (ComputableInLogSpace.fst encNat encA))).inSpace_context
-    ⟨2, fun _ => (length_encOption_bool_le _).trans (by omega)⟩
+    ⟨2, fun _ => (length_encOption_encBool_le _).trans (by omega)⟩
 
 end Turing.MultiTapeTM

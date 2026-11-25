@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Rt
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Helpers
 import CslibFrontier.Tactic.Realize
 
@@ -92,7 +93,6 @@ private theorem bufAllocMetaRtProg_spec {c U V w n_max base ep u cur ch : ℕ} {
     let prog := bufAllocMetaRtProg ((rt, u), (cur, ch))
     let s' := (Memory.spec 0).clientState s prog
     s'.frontier = s.frontier ∧
-    memoryCost prog s = 12 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     BufEpFrame base c U V w n_max ep s.mem s'.mem ∧
     readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s'.mem (4 * u + 0) = cur ∧
@@ -109,7 +109,7 @@ private theorem bufAllocMetaRtProg_spec {c U V w n_max base ep u cur ch : ℕ} {
   have hth := henv.2.2.2.1
   have hw := henv.2.1
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
-  have hm_seg := (rt_seg_le c U V w n_max base ep hep).2.2.2.1
+  have hm_seg := (rt_seg_le c U V w n_max base ep hep).meta_le
   obtain ⟨_, _, _, _, _, hmt_lt, _, hpbc_lt⟩ := large_bounds_lt_n_max hth
   have hcur_g : cur < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max (by omega)
   have hch_g : ch < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max (by omega)
@@ -132,7 +132,7 @@ private theorem bufAllocMetaRtProg_spec {c U V w n_max base ep u cur ch : ℕ} {
               ((((brBase rt, brOffMeta rt), (brGBits rt, brW rt)), 4 * u + 2), 0)) =
       { mem := m3, frontier := s.frontier } := rfl
   rw [hs'_eq]
-  refine ⟨rfl, rfl, ?_,
+  refine ⟨rfl, ?_,
     ((bufEpFrame_writeMeta hw hep hi0).trans (bufEpFrame_writeMeta hw hep hi1)).trans
       (bufEpFrame_writeMeta hw hep hi2),
     ?_, ?_, readPacked_writePacked_self _ _ _ m2 (4 * u + 2) h0_g,
@@ -170,6 +170,12 @@ private theorem bufAllocMetaRtProg_spec {c U V w n_max base ep u cur ch : ℕ} {
   bufAllocMetaRtProg ((rt, u), (cur, ch))
   pure (u, d.2)
 
+private theorem memoryCost_bufAllocNodeRtProg (d : (BufRt × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
+    memoryCost (bufAllocNodeRtProg d) s = 18 := by
+  unfold bufAllocNodeRtProg bufAllocMetaRtProg
+  simp only [pure_bind, memoryCost_bind', memoryCost_memRead_and_write.1,
+    memoryCost_memRead_and_write.2, memoryCost_writePackedGen, memoryCost_pure]
+
 /-- Precondition for `bufAllocNodeRtProg`. -/
 private def BufAllocNodePre (w : ℕ) (d : (BufRt × (ℕ × ℕ)) × ℕ) (s : Memory.State) : Prop :=
   BufRtEnvGen w d.1.1 ∧
@@ -202,16 +208,9 @@ private theorem realizes_bufAllocNodeRt :
     have htc_n : trieChildEntriesWhp c n_max ≤ n_max :=
       (Nat.le_mul_of_pos_right _ hg_pos).trans htc_le
     have hna32 : brHdrNA (mkBufRt c U V w n_max base ep) < 32 :=
-      (rt_disj_le c U V w n_max base ep hep).1
-    have hprod_le : cur * 2 ^ bCharWhp n_max ≤ trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      exact Nat.mul_le_mul_right _ hcur.le
-    have hidx_lt : cur * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      calc cur * 2 ^ bCharWhp n_max + ch
-          < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch _
-        _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur
+      (rt_disj_le c U V w n_max base ep hep).hdrNA_lt
+    have hidx_lt : cur * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max :=
+      mul_add_lt_mul_bound hcur hch
     simp only [hcs_r, hcr_r] at *
     first
     | exact henv.fits_hdr_addr hna32
@@ -240,7 +239,6 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
     let s' := (Memory.spec 0).clientState s prog
     s'.frontier = s.frontier ∧
     (Memory.spec 0).clientResult s prog = (u, r_nxt) ∧
-    memoryCost prog s = 18 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     BufTrieMemRep base c U V w n_max ep tr1 s'.mem ∧
     BufEpFrame base c U V w n_max ep s.mem s'.mem := by
@@ -248,21 +246,10 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
   have hw := henv.2.1
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   set rt := mkBufRt c U V w n_max base ep
-  obtain ⟨hna_lt_sp, _, hc_seg, _, _⟩ :
-      base + brHdrNA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brHdrIA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffItems rt + packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max := rt_seg_le c U V w n_max base ep hep
-  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ :
-      brHdrNA rt < 32 ∧ brHdrIA rt < 32 ∧ brHdrNA rt ≠ brHdrIA rt ∧ 32 ≤ brOffChild rt ∧
-      brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffMeta rt ∧
-      brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffItems rt := rt_disj_le c U V w n_max base ep hep
+  obtain ⟨hna_lt_sp, _, hc_seg, _, _⟩ : BufRtSegLe c U V w n_max base rt :=
+      rt_seg_le c U V w n_max base ep hep
+  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ : BufRtDisj c w n_max rt :=
+      rt_disj_le c U V w n_max base ep hep
   have hmt_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.1
   set u := tr.nodeAlloc
   have hmem_na : s.mem (base + brHdrNA rt) = u := (bufTrieMemRep_iff_rt.mp hrep).2.2.1
@@ -270,12 +257,7 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
   have hu_g : u < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max (by omega)
   have hcur_max : cur < maxTrieNodesWhp c n_max := hcur.trans hu_lt
   set idxC := cur * 2 ^ bCharWhp n_max + ch
-  have hidxC : idxC < trieChildEntriesWhp c n_max := by
-    unfold trieChildEntriesWhp
-    calc cur * 2 ^ bCharWhp n_max + ch
-        < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch _
-      _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
-      _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur_max
+  have hidxC : idxC < trieChildEntriesWhp c n_max := mul_add_lt_mul_bound hcur_max hch
   set s1 : Memory.State :=
     { mem := Function.update s.mem (base + brHdrNA rt) (u + 1), frontier := s.frontier }
   set s2 : Memory.State :=
@@ -283,7 +265,7 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
       frontier := s.frontier }
   have hm_spec := bufAllocMetaRtProg_spec henv hep hu_lt hcur_max hch (s := s2)
   dsimp only at hm_spec
-  change _ ∧ _ ∧ _ ∧ _ ∧
+  change _ ∧ _ ∧ _ ∧
     readPacked (base + brOffMeta rt) _ _ _ _ = _ ∧
     readPacked (base + brOffMeta rt) _ _ _ _ = _ ∧
     readPacked (base + brOffMeta rt) _ _ _ _ = _ ∧
@@ -292,7 +274,7 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
     (∀ a, a < base + brOffMeta rt ∨
       base + brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤ a →
       _ = _) at hm_spec
-  obtain ⟨hfr3, hmc3, hvp3, hbfr3, hm0_eq, hm1_eq, hm2_eq, hm_oth, hm_out⟩ := hm_spec
+  obtain ⟨hfr3, hvp3, hbfr3, hm0_eq, hm1_eq, hm2_eq, hm_oth, hm_out⟩ := hm_spec
   set s3 := (Memory.spec 0).clientState s2 (bufAllocMetaRtProg ((rt, u), (cur, ch)))
   dsimp only
   unfold bufAllocNodeRtProg
@@ -321,19 +303,6 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
       show brBase rt = base from rfl, hmem_na, clientResult_bind,
       clientState_memWrite, clientResult_bind, clientState_writePackedGen,
       clientResult_bind, StateTransitionSpec.clientResult_pure]
-  have hmc_eq : memoryCost
-      (Memory.read (brBase rt + brHdrNA rt) >>= fun u' =>
-        Memory.write (brBase rt + brHdrNA rt) (u' + 1) >>= fun _ =>
-          writePackedGenProg
-            ((((brBase rt, brOffChild rt), (brGBits rt, brW rt)), cur * brPowBChar rt + ch), u')
-            >>= fun _ =>
-            bufAllocMetaRtProg ((rt, u'), (cur, ch)) >>= fun _ => pure (u', r_nxt)) s = 18 := by
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [clientState_memRead, clientResult_memRead, show brBase rt = base from rfl, hmem_na,
-      memoryCost_memRead_and_write.1, clientState_memWrite, memoryCost_memRead_and_write.2,
-      clientState_writePackedGen, memoryCost_writePackedGen]
-    change 1 + (1 + (4 + (memoryCost (bufAllocMetaRtProg ((rt, u), (cur, ch))) s2 + 0))) = 18
-    rw [hmc3]
   have hvp_eq : ValidProg w (base + largeSpaceWhp c U V w n_max) s
       (Memory.read (brBase rt + brHdrNA rt) >>= fun u' =>
         Memory.write (brBase rt + brHdrNA rt) (u' + 1) >>= fun _ =>
@@ -351,7 +320,7 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
   rw [hs'_eq]
   have hbfr_all : BufEpFrame base c U V w n_max ep s.mem s3.mem :=
     ((bufEpFrame_write_hdrNA hw hep).trans (bufEpFrame_writeChild hw hep hidxC)).trans hbfr3
-  refine ⟨hfr3, hres_eq, hmc_eq, hvp_eq, ?_, hbfr_all⟩
+  refine ⟨hfr3, hres_eq, hvp_eq, ?_, hbfr_all⟩
   -- Prove `BufTrieMemRep` for `tr1` on `s3.mem`
   have hs2_hdrNA : s2.mem (base + brHdrNA rt) = u + 1 := by
     dsimp only [s2, s1]
@@ -369,12 +338,8 @@ private theorem bufAllocNodeRtProg_spec {c U V w n_max base ep cur ch r_nxt : �
         (v * 2 ^ bCharWhp n_max + c') =
         Function.update tr.trieChild cur (Function.update (tr.trieChild cur) ch u) v c' := by
     intro v hv c' hc'
-    have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      calc v * 2 ^ bCharWhp n_max + c'
-          < v * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hc' _
-        _ = (v + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hv
+    have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max :=
+      mul_add_lt_mul_bound hv hc'
     have hs3_s2 : readPacked (base + brOffChild rt) (globalPtrBits n_max) w s3.mem
         (v * 2 ^ bCharWhp n_max + c') =
         readPacked (base + brOffChild rt) (globalPtrBits n_max) w s2.mem
@@ -474,6 +439,13 @@ private theorem memoryCost_bufEnsureStepProg_pos (p : BufRt × (ℕ × ℕ)) (s 
   rw [memoryCost_bind, memoryCost_readPackedGen]
   omega
 
+private theorem memoryCost_bufEnsureStepProg_le (p : BufRt × (ℕ × ℕ)) (s : Memory.State) :
+    memoryCost (bufEnsureStepProg p) s ≤ 20 := by
+  unfold bufEnsureStepProg
+  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+  rw [memoryCost_bind, memoryCost_readPackedGen]
+  split_ifs <;> simp [memoryCost_bufAllocNodeRtProg]
+
 private theorem realizes_bufEnsureStep :
     Realizes .exact bufEnsureStepProg
       (WordEncoding.encode (α := BufRt × (ℕ × ℕ)))
@@ -500,12 +472,7 @@ private theorem realizes_bufEnsureStep :
       rw [Nat.and_two_pow_sub_one_eq_mod]
       exact Nat.mod_lt _ (Nat.two_pow_pos _)
     have hidx_lt : cur * 2 ^ bCharWhp n_max + (r_cur &&& (2 ^ bCharWhp n_max - 1)) <
-        trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      calc cur * 2 ^ bCharWhp n_max + (r_cur &&& (2 ^ bCharWhp n_max - 1))
-          < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
-        _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur
+        trieChildEntriesWhp c n_max := mul_add_lt_mul_bound hcur hch_lt
     first
     | exact rt_child_safe henv hep hidx_lt
     | (dsimp only [mkBufRt, brMaxNodes, brMaskBChar, brPowBChar, brBChar, brBase, brOffChild,
@@ -557,88 +524,93 @@ theorem bufEnsureLoop_spec {c U V w n_max base ep : ℕ}
       leaf < tr1.nodeAlloc ∧
       tr1.itemAlloc = tr.itemAlloc ∧
       tr1.nodeLeafItem leaf ≤ tr1.itemAlloc := by
-  intro rt rem
+  intro rt rem tr cur r_cur s hrep halloc hna_rem hcur hchild_lt hli_ia
   have hw := henv.2.1
-  have hc_seg := (rt_seg_le c U V w n_max base ep hep).2.2.1
-  induction rem with
-  | zero =>
-    intro tr cur r_cur s hrep _ _ hcur _ hli_ia
-    exact ⟨trivial, rfl, rfl, Nat.zero_le _, validProg_pure _,
-      hrep, BufEpFrame.refl _, hcur, rfl, hli_ia cur hcur⟩
-  | succ rem ih =>
-    intro tr cur r_cur s hrep halloc hna_rem hcur hchild_lt hli_ia
-    have hu_lt : tr.nodeAlloc < maxTrieNodesWhp c n_max := by omega
-    have hcur_max : cur < maxTrieNodesWhp c n_max := hcur.trans hu_lt
-    have hmem_na : s.mem (brBase rt + brHdrNA rt) = tr.nodeAlloc := by
+  have hc_seg := (rt_seg_le c U V w n_max base ep hep).child_le
+  -- After `k` steps memory represents a trie `trk` with room for the remaining `rem - k`
+  -- allocations, and the rest of the path from `trk` ends where the whole path from `tr` does.
+  let inv : ℕ → ℕ × ℕ → Memory.State → Prop := fun k a t => ∃ trk : BufTrie,
+    BufTrieMemRep base c U V w n_max ep trk t.mem ∧ 1 ≤ trk.nodeAlloc ∧
+    trk.nodeAlloc + (rem - k) ≤ maxTrieNodesWhp c n_max ∧ a.1 < trk.nodeAlloc ∧
+    (∀ v ch, trk.trieChild v ch < trk.nodeAlloc) ∧
+    (∀ w' < trk.nodeAlloc, trk.nodeLeafItem w' ≤ trk.itemAlloc) ∧
+    trk.itemAlloc = tr.itemAlloc ∧ t.frontier = s.frontier ∧
+    BufEpFrame base c U V w n_max ep s.mem t.mem ∧
+    bufEnsurePath (bCharWhp n_max) r_cur rem 0 tr cur =
+      bufEnsurePath (bCharWhp n_max) a.2 (rem - k) 0 trk a.1
+  have hstep : ∀ k < rem, ∀ a t, inv k a t →
+      BufEnsureStepPre w (rt, a) t ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) t (bufEnsureStepProg (rt, a)) ∧
+      inv (k + 1) ((Memory.spec 0).clientResult t (bufEnsureStepProg (rt, a)))
+        ((Memory.spec 0).clientState t (bufEnsureStepProg (rt, a))) := by
+    rintro k hk ⟨cu, rc⟩ t
+      ⟨trk, hrep, halloc, hna_rem, hcu, hchild_lt, hli_ia, hia, hfr, hbfr, hpath⟩
+    dsimp only at hcu hpath
+    have hu_lt : trk.nodeAlloc < maxTrieNodesWhp c n_max := by omega
+    have hcu_max : cu < maxTrieNodesWhp c n_max := hcu.trans hu_lt
+    have hmem_na : t.mem (brBase rt + brHdrNA rt) = trk.nodeAlloc := by
       have h := hrep.2.2.1; rcases hep with rfl | rfl <;> exact h
-    have hpre : BufEnsureStepPre w (rt, (cur, r_cur)) s :=
-      ⟨⟨c, U, V, w, n_max, base, ep, henv, hep, rfl⟩, hcur_max, hmem_na ▸ hu_lt⟩
-    set ch := r_cur % 2 ^ bCharWhp n_max with hch_def
-    have hch_eq : r_cur &&& brMaskBChar rt = ch := by
-      dsimp only [rt, mkBufRt, brMaskBChar, ch]
-      exact Nat.and_two_pow_sub_one_eq_mod r_cur (bCharWhp n_max)
+    set ch := rc % 2 ^ bCharWhp n_max with hch_def
     have hch_lt : ch < 2 ^ bCharWhp n_max := Nat.mod_lt _ (Nat.two_pow_pos _)
-    set idx := cur * 2 ^ bCharWhp n_max + ch
-    have hidx_lt : idx < trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      calc cur * 2 ^ bCharWhp n_max + ch
-          < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
-        _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur_max
-    set r_nxt := r_cur / 2 ^ bCharWhp n_max with hr_def
-    have hr_eq : r_cur >>> brBChar rt = r_nxt := by
-      dsimp only [rt, mkBufRt, brBChar, r_nxt]
-      exact Nat.shiftRight_eq_div_pow r_cur (bCharWhp n_max)
-    have hrep_ch : readPacked (brBase rt + brOffChild rt) (brGBits rt) (brW rt) s.mem
-        (cur * brPowBChar rt + (r_cur &&& brMaskBChar rt)) = tr.trieChild cur ch := by
-      rw [hch_eq]
-      have hc := hrep.2.2.2.2.1 cur hcur_max ch hch_lt
-      rcases hep with rfl | rfl <;> exact hc
-    set stepP := bufEnsureStepProg (rt, (cur, r_cur))
-    have hidx_rt : cur * brPowBChar rt + (r_cur &&& brMaskBChar rt) = idx := by
+    have hch_eq : rc &&& brMaskBChar rt = ch := Nat.and_two_pow_sub_one_eq_mod rc _
+    have hr : rc >>> brBChar rt = rc / 2 ^ bCharWhp n_max := Nat.shiftRight_eq_div_pow _ _
+    have hidx : cu * brPowBChar rt + (rc &&& brMaskBChar rt) = cu * 2 ^ bCharWhp n_max + ch := by
       rw [hch_eq]; rfl
-    dsimp only [bufEnsurePath]
-    rw [laneGet_zero_eq_mod]
-    by_cases hn0 : tr.trieChild cur ch = 0
-    · rw [ite_eq_left hn0, bufEnsurePath_add_off]
-      set u := tr.nodeAlloc
+    have hnxt : readPacked (brBase rt + brOffChild rt) (brGBits rt) (brW rt) t.mem
+        (cu * brPowBChar rt + (rc &&& brMaskBChar rt)) = trk.trieChild cu ch := by
+      rw [hidx]
+      have hc := hrep.2.2.2.2.1 cu hcu_max ch hch_lt
+      rcases hep with rfl | rfl <;> exact hc
+    -- After its read, the step runs `next`.
+    let next : Memory.Prog (ℕ × ℕ) := if trk.trieChild cu ch = 0 then
+        bufAllocNodeRtProg ((rt, (cu, ch)), rc / 2 ^ bCharWhp n_max)
+      else pure (trk.trieChild cu ch, rc / 2 ^ bCharWhp n_max)
+    have hst : (Memory.spec 0).clientState t (bufEnsureStepProg (rt, (cu, rc))) =
+        (Memory.spec 0).clientState t next := by
+      dsimp only [bufEnsureStepProg]
+      simp only [pure_bind]
+      rw [clientState_bind, clientState_readPackedGen, clientResult_readPackedGen, hnxt, hch_eq,
+        hr]
+    have hres : (Memory.spec 0).clientResult t (bufEnsureStepProg (rt, (cu, rc))) =
+        (Memory.spec 0).clientResult t next := by
+      dsimp only [bufEnsureStepProg]
+      simp only [pure_bind]
+      rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen, hnxt, hch_eq,
+        hr]
+    have hvp : ValidProg w (base + largeSpaceWhp c U V w n_max) t next →
+        ValidProg w (base + largeSpaceWhp c U V w n_max) t (bufEnsureStepProg (rt, (cu, rc))) := by
+      intro h
+      dsimp only [bufEnsureStepProg]
+      simp only [pure_bind]
+      refine validProg_bind (validProg_readPacked hw
+        (hidx.symm ▸ mul_add_lt_mul_bound hcu_max hch_lt) hc_seg) ?_
+      rw [clientState_readPackedGen, clientResult_readPackedGen, hnxt, hch_eq, hr]
+      exact h
+    refine ⟨⟨⟨c, U, V, w, n_max, base, ep, henv, hep, rfl⟩, hcu_max, hmem_na ▸ hu_lt⟩, ?_⟩
+    rw [hst, hres]
+    rw [show rem - k = rem - (k + 1) + 1 by omega] at hpath
+    dsimp only [bufEnsurePath] at hpath
+    rw [laneGet_zero_eq_mod, ← hch_def] at hpath
+    by_cases hn0 : trk.trieChild cu ch = 0
+    · rw [ite_eq_left hn0, bufEnsurePath_add_off] at hpath
+      obtain ⟨hfr_a, hres_a, hvp_a, hrep_a, hbfr_a⟩ := bufAllocNodeRtProg_spec henv hep hrep halloc
+        hu_lt hcu hch_lt (r_nxt := rc / 2 ^ bCharWhp n_max) (s := t)
+      have hnext : next = bufAllocNodeRtProg ((rt, (cu, ch)), rc / 2 ^ bCharWhp n_max) :=
+        ite_eq_left hn0
+      rw [hnext] at hvp ⊢
+      rw [hres_a]
+      set u := trk.nodeAlloc
       set tr_step : BufTrie :=
-        { tr with
+        { trk with
           nodeAlloc := u + 1
-          trieChild := Function.update tr.trieChild cur (Function.update (tr.trieChild cur) ch u)
-          nodeParent := Function.update tr.nodeParent u cur
-          nodeChar := Function.update tr.nodeChar u ch
-          nodeLeafItem := Function.update tr.nodeLeafItem u 0 }
-      obtain ⟨hfr_a, hres_a, hmc_a, hvp_a, hrep_a, hbfr_a⟩ :=
-        bufAllocNodeRtProg_spec henv hep hrep halloc hu_lt hcur hch_lt (r_nxt := r_nxt) (s := s)
-      set s_step := (Memory.spec 0).clientState s (bufAllocNodeRtProg ((rt, (cur, ch)), r_nxt))
-      have hstep_st : (Memory.spec 0).clientState s stepP = s_step := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind]
-        rw [clientState_bind, clientState_readPackedGen,
-          clientResult_readPackedGen, hrep_ch, ite_eq_left hn0, hch_eq, hr_eq]
-      have hstep_res : (Memory.spec 0).clientResult s stepP = (u, r_nxt) := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind]
-        rw [clientResult_bind, clientState_readPackedGen,
-          clientResult_readPackedGen, hrep_ch, ite_eq_left hn0, hch_eq, hr_eq]
-        exact hres_a
-      have hstep_mc : memoryCost stepP s = 20 := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [memoryCost_readPackedGen, clientState_readPackedGen, clientResult_readPackedGen,
-          hrep_ch, ite_eq_left hn0, hch_eq, hr_eq, hmc_a]
-      have hstep_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s stepP := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind]
-        refine validProg_bind (validProg_readPacked hw (hidx_rt.symm ▸ hidx_lt) hc_seg) ?_
-        rw [clientState_readPackedGen, clientResult_readPackedGen, hrep_ch, hch_eq, hr_eq,
-          ite_eq_left hn0]
-        exact hvp_a
+          trieChild := Function.update trk.trieChild cu (Function.update (trk.trieChild cu) ch u)
+          nodeParent := Function.update trk.nodeParent u cu
+          nodeChar := Function.update trk.nodeChar u ch
+          nodeLeafItem := Function.update trk.nodeLeafItem u 0 }
       have hchild_step : ∀ v c', tr_step.trieChild v c' < tr_step.nodeAlloc := by
         intro v c'
         dsimp only [tr_step]
-        by_cases hv : v = cur
+        by_cases hv : v = cu
         · subst hv
           by_cases hc' : c' = ch
           · subst hc'; simp
@@ -653,108 +625,21 @@ theorem bufEnsureLoop_spec {c U V w n_max base ep : ℕ}
         · subst hwu; simp
         · rw [Function.update_of_ne hwu]
           exact hli_ia w' (by omega)
-      obtain ⟨hsafe_r, hfr_r, hres_r, hmc_r, hvp_r, hrep_r, hbfr_r, hlf_lt, hia_r, hli_r⟩ :=
-        ih tr_step u r_nxt s_step hrep_a (by dsimp [tr_step]; omega)
-          (by dsimp [tr_step, u]; omega) (by dsimp [tr_step]; omega) hchild_step hli_step
-      have hst_all : (Memory.spec 0).clientState s
-          (bufEnsureLoopGenProg ((rt, (cur, r_cur)), rem + 1)) =
-          (Memory.spec 0).clientState s_step (bufEnsureLoopGenProg ((rt, (u, r_nxt)), rem)) := by
-        change (Memory.spec 0).clientState s
-          (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s') = _
-        rw [clientState_bind, hstep_st, hstep_res]
-        rfl
-      have hres_all : (Memory.spec 0).clientResult s
-          (bufEnsureLoopGenProg ((rt, (cur, r_cur)), rem + 1)) =
-          (Memory.spec 0).clientResult s_step (bufEnsureLoopGenProg ((rt, (u, r_nxt)), rem)) := by
-        change (Memory.spec 0).clientResult s
-          (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s') = _
-        rw [clientResult_bind, hstep_st, hstep_res]
-        rfl
-      rw [hst_all, hres_all]
-      refine ⟨⟨hpre, ?_⟩, hfr_r.trans hfr_a, hres_r, ?_, ?_, hrep_r, hbfr_a.trans hbfr_r,
-        hlf_lt, hia_r, hli_r⟩
-      · rw [clientState_width, hstep_st, clientResult_width, hstep_res]
-        exact hsafe_r
-      · change memoryCost (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s') s ≤
-          20 * (rem + 1)
-        simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        change memoryCost stepP s +
-          memoryCost (bufEnsureLoopGenProg
-            ((rt, (Memory.spec 0).clientResult s stepP), rem))
-            ((Memory.spec 0).clientState s stepP) ≤ 20 * (rem + 1)
-        rw [hstep_st, hstep_res, hstep_mc]
-        omega
-      · change ValidProg w (base + largeSpaceWhp c U V w n_max) s
-          (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s')
-        refine validProg_bind hstep_vp ?_
-        change ValidProg w (base + largeSpaceWhp c U V w n_max)
-          ((Memory.spec 0).clientState s stepP)
-          (bufEnsureLoopGenProg ((rt, (Memory.spec 0).clientResult s stepP), rem))
-        rw [hstep_st, hstep_res]
-        exact hvp_r
-    · rw [ite_eq_right hn0, bufEnsurePath_add_off]
-      set nxt := tr.trieChild cur ch
-      have hstep_st : (Memory.spec 0).clientState s stepP = s := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind]
-        rw [clientState_bind, clientState_readPackedGen,
-          clientResult_readPackedGen, hrep_ch, ite_eq_right hn0]
-        rfl
-      have hstep_res : (Memory.spec 0).clientResult s stepP = (nxt, r_nxt) := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind]
-        rw [clientResult_bind, clientState_readPackedGen,
-          clientResult_readPackedGen, hrep_ch, ite_eq_right hn0, hr_eq]
-        rfl
-      have hstep_mc : memoryCost stepP s = 2 := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [memoryCost_readPackedGen, clientState_readPackedGen, clientResult_readPackedGen,
-          hrep_ch, ite_eq_right hn0]
-        rfl
-      have hstep_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s stepP := by
-        dsimp only [stepP, bufEnsureStepProg]
-        simp only [pure_bind]
-        refine validProg_bind (validProg_readPacked hw (hidx_rt.symm ▸ hidx_lt) hc_seg) ?_
-        rw [clientState_readPackedGen, clientResult_readPackedGen, hrep_ch, ite_eq_right hn0]
-        exact validProg_pure _
-      obtain ⟨hsafe_r, hfr_r, hres_r, hmc_r, hvp_r, hrep_r, hbfr_r, hlf_lt, hia_r, hli_r⟩ :=
-        ih tr nxt r_nxt s hrep halloc (by omega) (hchild_lt cur ch) hchild_lt hli_ia
-      have hst_all : (Memory.spec 0).clientState s
-          (bufEnsureLoopGenProg ((rt, (cur, r_cur)), rem + 1)) =
-          (Memory.spec 0).clientState s (bufEnsureLoopGenProg ((rt, (nxt, r_nxt)), rem)) := by
-        change (Memory.spec 0).clientState s
-          (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s') = _
-        rw [clientState_bind, hstep_st, hstep_res]
-        rfl
-      have hres_all : (Memory.spec 0).clientResult s
-          (bufEnsureLoopGenProg ((rt, (cur, r_cur)), rem + 1)) =
-          (Memory.spec 0).clientResult s (bufEnsureLoopGenProg ((rt, (nxt, r_nxt)), rem)) := by
-        change (Memory.spec 0).clientResult s
-          (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s') = _
-        rw [clientResult_bind, hstep_st, hstep_res]
-        rfl
-      rw [hst_all, hres_all]
-      refine ⟨⟨hpre, ?_⟩, hfr_r, hres_r, ?_, ?_, hrep_r, hbfr_r, hlf_lt, hia_r, hli_r⟩
-      · rw [clientState_width, hstep_st, clientResult_width, hstep_res]
-        exact hsafe_r
-      · change memoryCost (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s') s ≤
-          20 * (rem + 1)
-        simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        change memoryCost stepP s +
-          memoryCost (bufEnsureLoopGenProg
-            ((rt, (Memory.spec 0).clientResult s stepP), rem))
-            ((Memory.spec 0).clientState s stepP) ≤ 20 * (rem + 1)
-        rw [hstep_st, hstep_res, hstep_mc]
-        omega
-      · change ValidProg w (base + largeSpaceWhp c U V w n_max) s
-          (stepP >>= fun s' => iterate bufEnsureStepProg rt rem s')
-        refine validProg_bind hstep_vp ?_
-        change ValidProg w (base + largeSpaceWhp c U V w n_max)
-          ((Memory.spec 0).clientState s stepP)
-          (bufEnsureLoopGenProg ((rt, (Memory.spec 0).clientResult s stepP), rem))
-        rw [hstep_st, hstep_res]
-        exact hvp_r
+      exact ⟨hvp hvp_a, tr_step, hrep_a, Nat.le_add_left 1 u, by dsimp only [tr_step]; omega,
+        Nat.lt_succ_self u, hchild_step, hli_step, hia, hfr_a.trans hfr, hbfr.trans hbfr_a, hpath⟩
+    · rw [ite_eq_right hn0, bufEnsurePath_add_off] at hpath
+      have hnext : next = pure (trk.trieChild cu ch, rc / 2 ^ bCharWhp n_max) := ite_eq_right hn0
+      rw [hnext] at hvp ⊢
+      exact ⟨hvp (validProg_pure _), trk, hrep, halloc, by omega, hchild_lt cu ch, hchild_lt,
+        hli_ia, hia, hfr, hbfr, hpath⟩
+  obtain ⟨hsafe, hvp, trf, hrepf, -, -, hlt, -, hlif, hiaf, hfrf, hbfrf, hpathf⟩ :=
+    validProg_iterate_of_inv inv hstep (a := (cur, r_cur))
+      ⟨tr, hrep, halloc, hna_rem, hcur, hchild_lt, hli_ia, rfl, rfl, .refl _, rfl⟩
+  rw [Nat.sub_self] at hpathf
+  rw [hpathf]
+  exact ⟨hsafe, hfrf, rfl, memoryCost_iterate_le_of _ 20 rt
+    (fun a => memoryCost_bufEnsureStepProg_le (rt, a)) rem _ s, hvp, hrepf, hbfrf, hlt, hiaf,
+    hlif _ hlt⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

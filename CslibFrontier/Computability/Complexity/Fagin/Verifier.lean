@@ -432,7 +432,7 @@ theorem computableInPolyTime_eval {k : ℕ}
   induction φ generalizing γ with
   | falsum => exact const false
   | equal t₁ t₂ =>
-    exact unary_beq' (computableInPolyTime_termValue hσ t₁)
+    exact unary_beq (computableInPolyTime_termValue hσ t₁)
       (computableInPolyTime_termValue hσ t₂)
   | rel R ts =>
     exact ℓ.computableInPolyTime_relBit R ha hN hw

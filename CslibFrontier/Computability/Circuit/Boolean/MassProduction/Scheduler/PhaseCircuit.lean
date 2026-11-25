@@ -64,10 +64,6 @@ variable {K : Type*} [Field K] {ℓ b s D p a r : ℕ}
   (menu : Fin r → Fin (arity p) → Fin ℓ → K)
   {src : Set (BooleanFunction (2 ^ D * width D (ℓ * b) s))}
 
-private theorem add_false (x : Bool) : x + false = x := by cases x <;> rfl
-
-private theorem add_true (x : Bool) : x + true = !x := by cases x <;> rfl
-
 /-- Stage 1: each candidate bit is an input bit or its negation. -/
 private theorem synthesis_candidate (hin : inputs _ ⊆ src) :
     Synthesis interpretation src
@@ -82,13 +78,13 @@ private theorem synthesis_candidate (hin : inputs _ ⊆ src) :
     cases hb : pointBits bits ((scalar c : K) • menu e i) β
     · have : (fun x => candidate hk bits scalar menu x e i c β) = fun x => x w := by
         funext x
-        simp only [candidate, Pi.add_apply, hb, add_false]
+        simp only [candidate, Pi.add_apply, hb, Bool.add_eq_xor, Bool.xor_false]
         rfl
       simpa only [this] using (Synthesis.of_mem hw).mono Set.Subset.rfl Set.Subset.rfl
         (Nat.zero_le 1)
     · have : (fun x => candidate hk bits scalar menu x e i c β) = fun x => !x w := by
         funext x
-        simp only [candidate, Pi.add_apply, hb, add_true]
+        simp only [candidate, Pi.add_apply, hb, Bool.add_eq_xor, Bool.xor_true]
         rfl
       simpa only [this] using (Synthesis.of_mem hw).not
   · simp only [sum_const, card_univ, Fintype.card_prod, Fintype.card_fin, smul_eq_mul, mul_one,

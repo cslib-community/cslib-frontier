@@ -211,7 +211,7 @@ theorem computableInPolyTime_consistentCheck :
       (encPair (encList (encOption encBool)) encBits) encBool :=
     allWithInput hzip ((of_finite (fun q : Option Bool × Bool => q.1.getD q.2 == q.2)
       (encIn := encPair (encOption encBool) encBool) (encOut := encBool)).comp (snd _ _))
-  have hlen := unary_eq' ((length_list (encOption encBool)).comp hx) (length_bits.comp hy)
+  have hlen := unary_decide_eq ((length_list (encOption encBool)).comp hx) (length_bits.comp hy)
   exact bool_and.comp (hlen.prod hall)
 
 /-- The witness check for `MINKT*`: given an instance `i` and a pair `(y, p)` of a candidate

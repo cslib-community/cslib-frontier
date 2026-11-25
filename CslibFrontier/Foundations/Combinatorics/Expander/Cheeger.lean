@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.Mixing
+import CslibFrontier.Foundations.Algebra.Order.Ring.MaxZero
 import CslibFrontier.Foundations.Data.Finset.Quantile
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Algebra.QuadraticDiscriminant
@@ -386,17 +387,6 @@ private theorem exists_median (f : V → ℝ) :
   simp only [not_le, card_univ] at hlo hhi h₁ h₂
   exact ⟨f v₀, by omega, by omega⟩
 
-/-- The positive and negative parts of two reals are closer than the reals themselves. -/
-private theorem sq_max_sub_max_add_sq_max_sub_max_le (a b : ℝ) :
-    (max a 0 - max b 0) ^ 2 + (max (-a) 0 - max (-b) 0) ^ 2 ≤ (a - b) ^ 2 := by
-  rcases le_total a 0 with ha | ha <;> rcases le_total b 0 with hb | hb <;>
-  simp only [max_eq_left, max_eq_right, ha, hb, neg_nonneg, neg_nonpos] <;> nlinarith
-
-/-- The square of a real is the sum of the squares of its positive and negative parts. -/
-private theorem sq_max_add_sq_max (a : ℝ) : max a 0 ^ 2 + max (-a) 0 ^ 2 = a ^ 2 := by
-  rcases le_total a 0 with ha | ha <;>
-  simp only [max_eq_left, max_eq_right, ha, neg_nonneg, neg_nonpos] <;> ring
-
 end Median
 
 section Cheeger
@@ -554,7 +544,7 @@ private theorem sq_mul_sum_sq_le_of_sum_eq_zero {c : ℝ} (hc₀ : 0 ≤ c)
     fun S hS ↦ hc S ((Nat.mul_le_mul_left 2 (card_le_card hS)).trans hm₂)
   have hsq : ∑ v, f v ^ 2 ≤ ∑ v, max (f v - m) 0 ^ 2 + ∑ v, max (-(f v - m)) 0 ^ 2 := by
     rw [← sum_add_distrib]
-    simp only [sq_max_add_sq_max]
+    simp only [sq_max_zero_add_sq_max_neg_zero]
     calc
       _ ≤ ∑ v, f v ^ 2 + Fintype.card V * m ^ 2 := le_add_of_nonneg_right (by positivity)
       _ = _ := by
@@ -565,7 +555,7 @@ private theorem sq_mul_sum_sq_le_of_sum_eq_zero {c : ℝ} (hc₀ : 0 ≤ c)
       ∑ p : V × D, (max (-(f p.1 - m)) 0 - max (-(f (G.neighbor p.1 p.2) - m)) 0) ^ 2 ≤
         ∑ p : V × D, (f p.1 - f (G.neighbor p.1 p.2)) ^ 2 := by
     rw [← sum_add_distrib]
-    exact sum_le_sum fun p _ ↦ (sq_max_sub_max_add_sq_max_sub_max_le _ _).trans_eq (by ring)
+    exact sum_le_sum fun p _ ↦ (sq_max_zero_sub_add_sq_max_neg_zero_sub_le _ _).trans_eq (by ring)
   have hd : (0 : ℝ) ≤ Fintype.card D := Nat.cast_nonneg _
   nlinarith [mul_le_mul_of_nonneg_left hsq (sq_nonneg c), mul_le_mul_of_nonneg_left hdir hd]
 

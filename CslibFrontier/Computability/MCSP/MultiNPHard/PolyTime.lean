@@ -320,7 +320,7 @@ private theorem polyTime_entry {j z : γ → ℕ} (hsys : ComputableInPolyTime s
   unfold entry
   dsimp only
   refine ite_decide (unary_lt' hj hp) (bool_not.comp (binary_testBit hzb hj)) ?_
-  refine ite_decide (unary_eq' hj hp) (const false) ?_
+  refine ite_decide (unary_decide_eq hj hp) (const false) ?_
   refine ite_decide (unary_lt' hj (unary_add' (unary_add' hp (const 1)) (unary_mul' hq hp)))
     ?_ ?_
   · have hd := unary_sub' hj (unary_add' hp (const 1))

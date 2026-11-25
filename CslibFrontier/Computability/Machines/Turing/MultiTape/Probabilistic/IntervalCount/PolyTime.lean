@@ -21,6 +21,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Tape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Window
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ListOption
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListBinaryLookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
@@ -242,9 +243,6 @@ private theorem computableInPolyTime_localCoinStep :
 
 section Growth
 
-private theorem length_encOption_bool_le (o : Option Bool) : (encOption encBool o).length ≤ 2 := by
-  cases o <;> simp
-
 private theorem length_encStackTape_eq (t : StackTape Bool) :
     (encStackTape encBool t).length =
       (t.toList.map fun a => 2 * (encOption encBool a).length + 1).sum := by
@@ -259,7 +257,7 @@ private theorem length_encStackTape_tail_le (t : StackTape Bool) :
 
 private theorem length_encStackTape_cons_le (o : Option Bool) (t : StackTape Bool) :
     (encStackTape encBool (StackTape.cons o t)).length ≤ (encStackTape encBool t).length + 5 := by
-  have ho := length_encOption_bool_le o
+  have ho := length_encOption_encBool_le o
   have hcons : (StackTape.cons o t).toList = o :: t.toList ∨
       (StackTape.cons o t).toList = t.toList := by
     rcases o with _ | a
@@ -284,10 +282,10 @@ private theorem length_encBiTape_step_le (t : BiTape Bool)
       | .neg => w.moveLeft
       | .zero => w
       | .pos => w.moveRight := rfl
-  have h1 := length_encOption_bool_le w.head
-  have h2 := length_encOption_bool_le t.head
-  have h3 := length_encOption_bool_le w.left.head
-  have h4 := length_encOption_bool_le w.right.head
+  have h1 := length_encOption_encBool_le w.head
+  have h2 := length_encOption_encBool_le t.head
+  have h3 := length_encOption_encBool_le w.left.head
+  have h4 := length_encOption_encBool_le w.right.head
   have h5 := length_encStackTape_tail_le w.left
   have h6 := length_encStackTape_tail_le w.right
   have h7 := length_encStackTape_cons_le w.head w.right

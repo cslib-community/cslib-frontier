@@ -800,15 +800,15 @@ noncomputable def ciGame (E : SymmetricCipher) (adversary : CIAdversary) (n : �
 
 The full-query and one-time ciphertext-integrity and chosen-ciphertext games differ only in when
 an encryption query is answered: always, or only while no ciphertext has been returned. The
-private oracles `ciEncryptionOracleOn`, `ccaOracleOn` and `ccaRejectOracleOn` take this admission
-policy `allow` on the ciphertext log as a parameter, so that the PPT certificates and the
-bad-event argument of Theorem 9.1 are proved once. The public full-query oracles are the
-instances at `fun _ => true` by definition, and the one-time oracles are equal to the instances at
-`List.isEmpty`. -/
+oracles `ciEncryptionOracleOn`, `ccaOracleOn` and `ccaRejectOracleOn` take this admission policy
+`allow` on the ciphertext log as a parameter, so that the PPT certificates, the bad-event argument
+of Theorem 9.1 and the simulations of reductions to these games are proved once. The public
+full-query oracles are the instances at `fun _ => true` by definition, and the one-time oracles are
+equal to the instances at `List.isEmpty`. -/
 
 /-- `ciEncryptionOracle` answering an encryption query only when `allow` admits the current
 ciphertext log. -/
-private noncomputable def ciEncryptionOracleOn (E : SymmetricCipher)
+noncomputable def ciEncryptionOracleOn (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (request : Unit × List Bool) :
     StateT (List (List Bool)) ProbComp (List Bool) :=
   fun queriedCiphertexts =>
@@ -979,7 +979,8 @@ noncomputable def ciOneTimeGame (E : SymmetricCipher) (adversary : CIAdversary) 
       (E.oneTimeCIEncryptionOracle n k)) (adversary n [])).run []
   return !out.2.contains out.1 && (E.decrypt n k out.1).isSome
 
-private theorem oneTimeCIEncryptionOracle_eq_on (E : SymmetricCipher) :
+/-- `oneTimeCIEncryptionOracle` is `ciEncryptionOracleOn` under the policy `List.isEmpty`. -/
+theorem oneTimeCIEncryptionOracle_eq_on (E : SymmetricCipher) :
     E.oneTimeCIEncryptionOracle = E.ciEncryptionOracleOn List.isEmpty := by
   funext n k request queried
   cases queried <;> rfl

@@ -46,9 +46,9 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
   `validHistory_ite`, `validHistory_dite`, `validHistory_iterate_inv`,
   `validHistory_boundedWhile_inv`: monadic admissibility combinators.
 * `boundedWhile_invariant_of`, `iterate_invariant_of`, `iterationSafe_of_stepInv`,
-  `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`,
-  `memoryCost_iterate_le_potential`: generic loop invariant and cost lemmas, including an amortized
-  bound with a potential.
+  `iterationSafe_of_stateless_step`, `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`,
+  `memoryCost_iterate_le_of`, `memoryCost_iterate_eq_of`, `memoryCost_iterate_le_potential`:
+  generic loop invariant and cost lemmas, including an amortized bound with a potential.
 * `clientResult_bind_read`, `clientState_bind_write`, `runClient_read`, `runClient_write`,
   `memoryCost_bind_le`,
   `memoryCost_read_bind_le`, `memoryCost_write_bind_le`, `memoryCost_ite_le`,
@@ -343,6 +343,18 @@ theorem iterationSafe_of_stepInv {δ σ : Type}
     obtain ⟨hs, hi'⟩ := hstep n a s hi
     exact ⟨hs, ih hi'⟩
 
+/-- A counter loop whose step precondition holds below `N` at every state and whose step
+increments the counter is safe from any start `i₀` with `i₀ + rem ≤ N`. -/
+theorem iterationSafe_of_stateless_step {Cfg : Type} (step : Cfg × ℕ → Memory.Prog ℕ)
+    (Pre : ℕ → Cfg × ℕ → Memory.State → Prop) {w N : ℕ} {cfg : Cfg}
+    (hpre : ∀ i < N, ∀ s, Pre w (cfg, i) s)
+    (hres : ∀ i < N, ∀ s, (Memory.spec 0).clientResult s (step (cfg, i)) = i + 1) :
+    ∀ rem i₀ (s : Memory.State), i₀ + rem ≤ N →
+      iterationSafe step Pre w cfg rem i₀ s :=
+  fun _ _ _ hle => iterationSafe_of_stepInv step Pre w cfg (fun j i _ => i + j ≤ N)
+    (fun j i s (h : i + (j + 1) ≤ N) => ⟨hpre i (by omega) s,
+      show _ + j ≤ N by rw [hres i (by omega) s]; omega⟩) hle
+
 /-- A step-indexed invariant `I j a s` preserved by `body` reaches `I 0` after `n` steps of
 `iterate`. -/
 theorem iterate_invariant_of {δ σ : Type}
@@ -395,6 +407,18 @@ theorem memoryCost_iterate_le_of {δ σ : Type} (body : δ × σ → Memory.Prog
       ((Memory.spec 0).clientState s (body (d, a)))
     rw [Nat.mul_succ]
     omega
+
+/-- Exact `memoryCost` of an `iterate` loop with fixed environment `d` whose steps each cost
+exactly `c`. -/
+theorem memoryCost_iterate_eq_of {δ σ : Type} (body : δ × σ → Memory.Prog σ) (c : ℕ)
+    (d : δ) (hstep : ∀ a s, memoryCost (body (d, a)) s = c)
+    (n : ℕ) (a : σ) (s : Memory.State) :
+    memoryCost (iterate body d n a) s = c * n := by
+  induction n generalizing a s with
+  | zero => simp [iterate]
+  | succ n ih =>
+    change memoryCost (body (d, a) >>= iterate body d n) s = c * (n + 1)
+    rw [memoryCost_bind', hstep, ih, Nat.mul_succ, Nat.add_comm]
 
 /-- Amortized `memoryCost` bound for `iterate`: if every step from a state satisfying the
 step-indexed invariant `I` costs at most `c` plus the drop of the potential `Φ`, and preserves `I`,

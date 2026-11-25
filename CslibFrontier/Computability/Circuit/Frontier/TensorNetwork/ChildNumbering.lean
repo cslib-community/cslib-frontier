@@ -192,7 +192,7 @@ private theorem count_take_ofFn (v : Fin n) :
   simp [Fin.val_inj]
 
 /-- Counting a group among the groups of all vertices gives the number of its vertices. -/
-private theorem count_ofFn :
+theorem count_ofFn_group :
     (List.ofFn fun u => (group u : ℕ)).count (g : ℕ) = (members fun u => group u = g).length := by
   rw [List.ofFn_eq_map, List.count, List.countP_map, members, ← List.countP_eq_length_filter]
   refine List.countP_congr fun u _ => ?_
@@ -228,7 +228,7 @@ theorem childEdgeList_eq :
           (childSrc src tgt group g ((childEdgeEquiv src tgt group g).symm j)) : ℕ),
         ((childVertexEquiv group g)
           (childTgt src tgt group packet g ((childEdgeEquiv src tgt group g).symm j)) : ℕ)) := by
-  rw [childEdgeList, count_ofFn,
+  rw [childEdgeList, count_ofFn_group,
     filter_zip_ofFn src tgt group packet g src (fun q => q.1.1) (fun _ => rfl),
     filter_zip_ofFn src tgt group packet g tgt (fun q => q.1.2) (fun _ => rfl), List.ofFn_add,
     List.map_map, List.map_map]

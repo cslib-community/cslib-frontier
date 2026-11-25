@@ -15,13 +15,16 @@ import Mathlib.Data.List.GetD
 
 Reading every index of a list of length `n` with `List.getD` and tabulating the result over
 `Fin n` gives back the list. These are the `getD` forms of core's `List.ofFn_getElem` and
-Mathlib's `List.ofFn_getElem_eq_map`, for when the length is only known to be `n`.
+Mathlib's `List.ofFn_getElem_eq_map`, for when the length is only known to be `n`. Conversely,
+reading a tabulated list `List.ofFn f` with `List.getD` gives `f` inside its range and the default
+outside it (`List.getD_ofFn_eq_dite`), the `getD` form of core's `List.getElem?_ofFn`.
 
 ## Main results
 
 * `List.ofFn_getD_eq_of_length`: `List.ofFn (fun i : Fin n => l.getD i d) = l` when
   `l.length = n`.
 * `List.ofFn_getD_eq_map_of_length`: the same after applying `f` to every entry.
+* `List.getD_ofFn_eq_dite`: `(List.ofFn f).getD i d` is `f ⟨i, h⟩` if `h : i < n`, else `d`.
 -/
 
 public section
@@ -43,5 +46,12 @@ theorem ofFn_getD_eq_map_of_length (f : α → β) (d : α) {n : ℕ} {l : List 
   conv_rhs => rw [← ofFn_getD_eq_of_length d hl]
   rw [map_ofFn]
   rfl
+
+/-- Reading a tabulated list with a default gives the function inside its range and the default
+outside it. -/
+theorem getD_ofFn_eq_dite {n : ℕ} (f : Fin n → α) (i : ℕ) (d : α) :
+    (ofFn f).getD i d = if h : i < n then f ⟨i, h⟩ else d := by
+  rw [getD_eq_getElem?_getD, List.getElem?_ofFn]
+  split <;> rfl
 
 end List

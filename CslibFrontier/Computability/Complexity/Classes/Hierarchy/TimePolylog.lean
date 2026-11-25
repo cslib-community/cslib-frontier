@@ -173,7 +173,7 @@ theorem exists_computableInO_timeDiagonal_polylog : ∃ k, ∀ {J : ℕ → ℕ}
           ((J x.length + 1) * (Nat.log 2 (J x.length + 1) + 1)) + 1) := by
     have hL : 2 ^ (unframe x).length ≤ x.length := of_decide_eq_true hs
     have hN := length_encList_map_eBit_le x
-    have hJ := Universal.length_encNat_le (J x.length)
+    have hJ := length_encNat_le_self (J x.length)
     refine hK hL ((hcA _).trans (Nat.mul_le_mul_left _ (hL.trans (Nat.le_succ _)))) (hce _)
       (listMax_le fun a ha => ?_) ?_
     · obtain ⟨b, -, rfl⟩ := List.mem_map.mp ha

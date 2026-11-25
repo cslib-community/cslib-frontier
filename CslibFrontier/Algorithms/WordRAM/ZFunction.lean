@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.ZFunction.Basic
 public import CslibFrontier.Algorithms.Lean.ZFunction.Search
+public import CslibFrontier.Algorithms.WordRAM.PatternTextInput
 public import CslibFrontier.Computability.WordRAM.ListOutput
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.ListArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import Mathlib.Data.List.Sort
@@ -36,7 +36,7 @@ that charge every comparison, Z-box copy, arithmetic operation, memory access, a
      executes within `39 * |s| + 9` instructions (`39 * |s| + 10` for `zProgram`).
 
 2. **Exact pattern matching via the Z-array of `pat ++ txt` (`matchCode`, `matchProgram`):**
-   * **Input (`State.init I.encode`):** `MatchInput.encode I = |pat| :: |txt| :: (pat ++ txt)`
+   * **Input (`State.init I.encode`):** `PatternTextInput.encode I = |pat| :: |txt| :: (pat ++ txt)`
      places `|pat|` at `mem[1]`, `|txt|` at `mem[2]`, and `pat ++ txt` contiguously at
      `[3, 3 + |pat| + |txt|)` (`pat` at `[3, 3 + |pat|)` and `txt` at
      `[3 + |pat|, 3 + |pat| + |txt|)`).
@@ -62,9 +62,6 @@ writes, and loop overhead.
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.ZFunction.MatchInput`: pattern-and-text word-array input record.
-* `Cslib.Algorithms.WordRAM.ZFunction.MatchInput.encode`: flat word-list encoding
-  `[|pat|, |txt|] ++ pat ++ txt`.
 * `Cslib.Algorithms.WordRAM.ZFunction.Reg.out`: output base register (`15`).
 * `Cslib.Algorithms.WordRAM.ZFunction.zCode`, `zProgram`: Word-RAM Z-array code and program.
 * `Cslib.Algorithms.WordRAM.ZFunction.matchCode`, `matchProgram`: Word-RAM Z-algorithm pattern
@@ -91,22 +88,7 @@ open Cslib.WordRAM
 open Cslib.Algorithms.Lean
 open Cslib.Algorithms.Lean.ZFunction
 
-/-! ## Input encoding and registers -/
-
-/-- Pattern-matching instance on the word RAM: a pattern `pat` and a text `txt` over `w`-bit
-words. -/
-structure MatchInput where
-  /-- Pattern word sequence. -/
-  pat : List ℕ
-  /-- Text word sequence. -/
-  txt : List ℕ
-  deriving DecidableEq, Repr
-
-/-- Word-list layout `[|pat|, |txt|] ++ pat ++ txt` placed into `State.init`: `mem[1] = |pat|`,
-`mem[2] = |txt|`, `pat` occupies `[3, 3 + |pat|)`, `txt` occupies `[3 + |pat|, 3 + |pat| + |txt|)`,
-and `pat ++ txt` occupies `[3, 3 + |pat| + |txt|)`. -/
-@[expose] def MatchInput.encode (I : MatchInput) : List ℕ :=
-  I.pat.length :: I.txt.length :: (I.pat ++ I.txt)
+/-! ## Registers -/
 
 namespace Reg
 
@@ -893,7 +875,7 @@ theorem zProgram_computesListInTime :
 
 /-! ## Execution of `matchCode` -/
 
-private structure MatchRegs (I : MatchInput) (x : Data 16) : Prop where
+private structure MatchRegs (I : PatternTextInput) (x : Data 16) : Prop where
   zero_eq : x.regs zero = 0
   one_eq : x.regs one = 1
   pl_eq : x.regs patLen = I.pat.length
@@ -903,7 +885,7 @@ private structure MatchRegs (I : MatchInput) (x : Data 16) : Prop where
   zb_eq : x.regs zBase = 3 + I.pat.length + I.txt.length
   out_eq : x.regs out = 3 + 2 * (I.pat.length + I.txt.length)
 
-private theorem MatchRegs.of_z_frame {I : MatchInput} {x y : Data 16}
+private theorem MatchRegs.of_z_frame {I : PatternTextInput} {x y : Data 16}
     (hr : MatchRegs I x)
     (hfr : ∀ r : Fin 16,
       r ≠ regi → r ≠ regl → r ≠ regr → r ≠ regk → r ≠ go → r ≠ t0 → r ≠ t1 →
@@ -925,28 +907,6 @@ private theorem MatchRegs.of_z_frame {I : MatchInput} {x y : Data 16}
       (by decide)).trans hr.zb_eq,
    (hfr _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide)).trans hr.out_eq⟩
-
-private theorem init_matchEncode_blocks (I : MatchInput) :
-    let x : Data 16 := Data.init I.encode
-    x.mem 1 = I.pat.length ∧
-      x.mem 2 = I.txt.length ∧
-      Block.HoldsList 3 (I.pat ++ I.txt) x.mem ∧
-      Block.HoldsList 3 I.pat x.mem ∧
-      Block.HoldsList (3 + I.pat.length) I.txt x.mem := by
-  dsimp only
-  have hm1 : (Data.init I.encode : Data 16).mem 1 = I.pat.length := by
-    simpa only [MatchInput.encode, List.getD_cons_zero] using
-      Data.init_mem_succ (r := 16) I.encode 0
-  have hm2 : (Data.init I.encode : Data 16).mem 2 = I.txt.length := by
-    simpa only [MatchInput.encode, List.getD_cons_succ, List.getD_cons_zero] using
-      Data.init_mem_succ (r := 16) I.encode 1
-  have hall : Block.HoldsList 3 (I.pat ++ I.txt) (Data.init I.encode : Data 16).mem := by
-    have heq : I.encode = [I.pat.length, I.txt.length] ++ ((I.pat ++ I.txt) ++ []) := by
-      simp only [MatchInput.encode, List.cons_append, List.nil_append, List.append_nil]
-    rw [heq]
-    exact Data.init_realizes_append [I.pat.length, I.txt.length] (I.pat ++ I.txt) []
-  obtain ⟨hpat, htxt⟩ := Block.holdsList_append_iff.mp hall
-  exact ⟨hm1, hm2, hall, hpat, htxt⟩
 
 private theorem emptyMatchCode_spec {w : ℕ} (txt : List ℕ)
     (hw : Fits w (3 * txt.length + 4))
@@ -1028,7 +988,7 @@ private theorem emptyMatchCode_spec {w : ℕ} (txt : List ℕ)
   change y.mem (outAddr + 1 + i.val) = (List.range (txt.length + 1))[i.val]
   rw [hy_vals i.val hi, List.getElem_range]
 
-private structure FilterInv (I : MatchInput) (s : Data 16) : Prop where
+private structure FilterInv (I : PatternTextInput) (s : Data 16) : Prop where
   regs_ok : MatchRegs I s
   oc_le : s.regs outCnt ≤ s.regs regi
   pat_holds : Block.HoldsList 3 I.pat s.mem
@@ -1039,7 +999,7 @@ private structure FilterInv (I : MatchInput) (s : Data 16) : Prop where
     ms.Pairwise (· < ·) ∧
     (∀ sh, sh ∈ ms ↔ sh < s.regs regi ∧ I.pat <+: I.txt.drop sh)
 
-private theorem filterBody_spec {w : ℕ} (I : MatchInput)
+private theorem filterBody_spec {w : ℕ} (I : PatternTextInput)
     (hw : Fits w (2 * I.pat.length + 3 * I.txt.length + 4))
     (s : Data 16) (hs : FilterInv I s) (hlt : s.regs regi < I.txt.length) :
     ∃ z, ExecWithin w filterBody s z 9 ∧
@@ -1148,7 +1108,7 @@ private theorem filterBody_spec {w : ℕ} (I : MatchInput)
         · exact Or.inl ⟨hlt_j, hp_sh⟩
         · exact Or.inr rfl
 
-private theorem nonemptyMatchCode_spec {w : ℕ} (I : MatchInput) (hp : 0 < I.pat.length)
+private theorem nonemptyMatchCode_spec {w : ℕ} (I : PatternTextInput) (hp : 0 < I.pat.length)
     (hw : Fits w (2 * I.pat.length + 3 * I.txt.length + 4))
     (x : Data 16) (hrx : MatchRegs I x)
     (hall : Block.HoldsList 3 (I.pat ++ I.txt) x.mem)
@@ -1246,7 +1206,7 @@ private theorem nonemptyMatchCode_spec {w : ℕ} (I : MatchInput) (hp : 0 < I.pa
 `zMatches I.pat I.txt` as the length-prefixed array at
 `y.regs Reg.out = 3 + 2 * (I.pat.length + I.txt.length)`, preserving the pattern and text blocks at
 `[3, 3 + I.pat.length)` and `[3 + I.pat.length, 3 + I.pat.length + I.txt.length)`. -/
-theorem matchCode_exec {w : ℕ} (I : MatchInput)
+theorem matchCode_exec {w : ℕ} (I : PatternTextInput)
     (hw : Fits w (2 * I.pat.length + 3 * I.txt.length + 4)) :
     ∃ y, ExecWithin w matchCode (Data.init I.encode) y
         (39 * I.pat.length + 50 * I.txt.length + 22) ∧
@@ -1256,7 +1216,7 @@ theorem matchCode_exec {w : ℕ} (I : MatchInput)
       Block.HoldsList 3 I.pat y.mem ∧
       Block.HoldsList (3 + I.pat.length) I.txt y.mem := by
   let x : Data 16 := Data.init I.encode
-  obtain ⟨hm1, hm2, hall, hpat, htxt⟩ := init_matchEncode_blocks I
+  obtain ⟨hm1, hm2, hall, hpat, htxt⟩ := I.init_blocks (r := 16)
   have hf_1 : Fits w 1 := hw.of_le (by omega)
   have hf_2 : Fits w 2 := hw.of_le (by omega)
   have hf_3 : Fits w 3 := hw.of_le (by omega)
@@ -1313,10 +1273,10 @@ theorem matchCode_exec {w : ℕ} (I : MatchInput)
       hy_out_list, hy_out', hfit_out, hy_pat, hy_txt'⟩
 
 /-- `matchProgram` computes `zMatches I.pat I.txt` in `39 * |I.pat| + 50 * |I.txt| + 23`
-instructions on every fitting `MatchInput` at every word width fitting
+instructions on every fitting `PatternTextInput` at every word width fitting
 `2 * |I.pat| + 3 * |I.txt| + 4`. -/
 theorem matchProgram_computesListInTime :
-    matchProgram.ComputesListInTime (fun _ (I : MatchInput) => I.encode)
+    matchProgram.ComputesListInTime (fun _ (I : PatternTextInput) => I.encode)
       (fun I _ => 39 * I.pat.length + 50 * I.txt.length + 23)
       (fun I w => Fits w (2 * I.pat.length + 3 * I.txt.length + 4))
       (fun I => zMatches I.pat I.txt) :=
@@ -1325,14 +1285,14 @@ theorem matchProgram_computesListInTime :
     exact ⟨y, hexec, hout, hfit⟩
 
 /-- `matchProgram` computes `KMP.kmpMatchesList I.pat I.txt` in `39 * |I.pat| + 50 * |I.txt| + 23`
-instructions on every fitting `MatchInput` at every word width fitting
+instructions on every fitting `PatternTextInput` at every word width fitting
 `2 * |I.pat| + 3 * |I.txt| + 4`. -/
 theorem matchProgram_computesKmpMatchesInTime :
-    matchProgram.ComputesListInTime (fun _ (I : MatchInput) => I.encode)
+    matchProgram.ComputesListInTime (fun _ (I : PatternTextInput) => I.encode)
       (fun I _ => 39 * I.pat.length + 50 * I.txt.length + 23)
       (fun I w => Fits w (2 * I.pat.length + 3 * I.txt.length + 4))
       (fun I => KMP.kmpMatchesList I.pat I.txt) := by
-  simpa only [funext fun I : MatchInput => zMatches_eq_kmpMatchesList I.pat I.txt] using
+  simpa only [funext fun I : PatternTextInput => zMatches_eq_kmpMatchesList I.pat I.txt] using
     matchProgram_computesListInTime
 
 end Cslib.Algorithms.WordRAM.ZFunction

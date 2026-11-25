@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.HealRt
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -216,7 +217,7 @@ theorem fillFinalBktMetaLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → 
       (∀ idx < 16 * M, (idx % 16 = 1 ∨ 10 ≤ idx % 16) →
         readPacked (base + bm) gBits w s'.mem idx = readPacked (base + bm) gBits w s₀.mem idx) ∧
       (∀ a, (a < base + bm ∨ base + offFbStart c U V w n_max ≤ a) → s'.mem a = s₀.mem a) := by
-  intro rt M gBits bm rem
+  intro rt M gBits bm rem b₀ s hle hprev hkeep hout
   have hw := henv.2.1
   have hth := henv.2.2.2.1
   obtain ⟨_, _, _, _, _, _, _, hgk⟩ := hl_bounds henv
@@ -229,117 +230,103 @@ theorem fillFinalBktMetaLoop_spec {c U V w n_max base : ℕ} {fbStart : ℕ → 
   have hbm_end : bm + packedWords (16 * M) gBits w = offFbStart c U V w n_max := rfl
   have h0_pow : 0 < 2 ^ gBits := Nat.two_pow_pos _
   have h1_pow : 1 < 2 ^ gBits := Nat.one_lt_two_pow (globalPtrBits_pos_of_large hth).ne'
-  induction rem with
-  | zero =>
-    intro b₀ s _ hprev hkeep hout
-    unfold fillFinalBktMetaLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨rfl, validProg_pure _, hprev, hkeep, hout⟩
-  | succ rem ih =>
-    intro b₀ s hle hprev hkeep hout
-    have hb_lt : b₀ < M := by omega
-    have hfb_s : ∀ x ≤ M,
-        readPacked (base + offFbStart c U V w n_max) gBits w s.mem x = fbStart x :=
-      fun x hx => (readPacked_congr hw (fun a ⟨ha1, _⟩ => hout a (Or.inr ha1))
-        (Nat.lt_succ_of_le hx)).trans (hfb_mem x hx)
-    obtain ⟨hlo_hi, hcnt_le⟩ := hfb_adj b₀ hb_lt
-    set cnt := fbStart (b₀ + 1) - fbStart b₀
-    have hcnt_pow : cnt < 2 ^ gBits := lt_two_pow_globalPtrBits_of_le_n_max hcnt_le
-    let wpAt := fun m idx v => writePacked (base + bm) gBits w m idx v
-    set m1 := wpAt (wpAt (wpAt (wpAt (wpAt (wpAt (wpAt (wpAt (wpAt s.mem
-      (16 * b₀ + 2) 0) (16 * b₀ + 4) 1) (16 * b₀ + 5) 0) (16 * b₀ + 6) 0)
-      (16 * b₀ + 7) 0) (16 * b₀ + 8) 0) (16 * b₀ + 9) 0) (16 * b₀) cnt) (16 * b₀ + 3) cnt
-    set p1 := fillFinalBktMetaStepProg (rt, b₀)
-    have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) s p1
-        { mem := m1, frontier := s.frontier } (b₀ + 1) := by
-      dsimp only [p1]; unfold fillFinalBktMetaStepProg
-      dsimp only [rt, mkHealRt, hlBase, hlW, hlNMax, hlGBits, hlOffBm, hlOffFb]
-      simp only [pure_bind]
-      refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s b₀ hb_lt.le)).bind ?_
-      refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s (b₀ + 1) hb_lt)).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      simp only [hlo_hi, show fbStart (b₀ + 1) - fbStart b₀ ≤ n_max from hcnt_le, ↓reduceIte]
-      refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
-      exact (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind
-        (StepSpec.pure _ _)
-    set s1 : Memory.State := { mem := m1, frontier := s.frontier }
-    have hne_m1 : ∀ idx, idx ≠ 16 * b₀ → idx ≠ 16 * b₀ + 2 → idx ≠ 16 * b₀ + 3 →
-        idx ≠ 16 * b₀ + 4 → idx ≠ 16 * b₀ + 5 → idx ≠ 16 * b₀ + 6 →
-        idx ≠ 16 * b₀ + 7 → idx ≠ 16 * b₀ + 8 → idx ≠ 16 * b₀ + 9 →
-        readPacked (base + bm) gBits w m1 idx = readPacked (base + bm) gBits w s.mem idx := by
-      intro idx h0 h2 h3 h4 h5 h6 h7 h8 h9
-      dsimp only [m1, wpAt]
-      rw [readPacked_writePacked_of_ne hw _ h3, readPacked_writePacked_of_ne hw _ h0,
-        readPacked_writePacked_of_ne hw _ h9, readPacked_writePacked_of_ne hw _ h8,
-        readPacked_writePacked_of_ne hw _ h7, readPacked_writePacked_of_ne hw _ h6,
-        readPacked_writePacked_of_ne hw _ h5, readPacked_writePacked_of_ne hw _ h4,
-        readPacked_writePacked_of_ne hw _ h2]
-    have hprev1 : ∀ b < b₀ + 1,
-        let c_b := fbStart (b + 1) - fbStart b
-        readPacked (base + bm) gBits w s1.mem (16 * b + 0) = c_b ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 2) = 0 ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 3) = c_b ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 4) = 1 ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 5) = 0 ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 6) = 0 ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 7) = 0 ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 8) = 0 ∧
-        readPacked (base + bm) gBits w s1.mem (16 * b + 9) = 0 := by
-      intro b hb
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hlt | rfl
-      · have hp := hprev b hlt
-        have hne_b : ∀ r < 10,
-            readPacked (base + bm) gBits w m1 (16 * b + r) =
-              readPacked (base + bm) gBits w s.mem (16 * b + r) :=
-          fun r hr => hne_m1 _ (by omega) (by omega) (by omega) (by omega) (by omega)
-            (by omega) (by omega) (by omega) (by omega)
-        exact ⟨(hne_b 0 (by omega)).trans hp.1,
-          (hne_b 2 (by omega)).trans hp.2.1,
-          (hne_b 3 (by omega)).trans hp.2.2.1,
-          (hne_b 4 (by omega)).trans hp.2.2.2.1,
-          (hne_b 5 (by omega)).trans hp.2.2.2.2.1,
-          (hne_b 6 (by omega)).trans hp.2.2.2.2.2.1,
-          (hne_b 7 (by omega)).trans hp.2.2.2.2.2.2.1,
-          (hne_b 8 (by omega)).trans hp.2.2.2.2.2.2.2.1,
-          (hne_b 9 (by omega)).trans hp.2.2.2.2.2.2.2.2⟩
-      · dsimp only [s1, m1, wpAt]
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> (
-          repeat rw [readPacked_writePacked_of_ne hw _ (by omega)]
-          exact readPacked_writePacked_self _ _ _ _ _
-            (by first | exact hcnt_pow | exact h1_pow | exact h0_pow))
-    have hkeep1 : ∀ idx < 16 * M, (idx % 16 = 1 ∨ 10 ≤ idx % 16) →
-        readPacked (base + bm) gBits w s1.mem idx = readPacked (base + bm) gBits w s₀.mem idx := by
-      intro idx hidx hmod
-      dsimp only [s1]
-      rw [hne_m1 idx (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
-        (by omega) (by omega) (by omega)]
-      exact hkeep idx hidx hmod
-    have hout1 : ∀ a, (a < base + bm ∨ base + offFbStart c U V w n_max ≤ a) →
-        s1.mem a = s₀.mem a := by
-      intro a ha
-      dsimp only [s1, m1, wpAt]
-      have hdisj : a < base + bm ∨ base + bm + packedWords (16 * M) gBits w ≤ a := by
-        dsimp only [M, gBits, bm] at ha hbm_end ⊢; omega
-      repeat rw [writePacked_outside hw (N := 16 * M) _ (by omega) _ (by cases hdisj <;> omega)]
-      exact hout a ha
-    obtain ⟨hf_r, hvp_r, hp_r, hkeep_r, hout_r⟩ := ih (b₀ + 1) s1 (by omega) hprev1 hkeep1 hout1
-    have hadd : b₀ + 1 + rem = b₀ + (rem + 1) := by omega
-    rw [hadd] at hp_r
-    unfold fillFinalBktMetaLoopProg at hf_r hvp_r hp_r hkeep_r hout_r ⊢
-    dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro b hb; rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r b hb
-    · intro idx hidx hmod
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hkeep_r idx hidx hmod
-    · intro a ha; rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
+  unfold fillFinalBktMetaLoopProg
+  obtain ⟨-, hvp, hb_eq, hprev', hkeep', hout', hfr'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := fillFinalBktMetaStepProg) (d := rt)
+    (n := rem) (safe := fun _ _ _ => True) (a := b₀) (s := s)
+    (fun k b t => b = b₀ + k ∧
+      (∀ b' < b,
+        let cnt := fbStart (b' + 1) - fbStart b'
+        readPacked (base + bm) gBits w t.mem (16 * b' + 0) = cnt ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 2) = 0 ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 3) = cnt ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 4) = 1 ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 5) = 0 ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 6) = 0 ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 7) = 0 ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 8) = 0 ∧
+        readPacked (base + bm) gBits w t.mem (16 * b' + 9) = 0) ∧
+      (∀ idx < 16 * M, (idx % 16 = 1 ∨ 10 ≤ idx % 16) →
+        readPacked (base + bm) gBits w t.mem idx = readPacked (base + bm) gBits w s₀.mem idx) ∧
+      (∀ a, (a < base + bm ∨ base + offFbStart c U V w n_max ≤ a) → t.mem a = s₀.mem a) ∧
+      t.frontier = s.frontier)
+    (fun k hk b t ⟨hb, hprev, hkeep, hout, hfr⟩ => by
+      have hb_lt : b < M := by omega
+      have hfb_s : ∀ x ≤ M,
+          readPacked (base + offFbStart c U V w n_max) gBits w t.mem x = fbStart x :=
+        fun x hx => (readPacked_congr hw (fun a ⟨ha1, _⟩ => hout a (Or.inr ha1))
+          (Nat.lt_succ_of_le hx)).trans (hfb_mem x hx)
+      obtain ⟨hlo_hi, hcnt_le⟩ := hfb_adj b hb_lt
+      set cnt := fbStart (b + 1) - fbStart b
+      have hcnt_pow : cnt < 2 ^ gBits := lt_two_pow_globalPtrBits_of_le_n_max hcnt_le
+      let wpAt := fun m idx v => writePacked (base + bm) gBits w m idx v
+      set m1 := wpAt (wpAt (wpAt (wpAt (wpAt (wpAt (wpAt (wpAt (wpAt t.mem
+        (16 * b + 2) 0) (16 * b + 4) 1) (16 * b + 5) 0) (16 * b + 6) 0)
+        (16 * b + 7) 0) (16 * b + 8) 0) (16 * b + 9) 0) (16 * b) cnt) (16 * b + 3) cnt
+      have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) t
+          (fillFinalBktMetaStepProg (rt, b)) { mem := m1, frontier := t.frontier } (b + 1) := by
+        unfold fillFinalBktMetaStepProg
+        dsimp only [rt, mkHealRt, hlBase, hlW, hlNMax, hlGBits, hlOffBm, hlOffFb]
+        simp only [pure_bind]
+        refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s b hb_lt.le)).bind ?_
+        refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s (b + 1) hb_lt)).bind ?_
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        simp only [hlo_hi, show fbStart (b + 1) - fbStart b ≤ n_max from hcnt_le, ↓reduceIte]
+        refine (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind ?_
+        exact (StepSpec.writePackedGen (N := 16 * M) hw hgk (by omega) hbm_b).bind
+          (StepSpec.pure _ _)
+      have hne_m1 : ∀ idx, idx ≠ 16 * b → idx ≠ 16 * b + 2 → idx ≠ 16 * b + 3 →
+          idx ≠ 16 * b + 4 → idx ≠ 16 * b + 5 → idx ≠ 16 * b + 6 →
+          idx ≠ 16 * b + 7 → idx ≠ 16 * b + 8 → idx ≠ 16 * b + 9 →
+          readPacked (base + bm) gBits w m1 idx = readPacked (base + bm) gBits w t.mem idx := by
+        intro idx h0 h2 h3 h4 h5 h6 h7 h8 h9
+        dsimp only [m1, wpAt]
+        rw [readPacked_writePacked_of_ne hw _ h3, readPacked_writePacked_of_ne hw _ h0,
+          readPacked_writePacked_of_ne hw _ h9, readPacked_writePacked_of_ne hw _ h8,
+          readPacked_writePacked_of_ne hw _ h7, readPacked_writePacked_of_ne hw _ h6,
+          readPacked_writePacked_of_ne hw _ h5, readPacked_writePacked_of_ne hw _ h4,
+          readPacked_writePacked_of_ne hw _ h2]
+      refine ⟨trivial, hs1.2.2, ?_⟩
+      rw [hs1.1, hs1.2.1]
+      refine ⟨by omega, fun b' hb' => ?_, fun idx hidx hmod => ?_, fun a ha => ?_, hfr⟩
+      · rcases Nat.lt_succ_iff_lt_or_eq.mp hb' with hlt | rfl
+        · have hp := hprev b' hlt
+          have hne_b : ∀ r < 10,
+              readPacked (base + bm) gBits w m1 (16 * b' + r) =
+                readPacked (base + bm) gBits w t.mem (16 * b' + r) :=
+            fun r hr => hne_m1 _ (by omega) (by omega) (by omega) (by omega) (by omega)
+              (by omega) (by omega) (by omega) (by omega)
+          exact ⟨(hne_b 0 (by omega)).trans hp.1,
+            (hne_b 2 (by omega)).trans hp.2.1,
+            (hne_b 3 (by omega)).trans hp.2.2.1,
+            (hne_b 4 (by omega)).trans hp.2.2.2.1,
+            (hne_b 5 (by omega)).trans hp.2.2.2.2.1,
+            (hne_b 6 (by omega)).trans hp.2.2.2.2.2.1,
+            (hne_b 7 (by omega)).trans hp.2.2.2.2.2.2.1,
+            (hne_b 8 (by omega)).trans hp.2.2.2.2.2.2.2.1,
+            (hne_b 9 (by omega)).trans hp.2.2.2.2.2.2.2.2⟩
+        · dsimp only [m1, wpAt]
+          refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> (
+            repeat rw [readPacked_writePacked_of_ne hw _ (by omega)]
+            exact readPacked_writePacked_self _ _ _ _ _
+              (by first | exact hcnt_pow | exact h1_pow | exact h0_pow))
+      · change readPacked (base + bm) gBits w m1 idx = _
+        rw [hne_m1 idx (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
+          (by omega) (by omega) (by omega)]
+        exact hkeep idx hidx hmod
+      · dsimp only [m1, wpAt]
+        have hdisj : a < base + bm ∨ base + bm + packedWords (16 * M) gBits w ≤ a := by
+          dsimp only [M, gBits, bm] at ha hbm_end ⊢; omega
+        repeat rw [writePacked_outside hw (N := 16 * M) _ (by omega) _ (by cases hdisj <;> omega)]
+        exact hout a ha)
+    ⟨rfl, hprev, hkeep, hout, rfl⟩
+  exact ⟨hfr', hvp, fun b' hb' => hprev' b' (by omega), hkeep', hout'⟩
 
 /-! ## Phase G: `zeroTrieChildrenLoopProg` and `writeHealHdrsAndTrieMetaProg` -/
 
@@ -458,7 +445,7 @@ theorem zeroTrieChildrenLoop_spec {c U V w n_max base : ℕ}
         readPacked (base + tc0) gBits w s'.mem idx = 0 ∧
         readPacked (base + tc1) gBits w s'.mem idx = 0) ∧
       (∀ a, (a < base + tc0 ∨ base + offTrieMeta0 c U V w n_max ≤ a) → s'.mem a = s.mem a) := by
-  intro rt tc0 tc1 tce gBits rem
+  intro rt tc0 tc1 tce gBits rem i₀ s hle hprev
   have hw := henv.2.1
   obtain ⟨_, _, _, _, _, _, _, hgk⟩ := hl_bounds henv
   have hseg := WhpLargeEnv.seg_end_le c U V w n_max
@@ -469,59 +456,51 @@ theorem zeroTrieChildrenLoop_spec {c U V w n_max base : ℕ}
   have htc0_end : tc0 + packedWords tce gBits w = tc1 := rfl
   have htc1_end : tc1 + packedWords tce gBits w = offTrieMeta0 c U V w n_max := rfl
   have h0_pow : 0 < 2 ^ gBits := Nat.two_pow_pos _
-  induction rem with
-  | zero =>
-    intro i₀ s _ hprev
-    unfold zeroTrieChildrenLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨rfl, validProg_pure _, hprev, fun _ _ => rfl⟩
-  | succ rem ih =>
-    intro i₀ s hle hprev
-    have hi_lt : i₀ < tce := by omega
-    set m1 := writePacked (base + tc0) gBits w s.mem i₀ 0
-    set m2 := writePacked (base + tc1) gBits w m1 i₀ 0
-    set p1 := zeroTrieChildrenStepProg ((rt, (tc0, tc1)), i₀)
-    have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) s p1
-        { mem := m2, frontier := s.frontier } (i₀ + 1) := by
-      dsimp only [p1]; unfold zeroTrieChildrenStepProg
-      dsimp only [rt, mkHealRt, hlBase, hlW, hlGBits]
-      simp only [pure_bind]
-      refine (StepSpec.writePackedGen hw hgk hi_lt htc0_b).bind ?_
-      exact (StepSpec.writePackedGen hw hgk hi_lt htc1_b).bind (StepSpec.pure _ _)
-    set s1 : Memory.State := { mem := m2, frontier := s.frontier }
-    have hprev1 : ∀ idx < i₀ + 1,
-        readPacked (base + tc0) gBits w s1.mem idx = 0 ∧
-        readPacked (base + tc1) gBits w s1.mem idx = 0 := by
-      intro idx hidx
-      dsimp only [s1, m2, m1]
-      have hidx_tce : idx < tce := by omega
-      have hdisj01 : base + tc0 + packedWords tce gBits w ≤ base + tc1 ∨
-          base + tc1 + packedWords tce gBits w ≤ base + tc0 := Or.inl (by omega)
-      have hdisj10 : base + tc1 + packedWords tce gBits w ≤ base + tc0 ∨
-          base + tc0 + packedWords tce gBits w ≤ base + tc1 := Or.inr (by omega)
-      rw [readPacked_writePacked_disjoint hw hidx_tce hi_lt hdisj01]
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hidx with hlt | rfl
-      · refine ⟨(readPacked_writePacked_of_ne hw _ (by omega) _).trans (hprev idx hlt).1, ?_⟩
-        rw [readPacked_writePacked_of_ne hw _ (by omega),
-          readPacked_writePacked_disjoint hw hidx_tce hi_lt hdisj10]
-        exact (hprev idx hlt).2
-      · exact ⟨readPacked_writePacked_self _ _ _ _ _ h0_pow,
-          readPacked_writePacked_self _ _ _ _ _ h0_pow⟩
-    obtain ⟨hf_r, hvp_r, hp_r, hout_r⟩ := ih (i₀ + 1) s1 (by omega) hprev1
-    have hadd : i₀ + 1 + rem = i₀ + (rem + 1) := by omega
-    rw [hadd] at hp_r
-    unfold zeroTrieChildrenLoopProg at hf_r hvp_r hp_r hout_r ⊢
-    dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hf_r
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro idx hidx; rw [clientState_bind, hs1.1, hs1.2.1]; exact hp_r idx hidx
-    · intro a ha
-      rw [clientState_bind, hs1.1, hs1.2.1, hout_r a ha]
-      dsimp only [s1, m2, m1]
-      dsimp only [tc0, tc1, tce, gBits] at hi_lt htc0_end htc1_end ha ⊢
-      rw [writePacked_outside hw _ hi_lt _ (by omega),
-        writePacked_outside hw _ hi_lt _ (by omega)]
+  unfold zeroTrieChildrenLoopProg
+  obtain ⟨-, hvp, hi_eq, hprev', hout', hfr'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := zeroTrieChildrenStepProg)
+    (d := (rt, (tc0, tc1))) (n := rem) (safe := fun _ _ _ => True) (a := i₀) (s := s)
+    (fun k i t => i = i₀ + k ∧
+      (∀ idx < i, readPacked (base + tc0) gBits w t.mem idx = 0 ∧
+        readPacked (base + tc1) gBits w t.mem idx = 0) ∧
+      (∀ a, (a < base + tc0 ∨ base + offTrieMeta0 c U V w n_max ≤ a) → t.mem a = s.mem a) ∧
+      t.frontier = s.frontier)
+    (fun k hk i t ⟨hi, hprev, hout, hfr⟩ => by
+      have hi_lt : i < tce := by omega
+      set m1 := writePacked (base + tc0) gBits w t.mem i 0
+      set m2 := writePacked (base + tc1) gBits w m1 i 0
+      have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) t
+          (zeroTrieChildrenStepProg ((rt, (tc0, tc1)), i))
+          { mem := m2, frontier := t.frontier } (i + 1) := by
+        unfold zeroTrieChildrenStepProg
+        dsimp only [rt, mkHealRt, hlBase, hlW, hlGBits]
+        simp only [pure_bind]
+        refine (StepSpec.writePackedGen hw hgk hi_lt htc0_b).bind ?_
+        exact (StepSpec.writePackedGen hw hgk hi_lt htc1_b).bind (StepSpec.pure _ _)
+      refine ⟨trivial, hs1.2.2, ?_⟩
+      rw [hs1.1, hs1.2.1]
+      refine ⟨by omega, fun idx hidx => ?_, fun a ha => ?_, hfr⟩
+      · dsimp only [m2, m1]
+        have hidx_tce : idx < tce := by omega
+        have hdisj01 : base + tc0 + packedWords tce gBits w ≤ base + tc1 ∨
+            base + tc1 + packedWords tce gBits w ≤ base + tc0 := Or.inl (by omega)
+        have hdisj10 : base + tc1 + packedWords tce gBits w ≤ base + tc0 ∨
+            base + tc0 + packedWords tce gBits w ≤ base + tc1 := Or.inr (by omega)
+        rw [readPacked_writePacked_disjoint hw hidx_tce hi_lt hdisj01]
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hidx with hlt | rfl
+        · refine ⟨(readPacked_writePacked_of_ne hw _ (by omega) _).trans (hprev idx hlt).1, ?_⟩
+          rw [readPacked_writePacked_of_ne hw _ (by omega),
+            readPacked_writePacked_disjoint hw hidx_tce hi_lt hdisj10]
+          exact (hprev idx hlt).2
+        · exact ⟨readPacked_writePacked_self _ _ _ _ _ h0_pow,
+            readPacked_writePacked_self _ _ _ _ _ h0_pow⟩
+      · rw [← hout a ha]
+        dsimp only [m2, m1]
+        dsimp only [tc0, tc1, tce, gBits] at hi_lt htc0_end htc1_end ha ⊢
+        rw [writePacked_outside hw _ hi_lt _ (by omega),
+          writePacked_outside hw _ hi_lt _ (by omega)])
+    ⟨rfl, hprev, fun _ _ => rfl, rfl⟩
+  exact ⟨hfr', hvp, fun idx hidx => hprev' idx (by omega), hout'⟩
 
 /-- Clear root `nodeActive` flags in `offTrieMeta0`/`offTrieMeta1` and write the 16 fast-mode
 header words at `base .. base + 15`. -/

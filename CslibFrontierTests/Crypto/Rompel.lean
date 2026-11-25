@@ -332,7 +332,7 @@ noncomputable def leakNonNScheme (S : SignatureScheme) : WordSignatureScheme whe
       (ComputableInPolyTime.snd _ _).snd'
     have hparsed := hpk.trans TCRSignature.keyDecoder.computableInPolyTime
     have hmsgLen := ComputableInPolyTime.length_bits.comp hmsg
-    have hcond := ComputableInPolyTime.unary_beq' hmsgLen hparsed.fst'
+    have hcond := ComputableInPolyTime.unary_beq hmsgLen hparsed.fst'
     have hyes := S.verify_polyTime.comp (hparsed.snd'.prod (hmsg.prod hsig))
     have hno : ComputableInPolyTime (fun _ : VIn => true) encVIn encBool := .const true
     exact (hcond.ite hyes hno).of_enc_eq fun _ => rfl
@@ -451,8 +451,8 @@ noncomputable def testFixedSig : SignatureScheme where
     have hrest := ComputableInPolyTime.snd encBits encRest
     have hmsgLen := hrest.fst'.trans ComputableInPolyTime.length_bits
     have hsigLen := hrest.snd'.trans ComputableInPolyTime.length_bits
-    exact ((ComputableInPolyTime.unary_beq' hpkLen hmsgLen).bool_and'
-      (ComputableInPolyTime.unary_beq' hsigLen hmsgLen)).of_enc_eq fun _ => rfl
+    exact ((ComputableInPolyTime.unary_beq hpkLen hmsgLen).bool_and'
+      (ComputableInPolyTime.unary_beq hsigLen hmsgLen)).of_enc_eq fun _ => rfl
   verify_sign n keys hkeys msg hmsg sig hsig := by
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hkeys hsig
     subst hkeys

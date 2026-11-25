@@ -136,7 +136,7 @@ private theorem isOraclePPTOn_route
   let hcount := (ComputableInPolyTime.length encBits).comp hparents
   let hadd := ComputableInPolyTime.listAppend' hparents
     (ComputableInPolyTime.cons' hparent (.const []))
-  let hupdated := (hchannel.unary_eq' hcount).ite_decide hadd hparents
+  let hupdated := (hchannel.unary_decide_eq hcount).ite_decide hadd hparents
   let hblock := hsuffix.bitsTakeWithInput hwidth
   let hrest := hsuffix.bitsDropWithInput hwidth
   have hword : ComputableInPolyTime (fun x : RouterCall =>

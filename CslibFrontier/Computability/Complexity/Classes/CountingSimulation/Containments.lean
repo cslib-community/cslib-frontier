@@ -137,23 +137,15 @@ theorem exists_decidableInTimeAndSpace_of_mem_PPTIME (hnet : NetworkFamilies enc
   rw [h]
   exact decide_eq_true_iff.symm
 
-private theorem mem_iUnion_DTIME_of_exists {L : Set α}
-    (h : ∃ C d : ℕ, DecidableInTimeAndSpace L enc
-      (fun a => 2 ^ (C * T (enc a).length / Nat.sqrt (Nat.log 2 (T (enc a).length))))
-      (fun a => T (enc a).length ^ d)) :
-    L ∈ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) := by
-  obtain ⟨C, d, h⟩ := h
-  exact Set.mem_iUnion.mpr ⟨C, 1, 0, fun n => T n ^ d,
-    ComputableInTimeAndSpace.mono h (fun a => by rw [Nat.one_mul, Nat.add_zero]) fun _ => le_rfl⟩
-
 /-- **`NTIME[T] ⊆ ⋃ C, DTIME[2 ^ (C * T / √⌊log₂ T⌋)]`** (conditional on the interfaces), for a
 time-constructible `T` with `max n 2 ≤ T n`. -/
 theorem NTIME_subset_iUnion_DTIME (hnet : NetworkFamilies encN value Admissible)
     (A : ContractionAlgorithm encN value Admissible) (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     NTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun _ hL => mem_iUnion_DTIME_of_exists
-    (exists_decidableInTimeAndSpace_of_mem_NTIME hnet A hT hTn hL)
+  fun _ hL =>
+    let ⟨C, _, h⟩ := exists_decidableInTimeAndSpace_of_mem_NTIME hnet A hT hTn hL
+    Set.mem_iUnion.mpr ⟨C, mem_DTIME_of_decidableInTimeAndSpace h⟩
 
 /-- **`BPTIME[T] ⊆ ⋃ C, DTIME[2 ^ (C * T / √⌊log₂ T⌋)]`** (conditional on the interfaces), for a
 time-constructible `T` with `max n 2 ≤ T n`. -/
@@ -161,8 +153,9 @@ theorem BPTIME_subset_iUnion_DTIME (hnet : NetworkFamilies encN value Admissible
     (A : ContractionAlgorithm encN value Admissible) (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     BPTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun _ hL => mem_iUnion_DTIME_of_exists
-    (exists_decidableInTimeAndSpace_of_mem_BPTIME hnet A hT hTn hL)
+  fun _ hL =>
+    let ⟨C, _, h⟩ := exists_decidableInTimeAndSpace_of_mem_BPTIME hnet A hT hTn hL
+    Set.mem_iUnion.mpr ⟨C, mem_DTIME_of_decidableInTimeAndSpace h⟩
 
 /-- **`PPTIME[T] ⊆ ⋃ C, DTIME[2 ^ (C * T / √⌊log₂ T⌋)]`** (conditional on the interfaces), for a
 time-constructible `T` with `max n 2 ≤ T n`. -/
@@ -170,7 +163,8 @@ theorem PPTIME_subset_iUnion_DTIME (hnet : NetworkFamilies encN value Admissible
     (A : ContractionAlgorithm encN value Admissible) (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     PPTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun _ hL => mem_iUnion_DTIME_of_exists
-    (exists_decidableInTimeAndSpace_of_mem_PPTIME hnet A hT hTn hL)
+  fun _ hL =>
+    let ⟨C, _, h⟩ := exists_decidableInTimeAndSpace_of_mem_PPTIME hnet A hT hTn hL
+    Set.mem_iUnion.mpr ⟨C, mem_DTIME_of_decidableInTimeAndSpace h⟩
 
 end Cslib.Complexity.CountingSimulation

@@ -11,9 +11,9 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.ColorRefinemen
 public import CslibFrontier.Foundations.ModelTheory.Graph
 public import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.Basic
 public import CslibFrontier.Logics.FirstOrder.FiniteVariable.BijectiveGame
+import CslibFrontier.Foundations.Data.Fin.VecNotation
 import CslibFrontier.Foundations.Data.Fintype.FiberEquiv
 import CslibFrontier.Logics.FirstOrder.FiniteVariable.CountingHintikka
-import Mathlib.Data.Fin.Tuple.Reflection
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -255,9 +255,6 @@ private theorem fin_two_add_one_add_one (p : Fin 2) : p + 1 + 1 = p := by
   revert p
   decide
 
-private theorem comp_vec_two {α β : Type*} (a : α → β) (i j : α) : a ∘ ![i, j] = ![a i, a j] :=
-  (FinVec.map_eq a ![i, j]).symm
-
 /-- On simple graphs, placed pebbles in `S` form a partial isomorphism iff equality and adjacency
 agree on all pairs in `S`. -/
 theorem partialIsoOn_graph_iff {m : ℕ} {S : Set (Fin m)} {a : Fin m → V} {b : Fin m → W} :
@@ -269,12 +266,14 @@ theorem partialIsoOn_graph_iff {m : ℕ} {S : Set (Fin m)} {a : Fin m → V} {b 
   · intro h i hi j hj
     refine ⟨h.eq_iff i hi j hj, ?_⟩
     have hadj := h.relMap_iff adj ![i, j] (by intro t; fin_cases t <;> assumption)
-    rwa [comp_vec_two, comp_vec_two] at hadj
+    simp only [Matrix.comp_vecCons, Matrix.comp_vecEmpty] at hadj
+    exact hadj
   · intro h
     refine ⟨fun i hi j hj => (h i hi j hj).1, fun {l} R f hf => ?_⟩
     cases R
     have hf' : f = ![f 0, f 1] := funext fun t => by fin_cases t <;> rfl
-    rw [hf', comp_vec_two, comp_vec_two]
+    rw [hf']
+    simp only [Matrix.comp_vecCons, Matrix.comp_vecEmpty]
     exact (h _ (hf 0) _ (hf 1)).2
 
 private theorem partialIsoOn_graph_singleton (i : Fin 2) (a : Fin 2 → V) (b : Fin 2 → W) :

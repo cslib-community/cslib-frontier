@@ -161,6 +161,13 @@ theorem Reaches.reachesOut {B : ℕ} (h : P.Reaches w (P.Running B) s s') :
 
 variable {B : ℕ} {regs : List ℕ}
 
+/-- Four values bounded by `B`, in the form `∀ r ∈ regs, r ≤ B` in which the stepping lemmas take
+the bound on the registers of a four-register program. -/
+theorem forall_mem_four_le {a₀ a₁ a₂ a₃ : ℕ} (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B)
+    (h₃ : a₃ ≤ B) : ∀ r ∈ [a₀, a₁, a₂, a₃], r ≤ B := by
+  simp only [List.mem_cons, List.not_mem_nil, or_false]
+  omega
+
 theorem ReachesOut.assign {c i : ℕ} {e : Expr} {next : ℕ} (hc : P.instr c = .assign i e next)
     (hB : ∀ r ∈ regs, r ≤ B)
     (h : P.ReachesOut w (P.Active B) (next, regs.set i (e.eval regs)) s' out) :

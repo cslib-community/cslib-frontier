@@ -107,40 +107,6 @@ theorem oneInclusionEdges_mono [DecidableEq ι] [Fintype ι] {S₁ S₂ : Finset
   rcases mem_oneInclusionEdges.mp he with ⟨h1, h2, h3⟩
   exact mem_oneInclusionEdges.mpr ⟨h h1, h2, h h3⟩
 
-private theorem setShatters_image_succ {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters (Fin.tail '' S) W) : SetShatters S (Fin.succ '' W) :=
-  SetShatters.image_of_comp hW
-
-private theorem setShatters_insert_zero {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} W) :
-    SetShatters S (insert 0 (Fin.succ '' W)) := by
-  classical
-  intro T hT
-  obtain ⟨g, ⟨hg0, hg1⟩, hgT⟩ := hW (W ∩ Fin.succ ⁻¹' T) Set.inter_subset_left
-  let b : Bool := decide ((0 : Fin (n + 1)) ∈ T)
-  refine ⟨Fin.cons b g, by cases hb : b <;> [exact hg0; exact hg1], Set.ext fun x => ?_⟩
-  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-  rcases Fin.eq_zero_or_eq_succ x with rfl | ⟨i, rfl⟩
-  · simp [b]
-  · constructor
-    · rintro ⟨hgi, hxins⟩
-      simp only [Fin.cons_succ] at hgi
-      have hiW : i ∈ W := by
-        rcases hxins with h0 | ⟨j, hj, hji⟩
-        · exact absurd h0 (Fin.succ_ne_zero i)
-        · rwa [Fin.succ_inj.mp hji] at hj
-      have hmem : i ∈ g ⁻¹' {true} ∩ W := ⟨hgi, hiW⟩
-      rw [hgT] at hmem
-      exact hmem.2
-    · intro hiT
-      have hiW : i ∈ W := by
-        rcases hT hiT with h0 | ⟨j, hj, hji⟩
-        · exact absurd h0 (Fin.succ_ne_zero i)
-        · rwa [Fin.succ_inj.mp hji] at hj
-      have hmem : i ∈ g ⁻¹' {true} ∩ W := hgT ▸ ⟨hiW, hiT⟩
-      exact ⟨by simpa only [Fin.cons_succ, Set.mem_preimage, Set.mem_singleton_iff] using hmem.1,
-        Or.inr ⟨i, hiW, rfl⟩⟩
-
 private theorem card_oneInclusionEdges_fin_le :
     ∀ {n d : ℕ} {S : Finset (Fin n → Bool)},
       (∀ W : Finset (Fin n), SetShatters (S : Set (Fin n → Bool)) ↑W → W.card ≤ d) →
@@ -309,10 +275,7 @@ private theorem card_oneInclusionEdges_fin_le :
         rcases mem_union.mp (mem_coe.mp hg) with hg0 | hg1
         · exact ⟨Fin.cons false g, (mem_filter.mp hg0).2, by simp [Fin.tail_cons]⟩
         · exact ⟨Fin.cons true g, (mem_filter.mp hg1).2, by simp [Fin.tail_cons]⟩
-      have hsh' : SetShatters (S : Set (Fin (n + 1) → Bool)) ↑(W.map (Fin.succEmb n)) := by
-        rw [coe_map]
-        exact setShatters_image_succ (hW.superset hsub)
-      simpa only [card_map] using hS _ hsh'
+      exact (hW.superset hsub).card_le_of_comp hS
     have hsh_inter : ∀ W : Finset (Fin n),
         SetShatters (↑(S₀ ∩ S₁) : Set (Fin n → Bool)) ↑W → W.card + 1 ≤ d := by
       intro W hW
@@ -321,15 +284,7 @@ private theorem card_oneInclusionEdges_fin_le :
         intro g hg
         rcases mem_inter.mp (mem_coe.mp hg) with ⟨hg0, hg1⟩
         exact ⟨(mem_filter.mp hg0).2, (mem_filter.mp hg1).2⟩
-      have h0not : (0 : Fin (n + 1)) ∉ W.map (Fin.succEmb n) := by
-        simp only [mem_map, Fin.coe_succEmb, not_exists, not_and]
-        exact fun i _ => Fin.succ_ne_zero i
-      have hsh' : SetShatters (S : Set (Fin (n + 1) → Bool))
-          ↑(insert 0 (W.map (Fin.succEmb n))) := by
-        rw [coe_insert, coe_map]
-        exact setShatters_insert_zero (hW.superset hsub)
-      have hcard := hS _ hsh'
-      rwa [card_insert_of_notMem h0not, card_map] at hcard
+      exact (hW.superset hsub).card_add_one_le_of_cons hS
     rcases d with _ | d
     · have hemp_inter : (S₀ ∩ S₁).card = 0 := by
         rw [card_eq_zero, ← not_nonempty_iff_eq_empty]

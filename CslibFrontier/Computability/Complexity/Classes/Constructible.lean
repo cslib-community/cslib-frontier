@@ -78,7 +78,7 @@ theorem TimeConstructible.computableInO {t : ℕ → ℕ} (ht : TimeConstructibl
   obtain ⟨c, s, h⟩ := ht
   obtain ⟨k, h⟩ := ComputableInTimeAndSpace.exists_space_linear h
   refine .of_bounds h (k * c + c + k + 1) (fun x => ?_) (fun x => ?_)
-    fun x => (length_encNat_le _).trans ?_
+    fun x => (length_encNat_le_self _).trans ?_
   · dsimp only
     simp only [encBits_apply]
     ring_nf
@@ -111,7 +111,7 @@ theorem TimeConstructible.succ {t : ℕ → ℕ} (ht : TimeConstructible t) :
     ht.computableInO
   refine TimeConstructible.of_computableInO (s := fun n => t n + (encNat (t n)).length) 2 h
     (fun x => ?_) fun _ => le_rfl
-  have hlen := length_encNat_le (t x.length)
+  have hlen := length_encNat_le_self (t x.length)
   omega
 
 /-- Constant bounds are time-constructible. -/
@@ -269,7 +269,7 @@ theorem SpaceConstructible.computableInO {s : ℕ → ℕ} (hs : SpaceConstructi
   · exact (Nat.le_succ _).trans (Nat.le_mul_of_pos_left _ (by omega))
   · dsimp only [encBits_apply]
     nlinarith
-  · exact (Universal.length_encNat_le _).trans
+  · exact (length_encNat_le_self _).trans
       ((Nat.le_succ _).trans (Nat.le_mul_of_pos_left _ (by omega)))
 
 /-- A time-constructible bound is space-constructible, since space is at most time. -/
@@ -300,7 +300,7 @@ theorem spaceConstructible_id : SpaceConstructible fun n => n :=
 theorem spaceConstructible_succ : SpaceConstructible fun n => n + 1 :=
   SpaceConstructible.of_computableInO 2
     (ComputableInO.natSucc.comp ComputableInO.lengthNat)
-    fun x => by have := Universal.length_encNat_le x.length; omega
+    fun x => by have := length_encNat_le_self x.length; omega
 
 /-- Constant bounds are space-constructible, in zero space. -/
 theorem spaceConstructible_const (c : ℕ) : SpaceConstructible fun _ => c := by

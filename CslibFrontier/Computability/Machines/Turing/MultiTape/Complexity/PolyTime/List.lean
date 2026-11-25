@@ -58,8 +58,8 @@ counting folds a counter directly instead of constructing the matching sublist.
   plain certificates for fixed-list templates, without encoding the fixed parameters.
 * `Turing.MultiTapeTM.ComputableInPolyTime.filterWith`, `.findWith`: filtering or searching
   a polynomial-time list with a parameterized test.
-* `Turing.MultiTapeTM.ComputableInPolyTime.length`, `.range`, `.replicate`: unary lengths,
-  ranges and lists of a computed length, charging each repeated value.
+* `Turing.MultiTapeTM.ComputableInPolyTime.length`, `.length_list'`, `.range`, `.replicate`:
+  unary lengths, ranges and lists of a computed length, charging each repeated value.
 * `Turing.MultiTapeTM.ComputableInPolyTime.zipIdx`: number list entries with unary indices.
 * `Turing.MultiTapeTM.ComputableInPolyTime.zip`: pair entries of framed lists.
 * `Turing.MultiTapeTM.ComputableInPolyTime.anyWith`, `.allWith`: Boolean scans with a
@@ -104,12 +104,6 @@ by
   obtain ⟨d₁, e₁, hleft⟩ := hleft.exists_degree
   obtain ⟨d₂, e₂, hright⟩ := hright.exists_degree
   exact (hleft.append hright fun _ => rfl).computableInPolyTime
-
-/-- Read the head of any list encoding with a fixed fallback. -/
-@[fun_prop]
-theorem headD {encL : List α ↪ List Bool} [ListEncoding encA encL] (fallback : α) :
-    ComputableInPolyTime (fun list => list.headD fallback) encL encA :=
-  (ListEncoding.headD (enc₁ := encA) (enc := encL) fallback).computableInPolyTime
 
 /-- Read the head of a computed framed list with a computed fallback, inferring the element
 encoding from the list before checking the fallback or composing with an outer projection. -/
@@ -318,6 +312,12 @@ theorem length (enc : α ↪ List Bool) {encL : List α ↪ List Bool} [ListEnco
 @[fun_prop]
 theorem length_list (enc : α ↪ List Bool) :
     ComputableInPolyTime (fun l : List α => l.length) (encList enc) encUnary := length enc
+
+/-- Length of a computed framed list in unary, fixing the intermediate list encoding. -/
+theorem length_list' {list : γ → List α}
+    (hlist : ComputableInPolyTime list encIn (encList encA)) :
+    ComputableInPolyTime (fun x => (list x).length) encIn encUnary :=
+  (length_list encA).comp hlist
 
 /-- Length of a raw bit string. -/
 @[fun_prop]

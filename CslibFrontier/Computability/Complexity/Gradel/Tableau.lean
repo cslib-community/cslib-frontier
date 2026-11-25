@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.Step
 public import CslibFrontier.Logics.FirstOrder.Ordered.Constants
 public import CslibFrontier.Logics.SecondOrder.Horn
 import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.FixedPoint
+import CslibFrontier.Foundations.Data.Fin.VecNotation
 import CslibFrontier.Logics.FirstOrder.Ordered.BitArithmetic
 import Mathlib.Basic.Finite.Sum
 import Mathlib.Data.Fintype.Prod
@@ -326,46 +327,41 @@ section Semantics
 
 variable {L : Language} {B : ℕ} {m : ℕ} {State : Type}
 
-private theorem comp_vec2 {α β : Type*} (v : α → β) (a b : α) :
-    v ∘ ![a, b] = ![v a, v b] := by
-  ext k
-  fin_cases k <;> rfl
-
 private abbrev Model (m : ℕ) (State : Type) (B : ℕ) :=
   TableauVar m State → Set (Fin 2 → Fin B)
 
 private theorem holds_tagAtom {w : ℕ} (q : Tag m State) (t a : Fin w)
     (R : Model m State B) (v : Fin w → Fin B) :
     (tagAtom q t a).Holds R v ↔ ![v t, v a] ∈ R (.tag q) := by
-  rw [ESO.Horn.Atom.Holds, tagAtom, comp_vec2]
+  simp only [ESO.Horn.Atom.Holds, tagAtom, Matrix.comp_vecCons, Matrix.comp_vecEmpty]
 
 private theorem holds_readAtom {w : ℕ} (i : Fin m) (s : Option Bool) (t : Fin w)
     (R : Model m State B) (v : Fin w → Fin B) :
     (readAtom (State := State) i s t).Holds R v ↔ ![v t, v t] ∈ R (.read i s) := by
-  rw [ESO.Horn.Atom.Holds, readAtom, comp_vec2]
+  simp only [ESO.Horn.Atom.Holds, readAtom, Matrix.comp_vecCons, Matrix.comp_vecEmpty]
 
 private theorem holds_sitAtom {w : ℕ} (y : Situation m State) (t a : Fin w)
     (R : Model m State B) (v : Fin w → Fin B) :
     (sitAtom y t a).Holds R v ↔ ![v t, v a] ∈ R (.sit y) := by
-  rw [ESO.Horn.Atom.Holds, sitAtom, comp_vec2]
+  simp only [ESO.Horn.Atom.Holds, sitAtom, Matrix.comp_vecCons, Matrix.comp_vecEmpty]
 
 private theorem holds_elsewhereAtom {w : ℕ} (i : Fin m) (sign : Bool) (t a : Fin w)
     (R : Model m State B) (v : Fin w → Fin B) :
     (elsewhereAtom (State := State) i sign t a).Holds R v ↔
       ![v t, v a] ∈ R (.elsewhere i sign) := by
-  rw [ESO.Horn.Atom.Holds, elsewhereAtom, comp_vec2]
+  simp only [ESO.Horn.Atom.Holds, elsewhereAtom, Matrix.comp_vecCons, Matrix.comp_vecEmpty]
 
 private theorem holds_inPrevAtom {w : ℕ} (d : SignType) (t a : Fin w)
     (R : Model m State B) (v : Fin w → Fin B) :
     (inPrevAtom (m := m) (State := State) d t a).Holds R v ↔
       ![v t, v a] ∈ R (.inPrev d) := by
-  rw [ESO.Horn.Atom.Holds, inPrevAtom, comp_vec2]
+  simp only [ESO.Horn.Atom.Holds, inPrevAtom, Matrix.comp_vecCons, Matrix.comp_vecEmpty]
 
 private theorem holds_headPrevAtom {w : ℕ} (i : Fin m) (sign : Bool) (d : SignType)
     (t a : Fin w) (R : Model m State B) (v : Fin w → Fin B) :
     (headPrevAtom (State := State) i sign d t a).Holds R v ↔
       ![v t, v a] ∈ R (.headPrev i sign d) := by
-  rw [ESO.Horn.Atom.Holds, headPrevAtom, comp_vec2]
+  simp only [ESO.Horn.Atom.Holds, headPrevAtom, Matrix.comp_vecCons, Matrix.comp_vecEmpty]
 
 private theorem goalClause_head_none [Fintype State] {C : TClause L m State}
     (hC : C ∈ goalClauses (m := m) (State := State) L) : C.head = none := by

@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation
 public import CslibFrontier.Probability.KWiseIndependent.ReducedLimbs
 import CslibFrontier.Computability.WordRAM.RegisterFrame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Foundations.Data.Nat.Bitwise.Mask
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
@@ -119,9 +120,6 @@ Four-Russians carryless multiplication table. -/
 
 attribute [local wram_arith] seedWords tableWords space tabBase
 
-theorem and_two_pow_sub_one_lt (a n : ℕ) : a &&& (2 ^ n - 1) < 2 ^ n :=
-  Nat.and_lt_two_pow a (Nat.sub_lt (Nat.two_pow_pos n) one_pos)
-
 theorem shiftRight_lt_pow_sub {m h a : ℕ} (hle : h ≤ m) (ha : a < 2 ^ m) :
     a >>> h < 2 ^ (m - h) := by
   rw [Nat.shiftRight_eq_div_pow]
@@ -134,7 +132,7 @@ private theorem fits_mask_of_le {w n : ℕ} (h : n ≤ w) : Fits w (2 ^ n - 1) :
 carryless-multiplication table slot fits below the word width `w`. -/
 theorem packSlot_sh_lt {t w idx : ℕ} (h2c : 2 * reducedChunkBits t ≤ w) :
     (idx &&& (2 ^ reducedPackShift t w - 1)) * (2 * reducedChunkBits t) < w :=
-  (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt idx (reducedPackShift t w))
+  (Nat.mul_lt_mul_of_pos_right (Nat.and_two_pow_sub_one_lt idx (reducedPackShift t w))
     (by have := reducedChunkBits_pos t; omega)).trans_le (two_pow_reducedPackShift_mul_le h2c)
 
 theorem seedWords_pos (w₀ b b' k : ℕ) : 0 < seedWords w₀ b b' k := by
@@ -537,12 +535,12 @@ theorem clmulTabLoop_exec {w tBase t : ℕ}
     have hwIdx_lt : wIdx < reducedTableWords t w := shiftRight_lt_reducedTableWords hidx_lt
     have hprevWIdx_le : prevWIdx ≤ wIdx := by
       simpa only [prevWIdx, wIdx, Nat.shiftRight_eq_div_pow] using Nat.div_le_div_right hprev_le
-    have hsub_lt : subIdx < 2 ^ p := and_two_pow_sub_one_lt idx p
+    have hsub_lt : subIdx < 2 ^ p := Nat.and_two_pow_sub_one_lt idx p
     have hsh_lt : sh < w := packSlot_sh_lt hc_lt.le
     have hprevSh_lt : prevSh < w := packSlot_sh_lt hc_lt.le
     have hmasked_lt : maskedWord < 2 ^ sh := by
       simpa only [maskedWord, Nat.shiftLeft_eq, one_mul] using
-        and_two_pow_sub_one_lt (x.mem (tBase + wIdx)) sh
+        Nat.and_two_pow_sub_one_lt (x.mem (tBase + wIdx)) sh
     have hval_lt : clmul u v < 2 ^ (2 * c) := clmul_lt_two_pow_two_mul hu_lt hv_lt
     have hpow_sub1 : 2 ^ ((subIdx + 1) * (2 * c)) ≤ 2 ^ (2 ^ p * (2 * c)) := by stride_omega
     have hnewWord_lt : newWord < 2 ^ (2 ^ p * (2 * c)) := by
@@ -1242,7 +1240,7 @@ private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
   have hcl_lt : clmul u v < 2 ^ (2 * c) := clmul_lt_two_pow_two_mul hu_lt hv_lt
   set lo := clmul u v &&& (2 ^ c - 1) with hlo
   set hi_part := clmul u v >>> c with hhi_part
-  have hlo_lt : lo < 2 ^ c := and_two_pow_sub_one_lt _ c
+  have hlo_lt : lo < 2 ^ c := Nat.and_two_pow_sub_one_lt _ c
   have hhi_lt : hi_part < 2 ^ c := by
     simpa only [two_mul, Nat.add_sub_cancel] using
       shiftRight_lt_pow_sub (by omega : c ≤ 2 * c) hcl_lt
@@ -1607,7 +1605,7 @@ private theorem packOutStep_exec {w t b' evalVal : ℕ}
       reducedOutShift c b' m) := by
     stride_omega [and_reducedOutMask_shiftLeft_lt c b' m (getLimb c evalVal m)]
   have hfit_next : Fits w (packLimbs c (m + 1) (getLimb c evalVal) &&& (2 ^ b' - 1)) := by
-    stride_omega [and_two_pow_sub_one_lt (packLimbs c (m + 1) (getLimb c evalVal)) b']
+    stride_omega [Nat.and_two_pow_sub_one_lt (packLimbs c (m + 1) (getLimb c evalVal)) b']
   have hL_le : L ≤ 54 := reducedLimbCount_le t
   change ∀ i < L, x.regs (accReg i) = getLimb c evalVal i at hacc
   have hnext_eq : x.regs 2 ^^^

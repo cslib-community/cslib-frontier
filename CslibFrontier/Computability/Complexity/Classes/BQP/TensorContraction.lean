@@ -365,16 +365,6 @@ theorem exists_decidableInTimeAndSpace_of_onesProb (hTn : ∀ n, max n 2 ≤ T n
           exact Nat.add_le_add_right (Nat.mul_le_mul_left _ hpow) _
       _ ≤ _ := this
 
-/-- A problem decided within time `2 ^ (C T / √⌊log₂ T⌋)` lies in the union of these classes. -/
-private theorem mem_iUnion_DTIME {L : Set α}
-    (h : ∃ C d : ℕ, DecidableInTimeAndSpace L enc
-      (fun a => 2 ^ (C * T (enc a).length / Nat.sqrt (Nat.log 2 (T (enc a).length))))
-      (fun a => T (enc a).length ^ d)) :
-    L ∈ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) := by
-  obtain ⟨C, d, h⟩ := h
-  exact Set.mem_iUnion.mpr ⟨C, 1, 0, fun n => T n ^ d,
-    ComputableInTimeAndSpace.mono h (fun a => by rw [Nat.one_mul, Nat.add_zero]) fun _ => le_rfl⟩
-
 /-- **The bounded-error rule**: when `g / g'` is at least `2 / 3` on members and at most `1 / 3`
 otherwise, for `g' > 0`, membership is `g' < 2 g`. -/
 private theorem iff_lt_two_mul {L : Set α} {a : α} {g g' : ℕ} (hg' : 0 < g')
@@ -416,7 +406,9 @@ theorem exists_decidableInTimeAndSpace_of_mem_BQTIME (hTn : ∀ n, max n 2 ≤ T
 /-- **`BQTIME[T] ⊆ ⋃ C, DTIME[2 ^ (C T / √⌊log₂ T⌋)]`** for `T` with `max n 2 ≤ T n`. -/
 theorem BQTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (hTn : ∀ n, max n 2 ≤ T n) :
     BQTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun _ hL => mem_iUnion_DTIME (exists_decidableInTimeAndSpace_of_mem_BQTIME hTn hL)
+  fun _ hL =>
+    let ⟨C, _, h⟩ := exists_decidableInTimeAndSpace_of_mem_BQTIME hTn hL
+    Set.mem_iUnion.mpr ⟨C, mem_DTIME_of_decidableInTimeAndSpace h⟩
 
 /-- **Nondeterministic quantum time `T` in time `2 ^ O(T / √log T)` and space `T ^ O(1)`.** For
 `T` with `max n 2 ≤ T n`, every problem in `NQTIME[T]` is decided by one deterministic machine
@@ -440,7 +432,9 @@ theorem exists_decidableInTimeAndSpace_of_mem_NQTIME (hTn : ∀ n, max n 2 ≤ T
 /-- **`NQTIME[T] ⊆ ⋃ C, DTIME[2 ^ (C T / √⌊log₂ T⌋)]`** for `T` with `max n 2 ≤ T n`. -/
 theorem NQTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (hTn : ∀ n, max n 2 ≤ T n) :
     NQTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun _ hL => mem_iUnion_DTIME (exists_decidableInTimeAndSpace_of_mem_NQTIME hTn hL)
+  fun _ hL =>
+    let ⟨C, _, h⟩ := exists_decidableInTimeAndSpace_of_mem_NQTIME hTn hL
+    Set.mem_iUnion.mpr ⟨C, mem_DTIME_of_decidableInTimeAndSpace h⟩
 
 /-- **Exact quantum time `T` in time `2 ^ O(T / √log T)`**: exact quantum time lies in
 nondeterministic quantum time (`Cslib.Complexity.EQTIME_subset_NQTIME`). -/
@@ -474,6 +468,8 @@ theorem exists_decidableInTimeAndSpace_of_mem_PostBQTIME (hTn : ∀ n, max n 2 �
 /-- **`PostBQTIME[T] ⊆ ⋃ C, DTIME[2 ^ (C T / √⌊log₂ T⌋)]`** for `T` with `max n 2 ≤ T n`. -/
 theorem PostBQTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (hTn : ∀ n, max n 2 ≤ T n) :
     PostBQTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun _ hL => mem_iUnion_DTIME (exists_decidableInTimeAndSpace_of_mem_PostBQTIME hTn hL)
+  fun _ hL =>
+    let ⟨C, _, h⟩ := exists_decidableInTimeAndSpace_of_mem_PostBQTIME hTn hL
+    Set.mem_iUnion.mpr ⟨C, mem_DTIME_of_decidableInTimeAndSpace h⟩
 
 end Cslib.Complexity.QuantumContraction

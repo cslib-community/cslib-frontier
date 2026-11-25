@@ -115,54 +115,6 @@ private theorem sum_fin_succ_bool {n : ℕ} (Φ : (Fin (n + 1) → Bool) → ℝ
   simp only [Fin.consEquiv_apply, sum_add_distrib]
   exact add_comm _ _
 
-private theorem setShatters_tail_image {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters (Fin.tail '' S) W) : SetShatters S (Fin.succ '' W) := by
-  intro T hT
-  obtain ⟨_, ⟨c, hc, rfl⟩, hcT⟩ := hW (Fin.succ ⁻¹' T) fun i hi => by
-    obtain ⟨j, hj, hji⟩ := hT hi
-    rwa [Fin.succ_inj.mp hji] at hj
-  refine ⟨c, hc, Set.ext fun x => ?_⟩
-  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-  constructor
-  · rintro ⟨hcx, i, hiW, rfl⟩
-    have hmem : i ∈ Fin.tail c ⁻¹' {true} ∩ W := ⟨hcx, hiW⟩
-    rw [hcT] at hmem
-    exact hmem
-  · intro hxT
-    obtain ⟨i, hiW, rfl⟩ := hT hxT
-    have hmem : i ∈ Fin.tail c ⁻¹' {true} ∩ W := hcT ▸ hxT
-    exact ⟨hmem.1, i, hiW, rfl⟩
-
-private theorem setShatters_cons_both {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
-    (hW : SetShatters {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} W) :
-    SetShatters S (insert 0 (Fin.succ '' W)) := by
-  classical
-  intro T hT
-  obtain ⟨g, ⟨hg0, hg1⟩, hgT⟩ := hW (W ∩ Fin.succ ⁻¹' T) Set.inter_subset_left
-  let b : Bool := decide ((0 : Fin (n + 1)) ∈ T)
-  refine ⟨Fin.cons b g, by cases hb : b <;> [exact hg0; exact hg1], Set.ext fun x => ?_⟩
-  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-  rcases Fin.eq_zero_or_eq_succ x with rfl | ⟨i, rfl⟩
-  · simp [b]
-  · constructor
-    · rintro ⟨hgi, hxins⟩
-      simp only [Fin.cons_succ] at hgi
-      have hiW : i ∈ W := by
-        rcases hxins with h0 | ⟨j, hj, hji⟩
-        · exact absurd h0 (Fin.succ_ne_zero i)
-        · rwa [Fin.succ_inj.mp hji] at hj
-      have hmem : i ∈ g ⁻¹' {true} ∩ W := ⟨hgi, hiW⟩
-      rw [hgT] at hmem
-      exact hmem.2
-    · intro hiT
-      have hiW : i ∈ W := by
-        rcases hT hiT with h0 | ⟨j, hj, hji⟩
-        · exact absurd h0 (Fin.succ_ne_zero i)
-        · rwa [Fin.succ_inj.mp hji] at hj
-      have hmem : i ∈ g ⁻¹' {true} ∩ W := hgT ▸ ⟨hiW, hiT⟩
-      exact ⟨by simpa only [Fin.cons_succ, Set.mem_preimage, Set.mem_singleton_iff] using hmem.1,
-        Or.inr ⟨i, hiW, rfl⟩⟩
-
 private theorem sum_min_update_fin_le :
     ∀ {n d : ℕ} {μ : (Fin n → Bool) → ℝ},
       (∀ f, 0 ≤ μ f) →
@@ -228,10 +180,7 @@ private theorem sum_min_update_fin_le :
         rcases lt_max_iff.mp (show 0 < μ_max g from hg) with hg0 | hg1
         · exact ⟨Fin.cons false g, hg0, by simp [Fin.tail_cons]⟩
         · exact ⟨Fin.cons true g, hg1, by simp [Fin.tail_cons]⟩
-      have hsh' : SetShatters {f : Fin (n + 1) → Bool | 0 < μ f} ↑(W.map (Fin.succEmb n)) := by
-        rw [coe_map]
-        exact setShatters_tail_image (hW.superset hsub)
-      simpa only [card_map] using hsh _ hsh'
+      exact (hW.superset hsub).card_le_of_comp hsh
     have hsh_min : ∀ W : Finset (Fin n),
         SetShatters {g : Fin n → Bool | 0 < μ_min g} ↑W → W.card + 1 ≤ d := by
       intro W hW
@@ -239,15 +188,7 @@ private theorem sum_min_update_fin_le :
           {g | Fin.cons false g ∈ {f : Fin (n + 1) → Bool | 0 < μ f} ∧
             Fin.cons true g ∈ {f : Fin (n + 1) → Bool | 0 < μ f}} :=
         fun g hg => lt_min_iff.mp (show 0 < μ_min g from hg)
-      have h0not : (0 : Fin (n + 1)) ∉ W.map (Fin.succEmb n) := by
-        simp only [mem_map, Fin.coe_succEmb, not_exists, not_and]
-        exact fun i _ => Fin.succ_ne_zero i
-      have hsh' : SetShatters {f : Fin (n + 1) → Bool | 0 < μ f}
-          ↑(insert 0 (W.map (Fin.succEmb n))) := by
-        rw [coe_insert, coe_map]
-        exact setShatters_cons_both (hW.superset hsub)
-      have hcard := hsh _ hsh'
-      rwa [card_insert_of_notMem h0not, card_map] at hcard
+      exact (hW.superset hsub).card_add_one_le_of_cons hsh
     rcases d with _ | d
     · have hmin_zero : ∀ g : Fin n → Bool, μ_min g = 0 := by
         intro g

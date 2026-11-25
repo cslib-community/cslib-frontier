@@ -123,12 +123,7 @@ lemma getD_applyTapes (ts : List Tape) (as : List TapeAct) {i : ℕ} (hi : i < t
       · simp [applyTapes]
       · simpa [applyTapes] using ih as (by simpa using hi)
 
-lemma length_step_workTapes (d : Desc) (x : List ℕ) (c : SCfg) :
-    (step d x c).1.workTapes.length = c.workTapes.length := by
-  rw [step_eq_stepWith, stepWith]
-  repeat' split
-  all_goals first | rfl | exact length_applyTapes_eq _ _
-
+-- vendored: `length_step_workTapes` is `length_workTapes_step` in `Universal/Bound.lean`
 -- vendored: added for the descriptions of nondeterministic machines
 -- (`Universal/Nondeterministic.lean`)
 /-- An action applies a tape action to every work tape. -/
@@ -262,7 +257,7 @@ lemma length_encList_eq_sum {α : Type} [Inhabited α] (enc : α ↪ List Bool) 
 public lemma length_run_workTapes (j : ℕ) : (run d x j).workTapes.length = d.tapes := by
   induction j with
   | zero => simp [run, init]
-  | succ j ih => rw [run_succ, length_step_workTapes, ih]
+  | succ j ih => rw [run_succ, length_workTapes_step, ih]
 
 -- vendored: `cfgSpaceBound` and `length_eCfg_le_of_covered` are extracted from
 -- `length_eCfg_le_space` for the descriptions of nondeterministic machines

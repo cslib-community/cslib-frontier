@@ -15,6 +15,7 @@ public import Mathlib.NumberTheory.Real.Irrational
 import CslibFrontier.Foundations.Analysis.ENNRealTsum
 import CslibFrontier.Foundations.Data.BitString.Enumeration
 import CslibFrontier.Foundations.Data.BitString.List.PrefixFree
+import CslibFrontier.Foundations.Data.BitString.Primrec
 import CslibFrontier.Foundations.Data.List.Primrec
 import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Foundations.Data.Nat.Primrec
@@ -92,27 +93,6 @@ private theorem length_le_foldr_max (L : List (List Bool)) {u : List Bool} (hu :
     rcases List.mem_cons.mp hu with rfl | hu'
     · exact le_max_left _ _
     · exact (ih hu').trans (le_max_right _ _)
-
-private theorem primrec_enumList : Primrec Cslib.BitString.enumList := by
-  have hh : Primrec₂ fun (_ : ℕ) (IH : List (List Bool)) =>
-      IH.flatMap fun word => [false :: word, true :: word] := by
-    have hcons : Primrec₂ fun (_ : ℕ × List (List Bool)) (word : List Bool) =>
-        [false :: word, true :: word] :=
-      Primrec₂.mk <| Primrec.list_cons.comp
-        (Primrec.list_cons.comp (Primrec.const false) Primrec.snd)
-        (Primrec.list_cons.comp
-          (Primrec.list_cons.comp (Primrec.const true) Primrec.snd)
-          (Primrec.const []))
-    exact Primrec₂.mk <| Primrec.list_flatMap Primrec.snd hcons
-  refine (Primrec.nat_rec₁ [[]] hh).of_eq fun k => ?_
-  have hrec : ∀ m : ℕ, Nat.rec [[]]
-      (fun _ IH => IH.flatMap fun word => [false :: word, true :: word]) m =
-      Cslib.BitString.enumList m := by
-    intro m
-    induction m with
-    | zero => rfl
-    | succ m ih => rw [Cslib.BitString.enumList_succ, ← ih]
-  exact hrec k
 
 private theorem primrec_binaryValue : Primrec Cslib.BitString.binaryValue := by
   have hbool : Primrec fun b : Bool => b.toNat :=
@@ -912,7 +892,7 @@ private theorem primrec_firstFresh : Primrec firstFresh := by
     Primrec₂.mk <| Primrec.ite
       (hmem.comp Primrec.fst (Primrec.fst.comp Primrec.snd))
       (Primrec.snd.comp Primrec.snd) (Primrec.fst.comp Primrec.snd)
-  exact (Primrec.list_foldr (primrec_enumList.comp Primrec.list_length)
+  exact (Primrec.list_foldr (Cslib.BitString.primrec_enumList.comp Primrec.list_length)
     (Primrec.const []) hh).of_eq fun _ => rfl
 
 /-- **Incompressibility of initial segments of Chaitin's `Ω`**: every `n`-bit prefix `Ω ↾ n` has
@@ -1214,7 +1194,7 @@ private theorem primrec₂_mlExpand : Primrec₂ mlExpand := by
       (Cslib.BitString.enumList
         (max w.length (seen.foldr (fun u m => max u.length m) 0) - w.length)).map (w ++ ·) :=
     Primrec₂.mk <| Primrec.list_map
-      (primrec_enumList.comp (Primrec.nat_sub.comp (hL.comp Primrec.fst Primrec.snd)
+      (Cslib.BitString.primrec_enumList.comp (Primrec.nat_sub.comp (hL.comp Primrec.fst Primrec.snd)
         (Primrec.list_length.comp Primrec.fst)))
       (Primrec₂.mk <| Primrec.list_append.comp (Primrec.fst.comp Primrec.fst) Primrec.snd)
   have hpref_rel : PrimrecRel fun (seen : List (List Bool)) (v : List Bool) =>

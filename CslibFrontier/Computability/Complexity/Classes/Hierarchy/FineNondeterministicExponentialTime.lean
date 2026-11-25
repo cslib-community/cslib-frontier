@@ -435,7 +435,7 @@ private theorem exists_computableInO_fineAccepts :
       have := length_encList_map_eBit_le (frame q.2.1 ++ q.2.2); omega
     have hBl : (encNat (budget e q.2.1 q.2.2)).length ≤
         (budget e q.2.1 q.2.2 + 1) * (Nat.log 2 (budget e q.2.1 q.2.2 + 1) + 1) :=
-      (Universal.length_encNat_le _).trans
+      (length_encNat_le_self _).trans
         ((Nat.le_succ _).trans (Nat.le_mul_of_pos_right _ (Nat.succ_pos _)))
     have heIn_eq :
         (eIn (decodeDesc q.1, (frame q.2.1 ++ q.2.2).map eBit, budget e q.2.1 q.2.2)).length =

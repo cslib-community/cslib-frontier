@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.TuringJoin
 import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 import CslibFrontier.Foundations.Computability.RecursiveInSmn
+import CslibFrontier.Foundations.Data.PFun
 
 /-!
 # The Turing join on oracle codes
@@ -150,18 +151,13 @@ private theorem primrec_guard {α} [Primcodable α] (t : Code) {c : α → Code}
   primrec₂_comp.comp (primrec₂_prec.comp (const zero) (primrec₂_comp.comp hc (const left)))
     (const _)
 
-/-- A bind into a partial function, eta-expanded. Under the module system `ℕ →. ℕ` does not unfold
-to `ℕ → Part ℕ` for `simp`, so binds into partial functions are rewritten by this lemma before
-Mathlib's `Part.bind` lemmas apply. -/
-theorem bind_pfun (x : Part ℕ) (f : ℕ →. ℕ) : x >>= f = x.bind fun y => f y := rfl
-
 private theorem eval_guard_zero (g : ℕ →. ℕ) {t c : Code} {n : ℕ}
     (ht : eval g t n = Part.some 0) : eval g (guard t c) n = Part.some 0 := by
-  simp [guard, eval, ht, Seq.seq, Nat.unpair_pair, bind_pfun, pure, PFun.pure]
+  simp [guard, eval, ht, Seq.seq, Nat.unpair_pair, Part.bind_pfun, pure, PFun.pure]
 
 private theorem eval_guard_one (g : ℕ →. ℕ) {t c : Code} {n : ℕ}
     (ht : eval g t n = Part.some 1) : eval g (guard t c) n = eval g c n := by
-  simp [guard, eval, ht, Seq.seq, Nat.unpair_pair, bind_pfun, pure, PFun.pure]
+  simp [guard, eval, ht, Seq.seq, Nat.unpair_pair, Part.bind_pfun, pure, PFun.pure]
 
 /-! ### Joining codes -/
 
@@ -184,13 +180,13 @@ theorem eval_join (g : ℕ →. ℕ) (a b : Code) : eval g (join a b) = (eval g 
     simp only [join, eval]
     rw [eval_guard_one g (by simp [eval_primCode]),
       eval_guard_zero g (by simp [eval_primCode, Nat.bodd_mul])]
-    simp [eval, eval_primCode, bind_pfun, Seq.seq, Part.bind_some_eq_map, Part.map_map,
+    simp [eval, eval_primCode, Part.bind_pfun, Seq.seq, Part.bind_some_eq_map, Part.map_map,
       Function.comp_def]
   · rw [Partrec.Join.odd]
     simp only [join, eval]
     rw [eval_guard_zero g (by simp [eval_primCode]),
       eval_guard_one g (by simp [eval_primCode, Nat.bodd_mul])]
-    simp [eval, eval_primCode, bind_pfun, Seq.seq, Part.bind_some_eq_map, Part.map_map,
+    simp [eval, eval_primCode, Part.bind_pfun, Seq.seq, Part.bind_some_eq_map, Part.map_map,
       Function.comp_def]
 
 /-- Joining codes is primitive recursive. -/
@@ -212,13 +208,13 @@ noncomputable def joinRight : Code :=
 @[simp]
 theorem eval_joinLeft (p x : ℕ →. ℕ) : eval (p ⊕ x) joinLeft = p := by
   funext n
-  simp [joinLeft, eval, eval_primCode, bind_pfun, Part.bind_some_eq_map, Part.map_map,
+  simp [joinLeft, eval, eval_primCode, Part.bind_pfun, Part.bind_some_eq_map, Part.map_map,
     Function.comp_def, Part.map_id']
 
 @[simp]
 theorem eval_joinRight (p x : ℕ →. ℕ) : eval (p ⊕ x) joinRight = x := by
   funext n
-  simp [joinRight, eval, eval_primCode, bind_pfun, Part.bind_some_eq_map, Part.map_map,
+  simp [joinRight, eval, eval_primCode, Part.bind_pfun, Part.bind_some_eq_map, Part.map_map,
     Function.comp_def, Part.map_id']
 
 /-! ### Translating programs -/

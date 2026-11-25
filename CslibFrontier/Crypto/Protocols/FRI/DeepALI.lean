@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness
 public import Mathlib.Algebra.MvPolynomial.Eval
 public import Mathlib.Algebra.Polynomial.OfFn
+import CslibFrontier.Foundations.Algebra.Polynomial.Roots
 import CslibFrontier.Foundations.Data.Code.Johnson
 import CslibFrontier.Foundations.Data.Code.ProximityGap.Johnson
 import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
@@ -759,25 +760,6 @@ theorem natDegree_evalMaskPoly_le (sys : DeepALISystem F w M c_num q_extra)
     (Finset.le_sup (f := fun μ : Option (Fin M) →₀ ℕ =>
       μ none + sys.params.dim 0 * ∑ u : Fin M, μ (some u)) hμ)
 
-private lemma prod_X_sub_C_dvd_iff_forall_eval_eq_zero
-    (H : Finset F) (q : F[X]) :
-    (∏ x ∈ H, (Polynomial.X - Polynomial.C x)) ∣ q ↔ ∀ x ∈ H, q.eval x = 0 := by
-  classical
-  induction H using Finset.induction_on generalizing q with
-  | empty =>
-    simp only [Finset.prod_empty, one_dvd, Finset.notMem_empty, IsEmpty.forall_iff, implies_true]
-  | insert a s ha ih =>
-    rw [Finset.prod_insert ha, Finset.forall_mem_insert]
-    refine ⟨fun hdvd => ⟨?_, ?_⟩, fun ⟨ha0, hs0⟩ => ?_⟩
-    · exact dvd_iff_isRoot.mp (dvd_of_mul_right_dvd hdvd)
-    · exact (ih q).mp (dvd_of_mul_left_dvd hdvd)
-    · obtain ⟨q', rfl⟩ := dvd_iff_isRoot.mpr ha0
-      refine mul_dvd_mul_left (Polynomial.X - Polynomial.C a) ((ih q').mpr fun x hx => ?_)
-      have hxa : x - a ≠ 0 := sub_ne_zero.mpr fun h => ha (h ▸ hx)
-      have hev := hs0 x hx
-      simp only [eval_mul, eval_sub, eval_X, eval_C] at hev
-      exact (mul_eq_zero.mp hev).resolve_left hxa
-
 /-- **Pointwise root-set characterization of zerofier divisibility**: when `zerofier m =
 ∏ x ∈ H, (X - C x)` for a subset `H : Finset F`, divisibility `zerofier m ∣ evalMaskPoly m P` holds
 if and only if the algebraic constraint vanishes at every `x ∈ H`. -/
@@ -788,7 +770,7 @@ theorem prod_X_sub_C_dvd_evalMaskPoly_iff
       ∀ x ∈ H,
         sys.evalConstraintPoint m x (fun u => (P (sys.maskCol u)).eval (sys.maskShift u * x)) =
           0 := by
-  rw [hZ, prod_X_sub_C_dvd_iff_forall_eval_eq_zero]
+  rw [hZ, Polynomial.prod_X_sub_C_dvd_iff_forall_eval_eq_zero]
   exact forall₂_congr fun x _ => by rw [sys.eval_evalMaskPoly]
 
 /-- A polynomial tuple `P : Fin w → F[X]` is a valid witness for `sys` when each `P i` has degree

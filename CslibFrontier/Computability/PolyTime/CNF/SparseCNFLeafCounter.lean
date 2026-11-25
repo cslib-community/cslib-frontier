@@ -472,18 +472,12 @@ most `6 * NOf x.1` equations and polynomial encoded length produced on the Secti
         polySys (encPair encP encCNF x).length →
       cPoly.time (NOf x.1, sys) ≤ R x
 
-private theorem polyBounded_output_of_space {α β : Type} {ei : α ↪ List Bool} {eo : β ↪ List Bool}
-    {f : α → β} (c : NativeCertificate f ei eo)
-    (hs : PolyBounded (fun a => (ei a).length) c.space) :
-    PolyBounded (fun a => (ei a).length) (fun a => (eo (f a)).length) :=
-  let ⟨k, _, hl⟩ := c.computes; ((PolyBounded.const k).mul (hs.add (.const 1))).mono hl
-
 private theorem polyBounded_comp_space {α β γ : Type} {ei : α ↪ List Bool} {em : β ↪ List Bool}
     {eo : γ ↪ List Bool} {f : α → β} {g : β → γ} (d : NativeCertificate g em eo)
     (c : NativeCertificate f ei em) (hd : PolyBounded (fun b => (em b).length) d.space)
     (hc : PolyBounded (fun a => (ei a).length) c.space) :
     PolyBounded (fun a => (ei a).length) (d.comp c).space :=
-  hc.add (hd.comp (polyBounded_output_of_space c hc))
+  hc.add (hd.comp (NativeCertificate.polyBounded_length_of_space (c := c) hc))
 
 private theorem polyBounded_prod_space {α β γ : Type} {ei : α ↪ List Bool} {em : β ↪ List Bool}
     {eo : γ ↪ List Bool} {f : α → β} {g : α → γ} (c : NativeCertificate f ei em)
@@ -779,7 +773,7 @@ private theorem exists_withInputPost_time {β γ : Type} {em : β ↪ List Bool}
     ∃ p : ℕ → ℕ, Cslib.PolynomiallyBounded p ∧
       ∀ x, (withInputPost (encP := encP) c hg).time x ≤
         c.time x + p (encPair encP encCNF x).length := by
-  have hplen := polyBounded_pair_len (polyBounded_output_of_space c hs)
+  have hplen := polyBounded_pair_len (NativeCertificate.polyBounded_length_of_space (c := c) hs)
   obtain ⟨pG, hpG, _, hG⟩ := exists_mono_poly
     ((NativeCertificate.ofPolyTime_isPolynomial hg).1.comp hplen)
   refine ⟨fun L => L + pG L, Cslib.PolynomiallyBounded.id.add hpG, fun x => ?_⟩
@@ -980,7 +974,8 @@ theorem exists_sparseCNFDeclaredCertificate_bounds (k N₀ : ℕ)
     (initRowsCertificate (encP := encP) hBOf) (computableInPolyTime_assembleGreedyInput hNOf hBOf)
     (polyBounded_initRowsCertificate_space (encP := encP) hBOf)
   have hGreedyInSpace := polyBounded_fastPathGreedyInCert_space hNOf hBOf
-  have hGreedyInLen := polyBounded_output_of_space (fastPathGreedyInCert hNOf hBOf) hGreedyInSpace
+  have hGreedyInLen := NativeCertificate.polyBounded_length_of_space
+    (c := fastPathGreedyInCert hNOf hBOf) hGreedyInSpace
   have hCandSpace := polyBounded_compiledRowCertificate_space k cPoly hSpace
   let hG := computableInO_greedy (compiledRowCertificate k cPoly) hCandSpace
     (greedyMaxCellTime k cPoly) (fun a _ hi _ hj => le_greedyMaxCellTime k cPoly a hi hj)
@@ -1142,7 +1137,8 @@ theorem exists_normalizeDeclaredLeafCertificate_bounds
   have hNormSpace := polyBounded_normalizeDeclaredLeafCertificate_space hNOf cLeaf hSpace
   have hPairLen : PolyBounded (fun x : P × CNF ℕ => (encPair encP encCNF x).length)
       (fun x => (encPair encNat encNat (h x, shiftAmount NOf x)).length) := by
-    growth_poly [polyBounded_output_of_space cLeaf hSpace, computableInPolyTime_shiftAmount hNOf]
+    growth_poly [NativeCertificate.polyBounded_length_of_space (c := cLeaf) hSpace,
+      computableInPolyTime_shiftAmount hNOf]
   have hShT := (NativeCertificate.ofPolyTime_isPolynomial (computableInPolyTime_shiftAmount hNOf)).1
   have hSrT := (NativeCertificate.ofPolyTime_isPolynomial
     ComputableInPolyTime.binary_shiftRight).1.comp hPairLen

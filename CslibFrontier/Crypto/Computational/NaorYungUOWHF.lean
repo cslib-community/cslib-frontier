@@ -29,6 +29,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime.Init
+import CslibFrontier.Tactic.PPT
 import CslibFrontier.Probability.PMF.Finiteness
 import CslibFrontier.Crypto.Game.Order
 import Mathlib.Data.List.GetD
@@ -766,54 +767,9 @@ theorem isPPT_naorYungCascadeAdversary
     {f : List Bool → List Bool} {adversary : TargetCollisionFinder}
     (hf : ComputableInPolyTime f encBits encBits) (ha : adversary.IsPPT) :
     (naorYungCascadeAdversary f adversary).IsPPT := by
-  have hdec := cascadeStateDecoder.computableInPolyTime
-  constructor
-  · let E1 := encPair encUnary encUnary
-    let E2 := encPair E1 (encPair encBits encBits)
-    have hq := ComputableInPolyTime.id' (encIn := E2)
-    have hact2 := hq.fst'.snd'.unary_lt'
-      (ComputableInPolyTime.unary_add.comp (hq.fst'.fst'.prod (.const 1)))
-    have hi2 := ComputableInPolyTime.ite' hact2 hq.fst'.snd' (.const 0)
-    have hfront_len := ComputableInPolyTime.unary_mul.comp
-      (hi2.prod (ComputableInPolyTime.unary_add.comp (hq.fst'.fst'.prod (.const 2))))
-    have hr := ComputableInPolyTime.id' (encIn := encPair E2 encBits)
-    have hw₀3 := computableInPolyTime_naorYungCascadeInput hf
-      hr.fst'.fst'.fst' (hi2.comp hr.fst') hr.snd' hr.fst'.snd'.fst'
-    have hst3 := ((hact2.comp hr.fst').prod ((hi2.comp hr.fst').prod
-      (hr.snd'.prod hr.fst'.snd'.snd'))).encoding_comp
-    have hch := ha.choose.preprocess (ComputableInPolyTime.fst encUnary encUnary)
-    exact (isPPTOn_sampleDyadicIndex ((ComputableInPolyTime.unary_add.comp
-      (ComputableInPolyTime.id'.prod (.const 1))))).bind_with
-      (hch.bind_with ((isPPTOn_sampleList.preprocess hfront_len).bind_with
-        (hw₀3.prod hst3).isPPTOn))
-  · let EF0 := encPair encUnary (encPair encBits encBits)
-    let EF1 := encPair EF0 encBits
-    have hp := ComputableInPolyTime.id' (encIn := EF0)
-    have hs0 := hdec.comp hp.snd'.fst'
-    have hslot := encCascadeState_slot_polyTime hs0
-    have hfront := encCascadeState_front_polyTime hs0
-    have hi0 : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
-        min p.1 (cascadeStateDecoder.decode p.2.1).slot)
-        EF0 encUnary := by
-      simpa only [Nat.min_def, Function.comp_apply] using
-        ComputableInPolyTime.ite_decide (hp.fst'.unary_le' hslot) hp.fst' hslot
-    have hback_len := ComputableInPolyTime.unary_mul.comp
-      ((ComputableInPolyTime.unary_sub.comp (hp.fst'.prod hi0)).prod
-        (ComputableInPolyTime.unary_add.comp (hp.fst'.prod (.const 2))))
-    have hq := ComputableInPolyTime.id' (encIn := EF1)
-    have hK1 := ComputableInPolyTime.bitsAppend
-      (ComputableInPolyTime.bitsAppend (hfront.comp hq.fst') hq.fst'.snd'.snd') hq.snd'
-    have hfind_in :=
-      hq.fst'.fst'.prod (((encCascadeState_state_polyTime hs0).comp hq.fst').prod hK1)
-    have hr := ComputableInPolyTime.id' (encIn := encPair EF1 encBits)
-    have hr0 := hr.fst'.fst'
-    have hret := ComputableInPolyTime.ite'
-      ((encCascadeState_active_polyTime hs0).comp hr0)
-      (computableInPolyTime_naorYungCascadeInput hf
-        hr0.fst' (hi0.comp hr0) (hfront.comp hr0) hr.snd')
-      (.const [])
-    exact (isPPTOn_sampleList.preprocess hback_len).bind_with
-      ((ha.find.preprocess hfind_in).bind_with hret.isPPTOn)
+  have ⟨hchoose, hfind⟩ := ha
+  have := cascadeStateDecoder.computableInPolyTime
+  exact ⟨by ppt [naorYungCascadeAdversary], by ppt [naorYungCascadeAdversary]⟩
 
 private noncomputable def naorYungCascadeSlotTrial
     (f : List Bool → List Bool) (adversary : TargetCollisionFinder) (n slot : ℕ) : Game := do

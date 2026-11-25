@@ -39,17 +39,6 @@ private def splitChildPre1 : Code .standard 20 := ram[
   rDst ← rNumK;
   rLim ← rNumK - rSlot ]
 
-private def splitChildPre2 : Code .standard 20 := ram[
-  rSrc ← rSrc + rDeg;
-  rSrc ← rSrc + rDeg;
-  rSrc ← rSrc - rOne ]
-
-private def splitChildPre3 : Code .standard 20 := ram[
-  rSrc ← rSrc + rDeg;
-  rSrc ← rSrc + rDeg;
-  rSrc ← rSrc - rOne;
-  rDst ← rNumK + rOne ]
-
 private def splitChildPost : Code .standard 20 := ram[
   rSrc ← rChild * rStride;
   rSrc ← rBase + rSrc;
@@ -95,10 +84,9 @@ private def splitChildPost : Code .standard 20 := ram[
 private def splitChildShifts : Code .standard 20 := ram[
   ⟪splitChildPre1⟫;
   ⟪shiftLoop⟫;
-  ⟪splitChildPre2⟫;
-  ⟪shiftLoop⟫;
-  ⟪splitChildPre3⟫;
-  ⟪shiftLoop⟫ ]
+  ⟪advanceShift⟫;
+  rDst ← rNumK + rOne;
+  ⟪advanceShift⟫ ]
 
 /-- Split full child `rChild = c` of non-full internal parent `rCur = u` at child slot `rSlot`
 (`memSplitChild`). -/
@@ -251,57 +239,35 @@ private theorem splitChildShifts_spec {w base capNodes t u m slot : ℕ} {x₁ :
   obtain ⟨x₃, hs1, hb₃, hmem₃, hreg₃⟩ :=
     shiftLoop_spec (arrBase := au + 2) (upper := m) (count := m - slot)
       (hp1.bounded hb₁) ho₁ rfl rfl rfl (by omega) (hfit.of_le (by omega))
-  have hsrc₃ : x₃.regs rSrc = au + 2 := hreg₃ rSrc (by decide)
-  have hdst₃ : x₃.regs rDst = m := hreg₃ rDst (by decide)
-  have hlim₃ : x₃.regs rLim = m - slot := hreg₃ rLim (by decide)
   have ho₃ : x₃.regs rOne = 1 := (hreg₃ rOne (by decide)).trans ho₁
   have hd₃ : x₃.regs rDeg = t := (hreg₃ rDeg (by decide)).trans hd₁
-  have hav_eq : au + 2 + t + t - 1 = au + (2 * t + 1) := by omega
-  let x₄ : Data 20 :=
-    ((x₃.set rSrc (au + 2 + t)).set rSrc (au + 2 + t + t)).set rSrc (au + (2 * t + 1))
-  have hp2 : ExecWithin w splitChildPre2 x₃ x₄ 3 := by
-    unfold splitChildPre2; dsimp only [x₄]
-    have hf1 : Fits w (au + 2 + t) := hfit.of_le (by omega)
-    have hf2 : Fits w (au + 2 + t + t) := hfit.of_le (by omega)
-    have hf3 : Fits w (au + (2 * t + 1)) := hfit.of_le (by omega)
-    wram_exec [ho₃, hd₃, hsrc₃, hav_eq, hf1, hf2, hf3]
-  obtain ⟨x₅, hs2, hb₅, hmem₅, hreg₅⟩ :=
-    shiftLoop_spec (arrBase := au + (2 * t + 1)) (upper := m) (count := m - slot)
-      (hp2.bounded hb₃) ho₃ rfl hdst₃ hlim₃ (by omega) (hfit.of_le (by omega))
-  have hsrc₅ : x₅.regs rSrc = au + (2 * t + 1) := hreg₅ rSrc (by decide)
-  have hlim₅ : x₅.regs rLim = m - slot := (hreg₅ rLim (by decide)).trans hlim₃
-  have ho₅ : x₅.regs rOne = 1 := (hreg₅ rOne (by decide)).trans ho₃
-  have hd₅ : x₅.regs rDeg = t := (hreg₅ rDeg (by decide)).trans hd₃
+  obtain ⟨x₅, hs2, hb₅, hmem₅, hsrc₅, hreg₅⟩ :=
+    advanceShift_spec (a := au + 2) (b := au + (2 * t + 1)) (upper := m) (count := m - slot)
+      hb₃ ho₃ hd₃ (hreg₃ rSrc (by decide)) (hreg₃ rDst (by decide)) (hreg₃ rLim (by decide))
+      (by omega) (by omega) (hfit.of_le (by omega))
   have hnk₅ : x₅.regs rNumK = m :=
     (hreg₅ rNumK (by decide)).trans ((hreg₃ rNumK (by decide)).trans hnk₁)
-  have hac4_eq : au + (2 * t + 1) + t + t - 1 = au + 4 * t := by omega
-  let x₆ : Data 20 :=
-    (((x₅.set rSrc (au + (2 * t + 1) + t)).set rSrc (au + (2 * t + 1) + t + t)).set rSrc
-      (au + 4 * t)).set rDst (m + 1)
-  have hp3 : ExecWithin w splitChildPre3 x₅ x₆ 4 := by
-    unfold splitChildPre3; dsimp only [x₆]
-    have hf1 : Fits w (au + (2 * t + 1) + t) := hfit.of_le (by omega)
-    have hf2 : Fits w (au + (2 * t + 1) + t + t) := hfit.of_le (by omega)
-    have hf3 : Fits w (au + 4 * t) := hfit.of_le (by omega)
-    have hf4 : Fits w (m + 1) := hfit.of_le (by omega)
-    wram_exec [ho₅, hd₅, hsrc₅, hnk₅, hac4_eq, hf1, hf2, hf3, hf4]
-  obtain ⟨x₇, hs3, hb₇, hmem₇, hreg₇⟩ :=
-    shiftLoop_spec (arrBase := au + 4 * t) (upper := m + 1) (count := m - slot)
-      (hp3.bounded hb₅) ho₅ rfl rfl hlim₅ (by omega) (hfit.of_le (by omega))
+  let x₆ : Data 20 := x₅.set rDst (m + 1)
+  have hp3 : ExecWithin w ram[ rDst ← rNumK + rOne ] x₅ x₆ 1 := by
+    have hf : Fits w (m + 1) := hfit.of_le (by omega)
+    dsimp only [x₆]
+    wram_exec [(hreg₅ rOne (by decide)).trans ho₃, hnk₅, hf]
+  obtain ⟨x₇, hs3, hb₇, hmem₇, -, hreg₇⟩ :=
+    advanceShift_spec (b := au + 4 * t) (upper := m + 1) (count := m - slot) (hp3.bounded hb₅)
+      ((hreg₅ rOne (by decide)).trans ho₃) ((hreg₅ rDeg (by decide)).trans hd₃) hsrc₅ rfl
+      ((hreg₅ rLim (by decide)).trans (hreg₃ rLim (by decide))) (by omega) (by omega)
+      (hfit.of_le (by omega))
   simp only [x₂, Data.set_mem] at hmem₃
-  simp only [x₄, Data.set_mem] at hmem₅
   simp only [x₆, Data.set_mem] at hmem₇
   have he : ExecWithin w splitChildShifts x₁ x₇ (54 * t + 24) :=
-    (hp1.seq (hs1.seq (hp2.seq (hs2.seq (hp3.seq hs3))))).mono (by omega)
+    (hp1.seq (hs1.seq (hs2.seq (hp3.seq hs3)))).mono (by omega)
   refine ⟨x₇, he, hb₇, by simp only [hau_def, ← hmem₃, ← hmem₅, ← hmem₇], fun reg hnot => ?_⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hnot
-  have hnot3 : reg ∉ ([rIdx, rTmp1, rTmp2] : List (Fin 20)) := by simp [h4, h5, h6]
-  rw [hreg₇ reg hnot3]
-  dsimp only [x₆]; simp only [Data.set_regs_of_ne h2 _, Data.set_regs_of_ne h1 _]
-  rw [hreg₅ reg hnot3]
-  dsimp only [x₄]; simp only [Data.set_regs_of_ne h1 _]
-  rw [hreg₃ reg hnot3]
+  have hnot4 : reg ∉ ([rSrc, rIdx, rTmp1, rTmp2] : List (Fin 20)) := by simp [h1, h4, h5, h6]
+  rw [hreg₇ reg hnot4]
+  dsimp only [x₆]; simp only [Data.set_regs_of_ne h2 _]
+  rw [hreg₅ reg hnot4, hreg₃ reg (by simp [h4, h5, h6])]
   dsimp only [x₂]; simp only [Data.set_regs_of_ne h3 _, Data.set_regs_of_ne h2 _,
     Data.set_regs_of_ne h1 _]
 
@@ -461,12 +427,12 @@ theorem keyAt_memSplitChild_gt {base t u m slot c cnt i : ℕ} {mem : ℕ → �
     (by rw [haz_def]; simp only [nodeStride]; omega)
 
 theorem not_readsWidth_splitChildCode : ¬splitChildCode.ReadsWidth := by
-  simp [splitChildCode, splitChildShifts, splitChildPre1, splitChildPre2, splitChildPre3,
-    splitChildPost, Code.ReadsWidth, Op.ReadsWidth, Op.bin, not_readsWidth_copyUpperCode,
-    not_readsWidth_shiftLoop]
+  simp [splitChildCode, splitChildShifts, splitChildPre1, splitChildPost, Code.ReadsWidth,
+    Op.ReadsWidth, Op.bin, not_readsWidth_copyUpperCode, not_readsWidth_shiftLoop,
+    not_readsWidth_advanceShift]
 
 theorem isRandFree_splitChildCode : splitChildCode.IsRandFree := by
-  simp [splitChildCode, splitChildShifts, splitChildPre1, splitChildPre2, splitChildPre3,
-    splitChildPost, Code.IsRandFree, isRandFree_copyUpperCode, isRandFree_shiftLoop]
+  simp [splitChildCode, splitChildShifts, splitChildPre1, splitChildPost, Code.IsRandFree,
+    isRandFree_copyUpperCode, isRandFree_shiftLoop, isRandFree_advanceShift]
 
 end Cslib.DataStructure.BTree.WordRAM

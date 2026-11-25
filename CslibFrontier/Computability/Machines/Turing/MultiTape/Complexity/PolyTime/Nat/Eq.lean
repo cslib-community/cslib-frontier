@@ -24,9 +24,10 @@ encoding, so that `fun_prop` and `polytime` certify such guards with plain rules
 
 ## Main results
 
-* `Turing.MultiTapeTM.ComputableInPolyTime.unary_eq'`: compare computed unary naturals.
-* `Turing.MultiTapeTM.ComputableInPolyTime.unary_beq'`: Boolean equality of computed unary
-  naturals.
+* `Turing.MultiTapeTM.ComputableInPolyTime.unary_decide_eq`: compare computed unary naturals.
+
+The Boolean comparison `Turing.MultiTapeTM.ComputableInPolyTime.unary_beq` is stated beside the
+other unary rules; this module registers it for `polytime` as well.
 -/
 
 public section
@@ -35,19 +36,12 @@ namespace Turing.MultiTapeTM.ComputableInPolyTime
 
 /-- Compare computed unary naturals for equality, with both operand encodings fixed. -/
 @[fun_prop, aesop safe -30 apply (rule_sets := [PolyTime])]
-theorem unary_eq' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
+theorem unary_decide_eq {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
     (hleft : ComputableInPolyTime left input encUnary)
     (hright : ComputableInPolyTime right input encUnary) :
     ComputableInPolyTime (fun a => decide (left a = right a)) input encBool :=
   decide_eq' hleft hright
 
-/-- Compare computed unary naturals with Boolean equality, with both operand encodings fixed. -/
-@[fun_prop, aesop safe -30 apply (rule_sets := [PolyTime])]
-theorem unary_beq' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableInPolyTime left input encUnary)
-    (hright : ComputableInPolyTime right input encUnary) :
-    ComputableInPolyTime (fun a => left a == right a) input encBool :=
-  (unary_eq' hleft hright).of_enc_eq fun a => by
-    cases h : (left a == right a) <;> simp_all
+attribute [aesop safe -30 apply (rule_sets := [PolyTime])] unary_beq
 
 end Turing.MultiTapeTM.ComputableInPolyTime

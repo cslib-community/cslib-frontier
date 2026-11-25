@@ -16,13 +16,15 @@ import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 Indicator sums over `List.range n` reduce to the finite-sum indicator API through
 `List.sum_map_range`: the indicator of a single index sums to whether the index is in range
 (`List.sum_map_range_ite_eq`). A condition that does not depend on the element comes out of the
-sum (`List.sum_map_ite_and`).
+sum (`List.sum_map_ite_and`), and the `0/1` indicator of a predicate sums to its count
+(`List.countP_eq_sum_map_ite`).
 
 ## Main results
 
 * `List.sum_map_range_ite_eq`: the indicator of `i₀` sums to `b` over `List.range n` when
   `i₀ < n`, and to `0` otherwise.
 * `List.sum_map_ite_and`: a constant conjunct of an indicator comes out of the sum.
+* `List.countP_eq_sum_map_ite`: `countP` is the sum of the `0/1` indicator along the list.
 -/
 
 public section
@@ -45,5 +47,12 @@ theorem sum_map_ite_and {α : Type*} (l : List α) (P : Prop) [Decidable P] (Q :
     (l.map fun a => if P ∧ Q a then b else 0).sum =
       if P then (l.map fun a => if Q a then b else 0).sum else 0 := by
   by_cases hP : P <;> simp [hP]
+
+/-- The number of elements of a list satisfying `p` is the sum of the `0/1` indicator of `p`
+along the list. -/
+theorem countP_eq_sum_map_ite {α : Type*} (l : List α) (p : α → Bool) :
+    l.countP p = (l.map fun a => if p a then 1 else 0).sum := by
+  rw [List.sum_map_ite]
+  simp [List.countP_eq_length_filter]
 
 end List

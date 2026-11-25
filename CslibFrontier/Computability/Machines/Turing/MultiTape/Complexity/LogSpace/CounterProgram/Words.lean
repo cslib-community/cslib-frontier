@@ -102,11 +102,6 @@ private theorem flatMap_range_getElem?_toList (v : List Bool) (N : ℕ) :
   | zero => simp
   | succ N ih => rw [List.range_succ, List.flatMap_append, ih, List.take_add_one]; simp
 
-private theorem bounded4 {B a₀ a₁ a₂ a₃ : ℕ} (h₀ : a₀ ≤ B) (h₁ : a₁ ≤ B) (h₂ : a₂ ≤ B)
-    (h₃ : a₃ ≤ B) : ∀ x ∈ [a₀, a₁, a₂, a₃], x ≤ B := by
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  omega
-
 /-! ### Reading the header: the length of the framed word and the unary count -/
 
 /-- The header code: label `0` and `1` count the framed word into register `0`, labels `2` and `3`
@@ -129,11 +124,12 @@ theorem reachesOut_header (hP : P.CodeAt 0 headerCode)
   simp only [headerCode, codeAt_cons] at hP
   obtain ⟨h₀, h₁, h₂, h₃, -⟩ := hP
   have scanN := reachesOut_count (B := B) (n := w.length) (fun j => [j, 0, 0, 0]) h₀
-    (by simpa using h₁) (by simp) (fun _ _ => bounded4 (by omega) (by omega) (by omega) (by omega))
+    (by simpa using h₁) (by simp)
+    (fun _ _ => forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
     (fun j hj => by simpa using input_marker w k hj) (by simp [input_end])
   have scanK := reachesOut_count (B := B) (n := k) (fun j => [w.length, j, 0, 0])
     (by simpa using h₂) (by simpa using h₃) (by simp)
-    (fun _ _ => bounded4 (by omega) (by omega) (by omega) (by omega))
+    (fun _ _ => forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
     (fun j hj => by simpa using input_unary w k hj) (by simp)
   exact (scanN 0 (Nat.zero_le _)).trans (scanK 0 (Nat.zero_le _))
 
@@ -159,7 +155,8 @@ private theorem reachesOut_emit {o : ℕ} {bound : Expr} {i : ℕ} (hB : 2 * w.l
     (shiftProgram o bound).ReachesOut (frame w ++ List.replicate k true)
       ((shiftProgram o bound).Active B) (8, [w.length, k, i, o]) (7, [w.length, k, i, o])
       w[i + o * k]?.toList := by
-  have hb : ∀ r ∈ [w.length, k, i, o], r ≤ B := bounded4 (by omega) (by omega) hi (by omega)
+  have hb : ∀ r ∈ [w.length, k, i, o], r ≤ B :=
+    forall_mem_four_le (by omega) (by omega) hi (by omega)
   refine ReachesOut.lt (show (shiftProgram o bound).instr 8 = _ from rfl) hb ?_
   simp only [eval_add, eval_mul, eval_reg, List.getD_cons_zero, List.getD_cons_succ]
   by_cases hlt : i + o * k < w.length
@@ -190,20 +187,23 @@ private theorem reachesOut_shiftProgram {o N : ℕ} {bound : Expr} (ho : o ≤ 1
   have hset : (shiftProgram o bound).ReachesOut (frame w ++ List.replicate k true)
       ((shiftProgram o bound).Active B) (4, [w.length, k, 0, 0]) (5, [w.length, k, 0, o]) [] :=
     ReachesOut.assign (show (shiftProgram o bound).instr 4 = _ from rfl)
-      (bounded4 (by omega) (by omega) (by omega) (by omega)) (by simpa using ReachesOut.refl _)
+      (forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
+      (by simpa using ReachesOut.refl _)
   obtain ⟨regs, hloop, hinv⟩ := reachesOut_forCode (w := frame w ++ List.replicate k true)
     hfor (fun i regs => regs = [w.length, k, i, o] ∧ i ≤ N) (fun i => w[i + o * k]?.toList)
     (show N ≤ B by omega)
     (fun i regs h => by
       obtain ⟨rfl, hi⟩ := h
-      exact ⟨rfl, hbound i, by simp, bounded4 (by omega) (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, hbound i, by simp,
+        forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩)
     (fun i hi regs h => by
       obtain ⟨rfl, -⟩ := h
       exact ⟨[w.length, k, i, o], reachesOut_emit hB (by omega) ho, rfl,
-        bounded4 (by omega) (by omega) (by omega) (by omega), by simpa using hi⟩)
-    [w.length, k, 0, o] (bounded4 (by omega) (by omega) (by omega) (by omega)) (by simp)
+        forall_mem_four_le (by omega) (by omega) (by omega) (by omega), by simpa using hi⟩)
+    [w.length, k, 0, o] (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) (by simp)
   obtain ⟨rfl, -⟩ := hinv
-  exact ⟨_, (hhead.trans hset).trans hloop, bounded4 (by omega) (by omega) (by omega) (by omega)⟩
+  exact ⟨_, (hhead.trans hset).trans hloop,
+    forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩
 
 /-- A function whose encoded value is emitted by `shiftProgram` is computable in logarithmic
 space. -/
@@ -256,7 +256,7 @@ private theorem reachesOut_rangeProgram (n : ℕ) :
   set B := n + 1
   have hscan := reachesOut_count (P := rangeProgram) (w := List.replicate n true) (B := B)
     (c := 0) (u := 0) (n := n) (fun j => [j, 0, 0, 0]) rfl rfl (by simp)
-    (fun _ _ => bounded4 (by omega) (by omega) (by omega) (by omega))
+    (fun _ _ => forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
     (fun j hj => by simp [hj]) (by simp)
   have hout : rangeProgram.CodeAt 2 (forCode 2 1 (reg 0) 5 11) := codeAt_of_prefix ⟨_, rfl⟩
   have hin : rangeProgram.CodeAt 5 (forCode 5 2 (reg 1) 8 10) := codeAt_of_prefix ⟨_, rfl⟩
@@ -266,7 +266,7 @@ private theorem reachesOut_rangeProgram (n : ℕ) :
     (fun i => (List.range i).flatMap (fun _ => [true, true]) ++ [false]) (by omega)
     (fun i regs h => by
       obtain ⟨m, rfl, hi, hm⟩ := h
-      exact ⟨rfl, rfl, by simp, bounded4 (by omega) (by omega) (by omega) (by omega)⟩)
+      exact ⟨rfl, rfl, by simp, forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩)
     (fun i hi regs h => by
       obtain ⟨m, rfl, -, hm⟩ := h
       obtain ⟨regs', hinner, hinv'⟩ := reachesOut_forCode (w := List.replicate n true) (B := B) hin
@@ -274,26 +274,27 @@ private theorem reachesOut_rangeProgram (n : ℕ) :
         (fun j regs => regs = [n, i, j, 0] ∧ j ≤ i) (fun _ => [true, true]) (by omega)
         (fun j regs h => by
           obtain ⟨rfl, hj⟩ := h
-          exact ⟨rfl, rfl, by simp, bounded4 (by omega) (by omega) (by omega) (by omega)⟩)
+          exact ⟨rfl, rfl, by simp, forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩)
         (fun j hj regs h => by
           obtain ⟨rfl, -⟩ := h
-          refine ⟨[n, i, j, 0], ?_, rfl, bounded4 (by omega) (by omega) (by omega) (by omega),
-            by simpa using hj⟩
+          refine ⟨[n, i, j, 0], ?_, rfl,
+            forall_mem_four_le (by omega) (by omega) (by omega) (by omega), by simpa using hj⟩
           exact ReachesOut.emit (show rangeProgram.instr 8 = _ from rfl)
-            (bounded4 (by omega) (by omega) (by omega) (by omega))
+            (forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
             (ReachesOut.emit (show rangeProgram.instr 9 = _ from rfl)
-              (bounded4 (by omega) (by omega) (by omega) (by omega)) (ReachesOut.refl _)))
-        [n, i, m, 0] (bounded4 (by omega) (by omega) (by omega) (by omega)) (by simp)
+              (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) (ReachesOut.refl _)))
+        [n, i, m, 0] (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) (by simp)
       obtain ⟨rfl, -⟩ := hinv'
       refine ⟨[n, i, i, 0], hinner.trans ?_, rfl,
-        bounded4 (by omega) (by omega) (by omega) (by omega), ⟨i, by simp, by omega, by omega⟩⟩
+        forall_mem_four_le (by omega) (by omega) (by omega) (by omega),
+        ⟨i, by simp, by omega, by omega⟩⟩
       exact ReachesOut.emit (show rangeProgram.instr 10 = _ from rfl)
-        (bounded4 (by omega) (by omega) (by omega) (by omega)) (ReachesOut.refl _))
-    [n, 0, 0, 0] (bounded4 (by omega) (by omega) (by omega) (by omega)) ⟨0, by simp, by omega,
-      by omega⟩
+        (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) (ReachesOut.refl _))
+    [n, 0, 0, 0] (forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
+    ⟨0, by simp, by omega, by omega⟩
   obtain ⟨m, rfl, -, hm⟩ := hinv
   exact ⟨_, (hscan 0 (Nat.zero_le _)).trans hloop,
-    bounded4 (by omega) (by omega) (by omega) (by omega)⟩
+    forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩
 
 end Turing.CounterProgram.Words
 
@@ -413,8 +414,9 @@ private theorem reachesOut_skip (hB : 2 * (encList enc l).length + 1 + k ≤ B) 
       induction h : (enc l[t]).length - j generalizing j with
       | zero =>
         obtain rfl : j = (enc l[t]).length := by omega
-        have hb := bounded4 (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l t + 2 * (enc l[t]).length)
-          (a₃ := t) (by omega) (by omega) (by omega) (by omega)
+        have hb := forall_mem_four_le (B := B) (a₀ := n) (a₁ := k)
+          (a₂ := off enc l t + 2 * (enc l[t]).length) (a₃ := t)
+          (by omega) (by omega) (by omega) (by omega)
         refine ReachesOut.lt (show lookupProgram.instr 7 = _ from rfl) hb ?_
         simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ,
           show off enc l t + 2 * (enc l[t]).length < n by omega, ↓reduceIte]
@@ -427,7 +429,7 @@ private theorem reachesOut_skip (hB : 2 * (encList enc l).length + 1 + k ≤ B) 
         convert ReachesOut.refl _ using 3
         simp [hoff]; omega
       | succ _ ih =>
-        have hb := bounded4 (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l t + 2 * j)
+        have hb := forall_mem_four_le (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l t + 2 * j)
           (a₃ := t) (by omega) (by omega) (by omega) (by omega)
         refine ReachesOut.lt (show lookupProgram.instr 7 = _ from rfl) hb ?_
         simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ,
@@ -444,7 +446,7 @@ private theorem reachesOut_skip (hB : 2 * (encList enc l).length + 1 + k ≤ B) 
     have h₂ : off enc l (t + 1) = n := off_of_le enc l (by omega)
     rw [h₁, h₂]
     refine ReachesOut.lt (show lookupProgram.instr 7 = _ from rfl)
-      (bounded4 (by omega) (by omega) (by omega) (by omega)) ?_
+      (forall_mem_four_le (by omega) (by omega) (by omega) (by omega)) ?_
     simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ, lt_irrefl, ↓reduceIte]
     exact ReachesOut.refl _
 
@@ -462,15 +464,16 @@ private theorem reachesOut_copy (hB : 2 * (encList enc l).length + 1 + k ≤ B) 
   induction h : (enc l[t]).length - j generalizing j with
   | zero =>
     obtain rfl : j = (enc l[t]).length := by omega
-    have hb := bounded4 (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l t + 2 * (enc l[t]).length)
-      (a₃ := t) (by omega) (by omega) (by omega) (by omega)
+    have hb := forall_mem_four_le (B := B) (a₀ := n) (a₁ := k)
+      (a₂ := off enc l t + 2 * (enc l[t]).length) (a₃ := t)
+      (by omega) (by omega) (by omega) (by omega)
     refine ReachesOut.read (show lookupProgram.instr 13 = _ from rfl) hb ?_
     simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
       List.getD_cons_succ, read_W l k (show off enc l t + 2 * (enc l[t]).length < n by omega),
       getElem?_end enc l ht, readLabel, List.drop_length]
     exact ReachesOut.refl _
   | succ _ ih =>
-    have hb := bounded4 (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l t + 2 * j)
+    have hb := forall_mem_four_le (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l t + 2 * j)
       (a₃ := t) (by omega) (by omega) (by omega) (by omega)
     refine ReachesOut.read (show lookupProgram.instr 13 = _ from rfl) hb ?_
     simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
@@ -511,26 +514,26 @@ private theorem reachesOut_lookupProgram :
     (fun t regs => regs = [n, k, off enc l t, t] ∧ t ≤ k) (fun _ => []) (by omega)
     (fun t regs h => by
       obtain ⟨rfl, ht⟩ := h
-      exact ⟨rfl, rfl, by simp, bounded4 (by omega) (by omega)
+      exact ⟨rfl, rfl, by simp, forall_mem_four_le (by omega) (by omega)
         ((off_le enc l t).trans (by omega)) (by omega)⟩)
     (fun t ht regs h => by
       obtain ⟨rfl, -⟩ := h
-      exact ⟨_, reachesOut_skip hB ht.le, rfl, bounded4 (by omega) (by omega)
+      exact ⟨_, reachesOut_skip hB ht.le, rfl, forall_mem_four_le (by omega) (by omega)
         ((off_le enc l _).trans (by omega)) (by omega), by simp [n], by omega⟩)
-    [n, k, 0, 0] (bounded4 (by omega) (by omega) (by omega) (by omega))
+    [n, k, 0, 0] (forall_mem_four_le (by omega) (by omega) (by omega) (by omega))
     ⟨by simp [off], Nat.zero_le _⟩
   obtain ⟨rfl, -⟩ := hinv
   have hpre := hhead.trans hloop
   have hnil : (List.range k).flatMap (fun _ : ℕ => ([] : List Bool)) = [] := by simp
   rw [hnil, List.nil_append] at hpre
-  have hb := bounded4 (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l k) (a₃ := k) (by omega)
-    (by omega) ((off_le enc l k).trans (by omega)) (by omega)
+  have hb := forall_mem_four_le (B := B) (a₀ := n) (a₁ := k) (a₂ := off enc l k) (a₃ := k)
+    (by omega) (by omega) ((off_le enc l k).trans (by omega)) (by omega)
   by_cases hk : k < l.length
   · have hlt := off_lt_length (enc := enc) l hk
     have hoff := off_succ enc l hk
     have hle := off_le enc l (k + 1)
     refine ⟨(18, [n, k, off enc l k + 2 * (enc l[k]).length, k]), [], ?_, rfl, rfl,
-      bounded4 (by omega) (by omega) (by omega) (by omega)⟩
+      forall_mem_four_le (by omega) (by omega) (by omega) (by omega)⟩
     rw [List.getElem?_eq_getElem hk]
     refine hpre.trans (ReachesOut.lt (show lookupProgram.instr 11 = _ from rfl) hb ?_)
     simp only [eval_reg, List.getD_cons_zero, List.getD_cons_succ,

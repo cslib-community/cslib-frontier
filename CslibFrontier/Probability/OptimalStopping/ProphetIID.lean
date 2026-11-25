@@ -192,7 +192,7 @@ private theorem tsum_tiePayoff_replicate (τ : ℝ≥0) (ν : PMF (ℝ≥0 × Bo
         ← tsum_tiePayoff_replicate τ ν n, ← ENNReal.tsum_mul_right, ← tsum_add]
       refine tsum_congr fun o => ?_
       by_cases h : tieAccept τ o = true
-      · simp only [tiePayoff, h, ↓reduceIte, tsum_pmf_mul_const, mul_zero, zero_mul, add_zero]
+      · simp only [tiePayoff, h, ↓reduceIte, PMF.tsum_mul_const, mul_zero, zero_mul, add_zero]
       · have h' : tieAccept τ o = false := by simpa using h
         simp only [tiePayoff, h', Bool.false_eq_true, ↓reduceIte, mul_one, zero_add, mul_zero]
 
@@ -331,13 +331,13 @@ private theorem tsum_tiePayoff_le_valueFrom (τ : ℝ≥0) (coin : PMF Bool) :
       refine tsum_le_tsum fun x => ?_
       gcongr μ x * ?_
       have hstop : ∑' xs, jointLaw laws xs * reward (x :: past) xs = x :=
-        tsum_pmf_mul_const _ _
+        PMF.tsum_mul_const _ _
       have hle : ∀ b, ∑' os, jointLaw (laws.map (withCoin coin)) os * tiePayoff τ ((x, b) :: os) ≤
           max (∑' xs, jointLaw laws xs * reward (x :: past) xs)
             (valueFrom reward laws (x :: past)) := by
         intro b
         by_cases h : tieAccept τ (x, b) = true
-        · simp only [tiePayoff, h, ↓reduceIte, tsum_pmf_mul_const]
+        · simp only [tiePayoff, h, ↓reduceIte, PMF.tsum_mul_const]
           exact hstop.symm.le.trans (le_max_left _ _)
         · have h' : tieAccept τ (x, b) = false := by simpa using h
           simp only [tiePayoff, h', Bool.false_eq_true, ↓reduceIte]

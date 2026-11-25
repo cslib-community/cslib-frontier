@@ -410,7 +410,7 @@ private theorem computableInPolyTime_checkCand_state :
         decide ((candInput q.1.1.1.1 (min q.1.1.1.1 q.1.1.2) q.2).count true =
           min q.1.1.1.1 q.1.1.2))
       encCandState encBool :=
-    (ComputableInPolyTime.unary_beq' hcnt hk').of_enc_eq fun _ => by simp [beq_eq_decide]
+    (ComputableInPolyTime.unary_beq hcnt hk').of_enc_eq fun _ => by simp [beq_eq_decide]
   exact ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hk_eq hcnt_eq) hout_true
 
 private theorem computableInPolyTime_searchPadded_raw :

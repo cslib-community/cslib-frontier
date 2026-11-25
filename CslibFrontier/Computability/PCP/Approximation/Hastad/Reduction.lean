@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Foundations.Data.List.SumIndicator
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -405,15 +406,6 @@ private theorem sum_map_eq_univ_sum {α : Type*} [Fintype α] {l : List α}
   have hfin : l.toFinset = Finset.univ := Finset.ext fun x => by simp [hmem x]
   rw [← hfin, List.sum_toFinset _ hnd]
 
-/-- Counting elements satisfying `p` equals summing the `0/1` indicator along the list. -/
-private theorem countP_eq_sum_map {α : Type*} (l : List α) (p : α → Bool) :
-    l.countP p = (l.map fun x => if p x then 1 else 0).sum := by
-  induction l with
-  | nil => rfl
-  | cons a ls ih =>
-    simp only [List.countP_cons, List.map_cons, List.sum_cons, ih]
-    cases p a <;> simp [Nat.add_comm]
-
 /-- Summing `F` over `l.filter p` equals summing `if p x then F x else 0` over `l`. -/
 private theorem sum_map_filter {α : Type*} (l : List α) (p : α → Bool) (F : α → ℕ) :
     ((l.filter p).map F).sum = (l.map fun x => if p x then F x else 0).sum := by
@@ -503,7 +495,7 @@ private theorem length_edgeEquations_add_dropped {m : ℕ} {T : Tables β γ m} 
       (∑ r : β → Fin m, if f ∘ d.constraint ≠ noiseMask r then 1 else 0) *
         Fintype.card (β → Bool) := by
     rw [List.map_const', List.sum_replicate, smul_eq_mul, hleft, ← List.countP_eq_length_filter,
-      countP_eq_sum_map, sum_map_eq_univ_sum hT.noiseDigits_nodup hT.mem_noiseDigits]
+      List.countP_eq_sum_map_ite, sum_map_eq_univ_sum hT.noiseDigits_nodup hT.mem_noiseDigits]
     simp only [decide_eq_true_eq]
   have hlen : (edgeEquations T d).length =
       ∑ f : γ → Bool,
@@ -590,7 +582,7 @@ private theorem countSat_edgeEquations_bounds {m : ℕ} {T : Tables β γ m} (hT
               leftVar d.src (T.leftIdx ((f ∘ d.constraint) + g' + noiseMask r))]⟩ :
             Constraint Bool ℕ)).countP (Constraint.eval CSP.paritySem σ) =
         ∑ g' : β → Bool, if P f r g' then (1 : ℕ) else 0 := by
-      rw [List.countP_map, countP_eq_sum_map,
+      rw [List.countP_map, List.countP_eq_sum_map_ite,
         sum_map_eq_univ_sum hT.leftQueries_nodup hT.mem_leftQueries]
       refine Finset.sum_congr rfl fun g' _ => ?_
       simp only [Function.comp_apply, eval_emitted_eq, decide_eq_true_eq, P]

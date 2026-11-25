@@ -260,7 +260,7 @@ private theorem scanStep_polyTime {encToken : τ ↪ List Bool} {arity : τ → 
   have hs := fst encScanState encToken
   have hp := encScanState_pending_polyTime hs
   have hc := encScanState_consumed_polyTime hs
-  exact ite_decide (unary_eq' hp (const 0)) hs
+  exact ite_decide (unary_decide_eq hp (const 0)) hs
     (encScanState_mk_polyTime
       (unary_add' (unary_sub' hp (const 1)) (harity.comp (snd encScanState encToken)))
       (unary_succ.comp hc))
@@ -298,7 +298,7 @@ theorem splitTree_polyTime {encToken : τ ↪ List Bool} {arity : τ → ℕ}
   have hc := encScanState_consumed_polyTime hs
   have hout := (optionSome (encPair (encList encToken) (encList encToken))).comp
     ((listTakeWithInput id' hc).prod (listDropWithInput id' hc))
-  apply (ite_decide (unary_eq' hp (const 0)) hout (const none)).of_enc_eq
+  apply (ite_decide (unary_decide_eq hp (const 0)) hout (const none)).of_enc_eq
   intro tokens
   unfold splitTree
   rw [splitForest_eq_scan arity tokens 1 0]

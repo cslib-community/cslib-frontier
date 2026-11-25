@@ -21,12 +21,18 @@ through the public facade.
 ## Main definitions
 
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.mkBufRtGenProg`
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.BufRtSegLe`: the header words and tables of
+  a `BufRt` lie inside its large-space segment (concluded by `rt_seg_le`)
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.BufRtDisj`: the header words and tables of a
+  `BufRt` are laid out in order without overlap (concluded by `rt_disj_le`)
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.bufReadItemPairRtProg`
 
 ## Main results
 
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.realizes_mkBufRtGen`
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.mkBufRtGenProg_spec`
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.rt_seg_le`
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.rt_disj_le`
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.bufTrieMemRep_iff_rt`
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.realizes_bufReadItemPairRt`
 -/
@@ -216,16 +222,23 @@ theorem rt_items_safe (henv : WhpLargeEnv c U V w₀ n_max w base)
   · exact henv.packed_safe_of_le hgk hidx hseg.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   · exact henv.packed_safe_of_le hgk hidx hseg.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 
-theorem rt_seg_le (c U V w n_max base ep : ℕ) (hep : ep = 0 ∨ ep = 1) :
-    let rt := mkBufRt c U V w n_max base ep
-    base + brHdrNA rt < base + largeSpaceWhp c U V w n_max ∧
-    base + brHdrIA rt < base + largeSpaceWhp c U V w n_max ∧
+/-- The two header words and the three packed tables of `rt` lie inside the large-space segment
+starting at `base`. -/
+structure BufRtSegLe (c U V w n_max base : ℕ) (rt : BufRt) : Prop where
+  hdrNA_lt : base + brHdrNA rt < base + largeSpaceWhp c U V w n_max
+  hdrIA_lt : base + brHdrIA rt < base + largeSpaceWhp c U V w n_max
+  child_le :
     base + brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-      base + largeSpaceWhp c U V w n_max ∧
+      base + largeSpaceWhp c U V w n_max
+  meta_le :
     base + brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-      base + largeSpaceWhp c U V w n_max ∧
+      base + largeSpaceWhp c U V w n_max
+  items_le :
     base + brOffItems rt + packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by
+      base + largeSpaceWhp c U V w n_max
+
+theorem rt_seg_le (c U V w n_max base ep : ℕ) (hep : ep = 0 ∨ ep = 1) :
+    BufRtSegLe c U V w n_max base (mkBufRt c U V w n_max base ep) := by
   have h32 : 32 ≤ largeSpaceWhp c U V w n_max := by
     dsimp only [largeSpaceWhp]; omega
   have hseg := WhpLargeEnv.seg_end_le c U V w n_max
@@ -235,11 +248,11 @@ theorem rt_seg_le (c U V w n_max base ep : ℕ) (hep : ep = 0 ∨ ep = 1) :
   have h16 := hseg.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   have h17 := hseg.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
   have h18 := hseg.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
-  rcases hep with rfl | rfl <;>
+  rcases hep with rfl | rfl <;> constructor <;>
     (dsimp only [mkBufRt, brHdrNA, brHdrIA, brOffChild, brOffMeta, brOffItems,
        hdrBuf0NodeAlloc, hdrBuf0ItemAlloc, hdrBuf1NodeAlloc, hdrBuf1ItemAlloc]
      simp only [↓reduceIte, Nat.one_ne_zero]
-     exact ⟨by omega, by omega, by omega, by omega, by omega⟩)
+     omega)
 
 end RtSafety
 
@@ -310,22 +323,28 @@ theorem bufEpFrame_writeItems_lt3q {base c U V w n_max ep idx val : ℕ} {mem : 
   · simp only [mkBufRt, brOffItems, Nat.one_ne_zero, ↓reduceIte]
     exact readPacked_writePacked_disjoint hw hj6 hidx6 (Or.inl (by omega))
 
-theorem rt_disj_le (c U V w n_max base ep : ℕ) (hep : ep = 0 ∨ ep = 1) :
-    let rt := mkBufRt c U V w n_max base ep
-    brHdrNA rt < 32 ∧
-    brHdrIA rt < 32 ∧
-    brHdrNA rt ≠ brHdrIA rt ∧
-    32 ≤ brOffChild rt ∧
+/-- Offsets of `rt` relative to its base: two distinct header words below `32`, followed by the
+child, metadata and item tables in that order without overlap. -/
+structure BufRtDisj (c w n_max : ℕ) (rt : BufRt) : Prop where
+  hdrNA_lt : brHdrNA rt < 32
+  hdrIA_lt : brHdrIA rt < 32
+  hdrNA_ne_hdrIA : brHdrNA rt ≠ brHdrIA rt
+  le_offChild : 32 ≤ brOffChild rt
+  child_le_meta :
     brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-      brOffMeta rt ∧
+      brOffMeta rt
+  meta_le_items :
     brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-      brOffItems rt := by
+      brOffItems rt
+
+theorem rt_disj_le (c U V w n_max base ep : ℕ) (hep : ep = 0 ∨ ep = 1) :
+    BufRtDisj c w n_max (mkBufRt c U V w n_max base ep) := by
   have hch := largeOffsetChain c U V w n_max
-  rcases hep with rfl | rfl <;>
+  rcases hep with rfl | rfl <;> constructor <;>
     (dsimp only [mkBufRt, brHdrNA, brHdrIA, brOffChild, brOffMeta, brOffItems,
        hdrBuf0NodeAlloc, hdrBuf0ItemAlloc, hdrBuf1NodeAlloc, hdrBuf1ItemAlloc]
      simp only [↓reduceIte, Nat.one_ne_zero]
-     exact ⟨by omega, by omega, by omega, by omega, by omega, by omega⟩)
+     omega)
 
 theorem bufTrieMemRep_iff_rt {base c U V w n_max ep : ℕ} {tr : BufTrie} {mem : ℕ → ℕ} :
     BufTrieMemRep base c U V w n_max ep tr mem ↔

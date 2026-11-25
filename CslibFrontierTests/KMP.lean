@@ -32,6 +32,7 @@ namespace Cslib.Algorithms.Lean.KMP.Tests
 open Cslib.Algorithms.Lean.KMP
 open Cslib.WordRAM
 open Cslib.Algorithms.WordRAM.KMP
+open Cslib.Algorithms.WordRAM (PatternTextInput)
 
 /-! ## Border, period, and `[CLRS2009]` Figures 32.10–32.11 failure-table checks -/
 
@@ -127,11 +128,15 @@ example (p t : Array (ULift.{1} Nat)) :
 
 /-! ## Word-RAM execution and linear running-time checks -/
 
+-- The shared pattern-and-text record keeps the layout `[|pat|, |txt|] ++ pat ++ txt`.
+example (pat txt : List ℕ) :
+    PatternTextInput.encode ⟨pat, txt⟩ = pat.length :: txt.length :: (pat ++ txt) := rfl
+
 private meta def evalPrefix (w : ℕ) (p : List ℕ) : Option (List ℕ × ℕ) :=
   (prefixCode.eval w (2 * p.length + 5) (Data.init p)).map fun (y, steps) =>
     (outputList y.mem (y.regs Reg.out), steps)
 
-private meta def evalSearch (w : ℕ) (I : SearchInput) : Option (List ℕ × ℕ) :=
+private meta def evalSearch (w : ℕ) (I : PatternTextInput) : Option (List ℕ × ℕ) :=
   let fuel := 2 * (I.pat.length + I.txt.length) + 10
   (searchCode.eval w fuel (Data.init I.encode)).map fun (y, steps) =>
     (outputList y.mem (y.regs Reg.out), steps)
@@ -193,7 +198,7 @@ example : ∃ n, ExecutesList 1 prefixProgram (.init []) [] n ∧ n ≤ 10 := by
   simpa only [List.length_nil, Nat.mul_zero, Nat.zero_add, heq] using h
 
 example : ∃ n, ExecutesList 5 searchProgram
-    (.init (SearchInput.encode ⟨[1, 2, 1], [1, 2, 1, 2, 1, 2, 1]⟩))
+    (.init (PatternTextInput.encode ⟨[1, 2, 1], [1, 2, 1, 2, 1, 2, 1]⟩))
     [0, 2, 4] n ∧ n ≤ 31 * 3 + 37 * 7 + 23 := by
   have h := searchProgram_computesListInTime ⟨[1, 2, 1], [1, 2, 1, 2, 1, 2, 1]⟩ 5
     (by decide) (by decide)
@@ -202,21 +207,21 @@ example : ∃ n, ExecutesList 5 searchProgram
   simpa only [List.length_cons, List.length_nil, heq] using h
 
 example : ∃ n, ExecutesList 5 searchProgram
-    (.init (SearchInput.encode ⟨[], [10, 20, 30]⟩)) [0, 1, 2, 3] n ∧ n ≤ 37 * 3 + 23 := by
+    (.init (PatternTextInput.encode ⟨[], [10, 20, 30]⟩)) [0, 1, 2, 3] n ∧ n ≤ 37 * 3 + 23 := by
   have h := searchProgram_computesListInTime ⟨[], [10, 20, 30]⟩ 5 (by decide) (by decide)
   have heq : kmpMatchesList ([] : List ℕ) [10, 20, 30] = [0, 1, 2, 3] := by
     rw [kmpMatchesList_eq_filter_range]; decide
   simpa only [List.length_cons, List.length_nil, Nat.mul_zero, Nat.zero_add, heq] using h
 
 example : ∃ n, ExecutesList 3 searchProgram
-    (.init (SearchInput.encode ⟨[], []⟩)) [0] n ∧ n ≤ 23 := by
+    (.init (PatternTextInput.encode ⟨[], []⟩)) [0] n ∧ n ≤ 23 := by
   have h := searchProgram_computesListInTime ⟨[], []⟩ 3 (by decide) (by decide)
   have heq : kmpMatchesList ([] : List ℕ) [] = [0] := by
     rw [kmpMatchesList_eq_filter_range]; decide
   simpa only [List.length_nil, Nat.mul_zero, Nat.zero_add, heq] using h
 
 example : ∃ n, ExecutesList 3 searchProgram
-    (.init (SearchInput.encode ⟨[5], []⟩)) [] n ∧ n ≤ 31 * 1 + 23 := by
+    (.init (PatternTextInput.encode ⟨[5], []⟩)) [] n ∧ n ≤ 31 * 1 + 23 := by
   have h := searchProgram_computesListInTime ⟨[5], []⟩ 3 (by decide) (by decide)
   have heq : kmpMatchesList [5] ([] : List ℕ) = [] := by
     rw [kmpMatchesList_eq_filter_range]; decide

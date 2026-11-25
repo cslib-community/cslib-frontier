@@ -434,7 +434,7 @@ private theorem tsum_payoff_cutoffRule (n s : ℕ) :
             ENNReal.ofReal (cutoffValue n (max (k + 1) s)) :=
         fun x => ih (k + 1) (by omega) (x :: past) (by simp [hpast])
       simp only [hconst]
-      rw [tsum_pmf_mul_const, max_eq_right (by omega), max_eq_right (by omega)]
+      rw [PMF.tsum_mul_const, max_eq_right (by omega), max_eq_right (by omega)]
 
 /-- The cutoff rule `cutoffRule (s + 1)` wins with probability `cutoffValue n s`. -/
 theorem successProb_cutoffRule_succ (s n : ℕ) :

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Logics.FirstOrder.FiniteVariable.ColorRefinement
 public import CslibFrontierTests.FOPebbleGames
 public import CslibFrontierTests.Foundations.Combinatorics.SimpleGraph.ColorRefinement
-import Mathlib.Data.Fin.Tuple.Reflection
+import CslibFrontier.Foundations.Data.Fin.VecNotation
 
 /-!
 # The Immerman–Lander theorem: checked instances
@@ -44,9 +44,6 @@ open FirstOrder Language Structure SimpleGraph
 open Cslib.Logic.FO
 open Cslib.Tests.ColorRefinement
 open Cslib.Tests.FOPebbleGames
-
-private theorem comp_vec_two {α β : Type*} (a : α → β) (i j : α) : a ∘ ![i, j] = ![a i, a j] :=
-  (FinVec.map_eq a ![i, j]).symm
 
 /-! ### `C₆` vs `C₃ ⊕ C₃`: `C²`-equivalence from regularity, `FO³` separation by triangles -/
 
@@ -194,7 +191,7 @@ theorem round_one_separates_pathGraph_four_starGraph :
         (.rel adj ![0, 1] : FiniteVariable.CountingFormula Language.graph 2).Realize
           (Function.update (Function.update b 0 0) 1 c)} = ({1, 2, 3} : Finset (Fin 4)) := by
       ext c
-      simp only [FiniteVariable.GenFormula.realize_rel, comp_vec_two,
+      simp only [FiniteVariable.GenFormula.realize_rel, Matrix.comp_vecCons, Matrix.comp_vecEmpty,
         Function.update_self, Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide)]
       change (starGraph (0 : Fin 4)).Adj 0 c ↔ c ∈ ({1, 2, 3} : Finset (Fin 4))
       revert c
@@ -210,8 +207,9 @@ theorem round_one_separates_pathGraph_four_starGraph :
           (Function.update (Function.update a 0 v) 1 c)} =
         ((pathGraph 4).neighborFinset v : Set (Fin 4)) := by
       ext c
-      simp only [Set.mem_ofPred_eq, FiniteVariable.GenFormula.realize_rel, comp_vec_two,
-        Function.update_self, Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide),
+      simp only [Set.mem_ofPred_eq, FiniteVariable.GenFormula.realize_rel, Matrix.comp_vecCons,
+        Matrix.comp_vecEmpty, Function.update_self,
+        Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide),
         Finset.mem_coe, mem_neighborFinset]
       rfl
     rw [hsub, Set.encard_coe_eq_coe_finsetCard, Nat.cast_le] at hv
@@ -258,8 +256,9 @@ theorem vertex_round_one_separates_pathGraph_three :
           (Function.update (fun _ : Fin 2 => v) 1 c)} =
         ((pathGraph 3).neighborFinset v : Set (Fin 3)) := by
       ext c
-      simp only [Set.mem_ofPred_eq, FiniteVariable.GenFormula.realize_rel, comp_vec_two,
-        Function.update_self, Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide),
+      simp only [Set.mem_ofPred_eq, FiniteVariable.GenFormula.realize_rel, Matrix.comp_vecCons,
+        Matrix.comp_vecEmpty, Function.update_self,
+        Function.update_of_ne (show (0 : Fin 2) ≠ 1 by decide),
         Finset.mem_coe, mem_neighborFinset]
       rfl
     rw [hset, Set.encard_coe_eq_coe_finsetCard, Nat.cast_le]

@@ -169,7 +169,7 @@ private theorem computableInPolyTime_take_ite {α : Type} {input : α ↪ List B
     (hvalue : ComputableInPolyTime value input encBits) :
     ComputableInPolyTime (fun a => (if (query a).length = n a then value a else []).take (n a))
       input encBits :=
-  ((hquery.length_bits_comp.unary_eq' hn).ite_decide hvalue (.const [])).bitsTakeWithInput hn
+  ((hquery.length_bits_comp.unary_decide_eq hn).ite_decide hvalue (.const [])).bitsTakeWithInput hn
 
 /-- One handler call is oracle PPT in the caller `((n, aux), key)`, the request and the cache. -/
 private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction family) (t j : ℕ) :
@@ -188,7 +188,7 @@ private theorem isOraclePPTOn_prfMultiHandler (hfamily : PseudorandomFunction fa
     h2.fst'.fst' fun i => ?_
   by_cases hlt : i.val < j
   · simp only [prfMultiHandler, hlt, ↓reduceIte]
-    refine IsOraclePPTOn.ite (hquery.length_bits_comp.unary_eq' hn) ?_ ?_
+    refine IsOraclePPTOn.ite (hquery.length_bits_comp.unary_decide_eq hn) ?_ ?_
     · exact (IsPPTOn.memoize (input := handlerInputEncoding t)
         (keyEncoding := encPair (encFinEnum (Fin t)) encBits) (valueEncoding := encBits)
         (compute := fun (x : HandlerInput t) (_ : Fin t × List Bool) =>
