@@ -1048,7 +1048,7 @@ theorem pointBreakpoints_sdiff_card_le [Finite V] (W : WeightedGraph V) (p : Met
         rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_comm, Fintype.card_eq_nat_card]
 
 private theorem dist_point_edgePoint_piecewise_affine [Finite V] (W : WeightedGraph V)
-    (p : MetricGraph W) (d : W.graph.Dart) {s t : unitInterval} (_hst : (s : ℝ) < t)
+    (p : MetricGraph W) (d : W.graph.Dart) {s t : unitInterval} (hst : (s : ℝ) < t)
     (hno : ∀ q ∈ dartBreakpoints W p d, ∀ r : unitInterval,
       (s : ℝ) < r → (r : ℝ) < t → edgePoint d r ≠ q) :
     ∃ α β : ℝ, ∀ r : unitInterval, (s : ℝ) ≤ r → (r : ℝ) ≤ t →
@@ -1058,33 +1058,31 @@ private theorem dist_point_edgePoint_piecewise_affine [Finite V] (W : WeightedGr
   let a := dist p (vertex d.fst)
   let b := dist p (vertex d.snd)
   let w := W.weight d.edge
-  have hab_diff : |a - b| ≤ w := by
-    have h := abs_dist_sub_le (vertex d.fst : MetricGraph W) (vertex d.snd) p
-    rw [dist_comm _ p, dist_comm _ p] at h
-    refine h.trans ?_
-    rw [← edgePoint_zero d, ← edgePoint_one d]
-    exact (dist_edgePoint_self_le d 0 1).trans_eq (by simp [w])
   have avoids {u : unitInterval} (hu : edgePoint d u ∈ dartBreakpoints W p d) :
       (u : ℝ) ≤ s ∨ (t : ℝ) ≤ u := by
     by_contra hnot
     push Not at hnot
     exact hno (edgePoint d u) hu u hnot.1 hnot.2 rfl
-  have affine_min {u v : ℝ} {s' t' : ℝ}
-      (hs' : ∀ r : unitInterval, s' ≤ r → r ≤ t' →
+  -- The minimum of a decreasing and an increasing affine function is affine on `[s, t]` when
+  -- their (clamped) crossing point is a breakpoint, hence outside `(s, t)`.
+  have affine_min {u v : ℝ}
+      (hs' : ∀ r : unitInterval, (s : ℝ) ≤ r → (r : ℝ) ≤ t →
         dist p (edgePoint d r) = min (u - (r : ℝ) * w) (v + (r : ℝ) * w))
-      (h01 : (Set.projIcc 0 1 zero_le_one ((u - v) / (2 * w)) : ℝ) = (u - v) / (2 * w))
-      (hav : (Set.projIcc 0 1 zero_le_one ((u - v) / (2 * w)) : ℝ) ≤ s' ∨
-        t' ≤ Set.projIcc 0 1 zero_le_one ((u - v) / (2 * w))) :
-      ∃ α β : ℝ, ∀ r : unitInterval, s' ≤ r → r ≤ t' →
+      (hmem : edgePoint d (Set.projIcc 0 1 zero_le_one ((u - v) / (2 * w))) ∈
+        dartBreakpoints W p d) :
+      ∃ α β : ℝ, ∀ r : unitInterval, (s : ℝ) ≤ r → (r : ℝ) ≤ t →
         dist p (edgePoint d r) = α + β * r := by
-    rcases hav with hle | hle
+    rcases avoids hmem with hle | hle <;> rw [Set.coe_projIcc] at hle
     · refine ⟨u, -w, fun r hrs hrt => ?_⟩
-      have hrt' : (u - v) / (2 * w) ≤ r := h01 ▸ hle.trans hrs
-      rw [div_le_iff₀ (by linarith)] at hrt'
+      have hc : (u - v) / (2 * w) ≤ r :=
+        ((min_le_iff.mp ((le_max_right _ _).trans hle)).resolve_left
+          (hst.trans_le t.2.2).not_ge).trans hrs
+      rw [div_le_iff₀ (by linarith)] at hc
       rw [hs' r hrs hrt, min_eq_left (by linarith)]; ring
     · refine ⟨v, w, fun r hrs hrt => ?_⟩
-      have hrt' : (r : ℝ) ≤ (u - v) / (2 * w) := h01 ▸ hrt.trans hle
-      rw [le_div_iff₀ (by linarith)] at hrt'
+      have hc : (r : ℝ) ≤ (u - v) / (2 * w) :=
+        hrt.trans (le_min_iff.mp ((le_max_iff.mp hle).resolve_left (s.2.1.trans_lt hst).not_ge)).2
+      rw [le_div_iff₀ (by linarith)] at hc
       rw [hs' r hrs hrt, min_eq_right (by linarith)]; ring
   by_cases hp : ∃ s₀ : unitInterval, edgePoint d s₀ = p
   · let s₀ := Classical.choose hp
@@ -1093,31 +1091,6 @@ private theorem dist_point_edgePoint_piecewise_affine [Finite V] (W : WeightedGr
     let c₂ := min (-(s₀ : ℝ) * w) a
     let t₂ := Set.projIcc 0 1 zero_le_one ((c₁ - a) / (2 * w))
     let t₃ := Set.projIcc 0 1 zero_le_one ((b + w - c₂) / (2 * w))
-    have ha_le : a ≤ (s₀ : ℝ) * w := by
-      rw [show a = dist p (vertex d.fst) from rfl, hp_eq, ← edgePoint_zero d, dist_comm]
-      exact (dist_edgePoint_self_le d 0 s₀).trans_eq <| by
-        rw [show ((0 : unitInterval) : ℝ) = 0 from rfl, zero_sub, abs_neg,
-          abs_of_nonneg s₀.2.1, mul_comm]
-    have hb_le : b ≤ (1 - (s₀ : ℝ)) * w := by
-      rw [show b = dist p (vertex d.snd) from rfl, hp_eq, ← edgePoint_one d, dist_comm]
-      exact (dist_edgePoint_self_le d 1 s₀).trans_eq <| by
-        rw [show ((1 : unitInterval) : ℝ) = 1 from rfl,
-          abs_of_nonneg (unitInterval.one_sub_nonneg s₀), mul_comm]
-    have ht₂_val : (t₂ : ℝ) = (c₁ - a) / (2 * w) :=
-      congrArg Subtype.val <| Set.projIcc_of_mem zero_le_one
-        ⟨div_nonneg (sub_nonneg.mpr (le_min ha_le (by linarith [abs_le.mp hab_diff])))
-            (by linarith),
-         (div_le_one (by linarith)).mpr <| by
-           have : c₁ ≤ w := (min_le_left _ _).trans (mul_le_of_le_one_left hw.le s₀.2.2)
-           linarith [dist_nonneg (x := p) (y := vertex d.fst)]⟩
-    have ht₃_val : (t₃ : ℝ) = (b + w - c₂) / (2 * w) :=
-      congrArg Subtype.val <| Set.projIcc_of_mem zero_le_one
-        ⟨div_nonneg (by have : c₂ ≤ a := min_le_right _ _; linarith [abs_le.mp hab_diff])
-            (by linarith),
-         (div_le_one (by linarith)).mpr <| by
-           rcases min_cases (-(s₀ : ℝ) * w) a with ⟨hm, _⟩ | ⟨hm, _⟩ <;>
-             change b + w - min (-(s₀ : ℝ) * w) a ≤ 2 * w <;>
-             rw [hm] <;> linarith [abs_le.mp hab_diff]⟩
     have hformula (r : unitInterval) :
         dist p (edgePoint d r) =
           min (|(s₀ : ℝ) - r| * w) (min (a + (r : ℝ) * w) (b + (1 - (r : ℝ)) * w)) := by
@@ -1128,13 +1101,12 @@ private theorem dist_point_edgePoint_piecewise_affine [Finite V] (W : WeightedGr
       simp only [Finset.mem_insert, Finset.mem_singleton]
       exact ⟨Or.inl rfl, Or.inr (Or.inl rfl), Or.inr (Or.inr rfl)⟩
     rcases avoids hmem.1 with hs₀s | hts₀
-    · refine affine_min (fun r hrs _ => ?_) (by simpa [sub_sub_eq_add_sub] using ht₃_val)
-        (avoids hmem.2.2)
+    · refine affine_min (fun r hrs _ => ?_) hmem.2.2
       rw [hformula r, abs_sub_comm, abs_of_nonneg (sub_nonneg.mpr (hs₀s.trans hrs))]
       have hc2eq : c₂ + (r : ℝ) * w = min (((r : ℝ) - s₀) * w) (a + (r : ℝ) * w) := by
         dsimp only [c₂]; rw [← min_add_add_right]; congr 1; ring
       rw [← min_assoc, min_comm _ (b + (1 - (r : ℝ)) * w), ← hc2eq]; congr 1; ring
-    · refine affine_min (fun r _ hrt => ?_) ht₂_val (avoids hmem.2.1)
+    · refine affine_min (fun r _ hrt => ?_) hmem.2.1
       rw [hformula r, abs_of_nonneg (sub_nonneg.mpr (hrt.trans hts₀))]
       have hc1eq : c₁ - (r : ℝ) * w = min (((s₀ : ℝ) - r) * w) (b + (1 - (r : ℝ)) * w) := by
         dsimp only [c₁]; rw [← min_sub_sub_right]; congr 1 <;> ring
@@ -1147,19 +1119,14 @@ private theorem dist_point_edgePoint_piecewise_affine [Finite V] (W : WeightedGr
           rw [dist_vertex_edgePoint]; dsimp only [a, b, w]; rw [dist_vertex, dist_vertex]
         | edgePoint d₀ s₀ =>
           have hne : d₀.edge ≠ d.edge := fun he => by
-            rcases (dart_edge_eq_iff d₀ d).mp he with rfl | hsym
-            · exact hp ⟨s₀, rfl⟩
-            · exact hp ⟨unitInterval.symm s₀, by rw [hsym, edgePoint_symm']⟩
+            rcases (dart_edge_eq_iff d₀ d).mp he with rfl | rfl
+            exacts [hp ⟨s₀, rfl⟩, hp ⟨_, edgePoint_symm' d s₀⟩]
           exact dist_edgePoint_eq_min_of_edge_ne hne s₀ r
       rw [hm, min_comm]; congr 1; ring
-    let t_mid := Set.projIcc 0 1 zero_le_one ((b + w - a) / (2 * w))
-    have htm_val : (t_mid : ℝ) = (b + w - a) / (2 * w) :=
-      congrArg Subtype.val <| Set.projIcc_of_mem zero_le_one
-        ⟨div_nonneg (by linarith [abs_le.mp hab_diff]) (by linarith),
-         (div_le_one (by linarith)).mpr (by linarith [abs_le.mp hab_diff])⟩
-    have htm_mem : edgePoint d t_mid ∈ dartBreakpoints W p d := by
+    have hmem : edgePoint d (Set.projIcc 0 1 zero_le_one ((b + w - a) / (2 * w))) ∈
+        dartBreakpoints W p d := by
       dsimp only [dartBreakpoints]; split_ifs; exact Finset.mem_singleton_self _
-    exact affine_min (fun r _ _ => hformula r) htm_val (avoids htm_mem)
+    exact affine_min (fun r _ _ => hformula r) hmem
 
 /-- On any subdivision containing `pointBreakpoints W p`, the distance from `p` is affine
 along every subdivided edge. -/
