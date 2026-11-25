@@ -198,7 +198,8 @@ theorem spectralExpansion_balancedReplacement_le :
     (mul_le_mul (by linarith) (pow_le_one₀ (by linarith) (by linarith)) (sq_nonneg _)
       zero_le_one).trans_eq (one_mul 1)
   refine (pow_le_pow_iff_left₀ (spectralExpansion_nonneg _) (by linarith) three_ne_zero).1 ?_
-  nlinarith [mul_nonneg (sq_nonneg x) (by linarith : (0 : ℝ) ≤ 72 - x)]
+  have hq : 0 ≤ x ^ 2 * (72 - x) := mul_nonneg (sq_nonneg x) (by linarith)
+  linarith [show (1 - x / 24) ^ 3 - (7 / 8 + (1 - x) / 8) = x ^ 2 * (72 - x) / 13824 by ring]
 
 /-- The balanced replacement product of two graphs of spectral expansion less than `1` has spectral
 expansion less than `1` [Reingold, Vadhan and Wigderson, Theorem 6.7][ReingoldVadhanWigderson2002].
