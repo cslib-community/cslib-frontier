@@ -179,16 +179,14 @@ theorem bufLookupGenProg_spec {c U V w n_max base ep rKey : ℕ}
         tr.nodeLeafItem u ∧
       (tr.nodeLeafItem u ≠ 0 →
         readPacked (base + brOffMeta rt) (globalPtrBits n_max) w s.mem (4 * u + 3) =
-          tr.nodeActive u) := by
-    have hm := hrep.2.2.2.2.2.2.1
-    rcases hep with rfl | rfl <;> exact hm
+          tr.nodeActive u) :=
+    (bufTrieMemRep_iff_rt.mp hrep).2.2.2.2.2.2.1
   have hrep_items : ∀ id < tr.itemAlloc,
       readPacked (base + brOffItems rt) (globalPtrBits n_max) w s.mem (qEpochWhp n_max + id) =
         tr.itemBucket id ∧
       readPacked (base + brOffItems rt) (globalPtrBits n_max) w s.mem (2 * qEpochWhp n_max + id) =
-        tr.itemLoc id := by
-    have hi := hrep.2.2.2.2.2.2.2
-    rcases hep with rfl | rfl <;> exact fun id hid => (hi id hid).2
+        tr.itemLoc id :=
+    fun id hid => ((bufTrieMemRep_iff_rt.mp hrep).2.2.2.2.2.2.2 id hid).2
   unfold bufLookupGenProg
   simp only [pure_bind]
   set wprog := bufWalkLoopGenProg ((rt, (1, (0, rKey))), cTabWhp c)
