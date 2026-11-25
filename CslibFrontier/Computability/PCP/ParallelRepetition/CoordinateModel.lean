@@ -141,9 +141,8 @@ half and then the pair given that half. -/
 theorem bind_reveal_pair :
     ((uniformOfFintype Bool).bind fun d => G.questions.map fun q => (reveal d q, q)) =
       (revealLaw G).bind fun r => (pairGiven G r).map (r, ·) := by
-  have hd : ∀ d, G.questions.map (fun q => (reveal d q, q)) =
+  have hd (d : Bool) : G.questions.map (fun q => (reveal d q, q)) =
       (G.questions.map (reveal d)).bind fun r => (pairGiven G r).map (r, ·) := by
-    intro d
     cases d
     · have h1 : G.questions.map (reveal false) =
           ((G.questions.map Prod.swap).map Prod.fst).map Sum.inr := by
@@ -553,9 +552,8 @@ theorem sum_dist_condLaw_le [Fintype A] [Fintype B]
   have hω := exists_mem_winsOnSample_support hC
   have hW : ∃ x ∈ W, x ∈ (sideJoint μ J).support := by
     obtain ⟨ω, hω, hsupp⟩ := hω
-    refine ⟨F ω, ?_, hside ▸ (PMF.mem_support_map_iff _ _ _).mpr ⟨ω, hsupp, rfl⟩⟩
-    rw [← Set.mem_preimage, hFW]
-    exact hω
+    exact ⟨F ω, show ω ∈ F ⁻¹' W from hFW ▸ hω,
+      hside ▸ (PMF.mem_support_map_iff _ _ _).mpr ⟨ω, hsupp, rfl⟩⟩
   have hfil : (sideJoint μ J).filter W hW = (condLaw G C ha hb hC).map F := by
     simp only [← hside]
     rw [Cslib.Probability.PMF.filter_map _ _ _ _ (hFW ▸ hω)]
@@ -578,9 +576,8 @@ theorem sum_dist_condLaw_le [Fintype A] [Fintype B]
     obtain ⟨⟨x, y⟩, -⟩ := hC
     have : Nonempty (C → A × B) := ⟨fun i => (ha x i, hb y i)⟩
     exact_mod_cast Fintype.card_pos
-  have hp : 0 < G.winProbOn ha hb C := by
-    rw [← hprob]
-    exact (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mpr hW
+  have hp : 0 < G.winProbOn ha hb C :=
+    hprob ▸ (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mpr hW
   rw [hfree, Real.log_div hVpos.ne' hp.ne', hV, Real.log_pow, one_div, Real.log_inv]
   ring
 
