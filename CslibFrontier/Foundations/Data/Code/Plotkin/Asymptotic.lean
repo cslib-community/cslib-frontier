@@ -165,12 +165,10 @@ theorem eventually_logb_card_le_of_le_hammingDist {σ : Type*} {ιs : σ → Typ
     have h2q : (q : ℝ) / (q - 1) ≤ 2 := by
       rw [div_le_iff₀ hq1R]
       cast_linarith [hq]
-    have : (q : ℝ) / (q - 1) * δ * n - (q : ℝ) * d / (q - 1) =
-        (q : ℝ) / (q - 1) * (δ * n - d) := by
-      ring
     have hq0 : (0 : ℝ) ≤ (q : ℝ) / (q - 1) := by positivity
-    nlinarith
+    rw [mul_div_right_comm]
+    linarith [mul_le_mul_of_nonneg_left hdgt.le hq0]
   have h8 : 8 ≤ ε * n := (div_le_iff₀' hε).1 (by linarith)
-  nlinarith
+  linarith
 
 end Cslib.Code
