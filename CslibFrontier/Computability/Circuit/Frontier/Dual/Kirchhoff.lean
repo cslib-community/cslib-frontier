@@ -410,10 +410,9 @@ theorem exists_netFlow_eq_iff [Finite V] [Finite E] {K : Set V} {F : Set E}
     obtain ⟨r⟩ := hconn.nonempty
     let base : E → A := Fᶜ.piecewise α₀ 0
     have hbase_compl : EqOn base α₀ Fᶜ := piecewise_eqOn Fᶜ α₀ 0
-    have hbase_flow : ∀ z : V, G.netFlow F base z = 0 := fun z => by
-      rw [← G.netFlow_zero F z]
-      refine G.netFlow_congr fun e heF _ => ?_
-      exact piecewise_eq_of_notMem Fᶜ α₀ 0 (not_notMem.mpr heF)
+    have hbase_flow (z : V) : G.netFlow F base z = 0 :=
+      (G.netFlow_congr fun e heF _ => piecewise_eq_of_notMem Fᶜ α₀ 0 (not_notMem.mpr heF)).trans
+        (G.netFlow_zero F z)
     -- Push each demand `b u` (`u ∈ K \ {r}`) along a walk in `(K, F)` to the root `r`.
     let S : Finset K := Finset.univ.erase r
     have hpush : ∀ T : Finset K, T ⊆ S → ∃ w : E → A, EqOn w α₀ Fᶜ ∧
@@ -431,16 +430,13 @@ theorem exists_netFlow_eq_iff [Finite V] [Finite E] {K : Set V} {F : Set E}
         refine ⟨w₁, hw₁_compl.trans hw₀_compl, fun u hur => ?_⟩
         have hur_val : u.1 ≠ r.1 := Subtype.coe_ne_coe.mpr hur
         rw [hw₁_flow u.1, hw₀_flow u hur, ite_eq_right hur_val, sub_zero]
-        by_cases hu : u = u₀
-        · subst hu
-          simp [hu₀]
-        · have hval : u.1 ≠ u₀.1 := Subtype.coe_ne_coe.mpr hu
-          simp [hu, hval]
+        rcases eq_or_ne u u₀ with rfl | hu
+        · simp [hu₀]
+        · simp [hu, Subtype.coe_ne_coe.mpr hu]
     obtain ⟨w, hw_compl, hw_nonroot⟩ := hpush S Finset.Subset.rfl
     refine ⟨w, hw_compl, fun v hvK => ?_⟩
     by_cases hvr : (⟨v, hvK⟩ : K) = r
-    · have hv_eq : v = r.1 := congrArg Subtype.val hvr
-      subst hv_eq
+    · obtain rfl : v = r.1 := congrArg Subtype.val hvr
       have hK_erase : ∀ z ∈ ((toFinite K).toFinset).erase r.1, G.netFlow F w z = b z := by
         intro z hz
         have hz_ne : z ≠ r.1 := Finset.ne_of_mem_erase hz
@@ -726,6 +722,43 @@ private theorem not_mem_allAddEdges_of_mem_addVerts {j : ιK} {v : V} (hv : v �
   · have hv' : v ∉ D.addVerts j' := disjoint_left.mp (D.addVerts_pairwiseDisjoint hjj') hv
     exact D.not_mem_addEdges_of_notMem_addVerts hv' he hej'
 
+private theorem not_mem_allAddEdges_of_mem_copyEdges {i : ιC} {e : E} (he : e ∈ D.copyEdges i) :
+    e ∉ D.allAddEdges := fun hall =>
+  (mem_iUnion.mp hall).elim fun j hej => disjoint_left.mp (D.disjoint_copy_add i j) he hej
+
+open Classical in
+/-- At an additive vertex in `P`, a splice of `(x, α)` and `(y, β)` has the demand of `(x, α)`. -/
+private theorem demand_splice_in {P : Set V} {x z : ι → A} {α β γ : E → A}
+    (hx : N.Satisfies x α) (hzx : EqOn z x (N.readIn P))
+    (hγ : EqOn γ ((N.touching P).piecewise α β) D.allAddEdgesᶜ) {j : ιK} {v : V}
+    (hvK : v ∈ D.addVerts j) (hvP : v ∈ P) :
+    D.demand v z γ = N.netFlow (D.addEdges j) α v := by
+  rw [(D.constraint_add_iff j v hvK x α).mp (hx v)]
+  refine D.demand_congr j v hvK z x γ α (fun i hi => hzx ⟨v, hvP, hi⟩) fun e he henot => ?_
+  rw [hγ (D.not_mem_allAddEdges_of_mem_addVerts hvK he henot)]
+  exact piecewise_eq_of_mem _ _ _
+    (he.imp (fun h : N.src e = v => h ▸ hvP) (fun h : N.tgt e = v => h ▸ hvP))
+
+open Classical in
+/-- At an additive vertex outside `P`, a splice of `(x, α)` and `(y, β)` has the demand of
+`(y, β)`. -/
+private theorem demand_splice_out {P : Set V} {y z : ι → A} {α β γ : E → A}
+    (hy : N.Satisfies y β) (hzy : EqOn z y (N.readIn P)ᶜ)
+    (hcut : EqOn α β (N.edgeCut P \ D.allAddEdges))
+    (hγ : EqOn γ ((N.touching P).piecewise α β) D.allAddEdgesᶜ) {j : ιK} {v : V}
+    (hvK : v ∈ D.addVerts j) (hvP : v ∉ P) :
+    D.demand v z γ = N.netFlow (D.addEdges j) β v := by
+  rw [(D.constraint_add_iff j v hvK y β).mp (hy v)]
+  refine D.demand_congr j v hvK z y γ β (fun i hi => hzy fun ⟨u, huP, hiu⟩ =>
+    hvP (Option.some_injective _ (hiu.symm.trans hi) ▸ huP)) fun e he henot => ?_
+  have henotAll : e ∉ D.allAddEdges := D.not_mem_allAddEdges_of_mem_addVerts hvK he henot
+  rw [hγ henotAll]
+  by_cases ht : e ∈ N.touching P
+  · rw [piecewise_eq_of_mem _ _ _ ht]
+    refine hcut ⟨?_, henotAll⟩
+    rcases he with h | h <;> rcases ht with h' | h' <;> simp_all [Multigraph.mem_edgeCut]
+  · exact piecewise_eq_of_notMem _ _ _ ht
+
 open Classical in
 /-- **Exact `1`-symbol Kirchhoff splicing iff on a single additive component `j`** (even with
 cycles and parallel edges). Given valid runs `(x, α)` and `(y, β)` agreeing on non-additive cut
@@ -743,24 +776,11 @@ theorem exists_splice_on_component_iff [Finite V] {P : Set V} {x y z : ι → A}
   -- External demand of `(z, γ₀)` on `D.addVerts j ∩ P` agrees with `(x, α)`, and on
   -- `D.addVerts j \ P` agrees with `(y, β)`.
   have hdem_in {v : V} (hvK : v ∈ D.addVerts j) (hvP : v ∈ P) :
-      D.demand v z γ₀ = N.netFlow (D.addEdges j) α v := by
-    rw [(D.constraint_add_iff j v hvK x α).mp (hx v)]
-    refine D.demand_congr j v hvK z x γ₀ α (fun i hi => hzx ⟨v, hvP, hi⟩) fun e he _ => ?_
-    have ht : e ∈ N.touching P :=
-      he.imp (fun h : N.src e = v => h ▸ hvP) (fun h : N.tgt e = v => h ▸ hvP)
-    exact piecewise_eq_of_mem _ _ _ ht
+      D.demand v z γ₀ = N.netFlow (D.addEdges j) α v :=
+    D.demand_splice_in hx hzx (fun _ _ => rfl) hvK hvP
   have hdem_out {v : V} (hvK : v ∈ D.addVerts j) (hvP : v ∉ P) :
-      D.demand v z γ₀ = N.netFlow (D.addEdges j) β v := by
-    rw [(D.constraint_add_iff j v hvK y β).mp (hy v)]
-    refine D.demand_congr j v hvK z y γ₀ β (fun i hi => hzy fun ⟨u, huP, hiu⟩ =>
-      hvP (Option.some_injective _ (hiu.symm.trans hi) ▸ huP)) fun e he henot => ?_
-    have henotAll : e ∉ D.allAddEdges := D.not_mem_allAddEdges_of_mem_addVerts hvK he henot
-    dsimp only [γ₀]
-    by_cases ht : e ∈ N.touching P
-    · rw [piecewise_eq_of_mem _ _ _ ht]
-      refine hcut ⟨?_, henotAll⟩
-      rcases he with h | h <;> rcases ht with h' | h' <;> simp_all [Multigraph.mem_edgeCut]
-    · exact piecewise_eq_of_notMem _ _ _ ht
+      D.demand v z γ₀ = N.netFlow (D.addEdges j) β v :=
+    D.demand_splice_out hy hzy hcut (fun _ _ => rfl) hvK hvP
   -- Rewrite local satisfaction on `D.addVerts j` as `netFlow = demand v z γ₀`.
   have hcon_iff (w : E → A) (hw : EqOn w γ₀ (D.addEdges j)ᶜ) :
       (∀ v ∈ D.addVerts j, N.Constraint v z w) ↔
@@ -825,9 +845,8 @@ theorem kirchhoff_splice [Finite V] {P : Set V} {x y z : ι → A} {α β : E �
   have hγ_on (j : ιK) : EqOn γ (ws j) (D.addEdges j) := by
     intro e hej
     have hex_e : ∃ j', e ∈ D.addEdges j' := ⟨j, hej⟩
-    have heq_j : hex_e.choose = j := by
-      by_contra hne
-      exact disjoint_left.mp (D.addEdges_pairwiseDisjoint hne) hex_e.choose_spec hej
+    have heq_j : hex_e.choose = j := by_contra fun hne =>
+      disjoint_left.mp (D.addEdges_pairwiseDisjoint hne) hex_e.choose_spec hej
     simp only [γ, hex_e, ↓reduceDIte, heq_j]
   have hγ_off : EqOn γ γ₀ D.allAddEdgesᶜ := by
     intro e henot
@@ -873,26 +892,9 @@ theorem kirchhoff_splice [Finite V] {P : Set V} {x y z : ι → A} {α β : E �
             exact D.not_mem_addEdges_of_notMem_addVerts (fun hvj => hvAdd ⟨j, hvj⟩) he hej
         · exact (piecewise_eq_of_notMem _ _ _ ht).symm
   refine ⟨γ, hsat, hγ_off, fun j v ⟨hvK, hvP⟩ => ?_, fun j v ⟨hvK, hvP⟩ => ?_⟩
+  · rw [(D.constraint_add_iff j v hvK z γ).mp (hsat v), D.demand_splice_in hx hzx hγ_off hvK hvP]
   · rw [(D.constraint_add_iff j v hvK z γ).mp (hsat v),
-      (D.constraint_add_iff j v hvK x α).mp (hx v)]
-    refine D.demand_congr j v hvK z x γ α (fun i hi => hzx ⟨v, hvP, hi⟩) fun e he henot => ?_
-    rw [hγ_off (D.not_mem_allAddEdges_of_mem_addVerts hvK he henot)]
-    dsimp only [γ₀]
-    have ht : e ∈ N.touching P :=
-      he.imp (fun h : N.src e = v => h ▸ hvP) (fun h : N.tgt e = v => h ▸ hvP)
-    exact piecewise_eq_of_mem _ _ _ ht
-  · rw [(D.constraint_add_iff j v hvK z γ).mp (hsat v),
-      (D.constraint_add_iff j v hvK y β).mp (hy v)]
-    refine D.demand_congr j v hvK z y γ β (fun i hi => hzy fun ⟨u, huP, hiu⟩ =>
-      hvP (Option.some_injective _ (hiu.symm.trans hi) ▸ huP)) fun e he henot => ?_
-    have henotAll : e ∉ D.allAddEdges := D.not_mem_allAddEdges_of_mem_addVerts hvK he henot
-    rw [hγ_off henotAll]
-    dsimp only [γ₀]
-    by_cases ht : e ∈ N.touching P
-    · rw [piecewise_eq_of_mem _ _ _ ht]
-      refine hcut ⟨?_, henotAll⟩
-      rcases he with h | h <;> rcases ht with h' | h' <;> simp_all [Multigraph.mem_edgeCut]
-    · exact piecewise_eq_of_notMem _ _ _ ht
+      D.demand_splice_out hy hzy hcut hγ_off hvK hvP]
 
 /-- **Global witness uniqueness under acyclic additive forests.** When every additive component is
 a simple forest and non-additive edges are uniquely determined by the input, every input `x` has at
@@ -1103,10 +1105,8 @@ private theorem state_subset_of_splice [Finite V] {P Q : Set V} (hQP : Q ⊆ P) 
   rcases s with ⟨i, hi⟩ | ⟨j, _⟩ | ⟨e, he⟩
   · dsimp only [cutMessage]
     have hmem : hi.some ∈ D.copyEdges i ∩ N.edgeCut Q := hi.some_mem
-    have henotA : hi.some ∉ D.allAddEdges := fun hall => by
-      obtain ⟨j, hej⟩ := mem_iUnion.mp hall
-      exact disjoint_left.mp (D.disjoint_copy_add i j) hmem.1 hej
-    rw [hoff henotA, piecewise_eq_of_mem _ _ _ (htouchQ hmem.2)]
+    rw [hoff (D.not_mem_allAddEdges_of_mem_copyEdges hmem.1),
+      piecewise_eq_of_mem _ _ _ (htouchQ hmem.2)]
   · dsimp only [cutMessage]
     rw [← N.sum_netFlow_inter_eq_cutFlow (D.addEdges_endpoints j) Q γ,
       ← N.sum_netFlow_inter_eq_cutFlow (D.addEdges_endpoints j) Q α]
@@ -1134,28 +1134,17 @@ private theorem state_insert_of_splice [Finite V] {P : Set V} {v : V} (hv : v �
     by_cases ht : e ∈ N.touching P
     · rw [piecewise_eq_of_mem _ _ _ ht]
       refine hcut ⟨?_, henotA⟩
-      -- One endpoint of `e` lies outside `insert v P` (hence outside `P`), while `e ∈ touching P`.
-      by_cases hs : N.src e ∈ insert v P
-      · have htg : N.tgt e ∉ insert v P := fun h => heC (iff_of_true hs h)
-        have htgP : N.tgt e ∉ P := fun h => htg (mem_insert_of_mem v h)
-        have hsP : N.src e ∈ P := ht.elim id fun h => (htgP h).elim
-        exact fun h => htgP (h.mp hsP)
-      · have htg : N.tgt e ∈ insert v P := by
-          by_contra h
-          exact heC (iff_of_false hs h)
-        have hsP : N.src e ∉ P := fun h => hs (mem_insert_of_mem v h)
-        have htgP : N.tgt e ∈ P := ht.elim (fun h => (hsP h).elim) id
-        exact fun h => hsP (h.mpr htgP)
+      -- If both endpoints lay in `P`, both would lie in `insert v P`.
+      rcases ht with h | h <;> intro hi
+      · exact heC (iff_of_true (mem_insert_of_mem v h) (mem_insert_of_mem v (hi.mp h)))
+      · exact heC (iff_of_true (mem_insert_of_mem v (hi.mpr h)) (mem_insert_of_mem v h))
     · exact piecewise_eq_of_notMem _ _ _ ht
   rw [D.state_eq_iff]
   funext s
   rcases s with ⟨i, hi⟩ | ⟨j, _⟩ | ⟨e, he⟩
   · dsimp only [cutMessage]
     have hmem : hi.some ∈ D.copyEdges i ∩ N.edgeCut (insert v P) := hi.some_mem
-    have henotA : hi.some ∉ D.allAddEdges := fun hall => by
-      obtain ⟨j, hej⟩ := mem_iUnion.mp hall
-      exact disjoint_left.mp (D.disjoint_copy_add i j) hmem.1 hej
-    exact nonAdd_eq hmem.2 henotA
+    exact nonAdd_eq hmem.2 (D.not_mem_allAddEdges_of_mem_copyEdges hmem.1)
   · dsimp only [cutMessage]
     rw [N.cutFlow_insert (D.addEdges j) hv γ, N.cutFlow_insert (D.addEdges j) hv β]
     have hP : N.cutFlow (D.addEdges j) P γ = N.cutFlow (D.addEdges j) P β := by
@@ -1166,10 +1155,9 @@ private theorem state_insert_of_splice [Finite V] {P : Set V} {v : V} (hv : v �
     have hv_flow : N.netFlow (D.addEdges j) γ v = N.netFlow (D.addEdges j) β v := by
       by_cases hvK : v ∈ D.addVerts j
       · exact hflow_out j v ⟨hvK, hv⟩
-      · have h0 (w : E → A) : N.netFlow (D.addEdges j) w v = 0 := by
-          rw [← N.netFlow_zero (D.addEdges j) v]
-          exact N.netFlow_congr fun e hej heinc =>
-            (D.not_mem_addEdges_of_notMem_addVerts hvK heinc hej).elim
+      · have h0 (w : E → A) : N.netFlow (D.addEdges j) w v = 0 :=
+          (N.netFlow_congr fun e hej heinc =>
+            (D.not_mem_addEdges_of_notMem_addVerts hvK heinc hej).elim).trans (N.netFlow_zero _ v)
         rw [h0 γ, h0 β]
     rw [hP, hv_flow]
   · exact nonAdd_eq he.1 (fun ha => he.2 (Or.inr ha))
@@ -1206,8 +1194,7 @@ private theorem exists_satisfies_of_isAcceptingPath [Finite V] {x : ι → A} {�
       · intro i hi
         dsimp only [z]
         by_cases hiP : i ∈ N.readIn P
-        · rw [piecewise_eq_of_mem _ _ _ hiP]
-          exact hyx hiP
+        · exact (piecewise_eq_of_mem _ _ _ hiP).trans (hyx hiP)
         · rw [piecewise_eq_of_notMem _ _ _ hiP]
           have hnew : i ∈ N.revealedBy π (t + 1) \ N.revealedBy π t := by
             simp only [Network.revealedBy, ht, ht_lt.le, ↓reduceIte, mem_sdiff]
@@ -1303,14 +1290,11 @@ private theorem ncard_edges_le [Finite V] [Finite ι] [Finite A] [Finite ιC] [F
     set α₁ := e₁.2.choose_spec.choose
     set x₂ := e₂.2.choose
     set α₂ := e₂.2.choose_spec.choose
-    have hmsg : D.cutMessage P α₁ = D.cutMessage P α₂ := congrArg Prod.fst hfeq
-    have hinc : (N.incidenceSet v).domRestrict α₁ = (N.incidenceSet v).domRestrict α₂ :=
-      congrArg (Prod.fst ∘ Prod.snd) hfeq
-    have hread : (N.readAt v).domRestrict x₁ = (N.readAt v).domRestrict x₂ :=
-      congrArg (Prod.snd ∘ Prod.snd) hfeq
-    have hinc' : EqOn α₁ α₂ (N.incidenceSet v) := domRestrict_eq_domRestrict_iff.mp hinc
-    have hread' : EqOn x₁ x₂ (N.readAt v) := domRestrict_eq_domRestrict_iff.mp hread
-    have hstP : D.state P α₁ = D.state P α₂ := D.state_eq_iff.mpr hmsg
+    have hinc' : EqOn α₁ α₂ (N.incidenceSet v) :=
+      domRestrict_eq_domRestrict_iff.mp (congrArg (Prod.fst ∘ Prod.snd) hfeq)
+    have hread' : EqOn x₁ x₂ (N.readAt v) :=
+      domRestrict_eq_domRestrict_iff.mp (congrArg (Prod.snd ∘ Prod.snd) hfeq)
+    have hstP : D.state P α₁ = D.state P α₂ := D.state_eq_iff.mpr (congrArg Prod.fst hfeq)
     have hm_eq : e₁.1.1 = e₂.1.1 := h₁.2.1.trans (hstP.trans h₂.2.1.symm)
     have ha_eq : e₁.1.2.1 = e₂.1.2.1 := by
       rw [← h₁.2.2.2, ← h₂.2.2.2]
@@ -1323,17 +1307,11 @@ private theorem ncard_edges_le [Finite V] [Finite ι] [Finite A] [Finite ιC] [F
           α₁ e = α₂ e := by
         by_cases hev : e ∈ N.incidenceSet v
         · exact hinc' hev
-        · have heP : e ∈ N.edgeCut P := by
-            rcases N.edgeCut_insert_subset v P heC with h | h
-            · exact h
-            · exact (hev h).elim
-          exact D.eqOn_nonAdd_cut_of_state_eq h₁.1 h₂.1 hstP ⟨heP, henotA⟩
+        · exact D.eqOn_nonAdd_cut_of_state_eq h₁.1 h₂.1 hstP
+            ⟨(N.edgeCut_insert_subset v P heC).resolve_right hev, henotA⟩
       rcases s with ⟨i, hi⟩ | ⟨j, _⟩ | ⟨e, he⟩
       · dsimp only [cutMessage]
-        have hmem := hi.some_mem
-        refine hnonAdd hmem.2 fun hall => ?_
-        obtain ⟨j, hej⟩ := mem_iUnion.mp hall
-        exact disjoint_left.mp (D.disjoint_copy_add i j) hmem.1 hej
+        exact hnonAdd hi.some_mem.2 (D.not_mem_allAddEdges_of_mem_copyEdges hi.some_mem.1)
       · dsimp only [cutMessage]
         rw [N.cutFlow_insert (D.addEdges j) hvP α₁, N.cutFlow_insert (D.addEdges j) hvP α₂,
           D.cutFlow_eq_of_state_eq hstP j, N.netFlow_congr fun e _ hev => hinc' hev]
