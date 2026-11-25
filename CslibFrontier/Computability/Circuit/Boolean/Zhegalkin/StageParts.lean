@@ -345,18 +345,7 @@ theorem sum_zhegRowParts_eq (d : PaddedDecomp f M k) {s : ℕ} (hs : 0 < s) (p :
     rw [hfull, sum_filter, Fintype.sum_sum_type, ← sum_filter, ← sum_filter]
     rfl
   -- Combine `p2 + p3` using `hcol_sum`.
-  have hassoc :
-      (if d.cH r then true else (0 : Bool)) +
-        (∑ r' ∈ sectionPeers p r, zhegPairVal d s p (r.1 / p, (min r r', max r r')) x) +
-        zhegOddVal d s p r x +
-        (∑ j ∈ Additive.matrixTailSet d.aX s r, x j) +
-        (∑ ℓ ∈ intraGSet d s r, d.gFn ℓ x) =
-      (if d.cH r then true else (0 : Bool)) +
-        (((∑ r' ∈ sectionPeers p r, zhegPairVal d s p (r.1 / p, (min r r', max r r')) x) +
-          zhegOddVal d s p r x)) +
-        (∑ j ∈ Additive.matrixTailSet d.aX s r, x j) +
-        (∑ ℓ ∈ intraGSet d s r, d.gFn ℓ x) := by abel
-  rw [hassoc, hcol_sum]
+  rw [add_assoc _ _ (zhegOddVal d s p r x), hcol_sum]
   have hx_eq := Additive.sum_row_eq_fullCol_add_tail d.aX hs r x
   -- Show the `g`-blocks plus `intraGSet` equal `∑ ℓ : Fin M, if d.aG r ℓ then d.gFn ℓ x else 0`.
   have hg_early :
