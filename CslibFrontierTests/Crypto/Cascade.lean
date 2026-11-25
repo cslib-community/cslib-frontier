@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingLaw
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTables
 import Mathlib.Data.Set.Finite.List
 
@@ -191,3 +191,29 @@ example :
   exact (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
     (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
       (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
+
+-- A short label determines the order in which the two parents are visited.
+private def visitBothParents : WordOracleComp Unit Bool := do
+  let short ← ProbOracleComp.query ((), [false])
+  let start := short.headD false
+  let first ← ProbOracleComp.query ((), [start, false])
+  let other ← ProbOracleComp.query ((), [!start, true])
+  let replay ← ProbOracleComp.query ((), [start, false])
+  return first == replay && first != other
+
+example :
+    let distribution := PMF.uniformOfFintype (BitString 1 → BitString 2)
+    (ProbOracleComp.runWith (cascadeChildChannelOracle distribution)
+      (cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents) []).map
+        Prod.fst =
+      cascadeChildPrefixGame (boundedWords 2) (fun _ => 1) toggle 2 1 distribution
+        visitBothParents :=
+  runWith_cascadeChildRouter_eq_prefixGame (boundedWords 2) (fun _ => 1) toggle 2 1
+    (PMF.uniformOfFintype (BitString 1 → BitString 2)) visitBothParents
+
+-- An out-of-order channel leaves the table empty for the actual first request.
+example (distribution : PMF (BitString 1 → BitString 2)) :
+    cascadeChildChannelOracle distribution (1, [true]) [] = PMF.pure ([], []) ∧
+    cascadeChildChannelOracle distribution (0, [true]) [] =
+      distribution.map (fun row => (List.ofFn (row (BitString.ofList 1 [true])), [row])) :=
+  ⟨rfl, rfl⟩
