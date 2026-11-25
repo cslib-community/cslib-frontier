@@ -47,40 +47,26 @@ theorem card_inter_filter_powersetCard {α : Type*} [DecidableEq α]
   by_cases hg : g ≤ m
   · have hbij : ((R.powersetCard m).filter fun B => (A ∩ B).card = g).card =
         (A.powersetCard g ×ˢ (R \ A).powersetCard (m - g)).card := by
-      refine Finset.card_bij (fun B _ => (A ∩ B, B \ A)) ?_ ?_ ?_
-      · intro B hB; simp only [Finset.mem_filter, Finset.mem_powersetCard] at hB
-        obtain ⟨⟨hBR, hBm⟩, hgB⟩ := hB
-        have hdisj : Disjoint (A ∩ B) (B \ A) := Finset.disjoint_left.mpr fun _ hx₁ hx₂ =>
-          (Finset.mem_sdiff.mp hx₂).2 (Finset.mem_inter.mp hx₁).1
-        have hunion : (A ∩ B) ∪ (B \ A) = B := by
-          ext x; simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]; tauto
-        have hsum := Finset.card_union_of_disjoint hdisj; rw [hunion, hBm, hgB] at hsum
+      have hU (B : Finset α) : A ∩ B ∪ B \ A = B := by
+        ext x; simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]; tauto
+      refine Finset.card_bij (fun B _ => (A ∩ B, B \ A)) (fun B hB => ?_)
+        (fun B₁ _ B₂ _ heq => by simpa only [hU] using congrArg (fun p => p.1 ∪ p.2) heq) ?_
+      · simp only [Finset.mem_filter, Finset.mem_powersetCard] at hB
         simp only [Finset.mem_product, Finset.mem_powersetCard]
-        exact ⟨⟨Finset.inter_subset_left, hgB⟩,
-          ⟨fun x hx => Finset.mem_sdiff.mpr ⟨hBR (Finset.mem_sdiff.mp hx).1,
-            (Finset.mem_sdiff.mp hx).2⟩, by omega⟩⟩
-      · intro B₁ _ B₂ _ heq; rcases Prod.mk.inj heq with ⟨hP, hQ⟩
-        ext x; have h₁ : x ∈ B₁ ↔ x ∈ (A ∩ B₁) ∪ (B₁ \ A) := by
-          simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]; tauto
-        have h₂ : x ∈ B₂ ↔ x ∈ (A ∩ B₂) ∪ (B₂ \ A) := by
-          simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]; tauto
-        rw [h₁, h₂, hP, hQ]
+        exact ⟨⟨Finset.inter_subset_left, hB.2⟩, Finset.sdiff_subset_sdiff hB.1.1 subset_rfl,
+          by rw [Finset.card_sdiff, hB.1.2, hB.2]⟩
       · rintro ⟨P, Q⟩ hmem; simp only [Finset.mem_product, Finset.mem_powersetCard] at hmem
         obtain ⟨⟨hPA, hPc⟩, ⟨hQR, hQc⟩⟩ := hmem
-        have hdisj : Disjoint P Q :=
-          Finset.disjoint_left.mpr fun _ hx₁ hx₂ => (Finset.mem_sdiff.mp (hQR hx₂)).2 (hPA hx₁)
+        have hAQ : Disjoint A Q := Finset.disjoint_of_subset_right hQR Finset.disjoint_sdiff
         have hi : A ∩ (P ∪ Q) = P := by
-          ext x; simp only [Finset.mem_inter, Finset.mem_union]
-          exact ⟨fun ⟨hxA, hxU⟩ => hxU.elim id fun hxQ =>
-            False.elim ((Finset.mem_sdiff.mp (hQR hxQ)).2 hxA), fun hxP => ⟨hPA hxP, Or.inl hxP⟩⟩
-        have hs : (P ∪ Q) \ A = Q := by
-          ext x; simp only [Finset.mem_sdiff, Finset.mem_union]
-          exact ⟨fun ⟨hxU, hnA⟩ => hxU.elim (fun hxP => (hnA (hPA hxP)).elim) id,
-            fun hxQ => ⟨Or.inr hxQ, (Finset.mem_sdiff.mp (hQR hxQ)).2⟩⟩
-        exact ⟨P ∪ Q, Finset.mem_filter.mpr ⟨Finset.mem_powersetCard.mpr
-          ⟨Finset.union_subset (hPA.trans hsub) (hQR.trans Finset.sdiff_subset),
-            by rw [Finset.card_union_of_disjoint hdisj, hPc, hQc]; omega⟩, by rw [hi, hPc]⟩,
-          Prod.ext hi hs⟩
+          rw [Finset.inter_union_distrib_left, Finset.inter_eq_right.mpr hPA,
+            Finset.disjoint_iff_inter_eq_empty.mp hAQ, Finset.union_empty]
+        refine ⟨P ∪ Q, Finset.mem_filter.mpr ⟨Finset.mem_powersetCard.mpr
+          ⟨Finset.union_subset (hPA.trans hsub) (hQR.trans Finset.sdiff_subset), ?_⟩,
+            by rw [hi, hPc]⟩, Prod.ext hi ?_⟩
+        · rw [Finset.card_union_of_disjoint (hAQ.mono_left hPA), hPc, hQc]; omega
+        · rw [Finset.union_sdiff_distrib, Finset.sdiff_eq_empty_iff_subset.mpr hPA,
+            Finset.empty_union, Finset.sdiff_eq_self_of_disjoint hAQ.symm]
     rw [hbij, Finset.card_product, Finset.card_powersetCard, Finset.card_powersetCard,
       Finset.card_sdiff, Finset.inter_eq_left.mpr hsub, hA]
   · rw [Nat.choose_eq_zero_of_lt (by omega), zero_mul, Finset.card_eq_zero,
