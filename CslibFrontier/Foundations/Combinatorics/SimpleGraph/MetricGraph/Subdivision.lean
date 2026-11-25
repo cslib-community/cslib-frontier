@@ -317,21 +317,6 @@ private theorem vertexDist_subdivide_le_of_walk {B : Finset (MetricGraph W)}
       ((subdivide W B hV).connected _ _) ((subdivide W B hV).connected _ _)).trans
       (add_le_add hstep ih)
 
-private lemma min4_le_of_triangle {α β : Type*} (D : α → α → ℝ)
-    (htri : ∀ a b c, D a c ≤ D a b + D b c) (hsym : ∀ a b, D a b = D b a)
-    (v : β → α) (c : β → β → ℝ) (hc : ∀ u₁ u₂, D (v u₁) (v u₂) ≤ c u₁ u₂)
-    {p₁ p₂ : α} {u₁a u₁b u₂a u₂b : β} {l₁ r₁ l₂ r₂ : ℝ}
-    (hl₁ : D p₁ (v u₁a) ≤ l₁) (hr₁ : D p₁ (v u₁b) ≤ r₁)
-    (hl₂ : D p₂ (v u₂a) ≤ l₂) (hr₂ : D p₂ (v u₂b) ≤ r₂) :
-    D p₁ p₂ ≤ min (min (l₁ + c u₁a u₂a + l₂) (l₁ + c u₁a u₂b + r₂))
-      (min (r₁ + c u₁b u₂a + l₂) (r₁ + c u₁b u₂b + r₂)) := by
-  have step {u₁ u₂ : β} {o₁ o₂ : ℝ} (h₁ : D p₁ (v u₁) ≤ o₁) (h₂ : D p₂ (v u₂) ≤ o₂) :
-      D p₁ p₂ ≤ o₁ + c u₁ u₂ + o₂ := by
-    have := (htri p₁ (v u₁) p₂).trans (add_le_add h₁ (htri (v u₁) (v u₂) p₂))
-    rw [hsym (v u₂) p₂] at this
-    linarith [hc u₁ u₂]
-  exact le_min (le_min (step hl₁ hl₂) (step hl₁ hr₂)) (le_min (step hr₁ hl₂) (step hr₁ hr₂))
-
 /-- Vertex shortest-path distance in `subdivide W B hV` equals geodesic distance in
 `MetricGraph W`. -/
 theorem vertexDist_subdivide [Finite V] {B : Finset (MetricGraph W)}
@@ -713,10 +698,19 @@ private theorem dist_le_subdivideToMetric [Finite V] {B : Finset (MetricGraph W)
                   (1 - (u₂ : ℝ)) * W.weight (subDartOrigin d₂').edge)) := by
     obtain ⟨h10, h11⟩ := dist_subEdge_origVertex_le d₁' r₁
     obtain ⟨h20, h21⟩ := dist_subEdge_origVertex_le d₂' r₂
-    exact min4_le_of_triangle dist dist_triangle dist_comm
-      (fun u => (vertex ⟨vertex u, hV u⟩ : MetricGraph (subdivide W B hV)))
-      (vertexDist W.graph W.weight)
-      (fun v₁ v₂ => by rw [dist_vertex, vertexDist_subdivide, dist_vertex]) h10 h11 h20 h21
+    have step {u₁ u₂ : V} {o₁ o₂ : ℝ}
+        (h₁ : dist (edgePoint d₁' r₁ : MetricGraph (subdivide W B hV))
+          (vertex ⟨vertex u₁, hV u₁⟩) ≤ o₁)
+        (h₂ : dist (edgePoint d₂' r₂ : MetricGraph (subdivide W B hV))
+          (vertex ⟨vertex u₂, hV u₂⟩) ≤ o₂) :
+        dist (edgePoint d₁' r₁ : MetricGraph (subdivide W B hV)) (edgePoint d₂' r₂) ≤
+          o₁ + vertexDist W.graph W.weight u₁ u₂ + o₂ := by
+      have h := dist_triangle4 (edgePoint d₁' r₁ : MetricGraph (subdivide W B hV))
+        (vertex ⟨vertex u₁, hV u₁⟩) (vertex ⟨vertex u₂, hV u₂⟩) (edgePoint d₂' r₂)
+      rw [dist_vertex, vertexDist_subdivide, dist_vertex] at h
+      rw [dist_comm] at h₂
+      linarith only [h, h₁, h₂]
+    exact le_min (le_min (step h10 h20) (step h10 h21)) (le_min (step h11 h20) (step h11 h21))
   induction p using ind_simple with
   | vertex x =>
     induction q using ind_simple with
