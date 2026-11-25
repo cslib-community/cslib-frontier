@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg.HealRt
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -351,6 +352,7 @@ private theorem buildBktSliceStep_transition {c U V w n_max base b salt l : ℕ}
     let p1 := buildBktSliceStepProg ((((cp, base), (rt, hrt)), (b, salt)), l)
     let s' := (Memory.spec 0).clientState s p1
     (Memory.spec 0).clientResult s p1 = l + 1 ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 ∧
     SeedWhpMemRep base c U w n_max θ s'.mem ∧
     (∃ sl' mapFn',
       BTreeSliceMemRep base c U V w n_max (3 * b) sl' s'.mem ∧
@@ -394,7 +396,7 @@ private theorem buildBktSliceStep_transition {c U V w n_max base b salt l : ℕ}
     exact StepSpec.bind ⟨rfl, rfl, hbi_vp⟩ (StepSpec.pure _ _)
   dsimp only
   rw [hstep.1, hstep.2.1]
-  exact ⟨rfl,
+  exact ⟨rfl, hstep.2.2,
     SeedWhpMemRep.congr_hash hw (fun a _ ha2 => (hout' a (Or.inl (by omega))).symm) hseed,
     ⟨_, _, hr', hv'⟩, hoth'⟩
 
@@ -405,47 +407,41 @@ private theorem buildBktSliceLoop_safe_and_frame {c U V w n_max base b salt : �
     let cp := mkWhpCoreParams c U V w n_max
     let rt := mkHealRt c U V w n_max base
     let hrt := mkHashRt c U w n_max base
-    ∀ rem l₀ (sl : BTreeSlice) (mapFn : ℕ → Option ℕ) (s : Memory.State),
-      l₀ + rem ≤ totalLocalCoordsWhp n_max →
+    ∀ rem (s : Memory.State),
+      rem ≤ totalLocalCoordsWhp n_max →
       SeedWhpMemRep base c U w n_max θ s.mem →
-      BTreeSliceMemRep base c U V w n_max (3 * b) sl s.mem →
-      ValidWhpSlice n_max l₀ sl mapFn →
+      BTreeSliceMemRep base c U V w n_max (3 * b) zeroBTreeSlice s.mem →
       let s' := (Memory.spec 0).clientState s
-        (buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (b, salt)), l₀), rem))
+        (buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (b, salt)), 0), rem))
       iterationSafe buildBktSliceStepProg BuildBktSliceStepPre w
-        (((cp, base), (rt, hrt)), (b, salt)) rem l₀ s ∧
+        (((cp, base), (rt, hrt)), (b, salt)) rem 0 s ∧
       SeedWhpMemRep base c U w n_max θ s'.mem ∧
       (∀ sIdx < 3 * numBucketsWhp n_max, sIdx ≠ 3 * b → ∀ sl₂,
         BTreeSliceMemRep base c U V w n_max sIdx sl₂ s.mem →
         BTreeSliceMemRep base c U V w n_max sIdx sl₂ s'.mem) := by
-  intro cp rt hrt rem
-  induction rem with
-  | zero =>
-    intro _ _ _ s _ hseed _ _
-    unfold buildBktSliceLoopProg iterate
-    exact ⟨trivial, hseed, fun _ _ _ _ hr => hr⟩
-  | succ rem ih =>
-    intro l₀ sl mapFn s hle hseed hrep hv
-    have hl_lt : l₀ < totalLocalCoordsWhp n_max := by omega
-    have hpre : BuildBktSliceStepPre w ((((cp, base), (rt, hrt)), (b, salt)), l₀) s :=
-      ⟨c, U, V, w, n_max, θ, sl, mapFn, henv, rfl, rfl, rfl, hseed, hb, hl_lt, hrep, hv⟩
-    obtain ⟨hres1, hseed1, ⟨sl1, mf1, hrep1, hv1⟩, hoth1⟩ :=
-      buildBktSliceStep_transition (salt := salt) henv hb hl_lt hseed hrep hv
-    set s1 := (Memory.spec 0).clientState s
-      (buildBktSliceStepProg ((((cp, base), (rt, hrt)), (b, salt)), l₀))
-    obtain ⟨hsafe_r, hseed_r, hoth_r⟩ := ih (l₀ + 1) sl1 mf1 s1 (by omega) hseed1 hrep1 hv1
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_⟩
-    · rw [clientState_width, clientResult_width, hres1]
-      exact hsafe_r
-    · unfold buildBktSliceLoopProg at hseed_r ⊢
-      dsimp only [iterate]
-      rw [clientState_bind, hres1]
-      exact hseed_r
-    · intro sIdx hsIdx hne sl₂ hr₂
-      unfold buildBktSliceLoopProg at hoth_r ⊢
-      dsimp only [iterate]
-      rw [clientState_bind, hres1]
-      exact hoth_r sIdx hsIdx hne sl₂ (hoth1 sIdx hsIdx hne sl₂ hr₂)
+  intro cp rt hrt rem s hle hseed hrep
+  unfold buildBktSliceLoopProg
+  obtain ⟨hsafe, -, -, hseed', -, hoth'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := buildBktSliceStepProg)
+    (d := (((cp, base), (rt, hrt)), (b, salt))) (n := rem) (safe := BuildBktSliceStepPre)
+    (a := 0) (s := s)
+    (fun k l t => l = k ∧ SeedWhpMemRep base c U w n_max θ t.mem ∧
+      (∃ sl mf, BTreeSliceMemRep base c U V w n_max (3 * b) sl t.mem ∧
+        ValidWhpSlice n_max l sl mf) ∧
+      ∀ sIdx < 3 * numBucketsWhp n_max, sIdx ≠ 3 * b → ∀ sl₂,
+        BTreeSliceMemRep base c U V w n_max sIdx sl₂ s.mem →
+        BTreeSliceMemRep base c U V w n_max sIdx sl₂ t.mem)
+    (fun k hk l t ⟨hl, hseed, ⟨sl, mf, hrep, hv⟩, hoth⟩ => by
+      have hl_lt : l < totalLocalCoordsWhp n_max := by omega
+      obtain ⟨hres1, hvp1, hseed1, hrep1, hoth1⟩ :=
+        buildBktSliceStep_transition (salt := salt) henv hb hl_lt hseed hrep hv
+      refine ⟨⟨c, U, V, w, n_max, θ, sl, mf, henv, rfl, rfl, rfl, hseed, hb, hl_lt, hrep, hv⟩,
+        hvp1, ?_⟩
+      rw [hres1]
+      exact ⟨by omega, hseed1, hrep1, fun sIdx hsIdx hne sl₂ hr₂ =>
+        hoth1 sIdx hsIdx hne sl₂ (hoth sIdx hsIdx hne sl₂ hr₂)⟩)
+    ⟨rfl, hseed, ⟨_, _, hrep, validWhpSlice_zero _ 0 _⟩, fun _ _ _ _ hr => hr⟩
+  exact ⟨hsafe, hseed', hoth'⟩
 
 private theorem buildBktSliceLoop_spec {c U V w n_max base b salt cnt : ℕ}
     {θ : SeedWhp c U n_max} {qArr : ℕ → ℕ} {backPtr : ℕ → ℕ → ℕ} {s₀ : Memory.State}
@@ -459,35 +455,32 @@ private theorem buildBktSliceLoop_spec {c U V w n_max base b salt cnt : ℕ}
       readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s₀.mem i = qArr i)
     (hbp₀ : ∀ k < capBackWhp n_max,
       readPacked (base + offBackPtr c U V w n_max) (globalPtrBits n_max) w s₀.mem
-        (b * capBackWhp n_max + k) = backPtr b k) :
+        (b * capBackWhp n_max + k) = backPtr b k)
+    (s : Memory.State)
+    (hrep : BTreeSliceMemRep base c U V w n_max (3 * b) zeroBTreeSlice s.mem)
+    (hout : ∀ a, (a < base + offBktMeta c U V w n_max ∨
+      (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
+      base + offTrieChild0 c U V w n_max ≤ a) → s.mem a = s₀.mem a) :
     let cp := mkWhpCoreParams c U V w n_max
     let rt := mkHealRt c U V w n_max base
     let hrt := mkHashRt c U w n_max base
-    ∀ rem l₀ (mapFn : ℕ → Option ℕ) (s : Memory.State),
-      l₀ + rem ≤ cnt →
-      BTreeSliceMemRep base c U V w n_max (3 * b)
-        (buildBucketSlice c U n_max θ qArr backPtr b salt l₀) s.mem →
-      ValidWhpSlice n_max l₀ (buildBucketSlice c U n_max θ qArr backPtr b salt l₀) mapFn →
-      (∀ a, (a < base + offBktMeta c U V w n_max ∨
-          (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
-          base + offTrieChild0 c U V w n_max ≤ a) → s.mem a = s₀.mem a) →
-      let prog := buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (b, salt)), l₀), rem)
-      let s' := (Memory.spec 0).clientState s prog
-      s'.frontier = s.frontier ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
-      BTreeSliceMemRep base c U V w n_max (3 * b)
-        (buildBucketSlice c U n_max θ qArr backPtr b salt (l₀ + rem)) s'.mem ∧
-      (∀ sIdx' < 3 * numBucketsWhp n_max, sIdx' ≠ 3 * b → ∀ sl₂,
-        BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s.mem →
-        BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s'.mem) ∧
-      (∀ idx < 16 * numBucketsWhp n_max,
-        idx ≠ 16 * b + 10 → idx ≠ 16 * b + 11 →
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s'.mem idx =
-          readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx) ∧
-      (∀ a, (a < base + offBktMeta c U V w n_max ∨
-          (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
-          base + offTrieChild0 c U V w n_max ≤ a) → s'.mem a = s₀.mem a) := by
-  intro cp rt hrt rem
+    let prog := buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (b, salt)), 0), cnt)
+    let s' := (Memory.spec 0).clientState s prog
+    s'.frontier = s.frontier ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
+    BTreeSliceMemRep base c U V w n_max (3 * b)
+      (buildBucketSlice c U n_max θ qArr backPtr b salt cnt) s'.mem ∧
+    (∀ sIdx' < 3 * numBucketsWhp n_max, sIdx' ≠ 3 * b → ∀ sl₂,
+      BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s.mem →
+      BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s'.mem) ∧
+    (∀ idx < 16 * numBucketsWhp n_max,
+      idx ≠ 16 * b + 10 → idx ≠ 16 * b + 11 →
+      readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s'.mem idx =
+        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx) ∧
+    (∀ a, (a < base + offBktMeta c U V w n_max ∨
+        (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
+        base + offTrieChild0 c U V w n_max ≤ a) → s'.mem a = s₀.mem a) := by
+  intro cp rt hrt
   have hw := henv.2.1
   have hth := henv.2.2.2.1
   have htot3 := @totalLocalCoordsWhp_le_three_mul n_max
@@ -507,80 +500,82 @@ private theorem buildBktSliceLoop_spec {c U V w n_max base b salt cnt : ℕ}
         packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w := rfl
     refine ⟨by unfold offBackPtr; omega, ?_⟩
     unfold offBtMeta offPoolOwner offPoolFreeStack; omega
-  induction rem with
-  | zero =>
-    intro l₀ _ s _ hrep _ hout
-    unfold buildBktSliceLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨rfl, validProg_pure _, hrep, fun _ _ _ _ hr => hr,
-      fun _ _ _ _ => rfl, hout⟩
-  | succ rem ih =>
-    intro l₀ mapFn s hle hrep hv hout
-    have hl_cnt : l₀ < cnt := by omega
-    have hl_tot : l₀ < totalLocalCoordsWhp n_max := hl_cnt.trans_le hcnt_le
-    have hseed_s : SeedWhpMemRep base c U w n_max θ s.mem :=
-      SeedWhpMemRep.congr_hash hw (fun a _ ha2 => (hout a (Or.inl (by omega))).symm) hseed₀
-    have hq_s : ∀ i < n_max,
-        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s.mem i = qArr i :=
-      fun i hi => (readPacked_congr hw (hidx := hi)
-        (fun a ⟨_, ha2⟩ => hout a (Or.inl (by omega)))).trans (hq₀ i hi)
-    have hbp_s : ∀ k < capBackWhp n_max,
-        readPacked (base + offBackPtr c U V w n_max) (globalPtrBits n_max) w s.mem
-          (b * capBackWhp n_max + k) = backPtr b k := fun k hk =>
-      (readPacked_congr hw (hidx := mul_add_lt_mul_bound hb hk)
-        (fun a ⟨ha1, ha2⟩ => hout a (Or.inr (Or.inl ⟨by omega, by omega⟩)))).trans (hbp₀ k hk)
-    obtain ⟨hrq_st, _, hrq_vp⟩ := readHealSlotQuotProg_spec (b := b) (loc := l₀) henv hb (s := s)
-    have hrq_eq := readHealSlotQuotProg_eq (loc := l₀) hb hq_s hbp_s (by omega)
-      (fun hge => hbp_ps _ (by omega))
-    set p_loc := if l₀ < capFrontWhp n_max then b * capFrontWhp n_max + l₀
-      else numBucketsWhp n_max * capFrontWhp n_max + backPtr b (l₀ - capFrontWhp n_max)
-    obtain ⟨hfp_st, hfp_res, _, hfp_vp⟩ := fpOfQuotRtProg_spec (salt := salt) (b := b)
-      (q := qArr p_loc) henv hseed_s (s := s)
-    set kv_loc := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1) b (qArr p_loc)
-    set fp_loc :=
-      if hs : salt < sMaxWhp c n_max then
-        if hu : kv_loc < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv_loc, hu⟩ else 0
-      else 0
-    have hfp_lt : fp_loc < 2 ^ fpBitsWhp n_max := fpOfQuot_lt_two_pow θ salt kv_loc
-    have hl_val : l₀ < 2 ^ valLaneBitsWhp n_max := by rw [two_pow_valLaneBitsWhp]; omega
-    obtain ⟨hfr_bi, _, hvp_bi, hrep_bi, hv_bi, hoth_bi, hbm_bi, hout_bi⟩ :=
-      btreeInsertGenProg_spec (sIdx := 3 * b) (insCount := l₀) (q := fp_loc) (val := l₀)
-        henv (by omega) (by omega) hrep hv hfp_lt hl_val
-    set s1 := (Memory.spec 0).clientState s
-      (btreeInsertGenProg ((((cp, base), 3 * b), fp_loc), l₀))
-    set p1 := buildBktSliceStepProg ((((cp, base), (rt, hrt)), (b, salt)), l₀)
-    have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) s p1 s1 (l₀ + 1) := by
-      dsimp only [p1]; unfold buildBktSliceStepProg
-      dsimp only [cp, rt, hrt] at hrq_st hrq_eq hrq_vp hfp_st hfp_res hfp_vp hvp_bi s1 ⊢
-      simp only [pure_bind, wp_large_offQuot hth, wp_large_quotBits hth]
-      refine (StepSpec.read hbase_lt).bind ?_
-      refine StepSpec.bind ⟨hrq_st, hrq_eq, hrq_vp⟩ ?_
-      refine StepSpec.bind ⟨hfp_st, hfp_res, hfp_vp⟩ ?_
-      exact StepSpec.bind ⟨rfl, rfl, hvp_bi⟩ (StepSpec.pure _ _)
-    have hout1 : ∀ a, (a < base + offBktMeta c U V w n_max ∨
-        (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
-        base + offTrieChild0 c U V w n_max ≤ a) → s1.mem a = s₀.mem a :=
-      fun a ha => (hout_bi a ha).trans (hout a ha)
-    obtain ⟨hfr_r, hvp_r, hrep_r, hoth_r, hbm_r, hout_r⟩ := ih (l₀ + 1)
-      (Function.update mapFn fp_loc (some l₀)) s1 (by omega) hrep_bi hv_bi hout1
-    have hadd : l₀ + 1 + rem = l₀ + (rem + 1) := by omega
-    rw [hadd] at hrep_r
-    unfold buildBktSliceLoopProg at hfr_r hvp_r hrep_r hoth_r hbm_r hout_r ⊢
-    dsimp only [iterate]
-    have hdiv3 : (3 * b) / 3 = b := by omega
-    have hmod3 : (3 * b) % 3 = 0 := by omega
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hfr_r.trans hfr_bi
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hrep_r
-    · intro sIdx' hsIdx' hne sl₂ hr₂
-      rw [clientState_bind, hs1.1, hs1.2.1]
-      exact hoth_r sIdx' hsIdx' hne sl₂ (hoth_bi sIdx' hsIdx' hne sl₂ hr₂)
-    · intro idx hidx h10 h11
-      rw [clientState_bind, hs1.1, hs1.2.1, hbm_r idx hidx h10 h11]
-      exact hbm_bi idx hidx (by rw [hdiv3, hmod3]; omega) (by rw [hdiv3, hmod3]; omega)
-    · intro a ha
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
+  have hdiv3 : (3 * b) / 3 = b := by omega
+  have hmod3 : (3 * b) % 3 = 0 := by omega
+  unfold buildBktSliceLoopProg
+  obtain ⟨-, hvp, hl_eq, hrep', -, hoth', hbm', hout', hfr'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := buildBktSliceStepProg)
+    (d := (((cp, base), (rt, hrt)), (b, salt))) (n := cnt) (safe := fun _ _ _ => True)
+    (a := 0) (s := s)
+    (fun k l t => l = k ∧
+      BTreeSliceMemRep base c U V w n_max (3 * b)
+        (buildBucketSlice c U n_max θ qArr backPtr b salt l) t.mem ∧
+      (∃ mf, ValidWhpSlice n_max l (buildBucketSlice c U n_max θ qArr backPtr b salt l) mf) ∧
+      (∀ sIdx' < 3 * numBucketsWhp n_max, sIdx' ≠ 3 * b → ∀ sl₂,
+        BTreeSliceMemRep base c U V w n_max sIdx' sl₂ s.mem →
+        BTreeSliceMemRep base c U V w n_max sIdx' sl₂ t.mem) ∧
+      (∀ idx < 16 * numBucketsWhp n_max,
+        idx ≠ 16 * b + 10 → idx ≠ 16 * b + 11 →
+        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w t.mem idx =
+          readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx) ∧
+      (∀ a, (a < base + offBktMeta c U V w n_max ∨
+          (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
+          base + offTrieChild0 c U V w n_max ≤ a) → t.mem a = s₀.mem a) ∧
+      t.frontier = s.frontier)
+    (fun k hk l t ⟨hl, hrep, ⟨mapFn, hv⟩, hoth, hbm, hout, hfr⟩ => by
+      have hl_cnt : l < cnt := by omega
+      have hl_tot : l < totalLocalCoordsWhp n_max := hl_cnt.trans_le hcnt_le
+      have hseed_s : SeedWhpMemRep base c U w n_max θ t.mem :=
+        SeedWhpMemRep.congr_hash hw (fun a _ ha2 => (hout a (Or.inl (by omega))).symm) hseed₀
+      have hq_s : ∀ i < n_max,
+          readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w t.mem i = qArr i :=
+        fun i hi => (readPacked_congr hw (hidx := hi)
+          (fun a ⟨_, ha2⟩ => hout a (Or.inl (by omega)))).trans (hq₀ i hi)
+      have hbp_s : ∀ j < capBackWhp n_max,
+          readPacked (base + offBackPtr c U V w n_max) (globalPtrBits n_max) w t.mem
+            (b * capBackWhp n_max + j) = backPtr b j := fun j hj =>
+        (readPacked_congr hw (hidx := mul_add_lt_mul_bound hb hj)
+          (fun a ⟨ha1, ha2⟩ => hout a (Or.inr (Or.inl ⟨by omega, by omega⟩)))).trans (hbp₀ j hj)
+      obtain ⟨hrq_st, _, hrq_vp⟩ := readHealSlotQuotProg_spec (b := b) (loc := l) henv hb (s := t)
+      have hrq_eq := readHealSlotQuotProg_eq (loc := l) hb hq_s hbp_s (by omega)
+        (fun hge => hbp_ps _ (by omega))
+      set p_loc := if l < capFrontWhp n_max then b * capFrontWhp n_max + l
+        else numBucketsWhp n_max * capFrontWhp n_max + backPtr b (l - capFrontWhp n_max)
+      obtain ⟨hfp_st, hfp_res, _, hfp_vp⟩ := fpOfQuotRtProg_spec (salt := salt) (b := b)
+        (q := qArr p_loc) henv hseed_s (s := t)
+      set kv_loc := feistelReconstruct (bWhp n_max) (bktHash c U n_max θ.1) b (qArr p_loc)
+      set fp_loc :=
+        if hs : salt < sMaxWhp c n_max then
+          if hu : kv_loc < U then fpHash c U n_max θ.2 ⟨salt, hs⟩ ⟨kv_loc, hu⟩ else 0
+        else 0
+      have hfp_lt : fp_loc < 2 ^ fpBitsWhp n_max := fpOfQuot_lt_two_pow θ salt kv_loc
+      have hl_val : l < 2 ^ valLaneBitsWhp n_max := by rw [two_pow_valLaneBitsWhp]; omega
+      obtain ⟨hfr_bi, _, hvp_bi, hrep_bi, hv_bi, hoth_bi, hbm_bi, hout_bi⟩ :=
+        btreeInsertGenProg_spec (sIdx := 3 * b) (insCount := l) (q := fp_loc) (val := l)
+          henv (by omega) (by omega) hrep hv hfp_lt hl_val
+      set s1 := (Memory.spec 0).clientState t
+        (btreeInsertGenProg ((((cp, base), 3 * b), fp_loc), l))
+      have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) t
+          (buildBktSliceStepProg ((((cp, base), (rt, hrt)), (b, salt)), l)) s1 (l + 1) := by
+        unfold buildBktSliceStepProg
+        dsimp only [cp, rt, hrt] at hrq_st hrq_eq hrq_vp hfp_st hfp_res hfp_vp hvp_bi s1 ⊢
+        simp only [pure_bind, wp_large_offQuot hth, wp_large_quotBits hth]
+        refine (StepSpec.read hbase_lt).bind ?_
+        refine StepSpec.bind ⟨hrq_st, hrq_eq, hrq_vp⟩ ?_
+        refine StepSpec.bind ⟨hfp_st, hfp_res, hfp_vp⟩ ?_
+        exact StepSpec.bind ⟨rfl, rfl, hvp_bi⟩ (StepSpec.pure _ _)
+      refine ⟨trivial, hs1.2.2, ?_⟩
+      rw [hs1.1, hs1.2.1]
+      exact ⟨by omega, hrep_bi, ⟨_, hv_bi⟩,
+        fun sIdx' hsIdx' hne sl₂ hr₂ =>
+          hoth_bi sIdx' hsIdx' hne sl₂ (hoth sIdx' hsIdx' hne sl₂ hr₂),
+        fun idx hidx h10 h11 => (hbm_bi idx hidx (by rw [hdiv3, hmod3]; omega)
+          (by rw [hdiv3, hmod3]; omega)).trans (hbm idx hidx h10 h11),
+        fun a ha => (hout_bi a ha).trans (hout a ha), hfr_bi.trans hfr⟩)
+    ⟨rfl, hrep, ⟨fun _ => none, validWhpSlice_zero _ 0 _⟩, fun _ _ _ _ hr => hr,
+      fun _ _ _ _ => rfl, hout, rfl⟩
+  rw [hl_eq] at hrep'
+  exact ⟨hfr', hvp, hrep', hoth', hbm', hout'⟩
 
 /-- Single bucket step of `buildAllBucketsOuterLoopProg`. -/
 @[irreducible] def buildAllBucketsOuterStepProg :
@@ -657,8 +652,7 @@ private theorem realizes_buildAllBucketsOuterStep :
     | exact to_true_exists (henv.packed_safe_of_le hgk (idx := b) (by omega) hseg.2.2.2.2.2.1)
     | exact to_true_exists (henv.packed_safe_of_le hgk (idx := b + 1) (by omega) hseg.2.2.2.2.2.1)
     | exact to_true_exists (henv.bktMeta_safe (idx := 16 * b + 1) (by omega))
-    | exact (buildBktSliceLoop_safe_and_frame henv hb_lt _ 0 zeroBTreeSlice (fun _ => none) s
-        (by omega) hseed hrep3b (validWhpSlice_zero _ 0 _)).1
+    | exact (buildBktSliceLoop_safe_and_frame henv hb_lt _ s (by omega) hseed hrep3b).1
   )
 
 /-- Outer bucket loop rebuilding all `M` live SWAR B+-tree slices `3 * b`. -/
@@ -695,62 +689,60 @@ theorem buildAllBucketsOuterLoop_safe {c U V w n_max base : ℕ}
         BTreeSliceMemRep base c U V w n_max sIdx zeroBTreeSlice s.mem) →
       iterationSafe buildAllBucketsOuterStepProg BuildAllBucketsOuterPre w
         ((cp, base), (rt, hrt)) rem b₀ s := by
-  intro cp rt hrt rem
-  induction rem with
-  | zero => intro _ _ _ _ _; exact trivial
-  | succ rem ih =>
-    intro b₀ s hle hseed hz_rem
-    have hb_lt : b₀ < numBucketsWhp n_max := by omega
-    refine ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, rfl, hseed, hb_lt, hz_rem⟩, ?_⟩
-    rw [clientState_width, clientResult_width]
-    set p1 := buildAllBucketsOuterStepProg (((cp, base), (rt, hrt)), b₀)
-    set lo := readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem b₀
-    set hi := readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem (b₀ + 1)
-    set salt := readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem
-      (16 * b₀ + 1)
-    have hr1 : (Memory.spec 0).clientResult s p1 = b₀ + 1 := by
-      dsimp only [p1]; unfold buildAllBucketsOuterStepProg; dsimp only [readPackedGenProg]
-      simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedProg,
-        clientResult_bind, clientState_readPackedProg,
-        clientResult_bind, clientState_readPackedProg]
-      split_ifs
-      · rw [clientResult_bind]; rfl
-      · rfl
-      · rfl
-    rw [hr1]
-    by_cases hcond : lo ≤ hi ∧ hi - lo ≤ totalLocalCoordsWhp n_max
-    · have hs1_eq : (Memory.spec 0).clientState s p1 =
-          (Memory.spec 0).clientState s
-            (buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (b₀, salt)), 0), hi - lo)) := by
-        dsimp only [p1]; unfold buildAllBucketsOuterStepProg
-        simp only [rt, mkHealRt, hlBase, hlW, hlTotalLoc, hlGBits, hlOffBm, hlOffFb,
-          readPackedGenProg, pure_bind]
-        rw [clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
-          clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
-          clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
-          ite_eq_left hcond.1, ite_eq_left hcond.2, clientState_bind]
-        rfl
-      rw [hs1_eq]
-      obtain ⟨_, hseed_f, hoth_f⟩ :=
-        buildBktSliceLoop_safe_and_frame (salt := salt) henv hb_lt (hi - lo) 0 zeroBTreeSlice
-          (fun _ => none) s (by omega) hseed (hz_rem (3 * b₀) (by omega) (by omega))
-          (validWhpSlice_zero _ 0 _)
-      exact ih (b₀ + 1) _ (by omega) hseed_f
-        (fun sIdx hsIdx hge =>
-          hoth_f sIdx hsIdx (by omega) zeroBTreeSlice (hz_rem sIdx hsIdx (by omega)))
-    · have hs1_eq : (Memory.spec 0).clientState s p1 = s := by
-        dsimp only [p1]; unfold buildAllBucketsOuterStepProg
-        simp only [rt, mkHealRt, hlBase, hlW, hlTotalLoc, hlGBits, hlOffBm, hlOffFb,
-          readPackedGenProg, pure_bind]
-        rw [clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
-          clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
-          clientState_bind, clientState_readPackedProg, clientResult_readPackedProg]
-        by_cases h1 : lo ≤ hi
-        · rw [ite_eq_left h1, ite_eq_right (fun h2 => hcond ⟨h1, h2⟩)]; rfl
-        · rw [ite_eq_right h1]; rfl
-      rw [hs1_eq]
-      exact ih (b₀ + 1) s (by omega) hseed (fun sIdx hsIdx hge => hz_rem sIdx hsIdx (by omega))
+  intro cp rt hrt rem b₀ s hle hseed hz_rem
+  refine iterationSafe_of_stepInv _ _ w _
+    (fun j b t => b + j ≤ numBucketsWhp n_max ∧ SeedWhpMemRep base c U w n_max θ t.mem ∧
+      ∀ sIdx < 3 * numBucketsWhp n_max, b ≤ sIdx / 3 →
+        BTreeSliceMemRep base c U V w n_max sIdx zeroBTreeSlice t.mem)
+    (fun j b t h => ?_) ⟨hle, hseed, hz_rem⟩
+  obtain ⟨hle, hseed, hz_rem⟩ := h
+  have hb_lt : b < numBucketsWhp n_max := by omega
+  refine ⟨⟨c, U, V, w, n_max, θ, henv, rfl, rfl, rfl, hseed, hb_lt, hz_rem⟩, ?_⟩
+  set p1 := buildAllBucketsOuterStepProg (((cp, base), (rt, hrt)), b)
+  set lo := readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem b
+  set hi := readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem (b + 1)
+  set salt := readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w t.mem
+    (16 * b + 1)
+  have hr1 : (Memory.spec 0).clientResult t p1 = b + 1 := by
+    dsimp only [p1]; unfold buildAllBucketsOuterStepProg; dsimp only [readPackedGenProg]
+    simp only [pure_bind]
+    rw [clientResult_bind, clientState_readPackedProg,
+      clientResult_bind, clientState_readPackedProg,
+      clientResult_bind, clientState_readPackedProg]
+    split_ifs
+    · rw [clientResult_bind]; rfl
+    · rfl
+    · rfl
+  rw [hr1]
+  by_cases hcond : lo ≤ hi ∧ hi - lo ≤ totalLocalCoordsWhp n_max
+  · have hs1_eq : (Memory.spec 0).clientState t p1 =
+        (Memory.spec 0).clientState t
+          (buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (b, salt)), 0), hi - lo)) := by
+      dsimp only [p1]; unfold buildAllBucketsOuterStepProg
+      simp only [rt, mkHealRt, hlBase, hlW, hlTotalLoc, hlGBits, hlOffBm, hlOffFb,
+        readPackedGenProg, pure_bind]
+      rw [clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
+        clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
+        clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
+        ite_eq_left hcond.1, ite_eq_left hcond.2, clientState_bind]
+      rfl
+    rw [hs1_eq]
+    obtain ⟨_, hseed_f, hoth_f⟩ := buildBktSliceLoop_safe_and_frame (salt := salt) henv hb_lt
+      (hi - lo) t hcond.2 hseed (hz_rem (3 * b) (by omega) (by omega))
+    exact ⟨by omega, hseed_f, fun sIdx hsIdx hge =>
+      hoth_f sIdx hsIdx (by omega) zeroBTreeSlice (hz_rem sIdx hsIdx (by omega))⟩
+  · have hs1_eq : (Memory.spec 0).clientState t p1 = t := by
+      dsimp only [p1]; unfold buildAllBucketsOuterStepProg
+      simp only [rt, mkHealRt, hlBase, hlW, hlTotalLoc, hlGBits, hlOffBm, hlOffFb,
+        readPackedGenProg, pure_bind]
+      rw [clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
+        clientState_bind, clientState_readPackedProg, clientResult_readPackedProg,
+        clientState_bind, clientState_readPackedProg, clientResult_readPackedProg]
+      by_cases h1 : lo ≤ hi
+      · rw [ite_eq_left h1, ite_eq_right (fun h2 => hcond ⟨h1, h2⟩)]; rfl
+      · rw [ite_eq_right h1]; rfl
+    rw [hs1_eq]
+    exact ⟨by omega, hseed, fun sIdx hsIdx hge => hz_rem sIdx hsIdx (by omega)⟩
 
 /-- Exact memory specification of `buildAllBucketsOuterLoopProg`. -/
 theorem buildAllBucketsOuterLoop_spec {c U V w n_max base : ℕ}
@@ -806,7 +798,7 @@ theorem buildAllBucketsOuterLoop_spec {c U V w n_max base : ℕ}
       (∀ a, (a < base + offBktMeta c U V w n_max ∨
           (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
           base + offTrieChild0 c U V w n_max ≤ a) → s'.mem a = s₀.mem a) := by
-  intro cp rt hrt M targetSlice rem
+  intro cp rt hrt M targetSlice rem b₀ s hle hprev hsalt hout
   have hw := henv.2.1
   have hseg := WhpLargeEnv.seg_end_le c U V w n_max
   have hbm_b : base + offBktMeta c U V w n_max +
@@ -820,67 +812,75 @@ theorem buildAllBucketsOuterLoop_spec {c U V w n_max base : ℕ}
     have h6 : offBackPtr c U V w n_max =
       offFbStart c U V w n_max + packedWords (M + 1) (globalPtrBits n_max) w := rfl
     unfold offBtMeta offPoolOwner offPoolFreeStack offBackAux; omega
-  induction rem with
-  | zero =>
-    intro b₀ s _ hprev hsalt_s hout
-    unfold buildAllBucketsOuterLoopProg iterate
-    rw [Nat.add_zero]
-    exact ⟨rfl, validProg_pure _, hprev, hsalt_s, hout⟩
-  | succ rem ih =>
-    intro b₀ s hle hprev hsalt_s hout
-    have hb_lt : b₀ < M := by omega
-    have hfb_s : ∀ x ≤ M,
-        readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem x = fbStart x :=
-      fun x hx => (readPacked_congr hw (hidx := show x < M + 1 by omega)
-        (fun a ⟨ha1, ha2⟩ => hout a (Or.inr (Or.inl ⟨ha1, by
-          dsimp only [M] at hfb_bt ha2; omega⟩)))).trans (hfb₀ x hx)
-    have hlo_hi := hfb_adj b₀ hb_lt
-    obtain ⟨hcb_b, hcnt_le⟩ := hbnd b₀ hb_lt
-    set cnt := fbStart (b₀ + 1) - fbStart b₀
-    have hrep3b : BTreeSliceMemRep base c U V w n_max (3 * b₀) zeroBTreeSlice s.mem := by
-      have hp := hprev (3 * b₀) (by omega)
-      have hnot : ¬((3 * b₀) / 3 < b₀) := by omega
-      rwa [ite_eq_right hnot] at hp
-    obtain ⟨hin_fr, hin_vp, hin_rep, hin_oth, hin_bm, hin_out⟩ :=
-      buildBktSliceLoop_spec (b := b₀) (salt := salts b₀) (cnt := cnt)
-        henv hb_lt hcnt_le hcb_b (hbp_ps b₀ hb_lt) hseed₀ hq₀ (hbp₀ b₀ hb_lt)
-        cnt 0 (fun _ => none) s (by omega) hrep3b (validWhpSlice_zero _ 0 _) hout
-    rw [Nat.zero_add] at hin_rep
-    set inProg := buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (b₀, salts b₀)), 0), cnt)
-    set s_in := (Memory.spec 0).clientState s inProg
-    have hin_step : StepSpec w (base + largeSpaceWhp c U V w n_max) s inProg s_in
-        ((Memory.spec 0).clientResult s inProg) := ⟨rfl, rfl, hin_vp⟩
-    set p1 := buildAllBucketsOuterStepProg (((cp, base), (rt, hrt)), b₀)
-    have h16b1 : 16 * b₀ + 1 < 16 * M := by omega
-    have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) s p1 s_in (b₀ + 1) := by
-      dsimp only [p1]; unfold buildAllBucketsOuterStepProg
-      dsimp only [rt, mkHealRt, hlBase, hlW, hlTotalLoc, hlGBits, hlOffBm, hlOffFb] at hin_step ⊢
-      simp only [pure_bind]
-      refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s b₀ hb_lt.le)).bind ?_
-      refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s (b₀ + 1) hb_lt)).bind ?_
-      refine (StepSpec.readPackedGen_eq hw h16b1 hbm_b (hsalt_s b₀ hb_lt)).bind ?_
-      simp only [hlo_hi,
-        show fbStart (b₀ + 1) - fbStart b₀ ≤ totalLocalCoordsWhp n_max from hcnt_le, ↓reduceIte]
-      exact hin_step.bind (StepSpec.pure _ _)
-    have hprev1 : ∀ sIdx < 3 * M,
+  unfold buildAllBucketsOuterLoopProg
+  obtain ⟨-, hvp, hj_eq, hrep', hsalt', hout', hfr'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := buildAllBucketsOuterStepProg)
+    (d := ((cp, base), (rt, hrt))) (n := rem) (safe := fun _ _ _ => True) (a := b₀) (s := s)
+    (fun k j t => j = b₀ + k ∧
+      (∀ sIdx < 3 * M,
         BTreeSliceMemRep base c U V w n_max sIdx
-          (if sIdx / 3 < b₀ + 1 then targetSlice sIdx else zeroBTreeSlice) s_in.mem := by
-      intro sIdx hsIdx
-      by_cases heq3 : sIdx = 3 * b₀
+          (if sIdx / 3 < j then targetSlice sIdx else zeroBTreeSlice) t.mem) ∧
+      (∀ b < M,
+        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w t.mem (16 * b + 1) =
+          salts b) ∧
+      (∀ a, (a < base + offBktMeta c U V w n_max ∨
+          (base + offFbStart c U V w n_max ≤ a ∧ a < base + offBtMeta c U V w n_max) ∨
+          base + offTrieChild0 c U V w n_max ≤ a) → t.mem a = s₀.mem a) ∧
+      t.frontier = s.frontier)
+    (fun k hk j t ⟨hj, hprev, hsalt_s, hout, hfr⟩ => by
+      have hb_lt : j < M := by omega
+      have hfb_s : ∀ x ≤ M,
+          readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem x =
+            fbStart x :=
+        fun x hx => (readPacked_congr hw (hidx := show x < M + 1 by omega)
+          (fun a ⟨ha1, ha2⟩ => hout a (Or.inr (Or.inl ⟨ha1, by
+            dsimp only [M] at hfb_bt ha2; omega⟩)))).trans (hfb₀ x hx)
+      have hlo_hi := hfb_adj j hb_lt
+      obtain ⟨hcb_b, hcnt_le⟩ := hbnd j hb_lt
+      set cnt := fbStart (j + 1) - fbStart j
+      have hrep3b : BTreeSliceMemRep base c U V w n_max (3 * j) zeroBTreeSlice t.mem := by
+        have hp := hprev (3 * j) (by omega)
+        have hnot : ¬((3 * j) / 3 < j) := by omega
+        rwa [ite_eq_right hnot] at hp
+      obtain ⟨hin_fr, hin_vp, hin_rep, hin_oth, hin_bm, hin_out⟩ :=
+        buildBktSliceLoop_spec (b := j) (salt := salts j) (cnt := cnt)
+          henv hb_lt hcnt_le hcb_b (hbp_ps j hb_lt) hseed₀ hq₀ (hbp₀ j hb_lt) t hrep3b hout
+      set inProg := buildBktSliceLoopProg (((((cp, base), (rt, hrt)), (j, salts j)), 0), cnt)
+      set s_in := (Memory.spec 0).clientState t inProg
+      have hin_step : StepSpec w (base + largeSpaceWhp c U V w n_max) t inProg s_in
+          ((Memory.spec 0).clientResult t inProg) := ⟨rfl, rfl, hin_vp⟩
+      have h16b1 : 16 * j + 1 < 16 * M := by omega
+      have hs1 : StepSpec w (base + largeSpaceWhp c U V w n_max) t
+          (buildAllBucketsOuterStepProg (((cp, base), (rt, hrt)), j)) s_in (j + 1) := by
+        unfold buildAllBucketsOuterStepProg
+        dsimp only [rt, mkHealRt, hlBase, hlW, hlTotalLoc, hlGBits, hlOffBm, hlOffFb] at hin_step ⊢
+        simp only [pure_bind]
+        refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s j hb_lt.le)).bind ?_
+        refine (StepSpec.readPackedGen_eq hw (by omega) hfb_b (hfb_s (j + 1) hb_lt)).bind ?_
+        refine (StepSpec.readPackedGen_eq hw h16b1 hbm_b (hsalt_s j hb_lt)).bind ?_
+        simp only [hlo_hi,
+          show fbStart (j + 1) - fbStart j ≤ totalLocalCoordsWhp n_max from hcnt_le, ↓reduceIte]
+        exact hin_step.bind (StepSpec.pure _ _)
+      refine ⟨trivial, hs1.2.2, ?_⟩
+      rw [hs1.1, hs1.2.1]
+      refine ⟨by omega, fun sIdx hsIdx => ?_, fun b hb =>
+        (hin_bm (16 * b + 1) (by omega) (by omega) (by omega)).trans (hsalt_s b hb),
+        hin_out, hin_fr.trans hfr⟩
+      by_cases heq3 : sIdx = 3 * j
       · subst heq3
-        have hlt1 : (3 * b₀) / 3 < b₀ + 1 := by omega
+        have hlt1 : (3 * j) / 3 < j + 1 := by omega
         rw [ite_eq_left hlt1]
         dsimp only [targetSlice]
-        have hd : (3 * b₀) / 3 = b₀ := by omega
-        have hm : (3 * b₀) % 3 = 0 := by omega
+        have hd : (3 * j) / 3 = j := by omega
+        have hm : (3 * j) % 3 = 0 := by omega
         rw [hd, hm, ite_eq_left ⟨hb_lt, rfl⟩]
         exact hin_rep
       · have hp := hin_oth sIdx hsIdx heq3 _ (hprev sIdx hsIdx)
-        by_cases hlt0 : sIdx / 3 < b₀
-        · have hlt1 : sIdx / 3 < b₀ + 1 := by omega
+        by_cases hlt0 : sIdx / 3 < j
+        · have hlt1 : sIdx / 3 < j + 1 := by omega
           rw [ite_eq_left hlt0] at hp; rw [ite_eq_left hlt1]; exact hp
-        · by_cases hlt1 : sIdx / 3 < b₀ + 1
-          · have hdb : sIdx / 3 = b₀ := by omega
+        · by_cases hlt1 : sIdx / 3 < j + 1
+          · have hdb : sIdx / 3 = j := by omega
             have hmr : sIdx % 3 ≠ 0 := by omega
             rw [ite_eq_right hlt0] at hp
             rw [ite_eq_left hlt1]
@@ -889,26 +889,10 @@ theorem buildAllBucketsOuterLoop_spec {c U V w n_max base : ℕ}
             exact hp
           · rw [ite_eq_right hlt0] at hp
             rw [ite_eq_right hlt1]
-            exact hp
-    have hsalt1 : ∀ b < M,
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s_in.mem (16 * b + 1) =
-          salts b := fun b hb =>
-      (hin_bm (16 * b + 1) (by omega) (by omega) (by omega)).trans (hsalt_s b hb)
-    obtain ⟨hfr_r, hvp_r, hrep_r, hsalt_r, hout_r⟩ := ih (b₀ + 1) s_in (by omega) hprev1 hsalt1
-      hin_out
-    have hadd : b₀ + 1 + rem = b₀ + (rem + 1) := by omega
-    rw [hadd] at hrep_r
-    unfold buildAllBucketsOuterLoopProg at hfr_r hvp_r hrep_r hsalt_r hout_r ⊢
-    dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_bind, hs1.1, hs1.2.1]; exact hfr_r.trans hin_fr
-    · refine validProg_bind hs1.2.2 ?_; rw [hs1.1, hs1.2.1]; exact hvp_r
-    · intro sIdx hsIdx
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hrep_r sIdx hsIdx
-    · intro b hb
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hsalt_r b hb
-    · intro a ha
-      rw [clientState_bind, hs1.1, hs1.2.1]; exact hout_r a ha
+            exact hp)
+    ⟨rfl, hprev, hsalt, hout, rfl⟩
+  rw [hj_eq] at hrep'
+  exact ⟨hfr', hvp, hrep', hsalt', hout'⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 
