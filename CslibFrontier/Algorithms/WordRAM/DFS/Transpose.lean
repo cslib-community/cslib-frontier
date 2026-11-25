@@ -371,9 +371,7 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     edgeB (kRevEdgeAddr wb N Mc)).set uReg 0
   have hp3 : ExecWithin (B := .standard) w
       (ram[ offB ← compIdxReg; finCnt ← edgeB; edgeB ← revEdgeB; uReg ← cZero ]) x₅ x₆ 4 := by
-    wram_exec [hx₅_comp, hx₅_fr0 edgeB (by decide) (by decide),
-      hx₅_fr0 revEdgeB (by decide) (by decide), hx₅_fr0 cZero (by decide) (by decide), hedge,
-      hredge, hc0]
+    wram_exec [hx₅_comp, hx₅_fr0, hedge, hredge, hc0]
   have hx₅_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₅.mem :=
     hx₁_csr.of_eqOn
       (fun _ _ => (hx₅_out _ (by dsimp only [kOffAddr, kRevOffAddr, kCurAddr]; omega)).trans
