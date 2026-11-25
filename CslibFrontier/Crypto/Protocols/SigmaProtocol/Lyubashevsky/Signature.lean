@@ -134,7 +134,8 @@ theorem isSISSolution_sub_smul_secret {B η : ℕ}
     calc |v i - Δc * s i| ≤ |v i| + |Δc * s i| := abs_sub _ _
       _ = |v i| + |Δc| * |s i| := by rw [abs_mul]
       _ ≤ (B : ℤ) + |Δc| * (η : ℤ) :=
-        add_le_add (mem_intBox.mp hv i) (mul_le_mul_of_nonneg_left (mem_intBox.mp hs i) (abs_nonneg Δc))
+        add_le_add (mem_intBox.mp hv i)
+          (mul_le_mul_of_nonneg_left (mem_intBox.mp hs i) (abs_nonneg Δc))
       _ = ((B + Δc.natAbs * η : ℕ) : ℤ) := by
         rw [Nat.cast_add, Nat.cast_mul, Int.natCast_natAbs]
   · rw [InKernelLattice, show (Int.cast ∘ (v - Δc • s) : Fin m → ZMod q) =
