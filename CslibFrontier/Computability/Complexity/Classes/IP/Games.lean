@@ -224,10 +224,7 @@ theorem count_le_two_pow (g : List (IPMove × ℕ)) (f : List Bool → ℕ) (hf 
     count g f ≤ 2 ^ verifierBits g := by
   have hv : AMGame.value true (toAM g) (fun t => (f t : ℚ)) ≤ 1 :=
     AMGame.value_le_one _ _ fun t => by exact_mod_cast hf t
-  have : (count g f : ℚ) ≤ 2 ^ verifierBits g := by
-    rw [count_eq_value]
-    exact mul_le_of_le_one_right (by positivity) hv
-  exact_mod_cast this
+  exact_mod_cast (count_eq_value g f).trans_le (mul_le_of_le_one_right (by positivity) hv)
 
 /-- The count of a concatenation of shapes: the count of the first shape, whose payoff is the count
 of the second. -/
@@ -291,12 +288,11 @@ theorem run_congr (msg : ℕ → List Bool → List Bool) {P P' : ℕ → List B
   induction g generalizing j p with
   | nil => rfl
   | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [run]
-      rw [ih (j + 1) _ fun i q hi hq => h i q (by omega) ((List.prefix_append _ _).trans hq)]
-    · simp only [run]
-      rw [h j p le_rfl List.prefix_rfl]
-      rw [ih (j + 1) _ fun i q hi hq => h i q (by omega) ((List.prefix_append _ _).trans hq)]
+    have ih' (u : List Bool) :=
+      ih (j + 1) (p ++ u) fun i q _ hq => h i q (by omega) ((List.prefix_append _ _).trans hq)
+    obtain ⟨_ | _, n⟩ := x <;> simp only [run]
+    · rw [ih']
+    · rw [h j p le_rfl List.prefix_rfl, ih']
 
 /-- Splitting a count of coins by the first message of the verifier. -/
 private theorem card_filter_verifier (msg : C → ℕ → List Bool → List Bool) (n : ℕ) (j : ℕ)
@@ -666,12 +662,8 @@ theorem acceptedCoins_reveal (g : List (AMMove × ℕ)) (V : List Bool → Bool)
     acceptedCoins (ρ := K) (fun c _ q => (List.ofFn c).drop q.length) (fun _ t => V t) (ofAM g)
       t = 2 ^ merlinBits g * (V t).toNat := by
   subst hK
-  unfold acceptedCoins
-  simp only [agrees_reveal g 0 [] _ t ht, List.length_nil, List.drop_zero]
-  cases V t
-  · simp
-  · simp only [Bool.and_true, Bool.toNat_true, mul_one]
-    exact card_filter_matchArthur g t ht
+  simp only [acceptedCoins, agrees_reveal g 0 [] _ t ht, List.length_nil, List.drop_zero]
+  cases V t <;> simp [card_filter_matchArthur g t ht]
 
 private theorem count_ofAM_mul (g : List (AMMove × ℕ)) (k : ℕ) (V : List Bool → Bool) :
     count (ofAM g) (fun t => k * (V t).toNat) = k * AMGame.count g V := by
@@ -723,16 +715,13 @@ theorem AMGameClass_subset_IPGameClass {enc : α ↪ List Bool} (π : List AMMov
         (AMGame.transcriptLengthPoly G) (fun x => x.2.1.drop x.2.2.2.length)
         (fun x => V (x.1, x.2.2)) a = 2 ^ merlinBits (AMGame.evalShape G n) *
           AMGame.count (AMGame.evalShape G n) fun t => V (a, t) := by
-      unfold IPGame.countAt
-      rw [evalShape_map_toIP]
+      rw [IPGame.countAt, evalShape_map_toIP]
       exact bestCount_reveal _ (fun t => V (a, t)) hK
     rw [hcount, hK, transcriptLength_eq_arthurBits_add_merlinBits, pow_add]
     obtain ⟨h1, h2⟩ := hA a
     refine ⟨fun ha => ?_, fun ha => ?_⟩
-    · have := Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h1 ha)
-      linarith
-    · have := Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h2 ha)
-      linarith
+    · linarith [Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h1 ha)]
+    · linarith [Nat.mul_le_mul_right (2 ^ merlinBits (AMGame.evalShape G n)) (h2 ha)]
 
 /-- **`AM[k] ⊆ IP[k]`**. -/
 theorem AMk_subset_IPk {enc : α ↪ List Bool} (k : ℕ) : AMk enc k ⊆ IPk enc k :=

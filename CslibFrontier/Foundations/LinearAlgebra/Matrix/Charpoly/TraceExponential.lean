@@ -41,13 +41,10 @@ variable {R ι : Type*} [CommRing R] [Fintype ι] [DecidableEq ι]
 private theorem derivative_det_adjugate (M : Matrix ι ι R[X]) :
     derivative M.det = (M.adjugate * M.map derivative).trace := by
   classical
-  have h := Derivation.map_det (Polynomial.derivative' (R := R)) M
-  change derivative M.det = ∑ i, (M.updateCol i (fun j => derivative (M j i))).det at h
-  rw [h, Matrix.trace]
-  apply Finset.sum_congr rfl
-  intro i _
-  rw [← Matrix.cramer_apply, Matrix.cramer_eq_adjugate_mulVec]
-  rfl
+  rw [id (α := derivative M.det = ∑ i, (M.updateCol i (fun j => derivative (M j i))).det)
+      (Derivation.map_det (Polynomial.derivative' (R := R)) M), Matrix.trace]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [← Matrix.cramer_apply, Matrix.cramer_eq_adjugate_mulVec]; rfl
 
 /-- The adjugate of `1 - X M`, regarded as a polynomial of matrices. -/
 private noncomputable def reverseAdjugate (M : Matrix ι ι R) : (Matrix ι ι R)[X] :=
@@ -146,12 +143,10 @@ theorem coefficients_eq_of_newton (D : ℕ) (t : ℕ → K) (P Q : K[X])
   cases k with
   | zero => exact hzero
   | succ k =>
-    apply mul_left_cancel₀ (hK (k + 1) (by omega) hk)
+    refine mul_left_cancel₀ (hK (k + 1) (by omega) hk) ?_
     rw [hP k (by omega), hQ k (by omega)]
-    congr 1
-    apply Finset.sum_congr rfl
-    intro j _
-    rw [coefficients_eq_of_newton D t P Q hK hzero hP hQ (k - j) (by omega)]
+    exact congrArg (- ·) (Finset.sum_congr rfl fun j _ => congrArg (· * t (j + 1))
+      (coefficients_eq_of_newton D t P Q hK hzero hP hQ (k - j) (by omega)))
 termination_by k
 
 end Polynomial
@@ -203,9 +198,7 @@ theorem trace_exponential_coeff_eq_charpolyRev {ι : Type*} [Fintype ι] [Decida
       M.charpolyRev.coeff k := by
   refine coefficients_eq_of_newton D (fun j => (M ^ j).trace) _ _ hK ?_
     (trace_exponential_newton M D hK) (fun j _ => charpolyRev_newton M j) k hk
-  rw [finiteExponential_coeff_zero D
-      (ofFn (D + 1) fun j => -(M ^ (j : ℕ)).trace / ((j : ℕ) : K)) (by simp),
-    coeff_zero_eq_eval_zero, Matrix.eval_charpolyRev]
+  rw [finiteExponential_coeff_zero D _ (by simp), coeff_zero_eq_eval_zero, Matrix.eval_charpolyRev]
 
 /-- Reversal turns the constructed exponential coefficients into the
  actual characteristic polynomial coefficients of the matrix. -/

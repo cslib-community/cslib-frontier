@@ -137,11 +137,9 @@ private theorem turnsDown_update {s : Fin m → ℕ} {p : Fin m} (hp : I.Rejecte
     I.TurnsDown (Function.update s p (s p + 1)) r x := by
   rcases h with h | ⟨q, hq, hqx⟩
   · exact Or.inl h
-  · by_cases hqp : q = p
-    · subst hqp
-      obtain ⟨r', hr', hd⟩ := hp
-      have hrr : r' = r := Option.some_injective _ (hr'.symm.trans hq)
-      subst hrr
+  · rcases eq_or_ne q p with rfl | hqp
+    · obtain ⟨r', hr', hd⟩ := hp
+      obtain rfl := Option.some.inj (hr'.symm.trans hq)
       rcases hd with hd | ⟨y, hy, hyq⟩
       · exfalso
         have heq : I.recvRank r' (some q) = I.recvRank r' none := List.idxOf_eq_length_iff.2 hd
@@ -175,17 +173,14 @@ theorem inv_step {s : Fin m → ℕ} (hs : I.Inv s) : I.Inv (I.step s) := by
   · rw [h]; exact I.inv_update hs hp
 
 /-- One more round of the run is one more step. -/
-theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) := by
-  rw [run, Function.iterate_succ_apply']
-  rfl
+theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) :=
+  Function.iterate_succ_apply' _ _ _
 
 /-- Every state of the run satisfies the invariant. -/
 theorem inv_run (k : ℕ) : I.Inv (I.run k) := by
   induction k with
   | zero => exact I.inv_init
-  | succ k ih =>
-    rw [run, Function.iterate_succ_apply']
-    exact I.inv_step ih
+  | succ k ih => exact I.run_succ k ▸ I.inv_step ih
 
 /-- The total number of rejections in an invariant state is at most `totalLength`. -/
 theorem sum_le {s : Fin m → ℕ} (hs : I.Inv s) : ∑ p, s p ≤ I.totalLength :=
@@ -355,10 +350,10 @@ private theorem noStableRejected_run {ν : PartialMatching m n} (hν : I.IsStabl
   induction k with
   | zero => exact I.noStableRejected_init ν
   | succ k ih =>
-    rw [run, Function.iterate_succ_apply', ← run]
+    rw [run_succ]
     rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨p, hp, h⟩
-    · rw [h]; exact ih
-    · rw [h]; exact I.noStableRejected_update hν (I.inv_run k) ih hp
+    · exact h.symm ▸ ih
+    · exact h.symm ▸ I.noStableRejected_update hν (I.inv_run k) ih hp
 
 /-- Proposer-optimality ([RothSotomayor1990], Theorem 2.12): every proposer weakly prefers its
 deferred-acceptance outcome to its outcome in any stable matching. -/

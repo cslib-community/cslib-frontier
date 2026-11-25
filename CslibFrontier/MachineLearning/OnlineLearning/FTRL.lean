@@ -177,9 +177,8 @@ at most `ψ u - ψ (x 0)` plus the stability terms `ℓ t (x t) - ℓ t (x (t + 
 theorem IsFTRL.regret_le_add_sum_sub (h : IsFTRL K ψ ℓ x) {u : E} (hu : u ∈ K) (T : ℕ) :
     ∑ t ∈ range T, (ℓ t (x t) - ℓ t u) ≤
       ψ u - ψ (x 0) + ∑ t ∈ range T, (ℓ t (x t) - ℓ t (x (t + 1))) := by
-  have := h.add_sum_le hu T
   rw [sum_sub_distrib, sum_sub_distrib]
-  linarith
+  linarith [h.add_sum_le hu T]
 
 /-- **Existence of FTRL runs**: on a compact nonempty `K`, with a regularizer and losses continuous
 on `K`, every round's objective has a minimizer on `K`. -/
@@ -217,10 +216,9 @@ theorem IsFTRL.stability_le (h : IsFTRL K ψ ℓ x) (hψ : StrongConvexOn K μ �
     (hL : ∀ y ∈ K, ℓ t (x t) - ℓ t y ≤ L * ‖x t - y‖) :
     ftrlObjective ψ ℓ t (x t) - ftrlObjective ψ ℓ (t + 1) (x (t + 1)) + ℓ t (x t) ≤
       L ^ 2 / (2 * μ) := by
-  have := (strongConvexOn_ftrlObjective hψ hℓ t).sub_le_of_isMinOn hμ (h.mem t) (h.isMinOn t)
-    (h.mem (t + 1)) (ℓ := ℓ t) (hL _ (h.mem (t + 1)))
   rw [ftrlObjective_succ]
-  linarith
+  linarith [(strongConvexOn_ftrlObjective hψ hℓ t).sub_le_of_isMinOn hμ (h.mem t) (h.isMinOn t)
+    (h.mem (t + 1)) (ℓ := ℓ t) (hL _ (h.mem (t + 1)))]
 
 /-- **Regret of FTRL with a strongly convex regularizer** ([Orabona2019, Lemmas 7.1 and 7.8];
 compare [Hazan2022, Theorem 5.2]). If `ψ` is `μ`-strongly convex on `K` with `μ > 0`, the losses
@@ -233,11 +231,8 @@ theorem IsFTRL.regret_le (h : IsFTRL K ψ ℓ x) (hψ : StrongConvexOn K μ ψ) 
     ∑ t ∈ range T, (ℓ t (x t) - ℓ t u) ≤
       ψ u - ψ (x 0) + ∑ t ∈ range T, L t ^ 2 / (2 * μ) := by
   rw [ftrl_regret_eq ψ ℓ x u T]
-  have hstab : ∑ t ∈ range T, (ftrlObjective ψ ℓ t (x t) -
-      ftrlObjective ψ ℓ (t + 1) (x (t + 1)) + ℓ t (x t)) ≤ ∑ t ∈ range T, L t ^ 2 / (2 * μ) :=
-    sum_le_sum fun t _ => h.stability_le hψ hμ hℓ (hL t)
-  have hlast := h.objective_le T hu
-  linarith
+  linarith [sum_le_sum fun t (_ : t ∈ range T) => h.stability_le hψ hμ hℓ (hL t),
+    h.objective_le T hu]
 
 /-- **Constant learning rate** ([Orabona2019, Corollary 7.9] with `η_t = η`): FTRL with the
 regularizer `R / η`, for a `σ`-strongly convex `R` with `σ, η > 0`, has regret at most
@@ -250,9 +245,7 @@ theorem IsFTRL.regret_le_div {R : E → ℝ} {η σ : ℝ} (h : IsFTRL K (fun y 
     ∑ t ∈ range T, (ℓ t (x t) - ℓ t u) ≤
       (R u - R (x 0)) / η + η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 := by
   have hscale : StrongConvexOn K (η⁻¹ * σ) fun y => R y / η := by
-    convert hR.smul (inv_nonneg.mpr hη.le) using 1
-    ext
-    exact div_eq_inv_mul _ _
+    simpa only [Pi.smul_def, smul_eq_mul, div_eq_inv_mul] using hR.smul (inv_nonneg.mpr hη.le)
   have hb := h.regret_le hscale (mul_pos (inv_pos.mpr hη) hσ) hℓ hL hu T
   have e : ∑ t ∈ range T, L t ^ 2 / (2 * (η⁻¹ * σ)) = η / (2 * σ) * ∑ t ∈ range T, L t ^ 2 := by
     rw [mul_sum]

@@ -81,33 +81,29 @@ theorem rowNoiseEnvelope_pow_four (S : Finset ι) (raw mean : ι → Fin 2 → �
 theorem abs_sub_le_rowNoiseEnvelope (S : Finset ι) (raw mean : ι → Fin 2 → ℝ)
     {y : ι} (hy : y ∈ S) (ν : Fin 2) : |raw y ν - mean y ν| ≤
       rowNoiseEnvelope S raw mean := by
-  apply (pow_le_pow_iff_left₀ (abs_nonneg _) (rowNoiseEnvelope_nonneg S raw mean)
-    (by decide : (4 : ℕ) ≠ 0)).mp
-  rw [rowNoiseEnvelope_pow_four]
-  have hν : |raw y ν - mean y ν| ^ 4 ≤ ∑ ν : Fin 2, |raw y ν - mean y ν| ^ 4 :=
-    single_le_sum (f := fun ν : Fin 2 => |raw y ν - mean y ν| ^ 4)
-      (fun _ _ => by positivity) (mem_univ ν)
-  exact hν.trans (single_le_sum (f := fun y => ∑ ν : Fin 2, |raw y ν - mean y ν| ^ 4)
-    (fun _ _ => by positivity) hy)
+  rw [← pow_le_pow_iff_left₀ (abs_nonneg _) (rowNoiseEnvelope_nonneg S raw mean)
+    (by decide : (4 : ℕ) ≠ 0), rowNoiseEnvelope_pow_four]
+  exact (single_le_sum (f := fun ν : Fin 2 => |raw y ν - mean y ν| ^ 4)
+    (fun _ _ => by positivity) (mem_univ ν)).trans
+    (single_le_sum (f := fun y => ∑ ν : Fin 2, |raw y ν - mean y ν| ^ 4)
+      (fun _ _ => by positivity) hy)
 
 /-- Clipped raw error is at most its actual mean error plus the derived row noise envelope.
 No bound on the raw output discrepancy is assumed. -/
 theorem clippedError_le_mean_add_rowNoiseEnvelope (S : Finset ι)
     (raw mean : ι → Fin 2 → ℝ) {y : ι} (hy : y ∈ S) {d v : ℝ} (hd : 0 ≤ d) :
     clippedError d v (raw y) ≤ clippedError d v (mean y) + rowNoiseEnvelope S raw mean := by
-  have h0 := abs_sub_le_rowNoiseEnvelope S raw mean hy 0
-  have h1 := abs_sub_le_rowNoiseEnvelope S raw mean hy 1
   have hγ := rowNoiseEnvelope_nonneg S raw mean
-  have ht0 := abs_sub_le (raw y 0) (mean y 0) d
-  have ht1 := abs_sub_le (raw y 1) (mean y 1) v
   have hdiv : |raw y 0 - d| / (1 + d) ≤
       |mean y 0 - d| / (1 + d) + rowNoiseEnvelope S raw mean := by
     calc |raw y 0 - d| / (1 + d)
-        ≤ (|mean y 0 - d| + rowNoiseEnvelope S raw mean) / (1 + d) := by gcongr; linarith
+        ≤ (|mean y 0 - d| + rowNoiseEnvelope S raw mean) / (1 + d) := by
+          gcongr
+          linarith [abs_sub_le (raw y 0) (mean y 0) d,
+            abs_sub_le_rowNoiseEnvelope S raw mean hy 0]
       _ = |mean y 0 - d| / (1 + d) + rowNoiseEnvelope S raw mean / (1 + d) := add_div _ _ _
-      _ ≤ |mean y 0 - d| / (1 + d) + rowNoiseEnvelope S raw mean := by
-        gcongr
-        exact div_le_self hγ (by linarith)
+      _ ≤ |mean y 0 - d| / (1 + d) + rowNoiseEnvelope S raw mean :=
+        add_le_add_right (div_le_self hγ (by linarith)) _
   have hclip (a b γ : ℝ) (hγ : 0 ≤ γ) (hab : a ≤ b + γ) :
       min 1 a ≤ min 1 b + γ := by
     calc
@@ -116,7 +112,9 @@ theorem clippedError_le_mean_add_rowNoiseEnvelope (S : Finset ι)
   unfold clippedError
   exact max_le
     ((hclip _ _ _ hγ hdiv).trans (add_le_add_left (le_max_left _ _) _))
-    ((hclip |raw y 1 - v| |mean y 1 - v| _ hγ (by linarith)).trans
+    ((hclip |raw y 1 - v| |mean y 1 - v| _ hγ
+      (by linarith [abs_sub_le (raw y 1) (mean y 1) v,
+        abs_sub_le_rowNoiseEnvelope S raw mean hy 1])).trans
       (add_le_add_left (le_max_right _ _) _))
 
 private theorem expect_rowNoiseEnvelope_pow_four_le {Ω : Type*} [Fintype Ω]
@@ -170,15 +168,13 @@ theorem expect_rowNoiseEnvelope_prefix_le [Finite ι] (s : Finset I) (S : Finset
     refine expect_congr rfl fun σ _ => ?_
     rw [← sum_subset (subset_univ S) (fun y _ hy => by simp [hy])]
     exact sum_congr rfl fun y hy => by simp [hy]
-  have hnoise : ∀ i ∈ s, vertexNormPow 4 1 1 X (noise i) ≤ ε i ^ 4 := by
-    intro i hi
+  have hnoise (i : I) (hi : i ∈ s) : vertexNormPow 4 1 1 X (noise i) ≤ ε i ^ 4 := by
     rw [heq]
-    have h := (expect_rowNoiseEnvelope_walk_le (G i) S (F i) (t i)).trans (hbudget i hi)
-    simpa only [rowNoiseEnvelope_pow_four, noise] using h
-  have h := vertexNormPow_sum_le_pow_sum (X := X) (by decide : (4 : ℕ) ≠ 0)
-    (by norm_num : (0 : ℝ) ≤ 1 * 1) s noise w ε hw hε hnoise
-  rw [heq] at h
-  simpa only [rowNoiseEnvelope_pow_four, noise, mul_sub, sum_sub_distrib] using h
+    simpa only [rowNoiseEnvelope_pow_four, noise] using
+      (expect_rowNoiseEnvelope_walk_le (G i) S (F i) (t i)).trans (hbudget i hi)
+  simpa only [heq, rowNoiseEnvelope_pow_four, noise, mul_sub, sum_sub_distrib] using
+    vertexNormPow_sum_le_pow_sum (X := X) (by decide : (4 : ℕ) ≠ 0)
+      (by norm_num : (0 : ℝ) ≤ 1 * 1) s noise w ε hw hε hnoise
 
 end Cslib.RotationMap
 

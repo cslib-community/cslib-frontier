@@ -158,9 +158,7 @@ variable {I}
 
 theorem ofMatching_injective : Function.Injective (ofMatching I) := by
   intro μ ν h
-  refine Equiv.ext fun p => ?_
-  have hp := congrFun (congrArg propPartner h) p
-  exact Option.some_injective _ hp
+  exact Equiv.ext fun p => Option.some_injective _ (congrFun (congrArg propPartner h) p)
 
 instance : Fintype I.PreMatching :=
   Fintype.ofEquiv ((Fin n → Option (Fin n)) × (Fin n → Option (Fin n)))
@@ -260,8 +258,7 @@ private theorem bestWillingProposer_mem {ν : I.PreMatching} {r p : Fin n}
     obtain ⟨p', hp', hmin⟩ :=
       Finset.mem_image.1 (((I.willingProposers ν r).image (I.recvRank r)).min'_mem (hne.image _))
     have hpr : I.recvPref r (I.recvRank r p') = p' := (I.recvPref r).apply_symm_apply p'
-    rw [← hp, ← hmin, hpr]
-    exact hp'
+    rwa [← hp, ← hmin, hpr]
 
 private theorem recvOptRank_bestWillingProposer_le {ν : I.PreMatching} {r p : Fin n}
     (hp : p ∈ I.willingProposers ν r) :
@@ -410,19 +407,14 @@ theorem isFixedPt_adachiMap_iff (ν : I.PreMatching) :
             have h2 := (I.fixedPt_mutual hfix (g r₁) r₂).2 (heq ▸ hg r₂)
             exact Option.some_injective _ (h1.symm.trans h2)
           obtain ⟨r₀, hr₀⟩ := (Finite.injective_iff_bijective.1 hg_inj).2 p
-          have hp_some := (I.fixedPt_mutual hfix p r₀).2 (hr₀ ▸ hg r₀)
-          rw [hp] at hp_some
-          nomatch hp_some
+          nomatch hp.symm.trans ((I.fixedPt_mutual hfix p r₀).2 (hr₀ ▸ hg r₀))
         · push Not at hall_recv
           obtain ⟨r₀, hr₀⟩ := hall_recv
-          have hr₀_none : ν.recvPartner r₀ = none := by
-            cases hr : ν.recvPartner r₀ with
-            | none => rfl
-            | some q => exact False.elim (hr₀ q hr)
-          have hr₀_will : r₀ ∈ I.willingReceivers ν p := by
-            rw [willingReceivers, Finset.mem_filter]
-            simp only [Finset.mem_univ, true_and, hr₀_none, recvOptRank_some, recvOptRank_none]
-            exact (Fin.castSucc_lt_last _).le
+          have hr₀_will : r₀ ∈ I.willingReceivers ν p :=
+            Finset.mem_filter.2 ⟨Finset.mem_univ _, by
+              cases h : ν.recvPartner r₀ with
+              | none => simp [Fin.le_last]
+              | some q => exact (hr₀ q h).elim⟩
           have hle := I.propOptRank_bestWillingReceiver_le hr₀_will
           rw [hprop_fix p, hp, propOptRank_none, propOptRank_some] at hle
           exact not_lt_of_ge hle (Fin.castSucc_lt_last _)
@@ -436,10 +428,8 @@ theorem isFixedPt_adachiMap_iff (ν : I.PreMatching) :
     have hν_eq : ν = PreMatching.ofMatching I μ := by
       refine PreMatching.ext (funext fun x => hf x) (funext fun x => ?_)
       simp only [PreMatching.ofMatching]
-      have hx := hf (μ.symm x)
-      have hμx : f (μ.symm x) = x := μ.apply_symm_apply x
-      rw [hμx] at hx
-      exact (I.fixedPt_mutual hfix (μ.symm x) x).1 hx
+      exact (I.fixedPt_mutual hfix (μ.symm x) x).1
+        ((hf (μ.symm x)).trans (congrArg some (μ.apply_symm_apply x)))
     refine ⟨μ, (I.isFixedPt_ofMatching_iff μ).1 (hν_eq ▸ hfix), hν_eq⟩
   · rintro ⟨μ, hstab, rfl⟩
     exact (I.isFixedPt_ofMatching_iff μ).2 hstab

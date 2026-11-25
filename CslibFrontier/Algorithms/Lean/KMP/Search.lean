@@ -164,12 +164,10 @@ theorem advance_eq_nextLen {α : Type*} [DecidableEq α]
     split_ifs with hmatch hk0 hpi hlt
     · rfl
     · rfl
-    · have hval : pi[k - 1]'hpi = borderLen p.toList k := by
-        simpa only [show k - 1 + 1 = k by omega] using htab.2 (k - 1) hpi
-      rw [hval] at hlt ⊢
+    · have hval := Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.2 hk0) ▸ htab.2 (k - 1) hpi
+      rw [← hval]
       exact ih _ hlt (by omega) (by omega)
-    · have hval : pi[k - 1]'hpi = borderLen p.toList k := by
-        simpa only [show k - 1 + 1 = k by omega] using htab.2 (k - 1) hpi
+    · have hval := Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.2 hk0) ▸ htab.2 (k - 1) hpi
       exact (hlt (hval ▸ borderLen_lt (by omega) (by grind))).elim
     · omega
 
@@ -221,14 +219,11 @@ theorem isPrefixTableFor_computePrefix {α : Type*} [DecidableEq α] (p : Array 
     (computePrefix p).size = p.size ∧ IsPrefixTableFor p (computePrefix p) := by
   unfold computePrefix
   split_ifs with hp0
-  · refine ⟨by simp only [Array.size_empty, hp0], Nat.zero_le _, ?_⟩
-    intro _ hj
-    simp at hj
-  · refine computePrefixLoop_spec (Nat.le_refl 1) (by omega) rfl ?_ (borderLen_one p.toList).symm
-    refine ⟨Nat.pos_of_ne_zero hp0, fun j hj => ?_⟩
+  · exact ⟨hp0.symm, Nat.zero_le _, fun _ hj => by simp at hj⟩
+  · refine computePrefixLoop_spec (Nat.le_refl 1) (by omega) rfl
+      ⟨Nat.pos_of_ne_zero hp0, fun j hj => ?_⟩ (borderLen_one p.toList).symm
     obtain rfl : j = 0 := by simpa using hj
-    simp only [Nat.zero_add, borderLen_one]
-    rfl
+    exact (borderLen_one p.toList).symm
 
 @[simp]
 theorem computePrefix_size {α : Type*} [DecidableEq α] (p : Array α) :
@@ -338,13 +333,11 @@ private theorem kmpSearchLoop_spec {α : Type*} [DecidableEq α]
     obtain ⟨hmem_rest, hpw_rest⟩ := ihFull (by omega) hkNext_eq
     refine ⟨fun s => ?_, List.Pairwise.cons (fun s hs => ?_) hpw_rest⟩
     · simp only [List.mem_cons, hmem_rest]
-      refine ⟨?_, fun ⟨hge, hm⟩ => ?_⟩
-      · rintro (rfl | ⟨hge, hm⟩)
-        · exact ⟨by omega, hmatch_here⟩
-        · exact ⟨by omega, hm⟩
-      · rcases Nat.eq_or_lt_of_le hge with heq | hgt
-        · exact Or.inl (by omega)
-        · exact Or.inr ⟨by omega, hm⟩
+      refine ⟨?_, fun ⟨hge, hm⟩ =>
+        (Nat.eq_or_lt_of_le hge).imp (fun _ => by omega) fun _ => ⟨by omega, hm⟩⟩
+      rintro (rfl | ⟨_, hm⟩)
+      · exact ⟨by omega, hmatch_here⟩
+      · exact ⟨by omega, hm⟩
     · have := ((hmem_rest s).mp hs).1
       omega
   | case2 i k hilt k' hnotfull ih =>

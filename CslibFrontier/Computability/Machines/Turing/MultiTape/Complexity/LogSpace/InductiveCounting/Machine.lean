@@ -218,16 +218,10 @@ theorem step_counting {B : ℕ} {checked : Bool} {c : Cslib.InductiveCounting.St
   · simp only [hh, ↓reduceIte]
     have hc : Cslib.InductiveCounting.halted c = true := by
       simp only [Bool.or_eq_true, beq_iff_eq, Bool.and_eq_true] at hh
-      simp only [Cslib.InductiveCounting.halted, Bool.or_eq_true, beq_iff_eq]
-      tauto
+      rcases hh with hp | ⟨_, hp⟩ <;> simp [Cslib.InductiveCounting.halted, hp]
     rw [ctlStep, Cslib.InductiveCounting.step, Cslib.InductiveCounting.advance_halted _ _ hc]
-  · simp only [hh, Bool.false_eq_true, ↓reduceIte, runtimeNext]
-    have ho' : (!checked && overflowed c) = false := by
-      cases checked <;> simp_all
-    have ha' : (!checked && c.phase == .accept) = false := by
-      cases checked <;> simp_all
-    simp only [ho', ha', Bool.false_eq_true, ↓reduceIte, runtimeQuery, localAnswer_eq,
-      ctlStep, Cslib.InductiveCounting.step]
+  · cases checked <;> simp_all [runtimeNext, runtimeQuery, localAnswer_eq, ctlStep,
+      Cslib.InductiveCounting.step]
 
 /-- A complete final count check meeting an overflowing vertex moves to four times the radix. -/
 theorem step_overflowed {B : ℕ} {c : Cslib.InductiveCounting.State}
@@ -334,10 +328,8 @@ theorem replay_scan (choices : List Bool) {j : ℕ} (hj : j + choices.length ≤
   induction choices generalizing j with
   | nil => simp [NondeterministicQueryMachine.replay]
   | cons choice choices ih =>
-    rw [NondeterministicQueryMachine.replay_cons, step_scan ntm input (by
-      simp only [List.length_cons] at hj; omega), ih (by
-      simp only [List.length_cons] at hj; omega)]
-    simp only [List.length_cons]
+    simp only [List.length_cons] at hj ⊢
+    rw [NondeterministicQueryMachine.replay_cons, step_scan ntm input (by omega), ih (by omega)]
     congr 1
     omega
 
@@ -475,11 +467,9 @@ theorem not_accepts_of_queryMachine_accepts (h : (queryMachine ntm).Accepts inpu
   · simp only [queryMachine, runtimeAccept, Option.any_some, Bool.and_eq_true,
       beq_iff_eq] at ha
     obtain ⟨rfl, hp⟩ := ha
-    dsimp only [RuntimeInvariant] at hi
     obtain ⟨rfl, ⟨j, rfl, -⟩, hinv, -, hcl⟩ := hi
-    have hsafe := hinv
-    simp only [Cslib.InductiveCounting.Invariant, hp, graphBad, ↓reduceIte] at hsafe
-    exact (safe_iff_not_accepts (card_lt_roundRadix _ _) (hcl rfl)).mp hsafe
+    simp only [Cslib.InductiveCounting.Invariant, hp, graphBad, ↓reduceIte] at hinv
+    exact (safe_iff_not_accepts (card_lt_roundRadix _ _) (hcl rfl)).mp hinv
 
 open Classical in
 /-- From the controller installed on round `j` of an input the source does not accept, some

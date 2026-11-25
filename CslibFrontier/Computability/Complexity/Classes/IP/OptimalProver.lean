@@ -232,20 +232,15 @@ theorem value_le_card (n : ℕ) (h : History) :
         (Finset.univ.filter fun r => outcome (F r) h = .ask m).card :=
       Finset.sup_le fun y _ => (ih _).trans (Finset.card_le_card fun r hr => by
         simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr ⊢
-        refine outcome_eq_ask_of_after_append_singleton (y := y) ?_
-        unfold outcome at hr
-        rcases hah : after (F r) (h ++ [(m, y)]) with _ | p
-        · simp [hah] at hr
-        · rfl)
+        exact outcome_eq_ask_of_after_append_singleton (y := y)
+          (Option.isSome_iff_ne_none.mpr fun hah => hr (by simp [outcome, hah])))
     refine (Nat.add_le_add_left (Finset.sum_le_sum fun m _ => hstep m) _).trans ?_
     rw [← Finset.card_biUnion (fun m _ m' _ hmm' => Finset.disjoint_filter.mpr
       fun r _ hr hr' => hmm' (Outcome.ask.inj (hr.symm.trans hr'))),
       ← Finset.card_union_of_disjoint (Finset.disjoint_left.mpr fun r hr hr' => by
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr
-        simp only [Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ, true_and] at hr'
-        obtain ⟨m, _, hm⟩ := hr'
-        rw [hr] at hm
-        cases hm)]
+        simp only [Finset.mem_biUnion, Finset.mem_filter, Finset.mem_univ, true_and] at hr hr'
+        obtain ⟨_, _, hm⟩ := hr'
+        exact absurd (hr.symm.trans hm) nofun)]
     refine Finset.card_le_card fun r hr => ?_
     simp only [Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and,
       Finset.mem_biUnion] at hr ⊢
@@ -285,14 +280,12 @@ private theorem acceptFrom_after_of_le (hF : IsBounded F D L) (P : Prover Unit) 
   have hnil : ∀ m, outcome (F r) h ≠ .ask m := fun m hm => by
     have := hF.rounds r h m hm
     lia
-  rw [Finset.sum_eq_zero fun m _ => ?_, add_zero]
-  refine tsum_eq_zero_iff.mpr fun ys => ?_
+  rw [Finset.sum_eq_zero fun m _ => tsum_eq_zero_iff.mpr fun ys => ?_, add_zero]
   rw [after_append]
   unfold outcome at hnil
-  rcases hah : after (F r) h with _ | ⟨b⟩ | ⟨q, next⟩
-  · simp
-  · simp
-  · exact (hnil q.2 (by rw [hah])).elim
+  match hah : after (F r) h with
+  | none | some (.pure _) => simp
+  | some (.liftBind q _) => exact (hnil q.2 (by rw [hah])).elim
 
 private theorem sum_ite_outcome_eq_accepted (h : History) :
     (∑ r : R, if outcome (F r) h = .done true then (1 : ENNReal) else 0) = accepted F h := by

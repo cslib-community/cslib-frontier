@@ -248,14 +248,10 @@ private theorem readHdr_bind_fastStep {c U V w n_max base hdrOff v cost : ℕ}
     (Nat.add_lt_add_left hoff base) (s := s)
   rw [hval] at hres
   dsimp only
-  refine ⟨?_, ?_, ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst, hres, hmc]
+  refine ⟨?_, validProg_bind hvp (by simpa only [hst, hres] using hk.2.1), ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres, hmc]
     have := hk.1
     omega
-  · refine validProg_bind hvp ?_
-    rw [hst, hres]
-    exact hk.2.1
   · rw [clientState_bind, hst, hres]
     exact hk.2.2
 
@@ -503,29 +499,20 @@ theorem epochTickGenProg_fastStep {c U V w n_max base : ℕ}
   set fs1 := epochTickStage c U n_max θ fs
   obtain ⟨hce1, hclk_eq, hs5_iff⟩ :=
     tickStageAllPure_clk_and_stage5 c U n_max θ hcore.rebStage_le
-  have hroll_ok : qEpochWhp n_max ≤ fs1.epochClock + 1 → fs1.rebStage = 5 := by
-    intro hge
-    rw [hclk_eq] at hge
-    dsimp only [epochTickWillSucceed] at hok
-    have hdisj := of_decide_eq_true hok
-    rcases hdisj with hlt | h54
-    · omega
-    · exact hs5_iff.mpr h54
+  have hroll_ok : qEpochWhp n_max ≤ fs1.epochClock + 1 → fs1.rebStage = 5 := fun hge =>
+    (of_decide_eq_true hok).elim (fun hlt => absurd (hclk_eq ▸ hge) (not_le.mpr hlt)) hs5_iff.mpr
   obtain ⟨fs', hro_eq, hro_mc, hro_vp, hro_step⟩ :=
     epochTickRolloverGenProg_fastStep (fs1 := fs1) henv (hce1 ▸ hcore.curEp_or)
       (hclk_eq ▸ hcore.epochClock_lt) hroll_ok hsa_step.2.1 hsa_step.2.2.1 (s := s1)
-  unfold epochTick
-  refine ⟨fs', hro_eq, ?_, ?_, ?_⟩
-  · unfold epochTickGenProg; dsimp only
-    rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    dsimp only [s1] at hsa_mc hro_mc ⊢; omega
-  · unfold epochTickGenProg; dsimp only
-    rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
-    exact validProg_bind hsa_vp hro_vp
-  · unfold epochTickGenProg; dsimp only
-    rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1,
-      clientState_bind]
+  dsimp only
+  unfold epochTick epochTickGenProg
+  dsimp only
+  rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
+  refine ⟨fs', hro_eq, ?_, validProg_bind hsa_vp hro_vp, ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+    dsimp only [s1] at hsa_mc hro_mc ⊢
+    omega
+  · rw [clientState_bind]
     exact hsa_step.trans hro_step
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal

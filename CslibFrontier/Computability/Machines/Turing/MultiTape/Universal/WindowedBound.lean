@@ -137,9 +137,7 @@ theorem winv_initWin (d : Desc) (x : List ℕ) :
     rcases ho with rfl | ⟨a, ha, rfl⟩
     · simp
     · have := le_listMax (f := id) ha
-      simp only [id] at this
-      simp only [Option.getD_some]
-      omega
+      simp only [Option.getD_some, id] at this ⊢; omega
   · simp
 
 /-! ### One step -/
@@ -417,13 +415,11 @@ theorem WInv.restore_sim {d : Desc} {B h L : ℕ} (hDB : descLen d ≤ B) {w : W
     WInv (descLen d) B 0 (L + 2 * m) (restore r w (Windowed.sim d m (Windowed.extract r w)).1) := by
   have hf := forall₂_restore (forall₂_sim d m (Windowed.extract r w))
   refine ⟨state_sim le_rfl m hw.state, hf.length_eq ▸ hw.tapes,
-    fun t' ht' => by
-      obtain ⟨_, -, hg⟩ := exists_of_forall₂ hf ht'
-      simp [hg.1],
-    fun t' ht' => by
-      obtain ⟨t, ht, hg⟩ := exists_of_forall₂ hf ht'
-      exact hg.2.trans (Nat.add_le_add_right (hw.cells t ht) _),
-    valLe_restore hw.val (valLe_sim hDB m (valLe_extract hw.val))⟩
+    fun t' ht' => ?_, fun t' ht' => ?_,
+    valLe_restore hw.val (valLe_sim hDB m (valLe_extract hw.val))⟩ <;>
+    obtain ⟨t, ht, hg⟩ := exists_of_forall₂ hf ht'
+  · simp [hg.1]
+  · exact hg.2.trans (Nat.add_le_add_right (hw.cells t ht) _)
 
 /-- The windowed simulation of `n` steps emits at most `n` symbols, each at most the length of the
 description. -/
@@ -437,15 +433,12 @@ private lemma sim_out (d : Desc) (n : ℕ) (w : Win) :
     · simp
     · simp
     · have := output_le he
-      revert this
-      cases e.2.output <;> simp
+      cases hop : e.2.output <;> simp_all
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
-    have hs := firstHalf_add_half (n + 2)
     refine ⟨?_, fun o ho => (List.mem_append.mp ho).elim (ih₁.2 o) (ih₂.2 o)⟩
-    have h₁ := ih₁.1
     have h₂ := ih₂.1
     simp only [r₂, w₁, r₁, List.length_append] at h₂ ⊢
-    omega
+    linarith [ih₁.1, firstHalf_add_half (n + 2)]
 
 /-- The windowed simulation of `n` steps emits at most `n` symbols. -/
 theorem length_sim_out (d : Desc) (n : ℕ) (w : Win) : (sim d n w).2.length ≤ n :=

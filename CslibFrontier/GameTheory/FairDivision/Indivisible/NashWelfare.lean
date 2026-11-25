@@ -100,9 +100,7 @@ variable {n m : ℕ} {R : Type*} [CommRing R] [LinearOrder R]
 theorem nashProduct_eq_prod_univ {A : BundleAllocation n m}
     (hpos : ∀ i : Fin n, 0 < W.bundleVal i (A.bundle i)) :
     W.nashProduct A = ∏ i : Fin n, W.bundleVal i (A.bundle i) := by
-  have huniv : W.posAgents A = Finset.univ := by
-    ext i
-    simp [hpos i]
+  have huniv : W.posAgents A = Finset.univ := Finset.ext fun i => by simp [hpos i]
   rw [nashProduct, huniv]
 
 /-- Two-stage Maximum Nash Welfare (`MNW`) optimality
@@ -213,12 +211,9 @@ theorem isMaxNashWelfare_maxNashWelfareAllocation (hn : 0 < n) :
     fun _ hB => BundleAllocation.mem_completeAllocationList_iff.1 hB
   obtain ⟨hcomp, -, -, hall⟩ := W.bestMNWState_spec hn xs hxs
   refine ⟨hcomp, fun B hB => ?_, fun B hB hcard => ?_⟩
-  · rcases hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB) with hlt | ⟨heq, -⟩
-    · exact hlt.le
-    · exact heq.le
-  · rcases hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB) with hlt | ⟨_, hle⟩
-    · exact absurd hcard (ne_of_lt hlt)
-    · exact hle
+  · exact (hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB)).elim (·.le) (·.1.le)
+  · exact (hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB)).elim
+      (fun hlt => absurd hcard hlt.ne) And.right
 
 /-- Every instance with `0 < n` (or `m = 0`) admits a Maximum Nash Welfare allocation. -/
 theorem exists_isMaxNashWelfare (h : 0 < n ∨ m = 0) :
@@ -315,8 +310,7 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
   obtain ⟨hcompA, hcard_max, hprod_max⟩ := hMNW
   intro i j
   simp only [toMonotoneValuation_val]
-  by_contra hnot
-  push Not at hnot
+  by_contra! hnot
   obtain ⟨henv, hno_ef1⟩ := hnot
   have hji : j ≠ i := fun hEq => lt_irrefl _ (hEq ▸ henv)
   -- Since `u_i(A_i) < u_i(A_j)`, `A_j` contains some good `g₁` with `0 < W.weight i g₁`.
@@ -351,17 +345,14 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
         exact not_lt_of_ge (mul_le_mul_of_nonneg_right hsum_j_le (W.bundleVal_nonneg i _)) hsum_lt
       obtain ⟨hg, hw_ig_pos⟩ := Finset.mem_filter.1 hgS
       have hrem_i : W.bundleVal i (A.bundle i) + W.weight i g < W.bundleVal i (A.bundle j) := by
-        have h := hno_ef1 g hg
-        rw [W.bundleVal_sdiff_singleton hg] at h
-        linarith
+        linarith [hno_ef1 g hg, W.bundleVal_sdiff_singleton (i := i) hg]
       have hrem_j_pos : 0 < W.bundleVal j (A.bundle j) - W.weight j g := by
         have hw_jg_le : W.weight j g ≤ W.bundleVal j (A.bundle j) := by
           linarith [W.bundleVal_sdiff_singleton_add (i := j) hg,
             W.bundleVal_nonneg j (A.bundle j \ {g})]
         by_contra hle0
         have hw_jg_eq : W.weight j g = W.bundleVal j (A.bundle j) := by linarith
-        rw [hw_jg_eq] at hratio
-        linarith [le_of_mul_le_mul_left hratio hj_pos]
+        linarith [le_of_mul_le_mul_left (hw_jg_eq ▸ hratio) hj_pos]
       let B := A.transferGood j i g hg
       have hcompB : B.IsComplete := BundleAllocation.isComplete_transferGood j i g hg hcompA
       have huBi : W.bundleVal i (B.bundle i) = W.bundleVal i (A.bundle i) + W.weight i g :=
@@ -372,11 +363,9 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
         ext k
         simp only [mem_posAgents]
         rcases eq_or_ne k i with rfl | hki
-        · rw [huBi]
-          exact ⟨fun _ => hi_pos, fun _ => by linarith⟩
+        · simp [huBi, hi_pos, show 0 < W.bundleVal k (A.bundle k) + W.weight k g by linarith]
         · rcases eq_or_ne k j with rfl | hkj
-          · rw [huBj]
-            exact ⟨fun _ => hj_pos, fun _ => hrem_j_pos⟩
+          · simp [huBj, hj_pos, hrem_j_pos]
           · rw [BundleAllocation.transferGood_bundle_other A g hg hki hkj]
       have hpair_lt : W.bundleVal i (A.bundle i) * W.bundleVal j (A.bundle j) <
           W.bundleVal i (B.bundle i) * W.bundleVal j (B.bundle j) := by
@@ -429,10 +418,8 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
           · rwa [BundleAllocation.transferGood_bundle_other A g hg hki hkj]
       have hi_notA : i ∉ W.posAgents A := by simp [hui0]
       have hcard_gt : (W.posAgents A).card < (W.posAgents B).card := by
-        calc
-          (W.posAgents A).card < (insert i (W.posAgents A)).card := by
-            rw [Finset.card_insert_of_notMem hi_notA]
-            omega
+        calc (W.posAgents A).card
+            < (insert i (W.posAgents A)).card := by simp [Finset.card_insert_of_notMem hi_notA]
           _ ≤ (W.posAgents B).card := Finset.card_le_card hsub_pos
       exact not_lt_of_ge (hcard_max B hcompB) hcard_gt
   · -- `u_j(A_j) = 0`: transferring `g₁` (`0 < w_i(g₁)`, `w_j(g₁) = 0`) from `j` to `i`

@@ -163,25 +163,16 @@ theorem convolution_iff {t N : ℕ} {x : ℕ → ℤ} {U : ℤ} (hU : 0 ≤ U)
     omega
   · rintro ⟨s, -, a, b, c, h⟩
     obtain ⟨hgeAB, hgeBC, hgeAC⟩ := weights_neg_le hU hx a b c (s := s)
-    have hAB : a.val * t + b.val < N := by
-      by_contra hout
-      rw [weightAB, ite_eq_right hout] at h
-      omega
-    have hBC : b.val ≤ c.val * t + s ∧ c.val * t + s - b.val < N := by
-      by_contra hout
-      rw [weightBC, ite_eq_right hout] at h
-      omega
-    have hAC : (a.val + c.val) * t + s < N := by
-      by_contra hout
-      rw [weightAC, ite_eq_right hout] at h
-      omega
+    have hAB : a.val * t + b.val < N :=
+      of_not_not fun hout => by rw [weightAB, ite_eq_right hout] at h; omega
+    have hBC : b.val ≤ c.val * t + s ∧ c.val * t + s - b.val < N :=
+      of_not_not fun hout => by rw [weightBC, ite_eq_right hout] at h; omega
+    have hAC : (a.val + c.val) * t + s < N :=
+      of_not_not fun hout => by rw [weightAC, ite_eq_right hout] at h; omega
     rw [weightAB, weightBC, weightAC, ite_eq_left hAB, ite_eq_left hBC, ite_eq_left hAC] at h
     have hsum : a.val * t + b.val + (c.val * t + s - b.val) = (a.val + c.val) * t + s := by
-      rw [Nat.add_mul]
-      omega
-    exact ⟨a.val * t + b.val, c.val * t + s - b.val, hsum ▸ hAC, by
-      rw [hsum]
-      omega⟩
+      rw [Nat.add_mul]; omega
+    exact ⟨a.val * t + b.val, c.val * t + s - b.val, hsum ▸ hAC, by rw [hsum]; omega⟩
 
 /-- Taking `t = ⌊√N⌋+1` gives `2*t` instances with `t` vertices per part. -/
 theorem convolution_iff_sqrt {N : ℕ} {x : ℕ → ℤ} {U : ℤ} (hU : 0 ≤ U)

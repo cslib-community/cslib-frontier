@@ -321,11 +321,9 @@ theorem demonicValid_sample_bind {q : ProbComp β} {k : β → OracleComp D.with
   | liftBind n cont ih =>
     refine StateTransitionSpec.DemonicValid.liftBind (D := D.withCoins.toSpec) (Sum.inl n)
       (fun i => ProbOracleComp.sample (cont i) >>= k) trivial fun s' i hstep => ?_
-    have hs : s' = s := by
-      change (i, s') ∈ ((ProbComp.unifOracle n).bind fun i => PMF.pure (i, s)).support at hstep
-      obtain ⟨_, _, h⟩ := (PMF.mem_support_bind_iff _ _ _).mp hstep
-      exact (Prod.ext_iff.mp ((PMF.mem_support_pure_iff _ _).mp h)).2
-    subst hs
+    change (i, s') ∈ ((ProbComp.unifOracle n).bind fun i => PMF.pure (i, s)).support at hstep
+    obtain ⟨_, _, h⟩ := (PMF.mem_support_bind_iff _ _ _).mp hstep
+    obtain ⟨-, rfl⟩ := Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp h)
     exact ih i
 
 /-- A closed sampler followed by a continuation draws a value, then runs the continuation from
@@ -591,10 +589,8 @@ theorem bind_apply_le_of_identicalUntilBad (real : Methods D.toSpec F.toSpec)
     ((F.run (link real p) e).bind fun (a, e') => next (a, M.abs e')) b ≤
       (D.run p (M.abs e)).bind next b +
         (F.run (link real p) e).toOuterMeasure {x | bad x.2} := by
-  have hle := h.bind_apply_le p e (fun (a, e') => next (a, M.abs e')) b
-  rw [run_interpret_handler, run_interpret_handler] at hle
-  rw [← M.run_link p he hv, PMF.bind_map]
-  exact hle
+  simpa only [run_interpret_handler, ← M.run_link p he hv, PMF.bind_map, Function.comp_def] using
+    h.bind_apply_le p e (fun (a, e') => next (a, M.abs e')) b
 
 /-- **The identical-until-bad step, two-sided.** The acceptance probabilities of the real client
 and of the specification differ by at most the probability that the real run reaches a bad
@@ -607,10 +603,8 @@ theorem abs_sub_le_of_identicalUntilBad (real : Methods D.toSpec F.toSpec)
     |(((F.run (link real p) e).bind fun (a, e') => next (a, M.abs e')) b).toReal -
         ((D.run p (M.abs e)).bind next b).toReal| ≤
       ((F.run (link real p) e).toOuterMeasure {x | bad x.2}).toReal := by
-  have hle := h.abs_sub_le p e (fun (a, e') => next (a, M.abs e')) b
-  rw [run_interpret_handler, run_interpret_handler] at hle
-  rw [← M.run_link p he hv, PMF.bind_map]
-  exact hle
+  simpa only [run_interpret_handler, ← M.run_link p he hv, PMF.bind_map, Function.comp_def] using
+    h.abs_sub_le p e (fun (a, e') => next (a, M.abs e')) b
 
 /-! ## Expected amortized costs -/
 
