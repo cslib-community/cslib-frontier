@@ -34,9 +34,9 @@ theorem admissionWidth_le_log {n D g p A κ : ℕ} (hn : 1 ≤ n)
   let b := n + 2
   let E := 2 * κ + 512
   have hb : 2 ≤ b := by dsimp only [b]; omega
-  have hb1 : 1 ≤ b := le_trans (by decide : 1 ≤ (2 : ℕ)) hb
-  have hP : PreparationInput.wordBound n D g p A ≤ b ^ E := by
-    exact (PreparationInput.wordBound_le_pow hn hD hg hp hA).trans
+  have hb1 : 1 ≤ b := by omega
+  have hP : PreparationInput.wordBound n D g p A ≤ b ^ E :=
+    (PreparationInput.wordBound_le_pow hn hD hg hp hA).trans
       (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega))
   have hfour : 2 * (n + n ^ 2 + 3) ≤ b ^ 4 := by
     dsimp only [b]
@@ -65,10 +65,9 @@ theorem admissionWidth_le_log {n D g p A κ : ℕ} (hn : 1 ≤ n)
     ((Nat.pow_le_pow_left hb 12).trans
       (Nat.pow_le_pow_right hb1 (by dsimp only [E]; omega)))
   have hsum : envelope n D g p A ≤ 576 * b ^ E := by
-    unfold envelope
     have hgE := hg.trans hnE
     have hDE := hD.trans hnE
-    omega
+    unfold envelope; omega
   have henvelope : envelope n D g p A ≤ b ^ (2 * κ + 522) := by
     calc
       _ ≤ 576 * b ^ E := hsum

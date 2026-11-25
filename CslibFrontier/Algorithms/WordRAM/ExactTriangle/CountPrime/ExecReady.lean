@@ -57,9 +57,7 @@ theorem exec_ready {w n p k scratch a b c A : ℕ} (x : Data 128)
   have harea : 0 < 4 ^ k * p := Nat.mul_pos h4 hp
   have hA : A ≤ magnitudeBudget p k A := by unfold magnitudeBudget; omega
   have hP : p ≤ magnitudeBudget p k A := by unfold magnitudeBudget; omega
-  have hM : 2 * (p + 4) * 16 ^ k ≤ magnitudeBudget p k A := by
-    unfold magnitudeBudget
-    omega
+  have hM : 2 * (p + 4) * 16 ^ k ≤ magnitudeBudget p k A := by unfold magnitudeBudget; omega
   have modFit : GenericRAM.Signed.Fits w (p : ℤ) :=
     hmag.of_natAbs_le (by simpa only [Int.natAbs_natCast] using hP)
   obtain ⟨x1, residueRun, ready1, resAB, resBC, resAC, residueFrame⟩ := exec_residueArrays x
@@ -76,23 +74,16 @@ theorem exec_ready {w n p k scratch a b c A : ℕ} (x : Data 128)
     simpa only [Nat.add_comm, Nat.mul_comm] using h
   obtain ⟨x2, matrixRun, ready2, table, left, right, matrixFrame⟩ :=
     exec_coefficientMatrices x1 wBC wAC hp ready1
-    (by
-      intro α β
-      simpa only [ready1.layout.residueBC_eq, Nat.add_assoc, wBC] using
-        resBC _ (pair_lt α β))
-    (by
-      intro α β
-      simpa only [ready1.layout.residueAC_eq, Nat.add_assoc, wAC] using
-        resAC _ (pair_lt α β)) hw
+    (fun α β => by
+      simpa only [ready1.layout.residueBC_eq, Nat.add_assoc, wBC] using resBC _ (pair_lt α β))
+    (fun α β => by
+      simpa only [ready1.layout.residueAC_eq, Nat.add_assoc, wAC] using resAC _ (pair_lt α β)) hw
   obtain ⟨y, solveRun, ready3, result, solveFrame⟩ := exec_product_count x2
     wAB wBC wAC hp hn ready2
-    (by
-      intro α β
-      rw [ready2.layout.residueAB_eq]
-      rw [matrixFrame _ (Or.inl (by
-        rw [ready1.layout.spread_eq]
-        have := pair_lt α β
-        omega))]
+    (fun α β => by
+      have := pair_lt α β
+      rw [ready2.layout.residueAB_eq,
+        matrixFrame _ (Or.inl (by rw [ready1.layout.spread_eq]; omega))]
       simpa only [Nat.add_assoc, wAB] using resAB _ (pair_lt α β))
     (by simpa only [ready2.layout.spread_eq, ready1.layout.spread_eq] using table)
     (by simpa only [ready2.layout.matrixP_eq, ready1.layout.matrixP_eq] using left)
@@ -102,20 +93,9 @@ theorem exec_ready {w n p k scratch a b c A : ℕ} (x : Data 128)
     unfold readyCost
     nlinarith), ready3, result, ?_⟩
   intro d hd
-  have hs : d < x2.regs Reg.matrixR ∨
-      x2.regs Reg.productScratch + 4 ^ k * p + 7 * (k + 1) ≤ d := by
-    rw [ready2.layout.matrixR_eq, ready2.layout.productScratch_eq]
-    unfold memoryEnd at hd
-    rcases hd with hd | hd
-    · exact Or.inl (by omega)
-    · exact Or.inr (by omega)
-  have hm : d < x1.regs Reg.spread ∨ x1.regs Reg.matrixR ≤ d := by
-    rw [ready1.layout.spread_eq, ready1.layout.matrixR_eq]
-    unfold memoryEnd at hd
-    rcases hd with hd | hd
-    · exact Or.inl (by omega)
-    · exact Or.inr (by omega)
-  rw [solveFrame d hs, matrixFrame d hm]
-  exact residueFrame d (hd.imp id (by intro h; unfold memoryEnd at h; omega))
+  unfold memoryEnd at hd
+  rw [solveFrame d (by rw [ready2.layout.matrixR_eq, ready2.layout.productScratch_eq]; omega),
+    matrixFrame d (by rw [ready1.layout.spread_eq, ready1.layout.matrixR_eq]; omega)]
+  exact residueFrame d (by omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

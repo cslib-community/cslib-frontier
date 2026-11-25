@@ -90,9 +90,8 @@ def addressBound (n p : ℕ) : ℕ := addressBoundAt 1 n p
 
 private abbrev bank (r : ℕ) (hr : r ≤ 24) : Fin r → Fin 32 := Fin.castLE (by omega)
 
-private theorem bank_injective (r : ℕ) (hr : r ≤ 24) : (bank r hr).Injective := by
-  intro i j h
-  exact Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
+private theorem bank_injective (r : ℕ) (hr : r ≤ 24) : (bank r hr).Injective :=
+  fun _ _ h => Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
 
 /-- The existing signed residue conversion, including unsigned decoding of each remainder. -/
 def reduce : Code .standard 32 := Residues.program.rename (Fin.castLE (by decide))
@@ -178,9 +177,7 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
   have hmodfit : Fits (w + 2) (p + p) := by
     have h := (Signed.encode_fits hmod).mono (show w + 1 ≤ w + 2 by omega)
     simpa [Signed.encode, two_mul, show ¬(p : ℤ) < 0 by omega] using h
-  have hsizeFit : Fits (w + 2) n := haddress.of_le (by
-    have : n ≤ N := by simpa only [N, pow_two] using Nat.le_self_pow two_ne_zero n
-    omega)
+  have hsizeFit : Fits (w + 2) n := haddress.of_le (by have : n ≤ N := Nat.le_mul_self n; omega)
   refine WP.exists_execWithin ?_
   unfold programAt setupAt reduce deliver classify
   wram_exec [hnHeader, hpHeader]
@@ -222,12 +219,9 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
     exact hresmem q hq
   · intro a ha
     wram_simp
-    rw [hzframe a (by rcases ha with h | h <;> omega) (by
-      rcases ha with h | h
-      · omega
-      · exact not_lt_of_ge h ∘ And.right), hvm]
+    rw [hzframe a (by omega) (by omega), hvm]
     dsimp only [Residues.memory]
-    exact ite_eq_right (by rcases ha with h | h <;> omega)
+    exact ite_eq_right (by omega)
 
 /-- Read the input header, compute all three residue matrices and enumerate the A–B queries.
 The signed width is `w`, and execution uses the existing signed compiler's `w+2` unsigned width.
@@ -257,7 +251,7 @@ theorem exec_input {w : ℕ} (n p : ℕ) (values : List ℤ)
   have h := exec_at (w := w) 1 n p (fun q => values.getD q 0) (.init (input n p values))
     (by simp [input, Data.init]) (by simp [input, Data.init])
     (fun q _ => input_weight n p values q) hp hmod
-    (by intro q hq; exact hvalues q (by simpa only [hlen] using hq)) haddress
+    (fun q hq => hvalues q (by simpa only [hlen] using hq)) haddress
   simpa only [program, Nat.reduceAdd] using h
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ResidueClasses
