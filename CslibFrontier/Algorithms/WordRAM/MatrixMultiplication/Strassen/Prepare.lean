@@ -63,12 +63,9 @@ theorem exec_prepare {w p k A B a b out scratch frames frame a₁ a₂ b₁ b₂
   have hbbefore : b + 4 * q ≤ scratch := by simpa only [hsize] using hl.right_before
   have hsbefore : scratch + 4 * q ≤ frames := by simpa only [hsize] using hl.scratch_before
   have hfbefore := hl.frames_before
-  have hfitA : GenericRAM.Signed.Fits w ((A + A : ℕ) : ℤ) := hmag.of_natAbs_le (by
-    rw [Int.natAbs_natCast]
-    exact (forms_le_magnitudeBound p A B (k + 1)).1)
-  have hfitB : GenericRAM.Signed.Fits w ((B + B : ℕ) : ℤ) := hmag.of_natAbs_le (by
-    rw [Int.natAbs_natCast]
-    exact (forms_le_magnitudeBound p A B (k + 1)).2)
+  obtain ⟨hA, hB⟩ := forms_le_magnitudeBound p A B (k + 1)
+  have hfitA := hmag.of_natAbs_le ((Int.natAbs_natCast (A + A)).trans_le hA)
+  have hfitB := hmag.of_natAbs_le ((Int.natAbs_natCast (B + B)).trans_le hB)
   obtain ⟨s, hs, leftValues, leftFrame, leftRegs⟩ := exec_form Reg.inputA Reg.formA asign x u
     (by decide) (by decide) (by decide) (by decide) hc.quarter_eq ha₁ ha₂ hfitA
     (by simpa only [hsize] using hu)
