@@ -430,18 +430,10 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
             else PMF.pure false) := by
       simp only [gameOn, lorToSingleAt, decide_eq_true hlt, ↓reduceIte, pmf_norm,
         apply_ite ProbComp.eval, lorToSingleStateDecoder.decode_enc]
-    have hsplit_eq : (Game.succProbability
-          (ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n)) : ℝ) -
-        Game.succProbability
-          (ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary (split + 1) n)) =
-        (Game.succProbability (ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary
-            (if false then split + 1 else split) n)) : ℝ) -
-        Game.succProbability (ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary
-            (if true then split + 1 else split) n)) := by
-      simp only [Bool.false_eq_true, ↓reduceIte]
-    rw [hsplit_eq, lhs_eq false, lhs_eq true, rhs_eq false, rhs_eq true]
+    have h0 := lhs_eq false
+    have h1 := lhs_eq true
+    simp only [Bool.false_eq_true, ↓reduceIte] at h0 h1
+    rw [h0, h1, rhs_eq false, rhs_eq true]
     simp only [PMF.monad_bind_eq_bind]
     rw [sub_eq_sub_iff_add_eq_add, Game.coe_succProbability, Game.coe_succProbability,
       Game.coe_succProbability, Game.coe_succProbability,
