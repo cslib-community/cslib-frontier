@@ -114,18 +114,19 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hm0 : (Data.init G.encode : Data 28).mem 0 = G.encode.length := Data.init_mem_zero _
   have hm1 : (Data.init G.encode : Data 28).mem 1 = G.n := rfl
   have hm2 : (Data.init G.encode : Data 28).mem 2 = G.φ.length := rfl
-  have hf1 : Fits w 1 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
-  have hf2 : Fits w 2 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
   have hf3 : Fits w 3 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
-  have hf_ob : Fits w (G.encode.length + 1) :=
-    G.fits_of_le hfit (by simp only [G.encode_length, Instance.wordBound]; omega)
+  have hf_ob1 : Fits w (G.outAddrBase + 1) := G.fits_of_le hfit (by
+    simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
   obtain ⟨s₀, hsetup, hs₀_mem, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_ob, hs₀_nv, hs₀_mc⟩ :
       ∃ s₀, ExecWithin w headerSetupCode (Data.init G.encode) s₀ 8 ∧
       s₀.mem = (Data.init G.encode : Data 28).mem ∧
       s₀.regs cZero = 0 ∧ s₀.regs cOne = 1 ∧ s₀.regs cTwo = 2 ∧ s₀.regs cThree = 3 ∧
       s₀.regs outBase = G.outAddrBase ∧ s₀.regs nv = G.n ∧ s₀.regs mClauses = G.φ.length := by
     unfold headerSetupCode
-    wram_exec [Data.init_regs, hm0, hm1, hm2, hf1, hf2, hf3, hf_ob]
+    have hf_ob : Fits w (G.encode.length + 1) :=
+      hf_ob1.of_le (by simp only [Instance.outAddrBase]; omega)
+    wram_exec [Data.init_regs, hm0, hm1, hm2, hf3.of_le (by decide : 1 ≤ 3),
+      hf3.of_le (by decide : 2 ≤ 3), hf3, hf_ob]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp; rfl, by wram_simp, by wram_simp⟩
   let s₁ := ((s₀.set compIdxReg 1).set pReg 3).set iReg 0
@@ -151,20 +152,27 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hs₂_ob : s₂.regs outBase = G.outAddrBase := (hs₂_fr0 outBase (by decide)).trans hs₀_ob
   have hs₂_nv : s₂.regs nv = G.n := (hs₂_fr0 nv (by decide)).trans hs₀_nv
   have hs₂_mc : s₂.regs mClauses = G.φ.length := (hs₂_fr0 mClauses (by decide)).trans hs₀_mc
+  have hwrite_nil (s : Data 28) (h0 : s.regs cZero = 0) (h1 : s.regs cOne = 1)
+      (hok : s.regs compIdxReg = 0) (hob : s.regs outBase = G.outAddrBase)
+      (hans : answerWords G = []) {pos : Code .standard 28} :
+      ExecWithin w (.branch (.eq compIdxReg cOne) pos (ram[ *outBase ← cZero ]))
+        s (s.write G.outAddrBase 0) 3 ∧
+      outputList (s.write G.outAddrBase 0).mem G.outAddrBase = answerWords G := by
+    have hn : ¬ (Cond.eq compIdxReg cOne).Holds s := by
+      change ¬ s.regs compIdxReg = s.regs cOne
+      omega
+    have hneg : ExecWithin (B := .standard) w (ram[ *outBase ← cZero ])
+        s (s.write G.outAddrBase 0) 1 := by
+      wram_exec [hob, h0]
+    exact ⟨hneg.branch_neg hn,
+      hans ▸ outputList_eq_iff.mpr ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩⟩
   cases hchk : checkClauses G.φ
   · -- Invalid clause width: return `[]`
-    have hs₂_ok0 : s₂.regs compIdxReg = 0 := hs₂_ok.trans (congrArg Bool.toNat hchk)
-    have hncond : ¬ (Cond.eq compIdxReg cOne).Holds s₂ := by
-      change ¬ s₂.regs compIdxReg = s₂.regs cOne; omega
-    have hneg : ExecWithin (B := .standard) w (ram[ *outBase ← cZero ])
-        s₂ (s₂.write G.outAddrBase 0) 1 := by
-      wram_exec [hs₂_ob, hs₂_0]
-    refine ⟨s₂.write G.outAddrBase 0,
-      (hsetup.seq (hchk_ex.seq (hneg.branch_neg hncond))).mono (by omega), hs₂_ob, ?_⟩
-    rw [Data.write_regs_apply, hs₂_ob, outputList_eq_iff]
-    have hans : answerWords G = [] := by simp [answerWords, solveFin, solve, hchk]
-    rw [hans]
-    exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
+    obtain ⟨hbr, hout⟩ := hwrite_nil s₂ hs₂_0 hs₂_1
+      (hs₂_ok.trans (congrArg Bool.toNat hchk)) hs₂_ob
+      (by simp [answerWords, solveFin, solve, hchk])
+    exact ⟨_, (hsetup.seq (hchk_ex.seq hbr)).mono (by omega), hs₂_ob,
+      (Data.write_regs_apply ..).symm ▸ hs₂_ob.symm ▸ hout⟩
   · -- Valid 2-CNF: every clause has `1 ≤ length ≤ 2`
     have hs₂_ok1 : s₂.regs compIdxReg = 1 := hs₂_ok.trans (congrArg Bool.toNat hchk)
     have hcond_chk : (Cond.eq compIdxReg cOne).Holds s₂ := by
@@ -180,9 +188,6 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         omega
       have hcond_n0 : (Cond.eq nv cZero).Holds s₂ := by
         change s₂.regs nv = s₂.regs cZero; omega
-      have hf_ob1 : Fits w (G.outAddrBase + 1) :=
-        G.fits_of_le hfit (by
-          simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
       let y_n0 := ((s₂.write G.outAddrBase 1).set addr (G.outAddrBase + 1)).write
         (G.outAddrBase + 1) 1
       have hpos_n0 : ExecWithin (B := .standard) w
@@ -258,11 +263,9 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           s₇.regs r = s₃.regs r := fun r hr h1 h2 h3 =>
         (hs₇_fr r hr h1 h2 h3).trans (hs₄_fr r hr)
       set compIdx := indexComponents (sccs (implicationAdj G.φ) (literalList (List.finRange G.n)))
-      have hs₇_comp' : ∀ u : Fin (2 * G.n),
-          s₇.mem (kCompAddr wb N Mc + u.val) = compIdx ((litEquiv G.n).symm u) := fun u => by
-        rw [hs₇_comp u]
-        have htr := G.indexComponents_adjFin ((litEquiv G.n).symm u)
-        rwa [Equiv.apply_symm_apply] at htr
+      have hs₇_comp' (u : Fin (2 * G.n)) :
+          s₇.mem (kCompAddr wb N Mc + u.val) = compIdx ((litEquiv G.n).symm u) :=
+        (hs₇_comp u).trans (by simpa using G.indexComponents_adjFin ((litEquiv G.n).symm u))
       let s₇' := (s₇.set compIdxReg 1).set iReg 0
       have hp_ext : ExecWithin (B := .standard) w (ram[ compIdxReg ← cOne; iReg ← cZero ])
           s₇ s₇' 2 := by
@@ -283,28 +286,18 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           outputList y.mem G.outAddrBase = answerWords G := by
         cases hok_all : (List.finRange G.n).foldl
           (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false))) true
-        · have hs₈_ok0 : s₈.regs compIdxReg = 0 := by rw [hs₈_ok, hok_all]; rfl
-          have hncond_ok : ¬ (Cond.eq compIdxReg cOne).Holds s₈ := by
-            change ¬ s₈.regs compIdxReg = s₈.regs cOne; omega
-          have hneg : ExecWithin (B := .standard) w (ram[ *outBase ← cZero ])
-              s₈ (s₈.write G.outAddrBase 0) 1 := by
-            wram_exec [hs₈_ob, hs₈_0]
-          refine ⟨s₈.write G.outAddrBase 0, (hneg.branch_neg hncond_ok).mono (by omega),
-            hs₈_ob, ?_⟩
-          have hans : answerWords G = [] := by
+        · have hans : answerWords G = [] := by
             dsimp only [answerWords, solveFin, solve, extractAssignment]
             rw [hchk, hok_all]
             rfl
-          rw [outputList_eq_iff, hans]
-          exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
+          obtain ⟨hbr, hout⟩ :=
+            hwrite_nil s₈ hs₈_0 hs₈_1 (by rw [hs₈_ok, hok_all]; rfl) hs₈_ob hans
+          exact ⟨_, hbr.mono (by omega), hs₈_ob, hout⟩
         · have hs₈_ok1 : s₈.regs compIdxReg = 1 := by rw [hs₈_ok, hok_all]; rfl
           have hcond_ok : (Cond.eq compIdxReg cOne).Holds s₈ := by
             change s₈.regs compIdxReg = s₈.regs cOne; omega
           have hf_n1 : Fits w (G.n + 1) :=
             G.fits_of_le hfit (by unfold Instance.wordBound; omega)
-          have hf_ob1 : Fits w (G.outAddrBase + 1) :=
-            G.fits_of_le hfit (by
-              simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
           let y_sat := (((s₈.set addr (G.n + 1)).write G.outAddrBase (G.n + 1)).set
             addr (G.outAddrBase + 1)).write (G.outAddrBase + 1) 1
           have hpos_sat : ExecWithin (B := .standard) w
