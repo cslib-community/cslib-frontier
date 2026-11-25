@@ -501,8 +501,7 @@ private lemma mem_allHyperplanes_of_hPoly {ℱ : Set (Set E)} (hℱ : ℱ.Finite
     ℓ ∈ allHyperplanes hℱ := by
   classical
   refine Finset.mem_biUnion.2 ⟨P, hℱ.mem_toFinset.2 hP, ?_⟩
-  simp only [dite_eq_left hHP]
-  exact hHP.2.choose_spec.1.mem_toFinset.2 hℓ
+  simpa only [dite_eq_left hHP] using hHP.2.choose_spec.1.mem_toFinset.2 hℓ
 
 /-- Given a finite family `ℱ` of compact convex polytopes, construct a single polytopal complex
 whose space is `⋃ P ∈ ℱ, P`, refining each member of `ℱ` cleanly along its bounding
@@ -589,10 +588,8 @@ theorem PolytopalComplex.space_ofFinitePolytopes {ℱ : Set (Set E)} (hℱ : ℱ
   · rintro ⟨P, hP, hx⟩
     have hsp : x ∈ ((PolytopalComplex.ofPolytope (hpoly P hP)).splitList
         (allHyperplanes hℱ).toList).space := by
-      rw [PolytopalComplex.space_splitList, PolytopalComplex.space_ofPolytope]
-      exact hx
-    rw [PolytopalComplex.mem_space_iff] at hsp
-    rcases hsp with ⟨Q, hQ, hxQ⟩
+      rwa [PolytopalComplex.space_splitList, PolytopalComplex.space_ofPolytope]
+    obtain ⟨Q, hQ, hxQ⟩ := PolytopalComplex.mem_space_iff.1 hsp
     exact ⟨Q, ⟨P, hP, hQ⟩, hxQ⟩
 
 theorem PolytopalComplex.ofFinitePolytopes_cell_subset {ℱ : Set (Set E)} (hℱ : ℱ.Finite)
