@@ -121,26 +121,20 @@ theorem harmonicTransform_nonneg {f : (ι → Bool) → ℝ} (hf : ∀ x, 0 ≤ 
 /-- Constants are fixed by the harmonic transform. -/
 theorem harmonicTransform_const (c : ℝ) (selected : ι → Bool) :
     harmonicTransform (fun _ => c) selected = c := by
-  have he : projectionAverage (fun _ => c) selected = fun _ => c := by
-    funext x
-    simp [projectionAverage]
-  rw [harmonicTransform, he, harmonicMean_const]
+  rw [harmonicTransform, show projectionAverage (fun _ => c) selected = fun _ => c from
+    funext fun _ => by simp [projectionAverage], harmonicMean_const]
 
 /-- Selecting no coordinates gives the ordinary mean. -/
 theorem harmonicTransform_empty (f : (ι → Bool) → ℝ) :
     harmonicTransform f (fun _ => false) = 𝔼 x, f x := by
-  have he : projectionAverage f (fun _ => false) = fun _ => 𝔼 x, f x := by
-    funext x
-    simp only [projectionAverage, resample_false]
-  rw [harmonicTransform, he, harmonicMean_const]
+  rw [harmonicTransform, show projectionAverage f (fun _ => false) = fun _ => 𝔼 x, f x from
+    funext fun _ => by simp only [projectionAverage, resample_false], harmonicMean_const]
 
 /-- Selecting all coordinates gives the harmonic mean of the original function. -/
 theorem harmonicTransform_full (f : (ι → Bool) → ℝ) :
     harmonicTransform f (fun _ => true) = harmonicMean f := by
-  have he : projectionAverage f (fun _ => true) = f := by
-    funext x
-    simp only [projectionAverage, resample_true, Fintype.expect_const]
-  rw [harmonicTransform, he]
+  rw [harmonicTransform, show projectionAverage f (fun _ => true) = f from
+    funext fun _ => by simp only [projectionAverage, resample_true, Fintype.expect_const]]
 
 /-- **The transform is concave in the function** [Korten, Corollary 1][Korten2026]: for every
 selected set, it is concave on nonnegative functions. -/
@@ -315,9 +309,12 @@ private theorem add_sqrt_div_two_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
   rw [hroot]
   change _ ≤ 3 / 4 * c + 1 / 4 * (Real.sqrt a * Real.sqrt b / c)
   apply (mul_le_mul_iff_of_pos_right hc).mp
-  field_simp
-  nlinarith [sq_nonneg (c - (Real.sqrt a + Real.sqrt b) / 2),
-    Real.sq_sqrt ha, Real.sq_sqrt hb]
+  have hid : 3 * c ^ 2 + Real.sqrt a * Real.sqrt b - 2 * (Real.sqrt a + Real.sqrt b) * c =
+      (2 * c - (Real.sqrt a + Real.sqrt b)) ^ 2 / 2 := by
+    linear_combination hc2 - (Real.sq_sqrt ha + Real.sq_sqrt hb) / 2
+  have hnonneg : 0 ≤ (2 * c - (Real.sqrt a + Real.sqrt b)) ^ 2 / 2 := by positivity
+  rw [add_mul, mul_assoc (3 / 4 : ℝ), mul_assoc (1 / 4 : ℝ), div_mul_cancel₀ _ hc.ne', ← sq]
+  linarith
 
 /-- One coordinate step of Korten's harmonic-transform inequality on `Fin (n + 1) → Bool`. -/
 private theorem add_sqrt_harmonicTransform_cons_le {n : ℕ} {f : (Fin (n + 1) → Bool) → ℝ}
@@ -413,26 +410,18 @@ theorem le_bernoulliAverage_le_harmonicTransform
     rw [div_pow, mul_pow, Real.sq_sqrt hBp.le]
     norm_num
   have hlower : 1 / Real.sqrt B ≤ 𝔼 x, Real.sqrt (f x) := by
-    apply (div_le_iff₀ hBs).mpr
-    rw [← hmean, expect_mul]
-    apply expect_le_expect
-    intro x _
-    calc
-      f x = Real.sqrt (f x) * Real.sqrt (f x) := (Real.mul_self_sqrt (hf x)).symm
-      _ ≤ Real.sqrt (f x) * Real.sqrt B :=
-        mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (hbound x)) (Real.sqrt_nonneg _)
+    rw [div_le_iff₀ hBs, ← hmean, expect_mul]
+    exact expect_le_expect fun x _ => (Real.mul_self_sqrt (hf x)).symm.trans_le
+      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (hbound x)) (Real.sqrt_nonneg _))
   have hpoint (s : ι → Bool) : Real.sqrt (harmonicTransform f s) ≤
       a + if 1 / (4 * B) ≤ harmonicTransform f s then 1 else 0 := by
     by_cases hs : 1 / (4 * B) ≤ harmonicTransform f s
     · rw [ite_eq_left hs]
       have hupper : Real.sqrt (harmonicTransform f s) ≤ 1 := by
-        have h := Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)
-        simpa [hmean] using h
+        simpa [hmean] using Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)
       linarith
-    · rw [ite_eq_right hs, add_zero]
-      calc
-        _ ≤ Real.sqrt (1 / (4 * B)) := Real.sqrt_le_sqrt (le_of_not_ge hs)
-        _ = a := by rw [← ha2, Real.sqrt_sq ha]
+    · rw [ite_eq_right hs, add_zero, ← Real.sqrt_sq ha, ha2]
+      exact Real.sqrt_le_sqrt (le_of_not_ge hs)
   have havg := bernoulliAverage_mono (by norm_num : (0 : ℝ) ≤ 1 / 4)
     (by norm_num : (1 : ℝ) / 4 ≤ 1) hpoint
   rw [bernoulliAverage_add, bernoulliAverage_const] at havg
