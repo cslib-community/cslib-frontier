@@ -713,15 +713,10 @@ theorem twoBidderClinchingSP_isNormalized {m : ℝ} (hm : 0 < m) {B : Fin 2 → 
         (orderedClinching m b₁ b₂ v₀ 0).payment 1 = 0 := by
     intro b₁ b₂ v₀ hb₁ hv₀
     obtain ⟨_, hzp0, _, hzp1⟩ := orderedClinching_zero_vals (b₂ := b₂) hm hb₁
-    refine ⟨?_, ?_⟩
-    · by_cases hlt : 0 < v₀
-      · simp [orderedClinching, hlt, hzp0]
-      · have h0 : v₀ = 0 := le_antisymm (le_of_not_gt hlt) hv₀
-        subst h0; simp [orderedClinching]
-    · by_cases hlt : 0 < v₀
-      · simp [orderedClinching, not_lt.mpr hv₀, hlt, hzp1]
-      · have h0 : v₀ = 0 := le_antisymm (le_of_not_gt hlt) hv₀
-        subst h0; simp [orderedClinching]
+    rcases eq_or_lt_of_le hv₀ with rfl | hlt
+    · simp [orderedClinching]
+    · exact ⟨by simp [orderedClinching, hlt, hzp0],
+        by simp [orderedClinching, not_lt.mpr hv₀, hlt, hzp1]⟩
   intro i b hb
   dsimp only [twoBidderClinchingSP, BudgetedMechanism.toSingleParameter,
     twoBidderClinchingMechanism, twoBidderClinching]
@@ -878,50 +873,45 @@ theorem twoBidderClinching_budget_manipulation {m : ℝ} (hm : 0 < m) :
       Real.exp_log (by norm_num : (0 : ℝ) < 2)]
     ring
   have hgt_p0 : ¬ (2 / m ≤ 1 / m) := by rw [not_le, div_lt_div_iff_of_pos_right hm]; norm_num
+  have hout1 : ∀ {σ : Fin 2 → BidderType} {b₂ : ℝ},
+      σ 0 = ⟨10 / m, 1⟩ → σ 1 = ⟨2 / m, b₂⟩ → 1 ≤ b₂ →
+      ((twoBidderClinchingMechanism m).outcome σ).alloc 1 = trajX1 m 1 b₂ (2 / m) ∧
+        ((twoBidderClinchingMechanism m).outcome σ).payment 1 = trajP1 m 1 b₂ (2 / m) := by
+    intro σ b₂ h0 h1 hle
+    simp [twoBidderClinchingMechanism, twoBidderClinching, orderedClinching, h0, h1, hle,
+      hnot_lt, hlt_v]
+  obtain ⟨hhon_x0, hhon_p0⟩ := hout1 (σ := θ) rfl rfl le_rfl
   have hhon_x : ((twoBidderClinchingMechanism m).outcome θ).alloc 1 = 3 / 8 * m := by
-    simp only [twoBidderClinchingMechanism, twoBidderClinching, orderedClinching, θ,
-      Matrix.cons_val_zero, Matrix.cons_val_one, le_refl, hnot_lt, hlt_v, trajX1, entryPrice,
-      hpe_hon, hgt_p0, ↓reduceIte]
+    simp only [hhon_x0, trajX1, entryPrice, hpe_hon, hgt_p0, ↓reduceIte]
     field_simp [hm.ne']; ring
   have hhon_p : ((twoBidderClinchingMechanism m).outcome θ).payment 1 = 1 / 2 := by
-    simp only [twoBidderClinchingMechanism, twoBidderClinching, orderedClinching, θ,
-      Matrix.cons_val_zero, Matrix.cons_val_one, le_refl, hnot_lt, hlt_v, trajP1, entryPrice,
-      hpe_hon, hgt_p0, ↓reduceIte]
+    simp only [hhon_p0, trajP1, entryPrice, hpe_hon, hgt_p0, ↓reduceIte]
     field_simp [hm.ne']; ring
   have hhon_u : ((twoBidderClinchingMechanism m).outcome θ).utility (fun k => (θ k).val) 1 =
       1 / 4 := by
-    dsimp only [Outcome.utility]; rw [hhon_x, hhon_p]
-    simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]
-    field_simp [hm.ne']
-    norm_num
-  have hdev_le : (1 : ℝ) ≤ 1 + Real.log 2 := by linarith
+    simp only [Outcome.utility, hhon_x, hhon_p, θ, Matrix.cons_val_one, Matrix.cons_val_zero]
+    field_simp [hm.ne']; norm_num
+  obtain ⟨hdev_x0, hdev_p0⟩ := hout1 (σ := Function.update θ 1 b')
+    (Function.update_of_ne (by decide) ..) (Function.update_self ..) (by linarith)
   have hdev_x : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).alloc 1 =
       m / 2 := by
-    simp only [twoBidderClinchingMechanism, twoBidderClinching, orderedClinching,
-      Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1), θ, b',
-      Matrix.cons_val_zero, Matrix.cons_val_one, hdev_le, hnot_lt, hlt_v, trajX1, entryPrice,
-      hpe_dev, hgt_p0, le_rfl, ↓reduceIte]
+    simp only [hdev_x0, trajX1, entryPrice, hpe_dev, hgt_p0, le_rfl, ↓reduceIte]
     field_simp [hm.ne']; ring
   have hdev_p : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).payment 1 =
       Real.log 2 := by
-    simp only [twoBidderClinchingMechanism, twoBidderClinching, orderedClinching,
-      Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1), θ, b',
-      Matrix.cons_val_zero, Matrix.cons_val_one, hdev_le, hnot_lt, hlt_v, trajP1, entryPrice,
-      hpe_dev, hgt_p0, le_rfl, ↓reduceIte, one_mul]
-    congr 1; field_simp [hm.ne']
+    simp only [hdev_p0, trajP1, entryPrice, hpe_dev, hgt_p0, le_rfl, ↓reduceIte, one_mul]
+    congr 1
+    field_simp [hm.ne']
   have hdev_u : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).utility
       (fun k => (θ k).val) 1 = 1 - Real.log 2 := by
-    dsimp only [Outcome.utility]; rw [hdev_x, hdev_p]
-    simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]; field_simp [hm.ne']
-  have hdev_le_B : ((twoBidderClinchingMechanism m).outcome (Function.update θ 1 b')).payment 1 ≤
-      (θ 1).budget := by
-    rw [hdev_p]
-    simp only [θ, Matrix.cons_val_one, Matrix.cons_val_zero]
-    linarith
+    simp only [Outcome.utility, hdev_x, hdev_p, θ, Matrix.cons_val_one, Matrix.cons_val_zero]
+    field_simp [hm.ne']
   refine ⟨fun k => ?_,
     ⟨div_pos (by norm_num) hm,
       by linarith⟩,
-    hhon_p, hhon_u, hdev_p, hdev_le_B, hdev_u,
+    hhon_p, hhon_u, hdev_p,
+    by simp only [hdev_p, θ, Matrix.cons_val_one, Matrix.cons_val_zero]; linarith,
+    hdev_u,
     by rw [hhon_u, hdev_u]; linarith⟩
   fin_cases k <;> exact ⟨div_pos (by norm_num) hm, zero_lt_one⟩
 

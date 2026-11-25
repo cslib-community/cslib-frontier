@@ -307,26 +307,17 @@ theorem isPureNash_of_bestResponseStep_eq [DecidableEq V] {s : V → Bool}
     (p.toCostGame G).IsPureNash s := by
   intro v a
   simp only [toCostGame_cost, neg_le_neg_iff]
-  cases ha : a <;> cases hsv : s v
-  · rw [← hsv, Function.update_eq_self]
-  · have hmem : v ∈ p.bestResponseStep G {w | s w = true} := by
-      rw [h]
-      exact hsv
-    rw [mem_bestResponseStep_iff, ← p.payoff_update_false G v s, ← p.payoff_update_true G v s]
-      at hmem
-    have hself : Function.update s v true = s := by
-      rw [← hsv, Function.update_eq_self]
-    rwa [hself] at hmem
-  · have hnot : v ∉ p.bestResponseStep G {w | s w = true} := by
-      rw [h]
-      simp only [Set.mem_ofPred_eq, hsv, Bool.false_eq_true, not_false_eq_true]
+  have hup : Function.update s v (s v) = s := Function.update_eq_self _ _
+  cases ha : a <;> cases hsv : s v <;> rw [hsv] at hup
+  · rw [hup]
+  · have hmem : v ∈ p.bestResponseStep G {w | s w = true} := h.symm ▸ hsv
+    rwa [mem_bestResponseStep_iff, ← p.payoff_update_false G v s, ← p.payoff_update_true G v s,
+      hup] at hmem
+  · have hnot : v ∉ p.bestResponseStep G {w | s w = true} := by simp [h, hsv]
     rw [mem_bestResponseStep_iff, ← p.payoff_update_false G v s, ← p.payoff_update_true G v s,
-      not_le] at hnot
-    have hself : Function.update s v false = s := by
-      rw [← hsv, Function.update_eq_self]
-    rw [hself] at hnot
+      hup, not_le] at hnot
     exact hnot.le
-  · rw [← hsv, Function.update_eq_self]
+  · rw [hup]
 
 end GraphPayoffs
 
@@ -757,13 +748,9 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
       intro u hu
       have huD : u ∈ Sfin (j + 1) ∧ u ∉ Sfin j := Finset.mem_sdiff.mp hu
       have hbr : u ∈ bestResponseStep G q ((progressiveStep G q)^[j] (S : Set V)) := by
-        have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := by
-          rw [← hSfin_coe]
-          exact huD.1
+        have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := hSfin_coe (j + 1) ▸ huD.1
         rw [Function.iterate_succ_apply', progressiveStep] at h1
-        refine h1.resolve_left ?_
-        rw [← hSfin_coe]
-        exact huD.2
+        exact h1.resolve_left (hSfin_coe j ▸ huD.2)
       rw [mem_bestResponseStep_iff, ← hSfin_coe] at hbr
       have hncard : (G.neighborSet u ∩ (X : Set V)).ncard = (G.neighborFinset u ∩ X).card := by
         rw [← G.coe_neighborFinset, ← Finset.coe_inter, Set.ncard_coe_finset]
@@ -813,9 +800,7 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
   intro hcont
   obtain ⟨w, hw⟩ := Set.Infinite.exists_notMem_finset Set.infinite_univ (Sfin k)
   obtain ⟨k', hk'⟩ := hcont w
-  have hwmem : w ∈ (progressiveStep G q)^[k + k'] (S : Set V) := hk' (k + k') (Nat.le_add_left k' k)
-  rw [hconst k'] at hwmem
-  exact hw.2 hwmem
+  exact hw.2 (hconst k' ▸ hk' (k + k') (Nat.le_add_left k' k) : w ∈ (Sfin k : Set V))
 
 /-- **Theorem 24.2 (nonprogressive form)** ([Kleinberg2007], Section 24.2, p. 618; [Morris2000]):
 on any infinite locally finite graph with no isolated vertices, no finite set is contagious for
@@ -879,19 +864,10 @@ theorem intPathGraph_connected : intPathGraph.Connected := by
     intro a n
     induction n with
     | zero => simp only [Nat.cast_zero, add_zero, SimpleGraph.Reachable.refl]
-    | succ n ih =>
-        refine ih.trans (SimpleGraph.Adj.reachable ?_)
-        rw [intPathGraph_adj_iff]
-        left
-        omega
+    | succ n ih => exact ih.trans (SimpleGraph.Adj.reachable (Or.inl (by omega)))
   by_cases hxy : x ≤ y
-  · have heq : x + (y - x).toNat = y := by omega
-    rw [← heq]
-    exact hstep x (y - x).toNat
-  · have heq : y + (x - y).toNat = x := by omega
-    refine SimpleGraph.Reachable.symm ?_
-    rw [← heq]
-    exact hstep y (x - y).toNat
+  · exact (by omega : x + (y - x).toNat = y) ▸ hstep x (y - x).toNat
+  · exact ((by omega : y + (x - y).toNat = x) ▸ hstep y (x - y).toNat).symm
 
 private theorem mem_bestResponseStep_intPathGraph_half_iff (S : Set ℤ) (x : ℤ) :
     x ∈ bestResponseStep intPathGraph (1 / 2) S ↔ x - 1 ∈ S ∨ x + 1 ∈ S := by
@@ -911,14 +887,8 @@ private theorem mem_bestResponseStep_intPathGraph_half_iff (S : Set ℤ) (x : �
     · exact Or.inl hy2
     · exact Or.inr hy2
   · rintro (h | h)
-    · refine ⟨x - 1, ?_, h⟩
-      rw [SimpleGraph.mem_neighborSet, intPathGraph_adj_iff]
-      right
-      omega
-    · refine ⟨x + 1, ?_, h⟩
-      rw [SimpleGraph.mem_neighborSet, intPathGraph_adj_iff]
-      left
-      omega
+    · exact ⟨x - 1, Or.inr (by omega), h⟩
+    · exact ⟨x + 1, Or.inl (by omega), h⟩
 
 /-- On `intPathGraph` at threshold `q = 1 / 2`, one nonprogressive step expands any integer
 interval `[a, b]` with at least two vertices (`a < b`) to `[a - 1, b + 1]`

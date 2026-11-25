@@ -294,13 +294,9 @@ private theorem two_pow_sub_one_div_two_pow {k : ℕ} (hk : 1 ≤ k) :
 
 private theorem add_two_pow_div_ge {a b : ℕ} (h : b ≤ a) :
     (a : ℝ) + 1 ≤ (b : ℝ) + (2 : ℝ) ^ a / (2 : ℝ) ^ b := by
-  have hdiv : (2 : ℝ) ^ a / (2 : ℝ) ^ b = (2 : ℝ) ^ (a - b) := by
-    conv_lhs => rw [← Nat.add_sub_cancel' h, pow_add]
-    rw [mul_div_cancel_left₀ _ (by positivity)]
   have h2 : ((a - b : ℕ) : ℝ) + 1 ≤ (2 : ℝ) ^ (a - b) := by
-    exact_mod_cast Nat.lt_two_pow_self (n := a - b)
-  rw [hdiv]
-  rw [Nat.cast_sub h] at h2
+    exact_mod_cast (Nat.lt_two_pow_self : a - b + 1 ≤ 2 ^ (a - b))
+  rw [← Nat.add_sub_cancel' h, pow_add, mul_div_cancel_left₀ _ (by positivity), Nat.cast_add]
   linarith
 
 /-- For `k ≥ 1` and `B ≥ 1`, `relatedMixedLower k B` has strictly positive optimal makespan. -/
@@ -417,8 +413,7 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
     | inl x =>
       have hj_eq : j = relatedMixedDetTarget k B x := by
         by_contra hne
-        rw [relatedMixedLowerNE_inl, ite_eq_right hne] at hpos
-        exact lt_irrefl 0 hpos
+        simp [relatedMixedLowerNE_inl, hne] at hpos
       subst hj_eq
       have hnotlast : (relatedMixedDetTarget k B x).tier ≠ Fin.last k := by
         intro h
@@ -440,9 +435,7 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
           have hlt : (x.tier.val : ℝ) + 1 ≤ (k : ℝ) - 1 := by
             have := x.tier.isLt
             have h2 : ((x.tier.val + 1 : ℕ) : ℝ) ≤ ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (by omega)
-            rw [Nat.cast_sub hk] at h2
-            push_cast at h2
-            linarith
+            simpa [Nat.cast_sub hk] using h2
           push_cast; linarith
         · rw [ite_eq_right hj'_last]
           simp only [relatedMixedLower]
@@ -455,8 +448,7 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
     | inr r =>
       have hj_last : j.tier = Fin.last k := by
         by_contra hne
-        simp only [relatedMixedLowerNE, ite_eq_right hne] at hpos
-        exact lt_irrefl 0 hpos
+        simp [relatedMixedLowerNE, hne] at hpos
       rw [ite_eq_left hj_last]
       simp only [relatedMixedLowerNE, hj_last, ↓reduceIte, relatedMixedLower, Fin.val_last,
         two_pow_sub_one_div_two_pow hk]
@@ -657,9 +649,7 @@ private theorem ballsIntoBins_params_of_ge_sixteen {k : ℕ} (hk : 16 ≤ k) :
         have hlog_ratio : Real.log (2 * (d : ℝ) / (a : ℝ)) ≤ 4 * y := by
           have h1 := Real.log_le_log (by positivity) hratio_le
           have hlog8 : Real.log 8 ≤ 3 := by
-            have h8 : (8 : ℝ) = (2 : ℝ) ^ (3 : ℕ) := by norm_num
-            rw [h8, Real.log_pow]
-            push_cast
+            rw [show (8 : ℝ) = (2 : ℝ) ^ (3 : ℕ) by norm_num, Real.log_pow, Nat.cast_ofNat]
             linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
           rw [Real.log_mul (by norm_num) hx_pos.ne'] at h1; linarith
         rw [hrew]
@@ -688,10 +678,7 @@ private theorem log_log_lt_log_log_log_of_pow_le {k B X : ℕ} (hk : 16 ≤ k)
   have hx_pos : 0 < x := (Real.exp_pos 1).trans hx_gt_e
   have hB_pos_r : (0 : ℝ) < (B : ℝ) := Nat.cast_pos.mpr (by rw [hB]; positivity)
   have hlogB : Real.log (B : ℝ) = 18 * (k : ℝ) * x := by
-    have hBcast : (B : ℝ) = (k : ℝ) ^ (18 * k) := by
-      rw [hB]
-      push_cast; rfl
-    rw [hBcast, Real.log_pow]
+    rw [show (B : ℝ) = (k : ℝ) ^ (18 * k) by exact_mod_cast hB, Real.log_pow]
     push_cast; ring
   have hk_lt : (k : ℝ) < Real.log (X : ℝ) := by
     have h1 := Real.log_le_log hB_pos_r (by exact_mod_cast hBX : (B : ℝ) ≤ X)
@@ -783,8 +770,7 @@ private theorem equilibrium_cost_relatedMixedLowerNE_le_k {k B : ℕ} [NeZero B]
   | inl t =>
     have hxeq : y = relatedMixedDetTarget k B t := by
       by_contra hne
-      rw [relatedMixedLowerNE_inl, ite_eq_right hne] at hpos
-      exact lt_irrefl 0 hpos
+      simp [relatedMixedLowerNE_inl, hne] at hpos
     subst hxeq
     have hnotlast : (relatedMixedDetTarget k B t).tier ≠ Fin.last k := by
       intro h
@@ -801,8 +787,7 @@ private theorem equilibrium_cost_relatedMixedLowerNE_le_k {k B : ℕ} [NeZero B]
   | inr r =>
     have hlast : y.tier = Fin.last k := by
       by_contra hne
-      simp only [relatedMixedLowerNE, ite_eq_right hne] at hpos
-      exact lt_irrefl 0 hpos
+      simp [relatedMixedLowerNE, hne] at hpos
     rw [ite_eq_left hlast]
     simp only [relatedMixedLowerNE, hlast, ↓reduceIte, relatedMixedLower, Fin.val_last,
       two_pow_sub_one_div_two_pow hk]
@@ -977,8 +962,7 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
         exact (hbase_NE.1 (eJ i)).sum_eq_one
       · have hj_lt : j.val < Mfn k := by
           by_contra h
-          simp only [p, dite_eq_right h] at hpos
-          exact lt_irrefl 0 hpos
+          simp [p, h] at hpos
         rw [hE_eq j, hE_eq j', dite_eq_left hj_lt]
         simp only [G, p, dite_eq_left hj_lt] at hpos ⊢
         by_cases hj'_lt : j'.val < Mfn k

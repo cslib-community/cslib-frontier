@@ -764,18 +764,14 @@ theorem tendsto_symmetricIDSSpec_cost_allFalse_atTop {p q L c : ℝ}
     Filter.Tendsto
       (fun n : ℕ => (symmetricIDSSpec (Fin (n + 1)) p q L c).toCostGame.cost 0 (fun _ => false))
       Filter.atTop (nhds L) := by
-  have heq : (fun n : ℕ =>
-      (symmetricIDSSpec (Fin (n + 1)) p q L c).toCostGame.cost 0 (fun _ => false)) =
-      fun n : ℕ => L * (1 - (1 - p) * (1 - p * q) ^ n) :=
-    funext fun n => (symmetricIDSSpec_cost_allFalse_eq_geom_sum n p q L c 0).2
-  rw [heq]
+  have hfn (n : ℕ) := (symmetricIDSSpec_cost_allFalse_eq_geom_sum n p q L c 0).2
+  simp only [hfn]
   have hpq_pos : 0 < p * q := mul_pos hp0 hq0
   have hpq_le1 : p * q ≤ 1 := by nlinarith
-  have hpow : Filter.Tendsto (fun n : ℕ => (1 - p * q) ^ n) Filter.atTop (nhds 0) :=
-    tendsto_pow_atTop_nhds_zero_of_lt_one (by linarith) (by linarith)
   have hlim : Filter.Tendsto (fun n : ℕ => L * (1 - (1 - p) * (1 - p * q) ^ n)) Filter.atTop
       (nhds (L * (1 - (1 - p) * 0))) :=
-    tendsto_const_nhds.mul (tendsto_const_nhds.sub (tendsto_const_nhds.mul hpow))
+    tendsto_const_nhds.mul (tendsto_const_nhds.sub (tendsto_const_nhds.mul
+      (tendsto_pow_atTop_nhds_zero_of_lt_one (by linarith) (by linarith))))
   simpa only [mul_zero, sub_zero, mul_one] using hlim
 
 /-- **Kunreuther–Heal Corollary 1** ([KunreutherHeal2003], §2, Corollary 1, p. 8): for any positive
@@ -793,10 +789,8 @@ theorem eventually_not_dominant_invest_symmetricIDSSpec {p q L c : ℝ}
   have hpq_pos : 0 < p * q := mul_pos hp0 hq0
   have hpq_le1 : p * q ≤ 1 := by nlinarith
   have hpow : Filter.Tendsto (fun n : ℕ => p * L * (1 - p * q) ^ n) Filter.atTop (nhds 0) := by
-    have h0' : 0 ≤ 1 - p * q := by linarith
-    have h1' : 1 - p * q < 1 := by linarith
-    simpa only [mul_zero] using
-      tendsto_const_nhds.mul (tendsto_pow_atTop_nhds_zero_of_lt_one h0' h1')
+    simpa only [mul_zero] using tendsto_const_nhds.mul
+      (tendsto_pow_atTop_nhds_zero_of_lt_one (r := 1 - p * q) (by linarith) (by linarith))
   filter_upwards [hpow.eventually (gt_mem_nhds hc)] with n hn
   have hcrit : ∀ i : Fin (n + 1),
       (symmetricIDSSpec (Fin (n + 1)) p q L c).criticalCost i (fun _ => false) =
@@ -807,16 +801,11 @@ theorem eventually_not_dominant_invest_symmetricIDSSpec {p q L c : ℝ}
     rw [(symmetricIDSSpec_criticalCost_eq_geom_sum p q L c i (fun _ => false)).2, hcard]
   have hdiff := (symmetricIDSSpec (Fin (n + 1)) p q L c).cost_update_false_sub_cost_update_true
     0 (fun _ => false)
-  have hself : update (fun _ : Fin (n + 1) => false) 0 false = fun _ => false :=
-    update_eq_self 0 (fun _ => false)
   have hinv : (symmetricIDSSpec (Fin (n + 1)) p q L c).investCost 0 = c := rfl
-  rw [hself, hcrit 0, hinv] at hdiff
+  rw [update_eq_self, hcrit 0, hinv] at hdiff
   have _ := hL
-  refine ⟨by linarith, ?_⟩
-  rw [(symmetricIDSSpec (Fin (n + 1)) p q L c).isPureNash_allFalse_iff]
-  intro i
-  rw [hcrit i]
-  exact hn.le
+  exact ⟨by linarith,
+    (symmetricIDSSpec (Fin (n + 1)) p q L c).isPureNash_allFalse_iff.mpr fun i => hcrit i ▸ hn.le⟩
 
 /-- **Symmetry of all pure Nash equilibria in identical-agent IDS games** (resolving the `n`-agent
 question of [KunreutherHeal2003], §2, p. 9): for any `c > 0`, `0 < p ≤ 1`, `0 < q ≤ 1`, and
@@ -906,9 +895,8 @@ theorem isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
     intro s hs
     by_contra hne
     obtain ⟨i, hi⟩ : ∃ i, s i = false := by
-      by_contra hall
-      push Not at hall
-      exact hne (funext fun j => Bool.eq_true_of_not_eq_false (hall j))
+      obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
+      exact ⟨i, Bool.eq_false_iff.mpr hi⟩
     have hws_pos : 0 < σ.weights s :=
       lt_of_le_of_ne (Convexity.StdSimplex.weights_nonneg s)
         (Ne.symm (Finsupp.mem_support_iff.mp hs))
@@ -930,14 +918,10 @@ theorem isCoarseCorrelatedEquilibrium_symmetricIDSSpec_taxed_unique
   by_cases hs : s = fun _ => true
   · subst hs
     simp only [Convexity.StdSimplex.weights_single, Finsupp.single_eq_same]
-    have htot := σ.total
-    have hsub : σ.weights.support ⊆ {fun _ : ι => true} := fun x hx =>
-      mem_singleton.mpr (hsupp x hx)
-    have hsum_eq := sum_subset hsub fun x _ hx => Finsupp.notMem_support_iff.mp hx
-    simpa only [sum_singleton] using hsum_eq.symm.trans htot
+    simpa only [sum_singleton] using (sum_subset (fun x hx => mem_singleton.mpr (hsupp x hx))
+      fun x _ hx => Finsupp.notMem_support_iff.mp hx).symm.trans σ.total
   · simp only [Convexity.StdSimplex.weights_single, Finsupp.single_apply, Ne.symm hs, ↓reduceIte]
-    by_contra hne0
-    exact hs (hsupp s (Finsupp.mem_support_iff.mpr hne0))
+    exact not_ne_iff.mp fun hne0 => hs (hsupp s (Finsupp.mem_support_iff.mpr hne0))
 
 /-- **Mixed Nash vs. public-signal correlated equilibrium in 2-agent Kunreuther–Heal IDS**
 (original): in the interior coordination regime `p L (1 - p q) < c < p L`, let
@@ -1137,18 +1121,12 @@ theorem symmetricIDSSpec_prisonersDilemma_socialCost_le (n : ℕ) {p q L c : ℝ
       nlinarith
     have hcont_nn : 0 ≤ G.contagionProb i s' :=
       sub_nonneg.mpr (G.noContagionProb_le_one h0_c h1_c i s')
-    dsimp only [InterdependentSecuritySpec.toCostGame]
+    change p * L ≤
+      if s' i = true then c + L * G.contagionProb i s'
+      else L * (p + (1 - p) * G.contagionProb i s')
     split_ifs
-    · have hc_eq : G.investCost i = c := rfl
-      have hL_eq : G.loss i = L := rfl
-      rw [hc_eq, hL_eq]
-      have : 0 ≤ L * G.contagionProb i s' := mul_nonneg hL.le hcont_nn
-      linarith
-    · have hp_eq : G.directProb i = p := rfl
-      have hL_eq : G.loss i = L := rfl
-      rw [hp_eq, hL_eq]
-      have : 0 ≤ (1 - p) * G.contagionProb i s' := mul_nonneg (sub_nonneg.mpr hp1) hcont_nn
-      nlinarith
+    · linarith [mul_nonneg hL.le hcont_nn]
+    · nlinarith [mul_nonneg (sub_nonneg.mpr hp1) hcont_nn]
   have hlb_soc : ((n + 1 : ℕ) : ℝ) * (p * L) ≤ G.toCostGame.socialCost s' := by
     simpa only [CostGame.socialCost, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] using
       sum_le_sum fun i (_ : i ∈ univ) => hlb_pt i

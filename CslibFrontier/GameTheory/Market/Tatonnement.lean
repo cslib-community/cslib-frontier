@@ -228,10 +228,7 @@ theorem IsStrongApproxEquilibrium.isWeakApproxEquilibrium {E : ExchangeMarket I 
     E.IsWeakApproxEquilibrium μ p := by
   obtain ⟨hμ, hp, x, hdem, hsup⟩ := h
   refine ⟨hμ, hp, x, fun i => ?_, hsup⟩
-  have h1 : IsApproxDemand (E.utility i) 1 p (E.endowment i) (x i) := by
-    have hmem := (E.mem_demandSet (p := p) (i := i) (b := x i)).1 (hdem i)
-    rw [E.income_eq] at hmem
-    exact IsApproxDemand.of_mem_demandSet hmem
+  have h1 := IsApproxDemand.of_mem_demandSet (E.income_eq _ _ ▸ (E.mem_demandSet).1 (hdem i))
   exact h1.mono hμ hp (E.endowment_nonneg i) (hu_nn i (x i) h1.2.1)
 
 theorem IsWeakApproxEquilibrium.mono {E : ExchangeMarket I G} {μ μ' : ℝ} {p : G → ℝ}
@@ -398,15 +395,11 @@ theorem isWeakApproxEquilibrium_unitRescale_iff (E : ExchangeMarket I G)
     refine ⟨hμ, hp_iff.1 hp, fun i g => E.totalSupply g * x i g,
       fun i => (E.isApproxDemand_unitRescale_iff hW μ p i (x i)).1 (hdem i), fun g => ?_⟩
     rw [← mul_sum]
-    have h1 := hsup g
-    rw [E.unitRescale_totalSupply (hW g), mul_one] at h1
-    nlinarith [hW g]
+    nlinarith [hW g, E.unitRescale_totalSupply (hW g) ▸ hsup g]
   · rintro ⟨hμ, hp, y, hdem, hsup⟩
     refine ⟨hμ, hp_iff.2 hp, fun i g => y i g / E.totalSupply g, fun i => ?_, fun g => ?_⟩
     · refine (E.isApproxDemand_unitRescale_iff hW μ p i _).2 ?_
-      have hy_rec : (fun g => E.totalSupply g * (y i g / E.totalSupply g)) = y i :=
-        funext fun g => mul_div_cancel₀ _ (hW g).ne'
-      simpa only [hy_rec] using hdem i
+      exact (funext fun g => mul_div_cancel₀ (y i g) (hW g).ne').symm ▸ hdem i
     · rw [E.unitRescale_totalSupply (hW g), mul_one, ← sum_div]
       exact (div_le_iff₀ (hW g)).2 (by linarith [hsup g])
 
@@ -690,11 +683,9 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
           rw [expenditure_eq_sum, ← sum_mul, hp_sum, one_mul]
         have hph_gt : 4 * n < phantomDemand η p g := by
           rw [phantomDemand_apply, hexp_η]
-          have hpg_lt : p g < η / (4 * n ^ 2) := by
-            have h2δ : η / (4 * n ^ 2) = 2 * δ := by
-              dsimp only [δ]
-              ring
-            rwa [h2δ]
+          have hpg_lt : p g < η / (4 * n ^ 2) := hpg2.trans_eq (by
+            dsimp only [δ]
+            ring)
           calc 4 * n = ((1 / n) * η) / (η / (4 * n ^ 2)) := by field_simp [hη0.ne', hn_pos.ne']
             _ < (1 / n) * η / p g := div_lt_div_of_pos_left (by positivity) (hp_pos g) hpg_lt
         have hZg_ge_2 : 2 ≤ posPart p g := by
@@ -702,10 +693,8 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
           simp only [Z, phantomExcessDemand_apply]
           linarith [hX_nn hp_pos g]
         have hnum : 2 * δ ≤ p g + τ * posPart p g := by
-          have : δ ≤ τ * posPart p g := by
-            dsimp only [τ]
-            nlinarith
-          linarith [hp_low g]
+          dsimp only [τ]
+          nlinarith [hp_low g]
         calc
           δ = (2 * δ) / 2 := by ring
           _ ≤ (p g + τ * posPart p g) / 2 := by linarith
@@ -1575,20 +1564,15 @@ theorem toExchangeMarket_utility_nonneg (i : I) {b : G → ℝ} (hb : ∀ g, 0 �
 
 theorem continuousOn_excessDemandFn :
     ContinuousOn E.excessDemandFn {q : G → ℝ | ∀ g, 0 < q g} := by
-  let posSet : Set (G → ℝ) := {q : G → ℝ | ∀ g, 0 < q g}
   rw [continuousOn_pi]
   intro g
   simp_rw [E.excessDemandFn_eq]
-  refine ContinuousOn.sub ?_ continuousOn_const
-  refine continuousOn_finsetSum univ fun i _ => ?_
-  have hnum : Continuous fun q : G → ℝ =>
-      E.weight i g * expenditure q (E.endowment i) := by
+  refine (continuousOn_finsetSum univ fun i _ => ?_).sub continuousOn_const
+  have hnum : Continuous fun q : G → ℝ => E.weight i g * expenditure q (E.endowment i) := by
     simp only [expenditure_eq_sum]
     exact continuous_const.mul
       (continuous_finsetSum univ fun k _ => (continuous_apply k).mul continuous_const)
-  exact (hnum.continuousOn (s := posSet)).div₀
-    ((continuous_apply g).continuousOn (s := posSet))
-    fun q hq => (hq g).ne'
+  exact hnum.continuousOn.div₀ (continuous_apply g).continuousOn fun q hq => (hq g).ne'
 
 /-- Direct instantiation of **Theorem 6.10** (`exists_weakApproxEquilibrium_of_wgs_oracle`) for any
 positively supplied `CobbDouglasExchangeMarket`: discharges ray concavity, nonnegativity,

@@ -434,16 +434,12 @@ theorem expectedWelfare_vickrey_eq_expectedMax {n : ℕ} (μ : Fin n → PMF ℝ
       (fun hm => absurd (Finset.mem_univ w) hm),
       Vickrey.allocation_eq_one_iff.mpr hw, mul_one]
   have hmax : listMax (List.ofFn v) = v w := by
-    apply le_antisymm
-    · rw [listMax_le_iff]
-      intro y hy
-      obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hy
-      rcases eq_or_ne j w with rfl | hj
-      · exact le_rfl
-      · exact_mod_cast (hw j hj).1
-    · by_contra hlt
-      have := (listMax_le_iff _ _).mp le_rfl (v w) (List.mem_ofFn.mpr ⟨w, rfl⟩)
-      exact hlt this
+    refine le_antisymm ((listMax_le_iff _ _).mpr fun y hy => ?_)
+      ((listMax_le_iff _ _).mp le_rfl (v w) (List.mem_ofFn.mpr ⟨w, rfl⟩))
+    obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hy
+    rcases eq_or_ne j w with rfl | hj
+    · exact le_rfl
+    · exact_mod_cast (hw j hj).1
   rw [hsum, hmax, ENNReal.ofReal_coe_nnreal]
 
 private theorem payoff_acceptRule_ofFn {n : ℕ} (a : ℝ≥0 → Bool) (accept : Fin n → ℝ → Prop)
@@ -475,11 +471,10 @@ private theorem payoff_acceptRule_ofFn {n : ℕ} (a : ℝ≥0 → Bool) (accept 
             cases j using Fin.cases with
             | zero => exact h0f
             | succ j' => exact h j' (Fin.succ_lt_succ_iff.mp hj)
-        have hpay : ∀ (xs : List ℝ≥0) (p₁ p₂ : List ℝ≥0),
-            payoff (acceptRule a) reward p₁ xs = payoff (acceptRule a) reward p₂ xs := by
-          intro xs
+        have hpay : ∀ (xs p₁ p₂ : List ℝ≥0),
+            payoff (acceptRule a) reward p₁ xs = payoff (acceptRule a) reward p₂ xs := fun xs => by
           induction xs with
-          | nil => intros; rfl
+          | nil => exact fun _ _ => rfl
           | cons y ys ihy =>
               intro p₁ p₂
               simp only [payoff_cons, acceptRule, reward]
@@ -822,12 +817,9 @@ private theorem integrable_fold_max {ν : Measure (ι → ℝ)} (s : Finset ι) 
   induction s using Finset.induction_on with
   | empty => exact h0
   | insert a s ha ih =>
-      have ha_int : Integrable (g a) ν := hg a (Finset.mem_insert_self a s)
-      have hs_int : Integrable (fun v => s.fold max 0 fun i => g i v) ν :=
-        ih fun i hi => hg i (Finset.mem_insert_of_mem hi)
-      have hsup : Integrable (fun v => max (g a v) (s.fold max 0 (fun i => g i v))) ν :=
-        ha_int.sup hs_int
-      simpa only [Finset.fold_insert ha] using hsup
+      simp only [Finset.fold_insert ha]
+      exact (hg a (Finset.mem_insert_self a s)).sup
+        (ih fun i hi => hg i (Finset.mem_insert_of_mem hi))
 
 theorem integrable_posVirtualSurplus [∀ i, IsProbabilityMeasure (μ i)]
     (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i)) :
@@ -1036,34 +1028,24 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
       ∫ v, priorReject i v * excess i (v i) ∂Measure.pi μ =
         (∫ v, priorReject i v ∂Measure.pi μ) * ∫ z, excess i z ∂μ i := by
     intro i
-    have hindep : ∀ (v : ι → ℝ) (z : ℝ),
+    have hindep (v : ι → ℝ) (z : ℝ) :
         (fun w => priorReject i (Function.update v i z) * excess i w) =
           fun w => priorReject i v * excess i w := by
-      intro v z
-      funext w
-      have hp_upd : priorReject i (Function.update v i z) = priorReject i v := by
-        dsimp only [priorReject]
-        have hiff : (∀ j < i, Function.update v i z j < p j) ↔ ∀ j < i, v j < p j :=
-          forall_congr' fun j => imp_congr_right fun hj => by rw [Function.update_of_ne hj.ne]
-        simp only [hiff]
-      rw [hp_upd]
+      have hiff : (∀ j < i, Function.update v i z j < p j) ↔ ∀ j < i, v j < p j :=
+        forall_congr' fun j => imp_congr_right fun hj => by rw [Function.update_of_ne hj.ne]
+      simp only [priorReject, hiff]
     rw [integral_apply_eval_eq_integral_integral μ (Φ := fun v z => priorReject i v * excess i z)
       hindep (hint_prod i)]
     simp_rw [integral_const_mul]
     rw [integral_mul_const]
   -- Prophet upper bound on `E_opt`: `posVirtualSurplus v ≤ t + ∑ i, excess i (v i)`.
-  have hprophet_pt : ∀ v : ι → ℝ, posVirtualSurplus μ f v ≤ t + ∑ i, excess i (v i) := by
-    intro v
-    have hex_sum_nn : 0 ≤ ∑ i, excess i (v i) :=
-      Finset.sum_nonneg fun i _ => le_max_right _ _
-    refine (Finset.fold_max_le (t + ∑ i, excess i (v i))).mpr ⟨by linarith, fun i _ => ?_⟩
-    have hle_i : virtualValue (μ i) (f i) (v i) ≤ t + excess i (v i) := by
-      have : virtualValue (μ i) (f i) (v i) - t ≤ excess i (v i) := le_max_left _ _
-      linarith
+  have hprophet_pt : ∀ v : ι → ℝ, posVirtualSurplus μ f v ≤ t + ∑ i, excess i (v i) := fun v => by
+    refine (Finset.fold_max_le _).mpr
+      ⟨add_nonneg ht0 (Finset.sum_nonneg fun _ _ => le_max_right _ _), fun i _ => ?_⟩
     have hle_sum : excess i (v i) ≤ ∑ j, excess j (v j) :=
-      Finset.single_le_sum (f := fun j => excess j (v j)) (fun j _ => le_max_right _ _)
+      Finset.single_le_sum (f := fun j => excess j (v j)) (fun _ _ => le_max_right _ _)
         (Finset.mem_univ i)
-    linarith
+    linarith [le_max_left (virtualValue (μ i) (f i) (v i) - t) 0]
   have hE_opt_le : E_opt ≤ t + ∑ i, ∫ z, excess i z ∂μ i := by
     have hint_rhs : Integrable (fun v => t + ∑ i, excess i (v i)) (Measure.pi μ) :=
       (integrable_const t).add (integrable_finsetSum _ fun i _ => hint_excess_pi i)
