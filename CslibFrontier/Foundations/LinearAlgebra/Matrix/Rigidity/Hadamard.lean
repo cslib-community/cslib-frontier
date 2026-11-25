@@ -309,11 +309,9 @@ theorem IsHadamard.card_mul_le_rank_submatrix_of_trivialStar {n α β K : Type*}
     · simp only [H₀, of_apply, map_apply, h, h1_ne_neg1.symm, ↓reduceIte, map_neg, map_one]
   let H₁ : Matrix n n ℝ := H₀.map (Rat.castHom ℝ)
   have hconj_K : H₀ᴴ.map (Rat.castHom K) = Hᴴ := by
-    ext i j
-    simp only [conjTranspose_apply, star_trivial, map_apply, ← hmap_K]
+    ext i j; simp only [conjTranspose_apply, star_trivial, map_apply, ← hmap_K]
   have hconj_R : H₀ᴴ.map (Rat.castHom ℝ) = H₁ᴴ := by
-    ext i j
-    simp only [H₁, conjTranspose_apply, star_trivial, map_apply]
+    ext i j; simp only [H₁, conjTranspose_apply, star_trivial, map_apply]
   have hmul (X Y : Matrix n n ℚ)
       (hXY : X.map (Rat.castHom K) * Y.map (Rat.castHom K) = (Fintype.card n : K) • 1) :
       X.map (Rat.castHom ℝ) * Y.map (Rat.castHom ℝ) = (Fintype.card n : ℝ) • 1 := by
@@ -338,10 +336,9 @@ theorem IsHadamard.card_mul_le_rank_submatrix_of_trivialStar {n α β K : Type*}
     · rw [← hconj_R]
       exact hmul H₀ᴴ H₀ (by rw [hconj_K, hmap_K, hH.conjTranspose_mul])
   have hrank : (H.submatrix f g).rank = (H₁.submatrix f g).rank := by
-    have hsub_K : H.submatrix f g = (H₀.submatrix f g).map (Rat.castHom K) := by
-      rw [← hmap_K]; rfl
-    have hsub_R : H₁.submatrix f g = (H₀.submatrix f g).map (Rat.castHom ℝ) := rfl
-    rw [hsub_K, hsub_R, rank_map_of_field, rank_map_of_field]
+    rw [show H.submatrix f g = (H₀.submatrix f g).map (Rat.castHom K) by rw [← hmap_K]; rfl,
+      show H₁.submatrix f g = (H₀.submatrix f g).map (Rat.castHom ℝ) from rfl,
+      rank_map_of_field, rank_map_of_field]
   rw [hrank]
   exact hH₁.card_mul_le_rank_submatrix hf hg
 
@@ -411,8 +408,7 @@ theorem sylvesterHadamard_apply_eq_one_or_neg_one (R : Type*) [CommRing R] (k : 
 theorem sylvesterHadamard_zero (R : Type*) [CommRing R] :
     sylvesterHadamard R 0 = 1 := by
   ext i j
-  have hij : i = j := Fin.ext (by omega)
-  subst hij
+  obtain rfl : i = j := Fin.ext (by omega)
   simp [sylvesterHadamard]
 
 /-- For `k = 1`, `sylvesterHadamard R 1` is `!![1, 1; 1, -1]`. -/
@@ -559,26 +555,17 @@ theorem two_pow_le_four_mul_rigidity_sylvesterHadamard_two_pow {K : Type*} [Fiel
       simp only [sum_boole, Nat.cast_id]
     rw [hrow_card, ← e.sum_comp, Fintype.sum_prod_type]
     simp_rw [← e.sum_comp, Fintype.sum_prod_type]
-    refine sum_congr rfl fun u _ => ?_
-    rw [sum_comm]
-    refine sum_congr rfl fun v _ => ?_
-    rw [hrow_card]
-    rfl
+    exact sum_congr rfl fun u _ => by
+      rw [sum_comm]; exact sum_congr rfl fun v _ => by rw [hrow_card]; rfl
   have hsum_le :
       (2 ^ k₁) * (2 ^ k₁) * 2 ^ t ≤ diffCount (sylvesterHadamard K (k₁ + (t + 1))) B := by
     rw [hpart]
     calc (2 ^ k₁) * (2 ^ k₁) * 2 ^ t
         = ∑ _u : Fin (2 ^ k₁), ∑ _v : Fin (2 ^ k₁), 2 ^ t := by
           simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_assoc]
-      _ ≤ ∑ u : Fin (2 ^ k₁), ∑ v : Fin (2 ^ k₁),
-            diffCount
-              ((sylvesterHadamard K (k₁ + (t + 1))).submatrix
-                (fun x => e (u, x)) (fun y => e (v, y)))
-              (B.submatrix (fun x => e (u, x)) (fun y => e (v, y))) :=
-          sum_le_sum fun u _ => sum_le_sum fun v _ => htile_diff u v
+      _ ≤ _ := sum_le_sum fun u _ => sum_le_sum fun v _ => htile_diff u v
   calc 2 ^ (2 * (k₁ + (t + 1))) = 4 * 2 ^ t * ((2 ^ k₁) * (2 ^ k₁) * 2 ^ t) := by ring
-    _ ≤ 4 * 2 ^ t * diffCount (sylvesterHadamard K (k₁ + (t + 1))) B :=
-        Nat.mul_le_mul_left _ hsum_le
+    _ ≤ _ := Nat.mul_le_mul_left _ hsum_le
 
 /-- **Rigidity lower bound for Sylvester–Hadamard matrices in characteristic zero**
 ([Lokam2009], §2.2, Theorem 2.11 and §3.2.1, Theorem 3.8; [deWolf2006], §3, Theorem 2). Over any
