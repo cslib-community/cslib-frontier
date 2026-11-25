@@ -817,26 +817,36 @@ example :
     simpa [F] using (not_exists_zero_iff_tendsto_criticalMinimumValue
       (by decide : 1 ≤ 1) (by decide) a (fun _ => le_rfl) (F r) (hFn r))
 
--- On each degree piece for the input r², the empty-fiber locus is the nonzero parameters.
-example (k : ℕ) :
+-- For the input r², the degree pieces containing 0 and 1 realize opposite fiber cases.
+example :
     let P : MvPolynomial (Fin (1 + 1)) ℤ := X (Fin.natAdd 1 0) ^ 2
     let hP : P.totalDegree ≤ 3 := (totalDegree_pow _ _).trans (by simp)
     let Q (r : ℝ) := specializedRelativeValueSection (n := 1) (m := 1) (ell := 3) (by decide)
       P hP (fun _ => r)
-    IsClopen {r : {r : ℝ // (Q r).natDegree ≤ k ∧ (Q r).coeff k ≠ 0} | r.val ≠ 0} := by
-  intro P hP Q
-  let A := {r : ℝ // (Q r).natDegree ≤ k ∧ (Q r).coeff k ≠ 0}
-  have heval (r : A) (z : Fin 1 → ℝ) :
-      eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r.val)) P = r.val ^ 2 := by
+    let Piece (k : ℕ) := {r : ℝ // (Q r).natDegree ≤ k ∧ (Q r).coeff k ≠ 0}
+    let emptyFibers (k : ℕ) : Set (Piece k) := {r | ¬∃ z : Fin 1 → ℝ,
+      eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r.val)) P = 0}
+    (∀ k, IsClopen (emptyFibers k)) ∧
+      (∃ r : Piece (Q 0).natDegree, r.val = 0 ∧ r ∉ emptyFibers _) ∧
+      (∃ r : Piece (Q 1).natDegree, r.val = 1 ∧ r ∈ emptyFibers _) := by
+  intro P hP Q Piece emptyFibers
+  have heval (r : ℝ) (z : Fin 1 → ℝ) :
+      eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r)) P = r ^ 2 := by
     simp only [P, eval₂_pow, eval₂_X, Fin.addCases_right]
-  have hc := isClopen_relative_emptyFibers_of_fixed_degree (by decide) (by decide) P hP
-    (fun (r : A) (_ : Fin 1) => r.val) (continuous_pi fun _ => continuous_subtype_val)
-    (fun r z => by rw [heval]; exact sq_nonneg _) k
-    (fun r => r.property.1) (fun r => r.property.2)
-  convert hc using 1
-  ext r
-  change r.val ≠ 0 ↔ ¬∃ z : Fin 1 → ℝ,
-    eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r.val)) P = 0
-  simp only [heval, pow_eq_zero_iff (by decide : (2 : ℕ) ≠ 0), exists_const]
+  let atDegree (r : ℝ) : Piece (Q r).natDegree :=
+    ⟨r, le_rfl, by
+      change (Q r).leadingCoeff ≠ 0
+      exact Polynomial.leadingCoeff_ne_zero.mpr
+        (specializedRelativeValueSection_ne_zero (n := 1) (m := 1) (by decide) P hP (fun _ => r))⟩
+  refine ⟨fun k => ?_, ⟨atDegree 0, rfl, ?_⟩, ⟨atDegree 1, rfl, ?_⟩⟩
+  · exact isClopen_relative_emptyFibers_of_fixed_degree (by decide) (by decide) P hP
+      (fun (r : Piece k) (_ : Fin 1) => r.val) (continuous_pi fun _ => continuous_subtype_val)
+      (fun r z => by rw [heval]; exact sq_nonneg _) k
+      (fun r => r.property.1) (fun r => r.property.2)
+  · intro h
+    exact h ⟨0, by rw [heval]; norm_num [atDegree]⟩
+  · rintro ⟨z, hz⟩
+    rw [heval] at hz
+    norm_num [atDegree] at hz
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

@@ -104,6 +104,17 @@ theorem eval_specializedRelativeValueSection (hell : 1 ≤ ell)
   rw [specializedRelativeValueSection, Polynomial.eval_map]
   exact DFunLike.congr_fun h (finiteRelativeValueSection hell F hF)
 
+/-- Evaluate the section by substituting the prescribed power of the critical value for the
+penalty in the bivariate polynomial. -/
+theorem eval_specializedRelativeValueSection_eq_bivariate (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (y : T) :
+    (specializedRelativeValueSection hell F hF x).eval y =
+      (relativeValueBivariate hell (rename finSumFinEquiv.symm F)
+        ((totalDegree_rename_le _ _).trans hF) x).eval₂
+          (Polynomial.evalRingHom (y ^ (ell ^ n + 1))) y := by
+  rw [eval_specializedRelativeValueSection, eval₂_finiteRelativeValueSection,
+    ← Polynomial.eval_map, relativeValueBivariate_map]
+
 private theorem specializedRelativeValueSection_eq_eval [IsDomain T] [Infinite T] (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) :
     specializedRelativeValueSection hell F hF x =
@@ -111,12 +122,12 @@ private theorem specializedRelativeValueSection_eq_eval [IsDomain T] [Infinite T
         ((totalDegree_rename_le _ _).trans hF) x)).eval (Polynomial.X ^ (ell ^ n + 1)) := by
   apply Polynomial.funext
   intro y
-  rw [eval_specializedRelativeValueSection, eval₂_finiteRelativeValueSection]
+  rw [eval_specializedRelativeValueSection_eq_bivariate]
   symm
   conv_lhs => rw [← Polynomial.coe_aeval_eq_eval]
   rw [Polynomial.Bivariate.aeval_eval_X_pow,
     Polynomial.Bivariate.aevalAeval_swap, Polynomial.coe_aevalAeval_eq_evalEval,
-    ← Polynomial.map_evalRingHom_eval, relativeValueBivariate_map]
+    ← Polynomial.map_evalRingHom_eval, Polynomial.eval_map]
 
 private theorem coeff_specializedRelativeValueSection_of_infinite [IsDomain T] [Infinite T]
     (hell : 1 ≤ ell)
