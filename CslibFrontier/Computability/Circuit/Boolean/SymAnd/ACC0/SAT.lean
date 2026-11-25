@@ -128,47 +128,19 @@ private def constTrueWire (n' : ℕ) : Wire n' 2 := Wire.gate ⟨1, by decide⟩
 
 private theorem constProg_trace_false {g : ∀ k, BitString k → Bool} {n' : ℕ}
     (x : BitString n') :
-    (constProg n').trace (Unbounded.extInterpretation g) x (constFalseWire n') = false := by
-  simp only [constProg, constFalseWire]
-  change (Program.gate
-      (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-        ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-      ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).trace
-      (Unbounded.extInterpretation g) x (Wire.gate (Fin.last 0)).castSucc = false
-  rw [Program.trace_gate_castSucc, Program.trace_gate_last]
+    (constProg n').trace (Unbounded.extInterpretation g) x (constFalseWire n') = false :=
   rfl
 
 private theorem constProg_trace_true {g : ∀ k, BitString k → Bool} {n' : ℕ}
     (x : BitString n') :
-    (constProg n').trace (Unbounded.extInterpretation g) x (constTrueWire n') = true := by
-  simp only [constProg, constTrueWire]
-  change (Program.gate
-      (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-        ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-      ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).trace
-      (Unbounded.extInterpretation g) x (Wire.gate (Fin.last 1)) = true
-  rw [Program.trace_gate_last]
+    (constProg n').trace (Unbounded.extInterpretation g) x (constTrueWire n') = true :=
   rfl
 
 private theorem constProg_wireDepths_le (n' : ℕ) (w : Wire n' 2) :
     (constProg n').wireDepths w ≤ 1 := by
   cases w with
   | input i => simp [Program.wireDepths]
-  | gate j =>
-    fin_cases j
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depths
-          (Fin.castSucc (Fin.last 0)) ≤ 1
-      rw [Program.depths_gate_castSucc, Program.depths_gate_last]
-      rfl
-    · change (Program.gate
-          (Program.gate (Program.empty : Program Unbounded.extSignature n' 0)
-            ⟨Unbounded.ExtOp.ac (.or 0), Fin.elim0⟩)
-          ⟨Unbounded.ExtOp.ac (.and 0), Fin.elim0⟩).depths (Fin.last 1) ≤ 1
-      rw [Program.depths_gate_last]
-      rfl
+  | gate j => fin_cases j <;> exact le_of_eq rfl
 
 private theorem constProg_code (n' : ℕ) :
     (constProg n').code = [(.ac (.or 0), []), (.ac (.and 0), [])] := by
@@ -740,13 +712,10 @@ theorem computableInO_orExpand :
     have hpad_le : (k + 1) * (2 ^ k + (k + 1) ^ 2) ≤ 4 * B ^ 3 := by
       have hk1 : k + 1 ≤ B := by dsimp only [B]; omega
       have h2k : 2 ^ k ≤ B := by dsimp only [B]; omega
-      have hsq : (k + 1) ^ 2 ≤ B ^ 2 := Nat.pow_le_pow_left hk1 2
-      have hsum : 2 ^ k + (k + 1) ^ 2 ≤ 2 * B ^ 2 := by
-        have : B ≤ B ^ 2 := Nat.le_self_pow two_ne_zero B
-        omega
-      calc (k + 1) * (2 ^ k + (k + 1) ^ 2) ≤ B * (2 * B ^ 2) := Nat.mul_le_mul hk1 hsum
-        _ = 2 * B ^ 3 := by ring
-        _ ≤ 4 * B ^ 3 := by omega
+      have : B ≤ B ^ 2 := Nat.le_self_pow two_ne_zero B
+      calc (k + 1) * (2 ^ k + (k + 1) ^ 2) ≤ B * (2 * B ^ 2) :=
+            Nat.mul_le_mul hk1 (by have := Nat.pow_le_pow_left hk1 2; omega)
+        _ ≤ 4 * B ^ 3 := by ring_nf; omega
     have harg_len : (encPair (Unbounded.encExtCircuit 1) (encPair encUnary encUnary)
         (p.1, (k, 2 ^ k))).length + 1 ≤ 8 * B := by
       rw [length_encPair, length_encPair, encUnary_apply, encUnary_apply,
@@ -927,13 +896,8 @@ private theorem computableInO_anyEval :
     ComputableInPolyTime.ite SymOutParam.computableInPolyTime_eval
       (ComputableInPolyTime.const [true]) (ComputableInPolyTime.const [])
   have hstate_const : ∀ (p : SymOutParam) (l : List ℕ) (j : ℕ),
-      streamState p (fun q : SymOutParam × ℕ => q.1) l j = p := by
-    intro p l j
-    suffices ∀ m : List ℕ, m.foldl (fun s _ => s) p = p from this (l.take j)
-    intro m
-    induction m with
-    | nil => rfl
-    | cons _ _ ih => exact ih
+      streamState p (fun q : SymOutParam × ℕ => q.1) l j = p := fun _ l j =>
+    List.foldl_fixed (l.take j)
   obtain ⟨c, d, hsf⟩ := ComputableInTimeAndSpace.streamFold_pair_list
     (encA := encNat) (encS := encSymOutParam) (encB := encBool)
     (encIn := encPair encSymOutParam (encList encNat))
@@ -942,6 +906,9 @@ private theorem computableInO_anyEval :
     (lMax := fun r => (encSymOutParam r.1).length + maxNatLen r.2)
     (fun r j _ => by rw [hstate_const]; exact Nat.le_add_right _ _)
     (fun r j hj => (mem_le_maxNatLen (List.getElem_mem hj)).trans (Nat.le_add_left _ _))
+  have hr : ∀ r : SymOutParam × List ℕ, r.2.length ≤
+      (r.2.length + 1) * ((encSymOutParam r.1).length + maxNatLen r.2 + 1) ^ d := fun r =>
+    (Nat.le_succ _).trans (Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ (Nat.succ_pos _)))
   have hsfO : ComputableInO streamAnyEval (encPair encSymOutParam (encList encNat))
       (encList encBool)
       (fun r => (encPair encSymOutParam (encList encNat) r).length +
@@ -954,13 +921,7 @@ private theorem computableInO_anyEval :
           (r.2.length + 1) * ((encSymOutParam r.1).length + maxNatLen r.2 + 1) ^ d :=
         Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
       exact Nat.mul_le_mul (by omega) (by omega)
-    · have hlen := length_encList_streamAnyEval_le r
-      have hpow1 : 1 ≤ ((encSymOutParam r.1).length + maxNatLen r.2 + 1) ^ d :=
-        Nat.one_le_pow _ _ (Nat.succ_pos _)
-      have hr : r.2.length ≤
-          (r.2.length + 1) * ((encSymOutParam r.1).length + maxNatLen r.2 + 1) ^ d :=
-        (Nat.le_succ _).trans (Nat.le_mul_of_pos_right _ hpow1)
-      nlinarith only [hlen, hr]
+    · nlinarith only [length_encList_streamAnyEval_le r, hr r]
   have hbitsO : ComputableInO (fun r => encList encBool (streamAnyEval r))
       (encPair encSymOutParam (encList encNat)) encBits _ _ :=
     hsfO.of_enc_eq fun _ => rfl
@@ -973,12 +934,8 @@ private theorem computableInO_anyEval :
       congrArg encBool (by simp only [Function.comp_apply, foldl_encList_streamAnyEval])
   refine ⟨d, hcomp.mono 5 (fun r => ?_) (fun r => ?_)⟩
   all_goals
-    have hlen := length_encList_streamAnyEval_le r
-    have hpow1 : 1 ≤ ((encSymOutParam r.1).length + maxNatLen r.2 + 1) ^ d :=
-      Nat.one_le_pow _ _ (Nat.succ_pos _)
-    have hr : r.2.length ≤
-        (r.2.length + 1) * ((encSymOutParam r.1).length + maxNatLen r.2 + 1) ^ d :=
-      (Nat.le_succ _).trans (Nat.le_mul_of_pos_right _ hpow1)
+    have := length_encList_streamAnyEval_le r
+    have := hr r
     omega
 
 /-- **Multi-tape TM complexity of `symAndSAT`** ([Williams2014], Lemma 4.2 + streaming evaluation):
@@ -1011,18 +968,14 @@ theorem computableInO_symAndSAT :
     have hP1 : 1 ≤ P := Nat.succ_pos _
     have h2n1 : 1 ≤ 2 ^ q.1.n := Nat.one_le_pow _ _ (by decide)
     have hT1 : 1 ≤ T := Nat.mul_pos (by omega) (Nat.one_le_pow _ _ hP1)
-    have hmaxLen : maxNatLen q.1.countList ≤ q.1.gates.length.size :=
-      maxNatLen_le fun z hz => by
-        rw [encNat_apply]
-        simpa only [← Nat.size_eq_bits_len] using
-          Nat.size_le_size (q.1.countList_le_gates_length hz)
+    have hz : ∀ z ∈ q.1.countList, (encNat z).length ≤ q.1.gates.length.size := fun z hz => by
+      rw [encNat_apply]
+      simpa only [← Nat.size_eq_bits_len] using
+        Nat.size_le_size (q.1.countList_le_gates_length hz)
+    have hmaxLen : maxNatLen q.1.countList ≤ q.1.gates.length.size := maxNatLen_le hz
     have hlistLen : (encList encNat q.1.countList).length ≤
         2 ^ q.1.n * (2 * q.1.gates.length.size + 1) := by
-      have h1 := length_encList_le encNat q.1.countList (b := q.1.gates.length.size) fun z hz => by
-        rw [encNat_apply]
-        simpa only [← Nat.size_eq_bits_len] using
-          Nat.size_le_size (q.1.countList_le_gates_length hz)
-      simpa only [SymAndInstance.length_countList] using h1
+      simpa only [SymAndInstance.length_countList] using length_encList_le encNat _ hz
     have hpairLen : (encPair encSymOutParam (encList encNat) (q.2, q.1.countList)).length ≤
         2 * (encSymOutParam q.2).length + 2 ^ q.1.n * (2 * q.1.gates.length.size + 1) + 1 := by
       rw [length_encPair]; dsimp only; omega
@@ -1365,14 +1318,10 @@ private theorem acc0_pipe_poly_bound (d : ℕ) {m : ℕ} (hm : 0 < m) (n ℓ : �
     Nat.size_le.2 (hab.trans_lt (Nat.pow_lt_pow_right (by decide) (Nat.lt_succ_self b)))
   have h1_nK : 1 ≤ (n + 1) ^ K := Nat.one_le_pow _ _ (Nat.succ_pos n)
   have hn1_K : n + 1 ≤ (n + 1) ^ K := Nat.le_self_pow (by omega) (n + 1)
-  have h2B₀_K0 : (2 * B₀) ^ K0 ≤ (2 * B₀c) ^ K * (n + 1) ^ K0 := by
-    have h1 : (2 * B₀) ^ K0 ≤ (2 * B₀c) ^ K0 * (n + 1) ^ K0 := by
-      calc (2 * B₀) ^ K0 ≤ (2 * B₀c * (n + 1)) ^ K0 :=
-            Nat.pow_le_pow_left (by nlinarith only [hB₀_le]) K0
-        _ = (2 * B₀c) ^ K0 * (n + 1) ^ K0 := Nat.mul_pow (2 * B₀c) (n + 1) K0
-    have h2 : (2 * B₀c) ^ K0 ≤ (2 * B₀c) ^ K :=
-      Nat.pow_le_pow_right (by dsimp only [B₀c]; positivity) (by omega)
-    exact h1.trans (Nat.mul_le_mul_right _ h2)
+  have h2B₀_K0 : (2 * B₀) ^ K0 ≤ (2 * B₀c) ^ K * (n + 1) ^ K0 :=
+    ((Nat.pow_le_pow_left (by nlinarith only [hB₀_le] : 2 * B₀ ≤ 2 * B₀c * (n + 1)) K0).trans_eq
+      (Nat.mul_pow _ _ _)).trans
+      (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by dsimp only [B₀c]; positivity) (by omega)))
   have hgates_sz : q.1.gates.length.size ≤ ((2 * B₀c) ^ K + 1) * (n + 1) ^ K := by
     have h1 := hsize_pow2 _ _ hqgates
     have h2 : (n + 1) ^ K0 ≤ (n + 1) ^ K :=
@@ -1417,6 +1366,11 @@ private theorem acc0_pipe_poly_bound (d : ℕ) {m : ℕ} (hm : 0 < m) (n ℓ : �
   dsimp only [P_const]
   nlinarith only [hqn_le, hout_len, hgates_sz, h1_nK]
 
+/-- An upper bound `x ≤ a * 2 ^ ℓ` raised to the `k`-th power. -/
+private theorem pow_le_pow_mul_two_pow {x a ℓ : ℕ} (h : x ≤ a * 2 ^ ℓ) (k : ℕ) :
+    x ^ k ≤ a ^ k * 2 ^ (k * ℓ) :=
+  (Nat.pow_le_pow_left h k).trans_eq (by rw [Nat.mul_pow, ← pow_mul, Nat.mul_comm ℓ])
+
 /-- Pure arithmetic integer bounds on every pipeline stage for a guarded input. -/
 private theorem acc0_guarded_nat_bounds (K dg dr C_exp C_comp C_sat c_expLen c_compLen : ℕ)
     (hK2 : 2 ≤ K) (n ℓ L s c'n c's len_c' len_x : ℕ)
@@ -1439,127 +1393,57 @@ private theorem acc0_guarded_nat_bounds (K dg dr C_exp C_comp C_sat c_expLen c_c
       T_c ≤ C_raw * 2 ^ ((E_comp + E_exp) * (ℓ + 1) ^ K) ∧
       len_x + 1 ≤ C_raw * 2 ^ ((E_comp + E_exp) * (ℓ + 1) ^ K) := by
   intro E_exp E_comp E_all C_raw T_e T_c
+  have h2ℓ : 2 ^ (ℓ + 1) = 2 * 2 ^ ℓ := by ring
   have h2ℓ_pos : 1 ≤ 2 ^ ℓ := Nat.one_le_pow _ _ (by decide)
-  have hL1_le : L + 1 ≤ 3 * 2 ^ ℓ := by
-    have : 2 ^ (ℓ + 1) = 2 * 2 ^ ℓ := by ring
-    omega
-  have hlog_c' : Nat.log 2 (c'n + c's) + 2 ≤ 8 * (ℓ + 1) := by
-    have hsum_le : c'n + c's < 2 ^ (2 * ℓ + 4) := by
-      have h1 : c'n ≤ 2 ^ (ℓ + 1) := by omega
-      have h2 : 2 ^ ℓ * s ≤ 2 ^ ℓ * 2 ^ (ℓ + 1) :=
-        Nat.mul_le_mul_left _ (hs_le_L.trans hL_le)
-      have h3 : 2 ^ ℓ * 2 ^ (ℓ + 1) = 2 * 2 ^ (2 * ℓ) := by rw [← pow_add]; ring
-      have h4 : 2 ^ (2 * ℓ + 4) = 16 * 2 ^ (2 * ℓ) := by ring
-      have h5 : 2 ^ (ℓ + 1) ≤ 2 * 2 ^ (2 * ℓ) := by
-        have : 2 ^ ℓ ≤ 2 ^ (2 * ℓ) := Nat.pow_le_pow_right (by decide) (by omega)
-        have : 2 ^ (ℓ + 1) = 2 * 2 ^ ℓ := by ring
-        omega
-      have h6 : 1 ≤ 2 ^ (2 * ℓ) := Nat.one_le_pow _ _ (by decide)
-      omega
-    have hlog : Nat.log 2 (c'n + c's) < 2 * ℓ + 4 :=
-      (Nat.log_lt_iff_lt_pow (by decide) (by omega)).2 hsum_le
-    omega
   have hℓ_le_2ℓ : ℓ ≤ 2 ^ ℓ := Nat.lt_two_pow_self.le
+  have hL1_le : L + 1 ≤ 3 * 2 ^ ℓ := by omega
+  have hlog_c' : Nat.log 2 (c'n + c's) + 2 ≤ 8 * (ℓ + 1) := by
+    have h4 : 2 ^ (2 * ℓ + 4) = 16 * (2 ^ ℓ * 2 ^ ℓ) := by ring
+    have h5 : 2 ^ ℓ * s ≤ 2 ^ ℓ * (2 * 2 ^ ℓ) := Nat.mul_le_mul_left _ (by omega)
+    have hlog : Nat.log 2 (c'n + c's) < 2 * ℓ + 4 :=
+      (Nat.log_lt_iff_lt_pow (by decide) (by omega)).2 (by
+        rw [h4, hc's]; nlinarith only [h5, h2ℓ_pos, (by omega : c'n ≤ 2 * 2 ^ ℓ)])
+    omega
+  have h2le : ∀ k ≤ C_exp + dr + 1, 2 ^ (k * ℓ) ≤ 2 ^ ((C_exp + dr + 1) * ℓ) := fun k hk =>
+    Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right ℓ hk)
+  have h6le : ∀ a k, a ≤ 6 → k ≤ C_exp + dr → a ^ k ≤ 6 ^ (C_exp + dr) := fun a k ha hk =>
+    (Nat.pow_le_pow_left ha k).trans (Nat.pow_le_pow_right (by decide) hk)
   have hT_exp_le : T_e ≤ 6 ^ (C_exp + dr + 1) * 2 ^ ((C_exp + dr + 1) * ℓ) := by
+    have hA1 : L ≤ 2 * (6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ)) :=
+      (by rw [Nat.one_mul]; omega : L ≤ 2 * 2 ^ (1 * ℓ)).trans (Nat.mul_le_mul_left 2
+        ((h2le 1 (by omega)).trans (Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ (by decide)))))
+    have hA2 := (pow_le_pow_mul_two_pow hL1_le dr).trans
+      (Nat.mul_le_mul (h6le 3 dr (by decide) (by omega)) (h2le dr (by omega)))
+    have hA3 := (pow_le_pow_mul_two_pow (by omega : L + 2 ^ ℓ + ℓ + 1 ≤ 5 * 2 ^ ℓ) C_exp).trans
+      (Nat.mul_le_mul (h6le 5 C_exp (by decide) (by omega)) (h2le C_exp (by omega)))
     dsimp only [T_e]
-    have hbase1 : L + 2 ^ ℓ + ℓ + 1 ≤ 5 * 2 ^ ℓ := by omega
-    have hp1 : (L + 2 ^ ℓ + ℓ + 1) ^ C_exp ≤ 5 ^ C_exp * 2 ^ (C_exp * ℓ) := by
-      calc _ ≤ (5 * 2 ^ ℓ) ^ C_exp := Nat.pow_le_pow_left hbase1 C_exp
-        _ = 5 ^ C_exp * (2 ^ ℓ) ^ C_exp := Nat.mul_pow _ _ _
-        _ = 5 ^ C_exp * 2 ^ (C_exp * ℓ) := by rw [← pow_mul, Nat.mul_comm ℓ]
-    have hp2 : (L + 1) ^ dr ≤ 3 ^ dr * 2 ^ (dr * ℓ) := by
-      calc _ ≤ (3 * 2 ^ ℓ) ^ dr := Nat.pow_le_pow_left hL1_le dr
-        _ = 3 ^ dr * (2 ^ ℓ) ^ dr := Nat.mul_pow _ _ _
-        _ = 3 ^ dr * 2 ^ (dr * ℓ) := by rw [← pow_mul, Nat.mul_comm ℓ]
-    have h2_c : 2 ^ (C_exp * ℓ) ≤ 2 ^ ((C_exp + dr + 1) * ℓ) :=
-      Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right ℓ (by omega))
-    have h2_d : 2 ^ (dr * ℓ) ≤ 2 ^ ((C_exp + dr + 1) * ℓ) :=
-      Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right ℓ (by omega))
-    have h2_1 : 2 ^ ℓ ≤ 2 ^ ((C_exp + dr + 1) * ℓ) :=
-      Nat.pow_le_pow_right (by decide) (Nat.le_mul_of_pos_left ℓ (by omega))
-    have h5_6 : 5 ^ C_exp ≤ 6 ^ (C_exp + dr) :=
-      (Nat.pow_le_pow_left (by decide : 5 ≤ 6) C_exp).trans
-        (Nat.pow_le_pow_right (by decide) (by omega))
-    have h3_6 : 3 ^ dr ≤ 6 ^ (C_exp + dr) :=
-      (Nat.pow_le_pow_left (by decide : 3 ≤ 6) dr).trans
-        (Nat.pow_le_pow_right (by decide) (by omega))
-    have h1_6 : 1 ≤ 6 ^ (C_exp + dr) := Nat.one_le_pow _ _ (by decide)
-    have h6_succ : 6 ^ (C_exp + dr + 1) = 6 * 6 ^ (C_exp + dr) := by ring
-    rw [h6_succ]
-    have hA1 : L ≤ 2 * 6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ) := by
-      have hL2 : L ≤ 2 * 2 ^ ℓ := by
-        have : 2 ^ (ℓ + 1) = 2 * 2 ^ ℓ := by ring
-        omega
-      calc L ≤ 2 * 2 ^ ℓ := hL2
-        _ ≤ 2 * 2 ^ ((C_exp + dr + 1) * ℓ) := Nat.mul_le_mul_left 2 h2_1
-        _ = 2 * 1 * 2 ^ ((C_exp + dr + 1) * ℓ) := by ring
-        _ ≤ 2 * 6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ) :=
-            Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 2 h1_6)
-    have hA2 : (L + 1) ^ dr ≤ 6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ) :=
-      hp2.trans (Nat.mul_le_mul h3_6 h2_d)
-    have hA3 : (L + 2 ^ ℓ + ℓ + 1) ^ C_exp ≤ 6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ) :=
-      hp1.trans (Nat.mul_le_mul h5_6 h2_c)
-    have hmul_assoc : 6 * 6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ) =
-        6 * (6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ)) := by ring
-    have hmul2 : 2 * 6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ) =
-        2 * (6 ^ (C_exp + dr) * 2 ^ ((C_exp + dr + 1) * ℓ)) := by ring
+    rw [pow_succ', Nat.mul_assoc]
     omega
   have hlen_c' : len_c' + 1 ≤
       (2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1) * 2 ^ ((C_exp + dr + 1) * ℓ) := by
     have h1 : 1 ≤ 6 ^ (C_exp + dr + 1) * 2 ^ ((C_exp + dr + 1) * ℓ) :=
       Nat.mul_pos (Nat.one_le_pow _ _ (by decide)) (Nat.two_pow_pos _)
-    set P := 6 ^ (C_exp + dr + 1) * 2 ^ ((C_exp + dr + 1) * ℓ)
-    have hle1 : len_c' ≤ c_expLen * (P + 1) :=
+    have hle1 :=
       hexpLen.trans (Nat.mul_le_mul_left c_expLen (Nat.add_le_add_right hT_exp_le 1))
-    have hle2 : c_expLen * (P + 1) + 1 ≤ (2 * c_expLen + 2) * P := by
-      have he1 : c_expLen * (P + 1) + 1 = c_expLen * P + c_expLen + 1 := by ring
-      have he2 : (2 * c_expLen + 2) * P = c_expLen * P + c_expLen * P + 2 * P := by ring
-      have he3 : c_expLen ≤ c_expLen * P := Nat.le_mul_of_pos_right c_expLen h1
-      omega
-    have hassoc : (2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1) * 2 ^ ((C_exp + dr + 1) * ℓ) =
-        (2 * c_expLen + 2) * P := by dsimp only [P]; ring
-    rw [hassoc]
-    omega
+    rw [Nat.mul_assoc]
+    nlinarith only [hle1, h1]
   have hℓ_powK : ℓ ≤ (ℓ + 1) ^ K :=
     (Nat.le_succ ℓ).trans (Nat.le_self_pow (by omega) (ℓ + 1))
   have hT_comp_le : T_c ≤
       ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp *
         2 ^ ((C_comp * (C_exp + dr + 1) + C_comp * 8 ^ K) * (ℓ + 1) ^ K) := by
-    dsimp only [T_c]
-    have hpow_len : (len_c' + 1) ^ C_comp ≤
-        ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp *
-          2 ^ (C_comp * (C_exp + dr + 1) * ℓ) := by
-      calc _ ≤ ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1) *
-            2 ^ ((C_exp + dr + 1) * ℓ)) ^ C_comp := Nat.pow_le_pow_left hlen_c' C_comp
-        _ = ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp *
-            (2 ^ ((C_exp + dr + 1) * ℓ)) ^ C_comp := Nat.mul_pow _ _ _
-        _ = ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp *
-            2 ^ (C_comp * (C_exp + dr + 1) * ℓ) := by
-            rw [← pow_mul]
-            congr 2
-            ring
-    have hlog_pow : (Nat.log 2 (c'n + c's) + 2) ^ K ≤ 8 ^ K * (ℓ + 1) ^ K := by
-      calc _ ≤ (8 * (ℓ + 1)) ^ K := Nat.pow_le_pow_left hlog_c' K
-        _ = 8 ^ K * (ℓ + 1) ^ K := Nat.mul_pow _ _ _
-    have hexp_le : C_comp * (C_exp + dr + 1) * ℓ +
+    have hlog_pow : (Nat.log 2 (c'n + c's) + 2) ^ K ≤ 8 ^ K * (ℓ + 1) ^ K :=
+      (Nat.pow_le_pow_left hlog_c' K).trans_eq (Nat.mul_pow _ _ _)
+    have hexp_le : C_comp * ((C_exp + dr + 1) * ℓ) +
         C_comp * (Nat.log 2 (c'n + c's) + 2) ^ K ≤
         (C_comp * (C_exp + dr + 1) + C_comp * 8 ^ K) * (ℓ + 1) ^ K := by
-      have h1 : C_comp * (C_exp + dr + 1) * ℓ ≤
-          C_comp * (C_exp + dr + 1) * (ℓ + 1) ^ K := Nat.mul_le_mul_left _ hℓ_powK
-      have h2 : C_comp * (Nat.log 2 (c'n + c's) + 2) ^ K ≤
-          C_comp * (8 ^ K * (ℓ + 1) ^ K) := Nat.mul_le_mul_left _ hlog_pow
-      have h3 : C_comp * (C_exp + dr + 1) * (ℓ + 1) ^ K + C_comp * (8 ^ K * (ℓ + 1) ^ K) =
-          (C_comp * (C_exp + dr + 1) + C_comp * 8 ^ K) * (ℓ + 1) ^ K := by ring
-      omega
-    calc (len_c' + 1) ^ C_comp * 2 ^ (C_comp * (Nat.log 2 (c'n + c's) + 2) ^ K)
-        ≤ (((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp *
-            2 ^ (C_comp * (C_exp + dr + 1) * ℓ)) *
-          2 ^ (C_comp * (Nat.log 2 (c'n + c's) + 2) ^ K) :=
-          Nat.mul_le_mul_right _ hpow_len
-      _ = ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp *
-          2 ^ (C_comp * (C_exp + dr + 1) * ℓ +
-            C_comp * (Nat.log 2 (c'n + c's) + 2) ^ K) := by
-          rw [Nat.mul_assoc, ← pow_add]
+      nlinarith only [Nat.mul_le_mul_left (C_comp * (C_exp + dr + 1)) hℓ_powK,
+        Nat.mul_le_mul_left C_comp hlog_pow]
+    dsimp only [T_c]
+    calc _ ≤ ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp *
+          2 ^ (C_comp * ((C_exp + dr + 1) * ℓ) + C_comp * (Nat.log 2 (c'n + c's) + 2) ^ K) := by
+          rw [pow_add 2 (C_comp * ((C_exp + dr + 1) * ℓ)), ← Nat.mul_assoc]
+          exact Nat.mul_le_mul_right _ (pow_le_pow_mul_two_pow hlen_c' C_comp)
       _ ≤ _ := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by decide) hexp_le)
   have hE_exp_ge : (C_exp + dr + 1) * ℓ ≤ (E_comp + E_exp) * (ℓ + 1) ^ K := by
     have hA : C_exp + dr + 1 ≤ E_comp + E_exp := by
@@ -1573,74 +1457,43 @@ private theorem acc0_guarded_nat_bounds (K dg dr C_exp C_comp C_sat c_expLen c_c
     dsimp only [E_comp, E_exp]; omega
   set base := (2 * c_expLen + 2) * (6 ^ (C_exp + dr + dg + 2) + 2)
   have hbase_pos : 1 ≤ base := Nat.mul_pos (Nat.succ_pos _) (Nat.succ_pos _)
-  have h6_mono : 6 ^ (C_exp + dr + 1) ≤ 6 ^ (C_exp + dr + dg + 2) :=
-    Nat.pow_le_pow_right (by decide) (by omega)
-  have hbase_le : 6 ^ (C_exp + dr + 1) ≤ base :=
-    (h6_mono.trans (Nat.le_add_right _ 2)).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
+  have h6_base : ∀ k ≤ C_exp + dr + dg + 2, 6 ^ k ≤ 6 ^ (C_exp + dr + dg + 2) + 2 := fun k hk =>
+    (Nat.pow_le_pow_right (by decide) hk).trans (Nat.le_add_right _ 2)
+  have hbase_self : base ≤ base ^ (C_comp + 2) := Nat.le_self_pow (by omega) base
   have hpow_le : ((2 * c_expLen + 2) * 6 ^ (C_exp + dr + 1)) ^ C_comp ≤ base ^ (C_comp + 2) :=
-    (Nat.pow_le_pow_left
-      (Nat.mul_le_mul_left _ (h6_mono.trans (Nat.le_add_right _ 2))) C_comp).trans
+    (Nat.pow_le_pow_left (Nat.mul_le_mul_left _ (h6_base _ (by omega))) C_comp).trans
       (Nat.pow_le_pow_right hbase_pos (by omega))
   have h6_le_pow : 6 ^ (C_exp + dr + 1) ≤ base ^ (C_comp + 2) :=
-    hbase_le.trans (Nat.le_self_pow (by omega) base)
-  have h1_le_pow : 1 ≤ base ^ (C_comp + 2) := Nat.one_le_pow _ _ hbase_pos
+    ((h6_base _ (by omega)).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))).trans hbase_self
   have hC_raw_eq : C_raw = 4 * (c_compLen + 2) * base ^ (C_comp + 2) + 4 := rfl
   have hpow_le_Craw : base ^ (C_comp + 2) ≤ C_raw := by
     rw [hC_raw_eq]
     exact (Nat.le_mul_of_pos_left _ (by omega)).trans (Nat.le_add_right _ 4)
-  have hT1_le : T_e ≤ C_raw * 2 ^ ((E_comp + E_exp) * (ℓ + 1) ^ K) :=
-    (hT_exp_le.trans
-      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by decide) hE_exp_ge))).trans
-      (Nat.mul_le_mul_right _ (h6_le_pow.trans hpow_le_Craw))
-  have hT2_le : T_c ≤ C_raw * 2 ^ ((E_comp + E_exp) * (ℓ + 1) ^ K) :=
-    (hT_comp_le.trans
-      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by decide) hE_comp_ge))).trans
-      (Nat.mul_le_mul_right _ (hpow_le.trans hpow_le_Craw))
   have hguard_le : (L + 1) ^ dg ≤ C_raw * 2 ^ (E_all * (ℓ + 1) ^ K) := by
-    have h1 : (L + 1) ^ dg ≤ 3 ^ dg * 2 ^ (dg * ℓ) := by
-      calc _ ≤ (3 * 2 ^ ℓ) ^ dg := Nat.pow_le_pow_left hL1_le dg
-        _ = 3 ^ dg * (2 ^ ℓ) ^ dg := Nat.mul_pow _ _ _
-        _ = 3 ^ dg * 2 ^ (dg * ℓ) := by rw [← pow_mul, Nat.mul_comm ℓ]
-    have h2 : 3 ^ dg ≤ C_raw := by
-      have h36 : 3 ^ dg ≤ 6 ^ (C_exp + dr + dg + 2) :=
-        (Nat.pow_le_pow_left (by decide : 3 ≤ 6) dg).trans
-          (Nat.pow_le_pow_right (by decide) (by omega))
-      have h3b : 6 ^ (C_exp + dr + dg + 2) ≤ base ^ (C_comp + 2) :=
-        ((Nat.le_add_right _ 2).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))).trans
-          (Nat.le_self_pow (by omega) base)
-      exact (h36.trans h3b).trans hpow_le_Craw
+    have h2 : 3 ^ dg ≤ C_raw := (Nat.pow_le_pow_left (by decide : 3 ≤ 6) dg).trans
+      ((h6_base dg (by omega)).trans
+        ((Nat.le_mul_of_pos_left _ (Nat.succ_pos _)).trans (hbase_self.trans hpow_le_Craw)))
     have h3 : dg * ℓ ≤ E_all * (ℓ + 1) ^ K :=
       Nat.mul_le_mul (by
         dsimp only [E_all]
         exact (by omega : dg ≤ E_comp + E_exp + dg + dr + 10).trans
           (Nat.le_mul_of_pos_left _ (Nat.succ_pos C_sat))) hℓ_powK
-    exact h1.trans (Nat.mul_le_mul h2 (Nat.pow_le_pow_right (by decide) h3))
-  have hlen_x : len_x + 1 ≤ C_raw * 2 ^ ((E_comp + E_exp) * (ℓ + 1) ^ K) := by
-    set Bpow := base ^ (C_comp + 2)
-    set W := 2 ^ ((E_comp + E_exp) * (ℓ + 1) ^ K)
-    have hT1' : T_e ≤ Bpow * W :=
-      hT_exp_le.trans (Nat.mul_le_mul h6_le_pow (Nat.pow_le_pow_right (by decide) hE_exp_ge))
-    have hT2' : T_c ≤ Bpow * W :=
-      hT_comp_le.trans (Nat.mul_le_mul hpow_le (Nat.pow_le_pow_right (by decide) hE_comp_ge))
-    have hpow2_pos : 1 ≤ W := Nat.two_pow_pos _
-    have h1_BW : 1 ≤ Bpow * W := Nat.mul_pos h1_le_pow hpow2_pos
-    have hsum_le : T_e + T_c + 1 ≤ 3 * (Bpow * W) := by omega
-    have hmul : c_compLen * (T_e + T_c + 1) ≤ (3 * c_compLen * Bpow) * W := by
-      calc c_compLen * (T_e + T_c + 1) ≤ c_compLen * (3 * (Bpow * W)) :=
-            Nat.mul_le_mul_left c_compLen hsum_le
-        _ = (3 * c_compLen * Bpow) * W := by ring
-    have hcr : 3 * c_compLen * Bpow + 1 ≤ C_raw := by
-      rw [hC_raw_eq]
-      have : 3 * c_compLen * Bpow ≤ 4 * (c_compLen + 2) * Bpow :=
-        Nat.mul_le_mul_right Bpow (by omega)
-      omega
-    have h3 : (3 * c_compLen * Bpow) * W + 1 ≤ C_raw * W := by
-      calc (3 * c_compLen * Bpow) * W + 1
-          ≤ (3 * c_compLen * Bpow) * W + 1 * W := by omega
-        _ = (3 * c_compLen * Bpow + 1) * W := by ring
-        _ ≤ C_raw * W := Nat.mul_le_mul_right W hcr
-    exact (Nat.add_le_add_right (hcompLen.trans hmul) 1).trans h3
-  exact ⟨hlog_c', hguard_le, hT1_le, hT2_le, hlen_x⟩
+    exact (pow_le_pow_mul_two_pow hL1_le dg).trans
+      (Nat.mul_le_mul h2 (Nat.pow_le_pow_right (by decide) h3))
+  set W := 2 ^ ((E_comp + E_exp) * (ℓ + 1) ^ K)
+  have hT1' : T_e ≤ base ^ (C_comp + 2) * W :=
+    hT_exp_le.trans (Nat.mul_le_mul h6_le_pow (Nat.pow_le_pow_right (by decide) hE_exp_ge))
+  have hT2' : T_c ≤ base ^ (C_comp + 2) * W :=
+    hT_comp_le.trans (Nat.mul_le_mul hpow_le (Nat.pow_le_pow_right (by decide) hE_comp_ge))
+  have hlen_x : len_x + 1 ≤ C_raw * W := by
+    have h1_BW : 1 ≤ base ^ (C_comp + 2) * W :=
+      Nat.mul_pos (Nat.one_le_pow _ _ hbase_pos) (Nat.two_pow_pos _)
+    have hle := hcompLen.trans (Nat.mul_le_mul_left c_compLen
+      (by omega : T_e + T_c + 1 ≤ 3 * (base ^ (C_comp + 2) * W)))
+    rw [hC_raw_eq]
+    nlinarith only [hle, h1_BW]
+  exact ⟨hlog_c', hguard_le, hT1'.trans (Nat.mul_le_mul_right _ hpow_le_Craw),
+    hT2'.trans (Nat.mul_le_mul_right _ hpow_le_Craw), hlen_x⟩
 
 /-- Pure real-analytic combination of the guarded pipeline stage bounds into the Williams
 `O(2 ^ (n - (1 / 2) * n ^ (1 / p_root)))` envelope. -/
@@ -1662,12 +1515,13 @@ private theorem acc0_guarded_real_combine (K p_root C_sat E_sum E_all C_raw P_co
   let B_real : ℝ := 2 * (E_all : ℝ) * (2 : ℝ) ^ K + 10
   obtain ⟨M_sub, hM_sub_pos, hM_sub⟩ :=
     two_rpow_sqrt_le_mul_two_rpow_sub A_real B_real (by positivity) p_root hp2
-  let M_real : ℝ := ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) *
-      ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2) * (M_poly + 1) * (M_sub + 1) * 64 + 64
+  let M_real : ℝ := 3 * (C_raw : ℝ) * M_sub +
+      (P_const : ℝ) ^ C_sat * (2 * M_poly + (C_raw : ℝ) ^ C_sat * M_poly * M_sub) + 2
   obtain ⟨M, hM⟩ := exists_nat_ge M_real
   have hM2 : 2 ≤ M := by
-    have hnn : (0 : ℝ) ≤ ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) *
-        ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2) * (M_poly + 1) * (M_sub + 1) * 64 := by positivity
+    have hnn : (0 : ℝ) ≤ 3 * (C_raw : ℝ) * M_sub +
+        (P_const : ℝ) ^ C_sat * (2 * M_poly + (C_raw : ℝ) ^ C_sat * M_poly * M_sub) := by
+      positivity
     have hle : (2 : ℝ) ≤ (M : ℝ) := by dsimp only [M_real] at hM; linarith
     exact_mod_cast hle
   refine ⟨M, hM2, fun n T_g T_e T_c len_x P_term hguard_le hT1_le hT2_le hlen_x hP_le => ?_⟩
@@ -1742,24 +1596,15 @@ private theorem acc0_guarded_real_combine (K p_root C_sat E_sum E_all C_raw P_co
           Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) hsub
       _ = 2 * (2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹)) := by
           rw [Real.rpow_add (by norm_num : (0 : ℝ) < 2), Real.rpow_one, mul_comm]
-  have hE_sub : E_sum * (ℓ + 1) ^ K ≤ E_all * (ℓ + 1) ^ K :=
-    Nat.mul_le_mul_right _ hE_le
   have hE_sat : C_sat * (E_sum * (ℓ + 1) ^ K) ≤ E_all * (ℓ + 1) ^ K := by
     rw [← Nat.mul_assoc]
     exact Nat.mul_le_mul_right _ hE_sat_le
-  have hterm_guard : (T_g : ℝ) ≤ (C_raw : ℝ) * M_sub * target := by
-    have hcast : (T_g : ℝ) ≤ (C_raw : ℝ) * ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) := by
-      exact_mod_cast hguard_le
-    nlinarith only [hcast, hpow2_ell_alone, (Nat.cast_nonneg C_raw : (0 : ℝ) ≤ C_raw)]
-  have hterm_of_Esum : ∀ v : ℕ, v ≤ C_raw * 2 ^ (E_sum * (ℓ + 1) ^ K) →
-      (v : ℝ) ≤ (C_raw : ℝ) * M_sub * target := fun v hv => by
-    have h1 : v ≤ C_raw * 2 ^ (E_all * (ℓ + 1) ^ K) :=
-      hv.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by decide) hE_sub))
+  have hterm : ∀ v E : ℕ, E ≤ E_all → v ≤ C_raw * 2 ^ (E * (ℓ + 1) ^ K) →
+      (v : ℝ) ≤ (C_raw : ℝ) * M_sub * target := fun v E hE hv => by
     have hcast : (v : ℝ) ≤ (C_raw : ℝ) * ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) := by
-      exact_mod_cast h1
+      exact_mod_cast hv.trans (Nat.mul_le_mul_left _
+        (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ hE)))
     nlinarith only [hcast, hpow2_ell_alone, (Nat.cast_nonneg C_raw : (0 : ℝ) ≤ C_raw)]
-  have hterm_exp : (T_e : ℝ) ≤ (C_raw : ℝ) * M_sub * target := hterm_of_Esum T_e hT1_le
-  have hterm_comp : (T_c : ℝ) ≤ (C_raw : ℝ) * M_sub * target := hterm_of_Esum T_c hT2_le
   set T_s : ℕ := (2 ^ (n - ℓ) + (len_x + 1) ^ C_sat) * P_term ^ C_sat
   have hterm_sat : (T_s : ℝ) ≤
       ((P_const : ℝ) ^ C_sat * (2 * M_poly + (C_raw : ℝ) ^ C_sat * M_poly * M_sub)) * target := by
@@ -1778,101 +1623,36 @@ private theorem acc0_guarded_real_combine (K p_root C_sat E_sum E_all C_raw P_co
         (P_const ^ C_sat * (n + 1) ^ (K * C_sat)) :=
       Nat.mul_le_mul (Nat.add_le_add_left hx_pow _) hP_pow
     have hcast : (T_s : ℝ) ≤
-        (P_const : ℝ) ^ C_sat *
-          (((2 ^ (n - ℓ) : ℕ) : ℝ) * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ) +
-           (C_raw : ℝ) ^ C_sat *
-             (((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ))) := by
-      have h' : (T_s : ℝ) ≤
-          (((2 ^ (n - ℓ) : ℕ) : ℝ) +
-            (C_raw : ℝ) ^ C_sat * ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ)) *
-            ((P_const : ℝ) ^ C_sat * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ)) := by
-        exact_mod_cast hnat
-      linarith
+        (((2 ^ (n - ℓ) : ℕ) : ℝ) +
+          (C_raw : ℝ) ^ C_sat * ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ)) *
+          ((P_const : ℝ) ^ C_sat * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ)) := by
+      exact_mod_cast hnat
     have hpart1 : ((2 ^ (n - ℓ) : ℕ) : ℝ) * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ) ≤
         2 * M_poly * target := by
-      have hm1 : ((2 ^ (n - ℓ) : ℕ) : ℝ) * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ) ≤
-          (2 * (2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹))) *
+      have hadd : (2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹)) *
+          (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹)) = target := by
+        rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+        congr 1; ring
+      calc _ ≤ (2 * (2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹))) *
             (M_poly * (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹))) :=
-        mul_le_mul h2sub_real hpoly_real (by positivity) (by positivity)
-      have heq : (2 * (2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹))) *
-          (M_poly * (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹))) =
-          2 * M_poly * target := by
-        have hadd : (2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹)) *
-            (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹)) = target := by
-          rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-          congr 1; ring
-        calc _ = 2 * M_poly * ((2 : ℝ) ^ ((n : ℝ) - (n : ℝ) ^ ((p_root : ℝ)⁻¹)) *
-              (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹))) := by ring
-          _ = 2 * M_poly * target := by rw [hadd]
-      linarith
+          mul_le_mul h2sub_real hpoly_real (by positivity) (by positivity)
+        _ = 2 * M_poly * target := by rw [← hadd]; ring
     have hpart2 : ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ) ≤
-        M_poly * M_sub * target := by
-      have hm2 := mul_le_mul_of_nonneg_left hpoly_real
-        (by positivity : (0 : ℝ) ≤ ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ))
-      have hrew : ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) *
-          (M_poly * (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹))) =
-          M_poly * (((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) *
-            (2 : ℝ) ^ ((1 / 2 : ℝ) * (n : ℝ) ^ ((p_root : ℝ)⁻¹))) := by ring
-      rw [hrew] at hm2
-      exact hm2.trans (by nlinarith only [hpow2_ell, hM_poly_pos])
+        M_poly * M_sub * target :=
+      (mul_le_mul_of_nonneg_left hpoly_real
+        (by positivity : (0 : ℝ) ≤ ((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ))).trans
+        (by nlinarith only [hpow2_ell, hM_poly_pos])
     have hP0 : (0 : ℝ) ≤ (P_const : ℝ) ^ C_sat := by positivity
-    have hC0 : (0 : ℝ) ≤ (C_raw : ℝ) ^ C_sat := by positivity
-    have hinner : ((2 ^ (n - ℓ) : ℕ) : ℝ) * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ) +
-        (C_raw : ℝ) ^ C_sat *
-          (((2 ^ (E_all * (ℓ + 1) ^ K) : ℕ) : ℝ) * (((n + 1) ^ (K * C_sat) : ℕ) : ℝ)) ≤
-        (2 * M_poly + (C_raw : ℝ) ^ C_sat * M_poly * M_sub) * target := by
-      nlinarith only [hpart1, hpart2, hC0]
-    have hfin := mul_le_mul_of_nonneg_left hinner hP0
-    linarith
+    linarith only [hcast, mul_le_mul_of_nonneg_left hpart1 hP0, mul_le_mul_of_nonneg_left hpart2
+      (mul_nonneg hP0 (by positivity : (0 : ℝ) ≤ (C_raw : ℝ) ^ C_sat))]
   have hcoeff_le : 3 * (C_raw : ℝ) * M_sub +
-      (P_const : ℝ) ^ C_sat * (2 * M_poly + (C_raw : ℝ) ^ C_sat * M_poly * M_sub) ≤ M_real := by
-    have hC1 : (1 : ℝ) ≤ ((C_raw + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.succ_pos C_raw
-    have hP1 : (1 : ℝ) ≤ ((P_const + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.succ_pos P_const
-    have hC_le : (C_raw : ℝ) ≤ ((C_raw + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.le_succ C_raw
-    have hP_le' : (P_const : ℝ) ≤ ((P_const + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.le_succ P_const
-    have hCp : (C_raw : ℝ) ^ C_sat ≤ ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) :=
-      (pow_le_pow_left₀ (by positivity) hC_le C_sat).trans (pow_le_pow_right₀ hC1 (by omega))
-    have hC1p : (C_raw : ℝ) ≤ ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) :=
-      hC_le.trans (le_self_pow₀ hC1 (by omega))
-    have hPp : (P_const : ℝ) ^ C_sat ≤ ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2) :=
-      (pow_le_pow_left₀ (by positivity) hP_le' C_sat).trans (pow_le_pow_right₀ hP1 (by omega))
-    have hP1p : (1 : ℝ) ≤ ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2) := one_le_pow₀ hP1
-    have hC1p' : (1 : ℝ) ≤ ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) := one_le_pow₀ hC1
-    set X : ℝ := (((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) * ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2)) *
-      ((M_poly + 1) * (M_sub + 1))
-    have hX_1 : (C_raw : ℝ) * M_sub ≤ X := by
-      have h1 : (C_raw : ℝ) ≤ ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) *
-          ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2) := by
-        nlinarith only [hC1p, hP1p, (Nat.cast_nonneg C_raw : (0 : ℝ) ≤ C_raw)]
-      have h2 : M_sub ≤ (M_poly + 1) * (M_sub + 1) := by nlinarith only [hM_poly_pos, hM_sub_pos]
-      exact mul_le_mul h1 h2 hM_sub_pos.le (by positivity)
-    have hX_2 : (P_const : ℝ) ^ C_sat * M_poly ≤ X := by
-      have h1 : (P_const : ℝ) ^ C_sat ≤ ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) *
-          ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2) := by
-        have hP_nn : (0 : ℝ) ≤ (P_const : ℝ) ^ C_sat := by positivity
-        nlinarith only [hPp, hC1p', hP_nn]
-      have h2 : M_poly ≤ (M_poly + 1) * (M_sub + 1) := by nlinarith only [hM_poly_pos, hM_sub_pos]
-      exact mul_le_mul h1 h2 hM_poly_pos.le (by positivity)
-    have hX_3 : (P_const : ℝ) ^ C_sat * ((C_raw : ℝ) ^ C_sat * M_poly * M_sub) ≤ X := by
-      have h1 : (P_const : ℝ) ^ C_sat * (C_raw : ℝ) ^ C_sat ≤
-          ((C_raw + 1 : ℕ) : ℝ) ^ (C_sat + 2) * ((P_const + 1 : ℕ) : ℝ) ^ (C_sat + 2) := by
-        rw [mul_comm]
-        exact mul_le_mul hCp hPp (by positivity) (by positivity)
-      have h2 : M_poly * M_sub ≤ (M_poly + 1) * (M_sub + 1) := by
-        nlinarith only [hM_poly_pos, hM_sub_pos]
-      have h3 := mul_le_mul h1 h2 (by positivity) (by positivity)
-      have heq : (P_const : ℝ) ^ C_sat * ((C_raw : ℝ) ^ C_sat * M_poly * M_sub) =
-          ((P_const : ℝ) ^ C_sat * (C_raw : ℝ) ^ C_sat) * (M_poly * M_sub) := by ring
-      rw [heq]; exact h3
-    have hX0 : 0 ≤ X := by positivity
-    have hM_real_eq : M_real = X * 64 + 64 := by dsimp only [M_real, X]; ring
-    rw [hM_real_eq]
-    nlinarith only [hX_1, hX_2, hX_3, hX0]
+      (P_const : ℝ) ^ C_sat * (2 * M_poly + (C_raw : ℝ) ^ C_sat * M_poly * M_sub) ≤ M_real :=
+    le_add_of_nonneg_right zero_le_two
   have hM_nonneg : (0 : ℝ) ≤ M := Nat.cast_nonneg M
   have hsum_cast : ((T_g + (T_e + T_c + T_s) : ℕ) : ℝ) =
       (T_g : ℝ) + (T_e : ℝ) + (T_c : ℝ) + (T_s : ℝ) := by push_cast; ring
-  nlinarith only [hsum_cast, hterm_guard, hterm_exp, hterm_comp, hterm_sat, hcoeff_le, hM,
-    htarget_pos, hM_nonneg]
+  nlinarith only [hsum_cast, hterm T_g E_all le_rfl hguard_le, hterm T_e E_sum hE_le hT1_le,
+    hterm T_c E_sum hE_le hT2_le, hterm_sat, hcoeff_le, hM, htarget_pos, hM_nonneg]
 
 /-- Analytical upper bound on the combined pipeline cost for guarded `ACC⁰[m]` inputs. -/
 private theorem acc0_guarded_real_bound (d : ℕ) {m : ℕ} (hm : 0 < m)
@@ -1965,12 +1745,7 @@ private theorem acc0_guarded_real_bound (d : ℕ) {m : ℕ} (hm : 0 < m)
   rw [hmin_ℓ] at hexp_c hcomp_c ⊢
   have hcomp_c' := hlen_x_le.trans hcomp_c
   obtain ⟨hlog_c', hguard_le, hT1_le, hT2_le, hlen_x⟩ :=
-    acc0_guarded_nat_bounds K dg dr C_exp C_comp C_sat c_expLen c_compLen hK2
-      c.1 (Nat.nthRoot p_root c.1) (Unbounded.encExtCircuit 1 c).length c.2.size
-      (orExpand (Nat.nthRoot p_root c.1) c).1 (orExpand (Nat.nthRoot p_root c.1) c).2.size
-      (Unbounded.encExtCircuit 1 (orExpand (Nat.nthRoot p_root c.1) c)).length
-      (encSymAndInstance
-        (compileSymAndFixed (d + 2) m (orExpand (Nat.nthRoot p_root c.1) c)).1).length
+    acc0_guarded_nat_bounds K dg dr C_exp C_comp C_sat c_expLen c_compLen hK2 _ _ _ _ _ _ _ _
       hL_le hn_le_L hs_le_L hc'n hc's hexp_c hcomp_c'
   have hP_le : c.1 - Nat.nthRoot p_root c.1 +
       (encSymOutParam
@@ -1980,20 +1755,7 @@ private theorem acc0_guarded_real_bound (d : ℕ) {m : ℕ} (hm : 0 < m)
     rw [← hqn]
     exact acc0_pipe_poly_bound d hm c.1 (Nat.nthRoot p_root c.1) c rfl hℓ_le_n hlog_c'
   rw [hqn]
-  exact hcomb c.1 (((Unbounded.encExtCircuit 1 c).length + 1) ^ dg)
-    ((Unbounded.encExtCircuit 1 c).length + ((Unbounded.encExtCircuit 1 c).length + 1) ^ dr +
-      ((Unbounded.encExtCircuit 1 c).length + 2 ^ Nat.nthRoot p_root c.1 +
-        Nat.nthRoot p_root c.1 + 1) ^ C_exp)
-    (((Unbounded.encExtCircuit 1 (orExpand (Nat.nthRoot p_root c.1) c)).length + 1) ^ C_comp *
-      2 ^ (C_comp * (Nat.log 2 ((orExpand (Nat.nthRoot p_root c.1) c).1 +
-        (orExpand (Nat.nthRoot p_root c.1) c).2.size) + 2) ^ K))
-    (encSymAndInstance
-      (compileSymAndFixed (d + 2) m (orExpand (Nat.nthRoot p_root c.1) c)).1).length
-    (c.1 - Nat.nthRoot p_root c.1 +
-      (encSymOutParam
-        (compileSymAndFixed (d + 2) m (orExpand (Nat.nthRoot p_root c.1) c)).2).length +
-      (compileSymAndFixed (d + 2) m (orExpand (Nat.nthRoot p_root c.1) c)).1.gates.length.size + 1)
-    hguard_le hT1_le hT2_le hlen_x hP_le
+  exact hcomb c.1 _ _ _ _ _ hguard_le hT1_le hT2_le hlen_x hP_le
 
 /-- Combined resource bound for `acc0Decider`: on guarded inputs (`acc0Guard d q_root c = true`)
 both time and space are `O(2 ^ (c.1 - (1 / 2) * c.1 ^ (1 / p_root)))`, and on unguarded inputs
@@ -2065,17 +1827,12 @@ private theorem computableInO_acc0Decider (d : ℕ) {m : ℕ} (hm : 0 < m) :
   · dsimp only [T, q_root, K] at hnoguard ⊢
     rw [hnoguard]; simp only [Bool.false_eq_true, ↓reduceIte]
     set E := (Unbounded.encExtCircuit 1 c).length
-    have h1 : (E : ℝ) ≤ ((E : ℝ) + 1) ^ (dg + 1) := by
-      have : (E : ℝ) + 1 ≤ ((E : ℝ) + 1) ^ (dg + 1) := by
-        have hge : (1 : ℝ) ≤ (E : ℝ) + 1 := by linarith [Nat.cast_nonneg (α := ℝ) E]
-        exact le_self_pow₀ hge (Nat.succ_ne_zero dg)
-      linarith
-    have h2 : ((E : ℝ) + 1) ^ dg ≤ ((E : ℝ) + 1) ^ (dg + 1) := by
-      rw [pow_succ]
-      nlinarith [pow_nonneg (by positivity : (0 : ℝ) ≤ (E : ℝ) + 1) dg]
+    have hge : (1 : ℝ) ≤ (E : ℝ) + 1 := by linarith [Nat.cast_nonneg (α := ℝ) E]
+    have h1 : (E : ℝ) + 1 ≤ ((E : ℝ) + 1) ^ (dg + 1) := le_self_pow₀ hge (Nat.succ_ne_zero dg)
+    have h2 : ((E : ℝ) + 1) ^ dg ≤ ((E : ℝ) + 1) ^ (dg + 1) := pow_le_pow_right₀ hge dg.le_succ
     have hM2' : (2 : ℝ) ≤ (M : ℝ) := by exact_mod_cast hM2
     push_cast
-    nlinarith only [h1, h2, hM2', pow_nonneg (by positivity : (0 : ℝ) ≤ (E : ℝ) + 1) (dg + 1)]
+    nlinarith only [h1, h2, hM2', hge]
 
 private abbrev acc0RootP (d m : ℕ) : ℕ := 2 * (5 ^ ((d + 2) * (m + 2)) + 1) + 2
 private abbrev acc0RootQ (d m : ℕ) : ℕ := 4 * (5 ^ ((d + 2) * (m + 2)) + 1) + 4
