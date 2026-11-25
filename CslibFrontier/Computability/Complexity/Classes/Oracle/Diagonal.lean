@@ -87,8 +87,8 @@ private theorem stage {D : ℕ → WordQueryComp Operation Bool} {bound : ℕ �
   · rcases hS'sub v hv with rfl | hv
     · omega
     · exact (hS v hv).trans (by omega)
-  · -- `B` answers every request of the stage as `S` does
-    have hagree : ∀ q ∈ OracleComp.queriesWith (languageOracle S) (D n), q.2 ∈ B ↔ q.2 ∈ S := by
+  -- `B` answers every request of the stage as `S` does
+  · have hagree : ∀ q ∈ OracleComp.queriesWith (languageOracle S) (D n), q.2 ∈ B ↔ q.2 ∈ S := by
       intro q hq
       have hqQ : q.2 ∈ Q := List.mem_map_of_mem hq
       rw [hB _ (hQm' _ hqQ)]
@@ -96,6 +96,7 @@ private theorem stage {D : ℕ → WordQueryComp Operation Bool} {bound : ℕ �
       split_ifs
       · exact Iff.rfl
       · exact ⟨fun h => h.resolve_left fun h' => hwQ (h' ▸ hqQ), Or.inr⟩
+    -- whether `B` has a word of length `n` is decided by `S'`
     rw [(interpret_languageOracle_congr (D n) hagree).1, show (∃ v ∈ B, v.length = n) ↔
       ∃ v ∈ S', v.length = n from ⟨fun ⟨v, hv, hvn⟩ => ⟨v, (hB v (by omega)).mp hv, hvn⟩,
         fun ⟨v, hv, hvn⟩ => ⟨v, (hB v (by omega)).mpr hv, hvn⟩⟩]

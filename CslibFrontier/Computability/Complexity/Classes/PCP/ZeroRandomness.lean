@@ -180,6 +180,7 @@ theorem exists_mem_PCP_zero_of_mem_NP {A : Set α} (hA : A ∈ NP enc) :
       complete := ?complete
       sound := ?sound }⟩
   case queries =>
+    -- `x ↦ range (p (|enc x.1|))`, built in unary and converted elementwise to binary
     simpa [Function.comp_def] using
       (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
         (ComputableInPolyTime.range.comp <| (ComputableInPolyTime.unary_eval p).comp

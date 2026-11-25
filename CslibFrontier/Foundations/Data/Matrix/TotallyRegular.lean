@@ -123,8 +123,10 @@ theorem IsTotallyRegular.eq_zero_of_mulVec_eq_zero [Fintype n] [NoZeroDivisors R
     (hA : A.IsTotallyRegular) {rows : Finset m} {cols : Finset n} (hcard : cols.card ≤ rows.card)
     {v : n → R} (hv : ∀ j ∉ cols, v j = 0) (hAv : ∀ i ∈ rows, (A *ᵥ v) i = 0) : v = 0 := by
   classical
+  -- Pair the columns with some of the rows.
   obtain ⟨r⟩ : Nonempty (cols ↪ rows) :=
     Function.Embedding.nonempty_of_card_le (by simpa only [Fintype.card_coe] using hcard)
+  -- On the rows `f`, the vector `A v` is the submatrix on `f` and `g` applied to `v ∘ g`.
   have hzero : A.submatrix (fun j : cols => (r j : m)) Subtype.val *ᵥ (v ∘ Subtype.val) = 0 :=
     funext fun j => by
       rw [Pi.zero_apply, ← hAv _ (r j).2]

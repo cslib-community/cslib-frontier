@@ -101,12 +101,14 @@ private theorem integral_le_sqrt_klDiv_add_log {P Q : Measure ι} [IsProbability
     .of_bound hgm2.exp.aestronglyMeasurable (Real.exp (lam * C ^ 2))
       (ae_of_all _ fun i =>
         (Real.norm_of_nonneg (Real.exp_pos _).le).trans_le (Real.exp_le_exp.2 (hsq i)))
+  -- Change of measure: `λ 𝔼_Q g² ≤ KL(Q ‖ P) + log 𝔼_P exp (λ g²) ≤ KL(Q ‖ P) + log B`.
   have hcm := Probability.integral_le_toReal_klDiv_add_log_integral_exp hQP hfQ hexpP
   rw [integral_const_mul] at hcm
   have hpos : 0 < ∫ i, Real.exp (lam * g i ^ 2) ∂P := integral_exp_pos hexpP
   rw [← ofReal_integral_eq_lintegral_ofReal hexpP (ae_of_all _ fun _ => (Real.exp_pos _).le),
     ENNReal.ofReal_le_ofReal_iff'] at hB
   have hlog := Real.log_le_log hpos (hB.resolve_right (not_le.2 hpos))
+  -- Jensen: `(𝔼_Q g)² ≤ 𝔼_Q g²`, since the variance is nonnegative.
   have hmem : MemLp g 2 Q :=
     .of_bound hgM.aestronglyMeasurable C (ae_of_all _ fun i => (Real.norm_eq_abs _).trans_le (hg i))
   have hjensen : (∫ i, g i ∂Q) ^ 2 ≤ ∫ i, g i ^ 2 ∂Q :=

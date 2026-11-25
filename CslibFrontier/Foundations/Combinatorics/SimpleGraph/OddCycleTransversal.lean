@@ -217,6 +217,7 @@ theorem proper_of_side {W D X : Set V} {c₀ σ side c : V → Bool}
     (hflip : ∀ v ∈ flipTerminals G W D σ c₀, v ∉ X → side v = false)
     (hcW : ∀ v ∈ W, c v = σ v) (hcW' : ∀ v ∉ W, c v = (c₀ v == side v)) :
     ∀ ⦃u v⦄, G.Adj u v → u ∉ D ∪ X → v ∉ D ∪ X → c u ≠ c v := by
+  -- One endpoint in `W`, the other outside.
   have hmixed {u v} (huv : G.Adj u v) (hu : u ∈ W) (hv : v ∉ W) (huD : u ∉ D) (hvX : v ∉ X) :
       c u ≠ c v := by
     rw [hcW u hu, hcW' v hv]

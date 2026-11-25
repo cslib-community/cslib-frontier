@@ -310,6 +310,7 @@ takes `G` cyclic of prime order `q` with generator `g`; this needs neither hypot
 theorem eval_cdhSelfReduce_smul_apply [DecidableEq G] (A : G → G → ProbComp G) (α β : ZMod q) :
     ProbComp.eval (cdhSelfReduce q g A (α • g) (β • g)) ((α * β) • g) =
       ProbComp.eval (cdhExperiment q g A) true := by
+  -- Substitute `a = α + ρ` and `b = β + τ` in the experiment.
   have hexp : ProbComp.eval (cdhExperiment q g A) =
       (PMF.uniformOfFintype (ZMod q)).bind fun ρ => (PMF.uniformOfFintype (ZMod q)).bind fun τ =>
         (ProbComp.eval (A ((α + ρ) • g) ((β + τ) • g))).bind fun w =>

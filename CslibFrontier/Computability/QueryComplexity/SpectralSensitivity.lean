@@ -193,12 +193,14 @@ theorem spectralSensitivity_le_of_forall_sum_le {f : BooleanFunction n} {K : ℝ
   · rw [← ha]; positivity
   rcases (norm_nonneg z).eq_or_lt with hb | hb
   · simp [y, norm_eq_zero.1 hb.symm] at ha
+  -- `a² = ⟨y, A z⟩` is at most the form at the absolute values of `y` and `z`
   have h₁ : ‖y‖ ^ 2 ≤ ∑ x, ∑ i ∈ sensitiveCoords f x,
       |y.ofLp x| * |z.ofLp (update x i (!x i))| := by
     rw [← real_inner_self_eq_norm_sq]
     change inner ℝ (WithLp.toLp 2 y.ofLp) (A (WithLp.toLp 2 z.ofLp)) ≤ _
     rw [inner_toEuclideanCLM_adjMatrix_sensitivityGraph]
     exact sum_le_sum fun x _ => sum_le_sum fun i _ => by rw [← abs_mul]; exact le_abs_self _
+  -- the form at the normalized absolute values is at most `K`
   have hsq (v : EuclideanSpace ℝ (BitString n)) (hv : 0 < ‖v‖) :
       ∑ x, (|v.ofLp x| / ‖v‖) ^ 2 = 1 := by
     simp only [div_pow, sq_abs, ← sum_div, ← norm_toLp_sq]

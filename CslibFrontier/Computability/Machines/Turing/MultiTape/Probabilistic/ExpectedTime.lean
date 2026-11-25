@@ -220,6 +220,7 @@ theorem exists_halted_append_of_expectedTime_ne_top (h : machine.expectedTime in
   set n := coins.length
   have hpos : BitString.uniformList n coins ≠ 0 :=
     (PMF.mem_support_iff _ _).mp (BitString.mem_support_uniformList_iff.mpr rfl)
+  -- at every clock `n + m`, the run is still going on every extension of `coins`
   have hlow (m : ℕ) : BitString.uniformList n coins ≤
       (ProbComp.eval (machine.runClosedConfigFrom (n + m)
         (machine.initialConfig input))).toOuterMeasure {final | final.tapes.state.isSome} := by

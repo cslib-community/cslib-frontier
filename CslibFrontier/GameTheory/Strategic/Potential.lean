@@ -218,6 +218,7 @@ theorem IsExactPotential.sub_eq_sub [Finite ι] {Φ Ψ : (∀ i, S i) → ℝ}
     Φ s - Ψ s = Φ t - Ψ t := by
   classical
   have : Fintype ι := Fintype.ofFinite ι
+  -- Replace the coordinates of `t` by those of `s` one player at a time.
   suffices ∀ F : Finset ι,
       Φ (fun j => if j ∈ F then s j else t j) - Ψ (fun j => if j ∈ F then s j else t j) =
         Φ t - Ψ t by simpa using this Finset.univ

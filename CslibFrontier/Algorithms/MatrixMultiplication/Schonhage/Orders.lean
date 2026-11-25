@@ -139,6 +139,7 @@ theorem order_eq_iff {L : ℕ} (m d : ℕ) (τ : Leaf L) :
 /-- Exactly `10 ^ m` leaves contribute to an output string with `m` inner positions. -/
 theorem card_filter_contributes {L m : ℕ} (w : OutStr L) (hw : (innerSetO w).card = m) :
     (univ.filter fun τ : Leaf L => Leaf.Contributes τ w).card = 10 ^ m := by
+  -- Ten terms contribute to `z₀` and one to `z_ij`.
   simp only [Leaf.filter_contributes_eq_piFinset, Fintype.card_piFinset, card_contributing_term]
   rw [prod_ite, prod_const, prod_const_one, mul_one, ← hw]; rfl
 
@@ -148,21 +149,28 @@ theorem card_contributing_of_order {L m : ℕ} (w : OutStr L) (hw : (innerSetO w
     (d : ℕ) :
     (univ.filter fun τ : Leaf L => Leaf.Contributes τ w ∧ order m τ = d).card = alpha m d := by
   by_cases hd : d ≤ m
+  -- Sort the strings of terms that contribute to `w` level by level and have `P₀` at exactly
+  -- `m - d` levels by the set `S` of these levels.
   · have hcount := Finset.card_pi_places_card
       (fun ℓ => univ.filter fun lam : Term => lam.Contributes (w ℓ)) (fun lam => lam = Term.P0)
       (m - d)
     simp only [card_contributing_P0, card_contributing_ne_P0] at hcount
+    -- Given `S`, there is no such string unless `S ⊆ Q`.  Then there are nine choices at each of
+    -- the `|Q| - |S| = d` levels of `Q` outside `S`, and one choice at every other level.
     have hgiven (S) (hS : S ∈ powersetCard (m - d) (univ : Finset (Fin L))) :
         (∏ ℓ, if ℓ ∈ S then (if (w ℓ).IsInner then 1 else 0)
           else (if (w ℓ).IsInner then 9 else 1)) = if S ⊆ innerSetO w then 9 ^ d else 0 := by
       have hQS := prod_ite_ite_subset (innerSetO w) S 9
       rw [hw, (mem_powersetCard.mp hS).2, Nat.sub_sub_self hd] at hQS
       exact (prod_congr rfl fun ℓ _ => by simp).trans hQS
+    -- There are `binom(m, m - d) = binom(m, d)` sets `S ⊆ Q`.
     rw [sum_congr rfl hgiven, sum_powersetCard_ite_subset, hw, Nat.choose_symm hd] at hcount
+    -- These strings are the leaves of order `d` that contribute to `w`.
     rw [alpha, ← hcount]
     refine congrArg card (Finset.ext fun τ => ?_)
     simp only [mem_filter, mem_univ, true_and, order_eq_iff]
     exact and_congr_right fun _ => by unfold P0Levels; omega
+  -- No leaf has order more than `m`.
   · rw [alpha, Nat.choose_eq_zero_of_lt (by omega), zero_mul, card_eq_zero]
     exact filter_eq_empty_iff.mpr fun τ _ _ => by have := order_le m τ; omega
 
@@ -170,6 +178,7 @@ theorem card_contributing_of_order {L m : ℕ} (w : OutStr L) (hw : (innerSetO w
 `d`. -/
 theorem card_filter_order_eq {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (hd : d ≤ m) :
     (univ.filter fun τ : Leaf L => order m τ = d).card = beta L m d := by
+  -- The leaves of order `d` are the strings of terms with `P₀` at exactly `m - d` levels.
   rw [show (univ.filter fun τ : Leaf L => order m τ = d) =
       univ.filter fun τ : Leaf L => (univ.filter fun ℓ => τ ℓ = Term.P0).card = m - d from
     Finset.ext fun τ => by
@@ -194,13 +203,19 @@ theorem card_outStr_of_leaf {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (τ : Leaf L)
     (univ.filter fun w : OutStr L => (innerSetO w).card = m ∧ Leaf.Contributes τ w).card
       = (L - m + d).choose d := by
   have hP0 : (P0Levels τ).card + d = m := (order_eq_iff m d τ).mp hτ
+  -- Sort the output strings to which `τ` contributes level by level, with `z₀` at exactly `m`
+  -- levels, by the set `S` of these levels, which is their inner set.
   have hcount := Finset.card_pi_places_card
     (fun ℓ => univ.filter fun z : OutVar => (τ ℓ).Contributes z) (fun z => z.IsInner) m
   simp only [card_contributed_inner, card_contributed_outer] at hcount
+  -- Given `S`, there is one such string if `S` contains the levels at which `τ` chooses `P₀`, and
+  -- none otherwise.
   have hgiven (S) (_ : S ∈ powersetCard m (univ : Finset (Fin L))) :
       (∏ ℓ, if ℓ ∈ S then 1 else if τ ℓ = Term.P0 then 0 else 1) =
         if P0Levels τ ⊆ S then 1 else 0 :=
     (prod_congr rfl fun _ _ => by simp).trans (prod_ite_ite_superset _ _)
+  -- A set of `m` levels that contains these `m - d` levels is given by the `L - m` levels outside
+  -- it, among the other `L - m + d` levels.
   rw [sum_congr rfl hgiven, ← card_filter, card_powersetCard_superset _ (by simpa using hmL),
     Fintype.card_fin, show L - (P0Levels τ).card = L - m + d by omega,
     Nat.choose_symm_add] at hcount
@@ -216,6 +231,7 @@ theorem beta_pos {L m : ℕ} (hmL : m ≤ L) (d : ℕ) : 0 < beta L m d :=
 identity, without division (cf. [AlmanWilliams2026, equation (5)]). -/
 theorem Equation5.ratio_nat {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (hd1 : 1 ≤ d) (hd : d ≤ m) :
     beta L m d * (L - m + d) = 9 * (m - d + 1) * beta L m (d - 1) := by
+  -- With `k = m - d` this is `binom(L, k) (L - k) = binom(L, k + 1) (k + 1)`, times a power of 9.
   have hchoose : L.choose (m - d + 1) * (m - d + 1) = L.choose (m - d) * (L - m + d) := by
     rw [Nat.choose_succ_right_eq, show L - (m - d) = L - m + d by omega]
   rw [beta, beta, show m - (d - 1) = m - d + 1 by omega,
@@ -257,6 +273,7 @@ theorem two_pow_mul_beta_le (m d : ℕ) (hd : d ≤ m) : 2 ^ d * beta (19 * m) m
   induction d with
   | zero => simp [beta_zero_eq_M]
   | succ d ih =>
+    -- By the two inequalities of (5), `β_{d+1} < β_d / 2`.
     obtain ⟨hle, hlt⟩ := beta_ratio_lt_half m (d + 1) (by omega) hd
     have hbeta : (0 : ℚ) < beta (19 * m) m d := mod_cast beta_pos (by omega) d
     have hq := (div_lt_iff₀ hbeta).mp ((Nat.add_sub_cancel d 1 ▸ hle).trans_lt hlt)

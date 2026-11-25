@@ -107,6 +107,7 @@ theorem chainTerm_eq (z : Fin k → Bool) (c₀ : Bool) (c : Fin k → Bool) (t 
   have hoff (l : Fin k) (hl : l ≠ t) : chain z (t + 1) l = chain z t l := by
     have := mt Fin.ext hl
     simp only [chain, show ((l : ℕ) < t + 1) ↔ (l : ℕ) < t by omega]
+  -- Split the agreement with a chain pattern into row `t` and the other rows.
   have split (w : Fin k → Bool) : c = w ↔ c t = w t ∧ ∀ l, l ≠ t → c l = w l :=
     ⟨fun h => ⟨h ▸ rfl, fun _ _ => h ▸ rfl⟩, fun ⟨h₁, h₂⟩ => funext fun l =>
       if hl : l = t then hl ▸ h₁ else h₂ l hl⟩
@@ -249,6 +250,7 @@ theorem ecomplexityFun_gip_le_of_le_mul (hn : n ≤ B * (2 ^ k - 1)) :
     exact ecomplexityFun_gip_le_of_block Fin.elim0 fun _ => by simp
   · refine ecomplexityFun_gip_le_of_block
       (fun r => ⟨r / s, (Nat.div_lt_iff_lt_mul hpos).mpr (by omega)⟩) fun b => ?_
+    -- The columns of block `b` are `b s + j` for `j < s`.
     refine lt_of_le_of_lt (b := #(range s)) (card_le_card_of_injOn (fun r => (r : ℕ) % s)
       (fun _ _ => by simpa using Nat.mod_lt _ hpos) fun r hr r' hr' h => ?_)
       (by simpa using hsk)
