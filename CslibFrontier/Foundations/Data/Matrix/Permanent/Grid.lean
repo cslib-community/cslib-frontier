@@ -69,30 +69,13 @@ variable {γ I : Type*} [Fintype γ] [Fintype I]
 private theorem sum_single_eq_ones (f : I → γ) :
     (∑ i, Finsupp.single (f i) 1 = ones γ) ↔ Function.Bijective f := by
   classical
-  have hap : ∀ c, (∑ i, Finsupp.single (f i) 1 : γ →₀ ℕ) c = #{i | f i = c} := by
-    intro c
+  have hap : ∀ c, (∑ i, Finsupp.single (f i) 1 : γ →₀ ℕ) c = #{i | f i = c} := fun c => by
     rw [Finsupp.finsetSum_apply, Finset.card_filter]
     exact Finset.sum_congr rfl fun i _ => by rw [Finsupp.single_apply]
-  rw [Function.bijective_iff_existsUnique]
-  constructor
-  · intro h c
-    have := hap c
-    rw [h, ones_apply] at this
-    obtain ⟨i, hi⟩ := Finset.card_eq_one.1 this.symm
-    refine ⟨i, ?_, fun j hj => ?_⟩
-    · have : i ∈ ({i | f i = c} : Finset I) := by rw [hi]; simp
-      simpa using this
-    · have : j ∈ ({i | f i = c} : Finset I) := by simpa using hj
-      rw [hi] at this
-      simpa using this
-  · intro h
-    ext c
-    rw [hap, ones_apply, Finset.card_eq_one]
-    obtain ⟨i, hi, hu⟩ := h c
-    refine ⟨i, ?_⟩
-    ext j
-    simp only [mem_filter, mem_univ, true_and, mem_singleton]
-    exact ⟨hu j, fun e => e ▸ hi⟩
+  rw [Function.bijective_iff_existsUnique, Finsupp.ext_iff]
+  simp only [hap, ones_apply, Finset.card_eq_one, Finset.eq_singleton_iff_unique_mem,
+    mem_filter, mem_univ, true_and]
+  rfl
 
 variable {N J κ : Type*} [Fintype N] [Fintype J] [Fintype κ] [DecidableEq N]
 
@@ -225,12 +208,8 @@ private theorem pick_injective {σ : Equiv.Perm N} {s : N → Bool} (h : ∀ n, 
   rcases hn : s n <;> rcases hm : s m <;>
     simp only [hn, hm, ite_true, ite_false, Bool.false_eq_true] at e
   · exact σ.injective e
-  · have := h n
-    rw [e, hn, hm] at this
-    cases this
-  · have := h m
-    rw [← e, hn, hm] at this
-    cases this
+  · simpa [e, hn, hm] using h n
+  · simpa [← e, hn, hm] using h m
   · exact e
 
 omit [Fintype N] [DecidableEq N] in
@@ -272,12 +251,7 @@ private theorem slot_bijective [Finite N] (σ ρ : Equiv.Perm N) (s r q : N → 
       have : ((n, some false) : N × Option Bool) = (pick ρ r n, some true) := by
         apply h
         simp only [slot, pick] at hne ⊢
-        congr 2
-        revert hne
-        generalize s _ = x
-        generalize q n = y
-        revert x y
-        decide
+        rw [← Bool.eq_not_of_ne hne]
       simp at this
     refine ⟨fun n => inv_of_pick_injective (fun n m e => ?_) n,
       fun n => inv_of_pick_injective (fun n m e => ?_) n, h3⟩
@@ -299,18 +273,8 @@ private theorem slot_bijective [Finite N] (σ ρ : Equiv.Perm N) (s r q : N → 
       Option.some.injEq] at e
     · rw [i1 e.1]
     · rw [i2 e.1]
-    · obtain ⟨e1, e2⟩ := e
-      have := h3 n
-      unfold pick at this
-      rw [e1] at this
-      rw [this] at e2
-      exact absurd e2 (by cases q n <;> decide)
-    · obtain ⟨e1, e2⟩ := e
-      have := h3 m
-      unfold pick at this
-      rw [← e1] at this
-      rw [this] at e2
-      exact absurd e2 (by cases q m <;> decide)
+    · exact absurd (e.2.trans ((congrArg s e.1).symm.trans (h3 n))) (by cases q n <;> decide)
+    · exact absurd (e.2.symm.trans ((congrArg s e.1).trans (h3 m))) (by cases q m <;> decide)
     · rw [e.1]
 
 /-- The indicator of a column. -/
@@ -405,15 +369,9 @@ private theorem gridMatrix_permanent (h : R) (hh : h * 2 = 1) (σ ρ : Equiv.Per
       split_ifs <;> simp
     · rw [ite_eq_right hc]
       exact ite_eq_right fun hb => hc (key.1 hb)
-  · intro q _ hq
-    apply ite_eq_right
-    intro hb
-    apply hq
-    have := (slot_bijective σ ρ s r q).1 hb
-    funext n
-    exact (this.2.2 n).symm
-  · intro hc
-    exact absurd (mem_univ _) hc
+  · exact fun q _ hq => ite_eq_right fun hb =>
+      hq (funext fun n => (((slot_bijective σ ρ s r q).1 hb).2.2 n).symm)
+  · exact fun hc => absurd (mem_univ _) hc
 
 end Grid
 
@@ -545,9 +503,8 @@ theorem exists_permanent_eq_gridSum {R : Type*} [CommRing R] (h : R) (hh : h * 2
   classical
   obtain ⟨σ, ρ, hρ, H⟩ := exists_grid (R := R) v w hv hw
   have hcard : Fintype.card (N × Option Bool) ≤ S := by
-    refine le_trans (le_of_eq ?_) hS
     simp only [Fintype.card_prod, Fintype.card_option, Fintype.card_bool]
-    ring
+    omega
   obtain ⟨M, hM, hent⟩ := exists_permanent_fin (gridMatrix h σ ρ W) hcard
   refine ⟨M, fun i j => ?_, hM.trans (H h hh W)⟩
   rcases hent i j with (h0 | h1) | ⟨⟨n, q⟩, d, he⟩
@@ -557,11 +514,7 @@ theorem exists_permanent_eq_gridSum {R : Type*} [CommRing R] (h : R) (hh : h * 2
   have hh2 : h + h = 1 := by rw [← mul_two]; exact hh
   obtain ⟨n', q'⟩ := d
   rcases q with _ | _ | _
-  · left
-    rcases q' with _ | _ | _ <;>
-      simp only [gridMatrix, ind, Prod.mk.injEq, reduceCtorEq, Option.some.injEq,
-        Bool.false_eq_true, Bool.true_eq_false, and_true, and_false, ite_false, add_zero, zero_add,
-        sub_zero] <;> split_ifs <;> simp [hh2]
+  pick_goal 2
   · refine Or.inr ⟨w n, ?_⟩
     have mem (m : N) (c₀ : N × Option Bool) (x r : Bool) (hm : w m = w n) :
         ind c₀ (W m x r) (n', q') ∈
@@ -572,10 +525,11 @@ theorem exists_permanent_eq_gridSum {R : Type*} [CommRing R] (h : R) (hh : h * 2
       · exact zero_mem _
     exact add_mem (add_mem (add_mem (mem n _ _ _ rfl) (mem n _ _ _ rfl)) (mem _ _ _ _ (hρ n)))
       (mem _ _ _ _ (hρ n))
-  · left
+  all_goals
+    left
     rcases q' with _ | _ | _ <;>
       simp only [gridMatrix, ind, Prod.mk.injEq, reduceCtorEq, Option.some.injEq,
         Bool.false_eq_true, Bool.true_eq_false, and_true, and_false, ite_false, add_zero, zero_add,
-        sub_zero] <;> split_ifs <;> simp
+        sub_zero] <;> split_ifs <;> simp [hh2]
 
 end Matrix
