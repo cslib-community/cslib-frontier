@@ -161,8 +161,7 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             by_cases hab : a.negate = b.negate <;> simp [hab]
           have hle2 := length_le_foldl_addClauseEdges cs (addClauseEdges g [a, b]) a.negate
           rw [htarget'] at hle2
-          have htot := hle1.trans hle2
-          simpa [Instance.adjFin, mapAdj, g₁] using htot
+          simpa [Instance.adjFin, mapAdj, g₁] using hle1.trans hle2
         have hroom_b : (mapAdj (litEquiv G.n) g₁ (litEquiv G.n b.negate)).length + 1 ≤
             (G.adjFin (litEquiv G.n b.negate)).length := by
           have hle2 := length_le_foldl_addClauseEdges cs (addClauseEdges g [a, b]) b.negate
