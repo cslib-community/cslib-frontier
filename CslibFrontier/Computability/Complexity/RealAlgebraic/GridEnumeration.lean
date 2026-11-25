@@ -10,6 +10,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.A
 public import Mathlib.Algebra.BigOperators.Fin
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
+import CslibFrontier.Foundations.Data.ZMod.Basic
 
 /-!
 # Short addresses for finite-field grids
@@ -116,14 +117,10 @@ theorem sum_gridPoint {p n : ℕ} [NeZero p] {M : Type*} [AddCommMonoid M]
       exact (finFunctionFinEquiv : (Fin n → Fin p) ≃ Fin (p ^ n)).symm.sum_comp
         (fun z => F (fun i => (z i : ℕ)))
     _ = ∑ z, F z := by
-      have hcast (x : Fin p) : ZMod.finEquiv p x = (x.val : ZMod p) := by
-        cases p with
-        | zero => exact (NeZero.ne 0 rfl).elim
-        | succ p => exact (Fin.cast_val_eq_self x).symm
       have hsum :=
         (Equiv.piCongrRight (fun _ : Fin n => (ZMod.finEquiv p).toEquiv)).sum_comp F
       change (∑ z : Fin n → Fin p, F (fun i => ZMod.finEquiv p (z i))) =
         ∑ z, F z at hsum
-      simpa only [hcast] using hsum
+      simpa only [ZMod.finEquiv_eq_natCast] using hsum
 
 end Cslib.Complexity.RealAlgebraic

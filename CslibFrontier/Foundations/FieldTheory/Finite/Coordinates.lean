@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Foundations.Data.BitString.ZModTwo
 public import CslibFrontier.Foundations.Data.BitString.List.Operations
+public import CslibFrontier.Foundations.Data.BitString.List.Dot
+public import Mathlib.RingTheory.Trace.Defs
 public import Mathlib.LinearAlgebra.Basis.Defs
 import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Foundations.Data.List.Blocks
@@ -31,6 +33,7 @@ These operations are shared by affine dispersers, hardness encodings and small-b
 
 * `Cslib.BinaryField.fieldOfBits_fieldMul`: correctness of multiplication.
 * `Cslib.BinaryField.fieldOfBits_foldl_fieldMul`: products computed by a fold.
+* `Cslib.BinaryField.listDot_traceVector`: the field trace from the multiplication table.
 -/
 
 @[expose] public section
@@ -128,5 +131,31 @@ theorem fieldOfBits_foldl_fieldMul {B : Basis (Fin n) (ZMod 2) F}
     fieldOfBits B (l.foldl (fun acc x => fieldMul tab acc (f x)) init) =
       fieldOfBits B init * (l.map fun x => fieldOfBits B (f x)).prod := by
   simpa using fieldOfBits_foldl_ite htab (fun _ : X => False) f l init
+
+/-- The traces of the basis elements, as bits: the trace of `B u` is the sum over `v` of the
+coordinate `v` of `B u * B v`. -/
+def traceVector (tab : List (List (List Bool))) : List Bool :=
+  (List.range tab.length).map fun u =>
+    ((List.range tab.length).map fun v => (tableEntry tab u v).getD v false).foldl xor false
+
+/-- **The trace as a bit**: with a multiplication table of the basis `B`,
+`listDot (traceVector tab) a` is the trace over `ZMod 2` of the element with coordinates `a`. -/
+theorem listDot_traceVector {B : Basis (Fin n) (ZMod 2) F} {tab : List (List (List Bool))}
+    (htab : IsMulTable B tab) (a : List Bool) :
+    listDot (traceVector tab) a = bitEquiv (Algebra.trace (ZMod 2) F (fieldOfBits B a)) := by
+  have hτ (u : Fin n) : bitEquiv.symm ((traceVector tab).getD u false) =
+      Algebra.trace (ZMod 2) F (B u) := by
+    rw [Algebra.trace_eq_matrix_trace B, Matrix.trace,
+      List.getD_eq_getElem _ _ (by simp [traceVector, htab.1])]
+    simp only [Matrix.diag_apply, Algebra.leftMulMatrix_eq_repr_mul,
+      traceVector, List.getElem_map, List.getElem_range, htab.1,
+      bitEquiv_symm_foldl_xor, List.map_map, Function.comp_def, List.sum_map_range]
+    refine Finset.sum_congr rfl fun v _ => ?_
+    rw [htab.2 u v, repr_fieldOfBits]
+  have hlen : (traceVector tab).length = n := by simp [traceVector, htab.1]
+  apply bitEquiv.symm.injective
+  rw [RingEquiv.symm_apply_apply, listDot_eq_sum_getD, hlen, map_sum, fieldOfBits, ofBits, map_sum]
+  refine Finset.sum_congr rfl fun u _ => ?_
+  rw [map_mul, map_smul, smul_eq_mul, ← hτ u, mul_comm]
 
 end Cslib.BinaryField

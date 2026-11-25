@@ -144,6 +144,6 @@ def one : List Bool := true :: List.replicate 34 false
   let c := lcgBits 35 3
   (tab.length, fieldMul tab one a == a, fieldMul tab a b == fieldMul tab b a,
     fieldMul tab (fieldMul tab a b) c == fieldMul tab a (fieldMul tab b c),
-    powerPred tab a 34 == one, powerPred tab a 4 == one, traceBit (traceVector tab) one)
+    powerPred tab a 34 == one, powerPred tab a 4 == one, BitString.listDot (traceVector tab) one)
 
 end CslibFrontierTests.AffineDisperserCorollary

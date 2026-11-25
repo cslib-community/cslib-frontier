@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.AffineDisperser.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
 public import CslibFrontier.Computability.Complexity.Classes.EXP
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -346,7 +347,7 @@ theorem computableInPolyTime_paddedProgram (M : ℕ) {gL : List Bool → Bool} {
       (encPair (encPair encBits encUnary) encUnary) encUnary :=
     h4b.comp (fst _ _)
   have helse : ComputableInPolyTime (fun x : List Bool × ℕ =>
-      traceBit (BitString.listBlock (4 * blockLength M (padLength x)) x.1 M)
+      BitString.listDot (BitString.listBlock (4 * blockLength M (padLength x)) x.1 M)
         (ldeVal (fieldTable (4 * blockLength M (padLength x)))
           (4 * blockLength M (padLength x)) (blockLength M (padLength x)) M
           (BitString.enumList (blockLength M (padLength x)))
@@ -356,7 +357,7 @@ theorem computableInPolyTime_paddedProgram (M : ℕ) {gL : List Bool → Bool} {
             (BitString.listBlock (4 * blockLength M (padLength x)) x.1))))
       (encPair encBits encUnary) encBool := by
     unfold BitString.listBlock
-    refine computableInPolyTime_traceBit'
+    refine bitsListDot
       (bitsTakeWithInput (bitsDropWithInput (fst _ _) (unary_mul.comp ((const M).prod h4b))) h4b)
       (computableInPolyTime_ldeVal' htab h4b hb (const M) hE hpts ?_)
     exact mapWithInput (unary_range' (const M))

@@ -156,4 +156,50 @@ theorem computableInPolyTime_powerMulTable :
   unfold powerMulTable
   fun_prop
 
+/-- The traces of the basis elements can be extracted in polynomial time from the
+coordinate multiplication table. -/
+@[fun_prop]
+theorem computableInPolyTime_traceVector {α : Type} {input : α ↪ List Bool}
+    {tab : α → List (List (List Bool))}
+    (htab : ComputableInPolyTime tab input encTable) :
+    ComputableInPolyTime (fun a => traceVector (tab a)) input encBits := by
+  unfold traceVector
+  fun_prop
+
+/-- Construct the binary-field multiplication table when the number of field elements
+is polynomially bounded in the encoded input length. -/
+theorem computableInPolyTime_fieldTable {α : Type} {input : α ↪ List Bool} {k : α → ℕ}
+    (hk : ComputableInPolyTime k input encUnary)
+    (hsize : PolyBounded (fun a => (input a).length) (fun a => 2 ^ k a)) :
+    ComputableInPolyTime (fun a => fieldTable (k a)) input encTable := by
+  have hq : ComputableInPolyTime (fun a => 2 ^ k a) input encUnary := by
+    simpa only [Function.comp_def, BitString.length_enumList] using
+      (length_list encBits).comp (bitsEnumList_of_polyBounded hk hsize)
+  have hbound : ComputableInPolyTime (fun a => 2 ^ (k a + 1)) input encUnary := by
+    simpa only [pow_succ, Function.comp_def] using unary_mul.comp (hq.prod (const 2))
+  have hmod := computableInPolyTime_bits_unary.comp
+    (computableInPolyTime_leastIrreducibleCode.comp (hbound.prod hk))
+  simpa only [fieldTable, modulusBits, Function.comp_def] using
+    computableInPolyTime_powerMulTable.comp hmod
+
 end Cslib.BinaryField
+
+namespace Cslib.BitString
+
+open Cslib.BinaryField Turing.MultiTapeTM ComputableInPolyTime
+
+/-- Coordinate powering is polynomial-time in the unary exponent, input word and table. -/
+theorem powerWord_polyTime {α : Type} {encIn : α ↪ List Bool}
+    {tab : α → List (List (List Bool))} {x : α → List Bool} {i : α → ℕ}
+    (htab : ComputableInPolyTime tab encIn encTable)
+    (hx : ComputableInPolyTime x encIn encBits)
+    (hi : ComputableInPolyTime i encIn encUnary) :
+    ComputableInPolyTime (fun a => powerWord (tab a) (x a) (i a)) encIn encBits := by
+  unfold powerWord
+  refine iterateWithInput_of_bounded_growth hi (const [true]) ?_
+    ⟨((length_list (encList encBits)).comp htab).polyBounded, fun a z => ?_⟩
+  · exact computableInPolyTime_fieldMul' (htab.comp (fst _ _)) (snd _ _)
+      (hx.comp (fst _ _))
+  · simp [length_fieldMul]
+
+end Cslib.BitString

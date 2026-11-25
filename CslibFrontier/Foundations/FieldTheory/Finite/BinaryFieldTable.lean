@@ -131,3 +131,23 @@ theorem fieldOfBits_one (hw : w ≠ 0) : fieldOfBits (BinaryField.basis hw) [tru
     simp [hk, bitEquiv_symm_false]
 
 end Cslib.BinaryField
+
+namespace Cslib.BitString
+
+open Cslib.BinaryField
+
+/-- A power in coordinates, starting at the unit and multiplying `i` times by `x`. -/
+def powerWord (tab : List (List (List Bool))) (x : List Bool) (i : ℕ) : List Bool :=
+  (fun z => fieldMul tab z x)^[i] [true]
+
+/-- Coordinate powering evaluates to exponentiation in the canonical binary field. -/
+theorem fieldOfBits_powerWord {w : ℕ} (hw : w ≠ 0) (x : List Bool) (i : ℕ) :
+    fieldOfBits (basis hw) (powerWord (fieldTable w) x i) =
+      fieldOfBits (basis hw) x ^ i := by
+  induction i with
+  | zero => simp [powerWord, fieldOfBits_one hw]
+  | succ i ih =>
+    rw [powerWord, Function.iterate_succ_apply', ← powerWord,
+      fieldOfBits_fieldMul (isMulTable_fieldTable hw), ih, pow_succ]
+
+end Cslib.BitString
