@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsification
 public import CslibFrontier.Computability.Complexity.FineGrained.Reduction
 public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
-public import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSATThree.Counting
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.DenseRelabel
 import CslibFrontier.Logics.Propositional.CNF.ThreeOccurrence.PolyTime
@@ -56,9 +55,6 @@ pp. 43–47).
 * `Cslib.Complexity.SH.not_decidableInPowerExpTime_threeSATThree_numVars`,
   `Cslib.Complexity.SH.not_decidableInPowerExpTime_threeSATThree_length`: under SH, no fixed
   power saving in the exponent for bounded-occurrence 3SAT in either size parameter.
-* `Cslib.Complexity.SharpSH.not_computableInPowerExpTime_sharpThreeSATThree_numVars`,
-  `Cslib.Complexity.SharpSH.not_computableInPowerExpTime_sharpThreeSATThree_length`:
-  the corresponding counting bounds under #SH.
 * `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter_of_promise`,
   `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter`,
   `Cslib.Complexity.CountingSparsify.exists_computableInO_search_threeOccurrence_of_promise`,
@@ -307,46 +303,6 @@ theorem SH.not_decidableInPowerExpTime_threeSATThree_length (h : SH) {p : ℝ}
     (hp : 0 < p) (hp1 : p < 1) :
     ¬DecidableInPowerExpTime ThreeSATThree encCNF List.length p :=
   h.not_decidableInPowerExpTime_threeSATThree hp hp1 (K := 4) fun φ => by
-    have hlen := length_toThreeSATThree_le_mul_length φ
-    omega
-
-private theorem SharpSH.not_computableInPowerExpTime_sharpThreeSATThree (h : SharpSH) {p : ℝ}
-    (hp : 0 < p) (hp1 : p < 1) {μ : CNF ℕ → ℕ} {K : ℕ}
-    (hsize : ∀ φ, μ (toThreeSATThree φ) ≤ K * φ.length + K) :
-    ¬ComputableInPowerExpTime SharpThreeSATThree encCNF encNat μ p := by
-  intro hsolver
-  apply (SharpSH_iff_SharpKSAT (k := 3) le_rfl).mp h p hp hp1
-  have hcomp : SharpThreeSATThree ∘ toThreeSATThree = SharpKSAT 3 := by
-    rw [SharpKSAT_three]
-    exact funext sharpThreeSATThree_toThreeSATThree
-  have hbound (φ : CNF ℕ) : (μ (toThreeSATThree φ) + 1 : ℝ) ≤
-      (K + 1 : ℝ) * ((φ.numVars + φ.length : ℕ) + 1 : ℝ) ^ (1 : ℝ) := by
-    rw [Real.rpow_one]
-    have hn : μ (toThreeSATThree φ) + 1 ≤ (K + 1) * (φ.numVars + φ.length + 1) := by
-      calc
-        _ ≤ K * (φ.length + 1) + 1 := by
-          simpa only [Nat.mul_add, Nat.mul_one] using Nat.add_le_add_right (hsize φ) 1
-        _ ≤ K * (φ.numVars + φ.length + 1) + (φ.numVars + φ.length + 1) :=
-          Nat.add_le_add (Nat.mul_le_mul_left K (by omega)) (by omega)
-        _ = _ := by rw [Nat.add_mul, Nat.one_mul]
-    exact_mod_cast hn
-  simpa only [hcomp, one_mul] using
-    hsolver.comp_polyTime computableInPolyTime_toThreeSATThree (K := K) hbound zero_le_one hp.le
-
-/-- Under #SH, exact model counting in width-three SAT with at most three literal occurrences
-per variable admits no fixed power saving in the exponent measured in occurring variables. -/
-theorem SharpSH.not_computableInPowerExpTime_sharpThreeSATThree_numVars (h : SharpSH) {p : ℝ}
-    (hp : 0 < p) (hp1 : p < 1) :
-    ¬ComputableInPowerExpTime SharpThreeSATThree encCNF encNat CNF.numVars p :=
-  h.not_computableInPowerExpTime_sharpThreeSATThree hp hp1 (K := 3) fun φ =>
-    (numVars_toThreeSATThree_le_mul_length φ).trans (Nat.le_add_right _ 3)
-
-/-- Under #SH, exact model counting in width-three SAT with at most three literal occurrences
-per variable admits no fixed power saving in the exponent measured in clauses. -/
-theorem SharpSH.not_computableInPowerExpTime_sharpThreeSATThree_length (h : SharpSH) {p : ℝ}
-    (hp : 0 < p) (hp1 : p < 1) :
-    ¬ComputableInPowerExpTime SharpThreeSATThree encCNF encNat List.length p :=
-  h.not_computableInPowerExpTime_sharpThreeSATThree hp hp1 (K := 4) fun φ => by
     have hlen := length_toThreeSATThree_le_mul_length φ
     omega
 

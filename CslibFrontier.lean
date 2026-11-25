@@ -3756,6 +3756,7 @@ public import CslibFrontier.Foundations.Data.Nat.Bitwise.CommonPrefix
 public import CslibFrontier.Computability.PCP.Approximation.AssignmentGraph
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Place
 public import CslibFrontier.Logics.FirstOrder.Ordered.Projection
+public import CslibFrontier.Computability.Complexity.FineGrained.SharpThreeOccurrenceReduction
 public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.Range
 public import CslibFrontier.Probability.PMF.UniformBridge
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Units

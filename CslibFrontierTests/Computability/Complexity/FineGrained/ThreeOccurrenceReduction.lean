@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.FineGrained.ThreeOccurrenceReduction
+public import CslibFrontier.Computability.Complexity.FineGrained.SharpThreeOccurrenceReduction
 
 /-!
 # Tests for bounded-occurrence reductions and counting-sparsification leaf reductions
