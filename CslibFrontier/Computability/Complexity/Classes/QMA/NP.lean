@@ -125,14 +125,7 @@ theorem mem_frameCodes {n p o : ℕ} {g : GateCode} :
     g ∈ frameCodes n p o ↔ (∃ i < n, g = (false, o + 2 * i, []) ∨
       g = (false, o + 2 * i + 1, [i])) ∨ ∃ j < p, g = (false, o + 2 * n + 1 + j, [n + j]) := by
   simp only [frameCodes, List.mem_append, List.mem_flatMap, List.mem_range, List.mem_cons,
-    List.not_mem_nil, or_false, List.mem_map]
-  constructor
-  · rintro (⟨i, hi, h⟩ | ⟨j, hj, rfl⟩)
-    · exact Or.inl ⟨i, hi, h⟩
-    · exact Or.inr ⟨j, hj, rfl⟩
-  · rintro (⟨i, hi, h⟩ | ⟨j, hj, rfl⟩)
-    · exact Or.inl ⟨i, hi, h⟩
-    · exact Or.inr ⟨j, hj, rfl⟩
+    List.not_mem_nil, or_false, List.mem_map, @eq_comm GateCode _ g]
 
 theorem nodup_frameCodes (n p o : ℕ) : ((frameCodes n p o).map fun g => g.2.1).Nodup := by
   rw [frameCodes, List.map_append, List.map_flatMap, List.map_map]
@@ -178,7 +171,11 @@ theorem readBit_classicalRun_frameCodes (h : o + 2 * n + 1 + p ≤ M) (ho : n + 
         rcases mem_frameCodes.mp hg with ⟨i, hi, rfl | rfl⟩ | ⟨j, hj, rfl⟩ <;>
         rcases mem_frameCodes.mp hg' with ⟨i', hi', rfl | rfl⟩ | ⟨j', hj', rfl⟩ <;> simp <;> omega)
       X hg
-  have hfr (k : ℕ) : (frame x ++ List.ofFn z).getD k false =
+  have hnone (hk_out : k = 2 * n ∨ 2 * n + 1 + p ≤ k) :
+      readBit (classicalRun (frameCodes n p o) X) (o + k) = false := by
+    rw [readBit_classicalRun_of_forall_ne (fun g hg => ?_), hXo]
+    rcases mem_frameCodes.mp hg with ⟨i, hi, rfl | rfl⟩ | ⟨j, hj, rfl⟩ <;> simp <;> omega
+  have hfr : (frame x ++ List.ofFn z).getD k false =
       if k < 2 * n then (if k % 2 = 0 then true else x.getD (k / 2) false)
       else if k = 2 * n then false
       else (List.ofFn z).getD (k - (2 * n + 1)) false := by
@@ -193,36 +190,28 @@ theorem readBit_classicalRun_frameCodes (h : o + 2 * n + 1 + p ≤ M) (ho : n + 
   by_cases hk : k < 2 * n
   · rw [ite_eq_left hk]
     by_cases hpar : k % 2 = 0
-    · have hg : ((false, o + 2 * (k / 2), []) : GateCode) ∈ frameCodes n p o :=
-        mem_frameCodes.mpr (Or.inl ⟨k / 2, by omega, Or.inl rfl⟩)
-      have := hmem hg
+    · have := hmem (mem_frameCodes.mpr (Or.inl ⟨k / 2, by omega, Or.inl rfl⟩))
       simp only [List.all_nil, Bool.xor_true] at this
       rw [show o + 2 * (k / 2) = o + k by omega, hXo] at this
-      rw [this, ite_eq_left hpar]; rfl
-    · have hg : ((false, o + 2 * (k / 2) + 1, [k / 2]) : GateCode) ∈ frameCodes n p o :=
-        mem_frameCodes.mpr (Or.inl ⟨k / 2, by omega, Or.inr rfl⟩)
-      have := hmem hg
+      rw [this, ite_eq_left hpar]
+      rfl
+    · have := hmem (mem_frameCodes.mpr (Or.inl ⟨k / 2, by omega, Or.inr rfl⟩))
       simp only [List.all_cons, List.all_nil, Bool.and_true] at this
       rw [show o + 2 * (k / 2) + 1 = o + k by omega, hXo, hX,
         List.getD_append _ _ _ _ (by omega)] at this
-      rw [this, ite_eq_right hpar]; simp
+      simp [this, hpar]
   · rw [ite_eq_right hk]
     by_cases hk2 : k = 2 * n
-    · rw [ite_eq_left hk2, readBit_classicalRun_of_forall_ne (fun g hg => ?_), hXo]
-      rcases mem_frameCodes.mp hg with ⟨i, hi, rfl | rfl⟩ | ⟨j, hj, rfl⟩ <;> simp <;> omega
+    · rw [ite_eq_left hk2, hnone (Or.inl hk2)]
     · rw [ite_eq_right hk2]
       by_cases hkp : k < 2 * n + 1 + p
-      · have hg : ((false, o + 2 * n + 1 + (k - (2 * n + 1)), [n + (k - (2 * n + 1))]) : GateCode)
-            ∈ frameCodes n p o := mem_frameCodes.mpr (Or.inr ⟨k - (2 * n + 1), by omega, rfl⟩)
-        have := hmem hg
+      · have := hmem (mem_frameCodes.mpr (Or.inr ⟨k - (2 * n + 1), by omega, rfl⟩))
         simp only [List.all_cons, List.all_nil, Bool.and_true] at this
         rw [show o + 2 * n + 1 + (k - (2 * n + 1)) = o + k by omega, hXo, hX,
           List.getD_append_right _ _ _ _ (by omega), hx,
           show n + (k - (2 * n + 1)) - n = k - (2 * n + 1) by omega] at this
-        rw [this]; simp
-      · rw [readBit_classicalRun_of_forall_ne (fun g hg => ?_), hXo,
-          List.getD_eq_default _ _ (by simp; omega)]
-        rcases mem_frameCodes.mp hg with ⟨i, hi, rfl | rfl⟩ | ⟨j, hj, rfl⟩ <;> simp <;> omega
+        simp [this]
+      · rw [hnone (Or.inr (not_lt.mp hkp)), List.getD_eq_default _ _ (by simp; omega)]
 
 theorem computableInPolyTime_frameCodes {γ : Type} {enc : γ ↪ List Bool} {n p o : γ → ℕ}
     (hn : ComputableInPolyTime n enc encUnary) (hp : ComputableInPolyTime p enc encUnary)
@@ -322,11 +311,9 @@ theorem measureProb_ofNP_inputState (F : UniformCircuitFamily) (p : Polynomial �
     measureProb (Circuit.eval (Circuit.ofCodes (NPVerifier.width F p x.length)
       (NPVerifier.gates F p x.length)) (ket (inputState _ (x ++ w))))
       (accepting (NPVerifier.width F p x.length)) = F.acceptProb (frame x ++ w) := by
-  have hofFn : List.ofFn (fun i : Fin ((ofNP F p).witnessLength x.length) => w.getD i false) =
-      w := List.ofFn_getD_eq_of_length false hw
-  have := acceptProb_ofNP_ket F p x fun i => w.getD i false
-  rw [acceptProb_ket, hofFn] at this
-  exact this
+  have h := acceptProb_ofNP_ket F p x fun i => w.getD i false
+  rwa [acceptProb_ket,
+    List.ofFn_getD_eq_of_length (n := (ofNP F p).witnessLength x.length) false hw] at h
 
 end UniformVerifierFamily
 

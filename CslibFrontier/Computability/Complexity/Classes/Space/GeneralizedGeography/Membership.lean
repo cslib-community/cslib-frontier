@@ -208,15 +208,10 @@ private theorem arc_eq {G : Graph} {i : ℕ} (hi : i < G.edges.length) : arc G i
 theorem legal_eq_true_iff {G : Graph} {vis : List ℕ} {v i : ℕ} :
     legal G vis v i = true ↔ ∃ h : i < G.edges.length,
       G.edges[i].1 = v ∧ G.edges[i].2 ∈ G.vertices ∧ G.edges[i].2 ∉ vis := by
-  unfold legal
-  simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true', decide_eq_false_iff_not]
-  constructor
-  · rintro ⟨⟨⟨hi, h₁⟩, h₂⟩, h₃⟩
-    rw [arc_eq hi] at h₁ h₂ h₃
-    exact ⟨hi, h₁, h₂, h₃⟩
-  · rintro ⟨hi, h₁, h₂, h₃⟩
-    rw [arc_eq hi]
-    exact ⟨⟨⟨hi, h₁⟩, h₂⟩, h₃⟩
+  simp only [legal, Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true',
+    decide_eq_false_iff_not, and_assoc]
+  exact ⟨fun ⟨hi, h⟩ => ⟨hi, by simpa only [arc_eq hi] using h⟩,
+    fun ⟨hi, h⟩ => ⟨hi, by simpa only [arc_eq hi] using h⟩⟩
 
 /-- Legal arcs are the moves of Generalized Geography. -/
 theorem exists_legal_iff {G : Graph} {vis : List ℕ} {v : ℕ} {R : ℕ → Prop} :
@@ -243,16 +238,8 @@ theorem forall_legal_iff {G : Graph} {vis : List ℕ} {v : ℕ} {R : ℕ → Pro
     (∀ y : List Bool, y.length = G.edges.length → legal G vis v (choice y) = true →
         R (arc G (choice y)).2) ↔
       ∀ w, (v, w) ∈ G.edges → w ∈ G.vertices → w ∉ vis → R w := by
-  have h := exists_legal_iff (G := G) (vis := vis) (v := v) (R := fun w => ¬R w)
-  constructor
-  · intro hy w hvw hw hwvis
-    by_contra hR
-    obtain ⟨y, hy', hlegal, hR'⟩ := h.2 ⟨w, hvw, hw, hwvis, hR⟩
-    exact hR' (hy y hy' hlegal)
-  · intro hw y hy hlegal
-    by_contra hR
-    obtain ⟨w, hvw, hw', hwvis, hR'⟩ := h.1 ⟨y, hy, hlegal, hR⟩
-    exact hR' (hw w hvw hw' hwvis)
+  have h := not_iff_not.mpr (exists_legal_iff (G := G) (vis := vis) (v := v) (R := fun w => ¬R w))
+  simpa only [not_exists, not_and, Classical.not_not] using h
 
 /-! ### Replaying a play -/
 
@@ -355,10 +342,8 @@ theorem alternation_foldl_step (G : Graph) :
             (legal G vis v (choice y) = true →
               G.GeographyWins ((arc G (choice y)).2 :: vis) (arc G (choice y)).2) := by
         by_cases hl : legal G vis v (choice y) = true
-        · rw [hlegal y hl]
-          simp [hl]
-        · rw [hillegal y hl]
-          simp [hl]
+        · simpa [hl] using hlegal y hl
+        · simpa [hl] using hillegal y hl
       simp only [hy]
       rw [forall_legal_iff (R := fun w => G.GeographyWins (w :: vis) w),
         ← Graph.not_geographyWins_iff]
@@ -370,10 +355,8 @@ theorem alternation_foldl_step (G : Graph) :
             (legal G vis v (choice x) = true ∧
               ¬G.GeographyWins ((arc G (choice x)).2 :: vis) (arc G (choice x)).2) := by
         by_cases hl : legal G vis v (choice x) = true
-        · rw [hlegal x hl]
-          simp [hl]
-        · rw [hillegal x hl]
-          simp [hl]
+        · simpa [hl] using hlegal x hl
+        · simpa [hl] using hillegal x hl
       simp only [hx]
       rw [exists_legal_iff (R := fun w => ¬G.GeographyWins (w :: vis) w),
         ← Graph.geographyWins_iff]
@@ -411,10 +394,8 @@ theorem isGameVerifier_verifier :
   have hle : 2 * G.edges.length * (G.vertices.length + 1) ≤
       2 * ((Polynomial.X + 1) ^ 2 : Polynomial ℕ).eval n := by
     simp only [Polynomial.eval_pow, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
-    rw [Nat.mul_assoc]
-    refine Nat.mul_le_mul_left 2 ?_
-    rw [sq]
-    exact Nat.mul_le_mul (by omega) (by omega)
+    rw [Nat.mul_assoc, sq]
+    exact Nat.mul_le_mul_left 2 (Nat.mul_le_mul (by omega) (by omega))
   have hcount : (G.vertices.toFinset \ [s].toFinset).card < G.vertices.length + 1 :=
     Nat.lt_succ_of_le ((Finset.card_le_card Finset.sdiff_subset).trans (List.toFinset_card_le _))
   rw [mem_GeneralizedGeography, ← Nat.add_sub_cancel' hle, List.replicate_add,

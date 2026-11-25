@@ -103,11 +103,10 @@ private theorem iterate_searchStep_bounds (test : C × ℕ → Bool)
   | succ k ih =>
     rw [Function.iterate_succ_apply']
     let s := (searchStep test)^[k] ⟨c, start, count, none⟩
-    change s.context = c ∧ s.cursor ≤ start + k ∧ s.remaining ≤ count ∧
-      s.answer.getD 0 ≤ start + k at ih
+    obtain ⟨hc, hi, hr, ha⟩ : s.context = c ∧ s.cursor ≤ start + k ∧ s.remaining ≤ count ∧
+        s.answer.getD 0 ≤ start + k := ih
     change (searchStep test s).context = c ∧ (searchStep test s).cursor ≤ start + (k + 1) ∧
       (searchStep test s).remaining ≤ count ∧ (searchStep test s).answer.getD 0 ≤ start + (k + 1)
-    obtain ⟨hc, hi, hr, ha⟩ := ih
     by_cases hdone : searchDone s = true
     · rw [searchStep_of_done test hdone]
       exact ⟨hc, hi.trans (Nat.le_succ _), hr, ha.trans (Nat.le_succ _)⟩
@@ -147,19 +146,17 @@ theorem findCode {encC : C ↪ List Bool} {test : C × ℕ → Bool}
   let B (p : C × (ℕ × ℕ)) := 8 * ((encIn p).length + 1)
   have hstate (p : C × (ℕ × ℕ)) (k : ℕ) (hk : k ≤ stop p) :
       (encSearchState encC (step^[k] (initial p))).length ≤ B p := by
-    obtain ⟨hc, hi, hr, ha⟩ := iterate_searchStep_bounds test p.1 p.2.1 p.2.2 k
     let s := step^[k] (initial p)
+    obtain ⟨hc, hi, hr, ha⟩ : s.context = p.1 ∧ s.cursor ≤ p.2.1 + k ∧ s.remaining ≤ p.2.2 ∧
+        s.answer.getD 0 ≤ p.2.1 + k := iterate_searchStep_bounds test p.1 p.2.1 p.2.2 k
     have hmono (i : ℕ) (hi : i ≤ p.2.1 + k) :
-        (encNat i).length ≤ (encNat p.2.1).length + (encNat p.2.2).length + 1 := by
-      exact (length_encNat_mono (hi.trans (Nat.add_le_add_left (hk.trans (hstop p)) _))).trans
+        (encNat i).length ≤ (encNat p.2.1).length + (encNat p.2.2).length + 1 :=
+      (length_encNat_mono (hi.trans (Nat.add_le_add_left (hk.trans (hstop p)) _))).trans
         (length_encNat_add_le_add _ _)
-    change s.cursor ≤ p.2.1 + k at hi
     have hcursor := hmono s.cursor hi
-    change s.remaining ≤ p.2.2 at hr
     have hremaining := length_encNat_mono hr
     have hanswer : (encOption encNat s.answer).length ≤
         (encNat p.2.1).length + (encNat p.2.2).length + 2 := by
-      change s.answer.getD 0 ≤ p.2.1 + k at ha
       cases h : s.answer with
       | none => simp
       | some v =>
@@ -168,7 +165,6 @@ theorem findCode {encC : C ↪ List Bool} {test : C × ℕ → Bool}
         omega
     change (encPair encC (encPair encNat (encPair encNat (encOption encNat)))
       (s.context, s.cursor, s.remaining, s.answer)).length ≤ _
-    change s.context = p.1 at hc
     simp only [B, encIn, length_encPair, hc]
     omega
   have hrun := iterateUntil hinit (searchStep_inSpace ht) (searchDone_inSpace encC)

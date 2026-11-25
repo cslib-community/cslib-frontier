@@ -59,9 +59,7 @@ theorem clauseHolds_eq_true (κ : Clause ℕ) (a : Fin 3 → Bool) :
     clauseHolds κ a = true ↔ ConstraintGraph.ClauseHolds κ a := by
   simp only [clauseHolds, List.any_eq_true, List.mem_finRange, true_and,
     ConstraintGraph.ClauseHolds]
-  apply exists_congr
-  intro q
-  cases κ[q.val]? <;> simp
+  exact exists_congr fun q => by cases κ[q.val]? <;> simp
 
 /-- Construct one edge, computing its entire fixed-alphabet relation. -/
 def cnfEdge (φ : CNF ℕ) (p : ℕ × Fin 3) :
@@ -147,16 +145,11 @@ def cnfVertexNumber {m : ℕ} : ℕ ⊕ Fin m → ℕ
 /-- The numbering separates all variable vertices and clause vertices. -/
 private theorem cnfVertexNumber_injective (m : ℕ) :
     Function.Injective (cnfVertexNumber (m := m)) := by
-  intro v w h
-  cases v with
-  | inl x =>
-    cases w with
-    | inl y => simp only [cnfVertexNumber] at h; congr 1; lia
-    | inr j => simp only [cnfVertexNumber] at h; lia
-  | inr j =>
-    cases w with
-    | inl y => simp only [cnfVertexNumber] at h; lia
-    | inr k => simp only [cnfVertexNumber] at h; congr 1; apply Fin.ext; lia
+  rintro (x | j) (y | k) h <;> simp only [cnfVertexNumber] at h
+  · exact congrArg Sum.inl (by omega)
+  · omega
+  · omega
+  · exact congrArg Sum.inr (Fin.ext (by omega))
 
 /-- Every clause contributes exactly three edges, including missing-position self-loops. -/
 @[simp]
@@ -181,15 +174,13 @@ theorem toGraph_ofCNF (variableCount : ℕ) (φ : CNF ℕ) :
   · intro p
     simp only [cnfEdge, ConstraintGraph.ofCNF, cnfVertexNumber]
   · intro p
-    simp only [cnfEdge, ConstraintGraph.ofCNF]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (Fin.isLt _), Option.getD_some]
+    simp only [cnfEdge, ConstraintGraph.ofCNF, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (Fin.isLt _), Option.getD_some]
     cases φ[p.1][p.2.val]? <;> rfl
   · intro p a b
-    simp only [cnfEdge, ConstraintGraph.ofCNF, id_eq, Bool.and_eq_true, clauseHolds_eq_true]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (Fin.isLt _), Option.getD_some]
-    apply and_congr_right
-    intro _
-    cases φ[p.1][p.2.val]? <;> simp
+    simp only [cnfEdge, ConstraintGraph.ofCNF, id_eq, Bool.and_eq_true, clauseHolds_eq_true,
+      List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (Fin.isLt _), Option.getD_some]
+    exact and_congr_right fun _ => by cases φ[p.1][p.2.val]? <;> simp
 
 /-- The exact graph interpretation retains the mathematical unsatisfied value. -/
 theorem unsatVal_ofCNF (variableCount : ℕ) (φ : CNF ℕ) :

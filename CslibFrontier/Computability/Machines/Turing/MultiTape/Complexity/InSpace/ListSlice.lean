@@ -41,15 +41,6 @@ namespace Turing.MultiTapeTM.ComputableInSpace
 theorem listReverse {α : Type} (enc : α ↪ List Bool) :
     ComputableInSpace List.reverse (encList enc) (encList enc)
       (fun l => (encList enc l).length) := by
-  have hlist : ComputableInSpace (fun l : List α => l) (encList enc) (encList enc)
-      (fun l => (encList enc l).length) := of_inO ComputableInDegree.id'.inO_one
-  have hinit : ComputableInSpace (fun _ : List α => ([] : List α))
-      (encList enc) (encList enc) (fun l => (encList enc l).length) :=
-    budget_const []
-  have hstep : ComputableInSpace (fun q : List α × α => q.2 :: q.1)
-      (encPair (encList enc) enc) (encList enc)
-      (fun q => (encPair (encList enc) enc q).length) :=
-    budget_cons (snd (encList enc) enc) (fst (encList enc) enc)
   have hstate (l : List α) (i : ℕ) (_hi : i ≤ l.length) :
       (encList enc ((l.take i).foldl (fun acc a => a :: acc) [])).length ≤
         (encList enc l).length := by
@@ -62,9 +53,11 @@ theorem listReverse {α : Type} (enc : α ↪ List Bool) :
     have ha := length_le_encList_of_mem enc (List.getElem_mem hi)
     have hs := hstate l i hi.le
     enc_len
-  have hfold := ComputableInSpace.foldl hlist hinit hstep hspace hstate
-  refine hfold.weaken (.of_le_linear 8 8 fun _ => by omega) |>.of_enc_eq ?_
-  intro l
+  have hfold := ComputableInSpace.foldl (encL := encList enc)
+    (of_inO ComputableInDegree.id'.inO_one)
+    (budget_const (Bs := fun l => (encList enc l).length) ([] : List α))
+    (budget_cons (snd (encList enc) enc) (fst (encList enc) enc)) hspace hstate
+  refine hfold.weaken (.of_le_linear 8 8 fun _ => by omega) |>.of_enc_eq fun l => ?_
   simp only [List.foldl_flip_cons_eq_append', List.append_nil]
 
 /-- Drop a binary-counted prefix without allocating storage according to its numeric length. -/
@@ -77,16 +70,13 @@ theorem listDrop {α : Type} (enc : α ↪ List Bool) :
     of_inO (.of_linear (ListEncoding.tail (enc₁ := enc)))
   have hlen (q : List α × ℕ) (k : ℕ) :
       (encList enc (List.tail^[k] q.1)).length ≤ (encList enc q.1).length := by
-    rw [List.tail_iterate]
-    rw [← q.1.take_append_drop k, encList_append, List.length_append]
+    rw [List.tail_iterate, ← q.1.take_append_drop k, encList_append, List.length_append]
     simp
   have h := iterate (snd (encList enc) encNat) (fst (encList enc) encNat) htail
     (Q := fun q => (encList enc q.1).length) (B := fun q => (encList enc q.1).length)
     (fun q k _ => hlen q k) (fun q k _ => hlen q k)
-  refine h.weaken (.of_le_linear 8 8 fun q => ?_) |>.of_enc_eq ?_
-  · enc_len
-  · intro q
-    rw [List.tail_iterate]
+  exact (h.weaken (.of_le_linear 8 8 fun _ => by enc_len)).of_enc_eq fun q =>
+    congrArg (encList enc) (List.tail_iterate q.1 q.2).symm
 
 /-- Take a binary-counted prefix using space linear in the actual framed list and counter. -/
 theorem listTake {α : Type} (enc : α ↪ List Bool) :

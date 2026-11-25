@@ -248,10 +248,7 @@ private theorem one_le_gap_mul (D : ℕ) :
   have hle := sOf_le_sqrt D
   have hlt := sqrt_lt_sOf_add_one D
   have hinteger : (D : ℝ) + 1 ≤ ((sOf D : ℝ) + 1) ^ 2 := by
-    have hreal : (D : ℝ) < ((sOf D : ℝ) + 1) ^ 2 :=
-      hsq ▸ pow_lt_pow_left₀ hlt (Real.sqrt_nonneg _) two_ne_zero
-    have hnat : D < (sOf D + 1) ^ 2 := by exact_mod_cast hreal
-    exact_mod_cast hnat
+    exact_mod_cast (sq (sOf D + 1) ▸ Nat.lt_succ_sqrt D : D + 1 ≤ (sOf D + 1) ^ 2)
   calc (1 : ℝ) ≤ ((sOf D : ℝ) + 1) ^ 2 - Real.sqrt D ^ 2 := by linarith [hinteger, hsq]
     _ = ((sOf D : ℝ) + 1 - Real.sqrt D) * ((sOf D : ℝ) + 1 + Real.sqrt D) := by ring
     _ ≤ ((sOf D : ℝ) + 1 - Real.sqrt D) * (2 * Real.sqrt D + 1) :=
@@ -322,8 +319,7 @@ variable (wAB wBC wAC : Fin n → Fin n → ℤ)
 /-- A pair lies in `W_ϱ` exactly if `ϱ` is the residue of its weight. -/
 theorem mem_residueClass (hp : p ≠ 0) (ϱ : Fin p) (q : Fin n × Fin n) :
     q ∈ residueClass wAB p ϱ ↔ ϱ = resFin hp (wAB q.1 q.2) := by
-  rw [← modEq_iff_eq_resFin]
-  simp only [residueClass, Finset.mem_filter, Finset.mem_univ, true_and]
+  simp only [residueClass, Finset.mem_filter, Finset.mem_univ, true_and, ← modEq_iff_eq_resFin]
   exact ⟨Int.ModEq.symm, Int.ModEq.symm⟩
 
 /-- Proof of Theorem 17, the sets `W_ϱ` for `ϱ ∈ ℤ_p`: every pair `(a,b) ∈ A × B` lies in exactly
@@ -465,9 +461,7 @@ theorem card_instanceIndices (D g p : ℕ) :
   rw [Finset.card_biUnion, Finset.sum_mul]
   · refine Finset.sum_congr rfl fun ϱ _ => ?_
     have hinj : Function.Injective fun jk : ℕ × ℕ => (⟨ϱ, jk.1, jk.2⟩ : InstanceIndex p) :=
-      fun a b h => by
-        obtain ⟨-, h1, h2⟩ := InstanceIndex.mk.inj h
-        exact Prod.ext h1 h2
+      fun _ _ h => Prod.ext (InstanceIndex.mk.inj h).2.1 (InstanceIndex.mk.inj h).2.2
     rw [Finset.card_image_of_injective _ hinj, Finset.card_product,
       Finset.card_range, Finset.card_range]
   · intro ϱ _ ϱ' _ hne

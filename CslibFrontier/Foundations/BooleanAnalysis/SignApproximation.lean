@@ -73,12 +73,8 @@ sign of `b`. -/
 private theorem one_le_sq_signVal_sub_of_decide_ne {b : Bool} {r : ℝ} (h : decide (r < 0) ≠ b) :
     1 ≤ (signVal b - r) ^ 2 := by
   cases b
-  · have hr : r < 0 := by simpa using h
-    simp only [signVal_false]
-    nlinarith
-  · have hr : 0 ≤ r := by simpa using h
-    simp only [signVal_true]
-    nlinarith
+  · simp only [signVal_false]; nlinarith [show r < 0 by simpa using h]
+  · simp only [signVal_true]; nlinarith [show 0 ≤ r by simpa using h]
 
 variable [Fintype ι] [DecidableEq ι]
 
