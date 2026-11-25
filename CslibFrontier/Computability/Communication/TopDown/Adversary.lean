@@ -47,10 +47,8 @@ game on `X' × Y`. -/
 private theorem solves_next_of_alice {d : ℕ} {send : (ι → Bool) → M}
     {next : M → KWRoundProtocol ι M d} {X X' Y : Finset (ι → Bool)}
     (hsol : (RoundProtocol.alice send next).Solves DiffersAt X Y) (hsub : X' ⊆ X) {a : M}
-    (hsend : ∀ x ∈ X', send x = a) : (next a).Solves DiffersAt X' Y := by
-  intro x hx y hy
-  have he := hsol x (hsub hx) y hy
-  simpa only [run, hsend x hx] using he
+    (hsend : ∀ x ∈ X', send x = a) : (next a).Solves DiffersAt X' Y :=
+  fun x hx y hy => by simpa only [run, hsend x hx] using hsol x (hsub hx) y hy
 
 omit [Fintype ι] [DecidableEq ι] [Fintype M] in
 /-- If Bob's message is the constant `a` on `Y' ⊆ Y`, then the continuation after `a` solves the
@@ -58,10 +56,8 @@ game on `X × Y'`. -/
 private theorem solves_next_of_bob {d : ℕ} {send : (ι → Bool) → M}
     {next : M → KWRoundProtocol ι M d} {X Y Y' : Finset (ι → Bool)}
     (hsol : (RoundProtocol.bob send next).Solves DiffersAt X Y) (hsub : Y' ⊆ Y) {a : M}
-    (hsend : ∀ y ∈ Y', send y = a) : (next a).Solves DiffersAt X Y' := by
-  intro x hx y hy
-  have he := hsol x hx y (hsub hy)
-  simpa only [run, hsend y hy] using he
+    (hsend : ∀ y ∈ Y', send y = a) : (next a).Solves DiffersAt X Y' :=
+  fun x hx y hy => by simpa only [run, hsend y hy] using hsol x hx y (hsub hy)
 
 /-- **Korten's adversary**: a protocol with `d` messages of at most `m` bits does not separate a
 density rectangle of rate `p 0` and deficit `k 0` when the parameters grow fast enough,
@@ -113,25 +109,20 @@ theorem not_solves_bounded_density {d : ℕ} (P : KWRoundProtocol ι M d)
     have hh : 1 ≤ (194 : ℝ) ^ d := one_le_pow₀ (by norm_num)
     dsimp [C]
     nlinarith [mul_le_mul hk hh (by norm_num : (0 : ℝ) ≤ 1) (by positivity)]
-  have hK (i : ℕ) : k ≤ K i := by
-    have hh : 1 ≤ (194 : ℝ) ^ i := one_le_pow₀ (by norm_num)
-    dsimp [K]
-    nlinarith
+  have hK (i : ℕ) : k ≤ K i := le_mul_of_one_le_left (by linarith) (one_le_pow₀ (by norm_num))
   have hKsucc (i : ℕ) : K (i + 1) = 194 * K i := by dsimp [K]; rw [pow_succ]; ring
   have hBsucc (i : ℕ) : B (i + 1) = C * B i := by dsimp [B]; rw [pow_succ]; ring
   apply P.not_solves_density hM K B
   · intro i hi
-    refine ⟨hk.trans (hK i), (hKsucc i).ge, ?_, ?_⟩
-    · rw [hKsucc]
-      linarith [hK i]
-    · rw [hBsucc]
-      have hiC : 32768 * K i ≤ C := by
-        have ht := mul_le_mul_of_nonneg_right
-          (pow_le_pow_right₀ (by norm_num : (1 : ℝ) ≤ 194) (Nat.le_of_lt hi))
-          (show 0 ≤ k by linarith)
-        dsimp [K, C]
-        nlinarith
-      exact mul_le_mul_of_nonneg_right hiC (mul_nonneg (pow_nonneg (by linarith) _) hp)
+    refine ⟨hk.trans (hK i), (hKsucc i).ge, by linarith [hKsucc i, hK i], ?_⟩
+    rw [hBsucc]
+    have hiC : 32768 * K i ≤ C := by
+      dsimp only [K, C]
+      rw [← mul_assoc]
+      exact mul_le_mul_of_nonneg_right
+        (mul_le_mul_of_nonneg_left (pow_le_pow_right₀ (by norm_num) hi.le) (by norm_num))
+        (by linarith)
+    exact mul_le_mul_of_nonneg_right hiC (mul_nonneg (pow_nonneg (by linarith) _) hp)
   · intro i hi
     exact (mul_le_mul_of_nonneg_right (pow_le_pow_right₀ hC hi) hp).trans hbudget
   · simpa only [K, B, pow_zero, one_mul] using h

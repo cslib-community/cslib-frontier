@@ -401,65 +401,45 @@ theorem metaAt_lt (base : ℕ) (p : KickTreeParams) (mem : ℕ → ℕ) (idx : �
   · exact readPacked_lt _ _ _ _ _
   · positivity
 
+private theorem readPacked_zero_of_hSpace {base N k : ℕ} (p : KickTreeParams) (hw : 0 < p.w)
+    {off : ℕ} (hoff : p.hSpace ≤ off) (hend : off + packedWords N k p.w ≤ totalSpace p)
+    {mem : ℕ → ℕ} (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
+    (fun idx => if idx < N then readPacked (base + off) k p.w mem idx else 0) = fun _ => 0 := by
+  funext idx
+  split_ifs with hidx
+  · have := wordOffset_add_one_lt_packedWords (k := k) hw hidx
+    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
+  · rfl
+
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `quotAt` is identically `0`. -/
 theorem quotAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    quotAt base p mem = fun _ => 0 := by
-  funext idx; unfold quotAt; split_ifs with hidx
-  · have hlt1 : wordOffset (quotBits p) p.w idx + 1 < quotWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := quot_end_le_totalSpace p
-    unfold offQuot at hbound ⊢
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    quotAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw le_rfl (quot_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `valAt` is identically `0`. -/
 theorem valAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    valAt base p mem = fun _ => 0 := by
-  funext idx; unfold valAt; split_ifs with hidx
-  · have hlt1 : wordOffset (valBits p.V) p.w idx + 1 < valWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := val_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offVal p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    valAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (val_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `occAt` is identically `0`. -/
 theorem occAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    occAt base p mem = fun _ => 0 := by
-  funext idx; unfold occAt; split_ifs with hidx
-  · have hlt1 : wordOffset 1 p.w idx + 1 < occWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := occ_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offOcc p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    occAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (occ_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `elevAt` is identically `0`. -/
 theorem elevAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    elevAt base p mem = fun _ => 0 := by
-  funext idx; unfold elevAt; split_ifs with hidx
-  · have hlt1 : wordOffset 1 p.w idx + 1 < elevWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := elev_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offElev p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    elevAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (elev_end_le_totalSpace p) hzero
 
 /-- On zeroed array memory `[base + p.hSpace, base + totalSpace p)`, `metaAt` is identically `0`. -/
 theorem metaAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem : ℕ → ℕ}
     (hzero : ∀ a, base + p.hSpace ≤ a → a < base + totalSpace p → mem a = 0) :
-    metaAt base p mem = fun _ => 0 := by
-  funext idx; unfold metaAt; split_ifs with hidx
-  · have hlt1 : wordOffset (metaBits p) p.w idx + 1 < metaWords p :=
-      wordOffset_add_one_lt_packedWords hw hidx
-    have hbound := meta_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offMeta p := by wram_omega
-    exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
-  · rfl
+    metaAt base p mem = fun _ => 0 :=
+  readPacked_zero_of_hSpace p hw (by wram_omega) (meta_end_le_totalSpace p) hzero
 
 /-- Memories agreeing on `[base + p.hSpace, base + totalSpace p)` yield identical extracted
 arrays. -/

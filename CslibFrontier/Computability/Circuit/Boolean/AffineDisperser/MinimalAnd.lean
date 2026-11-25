@@ -177,14 +177,10 @@ private theorem deletionAvailable_of_const_input {S : State n} {J t : ℕ} (hJ :
   rcases ht with ht | ht
   · refine ⟨unaryLit ((S.gate J).op c) (S.gate J).right,
       fun s hs => Or.inr (reads_of_unaryLit_reads hs), fun val hval => ?_⟩
-    rw [← eval_unaryLit]
-    unfold Gate.eval
-    rw [ht, Arg.eval_node, hc val hval]
+    simp only [← eval_unaryLit, Gate.eval, ht, Arg.eval_node, hc val hval]
   · refine ⟨unaryLit (fun a => (S.gate J).op a c) (S.gate J).left,
       fun s hs => Or.inl (reads_of_unaryLit_reads hs), fun val hval => ?_⟩
-    rw [← eval_unaryLit]
-    unfold Gate.eval
-    rw [ht, Arg.eval_node, hc val hval]
+    simp only [← eval_unaryLit, Gate.eval, ht, Arg.eval_node, hc val hval]
 
 /-- A gate whose inputs differ by a constant on the solutions of the affine system allows
 (D1). -/
@@ -197,14 +193,10 @@ private theorem deletionAvailable_of_dependent {S : State n} {J t t' : ℕ} (hJ 
   rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩
   · refine ⟨unaryLit (fun a => (S.gate J).op a (a ^^ c)) (S.gate J).left,
       fun s hs => Or.inl (reads_of_unaryLit_reads hs), fun val hval => ?_⟩
-    rw [← eval_unaryLit]
-    unfold Gate.eval
-    rw [hl, hr, Arg.eval_node, Arg.eval_node, hc val hval]
+    simp only [← eval_unaryLit, Gate.eval, hl, hr, Arg.eval_node, hc val hval]
   · refine ⟨unaryLit (fun a => (S.gate J).op (a ^^ c) a) (S.gate J).right,
       fun s hs => Or.inr (reads_of_unaryLit_reads hs), fun val hval => ?_⟩
-    rw [← eval_unaryLit]
-    unfold Gate.eval
-    rw [hl, hr, Arg.eval_node, Arg.eval_node, hc val hval]
+    simp only [← eval_unaryLit, Gate.eval, hl, hr, Arg.eval_node, hc val hval]
 
 /-! ### The minimal gate of a normal state -/
 
@@ -214,9 +206,7 @@ private theorem Valid.not_out_reads_aux {S : State n} {d : ℕ} (hS : S.Valid f)
   intro hr
   obtain ⟨c, T, hT⟩ := hS.wf.exists_affineIn hv
   refine Valid.out_not_affine hS hf ha (c ^^ S.out.neg) hT.1 fun val hval => ?_
-  unfold Lit.eval
-  unfold Lit.Reads at hr
-  rw [hr, Arg.eval_node, hT.2 val hval.1]
+  simp only [Lit.eval, show S.out.arg = .node v from hr, Arg.eval_node, hT.2 val hval.1]
   generalize ∑ j ∈ T, val j = s
   cases c <;> cases s <;> cases S.out.neg <;> rfl
 
@@ -358,15 +348,15 @@ theorem Valid.exists_preparation_auxIn_lt {S : State n} (hS : S.Valid f) (hN : S
     exact ⟨fun h => h.elim (fun h => absurd h.symm hxo) And.right, fun h => .inr ⟨hQo.symm, h⟩⟩
   rw [auxIn_eq (S := S₁) hne, auxIn_eq hne]
   change auxArgs S₁ (S.gate G) < S.auxArgs (S.gate G)
+  have ho_ite : (if o ∈ S₁.aux then 1 else 0) = if o ∈ S.aux then 1 else 0 :=
+    if_congr ho₁ rfl rfl
   rcases hargs with ⟨hlQ, hro⟩ | ⟨hlo, hrQ⟩
-  · rw [auxArgs_nodes S₁ hlQ hro, auxArgs_nodes S hlQ hro, ite_eq_right hQ₁, ite_eq_left hQ]
-    by_cases hoa : o ∈ S.aux
-    · rw [ite_eq_left (ho₁.2 hoa), ite_eq_left hoa]; omega
-    · rw [ite_eq_right (fun h => hoa (ho₁.1 h)), ite_eq_right hoa]; omega
-  · rw [auxArgs_nodes S₁ hlo hrQ, auxArgs_nodes S hlo hrQ, ite_eq_right hQ₁, ite_eq_left hQ]
-    by_cases hoa : o ∈ S.aux
-    · rw [ite_eq_left (ho₁.2 hoa), ite_eq_left hoa]; omega
-    · rw [ite_eq_right (fun h => hoa (ho₁.1 h)), ite_eq_right hoa]; omega
+  · rw [auxArgs_nodes S₁ hlQ hro, auxArgs_nodes S hlQ hro, ite_eq_right hQ₁, ite_eq_left hQ,
+      ho_ite]
+    omega
+  · rw [auxArgs_nodes S₁ hlo hrQ, auxArgs_nodes S hlo hrQ, ite_eq_right hQ₁, ite_eq_left hQ,
+      ho_ite]
+    omega
 
 /-- Rerouting a child `K` of the minimal gate that reads one of its parameter inputs, by
 relabelling `K` with the operation it computes on the two inputs, is a preparatory operation

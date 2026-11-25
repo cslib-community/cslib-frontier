@@ -700,12 +700,9 @@ theorem deliverHistory_entry_preserves {P V : Type*} (hist : List (OpRecord P V)
         obtain ⟨hp_lt, rfl⟩ := List.getElem?_eq_some_iff.mp hrec
         by_cases hip : pend.opId = i
         · subst hip
-          have hget : (deliverHistory hist resp step (some pend))[pend.opId] =
-              { hist[pend.opId] with status := stDone } := by
-            simp only [deliverHistory, hm, hrec, List.getElem_set_self]
-          rw [hget]
-          refine ⟨rfl, rfl, rfl, fun r hr => Or.inr ?_⟩
-          exact (Option.some.inj ((respStep?_of_matchCompletion hm).symm.trans hr)).symm
+          simp only [deliverHistory, hm, hrec, List.getElem_set_self, true_and]
+          exact fun r hr =>
+            Or.inr (Option.some.inj ((respStep?_of_matchCompletion hm).symm.trans hr)).symm
         · exact hsame (by simp only [deliverHistory, hm, hrec, List.getElem_set_ne hip])
 
 private lemma getElem?_deliverHistory_of_ne {P V : Type*} (hist : List (OpRecord P V))
@@ -1082,10 +1079,8 @@ theorem Reachable.exists_admissibleRun [Fintype P] {π : Protocol P S M V}
         obtain ⟨j, _, hj⟩ := hfair e hdest 0 (by rw [← hdrop, get_drop, add_zero]; exact he_end)
         refine ⟨xl.length + j, hkl.trans (Nat.le_add_right _ _), ?_⟩
         simpa [get_append_right] using hj
-    · have hlk : xl.length ≤ k := Nat.le_of_not_le hkl
-      have he' : e ∈ (ss' (k - xl.length)).msgs := by
-        rw [← hdrop, get_drop, Nat.add_sub_cancel' hlk]; exact he
-      obtain ⟨j, _, hj⟩ := hfair e hdest (k - xl.length) he'
+    · obtain ⟨j, _, hj⟩ := hfair e hdest (k - xl.length)
+        (by simpa [← hdrop, get_drop, Nat.add_sub_cancel' (Nat.le_of_not_le hkl)] using he)
       refine ⟨xl.length + j, by omega, ?_⟩
       simpa [get_append_right] using hj
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hle
@@ -1259,10 +1254,8 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
       refine ⟨by simp, ?_⟩
       cases kind <;> simp [rec', stDone, seqValid]
     · intro p
-      have hpc : p = caller := Subsingleton.elim p caller
-      subst hpc
-      rw [hproc, hhist]
-      simp only [Function.update_self, List.length_append, List.length_singleton,
+      rcases Subsingleton.elim p caller with rfl
+      simp only [hproc, hhist, Function.update_self, List.length_append, List.length_singleton,
         List.range_succ, registerValAfter_append, hval_eq, ← hstate p]
       cases kind <;> simp [registerValAfter_cons, rec', nextVal]
 
@@ -1278,13 +1271,11 @@ theorem implementsAtomicRegister_local_of_card_le_one {P V : Type*} [Fintype P] 
     refine ⟨List.range s.history.length, List.nodup_range, fun i hi _ => List.mem_range.mpr hi,
       ?_, hvalid⟩
     · intro i hi j hj ⟨hi_lt, hj_lt, r, hr_step, hlt⟩
-      have hi_len : i < (List.range s.history.length).length := by simpa using hi_lt
-      have hj_len : j < (List.range s.history.length).length := by simpa using hj_lt
-      have hidx_i : (List.range s.history.length).idxOf i = i := by
-        simpa [List.getElem_range hi_len] using List.Nodup.idxOf_getElem List.nodup_range i hi_len
-      have hidx_j : (List.range s.history.length).idxOf j = j := by
-        simpa [List.getElem_range hj_len] using List.Nodup.idxOf_getElem List.nodup_range j hj_len
-      rw [hidx_i, hidx_j]
+      have hidx {k : ℕ} (hk : k < s.history.length) :
+          (List.range s.history.length).idxOf k = k := by
+        have hlen : k < (List.range s.history.length).length := by simpa using hk
+        simpa [List.getElem_range hlen] using List.Nodup.idxOf_getElem List.nodup_range k hlen
+      rw [hidx hi_lt, hidx hj_lt]
       obtain ⟨_, hr', _⟩ := hcomp i hi_lt
       cases hr'.symm.trans hr_step
       rcases lt_trichotomy i j with hij | rfl | hji

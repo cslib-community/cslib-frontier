@@ -321,23 +321,16 @@ private theorem projective_budget (m ε δ r : ℝ) (hm : 1 ≤ m)
     have he : √ε ≤ x := Real.sqrt_le_sqrt (le_max_left _ _)
     have hd : √δ ≤ x := Real.sqrt_le_sqrt ((le_max_left _ _).trans (le_max_right _ _))
     have hrr : √r ≤ x := Real.sqrt_le_sqrt ((le_max_right _ _).trans (le_max_right _ _))
-    exact (mul_le_mul_of_nonneg_left (add_le_add (add_le_add he hd) hrr)
-      (by positivity : (0 : ℝ) ≤ 100 * m)).trans_eq (by ring)
+    nlinarith only [he, hd, hrr, hm₀]
   have hs : s ≤ 74 * m * y := by
-    apply Real.sqrt_le_iff.mpr
-    refine ⟨by positivity, ?_⟩
+    refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
     rw [mul_pow, mul_pow, Real.sq_sqrt hx]
-    have hmx : m * x ≤ m ^ 2 * x := mul_le_mul_of_nonneg_right
-      (by nlinarith only [mul_nonneg hm₀ (sub_nonneg.mpr hm)]) hx
-    nlinarith only [hζ, hmx, mul_nonneg hm₀ hx]
+    nlinarith only [hζ, mul_nonneg hm₀ hx, mul_nonneg (sub_nonneg.mpr hm) (mul_nonneg hm₀ hx)]
   have ht : t ≤ 72 * m * u := by
-    apply Real.sqrt_le_iff.mpr
-    refine ⟨by positivity, ?_⟩
+    refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
     rw [mul_pow, mul_pow, Real.sq_sqrt hy]
-    have hmx := mul_le_mul_of_nonneg_left hxy hm₀
-    have hmy : m * y ≤ m ^ 2 * y := mul_le_mul_of_nonneg_right
-      (by nlinarith only [mul_nonneg hm₀ (sub_nonneg.mpr hm)]) hy
-    nlinarith only [hζ, hs, hmx, hmy, mul_nonneg hm₀ hy]
+    nlinarith only [hζ, hs, mul_le_mul_of_nonneg_left hxy hm₀, mul_nonneg hm₀ hy,
+      mul_nonneg (sub_nonneg.mpr hm) (mul_nonneg hm₀ hy)]
   have hpow : u ≤ v ^ (1 / 32 : ℝ) := by
     change √(√(√v)) ≤ _
     simp only [Real.sqrt_eq_rpow, ← Real.rpow_mul hv]

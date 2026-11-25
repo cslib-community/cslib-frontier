@@ -903,24 +903,19 @@ private theorem canReach_drop_all_msgs (s : TwoPCState P) :
 private theorem canReach_crash_set :
     ∀ (dead : Finset P) (s : TwoPCState P), dead ⊆ s.alive →
       (twoPCLts coord votes).CanReach s { s with alive := s.alive \ dead } := by
-  intro dead
-  induction dead using Finset.induction_on with
-  | empty =>
-    intro s _
-    simpa using LTS.CanReach.refl (twoPCLts coord votes) s
+  intro dead s hsub
+  induction dead using Finset.induction_on generalizing s with
+  | empty => simpa using LTS.CanReach.refl (twoPCLts coord votes) s
   | @insert p dead hp ih =>
-    intro s hsub
-    have hp_al : p ∈ s.alive := hsub (Finset.mem_insert_self p dead)
-    let s₁ : TwoPCState P := { s with alive := s.alive.erase p }
-    have hstep : twoPCStep? coord votes s (.crash p) = some s₁ := by
-      simp [twoPCStep?, hp_al, s₁]
-    have hsub₁ : dead ⊆ s₁.alive := fun r hr =>
-      Finset.mem_erase.mpr ⟨ne_of_mem_of_not_mem hr hp, hsub (Finset.mem_insert_of_mem hr)⟩
-    have heq : s₁.alive \ dead = s.alive \ insert p dead := by
-      ext r; simp [s₁, and_assoc, and_comm, and_left_comm]
-    have hreach : (twoPCLts coord votes).CanReach s { s with alive := s₁.alive \ dead } :=
-      twoPC_canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩ (ih s₁ hsub₁)
-    rwa [heq] at hreach
+    have hstep : twoPCStep? coord votes s (.crash p) =
+        some { s with alive := s.alive.erase p } := by
+      simp [twoPCStep?, hsub (Finset.mem_insert_self p dead)]
+    have hreach := twoPC_canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩
+      (ih { s with alive := s.alive.erase p } fun r hr => Finset.mem_erase.mpr
+        ⟨ne_of_mem_of_not_mem hr hp, hsub (Finset.mem_insert_of_mem hr)⟩)
+    convert hreach using 2
+    ext r
+    simp [and_assoc, and_comm, and_left_comm]
 
 /-- Fail-stop register-state step toward [Skeen1981], §1 (p. 134) and [SkeenStonebraker1983],
 §IV-C, Lemma 1 (p. 223), not the cited crash-recovery result (#7289): for `2 ≤ Fintype.card P` and
@@ -946,10 +941,9 @@ theorem twoPC_uncertain_bivalent_failStop (hcard : 2 ≤ Fintype.card P) (coord 
       sCommit.decision coord = some .commit ∧
       sAbort.survivorView coord votesAbort =
         sCommit.survivorView coord (fun _ => .yes) := by
-  have hne_univ : (Finset.univ.erase coord).Nonempty := by
+  obtain ⟨q, hqC⟩ : (Finset.univ.erase coord).Nonempty := by
     rw [Finset.erase_nonempty (Finset.mem_univ coord), Finset.univ_nontrivial_iff]
     exact Fintype.one_lt_card_iff_nontrivial.mp (by omega)
-  obtain ⟨q, hqC⟩ := hne_univ
   have hqc : q ≠ coord := Finset.ne_of_mem_erase hqC
   let votesAbort : P → Vote := fun p => if p = coord then .no else .yes
   let votesCommit : P → Vote := fun _ => .yes
@@ -999,10 +993,9 @@ theorem twoPC_uncertain_bivalent_failStop (hcard : 2 ≤ Fintype.card P) (coord 
   · simp [TwoPCState.decision, sAbort, sa₄, sa₃]
   · simp [TwoPCState.decision, sCommit, sc₄, hloc_sc₃]
   · have halive_sa : sAbort.alive = {q} := halive_q
-    have hmsgs_sa : sAbort.msgs = 0 := rfl
-    have hmsgs_sc : sCommit.msgs = 0 := rfl
-    simp only [TwoPCState.survivorView, halive_sa, halive_sc, hmsgs_sa, hmsgs_sc,
-      Multiset.filter_zero, TwoPCSurvivorView.mk.injEq, true_and, and_true]
+    have h0 : sAbort.msgs = 0 ∧ sCommit.msgs = 0 := ⟨rfl, rfl⟩
+    simp only [TwoPCState.survivorView, halive_sa, halive_sc, h0.1, h0.2, Multiset.filter_zero,
+      TwoPCSurvivorView.mk.injEq, true_and, and_true]
     constructor <;> funext r <;> by_cases hrq : r = q <;> simp [hrq, hsa_q, hsc_q, votesAbort, hqc]
 
 /-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 469), [Skeen1981], §1

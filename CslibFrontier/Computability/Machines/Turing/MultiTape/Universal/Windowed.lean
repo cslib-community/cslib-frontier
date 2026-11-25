@@ -230,20 +230,18 @@ private lemma getD_append_drop {A B : List (Option ℕ)} {k : ℕ} {s : ℤ}
   · rw [List.getD_append _ _ _ _ hm]
     split_ifs with h
     · rfl
-    · rw [hA m (by omega)]
-      by_cases hb : k ≤ B.length
-      · exact absurd (hk hb) (by omega)
-      · rw [List.getD_eq_default _ _ (by omega)]
+    · rw [hA m (by omega), List.getD_eq_default B none
+        (not_lt.mp fun hlt => absurd (hk (by omega)) (by omega))]
   · rw [List.getD_append_right _ _ _ _ (by omega), getD_drop', List.getD_eq_default A _ (by omega)]
     by_cases hb : k ≤ B.length
     · have := hk hb
       rw [ite_eq_right (by omega)]
       congr 1
       omega
-    · rw [List.getD_eq_default _ _ (by omega)]
+    · rw [List.getD_eq_default B none (by omega)]
       split_ifs
       · rfl
-      · rw [List.getD_eq_default _ _ (by omega)]
+      · exact (List.getD_eq_default B none (by omega)).symm
 
 private lemma cellAt_paste {r : ℕ} {O I : Tape} {h h' : ℤ} (h₁ : h - r ≤ h') (h₂ : h' ≤ h + r)
     (hL : r ≤ O.left.length → (I.left.length : ℤ) + h = r + h')
@@ -577,25 +575,14 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
     have hread : i.read = inCell x p := by
       have := hi p (by simp) (by simp)
       rwa [sub_self, cellAt_zero] at this
-    have hreads : ws.map Tape.read = ts.map Tape.read := by
-      apply List.ext_getElem?
-      intro k
+    have hreads : ws.map Tape.read = ts.map Tape.read := List.ext_getElem? fun k => by
       simp only [List.getElem?_map]
       rcases hW : ws[k]? with _ | W
-      · have : ts[k]? = none := by
-          rw [List.getElem?_eq_none_iff] at hW ⊢
-          omega
-        simp [this]
+      · simp [List.getElem?_eq_none_iff.2 (hlen'.symm.trans_le (List.getElem?_eq_none_iff.1 hW))]
       · obtain ⟨t, ht⟩ := exists_getElem?_of_length hlen'.symm hW
         have := hws k W t hW ht t.head (by simp [realView]) (by simp [realView])
         simp only [realView, sub_self, cellAt_zero] at this
         simp [ht, this]
-    have hstep : step d x ⟨st, p, ts⟩ =
-        (⟨(act d st (inputSymbol x p) (ts.map Tape.read)).state,
-          moveInput p (inputSymbol x p) (act d st (inputSymbol x p) (ts.map Tape.read)).inputTape,
-          applyTapes ts (act d st (inputSymbol x p) (ts.map Tape.read)).workTapes⟩,
-          (act d st (inputSymbol x p) (ts.map Tape.read)).output) := by
-      rw [step_eq_stepWith, stepWith_eq]
     obtain ⟨m, hm₁, hm₂⟩ := moveIn_eq i (P := inPos i.read) (p := p)
       (by unfold inPos; split_ifs <;> simp) (by rw [hread, inPos_inCell]) (inputSymbol x p)
       (act d st (inputSymbol x p) (ts.map Tape.read)).inputTape
@@ -604,11 +591,8 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
           i.move m :: applyTapes ws (act d st (inputSymbol x p) (ts.map Tape.read)).workTapes),
           (act d st (inputSymbol x p) (ts.map Tape.read)).output) := by
       rw [wstep_eq, hreads, hread, inSym_inCell, ← hm₁, hread]
-    have hrun : run d x 1 ⟨st, p, ts⟩ =
-        ((step d x ⟨st, p, ts⟩).1, (step d x ⟨st, p, ts⟩).2.toList) := by
-      simp [run, stepOut]
-    rw [hw, hrun, hstep]
-    refine ⟨rfl, rfl, by simp [length_applyTapes_eq], fun k W F W' F' hW hF hW' hF' => ?_⟩
+    simp only [hw, run, Function.iterate_one, stepOut, step_eq_stepWith, stepWith_eq]
+    refine ⟨rfl, trivial, by simp [length_applyTapes_eq], fun k W F W' F' hW hF hW' hF' => ?_⟩
     rcases k with _ | k
     · simp only [List.getElem?_cons_zero, view, Option.some.injEq] at hW hF hW' hF'
       subst hW hF hW' hF'
@@ -786,20 +770,16 @@ private lemma cells_move {S : Option ℕ → Prop} (h0 : S none) {t : Tape} (h :
   have hd : ∀ l : List (Option ℕ), (∀ o ∈ l, S o) → S (l.headD none) := fun l hl' => by
     cases l with
     | nil => exact h0
-    | cons a l => exact hl' a List.mem_cons_self
+    | cons a _ => exact hl' a List.mem_cons_self
   intro o ho
   rcases m with _ | _ | _
   · exact h o ho
   · simp only [Tape.move, List.mem_append, List.mem_cons] at ho
-    rcases ho with ho | rfl | ho
-    · exact hl o (List.mem_of_mem_tail ho)
-    · exact hd _ hl
-    · exact hr o ho
+    exact ho.elim (fun h' => hl o (List.mem_of_mem_tail h'))
+      (·.elim (· ▸ hd _ hl) (hr o))
   · simp only [Tape.move, List.mem_append, List.mem_cons] at ho
-    rcases ho with (rfl | ho) | ho
-    · exact hd _ hr
-    · exact hl o ho
-    · exact hr o (List.mem_of_mem_tail ho)
+    exact ho.elim (·.elim (· ▸ hd _ hr) (hl o))
+      (fun h' => hr o (List.mem_of_mem_tail h'))
 
 private lemma cells_apply {S : Option ℕ → Prop} (h0 : S none) {t : Tape} (h : Cells S t)
     {a : Option (Option ℕ) × SignType} (ha : ∀ o, a.1 = some o → S o) : Cells S (t.apply a) := by

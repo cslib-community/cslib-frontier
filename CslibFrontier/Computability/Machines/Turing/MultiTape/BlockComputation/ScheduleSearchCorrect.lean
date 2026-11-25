@@ -143,19 +143,15 @@ theorem exists_runFrom_boundaryDecision {Q : Type} {E : Evaluator} {M : MultiTap
     have hvalid : ScheduleCounter.valid k (σ, q) = true :=
       (ScheduleCounter.valid_eq_true_iff k σ q).mpr hσ
     have hrun := runFrom_one E (w.length, b, q) w σ T hvalid hpre hhalt
-    have houtcome : E.outcome ((w.length, b, q),
-        E.machine.runFrom w (E.start (w.length, b, σ, q)) T) = values σ := by
-      rw [hstate]
-      exact houtU
+    change _ = values σ at houtU
     refine ⟨T + 2, ?_, ?_⟩
     · cases hv : values σ <;>
-        simpa only [resume, inputLength, blockWidth, horizon, houtcome, hv] using hrun
+        simpa only [resume, inputLength, blockWidth, horizon, hstate, houtU, hv] using hrun
     · have hpending : pending k ((w.length, b, q), σ, none) = true := by
         simpa only [pending, Option.isSome_none, Bool.not_false, Bool.true_and] using hvalid
       exact runFrom_one_encoding_le E A w.length b q σ none w T hpending hpre hhalt
         (fun u hu => hsizeU u (hu.trans hle))
-  have hsafe : ∀ σ < 3 ^ ((k + 1) * q), values σ = none ∨ values σ = result := by
-    intro σ _
+  have hsafe : ∀ σ < 3 ^ ((k + 1) * q), values σ = none ∨ values σ = result := fun σ _ => by
     dsimp only [values]
     split <;> simp
   have hcomplete : result ≠ none → ∃ σ < 3 ^ ((k + 1) * q), values σ = result := by
@@ -174,9 +170,6 @@ theorem exists_runFrom_boundaryDecision {Q : Type} {E : Evaluator} {M : MultiTap
     omega
   obtain ⟨T, σ, hrun, hhalt, hspace⟩ := exists_runFrom_candidates E (w.length, b, q) w
     values result (space k A w.length b q) hcaller hstep hsafe hcomplete
-  refine ⟨T, ?_, ?_, hspace⟩
-  · rwa [hrun]
-  · rw [hrun]
-    rfl
+  exact ⟨T, hrun ▸ hhalt, hrun ▸ rfl, hspace⟩
 
 end Turing.MultiTapePTM.BlockComputation.ScheduleSearch

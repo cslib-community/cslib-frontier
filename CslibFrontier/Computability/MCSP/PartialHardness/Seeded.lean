@@ -130,12 +130,9 @@ theorem length_weights_mul_le_seedLen (lam₀ : ℕ) (I : CMMSAInstance) :
       ≤ N * (2 * (N * (lam₀ * (N + 1) ^ 2) + 1)) :=
         Nat.mul_le_mul (CMMSAInstance.length_weights_le I) hB
     _ ≤ 2 * (lam₀ + 1) * (N + 1) ^ 4 := by
-      have h1 : N ≤ N + 1 := Nat.le_succ N
-      have h2 : N * (N * (lam₀ * (N + 1) ^ 2)) ≤
-          (N + 1) * ((N + 1) * (lam₀ * (N + 1) ^ 2)) := by
-        gcongr
-      have h3 : N ≤ (N + 1) ^ 4 := h1.trans (Nat.le_self_pow (by norm_num) _)
-      nlinarith
+      have h2 : N * (N * (lam₀ * (N + 1) ^ 2)) ≤ (N + 1) * ((N + 1) * (lam₀ * (N + 1) ^ 2)) := by
+        gcongr <;> exact Nat.le_succ N
+      nlinarith [(Nat.le_succ N).trans (Nat.le_self_pow (by norm_num : 4 ≠ 0) _)]
 
 /-! ### The explicit tables -/
 
@@ -150,10 +147,9 @@ def seededTables (lam₀ : ℕ) (I : CMMSAInstance) (r : List Bool) : List (List
 theorem isVarTable_seededTables (lam₀ : ℕ) (I : CMMSAInstance) (r : List Bool) (v : ℕ) :
     IsVarTable I (lamOf lam₀ I) (seededFunctions lam₀ I r) (seededTables lam₀ I r) v := by
   intro y
-  by_cases hv : v < I.weights.length
-  · simp [seededTables, evalVar, hv, List.getD_eq_getElem?_getD, (BitString.equivFin _ y).isLt,
+  by_cases hv : v < I.weights.length <;>
+    simp [seededTables, evalVar, hv, List.getD_eq_getElem?_getD, (BitString.equivFin _ y).isLt,
       seededFunctions, BitString.zeroExtend_self]
-  · simp [seededTables, evalVar, hv, List.getD_eq_getElem?_getD]
 
 variable {α : Type} {input : α ↪ List Bool}
 
@@ -214,12 +210,11 @@ theorem rpReducible_of_seeded {β : Type} {encB : β ↪ List Bool}
   set q := (seedLen lam₀).eval (CMMSAInstance.encoding I).length
   have hbad : 3 * #{r : Fin q → Bool | out I (seededFunctions lam₀ I (List.ofFn r)) ∉ Y.no} ≤
       2 ^ q := by
-    have := BitString.mul_card_filter_decodeTables_mem_le
+    convert (BitString.mul_card_filter_decodeTables_mem_le
       (B := 2 ^ seedWidth I (lamOf lam₀ I)) (ℓ := fun v => varLength I (lamOf lam₀ I) v)
       (p := q) (a := 3) (b := 1) two_pow_varLength_le_two_pow_seedWidth
-      (length_weights_mul_le_seedLen lam₀ I) (S := {f | out I f ∉ Y.no}) (by simpa using hno I hI)
-    rw [one_mul] at this
-    convert this using 3
+      (length_weights_mul_le_seedLen lam₀ I) (S := {f | out I f ∉ Y.no})
+      (by simpa using hno I hI)).trans_eq (one_mul _) using 3
     ext r
     rw [Finset.mem_filter, Finset.mem_filter]
     simp [seededFunctions]

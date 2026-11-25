@@ -317,9 +317,8 @@ def simonAccept (m n : ℕ) : Finset (Fin N × Bool × SimonWork m n) :=
   simp [simonAccept]
 
 private theorem signVal_add_true (x : Bool) : signVal (x + true) = -signVal x := by
-  cases x
-  · simp [show (false + true : Bool) = true from rfl]
-  · simp [show (true + true : Bool) = false from rfl]
+  cases x <;> norm_num [signVal, show (false + true : Bool) = true from rfl,
+    show (true + true : Bool) = false from rfl]
 
 /-- Under Simon's promise with hidden string `s`, the amplitude of a row matrix with a row `z_r`
 with `z_r ⬝ s = 1` vanishes. -/
@@ -336,18 +335,15 @@ private theorem sum_signVal_eq_zero {E : Fin N ≃ (Fin n → Bool) × Fin n} {X
     exact sum_congr rfl fun j _ => by simp [mul_comm]
   have hG : ∀ a, simonG E X (a + δ) = simonG E X a := by
     intro a
-    funext k
+    funext ⟨r, j⟩
     simp only [simonG]
-    by_cases hk : k.1 = r₀
-    · have hc : Function.curry (a + δ) k.1 = Function.curry a k.1 + s := by
-        funext j
-        simp [hδ, hk]
-      have hf := (hX (Function.curry a k.1) (Function.curry a k.1 + s)).mpr (Or.inr rfl)
-      rw [hc, ← hf]
-    · have hc : Function.curry (a + δ) k.1 = Function.curry a k.1 := by
-        funext j
-        simp [hδ, hk, Bool.zero_eq_false]
-      rw [hc]
+    by_cases hk : r = r₀
+    · subst hk
+      have hc : Function.curry (a + δ) r = Function.curry a r + s := funext fun i => by simp [hδ]
+      rw [hc, ← (hX (Function.curry a r) (Function.curry a r + s)).mpr (Or.inr rfl)]
+    · congr 1
+      funext i
+      simp [hδ, hk, Bool.zero_eq_false]
   set F : (Fin m × Fin n → Bool) → ℂ := fun a =>
     if simonG E X a = ys then ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ) else 0 with hF
   have hFδ : ∀ a, F (a + δ) = -F a := by
@@ -413,11 +409,8 @@ private theorem card_kernel_rows_mul_le :
 
 private theorem norm_sq_sum_signVal_le (S : Finset (Fin m × Fin n → Bool))
     (zs : Fin m × Fin n → Bool) :
-    ‖∑ a ∈ S, ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ)‖ ^ 2 ≤ (#S : ℝ) ^ 2 := by
-  have h : ‖∑ a ∈ S, ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ)‖ ≤ #S := by
-    refine (norm_sum_le _ _).trans_eq ?_
-    simp
-  exact pow_le_pow_left₀ (norm_nonneg _) h 2
+    ‖∑ a ∈ S, ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ)‖ ^ 2 ≤ (#S : ℝ) ^ 2 :=
+  pow_le_pow_left₀ (norm_nonneg _) ((norm_sum_le _ _).trans_eq (by simp)) 2
 
 /-- **Outcome probabilities of Simon's algorithm.** Under Simon's promise with hidden string `s`,
 if every fiber of the rowwise `f` has at most `K` elements, then the measured rows lie in a set `Z`
@@ -514,7 +507,6 @@ theorem measureProb_simonAlg_le_of_injective (E : Fin N ≃ (Fin n → Bool) × 
   classical
   set A : Finset (Fin m × Fin n → Bool) := {zs | ∃ w : Fin n → Bool, w ≠ 0 ∧
     ∀ r, Function.curry zs r ⬝ᵥ w = false} with hA
-  have hnat : #A * 2 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := card_kernel_rows_mul_le
   have hG := simonG_injective (m := m) hf
   have hfib : ∀ ys, #{a | simonG (m := m) E X a = ys} ≤ 1 := fun ys =>
     card_le_one.mpr fun a ha b hb => hG ((mem_filter.mp ha).2.trans (mem_filter.mp hb).2.symm)
@@ -527,7 +519,7 @@ theorem measureProb_simonAlg_le_of_injective (E : Fin N ≃ (Fin n → Bool) × 
   have h := measureProb_simonAlg_le E i₀ ((simonPromise_zero_iff _).mpr hf) hfib A
   rw [hA', Nat.cast_one, one_mul, ← hacc] at h
   have hreal : (#A : ℝ) * 2 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
-    have := Nat.cast_le (α := ℝ).2 hnat
+    have := Nat.cast_le (α := ℝ).2 (card_kernel_rows_mul_le (m := m) (n := n))
     push_cast [Nat.cast_sub Nat.one_le_two_pow] at this
     exact this
   refine h.trans ?_

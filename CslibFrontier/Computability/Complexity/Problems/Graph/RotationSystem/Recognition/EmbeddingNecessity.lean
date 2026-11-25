@@ -109,29 +109,26 @@ private noncomputable def forbiddenPairs (c d : ℂ) (points : Finset ℂ)
 
 private theorem forbidden_segment {c d : ℂ} {points : Finset ℂ}
     {segments : Finset (ℂ × ℂ)} {a b : ℂ} (hab : a ≠ b) (h : (a, b) ∈ segments) :
-    (a, b) ∈ forbiddenPairs c d points segments := by
-  apply Finset.mem_filter.mpr
-  exact ⟨Finset.mem_union_left _ (Finset.mem_union_left _
-    (Finset.mem_union_left _ h)), hab⟩
+    (a, b) ∈ forbiddenPairs c d points segments :=
+  Finset.mem_filter.mpr
+    ⟨Finset.mem_union_left _ (Finset.mem_union_left _ (Finset.mem_union_left _ h)), hab⟩
 
 private theorem forbidden_left {c d p : ℂ} {points : Finset ℂ}
     {segments : Finset (ℂ × ℂ)} (hp : p ∈ points) (hc : c ≠ p) :
-    (c, p) ∈ forbiddenPairs c d points segments := by
-  apply Finset.mem_filter.mpr
-  refine ⟨Finset.mem_union_left _ (Finset.mem_union_left _
+    (c, p) ∈ forbiddenPairs c d points segments :=
+  Finset.mem_filter.mpr ⟨Finset.mem_union_left _ (Finset.mem_union_left _
     (Finset.mem_union_right _ (Finset.mem_image_of_mem _ hp))), hc⟩
 
 private theorem forbidden_right {c d p : ℂ} {points : Finset ℂ}
     {segments : Finset (ℂ × ℂ)} (hp : p ∈ points) (hd : d ≠ p) :
-    (d, p) ∈ forbiddenPairs c d points segments := by
-  apply Finset.mem_filter.mpr
-  exact ⟨Finset.mem_union_left _ (Finset.mem_union_right _
-    (Finset.mem_image_of_mem _ hp)), hd⟩
+    (d, p) ∈ forbiddenPairs c d points segments :=
+  Finset.mem_filter.mpr
+    ⟨Finset.mem_union_left _ (Finset.mem_union_right _ (Finset.mem_image_of_mem _ hp)), hd⟩
 
 private theorem forbidden_ends {c d : ℂ} {points : Finset ℂ}
     {segments : Finset (ℂ × ℂ)} (hcd : c ≠ d) :
-    (c, d) ∈ forbiddenPairs c d points segments := by
-  exact Finset.mem_filter.mpr ⟨Finset.mem_union_right _ (Finset.mem_singleton_self _), hcd⟩
+    (c, d) ∈ forbiddenPairs c d points segments :=
+  Finset.mem_filter.mpr ⟨Finset.mem_union_right _ (Finset.mem_singleton_self _), hcd⟩
 
 private theorem exists_auxiliary_apex (c d : ℂ) (hcd : c ≠ d)
     (points : Finset ℂ) (segments : Finset (ℂ × ℂ)) :
@@ -139,20 +136,12 @@ private theorem exists_auxiliary_apex (c d : ℂ) (hcd : c ≠ d)
       (∀ p ∈ forbiddenPairs c d points segments, ∀ t : ℝ,
         AffineMap.lineMap p.1 p.2 t ≠ w) ∧ w ≠ c ∧ w ≠ d := by
   classical
-  let L := forbiddenPairs c d points segments
   obtain ⟨w, hw, hlines⟩ := Cslib.exists_mem_ball_avoiding_lines
-    (fun p : L => p.val.1) (fun p : L => p.val.2)
-    (fun p => (Finset.mem_filter.mp p.property).2) ((c + d) / 2)
-    (by norm_num : (0 : ℝ) < 1)
-  have havoid (p : ℂ × ℂ) (hp : p ∈ L) (t : ℝ) :
-      AffineMap.lineMap p.1 p.2 t ≠ w := hlines ⟨p, hp⟩ t
-  refine ⟨w, hw, havoid, ?_, ?_⟩
-  · intro heq
-    exact havoid (c, d) (forbidden_ends hcd) 0
-      (by simpa only [AffineMap.lineMap_apply_zero] using heq.symm)
-  · intro heq
-    exact havoid (c, d) (forbidden_ends hcd) 1
-      (by simpa only [AffineMap.lineMap_apply_one] using heq.symm)
+    (fun p : forbiddenPairs c d points segments => p.val.1) (fun p => p.val.2)
+    (fun p => (Finset.mem_filter.mp p.property).2) ((c + d) / 2) one_pos
+  exact ⟨w, hw, fun p hp => hlines ⟨p, hp⟩,
+    fun h => hlines ⟨(c, d), forbidden_ends hcd⟩ 0 (by simpa using h.symm),
+    fun h => hlines ⟨(c, d), forbidden_ends hcd⟩ 1 (by simpa using h.symm)⟩
 
 private theorem auxiliary_segment_ne {c d w : ℂ} (hc : w ≠ c) (hd : w ≠ d)
     (j : Fin (auxiliaryRoute c d w).segments) :
@@ -363,36 +352,15 @@ private theorem cycle_observe {p q r : Route} {u : ℂ} (hu : u ≠ 0)
       | inl i => exact ⟨hpr' i.castSucc, hpr' i.succ⟩
       | inr i => exact ⟨hqr' i.castSucc, hqr' i.succ⟩)
     (cycle_even u p q hs hf)
-  change cycleRay u p q r.finish + cycleRay u p q r.start = _ at h
   change cycleRay u p q r.finish + cycleRay u p q r.start =
     ∑ j : Fin r.segments, ∑ i : Fin p.segments ⊕ Fin q.segments,
-      true * decide ((openSegment ℝ (cycleStart u p q i) (cycleFinish u p q i) ∩
+      decide ((openSegment ℝ (cycleStart u p q i) (cycleFinish u p q i) ∩
         openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty) at h
-  simp only [Fintype.sum_sum_type] at h
-  change cycleRay u p q r.finish + cycleRay u p q r.start =
-    ∑ j : Fin r.segments,
-      ((∑ i : Fin p.segments, decide ((openSegment ℝ
-        (u * p.point i.castSucc) (u * p.point i.succ) ∩
-        openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty)) +
-      (∑ i : Fin q.segments, decide ((openSegment ℝ
-        (u * q.point i.castSucc) (u * q.point i.succ) ∩
-        openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty))) at h
-  rw [Finset.sum_add_distrib] at h
-  have hsum : (∑ j : Fin r.segments,
-      (∑ i : Fin p.segments, decide ((openSegment ℝ
-        (u * p.point i.castSucc) (u * p.point i.succ) ∩
-          openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty))) =
-        Route.intersectionParity (Route.mulComplex u p) (Route.mulComplex u r) := by
-    exact Finset.sum_comm
-  have hsum' : (∑ j : Fin r.segments,
-      (∑ i : Fin q.segments, decide ((openSegment ℝ
-        (u * q.point i.castSucc) (u * q.point i.succ) ∩
-          openSegment ℝ (u * r.point j.castSucc) (u * r.point j.succ)).Nonempty))) =
-        Route.intersectionParity (Route.mulComplex u q) (Route.mulComplex u r) := by
-    exact Finset.sum_comm
-  rw [hsum, hsum', Route.intersectionParity_mulComplex p r hu,
-    Route.intersectionParity_mulComplex q r hu] at h
-  exact h
+  simp only [Fintype.sum_sum_type, cycleStart, cycleFinish, Sum.elim_inl, Sum.elim_inr,
+    Finset.sum_add_distrib] at h
+  refine h.trans ?_
+  rw [← Route.intersectionParity_mulComplex p r hu, ← Route.intersectionParity_mulComplex q r hu]
+  exact congrArg₂ (· + ·) Finset.sum_comm Finset.sum_comm
 
 private theorem comparison_row {p q h k : Route} {u : ℂ} (hu : u ≠ 0)
     (hsp : p.start = h.start) (hfp : p.finish = h.finish)
@@ -429,18 +397,16 @@ private theorem exists_comparison_axis {E : Type*} [Finite E]
   classical
   let _ := Fintype.ofFinite E
   let R (k : E × Bool) := if k.2 then Q k.1 else P k.1
-  have hR (k : E × Bool) : (R k).IsSimple := by
-    rcases k with ⟨e, b⟩
-    cases b <;> simp only [R, ↓reduceIte] <;> first | exact hP e | exact hQ e
-  have hRs (k : E × Bool) : (R k).start = c k.1 := by
-    rcases k with ⟨e, b⟩
-    cases b <;> simp only [R, ↓reduceIte] <;> first | exact hPs e | exact hQs e
-  have hRf (k : E × Bool) : (R k).finish = d k.1 := by
-    rcases k with ⟨e, b⟩
-    cases b <;> simp only [R, ↓reduceIte] <;> first | exact hPf e | exact hQf e
+  have hR : ∀ k : E × Bool, (R k).IsSimple := fun ⟨e, b⟩ => by
+    cases b <;> simp only [R, Bool.false_eq_true, ↓reduceIte] <;> first | exact hP e | exact hQ e
+  have hRs : ∀ k : E × Bool, (R k).start = c k.1 := fun ⟨e, b⟩ => by
+    cases b <;> simp only [R, Bool.false_eq_true, ↓reduceIte] <;> first | exact hPs e | exact hQs e
+  have hRf : ∀ k : E × Bool, (R k).finish = d k.1 := fun ⟨e, b⟩ => by
+    cases b <;> simp only [R, Bool.false_eq_true, ↓reduceIte] <;> first | exact hPf e | exact hQf e
   have hRR (e f : E) (b : Bool) (hind : EndsApart c d e f) :
       NodesAvoid (R (e, b)) (R (f, b)) := by
-    cases b <;> simp only [R, ↓reduceIte] <;> first | exact hPP e f hind | exact hQQ e f hind
+    cases b <;> simp only [R, Bool.false_eq_true, ↓reduceIte]
+    exacts [hPP e f hind, hQQ e f hind]
   have hclean (e : E) (k : E × Bool) (hind : EndsApart c d e k.1) :
       c e ∉ (R k).support ∧ d e ∉ (R k).support := by
     have hnodes := hRR e k.1 k.2 hind
@@ -833,30 +799,23 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
       boundedEndpoints_frame hI f.1 hfm
     let ei := index ⟨e.2, helt⟩
     let fi := index ⟨f.2, hflt⟩
-    have heEdge : G.edges[ei] = e.1.endpoints := by
-      change ((subdivide I).map Segment.endpoints)[e.2]'
-        (by simpa only [List.length_map, F, frame] using helt) = e.1.endpoints
-      rw [List.getElem_map]
-      exact congrArg Segment.endpoints heStored
-    have hfEdge : G.edges[fi] = f.1.endpoints := by
-      change ((subdivide I).map Segment.endpoints)[f.2]'
-        (by simpa only [List.length_map, F, frame] using hflt) = f.1.endpoints
-      rw [List.getElem_map]
-      exact congrArg Segment.endpoints hfStored
-    have he0 : Dart.vertex (ei, false) = e.1.source :=
-      congrArg Prod.fst ((Dart.edge_eq_vertices ei).symm.trans heEdge)
-    have he1 : Dart.vertex (ei, true) = e.1.target :=
-      congrArg Prod.snd ((Dart.edge_eq_vertices ei).symm.trans heEdge)
-    have hf0 : Dart.vertex (fi, false) = f.1.source :=
-      congrArg Prod.fst ((Dart.edge_eq_vertices fi).symm.trans hfEdge)
-    have hf1 : Dart.vertex (fi, true) = f.1.target :=
-      congrArg Prod.snd ((Dart.edge_eq_vertices fi).symm.trans hfEdge)
-    have hce : c ei = ref.vertex e.1.source := by change ref.vertex _ = _; rw [he0]
-    have hde : d ei = ref.vertex e.1.target := by change ref.vertex _ = _; rw [he1]
-    have hcf : c fi = ref.vertex f.1.source := by change ref.vertex _ = _; rw [hf0]
-    have hdf : d fi = ref.vertex f.1.target := by change ref.vertex _ = _; rw [hf1]
+    have hends {x : Segment × ℕ} (hxlt : x.2 < F.segments.length)
+        (hxS : F.segments[x.2] = x.1) :
+        let xi := index ⟨x.2, hxlt⟩
+        G.edges[xi] = x.1.endpoints ∧
+          c xi = ref.vertex x.1.source ∧ d xi = ref.vertex x.1.target := by
+      intro xi
+      have hxE : G.edges[xi] = x.1.endpoints := by
+        change ((subdivide I).map Segment.endpoints)[x.2]'
+          (by simpa only [List.length_map, F, frame] using hxlt) = x.1.endpoints
+        exact (List.getElem_map _).trans (congrArg Segment.endpoints hxS)
+      have hv := (Dart.edge_eq_vertices xi).symm.trans hxE
+      exact ⟨hxE, congrArg ref.vertex (congrArg Prod.fst hv),
+        congrArg ref.vertex (congrArg Prod.snd hv)⟩
+    obtain ⟨heEdge, hce, hde⟩ := hends helt heStored
+    obtain ⟨hfEdge, hcf, hdf⟩ := hends hflt hfStored
     have hind' : independent (G.edges[ei]) (G.edges[fi]) = true := by
-      simpa only [heEdge, hfEdge] using hind
+      rwa [heEdge, hfEdge]
     have hap : EndsApart c d ei fi := reference_ends_apart hI ei fi hind'
     have hrow := hswitch ei fi hap
     rw [pairParity_embedding hD c d hDs hDf ei fi hap, hAcount ei fi hind', zero_add,

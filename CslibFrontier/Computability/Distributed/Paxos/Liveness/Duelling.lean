@@ -203,7 +203,6 @@ private lemma duelling_recv_two_1b {Learner V : Type*} [DecidableEq Learner] [De
       u.msgs ⊆ u'.msgs ∧
       Msg.phase2a ⟨k, p⟩ val ∈ u'.msgs := by
   let b : Ballot (Fin 2) := ⟨k, p⟩
-  have hins0 : insert (0 : Fin 3) (∅ : Finset (Fin 3)) = {0} := by decide
   have hins01 : insert (1 : Fin 3) ({0} : Finset (Fin 3)) = {0, 1} := by decide
   have hcond0 : b = ⟨k, p⟩ ∧ (0 : Fin 3) ∉ (∅ : Finset (Fin 3)) := ⟨rfl, Finset.notMem_empty 0⟩
   have hcond1 : b = ⟨k, p⟩ ∧ (1 : Fin 3) ∉ ({0} : Finset (Fin 3)) := ⟨rfl, by decide⟩
@@ -216,7 +215,7 @@ private lemma duelling_recv_two_1b {Learner V : Type*} [DecidableEq Learner] [De
     dsimp only [u1, synodStep, synodStepCore]
     rw [hp]
     dsimp only [mergeVote]
-    rw [ite_eq_left hcond0, hins0, fin3_singleton_zero_not_quorum]
+    rw [ite_eq_left hcond0, Finset.insert_empty, fin3_singleton_zero_not_quorum]
     rfl
   set u2 := synodStep majorityQuorumsFin3 u1 (.recvPhase1b p 1 b none)
   have hu2_def : u2 =
@@ -398,21 +397,16 @@ theorem exists_duelling_proposers_livelock {Learner V : Type*}
   have : Inhabited (SynodAction (Fin 2) (Fin 3) Learner V) := ⟨.stutter⟩
   obtain ⟨ss, hexec, hts⟩ := LTS.OmegaExecution.flatten_mTr (fun k => (hstep k).1) hpos
   have hmtr n := hexec.extract_mTr ((cumLen_strictMono hpos).id_le n)
-  refine ⟨inputs, ss, xls.flatten, hne, ?_, hexec, ?_, ?_, ?_, ?_⟩
+  refine ⟨inputs, ss, xls.flatten, hne, ?_, hexec, ?_,
+    fun k => ⟨xls.cumLen (k + 1), (hts (k + 1)).symm ▸ (hstep k).2⟩, ?_, ?_⟩
   · simpa only [cumLen_zero, ts, get_fun, duellingStateSeq, inputs] using hts 0
   · refine (forall_flatten_iff hpos
-      (fun act : SynodAction (Fin 2) (Fin 3) Learner V =>
-        act ≠ .stutter ∧ ∀ m, act ≠ .drop m)).mpr ?_
-    intro k
-    apply List.forall_iff_forall_mem.mpr
-    intro act hact
+        (fun act : SynodAction (Fin 2) (Fin 3) Learner V =>
+          act ≠ .stutter ∧ ∀ m, act ≠ .drop m)).mpr
+      fun k => List.forall_iff_forall_mem.mpr fun act hact => ?_
     simp only [xls, get_fun, duellingCycle, List.mem_cons, List.not_mem_nil, or_false] at hact
     rcases hact with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       exact ⟨nofun, nofun⟩
-  · intro k
-    refine ⟨xls.cumLen (k + 1), ?_⟩
-    rw [hts (k + 1)]
-    exact (hstep k).2
   · intro n a
     have hinv_cum := duellingStateSeq_inv (Learner := Learner) v₀ v₁ n
     have hnone_cum : ((ss (xls.cumLen n)).acceptors a).maxVoted = none := by
@@ -423,9 +417,7 @@ theorem exists_duelling_proposers_livelock {Learner V : Type*}
       | ⟨2, _⟩ => exact hinv_cum.a2_vote
     exact maxVoted_none_of_mTr (hmtr n) hnone_cum
   · intro n l
-    have hnone_cum : ((ss (xls.cumLen n)).learners l).learned = none := by
-      rw [hts n]
-      exact (duellingStateSeq_inv (Learner := Learner) v₀ v₁ n).learners_empty l
-    exact learned_none_of_mTr (hmtr n) hnone_cum
+    exact learned_none_of_mTr (hmtr n)
+      (hts n ▸ (duellingStateSeq_inv (Learner := Learner) v₀ v₁ n).learners_empty l)
 
 end Cslib.Distributed.Paxos

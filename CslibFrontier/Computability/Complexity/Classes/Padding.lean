@@ -261,13 +261,10 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
   have hlen (a : α) : (g a).length = 2 * (enc a).length + 1 + t (enc a).length := by simp [g]
   have ht (a : α) : t (enc a).length ≤ c' * (T (enc a).length + 1) := by
     simpa only [encUnary_apply, List.length_replicate] using hc' (enc a)
-  have hpre : A = g ⁻¹' B' := by
-    ext a
-    refine Iff.trans ?_ (hagree (enc a)).symm
-    refine (hA.frame_append_mem_padded_iff ?_).symm
-    rw [List.length_append, List.length_replicate, length_frame]
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left _ (by nlinarith)
+  have hpre : A = g ⁻¹' B' := Set.ext fun a =>
+    (hA.frame_append_mem_padded_iff (by
+      simp only [List.length_append, List.length_replicate, length_frame, c, Nat.mul_assoc]
+      exact Nat.mul_le_mul_left _ (by nlinarith))).symm.trans (hagree (enc a)).symm
   refine Set.mem_iUnion.mpr ⟨d + 1, hpre ▸ preimage_mem_DTIME (C := (c' + 2) ^ d + 1) hd hg
     fun a => ?_⟩
   rw [encBits_apply, hlen]
@@ -416,9 +413,7 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
     intro final hfinal
     rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
     subst hfinal
-    change (tm.runFrom (tm.initCfg (enc a)) (t₁ a)).state = none
-    rw [htm_run a]
-    rfl
+    exact congrArg (·.state) (htm_run a)
   have hout₁ (a : α) :
       ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
     rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]

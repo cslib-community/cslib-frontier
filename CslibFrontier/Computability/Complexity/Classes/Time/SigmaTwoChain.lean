@@ -108,10 +108,7 @@ private def leadingTruesT : Transducer Bool Bool where
 private theorem leadingTruesT_run_false (v : List Bool) : leadingTruesT.run false v = [] := by
   induction v with
   | nil => rfl
-  | cons b v ih =>
-    have hs : leadingTruesT.step false b = (false, []) := by cases b <;> rfl
-    rw [Transducer.run_cons, hs, ih]
-    rfl
+  | cons b v ih => cases b <;> simpa [Transducer.run_cons, leadingTruesT] using ih
 
 private theorem leadingTruesT_run (v : List Bool) :
     leadingTruesT.run true v = List.replicate (leadingTrues v) true := by
@@ -119,12 +116,8 @@ private theorem leadingTruesT_run (v : List Bool) :
   | nil => rfl
   | cons b v ih =>
     cases b
-    · have hs : leadingTruesT.step true false = (false, []) := rfl
-      rw [Transducer.run_cons, hs, leadingTruesT_run_false]
-      rfl
-    · have hs : leadingTruesT.step true true = (true, [true]) := rfl
-      rw [Transducer.run_cons, hs, ih]
-      rfl
+    · simpa [Transducer.run_cons, leadingTruesT, leadingTrues] using leadingTruesT_run_false v
+    · simpa [Transducer.run_cons, leadingTruesT, leadingTrues, List.replicate_succ] using ih
 
 private theorem leadingTrues_inO :
     ComputableInO leadingTrues encBits encUnary (fun v => (encBits v).length)
@@ -262,10 +255,8 @@ private theorem lin_eq_short {g₁ g₂ : α × (List Bool × List Bool) → Lis
     (h₁ : Lin enc g₁ encBits) (h₂ : Lin enc g₂ encBits) (hl₁ : ∀ x, (g₁ x).length ≤ 2)
     (hl₂ : ∀ x, (g₂ x).length ≤ 2) : Lin enc (fun x => decide (g₁ x = g₂ x)) encBool := by
   refine (ComputableInO.eq' h₁ h₂).mono 16 (fun x => ?_) fun x => ?_
-  · have := hl₁ x
-    have := hl₂ x
-    simp only [encBits_apply]
-    nlinarith
+  · simp only [encBits_apply]
+    nlinarith [hl₁ x, hl₂ x]
   · have := hl₁ x
     have := hl₂ x
     enc_len
@@ -458,9 +449,7 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
     change chainCheck rF rG (eP (P a)) (eS s₀) u v = true
     rcases hR : cvRest (eS s₀) u v with _ | ⟨w, rest⟩
     · exact chainCheck_nil hR
-    have hR' := hR
-    rw [cvRest, hws] at hR'
-    obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons hR'
+    obtain ⟨hi, hw, hr⟩ := drop_map_range_eq_cons (by rwa [cvRest, hws] at hR)
     rcases rest with _ | ⟨w', r⟩
     · have him : leadingTrues v = m := by
         by_contra hne
@@ -508,12 +497,9 @@ theorem mem_SigmaTwoTIME_of_chain {π σ : Type} {eP : π ↪ List Bool} {eS : �
           simp only [List.length_append, length_frame, List.length_singleton] at hj
           have hpick : k + j + 2 ≤ L := by omega
           have hR : cvRest (eS s₀) u (pick k j L) = eS (step^[k] s₀) :: w' :: r := by
-            rw [cvRest, leadingTrues_pick]
-            exact ihk
-          have := hV (pick k j L) (length_pick hpick)
-          dsimp only at this
-          rw [chainCheck_cons_cons hR, cvPos_pick, decide_eq_true_iff] at this
-          exact this
+            rwa [cvRest, leadingTrues_pick]
+          simpa only [chainCheck_cons_cons hR, cvPos_pick, decide_eq_true_iff] using
+            hV (pick k j L) (length_pick hpick)
         have hP' := eq_of_forall_take_drop hpos
         have hpre := hpreF u (P a, (step^[k] s₀, bw))
         simp only [encPair_apply, encBits_apply, encBool_apply] at hpre

@@ -151,24 +151,18 @@ theorem before_index (C : ℕ → ℕ) (cap p i : ℕ) (hi : i < before C cap p)
     ∃! idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap),
       i = before C cap idx.1.val + idx.2.val := by
   have hsum : (∑ rho : Fin p, C rho.val ⌈/⌉ cap) = before C cap p := by
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]
-    rfl
-  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) := ⟨i, by rw [hsum]; exact hi⟩
+    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]; rfl
   have hval (idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap)) :
       (finSigmaFinEquiv idx).val = before C cap idx.1.val + idx.2.val := by
     rw [finSigmaFinEquiv_apply]
     change (∑ r : Fin idx.1.val, C r.val ⌈/⌉ cap) + idx.2.val = _
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]
-    rfl
-  let idx := finSigmaFinEquiv.symm j
-  have heq : finSigmaFinEquiv idx = j := finSigmaFinEquiv.apply_symm_apply j
-  refine ⟨idx, ?_, ?_⟩
-  · exact (congrArg Fin.val heq).symm.trans (hval idx)
-  · intro k hk
-    apply finSigmaFinEquiv.injective
-    apply Fin.ext
-    rw [heq, hval]
-    exact hk.symm
+    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]; rfl
+  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) := ⟨i, hsum ▸ hi⟩
+  refine ⟨finSigmaFinEquiv.symm j,
+    (congrArg Fin.val (finSigmaFinEquiv.apply_symm_apply j)).symm.trans (hval _), fun k hk => ?_⟩
+  apply finSigmaFinEquiv.injective (Fin.ext ?_)
+  rw [finSigmaFinEquiv.apply_symm_apply, hval]
+  exact hk.symm
 
 /-- At most `N` queries per class give at most `rho * N` occupied descriptors, since every
 nonempty chunk contains at least one query. This bounds the actual allocation before matrix
