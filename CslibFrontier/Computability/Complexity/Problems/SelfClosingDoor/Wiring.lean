@@ -71,16 +71,13 @@ private theorem project_step {doors : List Door} {arcs : List Tunnel} {s t : Sta
   obtain ⟨hs, i, hp, rfl⟩ := h
   have hv := project_valid (arcs := arcs) hs
   by_cases hi : i.val < doors.length
-  · have hd : (doors ++ arcs.map diode)[i.val] = doors[i.val] :=
-      List.getElem_append_left hi
+  · have hd : (doors ++ arcs.map diode)[i.val] = doors[i.val] := List.getElem_append_left hi
     have hb : (s.bits.take doors.length).getD i.val false = s.bits.getD i.val false := by
       simp [List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi]
-    right
-    left
-    refine ⟨hv, ⟨i.val, hi⟩, ?_, ?_⟩
-    · simpa only [project, Fin.getElem_fin, hd, hb] using hp
-    · simp only [project, Fin.getElem_fin, hd, hb, List.take_set]
-  · have hlo : doors.length ≤ i.val := by omega
+    exact .inr (.inl ⟨hv, ⟨i.val, hi⟩,
+      by simpa only [project, Fin.getElem_fin, hd, hb] using hp,
+      by simp only [project, Fin.getElem_fin, hd, hb, List.take_set]⟩)
+  · have hlo : doors.length ≤ i.val := Nat.le_of_not_lt hi
     have hk : i.val - doors.length < arcs.length := by
       have := i.isLt
       simp only [List.length_append, List.length_map] at this
@@ -89,22 +86,15 @@ private theorem project_step {doors : List Door} {arcs : List Tunnel} {s t : Sta
       rw [List.getElem_append_right hlo, List.getElem_map]
     have hb : (s.bits.set i.val (!s.bits.getD i.val false)).take doors.length =
         s.bits.take doors.length := List.take_set_of_le hlo
-    cases hbit : s.bits.getD i.val false with
-    | false =>
-      left
-      apply State.ext
-      · simpa only [project, Fin.getElem_fin, hd, hbit, diode, Door.tunnel,
-          Bool.false_eq_true, ↓reduceIte]
-          using hp
-      · simpa only [project, hbit] using hb.symm
-    | true =>
-      right
-      right
-      refine ⟨hv, arcs[i.val - doors.length], List.getElem_mem hk, ?_, ?_⟩
-      · simpa only [project, Fin.getElem_fin, hd, hbit, diode, Door.tunnel, ↓reduceIte] using hp
-      · apply State.ext
-        · simp only [project, Fin.getElem_fin, hd, diode, Door.tunnel, ↓reduceIte]
-        · simpa only [project, hbit] using hb
+    cases hbit : s.bits.getD i.val false
+    · exact .inl (State.ext
+        (by simpa only [project, Fin.getElem_fin, hd, hbit, diode, Door.tunnel,
+          Bool.false_eq_true, ↓reduceIte] using hp)
+        (by simpa only [project, hbit] using hb.symm))
+    · refine .inr (.inr ⟨hv, arcs[i.val - doors.length], List.getElem_mem hk,
+        by simpa only [project, Fin.getElem_fin, hd, hbit, diode, Door.tunnel, ↓reduceIte] using hp,
+        State.ext ?_ (by simpa only [project, hbit] using hb)⟩)
+      simp only [project, Fin.getElem_fin, hd, diode, Door.tunnel, ↓reduceIte]
 
 /-- Forgetting auxiliary diode bits maps complete paths to paths with directed wiring. -/
 private theorem project_reachable {doors : List Door} {arcs : List Tunnel} {s t : State}
@@ -112,25 +102,20 @@ private theorem project_reachable {doors : List Door} {arcs : List Tunnel} {s t 
     Reachable doors arcs (project doors s) (project doors t) := by
   induction h with
   | refl => exact .refl
-  | tail _ hstep ih =>
-    rcases project_step hstep with he | he
-    · exact he ▸ ih
-    · exact ih.tail he
+  | tail _ hstep ih => exact (project_step hstep).elim (· ▸ ih) ih.tail
 
 private theorem append_step {doors more : List Door} {s t : State} (aux : List Bool)
     (hlen : aux.length = more.length) (h : SelfClosingDoor.Step doors s t) :
     SelfClosingDoor.Step (doors ++ more) ⟨s.location, s.bits ++ aux⟩
       ⟨t.location, t.bits ++ aux⟩ := by
   obtain ⟨hs, i, hp, rfl⟩ := h
-  have hsl : s.bits.length = doors.length := hs
-  have hi : i.val < s.bits.length := by omega
-  refine ⟨?_, ⟨i.val, by simp only [List.length_append]; omega⟩, ?_, ?_⟩
-  · simp only [State.Valid, List.length_append, hlen]
-    exact congrArg (· + more.length) hs
-  · simpa only [Fin.getElem_fin, List.getElem_append_left i.isLt,
-      List.getD_append _ _ _ _ hi] using hp
-  · simp only [Fin.getElem_fin, List.getElem_append_left i.isLt,
-      List.getD_append _ _ _ _ hi, List.set_append_left _ _ hi]
+  have hi : i.val < s.bits.length := i.isLt.trans_eq hs.symm
+  exact ⟨by simp only [State.Valid, List.length_append, hlen]; exact congrArg (· + more.length) hs,
+    ⟨i.val, Nat.lt_of_lt_of_le i.isLt (by simp)⟩,
+    by simpa only [Fin.getElem_fin, List.getElem_append_left i.isLt,
+      List.getD_append _ _ _ _ hi] using hp,
+    by simp only [Fin.getElem_fin, List.getElem_append_left i.isLt,
+      List.getD_append _ _ _ _ hi, List.set_append_left _ _ hi]⟩
 
 private theorem diode_step {doors : List Door} {arcs : List Tunnel} (s : State)
     (hs : s.Valid doors) (aux : List Bool) (hlen : aux.length = arcs.length)
@@ -139,26 +124,20 @@ private theorem diode_step {doors : List Door} {arcs : List Tunnel} (s : State)
     SelfClosingDoor.Step (doors ++ arcs.map diode) ⟨s.location, s.bits ++ aux⟩
       ⟨if b then arcs[k].target else arcs[k].source,
         s.bits ++ aux.set k.val (!b)⟩ := by
-  have hi : doors.length + k.val < (doors ++ arcs.map diode).length := by
-    simp only [List.length_append, List.length_map]
-    omega
-  have hd : (doors ++ arcs.map diode)[doors.length + k.val] = diode arcs[k] := by
-    simp only [List.getElem_append_right (Nat.le_add_right _ _), List.getElem_map,
-      Nat.add_sub_cancel_left, Fin.getElem_fin]
   have hsl : s.bits.length = doors.length := hs
+  have hi : doors.length + k.val < (doors ++ arcs.map diode).length := by simp
+  have hd : (doors ++ arcs.map diode)[doors.length + k.val] = diode arcs[k] := by
+    simp [List.getElem_append_right (Nat.le_add_right _ _)]
   have hbits : (s.bits ++ aux).getD (doors.length + k.val) false = b := by
     rw [List.getD_append_right _ _ _ _ (by omega), hsl, Nat.add_sub_cancel_left, hb]
-  have hset : (s.bits ++ aux).set (doors.length + k.val) (!b) =
-      s.bits ++ aux.set k.val (!b) := by
-    rw [List.set_append_right _ _ (by omega), hsl, Nat.add_sub_cancel_left]
-  refine ⟨?_, ⟨doors.length + k.val, hi⟩, ?_, ?_⟩
-  · simp only [State.Valid, List.length_append, List.length_map, hlen]
-    exact congrArg (· + arcs.length) hs
-  · cases b <;>
-      simpa only [Fin.getElem_fin, hd, hbits, diode, Door.tunnel, Bool.false_eq_true,
-        ↓reduceIte] using hp
-  · cases b <;> simp only [Fin.getElem_fin, hd, hbits, diode, Door.tunnel,
-      Bool.false_eq_true, ↓reduceIte, hset]
+  refine ⟨by simp only [State.Valid, List.length_append, List.length_map, hlen, hsl],
+    ⟨doors.length + k.val, hi⟩, ?_, ?_⟩
+  · cases b <;> simpa only [Fin.getElem_fin, hd, hbits, diode, Door.tunnel, Bool.false_eq_true,
+      ↓reduceIte] using hp
+  · have hle : s.bits.length ≤ doors.length + k.val := by omega
+    rw [List.set_append_right _ _ hle]
+    cases b <;> simp only [Fin.getElem_fin, hd, hbits, diode, Door.tunnel, Bool.false_eq_true,
+      ↓reduceIte, hsl, Nat.add_sub_cancel_left]
 
 private theorem lift_arc {doors : List Door} {arcs : List Tunnel} (s : State)
     (hs : s.Valid doors) (aux : List Bool) (hlen : aux.length = arcs.length)
@@ -166,26 +145,21 @@ private theorem lift_arc {doors : List Door} {arcs : List Tunnel} (s : State)
     ∃ aux', aux'.length = arcs.length ∧
       SelfClosingDoor.Reachable (doors ++ arcs.map diode) ⟨s.location, s.bits ++ aux⟩
         ⟨a.target, s.bits ++ aux'⟩ := by
-  obtain ⟨k, hk⟩ := List.mem_iff_get.1 ha
-  have hak : arcs[k] = a := hk
+  obtain ⟨k, rfl⟩ := List.mem_iff_get.1 ha
+  rw [List.get_eq_getElem] at hp ⊢
   cases hb : aux.getD k.val false with
   | true =>
-    refine ⟨aux.set k.val false, by simpa only [List.length_set] using hlen, ?_⟩
-    exact Relation.ReflTransGen.single (by
-      simpa only [hak, Bool.not_true, ↓reduceIte] using diode_step s hs aux hlen k true hb
-        (hak.symm ▸ hp))
+    exact ⟨aux.set k.val false, by simp [hlen],
+      .single (by simpa using diode_step s hs aux hlen k true hb hp)⟩
   | false =>
     let aux' := aux.set k.val true
-    have hlen' : aux'.length = arcs.length := by simp only [aux', List.length_set, hlen]
     have hb' : aux'.getD k.val false = true := by
-      simp only [aux', List.getD_eq_getElem?_getD,
-        List.getElem?_set_self (by omega : k.val < aux.length), Option.getD_some]
-    have hfirst := diode_step s hs aux hlen k false hb (hak.symm ▸ hp)
-    have hsecond := diode_step s hs aux' hlen' k true hb' (hak.symm ▸ hp)
-    refine ⟨aux'.set k.val false, by simp only [List.length_set, hlen'], ?_⟩
-    exact (Relation.ReflTransGen.single (by
-      simpa only [hak, Bool.not_false, Bool.false_eq_true, ↓reduceIte, ← hp] using hfirst)).tail (by
-      simpa only [hak, Bool.not_true, Bool.false_eq_true, ↓reduceIte, aux'] using hsecond)
+      simp [aux', List.getD_eq_getElem?_getD,
+        List.getElem?_set_self (by omega : k.val < aux.length)]
+    exact ⟨aux'.set k.val false, by simp [aux', hlen],
+      (Relation.ReflTransGen.single
+        (by simpa [← hp] using diode_step s hs aux hlen k false hb hp)).tail
+        (by simpa [aux'] using diode_step s hs aux' (by simp [aux', hlen]) k true hb' hp)⟩
 
 /-- Every wired step lifts while retaining the principal bits and some auxiliary diode bits. -/
 private theorem lift_step {doors : List Door} {arcs : List Tunnel} {s t : State}
@@ -214,14 +188,11 @@ private theorem lift_reachable {doors : List Door} {arcs : List Tunnel} {s t : S
 theorem compile_reachability_iff (doors : List Door) (arcs : List Tunnel) (start target : ℕ) :
     compile doors arcs start target ∈ Reachability ↔
       ∃ s, Reachable doors arcs ⟨start, doors.map Door.initial⟩ s ∧ s.location = target := by
-  constructor
-  · rintro ⟨s, hr, hp⟩
-    refine ⟨project doors s, ?_, hp⟩
-    simpa [project, compile, Instance.initial] using project_reachable hr
-  · rintro ⟨s, hr, hp⟩
-    let aux := (arcs.map diode).map Door.initial
-    obtain ⟨aux', _, hr'⟩ := lift_reachable hr aux (by simp [aux])
-    refine ⟨⟨s.location, s.bits ++ aux'⟩, ?_, hp⟩
-    simpa only [compile, Instance.initial, List.map_append, aux] using hr'
+  refine ⟨fun ⟨s, hr, hp⟩ => ⟨project doors s,
+    by simpa [project, compile, Instance.initial] using project_reachable hr, hp⟩, ?_⟩
+  rintro ⟨s, hr, hp⟩
+  obtain ⟨aux', _, hr'⟩ := lift_reachable hr ((arcs.map diode).map Door.initial) (by simp)
+  exact ⟨⟨s.location, s.bits ++ aux'⟩,
+    by simpa only [compile, Instance.initial, List.map_append] using hr', hp⟩
 
 end Cslib.Complexity.SelfClosingDoor.Wiring
