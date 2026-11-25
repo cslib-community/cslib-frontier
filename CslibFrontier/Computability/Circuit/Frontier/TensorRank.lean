@@ -1084,15 +1084,8 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
       · rw [Nat.sub_eq_zero_of_le (by omega), Nat.cast_zero]
         positivity
     have hfuel_le : (fuel : ℝ) ≤ 3 * δ * (n : ℝ) + 3 * ξ * V_card + 3 * (C₀ : ℝ) := by
-      have h0 := hdef_part 0; have h1 := hdef_part 1; have h2 := hdef_part 2
-      have hsum_eq : (fuel : ℝ) =
-          ((n / 3 - {i : Fin n | p₀ i = 0}.ncard : ℕ) : ℝ) +
-          ((n / 3 - {i : Fin n | p₀ i = 1}.ncard : ℕ) : ℝ) +
-          ((n / 3 - {i : Fin n | p₀ i = 2}.ncard : ℕ) : ℝ) := by
-        dsimp [fuel]
-        rw [Fin.sum_univ_three]
-        push_cast; ring
-      linarith only [hsum_eq, h0, h1, h2]
+      simp only [fuel, Fin.sum_univ_three, Nat.cast_add]
+      linarith only [hdef_part 0, hdef_part 1, hdef_part 2]
     -- Rebalance `p₀` to an exact `BalancedTripartition n p'` and splice into `Tensor.mm`.
     obtain ⟨p', col', hbal', hcompat', hcut'⟩ :=
       exists_rebalanced_coloring c fuel p₀ col₀ hcompat₀ le_rfl
@@ -1155,9 +1148,7 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
           (α + 7 * δ) * (n : ℝ) := by ring
       linarith only [hstep, hc0, hfuel_le, hcap_cyc, h4ξV, hexp_n]
     have hB_real : (B : ℝ) ≤ (α + 7 * δ) * (n : ℝ) + (4 * (C₀ : ℝ) + 1) := by
-      have hb_eq : (B : ℝ) = max (c_sz 0 : ℝ) (max (c_sz 1 : ℝ) (c_sz 2 : ℝ)) := by
-        dsimp [B]; push_cast; rfl
-      rw [hb_eq]
+      simp only [B, Nat.cast_max]
       exact max_le (hc_sz_real 0) (max_le (hc_sz_real 1) (hc_sz_real 2))
     -- Multiply `(B : ℝ)` by `τ = omega K + δ` and compare against `(2 / 3 - δ) * n`.
     have hωα : omega K * α = 2 / 3 - gap := by
