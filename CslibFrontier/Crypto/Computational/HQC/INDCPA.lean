@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.TwoStage
 public import CslibFrontier.Crypto.Game.HiddenBit
 public import CslibFrontier.Crypto.Primitives.HQC.PKE
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # IND-CPA security of the ideal HQC public-key encryption core
@@ -79,16 +80,16 @@ private theorem bind_uniformParity_eq_uniform (n : ℕ) [NeZero n] :
       PMF.uniformOfFintype (BitString n) := by
   obtain ⟨j, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (NeZero.ne n)
   ext x
-  cases h : parity (j + 1) x <;>
+  cases h : parity (j + 1) x
+  all_goals
     simp only [PMF.bind_apply, PMF.uniformOfFintype_apply, Fintype.card_bool,
       Nat.cast_ofNat, tsum_fintype, Fintype.univ_bool, Finset.mem_singleton,
       Bool.true_eq_false, Bool.false_eq_true, not_false_eq_true, Finset.sum_insert,
       Finset.sum_singleton, uniformParity_apply, h, ite_false, ite_true, Fintype.card_pi,
-      Finset.prod_const, Finset.card_univ, Fintype.card_fin, pow_succ, mul_comm]
-  all_goals
-    simp only [Nat.succ_sub_one, Nat.cast_mul, zero_mul, add_zero, zero_add]
-    rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by finiteness))]
-    rw [Nat.cast_pow]
+      Finset.prod_const, Finset.card_univ, Fintype.card_fin, pow_succ, mul_comm,
+      Nat.succ_sub_one, Nat.cast_mul, zero_mul, add_zero, zero_add]
+    rw [ENNReal.mul_inv (Or.inl (by norm_num))
+      (Or.inl (by finiteness)), Nat.cast_pow]
     norm_num [mul_comm]
 
 /-- The real 2-DQCSD-P public-key law, mixing the parity `b₁` read from the sampled public word. -/
@@ -238,9 +239,7 @@ private theorem eval_pkeKeyGen_bind {Output : Type} (kernel :
   simp only [PMF.bind_apply]
   change ProbComp.expect (pkeKeyGen P) (fun keys => kernel keys output) = _
   rw [pkeKeyGen_expect]
-  simp only [ProbComp.expect]
-  rw [eval_sampleFixedWeight P P.omega_le_n]
-  simp only [ProbComp.eval_uniform]
+  simp only [ProbComp.expect, eval_sampleFixedWeight P P.omega_le_n, ProbComp.eval_uniform]
 
 omit [NeZero P.n] in
 private theorem eval_pkeSampleCoins_bind {Output : Type} (kernel : PKECoins P → PMF Output) :
@@ -255,36 +254,8 @@ private theorem eval_pkeSampleCoins_bind {Output : Type} (kernel : PKECoins P �
   simp only [PMF.bind_apply]
   change ProbComp.expect (pkeSampleCoins P) (fun coins => kernel coins output) = _
   rw [pkeSampleCoins_expect]
-  simp only [ProbComp.expect]
-  rw [eval_sampleFixedWeight P P.omegaR_le_n,
+  simp only [ProbComp.expect, eval_sampleFixedWeight P P.omegaR_le_n,
     eval_sampleFixedWeight P P.omegaE_le_n]
-
-private theorem bind_rotate {A B C Output : Type} (p : PMF A) (q : PMF B) (r : PMF C)
-    (kernel : A → B → C → PMF Output) :
-    p.bind (fun a => q.bind fun b => r.bind fun c => kernel a b c) =
-      r.bind fun c => q.bind fun b => p.bind fun a => kernel a b c := by
-  calc
-    _ = p.bind (fun a => r.bind fun c => q.bind fun b => kernel a b c) := by
-      apply congrArg (p.bind)
-      funext a
-      exact PMF.bind_comm q r (fun b c => kernel a b c)
-    _ = r.bind (fun c => p.bind fun a => q.bind fun b => kernel a b c) :=
-      PMF.bind_comm p r (fun a c => q.bind fun b => kernel a b c)
-    _ = _ := by
-      apply congrArg (r.bind)
-      funext c
-      exact PMF.bind_comm p q (fun a b => kernel a b c)
-
-private theorem bind_last_first {A B C Output : Type} (p : PMF A) (q : PMF B) (r : PMF C)
-    (kernel : A → B → C → PMF Output) :
-    p.bind (fun a => q.bind fun b => r.bind fun c => kernel a b c) =
-      r.bind fun c => p.bind fun a => q.bind fun b => kernel a b c := by
-  calc
-    _ = p.bind (fun a => r.bind fun c => q.bind fun b => kernel a b c) := by
-      apply congrArg (p.bind)
-      funext a
-      exact PMF.bind_comm q r (fun b c => kernel a b c)
-    _ = _ := PMF.bind_comm p r (fun a c => q.bind fun b => kernel a b c)
 
 private def truncateEncryptionSample (sample : SyndromeSample P.n) (coins : PKECoins P) :
     TruncatedSyndromeSample P.n P.codeLen :=
@@ -296,27 +267,17 @@ private theorem mixedTwoUniform_bind_coins_eq_mixedThreeReal
     (mixedTwoUniformLaw P).bind (fun sample =>
       (ProbComp.eval (pkeSampleCoins P)).map (truncateEncryptionSample P sample)) =
       mixedThreeRealLaw P := by
-  simp only [mixedTwoUniformLaw, uniformSyndromeLaw, mixedThreeRealLaw,
-    realTruncatedSyndromeLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.bind_bind, PMF.pure_bind, PMF.map, eval_pkeSampleCoins_bind]
   have heLaw :
       PMF.uniformOfFinset (weightLayer P.n P.omegaE)
           (weightLayer_nonempty P.omegaE_le_n) =
         PMF.uniformOfFinset (weightLayer P.n P.omegaR)
           (weightLayer_nonempty P.omegaR_le_n) := by
     simp only [hweight]
-  rw [heLaw]
-  apply congrArg (PMF.uniformOfFintype Bool).bind
-  funext b₁
-  apply congrArg (uniformParity P.n b₁).bind
-  funext h₁
-  apply congrArg (uniformParity P.n (syndromeParity P.omega b₁)).bind
-  funext h₂
-  let sparse := PMF.uniformOfFinset (weightLayer P.n P.omegaR)
-    (weightLayer_nonempty P.omegaR_le_n)
-  simpa only [truncateEncryptionSample, Function.comp_apply, truncate] using
-    bind_rotate sparse sparse sparse (fun r2 e r1 =>
-      PMF.pure (truncateEncryptionSample P ⟨h₁, h₂⟩ ⟨r2, e, r1⟩))
+  simp only [mixedTwoUniformLaw, uniformSyndromeLaw, mixedThreeRealLaw,
+    realTruncatedSyndromeLaw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.bind_bind, PMF.pure_bind, PMF.map, eval_pkeSampleCoins_bind, heLaw,
+    truncateEncryptionSample, Function.comp_apply, truncate]
+  pmf_swap
 
 /-- HQC v5.1 Game1 is exactly the real 2-DQCSD-P reduction game. -/
 theorem eval_indCpaGame_eq_twoRealGame {State : Type}
@@ -332,22 +293,8 @@ theorem eval_indCpaGame_eq_twoRealGame {State : Type}
     PMF.pure_bind, eval_pkeSampleCoins_bind]
   conv_rhs =>
     rw [← PMF.bind_bind, bind_uniformParity_eq_uniform]
-  simpa only [expandedPublicKey] using bind_rotate
-    (PMF.uniformOfFinset (weightLayer P.n P.omega) (weightLayer_nonempty P.omega_le_n))
-    (PMF.uniformOfFinset (weightLayer P.n P.omega) (weightLayer_nonempty P.omega_le_n))
-    (PMF.uniformOfFintype (RingWord P))
-    (fun y x h =>
-      (ProbComp.eval (adversary.choose (expandedPublicKey P h x y))).bind fun choice =>
-      (PMF.uniformOfFintype Bool).bind fun bit =>
-      (PMF.uniformOfFinset (weightLayer P.n P.omegaR)
-        (weightLayer_nonempty P.omegaR_le_n)).bind fun r2 =>
-      (PMF.uniformOfFinset (weightLayer P.n P.omegaE)
-        (weightLayer_nonempty P.omegaE_le_n)).bind fun e =>
-      (PMF.uniformOfFinset (weightLayer P.n P.omegaR)
-        (weightLayer_nonempty P.omegaR_le_n)).bind fun r1 =>
-      (ProbComp.eval (adversary.guess choice.2
-        (pkeEncrypt P encode (expandedPublicKey P h x y) (choice.1.select bit) ⟨r2, e, r1⟩))).bind
-          fun guess => PMF.pure (guess == bit))
+  simp only [expandedPublicKey]
+  pmf_swap
 
 /-- HQC v5.1 Game2 is exactly the real 3-DQCSD-PT reduction game. The equality of the two
 encryption weights is explicit because the source 3-DQCSD-PT sample uses one weight for all three
@@ -359,20 +306,13 @@ theorem twoUniformGame_eq_threeRealGame {State : Type}
     twoUniformGame P encode adversary = threeRealGame P encode adversary := by
   rw [threeRealGame, ← mixedTwoUniform_bind_coins_eq_mixedThreeReal P hweight]
   simp only [twoUniformGame, PMF.bind_bind]
-  apply congrArg (mixedTwoUniformLaw P).bind
-  funext sample
+  refine congrArg (mixedTwoUniformLaw P).bind (funext fun sample => ?_)
   unfold twoDQCSDDistinguisher threeDQCSDDistinguisher
     SyndromeSample.toPKEPublicKey TruncatedSyndromeSample.toPKEPublicKey
     TruncatedSyndromeSample.toPKECiphertext
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def]
-  simpa only [Game, SyndromeSample.toPKEPublicKey, truncateEncryptionSample, pkeEncrypt,
-    syndrome, truncate, add_comm] using
-    bind_last_first (ProbComp.eval (adversary.choose (sample.toPKEPublicKey P)))
-      (PMF.uniformOfFintype Bool) (ProbComp.eval (pkeSampleCoins P))
-      (fun choice bit coins =>
-        (ProbComp.eval (adversary.guess choice.2
-          (pkeEncrypt P encode (sample.toPKEPublicKey P) (choice.1.select bit) coins))).bind
-            fun guess => PMF.pure (guess == bit))
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def,
+    truncateEncryptionSample, pkeEncrypt, syndrome, truncate, add_comm]
+  pmf_swap
 
 omit [NeZero P.n] in
 private theorem uniformMaskGame_eq_uniform {State : Type}
@@ -388,31 +328,19 @@ private theorem uniformMaskGame_eq_uniform {State : Type}
   rw [PMF.bind_comm (PMF.uniformOfFintype (Codeword P))
     (ProbComp.eval (adversary.choose pk))]
   conv_rhs =>
-    rw [← PMF.bind_const (ProbComp.eval (adversary.choose pk))
-      (PMF.uniformOfFintype Bool)]
-  apply congrArg (ProbComp.eval (adversary.choose pk)).bind
-  funext choice
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Codeword P))
-    (PMF.uniformOfFintype Bool)]
-  have hmask : ∀ bit : Bool,
+    rw [← PMF.bind_const (ProbComp.eval (adversary.choose pk)) (PMF.uniformOfFintype Bool)]
+  refine congrArg (ProbComp.eval (adversary.choose pk)).bind (funext fun choice => ?_)
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Codeword P)) (PMF.uniformOfFintype Bool)]
+  have hmask (bit : Bool) :
       (PMF.uniformOfFintype (Codeword P)).bind (fun mask =>
         (ProbComp.eval (adversary.guess choice.2
           ⟨u, encode (choice.1.select bit) + mask⟩)).bind fun guess =>
         PMF.pure (guess == bit)) =
       ((PMF.uniformOfFintype (Codeword P)).bind fun value =>
-        ProbComp.eval (adversary.guess choice.2 ⟨u, value⟩)).map
-          (fun guess => guess == bit) := by
-    intro bit
-    simp only [PMF.map, PMF.bind_bind, Function.comp_def]
-    let c := encode (choice.1.select bit)
-    let kernel : Codeword P → PMF Bool := fun value =>
-      (ProbComp.eval (adversary.guess choice.2 ⟨u, value⟩)).bind fun guess =>
-        PMF.pure (guess == bit)
-    change (PMF.uniformOfFintype (Codeword P)).bind (kernel ∘ Equiv.addLeft c) =
-      (PMF.uniformOfFintype (Codeword P)).bind kernel
-    rw [← PMF.bind_map]
-    rw [PMF.uniformOfFintype_map_equiv
-      (Equiv.addLeft c)]
+        ProbComp.eval (adversary.guess choice.2 ⟨u, value⟩)).map (· == bit) := by
+    conv_rhs =>
+      rw [← PMF.uniformOfFintype_map_equiv (Equiv.addLeft (encode (choice.1.select bit)))]
+    simp [PMF.map, PMF.bind_bind, Function.comp_def]
   rw [congrArg (PMF.uniformOfFintype Bool).bind (funext hmask)]
   exact Game.uniform_bool_bind_map_beq_const _
 

@@ -51,13 +51,11 @@ private theorem coarse_polynomial_hierarchy {d : ℕ} (hd : 1 ≤ d) :
   refine DTIME_ssubset_DTIME (timeConstructible_succ_pow d)
     (fun n => (Nat.le_succ n).trans (Nat.le_self_pow (by omega) _)) ?_
   filter_upwards [eventually_ge_atTop 7] with n hn
-  have hp : (n + 1) ^ d + 1 ≤ 2 * (n + 1) ^ d := by grind
   calc (n + 1) ^ 8 * ((n + 1) ^ d + 1) ^ 3
       ≤ (n + 1) ^ 8 * (2 * (n + 1) ^ d) ^ 3 :=
-        Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hp 3)
+        Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by grind) 3)
     _ = 8 * (n + 1) ^ (3 * d + 8) := by
-      rw [mul_pow, ← pow_mul (n + 1) d 3,
-        show 3 * d + 8 = 8 + d * 3 by omega, pow_add (n + 1) 8 (d * 3)]
+      rw [mul_pow, ← pow_mul, show 3 * d + 8 = 8 + d * 3 by omega, pow_add]
       norm_num only [Nat.reducePow]
       ac_rfl
     _ ≤ (n + 1) * (n + 1) ^ (3 * d + 8) := Nat.mul_le_mul_right _ (by omega)
@@ -70,26 +68,20 @@ collapse propagates to overlapping intervals of exponents, contradicting the nat
 theorem. -/
 theorem DTIME_succ_pow_ssubset_DTIME_succ_pow {a b : ℕ} (ha : 1 ≤ a) (hab : a < b) :
     DTIME encBits (fun n => (n + 1) ^ a) ⊂ DTIME encBits (fun n => (n + 1) ^ b) := by
-  refine ⟨DTIME_mono (fun n => Nat.pow_le_pow_right (by omega) hab.le), ?_⟩
-  intro hcollapse
-  have hstep (k : ℕ) (hk : a ≤ k) :
-      DTIME encBits (fun n => (n + 1) ^ (a * (k + 1))) ⊆
-        DTIME encBits (fun n => (n + 1) ^ (a * k)) := by
-    have hexp : a * (k + 1) ≤ b * k := by nlinarith
-    exact (DTIME_mono fun n => Nat.pow_le_pow_right (by omega) hexp).trans
-      (DTIME_pow_mul_subset_of_subset ha hab.le (by omega) hcollapse)
+  refine ⟨DTIME_mono fun _ => Nat.pow_le_pow_right (by omega) hab.le, fun hcollapse => ?_⟩
   have htail (k : ℕ) (hk : a ≤ k) :
       DTIME encBits (fun n => (n + 1) ^ (a * k)) ⊆
         DTIME encBits (fun n => (n + 1) ^ (a * a)) := by
     induction k, hk using Nat.le_induction with
     | base => exact Set.Subset.refl _
-    | succ k hk ih => exact (hstep k hk).trans ih
-  have hstrict := coarse_polynomial_hierarchy (d := a * a) (Nat.one_le_iff_ne_zero.mpr (by
-    positivity))
-  apply hstrict.2
-  have hexp : 3 * (a * a) + 9 ≤ a * (3 * a + 9) := by nlinarith
-  exact (DTIME_mono fun n => Nat.pow_le_pow_right (by omega) hexp).trans
-    (htail (3 * a + 9) (by omega))
+    | succ k hk ih =>
+      exact ((DTIME_mono fun _ => Nat.pow_le_pow_right (by omega)
+        (by nlinarith : a * (k + 1) ≤ b * k)).trans
+        (DTIME_pow_mul_subset_of_subset ha hab.le (by omega) hcollapse)).trans ih
+  exact (coarse_polynomial_hierarchy (Nat.mul_pos ha ha)).2
+    ((DTIME_mono fun _ => Nat.pow_le_pow_right (by omega)
+      (by nlinarith : 3 * (a * a) + 9 ≤ a * (3 * a + 9))).trans
+      (htail (3 * a + 9) (by omega)))
 
 /-- **Strict deterministic polynomial time levels.** For integers `1 ≤ a < b`, some binary
 language is decidable in time `O(n ^ b)` but not `O(n ^ a)`, using the native finite-state,

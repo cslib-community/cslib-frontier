@@ -64,12 +64,9 @@ theorem run_polySpace (tm : FinTM2) [∀ k, Finite (tm.Γ k)]
       (fun a => (stepTotal tm.m)^[clock a] (initList tm (input a))) encIn encCfg := by
   let : Inhabited (Cfg tm.Γ tm.Λ tm.σ) := ⟨initList tm []⟩
   obtain ⟨C, hC⟩ := length_encCfg_le (Γ := tm.Γ) (Λ := tm.Λ) (σ := tm.σ)
-  apply ComputableInPolySpace.iterate hclock
-    (.of_polyTime ((initList_polyTime tm).comp hinput))
-    (.of_polyTime (stepTotal_polyTime tm.m))
-    ((PolyBounded.const C).mul (hspace.add (.const 1)))
-  intro a i hi
-  exact hC _ _ (hstacks a i hi)
+  exact ComputableInPolySpace.iterate hclock (.of_polyTime ((initList_polyTime tm).comp hinput))
+    (.of_polyTime (stepTotal_polyTime tm.m)) ((PolyBounded.const C).mul (hspace.add (.const 1)))
+    fun a i hi => hC _ _ (hstacks a i hi)
 
 end Turing.TM2
 
@@ -101,13 +98,9 @@ theorem computableInPolySpace_encList {α β αΓ βΓ : Type} [Finite αΓ]
       ((⟨ea, ha⟩ : α ↪ List αΓ).trans (encList encA))
       ((⟨eb, hb⟩ : β ↪ List βΓ).trans (encList encB)) := by
   have hinput : ComputableInPolyTime ea
-      ((⟨ea, ha⟩ : α ↪ List αΓ).trans (encList encA))
-      (encList encA) := of_eq fun _ => rfl
-  have hmap := (map (of_finite h.inputAlphabet.symm
-    (encOut := encFinite (h.tm.Γ h.tm.k₀)))).comp hinput
+      ((⟨ea, ha⟩ : α ↪ List αΓ).trans (encList encA)) (encList encA) := of_eq fun _ => rfl
   have hlength := (length_list encA).comp hinput
   obtain ⟨p, hp⟩ := hspace.exists_polynomial
-  have hpBound := ((unary_eval p).comp hlength).polyBounded
   obtain ⟨C, hC⟩ := TM2.exists_exponential_clock h.tm
   let q : Polynomial ℕ := Polynomial.C C * (p + 1) + 1
   have hclock : ComputableInPolyTime
@@ -115,24 +108,21 @@ theorem computableInPolySpace_encList {α β αΓ βΓ : Type} [Finite αΓ]
       ((⟨ea, ha⟩ : α ↪ List αΓ).trans (encList encA)) encNat := by
     simpa only [Function.comp_def, q, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_C,
       Polynomial.eval_one] using binary_two_pow.comp ((unary_eval q).comp hlength)
-  have hrun := TM2.run_polySpace h.tm hmap hclock hpBound
-    (fun a i _ k => (hstacks a i k).trans (hp a))
-  have hstacks' := (ComputableInPolySpace.of_polyTime TM2.cfg_stacks).comp hrun
-  have hout := (ComputableInPolySpace.of_polyTime
-    (dpi_apply (fun k => encList (encFinite (h.tm.Γ k))) h.tm.k₁)).comp hstacks'
+  have hrun := TM2.run_polySpace h.tm
+    ((map (of_finite h.inputAlphabet.symm (encOut := encFinite (h.tm.Γ h.tm.k₀)))).comp hinput)
+    hclock ((unary_eval p).comp hlength).polyBounded fun a i _ k => (hstacks a i k).trans (hp a)
   have hword := (ComputableInPolySpace.of_polyTime
-    (map (of_finite h.outputAlphabet (encOut := encB)))).comp hout
+    (map (of_finite h.outputAlphabet (encOut := encB)))).comp
+    ((ComputableInPolySpace.of_polyTime
+      (dpi_apply (fun k => encList (encFinite (h.tm.Γ k))) h.tm.k₁)).comp
+      ((ComputableInPolySpace.of_polyTime TM2.cfg_stacks).comp hrun))
   obtain ⟨S, hS, hword⟩ := hword.exists_inSpace
-  refine ComputableInPolySpace.of_inSpace hS (ComputableInSpace.of_enc_eq hword ?_)
-  intro a
+  refine ComputableInPolySpace.of_inSpace hS (ComputableInSpace.of_enc_eq hword fun a => ?_)
   have heval := hC _ _ (p.eval (ea a).length) (h.outputsFun a)
-    (fun i k => (hstacks a i k).trans (hp a))
-  have houtput := congrArg (fun cfg : TM2.Cfg h.tm.Γ h.tm.Λ h.tm.σ =>
-    List.map h.outputAlphabet (cfg.stk h.tm.k₁)) heval
-  have hresult : List.map h.outputAlphabet
-      (((TM2.stepTotal h.tm.m)^[2 ^ (C * (p.eval (ea a).length + 1) + 1)]
-        (initList h.tm (List.map h.inputAlphabet.symm (ea a)))).stk h.tm.k₁) = eb (f a) := by
-    simpa [haltList] using houtput
-  exact congrArg (encList encB) hresult.symm
+    fun i k => (hstacks a i k).trans (hp a)
+  exact congrArg (encList encB) <| by
+    simpa [haltList] using congrArg
+      (fun cfg : TM2.Cfg h.tm.Γ h.tm.Λ h.tm.σ => List.map h.outputAlphabet (cfg.stk h.tm.k₁))
+      heval.symm
 
 end Turing.TM2Computable

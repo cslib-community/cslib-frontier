@@ -113,15 +113,14 @@ private theorem monomialSum_toFinsetEquation {n : ℕ} {eq : List (List ℕ)}
   simp only [Function.comp_apply, monomial_apply]
   have hiff : (∀ i ∈ f m, σ i = true) ↔ (∀ v ∈ m.toFinset, extendAssignment σ v = true) :=
     ⟨fun h v hv => by
-      have hvm := List.mem_toFinset.mp hv; have hvn := hvars m hm v hvm
+      have hvm := List.mem_toFinset.mp hv
+      have hvn := hvars m hm v hvm
       simpa only [extendAssignment, hvn, ↓reduceDIte] using
         h ⟨v, hvn⟩ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hvm⟩),
     fun h i hi => by
-      have him := List.mem_toFinset.mpr (Finset.mem_filter.mp hi).2
-      simpa only [extendAssignment_coe] using h i him⟩
-  by_cases h : ∀ i ∈ f m, σ i = true
-  · rw [ite_eq_left h, ite_eq_left (hiff.mp h)]
-  · rw [ite_eq_right h, ite_eq_right (mt hiff.mpr h)]
+      simpa only [extendAssignment_coe] using
+        h i (List.mem_toFinset.mpr (Finset.mem_filter.mp hi).2)⟩
+  simp only [hiff]
 
 /-- **Specification bridge to `SparseEquations.commonZeroCount`**: for any canonical sparse `𝔽₂`
 system `sys` on `< n` variables, `rootCount n sys` agrees with `Cslib.BitString.commonZeroCount`. -/
@@ -129,7 +128,9 @@ theorem rootCount_eq_commonZeroCount {n : ℕ} {sys : List (List (List ℕ))}
     (hcan : ∀ eq ∈ sys, IsCanonicalEquation eq) (hvars : ∀ eq ∈ sys, ∀ m ∈ eq, ∀ v ∈ m, v < n) :
     rootCount n sys =
       commonZeroCount Finset.univ (fun i : Fin sys.length => toFinsetEquation n sys[i]) := by
-  rw [rootCount, commonZeroCount]; congr 1; ext σ
+  rw [rootCount, commonZeroCount]
+  congr 1
+  ext σ
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, evalSystem_eq_true_iff, IsCommonZero]
   refine ⟨fun h i _ => ?_, fun h eq heq => ?_⟩
   · rw [monomialSum_toFinsetEquation (hcan sys[i] (List.getElem_mem i.2))
@@ -137,9 +138,7 @@ theorem rootCount_eq_commonZeroCount {n : ℕ} {sys : List (List (List ℕ))}
   · obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem heq
     have hz := (monomialSum_toFinsetEquation (hcan sys[k] heq) (hvars sys[k] heq) σ).symm.trans
       (h ⟨k, hk⟩ trivial)
-    cases hb : evalMonomialList sys[k] (extendAssignment σ)
-    · rfl
-    · rw [hb, bitVal_true] at hz; exact absurd hz one_ne_zero
+    cases hb : evalMonomialList sys[k] (extendAssignment σ) <;> simp_all
 
 theorem pairwise_lt_heavyVarList (n b₀ : ℕ) (sys : List (List (List ℕ))) :
     (heavyVarList n b₀ sys).Pairwise (· < ·) := List.pairwise_lt_range.filter _
@@ -377,22 +376,22 @@ theorem prepareBranch_reduced_canonical {n : ℕ} {S : List ℕ} {vals : List Bo
       (∀ eq' ∈ sys', ∀ m' ∈ eq', ∀ v' ∈ m', v' < n') := by
   obtain ⟨hcontra, hne_nz, rfl, hsys'⟩ := prepareBranch_eq_reduced_iff.mp hred
   refine ⟨rfl, fun h => hne_nz (List.map_eq_nil_iff.mp (hsys'.symm.trans h)), ?_, ?_, ?_, ?_⟩
-  · intro hmem; obtain ⟨_, _, hne, heq⟩ := mem_reduced_exists hred hmem
+  · intro hmem
+    obtain ⟨_, _, hne, heq⟩ := mem_reduced_exists hred hmem
     exact hne (List.map_eq_nil_iff.mp heq.symm)
-  · intro hmem; rw [hsys'] at hmem; obtain ⟨eq₁, heq₁, hmap⟩ := List.mem_map.mp hmem
-    cases eq₁ with
-    | nil => simp only [relabelEquation, List.map_nil, reduceCtorEq] at hmap
-    | cons m₁ ms₁ =>
-      simp only [relabelEquation, List.map_cons, List.cons.injEq, List.map_eq_nil_iff] at hmap
-      exact hcontra (hmap.1 ▸ hmap.2 ▸ heq₁)
-  · intro eq' heq'; obtain ⟨eq₀, heq₀, _, rfl⟩ := mem_reduced_exists hred heq'
+  · simp only [hsys', relabelEquation, List.mem_map, List.map_eq_cons_iff, List.map_eq_nil_iff]
+    rintro ⟨_, heq₁, _, _, rfl, rfl, rfl⟩
+    exact hcontra heq₁
+  · intro eq' heq'
+    obtain ⟨eq₀, heq₀, _, rfl⟩ := mem_reduced_exists hred heq'
     refine isCanonicalEquation_relabelEquation hS
       (isCanonicalEquation_substituteEquation S vals (hcan eq₀ heq₀)) fun m' hm' u hu => ?_
     obtain ⟨_, _, rfl⟩ := mem_substituteEquation_exists hm'
     exact of_decide_eq_true (List.mem_filter.mp hu).2
   · intro eq' heq' m' hm' v' hv'
     obtain ⟨eq₀, heq₀, _, rfl⟩ := mem_reduced_exists hred heq'
-    obtain ⟨m₁, hm₁, rfl⟩ := List.mem_map.mp hm'; obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hv'
+    obtain ⟨m₁, hm₁, rfl⟩ := List.mem_map.mp hm'
+    obtain ⟨u, hu, rfl⟩ := List.mem_map.mp hv'
     obtain ⟨m₀, hm₀, rfl⟩ := mem_substituteEquation_exists hm₁
     obtain ⟨hum₀, huS⟩ := List.mem_filter.mp hu
     exact relabelFreeVar_lt_sub hS hSn (of_decide_eq_true huS) (hvars eq₀ heq₀ m₀ hm₀ u hum₀)
@@ -610,20 +609,23 @@ theorem branchRootCount_prepareBranch {n : ℕ} {S : List ℕ} {vals : List Bool
         S.map (extendAssignment σ) = vals ∧ evalSystem sys (extendAssignment σ) = true).card =
       (Finset.univ.filter fun τ : BitString (n - S.length) =>
         evalSystem sys (extendAssignment (mergeAssignment hS hSn vals τ)) = true).card := by
-    symm; refine Finset.card_bij (fun τ _ => (fiberEquiv hS hSn hvals τ).1) ?_ ?_ ?_
-    · intro τ hτ; rw [Finset.mem_filter] at hτ ⊢
-      exact ⟨Finset.mem_univ _, (fiberEquiv hS hSn hvals τ).2, hτ.2⟩
-    · exact fun _ _ _ _ h => (fiberEquiv hS hSn hvals).injective (Subtype.ext h)
-    · intro σ hσ; rw [Finset.mem_filter] at hσ
-      let τ := (fiberEquiv hS hSn hvals).symm ⟨σ, hσ.2.1⟩
-      have hτ : (fiberEquiv hS hSn hvals τ).1 = σ :=
-        congrArg Subtype.val ((fiberEquiv hS hSn hvals).apply_symm_apply ⟨σ, hσ.2.1⟩)
-      refine ⟨τ, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hτ⟩
-      change evalSystem sys (extendAssignment (fiberEquiv hS hSn hvals τ).1) = true
-      rw [hτ]; exact hσ.2.2
+    symm
+    refine Finset.card_bij (fun τ _ => (fiberEquiv hS hSn hvals τ).1)
+      (fun τ hτ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (fiberEquiv hS hSn hvals τ).2,
+        (Finset.mem_filter.mp hτ).2⟩)
+      (fun _ _ _ _ h => (fiberEquiv hS hSn hvals).injective (Subtype.ext h)) fun σ hσ => ?_
+    obtain ⟨-, hmap, hev⟩ := Finset.mem_filter.mp hσ
+    let τ := (fiberEquiv hS hSn hvals).symm ⟨σ, hmap⟩
+    have hτ : (fiberEquiv hS hSn hvals τ).1 = σ :=
+      congrArg Subtype.val ((fiberEquiv hS hSn hvals).apply_symm_apply ⟨σ, hmap⟩)
+    refine ⟨τ, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hτ⟩
+    change evalSystem sys (extendAssignment (fiberEquiv hS hSn hvals τ).1) = true
+    rwa [hτ]
   rw [hbij]
-  have heval := fun τ => evalSystem_mergeAssignment (vals := vals) hS hSn hvars τ
-  simp only [heval]; unfold prepareBranch; dsimp only; split_ifs
+  simp only [fun τ => evalSystem_mergeAssignment (vals := vals) hS hSn hvars τ]
+  unfold prepareBranch
+  dsimp only
+  split_ifs
   · simp only [branchRootCount, Finset.filter_false, Finset.card_empty]
   · simp only [branchRootCount, Finset.filter_true_of_mem, implies_true, Finset.card_univ]
     exact BitString.card.symm
@@ -1047,20 +1049,14 @@ private theorem branchCountCertificate_bounds {solver : ℕ → List (List (List
   | contradiction =>
     dsimp only [branchCountCertificate, NativeCertificate.congr, NativeCertificate.option,
       NativeCertificate.linear, NativeCertificate.const, BranchOutcome.toOption, Option.elim,
-      reducedCost]; omega
-  | tautology n' =>
+      reducedCost]
+    omega
+  | tautology _ | reduced _ _ =>
     rw [encBranchOutcome_eq]
     dsimp only [branchCountCertificate, NativeCertificate.congr, NativeCertificate.option,
       NativeCertificate.linear, NativeCertificate.comp, NativeCertificate.payload,
-      NativeCertificate.pull, NativeCertificate.post, BooleanFold.clock, BranchOutcome.toOption,
-      Option.elim, reducedCost]
-    enc_len [encBranchOutcome_eq, BranchOutcome.toOption]
-  | reduced n' sys' =>
-    rw [encBranchOutcome_eq]
-    dsimp only [branchCountCertificate, NativeCertificate.congr, NativeCertificate.option,
-      NativeCertificate.linear, NativeCertificate.comp, NativeCertificate.payload,
-      NativeCertificate.prod, NativeCertificate.fst, NativeCertificate.post,
-      BranchOutcome.toOption, Option.elim, reducedCost]
+      NativeCertificate.pull, NativeCertificate.prod, NativeCertificate.fst, NativeCertificate.post,
+      BooleanFold.clock, BranchOutcome.toOption, Option.elim, reducedCost]
     enc_len [encBranchOutcome_eq, BranchOutcome.toOption]
 
 theorem computableInPolyTime_prepareStep :

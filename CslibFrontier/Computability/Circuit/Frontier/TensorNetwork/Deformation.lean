@@ -196,9 +196,8 @@ noncomputable def cauchyKernel (L : ℕ) (d : ℤ) : ℚ[X] :=
 theorem eval_zero_nodal_erase_zero {L : ℕ} (hL : 0 < L) :
     (Lagrange.nodal ((cauchyGrid L).erase 0) (Int.cast : ℤ → ℚ)).eval 0 =
       (derivative (Lagrange.nodal (cauchyGrid L) (Int.cast : ℤ → ℚ))).eval 0 := by
-  have h0 : (0 : ℤ) ∈ cauchyGrid L := by rw [mem_cauchyGrid]; omega
-  have := Lagrange.eval_nodal_derivative_eval_node_eq (v := (Int.cast : ℤ → ℚ)) h0
-  simpa using this.symm
+  simpa using (Lagrange.eval_nodal_derivative_eval_node_eq (v := (Int.cast : ℤ → ℚ))
+    (by rw [mem_cauchyGrid]; omega : (0 : ℤ) ∈ cauchyGrid L)).symm
 
 /-- `C'(0)` is nonzero: the grid has distinct points. -/
 theorem eval_zero_nodal_erase_zero_ne_zero (L : ℕ) :

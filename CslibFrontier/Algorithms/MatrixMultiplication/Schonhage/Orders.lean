@@ -115,19 +115,15 @@ theorem mem_innerSetO {L : ℕ} {η : OutStr L} {ℓ : Fin L} : ℓ ∈ innerSet
 
 /-- A contributing leaf can use `P0` only at an inner position of the output string. -/
 theorem P0Levels_subset {L : ℕ} {τ : Leaf L} {w : OutStr L} (h : Leaf.Contributes τ w) :
-    P0Levels τ ⊆ innerSetO w := by
-  intro ℓ hℓ
-  rw [mem_P0Levels] at hℓ
-  rw [mem_innerSetO]
-  rcases (Term.contributes_iff _ _).mp (h ℓ) with hinner | hprivate
-  · exact hinner
-  · exact (OutVar.privateTerm_eq_P0_iff _).mp (hprivate.symm.trans hℓ)
+    P0Levels τ ⊆ innerSetO w := fun ℓ hℓ =>
+  mem_innerSetO.mpr <| ((Term.contributes_iff _ _).mp (h ℓ)).elim id fun hp =>
+    (OutVar.privateTerm_eq_P0_iff _).mp (hp.symm.trans (mem_P0Levels.mp hℓ))
 
 /-- A leaf contributing to a string with exactly `m` inner positions has nonnegative order
 relative to `m`. -/
 theorem order_nonneg {L m : ℕ} {w : OutStr L} (hw : (innerSetO w).card = m) {τ : Leaf L}
     (h : Leaf.Contributes τ w) : 0 ≤ order m τ := by
-  have hc := card_le_card (P0Levels_subset h)
+  have := card_le_card (P0Levels_subset h)
   unfold order
   omega
 
@@ -149,10 +145,8 @@ theorem order_eq_iff {L : ℕ} (m d : ℕ) (τ : Leaf L) :
 theorem card_filter_contributes {L m : ℕ} (w : OutStr L) (hw : (innerSetO w).card = m) :
     (univ.filter fun τ : Leaf L => Leaf.Contributes τ w).card = 10 ^ m := by
   -- Ten terms contribute to `z₀` and one to `z_ij`.
-  simp only [Leaf.filter_contributes_eq_piFinset, Fintype.card_piFinset,
-    card_contributing_term]
-  rw [prod_ite, prod_const, prod_const_one, mul_one, ← hw]
-  rfl
+  simp only [Leaf.filter_contributes_eq_piFinset, Fintype.card_piFinset, card_contributing_term]
+  rw [prod_ite, prod_const, prod_const_one, mul_one, ← hw]; rfl
 
 /-- For a string with `m` inner positions, `alpha m d` leaves of order `d` contribute to it.
 The natural parameter `d` is unrestricted; for `d > m` both sides are zero. -/
@@ -168,38 +162,31 @@ theorem card_contributing_of_order {L m : ℕ} (w : OutStr L) (hw : (innerSetO w
     simp only [card_contributing_P0, card_contributing_ne_P0] at hcount
     -- Given `S`, there is no such string unless `S ⊆ Q`.  Then there are nine choices at each of
     -- the `|Q| - |S| = d` levels of `Q` outside `S`, and one choice at every other level.
-    have hgiven : ∀ S ∈ powersetCard (m - d) (univ : Finset (Fin L)),
-        (∏ ℓ, if ℓ ∈ S then (if (w ℓ).IsInner then 1 else 0) else (if (w ℓ).IsInner then 9 else 1))
-          = if S ⊆ innerSetO w then 9 ^ d else 0 := by
-      intro S hS
+    have hgiven (S) (hS : S ∈ powersetCard (m - d) (univ : Finset (Fin L))) :
+        (∏ ℓ, if ℓ ∈ S then (if (w ℓ).IsInner then 1 else 0)
+          else (if (w ℓ).IsInner then 9 else 1)) = if S ⊆ innerSetO w then 9 ^ d else 0 := by
       have hQS := prod_ite_ite_subset (innerSetO w) S 9
       rw [hw, (mem_powersetCard.mp hS).2, Nat.sub_sub_self hd] at hQS
-      rw [← hQS]
-      exact prod_congr rfl fun ℓ _ => by simp
+      exact (prod_congr rfl fun ℓ _ => by simp).trans hQS
     -- There are `binom(m, m - d) = binom(m, d)` sets `S ⊆ Q`.
     rw [sum_congr rfl hgiven, sum_powersetCard_ite_subset, hw, Nat.choose_symm hd] at hcount
     -- These strings are the leaves of order `d` that contribute to `w`.
     rw [alpha, ← hcount]
     refine congrArg card (Finset.ext fun τ => ?_)
-    simp only [mem_filter, mem_univ, true_and, order_eq_iff]
-    exact and_congr Iff.rfl (by unfold P0Levels; omega)
+    simp only [mem_filter, mem_univ, true_and, order_eq_iff, P0Levels]
+    exact and_congr_right fun _ => by omega
   · -- No leaf has order more than `m`.
     rw [alpha, Nat.choose_eq_zero_of_lt (by omega), zero_mul, card_eq_zero]
-    refine filter_eq_empty_iff.mpr fun τ _ h => ?_
-    have hle := order_le m τ
-    omega
+    exact filter_eq_empty_iff.mpr fun τ _ _ => by have := order_le m τ; omega
 
 /-- If `d ≤ m ≤ L`, the full leaf index type contains exactly `beta L m d` leaves of order
 `d`. -/
 theorem card_filter_order_eq {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (hd : d ≤ m) :
     (univ.filter fun τ : Leaf L => order m τ = d).card = beta L m d := by
   -- The leaves of order `d` are the strings of terms with `P₀` at exactly `m - d` levels.
-  have hsort : (univ.filter fun τ : Leaf L => order m τ = d)
-      = univ.filter fun τ : Leaf L => (univ.filter fun ℓ => τ ℓ = Term.P0).card = m - d := by
-    ext τ
-    simp only [mem_filter, mem_univ, true_and, order_eq_iff]
-    unfold P0Levels
-    omega
+  have hsort : (univ.filter fun τ : Leaf L => order m τ = d) =
+      univ.filter fun τ : Leaf L => (univ.filter fun ℓ => τ ℓ = Term.P0).card = m - d :=
+    Finset.ext fun τ => by simp only [mem_filter, mem_univ, true_and, order_eq_iff, P0Levels]; omega
   rw [hsort, Finset.card_places_card (fun lam : Term => lam = Term.P0) (m - d), card_term_P0,
     card_term_ne_P0, one_pow, one_mul, Fintype.card_fin, beta,
     show L - (m - d) = L - m + d by omega]
@@ -227,19 +214,16 @@ theorem card_outStr_of_leaf {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (τ : Leaf L)
   simp only [card_contributed_inner, card_contributed_outer] at hcount
   -- Given `S`, there is one such string if `S` contains the levels at which `τ` chooses `P₀`, and
   -- none otherwise.
-  have hgiven : ∀ S ∈ powersetCard m (univ : Finset (Fin L)),
-      (∏ ℓ, if ℓ ∈ S then 1 else (if τ ℓ = Term.P0 then 0 else 1))
-        = if P0Levels τ ⊆ S then 1 else 0 := by
-    intro S _
-    rw [← prod_ite_ite_superset]
-    exact prod_congr rfl fun ℓ _ => by simp
+  have hgiven (S) (_ : S ∈ powersetCard m (univ : Finset (Fin L))) :
+      (∏ ℓ, if ℓ ∈ S then 1 else if τ ℓ = Term.P0 then 0 else 1) =
+        if P0Levels τ ⊆ S then 1 else 0 :=
+    (prod_congr rfl fun _ _ => by simp).trans (prod_ite_ite_superset _ _)
   -- A set of `m` levels that contains these `m - d` levels is given by the `L - m` levels outside
   -- it, among the other `L - m + d` levels.
-  rw [sum_congr rfl hgiven, ← card_filter,
-    card_powersetCard_superset _ (by simpa using hmL), Fintype.card_fin,
-    show L - (P0Levels τ).card = L - m + d by omega, Nat.choose_symm_add] at hcount
-  rw [← hcount]
-  refine congrArg card (Finset.ext fun w => ?_)
+  rw [sum_congr rfl hgiven, ← card_filter, card_powersetCard_superset _ (by simpa using hmL),
+    Fintype.card_fin, show L - (P0Levels τ).card = L - m + d by omega,
+    Nat.choose_symm_add] at hcount
+  refine (congrArg card (Finset.ext fun w => ?_)).trans hcount
   simp only [mem_filter, mem_univ, true_and]
   exact and_comm
 
@@ -268,9 +252,9 @@ used in [AlmanWilliams2026, equations (5) and (7)]. -/
 theorem beta_ratio {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (hd1 : 1 ≤ d) (hd : d ≤ m) :
     (beta L m d : ℚ) / (beta L m (d - 1) : ℚ)
       = 9 * ((m : ℚ) - (d : ℚ) + 1) / ((L : ℚ) - (m : ℚ) + (d : ℚ)) := by
-  have hm : (m : ℚ) ≤ L := by exact_mod_cast hmL
-  have hd0 : (1 : ℚ) ≤ d := by exact_mod_cast hd1
-  have hbeta : (0 : ℚ) < beta L m (d - 1) := by exact_mod_cast beta_pos hmL (d - 1)
+  have hm : (m : ℚ) ≤ L := mod_cast hmL
+  have hd0 : (1 : ℚ) ≤ d := mod_cast hd1
+  have hbeta : (0 : ℚ) < beta L m (d - 1) := mod_cast beta_pos hmL (d - 1)
   have hnat := congrArg (Nat.cast : ℕ → ℚ) (Equation5.ratio_nat hmL d hd1 hd)
   push_cast [Nat.cast_sub hmL, Nat.cast_sub hd] at hnat
   rw [div_eq_div_iff hbeta.ne' (by linarith), hnat]
@@ -280,8 +264,8 @@ by `9 * m / (18 * m + 1)`, which is strictly below `1 / 2`. All divisions here a
 theorem beta_ratio_lt_half (m d : ℕ) (hd1 : 1 ≤ d) (hd : d ≤ m) :
     (beta (19 * m) m d : ℚ) / (beta (19 * m) m (d - 1) : ℚ) ≤ 9 * (m : ℚ) / (18 * (m : ℚ) + 1)
       ∧ 9 * (m : ℚ) / (18 * (m : ℚ) + 1) < 1 / 2 := by
-  have hm : (1 : ℚ) ≤ m := by exact_mod_cast hd1.trans hd
-  have hd0 : (1 : ℚ) ≤ d := by exact_mod_cast hd1
+  have hm : (1 : ℚ) ≤ m := mod_cast hd1.trans hd
+  have hd0 : (1 : ℚ) ≤ d := mod_cast hd1
   refine ⟨?_, ?_⟩
   · -- The numerator is at most `9m` and the denominator at least `18m + 1`, because `d ≥ 1`.
     rw [beta_ratio (by omega) d hd1 hd]
@@ -298,11 +282,10 @@ theorem two_pow_mul_beta_le (m d : ℕ) (hd : d ≤ m) : 2 ^ d * beta (19 * m) m
   | succ d ih =>
     -- By the two inequalities of (5), `β_{d+1} < β_d / 2`.
     obtain ⟨hle, hlt⟩ := beta_ratio_lt_half m (d + 1) (by omega) hd
-    rw [Nat.add_sub_cancel] at hle
-    have hbeta : (0 : ℚ) < beta (19 * m) m d := by exact_mod_cast beta_pos (by omega) d
-    have hhalf : 2 * beta (19 * m) m (d + 1) ≤ beta (19 * m) m d := by
-      have hq := (div_lt_iff₀ hbeta).mp (hle.trans_lt hlt)
-      exact_mod_cast (by linarith : (2 * beta (19 * m) m (d + 1) : ℚ) ≤ beta (19 * m) m d)
+    have hbeta : (0 : ℚ) < beta (19 * m) m d := mod_cast beta_pos (by omega) d
+    have hq := (div_lt_iff₀ hbeta).mp ((Nat.add_sub_cancel d 1 ▸ hle).trans_lt hlt)
+    have hhalf : 2 * beta (19 * m) m (d + 1) ≤ beta (19 * m) m d := mod_cast (by
+      linarith : (2 * beta (19 * m) m (d + 1) : ℚ) ≤ beta (19 * m) m d)
     calc 2 ^ (d + 1) * beta (19 * m) m (d + 1) = 2 ^ d * (2 * beta (19 * m) m (d + 1)) := by ring
       _ ≤ 2 ^ d * beta (19 * m) m d := Nat.mul_le_mul_left _ hhalf
       _ ≤ M (19 * m) m := ih (by omega)

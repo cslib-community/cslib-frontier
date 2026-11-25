@@ -180,9 +180,9 @@ theorem guessOutput_pure_apply_true [DecidableEq S] (sample : PMF S) (info : S �
   rw [guessOutput_apply_true, PMF.toOuterMeasure_map_apply,
     Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
   refine tsum_congr fun s => ?_
-  by_cases hs : g (info s) = s
+  rcases eq_or_ne (g (info s)) s with hs | hs
   · simp [hs]
-  · simp [hs, Ne.symm hs]
+  · simp [hs, hs.symm]
 
 /-- The maximum a posteriori estimator `Cslib.Probability.PMF.maxPosteriorGuess` of the joint
 distribution of `(info s, s)` maximizes `guessAdvantage` among all randomized guessing
@@ -200,26 +200,17 @@ theorem guessAdvantage_le_pure_maxPosteriorGuess [Fintype S] [DecidableEq S] [No
         (joint.map Prod.fst).bind fun x =>
           (Probability.PMF.conditionalSnd joint x).bind fun s =>
             (ProbComp.eval (B x)).bind fun s' => PMF.pure (decide (s' = s)) := by
-    have h1 : guessOutput sample info B =
-        joint.bind fun z =>
-          (ProbComp.eval (B z.1)).bind fun s' => PMF.pure (decide (s' = z.2)) := by
-      simp only [pmf_norm, joint, guessOutput]
-    rw [h1]
-    conv_lhs => rw [← Probability.PMF.bind_conditionalSnd joint]
-    simp only [pmf_norm]
+    trans joint.bind fun z =>
+        (ProbComp.eval (B z.1)).bind fun s' => PMF.pure (decide (s' = z.2))
+    · simp only [pmf_norm, joint, guessOutput]
+    · conv_lhs => rw [← Probability.PMF.bind_conditionalSnd joint]
+      simp only [pmf_norm]
   rw [hrew A, hrew (fun x => pure (Probability.PMF.maxPosteriorGuess joint x))]
   refine Probability.PMF.bind_apply_mono_on_support _ true fun x _ => ?_
   pmf_hoist (ProbComp.eval (A x))
   refine Probability.PMF.bind_apply_le_on_support _ fun s' _ => ?_
   rw [Probability.PMF.bind_pure_decide_eq_apply_true]
-  have hrhs :
-      ((Probability.PMF.conditionalSnd joint x).bind fun s =>
-        (ProbComp.eval (pure (Probability.PMF.maxPosteriorGuess joint x))).bind fun s'' =>
-          PMF.pure (decide (s'' = s))) true =
-        Probability.PMF.conditionalSnd joint x (Probability.PMF.maxPosteriorGuess joint x) := by
-    simp
-  rw [hrhs]
-  exact Probability.PMF.conditionalSnd_le_conditionalSnd_maxPosteriorGuess joint x s'
+  simpa using Probability.PMF.conditionalSnd_le_conditionalSnd_maxPosteriorGuess joint x s'
 
 /-- Every randomized guessing adversary in Attack Game 8.3 has advantage at most one minus the
 error probability of `Cslib.Probability.PMF.maxPosteriorGuess` on `(info s, s)`. -/
@@ -232,14 +223,11 @@ theorem guessAdvantage_le_one_sub_errorProb_maxPosteriorGuess [Fintype S] [Decid
   refine (NNReal.coe_le_coe.mpr (guessAdvantage_le_pure_maxPosteriorGuess sample info A)).trans ?_
   set joint : PMF (X × S) := sample.map fun s => (info s, s)
   rw [guessAdvantage, Game.coe_succProbability, guessOutput_pure_apply_true]
-  have hcompl :
-      {z : X × S | Probability.PMF.maxPosteriorGuess joint z.1 = z.2}ᶜ =
-        {z : X × S | Probability.PMF.maxPosteriorGuess joint z.1 ≠ z.2} := by
-    ext z
-    simp
   have hadd := Probability.PMF.toOuterMeasure_toReal_add_compl joint
     {z : X × S | Probability.PMF.maxPosteriorGuess joint z.1 = z.2}
-  rw [hcompl] at hadd
+  rw [show {z : X × S | Probability.PMF.maxPosteriorGuess joint z.1 = z.2}ᶜ =
+    {z : X × S | Probability.PMF.maxPosteriorGuess joint z.1 ≠ z.2} from Set.ext fun _ => by simp]
+    at hadd
   linarith
 
 /-- If every secret has probability at most `mass` and `info` takes values in a finite type `X`,
@@ -261,11 +249,9 @@ theorem guessAdvantage_uniformOfFintype_const [Fintype S] [DecidableEq S] [Nonem
     (x₀ : X) (A : GuessAdversary X S) :
     guessAdvantage (uniformOfFintype S) (fun _ => x₀) A = (Fintype.card S : ℝ≥0)⁻¹ := by
   unfold guessAdvantage Game.succProbability
-  have htrue : guessOutput (uniformOfFintype S) (fun _ => x₀) A true =
-      (Fintype.card S : ℝ≥0∞)⁻¹ := by
-    rw [guessOutput_apply_true]
-    simp only [PMF.uniformOfFintype_apply, ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one]
-  rw [htrue, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
+  rw [guessOutput_apply_true]
+  simp only [PMF.uniformOfFintype_apply, ENNReal.tsum_mul_left, PMF.tsum_coe, mul_one,
+    ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
 
 /-- When the secret is a pair `(x, y)` whose second component is drawn uniformly from `Y`
 independently of the leaked first component `x` ([BonehShoup2023], Attack Game 11.3 in §11.5.2,
@@ -294,9 +280,8 @@ theorem guessAdvantage_uniformOfFintype_take_le (k m : ℕ)
       (Fin.take k (Nat.le_add_right k m)) A ≤ 1 / 2 ^ m := by
   let e : BitString k × BitString m ≃ BitString (k + m) := Fin.appendEquiv k m
   have htake (p : BitString k × BitString m) :
-      Fin.take k (Nat.le_add_right k m) (e p) = p.1 := by
-    ext i
-    simp [e, Fin.appendEquiv, Fin.take_apply]
+      Fin.take k (Nat.le_add_right k m) (e p) = p.1 :=
+    funext fun i => by simp [e, Fin.appendEquiv, Fin.take_apply]
   have heq :
       guessAdvantage (uniformOfFintype (BitString (k + m)))
         (Fin.take k (Nat.le_add_right k m)) A =
@@ -310,9 +295,8 @@ theorem guessAdvantage_uniformOfFintype_take_le (k m : ℕ)
     pmf_swap with p s'
     exact congrArg PMF.pure (decide_eq_decide.mpr e.symm_apply_eq.symm)
   rw [heq]
-  have h := guessAdvantage_bind_uniformOfFintype_fst_le (uniformOfFintype (BitString k))
-    (fun x => e.symm <$> A x)
-  simpa [BitString, one_div] using h
+  simpa [BitString, one_div] using guessAdvantage_bind_uniformOfFintype_fst_le
+    (uniformOfFintype (BitString k)) (fun x => e.symm <$> A x)
 
 /-! ### 2. List guessing game and list-to-singleton reduction (§8.10.2, p. 331) -/
 
@@ -361,16 +345,13 @@ theorem listGuessAdvantage_le_mul_guessAdvantage [DecidableEq S] [Nonempty S] (s
   rcases Nat.eq_zero_or_pos Q with rfl | hQ
   · simp [List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hlen)]
   · obtain ⟨m, rfl⟩ : ∃ m, Q = m + 1 := ⟨Q - 1, (Nat.sub_add_cancel hQ).symm⟩
-    rw [Nat.add_sub_cancel]
-    have hmap :
-        ((uniformOfFintype (Fin (m + 1))).bind fun i =>
-          PMF.pure (decide (l.getD i.1 (Classical.arbitrary S) = s))) =
+    rw [Nat.add_sub_cancel,
+      show ((uniformOfFintype (Fin (m + 1))).bind fun i =>
+        PMF.pure (decide (l.getD i.1 (Classical.arbitrary S) = s))) =
         ((uniformOfFintype (Fin (m + 1))).map
           (fun i : Fin (m + 1) => l.getD i.1 (Classical.arbitrary S))).bind
-          fun s' => PMF.pure (decide (s' = s)) := by
-      rw [PMF.bind_map]
-      rfl
-    rw [hmap, Probability.PMF.bind_pure_decide_eq_apply_true']
+          fun s' => PMF.pure (decide (s' = s)) by rw [PMF.bind_map]; rfl,
+      Probability.PMF.bind_pure_decide_eq_apply_true']
     by_cases hs : s ∈ l
     · have htake : s ∈ l.take (m + 1) := by rwa [List.take_of_length_le hlen]
       calc (PMF.pure (decide (s ∈ l))) true = 1 := by simp [hs]
@@ -512,10 +493,8 @@ private theorem toOuterMeasure_bad_eq_bind (s : S) (table : S → T)
   refine tsum_congr fun z => ?_
   rw [Set.indicator_apply]
   split_ifs with hz
-  · have hmem : s ∈ z.2.map Prod.fst := hz
-    simp only [PMF.pure_apply, decide_eq_true hmem, ↓reduceIte, mul_one]
-  · have hmem : s ∉ z.2.map Prod.fst := hz
-    simp only [PMF.pure_apply, decide_eq_false hmem, Bool.true_eq_false, ↓reduceIte, mul_zero]
+  · simp [show s ∈ z.2.map Prod.fst from hz]
+  · simp [show s ∉ z.2.map Prod.fst from hz]
 
 end Tracking
 

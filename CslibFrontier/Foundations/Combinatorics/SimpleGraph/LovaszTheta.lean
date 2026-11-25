@@ -18,8 +18,8 @@ import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CliqueCover
 # The Lovász theta function
 
 An *orthonormal representation* of a simple graph `G` on `V` is a family of unit vectors `u v`
-in a real inner product space such that `u v ⟂ u w` whenever `v ≠ w` are nonadjacent. Lovász's
-theta function is
+in a real inner product space such that `u v ⟂ u w` whenever `v ≠ w` are nonadjacent. On a finite
+vertex type `V`, Lovász's theta function is
 `ϑ(G) = min_{u, c} max_v 1 / ⟪c, u v⟫²`,
 over orthonormal representations `u` and unit vectors `c` (the *handle*) [Lovasz1979Shannon]; this
 is the unweighted case of `ϑ₁` in Knuth's notes [Knuth1994, §5, (5.2)], whose *orthogonal labelings*
@@ -82,15 +82,19 @@ structure IsOrthonormalRepresentation {E : Type*} [NormedAddCommGroup E] [InnerP
   norm_eq_one : ∀ v, ‖u v‖ = 1
   inner_eq_zero : ∀ ⦃v w⦄, v ≠ w → ¬G.Adj v w → ⟪u v, u w⟫ = 0
 
-/-- The **Lovász theta function** `ϑ(G)`: the infimum of the `t > 0` for which some orthonormal
-representation `u` of `G` in some `ℝᵈ` and some unit vector `c` satisfy `1 ≤ t ⟪c, u v⟫²` for
-every vertex `v`, that is, `ϑ(G) = inf_{u, c} max_v 1 / ⟪c, u v⟫²`. -/
-noncomputable def lovaszTheta (G : SimpleGraph V) : ℝ :=
+/-- The **Lovász theta function** `ϑ(G)` of a finite graph `G`: the infimum of the `t > 0` for
+which some orthonormal representation `u` of `G` in some `ℝᵈ` and some unit vector `c` satisfy
+`1 ≤ t ⟪c, u v⟫²` for every vertex `v`, that is, `ϑ(G) = inf_{u, c} max_v 1 / ⟪c, u v⟫²`. The
+finite vertex type ensures that finite-dimensional representations exist (`nonempty_feasible`)
+rather than collapsing `sInf ∅ = 0` on graphs with infinite independent sets. -/
+-- Finiteness restricts the public domain; `sInf` itself does not require it.
+@[nolint unusedArguments]
+noncomputable def lovaszTheta [Finite V] (G : SimpleGraph V) : ℝ :=
   sInf {t : ℝ | 0 < t ∧ ∃ (d : ℕ) (u : V → EuclideanSpace ℝ (Fin d))
     (c : EuclideanSpace ℝ (Fin d)),
     G.IsOrthonormalRepresentation u ∧ ‖c‖ = 1 ∧ ∀ v, 1 ≤ t * ⟪c, u v⟫ ^ 2}
 
-theorem lovaszTheta_nonneg : 0 ≤ G.lovaszTheta :=
+theorem lovaszTheta_nonneg [Finite V] : 0 ≤ G.lovaszTheta :=
   Real.sInf_nonneg fun _ ht => ht.1.le
 
 private theorem bddBelow_feasible :
@@ -216,7 +220,8 @@ theorem lovaszTheta_eq_zero_of_isEmpty [IsEmpty V] : G.lovaszTheta = 0 := by
 
 /-- **Sandwich theorem, upper half**: a proper `k`-colouring of the complement bounds
 `ϑ(G) ≤ k`. -/
-theorem lovaszTheta_le_of_colorable_compl {k : ℕ} (hc : Gᶜ.Colorable k) : G.lovaszTheta ≤ k := by
+theorem lovaszTheta_le_of_colorable_compl [Finite V] {k : ℕ} (hc : Gᶜ.Colorable k) :
+    G.lovaszTheta ≤ k := by
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · have := colorable_zero_iff.1 hc
     rw [lovaszTheta_eq_zero_of_isEmpty, Nat.cast_zero]
@@ -254,9 +259,8 @@ theorem lovaszTheta_pos [Finite V] [Nonempty V] : 0 < G.lovaszTheta :=
   lt_of_lt_of_le (by exact_mod_cast one_le_indepNum) indepNum_le_lovaszTheta
 
 /-- The theta function is monotone under graph embeddings. -/
-theorem Embedding.lovaszTheta_le [Finite V] {G' : SimpleGraph X} (f : G' ↪g G) :
+theorem Embedding.lovaszTheta_le [Finite V] [Finite X] {G' : SimpleGraph X} (f : G' ↪g G) :
     G'.lovaszTheta ≤ G.lovaszTheta := by
-  have : Finite X := Finite.of_injective f f.injective
   rcases isEmpty_or_nonempty X with hX | hX
   · rw [lovaszTheta_eq_zero_of_isEmpty]
     exact lovaszTheta_nonneg

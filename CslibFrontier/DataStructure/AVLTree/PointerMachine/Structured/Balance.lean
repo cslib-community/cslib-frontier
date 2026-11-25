@@ -125,10 +125,8 @@ private theorem inChild_correct (right : Bool) (body : Code M (layout extra (reg
   obtain ⟨-, -, no, -, dis⟩ := (nodeAt_distinct_iff ..).mp distinct
   have nav : (Op.loadPtr 0 (childField right) 0).effect s = s.setPtr 0 (some o) := by
     cases right <;> simp [pm_simps, State.deref, cursor, hl, record, childField, hroot]
-  obtain ⟨nl, c, d, rfl⟩ : ∃ nl c d, new = .node nl c d := by
-    cases new with
-    | nil => exact (nonempty rfl).elim
-    | node nl c d => exact ⟨nl, c, d, rfl⟩
+  rcases new with _ | ⟨nl, c, d⟩
+  · exact (nonempty rfl).elim
   have tcur : t.ptr 0 = some nl.address := built.cursor
   have read : t.deref 0 = some (record (root c) (root d) (some label.address) nl) := by
     simp [State.deref, tcur, built.rep.1]
@@ -147,19 +145,16 @@ private theorem inChild_correct (right : Bool) (body : Code M (layout extra (reg
     distinct built.rep built.distinct (by simpa only [built.footprint] using no)
     (by simpa only [built.footprint] using dis) built.frame
   rw [fieldEq, tcur] at heap
-  have repU : Represents u.heap parent (nodeAt right label (.node nl c d) sibling) := by
-    rw [heap]
-    exact semantic.1
+  have repU : Represents u.heap parent (nodeAt right label (.node nl c d) sibling) :=
+    heap ▸ semantic.1
   have back : (Op.loadPtr 0 2 0).effect u = u.setPtr 0 (some label.address) := by
     have ucur : u.ptr 0 = some nl.address :=
       (ptr 0 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans tcur
-    have child := ((represents_nodeAt_iff ..).mp repU).2.1.1
-    simp [pm_simps, State.deref, ucur, child, record]
+    simp [pm_simps, State.deref, ucur, ((represents_nodeAt_iff ..).mp repU).2.1.1, record]
   refine ⟨_, (ExecWithin.seq (ExecWithin.op_eq nav) (ExecWithin.seq bodyExec
     (ExecWithin.seq connected (ExecWithin.op_eq back)))).mono (by omega), repU, semantic.2.1,
     by simp, ?_, fun z hz => ?_⟩
-  · have keep := ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])
-    simpa [keep] using built.top
+  · simpa [ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])] using built.top
   · rw [State.heap_setPtr, heap]
     exact semantic.2.2 z hz
 
@@ -372,9 +367,7 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
   have qtop : q.ptr 1 = s.ptr 1 := (qptr 1 (by simp [layout])).trans (by simp)
   have q6 : q.ptr 6 = q.ptr 0 :=
     ((qptr 6 (by simp [layout])).trans (by simp [cursor])).trans qcur.symm
-  have qrep : Represents q.heap parent (.node label l r) := by
-    rw [qheap]
-    exact rep
+  have qrep : Represents q.heap parent (.node label l r) := qheap ▸ rep
   have testL : M.evalTest heavy (q.data 1) (q.data 2) =
       decide (B.cachedHeight + 1 < A.cachedHeight) := by
     rw [d1, d2, ml.heightValue, mr.heightValue, heavy_spec]
@@ -404,12 +397,12 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
           fun holds => hR (of_decide_eq_true (testR.symm.trans holds))
         obtain ⟨t, run, heap, rt, mt, dt, -⟩ := recomputeHeight_mkNode zero maxSucc encode
           zero_spec max_spec field notKey q label l r A B parent qrep distinct ml mr hl hr qcur
+        have keep {r : Fin 7} (hr : r ≠ 2) : t.ptr r = q.ptr r :=
+          run.ptr_keep [2] (by pm_frame) (by simp [hr])
         refine ⟨t, _, (ExecWithin.branch_neg notL (ExecWithin.branch_neg notR run)).mono
-          (by omega), ⟨rt, ?_, dt, rfl, ?_, ?_, run.ptr_keep [2] (by pm_frame) (by simp),
-          fun z hz => ?_⟩⟩
+          (by omega), ⟨rt, ?_, dt, rfl, (keep (r := 0) (by decide)).trans qcur,
+          (keep (r := 6) (by decide)).trans q6, keep (r := 1) (by decide), fun z hz => ?_⟩⟩
         · simpa [AVLTree.balance, hL, hR] using mt
-        · exact (run.ptr_keep [2] (by pm_frame) (by simp)).trans qcur
-        · exact (run.ptr_keep [2] (by pm_frame) (by simp)).trans q6
         · rw [heap]
           exact List.getElem?_modify_ne _ _ fun e =>
             hz ((mem_addresses_iff ..).mpr ⟨.one, label, rfl, e⟩)
@@ -427,9 +420,8 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
   cases tree with
   | node => simp [root]
   | nil =>
-    have matched := built.matched
     cases eq : AVLTree.balance (label.data 0) A B with
     | nil => exact (balance_ne_nil _ _ _ eq).elim
-    | node => simp [eq, Matches] at matched
+    | node => exact absurd built.matched (by simp [eq, Matches])
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Structured

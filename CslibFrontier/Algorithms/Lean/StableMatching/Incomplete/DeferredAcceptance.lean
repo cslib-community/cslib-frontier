@@ -109,13 +109,9 @@ theorem step_cases (s : Fin m → ℕ) :
   unfold step
   split
   · rename_i p hp
-    right
-    exact ⟨p, by simpa using List.find?_some hp, rfl⟩
+    exact .inr ⟨p, by simpa using List.find?_some hp, rfl⟩
   · rename_i hp
-    left
-    refine ⟨rfl, fun p hd => ?_⟩
-    have := List.find?_eq_none.1 hp p (List.mem_finRange p)
-    simp_all
+    exact .inl ⟨rfl, fun p => by simpa using List.find?_eq_none.1 hp p (List.mem_finRange p)⟩
 
 /-- The deferred-acceptance invariant: no proposer has passed the end of its list, and every
 receiver that proposer `p` has passed still turns `p` down. -/
@@ -141,11 +137,9 @@ private theorem turnsDown_update {s : Fin m → ℕ} {p : Fin m} (hp : I.Rejecte
     I.TurnsDown (Function.update s p (s p + 1)) r x := by
   rcases h with h | ⟨q, hq, hqx⟩
   · exact Or.inl h
-  · by_cases hqp : q = p
-    · subst hqp
-      obtain ⟨r', hr', hd⟩ := hp
-      have hrr : r' = r := Option.some_injective _ (hr'.symm.trans hq)
-      subst hrr
+  · rcases eq_or_ne q p with rfl | hqp
+    · obtain ⟨r', hr', hd⟩ := hp
+      obtain rfl := Option.some.inj (hr'.symm.trans hq)
       rcases hd with hd | ⟨y, hy, hyq⟩
       · exfalso
         have heq : I.recvRank r' (some q) = I.recvRank r' none := List.idxOf_eq_length_iff.2 hd
@@ -158,25 +152,17 @@ private theorem turnsDown_update {s : Fin m → ℕ} {p : Fin m} (hp : I.Rejecte
 private theorem inv_update {s : Fin m → ℕ} (hs : I.Inv s) {p : Fin m} (hp : I.Rejected s p) :
     I.Inv (Function.update s p (s p + 1)) where
   le_length x := by
-    by_cases hxp : x = p
-    · subst hxp
-      rw [Function.update_self]
-      obtain ⟨r, hr, -⟩ := hp
-      exact (List.getElem?_eq_some_iff.1 hr).1
-    · rw [Function.update_of_ne hxp]
-      exact hs.le_length x
+    rcases eq_or_ne x p with rfl | hxp
+    · obtain ⟨_, hr, -⟩ := hp
+      exact Function.update_self x _ s ▸ (List.getElem?_eq_some_iff.1 hr).1
+    · simpa [hxp] using hs.le_length x
   turnsDown x k r hk hkr := by
-    by_cases hxp : x = p
-    · subst hxp
-      rw [Function.update_self] at hk
-      rcases Nat.lt_or_ge k (s x) with h | h
+    rcases eq_or_ne x p with rfl | hxp
+    · rw [Function.update_self] at hk
+      rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hk) with h | rfl
       · exact I.turnsDown_update hp (hs.turnsDown x k r h hkr)
-      · have hk' : k = s x := by omega
-        subst hk'
-        obtain ⟨r', hr', hd⟩ := hp
-        have hrr : r' = r := Option.some_injective _ (hr'.symm.trans hkr)
-        subst hrr
-        exact I.turnsDown_update ⟨r', hr', hd⟩ hd
+      · obtain ⟨r', hr', hd⟩ := hp
+        exact Option.some.inj (hr'.symm.trans hkr) ▸ I.turnsDown_update ⟨r', hr', hd⟩ hd
     · rw [Function.update_of_ne hxp] at hk
       exact I.turnsDown_update hp (hs.turnsDown x k r hk hkr)
 
@@ -187,17 +173,14 @@ theorem inv_step {s : Fin m → ℕ} (hs : I.Inv s) : I.Inv (I.step s) := by
   · rw [h]; exact I.inv_update hs hp
 
 /-- One more round of the run is one more step. -/
-theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) := by
-  rw [run, Function.iterate_succ_apply']
-  rfl
+theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) :=
+  Function.iterate_succ_apply' _ _ _
 
 /-- Every state of the run satisfies the invariant. -/
 theorem inv_run (k : ℕ) : I.Inv (I.run k) := by
   induction k with
   | zero => exact I.inv_init
-  | succ k ih =>
-    rw [run, Function.iterate_succ_apply']
-    exact I.inv_step ih
+  | succ k ih => exact I.run_succ k ▸ I.inv_step ih
 
 /-- The total number of rejections in an invariant state is at most `totalLength`. -/
 theorem sum_le {s : Fin m → ℕ} (hs : I.Inv s) : ∑ p, s p ≤ I.totalLength :=
@@ -207,21 +190,16 @@ theorem sum_le {s : Fin m → ℕ} (hs : I.Inv s) : ∑ p, s p ≤ I.totalLength
 private theorem run_fixed_or_le_sum (k : ℕ) :
     (∃ j < k, I.step (I.run j) = I.run j) ∨ k ≤ ∑ x, I.run k x := by
   induction k with
-  | zero => exact Or.inr (Nat.zero_le _)
+  | zero => exact .inr (Nat.zero_le _)
   | succ k ih =>
     rcases ih with ⟨j, hj, hfix⟩ | hsum
-    · exact Or.inl ⟨j, by omega, hfix⟩
+    · exact .inl ⟨j, Nat.lt_succ_of_lt hj, hfix⟩
     · rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨p, -, h⟩
-      · exact Or.inl ⟨k, by omega, h⟩
-      · right
-        have hlt : ∑ x, I.run k x < ∑ x, I.run (k + 1) x := by
-          rw [run_succ, h]
-          refine Finset.sum_lt_sum (fun x _ => ?_) ⟨p, Finset.mem_univ p, ?_⟩
-          · by_cases hxp : x = p
-            · subst hxp; rw [Function.update_self]; omega
-            · rw [Function.update_of_ne hxp]
-          · rw [Function.update_self]; omega
-        omega
+      · exact .inl ⟨k, Nat.lt_succ_self k, h⟩
+      · refine .inr (Nat.succ_le_of_lt (lt_of_le_of_lt hsum ?_))
+        rw [run_succ, h]
+        exact Finset.sum_lt_sum (fun x _ => by rcases eq_or_ne x p with rfl | hx <;> simp [*])
+          ⟨p, Finset.mem_univ p, by simp⟩
 
 /-- Once the run reaches a fixed state, it stays there. -/
 theorem run_fixed_of_le {j k : ℕ} (hjk : j ≤ k) (h : I.step (I.run j) = I.run j) :
@@ -250,11 +228,8 @@ theorem sum_finalState_le : ∑ p, I.finalState p ≤ I.totalLength := I.sum_le 
 theorem not_rejected_finalState (p : Fin m) : ¬ I.Rejected I.finalState p := by
   rcases I.step_cases I.finalState with ⟨-, h⟩ | ⟨q, -, h⟩
   · exact h p
-  · have h' := I.step_run_fixed
-    rw [← finalState, h] at h'
-    have := congrFun h' q
-    simp only [Function.update_self] at this
-    omega
+  · have := congrFun (h.symm.trans I.step_run_fixed) q
+    simp [finalState] at this
 
 /-- Distinct proposers end at distinct receivers. -/
 theorem target_finalState_inj (p q : Fin m) (r : Fin n) (hp : I.target I.finalState p = some r)
@@ -280,12 +255,9 @@ theorem deferredAcceptance_apply (p : Fin m) :
 /-- The first occurrence of an element in a list is no later than any of its occurrences. -/
 private theorem idxOf_le_of_getElem?_eq {α : Type*} [DecidableEq α] {l : List α} {i : ℕ}
     {a : α} (h : l[i]? = some a) : l.idxOf a ≤ i := by
-  obtain ⟨hi, hia⟩ := List.getElem?_eq_some_iff.1 h
+  obtain ⟨_, rfl⟩ := List.getElem?_eq_some_iff.1 h
   by_contra hlt
-  push Not at hlt
-  have := List.not_of_lt_findIdx (p := fun x => x == a) (xs := l) hlt
-  simp only [hia, beq_self_eq_true] at this
-  exact Bool.false_ne_true this.symm
+  simpa using List.not_of_lt_findIdx (p := (· == l[i])) (Nat.lt_of_not_le hlt)
 
 /-- Proposer `p` ranks its deferred-acceptance outcome no worse than its position after the final
 number of rejections. -/
@@ -356,29 +328,20 @@ private theorem noStableRejected_update {ν : PartialMatching m n} (hν : I.IsSt
     {s : Fin m → ℕ} (hs : I.Inv s) (hN : I.NoStableRejected ν s) {x : Fin m}
     (hx : I.Rejected s x) : I.NoStableRejected ν (Function.update s x (s x + 1)) := by
   intro p k r hk hkr
-  by_cases hpx : p = x
-  · subst hpx
-    rw [Function.update_self] at hk
-    rcases Nat.lt_or_ge k (s p) with h | h
+  rcases eq_or_ne p x with rfl | hpx
+  · rw [Function.update_self] at hk
+    rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hk) with h | rfl
     · exact hN p k r h hkr
-    · have hk' : k = s p := by omega
-      subst hk'
-      intro hνp
+    · intro hνp
       obtain ⟨r', hr', hd⟩ := hx
-      have hrr : r' = r := Option.some_injective _ (hr'.symm.trans hkr)
-      subst hrr
+      obtain rfl := Option.some.inj (hr'.symm.trans hkr)
       rcases hd with hd | ⟨y, hy, hyp⟩
       · exact hd (hν.1 p r' hνp).2
-      · have hyp' : y ≠ p := by rintro rfl; exact lt_irrefl _ hyp
-        have hsymm : ν.symm r' = some p := ν.eq_some_iff.2 hνp
-        have hle := I.le_propRank_of_noStableRejected hν hs hN y
-        have hidx : I.propRank y (some r') ≤ s y := idxOf_le_of_getElem?_eq hy
-        have hlt : I.propRank y (some r') < I.propRank y (ν y) := by
-          refine lt_of_le_of_ne (hidx.trans hle) fun heq => hyp' ?_
-          have hmem : r' ∈ I.propPref y := List.mem_of_getElem? hy
-          have hνy : ν y = some r' := I.eq_of_propRank_eq hmem heq
-          exact ν.inj (b := r') hνy hνp
-        exact hν.2 y r' ⟨hlt, hsymm ▸ hyp⟩
+      · refine hν.2 y r' ⟨lt_of_le_of_ne ((idxOf_le_of_getElem?_eq hy).trans
+          (I.le_propRank_of_noStableRejected hν hs hN y)) fun heq => ?_,
+          ν.eq_some_iff.2 hνp ▸ hyp⟩
+        have heqy := ν.inj (b := r') (I.eq_of_propRank_eq (List.mem_of_getElem? hy) heq) hνp
+        exact hyp.ne (congrArg (fun z => I.recvRank r' (some z)) heqy)
   · rw [Function.update_of_ne hpx] at hk
     exact hN p k r hk hkr
 
@@ -387,10 +350,10 @@ private theorem noStableRejected_run {ν : PartialMatching m n} (hν : I.IsStabl
   induction k with
   | zero => exact I.noStableRejected_init ν
   | succ k ih =>
-    rw [run, Function.iterate_succ_apply', ← run]
+    rw [run_succ]
     rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨p, hp, h⟩
-    · rw [h]; exact ih
-    · rw [h]; exact I.noStableRejected_update hν (I.inv_run k) ih hp
+    · exact h.symm ▸ ih
+    · exact h.symm ▸ I.noStableRejected_update hν (I.inv_run k) ih hp
 
 /-- Proposer-optimality ([RothSotomayor1990], Theorem 2.12): every proposer weakly prefers its
 deferred-acceptance outcome to its outcome in any stable matching. -/

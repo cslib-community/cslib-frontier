@@ -102,9 +102,8 @@ theorem IsCostBounded.run_interpret_sampleListWhen_congr {Q S V W α : Type} {sp
         simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, ↓reduceIte,
           withSampleList, List.headD_cons, List.tail_cons, Probability.PMF.monad_bind_eq_bind,
           PMF.monad_map_eq_map, PMF.map_bind, PMF.bind_map, Function.comp_def, equal q hq]
-        congr 1
-        funext v
-        exact ih v.1 _ _ (by simpa [hq] using len) tail v.2
+        exact congrArg (fun k => (g _ q s).bind k)
+          (funext fun v => ih v.1 _ _ (by simpa [hq] using len) tail v.2)
 
 /-- Presampling the selected calls of an adaptive program preserves the joint law of its
 result and final state. An uncharged call can read or change that state arbitrarily. -/
@@ -129,8 +128,7 @@ theorem IsCostBounded.run_interpret_presample_when {Query State Value α : Type}
         Nat.add_zero, Bool.false_eq_true, ↓reduceIte, Probability.PMF.monad_bind_eq_bind,
         PMF.map_bind, PMF.bind_map, Function.comp_def]
       pmf_swap with result
-      rw [← ih result.1 result.2, PMF.bind_map]
-      rfl
+      rw [← ih result.1 result.2, PMF.bind_map]; rfl
     | true =>
       simp only [run_interpret_bind, run_interpret_query, withSampleListWhen, hq, Bool.toNat_true,
         ↓reduceIte, Probability.PMF.iid, withSampleList, Probability.PMF.monad_bind_eq_bind,
@@ -139,8 +137,7 @@ theorem IsCostBounded.run_interpret_presample_when {Query State Value α : Type}
         List.tail_cons]
       refine congrArg (source.bind ·) (funext fun value => ?_)
       pmf_swap with result
-      rw [← ih result.1 result.2, PMF.bind_map]
-      rfl
+      rw [← ih result.1 result.2, PMF.bind_map]; rfl
 
 end OracleComp
 
@@ -167,9 +164,8 @@ theorem IsQueryBounded.run_interpret_presample {program : ProbOracleComp spec α
   let selected : ℕ ⊕ Query → Bool := Sum.elim (fun _ => false) (fun _ => true)
   let handler (v : Value) := sumHandler (m := StateT State PMF)
     (fun k => StateT.lift (ProbComp.unifOracle k)) (oracle v)
-  have cost : (fun q => (selected q).toNat) = Sum.elim (fun _ => 0) (fun _ => 1) := by
-    funext q
-    cases q <;> rfl
+  have cost : (fun q => (selected q).toNat) = Sum.elim (fun _ => 0) (fun _ => 1) :=
+    funext fun q => by cases q <;> rfl
   have saved : withSampleListWhen selected fallback handler =
       sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
         (withSampleList fallback oracle) := by
@@ -202,14 +198,13 @@ theorem IsQueryBounded.eval_presample {program : ProbOracleComp spec α} {count 
         (fun q s => do
           let value ← source
           oracle value q s)) program).run s) := by
-  have hrun := h.run_interpret_presample (ProbComp.eval source) fallback
-    (fun value q s => ProbComp.eval (oracle value q s)) s
   have hstep (q : Query) (state : State × List Value) :
       ProbComp.eval (withSampleList fallback oracle q state) =
         withSampleList fallback (fun value q s => ProbComp.eval (oracle value q s)) q state := by
     simp [withSampleList, PMF.monad_map_eq_map]
   simpa only [ProbComp.eval_bind, ProbComp.eval_map, eval_run_interpret, hstep,
-    ProbComp.eval_replicate_iid] using hrun
+    ProbComp.eval_replicate_iid] using h.run_interpret_presample (ProbComp.eval source) fallback
+      (fun value q s => ProbComp.eval (oracle value q s)) s
 
 end ProbOracleComp
 

@@ -85,35 +85,22 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
       (by simpa only [hws, hl] using hk j) (by simpa only [hwh] using hd)
       (by simpa only [hl] using ht j) (by simpa only [hb, hl, hws] using hsk j)
       (by simpa only [hws, hl, hwh] using hkd j)
-      (by
-        intro i hi
-        have hi' : i < x.regs (CountCall.length j) := by simpa only [hl] using hi
-        rw [hb, hm (x.regs (CountCall.source j) + i) (by have := hsk j; omega)]
-        exact hinput j i hi')
+      (fun i hi => by
+        rw [hb, hm _ (by have := hsk j; omega)]; exact hinput j i (hl ▸ hi))
       (by simpa only [hl] using hinj j)
-    refine ⟨z, by simpa only [hl] using he, ?_, by simpa only [hl] using hzv, hzr⟩
-    refine ⟨?_, ?_⟩
-    · intro i hi
-      have hlow : 28 ≤ i.val := by dsimp [P] at hi; omega
-      have hne : i ≠ CountCall.result j := by
-        intro heq
-        have := congrArg Fin.val heq
-        dsimp [P, CountCall.result] at *
-        omega
-      exact (hzr i hlow hne).trans (hr i hi)
-    · intro a ha
-      rw [hzm, Count.memory_before]
+    refine ⟨z, by simpa only [hl] using he, ⟨fun i hi => (hzr i (by dsimp [P] at hi; omega)
+      fun heq => ?_).trans (hr i hi), fun a ha => ?_⟩, by simpa only [hl] using hzv, hzr⟩
+    · have := congrArg Fin.val heq
+      dsimp [P, CountCall.result] at *
+      omega
+    · rw [hzm, Count.memory_before]
       · exact hm a ha
       · simpa only [hws] using ha
-      · have := hkd j
-        rw [hwh]
-        omega
+      · have := hkd j; rw [hwh]; omega
   have hx : R x := ⟨fun _ _ => rfl, fun _ _ => rfl⟩
   obtain ⟨a, ha, hRa, hva, hfa⟩ := hcall 0 x hx
   obtain ⟨b, hb, hRb, hvb, hfb⟩ := hcall 1 a hRa
   obtain ⟨c, hc, hRc, hvc, hfc⟩ := hcall 2 b hRb
-  refine ⟨c, (ha.seq (hb.seq hc)).mono (by omega), ?_, hRc⟩
-  intro j
-  fin_cases j <;> regs_frame
+  exact ⟨c, (ha.seq (hb.seq hc)).mono (by omega), fun j => by fin_cases j <;> regs_frame, hRc⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.CountTriple

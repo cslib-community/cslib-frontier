@@ -74,11 +74,10 @@ theorem potential_eq_collisions_sub (label : A → B) :
     potential label =
       (∑ a, ∑ a', if label a = label a' then (1 : ℚ) else 0) -
         (Fintype.card A : ℚ) ^ 2 / Fintype.card B := by
-  have hsum : ∑ u, (occupancy label u : ℚ) = Fintype.card A := by
-    exact_mod_cast sum_occupancy label
+  have hsum : ∑ u, (occupancy label u : ℚ) = Fintype.card A := mod_cast sum_occupancy label
   have hsq : ∑ u, (occupancy label u : ℚ) ^ 2 =
-      ∑ a, ∑ a', if label a = label a' then (1 : ℚ) else 0 := by
-    exact_mod_cast sum_occupancy_sq_eq_collisions label
+      ∑ a, ∑ a', if label a = label a' then (1 : ℚ) else 0 :=
+    mod_cast sum_occupancy_sq_eq_collisions label
   unfold potential
   simp_rw [sub_sq]
   simp only [Finset.sum_add_distrib, Finset.sum_sub_distrib,
@@ -86,8 +85,7 @@ theorem potential_eq_collisions_sub (label : A → B) :
     nsmul_eq_mul, hsum, hsq]
   rcases eq_or_ne (Fintype.card B : ℚ) 0 with hB | hB
   · simp [hB]
-  · field_simp
-    ring
+  · field_simp; ring
 
 /-- A squared-deviation potential is nonnegative, without nonemptiness assumptions. -/
 theorem potential_nonneg (label : A → B) : 0 ≤ potential label :=
@@ -98,8 +96,7 @@ theorem deviation_sq_le_potential (label : A → B) (u : B) :
     ((occupancy label u : ℚ) - Fintype.card A / (Fintype.card B : ℚ)) ^ 2 ≤
       potential label := by
   unfold potential
-  exact Finset.single_le_sum (fun v _ => sq_nonneg
-    ((occupancy label v : ℚ) - Fintype.card A / (Fintype.card B : ℚ))) (Finset.mem_univ u)
+  exact Finset.single_le_sum (N := ℚ) (fun _ _ => sq_nonneg _) (Finset.mem_univ u)
 
 /-- If the total potential is at most the squared mean, every fiber has occupancy at most
  twice the mean. This is the square-root-free step used for both bounds in Lemma 4.5. -/
@@ -110,12 +107,8 @@ theorem occupancy_le_twice_mean (label : A → B)
   have hmean : 0 ≤ (Fintype.card A : ℚ) / Fintype.card B := by positivity
   have hsq := (deviation_sq_le_potential label u).trans hpotential
   rw [mul_div_assoc]
-  by_contra h
-  have hlt : 2 * ((Fintype.card A : ℚ) / Fintype.card B) < occupancy label u := lt_of_not_ge h
-  have hx : 0 < (occupancy label u : ℚ) := by linarith
-  have hdiff : 0 < (occupancy label u : ℚ) -
-      2 * ((Fintype.card A : ℚ) / Fintype.card B) := by linarith
-  nlinarith [mul_pos hx hdiff]
+  by_contra! hlt
+  nlinarith [mul_pos (show 0 < (occupancy label u : ℚ) by linarith) (sub_pos.mpr hlt)]
 
 /-- The second collision expansion in Lemma 4.5, summed over the schedule coordinates. -/
 theorem sum_potential_eq_collisions_sub {T : Type*} [Fintype T]
@@ -146,10 +139,8 @@ theorem occupancy_mul_card_le (label : A → B)
     (hpotential : potential label ≤
       ((Fintype.card A : ℚ) / Fintype.card B) ^ 2) (u : B) :
     occupancy label u * Fintype.card B ≤ 2 * Fintype.card A := by
-  have hB' : (0 : ℚ) < Fintype.card B := by exact_mod_cast Fintype.card_pos_iff.mpr ⟨u⟩
-  have h := occupancy_le_twice_mean label hpotential u
-  have hmul := (le_div_iff₀ hB').mp h
-  exact_mod_cast hmul
+  have hB' : (0 : ℚ) < Fintype.card B := mod_cast Fintype.card_pos_iff.mpr ⟨u⟩
+  exact_mod_cast (le_div_iff₀ hB').mp (occupancy_le_twice_mean label hpotential u)
 
 /-- The size hypothesis in (4.13) absorbs the collision variance bound, without rounding the
 source's `2 * M / D` bound up to an integer. Here `C` will be `b + w`. -/
@@ -157,15 +148,11 @@ theorem occupancy_mul_card_le_of_variance_bound (label : A → B) (C : ℕ)
     (hpotential : potential label ≤ 2 * Fintype.card A * C)
     (hsize : 2 * C * Fintype.card B ^ 2 ≤ Fintype.card A) (u : B) :
     occupancy label u * Fintype.card B ≤ 2 * Fintype.card A := by
-  apply occupancy_mul_card_le label _ u
-  apply hpotential.trans
-  rw [div_pow]
-  have hB' : (0 : ℚ) < Fintype.card B := by exact_mod_cast Fintype.card_pos_iff.mpr ⟨u⟩
-  apply (le_div_iff₀ (sq_pos_of_pos hB')).2
-  have hsize' : (2 : ℚ) * C * (Fintype.card B : ℚ) ^ 2 ≤ Fintype.card A := by
-    exact_mod_cast hsize
-  have hM : (0 : ℚ) ≤ Fintype.card A := by positivity
-  nlinarith [mul_le_mul_of_nonneg_left hsize' hM]
+  refine occupancy_mul_card_le label (hpotential.trans ?_) u
+  have hB' : (0 : ℚ) < Fintype.card B := mod_cast Fintype.card_pos_iff.mpr ⟨u⟩
+  rw [div_pow, le_div_iff₀ (sq_pos_of_pos hB')]
+  have hsize' : (2 : ℚ) * C * (Fintype.card B : ℚ) ^ 2 ≤ Fintype.card A := mod_cast hsize
+  nlinarith [mul_le_mul_of_nonneg_left hsize' (Nat.cast_nonneg (Fintype.card A))]
 
 /-- The two conclusions of Lemma 4.5 follow from its normalized potential bound and size
 hypotheses. `incidence` may be the pair `(a v, d f)` and `group t v` is the SAME variable
@@ -179,19 +166,13 @@ theorem incidence_and_group_bounds {T V G : Type*} [Fintype T] [Fintype V] [Fint
       (∑ t, potential (group t)) / ((Fintype.card T : ℚ) * Fintype.card V) ≤ 2) :
     (∀ u, occupancy incidence u * Fintype.card B ≤ 2 * Fintype.card A) ∧
       (∀ t g, occupancy (group t) g * Fintype.card G ≤ 2 * Fintype.card V) := by
-  have hx : (0 : ℚ) < Fintype.card A * (C : ℚ) := by positivity
-  have hy : (0 : ℚ) < Fintype.card T * (Fintype.card V : ℚ) := by positivity
   have hcomponents := components_le_of_normalized_le_two (potential_nonneg incidence)
-    (Finset.sum_nonneg fun t _ => potential_nonneg (group t)) hx hy hpotential
-  constructor
-  · intro u
-    apply occupancy_mul_card_le_of_variance_bound incidence C _ hincidenceSize u
-    simpa only [mul_assoc] using hcomponents.1
-  · intro t g
-    apply occupancy_mul_card_le_of_variance_bound (group t) (Fintype.card T) _
-      hgroupSize g
-    have hle : potential (group t) ≤ ∑ t', potential (group t') :=
-      Finset.single_le_sum (fun t' _ => potential_nonneg (group t')) (Finset.mem_univ t)
-    nlinarith [hcomponents.2]
+    (Finset.sum_nonneg fun t _ => potential_nonneg (group t)) (by positivity) (by positivity)
+    hpotential
+  refine ⟨fun u => occupancy_mul_card_le_of_variance_bound incidence C
+    (by simpa only [mul_assoc] using hcomponents.1) hincidenceSize u, fun t g =>
+      occupancy_mul_card_le_of_variance_bound (group t) (Fintype.card T) ?_ hgroupSize g⟩
+  have hle := Finset.single_le_sum (fun t' _ => potential_nonneg (group t')) (Finset.mem_univ t)
+  nlinarith [hcomponents.2]
 
 end Cslib.BalancedSchedules

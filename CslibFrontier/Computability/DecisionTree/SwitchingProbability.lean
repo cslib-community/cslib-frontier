@@ -91,9 +91,8 @@ private theorem exists_nodup_of_length_le {k : ℕ} {F : DNF ι} (hk : ∀ T ∈
     constructor
     · rintro ⟨T, hT, hx⟩
       obtain ⟨T₀, h₀, rfl⟩ := List.mem_map.1 (List.mem_filter.1 hT).1
-      refine ⟨T₀, h₀, ?_⟩
-      rw [Term.eval_eq_true_iff] at hx ⊢
-      exact fun l hl => hx l (List.mem_dedup.2 hl)
+      exact ⟨T₀, h₀, (Term.eval_eq_true_iff _ _).2 fun l hl =>
+        (Term.eval_eq_true_iff _ _).1 hx l (List.mem_dedup.2 hl)⟩
     · rintro ⟨T₀, h₀, hx⟩
       rw [Term.eval_eq_true_iff] at hx
       refine ⟨T₀.dedup, List.mem_filter.2 ⟨List.mem_map_of_mem h₀, ?_⟩, ?_⟩
@@ -116,10 +115,7 @@ private theorem complexity_fill_le_card_free (ρ : PartialAssignment ι) (f : (�
   rw [eval_queryAll]
   congr 1
   funext i
-  by_cases hi : ρ i = none
-  · simp [hi]
-  · obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 hi
-    simp [hb]
+  cases hi : ρ i <;> simp [hi]
 
 /-! ### Terms of one literal -/
 
@@ -200,66 +196,51 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
   -- the words completing a free set `J` to a restriction in `E`
   set w : Fin n → Bool := fun i => if h : ∃ l ∈ L, l.1 = i then !h.choose.2 else false
   have hword (J : Finset (Fin n)) :
-      #{z : Fin n → Bool | E (PartialAssignment.outside J z)} ≤
-        if s < #(J ∩ V) then 2 ^ (n - #(V \ J)) else 0 := by
+      (#{z : Fin n → Bool | E (PartialAssignment.outside J z)} : ℝ) ≤
+        2 ^ n * if s + 1 ≤ #(J ∩ V) then ((1 : ℝ) / 2) ^ #(V \ J) else 0 := by
     split_ifs with hs
-    · calc #{z : Fin n → Bool | E (PartialAssignment.outside J z)}
+    · have hVJ : #(V \ J) ≤ n := by simpa using card_le_univ (V \ J)
+      rw [div_pow, one_pow, ← div_eq_mul_one_div, div_eq_mul_inv, ← pow_sub₀ _ two_ne_zero hVJ]
+      have hc : #{z : Fin n → Bool | E (PartialAssignment.outside J z)} ≤ 2 ^ (n - #(V \ J)) :=
+        calc #{z : Fin n → Bool | E (PartialAssignment.outside J z)}
           ≤ #{z : Fin n → Bool | ∀ i ∉ (V \ J)ᶜ, z i = w i} := by
-            refine card_le_card fun z hz => mem_filter.2 ⟨mem_univ _, fun i hi => ?_⟩
-            have hi' := mem_sdiff.1 (by simpa using hi)
-            have h : ∃ l ∈ L, l.1 = i := by simpa [V] using hi'.1
-            obtain ⟨hl, hli⟩ := h.choose_spec
-            have hne := (mem_filter.1 hz).2.1 _ hl
-            simp only [PartialAssignment.outside, hli, hi'.2, ite_false, ne_eq,
-              Option.some.injEq] at hne
-            simp only [w, h, ↓reduceDIte]
-            cases hzi : z i <;> cases hc : h.choose.2 <;> simp_all
-        _ = 2 ^ (n - #(V \ J)) := by
+              refine card_le_card fun z hz => mem_filter.2 ⟨mem_univ _, fun i hi => ?_⟩
+              have hi' := mem_sdiff.1 (by simpa using hi)
+              have h : ∃ l ∈ L, l.1 = i := by simpa [V] using hi'.1
+              obtain ⟨hl, hli⟩ := h.choose_spec
+              have hne := (mem_filter.1 hz).2.1 _ hl
+              simp only [PartialAssignment.outside, hli, hi'.2, ite_false, ne_eq,
+                Option.some.injEq] at hne
+              simp only [w, h, ↓reduceDIte]
+              cases hzi : z i <;> cases hc : h.choose.2 <;> simp_all
+          _ = 2 ^ (n - #(V \ J)) := by
             rw [card_filter_forall_notMem_eq, card_compl, Fintype.card_fin]
-    · refine (card_eq_zero.2 (filter_false_of_mem fun z _ hz => hs ?_)).le
-      simpa [PartialAssignment.free_outside] using hz.2
-  have hcount : (2 ^ u * #(W.filter E) : ℝ) ≤ ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
-      (if s < #(J ∩ V) then (2 : ℝ) ^ (n - #(V \ J)) else 0) := by
-    have h : ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
-        #{z : Fin n → Bool | E (PartialAssignment.outside J z)} = 2 ^ u * #(W.filter E) :=
-      PartialAssignment.sum_card_filter_outside E u
-    have h' : ((2 ^ u * #(W.filter E) : ℕ) : ℝ) ≤ ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
-        (if s < #(J ∩ V) then (2 : ℝ) ^ (n - #(V \ J)) else 0) := by
-      rw [← h]
-      push_cast
-      refine sum_le_sum fun J _ => ?_
-      have := hword J
-      split_ifs at this ⊢ <;> exact_mod_cast this
-    exact_mod_cast h'
+      exact_mod_cast hc
+    · rw [mul_zero, Nat.cast_nonpos, card_eq_zero]
+      exact filter_false_of_mem fun z _ hz =>
+        hs (by simpa [PartialAssignment.free_outside] using hz.2 : s < #(J ∩ V))
   have hW : (#W : ℝ) = n.choose u * 2 ^ (n - u) := by
     rw [PartialAssignment.card_withFree, Fintype.card_fin]; push_cast; ring
-  have hhalf (J : Finset (Fin n)) :
-      (if s < #(J ∩ V) then (2 : ℝ) ^ (n - #(V \ J)) else 0) =
-        2 ^ n * (if s + 1 ≤ #(J ∩ V) then ((1 : ℝ) / 2) ^ #(V \ J) else 0) := by
-    have hVJ : #(V \ J) ≤ n := by simpa using card_le_univ (V \ J)
-    by_cases hs : s < #(J ∩ V)
-    · have hs' : s + 1 ≤ #(J ∩ V) := hs
-      simp only [hs, hs', ↓reduceIte]
-      rw [div_pow, one_pow, ← div_eq_mul_one_div, pow_sub₀ _ (by norm_num) hVJ, div_eq_mul_inv]
-    · have hs' : ¬ s + 1 ≤ #(J ∩ V) := hs
-      simp only [hs, hs', ↓reduceIte, mul_zero]
   have hcore := Cslib.sum_powersetCard_ite_half_pow_le (r := s + 1) hupos hun V
   -- the probability is at most `g ^ (s + 1)` with `g = 2u / (n + u)`
   set g : ℝ := 2 * u / (n + u)
   have hg0 : 0 ≤ g := by positivity
   have hP : (#(W.filter E) : ℝ) / #W ≤ g ^ (s + 1) := by
+    have hcount : (2 ^ u * #(W.filter E) : ℝ) ≤ 2 ^ n * (n.choose u * g ^ (s + 1)) :=
+      calc (2 ^ u * #(W.filter E) : ℝ)
+          = ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
+              (#{z : Fin n → Bool | E (PartialAssignment.outside J z)} : ℝ) := by
+            exact_mod_cast (PartialAssignment.sum_card_filter_outside E u).symm
+        _ ≤ 2 ^ n * ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
+              (if s + 1 ≤ #(J ∩ V) then ((1 : ℝ) / 2) ^ #(V \ J) else 0) := by
+            rw [mul_sum]; exact sum_le_sum fun J _ => hword J
+        _ ≤ 2 ^ n * (n.choose u * g ^ (s + 1)) := mul_le_mul_of_nonneg_left hcore (by positivity)
     have hu2 : (2 : ℝ) ^ u * 2 ^ (n - u) = 2 ^ n := by rw [← pow_add]; congr 1; omega
     have hWpos : (0 : ℝ) < #W := by
       rw [hW]; exact mul_pos (by exact_mod_cast Nat.choose_pos hun) (by positivity)
     rw [div_le_iff₀ hWpos, hW]
-    have h1 : (2 : ℝ) ^ u * #(W.filter E) ≤ 2 ^ n * (n.choose u * g ^ (s + 1)) := by
-      refine hcount.trans ?_
-      simp only [hhalf, ← mul_sum]
-      exact mul_le_mul_of_nonneg_left hcore (by positivity)
-    have h2 : (2 : ℝ) ^ u * #(W.filter E) ≤ 2 ^ u * (g ^ (s + 1) * (n.choose u * 2 ^ (n - u))) := by
-      refine h1.trans_eq ?_
-      rw [← hu2]; ring
-    exact le_of_mul_le_mul_left h2 (by positivity)
+    refine le_of_mul_le_mul_left (hcount.trans_eq ?_) (by positivity : (0 : ℝ) < 2 ^ u)
+    rw [← hu2]; ring
   -- `g ≤ 1` and `g ^ 2 ≤ u / n`
   have hu' : (u : ℝ) ≤ n := by exact_mod_cast hun
   have hg1 : g ≤ 1 := by
@@ -363,13 +344,11 @@ private theorem card_filter_not_cnf_div_card_le_of_ne_one {n k s t : ℕ} (hk : 
     rcases Nat.eq_zero_or_pos k with hk0 | hk2
     · simp [r, hk0]
     have hk2 : (2 : ℝ) ≤ k := by exact_mod_cast (show 2 ≤ k by omega)
-    have hk8 : (256 : ℝ) ≤ (k : ℝ) ^ 8 := by
-      calc (256 : ℝ) = 2 ^ 8 := by norm_num
-        _ ≤ (k : ℝ) ^ 8 := pow_le_pow_left₀ (by norm_num) hk2 8
-    have hu' : (u : ℝ) * 1024 ≤ u * k ^ 10 := by
-      refine mul_le_mul_of_nonneg_left ?_ (by positivity)
-      calc (1024 : ℝ) = 2 ^ 10 := by norm_num
-        _ ≤ (k : ℝ) ^ 10 := pow_le_pow_left₀ (by norm_num) hk2 10
+    have hk8 : (256 : ℝ) ≤ (k : ℝ) ^ 8 :=
+      (by norm_num : (256 : ℝ) = 2 ^ 8).trans_le (pow_le_pow_left₀ (by norm_num) hk2 8)
+    have hu' : (u : ℝ) * 1024 ≤ u * k ^ 10 := mul_le_mul_of_nonneg_left
+      ((by norm_num : (1024 : ℝ) = 2 ^ 10).trans_le (pow_le_pow_left₀ (by norm_num) hk2 10))
+      (by positivity)
     have hcast : ((n - u : ℕ) : ℝ) = n - u := by push_cast [Nat.cast_sub hun]; ring
     -- `t' + 1 ≥ n / 2`, so `64 n u ≤ 256 (t' + 1) ^ 2 ≤ k ^ 8 (t' + 1) ^ 2`
     have ht' : (n : ℝ) ≤ 2 * ((n - u : ℕ) + 1) := by rw [hcast]; nlinarith

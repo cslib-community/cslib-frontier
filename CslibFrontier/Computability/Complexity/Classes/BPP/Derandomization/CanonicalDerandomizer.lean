@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 
 /-!
@@ -101,12 +102,9 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
   · -- a disjunction over the seeds of the conjunction of the output bits
     set D : List (List (BooleanFunction L × Bool)) := (BitString.enum k).map fun z =>
       (List.finRange L).map fun i => ((fun x : BitString L => x i), Gk z i)
-    have hw : ∀ c ∈ D, c.length ≤ L := by
-      intro c hc
-      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
-      simp
-    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L := by
-      intro c hc l hl
+    have hw : ∀ c ∈ D, c.length ≤ L := fun c hc => by
+      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc; simp
+    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L := fun c hc l hl => by
       obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
       obtain ⟨i, -, rfl⟩ := List.mem_map.1 hl
       exact ⟨i, rfl⟩
@@ -117,11 +115,8 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
     simp only [D, List.any_map, List.any_eq_true, Function.comp_apply, List.all_map,
       List.all_eq_true, List.mem_finRange, decide_eq_true_eq, true_implies, BitString.mem_enum,
       true_and]
-    constructor
-    · rintro ⟨z, hz⟩
-      exact ⟨z, funext fun i => (hz i).symm⟩
-    · rintro ⟨z, rfl⟩
-      exact ⟨z, fun i => rfl⟩
+    exact ⟨fun ⟨z, hz⟩ => ⟨z, funext fun i => (hz i).symm⟩,
+      fun ⟨z, hz⟩ => ⟨z, fun i => (congrFun hz i).symm⟩⟩
   · rw [Generator.advantage_pure_eq]
     have hseeds : #{z : BitString k | decide (∃ z', Gk z' = Gk z) = true} = 2 ^ k := by
       rw [filter_true_of_mem fun z _ => decide_eq_true ⟨z, rfl⟩, card_univ, BitString.card]
@@ -133,8 +128,8 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
         _ ≤ (univ : Finset (BitString k)).card := card_image_le
         _ = 2 ^ k := by rw [card_univ, BitString.card]
     rw [hseeds]
-    have hrange' : (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k := by
-      exact_mod_cast hrange
+    have hrange' : (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k :=
+      mod_cast hrange
     have hpos : (0 : ℝ) < 2 ^ L := by positivity
     have hk : ((2 ^ k : ℕ) : ℝ) / 2 ^ k = 1 := by push_cast; exact div_self (by positivity)
     rw [hk]
@@ -258,25 +253,12 @@ theorem P_eq_BPP_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : �
         (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.encoding_length enc))
     have hseed : ComputableInPolyTime seed enc encUnary := by
       simp only [hseed_def]; fun_prop
-    have hbudget (d : ℕ) : PolyBounded (fun x => (enc x).length) fun x => 2 ^ (d * seed x) := by
-      refine PolyBounded.of_polynomiallyBounded (fun x => (enc x).length)
-        (bound := fun N => 2 ^ (d * K) * 2 ^ (d * e * e₁ * (Nat.log 2 N + 1)))
-        ((PolynomiallyBounded.const _).mul (polynomiallyBounded_two_pow_mul_log _)) |>.mono
-        fun x => le_of_eq ?_
-      rw [← pow_add]; simp only [hseed_def]; ring_nf
     have hT : Monotone fun k => (2 ^ k * (ℓ k + 1)) ^ D := fun a b h =>
       Nat.pow_le_pow_left (Nat.mul_le_mul (Nat.pow_le_pow_right two_pos h)
         (Nat.add_le_add_right (hG.monotone h) 1)) D
     have hGbound : PolyBounded (fun x => (enc x).length) fun x =>
-        (2 ^ seed x * (ℓ (seed x) + 1)) ^ D :=
-      ((PolyBounded.const (4 ^ D)).mul (hbudget (2 * D))).mono fun x => by
-        have hℓ := hG.le_two_pow (seed x)
-        calc (2 ^ seed x * (ℓ (seed x) + 1)) ^ D ≤ (2 ^ seed x * (4 * 2 ^ seed x)) ^ D := by
-              refine Nat.pow_le_pow_left (Nat.mul_le_mul_left _ ?_) D
-              rw [pow_succ] at hℓ
-              have := Nat.one_le_two_pow (n := seed x)
-              omega
-          _ = 4 ^ D * 2 ^ (2 * D * seed x) := by ring
+        (2 ^ seed x * (ℓ (seed x) + 1)) ^ D := by
+      growth_poly [hG.le_two_pow]
     have hGq : ComputableInPolyTime (fun q : α × List Bool => G (q.2.take (seed q.1)))
         (encPair enc encBits) encBits :=
       ComputableInO.computableInPolyTime_take hT hGO hseed hGbound
@@ -287,7 +269,7 @@ theorem P_eq_BPP_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : �
     have hgen : ComputableInPolyTime (fun q : α × List Bool => gen q.1 q.2)
         (encPair enc encBits) encBits :=
       ComputableInPolyTime.bitsTakeWithInput hGq hm
-    exact computableInPolyTime_seedDecider hV hgen hseed ((hbudget 1).mono fun x => by simp)
+    exact computableInPolyTime_seedDecider hV hgen hseed (by growth_poly)
   · -- correctness on every instance
     obtain ⟨hpB, hcB⟩ := hB x
     have hBℓ : c₁ * ((enc x).length + 1) ^ a₁ ≤ ℓ (seed x) := by

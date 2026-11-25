@@ -78,7 +78,7 @@ private theorem zeroMap_inSpace : ComputableInSpace (fun l : List ℕ => l.map (
   have hstep : ComputableInSpace (fun p : List ℕ × ℕ => p.1 ++ [0])
       (encPair (encList encNat) encNat) (encList encNat)
       (fun p => (encPair (encList encNat) encNat p).length) :=
-    budget_snoc (fst _ _) (budget_const 0 (.refl _))
+    budget_snoc (fst _ _) (budget_const 0)
   have hfold (l out : List ℕ) :
       l.foldl (fun acc _ => acc ++ [0]) out = out ++ l.map (fun _ => 0) := by
     induction l generalizing out with
@@ -100,7 +100,8 @@ private theorem zeroMap_inSpace : ComputableInSpace (fun l : List ℕ => l.map (
     have hs := hstate l i hi.le
     simp only [length_encPair]
     omega
-  have hf := ComputableInSpace.foldl hid (budget_const [] (.refl _)) hstep hspace hstate
+  have hf := ComputableInSpace.foldl hid
+    (budget_const (Bs := fun l => (encList encNat l).length) []) hstep hspace hstate
   refine hf.weaken (.of_le_linear 16 16 fun _ => by omega) |>.of_enc_eq ?_
   intro l
   rw [hfold, List.nil_append]

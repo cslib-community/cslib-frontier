@@ -117,6 +117,14 @@ theorem exists_runsInTime (a : α) {time : ℕ}
     obtain ⟨t, ht⟩ := R.finish_spec a ws hws
     exact ⟨t, R.c * S a, ht⟩
 
+private theorem runPath_length_pos {a : α} {p : R.machine.RunPath (enc a)}
+    {q : Native.State R.SI R.SP R.SF} {ws : Fin R.k → List Bool} {out : List Bool}
+    (hhead : p.head = wordsCfg (enc a) (some q) ws out) (hhalt : p.last.Halted) :
+    0 < p.length :=
+  RelSeries.length_pos_of_nontrivial ⟨_, p.head_mem, _, p.last_mem, fun h => by
+    rw [← h, hhead] at hhalt
+    cases hhalt⟩
+
 private theorem finish_output (a : α) (s : σ) (hs : (M.withInit (start a)).Reachable (enc a) s)
     (flag : Bool) (out : List Bool) (p : R.machine.RunPath (enc a))
     (hhead : p.head = wordsCfg (enc a) (some (.finish R.F.q₀)) (R.boundary s flag) out)
@@ -131,14 +139,7 @@ private theorem finish_output (a : α) (s : σ) (hs : (M.withInit (start a)).Rea
   · have h := Native.follows_finish R.I R.P R.F R.C p q hmap p.length
       (Nat.lt_succ_self _) (by omega)
     change p.last = (q ⟨p.length, by omega⟩).mapState Native.finishState at h
-    have hnot := (q.step ⟨p.length, hshort⟩).1
-    have hstate : (q ⟨p.length, by omega⟩).state ≠ none := hnot
-    have hstate' : (q ⟨p.length, by omega⟩).state = none := by
-      have hh : ((q ⟨p.length, by omega⟩).mapState
-          (Native.finishState (SI := R.SI) (SP := R.SP))).Halted := h ▸ hhalt
-      change (Option.map Native.State.finish _ = none) at hh
-      exact Option.map_eq_none_iff.mp hh
-    exact (hstate hstate').elim
+    exact absurd (Option.map_eq_none_iff.mp (h ▸ hhalt)) (q.step ⟨p.length, hshort⟩).1
   · have hq : q.length < p.length + 1 := by omega
     have h := Native.follows_finish R.I R.P R.F R.C p q hmap q.length hq
       (Nat.lt_succ_self _)
@@ -157,68 +158,50 @@ theorem choose_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
     (hhalt : p.last.Halted) :
     ∃ s', (M.withInit (start a)).Reachable (enc a) s' ∧ M.halted s' = true ∧
       p.last.output = out ++ [M.accept s'] := by
-  have aux : ∀ n, ∀ p : R.machine.RunPath (enc a), p.length = n → ∀ s,
-      (M.withInit (start a)).Reachable (enc a) s → ∀ flag out,
-      p.head = wordsCfg (enc a) (some .choose) (R.boundary s flag) out → p.last.Halted →
-      ∃ s', (M.withInit (start a)).Reachable (enc a) s' ∧ M.halted s' = true ∧
-        p.last.output = out ++ [M.accept s'] := by
-    intro n
-    induction n using Nat.strong_induction_on with
-    | ind n ih =>
-      intro p hn s hs flag out hhead hhalt
-      have hpos : 0 < p.length := by
-        by_contra hz
-        have heq : p.last = p.head := by
-          have hz' : p.length = 0 := by omega
-          exact congrArg p (Fin.ext (by simpa using hz'))
-        have hh : (wordsCfg (enc a) (some (.choose : Native.State R.SI R.SP R.SF))
-            (R.boundary s flag) out).Halted := (heq.trans hhead) ▸ hhalt
-        change some _ = none at hh
-        cases hh
-      have hone : 1 < p.length + 1 := by omega
-      have hfirst := p.step ⟨0, by omega⟩
-      change R.machine.Step p.head (p ⟨1, hone⟩) at hfirst
-      rw [hhead] at hfirst
-      obtain ⟨b, hb⟩ := (Native.step_iff R.I R.P R.F R.C).mp hfirst
-      rw [Native.step_choose R.I R.P R.F R.C b _ rfl, withState_wordsCfg] at hb
-      let p₁ := p.drop ⟨1, hone⟩
-      obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
-      obtain ⟨ws', e, ⟨hws, he⟩, q₀, hqhead, hqlast, _, _⟩ := ht _ _ out ⟨rfl, rfl⟩
-      obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
-      have hmap : p₁.head = q.head.mapState (Native.passState b) := by
-        rw [hhead', hqhead, mapState_wordsCfg]
-        exact hb.symm
-      have hlong : q.length + 1 < p.length := by
-        by_contra hshort
-        have hq : p₁.length < q.length + 1 := by simp only [p₁, RelSeries.drop_length]; omega
-        have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap p₁.length
-          (Nat.lt_succ_self _) hq
-        change p₁.last = (q ⟨p₁.length, hq⟩).mapState (Native.passState b) at h
-        have hh : p₁.last.Halted := by simpa [p₁] using hhalt
-        rw [h] at hh
-        change some _ = none at hh
-        cases hh
-      have hcfg : p ⟨q.length + 1, by omega⟩ =
-          wordsCfg (enc a) (some .check) ws' (out ++ e) := by
-        have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap q.length
-          (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_succ_self _)
-        change p ⟨q.length + 1, by omega⟩ = q.last.mapState (Native.passState b) at h
-        simpa [hlast', hqlast, Native.passState] using h
-      have hnext := Native.head_drop_check R.I R.P R.F R.C p ⟨q.length + 1, hlong⟩ hcfg
-      rw [hws, he, List.append_nil] at hnext
-      let cut : Fin (p.length + 1) := ⟨q.length + 2, by omega⟩
-      have hreach := Reachable.step _ (enc a) hs b
-      by_cases hblank : R.boundary (M.step (enc a) s b) (!M.halted (M.step (enc a) s b)) R.C = []
-      · have hhalt' : M.halted (M.step (enc a) s b) = true := by
-          rw [R.boundary_flag] at hblank
-          cases hh : M.halted (M.step (enc a) s b) <;> simp_all [flagWord]
-        refine ⟨_, hreach, hhalt', ?_⟩
-        simpa only [RelSeries.last_drop] using R.finish_output a _ hreach _ out (p.drop cut)
-          (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
-      · simpa only [RelSeries.last_drop] using ih (p.drop cut).length
-          (by simp only [RelSeries.drop_length, cut]; omega) (p.drop cut) rfl _ hreach _ out
-          (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
-  exact aux p.length p rfl s hs flag out hhead hhalt
+  induction hn : p.length using Nat.strong_induction_on generalizing p s flag out with
+  | ind n ih =>
+    have hpos : 0 < p.length := R.runPath_length_pos hhead hhalt
+    have hone : 1 < p.length + 1 := by omega
+    have hfirst := p.step ⟨0, by omega⟩
+    change R.machine.Step p.head (p ⟨1, hone⟩) at hfirst
+    rw [hhead] at hfirst
+    obtain ⟨b, hb⟩ := (Native.step_iff R.I R.P R.F R.C).mp hfirst
+    rw [Native.step_choose R.I R.P R.F R.C b _ rfl, withState_wordsCfg] at hb
+    let p₁ := p.drop ⟨1, hone⟩
+    obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
+    obtain ⟨ws', e, ⟨hws, he⟩, q₀, hqhead, hqlast, _, _⟩ := ht _ _ out ⟨rfl, rfl⟩
+    obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
+    have hmap : p₁.head = q.head.mapState (Native.passState b) := by
+      rw [hhead', hqhead, mapState_wordsCfg]
+      exact hb.symm
+    have hlong : q.length + 1 < p.length := by
+      by_contra hshort
+      have hq : p₁.length < q.length + 1 := by simp only [p₁, RelSeries.drop_length]; omega
+      have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap p₁.length
+        (Nat.lt_succ_self _) hq
+      change p₁.last = (q ⟨p₁.length, hq⟩).mapState (Native.passState b) at h
+      have hh : p₁.last.Halted := by simpa [p₁] using hhalt
+      nomatch h ▸ hh
+    have hcfg : p ⟨q.length + 1, by omega⟩ =
+        wordsCfg (enc a) (some .check) ws' (out ++ e) := by
+      have h := Native.follows_pass R.I R.P R.F R.C b p₁ q hmap q.length
+        (by simp only [p₁, RelSeries.drop_length]; omega) (Nat.lt_succ_self _)
+      change p ⟨q.length + 1, by omega⟩ = q.last.mapState (Native.passState b) at h
+      simpa [hlast', hqlast, Native.passState] using h
+    have hnext := Native.head_drop_check R.I R.P R.F R.C p ⟨q.length + 1, hlong⟩ hcfg
+    rw [hws, he, List.append_nil] at hnext
+    let cut : Fin (p.length + 1) := ⟨q.length + 2, by omega⟩
+    have hreach := Reachable.step _ (enc a) hs b
+    by_cases hblank : R.boundary (M.step (enc a) s b) (!M.halted (M.step (enc a) s b)) R.C = []
+    · have hhalt' : M.halted (M.step (enc a) s b) = true := by
+        rw [R.boundary_flag] at hblank
+        cases hh : M.halted (M.step (enc a) s b) <;> simp_all [flagWord]
+      refine ⟨_, hreach, hhalt', ?_⟩
+      simpa only [RelSeries.last_drop] using R.finish_output a _ hreach _ out (p.drop cut)
+        (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
+    · simpa only [RelSeries.last_drop] using ih (p.drop cut).length
+        (by simp only [RelSeries.drop_length, cut]; omega) (p.drop cut) _ hreach _ out
+        (by simpa [cut, hblank] using hnext) (by simpa using hhalt) rfl
 
 private theorem exists_finish_path (a : α) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s)
@@ -297,15 +280,7 @@ private theorem check_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
     (hhalt : p.last.Halted) :
     ∃ s', (M.withInit (start a)).Reachable (enc a) s' ∧ M.halted s' = true ∧
       p.last.output = out ++ [M.accept s'] := by
-  have hpos : 0 < p.length := by
-    by_contra! hzero
-    have hsame : p.last = p.head := by
-      change p ⟨p.length, _⟩ = p ⟨0, _⟩
-      congr 1
-      apply Fin.ext
-      omega
-    rw [hsame, hhead] at hhalt
-    cases hhalt
+  have hpos : 0 < p.length := R.runPath_length_pos hhead hhalt
   have hroute := Native.head_drop_check R.I R.P R.F R.C p ⟨0, hpos⟩ hhead
   rw [R.boundary_flag] at hroute
   cases hh : M.halted s with
@@ -361,9 +336,7 @@ theorem accepts_iff (a : α) :
       have h := Native.follows_init R.I R.P R.F R.C p.toRunPath q hmap p.length
         (Nat.lt_succ_self _) (by omega)
       change p.last = (q ⟨p.length, by omega⟩).mapState Native.initState at h
-      have hh := h ▸ hhalt
-      change some _ = none at hh
-      cases hh
+      nomatch h ▸ hhalt
     have hcfg : p.toRunPath ⟨q.length, hlong⟩ =
         wordsCfg (enc a) (some .check) (R.boundary (start a) (!M.halted (start a))) [] := by
       have h := Native.follows_init R.I R.P R.F R.C p.toRunPath q hmap q.length hlong

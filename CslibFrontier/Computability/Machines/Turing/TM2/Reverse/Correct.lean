@@ -62,10 +62,8 @@ private theorem control_moveLeft (d : Data k State) (i : Fin k)
       control { d with work := Function.update d.work i (d.work i).moveLeft } symbol busy := by
   apply Control.ext <;> try rfl
   funext j
-  by_cases h : j = i
-  · subst j
-    simp only [control, store, RawTape.moveLeft, List.headD_eq_head?_getD, Function.update_self]
-  · simp only [control, store, RawTape.moveLeft, List.headD_eq_head?_getD, Function.update_of_ne h]
+  by_cases h : j = i <;>
+    simp [Function.update, control, store, RawTape.moveLeft, List.headD_eq_head?_getD, h]
 
 private theorem store_moveLeft (d : Data k State) (i : Fin k) :
     Function.update
@@ -75,9 +73,8 @@ private theorem store_moveLeft (d : Data k State) (i : Fin k) :
   funext s
   cases s with
   | work j side =>
-    by_cases h : j = i
-    · subst j; cases side <;> simp [Function.update, store, RawTape.moveLeft]
-    · cases side <;> simp [Function.update, store, h]
+    rcases eq_or_ne j i with rfl | h <;> cases side <;>
+      simp [Function.update, store, RawTape.moveLeft, *]
   | _ => rfl
 
 private theorem control_moveRight (d : Data k State) (i : Fin k)
@@ -87,10 +84,8 @@ private theorem control_moveRight (d : Data k State) (i : Fin k)
       control { d with work := Function.update d.work i (d.work i).moveRight } symbol busy := by
   apply Control.ext <;> try rfl
   funext j
-  by_cases h : j = i
-  · subst j
-    simp only [control, store, RawTape.moveRight, List.headD_eq_head?_getD, Function.update_self]
-  · simp only [control, store, RawTape.moveRight, List.headD_eq_head?_getD, Function.update_of_ne h]
+  by_cases h : j = i <;>
+    simp [Function.update, control, store, RawTape.moveRight, List.headD_eq_head?_getD, h]
 
 private theorem store_moveRight (d : Data k State) (i : Fin k) :
     Function.update
@@ -100,9 +95,8 @@ private theorem store_moveRight (d : Data k State) (i : Fin k) :
   funext s
   cases s with
   | work j side =>
-    by_cases h : j = i
-    · subst j; cases side <;> simp [Function.update, store, RawTape.moveRight]
-    · cases side <;> simp [Function.update, store, h]
+    rcases eq_or_ne j i with rfl | h <;> cases side <;>
+      simp [Function.update, store, RawTape.moveRight, *]
   | _ => rfl
 
 private theorem stepAux_moveWork (d : Data k State) (i : Fin k) (direction : SignType)
@@ -116,27 +110,13 @@ private theorem stepAux_moveWork (d : Data k State) (i : Fin k) (direction : Sig
   cases direction with
   | zero => simp [moveWork, RawTape.step, RawTape.write, Function.update_eq_self]
   | neg =>
-    simp only [moveWork, TM2.stepAux]
-    rw [Function.update_of_ne (by simp : Stack.work i false ≠ Stack.work i true)]
-    change TM2.stepAux next
-      { control d symbol busy with head := (Function.update (control d symbol busy).head i
-        (((store d (.work i false)).head?).getD none)) }
-      (Function.update
-        (Function.update (store d) (.work i true) ((d.work i).head :: (d.work i).right))
-        (.work i false) (d.work i).left.tail) = _
-    rw [control_moveLeft, store_moveLeft]
-    rfl
+    simp only [moveWork, TM2.stepAux,
+      Function.update_of_ne (by simp : Stack.work i false ≠ Stack.work i true)]
+    exact congrArg₂ (TM2.stepAux next) (control_moveLeft d i symbol busy) (store_moveLeft d i)
   | pos =>
-    simp only [moveWork, TM2.stepAux]
-    rw [Function.update_of_ne (by simp : Stack.work i true ≠ Stack.work i false)]
-    change TM2.stepAux next
-      { control d symbol busy with head := (Function.update (control d symbol busy).head i
-        (((store d (.work i true)).head?).getD none)) }
-      (Function.update
-        (Function.update (store d) (.work i false) ((d.work i).head :: (d.work i).left))
-        (.work i true) (d.work i).right.tail) = _
-    rw [control_moveRight, store_moveRight]
-    rfl
+    simp only [moveWork, TM2.stepAux,
+      Function.update_of_ne (by simp : Stack.work i true ≠ Stack.work i false)]
+    exact congrArg₂ (TM2.stepAux next) (control_moveRight d i symbol busy) (store_moveRight d i)
 
 private theorem stepAux_workAction (d : Data k State) (i : Fin k)
     (a : Option (Option Bool) × SignType) (next : Statement k State)
@@ -173,16 +153,11 @@ private theorem applyWorks_eq (indices : List (Fin k)) (h : indices.Nodup)
   induction indices generalizing d with
   | nil => simp [applyWorks]
   | cons i indices ih =>
-    rw [List.nodup_cons] at h
-    change applyWorks { d with work := Function.update d.work i ((d.work i).step (a i)) }
-      a indices = _
-    rw [ih h.2]
+    obtain ⟨hi, hnd⟩ := List.nodup_cons.mp h
+    refine (ih hnd _).trans ?_
     apply Data.ext <;> try rfl
     funext j
-    by_cases hj : j = i
-    · subst j
-      simp [h.1]
-    · by_cases hmem : j ∈ indices <;> simp [hj, hmem]
+    by_cases hj : j = i <;> simp [Function.update, hi, hj]
 
 /-- Each work tape is updated once, in a fixed straight-line statement. -/
 private theorem stepAux_allWork (a : Fin k → Option (Option Bool) × SignType) (d : Data k State)
@@ -207,12 +182,10 @@ theorem step_encode [Fintype State] (tm : MultiTapeTM k Bool State) (d : Data k 
     TM2.step (program tm.q₀ tm.tr) (encode d) = some (encode (Data.totalStep tm d)) := by
   simp only [encode, TM2.step, program, TM2.stepAux]
   rw [TM2.stepAux_select]
-  change some (TM2.stepAux
-    (match d.state with
-    | none => TM2.Stmt.goto (fun _ => .clean)
+  change some (TM2.stepAux (match d.state with
+    | none => _
     | some q => action (tm.tr q (if d.input.atLeft then none else d.input.right.head?)
-        (fun i => (d.work i).head)))
-    (control d d.input.right.head? false) (store d)) = _
+        fun i => (d.work i).head)) (control d d.input.right.head? false) (store d)) = _
   rw [hq, stepAux_action, Data.totalStep_of_state tm hq]
   rfl
 

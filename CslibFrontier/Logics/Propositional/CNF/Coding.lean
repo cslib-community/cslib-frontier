@@ -112,30 +112,26 @@ theorem disjoint_agreeOffForced {x x' : BitString N} (hx : φ.eval x = true) (hx
     (hne : x ≠ x') : Disjoint (φ.agreeOffForced σ x) (φ.agreeOffForced σ x') := by
   refine disjoint_left.2 fun y hy hy' => ?_
   -- the first variable where `x` and `x'` differ
-  have hdiff : (univ.filter fun v => x v ≠ x' v).Nonempty := by
-    obtain ⟨v, hv⟩ := Function.ne_iff.1 hne
-    exact ⟨v, mem_filter.2 ⟨mem_univ v, hv⟩⟩
-  obtain ⟨v, hv, hmin⟩ := exists_min_image _ (fun v => σ v) hdiff
+  obtain ⟨v₀, hv₀⟩ := Function.ne_iff.1 hne
+  obtain ⟨v, hv, hmin⟩ := exists_min_image (univ.filter fun v => x v ≠ x' v) (fun v => σ v)
+    ⟨v₀, mem_filter.2 ⟨mem_univ v₀, hv₀⟩⟩
   have hxv : x v ≠ x' v := (mem_filter.1 hv).2
-  have hagree : ∀ u, σ u < σ v → x u = x' u := fun u hu => by
-    by_contra h
-    exact absurd (hmin u (mem_filter.2 ⟨mem_univ u, h⟩)) (not_le.2 hu)
+  have hagree (u) (hu : σ u < σ v) : x u = x' u :=
+    by_contra fun h => not_le.2 hu (hmin u (mem_filter.2 ⟨mem_univ u, h⟩))
   -- `v` is forced on one of them, by a clause false under the other
-  have key : ∀ {a b : BitString N}, φ.eval b = true → a v ≠ b v →
-      (∀ u, σ u < σ v → a u = b u) → v ∉ φ.forced σ a := by
-    intro a b hb hab hagr hforced
-    obtain ⟨c, hc, hvc, hrest⟩ := (mem_filter.1 hforced).2
-    obtain ⟨l, hl, hle⟩ := (Clause.eval_eq_true_iff b c).1 ((CNF.eval_eq_true_iff b φ).1 hb c hc)
-    obtain ⟨u, e⟩ := l
+  have key {a b : BitString N} (hb : φ.eval b = true) (hab : a v ≠ b v)
+      (hagr : ∀ u, σ u < σ v → a u = b u) (hforced : v ∈ φ.forced σ a) : False := by
+    obtain ⟨c, hc, _, hrest⟩ := (mem_filter.1 hforced).2
+    obtain ⟨⟨u, e⟩, hl, hle⟩ :=
+      (Clause.eval_eq_true_iff b c).1 ((CNF.eval_eq_true_iff b φ).1 hb c hc)
     by_cases hl' : (u, e) = (v, a v)
     · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hl'
       exact hab hle.symm
-    · obtain ⟨hlt, hne'⟩ := hrest (u, e) hl hl'
-      exact hne' ((hagr u hlt).trans hle)
+    · exact (hrest (u, e) hl hl').2 ((hagr u (hrest (u, e) hl hl').1).trans hle)
   by_cases hfx : v ∈ φ.forced σ x
   · exact key hx' hxv hagree hfx
   · by_cases hfx' : v ∈ φ.forced σ x'
-    · exact key hx (Ne.symm hxv) (fun u hu => (hagree u hu).symm) hfx'
+    · exact key hx hxv.symm (fun u hu => (hagree u hu).symm) hfx'
     · exact hxv (((mem_filter.1 hy).2 v hfx).symm.trans ((mem_filter.1 hy').2 v hfx'))
 
 /-- `2 ^ |forced σ x|` words agree with `x` off its forced variables. -/
@@ -172,31 +168,20 @@ instance (x : BitString N) (c : Clause (Fin N)) (i : Fin N) : Decidable (Critica
 theorem exists_critical {x : BitString N} {i : Fin N} (hx : φ.eval x = true)
     (hi : φ.eval (Function.update x i (!x i)) = false) : ∃ c ∈ φ, Critical x c i := by
   obtain ⟨c, hc, hcf⟩ : ∃ c ∈ φ, c.eval (Function.update x i (!x i)) = false := by
-    by_contra h
-    push Not at h
-    rw [← Bool.not_eq_true, CNF.eval_eq_true_iff] at hi
-    exact hi fun c hc => Bool.eq_true_of_not_eq_false (h c hc)
-  have hfalse : ∀ l ∈ c, Function.update x i (!x i) l.1 ≠ l.2 := fun l hl h => by
-    have := (Clause.eval_eq_true_iff _ c).2 ⟨l, hl, h⟩
-    rw [hcf] at this
-    exact Bool.false_ne_true this
+    by_contra! h
+    exact Bool.eq_false_iff.mp hi ((CNF.eval_eq_true_iff _ φ).2 fun c hc =>
+      Bool.eq_true_of_not_eq_false (h c hc))
+  have hfalse (l) (hl : l ∈ c) : Function.update x i (!x i) l.1 ≠ l.2 := fun h =>
+    Bool.false_ne_true (hcf.symm.trans ((Clause.eval_eq_true_iff _ c).2 ⟨l, hl, h⟩))
   obtain ⟨⟨u, e⟩, hl, hle⟩ := (Clause.eval_eq_true_iff x c).1 ((CNF.eval_eq_true_iff x φ).1 hx c hc)
   -- the true literal is on `i`
-  have hu : u = i := by
-    by_contra hui
-    exact hfalse _ hl (by rw [Function.update_of_ne hui]; exact hle)
-  subst hu
-  refine ⟨c, hc, hle ▸ hl, fun l hl' hne => ?_⟩
-  have hli : l.1 ≠ u := by
-    intro hli
-    apply hfalse l hl'
-    rw [hli, Function.update_self]
+  obtain rfl : u = i := by_contra fun hui => hfalse _ hl ((Function.update_of_ne hui ..).trans hle)
+  refine ⟨c, hc, hle ▸ hl, fun ⟨v, b⟩ hl' hne => ?_⟩
+  have hvi : v ≠ u := by
+    rintro rfl
     -- `l = (u, !x u)`, as `l ≠ (u, x u)`
-    obtain ⟨v, b⟩ := l
-    simp only at hli
-    subst hli
-    cases b <;> cases hxv : x v <;> simp_all
-  exact ⟨hli, fun h => hfalse l hl' (by rw [Function.update_of_ne hli]; exact h)⟩
+    exact hfalse (v, b) hl' (by cases b <;> cases hxv : x v <;> simp_all)
+  exact ⟨hvi, fun h => hfalse (v, b) hl' ((Function.update_of_ne hvi ..).trans h)⟩
 
 /-- Criticality depends only on the literals of the clause. -/
 theorem critical_congr {x : BitString N} {i : Fin N} {c c' : Clause (Fin N)}
@@ -207,18 +192,10 @@ theorem critical_congr {x : BitString N} {i : Fin N} {c c' : Clause (Fin N)}
 critical at at most `2 ^ (N - v)` inputs, since they all agree on its variables. -/
 private theorem card_filter_critical_le (c : Clause (Fin N)) (i : Fin N) :
     #{x : BitString N | Critical x c i} ≤ 2 ^ (N - (c.map Prod.fst).toFinset.card) := by
-  set V := (c.map Prod.fst).toFinset
-  rcases ({x : BitString N | Critical x c i} : Finset _).eq_empty_or_nonempty with h | ⟨x₀, hx₀⟩
-  · rw [h, card_empty]
-    exact Nat.zero_le _
-  have hx₀ := (mem_filter.1 hx₀).2
-  calc #{x : BitString N | Critical x c i}
-      ≤ #{y : BitString N | ∀ u ∉ Vᶜ, y u = x₀ u} := card_le_card fun x hx => ?_
-    _ = 2 ^ (N - #V) := by
-        rw [BitString.card_filter_forall_notMem_eq, card_compl, Fintype.card_fin]
+  refine (BitString.card_le_of_forall_agree fun x hx x₀ hx₀ u hu => ?_).trans_eq
+    (by rw [Fintype.card_fin])
   have hx := (mem_filter.1 hx).2
-  refine mem_filter.2 ⟨mem_univ _, fun u hu => ?_⟩
-  rw [notMem_compl] at hu
+  have hx₀ := (mem_filter.1 hx₀).2
   obtain ⟨l, hl, rfl⟩ := List.mem_map.1 (List.mem_toFinset.1 hu)
   by_cases hli : l = (i, x i)
   · -- the literal of `i` true under `x₀` is in the clause too, so it is `l`
@@ -320,9 +297,9 @@ theorem sum_two_rpow_average_card_forced_le (φ : CNF (Fin N)) :
             (2 : ℝ) ^ (φ.forced σ x).card := by
         rw [sum_comm]
         simp only [mul_sum]
-    _ ≤ ∑ _σ : Equiv.Perm (Fin N), 1 / N.factorial * (2 : ℝ) ^ N := by
-        refine sum_le_sum fun σ _ => mul_le_mul_of_nonneg_left ?_ (by positivity)
-        exact_mod_cast sum_two_pow_card_forced_le φ σ
+    _ ≤ ∑ _σ : Equiv.Perm (Fin N), 1 / N.factorial * (2 : ℝ) ^ N :=
+        sum_le_sum fun σ _ => mul_le_mul_of_nonneg_left
+          (mod_cast sum_two_pow_card_forced_le φ σ) (by positivity)
     _ = 2 ^ N := by
         rw [sum_const, nsmul_eq_mul, hP]
         field_simp
@@ -340,7 +317,7 @@ theorem sum_two_rpow_card_isolated_div_le {k : ℕ} (hk1 : 1 ≤ k) (hk : ∀ c 
   have hx' := (mem_filter.1 hx).2
   -- `ι(x) N! ≤ k ∑_σ |forced σ x|`
   have hcount : (univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card *
-      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), (φ.forced σ x).card := by
+      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), (φ.forced σ x).card :=
     calc (univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card * N.factorial
         = ∑ i ∈ univ.filter fun i => φ.eval (Function.update x i (!x i)) = false,
             N.factorial := by rw [sum_const, smul_eq_mul]
@@ -352,12 +329,9 @@ theorem sum_two_rpow_card_isolated_div_le {k : ℕ} (hk1 : 1 ≤ k) (hk : ∀ c 
           exact Nat.mul_le_mul_left _ (sum_le_sum_of_subset (filter_subset _ _))
       _ = k * ∑ σ : Equiv.Perm (Fin N), (φ.forced σ x).card := by
           rw [sum_card_filter_mem_forced]
-  have hkR : (0 : ℝ) < k := by exact_mod_cast hk1
-  have hF : (0 : ℝ) < N.factorial := by exact_mod_cast N.factorial_pos
-  rw [div_le_div_iff₀ hkR hF]
-  have : ((univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card : ℝ) *
-      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ) := by
-    exact_mod_cast hcount
+  rw [div_le_div_iff₀ (mod_cast hk1) (mod_cast N.factorial_pos)]
+  have hcountR : ((univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card : ℝ) *
+      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ) := mod_cast hcount
   linarith
 
 /-- **Few isolated solutions** [Paturi, Pudlák and Zane, Lemma 4][PaturiPudlakZane1999]: a formula
@@ -418,11 +392,8 @@ private theorem sum_inv_critWidth_le (x : BitString N) :
   refine sum_le_sum fun i _ => ?_
   by_cases h : ∃ c ∈ φ, Critical x c i
   · obtain ⟨c, hc, hcrit, hcard⟩ := exists_critical_card_eq_critWidth h
-    have hle := factorial_le_card_mul_card_filter_mem_forced hc hcrit
-    rw [hcard] at hle
-    have hpos : (0 : ℝ) < φ.critWidth x i := by exact_mod_cast critWidth_pos h
-    rw [div_le_div_iff₀ hpos hF, one_mul, mul_comm]
-    exact_mod_cast hle
+    rw [div_le_div_iff₀ (mod_cast critWidth_pos h) hF, one_mul, mul_comm]
+    exact_mod_cast hcard ▸ factorial_le_card_mul_card_filter_mem_forced hc hcrit
   · rw [critWidth_eq_zero h, Nat.cast_zero, div_zero]
     positivity
 

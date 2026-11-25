@@ -175,22 +175,21 @@ theorem rootDistPow_mul_le (hs : s ≠ 0) (hN : 0 < N) (hu : 0 < u) (hf : 0 < f)
       intro σ x
       conv_rhs => rw [mul_sum, sum_filter]
       refine sum_le_sum fun z _ => ?_
-      by_cases hz : F' σ x z = 0
-      · simp [hz]
-      · simp only [hz, ne_eq, not_false_eq_true, ↓reduceIte]
-        rw [← mul_sum]
+      split_ifs with hz
+      · rw [← mul_sum]
         exact mul_le_mul_of_nonneg_right (hFbound σ x z) (sum_nonneg fun y _ => heB σ z y)
+      · simp [not_not.mp hz]
     have hrelease : (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
         ∑ z ∈ ({z | Z σ z} : Finset V) with F' σ x z ≠ 0,
           ∑ y ∈ ({y | Y σ y} : Finset V), eB σ z y ≤
-        Kc * (f / u) * rootDistPow s N f Z Y B B' := by
-      exact sourceRelease_le_rowNormPow hN hu hf (fun σ x z => F' σ x z ≠ 0) hcol
+        Kc * (f / u) * rootDistPow s N f Z Y B B' :=
+      sourceRelease_le_rowNormPow hN hu hf (fun σ x z => F' σ x z ≠ 0) hcol
         (fun σ z y => B σ z y ^ (s⁻¹ : ℝ) - B' σ z y ^ (s⁻¹ : ℝ))
     calc
       _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
           CF * ∑ z ∈ ({z | Z σ z} : Finset V) with F' σ x z ≠ 0,
-            ∑ y ∈ ({y | Y σ y} : Finset V), eB σ z y := by
-        exact mul_le_mul_of_nonneg_left
+            ∑ y ∈ ({y | Y σ y} : Finset V), eB σ z y :=
+        mul_le_mul_of_nonneg_left
           (expect_le_expect fun σ _ => sum_le_sum fun x _ => hpoint σ x) (by positivity)
       _ = CF * ((N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
           ∑ z ∈ ({z | Z σ z} : Finset V) with F' σ x z ≠ 0,
@@ -204,10 +203,8 @@ theorem rootDistPow_mul_le (hs : s ≠ 0) (hN : 0 < N) (hu : 0 < u) (hf : 0 < f)
       ∑ y ∈ ({y | Y σ y} : Finset V), ∑ z ∈ ({z | Z σ z} : Finset V),
         (B σ z y * eF σ x z + F' σ x z * eB σ z y) =
       (∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), B σ z y * eF σ x z) +
-        ∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), F' σ x z * eB σ z y := by
-    intro σ x
-    rw [sum_comm]
-    simp only [sum_add_distrib]
+        ∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), F' σ x z * eB σ z y :=
+    fun _ _ => sum_comm.trans (by simp only [sum_add_distrib])
   rw [rootDistPow, rowNormPow]
   calc
     _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V),

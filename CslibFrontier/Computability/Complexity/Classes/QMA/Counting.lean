@@ -204,11 +204,9 @@ private theorem PromiseQMA_subset_promiseClass_PP_of_threshold {c s : ℕ → �
     have hsB' : s (enc a).length * e a ≤ b a := hsB _
     have hb1 : 1 ≤ b a := hB _
   · -- yes-instances: `((B + 1) / D)^J < c^J ≤ tr(Q^J)`
-    have hepos : (0 : ℝ) < e a := by
-      rcases (Nat.cast_nonneg (α := ℝ) (e a)).eq_or_lt with h0 | h0
-      · rw [← h0, mul_zero] at hBc'
-        linarith [(Nat.cast_nonneg (α := ℝ) (b a))]
-      · exact h0
+    have hepos : (0 : ℝ) < e a := (Nat.cast_nonneg _).lt_of_ne fun h0 => by
+      rw [← h0, mul_zero] at hBc'
+      linarith [(Nat.cast_nonneg (α := ℝ) (b a))]
     have hc : 0 < c (enc a).length :=
       lt_of_mul_lt_mul_right (by rw [zero_mul]; linarith [(Nat.cast_nonneg (α := ℝ) (b a))])
         hepos.le

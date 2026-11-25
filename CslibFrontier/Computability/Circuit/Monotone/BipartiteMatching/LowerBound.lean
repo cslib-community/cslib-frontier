@@ -101,15 +101,13 @@ theorem nonempty_outputApproximator (hs : 1 ≤ s) {C : Circuit signature (n * n
     (outputApproximator C : Approximator n r s).terms.Nonempty := by
   classical
   let S := Positive.scheme (n := n) (r := r) (s := s) hs
-  have hF : (S.failures univ (outputApproximator C) fun _ => true).card ≤
-      C.program.cost S.errorCost :=
-    S.card_failures_le_cost univ C fun σ _ => hC σ
-  have hcost : C.program.cost S.errorCost ≤ Positive.errorCap n r s * C.size :=
-    (C.program.cost_mono fun op => Positive.errorCost_le op).trans_eq (C.program.cost_const _)
+  have hF := ((S.card_failures_le_cost univ C fun σ _ => hC σ).trans
+    ((C.program.cost_mono Positive.errorCost_le).trans_eq (C.program.cost_const _))).trans_lt hC'
   obtain ⟨σ, hσ⟩ : ∃ σ, σ ∉ S.failures univ (outputApproximator C) fun _ => true := by
     by_contra! h
     have := card_le_card fun σ (_ : σ ∈ (univ : Finset (Equiv.Perm (Fin n)))) => h σ
     rw [card_univ, Fintype.card_perm, Fintype.card_fin] at this
+    dsimp only [outputApproximator] at this
     omega
   simp only [S.mem_failures, mem_univ, true_and, not_not] at hσ
   obtain ⟨W, hW, -⟩ := decode_eq_true.1 (Bool.eq_true_of_true_le hσ)
@@ -129,16 +127,13 @@ theorem card_filter_accepts_le (hs : 1 ≤ s) (hq : (q * s) ^ 2 < r)
   refine (card_le_card fun c hc => ?_).trans
     ((S.card_failures_le_cost (univ.filter fun c => bipartitePerfectMatching n (ofColoring c) =
       false) C (target := fun _ => false) fun c hc => hC c (mem_filter.1 hc).2).trans
-    ((C.program.cost_mono fun op => Negative.errorCost_le op).trans_eq (C.program.cost_const _)))
+    ((C.program.cost_mono Negative.errorCost_le).trans_eq (C.program.cost_const _)))
   obtain ⟨hpm, hacc⟩ := (mem_filter.1 hc).2
-  rw [S.mem_failures]
-  refine ⟨mem_filter.2 ⟨mem_univ _, hpm⟩, ?_⟩
-  have : (C.eval Approximator.interpretation Approximator.input 0 : Approximator n r s).decode
-      (ofColoring c) = true :=
-    decode_eq_true.2 hacc
-  rw [this]
-  change ¬(true ≤ false)
-  decide
+  exact S.mem_failures.2 ⟨mem_filter.2 ⟨mem_univ _, hpm⟩, by
+    rw [show (C.eval Approximator.interpretation Approximator.input 0 :
+      Approximator n r s).decode (ofColoring c) = true from decode_eq_true.2 hacc]
+    change ¬(true ≤ false)
+    decide⟩
 
 /-- **Razborov's dichotomy for perfect matching.** Let `1 ≤ s`, `(q s) ^ 2 < r` and
 `4 ^ (s + 1) ≤ 2n + 1`. A monotone circuit accepting the perfect matchings of permutations and
@@ -213,13 +208,10 @@ theorem lt_size_of_computes_bipartitePerfectMatching (hr : 2 ≤ r) (hs : 1 ≤ 
     (hpos : Positive.errorCap n r s * t < n !)
     (hneg : 2 ^ (s + 1) * Negative.errorCap n s q * t < 4 ^ n) {C : Circuit signature (n * n) 1}
     (hC : C.Computes Monotone.interpretation (single (bipartitePerfectMatching n))) :
-    t < C.size := by
-  have heval (x : BitString (n * n)) :
-      C.eval Monotone.interpretation x 0 = bipartitePerfectMatching n x := by
-    rw [hC, single_apply]
-  refine lt_size_of_separates_ofPerm_ofColoring hr hs hq hn hpos hneg (fun σ => ?_) fun c hc => ?_
-  · rw [heval, bipartitePerfectMatching_ofPerm]
-  · rw [heval, hc]
+    t < C.size :=
+  lt_size_of_separates_ofPerm_ofColoring hr hs hq hn hpos hneg
+    (fun σ => by rw [hC, single_apply, bipartitePerfectMatching_ofPerm])
+    fun c hc => by rw [hC, single_apply, hc]
 
 end Monotone
 

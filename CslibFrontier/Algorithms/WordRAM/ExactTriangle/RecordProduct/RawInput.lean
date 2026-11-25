@@ -44,13 +44,9 @@ theorem decodedQueries_get_val {n : ℕ} (hn : 0 < n) (mem : ℕ → ℕ) (q Q :
     (ha : mem (q + 2 * i.val) < n) (hb : mem (q + 2 * i.val + 1) < n) :
     ((decodedQueries hn mem q Q).get i).1.val = mem (q + 2 * i.val) ∧
       ((decodedQueries hn mem q Q).get i).2.val = mem (q + 2 * i.val + 1) := by
-  constructor
-  · rw [List.get_eq_getElem]
-    simp only [decodedQueries, List.getElem_ofFn]
-    exact Nat.mod_eq_of_lt ha
-  · rw [List.get_eq_getElem]
-    simp only [decodedQueries, List.getElem_ofFn]
-    exact Nat.mod_eq_of_lt hb
+  rw [List.get_eq_getElem]
+  simp only [decodedQueries, List.getElem_ofFn]
+  exact ⟨Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb⟩
 
 /-- Every actual in-range coordinate word reappears unchanged in the ordinary callee input. -/
 theorem decodedQueries_words {m n q Q : ℕ} (hn : 0 < n) (mem : ℕ → ℕ)
@@ -62,11 +58,10 @@ theorem decodedQueries_words {m n q Q : ℕ} (hn : 0 < n) (mem : ℕ → ℕ)
   intro a ha
   have hi : a / 2 < Q := (Nat.div_lt_iff_lt_mul (by decide : 0 < 2)).mpr (by omega)
   let i : Fin (decodedQueries hn mem q Q).length := ⟨a / 2, by
-    rw [decodedQueries_length]; exact hi⟩
+    rw [decodedQueries_length]
+    exact hi⟩
   let s : Fin 2 := ⟨a % 2, Nat.mod_lt _ (by decide)⟩
-  have hw := QueriedProduct.input_query_word true (19 * m) X Y
-    (decodedQueries hn mem q Q) i s
-  have hsplit : 2 * (a / 2) + a % 2 = a := by omega
+  have hw := QueriedProduct.input_query_word true (19 * m) X Y (decodedQueries hn mem q Q) i s
   change (State.init (QueriedProduct.input true (19 * m) X Y
     (decodedQueries hn mem q Q)) : State 160).data.mem
       (QueriedProduct.queryInputBase m n + 2 * (a / 2) + a % 2) = _ at hw
@@ -76,15 +71,11 @@ theorem decodedQueries_words {m n q Q : ℕ} (hn : 0 < n) (mem : ℕ → ℕ)
   have hc := hcoord (a / 2) hi
   simp only [decodedQueries, List.get_ofFn, i, Fin.val_cast]
   by_cases hzero : a % 2 = 0
-  · have he : s = 0 := Fin.ext hzero
-    simp only [he, ↓reduceIte]
-    rw [Nat.mod_eq_of_lt hc.1]
+  · simp only [show s = 0 from Fin.ext hzero, ↓reduceIte, Nat.mod_eq_of_lt hc.1]
     congr 1
     omega
-  · have hone : a % 2 = 1 := by have := Nat.mod_lt a (by decide : 0 < 2); omega
-    have he : s ≠ 0 := by intro h; exact hzero (congrArg Fin.val h)
-    simp only [he, ↓reduceIte]
-    rw [Nat.mod_eq_of_lt hc.2]
+  · simp only [show s ≠ 0 from fun h => hzero (congrArg Fin.val h), ↓reduceIte,
+      Nat.mod_eq_of_lt hc.2]
     congr 1
     omega
 

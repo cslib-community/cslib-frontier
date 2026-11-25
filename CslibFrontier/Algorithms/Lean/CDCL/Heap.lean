@@ -101,12 +101,9 @@ theorem heapifyUpF_eq : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fin 
   | fuel + 1, _, a, ⟨i' + 1, hi⟩, h => by
     rw [heapifyUpF, heapifyUp.eq_def]
     simp only [Fin.getElem_fin]
-    by_cases hc : (compare a[i' / 2] a[i' + 1]).isLT = true
-    · simp only [hc, ↓reduceIte]
-      refine heapifyUpF_eq fuel _ _ ?_
-      simp only at h ⊢
-      omega
-    · simp only [hc, Bool.false_eq_true, ↓reduceIte]
+    split
+    · exact heapifyUpF_eq fuel _ _ (by simp only at h ⊢; omega)
+    · rfl
 
 /-- `heapifyDown` by structural recursion on `fuel`. -/
 def heapifyDownF : (fuel : Nat) → {sz : Nat} → Vector α sz → Fin sz → Vector α sz
@@ -187,9 +184,7 @@ theorem mem_popMaxF {heap : BinaryHeap α} {x y : α} (hx : heap.maxF = some x) 
   have : y ∈ heap.arr[0] :: heap.popMax.arr.toList :=
     (popMax_perm hpos).mem_iff.2 (Array.mem_toList_iff.2 hy)
   rw [popMaxF_eq]
-  rcases List.mem_cons.1 this with h | h
-  · exact .inl h
-  · exact .inr (Array.mem_toList_iff.1 h)
+  exact (List.mem_cons.1 this).imp_right Array.mem_toList_iff.1
 
 /-- Removing the maximum adds no element. -/
 theorem mem_of_mem_popMaxF {heap : BinaryHeap α} {y : α} (hy : y ∈ heap.popMaxF) : y ∈ heap := by

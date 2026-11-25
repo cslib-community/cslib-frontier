@@ -66,27 +66,19 @@ theorem count_add_count_le_length_of_ne {α : Type*} [DecidableEq α] (xs : List
   induction xs with
   | nil => simp
   | cons x xs ih =>
-    rw [List.count_cons, List.count_cons, List.length_cons]
-    by_cases hxa : x = a
-    · subst hxa
-      have hxb : (x == b) = false := beq_eq_false_iff_ne.mpr hab
-      simp only [beq_self_eq_true, ↓reduceIte, hxb, Bool.false_eq_true]
-      omega
-    · have hxa' : (x == a) = false := beq_eq_false_iff_ne.mpr hxa
-      have hxb' : (if x == b then 1 else 0) ≤ 1 := by split_ifs <;> omega
-      simp only [hxa', Bool.false_eq_true, ↓reduceIte]
-      omega
+    simp only [List.count_cons, List.length_cons, beq_iff_eq]
+    split_ifs with h1 h2
+    · exact absurd (h1.symm.trans h2) hab
+    all_goals omega
 
 /-- Whenever `a` appears strictly more than half the time in `xs`, `plurality default xs = a`. -/
 theorem plurality_eq_of_length_lt_two_mul_count {α : Type*} [DecidableEq α] (default : α)
     {xs : List α} {a : α} (h : xs.length < 2 * xs.count a) :
     plurality default xs = a := by
-  have hpos : 0 < xs.count a := by omega
-  have ha : a ∈ xs := List.count_pos_iff.mp hpos
-  have hne : xs ≠ [] := List.ne_nil_of_mem ha
+  have ha : a ∈ xs := List.count_pos_iff.mp (by omega)
   unfold plurality
   rcases hm : xs.argmax (fun x => xs.count x) with _ | m
-  · exact (hne (List.argmax_eq_none.mp hm)).elim
+  · exact (List.ne_nil_of_mem ha (List.argmax_eq_none.mp hm)).elim
   · simp only [Option.getD_some]
     have hle : xs.count a ≤ xs.count m := List.le_of_mem_argmax ha hm
     by_contra hma
@@ -122,7 +114,8 @@ private theorem exp_neg_le_two_rpow_neg {x : ℝ} (hx : 0 ≤ x) :
   have hlog : Real.log 2 ≤ 1 := by
     rw [Real.log_le_iff_le_exp (by norm_num)]
     linarith [Real.add_one_le_exp 1]
-  nlinarith
+  calc -x = 1 * (-x) := (one_mul _).symm
+    _ ≤ Real.log 2 * (-x) := mul_le_mul_of_nonpos_right hlog (neg_nonpos.mpr hx)
 
 /-- **Plurality concentration for `k` independent trials.** If a closed probabilistic program
 `program : ProbComp α` outputs `a` with probability at least `1 / 2 + γ` (for `0 ≤ γ`), then the
@@ -145,32 +138,17 @@ theorem toOuterMeasure_plurality_replicate_ne_toReal_le {α : Type} [DecidableEq
   refine le_trans ?_ hcount
   simp only [OracleComp.countTrue, OracleComp.replicate_map, Functor.map_map, ProbComp.eval_map,
     PMF.toOuterMeasure_map_apply]
-  have hsub : (ProbComp.eval (OracleComp.replicate k program)).toOuterMeasure
-      (plurality default ⁻¹' {y | y ≠ a}) ≤
-      (ProbComp.eval (OracleComp.replicate k program)).toOuterMeasure
-        ((fun xs : List α => (xs.map (· == a)).count true) ⁻¹'
-          {successes | (successes : ℝ) ≤ k * (ProbComp.eval program a).toReal - k * γ}) := by
-    rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
-    refine tsum_le_tsum fun xs => ?_
-    by_cases hsupp : xs ∈ (ProbComp.eval (OracleComp.replicate k program)).support
-    · have hlen : xs.length = k := ((ProbComp.mem_support_replicate_iff k program xs).mp hsupp).1
-      by_cases hxs : xs ∈ plurality default ⁻¹' {y | y ≠ a}
-      · have hmem' : xs ∈ (fun xs : List α => (xs.map (· == a)).count true) ⁻¹'
-            {successes : ℕ | (successes : ℝ) ≤ k * (ProbComp.eval program a).toReal - k * γ} := by
-          simp only [Set.mem_preimage, Set.mem_ofPred_eq, count_true_map_beq] at hxs ⊢
-          have hle_len : 2 * xs.count a ≤ k := by
-            rw [← hlen]
-            by_contra hlt
-            exact hxs (plurality_eq_of_length_lt_two_mul_count default (not_le.mp hlt))
-          have hle_real : (2 : ℝ) * xs.count a ≤ k := by exact_mod_cast hle_len
-          nlinarith
-        rw [Set.indicator_of_mem hxs, Set.indicator_of_mem hmem']
-      · rw [Set.indicator_of_notMem hxs]
-        exact zero_le
-    · have h0 : ProbComp.eval (OracleComp.replicate k program) xs = 0 :=
-        (PMF.apply_eq_zero_iff _ _).mpr hsupp
-      simp [Set.indicator_apply, h0]
-  exact ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) hsub
+  rw [← PMF.toOuterMeasure_apply_inter_support]
+  refine ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
+    ((ProbComp.eval (OracleComp.replicate k program)).toOuterMeasure.mono fun xs ⟨hxs, hsupp⟩ => ?_)
+  have hlen : xs.length = k := ((ProbComp.mem_support_replicate_iff k program xs).mp hsupp).1
+  simp only [Set.mem_preimage, Set.mem_ofPred_eq, count_true_map_beq] at hxs ⊢
+  have hle_len : 2 * xs.count a ≤ k := by
+    rw [← hlen]
+    by_contra hlt
+    exact hxs (plurality_eq_of_length_lt_two_mul_count default (not_le.mp hlt))
+  have hle_real : (2 : ℝ) * xs.count a ≤ k := by exact_mod_cast hle_len
+  linarith [mul_le_mul_of_nonneg_left hp (Nat.cast_nonneg k)]
 
 /-- **Plurality success probability for `k` independent trials.** If `program` outputs `a` with
 probability at least `1 / 2 + γ` (`0 ≤ γ`), then the plurality of `k` independent runs outputs `a`
@@ -182,9 +160,7 @@ theorem one_sub_exp_le_eval_plurality_replicate_toReal {α : Type} [DecidableEq 
       (ProbComp.eval (plurality default <$> OracleComp.replicate k program) a).toReal := by
   set p := ProbComp.eval (plurality default <$> OracleComp.replicate k program)
   have hcompl := Cslib.Probability.PMF.toOuterMeasure_toReal_add_compl p ({a} : Set α)
-  rw [PMF.toOuterMeasure_apply_singleton] at hcompl
-  have hcompl_set : ({a} : Set α)ᶜ = {y | y ≠ a} := rfl
-  rw [hcompl_set] at hcompl
+  rw [PMF.toOuterMeasure_apply_singleton, show ({a} : Set α)ᶜ = {y | y ≠ a} from rfl] at hcompl
   linarith [toOuterMeasure_plurality_replicate_ne_toReal_le default a k program hγ hp]
 
 /-- Base-`2` exponential form of `one_sub_exp_le_eval_plurality_replicate_toReal`. -/

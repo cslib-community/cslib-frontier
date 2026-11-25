@@ -140,13 +140,8 @@ section Arithmetic
 private theorem sq_le_rpow {r n e : ℕ} (he : 0 < e) (hr : r ^ (2 * e) ≤ n) {ε : ℝ}
     (hε : 1 / (e : ℝ) ≤ ε) : ((r ^ 2 : ℕ) : ℝ) ≤ (n : ℝ) ^ ε := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have : r = 0 := by
-      by_contra h
-      have := pow_pos (Nat.pos_of_ne_zero h) (2 * e)
-      omega
-    subst this
-    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, CharP.cast_eq_zero]
-    exact Real.rpow_nonneg le_rfl ε
+  · obtain rfl : r = 0 := by simpa [he.ne'] using hr
+    simpa using Real.rpow_nonneg (le_refl (0 : ℝ)) ε
   have hr' : (((r ^ 2) ^ e : ℕ) : ℝ) ≤ n := by
     rw [← pow_mul]; exact_mod_cast hr
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
@@ -205,10 +200,9 @@ theorem exists_rootSeed_DTIME_subset {ε : ℝ} (hε : 0 < ε) :
     have hR := le_findGreatest_root hd hn
     set ρ := rootFloor d n
     have hsq : ρ * ρ ≤ ⌈(n : ℝ) ^ ε⌉₊ := by
-      have h₁ := sq_le_rpow he (r := ρ) (n := n) (by rw [← hd_def]; exact hρd) hεe
-      have h₂ := h₁.trans (Nat.le_ceil _)
       rw [← sq]
-      exact_mod_cast h₂
+      exact_mod_cast (sq_le_rpow he (r := ρ) (by rw [← hd_def]; exact hρd) hεe).trans
+        (Nat.le_ceil _)
     have hpow : (n + 1) ^ D ≤ 2 ^ (ρ * d * D) :=
       calc (n + 1) ^ D ≤ ((ρ + 1) ^ d) ^ D := Nat.pow_le_pow_left hroot D
         _ ≤ ((2 ^ ρ) ^ d) ^ D :=
@@ -332,14 +326,8 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
   set gen : α → List Bool → List Bool := fun x z => (G z).take (p.eval (enc x).length)
   -- the running time
   have hgen : ComputableInPolyTime (fun q : α × List Bool => gen q.1 q.2) (encPair enc encBits)
-      encBits := by
-    have h₁ : ComputableInPolyTime (fun q : α × List Bool => G q.2) (encPair enc encBits)
-        encBits := hG.polyTime.comp (ComputableInPolyTime.snd enc encBits)
-    have h₂ : ComputableInPolyTime (fun q : α × List Bool => p.eval (enc q.1).length)
-        (encPair enc encBits) encUnary :=
-      (ComputableInPolyTime.unary_eval p).comp
-        ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
-    exact ComputableInPolyTime.bitsTakeWithInput h₁ h₂
+      encBits :=
+    ComputableInPolyTime.bitsTakeWithInput (hG.polyTime.comp (by fun_prop)) (by fun_prop)
   have hseed : ComputableInPolyTime seed enc encUnary := by
     have hlen := hr.comp (ComputableInPolyTime.encoding_length enc)
     fun_prop
@@ -372,12 +360,10 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
         PMF.pure (V (x, (List.ofFn y).take (p.eval (enc x).length))) :=
       ⟨_, (hcB _ hmℓ).trans hsize, rfl⟩
     have hadv := hsec _ htest
-    have h7 : (((k : ℝ≥0) ^ 1)⁻¹ : ℝ≥0) ≤ 7⁻¹ := by
-      rw [pow_one]
-      exact inv_anti₀ (by norm_num) (by exact_mod_cast (show 7 ≤ k by omega))
     have h7' : ((((k : ℝ≥0) ^ 1)⁻¹ : ℝ≥0) : ℝ) ≤ 1 / 7 := by
-      have := NNReal.coe_le_coe.2 h7
-      simpa using this
+      rw [pow_one, one_div]
+      push_cast
+      exact inv_anti₀ (by norm_num) (by exact_mod_cast (show 7 ≤ k by omega))
     exact (seedDecider_eq_true_iff_of_advantage_lt (hA x).1
       (fun hx => boundedErrorAt_false_iff.1 ((hA x).2 hx)) hG.length_eq gen seed (fun _ => rfl) hmℓ
       (by linarith)).symm
@@ -420,10 +406,7 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
     · simp only [Generator.Secure, not_forall, not_le] at hk
       obtain ⟨adv, ⟨f, hf, rfl⟩, hlt⟩ := hk
       obtain ⟨C, hC, hCf⟩ := hcirc f
-      refine ⟨C, hC ▸ hf, fun _ => ?_⟩
-      rw [show (fun y => PMF.pure (C.eval interpretation y 0)) = fun y => PMF.pure (f y) from
-        funext fun y => by rw [hCf]]
-      exact hlt
+      exact ⟨C, hC ▸ hf, fun _ => by simp only [hCf]; exact hlt⟩
   choose C hCsize hbreak using hex
   set advice : ℕ → List Bool := fun k =>
     certificate (ℓ k) (k ^ c) (C k).code.1 ((C k).outputs 0).toNat
@@ -447,16 +430,12 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
       (readCertificate q.2.length (q.1.1 ^ c) q.1.2).2)
   have htest : IsPPTOn encAdvisedInput encBool test := by
     have hk : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1)
-        encAdvisedInput encUnary :=
-      (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)
-    have hw : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.2)
-        encAdvisedInput encBits :=
-      (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
+        encAdvisedInput encUnary := (ComputableInPolyTime.fst _ _).comp (.fst _ _)
     have hx : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.2)
-        encAdvisedInput encBits := ComputableInPolyTime.snd _ _
+        encAdvisedInput encBits := .snd _ _
     have hread := computableInPolyTime_readCertificate (ComputableInPolyTime.length_bits.comp hx)
-      (by fun_prop : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1 ^ c)
-        encAdvisedInput encUnary) hw
+      (by fun_prop : ComputableInPolyTime (fun q => q.1.1 ^ c) encAdvisedInput encUnary)
+      ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
     exact (computableInPolyTime_evalOutput hx ((ComputableInPolyTime.fst _ _).comp hread)
       ((ComputableInPolyTime.snd _ _).comp hread)).isPPTOn
   have hneg := hG.secure advice hadvice test htest
@@ -478,16 +457,10 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
   obtain ⟨k, hk, hkm⟩ := (hbad.and_eventually (eventually_ge_atTop (m + 1))).exists
   have hlt := hbreak k hk
   rw [← hadv k] at hlt
-  have hmk := hm k (by omega)
-  have hmk' : (k : ℝ) ^ c' * (Game.advantage
-      (distinguishingGame (generatorEnsemble G k) fun w => test ((k, advice k), w))
-      (distinguishingGame (BitString.uniformList (ℓ k)) fun w => test ((k, advice k), w)) : ℝ) <
-        1 := by
-    exact_mod_cast hmk
-  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := by
-    have : (1 : ℝ) ≤ k := by exact_mod_cast (show 1 ≤ k by omega)
-    positivity
-  rw [NNReal.coe_natCast, inv_lt_iff_one_lt_mul₀ hpos] at hlt
+  have hmk := NNReal.coe_lt_coe.2 (hm k (by omega))
+  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := pow_pos (by exact_mod_cast (show 0 < k by omega)) _
+  push_cast at hmk hlt
+  rw [inv_lt_iff_one_lt_mul₀ hpos] at hlt
   linarith
 
 /-- **Goldreich, Theorem 8.13** [Goldreich, Theorem 8.13][Goldreich2007DraftR4] (draft r4, printed

@@ -163,14 +163,8 @@ theorem viewRep_foldl_viewCoinStep {input : List Bool} {finite : FiniteCfg k Boo
 theorem viewStep_toNTM_iff {finite next : FiniteCfg k Bool State} :
     machine.toNTM.ViewStep finite next ↔ ∃ bit, machine.viewCoinStep finite bit = next := by
   rcases hs : finite.state with _ | state
-  · simp only [MultiTapeNTM.ViewStep, hs, viewCoinStep_of_halted hs, exists_const]
-    exact eq_comm
-  · simp only [MultiTapeNTM.ViewStep, hs, viewCoinStep, tr_toNTM_iff, MultiTapeTM.tr_iff]
-    constructor
-    · rintro ⟨action, ⟨bit, rfl⟩, rfl⟩
-      exact ⟨bit, rfl⟩
-    · rintro ⟨bit, rfl⟩
-      exact ⟨_, ⟨bit, rfl⟩, rfl⟩
+  · simp only [MultiTapeNTM.ViewStep, hs, viewCoinStep_of_halted hs, exists_const, eq_comm]
+  · simp [MultiTapeNTM.ViewStep, hs, viewCoinStep, tr_toNTM_iff, MultiTapeTM.tr_iff, eq_comm]
 
 /-- **The reachable views are those reached by coin strings.** -/
 theorem reflTransGen_viewStep_toNTM_iff {finite next : FiniteCfg k Bool State} :
@@ -191,6 +185,18 @@ theorem reflTransGen_viewStep_toNTM_iff {finite next : FiniteCfg k Bool State} :
       rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
       exact ih.tail (viewStep_toNTM_iff.mpr ⟨bit, rfl⟩)
 
+/-- **A coin string is accepted exactly when its replay on views is**: the replay of `coins` from
+the initial configuration on `input` ends halted with output `[true]` exactly when the replay of
+`coins` on views from the initial view ends in an accepting halted view. -/
+theorem stepCoins_accepts_iff_foldl_viewCoinStep (input coins : List Bool) :
+    ((machine.stepCoins coins (machine.toNTM.initCfg input)).Halted ∧
+        (machine.stepCoins coins (machine.toNTM.initCfg input)).output = [true]) ↔
+      (coins.foldl machine.viewCoinStep (machine.toNTM.initView input)).state = none ∧
+        (coins.foldl machine.viewCoinStep (machine.toNTM.initView input)).output = [true] := by
+  have h := viewRep_foldl_viewCoinStep (machine := machine)
+    (MultiTapeNTM.viewRep_init (ntm := machine.toNTM) input) coins
+  rw [h.state, h.output, MultiTapeNTM.outputClass_eq_true_iff]
+
 /-- The accepting coin strings are those whose replay on views ends in an accepting halted
 view. -/
 private theorem acceptCoins_eq_card_views (input : List Bool) (t : ℕ) :
@@ -201,10 +207,7 @@ private theorem acceptCoins_eq_card_views (input : List Bool) (t : ℕ) :
   classical
   unfold acceptCoins
   congr 1
-  refine Finset.filter_congr fun w _ => ?_
-  have h := viewRep_foldl_viewCoinStep (machine := machine)
-    (MultiTapeNTM.viewRep_init (ntm := machine.toNTM) input) (List.ofFn w)
-  rw [h.state, h.output, MultiTapeNTM.outputClass_eq_true_iff]
+  exact Finset.filter_congr fun w _ => stepCoins_accepts_iff_foldl_viewCoinStep input (List.ofFn w)
 
 open scoped Classical in
 /-- **Accepting coin strings are an entry of a power of the configuration matrix**: on a set `V`
@@ -252,22 +255,20 @@ theorem acceptCoins_div_eq_sum_liveConfigMatrix (R : Type*) [Field R] [CharZero 
   classical
   have h := Matrix.coinStepMatrix_pow_mulVec_eq_sum (R := R) hV
     (live := fun finite : FiniteCfg k Bool State => finite.state ≠ none)
-    (fun finite hfinite => viewCoinStep_of_halted (not_not.mp hfinite))
+    (fun _ hfinite => viewCoinStep_of_halted (not_not.mp hfinite))
     (f := fun finite : FiniteCfg k Bool State =>
       if finite.state = none ∧ finite.output = [true] then 1 else 0)
-    (fun finite hfinite => ite_eq_right_iff.mpr fun h => absurd h.1 hfinite) T ⟨_, hinit⟩
+    (fun _ hfinite => ite_eq_right_iff.mpr fun h => absurd h.1 hfinite) T ⟨_, hinit⟩
   have hvec : (fun v : V => if (v : FiniteCfg k Bool State).state = none ∧
       (v : FiniteCfg k Bool State).output = [true] then (1 : R) else 0) =
       FiniteCfg.acceptVec R V := rfl
   rw [hvec] at h
-  rw [acceptCoins_eq_configMatrix_pow_mulVec R hV hinit, configMatrix]
-  convert congrArg (· / (2 : R) ^ T) h using 1
-  · rw [Finset.sum_div]
-    refine Finset.sum_congr rfl fun t ht => ?_
-    have htT : t ≤ T := Nat.lt_succ_iff.mp (Finset.mem_range.mp ht)
-    rw [smul_pow, Matrix.smul_mulVec, Pi.smul_apply, smul_eq_mul, liveConfigMatrix]
-    have h2 : (2 : R) ^ T = 2 ^ (T - t) * 2 ^ t := by rw [← pow_add, Nat.sub_add_cancel htT]
-    rw [h2, inv_pow, mul_div_mul_left _ _ (pow_ne_zero _ two_ne_zero), div_eq_inv_mul]
+  rw [acceptCoins_eq_configMatrix_pow_mulVec R hV hinit, configMatrix, h, Finset.sum_div]
+  refine Finset.sum_congr rfl fun t ht => ?_
+  have h2 : (2 : R) ^ T = 2 ^ (T - t) * 2 ^ t := by
+    rw [← pow_add, Nat.sub_add_cancel (Nat.lt_succ_iff.mp (Finset.mem_range.mp ht))]
+  rw [smul_pow, Matrix.smul_mulVec, Pi.smul_apply, smul_eq_mul, liveConfigMatrix, h2, inv_pow,
+    mul_div_mul_left _ _ (pow_ne_zero _ two_ne_zero), div_eq_inv_mul]
 
 open scoped Classical in
 /-- **The live matrix is nilpotent on reachable views**: if every view of `V` is reachable and
@@ -325,12 +326,11 @@ theorem exists_finset_reachable [Finite State] {input : List Bool} {s : ℕ}
       fun finite hf => hsub (Finset.mem_toList.mp hf)
     rw [Finset.length_toList, hcard] at this
     omega
-  refine ⟨hfin.toFinset, fun finite => hfin.mem_toFinset, fun finite hf bit => ?_, ?_⟩
-  · rw [hfin.mem_toFinset] at hf ⊢
-    exact Relation.ReflTransGen.tail hf (viewStep_toNTM_iff.mpr ⟨bit, rfl⟩)
-  · rw [← Finset.length_toList]
-    exact MultiTapeNTM.length_le_of_nodup_reachable hs (Finset.nodup_toList _)
-      fun finite hf => hfin.mem_toFinset.mp (Finset.mem_toList.mp hf)
+  refine ⟨hfin.toFinset, fun _ => hfin.mem_toFinset, fun _ hf bit => hfin.mem_toFinset.mpr
+    ((hfin.mem_toFinset.mp hf).tail (viewStep_toNTM_iff.mpr ⟨bit, rfl⟩)), ?_⟩
+  rw [← Finset.length_toList]
+  exact MultiTapeNTM.length_le_of_nodup_reachable hs (Finset.nodup_toList _)
+    fun _ hf => hfin.mem_toFinset.mp (Finset.mem_toList.mp hf)
 
 end MultiTapePTM
 
@@ -367,24 +367,17 @@ theorem exists_configMatrix_of_mem_BPL (h : A ∈ BPL enc) :
   refine ⟨k, State, hfin, M, MultiTapeNTM.logSpaceClockExponent k State c, fun a => ?_⟩
   obtain ⟨hs, t, ht, hmem, hnot⟩ := hM a
   obtain ⟨V, hreach, hV, hcard⟩ := M.exists_finset_reachable hs
-  have hinit : M.toNTM.initView (enc a) ∈ V := (hreach _).mpr .refl
   have hpoly := MultiTapeNTM.two_pow_coreLengthBound_log_le k State c (enc a).length
   have hreach' : ∀ finite ∈ V,
       Relation.ReflTransGen M.toNTM.ViewStep (M.toNTM.initView (enc a)) finite :=
-    fun finite hf => (hreach _).mp hf
+    fun _ hf => (hreach _).mp hf
   have hT := (MultiTapeNTM.runsInTime_of_runsInSpace hs ht).mono hpoly
-  refine ⟨V, hinit, hcard.trans hpoly, hV, hreach', hT,
+  refine ⟨V, (hreach _).mpr .refl, hcard.trans hpoly, hV, hreach', hT,
     MultiTapePTM.liveConfigMatrix_pow_eq_zero ℚ hT hV hreach', fun ha => ?_, fun ha => ?_⟩
   all_goals rw [← MultiTapePTM.acceptCoins_div_eq_inv_mulVec ℚ ht hV hreach']
-  · have h : ((2 * 2 ^ t : ℕ) : ℚ) ≤ ((3 * M.acceptCoins (enc a) t : ℕ) : ℚ) :=
-      Nat.cast_le.mpr (hmem ha)
-    push_cast at h
-    rw [le_div_iff₀ (by positivity)]
-    linarith
-  · have h : ((3 * M.acceptCoins (enc a) t : ℕ) : ℚ) ≤ ((2 ^ t : ℕ) : ℚ) :=
-      Nat.cast_le.mpr (hnot ha)
-    push_cast at h
-    rw [div_le_iff₀ (by positivity)]
-    linarith
+  · rw [le_div_iff₀ (by positivity)]
+    linarith [show (2 * 2 ^ t : ℚ) ≤ 3 * M.acceptCoins (enc a) t by exact_mod_cast hmem ha]
+  · rw [div_le_iff₀ (by positivity)]
+    linarith [show (3 * M.acceptCoins (enc a) t : ℚ) ≤ 2 ^ t by exact_mod_cast hnot ha]
 
 end Cslib.Complexity

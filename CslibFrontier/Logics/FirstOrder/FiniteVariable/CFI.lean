@@ -119,99 +119,69 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
       rw [Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ, Fintype.card_fin]
       omega
     have hcard_T : T.card ≤ 2 * d := by
-      have h1 : T.card ≤ ∑ i ∈ Finset.univ.erase j, (a i).support.card := Finset.card_biUnion_le
       have h2 : ∑ i ∈ Finset.univ.erase j, (a i).support.card ≤ (Finset.univ.erase j).card • 2 :=
         Finset.sum_le_card_nsmul _ _ 2 fun i _ => (a i).card_support_le_two
       rw [hcard_erase, smul_eq_mul] at h2
-      omega
-    have hcard_ins : (insert u T).card ≤ 2 * d + 1 := by
-      have h1 := Finset.card_insert_le u T
-      omega
-    have huniv_sub : (Finset.univ : Finset (Fin m)) ⊆
-        (Finset.univ \ insert u T) ∪ insert u T := fun z hz => by
-      by_cases hzu : z ∈ insert u T
-      · exact Finset.mem_union_right _ hzu
-      · exact Finset.mem_union_left _ (Finset.mem_sdiff.2 ⟨hz, hzu⟩)
+      exact Finset.card_biUnion_le.trans (by omega)
     have hgt : 1 < (Finset.univ \ insert u T).card := by
-      have h1 := Finset.card_le_card huniv_sub
-      have h2 := Finset.card_union_le (Finset.univ \ insert u T) (insert u T)
-      rw [Finset.card_univ, Fintype.card_fin] at h1
+      have := Finset.card_insert_le u T
+      rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ, Fintype.card_fin]
       omega
     obtain ⟨w, hw_mem, w', hw'_mem, hww'⟩ := Finset.one_lt_card.1 hgt
-    have hw_not : w ∉ insert u T := (Finset.mem_sdiff.1 hw_mem).2
-    have hw'_not : w' ∉ insert u T := (Finset.mem_sdiff.1 hw'_mem).2
-    rw [Finset.mem_insert, not_or] at hw_not hw'_not
-    have hwu : w ≠ u := hw_not.1
-    have hwT : w ∉ T := hw_not.2
-    have hw'u : w' ≠ u := hw'_not.1
-    have hw'T : w' ∉ T := hw'_not.2
-    have hw_other : ∀ i, i ≠ j → w ∉ (a i).support := fun i hij hwi =>
-      hwT (Finset.mem_biUnion.2 ⟨i, Finset.mem_erase.2 ⟨hij, Finset.mem_univ i⟩, hwi⟩)
-    have hw'_other : ∀ i, i ≠ j → w' ∉ (a i).support := fun i hij hw'i =>
-      hw'T (Finset.mem_biUnion.2 ⟨i, Finset.mem_erase.2 ⟨hij, Finset.mem_univ i⟩, hw'i⟩)
+    simp only [Finset.mem_sdiff, Finset.mem_univ, true_and, Finset.mem_insert, not_or]
+      at hw_mem hw'_mem
+    obtain ⟨⟨hwu, hwT⟩, ⟨hw'u, hw'T⟩⟩ : (w ≠ u ∧ w ∉ T) ∧ (w' ≠ u ∧ w' ∉ T) := ⟨hw_mem, hw'_mem⟩
+    have hother {z : Fin m} (hz : z ∉ T) (i : Fin (d + 1)) (hij : i ≠ j) : z ∉ (a i).support :=
+      fun hzi => hz (Finset.mem_biUnion.2 ⟨i, Finset.mem_erase.2 ⟨hij, Finset.mem_univ i⟩, hzi⟩)
     refine ⟨(cfiBaseEquiv u w hwu).trans φ.toEquiv, fun c => ?_⟩
+    -- the support condition for the updated position
+    have hsupp' {u' : Fin m} (hc : u' ∉ c.support) (ho : ∀ i ∈ S, i ≠ j → u' ∉ (a i).support) :
+        ∀ i ∈ insert j S, u' ∉ (Function.update a j c i).support := fun i hiS => by
+      rcases eq_or_ne i j with rfl | hij
+      · rwa [Function.update_self]
+      · rw [Function.update_of_ne hij]
+        exact ho i (Set.mem_of_mem_insert_of_ne hiS hij) hij
+    -- the old positions, after flipping the twist from `u` to a fresh `u'`
+    have hflip {u' : Fin m} (hu' : u' ≠ u) (hT : u' ∉ T) {i : Fin (d + 1)} (hiS : i ∈ insert j S)
+        (hij : i ≠ j) (hi : u' ∉ (Function.update a j c i).support) :
+        Function.update b j (((cfiBaseEquiv u w hwu).trans φ.toEquiv) c) i =
+          ((cfiSingleFlipIso hu'.symm).trans φ)
+            ((Function.update a j c i).castAway u' (cfiZeroAway u') hi) := by
+      have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
+      have hui : u ∉ (a i).support := hsupp i hiS'
+      rw [Function.update_of_ne hij, RelIso.trans_apply,
+        castAway_congr (Function.update_of_ne hij c a) hi (hother hT i hij), hmap i hiS' hui]
+      exact congrArg φ (cfiSingleFlipIso_castAway_of_notMem hu'.symm (cfiZeroAway u')
+        (cfiZeroAway u) (a i) hui (hother hT i hij)).symm
     by_cases huc : u ∈ c.support
     · by_cases hwc : w ∈ c.support
       · have hw'c : w' ∉ c.support :=
           c.notMem_support_of_mem_mem_ne huc hwc hwu.symm hw'u hww'.symm
-        refine ⟨w', (cfiSingleFlipIso hw'u.symm).trans φ, fun i hiS => ?_, fun i hiS hi => ?_⟩
-        · by_cases hij : i = j
-          · subst hij
-            rw [Function.update_self]
-            exact hw'c
-          · rw [Function.update_of_ne hij]
-            exact hw'_other i hij
-        · by_cases hij : i = j
-          · subst hij
-            rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
-              castAway_congr (Function.update_self i c a) hi hw'c]
-            exact congrArg φ (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv_of_mem hwu.symm hw'u.symm
-              hww' (cfiZeroAway w') c huc hwc hw'c).symm
-          · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
-            have hui : u ∉ (a i).support := hsupp i hiS'
-            have hw'i : w' ∉ (a i).support := hw'_other i hij
-            rw [Function.update_of_ne hij, RelIso.trans_apply,
-              castAway_congr (Function.update_of_ne hij c a) hi hw'i, hmap i hiS' hui]
-            exact congrArg φ
-              (cfiSingleFlipIso_castAway_of_notMem hw'u.symm (cfiZeroAway w') (cfiZeroAway u)
-                (a i) hui hw'i).symm
-      · refine ⟨w, (cfiSingleFlipIso hwu.symm).trans φ, fun i hiS => ?_, fun i hiS hi => ?_⟩
-        · by_cases hij : i = j
-          · subst hij
-            rw [Function.update_self]
-            exact hwc
-          · rw [Function.update_of_ne hij]
-            exact hw_other i hij
-        · by_cases hij : i = j
-          · subst hij
-            rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
-              castAway_congr (Function.update_self i c a) hi hwc]
-            exact congrArg φ
-              (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv hwu.symm (cfiZeroAway w) c hwc).symm
-          · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
-            have hui : u ∉ (a i).support := hsupp i hiS'
-            have hwi : w ∉ (a i).support := hw_other i hij
-            rw [Function.update_of_ne hij, RelIso.trans_apply,
-              castAway_congr (Function.update_of_ne hij c a) hi hwi, hmap i hiS' hui]
-            exact congrArg φ
-              (cfiSingleFlipIso_castAway_of_notMem hwu.symm (cfiZeroAway w) (cfiZeroAway u)
-                (a i) hui hwi).symm
-    · refine ⟨u, φ, fun i hiS => ?_, fun i hiS hi => ?_⟩
-      · by_cases hij : i = j
-        · subst hij
-          rw [Function.update_self]
-          exact huc
-        · rw [Function.update_of_ne hij]
-          exact hsupp i (Set.mem_of_mem_insert_of_ne hiS hij)
-      · by_cases hij : i = j
-        · subst hij
-          rw [Function.update_self, Equiv.trans_apply,
-            castAway_congr (Function.update_self i c a) hi huc]
-          exact congrArg φ (cfiBaseEquiv_eq_castAway hwu (cfiZeroAway u) c huc)
-        · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
-          have hui : u ∉ (a i).support := hsupp i hiS'
-          rw [Function.update_of_ne hij, castAway_congr (Function.update_of_ne hij c a) hi hui]
-          exact hmap i hiS' hui
+        refine ⟨w', (cfiSingleFlipIso hw'u.symm).trans φ,
+          hsupp' hw'c fun i _ hij => hother hw'T i hij, fun i hiS hi => ?_⟩
+        rcases eq_or_ne i j with rfl | hij
+        · rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
+            castAway_congr (Function.update_self i c a) hi hw'c]
+          exact congrArg φ (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv_of_mem hwu.symm hw'u.symm
+            hww' (cfiZeroAway w') c huc hwc hw'c).symm
+        · exact hflip hw'u hw'T hiS hij hi
+      · refine ⟨w, (cfiSingleFlipIso hwu.symm).trans φ,
+          hsupp' hwc fun i _ hij => hother hwT i hij, fun i hiS hi => ?_⟩
+        rcases eq_or_ne i j with rfl | hij
+        · rw [Function.update_self, Equiv.trans_apply, RelIso.trans_apply,
+            castAway_congr (Function.update_self i c a) hi hwc]
+          exact congrArg φ
+            (cfiSingleFlipIso_castAway_eq_cfiBaseEquiv hwu.symm (cfiZeroAway w) c hwc).symm
+        · exact hflip hwu hwT hiS hij hi
+    · refine ⟨u, φ, hsupp' huc fun i hiS _ => hsupp i hiS, fun i hiS hi => ?_⟩
+      rcases eq_or_ne i j with rfl | hij
+      · rw [Function.update_self, Equiv.trans_apply,
+          castAway_congr (Function.update_self i c a) hi huc]
+        exact congrArg φ (cfiBaseEquiv_eq_castAway hwu (cfiZeroAway u) c huc)
+      · have hiS' : i ∈ S := Set.mem_of_mem_insert_of_ne hiS hij
+        have hui : u ∉ (a i).support := hsupp i hiS'
+        rw [Function.update_of_ne hij, castAway_congr (Function.update_of_ne hij c a) hi hui]
+        exact hmap i hiS' hui
 
 end Invariant
 

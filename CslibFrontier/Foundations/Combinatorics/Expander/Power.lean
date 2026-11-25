@@ -154,14 +154,12 @@ variable [Fintype D]
 /-- The walk operator of `G ^ t` is the `t`-th power of that of `G`. -/
 theorem walk_pow (t : ℕ) : (G.pow t).walk = G.walk ^ t := by
   induction t with
-  | zero => exact LinearMap.ext fun f ↦ funext fun v ↦ by simp [walk_apply]
+  | zero => exact LinearMap.ext fun f => funext fun v => by simp [walk_apply]
   | succ t ih =>
-    refine LinearMap.ext fun f ↦ funext fun v ↦ ?_
-    rw [pow_succ', mul_apply_eq_comp, ← ih, walk_apply, walk_apply]
-    simp only [neighbor_pow_succ, walk_apply]
+    refine LinearMap.ext fun f => funext fun v => ?_
+    simp only [pow_succ', mul_apply_eq_comp, ← ih, walk_apply, neighbor_pow_succ]
     -- a tuple of `t + 1` labels is a first label and a tuple of `t` labels
-    rw [Fin.expect_univ_cons]
-    rfl
+    exact Fin.expect_univ_cons _
 
 variable [Fintype V]
 

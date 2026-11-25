@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.Array.SetGrow
 
 /-! # An array-based LRAT checker
 
@@ -89,44 +90,12 @@ open Std.Tactic.BVDecide (LRAT.IntAction)
 
 namespace CNF
 
-/-! ### Arrays as finite maps -/
-
-/-- Write `x` at index `i`, first padding the array with `d` up to `i` if it is too short. -/
-private def setGrow {α : Type} (a : Array α) (i : ℕ) (d x : α) : Array α :=
-  if i < a.size then a.setIfInBounds i x else (a ++ Array.replicate (i - a.size) d).push x
-
-private theorem getD_setGrow {α : Type} (a : Array α) (i j : ℕ) (d x : α) :
-    (setGrow a i d x).getD j d = if j = i then x else a.getD j d := by
-  unfold setGrow
-  simp only [Array.getD_eq_getD_getElem?]
-  split
-  · rename_i hi
-    by_cases hj : j = i
-    · subst hj
-      simp [hi]
-    · simp [Ne.symm hj, hj]
-  · rename_i hi
-    have hs : a.size + (i - a.size) = i := by omega
-    rw [Array.getElem?_push, Array.size_append, Array.size_replicate, hs]
-    by_cases hj : j = i
-    · simp [hj]
-    · simp only [hj, ↓reduceIte, Array.getElem?_append]
-      split
-      · rfl
-      · rw [Array.getElem?_replicate, Array.getElem?_eq_none (by omega)]
-        split <;> rfl
-
-private theorem getD_setIfInBounds_self {α : Type} (a : Array α) (i j : ℕ) (d : α) :
-    (a.setIfInBounds i d).getD j d = if j = i then d else a.getD j d := by
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
-  split <;> split <;> simp_all
-
 /-! ### Clause databases -/
 
 /-- The database of clauses indexed by number, holding the clauses of an association list; an
 earlier entry shadows a later one with the same number. -/
 private def dbOfList (l : List (ℕ × Clause ℕ)) : Array (Option (Clause ℕ)) :=
-  l.foldr (fun e db => setGrow db e.1 none (some e.2)) #[]
+  l.foldr (fun e db => Array.setGrow db e.1 none (some e.2)) #[]
 
 private theorem getD_dbOfList (l : List (ℕ × Clause ℕ)) (n : ℕ) :
     (dbOfList l).getD n none = l.lookup n := by
@@ -134,7 +103,7 @@ private theorem getD_dbOfList (l : List (ℕ × Clause ℕ)) (n : ℕ) :
   | nil => simp [dbOfList]
   | cons e l ih =>
     simp only [dbOfList, List.foldr_cons] at ih ⊢
-    rw [getD_setGrow, ih, List.lookup_cons_eq_ite]
+    rw [Array.getD_setGrow, ih, List.lookup_cons_eq_ite]
 
 /-- Delete the clauses with the given numbers. -/
 private def deleteAll (db : Array (Option (Clause ℕ))) (ids : List ℕ) :
@@ -147,7 +116,7 @@ private theorem getD_deleteAll (db : Array (Option (Clause ℕ))) (ids : List �
   | nil => simp [deleteAll]
   | cons i ids ih =>
     simp only [deleteAll, List.foldl_cons] at ih ⊢
-    rw [ih, getD_setIfInBounds_self]
+    rw [ih, Array.getD_setIfInBounds_self]
     by_cases h : n = i <;> simp [h]
 
 /-! ### Assignments -/
@@ -165,7 +134,7 @@ private def isTrue (asg : Array Bool) (l : Literal ℕ) : Bool := asg.getD (litI
 
 /-- Mark the literal true. -/
 private def assign (asg : Array Bool) (l : Literal ℕ) : Array Bool :=
-  setGrow asg (litIdx l) false true
+  Array.setGrow asg (litIdx l) false true
 
 /-- Mark the literals true. -/
 private def assignAll (asg : Array Bool) (ls : List (Literal ℕ)) : Array Bool :=
@@ -177,7 +146,7 @@ private def unassign (asg : Array Bool) (ls : List (Literal ℕ)) : Array Bool :
 
 private theorem isTrue_assign (asg : Array Bool) (l l' : Literal ℕ) :
     isTrue (assign asg l) l' = (l' == l || isTrue asg l') := by
-  simp only [isTrue, assign, getD_setGrow, litIdx_inj]
+  simp only [isTrue, assign, Array.getD_setGrow, litIdx_inj]
   by_cases h : l' = l <;> simp [h]
 
 private theorem isTrue_assignAll (asg : Array Bool) (ls : List (Literal ℕ)) (l' : Literal ℕ) :
@@ -196,9 +165,9 @@ private theorem isTrue_unassign (asg : Array Bool) (ls : List (Literal ℕ)) (l'
   | cons l ls ih =>
     simp only [unassign, List.foldl_cons] at ih ⊢
     rw [ih, List.contains_cons]
-    simp only [isTrue, getD_setIfInBounds_self, litIdx_inj]
-    by_cases h : l' = l
-    · simp [h]
+    simp only [isTrue, Array.getD_setIfInBounds_self, litIdx_inj]
+    rcases eq_or_ne l' l with rfl | h
+    · simp
     · simp [h, beq_eq_false_iff_ne.mpr h]
 
 /-! ### The checker -/
@@ -228,7 +197,7 @@ private def checkLRATFastAux :
     let cl := Clause.ofDIMACS c.toList
     let neg := cl.map Std.Sat.Literal.negate
     let r := propagateFast db (assignAll asg neg) neg hints.toList
-    r.1 && checkLRATFastAux (setGrow db id none (some cl)) r.2 rest
+    r.1 && checkLRATFastAux (Array.setGrow db id none (some cl)) r.2 rest
   | _, _, .addRat .. :: _ => false
   | db, asg, .del ids :: rest => checkLRATFastAux (deleteAll db ids.toList) asg rest
 
@@ -247,38 +216,32 @@ private theorem propagateFast_eq {db : Array (Option (Clause ℕ))} {L : List (�
     ∀ (asg : Array Bool) (trail : List (Literal ℕ)), (∀ l, isTrue asg l = trail.contains l) →
       (propagateFast db asg trail hs).1 = propagateHints L trail hs ∧
         ∀ l, isTrue (propagateFast db asg trail hs).2 l = false := by
-  have hreset : ∀ (asg : Array Bool) (trail : List (Literal ℕ)),
-      (∀ l, isTrue asg l = trail.contains l) → ∀ l, isTrue (unassign asg trail) l = false := by
-    intro asg trail hasg l
+  have hreset (asg : Array Bool) (trail : List (Literal ℕ))
+      (hasg : ∀ l, isTrue asg l = trail.contains l) (l : Literal ℕ) :
+      isTrue (unassign asg trail) l = false := by
     rw [isTrue_unassign, hasg]
     cases trail.contains l <;> rfl
   induction hs with
-  | nil => intro asg trail hasg; exact ⟨rfl, hreset asg trail hasg⟩
+  | nil => exact fun asg trail hasg => ⟨rfl, hreset asg trail hasg⟩
   | cons h hs ih =>
     intro asg trail hasg
     have hfind : db.getD h none = (L.find? (·.1 == h)).map (·.2) := by
       rw [hdb, List.lookup_eq_map_find?]
-      congr 2
-      funext e
-      exact Bool.eq_iff_iff.2 (by simp only [beq_iff_eq]; exact eq_comm)
-    have hfilter (c : Clause ℕ) : c.filter (fun l => !isTrue asg (Std.Sat.Literal.negate l)) =
-        c.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) := by
-      simp only [hasg]
+      congr 2 with e
+      simp [eq_comm]
     rw [propagateHints_cons]
     simp only [propagateFast, hfind]
     cases L.find? (·.1 == h) with
     | none => exact ⟨rfl, hreset asg trail hasg⟩
     | some e =>
-      simp only [Option.map_some, hfilter, Clause.residual]
+      simp only [Option.map_some, hasg, Clause.residual]
       cases e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) with
       | nil => exact ⟨rfl, hreset asg trail hasg⟩
       | cons l ls =>
-        by_cases hall : ls.all (· == l)
-        · simp only [hall, ite_true]
-          refine ih _ _ fun l' => ?_
-          rw [isTrue_assign, hasg, List.contains_cons]
-        · simp only [hall]
-          exact ⟨rfl, hreset asg trail hasg⟩
+        dsimp only
+        split_ifs with hall
+        · exact ih _ _ fun l' => by rw [isTrue_assign, hasg, List.contains_cons]
+        · exact ⟨rfl, hreset asg trail hasg⟩
 
 private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List (ℕ × Clause ℕ)}
     (hdb : ∀ n, db.getD n none = L.lookup n) {asg : Array Bool}
@@ -290,14 +253,10 @@ private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List
   | case3 db asg id c hints rest cl neg r ih => -- addRup
     have hp := propagateFast_eq hdb hints.toList (assignAll asg neg) neg
       (fun l => by rw [isTrue_assignAll, hasg, Bool.false_or])
-    simp only [checkLRATAux]
-    congr 1
-    · exact hp.1
-    refine ih (fun n => ?_) hp.2
-    rw [getD_setGrow, hdb, List.lookup_cons_eq_ite]
+    exact congrArg₂ (· && ·) hp.1
+      (ih (fun n => by rw [Array.getD_setGrow, hdb, List.lookup_cons_eq_ite]) hp.2)
   | case5 db asg ids rest ih => -- del
-    refine ih (fun n => ?_) hasg
-    rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]
+    exact ih (fun n => by rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]) hasg
 
 /-- **The array-based checker agrees with the reference checker** on every formula and
 certificate. -/

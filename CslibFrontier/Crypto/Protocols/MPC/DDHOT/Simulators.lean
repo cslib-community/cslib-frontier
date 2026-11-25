@@ -14,7 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
-import CslibFrontier.Foundations.Data.ZMod.NatCast
+import CslibFrontier.Crypto.Protocols.MPC.EmptyCoalition
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PMFSwap
 
@@ -33,8 +33,8 @@ This module gives uniform strict-PPT simulator families for all four static coal
 and proves stand-alone `ProtocolFamily.SemiHonestSecure` of `ddhOTProbFamily` under `F.DDH setup`
 (`DDH.ddhOTProbFamily_semiHonestSecure`) as a step toward [BonehShoup2023], Section 23.5.7.2,
 Theorem 23.7 (p. 1058; #5829, #5293):
-* `I = ∅` (no corrupted parties): `ddhOTEmptySim` reproduces the real joint distribution with
-  zero advantage;
+* `I = ∅` (no corrupted parties): `SimulatorFamily.empty` reproduces the real joint distribution
+  with zero advantage;
 * `I = {0}` (corrupted sender): `ddhOTSenderSimProb` draws the sender's five raw bit strings from
   `sampleDDHOTSenderBitCoins n d` (matching the real sender's coin law with zero loss) and one
   receiver bit string from `sampleExpBits n d`, achieving unconditional statistical security with
@@ -206,56 +206,85 @@ private structure SixBitsCtx (α : Type) where
 private enc_structure encSixBitsCtx (α : Type) (enc : α ↪ List Bool) : SixBitsCtx α where
   input : enc, s₁ : encBits, s₂ : encBits, s₃ : encBits, s₄ : encBits, s₅ : encBits, s₆ : encBits
 
-/-- Six `sampleExpBits` draws followed by an efficiently computable function of the input and the
-six bit strings are uniform strict PPT. -/
-private theorem isPPTOn_sampleExpBits_six {α β : Type} {enc : α ↪ List Bool}
-    {encOut : β ↪ List Bool} {n : α → ℕ} {d : α → F.Desc}
-    (hn : ComputableInPolyTime n enc encUnary) (hd : ComputableInPolyTime d enc F.encDesc)
-    {W : α → List Bool → List Bool → List Bool → List Bool → List Bool → List Bool → β}
-    (hW : ∀ {γ : Type} {encγ : γ ↪ List Bool} {x : γ → α}
+/-- A simulator family for `ddhOTProbFamily` whose runs evaluate to six `sampleExpBits` draws
+followed by a view table encoding to an efficiently computable function `W` of the simulator input
+and the six bit strings is uniform strict PPT. -/
+private theorem isPPTOn_sampleExpBits_six {I : Finset (Fin 2)}
+    {S : SimulatorFamily F.ddhOTProbFamily I}
+    {W : SimInput F.ddhOTProbFamily I →
+      List Bool → List Bool → List Bool → List Bool → List Bool → List Bool → List Bool}
+    (hW : ∀ {γ : Type} {encγ : γ ↪ List Bool} {x : γ → SimInput F.ddhOTProbFamily I}
       {s₁ s₂ s₃ s₄ s₅ s₆ : γ → List Bool},
-      ComputableInPolyTime x encγ enc → ComputableInPolyTime s₁ encγ encBits →
-      ComputableInPolyTime s₂ encγ encBits → ComputableInPolyTime s₃ encγ encBits →
-      ComputableInPolyTime s₄ encγ encBits → ComputableInPolyTime s₅ encγ encBits →
-      ComputableInPolyTime s₆ encγ encBits →
+      ComputableInPolyTime x encγ (encSimInput F.ddhOTEncoding) →
+      ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc →
+      ComputableInPolyTime (fun c => F.encode (x c).desc (F.generator (x c).desc)) encγ encBits →
+      ComputableInPolyTime s₁ encγ encBits → ComputableInPolyTime s₂ encγ encBits →
+      ComputableInPolyTime s₃ encγ encBits → ComputableInPolyTime s₄ encγ encBits →
+      ComputableInPolyTime s₅ encγ encBits → ComputableInPolyTime s₆ encγ encBits →
       ComputableInPolyTime (fun c => W (x c) (s₁ c) (s₂ c) (s₃ c) (s₄ c) (s₅ c) (s₆ c)) encγ
-        encOut) :
-    IsPPTOn enc encOut (fun x => do
-      let s₁ ← F.sampleExpBits (n x) (d x)
-      let s₂ ← F.sampleExpBits (n x) (d x)
-      let s₃ ← F.sampleExpBits (n x) (d x)
-      let s₄ ← F.sampleExpBits (n x) (d x)
-      let s₅ ← F.sampleExpBits (n x) (d x)
-      let s₆ ← F.sampleExpBits (n x) (d x)
-      pure (W x s₁ s₂ s₃ s₄ s₅ s₆)) := by
-  have hsample {γ : Type} {encγ : γ ↪ List Bool} {x : γ → α}
-      (hx : ComputableInPolyTime x encγ enc) :
-      IsPPTOn encγ encBits fun c => F.sampleExpBits (n (x c)) (d (x c)) :=
-    F.isPPTOn_sampleExpBits (hn.comp hx) (hd.comp hx)
-  let sampleSix (x : α) : ProbComp (SixBitsCtx α) := do
-    let s₁ ← F.sampleExpBits (n x) (d x)
-    let s₂ ← F.sampleExpBits (n x) (d x)
-    let s₃ ← F.sampleExpBits (n x) (d x)
-    let s₄ ← F.sampleExpBits (n x) (d x)
-    let s₅ ← F.sampleExpBits (n x) (d x)
-    let s₆ ← F.sampleExpBits (n x) (d x)
-    pure ⟨x, s₁, s₂, s₃, s₄, s₅, s₆⟩
-  have hsix : IsPPTOn enc (encSixBitsCtx α enc) sampleSix := by
-    refine IsPPTOn.bind_with (hsample .id') ?_
-    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-    exact (encSixBitsCtx_mk_polyTime α enc (by fun_prop) (by fun_prop) (by fun_prop)
-      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
-  refine (hsix.map (hW (encγ := encSixBitsCtx α enc) (x := SixBitsCtx.input)
-    (s₁ := SixBitsCtx.s₁) (s₂ := SixBitsCtx.s₂) (s₃ := SixBitsCtx.s₃)
-    (s₄ := SixBitsCtx.s₄) (s₅ := SixBitsCtx.s₅) (s₆ := SixBitsCtx.s₆) (by fun_prop)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))).congr
-    fun x => ?_
-  simp only [sampleSix, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_bind,
-    PMF.pure_map]
+        encBits)
+    {tail : (x : SimInput F.ddhOTProbFamily I) →
+      List Bool → List Bool → List Bool → List Bool → List Bool → List Bool →
+        ((i : I) → PartyView (OTIn (F.Carrier x.desc))
+          (DDHOTCoinsWith DDHOTSenderBitCoins (List Bool)) (ddhOTSchedule (F.Carrier x.desc)) i)}
+    (hS : ∀ x : SimInput F.ddhOTProbFamily I,
+      ProbComp.eval (S x.secParam x.desc x.inputs x.outputs) =
+        ProbComp.eval (do
+          let s₁ ← F.sampleExpBits x.secParam x.desc
+          let s₂ ← F.sampleExpBits x.secParam x.desc
+          let s₃ ← F.sampleExpBits x.secParam x.desc
+          let s₄ ← F.sampleExpBits x.secParam x.desc
+          let s₅ ← F.sampleExpBits x.secParam x.desc
+          let s₆ ← F.sampleExpBits x.secParam x.desc
+          pure (tail x s₁ s₂ s₃ s₄ s₅ s₆)))
+    (hW_eq : ∀ x s₁ s₂ s₃ s₄ s₅ s₆,
+      W x s₁ s₂ s₃ s₄ s₅ s₆ =
+        (encDPi fun i : I => F.ddhOTEncoding.view.enc i)
+          (fun i => F.ddhOTEncoding.view.rep x.secParam x.desc i
+            (tail x s₁ s₂ s₃ s₄ s₅ s₆ i))) :
+    S.IsPPT F.ddhOTEncoding := by
+  have hcore {α : Type} {enc : α ↪ List Bool} {n : α → ℕ} {d : α → F.Desc}
+      (hn : ComputableInPolyTime n enc encUnary) (hd : ComputableInPolyTime d enc F.encDesc)
+      {W' : α → List Bool → List Bool → List Bool → List Bool → List Bool → List Bool → List Bool}
+      (hW' : ∀ {γ : Type} {encγ : γ ↪ List Bool} {x : γ → α}
+        {s₁ s₂ s₃ s₄ s₅ s₆ : γ → List Bool},
+        ComputableInPolyTime x encγ enc →
+        ComputableInPolyTime s₁ encγ encBits → ComputableInPolyTime s₂ encγ encBits →
+        ComputableInPolyTime s₃ encγ encBits → ComputableInPolyTime s₄ encγ encBits →
+        ComputableInPolyTime s₅ encγ encBits → ComputableInPolyTime s₆ encγ encBits →
+        ComputableInPolyTime (fun c => W' (x c) (s₁ c) (s₂ c) (s₃ c) (s₄ c) (s₅ c) (s₆ c)) encγ
+          encBits) :
+      IsPPTOn enc (encSixBitsCtx α enc) (fun x => do
+        let s₁ ← F.sampleExpBits (n x) (d x)
+        let s₂ ← F.sampleExpBits (n x) (d x)
+        let s₃ ← F.sampleExpBits (n x) (d x)
+        let s₄ ← F.sampleExpBits (n x) (d x)
+        let s₅ ← F.sampleExpBits (n x) (d x)
+        let s₆ ← F.sampleExpBits (n x) (d x)
+        pure ⟨x, s₁, s₂, s₃, s₄, s₅, s₆⟩) ∧
+        ComputableInPolyTime (fun c : SixBitsCtx α => W' c.input c.s₁ c.s₂ c.s₃ c.s₄ c.s₅ c.s₆)
+          (encSixBitsCtx α enc) encBits := by
+    have hsample {γ : Type} {encγ : γ ↪ List Bool} {x : γ → α}
+        (hx : ComputableInPolyTime x encγ enc) :
+        IsPPTOn encγ encBits fun c => F.sampleExpBits (n (x c)) (d (x c)) :=
+      F.isPPTOn_sampleExpBits (hn.comp hx) (hd.comp hx)
+    exact ⟨(hsample .id').bind_with <| (hsample (by fun_prop)).bind_with <|
+        (hsample (by fun_prop)).bind_with <| (hsample (by fun_prop)).bind_with <|
+          (hsample (by fun_prop)).bind_with <| (hsample (by fun_prop)).bind_with <|
+            (encSixBitsCtx_mk_polyTime α enc (by fun_prop) (by fun_prop) (by fun_prop)
+              (by fun_prop) (by fun_prop) (by fun_prop) (.snd _ _)).isPPTOn,
+      hW' (encSixBitsCtx_input_polyTime α enc .id') (encSixBitsCtx_s₁_polyTime α enc .id')
+        (encSixBitsCtx_s₂_polyTime α enc .id') (encSixBitsCtx_s₃_polyTime α enc .id')
+        (encSixBitsCtx_s₄_polyTime α enc .id') (encSixBitsCtx_s₅_polyTime α enc .id')
+        (encSixBitsCtx_s₆_polyTime α enc .id')⟩
+  let E := F.ddhOTEncoding
+  obtain ⟨hsix, hWctx⟩ := hcore (encSimInput_secParam_polyTime E .id')
+    (encSimInput_desc_polyTime E .id') fun hx hs₁ hs₂ hs₃ hs₄ hs₅ hs₆ =>
+      let hd := encSimInput_desc_polyTime E hx
+      hW hx hd (computableInPolyTime_encode_generator hd) hs₁ hs₂ hs₃ hs₄ hs₅ hs₆
+  refine isPPTOn_iff_encoded.mpr ((hsix.map hWctx).congr fun x => ?_)
+  simp only [ProbComp.eval_map, hS x, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
+    PMF.pure_map, ← hW_eq]
 
 /-- The view words that `ddhOTSenderSimProb` writes at group parameters `d` on the sender's
 messages `m = (m₀, m₁)` and six raw bit strings `aBits, r₀Bits, s₀Bits, r₁Bits, s₁Bits, bBits`. -/
@@ -266,7 +295,7 @@ private def ddhOTSenderSimWords (d : F.Desc) (m : F.Carrier d × F.Carrier d)
   let a := BitString.binaryValue aBits
   let b := BitString.binaryValue bBits
   ⟨F.encode d m.1, F.encode d m.2, aBits, r₀Bits, s₀Bits, r₁Bits, s₁Bits,
-    F.encode d ((b : ZMod q) • g), F.encode d ((a : ZMod q) • g + ((q - b % q : ℕ) : ZMod q) • g)⟩
+    F.encode d ((b : ZMod q) • g), F.encode d ((a : ZMod q) • g - (b : ZMod q) • g)⟩
 
 /-- The party `0` of the coalition `{0}`. -/
 private abbrev sender : ({0} : Finset (Fin 2)) := ⟨0, Finset.mem_singleton_self 0⟩
@@ -274,52 +303,29 @@ private abbrev sender : ({0} : Finset (Fin 2)) := ⟨0, Finset.mem_singleton_sel
 /-- `ddhOTSenderSimProb` is uniform strict PPT for `ddhOTEncoding`. -/
 theorem isPPT_ddhOTSenderSimProb : F.ddhOTSenderSimProb.IsPPT F.ddhOTEncoding := by
   let E := F.ddhOTEncoding
-  refine isPPTOn_iff_encoded.mpr ((F.isPPTOn_sampleExpBits_six
-    (n := fun x : SimInput F.ddhOTProbFamily {0} => x.secParam) (d := fun x => x.desc)
-    (encSimInput_secParam_polyTime E .id')
-    (encSimInput_desc_polyTime E .id')
+  refine F.isPPTOn_sampleExpBits_six
     (W := fun x aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits =>
       encPi encBits fun _ : ({0} : Finset (Fin 2)) =>
         encDDHOTSenderViewWords
           (F.ddhOTSenderSimWords x.desc (x.inputs sender)
             aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits))
-    fun {γ encγ x _ _ _ _ _ _} hx haBits hr₀Bits hs₀Bits hr₁Bits hs₁Bits hbBits => ?_).congr
-      fun x => ?_)
-  · have hd : ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc :=
-      encSimInput_desc_polyTime E hx
-    have hm : ComputableInPolyTime (fun c => (F.encode (x c).desc ((x c).inputs sender).1,
-        F.encode (x c).desc ((x c).inputs sender).2)) encγ (encPair encBits encBits) :=
-      E.input.encCoalition_apply_polyTime (encSimInput_inputs_polyTime E hx) sender
-    have hq := F.computableInPolyTime_order.comp hd
-    have hg := computableInPolyTime_encode_generator hd
-    have ha := ComputableInPolyTime.bitsBinaryValue.comp haBits
-    have hb := ComputableInPolyTime.bitsBinaryValue.comp hbBits
-    exact (ComputableInPolyTime.pi fun _ => (encDDHOTSenderViewWords_mk_polyTime hm.fst' hm.snd'
-      haBits hr₀Bits hs₀Bits hr₁Bits hs₁Bits (computableInPolyTime_encode_natCast_smul hd hb hg)
-      (computableInPolyTime_encode_add hd (computableInPolyTime_encode_natCast_smul hd ha hg)
-        (computableInPolyTime_encode_natCast_smul hd (hq.binary_sub' (hb.binary_mod' hq))
-          hg))).encoding_comp).encoding_comp
-  · simp only [ddhOTSenderSimProb, sampleDDHOTSenderBitCoins, ProbComp.eval_bind,
-      ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind,
-      PMF.pure_map]
-    refine congrArg (PMF.bind _) (funext fun aBits =>
-      congrArg (PMF.bind _) (funext fun r₀Bits =>
-        congrArg (PMF.bind _) (funext fun s₀Bits =>
-          congrArg (PMF.bind _) (funext fun r₁Bits =>
-            congrArg (PMF.bind _) (funext fun s₁Bits =>
-              congrArg (PMF.bind _) (funext fun bBits => congrArg PMF.pure ?_))))))
-    refine Eq.trans ?_ (E.view.encCoalition_singleton x.secParam x.desc 0 _).symm
+    (fun hx hd hg haBits hr₀Bits hs₀Bits hr₁Bits hs₁Bits hbBits => ?_)
+    (fun _ => by
+      simp only [ddhOTSenderSimProb, sampleDDHOTSenderBitCoins, ProbComp.eval_bind,
+        ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+      rfl)
+    fun x aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits => ?_
+  · have hm := E.input.encCoalition_apply_polyTime (encSimInput_inputs_polyTime E hx) sender
+    refine (ComputableInPolyTime.pi fun _ => (encDDHOTSenderViewWords_mk_polyTime hm.fst' hm.snd'
+      ?_ ?_ ?_ ?_ ?_ ?_ ?_).encoding_comp).encoding_comp <;> fun_prop
+  · refine Eq.trans ?_ (E.view.encCoalition_singleton x.secParam x.desc 0 _).symm
     refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTSenderViewWords ?_)
     obtain ⟨n, d, xs, ys⟩ := x
-    let q := F.order d
-    let g := F.generator d
-    let a := BitString.binaryValue aBits
-    let b := BitString.binaryValue bBits
     change _ = F.ddhOTSenderViewWords d (ddhOTSenderViewWith (xs sender)
       ⟨aBits, r₀Bits, s₀Bits, r₁Bits, s₁Bits⟩
-      ((b : ZMod q) • g, (a : ZMod q) • g - (b : ZMod q) • g))
-    simp only [ddhOTSenderSimWords, ddhOTSenderViewWords, ddhOTSenderViewWith,
-      ZMod.natCast_sub_mod_eq_neg, neg_smul, ← sub_eq_add_neg]
+      ((BitString.binaryValue bBits : ZMod (F.order d)) • F.generator d,
+        (BitString.binaryValue aBits : ZMod (F.order d)) • F.generator d -
+          (BitString.binaryValue bBits : ZMod (F.order d)) • F.generator d))
     rfl
 
 /-- The view words that `ddhOTReceiverSimProb` writes at group parameters `d` on the choice bit
@@ -349,91 +355,53 @@ private abbrev receiver : ({1} : Finset (Fin 2)) := ⟨1, Finset.mem_singleton_s
 /-- `ddhOTReceiverSimProb` is uniform strict PPT for `ddhOTEncoding`. -/
 theorem isPPT_ddhOTReceiverSimProb : F.ddhOTReceiverSimProb.IsPPT F.ddhOTEncoding := by
   let E := F.ddhOTEncoding
-  refine isPPTOn_iff_encoded.mpr ((F.isPPTOn_sampleExpBits_six
-    (n := fun x : SimInput F.ddhOTProbFamily {1} => x.secParam) (d := fun x => x.desc)
-    (encSimInput_secParam_polyTime E .id')
-    (encSimInput_desc_polyTime E .id')
+  refine F.isPPTOn_sampleExpBits_six
     (W := fun x aBits bBits rBits sBits kBits cBits =>
       encPi encBits fun _ : ({1} : Finset (Fin 2)) =>
         encDDHOTReceiverViewWords
           (F.ddhOTReceiverSimWords x.desc (x.inputs receiver) (x.outputs receiver)
             aBits bBits rBits sBits kBits cBits))
-    fun {γ encγ x _ _ _ _ _ _} hx haBits hbBits hrBits hsBits hkBits hcBits => ?_).congr
-      fun x => ?_)
-  · have hd : ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc :=
-      encSimInput_desc_polyTime E hx
-    have hσ : ComputableInPolyTime (fun c => ((x c).inputs receiver : Bool)) encγ encBool :=
-      E.input.encCoalition_apply_polyTime (encSimInput_inputs_polyTime E hx) receiver
-    have hm : ComputableInPolyTime (fun c => F.encode (x c).desc ((x c).outputs receiver)) encγ
-        encBits :=
-      E.output.encCoalition_apply_polyTime (encSimInput_outputs_polyTime E hx) receiver
-    have hg := computableInPolyTime_encode_generator hd
-    have ha := ComputableInPolyTime.bitsBinaryValue.comp haBits
-    have hb := ComputableInPolyTime.bitsBinaryValue.comp hbBits
-    have hr := ComputableInPolyTime.bitsBinaryValue.comp hrBits
-    have hs := ComputableInPolyTime.bitsBinaryValue.comp hsBits
-    have hk := ComputableInPolyTime.bitsBinaryValue.comp hkBits
-    have hc := ComputableInPolyTime.bitsBinaryValue.comp hcBits
-    have hu := computableInPolyTime_encode_natCast_smul hd ha hg
-    have he := computableInPolyTime_encode_add hd
-      (computableInPolyTime_encode_natCast_smul hd hr hg)
-      (computableInPolyTime_encode_natCast_smul hd hs hu)
-    have hbody := computableInPolyTime_encode_add hd
-      (computableInPolyTime_encode_natCast_smul hd hb he) hm
-    have hk' := computableInPolyTime_encode_natCast_smul hd hk hg
-    have hc' := computableInPolyTime_encode_natCast_smul hd hc hg
-    exact (ComputableInPolyTime.pi fun _ => (encDDHOTReceiverViewWords_mk_polyTime hσ
-      hbBits hu (hσ.ite' hk' he) (hσ.ite' hc' hbody) (hσ.ite' he hk')
-      (hσ.ite' hbody hc')).encoding_comp).encoding_comp
-  · simp only [ddhOTReceiverSimProb, ProbComp.eval_bind, ProbComp.eval_map,
-      ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
-    refine congrArg (PMF.bind _) (funext fun aBits =>
-      congrArg (PMF.bind _) (funext fun bBits =>
-        congrArg (PMF.bind _) (funext fun rBits =>
-          congrArg (PMF.bind _) (funext fun sBits =>
-            congrArg (PMF.bind _) (funext fun kBits =>
-              congrArg (PMF.bind _) (funext fun cBits => congrArg PMF.pure ?_))))))
-    refine Eq.trans ?_ (E.view.encCoalition_singleton x.secParam x.desc 1 _).symm
+    (fun hx hd hg haBits hbBits hrBits hsBits hkBits hcBits => ?_) (fun _ => rfl)
+    fun x aBits bBits rBits sBits kBits cBits => ?_
+  · have hσ := E.input.encCoalition_apply_polyTime (encSimInput_inputs_polyTime E hx) receiver
+    have hm := E.output.encCoalition_apply_polyTime (encSimInput_outputs_polyTime E hx) receiver
+    -- the receiver's output `m` enters only through `hm`
+    refine (ComputableInPolyTime.pi fun _ => (encDDHOTReceiverViewWords_mk_polyTime hσ hbBits ?_
+      (hσ.ite' ?_ ?_) (hσ.ite' ?_ (computableInPolyTime_encode_add hd ?_ hm)) (hσ.ite' ?_ ?_)
+      (hσ.ite' (computableInPolyTime_encode_add hd ?_ hm) ?_)).encoding_comp).encoding_comp <;>
+      fun_prop
+  · refine Eq.trans ?_ (E.view.encCoalition_singleton x.secParam x.desc 1 _).symm
     refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTReceiverViewWords ?_)
     obtain ⟨n, d, xs, ys⟩ := x
-    let q := F.order d
-    let g := F.generator d
-    dsimp only
-    simp only [ddhOTReceiverSimWithCoinsOf]
     obtain ⟨σ, hσ⟩ : ∃ σ : Bool, xs receiver = σ := ⟨_, rfl⟩
     obtain ⟨m, hm⟩ : ∃ m : F.Carrier d, ys receiver = m := ⟨_, rfl⟩
-    rw [hσ, hm]
-    let a := BitString.binaryValue aBits
-    let b := BitString.binaryValue bBits
-    let r := BitString.binaryValue rBits
-    let s := BitString.binaryValue sBits
-    let k := BitString.binaryValue kBits
-    let c := BitString.binaryValue cBits
-    let e := (r : ZMod q) • g + (s : ZMod q) • (a : ZMod q) • g
-    change _ = F.ddhOTReceiverViewWords d (ddhOTReceiverViewWith σ bBits ((a : ZMod q) • g)
-      (if σ then (((k : ZMod q) • g, (c : ZMod q) • g), (e, (b : ZMod q) • e + m))
-        else ((e, (b : ZMod q) • e + m), ((k : ZMod q) • g, (c : ZMod q) • g))))
+    dsimp only; simp only [ddhOTReceiverSimWithCoinsOf]; rw [hσ, hm]
+    let q := F.order d
+    let g := F.generator d
+    let e := (BitString.binaryValue rBits : ZMod q) • g +
+      (BitString.binaryValue sBits : ZMod q) • (BitString.binaryValue aBits : ZMod q) • g
+    change _ = F.ddhOTReceiverViewWords d (ddhOTReceiverViewWith σ bBits
+      ((BitString.binaryValue aBits : ZMod q) • g)
+      (if σ then (((BitString.binaryValue kBits : ZMod q) • g,
+          (BitString.binaryValue cBits : ZMod q) • g),
+          (e, (BitString.binaryValue bBits : ZMod q) • e + m))
+        else ((e, (BitString.binaryValue bBits : ZMod q) • e + m),
+          (((BitString.binaryValue kBits : ZMod q) • g,
+            (BitString.binaryValue cBits : ZMod q) • g)))))
     cases σ <;> simp only [ddhOTReceiverSimWords, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
       Bool.false_eq_true, ↓reduceIte] <;> rfl
 
 /-! ### Empty and full coalitions -/
 
-/-- Simulator for `I = ∅` (no corrupted parties): returns the unique empty view table. -/
-private def ddhOTEmptySim : SimulatorFamily F.ddhOTProbFamily ∅ :=
-  fun _ _ _ _ => pure fun i => nomatch i.2
-
-/-- `ddhOTEmptySim` is PPT for `ddhOTEncoding`. -/
-private theorem isPPT_ddhOTEmptySim : F.ddhOTEmptySim.IsPPT F.ddhOTEncoding :=
-  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch i.2).isPPTOn.congr fun _ => rfl
-
-/-- When no party is corrupted, `ddhOTEmptySim` reproduces `ddhOTProbProtocol`'s real joint law
-exactly. -/
+/-- When no party is corrupted, `SimulatorFamily.empty` reproduces `ddhOTProbProtocol`'s real joint
+law exactly. -/
 private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
     (x : (i : Fin 2) → OTIn (F.Carrier d) i) :
-    ProbComp.eval (idealJoint (otFunctionality (F.Carrier d)) ∅ (F.ddhOTEmptySim n d) x) =
+    ProbComp.eval (idealJoint (otFunctionality (F.Carrier d)) ∅
+        (SimulatorFamily.empty F.ddhOTProbFamily n d) x) =
       (F.ddhOTProbProtocol n d).realJoint noOracleWorld ∅ x := by
   simp only [ddhOTProbProtocol, evalWith_ddhOTProtocolWith, Protocol.realJoint, eval_idealJoint,
-    otFunctionality, Functionality.ofDeterministic, ddhOTEmptySim, ProbComp.eval_pure,
+    otFunctionality, Functionality.ofDeterministic, SimulatorFamily.empty, ProbComp.eval_pure,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.pure_map, PMF.map_bind,
     Prod.map, id]
   have hconst (raw₀ : DDHOTSenderBitCoins) (bBits : List Bool) :
@@ -441,7 +409,7 @@ private theorem idealJoint_ddhOTProb_empty (n : ℕ) (d : F.Desc)
           (DDHOTSenderBitCoins.toSenderCoins (F.order d))
           (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) x raw₀ bBits),
         otOutputs x) =
-        ((fun i : (∅ : Finset (Fin 2)) => nomatch i.2), otOutputs x) :=
+        ((fun i : (∅ : Finset (Fin 2)) => isEmptyElim i), otOutputs x) :=
     Prod.ext (funext fun i => nomatch i.2) rfl
   simp only [hconst, PMF.bind_const]
 
@@ -475,7 +443,7 @@ private def ddhOTFullSimWords (d : F.Desc) (m : F.Carrier d × F.Carrier d) (σ 
   let b := BitString.binaryValue bBits
   let u := (a : ZMod q) • g
   let v := (b : ZMod q) • g
-  let uSubV := u + ((q - b % q : ℕ) : ZMod q) • g
+  let uSubV := u - v
   let w₀ := cond σ uSubV v
   let w₁ := cond σ v uSubV
   let e₀ := (r₀ : ZMod q) • g + (s₀ : ZMod q) • u
@@ -492,92 +460,31 @@ private def ddhOTFullSimWords (d : F.Desc) (m : F.Carrier d × F.Carrier d) (σ 
 /-- `ddhOTFullSimProb` is uniform strict PPT for `ddhOTEncoding`. -/
 private theorem isPPT_ddhOTFullSimProb : F.ddhOTFullSimProb.IsPPT F.ddhOTEncoding := by
   let E := F.ddhOTEncoding
-  refine isPPTOn_iff_encoded.mpr ((F.isPPTOn_sampleExpBits_six
-    (n := fun x : SimInput F.ddhOTProbFamily Finset.univ => x.secParam) (d := fun x => x.desc)
-    (encSimInput_secParam_polyTime E .id')
-    (encSimInput_desc_polyTime E .id')
+  refine F.isPPTOn_sampleExpBits_six
     (W := fun x aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits =>
       encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.1)
         (F.ddhOTFullSimWords x.desc (x.inputs senderUniv) (x.inputs receiverUniv)
           aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits))
-    fun {γ encγ x aBits _ _ _ _ bBits} hx haBits hr₀Bits hs₀Bits hr₁Bits hs₁Bits hbBits =>
-      ?_).congr fun x => ?_)
-  · have hd : ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc :=
-      encSimInput_desc_polyTime E hx
-    have hm : ComputableInPolyTime (fun c => (F.encode (x c).desc ((x c).inputs senderUniv).1,
-        F.encode (x c).desc ((x c).inputs senderUniv).2)) encγ (encPair encBits encBits) :=
-      E.input.encCoalition_apply_polyTime (encSimInput_inputs_polyTime E hx) senderUniv
+    (fun {γ encγ x aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits}
+        hx hd hg haBits hr₀Bits hs₀Bits hr₁Bits hs₁Bits hbBits => ?_)
+    (fun _ => by
+      simp only [ddhOTFullSimProb, sampleDDHOTSenderBitCoins, ProbComp.eval_bind,
+        ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+      rfl)
+    fun x aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits => ?_
+  · have hm := E.input.encCoalition_apply_polyTime (encSimInput_inputs_polyTime E hx) senderUniv
     have hσ : ComputableInPolyTime (fun c => ((x c).inputs receiverUniv : Bool)) encγ encBool :=
       E.input.encCoalition_apply_polyTime (encSimInput_inputs_polyTime E hx) receiverUniv
-    have hq := F.computableInPolyTime_order.comp hd
-    have hg := computableInPolyTime_encode_generator hd
-    have ha := ComputableInPolyTime.bitsBinaryValue.comp haBits
-    have hr₀ := ComputableInPolyTime.bitsBinaryValue.comp hr₀Bits
-    have hs₀ := ComputableInPolyTime.bitsBinaryValue.comp hs₀Bits
-    have hr₁ := ComputableInPolyTime.bitsBinaryValue.comp hr₁Bits
-    have hs₁ := ComputableInPolyTime.bitsBinaryValue.comp hs₁Bits
-    have hb := ComputableInPolyTime.bitsBinaryValue.comp hbBits
-    have hu := computableInPolyTime_encode_natCast_smul hd ha hg
-    have hv := computableInPolyTime_encode_natCast_smul hd hb hg
-    have huSubV := computableInPolyTime_encode_add hd hu
-      (computableInPolyTime_encode_natCast_smul hd (hq.binary_sub' (hb.binary_mod' hq)) hg)
-    have hw₀ : ComputableInPolyTime (fun c => F.encode (x c).desc
-        (cond ((x c).inputs receiverUniv : Bool)
-          ((BitString.binaryValue (aBits c) : ZMod (F.order (x c).desc)) • F.generator (x c).desc +
-            ((F.order (x c).desc - BitString.binaryValue (bBits c) % F.order (x c).desc : ℕ) :
-              ZMod (F.order (x c).desc)) • F.generator (x c).desc)
-          ((BitString.binaryValue (bBits c) : ZMod (F.order (x c).desc)) •
-            F.generator (x c).desc))) encγ encBits :=
-      .of_enc_eq (hσ.ite' huSubV hv) fun c => by
-        obtain ⟨b', hb'⟩ : ∃ b' : Bool, (x c).inputs receiverUniv = b' := ⟨_, rfl⟩
-        rw [hb']; cases b' <;> rfl
-    have hw₁ : ComputableInPolyTime (fun c => F.encode (x c).desc
-        (cond ((x c).inputs receiverUniv : Bool)
-          ((BitString.binaryValue (bBits c) : ZMod (F.order (x c).desc)) •
-            F.generator (x c).desc)
-          ((BitString.binaryValue (aBits c) : ZMod (F.order (x c).desc)) • F.generator (x c).desc +
-            ((F.order (x c).desc - BitString.binaryValue (bBits c) % F.order (x c).desc : ℕ) :
-              ZMod (F.order (x c).desc)) • F.generator (x c).desc))) encγ encBits :=
-      .of_enc_eq (hσ.ite' hv huSubV) fun c => by
-        obtain ⟨b', hb'⟩ : ∃ b' : Bool, (x c).inputs receiverUniv = b' := ⟨_, rfl⟩
-        rw [hb']; cases b' <;> rfl
-    have he₀ := computableInPolyTime_encode_add hd
-      (computableInPolyTime_encode_natCast_smul hd hr₀ hg)
-      (computableInPolyTime_encode_natCast_smul hd hs₀ hu)
-    have hc₀ := computableInPolyTime_encode_add hd
-      (computableInPolyTime_encode_add hd
-        (computableInPolyTime_encode_natCast_smul hd hr₀ hw₀)
-        (computableInPolyTime_encode_natCast_smul hd hs₀
-          (computableInPolyTime_encode_natCast_smul hd ha hw₀)))
-      hm.fst'
-    have he₁ := computableInPolyTime_encode_add hd
-      (computableInPolyTime_encode_natCast_smul hd hr₁ hg)
-      (computableInPolyTime_encode_natCast_smul hd hs₁ hu)
-    have hc₁ := computableInPolyTime_encode_add hd
-      (computableInPolyTime_encode_add hd
-        (computableInPolyTime_encode_natCast_smul hd hr₁ hw₁)
-        (computableInPolyTime_encode_natCast_smul hd hs₁
-          (computableInPolyTime_encode_natCast_smul hd ha hw₁)))
-      hm.snd'
-    refine (ComputableInPolyTime.dpi fun i => ?_).encoding_comp
-    obtain ⟨j, hj⟩ := i
+    refine (ComputableInPolyTime.dpi fun ⟨j, hj⟩ => ?_).encoding_comp
     fin_cases j
-    · exact encDDHOTSenderViewWords_mk_polyTime hm.fst' hm.snd' haBits hr₀Bits hs₀Bits hr₁Bits
-        hs₁Bits hw₀ hw₁
-    · exact encDDHOTReceiverViewWords_mk_polyTime hσ hbBits hu he₀ hc₀ he₁ hc₁
-  · simp only [ddhOTFullSimProb, sampleDDHOTSenderBitCoins, ProbComp.eval_bind, ProbComp.eval_map,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map]
-    refine congrArg (PMF.bind _) (funext fun aBits =>
-      congrArg (PMF.bind _) (funext fun r₀Bits =>
-        congrArg (PMF.bind _) (funext fun s₀Bits =>
-          congrArg (PMF.bind _) (funext fun r₁Bits =>
-            congrArg (PMF.bind _) (funext fun s₁Bits =>
-              congrArg (PMF.bind _) (funext fun bBits => congrArg PMF.pure ?_))))))
-    change encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.1) _ =
+    · refine encDDHOTSenderViewWords_mk_polyTime hm.fst' hm.snd' ?_ ?_ ?_ ?_ ?_ ?_ ?_ <;> fun_prop
+    · refine encDDHOTReceiverViewWords_mk_polyTime hσ ?_ ?_ ?_
+        (computableInPolyTime_encode_add hd ?_ hm.fst') ?_
+        (computableInPolyTime_encode_add hd ?_ hm.snd') <;> fun_prop
+  · change encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.1) _ =
       encDPi (fun i : (Finset.univ : Finset (Fin 2)) => E.view.enc i.1) _
-    refine congrArg (encDPi _) (funext fun i => ?_)
+    refine congrArg (encDPi _) (funext fun ⟨j, hj⟩ => ?_)
     obtain ⟨n, d, xs, ys⟩ := x
-    obtain ⟨j, hj⟩ := i
     let q := F.order d
     let g := F.generator d
     obtain ⟨σ, hσ⟩ : ∃ σ : Bool, xs receiverUniv = σ := ⟨_, rfl⟩
@@ -590,8 +497,7 @@ private theorem isPPT_ddhOTFullSimProb : F.ddhOTFullSimProb.IsPPT F.ddhOTEncodin
             ((c₀.toSenderCoins q).exponent • g)))
       rw [hσ]
       cases σ <;> simp only [ddhOTFullSimWords, ddhOTSenderViewWords, ddhOTSenderViewWith,
-        DDHOTSenderBitCoins.toSenderCoins, ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte,
-        ZMod.natCast_sub_mod_eq_neg, neg_smul, ← sub_eq_add_neg] <;> rfl
+        DDHOTSenderBitCoins.toSenderCoins, ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte] <;> rfl
     · change F.ddhOTFullSimWords d (xs senderUniv) (xs receiverUniv)
           aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits ⟨1, hj⟩ =
         F.ddhOTReceiverViewWords d (ddhOTReceiverViewWith (xs receiverUniv) bBits
@@ -602,8 +508,7 @@ private theorem isPPT_ddhOTFullSimProb : F.ddhOTFullSimProb.IsPPT F.ddhOTEncodin
       rw [hσ]
       cases σ <;> simp only [ddhOTFullSimWords, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
         DDHOTSenderBitCoins.toSenderCoins, ddhOTSenderReplyUnchecked, ddhOTEncryptBranch,
-        ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte, ZMod.natCast_sub_mod_eq_neg, neg_smul,
-        ← sub_eq_add_neg] <;> rfl
+        ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte] <;> rfl
 
 /-- When both parties are corrupted, `ddhOTFullSimProb` reproduces `ddhOTProbProtocol`'s real joint
 law exactly. -/
@@ -732,7 +637,7 @@ Under `F.DDH setup`, `F.ddhOTProbFamily`—whose parties draw raw fair-coin bit 
 (p. 1059) and [Lindell2017], Section 4.2, Definition 4.1 (p. 7)—satisfies
 `ProtocolFamily.SemiHonestSecure` across every static coalition `I : Finset (Fin 2)` with
 certified uniform strict-PPT simulators and DDH reduction:
-* `I = ∅` (no corruption): exact simulation (`ddhOTEmptySim`, advantage `0`);
+* `I = ∅` (no corruption): exact simulation (`SimulatorFamily.empty`, advantage `0`);
 * `I = {0}` (corrupted sender): unconditional statistical simulation (`ddhOTSenderSimProb`,
   advantage `≤ 2 / 2 ^ n`);
 * `I = {1}` (corrupted receiver): computational simulation (`ddhOTReceiverSimProb`) via the
@@ -749,7 +654,7 @@ theorem DDH.ddhOTProbFamily_semiHonestSecure {F : PrimeOrderGroupFamily} {setup 
     · left; ext i; fin_cases i <;> simp [h0, h1]
   rcases hcases with rfl | rfl | rfl | rfl
   · exact ProtocolFamily.SemiHonestSecure.of_perfect
-      F.isPPT_ddhOTEmptySim F.idealJoint_ddhOTProb_empty
+      (SimulatorFamily.isPPT_empty _) F.idealJoint_ddhOTProb_empty
   · exact F.ddhOTProbFamily_semiHonestSecure_sender setup
   · refine ⟨F.ddhOTReceiverSimProb, F.isPPT_ddhOTReceiverSimProb, fun Z hZ => ?_⟩
     have hB := hDDH _ (F.isPPT_ddhOTReceiverToDDHDistinguisher hZ)

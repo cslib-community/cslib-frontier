@@ -48,15 +48,10 @@ private theorem previousInterior_congr_of_lt
   induction position with
   | zero => rfl
   | succ position inductionHypothesis =>
-      have current := equal position (by omega)
-      cases rightCurrent : right position with
-      | none =>
-          have prior := inductionHypothesis fun coordinate lower =>
-            equal coordinate (lower.trans (by omega))
-          simp [previousInterior, current,
-            rightCurrent, prior]
-      | some orientation =>
-          simp [previousInterior, current, rightCurrent]
+      rw [previousInterior, previousInterior, equal position (Nat.lt_succ_self _)]
+      cases right position with
+      | none => exact inductionHypothesis fun _ h => equal _ (Nat.lt_succ_of_lt h)
+      | some _ => rfl
 
 private theorem nextInterior_congr_of_lt
     {left right : Nat → Option Bool} {length position fuel : Nat}
@@ -68,16 +63,10 @@ private theorem nextInterior_congr_of_lt
   induction fuel generalizing position with
   | zero => rfl
   | succ fuel inductionHypothesis =>
-      have position_lt : position < length := by omega
-      have current := equal position position_lt
-      cases rightCurrent : right position with
-      | none =>
-          have tail := inductionHypothesis (position := position + 1)
-            (by omega)
-          simp [nextInterior, current,
-            rightCurrent, tail]
-      | some orientation =>
-          simp [nextInterior, current, rightCurrent]
+      rw [nextInterior, nextInterior, equal position (by omega)]
+      cases right position with
+      | none => exact inductionHypothesis (by omega)
+      | some _ => rfl
 
 private theorem intervalEdge_congr_of_lt
     {left right : Nat → Option Bool} {length position : Nat}
@@ -86,48 +75,38 @@ private theorem intervalEdge_congr_of_lt
       left coordinate = right coordinate) :
     intervalEdge left length position =
       intervalEdge right length position := by
-  have nextEqual := nextInterior_congr_of_lt
-    (left := left) (right := right) (length := length)
-    (position := position) (fuel := length - position)
-    (by omega) equal
-  have previousEqual := previousInterior_congr_of_lt
-    (left := left) (right := right) (position := position)
-    fun coordinate lower => equal coordinate (lower.trans_le bounded)
-  unfold intervalEdge
-  rw [nextEqual, previousEqual]
+  rw [intervalEdge, intervalEdge,
+    nextInterior_congr_of_lt (by omega) equal,
+    previousInterior_congr_of_lt fun c hc => equal c (hc.trans_le bounded)]
 
 private theorem horizontalCarrier_canonicalPatch_iff
     (level : ℕ) (i j : Fin (side level)) :
     (scaffold.role ((canonicalPatch level seedNode).tile i j)).horizontalCarrier = true ↔
       isHorizontalCarrier level i j = true := by
+  have equal : ∀ x < side level, rowInterior level seedNode x j = selectedBorder level x j :=
+    fun x hx => rowInterior_seed_eq_selectedBorder level x j hx j.isLt
   rw [scaffold_role]
   change (ShadedSite.routeRole (ShadedSite.tile (site level seedNode i j))).horizontalCarrier =
     true ↔ _
   rw [ShadedSite.horizontalCarrier_iff]
-  change (intervalEdge (fun x => rowInterior level seedNode x j) (side level) i = .none ∧
-    intervalEdge (fun x => rowInterior level seedNode x j) (side level) (i.val + 1) = .none) ↔ _
-  have equal : ∀ x, x < side level →
-      rowInterior level seedNode x j = selectedBorder level x j :=
-    fun x hx => rowInterior_seed_eq_selectedBorder level x j hx j.isLt
+  change (intervalEdge _ _ _ = .none ∧ intervalEdge _ _ _ = .none) ↔ _
   rw [intervalEdge_congr_of_lt i.isLt.le equal,
-    intervalEdge_congr_of_lt (by omega : i.val + 1 ≤ side level) equal]
+    intervalEdge_congr_of_lt (Nat.succ_le_of_lt i.isLt) equal]
   exact intervalEdge_pair_iff_horizontalCarrier i.isLt
 
 private theorem verticalCarrier_canonicalPatch_iff
     (level : ℕ) (i j : Fin (side level)) :
     (scaffold.role ((canonicalPatch level seedNode).tile i j)).verticalCarrier = true ↔
       isVerticalCarrier level i j = true := by
+  have equal : ∀ y < side level, columnInterior level seedNode i y = selectedBorder level y i :=
+    fun y hy => columnInterior_seed_eq_selectedBorder level i y i.isLt hy
   rw [scaffold_role]
   change (ShadedSite.routeRole (ShadedSite.tile (site level seedNode i j))).verticalCarrier =
     true ↔ _
   rw [ShadedSite.verticalCarrier_iff]
-  change (intervalEdge (fun y => columnInterior level seedNode i y) (side level) j = .none ∧
-    intervalEdge (fun y => columnInterior level seedNode i y) (side level) (j.val + 1) = .none) ↔ _
-  have equal : ∀ y, y < side level →
-      columnInterior level seedNode i y = selectedBorder level y i :=
-    fun y hy => columnInterior_seed_eq_selectedBorder level i y i.isLt hy
+  change (intervalEdge _ _ _ = .none ∧ intervalEdge _ _ _ = .none) ↔ _
   rw [intervalEdge_congr_of_lt j.isLt.le equal,
-    intervalEdge_congr_of_lt (by omega : j.val + 1 ≤ side level) equal]
+    intervalEdge_congr_of_lt (Nat.succ_le_of_lt j.isLt) equal]
   exact intervalEdge_pair_iff_horizontalCarrier j.isLt
 
 private theorem eraseCorner_eq_carrierRole_of_carriers
@@ -182,32 +161,17 @@ private theorem liftCoordinate_centerResidue
     liftCoordinate coordinate % period (depth + 1) =
       2 * scale (depth + 1) + 1 := by
   have decomposition := Nat.mod_add_div coordinate (period depth)
-  have periodEq := period_succ depth
   have scaleEq : scale (depth + 1) = 4 * scale depth := by
     simp [scale, pow_succ, Nat.mul_comm]
-  have coordinateEq : coordinate =
-      2 * scale depth + 1 +
-        period depth * (coordinate / period depth) := by
-    omega
   have expression : liftCoordinate coordinate =
-      period (depth + 1) * (coordinate / period depth) +
-        (2 * scale (depth + 1) + 1) := by
-    calc
-      liftCoordinate coordinate = 4 * coordinate - 3 := rfl
-      _ = 4 * (2 * scale depth + 1 +
-          period depth * (coordinate / period depth)) - 3 := by
-        exact congrArg (fun value => 4 * value - 3) coordinateEq
-      _ = 4 * (period depth * (coordinate / period depth)) +
-          (2 * (4 * scale depth) + 1) := by omega
-      _ = period (depth + 1) * (coordinate / period depth) +
-          (2 * scale (depth + 1) + 1) := by
-        rw [periodEq, scaleEq, Nat.mul_assoc]
+      2 * scale (depth + 1) + 1 + period (depth + 1) * (coordinate / period depth) := by
+    rw [period_succ, scaleEq, Nat.mul_assoc, liftCoordinate]
+    omega
   have centerLt : 2 * scale (depth + 1) + 1 < period (depth + 1) := by
     rw [period_eq_four_mul_scale]
     have := scale_pos (depth + 1)
     omega
-  rw [expression, Nat.add_mod]
-  simp [Nat.mod_eq_of_lt centerLt]
+  rw [expression, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt centerLt]
 
 /-- For coordinates at residue one modulo four, inherited positive-depth
 frames shift up by one depth and no new depth-one owner is introduced. -/
@@ -365,53 +329,31 @@ private theorem indexZero_crossing_centered :
       simp [isHorizontalCarrier] at horizontal
   | succ level inductionHypothesis =>
       intro x y xBound yBound indexZero horizontal vertical
-      have parentXBound : x / 4 < 4 ^ level := by
-        rw [pow_succ] at xBound
-        omega
-      have parentYBound : y / 4 < 4 ^ level := by
-        rw [pow_succ] at yBound
-        omega
-      have xDecomposition : x = 4 * (x / 4) + x % 4 := by
-        have := Nat.mod_add_div x 4
-        omega
-      have yDecomposition : y = 4 * (y / 4) + y % 4 := by
-        have := Nat.mod_add_div y 4
-        omega
-      have levelPositive : 0 < level := by
-        by_contra notPositive
-        have levelZero : level = 0 := by omega
+      have parentXBound : x / 4 < 4 ^ level := Nat.div_lt_of_lt_mul (by rwa [pow_succ'] at xBound)
+      have parentYBound : y / 4 < 4 ^ level := Nat.div_lt_of_lt_mul (by rwa [pow_succ'] at yBound)
+      have levelPositive : 0 < level := Nat.pos_of_ne_zero fun levelZero => by
         subst level
         simp [isHorizontalCarrier] at horizontal
+      let coarseX := 2 * (x / 4) + 1
+      let coarseY := 2 * (y / 4) + 1
       rcases supertileIndexGrid_zero_cases level x y xBound yBound indexZero with
           ⟨xMod, yMod, parentZero, parentXEven, parentYEven⟩ |
           ⟨xMod, yMod, parentFour, parentXOdd, parentYOdd⟩ |
           ⟨xMod, yMod, parentXEven, parentYEven⟩
-      · let coarseX := 2 * (x / 4) + 1
-        let coarseY := 2 * (y / 4) + 1
-        have coarseXPositive : 0 < coarseX := by simp [coarseX]
+      · have coarseXPositive : 0 < coarseX := by simp [coarseX]
         have coarseYPositive : 0 < coarseY := by simp [coarseY]
-        have coarseXMod : coarseX % 4 = 1 := by
-          simp only [coarseX]
-          omega
-        have coarseYMod : coarseY % 4 = 1 := by
-          simp only [coarseY]
-          omega
+        have coarseXMod : coarseX % 4 = 1 := by simp only [coarseX]; omega
+        have coarseYMod : coarseY % 4 = 1 := by simp only [coarseY]; omega
         have fineXEq : 2 * x + 1 = liftCoordinate coarseX := by
-          simp only [coarseX, liftCoordinate]
-          omega
+          simp only [coarseX, liftCoordinate]; omega
         have fineYEq : 2 * y + 1 = liftCoordinate coarseY := by
-          simp only [coarseY, liftCoordinate]
-          omega
-        have coarseHorizontal :
-            isHorizontalCarrier level coarseX coarseY = true := by
-          apply horizontalCarrier_of_liftCoordinate levelPositive
-            coarseXPositive coarseYPositive coarseXMod coarseYMod
-          simpa only [fineXEq, fineYEq] using horizontal
-        have coarseVertical :
-            isVerticalCarrier level coarseX coarseY = true := by
-          apply verticalCarrier_of_liftCoordinate levelPositive
-            coarseXPositive coarseYPositive coarseXMod coarseYMod
-          simpa only [fineXEq, fineYEq] using vertical
+          simp only [coarseY, liftCoordinate]; omega
+        have coarseHorizontal : isHorizontalCarrier level coarseX coarseY = true :=
+          horizontalCarrier_of_liftCoordinate levelPositive coarseXPositive coarseYPositive
+            coarseXMod coarseYMod (by simpa only [fineXEq, fineYEq] using horizontal)
+        have coarseVertical : isVerticalCarrier level coarseX coarseY = true :=
+          verticalCarrier_of_liftCoordinate levelPositive coarseXPositive coarseYPositive
+            coarseXMod coarseYMod (by simpa only [fineXEq, fineYEq] using vertical)
         rcases inductionHypothesis (x / 4) (y / 4)
             parentXBound parentYBound parentZero
             coarseHorizontal coarseVertical with ⟨depth, coarseCentered⟩
@@ -419,39 +361,24 @@ private theorem indexZero_crossing_centered :
           simpa only [fineXEq, fineYEq] using
             coarseCentered.lift levelPositive coarseXPositive coarseYPositive
               coarseXMod coarseYMod⟩
-      · let coarseX := 2 * (x / 4) + 1
-        let coarseY := 2 * (y / 4) + 1
-        have fineXEq : 2 * x + 1 = liftCoordinate coarseX := by
-          simp only [coarseX, liftCoordinate]
-          omega
+      · have fineXEq : 2 * x + 1 = liftCoordinate coarseX := by
+          simp only [coarseX, liftCoordinate]; omega
         have fineYEq : 2 * y + 1 = liftCoordinate coarseY := by
-          simp only [coarseY, liftCoordinate]
-          omega
-        have xCenter :
-            liftCoordinate coarseX % period 1 = 2 * scale 1 + 1 := by
-          simp only [coarseX, liftCoordinate, period, scale]
-          omega
-        have yCenter :
-            liftCoordinate coarseY % period 1 = 2 * scale 1 + 1 := by
-          simp only [coarseY, liftCoordinate, period, scale]
-          omega
+          simp only [coarseY, liftCoordinate]; omega
+        have xCenter : liftCoordinate coarseX % period 1 = 2 * scale 1 + 1 := by
+          simp only [coarseX, liftCoordinate, period, scale]; omega
+        have yCenter : liftCoordinate coarseY % period 1 = 2 * scale 1 + 1 := by
+          simp only [coarseY, liftCoordinate, period, scale]; omega
         exact ⟨1, by
           simpa only [fineXEq, fineYEq] using
             centeredAtOne levelPositive xCenter yCenter⟩
-      · have xOpening :
-            (2 * x + 1) % period 1 = frameStartResidue 1 := by
-          simp only [period, frameStartResidue, scale]
-          omega
+      · have xOpening : (2 * x + 1) % period 1 = frameStartResidue 1 := by
+          simp only [period, frameStartResidue, scale]; omega
         have yInside : inFrame 1 (2 * y + 1) = true := by
-          simp [inFrame, period, frameStartResidue, frameEndResidue, scale]
-          omega
-        have rowOwnerOne : depthAt 1 (2 * y + 1) = some 1 := by
-          simp [depthAt, yInside]
+          simp [inFrame, period, frameStartResidue, frameEndResidue, scale]; omega
         have rowOwner : depthAt level (2 * y + 1) = some 1 :=
-          depthAt_eq_some_mono rowOwnerOne levelPositive
-        have xBoundary : onFrameBoundary 1 (2 * x + 1) = true := by
-          simp [onFrameBoundary, xOpening]
-        simp [isHorizontalCarrier, rowOwner, xBoundary] at horizontal
+          depthAt_eq_some_mono (by simp [depthAt, yInside]) levelPositive
+        simp [isHorizontalCarrier, rowOwner, onFrameBoundary, xOpening] at horizontal
 
 private theorem corner_point_zero
     (level : ℕ) (i j : Fin (side level))

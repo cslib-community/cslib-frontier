@@ -66,9 +66,8 @@ tiles of the list is one by positions holding them, where the position at the or
 that holds the tile there. -/
 theorem everyTileOccurs_iff_everyIndexOccurs {L : List WangTile} :
     EveryTileOccurs L ↔ EveryIndexOccurs L := by
-  constructor
-  · intro h i
-    obtain ⟨f, hf, hmem⟩ := h L[i] (L.getElem_mem i.isLt)
+  refine ⟨fun h i => ?_, fun h t ht => ?_⟩
+  · obtain ⟨f, hf, hmem⟩ := h L[i] (L.getElem_mem i.isLt)
     choose idx hidx using fun x y => List.mem_iff_get.mp (hmem x y).1
     let F (x y : ℤ) : Fin L.length := if x = 0 ∧ y = 0 then i else idx x y
     have hF (x y : ℤ) : L[F x y] = f x y := by
@@ -76,8 +75,7 @@ theorem everyTileOccurs_iff_everyIndexOccurs {L : List WangTile} :
       · simp [F, hxy, hf]
       · simpa [F, hxy] using hidx x y
     exact ⟨F, by simp [F], fun x y => by simpa only [hF] using (hmem x y).2⟩
-  · intro h t ht
-    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ht
+  · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ht
     obtain ⟨F, hF, hmatch⟩ := h ⟨i, hi⟩
     exact ⟨fun x y => L[F x y], by simp [hF], fun x y => ⟨L.getElem_mem _, hmatch x y⟩⟩
 
@@ -87,10 +85,9 @@ theorem lt_freshTile {τ : List WangTile} {t : WangTile} (ht : t ∈ τ) :
     max (max t.top t.bottom) (max t.left t.right) < (freshTile τ).top := by
   induction τ with
   | nil => simp at ht
-  | cons s τ ih =>
-    obtain rfl | ht := List.mem_cons.mp ht
-    · exact lt_max_of_lt_left (Nat.lt_succ_self _)
-    · exact lt_max_of_lt_right (ih ht)
+  | cons _ _ ih =>
+    exact (List.mem_cons.mp ht).elim
+      (fun h => h ▸ lt_max_of_lt_left (Nat.lt_succ_self _)) (fun h => lt_max_of_lt_right (ih h))
 
 /-- Adjoining the fresh tile does not change the problem: it tiles the plane by itself, and in
 no tiling does it lie beside another tile, so a tiling with a tile of `τ` at the origin does not
@@ -98,48 +95,38 @@ use it. This is the reduction to tile sets with a special tile in [HirschHodkins
 Section 3. -/
 theorem everyTileOccurs_cons_freshTile_iff {τ : List WangTile} :
     EveryTileOccurs (freshTile τ :: τ) ↔ EveryTileOccurs τ := by
-  constructor
-  · intro h t ht
-    obtain ⟨f, hf : f 0 0 = t, hmem : ∀ x y, f x y ∈ freshTile τ :: τ ∧ _⟩ :=
-      h t (List.mem_cons_of_mem _ ht)
-    -- neighbours of the fresh tile are fresh, since their touching colours are equal
-    have key {a b : WangTile} (ha : a ∈ freshTile τ :: τ) (hb : b ∈ freshTile τ :: τ)
-        (hab : a.right = b.left ∨ a.top = b.bottom) : a = freshTile τ ↔ b = freshTile τ := by
-      obtain rfl | ha := List.mem_cons.mp ha <;> obtain rfl | hb := List.mem_cons.mp hb
-      · exact .rfl
-      · have := lt_freshTile hb
-        obtain h | h := hab <;> exact (by simp only [freshTile] at h this ⊢; omega : False).elim
-      · have := lt_freshTile ha
-        obtain h | h := hab <;> exact (by simp only [freshTile] at h this ⊢; omega : False).elim
-      · have := lt_freshTile ha
-        have := lt_freshTile hb
-        constructor <;> rintro rfl <;> simp only [freshTile] at * <;> omega
-    have hrow (x y : ℤ) : f x y = freshTile τ ↔ f (x + 1) y = freshTile τ :=
-      key (hmem x y).1 (hmem (x + 1) y).1 (.inl (hmem x y).2.1)
-    have hcol (x y : ℤ) : f x y = freshTile τ ↔ f x (y + 1) = freshTile τ :=
-      key (hmem x y).1 (hmem x (y + 1)).1 (.inr (hmem x y).2.2)
-    have row (x y : ℤ) : f x y = freshTile τ ↔ f 0 y = freshTile τ := by
-      induction x with
-      | zero => rfl
-      | succ n ih => exact (hrow n y).symm.trans ih
-      | pred n ih => rw [← ih, hrow, sub_add_cancel]
-    have col (y : ℤ) : f 0 y = freshTile τ ↔ f 0 0 = freshTile τ := by
-      induction y with
-      | zero => rfl
-      | succ n ih => exact (hcol 0 n).symm.trans ih
-      | pred n ih => rw [← ih, hcol, sub_add_cancel]
-    have h0 : f 0 0 ≠ freshTile τ := by
-      rintro h0
-      have := lt_freshTile ht
-      rw [← hf, h0] at this
-      simp only [freshTile] at this
-      omega
-    refine ⟨f, hf, fun x y => ⟨?_, (hmem x y).2⟩⟩
-    exact (List.mem_cons.mp (hmem x y).1).resolve_left fun h => h0 ((col y).mp ((row x y).mp h))
-  · intro h t ht
-    obtain rfl | ht := List.mem_cons.mp ht
-    · exact ⟨fun _ _ => freshTile τ, rfl, fun _ _ => ⟨List.mem_cons_self, rfl, rfl⟩⟩
-    · obtain ⟨f, hf, hmem⟩ := h t ht
-      exact ⟨f, hf, fun x y => ⟨List.mem_cons_of_mem _ (hmem x y).1, (hmem x y).2⟩⟩
+  refine ⟨fun h t ht => ?_, fun h t ht => (List.mem_cons.mp ht).elim
+    (fun e => by
+      subst e
+      exact ⟨fun _ _ => freshTile τ, rfl, fun _ _ => ⟨List.mem_cons_self, rfl, rfl⟩⟩)
+    fun ht' => by
+      obtain ⟨f, hf, hmem⟩ := h t ht'
+      exact ⟨f, hf, fun x y => ⟨List.mem_cons_of_mem _ (hmem x y).1, (hmem x y).2⟩⟩⟩
+  obtain ⟨f, hf : f 0 0 = t, hmem : ∀ x y, f x y ∈ freshTile τ :: τ ∧ _⟩ :=
+    h t (List.mem_cons_of_mem _ ht)
+  have hno {s : WangTile} (hs : s ∈ τ)
+      (h : (freshTile τ).right = s.left ∨ (freshTile τ).top = s.bottom ∨
+        s.right = (freshTile τ).left ∨ s.top = (freshTile τ).bottom) : False := by
+    have := lt_freshTile hs
+    simp only [freshTile] at h this; omega
+  -- neighbours of the fresh tile are fresh, since their touching colours are equal
+  have key {a b : WangTile} (ha : a ∈ freshTile τ :: τ) (hb : b ∈ freshTile τ :: τ)
+      (hab : a.right = b.left ∨ a.top = b.bottom) : a = freshTile τ ↔ b = freshTile τ :=
+    ⟨fun e => (List.mem_cons.mp hb).resolve_right fun hb' =>
+      hno hb' ((e ▸ hab).imp id .inl),
+     fun e => (List.mem_cons.mp ha).resolve_right fun ha' =>
+      hno ha' (.inr (.inr (e ▸ hab)))⟩
+  have shift {P : ℤ → Prop} (hP : ∀ z, P z ↔ P (z + 1)) (z : ℤ) : P z ↔ P 0 := by
+    induction z with
+    | zero => rfl
+    | succ n ih => exact (hP n).symm.trans ih
+    | pred n ih => exact (hP _).trans (by simpa only [sub_add_cancel] using ih)
+  have h0 : f 0 0 ≠ freshTile τ := fun e => by
+    have := e ▸ hf ▸ lt_freshTile ht
+    simp only [freshTile] at this; omega
+  refine ⟨f, hf, fun x y => ⟨(List.mem_cons.mp (hmem x y).1).resolve_left fun hx => h0 ?_,
+    (hmem x y).2⟩⟩
+  exact (shift (fun y => key (hmem 0 y).1 (hmem 0 (y + 1)).1 (.inr (hmem 0 y).2.2)) y).mp
+    ((shift (fun x => key (hmem x y).1 (hmem (x + 1) y).1 (.inl (hmem x y).2.1)) x).mp hx)
 
 end Cslib.WangTile
