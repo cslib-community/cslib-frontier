@@ -774,42 +774,30 @@ private theorem canonical_window_contained {U V n R p_min q_min p_max q_max : �
   have hx_eq : x = y / B := nFloor_succ_eq_div (by omega)
   have hy_lo : (B : ℝ) * x ≤ y := by exact_mod_cast (hx_eq ▸ Nat.mul_div_le y B)
   have hy_hi : (y : ℝ) ≤ (B : ℝ) * (x + 1) := by
-    have : y < B * (x + 1) := by
-      have hdiv := Nat.div_add_mod y B
-      have hmod : y % B < B := Nat.mod_lt y (Nat.two_pow_pos _)
-      rw [← hx_eq] at hdiv; rw [Nat.mul_add, Nat.mul_one]; omega
-    exact_mod_cast this.le
+    exact_mod_cast (hx_eq ▸ Nat.lt_mul_div_succ y (Nat.two_pow_pos _) : y < B * (x + 1)).le
   set μ : ℝ := (m : ℝ) / (B : ℝ)
   have hB_cast : (2 : ℝ) ^ P.branchBits ℓ = (B : ℝ) := (Nat.cast_pow 2 _).symm
   rw [hB_cast] at hb_lo hb_hi
   have hm_band : (B : ℝ) * x - (B : ℝ) * d_next / 10 - B ≤ m ∧
       (m : ℝ) ≤ (B : ℝ) * (x + 1) + (B : ℝ) * d_next / 10 := by
+    have hdn : (0 : ℝ) ≤ (B : ℝ) * d_next / 10 := by positivity
     rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-    · have hm0 : n - 1 ≤ m ∧ m ≤ n := ⟨hm_lo, hm_hi⟩
+    · change n - 1 ≤ m at hm_lo
+      change m ≤ n at hm_hi
       have hy0 : y = n := by simp [y, nFloor, numNodes, cumBranchBits]
-      have hn1 : (n : ℝ) - 1 ≤ m := by
-        have hm_r : ((n - 1 : ℕ) : ℝ) ≤ m := by exact_mod_cast hm0.1
-        rwa [Nat.cast_sub (by have := h.two_le_n; omega : 1 ≤ n), Nat.cast_one] at hm_r
-      have hm_r : (m : ℝ) ≤ n := by exact_mod_cast hm0.2
-      have hdn : (0 : ℝ) ≤ (B : ℝ) * d_next / 10 := by positivity
-      have hy0_r : (y : ℝ) = n := by exact_mod_cast hy0
+      have hml : (y : ℝ) ≤ m + 1 := by exact_mod_cast (by omega : y ≤ m + 1)
+      have hmh : (m : ℝ) ≤ y := by exact_mod_cast (by omega : m ≤ y)
       exact ⟨by linarith, by linarith⟩
-    · have hm_lo' : y - delta n U r k ℓ ≤ m := by
-        have : (if ℓ = 0 then n - 1 else y - delta n U r k ℓ) ≤ m := hm_lo
-        rwa [ite_eq_right hpos.ne'] at this
-      have hm_hi' : m ≤ y + delta n U r k ℓ := by
-        have : m ≤ (if ℓ = 0 then n else y + delta n U r k ℓ) := hm_hi
-        rwa [ite_eq_right hpos.ne'] at this
-      have hd_le_y : delta n U r k ℓ ≤ y := by
-        have := two_mul_delta_le_nFloor_of_eight_le
-          ((by decide : 8 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hlt.le))
-        change 2 * delta n U r k ℓ ≤ y at this; omega
-      have h10r : (10 : ℝ) * delta n U r k ℓ ≤ B * d_next := by
+    · set δ := delta n U r k ℓ
+      have hd_le_y : 2 * δ ≤ y := two_mul_delta_le_nFloor_of_eight_le
+        ((by decide : 8 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hlt.le))
+      change (if ℓ = 0 then n - 1 else y - δ) ≤ m at hm_lo
+      change m ≤ (if ℓ = 0 then n else y + δ) at hm_hi
+      rw [ite_eq_right hpos.ne'] at hm_lo hm_hi
+      have h10r : (10 : ℝ) * δ ≤ B * d_next := by
         exact_mod_cast ten_mul_delta_le_branchFactor_mul_delta_succ hS17 h8x
-      have hml : (y : ℝ) - delta n U r k ℓ ≤ m := by
-        have : ((y - delta n U r k ℓ : ℕ) : ℝ) ≤ m := by exact_mod_cast hm_lo'
-        rwa [Nat.cast_sub hd_le_y] at this
-      have hmh : (m : ℝ) ≤ y + delta n U r k ℓ := by exact_mod_cast hm_hi'
+      have hml : (y : ℝ) ≤ m + δ := by exact_mod_cast (by omega : y ≤ m + δ)
+      have hmh : (m : ℝ) ≤ y + δ := by exact_mod_cast hm_hi
       exact ⟨by linarith, by linarith⟩
   have hμ_lo : (x : ℝ) - d_next / 10 - 1 ≤ μ := (le_div_iff₀ (by positivity)).mpr (by linarith)
   have hμ_hi : μ ≤ (x : ℝ) + d_next / 10 + 1 := (div_le_iff₀ (by positivity)).mpr (by linarith)
@@ -824,19 +812,14 @@ private theorem canonical_window_contained {U V n R p_min q_min p_max q_max : �
     have hdev := rpow_two_thirds_le_two_mul_succ hμ_pos (by linarith) hx2
     linarith only [hdev]
   have hd_big : (10 : ℝ) ≤ d_next := by exact_mod_cast (by decide : 10 ≤ 256 ^ 6).trans hd_next_ge
-  have hnl : P.nLow (ℓ + 1) = x - d_next := by
-    change (if ℓ + 1 = 0 then n - 1 else x - d_next) = _; rw [ite_eq_right (by omega)]
-  have hnh : P.nHigh (ℓ + 1) = x + d_next := by
-    change (if ℓ + 1 = 0 then n else x + d_next) = _; rw [ite_eq_right (by omega)]
-  rw [hnl, hnh]
-  refine ⟨?_, ?_⟩
-  · have hlt_r : ((x - d_next : ℕ) : ℝ) < ((b_load + 1 : ℕ) : ℝ) := by
-      rw [Nat.cast_sub (by omega : d_next ≤ x), Nat.cast_add, Nat.cast_one]
-      linarith only [hb_lo, hμ_lo, hdev_le, hd_big]
-    exact Nat.lt_succ_iff.mp (Nat.cast_lt.mp hlt_r)
-  · have hlt_r : (b_load : ℝ) < ((x + d_next + 1 : ℕ) : ℝ) := by
-      push_cast; linarith only [hb_hi, hμ_hi, hdev_le, hd_big]
-    exact Nat.lt_succ_iff.mp (Nat.cast_lt.mp hlt_r)
+  change (if ℓ + 1 = 0 then n - 1 else x - d_next) ≤ b_load ∧
+    b_load ≤ (if ℓ + 1 = 0 then n else x + d_next)
+  rw [ite_eq_right (by omega), ite_eq_right (by omega)]
+  have hlo : (x : ℝ) < b_load + 1 + d_next := by linarith only [hb_lo, hμ_lo, hdev_le, hd_big]
+  have hhi : (b_load : ℝ) < x + d_next + 1 := by linarith only [hb_hi, hμ_hi, hdev_le, hd_big]
+  have hlo : x < b_load + 1 + d_next := by exact_mod_cast hlo
+  have hhi : b_load < x + d_next + 1 := by exact_mod_cast hhi
+  omega
 
 /-- **`canonicalSchedule` concentration readiness**: across the entire `ValidRegime`,
 `canonicalSchedule h` satisfies all six probabilistic concentration conditions in
