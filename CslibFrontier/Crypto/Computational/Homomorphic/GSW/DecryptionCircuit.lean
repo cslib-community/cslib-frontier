@@ -78,12 +78,11 @@ private theorem inputCiphertext_apply (x : BitString (inputWidth n w))
     (i j : Fin (n + 1)) (k l : Fin w) :
     inputCiphertext x (i, k) (j, l) = x (Fin.natAdd (n * w)
       (finProdFinEquiv (finProdFinEquiv (i, k), finProdFinEquiv (j, l)))) := by
-  rw [inputCiphertext, decodeCiphertext_apply]
-  let p := finProdFinEquiv (finProdFinEquiv (i, k), finProdFinEquiv (j, l))
-  have hp : (i.val * w + k.val) * ((n + 1) * w) + j.val * w + l.val = p.val := by
-    simp only [p, finProdFinEquiv, Equiv.coe_fn_mk, Fin.val_mk]
-    ring
-  rw [hp, List.getD_ofFn, sndBits_apply]
+  rw [inputCiphertext, decodeCiphertext_apply,
+    show (i.val * w + k.val) * ((n + 1) * w) + j.val * w + l.val =
+      (finProdFinEquiv (finProdFinEquiv (i, k), finProdFinEquiv (j, l))).val by
+      simp only [finProdFinEquiv, Equiv.coe_fn_mk, Fin.val_mk]; ring,
+    List.getD_ofFn, sndBits_apply]
 
 /-- The selected row is the last binary digit of the leading expanded-secret coordinate. -/
 private def selectedRow (n w : ℕ) (hw : 0 < w) : Fin (n + 1) × Fin w :=
@@ -137,8 +136,7 @@ private theorem productSum_cast (x : BitString (inputWidth n w)) (hw : 0 < w) :
         (selectedRow n w hw) j.succ * inputSecret x j := by
   rw [productSum, Circuit.eval_comp, Circuit.eval_wiring, append_comp_productInputs,
     Modular.val_eval_innerProduct, ZMod.natCast_mod, Nat.cast_sum]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   rw [Nat.cast_mul, ← inputSecret_apply, block_rowTail, rowWord_cast, mul_comm]
 
 /-- Subtract the selected row's inner product from its leading word, modulo `2 ^ w`. -/
@@ -152,19 +150,13 @@ private theorem phase_cast (x : BitString (inputWidth n w)) (hw : 0 < w) :
       decryptionPhase (inputSecret x) (inputCiphertext x) (selectedRow n w hw) := by
   let a := (Circuit.wiring signature (rowInputs n w hw 0)).eval interpretation x
   let b := (productSum n w hw).eval interpretation x
-  have ha : ((BitString.equivFin w a : ℕ) : ZMod (2 ^ w)) =
-      recomposeMatrix w (bitMatrix (ZMod (2 ^ w)) (inputCiphertext x)) (selectedRow n w hw) 0 := by
-    dsimp only [a]
-    rw [eval_rowInputs]
-    exact rowWord_cast _ _ _
-  have hb := productSum_cast x hw
-  change ((BitString.equivFin w b : ℕ) : ZMod (2 ^ w)) = _ at hb
   have hv : (BitString.equivFin w ((phase n w hw).eval interpretation x) : ℕ) =
       (2 ^ w - (BitString.equivFin w b : ℕ) + (BitString.equivFin w a : ℕ)) % 2 ^ w := by
     simpa only [phase, Circuit.eval_comp, Circuit.eval_append] using Modular.val_eval_subtract a b
   rw [hv, ZMod.natCast_mod, Nat.cast_add,
     Nat.cast_sub (Nat.le_of_lt (BitString.equivFin w b).isLt), ZMod.natCast_self]
-  simp only [ha, hb, decryptionPhase, sub_eq_add_neg, add_comm, zero_add]
+  simp only [a, b, eval_rowInputs, rowWord_cast, productSum_cast x hw, decryptionPhase,
+    sub_eq_add_neg, add_comm, zero_add]
 
 /-- Implement the actual width-zero, width-one and top-two-bit decoder cases. -/
 private def decodeWord (w : ℕ) : Circuit signature w 1 :=
@@ -176,19 +168,16 @@ private def decodeWord (w : ℕ) : Circuit signature w 1 :=
 private theorem eval_decodeWord (x : BitString w) :
     (decodeWord w).eval interpretation x 0 =
       LWE.decode w ((BitString.equivFin w x : ℕ) : ZMod (2 ^ w)) := by
-  have hv : (((BitString.equivFin w x : ℕ) : ZMod (2 ^ w)).val) =
-      (BitString.equivFin w x : ℕ) := by
+  have hv : ((BitString.equivFin w x : ℕ) : ZMod (2 ^ w)).val = BitString.equivFin w x := by
     rw [ZMod.val_natCast, Nat.mod_eq_of_lt (BitString.equivFin w x).isLt]
   by_cases h₀ : w = 0
-  · subst w
-    simp [decodeWord, interpretation]
+  · subst w; simp [decodeWord, interpretation]
   · by_cases h₁ : w = 1
     · subst w
       simp only [decodeWord, Nat.one_ne_zero, ↓reduceDIte, Circuit.eval_wiring,
         Function.comp_apply, LWE.decode_one, hv]
       exact (BitString.testBit_equivFin x 0).symm
-    · have hw : 2 ≤ w := by omega
-      rw [LWE.decode_eq_xor_highBits hw, hv]
+    · rw [LWE.decode_eq_xor_highBits (by omega), hv]
       simp only [circuit_simps, decodeWord, h₀, h₁, ↓reduceDIte]
       rw [BitString.testBit_equivFin x ⟨w - 1, by omega⟩,
         BitString.testBit_equivFin x ⟨w - 2, by omega⟩]
@@ -198,8 +187,7 @@ private theorem depth_decodeWord_le (w : ℕ) : (decodeWord w).depth ≤ 3 := by
   circuit_bound [decodeWord]
 
 private theorem size_decodeWord_le (w : ℕ) : (decodeWord w).size ≤ 5 := by
-  unfold decodeWord
-  split_ifs <;> simp
+  unfold decodeWord; split_ifs <;> simp
 
 /-- The actual total GSW decryptor, with all raw secret and ciphertext bits as inputs. -/
 def circuit (n w : ℕ) : Circuit signature (inputWidth n w) 1 :=
@@ -211,10 +199,8 @@ private theorem eval_circuit (x : BitString (inputWidth n w)) :
     (circuit n w).eval interpretation x 0 = decrypt (inputSecret x) (inputCiphertext x) := by
   by_cases hw : 0 < w
   · rw [circuit, dite_eq_left hw, Circuit.eval_comp, eval_decodeWord, phase_cast x hw,
-      decrypt_eq_decode_decryptionPhase hw]
-    rfl
-  · have hz : w = 0 := by omega
-    subst w
+      decrypt_eq_decode_decryptionPhase hw]; rfl
+  · obtain rfl : w = 0 := by omega
     simp [circuit, interpretation]
 
 /-- The selected-row construction has logarithmic depth in both parameter dimensions. -/
@@ -229,12 +215,10 @@ theorem size_circuit_le (n w : ℕ) :
   unfold circuit
   split_ifs with hw
   · simp only [circuit_simps, phase, productSum]
-    have hd := size_decodeWord_le w
-    have hs := Modular.size_subtract_le w
-    have hi := Modular.size_innerProduct_le n w
-    nlinarith [Nat.zero_le n, Nat.zero_le (n * w), Nat.zero_le (n * w ^ 2)]
+    nlinarith [size_decodeWord_le w, Modular.size_subtract_le w, Modular.size_innerProduct_le n w,
+      Nat.zero_le (n * w), Nat.zero_le (n * w ^ 2)]
   · simp only [Circuit.size_oneGate]
-    nlinarith [Nat.zero_le n, Nat.zero_le (n * w), Nat.zero_le (n * w ^ 2)]
+    nlinarith [Nat.zero_le (n * w), Nat.zero_le (n * w ^ 2)]
 
 /-- The serialized contract required by generic refresh: every well-sized raw pair is covered. -/
 theorem correct (n w : ℕ) (secret ciphertext : List Bool)

@@ -56,8 +56,7 @@ open scoped NNReal
 theorem precision_three_ge {n : ℕ} (hn : 8 ≤ n) :
     8 * hashCount n ≤ precision 3 n := by
   have hcount := hashCount_le n
-  have hsquare : 9 ^ 2 ≤ (n + 1) ^ 2 := Nat.pow_le_pow_left (by lia) 2
-  have hcube := Nat.mul_le_mul_right (n + 1) hsquare
+  have hcube := Nat.mul_le_mul_right (n + 1) (Nat.pow_le_pow_left (show 9 ≤ n + 1 by omega) 2)
   simp only [precision, pow_succ, pow_zero, one_mul] at hcube ⊢
   omega
 
@@ -75,17 +74,15 @@ private theorem exists_advice_budget_le {advice : ℕ → List Bool}
   set L := 2 * n + 1 + word.length + 1 with hL
   have hLD : L ≤ L ^ (D + 1) := Nat.le_self_pow (Nat.succ_ne_zero D) L
   have hCL : C * (n + 1) ^ D ≤ C * L ^ (D + 1) :=
-    Nat.mul_le_mul_left C
-      ((Nat.pow_le_pow_left (by omega) D).trans (Nat.pow_le_pow_right (by omega) (Nat.le_succ D)))
+    Nat.mul_le_mul_left C ((Nat.pow_le_pow_left (by omega) D).trans
+      (Nat.pow_le_pow_right (by omega) (Nat.le_succ D)))
   have hC1 : C ≤ C * L ^ (D + 1) := Nat.le_mul_of_pos_right C (by omega)
   have hbase : 2 * (2 * n + 1 + (advice n).length) + 1 + word.length + 1 ≤
       (2 * C + 4) * L ^ (D + 1) := by
     have := hC n
-    rw [add_mul, mul_assoc]
-    omega
-  calc c * (2 * (2 * n + 1 + (advice n).length) + 1 + word.length + 1) ^ d
-      ≤ c * ((2 * C + 4) * L ^ (D + 1)) ^ d := Nat.mul_le_mul_left c (Nat.pow_le_pow_left hbase d)
-    _ = c * (2 * C + 4) ^ d * L ^ ((D + 1) * d) := by rw [mul_pow, ← pow_mul, mul_assoc]
+    rw [add_mul, mul_assoc]; omega
+  exact (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hbase d)).trans_eq
+    (by rw [mul_pow, ← pow_mul, mul_assoc])
 
 /-- **The prediction gap relative to fixed advice.** If inverting `f` is hard with a polynomially
 bounded advice family, then every uniform strict PPT word predictor reading the same advice
@@ -108,7 +105,6 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
         1 / (hashCount n : ℝ) := by
   obtain ⟨c, d, evaluate, hefficient, _, hrealize⟩ := hPPT.exists_total_seeded_evaluator
   obtain ⟨c', d', hbudget⟩ := exists_advice_budget_le hadvice c d
-  -- The inverter captures the advice word from its own input.
   let advisedEvaluate : (ℕ × List Bool) × List Bool → (ℕ × List Bool) → List Bool → Bool :=
     fun ((_, word), _) (m, observation) coins => evaluate ((m, word), observation) coins
   have hevaluate := hefficient.comp (show ComputableInPolyTime
@@ -117,20 +113,18 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
         ((ℕ × List Bool) × List Bool) × List Bool)
     (encPair (encPair encAdvisedInput (encPair encUnary encBits))
       encBits) (encPair encAdvisedInput encBits) by fun_prop)
-  have hinverter := isPPTOn_wordInverter (evaluate := advisedEvaluate)
-    (parameter := fun ((n, _), _) => n) (image := fun ((_, _), image) => image) hf hevaluate
-    (by fun_prop) (by fun_prop) c' d' 3
-  have hinversion := hhard.inversion_negligible _ hinverter
   have hloss : Negligible (fun n => 128 * (dyadicSize (16 * hashCount n) : ℝ≥0) ^ 2 *
       Game.succProbability (ProbComp.eval (inversionGame f
         (fun n image => wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image)
           n))) := by
     simpa only [Nat.cast_mul, Nat.cast_ofNat, Nat.cast_pow] using
-      hinversion.polynomiallyBounded_mul
+      (hhard.inversion_negligible _ (isPPTOn_wordInverter (evaluate := advisedEvaluate)
+        (parameter := fun ((n, _), _) => n) (image := fun ((_, _), image) => image) hf hevaluate
+        (by fun_prop) (by fun_prop) c' d' 3)).polynomiallyBounded_mul
         (show PolynomiallyBounded (fun n => 128 * dyadicSize (16 * hashCount n) ^ 2) by fun_prop)
-  have hsmall := hloss.eventually_le_inv_polynomial
-    hashCount_polynomiallyBounded (fun n => Nat.pos_of_ne_zero (NeZero.ne (hashCount n)))
-  filter_upwards [hsmall, eventually_ge_atTop 8] with n hsmall hn
+  filter_upwards [hloss.eventually_le_inv_polynomial hashCount_polynomiallyBounded
+    (fun n => Nat.pos_of_ne_zero (NeZero.ne (hashCount n))), eventually_ge_atTop 8]
+    with n hsmall hn
   simp only [NNReal.coe_mul, NNReal.coe_pow, NNReal.coe_ofNat, NNReal.coe_natCast,
     Game.coe_succProbability] at hsmall
   have h := word_prediction_entropy_le f (finiteFunction n) (encodeImage n)
@@ -138,11 +132,10 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
     (fun (m, word) coins => evaluate ((m, advice m), word) coins) c' d'
     (fun m word budget hle => hrealize ((m, advice m), word) budget ((hbudget m word).trans hle))
     3 (precision_three_ge hn)
-  have hsame : Pr[inversionGame f (wordInverter f
+  rw [div_eq_mul_one_div (2 : ℝ), show Pr[inversionGame f (wordInverter f
       (fun (m, word) coins => evaluate ((m, advice m), word) coins) c' d' 3) n] =
       Pr[inversionGame f (fun n image =>
-        wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image) n] := rfl
-  rw [div_eq_mul_one_div (2 : ℝ), hsame] at h
+        wordInverter f (advisedEvaluate ((n, advice n), image)) c' d' 3 n image) n] from rfl] at h
   linarith only [h, hsmall]
 
 /-- A function whose inversion is hard with a polynomially bounded advice family, and which has a
@@ -184,10 +177,9 @@ private theorem exists_pseudoentropyPair_of_fixedOutputLength {g : List Bool →
     (ofFn_ofList (by simp [hlength])).symm
   refine ⟨HashPair.pair g hg finiteFunction encodeImage hencode, fun advice hhard hadvice =>
     (HashPair.pair_hasGapWithAdvice hg hhard hadvice finiteFunction encodeImage hencode length
-      (fun _ _ => List.length_ofFn)).mono (fun n => ?_)⟩
-  apply one_div_le_one_div_of_le
-  · exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne (HashPair.hashCount n))
-  · exact_mod_cast HashPair.hashCount_le n
+      (fun _ _ => List.length_ofFn)).mono fun n => one_div_le_one_div_of_le
+        (by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne (HashPair.hashCount n)))
+        (by exact_mod_cast HashPair.hashCount_le n)⟩
 
 /-- Every one-way word function yields an exactly samplable pseudoentropy pair with an explicit
 inverse-polynomial prediction gap. Normalization handles arbitrary original output lengths. -/
@@ -206,9 +198,9 @@ theorem NonuniformOneWay.exists_pseudoentropyPair {f : List Bool → List Bool}
     (hf : NonuniformOneWay f) :
     ∃ pair : SamplablePair, ∀ advice : ℕ → List Bool,
       PolynomiallyBounded (fun n => (advice n).length) →
-        pair.HasGapWithAdvice (fun n => 1 / (2 * ((n : ℝ) + 7))) advice := by
-  obtain ⟨g, length, hg, hlength, _⟩ := hf.exists_fixedOutputLength
-  obtain ⟨pair, hpair⟩ := exists_pseudoentropyPair_of_fixedOutputLength hg.polyTime hlength
-  exact ⟨pair, fun advice hadvice => hpair advice (hg.secure advice hadvice) hadvice⟩
+        pair.HasGapWithAdvice (fun n => 1 / (2 * ((n : ℝ) + 7))) advice :=
+  let ⟨_, _, hg, hlength, _⟩ := hf.exists_fixedOutputLength
+  let ⟨pair, hpair⟩ := exists_pseudoentropyPair_of_fixedOutputLength hg.polyTime hlength
+  ⟨pair, fun advice hadvice => hpair advice (hg.secure advice hadvice) hadvice⟩
 
 end Cslib.Crypto

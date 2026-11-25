@@ -140,12 +140,10 @@ theorem derives_of_configLTS_mTr {M M' : Finset (Clause V)} {ms : List (ConfigMo
   | stepL hstep _ ih =>
     refine ih fun c hc => ?_
     cases hstep.1 with
-    | download hc' =>
-      rcases Finset.mem_insert.1 hc with rfl | hc
-      exacts [.mem hc', hM c hc]
+    | download hc' => exact (Finset.mem_insert.1 hc).elim (· ▸ .mem hc') (hM c)
     | infer v h₁ h₂ hv₁ hv₂ =>
-      rcases Finset.mem_insert.1 hc with rfl | hc
-      exacts [.resolvent v (hM _ h₁) (hM _ h₂) hv₁ hv₂, hM c hc]
+      exact (Finset.mem_insert.1 hc).elim
+        (· ▸ .resolvent v (hM _ h₁) (hM _ h₂) hv₁ hv₂) (hM c)
     | erase _ => exact hM c (Finset.mem_of_mem_erase hc)
 
 /-- A run that introduces the empty clause into a configuration without it holds `3` clauses at
@@ -156,29 +154,19 @@ private theorem three_le_of_configLTS_mTr (hφ : [] ∉ φ) {M M' : Finset (Clau
   induction h with
   | refl => exact absurd hM' hM
   | @stepL M m M₁ ms M₂ hstep _ ih =>
-    obtain ⟨hstep, hcard⟩ := hstep
     by_cases h₁ : [] ∈ M₁
-    · cases hstep with
+    · cases hstep.1 with
       | download hc =>
-        rcases Finset.mem_insert.1 h₁ with h | h
-        exacts [absurd (h ▸ hc) hφ, absurd h hM]
+        exact (Finset.mem_insert.1 h₁).elim (fun h => absurd (h ▸ hc) hφ) (fun h => absurd h hM)
       | @infer c₁ c₂ v h₁' h₂ hv₁ hv₂ =>
-        rcases Finset.mem_insert.1 h₁ with h | h
-        · -- the parents are different nonempty clauses, and the empty clause is a third one
-          refine le_trans ?_ hcard
-          have hne : c₁ ≠ c₂ := by
-            rintro rfl
-            have : (v, false) ∈ c₁.resolvent c₁ v := Clause.mem_resolvent.2 (Or.inl ⟨hv₂, by simp⟩)
-            rw [← h] at this
-            simp at this
-          refine Finset.two_lt_card.2 ⟨c₁, Finset.mem_insert_of_mem h₁', c₂,
-            Finset.mem_insert_of_mem h₂, [], Finset.mem_insert.2 (Or.inl h), hne, ?_, ?_⟩
-          · rintro rfl
-            simp at hv₁
-          · rintro rfl
-            simp at hv₂
-        · exact absurd h hM
-      | erase c => exact absurd (Finset.mem_of_mem_erase h₁) hM
+        refine (Finset.mem_insert.1 h₁).elim (fun h => le_trans ?_ hstep.2) (fun h => absurd h hM)
+        refine Finset.two_lt_card.2 ⟨c₁, Finset.mem_insert_of_mem h₁', c₂,
+          Finset.mem_insert_of_mem h₂, [], Finset.mem_insert.2 (Or.inl h), ?_,
+          by rintro rfl; simp at hv₁, by rintro rfl; simp at hv₂⟩
+        rintro rfl
+        have : (v, false) ∈ c₁.resolvent c₁ v := Clause.mem_resolvent.2 (Or.inl ⟨hv₂, by simp⟩)
+        simp [← h] at this
+      | erase _ => exact absurd (Finset.mem_of_mem_erase h₁) hM
     · exact ih h₁ hM'
 
 /-- Erasing clauses one at a time runs from a configuration to any subset of it. -/
@@ -191,19 +179,19 @@ theorem exists_configLTS_mTr_of_subset {M N : Finset (Clause V)} (hNM : N ⊆ M)
     exact ⟨[], .refl⟩
   | succ n ih =>
     obtain ⟨c, hc⟩ : (M \ N).Nonempty := Finset.card_pos.1 (by omega)
-    obtain ⟨hcM, hcN⟩ := Finset.mem_sdiff.1 hc
+    obtain ⟨_, hcN⟩ := Finset.mem_sdiff.1 hc
     obtain ⟨ms, hms⟩ := ih (M := M.erase c)
       (fun x hx => Finset.mem_erase.2 ⟨fun hxc => hcN (hxc ▸ hx), hNM hx⟩)
-      ((Finset.card_erase_le).trans hM)
+      (Finset.card_erase_le.trans hM)
       (by rw [Finset.erase_sdiff_comm, Finset.card_erase_of_mem hc, h]; rfl)
-    exact ⟨.erase c :: ms, .stepL ⟨.erase c, (Finset.card_erase_le).trans hM⟩ hms⟩
+    exact ⟨.erase c :: ms, .stepL ⟨.erase c, Finset.card_erase_le.trans hM⟩ hms⟩
 
 namespace RefutableInSpace
 
 /-- **Soundness**: a formula refutable in some clause space is unsatisfiable. -/
-theorem not_satisfiable (h : φ.RefutableInSpace s) : ¬ φ.Satisfiable := by
-  obtain ⟨ms, M, hM, hnil⟩ := h
-  exact (derives_of_configLTS_mTr hM (by simp) [] hnil).not_satisfiable
+theorem not_satisfiable (h : φ.RefutableInSpace s) : ¬ φ.Satisfiable :=
+  let ⟨_, _, hM, hnil⟩ := h
+  (derives_of_configLTS_mTr hM (by simp) [] hnil).not_satisfiable
 
 /-- `RefutableInSpace` is monotone in the space bound. -/
 theorem mono (h : φ.RefutableInSpace s) (hst : s ≤ t) : φ.RefutableInSpace t :=
@@ -226,16 +214,14 @@ private theorem exists_configLTS_mTr_toFinset {ls : List (Clause V)} (h : φ.IsP
   | nil => exact ⟨[], .refl⟩
   | @mem _ c _ hc ih =>
     obtain ⟨ms, hms⟩ := ih
-    refine ⟨ms ++ [.download c], (configLTS_mTr_mono (Nat.le_succ _) hms).stepR _ ⟨?_, ?_⟩⟩
-    · rw [List.toFinset_cons]
-      exact .download hc
-    · exact List.toFinset_card_le _
+    exact ⟨ms ++ [.download c], (configLTS_mTr_mono (Nat.le_succ _) hms).stepR _
+      ⟨List.toFinset_cons (a := c) ▸ .download hc, List.toFinset_card_le _⟩⟩
   | @resolvent _ c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
     obtain ⟨ms, hms⟩ := ih
-    refine ⟨ms ++ [.infer c₁ c₂ v], (configLTS_mTr_mono (Nat.le_succ _) hms).stepR _ ⟨?_, ?_⟩⟩
-    · rw [List.toFinset_cons]
-      exact .infer v (List.mem_toFinset.2 h₁) (List.mem_toFinset.2 h₂) hv₁ hv₂
-    · exact List.toFinset_card_le _
+    exact ⟨ms ++ [.infer c₁ c₂ v], (configLTS_mTr_mono (Nat.le_succ _) hms).stepR _
+      ⟨List.toFinset_cons (a := c₁.resolvent c₂ v) ▸
+        .infer v (List.mem_toFinset.2 h₁) (List.mem_toFinset.2 h₂) hv₁ hv₂,
+        List.toFinset_card_le _⟩⟩
 
 /-- **Clause space is at most size**: a refutation with `s` lines gives a refutation in clause space
 `s`, which downloads or derives the lines in order and never erases. -/
@@ -246,10 +232,10 @@ theorem RefutableInSize.refutableInSpace (h : φ.RefutableInSize s) : φ.Refutab
 
 /-- **Resolution refutes exactly the unsatisfiable formulas**, in some clause space. -/
 theorem exists_refutableInSpace_iff_not_satisfiable :
-    (∃ s, φ.RefutableInSpace s) ↔ ¬ φ.Satisfiable := by
-  refine ⟨fun ⟨_, h⟩ => h.not_satisfiable, fun h => ?_⟩
-  obtain ⟨s, hs⟩ := exists_refutableInSize_iff_not_satisfiable.2 h
-  exact ⟨s, hs.refutableInSpace⟩
+    (∃ s, φ.RefutableInSpace s) ↔ ¬ φ.Satisfiable :=
+  ⟨fun ⟨_, h⟩ => h.not_satisfiable, fun h =>
+    let ⟨s, hs⟩ := exists_refutableInSize_iff_not_satisfiable.2 h
+    ⟨s, hs.refutableInSpace⟩⟩
 
 end CNF
 
