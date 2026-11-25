@@ -14,11 +14,12 @@ by closing quotes, brackets or emphasis, then one space and the start of a sente
 letter, `[`, `(`, `*`, `` ` ``, `§` or an opening quote). It does not split inside code spans,
 `$...$` math or HTML tags, after an initial or a common abbreviation, or where the next line
 could start another Markdown block. Continuation lines of a list item are indented to its text.
-Headings (ATX and Setext), anchors, blank lines, fenced code, HTML comments, reference
-definitions and every other kind of block are kept as they are. The result has the same Markdown
-block structure and joins back to the same text: `canonical` refuses to return output whose
-blocks, paragraph breaks, words or punctuation differ from its input apart from soft line breaks
-and the indentation of list continuation lines.
+Headings (ATX and Setext), HTML blocks (`<pre>`, comments, `<div>`, standalone tags), display
+math (`$$...$$`), GFM pipe tables, fenced code, blank lines, reference definitions and every
+other kind of block are kept as they are. The result has the same Markdown block structure and
+joins back to the same text: `canonical` refuses to return output whose blocks, paragraph breaks,
+words or punctuation differ from its input apart from soft line breaks and the indentation of list
+continuation lines.
 
     python3 scripts/sources_format.py --check [FILE]      # exit 1 if FILE is not in the format
     python3 scripts/sources_format.py --write [FILE]      # rewrite FILE in the format
@@ -50,6 +51,24 @@ REFERENCE_DEF = re.compile(r" {0,3}\[[^\]]+\]:(?:\s|$)")
 BLOCK_OPENER = re.compile(r" {0,3}(?:<|#|>|\||`{3,}|~{3,}|:::|([-*_])( *\1){2,}[ \t]*$)")
 # The opening line of a fenced code block, whose lines up to the closing fence are kept.
 FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
+# Display math (`$$...$$`) and CommonMark §4.6 HTML block forms, kept across their full spans.
+DISPLAY_MATH = re.compile(r" {0,3}\$\$")
+HTML_RAW_OPEN = re.compile(r" {0,3}<(?:pre|script|style|textarea)(?:\s|>|$)", re.I)
+HTML_RAW_CLOSE = re.compile(r"</(?:pre|script|style|textarea)>", re.I)
+HTML_DECL_OPEN = re.compile(r" {0,3}<![A-Za-z]")
+HTML_BLOCK_TAG = re.compile(
+    r" {0,3}</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup"
+    r"|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset"
+    r"|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol"
+    r"|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr"
+    r"|track|ul)(?:\s|/?>|$)",
+    re.I,
+)
+HTML_SINGLE_TAG = re.compile(
+    r" {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:\s+(?:[^<>\"']|\"[^\"]*\"|'[^']*')*)?/?>|"
+    r"</[A-Za-z][A-Za-z0-9-]*\s*>)[ \t]*$"
+)
+TABLE_CELL = re.compile(r"\s*:?-+:?\s*")
 # The end of a sentence: the last word before a split ends this way.
 SENTENCE_END = re.compile(r"(?P<word>\S*?)[.?!][\"”’)\]*_]*")
 # Words that end with a period without ending a sentence, compared without case: Pandoc's own
@@ -87,6 +106,23 @@ def protected(text: str) -> list[tuple[int, int]]:
 
     def free(i: int) -> bool:
         return not any(a <= i < b for a, b in spans)
+
+    # Shield `$$...$$` before single-`$` math so `$$` never splits or leaves a stray `$`.
+    i, double_math = 0, []
+    while (start := text.find("$$", i)) != -1:
+        i = start + 2
+        if not free(start) or (start and text[start - 1] == "\\"):
+            continue
+        end = start + 2
+        while (end := text.find("$$", end)) != -1:
+            if text[end - 1] != "\\":
+                break
+            end += 1
+        if end == -1:
+            continue
+        double_math.append((start, end + 2))
+        i = end + 2
+    spans += double_math
 
     # Pandoc's `tex_math_dollars`: `$` before a non-space opens, `$` after one closes unless a
     # digit follows.
@@ -166,6 +202,73 @@ def hard_break(line: str) -> bool:
     return line.endswith("  ") or line.endswith("\\")
 
 
+def html_block_end(lines: list[str], i: int, *, in_paragraph: bool = False) -> int | None:
+    """Exclusive end line of a CommonMark §4.6 HTML block starting at `lines[i]`, else None."""
+    line = lines[i]
+    stripped = line.lstrip(" ")
+    if len(line) - len(stripped) > 3 or not stripped.startswith("<"):
+        return None
+    if HTML_RAW_OPEN.match(line):  # Type 1: `<pre>`, `<script>`, `<style>`, `<textarea>`
+        close = next((k for k in range(i, len(lines)) if HTML_RAW_CLOSE.search(lines[k])),
+                     len(lines) - 1)
+        return close + 1
+    for prefix, closing in (("<!--", "-->"), ("<?", "?>"), ("<![CDATA[", "]]>")):  # Types 2, 3, 5
+        if stripped.startswith(prefix):
+            close = next((k for k in range(i, len(lines))
+                          if closing in (stripped[len(prefix):] if k == i else lines[k])),
+                         len(lines) - 1)
+            return close + 1
+    if HTML_DECL_OPEN.match(line):  # Type 4: `<!DOCTYPE ...>`
+        close = next((k for k in range(i, len(lines))
+                      if ">" in (stripped[2:] if k == i else lines[k])), len(lines) - 1)
+        return close + 1
+    if HTML_BLOCK_TAG.match(line) or (not in_paragraph and HTML_SINGLE_TAG.match(line)):
+        # Types 6 and 7 run until the next blank line.
+        return next((k for k in range(i + 1, len(lines)) if not lines[k].strip()), len(lines))
+    return None
+
+
+def display_math_end(lines: list[str], i: int) -> int | None:
+    """Exclusive end line of a `$$...$$` display-math block starting at `lines[i]`, else None."""
+    match = DISPLAY_MATH.match(lines[i])
+    if not match:
+        return None
+    rest = lines[i][match.end():]
+    if "$$" in rest:
+        return i + 1 if rest.count("$$") == 1 and rest.rstrip(" \t").endswith("$$") else None
+    close = next((k for k in range(i + 1, len(lines)) if "$$" in lines[k]), len(lines) - 1)
+    return close + 1
+
+
+def is_table_delimiter(line: str) -> bool:
+    """Whether `line` is a GFM pipe-table delimiter row (`| --- |` or `--- | ---`)."""
+    if len(line) - len(line.lstrip(" ")) > 3 or "|" not in line:
+        return False
+    stripped = line.strip()
+    cells = stripped.split("|")
+    if stripped.startswith("|"):
+        cells = cells[1:]
+    if stripped.endswith("|"):
+        cells = cells[:-1]
+    return bool(cells) and all(TABLE_CELL.fullmatch(cell) for cell in cells)
+
+
+def table_end(lines: list[str], i: int) -> int | None:
+    """Exclusive end line of a GFM pipe table starting at header `lines[i]`, else None."""
+    if i + 1 >= len(lines) or not is_table_delimiter(lines[i + 1]):
+        return None
+    header = lines[i]
+    if (not header.strip() or len(header) - len(header.lstrip(" ")) > 3 or "|" not in header
+            or FENCE.match(header) or SETEXT.match(header) or LIST_ITEM.fullmatch(header)):
+        return None
+    j = i + 2
+    while (j < len(lines) and lines[j].strip() and "|" in lines[j]
+           and not FENCE.match(lines[j]) and html_block_end(lines, j, in_paragraph=True) is None
+           and display_math_end(lines, j) is None):
+        j += 1
+    return j
+
+
 def _iter_blocks(lines: list[str]):
     """Yield `('blank', lines)`, `('opaque', lines)` or `('prose', (marker, lines))` in order."""
     i = 0
@@ -186,11 +289,10 @@ def _iter_blocks(lines: list[str]):
             yield ("opaque", lines[i:j + 1])
             i = j + 1
             continue
-        if line.lstrip(" ").startswith("<!--"):  # an HTML comment, kept up to its end
-            j = next((k for k in range(i, len(lines)) if "-->" in lines[k][4 * (k == i):]),
-                     len(lines))
-            yield ("opaque", lines[i:j + 1])
-            i = j + 1
+        if end := (html_block_end(lines, i) or display_math_end(lines, i)
+                   or table_end(lines, i)):
+            yield ("opaque", lines[i:end])
+            i = end
             continue
         if ((BLOCK_OPENER.match(line) and not item) or SETEXT.match(line)
                 or REFERENCE_DEF.match(line) or line[:1].isspace()):
@@ -202,6 +304,9 @@ def _iter_blocks(lines: list[str]):
         j = i + 1
         while (j < len(lines) and lines[j].strip() and not LIST_ITEM.fullmatch(lines[j])
                and not (not item and SETEXT.match(lines[j]))
+               and html_block_end(lines, j, in_paragraph=True) is None
+               and display_math_end(lines, j) is None
+               and table_end(lines, j) is None
                and not BLOCK_OPENER.match(lines[j])):
             j += 1
         if not item and j < len(lines) and SETEXT.match(lines[j]):
@@ -212,10 +317,14 @@ def _iter_blocks(lines: list[str]):
         block = lines[i:j]
         marker = item.group("marker") if item else ""
         indent = " " * len(marker)
-        # Kept as they are: a hard line break (which joining would remove), a Setext underline or
-        # nested list item inside a list item, and indentation other than that of an item's text.
+        # Kept as they are: a hard line break (which joining would remove), a Setext underline,
+        # nested list or embedded block inside a list item, and indentation other than `indent`.
         if any(hard_break(part) for part in block[:-1]) or any(
                 SETEXT.match(part.lstrip(" ")) or LIST_ITEM.fullmatch(part.lstrip(" "))
+                or (item and part.startswith(indent)
+                    and (BLOCK_OPENER.match(part[len(indent):])
+                         or DISPLAY_MATH.match(part[len(indent):])
+                         or is_table_delimiter(part[len(indent):])))
                 or (part[:1].isspace() and (not item or not part.startswith(indent)
                                             or part[len(indent):][:1].isspace()))
                 for part in block[1:]):
