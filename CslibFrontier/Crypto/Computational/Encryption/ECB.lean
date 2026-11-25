@@ -387,12 +387,6 @@ private theorem isOraclePPTOn_ecbChallenge {ℓ : ℕ → ℕ}
   have hn : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.1.1.1)
         ecbStateEnc encUnary := by fun_prop
-  have hc0 : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.2.1.1)
-        ecbStateEnc encBits := by fun_prop
-  have hc1 : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.2.1.2)
-        ecbStateEnc encBits := by fun_prop
   have hsel : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) =>
         if q.1.2 then q.2.1.2 else q.2.1.1) ecbStateEnc encBits := by fun_prop
@@ -425,7 +419,7 @@ private theorem isOraclePPTOn_ecbChallenge {ℓ : ℕ → ℕ}
     ((ComputableInPolyTime.const (encIn := ecbStateEnc) (encOut := encBool) false).beq
       (by fun_prop)).isOraclePPTOn
   unfold ecbChallenge
-  exact IsOraclePPTOn.cond (E.computableInPolyTime_ecbValid hℓ hn hc0 hc1)
+  exact IsOraclePPTOn.cond (E.computableInPolyTime_ecbValid hℓ hn (by fun_prop) (by fun_prop))
     (hreplies.bind_with hguess) hno
 
 /-- **Efficiency of the distinguisher.** For a polynomial-time block bound `ℓ` and every uniform

@@ -415,20 +415,10 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
   · rintro ⟨a₁, b₁, cE₁⟩ ⟨a₂, b₂, cE₂⟩ h
     simp only [Prod.mk.injEq] at h
     rcases h with ⟨hc, haI, hbI, hC⟩
-    have ha : a₁ = a₂ := by
-      ext j
-      by_cases hj : j ∈ I
-      · exact congrFun haI ⟨j, hj⟩
-      · have := congrFun hC ⟨j, Finset.mem_compl.mpr hj⟩
-        simp only [Finset.restrict, Prod.mk.injEq] at this
-        exact sub_right_inj.mp this.1
-    have hb : b₁ = b₂ := by
-      ext j
-      by_cases hj : j ∈ I
-      · exact congrFun hbI ⟨j, hj⟩
-      · have := congrFun hC ⟨j, Finset.mem_compl.mpr hj⟩
-        simp only [Finset.restrict, Prod.mk.injEq] at this
-        exact sub_right_inj.mp this.2
+    have ha : a₁ = a₂ := funext fun j => if hj : j ∈ I then congrFun haI ⟨j, hj⟩ else
+      sub_right_inj.mp (Prod.ext_iff.mp (congrFun hC ⟨j, Finset.mem_compl.mpr hj⟩)).1
+    have hb : b₁ = b₂ := funext fun j => if hj : j ∈ I then congrFun hbI ⟨j, hj⟩ else
+      sub_right_inj.mp (Prod.ext_iff.mp (congrFun hC ⟨j, Finset.mem_compl.mpr hj⟩)).2
     subst ha hb
     exact Prod.ext rfl (Prod.ext rfl (funext fun k => add_left_cancel (congrFun hc k)))
   · have hIcard : I.card + Iᶜ.card = m := by simp
@@ -519,13 +509,10 @@ noncomputable def tamperedOpeningReal (p : ℕ) [NeZero p] (x : ZMod p) : ProbCo
 @[simp] theorem eval_tamperedOpeningReal (p : ℕ) [NeZero p] (x : ZMod p) :
     ProbComp.eval (tamperedOpeningReal p x) = PMF.pure x := by
   simp only [tamperedOpeningReal, bind_pure_comp, ProbComp.eval_map]
-  calc (ProbComp.eval (beaverTripleFunctionality p 2 (fun _ => ()))).map _
-      = (ProbComp.eval (beaverTripleFunctionality p 2 (fun _ => ()))).map (fun _ => x) := by
-          refine PMF.map_congr_on_support _ _ _ fun t ht => ?_
-          have hc := sum_c_of_mem_support_beaverTripleFunctionality ht
-          simp only [Fin.sum_univ_two] at hc
-          exact tamperedOpeningExtract_eq x t hc
-    _ = PMF.pure x := PMF.map_const _ x
+  refine (PMF.map_congr_on_support _ _ (fun _ => x) fun t ht => ?_).trans (PMF.map_const _ x)
+  have hc := sum_c_of_mem_support_beaverTripleFunctionality ht
+  simp only [Fin.sum_univ_two] at hc
+  exact tamperedOpeningExtract_eq x t hc
 
 /-- Toy distinguishing test checking whether a candidate value equals `1 : ZMod p`. -/
 noncomputable def tamperedOpeningTestOne (p : ℕ) (prog : ProbComp (ZMod p)) : Game :=
@@ -620,9 +607,7 @@ theorem le_advantage_tamperedOpeningBitGame {p : ℕ} [NeZero p] (hp : 2 ≤ p)
     rw [Game.coe_succProbability]
     have htr := ENNReal.toReal_mono (by simp) hideal_le
     simpa [ENNReal.toReal_inv, ENNReal.toReal_ofNat, one_div] using htr
-  rw [hsucc_real]
-  have hcast : ((1 / 2 : ℝ≥0) : ℝ) = 1 / 2 := by norm_num
-  rw [hcast]
+  rw [hsucc_real, show ((1 / 2 : ℝ≥0) : ℝ) = 1 / 2 by norm_num]
   linarith [le_abs_self (1 - (Game.succProbability (tamperedOpeningIdealBitGame p blindGuess) : ℝ))]
 
 end Cslib.Crypto.Protocols.MPC.Beaver

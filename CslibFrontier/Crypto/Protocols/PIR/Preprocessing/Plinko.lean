@@ -1346,62 +1346,46 @@ theorem valid_updateHint_delta {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
     (updateHint iF ⟨u, d⟩ st).Valid iF (Function.update db u (d + db u)) where
   valid_regular j P p' hH := by
     dsimp only [updateHint] at hH ⊢
-    cases hHj : st.H j with
-    | none => simp [hHj] at hH
-    | some h =>
-      cases h with
-      | promoted _ _ _ => simp [hHj] at hH
-      | regular P₀ p =>
-        rw [hHj] at hH
-        simp only [Option.some.injEq, ActiveHint.regular.injEq] at hH
-        obtain ⟨rfl, rfl⟩ := hH
-        rw [hvalid.valid_regular j P₀ p hHj, blockParity_update_db_cand _ _ _ _ _ _ hcorr]
+    rcases hHj : st.H j with _ | ⟨P₀, p⟩ | _ <;>
+      simp only [hHj, reduceCtorEq, Option.some.injEq, ActiveHint.regular.injEq] at hH
+    obtain ⟨rfl, rfl⟩ := hH
+    rw [hvalid.valid_regular j P₀ p hHj, blockParity_update_db_cand _ _ _ _ _ _ hcorr]
   valid_promoted j P y p' hH := by
     dsimp only [updateHint] at hH ⊢
-    cases hHj : st.H j with
-    | none => simp [hHj] at hH
-    | some h =>
-      cases h with
-      | regular _ _ => simp [hHj] at hH
-      | promoted P₀ y₀ p =>
-        rw [hHj] at hH
-        simp only [Option.some.injEq, ActiveHint.promoted.injEq] at hH
-        obtain ⟨rfl, rfl, rfl⟩ := hH
-        obtain ⟨hyP, hp, hcache⟩ := hvalid.valid_promoted j P₀ y₀ p hHj
-        refine ⟨hyP, ?_, ?_⟩
-        · rw [hp, ← blockParity_update_db_cand db st.keys u d j P₀ hcorr]
-          by_cases hyu : y₀ = u <;>
-            by_cases hc : j ∈ iF.inv (st.keys u.1) u.2 ∧ u.1 ∈ P₀ <;>
-            simp [hyu, hc, add_assoc, add_left_comm]
-        · by_cases hyu : y₀ = u
-          · subst hyu; simp [hcache]
-          · simp [Function.update_of_ne hyu, hcache]
+    rcases hHj : st.H j with _ | _ | ⟨P₀, y₀, p⟩ <;>
+      simp only [hHj, reduceCtorEq, Option.some.injEq, ActiveHint.promoted.injEq] at hH
+    obtain ⟨rfl, rfl, rfl⟩ := hH
+    obtain ⟨hyP, hp, hcache⟩ := hvalid.valid_promoted j P₀ y₀ p hHj
+    refine ⟨hyP, ?_, ?_⟩
+    · rw [hp, ← blockParity_update_db_cand db st.keys u d j P₀ hcorr]
+      by_cases hyu : y₀ = u <;>
+        by_cases hc : j ∈ iF.inv (st.keys u.1) u.2 ∧ u.1 ∈ P₀ <;>
+        simp [hyu, hc, add_assoc, add_left_comm]
+    · by_cases hyu : y₀ = u
+      · subst hyu; simp [hcache]
+      · simp [Function.update_of_ne hyu, hcache]
   valid_backup j bk' hT := by
     dsimp only [updateHint] at hT ⊢
-    cases hTj : st.T j with
-    | none => simp [hTj] at hT
-    | some bk =>
-      rcases bk with ⟨B, p₁, p₂⟩
-      rw [hTj] at hT
-      simp only [Option.some.injEq] at hT
-      subst hT
-      obtain ⟨hin, hout, hHnone, hcache⟩ := hvalid.valid_backup j ⟨B, p₁, p₂⟩ hTj
-      dsimp only at hin hout
-      refine ⟨?_, ?_, by simp [hHnone], fun x => ?_⟩
-      · dsimp only
-        rw [hin, blockParity_update_db_cand _ _ _ _ _ _ hcorr]
-      · dsimp only
-        have hmem : (j ∈ iF.inv (st.keys u.1) u.2 ∧ u.1 ∈ Finset.univ \ B) ↔
-            (j ∈ iF.inv (st.keys u.1) u.2 ∧ u.1 ∉ B) := by simp
-        rw [hout, ← blockParity_update_db_cand db st.keys u d j (Finset.univ \ B) hcorr]
-        simp only [hmem]
-      · by_cases hxu : x = u
-        · subst hxu
-          have hmap : ((updateHint iF ⟨x, d⟩ st).cache x).map Prod.snd =
-              (st.cache x).map Prod.snd := by
-            dsimp only [updateHint]; rw [Function.update_self]; cases st.cache x <;> rfl
-          exact hmap ▸ hcache x
-        · simpa [Function.update_of_ne hxu] using hcache x
+    rcases hTj : st.T j with _ | ⟨B, p₁, p₂⟩ <;>
+      simp only [hTj, reduceCtorEq, Option.some.injEq] at hT
+    subst hT
+    obtain ⟨hin, hout, hHnone, hcache⟩ := hvalid.valid_backup j ⟨B, p₁, p₂⟩ hTj
+    dsimp only at hin hout
+    refine ⟨?_, ?_, by simp [hHnone], fun x => ?_⟩
+    · dsimp only
+      rw [hin, blockParity_update_db_cand _ _ _ _ _ _ hcorr]
+    · dsimp only
+      have hmem : (j ∈ iF.inv (st.keys u.1) u.2 ∧ u.1 ∈ Finset.univ \ B) ↔
+          (j ∈ iF.inv (st.keys u.1) u.2 ∧ u.1 ∉ B) := by simp
+      rw [hout, ← blockParity_update_db_cand db st.keys u d j (Finset.univ \ B) hcorr]
+      simp only [hmem]
+    · by_cases hxu : x = u
+      · subst hxu
+        have hmap : ((updateHint iF ⟨x, d⟩ st).cache x).map Prod.snd =
+            (st.cache x).map Prod.snd := by
+          dsimp only [updateHint]; rw [Function.update_self]; cases st.cache x <;> rfl
+        exact hmap ▸ hcache x
+      · simpa [Function.update_of_ne hxu] using hcache x
   valid_cache x a' j hC := by
     have hprom_upd (hprom : ∀ h, st.H j = some h → ∃ P p, h = .promoted P x p)
         (h' : ActiveHint c w) (hh' : (updateHint iF ⟨u, d⟩ st).H j = some h') :

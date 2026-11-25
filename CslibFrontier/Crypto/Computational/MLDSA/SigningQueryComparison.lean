@@ -565,16 +565,8 @@ theorem maskSeedGame_sq_sqrt_sub_le (C : QuantumSigningForger) (s : Level) (base
   simp only [maskSeedGame, maskSeedQueryHit, withMaskSeedOracles, Xofs.sampleSigningMaskSeeds,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
     ↓reduceIte]
-  apply gap_bind_le
-  intro t
-  apply gap_bind_le
-  intro seed
-  apply gap_bind_le
-  intro rows
-  apply gap_bind_le
-  intro T₁
-  apply gap_bind_le
-  intro T₂
-  exact setup_gap_le C s seed t _ hm score
+  exact gap_bind_le _ _ _ _ _ fun t => gap_bind_le _ _ _ _ _ fun seed => gap_bind_le _ _ _ _ _
+    fun _ => gap_bind_le _ _ _ _ _ fun _ => gap_bind_le _ _ _ _ _ fun _ =>
+      setup_gap_le C s seed t _ hm score
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

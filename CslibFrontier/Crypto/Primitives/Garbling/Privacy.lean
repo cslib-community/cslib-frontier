@@ -390,8 +390,7 @@ theorem isQueryBounded_reduction (C : Circuit σ n m) (I : Interpretation σ Boo
     (ProbOracleComp.isQueryBounded_tabulate (R := K × Bool) tw
       (Finset.univ : Finset (Slot C.topology)).toList).bind fun O =>
     ProbOracleComp.IsQueryBounded.sample (D (hybridView C I F tw x j key perm R O))
-  rw [Finset.length_toList, Finset.card_univ] at h
-  simp only [Nat.zero_add, Nat.add_zero] at h
+  simp only [Finset.length_toList, Finset.card_univ, Nat.zero_add, Nat.add_zero] at h
   exact h
 
 /-- Against a table `f`, the reduction samples hybrid view `j` with the table at the slots' tweaks
@@ -420,8 +419,7 @@ theorem hybridGame_zero (C : Circuit σ n m) (I : Interpretation σ Bool)
     · funext r
       rw [hybridView_realOracle_table, ite_eq_right]
       · rfl
-      · rintro ⟨k, -, hk⟩
-        exact Nat.not_lt_zero _ hk
+      · exact fun ⟨_, _, hk⟩ => Nat.not_lt_zero _ hk
     · rfl
     · rfl
   simp only [hybridGame, realGame, garble, hv, bind_assoc, pure_bind, ProbComp.eval_bind,
@@ -502,12 +500,11 @@ theorem eval_realExperiment_reduction (C : Circuit σ n m) (I : Interpretation �
       hybridGame C I F tw x D j := by
   by_cases hj : j < n + C.size
   swap
-  · have hle : n + C.size ≤ j := Nat.le_of_not_lt hj
-    simp only [PRF.realExperiment, hybridGame, ProbComp.eval_bind, ProbComp.eval_uniform,
+  · simp only [PRF.realExperiment, hybridGame, ProbComp.eval_bind, ProbComp.eval_uniform,
       eval_run_reduction]
     have hO : ∀ (a : K) key perm R, hybridView C I F tw x j key perm R (fun p => F a (tw p)) =
         hybridView C I F tw x j key perm R (realOracle C F tw key) := fun a key perm R =>
-      hybridView_eq_of_le C I F tw x hle key perm R _ _
+      hybridView_eq_of_le C I F tw x (Nat.le_of_not_lt hj) key perm R _ _
     simp only [hO]
     exact PMF.bind_const _ _
   let w : Wire n C.size := Wire.ofNat j hj
@@ -610,25 +607,16 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
       have hδ : ∀ k, δ (tw ⟨r, k⟩) = if First ⟨r, k⟩ then c r else 0 := by
         intro k
         simp only [δ]
-        rw [Finset.sum_eq_single ⟨r, k⟩]
-        · simp only [true_and]
-        · intro p _ hp
-          rw [ite_eq_right]
-          rintro ⟨hp', -⟩
-          exact hp (htw hp')
-        · intro hmem
-          exact absurd (Finset.mem_univ _) hmem
+        rw [Fintype.sum_eq_single ⟨r, k⟩ fun p hp => ite_eq_right fun h => hp (htw h.1)]
+        simp only [true_and]
       obtain ⟨k₁, hk₁, hlt₁⟩ := hr
-      have htk₁ : IsTarget a j r k₁ := by
-        refine ⟨hk₁, ?_⟩
-        by_contra hne
-        exact h ⟨k₁, hk₁, by omega⟩
+      have htk₁ : IsTarget a j r k₁ :=
+        ⟨hk₁, Classical.byContradiction fun _ => h ⟨k₁, hk₁, by omega⟩⟩
       let S := Finset.univ.filter fun k => IsTarget a j r k
       have hS : S.Nonempty := ⟨k₁, by simp [S, htk₁]⟩
       let k₀ := S.min' hS
-      have hk₀ : First ⟨r, k₀⟩ := by
-        refine ⟨(Finset.mem_filter.mp (S.min'_mem hS)).2, fun k hk => ?_⟩
-        exact S.min'_le k (by simp [S, hk])
+      have hk₀ : First ⟨r, k₀⟩ :=
+        ⟨(Finset.mem_filter.mp (S.min'_mem hS)).2, fun k hk => S.min'_le k (by simp [S, hk])⟩
       have hk₀u : ∀ k, First ⟨r, k⟩ → k = k₀ :=
         fun k hk => le_antisymm (hk.2 k₀ hk₀.1) (hk₀.2 k hk.1)
       have hsplit : (∑ k, if IsTarget a j r k then ω.1 (tw ⟨r, k⟩) + δ (tw ⟨r, k⟩) else
@@ -640,14 +628,12 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
         refine Finset.sum_congr rfl fun k _ => ?_
         split_ifs <;> simp
       have hδsum : (∑ k, if IsTarget a j r k then δ (tw ⟨r, k⟩) else 0) = c r := by
-        rw [Finset.sum_eq_single k₀]
+        rw [Fintype.sum_eq_single k₀]
         · rw [ite_eq_left hk₀.1, hδ, ite_eq_left hk₀]
-        · intro k _ hk
+        · intro k hk
           split_ifs
           · rw [hδ, ite_eq_right fun h2 => hk (hk₀u k h2)]
           · rfl
-        · intro hmem
-          exact absurd (Finset.mem_univ _) hmem
       rw [hsplit, hδsum, add_assoc]
   rw [uniformOfFintype_map_eq_of_shift (IsHidden a (j + 1)) z Tl houtL hshiftL,
     uniformOfFintype_map_eq_of_shift (IsHidden a (j + 1)) z Tr houtR hshiftR]

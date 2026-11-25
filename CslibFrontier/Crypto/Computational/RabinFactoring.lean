@@ -444,11 +444,9 @@ private theorem crtSqrt_sq_mod_eq {desc : BlumDesc} {a b x : ℕ}
   rw [hcrt_eq]
   rcases mul_eq_mul_primes_cases desc.hp desc.hq ha hb hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
   · have hmod := crt_combine_sq_modEq desc.hp desc.hq desc.hpq desc.hp3 desc.hq3 ⟨x, hy_mod⟩
-    rw [Nat.ModEq, Nat.mod_eq_of_lt hy_lt] at hmod
-    exact hmod
+    rwa [Nat.ModEq, Nat.mod_eq_of_lt hy_lt] at hmod
   · have hmod := crt_combine_sq_modEq desc.hq desc.hp desc.hpq.symm desc.hq3 desc.hp3 ⟨x, hy_mod⟩
-    rw [Nat.ModEq, mul_comm desc.q desc.p, Nat.mod_eq_of_lt hy_lt] at hmod
-    exact hmod
+    rwa [Nat.ModEq, mul_comm desc.q desc.p, Nat.mod_eq_of_lt hy_lt] at hmod
 
 /-- Success probability of `factoringGame gen F n` is at most that of
 `rabinInversionGame gen (factorToRabin F) n`. -/

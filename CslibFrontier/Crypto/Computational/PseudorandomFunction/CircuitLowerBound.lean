@@ -1153,12 +1153,10 @@ theorem PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two
       simp only [Function.comp_apply, F, w, BitString.ofList, single_apply, KabanetsCai.restriction,
         Nat.sub_self, List.replicate_zero, List.nil_append]
       cases family key (List.ofFn x) <;> rfl
-    rw [hfun, complexity_wiring w, Nat.add_zero] at hcomp
-    exact hcomp
+    rwa [hfun, complexity_wiring w, Nat.add_zero] at hcomp
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
-    (PMF.map_true_mono _ fun key _ hlt => by
-      rw [decide_eq_true_iff] at hlt ⊢
-      exact (hproj key).trans_lt hlt)
+    (PMF.map_true_mono _ fun key _ hlt =>
+      decide_eq_true ((hproj key).trans_lt (of_decide_eq_true hlt)))
 
 /-- For every `PseudorandomFunction family` and all sufficiently large `n`, there exists an `n`-bit
 key whose first-output-bit function has `B₂`-circuit complexity at least `2 * n - 2`. -/

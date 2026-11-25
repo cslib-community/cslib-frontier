@@ -319,9 +319,8 @@ theorem computableInPolyTime_encode_lagrangeCombine {α : Type} {input : α ↪ 
     have hmem : value ∈ words a :=
       hprefix.subset (List.mem_append_right _ (List.mem_singleton_self _))
     obtain ⟨s, -, rfl⟩ := List.mem_map.mp hmem
-    refine ⟨g + ((lagrangeWeightNat (F.order (d a)) ((words a).map Prod.fst) s.1 (x a) : ℕ) :
-      ZMod (F.order (d a))) • s.2, ?_⟩
-    simp only [F.smul_encode, F.add_encode]
+    exact ⟨g + ((lagrangeWeightNat (F.order (d a)) ((words a).map Prod.fst) s.1 (x a) : ℕ) :
+      ZMod (F.order (d a))) • s.2, by simp only [F.smul_encode, F.add_encode]⟩
   · rintro a _ _ _ ⟨g, rfl⟩
     simpa using hlen (d a) g
 

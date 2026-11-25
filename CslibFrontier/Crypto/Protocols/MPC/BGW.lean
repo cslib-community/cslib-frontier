@@ -156,9 +156,8 @@ theorem reconstruct_bgwMulStep_eq_mul (params : Params F Party)
       bgwMulStep params r₁ a r₂ b r_z =
         fun i => (Polynomial.sharingPolynomial (a * b)
           (Polynomial.tailPolynomial (2 * params.threshold)
-            (mulTailCoeffs a r₁ b r₂ + r_z))).eval (params.point i) := by
-    ext i
-    exact bgwMulStep_eq_eval_sharingPolynomial params r₁ a r₂ b r_z i
+            (mulTailCoeffs a r₁ b r₂ + r_z))).eval (params.point i) :=
+    funext (bgwMulStep_eq_eval_sharingPolynomial params r₁ a r₂ b r_z)
   rw [hcongr]
   refine Polynomial.reconstruct_sharingPolynomial_eq_secret params.point_injective ?_
   refine lt_of_lt_of_le
@@ -240,9 +239,8 @@ theorem reconstruct_bgwDegreeReduceShare_mul_eq_mul (params : Params F Party)
   have hcongr :
       (fun i : s => bgwDegreeReduceShare params
         (fun j k => share params (r_sub j) (share params r₁ a j * share params r₂ b j) k) i) =
-      fun i : s => share params (bgwReducedRandomness params r_sub) (a * b) i := by
-    ext i
-    exact bgwDegreeReduceShare_mul_eq_share params h2t r₁ r₂ a b r_sub i
+      fun i : s => share params (bgwReducedRandomness params r_sub) (a * b) i :=
+    funext fun i => bgwDegreeReduceShare_mul_eq_share params h2t r₁ r₂ a b r_sub i
   rw [hcongr]
   exact reconstruct_share_eq_secret params (bgwReducedRandomness params r_sub) (a * b) hs
 
@@ -478,9 +476,7 @@ theorem map_restrict_evalWith_bgwDegreeReductionProtocol {m : ℕ} (params : Par
   by_cases hs : s ∈ I
   · simp [hs]
   · simp only [hs, ↓reduceDIte, Pi.add_apply]
-    have hadd := share_add params 0 (r s) ((uv s).1 * (uv s).2) 0 i
-    rw [zero_add, add_zero, share_zero_randomness] at hadd
-    exact hadd
+    rw [add_comm, ← share_add_const, zero_add]
 
 /-! ### 3. 2-round synchronous $m$-party BGW sum protocol and full joint $t$-privacy -/
 
@@ -563,9 +559,8 @@ theorem output_bgwSumProtocol {m : ℕ} (params : Params F (Fin m)) (x : Fin m �
   dsimp only
   have hY :
       (fun k : Fin m => ∑ s : Fin m, share params (r s) (x s) k) =
-        fun k : Fin m => share params (∑ s : Fin m, r s) (∑ s : Fin m, x s) k := by
-    ext k
-    exact (share_sum Finset.univ params r x k).symm
+        fun k : Fin m => share params (∑ s : Fin m, r s) (∑ s : Fin m, x s) k :=
+    funext fun k => (share_sum Finset.univ params r x k).symm
   rw [hY]
   exact Polynomial.reconstruct_share_eq_secret params (∑ s : Fin m, r s) (∑ s : Fin m, x s)
 
@@ -624,15 +619,9 @@ theorem perfectSemiHonestPrivateLe_bgwSum {m : ℕ} (params : Params F (Fin m)) 
     (bgwSumProtocol params) noOracleWorld (fun x _ => ∑ j : Fin m, x j) (bgwSumSim params)
     (fun I hI x => ?_) (fun x res hres => output_bgwSumProtocol params x hres)
   have hex : ∃ j₀ : Fin m, j₀ ∉ I := by
-    by_contra h
-    have huniv : I = Finset.univ := by
-      ext i
-      simp only [Finset.mem_univ, iff_true]
-      by_contra hi
-      exact h ⟨i, hi⟩
-    have hcard : I.card = m := by rw [huniv, Finset.card_univ, Fintype.card_fin]
-    have hlt : params.threshold < m := by simpa [Fintype.card_fin] using params.threshold_lt_card
-    omega
+    by_contra! h
+    exact (I.card_lt_iff_ne_univ.mp (hI.trans_lt params.threshold_lt_card))
+      (Finset.eq_univ_of_forall h)
   by_cases hne : I.Nonempty
   · rw [evalWith_bgwSumProtocol, PMF.map_comp]
     simp only [bgwSumSim, hex, hne, ↓reduceDIte, bind_pure_comp, ProbComp.eval_map,
@@ -659,9 +648,8 @@ theorem perfectSemiHonestPrivateLe_bgwSum {m : ℕ} (params : Params F (Fin m)) 
     refine congrArg (PMF.map · _) (funext fun r => funext fun ⟨i, hi⟩ => ?_)
     have hY :
         (fun k : Fin m => share params (∑ s : Fin m, r s) (∑ j : Fin m, x j) k) =
-          fun k : Fin m => ∑ s : Fin m, share params (r s) (x s) k := by
-      ext k
-      exact share_sum Finset.univ params r x k
+          fun k : Fin m => ∑ s : Fin m, share params (r s) (x s) k :=
+      funext fun k => share_sum Finset.univ params r x k
     simp only [Function.comp_def, shift, bgwSumCoinsHom, AddMonoidHom.coe_mk, ZeroHom.coe_mk,
       Finset.restrict, Equiv.prodCongr_apply, Equiv.refl_apply, Prod.map_fst, Prod.map_snd,
       Equiv.coe_addLeft]
@@ -688,9 +676,7 @@ theorem perfectSemiHonestPrivateLe_bgwSum {m : ℕ} (params : Params F (Fin m)) 
       · have hsH : s' ∈ H' :=
           Finset.mem_erase.mpr ⟨hne', Finset.mem_compl.mpr hsI⟩
         simp only [hsI, ↓reduceDIte, hsH]
-        have hadd := share_add params 0 (r s') (x s') 0 i
-        rw [zero_add, add_zero, share_zero_randomness] at hadd
-        exact hadd.symm
+        rw [add_comm, ← share_add_const, zero_add]
     by_cases hs0 : s = j₀
     · simp only [hs0, ↓reduceIte]
       rw [share_sum Finset.univ params r x i,
@@ -704,10 +690,8 @@ theorem perfectSemiHonestPrivateLe_bgwSum {m : ℕ} (params : Params F (Fin m)) 
     have hconst :
         (fun r : ((i : Fin m) → PartyView (fun _ => F) (fun _ => Randomness params)
             (bgwSumSchedule m F) i) × (Fin m → F) => I.restrict r.1) =
-          Function.const _ (fun i : I => (hne ⟨i.1, i.2⟩).elim) := by
-      funext r
-      funext i
-      exact (hne ⟨i.1, i.2⟩).elim
+          Function.const _ (fun i : I => (hne ⟨i.1, i.2⟩).elim) :=
+      funext fun _ => funext fun i => (hne ⟨i.1, i.2⟩).elim
     rw [hconst, PMF.map_const]
 
 end Cslib.Crypto.Protocols.MPC.BGW

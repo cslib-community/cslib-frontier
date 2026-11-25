@@ -413,25 +413,10 @@ theorem advantage_kdfGame_linearHashKDF_le (setup : ℕ → PMF F.Desc)
     simp [BitString]
   have hord_le : (F.order d : ℝ)⁻¹ ≤ (qMin : ℝ)⁻¹ :=
     inv_anti₀ (by exact_mod_cast hq0) (by exact_mod_cast hq d hd)
-  calc dist
-        ((seededHash (PMF.uniformOfFintype (BitString (m * W))) source
-          (fun seed =>
-            Cslib.BitString.LinearHash.hash
-              (Cslib.BitString.blocksEquiv (m := m) (k := W) seed))).bind test)
-        (((PMF.uniformOfFintype (BitString (m * W))).bind fun seed =>
-          (PMF.uniformOfFintype (BitString m)).map (seed, ·)).bind test)
-      ≤ dist
-          (seededHash (PMF.uniformOfFintype (BitString (m * W))) source
-            (fun seed =>
-              Cslib.BitString.LinearHash.hash
-                (Cslib.BitString.blocksEquiv (m := m) (k := W) seed)))
-          ((PMF.uniformOfFintype (BitString (m * W))).bind fun seed =>
-            (PMF.uniformOfFintype (BitString m)).map (seed, ·)) :=
-        dist_bind_le _ _ _
-    _ ≤ Real.sqrt (Fintype.card (BitString m) * collisionProbability source) / 2 := hlhl
-    _ = Real.sqrt ((2 : ℝ) ^ m * (F.order d : ℝ)⁻¹) / 2 := by rw [hcard, hcoll]
-    _ ≤ Real.sqrt ((2 : ℝ) ^ m * (qMin : ℝ)⁻¹) / 2 := by
-        gcongr
+  refine (dist_bind_le _ _ _).trans (hlhl.trans ?_)
+  rw [hcard, hcoll]
+  calc Real.sqrt ((2 : ℝ) ^ m * (F.order d : ℝ)⁻¹) / 2
+      ≤ Real.sqrt ((2 : ℝ) ^ m * (qMin : ℝ)⁻¹) / 2 := by gcongr
     _ = ↑(NNReal.sqrt ((2 : ℝ≥0) ^ m / (qMin : ℝ≥0)) / 2) := by
         push_cast
         rw [← div_eq_mul_inv]

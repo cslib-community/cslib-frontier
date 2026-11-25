@@ -294,12 +294,8 @@ theorem computableInPolyTime_lsbQueries {α : Type} {enc : α ↪ List Bool} {N 
       (encPair enc encUnary) encNat := by
     have hk : ComputableInPolyTime (fun p : α × ℕ => p.2) (encPair enc encUnary) encNat :=
       ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd enc encUnary)
-    have hexp : ComputableInPolyTime (fun p : α × ℕ => (p.2 + 1) * e p.1)
-        (encPair enc encUnary) encNat :=
-      ComputableInPolyTime.binary_mul'
-        (ComputableInPolyTime.binary_add' hk (ComputableInPolyTime.const 1))
-        (he.comp (ComputableInPolyTime.fst enc encUnary))
-    exact ComputableInPolyTime.binary_powMod (ComputableInPolyTime.const 2) hexp
+    exact ComputableInPolyTime.binary_powMod (ComputableInPolyTime.const 2)
+      (.binary_mul' (.binary_add' hk (.const 1)) (he.comp (.fst enc encUnary)))
       (hN.comp (ComputableInPolyTime.fst enc encUnary)) (fun p => hpos p.1)
   have hstep : ComputableInPolyTime
       (fun p : α × ℕ => 2 ^ ((p.2 + 1) * e p.1) * y p.1 % N p.1)
@@ -325,12 +321,7 @@ theorem computableInPolyTime_lsbRecover {α : Type} {enc : α ↪ List Bool}
     ComputableInPolyTime.bitsBinaryValue.comp (ComputableInPolyTime.listToBits.comp hbits)
   have hpow : ComputableInPolyTime (fun a => 2 ^ m a) enc encNat :=
     ComputableInPolyTime.binary_two_pow.comp hm
-  have hnum : ComputableInPolyTime (fun a => BitString.binaryValue (bits a) * N a + 2 ^ m a - 1)
-      enc encNat :=
-    ComputableInPolyTime.binary_sub'
-      (ComputableInPolyTime.binary_add' (ComputableInPolyTime.binary_mul' hval hN) hpow)
-      (ComputableInPolyTime.const 1)
-  exact ComputableInPolyTime.binary_div' hnum hpow
+  exact .binary_div' (.binary_sub' (.binary_add' (.binary_mul' hval hN) hpow) (.const 1)) hpow
 
 /-- `lsbInverter P` runs in uniform strict polynomial time whenever the predictor `P` is PPT. -/
 theorem isPPT_lsbInverter {P : RSAPredictor} (hP : P.IsPPT) : (lsbInverter P).IsPPT := by

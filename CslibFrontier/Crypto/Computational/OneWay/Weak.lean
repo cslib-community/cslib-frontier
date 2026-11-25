@@ -410,7 +410,6 @@ private theorem isPPT_familyInverter {m : ℕ → ℕ} {core : ℕ → List Bool
   apply IsPPTOn.isPPT
   let E1 := encPair encUnary encBits
   let E2 := encPair E1 encBits
-  let E3 := encPair E2 encUnary
   have hwrap : ComputableInPolyTime
       (fun p : ℕ × List Bool => wrappedImage p.1 p.2) E1 encBits :=
     ComputableInPolyTime.of_enc_eq ComputableInPolyTime.id' fun _ => rfl
@@ -424,32 +423,9 @@ private theorem isPPT_familyInverter {m : ℕ → ℕ} {core : ℕ → List Bool
   have htry : ComputableInPolyTime
       (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
         decide (tryLength m core evaluate q.1.1.1 q.1.1.2 q.1.2 q.2 = true))
-      E3 encBool := by
+      (encPair E2 encUnary) encBool := by
     simp only [tryLength]
-    have hn : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.1.1.1)
-        E3 encUnary := (ComputableInPolyTime.fst _ _).fst'.fst'
-    have hy : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.1.1.2)
-        E3 encBits := (ComputableInPolyTime.fst _ _).fst'.snd'
-    have hcoins : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.1.2)
-        E3 encBits := (ComputableInPolyTime.fst _ _).snd'
-    have hM : ComputableInPolyTime (fun q : ((ℕ × List Bool) × List Bool) × ℕ => q.2)
-        E3 encUnary := ComputableInPolyTime.snd _ _
-    have hw : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ => wrappedImage q.1.1.1 q.1.1.2)
-        E3 encBits := hwrap.comp (ComputableInPolyTime.fst _ _).fst'
-    have hev : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
-          evaluate (q.2, wrappedImage q.1.1.1 q.1.1.2) q.1.2)
-        E3 encBits := heval.comp ((hM.prod hw).prod hcoins)
-    have htk : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
-          (evaluate (q.2, wrappedImage q.1.1.1 q.1.1.2) q.1.2).take (m q.1.1.1))
-        E3 encBits := ComputableInPolyTime.bitsTakeWithInput hev (hm.comp hn)
-    have hcr : ComputableInPolyTime
-        (fun q : ((ℕ × List Bool) × List Bool) × ℕ =>
-          core q.1.1.1 ((evaluate (q.2, wrappedImage q.1.1.1 q.1.1.2) q.1.2).take (m q.1.1.1)))
-        E3 encBits := hcore.comp (hn.prod htk)
-    exact hcr.beq hy
+    fun_prop
   have hbest : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool =>
         bestLength m core evaluate p.1.1 p.1.2 p.2) E2 encUnary :=

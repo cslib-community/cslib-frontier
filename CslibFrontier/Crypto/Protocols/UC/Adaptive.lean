@@ -639,8 +639,7 @@ private theorem isQueryBounded_liftStaticNetProgram {α : Type}
   refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
   rcases q with k | (⟨i, x⟩ | nq)
   · exact OracleComp.IsCostBounded.query _
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+  all_goals exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
 
 /-- Lifting a static adversary preserves its call budget. -/
 theorem Adversary.PolyBounded.ofStatic
@@ -763,12 +762,7 @@ private theorem runFrom_adaptiveRouter_liftAdaptiveNet_static_eq_adaptive {α β
   let Inv : AdaptiveNetQ n In NetQ → Prop := fun q => match q with
     | .corrupt i => i ∈ C₀ | _ => True
   have hno' : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) netProg :=
-    hno.mono fun q hq => by
-      rcases q with k | (⟨i, x⟩ | i | nq)
-      · trivial
-      · trivial
-      · exact hq
-      · trivial
+    hno.mono fun q hq => by rcases q with k | (⟨i, x⟩ | i | nq) <;> exact hq
   refine Machine.runFrom_interpret_intertwine
     (adaptiveRouter .static P κ C₀) (adaptiveRouter .adaptive P κ C₀)
     (fun q => ProbOracleComp.query (spec := adaptiveProtocolSpec n In Out NetQ NetR View) (.inr q))

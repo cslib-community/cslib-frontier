@@ -126,32 +126,12 @@ theorem mem_support_deal211 {a : Fin 4 × Fin 4} {b : Fin 4} :
     · rw [← hb, ← ha2]
       exact ρ.injective.ne (by decide)
   · rintro ⟨h01, hb0, hb1⟩
-    have hrem : ∃ c : Fin 4, c ≠ a.1 ∧ c ≠ a.2 ∧ c ≠ b := by
-      have hcard : (({a.1, a.2, b} : Finset (Fin 4)).card) ≤ 3 := by
-        calc ({a.1, a.2, b} : Finset (Fin 4)).card
-            ≤ ({a.2, b} : Finset (Fin 4)).card + 1 := Finset.card_insert_le _ _
-          _ ≤ ({b} : Finset (Fin 4)).card + 1 + 1 :=
-              Nat.add_le_add_right (Finset.card_insert_le _ _) 1
-          _ = 3 := by simp only [Finset.card_singleton]
-      have hne : (Finset.univ \ ({a.1, a.2, b} : Finset (Fin 4))).Nonempty := by
-        rw [← Finset.card_pos, Finset.card_sdiff, Finset.inter_univ, Finset.card_univ,
-          Fintype.card_fin]
-        omega
-      obtain ⟨c, hc⟩ := hne
-      rw [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_insert, Finset.mem_singleton] at hc
-      exact ⟨c, fun h => hc.2 (Or.inl h), fun h => hc.2 (Or.inr (Or.inl h)),
-        fun h => hc.2 (Or.inr (Or.inr h))⟩
-    obtain ⟨c, hc0, hc1, hcb⟩ := hrem
+    obtain ⟨c, hc0, hc1, hcb⟩ :=
+      (by decide : ∀ x y z : Fin 4, ∃ c : Fin 4, c ≠ x ∧ c ≠ y ∧ c ≠ z) a.1 a.2 b
     let f : Fin 4 → Fin 4 := ![a.1, a.2, b, c]
     have hinj : Function.Injective f := by
       intro i j hij
-      fin_cases i <;> fin_cases j <;> dsimp only [f] at hij <;>
-        first | rfl | exact False.elim (h01 hij) | exact False.elim (hb0 hij.symm) |
-          exact False.elim (hb1 hij.symm) | exact False.elim (hc0 hij.symm) |
-          exact False.elim (hc1 hij.symm) | exact False.elim (hcb hij.symm) |
-          exact False.elim (h01 hij.symm) | exact False.elim (hb0 hij) |
-          exact False.elim (hb1 hij) | exact False.elim (hc0 hij) |
-          exact False.elim (hc1 hij) | exact False.elim (hcb hij)
+      fin_cases i <;> fin_cases j <;> simp_all [f]
     let ρ : Equiv.Perm (Fin 4) :=
       Equiv.ofBijective f ((Fintype.bijective_iff_injective_and_card f).mpr ⟨hinj, rfl⟩)
     have hρsupp : ρ ∈ (PMF.uniformOfFintype (Equiv.Perm (Fin 4))).support := by
@@ -208,22 +188,26 @@ private theorem deal211_const_on_unseen (a : Fin 4 × Fin 4)
     _ = deal211 (g.symm (a, b₁)) := map_equiv_apply deal211 g (a, b₁)
     _ = deal211 (a, b₀) := by rw [hsymm]
 
+private theorem entropy_uniform_fin4 : entropy (PMF.uniformOfFintype (Fin 4)) = 2 := by
+  rw [entropy_uniform, Fintype.card_fin]
+  have h4 : ((4 : ℕ) : ℝ) = (2 : ℝ) ^ (2 : ℕ) := by norm_num
+  rw [h4, Real.logb_two_pow]
+  norm_num
+
+private theorem deal211_eq_zero {a : Fin 4 × Fin 4} {b : Fin 4}
+    (hb : b ∉ unseenOrdered a) : deal211 (a, b) = 0 := by
+  by_contra hne0
+  obtain ⟨_, hb1, hb2⟩ := mem_support_deal211.mp hne0
+  exact hb (Finset.mem_erase.mpr ⟨hb2, Finset.mem_erase.mpr ⟨hb1, Finset.mem_univ _⟩⟩)
+
 /-- The mutual information of the ordered `(2, 1; 1)` deal source `deal211` is exactly `1` bit. -/
 theorem mutualInfo_deal211 : mutualInfo deal211 = 1 := by
-  have hsnd : entropy (deal211.map Prod.snd) = 2 := by
-    rw [deal211_map_snd, entropy_uniform, Fintype.card_fin]
-    have h4 : ((4 : ℕ) : ℝ) = (2 : ℝ) ^ (2 : ℕ) := by norm_num
-    rw [h4, Real.logb_two_pow]
-    norm_num
   have hres := mutualInfo_eq_entropy_map_snd_sub_logb_of_const_fiber deal211 unseenOrdered 2
     (by norm_num) (fun a ha => unseenOrdered_card (deal211_fst_ne ha))
-    (fun a _ b hb => by
-      by_contra hne0
-      have hsupp : (a, b) ∈ deal211.support := hne0
-      obtain ⟨_, hb1, hb2⟩ := mem_support_deal211.mp hsupp
-      exact hb (Finset.mem_erase.mpr ⟨hb2, Finset.mem_erase.mpr ⟨hb1, Finset.mem_univ _⟩⟩))
+    (fun a _ b hb => deal211_eq_zero hb)
     (fun a _ b₀ hb₀ b₁ hb₁ => deal211_const_on_unseen a hb₀ hb₁)
-  rw [hres, hsnd, Nat.cast_ofNat, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)]
+  rw [hres, deal211_map_snd, entropy_uniform_fin4, Nat.cast_ofNat,
+    Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)]
   norm_num
 
 /-- Any protocol realizing `k` independent random OTs with perfect semi-honest privacy over
@@ -322,23 +306,13 @@ theorem mem_support_deal211Unordered {s : {s : Finset (Fin 4) // s.card = 2}} {b
     · exact (ρ.injective.ne (by decide : (2 : Fin 4) ≠ 1)) h
   · intro hb
     obtain ⟨a₀, a₁, ha_ne, hs_eq⟩ := Finset.card_eq_two.mp s.2
-    have hba0 : b ≠ a₀ := by
-      intro h
-      rw [hs_eq, h] at hb
-      exact hb (Finset.mem_insert_self _ _)
-    have hba1 : b ≠ a₁ := by
-      intro h
-      rw [hs_eq, h] at hb
-      exact hb (Finset.mem_insert_of_mem (Finset.mem_singleton_self _))
-    have hsupp : ((a₀, a₁), b) ∈ deal211.support := mem_support_deal211.mpr ⟨ha_ne, hba0, hba1⟩
+    simp only [hs_eq, Finset.mem_insert, Finset.mem_singleton, not_or] at hb
+    have hsupp : ((a₀, a₁), b) ∈ deal211.support := mem_support_deal211.mpr ⟨ha_ne, hb⟩
     rw [deal211, PMF.mem_support_map_iff] at hsupp
     obtain ⟨ρ, hρsupp, hρ⟩ := hsupp
-    have ha0 : ρ 0 = a₀ := congrArg (fun p => p.1.1) hρ
-    have ha1 : ρ 1 = a₁ := congrArg (fun p => p.1.2) hρ
-    have hb_eq : ρ 2 = b := congrArg Prod.snd hρ
-    refine ⟨ρ, hρsupp, Prod.ext (Subtype.ext ?_) hb_eq⟩
-    dsimp only
-    rw [ha0, ha1, hs_eq]
+    simp only [Prod.mk.injEq] at hρ
+    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hρ
+    exact ⟨ρ, hρsupp, Prod.ext (Subtype.ext hs_eq.symm) rfl⟩
 
 /-- Bob's marginal in `deal211Unordered` is uniform over `Fin 4`. -/
 theorem deal211Unordered_map_snd :
@@ -362,23 +336,11 @@ private theorem deal211Unordered_const_on_unseen (s : {s : Finset (Fin 4) // s.c
   dsimp only [unseenUnordered] at hb₀ hb₁
   rw [Finset.mem_sdiff] at hb₀ hb₁
   let σ := Equiv.swap b₀ b₁
-  have hσσ : ∀ z : Fin 4, σ (σ z) = z := fun z => by
-    have h : σ.symm = σ := Equiv.symm_swap b₀ b₁
-    conv_lhs => arg 1; rw [← h]
-    exact σ.symm_apply_apply z
+  have hσσ : ∀ z : Fin 4, σ (σ z) = z := Equiv.swap_apply_self b₀ b₁
   let mapSet : {t : Finset (Fin 4) // t.card = 2} → {t : Finset (Fin 4) // t.card = 2} :=
     fun t => ⟨t.1.map σ.toEmbedding, by rw [Finset.card_map, t.2]⟩
-  have hinv_set : Function.LeftInverse mapSet mapSet := by
-    intro t
-    apply Subtype.ext
-    ext x
-    simp only [mapSet, Finset.mem_map, Equiv.coe_toEmbedding]
-    constructor
-    · rintro ⟨y, ⟨z, hz, hy⟩, hx⟩
-      rw [← hy, hσσ] at hx
-      exact hx ▸ hz
-    · intro hx
-      exact ⟨σ x, ⟨x, hx, rfl⟩, hσσ x⟩
+  have hinv_set : Function.LeftInverse mapSet mapSet := fun t =>
+    Subtype.ext <| Finset.ext fun x => by simp [mapSet, σ]
   let g : ({t : Finset (Fin 4) // t.card = 2} × Fin 4) ≃
       ({t : Finset (Fin 4) // t.card = 2} × Fin 4) :=
     { toFun := fun p => (mapSet p.1, σ p.2)
@@ -421,11 +383,6 @@ private theorem deal211Unordered_const_on_unseen (s : {s : Finset (Fin 4) // s.c
 /-- The mutual information of the unordered `(2, 1; 1)` deal source `deal211Unordered` is
 `1` bit. -/
 theorem mutualInfo_deal211Unordered : mutualInfo deal211Unordered = 1 := by
-  have hsnd : entropy (deal211Unordered.map Prod.snd) = 2 := by
-    rw [deal211Unordered_map_snd, entropy_uniform, Fintype.card_fin]
-    have h4 : ((4 : ℕ) : ℝ) = (2 : ℝ) ^ (2 : ℕ) := by norm_num
-    rw [h4, Real.logb_two_pow]
-    norm_num
   have hres := mutualInfo_eq_entropy_map_snd_sub_logb_of_const_fiber
     deal211Unordered unseenUnordered 2 (by norm_num) (fun s _ => unseenUnordered_card s)
     (fun s _ b hb => by
@@ -433,7 +390,8 @@ theorem mutualInfo_deal211Unordered : mutualInfo deal211Unordered = 1 := by
       have hsupp : (s, b) ∈ deal211Unordered.support := hne0
       exact hb (Finset.mem_sdiff.mpr ⟨Finset.mem_univ _, mem_support_deal211Unordered.mp hsupp⟩))
     (fun s _ b₀ hb₀ b₁ hb₁ => deal211Unordered_const_on_unseen s hb₀ hb₁)
-  rw [hres, hsnd, Nat.cast_ofNat, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)]
+  rw [hres, deal211Unordered_map_snd, entropy_uniform_fin4, Nat.cast_ofNat,
+    Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)]
   norm_num
 
 /-- Any protocol realizing `k` independent random OTs with perfect semi-honest privacy over
@@ -530,12 +488,8 @@ theorem mutualInfo_deal211Batch (m : ℕ) : mutualInfo (deal211Batch m) = m := b
     dsimp only [unseenB] at hbs
     rw [Fintype.mem_piFinset, not_forall] at hbs
     obtain ⟨i, hi⟩ := hbs
-    have hdi : deal211 (as i, bs i) = 0 := by
-      by_contra hne0
-      obtain ⟨_, hb1, hb2⟩ := mem_support_deal211.mp hne0
-      exact hi (Finset.mem_erase.mpr ⟨hb2, Finset.mem_erase.mpr ⟨hb1, Finset.mem_univ _⟩⟩)
     rw [deal211Batch_apply]
-    exact Finset.prod_eq_zero (Finset.mem_univ i) hdi
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (deal211_eq_zero hi)
   have hconst : ∀ as ∈ ((deal211Batch m).map Prod.fst).support,
       ∀ bs₀ ∈ unseenB as, ∀ bs₁ ∈ unseenB as,
         deal211Batch m (as, bs₁) = deal211Batch m (as, bs₀) := by

@@ -141,13 +141,9 @@ theorem natAbs_valMinAbs_decompress_compress_sub_le {q : ℕ} [NeZero q] (d : �
         ((-(t : ℤ) : ℤ) : ZMod q) = decompress q d (compress q d x) - x) by
     obtain ⟨t, ht, hz⟩ := h
     refine le_trans ?_ (hdiv t ht)
-    rcases hz with hz | hz
-    · refine le_trans (ZMod.natAbs_min_of_le_div_two q _ (t : ℤ) ?_
+    rcases hz with hz | hz <;>
+      exact le_trans (ZMod.natAbs_min_of_le_div_two q _ _ ((ZMod.coe_valMinAbs _).trans hz.symm)
         (ZMod.natAbs_valMinAbs_le _)) (by simp)
-      rw [ZMod.coe_valMinAbs, hz]
-    · refine le_trans (ZMod.natAbs_min_of_le_div_two q _ (-(t : ℤ)) ?_
-        (ZMod.natAbs_valMinAbs_le _)) (by simp)
-      rw [ZMod.coe_valMinAbs, hz]
   obtain ⟨h₁, h₂⟩ := roundDiv_spec (a := 2 ^ d * x.val) hq
   set c := roundDiv (2 ^ d * x.val) q with hc
   have hv1 : 2 ^ d * (x.val + 1) ≤ 2 ^ d * q := Nat.mul_le_mul_left _ hvq
@@ -158,9 +154,7 @@ theorem natAbs_valMinAbs_decompress_compress_sub_le {q : ℕ} [NeZero q] (d : �
   have hxv : (x.val : ZMod q) = x := ZMod.natCast_zmod_val x
   rcases Nat.lt_or_ge c (2 ^ d) with hlt | hge
   · -- No wrap-around: the compressed value is `c` itself.
-    have hcval : (compress q d x).val = c := by
-      change ((c : ℕ) : ZMod (2 ^ d)).val = c
-      exact ZMod.val_natCast_of_lt hlt
+    have hcval : (compress q d x).val = c := ZMod.val_natCast_of_lt hlt
     obtain ⟨h₃, h₄⟩ := roundDiv_spec (a := q * c) ha
     set x' := roundDiv (q * c) (2 ^ d) with hx'
     have hdec : decompress q d (compress q d x) = (x' : ZMod q) := by
@@ -185,9 +179,7 @@ theorem natAbs_valMinAbs_decompress_compress_sub_le {q : ℕ} [NeZero q] (d : �
     have hdec : decompress q d (compress q d x) = 0 := by
       unfold decompress
       rw [hcval, Nat.mul_zero]
-      have h0 : roundDiv 0 (2 ^ d) = 0 := by
-        unfold roundDiv
-        exact Nat.div_eq_of_lt (by omega)
+      have h0 : roundDiv 0 (2 ^ d) = 0 := Nat.div_eq_of_lt (by omega)
       rw [h0, Nat.cast_zero]
     refine ⟨q - x.val, ?_, Or.inl ?_⟩
     · have e : 2 * 2 ^ d * (q - x.val) + 2 * 2 ^ d * x.val = 2 * 2 ^ d * q := by
