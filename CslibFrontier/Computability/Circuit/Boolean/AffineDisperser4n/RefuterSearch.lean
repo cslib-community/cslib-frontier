@@ -473,12 +473,8 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           exact affineIn_param hup
         · simp only [hup, decide_false, Bool.false_eq_true, ite_false] at hpair
           have hg : S.gates = ∅ := by simpa [hup] using hcase
-          have hu_aux : u ∈ S.aux := by
-            have := hS.wf.out_live u hu
-            simpa [live, hup, hg] using this
-          have := hrep u hu_aux
-          rw [hpair] at this
-          exact this
+          have hu_aux : u ∈ S.aux := by simpa [live, hup, hg] using hS.wf.out_live u hu
+          simpa only [hpair] using hrep u hu_aux
       dsimp only
       split
       · rename_i pivot hpiv
@@ -535,19 +531,16 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           rintro ⟨pr', hpr', heq⟩
           by_cases hsame : pr' = pr
           · exact hpr_ne (hsame ▸ heq)
-          · have hdisj := hS.pairs_disjoint pr' hpr' pr hprm hsame
-            exact hdisj.2.1 heq⟩
+          · exact (hS.pairs_disjoint pr' hpr' pr hprm hsame).2.1 heq⟩
         set L := ((freeParams S).filter (fun x => decide (x ≠ pr.snd))).take d
         obtain ⟨hLp, hLne⟩ := filter_ne_take_props hS hsndF ha
         have hL_not_pr : ∀ x ∈ L, x ≠ p ∧ x ≠ pr.partner p := fun x hx => by
           have hxF := hLp.2.1 x hx
           have hx_ne_fst : x ≠ pr.fst := (fst_ne_of_mem_freeParams hS hxF hprm).symm
           have hx_ne_snd : x ≠ pr.snd := hLne x hx
-          have hp_or : p = pr.fst ∨ p = pr.snd := by
-            rcases hprp with h | h <;> [exact Or.inl h.symm; exact Or.inr h.symm]
-          have hr_or : pr.partner p = pr.fst ∨ pr.partner p = pr.snd := by
-            rcases pr.contains_partner hprp with h | h <;>
-              [exact Or.inl h.symm; exact Or.inr h.symm]
+          have hp_or : p = pr.fst ∨ p = pr.snd := hprp.imp Eq.symm Eq.symm
+          have hr_or : pr.partner p = pr.fst ∨ pr.partner p = pr.snd :=
+            (pr.contains_partner hprp).imp Eq.symm Eq.symm
           exact ⟨by rcases hp_or with h | h <;> rw [h] <;> assumption,
             by rcases hr_or with h | h <;> rw [h] <;> assumption⟩
         have hr_ne_p : pr.partner p ≠ p := pr.partner_ne hpr_ne hprp
@@ -584,8 +577,7 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             simp [ZeroPair.bias]
         · intro A val hcons hval
           have hvalG := hcons.2 G hG
-          have hvp : val p = (fixArg (S.gate G) p).1 := by
-            rw [hval p hppar, ite_eq_left rfl]
+          have hvp : val p = (fixArg (S.gate G) p).1 := by rw [hval p hppar, ite_eq_left rfl]
           have hGe : (S.gate G).eval val = (fixArg (S.gate G) p).2 :=
             fixArg_spec hna hpw.symm (Gate.args_of_reads hpw.symm hGw hGp) val hvp
           simp only [Lit.eval, hu, huG, Arg.eval, hvalG, hGe]
@@ -616,9 +608,7 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           congr 1
           cases val t₂ <;> [rfl; exact (op_const_of_not_isAffineOp op hnaff).symm]
         · rename_i hne
-          exfalso
-          have hcard : S.gates.card ≠ 0 := fun h => by simp [h] at hcase
-          exact hne (Finset.card_pos.1 (Nat.pos_of_ne_zero hcard))
+          exact (hne (Finset.card_pos.1 (Nat.pos_of_ne_zero fun h => by simp [h] at hcase))).elim
 
 private theorem findSome_neq {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
     (f : BitString n → Bool)
