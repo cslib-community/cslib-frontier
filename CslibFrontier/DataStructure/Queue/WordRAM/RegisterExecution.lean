@@ -140,6 +140,10 @@ private theorem staged_tag (w capacity : ℕ) (o : Queue.QueueOp ℕ) (x : Data 
   rw [Function.update_of_ne tag_ne_zero]
   exact prepare_tag w capacity o x
 
+private theorem staged_zero (w capacity : ℕ) (o : Queue.QueueOp ℕ) (x : Data registers) :
+    (staged w capacity o x).regs zero = 0 := by
+  simp only [staged, Data.set_regs, Function.update_self]
+
 private noncomputable def committed (m : Counts) (x : Data registers) : Data registers :=
   (x.set (src 0) m.front).set (src 1) m.rear
 
@@ -164,6 +168,22 @@ private theorem committed_counts (m : Counts) (x : Data registers) :
     (committed m x).regs (src 0) = m.front ∧ (committed m x).regs (src 1) = m.rear := by
   have hn : src 0 ≠ src 1 := src_injective.ne (by decide)
   simp [committed, Data.set, hn]
+
+/-- Committing counts `⟨front.length, back.length⟩` over a backend result that kept `src 2`,
+`src 3` and the frontier represents `front` and `back`. -/
+private theorem committed_rep {w base capacity : ℕ} {front back : List ℕ} {b : Data registers}
+    (hcb : (committed ⟨front.length, back.length⟩ b).Bounded w)
+    (h2 : b.regs (src 2) = base) (h3 : b.regs (src 3) = capacity)
+    (hf : b.regs (Backend.frontier family) = base + 2 * capacity)
+    (hs : front.length + back.length ≤ capacity)
+    (hfc : Block.HoldsList base front.reverse b.mem)
+    (hbc : Block.HoldsList (base + capacity) back.reverse b.mem) :
+    Rep w base capacity front back (committed ⟨front.length, back.length⟩ b) :=
+  ⟨hcb,
+    (committed_other _ b _ (src_injective.ne (by decide)) (src_injective.ne (by decide))).trans h2,
+    (committed_other _ b _ (src_injective.ne (by decide)) (src_injective.ne (by decide))).trans h3,
+    (committed_other _ b _ (src_ne_frontier 0).symm (src_ne_frontier 1).symm).trans hf,
+    (committed_counts _ b).1, (committed_counts _ b).2, hs, hfc, hbc⟩
 
 private theorem enqueue_result_eq (i : Fin 2) :
     Backend.tmp family false (Fin.castAdd ((family false).realizes.scratchSize + 1) i) =
@@ -237,12 +257,8 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
     (congrArg b.regs (enqueue_result_eq 1)).symm.trans (ho 1)
   let m : Counts := ⟨front.length, back.length + 1⟩
   have hcommit : Exec w commit b (committed m b) 2 := commit_exec h0 hB
-  have hcond : (Cond.eq tag zero).Holds z := by
-    change z.regs tag = z.regs zero
-    have hz0 : z.regs zero = 0 := by
-      simp only [z, staged, Data.set_regs, Function.update_self]
-    rw [hz0]
-    exact staged_tag w capacity (.enqueue v) x
+  have hcond : (Cond.eq tag zero).Holds z :=
+    (staged_tag w capacity (.enqueue v) x).trans (staged_zero w capacity (.enqueue v) x).symm
   have he : Exec w program ((implementation w capacity).prepare (.enqueue v) x)
       (committed m b) (1 + (n + 1 + 2)) :=
     (stage_exec w capacity (.enqueue v) x).seq ((Exec.branch_pos hcond hb).seq hcommit)
@@ -251,33 +267,18 @@ theorem execute_enqueue {w base capacity v : ℕ} {front back : List ℕ} {x : D
     exact congrFun hin i
   have hfrontier : b.regs (Backend.frontier family) = x.regs (Backend.frontier family) :=
     congrArg Memory.State.frontier hm
-  have hmemw : (committed m b).mem =
+  have hmemw : b.mem =
       ((Memory.spec w).clientState (memoryState (Backend.frontier family) x) (enqueue d)).mem :=
     congrArg Memory.State.mem hm
-  have hmem : (committed m b).mem =
+  have hmem : b.mem =
       ((Memory.spec 0).clientState (memoryState (Backend.frontier family) x) (enqueue d)).mem := by
     simpa only [clientState_width w] using hmemw
   have hcontents := enqueue_contents (d := d) front back
     (memoryState (Backend.frontier family) x) rfl rfl hs hr.front_contents hr.back_contents
-  refine ⟨committed m b, 1 + (n + 1 + 2), he, by omega, ?_, ?_⟩
-  · refine ⟨hcommit.bounded hbb, ?_, ?_, ?_, (committed_counts m b).1,
-      (committed_counts m b).2, ?_, ?_, ?_⟩
-    · rw [committed_other m b (src 2) (src_injective.ne (by decide))
-        (src_injective.ne (by decide)), hsrc]
-      rfl
-    · rw [committed_other m b (src 3) (src_injective.ne (by decide))
-        (src_injective.ne (by decide)), hsrc]
-      rfl
-    · rw [committed_other m b _ (src_ne_frontier 0).symm (src_ne_frontier 1).symm,
-        hfrontier, hr.frontier_eq]
-    · simp only [List.length_cons]
-      omega
-    · rw [hmem]
-      exact hcontents.2.1
-    · rw [hmem]
-      exact hcontents.2.2
-  · rw [hmemw]
-    exact enqueue_modifies hdom
+  exact ⟨committed m b, 1 + (n + 1 + 2), he, by omega,
+    committed_rep (hcommit.bounded hbb) (hsrc 2) (hsrc 3) (hfrontier.trans hr.frontier_eq)
+      (by simp only [List.length_cons]; omega) (hmem ▸ hcontents.2.1) (hmem ▸ hcontents.2.2),
+    hmemw ▸ enqueue_modifies hdom⟩
 
 /-- The negative native branch performs the source transfer/pop, commits both returned
 counts, and decodes its faithful option result. The bound includes the negative branch's
@@ -327,10 +328,7 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
   have hcommit : Exec w commit b (committed m b) 2 := commit_exec h0 hB
   have hcond : ¬(Cond.eq tag zero).Holds z := by
     change ¬z.regs tag = z.regs zero
-    have ht : z.regs tag = 1 := staged_tag w capacity .dequeue x
-    have hz0 : z.regs zero = 0 := by
-      simp only [z, staged, Data.set_regs, Function.update_self]
-    rw [ht, hz0]
+    rw [staged_tag, staged_zero]
     decide
   have he : Exec w program ((implementation w capacity).prepare .dequeue x)
       (committed m b) (1 + (n + 2 + 2)) :=
@@ -342,43 +340,24 @@ theorem execute_dequeue {w base capacity : ℕ} {front back : List ℕ} {x : Dat
     have hf := congrArg Memory.State.frontier hm
     rw [clientState_width w] at hf
     exact hf.trans hi.2.2.2.1
-  have hmem : (committed m b).mem =
+  have hmem : b.mem =
       ((Memory.spec 0).clientState (memoryState (Backend.frontier family) x) (dequeue d)).mem := by
-    have hmemw : (committed m b).mem =
-        ((Memory.spec w).clientState (memoryState (Backend.frontier family) x) (dequeue d)).mem :=
-      congrArg Memory.State.mem hm
-    rw [clientState_width w] at hmemw
-    exact hmemw
+    rw [← clientState_width w]
+    exact congrArg Memory.State.mem hm
   have hclock : 1 + (n + 2 + 2) + 1 ≤ Backend.factor family *
       (memoryCost (dequeue d) (memoryState (Backend.frontier family) x) + 1) + 6 := by omega
-  refine ⟨committed m b, 1 + (n + 2 + 2), he, hclock, ?_, ?_, ?_⟩
-  · refine ⟨hcommit.bounded hbb, ?_, ?_, ?_, (committed_counts m b).1,
-      (committed_counts m b).2, ?_, ?_, ?_⟩
-    · rw [committed_other m b (src 2) (src_injective.ne (by decide))
-        (src_injective.ne (by decide)), hsrc]
-      rfl
-    · rw [committed_other m b (src 3) (src_injective.ne (by decide))
-        (src_injective.ne (by decide)), hsrc]
-      rfl
-    · rw [committed_other m b _ (src_ne_frontier 0).symm (src_ne_frontier 1).symm,
-        hfrontier, hr.frontier_eq]
-    · have hs := pairStep_length_le (w := w) (capacity := capacity) (s := ⟨front, back⟩)
-        (by simpa only [Stacks.contents_length] using hr.size_le) .dequeue trivial
-      simpa only [Stacks.contents_length] using hs
-    · rw [hmem]
-      exact hcontents.2.1
-    · rw [hmem]
-      exact hcontents.2.2
-  · have ht : (committed m b).regs (result 2) = optionWords p.2 0 := by
-      rw [committed_other m b _ (src_ne_result 0 2).symm (src_ne_result 1 2).symm]
-      exact ho 2
-    have hv : (committed m b).regs (result 3) = optionWords p.2 1 := by
-      rw [committed_other m b _ (src_ne_result 0 3).symm (src_ne_result 1 3).symm]
-      exact ho 3
-    rw [decode_dequeue, ht, hv]
-    cases p.2 <;> rfl
-  · rw [hmem]
-    exact hi.2.2.2.2.2
+  have hs := pairStep_length_le (w := w) (capacity := capacity) (s := ⟨front, back⟩)
+    (by simpa only [Stacks.contents_length] using hr.size_le) .dequeue trivial
+  refine ⟨committed m b, 1 + (n + 2 + 2), he, hclock,
+    committed_rep (hcommit.bounded hbb) (hsrc 2) (hsrc 3) (hfrontier.trans hr.frontier_eq)
+      (by simpa only [Stacks.contents_length] using hs) (hmem ▸ hcontents.2.1)
+      (hmem ▸ hcontents.2.2), ?_, hmem ▸ hi.2.2.2.2.2⟩
+  have ht : (committed m b).regs (result 2) = optionWords p.2 0 :=
+    (committed_other m b _ (src_ne_result 0 2).symm (src_ne_result 1 2).symm).trans (ho 2)
+  have hv : (committed m b).regs (result 3) = optionWords p.2 1 :=
+    (committed_other m b _ (src_ne_result 0 3).symm (src_ne_result 1 3).symm).trans (ho 3)
+  rw [decode_dequeue, ht, hv]
+  cases p.2 <;> rfl
 
 /-- One admissible call of the fixed native queue. The terminal rear potential is retained;
 the globally chosen exchange factor, control, metadata copies and halt are all charged.
