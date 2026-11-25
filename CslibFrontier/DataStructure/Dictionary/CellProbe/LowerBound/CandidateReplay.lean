@@ -220,17 +220,16 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
       have hflt_le : (Finset.univ.filter fun r : Fin m => r.val < k + 1) = Finset.Iic r₀ := by
         simpa only [Nat.lt_succ_iff, Fin.le_def] using
           (Finset.filter_ge_eq_Iic : Finset.univ.filter (· ≤ r₀) = Finset.Iic r₀)
-      have hcard_D : D_k.card = k := by
-        rw [Finset.card_image_of_injective _ d.injective, hflt_lt, Fin.card_Iio]
-      have hcard_B : B_k.card = k := by
-        rw [Finset.card_image_of_injective _ b.injective, hflt_lt, Fin.card_Iio]
+      have hcard (f : Fin m ↪ Fin U) :
+          ((Finset.univ.filter fun r : Fin m => r.val < k).image f).card = k := by
+        rw [Finset.card_image_of_injective _ f.injective, hflt_lt, Fin.card_Iio]
       have hdom_sk : Dictionary.dom s_k = (K \ D_k) ∪ B_k := by
         rw [show s_k = _ from hst_k]; exact dom_ite_eq _ _
       have hcard_sk : (Dictionary.dom s_k).card = n := by
         rw [hdom_sk, Finset.card_union_of_disjoint, Finset.card_sdiff]
         · have hsubD : D_k ⊆ K := fun _ hx => by
             obtain ⟨r', _, rfl⟩ := Finset.mem_image.mp hx; exact hd_mem_K r'
-          rw [Finset.inter_eq_left.mpr hsubD, card_activeKeys s ht₀_n, hcard_D, hcard_B]; omega
+          rw [Finset.inter_eq_left.mpr hsubD, card_activeKeys s ht₀_n, hcard d, hcard b]; omega
         · refine Finset.disjoint_left.mpr fun x hxK hxB => ?_
           obtain ⟨r', _, rfl⟩ := Finset.mem_image.mp hxB
           exact Finset.disjoint_left.mp hdisj (hb_mem_B r') (Finset.mem_sdiff.mp hxK).1
@@ -261,14 +260,8 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
             simpa only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_insert, true_or,
               not_true_eq_false, and_false, hub, false_or] using hnotB
           · rw [Function.update_of_ne hud, show s_k = _ from hst_k]
-            dsimp only
-            by_cases hu : u ∈ (K \ D_k) ∪ B_k
-            · rw [ite_eq_left hu, ite_eq_left]
-              simpa only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_insert, hud, false_or,
-                hub] using hu
-            · rw [ite_eq_right hu, ite_eq_right]
-              simpa only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_insert, hud, false_or,
-                hub] using hu
+            simp only [Finset.mem_union, Finset.mem_sdiff, Finset.mem_insert, hud, hub, false_or]
+            rfl
       rw [modeCandPrefix_succ withQueries d b s.kv hk_lt, ← List.append_assoc,
         StateTransitionSpec.validHistory_append,
         (Dynamic.spec U V n).run_append (Dictionary.empty U)
@@ -296,18 +289,9 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
   rw [hfull] at hvh_m hst_m
   rw [huniv_flt, image_orderSubset B hB π] at hst_m
   have hlen_B : (s.modeCandidateOps withQueries t₀ m ht₀ B hB).length = stride * m := by
-    rw [← hfull]
-    have htk : (List.finRange m).take m = List.finRange m :=
-      List.take_of_length_le (by simp only [List.length_finRange, le_rfl])
-    dsimp only [modeCandPrefix, stride, modeStride]
-    rw [htk]
-    cases withQueries
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      rw [List.length_flatMap_of_forall_length_eq (k := 2) (fun _ _ => rfl),
-        List.length_finRange, Nat.mul_comm]
-    · simp only [↓reduceIte]
-      rw [List.length_flatMap_of_forall_length_eq (k := 3) (fun _ _ => rfl),
-        List.length_finRange, Nat.mul_comm]
+    rw [← hfull, modeCandPrefix_full]
+    cases withQueries <;> simp only [Bool.false_eq_true, ↓reduceIte, stride, modeStride,
+      length_candidateQueryDeleteInsertOps, length_candidateDeleteInsertOps]
   refine ⟨hvh_m, ?_, hst_m⟩
   rw [List.length_append, hpref_len, hlen_B]; ring
 
