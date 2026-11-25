@@ -187,6 +187,12 @@ theorem lhs_eq_sum [Fintype V] (σ : V → Bool) (I : Ineq V) :
   rw [lhs, Finsupp.linearCombination_apply, Finsupp.sum_fintype _ _ fun _ => by simp]
   rfl
 
+/-- The left-hand side as a sum over the nonzero coefficients. -/
+theorem lhs_eq_finsuppSum (σ : V → Bool) (I : Ineq V) :
+    I.lhs σ = I.coeff.sum fun v a => a * (σ v).toInt := by
+  rw [lhs, Finsupp.linearCombination_apply]
+  rfl
+
 theorem Holds.add {σ : V → Bool} {I J : Ineq V} (hI : I.Holds σ) (hJ : J.Holds σ) :
     (I + J).Holds σ := by
   unfold Holds at *
