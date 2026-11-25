@@ -42,6 +42,16 @@ def implDegBody : Code .standard 28 := ram[
     pReg ← pReg + cOne ];
   iReg ← iReg + cOne ]
 
+/-- The negated literal code `litCodeBy Fin.val a ^^^ 1` fits the word width. -/
+private theorem fits_litCode_xor_one (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
+    (a : Literal (Fin G.n)) : Fits w (litCodeBy Fin.val a ^^^ 1) :=
+  G.fits_of_le hfit (by
+    rw [show litCodeBy Fin.val a ^^^ 1 = (litEquiv G.n a.negate).val from
+      litCodeBy_xor_one Fin.val a]
+    have := (litEquiv G.n a.negate).isLt
+    unfold Instance.wordBound
+    omega)
+
 theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     ∀ (cs : CNF (Fin G.n)) (g : Literal (Fin G.n) → List (Literal (Fin G.n)))
       (idx p : ℕ) (x : Data 28),
@@ -117,12 +127,7 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           omega
         have hf_p2 : Fits w (p + 1 + 1) :=
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
-        have hf_na : Fits w (litCodeBy Fin.val a ^^^ 1) :=
-          G.fits_of_le hfit (by
-            rw [hxor_a]
-            have := (litEquiv G.n a.negate).isLt
-            unfold Instance.wordBound
-            omega)
+        have hf_na := fits_litCode_xor_one G hfit a
         have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
         let st_pre := ((x.set jReg 1).set pReg (p + 1)).set uReg (litCodeBy Fin.val a)
         let st_v := st_pre.set vReg (litCodeBy Fin.val a ^^^ 1)
@@ -176,18 +181,8 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           exact hle2.trans hfin
         have hf_p3 : Fits w (p + 1 + 1 + 1) :=
           G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
-        have hf_na : Fits w (litCodeBy Fin.val a ^^^ 1) :=
-          G.fits_of_le hfit (by
-            rw [hxor_a]
-            have := (litEquiv G.n a.negate).isLt
-            unfold Instance.wordBound
-            omega)
-        have hf_nb : Fits w (litCodeBy Fin.val b ^^^ 1) :=
-          G.fits_of_le hfit (by
-            rw [hxor_b]
-            have := (litEquiv G.n b.negate).isLt
-            unfold Instance.wordBound
-            omega)
+        have hf_na := fits_litCode_xor_one G hfit a
+        have hf_nb := fits_litCode_xor_one G hfit b
         have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
         let st_v1 := (((((x.set jReg 2).set pReg (p + 1)).set uReg (litCodeBy Fin.val a)).set
           pReg (p + 1 + 1)).set oldFinReg (litCodeBy Fin.val b)).set
