@@ -136,10 +136,7 @@ theorem step?_inner {input output : List Bool} {index : ℕ}
       if choice < 2 then
         some (config input (some ()) (index + 1) (output ++ [choice == 1]) h)
       else none := by
-  rcases choice with _ | (_ | choice)
-  · simp [step?, actions_inner h, apply_emit h]
-  · simp [step?, actions_inner h, apply_emit h]
-  · simp [step?, actions_inner h]
+  rcases choice with _ | _ | choice <;> simp [step?, actions_inner h, apply_emit h]
 
 theorem step?_boundary (input output : List Bool) (choice : ℕ) :
     guessMachine.step? (config input (some ()) input.length output le_rfl) choice =
@@ -177,28 +174,22 @@ private theorem haltsWithin_config (input : List Bool) (remaining : ℕ) :
   induction remaining with
   | zero =>
     intro index output h
-    have hi : index = input.length := by lia
-    subst index
-    apply HaltsWithin.step (by rw [actions_boundary]; simp)
-    rintro ⟨choice, hchoice⟩
+    obtain rfl : index = input.length := by lia
+    refine HaltsWithin.step (by simp [actions_boundary]) fun ⟨choice, hchoice⟩ => ?_
     simp only [actions_boundary, List.length_cons, List.length_nil] at hchoice
-    have hi : choice = 0 := by lia
-    subst choice
-    apply HaltsWithin.halt
+    obtain rfl : choice = 0 := by lia
+    refine HaltsWithin.halt ?_
     change ((guessMachine.actions _)[0].apply _).Halted
     simp only [actions_boundary, List.getElem_cons_zero, apply_halt]
     rfl
   | succ remaining ih =>
     intro index output h
     have hi : index < input.length := by lia
-    apply HaltsWithin.step (by rw [actions_inner hi]; simp)
-    rintro ⟨choice, hchoice⟩
+    refine HaltsWithin.step (by simp [actions_inner hi]) fun ⟨choice, hchoice⟩ => ?_
     simp only [actions_inner hi, List.length_cons, List.length_nil] at hchoice
-    have hc : choice = 0 ∨ choice = 1 := by lia
     change guessMachine.HaltsWithin _ ((guessMachine.actions _)[choice].apply _)
-    rcases hc with hc | hc <;>
-      simpa [actions_inner hi, hc, apply_emit hi] using
-        ih (index + 1) (output ++ [_]) (by lia)
+    rcases (by lia : choice = 0 ∨ choice = 1) with rfl | rfl <;>
+      simpa [actions_inner hi, apply_emit hi] using ih (index + 1) (output ++ [_]) (by lia)
 
 /-- Starting from blank tapes is the zero-position scanner invariant. -/
 theorem init_eq_config (input : List Bool) :
@@ -230,26 +221,17 @@ private theorem word_of_runBranch (input : List Bool) (choices : List ℕ) :
       · rename_i hc
         obtain ⟨word, hlen, hrest, rfl⟩ :=
           ih (index + 1) (output ++ [choice == 1]) hi final hrun hhalt
-        refine ⟨(choice == 1) :: word, ?_, ?_, ?_⟩
-        · simp only [List.length_cons]
-          lia
-        · have hb : (choice == 1).toNat = choice := by
-            have : choice = 0 ∨ choice = 1 := by lia
-            rcases this with rfl | rfl <;> rfl
-          simp [hrest, hb]
-        · simp [List.append_assoc]
+        refine ⟨(choice == 1) :: word, by simp only [List.length_cons]; lia, ?_,
+          by simp [List.append_assoc]⟩
+        rcases (by lia : choice = 0 ∨ choice = 1) with rfl | rfl <;> simp [hrest]
       · simp at hrun
-    · have hi : index = input.length := by lia
-      subst index
+    · obtain rfl : index = input.length := by lia
       rw [runBranch_cons, step?_boundary] at hrun
       split at hrun
       · rename_i hc
         subst choice
         cases rest with
-        | nil =>
-          have heq : config input none input.length output le_rfl = final :=
-            Option.some.inj hrun
-          exact ⟨[], by simp, rfl, by simpa using heq.symm⟩
+        | nil => exact ⟨[], by simp, rfl, by simpa using (Option.some.inj hrun).symm⟩
         | cons choice rest =>
           simp [runBranch_cons, guessMachine.step?_of_halted
             (show (config input none input.length output le_rfl).Halted from rfl)] at hrun
@@ -286,22 +268,16 @@ theorem mem_branches_iff (input : List Bool) (fuel : ℕ) (choices : List ℕ) :
         ∃ word : List Bool, word.length = input.length ∧ choices = trace word := by
   rw [MultiTapeCTM.mem_branches_iff]
   simp only [runBranch_halted_iff]
-  constructor
-  · rintro ⟨hlen, final, word, hword, rfl, _⟩
-    exact ⟨by simpa [hword] using hlen, word, hword, rfl⟩
-  · rintro ⟨hlen, word, hword, rfl⟩
-    exact ⟨by simpa [hword] using hlen, _, word, hword, rfl, rfl⟩
+  exact ⟨by rintro ⟨hlen, _, w, hw, rfl, _⟩; exact ⟨by simpa [hw] using hlen, w, hw, rfl⟩,
+    by rintro ⟨hlen, w, hw, rfl⟩; exact ⟨by simpa [hw] using hlen, _, w, hw, rfl, rfl⟩⟩
 
 /-- Witness words and first-halting occurrence traces are in bijection. -/
 theorem trace_bijOn (input : List Bool) :
     Set.BijOn trace {word | word.length = input.length}
       (guessMachine.branches (input.length + 1) (Cfg.init guessMachine.initial input)) := by
-  refine ⟨?_, trace_injective.injOn, ?_⟩
-  · intro word hword
-    exact (mem_branches_iff input _ _).mpr ⟨le_rfl, word, hword, rfl⟩
-  · intro choices hchoices
-    obtain ⟨_, word, hword, heq⟩ := (mem_branches_iff input _ _).mp hchoices
-    exact ⟨word, hword, heq.symm⟩
+  exact ⟨fun word hword => (mem_branches_iff input _ _).mpr ⟨le_rfl, word, hword, rfl⟩,
+    trace_injective.injOn, fun _ hc =>
+      let ⟨_, word, hw, heq⟩ := (mem_branches_iff input _ _).mp hc; ⟨word, hw, heq.symm⟩⟩
 
 /-- The same bijection, enumerated by the existing fixed-width bit-string type. -/
 theorem branches_eq_image (input : List Bool) :
@@ -393,16 +369,11 @@ theorem count_interpret_output (input word : List Bool) :
       (BitString.enumList input.length) := by
     simpa [config, Function.comp_def] using (interpret_runProgram input).map Cfg.output
   rw [OracleComp.interpret_map]
-  change (List.map Cfg.output (OracleComp.interpret
-    (fun n => List.ofFn (id : Fin n → Fin n))
-    (guessMachine.runProgram (input.length + 1)
-      (Cfg.init guessMachine.initial input)))).count word = _
-  rw [hp.count_eq]
-  have hn : (BitString.enumList input.length).Nodup :=
-    (BitString.nodup_enum _).map List.ofFn_injective
+  refine (hp.count_eq word).trans ?_
   by_cases h : word.length = input.length
   · rw [ite_eq_left h]
-    exact List.count_eq_one_of_mem hn (BitString.mem_enumList.mpr h)
+    exact List.count_eq_one_of_mem ((BitString.nodup_enum _).map List.ofFn_injective)
+      (BitString.mem_enumList.mpr h)
   · simp [h, List.count_eq_zero]
 
 end GuessMachine

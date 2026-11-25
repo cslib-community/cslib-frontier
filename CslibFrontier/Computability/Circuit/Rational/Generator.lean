@@ -144,12 +144,10 @@ private lemma transfer {n N e : ℕ} (x : Fin 3 → ℕ) (f : Formula n)
 
 private lemma emitted {n N e H : ℕ} (x : Fin 3 → Fin H)
     (hz : IsUnit (specializedLift n N e (fun i => (x i).val + 1) 0)) :
-    tupleAt n N e (fun i => (x i).val + 1) ∈ (output n N e H).tuples := by
-  apply List.mem_filterMap.mpr
-  refine ⟨x, mem_grid H x, ?_⟩
-  have hq := (Matrix.isUnit_iff_isUnit_det _).mp (hz.map (regular e))
-  have hne : (rationalLift n N e (fun i => (x i).val + 1) 0).det ≠ 0 := hq.ne_zero
-  simp [atPoint, hne]
+    tupleAt n N e (fun i => (x i).val + 1) ∈ (output n N e H).tuples :=
+  have hne : (rationalLift n N e (fun i => (x i).val + 1) 0).det ≠ 0 :=
+    ((Matrix.isUnit_iff_isUnit_det _).mp (hz.map (regular e))).ne_zero
+  List.mem_filterMap.mpr ⟨x, mem_grid H x, by simp [atPoint, hne]⟩
 
 end
 end Rational.Generator
@@ -243,31 +241,21 @@ lemma integer_grid {K : Type*} [Field K] [CharZero K] (P : List (MvPolynomial (F
   classical
   let S : Finset K := (Finset.range H).image (fun i => ((i + 1 : ℕ) : K))
   have hS : S.card = H := by
-    rw [Finset.card_image_of_injective, Finset.card_range]
-    intro i j h
-    have hh : i + 1 = j + 1 := Nat.cast_injective h
-    omega
-  obtain ⟨x, hx, hxp⟩ := FiniteGrid.simultaneous P hP d hd S (by rwa [hS])
-  have hm (i : Fin 3) : ∃ k : Fin H, ((k.val + 1 : ℕ) : K) = x i := by
-    obtain ⟨k, hk, he⟩ := Finset.mem_image.mp (hx i)
-    exact ⟨⟨k, Finset.mem_range.mp hk⟩, he⟩
-  choose y hy using hm
-  refine ⟨y, ?_⟩
-  intro p hp
-  have heq : (fun i => (((y i).val + 1 : ℕ) : K)) = x := funext hy
-  simpa only [heq] using hxp p hp
+    rw [Finset.card_image_of_injective _ fun i j h => by have := Nat.cast_injective h; omega,
+      Finset.card_range]
+  obtain ⟨x, hx, hxp⟩ := FiniteGrid.simultaneous P hP d hd S (hS ▸ hH)
+  choose y hy using fun i =>
+    let ⟨k, hk, he⟩ := Finset.mem_image.mp (hx i); (⟨⟨k, Finset.mem_range.mp hk⟩, he⟩ :
+      ∃ k : Fin H, ((k.val + 1 : ℕ) : K) = x i)
+  exact ⟨y, fun p hp => funext hy ▸ hxp p hp⟩
 
 private lemma specialized_unit {K : Type*} [Field K] [CharZero K] {n q M N : ℕ} [NeZero M]
     (χ : AddChar (ZMod M) K) (L : Matrix (Fin q) (Fin q) (Affine.Form n)) (x : Fin 3 → K)
     (hx : eval x (PencilCertificates.determinant χ N L) ≠ 0) :
     IsUnit (L.map (Affine.homogeneous (algebraMap ℚ _) (fun i =>
       (eval₂Hom (RingHom.id K) x).mapMatrix (PencilCertificates.lifts χ N n i)))) := by
-  have hd : IsUnit ((eval₂Hom (RingHom.id K) x).mapMatrix (PencilCertificates.polynomial χ N L))
-    := by
-    apply (Matrix.isUnit_iff_isUnit_det _).mpr
-    apply isUnit_iff_ne_zero.mpr
-    rw [← RingHom.map_det]
-    exact hx
+  have hd : IsUnit ((eval₂Hom (RingHom.id K) x).mapMatrix (PencilCertificates.polynomial χ N L)) :=
+    (Matrix.isUnit_iff_isUnit_det _).mpr (isUnit_iff_ne_zero.mpr (by rwa [← RingHom.map_det]))
   rw [PencilCertificates.specialized] at hd
   simpa using hd.map (Matrix.compRingEquiv (Fin q) (ZMod M) K).symm
 
@@ -298,19 +286,11 @@ theorem output_hits {n s N e H : ℕ} (hs : 1 ≤ s)
       hb.1) hH)
   let t : Fin 3 → ℕ := fun i => (x i).val + 1
   let Zr := specializedLift n N e t
-  have hz : IsUnit (Zr 0) := by
-    apply onePencil_unit Zr
-    exact specialized_unit _ _ _ (hx _ (List.mem_cons_self ..))
-  obtain ⟨z, hz'⟩ := hz
-  have hcert : ∀ h ∈ f.certificates,
-      IsUnit (Formula.realized (algebraMap ℚ _)
-        (fun i => (↑z⁻¹ : Matrix _ _ _) * Zr i.succ) h) := by
-    intro h hh
-    apply (finPencil_unit _ _ h).mp
-    apply Affine.normalized_pencil_unit (finPencil h) Zr z hz'
-    apply specialized_unit
-    exact hx _ (List.mem_cons_of_mem _ (List.mem_map.mpr ⟨h, hh, rfl⟩))
-  obtain ⟨v, hv, hu⟩ := (Formula.certificates_iff _ _ f).mp hcert
+  obtain ⟨z, hz'⟩ : IsUnit (Zr 0) :=
+    onePencil_unit Zr (specialized_unit _ _ _ (hx _ (List.mem_cons_self ..)))
+  obtain ⟨v, hv, hu⟩ := (Formula.certificates_iff _ _ f).mp fun h hh =>
+    (finPencil_unit _ _ h).mp <| Affine.normalized_pencil_unit (finPencil h) Zr z hz' <|
+      specialized_unit _ _ _ (hx _ (List.mem_cons_of_mem _ (List.mem_map.mpr ⟨h, hh, rfl⟩)))
   obtain ⟨a, ha, hua⟩ := transfer t f z hz' v hv hu
   exact ⟨tupleAt n N e t, emitted x ⟨z, hz'⟩, a, ha, hua⟩
 
@@ -372,12 +352,8 @@ private theorem M_eq (n s : ℕ) : ambientDimension n s = truncation n s + delta
 
 private theorem grid_large (n s : ℕ) :
     (s + 2) * (3 * rankBound s * (ambientDimension n s) ^ 2) < gridSize n s := by
-  have hp : 1 ≤ ambientDimension n s := by
-    apply Nat.one_le_iff_ne_zero.mpr
-    unfold ambientDimension
-    positivity
-  have hpow : (ambientDimension n s) ^ 2 ≤ (ambientDimension n s) ^ 3 := Nat.pow_le_pow_right hp (by
-    omega)
+  have hpow : (ambientDimension n s) ^ 2 ≤ (ambientDimension n s) ^ 3 :=
+    Nat.pow_le_pow_right (Nat.one_le_two_pow) (by omega)
   unfold gridSize
   nlinarith [Nat.mul_le_mul_left (3 * (s + 2) * rankBound s) hpow]
 
@@ -385,38 +361,24 @@ private theorem w_bound (n s : ℕ) : w n ≤ n + s + 1 := by unfold w; omega
 
 private theorem B_bound (n s : ℕ) : rankBound s ≤ 2 * (n + s + 1) := by unfold rankBound; omega
 
-private theorem delta_bound (n s : ℕ) : delta n s ≤ 4 * (n + s + 1) ^ 4 := by
-  calc delta n s ≤ 2 * (n + s + 1) ^ 3 * (2 * (n + s + 1)) := by
-         unfold delta
-         gcongr
-         · exact w_bound n s
-         · exact B_bound n s
-       _ = _ := by ring
+private theorem delta_bound (n s : ℕ) : delta n s ≤ 4 * (n + s + 1) ^ 4 :=
+  (Nat.mul_le_mul (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (w_bound n s) 3))
+    (B_bound n s)).trans_eq (by ring)
 
 /-- `ambientDimension n s` is at most `16 * (n + s + 1) ^ 5`. -/
 theorem polynomial_M (n s : ℕ) : ambientDimension n s ≤ 16 * (n + s + 1) ^ 5 := by
-  calc ambientDimension n s ≤ 2 * (rankBound s * delta n s) := M_le n s
-       _ ≤ 2 * ((2 * (n + s + 1)) * (4 * (n + s + 1) ^ 4)) := by
-          gcongr
-          · exact B_bound n s
-          · exact delta_bound n s
-       _ = _ := by ring
+  exact (M_le n s).trans <|
+    (Nat.mul_le_mul_left 2 (Nat.mul_le_mul (B_bound n s) (delta_bound n s))).trans_eq (by ring)
 
 /-- The grid side length is polynomial in `n + s + 1`, for every `n`, including `n = 0`: the
 factor `s + 2` is bounded by `2 * (n + s + 1)`. -/
 theorem polynomial_H (n s : ℕ) : gridSize n s ≤ 49153 * (n + s + 1) ^ 17 := by
   have hp : 1 ≤ (n + s + 1) ^ 17 := Nat.one_le_iff_ne_zero.mpr (by positivity)
-  calc gridSize n s ≤
-        1 + 3 * (2 * (n + s + 1)) * (2 * (n + s + 1)) * (16 * (n + s + 1) ^ 5) ^ 3 := by
-         unfold gridSize
-         apply Nat.add_le_add_left
-         apply Nat.mul_le_mul
-         · apply Nat.mul_le_mul
-           · exact Nat.mul_le_mul_left 3 (by omega)
-           · exact B_bound n s
-         · exact Nat.pow_le_pow_left (polynomial_M n s) 3
-       _ = 1 + 49152 * (n + s + 1) ^ 17 := by ring
-       _ ≤ _ := by omega
+  refine (Nat.add_le_add_left (Nat.mul_le_mul
+    (Nat.mul_le_mul (Nat.mul_le_mul_left 3 (show s + 2 ≤ 2 * (n + s + 1) by omega)) (B_bound n s))
+    (Nat.pow_le_pow_left (polynomial_M n s) 3)) 1).trans ?_
+  linarith [show 1 + 3 * (2 * (n + s + 1)) * (2 * (n + s + 1)) * (16 * (n + s + 1) ^ 5) ^ 3 =
+    1 + 49152 * (n + s + 1) ^ 17 by ring]
 
 end Rational.Parameters
 
@@ -429,11 +391,8 @@ def list (n s : ℕ) : Output n :=
 
 /-- When `1 ≤ s`, `list n s` hits all admissible nonzero formulas of node count at most `s`. -/
 theorem list_hits (n s : ℕ) (hs : 1 ≤ s) : Hits s (list n s) := by
-  apply output_hits hs
-  · exact Parameters.N_pos n s
-  · exact Parameters.M_eq n s
-  · exact Parameters.threshold_lt n s
-  · exact Parameters.grid_large n s
+  exact output_hits hs (Parameters.N_pos n s) (Parameters.M_eq n s) (Parameters.threshold_lt n s)
+    (Parameters.grid_large n s)
 
 /-- The matrix dimension of `list n s` is at most `256 * (n + s + 1) ^ 10`. -/
 theorem list_dimension_bound (n s : ℕ) : (list n s).dimension ≤ 256 * (n + s + 1) ^ 10 := by
