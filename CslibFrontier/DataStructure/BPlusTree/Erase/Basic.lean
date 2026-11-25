@@ -469,15 +469,21 @@ private theorem mended_mergeSplit {l r : BPlusTree α β} {h : ℕ} (hl : Underf
       simp only [width_leaf] at hlo hhi
       exact mended_ofLeaf (by simp; omega) (by simp; omega)
     | node rf rr =>
-      have hh := hr.height_eq.trans hl.height_eq.symm
-      rw [hr.balanced.height_node, height_leaf] at hh
-      exact (rf.height_pos.ne' (Nat.succ.inj hh)).elim
+      have h₁ := hl.height_eq
+      have h₂ := hr.height_eq
+      rw [hr.balanced.height_node] at h₂
+      have := rf.height_pos
+      simp only [height_leaf] at h₁
+      omega
   | node lf lr =>
     cases r with
     | leaf re =>
-      have hh := hl.height_eq.trans hr.height_eq.symm
-      rw [hl.balanced.height_node, height_leaf] at hh
-      exact (lf.height_pos.ne' (Nat.succ.inj hh)).elim
+      have h₁ := hl.height_eq
+      have h₂ := hr.height_eq
+      rw [hl.balanced.height_node] at h₁
+      have := lf.height_pos
+      simp only [height_leaf] at h₂
+      omega
     | node rf rr =>
       obtain ⟨h', rfl⟩ : ∃ h', h = h' + 1 :=
         ⟨lf.height, by rw [← hl.height_eq, hl.balanced.height_node]⟩
@@ -487,16 +493,6 @@ private theorem mended_mergeSplit {l r : BPlusTree α β} {h : ℕ} (hl : Underf
           (List.mem_map_of_mem he)), List.forall_mem_cons.2 ⟨hr.good_of_mem_children
           List.mem_cons_self, fun _ he => hr.good_of_mem_children (List.mem_cons_of_mem _
           (List.mem_map_of_mem he))⟩⟩) (by simp; omega) (by simp; omega)
-
-/-- An underflowing child can merge with an occupied sibling on either side. -/
-private theorem Underfull.mended_merge_with {c r : BPlusTree α β} {h : ℕ}
-    (hc : Underfull t h c) (hr : Good t h r) (hu : underflows t c = true) (s : α) :
-    Mended t h (mergeSplit t c s r) ∧ Mended t h (mergeSplit t r s c) := by
-  have hcWidth := hc.width_eq_of_underflows hu
-  have hrLo := hr.occupied.le_width
-  have hrHi := hr.occupied.width_le
-  exact ⟨mended_mergeSplit hc hr.underfull s (by lia) (by lia),
-    mended_mergeSplit hr.underfull hc s (by lia) (by lia)⟩
 
 /-- Repair against the right sibling: the results are good, with one branch fewer or none. -/
 private theorem good_rebalanceRight {c r : BPlusTree α β} {h : ℕ}
@@ -509,7 +505,10 @@ private theorem good_rebalanceRight {c r : BPlusTree α β} {h : ℕ}
   rw [rebalanceRight_eq_ite]
   split
   · next hu =>
-    exact mended_withRest (hc.mended_merge_with hr hu s).1 hrest
+    have := hc.width_eq_of_underflows hu
+    have := hr.occupied.le_width
+    have := hr.occupied.width_le
+    exact mended_withRest (mended_mergeSplit hc hr.underfull s (by omega) (by omega)) hrest
   · next hu =>
     exact ⟨hc.good (by simpa using hu), List.forall_mem_cons.2 ⟨hr, hrest⟩, Nat.le_succ _,
       le_rfl⟩
@@ -524,8 +523,11 @@ private theorem good_rebalanceLast {prev c : BPlusTree α β} {h : ℕ}
   rw [rebalanceLast_eq_ite]
   split
   · next hu =>
+    have := hc.width_eq_of_underflows hu
+    have := hp.occupied.le_width
+    have := hp.occupied.width_le
     obtain ⟨h₁, h₂, -, h₃⟩ := mended_withRest (rest := [])
-      (hc.mended_merge_with hp hu s).2 (by simp)
+      (mended_mergeSplit hp.underfull hc s (by omega) (by omega)) (by simp)
     exact ⟨h₁, h₂, by simpa using h₃⟩
   · next hu =>
     exact ⟨hp, List.forall_mem_cons.2 ⟨hc.good (by simpa using hu), by simp⟩, by simp⟩
