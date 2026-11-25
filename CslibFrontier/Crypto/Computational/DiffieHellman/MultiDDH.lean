@@ -19,6 +19,7 @@ import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Fixed-first-coordinate DDH rerandomization and Multi-DDH
@@ -211,17 +212,8 @@ theorem ddhFixedURerandomizeLaw_real (d : F.Desc) (α β : ZMod (F.order d)) :
   simp only [ddhFixedURerandomizeLaw, ddhFixedURealLaw, ddhFixedURerandomize_smul_generator,
     sub_self, mul_zero, add_zero, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   rw [PMF.bind_comm]
-  have hσ (τ : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ =>
-        PMF.pure ((σ + τ * β) • F.generator d, (α * (σ + τ * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (β' • F.generator d, (α * β') • F.generator d)) :=
-    by
-      change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-        ((fun β' => PMF.pure (β' • F.generator d, (α * β') • F.generator d)) ∘
-          Equiv.addRight (τ * β)) = _
-      rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-  simp_rw [hσ, PMF.bind_const]
+  drop_uniform with τ
+  relabel_uniform (Equiv.addRight (τ * β))
 
 /-- **Boneh–Shoup Exercise 10.8(b)**: if `(u, v, w) = (α • g, β • g, γ • g)` is a non-DDH triple
 (`γ ≠ α * β`), then `ddhFixedURerandomizeLaw` produces `ddhFixedURandomLaw d`. -/
@@ -230,26 +222,15 @@ theorem ddhFixedURerandomizeLaw_random (d : F.Desc) {α β γ : ZMod (F.order d)
       F.ddhFixedURandomLaw d := by
   simp only [ddhFixedURerandomizeLaw, ddhFixedURandomLaw, ddhFixedURerandomize_smul_generator,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  rw [PMF.bind_comm]
-  have hσ (τ : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ =>
-        PMF.pure ((σ + τ * β) • F.generator d,
-          (α * (σ + τ * β) + τ * (γ - α * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (β' • F.generator d,
-          (α * β' + τ * (γ - α * β)) • F.generator d)) :=
-    by
-      change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-        ((fun β' => PMF.pure (β' • F.generator d,
-          (α * β' + τ * (γ - α * β)) • F.generator d)) ∘ Equiv.addRight (τ * β)) = _
-      rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-  simp_rw [hσ]
-  rw [PMF.bind_comm]
-  congr 1 with β' : 1
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-    ((fun γ' => PMF.pure (β' • F.generator d, γ' • F.generator d)) ∘
-      (Equiv.mulRight₀ (γ - α * β) (sub_ne_zero.mpr hγ)).trans (Equiv.addLeft (α * β'))) = _
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (fun p : ZMod (F.order d) × ZMod (F.order d) =>
+    (p.1 + p.2 * β, α * (p.1 + p.2 * β) + p.2 * (γ - α * β)))
+  rintro ⟨σ₁, τ₁⟩ ⟨σ₂, τ₂⟩ h
+  simp only [Prod.mk.injEq] at h
+  have hτ : τ₁ = τ₂ := by
+    apply mul_right_cancel₀ (sub_ne_zero.mpr hγ)
+    linear_combination -α * h.1 + h.2
+  subst hτ
+  exact Prod.ext (add_right_cancel h.1) rfl
 
 /-- The Multi-DDH (I) real tuple family `i ↦ (B i • g, (α * B i) • g)` for a fixed `α` and an
 index type `ι` ([BonehShoup2023], Section 10.11, Exercise 10.11, p. 426). -/
@@ -273,51 +254,26 @@ and output `i ↦ ddhFixedURerandomize d u v w (σ i) (τ i)`. -/
   (PMF.uniformOfFintype (ι → ZMod (F.order d) × ZMod (F.order d))).map fun r i =>
     F.ddhFixedURerandomize d u v w (r i).1 (r i).2
 
-private def ddhRerandomizeRealTupleEquiv {q : ℕ} (ι : Type*) (β : ZMod q) :
-    (ι → ZMod q × ZMod q) ≃ ((ι → ZMod q) × (ι → ZMod q)) where
-  toFun r := (fun i => (r i).1 + (r i).2 * β, fun i => (r i).2)
-  invFun p i := (p.1 i - p.2 i * β, p.2 i)
-  left_inv r := by ext i <;> simp
-  right_inv p := by ext i <;> simp
-
-private def ddhRerandomizeRealCoordEquiv {q : ℕ} (β : ZMod q) :
-    (ZMod q × ZMod q) ≃ (ZMod q × ZMod q) where
-  toFun p := (p.1 + p.2 * β, p.2)
-  invFun p := (p.1 - p.2 * β, p.2)
-  left_inv p := by ext <;> simp
-  right_inv p := by ext <;> simp
-
-private def ddhRerandomizeSecondCoordEquiv {q : ℕ} [Fact (Nat.Prime q)]
-    {α β γ : ZMod q} (hγ : γ ≠ α * β) :
-    (ZMod q × ZMod q) ≃ (ZMod q × ZMod q) where
-  toFun p := (p.1, α * p.1 + p.2 * (γ - α * β))
-  invFun p := (p.1, (p.2 - α * p.1) * (γ - α * β)⁻¹)
-  left_inv p := by
-    have hne : γ - α * β ≠ 0 := sub_ne_zero.mpr hγ
-    ext
-    · rfl
-    · dsimp; rw [add_sub_cancel_left, mul_assoc, mul_inv_cancel₀ hne, mul_one]
-  right_inv p := by
-    have hne : γ - α * β ≠ 0 := sub_ne_zero.mpr hγ
-    ext
-    · rfl
-    · dsimp; rw [mul_assoc, inv_mul_cancel₀ hne, mul_one, add_sub_cancel]
-
 /-- On any real DDH triple `(α • g, β • g, (α * β) • g)`, `multiDDHRerandomizeLaw` produces
 `multiDDHRealTupleLaw d ι α` ([BonehShoup2023], Exercise 10.11). -/
 theorem multiDDHRerandomizeLaw_real (d : F.Desc) (ι : Type*) [Fintype ι] [DecidableEq ι]
     (α β : ZMod (F.order d)) :
     F.multiDDHRerandomizeLaw d ι (α • F.generator d) (β • F.generator d)
       ((α * β) • F.generator d) = F.multiDDHRealTupleLaw d ι α := by
-  let e : (ι → ZMod (F.order d) × ZMod (F.order d)) ≃
-      ((ι → ZMod (F.order d)) × (ι → ZMod (F.order d))) :=
-    ddhRerandomizeRealTupleEquiv ι β
   rw [multiDDHRealTupleLaw,
     ← PMF.uniformOfFintype_prod_map_fst (α := ι → ZMod (F.order d)) (β := ι → ZMod (F.order d)),
-    ← PMF.uniformOfFintype_map_equiv e, PMF.map_comp, PMF.map_comp,
-    multiDDHRerandomizeLaw]
-  congr 1 with r : 1; funext i
-  simp [e, ddhRerandomizeRealTupleEquiv, ddhFixedURerandomize_smul_generator]
+    PMF.map_comp, multiDDHRerandomizeLaw]
+  relabel_uniform
+    (fun r : ι → ZMod (F.order d) × ZMod (F.order d) =>
+      (fun i => (r i).1 + (r i).2 * β, fun i => (r i).2))
+  · intro r₁ r₂ h
+    funext i
+    have h₁ := congr_fun (Prod.mk.inj h).1 i
+    have h₂ := congr_fun (Prod.mk.inj h).2 i
+    rw [h₂] at h₁
+    exact Prod.ext (add_right_cancel h₁) h₂
+  · funext i
+    simp [ddhFixedURerandomize_smul_generator]
 
 /-- On any non-DDH triple `(α • g, β • g, γ • g)` with `γ ≠ α * β`, `multiDDHRerandomizeLaw`
 produces `multiDDHRandomTupleLaw d ι` ([BonehShoup2023], Exercise 10.11). -/
@@ -325,15 +281,19 @@ theorem multiDDHRerandomizeLaw_random (d : F.Desc) (ι : Type*) [Fintype ι] [De
     {α β γ : ZMod (F.order d)} (hγ : γ ≠ α * β) :
     F.multiDDHRerandomizeLaw d ι (α • F.generator d) (β • F.generator d) (γ • F.generator d) =
       F.multiDDHRandomTupleLaw d ι := by
-  let e : (ι → ZMod (F.order d) × ZMod (F.order d)) ≃
-      (ι → ZMod (F.order d) × ZMod (F.order d)) :=
-    Equiv.piCongrRight fun _ =>
-      (ddhRerandomizeRealCoordEquiv β).trans (ddhRerandomizeSecondCoordEquiv hγ)
-  rw [multiDDHRandomTupleLaw, ← PMF.uniformOfFintype_map_equiv e, PMF.map_comp,
-    multiDDHRerandomizeLaw]
-  congr 1 with r : 1; funext i
-  simp [e, ddhRerandomizeRealCoordEquiv, ddhRerandomizeSecondCoordEquiv,
-    ddhFixedURerandomize_smul_generator]
+  rw [multiDDHRandomTupleLaw, multiDDHRerandomizeLaw]
+  relabel_uniform
+    (fun r : ι → ZMod (F.order d) × ZMod (F.order d) => fun i =>
+      ((r i).1 + (r i).2 * β, α * ((r i).1 + (r i).2 * β) + (r i).2 * (γ - α * β)))
+  · intro r₁ r₂ h
+    funext i
+    have hi := Prod.mk.inj (congr_fun h i)
+    have h₂ : (r₁ i).2 = (r₂ i).2 := by
+      apply mul_right_cancel₀ (sub_ne_zero.mpr hγ)
+      linear_combination -α * hi.1 + hi.2
+    exact Prod.ext (add_right_cancel (by rw [h₂] at hi; exact hi.1)) h₂
+  · funext i
+    simp [ddhFixedURerandomize_smul_generator]
 
 /-- On a real DDH triple, `multiDDHRerandomizeLaw` produces `multiDDHRealTupleLaw`. -/
 theorem ddhRealTupleLaw_bind_multiDDHRerandomizeLaw (d : F.Desc) (ι : Type*) [Fintype ι]
@@ -750,12 +710,10 @@ private theorem advantage_four_hop {gReal exactReal ddhReal ddhRandom exactRando
     (hideal : Game.advantage exactRandom gRandom ≤ ord) :
     Game.advantage gReal gRandom ≤ Game.advantage ddhReal ddhRandom + ord + 2 * s := by
   rw [hreal]
-  have h1 := Game.advantage_triangle exactReal ddhReal gRandom
-  have h2 := Game.advantage_triangle ddhReal ddhRandom gRandom
-  have h3 := Game.advantage_triangle ddhRandom exactRandom gRandom
-  have hle := (h1.trans (add_le_add le_rfl (h2.trans (add_le_add le_rfl h3)))).trans
-    (add_le_add hsamp_real (add_le_add le_rfl (add_le_add hsamp_random hideal)))
-  refine hle.trans_eq ?_
+  refine (show Game.advantage exactReal gRandom ≤
+      s + (Game.advantage ddhReal ddhRandom + (s + ord)) by
+    game_trans [ddhReal, ddhRandom, exactRandom] using
+      [hsamp_real, le_rfl, hsamp_random, hideal]).trans_eq ?_
   ring
 
 private theorem ddhRealGame_eq_bind_ddhRealTupleLaw (setup : ℕ → PMF F.Desc)
@@ -958,10 +916,7 @@ theorem ddhShiftAndRerandomizeLaw_real (d : F.Desc) (m : ℕ) (α β : ZMod (F.o
   unfold ddhShiftAndRerandomizeLaw multiDDHRealBlockLaw
   simp only [ddhShift_smul_generator, sub_self, add_zero, multiDDHRerandomizeLaw_real,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-    (((fun α' => (F.multiDDHRealTupleLaw d (Fin m) α').bind fun tuple =>
-      PMF.pure (α' • F.generator d, List.ofFn tuple))) ∘ Equiv.addLeft α) = _
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (Equiv.addLeft α)
 
 /-- On any non-DDH triple `(α • g, β • g, γ • g)` with `γ ≠ α * β`,
 `ddhShiftAndRerandomizeLaw d m` produces `multiDDHRandomBlockLaw d m`
@@ -976,10 +931,7 @@ theorem ddhShiftAndRerandomizeLaw_random (d : F.Desc) (m : ℕ) {α β γ : ZMod
     exact hγ (by linear_combination h)
   simp only [ddhShift_smul_generator, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   simp_rw [fun ρ => F.multiDDHRerandomizeLaw_random d (Fin m) (hne ρ)]
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-    (((fun α' => (F.multiDDHRandomTupleLaw d (Fin m)).bind fun tuple =>
-      PMF.pure (α' • F.generator d, List.ofFn tuple))) ∘ Equiv.addLeft α) = _
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (Equiv.addLeft α)
 
 /-- On a real DDH triple, `k` independent draws from `ddhShiftAndRerandomizeLaw d m` produce
 `PMF.iid (multiDDHRealBlockLaw d m) k`. -/
@@ -1046,46 +998,29 @@ private theorem isPPTOn_encode_ddhShiftAndRerandomizeComp_ddhInput {pairCount : 
           x.leftPublic x.rightPublic x.candidateShared := by
   let E1 := encPair F.encDDHInput encNat
   let E2 := encPair E1 (encList (encPair encBits encBits))
-  have hx : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1) E1 F.encDDHInput :=
-    ComputableInPolyTime.fst F.encDDHInput encNat
-  have hρ : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.2) E1 encNat :=
-    ComputableInPolyTime.snd F.encDDHInput encNat
-  have hn : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.secParam) E1 encUnary :=
-    (F.encDDHInput_secParam_polyTime .id').comp hx
-  have hd : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.groupParameters) E1 F.encDesc :=
-    (F.encDDHInput_groupParameters_polyTime .id').comp hx
-  have hu : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ => F.encode q.1.groupParameters q.1.leftPublic) E1 encBits :=
-    (F.encDDHInput_leftPublic_polyTime .id').comp hx
-  have hv : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ => F.encode q.1.groupParameters q.1.rightPublic) E1 encBits :=
-    (F.encDDHInput_rightPublic_polyTime .id').comp hx
-  have hw : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ => F.encode q.1.groupParameters q.1.candidateShared) E1 encBits :=
-    (F.encDDHInput_candidateShared_polyTime .id').comp hx
-  have hshift := computableInPolyTime_encode_ddhShift hd hu hv hw hρ
-  have hu' : ComputableInPolyTime
+  have hn : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.secParam) E1 encUnary := by
+    fun_prop
+  have hd : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.groupParameters) E1 F.encDesc := by
+    fun_prop
+  have hshift : ComputableInPolyTime
       (fun q : F.DDHInput × ℕ =>
-        F.encode q.1.groupParameters
+        (F.encode q.1.groupParameters
           (F.ddhShift q.1.groupParameters q.1.leftPublic q.1.rightPublic
-            q.1.candidateShared q.2).1) E1 encBits :=
-    (ComputableInPolyTime.fst encBits encBits).comp hshift
-  have hw' : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ =>
-        F.encode q.1.groupParameters
+            q.1.candidateShared q.2).1,
+         F.encode q.1.groupParameters
           (F.ddhShift q.1.groupParameters q.1.leftPublic q.1.rightPublic
-            q.1.candidateShared q.2).2) E1 encBits :=
-    (ComputableInPolyTime.snd encBits encBits).comp hshift
-  have hinner := isPPTOn_encode_ddhFixedURerandomizeComp hn hd hu' hv hw'
-  have hrep := hinner.replicate (hpair.comp hn)
-  have hq : ComputableInPolyTime
-      (fun r : (F.DDHInput × ℕ) × List (List Bool × List Bool) => r.1) E2 E1 :=
-    ComputableInPolyTime.fst E1 (encList (encPair encBits encBits))
-  have hpairs : ComputableInPolyTime
-      (fun r : (F.DDHInput × ℕ) × List (List Bool × List Bool) => r.2)
-      E2 (encList (encPair encBits encBits)) :=
-    ComputableInPolyTime.snd E1 (encList (encPair encBits encBits))
-  have hpair_out := (hu'.comp hq).prod hpairs
+            q.1.candidateShared q.2).2)) E1 (encPair encBits encBits) :=
+    computableInPolyTime_encode_ddhShift hd (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+  have hrep := (isPPTOn_encode_ddhFixedURerandomizeComp
+    (v := fun q : F.DDHInput × ℕ => q.1.rightPublic) hn hd hshift.fst'
+    (by fun_prop) hshift.snd').replicate (hpair.comp hn)
+  have hpair_out : ComputableInPolyTime
+      (fun r : (F.DDHInput × ℕ) × List (List Bool × List Bool) =>
+        (F.encode r.1.1.groupParameters
+          (F.ddhShift r.1.1.groupParameters r.1.1.leftPublic r.1.1.rightPublic
+            r.1.1.candidateShared r.1.2).1, r.2))
+      E2 (encPair encBits (encList (encPair encBits encBits))) :=
+    (hshift.fst'.comp (by fun_prop)).prod (by fun_prop)
   have hsample := F.isPPTOn_sampleExp
     (F.encDDHInput_secParam_polyTime .id') (F.encDDHInput_groupParameters_polyTime .id')
   refine (hsample.bind_pair (hrep.map_pair hpair_out)).congr fun x => ?_

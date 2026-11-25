@@ -94,10 +94,9 @@ theorem glue_comp_of_agreeOff {e : ι ↪ Fin N} {y x : Fin N → Bool} (h : Agr
     glue e (y ∘ e) x = y := by
   funext j
   by_cases hj : ∃ i, e i = j
-  · obtain ⟨i, rfl⟩ := hj
+  · obtain ⟨_, rfl⟩ := hj
     simp
-  · push Not at hj
-    rw [glue_of_not e _ x hj, h j hj]
+  · rw [glue_of_not e _ x (forall_not_of_not_exists hj), h j (forall_not_of_not_exists hj)]
 
 /-- **Summing over the basis strings that agree with `x` off `e`** is summing over their bits on
 `e`. -/
@@ -132,19 +131,14 @@ theorem PlacedGate.matrix_mapWires (e : Fin m ↪ Fin N) (g : PlacedGate m) (y x
       if AgreeOff e y x then (g.matrix : Matrix _ _ ℂ) (y ∘ e) (x ∘ e) else 0 := by
   rw [matrix_apply, matrix_apply]
   have hiff : (∀ j, (¬∃ i, (g.mapWires e).wires i = j) → y j = x j) ↔
-      AgreeOff e y x ∧ ∀ j, (¬∃ i, g.wires i = j) → (y ∘ e) j = (x ∘ e) j := by
-    constructor
-    · intro h
-      refine ⟨fun j hj => h j ?_, fun j hj => h (e j) ?_⟩
-      · rintro ⟨i, rfl⟩
-        exact hj _ rfl
-      · rintro ⟨i, hi⟩
-        exact hj ⟨i, e.injective hi⟩
-    · rintro ⟨h₁, h₂⟩ j hj
-      by_cases hj' : ∃ j', e j' = j
-      · obtain ⟨j', rfl⟩ := hj'
-        exact h₂ j' fun ⟨i, hi⟩ => hj ⟨i, by rw [← hi]; rfl⟩
-      · exact h₁ j fun i hi => hj' ⟨i, hi⟩
+      AgreeOff e y x ∧ ∀ j, (¬∃ i, g.wires i = j) → (y ∘ e) j = (x ∘ e) j :=
+    ⟨fun h => ⟨fun j hj => h j fun ⟨_, hi⟩ => hj _ hi,
+      fun j hj => h (e j) fun ⟨i, hi⟩ => hj ⟨i, e.injective hi⟩⟩,
+      fun ⟨h₁, h₂⟩ j hj => by
+        by_cases hj' : ∃ j', e j' = j
+        · obtain ⟨j', rfl⟩ := hj'
+          exact h₂ j' fun ⟨i, hi⟩ => hj ⟨i, congrArg e hi⟩
+        · exact h₁ j (forall_not_of_not_exists hj')⟩
   rw [if_congr hiff rfl rfl, ite_and]
   rfl
 
@@ -178,14 +172,11 @@ theorem Circuit.matrix_mapWires (e : Fin m ↪ Fin N) (C : Circuit m) (y x : Fin
   | nil =>
     simp only [mapWires_nil, matrix_nil, OneMemClass.coe_one, Matrix.one_apply]
     by_cases hyx : y = x
-    · subst hyx
-      simp [AgreeOff.refl]
+    · simp [hyx, AgreeOff.refl]
     · rw [ite_eq_right hyx]
-      split_ifs with h h'
-      · exact absurd (by rw [← glue_comp_of_agreeOff h, h', glue_comp_of_agreeOff
-          (AgreeOff.refl e x)]) hyx
-      · rfl
-      · rfl
+      split_ifs with h h' <;> first | rfl |
+        exact absurd ((glue_comp_of_agreeOff h).symm.trans
+          (h' ▸ glue_comp_of_agreeOff (.refl e x))) hyx
   | cons g C ih =>
     simp only [mapWires_cons, matrix_cons, Submonoid.coe_mul, Matrix.mul_apply, ih,
       PlacedGate.matrix_mapWires, ite_mul, zero_mul, mul_ite, mul_zero]
@@ -193,8 +184,8 @@ theorem Circuit.matrix_mapWires (e : Fin m ↪ Fin N) (C : Circuit m) (y x : Fin
     · have hiff (z : Fin N → Bool) : AgreeOff e y z ↔ AgreeOff e z x :=
         ⟨fun h => h.symm.trans hyx, fun h => hyx.trans h.symm⟩
       simp only [hiff, ← ite_and, and_self]
-      exact sum_agreeOff_comp e x fun w => (Circuit.matrix C : Matrix _ _ ℂ) (y ∘ e) w *
-        (g.matrix : Matrix _ _ ℂ) w (x ∘ e)
+      exact sum_agreeOff_comp e x fun w =>
+        (Circuit.matrix C : Matrix _ _ ℂ) (y ∘ e) w * (g.matrix : Matrix _ _ ℂ) w (x ∘ e)
     · refine sum_eq_zero fun z _ => ?_
       split_ifs with h₁ h₂ <;> first | rfl | exact absurd (h₂.trans h₁) hyx
 
@@ -208,49 +199,39 @@ theorem Circuit.matrix_flatMap_mapWires (C : Circuit m) (L : List (Fin m ↪ Fin
       else 0 := by
   induction L generalizing y x with
   | nil =>
-    simp only [List.flatMap_nil, matrix_nil, OneMemClass.coe_one, Matrix.one_apply,
-      List.not_mem_nil, IsEmpty.forall_iff, implies_true, forall_const, List.map_nil,
-      List.prod_nil, funext_iff]
+    simp [OneMemClass.coe_one, Matrix.one_apply, funext_iff]
   | cons e L ih =>
     obtain ⟨he, hL⟩ := List.pairwise_cons.mp hL
     rw [List.flatMap_cons, matrix_append, Submonoid.coe_mul, Matrix.mul_apply]
     simp only [ih hL, matrix_mapWires, ite_mul, zero_mul, mul_ite, mul_zero, ← ite_and]
     -- the only intermediate basis string is `y` on `e` and `x` elsewhere
-    set z₀ : Fin N → Bool := fun j => if ∃ i, e i = j then y j else x j
+    let z₀ (j : Fin N) : Bool := if ∃ i, e i = j then y j else x j
     have hdisj (e' : Fin m ↪ Fin N) (he' : e' ∈ L) (i i' : Fin m) : e' i ≠ e i' :=
       fun h => he e' he' i' i h.symm
     rw [sum_eq_single z₀]
     · have hz₀e : z₀ ∘ e = y ∘ e := funext fun i => ite_eq_left ⟨i, rfl⟩
       have hz₀x : AgreeOff e z₀ x := fun j hj => ite_eq_right (by simpa using hj)
-      have hz₀L (e' : Fin m ↪ Fin N) (he' : e' ∈ L) : z₀ ∘ e' = x ∘ e' :=
-        funext fun i => ite_eq_right fun ⟨i', hi'⟩ => hdisj e' he' i i' hi'.symm
       have hcond : (∀ j, (∀ e' ∈ L, ∀ i, e' i ≠ j) → y j = z₀ j) ↔
-          ∀ j, (∀ e' ∈ e :: L, ∀ i, e' i ≠ j) → y j = x j := by
-        constructor
-        · intro h j hj
-          have := h j fun e' he' => hj e' (List.mem_cons_of_mem _ he')
-          rwa [show z₀ j = x j from
-            ite_eq_right (by simpa using fun i => hj e (List.mem_cons_self ..) i)] at this
-        · intro h j hj
-          by_cases hj' : ∃ i, e i = j
-          · exact (ite_eq_left hj').symm
-          · rw [show z₀ j = x j from ite_eq_right hj']
-            refine h j fun e' he' => ?_
-            rcases List.mem_cons.mp he' with rfl | he'
-            · simpa using hj'
-            · exact hj e' he'
+          ∀ j, (∀ e' ∈ e :: L, ∀ i, e' i ≠ j) → y j = x j :=
+        ⟨fun h j hj => (h j fun e' he' => hj e' (List.mem_cons_of_mem _ he')).trans
+            (ite_eq_right fun ⟨i, hi⟩ => hj e List.mem_cons_self i hi),
+          fun h j hj => by
+            by_cases hj' : ∃ i, e i = j
+            · exact (ite_eq_left hj').symm
+            · exact (h j (List.forall_mem_cons.mpr ⟨forall_not_of_not_exists hj', hj⟩)).trans
+                (ite_eq_right hj').symm⟩
       simp only [hz₀x, true_and, hcond, hz₀e, List.map_cons, List.prod_cons]
       split_ifs
-      · rw [List.map_congr_left fun e' he' => by rw [hz₀L e' he'], mul_comm]
+      · have hz₀L (e' : Fin m ↪ Fin N) (he' : e' ∈ L) : z₀ ∘ e' = x ∘ e' :=
+          funext fun i => ite_eq_right fun ⟨i', hi'⟩ => hdisj e' he' i i' hi'.symm
+        rw [List.map_congr_left fun e' he' => by rw [hz₀L e' he'], mul_comm]
       · rfl
     · intro z _ hz
       refine ite_eq_right fun ⟨h₁, h₂⟩ => hz (funext fun j => ?_)
       by_cases hj : ∃ i, e i = j
-      · rw [show z₀ j = y j from ite_eq_left hj]
-        obtain ⟨i, rfl⟩ := hj
-        exact (h₂ (e i) fun e' he' i' => hdisj e' he' i' i).symm
-      · rw [show z₀ j = x j from ite_eq_right hj]
-        exact h₁ j (by simpa using hj)
+      · obtain ⟨i, rfl⟩ := hj
+        exact (h₂ (e i) fun e' he' i' => hdisj e' he' i' i).symm.trans (ite_eq_left ⟨i, rfl⟩).symm
+      · exact (h₁ j (forall_not_of_not_exists hj)).trans (ite_eq_right hj).symm
     · exact fun h => absurd (mem_univ _) h
 
 /-! ### Shifted gate codes -/
@@ -333,16 +314,17 @@ theorem GateCode.WellFormed.shift {o : ℕ} (h : o + m ≤ N) {g : GateCode} (hg
     WellFormed N (g.shift o) := by
   obtain ⟨_ | _, t, cs⟩ := g
   · obtain ⟨hlen, hnd, hlt⟩ := hg
-    refine ⟨by simpa [GateCode.shift] using hlen, ?_, ?_⟩
-    · simpa [GateCode.shift, List.map_cons] using
-        hnd.map (f := (· + o)) (fun a b hab => by simpa using hab)
-    · intro i hi
-      simp only [List.mem_cons, List.mem_map] at hi
-      rcases hi with rfl | ⟨c, hc, rfl⟩
-      · have := hlt t (List.mem_cons_self ..)
-        omega
-      · have := hlt c (List.mem_cons_of_mem _ hc)
-        omega
+    refine ⟨by simpa [GateCode.shift] using hlen,
+      by simpa [GateCode.shift, List.map_cons] using
+        hnd.map (f := (· + o)) fun _ _ hab => Nat.add_right_cancel hab, ?_⟩
+    dsimp only [GateCode.shift]
+    intro i hi
+    rcases List.mem_cons.mp hi with rfl | hmem
+    · have := hlt t (List.mem_cons_self ..)
+      omega
+    · obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hmem
+      have := hlt c (List.mem_cons_of_mem _ hc)
+      omega
   · obtain ⟨ht, rfl⟩ := hg
     exact ⟨show t + o < N by omega, rfl⟩
 

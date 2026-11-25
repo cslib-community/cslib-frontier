@@ -73,13 +73,9 @@ open Finset Cslib.BitString
 theorem maskSet_xor_two_pow {n k : ℕ} {i : Fin n} (hi : k.testBit i = true) :
     maskSet n (k ^^^ 2 ^ (i : ℕ)) = (maskSet n k).erase i := by
   ext j
-  simp only [mem_maskSet, Finset.mem_erase, Nat.testBit_xor, Nat.testBit_two_pow]
-  by_cases hij : (i : ℕ) = j
-  · have : j = i := Fin.ext hij.symm
-    subst this
-    simp [hi]
-  · have : j ≠ i := fun h => hij (congrArg Fin.val h).symm
-    simp [hij, this]
+  rcases eq_or_ne i j with rfl | hij
+  · simp [mem_maskSet, hi]
+  · simp [mem_maskSet, hij.symm, mt Fin.ext hij]
 
 /-- The set of a cell is the set of true coordinates of the corresponding bit string. -/
 theorem maskSet_eq_filter {n : ℕ} (k : Fin (2 ^ n)) :
@@ -140,9 +136,7 @@ theorem getElem_pass {n : ℕ} (c : R) (i : Fin n) (t : Vector M (2 ^ n))
     (pass c i t)[k] = yatesPass c i F (maskSet n k) := by
   rw [pass, Vector.getElem_ofFn]
   simp only [yatesPass, mem_maskSet]
-  split_ifs with h
-  · rw [hF, hF, maskSet_xor_two_pow h]
-  · rw [hF]
+  split_ifs with h <;> simp [hF, h, maskSet_xor_two_pow]
 
 private theorem getElem_foldl_pass {n : ℕ} (c : R) (l : List (Fin n))
     (t : Vector M (2 ^ n)) (F : Finset (Fin n) → M)

@@ -89,10 +89,9 @@ theorem isQueryBounded_askAll (Q : κ → Query X) (ks : List κ) :
   induction ks with
   | nil => exact .pure _ 0
   | cons k ks ih =>
-    have h := (OracleComp.IsCostBounded.query (cost := fun _ => 1) (spec := spec X) (Q k)).bind
-      fun a => ih.bind fun rest => .pure (Function.update rest k a) 0
     rw [List.length_cons, Nat.add_comm]
-    exact h
+    exact (OracleComp.IsCostBounded.query (cost := fun _ => 1) (spec := spec X) (Q k)).bind
+      fun a => ih.bind fun rest => .pure (Function.update rest k a) 0
 
 /-- Every answer returned by `askAll` is a possible answer to its query. -/
 theorem apply_mem_of_mem_supportWith_askAll {Q : κ → Query X} {possible : Query X → Set ℝ}
@@ -105,12 +104,10 @@ theorem apply_mem_of_mem_supportWith_askAll {Q : κ → Query X} {possible : Que
       OracleComp.supportWith_pure, Set.mem_singleton_iff] at hr
     obtain ⟨a, ha, rest, hrest, rfl⟩ := hr
     intro k' hk'
-    by_cases hkk : k' = k
-    · subst hkk
-      rw [Function.update_self]
-      exact ha
-    · rw [Function.update_of_ne hkk]
-      exact ih hrest k' ((List.mem_cons.1 hk').resolve_left hkk)
+    rcases eq_or_ne k' k with rfl | hkk
+    · simpa only [Function.update_self] using ha
+    · simpa only [Function.update_of_ne hkk] using
+        ih hrest k' ((List.mem_cons.1 hk').resolve_left hkk)
 
 end AskAll
 
@@ -142,15 +139,13 @@ theorem expect_uniformOfFintype_charQuery (c : (ι → Bool) → Bool) (S : Fins
 where they differ, the uniform error of `g` for the target `f`. -/
 theorem disagreement_uniformOfFintype (f g : (ι → Bool) → Bool) :
     disagreement (PMF.uniformOfFintype (ι → Bool)) f g = UniformLearning.uniformError f g := by
-  rw [UniformLearning.uniformError, disagreement, hammingDist, div_eq_inv_mul]
+  rw [UniformLearning.uniformError, disagreement, hammingDist, div_eq_inv_mul, Finset.card_filter,
+    Nat.cast_sum]
   simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ← mul_sum,
     Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
-  congr 1
-  rw [Finset.card_filter, Nat.cast_sum]
-  refine sum_congr rfl fun x _ => ?_
-  by_cases h : f x = g x
-  · simp [h]
-  · simp [h, Ne.symm h]
+  refine congrArg _ (sum_congr rfl fun x _ => ?_)
+  cases f x <;> cases g x
+  all_goals simp
 
 variable (ι) in
 /-- **The low-degree algorithm** of degree `t` from statistical queries: ask the correlation with
@@ -162,11 +157,8 @@ noncomputable def lowDegree (t : ℕ) : OracleComp (spec (ι → Bool)) ((ι →
 
 /-- The low-degree algorithm makes one query for each set of at most `t` coordinates. -/
 theorem isQueryBounded_lowDegree (t : ℕ) :
-    OracleComp.IsQueryBounded (lowDegree ι t) #{S : Finset ι | #S ≤ t} := by
-  unfold lowDegree
-  refine (OracleComp.isCostBounded_map_iff _ _ _).2 ?_
-  rw [← Finset.length_toList]
-  exact isQueryBounded_askAll _ _
+    OracleComp.IsQueryBounded (lowDegree ι t) #{S : Finset ι | #S ≤ t} :=
+  (OracleComp.isCostBounded_map_iff _ _ _).2 (Finset.length_toList _ ▸ isQueryBounded_askAll _ _)
 
 /-- **The low-degree algorithm learns from statistical queries** [LinialMansourNisan1993]
 [Kearns1998, Section 6]. Let `N` be the number of sets of at most `t` coordinates. Under the
@@ -178,17 +170,13 @@ theorem learns_lowDegree (t : ℕ) {C : ConceptClass (ι → Bool) Bool} {τ κ 
     Learns (lowDegree ι t) (PMF.uniformOfFintype (ι → Bool)) C τ
       (#{S : Finset ι | #S ≤ t} * τ ^ 2 + κ) := by
   intro c hc h hh
-  unfold lowDegree at hh
   set T : Finset (Finset ι) := {S : Finset ι | #S ≤ t} with hT
   obtain ⟨a, ha, rfl⟩ := OracleComp.mem_supportWith_map_iff.1 hh
   have hvalid := apply_mem_of_mem_supportWith_askAll ha
-  rw [disagreement_uniformOfFintype, UniformLearning.uniformError]
-  refine (hammingDist_signRound_sum_mul_chi_div_le c T a).trans ?_
   have hcompl : Tᶜ = ({S : Finset ι | t < #S} : Finset (Finset ι)) := by
-    rw [hT, compl_filter]
-    simp only [not_le]
-  rw [hcompl]
-  refine add_le_add ?_ (hC c hc)
+    simp only [hT, compl_filter, not_le]
+  rw [disagreement_uniformOfFintype, UniformLearning.uniformError]
+  refine (hammingDist_signRound_sum_mul_chi_div_le c T a).trans (hcompl ▸ add_le_add ?_ (hC c hc))
   calc ∑ S ∈ T, (fourierCoeff (fun x => signVal (c x)) S - a S) ^ 2 ≤ ∑ _S ∈ T, τ ^ 2 :=
         sum_le_sum fun S hS => by
           have h := hvalid S (Finset.mem_toList.2 hS)
@@ -206,15 +194,12 @@ all `n` coordinates need `2 ^ {Ω(n)}` queries or tolerance `2 ^ {-Ω(n)}`
 theorem learns_lowDegree_parityOn (t : ℕ) {τ : ℝ} :
     Learns (lowDegree ι t) (PMF.uniformOfFintype (ι → Bool))
       {c | ∃ S : Finset ι, #S ≤ t ∧ c = parityOn S} τ (#{S : Finset ι | #S ≤ t} * τ ^ 2) := by
-  have h := learns_lowDegree t (κ := 0) (τ := τ)
-    (C := {c | ∃ S : Finset ι, #S ≤ t ∧ c = parityOn S}) fun c hc => by
-      obtain ⟨S, hS, rfl⟩ := hc
-      refine (sum_eq_zero fun U hU => ?_).le
-      have hUS : U ≠ S := by
-        rintro rfl
-        exact absurd hS (not_le.2 (mem_filter.1 hU).2)
-      rw [fourierCoeff_signVal_parityOn, ite_eq_right hUS]
-      norm_num
-  simpa only [add_zero] using h
+  rw [← add_zero ((#{S : Finset ι | #S ≤ t} : ℝ) * τ ^ 2)]
+  refine learns_lowDegree t ?_
+  rintro c ⟨S, hS, rfl⟩
+  refine (sum_eq_zero fun U hU => ?_).le
+  have hUS : U ≠ S := fun h => (mem_filter.1 hU).2.not_ge (h ▸ hS)
+  rw [fourierCoeff_signVal_parityOn, ite_eq_right hUS]
+  norm_num
 
 end Cslib.MachineLearning.StatisticalQuery

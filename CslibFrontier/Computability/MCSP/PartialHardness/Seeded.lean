@@ -119,8 +119,7 @@ theorem length_weights_mul_le_seedLen (lam₀ : ℕ) (I : CMMSAInstance) :
     I.weights.length * 2 ^ seedWidth I (lamOf lam₀ I) ≤
       (seedLen lam₀).eval (CMMSAInstance.encoding I).length := by
   set N := (CMMSAInstance.encoding I).length
-  have hn : I.weights.length ≤ N := CMMSAInstance.length_weights_le I
-  have hw : maxWeight I ≤ N := maxWeight_le fun w hw => CMMSAInstance.le_of_mem_weights I hw
+  have hw : maxWeight I ≤ N := maxWeight_le fun _ hw => CMMSAInstance.le_of_mem_weights I hw
   have hB : 2 ^ seedWidth I (lamOf lam₀ I) ≤ 2 * (N * (lam₀ * (N + 1) ^ 2) + 1) := by
     rw [seedWidth_eq]
     refine (Nat.two_pow_clog_two_le _).trans ?_
@@ -128,14 +127,12 @@ theorem length_weights_mul_le_seedLen (lam₀ : ℕ) (I : CMMSAInstance) :
     gcongr
   rw [seedLen_eval]
   calc I.weights.length * 2 ^ seedWidth I (lamOf lam₀ I)
-      ≤ N * (2 * (N * (lam₀ * (N + 1) ^ 2) + 1)) := Nat.mul_le_mul hn hB
+      ≤ N * (2 * (N * (lam₀ * (N + 1) ^ 2) + 1)) :=
+        Nat.mul_le_mul (CMMSAInstance.length_weights_le I) hB
     _ ≤ 2 * (lam₀ + 1) * (N + 1) ^ 4 := by
-      have h1 : N ≤ N + 1 := Nat.le_succ N
-      have h2 : N * (N * (lam₀ * (N + 1) ^ 2)) ≤
-          (N + 1) * ((N + 1) * (lam₀ * (N + 1) ^ 2)) := by
-        gcongr
-      have h3 : N ≤ (N + 1) ^ 4 := h1.trans (Nat.le_self_pow (by norm_num) _)
-      nlinarith
+      have h2 : N * (N * (lam₀ * (N + 1) ^ 2)) ≤ (N + 1) * ((N + 1) * (lam₀ * (N + 1) ^ 2)) := by
+        gcongr <;> exact Nat.le_succ N
+      nlinarith [(Nat.le_succ N).trans (Nat.le_self_pow (by norm_num : 4 ≠ 0) _)]
 
 /-! ### The explicit tables -/
 
@@ -150,11 +147,9 @@ def seededTables (lam₀ : ℕ) (I : CMMSAInstance) (r : List Bool) : List (List
 theorem isVarTable_seededTables (lam₀ : ℕ) (I : CMMSAInstance) (r : List Bool) (v : ℕ) :
     IsVarTable I (lamOf lam₀ I) (seededFunctions lam₀ I r) (seededTables lam₀ I r) v := by
   intro y
-  by_cases hv : v < I.weights.length
-  · have hy := (BitString.equivFin _ y).isLt
-    simp [seededTables, evalVar, hv, List.getD_eq_getElem?_getD, hy, seededFunctions,
-      BitString.zeroExtend_self]
-  · simp [seededTables, evalVar, hv, List.getD_eq_getElem?_getD]
+  by_cases hv : v < I.weights.length <;>
+    simp [seededTables, evalVar, hv, List.getD_eq_getElem?_getD, (BitString.equivFin _ y).isLt,
+      seededFunctions, BitString.zeroExtend_self]
 
 variable {α : Type} {input : α ↪ List Bool}
 
@@ -177,7 +172,6 @@ theorem computableInPolyTime_seededTables (lam₀ : ℕ) {I : α → CMMSAInstan
   have h₁ := ComputableInPolyTime.fst input encUnary
   have h₂ := ComputableInPolyTime.snd input encUnary
   have h₁₁ := ComputableInPolyTime.fst (encPair input encUnary) encUnary
-  have hy := ComputableInPolyTime.snd (encPair input encUnary) encUnary
   -- the block size `2 ^ W`, from the triple `((a, v), y)`
   have hB := ComputableInPolyTime.unary_pow_clog_const (ComputableInPolyTime.unary_mul'
     (computableInPolyTime_maxWeight ((hI.comp h₁).comp h₁₁)) ((hL.comp h₁).comp h₁₁)) 2 2
@@ -191,8 +185,8 @@ theorem computableInPolyTime_seededTables (lam₀ : ℕ) {I : α → CMMSAInstan
       ((ComputableInPolyTime.length_list _).comp (CMMSAInstance.isPolyTime_weights hI)))
     (ComputableInPolyTime.mapToBitsWithInput (ComputableInPolyTime.unary_range' hlen)
       (ComputableInPolyTime.bitsGetDWithInput ((hr.comp h₁).comp h₁₁)
-        (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (h₂.comp h₁₁) hB) hy)
-        false))
+        (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (h₂.comp h₁₁) hB)
+          (.snd _ _)) false))
 
 /-! ### The randomized reduction -/
 
@@ -212,16 +206,15 @@ theorem rpReducible_of_seeded {β : Type} {encB : β ↪ List Bool}
       3 * #{f | out I f ∉ Y.no} ≤ Fintype.card (VarFunctions I (lamOf lam₀ I))) :
     PromiseProblem.RPReducible CMMSAInstance.encoding encB X Y := by
   refine PromiseProblem.rpReducible_iff_exists_seeded.mpr
-    ⟨seedLen lam₀, _, hout, fun I hI r => hyes I hI _, fun I hI => ?_⟩
+    ⟨seedLen lam₀, _, hout, fun I hI _ => hyes I hI _, fun I hI => ?_⟩
   set q := (seedLen lam₀).eval (CMMSAInstance.encoding I).length
   have hbad : 3 * #{r : Fin q → Bool | out I (seededFunctions lam₀ I (List.ofFn r)) ∉ Y.no} ≤
       2 ^ q := by
-    have := BitString.mul_card_filter_decodeTables_mem_le
+    convert (BitString.mul_card_filter_decodeTables_mem_le
       (B := 2 ^ seedWidth I (lamOf lam₀ I)) (ℓ := fun v => varLength I (lamOf lam₀ I) v)
       (p := q) (a := 3) (b := 1) two_pow_varLength_le_two_pow_seedWidth
-      (length_weights_mul_le_seedLen lam₀ I) (S := {f | out I f ∉ Y.no}) (by simpa using hno I hI)
-    rw [one_mul] at this
-    convert this using 3
+      (length_weights_mul_le_seedLen lam₀ I) (S := {f | out I f ∉ Y.no})
+      (by simpa using hno I hI)).trans_eq (one_mul _) using 3
     ext r
     rw [Finset.mem_filter, Finset.mem_filter]
     simp [seededFunctions]
@@ -245,21 +238,15 @@ theorem exists_hard_params : ∃ (Δ k : ℕ) (δ₀ g : ℝ), Odd k ∧ 0 ≤ �
   set γ := Real.log 2 - Real.binEntropy (1 / 4)
   have hl2 : 0 < Real.log 2 := Real.log_pos one_lt_two
   have hγ : 0 < γ := sub_pos.2 (Real.binEntropy_lt_log_two.2 (by norm_num))
-  have hγ' : γ ≤ Real.log 2 :=
-    sub_le_self _ (Real.binEntropy_nonneg (by norm_num) (by norm_num))
-  have hg : 1 ≤ 25 * Real.log 2 / γ := by
-    rw [le_div_iff₀ hγ]
-    linarith
-  obtain ⟨Δ₀, hΔ₀⟩ := exists_GapCMMSA_npHard hg
+  have hγ' : γ ≤ Real.log 2 := sub_le_self _ (Real.binEntropy_nonneg (by norm_num) (by norm_num))
+  obtain ⟨Δ₀, hΔ₀⟩ := exists_GapCMMSA_npHard (g := 25 * Real.log 2 / γ)
+    (by rw [le_div_iff₀ hγ]; linarith)
   refine ⟨Δ₀ + 1, 2 * (Δ₀ + 1) ^ 2 + 1, 1 / 4, 25 * Real.log 2 / γ, odd_two_mul_add_one _,
-    by norm_num, by norm_num, ?_, ?_, hΔ₀.mono (GapCMMSA.yes_mono (Nat.le_succ Δ₀))
-      (GapCMMSA.no_mono (Nat.le_succ Δ₀))⟩
-  · have hnat : 2 * (Δ₀ + 1) ^ 2 ≤ 2 ^ (2 * (Δ₀ + 1) ^ 2 + 1) :=
-      Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right two_pos (Nat.le_succ _))
-    have hreal : (2 * ((Δ₀ + 1 : ℕ) : ℝ) ^ 2) ≤ (2 : ℝ) ^ (2 * (Δ₀ + 1) ^ 2 + 1) := by
-      exact_mod_cast hnat
-    rw [show (1 : ℝ) - 2 * (1 / 4) = 1 / 2 by norm_num, one_div_pow]
-    exact one_div_le_one_div_of_le (by positivity) hreal
+    by norm_num, by norm_num, ?_, ?_,
+    hΔ₀.mono (GapCMMSA.yes_mono (Nat.le_succ Δ₀)) (GapCMMSA.no_mono (Nat.le_succ Δ₀))⟩
+  · rw [show (1 : ℝ) - 2 * (1 / 4) = 1 / 2 by norm_num, one_div_pow]
+    refine one_div_le_one_div_of_le (by positivity) ?_
+    exact_mod_cast Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right two_pos (Nat.le_succ _))
   · rw [div_mul_cancel₀ _ hγ.ne']
     linarith
 

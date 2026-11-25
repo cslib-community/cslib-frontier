@@ -169,12 +169,13 @@ private theorem natDegree_aeval_le (k : Fin n) (φ : Fin n → Polynomial F)
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial has degree at most `d`. -/
 private theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n)
-    (r : Fin i → F) : (roundPoly P r).natDegree ≤ d := by
-  refine Polynomial.natDegree_sum_le_of_forall_le _ _ fun b _ => ?_
-  refine (natDegree_aeval_le P ⟨i, hi⟩ _ (fun j hj => ?_) ?_).trans (hP _)
-  · have : j.val ≠ i := fun h => hj (Fin.ext h)
-    split_ifs <;> exact Polynomial.natDegree_C _
-  · simp
+    (r : Fin i → F) : (roundPoly P r).natDegree ≤ d :=
+  Polynomial.natDegree_sum_le_of_forall_le _ _ fun _ _ =>
+    (natDegree_aeval_le P ⟨i, hi⟩ _
+      (fun j hj => by
+        have := Fin.val_ne_of_ne hj
+        split_ifs <;> exact Polynomial.natDegree_C _)
+      (by simp)).trans (hP _)
 
 omit [Field F] [Fintype F] [DecidableEq F] in
 /-- The coordinate `j < i + 1` of `Fin.snoc r z`. -/
@@ -230,17 +231,11 @@ private theorem roundPoly_eval_zero_add_one {i : ℕ} (hi : i < n) (r : Fin i �
 
 omit [Fintype F] [DecidableEq F] in
 /-- At round `n` all coordinates are fixed: the partial sum is the evaluation. -/
-theorem partialSum_self (r : Fin n → F) : partialSum P r = MvPolynomial.eval r P := by
-  rw [partialSum, Finset.sum_eq_single (fun _ => false)]
-  · exact congrArg (MvPolynomial.eval · P) (funext fun j => dite_eq_left j.isLt)
-  · exact fun b _ hb => absurd (funext fun j => absurd j.isLt (by omega)) hb
-  · exact fun h => absurd (Finset.mem_univ _) h
-
-/-- The verifier of round `i` outputs the claim at the challenge if it accepts the message. -/
-private theorem round_outputOn (i : ℕ) (x : Claim F i) (g : Polynomial F) (z : F) :
-    (round d P i).verifier.outputOn x (g, z, ()) =
-      if accepts d x.value g then some ⟨Fin.snoc x.challenges z, g.eval z⟩ else none :=
-  rfl
+theorem partialSum_self (r : Fin n → F) : partialSum P r = MvPolynomial.eval r P :=
+  (Finset.sum_eq_single (fun _ => false)
+    (fun _ _ hb => absurd (funext fun j => absurd j.isLt (by omega)) hb)
+    (fun h => absurd (Finset.mem_univ _) h)).trans
+    (congrArg (MvPolynomial.eval · P) (funext fun j => dite_eq_left j.isLt))
 
 /-! ### Component theorems (milestone 2) -/
 
@@ -250,15 +245,13 @@ theorem round_complete (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n) :
   intro x w hxw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [round, runStrategy, plainLaw_bind, plainLaw_pure, plainLaw_sample, PMF.pure_bind,
-    PMF.bind_bind]
+    PMF.bind_bind, PMF.toOuterMeasure_bind_apply]
   have hacc : accepts d x.value (roundPoly P x.challenges) :=
     ⟨natDegree_roundPoly_le d P hP hi x.challenges,
       (roundPoly_eval_zero_add_one P hi x.challenges).trans hxw⟩
-  rw [PMF.toOuterMeasure_bind_apply]
-  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun z => le_of_eq ?_
-  refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨?_, ?_⟩)
-  · exact (round_outputOn d P i x _ _).trans (ite_eq_left hacc)
-  · exact (eval_roundPoly_eq P x.challenges z).symm
+  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun z => le_of_eq <|
+    (PMF.toOuterMeasure_pure_apply _ _).trans <|
+      ite_eq_right fun h => h ⟨ite_eq_left hacc, (eval_roundPoly_eq P x.challenges z).symm⟩
 
 /-- Each round is round-by-round sound with error `d / |F|` (Schwartz–Zippel for one variable). -/
 theorem round_rbrSound (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n) :
@@ -269,9 +262,9 @@ theorem round_rbrSound (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n) :
     | some (g, none) => accepts d x.value g ∧ g = roundPoly P x.challenges
     | some (g, some (z, _)) =>
       accepts d x.value g ∧ g.eval z = (roundPoly P x.challenges).eval z,
-    fun x hx h => hx ⟨(), h⟩, fun x => ⟨?_, fun g => ⟨?_, fun z => ?_⟩⟩⟩
-  · rintro hS m ⟨hacc, rfl⟩
-    exact hS ((roundPoly_eval_zero_add_one P hi x.challenges).symm.trans hacc.2)
+    fun x hx h => hx ⟨(), h⟩, fun x => ⟨fun hS _ ⟨hacc, hg⟩ =>
+      hS ((roundPoly_eval_zero_add_one P hi x.challenges).symm.trans (hg ▸ hacc.2)),
+      fun g => ⟨?_, ?_⟩⟩⟩
   · intro hS
     change (ProbComp.eval (ProbComp.uniform F)).toOuterMeasure
       {c | accepts d x.value g ∧ g.eval c = (roundPoly P x.challenges).eval c} ≤
@@ -282,8 +275,9 @@ theorem round_rbrSound (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : i < n) :
         (fun h => hS ⟨hacc, h⟩) hacc.1 (natDegree_roundPoly_le d P hP hi x.challenges)
         fun _ hc => hc.2
     · simp [hacc]
-  · rintro hS ⟨x', ⟨_, hx'⟩, hout⟩
-    rw [round_outputOn] at hout
+  · rintro z hS ⟨x', ⟨_, hx'⟩, hout⟩
+    change (if accepts d x.value g then some ⟨Fin.snoc x.challenges z, g.eval z⟩ else none) =
+      some x' at hout
     split_ifs at hout with hacc
     obtain rfl := Option.some.inj hout
     exact hS ⟨hacc, hx'.symm.trans (eval_roundPoly_eq P x.challenges z).symm⟩
@@ -315,7 +309,7 @@ theorem finalCheck_rbrSound :
 /-- **Completeness of sumcheck with the final check.** -/
 theorem proof_complete (hP : ∀ j, P.degreeOf j ≤ d) :
     (proof d P).Complete World.plain (rel P 0) Accept 0 := by
-  have h := (Reduction.Complete.iterate (rel := rel P) n fun i hi =>
+  have h := (Reduction.Complete.iterate (rel := rel P) n fun _ hi =>
     round_complete d P hP hi).append (finalCheck_complete P)
   simp only [Finset.sum_const_zero, add_zero] at h
   exact h
@@ -326,9 +320,9 @@ theorem proof_sound (hP : ∀ j, P.degreeOf j ≤ d) :
     (proof d P).verifier.Sound (oP := OracleSpec.empty) World.plain (language (rel P 0)) Set.univ
       (n * ((d : ℝ≥0∞) / Fintype.card F)) := by
   have h := ((Verifier.RbrSound.iterate (R := round d P) (L := fun i => language (rel P i)) n
-    fun i hi => round_rbrSound d P hP hi).append (finalCheck_rbrSound P)).sound
-  simp only [PerChallenge.sum_append, PerChallenge.sum_iterate] at h
-  simp only [PerChallenge.sum, add_zero, Finset.sum_const, Finset.card_range, nsmul_eq_mul] at h
+    fun _ hi => round_rbrSound d P hP hi).append (finalCheck_rbrSound P)).sound
+  simp only [PerChallenge.sum_append, PerChallenge.sum_iterate, PerChallenge.sum, add_zero,
+    Finset.sum_const, Finset.card_range, nsmul_eq_mul] at h
   exact h
 
 end Cslib.Interactive.Sumcheck

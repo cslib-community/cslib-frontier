@@ -49,18 +49,12 @@ variable {Γ : List Color → List Color → Type} {I : Interp Γ} {a b c d : Li
   ∀ i, i.val ≠ j → e ≠ .inl i
 
 @[simp] theorem allowsTop_inl {n : ℕ} {E : Type} (j : ℕ) (i : Fin n) :
-    AllowsTop j (.inl i : Fin n ⊕ E) ↔ i.val = j := by
-  constructor
-  · intro h
-    by_contra hi
-    exact h i hi rfl
-  · intro hi k hk he
-    exact hk ((congrArg Fin.val (Sum.inl.inj he)).symm.trans hi)
+    AllowsTop j (.inl i : Fin n ⊕ E) ↔ i.val = j :=
+  ⟨fun h => Decidable.byContradiction fun hi => h i hi rfl,
+    fun hi _ hk he => hk ((congrArg Fin.val (Sum.inl.inj he)).symm.trans hi)⟩
 
 @[simp] theorem allowsTop_inr {n : ℕ} {E : Type} (j : ℕ) (e : E) :
-    AllowsTop j (.inr e : Fin n ⊕ E) := by
-  intro i _ he
-  cases he
+    AllowsTop j (.inr e : Fin n ⊕ E) := fun _ _ => nofun
 
 private theorem allowsTop_symm_apply {E E' : Type} {n : ℕ}
     (σ : (Fin n ⊕ E) ≃ (Fin n ⊕ E'))
@@ -80,15 +74,9 @@ theorem topList_of_reachableOn {color : Color} {D : Diagram Γ (color :: a) b}
     (hs : D.topList s = bit :: xs) :
     D.topList t = t (.inl ⟨0, Nat.zero_lt_succ _⟩) :: xs := by
   have htail : (D.topList t).tail = (D.topList s).tail := by
-    simp only [topList]
-    conv_lhs => rw [List.ofFn_succ]
-    conv_rhs => rw [List.ofFn_succ]
-    simp only [List.tail_cons]
-    apply List.ofFn_inj.2
-    funext i
-    exact (h.apply_eq (fun hall => hall i.succ (by simp) rfl)).symm
-  rw [topList_cons D t, htail, hs]
-  rfl
+    simp only [topList, List.ofFn_succ, List.tail_cons, List.ofFn_inj]
+    exact funext fun i => (h.apply_eq fun hall => hall i.succ (by simp) rfl).symm
+  rw [topList_cons D t, htail, hs]; rfl
 
 /-- Remove a leading identity diagram from the edge names of a stack. -/
 @[expose] def idComp (D : Diagram Γ a b) : ((Diagram.id a).comp D).Edge ≃ D.Edge :=
@@ -97,9 +85,7 @@ theorem topList_of_reachableOn {color : Color} {D : Diagram Γ (color :: a) b}
 /-- Removing a leading identity preserves legality. -/
 theorem legal_idComp (D : Diagram Γ a b) (s : D.Edge → Bool) :
     (((Diagram.id a).comp D).graph I).Legal (s ∘ idComp D) ↔ (D.graph I).Legal s := by
-  have he : (s ∘ idComp D) ∘ compRight (Diagram.id a) D = s := by
-    funext e
-    cases e <;> rfl
+  have he : (s ∘ idComp D) ∘ compRight (Diagram.id a) D = s := funext fun | .inl _ | .inr _ => rfl
   simp only [legal_comp_iff, legal_id, true_and, he]
 
 /-- Lift a selected-edge path through a leading identity diagram. -/
@@ -161,29 +147,22 @@ theorem legal_compAssoc (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (D₃ : 
     (((D₁.comp D₂).comp D₃).graph I).Legal (s ∘ compAssoc D₁ D₂ D₃) ↔
       ((D₁.comp (D₂.comp D₃)).graph I).Legal s := by
   have h₁ : ((s ∘ compAssoc D₁ D₂ D₃) ∘ compLeft (D₁.comp D₂) D₃) ∘ compLeft D₁ D₂ =
-      s ∘ compLeft D₁ (D₂.comp D₃) := by
-    funext e
-    cases e <;> rfl
+      s ∘ compLeft D₁ (D₂.comp D₃) := funext fun | .inl _ | .inr _ => rfl
   have h₂ : ((s ∘ compAssoc D₁ D₂ D₃) ∘ compLeft (D₁.comp D₂) D₃) ∘ compRight D₁ D₂ =
-      (s ∘ compRight D₁ (D₂.comp D₃)) ∘ compLeft D₂ D₃ := by
-    funext e
-    rcases e with i | e
-    · cases hi : D₁.bottom i <;>
-        simp only [Function.comp_apply, compRight, compLeft, Sum.map, Sum.elim_inl,
-          Sum.elim_inr, id_eq, hi] <;> rfl
-    · rfl
+      (s ∘ compRight D₁ (D₂.comp D₃)) ∘ compLeft D₂ D₃ := funext fun
+    | .inl i => by
+      cases hi : D₁.bottom i <;> simp only [Function.comp_apply, compRight, compLeft,
+        Sum.map, Sum.elim_inl, Sum.elim_inr, id_eq, hi] <;> rfl
+    | .inr _ => rfl
   have h₃ : (s ∘ compAssoc D₁ D₂ D₃) ∘ compRight (D₁.comp D₂) D₃ =
-      (s ∘ compRight D₁ (D₂.comp D₃)) ∘ compRight D₂ D₃ := by
-    funext e
-    rcases e with i | e
-    · simp only [Function.comp_apply, compRight, bottom_comp]
-      cases D₂.bottom i with
-      | inl j =>
-        cases hj : D₁.bottom j <;>
-          simp only [compLeft, Sum.map, Sum.elim_inl, Sum.elim_inr, Function.comp_apply,
-            id_eq, hj] <;> rfl
-      | inr e => rfl
-    · rfl
+      (s ∘ compRight D₁ (D₂.comp D₃)) ∘ compRight D₂ D₃ := funext fun
+    | .inl i => by
+      simp only [Function.comp_apply, compRight, bottom_comp]
+      rcases D₂.bottom i with j | _
+      · cases hj : D₁.bottom j <;> simp only [compLeft, Sum.map, Sum.elim_inl, Sum.elim_inr,
+          Function.comp_apply, id_eq, hj] <;> rfl
+      · rfl
+    | .inr _ => rfl
   simp only [legal_comp_iff, h₁, h₂, h₃, and_assoc]
 
 /-- A selected-edge execution transfers across regrouping. -/
@@ -222,18 +201,12 @@ private theorem glueResponse_reverse {D₁ : Diagram Γ a b} {D₂ : Diagram Γ 
     (he : ∀ i, i ≠ j → e ≠ .inl i) :
     glueResponse D₁ D₂ j f (reverse u e) =
       reverse (glueResponse D₁ D₂ j f u) (compRight D₁ D₂ e) := by
-  have hflip (b : Bool) : f (!b) = reverse (f b) (D₁.bottom j) := by
-    cases b with
-    | false => simp only [Bool.not_false, hf, reverse_reverse]
-    | true => exact hf
   rcases e with i | e
-  · have hij : i = j := by
-      by_contra hne
-      exact he i hne rfl
-    subst i
-    simp only [glueResponse, reverse_self]
-    rw [hflip]
-    exact (glueComp_congr_right D₁ D₂ _ (fun e => reverse_of_ne u (by simp))).trans
+  · obtain rfl : i = j := Decidable.byContradiction fun hne => he i hne rfl
+    have hflip (b : Bool) : f (!b) = reverse (f b) (D₁.bottom i) := by
+      cases b <;> simp [hf, reverse_reverse]
+    simp only [glueResponse, reverse_self, hflip]
+    exact (glueComp_congr_right D₁ D₂ _ fun _ => reverse_of_ne u (by simp)).trans
       (glueComp_reverse_left D₁ D₂ _ u _)
   · simp only [glueResponse, reverse_of_ne u (show (.inl j : D₂.Edge) ≠ .inr e by simp)]
     exact glueComp_reverse_right D₁ D₂ _ u e
@@ -265,10 +238,8 @@ theorem reachableOn_glueResponse_allowsTop {D₁ : Diagram Γ a b} {D₂ : Diagr
     (hallowed : ∀ e, AllowsTop j e → allowed (compRight D₁ D₂ e)) :
     ((D₁.comp D₂).graph I).ReachableOn allowed
       (glueResponse D₁ D₂ j f s) (glueResponse D₁ D₂ j f t) := by
-  have he : (AllowsTop (j : ℕ) : D₂.Edge → Prop) =
-      fun e => ∀ i, i ≠ j → e ≠ .inl i := by
-    funext e
-    simp only [AllowsTop, ne_eq, Fin.ext_iff]
+  have he : (AllowsTop (j : ℕ) : D₂.Edge → Prop) = fun e => ∀ i, i ≠ j → e ≠ .inl i :=
+    funext fun _ => by simp only [AllowsTop, ne_eq, Fin.ext_iff]
   rw [he] at h hlegal hallowed
   exact reachableOn_glueResponse j f hf h hlegal hallowed
 

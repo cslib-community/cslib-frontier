@@ -135,24 +135,20 @@ theorem eval_coupledLazyOracle_map_coupledCache (S : Scheme PK SK M R CT K)
   · rw [SimState.coupledCache, RandomOracle.answer_sum_inl, RandomOracle.answer_sum_inl,
       PMF.map_comp]
     exact RandomOracle.eval_zoom_memoize_map (fun st : SimState M R CT K => st.gCache)
-      (fun st g => { st with gCache := g }) S.pke.sampleCoins m st (fun r => r)
-      SimState.coupledCache
-      (fun g => RandomOracle.Cache.sum
-        (RandomOracle.Cache.sum g (RandomOracle.ofList st.hCache))
-        (RandomOracle.ofList st.hqCache)) (fun _ => rfl)
+      (fun st g => { st with gCache := g }) S.pke.sampleCoins m st id SimState.coupledCache
+      (fun g => .sum (.sum g (RandomOracle.ofList st.hCache)) (RandomOracle.ofList st.hqCache))
+      fun _ => rfl
   · rw [SimState.coupledCache, RandomOracle.answer_sum_inl, RandomOracle.answer_sum_inr,
       PMF.map_comp]
     exact RandomOracle.eval_zoom_memoize_map (fun st : SimState M R CT K => st.hCache)
-      (fun st h => { st with hCache := h }) S.sampleKey x st (fun k => k) SimState.coupledCache
-      (fun h => RandomOracle.Cache.sum
-        (RandomOracle.Cache.sum (RandomOracle.ofList st.gCache) h)
-        (RandomOracle.ofList st.hqCache)) (fun _ => rfl)
+      (fun st h => { st with hCache := h }) S.sampleKey x st id SimState.coupledCache
+      (fun h => .sum (.sum (RandomOracle.ofList st.gCache) h) (RandomOracle.ofList st.hqCache))
+      fun _ => rfl
   · rw [SimState.coupledCache, RandomOracle.answer_sum_inr]
     exact RandomOracle.eval_zoom_memoize_map SimState.hqCache
-      (fun st q => { st with hqCache := q }) S.sampleKey c st (fun k => k) SimState.coupledCache
-      (fun q => RandomOracle.Cache.sum
-        (RandomOracle.Cache.sum (RandomOracle.ofList st.gCache) (RandomOracle.ofList st.hCache))
-        q) (fun _ => rfl)
+      (fun st q => { st with hqCache := q }) S.sampleKey c st id SimState.coupledCache
+      (fun q => .sum (.sum (RandomOracle.ofList st.gCache) (RandomOracle.ofList st.hCache)) q)
+      fun _ => rfl
 
 /-- `coupledFilterHandler d` interprets `coupledProgram`, with the decapsulation filter read on
 the current `G` cache, against the lazy oracles on `SimState`. -/
@@ -165,9 +161,7 @@ theorem coupledFilterHandler_eq_interpret (S : Scheme PK SK M R CT K)
   cases q with
   | G m => exact congrFun (OracleComp.interpret_query S.coupledLazyOracle (.inl (.inl m))).symm st
   | H x =>
-    suffices h : S.coupledFilterHandler d pk sk cStar (.H x) =
-        OracleComp.interpret S.coupledLazyOracle (S.coupledProgram pk sk cStar (d st.gCache) (.H x))
-      from congrFun h st
+    refine congrFun ?_ st
     rcases x with ⟨_ | _, m, c⟩
     · simp only [coupledFilterHandler, simFilterDispatch, coupledHashH, coupledProgram,
         ROQuery.dispatch, interp_norm]
@@ -232,8 +226,8 @@ private theorem eval_run_coupledHandler_eq_eager [Fintype M] [Finite R] [Fintype
     ← RandomOracle.bind_complete_sum, ← RandomOracle.bind_complete_sum]
   congr 1 with T : 1
   rw [OracleComp.interpret_interpret]
-  congr 1 with q : 1
-  exact S.interpret_coupledProgram pk sk cStar (fun _ => true) T q
+  exact congrArg (OracleComp.interpret · prog)
+    (funext (S.interpret_coupledProgram pk sk cStar (fun _ => true) T))
 
 /-- **Lazy/eager equivalence of the coupled game**: the lazy coupled game `S.coupledGame A b`
 has the output distribution of the eager coupled game `S.eagerCoupledGame A b`. -/
@@ -262,21 +256,19 @@ theorem eval_coupledGame_eq_eagerCoupledGame [Fintype M] [Finite R] [Fintype CT]
               S.coupledH G Q H pk sk (false, mStar, S.pke.encDet pk mStar rStar)⟩) := by
     set cStar := S.pke.encDet pk mStar rStar
     have hP (kRand : K) :
+        (ProbComp.eval ((S.coupledHashH pk sk (false, mStar, cStar)).run
+          { gCache := [(mStar, rStar)] })).bind (fun z =>
+          (ProbComp.eval ((OracleComp.interpret (S.coupledHandler pk sk cStar)
+            (A ⟨pk, cStar, if b then kRand else z.1⟩)).run z.2)).bind fun a => PMF.pure a.1) =
         (ProbComp.eval ((OracleComp.interpret (S.coupledHandler pk sk cStar)
           (OracleComp.query (spec := ROResp (M := M) (CT := CT) R K)
             (ROQuery.H (false, mStar, cStar)) >>= fun k =>
               A ⟨pk, cStar, if b then kRand else k⟩)).run
-          { gCache := [(mStar, rStar)] })).map Prod.fst =
-        (ProbComp.eval ((S.coupledHashH pk sk (false, mStar, cStar)).run
-          { gCache := [(mStar, rStar)] })).bind (fun z =>
-          (ProbComp.eval ((OracleComp.interpret (S.coupledHandler pk sk cStar)
-            (A ⟨pk, cStar, if b then kRand else z.1⟩)).run z.2)).bind fun a => PMF.pure a.1) := by
+          { gCache := [(mStar, rStar)] })).map Prod.fst := by
       rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
-      simp only [pmf_norm]
-      rfl
+      simp only [pmf_norm]; rfl
     rw [PMF.bind_comm]
-    simp only [← hP]
-    simp only [eval_run_coupledHandler_eq_eager]
+    simp only [hP, eval_run_coupledHandler_eq_eager]
     simp only [RandomOracle.complete_ofList_singleton, RandomOracle.ofList_nil,
       RandomOracle.complete_empty, eagerCoupledHandler, interp_norm, pmf_norm, ROQuery.dispatch]
     pmf_swap

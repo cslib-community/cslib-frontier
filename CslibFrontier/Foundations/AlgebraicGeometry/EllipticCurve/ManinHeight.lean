@@ -120,16 +120,12 @@ lemma hgt_eq_of_le_of_le {w : Fin 3 → k[X]} {n : ℕ} (hle : ∀ i, (w i).natD
 /-- A triple is primitive iff every common divisor of its components is a unit. -/
 lemma isPrimTriple_iff {w : Fin 3 → k[X]} :
     IsPrimTriple w ↔ ∀ d : k[X], (∀ i, d ∣ w i) → IsUnit d := by
-  constructor
-  · intro hw d hd
-    by_contra hu
-    by_cases h0 : d = 0
-    · subst h0
-      exact hw X prime_X fun i ↦ (zero_dvd_iff.1 (hd i)) ▸ dvd_zero X
-    · obtain ⟨π, hπ, hπd⟩ := WfDvdMonoid.exists_irreducible_factor hu h0
-      exact hw π hπ.prime fun i ↦ hπd.trans (hd i)
-  · intro h π hπ hdvd
-    exact hπ.not_isUnit (h π hdvd)
+  refine ⟨fun hw d hd ↦ ?_, fun h π hπ hdvd ↦ hπ.not_isUnit (h π hdvd)⟩
+  by_contra hu
+  rcases eq_or_ne d 0 with rfl | h0
+  · exact hw X prime_X fun i ↦ (zero_dvd_iff.1 (hd i)) ▸ dvd_zero X
+  · obtain ⟨π, hπ, hπd⟩ := WfDvdMonoid.exists_irreducible_factor hu h0
+    exact hw π hπ.prime fun i ↦ hπd.trans (hd i)
 
 private lemma natDegree_mul_of_isUnit {a : k[X]} (ha : IsUnit a) (p : k[X]) :
     (a * p).natDegree = p.natDegree := by
@@ -144,17 +140,16 @@ theorem hgt_eq_of_smul_eq {v w : Fin 3 → k[X]} (hv : IsPrimTriple v) (hw : IsP
   have hb : algebraMap k[X] (RatFunc k) t.denom ≠ 0 :=
     (map_ne_zero_iff _ (RatFunc.algebraMap_injective k)).2 t.denom_ne_zero
   have hab : IsCoprime t.num t.denom := RatFunc.isCoprime_num_denom t
-  have key : ∀ i, t.num * v i = t.denom * w i := by
-    intro i
+  have key (i) : t.num * v i = t.denom * w i := by
     have hi := congrFun h i
     simp only [Pi.smul_apply, smul_eq_mul] at hi
     rw [← RatFunc.num_div_denom t, div_mul_eq_mul_div, div_eq_iff hb] at hi
     apply RatFunc.algebraMap_injective k
     rw [map_mul, map_mul, hi, mul_comm]
   have hbu : IsUnit t.denom := isPrimTriple_iff.1 hv _ fun i ↦
-    hab.symm.dvd_of_dvd_mul_left (Dvd.intro _ (key i).symm)
+    hab.symm.dvd_of_dvd_mul_left ⟨_, key i⟩
   have hau : IsUnit t.num := isPrimTriple_iff.1 hw _ fun i ↦
-    hab.dvd_of_dvd_mul_left (Dvd.intro _ (key i))
+    hab.dvd_of_dvd_mul_left ⟨_, (key i).symm⟩
   unfold hgt
   congr 1
   funext i
@@ -166,47 +161,35 @@ theorem hgt_eq_of_smul_eq {v w : Fin 3 → k[X]} (hv : IsPrimTriple v) (hw : IsP
 theorem isPrim_sym2Pair {r s r' s' : k[X]} (h : IsCoprime r s) (h' : IsCoprime r' s') :
     IsPrimTriple (sym2Pair r s r' s') := by
   intro π hπ hdvd
-  have h0 : π ∣ r * r' := hdvd 0
-  have h1 : π ∣ r * s' + s * r' := hdvd 1
-  have h2 : π ∣ s * s' := hdvd 2
-  rcases hπ.dvd_or_dvd h0 with hr | hr'
+  rcases hπ.dvd_or_dvd (hdvd 0) with hr | hr'
   · have hs : ¬ π ∣ s := fun hs ↦ hπ.not_isUnit (h.isUnit_of_dvd' hr hs)
-    have hs' : π ∣ s' := (hπ.dvd_or_dvd h2).resolve_left hs
-    have hsr' : π ∣ s * r' := (dvd_add_right (dvd_mul_of_dvd_left hr s')).1 h1
+    have hs' : π ∣ s' := (hπ.dvd_or_dvd (hdvd 2)).resolve_left hs
+    have hsr' : π ∣ s * r' := (dvd_add_right (dvd_mul_of_dvd_left hr s')).1 (hdvd 1)
     exact hπ.not_isUnit (h'.isUnit_of_dvd' ((hπ.dvd_or_dvd hsr').resolve_left hs) hs')
   · have hs' : ¬ π ∣ s' := fun hs' ↦ hπ.not_isUnit (h'.isUnit_of_dvd' hr' hs')
-    have hs : π ∣ s := (hπ.dvd_or_dvd h2).resolve_right hs'
-    have hrs' : π ∣ r * s' := (dvd_add_left (dvd_mul_of_dvd_left hs r')).1 h1
+    have hs : π ∣ s := (hπ.dvd_or_dvd (hdvd 2)).resolve_right hs'
+    have hrs' : π ∣ r * s' := (dvd_add_left (dvd_mul_of_dvd_left hs r')).1 (hdvd 1)
     exact hπ.not_isUnit (h.isUnit_of_dvd' ((hπ.dvd_or_dvd hrs').resolve_right hs') hs)
 
 /-- For a coprime pair, a coefficient at `max (deg r) (deg s)` is nonzero. -/
 private lemma coeff_max_ne_zero {r s : k[X]} (h : IsCoprime r s) :
     r.coeff (max r.natDegree s.natDegree) ≠ 0 ∨ s.coeff (max r.natDegree s.natDegree) ≠ 0 := by
-  by_cases hs : s = 0
-  · subst hs
-    left
-    rw [natDegree_zero, max_eq_left (Nat.zero_le _)]
-    exact mt leadingCoeff_eq_zero.1 (isCoprime_zero_right.1 h).ne_zero
-  by_cases hr : r = 0
-  · subst hr
-    right
-    rw [natDegree_zero, max_eq_right (Nat.zero_le _)]
-    exact mt leadingCoeff_eq_zero.1 hs
-  rcases le_total r.natDegree s.natDegree with hle | hle
+  rcases eq_or_ne s 0 with rfl | hs
+  · exact .inl (by simpa using mt leadingCoeff_eq_zero.1 (isCoprime_zero_right.1 h).ne_zero)
+  rcases le_or_gt r.natDegree s.natDegree with hle | hlt
   · right
     rw [max_eq_right hle]
     exact mt leadingCoeff_eq_zero.1 hs
   · left
-    rw [max_eq_left hle]
-    exact mt leadingCoeff_eq_zero.1 hr
+    rw [max_eq_left hlt.le]
+    exact mt leadingCoeff_eq_zero.1 fun hr ↦ by simp [hr] at hlt
 
 /-- The product of two nonzero linear forms `(a Z + b)(a' Z + b')` is nonzero. -/
 private lemma coeffs_mul_ne_zero {a b a' b' : k} (h : a ≠ 0 ∨ b ≠ 0) (h' : a' ≠ 0 ∨ b' ≠ 0) :
     a * a' ≠ 0 ∨ a * b' + b * a' ≠ 0 ∨ b * b' ≠ 0 := by
-  by_contra hc
-  simp only [not_or, ne_eq, not_not] at hc
+  by_contra! hc
   obtain ⟨h0, h1, h2⟩ := hc
-  rcases h with ha | hb <;> rcases h' with ha' | hb' <;> simp_all
+  rcases h with h | h <;> rcases h' with h' | h' <;> simp_all
 
 /-- The height of the symmetric product of two coprime pairs is the sum of their heights. -/
 theorem hgt_sym2Pair {r s r' s' : k[X]} (h : IsCoprime r s) (h' : IsCoprime r' s') :
@@ -218,25 +201,20 @@ theorem hgt_sym2Pair {r s r' s' : k[X]} (h : IsCoprime r s) (h' : IsCoprime r' s
   have hs : s.natDegree ≤ n := le_max_right _ _
   have hr' : r'.natDegree ≤ n' := le_max_left _ _
   have hs' : s'.natDegree ≤ n' := le_max_right _ _
-  have hmul : ∀ {p q : k[X]}, p.natDegree ≤ n → q.natDegree ≤ n' →
-      (p * q).natDegree ≤ n + n' := fun hp hq ↦ natDegree_mul_le.trans (add_le_add hp hq)
-  apply hgt_eq_of_le_of_le
-  · intro i
-    fin_cases i
-    · exact hmul hr hr'
-    · exact natDegree_add_le_of_degree_le (hmul hr hs') (hmul hs hr')
-    · exact hmul hs hs'
+  have hmul {p q : k[X]} (hp : p.natDegree ≤ n) (hq : q.natDegree ≤ n') :
+      (p * q).natDegree ≤ n + n' := natDegree_mul_le.trans (add_le_add hp hq)
+  refine hgt_eq_of_le_of_le (fun i ↦ ?_) ?_
+  · fin_cases i
+    exacts [hmul hr hr', natDegree_add_le_of_degree_le (hmul hr hs') (hmul hs hr'), hmul hs hs']
   · rcases coeffs_mul_ne_zero (coeff_max_ne_zero h) (coeff_max_ne_zero h') with h0 | h1 | h2
-    · refine ⟨0, le_natDegree_of_ne_zero ?_⟩
-      change (r * r').coeff (n + n') ≠ 0
-      rwa [coeff_mul_add_eq_of_natDegree_le hr hr']
-    · refine ⟨1, le_natDegree_of_ne_zero ?_⟩
-      change (r * s' + s * r').coeff (n + n') ≠ 0
-      rwa [coeff_add, coeff_mul_add_eq_of_natDegree_le hr hs',
-        coeff_mul_add_eq_of_natDegree_le hs hr']
-    · refine ⟨2, le_natDegree_of_ne_zero ?_⟩
-      change (s * s').coeff (n + n') ≠ 0
-      rwa [coeff_mul_add_eq_of_natDegree_le hs hs']
+    · exact ⟨0, le_natDegree_of_ne_zero
+        (show (r * r').coeff _ ≠ 0 by rwa [coeff_mul_add_eq_of_natDegree_le hr hr'])⟩
+    · exact ⟨1, le_natDegree_of_ne_zero
+        (show (r * s' + s * r').coeff _ ≠ 0 by
+          rwa [coeff_add, coeff_mul_add_eq_of_natDegree_le hr hs',
+            coeff_mul_add_eq_of_natDegree_le hs hr'])⟩
+    · exact ⟨2, le_natDegree_of_ne_zero
+        (show (s * s').coeff _ ≠ 0 by rwa [coeff_mul_add_eq_of_natDegree_le hs hs'])⟩
 
 /-! ### The add-sub map doubles the height -/
 
@@ -245,14 +223,14 @@ degree at most `n * hgt w`. -/
 private lemma natDegree_eval₂_C_le {P : MvPolynomial (Fin 3) k} {n : ℕ} (hP : P.IsHomogeneous n)
     (w : Fin 3 → k[X]) : (MvPolynomial.eval₂ C w P).natDegree ≤ n * hgt w := by
   rw [MvPolynomial.eval₂_eq']
-  refine natDegree_sum_le_of_forall_le _ _ fun d hd ↦ ?_
-  refine (natDegree_C_mul_le _ _).trans ((natDegree_prod_le _ _).trans ?_)
-  have hn : n = ∑ i, d i := by
-    rw [hP.degree_eq_sum_deg_support hd, ← Finsupp.degree_apply, Finsupp.degree_eq_sum]
+  refine natDegree_sum_le_of_forall_le _ _ fun d hd ↦
+    (natDegree_C_mul_le _ _).trans ((natDegree_prod_le _ _).trans ?_)
   calc ∑ i, (w i ^ d i).natDegree ≤ ∑ i, d i * hgt w :=
         Finset.sum_le_sum fun i _ ↦
           natDegree_pow_le.trans (Nat.mul_le_mul_left _ (natDegree_le_hgt w i))
-    _ = n * hgt w := by rw [← Finset.sum_mul, hn]
+    _ = n * hgt w := by
+        rw [← Finset.sum_mul, hP.degree_eq_sum_deg_support hd, ← Finsupp.degree_apply,
+          Finsupp.degree_eq_sum]
 
 /-- The coefficient at `T ^ (n * H)` of a homogeneous polynomial of degree `n` over `k`,
 evaluated at a triple of polynomials of degree at most `H`, is its value at the coefficients at
@@ -265,7 +243,7 @@ private lemma coeff_eval₂_C_of_isHomogeneous {P : MvPolynomial (Fin 3) k} {n :
   refine Finset.sum_congr rfl fun d hd ↦ ?_
   have hn : n = ∑ i, d i := by
     rw [hP.degree_eq_sum_deg_support hd, ← Finsupp.degree_apply, Finsupp.degree_eq_sum]
-  have hp : ∀ i, (w i ^ d i).natDegree ≤ d i * H := fun i ↦
+  have hp (i) : (w i ^ d i).natDegree ≤ d i * H :=
     natDegree_pow_le.trans (Nat.mul_le_mul_left _ (hw i))
   rw [coeff_C_mul, Fin.prod_univ_three, Fin.prod_univ_three, hn, Fin.sum_univ_three, add_mul,
     add_mul, coeff_mul_add_eq_of_natDegree_le (natDegree_mul_le.trans (add_le_add (hp 0) (hp 1)))
@@ -277,16 +255,11 @@ private lemma coeff_hgt_ne_zero {w : Fin 3 → k[X]} (hw : IsPrimTriple w) :
     (fun i ↦ (w i).coeff (hgt w)) ≠ 0 := by
   intro h0
   obtain ⟨i, hi⟩ := exists_natDegree_eq_hgt w
-  have hwi : w i = 0 := by
-    rw [← leadingCoeff_eq_zero, leadingCoeff, hi]
-    exact congrFun h0 i
-  have hH : hgt w = 0 := by rw [← hi, hwi, natDegree_zero]
+  have hwi : w i = 0 := leadingCoeff_eq_zero.1 (by simpa [leadingCoeff, hi] using congrFun h0 i)
+  have hH : hgt w = 0 := by simp [← hi, hwi]
   refine hw X prime_X fun j ↦ ?_
-  have hj : w j = 0 := by
-    rw [eq_C_of_natDegree_le_zero ((natDegree_le_hgt w j).trans hH.le), ← hH]
-    rw [congrFun h0 j, Pi.zero_apply, map_zero]
-  rw [hj]
-  exact dvd_zero X
+  rw [eq_C_of_natDegree_le_zero ((natDegree_le_hgt w j).trans hH.le), ← hH, congrFun h0 j]
+  simp
 
 /-- The add-sub map of `E.map C` sends primitive triples to primitive triples. -/
 theorem isPrim_addSubMap (E : WeierstrassCurve k) (hΔ : E.Δ ≠ 0) {w : Fin 3 → k[X]}

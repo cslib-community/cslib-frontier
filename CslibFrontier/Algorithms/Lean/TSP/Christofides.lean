@@ -160,12 +160,13 @@ theorem shortcutTour_perm {W : Type} {T : List (WeightedEdge n W)}
     (shortcutTour T M).Perm (List.finRange n) := by
   rcases Nat.eq_zero_or_pos n with rfl | h
   · simp [shortcutTour]
-  · have hw := isEulerCircuit_eulerCircuit (u := ⟨0, h⟩) (even_degree_append hM)
-      fun e _ => eqvGen_append hT M e.1 _
-    rw [shortcutTour, dite_eq_left h]
+  · rw [shortcutTour, dite_eq_left h]
     refine (List.perm_ext_iff_of_nodup (List.nodup_dedup _) (List.nodup_finRange n)).2 fun x => ?_
     simp only [List.mem_dedup, List.mem_finRange, iff_true]
-    exact mem_of_isEulerCircuit hw (eqvGen_append hT M x _)
+    exact mem_of_isEulerCircuit
+      (isEulerCircuit_eulerCircuit (u := ⟨0, h⟩) (even_degree_append hM)
+        fun e _ => eqvGen_append hT M e.1 _)
+      (eqvGen_append hT M x _)
 
 /-- **The upper bound** ([WilliamsonShmoys2011], proof of Theorem 2.13): for symmetric `δ` with the
 triangle inequality and at least two vertices, if the edges of `T` connect all vertices and are
@@ -180,26 +181,26 @@ theorem cycleCost_shortcutTour_le {δ : Fin n → Fin n → ℕ} (hsymm : ∀ x 
   have h : 0 < n := by omega
   have hw := isEulerCircuit_eulerCircuit (u := ⟨0, h⟩) (even_degree_append hM)
     fun e _ => eqvGen_append hT M e.1 _
-  have hT0 : T ≠ [] := by
-    rintro rfl
-    have key : ∀ a b : Fin n,
-        Relation.EqvGen (fun x y => ∃ e ∈ ([] : List (WeightedEdge n ℕ)), x = e.u ∧ y = e.v)
-          a b → a = b := by
-      intro a b hab
-      induction hab with
-      | rel _ _ h => simp at h
-      | refl => rfl
-      | symm _ _ _ ih => exact ih.symm
-      | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
-    exact absurd (key _ _ (hT ⟨0, h⟩ ⟨1, hn⟩)) (by simp [Fin.ext_iff])
-  have hH : T.map WeightedEdge.endpoints ++ M ≠ [] := by simp [hT0]
+  have hH : T.map WeightedEdge.endpoints ++ M ≠ [] := by
+    cases T with
+    | nil =>
+      have key {a b : Fin n}
+          (hab : Relation.EqvGen (fun x y => ∃ e ∈ ([] : List (WeightedEdge n ℕ)),
+            x = e.u ∧ y = e.v) a b) : a = b := by
+        induction hab with
+        | rel _ _ h =>
+          let ⟨_, h, _⟩ := h
+          nomatch h
+        | refl => rfl
+        | symm _ _ _ ih => exact ih.symm
+        | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
+      exact absurd (congrArg Fin.val (key (hT ⟨0, h⟩ ⟨1, hn⟩))) Nat.zero_ne_one
+    | cons _ _ => exact List.cons_ne_nil _ _
   rw [shortcutTour, dite_eq_left h]
-  refine (cycleCost_dedup_le_of_isEulerCircuit htri hsymm hw hH).trans (le_of_eq ?_)
-  have hTsum : ((T.map WeightedEdge.endpoints).map fun e => δ e.1 e.2).sum = totalWeight T := by
-    rw [totalWeight, List.map_map]
-    congr 1
-    exact List.map_congr_left fun e he => (hTw e he).symm
-  simp only [List.map_append, List.sum_append, hTsum]
+  refine (cycleCost_dedup_le_of_isEulerCircuit htri hsymm hw hH).trans_eq ?_
+  have hTmap : T.map ((fun e => δ e.1 e.2) ∘ WeightedEdge.endpoints) = T.map WeightedEdge.weight :=
+    List.map_congr_left fun e he => (hTw e he).symm
+  simp only [List.map_append, List.sum_append, totalWeight, List.map_map, hTmap]
 
 /-! ### Christofides' bound -/
 
@@ -221,27 +222,20 @@ private theorem eq_of_perm_finRange {l₁ q : List (Fin n)} (hn : n < 2)
 private theorem rel_eq_true_of_numComponents_eq_one {p : Partition n} (hp : p.numComponents = 1)
     (x y : Fin n) : p.rel x y = true := by
   obtain ⟨c, hc⟩ := Finset.card_eq_one.mp hp
-  have hx : p.classOf x = c := Finset.mem_singleton.mp (hc ▸ p.classOf_mem_components x)
-  have hy : p.classOf y = c := Finset.mem_singleton.mp (hc ▸ p.classOf_mem_components y)
-  exact Partition.classOf_eq_iff.mp (hx.trans hy.symm)
+  exact Partition.classOf_eq_iff.mp
+    ((Finset.mem_singleton.mp (hc ▸ p.classOf_mem_components x)).trans
+      (Finset.mem_singleton.mp (hc ▸ p.classOf_mem_components y)).symm)
 
 /-- The complete graph on at least one vertex is connected. -/
 theorem numComponents_edgePartition_completeEdges (δ : Fin n → Fin n → ℕ) (hn : 0 < n) :
     (edgePartition (completeEdges δ)).numComponents = 1 := by
   set p := edgePartition (completeEdges δ)
-  have hrel : ∀ x y : Fin n, p.rel x y = true := fun x y =>
-    (rel_edgePartition_iff_eqvGen _ x y).2
-      (.rel _ _ ⟨⟨x, y, δ x y⟩, mem_completeEdges.2 rfl, rfl, rfl⟩)
   have hcomp : p.components = {p.classOf ⟨0, hn⟩} := by
     ext c
     simp only [Partition.mem_components, Finset.mem_singleton]
-    constructor
-    · rintro ⟨x, rfl⟩
-      exact Partition.classOf_eq_iff.mpr (hrel x _)
-    · rintro rfl
-      exact ⟨_, rfl⟩
-  unfold Partition.numComponents
-  rw [hcomp, Finset.card_singleton]
+    exact ⟨fun ⟨x, hx⟩ => hx ▸ Partition.classOf_eq_iff.mpr ((rel_edgePartition_iff_eqvGen _ x _).2
+      (.rel _ _ ⟨⟨x, _, δ x _⟩, mem_completeEdges.2 rfl, rfl, rfl⟩)), fun h => ⟨_, h.symm⟩⟩
+  rw [Partition.numComponents, hcomp, Finset.card_singleton]
 
 /-- **Feasibility.** Christofides' tour visits every vertex exactly once. -/
 theorem christofides_perm (δ : Fin n → Fin n → ℕ) : (christofides δ).Perm (List.finRange n) :=
@@ -264,18 +258,15 @@ theorem two_mul_cycleCost_shortcutTour_le_three_mul {δ : Fin n → Fin n → �
     {q : List (Fin n)} (hq : q.Nodup) (hcov : ∀ x, x ∈ q) :
     2 * cycleCost δ (shortcutTour T M) ≤ 3 * cycleCost δ q := by
   obtain ⟨⟨hsub, -, hcomp⟩, hTmin⟩ := hT
-  have hTw : ∀ e ∈ T, e.weight = δ e.u e.v := fun e he => mem_completeEdges.1 (hsub.subset he)
-  have hconn : ∀ a b : Fin n, Relation.EqvGen (fun x y => ∃ e ∈ T, x = e.u ∧ y = e.v) a b :=
-    fun a b =>
-      (rel_edgePartition_iff_eqvGen T a b).1 (rel_eq_true_of_numComponents_eq_one hcomp a b)
+  have hconn (a b : Fin n) : Relation.EqvGen (fun x y => ∃ e ∈ T, x = e.u ∧ y = e.v) a b :=
+    (rel_edgePartition_iff_eqvGen T a b).1 (rel_eq_true_of_numComponents_eq_one hcomp a b)
   rcases Nat.lt_or_ge n 2 with hn | hn
-  · rw [eq_of_perm_finRange hn (shortcutTour_perm hconn hM) hq hcov]
-    omega
-  · have h1 := cycleCost_shortcutTour_le hsymm htri hn hTw hconn hM
-    have h2 : totalWeight T ≤ cycleCost δ q :=
-      (hTmin _ (kruskalEdges_isMinSpanningTree
-        (numComponents_edgePartition_completeEdges δ (by omega))).1).trans
-        (totalWeight_kruskalEdges_le_cycleCost δ hq hcov)
+  · rw [eq_of_perm_finRange hn (shortcutTour_perm hconn hM) hq hcov]; omega
+  · have h1 := cycleCost_shortcutTour_le hsymm htri hn
+      (fun e he => mem_completeEdges.1 (hsub.subset he)) hconn hM
+    have h2 := (hTmin _ (kruskalEdges_isMinSpanningTree
+      (numComponents_edgePartition_completeEdges δ (by omega))).1).trans
+      (totalWeight_kruskalEdges_le_cycleCost δ hq hcov)
     have h3 := two_mul_sum_le_cycleCost htri (nodup_oddVertices T) hM hmin hq fun x _ => hcov x
     omega
 
@@ -290,9 +281,8 @@ theorem two_mul_cycleCost_christofides_le_three_mul {δ : Fin n → Fin n → �
     2 * cycleCost δ (christofides δ) ≤ 3 * cycleCost δ q := by
   rcases Nat.eq_zero_or_pos n with rfl | h
   · simp [christofides, shortcutTour, cycleCost]
-  · have hk : (oddVertices (kruskalEdges (completeEdges δ))).length ≤ 2 * n := by
-      have := length_oddVertices_le (kruskalEdges (completeEdges δ))
-      omega
+  · have hk : (oddVertices (kruskalEdges (completeEdges δ))).length ≤ 2 * n :=
+      (length_oddVertices_le _).trans (by omega)
     exact two_mul_cycleCost_shortcutTour_le_three_mul hsymm htri
       (kruskalEdges_isMinSpanningTree (numComponents_edgePartition_completeEdges δ h))
       (endpoints_minPerfectMatching_perm δ hk (even_length_oddVertices _))

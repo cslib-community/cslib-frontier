@@ -74,22 +74,13 @@ theorem eval_iterate_repeatAnyStep_false_toReal (trial : ProbComp Bool) (r : ℕ
     (ProbComp.eval (OracleComp.iterate r (repeatAnyStep trial) false) false).toReal =
       (1 - (ProbComp.eval trial true).toReal) ^ r := by
   induction r with
-  | zero =>
-    simp only [OracleComp.iterate_zero, ProbComp.eval_pure, PMF.pure_apply_self, ENNReal.toReal_one,
-      pow_zero]
+  | zero => simp
   | succ r ih =>
-    rw [OracleComp.iterate_succ, ProbComp.eval_bind]
-    have hfalse_step : ProbComp.eval (repeatAnyStep trial false) = ProbComp.eval trial := rfl
-    have htrue_step : ProbComp.eval (repeatAnyStep trial true) = PMF.pure true := rfl
-    have hbind : (ProbComp.eval (OracleComp.iterate r (repeatAnyStep trial) false)).bind
-        (fun b => ProbComp.eval (repeatAnyStep trial b)) false =
-        ProbComp.eval (OracleComp.iterate r (repeatAnyStep trial) false) false *
-          ProbComp.eval trial false := by
-      rw [PMF.bind_apply, tsum_fintype]
-      simp only [Fintype.univ_bool, Finset.mem_singleton, Bool.true_eq_false, not_false_eq_true,
-        Finset.sum_insert, Finset.sum_singleton, htrue_step, hfalse_step, PMF.pure_apply,
-        Bool.false_eq_true, ↓reduceIte, mul_zero, zero_add]
-    rw [hbind, ENNReal.toReal_mul, ih, PMF.toReal_false_eq_one_sub (ProbComp.eval trial), pow_succ]
+    rw [OracleComp.iterate_succ, ProbComp.eval_bind, PMF.bind_apply, tsum_fintype]
+    simp only [Fintype.univ_bool, Finset.mem_singleton, Bool.true_eq_false, not_false_eq_true,
+      Finset.sum_insert, Finset.sum_singleton, repeatAnyStep, ↓reduceIte, ProbComp.eval_pure,
+      PMF.pure_apply, Bool.false_eq_true, mul_zero, zero_add, ENNReal.toReal_mul, ih,
+      PMF.toReal_false_eq_one_sub (ProbComp.eval trial), pow_succ]
 
 /-- When `trial` has zero probability of returning `true`, `r` repetitions return `false` with
 probability `1` (exact distribution `PMF.pure false`). -/
@@ -98,16 +89,13 @@ theorem eval_iterate_repeatAnyStep_eq_pure_false (trial : ProbComp Bool) (r : �
     ProbComp.eval (OracleComp.iterate r (repeatAnyStep trial) false) = PMF.pure false := by
   have hpure : ProbComp.eval trial = PMF.pure false := by
     ext b
-    cases b with
-    | false =>
-      have hsum := PMF.tsum_coe (ProbComp.eval trial)
+    cases b
+    · have hsum := PMF.tsum_coe (ProbComp.eval trial)
       rw [tsum_fintype] at hsum
-      simp only [Fintype.univ_bool, Finset.mem_singleton, Bool.true_eq_false, not_false_eq_true,
-        Finset.sum_insert, Finset.sum_singleton, hzero, zero_add] at hsum
-      simp only [PMF.pure_apply_self, hsum]
-    | true => simp only [hzero, PMF.pure_apply, Bool.true_eq_false, ↓reduceIte]
+      simpa [Fintype.univ_bool, hzero] using hsum
+    · simp [hzero]
   induction r with
-  | zero => simp only [OracleComp.iterate_zero, ProbComp.eval_pure]
+  | zero => simp
   | succ r ih =>
     rw [OracleComp.iterate_succ, ProbComp.eval_bind, ih, PMF.pure_bind]
     exact hpure
@@ -135,10 +123,10 @@ theorem IsPPTOn.exists_multiTapePTM_repeatAnyBool_binary {α : Type} {input : α
           ProbComp.eval (machine.runClosed T (input a)) = μ.map encBool ∧
           machine.toNTM.RunsInSpace (input a) S := by
   have hstep : IsPPTOn (encPair input encBool) encBool
-      (fun pair : α × Bool => repeatAnyStep (trialProg pair.1) pair.2) := by
-    refine IsPPTOn.cond (ComputableInPolyTime.snd input encBool)
-      (ComputableInPolyTime.const true).isPPTOn ?_
-    exact htrial.preprocess (ComputableInPolyTime.fst input encBool)
+      (fun pair : α × Bool => repeatAnyStep (trialProg pair.1) pair.2) :=
+    IsPPTOn.cond (ComputableInPolyTime.snd input encBool)
+      (ComputableInPolyTime.const true).isPPTOn
+      (htrial.preprocess (ComputableInPolyTime.fst input encBool))
   obtain ⟨⟨K, Control, hfin, machine, C, E, hM⟩, -⟩ :=
     IsPPTOn.exists_multiTapePTM_iterateWith_binary
       (initial := fun _ : α => false)

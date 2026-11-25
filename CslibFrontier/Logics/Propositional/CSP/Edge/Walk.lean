@@ -153,16 +153,11 @@ theorem flipSteps_eq_flipOn (f : OccurrenceLabeling F Bool)
   fun_induction flipSteps f s with
   | case1 => simp [edgesOf] -- []
   | case2 f o p s ih => -- (o, p) :: s
-    change (o :: p :: edgesOf s).Nodup at hs
-    simp only [List.nodup_cons, List.mem_cons, not_or] at hs
-    rw [ih hs.2.2]
-    simp only [edgesOf_cons, List.toFinset_cons]
-    change flipOn (edgesOf s).toFinset (flipOn {o, p} f) =
-      flipOn (insert o (insert p (edgesOf s).toFinset)) f
+    simp only [edgesOf_cons, List.nodup_cons, List.mem_cons, not_or] at hs
+    rw [ih hs.2.2, edgesOf_cons, List.toFinset_cons]
     funext q
-    simp only [flipOn_apply, mem_insert, mem_singleton]
-    by_cases hqo : q = o <;> by_cases hqp : q = p <;>
-      by_cases hqs : q ∈ (edgesOf s).toFinset <;> simp_all
+    simp only [List.toFinset_cons, flipOn_apply, mem_insert, mem_singleton]
+    by_cases q = o <;> by_cases q = p <;> by_cases q ∈ (edgesOf s).toFinset <;> simp_all
 
 omit [DecidableEq V] in
 /-- Prefix validity includes validity after the final step. -/
@@ -195,14 +190,11 @@ omit [DecidableEq V] in
 theorem nodup_edges_snoc (w : Walk F) (o p : Occurrence F)
     (hw : w.edges.Nodup) (ho : o ∉ w.edges) (hp : p ∉ w.edges) (hop : o ≠ p) :
     (w.snoc o p).edges.Nodup := by
-  change (edgesOf (w.steps ++ [(o, p)])).Nodup
-  rw [edgesOf_append]
-  change (w.edges ++ [o, p]).Nodup
-  rw [List.nodup_append]
-  refine ⟨hw, by simp [hop], ?_⟩
-  intro a ha b hb he
-  subst b
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+  rw [snoc, edges, edgesOf_append, List.nodup_append]
+  refine ⟨hw, by simp [edgesOf, hop], fun a ha b hb => ?_⟩
+  rintro rfl
+  simp only [edgesOf, List.flatMap_cons, List.flatMap_nil, List.append_nil, List.mem_cons,
+    List.not_mem_nil, or_false] at hb
   rcases hb with rfl | rfl
   · exact ho ha
   · exact hp ha
@@ -244,14 +236,13 @@ theorem InternallyConsistent.snoc {f : OccurrenceLabeling F Bool}
     (hend : s = [] ∨ ¬ Inconsistent f (finishFrom v s)) :
     InternallyConsistent f (s ++ [(o, p)]) := by
   induction s generalizing v with
-  | nil => exact ⟨Or.inl rfl, trivial⟩
+  | nil => exact ⟨.inl rfl, trivial⟩
   | cons a s ih =>
-    have hend' : ¬ Inconsistent f (finishFrom a.2.var s) := hend.resolve_left (by simp)
-    refine ⟨Or.inr ?_, ih hi.2 a.2.var (Or.inr hend')⟩
-    rcases hi.1 with he | he
-    · subst s
-      exact hend'
-    · exact he
+    have hend' := hend.resolve_left (List.cons_ne_nil _ _)
+    refine ⟨.inr ?_, ih hi.2 a.2.var (.inr hend')⟩
+    rcases hi.1 with rfl | h
+    · exact hend'
+    · exact h
 
 omit [DecidableEq V] in
 /-- Append a fresh locally valid step to a prefix-valid trail. -/
@@ -261,11 +252,10 @@ theorem IsFPrefix.snoc {sem : Rel → List Bool → Bool}
     (hne : o ≠ p) (hno : o ∉ w.edges) (hnp : p ∉ w.edges)
     (hi : w.steps = [] ∨ ¬ Inconsistent f w.finish)
     (hv : ValidLabeling sem (flipOn {o, p} (w.flip f))) :
-    (w.snoc o p).IsFPrefix sem f := by
-  refine ⟨⟨hw.1.1.snoc ho hc, ?_⟩, hw.2.1.snoc w.start o p hi, ?_⟩
-  · exact nodup_edges_snoc w o p hw.1.2 hno hnp hne
-  · apply hw.2.2.snoc o p
-    rwa [flipSteps_eq_flipOn f w.steps hw.1.2]
+    (w.snoc o p).IsFPrefix sem f :=
+  ⟨⟨hw.1.1.snoc ho hc, nodup_edges_snoc w o p hw.1.2 hno hnp hne⟩,
+    hw.2.1.snoc w.start o p hi,
+    hw.2.2.snoc o p (by rwa [flipSteps_eq_flipOn f w.steps hw.1.2])⟩
 
 /-- The set of defects after a trail flip differs only at its variable endpoints.
 This includes closed trails, whose endpoint toggles cancel. -/
@@ -278,30 +268,24 @@ theorem IsWalk.defects_flip (h : EdgeInstance F) {w : Walk F} (hw : w.IsWalk)
   fun_induction flipSteps f s generalizing v with
   | case1 => simp [finishFrom] -- []
   | case2 f o p s ih => -- (o, p) :: s
-    obtain ⟨hl, hn⟩ := hw
-    change (o :: p :: edgesOf s).Nodup at hn
-    simp only [List.nodup_cons, List.mem_cons, not_or] at hn
-    have hs : (edgesOf s).Nodup := hn.2.2
-    have hop : o ≠ p := hn.1.1
-    have hv := h.var_ne_of_constraint_eq hl.2.1 hop
-    rw [ih p.var ⟨hl.2.2, hs⟩, h.defects_flipOn_pair f hl.2.1 hop]
-    rw [← (show o.var = v from hl.1)]
-    simp only [finishFrom]
+    obtain ⟨⟨rfl, hc, hl⟩, hn⟩ := hw
+    simp only [edges, edgesOf_cons, List.nodup_cons, List.mem_cons, not_or] at hn
+    have hv := h.var_ne_of_constraint_eq hc hn.1.1
+    rw [ih p.var ⟨hl, hn.2.2⟩, h.defects_flipOn_pair f hc hn.1.1]
     ext z
-    simp only [mem_symmDiff, mem_insert, mem_singleton]
-    by_cases hz : z = o.var <;> by_cases hz' : z = p.var <;> simp_all
+    simp only [finishFrom, mem_symmDiff, mem_insert, mem_singleton]
+    by_cases z = o.var <;> by_cases z = p.var <;> simp_all
 
 /-- Augmentation removes exactly two distinct variable defects. -/
 theorem IsAugmenting.card_defects_flip_add_two (h : EdgeInstance F)
     {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F Bool} {w : Walk F}
     (hw : w.IsAugmenting sem f) : (defects (w.flip f)).card + 2 = (defects f).card := by
-  rw [hw.1.1.1.defects_flip h, symmDiff_singleton_eq (defects f) w.start,
-    ite_eq_left (mem_defects.mpr hw.2.1)]
   have hend : w.finish ∈ (defects f).erase w.start :=
     mem_erase.mpr ⟨hw.1.2.symm, mem_defects.mpr hw.2.2⟩
-  rw [symmDiff_singleton_eq, ite_eq_left hend]
-  have ha := card_erase_add_one (mem_defects.mpr hw.2.1)
-  have hb := card_erase_add_one hend
+  rw [hw.1.1.1.defects_flip h, symmDiff_singleton_eq (defects f) w.start,
+    ite_eq_left (mem_defects.mpr hw.2.1), symmDiff_singleton_eq, ite_eq_left hend]
+  have := card_erase_add_one (mem_defects.mpr hw.2.1)
+  have := card_erase_add_one hend
   omega
 
 omit [DecidableEq V] in
@@ -314,15 +298,11 @@ theorem prefixValid_iff_forall_take {sem : Rel → List Bool → Bool}
   induction s generalizing f with
   | nil => simp [PrefixValid, flipSteps]
   | cons a s ih =>
-    constructor
-    · intro hv n hn
-      cases n with
-      | zero => exact hv.1
-      | succ n => exact ih.mp hv.2 n (by simpa only [List.length_cons,
-          Nat.succ_le_succ_iff] using hn)
-    · intro hv
-      exact ⟨hv 0 (Nat.zero_le _), ih.mpr fun n hn => hv (n + 1)
-        (by simpa only [List.length_cons, Nat.succ_le_succ_iff] using hn)⟩
+    refine ⟨fun hv n hn => ?_, fun hv => ⟨hv 0 (Nat.zero_le _),
+      ih.mpr fun n hn => hv (n + 1) (Nat.succ_le_succ hn)⟩⟩
+    rcases n with _ | n
+    · exact hv.1
+    · exact ih.mp hv.2 n (Nat.le_of_succ_le_succ hn)
 
 omit [DecidableEq V] in
 /-- Splitting a trail at a variable preserves the positional adjacency conditions. -/
@@ -330,9 +310,7 @@ theorem linked_append_iff (v : V) (s t : List (Occurrence F × Occurrence F)) :
     Linked v (s ++ t) ↔ Linked v s ∧ Linked (finishFrom v s) t := by
   induction s generalizing v with
   | nil => simp [Linked, finishFrom]
-  | cons a s ih =>
-    simp only [List.cons_append, Linked, finishFrom, ih]
-    tauto
+  | cons a s ih => simp only [List.cons_append, Linked, finishFrom, ih]; tauto
 
 omit [DecidableEq V] in
 /-- Consecutive constraint steps cross a variable by its actual partner incidence.
@@ -342,24 +320,18 @@ theorem IsWalk.partner_transition (h : EdgeInstance F) {w : Walk F} (hw : w.IsWa
     (he : w.steps = s ++ (a, b) :: (o, p) :: t) : o = h.partner b := by
   obtain ⟨hl, hn⟩ := hw
   rw [he, linked_append_iff] at hl
-  have hov : o.var = b.var := hl.2.2.2.1
   change (edgesOf w.steps).Nodup at hn
   rw [he, edgesOf_append, List.nodup_append] at hn
   have ht := hn.2.1
-  change (a :: b :: o :: p :: edgesOf t).Nodup at ht
-  simp only [List.nodup_cons, List.mem_cons, not_or] at ht
-  rcases h.eq_or_eq_partner hov with hob | hob
-  · exact (ht.2.1.1 hob.symm).elim
-  · exact hob
+  simp only [edgesOf_cons, List.nodup_cons, List.mem_cons, not_or] at ht
+  exact (h.eq_or_eq_partner hl.2.2.2.1).resolve_left (Ne.symm ht.2.1.1)
 
 omit [DecidableEq V] in
 /-- Every variable-ended prefix of an incidence trail is itself an incidence trail. -/
-theorem IsWalk.take {w : Walk F} (hw : w.IsWalk) (n : ℕ) : (w.take n).IsWalk := by
-  refine ⟨?_, ?_⟩
-  · have ht := (linked_append_iff w.start (w.steps.take n) (w.steps.drop n)).mp
-      (by simpa only [List.take_append_drop] using hw.1)
-    exact ht.1
-  · exact ((List.take_sublist n w.steps).flatMap fun (o, p) => [o, p]).nodup hw.2
+theorem IsWalk.take {w : Walk F} (hw : w.IsWalk) (n : ℕ) : (w.take n).IsWalk :=
+  ⟨((linked_append_iff w.start (w.steps.take n) (w.steps.drop n)).mp
+      (by simpa only [List.take_append_drop] using hw.1)).1,
+    ((List.take_sublist n w.steps).flatMap fun (o, p) => [o, p]).nodup hw.2⟩
 
 omit [DecidableEq V] in
 /-- Every variable-ended prefix flip of an f-prefix is valid, in the set-flip formulation

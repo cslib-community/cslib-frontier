@@ -384,17 +384,12 @@ theorem separatorOfCut_length_sep_eq_cutCapacity {S : Finset (SplitNode n)}
     (hS : (vertexSplitNetwork G Z A B).IsMinCut S) :
     (separatorOfCut Z S).sep.length = (vertexSplitNetwork G Z A B).cutCapacity S := by
   classical
-  have hle : (separatorOfCut Z S).sep.length ≤ (vertexSplitNetwork G Z A B).cutCapacity S := by
-    rw [← List.toFinset_card_of_nodup (separatorOfCut_nodup_sep Z S)]
+  apply le_antisymm
+  · rw [← List.toFinset_card_of_nodup (separatorOfCut_nodup_sep Z S)]
     exact card_le_cutCapacity fun v hv => mem_separatorOfCut_sep_iff.mp (List.mem_toFinset.mp hv)
-  have hge : (vertexSplitNetwork G Z A B).cutCapacity S ≤ (separatorOfCut Z S).sep.length := by
-    have hsep := separatorOfCut_isSeparator hS
-    have hcoe : (↑((separatorOfCut Z S).sep.toFinset) : Set (Fin n)) =
-        {v | v ∈ (separatorOfCut Z S).sep} := by ext v; simp
-    have h := cutCapacity_le_of_isMinCut hS (Y := (separatorOfCut Z S).sep.toFinset)
-      (by rwa [hcoe])
-    rwa [List.toFinset_card_of_nodup (separatorOfCut_nodup_sep Z S)] at h
-  omega
+  · simpa [List.toFinset_card_of_nodup (separatorOfCut_nodup_sep Z S)] using
+      cutCapacity_le_of_isMinCut hS (Y := (separatorOfCut Z S).sep.toFinset)
+        (by simpa [Set.ext_iff] using separatorOfCut_isSeparator hS)
 
 /-- The minimum cut found by `minSeparator`, on split nodes. -/
 private def minCut (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (Z A B : Vector Bool n) :

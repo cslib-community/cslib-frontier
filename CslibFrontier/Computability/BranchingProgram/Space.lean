@@ -302,26 +302,9 @@ noncomputable def spaceConfigGraph (tm : MultiTapeTM k Bool State) (n s T : ℕ)
       .sink (((tm.runFrom (tm.initCfg []) T).output.head?).getD false)
   rank v := T - v.step.val
   rank_lt v i next b h := by
-    by_cases hn : 0 < n
-    · rw [dite_eq_left hn] at h
-      by_cases ht : v.step.val < T
-      · rw [dite_eq_left ht] at h
-        by_cases hpos : 1 ≤ v.inputPos.val ∧ v.inputPos.val ≤ n
-        · rw [dite_eq_left hpos] at h
-          injection h with _ hnext
-          subst hnext
-          cases b <;>
-            · dsimp only [SpaceConfigNode.stepNode]
-              split <;> exact Nat.sub_lt_sub_left ht (Nat.lt_succ_self _)
-        · rw [dite_eq_right hpos] at h
-          injection h with _ hnext
-          subst hnext
-          dsimp only [SpaceConfigNode.stepNode]
-          split <;> exact Nat.sub_lt_sub_left ht (Nat.lt_succ_self _)
-      · rw [dite_eq_right ht] at h
-        cases h
-    · rw [dite_eq_right hn] at h
-      cases h
+    split_ifs at h with hn ht hpos <;> cases h <;>
+      · dsimp only [SpaceConfigNode.stepNode]
+        split <;> exact Nat.sub_lt_sub_left ht (Nat.lt_succ_self _)
 
 /-- The deterministic branching program over `Fin n → Bool` that simulates `T` steps of `tm`
 within work-tape window `s`: the program of `tm.spaceConfigGraph n s T`, with one node for each
@@ -432,16 +415,9 @@ theorem two_le_spaceBranchingProgramBase [Fintype State] (c₁ c₂ : ℕ) :
     2 ≤ spaceBranchingProgramBase k State c₁ c₂ := by
   have hB : 1 ≤ (storageBoundBase Bool State k) ^ 2 :=
     Nat.one_le_pow 2 _ one_le_storageBoundBase
-  have h1 : 1 ≤ 2 ^ (2 * (storageBoundExp Bool k * (k + 1)) * c₂) := Nat.one_le_two_pow
-  have h2 : 1 ≤ 2 ^ (2 + 2 * (storageBoundExp Bool k * (k + 1)) * c₁) := Nat.one_le_two_pow
-  have hmul : 1 ≤ (storageBoundBase Bool State k) ^ 2 *
-      2 ^ (2 * (storageBoundExp Bool k * (k + 1)) * c₂) *
-      2 ^ (2 + 2 * (storageBoundExp Bool k * (k + 1)) * c₁) :=
-    Nat.mul_pos (Nat.mul_pos hB h1) h2
-  refine (by omega : 2 ≤ 54).trans ?_
   unfold spaceBranchingProgramBase
-  rw [mul_assoc 54, mul_assoc 54]
-  exact Nat.le_mul_of_pos_right 54 hmul
+  calc 2 ≤ 54 * 1 * 1 * 1 := by norm_num
+    _ ≤ _ := by gcongr <;> exact Nat.one_le_two_pow
 
 /-- For `s ≤ c₁ * S + c₂` and `Nat.log 2 n ≤ S`, the branching program simulating `tm` up to the
 configuration-counting step bound `T = (n + 2) * storageBound Bool State k s` has size at most
@@ -514,12 +490,10 @@ theorem size_toBranchingProgram_le_pow_max [Fintype State] (tm : MultiTapeTM k B
       _ = C₀ * C₁ ^ M := by
           dsimp only [C₁]
           rw [← Nat.pow_add, ← Nat.add_mul, Nat.pow_mul]
-  have hC₀_pow : C₀ ≤ C₀ ^ M := Nat.le_self_pow (by omega) C₀
   calc (tm.toBranchingProgram n s T).size
       ≤ C₀ * C₁ ^ M := hsize1.trans hsize2
-    _ ≤ C₀ ^ M * C₁ ^ M := Nat.mul_le_mul_right (C₁ ^ M) hC₀_pow
-    _ = (C₀ * C₁) ^ M := (Nat.mul_pow C₀ C₁ M).symm
-    _ = (spaceBranchingProgramBase k State c₁ c₂) ^ M := rfl
+    _ ≤ C₀ ^ M * C₁ ^ M := Nat.mul_le_mul_right (C₁ ^ M) (Nat.le_self_pow (by omega) C₀)
+    _ = (spaceBranchingProgramBase k State c₁ c₂) ^ M := (Nat.mul_pow C₀ C₁ M).symm
 
 /-- When `1 ≤ S` (in particular for `n ≥ 2` or when `S ≥ Nat.log 2 n + 1`), the size of the
 branching program is at most `(spaceBranchingProgramBase k State c₁ c₂) ^ S`. -/
@@ -587,14 +561,8 @@ theorem DSPACE.exists_branchingProgram_of_log_le (hA : A ∈ DSPACE enc S)
   refine ⟨tm.toBranchingProgram n s T,
     tm.size_toBranchingProgram_le_pow_max le_rfl (hS n), ?_, ?_⟩
   · rintro x ⟨a, ha⟩
-    rw [heval_eq x a ha]
-    by_cases haA : a ∈ A
-    · rw [(encodesMember_eq_true_iff ha).2 haA]
-      simp [indicator, haA]
-    · have hfalse : encodesMember enc A n x = false :=
-        Bool.eq_false_iff.2 fun h => haA ((encodesMember_eq_true_iff ha).1 h)
-      rw [hfalse]
-      simp [indicator, haA]
+    rw [heval_eq x a ha, Bool.eq_iff_iff, encodesMember_eq_true_iff ha]
+    simp [indicator]
   · intro a hlen
     refine heval_eq _ a ?_
     refine List.ext_getElem (hlen.trans List.length_ofFn.symm) fun i h₁ h₂ => ?_

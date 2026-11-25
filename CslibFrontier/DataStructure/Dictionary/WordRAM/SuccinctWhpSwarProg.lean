@@ -1127,10 +1127,7 @@ theorem realizes_splitFullNodeGen :
       (WordEncoding.encode (α := (ℕ × (ℕ × ℕ)) × (ℕ × (ℕ × (ℕ × ℕ)))))
       (fun w d _ => ∃ base, WhpLargeEnvGen w d.1 base)
       (fun _ _ => 0) := by
-  have hlg := realizes_laneGetGen
-  have htl := realizes_wordTakeLowGen
-  have hdl := realizes_wordDropLowGen
-  realize
+  realize [realizes_laneGetGen, realizes_wordTakeLowGen, realizes_wordDropLowGen]
   all_goals
     rcases d with ⟨cp, ⟨mW, ⟨kW, vW⟩⟩⟩
     obtain ⟨base, c, U, V, w₀, n_max, henv, rfl⟩ := h
@@ -1208,8 +1205,7 @@ theorem realizes_readSliceHeaderGen :
       (WordEncoding.encode (α := ℕ × ℕ))
       (fun w ((cp, base), sIdx) _ => WhpLargeEnvGen w cp base ∧ sIdx < 3 * wpM cp)
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx⟩ := h
@@ -1265,6 +1261,27 @@ theorem writeSliceAllocGenProg_spec {c U V w n_max base sIdx newAlloc : ℕ}
       (wpGlobalPtrBits cp, wpW cp)), idxAlloc), z0)
     writePackedGenProg ((((base, wpOffBktMeta cp),
       (wpGlobalPtrBits cp, wpW cp)), idxRoot), z0)
+
+/-- Node `v` of B-tree slice `sIdx` indexes inside the packed node arrays. -/
+private theorem sliceNodeIdx_lt {n_max sIdx v : ℕ} (hsIdx : sIdx < 3 * numBucketsWhp n_max)
+    (hv : v < nSliceWhp n_max) : sIdx * nSliceWhp n_max + v < totalBTreeNodesWhp n_max :=
+  calc sIdx * nSliceWhp n_max + v < (sIdx + 1) * nSliceWhp n_max := by
+        rw [Nat.add_one_mul]; omega
+    _ ≤ totalBTreeNodesWhp n_max := Nat.mul_le_mul_right _ hsIdx
+
+/-- The three packed B-tree node arrays end inside the large-regime region. -/
+private theorem btNodeSegs_le (c U V w n_max base : ℕ) :
+    base + offBtMeta c U V w n_max +
+        packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ≤
+      base + largeSpaceWhp c U V w n_max ∧
+    base + offBtKeys c U V w n_max +
+        packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w ≤
+      base + largeSpaceWhp c U V w n_max ∧
+    base + offBtVals c U V w n_max +
+        packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w ≤
+      base + largeSpaceWhp c U V w n_max := by
+  have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.2.2
+  omega
 
 theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
     {s : Memory.State} (hth : whpThreshold c ≤ n_max) (hw : 0 < w)
@@ -1339,13 +1356,7 @@ theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
       (hother_bm _ (by omega) hneA1 hneR1).trans hrep'.2.1,
       (hother_bm _ (by omega) hneA2 hneR2).trans hrep'.2.2.1,
       fun u hu => ?_⟩
-    have hidx_n : sIdx' * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-      have hu_ns := hu.trans_le hrep'.1
-      unfold totalBTreeNodesWhp
-      calc sIdx' * nSliceWhp n_max + u < sIdx' * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu_ns _
-        _ = (sIdx' + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx'
+    have hidx_n := sliceNodeIdx_lt hsIdx' (hu.trans_le hrep'.1)
     exact ⟨(readPacked_congr hw (hidx := hidx_n) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))).trans
         (hrep'.2.2.2 u hu).1,
       (readPacked_congr hw (hidx := hidx_n) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))).trans
@@ -1359,8 +1370,7 @@ theorem realizes_resetBTreeSliceGen :
       (WordEncoding.encode (α := Unit))
       (fun w ((cp, base), sIdx) _ => WhpLargeEnvGen w cp base ∧ sIdx < 3 * wpM cp)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx⟩ := h
@@ -1400,26 +1410,9 @@ theorem readBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {sl : BTreeS
       ((sl.nodes u).metaWord, ((sl.nodes u).keysWord, (sl.nodes u).valsWord)) ∧
     memoryCost prog s = 6 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.2.2
   have hu_ns : u < nSliceWhp n_max := hu.trans_le hrep.1
-  have hidx : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-    unfold totalBTreeNodesWhp
-    calc sIdx * nSliceWhp n_max + u < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-          Nat.add_lt_add_left hu_ns _
-      _ = (sIdx + 1) * nSliceWhp n_max := by ring
-      _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
-  have hsegM : base + offBtMeta c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by
-    rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.1 _
-  have hsegK : base + offBtKeys c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by
-    rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.1 _
-  have hsegV : base + offBtVals c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by
-    rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.1 _
+  have hidx := sliceNodeIdx_lt hsIdx hu_ns
+  obtain ⟨hsegM, hsegK, hsegV⟩ := btNodeSegs_le c U V w n_max base
   obtain ⟨hndM, hndK, hndV⟩ := hrep.2.2.2 u hu
   unfold readBTreeNodeGenProg
   simp only [wp_large_nSlice hth, wp_large_offBtMeta hth, wp_large_offBtKeys hth,
@@ -1446,8 +1439,7 @@ theorem realizes_readBTreeNodeGen :
       (fun w (((cp, base), sIdx), u) _ => WhpLargeEnvGen w cp base ∧
         sIdx < 3 * wpM cp ∧ u < wpNSlice cp)
       (fun _ _ => 0) := by
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, u⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx, hu⟩ := h
@@ -1455,12 +1447,7 @@ theorem realizes_readBTreeNodeGen :
     simp only [wp_large_M hth, wp_large_nSlice hth, wp_large_offBtMeta hth,
       wp_large_offBtKeys hth, wp_large_offBtVals hth, wp_large_nodeMetaBits hth,
       wp_large_keysWordBits hth, wp_large_valsWordBits hth, wp_large_w hth] at hsIdx hu ⊢
-    have hidx : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx * nSliceWhp n_max + u < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu _
-        _ = (sIdx + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
+    have hidx := sliceNodeIdx_lt hsIdx hu
     have htot_le := totalBTreeNodesWhp_le_n_max hth
     first
     | exact henv.fits_of_le_n_max (hidx.le.trans htot_le)
@@ -1532,12 +1519,7 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
   have hkw_le : keysWordBitsWhp n_max ≤ w := henv.keysWordBits_lt_w.le
   have hvw_le : valsWordBitsWhp n_max ≤ w := henv.valsWordBits_lt_w.le
   set idx := sIdx * nSliceWhp n_max + u
-  have hidx : idx < totalBTreeNodesWhp n_max := by
-    unfold totalBTreeNodesWhp
-    calc sIdx * nSliceWhp n_max + u < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-          Nat.add_lt_add_left hu _
-      _ = (sIdx + 1) * nSliceWhp n_max := by ring
-      _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
+  have hidx : idx < totalBTreeNodesWhp n_max := sliceNodeIdx_lt hsIdx hu
   unfold writeBTreeNodeGenProg
   simp only [wp_large_nSlice hth, wp_large_offBtMeta hth, wp_large_offBtKeys hth,
     wp_large_offBtVals hth, wp_large_nodeMetaBits hth, wp_large_keysWordBits hth,
@@ -1582,18 +1564,7 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
     fun i hi =>
       (readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_KV)).trans
         (readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_MV))
-  have hsegM : base + offBtMeta c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by
-    rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.1 _
-  have hsegK : base + offBtKeys c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by
-    rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.1 _
-  have hsegV : base + offBtVals c U V w n_max +
-      packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w ≤
-      base + largeSpaceWhp c U V w n_max := by
-    rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg.2.2.1 _
+  obtain ⟨hsegM, hsegK, hsegV⟩ := btNodeSegs_le c U V w n_max base
   have hs'_eq : (Memory.spec 0).clientState s
       (writePackedGenProg
         ((((base, offBtMeta c U V w n_max), (nodeMetaBitsWhp n_max, w)), idx), nd.metaWord) >>=
@@ -1613,12 +1584,7 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
     exact validProg_writePacked hw hvw_le hidx hsegV
   · intro sl ha_le hprev v hv
     have hv_ns : v < nSliceWhp n_max := hv.trans_le ha_le
-    have hidx_v : sIdx * nSliceWhp n_max + v < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx * nSliceWhp n_max + v < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hv_ns _
-        _ = (sIdx + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
+    have hidx_v := sliceNodeIdx_lt hsIdx hv_ns
     dsimp only
     rw [hrM _ hidx_v, hrK _ hidx_v]
     by_cases hvu : v = u
@@ -1646,12 +1612,7 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
       (hbm_eq _ (by omega)).trans hrep'.2.2.1,
       fun v hv => ?_⟩
     have hv_ns : v < nSliceWhp n_max := hv.trans_le hrep'.1
-    have hidx_v : sIdx' * nSliceWhp n_max + v < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx' * nSliceWhp n_max + v < sIdx' * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hv_ns _
-        _ = (sIdx' + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx'
+    have hidx_v := sliceNodeIdx_lt hsIdx' hv_ns
     have hne_idx : sIdx' * nSliceWhp n_max + v ≠ idx := by
       dsimp only [idx]
       intro heq
@@ -1678,8 +1639,7 @@ theorem realizes_writeBTreeNodeGen :
       (fun w ((((cp, base), sIdx), u), _) _ => WhpLargeEnvGen w cp base ∧
         sIdx < 3 * wpM cp ∧ u < wpNSlice cp)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, u⟩, ⟨mW, ⟨kW, vW⟩⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx, hu⟩ := h
@@ -1687,12 +1647,7 @@ theorem realizes_writeBTreeNodeGen :
     simp only [wp_large_M hth, wp_large_nSlice hth, wp_large_offBtMeta hth,
       wp_large_offBtKeys hth, wp_large_offBtVals hth, wp_large_nodeMetaBits hth,
       wp_large_keysWordBits hth, wp_large_valsWordBits hth, wp_large_w hth] at hsIdx hu ⊢
-    have hidx : sIdx * nSliceWhp n_max + u < totalBTreeNodesWhp n_max := by
-      unfold totalBTreeNodesWhp
-      calc sIdx * nSliceWhp n_max + u < sIdx * nSliceWhp n_max + nSliceWhp n_max :=
-            Nat.add_lt_add_left hu _
-        _ = (sIdx + 1) * nSliceWhp n_max := by ring
-        _ ≤ (3 * numBucketsWhp n_max) * nSliceWhp n_max := Nat.mul_le_mul_right _ hsIdx
+    have hidx := sliceNodeIdx_lt hsIdx hu
     have htot_le := totalBTreeNodesWhp_le_n_max hth
   · exact henv.fits_of_le_n_max (hidx.le.trans htot_le)
   · exact henv.btMeta_safe hidx

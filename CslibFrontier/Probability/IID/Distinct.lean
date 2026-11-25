@@ -39,16 +39,11 @@ variable {α : Type*}
 /-- A sample tuple has no colliding pair precisely when all entries are distinct. -/
 theorem collisionCount_eq_zero_iff [DecidableEq α] {k : ℕ} (x : Fin k → α) :
     collisionCount x = 0 ↔ Function.Injective x := by
-  rw [collisionCount, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-  simp only [Finset.mem_univ, true_implies, not_and]
-  constructor
-  · intro h i j heq
-    by_contra hne
-    rcases lt_or_gt_of_ne hne with hij | hji
-    · exact @h (i, j) hij heq
-    · exact @h (j, i) hji heq.symm
-  · intro h ij hlt heq
-    exact (ne_of_lt hlt) (h heq)
+  simp only [collisionCount, Finset.card_eq_zero, Finset.filter_eq_empty_iff, Finset.mem_univ,
+    true_implies, not_and, Prod.forall]
+  exact ⟨fun h i j heq => by_contra fun hne =>
+    (lt_or_gt_of_ne hne).elim (fun hij => h i j hij heq) (fun hji => h j i hji heq.symm),
+    fun h _ _ hlt heq => hlt.ne (h heq)⟩
 
 variable [Finite α]
 
@@ -59,17 +54,13 @@ theorem iid_not_injective_le (μ : PMF α) (k : ℕ) :
   classical
   have := Fintype.ofFinite α
   rw [toOuterMeasure_apply_toReal, ← sum_iid_mul_collisionCount]
-  apply Finset.sum_le_sum
-  intro x _
+  refine Finset.sum_le_sum fun x _ => ?_
   by_cases hx : Function.Injective x
-  · simp only [Set.mem_ofPred_eq, hx, not_true_eq_false, ite_false]
-    positivity
-  · simp only [Set.mem_ofPred_eq, hx, not_false_eq_true, ite_true]
-    have hcount : 1 ≤ collisionCount x := Nat.one_le_iff_ne_zero.mpr
-      (fun h => hx ((collisionCount_eq_zero_iff x).mp h))
-    have hc : (1 : ℝ) ≤ collisionCount x := by exact_mod_cast hcount
-    simpa only [mul_one] using mul_le_mul_of_nonneg_left hc
-      (ENNReal.toReal_nonneg (a := iid μ k x))
+  · simp only [Set.mem_ofPred_eq, hx, not_true_eq_false, ite_false]; positivity
+  · have hc : (1 : ℝ) ≤ collisionCount x := by
+      exact_mod_cast Nat.one_le_iff_ne_zero.mpr (mt (collisionCount_eq_zero_iff x).mp hx)
+    simpa only [Set.mem_ofPred_eq, hx, not_false_eq_true, ite_true, mul_one] using
+      mul_le_mul_of_nonneg_left hc ENNReal.toReal_nonneg
 
 /-- If every atom has mass at most `bound`, repetitions among `k` independent draws
 have probability at most `choose k 2 * bound`, even for a nonuniform source. -/
@@ -98,7 +89,7 @@ theorem iid_injective_pair_ge {β : Type*} [Finite β] (μ : PMF α) (ν : PMF �
       ((iid ν k).toOuterMeasure {y | Function.Injective y}).toReal := by
   have hl := iid_injective_ge_of_mass_le μ k hμ
   have hr := iid_injective_ge_of_mass_le ν k hν
-  have hk' : (k : ℝ) ≠ 0 := by exact_mod_cast Nat.ne_of_gt hk
+  have hk' : (k : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hk.ne'
   have heq : 2 - 2 * (k.choose 2 : ℝ) * ((k : ℝ) ^ 2)⁻¹ = 1 + (k : ℝ)⁻¹ := by
     rw [Nat.cast_choose_two]
     field_simp [hk']; ring
@@ -113,23 +104,18 @@ theorem expect_embedding_le_expect_add [Fintype α] [Nonempty α] (k : ℕ)
   classical
   let _ : Fintype (Fin k ↪ α) := Fintype.ofFinite _
   let s := (univ : Finset (Fin k → α)).filter Function.Injective
-  have hs : s.Nonempty := by
-    let x := Classical.choice (inferInstance : Nonempty (Fin k ↪ α))
-    exact ⟨x, mem_filter.mpr ⟨mem_univ _, x.injective⟩⟩
-  have hrepr : (𝔼 x : Fin k ↪ α, f x) = 𝔼 a ∈ s, f a := by
-    refine Finset.expect_nbij (fun x : Fin k ↪ α => (x : Fin k → α))
+  obtain ⟨x₀⟩ := ‹Nonempty (Fin k ↪ α)›
+  have hs : s.Nonempty := ⟨x₀, mem_filter.mpr ⟨mem_univ _, x₀.injective⟩⟩
+  have hrepr : (𝔼 x : Fin k ↪ α, f x) = 𝔼 a ∈ s, f a :=
+    Finset.expect_nbij (fun x : Fin k ↪ α => (x : Fin k → α))
       (fun x _ => mem_filter.mpr ⟨mem_univ _, x.injective⟩) (fun _ _ => rfl)
-      (fun x _ y _ h => Function.Embedding.ext fun i => congrFun h i) ?_
-    intro a ha
-    exact ⟨⟨a, (mem_filter.mp ha).2⟩, mem_univ _, rfl⟩
-  change (𝔼 x : Fin k ↪ α, f x) ≤ _
-  rw [hrepr]
-  refine (expect_finset_le_expect_add_compl s hs f h₀ h₁).trans (add_le_add_right ?_ _)
-  have happly (a : α) : (uniformOfFintype α a).toReal ≤ (Fintype.card α : ℝ)⁻¹ := by
-    rw [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-  have hcollision := iid_not_injective_le_of_mass_le (uniformOfFintype α) k happly
-  rw [iid_uniformOfFintype, ← div_eq_mul_inv] at hcollision
-  simpa only [s, mem_filter, mem_univ, true_and] using hcollision
+      (fun _ _ _ _ h => DFunLike.coe_injective h)
+      fun a ha => ⟨⟨a, (mem_filter.mp ha).2⟩, mem_univ _, rfl⟩
+  refine (hrepr.trans_le (expect_finset_le_expect_add_compl s hs f h₀ h₁)).trans
+    (add_le_add_right ?_ _)
+  have hcol := iid_not_injective_le_of_mass_le (uniformOfFintype α) k
+    (bound := (Fintype.card α : ℝ)⁻¹) fun a => by simp [uniformOfFintype_apply]
+  simpa only [iid_uniformOfFintype, ← div_eq_mul_inv, s, mem_filter, mem_univ, true_and] using hcol
 
 /-- Conditioning on distinct draws can decrease a bounded expectation by at most the
 birthday bound for independent uniform draws. -/

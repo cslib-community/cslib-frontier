@@ -53,19 +53,16 @@ private theorem depthInterpretation_eq_gateDepth (op : Op) (f : ℕ → ℕ) :
 private theorem computableInPolyTime_gateDepth :
     ComputableInPolyTime gateDepth (encPair encOp (encPair encUnary encUnary))
       encUnary := by
-  let isConst : Op → Bool := fun op => match op with | .const _ => true | _ => false
-  let isNot : Op → Bool := fun op => match op with | .not => true | _ => false
-  have hc := (of_finite (encIn := encOp) (encOut := encBool) isConst).comp
-    (fst encOp (encPair encUnary encUnary))
-  have hn := (of_finite (encIn := encOp) (encOut := encBool) isNot).comp
-    (fst encOp (encPair encUnary encUnary))
+  have hc := (of_finite (encIn := encOp) (encOut := encBool) fun
+    | .const _ => true | _ => false).comp (fst encOp (encPair encUnary encUnary))
+  have hn := (of_finite (encIn := encOp) (encOut := encBool) fun
+    | .not => true | _ => false).comp (fst encOp (encPair encUnary encUnary))
   have ha : ComputableInPolyTime (fun p : Op × ℕ × ℕ => p.2.1 + 1)
       (encPair encOp (encPair encUnary encUnary)) encUnary := by fun_prop
   have hab : ComputableInPolyTime (fun p : Op × ℕ × ℕ => max p.2.1 p.2.2 + 1)
       (encPair encOp (encPair encUnary encUnary)) encUnary := by fun_prop
   convert hc.ite (const 1) (hn.ite ha hab) using 1
-  funext p
-  rcases p with ⟨op, a, b⟩
+  funext ⟨op, a, b⟩
   cases op <;> rfl
 
 private theorem computableInPolyTime_depthStep :
@@ -79,8 +76,7 @@ private theorem computableInPolyTime_depthStep :
       (listGetD_binary 0 (fst _ _).fst' (snd _ _))
   have hvalue := computableInPolyTime_gateDepth.comp
     ((snd (encList encUnary) encGate).fst'.prod ((hargs 0).prod (hargs 1)))
-  have h := listAppend' (fst (encList encUnary) encGate) (cons' hvalue (const []))
-  convert h using 1
+  convert listAppend' (fst (encList encUnary) encGate) (cons' hvalue (const [])) using 1
   funext p
   rw [depthInterpretation_eq_gateDepth p.2.1 (fun i => p.2.2[i]?.elim 0 (p.1.getD · 0))]
   rfl

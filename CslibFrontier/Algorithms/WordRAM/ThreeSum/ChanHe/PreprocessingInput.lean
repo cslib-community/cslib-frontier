@@ -65,23 +65,18 @@ theorem exec_input {κ w : ℕ} (input : List ℤ) (hw : width κ input.length �
   obtain ⟨x, rs, hf, ho, hbase, hcount, hend, hnd, _, hkeys, hcounts, _, _, hp, _⟩ :=
     Frontend.exec_input input ((frontend_width_le κ input.length).trans hw) hvalues
   have hcard : rs.length ≤ input.length := by
-    have ht := hnd.length_le_of_subset (fun k hk => (hkeys k).mp hk)
-    simpa only [List.length_map] using ht
+    simpa only [List.length_map] using hnd.length_le_of_subset fun k hk => (hkeys k).mp hk
   have hb : x.Bounded w := hf.bounded (Data.Bounded.init (input_fits input hw hvalues))
   have hw2 : w - 2 + 2 = w := by have := (three_le_width κ input.length).trans hw; omega
   obtain ⟨out, y, hs, hout, hstored, hlen, htable, hpacked, hlayout⟩ :=
     afterFrontend_exec (w := w - 2) input rs x (by simpa only [hw2] using hw)
       (by simpa only [hw2] using hb) hvalues ho hp hbase hcount hend hkeys hnd hcard
   rw [hw2] at hs
-  have hnodes := entries_output hkeys (fun p hp => (hcounts p hp).2) hvalues
-  have heq : out.map Prod.snd = Cslib.Algorithms.ThreeSum.ChanHe.allNodes input.length
-      ((input.length + 2) ^ κ) (fun i : Fin input.length => input[i]) := hout.trans hnodes
+  have heq := hout.trans (entries_output hkeys (fun p hp => (hcounts p hp).2) hvalues)
   refine ⟨out, y, (hf.seq hs).mono ?_, ?_, hstored, hlen, htable, hpacked, hlayout⟩
-  · have hpos : 0 < Frontend.cost κ input.length := by dsimp only [Frontend.cost]; omega
-    dsimp only [cost]
-    omega
-  · rw [Cslib.Algorithms.ThreeSum.ChanHe.instances, ← heq, List.map_map]
-    rfl
+  · have : 0 < Frontend.cost κ input.length := by dsimp only [Frontend.cost]; omega
+    dsimp only [cost]; omega
+  · rw [Cslib.Algorithms.ThreeSum.ChanHe.instances, ← heq, List.map_map]; rfl
 
 /-- The native flat program halts, and its actual pre-halt state retains the exact output. -/
 theorem runs_input {κ w : ℕ} (input : List ℤ) (hw : width κ input.length ≤ w)

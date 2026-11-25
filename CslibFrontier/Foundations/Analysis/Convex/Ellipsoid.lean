@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.PosDef
 public import Mathlib.MeasureTheory.Measure.Lebesgue.VolumeOfBalls
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Matrix.Order
 import Mathlib.Tactic.Module
 
@@ -235,9 +236,8 @@ theorem centralCutShape_of_two_le_card (A : Matrix ι ι ℝ) (a : ι → ℝ)
     centralCutShape A a = ((Fintype.card ι : ℝ) ^ 2 / ((Fintype.card ι : ℝ) ^ 2 - 1)) •
       (A - (2 / ((Fintype.card ι : ℝ) + 1)) •
         vecMulVec (centralCutDir A a) (centralCutDir A a)) := by
-  have h2 : (2 : ℝ) ≤ Fintype.card ι := by exact_mod_cast h
   have hnn : (Fintype.card ι : ℝ) ^ 2 - 1 ≠ 0 :=
-    ne_of_gt (sub_pos.2 (one_lt_pow₀ (by linarith only [h2]) two_ne_zero))
+    ne_of_gt (sub_pos.2 (one_lt_pow₀ (by cast_linarith only [h]) two_ne_zero))
   have hn1 : (Fintype.card ι : ℝ) + 1 ≠ 0 := by positivity
   simp only [centralCutShape]
   match_scalars <;> field_simp; ring
@@ -247,11 +247,8 @@ section Cut
 variable {A : Matrix ι ι ℝ} {a : ι → ℝ}
 
 omit [DecidableEq ι] in
-private lemma card_pos_of_ne_zero (ha : a ≠ 0) : 0 < Fintype.card ι := by
-  rw [Fintype.card_pos_iff]
-  by_contra h
-  rw [not_nonempty_iff] at h
-  exact ha (Subsingleton.elim _ _)
+private lemma card_pos_of_ne_zero (ha : a ≠ 0) : 0 < Fintype.card ι :=
+  Fintype.card_pos_iff.2 (not_isEmpty_iff.1 fun _ => ha (Subsingleton.elim _ _))
 
 /-- The dual vector `a / √(aᵀ A a)`, with `A *ᵥ cutDual A a = centralCutDir A a`. -/
 private noncomputable def cutDual (A : Matrix ι ι ℝ) (a : ι → ℝ) : ι → ℝ :=
@@ -320,14 +317,10 @@ private lemma centralCutShape_mul_cutInv (hA : A.PosDef) (ha : a ≠ 0) :
     ring
   rw [key, hβ]
   rcases hn1.eq_or_lt with h1 | h2
-  · have hc : Fintype.card ι = 1 := by
-      have : (Fintype.card ι : ℝ) = 1 := by rw [← hn_def]; exact h1.symm
-      exact_mod_cast this
-    rw [vecMulVec_eq_one_of_card_eq_one hc hba, ← h1]
+  · rw [vecMulVec_eq_one_of_card_eq_one (by rw [hn_def] at h1; exact_mod_cast h1.symm) hba, ← h1]
     norm_num
   · have : n ^ 2 - 1 ≠ 0 := ne_of_gt (sub_pos.2 (one_lt_pow₀ h2 two_ne_zero))
-    have hαγ : n ^ 2 / (n ^ 2 - 1) * ((n ^ 2 - 1) / n ^ 2) = 1 := by field_simp
-    rw [hαγ]
+    rw [show n ^ 2 / (n ^ 2 - 1) * ((n ^ 2 - 1) / n ^ 2) = 1 by field_simp]
     simp
 
 /-- The inverse of the updated shape is `(n² - 1) / n² · A⁻¹ + 2 (n + 1) / n² · a aᵀ / (aᵀ A a)`. -/
@@ -481,39 +474,27 @@ private lemma cut_ratio_lt {k : ℕ} (hk : 1 ≤ k) :
     · have hn1' : (1 : ℝ) < n := by
         rw [hn_def]; linarith only [(Nat.one_le_cast.2 hm0 : (1 : ℝ) ≤ m)]
       have hnn : 0 < n ^ 2 - 1 := sub_pos.2 (one_lt_pow₀ hn1' two_ne_zero)
-      have hbase : n ^ 2 / (n ^ 2 - 1) ≤ Real.exp (1 / (n ^ 2 - 1)) := by
-        calc n ^ 2 / (n ^ 2 - 1) = 1 / (n ^ 2 - 1) + 1 := by field_simp; ring
-          _ ≤ _ := Real.add_one_le_exp _
+      have hbase : n ^ 2 / (n ^ 2 - 1) ≤ Real.exp (1 / (n ^ 2 - 1)) :=
+        (le_of_eq (by field_simp; ring)).trans (Real.add_one_le_exp _)
       calc (n ^ 2 / (n ^ 2 - 1)) ^ m ≤ Real.exp (1 / (n ^ 2 - 1)) ^ m :=
             pow_le_pow_left₀ (div_nonneg (by positivity) hnn.le) hbase m
-        _ = Real.exp (m * (1 / (n ^ 2 - 1))) := (Real.exp_nat_mul _ _).symm
         _ = Real.exp (1 / (n + 1)) := by
+            rw [← Real.exp_nat_mul, show (m : ℝ) = n - 1 by rw [hn_def]; ring]
             congr 1
-            have hm : (m : ℝ) = n - 1 := by rw [hn_def]; ring
-            have hn1'' : n + 1 ≠ 0 := by positivity
-            rw [hm]; field_simp; ring
-  -- `(n / (n + 1))² < exp (-2 / (n + 1))`
+            field_simp
+            ring
+  -- `(n / (n + 1))² < exp (-1 / (n + 1)) ^ 2 = exp (-2 / (n + 1))`
   have h2 : (n / (n + 1)) ^ 2 < Real.exp (-2 / (n + 1)) := by
     have hlt : n / (n + 1) < Real.exp (-1 / (n + 1)) := by
-      have h := Real.add_one_lt_exp (x := -1 / (n + 1)) (by
-        have : (0 : ℝ) < n + 1 := by positivity
-        exact div_ne_zero (by norm_num) this.ne')
       calc n / (n + 1) = -1 / (n + 1) + 1 := by field_simp; ring
-        _ < _ := h
+        _ < _ := Real.add_one_lt_exp (div_neg_of_neg_of_pos (by norm_num) (by positivity)).ne
     calc (n / (n + 1)) ^ 2 < Real.exp (-1 / (n + 1)) ^ 2 :=
           pow_lt_pow_left₀ hlt (by positivity) two_ne_zero
-      _ = Real.exp (-2 / (n + 1)) := by
-          rw [← Real.exp_nat_mul]
-          congr 1
-          push_cast
-          ring
+      _ = Real.exp (-2 / (n + 1)) := by rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
   calc (n ^ 2 / (n ^ 2 - 1)) ^ m * (n / (n + 1)) ^ 2
       < Real.exp (1 / (n + 1)) * Real.exp (-2 / (n + 1)) :=
         mul_lt_mul' h1 h2 (by positivity) (Real.exp_pos _)
-    _ = Real.exp (-1 / (n + 1)) := by
-        rw [← Real.exp_add]
-        congr 1
-        ring
+    _ = Real.exp (-1 / (n + 1)) := by rw [← Real.exp_add]; congr 1; ring
 
 /-- **Volume ratio** of a central cut: `vol E(A', c') < exp (-1 / (2 (n + 1))) · vol E(A, c)`
 [BertsimasTsitsiklis1997, Theorem 8.1(b)], [GrotschelLovaszSchrijver1988, Section 3.1]. Bertsimas

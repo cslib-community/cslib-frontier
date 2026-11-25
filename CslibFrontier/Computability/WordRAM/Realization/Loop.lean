@@ -276,35 +276,25 @@ theorem loopEmit_entry (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   let zero := tmp (zeroSlot l n)
   let env : Fin k → Fin r := fun i => src ⟨i.val, by omega⟩
   have hct : ctr ≠ zero := hi.ne (by fin_index [counterSlot, zeroSlot])
-  have henv (i : Fin k) : x.regs (env i) = input d i := by
-    have hh : x.regs (src (Fin.castAdd 1 (Fin.castAdd l i))) = input d i := by
-      simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.castAdd l i))
-    exact hh
-  have hstate (i : Fin l) : x.regs (src ⟨k + i.val, by omega⟩) = output a i := by
-    have hh : x.regs (src (Fin.castAdd 1 (Fin.natAdd k i))) = output a i := by
-      simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.natAdd k i))
-    exact hh
-  have hfuel : x.regs (src ⟨k + l, by omega⟩) = fuel := by
-    have hh : x.regs (src (Fin.natAdd (k + l) 0)) = fuel := by
-      simpa [Fin.appendEquiv] using congrFun hin (Fin.natAdd (k + l) 0)
-    exact hh
+  have henv (i : Fin k) : x.regs (src (Fin.castAdd 1 (Fin.castAdd l i))) = input d i := by
+    simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.castAdd l i))
+  have hstate (i : Fin l) : x.regs (src (Fin.castAdd 1 (Fin.natAdd k i))) = output a i := by
+    simpa [appendWords, Fin.appendEquiv] using congrFun hin (Fin.castAdd 1 (Fin.natAdd k i))
+  have hfuel : x.regs (src (Fin.natAdd (k + l) 0)) = fuel := by
+    simpa [Fin.appendEquiv] using congrFun hin (Fin.natAdd (k + l) 0)
   obtain ⟨x₁, h₁, h₁m, h₁s, h₁f⟩ := copyBank_exec (fun i : Fin l => src ⟨k + i.val, by omega⟩)
     st zero (fun i j h => Fin.ext (congrArg Fin.val (hi h) :)) (fun _ _ => hd _ _) w x
   let x₂ := x₁.set ctr fuel
   let z := x₂.set zero 0
-  have h₁fuel : x₁.regs (src ⟨k + l, by omega⟩) = fuel := by
-    rw [h₁f _ (fun _ => (hd _ _).symm)]
-    exact hfuel
+  have h₁fuel : x₁.regs (src ⟨k + l, by omega⟩) = fuel := (h₁f _ fun _ => (hd _ _).symm).trans hfuel
   have h₂ : ExecWithin (B := .exact) w (.op (.copy ctr (src ⟨k + l, by omega⟩))) x₁ x₂ 1 := by
     wram_exec [h₁fuel]
-  have h₃ : ExecWithin (B := .exact) w (.op (.const zero 0)) x₂ z 1 :=
-    ExecWithin.const (fits_zero w)
+  have h₃ : ExecWithin (B := .exact) w (.op (.const zero 0)) x₂ z 1 := .const (fits_zero w)
   refine ⟨x₁, x₂, z, h₁, h₂, h₃, (h₁.seq (h₂.seq h₃)).bounded hx, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · apply Memory.State.ext
-    · exact h₁m
-    · change (x₂.set zero 0).regs frontier = x.regs frontier
-      wram_simp [x₂]
-      exact h₁f frontier fun i => hf _
+  · refine Memory.State.ext h₁m ?_
+    change (x₂.set zero 0).regs frontier = x.regs frontier
+    wram_simp [x₂]
+    exact h₁f frontier fun i => hf _
   · intro i
     change z.regs (env i) = _
     wram_simp [z, x₂]
@@ -356,19 +346,15 @@ theorem loopBody_tail {n : ℕ} (frontier : Fin r) (tmp : Fin (l + (l + n + 3) +
     (fun i : Fin l => tmp (bodySlot (Fin.castAdd (n + 1) i))) st zero
     (fun i j h => Fin.ext (congrArg Fin.val (hi h) :))
     (fun i j => hi.ne (stateSlot_ne_bodySlot j _).symm) w u
-  have huc : u.regs ctr = j + 1 := by
-    rw [huf _ (hf _) (hregbt _ (by simp [counterSlot]))]
-    exact hyc
-  have hvctr : v.regs ctr = j + 1 := by
-    rw [hvf _ (hregst _ (by simp [counterSlot]))]
-    exact huc
+  have huc : u.regs ctr = j + 1 := (huf _ (hf _) (hregbt _ (by simp [counterSlot]))).trans hyc
+  have hvctr : v.regs ctr = j + 1 := (hvf _ (hregst _ (by simp [counterSlot]))).trans huc
   have hvzero : v.regs zero = y.regs zero := by
     rw [hvf _ (hregst _ (by simp [zeroSlot])), huf _ (hf _) (hregbt _ (by simp [zeroSlot]))]
-  have h1 : Fits w 1 := (hub.1 ctr).of_le (by omega)
   have hjfit : Fits w j := (hub.1 ctr).of_le (by omega)
   let t := v.set one 1
   let y' := t.set ctr j
-  have ht : ExecWithin (B := .exact) w (.op (.const one 1)) v t 1 := ExecWithin.const h1
+  have ht : ExecWithin (B := .exact) w (.op (.const one 1)) v t 1 :=
+    .const ((hub.1 ctr).of_le (by omega))
   have htc : t.regs ctr = j + 1 := by wram_simp [t, hvctr]
   have htone : t.regs one = 1 := by simp [t, Data.set]
   have hdec : ExecWithin w (.op (.exactBin .sub ctr ctr one)) t y' 1 := by
@@ -592,9 +578,6 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
   let L_end := ((Memory.spec 0).clientState s₀ (iterate body d₀ fuel a₀)).frontier
   obtain ⟨x₁, x₂, z, h₁, h₂, h₃, hzb, hzm, hze, hzs, hzc, hzz, hzf⟩ :=
     loopEmit_entry input output hi hd hf hx hin
-  have h₁b := lift_regOnly (L := L_end) h₁ (copyBank_isRegOnlyCode _ _ _)
-  have h₂b := lift_regOnly (L := L_end) h₂ trivial
-  have h₃b := lift_regOnly (L := L_end) h₃ trivial
   let I : ℕ → (σ × Memory.State) → Data r → Prop := fun j q y =>
     LoopInv input output body safe frontier src tmp w d₀ x j q y ∧
       ((Memory.spec 0).clientState q.2 (iterate body d₀ j q.1)).frontier ≤ L_end
@@ -618,12 +601,9 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
       simpa only [iterationStep, iterate, StateTransitionSpec.clientState,
         StateTransitionSpec.clientResult, ← PFunctor.FreeM.bind_eq_bind,
         StateTransitionSpec.runClient_bind] using hL
-    have hu_le : u.regs frontier ≤ L_end := by
-      have hum_fr := congrArg Memory.State.frontier hum
-      rw [clientState_width] at hum_fr
-      change u.regs frontier = ((Memory.spec 0).clientState q.2 (body (d₀, q.1))).frontier at hum_fr
-      rw [hum_fr]
-      exact (Memory.frontier_le_clientState (w := 0) _ _).trans hL'
+    have hu_le : u.regs frontier ≤ L_end :=
+      (congrArg Memory.State.frontier (hum.trans (clientState_width w _ _))).trans_le
+        ((Memory.frontier_le_clientState (w := 0) _ _).trans hL')
     obtain ⟨y', ht, hIy'⟩ := loopBody_tail_inv hi hd hf hs hIy (hu.bounded hyb) hum huo huf
     have htb := lift_regOnly (L := L_end) ht ⟨copyBank_isRegOnlyCode _ _ _, trivial, trivial⟩
     exact ⟨y', ((hu.mono_bound hu_le).seq htb).mono (by omega), hIy', hL'⟩
@@ -631,10 +611,10 @@ theorem iterateRuntime (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l 
     (fun q => memoryCost (body (d₀, q.1)) q.2 + work (d₀, q.1) q.2)
     (fun _ _ hI => by simp [Cond.Holds, hI.1.2.2.2.2.1, hI.1.2.2.2.2.2.1]) hbody hIz
   obtain ⟨hym, hys, hyf⟩ := hIy.finish
-  have hy_fr : y.regs frontier = L_end := by
-    have := congrArg Memory.State.frontier hym
-    rwa [clientState_width w] at this
-  have hwhole := h₁b.seq (h₂b.seq (h₃b.seq hy))
+  have hy_fr : y.regs frontier = L_end :=
+    congrArg Memory.State.frontier (hym.trans (clientState_width w _ _))
+  have hwhole := (lift_regOnly h₁ (copyBank_isRegOnlyCode _ _ _)).seq
+    ((lift_regOnly h₂ trivial).seq ((lift_regOnly h₃ trivial).seq hy))
   rw [← hy_fr] at hwhole
   have hsumC := congrArg (C * ·) (iterationSum_eq body work d₀ fuel a₀ s₀)
   have hcount : fuel ≤ memoryCost (iterate body d₀ fuel a₀) s₀ +

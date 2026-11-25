@@ -176,6 +176,19 @@ private theorem exists_ofFn_eq_drop {m k : ℕ} (r : Fin (m + k) → Bool) :
     ∃ v : Fin k → Bool, List.ofFn v = (List.ofFn r).drop m :=
   ⟨_, by rw [List.ofFn_add, List.drop_left' List.length_ofFn]⟩
 
+/-- Scaling an acceptance-count error bound from `m₁` random bits to `m₁ + m₂` random bits. -/
+private theorem errorExponent_scale {q m₁ m₂ c ans : ℕ}
+    (he : 2 ^ q * (2 ^ m₁ - c) ≤ 2 ^ m₁) (hge : c * 2 ^ m₂ ≤ ans) :
+    2 ^ q * (2 ^ (m₁ + m₂) - ans) ≤ 2 ^ (m₁ + m₂) :=
+  calc 2 ^ q * (2 ^ (m₁ + m₂) - ans)
+      ≤ 2 ^ q * ((2 ^ m₁ - c) * 2 ^ m₂) := by
+        gcongr
+        rw [Nat.sub_mul, pow_add]
+        exact Nat.sub_le_sub_left hge _
+    _ = 2 ^ q * (2 ^ m₁ - c) * 2 ^ m₂ := by ring
+    _ ≤ 2 ^ m₁ * 2 ^ m₂ := Nat.mul_le_mul_right _ he
+    _ = 2 ^ (m₁ + m₂) := (pow_add _ _ _).symm
+
 /-! ### `RP ∩ coRP ⊆ ZPP` -/
 
 /-- **Zero-error deciders with error exponent `q` from `RP ∩ coRP`**: for every polynomial `q`, a
@@ -198,19 +211,9 @@ theorem exists_zeroError_errorExponent_of_mem_RP_inter_coRP {A : Set α}
   let V (x : α × List Bool) : Option Bool :=
     if V₁ (x.1, x.2.take (len x.1)) then some true
     else if V₂ (x.1, x.2.drop (len x.1)) then some false else none
-  have hlen : ComputableInPolyTime (fun x : α × List Bool => len x.1) (encPair enc encBits)
-      encUnary :=
-    ((ComputableInPolyTime.unary_eval p₁).comp
-      (ComputableInPolyTime.encoding_length enc)).comp (.fst _ _)
-  have hpoly : ComputableInPolyTime V (encPair enc encBits) (encOption encBool) :=
-    ComputableInPolyTime.ite'
-      (hV₁.comp ((ComputableInPolyTime.fst _ _).prod
-        (ComputableInPolyTime.bitsTakeWithInput (.snd _ _) hlen)))
-      (.const _)
-      (ComputableInPolyTime.ite'
-        (hV₂.comp ((ComputableInPolyTime.fst _ _).prod
-          (ComputableInPolyTime.bitsDropWithInput (.snd _ _) hlen)))
-        (.const _) (.const _))
+  have hpoly : ComputableInPolyTime V (encPair enc encBits) (encOption encBool) := by
+    dsimp [V, len]
+    fun_prop
   refine ⟨p₁ + p₂, V, hpoly, fun a => ?_⟩
   set m₂ := p₂.eval (enc a).length
   have heval : (p₁ + p₂).eval (enc a).length = len a + m₂ := Polynomial.eval_add
@@ -232,17 +235,13 @@ theorem exists_zeroError_errorExponent_of_mem_RP_inter_coRP {A : Set α}
     split_ifs at hb with hacc hrej <;> cases hb
     · simp only [true_iff]
       by_contra ha
-      rw [hV₁ ha r] at hacc
-      exact Bool.false_ne_true hacc
+      exact Bool.false_ne_true (hV₁ ha r ▸ hacc)
     · simp only [Bool.false_eq_true, false_iff]
-      intro ha
-      rw [hV₂ ha r] at hrej
-      exact Bool.false_ne_true hrej
+      exact fun ha => Bool.false_ne_true (hV₂ ha r ▸ hrej)
   rw [heval]
   set ans := acceptCount (fun x => (V x).isSome) a (len a + m₂)
   by_cases ha : a ∈ A
   · -- on a member, `V₁` rejects on at most a `2 ^ (-q(n))` fraction of its random strings
-    have e₁ := errorExponentAt_true_iff.1 ((h₁ a).1 ha)
     have hcount : (Finset.univ.filter fun r : Fin (len a + m₂) → Bool =>
           V₁ (a, (List.ofFn r).take (len a)) = true).card = acceptCount V₁ a (len a) * 2 ^ m₂ := by
       rw [BitString.card_filter_take (Nat.le_add_right _ _) fun u => V₁ (a, u) = true,
@@ -253,31 +252,15 @@ theorem exists_zeroError_errorExponent_of_mem_RP_inter_coRP {A : Set α}
         simp only [Finset.mem_filter, Finset.mem_univ, true_and, V]
         intro hr
         simp [hr]
-    calc 2 ^ q.eval (enc a).length * (2 ^ (len a + m₂) - ans)
-        ≤ 2 ^ q.eval (enc a).length * ((2 ^ len a - acceptCount V₁ a (len a)) * 2 ^ m₂) := by
-          gcongr
-          rw [Nat.sub_mul, pow_add]
-          exact Nat.sub_le_sub_left hge _
-      _ = 2 ^ q.eval (enc a).length * (2 ^ len a - acceptCount V₁ a (len a)) * 2 ^ m₂ := by
-          ring
-      _ ≤ 2 ^ len a * 2 ^ m₂ := Nat.mul_le_mul_right _ e₁
-      _ = 2 ^ (len a + m₂) := (pow_add _ _ _).symm
+    exact errorExponent_scale (errorExponentAt_true_iff.1 ((h₁ a).1 ha)) hge
   · -- on a non-member, `V₂` rejects on at most a `2 ^ (-q(n))` fraction of its random strings
-    have e₂ := errorExponentAt_true_iff.1 ((h₂ a).1 ha)
-    have hcount := card_filter_drop (len a) m₂ fun v => V₂ (a, v) = true
     have hge : 2 ^ len a * acceptCount V₂ a m₂ ≤ ans :=
-      hcount ▸ Finset.card_le_card fun r => by
+      card_filter_drop (len a) m₂ (fun v => V₂ (a, v) = true) ▸ Finset.card_le_card fun r => by
         simp only [Finset.mem_filter, Finset.mem_univ, true_and, V]
         intro hr
         simp [hr, hV₁ ha r]
-    calc 2 ^ q.eval (enc a).length * (2 ^ (len a + m₂) - ans)
-        ≤ 2 ^ q.eval (enc a).length * (2 ^ len a * (2 ^ m₂ - acceptCount V₂ a m₂)) := by
-          gcongr
-          rw [Nat.mul_sub, pow_add]
-          exact Nat.sub_le_sub_left hge _
-      _ = 2 ^ len a * (2 ^ q.eval (enc a).length * (2 ^ m₂ - acceptCount V₂ a m₂)) := by ring
-      _ ≤ 2 ^ len a * 2 ^ m₂ := Nat.mul_le_mul_left _ e₂
-      _ = 2 ^ (len a + m₂) := (pow_add _ _ _).symm
+    rw [Nat.add_comm]
+    exact errorExponent_scale (errorExponentAt_true_iff.1 ((h₂ a).1 ha)) (by rwa [Nat.mul_comm])
 
 /-- **`RP ∩ coRP ⊆ ZPP`**: the zero-error decider of
 `Cslib.Complexity.exists_zeroError_errorExponent_of_mem_RP_inter_coRP` with error exponent `1`

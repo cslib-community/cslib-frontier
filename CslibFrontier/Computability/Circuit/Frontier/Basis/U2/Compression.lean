@@ -412,11 +412,19 @@ private theorem cleanWire_merge_block3 {c : Circuit σ m_in m_out} {I : Interpre
     · have hne_fi : f ≠ w_in := fun h => hne₁ (h.symm.trans hfw)
       rw [ite_eq_left hfw.symm, ite_eq_right hne_fi, ite_eq_right hne_fi.symm]
   refine ⟨fun v hv => hv.elim (hcl₁ v) (hcl₂ v), hnc_u, ?_⟩
-  intro p q e hpq hrem he_u
-  -- For any edge `g ∈ edgeCut (S₁ ∪ S₂)` with `g ≠ w'`, its orientation in `S₁ ∪ S₂` matches `S₂`.
-  have horient_other {g : Edge c} (hg_u : g ∈ (graph c).edgeCut (S₁ ∪ S₂)) (hg_ne : g ≠ w') :
-      g ∈ (graph c).edgeCut S₂ \ {f} ∧
-        (src g ∈ S₁ ∪ S₂ → src g ∈ S₂) ∧ (tgt g ∈ S₁ ∪ S₂ → tgt g ∈ S₂) := by
+  -- Each pin `g` of `S₁ ∪ S₂` is the pin `r g` of `S₂` (`w' ↦ f`), up to the polarity `t g`.
+  let r (g : Edge c) : Edge c := if g = w' then f else g
+  let t (g : Edge c) : Bool := decide (g = w') && neg
+  have hpin {g : Edge c} (hg_u : g ∈ (graph c).edgeCut (S₁ ∪ S₂)) :
+      r g ∈ (graph c).edgeCut S₂ ∧
+        (src g ∈ S₁ ∪ S₂ → src (r g) ∈ S₂) ∧ (tgt g ∈ S₁ ∪ S₂ → tgt (r g) ∈ S₂) ∧
+        (∀ α, GateSatisfies I S₁ α → α (r g) = (α g ^^ t g)) ∧
+        ∀ α, α₀_fn α (r g) = (α g ^^ t g) := by
+    by_cases hg_ne : g = w'
+    · have hr : r g = f := ite_eq_left hg_ne
+      have ht : t g = neg := by simp [t, hg_ne]
+      rw [hr, ht, hg_ne]
+      exact ⟨hf_cut₂, horient.1, horient.2, hwire_sd, fun α => ite_eq_left rfl⟩
     rw [hcut_u, mem_insert_iff] at hg_u
     have hg₂ : g ∈ (graph c).edgeCut S₂ \ {f} := hg_u.resolve_left hg_ne
     have hg_not_s₁ : src g ∉ S₁ ∧ tgt g ∉ S₁ := by
@@ -430,178 +438,57 @@ private theorem cleanWire_merge_block3 {c : Circuit σ m_in m_out} {I : Interpre
       · have ht_in : tgt g ∈ S₁ := hiff.mp hs_in
         exact (hg₂.1 (iff_of_false (disjoint_left.mp hd hs_in) (disjoint_left.mp hd ht_in))).elim
       · exact ⟨hs_in, fun ht_in => hs_in (hiff.mpr ht_in)⟩
-    exact ⟨hg₂, fun h => h.resolve_left hg_not_s₁.1, fun h => h.resolve_left hg_not_s₁.2⟩
-  -- Split on which of `e, p, q` equals `w'`.
-  have hw'_mem : w' = e ∨ w' = p ∨ w' = q := by
-    by_cases hwe : w' = e
-    · exact Or.inl hwe
-    · have : w' ∈ (graph c).edgeCut (S₁ ∪ S₂) \ {e} := ⟨by rw [hcut_u]; simp, hwe⟩
-      rw [hrem] at this
-      exact Or.inr (by simpa using this)
-  rcases hw'_mem with hwe | hwp | hwq
-  · -- Case 1: `w' = e`.
-    have hrem₂ : (graph c).edgeCut S₂ \ {f} = {p, q} := by
-      have h1 := insert_sdiff_self_of_notMem hw'_not_s₂f
-      rw [← hcut_u, hwe, hrem] at h1
-      exact h1.symm
-    have hp_s₂f : p ∈ (graph c).edgeCut S₂ \ {f} := by rw [hrem₂]; simp
-    have hq_s₂f : q ∈ (graph c).edgeCut S₂ \ {f} := by rw [hrem₂]; simp
-    obtain ⟨h₂_out, h₂_in⟩ := hpin₂ p q f hpq hrem₂ hf_cut₂
-    constructor
-    · intro hsrc_e
-      obtain ⟨rel₀, hU₀, hsd₀, hrl₀⟩ := h₂_out (horient.1 (hwe ▸ hsrc_e))
-      have hU : U2OutRel fun a b x => rel₀ a b (x ^^ neg) := by
-        simpa only [Bool.xor_false] using hU₀.flip false false neg
-      refine ⟨fun a b x => rel₀ a b (x ^^ neg), hU, ?_, ?_⟩
-      · intro α hsat
-        dsimp only
-        rw [← hwe, ← hwire_sd α (fun v hv => hsat v (Or.inl hv))]
-        exact hsd₀ α fun v hv => hsat v (Or.inr hv)
-      · intro α hrel
-        refine patch_union hd hint α (α₀_fn α) (fun g hne => ite_eq_right hne) (hwire_rl α)
-          fun β₁ hβ₁ => hrl₀ β₁ ?_
-        have hp_eq : β₁ p = α p := (hβ₁ hp_s₂f.1).trans (ite_eq_right hp_s₂f.2)
-        have hq_eq : β₁ q = α q := (hβ₁ hq_s₂f.1).trans (ite_eq_right hq_s₂f.2)
-        have hf_eq : β₁ f = (α e ^^ neg) := by
-          rw [hβ₁ hf_cut₂, ← hwe]; exact ite_eq_left rfl
-        rwa [hp_eq, hq_eq, hf_eq]
-    · intro htgt_e
-      obtain ⟨rel₀, hI₀, hsd₀, hrl₀⟩ := h₂_in (horient.2 (hwe ▸ htgt_e))
-      have hI : U2InRel fun a b x => rel₀ a b (x ^^ neg) := by
-        simpa only [Bool.xor_false] using hI₀.flip false false neg
-      refine ⟨fun a b x => rel₀ a b (x ^^ neg), hI, ?_, ?_⟩
-      · intro α hsat
-        dsimp only
-        rw [← hwe, ← hwire_sd α (fun v hv => hsat v (Or.inl hv))]
-        exact hsd₀ α fun v hv => hsat v (Or.inr hv)
-      · intro α hrel
-        refine patch_union hd hint α (α₀_fn α) (fun g hne => ite_eq_right hne) (hwire_rl α)
-          fun β₁ hβ₁ => hrl₀ β₁ ?_
-        have hp_eq : β₁ p = α p := (hβ₁ hp_s₂f.1).trans (ite_eq_right hp_s₂f.2)
-        have hq_eq : β₁ q = α q := (hβ₁ hq_s₂f.1).trans (ite_eq_right hq_s₂f.2)
-        have hf_eq : β₁ f = (α e ^^ neg) := by
-          rw [hβ₁ hf_cut₂, ← hwe]; exact ite_eq_left rfl
-        rwa [hp_eq, hq_eq, hf_eq]
-  · -- Case 2: `w' = p`.
-    have he_ne_w : e ≠ w' := fun h => by
-      have hm : p ∈ (graph c).edgeCut (S₁ ∪ S₂) \ {e} := by rw [hrem]; simp
-      exact hm.2 (hwp.symm.trans h.symm)
-    obtain ⟨he₂, he_src, he_tgt⟩ := horient_other he_u he_ne_w
-    have hq_rem : q ∈ (graph c).edgeCut (S₁ ∪ S₂) \ {e} := by rw [hrem]; simp
-    obtain ⟨hq₂, _, _⟩ := horient_other hq_rem.1 (hwp ▸ hpq.symm)
-    have hfq : f ≠ q := Ne.symm hq₂.2
-    have hrem₂ : (graph c).edgeCut S₂ \ {e} = {f, q} := by
-      ext g
-      simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
-      constructor
-      · rintro ⟨hg₂, hge⟩
-        by_cases hgf : g = f
-        · exact Or.inl hgf
-        · have hgu : g ∈ (graph c).edgeCut (S₁ ∪ S₂) \ {e} :=
-            ⟨by rw [hcut_u]; exact Or.inr ⟨hg₂, hgf⟩, hge⟩
-          rw [hrem] at hgu
-          rcases hgu with hgp | hgq
-          · exact (hw'_not_cut₂ (hwp.trans hgp.symm ▸ hg₂)).elim
-          · exact Or.inr hgq
-      · rintro (rfl | rfl)
-        · exact ⟨hf_cut₂, Ne.symm he₂.2⟩
-        · exact ⟨hq₂.1, hq_rem.2⟩
-    obtain ⟨h₂_out, h₂_in⟩ := hpin₂ f q e hfq hrem₂ he₂.1
-    constructor
-    · intro hsrc_e
-      obtain ⟨rel₀, hU₀, hsd₀, hrl₀⟩ := h₂_out (he_src hsrc_e)
-      have hU : U2OutRel fun a b x => rel₀ (a ^^ neg) b x := by
-        simpa only [Bool.xor_false] using hU₀.flip neg false false
-      refine ⟨fun a b x => rel₀ (a ^^ neg) b x, hU, ?_, ?_⟩
-      · intro α hsat
-        dsimp only
-        rw [← hwp, ← hwire_sd α (fun v hv => hsat v (Or.inl hv))]
-        exact hsd₀ α fun v hv => hsat v (Or.inr hv)
-      · intro α hrel
-        refine patch_union hd hint α (α₀_fn α) (fun g hne => ite_eq_right hne) (hwire_rl α)
-          fun β₁ hβ₁ => hrl₀ β₁ ?_
-        have hf_eq : β₁ f = (α p ^^ neg) := by
-          rw [hβ₁ hf_cut₂, ← hwp]; exact ite_eq_left rfl
-        have hq_eq : β₁ q = α q := (hβ₁ hq₂.1).trans (ite_eq_right hq₂.2)
-        have he_eq : β₁ e = α e := (hβ₁ he₂.1).trans (ite_eq_right he₂.2)
-        rwa [hf_eq, hq_eq, he_eq]
-    · intro htgt_e
-      obtain ⟨rel₀, hI₀, hsd₀, hrl₀⟩ := h₂_in (he_tgt htgt_e)
-      have hI : U2InRel fun a b x => rel₀ (a ^^ neg) b x := by
-        simpa only [Bool.xor_false] using hI₀.flip neg false false
-      refine ⟨fun a b x => rel₀ (a ^^ neg) b x, hI, ?_, ?_⟩
-      · intro α hsat
-        dsimp only
-        rw [← hwp, ← hwire_sd α (fun v hv => hsat v (Or.inl hv))]
-        exact hsd₀ α fun v hv => hsat v (Or.inr hv)
-      · intro α hrel
-        refine patch_union hd hint α (α₀_fn α) (fun g hne => ite_eq_right hne) (hwire_rl α)
-          fun β₁ hβ₁ => hrl₀ β₁ ?_
-        have hf_eq : β₁ f = (α p ^^ neg) := by
-          rw [hβ₁ hf_cut₂, ← hwp]; exact ite_eq_left rfl
-        have hq_eq : β₁ q = α q := (hβ₁ hq₂.1).trans (ite_eq_right hq₂.2)
-        have he_eq : β₁ e = α e := (hβ₁ he₂.1).trans (ite_eq_right he₂.2)
-        rwa [hf_eq, hq_eq, he_eq]
-  · -- Case 3: `w' = q`.
-    have he_ne_w : e ≠ w' := fun h => by
-      have hm : q ∈ (graph c).edgeCut (S₁ ∪ S₂) \ {e} := by rw [hrem]; simp
-      exact hm.2 (hwq.symm.trans h.symm)
-    obtain ⟨he₂, he_src, he_tgt⟩ := horient_other he_u he_ne_w
-    have hp_rem : p ∈ (graph c).edgeCut (S₁ ∪ S₂) \ {e} := by rw [hrem]; simp
-    obtain ⟨hp₂, _, _⟩ := horient_other hp_rem.1 (hwq ▸ hpq)
-    have hpf : p ≠ f := hp₂.2
-    have hrem₂ : (graph c).edgeCut S₂ \ {e} = {p, f} := by
-      ext g
-      simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
-      constructor
-      · rintro ⟨hg₂, hge⟩
-        by_cases hgf : g = f
-        · exact Or.inr hgf
-        · have hgu : g ∈ (graph c).edgeCut (S₁ ∪ S₂) \ {e} :=
-            ⟨by rw [hcut_u]; exact Or.inr ⟨hg₂, hgf⟩, hge⟩
-          rw [hrem] at hgu
-          rcases hgu with hgp | hgq
-          · exact Or.inl hgp
-          · exact (hw'_not_cut₂ (hwq.trans hgq.symm ▸ hg₂)).elim
-      · rintro (rfl | rfl)
-        · exact ⟨hp₂.1, hp_rem.2⟩
-        · exact ⟨hf_cut₂, Ne.symm he₂.2⟩
-    obtain ⟨h₂_out, h₂_in⟩ := hpin₂ p f e hpf hrem₂ he₂.1
-    constructor
-    · intro hsrc_e
-      obtain ⟨rel₀, hU₀, hsd₀, hrl₀⟩ := h₂_out (he_src hsrc_e)
-      have hU : U2OutRel fun a b x => rel₀ a (b ^^ neg) x := by
-        simpa only [Bool.xor_false] using hU₀.flip false neg false
-      refine ⟨fun a b x => rel₀ a (b ^^ neg) x, hU, ?_, ?_⟩
-      · intro α hsat
-        dsimp only
-        rw [← hwq, ← hwire_sd α (fun v hv => hsat v (Or.inl hv))]
-        exact hsd₀ α fun v hv => hsat v (Or.inr hv)
-      · intro α hrel
-        refine patch_union hd hint α (α₀_fn α) (fun g hne => ite_eq_right hne) (hwire_rl α)
-          fun β₁ hβ₁ => hrl₀ β₁ ?_
-        have hp_eq : β₁ p = α p := (hβ₁ hp₂.1).trans (ite_eq_right hp₂.2)
-        have hf_eq : β₁ f = (α q ^^ neg) := by
-          rw [hβ₁ hf_cut₂, ← hwq]; exact ite_eq_left rfl
-        have he_eq : β₁ e = α e := (hβ₁ he₂.1).trans (ite_eq_right he₂.2)
-        rwa [hp_eq, hf_eq, he_eq]
-    · intro htgt_e
-      obtain ⟨rel₀, hI₀, hsd₀, hrl₀⟩ := h₂_in (he_tgt htgt_e)
-      have hI : U2InRel fun a b x => rel₀ a (b ^^ neg) x := by
-        simpa only [Bool.xor_false] using hI₀.flip false neg false
-      refine ⟨fun a b x => rel₀ a (b ^^ neg) x, hI, ?_, ?_⟩
-      · intro α hsat
-        dsimp only
-        rw [← hwq, ← hwire_sd α (fun v hv => hsat v (Or.inl hv))]
-        exact hsd₀ α fun v hv => hsat v (Or.inr hv)
-      · intro α hrel
-        refine patch_union hd hint α (α₀_fn α) (fun g hne => ite_eq_right hne) (hwire_rl α)
-          fun β₁ hβ₁ => hrl₀ β₁ ?_
-        have hp_eq : β₁ p = α p := (hβ₁ hp₂.1).trans (ite_eq_right hp₂.2)
-        have hf_eq : β₁ f = (α q ^^ neg) := by
-          rw [hβ₁ hf_cut₂, ← hwq]; exact ite_eq_left rfl
-        have he_eq : β₁ e = α e := (hβ₁ he₂.1).trans (ite_eq_right he₂.2)
-        rwa [hp_eq, hf_eq, he_eq]
+    have hr : r g = g := ite_eq_right hg_ne
+    have ht : t g = false := by simp [t, hg_ne]
+    simp only [hr, ht, Bool.xor_false]
+    exact ⟨hg₂.1, fun h => h.resolve_left hg_not_s₁.1, fun h => h.resolve_left hg_not_s₁.2,
+      fun _ _ => trivial, fun α => ite_eq_right hg₂.2⟩
+  -- A pin relation of `S₂` on `(r p, r q, r e)` transfers to `S₁ ∪ S₂` on `(p, q, e)`.
+  have transfer {p q e : Edge c} (hp : p ∈ (graph c).edgeCut (S₁ ∪ S₂))
+      (hq : q ∈ (graph c).edgeCut (S₁ ∪ S₂)) (he : e ∈ (graph c).edgeCut (S₁ ∪ S₂))
+      {P : (Bool → Bool → Bool → Bool) → Prop}
+      (hflip : ∀ rel, P rel → P fun a b x => rel (a ^^ t p) (b ^^ t q) (x ^^ t e))
+      (h : ∃ rel, P rel ∧
+        (∀ α, GateSatisfies I S₂ α → rel (α (r p)) (α (r q)) (α (r e)) = true) ∧
+        ∀ α, rel (α (r p)) (α (r q)) (α (r e)) = true →
+          ∃ β, EqOn β α (internalEdges c S₂)ᶜ ∧ GateSatisfies I S₂ β) :
+      ∃ rel, P rel ∧ (∀ α, GateSatisfies I (S₁ ∪ S₂) α → rel (α p) (α q) (α e) = true) ∧
+        ∀ α, rel (α p) (α q) (α e) = true →
+          ∃ β, EqOn β α (internalEdges c (S₁ ∪ S₂))ᶜ ∧ GateSatisfies I (S₁ ∪ S₂) β := by
+    obtain ⟨rel₀, hP, hsd₀, hrl₀⟩ := h
+    obtain ⟨hp₂, -, -, hp_sd, hp_rl⟩ := hpin hp
+    obtain ⟨hq₂, -, -, hq_sd, hq_rl⟩ := hpin hq
+    obtain ⟨he₂, -, -, he_sd, he_rl⟩ := hpin he
+    refine ⟨fun a b x => rel₀ (a ^^ t p) (b ^^ t q) (x ^^ t e), hflip rel₀ hP,
+      fun α hsat => ?_, fun α hrel => ?_⟩
+    · have h₁ : GateSatisfies I S₁ α := fun v hv => hsat v (Or.inl hv)
+      dsimp only
+      rw [← hp_sd α h₁, ← hq_sd α h₁, ← he_sd α h₁]
+      exact hsd₀ α fun v hv => hsat v (Or.inr hv)
+    · refine patch_union hd hint α (α₀_fn α) (fun g hne => ite_eq_right hne) (hwire_rl α)
+        fun β₁ hβ₁ => hrl₀ β₁ ?_
+      rwa [hβ₁ hp₂, hβ₁ hq₂, hβ₁ he₂, hp_rl, hq_rl, he_rl]
+  intro p q e hpq hrem he_u
+  have hmem_u (g : Edge c) :
+      g ∈ (graph c).edgeCut (S₁ ∪ S₂) ↔ g = w' ∨ g ∈ (graph c).edgeCut S₂ ∧ g ≠ f := by
+    rw [hcut_u]; rfl
+  have hmem_rem (g : Edge c) : g ∈ (graph c).edgeCut (S₁ ∪ S₂) ∧ g ≠ e ↔ g = p ∨ g = q :=
+    Set.ext_iff.mp hrem g
+  have hp_u := ((hmem_rem p).mpr (Or.inl rfl)).1
+  have hq_u := ((hmem_rem q).mpr (Or.inr rfl)).1
+  have hrem₂ : (graph c).edgeCut S₂ \ {r e} = {r p, r q} := by
+    ext g
+    simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff, r]
+    clear * - hmem_u hmem_rem hw'_not_cut₂ hw'_ne_f hf_cut₂ he_u hpq
+    grind [hmem_u g, hmem_u p, hmem_u q, hmem_u e, hmem_rem g, hmem_rem p, hmem_rem q]
+  have hpq₂ : r p ≠ r q := by
+    simp only [r]
+    clear * - hmem_u hmem_rem hpq hw'_not_cut₂ hw'_ne_f hf_cut₂ hp_u hq_u
+    grind [hmem_u p, hmem_u q]
+  obtain ⟨he₂, he_src, he_tgt, -, -⟩ := hpin he_u
+  obtain ⟨h₂_out, h₂_in⟩ := hpin₂ (r p) (r q) (r e) hpq₂ hrem₂ he₂
+  exact ⟨fun hs => transfer hp_u hq_u he_u (fun _ h => h.flip _ _ _) (h₂_out (he_src hs)),
+    fun ht => transfer hp_u hq_u he_u (fun _ h => h.flip _ _ _) (h₂_in (he_tgt ht))⟩
 
 /-! ### Singleton block classification -/
 
@@ -611,6 +498,26 @@ private theorem internalEdges_singleton_empty (c : Circuit σ m_in m_out) (v : V
   simp only [internalEdges, mem_ofPred_eq, mem_singleton_iff, mem_empty_iff_false, iff_false]
   rintro ⟨hs, ht⟩
   exact loopless e (hs.trans ht.symm)
+
+/-- Every edge leaving the junction `⟨w, idx⟩` is its delivery edge or the next junction's feed. -/
+private theorem eq_of_src_eq_junction {c : Circuit σ m_in m_out} {w : Signal c} {idx : ℕ}
+    {hidx : idx < fanout c w} {e : Edge c} (hs : src e = .junction ⟨w, ⟨idx, hidx⟩⟩) :
+    e = .deliver ⟨w, ⟨idx, hidx⟩⟩ ∨ ∃ h : idx + 1 < fanout c w, e = .feed ⟨w, ⟨idx + 1, h⟩⟩ := by
+  rcases e with ⟨w', ⟨_ | k, hk⟩⟩ | j'
+  · cases hs
+  · obtain ⟨rfl, hfin⟩ := Sigma.mk.inj_iff.mp (Vertex.junction.inj hs)
+    obtain rfl : k = idx := Fin.mk.inj_iff.mp (eq_of_heq hfin)
+    exact Or.inr ⟨hk, rfl⟩
+  · cases hs; exact Or.inl rfl
+
+/-- The only edge entering a junction is its feed. -/
+private theorem eq_feed_of_tgt_eq_junction {c : Circuit σ m_in m_out} {j : Junction c}
+    {e : Edge c} (ht : tgt e = .junction j) : e = .feed j := by
+  rcases e with j' | j'
+  · cases ht; rfl
+  · change owner (junctionEquiv c j') = _ at ht
+    generalize junctionEquiv c j' = t at ht
+    rcases t with a | o <;> cases ht
 
 private theorem clean_junction_singleton {c : Circuit σ m_in m_out} (I : Interpretation σ Bool)
     (j : Junction c) :
@@ -622,6 +529,16 @@ private theorem clean_junction_singleton {c : Circuit σ m_in m_out} (I : Interp
     exact ⟨fun _ _ h => (nomatch h), fun _ h => (nomatch h)⟩
   have hint0 : (internalEdges c {.junction j})ᶜ = univ := by
     rw [internalEdges_singleton_empty, compl_empty]
+  have hmem_cut (e : Edge c) : e ∈ (graph c).edgeCut {.junction j} ↔
+      e = .feed j ∨ e = .deliver j ∨ ∃ h : idx + 1 < fanout c w, e = .feed ⟨w, ⟨idx + 1, h⟩⟩ := by
+    rw [Multigraph.edgeCut_singleton _ loopless]
+    simp only [Multigraph.mem_incidenceSet, graph_src, graph_tgt]
+    constructor
+    · rintro (hs | ht)
+      · exact Or.inr (eq_of_src_eq_junction hs)
+      · exact Or.inl (eq_feed_of_tgt_eq_junction ht)
+    · rintro (rfl | rfl | ⟨_, rfl⟩)
+      exacts [Or.inr rfl, Or.inl rfl, Or.inl rfl]
   by_cases hnext : idx + 1 < fanout c w
   · -- Non-last junction: `CleanBlock3` (`copyRel`)
     right
@@ -635,30 +552,7 @@ private theorem clean_junction_singleton {c : Circuit σ m_in m_out} (I : Interp
     have h12 : e_d ≠ e_f := fun h => nomatch h
     have hcut : (graph c).edgeCut {.junction j} = {e_in, e_d, e_f} := by
       ext e
-      rw [Multigraph.edgeCut_singleton _ loopless]
-      simp only [Multigraph.mem_incidenceSet, graph_src, graph_tgt, mem_insert_iff,
-        mem_singleton_iff]
-      constructor
-      · rintro (hs | ht)
-        · rcases e with ⟨w', ⟨k, hk⟩⟩ | j'
-          · cases k with
-            | zero => cases hs
-            | succ k =>
-              have hj := Vertex.junction.inj hs
-              obtain ⟨rfl, hfin⟩ := Sigma.mk.inj_iff.mp hj
-              have hk_eq : k = idx := Fin.mk.inj_iff.mp (eq_of_heq hfin)
-              subst hk_eq
-              exact Or.inr (Or.inr rfl)
-          · cases hs; exact Or.inr (Or.inl rfl)
-        · rcases e with j' | j'
-          · cases ht; exact Or.inl rfl
-          · change owner (junctionEquiv c j') = _ at ht
-            generalize junctionEquiv c j' = t at ht
-            rcases t with a | o <;> cases ht
-      · rintro (rfl | rfl | rfl)
-        · exact Or.inr rfl
-        · exact Or.inl rfl
-        · exact Or.inl rfl
+      exact (hmem_cut e).trans (or_congr_right (or_congr_right ⟨fun ⟨_, h⟩ => h, (⟨hnext, ·⟩)⟩))
     have hnc : ((graph c).edgeCut {.junction j}).ncard = 3 := by
       rw [hcut, ncard_insert_of_notMem (by simp [h01, h02]), ncard_pair h12]
     have hsat_iff (α : Edge c → Bool) :
@@ -667,13 +561,8 @@ private theorem clean_junction_singleton {c : Circuit σ m_in m_out} (I : Interp
       constructor
       · intro h; exact ⟨h e_d rfl, h e_f rfl⟩
       · rintro ⟨hd, hf⟩ e hs
-        have hmem : e ∈ (graph c).edgeCut {.junction j} := by
-          rw [Multigraph.edgeCut_singleton _ loopless]; exact Or.inl hs
-        rw [hcut] at hmem
-        rcases hmem with rfl | rfl | rfl
-        · exact (feeder_ne_junction j hs).elim
-        · exact hd
-        · exact hf
+        rcases eq_of_src_eq_junction hs with rfl | ⟨_, rfl⟩
+        exacts [hd, hf]
     refine ⟨hcl, hnc, fun p q e hpq hrem he => ?_⟩
     have hall_eq (α : Edge c → Bool) :
         (α e_d = α e_in ∧ α e_f = α e_in) ↔ copyPolarRel false false (α p) (α q) (α e) = true := by
@@ -691,54 +580,26 @@ private theorem clean_junction_singleton {c : Circuit σ m_in m_out} (I : Interp
         | exact (hp_ne_e rfl).elim
         | exact (hq_ne_e rfl).elim
         | (cases α e_in <;> cases α e_d <;> cases α e_f <;> decide)
-    exact ⟨fun _ => ⟨copyPolarRel false false, .copy false false,
-        fun α h => (hall_eq α).mp ((hsat_iff α).mp h),
-        fun α h => ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ((hall_eq α).mpr h)⟩⟩,
-      fun _ => ⟨copyPolarRel false false, .copy false false,
-        fun α h => (hall_eq α).mp ((hsat_iff α).mp h),
-        fun α h => ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ((hall_eq α).mpr h)⟩⟩⟩
+    refine ⟨fun _ => ⟨copyPolarRel false false, .copy false false, ?_⟩,
+      fun _ => ⟨copyPolarRel false false, .copy false false, ?_⟩⟩ <;>
+    exact ⟨fun α h => (hall_eq α).mp ((hsat_iff α).mp h),
+      fun α h => ⟨α, by rw [hint0]; exact eqOn_refl _ _, (hsat_iff α).mpr ((hall_eq α).mpr h)⟩⟩
   · -- Last junction: `CleanWire` (`neg = false`)
     left
-    set e_in : Edge c := .feed j
-    set e_d : Edge c := .deliver j
-    have h01 : e_in ≠ e_d := fun h => nomatch h
-    have hcut : (graph c).edgeCut {.junction j} = {e_in, e_d} := by
+    have hcut : (graph c).edgeCut {.junction j} = {.feed j, .deliver j} := by
       ext e
-      rw [Multigraph.edgeCut_singleton _ loopless]
-      simp only [Multigraph.mem_incidenceSet, graph_src, graph_tgt, mem_insert_iff,
-        mem_singleton_iff]
-      constructor
-      · rintro (hs | ht)
-        · rcases e with ⟨w', ⟨k, hk⟩⟩ | j'
-          · cases k with
-            | zero => cases hs
-            | succ k =>
-              have hj := Vertex.junction.inj hs
-              obtain ⟨rfl, hfin⟩ := Sigma.mk.inj_iff.mp hj
-              have hk_eq : k = idx := Fin.mk.inj_iff.mp (eq_of_heq hfin)
-              omega
-          · cases hs; exact Or.inr rfl
-        · rcases e with j' | j'
-          · cases ht; exact Or.inl rfl
-          · change owner (junctionEquiv c j') = _ at ht
-            generalize junctionEquiv c j' = t at ht
-            rcases t with a | o <;> cases ht
-      · rintro (rfl | rfl) <;> [exact Or.inr rfl; exact Or.inl rfl]
-    refine ⟨e_in, e_d, false, hcl, h01, hcut, rfl, rfl, ?_, ?_⟩
+      exact (hmem_cut e).trans (or_congr_right (or_iff_left fun ⟨h, _⟩ => hnext h))
+    refine ⟨.feed j, .deliver j, false, hcl, (fun h => nomatch h), hcut, rfl, rfl, ?_, ?_⟩
     · intro α hsat
       simp only [Bool.xor_false]
-      exact hsat (.junction j) rfl e_d rfl
+      exact hsat (.junction j) rfl (.deliver j) rfl
     · intro α hα
       simp only [Bool.xor_false] at hα
       refine ⟨α, by rw [hint0]; exact eqOn_refl _ _, ?_⟩
       simp only [GateSatisfies, mem_singleton_iff, forall_eq, Constraint]
       intro e hs
-      have hmem : e ∈ (graph c).edgeCut {.junction j} := by
-        rw [Multigraph.edgeCut_singleton _ loopless]; exact Or.inl hs
-      rw [hcut] at hmem
-      rcases hmem with rfl | rfl
-      · exact (feeder_ne_junction j hs).elim
-      · exact hα
+      rcases eq_of_src_eq_junction hs with rfl | ⟨h, rfl⟩
+      exacts [hα, absurd h hnext]
 
 private theorem clean_unary_gate_singleton {c : Circuit σ m_in m_out} {I : Interpretation σ Bool}
     {g : Fin c.size} (hg : Reach c (.gate g)) (h1 : σ.Arity (c.program.lines g).op = 1)
@@ -959,6 +820,9 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
   have := Fintype.ofFinite (Edge c)
   have hfan : c.FanInAtMost 2 := hU2.fanInAtMost_two c
   have hdeg : (graph c).MaxDegreeLE 3 := maxDegreeLE le_rfl hfan
+  have har (g : Fin c.size) : σ.Arity (c.program.lines g).op = 0 ∨
+      σ.Arity (c.program.lines g).op = 1 ∨ σ.Arity (c.program.lines g).op = 2 := by
+    have := hU2.arity_le_two (c.program.lines g).op; omega
   let Dfin : Finset (Vertex c) := Finset.univ.filter (IsDirtySingleton c I)
   set d₀ : ℕ := Dfin.card
   -- Initial singleton state.
@@ -979,10 +843,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
         | signal w =>
           rcases w with ⟨i | g, hw⟩
           · exact (hnotD trivial).elim
-          · have har := hU2.arity_le_two (c.program.lines g).op
-            rcases (show σ.Arity (c.program.lines g).op = 0 ∨
-                σ.Arity (c.program.lines g).op = 1 ∨
-                σ.Arity (c.program.lines g).op = 2 by omega) with h0 | h1 | h2
+          · rcases har g with h0 | h1 | h2
             · exact (hnotD (Or.inl h0)).elim
             · have hnc : ¬∃ b : Bool, ∀ x, I (c.program.lines g).op x = b :=
                 fun hc => hnotD (Or.inr ⟨h1, hc⟩)
@@ -1039,6 +900,12 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
     have hE_inc : E_old.ncard + E_join.ncard ≤ E_new.ncard :=
       st.cmp.ncard_internal_add_join_le hB hB' hne
     have hm_pos : 1 ≤ E_join.ncard := hjoin.ncard_pos
+    have hcount {dirty' : Finset (List (Vertex c))}
+        (h : dirty'.card + 1 ≤ st.dirty.card + E_join.ncard) :
+        dirty'.card + Nat.card (Vertex c) ≤ d₀ + blocks'.card + E_new.ncard := by
+      have hc := st.count
+      change st.dirty.card + Nat.card (Vertex c) ≤ d₀ + st.cmp.blocks.card + E_old.ncard at hc
+      omega
     -- Update `dirty'` according to the three merge cases.
     by_cases hdirty_or : B ∈ st.dirty ∨ B' ∈ st.dirty
     · let dirty' := insert (B ++ B') ((st.dirty.erase B).erase B')
@@ -1049,36 +916,18 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
         · exact Finset.mem_insert_self _ _
         · exact hmem.mpr (Or.inr ⟨h1, h2, st.dirty_sub h3⟩)
       have hd_card' : dirty'.card ≤ st.dirty.card := by
-        have hnot_d : B ++ B' ∉ (st.dirty.erase B).erase B' := fun hm =>
-          hnot_app (st.dirty_sub (Finset.mem_erase.mp (Finset.mem_erase.mp hm).2).2)
-        dsimp only [dirty']
-        rw [Finset.card_insert_of_notMem hnot_d]
-        rcases hdirty_or with hBd | hB'd
-        · have hle1 : ((st.dirty.erase B).erase B').card ≤ (st.dirty.erase B).card :=
-            Finset.card_erase_le
-          have hle2 := Finset.card_erase_of_mem hBd
-          have := Finset.card_pos.mpr ⟨B, hBd⟩
-          omega
-        · by_cases hBd : B ∈ st.dirty
-          · rw [Finset.card_erase_of_mem (Finset.mem_erase.mpr ⟨hne.symm, hB'd⟩),
-              Finset.card_erase_of_mem hBd]
-            have := Finset.one_lt_card.mpr ⟨B, hBd, B', hB'd, hne⟩
-            omega
-          · have her : st.dirty.erase B = st.dirty := Finset.erase_eq_of_notMem hBd
-            rw [her, Finset.card_erase_of_mem hB'd]
-            have := Finset.card_pos.mpr ⟨B', hB'd⟩
-            omega
-      refine ⟨{ cmp := cmp', dirty := dirty', dirty_sub := hd_sub', clean := ?_, count := ?_ },
-        Nat.lt_of_succ_le hcard.le⟩
-      · intro C hC hnotC
-        rcases hmem.mp hC with rfl | ⟨h1, h2, hCo⟩
-        · exact (hnotC (Finset.mem_insert_self _ _)).elim
-        · refine st.clean C hCo fun hCd => hnotC ?_
-          exact Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨h1, Finset.mem_erase.mpr ⟨h2, hCd⟩⟩)
-      · have hc := st.count
-        change st.dirty.card + Nat.card (Vertex c) ≤ d₀ + st.cmp.blocks.card + E_old.ncard at hc
-        change dirty'.card + Nat.card (Vertex c) ≤ d₀ + blocks'.card + E_new.ncard
-        omega
+        have hss : (st.dirty.erase B).erase B' ⊂ st.dirty := by
+          refine Finset.ssubset_iff_subset_ne.mpr
+            ⟨(Finset.erase_subset _ _).trans (Finset.erase_subset _ _), fun h => ?_⟩
+          rcases hdirty_or with h' | h' <;> rw [← h] at h' <;> simp at h'
+        exact (Finset.card_insert_le _ _).trans (Finset.card_lt_card hss)
+      refine ⟨{ cmp := cmp', dirty := dirty', dirty_sub := hd_sub', count := hcount (by omega),
+                clean := ?_ }, Nat.lt_of_succ_le hcard.le⟩
+      intro C hC hnotC
+      rcases hmem.mp hC with rfl | ⟨h1, h2, hCo⟩
+      · exact (hnotC (Finset.mem_insert_self _ _)).elim
+      · refine st.clean C hCo fun hCd => hnotC ?_
+        exact Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨h1, Finset.mem_erase.mpr ⟨h2, hCd⟩⟩)
     · rw [not_or] at hdirty_or
       by_cases hm2 : 2 ≤ E_join.ncard
       · let dirty' := insert (B ++ B') st.dirty
@@ -1089,16 +938,12 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
           · exact hmem.mpr (Or.inr ⟨fun h => hdirty_or.2 (h ▸ hCd),
               fun h => hdirty_or.1 (h ▸ hCd), st.dirty_sub hCd⟩)
         have hd_card' : dirty'.card ≤ st.dirty.card + 1 := Finset.card_insert_le _ _
-        refine ⟨{ cmp := cmp', dirty := dirty', dirty_sub := hd_sub', clean := ?_, count := ?_ },
-          Nat.lt_of_succ_le hcard.le⟩
-        · intro C hC hnotC
-          rcases hmem.mp hC with rfl | ⟨_, _, hCo⟩
-          · exact (hnotC (Finset.mem_insert_self _ _)).elim
-          · exact st.clean C hCo fun hCd => hnotC (Finset.mem_insert_of_mem hCd)
-        · have hc := st.count
-          change st.dirty.card + Nat.card (Vertex c) ≤ d₀ + st.cmp.blocks.card + E_old.ncard at hc
-          change dirty'.card + Nat.card (Vertex c) ≤ d₀ + blocks'.card + E_new.ncard
-          omega
+        refine ⟨{ cmp := cmp', dirty := dirty', dirty_sub := hd_sub', count := hcount (by omega),
+                  clean := ?_ }, Nat.lt_of_succ_le hcard.le⟩
+        intro C hC hnotC
+        rcases hmem.mp hC with rfl | ⟨_, _, hCo⟩
+        · exact (hnotC (Finset.mem_insert_self _ _)).elim
+        · exact st.clean C hCo fun hCd => hnotC (Finset.mem_insert_of_mem hCd)
       · have hm1 : E_join.ncard = 1 := by omega
         have hd_sub' : st.dirty ⊆ blocks' := fun C hCd =>
           hmem.mpr (Or.inr ⟨fun h => hdirty_or.2 (h ▸ hCd),
@@ -1119,16 +964,12 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
             change ((graph c).edgeCut ({v | v ∈ B} ∪ {v | v ∈ B'})).ncard + 2 * E_join.ncard =
               ((graph c).edgeCut {v | v ∈ B}).ncard + ((graph c).edgeCut {v | v ∈ B'}).ncard at hadd
             omega
-        refine ⟨{ cmp := cmp', dirty := st.dirty, dirty_sub := hd_sub', clean := ?_, count := ?_ },
-          Nat.lt_of_succ_le hcard.le⟩
-        · intro C hC hnotC
-          rcases hmem.mp hC with rfl | ⟨_, _, hCo⟩
-          · exact hmerged_clean
-          · exact st.clean C hCo hnotC
-        · have hc := st.count
-          change st.dirty.card + Nat.card (Vertex c) ≤ d₀ + st.cmp.blocks.card + E_old.ncard at hc
-          change st.dirty.card + Nat.card (Vertex c) ≤ d₀ + blocks'.card + E_new.ncard
-          omega
+        refine ⟨{ cmp := cmp', dirty := st.dirty, dirty_sub := hd_sub', count := hcount (by omega),
+                  clean := ?_ }, Nat.lt_of_succ_le hcard.le⟩
+        intro C hC hnotC
+        rcases hmem.mp hC with rfl | ⟨_, _, hCo⟩
+        · exact hmerged_clean
+        · exact st.clean C hCo hnotC
   -- Now establish the three saturation consequences when `1 < Nat.card st.cmp.blocks`.
   refine ⟨st.cmp, st.dirty, hsat, st.dirty_sub, fun htwo => ?_⟩
   have hconn : (graph c).toSimpleGraph.Connected := connected c
@@ -1175,6 +1016,8 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
     | .gate g => decide (σ.Arity (c.program.lines g).op = 1 ∧ ¬isConst1 g)
   let G2Fin : Finset (Signal c) := Finset.univ.filter fun w =>
     match w.1 with | .input _ => false | .gate g => decide (σ.Arity (c.program.lines g).op = 2)
+  have hcard_sum (S : Finset (Signal c)) : S.card = ∑ w : Signal c, if w ∈ S then 1 else 0 := by
+    rw [← Finset.card_filter, Finset.filter_univ_mem]
   have hsig_sum : Nat.card (Signal c) =
       InpFin.card + G0Fin.card + G1cFin.card + G1wFin.card + G2Fin.card := by
     rw [Nat.card_eq_fintype_card, ← Finset.card_univ]
@@ -1184,22 +1027,9 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
           (if w ∈ G2Fin then 1 else 0) = 1 := by
       rcases w with ⟨i | g, hw⟩
       · simp [InpFin, G0Fin, G1cFin, G1wFin, G2Fin]
-      · have har := hU2.arity_le_two (c.program.lines g).op
-        rcases (show σ.Arity (c.program.lines g).op = 0 ∨
-            σ.Arity (c.program.lines g).op = 1 ∨
-            σ.Arity (c.program.lines g).op = 2 by omega) with h0 | h1 | h2
-        · simp [InpFin, G0Fin, G1cFin, G1wFin, G2Fin, h0]
-        · by_cases hc : isConst1 g
-          · simp only [InpFin, G0Fin, G1cFin, G1wFin, G2Fin, Finset.mem_filter, Finset.mem_univ,
-              true_and, decide_eq_true_eq, h1, hc, not_true_eq_false, and_false, and_true]
-            decide
-          · simp only [InpFin, G0Fin, G1cFin, G1wFin, G2Fin, Finset.mem_filter, Finset.mem_univ,
-              true_and, decide_eq_true_eq, h1, hc, not_false_eq_true, and_false, and_true]
-            decide
-        · simp [InpFin, G0Fin, G1cFin, G1wFin, G2Fin, h2]
-    have h1 (S : Finset (Signal c)) : S.card = ∑ w : Signal c, if w ∈ S then 1 else 0 := by
-      rw [← Finset.card_filter, Finset.filter_univ_mem]
-    rw [h1 InpFin, h1 G0Fin, h1 G1cFin, h1 G1wFin, h1 G2Fin,
+      · rcases har g with h | h | h <;> by_cases hc : isConst1 g <;>
+          simp [InpFin, G0Fin, G1cFin, G1wFin, G2Fin, h, hc]
+    rw [hcard_sum InpFin, hcard_sum G0Fin, hcard_sum G1cFin, hcard_sum G1wFin, hcard_sum G2Fin,
       ← Finset.sum_add_distrib, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib,
       ← Finset.sum_add_distrib]
     simp only [hpart, Finset.sum_const, smul_eq_mul, mul_one]
@@ -1239,24 +1069,11 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
               exact ⟨a, Finset.mem_univ a, rfl⟩)
             |>.symm
         rw [hbij]
-        have har := hU2.arity_le_two (c.program.lines g).op
-        rcases (show σ.Arity (c.program.lines g).op = 0 ∨
-            σ.Arity (c.program.lines g).op = 1 ∨
-            σ.Arity (c.program.lines g).op = 2 by omega) with h0 | h1 | h2
-        · simp [G1cFin, G1wFin, G2Fin, h0]
-        · by_cases hc : isConst1 g
-          · simp only [G1cFin, G1wFin, G2Fin, Finset.mem_filter, Finset.mem_univ, true_and,
-              decide_eq_true_eq, h1, hc, not_true_eq_false, and_false, and_true]
-            decide
-          · simp only [G1cFin, G1wFin, G2Fin, Finset.mem_filter, Finset.mem_univ, true_and,
-              decide_eq_true_eq, h1, hc, not_false_eq_true, and_false, and_true]
-            decide
-        · simp [G1cFin, G1wFin, G2Fin, h2]
-    have h1 (S : Finset (Signal c)) : S.card = ∑ w : Signal c, if w ∈ S then 1 else 0 := by
-      rw [← Finset.card_filter, Finset.filter_univ_mem]
+        rcases har g with h | h | h <;> by_cases hc : isConst1 g <;>
+          simp [G1cFin, G1wFin, G2Fin, h, hc]
     simp_rw [hfib]
     rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ← Finset.mul_sum,
-      ← h1 G1cFin, ← h1 G1wFin, ← h1 G2Fin]
+      ← hcard_sum G1cFin, ← hcard_sum G1wFin, ← hcard_sum G2Fin]
   -- Bound `G1cFin.card + G1wFin.card + G2Fin.card ≤ c.innerSize`.
   have hinner_le : G1cFin.card + G1wFin.card + G2Fin.card ≤ c.innerSize := by
     have hdisj12 : Disjoint G1cFin G1wFin := Finset.disjoint_left.mpr fun w hw1 hw2 => by
@@ -1306,17 +1123,14 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
       | signal w =>
         rcases w with ⟨i | g, hw⟩
         · simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin]
-        · have har := hU2.arity_le_two (c.program.lines g).op
-          rcases (show σ.Arity (c.program.lines g).op = 0 ∨
-              σ.Arity (c.program.lines g).op = 1 ∨
-              σ.Arity (c.program.lines g).op = 2 by omega) with h0 | h1 | h2
-          · simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h0]
+        · rcases har g with h | h | h
+          · simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h]
           · by_cases hc : isConst1 g
             · have hc' : ∃ b : Bool, ∀ x, I (c.program.lines g).op x = b := hc
-              simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h1, hc, hc']
+              simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h, hc, hc']
             · have hc' : ¬∃ b : Bool, ∀ x, I (c.program.lines g).op x = b := hc
-              simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h1, hc, hc']
-          · simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h2]
+              simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h, hc, hc']
+          · simp [Dfin, IsDirtySingleton, InpFin, G0Fin, G1cFin, h]
       | junction _ => simp [Dfin, IsDirtySingleton]
       | output _ => simp [Dfin, IsDirtySingleton]
     have hD : d₀ = ∑ v : Vertex c, if v ∈ Dfin then 1 else 0 := by
@@ -1326,10 +1140,8 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
     rw [← Vertex.equiv.symm.sum_comp]
     simp only [Fintype.sum_sum_type, Vertex.equiv, Equiv.coe_fn_symm_mk, Finset.sum_const,
       Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
-    rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
-    have h1 (S : Finset (Signal c)) : (∑ w : Signal c, if w ∈ S then 1 else 0) = S.card := by
-      rw [← Finset.card_filter, Finset.filter_univ_mem]
-    rw [h1 InpFin, h1 G0Fin, h1 G1cFin]
+    rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ← hcard_sum InpFin, ← hcard_sum G0Fin,
+      ← hcard_sum G1cFin]
     omega
   have hread_le : (hiddenNetwork c I Acc).read.ncard ≤ InpFin.card := by
     rw [← Nat.card_coe_set_eq]

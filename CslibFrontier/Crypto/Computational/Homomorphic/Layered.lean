@@ -131,7 +131,7 @@ theorem length_evaluateNode_le (n : ℕ) (pk : List Bool) (encryptedKey inputs :
     (h : result ∈ (ProbComp.eval (evaluateNode D n pk encryptedKey inputs node)).support) :
     result.length ≤ secretWidth n + ciphertextWidth n := by
   rw [evaluateNode.eq_def, ProbComp.eval_map, PMF.mem_support_map_iff] at h
-  obtain ⟨raw, _, rfl⟩ := h
+  obtain ⟨_, _, rfl⟩ := h
   exact List.length_take_le _ _
 
 /-- Every execution has the scheduled number of output wires, each bounded by the decryption
@@ -145,11 +145,8 @@ theorem evaluateLayer_bounds (n : ℕ) (pk : List Bool) (encryptedKey inputs : L
   refine ⟨h.length_eq.symm, ?_⟩
   induction h with
   | nil => simp
-  | @cons node output layer outputs hnode _ ih =>
-    intro ciphertext hc
-    rcases List.mem_cons.1 hc with rfl | hc
-    · exact length_evaluateNode_le D n pk encryptedKey inputs node ciphertext hnode
-    · exact ih ciphertext hc
+  | cons hnode _ ih =>
+    exact List.forall_mem_cons.mpr ⟨length_evaluateNode_le D n pk encryptedKey inputs _ _ hnode, ih⟩
 
 /-- Valid nodes move the invariant to the target key. No intermediate freshness is needed. -/
 theorem evaluateNode_correct (hE : E.Correct)
@@ -173,18 +170,17 @@ theorem evaluateNode_correct (hE : E.Correct)
   | const bit =>
     exact ⟨hwidth.encrypt_length n keys hkeys bit raw hraw,
       hE.decrypt_encrypt n keys hkeys bit raw hraw⟩
-  | copy i =>
+  | copy _ =>
     have hi := hinputs.getD hnode
     exact ⟨length_refresh D hwidth hD n keys hkeys sk _ hsk hi.1 encryptedKey hek raw hraw,
       (decrypt_refresh D hE hD n keys hkeys sk _ hsk hi.1 encryptedKey hek raw hraw).trans hi.2⟩
-  | nand i j =>
+  | nand _ _ =>
     have hi := hinputs.getD hnode.1
     have hj := hinputs.getD hnode.2
-    refine ⟨length_refreshNand D hwidth hD n keys hkeys sk _ _ hsk hi.1 hj.1
-      encryptedKey hek raw hraw, ?_⟩
-    simpa only [Layered.Node.eval, hi.2, hj.2] using
-      decrypt_refreshNand D hE hD n keys hkeys sk _ _ hsk hi.1 hj.1
-        encryptedKey hek raw hraw
+    have hdec :=
+      decrypt_refreshNand D hE hD n keys hkeys sk _ _ hsk hi.1 hj.1 encryptedKey hek raw hraw
+    exact ⟨length_refreshNand D hwidth hD n keys hkeys sk _ _ hsk hi.1 hj.1 encryptedKey hek
+      raw hraw, by simpa only [Layered.Node.eval, hi.2, hj.2] using hdec⟩
 
 /-- Evaluating a valid layer preserves the exact wire count, ciphertext width and plaintext
 values under the next key. -/
@@ -205,9 +201,8 @@ theorem encryptedWires_evaluateLayer (hE : E.Correct)
   rw [EncryptedWires, Layered.evalLayer, List.forall₂_map_left_iff]
   induction houtputs with
   | nil => exact .nil
-  | @cons node output layer outputs hnode _ ih =>
+  | cons hnode _ ih =>
     exact .cons (evaluateNode_correct D hE hwidth hD n keys hkeys sk hsk encryptedKey hek
-      bits inputs hinputs node (hlayer node (by simp)) output hnode)
-      (ih fun node hn => hlayer node (by simp [hn]))
+      bits inputs hinputs _ (hlayer _ (by simp)) _ hnode) (ih fun _ hn => hlayer _ (by simp [hn]))
 
 end Cslib.Crypto.Homomorphic.Scheme

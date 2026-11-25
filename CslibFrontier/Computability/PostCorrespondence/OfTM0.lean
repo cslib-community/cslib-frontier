@@ -128,9 +128,7 @@ private def IsActive : Letter Γ Λ → Prop
 private theorem split_active {x y : Letter Γ Λ} (hy : IsActive y) :
     ∀ {p s u v : List (Letter Γ Λ)}, (∀ z ∈ u, ¬IsActive z) → (∀ z ∈ v, ¬IsActive z) →
       p ++ y :: s = u ++ x :: v → p = u ∧ y = x ∧ s = v
-  | [], s, [], v, _, _, h => by
-    obtain ⟨h₁, h₂⟩ := List.cons.inj h
-    exact ⟨rfl, h₁, h₂⟩
+  | [], s, [], v, _, _, h => ⟨rfl, List.cons.inj h⟩
   | [], s, z :: u, v, hu, _, h => by
     obtain ⟨rfl, -⟩ := List.cons.inj h
     exact absurd hy (hu y List.mem_cons_self)
@@ -146,19 +144,14 @@ private theorem split_active {x y : Letter Γ Λ} (hy : IsActive y) :
 private theorem not_active_left (L : List Γ) :
     ∀ z ∈ (lb :: L.reverse.map sym : List (Letter Γ Λ)), ¬IsActive z := by
   intro z hz
-  rcases List.mem_cons.mp hz with rfl | hz
-  · exact id
-  · obtain ⟨a, -, rfl⟩ := List.mem_map.mp hz
+  rcases (List.mem_cons.mp hz).imp_right List.mem_map.mp with rfl | ⟨a, -, rfl⟩ <;>
     exact id
 
 private theorem not_active_right (R : List Γ) :
     ∀ z ∈ (R.map sym ++ [rb] : List (Letter Γ Λ)), ¬IsActive z := by
   intro z hz
-  rcases List.mem_append.mp hz with hz | hz
-  · obtain ⟨a, -, rfl⟩ := List.mem_map.mp hz
-    exact id
-  · rw [List.mem_singleton.mp hz]
-    exact id
+  rcases (List.mem_append.mp hz).imp List.mem_map.mp List.mem_singleton.mp with
+    ⟨a, -, rfl⟩ | rfl <;> exact id
 
 private theorem split_word {x y : Letter Γ Λ} {L R : List Γ} {p s : List (Letter Γ Λ)}
     (h : p ++ y :: s = word x L R) (hy : IsActive y) :
@@ -324,35 +317,17 @@ private theorem good_of_rewrites {M : TM0.Machine Γ Λ} {l : List Γ} {u v : Li
       cases h
       obtain ⟨rfl, rfl⟩ := peel_left_lb hp
       exact Or.inl ⟨q', default, [], _ :: R, hr.tail (step_of_eq_left hM [] R), by simp [word]⟩
-    | eatLeft c =>
-      obtain ⟨-, h, -⟩ := split2' hw trivial
-      cases h
-    | eatRight c =>
-      obtain ⟨-, h, -⟩ := split2 hw trivial
-      cases h
-    | finish =>
-      obtain ⟨-, h, -⟩ := split3 hw trivial
-      cases h
+    | eatLeft c => exact nomatch (split2' hw trivial).2.1
+    | eatRight c => exact nomatch (split2 hw trivial).2.1
+    | finish => exact nomatch (split3 hw trivial).2.1
   · cases hd <;> simp at hw
   · cases hd with
-    | stop hM =>
-      obtain ⟨-, h, -⟩ := split1 hw trivial
-      cases h
-    | write hM =>
-      obtain ⟨-, h, -⟩ := split1 hw trivial
-      cases h
-    | right c hM =>
-      obtain ⟨-, h, -⟩ := split2 hw trivial
-      cases h
-    | rightEnd hM =>
-      obtain ⟨-, h, -⟩ := split2 hw trivial
-      cases h
-    | left c hM =>
-      obtain ⟨-, h, -⟩ := split2' hw trivial
-      cases h
-    | leftEnd hM =>
-      obtain ⟨-, h, -⟩ := split2' hw trivial
-      cases h
+    | stop hM => exact nomatch (split1 hw trivial).2.1
+    | write hM => exact nomatch (split1 hw trivial).2.1
+    | right c hM => exact nomatch (split2 hw trivial).2.1
+    | rightEnd hM => exact nomatch (split2 hw trivial).2.1
+    | left c hM => exact nomatch (split2' hw trivial).2.1
+    | leftEnd hM => exact nomatch (split2' hw trivial).2.1
     | eatLeft c =>
       obtain ⟨hp, -, rfl⟩ := split2' hw trivial
       obtain ⟨L', rfl, rfl⟩ := peel_left_sym hp
@@ -459,11 +434,8 @@ theorem eval_dom_iff_solvable [Fintype Γ] [Fintype Λ] (M : TM0.Machine Γ Λ) 
       (fun x => mem_dominoes.mpr (Or.inr ⟨x, rfl⟩))
       (reflTransGen_of_reaches hr hc _ _ _ _ (init_eq l))
   · intro h
-    have hD : ∀ d ∈ dominoes M, Rule M d ∨ d.top = d.bottom := by
-      intro d hd
-      rcases mem_dominoes.mp hd with hd | ⟨x, rfl⟩
-      · exact Or.inl hd
-      · exact Or.inr rfl
+    have hD : ∀ d ∈ dominoes M, Rule M d ∨ d.top = d.bottom := fun d hd =>
+      (mem_dominoes.mp hd).imp_right fun ⟨x, hx⟩ => hx ▸ rfl
     have he : ∀ d ∈ dominoes M, rb ∈ d.top → ∃ t, d.top = t ++ [rb] ∧ rb ∉ t := by
       intro d hd hrb
       rcases mem_dominoes.mp hd with hd | ⟨x, rfl⟩

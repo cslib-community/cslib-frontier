@@ -72,8 +72,7 @@ theorem re_apply_expect (f : ι → A) :
     map_smul, map_sum, smul_eq_mul, hcast, Complex.re_ofReal_mul, Complex.re_sum]
 
 theorem norm_nnqsmul (q : ℚ≥0) (a : A) : φ.norm (q • a) = q * φ.norm a := by
-  rw [← NNRat.cast_smul_eq_nnqsmul ℂ, norm_smul]
-  simp
+  simp [← NNRat.cast_smul_eq_nnqsmul ℂ, norm_smul]
 
 /-- The triangle inequality for averages. -/
 theorem norm_expect_le (a : ι → A) : φ.norm (𝔼 i ∈ s, a i) ≤ 𝔼 i ∈ s, φ.norm (a i) :=
@@ -89,18 +88,14 @@ theorem norm_expect_sq_le (a : ι → A) :
 /-- Squared distance to a fixed operator is convex under a nonempty finite average. -/
 theorem norm_sub_expect_sq_le (hs : s.Nonempty) (a : A) (b : ι → A) :
     φ.norm (a - (𝔼 i ∈ s, b i)) ^ 2 ≤ 𝔼 i ∈ s, φ.norm (a - b i) ^ 2 := by
-  have h : (𝔼 i ∈ s, (a - b i)) = a - (𝔼 i ∈ s, b i) := by
-    rw [expect_sub_distrib, Finset.expect_const hs]
-  rw [← h]
-  exact φ.norm_expect_sq_le s _
+  simpa only [expect_sub_distrib, Finset.expect_const hs] using
+    φ.norm_expect_sq_le s fun i => a - b i
 
 /-- Squared distance from a finite average to a fixed operator. -/
 theorem norm_expect_sub_sq_le (hs : s.Nonempty) (a : ι → A) (b : A) :
     φ.norm ((𝔼 i ∈ s, a i) - b) ^ 2 ≤ 𝔼 i ∈ s, φ.norm (a i - b) ^ 2 := by
-  have h : (𝔼 i ∈ s, (a i - b)) = (𝔼 i ∈ s, a i) - b := by
-    rw [expect_sub_distrib, Finset.expect_const hs]
-  rw [← h]
-  exact φ.norm_expect_sq_le s _
+  simpa only [expect_sub_distrib, Finset.expect_const hs] using
+    φ.norm_expect_sq_le s fun i => a i - b
 
 /-- If either family is first sampled on a subset of at least half the indices and compared
 with the other on all indices, the two resulting distances control the distance of the full
@@ -128,10 +123,7 @@ theorem norm_expect_sub_expect_sq_le_of_half [Fintype ι] [Nonempty ι]
     have hpos : 0 ≤ (𝔼 j ∈ s, dist i j) := expect_nonneg fun _ _ => sq_nonneg _
     have hmask : (s.dens : ℝ) * (𝔼 j ∈ s, dist i j) ≤ 𝔼 j, dist i j := by
       rw [← NNRat.smul_def, ← Fintype.expect_ite_mem]
-      refine expect_le_expect fun j _ => ?_
-      split_ifs
-      · exact le_rfl
-      · exact sq_nonneg _
+      exact expect_le_expect fun j _ => by split_ifs <;> simp [dist, sq_nonneg]
     linarith [mul_le_mul_of_nonneg_right hd hpos]
   have hmiddle : φ.norm (aRestricted - bRestricted) ^ 2 ≤ 2 * forward := by
     calc

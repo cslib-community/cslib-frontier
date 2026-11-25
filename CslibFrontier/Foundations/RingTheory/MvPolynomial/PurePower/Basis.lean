@@ -53,11 +53,9 @@ abbrev QuotientAlgebra (ell : ℕ) (r : Fin n → MvPolynomial (Fin n) S) :=
 /-- The defining pure-power reductions hold in the quotient. -/
 theorem projection_X_pow (ell : ℕ) (r : Fin n → MvPolynomial (Fin n) S) (i : Fin n) :
     (projection ell r (X i)) ^ ell = projection ell r (r i) := by
-  apply sub_eq_zero.mp
-  rw [← map_pow, ← map_sub]
+  rw [← sub_eq_zero, ← map_pow, ← map_sub]
   change Ideal.Quotient.mk (relationIdeal ell r) (X i ^ ell - r i) = 0
-  rw [Ideal.Quotient.eq_zero_iff_mem]
-  exact Ideal.subset_span ⟨i, rfl⟩
+  exact Ideal.Quotient.eq_zero_iff_mem.mpr (Ideal.subset_span ⟨i, rfl⟩)
 
 /-- The residue on the actual quotient, using its proved ideal vanishing. -/
 @[expose] noncomputable def quotientFunctional {ell : ℕ} (hell : 1 ≤ ell)
@@ -101,9 +99,7 @@ private theorem monomial_mem_normal_span {ell : ℕ}
   by_cases hnormal : ∀ i, e i < ell
   · let a : NormalIndex n ell := fun i => ⟨e i, hnormal i⟩
     have ha : boxExponent a = e := by ext i; rfl
-    apply Submodule.subset_span
-    refine ⟨a, ?_⟩
-    rw [normalClass, ha]
+    exact Submodule.subset_span ⟨a, by rw [normalClass, ha]⟩
   · obtain ⟨i, hi⟩ : ∃ i, ell ≤ e i := by
       simpa only [not_forall, not_lt] using hnormal
     let e' := e - Finsupp.single i ell
@@ -117,7 +113,6 @@ private theorem monomial_mem_normal_span {ell : ℕ}
           congrArg Finsupp.degree
             (tsub_add_cancel_of_le (Finsupp.single_le_iff.mpr hi))
       have hlo := hr i
-      change q.totalDegree < e.degree
       dsimp only [q]
       omega
     have hm : monomial e' (1 : S) * X i ^ ell = monomial e 1 := by
@@ -125,17 +120,10 @@ private theorem monomial_mem_normal_span {ell : ℕ}
       exact congrArg (fun a => monomial a (1 : S))
         (tsub_add_cancel_of_le (Finsupp.single_le_iff.mpr hi))
     have hp : projection ell r (monomial e 1) = projection ell r q := by
-      calc
-        _ = projection ell r (monomial e' 1) * (projection ell r (X i)) ^ ell := by
-          rw [← hm, map_mul, map_pow]
-        _ = projection ell r (monomial e' 1) * projection ell r (r i) := by
-          rw [projection_X_pow]
-        _ = _ := (map_mul (projection ell r) _ _).symm
+      rw [← hm, map_mul, map_pow, projection_X_pow, ← map_mul]
     rw [hp, q.as_sum, map_sum]
-    apply U.sum_mem
-    intro m hm
-    have hmdeg : m.degree < e.degree :=
-      (MvPolynomial.le_totalDegree hm).trans_lt hdeg
+    refine U.sum_mem fun m hm => ?_
+    have hmdeg : m.degree < e.degree := (MvPolynomial.le_totalDegree hm).trans_lt hdeg
     rw [projection_monomial_smul]
     exact U.smul_mem (q.coeff m) (monomial_mem_normal_span r hr m)
 termination_by e.degree
@@ -144,17 +132,14 @@ termination_by e.degree
 theorem normal_span_eq_top {ell : ℕ}
     (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree < ell) :
     Submodule.span S (Set.range (normalClass ell r)) = ⊤ := by
-  apply Submodule.eq_top_iff'.mpr
-  intro a
+  refine Submodule.eq_top_iff'.mpr fun a => ?_
   obtain ⟨v, rfl⟩ := Ideal.Quotient.mk_surjective a
   change projection ell r v ∈ Submodule.span S (Set.range (normalClass ell r))
   induction v using MvPolynomial.induction_on' with
   | monomial e c =>
     rw [projection_monomial_smul]
     exact Submodule.smul_mem _ c (monomial_mem_normal_span r hr e)
-  | add v w hv hw =>
-    rw [map_add]
-    exact Submodule.add_mem _ hv hw
+  | add v w hv hw => simpa only [map_add] using Submodule.add_mem _ hv hw
 
 private def normalDegree (a : NormalIndex n ell) : ℕ := ∑ i, (a i).val
 
@@ -170,21 +155,15 @@ private theorem complement_degree (b : NormalIndex n ell) :
     normalDegree b + (complementExponent b).sum (fun _ e => e) = n * (ell - 1) := by
   rw [Finsupp.sum_fintype _ _ (by simp)]
   change (∑ i, (b i).val) + (∑ i, (ell - 1 - (b i).val)) = _
-  rw [← Finset.sum_add_distrib]
-  have hi (i : Fin n) : (b i).val + (ell - 1 - (b i).val) = ell - 1 := by
-    have := (b i).isLt
-    omega
-  simp_rw [hi]
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+  have hi (i : Fin n) : (b i).val + (ell - 1 - (b i).val) = ell - 1 :=
+    Nat.add_sub_cancel' (Nat.le_sub_one_of_lt (b i).isLt)
+  simp [← Finset.sum_add_distrib, hi]
 
 private theorem box_add_complement_iff (a b : NormalIndex n ell) :
     boxExponent a + complementExponent b = Finsupp.equivFunOnFinite.symm (fun _ => ell - 1) ↔
       a = b := by
-  constructor
-  · intro h
-    funext i
-    apply Fin.ext
-    have hh := congrArg (fun e : Fin n →₀ ℕ => e i) h
+  refine ⟨fun h => funext fun i => Fin.ext ?_, ?_⟩
+  · have hh := congrArg (fun e : Fin n →₀ ℕ => e i) h
     simp only [Finsupp.add_apply, boxExponent_apply, complementExponent,
       Finsupp.coe_equivFunOnFinite_symm] at hh
     have := (b i).isLt
@@ -202,19 +181,15 @@ private theorem residue_normal_pair (hell : 1 ≤ ell)
     (a b : NormalIndex n ell) (hab : normalDegree a ≤ normalDegree b) :
     residue ell r (monomial (boxExponent a) 1 * monomial (complementExponent b) 1) =
       if a = b then 1 else 0 := by
-  have ha := MvPolynomial.totalDegree_monomial_le (boxExponent a) (1 : S)
-  have hb := MvPolynomial.totalDegree_monomial_le (complementExponent b) (1 : S)
+  have ha : (monomial (boxExponent a) (1 : S)).totalDegree ≤ normalDegree a :=
+    (MvPolynomial.totalDegree_monomial_le _ _).trans_eq (boxExponent_degree a)
+  have hb : (monomial (complementExponent b) (1 : S)).totalDegree ≤
+      (complementExponent b).sum (fun _ e => e) :=
+    MvPolynomial.totalDegree_monomial_le _ _
   have hd := MvPolynomial.totalDegree_mul
     (monomial (boxExponent a) (1 : S)) (monomial (complementExponent b) 1)
   have hcomp := complement_degree b
-  change (monomial (boxExponent a) (1 : S)).totalDegree ≤
-    (boxExponent a).sum (fun _ e => e) at ha
-  change (monomial (complementExponent b) (1 : S)).totalDegree ≤
-    (complementExponent b).sum (fun _ e => e) at hb
-  rw [boxExponent_degree] at ha
-  have htotal : (monomial (boxExponent a) (1 : S) *
-      monomial (complementExponent b) 1).totalDegree ≤ n * (ell - 1) := by omega
-  rw [residue_low_degree hell r hr _ htotal]
+  rw [residue_low_degree hell r hr _ (by omega)]
   simp only [MvPolynomial.monomial_mul_monomial, one_mul, MvPolynomial.coeff_monomial,
     box_add_complement_iff]
 
@@ -223,8 +198,7 @@ theorem normalClass_linearIndependent (hell : 1 ≤ ell)
     (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree < ell) :
     LinearIndependent S (normalClass ell r) := by
   classical
-  apply Fintype.linearIndependent_iff.mpr
-  intro c hc a
+  refine Fintype.linearIndependent_iff.mpr fun c hc a => ?_
   by_contra hca
   let s : Finset (NormalIndex n ell) := Finset.univ.filter (fun b => c b ≠ 0)
   have hs : s.Nonempty := ⟨a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hca⟩⟩
@@ -235,22 +209,17 @@ theorem normalClass_linearIndependent (hell : 1 ≤ ell)
     simpa only [q, map_sum, map_smul, normalClass] using hc
   have hq : q ∈ relationIdeal ell r := Ideal.Quotient.eq_zero_iff_mem.mp hp
   let m : MvPolynomial (Fin n) S := monomial (complementExponent b) 1
-  have hz : linear hell r hr (q * m) = 0 := by
-    rw [mul_comm]
-    exact linear_mul_mem_ideal hell r hr q hq m
+  have hz : linear hell r hr (q * m) = 0 := mul_comm m q ▸ linear_mul_mem_ideal hell r hr q hq m
   have hterm (j : NormalIndex n ell) :
       linear hell r hr ((c j • monomial (boxExponent j) 1) * m) =
         c j * (if j = b then 1 else 0) := by
     by_cases hcj : c j = 0
     · simp only [hcj, zero_smul, zero_mul, map_zero]
     · have hj : j ∈ s := Finset.mem_filter.mpr ⟨Finset.mem_univ _, hcj⟩
-      rw [smul_mul_assoc, map_smul, linear_apply]
-      rw [show m = monomial (complementExponent b) (1 : S) from rfl,
-        residue_normal_pair hell r hr j b (hmax j hj), smul_eq_mul]
+      rw [smul_mul_assoc, map_smul, linear_apply, show m = monomial (complementExponent b) (1 : S)
+        from rfl, residue_normal_pair hell r hr j b (hmax j hj), smul_eq_mul]
   have hsum : linear hell r hr (q * m) = c b := by
-    dsimp only [q]
-    rw [Finset.sum_mul, map_sum]
-    simp_rw [hterm]
+    simp only [q, Finset.sum_mul, map_sum, hterm]
     simp
   exact hcb (hsum.symm.trans hz)
 

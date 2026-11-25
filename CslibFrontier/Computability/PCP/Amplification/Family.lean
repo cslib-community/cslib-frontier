@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.SelectedComposition
 public import CslibFrontier.Computability.PCP.PoweringBound
 public import CslibFrontier.Computability.PCP.Preprocess
 public import CslibFrontier.Computability.PCP.Amplifier
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Amplification with specified expanders
@@ -228,8 +229,7 @@ theorem le_div_unsatVal_power_preprocessWith (loss : ℝ) (hloss : 0 < loss) (h�
   set B : ℝ := 4 * K ^ 2 + 16 * K ^ 4 +
     128 * K ^ 5 / ((1 - μ) * Fintype.card D / (2 * Fintype.card D + 2))
   have hs : 0 ≤ ((q : ℝ) - 1) / B := by
-    have : (2 : ℝ) ≤ q := by exact_mod_cast hq
-    exact div_nonneg (by linarith) (by dsimp only [B]; positivity)
+    exact div_nonneg (by cast_linarith [hq]) (by dsimp only [B]; positivity)
   calc ((q : ℝ) - 1) / Amplification.denominator loss (Fintype.card α) (Fintype.card D) μ *
         min (Amplification.retention (Fintype.card D) μ * G.unsatVal) (1 / T ^ 2)
       = (((q : ℝ) - 1) / B *
@@ -276,7 +276,7 @@ theorem min_le_div_unsatVal_power_preprocessWith (loss : ℝ) (hloss : 0 < loss)
     convert hgain using 1
     dsimp only [a]
     ring
-  have ha : 0 ≤ a := by nlinarith
+  have ha : 0 ≤ a := nonneg_of_mul_nonneg_left (by linarith) hr
   have hd : (0 : ℝ) < Fintype.card D := Nat.cast_pos.mpr Fintype.card_pos
   have hgap : 0 < (1 - μ) * Fintype.card D / (2 * Fintype.card D + 2) :=
     div_pos (mul_pos (sub_pos.mpr hμ) hd) (by positivity)
@@ -289,8 +289,9 @@ theorem min_le_div_unsatVal_power_preprocessWith (loss : ℝ) (hloss : 0 < loss)
       ≤ a * min (r * G.unsatVal) (r * γ / 2) := by
         rw [mul_min_of_nonneg _ _ ha]
         refine min_le_min ?_ ?_
-        · nlinarith [G.unsatVal_nonneg]
-        · nlinarith
+        · exact (mul_le_mul_of_nonneg_right har G.unsatVal_nonneg).trans_eq (mul_assoc ..)
+        · exact ((by ring : γ = 2 * (γ / 2)).trans_le
+            (mul_le_mul_of_nonneg_right har (by positivity))).trans_eq (by ring)
     _ ≤ a * min (G.preprocessWith X).toConstraintGraph.unsatVal (r * γ / 2) :=
       mul_le_mul_of_nonneg_left (min_le_min_right _ (G.le_unsatVal_preprocessWith X)) ha
     _ = (c ^ 2 / (c + T ^ 2 * (r * γ / 2) + B) *

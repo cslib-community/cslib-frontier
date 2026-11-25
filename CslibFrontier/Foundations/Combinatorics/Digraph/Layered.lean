@@ -166,7 +166,7 @@ theorem eq_of_layer_le_succ (h : G.layer b ≤ G.layer a + 1) (p q : G.Path a b)
 theorem mem_internalVertices_iff (p : G.Path a b) {v : V} :
     v ∈ p.internalVertices ↔
       v ∈ p.vertices ∧ G.layer a < G.layer v ∧ G.layer v < G.layer b := by
-  have hlen := p.layer_end
+  have := p.layer_end
   simp only [internalVertices, List.mem_iff_getElem, List.length_tail, List.length_dropLast,
     vertices_length]
   constructor
@@ -175,8 +175,7 @@ theorem mem_internalVertices_iff (p : G.Path a b) {v : V} :
     exact ⟨⟨i + 1, by omega, rfl⟩, by omega, by omega⟩
   · rintro ⟨⟨i, hi, rfl⟩, ha, hb⟩
     rw [p.layer_getElem_vertices] at ha hb
-    refine ⟨i - 1, by omega, ?_⟩
-    simp only [List.getElem_tail, List.getElem_dropLast, Nat.sub_add_cancel (by omega : 1 ≤ i)]
+    exact ⟨i - 1, by omega, by simp [Nat.sub_add_cancel (by omega : 1 ≤ i)]⟩
 
 /-- The internal vertices of a concatenation are those of the first path, the common
 endpoint, and those of the second path, in that order. -/
@@ -220,9 +219,7 @@ theorem vertexAtLayer_eq (p : G.Path a b) {k : ℕ} {v : V}
     (hv : v ∈ p.vertices) (hk : G.layer v = k) : p.vertexAtLayer k = v := by
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hv
   rw [p.layer_getElem_vertices] at hk
-  have hidx : k - G.layer a = i := by omega
-  rw [vertexAtLayer, hidx, List.getElem?_eq_getElem hi]
-  rfl
+  simp [vertexAtLayer, show k - G.layer a = i by omega, List.getElem?_eq_getElem hi]
 
 /-- Sum internal weights in order of layer. -/
 theorem internalWeight_eq_sum_layers {M : Type*} [AddCommMonoid M] (weight : V → M)

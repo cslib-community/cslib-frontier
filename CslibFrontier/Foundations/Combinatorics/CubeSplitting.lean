@@ -111,11 +111,9 @@ theorem card_cubeSplits_le_of_monotone [DecidableEq ι] (F : ι → ℕ → ℝ)
     #{q : ι → Fin m | CubeSplits F θ q} ≤ m ^ Fintype.card ι - (m - 1) ^ Fintype.card ι := by
   classical
   rcases isEmpty_or_nonempty ι with hι | hι
-  · have : (univ.filter fun q : ι → Fin m => CubeSplits F θ q) = ∅ := by
-      refine filter_false_of_mem fun q _ ⟨z, z', hz, hz'⟩ => ?_
-      simp only [univ_eq_empty, sum_empty] at hz hz'
-      linarith
-    rw [this, card_empty]; exact Nat.zero_le _
+  · rw [filter_false_of_mem fun q _ ⟨z, z', hz, hz'⟩ => by
+      simp only [univ_eq_empty, sum_empty] at hz hz'; linarith]
+    simp
   -- Map every cube to the first cube of its diagonal line.
   let a : (ι → Fin m) → ℕ := fun q => univ.inf' univ_nonempty fun i => (q i : ℕ)
   have ha (q : ι → Fin m) (i : ι) : a q ≤ q i := inf'_le _ (mem_univ i)
@@ -126,17 +124,17 @@ theorem card_cubeSplits_le_of_monotone [DecidableEq ι] (F : ι → ℕ → ℝ)
     obtain ⟨i, -, hi⟩ := exists_mem_eq_inf' (univ_nonempty (α := ι)) fun i => (q i : ℕ)
     exact mem_filter.mpr ⟨mem_univ _, i, by simp only [start, a]; omega⟩
   have hinj : Set.InjOn start ↑(univ.filter fun q : ι → Fin m => CubeSplits F θ q) := by
+    have step {q q' : ι → Fin m} (hs : CubeSplits F θ q) (hs' : CubeSplits F θ q')
+        (hst : start q = start q') (hle : a q ≤ a q') : q = q' := by
+      have hcoord (i : ι) : (q i : ℕ) - a q = q' i - a q' := congrArg Fin.val (congrFun hst i)
+      have hd := hs.eq_zero_of_monotone hF hs' (d := a q' - a q) fun i => by
+        have : _ ∧ _ ∧ _ := ⟨hcoord i, ha q i, ha q' i⟩
+        omega
+      exact funext fun i => Fin.ext (by have : _ ∧ _ ∧ _ := ⟨hcoord i, ha q i, ha q' i⟩; omega)
     intro q hq q' hq' hst
-    have hs := (mem_filter.mp (mem_coe.mp hq)).2
-    have hs' := (mem_filter.mp (mem_coe.mp hq')).2
-    have hcoord (i : ι) : (q i : ℕ) - a q = q' i - a q' := congrArg Fin.val (congrFun hst i)
     rcases le_total (a q) (a q') with hle | hle
-    · have hd := hs.eq_zero_of_monotone hF hs' (d := a q' - a q) fun i => by
-        have := hcoord i; have := ha q i; have := ha q' i; omega
-      funext i; apply Fin.ext; have := hcoord i; have := ha q i; have := ha q' i; omega
-    · have hd := hs'.eq_zero_of_monotone hF hs (d := a q - a q') fun i => by
-        have := hcoord i; have := ha q i; have := ha q' i; omega
-      funext i; apply Fin.ext; have := hcoord i; have := ha q i; have := ha q' i; omega
+    · exact step (mem_filter.mp hq).2 (mem_filter.mp hq').2 hst hle
+    · exact (step (mem_filter.mp hq').2 (mem_filter.mp hq).2 hst.symm hle).symm
   exact (card_le_card_of_injOn start hmaps hinj).trans_eq card_exists_val_eq_zero
 
 /-- **Split cubes of a unate separable form** (Lemma 15 of Reitwiessner's preprint): if every

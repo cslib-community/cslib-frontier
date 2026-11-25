@@ -106,9 +106,7 @@ private theorem exists_eq_append_lastTwo {α : Type*} (d : α) {l : List α} (hl
     ∃ p, l = p ++ [(lastTwo d l).1, (lastTwo d l).2] := by
   unfold lastTwo
   rcases h : l.reverse with _ | ⟨t, _ | ⟨s, r⟩⟩
-  · rw [List.reverse_eq_nil_iff] at h
-    subst h
-    simp at hl
+  · simp [List.reverse_eq_nil_iff.mp h] at hl
   · have := congrArg List.length h
     simp only [List.length_reverse, List.length_singleton] at this
     omega
@@ -154,9 +152,7 @@ theorem run_succ {n k : ℕ} (W : Fin (k + 3) → Fin (k + 3) → ℕ) (part : F
     simp [lastTwo, hp]
   rw [run]
   dsimp only
-  generalize hst' : lastTwo 0 (maOrder W) = st
-  rw [hlast] at hst'
-  subst hst'
+  rw [hlast]
   simp only [hst, ↓reduceDIte]
 
 /-- **The Stoer–Wagner algorithm** [StoerWagner1997]: one side of a minimum cut of the multigraph
@@ -180,8 +176,7 @@ theorem minCut_eq_min_contractMatrix {k : ℕ} {W : Fin (k + 3) → Fin (k + 3) 
   have hXnt : IsNonTrivialCut X := by
     by_cases hs : s ∈ X
     · exact ⟨⟨s, hs⟩, fun h => hX.mp hs (h ▸ Finset.mem_univ t)⟩
-    · have ht : t ∈ X := by tauto
-      exact ⟨⟨t, ht⟩, fun h => hs (h ▸ Finset.mem_univ s)⟩
+    · exact ⟨⟨t, by tauto⟩, fun h => hs (h ▸ Finset.mem_univ s)⟩
   refine le_antisymm (le_min (minCut_le_cutWeight W hXnt)
     (minCut_le_of_isContractionOf (by simp) hc)) ?_
   obtain ⟨C, hCnt, hCw⟩ := exists_minCut_achiever (by simp) W
@@ -189,12 +184,10 @@ theorem minCut_eq_min_contractMatrix {k : ℕ} {W : Fin (k + 3) → Fin (k + 3) 
   by_cases hsep : s ∈ C ↔ t ∉ C
   · exact (min_le_left _ _).trans (hmin C hsep)
   · have hsame : s ∈ C ↔ t ∈ C := by tauto
-    have hpull : pullbackCut (contractPart id s t hst) (contractCut t C) = C := by
-      rw [pullbackCut_contractCut id hst hsame, pullbackCut_id]
-    have hBnt : IsNonTrivialCut (contractCut t C) :=
-      isNonTrivialCut_of_pullbackCut _ (hpull ▸ hCnt)
-    refine (min_le_right _ _).trans ((minCut_le_cutWeight _ hBnt).trans (le_of_eq ?_))
-    exact cutWeight_contractCut hW hst hsame
+    have hBnt : IsNonTrivialCut (contractCut t C) := isNonTrivialCut_of_pullbackCut
+      (contractPart id s t hst) (by rwa [pullbackCut_contractCut id hst hsame, pullbackCut_id])
+    exact (min_le_right _ _).trans
+      ((minCut_le_cutWeight _ hBnt).trans_eq (cutWeight_contractCut hW hst hsame))
 
 /-- **The phase recursion** in terms of the minimum `s`–`t` cut weight `λ(s, t)`
 (`Cslib.WeightedCut.minCutBetween`): for distinct `s` and `t`, the global minimum cut weight is
@@ -271,9 +264,7 @@ two vertices it answers a non-trivial cut of minimum weight, and the weight of t
 theorem stoerWagner_spec {n : ℕ} (hn : 2 ≤ n) {W : Fin n → Fin n → ℕ} (hW : IsMultigraph W) :
     IsNonTrivialCut (stoerWagner W).side ∧ cutWeight W (stoerWagner W).side = minCut W ∧
       (stoerWagner W).weight = minCut W := by
-  obtain _ | _ | n := n
-  · omega
-  · omega
+  obtain _ | _ | n := n <;> try omega
   obtain ⟨h1, h2, h3⟩ := run_spec n (isContractionOf_id hW)
   exact ⟨h1, h2.trans h3, h3⟩
 

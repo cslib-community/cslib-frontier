@@ -65,7 +65,7 @@ private theorem affine_mem_lowDegree (c : ι → F) (m : F) :
     (fun x : ι → Bool => m - ∑ i, c i * bitVal F (x i)) ∈ lowDegree F ι 1 := by
   have h : (fun x : ι → Bool => m - ∑ i, c i * bitVal F (x i)) =
       (fun _ => m) - ∑ i, c i • fun x : ι → Bool => bitVal F (x i) := by
-    funext x
+    funext
     simp [Finset.sum_apply]
   rw [h]
   exact Submodule.sub_mem _ (const_mem_lowDegree 1 m)
@@ -84,36 +84,28 @@ private theorem subsetMobius_eq_zero_of_mem_lowDegree_mul {c : ι → F} (hc : �
   · exact subsetMobius_eq_zero_of_mem_lowDegree hr hA
   set μ : Finset ι → F := subsetMobius (fun T => r fun i => decide (i ∈ T)) with hμ
   -- the coefficients of `L * r` at the sets of `k + 1` elements
-  have key : ∀ B : Finset ι, #B = k + 1 → ∑ i ∈ B, c i * μ (B.erase i) = 0 := by
-    intro B hB
+  have key : ∀ B : Finset ι, #B = k + 1 → ∑ i ∈ B, c i * μ (B.erase i) = 0 := fun B hB => by
     have h0 : μ B = 0 := subsetMobius_eq_zero_of_mem_lowDegree hr (by omega)
     have h1 := subsetMobius_eq_zero_of_mem_lowDegree hLr (S := B) (by omega)
     simp only [Pi.mul_apply, sub_mul, sum_mul] at h1
     rw [subsetMobius_sub, subsetMobius_const_mul, subsetMobius_sum] at h1
-    simp only [mul_assoc] at h1
-    simp only [subsetMobius_const_mul, subsetMobius_bitVal_mul] at h1
-    rw [← hμ] at h1
-    simp only [mul_ite, mul_zero] at h1
+    simp only [mul_assoc, subsetMobius_const_mul, subsetMobius_bitVal_mul, ← hμ,
+      mul_ite, mul_zero] at h1
     rw [← sum_filter, filter_mem_eq_inter, univ_inter, h0] at h1
-    simp only [zero_add, mul_zero, zero_sub, neg_eq_zero] at h1
-    exact h1
+    simpa only [zero_add, mul_zero, zero_sub, neg_eq_zero] using h1
   -- rescaled, the top coefficients lie in the kernel of the inclusion matrix
   set a : Finset ι → F := fun A => μ A / ∏ j ∈ A, c j with ha
   have hprod : ∀ A : Finset ι, ∏ j ∈ A, c j ≠ 0 := fun A => prod_ne_zero_iff.2 fun j _ => hc j
   have hsum : ∀ B ∈ (univ : Finset ι).powersetCard (k + 1),
-      ∑ A ∈ B.powersetCard k, a A = 0 := by
-    intro B hB
-    rw [mem_powersetCard] at hB
-    have hB2 := hB.2
+      ∑ A ∈ B.powersetCard k, a A = 0 := fun B hB => by
+    have hB2 := (mem_powersetCard.1 hB).2
     have hsplit : ∑ A ∈ B.powersetCard k, a A = ∑ i ∈ B, a (B.erase i) := by
       have := sum_sum_powersetCard_erase a k B
       rw [hB2, Nat.add_sub_cancel_left, one_smul] at this
-      rw [← this]
-      refine sum_congr rfl fun i hi => ?_
-      have hcard : #(B.erase i) = k := by rw [card_erase_of_mem hi, hB2]; rfl
-      rw [← hcard, powersetCard_self, sum_singleton]
-    have hterm : ∀ i ∈ B, a (B.erase i) = c i * μ (B.erase i) / ∏ j ∈ B, c j := by
-      intro i hi
+      refine this.symm.trans (sum_congr rfl fun i hi => ?_)
+      rw [← (show #(B.erase i) = k by rw [card_erase_of_mem hi, hB2]; rfl),
+        powersetCard_self, sum_singleton]
+    have hterm : ∀ i ∈ B, a (B.erase i) = c i * μ (B.erase i) / ∏ j ∈ B, c j := fun i hi => by
       rw [ha, ← mul_prod_erase B c hi, mul_div_mul_left _ _ (hc i)]
     rw [hsplit, sum_congr rfl hterm, ← sum_div, key B hB2, zero_div]
   have hzero := eq_zero_of_sum_powersetCard_eq_zero (U := (univ : Finset ι)) (t := k)
@@ -133,20 +125,18 @@ theorem totalDegree_affine_mul {c : ι → F} (hc : ∀ i, c i ≠ 0) (m : F)
     totalDegree ((fun x => m - ∑ i, c i * bitVal F (x i)) * r) = totalDegree r + 1 := by
   classical
   have hrk : r ∈ lowDegree F ι (totalDegree r) := mem_lowDegree_totalDegree r
-  refine le_antisymm ?_ ?_
-  · rw [add_comm]
-    exact totalDegree_le_of_mem_lowDegree (mul_mem_lowDegree (affine_mem_lowDegree c m) hrk)
-  · by_contra hlt
-    have hLr : (fun x => m - ∑ i, c i * bitVal F (x i)) * r ∈ lowDegree F ι (totalDegree r) :=
-      totalDegree_le_iff_mem_lowDegree.1 (by omega)
-    have hμ : ∀ A : Finset ι, totalDegree r ≤ #A →
-        subsetMobius (fun T => r fun i => decide (i ∈ T)) A = 0 :=
-      fun A hA => subsetMobius_eq_zero_of_mem_lowDegree_mul hc m hk hF hrk hLr hA
-    rcases Nat.eq_zero_or_pos (totalDegree r) with h0 | hpos
-    · exact hr (eq_zero_of_subsetMobius_eq_zero fun S => hμ S (by omega))
-    · have h := totalDegree_le_of_mem_lowDegree
-        (mem_lowDegree_iff_subsetMobius_eq_zero (D := totalDegree r - 1).2
-          fun S hS => hμ S (by omega))
-      omega
+  refine le_antisymm (add_comm 1 _ ▸ totalDegree_le_of_mem_lowDegree
+    (mul_mem_lowDegree (affine_mem_lowDegree c m) hrk)) ?_
+  by_contra hlt
+  have hμ : ∀ A : Finset ι, totalDegree r ≤ #A →
+      subsetMobius (fun T => r fun i => decide (i ∈ T)) A = 0 :=
+    fun _ hA => subsetMobius_eq_zero_of_mem_lowDegree_mul hc m hk hF hrk
+      (totalDegree_le_iff_mem_lowDegree.1 (by omega)) hA
+  rcases Nat.eq_zero_or_pos (totalDegree r) with h0 | hpos
+  · exact hr (eq_zero_of_subsetMobius_eq_zero fun S => hμ S (by omega))
+  · have := totalDegree_le_of_mem_lowDegree
+      ((mem_lowDegree_iff_subsetMobius_eq_zero (D := totalDegree r - 1)).2 fun S _ =>
+        hμ S (by omega))
+    omega
 
 end Cslib.BitString

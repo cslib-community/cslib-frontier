@@ -54,11 +54,7 @@ theorem readHeightsPrefix_runs (zero : M.Op) (z : M.Value)
       (∀ i, i ≠ 1 → i ≠ 2 → t.data i = s.data i) ∧
       (∀ i, i ≠ 2 → t.ptr i = s.ptr i) := by
   have ne : (1 : Fin (regs + 1 + 2)) ≠ 2 := by
-    intro h
-    have hv := congrArg Fin.val h
-    change 1 = 2 % (regs + 1 + 2) at hv
-    rw [Nat.mod_eq_of_lt (show 2 < regs + 1 + 2 by omega)] at hv
-    omega
+    rw [Ne, Fin.ext_iff, Fin.val_one, Fin.val_two]; omega
   let s1 : State M (layout extra (regs + 1)) := { s.setData 1 z with pc := 1 }
   let s2 : State M (layout extra (regs + 1)) := { s1.setData 2 z with pc := 2 }
   let s3 : State M (layout extra (regs + 1)) := { s2.setPtr 2 (root l) with pc := 3 }
@@ -90,13 +86,10 @@ theorem readHeightsPrefix_runs (zero : M.Op) (z : M.Value)
       | node a l r =>
         simp [step, readHeightsPrefix, Instr.effect, Instr.next, t, s5, s4, s3, s2, s1,
           State.setPtr, State.setData, State.deref, root, hr.1, record, heightValue]
-  refine ⟨t, run, rfl, rfl, ?_, ?_, ?_, ?_⟩
+  refine ⟨t, run, rfl, rfl, ?_, by simp [t, State.setData], fun i h1 h2 => ?_, fun i h2 => ?_⟩
   · simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, ne]
-  · simp [t, State.setData]
-  · intro i h1 h2
-    simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h1, h2]
-  · intro i h2
-    simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h2]
+  · simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h1, h2]
+  · simp [t, s5, s4, s3, s2, s1, State.setData, State.setPtr, h2]
 
 
 /-- Recompute the cursor's height. Data registers one/two and pointer register two are scratch.
@@ -142,10 +135,7 @@ theorem recomputeHeight_correct (zero maxSucc : M.Op) (encode : ℕ → M.Value)
         s7, dl, dr, left, right, max_spec, value]
     · simp [step, recomputeHeight, readHeightsPrefix, Instr.effect, Instr.next, y, s7,
         State.setData, State.modify, tc, heap]
-  refine ⟨y, ⟨8, run.trans tail, rfl, rfl⟩, rfl, rep.updateData _ _ _, ?_, ?_⟩
-  · intro i h1 h2
-    simpa [y, s7, State.setData, h1] using data i h1 h2
-  · intro i h2
-    exact ptr i h2
+  refine ⟨y, ⟨8, run.trans tail, rfl, rfl⟩, rfl, rep.updateData _ _ _, fun i h1 h2 => ?_, ptr⟩
+  simpa [y, s7, State.setData, h1] using data i h1 h2
 
 end Cslib.DataStructure.SearchTree.PointerMachine

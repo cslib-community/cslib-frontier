@@ -51,9 +51,8 @@ open Cslib.WordRAM Cslib.WordRAM.Multiword
 /-- Embed the multiplication workspace in the first sixteen registers. -/
 def embed (i : Fin 16) : Fin 21 := ⟨i.val, by omega⟩
 
-private theorem embed_injective : Function.Injective embed := by
-  intro i j h
-  exact Fin.ext (congrArg (fun i : Fin 21 => i.val) h)
+private theorem embed_injective : Function.Injective embed := fun _ _ h =>
+  Fin.ext (congrArg (Fin.val : Fin 21 → ℕ) h)
 
 /-- Query word, preserved. -/
 abbrev query : Fin 21 := 16
@@ -111,17 +110,13 @@ private theorem window_eq {w L p D : ℕ} (hL : L + (w - 2 * (w / 2)) ≤ w / 2)
     (hD : D < 2 ^ L) :
     ((p / radix w ^ 2 % radix w) >>> (w - 2 * (w / 2))) &&& D =
       (p >>> w) &&& D := by
-  apply Nat.eq_of_testBit_eq
-  intro i
+  refine Nat.eq_of_testBit_eq fun i => ?_
   by_cases hi : i < L
-  · have hsmall : w - 2 * (w / 2) + i < w / 2 := by omega
-    have he : w - 2 * (w / 2) + i + w / 2 * 2 = w + i := by omega
-    simp only [Nat.testBit_land, Nat.testBit_shiftRight, radix,
-      Nat.testBit_mod_two_pow, decide_eq_true hsmall, Bool.true_and, ← pow_mul,
-      Nat.testBit_div_two_pow, he]
-  · have hfalse : D.testBit i = false := Nat.testBit_eq_false_of_lt
-      (hD.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
-    simp only [Nat.testBit_land, hfalse, Bool.and_false]
+  · simp only [Nat.testBit_land, Nat.testBit_shiftRight, radix, Nat.testBit_mod_two_pow,
+      decide_eq_true (by omega : w - 2 * (w / 2) + i < w / 2), Bool.true_and, ← pow_mul,
+      Nat.testBit_div_two_pow, show w - 2 * (w / 2) + i + w / 2 * 2 = w + i by omega]
+  · simp only [Nat.testBit_land, Nat.testBit_eq_false_of_lt
+      (hD.trans_le (Nat.pow_le_pow_right Nat.zero_lt_two (Nat.le_of_not_lt hi))), Bool.and_false]
 
 /-- A multiplier of at most `w + L` bits has three bounded half-word digits whenever the
 retained window fits. This is a preprocessing representation theorem; loading is separate. -/
@@ -149,11 +144,8 @@ theorem size_code : code.size = 94 := by
 private theorem three_digits_value {β a : ℕ} (hβ : 0 < β) (ha : a < β ^ 3) :
     Nat.ofDigits β [a % β, a / β % β, a / β / β % β] = a := by
   have hq : a / β / β < β := by
-    rw [Nat.div_div_eq_div_mul]
-    apply (Nat.div_lt_iff_lt_mul (Nat.mul_pos hβ hβ)).mpr
-    nlinarith [ha]
-  simp only [Nat.ofDigits_cons, Nat.ofDigits_nil, mul_zero, add_zero,
-    Nat.mod_eq_of_lt hq]
+    rw [Nat.div_div_eq_div_mul, Nat.div_lt_iff_lt_mul (Nat.mul_pos hβ hβ)]; nlinarith
+  simp only [Nat.ofDigits_cons, Nat.ofDigits_nil, mul_zero, add_zero, Nat.mod_eq_of_lt hq]
   nlinarith [Nat.mod_add_div a β, Nat.mod_add_div (a / β) β]
 
 private theorem split_left {w : ℕ} (hw : 2 ≤ w) (x : Data 21)
@@ -162,28 +154,23 @@ private theorem split_left {w : ℕ} (hw : 2 ≤ w) (x : Data 21)
       (Schoolbook.leftRegs 3 3) ∧
     Multiword.value (radix w) ((splitResult w x).comap embed)
       (Schoolbook.leftRegs 3 3) = x.regs query &&& x.regs positions := by
-  have hβ : 0 < radix w := lt_trans Nat.zero_lt_one (one_lt_radix hw)
+  have hβ : 0 < radix w := Nat.zero_lt_one.trans (one_lt_radix hw)
   have ha : x.regs query &&& x.regs positions < radix w ^ 3 := by
-    apply (hx.of_le Nat.and_le_left).trans_le
+    refine (hx.of_le Nat.and_le_left).trans_le ?_
     rw [radix, ← pow_mul]
-    exact Nat.pow_le_pow_right (by decide) (by omega)
-  constructor
-  · intro i hi
-    simp only [Schoolbook.leftRegs, Schoolbook.registers, List.mem_ofFn] at hi
-    obtain ⟨j, rfl⟩ := hi
-    fin_cases j <;> simp +decide [Data.comap, embed, splitResult, Nat.mod_lt _ hβ]
-  · simpa +decide [Multiword.value, Schoolbook.leftRegs, Schoolbook.registers,
-      List.ofFn_succ, Data.comap, embed, splitResult] using three_digits_value hβ ha
+    exact Nat.pow_le_pow_right Nat.zero_lt_two (by omega)
+  refine ⟨?_, by simpa +decide [Multiword.value, Schoolbook.leftRegs, Schoolbook.registers,
+    List.ofFn_succ, Data.comap, embed, splitResult] using three_digits_value hβ ha⟩
+  intro i hi
+  obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hi
+  fin_cases j <;> simp +decide [Data.comap, embed, splitResult, Nat.mod_lt _ hβ]
 
 private theorem third_digit {w : ℕ} (y : Data 16)
     (hy : Multiword.Bounded (radix w) y (Schoolbook.outputRegs 3 3)) :
     Multiword.value (radix w) y (Schoolbook.outputRegs 3 3) /
-      radix w ^ 2 % radix w = y.regs 12 := by
-  let digits : Fin 6 → ℕ := fun i => y.regs ⟨10 + i.val, by omega⟩
-  have hb (i : Fin 6) : digits i < radix w := by
-    apply hy
-    exact List.mem_ofFn.mpr ⟨i, rfl⟩
-  exact Nat.ofDigits_ofFn_div_mod digits hb (2 : Fin 6)
+      radix w ^ 2 % radix w = y.regs 12 :=
+  Nat.ofDigits_ofFn_div_mod (fun i : Fin 6 => y.regs ⟨10 + i.val, by omega⟩)
+    (fun i => hy _ (List.mem_ofFn.mpr ⟨i, rfl⟩)) (2 : Fin 6)
 
 /-- In 94 checked standard instructions, compute the masked product window. The query and
 all node parameters are preserved, as is memory. Only registers 0--6, 10--15 and 20 may
@@ -207,10 +194,9 @@ theorem exec {w L M : ℕ} (hw : 2 ≤ w) (x : Data 21)
       y.regs out = (((x.regs query &&& x.regs positions) * M) >>> w) &&& x.regs retained ∧
       y.mem = x.mem by
     obtain ⟨y, hey, hout, hym⟩ := this
-    refine ⟨y, hey, hout, hym, fun i hi => hey.regs_eq ?_⟩
     have hp : ∀ i : Fin 21, (7 ≤ i.val ∧ i.val < 10) ∨ (16 ≤ i.val ∧ i.val < 20) →
         code.Preserves i := by decide +kernel
-    exact hp i hi
+    exact ⟨y, hey, hout, hym, fun i hi => hey.regs_eq (hp i hi)⟩
   apply WP.Exact.exists_exec
   unfold code
   wram_call (Workspace.exec_setup hw x)
@@ -228,21 +214,19 @@ theorem exec {w L M : ℕ} (hw : 2 ≤ w) (x : Data 21)
     obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hi
     fin_cases j <;> simp +decide [u, Data.comap, embed, splitResult,
       Workspace.setupResult, Workspace.base, Workspace.zero]
-  have hub : Multiword.Bounded (radix w) (u.comap embed) (Schoolbook.rightRegs 3 3) :=
-    fun i hi => hur i hi ▸ hb i hi
   have hum : Multiword.value (radix w) (u.comap embed) (Schoolbook.rightRegs 3 3) = M := by
     rw [Multiword.value, List.map_congr_left hur]; exact hM
-  wram_call (Schoolbook.exec_fixedProgram hw 3 3 (u.comap embed) hua hub)
+  wram_call (Schoolbook.exec_fixedProgram hw 3 3 (u.comap embed) hua
+      (fun i hi => hur i hi ▸ hb i hi))
     canonical embed_injective with v ⟨hvb, hv, hvm, _⟩
   rw [huav, hzq, hzp, hum] at hv
-  have hv12 : v.regs 12 = ((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w := by
-    rw [← third_digit v hvb, hv]
-  have hdigit : Fits w (((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w) :=
-    (Nat.mod_lt _ (lt_trans Nat.zero_lt_one (one_lt_radix hw))).trans (radix_fits hw)
-  have hd : Fits w ((((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w) >>>
-      (w - 2 * (w / 2))) := hdigit.of_le (Nat.shiftRight_eq_div_pow _ _ ▸ Nat.div_le_self _ _)
-  have hmask : Fits w (((((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w) >>>
-      (w - 2 * (w / 2))) &&& x.regs retained) := hd.of_le Nat.and_le_left
+  let d2 := ((x.regs query &&& x.regs positions) * M) / radix w ^ 2 % radix w
+  have hv12 : v.regs 12 = d2 := by rw [← third_digit v hvb, hv]
+  have hdigit : Fits w d2 :=
+    (Nat.mod_lt _ (Nat.zero_lt_one.trans (one_lt_radix hw))).trans (radix_fits hw)
+  have hd : Fits w (d2 >>> (w - 2 * (w / 2))) :=
+    hdigit.of_le (Nat.shiftRight_eq_div_pow _ _ ▸ Nat.div_le_self _ _)
+  have hmask : Fits w ((d2 >>> (w - 2 * (w / 2))) &&& x.regs retained) := hd.of_le Nat.and_le_left
   have huo : (splitResult w (Workspace.setupResult w x)).regs offset = w - 2 * (w / 2) := by
     simp +decide [splitResult, Workspace.setupResult, Workspace.base, Workspace.zero, ho]
   have hur' : (splitResult w (Workspace.setupResult w x)).regs retained = x.regs retained := by

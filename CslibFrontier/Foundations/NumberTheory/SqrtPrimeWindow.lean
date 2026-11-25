@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindow
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Prime windows below a square root
@@ -77,8 +78,7 @@ theorem mem_sqrtPrimeWindow_iff_sq {D p : ℕ} :
     · exact_mod_cast (Real.lt_sqrt hp0).1 hhi
   · rintro ⟨hp, hlo, hhi⟩
     refine ⟨hp, ?_, (Real.lt_sqrt hp0).2 (by exact_mod_cast hhi)⟩
-    have h : (D : ℝ) ≤ 4 * (p : ℝ) ^ 2 := by exact_mod_cast hlo
-    nlinarith
+    cast_nlinarith [hlo]
 
 /-- Enumerate the real prime window using a decidable filter of the integers below `D`.
 -/
@@ -103,8 +103,7 @@ theorem card_sqrtPrimeWindow_lt_sqrt (D : ℕ) (hD : 16 ≤ D) :
     have hone : 1 ≤ ⌈Real.sqrt D⌉₊ := Nat.one_le_ceil_iff.2 hpos
     rw [Nat.card_Ico] at hle
     omega
-  have hcast : ((sqrtPrimeWindow D).card : ℝ) + 1 ≤ (⌈Real.sqrt D⌉₊ : ℝ) := by exact_mod_cast hcard
-  linarith [Nat.ceil_lt_add_one hpos.le]
+  cast_linarith [hcard, Nat.ceil_lt_add_one hpos.le]
 
 /-- There is a universal positive `c` such that every window with `D ≥ 16` contains at least `c *
 sqrt D / log D` primes. The proof uses the all-window counting form of Bertrand’s postulate from

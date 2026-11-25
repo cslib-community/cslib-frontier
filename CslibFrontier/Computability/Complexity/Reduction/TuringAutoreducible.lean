@@ -120,15 +120,8 @@ theorem polyTimeTuringAutoreducible_of_polyTimeReducible_fixedPointFree
     exact fun h_eq => hne a (encA.injective h_eq)
   · change a ∈ A ↔
       decide (List.take 1 (languageOracle (encA '' A) ((), encA (f a))) = [true]) = true
-    rw [languageOracle_apply]
-    have hmem : a ∈ A ↔ encA (f a) ∈ encA '' A := by
-      rw [hA a, encA.injective.mem_set_image]
-    rw [hmem]
-    cases hc : decide (encA (f a) ∈ encA '' A)
-    · have : encA (f a) ∉ encA '' A := decide_eq_false_iff_not.mp hc
-      simp [this]
-    · have : encA (f a) ∈ encA '' A := decide_eq_true_iff.mp hc
-      simp [this]
+    rw [languageOracle_apply, hA a, ← encA.injective.mem_set_image]
+    by_cases h : encA (f a) ∈ encA '' A <;> simp [h]
 
 /-- **Every problem in `P` is polynomial-time Turing autoreducible.** The decider makes zero
 oracle queries, so the no-self-query condition is vacuously satisfied. -/
@@ -202,23 +195,19 @@ theorem PolyTimeTruthTableAutoreducible.polyTimeTuringAutoreducible
   let program : α → WordQueryComp Unit Bool := fun a =>
     (fun ans => d (a, ans)) <$> queryWords (words a)
   refine ⟨program, ?_, fun a qr hqr => ?_, fun a => ?_⟩
-  · have hcomp := IsOraclePPTOn.map_with (f := fun a ans => d (a, ans))
-      (isOraclePPTOn_queryWords.preprocess hwords) hd
-    refine hcomp.congr fun a => ?_
-    simp [program]
+  · exact (IsOraclePPTOn.map_with (f := fun a ans => d (a, ans))
+      (isOraclePPTOn_queryWords.preprocess hwords) hd).congr fun a => by simp [program]
   · simp only [program, OracleComp.queriesWith_map] at hqr
-    have hmem := mem_queriesWith_queryWords (languageOracle (encA '' A)) (words a) hqr
-    simp only [words, List.mem_map, List.mem_range] at hmem
-    obtain ⟨i, hi, hqi⟩ := hmem
-    intro heq
-    exact hne a i hi (encA.injective (hqi.trans heq))
+    obtain ⟨i, hi, hqi⟩ := by
+      simpa only [words, List.mem_map, List.mem_range] using
+        mem_queriesWith_queryWords (languageOracle (encA '' A)) (words a) hqr
+    exact fun heq => hne a i hi (encA.injective (hqi.trans heq))
   · simp only [program, OracleComp.interpret_map, interpret_queryWords]
-    rw [hA a]
-    suffices h_eq : (words a).map (fun w => decide (w ∈ encA '' A)) =
-        truthTableAnswers (q ⁻¹' A) r a by
-      rw [h_eq]
-      exact Iff.rfl
-    simp [words, truthTableAnswers_eq_map_range, List.map_map, Function.comp_def]
+    have h_eq : (words a).map (fun w => decide (w ∈ encA '' A)) =
+        truthTableAnswers (q ⁻¹' A) r a := by
+      simp [words, truthTableAnswers_eq_map_range, List.map_map, Function.comp_def]
+    rw [hA a, h_eq]
+    rfl
 
 /-- Every polynomial-time `k`-truth-table autoreduction is a polynomial-time Turing
 autoreduction. -/

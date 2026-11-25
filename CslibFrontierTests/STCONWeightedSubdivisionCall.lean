@@ -256,7 +256,7 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   intro dimension registers
   have hz : ComputableInSpace (fun _ : List Bool => 0) encBits encNat
       (fun w => Nat.log2 w.length) :=
-    (constZero 0).mono_le fun _ => Nat.zero_le _
+    budget_const 0
   exact configurationJustesenBoundedWalk_init_inSpace ntm c
     (r := registers) hrank hvalid hz hz hz
 

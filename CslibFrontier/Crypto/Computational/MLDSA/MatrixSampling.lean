@@ -63,9 +63,8 @@ theorem cost_matrixTapeFair_le (s : Level) (Q attempts : ℕ) (cost : ℕ → �
     apply isCostBounded_pi
     intro _
   unfold ProbComp.sampleBlockCapped ProbComp.sampleSeededTrials
-  apply (isCostBounded_map_iff _ _ _).mpr
-  apply (isCostBounded_map_iff _ _ _).mpr
-  rw [show (uniformFinRejectionSpec 8380417).width = 23 by decide]
+  rw [isCostBounded_map_iff, isCostBounded_map_iff,
+    show (uniformFinRejectionSpec 8380417).width = 23 by decide]
   simpa only [Nat.mul_assoc] using cost_sampleList cost (attempts * 23)
 
 private theorem dist_replicateFin_uniform {α : Type} [Fintype α] [Nonempty α]
@@ -118,12 +117,10 @@ theorem isPPTOn_matrixTapeFair {α : Type} {input : α ↪ List Bool} (s : Level
   have hval := bitsBinaryValue.comp (snd input encBits)
   have htry : ComputableInPolyTime (fun p : α × List Bool => spec.attempt p.2)
       (encPair input encBits) (encOption enc) := by
-    have hc := binary_lt' hval (const 8380417)
-    apply (ite' hc (hval.trans (optionSome encNat)) (const none)).of_enc_eq
-    intro p
-    by_cases h : BitString.binaryValue p.2 < 8380417
-    · simp [spec, uniformFinRejectionSpec, finCutoffSpec, h, enc]
-    · simp [spec, uniformFinRejectionSpec, finCutoffSpec, h]
+    refine (ite' (binary_lt' hval (const 8380417))
+      (hval.trans (optionSome encNat)) (const none)).of_enc_eq fun p => ?_
+    by_cases h : BitString.binaryValue p.2 < 8380417 <;>
+      simp [spec, uniformFinRejectionSpec, finCutoffSpec, h, enc]
   have hcoeff : IsPPTOn input enc (fun a => ProbComp.sampleBlockCapped spec 0 (attempts a)) :=
     isPPTOn_sampleBlockCapped hattempts (const spec.width) htry (const 0)
   have hmatrix : IsPPTOn input (encPublicMatrix s) (fun a => sampleMatrixFair s (attempts a)) :=

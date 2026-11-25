@@ -62,9 +62,8 @@ private theorem patternWires_zip_sublist (S : List ℕ) (pre : List Bool) :
     | cons b pre => simpa [patternWires] using (ih pre).cons_cons j
 
 private theorem valid_zip {S : List ℕ} {m : ℕ} (hS : ∀ j ∈ S, j < m) (pre : List Bool) :
-    ∀ p ∈ S.zip pre, p.1 < m := by
-  intro p hp
-  exact hS p.1 (List.of_mem_zip hp).1
+    ∀ p ∈ S.zip pre, p.1 < m :=
+  fun p hp => hS p.1 (List.of_mem_zip hp).1
 
 /-- Prefix probabilities are represented exactly by the integer query. -/
 theorem patternProb_eq_prefixGap {gs : List GateCode} {X : List Bool}
@@ -80,27 +79,20 @@ theorem prefixGap_nil {gs : List GateCode} {X : List Bool}
     (hgs : ∀ g ∈ gs, g.WellFormed X.length) (S : List ℕ) :
     prefixGap gs X S [] = 2 ^ hadamardCount gs := by
   have h := patternProb_eq_patternGap hgs (ps := []) (by simp [patternWires]) (by simp)
-  simp only [patternProb_nil] at h
-  have hpow : (2 : ℝ) ^ hadamardCount gs ≠ 0 := by positivity
-  have heq := (eq_div_iff hpow).mp h
-  have heq' : (patternGap gs X [] : ℝ) = 2 ^ hadamardCount gs := by simpa using heq.symm
-  simpa [prefixGap] using (show patternGap gs X [] = 2 ^ hadamardCount gs by
-    exact_mod_cast heq')
+  have heq : (patternGap gs X [] : ℝ) = 2 ^ hadamardCount gs := by
+    simpa [patternProb_nil] using
+      ((eq_div_iff (by positivity : (2 : ℝ) ^ hadamardCount gs ≠ 0)).mp h).symm
+  simpa [prefixGap] using (by exact_mod_cast heq : patternGap gs X [] = 2 ^ hadamardCount gs)
 
 private theorem zip_append_bit (S : List ℕ) (pre : List Bool) (b : Bool)
     (hlen : pre.length < S.length) :
     S.zip (pre ++ [b]) = S.zip pre ++ [(S.getD pre.length 0, b)] := by
   induction pre generalizing S with
-  | nil =>
-    cases S with
-    | nil => simp at hlen
-    | cons j S => simp
+  | nil => cases S <;> simp_all
   | cons c pre ih =>
     cases S with
     | nil => simp at hlen
-    | cons j S =>
-      have hlen' : pre.length < S.length := by simpa using hlen
-      simpa using congrArg (List.cons (j, c)) (ih S hlen')
+    | cons j S => simpa using congrArg (List.cons (j, c)) (ih S (by simpa using hlen))
 
 /-- Every prefix below the requested depth splits into its two nonnegative integer masses. -/
 theorem prefixGap_add {gs : List GateCode} {X : List Bool}
@@ -116,8 +108,7 @@ theorem prefixGap_add {gs : List GateCode} {X : List Bool}
     patternProb_eq_prefixGap hgs hS hvalid,
     patternProb_eq_prefixGap hgs hS hvalid,
     patternProb_eq_prefixGap hgs hS hvalid, ← add_div] at h
-  have hpow : (2 : ℝ) ^ hadamardCount gs ≠ 0 := by positivity
-  exact_mod_cast (div_left_inj₀ hpow).mp h
+  exact_mod_cast (div_left_inj₀ (by positivity : (2 : ℝ) ^ hadamardCount gs ≠ 0)).mp h
 
 /-! ### Native query resources -/
 
@@ -155,11 +146,12 @@ private theorem prefix_exponent_le (A : ℕ) (gs : List GateCode) (S : List ℕ)
   have hlen : (gs ++ GateCode.flipCodes (patternZeros (S.zip pre))).length =
       gs.length + (patternZeros (S.zip pre)).length := by simp
   rw [hlen]
-  refine Nat.div_le_div ?_ (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega))) ?_
-  · have hnum : gs.length + (patternZeros (S.zip pre)).length + 1 ≤ 2 * (gs.length + 1) :=
-      by omega
-    exact (Nat.mul_le_mul_left A hnum).trans_eq (by ring)
-  · exact Nat.sqrt_eq_zero.not.mpr (Nat.log_pos (by norm_num) (by omega)).ne'
+  exact Nat.div_le_div
+    ((Nat.mul_le_mul_left A
+      (by omega : gs.length + (patternZeros (S.zip pre)).length + 1 ≤ 2 * (gs.length + 1))).trans_eq
+      (by ring))
+    (Nat.sqrt_le_sqrt (Nat.log_mono_right (by omega)))
+    (Nat.sqrt_eq_zero.not.mpr (Nat.log_pos (by norm_num) (by omega)).ne')
 
 /-- **One exact prefix query with the original circuit exponent.** The wire list, circuit and
 explicit register are computed in polynomial time. The list contains at most one entry per gate
@@ -181,12 +173,11 @@ theorem exists_expTimePolySpace_prefixGap {gs : α → List GateCode} {X : α �
   have hps : ComputableInPolyTime (fun a => (S a).zip (pre a)) enc
       (encList (encPair encUnary encBool)) :=
     (zip encUnary encBool).comp (hS.prod (bitsToList.comp hpre))
-  have hcodes := listAppend' hgs (poly_flipCodes (poly_patternZeros hps))
-  obtain ⟨A, c, hc⟩ := exists_expTimePolySpace_gapValue (poly_patternWires hps) hcodes hX
-    (fun a => GateCode.wellFormed_append_flipCodes (hwf a)
-      (patternZeros_lt (valid_zip (hvalid a) (pre a))))
-  refine ⟨2 * A, c, hc.mono fun a => ?_⟩
-  exact prefix_exponent_le A (gs a) (S a) (pre a) (hsize a)
+  obtain ⟨A, c, hc⟩ := exists_expTimePolySpace_gapValue (poly_patternWires hps)
+    (listAppend' hgs (poly_flipCodes (poly_patternZeros hps))) hX
+    fun a => GateCode.wellFormed_append_flipCodes (hwf a)
+      (patternZeros_lt (valid_zip (hvalid a) (pre a)))
+  exact ⟨2 * A, c, hc.mono fun a => prefix_exponent_le A (gs a) (S a) (pre a) (hsize a)⟩
 
 end Resources
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegree
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.BooleanAnalysis.Degree
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeGranularity
 import Mathlib.Algebra.Order.Round
@@ -171,15 +172,9 @@ theorem exactLowDegreeLearner_learns {k m : ℕ} (hk : 1 ≤ k) {δ : ℝ} (hδ 
       lt_self_iff_false] at hx
   refine (MeasureTheory.measure_mono hsub).trans
     ((uniform_exists_abs_empiricalCoeff_sub_ge_le f T hγ).trans (ENNReal.ofReal_le_ofReal ?_))
-  rw [hγsq]
-  have hlog : Real.log (2 * N / δ) ≤ m / (2 * 4 ^ k) := by
-    rw [le_div_iff₀ (by positivity)]
-    linarith
-  calc N * (2 * Real.exp (-(m * (1 / 4 ^ k)) / 2))
-      = N * (2 * Real.exp (-(m / (2 * 4 ^ k)))) := by congr 3; field_simp
-    _ ≤ N * (2 * Real.exp (-Real.log (2 * N / δ))) := by gcongr
-    _ = δ := by
-        rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
-        field_simp
+  rw [hγsq, show N * (2 * Real.exp (-(m * (1 / 4 ^ k)) / 2)) =
+      2 * N * Real.exp (-(1 / (2 * 4 ^ k) * m)) by ring_nf]
+  exact Real.mul_exp_neg_le_of_log le_rfl (by positivity) (by positivity) hδ
+    (by rw [div_div_eq_mul_div, div_one]; linarith)
 
 end Cslib.MachineLearning.UniformLearning

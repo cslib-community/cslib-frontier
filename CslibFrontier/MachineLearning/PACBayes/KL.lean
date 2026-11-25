@@ -25,8 +25,8 @@ every `δ > 0`, with probability at least `1 - δ` every probability measure `Q`
 
 where `kl(q ‖ p)` is the binary relative entropy `Cslib.Probability.binaryKL q p`. The bound is
 implicit in the true risk; inverting `kl` in its second argument bounds `𝔼_Q L_D`, and the
-bound is tighter than McAllester's (`Cslib.MachineLearning.PACBayes.Basic`) when the empirical
-risk is small.
+bound is tighter than McAllester's (`CslibFrontier.MachineLearning.PACBayes.Basic`) when the
+empirical risk is small.
 
 The proof follows [Seeger2002, Appendix A] and [Maurer2004, Section 3]: the change-of-measure
 inequality applied to
@@ -108,7 +108,7 @@ private theorem ae_empiricalRisk_eq_one {i : ι} (hℓ : Measurable (ℓ i))
 
 /-- On almost every nonempty sample, every hypothesis whose true risk is `0` or `1` has the same
 empirical risk. -/
-private theorem ae_forall_empiricalRisk_eq [Countable ι] (hℓ : ∀ i, Measurable (ℓ i))
+theorem ae_forall_empiricalRisk_eq [Countable ι] (hℓ : ∀ i, Measurable (ℓ i))
     (hℓ01 : ∀ i z, ℓ i z ∈ Set.Icc (0 : ℝ) 1) {m : ℕ} (hm : 0 < m) :
     ∀ᵐ S ∂Measure.pi (fun _ : Fin m => D), ∀ i,
       (trueRisk ℓ D i = 0 → empiricalRisk ℓ S i = 0) ∧
@@ -188,7 +188,7 @@ theorem measure_pi_exists_binaryKL_integral_risk_gt (hℓ : ∀ i, Measurable (�
   have hfint : ∫ i, f i ∂Q = m * ∫ i, binaryKL (empiricalRisk ℓ S i) (trueRisk ℓ D i) ∂Q :=
     integral_const_mul _ _
   rw [div_lt_iff₀ hmR] at hlt
-  nlinarith
+  linarith [mul_le_mul_of_nonneg_left hj hmR.le]
 
 /-- **The Occam form of the PAC-Bayes-kl bound**: taking point-mass posteriors, with probability at
 least `1 - δ` every index `i` with `P {i} > 0` satisfies

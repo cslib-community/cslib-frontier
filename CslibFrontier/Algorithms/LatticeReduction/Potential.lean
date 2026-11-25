@@ -103,16 +103,11 @@ theorem gramPrefixDet_eq_det (b : Fin n → E) {k : ℕ} (hk : k ≤ n) :
     gramPrefixDet b k = (Matrix.gram ℝ (b ∘ Fin.castLE hk)).det := by
   rw [det_gram_eq_prod_norm_gramSchmidt_sq, gramPrefixDet]
   symm
-  refine Finset.prod_bij (fun j _ => Fin.castLE hk j) ?_ ?_ ?_ ?_
-  · intro j _
-    simp
-  · intro j₁ _ j₂ _ h
-    exact Fin.castLE_injective hk h
-  · intro j hj
-    refine ⟨⟨j, (Finset.mem_filter.1 hj).2⟩, Finset.mem_univ _, Fin.ext rfl⟩
-  · intro j _
-    rw [gramSchmidt_comp b (Fin.strictMono_castLE hk) (isLowerSet_range_castLE hk)]
-    rfl
+  refine Finset.prod_bij (fun j _ => Fin.castLE hk j) (fun _ _ => by simp)
+    (fun _ _ _ _ h => Fin.castLE_injective hk h)
+    (fun j hj => ⟨⟨j, (Finset.mem_filter.1 hj).2⟩, Finset.mem_univ _, Fin.ext rfl⟩) fun j _ => ?_
+  rw [gramSchmidt_comp b (Fin.strictMono_castLE hk) (isLowerSet_range_castLE hk)]
+  rfl
 
 /-- All inner products `⟪bᵢ, bⱼ⟫` are integers, as for a basis of a sublattice of `ℤᵐ`. -/
 @[expose] def HasIntegralGram (b : Fin n → E) : Prop :=
@@ -169,18 +164,13 @@ theorem exists_int_inner_of_mem_span {b : Fin n → E} (hb : HasIntegralGram b)
     (hy : y ∈ Submodule.span ℤ (Set.range b)) :
     ∃ z : ℤ, inner ℝ x y = z := by
   choose Z hZ using hb
-  obtain ⟨u, hu⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hx
-  obtain ⟨w, hw⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hy
+  obtain ⟨u, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hx
+  obtain ⟨w, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun ℤ).1 hy
   refine ⟨∑ k, ∑ l, u k * w l * Z k l, ?_⟩
-  rw [← hu, ← hw, sum_inner]
+  simp_rw [sum_inner, inner_sum, ← Int.cast_smul_eq_zsmul ℝ, inner_smul_left, inner_smul_right, hZ,
+    conj_trivial]
   push_cast
-  refine Finset.sum_congr rfl fun k _ => ?_
-  rw [inner_sum]
-  refine Finset.sum_congr rfl fun l _ => ?_
-  rw [← Int.cast_smul_eq_zsmul ℝ, ← Int.cast_smul_eq_zsmul ℝ, inner_smul_left, inner_smul_right,
-    hZ]
-  simp only [conj_trivial]
-  ring
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
 
 /-- Integral inner products pass to families inside the integer span. -/
 theorem HasIntegralGram.of_span_le {m : ℕ} {b : Fin n → E} {c : Fin m → E}
@@ -196,12 +186,9 @@ theorem HasIntegralGram.of_span_le {m : ℕ} {b : Fin n → E} {c : Fin m → E}
 theorem IsSizeStep.gramSchmidt_eq {b c : Fin n → E} (h : IsSizeStep b c) :
     gramSchmidt ℝ c = gramSchmidt ℝ b := by
   obtain ⟨i, j, hji, r, rfl⟩ := h
-  have hv : -(r • b j) ∈ Submodule.span ℝ (b '' Set.Iio i) := by
-    refine neg_mem ?_
-    rw [← Int.cast_smul_eq_zsmul ℝ]
-    exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨j, hji, rfl⟩)
-  rw [sub_eq_add_neg]
-  exact gramSchmidt_update_add b hv
+  rw [sub_eq_add_neg, ← Int.cast_smul_eq_zsmul ℝ]
+  exact gramSchmidt_update_add b
+    (neg_mem (Submodule.smul_mem _ _ (Submodule.subset_span ⟨j, hji, rfl⟩)))
 
 omit [InnerProductSpace ℝ E] in
 /-- A size-reduction step preserves the integer span. -/
@@ -275,41 +262,36 @@ private theorem Iio_succ_eq_insert {i j : Fin n} (hij : (j : ℕ) = i + 1) :
 
 /-- Swapping `bᵢ` and `bᵢ₊₁` leaves the Gram–Schmidt vectors before `i` unchanged. -/
 theorem gramSchmidt_swap_of_lt {b : Fin n → E} {i j l : Fin n} (hij : (j : ℕ) = i + 1)
-    (hl : l < i) : gramSchmidt ℝ (b ∘ Equiv.swap i j) l = gramSchmidt ℝ b l := by
-  refine gramSchmidt_congr_Iic fun m hm => ?_
-  have hmi : m ≠ i := ne_of_lt (lt_of_le_of_lt hm hl)
-  have hmj : m ≠ j := by
-    intro h; subst h; rw [Fin.lt_def] at hl; rw [Fin.le_def] at hm; omega
-  simp only [Function.comp_apply, Equiv.swap_apply_of_ne_of_ne hmi hmj]
+    (hl : l < i) : gramSchmidt ℝ (b ∘ Equiv.swap i j) l = gramSchmidt ℝ b l :=
+  gramSchmidt_congr_Iic fun _ hm => congrArg b <| Equiv.swap_apply_of_ne_of_ne (hm.trans_lt hl).ne
+    (hm.trans_lt (hl.trans (Fin.lt_def.2 (by omega)))).ne
 
 /-- After swapping `bᵢ` and `bᵢ₊₁`, the new `i`-th Gram–Schmidt vector is
 `b*ᵢ₊₁ + μ (i+1) i • b*ᵢ` ([LenstraLenstraLovasz1982], (1.22)). -/
 theorem gramSchmidt_swap_self (b : Fin n → E) {i j : Fin n} (hij : (j : ℕ) = i + 1) :
     gramSchmidt ℝ (b ∘ Equiv.swap i j) i =
       gramSchmidt ℝ b j + gramSchmidtCoeff ℝ b j i • gramSchmidt ℝ b i := by
-  have hlt : i < j := by rw [Fin.lt_def]; omega
-  have himg : (b ∘ Equiv.swap i j) '' Set.Iio i = b '' Set.Iio i := by
-    refine Set.image_congr fun m hm => ?_
-    have hmi : m ≠ i := ne_of_lt hm
-    have hmj : m ≠ j := ne_of_lt (lt_trans hm hlt)
-    simp only [Function.comp_apply, Equiv.swap_apply_of_ne_of_ne hmi hmj]
-  have hci : (b ∘ Equiv.swap i j) i = b j := by simp
+  have hlt : i < j := Fin.lt_def.2 (by omega)
+  have himg : (b ∘ Equiv.swap i j) '' Set.Iio i = b '' Set.Iio i :=
+    Set.image_congr fun _ hm =>
+      congrArg b (Equiv.swap_apply_of_ne_of_ne (ne_of_lt hm) (lt_trans hm hlt).ne)
   symm
   refine eq_gramSchmidt_of_sub_mem_of_mem_orthogonal ?_ ?_
-  · rw [himg, hci, ← span_gramSchmidt_Iio ℝ b i]
+  · rw [himg, Function.comp_apply, Equiv.swap_apply_left, ← span_gramSchmidt_Iio ℝ b i]
     have hexp := gramSchmidt_add_sum_coeff (𝕜 := ℝ) b j
     rw [Iio_succ_eq_insert hij, Finset.sum_insert (by simp)] at hexp
-    have : gramSchmidt ℝ b j + gramSchmidtCoeff ℝ b j i • gramSchmidt ℝ b i - b j =
+    have hsub : gramSchmidt ℝ b j + gramSchmidtCoeff ℝ b j i • gramSchmidt ℝ b i - b j =
         -∑ l ∈ Finset.Iio i, gramSchmidtCoeff ℝ b j l • gramSchmidt ℝ b l := by
       conv_lhs => rw [hexp]
       abel
-    rw [this]
-    refine neg_mem (Submodule.sum_mem _ fun l hl => Submodule.smul_mem _ _ ?_)
-    exact Submodule.subset_span ⟨l, Finset.mem_Iio.1 hl, rfl⟩
+    rw [hsub]
+    exact neg_mem (Submodule.sum_mem _ fun l hl =>
+      Submodule.smul_mem _ _ (Submodule.subset_span ⟨l, Finset.mem_Iio.1 hl, rfl⟩))
   · rw [himg]
-    refine add_mem ?_ (Submodule.smul_mem _ _ (gramSchmidt_mem_orthogonal_span_Iio ℝ b i))
-    refine Submodule.orthogonal_le ?_ (gramSchmidt_mem_orthogonal_span_Iio ℝ b j)
-    exact Submodule.span_mono (Set.image_mono (Set.Iio_subset_Iio (le_of_lt hlt)))
+    exact add_mem (Submodule.orthogonal_le
+      (Submodule.span_mono (Set.image_mono (Set.Iio_subset_Iio hlt.le)))
+      (gramSchmidt_mem_orthogonal_span_Iio ℝ b j))
+      (Submodule.smul_mem _ _ (gramSchmidt_mem_orthogonal_span_Iio ℝ b i))
 
 /-- An exchange step at `i` makes `‖b*ᵢ‖²` smaller than `δ` times its old value. -/
 theorem IsSwapStep.exists_norm_sq_lt {δ : ℝ} {b c : Fin n → E} (h : IsSwapStep δ b c) :
@@ -344,17 +326,11 @@ theorem gramPrefixDet_swap_of_lt {b : Fin n → E} {i j : Fin n} (hij : (j : ℕ
     {m : ℕ} (hjm : (j : ℕ) < m) (hm : m ≤ n) :
     gramPrefixDet (b ∘ Equiv.swap i j) m = gramPrefixDet b m := by
   rw [gramPrefixDet_eq_det _ hm, gramPrefixDet_eq_det _ hm]
-  have hi : (i : ℕ) < m := by omega
-  have hcomp : (b ∘ Equiv.swap i j) ∘ Fin.castLE hm =
-      (b ∘ Fin.castLE hm) ∘ Equiv.swap (⟨i, hi⟩ : Fin m) ⟨j, hjm⟩ := by
-    funext l
-    simp only [Function.comp_apply]
-    rw [(Fin.castLE_injective hm).map_swap]
-    rfl
-  have hsub : Matrix.gram ℝ ((b ∘ Fin.castLE hm) ∘ Equiv.swap (⟨i, hi⟩ : Fin m) ⟨j, hjm⟩) =
-      (Matrix.gram ℝ (b ∘ Fin.castLE hm)).submatrix (Equiv.swap (⟨i, hi⟩ : Fin m) ⟨j, hjm⟩)
-        (Equiv.swap (⟨i, hi⟩ : Fin m) ⟨j, hjm⟩) := rfl
-  rw [hcomp, hsub, Matrix.det_submatrix_equiv_self]
+  let σ := Equiv.swap (⟨i, by omega⟩ : Fin m) ⟨j, hjm⟩
+  have hcomp : (b ∘ Equiv.swap i j) ∘ Fin.castLE hm = (b ∘ Fin.castLE hm) ∘ σ :=
+    funext fun l => congrArg b (((Fin.castLE_injective hm).map_swap ⟨i, by omega⟩ ⟨j, hjm⟩ l).symm)
+  rw [hcomp]
+  exact Matrix.det_submatrix_equiv_self σ (Matrix.gram ℝ (b ∘ Fin.castLE hm))
 
 /-- An exchange step decreases the potential by a factor less than `δ`
 ([LenstraLenstraLovasz1982], (1.23)). -/
@@ -363,21 +339,17 @@ theorem IsSwapStep.potential_lt {δ : ℝ} {b c : Fin n → E} (h : IsSwapStep �
   obtain ⟨i, j, hij, rfl, hlt⟩ := h.exists_norm_sq_lt
   have hmem : (i : ℕ) + 1 ∈ Finset.range n := Finset.mem_range.2 (by omega)
   have hrest : ∏ m ∈ (Finset.range n).erase (i + 1), gramPrefixDet (b ∘ Equiv.swap i j) m =
-      ∏ m ∈ (Finset.range n).erase (i + 1), gramPrefixDet b m := by
-    refine Finset.prod_congr rfl fun m hm => ?_
-    obtain ⟨hne, hmn⟩ := Finset.mem_erase.1 hm
-    rcases le_or_gt m i with hle | hgt
-    · exact gramPrefixDet_swap_of_le hij hle
-    · exact gramPrefixDet_swap_of_lt hij (by omega) (le_of_lt (Finset.mem_range.1 hmn))
-  have hpos : 0 < ∏ m ∈ (Finset.range n).erase (i + 1), gramPrefixDet b m :=
-    Finset.prod_pos fun m _ => gramPrefixDet_pos hb m
-  have hkey : gramPrefixDet (b ∘ Equiv.swap i j) (i + 1) < δ * gramPrefixDet b (i + 1) := by
-    rw [gramPrefixDet_succ, gramPrefixDet_succ, gramPrefixDet_swap_of_le hij le_rfl]
-    have := gramPrefixDet_pos hb i
-    nlinarith
+      ∏ m ∈ (Finset.range n).erase (i + 1), gramPrefixDet b m :=
+    Finset.prod_congr rfl fun m hm => by
+      obtain ⟨hne, hmn⟩ := Finset.mem_erase.1 hm
+      rcases le_or_gt m i with hle | _
+      · exact gramPrefixDet_swap_of_le hij hle
+      · exact gramPrefixDet_swap_of_lt hij (by omega) (Finset.mem_range.1 hmn).le
   rw [potential, potential, ← Finset.mul_prod_erase _ _ hmem, ← Finset.mul_prod_erase _ _ hmem,
     hrest, ← mul_assoc]
-  exact mul_lt_mul_of_pos_right hkey hpos
+  refine mul_lt_mul_of_pos_right ?_ (Finset.prod_pos fun m _ => gramPrefixDet_pos hb m)
+  rw [gramPrefixDet_succ, gramPrefixDet_succ, gramPrefixDet_swap_of_le hij le_rfl]
+  nlinarith [gramPrefixDet_pos hb i]
 
 /-- A size-reduction step preserves integral inner products. -/
 theorem HasIntegralGram.of_isSizeStep {b c : Fin n → E} (hb : HasIntegralGram b)
@@ -404,11 +376,8 @@ theorem swapCount_succ (δ : ℝ) (b : ℕ → Fin n → E) (T : ℕ)
     swapCount δ b (T + 1) =
       swapCount δ b T + if IsSwapStep δ (b T) (b (T + 1)) then 1 else 0 := by
   classical
-  unfold swapCount
-  rw [Finset.range_add_one, Finset.filter_insert]
-  split_ifs with h
-  · rw [Finset.card_insert_of_notMem (by simp)]
-  · rfl
+  simp only [swapCount, Finset.card_filter, Finset.sum_range_succ]
+  split_ifs <;> rfl
 
 private theorem run_invariant {δ : ℝ} (hδ : 0 < δ) {b : ℕ → Fin n → E}
     (hli : LinearIndependent ℝ (b 0)) (hint : HasIntegralGram (b 0))
@@ -460,12 +429,8 @@ theorem swapCount_le {δ B : ℝ} (hδ : 0 < δ) (hδ1 : δ < 1) {b : ℕ → Fi
     (hli : LinearIndependent ℝ (b 0)) (hint : HasIntegralGram (b 0)) (hB : ∀ i, ‖b 0 i‖ ^ 2 ≤ B)
     (T : ℕ) (hstep : ∀ t < T, IsStep δ (b t) (b (t + 1))) :
     (swapCount δ b T : ℝ) ≤ (n * (n - 1) / 2 : ℕ) * Real.log B / Real.log δ⁻¹ := by
-  have h := inv_pow_swapCount_le hδ hli hint hB T hstep
-  have hpos : 0 < δ⁻¹ ^ swapCount δ b T := pow_pos (inv_pos.2 hδ) _
-  have hlog := Real.log_le_log hpos h
-  rw [Real.log_pow, Real.log_pow] at hlog
-  have hl : 0 < Real.log δ⁻¹ := Real.log_pos (one_lt_inv₀ hδ |>.2 hδ1)
-  rw [le_div_iff₀ hl]
-  exact hlog
+  have hlog := Real.log_le_log (pow_pos (inv_pos.2 hδ) _)
+    (inv_pow_swapCount_le hδ hli hint hB T hstep)
+  rwa [Real.log_pow, Real.log_pow, ← le_div_iff₀ (Real.log_pos ((one_lt_inv₀ hδ).2 hδ1))] at hlog
 
 end Cslib.Algorithms.LatticeReduction
