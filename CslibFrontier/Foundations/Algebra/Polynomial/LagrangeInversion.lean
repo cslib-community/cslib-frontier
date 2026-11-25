@@ -164,14 +164,9 @@ private theorem coeff_derivative_mul_pow_eq [Field F] [CharZero F] [Algebra F R]
     (G : R[X]) (n j : ℕ) :
     (derivative G * G ^ n).coeff j =
       (((j : F) + 1) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff (j + 1) := by
-  have h := coeff_derivative_mul_pow G n j
-  have hn : ((n : F) + 1) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero n
-  have h' : ((n : F) + 1) • (derivative G * G ^ n).coeff j =
-      ((j : F) + 1) • (G ^ (n + 1)).coeff (j + 1) := by
-    rw [Algebra.smul_def, Algebra.smul_def, map_add, map_natCast, map_one,
-      map_add, map_natCast, map_one, h, mul_comm]
-  have h'' := congrArg (fun x => ((n : F) + 1)⁻¹ • x) h'
-  simpa only [smul_smul, inv_mul_cancel₀ hn, one_smul, mul_comm] using h''
+  rw [mul_comm ((j : F) + 1), ← smul_smul, eq_inv_smul_iff₀ (by exact_mod_cast Nat.succ_ne_zero n),
+    Algebra.smul_def, Algebra.smul_def, map_add, map_natCast, map_one, map_add, map_natCast,
+    map_one, coeff_derivative_mul_pow, mul_comm]
 
 variable (F) in
 /-- `∑ n ≤ N, [y ^ n] ((1 - G') G ^ n) = 1 - [y ^ (N + 1)] G ^ (N + 1)`, over an algebra over a
@@ -215,10 +210,7 @@ theorem sum_coeff_mul_pow_sub_eval_mem [Field F] [CharZero F] [Algebra F R] {G :
     rw [h']
     exact Ideal.add_mem _ h1 (Ideal.mul_mem_right _ _ hf)
   have hDw : HasWeight J 1 D := hasWeight_one_of_coeff_mem hD0
-  have hfac : X - G = (X - C f) * (1 - D) := by
-    have : G = C f + (X - C f) * D := by rw [← hD]; ring
-    rw [this]
-    ring
+  have hfac : X - G = (X - C f) * (1 - D) := by linear_combination -hD
   -- `H = H (f) + (y - f) K`
   obtain ⟨K, hK⟩ : X - C f ∣ H - C (H.eval f) := X_sub_C_dvd_sub_C_eval
   set E := ∑ i ∈ range (2 * e), D ^ i with hE
@@ -244,7 +236,6 @@ theorem sum_coeff_mul_pow_sub_eval_mem [Field F] [CharZero F] [Algebra F R] {G :
       ← sum_add_distrib]
     refine sum_congr rfl fun n _ => ?_
     rw [hH, add_mul, add_mul, coeff_add, coeff_add, mul_assoc (C _), coeff_C_mul]
-  rw [hsum]
   have e1 : (G ^ (N + 1)).coeff (N + 1) ∈ J ^ e :=
     Ideal.pow_le_pow_right (by omega) ((hG.pow (N + 1)) (N + 1))
   have e2 : (K * (1 - derivative G) * E * G ^ (N + 1)).coeff N ∈ J ^ e :=
@@ -255,17 +246,10 @@ theorem sum_coeff_mul_pow_sub_eval_mem [Field F] [CharZero F] [Algebra F R] {G :
     have hw : HasWeight J (0 + 1 * (2 * e)) ((X - C f) * K * (1 - derivative G) * D ^ (2 * e)) :=
       (hasWeight_zero _).mul (hDw.pow (2 * e))
     exact Ideal.pow_le_pow_right (by omega) (sum_coeff_mul_pow_mem hG hw N)
-  have key : H.eval f * (1 - (G ^ (N + 1)).coeff (N + 1)) +
-      (-(K * (1 - derivative G) * E * G ^ (N + 1)).coeff N +
-        ∑ n ∈ range (N + 1),
-          ((X - C f) * K * (1 - derivative G) * D ^ (2 * e) * G ^ n).coeff n) - H.eval f =
-      -(H.eval f * (G ^ (N + 1)).coeff (N + 1)) +
-        (-(K * (1 - derivative G) * E * G ^ (N + 1)).coeff N +
-          ∑ n ∈ range (N + 1),
-            ((X - C f) * K * (1 - derivative G) * D ^ (2 * e) * G ^ n).coeff n) := by ring
-  rw [key]
-  exact Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 (Ideal.mul_mem_left _ _ e1))
-    (Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 e2) e3)
+  convert Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 (Ideal.mul_mem_left _ (H.eval f) e1))
+    (Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 e2) e3) using 1
+  rw [hsum]
+  ring
 
 /-- **Lagrange inversion for a fixed point.** Let `G` be a polynomial whose coefficients of `1`
 and `y` lie in the ideal `J`, and `f ∈ J` with `G (f) = f`. Then
@@ -308,19 +292,12 @@ theorem sub_sum_coeff_pow_mem_of_eval_eq [Field F] [CharZero F] [Algebra F R] {G
     have hm : ((m : F) + 1) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero m
     rw [← one_smul F ((G ^ (m + 1)).coeff m), smul_smul, smul_smul, ← sub_smul, mul_one, mul_one]
     congr 1
-    calc (1 : F) - (m : F) * ((m : F) + 1)⁻¹
-        = (((m : F) + 1) - (m : F)) * ((m : F) + 1)⁻¹ := by rw [sub_mul, mul_inv_cancel₀ hm]
-      _ = ((m : F) + 1)⁻¹ := by rw [add_sub_cancel_left, one_mul]
+    rw [sub_eq_iff_eq_add, ← one_add_mul, add_comm 1 (m : F), mul_inv_cancel₀ hm]
   rw [hsum] at hmain
   have htail : (((N : F)) * ((N : F) + 1)⁻¹) • (G ^ (N + 1)).coeff N ∈ J ^ e :=
     Submodule.smul_of_tower_mem _ _
       (Ideal.pow_le_pow_right (by omega) ((hG.pow (N + 1)) N))
-  have hres := Ideal.sub_mem _ (Ideal.neg_mem_iff _ |>.2 hmain) htail
-  have heq : f - ∑ m ∈ range N, ((m : F) + 1)⁻¹ • (G ^ (m + 1)).coeff m =
-      -(∑ m ∈ range N, ((m : F) + 1)⁻¹ • (G ^ (m + 1)).coeff m -
-        (((N : F)) * ((N : F) + 1)⁻¹) • (G ^ (N + 1)).coeff N - f) -
-        (((N : F)) * ((N : F) + 1)⁻¹) • (G ^ (N + 1)).coeff N := by ring
-  rw [heq]
-  exact hres
+  convert Ideal.sub_mem _ (Ideal.neg_mem_iff _ |>.2 hmain) htail using 1
+  abel
 
 end Polynomial
