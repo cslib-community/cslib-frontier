@@ -691,6 +691,11 @@ theorem eventually_gateSweep_lt_innerSize {r : ℕ} (hr : 2 ≤ r) (k₀ : ℕ)
       (isLittleO_logb_of_log hSK.isLittleO_log (Nat.card U)) hε)] with n hn σ I Acc c hfan hdec
   exact lt_of_not_ge (hn σ I Acc c hfan hdec)
 
+private theorem scale_lower_bound {b a ε n s : ℝ} (hb : 0 < b)
+    (h : (a - ε / b) * n < s) : (b * a - ε) * n < b * s := by
+  have hs := mul_lt_mul_of_pos_left h hb
+  rwa [← mul_assoc, mul_sub, mul_div_cancel₀ _ hb.ne'] at hs
+
 /-- Scaled `(r - 1) * c.innerSize` form of `eventually_gateSweep_lt_innerSize`. -/
 theorem eventually_gateSweep_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r) (k₀ : ℕ)
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
@@ -700,11 +705,18 @@ theorem eventually_gateSweep_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r) (k₀ : �
   have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := sub_pos.mpr (by exact_mod_cast hr)
   filter_upwards [eventually_gateSweep_lt_innerSize.{u, v} hr k₀ hSK
     (ε := ε / (r - 1 : ℝ)) (div_pos hε hr1_pos)] with n hn σ I Acc c hfan hdec
-  have hlt := mul_lt_mul_of_pos_left (hn σ I Acc c hfan hdec) hr1_pos
-  have hid : (r - 1 : ℝ) * ((gateSweepCoefficient r k₀ - ε / (r - 1 : ℝ)) * n) =
-      ((r - 1 : ℝ) * gateSweepCoefficient r k₀ - ε) * n := by
-    field_simp
-  rwa [hid] at hlt
+  exact scale_lower_bound hr1_pos (hn σ I Acc c hfan hdec)
+
+private theorem eventually_lt_mul_innerSize_of_le_gateSweepCoefficient {r : ℕ} (hr : 2 ≤ r)
+    (k₀ : ℕ) {a : ℝ} (ha : a ≤ (r - 1 : ℝ) * gateSweepCoefficient r k₀)
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
+        (a - ε) * n < (r - 1) * c.innerSize := by
+  filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} hr k₀ hSK hε] with
+    n hn σ I Acc c hfan hdec
+  exact (mul_le_mul_of_nonneg_right (sub_le_sub_right ha _) n.cast_nonneg).trans_lt
+    (hn σ I Acc c hfan hdec)
 
 /-- **Explicit `Ω(log r)` bounded-fan-in lower bound.** For every `r ≥ 2` and `ε > 0`, circuits of
 fan-in at most `r` deciding dense rectangle-free sets `S_n ⊆ U^n` satisfy
@@ -715,12 +727,7 @@ theorem eventually_log_sub_log_log_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
         (Real.logb 2 r - Real.logb 2 (Real.logb 2 r) - 1 - ε) * n < (r - 1) * c.innerSize := by
   obtain ⟨k₀, hk₀⟩ := exists_log_sub_log_log_le_mul_gateSweepCoefficient hr
-  filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} hr k₀ hSK hε] with
-    n hn σ I Acc c hfan hdec
-  have hle : (Real.logb 2 r - Real.logb 2 (Real.logb 2 r) - 1 - ε) * n ≤
-      ((r - 1 : ℝ) * gateSweepCoefficient r k₀ - ε) * n :=
-    mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg n)
-  exact hle.trans_lt (hn σ I Acc c hfan hdec)
+  exact eventually_lt_mul_innerSize_of_le_gateSweepCoefficient hr k₀ hk₀ hSK hε
 
 /-- At fan-in `r = 8` (`k₀ = 2`), `7 * c.innerSize > (28 / 9 - ε) n` (`28 / 9 ≈ 3.1111`). -/
 theorem eventually_twenty_eight_div_nine_lt_seven_mul_innerSize
@@ -728,11 +735,9 @@ theorem eventually_twenty_eight_div_nine_lt_seven_mul_innerSize
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 8 → c.Decides I Acc (S n) →
         (28 / 9 - ε) * n < 7 * c.innerSize := by
-  filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} (r := 8) (by decide) 2 hSK hε] with
-    n hn σ I Acc c hfan hdec
-  have h := hn σ I Acc c hfan hdec
-  norm_num [gateSweepCoefficient] at h
-  exact h
+  simpa only [Nat.cast_ofNat, show (8 : ℝ) - 1 = 7 by norm_num] using
+    eventually_lt_mul_innerSize_of_le_gateSweepCoefficient (r := 8) (by decide) 2
+      (by norm_num [gateSweepCoefficient]) hSK hε
 
 /-- At fan-in `r = 40` (`k₀ = 4`), `39 * c.innerSize > (78 / 17 - ε) n` (`78 / 17 ≈ 4.5882`,
 surpassing `4.57597`). -/
@@ -741,11 +746,9 @@ theorem eventually_seventy_eight_div_seventeen_lt_thirty_nine_mul_innerSize
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 40 → c.Decides I Acc (S n) →
         (78 / 17 - ε) * n < 39 * c.innerSize := by
-  filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} (r := 40) (by decide) 4 hSK hε] with
-    n hn σ I Acc c hfan hdec
-  have h := hn σ I Acc c hfan hdec
-  norm_num [gateSweepCoefficient] at h
-  exact h
+  simpa only [Nat.cast_ofNat, show (40 : ℝ) - 1 = 39 by norm_num] using
+    eventually_lt_mul_innerSize_of_le_gateSweepCoefficient (r := 40) (by decide) 4
+      (by norm_num [gateSweepCoefficient]) hSK hε
 
 /-- At fan-in `r = 64` (`k₀ = 4`), `63 * c.innerSize > (126 / 25 - ε) n` (`5.04 n`). -/
 theorem eventually_one_hundred_twenty_six_div_twenty_five_lt_sixty_three_mul_innerSize
@@ -753,11 +756,9 @@ theorem eventually_one_hundred_twenty_six_div_twenty_five_lt_sixty_three_mul_inn
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 64 → c.Decides I Acc (S n) →
         (126 / 25 - ε) * n < 63 * c.innerSize := by
-  filter_upwards [eventually_gateSweep_lt_mul_innerSize.{u, v} (r := 64) (by decide) 4 hSK hε] with
-    n hn σ I Acc c hfan hdec
-  have h := hn σ I Acc c hfan hdec
-  norm_num [gateSweepCoefficient] at h
-  exact h
+  simpa only [Nat.cast_ofNat, show (64 : ℝ) - 1 = 63 by norm_num] using
+    eventually_lt_mul_innerSize_of_le_gateSweepCoefficient (r := 64) (by decide) 4
+      (by norm_num [gateSweepCoefficient]) hSK hε
 
 end Family1
 
@@ -1145,11 +1146,8 @@ theorem eventually_four_mul_div_lt_mul_innerSize_of_nondeterministicDecides {r :
   have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := sub_pos.mpr (by exact_mod_cast hr)
   filter_upwards [eventually_four_div_lt_innerSize_of_nondeterministicDecides.{u, v} hr hSK
     (ε := ε / (r - 1 : ℝ)) (div_pos hε hr1_pos)] with n hn k σ I Acc c hfan hndec
-  have hlt := mul_lt_mul_of_pos_left (hn k σ I Acc c hfan hndec) hr1_pos
-  have hid : (r - 1 : ℝ) * ((4 / (r + 1 : ℝ) - ε / (r - 1 : ℝ)) * n) =
-      (4 * (r - 1 : ℝ) / (r + 1 : ℝ) - ε) * n := by
-    field_simp
-  rwa [hid] at hlt
+  simpa only [mul_div_assoc', mul_comm (4 : ℝ)] using
+    scale_lower_bound hr1_pos (hn k σ I Acc c hfan hndec)
 
 end Family4
 
