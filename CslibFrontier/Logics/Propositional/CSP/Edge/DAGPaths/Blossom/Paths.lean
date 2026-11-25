@@ -215,16 +215,12 @@ theorem copies_drop (w : Walk F) (ts : List ℕ) (n : ℕ) :
 /-- Copied-node distinctness is inherited by every variable-ended prefix. -/
 theorem DistinctCopies.take {w : Walk F} {ts : List ℕ} (h : w.DistinctCopies ts) (n : ℕ) :
     (w.take n).DistinctCopies (ts.take n) :=
-  ⟨by simp [Walk.take, h.1], by
-    rw [copies_take]
-    exact (List.take_sublist n _).nodup h.2⟩
+  ⟨by simp [Walk.take, h.1], copies_take w ts n ▸ (List.take_sublist n _).nodup h.2⟩
 
 /-- Copied-node distinctness is inherited by every variable-ended suffix. -/
 theorem DistinctCopies.drop {w : Walk F} {ts : List ℕ} (h : w.DistinctCopies ts) (n : ℕ) :
     (w.drop n).DistinctCopies (ts.drop n) :=
-  ⟨by simp [Walk.drop, h.1], by
-    rw [copies_drop]
-    exact (List.drop_sublist n _).nodup h.2⟩
+  ⟨by simp [Walk.drop, h.1], copies_drop w ts n ▸ (List.drop_sublist n _).nodup h.2⟩
 
 end Walk
 
@@ -304,13 +300,10 @@ theorem blossomDAG_copy_not_take [DecidableEq V] {w : Walk F} {ts : List ℕ}
     List.mem_toFinset]
   intro hm
   obtain ⟨k, hk, he⟩ := List.mem_iff_getElem.mp hm
-  have hkj : k < j := (List.length_take_le _ _).trans_lt' hk
-  have hkl : k < (w.copies ts).length := by
-    simp only [List.length_take] at hk
-    omega
+  simp only [List.length_take] at hk
   have hjl : j < (w.copies ts).length := by simp [Walk.copies, hd.1, hj]
-  have heq : k = j := (hd.2.getElem_inj_iff (hi := hkl) (hj := hjl)).mp (by
-    simpa only [List.getElem_take, Walk.getElem_copies w hd.1 j hj] using he)
+  have heq : k = j := (hd.2.getElem_inj_iff (hi := by omega) (hj := hjl)).mp
+    (by simpa only [List.getElem_take, Walk.getElem_copies w hd.1 j hj] using he)
   omega
 
 /-- The boundary step's copy is absent from every following whole step. -/
@@ -325,12 +318,10 @@ theorem blossomDAG_copy_not_drop [DecidableEq V] {w : Walk F} {ts : List ℕ}
     List.mem_toFinset]
   intro hm
   obtain ⟨k, hk, he⟩ := List.mem_iff_getElem.mp hm
-  have hkl : j + 1 + k < (w.copies ts).length := by
-    simp only [List.length_drop] at hk
-    omega
+  simp only [List.length_drop] at hk
   have hjl : j < (w.copies ts).length := by simp [Walk.copies, hd.1, hj]
-  have heq : j + 1 + k = j := (hd.2.getElem_inj_iff (hi := hkl) (hj := hjl)).mp (by
-    simpa only [List.getElem_drop, Walk.getElem_copies w hd.1 j hj] using he)
+  have heq : j + 1 + k = j := (hd.2.getElem_inj_iff (hi := by omega) (hj := hjl)).mp
+    (by simpa only [List.getElem_drop, Walk.getElem_copies w hd.1 j hj] using he)
   omega
 
 /-- The support of the displayed blossom is exactly its base and actual used variables. -/

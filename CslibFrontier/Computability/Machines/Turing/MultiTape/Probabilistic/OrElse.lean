@@ -327,11 +327,9 @@ variable (W : Fin k₁ → ℤ → Option Bool) (P : Fin k₁ → ℤ) (F : ℤ 
 
 private theorem apply_secondAction (c : Cfg k₂ Bool S₂ input) (a : Turing.Action k₂ Bool S₂) :
     (secondAction (k₁ := k₁) a).apply (embed₂ W P F c) = embed₂ W P F (a.apply c) := by
-  refine Cfg.ext ?_ rfl ?_ ?_ ?_
-  · simp [secondAction, embed₂]
+  refine Cfg.ext (by simp [secondAction, embed₂]) rfl ?_ ?_ (by simp [secondAction, embed₂])
   · apply funext_layout <;> simp [secondAction, embed₂, Turing.Action.apply_workTapes]
   · apply funext_layout <;> simp [secondAction, embed₂]
-  · simp [secondAction, embed₂]
 
 private theorem step_cont_embed₂ (second : MultiTapePTM k₂ Bool S₂) (bit : Bool)
     (c : Config k₂ Bool S₂ Empty input) :
@@ -534,19 +532,15 @@ private theorem eval_runClosedConfigFrom_orElse (t₁ t₂ : ℕ)
     hP1, Probability.PMF.monad_bind_eq_bind, PMF.bind_map]
   case hfirst =>
     intro r hr
-    rw [hP1] at hr
-    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hr
+    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp (hP1 ▸ hr)
     simp [liftCfg, embed₁, h₁ c hc]
   case hsecond =>
     intro r hr final hfinal
-    rw [hP1] at hr
-    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hr
-    rw [eval_cont_start second t₂ h₂ c (h₁ c hc)] at hfinal
-    exact halted_of_mem_support_contResult second t₂ h₂ c hfinal
-  apply Probability.PMF.bind_congr_on_support
-  intro c hc
-  simp only [Function.comp_apply]
-  rw [eval_cont_start second t₂ h₂ c (h₁ c hc)]
+    obtain ⟨c, hc, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp (hP1 ▸ hr)
+    exact halted_of_mem_support_contResult second t₂ h₂ c
+      (eval_cont_start second t₂ h₂ c (h₁ c hc) ▸ hfinal)
+  exact Probability.PMF.bind_congr_on_support _ _ _ fun c hc =>
+    congrArg (PMF.map Sequential.right) (eval_cont_start second t₂ h₂ c (h₁ c hc))
 
 /-! ### Space -/
 

@@ -166,8 +166,8 @@ theorem endpointNeighbor_eq (G : Graph)
     G.endpointNeighbor i side = Layout.center (G.vertices.idxOf (G.edgeEndpoint i side)) +
       Layout.portStep (portAt G.canonicalPorts i side) := by
   cases side
-  · exact unitPath_first_neighbor G hG hloop hi (0, 0)
-  · exact unitPath_last_neighbor G hG hloop hi (0, 0)
+  exacts [unitPath_first_neighbor G hG hloop hi (0, 0),
+    unitPath_last_neighbor G hG hloop hi (0, 0)]
 
 /-- Different edge occurrences at the same source center use different unit neighbors. -/
 theorem endpointNeighbor_ne (G : Graph)
@@ -278,14 +278,10 @@ theorem unitPath_interior_index (G : Graph)
     (hk : k < (G.unitPath i).length) {p : Point} (heq : (G.unitPath i)[k] = p)
     (hcenter : p ∉ G.orthogonalPositions) : 0 < k ∧ k + 1 < (G.unitPath i).length := by
   have hne := unitPath_not_endpoints G hG hloop hi hcenter
-  constructor
-  · by_contra h
-    apply hne.1
-    obtain rfl : k = 0 := by omega
+  refine ⟨Nat.pos_of_ne_zero fun h => hne.1 ?_, by_contra fun h => hne.2 ?_⟩
+  · subst h
     rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hk, heq]
-  · by_contra h
-    apply hne.2
-    rw [List.getLast?_eq_getElem?, show (G.unitPath i).length - 1 = k by omega,
+  · rw [List.getLast?_eq_getElem?, show (G.unitPath i).length - 1 = k by omega,
       List.getElem?_eq_getElem hk, heq]
 
 private theorem pair_mem_at {r : Route} {k : ℕ} (hk : k + 1 < r.length) :
@@ -512,19 +508,13 @@ theorem BridgeStemCrossing.not_listed {G : Graph}
   have hx := hc.horizontal
   dsimp only [pathColumn] at hx
   have hy := hc.vertical hG hj
-  constructor
-  · intro hp
-    rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hp
+  refine ⟨fun hp => ?_, fun hp => ?_⟩
+  · rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hp
     rcases listed_on_upper_track (hindex i hi false) (hindex i hi true) _ _ hp hrow with
-      heq | heq <;>
-      have : p.1 = _ := congrArg Prod.fst heq <;>
-      omega
-  · intro hp
-    rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hp
+      rfl | rfl <;> omega
+  · rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hp
     rcases listed_on_upper_track (hindex j hj false) (hindex j hj true) _ _ hp hrow with
-      heq | heq <;>
-      have : p.2 = Layout.track G.vertices.length j := congrArg Prod.snd heq <;>
-      omega
+      rfl | rfl <;> omega
 
 /-- A strict crossing produces actual consecutive opposite horizontal/vertical unit neighbors
 on its two paths. Both the positions and their traversal order come from the canonical data. -/
