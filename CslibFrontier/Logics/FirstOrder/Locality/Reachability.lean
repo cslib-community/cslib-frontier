@@ -167,7 +167,8 @@ private theorem isNbhdIso_shift {r : ℕ} {a b : Fin N} (ha : r ≤ (a : ℕ)) (
     simp only at this
     exact Fin.ext (by omega)
   · rw [mem_ball_covBy] at hy
-    exact ⟨⟨y + a - b, by omega⟩, mem_ball_covBy.2 (by simp only; omega),
+    exact ⟨⟨y + a - b, by omega⟩,
+      mem_ball_covBy.2 (by simp only; omega),
       Fin.ext (by simp only; omega)⟩
   · rintro _ ⟨⟩ t ht
     have h0 := mem_ball_covBy.1 (ht 0)
@@ -194,10 +195,9 @@ theorem realize_swap_covBy {n : ℕ} {φ : Language.graph.Formula (Fin 2)}
     (isNbhdIso_shift (r := r) (by omega) (by omega) (by omega) (by omega))
     (isNbhdIso_shift (r := r) (a := b) (b := a) (by omega) (by omega) (by omega) (by omega))
     (fun _ => far) (fun _ => by rwa [SimpleGraph.edist_comm])
-  rw [show (Fin.snoc (fun _ : Fin 1 => a) b : Fin 2 → Fin N) = ![a, b] by
-      ext i; fin_cases i <;> rfl,
-    show (Fin.snoc (fun _ : Fin 1 => b) a : Fin 2 → Fin N) = ![b, a] by
-      ext i; fin_cases i <;> rfl] at H
+  have hsnoc (x y : Fin N) : (Fin.snoc (fun _ : Fin 1 => x) y : Fin 2 → Fin N) = ![x, y] :=
+    funext fun i => by fin_cases i <;> rfl
+  rw [hsnoc, hsnoc] at H
   exact H.formula_realize_iff hφ
 
 /-- A formula that defines on the successor relation a relation `Q` with `Q a b` and `¬ Q b a`
@@ -329,10 +329,9 @@ theorem nbhdIso_sum {r : ℕ} {u v : V} (huv : ((2 * r + 1 : ℕ) : ℕ∞) < G.
       rw [gaifmanGraph_structure, SimpleGraph.edist_eq_top_of_not_reachable
         (SimpleGraph.not_reachable_sum_inl_inr u v)]
       exact ENat.natCast_lt_top _
-  rwa [show (Fin.snoc (fun _ : Fin 1 => (Sum.inl u : V ⊕ V)) (.inl v) : Fin 2 → _) =
-      ![.inl u, .inl v] by ext i; fin_cases i <;> rfl,
-    show (Fin.snoc (fun _ : Fin 1 => (Sum.inl u : V ⊕ V)) (.inr v) : Fin 2 → _) =
-      ![.inl u, .inr v] by ext i; fin_cases i <;> rfl] at H
+  have hsnoc (x y : V ⊕ V) : (Fin.snoc (fun _ : Fin 1 => x) y : Fin 2 → V ⊕ V) = ![x, y] :=
+    funext fun i => by fin_cases i <;> rfl
+  rwa [hsnoc, hsnoc] at H
 
 /-- **Gaifman locality in a disjoint union of two copies**: if `u` and `v` are at distance more
 than `3 ^ (n + 1)` in a finite graph `G`, then `(inl u, inl v)` and `(inl u, inr v)` satisfy the

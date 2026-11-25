@@ -123,7 +123,8 @@ theorem length_endpoints (E : List WeightedEdge) : (endpoints E).length = 2 * E.
   | nil => rfl
   | cons _ _ ih =>
     simp only [endpoints, List.flatMap_cons, List.length_append, List.length_cons,
-      List.length_nil] at ih ⊢; omega
+      List.length_nil] at ih ⊢
+    omega
 
 end MaxCut
 
@@ -164,7 +165,8 @@ side of the cut among the endpoints and check the weight of the cut. -/
 theorem computableInPolyTime_check :
     ComputableInPolyTime (Function.uncurry check) (encPair encMaxCut (encList encNat))
       encBool := by
-  unfold Function.uncurry check cutWeight crosses; fun_prop
+  unfold Function.uncurry check cutWeight crosses
+  fun_prop
 
 /-- The `MaxCut` verifier is polynomial-time. -/
 @[fun_prop]
@@ -186,9 +188,10 @@ theorem mem_MaxCut_iff_endpoints {x : MaxCutInstance} :
 /-- `MaxCut.verifier` verifies `MaxCut` with certificates of twice the length of the encoded
 instance. -/
 theorem isVerifier : IsVerifier encMaxCut (2 * Polynomial.X) verifier MaxCut := by
-  rw [show MaxCut = {x | ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ endpoints x.edges) ∧
-      x.bound ≤ cutWeight x.edges (fun v => decide (v ∈ S))} from
-    Set.ext fun _ => mem_MaxCut_iff_endpoints]
+  have hset : MaxCut = {x | ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ endpoints x.edges) ∧
+      x.bound ≤ cutWeight x.edges (fun v => decide (v ∈ S))} :=
+    Set.ext fun _ => mem_MaxCut_iff_endpoints
+  rw [hset]
   refine isVerifier_subsetVerifier (fun x => ?_) fun _ _ _ _ => by
     simp only [Function.uncurry_apply_pair, check, decide_eq_true_eq, List.mem_toFinset]
   rw [encMaxCut_apply]
@@ -236,10 +239,11 @@ theorem cutWeight_productEdges (a : List ℕ) (side : ℕ → Bool) (n : ℕ) :
   induction n with
   | zero => rfl
   | succ n ih =>
-    rw [show productEdges a (n + 1) = productEdges a n ++
-        (List.range n).map fun i => ⟨i, n, a.getD i 0 * a.getD n 0⟩ by
+    have hstep : productEdges a (n + 1) = productEdges a n ++
+        (List.range n).map fun i => ⟨i, n, a.getD i 0 * a.getD n 0⟩ := by
       simp only [productEdges, List.range_succ, List.flatMap_append, List.flatMap_cons,
-        List.flatMap_nil, List.append_nil], MaxCut.cutWeight_append, ih]
+        List.flatMap_nil, List.append_nil]
+    rw [hstep, MaxCut.cutWeight_append, ih]
     simp only [MaxCut.cutWeight, MaxCut.crosses, List.filter_map, List.map_map, Function.comp_def,
       List.range_succ, List.filter_append, List.filter_cons, List.filter_nil, List.map_append,
       List.sum_append]
@@ -274,7 +278,8 @@ theorem toMaxCut_mem_iff (a : List ℕ) : toMaxCut a ∈ MaxCut ↔ a ∈ Partit
   refine ⟨fun ⟨S, hS⟩ => ⟨fun v => decide (v ∈ S), ?_⟩, fun ⟨side, hside⟩ => ?_⟩
   · simp only [toMaxCut, cutWeight_productEdges] at hS
     rw [← hsplit fun v => decide (v ∈ S), ceil_quarter_sq_le_mul_iff] at hS
-    have := hsplit fun v => decide (v ∈ S); omega
+    have := hsplit fun v => decide (v ∈ S)
+    omega
   · set S := ((List.range a.length).filter side).toFinset with hS
     refine ⟨S, ?_⟩
     have h₁ : (List.range a.length).filter (fun v => decide (v ∈ S)) =
@@ -285,13 +290,15 @@ theorem toMaxCut_mem_iff (a : List ℕ) : toMaxCut a ∈ MaxCut ↔ a ∈ Partit
       List.filter_congr fun i hi => by simp [hS, List.mem_range.1 hi]
     simp only [toMaxCut, cutWeight_productEdges]
     rw [h₁, h₂, ← hsplit side, ceil_quarter_sq_le_mul_iff]
-    have := hsplit side; omega
+    have := hsplit side
+    omega
 
 /-- The reduction `toMaxCut` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toMaxCut :
     ComputableInPolyTime toMaxCut (encList encNat) encMaxCut := by
-  unfold toMaxCut productEdges; fun_prop
+  unfold toMaxCut productEdges
+  fun_prop
 
 end Partition
 

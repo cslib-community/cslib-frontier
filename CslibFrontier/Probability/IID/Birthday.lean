@@ -76,9 +76,11 @@ private theorem min_div_two_le_one_sub_exp_neg {x : ℝ} (h0 : 0 ≤ x) :
     min (x / 2) 0.63 ≤ 1 - Real.exp (-x) := by
   rcases le_total x 1 with h1 | h1
   · exact (min_le_left _ _).trans (by linarith [Real.exp_neg_le_one_sub_div_two h0 h1])
-  · have h2 := Real.exp_le_exp.2 (show -x ≤ -1 by linarith)
+  · refine (min_le_right _ _).trans ?_
+    have h2 : Real.exp (-x) ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
     have h3 := Real.exp_neg_one_lt_d9
-    exact (min_le_right _ _).trans (by norm_num at h3 ⊢; linarith)
+    norm_num at h3 ⊢
+    linarith
 
 /-! ### Mass of injective tuples -/
 
@@ -173,7 +175,9 @@ private theorem distinctMass_const (c : ℝ) : ∀ (k : ℕ) (s : Finset α),
       rw [distinctMass_const c k, Finset.card_erase_of_mem ha], Finset.sum_const, nsmul_eq_mul]
     rcases s.card with _ | m
     · simp
-    · rw [Nat.succ_descFactorial_succ, Nat.add_sub_cancel]; push_cast; ring
+    · rw [Nat.succ_descFactorial_succ, Nat.add_sub_cancel]
+      push_cast
+      ring
 
 /-- `distinctMass p k s` is the sum of `∏ i, p (v i)` over the injective `v : Fin k → α` with values
 in `s`. -/

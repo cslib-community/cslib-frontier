@@ -440,13 +440,17 @@ private theorem strict_between_of_continuousOn_injOn {g : ℝ → ℝ} {μ ε : 
       (hf.mono (Icc_subset_Icc_right (by linarith))) ⟨le_max_left _ _, (max_lt hL hR).le⟩
     obtain ⟨q₂, hq₂, hfq₂⟩ := intermediate_value_Icc' (by linarith : μ ≤ μ + ε)
       (hf.mono (Icc_subset_Icc_left (by linarith))) ⟨le_max_right _ _, (max_lt hL hR).le⟩
-    have hq : q₁ = q₂ := hfi ⟨hq₁.1, by linarith [hq₁.2]⟩ ⟨by linarith [hq₂.1], hq₂.2⟩
+    have hq : q₁ = q₂ := hfi
+      ⟨hq₁.1, by linarith [hq₁.2]⟩
+      ⟨by linarith [hq₂.1], hq₂.2⟩
       (hfq₁.trans hfq₂.symm)
     obtain rfl : q₁ = μ := le_antisymm hq₁.2 (hq ▸ hq₂.1)
     exact (max_lt hL hR).ne hfq₁.symm
+  have hL_mem : μ - ε ∈ Icc (μ - ε) (μ + ε) := ⟨le_rfl, by linarith⟩
   have hM_mem : μ ∈ Icc (μ - ε) (μ + ε) := ⟨by linarith, by linarith⟩
-  have hneL : g (μ - ε) ≠ g μ := fun heq => by linarith [hinj ⟨le_rfl, by linarith⟩ hM_mem heq]
-  have hneR : g (μ + ε) ≠ g μ := fun heq => by linarith [hinj ⟨by linarith, le_rfl⟩ hM_mem heq]
+  have hR_mem : μ + ε ∈ Icc (μ - ε) (μ + ε) := ⟨by linarith, le_rfl⟩
+  have hneL : g (μ - ε) ≠ g μ := fun heq => by linarith [hinj hL_mem hM_mem heq]
+  have hneR : g (μ + ε) ≠ g μ := fun heq => by linarith [hinj hR_mem hM_mem heq]
   rcases lt_or_gt_of_ne hneL with hL | hL <;> rcases lt_or_gt_of_ne hneR with hR | hR
   · exact (hpeak g hcont hinj hL hR).elim
   · exact Or.inl ⟨hL, hR⟩
@@ -540,7 +544,9 @@ private theorem IsRegularMarketClearing.concaveOn_priceTaking {D : ℝ → ℝ �
       rcases hbet with ⟨hL_lt, hR_gt⟩ | ⟨hR_lt, hL_gt⟩
       · exact ⟨μ - ε, μ + ε, uIcc_of_le (by linarith), hL_lt, hR_gt⟩
       · exact ⟨μ + ε, μ - ε, uIcc_of_ge (by linarith), hR_lt, hL_gt⟩
-    have hH_mem : H ∈ Icc (μ - ε) (μ + ε) := by rw [← hLH]; exact right_mem_uIcc
+    have hH_mem : H ∈ Icc (μ - ε) (μ + ε) := by
+      rw [← hLH]
+      exact right_mem_uIcc
     obtain ⟨N, hN⟩ := exists_nat_gt (D L t / (a - g L))
     refine ⟨N, fun n hn => ?_⟩
     have hn_gt : D L t / (a - g L) < ((n + 1 : ℕ) : ℝ) := by
@@ -552,9 +558,10 @@ private theorem IsRegularMarketClearing.concaveOn_priceTaking {D : ℝ → ℝ �
     have hhigh : Cseq n ≤ D H t + ((n + 1 : ℕ) : ℝ) * g H := by
       have hDt : 0 ≤ D H t := hD.smooth.nonneg _ (hsub_Ioi hH_mem) t ht0
       dsimp only [Cseq]; nlinarith
-    obtain ⟨q, hq_mem, hq_eq⟩ := intermediate_value_uIcc
-      (f := fun p => D p t + ((n + 1 : ℕ) : ℝ) * g p) (by rw [hLH]; exact hH_cont n)
-      (mem_uIcc_of_le hlow hhigh)
+    have hH_cont_uIcc : ContinuousOn (fun p => D p t + ((n + 1 : ℕ) : ℝ) * g p) (uIcc L H) := by
+      rw [hLH]
+      exact hH_cont n
+    obtain ⟨q, hq_mem, hq_eq⟩ := intermediate_value_uIcc hH_cont_uIcc (mem_uIcc_of_le hlow hhigh)
     rw [hLH] at hq_mem
     have hp_eq : pseq n = q := by
       rw [hD.smooth.clearingPrice_eq_iff (by simp) (hCseq_pos n) (hupd0_n n) (hupd_ne_n n)]
@@ -1657,7 +1664,8 @@ theorem IsRegularMarketClearing.existsUnique_isMarketNashEquilibrium
     exact ⟨by linarith, by linarith⟩
   set M_hi := (∑ i, lhs i 0) + 1
   have hl0_nonneg : ∀ j, 0 ≤ lhs j 0 := fun j => by
-    dsimp only [lhs]; rw [zero_div, sub_zero, mul_one]
+    dsimp only [lhs]
+    rw [zero_div, sub_zero, mul_one]
     exact ((hU j).derivWithin_pos le_rfl).le
   have hM_hi_pos : 0 < M_hi := by
     have : 0 ≤ ∑ i, lhs i 0 := Finset.sum_nonneg fun i _ => hl0_nonneg i
@@ -2690,9 +2698,10 @@ theorem IsMarketNashEquilibrium.elasticityEfficiencyBound_mul_welfare_le
       lam * (1 + (c - 1) * (y / C)) := by
     intro y
     rw [invPriceScale_powerElasticity hc hμ_pos, deriv_invPriceScale_powerElasticity hc hμ_pos]
-    have h1 : μ * μ ^ (c - 1) = μ ^ c := by
-      rw [mul_comm, ← Real.rpow_add_one hμ_pos.ne', sub_add_cancel]
-    rw [mul_left_comm μ c, h1]
+    have hmul_pow : μ * (c * μ ^ (c - 1)) = c * μ ^ c :=
+      calc μ * (c * μ ^ (c - 1)) = c * (μ * μ ^ (c - 1)) := by ring
+        _ = c * μ ^ c := by rw [mul_comm μ, ← Real.rpow_add_one hμ_pos.ne', sub_add_cancel]
+    rw [hmul_pow]
     dsimp only [lam]
     ring
   set modDeriv : ι → ℝ := fun i =>

@@ -108,7 +108,9 @@ lemma full_rank_four_max {ι : Type*} (Ya Yt : Finset ι) (e b₀ b₁ z₀ z₁
   refine kthLargest_le (add_nonneg (add_nonneg (add_nonneg kthLargest_nonneg kthLargest_nonneg)
     kthLargest_nonneg) kthLargest_nonneg) fun y hy => ?_
   have hite (f : ι → ℝ) : (if y ∈ Yt then |f y| else 0) ≤ kthLargest 1 Yt (fun y => |f y|) := by
-    split_ifs with ht; exacts [abs_le_kthLargest_one Yt f y ht, kthLargest_nonneg]
+    split_ifs with ht
+    · exact abs_le_kthLargest_one Yt f y ht
+    · exact kthLargest_nonneg
   linarith [h y hy, abs_le_kthLargest_one Ya b₀ y hy, abs_le_kthLargest_one Ya z₀ y hy,
     hite b₁, hite z₁]
 
@@ -123,7 +125,10 @@ lemma vertex_add_budget {Ω V : Type*} [Fintype Ω] [Fintype V]
     vertexNormPow_sum_le_pow_sum (X := X) (by norm_num : 4 ≠ 0) hNu (univ : Finset (Fin 2))
       (fun i => if i = 0 then f else g) (fun _ => 1) (fun i => if i = 0 then a else b)
       (fun _ _ => zero_le_one) (fun i _ => by fin_cases i <;> simp [ha, hb])
-      (fun i _ => by fin_cases i; exacts [by simpa using hf, by simpa using hg])
+      (fun i _ => by
+        fin_cases i
+        · simpa using hf
+        · simpa using hg)
 
 open Classical in
 /-- Monotonicity for nonnegative actual row envelopes in the same source environment. -/

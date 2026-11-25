@@ -82,20 +82,23 @@ def firstFlags (b : Fin n → F) (i : Fin n) : F :=
 
 /-- The flags of the zero vector are zero. -/
 theorem firstFlags_of_eq_zero {b : Fin n → F} (hb : b = 0) : firstFlags b = 0 := by
-  funext i; simp [firstFlags, hb]
+  funext i
+  simp [firstFlags, hb]
 
 /-- For `b ≠ 0`, `firstFlags b` is the indicator of the first index `j` with `b j ≠ 0`. -/
 theorem exists_firstFlags_eq_single {b : Fin n → F} (hb : b ≠ 0) :
     ∃ j, b j ≠ 0 ∧ (∀ i < j, b i = 0) ∧ firstFlags b = Pi.single j 1 := by
   have hne : (univ.filter fun i => b i ≠ 0).Nonempty :=
-    let ⟨i, hi⟩ := Function.ne_iff.1 hb; ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
+    let ⟨i, hi⟩ := Function.ne_iff.1 hb
+    ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
   set j := (univ.filter fun i => b i ≠ 0).min' hne
   have hj : b j ≠ 0 := (mem_filter.1 (min'_mem _ hne)).2
   have hlt : ∀ i < j, b i = 0 := fun i hi =>
     by_contra fun h => (min'_le _ i (mem_filter.2 ⟨mem_univ i, h⟩)).not_gt hi
   refine ⟨j, hj, hlt, funext fun i => ?_⟩
   rcases eq_or_ne i j with rfl | hij
-  · simp only [firstFlags, Pi.single_eq_same]; rw [ite_eq_left ⟨hj, hlt⟩]
+  · simp only [firstFlags, Pi.single_eq_same]
+    rw [ite_eq_left ⟨hj, hlt⟩]
   · rw [Pi.single_eq_of_ne hij, firstFlags, ite_eq_right]
     exact fun ⟨hi, h⟩ => hij (le_antisymm (not_lt.1 fun h' => hj (h j h'))
       (not_lt.1 fun h' => hi (hlt i h')))
@@ -125,7 +128,8 @@ theorem firstNonzero_eq_zero_iff {u : Fin n → F} : firstNonzero u = 0 ↔ u = 
 /-- Scaling by a nonzero constant does not move the first nonzero entry. -/
 private theorem firstFlags_smul {c : F} (hc : c ≠ 0) (u : Fin n → F) :
     firstFlags (c • u) = firstFlags u := by
-  funext i; simp [firstFlags, hc]
+  funext i
+  simp [firstFlags, hc]
 
 /-- Scaling a vector scales its first nonzero entry. -/
 theorem firstNonzero_smul (c : F) (u : Fin n → F) : firstNonzero (c • u) = c * firstNonzero u := by
@@ -137,7 +141,7 @@ theorem firstNonzero_smul (c : F) (u : Fin n → F) : firstNonzero (c • u) = c
 /-- A vector `u` is `firstNonzero u` times its normalization `(firstNonzero u)⁻¹ • u`. -/
 theorem firstNonzero_smul_inv_smul {u : Fin n → F} :
     firstNonzero u • (firstNonzero u)⁻¹ • u = u :=
-  if hu : u = 0 then by subst hu; simp
+  if hu : u = 0 then by simp [hu]
   else smul_inv_smul₀ (firstNonzero_eq_zero_iff.not.2 hu) u
 
 /-! ### Elimination -/
@@ -226,14 +230,16 @@ private theorem spansKernel_kernelBasisUpTo (A : Matrix (Fin r) (Fin n) F) (k : 
     by_cases hk : k < r
     · rw [kernelBasisUpTo, dite_eq_left hk]
       convert ih.kernelStep (A ⟨k, hk⟩) using 1
-      ext a; simp only [Set.mem_insert_iff, Set.mem_ofPred_eq]
+      ext a
+      simp only [Set.mem_insert_iff, Set.mem_ofPred_eq]
       exact ⟨fun ⟨l, hl, h⟩ => (Nat.lt_succ_iff_lt_or_eq.1 hl).elim
           (fun h' => Or.inr ⟨l, h', h⟩) (fun h' => Or.inl (h.trans (congrArg A (Fin.ext h')))),
         fun h => h.elim (fun h' => ⟨⟨k, hk⟩, Nat.lt_succ_self k, h'⟩)
           fun ⟨l, hl, h'⟩ => ⟨l, Nat.lt_succ_of_lt hl, h'⟩⟩
     · rw [kernelBasisUpTo, dite_eq_right hk]
       convert ih using 1
-      ext a; simp only [Set.mem_ofPred_eq]
+      ext a
+      simp only [Set.mem_ofPred_eq]
       exact ⟨fun ⟨l, _, h⟩ => ⟨l, by omega, h⟩, fun ⟨l, _, h⟩ => ⟨l, by omega, h⟩⟩
 
 /-- The final family spans the kernel of `A`. -/
@@ -269,6 +275,7 @@ theorem kernelVec_ne_zero (A : Matrix (Fin r) (Fin n) F) (h : ∃ v ≠ 0, A *�
       have hi := congrFun hb i
       simp only [Pi.zero_apply, ite_eq_left_iff, one_ne_zero, imp_false, not_not] at hi
       rw [hi, smul_zero]) hv
-  · rw [kernelVec, hsum]; simpa using hj
+  · rw [kernelVec, hsum]
+    simpa using hj
 
 end Cslib.LinearAlgebra

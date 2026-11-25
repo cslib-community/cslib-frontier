@@ -116,22 +116,19 @@ private theorem TwoFunction.of_fin {Φ : ℝ → ℝ → Prop} {S T : Set ℝ} {
     (h₀ : TwoFunction Φ S T p q ρ (Fin 0))
     (hstep : ∀ n, TwoFunction Φ S T p q ρ (Fin n) → TwoFunction Φ S T p q ρ (Fin n ⊕ Unit)) :
     TwoFunction Φ S T p q ρ ι := by
-  have hfin (n : ℕ) : TwoFunction Φ S T p q ρ (Fin n) := by
-    induction n with
-    | zero => exact h₀
-    | succ n ih =>
-      exact (hstep n ih).of_equiv
-        ((Equiv.sumCongr (Equiv.refl _) finOneEquiv.symm).trans finSumFinEquiv)
-  exact (hfin _).of_equiv (Fintype.equivFin ι).symm
+  exact (Nat.rec (motive := fun n => TwoFunction Φ S T p q ρ (Fin n)) h₀
+    (fun n ih => (hstep n ih).of_equiv
+      ((Equiv.sumCongr (Equiv.refl _) finOneEquiv.symm).trans finSumFinEquiv)) _).of_equiv
+    (Fintype.equivFin ι).symm
 
 /-- A two-function inequality holds on the cube over no coordinates. -/
 private theorem expect_mul_noiseOp_le_of_isEmpty [IsEmpty ι] {p q ρ : ℝ} (hp : p ≠ 0)
     (hq : q ≠ 0) (f g : (ι → Bool) → ℝ) :
     𝔼 x, f x * noiseOp ρ g x ≤ lpNorm p f * lpNorm q g := by
   let x₀ : ι → Bool := isEmptyElim
-  have h : (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ :=
-    funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty]
-  rw [h, Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀, ← abs_mul]
+  rw [show (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ from
+      funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty],
+    Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀, ← abs_mul]
   exact le_abs_self _
 
 /-- **The induction step**: two-function inequalities on the cubes over `ι` and over `κ` give
@@ -195,9 +192,9 @@ private theorem le_expect_mul_noiseOp_of_isEmpty [IsEmpty ι] {S T : Set ℝ}
     (hp : p ≠ 0) (hq : q ≠ 0) {f g : (ι → Bool) → ℝ} (hf : ∀ x, f x ∈ S) (hg : ∀ x, g x ∈ T) :
     lpNorm p f * lpNorm q g ≤ 𝔼 x, f x * noiseOp ρ g x := by
   let x₀ : ι → Bool := isEmptyElim
-  have h : (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ :=
-    funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty]
-  rw [h, Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀,
+  rw [show (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ from
+      funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty],
+    Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀,
     abs_of_nonneg (nonneg_of_mem hS (hf x₀)), abs_of_nonneg (nonneg_of_mem hT (hg x₀))]
 
 /-- **The induction step for reverse inequalities**: reverse two-function inequalities on the
@@ -213,17 +210,15 @@ private theorem le_expect_mul_noiseOp_sum {S T : Set ℝ} (hS : S = Set.Ici 0 �
   -- the norms of the restrictions, as functions of the bits in `ι`
   let F : (ι → Bool) → ℝ := fun x₁ => lpNorm p fun x₂ => f (Sum.elim x₁ x₂)
   let G : (ι → Bool) → ℝ := fun y₁ => lpNorm q fun y₂ => g (Sum.elim y₁ y₂)
-  have hr : 0 ≤ (1 - ρ) / 2 := by linarith
-  have hr' : (1 - ρ) / 2 ≤ 1 := by linarith
-  calc lpNorm p f * lpNorm q g = lpNorm p F * lpNorm q G := by
-        rw [lpNorm_sumElim p f, lpNorm_sumElim q g]
+  calc lpNorm p f * lpNorm q g
+      = lpNorm p F * lpNorm q G := by rw [lpNorm_sumElim p f, lpNorm_sumElim q g]
     _ ≤ 𝔼 x₁, F x₁ * noiseOp ρ G x₁ :=
         hι F G (fun _ => lpNorm_mem hS p fun _ => hf _) fun _ => lpNorm_mem hT q fun _ => hg _
     _ = 𝔼 x₁, bernoulliAverage ((1 - ρ) / 2) fun P => F x₁ * G (x₁ + P) := by
         simp only [noiseOp, bernoulliAverage_const_mul]
     _ ≤ 𝔼 x₁, bernoulliAverage ((1 - ρ) / 2) fun P => 𝔼 x₂, f (Sum.elim x₁ x₂) *
           noiseOp ρ (fun y₂ => g (Sum.elim (x₁ + P) y₂)) x₂ :=
-        expect_le_expect fun x₁ _ => bernoulliAverage_mono hr hr' fun P =>
+        expect_le_expect fun _ _ => bernoulliAverage_mono (by linarith) (by linarith) fun _ =>
           hκ _ _ (fun _ => hf _) fun _ => hg _
     _ = 𝔼 x, f x * noiseOp ρ g x := (expect_mul_noiseOp_sumElim ρ f g).symm
 

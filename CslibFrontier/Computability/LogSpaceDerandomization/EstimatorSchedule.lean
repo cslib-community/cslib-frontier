@@ -73,27 +73,33 @@ open scoped BigOperators
 /-- Both the prefix slack and the scale cutoff constrain each included positive budget. -/
 theorem le_lastBudget_iff {M d c m : ℕ} {h : ℤ} (hm : 0 < m) :
     m ≤ lastBudget M d c h ↔ m + d ≤ M ∧ m + scaleCutoff c h ≤ M := by
-  unfold lastBudget; omega
+  unfold lastBudget
+  omega
 
 /-- A scale with cutoff at least the parent budget has no layers in any prefix. -/
 theorem lastBudget_eq_zero_of_cutoff_le {M d c : ℕ} {h : ℤ}
     (hM : M ≤ scaleCutoff c h) : lastBudget M d c h = 0 := by
-  unfold lastBudget; omega
+  unfold lastBudget
+  omega
 
 /-- Increasing the required slack can only shorten the prefix. -/
-theorem lastBudget_antitone (M c : ℕ) (h : ℤ) : Antitone fun d => lastBudget M d c h :=
-  fun _ _ _ => by dsimp only [lastBudget]; omega
+theorem lastBudget_antitone (M c : ℕ) (h : ℤ) : Antitone fun d => lastBudget M d c h := by
+  intro d e hde
+  dsimp only [lastBudget]
+  omega
 
 /-- Every included child, including both budgets of each difference, is strictly earlier. -/
 theorem lastBudget_lt {M d c : ℕ} {h : ℤ} (hM : 0 < M) (hc : 0 < c) :
     lastBudget M d c h < M := by
   have : 0 < scaleCutoff c h := Nat.mul_pos hc (by omega)
-  unfold lastBudget; omega
+  unfold lastBudget
+  omega
 
 /-- The loss at the last budget is bounded even when that budget is zero. -/
 theorem budget_loss_le (M d c : ℕ) (h : ℤ) :
     M - lastBudget M d c h ≤ d + scaleCutoff c h := by
-  unfold lastBudget; omega
+  unfold lastBudget
+  omega
 
 /-- The paired differences telescope at each actual endpoint. The zero-budget value is
 explicit: clients may discard it only after proving that their budget-zero sample is zero. -/
@@ -230,10 +236,15 @@ theorem scheduled_binNormCost_error_le {A a a' b c₁ u u' C E : ℝ} (hA : 0 �
           (d : ℝ) / (16 * c) + 1 / 16) * scaleMajorant h)) ^ 4 := by
   have hcost := scheduled_child_cost_le_of_rate_le hA M d c i i' hc h hi ha hb hc₁ hba'
     hu huu' hscale
-  refine (mul_le_mul_of_nonneg_left hE (by positivity)).trans ?_
-  rw [← mul_pow, mul_left_comm, ← mul_assoc]
-  simpa only [mul_assoc] using
-    pow_le_pow_left₀ (by positivity) (mul_le_mul_of_nonneg_left hcost hC) 4
+  calc (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4)) ^ 4 * E
+      ≤ (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4)) ^ 4 *
+          (C * (2 : ℝ) ^ (-precision (16 * c) A (lastBudget M d c h) i' a' u')) ^ 4 :=
+        mul_le_mul_of_nonneg_left hE (by positivity)
+    _ = (C * (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4) *
+          (2 : ℝ) ^ (-precision (16 * c) A (lastBudget M d c h) i' a' u'))) ^ 4 := by ring
+    _ ≤ _ := by
+      simpa only [mul_assoc] using
+        pow_le_pow_left₀ (by positivity) (mul_le_mul_of_nonneg_left hcost hC) 4
 
 private theorem scaleMajorant_natCast (n : ℕ) :
     scaleMajorant (n : ℤ) = ((2 : ℝ) ^ (-(1 : ℝ) / 8)) ^ n := by

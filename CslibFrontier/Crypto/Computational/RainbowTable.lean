@@ -138,14 +138,16 @@ def rainbowChainPure (h : P → Y) (g : ℕ → Y → P) : ℕ → ℕ → P →
 /-- Zero columns leave the password unchanged. -/
 @[simp]
 theorem rainbowChainPure_zero (h : P → Y) (g : ℕ → Y → P) (start : ℕ) (pw : P) :
-    rainbowChainPure h g start 0 pw = pw := by rfl
+    rainbowChainPure h g start 0 pw = pw := by
+  rfl
 
 /-- Applying `len + 1` columns from `start` applies column `start` then `len` columns from
 `start + 1`. -/
 @[simp]
 theorem rainbowChainPure_succ (h : P → Y) (g : ℕ → Y → P) (start len : ℕ) (pw : P) :
     rainbowChainPure h g start (len + 1) pw =
-      rainbowChainPure h g (start + 1) len (g start (h pw)) := by rfl
+      rainbowChainPure h g (start + 1) len (g start (h pw)) := by
+  rfl
 
 /-- Splitting a rainbow chain of length `m + n` into `m` columns from `start` followed by `n`
 columns from `start + m`. -/
@@ -165,7 +167,8 @@ theorem rainbowChainPure_const (h : P → Y) (g₀ : Y → P) (start len : ℕ) 
     rainbowChainPure h (fun _ => g₀) start len pw = (fun x => g₀ (h x))^[len] pw := by
   induction len generalizing start pw with
   | zero => rfl
-  | succ len ih => rw [rainbowChainPure_succ, ih, Function.iterate_succ_apply]
+  | succ len ih =>
+    rw [rainbowChainPure_succ, ih, Function.iterate_succ_apply]
 
 /-- Oracle evaluation of `len` columns of a rainbow chain starting at column `start` from `pw`,
 querying `h : P → Y` once per column ([BonehShoup2023], Section 18.7, pp. 745–746). -/
@@ -289,19 +292,23 @@ def lookupCost {P : Type} : P ⊕ P → ℕ :=
 
 /-- A left (hash) query has `hashCost` `1`. -/
 @[simp]
-theorem hashCost_inl (x : P) : hashCost (Sum.inl x) = 1 := by rfl
+theorem hashCost_inl (x : P) : hashCost (Sum.inl x) = 1 := by
+  rfl
 
 /-- A right (table lookup) query has `hashCost` `0`. -/
 @[simp]
-theorem hashCost_inr (x : P) : hashCost (Sum.inr x) = 0 := by rfl
+theorem hashCost_inr (x : P) : hashCost (Sum.inr x) = 0 := by
+  rfl
 
 /-- A left (hash) query has `lookupCost` `0`. -/
 @[simp]
-theorem lookupCost_inl (x : P) : lookupCost (Sum.inl x) = 0 := by rfl
+theorem lookupCost_inl (x : P) : lookupCost (Sum.inl x) = 0 := by
+  rfl
 
 /-- A right (table lookup) query has `lookupCost` `1`. -/
 @[simp]
-theorem lookupCost_inr (x : P) : lookupCost (Sum.inr x) = 1 := by rfl
+theorem lookupCost_inr (x : P) : lookupCost (Sum.inr x) = 1 := by
+  rfl
 
 end TableAttackSpec
 
@@ -461,7 +468,8 @@ private theorem hashCost_chain (g : ℕ → Y → P) (s n : ℕ) (pw : P) :
 private theorem isCostBounded_lookupCost_rainbowAttackStep (g : ℕ → Y → P) (τ : ℕ) (y : Y)
     (k : ℕ) :
     OracleComp.IsCostBounded TableAttackSpec.lookupCost (rainbowAttackStep g τ y k) 1 := by
-  unfold rainbowAttackStep; rw [show (1 : ℕ) = 0 + (1 + 0) from rfl]
+  unfold rainbowAttackStep
+  rw [show (1 : ℕ) = 0 + (1 + 0) from rfl]
   refine (lookupCost_liftLeft _).bind fun z =>
     (((OracleComp.IsCostBounded.query (cost := fun _ : P => 1) z).liftRight
       fun q => (TableAttackSpec.lookupCost_inr q).le).bind fun
@@ -568,7 +576,8 @@ private theorem hellmanLoop_sound {h : P → Y} {lookup : P → Option P} {g₀ 
     rw [evalPure_hellmanLoop_succ] at heval
     cases hlk : lookup z <;> rw [hlk] at heval
     · exact ih heval
-    · dsimp only at heval; split_ifs at heval with hcheck
+    · dsimp only at heval
+      split_ifs at heval with hcheck
       · exact Option.some.inj heval ▸ hcheck
       · exact ih heval
 
@@ -591,18 +600,20 @@ private theorem exists_evalPure_hellmanLoop_of_lookup_eq_some {h : P → Y} {loo
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
     simp only [Function.iterate_zero_apply] at hlookup
     simp only [Nat.add_sub_cancel, Nat.sub_zero] at hy
-    rw [evalPure_hellmanLoop_succ, hlookup]; simp only [hy, ↓reduceIte]
+    rw [evalPure_hellmanLoop_succ, hlookup]
+    simp only [hy, ↓reduceIte]
     exact ⟨_, rfl, hy⟩
   | succ d ih =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
+    rw [show m + 1 - 1 - (d + 1) = m - 1 - d by omega] at hy
     rw [Function.iterate_succ_apply] at hlookup
-    have hrec := ih (rem := m) (by omega)
-      (by rwa [show m + 1 - 1 - (d + 1) = m - 1 - d by omega] at hy) hlookup
+    have hrec := ih (rem := m) (by omega) hy hlookup
     rw [evalPure_hellmanLoop_succ]
     cases lookup z with
     | none => exact hrec
     | some _ =>
-      dsimp only; split_ifs with hcheck
+      dsimp only
+      split_ifs with hcheck
       · exact ⟨_, rfl, hcheck⟩
       · exact hrec
 

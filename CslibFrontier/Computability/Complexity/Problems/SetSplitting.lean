@@ -127,7 +127,8 @@ namespace SetSplitting
 theorem computableInPolyTime_check :
     ComputableInPolyTime (Function.uncurry check) (encPair encSetSplitting (encList encNat))
       encBool := by
-  unfold Function.uncurry check; fun_prop
+  unfold Function.uncurry check
+  fun_prop
 
 /-- The `SetSplitting` verifier is polynomial-time. -/
 @[fun_prop]
@@ -138,8 +139,9 @@ theorem computableInPolyTime_verifier :
 /-- `SetSplitting.verifier` verifies `SetSplitting` with linear certificate length. -/
 theorem isVerifier : IsVerifier encSetSplitting Polynomial.X verifier SetSplitting := by
   refine isVerifier_subsetVerifier (fun x => ?_) fun x l _ _ => ?_
-  · have hle := length_le_length_encList encNat x.ground
-    rw [encSetSplitting_apply]; enc_len [Polynomial.eval_X]
+  · rw [encSetSplitting_apply]
+    have hle := length_le_length_encList encNat x.ground
+    enc_len [Polynomial.eval_X]
   · simp only [Function.uncurry, check, List.all_eq_true, Bool.and_eq_true, List.any_eq_true,
       decide_eq_true_eq, List.mem_toFinset]
 
@@ -167,7 +169,8 @@ theorem validBool_eq_true_iff (x : SetSplittingInstance) : x.validBool = true �
 @[fun_prop]
 theorem computableInPolyTime_validBool :
     ComputableInPolyTime validBool encSetSplitting encBool := by
-  unfold validBool; fun_prop
+  unfold validBool
+  fun_prop
 
 /-- Executable guard checking `x.Valid` together with uniform subset size `≤ k`. -/
 @[expose] def maxSetSizeBool (k : ℕ) (x : SetSplittingInstance) : Bool :=
@@ -183,7 +186,8 @@ theorem maxSetSizeBool_eq_true_iff (k : ℕ) (x : SetSplittingInstance) :
 @[fun_prop]
 theorem computableInPolyTime_maxSetSizeBool (k : ℕ) :
     ComputableInPolyTime (maxSetSizeBool k) encSetSplitting encBool := by
-  unfold maxSetSizeBool; fun_prop
+  unfold maxSetSizeBool
+  fun_prop
 
 /-- Number of ordered splitting bipartitions `(A, B)` of `x.ground.toFinset`. -/
 @[expose] noncomputable def count (x : SetSplittingInstance) : ℕ :=
@@ -208,14 +212,17 @@ theorem length_distinctGround (x : SetSplittingInstance) :
 
 theorem length_distinctGround_le_enc (x : SetSplittingInstance) :
     x.distinctGround.length ≤ (encSetSplitting x).length := by
+  rw [length_distinctGround]
+  refine x.ground.toFinset_card_le.trans ?_
   have hle := length_le_length_encList encNat x.ground
-  rw [length_distinctGround]; refine x.ground.toFinset_card_le.trans ?_
-  rw [encSetSplitting_apply]; enc_len
+  rw [encSetSplitting_apply]
+  enc_len
 
 @[fun_prop]
 theorem computableInPolyTime_distinctGround :
     ComputableInPolyTime distinctGround encSetSplitting (encList encNat) := by
-  unfold distinctGround; fun_prop
+  unfold distinctGround
+  fun_prop
 
 /-- Set-splitting CNF formula on the original variable names `ℕ`. -/
 @[expose] def toCNF (x : SetSplittingInstance) : CNF ℕ :=
@@ -304,15 +311,17 @@ theorem modelCountOn_toDeclaredCNF {x : SetSplittingInstance} (hx : x.Valid) :
     (List.idxOf_inj <| mem_distinctGround.mpr <| List.mem_toFinset.mp <|
       vars_toCNF_subset hx (List.mem_toFinset.mpr hu)).mp huv
   have hnum : x.toDeclaredCNF.formula.numVars = x.toCNF.numVars := by
-    rw [CNF.numVars, toDeclaredCNF, CNF.vars_relabel,
-      show (x.toCNF.vars.map x.distinctGround.idxOf).toFinset =
-        x.toCNF.vars.toFinset.image x.distinctGround.idxOf by ext; simp]
+    have hmap : (x.toCNF.vars.map x.distinctGround.idxOf).toFinset =
+        x.toCNF.vars.toFinset.image x.distinctGround.idxOf :=
+      Finset.ext fun _ => by simp
+    rw [CNF.numVars, toDeclaredCNF, CNF.vars_relabel, hmap]
     exact Finset.card_image_of_injOn fun u hu v hv =>
       hinj (List.mem_toFinset.mp hu) (List.mem_toFinset.mp hv)
+  have hmc : x.toDeclaredCNF.formula.modelCount = x.toCNF.modelCount :=
+    CNF.modelCount_relabel_of_injOn x.toCNF hinj
   rw [show x.toDeclaredCNF.numVars = x.distinctGround.length from rfl,
     CNF.modelCountOn_eq_mul_modelCount _ _ (vars_toDeclaredCNF_subset hx), Finset.card_range, hnum,
-    show x.toDeclaredCNF.formula.modelCount = x.toCNF.modelCount from
-      CNF.modelCount_relabel_of_injOn x.toCNF hinj, length_distinctGround,
+    hmc, length_distinctGround,
     ← CNF.modelCountOn_eq_mul_modelCount x.toCNF x.ground.toFinset (vars_toCNF_subset hx),
     modelCountOn_toCNF hx]
 
@@ -320,7 +329,8 @@ theorem modelCountOn_toDeclaredCNF {x : SetSplittingInstance} (hx : x.Valid) :
 @[fun_prop]
 theorem computableInPolyTime_toCNF :
     ComputableInPolyTime toCNF encSetSplitting encCNF := by
-  unfold toCNF CNF.setSplittingCNF; fun_prop
+  unfold toCNF CNF.setSplittingCNF
+  fun_prop
 
 /-- Compiling `x` to `x.toDeclaredCNF` is polynomial-time. -/
 @[fun_prop]

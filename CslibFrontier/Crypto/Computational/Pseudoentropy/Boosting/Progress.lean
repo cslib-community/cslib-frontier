@@ -97,10 +97,12 @@ theorem averagePotential_add_le (source : PMF α) {rate : ℝ} (hrate : 0 < rate
         (∑ x, (source x).toReal * (weight rate (margin x) * step x)) + rate / 2 := by
   have hpoint (x : α) : potential rate (margin x + step x) ≤
       potential rate (margin x) - weight rate (margin x) * step x + rate / 2 := by
-    obtain ⟨hlower, hupper⟩ := abs_le.mp (hstep x)
+    have hsq : step x ^ 2 ≤ 1 := by
+      obtain ⟨hlower, hupper⟩ := abs_le.mp (hstep x)
+      nlinarith
     have h := potential_le_quadratic hrate (margin x) (margin x + step x)
     simp only [add_sub_cancel_left] at h
-    linarith [mul_le_mul_of_nonneg_left (show step x ^ 2 ≤ 1 by nlinarith) hrate.le]
+    linarith [mul_le_mul_of_nonneg_left hsq hrate.le]
   simpa only [one_mul, mul_sub, Finset.sum_sub_distrib, averagePotential, add_comm] using
     sum_le_affine source (a := rate / 2) (b := 1)
       (bound := fun x => potential rate (margin x) - weight rate (margin x) * step x)
@@ -168,8 +170,9 @@ theorem step_progress (source : PMF α) {γ δ : ℝ} (hγ : 0 < γ) (hδ : 0 < 
   cases shift
   · simp only [Bool.false_eq_true, ite_false, sub_zero, add_zero] at h ⊢
     nlinarith [mul_nonneg (mul_pos hγ hδ).le (sub_nonneg.mpr hδone)]
-  · simp only [↓reduceIte] at h ⊢
-    linarith [shift_progress source hγ hδ margin (hguard rfl) (hbelow rfl)]
+  · have hshift := shift_progress source hγ hδ margin (hguard rfl) (hbelow rfl)
+    simp only [↓reduceIte] at h ⊢
+    linarith
 
 /-- A low potential forces a large signed margin on every dense soft set. This form of
 Claim 2.13 uses soft sets and arbitrary finite sources, avoiding any rounding of set sizes. -/
@@ -227,15 +230,21 @@ theorem dense_margin_of_iterations (source : PMF α) {γ δ : ℝ} (hγ : 0 < γ
     (hdensity : δ ≤ ∑ x, (source x).toReal * softSet x) :
     (∑ x, (source x).toReal * softSet x) * (steps * (γ * δ ^ 2 / 8)) ≤
       ∑ x, (source x).toReal * (softSet x * margin steps x) := by
+  have hrate := mul_pos hγ hδ
   have hprogress (i : ℕ) (hi : i ≤ steps) :
       averagePotential source (γ * δ) (fun x => margin i x - threshold i) ≤
         1 / (2 * (γ * δ)) + δ * threshold i - i * (γ * δ ^ 2 / 8) := by
     induction i with
     | zero => simp [hmargin, hthreshold]
-    | succ i ih => push_cast; linarith [ih (by lia), hstep i (by lia)]
-  exact dense_margin_of_budget source (mul_pos hγ hδ) hthreshold_nonneg (margin steps) softSet
-    hsoftSet hdensity ((div_le_iff₀ (by positivity : 0 < 2 * (γ * δ))).mpr (by nlinarith))
-    (hprogress steps le_rfl)
+    | succ i ih =>
+      have hprev := ih (by lia)
+      have hnext := hstep i (by lia)
+      push_cast
+      linarith
+  apply dense_margin_of_budget source hrate hthreshold_nonneg (margin steps) softSet
+    hsoftSet hdensity ?_ (hprogress steps le_rfl)
+  apply (div_le_iff₀ (by positivity : 0 < 2 * (γ * δ))).mpr
+  nlinarith
 
 /-- Integer upper bounds on the inverse advantage and density give a polynomial round count. -/
 theorem clock_sufficient (inverseGamma inverseDelta : ℕ) {γ δ : ℝ}

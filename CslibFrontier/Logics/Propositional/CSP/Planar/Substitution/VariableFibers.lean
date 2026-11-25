@@ -43,19 +43,15 @@ theorem mem_variableBlock_iff_targetName
         (replaceGadgets B (fun r => (gadgets r).template) F).vars.getD index 0 = 2 * v := by
   rw [mem_variableBlock_iff_occurrence _ _ F c hc v hv]
   constructor
-  · rintro ⟨s, hvar, hm⟩
-    let a : Fin (srcArity s.relation) := ⟨s.2.val, by
-      change s.2.val < srcArity F[s.1.val].rel
-      rw [← hF F[s.1.val] (List.getElem_mem s.1.isLt)]
-      exact s.2.isLt⟩
+  · rintro ⟨s, rfl, hm⟩
+    have ha : s.2.val < srcArity s.relation :=
+      hF F[s.1.val] (List.getElem_mem s.1.isLt) ▸ s.2.isLt
     obtain ⟨hb, hname⟩ := shifted_boundaryBlock_spec gadgets witnesses B F s.1.isLt
-      (Sum.inl a) hm
+      (Sum.inl ⟨s.2.val, ha⟩) hm
     refine ⟨hb, ?_⟩
-    rw [hname]
-    change 2 * F[s.1.val].scope.getD s.2.val 0 = 2 * v
-    rw [List.getD_eq_getElem _ _ s.2.isLt]
-    change 2 * s.var = 2 * v
-    rw [hvar]
+    rw [Sum.elim_inl] at hname
+    rw [hname, List.getD_eq_getElem _ _ s.2.isLt]
+    rfl
   · rintro ⟨hb, hname⟩
     obtain ⟨i, hi, o, ho⟩ := exists_gadgetCopy gadgets B F hb
     rw [← ho, List.getD_eq_getElem _ _ (copyIndex_lt_gadgetOccurrence gadgets B F hi o),
@@ -63,19 +59,13 @@ theorem mem_variableBlock_iff_targetName
     cases hlocal : o.var with
     | inl a =>
       simp only [hlocal, Sum.elim_inl] at hname
-      have hscope : F[i].scope.getD a.val 0 = v := by omega
-      have harg : a.val < F[i].scope.length := by
-        rw [hF F[i] (List.getElem_mem hi)]
-        exact a.isLt
-      let s : F.Occurrence := ⟨⟨i, hi⟩, ⟨a.val, harg⟩⟩
-      have hsvar : s.var = v := by
-        change F[i].scope[a.val] = v
-        rw [← List.getD_eq_getElem _ 0 harg]
-        exact hscope
-      refine ⟨s, hsvar, ?_⟩
-      change index ∈ shiftBlock (occurrencePrefix (fun r => (gadgets r).template) F i)
-        ((freeBoundaryBlocks (gadgets F[i].rel) (witnesses F[i].rel)).getD a.val [])
-      exact (mem_shiftBlock_boundaryBlock_iff _ _ _ (Sum.inl a) index).mpr ⟨o, ho, hlocal⟩
+      have harg : a.val < F[i].scope.length :=
+        (hF F[i] (List.getElem_mem hi)).symm ▸ a.isLt
+      have hsvar : F[i].scope[a.val] = v := by
+        rw [List.getD_eq_getElem _ 0 harg] at hname
+        omega
+      exact ⟨⟨⟨i, hi⟩, ⟨a.val, harg⟩⟩, hsvar,
+        (mem_shiftBlock_boundaryBlock_iff _ _ _ (Sum.inl a) index).mpr ⟨o, ho, hlocal⟩⟩
     | inr j =>
       simp only [hlocal, Sum.elim_inr] at hname
       omega
@@ -106,11 +96,9 @@ theorem mem_shifted_auxiliaryBlock_iff_targetName
       omega
     | inr b =>
       simp only [hlocal, Sum.elim_inr] at hname
-      have hcodes := (auxiliaryName_eq_iff (b.isLt.trans_le (hB _))
+      obtain ⟨rfl, he⟩ := (auxiliaryName_eq_iff (b.isLt.trans_le (hB _))
         (a.isLt.trans_le (hB _))).mp hname
-      obtain ⟨rfl, he⟩ := hcodes
-      have hba : b = a := Fin.ext he
-      subst b
+      obtain rfl : a = b := (Fin.ext he).symm
       exact (mem_shiftBlock_boundaryBlock_iff _ _ _ (Sum.inr a) index).mpr ⟨o, ho, hlocal⟩
 
 end Cslib.Complexity.CSP.GadgetRotation

@@ -60,7 +60,8 @@ private theorem computableInPolyTime_lighter (hw : ComputableInPolyTime w encI e
     ComputableInPolyTime (fun x : Option (List ι) × Option (List ι) => lighter w x.1 x.2)
       (encPair (encOption (encList encI)) (encOption (encList encI)))
       (encOption (encList encI)) := by
-  unfold lighter; fun_prop
+  unfold lighter
+  fun_prop
 
 private theorem computableInPolyTime_profitStep (hw : ComputableInPolyTime w encI encNat)
     (hp : ComputableInPolyTime p encI encUnary) :
@@ -81,7 +82,9 @@ private theorem sum_map_le_length_encList (hpl : ∀ a, p a ≤ (encI a).length)
     (l.map p).sum ≤ (encList encI l).length := by
   induction l with
   | nil => simp
-  | cons a l ih => have := hpl a; enc_len [List.map_cons, List.sum_cons]
+  | cons a l ih =>
+    have := hpl a
+    enc_len [List.map_cons, List.sum_cons]
 
 private theorem length_encList_table_le (hpl : ∀ a, p a ≤ (encI a).length) {l : List ι}
     {T : List (Option (List ι))} (hT : TableSpec w p l T) :
@@ -91,7 +94,8 @@ private theorem length_encList_table_le (hpl : ∀ a, p a ≤ (encI a).length) {
     fun | none, _ => by simp
         | some s, ho => by
             obtain ⟨q, hq⟩ := List.mem_iff_getElem?.mp ho
-            have := length_encList_sublist encI (hT.sound q s hq).1; enc_len
+            have := length_encList_sublist encI (hT.sound q s hq).1
+            enc_len
   rw [hT.length_eq] at h
   have := sum_map_le_length_encList hpl l
   exact h.trans (Nat.mul_le_mul_right _ (by omega))
@@ -167,12 +171,15 @@ private theorem computableInPolyTime_maxValue :
   exact foldlWithInput_of_bounded_growth (encA := encPair encNat encNat)
     (encB := encNat) (encL := encItems)
     (list := id) (init := fun _ => 0) (step := fun _ m a => max m a.2) (const _)
-    ⟨id', hstep, inferInstance, inferInstance⟩ (growth := fun l => (encItems l).length)
+    ⟨id', hstep, inferInstance, inferInstance⟩
+    (growth := fun l => (encItems l).length)
     ⟨.self, fun l m a ha => by
       have h1 := SizedListEncoding.length_elem_le (encA := encPair encNat encNat)
         (encL := encItems) l a ha
       rw [length_encPair] at h1
-      rcases le_total m a.2 with h | h <;> [rw [max_eq_right h]; rw [max_eq_left h]] <;> omega⟩
+      rcases le_total m a.2 with h | h
+      · rw [max_eq_right h]; omega
+      · rw [max_eq_left h]; omega⟩
 
 /-- **The knapsack FPTAS runs in polynomial time** in the encoded instance and `k`, given in
 unary. -/
@@ -181,7 +188,10 @@ theorem computableInPolyTime_fptas :
       (encPair encUnary encInstance)
       encItems := by
   have hF : ComputableInPolyTime (fun x : ℕ × (List (ℕ × ℕ) × ℕ) => fits x.2.2 x.2.1)
-      (encPair encUnary encInstance) encItems := by unfold fits; fun_prop
+      (encPair encUnary encInstance)
+      encItems := by
+    unfold fits
+    fun_prop
   have hN : ComputableInPolyTime
       (fun x : ℕ × (List (ℕ × ℕ) × ℕ) => (fits x.2.2 x.2.1).length * x.1)
       (encPair encUnary encInstance) encUnary :=
@@ -192,10 +202,13 @@ theorem computableInPolyTime_fptas :
         (fits x.2.2 x.2.1))
       (encPair encUnary encInstance)
       (encList (encPair (encPair encNat encNat) encUnary)) := by
-    have hNq := hN.comp (fst (encPair encUnary encInstance) (encPair encNat encNat))
+    have hNq := hN.comp (fst (encPair encUnary encInstance)
+      (encPair encNat encNat))
     have hNb := ComputableInPolyTime.unary_to_binary.comp hNq
-    have hPq := hP.comp (fst (encPair encUnary encInstance) (encPair encNat encNat))
-    have hv := (snd (encPair encUnary encInstance) (encPair encNat encNat)).snd'
+    have hPq := hP.comp (fst (encPair encUnary encInstance)
+      (encPair encNat encNat))
+    have hv := (snd (encPair encUnary encInstance)
+      (encPair encNat encNat)).snd'
     have hmul := binary_mul' hv hNb
     have hdiv := ComputableInPolyTime.binary_div.comp (hmul.prod hPq)
     exact mapWithInput hF ((snd _ _).prod (binary_min_unary' hNq hdiv))

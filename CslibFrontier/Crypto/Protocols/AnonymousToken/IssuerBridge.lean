@@ -433,7 +433,8 @@ theorem run_draftIssuerOracle_spend
   split_ifs with hpre
   · congr 1 with ⟨_ | refund, pst'⟩ : 1
     · rfl
-    · dsimp only; split_ifs <;> simp [bind_map_left]
+    · dsimp only
+      split_ifs <;> simp [bind_map_left]
   · rfl
 
 /-- An adaptive adversary interacting with the draft-style issuer oracle and returning a target
@@ -574,7 +575,8 @@ theorem bridgeAdversary_queryBound
         cases acceptDraftIssue com bound ireq st with
         | none => exact OracleComp.IsCostBounded.pure (none, st) 1
         | some creq =>
-            dsimp only; rw [← Nat.add_zero 1]
+            dsimp only
+            rw [← Nat.add_zero 1]
             refine (ProbOracleComp.IsQueryBounded.query creq).bind fun σ? => ?_
             cases σ? <;> exact OracleComp.IsCostBounded.pure _ 0
     | spend sreq =>
@@ -586,7 +588,8 @@ theorem bridgeAdversary_queryBound
           cases acceptedSpendRefund bound refund? with
           | none => exact OracleComp.IsCostBounded.pure _ 1
           | some refund =>
-              dsimp only; rw [← Nat.add_zero 1]
+              dsimp only
+              rw [← Nat.add_zero 1]
               refine (ProbOracleComp.IsQueryBounded.query
                 (spec := fun _ : Conservation.Request Nullifier Context Opening Commitment Sig =>
                   Option Sig)
@@ -664,7 +667,8 @@ theorem eval_extractedDraftConservationExperiment_eq
       StateT (IssuerState Nullifier Context Opening Commitment Sig PolicyState) PMF
         (draftReply Sig q) :=
     fun q st => ProbComp.eval (draftIssuerOracle com tag S policy bound (pk, sk) q st)
-  let jointOracle : (q : DraftQuery Nullifier Context Opening Commitment Sig IssueHint) →
+  let jointOracle :
+      (q : DraftQuery Nullifier Context Opening Commitment Sig IssueHint) →
       StateT (IssuerState Nullifier Context Opening Commitment Sig PolicyState ×
         List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig))
         PMF (draftReply Sig q) :=
@@ -672,11 +676,13 @@ theorem eval_extractedDraftConservationExperiment_eq
       (ProbOracleComp.runWith extLogOracle
         ((bridgeHandler com tag S policy bound pk q).run state.1) state.2).map
         fun ⟨⟨a, b⟩, c⟩ => (a, b, c)
-  have hrunExt : ProbComp.eval ((bridgeAdversary com tag S policy bound A pk).runLogWith
-      (Conservation.extractedIssuerOracle com tag S (pk, sk))) =
-      (ProbComp.eval policy.init).bind fun pst₀ =>
-        (ProbOracleComp.runWith jointOracle (A pk) (⟨pst₀, [], [], []⟩, [])).map
-          fun ⟨ctx, _, log⟩ => (ctx, log) := by
+  have hrunExt :
+      ProbComp.eval
+          ((bridgeAdversary com tag S policy bound A pk).runLogWith
+            (Conservation.extractedIssuerOracle com tag S (pk, sk))) =
+        (ProbComp.eval policy.init).bind fun pst₀ =>
+          (ProbOracleComp.runWith jointOracle (A pk) (⟨pst₀, [], [], []⟩, [])).map
+            fun ⟨ctx, _, log⟩ => (ctx, log) := by
     rw [ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
     dsimp only [bridgeAdversary]
     rw [ProbOracleComp.runWith_sample_bind]

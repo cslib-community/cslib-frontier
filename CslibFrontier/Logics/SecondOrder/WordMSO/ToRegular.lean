@@ -117,7 +117,8 @@ private theorem isRegular_of_iff {P Q : List β → Prop} (h : Language.IsRegula
 private theorem transport {P : (ℓ : ℕ) → (Fin ℓ → β) → Prop} {ℓ ℓ' : ℕ} (h : ℓ = ℓ')
     {g : Fin ℓ → β} {g' : Fin ℓ' → β} (hg : ∀ i, g' (Fin.cast h i) = g i) :
     P ℓ' g' ↔ P ℓ g := by
-  subst h; exact (congrArg (P _) (funext hg)).to_iff
+  subst h
+  exact (congrArg (P _) (funext hg)).to_iff
 
 /-- The image along a letter map `f` of a regular language given by a predicate `P` on letter
 functions is the regular language given by `Q`, provided `Q` holds of a letter function exactly
@@ -131,8 +132,9 @@ private theorem isRegular_map {P : (ℓ : ℕ) → (Fin ℓ → β) → Prop}
   change u' ∈ List.map f '' {u : List β | P u.length (fun i => u[i])} ↔ _
   rw [hPQ]
   refine ⟨?_, fun ⟨g, hfg, hg⟩ => ⟨List.ofFn g,
-    (transport (List.length_ofFn (f := g)).symm fun _ => List.getElem_ofFn ..).2 hg,
-    by rw [List.map_ofFn, hfg]; exact List.ofFn_getElem⟩⟩
+    (transport (List.length_ofFn (f := g)).symm fun _ => List.getElem_ofFn ..).2 hg, by
+      rw [List.map_ofFn, hfg]
+      exact List.ofFn_getElem⟩⟩
   rintro ⟨u, hu, rfl⟩
   have hlen : u.length = (u.map f).length := (List.length_map _).symm
   exact ⟨fun i => u[Fin.cast hlen.symm i], funext fun _ => (List.getElem_map ..).symm,
@@ -193,7 +195,9 @@ private theorem sat_lt {ℓ : ℕ} (g : Fin ℓ → ExtLetter α m n) (x y : Fin
       Valid g ∧ ∃ i j : Fin ℓ, i < j ∧ (g i).vars x = true ∧ (g j).vars y = true :=
   sat_iff_of_marks fun v hv =>
     ⟨fun h => ⟨v x, v y, h, (hv _ x).2 rfl, (hv _ y).2 rfl⟩,
-      fun ⟨i, j, hij, hi, hj⟩ => by change v x < v y; rwa [(hv i x).1 hi, (hv j y).1 hj]⟩
+      fun ⟨i, j, hij, hi, hj⟩ => by
+        change v x < v y
+        rwa [(hv i x).1 hi, (hv j y).1 hj]⟩
 
 private theorem sat_mem {ℓ : ℕ} (g : Fin ℓ → ExtLetter α m n) (x : Fin m) (X : Fin n) :
     Sat (mem x X) ℓ g ↔ Valid g ∧ ∀ i, (g i).vars x = true → (g i).sets X = true :=
@@ -210,8 +214,9 @@ private theorem sat_imp {ℓ : ℕ} (g : Fin ℓ → ExtLetter α m n) (φ ψ : 
   constructor
   · rintro ⟨v, hv, h⟩
     exact ⟨⟨v, hv⟩, if hφ : Sat φ ℓ g then
-      let ⟨v', hv', hφ'⟩ := hφ; Or.inr ⟨v, hv, h ((hv.unique hv').symm ▸ hφ')⟩
-      else Or.inl hφ⟩
+      let ⟨v', hv', hφ'⟩ := hφ
+      Or.inr ⟨v, hv, h ((hv.unique hv').symm ▸ hφ')⟩
+    else Or.inl hφ⟩
   · rintro ⟨⟨v, hv⟩, h | ⟨v', hv', hψ⟩⟩
     · exact ⟨v, hv, fun hφ => absurd ⟨v, hv, hφ⟩ h⟩
     · exact ⟨v, hv, fun _ => (hv.unique hv').symm ▸ hψ⟩
@@ -236,7 +241,9 @@ private theorem sat_exSet {ℓ : ℕ} (g' : Fin ℓ → ExtLetter α m n) (φ : 
     refine ⟨fun i => ⟨(g' i).letter, (g' i).vars, Fin.snoc (g' i).sets (decide (i ∈ S))⟩,
       funext fun _ => by simp only [Function.comp_apply, dropSet, Fin.init_snoc], v, hv, ?_⟩
     refine (congrArg (φ.Realize _ v) ?_).mpr hφ
-    exact funext fun X => Fin.lastCases (by ext; simp) (fun _ => by simp only [Fin.snoc_castSucc]) X
+    exact funext fun X => Fin.lastCases
+      (Set.ext fun _ => by simp)
+      (fun _ => by simp only [Fin.snoc_castSucc]) X
   · rintro ⟨g, rfl, v, hv, hφ⟩
     refine ⟨v, hv, {i | (g i).sets (Fin.last n) = true}, ?_⟩
     refine (congrArg (φ.Realize _ v) ?_).mp hφ
@@ -284,8 +291,9 @@ theorem Sentence.isRegular_language (φ : Sentence α) : φ.language.IsRegular :
           Subsingleton.elim (fun X : Fin 0 => {i : Fin ℓ | (g i).sets X = true}) Fin.elim0] at h⟩
 
 /-- **MSO-definable languages are regular**, over any alphabet. -/
-theorem Definable.isRegular {L : Language α} (h : Definable L) : L.IsRegular :=
-  let ⟨φ, hL⟩ := h; hL ▸ φ.isRegular_language
+theorem Definable.isRegular {L : Language α} (h : Definable L) : L.IsRegular := by
+  obtain ⟨φ, rfl⟩ := h
+  exact φ.isRegular_language
 
 /-- First-order definable languages are regular. -/
 theorem FODefinable.isRegular {L : Language α} (h : FODefinable L) : L.IsRegular :=

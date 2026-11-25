@@ -264,14 +264,16 @@ theorem SmallSides.one_lt {P : DecomposableDAG ι U N} (h : P.SmallSides K)
     (hne : P.accepted.Nonempty) : 1 < K := by
   obtain ⟨x, hx⟩ := hne
   rcases h P.root with hr | hr <;> obtain ⟨hfin, hlt⟩ := encard_lt_coe_iff_finite_ncard_lt.mp hr
-  · have := (ncard_pos hfin).mpr ⟨_, hx⟩; omega
-  · have := (ncard_pos hfin).mpr ⟨_, x, .root hx, rfl⟩; omega
+  · have := (ncard_pos hfin).mpr ⟨_, hx⟩
+    omega
+  · have := (ncard_pos hfin).mpr ⟨_, x, .root hx, rfl⟩
+    omega
 
 /-- A node accepting at least `K` assignments has fewer than `K` contexts under `SmallSides K`. -/
 private theorem ncard_contexts_le (hS : P.SmallSides K) {v : N}
-    (hv : K ≤ (P.values v).ncard) : (P.contexts v).ncard ≤ K - 1 := by
-  rcases hS v with h | h <;>
-    (have := (encard_lt_coe_iff_finite_ncard_lt.mp h).2; omega)
+    (hv : K ≤ (P.values v).ncard) : (P.contexts v).ncard ≤ K - 1 :=
+  (hS v).elim (fun h => absurd (encard_lt_coe_iff_finite_ncard_lt.mp h).2 (not_lt.mpr hv))
+    fun h => Nat.le_sub_one_of_lt (encard_lt_coe_iff_finite_ncard_lt.mp h).2
 
 /-! ### Threshold counting -/
 

@@ -74,6 +74,12 @@ theorem synthesis_leastRankFlag {a : ℕ} (s : Set (BooleanFunction a)) (q : Cir
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
   exact le_of_eq (by ring)
 
+/-- Using the same flags for both scans selects the same position even in a tie. -/
+private theorem chooseRecord_eq_apply {α : Type*} (flags : Fin K → Bool)
+    (rows : Fin K → α) (first : Fin K) :
+    chooseRecord flags rows (rows first) K = rows (chooseRecord flags id first K) :=
+  (chooseRecord_map rows flags id first K).symm
+
 private def corrected (f payload : BitString n → BitString n) (d : Fin K → ℕ)
     (first : Fin K) (flags : Fin K → Bool) (x : BitString n) : BitString n :=
   let states := fun j => f^[d j] x
@@ -87,12 +93,10 @@ private theorem corrected_spec (f payload : BitString n → BitString n) (d : Fi
     (hp : payload (f^[d (chooseRecord flags id first K)] x) =
       f^[T - K] (f^[d (chooseRecord flags id first K)] x)) :
     corrected f payload d first flags x = f^[T] x := by
-  have hmap (rows : Fin K → BitString n) :
-      chooseRecord flags rows (rows first) K = rows (chooseRecord flags id first K) :=
-    (chooseRecord_map rows flags id first K).symm
-  simp only [corrected, hmap, hp, ← Function.iterate_add_apply]
+  simp only [corrected, chooseRecord_eq_apply, hp, ← Function.iterate_add_apply]
   congr 1
-  have := hd (chooseRecord flags id first K); lia
+  have := hd (chooseRecord flags id first K)
+  lia
 
 private theorem synthesis_corrected (s : Set (BooleanFunction n)) (c p : Circuit signature n n)
     (d : Fin K → ℕ) (first : Fin K) (flags : BitString n → Fin K → Bool)
@@ -148,7 +152,8 @@ theorem injective_of_no_return_period (f : BitString n → BitString n) (x : Bit
         Nat.sub_add_cancel hij.le] using he.symm
     have h := hperiod.apply_iterate (K - i.val)
     rw [← Function.iterate_add_apply, Nat.sub_add_cancel i.isLt.le] at h
-    exact hret ⟨⟨j.val - i.val - 1, by have := j.isLt; lia⟩,
+    have hj := j.isLt
+    exact hret ⟨⟨j.val - i.val - 1, by lia⟩,
       by simpa [show j.val - i.val - 1 + 1 = j.val - i.val by lia] using h.eq⟩
   intro i j he
   rcases lt_trichotomy i.val j.val with hij | hij | hij
@@ -166,8 +171,10 @@ private theorem synthesis_finish (s : Set (BooleanFunction n)) (f : BitString n 
   have hout := synthesis_chooseRecord (s ∪ Set.range fun j x => returnFlag f x j)
     (fun x (j : Fin K) => returnFlag f x j) (fun x j => f^[(T - K) % (j.val + 1) + K] x)
     fallback (fun j => Or.inr ⟨j, rfl⟩)
-    (fun j bit => Or.inl (hs _
-      (by have := Nat.mod_lt (T - K) j.val.succ_pos; have := j.isLt; lia) bit))
+    (fun j bit => Or.inl (hs _ (by
+      have := Nat.mod_lt (T - K) j.val.succ_pos
+      have := j.isLt
+      lia) bit))
     fun bit => Or.inl (hb ⟨bit, rfl⟩)
   refine (hflag.trans hout).mono .rfl .rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]

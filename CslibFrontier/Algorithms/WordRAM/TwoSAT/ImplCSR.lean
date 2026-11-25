@@ -65,11 +65,12 @@ theorem buildImplCSRCode_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
       simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase,
         Instance.encode, List.length_cons] at *; omega)]
     exact hcm k hk
+  have resetCursor (s : Data 28) (h0 : s.regs cZero = 0) (h3 : s.regs cThree = 3) :
+      ExecWithin (B := .standard) w (ram[ iReg ← cZero; pReg ← cThree ])
+        s ((s.set iReg 0).set pReg 3) 2 := by wram_exec [h0, h3]
   let x₂ := (x₁.set iReg 0).set pReg 3
-  have hp₁ : ExecWithin (B := .standard) w (ram[ iReg ← cZero; pReg ← cThree ]) x₁ x₂ 2 := by
-    have h0' : x₁.regs cZero = 0 := (hx₁_fr cZero (by decide)).trans hc0
-    have h3' : x₁.regs cThree = 3 := (hx₁_fr cThree (by decide)).trans hc3
-    wram_exec [h0', h3']
+  have hp₁ := resetCursor x₁ ((hx₁_fr cZero (by decide)).trans hc0)
+    ((hx₁_fr cThree (by decide)).trans hc3)
   have hlen_enc : 3 + (G.φ.flatMap (encodeClauseBy Fin.val)).length = G.encode.length + 1 := by
     simp only [Instance.encode, List.length_cons]; omega
   obtain ⟨x₃, hx₃_ex, hx₃_deg, hx₃_out, hx₃_fr⟩ :=
@@ -107,10 +108,8 @@ theorem buildImplCSRCode_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
       hx₃_out _ (by dsimp only [kCurAddr]; omega)]
     exact hcm₁ k hk
   let x₅ := (x₄.set iReg 0).set pReg 3
-  have hp₂ : ExecWithin (B := .standard) w (ram[ iReg ← cZero; pReg ← cThree ]) x₄ x₅ 2 := by
-    have h0' : x₄.regs cZero = 0 := (hx₄_fr0 cZero (by decide)).trans hc0
-    have h3' : x₄.regs cThree = 3 := (hx₄_fr0 cThree (by decide)).trans hc3
-    wram_exec [h0', h3']
+  have hp₂ := resetCursor x₄ ((hx₄_fr0 cZero (by decide)).trans hc0)
+    ((hx₄_fr0 cThree (by decide)).trans hc3)
   have hmap_empty : mapAdj (litEquiv G.n) (fun _ => []) = (fun _ => []) := funext fun _ => rfl
   obtain ⟨y, hy_ex, hy_pcsr, hy_out, hy_fr⟩ :=
     implFillLoop_spec G hfit G.φ (fun _ => []) 0 3 x₅ hcs (.inr rfl) (by simp) hlen_enc hcm₄

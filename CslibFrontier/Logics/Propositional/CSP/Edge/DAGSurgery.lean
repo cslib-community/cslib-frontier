@@ -63,9 +63,7 @@ theorem pairFlip_comm (f : OccurrenceLabeling F Bool) (a b : Occurrence F) :
 /-- Two pair moves sharing their middle occurrence cancel that occurrence. -/
 theorem pairFlip_cancel (f : OccurrenceLabeling F Bool) (a b c : Occurrence F) :
     pairFlip (pairFlip f a b) b c = pairFlip f a c := by
-  funext q
-  by_cases ha : q = a <;> by_cases hb : q = b <;>
-    by_cases hc : q = c <;> simp [pairFlip, flipOn_apply, ha, hb, hc]
+  simp only [pairFlip, flipOn_flipOn]
 
 private theorem pairFlip_at_other (f : OccurrenceLabeling F Bool) {a b q : Occurrence F}
     (ha : q.1 ≠ a.1) (hb : q.1 ≠ b.1) : pairFlip f a b q = f q := by

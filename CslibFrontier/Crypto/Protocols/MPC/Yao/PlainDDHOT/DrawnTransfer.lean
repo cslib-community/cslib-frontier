@@ -231,11 +231,10 @@ private theorem advantage_bind_composedProtocol_maskedOT_evaluator_le_prvSim_add
     (fun _ => le_rfl) L hL
   simp only [PMF.bind_map, Function.comp_def, Sum.elim_inr, Finset.sum_range_one, hT₁] at h
   rw [hT₁]
-  refine h.trans (add_le_add (le_of_eq ?_) le_rfl)
-  exact congrArg₂ Game.advantage
+  exact h.trans (add_le_add (le_of_eq (congrArg₂ Game.advantage
     ((congrArg (PMF.bind _) (funext fun a => (ProbComp.eval_bind ..).symm)).trans
       (bind_idealJoint_evaluatorSim_eq_prvSimExperiment n c Φ S e x _))
-    (bind_realJoint_protocol_evaluator_eq_prvSimExperiment hproj hcorrect hn c Φ S e x _)
+    (bind_realJoint_protocol_evaluator_eq_prvSimExperiment hproj hcorrect hn c Φ S e x _))) le_rfl)
 
 /-- **The environment program of a transfer drawn with fair coins**, for `Yao.kdfDDHProbFamily`
 with a corrupted evaluator: at the parameter `n` it draws a transfer `j` below `2 ^ L n` with
@@ -355,11 +354,9 @@ theorem advantage_idealGame_realGame_kdfDDHProbFamily_evaluator_le_mul
         c'.coalition = ({1} : Finset (Fin 2)) ∧
           (otOutputs (M := List Bool) c'.query 1 : List Bool).length = msgLen n := by
     intro d c' hc'
-    rw [kdfDDHDrawnTransferEnv, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hc'
-    obtain ⟨j, -, hc'⟩ := hc'
-    rw [kdfDDHTransferEnv, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hc'
-    obtain ⟨ch, -, hc'⟩ := hc'
-    rw [eval_composeSeqBatchOTRoundEnvProg] at hc'
+    simp only [kdfDDHDrawnTransferEnv, kdfDDHTransferEnv, ProbComp.eval_bind,
+      PMF.mem_support_bind_iff, eval_composeSeqBatchOTRoundEnvProg] at hc'
+    obtain ⟨_, -, ch, -, hc'⟩ := hc'
     exact coalition_length_of_mem_support_composeSeqBatchOTRoundEnv _ _ _ _ _ _ _ _ _ _ _ (msgLen n)
       (fun r hr => forallChallenge_protocol_evaluator n (c n) (msgLen n) ch.inputs r
         (length_transferQueries_garbler hlabel ch.inputs r hr)) hc'

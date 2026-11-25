@@ -90,8 +90,9 @@ private theorem infix_triple_neighbors {r : Route} (hn : r.Nodup) {a p b : Point
   obtain ⟨s, t, rfl⟩ := ht
   have hmid : (s ++ [a, p, b] ++ t)[s.length + 1]'(by simp) = p := by simp
   obtain rfl : k = s.length + 1 := hn.getElem_inj_iff.1 (heq.trans hmid.symm)
-  exact ⟨by omega, by simp; omega, by simp [List.getD_eq_getElem?_getD],
-    by simp [List.getD_eq_getElem?_getD, Nat.add_assoc]⟩
+  refine ⟨by omega, by simp; omega, ?_, ?_⟩
+  · simp [List.getD_eq_getElem?_getD]
+  · simp [List.getD_eq_getElem?_getD, Nat.add_assoc]
 
 /-- The consecutive neighborhood gives the exact predecessor/successor lookups used by finite
 wire compilers, at every valid occurrence index of the middle point. -/
@@ -119,9 +120,12 @@ theorem walk_triple (a d : Point) {i k : ℕ} (hi : i + 2 ≤ k) :
 theorem walk_straight (a d : Point) {i k : ℕ} (hi : 0 < i) (hik : i < k) :
     StraightThrough (walk a d k) (a + i • d) d := by
   obtain ⟨i, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hi.ne'
+  have hm : a + (i + 1) • d - d = a + i • d := by
+    rw [add_smul, one_smul]; abel
+  have hp : a + (i + 1) • d + d = a + (i + 2) • d := by
+    simp only [add_smul, one_smul, two_nsmul]; abel
   refine Or.inl ?_
-  rw [show a + (i + 1) • d - d = a + i • d by rw [add_smul, one_smul]; abel,
-    show a + (i + 1) • d + d = a + (i + 2) • d by simp only [add_smul, one_smul, two_nsmul]; abel]
+  rw [hm, hp]
   exact walk_triple a d (by omega)
 
 /-- A strict interior integer point of an axis-aligned segment has both neighboring unit
@@ -148,7 +152,8 @@ theorem segmentWalk_horizontal {a b p : Point} (hab : a.2 = b.2) (hp : p.2 = a.2
     StraightThrough (segmentWalk a b) p (1, 0) := by
   have ht := segmentWalk_straight (Or.inr hab)
     ((realPoint_mem_segment_iff (p := p) (Or.inr hab)).2 (by omega))
-    (by rintro rfl; omega) (by rintro rfl; omega)
+    (fun h => absurd (congrArg Prod.fst h) (by omega))
+    (fun h => absurd (congrArg Prod.fst h) (by omega))
   have hd : direction a b = (1, 0) ∨ direction a b = -(1, 0) := by
     unfold direction
     split_ifs <;> first | exact Or.inl rfl | exact Or.inr rfl | omega
@@ -162,7 +167,8 @@ theorem segmentWalk_vertical {a b p : Point} (hab : a.1 = b.1) (hp : p.1 = a.1)
     StraightThrough (segmentWalk a b) p (0, 1) := by
   have ht := segmentWalk_straight (Or.inl hab)
     ((realPoint_mem_segment_iff (p := p) (Or.inl hab)).2 (by omega))
-    (by rintro rfl; omega) (by rintro rfl; omega)
+    (fun h => absurd (congrArg Prod.snd h) (by omega))
+    (fun h => absurd (congrArg Prod.snd h) (by omega))
   have hd : direction a b = (0, 1) ∨ direction a b = -(0, 1) := by
     unfold direction
     split_ifs <;> first | exact Or.inl rfl | exact Or.inr rfl | omega

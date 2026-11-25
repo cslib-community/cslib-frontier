@@ -74,14 +74,12 @@ theorem card_faces_deleteLastEdge_le {G : Graph} {u v : ℕ}
   have hs := card_orbits_mul_swap (e.permCongr r.faceNext) (some none) none (by simp)
   have hf := card_orbits_permCongr e r.faceNext
   rw [hc] at hb
-  by_cases hh : (e.permCongr r.faceNext).SameCycle (some none) none
+  dsimp only [e] at hs hf
+  change Nat.card (Quotient (Perm.SameCycle.setoid r.faceNext)) ≤ _
+  by_cases hh : ((lastEdgeDartEquiv G u v).permCongr r.faceNext).SameCycle (some none) none
   · have h := hs.1 hh
-    dsimp only [e] at h hf
-    change Nat.card (Quotient (Perm.SameCycle.setoid r.faceNext)) ≤ _
     omega
   · have h := hs.2 hh
-    dsimp only [e] at h hf
-    change Nat.card (Quotient (Perm.SameCycle.setoid r.faceNext)) ≤ _
     omega
 
 /-- Deleting an arbitrary last indexed edge preserves componentwise numerical genus zero.
@@ -110,11 +108,9 @@ list and duplicate vertex declarations. -/
 theorem numericalGenusZero_deleteLastEdge_of_no_edges {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (h : G.2 = []) :
     r.deleteLastEdge.NumericalGenusZero := by
-  have hG : ∀ w ∈ G.incidenceVertices, w ∈ G.1 := by
-    simp [Graph.incidenceVertices, h]
-  apply (r.deleteLastEdge.numericalGenusZero_iff_component_cards hG).mpr
-  intro d
-  have hn : G.2.length = 0 := by rw [h]; rfl
-  exact (Fin.cast hn d.1).elim0
+  apply (r.deleteLastEdge.numericalGenusZero_iff_component_cards
+    (by simp [Graph.incidenceVertices, h])).mpr
+  rintro ⟨i, _⟩
+  exact (Fin.cast (by simp [h]) i).elim0
 
 end Cslib.Complexity.Graph.RotationSystem

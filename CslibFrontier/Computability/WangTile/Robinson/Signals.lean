@@ -512,8 +512,10 @@ theorem quarter_at {Q : QuarterPlane} (R : QuarterPlane.Regrouped Q)
     Q.quarter (R.origin.1 + 2 * a + x) (R.origin.2 + 2 * b + y) =
       ⟨R.parent.index (a + (x / 2 : ℕ)) (b + (y / 2 : ℕ)),
         quadrantAt x y⟩ := by
-  have hx : R.origin.1 + 2 * a + x = R.origin.1 + 2 * (a + (x / 2 : ℕ)) + (x % 2 : ℕ) := by omega
-  have hy : R.origin.2 + 2 * b + y = R.origin.2 + 2 * (b + (y / 2 : ℕ)) + (y % 2 : ℕ) := by omega
+  have hx : R.origin.1 + 2 * a + x =
+      R.origin.1 + 2 * (a + (x / 2 : ℕ)) + (x % 2 : ℕ) := by omega
+  have hy : R.origin.2 + 2 * b + y =
+      R.origin.2 + 2 * (b + (y / 2 : ℕ)) + (y % 2 : ℕ) := by omega
   have blocks := R.blocks (a + (x / 2 : ℕ)) (b + (y / 2 : ℕ))
   rw [hx, hy]
   rcases Nat.mod_two_eq_zero_or_one x with hx | hx <;>

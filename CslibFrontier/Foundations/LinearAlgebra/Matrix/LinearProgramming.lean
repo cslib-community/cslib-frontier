@@ -123,7 +123,8 @@ theorem dotProduct_le_dotProduct_of_mulVec_le {A : Matrix ι κ K} {b : ι → K
     {x : κ → K} {y : ι → K} (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y) (hyA : y ᵥ* A = c) :
     c ⬝ᵥ x ≤ y ⬝ᵥ b := by
   simpa using dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) (l := 0) (u := 0) hx hy
-    (fun _ hj => by simp [hyA] at hj) (fun _ hj => by simp [hyA] at hj)
+    (fun _ hj => by simp [hyA] at hj)
+    (fun _ hj => by simp [hyA] at hj)
 
 /-- A linear objective bounded above on a nonempty polyhedron `A *ᵥ x ≤ b` attains its maximum at
 a point `x`, certified by a dual solution `y` of the same value [Schrijver1986, Section 7.4]. -/
@@ -155,6 +156,7 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
     · simp only [Pi.add_apply, Function.const_apply, Pi.zero_apply, neg_dotProduct]; linarith
     · have h := h ()
       simp only [Pi.add_apply, Function.const_apply, Pi.zero_apply, neg_dotProduct] at h; linarith
+  -- some row of the projection bounds `t` from above
   have h₀ := (hfeas (c ⬝ᵥ x₀)).1 ⟨x₀, hx₀, le_rfl⟩
   have hpos : ∃ r, 0 < β r := by
     by_contra! hneg

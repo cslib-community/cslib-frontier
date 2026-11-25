@@ -103,7 +103,8 @@ private theorem eq_bits_foldr_of_length_eq_size {l : List Bool}
   | nil => simp
   | cons a t ih =>
     cases t with
-    | nil => cases a <;> simp at h ⊢
+    | nil =>
+      cases a <;> simp at h ⊢
     | cons b t' =>
       set m := (b :: t').foldr Nat.bit 0
       have hpos : m ≠ 0 := fun hm => by cases a <;> simp [m, hm] at h
@@ -111,7 +112,8 @@ private theorem eq_bits_foldr_of_length_eq_size {l : List Bool}
       have hsize : (Nat.bit a m).size = m.size + 1 := by
         simpa only [← Nat.size_eq_bits_len, List.length_cons] using congrArg List.length hbits
       have hih : (b :: t').length = m.size := by
-        change (b :: t').length + 1 = (Nat.bit a m).size at h; omega
+        change (b :: t').length + 1 = (Nat.bit a m).size at h
+        omega
       rw [List.foldr_cons, hbits, ← ih hih]
 
 private theorem size_eq_iff_pow_le_of_lt {n k : ℕ} (hn : n < 2 ^ k) :
@@ -444,7 +446,8 @@ private theorem prefixAccepted_invariants (c : Code) (n : ℕ) :
         have hq_eval : x ∈ c.eval (encode q) := by
           simp only [prefixCand, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hcand
           obtain ⟨⟨_, _⟩, _, _, hx', hpair⟩ := hcand
-          cases hpair; exact Code.evaln_sound hx'
+          cases hpair
+          exact Code.evaln_sound hx'
         refine ⟨?_, ?_, ?_⟩
         · rintro p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp
           simp only [List.mem_append, List.mem_singleton, Prod.mk.injEq] at hy₁ hy₂
@@ -572,7 +575,8 @@ private theorem primrec₂_prefixAccepted : Primrec₂ prefixAccepted := by
     refine (Primrec.ite hpred (Primrec.snd.comp (Primrec.snd.comp Primrec.fst)) happend).of_eq
       fun _ => by
         simp only [List.any_eq_true, Bool.or_eq_true, decide_eq_true_eq]
-        congr 1; exact propext (exists_congr fun _ => and_congr_right' or_comm)
+        congr 1
+        exact propext (exists_congr fun _ => and_congr_right' or_comm)
   have hg : Primrec₂ fun (c : Code) (p : ℕ × List (List Bool × ℕ)) =>
       match prefixCand c p.1 with
       | Option.none => p.2
@@ -591,7 +595,9 @@ private theorem primrec₂_prefixAccepted : Primrec₂ prefixAccepted := by
     rw [ih]
     cases h : prefixCand c n with
     | none => simp [prefixAccepted, h]
-    | some qx => rcases qx with ⟨q, x⟩; simp [prefixAccepted, h]
+    | some qx =>
+      rcases qx with ⟨q, x⟩
+      simp [prefixAccepted, h]
 
 theorem primrec₂_prefixAccepted_lookup :
     Primrec₂ fun (cp : Code × List Bool) (n : ℕ) => (prefixAccepted cp.1 n).lookup cp.2 := by
@@ -964,7 +970,8 @@ theorem MinorizesPrefixPartrec.exists_ecomplexity_lt_of_computable {α : Type*} 
   have hrlen : c + 1 ≤ r.length := by simp [r, length_selfDelimitingCode]
   have hr_valid : validHeader r = true := by simp [validHeader, r]
   obtain ⟨x, hx⟩ := hunb (2 * r.length)
-  have hstep_mem : x ∈ step r (encode x) := by simp [step, hr_valid, encodek, hx]
+  have hstep_mem : x ∈ step r (encode x) := by
+    simp [step, hr_valid, encodek, hx]
   obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp (Nat.rfindOpt_dom.mpr ⟨encode x, x, hstep_mem⟩)
   obtain ⟨n, hn⟩ := Nat.rfindOpt_spec hy
   obtain ⟨y', -, hcmp⟩ := Option.bind_eq_some_iff.mp (by simpa [step, hr_valid] using hn)

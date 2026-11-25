@@ -92,7 +92,8 @@ private theorem nextPosition_finRotate {n : ℕ} (j : Fin n) :
     (if j.val + 1 < n then j.val + 1 else 0) = (finRotate n j).val := by
   cases n with
   | zero => exact j.elim0
-  | succ n => fin_index [coe_finRotate]
+  | succ n =>
+    fin_index [coe_finRotate]
 
 /-- The native next-index calculation is precisely the existing cyclic argument successor. -/
 theorem argumentNextIndex_occurrence (o : F.Occurrence) :
@@ -253,8 +254,10 @@ actual constraint, scope and occurrence lists, independently of relation arities
         (encPair (encOccurrenceRecord encV) encUnary)) encUnary :=
     hn.comp (g := fun p : (CSP Rel V × Graph.RotationCertificate) × ((ℕ × ℕ × V) × ℕ) =>
       ((p.1.1, p.2.1.1), p.2.1.2.1)) (by unfold encOccurrenceRecord; fun_prop)
-  exact ComputableInPolyTime.decide_eq' (by unfold encCSPRotationCertificate; fun_prop)
-    (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
+  apply ComputableInPolyTime.decide_eq'
+  · unfold encCSPRotationCertificate
+    fun_prop
+  · exact ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
 
 /-- Native polynomial-time verification of the supplied incidence rotation, componentwise
 numerical genus zero and the CSP's actual cyclic argument order. This supplies no solver or

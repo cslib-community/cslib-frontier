@@ -77,12 +77,11 @@ theorem Polynomial.lagrangeWeightAtZero_eq_eval_basis {F ι : Type*} [Field F] [
   -- `lagrangeWeightAtZero` is not exposed: read it off the reconstruction of a unit share vector.
   have h := Polynomial.reconstruct_eq_sum_lagrangeWeightAtZero x (Pi.single i 1)
   rw [Fintype.sum_eq_single i (fun j hj => by simp [hj]), Pi.single_eq_same, one_mul] at h
-  rw [← h, Polynomial.reconstruct, _root_.Polynomial.constantCoeff_apply,
-    _root_.Polynomial.coeff_zero_eq_eval_zero]
-  have : Lagrange.interpolate univ x (Pi.single i (1 : F)) = Lagrange.basis univ x i := by
+  have hbasis : Lagrange.interpolate univ x (Pi.single i (1 : F)) = Lagrange.basis univ x i := by
     rw [Lagrange.interpolate_apply, sum_eq_single i (fun j _ hj => by simp [hj]) (by simp)]
     simp
-  rw [← this]
+  rw [← h, Polynomial.reconstruct, _root_.Polynomial.constantCoeff_apply,
+    _root_.Polynomial.coeff_zero_eq_eval_zero, ← hbasis]
   congr!
 
 variable {F Party : Type*} [Field F] [Fintype Party]
@@ -132,10 +131,8 @@ theorem share_eq_eval_basis_mul_add_sum (params : Params F Party) (r : Randomnes
       r).trans_le ?_
     rw [card_insertNone]
     exact_mod_cast Nat.succ_le_succ hL
-  have h := Lagrange.eval_eq_sum_eval_basis_mul_eval
+  simpa [share, sum_insertNone] using Lagrange.eval_eq_sum_eval_basis_mul_eval
     (params.pointOrZero_injective.injOn (s := ↑(insertNone L))) hdeg (params.point i)
-  rw [sum_insertNone] at h
-  simpa [share] using h
 
 /-- **Linearity of the shares, acting on a module**: `share_eq_eval_basis_mul_add_sum` applied to
 an element `h` of a module over the field. This is the identity behind Corollary 22.2 of
@@ -164,8 +161,7 @@ theorem sum_lagrangeWeightAtZero_smul_share_smul {M : Type*} [AddCommMonoid M] [
       share params r a i • h = a • h := by
   have := reconstruct_share_eq_secret params r a hs
   rw [reconstruct, Polynomial.reconstruct_eq_sum_lagrangeWeightAtZero] at this
-  conv_rhs => rw [← this]
-  rw [sum_smul]
-  exact sum_congr rfl fun i _ => by rw [mul_smul, smul_comm]
+  exact (sum_congr rfl fun i _ => by rw [smul_comm, ← mul_smul]).trans
+    (by rw [← sum_smul, this])
 
 end Cslib.Crypto.Protocols.SecretSharing.Shamir

@@ -150,11 +150,7 @@ gate otherwise. -/
 theorem Program.arity_lines_eraseGates (p : Program σ n s) (g : Fin s) :
     (σ.withConstants {g // special g}).Arity ((p.eraseGates special).lines g).op =
       if special g then 0 else σ.Arity (p.lines g).op := by
-  by_cases hg : special g
-  · simp only [lines_eraseGates_of_special p hg, hg, ↓reduceIte]
-    rfl
-  · simp only [lines_eraseGates_of_not_special p hg, hg, ↓reduceIte]
-    rfl
+  by_cases hg : special g <;> simp [lines_eraseGates, hg, Line.const, Line.liftConstants]
 
 /-- The inner gates of the erased program are the inner gates that are not special. -/
 theorem Program.innerGates_eraseGates (p : Program σ n s) :
@@ -182,12 +178,10 @@ theorem Program.trace_eraseGates_gate (p : Program σ n s) (x : Fin n → U) (g 
         I (p.lines g).op fun a => (p.eraseGates special).trace (I.withConstants γ) x
           ((p.lines g).wires a) := by
   rw [trace_gate]
-  by_cases hg : special g
+  split_ifs with hg
   · rw [lines_eraseGates_of_special p hg]
-    simp only [hg, ↓reduceDIte]
     rfl
   · rw [lines_eraseGates_of_not_special p hg]
-    simp only [hg, ↓reduceDIte]
     rfl
 
 /-- **Erasing gates keeps the run** when the constants hold the values of the special gates in

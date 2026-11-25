@@ -148,9 +148,10 @@ theorem positiveExterior_points_fits {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
     · have hcut : Rect 540000 540000 (positiveRadius • direction a b + positiveTranslation) := by
         rcases direction_unit a b with h | h | h | h <;>
           rw [h] <;> norm_num [Rect, positiveRadius, positiveTranslation, Prod.smul_mk]
-      rw [show cutPoint positiveScale positiveRadius a b + positiveTranslation =
-          positiveScale • a + (positiveRadius • direction a b + positiveTranslation) by
-        simp [cutPoint, add_assoc]]
+      have hpt : cutPoint positiveScale positiveRadius a b + positiveTranslation =
+          positiveScale • a + (positiveRadius • direction a b + positiveTranslation) := by
+        simp [cutPoint, add_assoc]
+      rw [hpt]
       exact placed_point_bounds (hr a List.mem_cons_self) hcut
     · obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hq'
       exact placed_point_bounds (hr x (List.mem_cons_of_mem _ hx)) translation_bounds

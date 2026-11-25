@@ -77,6 +77,7 @@ theorem sum_neg_one_pow_val_dotProduct [Fintype α] [DecidableEq α] (v : α →
       revert hi
       generalize v i = z
       decide +revert
+    -- Flipping the coordinate `i` negates every sign.
     set S := ∑ p : α → ZMod 2, (-1 : ℝ) ^ (p ⬝ᵥ v).val
     have hS : S = -S := by
       calc S = ∑ p : α → ZMod 2, (-1 : ℝ) ^ ((p + Pi.single i 1) ⬝ᵥ v).val :=
@@ -92,7 +93,8 @@ theorem card_filter_mulVec_eq [Fintype α] [Fintype β] [DecidableEq β] (B : Ma
     (q : β → ZMod 2) :
     #{z : β → ZMod 2 | B *ᵥ z = B *ᵥ q} = #{z : β → ZMod 2 | B *ᵥ z = 0} :=
   Finset.card_bij' (fun z _ => z - q) (fun z _ => z + q)
-    (fun _ hz => by simp_all [mulVec_sub]) (fun _ hz => by simp_all [mulVec_add])
+    (fun _ hz => by simp_all [mulVec_sub])
+    (fun _ hz => by simp_all [mulVec_add])
     (fun _ _ => by simp) fun _ _ => by simp
 
 /-- The kernel of a matrix over `𝔽₂` has `2^{|β| - rank B}` elements. -/
@@ -127,13 +129,18 @@ private theorem sq_sum_mul_le_card_mul_sum_sq [Fintype α] (P : Finset α) (g H 
     (hg : ∀ p, |g p| ≤ 1) :
     (∑ p ∈ P, g p * H p) ^ 2 ≤ #P * ∑ p, H p ^ 2 := by
   classical
-  refine (Finset.sum_mul_sq_le_sq_mul_sq P g H).trans ?_
+  -- Cauchy–Schwarz over `p`.
   have hg2 : ∑ p ∈ P, g p ^ 2 ≤ #P :=
-    (Finset.sum_le_sum (g := fun _ => (1 : ℝ)) fun p _ => by
-      nlinarith [hg p, abs_nonneg (g p), sq_abs (g p)]).trans_eq (by simp)
-  exact mul_le_mul hg2
-    (Finset.sum_le_sum_of_subset_of_nonneg (subset_univ P) fun _ _ _ => sq_nonneg _)
-    (Finset.sum_nonneg fun _ _ => sq_nonneg _) (Nat.cast_nonneg _)
+    calc ∑ p ∈ P, g p ^ 2
+        ≤ ∑ _p ∈ P, (1 : ℝ) := Finset.sum_le_sum fun p _ => by
+          nlinarith [hg p, abs_nonneg (g p), sq_abs (g p)]
+      _ = #P := by simp
+  calc (∑ p ∈ P, g p * H p) ^ 2
+      ≤ (∑ p ∈ P, g p ^ 2) * ∑ p ∈ P, H p ^ 2 := Finset.sum_mul_sq_le_sq_mul_sq P g H
+    _ ≤ #P * ∑ p, H p ^ 2 :=
+      mul_le_mul hg2
+        (Finset.sum_le_sum_of_subset_of_nonneg (subset_univ P) fun _ _ _ => sq_nonneg _)
+        (Finset.sum_nonneg fun _ _ => sq_nonneg _) (Nat.cast_nonneg _)
 
 /-- Expanding the squared inner sum over all `p : α → ZMod 2` leaves only pairs `(q, q')` in the
 same fibre of `B *ᵥ ·`. -/
@@ -142,13 +149,15 @@ private theorem sum_sq_sum_bilinear_eq [Fintype α] [Fintype β] [DecidableEq α
     (∑ p : α → ZMod 2, (∑ q ∈ Q, h q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val) ^ 2) =
       ∑ q ∈ Q, ∑ q' ∈ Q, h q * h q' *
         (if B *ᵥ q + B *ᵥ q' = 0 then (2 : ℝ) ^ Fintype.card α else 0) := by
+  -- Expanding the square and summing over `p` first.
   calc ∑ p : α → ZMod 2, (∑ q ∈ Q, h q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val) ^ 2
       = ∑ p, ∑ q ∈ Q, ∑ q' ∈ Q, h q * h q' * (-1 : ℝ) ^ (p ⬝ᵥ (B *ᵥ q + B *ᵥ q')).val :=
         Fintype.sum_congr _ _ fun _ => by
           simp only [sq, Finset.sum_mul_sum, dotProduct_add, ZMod.neg_one_pow_val_add]
           exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
     _ = ∑ q ∈ Q, ∑ q' ∈ Q, ∑ p, h q * h q' * (-1 : ℝ) ^ (p ⬝ᵥ (B *ᵥ q + B *ᵥ q')).val := by
-        rw [Finset.sum_comm]; exact Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+        rw [Finset.sum_comm]
+        exact Finset.sum_congr rfl fun _ _ => Finset.sum_comm
     _ = _ := Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by
         rw [← Finset.mul_sum, sum_neg_one_pow_val_dotProduct]
 
@@ -164,15 +173,20 @@ private theorem sum_fibre_row_le [Fintype α] [Fintype β] [DecidableEq β]
         (if B *ᵥ q + B *ᵥ q' = 0 then (2 : ℝ) ^ Fintype.card α else 0)
       ≤ ∑ q' ∈ Q, (if B *ᵥ q' = B *ᵥ q then (2 : ℝ) ^ Fintype.card α else 0) :=
         Finset.sum_le_sum fun q' _ => by
+          -- Over `𝔽₂`, two vectors sum to zero exactly when they are equal.
           rw [if_congr (by rw [add_eq_zero_iff_eq_neg, ZModModule.neg_eq_self, eq_comm]) rfl rfl]
           have : |h q * h q'| ≤ 1 := by
             rw [abs_mul]; nlinarith [abs_nonneg (h q), abs_nonneg (h q'), hh q, hh q']
-          split_ifs <;> [nlinarith [le_abs_self (h q * h q')]; simp]
+          split_ifs
+          · nlinarith [le_abs_self (h q * h q')]
+          · simp
     _ = #{q' ∈ Q | B *ᵥ q' = B *ᵥ q} * (2 : ℝ) ^ Fintype.card α := by
         rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul]
     _ ≤ #{z : β → ZMod 2 | B *ᵥ z = 0} * (2 : ℝ) ^ Fintype.card α := by
         have hle : #{q' ∈ Q | B *ᵥ q' = B *ᵥ q} ≤ #{z : β → ZMod 2 | B *ᵥ z = 0} :=
-          (Finset.card_le_card fun z hz => by simp_all).trans_eq (card_filter_mulVec_eq B q)
+          calc _ ≤ #{z : β → ZMod 2 | B *ᵥ z = B *ᵥ q} :=
+                Finset.card_le_card fun _ _ => by simp_all
+            _ = _ := card_filter_mulVec_eq B q
         exact mul_le_mul_of_nonneg_right (by exact_mod_cast hle) hpos
 
 /-- **Lindsey's lemma over `𝔽₂`.** For a matrix `B` over `𝔽₂`, sets `P` and `Q` of vectors, and
@@ -187,14 +201,18 @@ theorem sq_sum_bilinear_mul_two_pow_rank_le [Fintype α] [Fintype β]
   classical
   set H : (α → ZMod 2) → ℝ := fun p => ∑ q ∈ Q, h q * (-1) ^ (p ⬝ᵥ B *ᵥ q).val
   set K := #{z : β → ZMod 2 | B *ᵥ z = 0}
+  -- Only pairs in a common fibre survive, and fibres have the size of the kernel.
   have hfibre : ∑ p, H p ^ 2 ≤ #Q * K * (2 : ℝ) ^ Fintype.card α := by
     rw [sum_sq_sum_bilinear_eq B Q h]
-    exact (Finset.sum_le_sum fun q _ => sum_fibre_row_le B Q h hh q).trans_eq
-      (by rw [Finset.sum_const, nsmul_eq_mul, mul_assoc])
+    calc _ ≤ ∑ _q ∈ Q, K * (2 : ℝ) ^ Fintype.card α :=
+          Finset.sum_le_sum fun q _ => sum_fibre_row_le B Q h hh q
+      _ = _ := by rw [Finset.sum_const, nsmul_eq_mul, mul_assoc]
   have hK : (K : ℝ) * 2 ^ B.rank = 2 ^ Fintype.card β := by
     exact_mod_cast card_ker_mul_two_pow_rank B
-  rw [show ∑ p ∈ P, ∑ q ∈ Q, g p * h q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val = ∑ p ∈ P, g p * H p from
-    Finset.sum_congr rfl fun _ _ => by simp only [H, Finset.mul_sum, mul_assoc]]
+  have hsum : ∑ p ∈ P, ∑ q ∈ Q, g p * h q * (-1 : ℝ) ^ (p ⬝ᵥ B *ᵥ q).val =
+      ∑ p ∈ P, g p * H p :=
+    Finset.sum_congr rfl fun _ _ => by simp only [H, Finset.mul_sum, mul_assoc]
+  rw [hsum]
   calc (∑ p ∈ P, g p * H p) ^ 2 * 2 ^ B.rank
       ≤ #P * (#Q * K * (2 : ℝ) ^ Fintype.card α) * 2 ^ B.rank :=
         mul_le_mul_of_nonneg_right ((sq_sum_mul_le_card_mul_sum_sq P g H hg).trans

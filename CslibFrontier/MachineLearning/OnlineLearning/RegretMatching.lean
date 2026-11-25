@@ -310,8 +310,7 @@ theorem blackwell_orthant_potential_le {r : ℕ → L → ℝ} {T : ℕ}
           convex_nonposOrthant Rt)
     have hnear_sq : ‖Rt1 - metricProjection (nonposOrthant L) Rt1‖ ^ 2 ≤
         ‖(Rt - metricProjection (nonposOrthant L) Rt) + rt‖ ^ 2 := by
-      rw [show (Rt - metricProjection (nonposOrthant L) Rt) + rt =
-        Rt1 - metricProjection (nonposOrthant L) Rt by dsimp [Rt1]; abel]
+      rw [sub_add_eq_add_sub]
       exact pow_le_pow_left₀ (norm_nonneg _) hnear 2
     rw [norm_add_sq_real, norm_sub_metricProjection_nonposOrthant_sq Rt1,
       norm_sub_metricProjection_nonposOrthant_sq Rt, EuclideanSpace.real_norm_sq_eq rt,
@@ -327,9 +326,12 @@ is bounded by `√(∑ t < T, ∑ l, r t l ^ 2)`. -/
 theorem blackwell_orthant_coord_le {r : ℕ → L → ℝ} {T : ℕ}
     (hB : ∀ t < T, ∑ l, max 0 (∑ s ∈ range t, r s l) * r t l ≤ 0) (l₀ : L) :
     ∑ t ∈ range T, r t l₀ ≤ √(∑ t ∈ range T, ∑ l, r t l ^ 2) :=
-  (le_max_right 0 _).trans <| (sqrt_sq (le_max_left 0 _)).symm.trans_le <| sqrt_le_sqrt <|
-    (single_le_sum (f := fun l => max 0 (∑ t ∈ range T, r t l) ^ 2)
-      (fun _ _ => sq_nonneg _) (mem_univ l₀)).trans (blackwell_orthant_potential_le hB)
+  calc ∑ t ∈ range T, r t l₀
+      ≤ max 0 (∑ t ∈ range T, r t l₀) := le_max_right _ _
+    _ = √(max 0 (∑ t ∈ range T, r t l₀) ^ 2) := (sqrt_sq (le_max_left _ _)).symm
+    _ ≤ √(∑ t ∈ range T, ∑ l, r t l ^ 2) := sqrt_le_sqrt <|
+        (single_le_sum (f := fun l => max 0 (∑ t ∈ range T, r t l) ^ 2)
+          (fun _ _ => sq_nonneg _) (mem_univ l₀)).trans (blackwell_orthant_potential_le hB)
 
 /-- Finite Cauchy–Schwarz inequality `(∑ l, f l) ^ 2 ≤ |L| * ∑ l, f l ^ 2`, proved via
 `real_inner_le_norm` in `EuclideanSpace ℝ L`. -/
@@ -337,9 +339,10 @@ private theorem sq_sum_le_card_mul_sum_sq (f : L → ℝ) :
     (∑ l, f l) ^ 2 ≤ Fintype.card L * ∑ l, f l ^ 2 := by
   let ones : EuclideanSpace ℝ L := WithLp.toLp 2 fun _ => (1 : ℝ)
   let vf : EuclideanSpace ℝ L := WithLp.toLp 2 f
-  have hcs : |∑ l, f l| ≤ ‖ones‖ * ‖vf‖ := by
-    simpa [EuclideanSpace.inner_eq_star_dotProduct, dotProduct, ones, vf] using
-      abs_real_inner_le_norm ones vf
+  have hcs : |∑ l, f l| ≤ ‖ones‖ * ‖vf‖ :=
+    calc |∑ l, f l| = |⟪ones, vf⟫| := by
+          simp [EuclideanSpace.inner_eq_star_dotProduct, dotProduct, ones, vf]
+      _ ≤ ‖ones‖ * ‖vf‖ := abs_real_inner_le_norm ones vf
   calc (∑ l, f l) ^ 2 = |∑ l, f l| ^ 2 := (sq_abs _).symm
     _ ≤ (‖ones‖ * ‖vf‖) ^ 2 := pow_le_pow_left₀ (abs_nonneg _) hcs 2
     _ = Fintype.card L * ∑ l, f l ^ 2 := by
@@ -473,25 +476,32 @@ theorem regretMatching_externalRegret_le {ℓ : ℕ → ι → ℝ} {T : ℕ} {B
     externalRegretOf (regretMatchingProb ℓ) ℓ T k ≤ B * √(Fintype.card ι * T) := by
   have : Nonempty ι := ⟨k⟩
   have htot : ∑ t ∈ range T, ∑ a, (∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a) ^ 2 ≤
-      B ^ 2 * (Fintype.card ι * T) := by
-    refine (sum_le_sum fun t ht => (sum_le_sum fun a _ => ?_).trans_eq
-      (by simp [sum_const, nsmul_eq_mul] : ∑ _a : ι, B ^ 2 = Fintype.card ι * B ^ 2)).trans_eq ?_
-    · have habs : |∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a| ≤ B := by
-        rw [show ∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a =
-          ∑ b, regretMatchingProb ℓ t b * (ℓ t b - ℓ t a) by
-          simp [mul_sub, sum_sub_distrib, ← sum_mul, sum_regretMatchingProb]]
-        calc |∑ b, regretMatchingProb ℓ t b * (ℓ t b - ℓ t a)|
-            ≤ ∑ b, |regretMatchingProb ℓ t b * (ℓ t b - ℓ t a)| := abs_sum_le_sum_abs _ _
-          _ ≤ ∑ b, regretMatchingProb ℓ t b * B := sum_le_sum fun b _ => by
-              rw [abs_mul, abs_of_nonneg (regretMatchingProb_nonneg ℓ t b)]
-              exact mul_le_mul_of_nonneg_left (hℓ t (mem_range.mp ht) b a)
-                (regretMatchingProb_nonneg ℓ t b)
-          _ = B := by rw [← sum_mul, sum_regretMatchingProb, one_mul]
-      simpa only [sq_abs] using pow_le_pow_left₀ (abs_nonneg _) habs 2
-    · simp only [sum_const, card_range, nsmul_eq_mul]; ring
-  exact (blackwell_orthant_coord_le
-    (fun t _ => (sum_max_externalRegret_mul_sub_eq_zero ℓ t).le) k).trans
-    ((sqrt_le_sqrt htot).trans_eq (by rw [sqrt_mul (sq_nonneg B), sqrt_sq hB0]))
+      B ^ 2 * (Fintype.card ι * T) :=
+    calc ∑ t ∈ range T, ∑ a, (∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a) ^ 2
+        ≤ ∑ _t ∈ range T, (Fintype.card ι : ℝ) * B ^ 2 := sum_le_sum fun t ht =>
+          calc ∑ a, (∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a) ^ 2
+              ≤ ∑ _a : ι, B ^ 2 := sum_le_sum fun a _ => by
+                have habs : |∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a| ≤ B :=
+                  calc |∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a|
+                      = |∑ b, regretMatchingProb ℓ t b * (ℓ t b - ℓ t a)| := by
+                        simp [mul_sub, sum_sub_distrib, ← sum_mul, sum_regretMatchingProb]
+                    _ ≤ ∑ b, |regretMatchingProb ℓ t b * (ℓ t b - ℓ t a)| :=
+                        abs_sum_le_sum_abs _ _
+                    _ ≤ ∑ b, regretMatchingProb ℓ t b * B := sum_le_sum fun b _ => by
+                        rw [abs_mul, abs_of_nonneg (regretMatchingProb_nonneg ℓ t b)]
+                        exact mul_le_mul_of_nonneg_left (hℓ t (mem_range.mp ht) b a)
+                          (regretMatchingProb_nonneg ℓ t b)
+                    _ = B := by rw [← sum_mul, sum_regretMatchingProb, one_mul]
+                simpa only [sq_abs] using pow_le_pow_left₀ (abs_nonneg _) habs 2
+            _ = Fintype.card ι * B ^ 2 := by simp [sum_const, nsmul_eq_mul]
+      _ = B ^ 2 * (Fintype.card ι * T) := by
+          simp only [sum_const, card_range, nsmul_eq_mul]
+          ring
+  calc externalRegretOf (regretMatchingProb ℓ) ℓ T k
+      ≤ √(∑ t ∈ range T, ∑ a, (∑ b, regretMatchingProb ℓ t b * ℓ t b - ℓ t a) ^ 2) :=
+        blackwell_orthant_coord_le (fun t _ => (sum_max_externalRegret_mul_sub_eq_zero ℓ t).le) k
+    _ ≤ √(B ^ 2 * (Fintype.card ι * T)) := sqrt_le_sqrt htot
+    _ = B * √(Fintype.card ι * T) := by rw [sqrt_mul (sq_nonneg B), sqrt_sq hB0]
 
 /-- Specialization of `regretMatching_externalRegret_le` to `[0, 1]`-valued losses
 ([BlumMansour2007AGT] §4.2 convention): external regret at most `√(|ι| * T)` for all `T`. -/
@@ -542,8 +552,10 @@ theorem internalRegretTransition_mem_rowStochastic {rPos : ι → ι → ℝ}
   · dsimp only [internalRegretTransition, of_apply]
     split_ifs with hkj
     · have hsub_le : ∑ k' ∈ univ.erase j, rPos j k' ≤ ∑ j', ∑ k', rPos j' k' :=
-        (sum_le_univ_sum_of_nonneg (hr j)).trans
-          (single_le_sum (fun j' _ => sum_nonneg fun k' _ => hr j' k') (mem_univ j))
+        calc ∑ k' ∈ univ.erase j, rPos j k'
+            ≤ ∑ k', rPos j k' := sum_le_univ_sum_of_nonneg (hr j)
+          _ ≤ ∑ j', ∑ k', rPos j' k' :=
+              single_le_sum (fun j' _ => sum_nonneg fun k' _ => hr j' k') (mem_univ j)
       have hdiv : (∑ k' ∈ univ.erase j, rPos j k') / μ ≤ 1 :=
         (div_le_one hμ_pos).mpr (by dsimp [μ]; linarith)
       linarith
@@ -575,9 +587,13 @@ theorem sum_mul_internalRegretTransition_balance {rPos : ι → ι → ℝ} {q :
   rw [ite_eq_left rfl, hoff] at hj
   have hmul := congrArg (μ * ·) hj
   field_simp [hμ_pos.ne'] at hmul
-  rw [← add_sum_erase _ _ (mem_univ j), ← add_sum_erase _ (rPos j) (mem_univ j), hdiag j,
-    mul_zero, zero_add, zero_add]
-  linarith
+  calc ∑ k, q k * rPos k j
+      = q j * rPos j j + ∑ k ∈ univ.erase j, q k * rPos k j :=
+        (add_sum_erase _ _ (mem_univ j)).symm
+    _ = q j * (rPos j j + ∑ k' ∈ univ.erase j, rPos j k') := by
+        rw [hdiag j]
+        linarith
+    _ = q j * ∑ k, rPos j k := by rw [add_sum_erase _ _ (mem_univ j)]
 
 omit [DecidableEq ι] in
 /-- **Equations `(3.3)`–`(3.4)`** of [HartMasColell2000] (§3, pp. 1136–1137): whenever `q` satisfies
@@ -678,25 +694,34 @@ theorem sum_max_pairInternalRegret_sq_le [Nonempty ι] {ℓ : ℕ → ι → ℝ
         max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T p.1 p.2) ^ 2 ≤
       B ^ 2 * ((Fintype.card ι - 1 : ℕ) * T) := by
   set q := internalRegretMatchingProb ℓ
-  refine (blackwell_orthant_potential_le
+  exact (blackwell_orthant_potential_le
     (L := ι × ι) (r := fun t p => q t p.1 * (ℓ t p.1 - ℓ t p.2)) (T := T) fun t _ =>
-      (sum_balance_mul_sub_eq_zero (sum_mul_posPairInternalRegret_eq ℓ t) (ℓ t)).le).trans ?_
-  refine (sum_le_sum (g := fun _ => B ^ 2 * (Fintype.card ι - 1 : ℕ)) fun t ht => ?_).trans_eq
-    (by simp only [sum_const, card_range, nsmul_eq_mul]; ring)
-  rw [Fintype.sum_prod_type]
-  refine (sum_le_sum (g := fun j => q t j * (B ^ 2 * (Fintype.card ι - 1 : ℕ))) fun j _ =>
-    ?_).trans_eq (by rw [← sum_mul, sum_internalRegretMatchingProb ℓ t, one_mul])
-  rw [← add_sum_erase _ _ (mem_univ j), sub_self, mul_zero, zero_pow two_ne_zero, zero_add]
-  have hqj_sq : q t j ^ 2 ≤ q t j := by
-    nlinarith [internalRegretMatchingProb_nonneg ℓ t j, internalRegretMatchingProb_le_one ℓ t j]
-  calc ∑ k ∈ univ.erase j, (q t j * (ℓ t j - ℓ t k)) ^ 2
-      ≤ ∑ _k ∈ univ.erase j, q t j * B ^ 2 := sum_le_sum fun k _ => by
-        rw [mul_pow, ← sq_abs (ℓ t j - ℓ t k)]
-        exact (mul_le_mul_of_nonneg_left
-          (pow_le_pow_left₀ (abs_nonneg _) (hℓ t (mem_range.mp ht) j k) 2)
-          (sq_nonneg _)).trans (mul_le_mul_of_nonneg_right hqj_sq (sq_nonneg B))
-    _ = q t j * (B ^ 2 * (Fintype.card ι - 1 : ℕ)) := by
-        simp only [sum_const, card_erase_of_mem (mem_univ j), card_univ, nsmul_eq_mul]; ring
+      (sum_balance_mul_sub_eq_zero (sum_mul_posPairInternalRegret_eq ℓ t) (ℓ t)).le).trans <|
+    calc ∑ t ∈ range T, ∑ p : ι × ι, (q t p.1 * (ℓ t p.1 - ℓ t p.2)) ^ 2
+        ≤ ∑ _t ∈ range T, B ^ 2 * (Fintype.card ι - 1 : ℕ) := sum_le_sum fun t ht => by
+          rw [Fintype.sum_prod_type]
+          calc ∑ j, ∑ k, (q t j * (ℓ t j - ℓ t k)) ^ 2
+              ≤ ∑ j, q t j * (B ^ 2 * (Fintype.card ι - 1 : ℕ)) := sum_le_sum fun j _ => by
+                rw [← add_sum_erase _ _ (mem_univ j), sub_self, mul_zero, zero_pow two_ne_zero,
+                  zero_add]
+                have hqj_sq : q t j ^ 2 ≤ q t j := by
+                  nlinarith [internalRegretMatchingProb_nonneg ℓ t j,
+                    internalRegretMatchingProb_le_one ℓ t j]
+                calc ∑ k ∈ univ.erase j, (q t j * (ℓ t j - ℓ t k)) ^ 2
+                    ≤ ∑ _k ∈ univ.erase j, q t j * B ^ 2 := sum_le_sum fun k _ => by
+                      rw [mul_pow, ← sq_abs (ℓ t j - ℓ t k)]
+                      exact (mul_le_mul_of_nonneg_left
+                        (pow_le_pow_left₀ (abs_nonneg _) (hℓ t (mem_range.mp ht) j k) 2)
+                        (sq_nonneg _)).trans (mul_le_mul_of_nonneg_right hqj_sq (sq_nonneg B))
+                  _ = q t j * (B ^ 2 * (Fintype.card ι - 1 : ℕ)) := by
+                      simp only [sum_const, card_erase_of_mem (mem_univ j), card_univ,
+                        nsmul_eq_mul]
+                      ring
+            _ = B ^ 2 * (Fintype.card ι - 1 : ℕ) := by
+                rw [← sum_mul, sum_internalRegretMatchingProb ℓ t, one_mul]
+      _ = B ^ 2 * ((Fintype.card ι - 1 : ℕ) * T) := by
+          simp only [sum_const, card_range, nsmul_eq_mul]
+          ring
 
 /-- **Quantitative Theorem A** of [HartMasColell2000] (§3, pp. 1133, 1138): if pairwise loss
 differences in rounds `< T` are bounded by `B ≥ 0`, then `internalRegretMatchingProb` achieves
@@ -707,12 +732,15 @@ theorem internalRegretMatching_pairInternalRegret_le {ℓ : ℕ → ι → ℝ} 
     pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T j k ≤
       B * √((Fintype.card ι - 1 : ℕ) * T) := by
   have : Nonempty ι := ⟨j⟩
-  refine (le_max_right 0 _).trans <| (sqrt_sq (le_max_left 0 _)).symm.trans_le <|
-    (sqrt_le_sqrt <| (single_le_sum (f := fun p : ι × ι =>
-      max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T p.1 p.2) ^ 2)
-      (fun _ _ => sq_nonneg _) (mem_univ (j, k))).trans
-      (sum_max_pairInternalRegret_sq_le hℓ)).trans_eq ?_
-  rw [sqrt_mul (sq_nonneg B), sqrt_sq hB0]
+  calc pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T j k
+      ≤ max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T j k) := le_max_right _ _
+    _ = √(max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T j k) ^ 2) :=
+        (sqrt_sq (le_max_left _ _)).symm
+    _ ≤ √(B ^ 2 * ((Fintype.card ι - 1 : ℕ) * T)) := sqrt_le_sqrt <|
+        (single_le_sum (f := fun p : ι × ι =>
+          max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T p.1 p.2) ^ 2)
+          (fun _ _ => sq_nonneg _) (mem_univ (j, k))).trans (sum_max_pairInternalRegret_sq_le hℓ)
+    _ = B * √((Fintype.card ι - 1 : ℕ) * T) := by rw [sqrt_mul (sq_nonneg B), sqrt_sq hB0]
 
 /-- **Anytime `O(√T)` swap regret of Hart–Mas-Colell stationary regret-matching**: by Cauchy–Schwarz
 over the `|ι|` pairs `(j, δ j)`, if pairwise loss differences in rounds `< T` are bounded by
@@ -725,20 +753,25 @@ theorem internalRegretMatching_swapRegret_le [Nonempty ι] {ℓ : ℕ → ι →
   set rPos : ι → ℝ := fun j =>
     max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T j (δ j))
   let emb : ι ↪ ι × ι := ⟨fun j => (j, δ j), fun _ _ h => (Prod.mk.inj h).1⟩
-  have hsub_sq : ∑ j, rPos j ^ 2 ≤ B ^ 2 * ((Fintype.card ι - 1 : ℕ) * T) := by
-    rw [show ∑ j, rPos j ^ 2 = ∑ p ∈ univ.map emb,
-      max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T p.1 p.2) ^ 2 from
-      (sum_map univ emb fun p =>
-        max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T p.1 p.2) ^ 2).symm]
-    exact (sum_le_univ_sum_of_nonneg fun _ => sq_nonneg _).trans
-      (sum_max_pairInternalRegret_sq_le hℓ)
+  have hsub_sq : ∑ j, rPos j ^ 2 ≤ B ^ 2 * ((Fintype.card ι - 1 : ℕ) * T) :=
+    (sum_map univ emb fun p =>
+      max 0 (pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T p.1 p.2) ^ 2).symm.trans_le <|
+      (sum_le_univ_sum_of_nonneg fun _ => sq_nonneg _).trans
+        (sum_max_pairInternalRegret_sq_le hℓ)
   have hsq_bd : (∑ j, rPos j) ^ 2 ≤ B ^ 2 * (Fintype.card ι * (Fintype.card ι - 1 : ℕ) * T) :=
-    (sq_sum_le_card_mul_sum_sq rPos).trans <|
-      (mul_le_mul_of_nonneg_left hsub_sq (Nat.cast_nonneg _)).trans_eq (by ring)
-  rw [swapRegretOf_eq_sum_pairInternalRegret]
-  exact (sum_le_sum fun j _ => le_max_right _ _).trans <|
-    (sqrt_sq (sum_nonneg fun _ _ => le_max_left _ _)).symm.trans_le <|
-      (sqrt_le_sqrt hsq_bd).trans_eq (by rw [sqrt_mul (sq_nonneg B), sqrt_sq hB0])
+    calc (∑ j, rPos j) ^ 2
+        ≤ Fintype.card ι * ∑ j, rPos j ^ 2 := sq_sum_le_card_mul_sum_sq rPos
+      _ ≤ Fintype.card ι * (B ^ 2 * ((Fintype.card ι - 1 : ℕ) * T)) :=
+          mul_le_mul_of_nonneg_left hsub_sq (Nat.cast_nonneg _)
+      _ = B ^ 2 * (Fintype.card ι * (Fintype.card ι - 1 : ℕ) * T) := by ring
+  calc swapRegretOf (internalRegretMatchingProb ℓ) ℓ T δ
+      = ∑ j, pairInternalRegret (internalRegretMatchingProb ℓ) ℓ T j (δ j) :=
+        swapRegretOf_eq_sum_pairInternalRegret _ _ _ _
+    _ ≤ ∑ j, rPos j := sum_le_sum fun j _ => le_max_right _ _
+    _ = √((∑ j, rPos j) ^ 2) := (sqrt_sq (sum_nonneg fun _ _ => le_max_left _ _)).symm
+    _ ≤ √(B ^ 2 * (Fintype.card ι * (Fintype.card ι - 1 : ℕ) * T)) := sqrt_le_sqrt hsq_bd
+    _ = B * √(Fintype.card ι * (Fintype.card ι - 1 : ℕ) * T) := by
+        rw [sqrt_mul (sq_nonneg B), sqrt_sq hB0]
 
 end InternalRegretMatching
 

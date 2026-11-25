@@ -124,8 +124,8 @@ def mkOr (F G : Formula signature n) : Formula signature n :=
 
 /-- A unary node is the negation of its argument. -/
 theorem gate_not_eq (args : Fin (signature.Arity Op.not) → Formula signature n) :
-    gate Op.not args = (args 0).not := by
-  exact congrArg (gate _) (funext fun j => by fin_cases j; rfl)
+    gate Op.not args = (args 0).not :=
+  congrArg (gate _) (funext fun | ⟨0, _⟩ => rfl)
 
 /-- A binary `.and` node is the conjunction of its arguments. -/
 theorem gate_and_eq (args : Fin (signature.Arity Op.and) → Formula signature n) :
@@ -326,8 +326,11 @@ theorem leafSize_restrict_update_le (F : Formula signature n) (i : Fin n) (b : B
     (F.restrict (Function.update PartialAssignment.empty i (some b))).leafSize + F.leafSizeIn {i} ≤
       F.leafSize := by
   have h := leafSize_restrict_le (Function.update PartialAssignment.empty i (some b)) F
-  rw [show PartialAssignment.free (Function.update PartialAssignment.empty i (some b)) = {i}ᶜ by
-    ext j; by_cases hj : j = i <;> simp [hj]] at h
+  have hfree : PartialAssignment.free (Function.update PartialAssignment.empty i (some b)) =
+      {i}ᶜ := by
+    ext j
+    by_cases hj : j = i <;> simp [hj]
+  rw [hfree] at h
   have := leafSizeIn_add_leafSizeIn_compl {i} F
   omega
 

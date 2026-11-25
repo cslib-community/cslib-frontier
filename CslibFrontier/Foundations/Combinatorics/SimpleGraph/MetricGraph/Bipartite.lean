@@ -171,7 +171,8 @@ theorem bipartite_const_weight_dist_edgePoint_affine [Finite V] {W : WeightedGra
     Dist.dist (vertex t₀ : MetricGraph W) (edgePoint d s) =
       (1 - (s : ℝ)) * Dist.dist (vertex t₀ : MetricGraph W) (vertex d.fst) +
         (s : ℝ) * Dist.dist (vertex t₀ : MetricGraph W) (vertex d.snd) := by
-  rw [dist_vertex_edgePoint, hconst d.edge d.edge_mem,
+  have hw : W.weight d.edge = ℓ := hconst d.edge d.edge_mem
+  rw [dist_vertex_edgePoint, hw,
     vertexDist_eq_of_const_weight hℓ hconst, vertexDist_eq_of_const_weight hℓ hconst,
     dist_vertex_eq_of_const_weight hℓ hconst, dist_vertex_eq_of_const_weight hℓ hconst]
   rcases bipartite_graph_dist_adj_succ hbip W.connected t₀ d.adj with h | h <;>
@@ -285,17 +286,21 @@ private theorem midpoint_witness_diff [Finite V] (W : WeightedGraph V)
        ((∃ e : W.graph.edgeSet, x.1 = edgePoint (edgeDartOfSym2 e) halfUnit) ∧
           (∃ v : V, y.1 = vertex v))) := by
   let e : W.graph.edgeSet := ⟨d.edge, d.edge_mem⟩
+  have hhalf : (halfUnit : ℝ) = 1 / 2 := rfl
   rcases (dart_edge_eq_iff d (edgeDartOfSym2 e)).mp (edgeDartOfSym2_edge e).symm with hd | hsym
   · have hsB : edgePoint (edgeDartOfSym2 e) s ∈ midpointPoints W := by rw [← hd, hs]; exact x.2
     have htB : edgePoint (edgeDartOfSym2 e) t ∈ midpointPoints W := by rw [← hd, ht]; exact y.2
     have hno' (r : unitInterval) (hr1 : (s : ℝ) < r) (hr2 : (r : ℝ) < t) :
-        edgePoint (edgeDartOfSym2 e) r ∉ midpointPoints W := by rw [← hd]; exact hno r hr1 hr2
+        edgePoint (edgeDartOfSym2 e) r ∉ midpointPoints W := by
+          rw [← hd]
+          exact hno r hr1 hr2
     rcases midpoint_forward_cases W hst hsB htB hno' with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact ⟨by change (1 / 2 : ℝ) - 0 = 1 / 2; norm_num, Or.inl
+    · exact ⟨by norm_num [hhalf], Or.inl
         ⟨⟨(edgeDartOfSym2 e).fst, by rw [← hs, hd, edgePoint_zero]⟩, ⟨e, by rw [← ht, hd]⟩⟩⟩
-    · exact ⟨by change 1 - (1 / 2 : ℝ) = 1 / 2; norm_num, Or.inr
+    · exact ⟨by norm_num [hhalf], Or.inr
         ⟨⟨e, by rw [← hs, hd]⟩, ⟨(edgeDartOfSym2 e).snd, by rw [← ht, hd, edgePoint_one]⟩⟩⟩
-  · let s' := unitInterval.symm t; let t' := unitInterval.symm s
+  · let s' := unitInterval.symm t
+    let t' := unitInterval.symm s
     have hst' : (s' : ℝ) < t' := by change 1 - (t : ℝ) < 1 - s; linarith
     have hsB : edgePoint (edgeDartOfSym2 e) s' ∈ midpointPoints W := by
       rw [edgePoint_symm', ← hsym, ht]; exact y.2
@@ -321,23 +326,23 @@ private theorem midpoint_witness_diff [Finite V] (W : WeightedGraph V)
         change 1 - (t : ℝ) = 0 at this
         change (t : ℝ) = 1
         linarith)
-      exact ⟨by
-          rw [hdiff, hs'0, ht'h]
-          change (1 / 2 : ℝ) - 0 = 1 / 2; norm_num,
-        Or.inr ⟨⟨e, by
-            rw [← hs, hsym, ← edgePoint_symm', show unitInterval.symm s = halfUnit from ht'h]⟩,
-          ⟨(edgeDartOfSym2 e).fst, by rw [← ht, ht1, hsym, edgePoint_one]; rfl⟩⟩⟩
+      refine ⟨by rw [hdiff, hs'0, ht'h]; norm_num [hhalf],
+        Or.inr ⟨⟨e, ?_⟩, ⟨(edgeDartOfSym2 e).fst, ?_⟩⟩⟩
+      · rw [← hs, hsym, ← edgePoint_symm']
+        exact congrArg _ ht'h
+      · rw [← ht, ht1, hsym, edgePoint_one]
+        rfl
     · have hs0 : s = 0 := Subtype.ext (by
         have : (t' : ℝ) = 1 := congrArg Subtype.val ht'1
         change 1 - (s : ℝ) = 1 at this
         change (s : ℝ) = 0
         linarith)
-      exact ⟨by
-          rw [hdiff, hs'h, ht'1]
-          change 1 - (1 / 2 : ℝ) = 1 / 2; norm_num,
-        Or.inl ⟨⟨(edgeDartOfSym2 e).snd, by rw [← hs, hs0, hsym, edgePoint_zero]; rfl⟩,
-          ⟨e, by
-            rw [← ht, hsym, ← edgePoint_symm', show unitInterval.symm t = halfUnit from hs'h]⟩⟩⟩
+      refine ⟨by rw [hdiff, hs'h, ht'1]; norm_num [hhalf],
+        Or.inl ⟨⟨(edgeDartOfSym2 e).snd, ?_⟩, ⟨e, ?_⟩⟩⟩
+      · rw [← hs, hs0, hsym, edgePoint_zero]
+        rfl
+      · rw [← ht, hsym, ← edgePoint_symm']
+        exact congrArg _ hs'h
 
 theorem midpointSubdivision_isBipartite [Finite V] (W : WeightedGraph V) :
     (midpointSubdivision W).graph.IsBipartite :=

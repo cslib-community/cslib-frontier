@@ -243,7 +243,8 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
       have := h' p (some (some i))
       simp only [ext] at hp₀ this ⊢
       rw [← hp₀]
-      unfold GapClose at this ⊢; omega
+      unfold GapClose at this ⊢
+      omega
   · simp only [not_exists] at hx
     classical
     obtain ⟨pl, hmem_l, hmax⟩ := Finset.exists_max_image
@@ -266,10 +267,12 @@ private theorem Good.forth {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {
     rcases lt_or_gt_of_ne (hx p) with hlt | hgt
     · have hle := hmax p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hlt⟩)
       have hp := h' p pl
-      unfold GapClose at hp hv1 ⊢; omega
+      unfold GapClose at hp hv1 ⊢
+      omega
     · have hle := hmin p (Finset.mem_filter.2 ⟨Finset.mem_univ _, hgt⟩)
       have hp := h' pr p
-      unfold GapClose at hp hv2 ⊢; omega
+      unfold GapClose at hp hv2 ⊢
+      omega
 
 private theorem Good.symm {m m' k r : ℕ} {C : Coords M m} {D : Coords N m'} {a : Fin k → M}
     {b : Fin k → N} (h : Good C D r a b) : Good D C r b a :=

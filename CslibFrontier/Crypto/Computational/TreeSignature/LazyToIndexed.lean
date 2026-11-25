@@ -296,7 +296,8 @@ private theorem localSignEdge_planted_spec (S : IndexedSignatureScheme)
   · rcases mem_support_localSignEdge hm with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact hall p₀ idx₀ u₀ m₀ hm_all
     · rcases List.mem_cons.mp hm_all with hhead | ht
-      · cases hhead; exact ⟨hvis, by simp⟩
+      · cases hhead
+        exact ⟨hvis, by simp⟩
       · obtain ⟨hpv, hpl⟩ := hall p₀ idx₀ u₀ m₀ ht
         refine ⟨hpv, ?_⟩
         rw [List.lookup_cons]; cases (p₀, u₀) == (path, u) <;> [exact hpl; rintro ⟨⟩]
@@ -359,19 +360,23 @@ private theorem localTreeHandler_planted_step (S : IndexedSignatureScheme) (dept
   obtain ⟨⟨visited, edges, allSigned⟩, ⟨queried, seen, bad⟩⟩ := st
   simp only [localTreeHandler, guardedTreeHandler, plantedTreeHandler]
   split_ifs with hmsg hbad
-  any_goals simp only [OracleComp.run_interpret_pure, pmf_norm]; exact .pure rfl hinv
-  simp only [OracleComp.run_interpret_bind, ProbOracleComp.run_interpret_sample,
-    BitString.eval_sampleList, pmf_norm]
-  refine (PMF.RepInv.of_eq (PMF.map_id (BitString.uniformList (depth n)))).bind fun leaf _ _ => ?_
-  dsimp only [id, localSignBody]
-  split_ifs
-  · simp only [OracleComp.run_interpret_pure, pmf_norm]; exact .pure rfl hinv
-  · simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_pure, pmf_norm]
-    exact (localCertify_planted_spec S depth hcap leaf hinv).bind
-      fun ⟨⟨node, idx, certs⟩, v', e', a'⟩ _ ⟨hnode_v', hinv'⟩ =>
-        (localSignEdge_planted_spec S hcap (by simp) hinv'.slots_unique hinv'.allSigned_ok
-          hnode_v' (Bool.toNat_le _) req.2).map
-          fun _ _ hedg => ⟨rfl, ⟨hinv'.root_mem, hinv'.slots_lt, hinv'.slots_unique, hedg⟩⟩
+  · simp only [OracleComp.run_interpret_pure, pmf_norm]
+    exact .pure rfl hinv
+  · simp only [OracleComp.run_interpret_bind, ProbOracleComp.run_interpret_sample,
+      BitString.eval_sampleList, pmf_norm]
+    refine (PMF.RepInv.of_eq (PMF.map_id (BitString.uniformList (depth n)))).bind fun leaf _ _ => ?_
+    dsimp only [id, localSignBody]
+    split_ifs
+    · simp only [OracleComp.run_interpret_pure, pmf_norm]
+      exact .pure rfl hinv
+    · simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_pure, pmf_norm]
+      exact (localCertify_planted_spec S depth hcap leaf hinv).bind
+        fun ⟨⟨node, idx, certs⟩, v', e', a'⟩ _ ⟨hnode_v', hinv'⟩ =>
+          (localSignEdge_planted_spec S hcap (by simp) hinv'.slots_unique hinv'.allSigned_ok
+            hnode_v' (Bool.toNat_le _) req.2).map
+            fun _ _ hedg => ⟨rfl, ⟨hinv'.root_mem, hinv'.slots_lt, hinv'.slots_unique, hedg⟩⟩
+  · simp only [OracleComp.run_interpret_pure, pmf_norm]
+    exact .pure rfl hinv
 
 /-- The index of an extracted forgery is a bit, so it lies below every capacity of at least `2`. -/
 private theorem extractForgery_fst_lt (d target : ℕ) (visited : NodeSlotCache)
@@ -379,7 +384,8 @@ private theorem extractForgery_fst_lt (d target : ℕ) (visited : NodeSlotCache)
     (extractForgery d target visited msg sig).1 < cap := by
   unfold extractForgery
   rcases signatureDecoder.decode sig with ⟨leaf, certs, last⟩
-  dsimp only; split_ifs <;> exact (Bool.toNat_le _).trans_lt (by omega)
+  dsimp only
+  split_ifs <;> exact (Bool.toNat_le _).trans_lt (by omega)
 
 private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
     (depth slotBound sigCap : ℕ → ℕ) {n : ℕ} (hcap : 2 ≤ S.capacity n)
@@ -782,7 +788,9 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
   set initJ : JointKeysState := (([root], initPresampledState.1), initPresampledState.2)
   have hjInv : JointKeysInv S n root initJ.1 :=
     ⟨rfl, rfl, rfl, fun k hk => List.mem_singleton.mp hk ▸ hroot,
-      fun e he => by rw [List.mem_singleton.mp he]; simp [initJ, initPresampledState]⟩
+      fun e he => by
+        rw [List.mem_singleton.mp he]
+        simp [initJ, initPresampledState]⟩
   have hproj := ProbOracleComp.run_interpret_map_state_of_invariant _
     (fun q s => ProbComp.eval (lazySignHandler S depth n root q s))
     (fun s => ((nodesOf s.1.1 s.1.2.1, s.1.2.2.1), s.2)) _
@@ -804,7 +812,8 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
       obtain ⟨heq, hsupp⟩ := jointKeysHandler_expandKeys S depth (sigCap n) n K req s
         ⟨h.len_eq, h.len_pos, h.slots_lt, by omega⟩
       exact ⟨heq, fun ans s' hm => by
-        obtain ⟨hl, hp, hv, hg⟩ := hsupp (ans, s') hm; exact ⟨hl, hp, hv, by omega⟩⟩)
+        obtain ⟨hl, hp, hv, hg⟩ := hsupp (ans, s') hm
+        exact ⟨hl, hp, hv, by omega⟩⟩)
     (hq root hroot) (s := initJ)
     ⟨rfl, Nat.zero_lt_one,
       fun e he => by rw [List.mem_singleton.mp he]; simp [initJ, initPresampledState],
@@ -864,7 +873,8 @@ private theorem allSignedInv_localSignEdge {S : IndexedSignatureScheme}
   · exact hinv
   · intro p i₀ u' m hm'
     rcases List.mem_cons.mp hm' with hhead | ht
-    · cases hhead; exact hnew
+    · cases hhead
+      exact hnew
     · exact hinv p i₀ u' m ht
 
 /-- Query-bounded invariant tying visited tree paths, slot allocations, and signed edge logs. -/

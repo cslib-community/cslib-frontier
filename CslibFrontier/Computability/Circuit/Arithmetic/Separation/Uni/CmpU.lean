@@ -55,7 +55,8 @@ theorem chkG_map {n : ℕ} {B κ : Type*} (φ : (Fin n → B) → κ) (hφ : Fun
   induction l generalizing p with
   | nil => rfl
   | cons r l ih =>
-    have h1 := ih (some r.2); rw [Option.map_some] at h1
+    have h1 := ih (some r.2)
+    rw [Option.map_some] at h1
     rw [List.map_cons, chkG, chk, h1]
     refine and_congr (or_congr Iff.rfl ?_) Iff.rfl
     rcases p with _ | q <;> simp [hφ.eq_iff]
@@ -86,7 +87,8 @@ theorem RdG.exists_iff (r r' : Bool × κ) :
     · exact fun _ => ⟨.inl (r, x), rfl, rfl⟩
     · rintro (h | h)
       · cases h
-      · cases Option.some.inj h; exact ⟨.inr r, rfl, rfl⟩
+      · cases Option.some.inj h
+        exact ⟨.inr r, rfl, rfl⟩
 
 theorem cmpG_iff (r : Bool × κ) (l : List (Bool × κ)) :
     (∃ (ds : List (RdG κ)) (r' : Bool × κ),
@@ -134,7 +136,8 @@ theorem exists_cmpG {l : List (Bool × κ)} (hl : l ≠ []) :
 
 theorem cmpG_unique {y y' : XG κ} (h1 : PlG y = PlG y') (h2 : QlG y = QlG y') :
     y = y' := by
-  obtain ⟨x, ds, r⟩ := y; obtain ⟨x', ds', r'⟩ := y'
+  obtain ⟨x, ds, r⟩ := y
+  obtain ⟨x', ds', r'⟩ := y'
   simp only [PlG, List.cons.injEq, Prod.mk.injEq, true_and] at h1
   obtain ⟨rfl, h1⟩ := h1
   have hl : ds.length = ds'.length := by simpa using congrArg List.length h1
@@ -176,8 +179,8 @@ theorem runs_rk (zs : Finset (Zc K)) (hz : zs.Nonempty) :
       (Runs.wordstar (F := A) zs hz (be : Bl K → Sy M K))).mul
       (Runs.word (F := A) zs [(Sy.dot : Sy M K)])).congr
     ⟨fun r => ((r.1, r.2), ()), fun y => (y.1.1, y.1.2), fun _ => rfl, fun _ => rfl⟩
-    (fun r z => by simp only [Equiv.coe_fn_mk, on_append, rk_eq]; rfl) fun _ => by simp).mono
-    (by simp)
+    (fun r z => by simp only [Equiv.coe_fn_mk, on_append, rk_eq]; rfl)
+    (fun _ => by simp)).mono (by simp)
 
 /-- Emissions of a single comparison round on `cP` and `cQ`. -/
 @[expose] def emRd (d : RdG (List (Bl K))) : Zc K → List (Sy M K) := fun z =>

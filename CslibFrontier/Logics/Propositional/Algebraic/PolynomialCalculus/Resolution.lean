@@ -130,29 +130,28 @@ theorem PC.IsProof.exists_toPCRPoly_resolvent
   have hbase : PC.IsProof F base := hm₂.mem hcomp
   obtain ⟨ms₃, hm₃, hls₃, hq, hs₃, hd₃⟩ :=
     hbase.exists_prod_mul (p := PCR.complementAxiom v) List.mem_cons_self S Std.Sat.Literal.negate
-  have hq' : q ∈ ms₃ := hq
   have ha₃ : a ∈ ms₃ := hls₃ (List.mem_cons_of_mem _ (hls₂ ha'))
   have hb₃ : b ∈ ms₃ := hls₃ (List.mem_cons_of_mem _ hb')
   have hsum : PC.IsProof F ((a + b) :: ms₃) := by
     simpa using hm₃.linear 1 1 ha₃ hb₃
   have heq : C (1 : R) * (a + b) + C (-1 : R) * q = M := by
-    simp only [map_one, map_neg, one_mul, neg_one_mul]
-    dsimp only [a, b, q]
-    rw [PCR.complementAxiom]
+    simp only [map_one, map_neg, one_mul, neg_one_mul, a, b, q, PCR.complementAxiom]
     ring
   have hfinal : PC.IsProof F (M :: (a + b) :: ms₃) :=
-    heq ▸ hsum.linear 1 (-1) List.mem_cons_self (List.mem_cons_of_mem _ hq')
+    heq ▸ hsum.linear 1 (-1) List.mem_cons_self (List.mem_cons_of_mem _ hq)
   have hMsize : M.support.card ≤ 1 := d.card_support_toPCRPoly_le
-  have hasize : a.support.card ≤ 1 := (card_support_monomial_mul_le _ _ M).trans hMsize
-  have hbsize : b.support.card ≤ 1 := (card_support_monomial_mul_le _ _ M).trans hMsize
-  have hsumsize : (a + b).support.card ≤ 2 :=
-    ((Finset.card_le_card support_add).trans (Finset.card_union_le _ _)).trans
-      (by omega)
   have hMdeg : M.totalDegree ≤ d.width := d.totalDegree_toPCRPoly_le
-  have hadeg : a.totalDegree ≤ d.width + 1 :=
-    (totalDegree_mul _ _).trans (by have := totalDegree_X_le (R := R) (v, false); omega)
-  have hbdeg : b.totalDegree ≤ d.width + 1 :=
-    (totalDegree_mul _ _).trans (by have := totalDegree_X_le (R := R) (v, true); omega)
+  have hbounds (sign : Bool) :
+      (X (v, sign) * M).support.card ≤ 1 ∧ (X (v, sign) * M).totalDegree ≤ d.width + 1 := by
+    refine ⟨by simpa only [support_X_mul, Finset.card_map] using hMsize,
+      (totalDegree_mul _ _).trans ?_⟩
+    rw [Nat.add_comm (X (v, sign) : MvPolynomial (Literal V) R).totalDegree]
+    exact Nat.add_le_add hMdeg (totalDegree_X_le _)
+  obtain ⟨hasize, hadeg⟩ := hbounds false
+  obtain ⟨hbsize, hbdeg⟩ := hbounds true
+  have hsumsize : (a + b).support.card ≤ 2 :=
+    (Finset.card_le_card support_add).trans
+      ((Finset.card_union_le _ _).trans (Nat.add_le_add hasize hbsize))
   have hsumdeg : (a + b).totalDegree ≤ d.width + 1 :=
     (totalDegree_add _ _).trans (max_le hadeg hbdeg)
   have hcsize := PCR.card_support_complementAxiom_le (R := R) v

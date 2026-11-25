@@ -184,11 +184,13 @@ theorem rte_use (h2 : 2 ≤ h) (w : G h n → List (Fin h)) {m : ℕ} (hw : ∀ 
     fun g => (path h2 (w g).reverse c).count e
   simp_rw [rte, h1]
   rw [sum_comm]
-  refine (sum_le_sum (g := fun _ => 2 * m) fun g _ => (count_path h2 _ e).trans ?_).trans_eq ?_
-  · simpa using Nat.mul_le_mul_left 2 (hw g)
-  · rw [sum_const, card_univ, smul_eq_mul,
-      Fintype.card_congr (Equiv.ofBijective _ (smul_bijective (QuotientGroup.mk 1 : XX h n 0)))]
-    ring
+  calc ∑ g : G h n, ∑ c : XX h n 0, (path h2 (w g).reverse c).count e
+      ≤ ∑ _g : G h n, 2 * m := sum_le_sum fun g _ =>
+        (count_path h2 _ e).trans (by simpa using Nat.mul_le_mul_left 2 (hw g))
+    _ = 2 * (Fintype.card (XX h n 0) * m) := by
+        rw [sum_const, card_univ, smul_eq_mul,
+          Fintype.card_congr (Equiv.ofBijective _ (smul_bijective (QuotientGroup.mk 1 : XX h n 0)))]
+        ring
 
 /-- **Routes.** -/
 theorem exists_routes (h2 : 2 ≤ h) {m : ℕ} (hm : ∀ g : G h n, WL h2 g m) :
@@ -229,17 +231,20 @@ variable (h n)
 
 theorem card_XJ (h2 : 2 ≤ h) :
     Fintype.card ((tower h n h2).X (JJ h n)) < Nat.card (SL2 h) * 2 ^ ee h := by
-  have h1 : Fintype.card ((tower h n h2).X (JJ h n)) * (2 ^ ee h) ^ JJ h n =
-      Nat.card (SL2 h) * 2 ^ ((h ^ 2 - 1) * n) := by
-    have := card_XX (h := h) (n := n) (j := JJ h n) le_rfl
-    rwa [card_G] at this
-  have he : 0 < ee h := by have := Nat.mul_le_mul h2 (by omega : 1 ≤ h - 1); unfold ee; omega
-  have h4 : 2 ^ ((h ^ 2 - 1) * n) < 2 ^ ee h * (2 ^ ee h) ^ JJ h n := by
-    rw [← pow_succ', ← pow_mul]
-    exact Nat.pow_lt_pow_right (by omega) (Nat.lt_mul_div_succ _ he)
+  have he : 0 < ee h := by
+    have : 2 * 1 ≤ h * (h - 1) := Nat.mul_le_mul h2 (by omega)
+    unfold ee
+    omega
   refine Nat.lt_of_mul_lt_mul_right (a := (2 ^ ee h) ^ JJ h n) ?_
-  rw [h1, mul_assoc]
-  exact Nat.mul_lt_mul_of_pos_left h4 Nat.card_pos
+  calc Fintype.card ((tower h n h2).X (JJ h n)) * (2 ^ ee h) ^ JJ h n
+      = Nat.card (SL2 h) * 2 ^ ((h ^ 2 - 1) * n) := by
+        have := card_XX (h := h) (n := n) (j := JJ h n) le_rfl
+        rwa [card_G] at this
+    _ < Nat.card (SL2 h) * (2 ^ ee h * (2 ^ ee h) ^ JJ h n) := by
+        refine Nat.mul_lt_mul_of_pos_left ?_ Nat.card_pos
+        rw [← pow_succ', ← pow_mul]
+        exact Nat.pow_lt_pow_right (by omega) (Nat.lt_mul_div_succ _ he)
+    _ = Nat.card (SL2 h) * 2 ^ ee h * (2 ^ ee h) ^ JJ h n := (mul_assoc _ _ _).symm
 
 end Numbers
 

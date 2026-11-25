@@ -80,8 +80,10 @@ theorem decodeCertificate_certificate_append {r s : ℕ} (W : Circuit signature 
     (hs : W.size ≤ s) (extra : List Bool) :
     decodeCertificate r s (certificate r s W.code.1 (W.outputs 0).toNat ++ extra) = some W := by
   rw [decodeCertificate, readCertificate_certificate_code_append W hs extra]
-  have hcode : (W.code.1, [(W.outputs 0).toNat]) = W.code := by simp [Circuit.code, List.ofFn_succ]
-  dsimp only; rw [hcode, Circuit.ofCode_code]
+  dsimp only
+  have hcode : (W.code.1, [(W.outputs 0).toNat]) = W.code := by
+    simp [Circuit.code, List.ofFn_succ]
+  rw [hcode, Circuit.ofCode_code]
 
 /-- The violated-clause circuit of a certificate; invalid certificates produce constant true,
 so they cannot pass an unsatisfiability test. -/
@@ -112,7 +114,8 @@ theorem size_certificateCircuit_le {q r : ℕ} (D : Circuit signature q (3 * (r 
   | none => simp [certificateCircuit, h]
   | some W =>
     rw [certificateCircuit_of_decode_eq_some D h, size_badClause]
-    have := size_le_of_decodeCertificate_eq_some h; omega
+    have := size_le_of_decodeCertificate_eq_some h
+    omega
 
 /-- A compiled certificate is unsatisfiable exactly when it decodes to a witness circuit whose
 truth table satisfies every decoded clause. -/
@@ -158,12 +161,14 @@ the existing binary encoding of circuit codes. -/
 /-- The raw construction agrees exactly with the typed bad-clause circuit. -/
 theorem badClauseCode_code {q r : ℕ} (D : Circuit signature q (3 * (r + 1)))
     (W : Circuit signature r 1) : badClauseCode q r D.code W.code = (badClause D W).code := by
-  have haddress (j : Fin 3) : ([], (List.range r).map fun i => j.val * (r + 1) + i) =
-      (Circuit.wiring signature (addressWire r j)).code :=
+  have haddress (j : Fin 3) :
+      ([], (List.range r).map fun i => j.val * (r + 1) + i) =
+        (Circuit.wiring signature (addressWire r j)).code :=
     (Circuit.code_wiring_eq_map fun _ => rfl).symm
   have hsign : ([], List.ofFn fun j : Fin 3 => j.val * (r + 1) + r) =
       (Circuit.wiring signature (signWire r)).code := rfl
-  simp only [badClauseCode, haddress, hsign, compCode_code, appendCodes_code, appendCode_code]; rfl
+  simp only [badClauseCode, haddress, hsign, compCode_code, appendCodes_code, appendCode_code]
+  rfl
 
 /-- The existing certificate parser accepts exactly the codes whose gates and output wire
 pass the existing circuit-code validity checks. -/
@@ -173,7 +178,8 @@ theorem isSome_decodeCertificate_iff (r s : ℕ) (w : List Bool) :
         (readCertificate r s w).2 < r + (readCertificate r s w).1.length := by
   change (Circuit.ofCode r 1 ((readCertificate r s w).1,
     [(readCertificate r s w).2]) : Option (Circuit signature r 1)).isSome ↔ _
-  simp [Circuit.isSome_ofCode_iff, codeCheck_eq_true_iff]
+  rw [Circuit.isSome_ofCode_iff, codeCheck_eq_true_iff]
+  simp
 
 /-- The complete certificate-to-checker compiler on raw data, including the invalid-certificate
 branch. The constant-true output uses the first gate wire, numbered by the input count `q`. -/
@@ -190,11 +196,18 @@ theorem certificateCircuitCode_code {q r : ℕ} (D : Circuit signature q (3 * (r
     certificateCircuitCode q r s D.code w = (certificateCircuit D s w).code := by
   cases h : decodeCertificate r s w with
   | none =>
-    have hcheck := mt (isSome_decodeCertificate_iff r s w).2 (by simp [h])
+    have hcheck : ¬(codeCheck signature r (readCertificate r s w).1 = true ∧
+        (readCertificate r s w).2 < r + (readCertificate r s w).1.length) := by
+      rw [← isSome_decodeCertificate_iff, h]
+      simp
     simp only [certificateCircuitCode, Bool.and_eq_true, decide_eq_true_eq,
-      ite_eq_right hcheck, certificateCircuit, h]; rfl
+      ite_eq_right hcheck, certificateCircuit, h]
+    rfl
   | some W =>
-    have hcheck := (isSome_decodeCertificate_iff r s w).1 (by simp [h])
+    have hcheck : codeCheck signature r (readCertificate r s w).1 = true ∧
+        (readCertificate r s w).2 < r + (readCertificate r s w).1.length := by
+      rw [← isSome_decodeCertificate_iff, h]
+      simp
     have hcode : W.code = ((readCertificate r s w).1, [(readCertificate r s w).2]) :=
       Circuit.code_of_ofCode_eq_some h
     simp only [certificateCircuitCode, Bool.and_eq_true, decide_eq_true_eq, ite_eq_left hcheck]

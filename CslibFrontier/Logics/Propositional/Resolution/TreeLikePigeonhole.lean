@@ -148,7 +148,7 @@ private theorem exists_potential_eq {h : ℕ} (ρ : Fin m × Fin n → Option Bo
     ∃ U ⊆ (matched ρ)ᶜ, #U = h - #(matched ρ) ∧ potential h ρ = ∏ i ∈ U, weight h ρ i := by
   have hne : (products h ρ).Nonempty := by
     obtain ⟨U, hU, hcard⟩ := exists_subset_card_eq (s := (matched ρ)ᶜ) (n := h - #(matched ρ))
-      (by rw [card_compl, Fintype.card_fin]; omega)
+      (by rw [card_compl, Fintype.card_fin]; exact Nat.sub_le_sub_right hh _)
     exact ⟨_, U, hU, hcard, rfl⟩
   exact Nat.sInf_mem hne
 
@@ -369,15 +369,13 @@ private theorem potential_split {h : ℕ} (hhm : h ≤ m) {ρ : Fin m × Fin n �
     rw [prod_insert hiW, heqW]
     exact Nat.mul_le_mul_left _ (prod_le_prod fun a ha =>
       weight_le_update_true hv fun he => hiW (he ▸ ha))
+  have hmul (x : ℕ) : D * x ≤ (D - 1) * x + x := by
+    rw [← Nat.add_one_mul]
+    exact Nat.mul_le_mul_right x le_tsub_add
   rw [heq₀']
-  rcases Nat.eq_zero_or_pos D with hD0 | hD0
-  · rw [hD0, zero_mul] at hle₁
-    omega
-  obtain ⟨D', hD'⟩ : ∃ D', D = D' + 1 := ⟨D - 1, by omega⟩
-  rw [hD', Nat.add_sub_cancel]
-  rw [hD'] at hle₁ hle₂
-  rcases le_total (potential h (update ρ (i, j) (some true))) P with hR | hR <;>
-    linarith [Nat.mul_le_mul_left D' hR]
+  rcases le_total P (potential h (update ρ (i, j) (some true))) with hR | hR
+  · exact hle₁.trans ((hmul _).trans (Nat.add_le_add_left hR _))
+  · exact hle₂.trans ((hmul _).trans (Nat.add_le_add_right (Nat.mul_le_mul_left _ hR) _))
 
 /-- **The potential splits at every unset variable.** -/
 private theorem μ_split {h : ℕ} (hhm : h ≤ m) (ρ : Fin m × Fin n → Option Bool)

@@ -75,9 +75,10 @@ theorem ConvexOn.add_le_of_hasFDerivWithinAt (hf : ConvexOn ℝ K f) {x y : F} {
     module
   have hconv : ConvexOn ℝ (Icc (0 : ℝ) 1) (f ∘ φ) := ⟨convex_Icc 0 1,
     fun a ha b hb p q hp hq hpq => by
-      simpa only [Function.comp_apply, show φ (p • a + q • b) = p • φ a + q • φ b by
-        simp only [hφ, show q = 1 - p by linarith]; module] using
-        hf.2 (hφK ha) (hφK hb) hp hq hpq⟩
+      have hφab : φ (p • a + q • b) = p • φ a + q • φ b := by
+        simp only [hφ, show q = 1 - p by linarith]
+        module
+      simpa only [Function.comp_apply, hφab] using hf.2 (hφK ha) (hφK hb) hp hq hpq⟩
   have hder : HasDerivWithinAt (f ∘ φ) (f' (y - x)) (Icc 0 1) 0 :=
     (by simpa only [hφ, zero_smul, add_zero] using hd : HasFDerivWithinAt f f' K (φ 0))
       |>.comp_hasDerivWithinAt 0
@@ -135,7 +136,10 @@ theorem StrictConvexOn.add_lt_of_hasFDerivWithinAt (hf : StrictConvexOn ℝ K f)
       hf.2 hx hy hxy.symm (by norm_num : (0 : ℝ) < 1 / 2) (by norm_num : (0 : ℝ) < 1 / 2)
         (by norm_num)
   have hsub := hf.convexOn.add_le_of_hasFDerivWithinAt hx hm hd
-  rw [show m - x = (1 / 2 : ℝ) • (y - x) by simp only [m]; module, map_smul, smul_eq_mul] at hsub
+  have hdiff : m - x = (1 / 2 : ℝ) • (y - x) := by
+    simp only [m]
+    module
+  rw [hdiff, map_smul, smul_eq_mul] at hsub
   linarith
 
 /-- A strictly convex function lies strictly above its tangent hyperplane at any point of
@@ -154,14 +158,16 @@ theorem strictConvexOn_of_forall_add_lt (hK : Convex ℝ K) {g : F → F →L[�
   set p := a • x + b • y
   have hp : p ∈ K := hK hx hy ha.le hb.le hab
   have hxp : x ≠ p := fun h => by
-    have h0 : b • (y - x) = 0 := by
-      rw [show b • (y - x) = p - x by simp only [p, show a = 1 - b by linarith]; module,
-        ← h, sub_self]
+    have hp' : p - x = b • (y - x) := by
+      simp only [p, show a = 1 - b by linarith]
+      module
+    have h0 : b • (y - x) = 0 := by rw [← hp', h, sub_self]
     exact hxy (sub_eq_zero.mp ((smul_eq_zero.mp h0).resolve_left hb.ne')).symm
   have hyp : y ≠ p := fun h => by
-    have h0 : a • (x - y) = 0 := by
-      rw [show a • (x - y) = p - y by simp only [p, show b = 1 - a by linarith]; module,
-        ← h, sub_self]
+    have hp' : p - y = a • (x - y) := by
+      simp only [p, show b = 1 - a by linarith]
+      module
+    have h0 : a • (x - y) = 0 := by rw [← hp', h, sub_self]
     exact hxy (sub_eq_zero.mp ((smul_eq_zero.mp h0).resolve_left ha.ne'))
   have h0 : a • (x - p) + b • (y - p) = 0 := by
     simp only [smul_sub, p, show b = 1 - a by linarith]
@@ -215,7 +221,9 @@ theorem abs_sub_le_of_forall_add_inner_le {g : E → E} {ρ : ℝ}
   have b2 : |⟪g y, x - y⟫| ≤ ρ * ‖x - y‖ :=
     (abs_real_inner_le_norm _ _).trans (mul_le_mul_of_nonneg_right (hg y hy) (norm_nonneg _))
   rw [abs_le] at b1 b2 ⊢
-  exact ⟨by linarith [hsub y hy x hx], by linarith [hsub x hx y hy]⟩
+  refine ⟨?_, ?_⟩
+  · linarith [hsub y hy x hx]
+  · linarith [hsub x hx y hy]
 
 /-- The first-order bound for an `m`-strongly convex function with a gradient within its domain:
 `f x + ⟪g, y - x⟫ + m / 2 * ‖y - x‖ ^ 2 ≤ f y` for `x y ∈ K`. -/

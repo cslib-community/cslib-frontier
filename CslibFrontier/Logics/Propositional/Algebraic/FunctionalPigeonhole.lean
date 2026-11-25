@@ -121,7 +121,8 @@ theorem algFPHPConstraints_eq :
 
 /-- `algFPHP` is `algFPHPConstraints` followed by `boolAxioms`. -/
 theorem algFPHP_eq_append_boolAxioms :
-    algFPHP m n R = algFPHPConstraints m n R ++ boolAxioms (Fin m × Fin n) R := by rfl
+    algFPHP m n R = algFPHPConstraints m n R ++ boolAxioms (Fin m × Fin n) R := by
+  rfl
 
 /-- Membership characterization for `algFPHPPigeons`. -/
 theorem mem_algFPHPPigeons {p : MvPolynomial (Fin m × Fin n) R} :
@@ -303,7 +304,8 @@ private theorem pigeonIndicator_eq_of_bitPoint_eq {m n : ℕ} {R : Type*} [CommR
 
 private theorem pigeonIndicator_injective {m n : ℕ} :
     Function.Injective (pigeonIndicator : (Fin m → Fin n) → Fin m × Fin n → Bool) := by
-  intro f g h; funext i
+  intro f g h
+  funext i
   have hfi := congrFun h (i, f i)
   simp only [pigeonIndicator, decide_true] at hfi
   exact of_decide_eq_true hfi.symm
@@ -377,7 +379,8 @@ theorem pigeonIndicator_boolSolutionEquivEmbedding {m n : ℕ} {R : Type*} [Comm
 /-- `boolSolutionEquivEmbedding`'s inverse sends an embedding `e` to `pigeonIndicator e`. -/
 theorem boolSolutionEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R]
     (e : Fin m ↪ Fin n) :
-    Subtype.val ((boolSolutionEquivEmbedding m n R).symm e) = pigeonIndicator e := by rfl
+    Subtype.val ((boolSolutionEquivEmbedding m n R).symm e) = pigeonIndicator e := by
+  rfl
 
 /-- `algFPHP m n R` has a Boolean solution iff `m ≤ n`, over any nontrivial commutative ring. -/
 theorem exists_isBoolSolution_algFPHP_iff {m n : ℕ} {R : Type*} [CommRing R] [Nontrivial R] :
@@ -401,8 +404,10 @@ theorem eval_algFPHP_eq_zero_iff {m n : ℕ} {R : Type*} [CommRing R] [IsDomain 
     fun ⟨_, hf, ha⟩ _ hp => ha ▸ pigeonIndicator_eval_eq_zero hf hp⟩
   have hv := ha (boolAxiom v) (boolAxiom_mem_algFPHP v)
   simp only [boolAxiom, map_sub, map_pow, eval_X] at hv
-  exact (mul_eq_zero.1 ((by ring : a v * (a v - 1) = a v ^ 2 - a v).trans hv)).imp_right
-    sub_eq_zero.1
+  have hmul : a v * (a v - 1) = 0 :=
+    calc a v * (a v - 1) = a v ^ 2 - a v := by ring
+      _ = 0 := hv
+  exact (mul_eq_zero.1 hmul).imp_right sub_eq_zero.1
 
 /-- Equivalence between arbitrary common zeros of `algFPHP m n R` and embeddings `Fin m ↪ Fin n`,
 over any integral domain `R`. -/
@@ -436,7 +441,8 @@ theorem bitPoint_commonZeroEquivEmbedding {m n : ℕ} {R : Type*} [CommRing R] [
 theorem commonZeroEquivEmbedding_symm_val {m n : ℕ} {R : Type*} [CommRing R] [IsDomain R]
     (e : Fin m ↪ Fin n) :
     Subtype.val ((commonZeroEquivEmbedding m n R).symm e) =
-      Cslib.BitString.bitPoint (pigeonIndicator e) := by rfl
+      Cslib.BitString.bitPoint (pigeonIndicator e) := by
+  rfl
 
 /-- `algFPHP m n R` has a common zero in an integral domain `R` iff `m ≤ n`. -/
 theorem exists_commonZero_algFPHP_iff {m n : ℕ} {R : Type*} [CommRing R] [IsDomain R] :
@@ -472,7 +478,8 @@ theorem not_pc_refutableInDegree_algFPHP {m n : ℕ} {R : Type*} [CommRing R] [N
 of degree at most `m * n + 2`. -/
 theorem pc_refutableInDegree_algFPHP_of_lt {m n : ℕ} {K : Type*} [Field K] (h : n < m) :
     PC.RefutableInDegree (algFPHP m n K) (m * n + 2) := by
-  rw [algFPHP_eq_append_boolAxioms, show m * n + 2 = Fintype.card (Fin m × Fin n) + 2 by simp]
+  have hcard : m * n + 2 = Fintype.card (Fin m × Fin n) + 2 := by simp
+  rw [algFPHP_eq_append_boolAxioms, hcard]
   exact (PC.refutableInDegree_iff (D := 2)
     fun _ hf => totalDegree_le_two_of_mem_algFPHPConstraints hf).2 fun x hx =>
       h.not_ge (exists_isBoolSolution_algFPHP_iff.1

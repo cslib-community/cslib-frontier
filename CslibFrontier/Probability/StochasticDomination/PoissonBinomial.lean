@@ -165,8 +165,7 @@ theorem binomial_real_Iio_succ (t r : ℕ) (p : I) :
         (p : ℝ) * (ProbabilityTheory.binomial t p).real (Set.Iio r) := by
   have hsum (n s : ℕ) : (ProbabilityTheory.binomial n p).real (Set.Iio s) =
       ∑ k ∈ Finset.range s, (PMF.poissonBinomial (List.replicate n p) k).toReal := by
-    rw [← PMF.toMeasure_poissonBinomial_replicate n p,
-      show Set.Iio s = (Finset.range s : Set ℕ) by ext; simp, measureReal_def,
+    rw [← PMF.toMeasure_poissonBinomial_replicate n p, ← Finset.coe_range, measureReal_def,
       PMF.toMeasure_apply_finset, ENNReal.toReal_sum fun k _ => PMF.apply_ne_top _ k]
   simp only [hsum, List.replicate_succ]
   rw [Finset.sum_range_succ' (fun k => (PMF.poissonBinomial (p :: List.replicate t p) k).toReal),
@@ -184,7 +183,8 @@ theorem sum_binomial_real_Iio_le (N r : ℕ) {p : I} (hp : 0 < (p : ℝ)) :
     ∑ t ∈ Finset.range N, (ProbabilityTheory.binomial t p).real (Set.Iio r) ≤ (r : ℝ) / p := by
   rw [le_div_iff₀ hp]
   induction r generalizing N with
-  | zero => simp
+  | zero =>
+    simp
   | succ r ih =>
     have hrec (t : ℕ) : (ProbabilityTheory.binomial t p).real (Set.Iio (r + 1)) * (p : ℝ) =
         (ProbabilityTheory.binomial t p).real (Set.Iio (r + 1)) -
@@ -208,7 +208,8 @@ theorem tsum_binomial_real_Iio (r : ℕ) {p : I} (hp : 0 < (p : ℝ)) :
     ∑' t : ℕ, (ProbabilityTheory.binomial t p).real (Set.Iio r) = (r : ℝ) / p := by
   rw [eq_div_iff hp.ne']
   induction r with
-  | zero => simp
+  | zero =>
+    simp
   | succ r ih =>
     have hs1 := summable_binomial_real_Iio (r + 1) hp
     have hs0 := summable_binomial_real_Iio r hp
@@ -219,6 +220,7 @@ theorem tsum_binomial_real_Iio (r : ℕ) {p : I} (hp : 0 < (p : ℝ)) :
       simp_rw [binomial_real_Iio_succ]
       rw [(hs1.mul_left _).tsum_add (hs0.mul_left _), tsum_mul_left, tsum_mul_left]
     rw [binomial_zero_real_Iio_succ] at h1
-    push_cast; linarith
+    push_cast
+    linarith
 
 end Cslib.Probability

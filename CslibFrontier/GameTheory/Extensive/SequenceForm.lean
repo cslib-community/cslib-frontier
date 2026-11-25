@@ -293,12 +293,14 @@ theorem exists_infoSeqExt_of_seqVar_ne_nil [DecidableEq ι] [∀ j h, Nonempty (
   rcases q with ⟨h, a⟩
   rw [hq] at hdrop
   have hseq : z.seq i = σ.1.dropLast ++ ⟨h, a⟩ :: post := by
-    rw [← hz]
-    nth_rw 1 [hdrop]
-    rw [List.append_assoc, List.singleton_append]
+    calc z.seq i = σ.1 ++ post := hz.symm
+      _ = (σ.1.dropLast ++ [⟨h, a⟩]) ++ post := congrArg (· ++ post) hdrop
+      _ = σ.1.dropLast ++ ⟨h, a⟩ :: post := by rw [List.append_assoc, List.singleton_append]
   obtain ⟨v, hv, hpre⟩ := z.exists_node_of_seq_append σ.1.dropLast post h a hseq
   refine ⟨⟨h, ⟨v, hv⟩⟩, a, Subtype.ext ?_⟩
-  rw [hdrop, ← hpre, hpr.playerSeq_eq_infoSeq hv]; rfl
+  calc σ.1
+      = σ.1.dropLast ++ [⟨h, a⟩] := hdrop
+    _ = T.infoSeq i h ++ [⟨h, a⟩] := by rw [← hpre, hpr.playerSeq_eq_infoSeq hv]
 
 private theorem seqVar_rec [DecidableEq ι] [∀ j h, Nonempty (Act j h)]
     {T : ExtensiveTree ι H Act} {i : ι} (hpr : T.PerfectRecall i)
@@ -436,7 +438,8 @@ theorem seqMat_mulVec_some [DecidableEq ι] [∀ j h, Fintype (Act j h)]
   rw [sum_image fun _ _ _ _ heq => eq_of_heq (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj hpr heq)).2]
   refine sum_congr rfl fun a _ => ?_
   have hne_len : (SeqVar.infoSeqExt hpr h.2 a).1 ≠ T.infoSeq i h.1 := fun heq => by
-    have hlen := congrArg List.length heq; simp [SeqVar.infoSeqExt] at hlen
+    have hlen := congrArg List.length heq
+    simp [SeqVar.infoSeqExt] at hlen
   have hex : ∃ b : Act i h.1, (SeqVar.infoSeqExt hpr h.2 a).1 = T.infoSeq i h.1 ++ [⟨h.1, b⟩] :=
     ⟨a, rfl⟩
   simp [hne_len, hex]
@@ -614,12 +617,15 @@ theorem isBehaviorStrategy_realizationPlanToBehavior [DecidableEq ι]
           exact div_nonneg (hiff.1 _) hpos.le,
         by simp only [ExtensiveTree.realizationPlanToBehavior, hh, hpos, ↓reduceDIte, ↓reduceIte,
             ← sum_div, hiff.2.2 h hh, div_self hpos.ne']⟩
-    · rw [show T.realizationPlanToBehavior i hpr x h = Pi.single (Classical.arbitrary (Act i h)) 1
-        from funext fun a => by
-          simp only [ExtensiveTree.realizationPlanToBehavior, hh, hpos, ↓reduceDIte, ↓reduceIte]]
+    · have hfn : T.realizationPlanToBehavior i hpr x h =
+          Pi.single (Classical.arbitrary (Act i h)) 1 := funext fun a => by
+        simp only [ExtensiveTree.realizationPlanToBehavior, hh, hpos, ↓reduceDIte, ↓reduceIte]
+      rw [hfn]
       exact isMixedStrategy_single (Classical.arbitrary (Act i h))
-  · rw [show T.realizationPlanToBehavior i hpr x h = Pi.single (Classical.arbitrary (Act i h)) 1
-      from funext fun a => by simp only [ExtensiveTree.realizationPlanToBehavior, hh, ↓reduceDIte]]
+  · have hfn : T.realizationPlanToBehavior i hpr x h =
+        Pi.single (Classical.arbitrary (Act i h)) 1 := funext fun a => by
+      simp only [ExtensiveTree.realizationPlanToBehavior, hh, ↓reduceDIte]
+    rw [hfn]
     exact isMixedStrategy_single (Classical.arbitrary (Act i h))
 
 /-- **Proposition 3.10(b)** ([vonStengel2007], Section 3.10): under perfect recall, the realization
@@ -631,7 +637,8 @@ theorem behaviorToRealizationPlan_realizationPlanToBehavior [DecidableEq ι]
     T.behaviorToRealizationPlan i (T.realizationPlanToBehavior i hpr x) = x := by
   classical
   have hiff := (isRealizationPlan_iff hpr x).1 hx
-  ext σ; revert σ
+  ext σ
+  revert σ
   refine seqVar_rec hpr (by
       simp only [ExtensiveTree.behaviorToRealizationPlan, SeqVar.nil, realizationProbBehavior_nil]
       exact hiff.2.1.symm)
@@ -757,8 +764,11 @@ theorem mixedToRealizationPlan_eq_of_realizationEquivMixed [Fintype ι] [Decidab
   have hterm : ∀ z : Terminal T,
       realizationProbMixed μ₁ (z.seq i) = realizationProbMixed μ₂ (z.seq i) := fun z => by
     have hs_other : ∀ j : ι, ∃ s_j : PureStrategy H Act j, j ≠ i → MatchesSeq s_j (z.seq j) :=
-      fun j => if hj : j = i then ⟨fun _ => Classical.arbitrary _, fun h => absurd hj h⟩
-        else let ⟨s_j, hs_j⟩ := exists_pureStrategy_matchesSeq (hnr j hj z); ⟨s_j, fun _ => hs_j⟩
+      fun j => by
+        by_cases hj : j = i
+        · exact ⟨fun _ => Classical.arbitrary _, fun h => absurd hj h⟩
+        · obtain ⟨s_j, hs_j⟩ := exists_pureStrategy_matchesSeq (hnr j hj z)
+          exact ⟨s_j, fun _ => hs_j⟩
     choose s hs using hs_other
     have hfactor := heq s z
     rw [terminalProbWithFactor_def, terminalProbWithFactor_def,
@@ -772,22 +782,28 @@ theorem mixedToRealizationPlan_eq_of_realizationEquivMixed [Fintype ι] [Decidab
     | ind d ih =>
       intro σ hd
       by_cases hfull : ∃ w : Terminal T, w.seq i = σ.1
-      · obtain ⟨w, hw⟩ := hfull; exact hw ▸ hterm w
+      · obtain ⟨w, hw⟩ := hfull
+        exact hw ▸ hterm w
       · obtain ⟨z, post, hz⟩ := σ.2
         cases post with
         | nil => exact absurd ⟨z, by simpa using hz.symm⟩ hfull
         | cons p post' =>
           rcases p with ⟨h, a⟩
           obtain ⟨v, hv, hpre⟩ := z.exists_node_of_seq_append σ.1 post' h a hz.symm
-          rw [← sum_realizationProbMixed_append_singleton μ₁ σ.1 h,
-            ← sum_realizationProbMixed_append_singleton μ₂ σ.1 h]
-          refine sum_congr rfl fun c _ => ?_
-          let σc : SeqVar T i := ⟨σ.1 ++ [⟨h, c⟩], ⟨v.extendDecisionOf hv c,
-            hpre ▸ v.playerSeq_append_singleton_prefix_extendDecisionOf hv c⟩⟩
-          have hle_max : σc.1.length ≤ maxLen :=
-            Finset.le_sup (f := List.length) (mem_occursSeqFinset.2 σc.2)
-          have hlt_len : σ.1.length < σc.1.length := by simp [σc]
-          exact ih (maxLen - σc.1.length) (by omega) σc rfl
+          calc
+            realizationProbMixed μ₁ σ.1
+              = ∑ c : Act i h, realizationProbMixed μ₁ (σ.1 ++ [⟨h, c⟩]) :=
+                (sum_realizationProbMixed_append_singleton μ₁ σ.1 h).symm
+            _ = ∑ c : Act i h, realizationProbMixed μ₂ (σ.1 ++ [⟨h, c⟩]) :=
+                sum_congr rfl fun c _ => by
+                  let σc : SeqVar T i := ⟨σ.1 ++ [⟨h, c⟩], ⟨v.extendDecisionOf hv c,
+                    hpre ▸ v.playerSeq_append_singleton_prefix_extendDecisionOf hv c⟩⟩
+                  have hle_max : σc.1.length ≤ maxLen :=
+                    Finset.le_sup (f := List.length) (mem_occursSeqFinset.2 σc.2)
+                  have hlt_len : σ.1.length < σc.1.length := by simp [σc]
+                  exact ih (maxLen - σc.1.length) (by omega) σc rfl
+            _ = realizationProbMixed μ₂ σ.1 :=
+                sum_realizationProbMixed_append_singleton μ₂ σ.1 h
   ext σ
   exact hlen (maxLen - σ.1.length) σ rfl
 
@@ -837,11 +853,12 @@ theorem reducedEquiv_iff_agree_on_reachable [DecidableEq ι]
       (matchesSeq_append s₁ (T.infoSeq i h) [⟨h, s₁ h⟩]).2 ⟨hm1, by simp⟩
     have hm2' := (matchesSeq_append s₂ (T.infoSeq i h) [⟨h, s₁ h⟩]).1 ((hall _).1 hm1')
     exact ((matchesSeq_cons s₂ ⟨h, s₁ h⟩ []).1 hm2'.2).1.symm
-  · intro hagree σ; revert σ
+  · intro hagree σ
+    revert σ
     refine seqVar_rec hpr (by simp [SeqVar.nil]) (fun h hh a ih_pre => ?_)
     simp only [SeqVar.infoSeqExt, matchesSeq_append, matchesSeq_cons, matchesSeq_nil, and_true]
     exact ⟨fun ⟨hm1, ha⟩ => ⟨ih_pre.1 hm1, hagree h hh hm1 ▸ ha⟩,
-      fun ⟨hm2, ha⟩ => let hm1 := ih_pre.2 hm2; ⟨hm1, (hagree h hh hm1).symm ▸ ha⟩⟩
+      fun ⟨hm2, ha⟩ => ⟨ih_pre.2 hm2, (hagree h hh (ih_pre.2 hm2)).symm ▸ ha⟩⟩
 
 /-- Pure strategies that agree in the reduced strategic form yield identical payoffs against all
 opponent pure strategy profiles. -/
@@ -958,16 +975,18 @@ theorem mem_extremePoints_isRealizationPlan_iff [DecidableEq ι] [∀ j h, Finty
       let y : SeqVar T i → ℝ :=
         (1 - μ s)⁻¹ • ∑ t ∈ univ.erase s, μ t • T.pureToRealizationPlan i t
       have hy : T.IsRealizationPlan i y := by
-        rw [show y = ∑ t ∈ univ.erase s, ((1 - μ s)⁻¹ * μ t) • T.pureToRealizationPlan i t by
-          simp only [y, smul_sum, smul_smul]]
+        have hy_eq : y = ∑ t ∈ univ.erase s, ((1 - μ s)⁻¹ * μ t) • T.pureToRealizationPlan i t := by
+          simp only [y, smul_sum, smul_smul]
+        rw [hy_eq]
         exact (convex_isRealizationPlan T i).sum_mem
           (fun t _ => mul_nonneg (inv_nonneg.2 hrem.le) (hμ.nonneg t))
           (by rw [← mul_sum, hsum_er, inv_mul_cancel₀ hrem.ne'])
           fun t _ => isRealizationPlan_pureToRealizationPlan hpr t
-      exact hext (isRealizationPlan_pureToRealizationPlan hpr s) hy
-        ⟨μ s, 1 - μ s, hs_pos, hrem, by ring, by
-          rw [hplan, ← add_sum_erase univ _ (mem_univ s)]
-          congr 1; simp only [y, smul_smul, mul_inv_cancel₀ hrem.ne', one_smul]⟩
+      refine hext (isRealizationPlan_pureToRealizationPlan hpr s) hy
+        ⟨μ s, 1 - μ s, hs_pos, hrem, by ring, ?_⟩
+      rw [hplan, ← add_sum_erase univ _ (mem_univ s)]
+      congr 1
+      simp only [y, smul_smul, mul_inv_cancel₀ hrem.ne', one_smul]
   · rintro ⟨s, rfl⟩
     refine ⟨isRealizationPlan_pureToRealizationPlan hpr s, ?_⟩
     rintro x₁ hx₁ x₂ hx₂ ⟨a, b, ha, hb, hab, hseg⟩
@@ -979,7 +998,7 @@ theorem mem_extremePoints_isRealizationPlan_iff [DecidableEq ι] [∀ j h, Finty
       have ha0 : a * x₁ τ = 0 := by
         linarith [mul_nonneg ha.le (hiff1.1 τ), mul_nonneg hb.le (hiff2.1 τ)]
       exact (mul_eq_zero.1 ha0).resolve_left ha.ne'
-    refine funext (seqVar_rec hpr (by rw [hiff1.2.1]; simp [ExtensiveTree.pureToRealizationPlan])
+    refine funext (seqVar_rec hpr (by simpa [ExtensiveTree.pureToRealizationPlan] using hiff1.2.1)
       (fun h hh c ih_pre => ?_))
     by_cases hval : T.pureToRealizationPlan i s (SeqVar.infoSeqExt hpr hh c) = 0
     · rw [hval, hzero_of _ hval]
@@ -988,10 +1007,12 @@ theorem mem_extremePoints_isRealizationPlan_iff [DecidableEq ι] [∀ j h, Finty
       have hm_split := (matchesSeq_append s (T.infoSeq i h) [⟨h, c⟩]).1 hm_ext
       have hs_c : s h = c := ((matchesSeq_cons s ⟨h, c⟩ []).1 hm_split.2).1
       have hflow1 := hiff1.2.2 h hh
-      rw [ih_pre, show T.pureToRealizationPlan i s (SeqVar.infoSeq hpr hh) = 1 by
-        simp [ExtensiveTree.pureToRealizationPlan, SeqVar.infoSeq, hm_split.1]] at hflow1
-      rw [show T.pureToRealizationPlan i s (SeqVar.infoSeqExt hpr hh c) = 1 by
-        simp [ExtensiveTree.pureToRealizationPlan, hm_ext], ← hflow1,
+      have hpre_one : T.pureToRealizationPlan i s (SeqVar.infoSeq hpr hh) = 1 := by
+        simp [ExtensiveTree.pureToRealizationPlan, SeqVar.infoSeq, hm_split.1]
+      have hs_one : T.pureToRealizationPlan i s (SeqVar.infoSeqExt hpr hh c) = 1 := by
+        simp [ExtensiveTree.pureToRealizationPlan, hm_ext]
+      rw [ih_pre, hpre_one] at hflow1
+      rw [hs_one, ← hflow1,
         sum_eq_single c (fun c' _ hc' => hzero_of _ (by
           have hm_c' : ¬ MatchesSeq s (SeqVar.infoSeqExt hpr hh c').1 := fun hm' => hc' <|
             (((matchesSeq_cons s ⟨h, c'⟩ []).1
@@ -1045,13 +1066,16 @@ theorem seqPolyMat_mulVec_le_iff [DecidableEq ι] [∀ j h, Fintype (Act j h)]
     simp [Matrix.mulVec, dotProduct, seqPolyMat, neg_mul, sum_neg_distrib]
   have hmul_nn : ∀ σ₀, (seqPolyMat T i *ᵥ x) (.inr (.inr σ₀)) = -x σ₀ := fun σ₀ => by
     simp only [Matrix.mulVec, dotProduct, seqPolyMat]
-    rw [sum_eq_single σ₀ (fun _ _ hne => by simp [hne.symm]) (fun h => absurd (mem_univ _) h)]; simp
+    rw [sum_eq_single σ₀ (fun _ _ hne => by simp [hne.symm]) (fun h => absurd (mem_univ _) h)]
+    simp
   constructor
   · intro hle
     refine ⟨fun σ₀ => by
-        have h := hle (.inr (.inr σ₀)); rw [hmul_nn, seqPolyRhs_inr_inr] at h; linarith,
+        have h := hle (.inr (.inr σ₀))
+        rw [hmul_nn, seqPolyRhs_inr_inr] at h; linarith,
       funext fun r => ?_⟩
-    have h1 := hle (.inl r); have h2 := hle (.inr (.inl r))
+    have h1 := hle (.inl r)
+    have h2 := hle (.inr (.inl r))
     rw [hmul_pos, seqPolyRhs_inl] at h1
     rw [hmul_neg, seqPolyRhs_inr_inl] at h2
     linarith
@@ -1098,18 +1122,29 @@ theorem seqPayoffMat_bilinear [∀ i h, Fintype (Act i h)]
       ∑ z : Terminal T, (z.chanceWeight * r₀ (z.seq false) * r₁ (z.seq true)) * z.payoff p := by
   classical
   simp only [dotProduct, Matrix.mulVec, ExtensiveTree.seqPayoffMat, mul_sum, sum_mul]
-  rw [sum_congr rfl fun _ _ => sum_comm, sum_comm]
-  refine sum_congr rfl fun z _ => ?_
-  let σz₀ : SeqVar T false := ⟨z.seq false, z, List.prefix_rfl⟩
-  let σz₁ : SeqVar T true := ⟨z.seq true, z, List.prefix_rfl⟩
-  rw [sum_eq_single σz₀
-    (fun σ₀ _ hne => sum_eq_zero fun _ _ => by
-      simp [show z.seq false ≠ σ₀.1 from fun h => hne (Subtype.ext h.symm)])
-    (fun h => absurd (mem_univ _) h),
-    sum_eq_single σz₁
-      (fun σ₁ _ hne => by simp [show z.seq true ≠ σ₁.1 from fun h => hne (Subtype.ext h.symm)])
-      (fun h => absurd (mem_univ _) h)]
-  simp [σz₀, σz₁]; ring
+  calc
+    ∑ σ₀ : SeqVar T false, ∑ σ₁ : SeqVar T true, ∑ z : Terminal T,
+        r₀ σ₀.1 * ((if z.seq false = σ₀.1 ∧ z.seq true = σ₁.1 then
+          z.chanceWeight * z.payoff p else 0) * r₁ σ₁.1)
+      = ∑ z : Terminal T, ∑ σ₀ : SeqVar T false, ∑ σ₁ : SeqVar T true,
+          r₀ σ₀.1 * ((if z.seq false = σ₀.1 ∧ z.seq true = σ₁.1 then
+            z.chanceWeight * z.payoff p else 0) * r₁ σ₁.1) := by
+        rw [sum_congr rfl fun _ _ => sum_comm, sum_comm]
+    _ = ∑ z : Terminal T, (z.chanceWeight * r₀ (z.seq false) * r₁ (z.seq true)) * z.payoff p :=
+        sum_congr rfl fun z _ => by
+          let σz₀ : SeqVar T false := ⟨z.seq false, z, List.prefix_rfl⟩
+          let σz₁ : SeqVar T true := ⟨z.seq true, z, List.prefix_rfl⟩
+          rw [sum_eq_single σz₀
+            (fun σ₀ _ hne => sum_eq_zero fun _ _ => by
+              have hne' : z.seq false ≠ σ₀.1 := fun h => hne (Subtype.ext h.symm)
+              simp [hne'])
+            (fun h => absurd (mem_univ _) h),
+            sum_eq_single σz₁
+              (fun σ₁ _ hne => by
+                have hne' : z.seq true ≠ σ₁.1 := fun h => hne (Subtype.ext h.symm)
+                simp [hne'])
+              (fun h => absurd (mem_univ _) h)]
+          simp [σz₀, σz₁]; ring
 
 /-- Expected payoff in a two-player extensive game under behavior strategies expressed in bilinear
 sequence form `xᵀ A_p y` ([vonStengel2007], Section 3.10). -/

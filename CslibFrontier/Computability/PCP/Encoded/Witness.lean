@@ -107,8 +107,8 @@ private theorem getD_flatMap_range_finRange {β : Type*} {width : ℕ} :
         N * width := by simp [List.length_flatMap]
     rw [List.range_succ, List.flatMap_append, List.flatMap_singleton, List.getD_eq_getElem?_getD]
     rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp howner) with hlt | rfl
-    · rw [List.getElem?_append_left (by have := k.isLt; rw [hlen]; nlinarith),
-        ← List.getD_eq_getElem?_getD]
+    · have hidx : owner * width + k.val < N * width := by nlinarith [k.isLt]
+      rw [List.getElem?_append_left (hlen ▸ hidx), ← List.getD_eq_getElem?_getD]
       exact getD_flatMap_range_finRange N f d hlt k
     · rw [List.getElem?_append_right (hlen ▸ Nat.le_add_right _ _), hlen, Nat.add_sub_cancel_left]
       simp
@@ -346,7 +346,8 @@ theorem satisfies_composeLabels (impl : Implementation α I P R Q Γ)
     simp [edgeAt, List.getD_eq_getElem?_getD]
   have hends (ed : Fin g.edges.length) :
       (fun b : Fin 2 => σ (G.ends ed b)) = ![σ g.edges[ed.val].src, σ g.edges[ed.val].dst] := by
-    funext b; fin_cases b <;> rfl
+    funext b
+    fin_cases b <;> rfl
   have hl_src (ed : Fin g.edges.length) (ω : R) :
       L.getD (composeVertex number Fin.val (.inr (ed, ω))) defaultOut = A (.inr (ed, ω)) := by
     change L.getD (ed.val * width + (number (.inr (.inr ω))).val) defaultOut = _
@@ -595,7 +596,8 @@ theorem satisfies_powerPreprocessLabels [DecidableEq α] (g : Graph C)
     have hedge : g.edgeAt fallback idx.val = g.edges[idx.val] := by
       simp [edgeAt, List.getD_eq_getElem?_getD]
     change labels.getD (if side then (g.edgeAt fallback idx.val).dst else
-        (g.edgeAt fallback idx.val).src) default = R.truthful T σ_prep v w
+        (g.edgeAt fallback idx.val).src) default =
+      R.truthful T σ_prep v w
     rw [hedge]
     cases side <;> simp [RegularConstraintGraph.truthful, σ_prep, σ, ConstraintGraph.endpoint,
       toGraph, RotationMap.neighbor, hpair]
@@ -881,9 +883,15 @@ theorem isPolyTime_amplifyIterLabels_clog {Input : Type} {input : Input ↪ List
           length_encSelectedAlphabet a).trans ?_
         change (amplifyIterLabels fallback rotate T q i (graph x) (labels x)).length *
           (2 * 21 + 1) ≤ _
-        rw [length_amplifyIterLabels fallback rotate T q i (hlabelLen x), amplifyIter, mul_comm 43]
-        exact Nat.mul_le_mul_right 43 (((Nat.le_add_right _ _).trans (hsz_bound i)).trans
-          (Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (Nat.le_max_right _ _) hi)))
+        rw [length_amplifyIterLabels fallback rotate T q i (hlabelLen x), amplifyIter]
+        calc ((amplify id fallback rotate T q)^[i] (graph x)).vertices * (2 * 21 + 1)
+            ≤ (max factor 1 ^ i * ((graph x).vertices + (graph x).edges.length)) * 43 :=
+              Nat.mul_le_mul_right 43 ((Nat.le_add_right _ _).trans (hsz_bound i))
+          _ ≤ (max factor 1 ^ Nat.clog 2 (graph x).edges.length *
+              ((graph x).vertices + (graph x).edges.length)) * 43 :=
+              Nat.mul_le_mul_right 43 (Nat.mul_le_mul_right _
+                (Nat.pow_le_pow_right (Nat.le_max_right _ _) hi))
+          _ = _ := by ring
       rw [← hfst] at hgr
       simp only [length_encPair]
       omega

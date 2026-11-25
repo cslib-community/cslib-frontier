@@ -338,9 +338,13 @@ theorem exists_modRegret_univ_eq_sub_one {N : ℕ} (hN : 2 ≤ N) :
     have hsup (i : Fin N) :
         univ.sup' univ_nonempty (fun j => ∑ t ∈ range N, p t i * (ℓ t i - ℓ t j)) =
           if i = 0 then 0 else 1 := by
-      refine le_antisymm (Finset.sup'_le _ _ fun j _ => by rw [hterm]; split_ifs <;> norm_num) ?_
-      have h0 := le_sup' (fun j => ∑ t ∈ range N, p t i * (ℓ t i - ℓ t j)) (mem_univ (0 : Fin N))
-      rwa [hterm, ite_eq_left rfl, sub_zero] at h0
+      apply le_antisymm
+      · refine Finset.sup'_le _ _ fun j _ => ?_
+        rw [hterm]
+        split_ifs <;> norm_num
+      · have h0 :=
+          le_sup' (fun j => ∑ t ∈ range N, p t i * (ℓ t i - ℓ t j)) (mem_univ (0 : Fin N))
+        rwa [hterm, ite_eq_left rfl, sub_zero] at h0
     simp only [hsup, ← add_sum_erase _ _ (mem_univ (0 : Fin N)), ↓reduceIte, zero_add]
     rw [sum_congr rfl fun i hi => ite_eq_right (ne_of_mem_erase hi), sum_const,
       card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one,
@@ -387,19 +391,22 @@ private theorem sum_range_six_mul_of_periodic {g : ℕ → ℝ} (hg : ∀ t, g (
 
 private theorem ex42Play_binary (t : ℕ) (i : Fin 3) :
     ex42Play t i = 0 ∨ ex42Play t i = 1 := by
-  unfold ex42Play; have := Nat.mod_lt t (by decide : 0 < 6)
+  unfold ex42Play
+  have := Nat.mod_lt t (by decide : 0 < 6)
   interval_cases t % 6 <;> fin_cases i <;> simp
 
 private theorem ex42Play_nonneg (t : ℕ) (i : Fin 3) : 0 ≤ ex42Play t i := by
   rcases ex42Play_binary t i with h0 | h1 <;> linarith
 
 private theorem ex42Play_sum (t : ℕ) : ∑ i : Fin 3, ex42Play t i = 1 := by
-  unfold ex42Play; have := Nat.mod_lt t (by decide : 0 < 6)
+  unfold ex42Play
+  have := Nat.mod_lt t (by decide : 0 < 6)
   interval_cases t % 6 <;> norm_num [Fin.sum_univ_three]
 
 private theorem ex42Loss_binary (t : ℕ) (i : Fin 3) :
     ex42Loss t i = 0 ∨ ex42Loss t i = 1 := by
-  unfold ex42Loss; have := Nat.mod_lt t (by decide : 0 < 6)
+  unfold ex42Loss
+  have := Nat.mod_lt t (by decide : 0 < 6)
   interval_cases t % 6 <;> fin_cases i <;> simp
 
 private theorem ex42Loss_nonneg (t : ℕ) (i : Fin 3) : 0 ≤ ex42Loss t i := by
@@ -668,15 +675,25 @@ theorem exists_nonpos_external_regret_dominated_weight {ε : ℝ}
       simp only [ℓ, he, ↓reduceIte, show ¬ (2 : Fin 3) = 0 by decide,
         show ¬ (2 : Fin 3) = 1 by decide] <;>
       linarith
-  · rw [modRegret_range_const (fun t _ => hp_sum t), sub_nonpos,
-      hpair _ ε 0 (fun k => by norm_num [p, ℓ, Nat.mul_mod_right, Fin.sum_univ_three])
-        (fun k => by norm_num [p, ℓ, show (2 * k + 1) % 2 = 1 by omega, Fin.sum_univ_three])]
+  · have h0_odd (k : ℕ) : (2 * k + 1) % 2 = 1 := by omega
+    have hloss : ∑ t ∈ range (2 * m), ∑ i : Fin 3, p t i * ℓ t i = (m : ℝ) * (ε + 0) :=
+      hpair _ ε 0
+        (fun k => by norm_num [p, ℓ, Nat.mul_mod_right, Fin.sum_univ_three])
+        (fun k => by norm_num [p, ℓ, h0_odd k, Fin.sum_univ_three])
+    rw [modRegret_range_const (fun t _ => hp_sum t), sub_nonpos, hloss]
     refine le_minCumLoss_iff.mpr fun i => ?_
-    rw [hpair (fun t => ℓ t i) (ℓ 0 i) (ℓ 1 i) (fun k => by simp [ℓ, Nat.mul_mod_right])
-      (fun k => by simp [ℓ, show (2 * k + 1) % 2 = 1 by omega])]
+    have hli : ∑ t ∈ range (2 * m), ℓ t i = (m : ℝ) * (ℓ 0 i + ℓ 1 i) :=
+      hpair (fun t => ℓ t i) (ℓ 0 i) (ℓ 1 i)
+        (fun k => by simp [ℓ, Nat.mul_mod_right])
+        (fun k => by simp [ℓ, h0_odd k])
+    rw [hli]
     have hm : (0 : ℝ) ≤ m := Nat.cast_nonneg m
     fin_cases i <;> simp [ℓ] <;> nlinarith
-  · linarith [hpair (fun t => p t 2) 1 0 (fun k => by simp [p, Nat.mul_mod_right])
-      (fun k => by simp [p, show (2 * k + 1) % 2 = 1 by omega])]
+  · have h0_odd (k : ℕ) : (2 * k + 1) % 2 = 1 := by omega
+    have hw : ∑ t ∈ range (2 * m), p t 2 = (m : ℝ) * (1 + 0) :=
+      hpair (fun t => p t 2) 1 0
+        (fun k => by simp [p, Nat.mul_mod_right])
+        (fun k => by simp [p, h0_odd k])
+    linarith
 
 end Cslib.MachineLearning.OnlineLearning.Experts

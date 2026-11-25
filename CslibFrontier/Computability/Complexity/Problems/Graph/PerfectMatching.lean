@@ -169,9 +169,12 @@ theorem count_vars_perfectMatchingInstance (G : Graph) (x : ℕ) :
     · simp [List.count_eq_zero_of_not_mem hx]
   simp only [perfectMatchingInstance, CSP.vars, List.flatMap_map]
   rw [List.count_flatMap, ← List.sum_toFinset _ G.nodup_distinctVertices]
-  refine (Finset.sum_le_sum fun v _ => hle v).trans ?_
-  rw [Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.sum_ite_eq']
-  split_ifs <;> omega
+  calc ∑ v ∈ G.distinctVertices.toFinset, (scope v).count x
+      ≤ ∑ v ∈ G.distinctVertices.toFinset, ((if v = a then 1 else 0) + (if v = b then 1 else 0)) :=
+        Finset.sum_le_sum fun v _ => hle v
+    _ ≤ 2 := by
+        rw [Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.sum_ite_eq']
+        split_ifs <;> omega
 
 /-- **A vertex constraint has at most as many variables as the vertex has neighbours.** -/
 theorem length_le_of_mem_perfectMatchingInstance {d : ℕ}
@@ -180,6 +183,7 @@ theorem length_le_of_mem_perfectMatchingInstance {d : ℕ}
   classical
   simp only [perfectMatchingInstance, List.mem_map, mem_distinctVertices] at hc
   obtain ⟨v, hv, rfl⟩ := hc
+  -- send the position of an edge at `v` to the other end of the edge
   let other (i : ℕ) : ℕ :=
     if (G.edgeList.getD i (0, 0)).1 = v then (G.edgeList.getD i (0, 0)).2
     else (G.edgeList.getD i (0, 0)).1
@@ -222,6 +226,7 @@ theorem card_neighborSet_le (v : {v // v ∈ G.vertices}) :
   classical
   have hnd : (G.edgeList.filter fun e => incident e v).Nodup :=
     ((pairwise_edgeList G).imp fun h => h.1.symm).filter _
+  -- send a neighbour `w` to the entry of the edge `vw`
   have hedge (w : G.induced.neighborSet v) : ∃ e ∈ G.edgeList.filter fun e => incident e v,
       e = (v.1, w.1.1) ∨ e = (w.1.1, v.1) := by
     rcases exists_mem_edgeList w.2 with h | h
@@ -229,13 +234,16 @@ theorem card_neighborSet_le (v : {v // v ∈ G.vertices}) :
     · exact ⟨_, List.mem_filter.mpr ⟨h, by simp [incident]⟩, Or.inr rfl⟩
   let f (w : G.induced.neighborSet v) : (G.edgeList.filter fun e => incident e v).toFinset :=
     ⟨(hedge w).choose, List.mem_toFinset.mpr (hedge w).choose_spec.1⟩
-  rw [← List.toFinset_card_of_nodup hnd, ← Nat.card_eq_finsetCard]
-  refine Nat.card_le_card_of_injective f fun w w' h => Subtype.ext (Subtype.ext ?_)
-  have h' : (hedge w).choose = (hedge w').choose := congrArg Subtype.val h
-  have hw := h' ▸ (hedge w).choose_spec.2
-  have hw' := (hedge w').choose_spec.2
-  have hne : (w.1 : ℕ) ≠ v.1 := fun h => G.induced.ne_of_adj w.2 (Subtype.ext h).symm
-  rcases hw with hw | hw <;> rcases hw' with hw' | hw' <;>
-    simp only [hw, Prod.mk.injEq] at hw' <;> omega
+  have hf : Function.Injective f := fun w w' h => Subtype.ext <| Subtype.ext <| by
+    have h' : (hedge w).choose = (hedge w').choose := congrArg Subtype.val h
+    have hw := h' ▸ (hedge w).choose_spec.2
+    have hw' := (hedge w').choose_spec.2
+    have hne : (w.1 : ℕ) ≠ v.1 := fun h => G.induced.ne_of_adj w.2 (Subtype.ext h).symm
+    rcases hw with hw | hw <;> rcases hw' with hw' | hw' <;>
+      simp only [hw, Prod.mk.injEq] at hw' <;> omega
+  calc Nat.card (G.induced.neighborSet v)
+      ≤ Nat.card (G.edgeList.filter fun e => incident e v).toFinset :=
+        Nat.card_le_card_of_injective f hf
+    _ = _ := by rw [Nat.card_eq_finsetCard, List.toFinset_card_of_nodup hnd]
 
 end Cslib.Complexity.Graph

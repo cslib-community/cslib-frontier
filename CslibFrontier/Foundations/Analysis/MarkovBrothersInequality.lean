@@ -110,8 +110,8 @@ private theorem T_eq_C_mul_nodal (n : ℕ) :
     rw [hroots, Chebyshev.natDegree_T, Finset.card_val,
       Finset.card_image_of_injOn (injOn_chebyshevZero n), card_range, Int.natAbs_natCast]
   conv_lhs => rw [← C_leadingCoeff_mul_prod_multiset_X_sub_C hcard]
-  rw [Chebyshev.leadingCoeff_T, Int.natAbs_natCast, hroots,
-    ← Finset.prod_eq_multiset_prod, Finset.prod_image (injOn_chebyshevZero n), Lagrange.nodal]
+  rw [Chebyshev.leadingCoeff_T, Int.natAbs_natCast, hroots, ← Finset.prod_eq_multiset_prod,
+    Finset.prod_image (injOn_chebyshevZero n), Lagrange.nodal]
 
 /-- At a zero `η` of `T n`, `|T n'(η)| √(1 - η²) = n`. -/
 private theorem abs_eval_derivative_T_mul_sqrt {n k : ℕ} (hk : k < n) :
@@ -143,19 +143,23 @@ private theorem abs_eval_le_mul_of_cos_le {n : ℕ} (hn : 0 < n) {q : ℝ[X]} (h
   have hnR : (0 : ℝ) < n := by exact_mod_cast hn
   have hM0 : 0 ≤ M := (mul_nonneg (sqrt_nonneg _) (abs_nonneg _)).trans (hM 0 (by simp))
   have hinj := injOn_chebyshevZero n
+  -- every node lies at or below `x`
   have hvx (j : ℕ) (hj : j ∈ s) : v j ≤ x :=
     let ⟨h₁, h₂⟩ := angle_mem (mem_range.1 hj)
     (cos_le_cos_of_nonneg_of_le_pi (by positivity) h₂ h₁).trans hx₁
   have hv (j : ℕ) (hj : j ∈ s) : v j ∈ Icc (-1 : ℝ) 1 := ⟨neg_one_le_cos _, cos_le_one _⟩
+  -- the derivative of `T n` is `c` times that of the node polynomial
   have hT' (y : ℝ) : (derivative (Chebyshev.T ℝ n)).eval y =
       c * (derivative (Lagrange.nodal s v)).eval y := by
     rw [T_eq_C_mul_nodal, derivative_C_mul, eval_mul, eval_C]
+  -- interpolation at the zeros of `T n`
   have hdeg : q.degree < #s :=
     card_range n ▸ degree_le_natDegree.trans_lt (by exact_mod_cast hq)
   have heval : q.eval x = ∑ k ∈ s, q.eval (v k) *
       ((∏ j ∈ s.erase k, (x - v j)) / ∏ j ∈ s.erase k, (v k - v j)) := by
     rw [Lagrange.eval_eq_sum_eval_basis_mul_eval hinj hdeg x]
     exact sum_congr rfl fun k _ => by rw [Lagrange.eval_basis, prod_div_distrib, mul_comm]
+  -- the weight of each node
   have hweight (k : ℕ) (hk : k ∈ s) :
       n * |q.eval (v k)| ≤ c * M * |∏ j ∈ s.erase k, (v k - v j)| := by
     have h := abs_eval_derivative_T_mul_sqrt (mem_range.1 hk)
@@ -171,8 +175,9 @@ private theorem abs_eval_le_mul_of_cos_le {n : ℕ} (hn : 0 < n) {q : ℝ[X]} (h
     rw [Lagrange.derivative_nodal, eval_finsetSum]
     exact sum_congr rfl fun k _ => Lagrange.eval_nodal.symm
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
+  have hπ0 : (0 : ℝ) ≤ π / (2 * n) := by positivity
   have hcos : 0 ≤ cos (π / (2 * n)) := cos_nonneg_of_mem_Icc
-    ⟨by linarith [pi_pos, (by positivity : (0 : ℝ) ≤ π / (2 * n))],
+    ⟨by linarith [pi_pos],
       div_le_div_of_nonneg_left pi_pos.le two_pos (by linarith)⟩
   have hTx : (derivative (Chebyshev.T ℝ n)).eval x ≤ n ^ 2 := by
     have h := Chebyshev.abs_iterate_derivative_T_real_le n 1 (abs_le.2 ⟨by linarith, hx₂⟩)
@@ -205,16 +210,19 @@ theorem abs_eval_le_mul_of_sqrt_mul_abs_eval_le {n : ℕ} (hn : 0 < n) {q : ℝ[
   rcases le_or_gt (cos (π / (2 * n))) x with h | h
   · exact abs_eval_le_mul_of_cos_le hn hq hM h hx.2
   rcases le_or_gt x (-cos (π / (2 * n))) with h' | h'
-  · have hq' : (q.comp (-X)).natDegree < n := by
+  · -- reflect `q` to `q(-x)`
+    have hq' : (q.comp (-X)).natDegree < n := by
       rwa [natDegree_comp, natDegree_neg, natDegree_X, mul_one]
     simpa [eval_comp] using abs_eval_le_mul_of_cos_le hn hq' (M := M)
-      (fun y hy => by simpa [eval_comp] using hM (-y) ⟨by linarith [hy.2], by linarith [hy.1]⟩)
-      (x := -x) (by linarith) (by linarith [hx.1])
-  · have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+      (fun y hy => by simpa [eval_comp] using hM (-y) ⟨neg_le_neg hy.2, neg_le.1 hy.1⟩)
+      (le_neg.1 h') (neg_le.1 hx.1)
+  · -- here `√(1 - x²) ≥ sin (π / 2n) ≥ 1 / n`
+    have hnR : (0 : ℝ) < n := by exact_mod_cast hn
+    have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
     have hsin : 1 / n ≤ sin (π / (2 * n)) :=
-      (show 1 / (n : ℝ) = 2 / π * (π / (2 * n)) by field_simp).trans_le <|
-        mul_le_sin (by positivity) (div_le_div_of_nonneg_left pi_pos.le two_pos
-          (by linarith [(by exact_mod_cast hn : (1 : ℝ) ≤ n)]))
+      calc 1 / (n : ℝ) = 2 / π * (π / (2 * n)) := by field_simp
+        _ ≤ sin (π / (2 * n)) := mul_le_sin (by positivity)
+          (div_le_div_of_nonneg_left pi_pos.le two_pos (by linarith))
     have h1 : 1 / n ≤ √(1 - x ^ 2) := by
       have h1n : (0 : ℝ) ≤ 1 / n := by positivity
       have hsq : x ^ 2 < cos (π / (2 * n)) ^ 2 := sq_lt_sq' (by linarith) h
@@ -286,6 +294,7 @@ theorem sqrt_mul_abs_eval_derivative_le {n : ℕ} {p : ℝ[X]} (hp : p.natDegree
   · simp [derivative_of_natDegree_zero (Nat.le_zero.1 hp)]
   set b := √(1 - x ^ 2)
   have hb : b ^ 2 = 1 - x ^ 2 := sq_sqrt (by nlinarith [hx.1, hx.2])
+  -- the odd part of `p` along the circle is bounded by `M`
   have hr : ∀ c ∈ Icc (-1 : ℝ) 1, √(1 - c ^ 2) * |(oddPart p n x b).eval c| ≤ M := by
     intro c hc
     set s := √(1 - c ^ 2)
@@ -335,12 +344,16 @@ theorem sub_mul_abs_eval_derivative_le {n : ℕ} {p : ℝ[X]} (hp : p.natDegree 
   have hba : 0 < b - a := sub_pos.2 hab
   set t := (2 * x - a - b) / (b - a)
   have ht : t ∈ Icc (-1 : ℝ) 1 :=
-    ⟨(le_div_iff₀ hba).2 (by linarith [hx.1]), (div_le_iff₀ hba).2 (by linarith [hx.2])⟩
+    ⟨(le_div_iff₀ hba).2 (by linarith [hx.1]),
+      (div_le_iff₀ hba).2 (by linarith [hx.2])⟩
   have hLt : L.eval t = x := by
     rw [hL, show t = (2 * x - a - b) / (b - a) from rfl]
     field_simp; ring
-  have h := abs_eval_derivative_le_sq_mul hdeg
-    (fun s hs => by rw [eval_comp, hL]; exact hM _ ⟨by nlinarith [hs.1], by nlinarith [hs.2]⟩) ht
+  have hbound (s : ℝ) (hs : s ∈ Icc (-1 : ℝ) 1) : |(p.comp L).eval s| ≤ M := by
+    rw [eval_comp, hL]
+    exact hM _ ⟨by nlinarith [hs.1],
+      by nlinarith [hs.2]⟩
+  have h := abs_eval_derivative_le_sq_mul hdeg hbound ht
   have hL' : (derivative L).eval t = (b - a) / 2 := by simp [L]
   rw [derivative_comp, eval_mul, eval_comp, hLt, hL', abs_mul, abs_of_pos (by positivity)] at h
   linarith
@@ -360,13 +373,15 @@ private theorem exists_max_abs_eval_derivative {d N : ℕ} {q : ℝ[X]} (hq : q.
     (continuous_abs.comp (derivative q).continuous).continuousOn
   set c := |(derivative q).eval y₀|
   have hc (y : ℝ) (hy : y ∈ Icc (0 : ℝ) N) : |(derivative q).eval y| ≤ c := hmax hy
+  -- `q` is within `c / 2` of its value at the nearest integer
   have hval : ∀ y ∈ Icc (0 : ℝ) N, |q.eval y - (b₁ + b₂) / 2| ≤ (b₂ - b₁ + c) / 2 := by
     intro y hy
     set k := ⌊y + 1 / 2⌋₊
     have hk₁ : (k : ℝ) ≤ y + 1 / 2 := Nat.floor_le (by linarith [hy.1])
     have hk₂ : y + 1 / 2 < k + 1 := Nat.lt_floor_add_one _
-    have hkN : k ≤ N :=
-      Nat.lt_succ_iff.1 (by exact_mod_cast (show (k : ℝ) < N + 1 by linarith [hy.2]))
+    have hkN : k ≤ N := by
+      have : (k : ℝ) < N + 1 := by linarith [hy.2]
+      exact Nat.lt_succ_iff.1 (by exact_mod_cast this)
     have hmvt := (convex_Icc (0 : ℝ) N).norm_image_sub_le_of_norm_hasDerivWithin_le
       (f := fun z => q.eval z) (fun z _ => (q.hasDerivAt z).hasDerivWithinAt) hc
       ⟨k.cast_nonneg, by exact_mod_cast hkN⟩ hy
@@ -377,6 +392,7 @@ private theorem exists_max_abs_eval_derivative {d N : ℕ} {q : ℝ[X]} (hq : q.
     rw [abs_le] at hmvt ⊢
     constructor <;> nlinarith [hqk.1, hqk.2, abs_nonneg (y - k)]
   refine ⟨c, hc, ?_, hval⟩
+  -- Markov's inequality on `[0, N]` at the maximum
   have h := sub_mul_abs_eval_derivative_le (p := q - C ((b₁ + b₂) / 2))
     (natDegree_sub_C.le.trans hq) hNR (fun y hy => by simpa using hval y hy) hy₀
   rw [derivative_sub, derivative_C, sub_zero, sub_zero] at h

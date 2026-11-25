@@ -162,18 +162,19 @@ private theorem sq_succ_pow_sub_pow_add_le (c j : ℕ) :
   have hdle := Nat.succ_pow_sub_pow_le c j
   rw [hd, Nat.add_sub_cancel_left] at hdle ⊢
   have hcj : c ^ j ≤ (c + 1) ^ j := Nat.pow_le_pow_left (Nat.le_succ _) _
-  rw [show c ^ (2 * j + 1) = c ^ j * c ^ (j + 1) by ring,
-    show (c + 1) ^ (2 * j + 1) = (c + 1) ^ j * (c + 1) ^ (j + 1) by ring]
-  calc d ^ 2 + (j + 1) * (c ^ j * c ^ (j + 1))
-      ≤ d * ((j + 1) * (c + 1) ^ j) + (j + 1) * (c ^ j * c ^ (j + 1)) := by
-        rw [sq]
-        exact Nat.add_le_add_right (Nat.mul_le_mul_left d hdle) _
+  have key : d * (c + 1) ^ j + c ^ j * c ^ (j + 1) ≤ (c + 1) ^ j * (c + 1) ^ (j + 1) :=
+    calc d * (c + 1) ^ j + c ^ j * c ^ (j + 1)
+        ≤ d * (c + 1) ^ j + (c + 1) ^ j * c ^ (j + 1) :=
+          Nat.add_le_add_left (Nat.mul_le_mul_right _ hcj) _
+      _ = (c + 1) ^ j * (c ^ (j + 1) + d) := by ring
+      _ = (c + 1) ^ j * (c + 1) ^ (j + 1) := by rw [hd]
+  calc d ^ 2 + (j + 1) * c ^ (2 * j + 1)
+      = d * d + (j + 1) * (c ^ j * c ^ (j + 1)) := by ring
+    _ ≤ d * ((j + 1) * (c + 1) ^ j) + (j + 1) * (c ^ j * c ^ (j + 1)) :=
+        Nat.add_le_add_right (Nat.mul_le_mul_left d hdle) _
     _ = (j + 1) * (d * (c + 1) ^ j + c ^ j * c ^ (j + 1)) := by ring
-    _ ≤ (j + 1) * (d * (c + 1) ^ j + (c + 1) ^ j * c ^ (j + 1)) :=
-        Nat.mul_le_mul_left _ (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcj) _)
-    _ = (j + 1) * ((c + 1) ^ j * (c + 1) ^ (j + 1)) := by
-        rw [hd]
-        ring
+    _ ≤ (j + 1) * ((c + 1) ^ j * (c + 1) ^ (j + 1)) := Nat.mul_le_mul_left _ key
+    _ = (j + 1) * (c + 1) ^ (2 * j + 1) := by ring
 
 /-- **The second-moment sum** [AlonMatiasSzegedy1999, proof of Theorem 2.1, inequality (1)]:
 summing `(r ^ k - (r - 1) ^ k) ^ 2` over the positions gives at most `k F_{2k-1}`, here with

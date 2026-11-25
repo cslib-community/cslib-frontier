@@ -61,8 +61,9 @@ theorem legal_source_iff (s : Fin n × Fin q → Bool) :
     (PortGraph.network H n).sourceGraph.Legal s ↔ SelectionLegal H s := by
   rw [SelectorNetwork.legal_source_iff]
   refine ⟨fun hs => ⟨fun i => ?_, fun i j hij a b ha hb => ?_⟩,
-    fun hs => ⟨fun i => let ⟨a, ha⟩ := hs.nonempty i; ⟨(i, a), PortGraph.network_row H _, ha⟩,
-      fun r hr => ?_⟩⟩
+    fun hs => ⟨fun i =>
+      let ⟨a, ha⟩ := hs.nonempty i
+      ⟨(i, a), PortGraph.network_row H _, ha⟩, fun r hr => ?_⟩⟩
   · obtain ⟨⟨j, a⟩, hj, ha⟩ := hs.nonempty i
     exact (PortGraph.network_row H (j, a)).symm.trans hj ▸ ⟨a, ha⟩
   · by_contra hab
@@ -166,7 +167,8 @@ namespace PortGraph
 /-- Canonical one-hot physical configurations are legal exactly for compatible words. -/
 theorem legal_oneHot_iff (w : Fin n → Fin q) :
     (network H n).graph.Legal ((network H n).encode (HWord.oneHot w)) ↔ HWord.Legal H w :=
-  (SelectorNetwork.legal_encode_iff _ _).trans (HWord.legal_oneHot_iff H w)
+  (SelectorNetwork.legal_encode_iff _ _).trans
+    (HWord.legal_oneHot_iff H w)
 
 /-- The concrete, well-formed weighted graph preserves and reflects word reconfiguration. -/
 theorem reachable_oneHot_iff (s t : Fin n → Fin q) :

@@ -254,19 +254,11 @@ private theorem find?_tableRep_hash (d : F.Desc) {m : ℕ} (y : ZMod (F.order d)
   induction table with
   | nil => rfl
   | cons e rest ih =>
-    obtain ⟨l, k⟩ := e
-    cases l with
-    | inl z' =>
-      have hcons : F.tableRep d ((.inl z', k) :: rest) =
-          ⟨false, F.encode d z', List.ofFn k⟩ :: F.tableRep d rest := rfl
-      have heq : (F.encode d z' == F.encode d z) = decide (z' = z) :=
-        Bool.eq_iff_iff.mpr (by rw [beq_iff_eq, (F.encode_injective d).eq_iff, decide_eq_true_eq])
-      rw [hcons, List.find?_cons, List.find?_cons]
-      by_cases hz : z' = z <;> simp [PrimeOrderGroupFamily.hashMatches, heq, hz, ih]
-    | inr c =>
-      have hcons : F.tableRep d ((.inr c, k) :: rest) =
-          ⟨true, F.encode d c, List.ofFn k⟩ :: F.tableRep d rest := rfl
-      rw [hcons, List.find?_cons, List.find?_cons]
+    rcases e with ⟨z' | c, k⟩
+    · rw [tableRep, List.map_cons, ← tableRep]
+      by_cases hz : z' = z <;>
+        simp [PrimeOrderGroupFamily.hashMatches, (F.encode_injective d).eq_iff, hz, ih]
+    · rw [tableRep, List.map_cons, ← tableRep]
       by_cases hz : z = y • c <;>
         simp [PrimeOrderGroupFamily.hashMatches, ddhOraclePred_encode, hz, ih]
 
@@ -280,21 +272,13 @@ private theorem find?_tableRep_decaps (d : F.Desc) {m : ℕ} (y : ZMod (F.order 
   induction table with
   | nil => rfl
   | cons e rest ih =>
-    obtain ⟨l, k⟩ := e
-    cases l with
-    | inl z =>
-      have hcons : F.tableRep d ((.inl z, k) :: rest) =
-          ⟨false, F.encode d z, List.ofFn k⟩ :: F.tableRep d rest := rfl
-      rw [hcons, List.find?_cons, List.find?_cons]
+    rcases e with ⟨z | c', k⟩
+    · rw [tableRep, List.map_cons, ← tableRep]
       by_cases hz : z = y • c <;>
         simp [PrimeOrderGroupFamily.decapsMatches, ddhOraclePred_encode, hz, ih]
-    | inr c' =>
-      have hcons : F.tableRep d ((.inr c', k) :: rest) =
-          ⟨true, F.encode d c', List.ofFn k⟩ :: F.tableRep d rest := rfl
-      have heq : (F.encode d c' == F.encode d c) = decide (c' = c) :=
-        Bool.eq_iff_iff.mpr (by rw [beq_iff_eq, (F.encode_injective d).eq_iff, decide_eq_true_eq])
-      rw [hcons, List.find?_cons, List.find?_cons]
-      by_cases hc : c' = c <;> simp [PrimeOrderGroupFamily.decapsMatches, heq, hc, ih]
+    · rw [tableRep, List.map_cons, ← tableRep]
+      by_cases hc : c' = c <;>
+        simp [PrimeOrderGroupFamily.decapsMatches, (F.encode_injective d).eq_iff, hc, ih]
 
 private theorem simWordHandler_step (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc)
     (y : ZMod (F.order d)) (cStar : F.Carrier d) (op : DHKEMOp) (w : List Bool)
@@ -310,21 +294,18 @@ private theorem simWordHandler_step (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc
   | hash =>
     simp only [routeToTypedQuery, simWordHandler]
     cases hdec : F.decode d w with
-    | none =>
-      have helem : F.isElem (d, w) = false := by simp [isElem, hdec]
-      simp [helem]
+    | none => simp [isElem, hdec]
     | some z =>
-      have hw : w = F.encode d z := F.encode_eq_of_decode_eq_some hdec
-      subst hw
+      obtain rfl := F.encode_eq_of_decode_eq_some hdec
       simp only [F.isElem_encode, ↓reduceIte, OracleComp.run_interpret_map,
         OracleComp.run_interpret_query, PMF.monad_map_eq_map, PMF.map_comp,
         PrimeOrderGroupFamily.lowerHandler, F.toPrimeOrderGroupFamily.runDDH_simHandler_hash,
         simLookupWord, ProbOracleComp.run_bind, ProbComp.eval_bind]
-      have hsel : ∀ e, ProbComp.eval
+      have hsel (e) : ProbComp.eval
           ((hashSelectWord (F.encode d z) e).run fun req => pure (F.ddhWordOracle d y req.2)) =
           PMF.pure (if (if e.isDecaps then F.ddhOraclePred d y e.elem (F.encode d z)
             else e.elem == F.encode d z) then some e.key else none) := by
-        intro e; by_cases hd : e.isDecaps <;> simp [hashSelectWord, hd]
+        by_cases hd : e.isDecaps <;> simp [hashSelectWord, hd]
       rw [F.eval_run_findSomeM?_eq_find? d y _ _ DHKEMSimEntry.key hsel,
         F.find?_tableRep_hash d y z table, PMF.pure_bind]
       cases hfind : (table.find? fun e =>
@@ -336,27 +317,22 @@ private theorem simWordHandler_step (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc
   | decaps =>
     simp only [routeToTypedQuery, simWordHandler]
     cases hdec : F.decode d w with
-    | none =>
-      have helem : F.isElem (d, w) = false := by simp [isElem, hdec]
-      simp [helem]
+    | none => simp [isElem, hdec]
     | some C =>
-      have hw : w = F.encode d C := F.encode_eq_of_decode_eq_some hdec
-      subst hw
-      have heq : (F.encode d C == F.encode d cStar) = decide (C = cStar) :=
-        Bool.eq_iff_iff.mpr (by rw [beq_iff_eq, (F.encode_injective d).eq_iff, decide_eq_true_eq])
-      simp only [F.isElem_encode, Bool.not_true, Bool.false_or, heq,
-        OracleComp.run_interpret_map, OracleComp.run_interpret_query, PMF.monad_map_eq_map,
-        PMF.map_comp, PrimeOrderGroupFamily.lowerHandler,
-        F.toPrimeOrderGroupFamily.runDDH_simHandler_decaps]
+      obtain rfl := F.encode_eq_of_decode_eq_some hdec
+      simp only [F.isElem_encode, Bool.not_true, Bool.false_or, beq_iff_eq,
+        (F.encode_injective d).eq_iff, OracleComp.run_interpret_map,
+        OracleComp.run_interpret_query, PMF.monad_map_eq_map, PMF.map_comp,
+        PrimeOrderGroupFamily.lowerHandler, F.toPrimeOrderGroupFamily.runDDH_simHandler_decaps]
       by_cases hc : C = cStar
       · subst hc; simp [encOption]
-      · simp only [hc, decide_false, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.run_map,
-          ProbComp.eval_map, simLookupWord, ProbOracleComp.run_bind, ProbComp.eval_bind]
-        have hsel : ∀ e, ProbComp.eval
+      · simp only [hc, ↓reduceIte, ProbOracleComp.run_map, ProbComp.eval_map, simLookupWord,
+          ProbOracleComp.run_bind, ProbComp.eval_bind]
+        have hsel (e) : ProbComp.eval
             ((decapsSelectWord (F.encode d C) e).run fun req => pure (F.ddhWordOracle d y req.2)) =
             PMF.pure (if (if e.isDecaps then e.elem == F.encode d C
               else F.ddhOraclePred d y (F.encode d C) e.elem) then some e.key else none) := by
-          intro e; by_cases hd : e.isDecaps <;> simp [decapsSelectWord, hd]
+          by_cases hd : e.isDecaps <;> simp [decapsSelectWord, hd]
         rw [F.eval_run_findSomeM?_eq_find? d y _ _ DHKEMSimEntry.key hsel,
           F.find?_tableRep_decaps d y C table, PMF.pure_bind]
         cases hfind : (table.find? fun e =>
@@ -481,34 +457,8 @@ private theorem dhKEMCCAWordGameAt_eq_savedCoin (keyLen : ℕ → ℕ)
     rw [hrep, PMF.map_bind]
     refine congrArg (PMF.bind _) (funext fun coins => ?_)
     rw [OracleComp.run_interpret_lift, PMF.monad_map_eq_map, PMF.map_comp, PMF.map_comp]
-    have hid : ((Prod.fst ∘ fun p : Bool × Unit => (p.1, id p.2)) ∘ fun b : Bool => (b, ())) =
-        id := rfl
-    rw [hid, PMF.map_id]
-  have hlhs :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun x =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun y =>
-        (Probability.PMF.pi fun _ : F.Carrier d =>
-          ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun H =>
-        (ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun random =>
-        ProbComp.eval ((adversary n (encDHKEMChallenge F.toPrimeOrderGroupFamily
-          ⟨d, F.encode d (x • F.generator d), F.encode d (y • F.generator d),
-            if bit = true then List.ofFn (H (y • x • F.generator d)) else List.ofFn random⟩)).run
-          fun req => pure (F.dhKEMCCAWordAnswer d H x (F.encode d (y • F.generator d)) req))) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun x =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun y =>
-        (Probability.PMF.pi fun _ : F.Carrier d =>
-          ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun H =>
-        (ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))).bind fun random =>
-        (BitString.uniformList (F.dhKEMCoinBudget keyLen c deg n d)).bind fun coins =>
-          OracleComp.interpret
-            (fun q => PMF.pure (F.toPrimeOrderGroupFamily.dhKEMAnswer d H x (y • F.generator d) q))
-            (F.savedCoinDHKEMAdversary machine keyLen c deg n d coins
-              (x • F.generator d, y • F.generator d,
-                if bit = true then H (y • x • F.generator d) else random))) := by
-    refine congrArg (PMF.bind _) (funext fun x => congrArg (PMF.bind _) (funext fun y => ?_))
-    refine congrArg (PMF.bind _) (funext fun H => congrArg (PMF.bind _) (funext fun random => ?_))
-    exact hbody x y H random
-  rw [hlhs]
+    simp only [Function.comp_def, id_eq, PMF.map_id']
+  simp_rw [hbody]
   pmf_swap
 
 /-- **Exact reduction equality** on every encoded Gap-CDH challenge `(a • g, b • g)`: running

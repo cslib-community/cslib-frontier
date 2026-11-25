@@ -151,15 +151,23 @@ private theorem one_sub_mul_sum_le_of_pos (S : WeightScheme N)
     S.w_nonneg
     (fun p hp i hi => mul_nonneg hc.le (S.u_nonneg p hp i hi))
     (fun p hp i hi => div_nonneg (S.v_nonneg p hp i hi) hc.le)
-    (fun p hp i hi => (S.sq_le p hp i hi).trans_eq (by field_simp))
+    (fun p hp i hi => by
+      calc S.w p ^ 2 ≤ S.u p i * S.v p i := S.sq_le p hp i hi
+        _ = (c * S.u p i) * (S.v p i / c) := by field_simp)
     (fun x hx i => by
-      rw [← mul_sum, mul_assoc]
-      exact mul_le_mul_of_nonneg_left (hA x hx i) hc.le)
+      rw [← mul_sum]
+      calc c * S.loadFst x i ≤ c * (vA * S.wtFst x) :=
+            mul_le_mul_of_nonneg_left (hA x hx i) hc.le
+        _ = c * vA * S.wtFst x := by ring)
     (fun y hy i => by
-      rw [← sum_div, div_mul_eq_mul_div]
-      exact div_le_div_of_nonneg_right (hB y hy i) hc.le)
+      calc ∑ p ∈ S.R with p.1 i ≠ p.2 i ∧ p.2 = y, S.v p i / c
+          = S.loadSnd y i / c := (sum_div _ _ c).symm
+        _ ≤ (vB * S.wtSnd y) / c := div_le_div_of_nonneg_right (hB y hy i) hc.le
+        _ = (vB / c) * S.wtSnd y := by ring)
   rw [← mul_sum, ← mul_sum, S.sum_wtFst_eq_weightSum, S.sum_wtSnd_eq_weightSum] at htel
-  exact htel.trans_eq (by ring)
+  calc (1 - δ) * S.weightSum ≤
+        (T : ℝ) * (c * vA * S.weightSum + (vB / c) * S.weightSum) := htel
+    _ = T * (c * vA + vB / c) * S.weightSum := by ring
 
 private theorem nonpos_of_forall_pos_le_div {x B : ℝ} (hB : 0 ≤ B)
     (h : ∀ c : ℝ, 0 < c → x ≤ B / c) : x ≤ 0 := by
@@ -191,12 +199,15 @@ theorem one_sub_mul_sum_le (S : WeightScheme N) (U : ℕ → State N W →ₗᵢ
     exact (S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hA hB (inv_pos.2 hc)).trans_eq
       (by rw [zero_div, add_zero, inv_mul_eq_div]; ring)
   · have hc : 0 < √vB / √vA := div_pos (Real.sqrt_pos.2 hvB_pos) (Real.sqrt_pos.2 hvA_pos)
-    refine (S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hA hB hc).trans_eq ?_
-    rw [Real.sqrt_mul hvA_pos.le]
-    field_simp [Real.sqrt_ne_zero'.2 hvA_pos, Real.sqrt_ne_zero'.2 hvB_pos]
-    ring_nf
-    rw [Real.sq_sqrt hvA_pos.le, Real.sq_sqrt hvB_pos.le]
-    ring
+    calc (1 - δ) * S.weightSum
+        ≤ T * (√vB / √vA * vA + vB / (√vB / √vA)) * S.weightSum :=
+          S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hA hB hc
+      _ = 2 * T * √(vA * vB) * S.weightSum := by
+          rw [Real.sqrt_mul hvA_pos.le]
+          field_simp [Real.sqrt_ne_zero'.2 hvA_pos, Real.sqrt_ne_zero'.2 hvB_pos]
+          ring_nf
+          rw [Real.sq_sqrt hvA_pos.le, Real.sq_sqrt hvB_pos.le]
+          ring
 
 /-- **Weighted quantum adversary bound for Boolean outputs** ([Ambainis2006], Lemma 1):
 if a `T`-query algorithm accepts the first input of every pair in `R` with probability at least
@@ -228,21 +239,22 @@ theorem one_sub_mul_sqrt_le_of_load_le (S : WeightScheme N)
     (hB : ∀ y ∈ S.R.image Prod.snd, ∀ i, mB * S.loadSnd y i ≤ S.wtSnd y) :
     (1 - δ) * √(mA * mB) ≤ 2 * T := by
   rcases hmA.eq_or_lt with rfl | hmA_pos
-  · simp only [zero_mul, Real.sqrt_zero, mul_zero]
-    positivity
+  · simp only [zero_mul, Real.sqrt_zero, mul_zero]; positivity
   rcases hmB.eq_or_lt with rfl | hmB_pos
-  · simp only [mul_zero, Real.sqrt_zero, mul_zero]
-    positivity
+  · simp only [mul_zero, Real.sqrt_zero, mul_zero]; positivity
   have hbal := S.one_sub_mul_sum_le U hψ₀ T hδ (vA := mA⁻¹) (vB := mB⁻¹)
     (inv_nonneg.2 hmA_pos.le) (inv_nonneg.2 hmB_pos.le)
-    (fun x hx i => by rw [inv_mul_eq_div, le_div_iff₀' hmA_pos]; exact hA x hx i)
-    (fun y hy i => by rw [inv_mul_eq_div, le_div_iff₀' hmB_pos]; exact hB y hy i)
+    (fun x hx i => by simpa only [inv_mul_eq_div, le_div_iff₀' hmA_pos] using hA x hx i)
+    (fun y hy i => by simpa only [inv_mul_eq_div, le_div_iff₀' hmB_pos] using hB y hy i)
   have hcancel : 1 - δ ≤ 2 * (T : ℝ) * √(mA⁻¹ * mB⁻¹) := by
     simpa [mul_assoc, hW.ne'] using mul_le_mul_of_nonneg_right hbal (inv_nonneg.2 hW.le)
-  refine (mul_le_mul_of_nonneg_right hcancel (Real.sqrt_nonneg _)).trans_eq ?_
-  rw [mul_assoc, ← Real.sqrt_mul (by positivity),
-    show mA⁻¹ * mB⁻¹ * (mA * mB) = 1 by field_simp [hmA_pos.ne', hmB_pos.ne'],
-    Real.sqrt_one, mul_one]
+  calc (1 - δ) * √(mA * mB)
+      ≤ 2 * (T : ℝ) * √(mA⁻¹ * mB⁻¹) * √(mA * mB) :=
+        mul_le_mul_of_nonneg_right hcancel (Real.sqrt_nonneg _)
+    _ = 2 * (T : ℝ) := by
+        have hid : mA⁻¹ * mB⁻¹ * (mA * mB) = 1 := by
+          field_simp [hmA_pos.ne', hmB_pos.ne']
+        rw [mul_assoc, ← Real.sqrt_mul (by positivity), hid, Real.sqrt_one, mul_one]
 
 /-- **Weighted quantum adversary bound for Boolean outputs, ratio form** ([Zhang2005],
 Theorem 3): `(1 - 2√(ε(1-ε))) √(mA · mB) ≤ 2 T`. -/

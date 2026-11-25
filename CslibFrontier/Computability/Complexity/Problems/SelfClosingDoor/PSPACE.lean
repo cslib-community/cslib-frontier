@@ -108,8 +108,10 @@ private theorem wordEdge_stateWord (I : Instance) (s : State) (b : List Bool) :
         ∃ t, b = stateWord I t ∧ Step I.doors s t := by
   simp only [wordEdge, decode_stateWord, decide_true, Bool.true_and, Bool.or_eq_true,
     Bool.and_eq_true, decide_eq_true_eq, checkStep_eq_true_iff]
-  exact or_congr_right ⟨fun ⟨hb, hs⟩ => ⟨decode b, hb, hs⟩,
-    by rintro ⟨t, rfl, hs⟩; rw [decode_stateWord]; exact ⟨rfl, hs⟩⟩
+  exact or_congr_right ⟨fun ⟨hb, hs⟩ => ⟨decode b, hb, hs⟩, fun ⟨t, hb, hs⟩ => by
+    subst hb
+    rw [decode_stateWord]
+    exact ⟨rfl, hs⟩⟩
 
 private theorem wordEdge_accept (I : Instance) (b : List Bool) :
     wordEdge I (accept I) b = false := by
@@ -165,7 +167,8 @@ private theorem solve_eq_true_iff (I : Instance) : solve I = true ↔ I ∈ Reac
     (accepts_iff_code_reachable I).symm
 
 private theorem decode_polyTime : ComputableInPolyTime decode encBits encState := by
-  unfold decode; fun_prop
+  unfold decode
+  fun_prop
 
 private theorem budget_polyTime : ComputableInPolyTime budget encInstance encUnary :=
   .unary_add' (.unary_mul' (.const 3)
@@ -189,13 +192,16 @@ private theorem wordEdge_polyTime :
       wordEdge q.1 q.2.1 q.2.2) (Cslib.Reachability.encEdgeArgs encInstance) encBool := by
   have hi : ComputableInPolyTime Prod.fst
       (Cslib.Reachability.encEdgeArgs encInstance) encInstance := by
-    unfold Cslib.Reachability.encEdgeArgs; fun_prop
+    unfold Cslib.Reachability.encEdgeArgs
+    fun_prop
   have ha : ComputableInPolyTime (fun q : Instance × List Bool × List Bool => q.2.1)
       (Cslib.Reachability.encEdgeArgs encInstance) encBits := by
-    unfold Cslib.Reachability.encEdgeArgs; fun_prop
+    unfold Cslib.Reachability.encEdgeArgs
+    fun_prop
   have hb : ComputableInPolyTime (fun q : Instance × List Bool × List Bool => q.2.2)
       (Cslib.Reachability.encEdgeArgs encInstance) encBits := by
-    unfold Cslib.Reachability.encEdgeArgs; fun_prop
+    unfold Cslib.Reachability.encEdgeArgs
+    fun_prop
   have hsa := decode_polyTime.comp ha
   have hsb := decode_polyTime.comp hb
   exact (ha.decide_eq' (code_polyTime.comp (hi.prod hsa))).bool_and'
@@ -211,7 +217,8 @@ private theorem arguments_polyTime :
   have := width_polyTime
   have := accept_polyTime
   have := code_polyTime.comp (ComputableInPolyTime.id'.prod Instance.computableInPolyTime_initial)
-  unfold Cslib.Reachability.encArgs; fun_prop
+  unfold Cslib.Reachability.encArgs
+  fun_prop
 
 /-- Single-player target-location reachability for directed symmetric self-closing doors
 is in PSPACE under the explicit door-list encoding with binary location labels. -/

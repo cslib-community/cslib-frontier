@@ -281,7 +281,9 @@ theorem exists_maxCost_le_and_forall_errorProb_le [Finite β] [Nonempty β]
   obtain ⟨a₀, ha₀, -⟩ := h (.single (Classical.arbitrary β))
   have : Nonempty {a : α // cost a ≤ d} := ⟨⟨a₀, ha₀⟩⟩
   obtain ⟨μ, hμ⟩ := exists_forall_errorProb_le (α := {a : α // cost a ≤ d})
-    (fun a b => Acc a.1 b) (ε := ε) fun ν => let ⟨a, ha, hν⟩ := h ν; ⟨⟨a, ha⟩, hν⟩
+    (fun a b => Acc a.1 b) (ε := ε) fun ν =>
+      let ⟨a, ha, hν⟩ := h ν
+      ⟨⟨a, ha⟩, hν⟩
   refine ⟨μ.map Subtype.val, fun b => (errorProb_map_le (fun a : {a : α // cost a ≤ d} => Acc a.1 b)
       (fun a => Acc a b) Subtype.val μ fun _ => id).trans (hμ b),
     maxCost_le_iff.mpr fun a ha => ?_⟩
@@ -567,11 +569,12 @@ theorem exists_maxCost_le_and_forall_errorProb_le {cost : α → ℕ} {Acc : α 
   obtain ⟨μ, -, hμ⟩ := exists_forall_toOuterMeasure_le
     (I := {a : α // cost a ≤ c}) (J := D) (fun a b => ¬Acc a.1 b.1) (ε := ε) fun ν => by
       obtain ⟨a, hc, hp⟩ := h (ν.map Subtype.val) fun b hb =>
-        let ⟨b', _, hb'⟩ := (PMF.mem_support_map_iff _ _ _).mp hb; hb' ▸ b'.2
+        let ⟨b', _, hb'⟩ := (PMF.mem_support_map_iff _ _ _).mp hb
+        hb' ▸ b'.2
       exact ⟨⟨a, hc⟩, by rwa [errorProb, PMF.toOuterMeasure_map_apply] at hp⟩
-  exact ⟨μ.map Subtype.val,
-    fun b hb => by rw [errorProb, PMF.toOuterMeasure_map_apply]; exact hμ ⟨b, hb⟩,
-    maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.2⟩
+  refine ⟨μ.map Subtype.val, fun b hb => ?_, maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.2⟩
+  rw [errorProb, PMF.toOuterMeasure_map_apply]
+  exact hμ ⟨b, hb⟩
 
 end PublicCoin
 

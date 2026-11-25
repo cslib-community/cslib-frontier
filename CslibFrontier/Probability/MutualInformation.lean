@@ -315,36 +315,6 @@ theorem condMutualInfo_map_le_mutualInfo [Finite γ] [Finite α] [Finite β] (ν
   rw [mutualInfo_map_prodMk_eq_add]
   linarith [mutualInfo_nonneg (ν.map fun ω => (C ω, B ω))]
 
-/-- **Chain rule** through an observation `B = k ∘ T`:
-`I(A; T | C) = I(A; B | C) + E_b I(A; T | C, B = b)`. -/
-theorem condMutualInfo_map_eq_add_sum [Fintype δ] [Finite γ] [Finite α] [Finite τ]
-    (ν : PMF Ω) (C : Ω → γ) (A : Ω → α) (T : Ω → τ) (B : Ω → δ) (k : τ → δ)
-    (hB : ∀ ω, B ω = k (T ω)) :
-    condMutualInfo (ν.map fun ω => (C ω, A ω, T ω)) =
-      condMutualInfo (ν.map fun ω => (C ω, A ω, B ω)) +
-        ∑ b, ((ν.map B) b).toReal *
-          condMutualInfo ((conditionalSnd (ν.map fun ω => (B ω, ω)) b).map
-            fun ω => (C ω, A ω, T ω)) := by
-  simp only [condMutualInfo_map, mul_add, mul_sub, Finset.sum_add_distrib,
-    Finset.sum_sub_distrib]
-  have m1 := entropy_map_prodMk_eq_add_sum ν B (fun ω => (C ω, A ω))
-  have m2 := entropy_map_prodMk_eq_add_sum ν B (fun ω => (C ω, T ω))
-  have m3 := entropy_map_prodMk_eq_add_sum ν B (fun ω => (C ω, A ω, T ω))
-  have m4 := entropy_map_prodMk_eq_add_sum ν B C
-  have r1 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω, B ω))
-    (G := fun ω => (B ω, C ω, A ω)) (e := fun t => (t.2.2, t.1, t.2.1))
-    (fun ⟨_, _, _⟩ ⟨_, _, _⟩ hst => by simp only [Prod.mk.injEq] at hst; simp [hst])
-    (fun _ _ => rfl)
-  have r2 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, T ω))
-    (G := fun ω => (B ω, C ω, T ω)) (e := fun t => (k t.2, t))
-    (fun _ _ hst => congrArg Prod.snd hst) (fun ω _ => by rw [hB])
-  have r3 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω, T ω))
-    (G := fun ω => (B ω, C ω, A ω, T ω)) (e := fun t => (k t.2.2, t))
-    (fun _ _ hst => congrArg Prod.snd hst) (fun ω _ => by rw [hB])
-  have r4 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, B ω))
-    (G := fun ω => (B ω, C ω)) (e := Prod.swap) Prod.swap_injective (fun _ _ => rfl)
-  linarith
-
 /-- **Chain rule** for `I(A; T)` through an observation `B = k ∘ T`:
 `I(A; T) = I(A; B) + E_b I(A; T | B = b)`. -/
 theorem mutualInfo_map_eq_add_sum [Fintype δ] [Finite α] [Finite τ]
@@ -367,6 +337,22 @@ theorem mutualInfo_map_eq_add_sum [Fintype δ] [Finite α] [Finite τ]
     (fun _ _ hst => congrArg Prod.snd hst) (fun ω _ => by rw [hB])
   have r4 := entropy_map_eq_of_comp ν (F := fun ω => (A ω, B ω))
     (G := fun ω => (B ω, A ω)) (e := Prod.swap) Prod.swap_injective (fun _ _ => rfl)
+  linarith
+
+/-- **Chain rule** through an observation `B = k ∘ T`:
+`I(A; T | C) = I(A; B | C) + E_b I(A; T | C, B = b)`. -/
+theorem condMutualInfo_map_eq_add_sum [Fintype δ] [Finite γ] [Finite α] [Finite τ]
+    (ν : PMF Ω) (C : Ω → γ) (A : Ω → α) (T : Ω → τ) (B : Ω → δ) (k : τ → δ)
+    (hB : ∀ ω, B ω = k (T ω)) :
+    condMutualInfo (ν.map fun ω => (C ω, A ω, T ω)) =
+      condMutualInfo (ν.map fun ω => (C ω, A ω, B ω)) +
+        ∑ b, ((ν.map B) b).toReal *
+          condMutualInfo ((conditionalSnd (ν.map fun ω => (B ω, ω)) b).map
+            fun ω => (C ω, A ω, T ω)) := by
+  -- Subtract the information about `C` from that about the pair `(C, A)`.
+  have hCA := mutualInfo_map_eq_add_sum ν (fun ω => (C ω, A ω)) T B k hB
+  have hC := mutualInfo_map_eq_add_sum ν C T B k hB
+  simp only [mutualInfo_map_prodMk_eq_add, mul_add, Finset.sum_add_distrib] at hCA
   linarith
 
 /-- Independent components carry no mutual information. -/

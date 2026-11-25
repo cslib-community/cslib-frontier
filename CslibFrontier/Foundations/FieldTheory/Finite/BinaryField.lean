@@ -185,8 +185,9 @@ theorem polyOfCode_surjective : Function.Surjective polyOfCode := by
   induction hd : g.natDegree using Nat.strong_induction_on generalizing g with
   | _ d ih =>
     rcases Nat.eq_zero_or_pos d with rfl | hd0
-    · exact ⟨(g.coeff 0).val, by
-        rw [eq_C_of_natDegree_eq_zero hd]; simpa using polyOfCode_two_mul_add 0 (g.coeff 0)⟩
+    · refine ⟨(g.coeff 0).val, ?_⟩
+      rw [eq_C_of_natDegree_eq_zero hd]
+      simpa using polyOfCode_two_mul_add 0 (g.coeff 0)
     · obtain ⟨m, hm⟩ := ih (d - 1) (by omega) g.divX
         (by rw [natDegree_divX_eq_natDegree_tsub_one, hd])
       exact ⟨2 * m + (g.coeff 0).val,

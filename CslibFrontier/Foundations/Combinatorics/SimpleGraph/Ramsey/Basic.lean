@@ -102,13 +102,13 @@ private theorem exists_of_comap {W : Type*} (G : SimpleGraph W) (f : V ↪ W) {k
     (h : (∃ s, (G.comap f).IsNClique k s) ∨ ∃ s, (G.comap f).IsNIndepSet l s) :
     (∃ s, G.IsNClique k s) ∨ ∃ s, G.IsNIndepSet l s := by
   classical
-  exact h.imp
-    (fun ⟨s, hs⟩ => ⟨s.map f,
-      by rw [coe_map, IsClique, f.injective.injOn.pairwise_image]; exact hs.1,
-      by rw [card_map, hs.2]⟩)
-    fun ⟨s, hs⟩ => ⟨s.map f,
-      by rw [coe_map, IsIndepSet, f.injective.injOn.pairwise_image]; exact hs.1,
-      by rw [card_map, hs.2]⟩
+  rcases h with ⟨s, hs⟩ | ⟨s, hs⟩
+  · refine .inl ⟨s.map f, ⟨?_, by rw [card_map, hs.2]⟩⟩
+    rw [coe_map, IsClique, f.injective.injOn.pairwise_image]
+    exact hs.1
+  · refine .inr ⟨s.map f, ⟨?_, by rw [card_map, hs.2]⟩⟩
+    rw [coe_map, IsIndepSet, f.injective.injOn.pairwise_image]
+    exact hs.1
 
 /-- The **Ramsey number** `R(k, l)`: the least `n` such that every simple graph on `Fin n` has a
 clique of size `k` or an independent set of size `l`. Equivalently, every red/blue colouring of the
@@ -120,11 +120,15 @@ noncomputable def ramseyNumber (k l : ℕ) : ℕ :=
 
 private theorem ramseyNumber_set_nonempty (k l : ℕ) :
     {n | ∀ G : SimpleGraph (Fin n), (∃ s, G.IsNClique k s) ∨ ∃ s, G.IsNIndepSet l s}.Nonempty := by
-  rcases k with _ | a; · exact ⟨0, fun _ => .inl ⟨∅, by simp⟩⟩
-  rcases l with _ | b; · exact ⟨0, fun _ => .inr ⟨∅, by simp [isNIndepSet_iff]⟩⟩
-  exact ⟨(a + b).choose a, fun G =>
-    (G.exists_isNClique_or_isNIndepSet_of_choose_le a b univ (by simp)).imp
-      (fun ⟨t, _, ht⟩ => ⟨t, ht⟩) fun ⟨t, _, ht⟩ => ⟨t, ht⟩⟩
+  rcases k with _ | a
+  · exact ⟨0, fun G => .inl ⟨∅, by simp⟩⟩
+  rcases l with _ | b
+  · exact ⟨0, fun G => .inr ⟨∅, by simp [isNIndepSet_iff]⟩⟩
+  refine ⟨(a + b).choose a, fun G => ?_⟩
+  rcases G.exists_isNClique_or_isNIndepSet_of_choose_le a b univ (by simp) with
+    ⟨t, -, ht⟩ | ⟨t, -, ht⟩
+  · exact .inl ⟨t, ht⟩
+  · exact .inr ⟨t, ht⟩
 
 /-- `R(k, l) ≤ |V|` exactly when every graph on `V` has a `k`-clique or an `l`-independent set. -/
 theorem ramseyNumber_le_card_iff {k l : ℕ} [Fintype V] :
@@ -149,12 +153,17 @@ theorem exists_isNClique_or_isNIndepSet {k l : ℕ} [Fintype V] (G : SimpleGraph
 
 /-- Ramsey numbers are symmetric: pass to the complement graph. -/
 theorem ramseyNumber_comm (k l : ℕ) : ramseyNumber k l = ramseyNumber l k := by
-  have key {k l n} (h : ∀ G : SimpleGraph (Fin n), (∃ s, G.IsNClique k s) ∨ ∃ s, G.IsNIndepSet l s)
-      (G : SimpleGraph (Fin n)) : (∃ s, G.IsNClique l s) ∨ ∃ s, G.IsNIndepSet k s :=
-    (h Gᶜ).symm.imp (fun ⟨s, hs⟩ => ⟨s, (isNIndepSet_compl G).1 hs⟩)
-      fun ⟨s, hs⟩ => ⟨s, (isNClique_compl G).1 hs⟩
+  have key : ∀ k l n, (∀ G : SimpleGraph (Fin n), (∃ s, G.IsNClique k s) ∨
+      ∃ s, G.IsNIndepSet l s) → ∀ G : SimpleGraph (Fin n), (∃ s, G.IsNClique l s) ∨
+      ∃ s, G.IsNIndepSet k s := by
+    intro k l n h G
+    rcases h Gᶜ with ⟨s, hs⟩ | ⟨s, hs⟩
+    · exact .inr ⟨s, (isNClique_compl G).1 hs⟩
+    · exact .inl ⟨s, (isNIndepSet_compl G).1 hs⟩
   unfold ramseyNumber
-  exact congrArg sInf (Set.ext fun _ => ⟨key, key⟩)
+  congr 1
+  ext n
+  exact ⟨key k l n, key l k n⟩
 
 /-- **Erdős–Szekeres**: `R(a + 1, b + 1) ≤ C(a + b, a)`, that is, `R(k, l) ≤ C(k + l - 2, k - 1)`
 for `k, l ≥ 1` [ErdosSzekeres1935, pp. 466–467]. -/

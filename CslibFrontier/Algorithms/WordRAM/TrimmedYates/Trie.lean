@@ -226,29 +226,9 @@ theorem trieSet_preserves (i : Fin numRegs) :
 
 private theorem mod_two_pow_succ_eq_iff {a b k : ℕ} :
     a % 2 ^ (k + 1) = b % 2 ^ (k + 1) ↔ a % 2 = b % 2 ∧ (a / 2) % 2 ^ k = (b / 2) % 2 ^ k := by
-  rw [pow_succ']
+  rw [pow_succ', Nat.ext_div_mod_iff 2 (a % _) (b % _)]
   have hdvd : 2 ∣ 2 * 2 ^ k := dvd_mul_right 2 (2 ^ k)
-  constructor
-  · intro h
-    have h2 : a % 2 = b % 2 := by
-      have := congrArg (· % 2) h
-      rwa [Nat.mod_mod_of_dvd a hdvd, Nat.mod_mod_of_dvd b hdvd] at this
-    refine ⟨h2, ?_⟩
-    have ha := Nat.mod_mul_right_div_self a 2 (2 ^ k)
-    have hb := Nat.mod_mul_right_div_self b 2 (2 ^ k)
-    omega
-  · rintro ⟨h2, hdiv⟩
-    have ha : a % (2 * 2 ^ k) = a % 2 + 2 * ((a / 2) % 2 ^ k) := by
-      have := Nat.div_add_mod (a % (2 * 2 ^ k)) 2
-      have hd := Nat.mod_mul_right_div_self a 2 (2 ^ k)
-      have hm : (a % (2 * 2 ^ k)) % 2 = a % 2 := Nat.mod_mod_of_dvd a hdvd
-      omega
-    have hb : b % (2 * 2 ^ k) = b % 2 + 2 * ((b / 2) % 2 ^ k) := by
-      have := Nat.div_add_mod (b % (2 * 2 ^ k)) 2
-      have hd := Nat.mod_mul_right_div_self b 2 (2 ^ k)
-      have hm : (b % (2 * 2 ^ k)) % 2 = b % 2 := Nat.mod_mod_of_dvd b hdvd
-      omega
-    omega
+  simp only [Nat.mod_mul_right_div_self, Nat.mod_mod_of_dvd _ hdvd, and_comm]
 
 private theorem exec_trieSetLoop :
     ∀ (k : ℕ) {w lo d b cur rem val free : ℕ} {S : Set ℕ} {fn : ℕ → ℕ} (s : Data numRegs),

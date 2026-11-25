@@ -190,11 +190,14 @@ private theorem exists_eq_smul_toRat (hf : f.Monic)
   · rw [toZMod, map_mk, Ne, mk_eq_zero]
     exact (hf.map _).not_dvd_of_degree_lt hred (degree_map_le.trans_lt hdeg)
   · rw [toRat, map_mk, ← hx, Algebra.smul_def, algebraMap_eq, ← mk_C, ← map_mul]
+    congr 1
     have h := congrArg (Polynomial.map (Int.castRingHom ℚ)) (eq_C_content_mul_primPart Q₀)
     rw [Polynomial.map_mul, map_C, hQ₀, eq_intCast] at h
-    congr 1
-    rw [div_eq_inv_mul, C_mul, mul_assoc, ← h, ← mul_assoc, ← C_mul, inv_mul_cancel₀ hb0,
-      C_1, one_mul]
+    calc
+      P = C (b : ℚ)⁻¹ * (C (b : ℚ) * P) := by
+        rw [← mul_assoc, ← C_mul, inv_mul_cancel₀ hb0, C_1, one_mul]
+      _ = C ((Q₀.content : ℚ) / b) * Q₁.map (Int.castRingHom ℚ) := by
+        rw [h, ← mul_assoc, ← C_mul, div_eq_inv_mul]
 
 variable (p) in
 /-- **The `p`-adic valuation of `ℚ[X] / (f)`**, for `f` monic and irreducible modulo `p`: the

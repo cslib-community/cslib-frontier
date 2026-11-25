@@ -91,10 +91,9 @@ theorem criticalFeasibilityWitnessWidth_polyTime {α : Type} {enc : α ↪ List 
     ComputableInPolyTime (fun w => criticalFeasibilityWitnessWidth (D w) (N w))
       enc encUnary := by
   have hsize := binary_size.comp hD
-  have hentry := unary_add' (unary_mul' (.const 4) hsize) (.const 7)
-  have hcode := unary_add' (unary_add' (unary_mul' (.const 2) (unary_mul' hN hentry))
-    (.const 1)) hsize
-  exact unary_add' (unary_mul' (.const 2) hcode) (.const 1)
+  exact unary_add' (unary_mul' (.const 2) (unary_add'
+    (unary_add' (unary_mul' (.const 2) (unary_mul' hN
+      (unary_add' (unary_mul' (.const 4) hsize) (.const 7)))) (.const 1)) hsize)) (.const 1)
 
 private theorem exists_padded_witness {D N e : ℕ} (L : List (Fin D × SignType))
     (hL : L.length ≤ N) (he : e ≤ D) :
@@ -104,18 +103,17 @@ private theorem exists_padded_witness {D N e : ℕ} (L : List (Fin D × SignType
   let length := (encCriticalFeasibilityWitness w).length
   let width := criticalFeasibilityWitnessWidth D N
   let padding := List.replicate (width - (2 * length + 1)) false
-  have hlabel := length_encRootLabelCode_encodeRootLabel_le L hL
-  have hshift := Nat.size_le_size he
   have hlength : length ≤ 2 * (N * (4 * D.size + 7)) + 1 + D.size := by
+    have := length_encRootLabelCode_encodeRootLabel_le L hL
+    have := Nat.size_le_size he
     simp only [length, w, encCriticalFeasibilityWitness_apply, encCriticalFeasibilityWitnessFields,
       length_encPair, encNat_apply, Nat.size_eq_bits_len]
     omega
   refine ⟨encPaddedCriticalFeasibilityWitness (w, padding), ?_,
     decodeCriticalFeasibilityWitness_enc w padding⟩
-  change (encPair _ encBits (w, padding)).length = width
-  rw [length_encPair]
-  change 2 * length + 1 + padding.length = width
-  simp only [padding, List.length_replicate, width, criticalFeasibilityWitnessWidth]
+  rw [encPaddedCriticalFeasibilityWitness, length_encPair]
+  simp only [encBits_apply, padding, List.length_replicate, width,
+    criticalFeasibilityWitnessWidth]
   omega
 
 /-- The determinant at the bounded derivative-sign label and shift read from a witness word. -/
@@ -137,15 +135,12 @@ theorem exists_zero_iff_neg_criticalFeasibilityDeterminant {n ell b : ℕ}
         criticalFeasibilityDeterminant (by omega) b F hF word < 0 := by
   rw [exists_zero_iff_exists_neg_criticalLabelDeterminant hell heven F hF hb hFn]
   have hD : 0 < ell ^ n := pow_pos (by omega) _
-  constructor
-  · rintro ⟨L, hL, e, he, hneg⟩
-    obtain ⟨word, hw, hdecode⟩ := exists_padded_witness L hL he
-    refine ⟨word, hw, ?_⟩
+  refine ⟨fun ⟨L, hL, e, he, hneg⟩ => ?_, fun ⟨word, _, hneg⟩ =>
+    ⟨_, decodeRootLabel_length_le hD _ _, _,
+      Nat.le_of_lt_succ (Nat.mod_lt _ (Nat.succ_pos _)), hneg⟩⟩
+  obtain ⟨word, hw, hdecode⟩ := exists_padded_witness L hL he
+  exact ⟨word, hw, by
     simpa only [criticalFeasibilityDeterminant, hdecode, decodeRootLabel_encodeRootLabel hD L hL,
-      Nat.mod_eq_of_lt (Nat.lt_succ_of_le he)] using hneg
-  · rintro ⟨word, _, hneg⟩
-    let w := decodeCriticalFeasibilityWitness word
-    exact ⟨decodeRootLabel hD _ w.label, decodeRootLabel_length_le hD _ _,
-      w.shift % (ell ^ n + 1), Nat.le_of_lt_succ (Nat.mod_lt _ (Nat.succ_pos _)), hneg⟩
+      Nat.mod_eq_of_lt (Nat.lt_succ_of_le he)] using hneg⟩
 
 end Cslib.Complexity.RealAlgebraic

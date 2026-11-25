@@ -164,8 +164,9 @@ private theorem eq_zero_of_mem_sliceSpace {U : Submodule K (A → K)}
     refine Submodule.span_le.mpr ?_
     rintro _ ⟨a, ha, rfl⟩
     change l a ∈ W
-    rw [show l a = -r a from funext fun b ↦
-      eq_neg_of_add_eq_zero_left ((heq a b).symm.trans (hrows a ha b))]
+    have hlr : l a = -r a :=
+      funext fun b ↦ eq_neg_of_add_eq_zero_left ((heq a b).symm.trans (hrows a ha b))
+    rw [hlr]
     exact W.neg_mem (hr a)
   have hrowmem (a : A) : m a ∈ W := by
     rw [funext (heq a)]
@@ -233,8 +234,11 @@ theorem exists_image_cover [Finite A] [Finite B] [Fintype X]
     exists_image_cover_with_exceptions h
   choose a b hab using fun x : e ↦ heimage x x.property
   refine ⟨s ∪ univ.image a, t, ?_, fun a₀ b₀ ↦ ?_⟩
-  · have hcard := (card_union_le s (univ.image a)).trans (Nat.add_le_add_left
-      (by simpa only [card_univ, Fintype.card_coe] using card_image_le (f := a) (s := univ)) _)
+  · have hcard : (s ∪ univ.image a).card ≤ s.card + e.card := by
+      calc
+        (s ∪ univ.image a).card ≤ s.card + (univ.image a).card := card_union_le _ _
+        _ ≤ s.card + e.card := Nat.add_le_add_left (by
+          simpa only [card_univ, Fintype.card_coe] using card_image_le (f := a) (s := univ)) _
     omega
   · rcases hcover a₀ b₀ with he | ⟨a', ha', b', hab'⟩ | hright
     · exact Or.inl ⟨a ⟨π a₀ b₀, he⟩, mem_union_right _ (mem_image_of_mem a (mem_univ _)),

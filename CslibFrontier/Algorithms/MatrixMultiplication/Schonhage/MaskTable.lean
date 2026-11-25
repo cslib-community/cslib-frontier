@@ -45,11 +45,13 @@ def maskCode {L : ℕ} (Q : Finset (Fin L)) : Fin (2 ^ L) :=
 
 /-- Decoding the explicitly numbered mask recovers the original set. -/
 theorem maskSet_maskCode {L : ℕ} (Q : Finset (Fin L)) : maskSet (maskCode Q) = Q := by
-  ext i; simp [maskSet, maskCode]
+  ext i
+  simp [maskSet, maskCode]
 
 /-- Encoding a decoded bounded mask recovers the original integer. -/
 theorem maskCode_maskSet {L : ℕ} (a : Fin (2 ^ L)) : maskCode (maskSet a) = a := by
-  apply finFunctionFinEquiv.symm.injective; funext i
+  apply finFunctionFinEquiv.symm.injective
+  funext i
   simp only [maskCode, Equiv.symm_apply_apply, maskSet, mem_filter, mem_univ, true_and]
   have h := (finFunctionFinEquiv.symm a i).isLt
   split <;> apply Fin.ext <;> simp_all only [Fin.ext_iff, Fin.val_one, Fin.val_zero]
@@ -94,10 +96,10 @@ def validMasks (L m : ℕ) : Finset (Fin (2 ^ L)) :=
 
 /-- Every size-`m` subset occurs once in the bounded mask scan. -/
 theorem card_validMasks (L m : ℕ) : (validMasks L m).card = K L m := by
-  rw [show K L m = ((univ : Finset (Fin L)).powersetCard m).card by
-    rw [card_powersetCard, card_univ, Fintype.card_fin]; rfl]
-  exact card_equiv (maskEquiv L) fun a => by
-    simp [validMasks, maskEquiv, population_eq_card]
+  calc
+    (validMasks L m).card = ((univ : Finset (Fin L)).powersetCard m).card :=
+      card_equiv (maskEquiv L) fun a => by simp [validMasks, maskEquiv, population_eq_card]
+    _ = K L m := by rw [card_powersetCard, card_univ, Fintype.card_fin]; rfl
 
 /-- Number of valid masks strictly below the scan counter. -/
 def prefixCount (L m t : ℕ) : ℕ := ((range t).filter fun a => population L a = m).card
@@ -136,7 +138,8 @@ theorem prefixCount_full (L m : ℕ) : prefixCount L m (2 ^ L) = K L m := by
 private theorem card_below_orderEmb {α : Type*} [LinearOrder α] (s : Finset α)
     {n : ℕ} (h : s.card = n) (i : Fin n) :
     (s.filter fun a => a < s.orderEmbOfFin h i).card = i.val := by
-  rw [← card_range i.val]; symm
+  rw [← card_range i.val]
+  symm
   exact card_bij (fun j hj => s.orderEmbOfFin h ⟨j, (mem_range.mp hj).trans i.isLt⟩)
     (fun _ hj => mem_filter.mpr ⟨s.orderEmbOfFin_mem h _,
       (s.orderEmbOfFin h).strictMono (mem_range.mp hj)⟩)
@@ -183,7 +186,8 @@ theorem lookup_ne_zero_iff (L m a : ℕ) : lookup L m a ≠ 0 ↔
 
 /-- Every inverse-table word is bounded by its original mask plus one. -/
 theorem lookup_le (L m a : ℕ) : lookup L m a ≤ a + 1 := by
-  unfold lookup; split_ifs
+  unfold lookup
+  split
   · exact Nat.add_le_add_right (prefixCount_le L m a) 1
   · exact Nat.zero_le _
 
@@ -193,7 +197,8 @@ theorem lookup_selectedMask {L m : ℕ} (gh : Fin (K0 L m) × Fin (K0 L m)) :
   have hp : population L (selectedMask gh).val = m :=
     (mem_filter.mp ((validMasks L m).orderEmbOfFin_mem (card_validMasks L m) (pairRank gh))).2
   have hr : (pairRank gh).val < K0 L m * K0 L m := (finProdFinEquiv gh).isLt
-  simp only [lookup, (selectedMask gh).isLt, hp, prefixCount_selectedMask, hr, and_self, ↓reduceIte]
+  simp only [lookup, (selectedMask gh).isLt, hp, prefixCount_selectedMask,
+    hr, and_self, ↓reduceIte]
 
 /-- A nonzero inverse-table word belongs to one of the selected block pairs. -/
 theorem exists_selectedMask_of_lookup {L m a : ℕ} (h : lookup L m a ≠ 0) :

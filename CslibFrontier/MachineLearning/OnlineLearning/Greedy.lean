@@ -191,8 +191,12 @@ private theorem greedyPotential_step [Nonempty ι] {ℓ : ℕ → ι → ℝ} {t
   have hΔm_nn : 0 ≤ Δm := sub_nonneg.mpr (minCumLoss_mono_succ fun i => (hℓ i).1)
   have hterm_x : max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s x) -
       max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s x) = Δm - ℓ t x := by
-    rw [max_eq_right (by rw [sum_range_succ, hx_eq]; linarith [(hℓ x).2]), hx_eq,
-      add_sub_cancel_right, max_eq_right zero_le_one, sum_range_succ, hx_eq]; ring
+    have h0 : 0 ≤ 1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s x := by
+      rw [sum_range_succ, hx_eq]
+      linarith [(hℓ x).2]
+    rw [max_eq_right h0, hx_eq, add_sub_cancel_right, max_eq_right zero_le_one, sum_range_succ,
+      hx_eq]
+    ring
   have hterm_other (i : ι) : max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s i) -
       max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i) ≤ Δm := by
     rw [sum_range_succ]
@@ -201,9 +205,15 @@ private theorem greedyPotential_step [Nonempty ι] {ℓ : ℕ → ι → ℝ} {t
     · linarith [le_max_right 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i), (hℓ i).1]
   unfold greedyPotential
   rw [add_sub_assoc, ← sum_sub_distrib, ← add_sum_erase _ _ (mem_univ x), hterm_x]
-  have herase := (sum_le_sum fun i (_ : i ∈ univ.erase x) => hterm_other i).trans_eq
-    (by rw [sum_const, nsmul_eq_mul, card_erase_of_mem (mem_univ x), card_univ,
-          Nat.cast_sub (Fintype.card_pos : 1 ≤ Fintype.card ι), Nat.cast_one])
+  have herase : ∑ i ∈ univ.erase x,
+      (max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s i) -
+        max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i)) ≤ ((Fintype.card ι : ℝ) - 1) * Δm :=
+    calc ∑ i ∈ univ.erase x, _ ≤ ∑ _i ∈ univ.erase x, Δm :=
+          sum_le_sum fun i _ => hterm_other i
+      _ = ((univ.erase x).card : ℝ) * Δm := by rw [sum_const, nsmul_eq_mul]
+      _ = ((Fintype.card ι : ℝ) - 1) * Δm := by
+          rw [card_erase_of_mem (mem_univ x), card_univ,
+            Nat.cast_sub (Fintype.card_pos : 1 ≤ Fintype.card ι), Nat.cast_one]
   linarith
 
 /-- **Greedy external-regret bound** [BlumMansour2007AGT, Theorem 4.2, p. 83]: for any tie-breaking
@@ -323,20 +333,26 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
       congr 1
       have hpart := sum_filter_add_sum_filter_not S (fun i => ℓ t i = 0) (fun _ => (1 : ℝ))
       simp only [sum_const, nsmul_eq_mul, mul_one] at hpart
-      rw [sum_congr rfl fun i (_ : i ∈ S) => show ℓ t i = if ¬ ℓ t i = 0 then (1 : ℝ) else 0 by
-        rcases hℓ_t i with h | h <;> simp [h], ← sum_filter]
-      simp only [sum_const, nsmul_eq_mul, mul_one, A]; linarith
+      have hsum1 : ∑ i ∈ S, ℓ t i = (S.filter fun i => ¬ ℓ t i = 0).card :=
+        calc ∑ i ∈ S, ℓ t i = ∑ i ∈ S, if ¬ ℓ t i = 0 then (1 : ℝ) else 0 :=
+              sum_congr rfl fun i _ => by rcases hℓ_t i with h | h <;> simp [h]
+          _ = (S.filter fun i => ¬ ℓ t i = 0).card := by
+              simp only [← sum_filter, sum_const, nsmul_eq_mul, mul_one]
+      rw [hsum1]
+      linarith
     rw [sum_range_succ, hstep_loss]
     have hℓ_nn (i : ι) : 0 ≤ ℓ t i := by rcases hℓ_t i with h | h <;> linarith
     by_cases hA : A.Nonempty
     · obtain ⟨i₀, hi₀⟩ := hA
-      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t := le_antisymm
-        ((minCumLoss_le ℓ (t + 1) i₀).trans_eq (by
-          rw [sum_range_succ, mem_leaders.mp (mem_filter.mp hi₀).1, (mem_filter.mp hi₀).2,
-            add_zero]))
-        (minCumLoss_mono_succ hℓ_nn)
+      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t := by
+        refine le_antisymm ?_ (minCumLoss_mono_succ hℓ_nn)
+        calc minCumLoss ℓ (t + 1) ≤ ∑ s ∈ range (t + 1), ℓ s i₀ := minCumLoss_le ℓ (t + 1) i₀
+          _ = minCumLoss ℓ t := by
+            rw [sum_range_succ, mem_leaders.mp (mem_filter.mp hi₀).1, (mem_filter.mp hi₀).2,
+              add_zero]
       have hS'_eq : S' = A := by
-        ext i; simp only [S', mem_leaders, hm_eq, A, mem_filter, S, sum_range_succ]
+        ext i
+        simp only [S', mem_leaders, hm_eq, A, mem_filter, S, sum_range_succ]
         refine ⟨fun hi => ?_, fun ⟨hi1, hi2⟩ => by linarith⟩
         by_cases hmem : i ∈ leaders ℓ t
         · exact ⟨mem_leaders.mp hmem, by linarith [mem_leaders.mp hmem]⟩
@@ -347,26 +363,29 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
             ((harmonic S.card - harmonic S'.card : ℚ) : ℝ) := by
           exact_mod_cast sub_div_le_harmonic_sub (show S'.card ≤ S.card from
             hS'_eq ▸ card_filter_le S _)
-        push_cast at hq; exact hq
-      rw [hm_eq, ← hS'_eq]; linarith
+        push_cast at hq
+        exact hq
+      rw [hm_eq, ← hS'_eq]
+      linarith
     · have hA1 (i : ι) (hi : i ∈ S) : ℓ t i = 1 :=
         (hℓ_t i).resolve_left fun h0 => hA ⟨i, mem_filter.mpr ⟨hi, h0⟩⟩
       rw [not_nonempty_iff_eq_empty.mp hA, card_empty, Nat.cast_zero, sub_zero,
         div_self hS_pos.ne']
       obtain ⟨i₀, hi₀⟩ := hS_ne
-      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t + 1 := le_antisymm
-        ((minCumLoss_le ℓ (t + 1) i₀).trans_eq
-          (by rw [sum_range_succ, mem_leaders.mp hi₀, hA1 i₀ hi₀]))
-        (le_minCumLoss_iff.mpr fun i => by
-          rw [sum_range_succ]
+      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t + 1 := by
+        refine le_antisymm ?_ (le_minCumLoss_iff.mpr fun i => ?_)
+        · calc minCumLoss ℓ (t + 1) ≤ ∑ s ∈ range (t + 1), ℓ s i₀ := minCumLoss_le ℓ (t + 1) i₀
+            _ = minCumLoss ℓ t + 1 := by rw [sum_range_succ, mem_leaders.mp hi₀, hA1 i₀ hi₀]
+        · rw [sum_range_succ]
           by_cases hmem : i ∈ S
           · rw [mem_leaders.mp hmem, hA1 i hmem]
-          · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i])
+          · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i]
+      have h1_le_HS : (1 : ℝ) ≤ harmonic S.card := by
+        exact_mod_cast one_le_harmonic (card_pos.mpr ⟨i₀, hi₀⟩).ne'
+      have hHS'_le : (harmonic S'.card : ℝ) ≤ harmonic (Fintype.card ι) := by
+        exact_mod_cast harmonic_mono (card_le_univ S')
       rw [hm_eq, mul_add, mul_one]
-      linarith [show (1 : ℝ) ≤ harmonic S.card by
-          exact_mod_cast one_le_harmonic (card_pos.mpr ⟨i₀, hi₀⟩).ne',
-        show (harmonic S'.card : ℝ) ≤ harmonic (Fintype.card ι) by
-          exact_mod_cast harmonic_mono (card_le_univ S')]
+      linarith
 
 /-- **Logarithmic bound for Randomized Greedy** [BlumMansour2007AGT, Theorem 4.4, p. 84]: on
 `{0, 1}` loss sequences, `L_RG^T ≤ ln N + (1 + ln N) * L_min^T`. -/

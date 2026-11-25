@@ -313,16 +313,20 @@ theorem advantage_play_le (A : RandomizedROAdversary PK M R CT K)
       (∑' ω, ProbComp.eval A.coins ω * err ω) := by
     simp only [play, ProbComp.eval_bind]
     refine CloseTo.bind_right_tsum _ fun ω _ => Game.closeTo_iff_coe_advantage_le.mpr ?_
-    rw [← ENNReal.ofReal_coe_nnreal]
-    exact (ENNReal.ofReal_le_ofReal (h ω)).trans_eq (by
-      rw [ENNReal.ofReal_add he (by positivity), ENNReal.ofReal_mul (by norm_num),
-        ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), ENNReal.ofReal_ofNat])
+    calc (Experiment.advantage (game (A.run ω) false) (game (A.run ω) true) : ℝ≥0∞)
+        = ENNReal.ofReal (Experiment.advantage (game (A.run ω) false)
+            (game (A.run ω) true) : ℝ) := ENNReal.ofReal_coe_nnreal.symm
+      _ ≤ ENNReal.ofReal (e + 2 * Pr[ow (A.run ω)]) := ENNReal.ofReal_le_ofReal (h ω)
+      _ = err ω := by
+        rw [ENNReal.ofReal_add he (by positivity), ENNReal.ofReal_mul (by norm_num),
+          ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), ENNReal.ofReal_ofNat]
   have hsum : ∑' ω, ProbComp.eval A.coins ω * err ω =
       ENNReal.ofReal e + 2 * ProbComp.eval (A.coins >>= fun ω => ow (A.run ω)) true := by
     simp only [err, mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
       ProbComp.eval_bind, PMF.bind_apply]
     rw [← ENNReal.tsum_mul_left]
-    congr 1; exact tsum_congr fun ω => mul_left_comm _ _ _
+    congr 1
+    exact tsum_congr fun ω => mul_left_comm _ _ _
   have hle := hsum ▸ Game.closeTo_iff_coe_advantage_le.mp hclose
   ennreal_to_real using hle
 
@@ -791,7 +795,8 @@ theorem eagerHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R
   funext q
   refine Eq.trans ?_ (dispatch_eq_interpret_romProgram _ _ cStar q)
   simp only [eagerHandler, notBotDecaps, interp_norm, interpret_decapsNotBotM]
-  congr 1; funext c
+  congr 1
+  funext c
   change _ = some <$> S.decapsNotBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) dk c
   rw [decapsNotBotM_pure, map_pure]; rfl
 
@@ -871,14 +876,17 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
   cases q with
   | G m =>
     simpa only [simFilterHandler, simFilterDispatch, ROQuery.ghCost, ROQuery.dispatch,
-      filterDecaps] using simHashG_gCache_length_le S.pke.sampleCoins m st (res, st') hmem
+      filterDecaps] using
+      simHashG_gCache_length_le S.pke.sampleCoins m st (res, st') hmem
   | H x =>
     rcases x with ⟨false | true, m, c⟩
     · dsimp only [simFilterHandler, simFilterDispatch, simHashH, ROQuery.ghCost, ROQuery.dispatch,
         filterDecaps] at hmem ⊢
       change (res, st') ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st >>= fun z =>
-        (if S.pke.encDet pk m z.fst = c then simHashHq S.sampleKey c
-          else simHashHRaw S.sampleKey (false, m, c)) z.snd)).support at hmem
+        (if S.pke.encDet pk m z.fst = c then
+          simHashHq S.sampleKey c
+        else
+          simHashHRaw S.sampleKey (false, m, c)) z.snd)).support at hmem
       rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
       obtain ⟨z, hz, hmem₂⟩ := hmem
       split_ifs at hmem₂ with henc
@@ -897,13 +905,15 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
     · simp only [hc, ↓reduceIte] at hmem
       change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨-, rfl⟩ := hmem; simp
+      obtain ⟨-, rfl⟩ := hmem
+      simp
     · simp only [hc, ↓reduceIte] at hmem
       cases hd : d st.gCache c
       · simp only [hd, filterDecaps, Bool.cond_false] at hmem
         change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
         simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-        obtain ⟨-, rfl⟩ := hmem; simp
+        obtain ⟨-, rfl⟩ := hmem
+        simp
       · simp only [hd, filterDecaps, Bool.cond_true] at hmem
         change (res, st') ∈ (ProbComp.eval (simHashHq S.sampleKey c st >>= fun a =>
           pure (some a.fst, a.snd))).support at hmem

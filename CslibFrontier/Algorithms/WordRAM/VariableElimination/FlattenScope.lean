@@ -263,13 +263,12 @@ theorem flattenScopes_spec {w : ℕ} {args : FlattenArgs} {bucket : List (Factor
           (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t step) ∧
           memoryCost step t ≤ 2 + 2 * maxScope := by
         simp only [flattenStep]
-        rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
+        rw [clientState_bind_read, clientState_bind_read, StateTransitionSpec.clientState_bind,
+          StateTransitionSpec.clientState_pure, clientResult_bind_read, clientResult_bind_read,
+          StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure,
           memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-          StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
           memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-          StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-          memoryCost_bind', StateTransitionSpec.clientState_pure,
-          StateTransitionSpec.clientResult_pure, memoryCost_pure]
+          memoryCost_bind', memoryCost_pure]
         refine ⟨rfl, by rw [List.length_append, hm1, Nat.add_assoc],
           validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
             (validHistory_bind_step hcw_val (validHistory_pure w _ _))), by omega⟩

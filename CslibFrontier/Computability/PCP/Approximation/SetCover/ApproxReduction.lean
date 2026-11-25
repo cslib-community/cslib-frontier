@@ -136,18 +136,13 @@ theorem trans {α₁ α₂ α₃ σ₁ σ₂ σ₃ : Type}
     ApproxPreservingReducible P₁ P₃ encα₁ encα₃ encσ₁ encσ₃ (fun x ρ => g₁ x (g₂ ρ)) := by
   obtain ⟨f₁₂, l₁₂, hf₁₂, hl₁₂, hv₁₂, hfe₁₂, hcost₁₂⟩ := h₁₂
   obtain ⟨f₂₃, l₂₃, hf₂₃, hl₂₃, hv₂₃, hfe₂₃, hcost₂₃⟩ := h₂₃
-  refine ⟨f₂₃ ∘ f₁₂, fun x y₃ => l₁₂ x (l₂₃ (f₁₂ x) y₃), hf₂₃.comp hf₁₂, ?_, ?_, ?_, ?_⟩
-  · have hleft : ComputableInPolyTime (fun p : α₁ × σ₃ => p.1) (encPair encα₁ encσ₃) encα₁ :=
-      fst encα₁ encσ₃
-    have hmid : ComputableInPolyTime (fun p : α₁ × σ₃ => (f₁₂ p.1, p.2))
-        (encPair encα₁ encσ₃) (encPair encα₂ encσ₃) :=
-      (hf₁₂.comp hleft).prod (snd encα₁ encσ₃)
-    exact hl₁₂.comp (hleft.prod (hl₂₃.comp hmid))
-  · exact fun x hx => hv₂₃ (f₁₂ x) (hv₁₂ x hx)
-  · exact fun x y₃ hx hy₃ => hfe₁₂ x _ hx (hfe₂₃ (f₁₂ x) y₃ (hv₁₂ x hx) hy₃)
-  · intro x ρ₃ y₃ hx hy₃ hbound
-    exact hcost₁₂ x (g₂ ρ₃) _ hx (hfe₂₃ (f₁₂ x) y₃ (hv₁₂ x hx) hy₃)
-      (hcost₂₃ (f₁₂ x) ρ₃ y₃ (hv₁₂ x hx) hy₃ hbound)
+  let hleft := fst encα₁ encσ₃
+  exact ⟨f₂₃ ∘ f₁₂, fun x y₃ => l₁₂ x (l₂₃ (f₁₂ x) y₃), hf₂₃.comp hf₁₂,
+    hl₁₂.comp (hleft.prod (hl₂₃.comp ((hf₁₂.comp hleft).prod (snd encα₁ encσ₃)))),
+    fun x hx => hv₂₃ (f₁₂ x) (hv₁₂ x hx),
+    fun x y₃ hx hy₃ => hfe₁₂ x _ hx (hfe₂₃ (f₁₂ x) y₃ (hv₁₂ x hx) hy₃),
+    fun x ρ₃ y₃ hx hy₃ hbound => hcost₁₂ x (g₂ ρ₃) _ hx (hfe₂₃ (f₁₂ x) y₃ (hv₁₂ x hx) hy₃)
+      (hcost₂₃ (f₁₂ x) ρ₃ y₃ (hv₁₂ x hx) hy₃ hbound)⟩
 
 /-- Pulling a polynomial-time `ρ₂`-approximation algorithm back through an
 approximation-preserving reduction yields a polynomial-time approximation algorithm for `P₁`. -/
@@ -178,7 +173,6 @@ end ApproxPreservingReducible
 private theorem coverIndices_isCover_of_isCoverList {S : SetSystem} {I : List ℕ}
     (hI : S.isCoverList I = true) :
     S.IsCover (Finset.univ.filter fun i : Fin S.sets.length => (i : ℕ) ∈ I.toFinset) := by
-  have hlt : ∀ i ∈ I, i < S.sets.length := (S.isCoverList_eq_true_iff I).1 hI |>.1
   intro u hu
   obtain ⟨i, hiI, hi, hui⟩ := ((S.isCoverList_eq_true_iff I).1 hI).2 u hu
   exact ⟨⟨i, hi⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, List.mem_toFinset.2 hiI⟩, hui⟩
@@ -196,22 +190,17 @@ private theorem coverWeight_coverIndices_le_sum (W : WeightedSetSystem) (I : Lis
     W.coverWeight (Finset.univ.filter fun i : Fin W.sets.length => (i : ℕ) ∈ I.toFinset) ≤
       (I.map fun i => (W.sets.getD i ⟨[], 0⟩).weight).sum := by
   rw [WeightedSetSystem.coverWeight]
-  let f : ℕ → ℕ := fun i => (W.sets.getD i ⟨[], 0⟩).weight
-  calc ∑ i ∈ Finset.univ.filter (fun i : Fin W.sets.length => (i : ℕ) ∈ I.toFinset),
-        W.sets[i].weight
-      = ∑ i ∈ Finset.univ.filter (fun i : Fin W.sets.length => (i : ℕ) ∈ I.toFinset),
-          f (i : ℕ) := by
-          refine Finset.sum_congr rfl fun i _ => ?_
-          simp only [f, List.getD_eq_getElem _ _ i.isLt]
-          rfl
-    _ = ∑ x ∈ Finset.image Fin.val
-          (Finset.univ.filter fun i : Fin W.sets.length => (i : ℕ) ∈ I.toFinset), f x := by
-          rw [Finset.sum_image (fun _ _ _ _ h => Fin.ext h)]
-    _ ≤ ∑ x ∈ I.toFinset, f x := by
-          refine Finset.sum_le_sum_of_subset fun x hx => ?_
-          obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hx
-          exact (Finset.mem_filter.1 hi).2
-    _ ≤ (I.map f).sum := sum_toFinset_le_map_sum I f
+  let f (i : ℕ) := (W.sets.getD i ⟨[], 0⟩).weight
+  have h1 : ∑ i ∈ Finset.univ.filter (fun i : Fin W.sets.length => (i : ℕ) ∈ I.toFinset),
+      W.sets[i].weight = ∑ x ∈ Finset.image Fin.val
+        (Finset.univ.filter fun i : Fin W.sets.length => (i : ℕ) ∈ I.toFinset), f x := by
+    rw [Finset.sum_image fun _ _ _ _ h => Fin.ext h]
+    exact Finset.sum_congr rfl fun i _ =>
+      (congrArg WeightedSet.weight (List.getD_eq_getElem _ _ i.isLt)).symm
+  rw [h1]
+  refine (Finset.sum_le_sum_of_subset fun x hx => ?_).trans (sum_toFinset_le_map_sum I f)
+  obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hx
+  exact (Finset.mem_filter.1 hi).2
 
 /-- Minimization problem view of unweighted Set Cover with index-list witnesses. -/
 @[expose] noncomputable def minSetCover : MinOptProblem SetSystem (List ℕ) where
@@ -343,53 +332,38 @@ theorem coverable_toWeighted_iff (S : SetSystem) : S.toWeighted.Coverable ↔ S.
 theorem optCoverWeight_toWeighted (S : SetSystem) :
     S.toWeighted.optCoverWeight = S.optCoverSize := by
   by_cases hS : S.Coverable
-  · have hW : S.toWeighted.Coverable := (coverable_toWeighted_iff S).2 hS
-    refine le_antisymm ?_ ?_
+  · refine le_antisymm ?_ ?_
     · obtain ⟨C, hC, hcard⟩ := SetSystem.exists_isCover_optCoverSize hS
-      let C' : Finset (Fin S.toWeighted.sets.length) := C.map ⟨fun i : Fin S.sets.length =>
-        (⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩ : Fin S.toWeighted.sets.length),
-        fun _ _ h => Fin.ext (congrArg (Fin.val : Fin S.toWeighted.sets.length → ℕ) h)⟩
-      have hC' : S.toWeighted.IsCover C' := by
-        intro u hu
+      let emb : Fin S.sets.length ↪ Fin S.toWeighted.sets.length :=
+        ⟨fun i => ⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩,
+          fun _ _ h => Fin.ext (Fin.mk.inj h)⟩
+      have hC' : S.toWeighted.IsCover (C.map emb) := fun u hu => by
         obtain ⟨i, hi, hui⟩ := hC u hu
-        refine ⟨⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, ?_⟩
-        simpa [SetSystem.toWeighted] using hui
-      have hwt : S.toWeighted.coverWeight C' = C.card := by
-        rw [WeightedSetSystem.coverWeight, Finset.sum_map]
-        calc ∑ x ∈ C, S.toWeighted.sets[(⟨x.1, by simp [SetSystem.toWeighted, x.isLt]⟩ :
-              Fin S.toWeighted.sets.length)].weight
-            = ∑ _x ∈ C, 1 := Finset.sum_congr rfl fun x _ => by
-                change ((S.sets.map fun A => WeightedSet.mk A 1)[(x : ℕ)]'(by
-                  simp [x.isLt])).weight = 1
-                rw [List.getElem_map]
-          _ = C.card := by simp
-      exact (WeightedSetSystem.optCoverWeight_le hC').trans_eq (hwt.trans hcard)
-    · obtain ⟨C, hC, hwt⟩ := WeightedSetSystem.exists_isCover_optCoverWeight hW
-      let C' : Finset (Fin S.sets.length) := C.map ⟨fun i : Fin S.toWeighted.sets.length =>
-        (⟨i.1, by simpa [SetSystem.toWeighted] using i.isLt⟩ : Fin S.sets.length),
-        fun _ _ h => Fin.ext (congrArg (Fin.val : Fin S.sets.length → ℕ) h)⟩
-      have hC' : S.IsCover C' := by
-        intro u hu
+        exact ⟨⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩,
+          by simpa [SetSystem.toWeighted] using hui⟩
+      refine (WeightedSetSystem.optCoverWeight_le hC').trans_eq ?_
+      rw [WeightedSetSystem.coverWeight, Finset.sum_map,
+        Finset.sum_congr rfl (g := fun _ => 1) fun x _ => by
+          simp [emb, Fin.getElem_fin, SetSystem.toWeighted]]
+      simp [hcard]
+    · obtain ⟨C, hC, hwt⟩ := WeightedSetSystem.exists_isCover_optCoverWeight
+        ((coverable_toWeighted_iff S).2 hS)
+      let emb : Fin S.toWeighted.sets.length ↪ Fin S.sets.length :=
+        ⟨fun i => ⟨i.1, by simpa [SetSystem.toWeighted] using i.isLt⟩,
+          fun _ _ h => Fin.ext (Fin.mk.inj h)⟩
+      have hmap (i : Fin S.toWeighted.sets.length) : S.toWeighted.sets[i] =
+          ⟨S.sets[i.1]'(by simpa [SetSystem.toWeighted] using i.isLt), 1⟩ :=
+        List.getElem_map _
+      have hC' : S.IsCover (C.map emb) := fun u hu => by
         obtain ⟨i, hi, hui⟩ := hC u hu
-        have hi' : i.1 < S.sets.length := by simpa [SetSystem.toWeighted] using i.isLt
-        have hui' : u ∈ S.sets[i.1]'hi' := by
-          have h0 : u ∈ ((S.sets.map fun A => WeightedSet.mk A 1)[(i : ℕ)]'(by
-              simpa [SetSystem.toWeighted] using i.isLt)).elements := hui
-          rw [List.getElem_map] at h0
-          exact h0
-        exact ⟨⟨i.1, hi'⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, hui'⟩
-      have hwt' : S.toWeighted.coverWeight C = C.card := by
-        rw [WeightedSetSystem.coverWeight]
-        calc ∑ i ∈ C, S.toWeighted.sets[i].weight
-            = ∑ _i ∈ C, 1 := Finset.sum_congr rfl fun i _ => by
-                change ((S.sets.map fun A => WeightedSet.mk A 1)[(i : ℕ)]'(by
-                  simpa [SetSystem.toWeighted] using i.isLt)).weight = 1
-                rw [List.getElem_map]
-          _ = C.card := by simp
-      have hcard : C'.card = C.card := Finset.card_map _
-      exact (SetSystem.optCoverSize_le hC').trans_eq (hcard.trans (hwt'.symm.trans hwt))
-  · have hW : ¬ S.toWeighted.Coverable := fun h => hS ((coverable_toWeighted_iff S).1 h)
-    rw [WeightedSetSystem.optCoverWeight_eq_zero_of_not_coverable hW,
+        exact ⟨⟨i.1, by simpa [SetSystem.toWeighted] using i.isLt⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩,
+          by simpa only [hmap i, Fin.getElem_fin] using hui⟩
+      refine (SetSystem.optCoverSize_le hC').trans_eq ?_
+      rw [Finset.card_map, ← hwt, WeightedSetSystem.coverWeight,
+        Finset.sum_congr rfl (g := fun _ => 1) fun i _ => by rw [hmap i]]
+      simp
+  · rw [WeightedSetSystem.optCoverWeight_eq_zero_of_not_coverable
+      (mt (coverable_toWeighted_iff S).1 hS),
       SetSystem.optCoverSize_eq_zero_of_not_coverable hS]
 
 /-- **Unweighted Set Cover approximation-preservingly reduces to Weighted Set Cover** with unit
@@ -398,26 +372,18 @@ theorem approxPreservingReducible_setCover_weightedSetCover :
     ApproxPreservingReducible minSetCover minWeightedSetCover
       encSetSystem encWeightedSetSystem (encList encNat) (encList encNat) (fun _ ρ => ρ) := by
   refine ⟨SetSystem.toWeighted, fun _ I => I, computableInPolyTime_toWeighted, snd _ _,
-    fun S hS => (coverable_toWeighted_iff S).2 hS, fun S I _ hI => ?_, fun S ρ₂ I _ hI hcost => ?_⟩
-  · simpa [minSetCover, minWeightedSetCover, toSetSystem_toWeighted] using hI
-  · have hlt' : ∀ i ∈ I, i < S.toWeighted.toSetSystem.sets.length :=
-      ((S.toWeighted.toSetSystem.isCoverList_eq_true_iff I).1 hI).1
-    have hlt : ∀ i ∈ I, i < S.sets.length := fun i hi => by
-      simpa [WeightedSetSystem.toSetSystem, SetSystem.toWeighted] using hlt' i hi
-    have hsum : (I.map fun i => (S.toWeighted.sets.getD i ⟨[], 0⟩).weight).sum = I.length := by
-      calc (I.map fun i => (S.toWeighted.sets.getD i ⟨[], 0⟩).weight).sum
-          = (I.map fun _ => 1).sum := by
-              congr 1
-              refine List.map_congr_left fun i hi => ?_
-              have hlen : i < S.toWeighted.sets.length := by
-                simpa [SetSystem.toWeighted] using hlt i hi
-              rw [List.getD_eq_getElem _ _ hlen]
-              simp [SetSystem.toWeighted]
-        _ = I.length := by simp
-    have hcost' : ((I.map fun i => (S.toWeighted.sets.getD i ⟨[], 0⟩).weight).sum : ℝ) ≤
-        ρ₂ * (S.toWeighted.optCoverWeight : ℝ) := hcost
-    rw [hsum, optCoverWeight_toWeighted] at hcost'
-    exact hcost'
+    fun S hS => (coverable_toWeighted_iff S).2 hS,
+    fun _ _ _ hI => by simpa [minSetCover, minWeightedSetCover, toSetSystem_toWeighted] using hI,
+    fun S ρ₂ I _ hI hcost => ?_⟩
+  have hlt (i) (hi : i ∈ I) : i < S.toWeighted.sets.length := by
+    have := ((S.toWeighted.toSetSystem.isCoverList_eq_true_iff I).1 hI).1 i hi
+    simpa [WeightedSetSystem.toSetSystem] using this
+  have hsum : (I.map fun i => (S.toWeighted.sets.getD i ⟨[], 0⟩).weight).sum = I.length := by
+    rw [List.map_congr_left (g := fun _ => 1) fun i hi => by
+      rw [List.getD_eq_getElem _ _ (hlt i hi)]
+      simp [SetSystem.toWeighted]]
+    simp
+  simpa only [minSetCover, minWeightedSetCover, hsum, optCoverWeight_toWeighted] using hcost
 
 /-- **Unweighted Set Cover gap reduces in polynomial time to Weighted Set Cover gap** with the
 same threshold ratio `r`. -/
@@ -426,43 +392,26 @@ theorem polyTimeReducible_GapSetCover_GapWeightedSetCover (r : ℝ) :
       (GapSetCover r) (GapWeightedSetCover r) := by
   refine ⟨fun p => (p.1.toWeighted, p.2),
     (computableInPolyTime_toWeighted.comp (fst encSetSystem encNat)).prod
-      (snd encSetSystem encNat), fun p hp => ?_, fun p hp => ?_⟩
-  · obtain ⟨S, k⟩ := p
-    rw [GapSetCover, mem_yes_GapSetCoverFn] at hp
-    rw [GapWeightedSetCover, mem_yes_GapWeightedSetCoverFn, coverable_toWeighted_iff,
-      optCoverWeight_toWeighted]
-    exact hp
-  · obtain ⟨S, k⟩ := p
-    rw [GapSetCover, mem_no_GapSetCoverFn] at hp
-    rw [GapWeightedSetCover, mem_no_GapWeightedSetCoverFn, coverable_toWeighted_iff,
-      optCoverWeight_toWeighted]
-    exact hp
+      (snd encSetSystem encNat), fun ⟨S, k⟩ hp => ?_, fun ⟨S, k⟩ hp => ?_⟩
+  · simpa only [GapSetCover, GapWeightedSetCover, mem_yes_GapSetCoverFn,
+      mem_yes_GapWeightedSetCoverFn, coverable_toWeighted_iff, optCoverWeight_toWeighted] using hp
+  · simpa only [GapSetCover, GapWeightedSetCover, mem_no_GapSetCoverFn,
+      mem_no_GapWeightedSetCoverFn, coverable_toWeighted_iff, optCoverWeight_toWeighted] using hp
 
 /-! ### From Set Cover approximation algorithms to `P = NP` -/
 
 private theorem exists_nat_rat_between {ρ r : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < r) :
     ∃ p q : ℕ, 0 < q ∧ ρ * q ≤ p ∧ (p : ℝ) < r * q := by
-  obtain ⟨q0, hq0⟩ := exists_rat_btwn hρ
-  rcases q0 with ⟨num, den, hden, hcop⟩
-  have hq_def : (({ num := num, den := den, den_nz := hden, reduced := hcop } : ℚ) : ℝ) =
-      (num : ℝ) / den := Rat.cast_def _
-  rw [hq_def] at hq0
-  have h0 : (0 : ℝ) < (num : ℝ) / den := lt_of_le_of_lt hρ0 hq0.1
+  obtain ⟨⟨num, den, hden, hcop⟩, hq0⟩ := exists_rat_btwn hρ
+  rw [Rat.cast_def] at hq0
   have hden0 : 0 < den := Nat.pos_of_ne_zero hden
   have hden_pos : (0 : ℝ) < den := by exact_mod_cast hden0
-  have hnum_pos : (0 : ℤ) < num := by
-    by_contra h
-    push Not at h
-    have hle : (num : ℝ) / den ≤ 0 :=
-      div_nonpos_of_nonpos_of_nonneg (Int.cast_nonpos.2 h) (Nat.cast_nonneg _)
-    linarith
-  have hcast : (num.toNat : ℝ) = (num : ℝ) := by
-    exact_mod_cast Int.toNat_of_nonneg (le_of_lt hnum_pos)
-  refine ⟨num.toNat, den, hden0, ?_, ?_⟩
-  · rw [hcast]
-    exact (le_div_iff₀ hden_pos).1 (le_of_lt hq0.1)
-  · rw [hcast]
-    exact (div_lt_iff₀ hden_pos).1 hq0.2
+  have hnum_nn : 0 ≤ num := by
+    by_contra! h
+    linarith [hρ0, hq0.1, div_neg_of_neg_of_pos (Int.cast_lt_zero.2 h) hden_pos]
+  have hcast : (num.toNat : ℝ) = (num : ℝ) := by exact_mod_cast Int.toNat_of_nonneg hnum_nn
+  exact ⟨num.toNat, den, hden0, hcast ▸ (le_div_iff₀ hden_pos).1 hq0.1.le,
+    hcast ▸ (div_lt_iff₀ hden_pos).1 hq0.2⟩
 
 private theorem gapOpt_mem_PromiseP_of_approx {α : Type} {enc : α ↪ List Bool}
     {Valid : α → Prop} {opt cost : α → ℕ} {ρ r : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < r)
@@ -474,37 +423,25 @@ private theorem gapOpt_mem_PromiseP_of_approx {α : Type} {enc : α ↪ List Boo
     (hno : ∀ x k, (x, k) ∈ G.no → Valid x ∧ r * k ≤ opt x ∧ (k : ℝ) < r * k) :
     G ∈ PromiseP (encPair enc encNat) := by
   obtain ⟨p, q, hq, hlow, hhigh⟩ := exists_nat_rat_between hρ0 hρ
-  let decider : α × ℕ → Bool := fun x => decide (q * cost x.1 ≤ p * x.2)
-  refine mem_PromiseP_iff.2 ⟨decider, ?_, fun ⟨x, k⟩ hx => ?_, fun ⟨x, k⟩ hx => ?_⟩
-  · have hleft : ComputableInPolyTime (fun x : α × ℕ => q * cost x.1) (encPair enc encNat) encNat :=
-      binary_mul' (const q) (hcost.comp (fst enc encNat))
-    have hright : ComputableInPolyTime (fun x : α × ℕ => p * x.2) (encPair enc encNat) encNat :=
-      binary_mul' (const p) (snd enc encNat)
-    exact ComputableInPolyTime.binary_le' hleft hright
+  refine mem_PromiseP_iff.2 ⟨fun x => decide (q * cost x.1 ≤ p * x.2),
+    binary_le' (binary_mul' (const q) (hcost.comp (fst enc encNat)))
+      (binary_mul' (const p) (snd enc encNat)),
+    fun ⟨x, k⟩ hx => ?_, fun ⟨x, k⟩ hx => ?_⟩
   · obtain ⟨hxV, hk⟩ := hyes x k hx
-    simp only [decider, decide_eq_true_eq]
-    have hreal : (q * cost x : ℝ) ≤ p * k := by
-      calc (q * cost x : ℝ)
-          ≤ q * (ρ * opt x) := mul_le_mul_of_nonneg_left (hub x hxV) (Nat.cast_nonneg _)
-        _ = (ρ * q) * opt x := by ring
-        _ ≤ (p : ℝ) * k :=
-            mul_le_mul hlow (by exact_mod_cast hk) (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-    exact_mod_cast hreal
+    rw [decide_eq_true_eq]
+    exact_mod_cast (mul_le_mul_of_nonneg_left (hub x hxV) (Nat.cast_nonneg _)).trans
+      ((by ring : (q : ℝ) * (ρ * opt x) = ρ * q * opt x).trans_le
+        (mul_le_mul hlow (by exact_mod_cast hk : (opt x : ℝ) ≤ k)
+          (Nat.cast_nonneg _) (Nat.cast_nonneg _)))
   · obtain ⟨hxV, hopt, hlt⟩ := hno x k hx
+    rw [decide_eq_false_iff_not, not_le]
     have hk0 : (0 : ℝ) < k := by
-      by_contra h
-      push Not at h
-      have hk_zero : (k : ℝ) = 0 := le_antisymm h (Nat.cast_nonneg _)
-      rw [hk_zero, mul_zero] at hlt
-      exact lt_irrefl 0 hlt
-    simp only [decider, decide_eq_false_iff_not, not_le]
-    have hreal : (p : ℝ) * k < q * cost x := by
-      calc (p : ℝ) * k
-          < (r * q) * k := mul_lt_mul_of_pos_right hhigh hk0
-        _ = q * (r * k) := by ring
-        _ ≤ q * opt x := mul_le_mul_of_nonneg_left hopt (Nat.cast_nonneg _)
-        _ ≤ q * cost x := mul_le_mul_of_nonneg_left (hlb x hxV) (Nat.cast_nonneg _)
-    exact_mod_cast hreal
+      rcases Nat.eq_zero_or_pos k with rfl | h
+      · simp at hlt
+      · exact_mod_cast h
+    exact_mod_cast (mul_lt_mul_of_pos_right hhigh hk0).trans_le
+      ((by ring : r * q * (k : ℝ) = q * (r * k)).trans_le
+        (mul_le_mul_of_nonneg_left (hopt.trans (hlb x hxV)) (Nat.cast_nonneg _)))
 
 /-- Any polynomial-time `ρ`-approximation algorithm (`0 ≤ ρ < r`) for unweighted Set Cover places
 `GapSetCover r` in `PromiseP`. -/
@@ -539,28 +476,19 @@ theorem gapWeightedSetCover_mem_PromiseP_of_approx {A : WeightedSetSystem → Li
     (hA : ComputableInPolyTime A encWeightedSetSystem (encList encNat))
     (happrox : minWeightedSetCover.IsApprox (fun _ => ρ) A) :
     GapWeightedSetCover r ∈ PromiseP encWeightedSetCover := by
-  let costList : WeightedSetSystem → ℕ := fun W =>
-    ((A W).map fun i => (W.sets.getD i ⟨[], 0⟩).weight).sum
-  have hws : ComputableInPolyTime
-      (fun W : WeightedSetSystem => (A W).map fun i => (W.sets.getD i ⟨[], 0⟩).weight)
-      encWeightedSetSystem (encList encNat) := by
-    apply ComputableInPolyTime.mapWithInput hA
-    have hlist : ComputableInPolyTime (fun q : WeightedSetSystem × ℕ => q.1.sets)
-        (encPair encWeightedSetSystem encNat) (encList encWeightedSet) := by fun_prop
-    have hidx : ComputableInPolyTime (fun q : WeightedSetSystem × ℕ => q.2)
-        (encPair encWeightedSetSystem encNat) encNat := by fun_prop
-    have hset : ComputableInPolyTime
-        (fun q : WeightedSetSystem × ℕ => q.1.sets.getD q.2 ⟨[], 0⟩)
-        (encPair encWeightedSetSystem encNat) encWeightedSet :=
-      listGetD_binary ⟨[], 0⟩ hlist hidx
-    exact computableInPolyTime_weightedSetWeight.comp hset
-  have hcost : ComputableInPolyTime costList encWeightedSetSystem encNat :=
-    ComputableInPolyTime.binary_sum.comp hws
+  have hcost : ComputableInPolyTime
+      (fun W : WeightedSetSystem => ((A W).map fun i => (W.sets.getD i ⟨[], 0⟩).weight).sum)
+      encWeightedSetSystem encNat :=
+    binary_sum.comp (mapWithInput hA (computableInPolyTime_weightedSetWeight.comp
+      (listGetD_binary (⟨[], 0⟩ : WeightedSet)
+        (by fun_prop : ComputableInPolyTime (fun q : WeightedSetSystem × ℕ => q.1.sets)
+          (encPair encWeightedSetSystem encNat) (encList encWeightedSet))
+        (snd encWeightedSetSystem encNat))))
   exact gapOpt_mem_PromiseP_of_approx (Valid := WeightedSetSystem.Coverable) hρ0 hρ hcost
     (fun W hW => minWeightedSetCover.opt_le W (A W) hW (happrox W hW).1)
     (fun W hW => (happrox W hW).2) (GapWeightedSetCover r)
-    (fun W k hx => by rw [GapWeightedSetCover, mem_yes_GapWeightedSetCoverFn] at hx; exact hx)
-    (fun W k hx => by rw [GapWeightedSetCover, mem_no_GapWeightedSetCoverFn] at hx; exact hx)
+    (fun _ _ hx => by rwa [GapWeightedSetCover, mem_yes_GapWeightedSetCoverFn] at hx)
+    (fun _ _ hx => by rwa [GapWeightedSetCover, mem_no_GapWeightedSetCoverFn] at hx)
 
 /-- If `GapWeightedSetCover r` is `NP`-hard, no polynomial-time `ρ`-approximation algorithm with
 `0 ≤ ρ < r` exists for weighted Set Cover unless `P = NP`. -/

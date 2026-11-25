@@ -108,10 +108,13 @@ private theorem maxAbsList_le_two_pow {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
   | cons q qs ih =>
     simp only [maxAbsList]
     refine max_le ?_ (ih fun r hr => hB r (List.mem_cons_of_mem q hr))
-    rw [← Rat.num_div_den q, abs_div, ← Int.cast_abs, Int.abs_eq_natAbs, Nat.abs_cast]
-    have hdiv : ((Int.natAbs q.num : ℚ) / q.den) ≤ (Int.natAbs q.num : ℚ) :=
-      div_le_self (Nat.cast_nonneg _) (by exact_mod_cast (show 1 ≤ q.den from q.den_pos))
-    exact hdiv.trans (by exact_mod_cast (hB q List.mem_cons_self).1)
+    calc |q|
+        = |(q.num : ℚ) / (q.den : ℚ)| := by rw [Rat.num_div_den]
+      _ = (Int.natAbs q.num : ℚ) / q.den := by
+          rw [abs_div, ← Int.cast_abs, Int.abs_eq_natAbs, Int.cast_natCast, Nat.abs_cast]
+      _ ≤ (Int.natAbs q.num : ℚ) :=
+          div_le_self (Nat.cast_nonneg _) (Nat.one_le_cast.mpr q.den_pos)
+      _ ≤ (2 : ℚ) ^ B := by simpa using (Nat.cast_le (α := ℚ)).mpr (hB q List.mem_cons_self).1
 
 /-- Upper bound `cauchyBoundNat cs ≤ 2 ^ (2 * B) + 2` under `HasCoeffBitBound B cs`. -/
 theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
@@ -124,36 +127,50 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
   · have htnil : t ≠ [] := fun hnil => by simp [t, hnil] at hlen
     obtain ⟨l, lc, hlc0, hteq⟩ := (CoeffList.isTrimmed_trim cs).exists_append_singleton htnil
     have hlc_abs_ge : (1 : ℚ) / (2 : ℚ) ^ B ≤ |lc| := by
-      have hnum : (1 : ℚ) ≤ |(lc.num : ℚ)| := by
-        rw [← Int.cast_abs, Int.abs_eq_natAbs]
-        exact_mod_cast Int.natAbs_pos.mpr (Rat.num_ne_zero.mpr hlc0)
-      have hden : (lc.den : ℚ) ≤ (2 : ℚ) ^ B := by
-        simpa using (Nat.cast_le (α := ℚ)).mpr (htB lc (by simp [t, hteq])).2
-      rw [← Rat.num_div_den lc, abs_div, Nat.abs_cast]
-      exact (div_le_div_of_nonneg_right hnum (by positivity)).trans
-        (div_le_div_of_nonneg_left (abs_nonneg _) (Nat.cast_pos.mpr lc.den_pos) hden)
+      have hnum : 1 ≤ Int.natAbs lc.num := Int.natAbs_pos.mpr (Rat.num_ne_zero.mpr hlc0)
+      have hden : (lc.den : ℚ) ≤ (2 : ℚ) ^ B :=
+        calc (lc.den : ℚ)
+            ≤ ((2 ^ B : ℕ) : ℚ) := Nat.cast_le.mpr (htB lc (by simp [t, hteq])).2
+          _ = (2 : ℚ) ^ B := Nat.cast_pow 2 B
+      calc (1 : ℚ) / (2 : ℚ) ^ B
+          ≤ (Int.natAbs lc.num : ℚ) / (2 : ℚ) ^ B :=
+            div_le_div_of_nonneg_right (Nat.one_le_cast.mpr hnum) (by positivity)
+        _ ≤ (Int.natAbs lc.num : ℚ) / (lc.den : ℚ) :=
+            div_le_div_of_nonneg_left (Nat.cast_nonneg _) (Nat.cast_pos.mpr lc.den_pos) hden
+        _ = |(lc.num : ℚ) / (lc.den : ℚ)| := by
+            rw [abs_div, ← Int.cast_abs, Int.abs_eq_natAbs, Int.cast_natCast, Nat.abs_cast]
+        _ = |lc| := by rw [Rat.num_div_den]
     have hm_le : maxAbsList t.dropLast ≤ (2 : ℚ) ^ B :=
       maxAbsList_le_two_pow fun q hq => htB q (List.dropLast_subset t hq)
-    rw [show Option.getD t.getLast? 1 = lc by simp [t, hteq]]
+    have hlc_eq : Option.getD t.getLast? 1 = lc := by simp [t, hteq]
+    rw [hlc_eq]
     let b := maxAbsList t.dropLast / |lc| + 1
     have hb_nonneg : 0 ≤ b :=
       add_nonneg (div_nonneg (maxAbsList_nonneg _) (abs_nonneg _)) zero_le_one
+    have hdiv_le : maxAbsList t.dropLast / |lc| ≤ (2 : ℚ) ^ (2 * B) :=
+      calc maxAbsList t.dropLast / |lc|
+          ≤ maxAbsList t.dropLast / ((1 : ℚ) / (2 : ℚ) ^ B) :=
+            div_le_div_of_nonneg_left (maxAbsList_nonneg _) (by positivity) hlc_abs_ge
+        _ = maxAbsList t.dropLast * (2 : ℚ) ^ B := by rw [one_div, div_inv_eq_mul]
+        _ ≤ (2 : ℚ) ^ B * (2 : ℚ) ^ B :=
+              mul_le_mul_of_nonneg_right hm_le (by positivity)
+        _ = (2 : ℚ) ^ (2 * B) := by rw [two_mul, pow_add]
     have hb_le : b ≤ ((2 ^ (2 * B) + 1 : ℕ) : ℚ) := by
-      have hdiv : maxAbsList t.dropLast / |lc| ≤ (2 : ℚ) ^ B * (2 : ℚ) ^ B :=
-        (div_le_div_of_nonneg_left (maxAbsList_nonneg _) (by positivity) hlc_abs_ge).trans
-          (by rw [one_div, div_inv_eq_mul]
-              exact mul_le_mul_of_nonneg_right hm_le (by positivity))
       dsimp only [b]
       push_cast
-      linarith [show (2 : ℚ) ^ B * (2 : ℚ) ^ B = (2 : ℚ) ^ (2 * B) by rw [two_mul, pow_add]]
-    have hfloor_le : ((Int.natAbs b.num / b.den : ℕ) : ℚ) ≤ b :=
+      linarith
+    have hfloor_le : ((Int.natAbs b.num / b.den : ℕ) : ℚ) ≤ b := by
+      have hnum_eq : (Int.natAbs b.num : ℚ) / b.den = b :=
+        calc (Int.natAbs b.num : ℚ) / b.den
+            = |(b.num : ℚ) / b.den| := by
+              rw [abs_div, ← Int.cast_abs, Int.abs_eq_natAbs, Int.cast_natCast, Nat.abs_cast]
+          _ = |b| := by rw [Rat.num_div_den]
+          _ = b := abs_of_nonneg hb_nonneg
       calc ((Int.natAbs b.num / b.den : ℕ) : ℚ)
           ≤ (Int.natAbs b.num : ℚ) / b.den :=
             (le_div_iff₀ (Nat.cast_pos.mpr b.den_pos)).mpr
               (by exact_mod_cast Nat.div_mul_le_self (Int.natAbs b.num) b.den)
-        _ = b := by
-            rw [← Int.cast_natCast, ← Int.abs_eq_natAbs, Int.cast_abs, ← Nat.abs_cast b.den,
-              ← abs_div, Rat.num_div_den, abs_of_nonneg hb_nonneg]
+        _ = b := hnum_eq
     exact Nat.add_le_add_right (by exact_mod_cast hfloor_le.trans hb_le) 1
 
 /-- Logarithmic bound `Nat.clog 4 (cauchyBoundNat cs) ≤ B + 1` under `HasCoeffBitBound B cs`. -/
@@ -172,10 +189,13 @@ theorem lcmDens_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound 
   induction cs with
   | nil => simp [lcmDens]
   | cons q qs ih =>
-    simp only [lcmDens, List.length_cons, Nat.add_one_mul, add_comm _ B, pow_add]
-    exact (Nat.lcm_le_mul q.den_pos (one_le_lcmDens qs)).trans
-      (Nat.mul_le_mul (hB q List.mem_cons_self).2
-        (ih fun r hr => hB r (List.mem_cons_of_mem q hr)))
+    simp only [lcmDens, List.length_cons]
+    calc Nat.lcm q.den (lcmDens qs)
+        ≤ q.den * lcmDens qs := Nat.lcm_le_mul q.den_pos (one_le_lcmDens qs)
+      _ ≤ 2 ^ B * 2 ^ (qs.length * B) :=
+          Nat.mul_le_mul (hB q List.mem_cons_self).2
+            (ih fun r hr => hB r (List.mem_cons_of_mem q hr))
+      _ = 2 ^ ((qs.length + 1) * B) := by rw [Nat.add_one_mul, add_comm, pow_add]
 
 private theorem foldl_sqNorm_le_of_bound (ns : List ℤ) (M acc : ℕ)
     (hM : ∀ z ∈ ns, Int.natAbs z ≤ M) :
@@ -184,9 +204,13 @@ private theorem foldl_sqNorm_le_of_bound (ns : List ℤ) (M acc : ℕ)
   | nil => simp
   | cons a ns ih =>
     simp only [List.foldl_cons, List.length_cons]
-    have ha : Int.natAbs a ^ 2 ≤ M ^ 2 := Nat.pow_le_pow_left (hM a List.mem_cons_self) 2
-    have hrec := ih (acc + Int.natAbs a ^ 2) fun z hz => hM z (List.mem_cons_of_mem a hz)
-    linarith
+    have ha : Int.natAbs a ^ 2 ≤ M ^ 2 :=
+      Nat.pow_le_pow_left (hM a List.mem_cons_self) 2
+    calc ns.foldl (fun s b => s + Int.natAbs b ^ 2) (acc + Int.natAbs a ^ 2)
+        ≤ (acc + Int.natAbs a ^ 2) + ns.length * M ^ 2 :=
+          ih (acc + Int.natAbs a ^ 2) fun z hz => hM z (List.mem_cons_of_mem a hz)
+      _ ≤ acc + M ^ 2 + ns.length * M ^ 2 := by omega
+      _ = acc + (ns.length + 1) * M ^ 2 := by ring
 
 /-- Upper bound on cleared-denominator `sqNormList` under `HasCoeffBitBound B cs`. -/
 theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
@@ -202,12 +226,16 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
   have hns_bound : ∀ z ∈ ns, Int.natAbs z ≤ 2 ^ ((cs.length + 1) * B) := by
     intro z hz
     obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hz
-    rw [Int.natAbs_mul, Int.natAbs_natCast, Nat.add_one_mul, add_comm _ B, pow_add]
-    exact Nat.mul_le_mul (htB q hq).1 ((Nat.div_le_self _ _).trans hD_le)
+    rw [Int.natAbs_mul, Int.natAbs_natCast]
+    calc Int.natAbs q.num * (lcmDens t / q.den)
+        ≤ 2 ^ B * 2 ^ (cs.length * B) :=
+          Nat.mul_le_mul (htB q hq).1 ((Nat.div_le_self _ _).trans hD_le)
+      _ = 2 ^ ((cs.length + 1) * B) := by rw [Nat.add_one_mul, add_comm, pow_add]
   have hsq : sqNormList ns ≤ t.length * 4 ^ ((cs.length + 1) * B) := by
     have h1 := foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
     have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := by
-      rw [← pow_mul, mul_comm _ 2, pow_mul]; rfl
+      rw [← pow_mul, mul_comm _ 2, pow_mul]
+      rfl
     simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map] using h1
   exact hsq.trans (Nat.mul_le_mul_right _ ht_len)
 
@@ -274,10 +302,11 @@ theorem DyadicBounded.mono {b e e' : ℕ} {q : ℚ} (hq : DyadicBounded b e q) (
       rw [← pow_add, Nat.add_sub_of_le he]
     rw [hpow, Int.cast_mul, Int.cast_pow, Int.cast_ofNat]
     exact (mul_div_mul_right (z : ℚ) ((2 : ℚ) ^ e) (by positivity)).symm
-  · rw [Int.natAbs_mul, Int.natAbs_pow, show (2 : ℤ).natAbs = 2 from rfl,
-      show b * 2 ^ e' = (b * 2 ^ e) * 2 ^ (e' - e) by
-        rw [mul_assoc, ← pow_add, Nat.add_sub_of_le he]]
-    exact Nat.mul_le_mul_right _ hz
+  · rw [Int.natAbs_mul, Int.natAbs_pow]
+    change Int.natAbs z * 2 ^ (e' - e) ≤ b * 2 ^ e'
+    calc Int.natAbs z * 2 ^ (e' - e)
+        ≤ (b * 2 ^ e) * 2 ^ (e' - e) := Nat.mul_le_mul_right _ hz
+      _ = b * 2 ^ e' := by rw [mul_assoc, ← pow_add, Nat.add_sub_of_le he]
 
 /-- Midpoint rule: if `u` and `v` satisfy `DyadicBounded b e`, then `(u + v) / 2` satisfies
 `DyadicBounded b (e + 1)`. -/
@@ -286,9 +315,15 @@ theorem DyadicBounded.mid {b e : ℕ} {u v : ℚ}
     DyadicBounded b (e + 1) ((u + v) / 2) := by
   obtain ⟨zu, rfl, hzu⟩ := hu
   obtain ⟨zv, rfl, hzv⟩ := hv
-  refine ⟨zu + zv, by rw [pow_succ, Int.cast_add]; ring, ?_⟩
-  exact (Int.natAbs_add_le _ _).trans
-    ((Nat.add_le_add hzu hzv).trans_eq (by rw [pow_succ]; ring))
+  refine ⟨zu + zv, ?_, ?_⟩
+  · rw [pow_succ, Int.cast_add]
+    ring
+  · calc Int.natAbs (zu + zv)
+        ≤ Int.natAbs zu + Int.natAbs zv := Int.natAbs_add_le _ _
+      _ ≤ b * 2 ^ e + b * 2 ^ e := Nat.add_le_add hzu hzv
+      _ = b * 2 ^ (e + 1) := by
+          rw [pow_succ]
+          ring
 
 /-- Denominator bound `q.den ≤ 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.den_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :

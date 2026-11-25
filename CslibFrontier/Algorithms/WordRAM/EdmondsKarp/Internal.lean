@@ -184,17 +184,13 @@ theorem clientResult_bfsInnerStep (d : ((Ctx × ℕ) × ℕ) × ℕ) (s : Memory
     (Memory.spec 0).clientResult s (bfsInnerStep d) = d.2 + 1 := by
   unfold bfsInnerStep
   rw [clientResult_bind_read, clientResult_bind]
-  split_ifs
-  · rw [clientResult_bind_write, clientResult_bind_write, clientResult_pure]
-  · rfl
+  split_ifs <;> simp only [clientResult_bind_write, clientResult_pure]
 
 theorem clientResult_bfsMidStep (d : (Ctx × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (bfsMidStep d) = d.2 + 1 := by
   unfold bfsMidStep
   rw [clientResult_bind_read]
-  split_ifs
-  · rw [clientResult_bind, clientResult_pure]
-  · rfl
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure]
 
 theorem clientResult_cutInnerStep_fst (cu : Ctx × ℕ) (va : ℕ × ℕ) (s : Memory.State) :
     ((Memory.spec 0).clientResult s (cutInnerStep (cu, va))).1 = va.1 + 1 := by
@@ -206,9 +202,7 @@ theorem clientResult_cutOuterStep_fst (c : Ctx) (ua : ℕ × ℕ) (s : Memory.St
     ((Memory.spec 0).clientResult s (cutOuterStep (c, ua))).1 = ua.1 + 1 := by
   unfold cutOuterStep
   rw [clientResult_bind_read]
-  split_ifs
-  · rw [clientResult_bind, clientResult_pure]
-  · rfl
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure]
 
 /-! ### Realization (`Realizes`) for internal subroutines -/
 
@@ -245,9 +239,8 @@ private theorem bfsMidStep_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hl, hu⟩ := h
     try ek_side
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (v : ℕ) _ => v + rem = d.1.1.n) ?_ (Nat.zero_add _)
-  intro rem v t hsum
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (v : ℕ) _ => v + rem = d.1.1.n)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
   dsimp only at *
   refine ⟨⟨⟨hlay, hws, hwb⟩, hl, hu, by omega⟩, ?_⟩
   rw [clientResult_bfsInnerStep]; omega
@@ -261,9 +254,8 @@ private theorem bfsLayerStep_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hl⟩ := h
     try ek_side
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (u : ℕ) _ => u + rem = d.1.n) ?_ (Nat.zero_add _)
-  intro rem u t hsum
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (u : ℕ) _ => u + rem = d.1.n)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
   dsimp only at *
   refine ⟨⟨⟨hlay, hws, hwb⟩, hl, by omega⟩, ?_⟩
   rw [clientResult_bfsMidStep]; omega
@@ -277,14 +269,12 @@ private theorem bfsProg_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hs⟩ := h
     try ek_side
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (layer : ℕ) _ => layer + rem = d.1.n - 1) ?_ (Nat.zero_add _)
-  intro rem layer t hsum
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (layer : ℕ) _ => layer + rem = d.1.n - 1)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
   dsimp only at *
   refine ⟨⟨⟨hlay, hws, hwb⟩, by omega⟩, ?_⟩
   dsimp only [bfsLayerStep]
-  simp only [client_simps]
-  omega
+  simp only [client_simps]; omega
 
 private theorem bnStep_realizes :
     Realizes .exact bnStep (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
@@ -319,9 +309,8 @@ theorem roundStep_realizes :
     rcases d with ⟨⟨c, ⟨s, t⟩⟩, flag⟩
     try ek_side
   all_goals
-    refine iterationSafe_of_stepInv _ _ w _ (fun _ _ _ => True) ?_ trivial
-    intro _ _ _ _
-    exact ⟨⟨hlay, hws, hwb⟩, trivial⟩
+    exact iterationSafe_of_stepInv _ _ w _ (fun _ _ _ => True)
+      (fun _ _ _ _ => ⟨⟨hlay, hws, hwb⟩, trivial⟩) trivial
 
 private theorem cutInnerStep_realizes :
     Realizes .exact cutInnerStep (WordEncoding.encode (α := (Ctx × ℕ) × (ℕ × ℕ)))
@@ -343,9 +332,8 @@ theorem cutOuterStep_realizes :
   all_goals
     obtain ⟨⟨hlay, hws, hwb⟩, hu⟩ := h
     try ek_side
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (va : ℕ × ℕ) _ => va.1 + rem = d.1.n) ?_ (Nat.zero_add _)
-  intro rem va t hsum
+  refine iterationSafe_of_stepInv _ _ w _ (fun rem (va : ℕ × ℕ) _ => va.1 + rem = d.1.n)
+    (fun _ _ _ _ => ?_) (Nat.zero_add _)
   dsimp only at *
   refine ⟨⟨⟨hlay, hws, hwb⟩, hu, by omega⟩, ?_⟩
   rw [clientResult_cutInnerStep_fst]; omega
@@ -381,40 +369,30 @@ theorem cutOuterStep_state (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
   unfold cutOuterStep
   rw [clientState_bind_read]
   split_ifs
-  · rw [clientState_bind,
-      clientState_iterate_eq_of _ _ (fun a t => cutInnerStep_state _ t)]
-    rfl
+  · rw [clientState_bind, clientState_iterate_eq_of _ _ (fun _ t => cutInnerStep_state _ t)]; rfl
   · rfl
 
 theorem preservesAt_bfsProg {a : ℕ} {d : Ctx × ℕ} (hs : d.2 < d.1.n)
     (ha : a < distAddr d.1 0 ∨ predAddr d.1 d.1.n ≤ a) : PreservesAt a (bfsProg d) := by
   obtain ⟨c, src⟩ := d
   dsimp only at hs ha
-  unfold bfsProg
-  refine preservesAt_bind (fun s => (fillRange_spec _ _ _ s).2 _ (by ek_omega)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_write _ (by ek_omega)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_write _ (by ek_omega)) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate (fun layer => ?_) _ _)
-    fun _ => preservesAt_pure _ _
-  unfold bfsLayerStep
-  refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-  refine preservesAt_bind (preservesAt_iterate_nat fun u hu => ⟨?_, fun t => ?_⟩)
-    fun _ => preservesAt_pure _ _
-  · unfold bfsMidStep
-    refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-    refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-    refine preservesAt_bind (preservesAt_iterate_nat fun v hv => ⟨?_, fun t => ?_⟩)
+  refine preservesAt_bind (fun s => (fillRange_spec _ _ _ s).2 _ (by ek_omega)) fun _ =>
+    preservesAt_bind (preservesAt_write _ (by ek_omega)) fun _ =>
+    preservesAt_bind (preservesAt_write _ (by ek_omega)) fun _ =>
+    preservesAt_bind (preservesAt_iterate (fun _ => ?_) _ _) fun _ => preservesAt_pure _ _
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (preservesAt_iterate_nat fun _ _ => ⟨?_, fun _ => clientResult_bfsMidStep _ _⟩)
       fun _ => preservesAt_pure _ _
-    · unfold bfsInnerStep
-      refine preservesAt_bind (preservesAt_read _ _) fun _ => ?_
-      refine preservesAt_bind
-        (fun t => congrArg (fun st : Memory.State => st.mem a) (readResCap_state _ t))
-        fun _ => ?_
-      refine preservesAt_ite _ ?_ (preservesAt_pure _ _)
-      refine preservesAt_bind (preservesAt_write _ (by ek_omega)) fun _ => ?_
-      exact preservesAt_map _ (preservesAt_write _ (by ek_omega))
-    · exact clientResult_bfsInnerStep _ _
-  · exact clientResult_bfsMidStep _ _
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_ite _ ?_ (preservesAt_pure _ _)
+  refine preservesAt_bind
+    (preservesAt_iterate_nat fun _ _ => ⟨?_, fun _ => clientResult_bfsInnerStep _ _⟩)
+    fun _ => preservesAt_pure _ _
+  refine preservesAt_bind (preservesAt_read _ _) fun _ =>
+    preservesAt_bind (fun t => congrArg (fun st => st.mem a) (readResCap_state _ t)) fun _ =>
+    preservesAt_ite _ ?_ (preservesAt_pure _ _)
+  exact preservesAt_bind (preservesAt_write _ (by ek_omega)) fun _ =>
+    preservesAt_map _ (preservesAt_write _ (by ek_omega))
 
 /-- Between `t` and `t'`, every distance below `n` either is unchanged or went from `n` (unreached)
 to `layer + 1`. -/

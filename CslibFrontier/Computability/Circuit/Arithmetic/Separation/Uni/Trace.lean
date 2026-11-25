@@ -49,11 +49,12 @@ open Cslib.BitString (binaryValue binaryValue_append binaryValue_binaryWord bina
 section Columns
 
 theorem cols_ext {q : ℕ} {c c' : List (Fin (q + 1) → Bool)}
-    (h : ∀ j, c.map (fun v => v j) = c'.map fun v => v j) : c = c' :=
-  List.ext_getElem (by simpa using congrArg List.length (h 0)) fun i h1 h2 => funext fun j => by
-    have h3 : (c.map fun v => v j)[i]'(by simpa using h1) =
-        (c'.map fun v => v j)[i]'(by simpa using h2) := by simp only [h j]
-    simpa using h3
+    (h : ∀ j, c.map (fun v => v j) = c'.map fun v => v j) : c = c' := by
+  refine List.ext_getElem (by simpa using congrArg List.length (h 0)) fun i h1 h2 => ?_
+  funext j
+  have h3 : (c.map fun v => v j)[i]'(by simpa using h1) =
+      (c'.map fun v => v j)[i]'(by simpa using h2) := by simp only [h j]
+  simpa using h3
 
 /-- Column-major `L`-bit big-endian slices of a `q`-tuple of natural numbers (reduced modulo
 `2 ^ L` so every column has unconditional length `L`). -/
@@ -298,15 +299,16 @@ private theorem four_lt {a b c d n : ℕ} (ha : a < n) (hb : b < n) (hc : c < n)
 /-- A matched run `MX x bits` decodes to a globally valid pointer-machine trace `Mach.GV`. -/
 theorem MX.gv [Fintype K] [DecidableEq K] {P : Mach A M K} {x : XP P} {bits : List Bool}
     (hx : MX x bits) : Mach.GV (σi P bits) (x.steps.map nst) := by
-  refine ⟨by rw [List.map_map, List.map_map]; exact hx.md,
-    fun i => ⟨binaryValue (x.finalRegs.map fun v => v i), ?_⟩,
-    by rw [List.map_map, List.length_map]
-       exact hx.vals.1.trans (List.map_congr_left fun j _ => by simp [σi]),
-    by rw [List.flatMap_map]; exact hx.inp, ?_⟩
+  refine ⟨?_, fun i => ⟨binaryValue (x.finalRegs.map fun v => v i), ?_⟩, ?_, ?_, ?_⟩
+  · rw [List.map_map, List.map_map]
+    exact hx.md
   · have h := congrArg (List.map binaryValue) (hx.rg i)
     rw [List.map_cons, List.map_append, List.map_map, List.map_map, bv_i0] at h
-    rw [List.map_map, List.map_map]
-    exact h
+    rwa [List.map_map, List.map_map]
+  · rw [List.map_map, List.length_map]
+    exact hx.vals.1.trans (List.map_congr_left fun j _ => by simp [σi])
+  · rw [List.flatMap_map]
+    exact hx.inp
   · have h2 := (imu_table (M := M)
       ((dfN (x.steps.map nst)).map (kyN (x.init.length + 1)))
       (((x.steps.map nst).map Mach.ld).map (kyN (x.init.length + 1)))
@@ -350,8 +352,10 @@ theorem MX.unique [Fintype K] [DecidableEq K] {P : Mach A M K} {x x' : XP P}
         hx.len _ (List.getElem_mem h1), hx'.len _ (List.getElem_mem h2), hL]
       exact congrArg (unb _) h5
   have e2 : x.counter = x'.counter :=
-    (List.map_injective_iff (f := cn)).2 (fun ⟨u, k⟩ ⟨u', k'⟩ h =>
-      let ⟨a1, a2⟩ := carry_cut_unique h; Prod.ext a1 (unit_list a2))
+    (List.map_injective_iff (f := cn)).2
+      (fun ⟨u, k⟩ ⟨u', k'⟩ h =>
+        let ⟨a1, a2⟩ := carry_cut_unique h
+        Prod.ext a1 (unit_list a2))
       (by rw [hx.fr, hx'.fr, e3])
   have e4r : x.finalRegs = x'.finalRegs := cols_ext fun i => by
     have h1 := hx.rg i

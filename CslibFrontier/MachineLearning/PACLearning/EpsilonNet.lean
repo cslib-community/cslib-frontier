@@ -101,28 +101,21 @@ private theorem card_filter_swap_mul_two_pow_le {m k : ℕ} (a b : Fin m → Boo
   have hfilt : (Finset.univ.filter fun i => (if σ₀ i then a i else b i) = true) =
       Finset.univ.filter fun i => (a i || b i) = true := by
     refine Finset.filter_congr fun i _ => ?_
-    have := h0 i
-    cases hs : σ₀ i <;> cases ha : a i <;> cases hb : b i <;> simp_all
+    have hlabels : ((if σ₀ i then a i else b i) || (if σ₀ i then b i else a i)) =
+        (a i || b i) := by
+      cases σ₀ i <;> simp [Bool.or_comm]
+    rw [h0 i, Bool.or_false] at hlabels
+    rw [hlabels]
   rw [hfilt] at hk
-  have hab : ∀ i, ¬ (a i = true ∧ b i = true) := by
-    intro i ⟨ha, hb⟩
-    have := h0 i
-    cases hs : σ₀ i <;> simp_all
-  -- A compatible swap is forced at every coordinate where `a` or `b` is `true`.
-  set A : Fin m → Finset Bool := fun i =>
-    if a i = true then {true} else if b i = true then {false} else Finset.univ
-  have hsub : Good ⊆ Fintype.piFinset A := by
-    intro σ hσ
-    rw [Fintype.mem_piFinset]
-    intro i
-    have := (Finset.mem_filter.1 hσ).2.1 i
-    simp only [A]
-    cases hs : σ i <;> cases ha : a i <;> cases hb : b i <;> simp_all
-  have hA : ∀ i, (A i).card * 2 ^ (if (a i || b i) = true then 1 else 0) ≤ 2 := by
-    intro i
-    have := hab i
-    simp only [A]
-    cases ha : a i <;> cases hb : b i <;> simp_all
+  -- Count the swaps compatible with the first sample coordinate by coordinate.
+  let A (i : Fin m) : Finset Bool := Finset.univ.filter fun bit =>
+    (if bit then b i else a i) = false
+  have hsub : Good ⊆ Fintype.piFinset A := fun σ hσ =>
+    Fintype.mem_piFinset.2 fun i =>
+      Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hσ).2.1 i⟩
+  have hA (i : Fin m) : (A i).card * 2 ^ (if (a i || b i) = true then 1 else 0) ≤ 2 := by
+    cases ha : a i <;> cases hb : b i <;>
+      simp [A, ha, hb, Finset.filter_insert, Finset.filter_singleton]
   calc Good.card * 2 ^ k
       ≤ (Fintype.piFinset A).card *
           2 ^ (Finset.univ.filter fun i => (a i || b i) = true).card := by
@@ -344,27 +337,13 @@ private theorem measure_doubleSampleEvent_mul_two_pow_le (μ : Measure Z)
     (Measure.pi (fun _ : Fin m => μ)).prod (Measure.pi fun _ : Fin m => μ)
         (doubleSampleEvent G m k) * 2 ^ k ≤ growthFunction G (m + m) := by
   classical
-  set ρ := (Measure.pi (fun _ : Fin m => μ)).prod (Measure.pi fun _ : Fin m => μ) with hρ
-  set J := doubleSampleEvent G m k
-  -- Average the indicator of `J` over all `2 ^ m` swaps.
-  have hsum : (2 : ℝ≥0∞) ^ m * ρ J =
-      ∫⁻ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card : ℝ≥0∞)
-        ∂ρ :=
-    (lintegral_card_filter_swapSamples_mem μ .of_discrete).symm
-  have hpt : ∀ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
-      ℝ≥0∞) * 2 ^ k ≤ growthFunction G (m + m) * 2 ^ m := fun z => by
-    exact_mod_cast card_filter_swapSamples_mem_mul_two_pow_le G k z
-  have key : (2 : ℝ≥0∞) ^ m * (ρ J * 2 ^ k) ≤ 2 ^ m * growthFunction G (m + m) := by
-    calc (2 : ℝ≥0∞) ^ m * (ρ J * 2 ^ k)
-        = (∫⁻ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
-            ℝ≥0∞) ∂ρ) * 2 ^ k := by rw [← hsum, mul_assoc]
-      _ = ∫⁻ z, ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ J).card :
-            ℝ≥0∞) * 2 ^ k ∂ρ := (lintegral_mul_const _ (measurable_of_countable _)).symm
-      _ ≤ ∫⁻ _z, (growthFunction G (m + m) * 2 ^ m : ℝ≥0∞) ∂ρ := lintegral_mono hpt
-      _ = growthFunction G (m + m) * 2 ^ m := by rw [lintegral_const, measure_univ, mul_one]
-      _ = 2 ^ m * growthFunction G (m + m) := mul_comm _ _
-  exact (ENNReal.mul_le_mul_iff_right (pow_ne_zero _ two_ne_zero)
-    (ENNReal.pow_ne_top ENNReal.ofNat_ne_top)).1 key
+  have hpow_ne_zero : (2 : ℝ≥0∞) ^ k ≠ 0 := pow_ne_zero _ two_ne_zero
+  have hpow_ne_top : (2 : ℝ≥0∞) ^ k ≠ ⊤ := ENNReal.pow_ne_top ENNReal.ofNat_ne_top
+  rw [← ENNReal.le_div_iff_mul_le (.inl hpow_ne_zero) (.inl hpow_ne_top)]
+  refine measure_prod_le_of_card_filter_swapSamples_mem_le μ .of_discrete _ fun z => ?_
+  rw [← ENNReal.mul_le_mul_iff_left hpow_ne_zero hpow_ne_top, mul_assoc,
+    ENNReal.div_mul_cancel hpow_ne_zero hpow_ne_top, mul_comm ((2 : ℝ≥0∞) ^ m)]
+  exact_mod_cast card_filter_swapSamples_mem_mul_two_pow_le G k z
 
 /-- **The ε-net theorem** on a countable domain [ShalevShwartzBenDavid2014, Section 28.3; see
 also BlumerEhrenfeuchtHausslerWarmuth1989]: if `8 ≤ εm`, then `m` i.i.d. samples from `μ` fail to

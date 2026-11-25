@@ -115,10 +115,8 @@ def localOptRel (n : α → ℕ) (N : α × List Bool → List Bool) (C : α × 
 theorem exists_localOpt {n : α → ℕ} {N : α × List Bool → List Bool} {C : α × List Bool → ℕ}
     {a : α} (hN : ∀ u, u.length = n a → (N (a, u)).length = n a) :
     ∃ u, localOptRel n N C a u := by
-  have hne : (Finset.univ : Finset (Vertex (n a))).Nonempty :=
+  obtain ⟨u, -, hmin⟩ := Finset.exists_min_image Finset.univ (fun u : Vertex (n a) => C (a, u.1))
     ⟨⟨zeroVertex (n a), length_zeroVertex (n a)⟩, Finset.mem_univ _⟩
-  obtain ⟨u, -, hmin⟩ :=
-    Finset.exists_min_image Finset.univ (fun u : Vertex (n a) => C (a, u.1)) hne
   exact ⟨u.1, u.2, hmin ⟨N (a, u.1), hN u.1 u.2⟩ (Finset.mem_univ _)⟩
 
 /-- `localOptRel` is total whenever the neighbor map preserves the vertex bit-length. -/
@@ -146,16 +144,12 @@ theorem exists_pigeon {n : α → ℕ} {F : α × List Bool → List Bool} {a : 
   by_cases hinj : Function.Injective f
   · obtain ⟨u, hu⟩ := Finite.surjective_of_injective hinj
       ⟨zeroVertex (n a), length_zeroVertex (n a)⟩
-    refine ⟨u.1 ++ u.1, ?_, .inl ?_⟩
-    · simp [u.2, Nat.two_mul]
-    · rw [List.take_left' u.2]
-      exact congrArg Subtype.val hu
-  · simp only [Function.Injective, not_forall] at hinj
-    obtain ⟨u, v, huv, hne⟩ := hinj
-    refine ⟨u.1 ++ v.1, ?_, .inr ?_⟩
-    · simp [u.2, v.2, Nat.two_mul]
-    · rw [List.take_left' u.2, List.drop_left' u.2]
-      exact ⟨fun h => hne (Subtype.ext h), congrArg Subtype.val huv⟩
+    exact ⟨u.1 ++ u.1, by simp [u.2, Nat.two_mul],
+      .inl ((congrArg (fun x => F (a, x)) (List.take_left' u.2)).trans (congrArg Subtype.val hu))⟩
+  · obtain ⟨u, v, huv, hne⟩ := Function.not_injective_iff.mp hinj
+    refine ⟨u.1 ++ v.1, by simp [u.2, v.2, Nat.two_mul], .inr ?_⟩
+    rw [List.take_left' u.2, List.drop_left' u.2]
+    exact ⟨fun h => hne (Subtype.ext h), congrArg Subtype.val huv⟩
 
 /-- `pigeonRel` is total whenever `F` preserves the vertex bit-length. -/
 theorem isTotalSearch_pigeonRel {n : α → ℕ} {F : α × List Bool → List Bool}
@@ -180,17 +174,15 @@ def hasIn (n : α → ℕ) (P S : α × List Bool → List Bool) (a : α) (u : L
 `u = P (a, v)`. -/
 theorem hasIn_of_hasOut {n : α → ℕ} {P S : α × List Bool → List Bool} {a : α} {u : List Bool}
     (h : hasOut n P S a u = true) : hasIn n P S a (S (a, u)) = true := by
-  simp only [hasOut, decide_eq_true_eq] at h
-  simp only [hasIn, decide_eq_true_eq]
-  exact ⟨by rw [h.1], by rw [h.1]; exact h.2.1.symm, h.2.2⟩
+  simp only [hasOut, hasIn, decide_eq_true_eq] at h ⊢
+  exact ⟨congrArg (fun x => S (a, x)) h.1, h.1.symm ▸ h.2.1.symm, h.2.2⟩
 
 /-- If `u` has an active incoming edge from `v = P (a, u)`, then `v` has an active outgoing edge to
 `u = S (a, v)`. -/
 theorem hasOut_of_hasIn {n : α → ℕ} {P S : α × List Bool → List Bool} {a : α} {u : List Bool}
     (h : hasIn n P S a u = true) : hasOut n P S a (P (a, u)) = true := by
-  simp only [hasIn, decide_eq_true_eq] at h
-  simp only [hasOut, decide_eq_true_eq]
-  exact ⟨by rw [h.1], by rw [h.1]; exact h.2.1.symm, by rw [h.1]; exact h.2.2⟩
+  simp only [hasIn, hasOut, decide_eq_true_eq] at h ⊢
+  exact ⟨congrArg (fun x => P (a, x)) h.1, h.1.symm ▸ h.2.1.symm, h.1.symm ▸ h.2.2⟩
 
 /-- The canonical source `0 ^ (n a)` never has an active incoming edge. -/
 @[simp]
@@ -234,8 +226,7 @@ theorem length_ppadToPppMap {n : α → ℕ} {P S : α × List Bool → List Boo
     (ppadToPppMap n P S (a, u)).length = n a := by
   unfold ppadToPppMap
   split_ifs
-  · exact hS u hu
-  · exact hu
+  exacts [hS u hu, hu]
 
 /-- Any solution of `pigeonRel` for `ppadToPppMap n P S` yields a solution of `endOfLineRel n P S`
 by selecting whichever of the two `n a`-bit halves lacks an active outgoing edge. -/
@@ -247,41 +238,21 @@ theorem endOfLineRel_of_pigeonRel {n : α → ℕ} {P S : α × List Bool → Li
   have hu_len : (w.take (n a)).length = n a := by simp only [List.length_take, hwlen]; omega
   have hv_len : (w.drop (n a)).length = n a := by simp only [List.length_drop, hwlen]; omega
   rcases hsol with hz | ⟨hne, hcoll⟩
-  · have hu : hasOut n P S a (w.take (n a)) = false := by
-      by_contra hu'
-      simp only [Bool.not_eq_false] at hu'
-      have hFz : S (a, w.take (n a)) = zeroVertex (n a) := by
-        simpa [ppadToPppMap, hu'] using hz
-      simp only [hasOut, decide_eq_true_eq] at hu'
-      exact hu'.2.2 hFz
-    have huz : w.take (n a) = zeroVertex (n a) := by
-      simpa [ppadToPppMap, hu] using hz
-    simp only [hu, Bool.not_false, ↓reduceIte]
-    rw [huz]
-    exact endOfLineRel_zeroVertex_of_hasOut_eq_false (huz ▸ hu)
-  · by_cases hu : hasOut n P S a (w.take (n a)) = false
-    · simp only [hu, Bool.not_false, ↓reduceIte]
-      have hv : hasOut n P S a (w.drop (n a)) = true := by
-        by_contra hv'
-        simp only [Bool.not_eq_true] at hv'
-        have huv : w.take (n a) = w.drop (n a) := by
-          simpa [ppadToPppMap, hu, hv'] using hcoll
-        exact hne huv
-      have hSv : w.take (n a) = S (a, w.drop (n a)) := by
-        simpa [ppadToPppMap, hu, hv] using hcoll
-      exact endOfLineRel_of_hasIn_of_hasOut_eq_false hu_len (hSv ▸ hasIn_of_hasOut hv) hu
-    · simp only [Bool.not_eq_false] at hu
-      simp only [hu, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
-      have hv : hasOut n P S a (w.drop (n a)) = false := by
-        by_contra hv'
-        simp only [Bool.not_eq_false] at hv'
-        have hSuv : S (a, w.take (n a)) = S (a, w.drop (n a)) := by
-          simpa [ppadToPppMap, hu, hv'] using hcoll
-        simp only [hasOut, decide_eq_true_eq] at hu hv'
-        exact hne (by rw [← hu.1, hSuv, hv'.1])
-      have hSu : S (a, w.take (n a)) = w.drop (n a) := by
-        simpa [ppadToPppMap, hu, hv] using hcoll
-      exact endOfLineRel_of_hasIn_of_hasOut_eq_false hv_len (hSu ▸ hasIn_of_hasOut hu) hv
+  · cases hu : hasOut n P S a (w.take (n a))
+    · have huz : w.take (n a) = zeroVertex (n a) := by simpa [ppadToPppMap, hu] using hz
+      simpa [huz] using endOfLineRel_zeroVertex_of_hasOut_eq_false (huz ▸ hu)
+    · simp only [ppadToPppMap, hu, ↓reduceIte] at hz
+      exact absurd hz (of_decide_eq_true hu).2.2
+  · cases hu : hasOut n P S a (w.take (n a)) <;> cases hv : hasOut n P S a (w.drop (n a))
+    · simp only [ppadToPppMap, hu, hv, Bool.false_eq_true, ↓reduceIte] at hcoll
+      exact absurd hcoll hne
+    · simp only [ppadToPppMap, hu, hv, Bool.false_eq_true, ↓reduceIte] at hcoll
+      simpa using endOfLineRel_of_hasIn_of_hasOut_eq_false hu_len (hcoll ▸ hasIn_of_hasOut hv) hu
+    · simp only [ppadToPppMap, hu, hv, Bool.false_eq_true, ↓reduceIte] at hcoll
+      simpa using endOfLineRel_of_hasIn_of_hasOut_eq_false hv_len (hcoll ▸ hasIn_of_hasOut hu) hv
+    · simp only [ppadToPppMap, hu, hv, ↓reduceIte] at hcoll
+      exact absurd ((of_decide_eq_true hu).1.symm.trans
+        ((congrArg (fun x => P (a, x)) hcoll).trans (of_decide_eq_true hv).1)) hne
 
 /-- **Directed end-of-line principle**: if `S (a, ·)` preserves length `n a`, some vertex of length
 `n a` satisfies `endOfLineRel`. -/
@@ -338,34 +309,22 @@ private theorem sum_undirectedEdge_eq {n : α → ℕ} {N₁ N₂ : α × List B
         (undirectedEdge N₁ N₂ a u.1 (N₂ (a, u.1)) && decide (N₂ (a, u.1) ≠ N₁ (a, u.1))).toNat := by
   let v₁ : Vertex (n a) := ⟨N₁ (a, u.1), hN₁ u.1 u.2⟩
   let v₂ : Vertex (n a) := ⟨N₂ (a, u.1), hN₂ u.1 u.2⟩
+  have hzero {v : Vertex (n a)} (h₁ : v.1 ≠ N₁ (a, u.1)) (h₂ : v.1 ≠ N₂ (a, u.1)) :
+      (undirectedEdge N₁ N₂ a u.1 v.1).toNat = 0 := by
+    cases he : undirectedEdge N₁ N₂ a u.1 v.1
+    · rfl
+    · exact (eq_or_eq_of_undirectedEdge he).elim (False.elim ∘ h₁) (False.elim ∘ h₂)
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ v₁)]
   by_cases h12 : v₂ = v₁
   · have h12_val : N₂ (a, u.1) = N₁ (a, u.1) := congrArg Subtype.val h12
-    have hzero : ∑ v ∈ Finset.univ.erase v₁, (undirectedEdge N₁ N₂ a u.1 v.1).toNat = 0 := by
-      refine Finset.sum_eq_zero fun v hv => ?_
-      have hne : v.1 ≠ N₁ (a, u.1) := fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext h)
-      cases he : undirectedEdge N₁ N₂ a u.1 v.1
-      · rfl
-      · rcases eq_or_eq_of_undirectedEdge he with h | h
-        · exact (hne h).elim
-        · exact (hne (h.trans h12_val)).elim
-    simp [hzero, h12_val, v₁]
-  · have hv₂_mem : v₂ ∈ Finset.univ.erase v₁ :=
-      Finset.mem_erase.2 ⟨h12, Finset.mem_univ v₂⟩
-    rw [← Finset.add_sum_erase _ _ hv₂_mem]
-    have hzero : ∑ v ∈ (Finset.univ.erase v₁).erase v₂,
-        (undirectedEdge N₁ N₂ a u.1 v.1).toNat = 0 := by
-      refine Finset.sum_eq_zero fun v hv => ?_
-      have hne₂ : v.1 ≠ N₂ (a, u.1) := fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext h)
-      have hne₁ : v.1 ≠ N₁ (a, u.1) :=
-        fun h => (Finset.mem_erase.1 (Finset.mem_erase.1 hv).2).1 (Subtype.ext h)
-      cases he : undirectedEdge N₁ N₂ a u.1 v.1
-      · rfl
-      · rcases eq_or_eq_of_undirectedEdge he with h | h
-        · exact (hne₁ h).elim
-        · exact (hne₂ h).elim
-    have h12_val : N₂ (a, u.1) ≠ N₁ (a, u.1) := fun h => h12 (Subtype.ext h)
-    simp [hzero, h12_val, v₁, v₂]
+    rw [Finset.sum_eq_zero fun v hv => hzero (fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext h))
+      fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext (h.trans h12_val))]
+    simp [h12_val, v₁]
+  · rw [← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨h12, Finset.mem_univ v₂⟩),
+      Finset.sum_eq_zero fun v hv => hzero
+        (fun h => (Finset.mem_erase.1 (Finset.mem_erase.1 hv).2).1 (Subtype.ext h))
+        fun h => (Finset.mem_erase.1 hv).1 (Subtype.ext h)]
+    simp [show N₂ (a, u.1) ≠ N₁ (a, u.1) from fun h => h12 (Subtype.ext h), v₁, v₂]
 
 /-- The double sum of undirected edges over all ordered pairs is even. -/
 private theorem even_sum_undirectedEdge (n : α → ℕ) (N₁ N₂ : α × List Bool → List Bool) (a : α) :
@@ -375,21 +334,14 @@ private theorem even_sum_undirectedEdge (n : α → ℕ) (N₁ N₂ : α × List
   have hpt (u v : Vertex (n a)) :
       (undirectedEdge N₁ N₂ a u.1 v.1).toNat = g u v + g v u := by
     by_cases huv : u = v
-    · subst huv
-      simp [g]
-    · have hbv : binaryValue u.1 ≠ binaryValue v.1 := fun h =>
-        huv (Subtype.ext (binaryValue_injective_of_length_eq (u.2.trans v.2.symm) h))
-      have hcomm := undirectedEdge_comm N₁ N₂ a u.1 v.1
-      rcases lt_or_gt_of_ne hbv with hlt | hgt
-      · have hnot : ¬binaryValue v.1 < binaryValue u.1 := Nat.not_lt.2 hlt.le
-        simp [g, hlt, hnot]
-      · have hnot : ¬binaryValue u.1 < binaryValue v.1 := Nat.not_lt.2 hgt.le
-        simp [g, hgt, hnot, hcomm]
-  have hsum : (∑ u : Vertex (n a), ∑ v : Vertex (n a), (undirectedEdge N₁ N₂ a u.1 v.1).toNat) =
-      2 * ∑ u : Vertex (n a), ∑ v : Vertex (n a), g u v := by
-    simp_rw [hpt, Finset.sum_add_distrib]
-    rw [Finset.sum_comm (f := fun u v => g v u), Nat.two_mul]
-  rw [hsum, Nat.mul_mod_right]
+    · subst huv; simp [g]
+    · rcases lt_or_gt_of_ne (fun h =>
+          huv (Subtype.ext (binaryValue_injective_of_length_eq (u.2.trans v.2.symm) h))) with
+        hlt | hgt
+      · simp [g, hlt, Nat.not_lt.2 hlt.le]
+      · simp [g, hgt, Nat.not_lt.2 hgt.le, undirectedEdge_comm N₁ N₂ a u.1 v.1]
+  simp_rw [hpt, Finset.sum_add_distrib]
+  rw [Finset.sum_comm (f := fun u v => g v u), ← Nat.two_mul, Nat.mul_mod_right]
 
 private theorem bne_eq_true_iff_add_mod_two (b₁ b₂ : Bool) :
     (b₁ != b₂) = true ↔ (b₁.toNat + b₂.toNat) % 2 = 1 := by
@@ -504,15 +456,11 @@ private theorem ppadToPpaN₁_invol (n : α → ℕ) (P S : α × List Bool → 
   cases b
   · rw [ppadToPpaN₁_false_cons]
     split_ifs with hout
-    · have hin := hasIn_of_hasOut hout
-      simp only [hasOut, decide_eq_true_eq] at hout
-      simp [hin, hout.1]
+    · simp [hasIn_of_hasOut hout, (of_decide_eq_true hout).1]
     · simp [hout]
   · rw [ppadToPpaN₁_true_cons]
     split_ifs with hin
-    · have hout := hasOut_of_hasIn hin
-      simp only [hasIn, decide_eq_true_eq] at hin
-      simp [hout, hin.1]
+    · simp [hasOut_of_hasIn hin, (of_decide_eq_true hin).1]
     · simp [hin]
 
 private theorem ppadToPpaN₂_invol (n : α → ℕ) (P S : α × List Bool → List Bool) (a : α)
@@ -554,15 +502,11 @@ private theorem ppadToPpaN₂_ne_ppadToPpaN₁ (n : α → ℕ) (P S : α × Lis
   cases b
   · rw [ppadToPpaN₁_false_cons]
     split_ifs with hout
-    · simp only [hasOut, decide_eq_true_eq] at hout
-      intro h
-      exact hout.2.1 (List.cons.inj h).2.symm
+    · exact fun h => (of_decide_eq_true hout).2.1 (List.cons.inj h).2.symm
     · simp
   · rw [ppadToPpaN₁_true_cons]
     split_ifs with hin
-    · simp only [hasIn, decide_eq_true_eq] at hin
-      intro h
-      exact hin.2.1 (List.cons.inj h).2.symm
+    · exact fun h => (of_decide_eq_true hin).2.1 (List.cons.inj h).2.symm
     · simp
 
 /-- Any solution `w` of `leafRel` for `(ppadToPpaN₁ n P S, ppadToPpaN₂ n P S)` has `w.tail` as a
@@ -574,28 +518,23 @@ theorem endOfLineRel_tail_of_leafRel {n : α → ℕ} {P S : α × List Bool →
   obtain ⟨hwlen, hleaf⟩ := h
   rcases w with _ | ⟨b, u⟩
   · simp at hwlen
-  have hu_len : u.length = n a := by simpa using hwlen
-  have he₁ :=
-    undirectedEdge_left_of_invol (N₂ := ppadToPpaN₂ n P S) (ppadToPpaN₁_invol n P S a b u)
-  have he₂ :=
-    undirectedEdge_right_of_invol (N₁ := ppadToPpaN₁ n P S) (ppadToPpaN₂_invol n P S a b u)
   have hodd : hasOddDegree (ppadToPpaN₁ n P S) (ppadToPpaN₂ n P S) a (b :: u) =
       ((if b then hasIn n P S a u else hasOut n P S a u) != isActiveNonZero n P S a u) := by
-    rw [hasOddDegree, he₁, he₂, decide_ne_ppadToPpaN₁, decide_ne_ppadToPpaN₂]
-    by_cases hc : isActiveNonZero n P S a u = true
+    rw [hasOddDegree,
+      undirectedEdge_left_of_invol (N₂ := ppadToPpaN₂ n P S) (ppadToPpaN₁_invol n P S a b u),
+      undirectedEdge_right_of_invol (N₁ := ppadToPpaN₁ n P S) (ppadToPpaN₂_invol n P S a b u),
+      decide_ne_ppadToPpaN₁, decide_ne_ppadToPpaN₂]
+    cases hc : isActiveNonZero n P S a u
+    · simp
     · have hne := ppadToPpaN₂_ne_ppadToPpaN₁ n P S a b hc
       rw [ppadToPpaN₂_cons, ite_eq_left hc] at hne
       simp [hc, hne]
-    · simp only [Bool.not_eq_true] at hc
-      simp [hc]
-  rw [hodd] at hleaf
-  have hz_succ : zeroVertex (n a + 1) = false :: zeroVertex (n a) := rfl
-  rw [hz_succ] at hleaf
-  refine ⟨hu_len, ?_⟩
+  rw [hodd, show zeroVertex (n a + 1) = false :: zeroVertex (n a) from rfl] at hleaf
+  refine ⟨by simpa using hwlen, ?_⟩
   unfold isActiveNonZero at hleaf
   by_cases hu : u = zeroVertex (n a)
   · subst hu
-    have hin : hasIn n P S a (zeroVertex (n a)) = false := hasIn_zeroVertex n P S a
+    have hin := hasIn_zeroVertex n P S a
     cases b <;> cases hout : hasOut n P S a (zeroVertex (n a)) <;> simp_all
   · cases b <;> cases hout : hasOut n P S a u <;> cases hin : hasIn n P S a u <;> simp_all
 

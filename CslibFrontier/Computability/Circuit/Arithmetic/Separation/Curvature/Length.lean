@@ -134,6 +134,7 @@ theorem crossingLength_homogenization (hN : CrossingLength N) :
       rw [smul_add, ← add_div]
       exact div_le_div_of_nonneg_right (hN.add _ _) (Nat.cast_nonneg _),
     fun X V Y U n n' k k' τ hτ => ?_⟩
+  -- (Q) for `N(S • ·)/S` is (Q) for `N` at the points `S • ·`, divided by `S²`
   have hl := (((hT (X - V)).pow 2).add ((hT (Y - U)).pow 2)).const_mul 2
   have hr := (((((hT (X - V)).mul ((((hT (X - n)).add (hT (V - n'))).add (hT (X - k))).add
     (hT (V - k')))).add ((hT (Y - U)).mul ((((hT (Y - n)).add (hT (U - n'))).add
@@ -202,8 +203,12 @@ theorem bounded (u v : ℤ × ℤ) : (translateDist W u v).Bounded := by
 theorem rms_translateDist (u v : ℤ × ℤ) : (translateDist W u v).rms = meanLength W (u - v) := by
   have h1 : translateDist W u v =
       fun n b i k => translateDist W 0 (u - v) n b (i + v.1) (k + v.2) := by
-    funext n b i k; rw [translateDist, H.symm, translateDist, add_zero]; congr 1; ext <;> simp
-  rw [h1, rms_shift (H.bounded _ _)]; rfl
+    funext n b i k
+    rw [translateDist, H.symm, translateDist, add_zero]
+    congr 1
+    ext <;> simp
+  rw [h1, rms_shift (H.bounded _ _)]
+  rfl
 
 theorem rms_translateDist' (u v : ℤ × ℤ) :
     (translateDist W u v).rms = meanLength W (v - u) := by
@@ -214,12 +219,14 @@ theorem rms_translateDist' (u v : ℤ × ℤ) :
 
 theorem meanLength_zero : meanLength W 0 = 0 := by
   have : translateDist W 0 0 * translateDist W 0 0 = fun _ _ _ _ => (0 : ℝ) := by
-    funext n b i k; simp [translateDist, H.self]
+    funext n b i k
+    simp [translateDist, H.self]
   rw [meanLength, rms, this, mean_const, Real.sqrt_zero]
 
 /-- By translation invariance the root mean square is even. -/
 theorem meanLength_neg (h : ℤ × ℤ) : meanLength W (-h) = meanLength W h := by
-  rw [← zero_sub, ← H.rms_translateDist 0 h]; rfl
+  rw [← zero_sub, ← H.rms_translateDist 0 h]
+  rfl
 
 /-- By translation invariance and Minkowski's inequality the root mean square is subadditive. -/
 theorem meanLength_add (h h' : ℤ × ℤ) :
@@ -264,7 +271,8 @@ theorem meanLength_crossing (X V Y U m m' k k' : ℤ × ℤ) (τ : ℝ) (hτ : 0
     one_div, inv_mul_eq_div] at key
   · have cs : ∀ a b c e : ℤ × ℤ,
         mean (d a b * d c e) ≤ meanLength W (a - b) * meanLength W (c - e) := fun _ _ _ _ => by
-      rw [← H.rms_translateDist, ← H.rms_translateDist]; exact mean_mul_le (hb _ _) (hb _ _)
+      rw [← H.rms_translateDist, ← H.rms_translateDist]
+      exact mean_mul_le (hb _ _) (hb _ _)
     linarith [cs X V X m, cs X V V m', cs X V X k, cs X V V k',
       cs Y U Y m, cs Y U U m', cs Y U U k, cs Y U Y k']
   all_goals repeat' first | exact hbm _ _ _ _ | apply Bounded.smul | apply Bounded.add

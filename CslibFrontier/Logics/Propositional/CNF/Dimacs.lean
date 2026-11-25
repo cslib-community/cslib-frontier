@@ -290,8 +290,10 @@ theorem litChars_ne_nil (l : Literal ℕ) : litChars l ≠ [] := Int.toDecimal_n
 /-- The words of a clause line. -/
 theorem words_clause (cl : Clause ℕ) :
     words (cl.flatMap (litChars · ++ [' ']) ++ ['0']) [] = cl.map litChars ++ [['0']] := by
-  rw [show cl.flatMap (litChars · ++ [' ']) = (cl.map litChars).flatMap (· ++ [' ']) by
-    simp [List.flatMap_map], words_flatMap_space]
+  have hflat : cl.flatMap (litChars · ++ [' ']) =
+      (cl.map litChars).flatMap (· ++ [' ']) := by
+    simp [List.flatMap_map]
+  rw [hflat, words_flatMap_space]
   · rfl
   · intro _ hw
     obtain ⟨l, -, rfl⟩ := List.mem_map.1 hw
@@ -310,8 +312,9 @@ theorem exists_words_clause_eq_cons (cl : Clause ℕ) :
 /-- Splitting at the first newline. -/
 theorem splitOn_newline {a : List Char} (b : List Char) (h : ∀ c ∈ a, c ≠ '\n') :
     (a ++ '\n' :: b).splitOn '\n' = a :: b.splitOn '\n' := by
-  rw [List.splitOn_eq_splitOnP, List.splitOnP_append_cons_of_forall_mem
-    (fun x hx => beq_eq_false_iff_ne.2 (h x hx)) _ (by decide)]
+  rw [List.splitOn_eq_splitOnP,
+    List.splitOnP_append_cons_of_forall_mem (fun x hx => beq_eq_false_iff_ne.2 (h x hx)) _
+      (by decide)]
   exact congrArg _ List.splitOn_eq_splitOnP.symm
 
 /-- A clause line has no newline before its end. -/
@@ -332,13 +335,15 @@ theorem readLines_clauses {V C : ℕ} (φ : CNF ℕ) (hφ : ∀ v ∈ CNF.vars �
     have hcl : ∀ l ∈ cl, l.1 < V := fun l hl =>
       hφ l.1 (List.mem_map.2 ⟨l, List.mem_flatten.2 ⟨cl, List.mem_cons_self, hl⟩, rfl⟩)
     have hφ' : ∀ v ∈ CNF.vars φ, v < V := fun v hv => hφ v (by
-      simp only [CNF.vars, List.flatten_cons, List.map_append, List.mem_append]; exact .inr hv)
+      simp only [CNF.vars, List.flatten_cons, List.map_append, List.mem_append]
+      exact .inr hv)
     obtain ⟨tok, toks, htoks, hhead⟩ := exists_words_clause_eq_cons cl
     have hc : ∀ c, c.isDigit = false → c ≠ '-' → tok.head? ≠ some c := fun c _ _ h => by
       rcases hhead c h with rfl | _ <;> simp_all
-    rw [List.flatMap_cons, show clauseChars cl ++ φ.flatMap clauseChars =
-      (cl.flatMap (litChars · ++ [' ']) ++ ['0']) ++ '\n' :: φ.flatMap clauseChars by
-        simp [clauseChars], splitOn_newline _ fun _ hc => ne_newline_of_mem_clause hc,
+    have hsplit : clauseChars cl ++ φ.flatMap clauseChars =
+        (cl.flatMap (litChars · ++ [' ']) ++ ['0']) ++ '\n' :: φ.flatMap clauseChars := by
+      simp [clauseChars]
+    rw [List.flatMap_cons, hsplit, splitOn_newline _ fun _ hc => ne_newline_of_mem_clause hc,
       List.map_cons, readLines, String.toList_ofList, words_clause, htoks]
     simp only [hc 'c' (by decide) (by decide), hc '%' (by decide) (by decide),
       hc 'p' (by decide) (by decide), ↓reduceIte, ← htoks, readLits_clause hcl,

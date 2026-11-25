@@ -304,44 +304,6 @@ private theorem window_valid {l base t : ℕ} {mem mem' : ℕ → ℕ} {c w off 
     refine or_congr Iff.rfl (exists_congr fun j => and_congr_right fun hj => ?_)
     rw [hcid j hj, hset j hj]
 
-/-- Disjoint-node framing: if `mem'` agrees with `mem` on every node in
-`readNodeSet l base t mem u`, then `ValidNode`, `readTree`, and `readNodeSet` are preserved. -/
-theorem ValidNode.congr_mem {l base t : ℕ} {mem mem' : ℕ → ℕ} {u : ℕ}
-    (ht : 1 ≤ t) (hv : ValidNode l base t mem u)
-    (hmem : ∀ v ∈ readNodeSet l base t mem u, ∀ o < nodeStride t,
-      mem' (nodeAddr base t v + o) = mem (nodeAddr base t v + o)) :
-    ValidNode l base t mem' u ∧
-      readTree l base t mem' u = readTree l base t mem u ∧
-      readNodeSet l base t mem' u = readNodeSet l base t mem u := by
-  induction l generalizing u <;>
-    obtain ⟨hlf', hm', hf⟩ := fields_eq_of_cells ht (hmem u (self_mem_readNodeSet _ base t mem u))
-  all_goals have hm₂ := hv.numKeys_le
-  case zero =>
-    refine ⟨⟨hlf'.trans hv.1, hm' ▸ hv.2.1, hm' ▸ hv.2.2⟩, ?_, rfl⟩
-    simp only [readTree]
-    congr 1
-    refine List.ext_getElem (by simp only [List.length_ofFn, hm']) fun i h₁ _ => ?_
-    simp only [List.length_ofFn, hm'] at h₁
-    simp only [List.getElem_ofFn, (hf i (by omega)).1, (hf i (by omega)).2.1]
-  case succ l ih =>
-    have hcid : ∀ j < numKeys base t mem u + 1, childAt base t mem' u j = childAt base t mem u j :=
-      fun j hj => (hf j (by omega)).2.2
-    have hfr := fun j (hj : j < numKeys base t mem u + 1) v hv' =>
-      hmem v (child_subset_readNodeSet l base t mem u j hj hv')
-    have hsub := fun j (hj : j < numKeys base t mem u + 1) => ih (hv.child_valid hj) (hfr j hj)
-    obtain ⟨hv', hset⟩ := window_valid (off := 0) hv (hlf'.trans hv.1) hm' hv.numKeys_pos hm₂ le_rfl
-      hcid (fun j hj => (hsub j hj).1) (fun j hj => (hsub j hj).2.2)
-      (fun j hj => (fields_eq_of_cells ht (hfr j hj _ (self_mem_readNodeSet ..))).2.1)
-      fun j hj => hv.not_mem_child_readNodeSet hj
-    refine ⟨hv', ?_, Finset.ext fun x => (hset x).trans mem_readNodeSet_succ.symm⟩
-    simp only [readTree]
-    rw [hcid 0 (by omega), (hsub 0 (by omega)).2.1]
-    congr 1
-    refine List.ext_getElem (by simp only [List.length_ofFn, hm']) fun i h₁ _ => ?_
-    simp only [List.length_ofFn, hm'] at h₁
-    simp only [List.getElem_ofFn, (hf i (by omega)).1, (hf i (by omega)).2.1,
-      hcid (i + 1) (by omega), (hsub (i + 1) (by omega)).2.1]
-
 /-- Every valid node decodes to a balanced `BTree` of exact height `l + 1`. -/
 theorem ValidNode.balanced_and_height {l base t : ℕ} {mem : ℕ → ℕ} {u : ℕ}
     (hv : ValidNode l base t mem u) :
@@ -499,26 +461,77 @@ private theorem window_sorted {l base t : ℕ} {mem mem' : ℕ → ℕ} {c w off
   · rw [hcid (i + 1) (by omega), htr (i + 1) (by omega), Nat.add_right_comm i 1 off] at hp
     rw [hkey i hi]; exact hright _ (by omega) p hp
 
+/-- Agreement on the cells of a subtree transports all of its decoding facts in one induction. -/
+private theorem frame_subtree {l base t : ℕ} {mem mem' : ℕ → ℕ} {u : ℕ}
+    (ht : 1 ≤ t) (hv : ValidNode l base t mem u)
+    (hmem : ∀ v ∈ readNodeSet l base t mem u, ∀ o < nodeStride t,
+      mem' (nodeAddr base t v + o) = mem (nodeAddr base t v + o)) :
+    ValidNode l base t mem' u ∧
+      readTree l base t mem' u = readTree l base t mem u ∧
+      readNodeSet l base t mem' u = readNodeSet l base t mem u ∧
+      (SortedNode l base t mem u → SortedNode l base t mem' u) ∧
+      numKeys base t mem' u = numKeys base t mem u := by
+  induction l generalizing u <;>
+    obtain ⟨hflag, hcount, hfields⟩ := fields_eq_of_cells ht (hmem u (self_mem_readNodeSet ..))
+  all_goals
+    have hmax := hv.numKeys_le
+    have hroom : numKeys base t mem u + 1 ≤ 2 * t := by lia
+  case zero =>
+    refine ⟨⟨hflag.trans hv.1, hcount ▸ hv.2.1, hcount ▸ hv.2.2⟩, ?_, rfl, ?_, hcount⟩
+    · simp only [readTree]
+      congr 1
+      rw [List.ofFn_congr hcount, List.ofFn_inj]
+      funext ⟨i, hi⟩
+      obtain ⟨key, value, -⟩ := hfields i (hi.trans (Nat.lt_of_succ_le hroom))
+      simp only [Fin.val_cast, key, value]
+    · intro hs i j hij hj
+      rw [hcount] at hj
+      have hj' := hj.trans (Nat.lt_of_succ_le hroom)
+      rw [(hfields i (hij.trans hj')).1, (hfields j hj').1]
+      exact hs i j hij hj
+  case succ l ih =>
+    have hchild j (hj : j < numKeys base t mem u + 1) :
+        childAt base t mem' u j = childAt base t mem u j := (hfields j (hj.trans_le hroom)).2.2
+    have hframe j (hj : j < numKeys base t mem u + 1) :=
+      ih (hv.child_valid hj)
+        (fun v hv' => hmem v (child_subset_readNodeSet l base t mem u j hj hv'))
+    obtain ⟨hv', hset⟩ := window_valid (off := 0) hv (hflag.trans hv.1) hcount hv.numKeys_pos
+      hmax le_rfl hchild (fun j hj => (hframe j hj).1)
+      (fun j hj => (hframe j hj).2.2.1) (fun j hj => (hframe j hj).2.2.2.2)
+      (fun j hj => hv.not_mem_child_readNodeSet hj)
+    refine ⟨hv', ?_, Finset.ext fun x => (hset x).trans mem_readNodeSet_succ.symm, ?_, hcount⟩
+    · simp only [readTree]
+      rw [hchild 0 (Nat.zero_lt_succ _), (hframe 0 (Nat.zero_lt_succ _)).2.1]
+      congr 1
+      rw [List.ofFn_congr hcount, List.ofFn_inj]
+      funext ⟨i, hi⟩
+      obtain ⟨key, value, -⟩ := hfields i (hi.trans (Nat.lt_of_succ_le hroom))
+      have hi' : i + 1 < numKeys base t mem u + 1 := Nat.succ_lt_succ hi
+      simp only [Fin.val_cast, key, value, hchild _ hi', (hframe _ hi').2.1]
+    · intro hs
+      exact window_sorted (off := 0) hs hcount le_rfl
+        (fun i hi => (hfields i (hi.trans (Nat.lt_of_succ_le hroom))).1)
+        hchild (fun j hj => (hframe j hj).2.2.2.1 (hs.child_sorted hj))
+        (fun j hj => (hframe j hj).2.1)
+
+/-- Disjoint-node framing: if `mem'` agrees with `mem` on every node in
+`readNodeSet l base t mem u`, then `ValidNode`, `readTree`, and `readNodeSet` are preserved. -/
+theorem ValidNode.congr_mem {l base t : ℕ} {mem mem' : ℕ → ℕ} {u : ℕ}
+    (ht : 1 ≤ t) (hv : ValidNode l base t mem u)
+    (hmem : ∀ v ∈ readNodeSet l base t mem u, ∀ o < nodeStride t,
+      mem' (nodeAddr base t v + o) = mem (nodeAddr base t v + o)) :
+    ValidNode l base t mem' u ∧
+      readTree l base t mem' u = readTree l base t mem u ∧
+      readNodeSet l base t mem' u = readNodeSet l base t mem u := by
+  obtain ⟨valid, tree, nodes, -, -⟩ := frame_subtree ht hv hmem
+  exact ⟨valid, tree, nodes⟩
+
 theorem SortedNode.congr_mem {l base t : ℕ} {mem mem' : ℕ → ℕ} {u : ℕ}
     (ht : 1 ≤ t) (hv : ValidNode l base t mem u) (hs : SortedNode l base t mem u)
     (hmem : ∀ v ∈ readNodeSet l base t mem u, ∀ o < nodeStride t,
       mem' (nodeAddr base t v + o) = mem (nodeAddr base t v + o)) :
-    SortedNode l base t mem' u := by
-  induction l generalizing u <;>
-    obtain ⟨-, hm, hf⟩ := fields_eq_of_cells ht (hmem u (self_mem_readNodeSet _ base t mem u))
-  all_goals have hm_le := hv.numKeys_le
-  case zero =>
-    intro i₁ i₂ h12 h2
-    rw [hm] at h2
-    rw [(hf i₁ (by omega)).1, (hf i₂ (by omega)).1]
-    exact hs i₁ i₂ h12 h2
-  case succ l ih =>
-    have hfr := fun j (hj : j < numKeys base t mem u + 1) v hv' =>
-      hmem v (child_subset_readNodeSet l base t mem u j hj hv')
-    exact window_sorted (off := 0) hs hm le_rfl (fun i hi => (hf i (by omega)).1)
-      (fun j hj => (hf j (by omega)).2.2)
-      (fun j hj => ih (hv.child_valid hj) (hs.child_sorted hj) (hfr j hj))
-      fun j hj => ((hv.child_valid hj).congr_mem ht (hfr j hj)).2.1
+    SortedNode l base t mem' u :=
+  (frame_subtree ht hv hmem).2.2.2.1 hs
 
 /-- Framing for a whole subtree: if `mem'` agrees with `mem` on every node of `c`'s subtree, then
 validity, decoding, node set, order and key count of `c` are preserved. -/
@@ -528,9 +541,9 @@ private theorem congr_all {l base t : ℕ} {mem mem' : ℕ → ℕ} {c : ℕ} (h
       mem' (nodeAddr base t v + o) = mem (nodeAddr base t v + o)) :
     ValidNode l base t mem' c ∧ readTree l base t mem' c = readTree l base t mem c ∧
       readNodeSet l base t mem' c = readNodeSet l base t mem c ∧ SortedNode l base t mem' c ∧
-      numKeys base t mem' c = numKeys base t mem c :=
-  ⟨(hv.congr_mem ht hmem).1, (hv.congr_mem ht hmem).2.1, (hv.congr_mem ht hmem).2.2,
-    hs.congr_mem ht hv hmem, (fields_eq_of_cells ht (hmem c (self_mem_readNodeSet ..))).2.1⟩
+      numKeys base t mem' c = numKeys base t mem c := by
+  obtain ⟨valid, tree, nodes, sorted, count⟩ := frame_subtree ht hv hmem
+  exact ⟨valid, tree, nodes, sorted hs, count⟩
 
 theorem SortedNode.child_lt_key {l base t : ℕ} {mem : ℕ → ℕ} {u j i : ℕ}
     (hs : SortedNode (l + 1) base t mem u) (hji : j ≤ i) (hi : i < numKeys base t mem u)
@@ -567,18 +580,8 @@ private theorem toListRest_ofFn_succ {n : ℕ} (f : ℕ → BTree.Triple ℕ ℕ
     BTree.toListRest (List.ofFn fun i : Fin (n + 1) => f i.val) =
       BTree.toListRest (List.ofFn fun i : Fin n => f i.val) ++
         ((f n).1, (f n).val) :: (f n).child.toList := by
-  have hsnoc : (List.ofFn fun i : Fin (n + 1) => f i.val) =
-      (List.ofFn fun i : Fin n => f i.val) ++ [f n] := by
-    apply List.ext_getElem
-    · simp
-    · intro i h₁ h₂
-      simp only [List.getElem_ofFn]
-      rcases lt_or_eq_of_le (Nat.le_of_lt_succ (by simpa using h₁)) with hlt | rfl
-      · rw [List.getElem_append_left (by simpa using hlt)]
-        simp
-      · rw [List.getElem_append_right (by simp)]
-        simp
-  rw [hsnoc, BTree.toListRest_append]
+  rw [List.ofFn_succ_last, BTree.toListRest_append]
+  simp only [Fin.val_last, Fin.val_castSucc]
   obtain ⟨k, v, c⟩ := f n
   simp only [BTree.toListRest, List.append_nil]
 
@@ -852,6 +855,27 @@ theorem memOverwriteVal_spec {l base t u slot k v : ℕ} {mem : ℕ → ℕ}
   have hval_ne : ∀ i < numKeys base t mem u, i ≠ slot →
       valAt base t mem' u i = valAt base t mem u i := fun i _ hne =>
     Function.update_of_ne (by omega) _ _
+  have entries_iff (p : ℕ × ℕ) :
+      (∃ i < numKeys base t mem u, p = (keyAt base t mem' u i, valAt base t mem' u i)) ↔
+        p = (k, v) ∨
+          (∃ i < numKeys base t mem u, p = (keyAt base t mem u i, valAt base t mem u i)) ∧
+            p.1 ≠ k := by
+    constructor
+    · rintro ⟨i, hi, rfl⟩
+      rw [hkey' i hi]
+      by_cases his : i = slot
+      · subst i
+        rw [hk_eq, hval_self]
+        exact Or.inl rfl
+      · rw [hval_ne i hi his]
+        refine Or.inr ⟨⟨i, hi, rfl⟩, ?_⟩
+        rcases lt_or_gt_of_ne his with hlt | hgt
+        · exact (hk_eq ▸ hs_u.keys_strict hlt hslot).ne
+        · exact (hk_eq ▸ hs_u.keys_strict hgt hi).ne'
+    · rintro (rfl | ⟨⟨i, hi, rfl⟩, hne⟩)
+      · exact ⟨slot, hslot, by rw [hkey' slot hslot, hk_eq, hval_self]⟩
+      · have his : i ≠ slot := fun heq => hne (heq ▸ hk_eq)
+        exact ⟨i, hi, by rw [hkey' i hi, hval_ne i hi his]⟩
   cases l with
   | zero =>
     have hv' : ValidNode 0 base t mem' u := ⟨hlf'.trans hv_u.1, hnk' ▸ hv_u.2.1, hnk' ▸ hv_u.2.2⟩
@@ -866,24 +890,8 @@ theorem memOverwriteVal_spec {l base t u slot k v : ℕ} {mem : ℕ → ℕ}
     intro p
     rw [Cslib.SortedAssoc.mem_insert_iff hsort_old, mem_toList_readTree_zero,
       mem_toList_readTree_zero, hnk']
-    constructor
-    · rintro ⟨i, hi, rfl⟩
-      rw [hkey' i hi]
-      by_cases his : i = slot
-      · subst his
-        rw [hk_eq, hval_self]
-        exact Or.inl rfl
-      · rw [hval_ne i hi his]
-        refine Or.inr ⟨⟨i, hi, rfl⟩, ?_⟩
-        rcases lt_or_gt_of_ne his with hlt | hgt
-        · exact (hk_eq ▸ hs_u i slot hlt hslot).ne
-        · exact (hk_eq ▸ hs_u slot i hgt hi).ne'
-    · rintro (rfl | ⟨⟨i, hi, rfl⟩, hne⟩)
-      · exact ⟨slot, hslot, by rw [hkey' slot hslot, hk_eq, hval_self]⟩
-      · have his : i ≠ slot := fun heq => hne (heq ▸ hk_eq)
-        exact ⟨i, hi, by rw [hkey' i hi, hval_ne i hi his]⟩
+    exact entries_iff p
   | succ l =>
-    have hkeys := hs_u.1
     have hcid' : ∀ j < numKeys base t mem u + 1, childAt base t mem' u j = childAt base t mem u j :=
       fun j hj => Function.update_of_ne (by omega) _ _
     have hchild_congr := fun j (hj : j < numKeys base t mem u + 1) =>
@@ -904,27 +912,18 @@ theorem memOverwriteVal_spec {l base t u slot k v : ℕ} {mem : ℕ → ℕ}
     intro p
     rw [Cslib.SortedAssoc.mem_insert_iff hsort_old, mem_toList_readTree_succ,
       mem_toList_readTree_succ, hnk']
+    rw [entries_iff]
     constructor
-    · rintro (⟨i, hi, rfl⟩ | ⟨j, hj, hpj⟩)
-      · rw [hkey' i hi]
-        by_cases his : i = slot
-        · subst his
-          rw [hk_eq, hval_self]
-          exact Or.inl rfl
-        · rw [hval_ne i hi his]
-          refine Or.inr ⟨Or.inl ⟨i, hi, rfl⟩, ?_⟩
-          rcases lt_or_gt_of_ne his with hlt | hgt
-          · exact (hk_eq ▸ hkeys i slot hlt hslot).ne
-          · exact (hk_eq ▸ hkeys slot i hgt hi).ne'
+    · rintro (hroot | ⟨j, hj, hpj⟩)
+      · exact hroot.imp_right fun ⟨hp, hne⟩ => ⟨Or.inl hp, hne⟩
       · rw [hcid' j hj, (hchild_congr j hj).2.1] at hpj
         refine Or.inr ⟨Or.inr ⟨j, hj, hpj⟩, ?_⟩
         rcases le_or_gt j slot with hj_le | hj_gt
         · exact (hk_eq ▸ hs_u.child_lt_key hj_le hslot hpj).ne
-        · exact (hk_eq ▸ hs_u.key_lt_child hslot (by omega) hj hpj).ne'
-    · rintro (rfl | ⟨⟨i, hi, rfl⟩ | ⟨j, hj, hpj⟩, hne⟩)
-      · exact Or.inl ⟨slot, hslot, by rw [hkey' slot hslot, hk_eq, hval_self]⟩
-      · have his : i ≠ slot := fun heq => hne (heq ▸ hk_eq)
-        exact Or.inl ⟨i, hi, by rw [hkey' i hi, hval_ne i hi his]⟩
+        · exact (hk_eq ▸ hs_u.key_lt_child hslot hj_gt hj hpj).ne'
+    · rintro (rfl | ⟨hroot | ⟨j, hj, hpj⟩, hne⟩)
+      · exact Or.inl (Or.inl rfl)
+      · exact Or.inl (Or.inr ⟨hroot, hne⟩)
       · refine Or.inr ⟨j, hj, ?_⟩
         rwa [hcid' j hj, (hchild_congr j hj).2.1]
 
@@ -1041,26 +1040,8 @@ theorem memCopyUpper_outside {base t c z : ℕ} (ht : 2 ≤ t) (mem : ℕ → �
     (haz : a < nodeAddr base t z ∨ nodeAddr base t z + nodeStride t ≤ a) :
     memCopyUpper base t c z mem a = mem a := by
   have hst : nodeStride t = 6 * t := rfl
-  dsimp only [memCopyUpper]
-  rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-    Function.update_of_ne (by omega)]
-  have hm3 : (if mem (nodeAddr base t c) = 0 then
-      ArrayCopy.copyPrefix
-        (ArrayCopy.copyPrefix
-          (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
-          (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1))
-        (nodeAddr base t c + 4 * t + t) (nodeAddr base t z + 4 * t) t
-      else
-        ArrayCopy.copyPrefix
-          (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
-          (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1)) a =
-      ArrayCopy.copyPrefix
-        (ArrayCopy.copyPrefix mem (nodeAddr base t c + 2 + t) (nodeAddr base t z + 2) (t - 1))
-        (nodeAddr base t c + (2 * t + 1) + t) (nodeAddr base t z + (2 * t + 1)) (t - 1) a := by
-    split_ifs with h0
-    · exact ArrayCopy.copyPrefix_outside (by omega)
-    · rfl
-  rw [hm3, ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
+  simp (disch := lia) only [memCopyUpper, Function.update_of_ne, ite_apply,
+    ArrayCopy.copyPrefix_outside, ite_self]
 
 theorem memCopyUpper_spec {l base t c z : ℕ} {mem : ℕ → ℕ}
     (ht : 2 ≤ t) (hv_c : ValidNode l base t mem c) (hs_c : SortedNode l base t mem c)

@@ -116,6 +116,7 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
     have hrun (x : List Bool) : (tm.runFrom (tm.initCfg x) (t x.length)).Halted ∧
         (tm.runFrom (tm.initCfg x) (t x.length)).output = f x :=
       (htm x).runFrom_of_le le_rfl
+    -- the description of the reduction, padded with `m` zeros
     let pw (m : ℕ) : List Bool := frame (eDesc (desc eS eBit tm)) ++ List.replicate m false
     have hpw (m : ℕ) : m ≤ (pw m).length := by simp [pw]
     have hpad : ComputableInPolyTime pw encUnary encBits :=
@@ -128,6 +129,7 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
       rw [simRun, decodeDesc_unframe_frame_append]
       exact universal_desc_of_halted_map eS tm (t := fun x => t x.length) hrun
         (hM₁ _ (by have := hpw m; omega))
+    -- the reduction lengthens the padded descriptions
     have hlong (m : ℕ) (hm : M ≤ m) : (pw m).length < (f (pw m)).length := by
       by_contra! hle
       have h := hfA (pw m)
@@ -135,7 +137,8 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         ite_true, hdA _ (by have := hpw m; omega) _ hle, hg] at h
       cases hgf : g (f (pw m)) <;> simp [hgf, eBit] at h
     refine ⟨{y | ∃ m, M ≤ m ∧ f (pw m) = y}, ?_, ?_, ?_⟩
-    · have htest : ComputableInPolyTime
+    · -- a witness `m` is at most the length of `y`
+      have htest : ComputableInPolyTime
           (fun q : List Bool × ℕ => decide (M ≤ q.2) && decide (f (pw q.2) = q.1))
           (encPair encBits encUnary) encBool := by fun_prop
       have hlist : ComputableInPolyTime (fun y : List Bool => List.range (y.length + 1))
@@ -149,7 +152,8 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         exact ⟨m, by have := hpw m; have := hlong m hm; omega, hm, rfl⟩
       · rintro ⟨m, -, hm, rfl⟩
         exact ⟨m, hm, rfl⟩
-    · intro hfin
+    · -- the lengths are unbounded
+      intro hfin
       obtain ⟨B, hB⟩ := (hfin.image List.length).bddAbove
       have := hB ⟨f (pw (M + B)), ⟨M + B, by omega, rfl⟩, rfl⟩
       have := hpw (M + B)

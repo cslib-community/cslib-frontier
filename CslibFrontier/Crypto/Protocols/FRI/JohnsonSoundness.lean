@@ -1187,7 +1187,8 @@ theorem weightedLineGapBound_of_johnson_eta [DecidableEq F]
   rw [params.toSmooth_dim (Nat.zero_le _)]
   have h1R : 2 * ((2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog) : ℕ) : ℝ) ≤
       (2 ^ params.d : ℝ) := mod_cast two_mul_toSmooth_first_sub_le params
-  exact div_le_div_of_nonneg_right (by nlinarith [sq_nonneg ((2 : ℝ) ^ params.d)]) (by positivity)
+  refine div_le_div_of_nonneg_right ?_ (by positivity)
+  nlinarith [sq_nonneg ((2 : ℝ) ^ params.d)]
 
 /-- **Original explicit-constant Johnson summed commit-phase soundness of single-word `friIOP`**
 (using `friJohnsonCommitError params mJ`, bounded independently of `m`). -/

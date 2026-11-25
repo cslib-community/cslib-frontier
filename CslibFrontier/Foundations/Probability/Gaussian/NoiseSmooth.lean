@@ -190,22 +190,27 @@ private theorem integrable_exp_mul_norm_noiseDual {ρ : ℝ} (hρ : |ρ| < 1) (h
       (hcont.aestronglyMeasurable.mul hf.1).norm
   have hexp : C * ‖noiseDual ρ y‖ + ∑ i, -(c * y i ^ 2) ≤ Fintype.card ι * (B ^ 2 / (4 * c)) := by
     have h1 : C * ‖noiseDual ρ y‖ ≤ B * ∑ i, |y i| :=
-      (mul_le_mul_of_nonneg_right (le_abs_self C) (norm_nonneg _)).trans
-        (mul_assoc |C| _ _ ▸ mul_le_mul_of_nonneg_left (norm_noiseDual_le ρ y) (abs_nonneg C))
+      calc C * ‖noiseDual ρ y‖
+          ≤ |C| * ‖noiseDual ρ y‖ := mul_le_mul_of_nonneg_right (le_abs_self C) (norm_nonneg _)
+        _ ≤ B * ∑ i, |y i| := by
+            rw [mul_assoc]
+            exact mul_le_mul_of_nonneg_left (norm_noiseDual_le ρ y) (abs_nonneg C)
     have h2 (t : ℝ) : B * |t| + -(c * t ^ 2) ≤ B ^ 2 / (4 * c) := by
       rw [le_div_iff₀ (by positivity), ← sq_abs t]
       nlinarith [sq_nonneg (B - 2 * c * |t|)]
-    refine ((add_le_add_left h1 _).trans_eq ?_).trans
-      ((Finset.sum_le_sum (s := Finset.univ) fun i _ => h2 (y i)).trans_eq
-        (by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]))
-    rw [Finset.mul_sum, ← Finset.sum_add_distrib]
+    calc C * ‖noiseDual ρ y‖ + ∑ i, -(c * y i ^ 2)
+        ≤ ∑ i, (B * |y i| + -(c * y i ^ 2)) := by
+          rw [Finset.sum_add_distrib, ← Finset.mul_sum]
+          linarith
+      _ ≤ ∑ _i : ι, B ^ 2 / (4 * c) := Finset.sum_le_sum fun i _ => h2 (y i)
+      _ = _ := by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
   rw [norm_mul, norm_of_nonneg (exp_nonneg _), norm_norm, norm_mul, norm_mul,
-    norm_of_nonneg ha, norm_of_nonneg (exp_nonneg _),
-    show rexp (C * ‖noiseDual ρ y‖) * (a * rexp (∑ i, -(c * y i ^ 2)) * ‖f y‖) =
-      a * rexp (C * ‖noiseDual ρ y‖ + ∑ i, -(c * y i ^ 2)) * ‖f y‖ by
+    norm_of_nonneg ha, norm_of_nonneg (exp_nonneg _)]
+  calc rexp (C * ‖noiseDual ρ y‖) * (a * rexp (∑ i, -(c * y i ^ 2)) * ‖f y‖)
+      = a * rexp (C * ‖noiseDual ρ y‖ + ∑ i, -(c * y i ^ 2)) * ‖f y‖ := by
         rw [exp_add]
-        ring]
-  gcongr
+        ring
+    _ ≤ a * rexp (Fintype.card ι * (B ^ 2 / (4 * c))) * ‖f y‖ := by gcongr
 
 /-- **The Gaussian noise operator smooths** [O'Donnell, Proposition 11.16][ODonnell2014]: for
 `f ∈ L¹(γⁿ)` and `-1 < ρ < 1`, `U_ρ f` is `C^∞`. This is the pointwise integral

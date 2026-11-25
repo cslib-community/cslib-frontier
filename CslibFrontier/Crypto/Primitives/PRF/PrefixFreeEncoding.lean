@@ -81,15 +81,12 @@ variable {M M' X : Type*} {pf : M → List X}
 /-- A function is a prefix-free encoding iff every output is nonempty and `pf m₁ <+: pf m₂`
 implies `m₁ = m₂`. -/
 theorem iff_forall_prefix :
-    IsPrefixFreeEncoding pf ↔ (∀ m, pf m ≠ []) ∧ (∀ m₁ m₂, pf m₁ <+: pf m₂ → m₁ = m₂) := by
-  constructor
-  · intro h
-    refine ⟨h.ne_nil, ?_⟩
-    exact fun m₁ m₂ hpre => h.injective (h.isPrefixFree_range _ ⟨m₁, rfl⟩ _ ⟨m₂, rfl⟩ hpre)
-  · rintro ⟨hne, hall⟩
-    refine ⟨hne, fun m₁ m₂ heq => hall m₁ m₂ (heq ▸ List.prefix_refl _), ?_⟩
-    rintro _ ⟨m₁, rfl⟩ _ ⟨m₂, rfl⟩ hpre
-    rw [hall m₁ m₂ hpre]
+    IsPrefixFreeEncoding pf ↔ (∀ m, pf m ≠ []) ∧ (∀ m₁ m₂, pf m₁ <+: pf m₂ → m₁ = m₂) :=
+  ⟨fun h => ⟨h.ne_nil, fun m₁ m₂ hpre =>
+      h.injective (h.isPrefixFree_range _ ⟨m₁, rfl⟩ _ ⟨m₂, rfl⟩ hpre)⟩,
+    fun ⟨hne, hall⟩ => ⟨hne, fun m₁ m₂ heq => hall m₁ m₂ (heq ▸ List.prefix_refl _), by
+      rintro _ ⟨m₁, rfl⟩ _ ⟨m₂, rfl⟩ hpre
+      rw [hall m₁ m₂ hpre]⟩⟩
 
 /-- Precomposing a prefix-free encoding with an injective map yields a prefix-free encoding. -/
 theorem comp_injective (h : IsPrefixFreeEncoding pf) {e : M' → M} (he : Function.Injective e) :
@@ -120,21 +117,16 @@ theorem length_stopBitEncode {n : ℕ} :
 private theorem stopBitEncode_ne_nil {n : ℕ} :
     ∀ {m : List (BitString n)}, m ≠ [] → stopBitEncode m ≠ []
   | [], h => absurd rfl h
-  | [_], _ => by simp [stopBitEncode]
-  | _ :: _ :: _, _ => by simp [stopBitEncode]
+  | [_], _ | _ :: _ :: _, _ => by simp [stopBitEncode]
 
 private theorem eq_of_stopBitEncode_prefix {n : ℕ} :
     ∀ {m₁ m₂ : List (BitString n)}, m₁ ≠ [] → stopBitEncode m₁ <+: stopBitEncode m₂ → m₁ = m₂
   | [], _, h, _ => absurd rfl h
-  | [_], [], _, hp => by simp [stopBitEncode] at hp
-  | _ :: _ :: _, [], _, hp => by simp [stopBitEncode] at hp
+  | [_], [], _, hp | _ :: _ :: _, [], _, hp => by simp [stopBitEncode] at hp
   | [_], [_], _, hp => by
     simp only [stopBitEncode, List.cons_prefix_cons] at hp
     rw [(Fin.snoc_injective2 hp.1).1]
-  | [_], _ :: _ :: _, _, hp => by
-    simp only [stopBitEncode, List.cons_prefix_cons] at hp
-    exact absurd (Fin.snoc_injective2 hp.1).2 (by decide)
-  | _ :: _ :: _, [_], _, hp => by
+  | [_], _ :: _ :: _, _, hp | _ :: _ :: _, [_], _, hp => by
     simp only [stopBitEncode, List.cons_prefix_cons] at hp
     exact absurd (Fin.snoc_injective2 hp.1).2 (by decide)
   | _ :: _ :: _, _ :: _ :: _, _, hp => by
@@ -163,16 +155,14 @@ private theorem not_prefix_append_separatingBlock_of_length_le {X : Type*} [BEq 
     ¬ u ++ [separatingBlock a b u v] <+: v ++ [separatingBlock a b u v] := by
   intro hp
   rcases hlen.eq_or_lt with heq | hlt
-  · have hs := hp.eq_of_length (by simp only [List.length_append, heq])
-    exact hne (List.append_cancel_right hs)
+  · exact hne (List.append_cancel_right (hp.eq_of_length (by simp [heq])))
   · have hmem := List.prefix_iff_getElem?.mp hp u.length (by simp)
     have hnext : v[u.length] = separatingBlock a b u v := by
       apply Option.some.inj
       simpa only [List.getElem?_append_left hlt, List.getElem_append_right (le_refl u.length),
         Nat.sub_self, List.getElem_cons_zero, List.getElem?_eq_getElem hlt] using hmem
-    have hget : v.getD u.length a = v[u.length] := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some]
-    rw [separatingBlock, ite_eq_left hlen, hget] at hnext
+    rw [separatingBlock, ite_eq_left hlen, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hlt, Option.getD_some] at hnext
     split_ifs at hnext with h
     · exact hab ((beq_iff_eq.mp h).symm.trans hnext)
     · exact h (beq_iff_eq.mpr hnext)
@@ -184,19 +174,15 @@ theorem separatingBlock_prefix_incomparable {X : Type*} [BEq X] [LawfulBEq X]
     (¬ u ++ [c] <+: v ++ [c]) ∧ (¬ v ++ [c] <+: u ++ [c]) := by
   dsimp only
   rcases lt_trichotomy u.length v.length with h | h | h
-  · refine ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le, ?_⟩
-    intro hp
+  · refine ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le, fun hp => ?_⟩
     have hle := hp.length_le
     simp only [List.length_append, List.length_singleton] at hle
     omega
-  · refine ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le, ?_⟩
-    intro hp
-    have hs := hp.eq_of_length (by simp only [List.length_append, h])
-    exact hne (List.append_cancel_right hs).symm
+  · exact ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le,
+      fun hp => hne (List.append_cancel_right (hp.eq_of_length (by simp [h]))).symm⟩
   · have hc : separatingBlock a b u v = separatingBlock a b v u := by
       simp only [separatingBlock, ite_eq_right (Nat.not_le_of_gt h), ite_eq_left h.le]
-    refine ⟨?_, hc ▸ not_prefix_append_separatingBlock_of_length_le hab hne.symm h.le⟩
-    intro hp
+    refine ⟨fun hp => ?_, hc ▸ not_prefix_append_separatingBlock_of_length_le hab hne.symm h.le⟩
     have hle := hp.length_le
     simp only [List.length_append, List.length_singleton] at hle
     omega

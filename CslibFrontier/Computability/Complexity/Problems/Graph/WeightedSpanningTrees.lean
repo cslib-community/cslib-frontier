@@ -93,8 +93,7 @@ def pairWeight (WG : WeightedGraph) (u v : ℕ) : ℤ :=
 theorem pairWeight_comm (WG : WeightedGraph) (u v : ℕ) : WG.pairWeight u v = WG.pairWeight v u := by
   by_cases huv : u = v
   · subst huv; rfl
-  · have hvu : v ≠ u := fun h => huv h.symm
-    simp only [pairWeight, huv, hvu, ↓reduceIte, or_comm]
+  · simp only [pairWeight, huv, Ne.symm huv, ↓reduceIte, or_comm]
 
 /-- Symmetric `Sym2 ℕ → ℤ` weight function induced by `pairWeight`. -/
 def symWeight (WG : WeightedGraph) : Sym2 ℕ → ℤ :=
@@ -136,11 +135,9 @@ private theorem pairWeight_eq_zero_of_not_adj {WG : WeightedGraph}
   · simp only [pairWeight, huv, ↓reduceIte]
     have hnot : (u.1, v.1) ∉ WG.toGraph.edges ∧ (v.1, u.1) ∉ WG.toGraph.edges := by
       have : ¬ WG.toGraph.toSimpleGraph.Adj u.1 v.1 := hnadj
-      rw [Graph.toSimpleGraph_adj] at this
-      tauto
+      rw [Graph.toSimpleGraph_adj] at this; tauto
     rw [List.filter_eq_nil_iff.2 fun e he hdec => by
-      simp only [decide_eq_true_eq] at hdec
-      rcases hdec with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      rcases of_decide_eq_true hdec with ⟨h1, h2⟩ | ⟨h1, h2⟩
       · exact hnot.1 (List.mem_map.2 ⟨e, he, Prod.ext h1 h2⟩)
       · exact hnot.2 (List.mem_map.2 ⟨e, he, Prod.ext h1 h2⟩)]
     simp
@@ -180,12 +177,10 @@ theorem weightedSpanningTreeCount_eq_finsum (WG : WeightedGraph) :
         ∏ᶠ e ∈ T.edgeSet, WG.symWeight (e.map Subtype.val) := by
   classical
   by_cases hempty : WG.toGraph.distinctVertices.isEmpty
-  · have hnil : WG.toGraph.distinctVertices = [] := List.isEmpty_iff.1 hempty
-    have h1 : WG.vertices = [] := distinctVertices_eq_nil_iff.1 hnil
+  · have h1 : WG.vertices = [] := distinctVertices_eq_nil_iff.1 (List.isEmpty_iff.1 hempty)
     have hno : ∀ T : SimpleGraph {v // v ∈ WG.vertices}, ¬ T.IsTree := fun T hT => by
-      obtain ⟨v⟩ := hT.connected.nonempty
-      have : v.1 ∈ WG.vertices := v.2
-      simp [h1] at this
+      obtain ⟨⟨v, hv⟩⟩ := hT.connected.nonempty
+      simp [h1] at hv
     simp [weightedSpanningTreeCount, hempty, hno]
   · obtain ⟨r, tail, hd⟩ := List.exists_cons_of_ne_nil (List.isEmpty_iff.not.1 hempty)
     have hr : r ∈ WG.toGraph.distinctVertices := by simp [hd]
@@ -249,9 +244,9 @@ theorem computableInPolyTime_finsum_isTree :
       (fun WG : WeightedGraph =>
         ∑ᶠ (T : SimpleGraph {v // v ∈ WG.vertices}) (_ : T ≤ WG.toGraph.induced ∧ T.IsTree),
           ∏ᶠ e ∈ T.edgeSet, WG.symWeight (e.map Subtype.val))
-      encWeightedGraph encIntBin := by
-  refine computableInPolyTime_weightedSpanningTreeCount.of_enc_eq fun WG => ?_
-  rw [weightedSpanningTreeCount_eq_finsum]
+      encWeightedGraph encIntBin :=
+  computableInPolyTime_weightedSpanningTreeCount.of_enc_eq fun WG => by
+    rw [weightedSpanningTreeCount_eq_finsum]
 
 end WeightedGraph
 

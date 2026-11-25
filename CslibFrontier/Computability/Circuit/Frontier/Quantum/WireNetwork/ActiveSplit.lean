@@ -144,14 +144,16 @@ private theorem placeAct_apply {W : Type} [Fintype W] [DecidableEq W]
   have hcomp (z : W → Bool) :
       Equiv.arrowCongr (Equiv.ofInjective g.2.2 g.2.2.injective).symm (Equiv.refl Bool)
         (fun q : Set.range g.2.2 => z q.1) = z ∘ g.2.2 := by
-    ext i; simp [Equiv.ofInjective_apply]
+    ext i
+    simp [Equiv.ofInjective_apply]
   change (placeAct g).1 y x = _
   simp only [placeAct, Matrix.submatrix_apply, Matrix.kroneckerMap_apply, Equiv.trans_apply,
     Equiv.piEquivPiSubtypeProd_apply, Equiv.prodCongr_apply, Prod.map_apply, Equiv.refl_apply,
     Matrix.one_apply, hcomp]
-  rw [if_congr (show ((fun a : {q // q ∉ Set.range g.2.2} => y a.1) = fun a => x a.1) ↔
-      ∀ q : W, (¬∃ i, g.2.2 i = q) → y q = x q by
-    simp only [funext_iff, Subtype.forall, Set.mem_range]) rfl rfl]
+  have hiff : ((fun a : {q // q ∉ Set.range g.2.2} => y a.1) = fun a => x a.1) ↔
+      ∀ q : W, (¬∃ i, g.2.2 i = q) → y q = x q := by
+    simp only [funext_iff, Subtype.forall, Set.mem_range]
+  rw [if_congr hiff rfl rfl]
   split_ifs <;> simp
 
 /-- Sequential unitary matrix of a list of active gates, applied first to last. -/
@@ -197,6 +199,7 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
     obtain ⟨L, inactU, hlen, hbondL, hmatC⟩ :=
       ih (fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg'))
         (fun g' hg' => htouch g' (List.mem_cons_of_mem _ hg'))
+    -- Express the single gate `g` as `(L_g, inact_g)` and compose with `(L, inactU)`.
     suffices hstep : ∃ (Lg : List (ActiveGate ↥A))
         (inactG : {q : Fin N // q ∉ A} → unitaryGroup Bool ℂ),
         (Lg.filter fun a => decide (a.1.val = 2)).length = (if g.arity = 2 then 1 else 0) ∧
@@ -227,7 +230,7 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
                   (inactG q : Matrix _ _ ℂ) (zAc ⟨q.1, q.2⟩) (x q.1) := by
           rw [Finset.sum_mul_sum, ← Fintype.sum_prod_type']
           refine Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ A) fun _ => Bool) _ _
-            fun _ => ?_
+            fun z => ?_
           rw [mul_mul_mul_comm, ← Finset.prod_mul_distrib]
           rfl
         rw [hsum_eq, evalAct_append, Submonoid.coe_mul, Matrix.mul_apply]
@@ -236,9 +239,10 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
           Equiv.arrowCongr (Equiv.subtypeEquivRight fun _ => Iff.rfl) (Equiv.refl Bool)
         let fProd (q : {q : Fin N // q ∉ A}) (b : Bool) : ℂ :=
           (inactU q : Matrix Bool Bool ℂ) (y q.1) b * (inactG q : Matrix Bool Bool ℂ) b (x q.1)
-        exact (Fintype.sum_equiv eqvAc _ (fun w => ∏ q, fProd q (w q)) fun _ => rfl).trans
-          ((Fintype.prod_sum fProd).symm.trans (Finset.prod_congr rfl fun q _ => by
-            simp only [fProd, Submonoid.coe_mul, Matrix.mul_apply]))
+        refine (Fintype.sum_equiv eqvAc _ (fun w => ∏ q, fProd q (w q)) fun _ => rfl).trans ?_
+        refine (Fintype.prod_sum fProd).symm.trans (Finset.prod_congr rfl fun q _ => ?_)
+        simp only [fProd, Submonoid.coe_mul, Matrix.mul_apply]
+    -- Case split on whether all wires of `g` lie in `A`.
     by_cases hallA : ∀ i, g.wires i ∈ A
     · let k3 : Fin 3 := ⟨g.arity, by omega⟩
       let wA : Fin k3.val ↪ ↥A :=
@@ -247,7 +251,7 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       refine ⟨[actG], fun _ => 1, ?_, ?_, fun z x => ?_⟩
       · simp only [actG, k3, List.filter_cons, List.filter_nil, decide_eq_true_eq]
         split_ifs <;> rfl
-      · rintro hbond a ha h2
+      · intro hbond a ha h2
         rcases List.mem_singleton.mp ha with rfl
         exact (hbond g List.mem_cons_self).2 h2
       · rw [Quantum.PlacedGate.matrix_apply]
@@ -265,9 +269,11 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
         by_cases hA_cond : ∀ q : ↥A, (¬∃ i, wA i = q) → A.domRestrict z q = A.domRestrict x q
         · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1
           · rw [ite_eq_left ⟨hA_cond, hAc⟩, ite_eq_left hA_cond, ite_eq_left hAc, mul_one]; rfl
-          · rw [ite_eq_right fun h => hAc h.2, ite_eq_right hAc, mul_zero]
-        · rw [ite_eq_right fun h => hA_cond h.1, ite_eq_right hA_cond, zero_mul]
-    · rcases g with ⟨arity, gate, wires⟩
+          · rw [ite_eq_right (fun h => hAc h.2), ite_eq_right hAc, mul_zero]
+        · rw [ite_eq_right (fun h => hA_cond h.1), ite_eq_right hA_cond, zero_mul]
+    · -- Not all wires of `g` lie in `A`: since `TouchingIn A (g :: C)` and `g.arity ≤ 2`,
+      -- we must have `g.arity = 1` and its single wire `q₀ ∉ A`!
+      rcases g with ⟨arity, gate, wires⟩
       dsimp only at htwo_g hallA
       obtain rfl : arity = 1 := by
         rcases (by omega : arity = 0 ∨ arity = 1 ∨ arity = 2) with rfl | h1 | h2
@@ -296,16 +302,19 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       by_cases hA_eq : A.domRestrict z = A.domRestrict x
       · rw [ite_eq_left hA_eq, one_mul]
         by_cases hAc_eq : ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.1 = x q.1
-        · rw [ite_eq_left ⟨hA_eq, hAc_eq⟩,
-            ← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
+        · have hrest : (∏ q ∈ Finset.univ.erase q₀,
+              ((if q = q₀ then u1 else 1 : unitaryGroup Bool ℂ) : Matrix Bool Bool ℂ)
+                (z q.1) (x q.1)) = 1 :=
             Finset.prod_eq_one fun q hq => by
               have hne := (Finset.mem_erase.mp hq).1
-              simp [hne, hAc_eq q hne], mul_one]
+              simp [hne, hAc_eq q hne]
+          rw [ite_eq_left ⟨hA_eq, hAc_eq⟩,
+            ← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀), hrest, mul_one]
           simp only [↓reduceIte, u1]
           exact congrArg₂ (gate : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ)
-            (funext fun i => by rw [Function.comp_apply, Fin.eq_zero i]; rfl)
-            (funext fun i => by rw [Function.comp_apply, Fin.eq_zero i]; rfl)
-        · rw [ite_eq_right fun h => hAc_eq h.2]
+            (funext fun i => Fin.eq_zero i ▸ rfl)
+            (funext fun i => Fin.eq_zero i ▸ rfl)
+        · rw [ite_eq_right (fun h => hAc_eq h.2)]
           push Not at hAc_eq
           obtain ⟨q₁, hq₁_ne, hq₁_diff⟩ := hAc_eq
           exact (Finset.prod_eq_zero (Finset.mem_univ q₁) (by simp [hq₁_ne, hq₁_diff])).symm
@@ -350,20 +359,26 @@ private theorem ncard_activeSet_le {n N : ℕ} (e : Fin n ↪ Fin N) (q_extra : 
         · simp only [h2, le_refl, true_and, ↓reduceIte, mul_one]
           exact (ncard_range_of_injective g.wires.injective).trans_le
             (by simp [Nat.card_eq_fintype_card, h2])
-        · rw [show {q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q} = ∅ by
-            ext q; simp [show ¬2 ≤ g.arity by omega]]
-          simp [h2]
-      refine (ncard_le_ncard hsub (toFinite _)).trans ((ncard_union_le _ _).trans ?_)
-      have := ih fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg')
-      rw [twoQubitCount_cons, mul_add]
-      omega
-  rw [activeSet]
-  set S : Set (Fin N) := {q | ∃ g ∈ C, 2 ≤ g.arity ∧ ∃ i, g.wires i = q}
+        · have hnot2 : ¬ 2 ≤ g.arity := by omega
+          simp [hnot2, h2]
+      calc {q : Fin N | ∃ g' ∈ g :: C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q}.ncard
+          ≤ ({q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q} ∪
+              {q : Fin N | ∃ g' ∈ C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q}).ncard :=
+            ncard_le_ncard hsub (toFinite _)
+        _ ≤ {q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q}.ncard +
+              {q : Fin N | ∃ g' ∈ C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q}.ncard :=
+            ncard_union_le _ _
+        _ ≤ 2 * (if g.arity = 2 then 1 else 0) + 2 * twoQubitCount C :=
+            Nat.add_le_add hhead (ih fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg'))
+        _ = 2 * twoQubitCount (g :: C) := by rw [twoQubitCount_cons, mul_add]
   have hrange : (Set.range e).ncard = n := by
     simp [ncard_range_of_injective e.injective, Nat.card_eq_fintype_card]
-  have h1 := ncard_insert_le q_extra (Set.range e ∪ S)
-  have h2 := ncard_union_le (Set.range e) S
-  omega
+  calc (activeSet e q_extra C).ncard
+      ≤ (Set.range e ∪ {q | ∃ g ∈ C, 2 ≤ g.arity ∧ ∃ i, g.wires i = q}).ncard + 1 :=
+        ncard_insert_le _ _
+    _ ≤ ((Set.range e).ncard + {q | ∃ g ∈ C, 2 ≤ g.arity ∧ ∃ i, g.wires i = q}.ncard) + 1 :=
+        Nat.add_le_add_right (ncard_union_le _ _) 1
+    _ ≤ n + 2 * twoQubitCount C + 1 := by omega
 
 end ActiveSplit
 

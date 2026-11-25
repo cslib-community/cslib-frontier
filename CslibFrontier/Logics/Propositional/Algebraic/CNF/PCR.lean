@@ -100,15 +100,21 @@ theorem Clause.toPCRPoly_cons_of_not_mem {l : Literal V} {c : Clause V} (hl : l 
 semiring, including the trivial one. -/
 theorem Clause.card_support_toPCRPoly_le (c : Clause V) : (c.toPCRPoly R).support.card ≤ 1 := by
   classical
-  rw [show c.toPCRPoly R = monomial (∑ l ∈ c.toFinset, Finsupp.single l.negate 1) 1 by
-    rw [monomial_sum_one]; rfl]
+  have h : c.toPCRPoly R = monomial (∑ l ∈ c.toFinset, Finsupp.single l.negate 1) 1 := by
+    rw [monomial_sum_one]
+    rfl
+  rw [h]
   exact (Finset.card_le_card support_monomial_subset).trans_eq (Finset.card_singleton _)
 
 /-- The degree of the squarefree polynomial is at most the number of distinct literals. -/
 theorem Clause.totalDegree_toPCRPoly_le (c : Clause V) : (c.toPCRPoly R).totalDegree ≤ c.width := by
   classical
-  exact (totalDegree_finsetProd _ _).trans <|
-    (Finset.sum_le_sum fun l _ => totalDegree_X_le l.negate).trans_eq (by simp [Clause.width])
+  unfold Clause.toPCRPoly Clause.width
+  calc
+    _ ≤ ∑ l ∈ c.toFinset, (X l.negate : MvPolynomial (Literal V) R).totalDegree :=
+      totalDegree_finsetProd _ _
+    _ ≤ ∑ _ ∈ c.toFinset, 1 := Finset.sum_le_sum fun l _ => totalDegree_X_le l.negate
+    _ = _ := by simp
 
 /-- A squarefree clause polynomial is zero at a satisfying Boolean assignment and one at a
 falsifying assignment. -/

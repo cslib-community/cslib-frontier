@@ -10,7 +10,10 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Moves
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.CrossingNeighborhoods
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
+import Mathlib.Analysis.Normed.Affine.AddTorsor
+import Mathlib.Data.Finset.DenselyOrdered
 
 /-!
 # Parity moves on reference routes
@@ -27,10 +30,124 @@ namespace Cslib.Complexity.Graph.RotationRecognition
 
 open Polygonal
 
+/-- All sufficiently short end segments of the reference drawing fit in disjoint
+closed balls at their declared vertices. Inside each ball, two distinct reference
+edges can meet only at the center. The cuts use the same fraction of each half-edge
+as the parity-move construction. -/
+theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Valid I) :
+    let G := subdivisionGraph I
+    let ref := referenceDrawing I
+    ∃ ρ > (0 : ℝ), ∃ δ₀ ∈ Set.Ioo (0 : ℝ) 1,
+      (∀ v ∈ G.vertices, ∀ w ∈ G.vertices, v ≠ w →
+        Disjoint (Metric.closedBall (ref.vertex v) ρ) (Metric.closedBall (ref.vertex w) ρ)) ∧
+      (∀ v ∈ G.vertices, ∀ (e f : Fin G.edges.length), e ≠ f → ∀ z,
+        z ∈ Metric.closedBall (ref.vertex v) ρ →
+        z ∈ (ref.route e).support → z ∈ (ref.route f).support → z = ref.vertex v) ∧
+      ∀ δ ∈ Set.Ioc 0 δ₀, ∀ a : Dart G,
+        let c := ref.vertex a.vertex
+        let m := (ref.route a.1).eval 0 (1 / 2)
+        segment ℝ c (AffineMap.lineMap c m δ) ⊆
+          Metric.closedBall c ρ ∩ (ref.route a.1).support := by
+  classical
+  let G := subdivisionGraph I
+  let ref := referenceDrawing I
+  let C := referenceCrossingPoints I
+  let V := ref.vertex '' {v | v ∈ G.vertices}
+  have hC : C.Finite := (exists_reference_crossing_neighborhoods hI).1
+  have hV : V.Finite := (List.finite_toSet G.vertices).image _
+  let pts := (hV.union hC).toFinset
+  let gaps := ((pts ×ˢ pts).filter fun p => p.1 ≠ p.2).image
+    (fun p => dist p.1 p.2 / 2)
+  obtain ⟨ρ, hpos, hgap⟩ := Finset.exists_between' ({0} : Finset ℝ) gaps (by
+    intro x hx y hy
+    rw [Finset.mem_singleton.mp hx]
+    obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hy
+    exact half_pos (dist_pos.mpr (Finset.mem_filter.mp hp).2))
+  have hρ := hpos _ (Finset.mem_singleton_self _)
+  have hdist {x y : ℂ} (hx : x ∈ V ∪ C) (hy : y ∈ V ∪ C) (hne : x ≠ y) :
+      ρ < dist x y / 2 :=
+    hgap _ (Finset.mem_image.mpr ⟨(x, y), Finset.mem_filter.mpr
+      ⟨Finset.mem_product.mpr
+        ⟨(hV.union hC).mem_toFinset.mpr hx, (hV.union hC).mem_toFinset.mpr hy⟩,
+        hne⟩, rfl⟩)
+  have hmem (v : ℕ) (hv : v ∈ G.vertices) : ref.vertex v ∈ V ∪ C :=
+    Or.inl ⟨v, hv, rfl⟩
+  have hdisj (v : ℕ) (hv : v ∈ G.vertices) (w : ℕ) (hw : w ∈ G.vertices) (hne : v ≠ w) :
+      Disjoint (Metric.closedBall (ref.vertex v) ρ) (Metric.closedBall (ref.vertex w) ρ) := by
+    have hne' : ref.vertex v ≠ ref.vertex w :=
+      fun h => hne (referenceDrawing_vertices_injective hI hv hw h)
+    exact Metric.closedBall_disjoint_closedBall (by linarith [hdist (hmem v hv) (hmem w hw) hne'])
+  have hinterior {v : ℕ} (hv : v ∈ G.vertices) {z : ℂ}
+      (hz : z ∈ Metric.closedBall (ref.vertex v) ρ) (hne : z ≠ ref.vertex v)
+      (e : Fin G.edges.length) (he : z ∈ (ref.route e).support) :
+      z ∈ openSegment ℝ (ref.route e).start (ref.route e).finish := by
+    let a := ref.vertex (Dart.vertex (e, false))
+    let b := ref.vertex (Dart.vertex (e, true))
+    change z ∈ (Route.line a b).support at he
+    rw [Route.support_line, segment_eq_image_lineMap] at he
+    obtain ⟨t, ht, rfl⟩ := he
+    have hnot (side : Bool) (h : AffineMap.lineMap a b t = ref.vertex (Dart.vertex (e, side))) :
+        False := by
+      let w := Dart.vertex (e, side)
+      have hw : w ∈ G.vertices :=
+        RotationSystem.vertex_mem (subdivisionGraph_endpoints_declared hI) (e, side)
+      have hvw : v ≠ w := fun h' => hne (h.trans (congrArg ref.vertex h'.symm))
+      exact Set.disjoint_left.mp (hdisj v hv w hw hvw) hz
+        (h.symm ▸ Metric.mem_closedBall_self hρ.le)
+    have ht0 : t ≠ 0 := fun h => hnot false (by rw [h, AffineMap.lineMap_apply_zero])
+    have ht1 : t ≠ 1 := fun h => hnot true (by rw [h, AffineMap.lineMap_apply_one])
+    exact lineMap_mem_openSegment ℝ a b ⟨lt_of_le_of_ne ht.1 ht0.symm, lt_of_le_of_ne ht.2 ht1⟩
+  let length (a : Dart G) :=
+    dist (ref.vertex a.vertex) ((ref.route a.1).eval 0 (1 / 2))
+  let bounds := insert 1 (Finset.univ.image fun a : Dart G => ρ / (length a + 1))
+  obtain ⟨δ₀, hδpos, hbound⟩ := Finset.exists_between' ({0} : Finset ℝ) bounds (by
+    intro x hx y hy
+    rw [Finset.mem_singleton.mp hx]
+    rcases Finset.mem_insert.mp hy with rfl | hy
+    · exact one_pos
+    · obtain ⟨a, _, rfl⟩ := Finset.mem_image.mp hy
+      exact div_pos hρ (add_pos_of_nonneg_of_pos dist_nonneg one_pos))
+  have hδ₀ : δ₀ ∈ Set.Ioo (0 : ℝ) 1 :=
+    ⟨hδpos _ (Finset.mem_singleton_self _), hbound _ (Finset.mem_insert_self ..)⟩
+  refine ⟨ρ, hρ, δ₀, hδ₀, hdisj, ?_, ?_⟩
+  · intro v hv e f hef z hz he hf
+    by_contra hne
+    have hc : z ∈ C := ⟨e, f, hef, hinterior hv hz hne e he, hinterior hv hz hne f hf⟩
+    have hd := hdist (Or.inr hc) (hmem v hv) hne
+    linarith [Metric.mem_closedBall.mp hz]
+  · intro δ hδ a
+    let c := ref.vertex a.vertex
+    let m := (ref.route a.1).eval 0 (1 / 2)
+    apply Set.subset_inter
+    · apply (convex_closedBall c ρ).segment_subset (Metric.mem_closedBall_self hρ.le)
+      rw [Metric.mem_closedBall, dist_lineMap_left, Real.norm_eq_abs, abs_of_pos hδ.1]
+      have ha := hbound _ (Finset.mem_insert_of_mem
+        (Finset.mem_image_of_mem (fun a : Dart G => ρ / (length a + 1)) (Finset.mem_univ a)))
+      have hδbound := hδ.2.trans_lt ha
+      have hd := (lt_div_iff₀ (add_pos_of_nonneg_of_pos (dist_nonneg : 0 ≤ length a) one_pos)).mp
+        hδbound
+      change δ * length a ≤ ρ
+      exact (mul_le_mul_of_nonneg_left (le_add_of_nonneg_right zero_le_one) hδ.1.le).trans hd.le
+    · have hc : c ∈ (ref.route a.1).support := by
+        change ref.vertex a.vertex ∈ (ref.route a.1).support
+        rw [← ref.endpoint_eq a.1 a.2]
+        cases a.2
+        · exact (ref.route a.1).point_mem_support 0
+        · exact (ref.route a.1).point_mem_support (Fin.last _)
+      have hm : m ∈ (ref.route a.1).support :=
+        (ref.route a.1).at_mem_support 0 (by constructor <;> norm_num)
+      have hs : Convex ℝ (ref.route a.1).support := by
+        change Convex ℝ (Route.line _ _).support
+        rw [Route.support_line]
+        exact convex_segment _ _
+      exact hs.segment_subset hc (hs.segment_subset hc hm
+        (lineMap_mem_segment ℝ _ _ ⟨hδ.1.le, hδ.2.trans hδ₀.2.le⟩))
+
 /-- Realize the entire finite move table as ray-parity differences from the reference
 routes. Frozen routes remain literal. On free routes the initial and terminal segments
 each cover the fraction `δ` of the corresponding half of the reference edge. The
-middle route avoids all declared vertices, and outgoing germs keep their positive rays. -/
+middle route has at least two segments, avoids all declared vertices, and preserves
+the outgoing rays through the two protected segments. -/
 theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (hI : Valid I)
     (moves : Moves (frame I)) (hfrozen : FrozenMoves (frame I) moves)
     {δ : ℝ} (hδ : δ ∈ Set.Ioo 0 1) {u : ℂ} (hu : u ≠ 0) :
@@ -50,7 +167,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
         let m := AffineMap.lineMap a b (1 / 2 : ℝ)
         let c := AffineMap.lineMap a m δ
         let d := AffineMap.lineMap m b (1 - δ)
-        ∃ middle : Route, middle.start = c ∧ middle.finish = d ∧
+        ∃ middle : Route, middle.start = c ∧ middle.finish = d ∧ 2 ≤ middle.segments ∧
           D.route e = ((Route.line a c).concat middle).concat (Route.line d b) ∧
           ∀ v : Fin (frame I).vertexCount, D.vertex v.val ∉ middle.support := by
   classical
@@ -78,7 +195,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       (∀ v : V, (∀ side, Dart.vertex (e, side) ≠ v.val) → point v ∉ r.support) ∧
       (∀ v : V, r.rayParity u (point v) =
         (ref.route e).rayParity u (point v) + readMove F moves e.val v.val) ∧
-      (¬ frozen e → ∃ middle : Route, middle.start = c ∧ middle.finish = d ∧
+      (¬ frozen e → ∃ middle : Route, middle.start = c ∧ middle.finish = d ∧ 2 ≤ middle.segments ∧
         r = ((Route.line a c).concat middle).concat (Route.line d b) ∧
         ∀ v : V, point v ∉ middle.support) := by
     have heIdx : e.val < F.segments.length := by
@@ -157,7 +274,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       exact lineMap_mem_openSegment ℝ a b ⟨by linarith [hδ.2], by linarith [hδ.1]⟩
     let p := Route.line c m
     let q := Route.line m d
-    obtain ⟨middle, hend, _, _, hsupport, hpar⟩ :=
+    obtain ⟨middle, hend, _, _, hsupport, hpar, hsegments⟩ :=
       Route.exists_concat_add_rayParity isOpen_univ isPathConnected_univ points odd hsub
         (fun z _ => Set.mem_univ z) p q rfl (Set.mem_univ _) hmid hu
     have hs : middle.start = c :=
@@ -181,7 +298,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       (Route.endpoint_concat left middle hleft true).trans hf
     let r := (left.concat middle).concat right
     refine ⟨r, ?_, fun h => (hfixed h).elim, ?_, ?_, ?_,
-      fun _ => ⟨middle, hs, hf, rfl, hmiddle⟩⟩
+      fun _ => ⟨middle, hs, hf, hsegments, rfl, hmiddle⟩⟩
     · intro side
       rw [Route.endpoint_concat _ _ hright, Route.endpoint_concat _ _ hleft]
       cases side <;> rfl

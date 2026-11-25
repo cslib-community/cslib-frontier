@@ -35,15 +35,12 @@ private theorem poly_parity :
     ComputableInPolyTime wordParity (encList encBool) encBool := by
   unfold wordParity
   simp only [List.foldr_eq_foldl]
-  apply ComputableInPolyTime.foldl_of_bounded_growth
-    (encA := encBool) (encL := encList encBool) (encB := encBool)
+  exact ComputableInPolyTime.foldl_of_bounded_growth
     (ComputableInPolyTime.id' (encIn := encList encBool))
     (ComputableInPolyTime.const false)
     (show ComputableInPolyTime (fun p : Bool × Bool => p.1 ^^ p.2)
       (encPair encBool encBool) encBool from by fun_prop)
-    (growth := 0)
-  intro state value
-  cases state <;> cases value <;> decide
+    (growth := 0) (by decide)
 
 private theorem poly_parityWith {α : Type} {e : α ↪ List Bool} {f : α → List Bool}
     (hf : ComputableInPolyTime f e (encList encBool)) :
@@ -91,13 +88,13 @@ attribute [local fun_prop] poly_checkPairWith
 @[fun_prop] theorem computableInPolyTime_checkConstraint :
     ComputableInPolyTime checkConstraint (encConstraint encTable encNat) encBool := by
   unfold checkConstraint
-  have hlen : ComputableInPolyTime (fun c : Constraint Table ℕ => c.scope.length)
-      (encConstraint encTable encNat) encUnary := by fun_prop
   have hwidth : ComputableInPolyTime
       (fun c : Constraint Table ℕ => decide (c.rel.arity = c.scope.length))
       (encConstraint encTable encNat) encBool :=
     ComputableInPolyTime.decide_eq' (by fun_prop)
-      (ComputableInPolyTime.unary_to_binary.comp hlen)
+      (ComputableInPolyTime.unary_to_binary.comp
+        (show ComputableInPolyTime (fun c : Constraint Table ℕ => c.scope.length)
+          (encConstraint encTable encNat) encUnary from by fun_prop))
   fun_prop
 
 /-- The edge incidence check scans actual scopes and names, including arbitrarily sparse
@@ -112,10 +109,7 @@ binary names. Its count results are unary and bounded by the explicit occurrence
   have hcount : ComputableInPolyTime
       (fun p : CSP Table ℕ × ℕ => p.1.vars.count p.2)
       (encPair (encCSP encTable encNat) encNat) encUnary :=
-    (ComputableInPolyTime.countWithInput
-      (show ComputableInPolyTime (fun p : CSP Table ℕ × ℕ => p.1.vars)
-        (encPair (encCSP encTable encNat) encNat) (encList encNat) from by fun_prop)
-      (ComputableInPolyTime.snd _ _))
+    ComputableInPolyTime.countWithInput (by fun_prop) (ComputableInPolyTime.snd _ _)
   fun_prop
 
 /-- Every check in the full model guard is supplied internally by native machines.

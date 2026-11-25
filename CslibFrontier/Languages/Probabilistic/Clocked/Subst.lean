@@ -142,7 +142,8 @@ private theorem runWith_eq_of_mono {R R' : (q : ι) → Part (Option (spec q))}
     rw [runWith_liftBind] at h ⊢
     obtain ⟨_ | v, hr, h⟩ := Part.mem_bind_iff.1 h
     · simp at h
-    · rw [hR q v hr, Part.bind_some]; exact ih v h
+    · rw [hR q v hr, Part.bind_some]
+      exact ih v h
 
 /-- If the run against `o` returns `b` and every answer of `R` to a defined query of `o` is that
 answer or runs out of fuel, then the run answered by `R` returns `b` or runs out of fuel. -/
@@ -225,7 +226,8 @@ private theorem mem_substFrom {j : ℕ} {a : α} :
   | r + 1, k, hm => by
     rw [attempt_substFrom_succ] at hm
     obtain ⟨_ | b, hx, hm⟩ := Part.mem_bind_iff.1 hm
-    · obtain ⟨i, hi, h⟩ := mem_substFrom hm; exact ⟨i, by omega, h⟩
+    · obtain ⟨i, hi, h⟩ := mem_substFrom hm
+      exact ⟨i, by omega, h⟩
     · obtain rfl : b = a := by simpa [eq_comm] using hm
       exact ⟨k, by omega, hx⟩
 
@@ -274,7 +276,8 @@ private theorem tryWith_eq_or_of_mem (hP : Stable (fun q => eval o (h q)) P) {i�
     (ha : some a ∈ attempt (fun q => eval o (h q)) P i₀) (i j : ℕ) :
     tryWith o P h i j = Part.some (some a) ∨ tryWith o P h i j = Part.some none := by
   have hR (q v) (hv : v ∈ eval o (h q)) :=
-    let ⟨k, hk⟩ := (mem_eval_iff (hh q)).1 hv; (hh q k v hk j).imp_right And.right
+    let ⟨k, hk⟩ := (mem_eval_iff (hh q)).1 hv
+    (hh q k v hk j).imp_right And.right
   rcases (hP i₀ a ha i).imp_right And.right with e | e <;>
     rcases runWith_eq_or hR (e ▸ Part.mem_some _) with e' | e' <;>
     simp [tryWith, e']
@@ -286,7 +289,8 @@ theorem Stable.subst (hP : Stable (fun q => eval o (h q)) P) : Stable o (P.subst
   obtain ⟨i, hij, hi⟩ := mem_substFrom ha
   have ht := tryWith_eq_or_of_mem hh hP (mem_attempt_of_mem_tryWith hh hi)
   rcases le_or_gt j j' with hjj | hjj
-  · exact Or.inl (substFrom_eq_some (ht · j') (tryWith_mono hh hi hjj) (Nat.zero_le i) (by omega))
+  · exact Or.inl (substFrom_eq_some (ht · j') (tryWith_mono hh hi hjj) (Nat.zero_le i)
+      (by omega))
   · exact (substFrom_eq_or (ht · j') j' 0).imp_right fun e => ⟨hjj, e⟩
 
 /-- **Substitution of a handler.** If `P` is stable against the composed handler and every
@@ -296,8 +300,9 @@ theorem eval_subst (hP : Stable (fun q => eval o (h q)) P) :
     eval o (P.subst h) = eval (fun q => eval o (h q)) P := by
   ext a
   rw [mem_eval_iff (hP.subst hh), mem_eval_iff hP]
-  refine ⟨fun ⟨j, hj⟩ => let ⟨i, _, hi⟩ := mem_substFrom hj; ⟨i, mem_attempt_of_mem_tryWith hh hi⟩,
-    fun ⟨i, hi⟩ => ?_⟩
+  refine ⟨fun ⟨j, hj⟩ =>
+    let ⟨i, _, hi⟩ := mem_substFrom hj
+    ⟨i, mem_attempt_of_mem_tryWith hh hi⟩, fun ⟨i, hi⟩ => ?_⟩
   obtain ⟨j, hj⟩ := exists_mem_runWith (R := fun j q => attempt o (h q) j)
     (fun q v hv => (mem_eval_iff (hh q)).1 hv) (fun q _ _ _ hjj' hv => (hh q).mono hv hjj') hi
   refine ⟨max j (i + 1), ?_⟩

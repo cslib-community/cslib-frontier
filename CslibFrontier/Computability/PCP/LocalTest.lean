@@ -219,18 +219,22 @@ theorem acceptProb_and_le_left [Fintype R'] [Nonempty R'] (T' : LocalTest P R' Q
     (π : P → Γ) : (T.and T').acceptProb π ≤ T.acceptProb π := by
   classical
   simp only [acceptProb, Fintype.expect_prod_type, passes_and]
-  refine expect_le_expect fun r _ ↦ (expect_le_expect fun r' _ ↦ ?_).trans_eq
-    (Fintype.expect_const _)
-  split_ifs with h h' <;> first | exact absurd h.1 h' | norm_num
+  calc 𝔼 r, 𝔼 r', (if T.Passes π r ∧ T'.Passes π r' then (1 : ℝ) else 0)
+      ≤ 𝔼 r, 𝔼 _r' : R', (if T.Passes π r then (1 : ℝ) else 0) := by
+        gcongr with r _ r' _
+        split_ifs with h h' <;> first | exact absurd h.1 h' | norm_num
+    _ = _ := by simp only [Fintype.expect_const]
 
 /-- The conjunction of two tests accepts at most as often as the second one. -/
 theorem acceptProb_and_le_right [Fintype R'] [Nonempty R] (T' : LocalTest P R' Q' Γ)
     (π : P → Γ) : (T.and T').acceptProb π ≤ T'.acceptProb π := by
   classical
   simp only [acceptProb, Fintype.expect_prod_type, passes_and]
-  refine (expect_le_expect (g := fun _ ↦ 𝔼 r', if T'.Passes π r' then (1 : ℝ) else 0)
-    fun r _ ↦ expect_le_expect fun r' _ ↦ ?_).trans_eq (Fintype.expect_const _)
-  split_ifs with h h' <;> first | exact absurd h.2 h' | norm_num
+  calc 𝔼 r, 𝔼 r', (if T.Passes π r ∧ T'.Passes π r' then (1 : ℝ) else 0)
+      ≤ 𝔼 _r : R, 𝔼 r', (if T'.Passes π r' then (1 : ℝ) else 0) := by
+        gcongr with r _ r' _
+        split_ifs with h h' <;> first | exact absurd h.2 h' | norm_num
+    _ = _ := by simp only [Fintype.expect_const]
 
 /-- The acceptance probability of a random test of a family is the average of the acceptance
 probabilities of its members. -/
@@ -248,22 +252,23 @@ theorem one_sub_acceptProb_le_card_mul_one_sub_acceptProb_mix
     (h : ∀ r, (∀ e, (T e).Passes π r) → S.Passes π r) :
     1 - S.acceptProb π ≤ Fintype.card E * (1 - (mix T).acceptProb π) := by
   classical
-  have hmean : 1 - S.acceptProb π ≤ ∑ e, (1 - (T e).acceptProb π) := by
-    simpa only [acceptProb, expect_sum_comm, expect_sub_distrib, Fintype.expect_const] using
-      expect_le_expect fun r (_ : r ∈ (univ : Finset R)) ↦ show
-          (1 - if S.Passes π r then (1 : ℝ) else 0) ≤
-            ∑ e, (1 - if (T e).Passes π r then (1 : ℝ) else 0) by
-        by_cases hs : S.Passes π r
-        · simpa only [ite_eq_left hs, sub_self] using
-            sum_nonneg fun e _ ↦ show (0 : ℝ) ≤ _ by split_ifs <;> norm_num
-        · obtain ⟨e, he⟩ := not_forall.1 (mt (h r) hs)
-          simpa only [ite_eq_right hs, ite_eq_right he, sub_zero] using
-            single_le_sum (f := fun e ↦ (1 - if (T e).Passes π r then (1 : ℝ) else 0))
-              (fun e _ ↦ by split_ifs <;> norm_num) (mem_univ e)
-  refine hmean.trans_eq ?_
-  rw [acceptProb_mix, Fintype.expect_eq_sum_div_card, mul_sub,
-    mul_div_cancel₀ _ (by exact_mod_cast Fintype.card_ne_zero), sum_sub_distrib]
-  simp only [sum_const, card_univ, nsmul_eq_mul, mul_one]
+  calc
+    1 - S.acceptProb π ≤ ∑ e, (1 - (T e).acceptProb π) := by
+      simpa only [acceptProb, expect_sum_comm, expect_sub_distrib, Fintype.expect_const] using
+        expect_le_expect fun r (_ : r ∈ (univ : Finset R)) ↦ show
+            (1 - if S.Passes π r then (1 : ℝ) else 0) ≤
+              ∑ e, (1 - if (T e).Passes π r then (1 : ℝ) else 0) by
+          by_cases hs : S.Passes π r
+          · simpa only [ite_eq_left hs, sub_self] using
+              sum_nonneg fun e _ ↦ show (0 : ℝ) ≤ _ by split_ifs <;> norm_num
+          · obtain ⟨e, he⟩ := not_forall.1 (mt (h r) hs)
+            simpa only [ite_eq_right hs, ite_eq_right he, sub_zero] using
+              single_le_sum (f := fun e ↦ (1 - if (T e).Passes π r then (1 : ℝ) else 0))
+                (fun e _ ↦ by split_ifs <;> norm_num) (mem_univ e)
+    _ = Fintype.card E * (1 - (mix T).acceptProb π) := by
+      rw [acceptProb_mix, Fintype.expect_eq_sum_div_card, mul_sub,
+        mul_div_cancel₀ _ (by exact_mod_cast Fintype.card_ne_zero), sum_sub_distrib]
+      simp only [sum_const, card_univ, nsmul_eq_mul, mul_one]
 
 end Prob
 
@@ -364,7 +369,9 @@ theorem unsatFrac_labellingOf [Fintype R] [Fintype Q] [Nonempty R] [Nonempty Q]
   rw [← ConstraintGraph.expect_mem_unsatEdges, Fintype.expect_prod_type, acceptProb]
   simp only [ConstraintGraph.mem_unsatEdges, ConstraintGraph.Satisfies, toConstraintGraph,
     labellingOf, Sum.elim_inl, Sum.elim_inr, and_true, Fintype.expect_const]
-  conv_rhs => arg 1; rw [← Fintype.expect_const (ι := R) (1 : ℝ)]
+  conv_rhs =>
+    arg 1
+    rw [← Fintype.expect_const (ι := R) (1 : ℝ)]
   rw [← expect_sub_distrib]
   exact expect_congr rfl fun r _ ↦ by
     change (if ¬ T.Passes π r then (1 : ℝ) else 0) = 1 - if T.Passes π r then 1 else 0

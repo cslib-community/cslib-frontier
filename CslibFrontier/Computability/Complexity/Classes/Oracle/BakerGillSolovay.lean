@@ -136,11 +136,8 @@ theorem unaryLengthLanguage_mem_NPWithOracle (B : Set (List Bool)) :
       BakerGillSolovay.computableInPolyTime_all_and, fun x => ?_⟩
   · simp only [unaryLengthLanguage, Set.mem_ofPred_eq, Polynomial.eval_X, encBits,
       Function.Embedding.refl_apply, Bool.and_eq_true, List.all_eq_true, id, decide_eq_true_eq]
-    constructor
-    · rintro ⟨hall, w, hw, hlength⟩
-      exact ⟨w, hlength, hall, hw⟩
-    · rintro ⟨w, hlength, hall, hw⟩
-      exact ⟨hall, w, hw, hlength⟩
+    exact ⟨fun ⟨hall, w, hw, hlen⟩ => ⟨w, hlen, hall, hw⟩,
+      fun ⟨w, hlen, hall, hw⟩ => ⟨hall, w, hw, hlen⟩⟩
 
 open Classical BakerGillSolovay in
 /-- For any fixed encoded target `L`, some oracle `B` defeats every polynomial-time many-one
@@ -161,13 +158,9 @@ theorem exists_unaryLengthLanguage_not_reducibleWithOracle {α : Type}
   obtain ⟨k, m, machine, c, d, hrun⟩ := hcertificate.exists_fin_run_pure_false
   obtain ⟨n, hn⟩ := hB ⟨k, m, machine, c, d⟩
   apply hn
-  have hlength : (encBits (List.replicate n true)).length = n := by
-    simp [encBits]
   have houtput := hrun (List.replicate n true) (languageOracle B)
-  rw [hprogram, hlength] at houtput
-  simp only [encBits, Function.Embedding.refl_apply] at houtput
-  simp only [Candidate.output, Candidate.clock, OracleComp.interpret_map]
-  rw [houtput]
+  simp only [hprogram, encBits, Function.Embedding.refl_apply, List.length_replicate] at houtput
+  simp only [Candidate.output, Candidate.clock, OracleComp.interpret_map, houtput]
   change decide (enc (f (List.replicate n true)) ∈ enc '' L) = true ↔ _
   rw [decide_eq_true_eq, enc.injective.mem_set_image, ← hf, replicate_mem_unaryLengthLanguage]
 

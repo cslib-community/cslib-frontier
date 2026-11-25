@@ -261,7 +261,8 @@ private theorem derives_symmDiff_trans {A B C : Finset σ} (hA : 2 * #A ≤ w) (
 private theorem rep_eq {A B : Finset σ} (hA : 2 * #A ≤ w) (hB : 2 * #B ≤ w) {c : Bool}
     (h : P.Derives w (A ∆ B) c) : rep P w A = rep P w B := by
   simp only [rep]
-  congr 1; ext C
+  congr 1
+  ext C
   exact and_congr_right fun hC =>
     ⟨fun ⟨_, hc⟩ => ⟨_, derives_symmDiff_trans hB hC (symmDiff_comm A B ▸ h) hc⟩,
      fun ⟨_, hc⟩ => ⟨_, derives_symmDiff_trans hA hC h hc⟩⟩

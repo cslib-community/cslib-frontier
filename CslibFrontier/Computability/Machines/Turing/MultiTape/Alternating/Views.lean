@@ -89,8 +89,11 @@ theorem mem_viewSucc_iff {v w : FiniteCfg k Bool State} {q : State} (hq : v.stat
       ∃ b, w = (v.step (atm.action q v.inputSymbol v.workTapeSymbols b)).summarizeOutput := by
   simp only [MultiTapeNTM.viewSucc, hq, List.mem_map, MultiTapeNTM.mem_actions,
     tr_toNTM_iff_action]
-  exact ⟨by rintro ⟨_, ⟨b, rfl⟩, rfl⟩; exact ⟨b, rfl⟩,
-    by rintro ⟨b, rfl⟩; exact ⟨_, ⟨b, rfl⟩, rfl⟩⟩
+  constructor
+  · rintro ⟨_, ⟨b, rfl⟩, rfl⟩
+    exact ⟨b, rfl⟩
+  · rintro ⟨b, rfl⟩
+    exact ⟨_, ⟨b, rfl⟩, rfl⟩
 
 /-- A running view has a successor. -/
 theorem viewSucc_ne_nil {v : FiniteCfg k Bool State} {q : State} (hq : v.state = some q) :
@@ -204,10 +207,12 @@ theorem viewAcceptsWithin_length {found : List (FiniteCfg k Bool State)}
     {v : FiniteCfg k Bool State} (hv : v ∈ found) {n : ℕ} (h : atm.ViewAcceptsWithin n v) :
     atm.ViewAcceptsWithin found.length v := by
   classical
+  -- the views of the list accepting within `i` moves
   let S (i : ℕ) : Finset (FiniteCfg k Bool State) :=
     found.toFinset.filter fun w => atm.ViewAcceptsWithin i w
   have hmono {i j : ℕ} (hij : i ≤ j) : S i ⊆ S j := fun _ hw =>
     Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hw).1, (Finset.mem_filter.mp hw).2.mono hij⟩
+  -- once two consecutive sets agree, all later sets agree
   have hstable {i : ℕ} (heq : S i = S (i + 1)) (j : ℕ) : S (i + j) = S i := by
     induction j with
     | zero => rfl
@@ -217,6 +222,7 @@ theorem viewAcceptsWithin_length {found : List (FiniteCfg k Bool State)}
       simp only [S, Finset.mem_filter, List.mem_toFinset]
       exact and_congr_right <| viewAcceptsWithin_succ_congr hclosed fun w' hw' => by
         simpa [S, hw'] using congrArg (w' ∈ ·) ih
+  -- the sets cannot grow strictly for more steps than the list has entries
   have hfix : ∃ i ≤ found.length, S i = S (i + 1) := by
     by_contra! hne
     have hgrow (i : ℕ) (hi : i ≤ found.length + 1) : i ≤ (S i).card := by

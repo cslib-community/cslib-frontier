@@ -98,10 +98,10 @@ theorem abs_sum_le_discrepancy (ν : PMF (X × Y)) (f : X → Y → Bool) (A : F
 /-- The discrepancy is attained on some rectangle. -/
 theorem exists_abs_sum_eq_discrepancy (ν : PMF (X × Y)) (f : X → Y → Bool) :
     ∃ (A : Finset X) (B : Finset Y),
-      |∑ x ∈ A, ∑ y ∈ B, (ν (x, y)).toReal * signVal (f x y)| = discrepancy ν f :=
-  let ⟨S, hS⟩ := exists_eq_ciSup_of_finite (f := fun S : Finset X × Finset Y =>
+      |∑ x ∈ A, ∑ y ∈ B, (ν (x, y)).toReal * signVal (f x y)| = discrepancy ν f := by
+  obtain ⟨S, hS⟩ := exists_eq_ciSup_of_finite (f := fun S : Finset X × Finset Y =>
     |∑ x ∈ S.1, ∑ y ∈ S.2, (ν (x, y)).toReal * signVal (f x y)|)
-  ⟨S.1, S.2, hS⟩
+  exact ⟨S.1, S.2, hS⟩
 
 theorem discrepancy_nonneg : 0 ≤ discrepancy ν f :=
   (abs_nonneg _).trans (abs_sum_le_discrepancy ν f ∅ ∅)
@@ -121,19 +121,25 @@ theorem abs_sum_mul_signVal_le [Fintype X] [Fintype Y]
     |∑ x, ∑ y, (ν (x, y)).toReal * signVal (f x y) * signVal (p.run x y)| ≤
       p.size * discrepancy ν f := by
   classical
-  rw [p.sum_eq_sum_rectangles, show (∑ i, ∑ x with x ∈ p.alice i, ∑ y with y ∈ p.bob i,
-        (ν (x, y)).toReal * signVal (f x y) * signVal (p.run x y)) =
-      ∑ i, signVal (p.output i) * ∑ x with x ∈ p.alice i,
-        ∑ y with y ∈ p.bob i, (ν (x, y)).toReal * signVal (f x y) from
-    sum_congr rfl fun i _ => by
-      simp_rw [mul_sum]
-      exact sum_congr rfl fun x hx => sum_congr rfl fun y hy => by
+  rw [p.sum_eq_sum_rectangles]
+  calc |∑ i, ∑ x with x ∈ p.alice i, ∑ y with y ∈ p.bob i,
+          (ν (x, y)).toReal * signVal (f x y) * signVal (p.run x y)|
+      = |∑ i, signVal (p.output i) * ∑ x with x ∈ p.alice i,
+          ∑ y with y ∈ p.bob i, (ν (x, y)).toReal * signVal (f x y)| := by
+        congr 1
+        refine sum_congr rfl fun i _ => ?_
+        simp_rw [mul_sum]
+        refine sum_congr rfl fun x hx => sum_congr rfl fun y hy => ?_
         rw [run_eq_output (mem_filter.mp hx).2 (mem_filter.mp hy).2]
-        ring]
-  refine (abs_sum_le_sum_abs _ _).trans
-    ((sum_le_sum (g := fun _ => discrepancy ν f) fun i _ => ?_).trans_eq (by simp))
-  rw [abs_mul, abs_signVal, one_mul]
-  exact abs_sum_le_discrepancy ν f _ _
+        ring
+    _ ≤ ∑ i, |signVal (p.output i) * ∑ x with x ∈ p.alice i,
+          ∑ y with y ∈ p.bob i, (ν (x, y)).toReal * signVal (f x y)| :=
+        abs_sum_le_sum_abs _ _
+    _ ≤ ∑ _i : Fin p.size, discrepancy ν f :=
+        sum_le_sum fun i _ => by
+          rw [abs_mul, abs_signVal, one_mul]
+          exact abs_sum_le_discrepancy ν f _ _
+    _ = p.size * discrepancy ν f := by simp
 
 /-- Every monochromatic tiling has size times discrepancy at least one, for any input PMF. -/
 theorem one_le_size_mul_discrepancy [Finite X] [Finite Y]
@@ -199,8 +205,10 @@ theorem two_mul_le_two_pow_mul_discrepancy [Finite X] [Finite Y] (p : Protocol X
   have h := p.abs_sum_mul_signVal_le ν f
   rw [p.sum_mul_signVal_eq] at h
   have hleaves : (p.leafCount : ℝ) ≤ 2 ^ p.depth := mod_cast p.leafCount_le_two_pow_depth
-  exact ((le_trans (by linarith) (le_abs_self _)).trans h).trans
-    (mul_le_mul_of_nonneg_right hleaves discrepancy_nonneg)
+  calc 2 * γ ≤ |1 - 2 * p.distributionalError ν (fun x y b => f x y = b)| :=
+        le_trans (by linarith) (le_abs_self _)
+    _ ≤ p.leafCount * discrepancy ν f := h
+    _ ≤ 2 ^ p.depth * discrepancy ν f := mul_le_mul_of_nonneg_right hleaves discrepancy_nonneg
 
 end Protocol
 
@@ -284,11 +292,14 @@ theorem PublicCoin.le_two_mul_ecomplexityFun_dotProduct_add_three (n : ℕ) :
       ).sq_mul_two_pow_le_four_pow_of_dotProduct hc (by norm_num)
     have h2 : 2 ^ n ≤ 9 * 4 ^ c := by
       exact_mod_cast (show (2 : ℝ) ^ n ≤ 9 * 4 ^ c by nlinarith)
-    have h4 : 0 < 4 ^ c := by positivity
     have hnat : 2 ^ n < 2 ^ (2 * c + 4) := by
-      rw [pow_add, pow_mul]
-      norm_num
-      omega
+      calc 2 ^ n ≤ 9 * 4 ^ c := h2
+        _ < 16 * 4 ^ c := by
+          have : 0 < 4 ^ c := by positivity
+          omega
+        _ = 2 ^ (2 * c + 4) := by
+          rw [pow_add, pow_mul, mul_comm]
+          norm_num
     have hn := (Nat.pow_lt_pow_iff_right one_lt_two).mp hnat
     exact_mod_cast (by omega : n ≤ 2 * c + 3)
 

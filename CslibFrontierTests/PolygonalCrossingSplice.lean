@@ -106,7 +106,7 @@ private theorem observer_disjoint_disk : Disjoint (Metric.closedBall (0 : ℂ) 1
 /-- The orthogonal splice strictly reduces the set of interior crossings. It preserves endpoints,
 outgoing directions, exterior support and parity against an exterior observer. Points in the
 closed disk have unique positions. The shared start and finish outside the disk trace back to
-distinct original positions. -/
+distinct original positions at original segment endpoints. -/
 theorem removes_orthogonal_crossing :
     let r := Route.line (((-3 / 2 : ℝ) : ℂ) - Complex.I) (((-3 / 2 : ℝ) : ℂ) + Complex.I)
     let crossings (p : Route) := openSegmentCrossings
@@ -120,7 +120,8 @@ theorem removes_orthogonal_crossing :
         q.eval i s ∈ Metric.closedBall (0 : ℂ) 1 → q.eval i s = q.eval j t →
           q.position i s = q.position j t) ∧
       (∃ (a b : Fin p.segments) (u v : ℝ), u ∈ Set.Icc 0 1 ∧ v ∈ Set.Icc 0 1 ∧
-        p.eval a u = q.start ∧ p.eval b v = q.finish ∧ p.position a u ≠ p.position b v) ∧
+        p.eval a u = q.start ∧ p.eval b v = q.finish ∧ p.position a u ≠ p.position b v ∧
+        u ∉ Set.Ioo 0 1 ∧ v ∉ Set.Ioo 0 1) ∧
       q.intersectionParity r = p.intersectionParity r := by
   have hx : (0 : ℂ) ∈ openSegment ℝ (route.point (0 : Fin route.segments).castSucc)
       (route.point (0 : Fin route.segments).succ) := by
@@ -165,8 +166,10 @@ theorem removes_orthogonal_crossing :
       apply ne_of_lt
       simp only [Route.position, Fin.val_zero, Fin.val_last, Nat.cast_zero, zero_add]
       linarith only [Nat.cast_nonneg (α := ℝ) q.bends]
-    simpa only [hfirst, hlast] using
+    obtain ⟨a, b, u, v, hu, hv, ha, hb, hab, hua, hvb⟩ :=
       hExterior 0 (Fin.last q.bends) (by simp) (by simp) (hfirst.symm ▸ houtside)
         (hfirst.trans (hclosed.trans hlast.symm)) hneq
+    exact ⟨a, b, u, v, hu, hv, ha.trans hfirst, hb.trans hlast, hab,
+      fun h => (lt_irrefl 0) (hua.mpr h).1, fun h => (lt_irrefl 1) (hvb.mpr h).2⟩
 
 end CslibFrontierTests.PolygonalCrossingSplice

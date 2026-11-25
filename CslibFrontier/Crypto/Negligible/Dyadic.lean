@@ -208,8 +208,10 @@ protected theorem div_const (hg : PolynomiallyLowerBounded g) {c : ℕ} (hc : 0 
     have := Nat.mod_lt (g n) hc
     have := Nat.div_add_mod (g n) c
     nlinarith
-  exact ((hg n).trans (Nat.mul_le_mul_left a (Nat.pow_le_pow_left hstep d))).trans_eq
-    (by rw [Nat.mul_pow, Nat.mul_assoc])
+  calc
+    n ≤ a * (g n + 1) ^ d := hg n
+    _ ≤ a * (c * (g n / c + 1)) ^ d := Nat.mul_le_mul_left a (Nat.pow_le_pow_left hstep d)
+    _ = a * c ^ d * (g n / c + 1) ^ d := by rw [Nat.mul_pow, Nat.mul_assoc]
 
 /-- Positive powers preserve a polynomial lower bound. -/
 @[fun_prop]
@@ -224,11 +226,17 @@ protected theorem comp (hf : PolynomiallyLowerBounded f) (hg : PolynomiallyLower
   obtain ⟨c₁, d₁, hf⟩ := hf
   obtain ⟨c₂, d₂, hg⟩ := hg
   refine ⟨c₂ * (c₁ + 1) ^ d₂, d₁ * d₂, fun n => ?_⟩
-  have hinner : g n + 1 ≤ (c₁ + 1) * (f (g n) + 1) ^ d₁ := by
-    simpa only [add_one_mul] using
-      Nat.add_le_add (hf (g n)) (Nat.one_le_pow _ _ (Nat.succ_pos _))
-  exact ((hg n).trans (Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hinner d₂))).trans_eq
-    (by rw [Nat.mul_pow, Nat.pow_mul, Nat.mul_assoc])
+  have hinner : g n + 1 ≤ (c₁ + 1) * (f (g n) + 1) ^ d₁ :=
+    calc
+      g n + 1 ≤ c₁ * (f (g n) + 1) ^ d₁ + (f (g n) + 1) ^ d₁ :=
+        Nat.add_le_add (hf (g n)) (Nat.one_le_pow _ _ (Nat.succ_pos _))
+      _ = (c₁ + 1) * (f (g n) + 1) ^ d₁ := by ring
+  calc
+    n ≤ c₂ * (g n + 1) ^ d₂ := hg n
+    _ ≤ c₂ * ((c₁ + 1) * (f (g n) + 1) ^ d₁) ^ d₂ :=
+      Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hinner d₂)
+    _ = c₂ * (c₁ + 1) ^ d₂ * (f (g n) + 1) ^ (d₁ * d₂) := by
+      rw [Nat.mul_pow, Nat.pow_mul, Nat.mul_assoc]
 
 end PolynomiallyLowerBounded
 
@@ -371,10 +379,13 @@ negligible when `p` is polynomially bounded. -/
 theorem Negligible.sum_range_of_le {p : ℕ → ℕ} {g : ℕ → ℕ → ℝ≥0} {ε : ℕ → ℝ≥0}
     (hp : PolynomiallyBounded p) (hε : Negligible ε)
     (hle : ∀ n, ∀ i < p n, g n i ≤ ε n) :
-    Negligible (fun n => ∑ i ∈ Finset.range (p n), g n i) :=
-  negligible_of_le (hε.polynomiallyBounded_mul hp) fun n =>
-    (Finset.sum_le_sum fun i hi => hle n i (Finset.mem_range.mp hi)).trans_eq
-      (by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul])
+    Negligible (fun n => ∑ i ∈ Finset.range (p n), g n i) := by
+  refine negligible_of_le (hε.polynomiallyBounded_mul hp) fun n => ?_
+  calc
+    ∑ i ∈ Finset.range (p n), g n i
+      ≤ ∑ _i ∈ Finset.range (p n), ε n :=
+        Finset.sum_le_sum fun i hi => hle n i (Finset.mem_range.mp hi)
+    _ = (p n : ℝ≥0) * ε n := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
 
 /-! ### Dyadic and birthday bounds -/
 
@@ -439,10 +450,13 @@ theorem sqrt_pow_two_div_pow_two_le {outputBits sourceBits n : ℕ}
     (hmargin : outputBits + 2 * n ≤ sourceBits) :
     NNReal.sqrt ((2 : ℝ≥0) ^ outputBits / 2 ^ sourceBits) ≤ (1 / 2 : ℝ≥0) ^ n := by
   rw [NNReal.sqrt_le_iff_le_sq]
-  refine (div_le_div_of_nonneg_left (by positivity) (by positivity)
-    (pow_le_pow_right₀ (by norm_num) hmargin)).trans_eq ?_
-  rw [pow_add, mul_comm 2 n, pow_mul, one_div, inv_pow]
-  field_simp
+  calc
+    _ ≤ (2 : ℝ≥0) ^ outputBits / 2 ^ (outputBits + 2 * n) :=
+      div_le_div_of_nonneg_left (by positivity) (by positivity)
+        (pow_le_pow_right₀ (by norm_num) hmargin)
+    _ = _ := by
+      rw [pow_add, mul_comm 2 n, pow_mul, one_div, inv_pow]
+      field_simp
 
 open Filter in
 /-- A square-root dyadic ratio `√(2 ^ outputBits n / 2 ^ sourceBits n)` is negligible under an

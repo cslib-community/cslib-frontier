@@ -363,7 +363,9 @@ theorem numCuts_selfridgeConwayQ_eq_five_of_strict_max {v : Fin 3 → CakeValuat
   set σ1 := Tuple.sortDesc u1
   have hu1_eq : u1 = fun j => (v 1).pieceVal (scInitialPieces c1 c2 j) :=
     eval_evalThree ho 1 (scInitialPieces c1 c2)
-  have hlt (j : Fin 3) (hne : j ≠ k) : u1 j < u1 k := by rw [hu1_eq]; exact hstrict j hne
+  have hlt (j : Fin 3) (hne : j ≠ k) : u1 j < u1 k := by
+    rw [hu1_eq]
+    exact hstrict j hne
   have hp0_eq_k : σ1 0 = k :=
     by_contra fun hne => not_lt_of_ge (le_topChoice u1 k) (hlt (σ1 0) hne)
   have hp1_ne_k : σ1 1 ≠ k := fun h => absurd (σ1.injective (hp0_eq_k.trans h.symm)) (by decide)
@@ -700,10 +702,13 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     have hbundle2 : ∀ (u : CakeValuation) (a b : CakePiece),
         u.bundleVal [a, b] = u.pieceVal a + u.pieceVal b :=
       fun u a b => by rw [CakeValuation.bundleVal_cons, hbundle1]
+    -- Case split on who holds the trimmed piece: q2 = p0 vs q2 ≠ p0.
     have h1_T : ∀ m : Fin 3, (v 1).pieceVal (T_sub m) ≤ (v 1).pieceVal (T_sub s1) := fun m => by
       by_cases hq : q2 = p0 <;> simp only [pd, pa, s1, hq, ↓reduceIte] at hv_pd_T hv_pa_T_le ⊢
-      · rw [hv_pd_T m, hv_pd_T s_pd]
-      · exact hv_pa_T_le m
+      · -- Subcase B1: Player 2 took the trimmed piece (pa = 2, pd = 1, q1 = p1 ≠ p0).
+        rw [hv_pd_T m, hv_pd_T s_pd]
+      · -- Subcase B2: Player 2 took an untrimmed piece, so Player 1 took Y p0 (pa = 1, pd = 2).
+        exact hv_pa_T_le m
     have h2_T : ∀ m : Fin 3, (v 2).pieceVal (T_sub m) ≤ (v 2).pieceVal (T_sub s2) := fun m => by
       by_cases hq : q2 = p0 <;> simp only [pd, pa, s2, hq, ↓reduceIte] at hv_pd_T hv_pa_T_le ⊢
       · exact hv_pa_T_le m

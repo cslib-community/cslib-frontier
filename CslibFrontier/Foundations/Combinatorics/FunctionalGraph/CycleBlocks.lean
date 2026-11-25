@@ -57,10 +57,9 @@ private theorem sum_cycleLength_image_le (H : Finset α) :
     subst t
     have hper : minimalPeriod f r.val = cycleLength f r.val :=
       minimalPeriod_at_periodic_iterate (t := 0) f r.val (hrep r).2
-    have hij : i = j := Fin.ext <| (iterate_eq_iterate_iff_of_lt_minimalPeriod
+    congr 1
+    exact Fin.ext <| (iterate_eq_iterate_iff_of_lt_minimalPeriod
       (hper.symm ▸ i.isLt) (hper.symm ▸ j.isLt)).mp he
-    cases hij
-    rfl
   rw [← Finset.sum_attach]
   simpa [Fintype.card_sigma, reps] using Fintype.card_le_of_injective point hinj
 
@@ -82,35 +81,27 @@ theorem exists_cycleBlocks (H : Finset α) (B : ℕ) (hB : 0 < B) :
     rw [Finset.sum_mul]
     exact (Finset.sum_le_sum fun r _ =>
       (Nat.div_mul_le_self (cycleLength f r - 1) B).trans (Nat.sub_le _ _)).trans hsum
-  have hcount : rows.card ≤ ∑ r ∈ reps, blocks r := by
-    apply (Finset.card_biUnion_le).trans
-    apply Finset.sum_le_sum
-    intro r _
-    exact (Finset.card_image_le.trans_eq (Finset.card_range _))
+  have hcount : rows.card ≤ ∑ r ∈ reps, blocks r :=
+    Finset.card_biUnion_le.trans <| Finset.sum_le_sum fun r _ =>
+      Finset.card_image_le.trans_eq (Finset.card_range _)
   refine ⟨rows, ?_, ?_, ?_⟩
-  · have := Finset.card_image_le (f := canonicalCycle f) (s := H)
+  · have : reps.card ≤ H.card := Finset.card_image_le
     simp only [blocks, Finset.sum_add_distrib, Finset.sum_const, smul_eq_mul, mul_one] at hcount
-    change reps.card ≤ H.card at this
     lia
   · intro row hy
     obtain ⟨r, _, hr⟩ := Finset.mem_biUnion.mp hy
     obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hr
-    have hj' := Finset.mem_range.mp hj
-    have hlength := transientDepth_add_cycleLength_le_card f r
-    have hpos := cycleLength_pos f r
-    have hdiv := Nat.div_le_self (cycleLength f r - 1) B
-    dsimp only [blocks, Prod.snd] at hj' ⊢
+    have hj' : j < (cycleLength f r - 1) / B + 1 := Finset.mem_range.mp hj
+    have := transientDepth_add_cycleLength_le_card f r
+    have := cycleLength_pos f r
+    have := Nat.div_le_self (cycleLength f r - 1) B
     lia
   · intro h hh p hp
-    apply Finset.mem_biUnion.mpr
-    refine ⟨canonicalCycle f h, Finset.mem_image_of_mem _ hh, ?_⟩
-    refine Finset.mem_image.mpr ⟨p / B, ?_, rfl⟩
     obtain ⟨j, hj⟩ := canonicalCycle_reachable f h
-    have he : cycleLength f (canonicalCycle f h) = cycleLength f h := by
-      rw [← hj, cycleLength_iterate]
-    apply Finset.mem_range.mpr
-    change p / B < (cycleLength f (canonicalCycle f h) - 1) / B + 1
-    rw [he]
+    refine Finset.mem_biUnion.mpr ⟨_, Finset.mem_image_of_mem _ hh,
+      Finset.mem_image.mpr ⟨p / B, Finset.mem_range.mpr ?_, rfl⟩⟩
+    dsimp only [blocks]
+    rw [← hj, cycleLength_iterate]
     exact Nat.lt_succ_of_le (Nat.div_le_div_right (by lia))
 
 end Cslib.FunctionalGraph

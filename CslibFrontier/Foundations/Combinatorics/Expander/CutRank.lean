@@ -116,8 +116,16 @@ theorem IsSimple.mul_card_mul_card_compl_le_cutRank_mul [Field K] (hG : G.IsSimp
   have hnonneg : 0 ≤ (#S : ℝ) + G.spectralExpansion ^ 2 * (Fintype.card V - #S) :=
     add_nonneg (Nat.cast_nonneg _)
       (mul_nonneg (sq_nonneg _) (sub_nonneg.mpr (Nat.cast_le.mpr (card_le_univ S))))
-  nlinarith only [(hG.card_mul_card_le_card_neighbors_mul S).trans
-    (mul_le_mul_of_nonneg_right hcover' hnonneg)]
+  have hcombined := (hG.card_mul_card_le_card_neighbors_mul S).trans
+    (mul_le_mul_of_nonneg_right hcover' hnonneg)
+  calc
+    (1 - G.spectralExpansion ^ 2) * (#S : ℝ) * (Fintype.card V - #S) =
+        (#S : ℝ) * Fintype.card V -
+          #S * (#S + G.spectralExpansion ^ 2 * (Fintype.card V - #S)) := by ring
+    _ ≤ (#S + ((G.toSimpleGraph.adjMatrix K).cutRank (↑S : Set V) : ℝ) * Fintype.card D) *
+          (#S + G.spectralExpansion ^ 2 * (Fintype.card V - #S)) -
+            #S * (#S + G.spectralExpansion ^ 2 * (Fintype.card V - #S)) := by gcongr
+    _ = _ := by ring
 
 private theorem balanced_cut_rank_bound {n s r : ℝ} (hn : 0 ≤ n) (hr : 0 ≤ r)
     (hlo : n ≤ 3 * s) (hhi : 2 * s ≤ n)
@@ -133,9 +141,9 @@ private theorem balanced_cut_rank_bound {n s r : ℝ} (hn : 0 ≤ n) (hr : 0 ≤
       41 * ((51 / 100 : ℝ) * s * (n - s)) := by
     nlinarith only [mul_nonneg (sub_nonneg.mpr hlo) (sub_nonneg.mpr hhi),
       mul_nonneg hn (sub_nonneg.mpr hhi), sq_nonneg n]
-  exact le_of_mul_le_mul_left
-    (by convert hpoly.trans (mul_le_mul_of_nonneg_left hbound (by norm_num : (0 : ℝ) ≤ 41))
-      using 1 <;> ring) hden
+  refine le_of_mul_le_mul_left ?_ hden
+  convert hpoly.trans (mul_le_mul_of_nonneg_left hbound (by norm_num : (0 : ℝ) ≤ 41))
+    using 1 <;> ring
 
 /-- Every balanced cut of a simple degree-seven graph with normalized spectral expansion at most
 `7 / 10` has adjacency cut rank at least `n / 41`, over every field. Both sides of the cut must
@@ -145,8 +153,9 @@ theorem IsSimple.card_le_fortyOne_mul_cutRank [Field K] (hG : G.IsSimple)
     (hD : Fintype.card D = 7) (hμ : G.spectralExpansion ≤ 7 / 10) (S : Finset V)
     (hlo : Fintype.card V ≤ 3 * #S) (hhi : 3 * #S ≤ 2 * Fintype.card V) :
     Fintype.card V ≤ 41 * (G.toSimpleGraph.adjMatrix K).cutRank (↑S : Set V) := by
-  have hσ : G.spectralExpansion ^ 2 ≤ (49 / 100 : ℝ) :=
-    (pow_le_pow_left₀ G.spectralExpansion_nonneg hμ 2).trans_eq (by norm_num)
+  have hσ : G.spectralExpansion ^ 2 ≤ (49 / 100 : ℝ) := calc
+    G.spectralExpansion ^ 2 ≤ (7 / 10 : ℝ) ^ 2 := pow_le_pow_left₀ G.spectralExpansion_nonneg hμ 2
+    _ = 49 / 100 := by norm_num
   have hsmall (T : Finset V) (hTlo : Fintype.card V ≤ 3 * #T)
       (hThi : 2 * #T ≤ Fintype.card V) :
       Fintype.card V ≤ 41 * (G.toSimpleGraph.adjMatrix K).cutRank (↑T : Set V) := by

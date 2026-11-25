@@ -125,7 +125,9 @@ theorem GraphShatters.subset {C : ConceptClass α β} {W V : Set α}
 theorem GraphShatters.superset {C C' : ConceptClass α β} {W : Set α}
     (hW : GraphShatters C W) (hCC' : C ⊆ C') : GraphShatters C' W :=
   let ⟨f, h⟩ := hW
-  ⟨f, fun B hB => let ⟨c, hc, h₀, h₁⟩ := h B hB; ⟨c, hCC' hc, h₀, h₁⟩⟩
+  ⟨f, fun B hB =>
+    let ⟨c, hc, h₀, h₁⟩ := h B hB
+    ⟨c, hCC' hc, h₀, h₁⟩⟩
 
 theorem GraphShatters.nonempty {C : ConceptClass α β} {W : Set α}
     (hW : GraphShatters C W) : C.Nonempty :=
@@ -275,10 +277,12 @@ theorem ncard_restriction_le_sum_choose_graphDim [Fintype β] {C : ConceptClass 
     Nat.cast_le.mp (hW.card_le_evcDim.trans ((graphDim_eq_evcDim_conceptGraph C).symm.le.trans hd))
   calc ((· ∘ x) '' C).ncard
       = (encode '' ((· ∘ x) '' C)).ncard := (Set.ncard_image_of_injective _ hinj).symm
-    _ ≤ (restriction (conceptGraph C) pts).ncard := Set.ncard_le_ncard hsub (Set.toFinite _)
+    _ ≤ (restriction (conceptGraph C) pts).ncard :=
+        Set.ncard_le_ncard hsub (Set.toFinite _)
     _ ≤ growthFunction (conceptGraph C) (n * Fintype.card β) :=
         ncard_restriction_le_growthFunction (conceptGraph C) pts
-    _ ≤ ∑ i ∈ range (d + 1), (n * Fintype.card β).choose i := growthFunction_le_sum_choose hevc _
+    _ ≤ ∑ i ∈ range (d + 1), (n * Fintype.card β).choose i :=
+        growthFunction_le_sum_choose hevc _
 
 /-! ### Pseudo-cubes and the Daniely–Shalev-Shwartz (DS) dimension -/
 
@@ -323,10 +327,12 @@ theorem IsPseudoCube.two_pow_card_le_card [Fintype ι] {P : Finset (ι → β)}
     (hP : IsPseudoCube P) : 2 ^ Fintype.card ι ≤ P.card := by
   classical
   let e : Fin (Fintype.card ι) ≃ ι := (Fintype.equivFin ι).symm
+  have hPe : IsPseudoCube (P.image (· ∘ e)) := hP.image_precomp e.injective
   have hinj : Function.Injective (fun f : ι → β => f ∘ e) :=
-    fun _ _ h => funext fun i => by simpa using congrFun h (e.symm i)
-  exact (card_pseudoCube_fin (hP.image_precomp e.injective)).trans_eq
-    (card_image_of_injective P hinj)
+    fun f₁ f₂ h => funext fun i => by simpa using congrFun h (e.symm i)
+  calc 2 ^ Fintype.card ι
+      ≤ (P.image (· ∘ e)).card := card_pseudoCube_fin hPe
+    _ = P.card := card_image_of_injective P hinj
 
 /-- Over a two-element label space, a finite family on `ι` is a pseudo-cube iff it is the entire
 hypercube `Finset.univ`. -/
@@ -382,7 +388,8 @@ theorem DSShatters.subset {C : ConceptClass α β} {W V : Set α}
 
 theorem DSShatters.superset {C C' : ConceptClass α β} {W : Set α}
     (hW : DSShatters C W) (hCC' : C ⊆ C') : DSShatters C' W :=
-  let ⟨P, hPsub, hP⟩ := hW; ⟨P, hPsub.trans (Set.image_mono hCC'), hP⟩
+  let ⟨P, hPsub, hP⟩ := hW
+  ⟨P, hPsub.trans (Set.image_mono hCC'), hP⟩
 
 theorem DSShatters.nonempty {C : ConceptClass α β} {W : Set α}
     (hW : DSShatters C W) : C.Nonempty :=
@@ -463,7 +470,8 @@ theorem dsShatters_iff_setShatters {C : ConceptClass α Bool} {W : Finset α} :
     by_cases hfx : f ⟨x, hxW⟩ = true
     · exact (show x ∈ c ⁻¹' {true} ∩ ↑W from hcT ▸ ⟨hxW, hxW, hfx⟩).1.trans hfx.symm
     · have hnot : x ∉ c ⁻¹' {true} ∩ ↑W := fun hm =>
-        let ⟨_, _, ht⟩ := hcT ▸ hm; hfx ht
+        let ⟨_, _, ht⟩ := hcT ▸ hm
+        hfx ht
       cases hcx : c x
       · exact hcx.trans (Bool.eq_false_iff.mpr hfx).symm
       · exact (hnot ⟨hcx, hxW⟩).elim
@@ -491,7 +499,8 @@ theorem NatarajanShatters.dsShatters {C : ConceptClass α β} {W : Finset α}
   · rcases mem_image.mp hg with ⟨B, hBW, rfl⟩
     let B' : Finset α := if i.1 ∈ B then B.erase i.1 else insert i.1 B
     have hB'W : B' ∈ W.powerset := mem_powerset.mpr <| by
-      dsimp only [B']; split_ifs
+      dsimp only [B']
+      split_ifs
       · exact (erase_subset _ _).trans (mem_powerset.mp hBW)
       · exact insert_subset i.2 (mem_powerset.mp hBW)
     refine ⟨cubeMap B', mem_image_of_mem _ hB'W, ?_, fun j hj => ?_⟩
@@ -530,7 +539,8 @@ theorem DSShatters.graphShatters {C : ConceptClass α β} {W : Finset α}
     fun x hx => by
       have h1 : c x = h ⟨x, hx.1⟩ := congrFun hch ⟨x, hx.1⟩
       have h2 : c₀ x = f₀ ⟨x, hx.1⟩ := congrFun hcf₀ ⟨x, hx.1⟩
-      rw [h1, h2]; exact hneD ⟨x, hx.1⟩ (by simp [D, hx.2])⟩
+      rw [h1, h2]
+      exact hneD ⟨x, hx.1⟩ (by simp [D, hx.2])⟩
 
 /-- Every N-shattered set is G-shattered. -/
 theorem NatarajanShatters.graphShatters {C : ConceptClass α β} {W : Set α}
@@ -619,7 +629,8 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
   have hmul3 : 2 ^ (2 * s) * 3 ^ (2 * s) ≤ 3 ^ d * 4 ^ (2 * s) * k ^ (2 * d) := by
     calc 2 ^ (2 * s) * 3 ^ (2 * s)
         ≤ (∑ i ∈ range (d + 1), (2 * s).choose i) * 3 ^ (2 * s) * k ^ (2 * d) := by
-          have := Nat.mul_le_mul_right (3 ^ (2 * s)) (hsum.trans hnatar); linarith
+          have := Nat.mul_le_mul_right (3 ^ (2 * s)) (hsum.trans hnatar)
+          linarith
       _ ≤ 3 ^ d * 4 ^ (2 * s) * k ^ (2 * d) :=
           Nat.mul_le_mul_right _ (Cslib.sum_range_choose_mul_pow_le 3 (2 * s) d)
   have h9le : 9 ^ s ≤ 4 ^ s * (3 ^ d * k ^ (2 * d)) := by
@@ -630,7 +641,8 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
     rw [h4, h9] at hmul3; linarith
   have hcoeff_lt : 3 ^ d * k ^ (2 * d) < 2 ^ s := by
     have h3lt : 3 ^ d < 2 ^ (2 * d) := by
-      rw [pow_mul]; exact Nat.pow_lt_pow_left (by decide) hdpos.ne'
+      rw [pow_mul]
+      exact Nat.pow_lt_pow_left (by decide) hdpos.ne'
     have hkle : k ^ (2 * d) ≤ 2 ^ ((Nat.log 2 k + 1) * (2 * d)) :=
       (Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self (by decide : 1 < 2) k).le _).trans_eq
         (pow_mul ..).symm
@@ -706,10 +718,14 @@ theorem natarajanDim_hexagonClass : natarajanDim hexagonClass = 1 := by
     have hdisj : Disjoint S₀ S₁ := Finset.disjoint_left.mpr fun y hy0 hy1 => by
       simp only [S₀, S₁, mem_insert, mem_singleton] at hy0 hy1
       rcases hy0 with rfl | rfl <;> rcases hy1 with h | h
-      · exact (by rwa [← ha₀ 0 (by simp), ← ha₀ 1 (by simp)] : f₀ 0 ≠ f₀ 1) h
-      · exact (by rwa [← h0₀ 0 rfl, ← h0₁ 1 ⟨by simp, by decide⟩] : f₀ 0 ≠ f₁ 1) h
-      · exact (by rwa [← h1₁ 0 ⟨by simp, by decide⟩, ← h1₀ 1 rfl] : f₁ 0 ≠ f₀ 1) h
-      · exact (by rwa [← he₁ 0 (by simp), ← he₁ 1 (by simp)] : f₁ 0 ≠ f₁ 1) h
+      · rw [← ha₀ 0 (by simp), ← ha₀ 1 (by simp)] at h
+        exact hc_all h
+      · rw [← h0₀ 0 rfl, ← h0₁ 1 ⟨by simp, by decide⟩] at h
+        exact hc_0 h
+      · rw [← h1₁ 0 ⟨by simp, by decide⟩, ← h1₀ 1 rfl] at h
+        exact hc_1 h
+      · rw [← he₁ 0 (by simp), ← he₁ 1 (by simp)] at h
+        exact hc_emp h
     have hcard4 : (S₀ ∪ S₁).card = 4 := by
       rw [card_union_of_disjoint hdisj, card_pair (hne 0 (by simp)), card_pair (hne 1 (by simp))]
     have hle3 : (S₀ ∪ S₁).card ≤ 3 := (card_le_univ _).trans_eq (by simp)
@@ -742,12 +758,16 @@ theorem dsDim_hexagonClass : dsDim hexagonClass = 2 := by
     obtain ⟨b, hb0, hb1⟩ := (by decide : ∀ a b : Fin 3, ∃ c : Fin 3, c ≠ a ∧ c ≠ b) (f x₀) (f x₁)
     refine ⟨Function.update f i b, mem_filter.mpr ⟨mem_univ _, ?_⟩, ?_,
       fun _ hj => Function.update_of_ne hj b f⟩
-    · rcases i with ⟨u, _⟩; fin_cases u
+    · rcases i with ⟨u, _⟩
+      fin_cases u
       · change Function.update f x₀ b x₀ ≠ Function.update f x₀ b x₁
-        rw [Function.update_self, Function.update_of_ne (by decide : x₁ ≠ x₀)]; exact hb1
+        rw [Function.update_self, Function.update_of_ne (by decide : x₁ ≠ x₀)]
+        exact hb1
       · change Function.update f x₁ b x₀ ≠ Function.update f x₁ b x₁
-        rw [Function.update_self, Function.update_of_ne (by decide : x₀ ≠ x₁)]; exact hb0.symm
-    · rcases i with ⟨u, _⟩; fin_cases u
+        rw [Function.update_self, Function.update_of_ne (by decide : x₀ ≠ x₁)]
+        exact hb0.symm
+    · rcases i with ⟨u, _⟩
+      fin_cases u
       · exact hb0
       · exact hb1
   simpa [W] using hsh.card_le_dsDim
@@ -778,9 +798,10 @@ theorem graphShatters_revealingSetClass [DecidableEq α] (W : Finset α) :
   classical
   refine ⟨fun _ => none, fun B₀ hB₀ => ?_⟩
   let B : Finset α := W.filter (· ∈ B₀)
-  exact ⟨revealingConcept B, ⟨B, rfl⟩,
-    fun x hx => by have hxW : x ∈ W := hB₀ hx; simp [revealingConcept, B, hxW, hx],
+  refine ⟨revealingConcept B, ⟨B, rfl⟩, fun x hx => ?_,
     fun x hx => by simp [revealingConcept, B, hx.2]⟩
+  have hxW : x ∈ W := hB₀ hx
+  simp [revealingConcept, B, hxW, hx]
 
 /-- On any infinite domain, `revealingSetClass α` has infinite graph dimension (`⊤`). -/
 theorem graphDim_revealingSetClass_of_infinite [DecidableEq α] [Infinite α] :

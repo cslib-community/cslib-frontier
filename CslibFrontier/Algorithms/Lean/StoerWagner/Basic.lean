@@ -106,10 +106,15 @@ private theorem exists_eq_append_lastTwo {α : Type*} (d : α) {l : List α} (hl
     ∃ p, l = p ++ [(lastTwo d l).1, (lastTwo d l).2] := by
   unfold lastTwo
   rcases h : l.reverse with _ | ⟨t, _ | ⟨s, r⟩⟩
-  · simp [List.reverse_eq_nil_iff.mp h] at hl
+  · rw [List.reverse_eq_nil_iff] at h
+    subst h
+    simp at hl
   · have := congrArg List.length h
-    simp only [List.length_reverse, List.length_singleton] at this; omega
-  · exact ⟨r.reverse, by rw [← List.reverse_reverse l, h]; simp⟩
+    simp only [List.length_reverse, List.length_singleton] at this
+    omega
+  · refine ⟨r.reverse, ?_⟩
+    rw [← List.reverse_reverse l, h]
+    simp
 
 /-- The answer of the algorithm: one side of a cut, and the weight of the cut. -/
 structure CutResult (n : ℕ) where
@@ -145,8 +150,10 @@ theorem run_succ {n k : ℕ} (W : Fin (k + 3) → Fin (k + 3) → ℕ) (part : F
       let phase : CutResult n := ⟨pullbackCut part {t}, rowDeg W t⟩
       let rest := run k (contractMatrix W s t) (contractPart part s t hst)
       if rest.weight ≤ phase.weight then rest else phase := by
-  have hlast : lastTwo 0 (maOrder W) = (s, t) := by simp [lastTwo, hp]
-  rw [run]; dsimp only
+  have hlast : lastTwo 0 (maOrder W) = (s, t) := by
+    simp [lastTwo, hp]
+  rw [run]
+  dsimp only
   generalize hst' : lastTwo 0 (maOrder W) = st
   rw [hlast] at hst'
   subst hst'
@@ -194,10 +201,12 @@ theorem minCut_eq_min_minCutBetween {k : ℕ} {W : Fin (k + 3) → Fin (k + 3) �
     minCut W = min (minCutBetween W s t) (minCut (contractMatrix W s t)) := by
   obtain ⟨X, hs, ht, hX⟩ := exists_cutWeight_eq_minCutBetween W hst
   rw [← hX]
-  refine minCut_eq_min_contractMatrix hW hst (by tauto) fun Y hY => hX.trans_le ?_
+  refine minCut_eq_min_contractMatrix hW hst (by tauto) fun Y hY => ?_
+  rw [hX]
   by_cases hsY : s ∈ Y
   · exact minCutBetween_le_cutWeight W hsY (hY.mp hsY)
-  · exact (minCutBetween_comm hW s t).trans_le (minCutBetween_le_cutWeight W (by tauto) hsY)
+  · rw [minCutBetween_comm hW]
+    exact minCutBetween_le_cutWeight W (by tauto) hsY
 
 /-- **One phase**: for the last two vertices `s, t` of a maximum adjacency ordering, the global
 minimum cut weight is the smaller of the weight of the cut of the phase `{t}` and the global
@@ -219,39 +228,49 @@ theorem run_spec {n : ℕ} {W₀ : Fin n → Fin n → ℕ} :
         (run k W part).weight ∧ (run k W part).weight = minCut W
   | 0, W, part, hC => by
     have hW := hC.multigraph
-    refine ⟨isNonTrivialCut_pullbackCut hC.surj (isNonTrivialCut_singleton (by simp) 1),
-      (cutWeight_pullbackCut hC _).trans (cutWeight_singleton hW 1),
-      le_antisymm ?_ (minCut_le_rowDeg (by simp) hW 1)⟩
-    dsimp only [run]
-    rw [le_minCut_iff (by simp)]
-    intro B hB
-    rw [cutWeight_fin_two hW hB, ← cutWeight_singleton hW,
-      ← cutWeight_fin_two hW (isNonTrivialCut_singleton (by simp) 1)]
+    refine ⟨isNonTrivialCut_pullbackCut hC.surj (isNonTrivialCut_singleton (by simp) 1), ?_, ?_⟩
+    · simp only [run]
+      rw [cutWeight_pullbackCut hC, cutWeight_singleton hW]
+    · simp only [run]
+      refine le_antisymm ?_ (minCut_le_rowDeg (by simp) hW 1)
+      rw [le_minCut_iff (by simp)]
+      intro B hB
+      rw [cutWeight_fin_two hW hB, ← cutWeight_singleton hW,
+        ← cutWeight_fin_two hW (isNonTrivialCut_singleton (by simp) 1)]
   | k + 1, W, part, hC => by
     have hW := hC.multigraph
     have hl := isMAOrdering_maOrder W
-    obtain ⟨p, hp⟩ := exists_eq_append_lastTwo 0 (l := maOrder W)
-      (by rw [(perm_maOrder W).length_eq]; simp)
+    have hlen : 2 ≤ (maOrder W).length := by
+      rw [(perm_maOrder W).length_eq]
+      simp
+    obtain ⟨p, hp⟩ := exists_eq_append_lastTwo 0 hlen
     rw [hp] at hl
     have hst : (lastTwo 0 (maOrder W)).1 ≠ (lastTwo 0 (maOrder W)).2 := by
       simpa using (List.nodup_append.mp hl.nodup).2.1
-    have hphase : minCut W = min (rowDeg W (lastTwo 0 (maOrder W)).2)
-        (minCut (contractMatrix W (lastTwo 0 (maOrder W)).1 (lastTwo 0 (maOrder W)).2)) := by
-      rw [minCut_eq_min_of_isMAOrdering hW hl, cutWeight_singleton hW]
+    have hphase := minCut_eq_min_of_isMAOrdering hW hl
+    rw [cutWeight_singleton hW] at hphase
     obtain ⟨ih1, ih2, ih3⟩ := run_spec k (isContractionOf_contract hC hst)
+    have hpt : cutWeight W₀ (pullbackCut part {(lastTwo 0 (maOrder W)).2}) =
+        rowDeg W (lastTwo 0 (maOrder W)).2 := by
+      rw [cutWeight_pullbackCut hC, cutWeight_singleton hW]
+    have hpnt : IsNonTrivialCut (pullbackCut part {(lastTwo 0 (maOrder W)).2}) :=
+      isNonTrivialCut_pullbackCut hC.surj (isNonTrivialCut_singleton (by simp) _)
     simp only [run, dite_eq_right hst]
     split_ifs with hle
-    · exact ⟨ih1, ih2, by rw [hphase, ← ih3, min_eq_right hle]⟩
-    · exact ⟨isNonTrivialCut_pullbackCut hC.surj (isNonTrivialCut_singleton (by simp) _),
-        (cutWeight_pullbackCut hC _).trans (cutWeight_singleton hW _),
-        by dsimp only at hle ⊢; rw [hphase, min_eq_left (by omega)]⟩
+    · refine ⟨ih1, ih2, ?_⟩
+      rw [hphase, ← ih3, min_eq_right hle]
+    · refine ⟨hpnt, hpt, ?_⟩
+      dsimp only at hle ⊢
+      rw [hphase, min_eq_left (by omega)]
 
 /-- **Correctness of the Stoer–Wagner algorithm** [StoerWagner1997]: on a multigraph with at least
 two vertices it answers a non-trivial cut of minimum weight, and the weight of that cut. -/
 theorem stoerWagner_spec {n : ℕ} (hn : 2 ≤ n) {W : Fin n → Fin n → ℕ} (hW : IsMultigraph W) :
     IsNonTrivialCut (stoerWagner W).side ∧ cutWeight W (stoerWagner W).side = minCut W ∧
       (stoerWagner W).weight = minCut W := by
-  obtain _ | _ | n := n <;> try omega
+  obtain _ | _ | n := n
+  · omega
+  · omega
   obtain ⟨h1, h2, h3⟩ := run_spec n (isContractionOf_id hW)
   exact ⟨h1, h2.trans h3, h3⟩
 

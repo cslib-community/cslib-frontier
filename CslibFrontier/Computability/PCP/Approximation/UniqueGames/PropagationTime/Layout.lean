@@ -218,8 +218,11 @@ theorem not_in_tabRow {L u w a : ℕ} {g : Graph (Fin L → Fin L)}
     (huw : u ≠ w) (ha : a < L) :
     ¬ (tabBase g + w * L ≤ tabBase g + u * L + a ∧
         tabBase g + u * L + a < tabBase g + w * L + L) := by
-  rcases Nat.lt_or_gt_of_ne huw with h | h <;>
-    (have := Nat.mul_le_mul_right L h; rw [Nat.succ_mul] at this; omega)
+  rcases Nat.lt_or_gt_of_ne huw with h | h
+  all_goals
+    have := Nat.mul_le_mul_right L h
+    rw [Nat.succ_mul] at this
+    omega
 
 /-- Every valid slot row `w < slots g` ends at or below `candBase g`. -/
 theorem tabRow_hi_le_candBase {L w : ℕ} {g : Graph (Fin L → Fin L)} (hw : w < slots g) :
@@ -277,9 +280,11 @@ theorem inputAt_init {L : ℕ} (g : Graph (Fin L → Fin L)) :
     simp only [List.length_cons, List.length_nil, Nat.add_sub_cancel_left]
     rw [List.getElem?_flatMap_mul_add g.edges encodeEdge (L + 2)
       (fun _ _ => length_encodeEdge _) hj hr,
-      List.getElem?_eq_getElem (by simp only [length_encodeEdge]; exact hr)]; rfl
+      List.getElem?_eq_getElem (by simp only [length_encodeEdge]; exact hr)]
+    rfl
   refine ⟨⟨by rw [Data.init_mem_zero, length_encode],
-    by rw [Data.init_mem_succ]; simp only [encode, List.getD_cons_zero],
+    by rw [Data.init_mem_succ]
+       simp only [encode, List.getD_cons_zero],
     by rw [show (2 : ℕ) = 1 + 1 from rfl, Data.init_mem_succ]
        simp only [encode, List.getD_cons_succ, List.getD_cons_zero],
     by rw [show (3 : ℕ) = 2 + 1 from rfl, Data.init_mem_succ]
@@ -569,7 +574,8 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
     have hpos : 0 < S.unvisited.card :=
       Finset.card_pos.mpr ⟨u, mem_unvisited (hS.len_table ▸ hu) hnone⟩
     have hpot : S.potential ≤ slots g := hS.pot_le
-    unfold State.potential at hpot; omega
+    unfold State.potential at hpot
+    omega
   have hfr_low : ∀ a < visBase g, y.mem a = x.mem a := fun a ha =>
     hframe a (by wram_omega) (by omega) (by wram_omega)
   refine ⟨⟨hc, hS.inp.frame (fun a ha => hfr_low a (by wram_omega)),
@@ -580,11 +586,21 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
     fun v hv => (List.mem_cons.mp hv).elim (fun h => h ▸ hu) (hS.stack_lt v),
     by simpa only [push, List.reverse_cons] using hstk_mem, hcmp_len, hS.comp_le, hS.comp_lt,
     hS.comp_mem.frame fun a _ ha2 => by
-      have hcl := hS.comp_le; rw [List.length_reverse] at ha2
-      exact hframe a (by wram_omega) (by wram_omega) (by wram_omega)⟩
-  · have hne : u ≠ v := by rintro rfl; rw [get_push_self (hS.len_table ▸ hu)] at hvn; nomatch hvn
+      have hcl := hS.comp_le
+      rw [List.length_reverse] at ha2
+      exact hframe a
+        (by wram_omega)
+        (by wram_omega)
+        (by wram_omega)⟩
+  · have hne : u ≠ v := by
+      rintro rfl
+      rw [get_push_self (hS.len_table ▸ hu)] at hvn
+      nomatch hvn
     rw [get_push_ne S hne] at hvn
-    exact (hframe _ (by wram_omega) (by omega) (by wram_omega)).trans (hS.vis_none v hv hvn)
+    exact (hframe _
+      (by wram_omega)
+      (by omega)
+      (by wram_omega)).trans (hS.vis_none v hv hvn)
   · by_cases huv : u = v
     · subst huv
       rw [get_push_self (hS.len_table ▸ hu)] at hvf
@@ -592,10 +608,17 @@ theorem StateAt.push_slot {L : ℕ} {g : Graph (Fin L → Fin L)} {S : State (Fi
       exact ⟨hvis, hrow⟩
     · rw [get_push_ne S huv] at hvf
       obtain ⟨hv1, hvtab⟩ := hS.vis_some v hv fn hvf
-      exact ⟨(hframe _ (by wram_omega) (by omega) (by wram_omega)).trans hv1, fun a ha =>
-        (hframe _ (not_in_tabRow (Ne.symm huv) ha) (by wram_omega)
-          (by have := tabRow_hi_le_candBase (g := g) hv; wram_omega)).trans (hvtab a ha)⟩
-  · exact (hframe _ (by omega) (by wram_omega) (by wram_omega)).trans (hS.cand_mem a ha)
+      refine ⟨(hframe _
+          (by wram_omega)
+          (by omega)
+          (by wram_omega)).trans hv1, fun a ha => ?_⟩
+      have := tabRow_hi_le_candBase (g := g) hv
+      exact (hframe _ (not_in_tabRow (Ne.symm huv) ha)
+        (by wram_omega)
+        (by wram_omega)).trans (hvtab a ha)
+  · exact (hframe _ (by omega)
+      (by wram_omega)
+      (by wram_omega)).trans (hS.cand_mem a ha)
 
 /-- Load visited flags `vis[rSrc]` and `vis[rDst]` into `rTmp1` and `rTmp2`. -/
 def edgeVisLoad : Code .standard 34 := ram[

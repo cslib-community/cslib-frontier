@@ -130,10 +130,8 @@ block's last entry is not required to return to its first entry. -/
 
 /-- A singleton block has no internal successor equation. -/
 theorem consecutive_singleton {G : Graph} (r : RotationSystem G) (d : ℕ) :
-    Consecutive r [d] := by
-  intro i hi
-  simp only [List.length_singleton] at hi
-  omega
+    Consecutive r [d] :=
+  fun _ hi => absurd hi (by simp)
 
 /-- Fiber membership retains both the binary width and the exact endpoint. -/
 theorem mem_fiber {G : Graph} {v d : ℕ} :

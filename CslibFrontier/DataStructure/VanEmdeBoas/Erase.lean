@@ -235,15 +235,10 @@ private theorem update_cluster_erase_spec {c : Fin (universeSize d) → Tree d}
     (∀ k, (Function.update c i t k).Valid) ∧
       ∀ k y, (Function.update c i t k).Contains y ↔
         ¬(k = i ∧ y = low) ∧ (c k).Contains y := by
-  constructor
-  · intro k
-    by_cases h : k = i
-    · subst k; simpa only [Function.update_self] using ht
-    · simpa only [Function.update_of_ne h] using hc k
-  · intro k y
-    by_cases h : k = i
-    · subst k; simpa only [Function.update_self, true_and] using hs y
-    · simp [h]
+  refine ⟨(Function.forall_update_iff c fun _ u => u.Valid).mpr ⟨ht, fun k _ => hc k⟩,
+    fun k y => ?_⟩
+  rw [Function.pred_update (fun {_} (u : Tree d) => u.Contains y) c i t k, hs]
+  by_cases h : k = i <;> simp [h]
 
 private theorem cluster_key_eq_iff {d : ℕ} {c : Fin (universeSize d) → Tree d}
     (hc : ∀ k, (c k).Valid) {k : Fin (universeSize d)} {a x : ℕ}
@@ -254,8 +249,7 @@ private theorem cluster_key_eq_iff {d : ℕ} {c : Fin (universeSize d) → Tree 
   constructor
   · rintro rfl; exact ⟨hcoord.1.symm, hcoord.2.symm⟩
   · rintro ⟨hk, ha'⟩
-    rw [hk, ha', Nat.mul_comm]
-    exact Nat.div_add_mod x (universeSize d)
+    rw [hk, ha', Nat.div_add_mod']
 
 private theorem contains_node_erase {d m M newMin x low : ℕ}
     {i : Fin (universeSize d)} {s s' : Tree d}
@@ -289,7 +283,7 @@ private theorem contains_node_erase {d m M newMin x low : ℕ}
       · exact Or.inl rfl
       · refine Or.inr ⟨k, a, ⟨?_, ha⟩, rfl⟩
         rintro ⟨rfl, rfl⟩
-        rw [hi, hlow, Nat.mul_comm, Nat.div_add_mod] at hyx
+        rw [hi, hlow, Nat.div_add_mod'] at hyx
         exact hyx rfl
 
 private theorem erase_cluster_branch {s : Tree d} {c : Fin (universeSize d) → Tree d}
@@ -369,6 +363,14 @@ private theorem eraseTarget_of_ne {d m x : ℕ} {s : Tree d}
   have hdiv : x / universeSize d < universeSize d :=
     (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr hx_lt
   ⟨hdiv, by simp [eraseTarget, hxm, hdiv]⟩
+
+private theorem contains_node_iff_contains_cluster {m M x : ℕ} {s : Tree d}
+    {c : Fin (universeSize d) → Tree d} (ht : (node (some (m, M)) s c).Valid)
+    (hxm : x ≠ m) {hi : x / universeSize d < universeSize d} :
+    (node (some (m, M)) s c).Contains x ↔
+      (c ⟨x / universeSize d, hi⟩).Contains (x % universeSize d) := by
+  rw [← member_iff_contains ht, member, ite_eq_right hxm, dite_eq_left hi,
+    member_iff_contains (ht.2.2.1 _)]
 
 private theorem erase_spec {t : Tree d} (ht : t.Valid) (x : ℕ) :
     (t.erase x).Valid ∧ ∀ y, (t.erase x).Contains y ↔ y ≠ x ∧ t.Contains y := by
@@ -452,14 +454,8 @@ private theorem erase_spec {t : Tree d} (ht : t.Valid) (x : ℕ) :
               let i : Fin (universeSize d) := ⟨x / universeSize d, hx_div⟩
               let low := x % universeSize d
               have hnot_mem_of_not_low : ¬(c i).Contains low →
-                  ¬(node (some (m, M)) s c).Contains x := by
-                rintro hnot hx_mem
-                simp only [contains_node_some] at hx_mem
-                rcases hx_mem with rfl | ⟨k, a, ha, hxa⟩
-                · exact hxm rfl
-                · obtain ⟨hki, halow⟩ := (cluster_key_eq_iff hc ha).mp hxa.symm
-                  exact hnot (Fin.ext (show i.val = k.val from hki.symm) ▸
-                    (show a = low from halow) ▸ ha)
+                  ¬(node (some (m, M)) s c).Contains x :=
+                (contains_node_iff_contains_cluster ht hxm).not.mpr
               rw [erase, ite_eq_right hout, ite_eq_right heq, htarget]
               dsimp only
               cases hbi : (c i).bounds with
@@ -500,7 +496,7 @@ private theorem clusterMax_eq_of_valid {m M : ℕ} {s : Tree d}
       (node (some (m, M)) s c).Contains z := fun z => by simp [contains_node_some]
   have h1 : clusterMax m s c ≤ M := (he.2.2.2.2 _ ((hsame _).mp he'.2.2.2.1)).2
   have h2 : M ≤ clusterMax m s c := (he'.2.2.2.2 _ ((hsame _).mpr he.2.2.2.1)).2
-  omega
+  exact Nat.le_antisymm h1 h2
 
 /-- Deleting a key not represented by a valid tree returns the exact tree `t`. -/
 theorem erase_eq_of_not_contains {t : Tree d} (ht : t.Valid) {x : ℕ}
@@ -528,9 +524,8 @@ theorem erase_eq_of_not_contains {t : Tree d} (ht : t.Valid) {x : ℕ}
           obtain ⟨hx_div, htarget⟩ := eraseTarget_of_ne (s := s) (c := c) hxm
             (Nat.lt_of_le_of_lt (show x ≤ M by omega) he.2.1)
           let i : Fin (universeSize d) := ⟨x / universeSize d, hx_div⟩
-          have hnot_low : ¬(c i).Contains (x % universeSize d) := fun hlow =>
-            hx ⟨m, M, rfl, Or.inr ⟨i, x % universeSize d, hlow, by
-              simpa only [i, Nat.mul_comm] using (Nat.div_add_mod x (universeSize d)).symm⟩⟩
+          have hnot_low : ¬(c i).Contains (x % universeSize d) :=
+            (contains_node_iff_contains_cluster ht hxm).not.mp hx
           rw [erase, ite_eq_right hout, ite_eq_right heq, htarget]
           dsimp only
           cases hbi : (c i).bounds with
@@ -545,9 +540,7 @@ theorem erase_eq_of_not_contains {t : Tree d} (ht : t.Valid) {x : ℕ}
               rw [ite_eq_left rfl, ite_eq_right hne]
             · rw [ite_eq_right hcm]
               have hc_eq : Function.update c i (erase (c i) (x % universeSize d)) = c := by
-                rw [ih (ht.2.2.1 i) hnot_low]
-                funext k
-                by_cases hk : k = i <;> simp [hk]
+                rw [ih (ht.2.2.1 i) hnot_low, Function.update_eq_self]
               rw [hc_eq, clusterMax_eq_of_valid ht]
 
 end Cslib.DataStructure.VanEmdeBoas.Tree

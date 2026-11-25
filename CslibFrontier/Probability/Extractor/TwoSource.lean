@@ -116,12 +116,14 @@ theorem IsStrongTwoSourceExtractor.isTwoSourceExtractor [Fintype Y]
   have hleft : (q.bind fun y => p.map fun x => (y, ext x y)).map Prod.snd =
       p.bind fun x => q.map fun y => ext x y := by
     simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
-    simpa only [PMF.map, Function.comp_def] using PMF.bind_comm q p fun y x => PMF.pure (ext x y)
+    simpa only [PMF.map, Function.comp_def] using
+      PMF.bind_comm q p (fun y x => PMF.pure (ext x y))
   have hright : (q.bind fun y => (PMF.uniformOfFintype Output).map fun z => (y, z)).map
       Prod.snd = PMF.uniformOfFintype Output := by
     simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
     exact (PMF.bind_const _ _).trans (PMF.map_id _)
-  simpa only [hleft, hright] using (dist_map_le _ _ Prod.snd).trans (h p q hp hq)
+  rw [← hleft, ← hright]
+  exact (dist_map_le _ _ Prod.snd).trans (h p q hp hq)
 
 /-! ### The bias of a bit -/
 
@@ -186,11 +188,15 @@ theorem isStrongTwoSourceExtractor_dotProduct (k₁ k₂ : ℝ) :
     IsStrongTwoSourceExtractor (fun x y : ι → Bool => x ⬝ᵥ y) k₁ k₂
       (2 ^ ((Fintype.card ι - k₁ - k₂) / 2) / 2) := by
   intro p q hp hq
-  simp only [show ∀ y : ι → Bool, (p.map fun x => (y, x ⬝ᵥ y)) =
-    (p.map fun x => x ⬝ᵥ y).map fun z => (y, z) from fun _ => (PMF.map_comp _ _ _).symm]
+  have hpair (y : ι → Bool) :
+      (p.map fun x => (y, x ⬝ᵥ y)) = (p.map fun x => x ⬝ᵥ y).map fun z => (y, z) := by
+    rw [PMF.map_comp]
+    rfl
+  simp only [hpair]
   rw [dist_bind_pair]
   simp only [dist_map_uniformOfFintype_bool, mul_div_assoc', ← sum_div]
-  exact div_le_div_of_nonneg_right (sum_mul_abs_bias_dotProduct_le hp hq) zero_le_two
+  gcongr
+  exact sum_mul_abs_bias_dotProduct_le hp hq
 
 omit [DecidableEq ι] in
 /-- **The Chor–Goldreich theorem.** The inner product modulo two of bit strings indexed by `ι`,
@@ -217,9 +223,11 @@ private theorem eq_false_of_mem_supportedOn {S : Finset ι} {x : ι → Bool}
   simp [hi]
 
 private theorem card_supportedOn (S : Finset ι) : (supportedOn S).card = 2 ^ S.card := by
-  rw [supportedOn, card_image_of_injective _ fun z z' h =>
-    funext fun ⟨i, hi⟩ => by simpa [hi] using congrFun h i,
-    card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_coe]
+  rw [supportedOn, card_image_of_injective, card_univ, Fintype.card_fun, Fintype.card_bool,
+    Fintype.card_coe]
+  intro z z' h
+  funext ⟨i, hi⟩
+  simpa [hi] using congrFun h i
 
 private theorem minEntropy_uniformOfFinset_supportedOn (S : Finset ι) :
     minEntropy (uniformOfFinset (supportedOn S) (supportedOn_nonempty S)) = S.card := by

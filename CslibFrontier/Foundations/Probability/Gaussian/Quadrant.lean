@@ -186,13 +186,15 @@ theorem gaussianQuadrant_comm {ρ : ℝ} (hρ : |ρ| ≤ 1) (α β : ℝ) :
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α, 0) = 0`. -/
 theorem gaussianQuadrant_zero_right (ρ α : ℝ) : gaussianQuadrant ρ α 0 = 0 := by
-  rw [gaussianQuadrant_def, show {p : ℝ × ℝ | Φ p.1 ≤ α ∧ Φ p.2 ≤ 0} = ∅ from
-    eq_empty_of_forall_notMem fun p hp => (cdf_pos' p.2).not_ge hp.2, measureReal_empty]
+  have : {p : ℝ × ℝ | Φ p.1 ≤ α ∧ Φ p.2 ≤ 0} = ∅ :=
+    eq_empty_of_forall_notMem fun p hp => (cdf_pos' p.2).not_ge hp.2
+  rw [gaussianQuadrant_def, this, measureReal_empty]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(0, β) = 0`. -/
 theorem gaussianQuadrant_zero_left (ρ β : ℝ) : gaussianQuadrant ρ 0 β = 0 := by
-  rw [gaussianQuadrant_def, show {p : ℝ × ℝ | Φ p.1 ≤ 0 ∧ Φ p.2 ≤ β} = ∅ from
-    eq_empty_of_forall_notMem fun p hp => (cdf_pos' p.1).not_ge hp.1, measureReal_empty]
+  have : {p : ℝ × ℝ | Φ p.1 ≤ 0 ∧ Φ p.2 ≤ β} = ∅ :=
+    eq_empty_of_forall_notMem fun p hp => (cdf_pos' p.1).not_ge hp.1
+  rw [gaussianQuadrant_def, this, measureReal_empty]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α, 1) = α` for `α ∈ [0, 1]`. -/
 theorem gaussianQuadrant_one_right (ρ : ℝ) {α : ℝ} (h0 : 0 ≤ α) (h1 : α ≤ 1) :
@@ -353,11 +355,14 @@ theorem mul_le_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1) {
   have e2 : (correlatedGaussian ρ).real {p | p.1 ∈ univ ∧ Φ p.2 ≤ β} = β := by
     simp only [mem_univ, true_and, measureReal_snd_cdf_le (abs_le.2 ⟨by linarith, hρ1⟩),
       min_eq_left hβ1, max_eq_left hβ0]
-  conv_lhs => rw [← e1, ← e2]
-  have hΛ' : correlatedGaussian ρ {p | Φ p.1 ≤ α ∧ Φ p.2 ≤ β} = ∫⁻ x in A, q x ∂gaussianReal 0 1 :=
-    hΛ
-  simp only [gaussianQuadrant_def, Measure.real, ← ENNReal.toReal_mul, hΛ', hβ]
-  exact ENNReal.toReal_mono (hΛ' ▸ measure_ne_top _ _) hkey
+  rw [gaussianQuadrant_def]
+  calc α * β = (gaussianReal 0 1 A *
+        correlatedGaussian ρ {p | p.1 ∈ univ ∧ Φ p.2 ≤ β}).toReal := by
+        rw [ENNReal.toReal_mul]
+        exact congrArg₂ (· * ·) e1.symm e2.symm
+    _ ≤ (correlatedGaussian ρ {p | p.1 ∈ A ∧ Φ p.2 ≤ β}).toReal := by
+        rw [hΛ, hβ]
+        exact ENNReal.toReal_mono (hΛ ▸ measure_ne_top _ _) hkey
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α, β) ≤ αβ` for `ρ ∈ [-1, 0]` and
 `α, β ∈ [0, 1]`. -/

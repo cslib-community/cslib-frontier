@@ -80,7 +80,8 @@ theorem IsRuns.mul {f g : Series F (Z × Γ)} {X Y : Type*}
       (fun (x : X × Y) z => em x.1 z ++ em' x.2 z) (fun x => wt x.1 * wt' x.2) := by
   classical
   intro v
-  choose Rf hf1 hf2 using hf; choose Rg hg1 hg2 using hg
+  choose Rf hf1 hf2 using hf
+  choose Rg hg1 hg2 using hg
   refine ⟨(anti v).biUnion fun p => Rf p.1 ×ˢ Rg p.2, ?_, ?_⟩
   · rintro ⟨x, y⟩
     simp only [Finset.mem_biUnion, Finset.mem_product, hf1, hg1, mem_anti]
@@ -121,8 +122,10 @@ theorem IsRuns.one :
     IsRuns (Series.one : Series F (Z × Γ)) (fun (_ : Unit) _ => []) (fun _ => 1) := by
   classical
   intro v
-  refine ⟨if v = fun _ => [] then {()} else ∅, fun _ => ?_, by rw [hat_one]; split_ifs <;> simp⟩
-  by_cases h : v = fun _ => [] <;> simp [h, Ne.symm]
+  refine ⟨if v = fun _ => [] then {()} else ∅, fun _ => ?_, ?_⟩
+  · by_cases h : v = fun _ => [] <;> simp [h, Ne.symm]
+  · rw [hat_one]
+    split_ifs <;> simp
 
 /-- The star: runs of `Series.kstar f` are finite lists of non-empty runs of `f`. -/
 theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List Γ}
@@ -202,7 +205,8 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
             exact hpq (Prod.ext (h.1.symm.trans h'.1)
               (((hRs p hp).1 y |>.1 h.2).symm.trans ((hRs q hq).1 y |>.1 h'.2)))
       · rw [Finset.disjoint_left]
-        intro l hl hl'; split_ifs at hl
+        intro l hl hl'
+        split_ifs at hl
         · exact (hC l |>.1 hl').1 (Finset.mem_singleton.1 hl)
         · exact (Finset.notMem_empty _ hl).elim
 
@@ -317,7 +321,8 @@ theorem pick {κ : Type*} [Fintype κ] (w : κ → Z → List Γ) (c : κ → F)
     fun v => ⟨univ.filter fun k => w k = v, by simp, ?_⟩⟩
   rw [hat_body, Finset.sum_filter]
   exact Finset.sum_congr rfl fun k _ => by
-    rw [proj_chanWord]; by_cases h : w k = v <;> simp [h, Ne.symm]
+    rw [proj_chanWord]
+    by_cases h : w k = v <;> simp [h, Ne.symm]
 
 /-- Fixed channel words `w` with weight `1`. -/
 theorem const (w : Z → List Γ) :

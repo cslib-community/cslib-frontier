@@ -83,7 +83,8 @@ theorem modPowTwo_lt (x : ℤ) (ℓ : ℕ) : x.modPowTwo ℓ < (2 : ℤ) ^ ℓ :
 
 theorem natAbs_modPowTwo_lt (x : ℤ) (ℓ : ℕ) : (x.modPowTwo ℓ).natAbs < 2 ^ ℓ :=
   Int.ofNat_lt.mp <| by
-    rw [Int.natCast_natAbs, abs_of_nonneg (modPowTwo_nonneg x ℓ)]; exact modPowTwo_lt x ℓ
+    rw [Int.natCast_natAbs, abs_of_nonneg (modPowTwo_nonneg x ℓ)]
+    exact modPowTwo_lt x ℓ
 
 /-- If `z ∈ [0, 2 ^ ℓ)` and `2 ^ ℓ` divides `x - z`, then `x.modPowTwo ℓ = z`. -/
 theorem modPowTwo_eq_of_dvd_sub {x z : ℤ} {ℓ : ℕ} (hz₀ : 0 ≤ z) (hz₁ : z < (2 : ℤ) ^ ℓ)
@@ -109,7 +110,11 @@ private theorem tdiv_eq_signMagnitude (a b : ℤ) :
       if (decide (a < 0) ^^ decide (b < 0)) then -((a.natAbs / b.natAbs : ℕ) : ℤ)
       else ((a.natAbs / b.natAbs : ℕ) : ℤ) := by
   rcases a with m | m <;> rcases b with (_ | n) | n <;>
-    first | (simp [Int.tdiv]; done) | (dsimp only [Int.tdiv, Int.natAbs]; split_ifs <;> lia)
+    first
+    | simp [Int.tdiv]
+      done
+    | dsimp only [Int.tdiv, Int.natAbs]
+      split_ifs <;> lia
 
 private theorem tmod_eq_signMagnitude (a b : ℤ) :
     a.tmod b =
@@ -127,8 +132,11 @@ private theorem ediv_eq_signMagnitude (a b : ℤ) :
         if b < 0 then -((a.natAbs / b.natAbs : ℕ) : ℤ)
         else ((a.natAbs / b.natAbs : ℕ) : ℤ) := by
   rcases a with m | m <;> rcases b with (_ | n) | n <;>
-    first | (simp [Int.ediv]; done) |
-      (simp only [Int.ediv, Int.natAbs, Int.ofNat_eq_natCast, Int.negSucc_eq]; split_ifs <;> lia)
+    first
+    | simp [Int.ediv]
+      done
+    | simp only [Int.ediv, Int.natAbs, Int.ofNat_eq_natCast, Int.negSucc_eq]
+      split_ifs <;> lia
 
 private theorem emod_eq_signMagnitude (a b : ℤ) :
     a.emod b =
@@ -150,7 +158,8 @@ private theorem emod_eq_signMagnitude (a b : ℤ) :
     · have := Int.emod_nonneg a (Int.natCast_ne_zero.mpr (Int.natAbs_ne_zero.mpr hb))
       have := Int.emod_lt_of_pos a (Nat.cast_pos.mpr (Int.natAbs_pos.mpr hb))
       have : a % (b.natAbs : ℤ) ≠ 0 := fun h0 => hdiv (Int.dvd_of_emod_eq_zero h0)
-      rw [Nat.mod_eq_of_lt (by lia)]; lia
+      rw [Nat.mod_eq_of_lt (by lia)]
+      lia
   · simp only [ha, ↓reduceIte, Int.emod_natAbs_of_nonneg (not_lt.mp ha)]
     exact (Int.toNat_of_nonneg
       (Int.emod_nonneg a (Int.natCast_ne_zero.mpr (Int.natAbs_ne_zero.mpr hb)))).symm
@@ -205,7 +214,8 @@ theorem length_encIntBin_emod_le_of_ne_zero (a : ℤ) {b : ℤ} (hb : b ≠ 0) :
 theorem length_encIntBin_emod_le_max (a b : ℤ) :
     (encIntBin (a.emod b)).length ≤ max (encIntBin a).length (encIntBin b).length := by
   rcases eq_or_ne b 0 with rfl | hb
-  · change (encIntBin (a % 0)).length ≤ _; simp
+  · change (encIntBin (a % 0)).length ≤ _
+    simp
   · exact (length_encIntBin_emod_le_of_ne_zero a hb).trans (le_max_right _ _)
 
 /-- Reducing modulo `2 ^ ℓ` produces an `encIntBin` code of length at most `ℓ + 1`. -/

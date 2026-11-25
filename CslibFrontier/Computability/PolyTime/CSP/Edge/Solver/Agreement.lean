@@ -117,7 +117,8 @@ theorem improve_eq_recurse (input : EdgeForest.Input) :
     have hb := potential_iterate initial (2 * n + 3)
     simp only [initial, potential, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
       List.length_nil] at hb
-    change potential final ≤ _ at hb; omega
+    change potential final ≤ _ at hb
+    omega
   have he : evaluate final = recurse (n + 1) input := evaluate_iterate initial (2 * n + 3)
   change (if final.frames.isEmpty then final.status.join else none) = _
   rcases hf : final with ⟨_, frames, budget, _ | result⟩ <;> rw [hf] at hp he

@@ -97,7 +97,8 @@ theorem output_eq_some_iff {T : ∀ p : V × ℕ, α p.1} {a : ∀ v, α v} :
     output vbl r T = some a ↔ ∃ n, historyRule vbl r T (run (historyRule vbl r) T n) = none ∧
       current vbl T (run (historyRule vbl r) T n) = a := by
   classical
-  unfold output; split_ifs with h
+  unfold output
+  split_ifs with h
   · simp only [Option.some_inj]
     exact ⟨fun ha => ⟨_, Nat.find_spec h, ha⟩, fun ⟨n, hstop, hn⟩ =>
       hn ▸ congrArg (current vbl T)
@@ -108,7 +109,8 @@ theorem output_eq_some_iff {T : ∀ p : V × ℕ, α p.1} {a : ∀ v, α v} :
 theorem output_eq_none_iff {T : ∀ p : V × ℕ, α p.1} :
     output vbl r T = none ↔ ∀ n, historyRule vbl r T (run (historyRule vbl r) T n) ≠ none := by
   classical
-  unfold output; split_ifs with h <;> simp [← not_exists, h]
+  unfold output
+  split_ifs with h <;> simp [← not_exists, h]
 
 /-- The log and the current assignment after `n` steps depend only on the entries `(v, k)` with
 `k ≤ n`. -/
@@ -140,14 +142,18 @@ theorem measurableSet_output_preimage [Finite V] (o : Option (∀ v, α v)) :
       congrArg (· ∈ s) (dependsOn_run_current (vbl := vbl) (r := r) n h)
   cases o with
   | none =>
-    rw [show output vbl r ⁻¹' {none} = ⋂ n, {T | (run (historyRule vbl r) T n,
-      current vbl T (run (historyRule vbl r) T n)) ∈ {x | r x.1 x.2 ≠ none}} by
-      ext; simp [output_eq_none_iff, historyRule]]
+    have h : output vbl r ⁻¹' {none} = ⋂ n, {T | (run (historyRule vbl r) T n,
+        current vbl T (run (historyRule vbl r) T n)) ∈ {x | r x.1 x.2 ≠ none}} := by
+      ext
+      simp [output_eq_none_iff, historyRule]
+    rw [h]
     exact MeasurableSet.iInter fun n => hstep n _
   | some a =>
-    rw [show output vbl r ⁻¹' {some a} = ⋃ n, {T | (run (historyRule vbl r) T n,
-      current vbl T (run (historyRule vbl r) T n)) ∈ {x | r x.1 x.2 = none ∧ x.2 = a}} by
-      ext; simp [output_eq_some_iff, historyRule]]
+    have h : output vbl r ⁻¹' {some a} = ⋃ n, {T | (run (historyRule vbl r) T n,
+        current vbl T (run (historyRule vbl r) T n)) ∈ {x | r x.1 x.2 = none ∧ x.2 = a}} := by
+      ext
+      simp [output_eq_some_iff, historyRule]
+    rw [h]
     exact MeasurableSet.iUnion fun n => hstep n _
 
 omit [∀ v, MeasurableSpace (α v)] [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
@@ -244,20 +250,25 @@ theorem dist_outputLaw_le (P Q : ∀ v, PMF (α v)) (κ : ∀ v, Measure (α v �
     [∀ v, IsProbabilityMeasure (κ v)] (hκP : ∀ v, (κ v).map Prod.fst = (P v).toMeasure)
     (hκQ : ∀ v, (κ v).map Prod.snd = (Q v).toMeasure) :
     dist (outputLaw vbl r P) (outputLaw vbl r Q) ≤
-      (coupledTable κ {T | Diverge vbl r T}).toReal :=
-  (dist_le_measure_ne (coupledTable κ) (output vbl r ∘ fstTable) (output vbl r ∘ sndTable)
+      (coupledTable κ {T | Diverge vbl r T}).toReal := by
+  have hP : table (fun v => (P v).toMeasure) = (coupledTable κ).map fstTable := by
+    rw [coupledTable_map_fstTable]
+    exact congrArg table (funext fun v => (hκP v).symm)
+  have hQ : table (fun v => (Q v).toMeasure) = (coupledTable κ).map sndTable := by
+    rw [coupledTable_map_sndTable]
+    exact congrArg table (funext fun v => (hκQ v).symm)
+  refine (dist_le_measure_ne (coupledTable κ) (output vbl r ∘ fstTable) (output vbl r ∘ sndTable)
     (fun o => measurable_fstTable (measurableSet_output_preimage o))
     (fun o => measurable_sndTable (measurableSet_output_preimage o)) _ _
-    (fun o => by
-      rw [outputLaw_apply, show (fun v => (P v).toMeasure) = fun v => (κ v).map Prod.fst from
-        funext fun v => (hκP v).symm, ← coupledTable_map_fstTable,
-        Measure.map_apply measurable_fstTable (measurableSet_output_preimage o)]; rfl)
-    (fun o => by
-      rw [outputLaw_apply, show (fun v => (Q v).toMeasure) = fun v => (κ v).map Prod.snd from
-        funext fun v => (hκQ v).symm, ← coupledTable_map_sndTable,
-        Measure.map_apply measurable_sndTable (measurableSet_output_preimage o)]; rfl)).trans
+    (fun o => ?_) (fun o => ?_)).trans
     (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono fun _ hT =>
       Classical.byContradiction fun hd => hT (output_eq_of_not_diverge hd)))
+  · rw [outputLaw_apply, hP, Measure.map_apply measurable_fstTable
+      (measurableSet_output_preimage o)]
+    rfl
+  · rw [outputLaw_apply, hQ, Measure.map_apply measurable_sndTable
+      (measurableSet_output_preimage o)]
+    rfl
 
 /-- **Total-variation stability of Moser–Tardos (original).** Let `r` be a non-anticipating rule
 that only selects occurring events. Suppose every event has at most `d` neighbours in `Γ` and

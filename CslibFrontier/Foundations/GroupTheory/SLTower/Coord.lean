@@ -48,19 +48,13 @@ theorem exists_coord {P Q : Type*} [Group P] [Group Q] (φ : P →* Q) (hφ : Fu
   have h1 : ∀ q : Q, ∃ p,
       q = φ p * (Quotient.mk r q).out := fun q => Quotient.exact (Quotient.out_eq (Quotient.mk r q))
   choose co hco using h1
-  refine ⟨co, fun p q => ?_⟩
-  apply hφ
+  refine ⟨co, fun p q => hφ ?_⟩
   have h2 : Quotient.mk r (φ p * q) = Quotient.mk r q :=
-      (Quotient.sound (s := r) ⟨p, rfl⟩ : Quotient.mk r q = _).symm
-  have h3 := hco (φ p * q)
-  rw [h2] at h3
-  have h4 := hco q
-  have h5 : φ (co (φ p * q)) * (Quotient.mk r q).out = φ p * (φ (co q) * (Quotient.mk r q).out) :=
-      by
-    rw [← h3, ← h4]
-  rw [← mul_assoc] at h5
-  rw [map_mul]
-  exact mul_right_cancel h5
+    (Quotient.sound (s := r) ⟨p, rfl⟩).symm
+  have h3 : φ (co (φ p * q)) * (Quotient.mk r q).out = φ p * q := by
+    simpa only [h2] using (hco (φ p * q)).symm
+  apply mul_right_cancel (b := (Quotient.mk r q).out)
+  rw [h3, map_mul, mul_assoc, ← hco q]
 
 /-- One element of every pair of a free involution. -/
 theorem exists_first {Q : Type*} [Finite Q] (i : Q → Q) (hi : ∀ q, i (i q) = q)
@@ -68,10 +62,8 @@ theorem exists_first {Q : Type*} [Finite Q] (i : Q → Q) (hi : ∀ q, i (i q) =
     ∃ F : Q → Prop, ∀ q, F (i q) ↔ ¬ F q := by
   obtain ⟨N, ⟨φ⟩⟩ := Finite.exists_equiv_fin Q
   refine ⟨fun q => φ q < φ (i q), fun q => ?_⟩
-  simp only [hi, not_lt]
-  constructor
-  · exact fun h => h.le
-  · exact fun h => lt_of_le_of_ne h fun e => hne q (φ.injective e)
+  simp only [hi, not_lt, le_iff_lt_or_eq]
+  exact ⟨Or.inl, fun h => h.resolve_right fun e => hne q (φ.injective e)⟩
 
 variable {h n : ℕ} [NeZero h]
 
@@ -99,12 +91,7 @@ omit [NeZero h] in
 theorem x_ne_one (l : Fin (h - 1)) : x h l ≠ 1 := by
   intro e
   have h1 := congrFun (congrFun (congrArg (fun u : U h => u.1.1) e) (lo l)) (hi l)
-  simp only [x_val] at h1
-  rw [Matrix.add_apply, Matrix.single_apply_same] at h1
-  have h2 : ((1 : U h).1.1 : Matrix (Fin h) (Fin h) (ZMod 2)) (lo l) (hi l) = 0 :=
-    Matrix.one_apply_ne (lo_ne_hi l)
-  rw [h2, Matrix.one_apply_ne (lo_ne_hi l)] at h1
-  exact absurd h1 (by decide)
+  simp [x_val, Matrix.one_apply_ne (lo_ne_hi l)] at h1
 
 omit [NeZero h] in
 theorem x_mul_self (l : Fin (h - 1)) : x h l * x h l = 1 := by
@@ -113,11 +100,8 @@ theorem x_mul_self (l : Fin (h - 1)) : x h l * x h l = 1 := by
   rw [show (1 : ZMod 2) + 1 = 0 from rfl, Matrix.transvection_zero]
   rfl
 
-theorem exists_other (h2 : 2 ≤ h) (k : Fin h) : ∃ i : Fin h, k ≠ i := by
-  by_contra hc
-  push Not at hc
-  have h1 := hc (k - 1)
-  exact sub_one_ne h2 k h1.symm
+theorem exists_other (h2 : 2 ≤ h) (k : Fin h) : ∃ i : Fin h, k ≠ i :=
+  ⟨k - 1, (sub_one_ne h2 k).symm⟩
 
 theorem gen_ne (h2 : 2 ≤ h) (k : Fin h) : evG (gen h2 k : G h n) ≠ 1 := by
   obtain ⟨i, hi⟩ := exists_other h2 k
