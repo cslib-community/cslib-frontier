@@ -1,0 +1,278 @@
+/-
+Copyright (c) 2026 Erik Demaine. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Erik Demaine
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Foundations.Geometry.Polygonal.Route
+public import Mathlib.Topology.MetricSpace.Pseudo.Defs
+import CslibFrontier.Foundations.Geometry.Polygonal.CircleChord
+import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
+import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
+import CslibFrontier.Foundations.Geometry.Polygonal.Trisection
+import Mathlib.Analysis.Normed.Module.Convex
+import Mathlib.LinearAlgebra.AffineSpace.Midpoint
+
+/-!
+# Splicing out an isolated crossing of a polygonal route
+
+Cut the two crossing segments at the boundary of their disk. Reverse the intervening
+portion and join the two entry points and the two exit points, so the result is one
+route. Its exterior support and outer endpoints are preserved, and its support in the
+disk is exactly two disjoint chords. This is the local geometric step of smoothing.
+-/
+
+public section
+
+namespace Cslib.Polygonal.Route
+
+private def intervalSupport (p : Route) (i j : Fin p.segments) (s t : ℝ) : Set ℂ :=
+  {w | ∃ k : Fin p.segments, k ∈ Set.Icc i j ∧ ∃ u : ℝ,
+    u ∈ Set.Icc (if k = i then s else 0) (if k = j then t else 1) ∧ p.eval k u = w}
+
+private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) (hij : i ≤ j)
+    {s t : ℝ} (hs : s ∈ Set.Ico 0 1) (ht : t ∈ Set.Ioc 0 1) (hst : i = j → s < t) :
+    ∃ q : Route, q.start = p.eval i s ∧ q.finish = p.eval j t ∧
+      q.support = intervalSupport p i j s t := by
+  obtain ⟨q, e, hstart, hfinish, hspec⟩ := p.exists_subroute_between i j hij hs ht hst
+  refine ⟨q, hstart, hfinish, ?_⟩
+  ext w
+  rw [q.mem_support_iff]
+  constructor
+  · rintro ⟨k, u, hu, hwu⟩
+    obtain ⟨_, hlt, _, he⟩ := hspec k
+    let a := if (e k).val = i then s else 0
+    let b := if (e k).val = j then t else 1
+    have huv : AffineMap.lineMap a b u ∈ Set.Icc a b := by
+      rw [← segment_eq_Icc hlt.le]
+      exact lineMap_mem_segment ℝ a b hu
+    exact ⟨(e k).val, (e k).property, _, huv, (he u).symm.trans hwu⟩
+  · rintro ⟨k, hk, u, hu, hwu⟩
+    let l := e.symm ⟨k, hk⟩
+    have hel : (e l).val = k := congrArg Subtype.val (e.apply_symm_apply ⟨k, hk⟩)
+    obtain ⟨_, hlt, _, he⟩ := hspec l
+    rw [← hel] at hu hwu
+    have hu' : u ∈ segment ℝ (if (e l).val = i then s else 0)
+        (if (e l).val = j then t else 1) := by
+      rw [segment_eq_Icc hlt.le]
+      exact hu
+    rw [segment_eq_image_lineMap] at hu'
+    obtain ⟨v, hv, rfl⟩ := hu'
+    exact ⟨l, v, hv, (he v).trans hwu⟩
+
+private theorem intervalSupport_subset (p : Route) (i j : Fin p.segments) {s t : ℝ}
+    (hs : 0 ≤ s) (ht : t ≤ 1) : intervalSupport p i j s t ⊆ p.support := by
+  rintro _ ⟨k, _, u, hu, rfl⟩
+  have hlo : 0 ≤ (if k = i then s else 0) := by split_ifs <;> first | assumption | exact le_rfl
+  have hhi : (if k = j then t else 1) ≤ 1 := by split_ifs <;> first | assumption | exact le_rfl
+  exact p.at_mem_support k ⟨hlo.trans hu.1, hu.2.trans hhi⟩
+
+/-- Replace an isolated double crossing by two disjoint chords joined to the original
+route portions. The resulting route has the same outer endpoints and exterior support.
+Inside the disk its support is precisely the two chords, and neither contains the center. -/
+theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (hij : i < j)
+    {z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
+    (hzi : z ∈ openSegment ℝ (p.point i.castSucc) (p.point i.succ))
+    (hzj : z ∈ openSegment ℝ (p.point j.castSucc) (p.point j.succ))
+    (hpair : (segment ℝ (p.point i.castSucc) (p.point i.succ) ∩
+      segment ℝ (p.point j.castSucc) (p.point j.succ)).Subsingleton)
+    (hends : ∀ k, p.point k ∉ Metric.closedBall z ρ)
+    (honly : ∀ k : Fin p.segments, k ≠ i → k ≠ j →
+      Disjoint (segment ℝ (p.point k.castSucc) (p.point k.succ)) (Metric.closedBall z ρ)) :
+    ∃ q : Route, q.start = p.start ∧ q.finish = p.finish ∧ z ∉ q.support ∧
+      q.support \ Metric.closedBall z ρ = p.support \ Metric.closedBall z ρ ∧
+      ∃ li ui lj uj : ℝ, 0 < li ∧ li < ui ∧ ui < 1 ∧ 0 < lj ∧ lj < uj ∧ uj < 1 ∧
+        p.eval i li ∈ Metric.sphere z ρ ∧ p.eval i ui ∈ Metric.sphere z ρ ∧
+        p.eval j lj ∈ Metric.sphere z ρ ∧ p.eval j uj ∈ Metric.sphere z ρ ∧
+        q.support ∩ Metric.closedBall z ρ =
+          segment ℝ (p.eval i li) (p.eval j lj) ∪ segment ℝ (p.eval i ui) (p.eval j uj) ∧
+        Disjoint (segment ℝ (p.eval i li) (p.eval j lj))
+          (segment ℝ (p.eval i ui) (p.eval j uj)) := by
+  obtain ⟨li, ui, hli, hi₀, hui, hiBall, hiSphere, hiMid⟩ :=
+    exists_closedBall_lineMap_cuts hρ hzi (hends i.castSucc) (hends i.succ)
+  obtain ⟨lj, uj, hlj, hj₀, huj, hjBall, hjSphere, hjMid⟩ :=
+    exists_closedBall_lineMap_cuts hρ hzj (hends j.castSucc) (hends j.succ)
+  let B := Metric.closedBall z ρ
+  let a := p.eval i li
+  let b := p.eval i ui
+  let c := p.eval j lj
+  let d := p.eval j uj
+  have ha : a ∈ Metric.sphere z ρ := (hiSphere li).mpr (Or.inl rfl)
+  have hb : b ∈ Metric.sphere z ρ := (hiSphere ui).mpr (Or.inr rfl)
+  have hc : c ∈ Metric.sphere z ρ := (hjSphere lj).mpr (Or.inl rfl)
+  have hd : d ∈ Metric.sphere z ρ := (hjSphere uj).mpr (Or.inr rfl)
+  have hcb : c ≠ b := by
+    intro h
+    have hb' : b ∈ segment ℝ (p.point i.castSucc) (p.point i.succ) :=
+      lineMap_mem_segment ℝ _ _ ⟨(hli.trans hi₀).le, hui.le⟩
+    have hc' : c ∈ segment ℝ (p.point j.castSucc) (p.point j.succ) :=
+      lineMap_mem_segment ℝ _ _ ⟨hlj.le, (hj₀.trans huj).le⟩
+    have he : c = z := hpair ⟨h.symm ▸ hb', hc'⟩
+      ⟨openSegment_subset_segment ℝ _ _ hzi, openSegment_subset_segment ℝ _ _ hzj⟩
+    exact hρ.ne' ((Metric.mem_sphere.mp hc).symm.trans (he.symm ▸ dist_self z))
+  have hdisjoint : Disjoint (segment ℝ a c) (segment ℝ b d) :=
+    disjoint_segments_of_antipodal_pairs ha hc hcb hiMid hjMid
+  let jlast : Fin p.segments := Fin.last p.bends
+  obtain ⟨A, hA₀, hA₁, hA⟩ := exists_route_support_between p 0 i (Fin.zero_le i)
+    (s := 0) (t := li) ⟨le_rfl, zero_lt_one⟩ ⟨hli, (hi₀.trans hui).le⟩ (fun _ => hli)
+  obtain ⟨M, hM₀, hM₁, hM⟩ := exists_route_support_between p i j hij.le
+    (s := ui) (t := lj) ⟨(hli.trans hi₀).le, hui⟩ ⟨hlj, (hj₀.trans huj).le⟩
+    (fun h => (hij.ne h).elim)
+  obtain ⟨S, hS₀, hS₁, hS⟩ := exists_route_support_between p j jlast (Fin.le_last j)
+    (s := uj) (t := 1) ⟨(hlj.trans hj₀).le, huj⟩ ⟨zero_lt_one, le_rfl⟩ (fun _ => huj)
+  let L := line a c
+  let R := line b d
+  have hjoinL : A.finish = L.start := hA₁
+  have hjoinM : (A.concat L).finish = M.reverse.start := by
+    change (A.concat L).endpoint true = M.reverse.endpoint false
+    rw [endpoint_concat A L hjoinL, endpoint_reverse]
+    exact hM₁.symm
+  have hjoinR : ((A.concat L).concat M.reverse).finish = R.start := by
+    change ((A.concat L).concat M.reverse).endpoint true = R.start
+    rw [endpoint_concat (A.concat L) M.reverse hjoinM, endpoint_reverse]
+    exact hM₀
+  have hjoinS : (((A.concat L).concat M.reverse).concat R).finish = S.start := by
+    change (((A.concat L).concat M.reverse).concat R).endpoint true = S.start
+    rw [endpoint_concat _ R hjoinR]
+    exact hS₀.symm
+  let q := (((A.concat L).concat M.reverse).concat R).concat S
+  have hstart : q.start = p.start := by
+    change ((((A.concat L).concat M.reverse).concat R).concat S).endpoint false = _
+    simp only [endpoint_concat _ S hjoinS, endpoint_concat _ R hjoinR,
+      endpoint_concat _ M.reverse hjoinM, endpoint_concat A L hjoinL, Bool.false_eq_true,
+      ↓reduceIte]
+    simpa only [endpoint, Bool.false_eq_true, ↓reduceIte, eval, AffineMap.lineMap_apply_zero,
+      Fin.castSucc_zero, start] using hA₀
+  have hfinish : q.finish = p.finish := by
+    change ((((A.concat L).concat M.reverse).concat R).concat S).endpoint true = _
+    rw [endpoint_concat _ S hjoinS]
+    simpa only [endpoint, ↓reduceIte, eval, jlast, AffineMap.lineMap_apply_one, Fin.succ_last,
+      finish] using hS₁
+  let E := A.support ∪ M.support ∪ S.support
+  let N := segment ℝ a c ∪ segment ℝ b d
+  have hcenter : z ∉ N := by
+    let f := AffineEquiv.pointReflection ℝ z
+    have hfb : f a = b := midpoint_eq_iff.mp hiMid
+    have hfd : f c = d := midpoint_eq_iff.mp hjMid
+    have hfz : f z = z := AffineEquiv.pointReflection_self ℝ z
+    have hreflect : f.toAffineMap '' segment ℝ a c = segment ℝ b d := by
+      rw [image_segment, AffineEquiv.coe_toAffineMap, hfb, hfd]
+    rintro (h | h)
+    · exact Set.disjoint_left.mp hdisjoint h (hreflect ▸ ⟨z, h, hfz⟩)
+    · have himg := h
+      rw [← hreflect] at himg
+      obtain ⟨w, hw, he⟩ := himg
+      have hwz : w = z := f.injective (he.trans hfz.symm)
+      exact Set.disjoint_left.mp hdisjoint (hwz ▸ hw) h
+  have hq : q.support = E ∪ N := by
+    dsimp only [q]
+    rw [support_concat _ _ hjoinS, support_concat _ _ hjoinR, support_concat _ _ hjoinM,
+      support_concat _ _ hjoinL, support_reverse]
+    simp only [L, R, E, N, support_line]
+    ac_rfl
+  have hNew : N ⊆ B := Set.union_subset
+    ((convex_closedBall z ρ).segment_subset (Metric.sphere_subset_closedBall ha)
+      (Metric.sphere_subset_closedBall hc))
+    ((convex_closedBall z ρ).segment_subset (Metric.sphere_subset_closedBall hb)
+      (Metric.sphere_subset_closedBall hd))
+  have hE : E ⊆ p.support := by
+    dsimp only [E]
+    rw [hA, hM, hS]
+    exact Set.union_subset (Set.union_subset (intervalSupport_subset p 0 i le_rfl
+      (hi₀.trans hui).le) (intervalSupport_subset p i j (hli.trans hi₀).le
+        (hj₀.trans huj).le)) (intervalSupport_subset p j jlast (hlj.trans hj₀).le le_rfl)
+  have cover : p.support \ B ⊆ E := by
+    rintro w ⟨hw, hout⟩
+    obtain ⟨k, u, hu, rfl⟩ := (p.mem_support_iff w).mp hw
+    have intoA (hk : k ≤ i) (ht : k = i → u ≤ li) : p.eval k u ∈ E := by
+      refine Or.inl (Or.inl ?_)
+      rw [hA]
+      refine ⟨k, ⟨Fin.zero_le k, hk⟩, u, ?_, rfl⟩
+      simp only [ite_self]
+      exact ⟨hu.1, by split_ifs with h; exacts [ht h, hu.2]⟩
+    have intoM (hki : i ≤ k) (hkj : k ≤ j) (hlo : k = i → ui ≤ u)
+        (hhi : k = j → u ≤ lj) : p.eval k u ∈ E := by
+      refine Or.inl (Or.inr ?_)
+      rw [hM]
+      exact ⟨k, ⟨hki, hkj⟩, u, ⟨by split_ifs with h; exacts [hlo h, hu.1],
+        by split_ifs with h; exacts [hhi h, hu.2]⟩, rfl⟩
+    have intoS (hk : j ≤ k) (ht : k = j → uj ≤ u) : p.eval k u ∈ E := by
+      apply Or.inr
+      rw [hS]
+      refine ⟨k, ⟨hk, Fin.le_last k⟩, u, ?_, rfl⟩
+      simp only [ite_self]
+      exact ⟨by split_ifs with h; exacts [ht h, hu.1], hu.2⟩
+    rcases lt_trichotomy k i with hki | rfl | hik
+    · exact intoA hki.le (fun h => (hki.ne h).elim)
+    · by_cases h : u ≤ li
+      · exact intoA le_rfl (fun _ => h)
+      · have hu' : ui ≤ u := le_of_not_ge (fun h' =>
+          hout ((hiBall u).mpr ⟨le_of_lt (lt_of_not_ge h), h'⟩))
+        exact intoM le_rfl hij.le (fun _ => hu') (fun h => (hij.ne h).elim)
+    · rcases lt_trichotomy k j with hkj | rfl | hjk
+      · exact intoM hik.le hkj.le (fun h => (hik.ne' h).elim) (fun h => (hkj.ne h).elim)
+      · by_cases h : u ≤ lj
+        · exact intoM hij.le le_rfl (fun h => (hij.ne' h).elim) (fun _ => h)
+        · have hu' : uj ≤ u := le_of_not_ge (fun h' =>
+            hout ((hjBall u).mpr ⟨le_of_lt (lt_of_not_ge h), h'⟩))
+          exact intoS le_rfl (fun _ => hu')
+      · exact intoS hjk.le (fun h => (hjk.ne' h).elim)
+  have hother (k : Fin p.segments) (u : ℝ) (hu : u ∈ Set.Icc 0 1)
+      (hki : k ≠ i) (hkj : k ≠ j) (hw : p.eval k u ∈ B) : False :=
+    Set.disjoint_left.mp (honly k hki hkj) (lineMap_mem_segment ℝ _ _ hu) hw
+  have hInside : E ∩ B ⊆ N := by
+    rintro w ⟨(hA' | hM') | hS', hw⟩
+    · rw [hA] at hA'
+      obtain ⟨k, hk, u, hu, rfl⟩ := hA'
+      by_cases hki : k = i
+      · subst k
+        have h : u = li := le_antisymm (by simpa using hu.2) ((hiBall u).mp hw).1
+        subst u
+        exact Or.inl (left_mem_segment ℝ a c)
+      · exact (hother k u ⟨by simpa only [ite_self] using hu.1,
+          by simpa only [ite_eq_right hki] using hu.2⟩ hki ((hk.2.trans_lt hij).ne) hw).elim
+    · rw [hM] at hM'
+      obtain ⟨k, _, u, hu, rfl⟩ := hM'
+      by_cases hki : k = i
+      · subst k
+        have h : u = ui := le_antisymm ((hiBall u).mp hw).2 (by simpa using hu.1)
+        subst u
+        exact Or.inr (left_mem_segment ℝ b d)
+      · by_cases hkj : k = j
+        · subst k
+          have h : u = lj := le_antisymm (by simpa using hu.2) ((hjBall u).mp hw).1
+          subst u
+          exact Or.inl (right_mem_segment ℝ a c)
+        · exact (hother k u ⟨by simpa only [ite_eq_right hki] using hu.1,
+            by simpa only [ite_eq_right hkj] using hu.2⟩ hki hkj hw).elim
+    · rw [hS] at hS'
+      obtain ⟨k, hk, u, hu, rfl⟩ := hS'
+      by_cases hkj : k = j
+      · subst k
+        have h : u = uj := le_antisymm ((hjBall u).mp hw).2 (by simpa using hu.1)
+        subst u
+        exact Or.inr (right_mem_segment ℝ b d)
+      · exact (hother k u ⟨by simpa only [ite_eq_right hkj] using hu.1,
+          by simpa only [ite_self] using hu.2⟩ (hij.trans_le hk.1).ne' hkj hw).elim
+  have hDisk : q.support ∩ B = N := by
+    rw [hq]
+    ext w
+    exact ⟨fun hw => hw.1.elim (fun he => hInside ⟨he, hw.2⟩) id,
+      fun hw => ⟨Or.inr hw, hNew hw⟩⟩
+  have hNoCenter : z ∉ q.support := by
+    intro hz
+    have hzB : z ∈ q.support ∩ B := ⟨hz, Metric.mem_closedBall_self hρ.le⟩
+    rw [hDisk] at hzB
+    exact hcenter hzB
+  refine ⟨q, hstart, hfinish, hNoCenter, ?_, li, ui, lj, uj, hli, hi₀, hui, hlj, hj₀, huj,
+    ha, hb, hc, hd, hDisk, hdisjoint⟩
+  change q.support \ B = p.support \ B
+  rw [hq]
+  ext w
+  exact ⟨fun hw => ⟨hE (hw.1.resolve_right (fun hn => hw.2 (hNew hn))), hw.2⟩,
+    fun hw => ⟨Or.inl (cover hw), hw.2⟩⟩
+
+end Cslib.Polygonal.Route
