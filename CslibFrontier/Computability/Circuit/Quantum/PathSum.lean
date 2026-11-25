@@ -203,10 +203,10 @@ private theorem sgn_mul_run_ofCodes_apply (gs : List GateCode)
         (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ hadamardCount gs := by
   induction gs generalizing x σ with
   | nil =>
-    simp only [Circuit.ofCodes_nil, Circuit.run, Circuit.eval_nil, ket_apply,
-      show ∀ π, term [] (List.ofFn x) (List.ofFn y) σ π =
-          if x = y then (if σ then -1 else 1) else 0 from
-        fun _ => by by_cases h : x = y <;> simp [term, h]]
+    have hterm (π) : term [] (List.ofFn x) (List.ofFn y) σ π =
+        if x = y then (if σ then -1 else 1) else 0 := by
+      by_cases h : x = y <;> simp [term, h]
+    simp only [Circuit.ofCodes_nil, Circuit.run, Circuit.eval_nil, ket_apply, hterm]
     rw [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool]
     simp only [hadamardCount_nil, pow_zero, one_smul, mul_one]
     rcases eq_or_ne x y with rfl | h
@@ -299,8 +299,9 @@ private theorem sum_onesAt_pathTerm_mul (S : List ℕ) (gs : List GateCode) (x x
     apply List.ext_getElem (by simp [hs])
     intro i h₁ _
     simp [y₀, List.getD_eq_getElem?_getD, h₁]
-  simp only [show ∀ y : Fin m → Bool, (s = List.ofFn y ↔ y = y₀) from
-    fun y => by rw [hs₀, List.ofFn_inj, eq_comm], ite_mul, zero_mul]
+  have hiff (y : Fin m → Bool) : s = List.ofFn y ↔ y = y₀ := by
+    rw [hs₀, List.ofFn_inj, eq_comm]
+  simp only [hiff, ite_mul, zero_mul]
   rw [Finset.sum_ite_eq' (onesAt m S) y₀]
   have hacc : y₀ ∈ onesAt m S ↔ (S.all fun j => s.getD j false) = true := by
     simp only [onesAt, Finset.mem_filter, Finset.mem_univ, true_and, List.all_eq_true, y₀]

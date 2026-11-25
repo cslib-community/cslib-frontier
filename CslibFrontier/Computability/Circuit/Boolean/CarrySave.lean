@@ -278,18 +278,17 @@ def csa4to2 (w : ℕ) : Circuit signature ((w + w) + (w + w)) (w + w) :=
 theorem pairVal_eval_csa4to2_mod (p₁ p₂ : BitString (w + w)) :
     pairVal ((csa4to2 w).eval interpretation (Fin.append p₁ p₂)) % 2 ^ w =
       (pairVal p₁ + pairVal p₂) % 2 ^ w := by
+  have h1 : Fin.append p₁ p₂ ∘ (Fin.natAdd (w + w) ∘ Fin.natAdd w) = sndBits p₂ :=
+    funext fun i => by simp [sndBits, -Fin.natAdd_eq_addNat]
+  have h2 : fstBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) = fstBits p₁ :=
+    funext fun i => by simp [fstBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat]
+  have h3 : sndBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) = Fin.append (sndBits p₁) (fstBits p₂) :=
+    funext fun i => Fin.addCases
+      (fun j => by simp [fstBits, sndBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat])
+      (fun j => by simp [fstBits, sndBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat]) i
   rw [csa4to2, Circuit.eval_comp, pairVal_eval_csa3to2_mod, Circuit.eval_append, fstBits_append,
     sndBits_append, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_wiring,
-    ← Nat.add_mod_mod, pairVal_eval_csa3to2_mod, Nat.add_mod_mod,
-    show Fin.append p₁ p₂ ∘ (Fin.natAdd (w + w) ∘ Fin.natAdd w) = sndBits p₂ from
-      funext fun i => by simp [sndBits, -Fin.natAdd_eq_addNat],
-    show fstBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) = fstBits p₁ from
-      funext fun i => by simp [fstBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat],
-    show sndBits (Fin.append p₁ p₂ ∘ csa4to2FirstIn w) = Fin.append (sndBits p₁) (fstBits p₂) from
-      funext fun i => Fin.addCases
-        (fun j => by simp [fstBits, sndBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat])
-        (fun j => by simp [fstBits, sndBits, csa4to2FirstIn, -Fin.natAdd_eq_addNat]) i,
-    pairVal_append]
+    ← Nat.add_mod_mod, pairVal_eval_csa3to2_mod, Nat.add_mod_mod, h1, h2, h3, pairVal_append]
   congr 1
   unfold pairVal
   ring

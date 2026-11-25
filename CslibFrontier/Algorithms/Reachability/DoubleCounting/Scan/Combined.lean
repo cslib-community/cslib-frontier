@@ -144,8 +144,9 @@ private theorem prefix_eq (x : Input) (j : ℕ) :
     simp [start]
   rw [encInput_apply]
   simp only [encInputFields, encPair_apply, encBits_apply, List.take_append, List.foldl_append]
-  rw [show start x = ⟨(frame (encParameters x.parameters)).length, (start x).reader⟩ from
-    hh ▸ rfl]
+  have hstart : start x = ⟨(frame (encParameters x.parameters)).length, (start x).reader⟩ :=
+    hh ▸ rfl
+  rw [hstart]
   rw [fold_skip (start x).reader ((frame (encParameters x.parameters)).take j)
     (frame (encParameters x.parameters)).length (by simp only [List.length_take]; omega)]
   dsimp only

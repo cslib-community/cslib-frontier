@@ -237,8 +237,8 @@ theorem hasDerivAt_gaussianQuadrant_left_left {ρ : ℝ} (hρ : |ρ| < 1) {α β
       (-(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) α := by
   have h := hasDerivAt_cdf_affine_gaussianQuantile hα (-ρ) (gaussianQuantile β) √(1 - ρ ^ 2)
-  simp only [show ∀ x, -ρ * x + gaussianQuantile β = gaussianQuantile β - ρ * x from
-    fun _ => by ring] at h
+  have he (x : ℝ) : -ρ * x + gaussianQuantile β = gaussianQuantile β - ρ * x := by ring
+  simp only [he] at h
   refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
   filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using deriv_gaussianQuadrant_left hρ hα' hβ
 
@@ -253,8 +253,8 @@ theorem hasDerivAt_gaussianQuadrant_left_right {ρ : ℝ} (hρ : |ρ| < 1) {α �
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) β := by
   have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α))
     √(1 - ρ ^ 2)
-  simp only [show ∀ x, 1 * x + -(ρ * gaussianQuantile α) = x - ρ * gaussianQuantile α from
-    fun _ => by ring] at h
+  have he (x : ℝ) : 1 * x + -(ρ * gaussianQuantile α) = x - ρ * gaussianQuantile α := by ring
+  simp only [he] at h
   refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
   filter_upwards [Ioo_mem_nhds hβ.1 hβ.2] with β' hβ' using deriv_gaussianQuadrant_left hρ hα hβ'
 
@@ -280,9 +280,10 @@ theorem hasDerivAt_gaussianQuadrant_right_left {ρ : ℝ} (hρ : |ρ| < 1) {α �
     HasDerivAt (fun α => deriv (fun β => gaussianQuadrant ρ α β) β)
       ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile α))⁻¹ *
         φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2))) α := by
-  rw [show (fun α => deriv (fun β => gaussianQuadrant ρ α β) β) =
-      fun α => deriv (fun β => gaussianQuadrant ρ β α) β from
-    funext fun α => by simp_rw [gaussianQuadrant_comm hρ.le α]]
+  have h : (fun α => deriv (fun β => gaussianQuadrant ρ α β) β) =
+      fun α => deriv (fun β => gaussianQuadrant ρ β α) β :=
+    funext fun α => by simp_rw [gaussianQuadrant_comm hρ.le α]
+  rw [h]
   exact hasDerivAt_gaussianQuadrant_left_right hρ hβ hα
 
 /-- **Symmetry of the bivariate Gaussian density**: for `|ρ| < 1` and `s = √(1 - ρ²)`,

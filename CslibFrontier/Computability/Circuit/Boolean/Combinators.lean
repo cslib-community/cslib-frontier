@@ -55,9 +55,10 @@ theorem complexity_ite_le (a f g : BooleanFunction n) :
   have happ := (complexity_append_le (I := interpretation)
     (fun x => Fin.append (single a x) (single f x)) (single g)).trans
     (Nat.add_le_add_right (complexity_append_le (I := interpretation) (single a) (single f)) _)
-  rw [show (single fun y : Fin (1 + 1 + 1) → Bool => if y 0 then y 1 else y 2) ∘
-    (fun x => Fin.append (Fin.append (single a x) (single f x)) (single g x)) =
-      single fun x => if a x then f x else g x from rfl] at h
+  have heq : (single fun y : Fin (1 + 1 + 1) → Bool => if y 0 then y 1 else y 2) ∘
+      (fun x => Fin.append (Fin.append (single a x) (single f x)) (single g x)) =
+      single fun x => if a x then f x else g x := rfl
+  rw [heq] at h
   omega
 
 /-- **Finite conjunction**: the conjunction of the tests `F i` over `i ∈ s`, each costing at most

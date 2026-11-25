@@ -121,16 +121,19 @@ theorem runOracleConfigFrom_one_runConfig (cfg : Config k Bool State Operation x
   obtain ⟨state, hs⟩ := Option.ne_none_iff_exists'.mp h
   have hstate : (runConfig cfg).tapes.state = some (.inl state) := by
     simp [runConfig, Cfg.mapState, hs]
+  have hinp : (runConfig cfg).tapes.inputSymbol = cfg.tapes.inputSymbol := rfl
+  have hwork : (runConfig cfg).tapes.workTapeSymbols = cfg.tapes.workTapeSymbols := rfl
+  have hans : (runConfig cfg).answerSymbols = cfg.answerSymbols := rfl
   dsimp only [runOracleConfigFrom, MultiTapePTM.runConfigFrom, MultiTapeMachine.runConfigFrom]
-  rw [hstate, hs, show (runConfig cfg).tapes.inputSymbol = cfg.tapes.inputSymbol from rfl,
-    show (runConfig cfg).tapes.workTapeSymbols = cfg.tapes.workTapeSymbols from rfl,
-    show (runConfig cfg).answerSymbols = cfg.answerSymbols from rfl]
+  rw [hstate, hs, hinp, hwork, hans]
   simp only [bind_map_left, map_bind]
   congr 1
   funext bit
-  rw [show (repeatUntilBlank i body).tr (.inl state) cfg.tapes.inputSymbol
-    cfg.tapes.workTapeSymbols cfg.answerSymbols bit = runAction (body.tr state
-      cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols bit) from rfl]
+  have htr : (repeatUntilBlank i body).tr (.inl state) cfg.tapes.inputSymbol
+      cfg.tapes.workTapeSymbols cfg.answerSymbols bit =
+      runAction (body.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols
+        bit) := rfl
+  rw [htr]
   cases body.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols bit <;>
     simp [runAction, runConfig, Config.step, Config.receive, Turing.Action.apply, Cfg.mapState]
 
@@ -197,13 +200,14 @@ theorem RunsWords.fromCheck_nil (i : Fin k) (body : MultiTapePTM k Bool State Op
   intro OracleState oracle s cfg htapes hbuf
   have hsym : cfg.tapes.workTapeSymbols i = none := by
     simp [htapes, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hi]
+  have hrun := run_interpret_runOracleConfigFrom_succ_step (fromCheck i body) oracle 0 cfg s
+    (by rw [htapes]; rfl) (action := idle none) (symbol := fun _ => none) (move := fun _ => 0)
+    (fun _ => by simp only [fromCheck, repeatUntilBlank, checkAction, hsym, Option.map_none])
+  have hstep : cfg.step (idle none) (fun _ => none) (fun _ => 0) =
+      { tapes := wordsCfg x none ws out₀, channels := cfg.channels } :=
+    Config.ext (by rw [Config.step, htapes, apply_idle_wordsCfg]) (step_idle_channels cfg none)
   dsimp only
-  rw [run_interpret_runOracleConfigFrom_succ_step (fromCheck i body) oracle 0 cfg s
-      (by rw [htapes]; rfl) (action := idle none) (symbol := fun _ => none) (move := fun _ => 0)
-      (fun _ => by simp only [fromCheck, repeatUntilBlank, checkAction, hsym, Option.map_none]),
-    show cfg.step (idle none) (fun _ => none) (fun _ => 0) =
-        { tapes := wordsCfg x none ws out₀, channels := cfg.channels } from
-      Config.ext (by rw [Config.step, htapes, apply_idle_wordsCfg]) (step_idle_channels cfg none)]
+  rw [hrun, hstep]
   simpa only [runOracleConfigFrom, MultiTapePTM.runConfigFrom, MultiTapeMachine.runConfigFrom_zero,
     ProbOracleComp.runWith_pure, PMF.pure_map, List.append_nil, PMF.support_pure,
     Set.mem_singleton_iff, forall_eq, true_and] using hbuf

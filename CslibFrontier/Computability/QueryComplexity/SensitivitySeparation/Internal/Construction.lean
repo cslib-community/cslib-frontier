@@ -172,9 +172,10 @@ private theorem terminalPredicate_sensitivityAt {M r : ℕ} (d : ℕ) (T : Regul
       sensitivityAt (terminalPredicate d T A) x ≤ 2 * (d + 2) * M ^ d) ∧
     (∀ x, terminalPredicate d T A x = true →
       sensitivityAt (terminalPredicate d T A) x ≤ 2 * (d + 2) * M ^ (d + 1)) := by
-  have hs := construction_profiles d T A hM hr hbudget d le_rfl
+  have hs := construction_profiles d T A hM hr hbudget d (le_refl d)
+  have he : d + 1 - d = 1 := by omega
   simp only [towerSide] at hs
-  rw [Nat.add_sub_cancel_left] at hs
+  rw [he] at hs
   exact ⟨fun x hx => (sensitivityAt_le_sideSensitivity _ false 0 x hx).trans hs.1,
     fun x hx => (sensitivityAt_le_sideSensitivity _ true 0 x hx).trans hs.2⟩
 
@@ -196,22 +197,23 @@ private theorem finalBoolean_sensitivity {M r : ℕ} (d : ℕ) (T : RegularTourn
     (hbudget : ((max r 16 : ℕ) : ℝ) / M * 3 ^ (d + 1) ≤ 2) :
     sensitivity (finalBoolean d T A) ≤ 2 * (d + 2) * M ^ (d + 1) := by
   obtain ⟨h₀, h₁⟩ := terminalPredicate_sensitivityAt d T A hM hr hbudget
-  simpa only [finalBoolean, Fintype.card_fin,
-    show M * (2 * (d + 2) * M ^ d) = 2 * (d + 2) * M ^ (d + 1) by ring, max_self] using
-    sensitivity_orCopies_le (K := Fin M) (terminalPredicate d T A) _ _ h₀ h₁
+  have h := sensitivity_orCopies_le (K := Fin M) (terminalPredicate d T A) _ _ h₀ h₁
+  have he : M * (2 * (d + 2) * M ^ d) = 2 * (d + 2) * M ^ (d + 1) := by ring
+  simpa only [finalBoolean, Fintype.card_fin, he, max_self] using h
 
 /-- For `0 < r`, the final Boolean function has block sensitivity at least
 `M ^ 2 * (2 * M ^ 2 + 1) ^ d` at the all-false input. -/
 private theorem finalBoolean_blockSensitivity {M r : ℕ} (d : ℕ) (T : RegularTournament M)
     (A : GoodLabeling T.toTournament r) (hr : 0 < r) :
     M ^ 2 * (2 * M ^ 2 + 1) ^ d ≤ blockSensitivityAt (finalBoolean d T A) (fun _ => false) := by
+  have h := (Nat.mul_le_mul_left M (terminalPredicate_blockSensitivity d T A hr)).trans
+    (by simpa only [Fintype.card_fin] using
+      blockSensitivityAt_orCopies_zero (K := Fin M) _ (terminalPredicate_zero d T A hr))
+  change M ^ 2 * (2 * M ^ 2 + 1) ^ d ≤ blockSensitivityAt
+    (orCopies (K := Fin M) (terminalPredicate d T A)) (fun _ => false)
   calc
-    M ^ 2 * (2 * M ^ 2 + 1) ^ d = M * (M * (2 * M ^ 2 + 1) ^ d) := by ring
-    _ ≤ M * blockSensitivityAt (terminalPredicate d T A) (fun _ => false) :=
-      Nat.mul_le_mul_left M (terminalPredicate_blockSensitivity d T A hr)
-    _ ≤ _ := by
-      simpa only [finalBoolean, Fintype.card_fin] using
-        blockSensitivityAt_orCopies_zero (K := Fin M) _ (terminalPredicate_zero d T A hr)
+    _ = M * (M * (2 * M ^ 2 + 1) ^ d) := by ring
+    _ ≤ _ := h
 
 /-- Number of coordinates of the final Boolean function. -/
 def constructionDimension (d M r : ℕ) : ℕ :=

@@ -187,8 +187,9 @@ theorem one_le_two_pow_mul_dens_ne_zero_of_fourierCoeff_eq_zero (g : (ι → Boo
     refine hg (funext fun x => ?_)
     rw [← sum_fourierCoeff_mul_chi g x, Pi.zero_apply]
     exact sum_eq_zero fun S _ => by
-      simp [show fourierCoeff g S = 0 from
-        by_contra fun hS => hA ⟨S, mem_filter.2 ⟨mem_univ S, hS⟩⟩]
+      have hS0 : fourierCoeff g S = 0 :=
+        by_contra fun hS => hA ⟨S, mem_filter.2 ⟨mem_univ S, hS⟩⟩
+      simp [hS0]
   obtain ⟨S, hSA, hSmax⟩ := exists_max_image A Finset.card hA
   have hS : fourierCoeff g S ≠ 0 := (mem_filter.1 hSA).2
   have hT (T : Finset ι) (hST : S ⊂ T) : fourierCoeff g T = 0 :=

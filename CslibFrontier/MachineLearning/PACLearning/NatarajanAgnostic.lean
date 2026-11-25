@@ -99,8 +99,11 @@ theorem card_le_of_setShatters_lossClass_of_natarajan [Fintype β] [DecidableEq 
     Real.log_exp, Real.log_pow, Real.log_pow, Real.log_pow] at hlog
   have hlog2 : (2 : ℝ) / 3 < Real.log 2 := lt_trans (by norm_num) Real.log_two_gt_d9
   have hlog3 : Real.log 3 ≤ 2 := by
-    rw [Real.log_le_iff_le_exp (by norm_num), show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
-    nlinarith [Real.exp_one_gt_d9]
+    rw [Real.log_le_iff_le_exp (by norm_num)]
+    calc (3 : ℝ) ≤ Real.exp 1 * Real.exp 1 := by nlinarith [Real.exp_one_gt_d9]
+      _ = Real.exp 2 := by
+        rw [← Real.exp_add]
+        norm_num
   have hlogk : 0 ≤ Real.log k := Real.log_nonneg (mod_cast hk)
   push_cast at hlog
   nlinarith [mul_le_mul_of_nonneg_left hlog2.le (Nat.cast_nonneg n),

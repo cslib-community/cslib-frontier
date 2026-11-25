@@ -399,8 +399,9 @@ theorem equiv_simpProject (es : Fin k → Expr n) (q : Query S n) :
     dsimp only
     split_ifs with hk hcol
     · subst hk
-      rw [show FinVec.map (Expr.simplify Γ) es = Expr.col from
-        funext fun i => by simpa using hcol i] at h
+      have hcol' : FinVec.map (Expr.simplify Γ) es = Expr.col :=
+        funext fun i => by simpa using hcol i
+      rw [hcol'] at h
       exact h.trans (project_col q)
     all_goals exact h
   next => rfl

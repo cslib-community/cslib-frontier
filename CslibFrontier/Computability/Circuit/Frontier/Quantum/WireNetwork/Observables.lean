@@ -232,10 +232,8 @@ private theorem exists_lift_domRestrict {n N : ℕ} {α : Type*}
     ∃ liftQ : (T → Bool) → (Q_sub → Bool),
       ∀ z : α, Q_sub.domRestrict (A.domRestrict (Quantum.glue e (inp z) x₀)) = liftQ (proj z) := by
   have hmem (q : Q_sub) (hq : ∃ i : Fin n, e i = q.1.1) : Classical.choose hq ∈ T :=
-    hQT _ (by
-      rw [show (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1 from
-        Subtype.ext (Classical.choose_spec hq)]
-      exact q.2)
+    hQT _ ((Subtype.ext (Classical.choose_spec hq) :
+      (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1).symm ▸ q.2)
   refine ⟨fun a q => open Classical in
     if hq : ∃ i : Fin n, e i = q.1 then a ⟨Classical.choose hq, hmem q hq⟩
     else x₀ q.1.1, fun z => funext fun q => ?_⟩

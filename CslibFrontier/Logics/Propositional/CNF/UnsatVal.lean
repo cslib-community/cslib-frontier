@@ -195,9 +195,9 @@ variable [Fintype ι] [DecidableEq ι]
 
 /-- Over a uniform random assignment `σ : ι → Bool`, a single variable has mean sign `0`. -/
 private theorem expect_signVal_eval (v : ι) : (𝔼 σ : ι → Bool, signVal (σ v)) = 0 := by
-  rw [show (fun σ : ι → Bool => signVal (σ v)) = chi ℝ {v} from
-      funext fun σ => (chi_singleton v σ).symm,
-    expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_ne_empty v)]
+  have h : (fun σ : ι → Bool => signVal (σ v)) = chi ℝ {v} :=
+    funext fun σ => (chi_singleton v σ).symm
+  rw [h, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_ne_empty v)]
 
 /-- Over a uniform random assignment `σ : ι → Bool`, two distinct variables have uncorrelated
 signs. -/

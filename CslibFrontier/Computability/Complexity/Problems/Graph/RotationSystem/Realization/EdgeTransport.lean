@@ -58,10 +58,10 @@ theorem rotationDistance_transport {G H : Graph} (r : RotationSystem G)
     · rw [r.pow_transport, r.pow_rotationDistance a b hab]
     · rw [r.pow_transport] at heq
       exact r.pow_ne_of_lt_rotationDistance a b hab hk (e.injective heq)
-  · simp only [rotationDistance,
-      show ¬r.rotate.SameCycle a b from fun h => hab ((r.sameCycle_iff _ _).mp h),
-      show ¬(r.transport e hv).rotate.SameCycle (e a) (e b) from
-        fun h => hab ((hv a b).mp (((r.transport e hv).sameCycle_iff _ _).mp h)), ↓reduceDIte]
+  · have h₁ : ¬r.rotate.SameCycle a b := fun h => hab ((r.sameCycle_iff _ _).mp h)
+    have h₂ : ¬(r.transport e hv).rotate.SameCycle (e a) (e b) :=
+      fun h => hab ((hv a b).mp (((r.transport e hv).sameCycle_iff _ _).mp h))
+    simp only [rotationDistance, h₁, h₂, ↓reduceDIte]
 
 /-- Literal directed rotation intervals commute with dart conjugacy. -/
 theorem mem_rotationInterval_transport {G H : Graph} (r : RotationSystem G)

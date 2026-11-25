@@ -153,7 +153,9 @@ private theorem positive_budget
   have ratioPositive : 0 < ratio := by
     simp only [ratio]
     positivity
-  have k_le_n : k ≤ n := (Nat.le_mul_of_pos_left k ratioPositive).trans verticesLarge
+  have k_le_n : k ≤ n :=
+    calc k ≤ 64 * w ^ 6 * k := Nat.le_mul_of_pos_left k ratioPositive
+      _ ≤ n := verticesLarge
   calc Positive.errorCap n k (w ^ 2) w * 64 ^ w
       = (sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w) * Nat.choose (n - (w + 1)) (k - (w + 1)) := by
         simp only [Positive.errorCap]

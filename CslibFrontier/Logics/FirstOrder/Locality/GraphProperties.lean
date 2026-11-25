@@ -212,8 +212,8 @@ theorem card_le_of_realize_iff_connected [Finite V] {φ : Language.graph.Sentenc
     Fintype.equivFinOfCardEq (Nat.card_eq_fintype_card.symm.trans hb)
   refine not_realize_iff_of_transfer e hφ _ _ ?_ ?_
     (realize_cycleGraph_iff_sum (by omega) (by omega) le_rfl)
-  · rw [(Iso.comap e _).connected_iff, show 3 ^ quantifierRank φ + 1 + b =
-      (3 ^ quantifierRank φ + b) + 1 by omega]
+  · have hk : 3 ^ quantifierRank φ + 1 + b = (3 ^ quantifierRank φ + b) + 1 := by omega
+    rw [(Iso.comap e _).connected_iff, hk]
     exact connected_cycleGraph_add_one
   · rw [(Iso.comap _ _).connected_iff]
     have : Nonempty (Fin (3 ^ quantifierRank φ + 1)) := ⟨0⟩

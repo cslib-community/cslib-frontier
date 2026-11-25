@@ -244,8 +244,9 @@ theorem IsListSchedule.makespan_le_optMakespan_of_antitone {p : Fin n → α} {�
   have hm0 : (m : α) ≠ 0 := by exact_mod_cast NeZero.ne m
   have hmpos : (0 : α) < 3 * m := by
     linarith [show (0 : α) < m by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne m)]
-  rw [show (4 / 3 - 1 / (3 * (m : α))) * optMakespan m p =
-      (4 * m - 1) * optMakespan m p / (3 * m) by field_simp, le_div_iff₀' hmpos, ← hτ]
+  have heq : (4 / 3 - 1 / (3 * (m : α))) * optMakespan m p =
+      (4 * m - 1) * optMakespan m p / (3 * m) := by field_simp
+  rw [heq, le_div_iff₀' hmpos, ← hτ]
   exact hσ.card_mul_makespan_le_of_antitone hp hanti τ
 
 end LPT

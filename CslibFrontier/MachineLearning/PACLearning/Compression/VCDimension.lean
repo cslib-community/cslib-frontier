@@ -86,34 +86,36 @@ theorem IsConsistent.exists_subsample_toOuterMeasure_le {C : ConceptClass α Boo
     rw [PMF.toMeasure_apply_eq_toOuterMeasure, PMF.toOuterMeasure_map_apply]
   have hD : IsRealizableBy D C' := by
     refine ⟨c₀ ∘ x, ⟨c₀, hc₀, rfl⟩, ?_⟩
-    have hempty : (fun i => (i, y i)) ⁻¹' {p : Fin m × Bool | (c₀ ∘ x) p.1 ≠ p.2} = ∅ := by
+    have : (fun i => (i, y i)) ⁻¹' {p : Fin m × Bool | (c₀ ∘ x) p.1 ≠ p.2} = ∅ := by
       ext i
       simp [x, y, hc₀S i]
-    rw [error, hD_apply, hempty, measure_empty]
+    rw [error, hD_apply, this, measure_empty]
   have hbad := hA'.measure_pi_lt_error_le_of_vcSampleSize_le hC' hD hε hε1 hδ hδ1.le hs
   -- Almost every sample of positions carries the labels of `S`, so `A'` runs `A` on a subsample.
   have hgraph : ∀ᵐ p ∂D, p.2 = y p.1 := by
-    have hempty : (fun i => (i, y i)) ⁻¹' {p : Fin m × Bool | ¬ p.2 = y p.1} = ∅ := by
+    have : (fun i => (i, y i)) ⁻¹' {p : Fin m × Bool | ¬ p.2 = y p.1} = ∅ := by
       ext i
       simp
-    rw [ae_iff, hD_apply, hempty, measure_empty]
+    rw [ae_iff, hD_apply, this, measure_empty]
   have hon : ∀ᵐ T ∂Measure.pi (fun _ : Fin s => D), ∀ j, (T j).2 = y (T j).1 :=
     ae_all_iff.2 fun j => (Measure.tendsto_eval_ae_ae (μ := fun _ : Fin s => D) (i := j)).eventually
       hgraph
-  by_contra! hne
-  have hall : ∀ᵐ T ∂Measure.pi (fun _ : Fin s => D), ENNReal.ofReal ε < error D (A' T) :=
-    hon.mono fun T hT => by
-      have hAT : A' T = A (S ∘ fun j => (T j).1) ∘ x := by
-        simp only [A', show (fun j => (x (T j).1, (T j).2)) = S ∘ fun j => (T j).1 from
-          funext fun j => Prod.ext rfl (hT j)]
-      rw [error, hD_apply, hAT]
-      exact hne _
+  by_contra hne
+  simp only [not_exists, not_le] at hne
+  have hall : ∀ᵐ T ∂Measure.pi (fun _ : Fin s => D), ENNReal.ofReal ε < error D (A' T) := by
+    filter_upwards [hon] with T hT
+    have hAT : A' T = A (S ∘ fun j => (T j).1) ∘ x := by
+      have : (fun j => (x (T j).1, (T j).2)) = S ∘ fun j => (T j).1 :=
+        funext fun j => Prod.ext rfl (hT j)
+      simp only [A', this]
+    rw [error, hD_apply, hAT]
+    exact hne _
   have hle : (1 : ℝ≥0∞) ≤ ENNReal.ofReal δ :=
     calc (1 : ℝ≥0∞) = Measure.pi (fun _ : Fin s => D) univ := measure_univ.symm
       _ ≤ Measure.pi (fun _ : Fin s => D) {T | ENNReal.ofReal ε < error D (A' T)} :=
         measure_mono_ae (hall.mono fun _ h _ => h)
       _ ≤ ENNReal.ofReal δ := hbad
-  exact (ENNReal.ofReal_lt_one.2 hδ1).not_ge hle
+  exact absurd hle (not_le.2 (ENNReal.ofReal_lt_one.2 hδ1))
 
 /-- **A distribution on subsamples that is right everywhere** [MoranYehudayoff2016, proof of
 Claim 3.1, via Theorem 2.3]. Under the hypotheses of

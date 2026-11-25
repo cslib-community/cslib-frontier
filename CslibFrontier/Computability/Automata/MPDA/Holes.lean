@@ -285,8 +285,9 @@ private theorem WellNested.not_holePush {w : List (α × Op n Γ)} (hw : WellNes
 /-- Well-nested sequences are `0`-hole-bounded. -/
 theorem WellNested.holeBounded_zero {w : List (α × Op n Γ)} (hw : WellNested w) :
     HoleBounded 0 w := fun x _ => by
-  rw [openHoles, show {q | OpenHolePush w x q ∧ ¬∃ p, SameHole w x p q} = ∅ from
-    Set.eq_empty_of_forall_notMem fun q h => hw.not_holePush q h.1.1, Set.ncard_empty]
+  have hempty : {q | OpenHolePush w x q ∧ ¬∃ p, SameHole w x p q} = ∅ :=
+    Set.eq_empty_of_forall_notMem fun q h => hw.not_holePush q h.1.1
+  rw [openHoles, hempty, Set.ncard_empty]
 
 /-! ## Hole pushes on adjacent positions -/
 
@@ -299,7 +300,7 @@ theorem WellMatched.append {v : List (α × Op n Γ)} {k : ℕ} (h : WellMatched
   refine ⟨u.length + m, ?_, ?_⟩
   · rw [List.append_assoc, matches_append_left]
     exact hm.append_right u'
-  · rwa [List.append_assoc, show u.length + m + 1 = u.length + (m + 1) by omega,
+  · rwa [List.append_assoc, Nat.add_assoc,
       List.extract_append_left, List.extract_append_right _ _ (by omega)]
 
 /-- A hole push directly preceded by a push on the same stack is not the first pending push of its
