@@ -90,33 +90,25 @@ theorem exists_dnf_hammingDist_div_le (φ : DNF ι) {ε : ℝ} (hε : 0 < ε) :
   · obtain ⟨s, hs, rfl⟩ := List.mem_map.1 ht
     simp only [List.mem_filter, Bool.and_eq_true, decide_eq_true_eq] at hs
     obtain ⟨σ, hσ⟩ := Term.consistent_iff_exists_eval.1 hs.2.2
-    refine ⟨List.nodup_dedup s,
-      Term.consistent_iff_exists_eval.2 ⟨σ, by rwa [Term.eval_dedup]⟩, ?_⟩
-    rw [Term.length_dedup_of_consistent hs.2.2]
-    exact hs.2.1
+    exact ⟨List.nodup_dedup s, Term.consistent_iff_exists_eval.2 ⟨σ, by rwa [Term.eval_dedup]⟩,
+      (Term.length_dedup_of_consistent hs.2.2).symm ▸ hs.2.1⟩
   set B := (φ.filter fun t => decide ¬((t.width : ℝ) ≤ L)).toFinset
   -- Where the two formulas disagree, some deleted term is satisfied.
   have hsub : ({x : ι → Bool | φ.eval x ≠ ψ.eval x} : Finset (ι → Bool)) ⊆
       B.biUnion fun t => {x | t.eval x = true} := by
     intro x hx
-    simp only [mem_filter, mem_univ, true_and] at hx
-    simp only [mem_biUnion, B, List.mem_toFinset, List.mem_filter, decide_eq_true_eq, mem_filter,
-      mem_univ, true_and]
+    simp only [mem_filter, mem_univ, true_and, mem_biUnion, B, List.mem_toFinset,
+      List.mem_filter, decide_eq_true_eq] at hx ⊢
     by_contra hB
     simp only [not_exists, not_and, and_imp] at hB
-    apply hx
-    rw [Bool.eq_iff_iff, DNF.eval_eq_true_iff, DNF.eval_eq_true_iff]
-    constructor
-    · rintro ⟨t, ht, htx⟩
-      have hL : (t.width : ℝ) ≤ L := by
-        by_contra hL
-        exact hB t ht hL htx
-      refine ⟨t.dedup, List.mem_map.2 ⟨t, ?_, rfl⟩, by rwa [Term.eval_dedup]⟩
-      simp only [List.mem_filter, Bool.and_eq_true, decide_eq_true_eq]
-      exact ⟨ht, hL, Term.consistent_of_eval htx⟩
-    · rintro ⟨t', ht', htx⟩
-      obtain ⟨t, ht, rfl⟩ := List.mem_map.1 ht'
-      exact ⟨t, (List.mem_filter.1 ht).1, by rwa [Term.eval_dedup] at htx⟩
+    refine hx (Bool.eq_iff_iff.2 ?_)
+    simp only [DNF.eval_eq_true_iff]
+    refine ⟨fun ⟨t, ht, htx⟩ => ⟨t.dedup, List.mem_map.2 ⟨t, ?_, rfl⟩, by rwa [Term.eval_dedup]⟩,
+      fun ⟨_, ht', htx⟩ =>
+        let ⟨t, ht, hteq⟩ := List.mem_map.1 ht'
+        ⟨t, (List.mem_filter.1 ht).1, by rwa [← Term.eval_dedup, hteq]⟩⟩
+    simp only [List.mem_filter, Bool.and_eq_true, decide_eq_true_eq]
+    exact ⟨ht, by by_contra hL; exact hB t ht hL htx, Term.consistent_of_eval htx⟩
   -- Each deleted term is satisfied on at most an `ε / s` fraction of the inputs.
   have hterm (t : Term ι) (ht : t ∈ B) :
       (#{x : ι → Bool | t.eval x = true} : ℝ) ≤ ε / φ.length * 2 ^ Fintype.card ι := by
@@ -165,12 +157,9 @@ theorem exists_cnf_hammingDist_div_le (φ : CNF ι) {ε : ℝ} (hε : 0 < ε) :
   refine ⟨ψ.negate, by simpa [DNF.negate, hφ] using hlen, fun c hc => ?_, ?_⟩
   · obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hc
     obtain ⟨hnd, hc, hlen⟩ := hwidth t ht
-    refine ⟨hnd.map fun a b h => ?_, by rw [Term.isTautClause_negate, hc, Bool.not_true], ?_⟩
-    · obtain ⟨a₁, a₂⟩ := a
-      obtain ⟨b₁, b₂⟩ := b
-      simp_all only [Prod.mk.injEq, Bool.not_inj_iff]
-    rw [Term.length_negate, ← hφ]
-    exact hlen
+    exact ⟨hnd.map fun ⟨_, _⟩ ⟨_, _⟩ h => by simp_all only [Prod.mk.injEq, Bool.not_inj_iff],
+      by rw [Term.isTautClause_negate, hc, Bool.not_true],
+      by rwa [Term.length_negate, ← hφ]⟩
   · refine le_of_eq_of_le ?_ hdist
     congr 2
     unfold hammingDist

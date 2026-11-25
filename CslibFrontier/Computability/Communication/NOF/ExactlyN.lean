@@ -115,18 +115,10 @@ theorem isCornerFree_leaf {N : ℕ} (p : Protocol (fun _ : Fin 3 => Fin (N + 1))
     ![Fin.ofNat (N + 1) x₁, Fin.ofNat (N + 1) y₁, Fin.ofNat (N + 1) (N - x₂ - y₁)]
   let y : Fin 3 → Fin 3 → Fin (N + 1) :=
     ![cornerPoint N x₂ y₁, cornerPoint N x₁ y₂, cornerPoint N x₁ y₁]
-  have hview : ∀ i, view i (y i) = view i q := by
-    intro i
-    funext ⟨j, hj⟩
-    fin_cases i <;> fin_cases j <;> first
-      | exact absurd rfl hj
-      | simp [y, q, cornerPoint, hc]
-  have hleaf : ∀ i, p.leaf (y i) = l := by
-    intro i
-    fin_cases i
-    · exact l21
-    · exact l12
-    · exact l11
+  have hview (i) : view i (y i) = view i q := funext fun ⟨j, hj⟩ => by
+    fin_cases i <;> fin_cases j <;> first | exact absurd rfl hj | simp [y, q, cornerPoint, hc]
+  have hleaf (i) : p.leaf (y i) = l := by
+    fin_cases i; exacts [l21, l12, l11]
   have hq := p.leaf_eq_of_view_eq hview (fun i j => (hleaf i).trans (hleaf j).symm) 2
   have hrun : exactlyN N q = true := by
     rw [← hp, p.run_eq_of_leaf_eq hq, hp]
@@ -148,23 +140,18 @@ theorem lt_depth {N c : ℕ} (hN : cornersTheoremBound ((2 ^ c : ℝ)⁻¹ / 9) 
   have hleaves : p.leafCount ≤ 2 ^ c :=
     p.leafCount_le_two_pow_depth.trans (Nat.pow_le_pow_right two_pos hc)
   -- Some leaf holds a `2 ^ (-c)` fraction of the `M × M` grid.
-  have hne : (univ : Finset (Fin p.leafCount)).Nonempty :=
-    ⟨⟨0, p.leafCount_pos⟩, mem_univ _⟩
+  have hne : (univ : Finset (Fin p.leafCount)).Nonempty := ⟨⟨0, p.leafCount_pos⟩, mem_univ _⟩
   have hcard : #(univ : Finset (Fin p.leafCount)) • ((2 ^ c : ℝ)⁻¹ * M ^ 2) ≤
       #(range M ×ˢ range M) := by
-    rw [card_univ, Fintype.card_fin, card_product, card_range, nsmul_eq_mul, Nat.cast_mul]
-    have h2 : (p.leafCount : ℝ) ≤ 2 ^ c := by exact_mod_cast hleaves
-    have hpos : (0 : ℝ) < 2 ^ c := by positivity
-    calc (p.leafCount : ℝ) * ((2 ^ c : ℝ)⁻¹ * M ^ 2)
-        ≤ 2 ^ c * ((2 ^ c : ℝ)⁻¹ * M ^ 2) := by gcongr
-      _ = (M : ℝ) * M := by rw [← mul_assoc, mul_inv_cancel₀ hpos.ne', one_mul, sq]
+    rw [card_univ, Fintype.card_fin, card_product, card_range, nsmul_eq_mul, Nat.cast_mul, ← sq]
+    exact (mul_le_mul_of_nonneg_right (by exact_mod_cast hleaves : (p.leafCount : ℝ) ≤ 2 ^ c)
+      (by positivity)).trans_eq (by rw [← mul_assoc, mul_inv_cancel₀ (by positivity), one_mul])
   obtain ⟨l, -, hl⟩ := exists_le_card_fiber_of_nsmul_le_card_of_maps_to
     (f := fun ab : ℕ × ℕ => p.leaf (ExactlyN.cornerPoint N ab.1 ab.2))
     (fun _ _ => mem_univ _) hne hcard
   -- That leaf is corner-free, contradicting the corners theorem.
   refine corners_theorem_nat (by positivity) hN _ (filter_subset _ _) hl
-    ((isCornerFree_leaf p hp l).mono ?_)
-  intro ab hab
+    ((isCornerFree_leaf p hp l).mono fun ab hab => ?_)
   simp only [coe_filter, mem_product, mem_range, Set.mem_ofPred_eq] at hab
   exact ⟨by omega, hab.2⟩
 
@@ -175,8 +162,7 @@ theorem lt_ecomplexityFun {N c : ℕ} (hN : cornersTheoremBound ((2 ^ c : ℝ)�
     (c : ℕ∞) < Protocol.ecomplexityFun (exactlyN N) := by
   rw [← ENat.add_one_le_iff (ENat.natCast_ne_top c), ← Nat.cast_succ,
     Protocol.le_ecomplexityFun_iff]
-  intro p hp
-  exact_mod_cast lt_depth hN p hp
+  exact fun p hp => by exact_mod_cast lt_depth hN p hp
 
 /-- **The communication complexity of Exactly-N tends to infinity** [ChandraFurstLipton1983]. -/
 theorem tendsto_ecomplexityFun :
@@ -193,10 +179,9 @@ theorem ecomplexityFun_le (N : ℕ) : Protocol.ecomplexityFun (exactlyN N) ≤ N
     (fun m => Fin.ofNat (N + 1) #{k | m k = true}) ?_ (exactlyN N)
   · exact_mod_cast h
   · intro x
-    ext
     have hcard : #{k : Fin N | decide ((k : ℕ) < x 0) = true} = x 0 := by
-      simp only [decide_eq_true_eq, Fin.card_filter_val_lt]
-      omega
+      simp only [decide_eq_true_eq, Fin.card_filter_val_lt]; omega
+    ext
     simp only [view_apply, Fin.val_ofNat]
     exact (congrArg (· % (N + 1)) hcard).trans (Nat.mod_eq_of_lt (x 0).isLt)
 
