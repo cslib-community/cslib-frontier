@@ -258,22 +258,18 @@ private theorem not_halts_extendTapes {k' : ℕ} {tm : MultiTapeTM k Symbol Stat
     (e : Fin k ↪ Fin k') {x : List Symbol} (h : ¬tm.Halts x) :
     ¬(tm.extendTapes e).Halts x := by
   rintro ⟨t, hhalt⟩
-  apply h
-  refine ⟨t, ?_⟩
+  refine h ⟨t, ?_⟩
   have hinit : (tm.extendTapes e).initCfg x =
       embed e (tm.initCfg x) (fun _ _ => none) (fun _ => 0) :=
     (embed_eq_of_forall_embed e (tm.initCfg x) (fun _ => rfl) (fun _ => rfl)).symm
-  rw [hinit, ← embedHom_apply tm, runFrom_map, embedHom_apply] at hhalt
-  exact hhalt
+  rwa [hinit, ← embedHom_apply tm, runFrom_map, embedHom_apply] at hhalt
 
 private theorem not_halted_outputToTape {tm : MultiTapeTM k Symbol State}
     {x : List Symbol} (h : ¬tm.Halts x) (t : ℕ) :
     ¬(tm.outputToTape.runFrom (tm.outputToTape.initCfg x) t).Halted := by
   intro hhalt
-  apply h
-  refine ⟨t, ?_⟩
-  rw [initCfg_outputToTape, ← outCfgHom_apply tm, runFrom_map, outCfgHom_apply] at hhalt
-  exact hhalt
+  refine h ⟨t, ?_⟩
+  rwa [initCfg_outputToTape, ← outCfgHom_apply tm, runFrom_map, outCfgHom_apply] at hhalt
 
 private theorem not_halts_comp_of_left {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {tm₁ : MultiTapeTM k₁ Symbol S₁} {tm₂ : MultiTapeTM k₂ Symbol S₂}
@@ -334,8 +330,7 @@ private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
       ((inCfg mark (wordsCfg w (none : Option MarkWorkState) (fun _ : Fin K => []) []) x).withState
         (some tm2e.inputFromTape.q₀)) u).Halted := by
     intro u hu
-    apply h2ext
-    refine ⟨u, ?_⟩
+    refine h2ext ⟨u, ?_⟩
     have hstart : (inCfg mark (wordsCfg w (none : Option MarkWorkState)
         (fun _ : Fin K => []) []) x).withState (some tm2e.inputFromTape.q₀) =
         inCfg mark (tm2e.initCfg w) x := by
@@ -344,8 +339,7 @@ private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
           simp [K, Cfg.withState, inCfg, wordsCfg, Cfg.init, MultiTapeNTM.initCfg, tapeOfList_nil]
       · induction l using Fin.addCases <;>
           simp [K, Cfg.withState, inCfg, wordsCfg, Cfg.init, MultiTapeNTM.initCfg]
-    rw [hstart, ← inCfgHom_apply, runFrom_map, inCfgHom_apply] at hu
-    exact hu
+    rwa [hstart, ← inCfgHom_apply, runFrom_map, inCfgHom_apply] at hu
   have h2bDiv : ∀ u, ¬((tm2e.inputFromTape.seq (markFlag K none)).runFrom
       ((inCfg mark (wordsCfg w (none : Option MarkWorkState) (fun _ : Fin K => []) []) x).withState
         (some (tm2e.inputFromTape.seq (markFlag K none)).q₀)) u).Halted :=
