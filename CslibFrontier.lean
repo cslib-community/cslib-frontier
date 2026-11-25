@@ -9216,6 +9216,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaSynthesis
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Logics.FirstOrder.Raw.Graph
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledDegreePiece
 public import CslibFrontier.Foundations.Probability.Gaussian.DiscreteTail
 public import CslibFrontier.Computability.LogSpaceDerandomization.ColumnDetector
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.TotalComputability
