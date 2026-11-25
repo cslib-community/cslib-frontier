@@ -135,10 +135,7 @@ private theorem card_filter_subset_image_pointerGraph_mul_pow_le {F : Finset (Fi
   by_cases hex : ∃ x₀ ∈ X, T ⊆ pointerGraph F x₀
   · obtain ⟨x₀, hx₀, hTx₀⟩ := hex
     set I : Finset (Fin n) := T.image fun p => p.1.1
-    have hIF : I ⊆ F := by
-      intro i hi
-      obtain ⟨p, -, rfl⟩ := mem_image.mp hi
-      exact p.1.2
+    have hIF : I ⊆ F := forall_mem_image.2 fun p _ => p.1.2
     have hIT : #I = #T := by
       refine card_image_of_injOn fun p hp q hq h => ?_
       have hp' := mem_pointerGraph.mp (hTx₀ hp)
@@ -160,10 +157,7 @@ private theorem card_filter_subset_image_pointerGraph_mul_pow_le {F : Finset (Fi
     rw [hXh]
     nlinarith [pow_pos hr #T]
   · push Not at hex
-    have : Xh.filter (T ⊆ ·) = ∅ := by
-      refine filter_eq_empty_iff.mpr fun s hs hTs => ?_
-      obtain ⟨x, hx, rfl⟩ := mem_image.mp hs
-      exact hex x hx hTs
+    have : Xh.filter (T ⊆ ·) = ∅ := filter_eq_empty_iff.mpr <| forall_mem_image.2 hex
     rw [this, card_empty, Nat.cast_zero, zero_mul]
     positivity
 
@@ -196,10 +190,7 @@ theorem exists_forall_eq_of_isDense {F : Finset (Fin n)} {X : Finset (Fin n → 
   -- the pointer sets of `X`
   have hGinj := pointerGraph_injOn hXfix
   set Xh := X.image (pointerGraph F)
-  have hcardXh : ∀ s ∈ Xh, #s = #F := by
-    intro s hs
-    obtain ⟨x, -, rfl⟩ := mem_image.mp hs
-    exact card_pointerGraph F x
+  have hcardXh : ∀ s ∈ Xh, #s = #F := forall_mem_image.2 fun x _ => card_pointerGraph F x
   have hspread := card_filter_subset_image_pointerGraph_mul_pow_le hr hXfix hdense
   -- the target patterns
   set βh : Finset (F × Fin m) → F × Fin m → Bool := fun s p =>
