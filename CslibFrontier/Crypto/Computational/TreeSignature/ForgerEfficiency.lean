@@ -290,17 +290,8 @@ private theorem plantedLoopInv_step (S : IndexedSignatureScheme) {Mv Me : ℕ} (
     · exact hinv.certs_bound c hc
     · rw [List.mem_singleton.mp hc]
       exact ⟨length_fst_getD_keys_le keys childIdx, heBound.1⟩
-  · have hvisLen := hinv.visited_enc_le
-    dsimp only [encNodeCache, CertLoopIn.visited] at hvisLen ⊢
-    have := Nat.mul_le_mul_left i
-      (by omega : 4 * (i + 1) + 2 * Mv + 3 ≤ 4 * (i + 1 + 1) + 2 * Mv + 3)
-    have := Nat.add_one_mul i (4 * (i + 1 + 1) + 2 * Mv + 3)
-    exact hvBound.2.2.trans (by omega)
-  · have hedgLen := hinv.edges_enc_le
-    dsimp only [encEdgeCache, CertLoopIn.edges] at hedgLen ⊢
-    have := Nat.mul_le_mul_left i (by omega : 8 * i + 2 * Me + 11 ≤ 8 * (i + 1) + 2 * Me + 11)
-    have := Nat.add_one_mul i (8 * (i + 1) + 2 * Me + 11)
-    exact heBound.2.2.trans (by omega)
+  · linarith only [hinv.visited_enc_le, hvBound.2.2]
+  · linarith only [hinv.edges_enc_le, heBound.2.2, hu]
 
 private theorem plantedLoopInv_enc_bounds {Mv Me d i : ℕ} {a : CertLoopIn}
     {state : PlantedCertState} (hi : i ≤ d)
@@ -373,21 +364,14 @@ private theorem isOraclePPTOn_certifyPlanted (S : IndexedSignatureScheme) {depth
     (PolyBounded.of_polynomiallyBounded _ (by dsimp only [bound]; fun_prop))
     (fun (a : CertLoopIn) i ⟨⟨node, idx, certs⟩, ⟨visited, edges⟩⟩ hi hinv => by
       obtain ⟨-, hKE, -, hpar, hVE, hEE⟩ := hleIn a
-      have hd : depth a.parameter ≤ cd * ((encLoopIn a).length + 1) ^ dd :=
-        (hdd a.parameter).trans (by gcongr)
-      obtain ⟨hcB, hvB, heB⟩ := plantedLoopInv_enc_bounds (hi.trans (Nat.sub_le _ _)) hinv
-      have hnode : node.length ≤ cd * ((encLoopIn a).length + 1) ^ dd :=
-        hinv.node_len ▸ (hi.trans (Nat.sub_le _ _)).trans hd
+      have hi' : i ≤ cd * ((encLoopIn a).length + 1) ^ dd :=
+        (hi.trans (Nat.sub_le _ _)).trans ((hdd a.parameter).trans (by gcongr))
+      obtain ⟨hcB, hvB, heB⟩ := plantedLoopInv_enc_bounds hi' hinv
+      have hnode := hinv.node_len ▸ hi'
       have hidx : idx ≤ (encLoopIn a).length := hinv.idx_le
-      let dB := cd * ((encLoopIn a).length + 1) ^ dd
       have hcB' := hcB.trans
-        (Nat.mul_le_mul hd (by omega : _ ≤ 2 * (3 * (encLoopIn a).length + 1) + 1))
-      have hvB' := hvB.trans (Nat.add_le_add hVE
-        (Nat.mul_le_mul hd (by omega : _ ≤ 4 * (dB + 1) + 2 * (encLoopIn a).length + 3)))
-      have heB' := heB.trans (Nat.add_le_add hEE
-        (Nat.mul_le_mul hd (by omega : _ ≤ 8 * dB + 2 * (encLoopIn a).length + 11)))
-      dsimp only [dB] at hcB' hvB' heB'
-      dsimp only [bound]
+        (Nat.mul_le_mul_left _ (by omega : _ ≤ 2 * (3 * (encLoopIn a).length + 1) + 1))
+      dsimp only [bound] at hcB' hvB heB hnode ⊢
       enc_len)).1
 
 /-- Caller tuple for `plantedTreeHandler`: `(((n, vk), target), keys)`. -/
@@ -476,9 +460,8 @@ private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth 
       rwa [← BitString.eval_sampleList, ← ProbOracleComp.support_sample]
     split_ifs at hrest with hcoll
     · rw [OracleComp.eq_of_mem_supportWith_pure hrest]; exact hpure true
-    · simp only [OracleComp.mem_supportWith_bind_iff] at hrest
-      obtain ⟨⟨⟨node, idx, certs⟩, ⟨visited', edges'⟩⟩, hcert, ⟨σ, edges''⟩, hsig, hres⟩ := hrest
-      rw [OracleComp.eq_of_mem_supportWith_pure hres]
+    · supp_cases hrest with
+        ⟨⟨⟨node, idx, certs⟩, ⟨visited', edges'⟩⟩, hcert, ⟨σ, edges''⟩, hsig, rfl⟩
       let loopIn : CertLoopIn :=
         ((c.2, (c.1.2, sigCap c.1.1.1), (c.1.1.1, leaf)), (visited, edges))
       have hloop := OracleComp.iterate_invariant (PlantedLoopInv c.2.length (sigCap c.1.1.1) loopIn)
@@ -504,11 +487,7 @@ private theorem plantedTreeHandler_preserve (S : IndexedSignatureScheme) (depth 
       rw [plantedState_length_eq, plantedState_length_eq]
       dsimp only [plantedStateGrowth, loopIn, CertLoopIn.visited, CertLoopIn.edges,
         CertLoopIn.parameter, encNodeCache, encEdgeCache] at hvB heB heLast ⊢
-      have hsucc : (depth c.1.1.1 + 1) * (8 * depth c.1.1.1 + 2 * sigCap c.1.1.1 + 11) =
-          depth c.1.1.1 * (8 * depth c.1.1.1 + 2 * sigCap c.1.1.1 + 11) +
-            (8 * depth c.1.1.1 + 2 * sigCap c.1.1.1 + 11) := Nat.succ_mul _ _
-      have hsub := Nat.sub_le (depth c.1.1.1) 1
-      omega
+      linarith only [hvB, heB, heLast.2.2, hu, hslCons, hqCons, Nat.sub_le (depth c.1.1.1) 1]
   · rw [OracleComp.eq_of_mem_supportWith_pure hresult]; exact hpure bad
 
 private theorem computableInPolyTime_extractForgery :
