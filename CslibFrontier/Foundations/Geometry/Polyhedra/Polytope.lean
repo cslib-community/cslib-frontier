@@ -388,22 +388,16 @@ private lemma finite_extremePoints_of_isHPolytope {P : Set E} (hP : IsHPolytope 
       by simp only [AffineMap.lineMap_apply_module]; module⟩
   have heq₁ := ((mem_extremePoints.1 hx).2 _ hx₁ _ hx₂ hmid).1
   have hdiff : (-ε) • (y - x) = 0 := by
-    have : AffineMap.lineMap x y (-ε) - x = (-ε) • (y - x) := by
-      rw [AffineMap.lineMap_apply_module]; module
-    rw [heq₁, sub_self] at this; exact this.symm
-  rcases smul_eq_zero.1 hdiff with h0 | hyx
-  · linarith
-  · exact hne (sub_eq_zero.1 hyx).symm
+    rw [← sub_eq_zero.2 heq₁, AffineMap.lineMap_apply_module]; module
+  exact hne (sub_eq_zero.1 ((smul_eq_zero.1 hdiff).resolve_left (by linarith))).symm
 
 /-- Every bounded H-polytope is the convex hull of its finite set of extreme points, hence a
 V-polytope. -/
 theorem IsHPolytope.eq_convexHull_extremePoints {P : Set E} (hP : IsHPolytope P) :
     P = convexHull ℝ (P.extremePoints ℝ) := by
-  have hfin : (P.extremePoints ℝ).Finite := finite_extremePoints_of_isHPolytope hP
-  have hclosed : IsClosed (convexHull ℝ (P.extremePoints ℝ)) := hfin.isClosed_convexHull ℝ
   have hkm := closure_convexHull_extremePoints hP.isCompact hP.convex
-  rw [hclosed.closure_eq] at hkm
-  exact hkm.symm
+  rwa [((finite_extremePoints_of_isHPolytope hP).isClosed_convexHull ℝ).closure_eq,
+    eq_comm] at hkm
 
 theorem IsHPolytope.isVPolytope {P : Set E} (hP : IsHPolytope P) : IsVPolytope P :=
   ⟨P.extremePoints ℝ, finite_extremePoints_of_isHPolytope hP, hP.eq_convexHull_extremePoints⟩
@@ -585,11 +579,7 @@ theorem exists_finset_subset_convexHull_of_isExtreme {s : Finset E} {Q R : Set E
   have hw_pos : ∀ v ∈ t, 0 < w v := fun v hv => (Finset.mem_filter.1 hv).2
   have hw_sum : ∑ v ∈ t, w v = 1 :=
     (Finset.sum_subset (Finset.filter_subset _ s) hwt0).trans hw1
-  have htne : t.Nonempty := by
-    by_contra hmt
-    rw [Finset.not_nonempty_iff_eq_empty] at hmt
-    rw [hmt, Finset.sum_empty] at hw_sum
-    exact one_ne_zero hw_sum.symm
+  have htne : t.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt => by simp [hmt] at hw_sum
   have hx_comb : ∑ v ∈ t, w v • v = x := by
     rw [← hwx]
     exact Finset.sum_subset (Finset.filter_subset _ s) fun v hv hn => by
@@ -627,13 +617,7 @@ theorem IsPolytopeFace.extremePoints_eq {P F : Set E} (hPF : IsPolytopeFace P F)
 
 theorem IsPolytope.extremePoints_nonempty {P : Set E} (hP : IsPolytope P) (hne : P.Nonempty) :
     (P.extremePoints ℝ).Nonempty := by
-  by_contra h
-  rw [Set.not_nonempty_iff_eq_empty] at h
-  have hPeq := hP.eq_convexHull_extremePoints
-  rw [h, convexHull_empty] at hPeq
-  obtain ⟨x, hx⟩ := hne
-  rw [hPeq] at hx
-  exact hx
+  exact convexHull_nonempty_iff.1 (by rwa [← hP.eq_convexHull_extremePoints])
 
 theorem vertexCentroid_eq_centroid {P : Set E} (hP : IsPolytope P) :
     vertexCentroid P = hP.finite_extremePoints.toFinset.centroid ℝ id := by
@@ -642,15 +626,10 @@ theorem vertexCentroid_eq_centroid {P : Set E} (hP : IsPolytope P) :
 
 theorem vertexCentroid_mem {P : Set E} (hP : IsPolytope P) (hne : P.Nonempty) :
     vertexCentroid P ∈ P := by
-  rw [vertexCentroid_eq_centroid hP]
-  have hsub : P = convexHull ℝ (hP.finite_extremePoints.toFinset : Set E) := by
-    rw [hP.finite_extremePoints.coe_toFinset]
-    exact hP.eq_convexHull_extremePoints
-  have hmem : hP.finite_extremePoints.toFinset.centroid ℝ id ∈
-      convexHull ℝ (hP.finite_extremePoints.toFinset : Set E) :=
-    Finset.centroid_mem_convexHull (R := ℝ) _ (hP.finite_extremePoints.toFinset_nonempty.2
-      (hP.extremePoints_nonempty hne))
-  rwa [← hsub] at hmem
+  have hmem := Finset.centroid_mem_convexHull (R := ℝ) _
+    (hP.finite_extremePoints.toFinset_nonempty.2 (hP.extremePoints_nonempty hne))
+  rwa [hP.finite_extremePoints.coe_toFinset, ← hP.eq_convexHull_extremePoints,
+    ← vertexCentroid_eq_centroid hP] at hmem
 
 private lemma vertexCentroid_eq_sum {P : Set E} (hP : IsPolytope P) (hne : P.Nonempty) :
     vertexCentroid P =
@@ -858,9 +837,8 @@ theorem IsPolytopeFace.isExposed {P F : Set E} (hP : IsPolytope P) (hPF : IsPoly
   intro hne
   obtain ⟨_, L, hL, hPL⟩ := isPolytope_iff_isHPolytope.1 hP
   obtain ⟨L₀, hL₀, hFeq⟩ := hPF.exists_eq_zero_of_isHPolytope hL hPL hP hne
-  have hexp := isExposed_of_eq_zero hL hPL hL₀
-  rw [← hFeq] at hexp
-  exact hexp hne
+  rw [hFeq] at hne ⊢
+  exact isExposed_of_eq_zero hL hPL hL₀ hne
 
 theorem exists_isPolytopeFace_inter_setOf_le_eq_zero {P R F : Set E} (hP : IsPolytope P)
     {LR : Set (E →ᵃ[ℝ] ℝ)} (hLR : LR.Finite) (hR : R = {x | ∀ m ∈ LR, m x ≤ 0})
