@@ -561,10 +561,7 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
         split_ifs at hresult <;>
           (obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult; rfl)
       have := hfresh.1
-      refine ⟨trivial, ?_⟩
-      rw [hres]
-      simp only [encList_cons, List.length_append, length_frame, length_encPair, encUnary_apply,
-        encBits_apply, List.length_replicate]; omega
+      exact ⟨trivial, by rw [hres]; enc_len⟩
     · rw [ite_eq_right hfresh] at hresult
       obtain rfl := OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, Nat.le_add_right _ _⟩
