@@ -412,15 +412,10 @@ theorem totalBTreeNodesWhp_le_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_
   set q := m / 1024
   have hq_ge : 6400 ≤ q := by omega
   have hm_lt_pow : m < 2 ^ (Nat.log 2 q + 11) := by
-    have hq_lt : q < 2 ^ (Nat.log 2 q + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two q
-    have hdm := Nat.div_add_mod m 1024
-    have hmod := Nat.mod_lt m (by decide : 0 < 1024)
-    have h1 : m < 1024 * (q + 1) := by dsimp only [q]; omega
-    have h2 : 1024 * (q + 1) ≤ 2 ^ 10 * 2 ^ (Nat.log 2 q + 1) :=
-      Nat.mul_le_mul (by decide) hq_lt
-    have hpow_eq : 2 ^ 10 * 2 ^ (Nat.log 2 q + 1) = 2 ^ (Nat.log 2 q + 11) := by
-      rw [← Nat.pow_add]; congr 1; omega
-    exact h1.trans_le (h2.trans_eq hpow_eq)
+    have hq_lt := Nat.lt_pow_succ_log_self Nat.one_lt_two q
+    rw [show 11 = 1 + 10 from rfl, ← Nat.add_assoc, Nat.pow_add]
+    have hm_lt : m < (q + 1) * 1024 := by dsimp only [q]; omega
+    exact hm_lt.trans_le (Nat.mul_le_mul_right 1024 hq_lt)
   have hlog_m : Nat.log 2 m ≤ Nat.log 2 q + 10 := by
     have := Nat.log_lt_of_lt_pow (by omega : m ≠ 0) hm_lt_pow
     omega
@@ -429,15 +424,14 @@ theorem totalBTreeNodesWhp_le_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_
     have hor : n_max = 0 ∨ n_max = 1 ∨ n_max = 2 ∨ n_max = 3 := by omega
     rcases hor with rfl | rfl | rfl | rfl <;> revert hm_ge <;> decide
   have hell : logLogFactor n_max ≤ Nat.log 2 q + 12 := by
-    have h1 : logLogFactor n_max ≤ Nat.log 2 m + 2 := by
-      unfold logLogFactor
-      rw [max_eq_left hn4]
-      have hcl1 : Nat.clog 2 n_max ≤ m + 1 :=
-        (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr
-          (Nat.lt_pow_succ_log_self Nat.one_lt_two n_max).le
-      have hlt2 : m < 2 ^ (Nat.log 2 m + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two m
-      refine (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr ?_
-      rw [Nat.pow_succ]; omega
+    unfold logLogFactor
+    rw [max_eq_left hn4]
+    have hcl1 : Nat.clog 2 n_max ≤ m + 1 :=
+      (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr
+        (Nat.lt_pow_succ_log_self Nat.one_lt_two n_max).le
+    have hlt2 := Nat.lt_pow_succ_log_self Nat.one_lt_two m
+    have hcl2 : Nat.clog 2 (Nat.clog 2 n_max) ≤ Nat.log 2 m + 2 :=
+      (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr (by rw [Nat.pow_succ]; omega)
     omega
   have hsq := Nat.mul_log_le_add_sq Nat.one_lt_two 80 q
   have h80_ell : 80 * logLogFactor n_max ≤ 3 * q := by
@@ -488,16 +482,13 @@ theorem log_lt_w (h : WhpLargeEnv c U V w₀ n_max w base) :
   exact log_n_max_lt_w hth hnU hU
 
 theorem two_le_w (h : WhpLargeEnv c U V w₀ n_max w base) : 2 ≤ w := by
-  have hlog := h.log_lt_w
-  have hbm := bMinWhp_le_log h.2.2.2.1
-  have hb0 := le_bMinWhp c
+  have := (le_bMinWhp c).trans ((bMinWhp_le_log h.2.2.2.1).trans h.log_lt_w.le)
   omega
 
 theorem three_le_w (h : WhpLargeEnv c U V w₀ n_max w base) : 3 ≤ w := by
-  have hlog := h.log_lt_w
-  have hge := log_ge_mul_ell h.2.2.2.1
-  have hell := one_le_logLogFactor n_max
-  omega
+  have h1 := log_ge_mul_ell h.2.2.2.1
+  have h2 := one_le_logLogFactor n_max
+  exact Nat.succ_le_of_lt ((by omega : 2 ≤ Nat.log 2 n_max).trans_lt h.log_lt_w)
 
 theorem keysWordBits_lt_w (h : WhpLargeEnv c U V w₀ n_max w base) :
     keysWordBitsWhp n_max < w :=
@@ -535,10 +526,9 @@ theorem packed_safe_of_le (h : WhpLargeEnv c U V w₀ n_max w base)
     {off N k idx : ℕ} (hk : k ≤ w₀) (hidx : idx < N)
     (hend : off + packedWords N k w₀ ≤ largeSpaceWhp c U V w₀ n_max) :
     ∃ N', w = w₀ ∧ 0 < w ∧ k ≤ w ∧ idx < N' ∧ Fits w (base + off + packedWords N' k w) := by
-  rcases h with ⟨_, hw, rfl, hth, _, _, _, hfit⟩
-  have hfitL : Fits w (base + largeSpaceWhp c U V w n_max) := by
-    rwa [whpSpace, ite_eq_right (Nat.not_lt.mpr hth)] at hfit
-  exact ⟨N, rfl, hw, hk, hidx, hfitL.of_le (by omega)⟩
+  have hw_eq := h.2.2.1
+  subst hw_eq
+  exact ⟨N, rfl, h.2.1, hk, hidx, h.fits_largeSpace.of_le (by omega)⟩
 
 /-- Full offset bound ladder for `largeSpaceWhp` segments. -/
 theorem seg_end_le (c U V w₀ n_max : ℕ) :
@@ -641,18 +631,16 @@ theorem btMeta_safe (h : WhpLargeEnv c U V w₀ n_max w base) {idx : ℕ}
 theorem btKeys_safe (h : WhpLargeEnv c U V w₀ n_max w base) {idx : ℕ}
     (hidx : idx < totalBTreeNodesWhp n_max) :
     ∃ N, w = w₀ ∧ 0 < w ∧ keysWordBitsWhp n_max ≤ w ∧ idx < N ∧
-      Fits w (base + offBtKeys c U V w₀ n_max + packedWords N (keysWordBitsWhp n_max) w) := by
-  have hkw : keysWordBitsWhp n_max ≤ w₀ := by
-    have h1 := h.keysWordBits_lt_w; have h2 := h.2.2.1; omega
-  exact h.packed_safe_of_le hkw hidx (seg_end_le c U V w₀ n_max).2.2.2.2.2.2.2.2.2.2.1
+      Fits w (base + offBtKeys c U V w₀ n_max + packedWords N (keysWordBitsWhp n_max) w) :=
+  h.packed_safe_of_le (h.2.2.1 ▸ h.keysWordBits_lt_w.le) hidx
+    (seg_end_le c U V w₀ n_max).2.2.2.2.2.2.2.2.2.2.1
 
 theorem btVals_safe (h : WhpLargeEnv c U V w₀ n_max w base) {idx : ℕ}
     (hidx : idx < totalBTreeNodesWhp n_max) :
     ∃ N, w = w₀ ∧ 0 < w ∧ valsWordBitsWhp n_max ≤ w ∧ idx < N ∧
-      Fits w (base + offBtVals c U V w₀ n_max + packedWords N (valsWordBitsWhp n_max) w) := by
-  have hvw : valsWordBitsWhp n_max ≤ w₀ := by
-    have h1 := h.valsWordBits_lt_w; have h2 := h.2.2.1; omega
-  exact h.packed_safe_of_le hvw hidx (seg_end_le c U V w₀ n_max).2.2.2.2.2.2.2.2.2.2.2.1
+      Fits w (base + offBtVals c U V w₀ n_max + packedWords N (valsWordBitsWhp n_max) w) :=
+  h.packed_safe_of_le (h.2.2.1 ▸ h.valsWordBits_lt_w.le) hidx
+    (seg_end_le c U V w₀ n_max).2.2.2.2.2.2.2.2.2.2.2.1
 
 end WhpLargeEnv
 
@@ -783,20 +771,16 @@ theorem realizes_wordInsertAtGen :
   all_goals
     rcases d with ⟨⟨⟨W, j⟩, v⟩, word⟩
     obtain ⟨m, hj, hmW, hv, hword⟩ := h
-  · have hsh : j * W < w :=
-      (Nat.mul_le_mul_right _ (hj.trans (Nat.le_succ m))).trans_lt hmW
-    exact hsh.trans Nat.lt_two_pow_self
-  · rw [Nat.one_shiftLeft]; exact Nat.two_pow_pos _
-  · have hsh : j * W < w :=
-      (Nat.mul_le_mul_right _ (hj.trans (Nat.le_succ m))).trans_lt hmW
-    change 1 <<< (j * W) < 2 ^ w
-    rw [Nat.one_shiftLeft]; exact Nat.pow_lt_pow_right (by decide) hsh
-  · have hlt := wordInsertAt_lt hj hv hword
-    have hfit : wordInsertAt W j v word < 2 ^ w :=
-      hlt.trans (Nat.pow_lt_pow_right (by decide) hmW)
-    change _ < 2 ^ w
+    have hsh : j * W < w := (Nat.mul_le_mul_right _ (hj.trans (Nat.le_succ m))).trans_lt hmW
+  · exact hsh.trans Nat.lt_two_pow_self
+  · rw [Nat.one_shiftLeft]
+    exact Nat.two_pow_pos _
+  · change _ < 2 ^ w
     rw [Nat.one_shiftLeft]
-    exact hfit
+    exact Nat.pow_lt_pow_right (by decide) hsh
+  · change _ < 2 ^ w
+    rw [Nat.one_shiftLeft]
+    exact (wordInsertAt_lt hj hv hword).trans (Nat.pow_lt_pow_right (by decide) hmW)
 
 /-- Parameter-free `wordDeleteAt` (`d = ((W, j), word)`). -/
 @[expose] def wordDeleteAtGenProg : (ℕ × ℕ) × ℕ → Memory.Prog ℕ
@@ -831,29 +815,20 @@ theorem realizes_wordDeleteAtGen :
   all_goals
     rcases d with ⟨⟨W, j⟩, word⟩
     obtain ⟨m, hW, hj, hmW, hword⟩ := h
-  · have hsh : j * W < w :=
-      (Nat.mul_le_mul_right _ (hj.trans (Nat.le_succ m))).trans_lt hmW
-    exact hsh.trans Nat.lt_two_pow_self
-  · have hsh1 : (j + 1) * W < w :=
-      (Nat.mul_le_mul_right _ (Nat.succ_le_succ hj)).trans_lt hmW
-    exact hsh1.trans Nat.lt_two_pow_self
-  · have hj1 : j + 1 < w :=
-      ((Nat.le_mul_of_pos_right _ hW).trans
-        (Nat.mul_le_mul_right _ (Nat.succ_le_succ hj))).trans_lt hmW
-    exact hj1.trans Nat.lt_two_pow_self
-  · rw [Nat.one_shiftLeft]; exact Nat.two_pow_pos _
-  · have hsh : j * W < w :=
-      (Nat.mul_le_mul_right _ (hj.trans (Nat.le_succ m))).trans_lt hmW
-    change 1 <<< (j * W) < 2 ^ w
-    rw [Nat.one_shiftLeft]; exact Nat.pow_lt_pow_right (by decide) hsh
-  · have hlt := wordDeleteAt_lt hj hword
-    have hmw_lt : m * W < w :=
-      (Nat.mul_le_mul_right _ (Nat.le_succ m)).trans_lt hmW
-    have hfit : wordDeleteAt W j word < 2 ^ w :=
-      hlt.trans (Nat.pow_lt_pow_right (by decide) hmw_lt)
+    have hsh1 : (j + 1) * W < w := (Nat.mul_le_mul_right _ (Nat.succ_le_succ hj)).trans_lt hmW
+    have hsh : j * W < w := (Nat.mul_le_mul_right _ (Nat.le_succ j)).trans_lt hsh1
+  · exact hsh.trans Nat.lt_two_pow_self
+  · exact hsh1.trans Nat.lt_two_pow_self
+  · exact ((Nat.le_mul_of_pos_right _ hW).trans_lt hsh1).trans Nat.lt_two_pow_self
+  · rw [Nat.one_shiftLeft]
+    exact Nat.two_pow_pos _
+  · change _ < 2 ^ w
+    rw [Nat.one_shiftLeft]
+    exact Nat.pow_lt_pow_right (by decide) hsh
+  · have hmw_lt : m * W < w := (Nat.mul_le_mul_right _ (Nat.le_succ m)).trans_lt hmW
     change _ < 2 ^ w
     rw [Nat.one_shiftLeft]
-    exact hfit
+    exact (wordDeleteAt_lt hj hword).trans (Nat.pow_lt_pow_right (by decide) hmw_lt)
 
 /-- Parameter-free `wordUpdateAt` (`d = (((W, j), v), word)`). -/
 @[expose] def wordUpdateAtGenProg : ((ℕ × ℕ) × ℕ) × ℕ → Memory.Prog ℕ
@@ -889,23 +864,19 @@ theorem realizes_wordUpdateAtGen :
   all_goals
     rcases d with ⟨⟨⟨W, j⟩, v⟩, word⟩
     obtain ⟨m, hW, hj, hmW, hv, hword⟩ := h
-  · have hsh : j * W < w := (Nat.mul_le_mul_right _ hj.le).trans_lt hmW
-    exact hsh.trans Nat.lt_two_pow_self
-  · have hsh1 : (j + 1) * W < w := (Nat.mul_le_mul_right _ hj).trans_lt hmW
-    exact hsh1.trans Nat.lt_two_pow_self
-  · have hj1 : j + 1 < w :=
-      ((Nat.le_mul_of_pos_right _ hW).trans (Nat.mul_le_mul_right _ hj)).trans_lt hmW
-    exact hj1.trans Nat.lt_two_pow_self
-  · rw [Nat.one_shiftLeft]; exact Nat.two_pow_pos _
-  · have hsh : j * W < w := (Nat.mul_le_mul_right _ hj.le).trans_lt hmW
-    change 1 <<< (j * W) < 2 ^ w
-    rw [Nat.one_shiftLeft]; exact Nat.pow_lt_pow_right (by decide) hsh
-  · have hlt := wordUpdateAt_lt hj hv hword
-    have hfit : wordUpdateAt W j v word < 2 ^ w :=
-      hlt.trans (Nat.pow_lt_pow_right (by decide) hmW)
-    change _ < 2 ^ w
+    have hsh1 : (j + 1) * W < w := (Nat.mul_le_mul_right _ hj).trans_lt hmW
+    have hsh : j * W < w := (Nat.mul_le_mul_right _ (Nat.le_succ j)).trans_lt hsh1
+  · exact hsh.trans Nat.lt_two_pow_self
+  · exact hsh1.trans Nat.lt_two_pow_self
+  · exact ((Nat.le_mul_of_pos_right _ hW).trans_lt hsh1).trans Nat.lt_two_pow_self
+  · rw [Nat.one_shiftLeft]
+    exact Nat.two_pow_pos _
+  · change _ < 2 ^ w
     rw [Nat.one_shiftLeft]
-    exact hfit
+    exact Nat.pow_lt_pow_right (by decide) hsh
+  · change _ < 2 ^ w
+    rw [Nat.one_shiftLeft]
+    exact (wordUpdateAt_lt hj hv hword).trans (Nat.pow_lt_pow_right (by decide) hmW)
 
 /-- Borrow-free subtraction definedness and upper bound for `swarRank`. -/
 private theorem swarRank_lhs_bounds {fpBits m q keysWord : ℕ}
@@ -991,27 +962,19 @@ theorem realizes_swarRankGen :
       (swarConvBits_lt_log hth).trans hlog
     simp only [wp_large_wKey hth, wp_large_maskWKey hth, wp_large_powFp hth, wp_large_fpBits hth,
       wp_large_swarOnesCap hth, wp_large_capLanes hth] at hm hq hkw hlanes ⊢
-  · have hmW : m * keyLaneBitsWhp n_max < w :=
-      (Nat.mul_le_mul_right _ hm.le).trans_lt hkw_lt
-    exact hmW.trans Nat.lt_two_pow_self
+    have hmW : m * keyLaneBitsWhp n_max < w := (Nat.mul_le_mul_right _ hm.le).trans_lt hkw_lt
+  · exact hmW.trans Nat.lt_two_pow_self
   · rw [Nat.one_shiftLeft]; exact Nat.two_pow_pos _
   · have hkl : 2 ≤ keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp fpBitsWhp; omega
     have hpow : 4 ≤ 2 ^ keyLaneBitsWhp n_max :=
       (by decide : 4 = 2 ^ 2).trans_le (Nat.pow_le_pow_right (by decide) hkl)
     omega
-  · have hmW : m * keyLaneBitsWhp n_max < w :=
-      (Nat.mul_le_mul_right _ hm.le).trans_lt hkw_lt
-    change 1 <<< (m * keyLaneBitsWhp n_max) < 2 ^ w
+  · change _ < 2 ^ w
     rw [Nat.one_shiftLeft]
     exact Nat.pow_lt_pow_right (by decide) hmW
-  · have hb := (swarRank_lhs_bounds hq hkw hlanes).2
-    have hmW : m * keyLaneBitsWhp n_max < w :=
-      (Nat.mul_le_mul_right _ hm.le).trans_lt hkw_lt
-    have hfit : (2 ^ fpBitsWhp n_max + q) * swarOnes (keyLaneBitsWhp n_max) m < 2 ^ w :=
-      hb.trans (Nat.pow_lt_pow_right (by decide) hmW)
-    change _ < 2 ^ w
+  · change _ < 2 ^ w
     rw [Nat.one_shiftLeft]
-    exact hfit
+    exact (swarRank_lhs_bounds hq hkw hlanes).2.trans (Nat.pow_lt_pow_right (by decide) hmW)
   · have hkl_lt : keyLaneBitsWhp n_max < w := by
       have : keyLaneBitsWhp n_max ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max :=
         Nat.le_mul_of_pos_left _ (by have := eight_le_tMinWhp hth; omega)
@@ -1036,18 +999,13 @@ theorem realizes_swarRankGen :
     exact hfit
   · rw [Nat.one_shiftLeft]
     exact (swarRank_lhs_bounds hq hkw hlanes).1
-  · have hprod := ltMask_mul_swarOnes_lt_two_pow
-      (fpBits := fpBitsWhp n_max) (capLanes := 2 * tMinWhp n_max) (q := q) (keysWord := kw) hm
-    have hexp : (2 * (2 * tMinWhp n_max) - 1) * (fpBitsWhp n_max + 2) ≤
-        4 * tMinWhp n_max * keyLaneBitsWhp n_max := by
-      change (2 * (2 * tMinWhp n_max) - 1) * keyLaneBitsWhp n_max ≤ _
-      exact Nat.mul_le_mul_right _ (by omega)
-    have hfit : ltMask (fpBitsWhp n_max) m q kw *
-        swarOnes (keyLaneBitsWhp n_max) (2 * tMinWhp n_max) < 2 ^ w :=
-      hprod.trans (Nat.pow_lt_pow_right (by decide) (hexp.trans_lt hconv_lt))
+  · have hexp : (2 * (2 * tMinWhp n_max) - 1) * (fpBitsWhp n_max + 2) < w :=
+      (Nat.mul_le_mul_right (keyLaneBitsWhp n_max) (by omega)).trans_lt hconv_lt
     change _ < 2 ^ w
     rw [Nat.one_shiftLeft]
-    exact hfit
+    exact (ltMask_mul_swarOnes_lt_two_pow
+      (fpBits := fpBitsWhp n_max) (capLanes := 2 * tMinWhp n_max) (q := q) (keysWord := kw)
+      hm).trans (Nat.pow_lt_pow_right (by decide) hexp)
   · exact Nat.le_of_lt (by have := eight_le_tMinWhp hth; omega)
   · have hsh : (2 * tMinWhp n_max - 1) * keyLaneBitsWhp n_max < w :=
       (Nat.mul_le_mul_right _ (Nat.sub_le _ _)).trans_lt hkw_lt
@@ -1348,13 +1306,9 @@ theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
       (readPacked_writePacked_self _ _ _ s.mem idxA h0_lt)
   · intro sIdx' hsIdx' hne sl' hrep'
     rw [hs'_eq]
-    have hneA1 : 16 * (sIdx' / 3) + 10 + 2 * (sIdx' % 3) ≠ idxA := by omega
-    have hneR1 : 16 * (sIdx' / 3) + 10 + 2 * (sIdx' % 3) ≠ idxR := by omega
-    have hneA2 : 16 * (sIdx' / 3) + 11 + 2 * (sIdx' % 3) ≠ idxA := by omega
-    have hneR2 : 16 * (sIdx' / 3) + 11 + 2 * (sIdx' % 3) ≠ idxR := by omega
     refine ⟨hrep'.1,
-      (hother_bm _ (by omega) hneA1 hneR1).trans hrep'.2.1,
-      (hother_bm _ (by omega) hneA2 hneR2).trans hrep'.2.2.1,
+      (hother_bm _ (by omega) (by omega) (by omega)).trans hrep'.2.1,
+      (hother_bm _ (by omega) (by omega) (by omega)).trans hrep'.2.2.1,
       fun u hu => ?_⟩
     have hidx_n := sliceNodeIdx_lt hsIdx' (hu.trans_le hrep'.1)
     exact ⟨(readPacked_congr hw (hidx := hidx_n) fun a ⟨ha1, _⟩ => hout a (Or.inr (by omega))).trans
@@ -1510,7 +1464,6 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
   have hth := henv.2.2.2.1
   have hw := henv.2.1
   have hch := largeOffsetChain c U V w n_max
-  have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.2.2
   have hnm_le : nodeMetaBitsWhp n_max ≤ w := by
     have h1 := log_ge_mul_ell hth
     have h2 := one_le_logLogFactor n_max
@@ -1615,14 +1568,11 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
     have hidx_v := sliceNodeIdx_lt hsIdx' hv_ns
     have hne_idx : sIdx' * nSliceWhp n_max + v ≠ idx := by
       dsimp only [idx]
-      intro heq
-      have hdiv1 : (sIdx' * nSliceWhp n_max + v) / nSliceWhp n_max = sIdx' := by
-        rw [Nat.mul_comm, Nat.mul_add_div (by have := sixty_four_le_nSliceWhp n_max; omega),
-          Nat.div_eq_of_lt hv_ns, Nat.add_zero]
-      have hdiv2 : (sIdx * nSliceWhp n_max + u) / nSliceWhp n_max = sIdx := by
-        rw [Nat.mul_comm, Nat.mul_add_div (by have := sixty_four_le_nSliceWhp n_max; omega),
-          Nat.div_eq_of_lt hu, Nat.add_zero]
-      exact hne (by rw [← hdiv1, heq, hdiv2])
+      rcases lt_or_gt_of_ne hne with hlt | hgt
+      · have hle := Nat.mul_le_mul_right (nSliceWhp n_max) (Nat.succ_le_of_lt hlt)
+        rw [Nat.succ_mul] at hle; omega
+      · have hle := Nat.mul_le_mul_right (nSliceWhp n_max) (Nat.succ_le_of_lt hgt)
+        rw [Nat.succ_mul] at hle; omega
     obtain ⟨p1, p2, p3⟩ := hrep'.2.2.2 v hv
     change readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₃ _ = _ ∧
       readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w mem₃ _ = _ ∧
