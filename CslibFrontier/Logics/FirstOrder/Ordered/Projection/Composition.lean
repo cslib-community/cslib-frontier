@@ -128,9 +128,9 @@ theorem isQF_substLiteral {N L L' : Language} {r k l : ℕ}
   cases lit with
   | const => trivial
   | rel S _ neg =>
-    cases neg
-    · exact (hpI S).relabel _
-    · exact ((hpI S).relabel _).not
+    cases neg with
+    | false => exact (hpI S).relabel _
+    | true => exact ((hpI S).relabel _).not
 
 end ProjectionFormula
 
@@ -205,7 +205,7 @@ private theorem realize_substLiteral {N L L' : Language} [L'.IsRelational] {r k 
   let : Fact (2 ≤ n ^ k) := ⟨two_le_pow (n := n) hk⟩
   cases lit with
   | const b =>
-    simp only [ProjectionFormula.substLiteral, ProjectionFormula.realize_toFormula_leaf,
+    simp [ProjectionFormula.substLiteral, ProjectionFormula.realize_toFormula_leaf,
       InputLiteral.realize_const]
   | rel S args neg =>
     have hpos :
@@ -217,13 +217,11 @@ private theorem realize_substLiteral {N L L' : Language} [L'.IsRelational] {r k 
       rw [ProjectionFormula.realize_relabel, hI S]
       change (I.rel S).Realize _ ↔
         (I.rel S).Realize (fun p => lexEquiv.symm (lexEquiv (v (args p.1).1 (args p.1).2)) p.2)
-      refine iff_of_eq (congrArg (I.rel S).Realize (funext fun ⟨b, i⟩ => ?_))
-      simp only [Function.comp_apply, Equiv.symm_apply_apply, flattenTuple_apply]
-    cases neg
-    · simpa only [ProjectionFormula.substLiteral, Bool.false_eq_true, ↓reduceIte,
-        InputLiteral.realize_rel_false] using hpos
-    · simp only [ProjectionFormula.substLiteral, ↓reduceIte, ProjectionFormula.realize_not, hpos,
-        InputLiteral.realize_rel_true]
+      exact iff_of_eq (congrArg (I.rel S).Realize (funext fun ⟨b, i⟩ => by
+        simp [flattenTuple_apply]))
+    cases neg with
+    | false => simp [ProjectionFormula.substLiteral, hpos, InputLiteral.realize_rel_false]
+    | true => simp [ProjectionFormula.substLiteral, hpos, InputLiteral.realize_rel_true]
 
 /-- On `Fin n` with `2 ≤ n` and `0 < k`, `compProjection pJ pI` evaluates on flattened blocks just
 as `pJ` evaluates on the lexicographic ranks of the inner `k`-tuples in `I.inputStructure`. -/
@@ -310,18 +308,11 @@ theorem IsProjection.comp {L L' L'' : Language} [L'.IsRelational] {k l : ℕ}
         (x : Fin r × Fin (l * k) → Fin n),
         (K.rel R).Realize x ↔ ((J.comp I).rel R).Realize x := by
   classical
-  let pJ : ∀ {r : ℕ}, L''.Relations r → ProjectionFormula numericLanguage L' (Fin r × Fin l) :=
-    fun R => (hJ R).choose
-  let pI : ∀ {s : ℕ}, L'.Relations s → ProjectionFormula numericLanguage L (Fin s × Fin k) :=
-    fun S => (hI S).choose
-  have hpJ : ∀ {r : ℕ} (R : L''.Relations r), J.rel R = (pJ R).toOrdered :=
-    fun R => (hJ R).choose_spec
-  have hpI : ∀ {s : ℕ} (S : L'.Relations s), I.rel S = (pI S).toOrdered :=
-    fun S => (hI S).choose_spec
-  refine ⟨ofProjection (fun R => compProjection (pJ R) pI), isProjection_ofProjection _, ?_⟩
-  intro n _ _ r R x
-  refine realize_rel_iff_comp_of_flatten hk R (fun v => ?_) x
-  rw [rel_ofProjection, realize_compProjection hk (pJ R) pI hpI v, ← hpJ R]
+  refine ⟨ofProjection fun R => compProjection (hJ R).choose fun S => (hI S).choose,
+    isProjection_ofProjection _,
+    fun R x => realize_rel_iff_comp_of_flatten hk R (fun v => ?_) x⟩
+  rw [rel_ofProjection, realize_compProjection hk _ _ (fun S => (hI S).choose_spec) v,
+    ← (hJ R).choose_spec]
 
 /-- **Quantifier-free projections compose**
 [Immerman and Landau, Proposition 3.7][ImmermanLandau1995]: for an `l`-dimensional quantifier-free
@@ -337,23 +328,13 @@ theorem IsQFProjection.comp {L L' L'' : Language} [L'.IsRelational] {k l : ℕ}
         (x : Fin r × Fin (l * k) → Fin n),
         (K.rel R).Realize x ↔ ((J.comp I).rel R).Realize x := by
   classical
-  let qJ : ∀ {r : ℕ}, L''.Relations r → ProjectionFormula qfNumericLanguage L' (Fin r × Fin l) :=
-    fun R => (hJ R).choose
-  let qI : ∀ {s : ℕ}, L'.Relations s → ProjectionFormula qfNumericLanguage L (Fin s × Fin k) :=
-    fun S => (hI S).choose
-  have hqJ : ∀ {r : ℕ} (R : L''.Relations r),
-      (qJ R).IsQF ∧ J.rel R = ((qJ R).subst toNumeric .leaf).toOrdered :=
-    fun R => (hJ R).choose_spec
-  have hqI : ∀ {s : ℕ} (S : L'.Relations s),
-      (qI S).IsQF ∧ I.rel S = ((qI S).subst toNumeric .leaf).toOrdered :=
-    fun S => (hI S).choose_spec
-  refine ⟨ofQFProjection (fun R => compQFProjection (qJ R) qI),
+  refine ⟨ofQFProjection fun R => compQFProjection (hJ R).choose fun S => (hI S).choose,
     isQFProjection_ofQFProjection _ (fun R =>
-      isQF_compQFProjection (hqJ R).1 (fun S => (hqI S).1)), ?_⟩
-  intro n _ _ r R x
-  refine realize_rel_iff_comp_of_flatten hk R (fun v => ?_) x
+      isQF_compQFProjection (hJ R).choose_spec.1 fun S => (hI S).choose_spec.1),
+    fun R x => realize_rel_iff_comp_of_flatten hk R (fun v => ?_) x⟩
   rw [rel_ofQFProjection,
-    realize_compQFProjection hk (hqJ R).1 qI (fun S => (hqI S).2) v, ← (hqJ R).2]
+    realize_compQFProjection hk (hJ R).choose_spec.1 _ (fun S => (hI S).choose_spec.2) v,
+    ← (hJ R).choose_spec.2]
 
 /-- The one-dimensional identity full-tuple interpretation: each relation is its own positive input
 literal on the single coordinate. -/
@@ -372,24 +353,16 @@ theorem isProjection_id (L : Language) : (FullTupleInterpretation.id L).IsProjec
 theorem map_id (L : Language) [L.IsRelational] (M : Ordered.Structure L) :
     (FullTupleInterpretation.id L).toDomainInterpretation.map
         ((FullTupleInterpretation.id L).admissible_toDomainInterpretation one_pos) M = M := by
-  let hc :
-      ((FullTupleInterpretation.id L).toDomainInterpretation.map
-        ((FullTupleInterpretation.id L).admissible_toDomainInterpretation one_pos) M).size =
-        M.size ^ 1 :=
-    card_toDomainInterpretation M
-  have hsize :
-      ((FullTupleInterpretation.id L).toDomainInterpretation.map
-        ((FullTupleInterpretation.id L).admissible_toDomainInterpretation one_pos) M).size =
-        M.size :=
-    hc.trans (pow_one M.size)
-  refine Ordered.Structure.ext hsize fun R x => ?_
-  refine ((FullTupleInterpretation.id L).relMap_map_toDomainInterpretation one_pos R x).trans ?_
+  let hc : ((FullTupleInterpretation.id L).toDomainInterpretation.map
+      ((FullTupleInterpretation.id L).admissible_toDomainInterpretation one_pos) M).size =
+      M.size ^ 1 := card_toDomainInterpretation M
+  have hsize := hc.trans (pow_one M.size)
+  refine Ordered.Structure.ext hsize fun R x =>
+    ((FullTupleInterpretation.id L).relMap_map_toDomainInterpretation one_pos R x).trans ?_
   change ((FullTupleInterpretation.id L).rel R).Realize
       (fun p => lexEquiv.symm (Fin.cast hc (x p.1)) p.2) ↔ _
   rw [FullTupleInterpretation.id, realize_rel_ofQFProjection]
-  change RelMap R _ ↔ _
-  refine iff_of_eq (congrArg (RelMap R) (funext fun i => ?_))
-  apply Fin.ext
+  refine iff_of_eq (congrArg (RelMap R) (funext fun i => Fin.ext ?_))
   change (lexEquiv.symm (Fin.cast hc (x i)) 0).val = (Fin.cast hsize (x i)).val
   rw [lexEquiv_symm_apply_val]
   simp only [Fin.rev, Fin.val_zero, zero_add, tsub_self, pow_zero, Nat.div_one, Fin.val_cast]
