@@ -238,7 +238,9 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         G.fits_of_le hfit (by
           simp only [wb, N, Mc, kTopAddr, Instance.workBase, Instance.outAddrBase,
             G.encode_length, Instance.wordBound]; omega)
-      have hsetup_regs : ∃ s₃, ExecWithin w setupWorkRegsCode s₂ s₃ 19 ∧
+      obtain ⟨s₃, hs₃_ex, hs₃_mem, hs₃_0, hs₃_1, hs₃_2, hs₃_3, hs₃_nv, hs₃_mc, hs₃_Nv, hs₃_ob,
+        hs₃_off, hs₃_edge, hs₃_roff, hs₃_redge, hs₃_cur, hs₃_vis, hs₃_ord, hs₃_fin,
+        hs₃_stk, hs₃_comp⟩ : ∃ s₃, ExecWithin w setupWorkRegsCode s₂ s₃ 19 ∧
           s₃.mem = s₂.mem ∧
           s₃.regs cZero = 0 ∧ s₃.regs cOne = 1 ∧ s₃.regs cTwo = 2 ∧ s₃.regs cThree = 3 ∧
           s₃.regs nv = G.n ∧ s₃.regs mClauses = G.φ.length ∧ s₃.regs nVerts = N ∧
@@ -248,24 +250,11 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           s₃.regs curB = kCurAddr wb N Mc ∧ s₃.regs visB = kVisAddr wb N Mc ∧
           s₃.regs ordB = kOrdAddr wb N Mc ∧ s₃.regs finB = kOrdAddr wb N Mc ∧
           s₃.regs stkB = kStkAddr wb N Mc ∧ s₃.regs compB = kCompAddr wb N Mc := by
-        let SetupPost (s₃ : Data 28) : Prop :=
-          s₃.mem = s₂.mem ∧
-            s₃.regs cZero = 0 ∧ s₃.regs cOne = 1 ∧ s₃.regs cTwo = 2 ∧ s₃.regs cThree = 3 ∧
-            s₃.regs nv = G.n ∧ s₃.regs mClauses = G.φ.length ∧ s₃.regs nVerts = N ∧
-            s₃.regs outBase = G.outAddrBase ∧
-            s₃.regs offB = kOffAddr wb ∧ s₃.regs edgeB = kEdgeAddr wb N ∧
-            s₃.regs revOffB = kRevOffAddr wb N Mc ∧ s₃.regs revEdgeB = kRevEdgeAddr wb N Mc ∧
-            s₃.regs curB = kCurAddr wb N Mc ∧ s₃.regs visB = kVisAddr wb N Mc ∧
-            s₃.regs ordB = kOrdAddr wb N Mc ∧ s₃.regs finB = kOrdAddr wb N Mc ∧
-            s₃.regs stkB = kStkAddr wb N Mc ∧ s₃.regs compB = kCompAddr wb N Mc
-        change ∃ s₃, ExecWithin w setupWorkRegsCode s₂ s₃ 19 ∧ SetupPost s₃
         unfold setupWorkRegsCode
         wram_exec [hs₂_0, hs₂_1, hs₂_2, hs₂_3, hs₂_ob, hs₂_nv, hs₂_mc]
-        · dsimp only [SetupPost]
-          refine ⟨rfl, by wram_simp; exact hs₂_0, by wram_simp; exact hs₂_1,
-            by wram_simp; exact hs₂_2, by wram_simp; exact hs₂_3,
-            by wram_simp; exact hs₂_nv, by wram_simp; exact hs₂_mc, by wram_simp; rfl,
-            by wram_simp; exact hs₂_ob, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+        · refine ⟨rfl, by wram_simp [hs₂_0], by wram_simp [hs₂_1], by wram_simp [hs₂_2],
+            by wram_simp [hs₂_3], by wram_simp [hs₂_nv], by wram_simp [hs₂_mc], by wram_simp; rfl,
+            by wram_simp [hs₂_ob], ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
           all_goals wram_simp
           all_goals
             dsimp only [wb, N, Mc, Instance.workBase, kOffAddr, kEdgeAddr, kRevOffAddr,
@@ -275,9 +264,6 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           exact hfit_top.of_le (by
             dsimp only [wb, N, Mc, Instance.workBase, kTopAddr]
             omega)
-      obtain ⟨s₃, hs₃_ex, hs₃_mem, hs₃_0, hs₃_1, hs₃_2, hs₃_3, hs₃_nv, hs₃_mc, hs₃_Nv, hs₃_ob,
-        hs₃_off, hs₃_edge, hs₃_roff, hs₃_redge, hs₃_cur, hs₃_vis, hs₃_ord, hs₃_fin,
-        hs₃_stk, hs₃_comp⟩ := hsetup_regs
       have hcm₃ : ClauseMemAt s₃.mem 3 G.φ :=
         hs₃_mem ▸ hs₂_mem ▸ hs₀_mem ▸ clauseMemAt_init G
       obtain ⟨s₄, hs₄_ex, hs₄_csr, _, hs₄_fr⟩ :=
@@ -285,24 +271,14 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           hs₃_off hs₃_edge hs₃_cur
       have hmc_adj : csrOffset G.adjFin N ≤ Mc := csrOffset_adjFin_le G
       have hs₄_dregs : DfsRegs (kOffAddr wb) (kEdgeAddr wb N) (kVisAddr wb N Mc)
-          (kOrdAddr wb N Mc) (kStkAddr wb N Mc) s₄ :=
-        { czero := (hs₄_fr cZero (by decide)).trans hs₃_0
-          cone := (hs₄_fr cOne (by decide)).trans hs₃_1
-          cthree := (hs₄_fr cThree (by decide)).trans hs₃_3
-          hoff := (hs₄_fr offB (by decide)).trans hs₃_off
-          hedge := (hs₄_fr edgeB (by decide)).trans hs₃_edge
-          hvis := (hs₄_fr visB (by decide)).trans hs₃_vis
-          hfin := (hs₄_fr finB (by decide)).trans hs₃_fin
-          hstk := (hs₄_fr stkB (by decide)).trans hs₃_stk }
+          (kOrdAddr wb N Mc) (kStkAddr wb N Mc) s₄ := by
+        constructor <;> wram_simp [hs₄_fr, hs₃_0, hs₃_1, hs₃_3, hs₃_off, hs₃_edge, hs₃_vis,
+          hs₃_fin, hs₃_stk]
       obtain ⟨s₇, hs₇_ex, hs₇_comp, -, hs₇_fr⟩ :=
         sccIndexCode_spec hN_pos G.adjFin wb Mc hmc_adj hfit_top hs₄_dregs
-          ((hs₄_fr nVerts (by decide)).trans hs₃_Nv)
-          ((hs₄_fr curB (by decide)).trans hs₃_cur)
-          ((hs₄_fr revOffB (by decide)).trans hs₃_roff)
-          ((hs₄_fr revEdgeB (by decide)).trans hs₃_redge)
-          ((hs₄_fr ordB (by decide)).trans hs₃_ord)
-          ((hs₄_fr compB (by decide)).trans hs₃_comp)
-          hs₄_csr
+          (by wram_simp [hs₄_fr, hs₃_Nv]) (by wram_simp [hs₄_fr, hs₃_cur])
+          (by wram_simp [hs₄_fr, hs₃_roff]) (by wram_simp [hs₄_fr, hs₃_redge])
+          (by wram_simp [hs₄_fr, hs₃_ord]) (by wram_simp [hs₄_fr, hs₃_comp]) hs₄_csr
       have hs₇_fr3 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → r ≠ finB →
           s₇.regs r = s₃.regs r := fun r hr h1 h2 h3 =>
         (hs₇_fr r hr h1 h2 h3).trans (hs₄_fr r hr)
