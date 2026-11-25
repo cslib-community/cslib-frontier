@@ -63,23 +63,15 @@ public theorem exec_tileArguments {w L m N Q t a b : ℕ} (x : Data 160)
     dsimp only [C, B, H, BandPreparation.memoryEnd] at *
     omega
   have hcodes : codeBase L m N Q + Q ≤ memoryEnd L m N Q := by
-    have h10 := Nat.zero_le H
-    unfold memoryEnd stampBase scratchBase outputBase groupedBase originalBase
-    omega
+    unfold memoryEnd stampBase scratchBase outputBase groupedBase originalBase; omega
   have hgroups : groupedBase L m N Q + Q ≤ memoryEnd L m N Q := by
-    unfold memoryEnd stampBase scratchBase outputBase
-    have h10 := Nat.zero_le (10 ^ L)
-    omega
+    unfold memoryEnd stampBase scratchBase outputBase; omega
   have htiles : offsetBase L m N Q + B ^ 2 + 1 ≤ memoryEnd L m N Q := by
-    dsimp only [B]
-    unfold codeBase at hcodes
-    omega
-  have foffset : Fits w (offsetBase L m N Q + t) := allocated_fits hfit (by
-    dsimp only [B] at *
-    omega)
-  have fnext : Fits w (offsetBase L m N Q + t + 1) := allocated_fits hfit (by
-    dsimp only [B] at *
-    omega)
+    dsimp only [B]; unfold codeBase at hcodes; omega
+  have foffset : Fits w (offsetBase L m N Q + t) :=
+    allocated_fits hfit (by dsimp only [B] at *; omega)
+  have fnext : Fits w (offsetBase L m N Q + t + 1) :=
+    allocated_fits hfit (by dsimp only [B] at *; omega)
   have frow : Fits w (t / B) := allocated_fits hfit (by nlinarith only [hr, hH, horder])
   have fcol : Fits w (t % B) := allocated_fits hfit (by nlinarith only [hc, hH, horder])
   have frowH : Fits w (t / B * H) := allocated_fits hfit (by nlinarith only [hrH, horder])

@@ -71,10 +71,7 @@ theorem exec_accumulate {w q t A B : ℕ} (subtract : Bool) (x : Data 64) (u v :
       (z.comap f).regs Signed.ArrayArithmetic.Reg.inputB ∨
       (z.comap f).regs Signed.ArrayArithmetic.Reg.inputB =
       (z.comap f).regs Signed.ArrayArithmetic.Reg.output := by
-    rw [hzb, hzo]
-    rcases hsep with h | h
-    · exact Or.inl (by omega)
-    · exact Or.inr (Or.inl (by omega))
+    rw [hzb, hzo]; omega
   wram_call (Signed.ArrayArithmetic.exec subtract (z.comap f) u v hzl hbound hu hv
       (fun j hj => by rw [hzm, hza]; exact hout j hj)
       (fun j hj => by rw [hzm, hzb]; exact hprod j hj)
