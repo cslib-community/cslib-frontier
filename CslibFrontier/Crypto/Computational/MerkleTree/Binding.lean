@@ -349,50 +349,26 @@ theorem computableInPolyTime_merkleVerify
         merkleVerify H p.1.1 p.1.2 p.2.1.1 p.2.1.2 p.2.2.1 p.2.2.2)
       (encPair (encPair encBits encUnary)
         (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encBool := by
-  have hargs : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) =>
-        (p.1.1, p.2.2.1, p.2.1.2, p.2.2.2))
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits))))
-      (encPair encBits (encPair encBits (encPair encUnary (encList encBits)))) := by
-    fun_prop
+  let T := (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool))
+  let E := encPair (encPair encBits encUnary)
+    (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))
   have hroot : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) =>
-        merkleRootOfPath H p.1.1 p.2.2.1 p.2.1.2 p.2.2.2 == p.2.1.1)
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encBool :=
-    ComputableInPolyTime.beq ((computableInPolyTime_merkleRootOfPath hH hlen).comp hargs)
-      (by fun_prop)
-  have hi : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) => p.2.1.2)
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  have hd : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) => p.1.2)
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encUnary := by
-    fun_prop
-  have hrange : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) =>
-        decide (p.2.1.2 < 2 ^ p.1.2))
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encBool :=
-    (ComputableInPolyTime.binary_lt' hi
-      (ComputableInPolyTime.binary_two_pow.comp hd))
-  have hlength : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) =>
-        p.2.2.2.length == p.1.2)
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encBool :=
-    ComputableInPolyTime.beq (encB := encUnary) (by fun_prop) hd
+      (fun p : T => merkleRootOfPath H p.1.1 p.2.2.1 p.2.1.2 p.2.2.2 == p.2.1.1) E encBool :=
+    ComputableInPolyTime.beq ((computableInPolyTime_merkleRootOfPath hH hlen).comp
+      (g := fun p : T => (p.1.1, p.2.2.1, p.2.1.2, p.2.2.2)) (by dsimp only [E]; fun_prop))
+      (by dsimp only [E]; fun_prop)
+  have hd : ComputableInPolyTime (fun p : T => p.1.2) E encUnary := by dsimp only [E]; fun_prop
+  have hrange : ComputableInPolyTime (fun p : T => decide (p.2.1.2 < 2 ^ p.1.2)) E encBool :=
+    ComputableInPolyTime.binary_lt'
+      (ComputableInPolyTime.unary_to_binary.comp (by dsimp only [E]; fun_prop))
+      (ComputableInPolyTime.binary_two_pow.comp hd)
+  have hlength : ComputableInPolyTime (fun p : T => p.2.2.2.length == p.1.2) E encBool :=
+    ComputableInPolyTime.beq (encB := encUnary) (by dsimp only [E]; fun_prop) hd
   have hlabels : ComputableInPolyTime
-      (fun p : (List Bool × ℕ) × (List Bool × ℕ) × (List Bool × List (List Bool)) =>
-        p.2.2.2.all fun s => s.length == p.2.1.1.length)
-      (encPair (encPair encBits encUnary)
-        (encPair (encPair encBits encUnary) (encPair encBits (encList encBits)))) encBool :=
-    ComputableInPolyTime.allWithInput (by fun_prop)
-      (ComputableInPolyTime.beq (encB := encUnary) (by fun_prop) (by fun_prop))
+      (fun p : T => p.2.2.2.all fun s => s.length == p.2.1.1.length) E encBool :=
+    ComputableInPolyTime.allWithInput (by dsimp only [E]; fun_prop)
+      (ComputableInPolyTime.beq (encB := encUnary) (by dsimp only [E]; fun_prop)
+        (by dsimp only [T, E]; fun_prop))
   exact ComputableInPolyTime.bool_and.comp
     ((ComputableInPolyTime.bool_and.comp
       ((ComputableInPolyTime.bool_and.comp (hlength.prod hrange)).prod hlabels)).prod hroot)
@@ -571,17 +547,12 @@ theorem isPPT_merkleCollisionFinder
     (hlen : ∀ k x, (H k x).length = k.length) {adversary : MerkleBindingAdversary}
     (hadversary : IsPPT encMerkleBindingOutput adversary) :
     IsPPT (encPair encBits encBits) (merkleCollisionFinder H adversary) := by
-  have hargs : ComputableInPolyTime
+  have hpost := (computableInPolyTime_extractMerkleCollision hH hlen).comp
+    (show ComputableInPolyTime
       (fun p : (ℕ × List Bool) × MerkleBindingOutput =>
         (p.1.2, (p.2.first.leaf, p.2.second.leaf), p.2.position, p.2.first.path,
           p.2.second.path))
-      (encPair (encPair encUnary encBits) encMerkleBindingOutput)
-      (encPair encBits (encPair (encPair encBits encBits)
-        (encPair encUnary (encPair (encList encBits) (encList encBits))))) := by
-    fun_prop
-  have hpost := (computableInPolyTime_extractMerkleCollision hH hlen).comp hargs
-  change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
-    (fun p => merkleCollisionFinder H adversary p.1 p.2)
+      (encPair (encPair encUnary encBits) encMerkleBindingOutput) _ by fun_prop)
   exact hadversary.bind_with hpost.isPPTOn
 
 /-- Position binding gives negligible success probability to every strict PPT adversary. -/

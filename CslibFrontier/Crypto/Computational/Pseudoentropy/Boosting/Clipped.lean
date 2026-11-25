@@ -79,19 +79,9 @@ theorem clippedProbability_eq_zero {slope margin : ℝ} (h : slope * margin ≤ 
 /-- Negating the signed margin complements the probability. -/
 @[simp] theorem clippedProbability_neg (slope margin : ℝ) :
     clippedProbability slope (-margin) = 1 - clippedProbability slope margin := by
-  by_cases hlo : slope * margin ≤ -1
-  · rw [clippedProbability_eq_zero hlo, clippedProbability_eq_one (by nlinarith)]
-    norm_num
-  · by_cases hhi : 1 ≤ slope * margin
-    · rw [clippedProbability_eq_one hhi, clippedProbability_eq_zero (by nlinarith)]
-      norm_num
-    · have hpos : (1 + slope * margin) / 2 ∈ Set.Icc (0 : ℝ) 1 := by
-        constructor <;> linarith
-      have hneg : (1 + slope * -margin) / 2 ∈ Set.Icc (0 : ℝ) 1 := by
-        constructor <;> nlinarith
-      simp only [clippedProbability, max_eq_right hpos.1, max_eq_right hneg.1,
-        min_eq_right hpos.2, min_eq_right hneg.2]
-      ring
+  have h : (1 + slope * -margin) / 2 = 1 - (1 + slope * margin) / 2 := by ring
+  simp only [clippedProbability, h, sub_eq_add_neg, ← max_neg_neg, ← min_neg_neg, add_max, add_min,
+    add_neg_cancel, neg_zero, add_zero, max_min_distrib_left, max_eq_right zero_le_one]
 
 /-- Rounding the slope loses at most half the margin times the rounding error. -/
 theorem clippedProbability_lipschitz (slope slope' margin : ℝ) :
@@ -223,7 +213,7 @@ theorem exists_clippedError_le (source : PMF α) (margin : α → ℝ) {δ gap b
         · exact mul_le_mul_of_nonneg_left h (hsoftSet x).1
         · simp [habove x (lt_of_not_ge h)]
       _ = δ * cutoff := by simp only [← mul_assoc, ← Finset.sum_mul, hmass]
-  have hgap_cutoff : gap ≤ cutoff := by nlinarith
+  have hgap_cutoff : gap ≤ cutoff := le_of_mul_le_mul_left (hcorrelation.trans hupper) hδ
   have hcutoff : 0 < cutoff := hgap.trans_le hgap_cutoff
   have hpoint (x : α) : 1 - clippedProbability (1 / cutoff) (margin x) ≤
       softSet x * (1 - (1 / cutoff) * margin x) / 2 := by
@@ -263,13 +253,13 @@ private theorem exists_gridSlope (denominator : ℕ) (hd : 0 < denominator)
     ∃ numerator ≤ denominator, |(numerator : ℝ) / denominator - slope| ≤ 1 / denominator := by
   have hdreal : (0 : ℝ) < denominator := by exact_mod_cast hd
   have hnonneg : 0 ≤ (denominator : ℝ) * slope := mul_nonneg hdreal.le hslope.1
-  refine ⟨⌊(denominator : ℝ) * slope⌋₊, Nat.floor_le_of_le ?_, ?_⟩
-  · nlinarith [hslope.2]
-  · rw [show (⌊(denominator : ℝ) * slope⌋₊ : ℝ) / denominator - slope =
+  refine ⟨⌊(denominator : ℝ) * slope⌋₊,
+    Nat.floor_le_of_le (mul_le_of_le_one_right hdreal.le hslope.2), ?_⟩
+  rw [show (⌊(denominator : ℝ) * slope⌋₊ : ℝ) / denominator - slope =
         ((⌊(denominator : ℝ) * slope⌋₊ : ℝ) - denominator * slope) / denominator by field_simp,
       abs_div, abs_of_pos hdreal]
-    exact div_le_div_of_nonneg_right (by
-      simpa only [abs_sub_comm] using Nat.abs_sub_floor_le hnonneg) hdreal.le
+  exact div_le_div_of_nonneg_right (by
+    simpa only [abs_sub_comm] using Nat.abs_sub_floor_le hnonneg) hdreal.le
 
 /-- A finite dyadic grid contains a predictor with the lower-tail bound, up to explicit rounding
 loss. This is an existence guarantee for subsequent empirical selection, not a choice of advice. -/
@@ -291,12 +281,12 @@ theorem exists_dyadic_clippedError_le (source : PMF α) (margin : α → ℝ)
     (dyadicSize_pos precision) (slope := 1 / cutoff)
     ⟨by positivity, (div_le_one hcutoff).mpr (by linarith)⟩
   refine ⟨numerator, hnum, ?_⟩
-  have hperturb := clippedError_perturbation source margin hmargin
-    (numerator / dyadicSize precision) (1 / cutoff)
-  have hround := mul_le_mul_of_nonneg_right hclose hbound
-  have heq : (1 / (dyadicSize precision : ℝ)) * bound / 2 =
-      bound / (2 * dyadicSize precision) := by ring
-  linarith
+  calc clippedError source margin (numerator / dyadicSize precision)
+      ≤ clippedError source margin (1 / cutoff) +
+          |(numerator : ℝ) / dyadicSize precision - 1 / cutoff| * bound / 2 :=
+        clippedError_perturbation source margin hmargin _ _
+    _ ≤ (δ / 2 - δ * gap / (2 * bound)) + (1 / dyadicSize precision) * bound / 2 := by gcongr
+    _ = _ := by ring
 
 end Error
 

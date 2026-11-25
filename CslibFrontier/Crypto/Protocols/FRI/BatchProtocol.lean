@@ -367,24 +367,15 @@ theorem friBatchCorrAgreeLang_eq_proximityLang {d : ℕ} (C : Submodule F (Oracl
     {α : ℝ} (hα_le : α ≤ 1) :
     friBatchCorrAgreeLang C t α =
       friBatchProximityLang C t (2 ^ d - ⌈α * (2 ^ d : ℝ)⌉₊) := by
-  set n : ℕ := 2 ^ d
-  have hnR_pos : (0 : ℝ) < (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]; positivity
-  have hceil_le : ⌈α * (n : ℝ)⌉₊ ≤ n := by
-    refine Nat.ceil_le.mpr ?_
-    calc α * (n : ℝ) ≤ 1 * (n : ℝ) := mul_le_mul_of_nonneg_right hα_le hnR_pos.le
-      _ = (n : ℝ) := one_mul _
-  have hsub : n - (n - ⌈α * (n : ℝ)⌉₊) = ⌈α * (n : ℝ)⌉₊ := Nat.sub_sub_self hceil_le
+  have hnR_pos : (0 : ℝ) < (2 ^ d : ℝ) := by positivity
+  have hceil_le : ⌈α * (2 ^ d : ℝ)⌉₊ ≤ 2 ^ d :=
+    Nat.ceil_le.mpr (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using
+      mul_le_of_le_one_left hnR_pos.le hα_le)
   ext stmt
-  simp only [friBatchCorrAgreeLang, friBatchProximityLang, Set.mem_ofPred_eq]
+  simp only [friBatchCorrAgreeLang, friBatchProximityLang, Set.mem_ofPred_eq,
+    Nat.sub_sub_self hceil_le]
   refine exists_congr fun D' => and_congr_left fun _ => ?_
-  have hdiv : α ≤ (D'.card : ℝ) / (n : ℝ) ↔ α * (n : ℝ) ≤ (D'.card : ℝ) := by
-    rw [le_div_iff₀ hnR_pos]
-  have hceil : α * (n : ℝ) ≤ (D'.card : ℝ) ↔ ⌈α * (n : ℝ)⌉₊ ≤ D'.card :=
-    Nat.ceil_le.symm
-  have hnR_eq : ((2 : ℝ) ^ d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
-  change α ≤ (D'.card : ℝ) / ((2 : ℝ) ^ d) ↔
-    n - (n - ⌈α * ((2 : ℝ) ^ d)⌉₊) ≤ D'.card
-  rw [hnR_eq, hsub, hdiv, hceil]
+  rw [le_div_iff₀ hnR_pos, ← Nat.ceil_le]
 
 /-- **Ceiling threshold bounds (`0 < α ≤ 1`)** for domain size `2 ^ d`. -/
 theorem friBatchCeilThreshold_bounds (d : ℕ) {α : ℝ} (hα_pos : 0 < α) (hα_le : α ≤ 1) :
@@ -392,29 +383,18 @@ theorem friBatchCeilThreshold_bounds (d : ℕ) {α : ℝ} (hα_pos : 0 < α) (h�
     e < 2 ^ d ∧
       (((2 ^ d - e - 1 : ℕ) : ℝ) / (2 ^ d : ℝ)) < α ∧
       (e : ℝ) / (2 ^ d : ℝ) ≤ 1 - α := by
-  set n : ℕ := 2 ^ d
-  have hnR_pos : (0 : ℝ) < (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]; positivity
-  have hnR_eq : ((2 : ℝ) ^ d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
-  set C : ℕ := ⌈α * (n : ℝ)⌉₊
-  have hαn_pos : 0 < α * (n : ℝ) := mul_pos hα_pos hnR_pos
+  have hnR_pos : (0 : ℝ) < (2 ^ d : ℝ) := by positivity
+  set C : ℕ := ⌈α * (2 ^ d : ℝ)⌉₊
+  have hαn_pos : 0 < α * (2 ^ d : ℝ) := mul_pos hα_pos hnR_pos
   have hC_pos : 0 < C := Nat.ceil_pos.mpr hαn_pos
-  have hC_le : C ≤ n := by
-    refine Nat.ceil_le.mpr ?_
-    calc α * (n : ℝ) ≤ 1 * (n : ℝ) := mul_le_mul_of_nonneg_right hα_le hnR_pos.le
-      _ = (n : ℝ) := one_mul _
-  dsimp only
-  simp only [hnR_eq]
-  change n - C < n ∧ (((n - (n - C) - 1 : ℕ) : ℝ) / (n : ℝ)) < α ∧
-    ((n - C : ℕ) : ℝ) / (n : ℝ) ≤ 1 - α
-  have hsub : n - (n - C) = C := Nat.sub_sub_self hC_le
+  have hC_le : C ≤ 2 ^ d :=
+    Nat.ceil_le.mpr (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using
+      mul_le_of_le_one_left hnR_pos.le hα_le)
   refine ⟨by omega, ?_, ?_⟩
-  · rw [hsub, Nat.cast_sub hC_pos, Nat.cast_one, div_lt_iff₀ hnR_pos]
-    have hlt := Nat.ceil_lt_add_one hαn_pos.le
-    change (C : ℝ) < α * (n : ℝ) + 1 at hlt
-    linarith
-  · rw [Nat.cast_sub hC_le, div_le_iff₀ hnR_pos]
-    have hge : α * (n : ℝ) ≤ (C : ℝ) := Nat.le_ceil _
-    linarith
+  · rw [Nat.sub_sub_self hC_le, Nat.cast_sub hC_pos, Nat.cast_one, div_lt_iff₀ hnR_pos]
+    linarith [Nat.ceil_lt_add_one hαn_pos.le]
+  · rw [Nat.cast_sub hC_le, Nat.cast_pow, Nat.cast_ofNat, div_le_iff₀ hnR_pos]
+    linarith [Nat.le_ceil (α * (2 ^ d : ℝ))]
 
 /-- **Floor threshold bounds (`0 ≤ α < 1`)** relative to an initial linear code `C`
 ([BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2, printed pp. 38–39, Eq. (8.5)). -/
@@ -433,45 +413,17 @@ theorem friBatchFloorThreshold_bounds {d : ℕ} (C : Submodule F (OracleTable d 
       2 ^ d - e - 1 = B ∧
       (B : ℝ) / (2 ^ d : ℝ) ≤ α ∧
       (e : ℝ) / (2 ^ d : ℝ) < 1 - α := by
-  set n : ℕ := 2 ^ d
-  have hnR_pos : (0 : ℝ) < (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]; positivity
-  have hnR_eq : ((2 : ℝ) ^ d) = (n : ℝ) := by simp only [n, Nat.cast_pow, Nat.cast_ofNat]
-  have hαn_nn : 0 ≤ α * (n : ℝ) := mul_nonneg hα_nn hnR_pos.le
-  have hαn_lt : α * (n : ℝ) < (n : ℝ) := by
-    calc α * (n : ℝ) < 1 * (n : ℝ) := mul_lt_mul_of_pos_right hα_lt hnR_pos
-      _ = (n : ℝ) := one_mul _
-  set B : ℕ := ⌊α * (n : ℝ)⌋₊
-  have hB_lt : B < n := (Nat.floor_lt hαn_nn).mpr hαn_lt
-  set e : ℕ := n - 1 - B
-  have hne : n - e = B + 1 := by omega
-  have hne1 : n - e - 1 = B := by omega
-  dsimp only
-  simp only [hnR_eq]
-  change ((∀ (D' : Finset (Fin n)) (v₀ : OracleTable d F),
-        v₀ ∈ C →
-        ∀ v : Fin t → OracleTable d F,
-          (∀ j, v j ∈ C) →
-          (∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s) →
-          (D'.card : ℝ) / (n : ℝ) ≤ α) ↔
-      stmt ∉ friBatchProximityLang C t e) ∧
-      B < n ∧ n - e - 1 = B ∧ (B : ℝ) / (n : ℝ) ≤ α ∧ (e : ℝ) / (n : ℝ) < 1 - α
-  have hcard_le_iff : ∀ D' : Finset (Fin n),
-      (D'.card : ℝ) / (n : ℝ) ≤ α ↔ D'.card ≤ B := by
-    intro D'
+  have hnR_pos : (0 : ℝ) < (2 ^ d : ℝ) := by positivity
+  have hαn_nn : 0 ≤ α * (2 ^ d : ℝ) := mul_nonneg hα_nn hnR_pos.le
+  set B : ℕ := ⌊α * (2 ^ d : ℝ)⌋₊
+  have hB_lt : B < 2 ^ d := (Nat.floor_lt hαn_nn).mpr <| by
+    simpa only [Nat.cast_pow, Nat.cast_ofNat] using mul_lt_of_lt_one_left hnR_pos hα_lt
+  set e : ℕ := 2 ^ d - 1 - B
+  have hcard_le_iff (D' : Finset (Fin (2 ^ d))) :
+      (D'.card : ℝ) / (2 ^ d : ℝ) ≤ α ↔ D'.card ≤ B := by
     rw [div_le_iff₀ hnR_pos, ← Nat.le_floor_iff hαn_nn]
-  refine ⟨?_, hB_lt, hne1, ?_, ?_⟩
+  refine ⟨?_, hB_lt, by omega, ?_, ?_⟩
   · simp only [friBatchProximityLang, Set.mem_ofPred_eq]
-    change (∀ (D' : Finset (Fin n)) (v₀ : OracleTable d F),
-        v₀ ∈ C →
-        ∀ v : Fin t → OracleTable d F,
-          (∀ j, v j ∈ C) →
-          (∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s) →
-          (D'.card : ℝ) / (n : ℝ) ≤ α) ↔
-      ¬ ∃ D' : Finset (Fin n), n - e ≤ D'.card ∧
-        ∃ v₀ ∈ C, ∃ v : Fin t → OracleTable d F,
-          (∀ j, v j ∈ C) ∧
-          ∀ s ∈ D', stmt.base s = v₀ s ∧ ∀ j, stmt.terms j s = v j s
-    rw [hne]
     constructor
     · rintro hall ⟨D', hge, v₀, hv₀, v, hv, hagree⟩
       have hle := (hcard_le_iff D').mp (hall D' v₀ hv₀ v hv hagree)
@@ -483,10 +435,9 @@ theorem friBatchFloorThreshold_bounds {d : ℕ} (C : Submodule F (OracleTable d 
   · rw [div_le_iff₀ hnR_pos]
     exact Nat.floor_le hαn_nn
   · rw [div_lt_iff₀ hnR_pos]
-    have hlt_succ : α * (n : ℝ) < (B : ℝ) + 1 := Nat.lt_floor_add_one (α * (n : ℝ))
-    have he_cast : (e : ℝ) + ((B : ℝ) + 1) = (n : ℝ) := by
-      exact_mod_cast (show e + (B + 1) = n by omega)
-    linarith
+    have he_cast : (e : ℝ) + ((B : ℝ) + 1) = (2 ^ d : ℝ) := by
+      exact_mod_cast (show e + (B + 1) = 2 ^ d by omega)
+    linarith [Nat.lt_floor_add_one (α * (2 ^ d : ℝ))]
 
 namespace FRISmoothParams
 
@@ -812,16 +763,9 @@ theorem iopVerify_friSmoothBatchIOP_eq_true_iff [DecidableEq F] (params : FRISmo
 /-- **Perfect completeness of the smooth batched FRI IOP**. -/
 theorem friSmoothBatchIOP_complete [DecidableEq F] (params : FRISmoothParams F) (t : ℕ) :
     IOPCompleteness (friSmoothBatchIOP params t) (params.batchCompletenessRel t) := by
-  intro stmt _ hrel chals
+  intro stmt ⟨⟩ hrel chals
   rw [iopVerify_friSmoothBatchIOP_eq_iopVerify_friSmoothIOP]
-  have horacles :
-      (fun j : Fin (params.m + 1) =>
-        iopProverOracles (friSmoothBatchIOP params t) stmt () chals j.succ) =
-      iopProverOracles (friSmoothIOP params) (stmt.eval (chals 0).batchCoeffs) ()
-        (friTailChals chals) := by
-    funext j
-    exact iopProverOracles_friSmoothBatchIOP_succ params t stmt chals j
-  rw [horacles]
+  simp only [iopProverOracles_friSmoothBatchIOP_succ]
   exact friSmoothIOP_complete params (stmt.eval (chals 0).batchCoeffs) ()
     (eval_mem_of_friBatchCompletenessRel hrel (chals 0).batchCoeffs) (friTailChals chals)
 
