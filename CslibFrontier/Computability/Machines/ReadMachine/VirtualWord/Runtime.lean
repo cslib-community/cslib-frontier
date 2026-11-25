@@ -269,21 +269,14 @@ theorem first_halt (p : Input) :
     ∀ t < 2 * (encData p.data).length + 2,
       machine.halted (machine.run (encInput p) t) = false := by
   rcases p with ⟨d, x⟩
-  constructor
-  · rw [run_halted]
+  refine ⟨by rw [run_halted]; rfl, fun t ht => ?_⟩
+  dsimp only at ht
+  by_cases hpre : t < 2 * (encData d).length + 1
+  · simpa [machine] using (before_initialized (encData d) x hpre).1
+  · obtain rfl : t = 2 * (encData d).length + 1 := by omega
+    change (machine.run (frame (encData d) ++ x) _).bit.isSome = false
+    rw [run_initialized]
     rfl
-  · intro t ht
-    dsimp only at ht
-    by_cases hpre : t < 2 * (encData d).length + 1
-    · have hb := (before_initialized (encData d) x hpre).1
-      change (machine.run (frame (encData d) ++ x) t).bit.isSome = false
-      rw [hb]
-      rfl
-    · have heq : t = 2 * (encData d).length + 1 := by omega
-      subst t
-      change machine.halted (machine.run (frame (encData d) ++ x) _) = false
-      rw [run_initialized]
-      rfl
 
 /-- Every live and halted state retains at most the supplied header and its binary scan offset. -/
 theorem run_storage (p : Input) {t : ℕ} (ht : t ≤ 2 * (encData p.data).length + 2) :
@@ -367,12 +360,12 @@ theorem budget_le_original_log (p : Input) (hp : Admissible p) :
     simp only [pow_one]
     omega
   have hsize := length_encNat_le_of_le_mul_pow hpoly
-  have hlog : Nat.log2 (encInput ⟨⟨cut, suffix, i⟩, x⟩).length ≤
-      (encInput ⟨⟨cut, suffix, i⟩, x⟩).length.size :=
-    ((Nat.log2_lt (by omega)).mpr (Nat.lt_size_self _)).le
   rw [encNat_apply, Nat.size_eq_bits_len] at hsize
   have hbound : (encInput ⟨⟨cut, suffix, i⟩, x⟩).length.size ≤
       8 * (Nat.log2 x.length + 1) := hsize
+  have hlog : Nat.log2 (encInput ⟨⟨cut, suffix, i⟩, x⟩).length ≤
+      (encInput ⟨⟨cut, suffix, i⟩, x⟩).length.size :=
+    ((Nat.log2_lt (by omega)).mpr (Nat.lt_size_self _)).le
   dsimp only
   omega
 
@@ -390,8 +383,8 @@ theorem access_inOriginalLogSpace : ∃ time c, ComputableInTimeAndSpace
     (fun p : {p : Input // Admissible p} => access p.val)
     ((Function.Embedding.subtype Admissible).trans encInput) encBool time
     (fun p => c * (Nat.log2 p.val.original.length + 1)) := by
-  let enc := (Function.Embedding.subtype Admissible).trans encInput
-  obtain ⟨time, c, h⟩ := machine.computableInSpace (encS := encState) (enc := enc)
+  obtain ⟨time, c, h⟩ := machine.computableInSpace (encS := encState)
+    (enc := (Function.Embedding.subtype Admissible).trans encInput)
     (encOut := encBool) (f := fun p : {p : Input // Admissible p} => access p.val)
     query_inSpace next_inSpace emit_inSpace halted_inSpace finish_inSpace
     (fun p => 2 * (encData p.val.data).length + 2)
@@ -404,8 +397,7 @@ theorem access_inOriginalLogSpace : ∃ time c, ComputableInTimeAndSpace
       omega)
     ⟨16, fun p t ht => (length_run_le p.val ht).trans
       (Nat.mul_le_mul_left 16 (budget_le_original_log p.val p.property))⟩
-  refine ⟨time, c * 17, h.mono (fun _ => le_rfl) (fun p => ?_)⟩
-  exact (Nat.mul_assoc c 17 _).symm.le
+  exact ⟨time, c * 17, h.mono (fun _ => le_rfl) fun _ => (Nat.mul_assoc c 17 _).symm.le⟩
 
 /-- For a valid cut the runtime output is exactly the virtual-word bit, including its default. -/
 theorem output_word (cut i : ℕ) (suffix x : List Bool) (hc : cut ≤ x.length) :

@@ -42,7 +42,6 @@ theorem input_lt_mPar_sq (n U : ℕ) : n < mPar n U ^ 2 := by
     nlinarith
   have hm : wPar n U + 1 ≤ mPar n U := by
     unfold mPar
-    have h : 1 ≤ 2 * Nat.log 2 (wPar n U + 1) + 4 := by omega
     exact Nat.le_mul_of_pos_right _ (by omega)
   exact (Nat.lt_succ_sqrt' n).trans_le (Nat.pow_le_pow_left (hw.trans hm) 2)
 
@@ -56,8 +55,7 @@ theorem input_lt_packed_side_sq (n U : ℕ) :
 /-- An outer dimension threshold squared admits the same threshold at the actual callee side. -/
 theorem le_packed_side_of_sq_le {N n : ℕ} (h : N ^ 2 ≤ n) (U : ℕ) :
     N ≤ Nat.sqrt (8 * mPar n U ^ 2) + 1 := by
-  have ht := input_lt_packed_side_sq n U
-  nlinarith
+  nlinarith [input_lt_packed_side_sq n U]
 
 /-- The host's actual Exact Triangle dimension is at most three times the candidate window,
 plus one, and hence retains its explicit square-root/logarithmic parameter estimate. -/
@@ -67,10 +65,8 @@ theorem packed_side_le (κ n : ℕ) :
         (Nat.log 2 (n + 2) + 1) ^ 2 + 1 := by
   have hs : Nat.sqrt (8 * mPar n (2 * (n + 2) ^ κ) ^ 2) ≤
       3 * mPar n (2 * (n + 2) ^ κ) := by
-    have h := Nat.sqrt_le' (8 * mPar n (2 * (n + 2) ^ κ) ^ 2)
-    nlinarith
-  have hm := mPar_shifted_pow_le n κ
-  nlinarith only [hs, Nat.mul_le_mul_left 3 hm]
+    nlinarith [Nat.sqrt_le' (8 * mPar n (2 * (n + 2) ^ κ) ^ 2)]
+  nlinarith only [hs, Nat.mul_le_mul_left 3 (mPar_shifted_pow_le n κ)]
 
 /-- Squaring the actual side removes the square root while preserving only a fixed fourth
 power of the logarithm. This is a bound on dimensions, not on any solver's running time. -/
@@ -81,19 +77,15 @@ theorem packed_side_sq_le (κ n : ℕ) :
   let A := (5 * κ + 16) * (10 * κ + 40)
   let S := Nat.sqrt (n + 2) + 1
   let L := Nat.log 2 (n + 2) + 1
-  have hunit : 1 ≤ S * L ^ 2 := by
-    have : 0 < S * L ^ 2 := by dsimp only [S, L]; positivity
-    omega
+  have hunit : 1 ≤ S * L ^ 2 := Nat.succ_le_of_lt (by dsimp only [S, L]; positivity)
   have hs := packed_side_le κ n
   have ht : Nat.sqrt (8 * mPar n (2 * (n + 2) ^ κ) ^ 2) + 1 ≤
       (3 * A + 1) * S * L ^ 2 := by
     change _ ≤ 3 * A * S * L ^ 2 + 1 at hs
     nlinarith only [hs, hunit]
   have hS : S ^ 2 ≤ 4 * (n + 2) := by
-    have h := Nat.sqrt_le (n + 2)
-    have h' := Nat.sqrt_le_self (n + 2)
     dsimp only [S]
-    nlinarith
+    nlinarith [Nat.sqrt_le (n + 2), Nat.sqrt_le_self (n + 2)]
   calc
     _ ≤ ((3 * A + 1) * S * L ^ 2) ^ 2 := Nat.pow_le_pow_left ht 2
     _ = (3 * A + 1) ^ 2 * S ^ 2 * L ^ 4 := by ring
