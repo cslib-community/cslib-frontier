@@ -224,12 +224,10 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
     ?_, ?_, ?_, ?_, ?_⟩
   · intro q hq
     wram_simp
-    rw [hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)]
-    exact hares q hq
+    exact (hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)).trans (hares q hq)
   · intro rho hrho
     wram_simp
-    rw [hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)]
-    exact hacounts rho hrho
+    exact (hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)).trans (hacounts rho hrho)
   · intro rho hrho q hq hRq
     wram_simp
     have hcount : Nat.count (fun k => R k = rho) q ≤ q := Nat.count_le _
@@ -242,15 +240,8 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
   · intro a' ha'
     wram_simp at ha' ⊢
     change a' < 5 + 3 * N ∨ out + 3 * vy ChunkCatalogue.written ≤ a' at ha'
-    have hfr : ¬(out ≤ a' ∧ a' < out + 3 * vy ChunkCatalogue.written) := by
-      rcases ha' with h | h
-      · have : a' < out := by dsimp [out, queryBase, countBase, N] at *; omega
-        omega
-      · omega
-    rw [hyframe a' hfr, hvm]
-    apply haframe a'
-    rcases ha' with h | h
-    · exact Or.inl h
-    · exact Or.inr (by change out ≤ a'; omega)
+    have hlt : 5 + 3 * N ≤ out := by dsimp only [out, queryBase, countBase]; omega
+    rw [hyframe a' (by omega), hvm]
+    exact haframe a' (ha'.imp_right fun _ => by change out ≤ a'; omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.Catalogue
