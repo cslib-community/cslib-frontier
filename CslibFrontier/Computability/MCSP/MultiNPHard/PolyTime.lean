@@ -134,15 +134,11 @@ private theorem entry_equivFin (hS : S.ground ≠ []) (κ : Window.Gate (arity S
     rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left hlt,
       show arity S + (1 + ((k : ℕ) + arity S * y)) - (arity S + 1) = k + arity S * y by omega,
       hk, hy]
-    simp only [BitString.equivFin_symm_apply]
-    have := k.isLt
     rw [Bool.eq_iff_iff]
-    simp only [List.all_eq_true, List.mem_range, beq_iff_eq, decide_eq_true_eq]
-    constructor
-    · intro h b hb
-      exact h b (Nat.lt_succ_of_le (Fin.le_iff_val_le_val.mp hb))
-    · intro h b hb
-      exact h ⟨b, by omega⟩ (Fin.le_iff_val_le_val.mpr (Nat.le_of_lt_succ hb))
+    simp only [BitString.equivFin_symm_apply, List.all_eq_true, List.mem_range, beq_iff_eq,
+      decide_eq_true_eq]
+    exact ⟨fun h b hb => h b (Nat.lt_succ_of_le hb),
+      fun h b hb => h ⟨b, (Nat.le_of_lt_succ hb).trans_lt k.isLt⟩ (Nat.le_of_lt_succ hb)⟩
   | window i y =>
     have hy : ((y : ℕ) + 2 ^ arity S * i) % 2 ^ arity S = y := by
       rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt y.isLt]
@@ -244,9 +240,7 @@ private theorem tableBits_ofTable (hS : S.ground ≠ []) (k : ℕ) :
   · change tableList _ (fun x => Fin.append (Window.template (windows S) (tableOf S r) x)
       (single (Window.tableFun (tableOf S r)) x) (Fin.castSucc ⟨n, h⟩)) = _
     rw [← tableList_template hS ⟨n, h⟩]
-    congr 1
-    funext x
-    exact Fin.append_left _ _ _
+    exact congrArg _ (funext fun x => Fin.append_left _ _ _)
   · subst h
     change tableList _ (fun x => Fin.append (Window.template (windows S) (tableOf S r) x)
       (single (Window.tableFun (tableOf S r)) x) (Fin.last _)) = _
