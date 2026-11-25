@@ -314,10 +314,7 @@ private theorem classify_update_idx {Key Block : Type} [DecidableEq Key]
   · subst hk
     rcases i with ⟨n, hn⟩
     cases n with
-    | zero =>
-      left
-      refine ⟨rfl, rfl, ?_⟩
-      simp
+    | zero => exact Or.inl ⟨rfl, rfl, by simp⟩
     | succ m =>
       right
       have hm : m < (st k).length := by simpa using hn
@@ -348,9 +345,7 @@ private theorem dmTargets_of_hasDMCollision_update {Key Block : Type}
     · rw [hget1, hget2] at heq
       rw [← heq]
       exact mem_dmTargets_of_getElem k1 j1
-    · exfalso
-      apply hst
-      refine ⟨k1, j1, k2, j2, ?_, ?_⟩
+    · refine (hst ⟨k1, j1, k2, j2, ?_, ?_⟩).elim
       · intro hkj
         obtain ⟨hk, hj⟩ := Prod.mk.inj hkj
         apply hne
@@ -385,7 +380,6 @@ private theorem toOuterMeasure_bad_forgetfulAnswer_step {Key Block : Type}
     have hsub : (fun a : Block => (a, Function.update st q.1 (e a :: st q.1))) ⁻¹'
         {x | HasDMCollision x.2} ⊆ {a : Block | f a ∈ dmTargets st} := by
       intro a ha
-      rw [Set.mem_preimage, Set.mem_ofPred_eq] at ha
       rw [Set.mem_ofPred_eq, ← hfe a]
       exact dmTargets_of_hasDMCollision_update hst q.1 (e a) ha
     refine (MeasureTheory.measure_mono hsub).trans ?_
@@ -471,9 +465,7 @@ private theorem forgetful_daviesMeyer_collision_le {Key Block : Type}
     have h_map : (p.map Prod.fst) true = p.toOuterMeasure {x | x.1 = true} := by
       rw [PMF.map_apply, PMF.toOuterMeasure_apply]
       refine tsum_congr fun ⟨b, st⟩ => ?_
-      by_cases hb : b = true
-      · simp [hb]
-      · simp [hb]
+      by_cases hb : b = true <;> simp [hb]
     rw [h_map, PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
     refine tsum_le_tsum fun ⟨b, st⟩ => ?_
     by_cases hmem : (b, st) ∈ p.support
