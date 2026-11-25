@@ -165,19 +165,18 @@ private theorem firstTerm_assign_satisfying (hF : ∀ t ∈ F, (t.map Prod.fst).
     (ht : F.firstTerm ρ = some t) (h : θ.Extends ρ) {W : List ι}
     (hWq : ∀ v ∈ W, v ∈ F.queried ρ) (hW : ∀ v ∈ F.queried ρ, v ∉ W → θ v = none) :
     F.firstTerm (θ.assign W.toFinset t.satisfying) = some t := by
-  refine firstTerm_eq_of_extends ht
-    (fun i b hi => by
-      simpa [show i ∉ W from fun hiW => by simp [free_of_mem_queried (hWq i hiW)] at hi] using
-        h i b hi) ?_
-  rintro ⟨l, hl, hθ⟩
-  by_cases hlW : l.1 ∈ W
-  · simp [hlW, Term.satisfying_of_mem (hF t (mem_of_firstTerm_eq_some ht)) hl] at hθ
-  · rw [PartialAssignment.assign_of_notMem (by simpa using hlW)] at hθ
-    cases hρl : ρ l.1 with
-    | none =>
-      simp [hW _ (queried_eq_freeVars ht ▸ Term.mem_freeVars.2 ⟨l.2, hl, hρl⟩) hlW] at hθ
-    | some c =>
-      exact not_falsifiedBy_of_firstTerm_eq_some ht ⟨l, hl, (h _ _ hρl ▸ hθ) ▸ hρl⟩
+  refine firstTerm_eq_of_extends ht (fun i b hi => ?_) ?_
+  · have hiW : i ∉ W := fun hiW => by simp [free_of_mem_queried (hWq i hiW)] at hi
+    simpa [hiW] using h i b hi
+  · rintro ⟨l, hl, hθ⟩
+    by_cases hlW : l.1 ∈ W
+    · simp [hlW, Term.satisfying_of_mem (hF t (mem_of_firstTerm_eq_some ht)) hl] at hθ
+    · rw [PartialAssignment.assign_of_notMem (by simpa using hlW)] at hθ
+      cases hρl : ρ l.1 with
+      | none =>
+        simp [hW _ (queried_eq_freeVars ht ▸ Term.mem_freeVars.2 ⟨l.2, hl, hρl⟩) hlW] at hθ
+      | some c =>
+        exact not_falsifiedBy_of_firstTerm_eq_some ht ⟨l, hl, (h _ _ hρl ▸ hθ) ▸ hρl⟩
 
 variable (F)
 
@@ -225,8 +224,10 @@ private theorem decodeAux_stageCode {t : Term ι} {W : List ι}
     | nil =>
       simp only [List.isEmpty_nil, ↓reduceIte, List.nil_append, Term.stageCode]
       congr 1
-      · funext i; by_cases hi : i = v <;> simp [hi]
-      · ext i; simp
+      · funext i
+        by_cases hi : i = v <;> simp [hi]
+      · ext i
+        simp
     | cons w W =>
       simp only [List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte]
       rw [ih (fun u hu => hW u (List.mem_cons_of_mem _ hu)) (List.cons_ne_nil _ _)]
@@ -240,7 +241,8 @@ private theorem decodeAux_stageCode {t : Term ι} {W : List ι}
           · rw [PartialAssignment.assign_of_mem (by simp), Function.update_self]
           · rw [Function.update_of_ne hi, PartialAssignment.assign_of_notMem (by simp_all)]
       · ext i
-        simp only [mem_union, mem_insert, List.mem_toFinset, List.mem_cons]; tauto
+        simp only [mem_union, mem_insert, List.mem_toFinset, List.mem_cons]
+        tauto
 
 /-- At the start of a stage, the decoder reads the first term not falsified. -/
 private theorem decodeAux_none {c : List (ℕ × Bool × Bool)} (hc : c ≠ []) (θ : PartialAssignment ι)

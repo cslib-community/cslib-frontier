@@ -147,7 +147,9 @@ theorem isVertexConnected_one {G : SimpleGraph V} :
     fun ⟨hn, hc⟩ => ⟨by simp, fun X hX => ?_⟩⟩
   obtain rfl : X = ∅ := by simpa [Order.lt_one_iff] using hX
   have : Nonempty (∅ᶜ : Set V) := ⟨⟨Classical.arbitrary V, Set.notMem_empty _⟩⟩
-  exact ⟨fun ⟨u, _⟩ ⟨v, _⟩ => let ⟨w⟩ := hc.preconnected u v; ⟨w.induce _ fun _ _ => id⟩⟩
+  refine ⟨fun ⟨u, _⟩ ⟨v, _⟩ => ?_⟩
+  obtain ⟨w⟩ := hc.preconnected u v
+  exact ⟨w.induce _ fun _ _ => id⟩
 
 /-- A graph `G` is `k`-vertex-connected iff `|V| > k` and no two distinct vertices are separated
 by fewer than `k` vertices. -/
@@ -171,7 +173,8 @@ theorem isVertexConnected_iff_forall_isVertexSeparator {G : SimpleGraph V} {k : 
       lt_irrefl _ ((Set.encard_univ V ▸ Set.compl_empty_iff.mp h ▸ hX).trans hcard)).to_subtype
     refine ⟨fun ⟨u, hu⟩ ⟨v, hv⟩ => ?_⟩
     by_cases huv : u = v
-    · subst huv; exact .rfl
+    · subst huv
+      exact .rfl
     · by_contra hnr
       let f : G.induce (T : Set V)ᶜ →g G.induce Xᶜ := ⟨fun y => ⟨y.1, hTX ▸ y.2⟩, id⟩
       exact not_le_of_gt hTcard <| hsep huv T <| isVertexSeparator_iff_not_reachable_induce.mpr
@@ -217,9 +220,10 @@ theorem card_gt_of_injective_internallyDisjoint {G : SimpleGraph V} {u v : V} (h
   choose x hxm hxu hxv using fun i (hi : i ∈ I) =>
     exists_internal_mem_support_of_support_ne huv (hW i) (Finset.mem_filter.mp hi).2
   let S : Finset V := insert u (insert v (I.attach.image fun i => x i.1 i.2))
-  have hxinj : Function.Injective fun i : I => x i.1 i.2 := fun ⟨i, hi⟩ ⟨j, hj⟩ hij =>
-    by_contra fun hne => (hdisj (fun h => hne (Subtype.ext h)) _ (hxm i hi)
-      (by dsimp at hij; exact hij ▸ hxm j hj)).elim (hxu i hi) (hxv i hi)
+  have hxinj : Function.Injective fun i : I => x i.1 i.2 := by
+    rintro ⟨i, hi⟩ ⟨j, hj⟩ (hij : x i hi = x j hj)
+    exact by_contra fun hne => (hdisj (fun h => hne (Subtype.ext h)) _ (hxm i hi)
+      (hij ▸ hxm j hj)).elim (hxu i hi) (hxv i hi)
   have hScard : k < S.card := by
     rw [Finset.card_insert_of_notMem (by simp [huv, hxu]),
       Finset.card_insert_of_notMem (by simp [hxv]),

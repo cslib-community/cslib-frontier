@@ -112,8 +112,12 @@ private theorem card_negatedHeartUnits (H : Finset (Literal V)) :
 
 private theorem potential_negatedHeartUnits (H : Finset (Literal V)) :
     potential (negatedHeartUnits H) = 2 * H.card := by
-  rw [potential, sum_congr rfl fun C hC => by rw [card_of_mem_negatedHeartUnits hC],
-    sum_const, card_negatedHeartUnits, smul_eq_mul, pow_one, Nat.mul_comm]
+  unfold potential
+  calc ∑ C ∈ negatedHeartUnits H, 2 ^ C.card
+      = ∑ _C ∈ negatedHeartUnits H, 2 ^ 1 :=
+        sum_congr rfl fun C hC => by rw [card_of_mem_negatedHeartUnits hC]
+    _ = 2 * H.card := by
+        rw [sum_const, card_negatedHeartUnits, smul_eq_mul, pow_one, Nat.mul_comm]
 
 private theorem reduced_countingChild (ψ : ClauseSet V) (c : ℕ) (H : Finset (Literal V))
     (b : Bool) : Reduced (countingChild ψ c H b) := by
@@ -130,7 +134,7 @@ theorem disjoint_flower_countingChild (ψ : ClauseSet V) {c : ℕ} {H : Finset (
   cases b with
   | false =>
     exact (mem_reduce.mp hCchild).2 H (mem_union_right _ (by simp [intro]))
-      (ssubset_of_subset_of_ne hHC fun heq => by subst heq; omega)
+      (ssubset_of_subset_of_ne hHC fun heq => hlt.ne (heq ▸ hcard))
   | true =>
     exact (mem_reduce.mp hCchild).2 (C \ H)
       (mem_union_left _ (mem_union_right _ (mem_petals.mpr ⟨C, hC, rfl⟩)))
@@ -153,20 +157,27 @@ theorem card_le_of_mem_countingChild {ψ : ClauseSet V} {c k : ℕ} {H : Finset 
     rcases mem_union.mp (reduce_subset _ hC) with hC' | hCneg
     · rcases mem_union.mp hC' with hCψ | hCpet
       · exact hk C hCψ
-      · have := card_of_mem_petals hCpet; omega
-    · have := card_of_mem_negatedHeartUnits hCneg; omega
+      · have := card_of_mem_petals hCpet
+        omega
+    · have := card_of_mem_negatedHeartUnits hCneg
+      omega
 
 private theorem petal_unit_potential_bound {c h z : ℕ} (h1 : 1 ≤ h) (hlt : h < c) (hz : 2 ≤ z) :
     z * 2 ^ (c - h) + 2 * h < z * 2 ^ c := by
   have hpow_j : 2 ^ (c - h) ≤ 2 ^ (c - 1) := Nat.pow_le_pow_right (by omega) (by omega)
   have hh_lt : h < 2 ^ (c - 1) := lt_of_le_of_lt (by omega : h ≤ c - 1) Nat.lt_two_pow_self
   have hc_pow : 2 ^ c = 2 * 2 ^ (c - 1) := by
-    cases c with | zero => omega | succ c => simp [Nat.pow_succ']
-  have h1' := Nat.mul_le_mul_left z hpow_j
-  have h2' := Nat.mul_le_mul_right (2 ^ (c - 1)) hz
-  have h3' : z * 2 ^ c = z * 2 ^ (c - 1) + z * 2 ^ (c - 1) := by
-    rw [hc_pow, Nat.mul_left_comm, Nat.two_mul]
-  omega
+    cases c with
+    | zero => omega
+    | succ c => simp [Nat.pow_succ']
+  calc z * 2 ^ (c - h) + 2 * h
+      ≤ z * 2 ^ (c - 1) + 2 * h :=
+        Nat.add_le_add_right (Nat.mul_le_mul_left z hpow_j) _
+    _ < z * 2 ^ (c - 1) + 2 * 2 ^ (c - 1) :=
+        Nat.add_lt_add_left (Nat.mul_lt_mul_of_pos_left hh_lt (by omega)) _
+    _ ≤ z * 2 ^ (c - 1) + z * 2 ^ (c - 1) :=
+        Nat.add_le_add_left (Nat.mul_le_mul_right _ hz) _
+    _ = z * 2 ^ c := by rw [hc_pow, Nat.two_mul, Nat.mul_add]
 
 /-- **Strict potential decrease for `countingChild`.** When `1 ≤ |H| < c` and `flower ψ c H` has at
 least two clauses, both counting branches strictly decrease `potential`. On the petal branch

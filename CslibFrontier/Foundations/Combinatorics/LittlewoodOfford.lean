@@ -49,7 +49,8 @@ theorem choose_half_le_two_pow_div_sqrt (m : ℕ) :
     (m.choose (m / 2) : ℝ) ≤ (2 : ℝ) ^ m / Real.sqrt (m + 1) := by
   rw [le_div_iff₀ (by positivity)]
   have hsq : ((m.choose (m / 2) : ℝ) * Real.sqrt (m + 1)) ^ 2 ≤ ((2 : ℝ) ^ m) ^ 2 := by
-    rw [mul_pow, Real.sq_sqrt (by positivity), ← pow_mul, mul_comm m 2, pow_mul]; norm_num
+    rw [mul_pow, Real.sq_sqrt (by positivity), ← pow_mul, mul_comm m 2, pow_mul]
+    norm_num
     exact_mod_cast Cslib.choose_half_sq_mul_le m
   have := Real.sqrt_le_sqrt hsq
   rwa [Real.sqrt_sq (by positivity), Real.sqrt_sq (by positivity)] at this
@@ -125,7 +126,8 @@ theorem card_filter_sum_bool_le_of_subset {ι : Type*} [Fintype ι] [DecidableEq
       (∑ i : {i // i ∈ S}, a i.1 * ((e w).1 i).toNat) +
         ∑ i : {i // i ∉ S}, a i.1 * ((e w).2 i).toNat := by
     rw [← sum_add_sum_compl S (fun i => a i * (w i).toNat),
-      Finset.sum_subtype S (fun _ => Iff.rfl), Finset.sum_subtype Sᶜ (fun _ => mem_compl)]; rfl
+      Finset.sum_subtype S (fun _ => Iff.rfl), Finset.sum_subtype Sᶜ (fun _ => mem_compl)]
+    rfl
   simp only [card_filter, hsum]
   rw [e.sum_comp (fun p : ({i // i ∈ S} → Bool) × ({i // i ∉ S} → Bool) =>
     if P ((∑ i : {i // i ∈ S}, a i.1 * (p.1 i).toNat) +
@@ -149,12 +151,13 @@ theorem card_filter_sum_bool_le_two_pow_div_sqrt {ι : Type*} [Fintype ι] [Deci
     (hδ : ∀ i ∈ S, δ ≤ |a i|) (hP : ∀ x y, P x → P y → |x - y| < δ) :
     (#{w : ι → Bool | P (∑ i : ι, a i * (w i).toNat)} : ℝ) ≤
       (2 : ℝ) ^ Fintype.card ι / Real.sqrt (#S + 1) := by
-  refine (show (#{w : ι → Bool | P (∑ i : ι, a i * (w i).toNat)} : ℝ) ≤
-      (2 : ℝ) ^ (Fintype.card ι - #S) * ((#S).choose (#S / 2) : ℝ) by
-    exact_mod_cast card_filter_sum_bool_le_of_subset a S P hδ hP).trans ?_
-  refine (mul_le_mul_of_nonneg_left (choose_half_le_two_pow_div_sqrt #S)
-    (by positivity)).trans_eq ?_
-  rw [← mul_div_assoc, ← pow_add, Nat.sub_add_cancel (card_le_univ S)]
+  calc (#{w : ι → Bool | P (∑ i : ι, a i * (w i).toNat)} : ℝ)
+      ≤ (2 : ℝ) ^ (Fintype.card ι - #S) * ((#S).choose (#S / 2) : ℝ) := by
+        exact_mod_cast card_filter_sum_bool_le_of_subset a S P hδ hP
+    _ ≤ (2 : ℝ) ^ (Fintype.card ι - #S) * ((2 : ℝ) ^ #S / Real.sqrt (#S + 1)) :=
+        mul_le_mul_of_nonneg_left (choose_half_le_two_pow_div_sqrt #S) (by positivity)
+    _ = (2 : ℝ) ^ Fintype.card ι / Real.sqrt (#S + 1) := by
+        rw [← mul_div_assoc, ← pow_add, Nat.sub_add_cancel (card_le_univ S)]
 
 /-- **Half-open interval Littlewood–Offord bound**: for any half-open interval `[c, c + δ)` with
 `|a i| ≥ δ` for all `i ∈ S`,
@@ -179,21 +182,24 @@ theorem card_filter_Ico_sum_le {α ι : Type*} [Fintype α]
   classical
   induction T using Finset.induction_on generalizing c₀ with
   | empty =>
-    rw [filter_false_of_mem (fun x _ => by simp [sum_empty]), card_empty, Nat.cast_zero, sum_empty]
+    rw [filter_false_of_mem (fun x _ => by simp [sum_empty]),
+      card_empty, Nat.cast_zero, sum_empty]
   | @insert i₀ s hi₀ ih =>
     rw [sum_insert hi₀, sum_insert hi₀]
-    have hsub : univ.filter (fun x : α => c₀ - (δ i₀ + ∑ i ∈ s, δ i) ≤ g x ∧ g x < c₀) ⊆
-        univ.filter (fun x : α => c₀ - δ i₀ ≤ g x ∧ g x < c₀) ∪
-          univ.filter (fun x : α => (c₀ - δ i₀) - (∑ i ∈ s, δ i) ≤ g x ∧ g x < c₀ - δ i₀) := by
-      intro x hx; simp only [mem_filter, mem_univ, true_and, mem_union] at hx ⊢
+    have hsub :
+        univ.filter (fun x : α => c₀ - (δ i₀ + ∑ i ∈ s, δ i) ≤ g x ∧ g x < c₀) ⊆
+          univ.filter (fun x : α => c₀ - δ i₀ ≤ g x ∧ g x < c₀) ∪
+            univ.filter (fun x : α => (c₀ - δ i₀) - (∑ i ∈ s, δ i) ≤ g x ∧ g x < c₀ - δ i₀) := by
+      intro x hx
+      simp only [mem_filter, mem_univ, true_and, mem_union] at hx ⊢
       exact if h : c₀ - δ i₀ ≤ g x then .inl ⟨h, hx.2⟩ else .inr ⟨by linarith [hx.1], not_le.mp h⟩
     have hcard : (#{x : α | c₀ - (δ i₀ + ∑ i ∈ s, δ i) ≤ g x ∧ g x < c₀} : ℝ) ≤
         (#{x : α | c₀ - δ i₀ ≤ g x ∧ g x < c₀} : ℝ) +
           (#{x : α | (c₀ - δ i₀) - (∑ i ∈ s, δ i) ≤ g x ∧ g x < c₀ - δ i₀} : ℝ) := by
       exact_mod_cast (card_le_card hsub).trans (card_union_le _ _)
-    linarith [show (#{x : α | c₀ - δ i₀ ≤ g x ∧ g x < c₀} : ℝ) ≤ M i₀ by
-        simpa [sub_add_cancel] using hM i₀ (mem_insert_self i₀ s) (c₀ - δ i₀),
-      ih (fun i hi => hM i (mem_insert_of_mem hi)) (c₀ - δ i₀)]
+    have hhead : (#{x : α | c₀ - δ i₀ ≤ g x ∧ g x < c₀} : ℝ) ≤ M i₀ := by
+      simpa [sub_add_cancel] using hM i₀ (mem_insert_self i₀ s) (c₀ - δ i₀)
+    linarith [hhead, ih (fun i hi => hM i (mem_insert_of_mem hi)) (c₀ - δ i₀)]
 
 /-! ### Reciprocal square-root rank sum bound -/
 
@@ -201,16 +207,15 @@ theorem card_filter_Ico_sum_le {α ι : Type*} [Fintype α]
 theorem one_div_sqrt_add_two_mul_sqrt_sub_one_le {n : ℕ} (hn : 1 ≤ n) :
     1 / Real.sqrt n + 2 * Real.sqrt (n - 1 : ℕ) ≤ 2 * Real.sqrt n := by
   have hn1 : (1 : ℝ) ≤ n := Nat.one_le_cast.mpr hn
-  rw [Nat.cast_sub hn, Nat.cast_one]
-  have hdiff : (Real.sqrt n - Real.sqrt (n - 1)) * (Real.sqrt n + Real.sqrt (n - 1)) = 1 := by
-    rw [mul_comm, ← sq_sub_sq, Real.sq_sqrt (by positivity), Real.sq_sqrt (by linarith)]; ring
-  have hle : 1 ≤ (Real.sqrt n - Real.sqrt (n - 1)) * (2 * Real.sqrt n) :=
-    hdiff.symm.trans_le (mul_le_mul_of_nonneg_left
-      (by linarith [Real.sqrt_le_sqrt (by linarith : (n : ℝ) - 1 ≤ n)])
-      (sub_nonneg.mpr (Real.sqrt_le_sqrt (by linarith))))
-  have hdiv : 1 / Real.sqrt n ≤ 2 * Real.sqrt n - 2 * Real.sqrt (n - 1) := by
-    rw [div_le_iff₀ (by positivity)]; linarith
-  linarith
+  have hsqrt : Real.sqrt (n - 1) ≤ Real.sqrt n := Real.sqrt_le_sqrt (by linarith)
+  rw [Nat.cast_sub hn, Nat.cast_one, ← le_sub_iff_add_le, div_le_iff₀ (by positivity)]
+  calc (1 : ℝ)
+      = (Real.sqrt n - Real.sqrt (n - 1)) * (Real.sqrt n + Real.sqrt (n - 1)) := by
+        rw [mul_comm, ← sq_sub_sq, Real.sq_sqrt (by positivity), Real.sq_sqrt (by linarith)]
+        ring
+    _ ≤ (Real.sqrt n - Real.sqrt (n - 1)) * (2 * Real.sqrt n) :=
+        mul_le_mul_of_nonneg_left (by linarith) (sub_nonneg.mpr hsqrt)
+    _ = (2 * Real.sqrt n - 2 * Real.sqrt (n - 1)) * Real.sqrt n := by ring
 
 /-- **Reciprocal square-root rank sum bound**: for any finite set `S : Finset ι` and weights
 `a : ι → ℝ`, summing `1 / √(#{j ∈ S | |a i| ≤ |a j|})` over `i ∈ S` is at most `2 * √(#S)`. -/
@@ -218,7 +223,8 @@ theorem sum_one_div_sqrt_card_ge_le {ι : Type*} (S : Finset ι) (a : ι → ℝ
     (∑ i ∈ S, (1 : ℝ) / Real.sqrt (#{j ∈ S | |a i| ≤ |a j|})) ≤ 2 * Real.sqrt #S := by
   classical
   induction hn : #S generalizing S with
-  | zero => rw [card_eq_zero.mp hn, sum_empty, Nat.cast_zero, Real.sqrt_zero, mul_zero]
+  | zero =>
+    rw [card_eq_zero.mp hn, sum_empty, Nat.cast_zero, Real.sqrt_zero, mul_zero]
   | succ m ih =>
     obtain ⟨i₀, hi₀S, hmin⟩ := S.exists_min_image (fun i => |a i|) (card_pos.mp (by omega))
     rw [← add_sum_erase _ _ hi₀S, filter_true_of_mem (fun j hj => hmin j hj), hn]
@@ -228,9 +234,9 @@ theorem sum_one_div_sqrt_card_ge_le {ι : Type*} (S : Finset ι) (a : ι → ℝ
         (Real.sqrt_pos.mpr (Nat.cast_pos.mpr (card_pos.mpr ⟨i, mem_filter.mpr ⟨hi, le_rfl⟩⟩)))
         (Real.sqrt_le_sqrt (Nat.cast_le.mpr
           (card_le_card (filter_subset_filter _ (erase_subset i₀ S)))))
-    linarith [ih (S.erase i₀) (by rw [card_erase_of_mem hi₀S, hn]; rfl),
-      show 1 / Real.sqrt (m + 1 : ℕ) + 2 * Real.sqrt (m : ℕ) ≤ 2 * Real.sqrt (m + 1 : ℕ) by
-        simpa using one_div_sqrt_add_two_mul_sqrt_sub_one_le (by omega : 1 ≤ m + 1)]
+    have hstep : 1 / Real.sqrt (m + 1 : ℕ) + 2 * Real.sqrt (m : ℕ) ≤ 2 * Real.sqrt (m + 1 : ℕ) := by
+      simpa using one_div_sqrt_add_two_mul_sqrt_sub_one_le (Nat.succ_pos m)
+    linarith [ih (S.erase i₀) (by simp [card_erase_of_mem hi₀S, hn]), hstep]
 
 /-! ### Block-partition live sets and marginal frequencies -/
 
@@ -262,8 +268,11 @@ theorem card_filter_eval_eq_and_eval_eq {κ τ : Type*} [Fintype κ] [DecidableE
     #{σ : κ → τ | σ j₁ = t₁ ∧ σ j₂ = t₂} * (Fintype.card τ) ^ 2 = Fintype.card (κ → τ) := by
   have hfiber (p : τ × τ) :
       #{σ : κ → τ | σ j₁ = p.1 ∧ σ j₂ = p.2} = #{σ : κ → τ | σ j₁ = t₁ ∧ σ j₂ = t₂} := by
-    let e : (κ → τ) ≃ (κ → τ) := Equiv.piCongrRight fun j =>
-      if j = j₁ then Equiv.swap p.1 t₁ else if j = j₂ then Equiv.swap p.2 t₂ else Equiv.refl τ
+    let e : (κ → τ) ≃ (κ → τ) :=
+      Equiv.piCongrRight fun j =>
+        if j = j₁ then Equiv.swap p.1 t₁
+        else if j = j₂ then Equiv.swap p.2 t₂
+        else Equiv.refl τ
     rw [← card_map e.toEmbedding]
     congr 1; ext σ
     simp only [mem_map, mem_filter, mem_univ, true_and, Equiv.toEmbedding_apply]
@@ -300,16 +309,18 @@ theorem card_mem_blockLiveSet_le {κ τ ι : Type*} [Fintype κ] [DecidableEq κ
   by_cases hex : ∃ j₀ t₀, blockVar j₀ t₀ = i
   · rcases hex with ⟨j₀, t₀, rfl⟩
     have htau_pos : (0 : ℝ) < Fintype.card τ := Nat.cast_pos.mpr (Fintype.card_pos_iff.mpr ⟨t₀⟩)
-    rw [show #{σ : κ → τ | blockVar j₀ t₀ ∈ blockLiveSet blockVar σ} =
-        #{σ : κ → τ | σ j₀ = t₀} by
+    have hcard : #{σ : κ → τ | blockVar j₀ t₀ ∈ blockLiveSet blockVar σ} =
+        #{σ : κ → τ | σ j₀ = t₀} := by
       congr 1
       ext σ
       simp only [mem_filter, mem_univ, true_and, mem_blockLiveSet]
-      exact ⟨fun ⟨j, hj⟩ => let ⟨e, h⟩ := hinj j (σ j) j₀ t₀ hj; e ▸ h, fun h => ⟨j₀, h ▸ rfl⟩⟩,
-      one_div_mul_eq_div, le_div_iff₀ htau_pos]
+      refine ⟨fun ⟨j, hj⟩ => ?_, fun h => ⟨j₀, h ▸ rfl⟩⟩
+      rcases hinj j (σ j) j₀ t₀ hj with ⟨rfl, h⟩
+      exact h
+    rw [hcard, one_div_mul_eq_div, le_div_iff₀ htau_pos]
     exact_mod_cast (card_filter_eval_eq j₀ t₀).le
-  · rw [filter_false_of_mem fun σ _ => by
-        simp only [mem_blockLiveSet, not_exists]; exact fun j h => hex ⟨j, σ j, h⟩,
+  · rw [filter_false_of_mem fun σ _ h =>
+        ((mem_blockLiveSet ..).mp h).elim fun j hj => hex ⟨j, σ j, hj⟩,
       card_empty, Nat.cast_zero]
     positivity
 
@@ -337,17 +348,18 @@ theorem card_mem_and_mem_blockLiveSet_le {κ τ ι : Type*} [Fintype κ] [Decida
           exact ht (e1.symm.trans e2),
         card_empty, Nat.cast_zero]
       positivity
-    · rw [show #{σ : κ → τ | blockVar j₁ t₁ ∈ blockLiveSet blockVar σ ∧
+    · have hcard : #{σ : κ → τ | blockVar j₁ t₁ ∈ blockLiveSet blockVar σ ∧
           blockVar j₂ t₂ ∈ blockLiveSet blockVar σ} =
-          #{σ : κ → τ | σ j₁ = t₁ ∧ σ j₂ = t₂} by
+          #{σ : κ → τ | σ j₁ = t₁ ∧ σ j₂ = t₂} := by
         congr 1
         ext σ
         simp only [mem_filter, mem_univ, true_and, mem_blockLiveSet]
-        exact ⟨fun ⟨⟨j', hj'⟩, ⟨j'', hj''⟩⟩ =>
-            ⟨let ⟨e, h⟩ := hinj j' (σ j') j₁ t₁ hj'; e ▸ h,
-             let ⟨e, h⟩ := hinj j'' (σ j'') j₂ t₂ hj''; e ▸ h⟩,
-          fun ⟨h1, h2⟩ => ⟨⟨j₁, h1 ▸ rfl⟩, ⟨j₂, h2 ▸ rfl⟩⟩⟩,
-        one_div_pow, one_div_mul_eq_div, le_div_iff₀ (by positivity)]
+        refine ⟨fun ⟨⟨j', hj'⟩, ⟨j'', hj''⟩⟩ => ?_,
+          fun ⟨h1, h2⟩ => ⟨⟨j₁, h1 ▸ rfl⟩, ⟨j₂, h2 ▸ rfl⟩⟩⟩
+        rcases hinj j' (σ j') j₁ t₁ hj' with ⟨rfl, h1⟩
+        rcases hinj j'' (σ j'') j₂ t₂ hj'' with ⟨rfl, h2⟩
+        exact ⟨h1, h2⟩
+      rw [hcard, one_div_pow, one_div_mul_eq_div, le_div_iff₀ (by positivity)]
       exact_mod_cast (card_filter_eval_eq_and_eval_eq hj t₁ t₂).le
   · rw [filter_false_of_mem fun σ _ ⟨h1, h2⟩ => by
         obtain ⟨j₁, rfl⟩ := (mem_blockLiveSet ..).mp h1

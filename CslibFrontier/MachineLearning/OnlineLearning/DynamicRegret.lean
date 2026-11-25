@@ -113,10 +113,11 @@ theorem norm_sub_sq_sub_le {D : ℝ} {x v w : E}
     have htri := norm_sub_le_norm_sub_add_norm_sub x v w
     rw [norm_sub_rev v w] at htri
     linarith
-  have hdiff : (‖x - w‖ - ‖x - v‖) * (‖x - w‖ + ‖x - v‖) ≤ ‖w - v‖ * (2 * D) :=
-    (mul_le_mul_of_nonneg_right h1 (by positivity)).trans
-      (mul_le_mul_of_nonneg_left (by linarith) (norm_nonneg _))
-  linarith [show ‖x - w‖ ^ 2 - ‖x - v‖ ^ 2 = (‖x - w‖ - ‖x - v‖) * (‖x - w‖ + ‖x - v‖) by ring]
+  calc ‖x - w‖ ^ 2 - ‖x - v‖ ^ 2
+      = (‖x - w‖ - ‖x - v‖) * (‖x - w‖ + ‖x - v‖) := by ring
+    _ ≤ ‖w - v‖ * (‖x - w‖ + ‖x - v‖) := mul_le_mul_of_nonneg_right h1 (by positivity)
+    _ ≤ ‖w - v‖ * (2 * D) := mul_le_mul_of_nonneg_left (by linarith) (norm_nonneg _)
+    _ = 2 * D * ‖w - v‖ := by ring
 
 /-- Subgradient linearization for dynamic regret against any comparator sequence `u : ℕ → E` in
 `K`: `∑ t < T, (f t (x t) - f t (u t)) ≤ ∑ t < T, ⟪grad t (x t), x t - u t⟫`. -/

@@ -571,10 +571,10 @@ theorem Circuit.exists_pow_of_psum {d : ℕ} {u : K} (hu : u * (d + 1) = 1)
   let g := c.withGradient j u 0
   refine ⟨⟨g.program, fun i => g.outputs (Fin.natAdd m i)⟩, c.size_withGradient_le j u 0,
     c.mulCost_withGradient j u 0, fun i => ?_⟩
-  rw [show (Circuit.mk g.program _).polynomial i = g.polynomial (Fin.natAdd m i) from rfl,
-    c.polynomial_withGradient_natAdd j u i, hc, pderiv_psum_succ, ← mul_assoc,
-    show (d + 1 : MvPolynomial (Fin n) K) = MvPolynomial.C ((d : K) + 1) by simp,
-    ← map_mul, hu, map_one, one_mul]
+  change g.polynomial (Fin.natAdd m i) = _
+  have hd : (d + 1 : MvPolynomial (Fin n) K) = MvPolynomial.C ((d : K) + 1) := by simp
+  rw [c.polynomial_withGradient_natAdd j u i, hc, pderiv_psum_succ, ← mul_assoc, hd, ← map_mul, hu,
+    map_one, one_mul]
 
 /-- **Lower-bound transfer for power sums.** If `d + 1` is invertible in `K` and every circuit
 computing the power map `(X 0 ^ d, …, X (n - 1) ^ d)` has at least `S` multiplications, then every

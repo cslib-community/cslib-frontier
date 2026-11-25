@@ -118,6 +118,7 @@ theorem disjoint_agreeOffForced {x x' : BitString N} (hx : φ.eval x = true) (hx
   have hxv : x v ≠ x' v := (mem_filter.1 hv).2
   have hagree (u) (hu : σ u < σ v) : x u = x' u :=
     by_contra fun h => not_le.2 hu (hmin u (mem_filter.2 ⟨mem_univ u, h⟩))
+  -- `v` is forced on one of them, by a clause false under the other
   have key {a b : BitString N} (hb : φ.eval b = true) (hab : a v ≠ b v)
       (hagr : ∀ u, σ u < σ v → a u = b u) (hforced : v ∈ φ.forced σ a) : False := by
     obtain ⟨c, hc, _, hrest⟩ := (mem_filter.1 hforced).2
@@ -173,10 +174,12 @@ theorem exists_critical {x : BitString N} {i : Fin N} (hx : φ.eval x = true)
   have hfalse (l) (hl : l ∈ c) : Function.update x i (!x i) l.1 ≠ l.2 := fun h =>
     Bool.false_ne_true (hcf.symm.trans ((Clause.eval_eq_true_iff _ c).2 ⟨l, hl, h⟩))
   obtain ⟨⟨u, e⟩, hl, hle⟩ := (Clause.eval_eq_true_iff x c).1 ((CNF.eval_eq_true_iff x φ).1 hx c hc)
+  -- the true literal is on `i`
   obtain rfl : u = i := by_contra fun hui => hfalse _ hl ((Function.update_of_ne hui ..).trans hle)
   refine ⟨c, hc, hle ▸ hl, fun ⟨v, b⟩ hl' hne => ?_⟩
   have hvi : v ≠ u := by
     rintro rfl
+    -- `l = (u, !x u)`, as `l ≠ (u, x u)`
     exact hfalse (v, b) hl' (by cases b <;> cases hxv : x v <;> simp_all)
   exact ⟨hvi, fun h => hfalse (v, b) hl' ((Function.update_of_ne hvi ..).trans h)⟩
 
@@ -284,14 +287,22 @@ theorem sum_two_rpow_average_card_forced_le (φ : CNF (Fin N)) :
     rw [div_eq_mul_one_div, sum_mul, Real.rpow_sum_of_pos (by norm_num)]
     refine prod_congr rfl fun σ _ => ?_
     rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
-  refine (sum_le_sum fun x _ => hamgm x).trans ?_
-  rw [sum_comm]
-  simp_rw [← mul_sum]
-  refine (mul_le_mul_of_nonneg_left
-    (sum_le_sum (g := fun _ => (2 : ℝ) ^ N) fun σ _ => mod_cast sum_two_pow_card_forced_le φ σ)
-    (by positivity)).trans_eq ?_
-  rw [sum_const, nsmul_eq_mul, hP]
-  field_simp
+  calc ∑ x ∈ univ.filter fun x : BitString N => φ.eval x = true,
+        (2 : ℝ) ^ ((∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ)) / N.factorial)
+      ≤ ∑ x ∈ univ.filter fun x : BitString N => φ.eval x = true,
+          ∑ σ : Equiv.Perm (Fin N), 1 / N.factorial * (2 : ℝ) ^ (φ.forced σ x).card :=
+        sum_le_sum fun x _ => hamgm x
+    _ = ∑ σ : Equiv.Perm (Fin N), 1 / N.factorial *
+          ∑ x ∈ univ.filter fun x : BitString N => φ.eval x = true,
+            (2 : ℝ) ^ (φ.forced σ x).card := by
+        rw [sum_comm]
+        simp only [mul_sum]
+    _ ≤ ∑ _σ : Equiv.Perm (Fin N), 1 / N.factorial * (2 : ℝ) ^ N :=
+        sum_le_sum fun σ _ => mul_le_mul_of_nonneg_left
+          (mod_cast sum_two_pow_card_forced_le φ σ) (by positivity)
+    _ = 2 ^ N := by
+        rw [sum_const, nsmul_eq_mul, hP]
+        field_simp
 
 /-- **The coding lemma for formulas of width `k`**
 [Paturi, Pudlák and Zane, Lemma 2][PaturiPudlakZane1999]: if every clause has at most `k ≥ 1`
@@ -306,14 +317,22 @@ theorem sum_two_rpow_card_isolated_div_le {k : ℕ} (hk1 : 1 ≤ k) (hk : ∀ c 
   have hx' := (mem_filter.1 hx).2
   -- `ι(x) N! ≤ k ∑_σ |forced σ x|`
   have hcount : (univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card *
-      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), (φ.forced σ x).card := by
-    rw [← smul_eq_mul, ← sum_const, ← sum_card_filter_mem_forced, mul_sum]
-    exact (sum_le_sum fun i hi =>
-      factorial_le_mul_card_filter_mem_forced hk hx' (mem_filter.1 hi).2).trans
-        (sum_le_sum_of_subset (filter_subset _ _))
+      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), (φ.forced σ x).card :=
+    calc (univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card * N.factorial
+        = ∑ i ∈ univ.filter fun i => φ.eval (Function.update x i (!x i)) = false,
+            N.factorial := by rw [sum_const, smul_eq_mul]
+      _ ≤ ∑ i ∈ univ.filter fun i => φ.eval (Function.update x i (!x i)) = false,
+            k * (univ.filter fun σ : Equiv.Perm (Fin N) => i ∈ φ.forced σ x).card :=
+          sum_le_sum fun i hi => factorial_le_mul_card_filter_mem_forced hk hx' (mem_filter.1 hi).2
+      _ ≤ k * ∑ i : Fin N, (univ.filter fun σ : Equiv.Perm (Fin N) => i ∈ φ.forced σ x).card := by
+          rw [← mul_sum]
+          exact Nat.mul_le_mul_left _ (sum_le_sum_of_subset (filter_subset _ _))
+      _ = k * ∑ σ : Equiv.Perm (Fin N), (φ.forced σ x).card := by
+          rw [sum_card_filter_mem_forced]
   rw [div_le_div_iff₀ (mod_cast hk1) (mod_cast N.factorial_pos)]
-  linarith [show ((univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card : ℝ) *
-    N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ) from mod_cast hcount]
+  have hcountR : ((univ.filter fun i => φ.eval (Function.update x i (!x i)) = false).card : ℝ) *
+      N.factorial ≤ k * ∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ) := mod_cast hcount
+  linarith
 
 /-- **Few isolated solutions** [Paturi, Pudlák and Zane, Lemma 4][PaturiPudlakZane1999]: a formula
 whose clauses have at most `k ≥ 1` literals has at most `2 ^ ((1 - 1 / k) N)` solutions isolated in

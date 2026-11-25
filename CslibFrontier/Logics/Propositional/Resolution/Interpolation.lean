@@ -122,11 +122,11 @@ the shared and `B`-private variables. -/
     (y : Y → Bool) (z : Z → Bool) :
     (A.appendShared B).eval (Sum.elim a (Sum.elim y z)) =
       (A.eval (Sum.elim a y) && B.eval (Sum.elim a z)) := by
-  rw [CNF.appendShared, CNF.eval_append, CNF.eval_relabel, CNF.eval_relabel,
-    show Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inl = Sum.elim a y by
-      funext x; cases x <;> rfl,
-    show Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inr = Sum.elim a z by
-      funext x; cases x <;> rfl]
+  have hA : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inl = Sum.elim a y :=
+    funext fun | .inl _ => rfl | .inr _ => rfl
+  have hB : Sum.elim a (Sum.elim y z) ∘ Sum.map id Sum.inr = Sum.elim a z :=
+    funext fun | .inl _ => rfl | .inr _ => rfl
+  rw [CNF.appendShared, CNF.eval_append, CNF.eval_relabel, CNF.eval_relabel, hA, hB]
 
 /-- A Boolean function `f` of the shared variables is an **interpolant** of `A(x, y)` and
 `B(x, z)` when `A(x, y) → f(x)` and `f(x) → ¬B(x, z)` are valid: `f` is true on every assignment
@@ -142,8 +142,10 @@ model of `B`. So `f a = false` certifies that `A(a, ·)` is unsatisfiable, and `
 theorem CNF.IsInterpolant.not_satisfiable {A : CNF (X ⊕ Y)} {B : CNF (X ⊕ Z)}
     {f : (X → Bool) → Bool} (h : A.IsInterpolant B f) : ¬ (A.appendShared B).Satisfiable := by
   rintro ⟨σ, hσ⟩
-  rw [show σ = Sum.elim (σ ∘ Sum.inl) (Sum.elim (σ ∘ Sum.inr ∘ Sum.inl) (σ ∘ Sum.inr ∘ Sum.inr)) by
-    funext x; rcases x with _ | _ | _ <;> rfl, CNF.eval_appendShared, Bool.and_eq_true] at hσ
+  have hσ' : σ = Sum.elim (σ ∘ Sum.inl)
+      (Sum.elim (σ ∘ Sum.inr ∘ Sum.inl) (σ ∘ Sum.inr ∘ Sum.inr)) :=
+    funext fun | .inl _ => rfl | .inr (.inl _) => rfl | .inr (.inr _) => rfl
+  rw [hσ', CNF.eval_appendShared, Bool.and_eq_true] at hσ
   exact Bool.noConfusion ((h.1 _ _ hσ.1).symm.trans (h.2 _ _ hσ.2))
 
 /-- **Craig interpolation for CNF formulas.** `A(x, y)` and `B(x, z)` have an interpolant exactly
@@ -171,7 +173,7 @@ private theorem forall_mem_cons_union {Good : Clause V → ((Fin n → U) → U)
     (hls : ∀ e ∈ ls, ∃ g ∈ T, Good e g) (hc : Good c f) :
     ∀ e ∈ c :: ls, ∃ g ∈ T ∪ {f}, Good e g :=
   List.forall_mem_cons.2 ⟨⟨f, Set.mem_union_right _ rfl, hc⟩,
-    fun e he => let ⟨g, hg, hge⟩ := hls e he; ⟨g, Set.mem_union_left _ hg, hge⟩⟩
+    fun e he => (hls e he).imp fun _ ⟨hg, hge⟩ => ⟨Set.mem_union_left _ hg, hge⟩⟩
 
 variable [DecidableEq V]
 

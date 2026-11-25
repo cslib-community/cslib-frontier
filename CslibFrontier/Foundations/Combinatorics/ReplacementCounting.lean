@@ -104,10 +104,12 @@ theorem pow_mul_subsetPairCount_le {η : ℝ} (hη₀ : 0 ≤ η) (hη₁ : η �
   push_cast
   rw [mul_sum]
   calc ∑ s ∈ range (min q n + 1), η ^ q * ((2 : ℝ) ^ s * (n.choose s : ℝ))
-      ≤ ∑ s ∈ range (min q n + 1), (2 * η) ^ s * 1 ^ (n - s) * (n.choose s : ℝ) :=
-        sum_le_sum fun s hs => (mul_le_mul_of_nonneg_right (pow_le_pow_of_le_one hη₀ hη₁
-          ((Nat.le_of_lt_succ (mem_range.mp hs)).trans (min_le_left q n)))
-          (by positivity)).trans_eq (by rw [mul_pow, one_pow, mul_one]; ring)
+      ≤ ∑ s ∈ range (min q n + 1), (2 * η) ^ s * 1 ^ (n - s) * (n.choose s : ℝ) := by
+        refine sum_le_sum fun s hs => ?_
+        have hpow : η ^ q ≤ η ^ s := pow_le_pow_of_le_one hη₀ hη₁
+          ((Nat.le_of_lt_succ (mem_range.mp hs)).trans (min_le_left q n))
+        rw [mul_pow, one_pow, mul_one, mul_comm ((2 : ℝ) ^ s) (η ^ s), mul_assoc]
+        exact mul_le_mul_of_nonneg_right hpow (by positivity)
     _ ≤ ∑ s ∈ range (n + 1), (2 * η) ^ s * 1 ^ (n - s) * (n.choose s : ℝ) :=
         sum_le_sum_of_subset_of_nonneg (range_mono (Nat.succ_le_succ (min_le_right q n)))
           fun _ _ _ => by positivity
@@ -368,8 +370,8 @@ theorem card_measurementBox (t : Fin Q) :
 `∑_g c_{t,g} ≤ 2 τ n` ([OpenAI2026ETH], equation (3.12), p. 25). -/
 theorem card_measurementBox_le_rpow (t : Fin Q) :
     (#(M.measurementBox t) : ℝ) ≤ (2 * (D : ℝ) + 1) ^ (2 * τ * Fintype.card ι) := by
-  rw [M.card_measurementBox t, Nat.cast_pow, ← Real.rpow_natCast,
-    show ((2 * D + 1 : ℕ) : ℝ) = 2 * (D : ℝ) + 1 by push_cast; rfl]
+  rw [M.card_measurementBox t, Nat.cast_pow, ← Real.rpow_natCast, Nat.cast_add, Nat.cast_mul,
+    Nat.cast_ofNat, Nat.cast_one]
   exact Real.rpow_le_rpow_of_exponent_le (by linarith [Nat.cast_nonneg (α := ℝ) D])
     (M.sum_numRows_le t)
 
@@ -451,7 +453,8 @@ theorem evalRowRat_eq_of_eq_on_assigned_group {t : Fin Q} {f : F} (hf : f ∈ s)
     (fun g u => if g = g₀ then M.evalRowRat t f v (piGroupEquiv (M.varGroup t) u) else 0)
     (fun g h hne base delta hdelta => by
       split_ifs with hgg
-      · subst hgg; rw [piGroupEquiv_add_single]
+      · subst hgg
+        rw [piGroupEquiv_add_single]
         have hker := M.kernel_zero t f hf v h hne (extendFromGroup (M.varGroup t) h delta)
           (fun i hi => by simp only [extendFromGroup, hi, ↓reduceDIte])
           (fun k => (M.matrix_sum_extendFromGroup t h k delta).trans (congrFun hdelta k))
@@ -527,7 +530,9 @@ theorem eval_targetPolynomial {ι F A : Type*} [Fintype ι] [DecidableEq ι] [Co
       ∑ x : ι → Bool, ∏ f ∈ s,
         MvPolynomial.eval
           (fun v => ∑ i : ι, (P f v i).eval t * BitString.bitVal A (x i)) (Φ f) := by
-  have hC : (Polynomial.evalRingHom t).comp Polynomial.C = RingHom.id A := by ext; simp
+  have hC : (Polynomial.evalRingHom t).comp Polynomial.C = RingHom.id A := by
+    ext
+    simp
   rw [← Polynomial.coe_evalRingHom, targetPolynomial, map_sum]
   refine sum_congr rfl fun x _ => ?_
   rw [map_prod]
@@ -548,10 +553,13 @@ theorem eval_zero_targetPolynomial {ι F A : Type*} [Fintype ι] [DecidableEq ι
     (targetPolynomial s Φ P).eval 0 = targetSum s scope Φ := by
   rw [eval_targetPolynomial, targetSum]
   refine sum_congr rfl fun x _ => prod_congr rfl fun f hf => ?_
-  congr 2; funext v
+  congr 2
+  funext v
   have hsum : (∑ i : ι, (P f v i).eval 0 * BitString.bitVal A (x i)) =
       ∑ i : ι, if i = scope f v then BitString.bitVal A (x i) else 0 :=
-    sum_congr rfl fun i _ => by rw [hzero f hf v i]; split_ifs <;> simp
+    sum_congr rfl fun i _ => by
+      rw [hzero f hf v i]
+      split_ifs <;> simp
   simp [hsum]
 
 /-- Substituting univariate polynomials of degree at most `d₀` into a multivariate polynomial `p`
@@ -590,10 +598,12 @@ theorem natDegree_targetPolynomial_le_of_liftedTotalDegree_le {ι F A : Type*} [
     refine prod_congr rfl fun f hf => ?_
     rw [MvPolynomial.coe_eval₂Hom, MvPolynomial.eval₂_rename]
     congr 1
-    funext v; simp [q, hf]
+    funext v
+    simp [q, hf]
   rw [hprod]
   refine (natDegree_eval₂_polynomial_le _ q fun fv => ?_).trans (Nat.mul_le_mul_right d₀ hd)
-  dsimp only [q]; split_ifs with hfs
+  dsimp only [q]
+  split_ifs with hfs
   · exact Polynomial.natDegree_sum_le_of_forall_le _ _ fun i _ =>
       (Polynomial.natDegree_mul_C_le _ _).trans (hP fv.1 hfs fv.2 i)
   · simp
@@ -773,12 +783,16 @@ theorem eval_nodes_targetPoly_eq_sum_measurement_fibers {A : Type*} [CommRing A]
           representative y := by
   have hbit : ∀ b : Bool, BitString.bitVal A b = algebraMap ℚ A (BitString.bitVal ℚ b) := by
     rintro (_ | _) <;> simp
-  rw [targetPoly, eval_targetPolynomial, show (univ : Finset (ι → Bool)) =
-      univ.filter (fun x : ι → Bool => ∀ i ∈ (∅ : Finset ι), x i = true) by ext; simp]
+  have hfilt : (univ : Finset (ι → Bool)) =
+      univ.filter fun x : ι → Bool => ∀ i ∈ (∅ : Finset ι), x i = true := by
+    ext
+    simp
+  rw [targetPoly, eval_targetPolynomial, hfilt]
   refine (sum_congr rfl fun x _ => prod_congr rfl fun f _ => ?_).trans
     (M.sum_restricted_prod_eq_sum_measurement_fibers
       (fun f q => MvPolynomial.eval (algebraMap ℚ A ∘ q) (Φ f)) t ∅ representative valid)
-  congr 2; funext v
+  congr 2
+  funext v
   simp only [Function.comp_apply, evalRow, evalRowRat, map_sum, map_mul, ← hbit, rowIn]
   refine sum_congr rfl fun i _ => ?_
   rw [show (M.nodes t : A) = algebraMap ℚ A (M.nodes t : ℚ) by simp, Polynomial.eval_map_apply]
@@ -867,10 +881,13 @@ theorem singlePairScanBound_real (t : Fin Q) :
         (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r) := by
   have hgroup : (∑ g : Fin r, (Fintype.card (M.LocalCube t g) : ℝ)) ≤
       (r : ℝ) * (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r) := by
-    refine (sum_le_sum (g := fun _ => (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r)) fun g _ =>
-      ?_).trans_eq (by simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul])
-    rw [M.card_localCube t g, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
-    exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (M.card_groupSet_le_real t g)
+    calc (∑ g : Fin r, (Fintype.card (M.LocalCube t g) : ℝ))
+        ≤ ∑ _g : Fin r, (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r) :=
+          sum_le_sum fun g _ => by
+            rw [M.card_localCube t g, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
+            exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (M.card_groupSet_le_real t g)
+      _ = (r : ℝ) * (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r) := by
+          simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
   calc 2 * (#(M.measurementBox t) : ℝ) * ∑ g : Fin r, (Fintype.card (M.LocalCube t g) : ℝ)
       ≤ 2 * ((2 * (D : ℝ) + 1) ^ (2 * τ * Fintype.card ι) *
           ((r : ℝ) * (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r))) := by
@@ -893,9 +910,19 @@ theorem domainExaminationBound_real (q : ℕ) :
         (2 * (D : ℝ) + 1) ^ (2 * τ * Fintype.card ι) *
         (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r) := by
   rw [card_subsetPairs_eq_subsetPairCount]
-  refine (sum_le_sum fun t _ =>
-    mul_le_mul_of_nonneg_left (M.singlePairScanBound_real t) (Nat.cast_nonneg _)).trans_eq ?_
-  simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]; ring
+  calc
+    (∑ t : Fin Q, (subsetPairCount (Fintype.card ι) q : ℝ) *
+        (2 * (#(M.measurementBox t) : ℝ) *
+          ∑ g : Fin r, (Fintype.card (M.LocalCube t g) : ℝ))) ≤
+        ∑ _t : Fin Q, (subsetPairCount (Fintype.card ι) q : ℝ) *
+          (2 * (r : ℝ) * (2 * (D : ℝ) + 1) ^ (2 * τ * Fintype.card ι) *
+            (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r)) :=
+      sum_le_sum fun t _ =>
+        mul_le_mul_of_nonneg_left (M.singlePairScanBound_real t) (Nat.cast_nonneg _)
+    _ = 2 * (Q : ℝ) * (r : ℝ) * (subsetPairCount (Fintype.card ι) q : ℝ) *
+          (2 * (D : ℝ) + 1) ^ (2 * τ * Fintype.card ι) *
+          (2 : ℝ) ^ (2 * (Fintype.card ι : ℝ) / r) := by
+      simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]; ring
 
 end Design
 

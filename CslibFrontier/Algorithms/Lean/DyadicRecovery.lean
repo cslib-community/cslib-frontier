@@ -207,13 +207,14 @@ private theorem mem_cellCandidates {N M k : ℕ} {q : ℚ}
   have hhir : (q : ℝ) < (k + 1 : ℝ) / M := by
     simpa only [Rat.cast_div, Rat.cast_natCast, Rat.cast_add, Rat.cast_one] using
       (Rat.cast_lt (K := ℝ)).2 hhi
-  have hsq : (q.den : ℝ) ^ 2 ≤ M := by exact_mod_cast (Nat.pow_le_pow_left hq 2).trans hscale
-  have hclose : |(a : ℝ) / b - q| < 1 / (2 * (q.den : ℝ) ^ 2) := by
-    refine (show |(a : ℝ) / b - q| < 1 / (2 * (M : ℝ)) by
-      rw [show (a : ℝ) / b = (k : ℝ) / M + 1 / (2 * M) by push_cast [a, b]; field_simp, abs_lt]
-      rw [show (k + 1 : ℝ) / M = (k : ℝ) / M + 2 * (1 / (2 * (M : ℝ))) by field_simp] at hhir
-      exact ⟨by linarith, by linarith⟩).trans_le
-      (one_div_le_one_div_of_le (by positivity) (by gcongr))
+  have hsq : (q.den : ℝ) ^ 2 ≤ M := mod_cast (Nat.pow_le_pow_left hq 2).trans hscale
+  have hmid : (a : ℝ) / b = (k : ℝ) / M + 1 / (2 * M) := by
+    push_cast [a, b]
+    field_simp
+  have hhu : (k + 1 : ℝ) / M = (k : ℝ) / M + 2 * (1 / (2 * (M : ℝ))) := by field_simp
+  have hclose : |(a : ℝ) / b - q| < 1 / (2 * (q.den : ℝ) ^ 2) :=
+    (abs_lt.mpr ⟨by linarith, by linarith⟩).trans_le
+      (one_div_le_one_div_of_le (by positivity) (mul_le_mul_of_nonneg_left hsq zero_le_two))
   obtain ⟨i, hi⟩ := Real.exists_rat_eq_convergent hclose
   let p : ℕ × ℕ := (a, b)
   have hei : euclidConvergent i p = q := (euclidConvergent_eq i a b).trans hi.symm
@@ -231,7 +232,8 @@ private theorem eq_of_mem_cell {N M k : ℕ} {q r : ℚ} (hscale : N ^ 2 ≤ M)
   obtain ⟨hrd, hrl, hru⟩ := of_decide_eq_true hr
   by_contra hne
   have hwidthRat : |q - r| < 1 / (M : ℚ) := by
-    rw [add_div] at hqu hru; exact abs_lt.mpr ⟨by linarith, by linarith⟩
+    rw [add_div] at hqu hru
+    exact abs_lt.mpr ⟨by linarith, by linarith⟩
   have hwidth : |(q : ℝ) - r| < 1 / (M : ℝ) := by
     simpa only [Rat.cast_abs, Rat.cast_sub, Rat.cast_div, Rat.cast_one, Rat.cast_natCast] using
       (Rat.cast_lt (K := ℝ)).2 hwidthRat
@@ -242,7 +244,8 @@ private theorem eq_of_mem_cell {N M k : ℕ} {q r : ℚ} (hscale : N ^ 2 ≤ M)
 private theorem recoverInCell_mem_cell {N M k : ℕ} {q : ℚ}
     (h : recoverInCell N M k = some q) :
     q.den ≤ N ∧ (k : ℚ) / M ≤ q ∧ q < (k + 1 : ℚ) / M := by
-  rw [recoverInCell] at h; simpa [inCell] using List.find?_some h
+  rw [recoverInCell] at h
+  simpa [inCell] using List.find?_some h
 
 private theorem recoverInCell_eq_some {N M k : ℕ} {q : ℚ}
     (hM : 0 < M) (hscale : N ^ 2 ≤ M) (hq : q.den ≤ N)

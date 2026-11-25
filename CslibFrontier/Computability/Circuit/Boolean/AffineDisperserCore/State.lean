@@ -610,10 +610,11 @@ children. -/
 theorem children_eq_singleton {S : State cfg n} {x : ℕ} {H : ℕ ⊕ ℕ}
     (hle : S.deg x ≤ 1) (hH : H ∈ S.children x) : S.children x = {H} := by
   have hpos : 0 < (S.children x).card := Finset.card_pos.2 ⟨H, hH⟩
-  obtain ⟨M, hM⟩ := Finset.card_eq_one.1
-    (by unfold SemiCircuit.deg at hle; omega : (S.children x).card = 1)
-  have h1 := Finset.mem_singleton.1 (hM ▸ hH)
-  rwa [← h1] at hM
+  have hcard : (S.children x).card = 1 := by
+    rw [SemiCircuit.deg] at hle
+    omega
+  obtain ⟨M, hM⟩ := Finset.card_eq_one.1 hcard
+  exact Finset.mem_singleton.1 (hM ▸ hH) ▸ hM
 
 end State
 
