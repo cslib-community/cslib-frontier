@@ -444,8 +444,7 @@ theorem HgInv.tree_iff_used (h : HgInv c r y z mate used tree minv path) {i j : 
   · rintro (rfl | ⟨j', hj', hm'⟩)
     · exact absurd hm (h.root_free j)
     · rwa [mate_inj h.matching hm hm']
-  · intro hj
-    exact .inr ⟨j, hj, hm⟩
+  · exact fun hj => .inr ⟨j, hj, hm⟩
 
 theorem HgInv.minv_nonneg (h : HgInv c r y z mate used tree minv path) {j : Fin n}
     (hj : vget used j = false) : 0 ≤ vget minv j := by
