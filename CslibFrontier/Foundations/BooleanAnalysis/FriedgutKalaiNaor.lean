@@ -154,36 +154,28 @@ theorem exists_one_sub_le_abs_fourierCoeff_singleton {f : (ι → Bool) → Bool
       Real.lt_sqrt_of_sq_lt (by rw [mul_pow, Real.sq_sqrt hδ'0]; linarith only [hVgt])
     have hδsq : δ' ≤ √δ' := (Real.le_sqrt hδ'0 hδ'0).2 (by nlinarith only [hδ'0, hδ'1])
     -- on that event, `(F - ℓ) ^ 2 ≥ 169 δ'`
-    have hsub : ({x | √V / 2 < |ℓ x ^ 2 - A|} : Finset (ι → Bool)) ⊆
-        ({x | 169 * δ' ≤ (F x - ℓ x) ^ 2} : Finset (ι → Bool)) := by
-      intro x hx
-      simp only [mem_filter, mem_univ, true_and] at hx ⊢
-      have h39 : 39 * √δ' < |ℓ x ^ 2 - 1| := by
-        have htri : |ℓ x ^ 2 - A| ≤ |ℓ x ^ 2 - 1| + |1 - A| := abs_sub_le _ _ _
-        rw [← hδ'A, abs_of_nonneg hδ'0] at htri
-        linarith only [htri, hx, hsqrt, hδsq]
-      exact mul_le_sq_sub_of_sq_eq_one (hFsq x) hδ'0 hδ'1 h39
     have hd : (dens ({x | √V / 2 < |ℓ x ^ 2 - A|} : Finset (ι → Bool)) : ℝ) ≤
         (dens ({x | 169 * δ' ≤ (F x - ℓ x) ^ 2} : Finset (ι → Bool)) : ℝ) := by
-      exact_mod_cast dens_le_dens hsub
+      refine NNRat.cast_le.mpr (dens_le_dens fun x hx => ?_)
+      simp only [mem_filter, mem_univ, true_and] at hx ⊢
+      refine mul_le_sq_sub_of_sq_eq_one (hFsq x) hδ'0 hδ'1 ?_
+      have htri : |ℓ x ^ 2 - A| ≤ |ℓ x ^ 2 - 1| + |1 - A| := abs_sub_le _ _ _
+      rw [← hδ'A, abs_of_nonneg hδ'0] at htri
+      linarith only [htri, hx, hsqrt, hδsq]
     -- so by Markov, `δ' ≥ 169 δ' / 144`, forcing `δ' = 0`
     have hmk := Fintype.mul_dens_filter_le_expect (f := fun x => (F x - ℓ x) ^ 2)
       (fun x => sq_nonneg _) (169 * δ')
     rw [← hδ'] at hmk
     rcases hδ'0.lt_or_eq with hpos | hzero
     · nlinarith only [hpos, h97, hd, hmk]
-    · -- `δ' = 0`: then `F = ℓ`, so `ℓ ^ 2 = 1 = A` everywhere, and the event is empty
-      have hFℓ0 (x) : F x = ℓ x := by
-        have hx := congrFun ((Fintype.expect_eq_zero_iff_of_nonneg
-          (fun x => sq_nonneg (F x - ℓ x))).mp hzero.symm) x
-        simpa only [Pi.zero_apply, sq_eq_zero_iff, sub_eq_zero] using hx
-      have hempty : ({x | √V / 2 < |ℓ x ^ 2 - A|} : Finset (ι → Bool)) = ∅ := by
-        ext x
-        simp only [mem_filter, mem_univ, true_and, Finset.notMem_empty, iff_false, not_lt]
-        rw [← hFℓ0 x, show A = 1 by linarith only [hzero, hδ'A], hFsq x, sub_self, abs_zero]
-        positivity
-      rw [hempty, dens_empty, NNRat.cast_zero] at h97
-      norm_num at h97
+    · -- `δ' = 0`: then `F = ℓ` and `A = 1`, so `ℓ ^ 2 = A` and the event is empty
+      obtain ⟨x, hx⟩ := dens_pos.1 (NNRat.cast_pos.1 (lt_of_lt_of_le (by norm_num) h97))
+      have hx0 := congrFun ((Fintype.expect_eq_zero_iff_of_nonneg
+        fun x => sq_nonneg (F x - ℓ x)).mp hzero.symm) x
+      simp only [mem_filter, mem_univ, true_and, Pi.zero_apply, sq_eq_zero_iff, sub_eq_zero]
+        at hx hx0
+      rw [← hx0, show A = 1 by linarith only [hzero, hδ'A], hFsq x, sub_self, abs_zero] at hx
+      linarith only [hx, Real.sqrt_nonneg V]
   -- hence `∑ᵢ aᵢ ^ 4 ≥ 1 - 3202 δ'`, and the largest `aᵢ ^ 2` bounds it
   have h4 : 1 - 3202 * δ' ≤ ∑ i, a i ^ 4 := by
     nlinarith only [hVle, hVeq, hδ'A, hδ'0]
