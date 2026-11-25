@@ -174,38 +174,19 @@ private def mergeTripartitionEquiv {n : ℕ} {U : Type*} (p : Fin n → Fin 3) :
 private theorem ncard_parts_sum {n : ℕ} (p : Fin n → Fin 3) :
     {i : Fin n | p i = 0}.ncard + {i : Fin n | p i = 1}.ncard +
       {i : Fin n | p i = 2}.ncard = n := by
-  have hd01 : Disjoint {i : Fin n | p i = 0} {i : Fin n | p i = 1} :=
-    disjoint_left.mpr fun i h0 h1 => by
-      rw [mem_ofPred_eq] at h0 h1; rw [h0] at h1; revert h1; decide
-  have hd012 : Disjoint ({i : Fin n | p i = 0} ∪ {i : Fin n | p i = 1})
-      {i : Fin n | p i = 2} :=
-    disjoint_left.mpr fun i h01 h2 => by
-      rcases h01 with h0 | h1
-      · rw [mem_ofPred_eq] at h0 h2; rw [h0] at h2; revert h2; decide
-      · rw [mem_ofPred_eq] at h1 h2; rw [h1] at h2; revert h2; decide
-  have huniv : ({i : Fin n | p i = 0} ∪ {i : Fin n | p i = 1}) ∪
-      {i : Fin n | p i = 2} = univ := by
-    ext i
-    simp only [mem_union, mem_ofPred_eq, mem_univ, iff_true]
-    rcases hp : p i with ⟨_ | _ | _ | _, hlt⟩
-    · exact Or.inl (Or.inl rfl)
-    · exact Or.inl (Or.inr rfl)
-    · exact Or.inr rfl
-    · omega
-  rw [← ncard_union_eq hd01 (toFinite _) (toFinite _),
-    ← ncard_union_eq hd012 (toFinite _) (toFinite _), huniv, ncard_univ,
-    Nat.card_eq_fintype_card, Fintype.card_fin]
+  classical
+  have h := Finset.card_eq_sum_card_fiberwise (f := p) (s := Finset.univ) (t := Finset.univ)
+    fun _ _ => Finset.mem_univ _
+  simp only [Finset.card_univ, Fintype.card_fin, Fin.sum_univ_three] at h
+  simp only [Set.ncard_eq_toFinset_card', Set.toFinset_ofPred]
+  omega
 
 private theorem BalancedTripartition.ncard_le {n : ℕ} {p : Fin n → Fin 3}
     (hp : BalancedTripartition n p) (c : Fin 3) :
     {i : Fin n | p i = c}.ncard ≤ n / 3 + 2 := by
   have hsum := ncard_parts_sum p
   have h0 := hp 0; have h1 := hp 1; have h2 := hp 2
-  rcases c with ⟨_ | _ | _ | _, hlt⟩
-  · change {i : Fin n | p i = 0}.ncard ≤ n / 3 + 2; omega
-  · change {i : Fin n | p i = 1}.ncard ≤ n / 3 + 2; omega
-  · change {i : Fin n | p i = 2}.ncard ≤ n / 3 + 2; omega
-  · omega
+  fin_cases c <;> dsimp only [Fin.reduceFinMk] <;> omega
 
 /-! ### Non-vacuity: counting existence of `ThreeTensorHard` sets over arbitrary fields -/
 
@@ -255,11 +236,8 @@ theorem exists_threeTensorHard (K : Type*) [Field K] {n : ℕ} {U : Type*} [Fint
       simp only [BadP, Finset.mem_filter, Finset.mem_univ, true_and, hten_eq]
     rw [hbij]
     have hcard_prod : Fintype.card X₀ * Fintype.card X₁ * Fintype.card X₂ = q ^ n := by
-      have hc := Fintype.card_congr eqv
-      simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_fin] at hc
-      dsimp only [X₀, X₁, X₂, q]
-      simp only [Fintype.card_fun]
-      rwa [← mul_assoc] at hc
+      simpa only [X₀, X₁, X₂, q, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin,
+        mul_assoc] using Fintype.card_congr eqv
     have hcard_part (c : Fin 3) : Fintype.card ({i : Fin n // p i = c} → U) ≤ q ^ (n / 3 + 2) := by
       rw [Fintype.card_fun]
       have hsub_card : Fintype.card {i : Fin n // p i = c} = {i : Fin n | p i = c}.ncard := by
@@ -714,11 +692,7 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
   | 0, p, col, hcompat, hfuel => by
       refine ⟨p, col, fun k => ?_, hcompat, fun k => by simp⟩
       rw [Fin.sum_univ_three] at hfuel
-      rcases k with ⟨_ | _ | _ | _, hlt⟩
-      · change n / 3 ≤ {i : Fin n | p i = 0}.ncard; omega
-      · change n / 3 ≤ {i : Fin n | p i = 1}.ncard; omega
-      · change n / 3 ≤ {i : Fin n | p i = 2}.ncard; omega
-      · omega
+      fin_cases k <;> dsimp only [Fin.reduceFinMk] <;> omega
   | fuel + 1, p, col, hcompat, hfuel => by
       classical
       by_cases hbal : BalancedTripartition n p
@@ -732,11 +706,7 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
           have hsum := ncard_parts_sum p
           have h0 := hall_le 0; have h1 := hall_le 1; have h2 := hall_le 2
           have hmul : 3 * (n / 3) ≤ n := Nat.mul_div_le n 3
-          rcases k_lo with ⟨_ | _ | _ | _, hlt⟩
-          · change {i : Fin n | p i = 0}.ncard < n / 3 at hk_lo; omega
-          · change {i : Fin n | p i = 1}.ncard < n / 3 at hk_lo; omega
-          · change {i : Fin n | p i = 2}.ncard < n / 3 at hk_lo; omega
-          · omega
+          fin_cases k_lo <;> dsimp only [Fin.reduceFinMk] at hk_lo <;> omega
         obtain ⟨k_hi, hk_hi⟩ := hex_hi
         have hlo_ne_hi : k_lo ≠ k_hi := fun h => by subst h; omega
         obtain ⟨i₀, hi₀⟩ :=
