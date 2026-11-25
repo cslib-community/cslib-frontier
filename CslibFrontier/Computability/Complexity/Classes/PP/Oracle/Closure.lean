@@ -38,8 +38,7 @@ theorem PWithOracle_subset_PPWithOracle (A : Set (List Bool)) (enc : α ↪ List
     PWithOracle A enc ⊆ PPWithOracle A enc := by
   rintro L ⟨f, hf, hL⟩
   refine ⟨0, fun x => f x.1, hf.preprocess (.fst enc encBits), fun a => ?_⟩
-  rw [hL a]
-  simp only [Polynomial.eval_zero, acceptCount_zero]
+  rw [hL a, Polynomial.eval_zero, acceptCount_zero]
   cases f a <;> simp
 
 /-- Ignoring a suffix of random bits preserves the strict-majority condition. -/
@@ -58,14 +57,11 @@ theorem PolyTimeReducible.mem_PPWithOracle {L : Set α} {L' : Set β}
   obtain ⟨f, hf, hLL'⟩ := h
   obtain ⟨p, V, hV, hVL'⟩ := hL'
   obtain ⟨q, hpq⟩ := hf.exists_polynomial_eval_length_le p
-  let W : α × List Bool → Bool := fun x =>
-    V (f x.1, x.2.take (p.eval (encB (f x.1)).length))
-  have hW : ComputableInPolyTimeWithOracle A W (encPair enc encBits) encBool :=
+  refine ⟨q, fun x => V (f x.1, x.2.take (p.eval (encB (f x.1)).length)),
     hV.preprocess (g := fun x : α × List Bool =>
-      (f x.1, x.2.take (p.eval (encB (f x.1)).length))) (by fun_prop)
-  refine ⟨q, W, hW, fun a => ?_⟩
+      (f x.1, x.2.take (p.eval (encB (f x.1)).length))) (by fun_prop), fun a => ?_⟩
   rw [hLL' a, hVL' (f a)]
-  exact (majority_take_iff (hpq a) (fun _ => rfl)).symm
+  exact (majority_take_iff (hpq a) fun _ => rfl).symm
 
 /-- Reducing the oracle preserves relativized PP, including the uniform resource certificate
 of its verifier. -/
@@ -112,28 +108,14 @@ theorem taggedUnion_mem_PPWithOracle {L₀ L₁ : Set (List Bool)}
       (g := fun x b => if x.1.headD false then b.2 else b.1) hselect
   refine ⟨p₀ + p₁, W, hW, fun w => ?_⟩
   have htail : w.tail.length ≤ w.length := by simp only [List.length_tail]; omega
-  have hp₀ : p₀.eval w.tail.length ≤ (p₀ + p₁).eval (encBits w).length := by
-    simp only [encBits_apply, Polynomial.eval_add]
-    exact (Polynomial.eval_mono p₀ htail).trans (Nat.le_add_right _ _)
-  have hp₁ : p₁.eval w.tail.length ≤ (p₀ + p₁).eval (encBits w).length := by
-    simp only [encBits_apply, Polynomial.eval_add]
-    exact (Polynomial.eval_mono p₁ htail).trans (Nat.le_add_left _ _)
-  cases ht : w.headD false
-  · have hc : acceptCount W w ((p₀ + p₁).eval (encBits w).length) =
-        acceptCount W₀ w ((p₀ + p₁).eval (encBits w).length) :=
-      acceptCount_congr (fun r => by simp only [W, ht, Bool.false_eq_true, ↓reduceIte]) _
-    change (if w.headD false then w.tail ∈ L₁ else w.tail ∈ L₀) ↔ _
-    simp only [ht, Bool.false_eq_true, ↓reduceIte]
-    rw [hc, h₀ w.tail]
-    simp only [encBits_apply]
-    exact (majority_take_iff hp₀ (fun _ => rfl)).symm
-  · have hc : acceptCount W w ((p₀ + p₁).eval (encBits w).length) =
-        acceptCount W₁ w ((p₀ + p₁).eval (encBits w).length) :=
-      acceptCount_congr (fun r => by simp only [W, ht, ↓reduceIte]) _
-    change (if w.headD false then w.tail ∈ L₁ else w.tail ∈ L₀) ↔ _
-    simp only [ht, ↓reduceIte]
-    rw [hc, h₁ w.tail]
-    simp only [encBits_apply]
-    exact (majority_take_iff hp₁ (fun _ => rfl)).symm
+  cases ht : w.headD false <;>
+    simp only [taggedUnion, Set.mem_ofPred_eq, ht, Bool.false_eq_true, ↓reduceIte, encBits_apply]
+  · rw [acceptCount_congr (W := W₀)
+      (fun _ => by simp only [W, ht, Bool.false_eq_true, ↓reduceIte]) _, h₀ w.tail]
+    exact (majority_take_iff (by simp only [Polynomial.eval_add]; exact
+      (Polynomial.eval_mono p₀ htail).trans (Nat.le_add_right _ _)) fun _ => rfl).symm
+  · rw [acceptCount_congr (W := W₁) (fun _ => by simp only [W, ht, ↓reduceIte]) _, h₁ w.tail]
+    exact (majority_take_iff (by simp only [Polynomial.eval_add]; exact
+      (Polynomial.eval_mono p₁ htail).trans (Nat.le_add_left _ _)) fun _ => rfl).symm
 
 end Cslib.Complexity

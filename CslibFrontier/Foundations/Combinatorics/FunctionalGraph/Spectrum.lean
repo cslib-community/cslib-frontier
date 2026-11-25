@@ -70,18 +70,15 @@ variable {α : Type u} [Finite α] (f : α → α)
 state. -/
 theorem iterate_add_cycleLength_mul (x : α) {a : ℕ} (ha : transientDepth f x ≤ a) (q : ℕ) :
     f^[a + cycleLength f x * q] x = f^[a] x := by
-  have hp := (isPeriodicPt_cycleLength f x).mul_const q
   calc f^[a + cycleLength f x * q] x
-      = f^[a - transientDepth f x]
-          (f^[cycleLength f x * q] (f^[transientDepth f x] x)) := by
+      = f^[a - transientDepth f x] (f^[cycleLength f x * q] (f^[transientDepth f x] x)) := by
         rw [← iterate_add_apply, ← iterate_add_apply]
-        congr 1
-        omega
-    _ = f^[a - transientDepth f x] (f^[transientDepth f x] x) := by rw [hp.eq]
+        exact congrArg (f^[·] x) (by omega)
+    _ = f^[a - transientDepth f x] (f^[transientDepth f x] x) := by
+        rw [((isPeriodicPt_cycleLength f x).mul_const q).eq]
     _ = f^[a] x := by
         rw [← iterate_add_apply]
-        congr 1
-        omega
+        exact congrArg (f^[·] x) (by omega)
 
 end Finite
 
@@ -94,13 +91,11 @@ variable {α : Type u} [Fintype α] (f : α → α)
 theorem iterate_eq_card_add_mod (x : α) {T : ℕ} (hT : Fintype.card α ≤ T) :
     f^[T] x = f^[Fintype.card α + (T - Fintype.card α) % cycleLength f x] x := by
   have hd := (transientDepth_lt_card f x).le
-  have h := iterate_add_cycleLength_mul f x
+  rw [← iterate_add_cycleLength_mul f x
     (a := Fintype.card α + (T - Fintype.card α) % cycleLength f x) (by omega)
-    ((T - Fintype.card α) / cycleLength f x)
-  rw [← h]
-  congr 1
-  have := Nat.mod_add_div (T - Fintype.card α) (cycleLength f x)
-  omega
+    ((T - Fintype.card α) / cycleLength f x)]
+  exact congrArg (f^[·] x)
+    (by have := Nat.mod_add_div (T - Fintype.card α) (cycleLength f x); omega)
 
 /-- **The cycle-length divisibility test.** `f^[Fintype.card α + ℓ] x = f^[Fintype.card α] x`
 holds iff `cycleLength f x ∣ ℓ`. -/
@@ -196,21 +191,17 @@ theorem canonicalTime_apply (x : α) (hx : x ∉ periodicPts f) :
     canonicalTime f (f x) + 1 = canonicalTime f x := by
   have hc : canonicalCycle f (f x) = canonicalCycle f x := by
     simpa using canonicalCycle_iterate f x 1
-  have hpos : 0 < canonicalTime f x := by
-    rcases Nat.eq_zero_or_pos (canonicalTime f x) with h | h
-    · have hs := canonicalTime_spec f x
-      rw [h, iterate_zero_apply] at hs
-      exact absurd (hs ▸ canonicalCycle_periodic f x) hx
-    · exact h
-  have hle1 : canonicalTime f x ≤ canonicalTime f (f x) + 1 := by
-    have h : f^[canonicalTime f (f x) + 1] x = canonicalCycle f x := by
-      rw [iterate_succ_apply, canonicalTime_spec, hc]
-    exact Nat.find_min' (canonicalCycle_reachable f x) h
-  have hle2 : canonicalTime f (f x) ≤ canonicalTime f x - 1 := by
-    have h : f^[canonicalTime f x - 1] (f x) = canonicalCycle f (f x) := by
+  have hpos : 0 < canonicalTime f x := Nat.pos_of_ne_zero fun h => hx <| by
+    have hs := canonicalTime_spec f x
+    rw [h, iterate_zero_apply] at hs
+    exact hs ▸ canonicalCycle_periodic f x
+  have hle1 : canonicalTime f x ≤ canonicalTime f (f x) + 1 :=
+    Nat.find_min' (canonicalCycle_reachable f x)
+      (by rw [iterate_succ_apply, canonicalTime_spec, hc])
+  have hle2 : canonicalTime f (f x) ≤ canonicalTime f x - 1 :=
+    Nat.find_min' (canonicalCycle_reachable f (f x)) (by
       rw [hc, ← iterate_succ_apply, Nat.succ_eq_add_one, Nat.sub_add_cancel hpos]
-      exact canonicalTime_spec f x
-    exact Nat.find_min' (canonicalCycle_reachable f (f x)) h
+      exact canonicalTime_spec f x)
   omega
 
 /-- **(P2)** Past the transient depth, `f^[T] x` is the state `a` steps after the least cyclic

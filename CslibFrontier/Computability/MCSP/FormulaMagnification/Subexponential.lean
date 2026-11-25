@@ -72,12 +72,10 @@ the counting exponent does not require a separate asymptotic estimate. -/
 theorem subexponentiallyBounded_computableFunctionsLogBound {s : ℕ → ℕ}
     (hs : SubexponentiallyBounded s) :
     SubexponentiallyBounded (fun n => computableFunctionsLogBound n (s n)) := by
-  have hbound : SubexponentiallyBounded
-      (fun n => (s n + 1) * (2 * (n + s n + 1) + 3)) :=
-    (hs.add (.const 1)).mul
-      (((SubexponentiallyBounded.const 2).mul
-        ((SubexponentiallyBounded.id.add hs).add (.const 1))).add (.const 3))
-  exact hbound.mono_of_le fun n => computableFunctionsLogBound_le_poly n (s n)
+  exact ((hs.add (.const 1)).mul
+    (((SubexponentiallyBounded.const 2).mul
+      ((SubexponentiallyBounded.id.add hs).add (.const 1))).add (.const 3))).mono_of_le
+    fun n => computableFunctionsLogBound_le_poly n (s n)
 
 /-- The encoded length `SuccinctMCSP.ofFunctionEncLength n (q n) (s n)` of a `SuccinctMCSP`
 query is subexponential when both its number of samples `q` and its circuit-size threshold `s`
@@ -85,11 +83,8 @@ are subexponential. -/
 theorem subexponentiallyBounded_ofFunctionEncLength {q s : ℕ → ℕ}
     (hq : SubexponentiallyBounded q) (hs : SubexponentiallyBounded s) :
     SubexponentiallyBounded (fun n => SuccinctMCSP.ofFunctionEncLength n (q n) (s n)) := by
-  have h8n : SubexponentiallyBounded (fun n => 8 * n + 10) :=
-    ((SubexponentiallyBounded.const 8).mul SubexponentiallyBounded.id).add (.const 10)
-  have h4n : SubexponentiallyBounded (fun n => 4 * n + 3) :=
-    ((SubexponentiallyBounded.const 4).mul SubexponentiallyBounded.id).add (.const 3)
-  exact (h4n.add (hq.mul h8n)).add hs
+  exact ((((SubexponentiallyBounded.const 4).mul .id).add (.const 3)).add
+    (hq.mul (((SubexponentiallyBounded.const 8).mul .id).add (.const 10)))).add hs
 
 /-- The encoded query length in the approximate-MCSP formula reduction is subexponential
 when both the circuit-size threshold and the inverse-error parameter are subexponential. -/
@@ -126,14 +121,10 @@ theorem eventually_exists_formula_separating_approxMCSP_of_mem_FormulaPolyOn
   obtain ⟨F, hF, hyes, hno⟩ :=
     exists_formula_separating_approxMCSP_of_mem_FormulaSIZEOn hs hk hmono hc n
   refine ⟨F, hF.trans ?_, hyes, hno⟩
-  calc
-    (2 ^ n + 1) * (c * (approxMCSPQueryEncLength n (s₂ n) (k n) + 1) ^ c)
-        ≤ (2 * 2 ^ n) * (c * (approxMCSPQueryEncLength n (s₂ n) (k n) + 1) ^ c) := by
-          apply Nat.mul_le_mul_right
-          have := Nat.one_le_two_pow (n := n)
-          omega
-    _ = 2 ^ n * (2 * (c * (approxMCSPQueryEncLength n (s₂ n) (k n) + 1) ^ c)) := by
-        ac_rfl
+  calc (2 ^ n + 1) * (c * (approxMCSPQueryEncLength n (s₂ n) (k n) + 1) ^ c)
+      ≤ (2 * 2 ^ n) * (c * (approxMCSPQueryEncLength n (s₂ n) (k n) + 1) ^ c) :=
+        Nat.mul_le_mul_right _ (by have := Nat.one_le_two_pow (n := n); omega)
+    _ = 2 ^ n * (2 * (c * (approxMCSPQueryEncLength n (s₂ n) (k n) + 1) ^ c)) := by ac_rfl
     _ ≤ 2 ^ n * 2 ^ (n / d) := Nat.mul_le_mul_left _ hn
     _ = 2 ^ (n + n / d) := (pow_add 2 n (n / d)).symm
 
@@ -198,23 +189,15 @@ theorem eventually_exists_formula_separating_approxMCSP_rpow_of_mem_FormulaPolyO
   filter_upwards [eventually_exists_formula_separating_approxMCSP_of_mem_FormulaPolyOn
     hs hk hs₂_subexp hk_subexp hmem (d + 1) (Nat.succ_pos d)] with n hn
   obtain ⟨F, hF, hyes, hno⟩ := hn
-  have hdiv : ((n / (d + 1) : ℕ) : ℝ) ≤ (n : ℝ) * ε := by
-    refine Nat.cast_div_le.trans ?_
-    simpa only [div_eq_mul_inv, one_mul, Nat.cast_add, Nat.cast_one] using
-      mul_le_mul_of_nonneg_left hd.le (Nat.cast_nonneg n)
-  refine ⟨F, (show (F.leafSize : ℝ) ≤ (2 ^ (n + n / (d + 1)) : ℕ) by
-    exact_mod_cast hF).trans ?_, hyes, hno⟩
-  calc
-    ((2 ^ (n + n / (d + 1)) : ℕ) : ℝ)
-        = (2 : ℝ) ^ ((n + n / (d + 1) : ℕ) : ℝ) := by
-          simp only [Real.rpow_natCast, Nat.cast_pow, Nat.cast_ofNat]
-    _ ≤ (2 : ℝ) ^ ((n : ℝ) * (1 + ε)) := by
-        apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-        push_cast
-        nlinarith
-    _ = ((2 ^ n : ℕ) : ℝ) ^ (1 + ε) := by
-        rw [Real.rpow_natCast_mul (by norm_num : (0 : ℝ) ≤ 2)]
-        norm_cast
+  have hdiv : ((n / (d + 1) : ℕ) : ℝ) ≤ (n : ℝ) * ε :=
+    Nat.cast_div_le.trans (by simpa only [div_eq_mul_inv, one_mul, Nat.cast_add, Nat.cast_one]
+      using mul_le_mul_of_nonneg_left hd.le (Nat.cast_nonneg n))
+  refine ⟨F, (by exact_mod_cast hF : (F.leafSize : ℝ) ≤ ((2 ^ (n + n / (d + 1)) : ℕ) : ℝ)).trans
+    ?_, hyes, hno⟩
+  rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast,
+    show ((2 ^ n : ℕ) : ℝ) = (2 : ℝ) ^ n by norm_cast,
+    ← Real.rpow_natCast_mul (by norm_num : (0 : ℝ) ≤ 2)]
+  exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by push_cast; linarith)
 
 /-- **Oliveira–Santhanam Theorem 17(iii), with a real excess exponent**
 [OliveiraSanthanam2018, Section 3.1, Theorem 17(iii), p. 15].
