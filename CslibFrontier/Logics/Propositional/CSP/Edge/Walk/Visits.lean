@@ -40,23 +40,14 @@ theorem internallyConsistent_iff_splits (f : OccurrenceLabeling F Bool)
     (ss : List (Occurrence F × Occurrence F)) :
     InternallyConsistent f ss ↔
       ∀ pre o p a b post, ss = pre ++ (o, p) :: (a, b) :: post → ¬ Inconsistent f p.var := by
-  constructor
-  · intro hi pre
-    induction pre generalizing ss with
-    | nil =>
-      intro o p a b post he
-      subst ss
-      exact hi.1.resolve_left (by simp)
-    | cons s pre ih =>
-      intro o p a b post he
-      subst ss
-      exact ih _ hi.2 o p a b post rfl
-  · intro hi
-    induction ss with
+  refine ⟨fun hi pre => ?_, fun hi => ?_⟩
+  · induction pre generalizing ss with
+    | nil => rintro o p a b post rfl; exact hi.1.resolve_left (by simp)
+    | cons s pre ih => rintro o p a b post rfl; exact ih _ hi.2 o p a b post rfl
+  · induction ss with
     | nil => trivial
     | cons s ss ih =>
-      refine ⟨?_, ih (fun pre o p a b post he => hi (s :: pre) o p a b post
-        (by simp only [List.cons_append, he]))⟩
+      refine ⟨?_, ih fun pre o p a b post he => hi (s :: pre) o p a b post (by simp [he])⟩
       cases ss with
       | nil => exact Or.inl rfl
       | cons t ss => exact Or.inr (hi [] s.1 s.2 t.1 t.2 ss rfl)
@@ -68,35 +59,22 @@ theorem IsWalk.internal_var_ne_start (hF : EdgeInstance F) {w : Walk F} (hw : w.
     (he : w.steps = pre ++ (o, p) :: (a, b) :: post) : p.var ≠ w.start := by
   have hl := hw.1
   rw [he, linked_append_iff] at hl
-  have hap : a.var = p.var := hl.2.2.2.1
-  have hn := hw.2
-  change (edgesOf w.steps).Nodup at hn
+  have hn : (edgesOf w.steps).Nodup := hw.2
   rw [he, edgesOf_append] at hn
-  have hports := (List.nodup_append.mp hn).2.1
-  change (o :: p :: a :: b :: edgesOf post).Nodup at hports
-  have hpa : p ≠ a := by
-    intro he
-    subst a
-    exact (List.nodup_cons.mp (List.nodup_cons.mp hports).2).1 List.mem_cons_self
+  have hports : (o :: p :: a :: b :: edgesOf post).Nodup := (List.nodup_append.mp hn).2.1
+  have hpa : p ≠ a := fun h =>
+    (List.nodup_cons.mp (List.nodup_cons.mp hports).2).1 (h ▸ List.mem_cons_self)
   intro hp
-  cases pre with
-  | nil =>
-    have hv : o.var = p.var := hl.2.1.trans hp.symm
-    have heq := hF.eq_of_constraint_eq hv hl.2.2.1
-    cases heq
+  rcases pre with _ | ⟨⟨r, q⟩, pre⟩
+  · cases hF.eq_of_constraint_eq (hl.2.1.trans hp.symm) hl.2.2.1
     exact (List.nodup_cons.mp hports).1 List.mem_cons_self
-  | cons s pre =>
-    rcases s with ⟨r, q⟩
-    have hroot : r.var = w.start := hl.1.1
-    change (r :: q :: (edgesOf pre ++ o :: p :: a :: b :: edgesOf post)).Nodup at hn
+  · change (r :: q :: (edgesOf pre ++ o :: p :: a :: b :: edgesOf post)).Nodup at hn
     have hrnot := (List.nodup_cons.mp hn).1
-    have hrp : r ≠ p := fun he => hrnot (he.symm ▸ (by simp))
-    have hra : r ≠ a := fun he => hrnot (he.symm ▸ (by simp))
-    rcases hF.eq_or_eq_partner (hroot.trans hp.symm) with he | he
-    · exact hrp he
-    · rcases hF.eq_or_eq_partner hap with ha | ha
-      · exact hpa ha.symm
-      · exact hra (he.trans ha.symm)
+    rcases hF.eq_or_eq_partner (hl.1.1.trans hp.symm) with rfl | hr'
+    · exact hrnot (by simp)
+    · rcases hF.eq_or_eq_partner hl.2.2.2.1 with rfl | ha
+      · exact hpa rfl
+      · exact hrnot (hr'.trans ha.symm ▸ by simp)
 
 open scoped symmDiff in
 /-- Preparing a walk's base by a trail from an inconsistent root preserves all of the
@@ -106,13 +84,11 @@ theorem IsWalk.internallyConsistent_flip (hF : EdgeInstance F)
     (he : prep.finish = w.start) (hr : Inconsistent f prep.start)
     (hi : InternallyConsistent f w.steps) : InternallyConsistent (prep.flip f) w.steps := by
   classical
-  apply (internallyConsistent_iff_splits _ _).mpr
-  intro pre o p a b post hs
+  refine (internallyConsistent_iff_splits _ _).mpr fun pre o p a b post hs => ?_
   have hcons := (internallyConsistent_iff_splits f w.steps).mp hi pre o p a b post hs
-  have hbase := hw.internal_var_ne_start hF hs
-  have hroot : p.var ≠ prep.start := fun he => hcons (he.symm ▸ hr)
-  have hfinish : p.var ≠ prep.finish := by rwa [he]
+  have hfinish : p.var ≠ prep.finish := he ▸ hw.internal_var_ne_start hF hs
   rw [← mem_defects, hp.defects_flip hF]
-  simp [Finset.mem_symmDiff, Finset.mem_singleton, hroot, hfinish, mem_defects, hcons]
+  simp [Finset.mem_symmDiff, Finset.mem_singleton,
+    show p.var ≠ prep.start from fun h => hcons (h ▸ hr), hfinish, mem_defects, hcons]
 
 end Cslib.Logic.PL.CSP.Walk

@@ -111,8 +111,7 @@ lemma commonMeanEnvelope_nonneg (R : RoleProfile J) (D : ZMod P)
     commonMeanEnvelope R D ss st ks k ku 0 Lh Lρ ζ input A G ν = 0 := by
   ext x y
   change finiteEnvelope (range 0) _ _ x y = 0
-  rw [range_zero]
-  exact finiteEnvelope_empty _ _ _ _
+  simpa only [range_zero] using finiteEnvelope_empty _ _ _ _
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Actual completed raw walking, followed by selected preparation and the narrower
@@ -144,31 +143,24 @@ theorem actualTwoSignal_mean_le_common
       (fun _ _ _ _ => 0) ν i x y| ≤
       commonMeanEnvelope R D ss st ks k ku m Lh Lρ ζ input A G ν x y * 2 ^ dyadicSlack m i := by
   extract_lets A T W
-  have hb := le_finiteEnvelope_mul (range m) (fun i => (2 : ℝ) ^ dyadicSlack m i)
+  refine le_trans ?_ (le_finiteEnvelope_mul (range m) (fun i => (2 : ℝ) ^ dyadicSlack m i)
     (twoSignalMeanEnvelope R D ss st ks k ku Lh Lρ ζ input A G ν)
-    (mem_range.mpr hi) (by positivity) x y
-  apply le_trans _ hb
+    (mem_range.mpr hi) (by positivity) x y)
   fin_cases ν
   · change |actualClippedMean HP R.source R.terminal (side P ks) (side P k) (side P ku)
       D ss st k G ζ (firstSignalIncrement A k (secondSignalIncrement W ζ))
       (fun _ _ _ _ => 0) 0 i x y| ≤ |firstMeanEnvelope R D ss st ks k (input (i + 1)) G x y|
-    rw [actualClippedMean_first_eq]
-    exact le_rfl
-  · have he := actualSelectedSecondSignal_mean_le_envelope HP hK D R ks k ku husage ss st A
+    rw [actualClippedMean_first_eq]; exact le_rfl
+  · change |actualClippedMean HP R.source R.terminal (side P ks) (side P k) (side P ku)
+      D ss st k G ζ (firstSignalIncrement A k (secondSignalIncrement W ζ))
+      (fun _ _ _ _ => 0) 1 i x y| ≤ |secondMeanEnvelope R D ss st ks k ku Lh Lρ ζ (A (i + 1)) G x y|
+    rw [abs_of_nonneg (by
+      simp only [actualClippedMean, Fin.isValue, one_ne_zero, ↓reduceIte]; positivity)]
+    exact (actualSelectedSecondSignal_mean_le_envelope HP hK D R ks k ku husage ss st A
       (fun _ => graph R.source R.terminal R.source_terminal (side P ks) (side P ku)
         (side_le P ks) (side_le P ku) (fun x => CopyPadding.identifier D ss x)
         (fun y => CopyPadding.identifier D st y))
-      (fun j _ _ => prepSteps j) A hLρ hh hρ ζ G i x y
-    have hn : 0 ≤ actualClippedMean HP R.source R.terminal (side P ks) (side P k) (side P ku)
-        D ss st k G ζ (firstSignalIncrement A k (secondSignalIncrement W ζ))
-        (fun _ _ _ _ => 0) 1 i x y := by
-      simp only [actualClippedMean, Fin.isValue, one_ne_zero, ↓reduceIte]
-      positivity
-    change |actualClippedMean HP R.source R.terminal (side P ks) (side P k) (side P ku)
-      D ss st k G ζ (firstSignalIncrement A k (secondSignalIncrement W ζ))
-      (fun _ _ _ _ => 0) 1 i x y| ≤ |secondMeanEnvelope R D ss st ks k ku Lh Lρ ζ (A (i + 1)) G x y|
-    rw [abs_of_nonneg hn]
-    exact he.trans (le_abs_self _)
+      (fun j _ _ => prepSteps j) A hLρ hh hρ ζ G i x y).trans (le_abs_self _)
 
 /-- Common B fourth moments are paid by scaled ACTUAL prefix envelope moments.
 The second channel keeps the narrower usage mask throughout integration. -/
@@ -224,13 +216,10 @@ theorem commonMeanEnvelope_moment_le_cost
   · exact ((firstMeanEnvelope_moment_le R D ss st ks k (input (i + 1)) G hG
       (cost i) (he i him) hNu).trans
         (mul_le_mul_of_nonneg_left (hc i him) (by positivity))).trans (le_max_left _ _)
-  · apply le_trans _ (le_max_right _ _)
-    apply secondMeanEnvelope_moment_le R D ss st ks k ku husage hLh hLρ ζ
+  · exact ((secondMeanEnvelope_moment_le R D ss st ks k ku husage hLh hLρ ζ
       (A (i + 1)) (rowSliceMean (retainedMask R.source (side P ks) D ss)
         (retainedMask R.terminal (side P k) D st) (input (i + 1))) G hNu (hz i him)
-    apply le_trans _ (hc i him)
-    apply row_mono_abs _ _ hNu
-    intro σ x y _ _
-    exact (he i him x y).trans (le_abs_self _)
+      ((row_mono_abs _ _ hNu _ _ fun σ x y _ _ =>
+        (he i him x y).trans (le_abs_self _)).trans (hc i him)))).trans (le_max_right _ _)
 
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

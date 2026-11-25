@@ -63,13 +63,10 @@ open Cslib.BitString
 theorem abs_le_of_mem_convexHull {Z : Type*} {F : Set (Z → ℝ)} {B : ℝ}
     (hF : ∀ f ∈ F, ∀ z, |f z| ≤ B) {f : Z → ℝ} (hf : f ∈ convexHull ℝ F) (z : Z) :
     |f z| ≤ B := by
-  have hconv : Convex ℝ {g : Z → ℝ | ∀ x, |g x| ≤ B} := by
-    intro g₁ hg₁ g₂ hg₂ a b ha hb hab x
+  have hconv : Convex ℝ {g : Z → ℝ | ∀ x, |g x| ≤ B} := fun g₁ hg₁ g₂ hg₂ a b ha hb hab x => by
     simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    calc |a * g₁ x + b * g₂ x|
-        ≤ |a * g₁ x| + |b * g₂ x| := abs_add_le _ _
-      _ = a * |g₁ x| + b * |g₂ x| := by
-          rw [abs_mul, abs_mul, abs_of_nonneg ha, abs_of_nonneg hb]
+    calc |a * g₁ x + b * g₂ x| ≤ |a * g₁ x| + |b * g₂ x| := abs_add_le _ _
+      _ = a * |g₁ x| + b * |g₂ x| := by rw [abs_mul, abs_mul, abs_of_nonneg ha, abs_of_nonneg hb]
       _ ≤ a * B + b * B := add_le_add
           (mul_le_mul_of_nonneg_left (hg₁ x) ha) (mul_le_mul_of_nonneg_left (hg₂ x) hb)
       _ = B := by rw [← add_mul, hab, one_mul]
@@ -81,19 +78,17 @@ private theorem expect_signVal_mul_le_of_mem_convexHull {m : ℕ} {A : Set (Fin 
     {σ : Fin m → Bool} {M : ℝ} (hA : ∀ v ∈ A, 𝔼 i, signVal (σ i) * v i ≤ M)
     {v : Fin m → ℝ} (hv : v ∈ convexHull ℝ A) :
     𝔼 i, signVal (σ i) * v i ≤ M := by
-  have hconv : Convex ℝ {u : Fin m → ℝ | 𝔼 i, signVal (σ i) * u i ≤ M} := by
-    intro u₁ hu₁ u₂ hu₂ a b ha hb hab
-    have hlin : 𝔼 i, signVal (σ i) * (a • u₁ + b • u₂) i =
-        a * (𝔼 i, signVal (σ i) * u₁ i) + b * (𝔼 i, signVal (σ i) * u₂ i) := by
-      simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.mul_expect,
-        ← Finset.expect_add_distrib]
-      refine Finset.expect_congr rfl fun i _ => by ring
-    change 𝔼 i, signVal (σ i) * (a • u₁ + b • u₂) i ≤ M
-    rw [hlin]
-    calc a * (𝔼 i, signVal (σ i) * u₁ i) + b * (𝔼 i, signVal (σ i) * u₂ i)
-        ≤ a * M + b * M := add_le_add
-          (mul_le_mul_of_nonneg_left hu₁ ha) (mul_le_mul_of_nonneg_left hu₂ hb)
-      _ = M := by rw [← add_mul, hab, one_mul]
+  have hconv : Convex ℝ {u : Fin m → ℝ | 𝔼 i, signVal (σ i) * u i ≤ M} :=
+    fun u₁ hu₁ u₂ hu₂ a b ha hb hab => by
+      have hlin : 𝔼 i, signVal (σ i) * (a • u₁ + b • u₂) i =
+          a * (𝔼 i, signVal (σ i) * u₁ i) + b * (𝔼 i, signVal (σ i) * u₂ i) := by
+        simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.mul_expect,
+          ← Finset.expect_add_distrib]
+        exact Finset.expect_congr rfl fun i _ => by ring
+      change 𝔼 i, signVal (σ i) * (a • u₁ + b • u₂) i ≤ M
+      rw [hlin]
+      exact (add_le_add (mul_le_mul_of_nonneg_left hu₁ ha)
+        (mul_le_mul_of_nonneg_left hu₂ hb)).trans_eq (by rw [← add_mul, hab, one_mul])
   exact convexHull_min (fun u hu => hA u hu) hconv hv
 
 /-- A real average bound for `A : Set (Fin m → ℝ)` whose coordinates are bounded by `B`. -/
@@ -106,9 +101,7 @@ private theorem bddAbove_range_expect_sub {m : ℕ} {A : Set (Fin m → ℝ)} {B
     refine ⟨B, ?_⟩
     rintro _ ⟨v, rfl⟩
     refine Finset.expect_le Finset.univ_nonempty fun i _ => ?_
-    calc signVal (σ i) * v.1 i ≤ |signVal (σ i) * v.1 i| := le_abs_self _
-      _ = |v.1 i| := by rw [abs_mul, abs_signVal, one_mul]
-      _ ≤ B := hA v.1 v.2 i
+    exact (le_abs_self _).trans (by rw [abs_mul, abs_signVal, one_mul]; exact hA v.1 v.2 i)
 
 /-- **Rademacher average of a convex hull** [ShalevShwartzBenDavid2014, Lemma 26.7]: taking the
 convex hull of a uniformly bounded set `A : Set (Fin m → ℝ)` preserves its Rademacher average. -/
@@ -121,30 +114,25 @@ theorem rademacherAverage_convexHull {m : ℕ} {A : Set (Fin m → ℝ)} {B : �
       simp only [convexHull_empty, Set.isEmpty_coe_sort]
     have : IsEmpty (↥(∅ : Set (Fin m → ℝ))) := Set.isEmpty_coe_sort.mpr rfl
     rw [rademacherAverage_of_isEmpty, rademacherAverage_of_isEmpty]
-  have hconv_bdd : ∀ (v : convexHull ℝ A) i, |v.1 i| ≤ B :=
-    fun v i => abs_le_of_mem_convexHull hA v.2 i
-  refine le_antisymm ?_ ?_
-  · rw [rademacherAverage_def, rademacherAverage_def]
-    have : Nonempty A := hne.to_subtype
-    have : Nonempty (convexHull ℝ A) := (hne.mono (subset_convexHull ℝ A)).to_subtype
-    refine Finset.expect_le_expect fun σ _ => ciSup_le fun v => ?_
-    refine expect_signVal_mul_le_of_mem_convexHull (fun u hu => ?_) v.2
-    exact le_ciSup (bddAbove_range_expect_sub hA σ) ⟨u, hu⟩
-  · exact rademacherAverage_le_of_forall_exists hconv_bdd fun v =>
-      ⟨⟨v.1, subset_convexHull ℝ A v.2⟩, rfl⟩
+  refine le_antisymm ?_ (rademacherAverage_le_of_forall_exists
+    (fun v i => abs_le_of_mem_convexHull hA v.2 i)
+    fun v => ⟨⟨v.1, subset_convexHull ℝ A v.2⟩, rfl⟩)
+  have : Nonempty A := hne.to_subtype
+  have : Nonempty (convexHull ℝ A) := (hne.mono (subset_convexHull ℝ A)).to_subtype
+  rw [rademacherAverage_def, rademacherAverage_def]
+  exact Finset.expect_le_expect fun σ _ => ciSup_le fun v =>
+    expect_signVal_mul_le_of_mem_convexHull
+      (fun u hu => le_ciSup (bddAbove_range_expect_sub hA σ) ⟨u, hu⟩) v.2
 
 /-- Every element of `convexHull ℝ F` evaluates at `S` inside the convex hull of the images of `F`
 under evaluation at `S`. -/
 private theorem eval_mem_convexHull {Z : Type*} {F : Set (Z → ℝ)} {m : ℕ} (S : Fin m → Z)
     {f : Z → ℝ} (hf : f ∈ convexHull ℝ F) :
-    (fun i => f (S i)) ∈ convexHull ℝ ((fun g : Z → ℝ => fun i => g (S i)) '' F) := by
+    (fun i => f (S i)) ∈ convexHull ℝ ((fun g : Z → ℝ => fun i => g (S i)) '' F) :=
   let A : Set (Fin m → ℝ) := (fun g : Z → ℝ => fun i => g (S i)) '' F
-  have hconv : Convex ℝ {g : Z → ℝ | (fun i => g (S i)) ∈ convexHull ℝ A} := by
-    intro g₁ hg₁ g₂ hg₂ a b ha hb hab
-    exact (convex_convexHull ℝ A) hg₁ hg₂ ha hb hab
-  have hsub : F ⊆ {g : Z → ℝ | (fun i => g (S i)) ∈ convexHull ℝ A} := fun g hg =>
-    subset_convexHull ℝ A ⟨g, hg, rfl⟩
-  exact convexHull_min hsub hconv hf
+  convexHull_min (t := {g | (fun i => g (S i)) ∈ convexHull ℝ A})
+    (fun g hg => subset_convexHull ℝ A ⟨g, hg, rfl⟩)
+    (fun _ hg₁ _ hg₂ _ _ ha hb hab => (convex_convexHull ℝ A) hg₁ hg₂ ha hb hab) hf
 
 /-- **Empirical Rademacher complexity of a convex hull** [MohriRostamizadehTalwalkar2018,
 Lemma 7.4]: for a uniformly bounded function class `F : Set (Z → ℝ)` and any sample `S : Fin m → Z`,
@@ -154,9 +142,7 @@ theorem empiricalRademacherComplexity_convexHull {Z : Type*} {F : Set (Z → ℝ
     empiricalRademacherComplexity (convexHull ℝ F) S =
       empiricalRademacherComplexity F S := by
   let A : Set (Fin m → ℝ) := (fun g : Z → ℝ => fun i => g (S i)) '' F
-  have hA : ∀ v ∈ A, ∀ i, |v i| ≤ B := by
-    rintro _ ⟨g, hg, rfl⟩ i
-    exact hF g hg (S i)
+  have hA : ∀ v ∈ A, ∀ i, |v i| ≤ B := by rintro _ ⟨g, hg, rfl⟩ i; exact hF g hg (S i)
   have hF_eq : empiricalRademacherComplexity F S = rademacherAverage (fun v : A => v.1) := by
     rw [empiricalRademacherComplexity_def]
     exact rademacherAverage_eq_of_forall_exists (fun g i => hF g.1 g.2 (S i))
