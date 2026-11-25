@@ -82,7 +82,8 @@ private theorem observer_disjoint_disk : Disjoint (Metric.closedBall (0 : ℂ) 1
   linarith
 
 /-- The orthogonal splice strictly reduces the set of interior crossings. It preserves endpoints,
-outgoing directions, exterior support and parity against an exterior observer. -/
+outgoing directions, exterior support and parity against an exterior observer. Points in the
+closed disk have unique positions along the splice. -/
 theorem removes_orthogonal_crossing :
     let r := Route.line (((-3 / 2 : ℝ) : ℂ) - Complex.I) (((-3 / 2 : ℝ) : ℂ) + Complex.I)
     let crossings (p : Route) := openSegmentCrossings
@@ -92,6 +93,9 @@ theorem removes_orthogonal_crossing :
       q.support \ Metric.closedBall (0 : ℂ) 1 = p.support \ Metric.closedBall (0 : ℂ) 1 ∧
       (∀ b : Bool, (q.germ b).arg = (p.germ b).arg) ∧
       crossings q ⊂ crossings p ∧
+      (∀ (i j : Fin q.segments) {s t : ℝ}, s ∈ Set.Icc 0 1 → t ∈ Set.Icc 0 1 →
+        q.eval i s ∈ Metric.closedBall (0 : ℂ) 1 → q.eval i s = q.eval j t →
+          q.position i s = q.position j t) ∧
       q.intersectionParity r = p.intersectionParity r := by
   have hx : (0 : ℂ) ∈ openSegment ℝ (route.point (0 : Fin route.segments).castSucc)
       (route.point (0 : Fin route.segments).succ) := by
@@ -118,10 +122,10 @@ theorem removes_orthogonal_crossing :
   intro r crossings
   have hz : (0 : ℂ) ∈ crossings route := ⟨0, 3, by decide, hx, hy⟩
   refine ⟨route, hz, ?_⟩
-  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, _⟩ :=
+  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, hpositions, _⟩ :=
     route.exists_splice_of_isolated_crossing 0 3 (by decide) (by norm_num) hx hy hpair
       route_ends_outside connector_segments_outside
-  refine ⟨q, hstart, hfinish, hn, hout, ?_, ?_, hparity r observer_disjoint_disk⟩
+  refine ⟨q, hstart, hfinish, hn, hout, ?_, ?_, hpositions, hparity r observer_disjoint_disk⟩
   · intro b
     obtain ⟨c, hc, he⟩ := hgerm b
     rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
