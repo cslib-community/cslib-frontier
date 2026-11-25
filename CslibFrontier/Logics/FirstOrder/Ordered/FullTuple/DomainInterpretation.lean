@@ -192,12 +192,11 @@ theorem map_comp {L'' : Language} [L''.IsRelational] {l : ℕ}
       (J.toDomainInterpretation.map (J.admissible_toDomainInterpretation hl) M₁).size =
         M₁.size ^ l :=
     card_toDomainInterpretation M₁
-  have hpow : M.size ^ (l * k) = (M.size ^ k) ^ l := by rw [← pow_mul, Nat.mul_comm l k]
   have hsize :
       ((J.comp I).toDomainInterpretation.map
         ((J.comp I).admissible_toDomainInterpretation (Nat.mul_pos hl hk)) M).size =
         (J.toDomainInterpretation.map (J.admissible_toDomainInterpretation hl) M₁).size := by
-    rw [hcL, hcR, hc₁, hpow]
+    rw [hcL, hcR, hc₁, ← pow_mul, Nat.mul_comm l k]
   refine Structure.ext hsize fun R x => ?_
   refine ((J.comp I).relMap_map_eq (Nat.mul_pos hl hk) M hcL R x).trans
     ((?_ : _ ↔ _).trans (J.relMap_map_eq hl M₁ hcR R (Fin.cast hsize ∘ x)).symm)
@@ -221,26 +220,11 @@ theorem map_comp {L'' : Language} [L''.IsRelational] {l : ℕ}
   change (J.rel R).Realize (fun p => lexEquiv.symm (y p.1) p.2) ↔
     (J.rel R).Realize (M := M₁) (fun p => lexEquiv.symm (u p.1) p.2)
   rw [← StrongHomClass.realize_formula e₁ (J.rel R)]
-  refine iff_of_eq (congrArg (J.rel R).Realize (funext fun ⟨a, j⟩ => ?_))
-  have htuple : lexEquiv.symm (y a) = fun j' => e₁ (lexEquiv.symm (u a) j') := by
-    apply lexRank_injective
-    have hyval : lexRank (lexEquiv.symm (y a)) = (x a).val := by
-      have h₁ : lexRank (lexEquiv.symm (y a)) = (y a).val :=
-        congrArg Fin.val (lexEquiv.apply_symm_apply (y a))
-      have h₂ : (y a).val = (eComp (y a)).val := (J.compEquiv_apply_val I hk hl (y a)).symm
-      rw [h₁, h₂, eComp.apply_symm_apply, Fin.val_cast]
-    have huval : lexRank (fun j' => e₁ (lexEquiv.symm (u a) j')) = (x a).val := by
-      rw [lexRank_apply]
-      have hsum :
-          (∑ j' : Fin l, (e₁ (lexEquiv.symm (u a) j')).val * (M.size ^ k) ^ j'.rev.val) =
-            ∑ j' : Fin l, (lexEquiv.symm (u a) j').val * M₁.size ^ j'.rev.val :=
-        Finset.sum_congr rfl fun j' _ =>
-          congrArg₂ (· * ·) rfl (congrArg (· ^ j'.rev.val) hc₁.symm)
-      rw [hsum, ← lexRank_apply]
-      exact (congrArg Fin.val (lexEquiv.apply_symm_apply (u a))).trans
-        (by simp only [u, Function.comp_apply, Fin.val_cast])
-    exact hyval.trans huval.symm
-  exact congrFun htuple j
+  refine iff_of_eq (congrArg (J.rel R).Realize (funext fun ⟨a, j⟩ => Fin.ext ?_))
+  change ((lexEquiv.symm (y a)) j).val = (lexEquiv.symm (u a) j).val
+  rw [lexEquiv_symm_apply_val, lexEquiv_symm_apply_val]
+  change (x a).val / _ % _ = (x a).val / _ % _
+  rw [hc₁]
 
 end FullTupleInterpretation
 
