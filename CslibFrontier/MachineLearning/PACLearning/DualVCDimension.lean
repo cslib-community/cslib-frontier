@@ -29,6 +29,11 @@ The dual class enters the Moran–Yehudayoff compression scheme through classes 
 `{g ∘ φ | g ∈ G}`, which test a learned hypothesis `φ r` at a point. A set shattered by such a class
 is mapped injectively by `φ` onto a set shattered by `G` (`SetShatters.injOn_of_comp`,
 `SetShatters.image_of_comp`), so the size bounds of `G` transfer (`SetShatters.card_le_of_comp`).
+With the map `Fin.succ`, this transfers bounds from a class on `Fin (n + 1)` to its tails. The tails
+whose two extensions both lie in the class shatter one coordinate fewer
+(`SetShatters.insert_zero_of_cons`, `SetShatters.card_add_one_le_of_cons`). These two transfers
+drive the coordinate-by-coordinate induction of Haussler's packing bound and of the one-inclusion
+graph density bound.
 
 ## Main definitions
 
@@ -38,6 +43,8 @@ is mapped injectively by `φ` onto a set shattered by `G` (`SetShatters.injOn_of
 
 - `SetShatters.card_le_of_comp`: a bound on the shattered finite sets of `G` bounds those of
   `{g ∘ φ | g ∈ G}`.
+- `SetShatters.card_add_one_le_of_cons`: a bound on the shattered finite sets of a class on
+  `Fin (n + 1)`, less one, bounds those of the tails with both extensions in the class.
 - `card_le_of_setShatters_dualClass`: **Assouad's dual VC bound**. If the shattered finite sets of
   `C` have at most `d` points, those of `dualClass C` have at most `2 ^ (d + 1) - 1`.
 - `hasFiniteVCDim_dualClass`, `vcDim_dualClass_le`: the same bound for `vcDim`.
@@ -92,6 +99,53 @@ theorem SetShatters.card_le_of_comp {G : ConceptClass κ Bool} {d : ℕ}
   classical
   rw [← Finset.card_image_of_injOn hW.injOn_of_comp]
   exact hG _ (by simpa only [Finset.coe_image] using hW.image_of_comp)
+
+/-! ### Shattering through both extensions of a tail -/
+
+/-- If the tails `g` whose two extensions `Fin.cons false g` and `Fin.cons true g` both lie in `S`
+shatter `W`, then `S` shatters `W`, shifted by `Fin.succ`, together with the coordinate `0`. -/
+theorem SetShatters.insert_zero_of_cons {n : ℕ} {S : Set (Fin (n + 1) → Bool)} {W : Set (Fin n)}
+    (hW : SetShatters {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} W) :
+    SetShatters S (insert 0 (Fin.succ '' W)) := by
+  classical
+  intro T hT
+  obtain ⟨g, ⟨hg0, hg1⟩, hgT⟩ := hW (W ∩ Fin.succ ⁻¹' T) inter_subset_left
+  let b : Bool := decide ((0 : Fin (n + 1)) ∈ T)
+  refine ⟨Fin.cons b g, by cases hb : b <;> [exact hg0; exact hg1], Set.ext fun x => ?_⟩
+  simp only [mem_inter_iff, mem_preimage, mem_singleton_iff]
+  rcases Fin.eq_zero_or_eq_succ x with rfl | ⟨i, rfl⟩
+  · simp [b]
+  · constructor
+    · rintro ⟨hgi, hxins⟩
+      simp only [Fin.cons_succ] at hgi
+      have hiW : i ∈ W := by
+        rcases hxins with h0 | ⟨j, hj, hji⟩
+        · exact absurd h0 (Fin.succ_ne_zero i)
+        · rwa [Fin.succ_inj.mp hji] at hj
+      have hmem : i ∈ g ⁻¹' {true} ∩ W := ⟨hgi, hiW⟩
+      rw [hgT] at hmem
+      exact hmem.2
+    · intro hiT
+      have hiW : i ∈ W := by
+        rcases hT hiT with h0 | ⟨j, hj, hji⟩
+        · exact absurd h0 (Fin.succ_ne_zero i)
+        · rwa [Fin.succ_inj.mp hji] at hj
+      have hmem : i ∈ g ⁻¹' {true} ∩ W := hgT ▸ ⟨hiW, hiT⟩
+      exact ⟨by simpa only [Fin.cons_succ, mem_preimage, mem_singleton_iff] using hmem.1,
+        Or.inr ⟨i, hiW, rfl⟩⟩
+
+/-- A bound `d` on the finite sets shattered by `S` bounds by `d - 1` the finite sets shattered by
+the tails `g` whose two extensions `Fin.cons false g` and `Fin.cons true g` both lie in `S`. -/
+theorem SetShatters.card_add_one_le_of_cons {n d : ℕ} {S : Set (Fin (n + 1) → Bool)}
+    (hS : ∀ V : Finset (Fin (n + 1)), SetShatters S ↑V → V.card ≤ d) {W : Finset (Fin n)}
+    (hW : SetShatters {g | Fin.cons false g ∈ S ∧ Fin.cons true g ∈ S} ↑W) : W.card + 1 ≤ d := by
+  classical
+  have h0 : (0 : Fin (n + 1)) ∉ W.map (Fin.succEmb n) := by
+    simp only [Finset.mem_map, Fin.coe_succEmb, not_exists, not_and]
+    exact fun i _ => Fin.succ_ne_zero i
+  have hcard := hS (insert 0 (W.map (Fin.succEmb n)))
+    (by rw [Finset.coe_insert, Finset.coe_map]; exact hW.insert_zero_of_cons)
+  rwa [Finset.card_insert_of_notMem h0, Finset.card_map] at hcard
 
 /-! ### The dual class -/
 
