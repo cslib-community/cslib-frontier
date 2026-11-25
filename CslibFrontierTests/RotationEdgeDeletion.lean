@@ -142,6 +142,13 @@ example : sphereBigon.deleteLastEdge.NumericalGenusZero :=
 example : RotationCertificate.ofRotation sphereBigon.deleteLastEdge = ⟨[0, 1]⟩ := by
   decide +kernel
 
+-- Each retained end of the digon skips exactly the removed dart at its own vertex.
+example (tag : Bool) : sphereBigon.deleteLastEdge.rotate (0, tag) = (0, tag) := by
+  apply (sphereBigon.rotate_deleteLastEdge_eq_iff (by decide) _ _).mpr
+  refine Or.inr ⟨tag, ?_, ?_⟩
+  · cases tag <;> decide +kernel
+  · cases tag <;> decide +kernel
+
 example : RotationCertificate.verifyGenusZero bridge
     (RotationCertificate.ofRotation sphereBigon.deleteLastEdge) = true := by decide +kernel
 
