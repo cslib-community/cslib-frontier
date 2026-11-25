@@ -71,20 +71,16 @@ private theorem prod_one_sub_inv_two_pow_ge (m : ℕ) (hm : 1 ≤ m) :
   | base => norm_num
   | succ m hm ih =>
     rw [prod_range_succ]
-    have hp : (0 : ℝ) ≤ 1 - 1 / 2 ^ (m + 1) := by
-      rw [sub_nonneg, div_le_one (by positivity)]
-      exact one_le_pow₀ (by norm_num)
+    have hp : (0 : ℝ) ≤ 1 - 1 / 2 ^ (m + 1) :=
+      sub_nonneg.2 (div_le_one_of_le₀ (one_le_pow₀ (by norm_num)) (by positivity))
     have hy : (1 : ℝ) / 2 ^ (m + 1) ≤ 1 / 4 := by
-      rw [div_le_div_iff₀ (by positivity) (by norm_num), one_mul, one_mul]
-      calc (4 : ℝ) = 2 ^ 2 := by norm_num
-        _ ≤ 2 ^ (m + 1) := pow_le_pow_right₀ (by norm_num) (by omega)
-    calc 1 / 4 + 1 / (2 : ℝ) ^ (m + 1 + 1)
-        ≤ (1 / 4 + 1 / 2 ^ (m + 1)) * (1 - 1 / 2 ^ (m + 1)) := by
-          have h2 : (1 : ℝ) / 2 ^ (m + 1 + 1) = 1 / 2 ^ (m + 1) / 2 := by
-            rw [pow_succ]; field_simp
-          rw [h2]
-          nlinarith [hy, show (0 : ℝ) ≤ 1 / 2 ^ (m + 1) by positivity]
-      _ ≤ _ := mul_le_mul_of_nonneg_right ih hp
+      rw [div_le_div_iff₀ (by positivity) (by norm_num), one_mul, one_mul,
+        show (4 : ℝ) = 2 ^ 2 by norm_num]
+      exact pow_le_pow_right₀ (by norm_num) (by omega)
+    refine (?_ : _ ≤ (1 / 4 + 1 / (2 : ℝ) ^ (m + 1)) * (1 - 1 / 2 ^ (m + 1))).trans
+      (mul_le_mul_of_nonneg_right ih hp)
+    rw [show (1 : ℝ) / 2 ^ (m + 1 + 1) = 1 / 2 ^ (m + 1) / 2 by rw [pow_succ]; field_simp]
+    nlinarith [show (0 : ℝ) ≤ 1 / 2 ^ (m + 1) by positivity]
 
 /-- `∏_{i < m} (1 - 2^i / 2^m) ≥ 1 / 4`: the fraction of linearly independent `m`-tuples in an
 `m`-dimensional space over `GF(2)`. -/
@@ -92,17 +88,11 @@ private theorem one_div_four_le_prod_one_sub (m : ℕ) :
     (1 / 4 : ℝ) ≤ ∏ i ∈ range m, (1 - (2 : ℝ) ^ i / 2 ^ m) := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · norm_num
-  have h : ∏ i ∈ range m, (1 - (2 : ℝ) ^ i / 2 ^ m) =
-      ∏ j ∈ range m, (1 - 1 / (2 : ℝ) ^ (j + 1)) := by
-    rw [← prod_range_reflect]
-    refine prod_congr rfl fun j hj => ?_
-    have hj := mem_range.1 hj
-    congr 1
-    rw [div_eq_div_iff (by positivity) (by positivity), one_mul, ← pow_add]
-    congr 1
-    omega
-  rw [h]
-  exact le_trans (le_add_of_nonneg_right (by positivity)) (prod_one_sub_inv_two_pow_ge m hm)
+  rw [← prod_range_reflect]
+  refine (le_add_of_nonneg_right (by positivity)).trans
+    ((prod_one_sub_inv_two_pow_ge m hm).trans_eq (prod_congr rfl fun j hj => ?_))
+  congr 1; rw [div_eq_div_iff (by positivity) (by positivity), one_mul, ← pow_add]
+  congr 1; have := mem_range.1 hj; omega
 
 variable {n : ℕ}
 
@@ -141,9 +131,7 @@ private theorem eq_zero_or_eq_of_forall_mem_orth {a w : Fin n → ZMod 2}
   rw [orth, LinearMap.BilinForm.orthogonal_orthogonal nondegenerate_dotForm isRefl_dotForm,
     Submodule.mem_span_singleton] at hw'
   obtain ⟨c, rfl⟩ := hw'
-  rcases (by decide : ∀ c : ZMod 2, c = 0 ∨ c = 1) c with h | h
-  · left; rw [h, zero_smul]
-  · right; rw [h, one_smul]
+  rcases (by decide : ∀ c : ZMod 2, c = 0 ∨ c = 1) c with rfl | rfl <;> simp
 
 /-- **Arora–Barak, Exercise 20.5** (web draft 2007-01-08, p. 431/447), with the hypothesis
 `a ≠ 0` it needs. For nonzero `a ∈ GF(2)^n`, if `y_1, …, y_{n-1}` are drawn uniformly at random
@@ -158,42 +146,31 @@ theorem one_div_four_le_card_determines_div_card {a : Fin n → ZMod 2} (ha : a 
   classical
   set K := orth a
   have hK := finrank_orth ha
-  -- the uniform space: tuples of vectors of `K`
   have hall : #{y : Fin (n - 1) → Fin n → ZMod 2 | ∀ i, y i ⬝ᵥ a = 0} =
       (2 ^ (n - 1)) ^ (n - 1) := by
-    have h1 : #{y : Fin (n - 1) → Fin n → ZMod 2 | ∀ i, y i ⬝ᵥ a = 0} =
-        Fintype.card (Fin (n - 1) → K) := by
-      rw [← Fintype.card_coe, Fintype.card_congr ((Equiv.subtypeEquivRight fun y => by
-        simp only [mem_filter, mem_univ, true_and]
-        exact forall_congr' fun i => (mem_orth (a := a) (y := y i)).symm).trans
-          (Equiv.subtypePiEquivPi (p := fun _ v => v ∈ K)))]
-    rw [h1, Fintype.card_fun, Fintype.card_fin, card_eq_pow_finrank (K := ZMod 2) (V := K), hK,
-      ZMod.card]
-  -- the linearly independent tuples determine `a`
+    rw [← Fintype.card_coe, Fintype.card_congr ((Equiv.subtypeEquivRight fun y => by
+      simp only [mem_filter, mem_univ, true_and]
+      exact forall_congr' fun i => (mem_orth (a := a) (y := y i)).symm).trans
+        (Equiv.subtypePiEquivPi (p := fun _ v => v ∈ K))),
+      Fintype.card_fun, Fintype.card_fin, card_eq_pow_finrank (K := ZMod 2) (V := K), hK, ZMod.card]
   have hgood : ∏ i : Fin (n - 1), (2 ^ (n - 1) - 2 ^ i.val) ≤
       #{y : Fin (n - 1) → Fin n → ZMod 2 |
         (∀ i, y i ⬝ᵥ a = 0) ∧ ∀ w, (∀ i, y i ⬝ᵥ w = 0) → w = 0 ∨ w = a} := by
     have hli := card_linearIndependent (K := ZMod 2) (V := K) (k := n - 1) hK.ge
     rw [ZMod.card, hK] at hli
     rw [← hli, Nat.card_eq_fintype_card, ← Fintype.card_coe]
-    refine Fintype.card_le_of_injective (fun s => ⟨fun i => (s.1 i : Fin n → ZMod 2), ?_⟩) ?_
-    · refine mem_filter.2 ⟨mem_univ _, fun i => mem_orth.1 (s.1 i).2, fun w hw => ?_⟩
-      refine eq_zero_or_eq_of_forall_mem_orth fun v hv => ?_
-      have hspan := s.2.span_eq_top_of_card_eq_finrank' (by rw [Fintype.card_fin, hK])
-      have key : ∀ x ∈ Submodule.span (ZMod 2) (Set.range s.1), (x : Fin n → ZMod 2) ⬝ᵥ w = 0 := by
-        intro x hx
-        induction hx using Submodule.span_induction with
-        | mem x hx =>
-          obtain ⟨i, rfl⟩ := hx
-          exact hw i
-        | zero => simp
-        | add x y _ _ hx hy => simp [add_dotProduct, hx, hy]
-        | smul c x _ hx => simp [smul_dotProduct, hx]
-      exact key ⟨v, hv⟩ (hspan ▸ Submodule.mem_top)
-    · intro s t hst
-      apply Subtype.ext
-      funext i
-      exact Subtype.ext (congrFun (congrArg Subtype.val hst) i)
+    refine Fintype.card_le_of_injective (fun s => ⟨fun i => (s.1 i : Fin n → ZMod 2),
+      mem_filter.2 ⟨mem_univ _, fun i => mem_orth.1 (s.1 i).2, fun w hw =>
+        eq_zero_or_eq_of_forall_mem_orth fun v hv => ?_⟩⟩) fun s t hst =>
+          Subtype.ext (funext fun i => Subtype.ext (congrFun (congrArg Subtype.val hst) i))
+    suffices ∀ x ∈ Submodule.span (ZMod 2) (Set.range s.1), (x : Fin n → ZMod 2) ⬝ᵥ w = 0 from
+      this ⟨v, hv⟩ (s.2.span_eq_top_of_card_eq_finrank' (by rw [Fintype.card_fin, hK]) ▸
+        Submodule.mem_top)
+    intro x hx; induction hx using Submodule.span_induction with
+    | mem _ hx => rcases hx with ⟨i, rfl⟩; exact hw i
+    | zero => simp
+    | add _ _ _ _ hx hy => simp [add_dotProduct, hx, hy]
+    | smul _ _ _ hx => simp [smul_dotProduct, hx]
   rw [hall, le_div_iff₀ (by positivity)]
   refine le_trans ?_ (Nat.cast_le.2 hgood)
   rw [Nat.cast_prod, Fin.prod_univ_eq_prod_range (fun i => ((2 ^ (n - 1) - 2 ^ i : ℕ) : ℝ))]
@@ -203,11 +180,8 @@ theorem one_div_four_le_card_determines_div_card {a : Fin n → ZMod 2} (ha : a 
       rw [prod_const, card_range], ← prod_mul_distrib]
     refine prod_congr rfl fun i hi => ?_
     rw [Nat.cast_sub (Nat.pow_le_pow_right (by norm_num) (mem_range.1 hi).le)]
-    field_simp
-    push_cast
-    ring
-  rw [hprod]
-  push_cast
+    field_simp; push_cast; ring
+  rw [hprod]; push_cast
   exact mul_le_mul_of_nonneg_right (one_div_four_le_prod_one_sub _) (by positivity)
 
 end Cslib.LinearAlgebra
