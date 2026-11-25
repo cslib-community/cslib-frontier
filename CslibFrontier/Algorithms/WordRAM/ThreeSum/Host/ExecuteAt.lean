@@ -50,13 +50,8 @@ def callerTime (N T : ℕ) : ℕ :=
 theorem Callee.not_readsWidth_bodyAt {r : ℕ} (c : Callee r) : ¬(bodyAt c.code).ReadsWidth := by
   have hp : ¬prepareAt.ReadsWidth := by decide
   have hf : ¬fill.ReadsWidth := by decide
-  have hs : ¬(solverSetup (r := r)).ReadsWidth := by
-    simp only [solverSetup, Code.ReadsWidth, Op.ReadsWidth, not_false_eq_true, or_self]
-  have he : ¬(finish (r := r)).ReadsWidth := by
-    simp only [finish, Code.ReadsWidth, Op.bin, Op.ReadsWidth,
-      reduceCtorEq, not_false_eq_true, or_self]
-  simp only [bodyAt, loop, round, Code.ReadsWidth, Code.readsWidth_rename,
-    hp, hf, hs, he, c.not_readsWidth, false_or, not_false_eq_true]
+  simp [bodyAt, loop, round, solverSetup, finish, Code.ReadsWidth, Code.readsWidth_rename,
+    Op.ReadsWidth, Op.bin, hp, hf, c.not_readsWidth]
 
 /-- The finite callee's matrix contract applies to the exact memory written by the builder. -/
 theorem Callee.exec_instance {r w N U src workspace s : ℕ} (c : Callee r) (μ : ℕ → ℤ)
@@ -77,25 +72,19 @@ theorem Callee.exec_instance {r w N U src workspace s : ℕ} (c : Callee r) (μ 
   let t := sideLength N
   let A : Fill.Args := instanceArgsAt N U src workspace s μ
   let v : Fin t := ⟨0, by dsimp only [t, sideLength]; omega⟩
-  have hmat (i j k : Fin t) := A.matrices_filled mem (by dsimp only [A, instanceArgsAt]; omega)
-    (by dsimp only [A, instanceArgsAt]; omega) i j k
-  have hb (i j k : Fin t) := weights_abs_le (t := t) (s := s)
-    (show (0 : ℤ) ≤ U by positivity) hvalues i j k
+  have hmat := A.matrices_filled mem (by dsimp only [A, instanceArgsAt]; omega)
+    (by dsimp only [A, instanceArgsAt]; omega)
+  have hb := weights_abs_le (t := t) (s := s) (show (0 : ℤ) ≤ U by positivity) hvalues
   obtain ⟨b, he, hbool, hans, hframe⟩ := c.exec w t (2 * U + 1) workspace
     (workspace + t * t) (workspace + 2 * (t * t)) (workspace + 3 * (t * t)) a
     (weightAB N μ (2 * U + 1)) (weightBC N s μ (2 * U + 1))
     (weightAC N s μ (2 * U + 1)) (by dsimp only [t, sideLength]; omega) (by omega)
     (by omega) (by omega) (by omega) hw ht hF hab hbc hac hfree
-    (fun i j => by rw [hm]; exact (hmat i j v).1)
-    (fun i j => by rw [hm]; exact (hmat v i j).2.1)
-    (fun i j => by rw [hm]; exact (hmat i v j).2.2)
-    (fun i j => by exact_mod_cast (hb i j v).1)
-    (fun i j => by exact_mod_cast (hb v i j).2.1)
-    (fun i j => by exact_mod_cast (hb i v j).2.2)
-  refine ⟨b, he, hbool, hans, ?_⟩
-  intro p hp
-  rw [hframe p hp, hm]
-  apply Fill.Args.outside_filled
+    (fun i j => hm ▸ (hmat i j v).1) (fun i j => hm ▸ (hmat v i j).2.1)
+    (fun i j => hm ▸ (hmat i v j).2.2) (fun i j => by exact_mod_cast (hb i j v).1)
+    (fun i j => by exact_mod_cast (hb v i j).2.1) (fun i j => by exact_mod_cast (hb i v j).2.2)
+  refine ⟨b, he, hbool, hans, fun p hp => (hframe p hp).trans ?_⟩
+  rw [hm]; apply Fill.Args.outside_filled
   all_goals dsimp only [instanceArgsAt]; omega
 
 /-- Actual caller-argument execution with a Boolean Convolution verdict and a full prefix frame. -/
@@ -123,14 +112,10 @@ theorem exec_at {r w N U src workspace : ℕ} (c : Callee r) (μ : ℕ → ℤ)
     ExecWithin.rename_post (hostRegisters_injective (r := r + 7))
       (exec_prepare_at (x.comap hostRegisters) hN hU hb hab hbelow hsize hfill hsqrt)
   obtain ⟨y, hy, _, _, hyf, hyans, hym⟩ := exec_loop_at μ c.code a hap hai haf
-    (fun i hi => (congrFun hpm (src + i)).trans (hmem i hi))
-    hidx hF hμ hsize hbelow
-    (fun s _ => c.exec_instance μ hvalues hcw)
-  refine ⟨y, (ha.seq hy).mono ?_, hyf, ?_, ?_⟩
-  · dsimp only [callerTime]
-    omega
-  · exact hyans.trans (convolution_iff_sqrt (U := (U : ℤ)) (by positivity) hvalues).symm
-  · intro p hp
-    exact (hym p hp).trans (congrFun hpm p)
+    (fun i hi => (congrFun hpm (src + i)).trans (hmem i hi)) hidx hF hμ hsize hbelow
+    fun s _ => c.exec_instance μ hvalues hcw
+  exact ⟨y, (ha.seq hy).mono (by dsimp only [callerTime]; omega), hyf,
+    hyans.trans (convolution_iff_sqrt (U := (U : ℤ)) (by positivity) hvalues).symm,
+    fun p hp => (hym p hp).trans (congrFun hpm p)⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Host

@@ -56,9 +56,7 @@ private theorem completion_population (L s : ℕ) :
 /-- An eligible slot denotes a box with the original finite box predicate. -/
 theorem slotCube_isBox {L m t s : ℕ} (h : Eligible L (m - t) s) :
     IsBox m t (slotCube L s) := by
-  apply isBox_starLowest
-  rw [completion_population]
-  exact h.2
+  apply isBox_starLowest; exact (completion_population L s).trans_le h.2
 
 /-- Eligibility ensures that starring does not saturate before its supplied star count. -/
 theorem slotCube_star_count {L H s : ℕ} (h : Eligible L H s) :
@@ -105,40 +103,31 @@ theorem slotCube_cubeSlot {L m t : ℕ} {π : Cube L} (hπ : IsBox m t π) :
 theorem count_eligible_eq_card_boxes (L m t : ℕ) :
     Nat.count (Eligible L (m - t)) ((m - t + 1) * 10 ^ L) = (boxes L m t).card := by
   rw [Nat.count_eq_card_filter_range]
-  refine card_bij (fun s _ => slotCube L s) ?_ ?_ ?_
-  · intro s hs
-    exact mem_boxes.mpr (slotCube_isBox (mem_filter.mp hs).2)
-  · intro s hs s' hs' heq
-    have hkeys := congrArg cubeSlot heq
-    simpa only [cubeSlot_slotCube (mem_filter.mp hs).2,
-      cubeSlot_slotCube (mem_filter.mp hs').2] using hkeys
-  · intro π hπ
-    have hp := mem_boxes.mp hπ
-    exact ⟨cubeSlot π, mem_filter.mpr ⟨mem_range.mpr (cubeSlot_lt hp),
-      eligible_cubeSlot hp⟩, slotCube_cubeSlot hp⟩
+  exact card_bij (fun s _ => slotCube L s)
+    (fun _ hs => mem_boxes.mpr (slotCube_isBox (mem_filter.mp hs).2))
+    (fun _ hs _ hs' heq => by
+      simpa only [cubeSlot_slotCube (mem_filter.mp hs).2,
+        cubeSlot_slotCube (mem_filter.mp hs').2] using congrArg cubeSlot heq)
+    fun π hπ => ⟨cubeSlot π, mem_filter.mpr ⟨mem_range.mpr (cubeSlot_lt (mem_boxes.mp hπ)),
+      eligible_cubeSlot (mem_boxes.mp hπ)⟩, slotCube_cubeSlot (mem_boxes.mp hπ)⟩
 
 /-- Every eligible slot below the directory bound has compact rank below `(boxes L m t).card`. -/
 theorem count_lt_card_boxes {L m t s : ℕ} (hs : s < (m - t + 1) * 10 ^ L)
     (hv : Eligible L (m - t) s) :
-    Nat.count (Eligible L (m - t)) s < (boxes L m t).card := by
-  have h := Nat.count_strict_mono hv hs
-  rwa [count_eligible_eq_card_boxes] at h
+    Nat.count (Eligible L (m - t)) s < (boxes L m t).card :=
+  count_eligible_eq_card_boxes L m t ▸ Nat.count_strict_mono hv hs
 
 /-- The native subtraction computes a replacement leaf's existing decimal index exactly. -/
 theorem leafIndex_update_P0 {L : ℕ} (τ : Leaf L) (ℓ : Fin L) (d : Fin 10)
     (hτ : τ ℓ = .P0) :
     (Encoding.leafIndex (Function.update τ ℓ (Encoding.termDigits d))).val =
       (Encoding.leafIndex τ).val - (9 - d.val) * 10 ^ ℓ.val := by
-  have hfun : (fun j => Encoding.termDigits.symm
-      (Function.update τ ℓ (Encoding.termDigits d) j)) =
-      Function.update (fun j => Encoding.termDigits.symm (τ j)) ℓ d := by
-    funext j
-    by_cases h : j = ℓ <;> simp [h]
   unfold Encoding.leafIndex
-  rw [hfun]
-  have hd : d.val ≤ (Encoding.termDigits.symm (τ ℓ)).val := by
-    simpa [hτ, Encoding.termDigits] using (Nat.le_of_lt_succ d.isLt)
+  rw [show (fun j => Encoding.termDigits.symm (Function.update τ ℓ (Encoding.termDigits d) j)) =
+    Function.update (fun j => Encoding.termDigits.symm (τ j)) ℓ d from
+      funext fun j => by by_cases h : j = ℓ <;> simp [h]]
   simpa [hτ, Encoding.termDigits] using Nat.finFunctionFinEquiv_update_of_le
-    (fun j => Encoding.termDigits.symm (τ j)) ℓ d hd
+    (fun j => Encoding.termDigits.symm (τ j)) ℓ d
+    (by simpa [hτ, Encoding.termDigits] using Nat.le_of_lt_succ d.isLt)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

@@ -51,15 +51,10 @@ theorem NodeLayout.child {p k a b out scratch frames frame : ℕ}
     (h : NodeLayout p (k + 1) a b out scratch frames frame) :
     NodeLayout p k scratch (scratch + 4 ^ k * p) (scratch + 2 * (4 ^ k * p))
       (scratch + 3 * (4 ^ k * p)) frames (frame + 7) := by
-  refine ⟨h.modulus_pos, ?_, ?_, ?_, ?_, ?_, Or.inl ?_, Or.inl ?_⟩
-  · omega
-  · omega
-  · omega
-  · simpa only [child_scratch_end] using h.scratch_before
-  · have hf := h.frames_before
-    omega
-  · omega
-  · omega
+  have hf := h.frames_before
+  exact ⟨h.modulus_pos, by omega, by omega, by omega,
+    by simpa only [child_scratch_end] using h.scratch_before, by omega,
+    Or.inl (by omega), Or.inl (by omega)⟩
 
 /-- Every index of either input array lies outside the output block and strictly below `scratch`. -/
 theorem NodeLayout.input_outside {p k a b out scratch frames frame i : ℕ}
@@ -91,13 +86,13 @@ theorem NodeLayout.inputs_of_stage {p k a b out scratch frames frame : ℕ}
       (d < frame + 6 ∨ frame + 14 ≤ d) → ν d = μ d) :
     (∀ i < 4 ^ (k + 1) * p, ν (a + i) = μ (a + i)) ∧
       (∀ i < 4 ^ (k + 1) * p, ν (b + i) = μ (b + i)) := by
-  have hs := hl.scratch_before
-  have hf := hl.frames_before
-  refine ⟨fun i hi => ?_, fun i hi => ?_⟩
-  · have h := (hl.input_outside hi).1
-    exact hν _ h.1 (Or.inl h.2) (Or.inl (by omega))
-  · have h := (hl.input_outside hi).2
-    exact hν _ h.1 (Or.inl h.2) (Or.inl (by omega))
+  have hs := hl.scratch_before; have hf := hl.frames_before
+  exact ⟨fun _ hi =>
+      have h := (hl.input_outside hi).1
+      hν _ h.1 (Or.inl h.2) (Or.inl (by omega)),
+    fun _ hi =>
+      have h := (hl.input_outside hi).2
+      hν _ h.1 (Or.inl h.2) (Or.inl (by omega))⟩
 
 /-- Current matrix parameters and fixed controller constants, before phase-specific work. -/
 structure NodeHeader (p k a b out scratch frames frame : ℕ) (x : Data 64) : Prop where
@@ -197,14 +192,9 @@ theorem traceBudget_potential_le (p k : ℕ) :
   induction k with
   | zero => simp only [traceBudget, pow_zero, Nat.mul_one]; omega
   | succ k ih =>
-    have he : traceBudget p (k + 1) + 231 * p * 4 ^ (k + 1) + 150 + p * 4 ^ k =
-        7 * (traceBudget p k + 231 * p * 4 ^ k + 150) := by
-      rw [traceBudget, pow_succ]
-      ring
-    calc
-      _ ≤ traceBudget p (k + 1) + 231 * p * 4 ^ (k + 1) + 150 + p * 4 ^ k :=
-        Nat.le_add_right _ _
-      _ = _ := he
+    calc _ ≤ traceBudget p (k + 1) + 231 * p * 4 ^ (k + 1) + 150 + p * 4 ^ k :=
+          Nat.le_add_right _ _
+      _ = 7 * (traceBudget p k + 231 * p * 4 ^ k + 150) := by rw [traceBudget, pow_succ]; ring
       _ ≤ 7 * ((42 * p * p + 240 * p + 178) * 7 ^ k) := Nat.mul_le_mul_left _ ih
       _ = _ := by rw [pow_succ]; ring
 
@@ -223,25 +213,9 @@ theorem exec_setup_ready {w : ℕ} (x : Data 64)
   have hf : y.regs Reg.frame =
       x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus := by
     simpa only [Nat.mul_comm] using hframe.trans hframes
-  refine ⟨y, hy, {
-    inputA_eq := hparams _ (by decide)
-    inputB_eq := hparams _ (by decide)
-    output_eq := hparams _ (by decide)
-    scratch_eq := hparams _ (by decide)
-    modulus_eq := hparams _ (by decide)
-    depth_eq := hparams _ (by decide)
-    size_eq := ?_
-    frames_eq := ?_
-    frame_eq := hf
-    phase_eq := hphase
-    active_eq := hactive
-    zero_eq := hzero
-    one_eq := hone
-    four_eq := hfour
-    frameWidth_eq := hwidth
-    frame_words := ?_ }, hmem⟩
-  · simpa only [Nat.mul_comm] using hsize
-  · simpa only [Nat.mul_comm] using hframes
-  · simpa only [hf] using hfields
+  exact ⟨y, hy, ⟨⟨hparams _ (by decide), hparams _ (by decide), hparams _ (by decide),
+    hparams _ (by decide), hparams _ (by decide), hparams _ (by decide),
+    by simpa only [Nat.mul_comm] using hsize, by simpa only [Nat.mul_comm] using hframes,
+    hf, hactive, hzero, hone, hfour, hwidth⟩, hphase, by simpa only [hf] using hfields⟩, hmem⟩
 
 end Cslib.Algorithms.WordRAM.Strassen

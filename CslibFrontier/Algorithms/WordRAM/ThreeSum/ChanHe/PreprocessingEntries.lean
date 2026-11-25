@@ -50,8 +50,7 @@ def entries (l : Frontend.Layout) (U : ℕ) (rs : List (ℕ × ℕ)) : List Trav
 theorem entry_slot {l : Frontend.Layout} {t : ℕ} (ht : t < l.count) (j : Fin 3) :
     3 * t + j.val < l.arrays := by
   have := j.isLt
-  dsimp only [Frontend.Layout.arrays]
-  omega
+  dsimp only [Frontend.Layout.arrays]; omega
 
 /-- A root column occupies at most its actual `n+1`-word payload capacity. -/
 theorem entry_length_le (l : Frontend.Layout) (U f : ℕ) (rs : List (ℕ × ℕ))
@@ -67,15 +66,12 @@ theorem entry_stored {input : List ℤ} {rs : List (ℕ × ℕ)} {l : Frontend.L
     (h : Frontend.Output l U rs mem) (ht : t < l.count) :
     (entry l U f rs t).Stored mem := by
   intro j i
-  have hj := entry_slot ht j
   have hi : i.val < (Frontend.Math.array U l.digits rs (3 * t + j.val)).length := by
     simpa only [entry, List.length_map] using i.isLt
-  have hm := (h _ hj).2.2.get i.val hi
   change mem (l.pointer (3 * t + j.val) + i.val) =
     Signed.encode (((Frontend.Math.array U l.digits rs (3 * t + j.val)).map Signed.decode)[i.val])
-  simp only [List.getElem_map]
-  exact hm.trans (Frontend.Math.array_canonical hkeys U l.digits _ _
-    (List.getElem_mem hi)).symm
+  simpa only [List.getElem_map] using ((h _ (entry_slot ht j)).2.2.get i.val hi).trans
+    (Frontend.Math.array_canonical hkeys U l.digits _ _ (List.getElem_mem hi)).symm
 
 /-- Frontend roots satisfy the existing admissibility notion, including singleton zero at n=0. -/
 theorem entry_valid {input : List ℤ} {rs : List (ℕ × ℕ)} (l : Frontend.Layout) (U f t : ℕ)
@@ -85,14 +81,10 @@ theorem entry_valid {input : List ℤ} {rs : List (ℕ × ℕ)} (l : Frontend.La
     (entry l U f rs t).Valid (l.n + 1) (2 * U) := by
   have hn (j : Fin 3) : ((entry l U f rs t).data j).Nodup :=
     Frontend.Math.array_decoded_nodup hkeys hnd U l.digits (3 * t + j.val)
-  have hc (j : Fin 3) : ((entry l U f rs t).data j).toFinset.card ≤ l.n + 1 := by
-    rw [List.toFinset_card_of_nodup (hn j)]
-    exact entry_length_le l U f rs hcard t j
+  have hc (j : Fin 3) : ((entry l U f rs t).data j).toFinset.card ≤ l.n + 1 :=
+    (List.toFinset_card_of_nodup (hn j)).trans_le (entry_length_le l U f rs hcard t j)
   have hb (j : Fin 3) : Cslib.Algorithms.ThreeSum.Bdd (2 * U)
-      ((entry l U f rs t).data j).toFinset := by
-    intro z hz
-    change z ∈ ((Frontend.Math.array U l.digits rs (3 * t + j.val)).map Signed.decode).toFinset
-      at hz
+      ((entry l U f rs t).data j).toFinset := fun z hz => by
     obtain ⟨u, hu, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hz)
     exact Frontend.Math.array_magnitude hkeys hvalues l.digits _ u hu
   exact ⟨hn, hc 0, hc 1, hc 2, hb 0, hb 1, hb 2⟩
@@ -102,11 +94,8 @@ theorem entry_ends (l : Frontend.Layout) (U f : ℕ) (rs : List (ℕ × ℕ))
     (hcard : rs.length ≤ l.n) {t : ℕ} (ht : t < l.count) (j : Fin 3) :
     (entry l U f rs t).source j + ((entry l U f rs t).data j).length ≤ l.endpoint := by
   have hj := entry_slot ht j
-  have hn := entry_length_le l U f rs hcard t j
-  calc (entry l U f rs t).source j + ((entry l U f rs t).data j).length
-      ≤ l.pointer (3 * t + j.val) + l.capacity := Nat.add_le_add_left hn _
-    _ = l.pointer (3 * t + j.val + 1) := (l.pointer_succ _).symm
-    _ ≤ l.pointer l.arrays := l.pointer_mono (by omega)
+  exact ((Nat.add_le_add_left (entry_length_le l U f rs hcard t j) _).trans_eq
+    (l.pointer_succ _).symm).trans (l.pointer_mono (by omega))
 
 /-- Traversing these exact entries produces precisely the unchanged finite Chan–He node list. -/
 theorem entries_output {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
@@ -120,17 +109,14 @@ theorem entries_output {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
         Cslib.Algorithms.ThreeSum.ChanHe.allNodes input.length U
           (fun i : Fin input.length => input[i]) := by
   let l : Frontend.Layout := ⟨input.length, Cslib.Algorithms.ThreeSum.labelBits (2 * U)⟩
-  have hr := Frontend.Math.roots_indexed U rs
-  have hd := Frontend.Math.roots_decoded hkeys hcounts hvalues
-  change ((List.range l.count).map (Frontend.Math.root U l.digits rs)) =
-    Frontend.Math.roots U rs at hr
+  have hr : (List.range l.count).map (Frontend.Math.root U l.digits rs) =
+      Frontend.Math.roots U rs := Frontend.Math.roots_indexed U rs
   calc Traversal.Math.output _ _ ((entries l U rs).map Traversal.Entry.task)
       = (((List.range l.count).map (Frontend.Math.root U l.digits rs)).map
-          Frontend.Math.decodeRoot).flatMap (fun T =>
-            Cslib.Algorithms.ThreeSum.ChanHe.reduction input.length (2 * U) T.1 T.2.1 T.2.2) := by
-          simp only [Traversal.Math.output, entries, List.flatMap_map, List.map_map,
-            Function.comp_def]
-          rfl
-    _ = _ := by rw [hr, hd]; rfl
+          Frontend.Math.decodeRoot).flatMap fun T =>
+            Cslib.Algorithms.ThreeSum.ChanHe.reduction input.length (2 * U) T.1 T.2.1 T.2.2 := by
+        simp only [Traversal.Math.output, entries, List.flatMap_map, List.map_map,
+          Function.comp_def]; rfl
+    _ = _ := by rw [hr, Frontend.Math.roots_decoded hkeys hcounts hvalues]; rfl
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Preprocessing

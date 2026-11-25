@@ -44,19 +44,10 @@ theorem enqueue_contents {d : Input} (front back : List ℕ) (s : Memory.State)
     (Memory.spec 0).clientResult s (enqueue d) = ⟨front.length, (d 4 :: back).length⟩ ∧
       Block.HoldsList (d 2) front.reverse t.mem ∧
       Block.HoldsList (d 2 + d 3) (d 4 :: back).reverse t.mem := by
-  refine ⟨?_, ?_, ?_⟩
-  · change Counts.mk (d 0) (d 1 + 1) = _
-    rw [hF, hB]
-    rfl
-  · change Block.HoldsList (d 2) front.reverse
-      (Function.update s.mem (d 2 + d 3 + d 1) (d 4))
-    apply hfront.frame
-    intro a ha hb
-    rw [Function.update_of_ne]
-    simp only [List.length_reverse] at hb
-    omega
-  · change Block.HoldsList (d 2 + d 3) (d 4 :: back).reverse
-      (Function.update s.mem (d 2 + d 3 + d 1) (d 4))
+  refine ⟨show Counts.mk (d 0) (d 1 + 1) = _ by rw [hF, hB]; rfl, ?_, ?_⟩
+  · exact hfront.frame fun a ha hb => Function.update_of_ne
+      (by simp only [List.length_reverse] at hb; omega) _ _
+  · change Block.HoldsList _ _ (Function.update s.mem (d 2 + d 3 + d 1) (d 4))
     simpa only [hB, List.reverse_cons, List.length_reverse] using hback.append_one (d 4)
 
 /-- Pop observes the top represented value and retains the unused dirty cell. No memory
@@ -71,24 +62,20 @@ theorem popFront_contents {d : Input} (front back : List ℕ) (s : Memory.State)
       Block.HoldsList (d 2 + d 3) back.reverse s.mem := by
   cases front with
   | nil =>
-    refine ⟨?_, Block.holdsList_nil _ _, hback⟩
-    have hz : d 0 = 0 := hF
-    rw [clientResult_popFront, ite_eq_left hz, hF, hB]
-    rfl
+    exact ⟨by rw [clientResult_popFront, ite_eq_left (show d 0 = 0 from hF), hF, hB]; rfl,
+      Block.holdsList_nil _ _, hback⟩
   | cons a front =>
-    have hn : d 0 ≠ 0 := by rw [hF]; exact Nat.succ_ne_zero _
-    have hlen : d 0 - 1 = front.length := by rw [hF]; rfl
+    have hn : d 0 ≠ 0 := hF ▸ Nat.succ_ne_zero _
     have hp : Block.HoldsList (d 2) (front.reverse ++ [a]) s.mem := by
       simpa only [List.reverse_cons] using hfront
     have hv : s.mem (d 2 + front.length) = a := by
-      have hv : s.mem (d 2 + front.reverse.length) = a :=
+      simpa only [List.length_reverse] using
         (hp.get front.reverse.length (by simp)).trans (List.getElem_concat_length rfl _)
-      simpa only [List.length_reverse] using hv
-    refine ⟨?_, ?_, hback⟩
-    · rw [clientResult_popFront, ite_eq_right hn, hlen, hB, hv]
-      rfl
-    · simpa only [List.tail_cons, List.take_left] using
-        hp.take front.reverse.length
+    refine ⟨?_, by simpa only [List.tail_cons, List.take_left] using hp.take front.reverse.length,
+      hback⟩
+    rw [clientResult_popFront, ite_eq_right hn, show d 0 - 1 = front.length by rw [hF]; rfl,
+      hB, hv]
+    rfl
 
 /-- The interpreter's actual counts, option answer and physical arrays implement the
 existing two-stack transition. The only capacity premise is the original sum bound. -/
@@ -104,10 +91,7 @@ theorem dequeue_contents {w : ℕ} {d : Input} (front back : List ℕ) (s : Memo
       Block.HoldsList (d 2 + d 3) p.1.rear.reverse t.mem := by
   cases front with
   | nil =>
-    have hz : d 0 = 0 := hF
-    have hdom : transferDomain w d s := by
-      exact ⟨by rw [hF, hB]; exact hc, hf⟩
-    have hi := transfer_invariant hw hdom
+    have hi := transfer_invariant hw ⟨by rw [hF, hB]; exact hc, hf⟩
     have hr : (Memory.spec 0).clientResult s (transfer d) = ⟨back.length, 0⟩ := by
       simpa only [hF, hB, List.length_nil, Nat.zero_add] using hi.2.2.1
     let t := (Memory.spec 0).clientState s (transfer d)
@@ -116,26 +100,17 @@ theorem dequeue_contents {w : ℕ} {d : Input} (front back : List ℕ) (s : Memo
     have hp := popFront_contents (d := ![back.length, 0, d 2, d 3, d 4])
       back.reverse [] t (by simp) rfl ht (Block.holdsList_nil _ _)
     have hs : (Memory.spec 0).clientState s (dequeue d) = t := by
-      rw [dequeue, ite_eq_left hz, StateTransitionSpec.clientState_bind, hr]
+      rw [dequeue, ite_eq_left (show d 0 = 0 from hF), StateTransitionSpec.clientState_bind, hr]
       exact clientState_popFront _ _ _
-    refine ⟨?_, ?_, ?_⟩
-    · rw [dequeue, ite_eq_left hz, StateTransitionSpec.clientResult_bind, hr]
-      exact hp.1
-    · rw [hs]
-      exact hp.2.1
-    · rw [hs]
-      exact hp.2.2
+    exact ⟨by
+      rw [dequeue, ite_eq_left (show d 0 = 0 from hF), StateTransitionSpec.clientResult_bind, hr]
+      exact hp.1, hs ▸ hp.2.1, hs ▸ hp.2.2⟩
   | cons a front =>
-    have hn : d 0 ≠ 0 := by rw [hF]; exact Nat.succ_ne_zero _
+    have hn : d 0 ≠ 0 := hF ▸ Nat.succ_ne_zero _
     have hp := popFront_contents (a :: front) back s hF hB hfront hback
     have hs : (Memory.spec 0).clientState s (dequeue d) = s := by
       rw [dequeue, ite_eq_right hn, clientState_popFront]
-    refine ⟨?_, ?_, ?_⟩
-    · rw [dequeue, ite_eq_right hn]
-      exact hp.1
-    · rw [hs]
-      exact hp.2.1
-    · rw [hs]
-      exact hp.2.2
+    exact ⟨by rw [dequeue, ite_eq_right hn]; exact hp.1,
+      by rw [hs]; exact hp.2.1, by rw [hs]; exact hp.2.2⟩
 
 end Cslib.DataStructure.Queue.WordRAM.RegisterMetadata

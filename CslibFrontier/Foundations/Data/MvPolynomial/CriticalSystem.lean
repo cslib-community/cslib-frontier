@@ -57,8 +57,7 @@ theorem eval_deformedPolynomial (ell : ℕ) (a x : Fin n → S) (u : S)
     (F : MvPolynomial (Fin n) S) :
     eval x (deformedPolynomial ell a u F) =
       eval x (potentialPolynomial ell a) + u * ((ell + 1 : ℕ) * eval x F) := by
-  rw [deformedPolynomial, map_add, map_mul, eval_C]
-  ring
+  rw [deformedPolynomial, map_add, map_mul, eval_C]; ring
 
 /-- The lower part of the pure-power critical relation. -/
 @[expose] noncomputable def criticalLower (ell : ℕ) (a : Fin n → S) (u : S)
@@ -91,20 +90,12 @@ theorem pderiv_potentialPolynomial (ell : ℕ) (a : Fin n → S) (j : Fin n) :
     pderiv j (potentialPolynomial ell a) =
       C ((ell + 1 : ℕ) : S) * (X j ^ ell - C (a j ^ ell)) := by
   classical
-  have hentry (i : Fin n) : pderiv j
-      (X i ^ (ell + 1) - C ((ell + 1 : ℕ) * a i ^ ell) * X i +
-        C ((ell + 1 : ℕ) * a i ^ (ell + 1))) =
-      if i = j then C ((ell + 1 : ℕ) : S) * (X j ^ ell - C (a j ^ ell)) else 0 := by
-    by_cases hij : i = j
-    · subst i
-      simp only [map_add, map_sub, pderiv_pow, pderiv_C_mul, pderiv_X_self,
-        pderiv_C, Nat.add_sub_cancel, mul_one, add_zero, ↓reduceIte]
-      simp only [map_mul, map_natCast]
-      ring
-    · simp [hij]
-  rw [potentialPolynomial, map_sum]
-  simp_rw [hentry]
-  simp
+  rw [potentialPolynomial, map_sum, Finset.sum_eq_single j]
+  · simp only [map_add, map_sub, pderiv_pow, pderiv_C_mul, pderiv_X_self,
+      pderiv_C, Nat.add_sub_cancel, mul_one, add_zero]
+    simp only [map_mul, map_natCast]; ring
+  · intro i _ hij; simp [hij]
+  · simp
 
 /-- The deformation gradient gives the actual pure-power critical relations. -/
 theorem pderiv_deformedPolynomial (ell : ℕ) (a : Fin n → S) (u : S)
@@ -112,8 +103,8 @@ theorem pderiv_deformedPolynomial (ell : ℕ) (a : Fin n → S) (u : S)
     pderiv i (deformedPolynomial ell a u F) =
       C ((ell + 1 : ℕ) : S) * (X i ^ ell - criticalLower ell a u F i) := by
   classical
-  rw [deformedPolynomial, map_add, pderiv_potentialPolynomial, pderiv_C_mul,
-    criticalLower, map_mul]
+  rw [deformedPolynomial, map_add, pderiv_potentialPolynomial, pderiv_C_mul, criticalLower,
+    map_mul]
   ring
 
 /-- Each lower relation has degree strictly below its leading pure power. -/
@@ -123,24 +114,19 @@ theorem criticalLower_degree (ell : ℕ) (hell : 1 ≤ ell) (a : Fin n → S) (u
   classical
   have hp := totalDegree_pderiv_le F i
   have hm := totalDegree_mul (C u) (pderiv i F)
-  rw [totalDegree_C] at hm
   have hs := totalDegree_sub (C (a i ^ ell)) (C u * pderiv i F)
-  rw [totalDegree_C] at hs
-  change (C (a i ^ ell) - C u * pderiv i F).totalDegree < ell
-  omega
+  rw [totalDegree_C] at hm hs
+  exact lt_of_le_of_lt hs (by omega)
 
 /-- The separated potential has degree at most `ell + 1`. -/
 theorem totalDegree_potentialPolynomial_le (ell : ℕ) (a : Fin n → S) :
     (potentialPolynomial ell a).totalDegree ≤ ell + 1 := by
   classical
-  apply totalDegree_finsetSum_le
-  intro i _
-  apply (totalDegree_add _ _).trans
-  apply max_le _ ((totalDegree_C _).trans_le (Nat.zero_le _))
-  apply (totalDegree_sub _ _).trans
-  apply max_le
-  · exact (totalDegree_pow _ _).trans (by
-      simpa only [mul_one] using Nat.mul_le_mul_left (ell + 1) (totalDegree_X_le (R := S) i))
+  refine totalDegree_finsetSum_le fun i _ => (totalDegree_add _ _).trans
+    (max_le ((totalDegree_sub _ _).trans (max_le ?_ ?_))
+      ((totalDegree_C _).trans_le (Nat.zero_le _)))
+  · simpa only [mul_one] using (totalDegree_pow _ _).trans
+      (Nat.mul_le_mul_left (ell + 1) (totalDegree_X_le (R := S) i))
   · have hm := totalDegree_mul (C ((ell + 1 : ℕ) * a i ^ ell)) (X i)
     rw [totalDegree_C, zero_add] at hm
     exact hm.trans ((totalDegree_X_le i).trans (by omega))

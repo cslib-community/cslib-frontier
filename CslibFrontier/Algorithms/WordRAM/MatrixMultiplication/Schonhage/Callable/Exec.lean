@@ -44,12 +44,9 @@ private theorem spans_le_budget (L m N Q : ℕ) :
     omega
   have hend : QueriedProduct.outputBase L m N Q + Q ≤ QueriedProduct.memoryEnd L m N Q := by
     unfold QueriedProduct.memoryEnd QueriedProduct.stampBase QueriedProduct.scratchBase
-    have := Nat.zero_le (2 * (L + 1) * 10 ^ L)
-    have := Nat.zero_le (10 ^ L)
+    have := Nat.zero_le (2 * (L + 1) * 10 ^ L); have := Nat.zero_le (10 ^ L)
     omega
-  refine ⟨hsep, ?_⟩
-  unfold QueriedProduct.wordBudget
-  omega
+  exact ⟨hsep, by unfold QueriedProduct.wordBudget; omega⟩
 
 /-- Caller-safe actual native product execution, for zero/one matrices with `D m ^ 18 ≤ N`, at
 depth `19 * m`. The only local memory premise is the original input block; all remaining target
@@ -73,37 +70,27 @@ theorem exec {W b m N : ℕ}
       (∀ a, a < QueriedProduct.inputEnd m N qs.length → y.mem (b + a) = x.mem (b + a)) ∧
       (∀ a, a < b ∨ b + windowSize N qs.length ≤ a → y.mem a = x.mem a) := by
   obtain ⟨hsep, hspan⟩ := spans_le_budget (19 * m) m N qs.length
-  have hbudget := (source_admission (Q := qs.length) hN).2.2
   have hbound : QueriedProduct.inputEnd m N qs.length +
       QueriedProduct.outputBase (19 * m) m N qs.length + qs.length + 2 <
-        windowSize N qs.length := hspan.trans_lt hbudget
+        windowSize N qs.length := hspan.trans_lt (source_admission (Q := qs.length) hN).2.2
   have hM : 0 < windowSize N qs.length := Nat.two_pow_pos _
   obtain ⟨c, hc, cb, cM, cI, cQ, cO, cv, ci, cf⟩ := exec_core X Y qs x hb hinput hX hY hN hfit
-  have hIfit : Fits W (b + QueriedProduct.inputEnd m N qs.length +
-      windowSize N qs.length + 2) := hfit.of_le (by omega)
-  obtain ⟨s, hs, sm, sr⟩ := exec_restoreInput c cb cI cM hM hIfit
-  have sb : s.regs Reg.base = b := by regs_frame
-  have sM : s.regs Reg.modulus = windowSize N qs.length := by regs_frame
-  have sQ : s.regs Reg.queryCount = qs.length := by regs_frame
-  have sO : s.regs Reg.output = QueriedProduct.outputBase (19 * m) m N qs.length := by regs_frame
-  have hOfit : Fits W (b + QueriedProduct.outputBase (19 * m) m N qs.length + qs.length +
-      windowSize N qs.length + 2) := hfit.of_le (by omega)
-  obtain ⟨y, hy, ym, yr, yf⟩ := exec_returnOutput s sb sO sQ sM hM hOfit
+  obtain ⟨s, hs, sm, sr⟩ := exec_restoreInput c cb cI cM hM (hfit.of_le (by omega))
+  obtain ⟨y, hy, ym, yr, yf⟩ := exec_returnOutput s (by regs_frame)
+    (show s.regs Reg.output = QueriedProduct.outputBase (19 * m) m N qs.length by regs_frame)
+    (show s.regs Reg.queryCount = qs.length by regs_frame)
+    (show s.regs Reg.modulus = windowSize N qs.length by regs_frame) hM (hfit.of_le (by omega))
   refine ⟨y, (hc.seq (hs.seq hy)).mono (by unfold timeBound; omega), yr,
-    by regs_frame, by regs_frame, ?_, ?_, ?_⟩
-  · intro i
-    rw [ym]
-    rw [show b + (QueriedProduct.outputBase (19 * m) m N qs.length + i.val) =
-      (b + QueriedProduct.outputBase (19 * m) m N qs.length) + i.val by omega]
-    rw [ArrayNormalize.normalizePrefix_read _ _ _ _ _ i.isLt, sm,
+    by regs_frame, by regs_frame, fun i => ?_, fun a ha => ?_, fun a ha => ?_⟩
+  · rw [ym, show b + (QueriedProduct.outputBase (19 * m) m N qs.length + i.val) =
+      (b + QueriedProduct.outputBase (19 * m) m N qs.length) + i.val by omega,
+      ArrayNormalize.normalizePrefix_read _ _ _ _ _ i.isLt, sm,
       ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega)]
     simpa only [Nat.add_assoc] using cv i
-  · intro a ha
-    rw [ym, ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega), sm,
+  · rw [ym, ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega), sm,
       ArrayNormalize.normalizePrefix_read _ _ _ _ _ ha]
     exact ci a ha
-  · intro a ha
-    rw [ym, ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega), sm,
+  · rw [ym, ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega), sm,
       ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega)]
     exact cf a ha
 

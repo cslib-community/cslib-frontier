@@ -35,14 +35,12 @@ theorem exec_powerCode {w : ℕ} (v b n : Fin 96)
     ∃ y, ExecWithin w (powerCode v b n) x y (4 * M + 5) ∧
       y.regs v = B ^ M ∧ y.regs one = 1 ∧ y.mem = x.mem ∧
       (∀ i, i ≠ v → i ≠ counter → i ≠ one → y.regs i = x.regs i) := by
-  obtain ⟨y, he, hv, _, ho, hm, _, _, -⟩ :=
+  obtain ⟨y, he, hv, _, ho, hm, -⟩ :=
     Power.exec_rename (powerRegisters v b n) hinj B M hB x hb hn hfit
-  refine ⟨y, he, hv, ho, hm, ?_⟩
-  intro i hv hc ho
-  apply he.regs_eq
+  refine ⟨y, he, hv, ho, hm, fun i hv' hc ho' => he.regs_eq ?_⟩
   simp [Power.program, Power.body, Code.rename, Code.Preserves, Op.rename, Op.dest, Op.bin,
     powerRegisters, Power.value, Power.counter, Power.base, Power.exponent, Power.one,
-    Ne.symm hv, Ne.symm hc, Ne.symm ho]
+    Ne.symm hv', Ne.symm hc, Ne.symm ho']
 
 /-- Scalar parameters loaded from the three actual input headers and small constants. -/
 structure BasicParameters (L m N : ℕ) (x : Data 96) : Prop where
@@ -73,8 +71,7 @@ theorem power_fits {w L m N : ℕ} (hfit : Fits w (wordBudget L m N))
   have hp : b ^ n ≤ 10 ^ L :=
     (Nat.pow_le_pow_left hb _).trans (Nat.pow_le_pow_right (by decide) hn)
   have hpos : 1 ≤ 10 ^ L := Nat.one_le_pow L 10 (by decide)
-  apply hfit.of_le
-  unfold wordBudget
+  refine hfit.of_le ?_; unfold wordBudget
   nlinarith only [hp, hn, hpos, Nat.zero_le N, Nat.zero_le (N * D m),
     Nat.zero_le (2 ^ L), Nat.zero_le (2 * numBands L m N * 10 ^ L)]
 
@@ -138,24 +135,20 @@ theorem exec_header {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
   have h256 : Fits w 256 := hfit.of_le (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
   have h7 : 7 ^ L ≤ 10 ^ L := Nat.pow_le_pow_left (by decide) _
   have h2 : 2 ^ L ≤ 10 ^ L := Nat.pow_le_pow_left (by decide) _
-  have hlocal : Fits w (4 * (N * D m) + 8 * 10 ^ L + 16) := by
-    apply hfit.of_le
+  have hlocal : Fits w (4 * (N * D m) + 8 * 10 ^ L + 16) := hfit.of_le (by
     unfold wordBudget
     nlinarith only [Nat.zero_le L, Nat.zero_le N, Nat.zero_le (N * D m),
-      Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L),
-      Nat.zero_le (2 * numBands L m N * 10 ^ L)]
+      Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L), Nat.zero_le (2 * numBands L m N * 10 ^ L)])
   unfold header headerLoads headerLayout
   wram_exec [hL, hmemory, hN]
   wram_call (exec_headerPowers hm _ (by constructor <;> wram_simp) hfit)
     with z ⟨hbasic, hD, hN0, hS2, hS7, hS10, hzmem⟩
   wram_exec *
-  refine ⟨?_, by wram_simp; exact hzmem⟩
-  refine ⟨by regs_frame, by wram_simp [hD], by wram_simp [hN0], by wram_simp [hS2],
-    by wram_simp [hS7], by wram_simp [hS10], ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨⟨by regs_frame, by wram_simp [hD], by wram_simp [hN0], by wram_simp [hS2],
+    by wram_simp [hS7], by wram_simp [hS10], ?_, ?_, ?_, ?_, ?_⟩, by wram_simp; exact hzmem⟩
   all_goals
     wram_simp [hD, hN0, hS2, hS7, hS10]
     dsimp only [catalogueBase, tableBase, inverseBase, snapshotBase, inputEnd,
-      Encoding.scratchBase, Encoding.outputBase]
-    omega
+      Encoding.scratchBase, Encoding.outputBase]; omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

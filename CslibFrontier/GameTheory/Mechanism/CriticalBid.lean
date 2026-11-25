@@ -110,14 +110,12 @@ theorem eq_one_of_criticalBid_lt {x : (ι → ℝ) → ι → ℝ} (hx : IsMonot
     {b : ι → ℝ} (hb : 0 ≤ b) {i : ι} {w z : ℝ} (hw : 0 ≤ w)
     (hwin : x (Function.update b i w) i = 1) (hz : 0 ≤ z) (hlt : criticalBid x b i < z) :
     x (Function.update b i z) i = 1 := by
-  have hne : {z : ℝ | 0 ≤ z ∧ x (Function.update b i z) i = 1}.Nonempty := ⟨w, hw, hwin⟩
-  obtain ⟨w, ⟨hw0, hw1⟩, hwz⟩ := exists_lt_of_csInf_lt hne hlt
-  have hmono : x (Function.update b i w) i ≤ x (Function.update b i z) i :=
+  obtain ⟨w', ⟨hw0, hw1⟩, hwz⟩ := exists_lt_of_csInf_lt
+    (⟨w, hw, hwin⟩ : {z | 0 ≤ z ∧ x (Function.update b i z) i = 1}.Nonempty) hlt
+  have hmono : x (Function.update b i w') i ≤ x (Function.update b i z) i :=
     hx i b hb hw0 hz hwz.le
-  rcases hbin _ (update_nonneg hb i hz) i with h0 | h1
-  · rw [hw1, h0] at hmono
-    norm_num at hmono
-  · exact h1
+  refine (hbin _ (update_nonneg hb i hz) i).resolve_left fun h0 => ?_
+  rw [hw1, h0] at hmono; norm_num at hmono
 
 /-- The critical-bid mechanism of a monotone 0-1 allocation rule is DSIC. A bidder who wins by
 bidding truthfully pays at most its value; a bidder who loses has value at most its critical bid,
@@ -126,19 +124,13 @@ theorem criticalBidMechanism_isDSIC {x : (ι → ℝ) → ι → ℝ} (hx : IsMo
     (hbin : IsBinary x) : (criticalBidMechanism x).IsDSIC := by
   intro i b v hb hv
   simp only [Mechanism.utility, criticalBidMechanism, criticalBid_update]
-  have hbu : Function.update b i (b i) = b := Function.update_eq_self i b
-  rcases hbin b hb i with ha | ha <;> rcases hbin _ (update_nonneg hb i hv) i with ha' | ha'
-  · rw [ha, ha']
-  · rw [ha, ha']
-    have := criticalBid_le hv ha'
-    linarith
-  · rw [ha, ha']
-    by_contra hcon
-    have hlt : criticalBid x b i < v := by linarith
-    have := eq_one_of_criticalBid_lt hx hbin hb (hb i) (by rw [hbu]; exact ha) hv hlt
-    rw [ha'] at this
-    norm_num at this
-  · rw [ha, ha']
+  rcases hbin b hb i with ha | ha <;> rcases hbin _ (update_nonneg hb i hv) i with ha' | ha' <;>
+    rw [ha, ha']
+  · have := criticalBid_le hv ha'; linarith
+  · by_contra hcon
+    have := eq_one_of_criticalBid_lt hx hbin hb (hb i)
+      (by rwa [Function.update_eq_self]) hv (by linarith)
+    rw [ha'] at this; norm_num at this
 
 /-- The critical-bid mechanism of a 0-1 allocation rule is individually rational. -/
 theorem criticalBidMechanism_isIR {x : (ι → ℝ) → ι → ℝ} (hbin : IsBinary x) :
@@ -146,10 +138,9 @@ theorem criticalBidMechanism_isIR {x : (ι → ℝ) → ι → ℝ} (hbin : IsBi
   intro i b hb
   simp only [Mechanism.utility, criticalBidMechanism]
   rcases hbin b hb i with ha | ha
-  · rw [ha, mul_zero, mul_zero, sub_zero]
-  · have := criticalBid_le (x := x) (hb i) (by rw [Function.update_eq_self]; exact ha)
-    rw [ha]
-    linarith
+  · simp [ha]
+  · have := criticalBid_le (x := x) (hb i) (by rwa [Function.update_eq_self])
+    rw [ha]; linarith
 
 /-- In the critical-bid mechanism a zero bid pays zero. -/
 theorem criticalBidMechanism_isNormalized {x : (ι → ℝ) → ι → ℝ} (hbin : IsBinary x) :
@@ -157,11 +148,9 @@ theorem criticalBidMechanism_isNormalized {x : (ι → ℝ) → ι → ℝ} (hbi
   intro i b hb
   simp only [criticalBidMechanism, criticalBid_update]
   rcases hbin _ (update_nonneg hb i le_rfl) i with ha | ha
-  · rw [ha, mul_zero]
-  · have h1 := criticalBid_le le_rfl ha
-    have h2 := criticalBid_nonneg x b i
-    rw [ha, mul_one]
-    linarith
+  · simp [ha]
+  · have := criticalBid_le le_rfl ha; have := criticalBid_nonneg x b i
+    rw [ha, mul_one]; linarith
 
 /-- For a monotone 0-1 allocation rule, Myerson's payment is the critical bid of a winner and `0`
 for a loser ([Roughgarden2013CS364A], Lecture 4, §1.3), by uniqueness in Myerson's Lemma. -/
@@ -176,12 +165,10 @@ critical bid. -/
 theorem criticalBid_eq_of_threshold {x : (ι → ℝ) → ι → ℝ} {b : ι → ℝ} {i : ι} {t : ℝ}
     (ht : 0 ≤ t) (hlt : ∀ z, t < z → x (Function.update b i z) i = 1)
     (hle : ∀ z, 0 ≤ z → x (Function.update b i z) i = 1 → t ≤ z) :
-    criticalBid x b i = t := by
-  apply le_antisymm
-  · rw [← csInf_Ioi (a := t)]
-    exact csInf_le_csInf ⟨0, fun _ hw => hw.1⟩ Set.nonempty_Ioi
-      fun z hz => ⟨ht.trans (le_of_lt hz), hlt z hz⟩
-  · exact le_csInf ⟨t + 1, by linarith, hlt _ (by linarith)⟩ fun z hz => hle z hz.1 hz.2
+    criticalBid x b i = t :=
+  le_antisymm (csInf_Ioi (a := t) ▸ csInf_le_csInf ⟨0, fun _ hw => hw.1⟩ Set.nonempty_Ioi
+    fun z hz => ⟨ht.trans hz.le, hlt z hz⟩)
+    (le_csInf ⟨t + 1, by linarith, hlt _ (by linarith)⟩ fun z hz => hle z hz.1 hz.2)
 
 /-- A 0-1 rule given by thresholds is monotone. -/
 theorem isMonotone_of_threshold {x : (ι → ℝ) → ι → ℝ} (hbin : IsBinary x)
@@ -191,13 +178,9 @@ theorem isMonotone_of_threshold {x : (ι → ℝ) → ι → ℝ} (hbin : IsBina
   obtain ⟨t, hlt, hle⟩ := h i b hb
   change x (Function.update b i z) i ≤ x (Function.update b i z') i
   rcases hbin _ (update_nonneg hb i hz) i with h0 | h1
-  · rw [h0]
-    rcases hbin _ (update_nonneg hb i hz') i with h0' | h1'
-    · rw [h0']
-    · rw [h1']
-      exact zero_le_one
+  · rcases hbin _ (update_nonneg hb i hz') i with h0' | h1' <;> simp [*]
   · rcases hzz'.lt_or_eq with hlt' | rfl
-    · rw [h1, hlt z' (lt_of_le_of_lt (hle z hz h1) hlt')]
+    · rw [h1, hlt z' ((hle z hz h1).trans_lt hlt')]
     · exact le_rfl
 
 end Cslib.GameTheory.SingleParameter

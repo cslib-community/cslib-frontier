@@ -111,11 +111,8 @@ theorem isPureNash_toCostGame_iff {s : ∀ i, S i} :
 
 /-- Every strict pure Nash equilibrium is a pure Nash equilibrium. -/
 theorem IsStrictPureNash.isPureNash {G : PayoffGame ι S} {s : ∀ i, S i}
-    (h : G.IsStrictPureNash s) : G.IsPureNash s := by
-  intro i a
-  rcases eq_or_ne a (s i) with rfl | hne
-  · simp only [Function.update_eq_self, le_rfl]
-  · exact (h i a hne).le
+    (h : G.IsStrictPureNash s) : G.IsPureNash s :=
+  fun i a => (eq_or_ne a (s i)).elim (fun ha => by simp [ha]) fun hne => (h i a hne).le
 
 /-- A profile `s` is **coalition-proof up to size `k`** (`k`-resilient in the strong uniform sense
 that no member of a deviating coalition of size at most `k` strictly gains; compare
@@ -128,10 +125,9 @@ with `C.card ≤ k` and every joint deviation `t`, every member `i ∈ C` has pa
 
 /-- Coalition-proofness up to `k ≥ 1` implies `IsPureNash` via singleton coalitions. -/
 theorem IsCoalitionProofUpTo.isPureNash {G : PayoffGame ι S} {k : ℕ} {s : ∀ i, S i}
-    (h : G.IsCoalitionProofUpTo k s) (hk : 1 ≤ k) : G.IsPureNash s := by
-  intro i a
-  have hsingle := h {i} (by simp [hk]) (Function.update s i a) i (Finset.mem_singleton_self i)
-  rwa [Finset.piecewise_singleton, Function.update_self] at hsingle
+    (h : G.IsCoalitionProofUpTo k s) (hk : 1 ≤ k) : G.IsPureNash s := fun i a => by
+  simpa [Finset.piecewise_singleton] using
+    h {i} (by simp [hk]) (Function.update s i a) i (Finset.mem_singleton_self i)
 
 /-- Coalition-proofness up to `Fintype.card ι` implies `CostGame.IsStrongNash` on `G.toCostGame`. -/
 theorem IsCoalitionProofUpTo.isStrongNash_toCostGame [Fintype ι] {G : PayoffGame ι S} {k : ℕ}
@@ -167,24 +163,19 @@ theorem weaklyDominatesOn_iff_toCostGame {R : ∀ j, Set (S j)} {i : ι} {a b : 
     funext (Function.apply_update (fun j (y : R j) => (y : S j)) r i x)
   simp only [WeaklyDominatesOn, CostGame.IsWeaklyDominatedBy, CostGame.restrict_cost,
     toCostGame_cost, hcoe, neg_le_neg_iff, neg_lt_neg_iff]
-  constructor
-  · rintro ⟨hle, s, hs, hlt⟩
-    exact ⟨fun r => hle (fun j => (r j : S j)) fun j => (r j).2,
-      ⟨fun j => ⟨s j, hs j⟩, hlt⟩⟩
-  · rintro ⟨hle, r, hlt⟩
-    refine ⟨fun s hs => hle fun j => ⟨s j, hs j⟩, fun j => (r j : S j), fun j => (r j).2, hlt⟩
+  exact ⟨fun ⟨hle, s, hs, hlt⟩ =>
+      ⟨fun r => hle _ fun j => (r j).2, ⟨fun j => ⟨s j, hs j⟩, hlt⟩⟩,
+    fun ⟨hle, r, hlt⟩ =>
+      ⟨fun s hs => hle fun j => ⟨s j, hs j⟩, fun j => (r j).1, fun j => (r j).2, hlt⟩⟩
 
 /-- Weakly dominated strategies in `PayoffGame` on `R` coincide with `CostGame.IsWeaklyDominated`
 on `G.toCostGame.restrict R` ([DodisRabin2007], Definition 8.8). -/
 theorem isWeaklyDominatedOn_iff_toCostGame {R : ∀ j, Set (S j)} {i : ι} {b : S i}
     (hb : b ∈ R i) :
     G.IsWeaklyDominatedOn R i b ↔
-      (G.toCostGame.restrict R).IsWeaklyDominated i ⟨b, hb⟩ := by
-  constructor
-  · rintro ⟨a, ha, hdom⟩
-    exact ⟨⟨a, ha⟩, (G.weaklyDominatesOn_iff_toCostGame ha hb).mp hdom⟩
-  · rintro ⟨⟨a, ha⟩, hdom⟩
-    exact ⟨a, ha, (G.weaklyDominatesOn_iff_toCostGame ha hb).mpr hdom⟩
+      (G.toCostGame.restrict R).IsWeaklyDominated i ⟨b, hb⟩ :=
+  ⟨fun ⟨a, ha, hdom⟩ => ⟨⟨a, ha⟩, (G.weaklyDominatesOn_iff_toCostGame ha hb).mp hdom⟩,
+    fun ⟨⟨a, ha⟩, hdom⟩ => ⟨a, ha, (G.weaklyDominatesOn_iff_toCostGame ha hb).mpr hdom⟩⟩
 
 /-- One simultaneous round of **deletion of weakly dominated strategies** ([DodisRabin2007],
 Definition 8.8). -/
@@ -200,14 +191,10 @@ theorem mem_idowdsStep_iff {R : ∀ i, Set (S i)} {i : ι} {b : S i} :
 theorem idowdsStep_eq_cost (R : ∀ i, Set (S i)) :
     G.idowdsStep R = fun i =>
       { b | ∃ hb : b ∈ R i, ¬ (G.toCostGame.restrict R).IsWeaklyDominated i ⟨b, hb⟩ } := by
-  funext i
-  ext b
+  funext i; ext b
   simp only [mem_idowdsStep_iff, Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨hb, hnd⟩
-    exact ⟨hb, fun h => hnd ((G.isWeaklyDominatedOn_iff_toCostGame hb).mpr h)⟩
-  · rintro ⟨hb, hnd⟩
-    exact ⟨hb, fun h => hnd ((G.isWeaklyDominatedOn_iff_toCostGame hb).mp h)⟩
+  exact ⟨fun ⟨hb, hnd⟩ => ⟨hb, mt (G.isWeaklyDominatedOn_iff_toCostGame hb).mpr hnd⟩,
+    fun ⟨hb, hnd⟩ => ⟨hb, mt (G.isWeaklyDominatedOn_iff_toCostGame hb).mp hnd⟩⟩
 
 /-- `k`-fold **iterated deletion of weakly dominated strategies (`IDoWDS`)**, backed directly by
 `CostGame.idowdsSeq` on `G.toCostGame` ([DodisRabin2007], Definition 8.8). -/
@@ -275,19 +262,13 @@ private theorem idowdsStep_cutoff_eq {G : PayoffGame ι (fun _ => Fin (T + 1))}
     G.idowdsStep (fun _ => { r : Fin (T + 1) | r.val ≤ m + 1 }) =
       fun _ => { r : Fin (T + 1) | r.val ≤ m } := by
   obtain ⟨hdom, hsurv⟩ := hbi m hm
-  funext i
-  ext r
+  funext i; ext r
   simp only [mem_idowdsStep_iff, Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨hrle, hndom⟩
-    rcases Nat.eq_or_lt_of_le hrle with heq | hlt
-    · exfalso
-      have hr : r = ⟨m + 1, by omega⟩ := Fin.ext heq
-      rw [hr] at hndom
-      exact hndom ⟨⟨m, by omega⟩, Nat.le_succ m, hdom i⟩
-    · omega
-  · intro hrle
-    exact ⟨Nat.le_succ_of_le hrle, hsurv i r hrle⟩
+  refine ⟨fun ⟨hrle, hndom⟩ => ?_, fun hrle => ⟨Nat.le_succ_of_le hrle, hsurv i r hrle⟩⟩
+  rcases Nat.eq_or_lt_of_le hrle with heq | hlt
+  · rw [show r = ⟨m + 1, by omega⟩ from Fin.ext heq] at hndom
+    exact (hndom ⟨⟨m, by omega⟩, Nat.le_succ m, hdom i⟩).elim
+  · omega
 
 /-- Under `HasBackwardInductionDominance`, after `k ≤ T` rounds of `IDoWDS`, the surviving
 strategies of every player are precisely the cutoffs `r ≤ T - k`. -/
@@ -296,14 +277,10 @@ theorem idowdsIter_eq_le_sub {G : PayoffGame ι (fun _ => Fin (T + 1))}
     G.idowdsIter k = fun _ => { r : Fin (T + 1) | r.val ≤ T - k } := by
   induction k with
   | zero =>
-    funext i
-    ext r
-    simp only [idowdsIter_zero, Set.mem_univ, Nat.sub_zero, Set.mem_ofPred_eq, true_iff]
-    omega
+    funext i; ext r
+    simp [Nat.le_of_lt_succ r.isLt]
   | succ k ih =>
-    rw [idowdsIter_succ, ih (Nat.le_of_succ_le hk)]
-    have hsub : T - k = (T - (k + 1)) + 1 := by omega
-    simp only [hsub]
+    rw [idowdsIter_succ, ih (Nat.le_of_succ_le hk), show T - k = (T - (k + 1)) + 1 by omega]
     exact idowdsStep_cutoff_eq hbi (by omega)
 
 /-- **Abstract Halpern–Teague backward-induction collapse**: in any `T`-round cutoff mechanism with
@@ -313,8 +290,7 @@ theorem idowdsIter_eq_singleton_zero {G : PayoffGame ι (fun _ => Fin (T + 1))}
     (hbi : G.HasBackwardInductionDominance) :
     G.idowdsIter T = fun _ => {0} := by
   rw [idowdsIter_eq_le_sub hbi le_rfl]
-  funext i
-  ext r
+  funext i; ext r
   simp only [Nat.sub_self, Set.mem_ofPred_eq, Nat.le_zero, Set.mem_singleton_iff, Fin.ext_iff,
     Fin.val_zero]
 

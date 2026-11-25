@@ -32,18 +32,15 @@ variable {G : Graph}
 theorem isMaximumMatching_positionsOfLabeling {f : OccurrenceLabeling G.matchingInstance Bool}
     (hf : IsOptimalLabeling Table.sem f) :
     (G.matchingOfPositions (G.positionsOfLabeling f)).IsMaximumMatching := by
-  have hm := isMatching_positionsOfLabeling hf.1
-  apply SimpleGraph.Subgraph.isMaximumMatching_iff_ncard.mpr
-  refine ⟨hm, fun M hM => ?_⟩
+  refine SimpleGraph.Subgraph.isMaximumMatching_iff_ncard.mpr
+    ⟨isMatching_positionsOfLabeling hf.1, fun M hM => ?_⟩
   have hg := comparisonLabeling_valid G (positions M)
   have hle := hf.2 (G.comparisonLabeling (positions M)) hg
   have hid := defects_add_two_mul_positions hf.1
   have hgd := defects_add_two_mul_positions hg
   have hsub := Finset.card_le_card (positions_subset_comparison hM)
-  have hpos : positions (G.matchingOfPositions (G.positionsOfLabeling f)) =
-      G.positionsOfLabeling f := positions_matchingOfPositions
-        (fun i hi => (mem_positionsOfLabeling f i).mp hi |>.1)
-  rw [← card_positions M, ← card_positions _, hpos]
+  rw [← card_positions M, ← card_positions _,
+    positions_matchingOfPositions fun i hi => ((mem_positionsOfLabeling f i).mp hi).1]
   omega
 
 /-- The executable position scan is exactly the semantic mutually selected edge set. -/
@@ -100,70 +97,54 @@ theorem mem_verts_matchingOfPositions_iff {S : Finset ℕ}
     (hS : ∀ i ∈ S, i < G.edgeList.length) (v : ℕ) (hv : v ∈ G.vertices) :
     (⟨v, hv⟩ : {v // v ∈ G.vertices}) ∈ (G.matchingOfPositions S).verts ↔
       ∃ i ∈ S, incident (G.edgeList.getD i (0, 0)) v = true := by
-  constructor
-  · rintro ⟨w, _, i, hi, he⟩
-    refine ⟨i, hi, ?_⟩
-    rcases he with h | h <;> rw [h] <;> simp [incident]
-  · rintro ⟨i, hi, hinc⟩
-    apply mem_verts_of_incident_positions hv _ hinc
-    rw [positions_matchingOfPositions hS]
-    exact hi
+  refine ⟨?_, fun ⟨i, hi, hinc⟩ =>
+    mem_verts_of_incident_positions hv (by rwa [positions_matchingOfPositions hS]) hinc⟩
+  rintro ⟨w, _, i, hi, h | h⟩ <;> exact ⟨i, hi, by rw [h]; simp [incident]⟩
 
 /-- The executable coverage scan is exactly spanning of the returned Mathlib subgraph. -/
 theorem coversVertices_maximumMatching (G : Graph) :
     G.coversVertices G.maximumMatching = true ↔ G.maximumMatchingSubgraph.IsSpanning := by
+  have hlt : ∀ i ∈ G.maximumMatchingPositions.toFinset, i < G.edgeList.length :=
+    fun _ hi => maximumMatchingPositions_lt (List.mem_toFinset.mp hi)
   simp only [coversVertices, List.all_eq_true, mem_distinctVertices, List.any_eq_true,
     maximumMatching, edgesAtPositions, List.mem_map]
-  constructor
-  · intro h v
-    obtain ⟨_, ⟨i, hi, rfl⟩, hinc⟩ := h v.val v.2
-    exact (mem_verts_matchingOfPositions_iff
-      (fun _ hi => maximumMatchingPositions_lt (List.mem_toFinset.mp hi)) v.val v.2).mpr
-        ⟨i, List.mem_toFinset.mpr hi, hinc⟩
-  · intro h v hv
-    obtain ⟨i, hi, hinc⟩ := (mem_verts_matchingOfPositions_iff
-      (fun _ hi => maximumMatchingPositions_lt (List.mem_toFinset.mp hi)) v hv).mp (h ⟨v, hv⟩)
+  refine ⟨fun h v => ?_, fun h v hv => ?_⟩
+  · obtain ⟨_, ⟨i, hi, rfl⟩, hinc⟩ := h v.val v.2
+    exact (mem_verts_matchingOfPositions_iff hlt v.val v.2).mpr ⟨i, List.mem_toFinset.mpr hi, hinc⟩
+  · obtain ⟨i, hi, hinc⟩ := (mem_verts_matchingOfPositions_iff hlt v hv).mp (h ⟨v, hv⟩)
     exact ⟨_, ⟨i, List.mem_toFinset.mp hi, rfl⟩, hinc⟩
 
 /-- A maximum matching spans exactly when any perfect matching exists. -/
 theorem maximumMatchingSubgraph_isSpanning_iff (G : Graph) :
     G.maximumMatchingSubgraph.IsSpanning ↔ ∃ M : G.induced.Subgraph, M.IsPerfectMatching := by
-  constructor
-  · intro h
-    exact ⟨_, (maximumMatchingSubgraph_isMaximumMatching G).isMatching, h⟩
-  · rintro ⟨M, hM⟩
-    have hm := maximumMatchingSubgraph_isMaximumMatching G
-    have hle := hm.isMatching.isMaximumMatching_iff_ncard_verts.mp hm M hM.1
-    rw [hM.2.verts_eq_univ] at hle
-    have heq := Set.eq_of_subset_of_ncard_le (Set.subset_univ G.maximumMatchingSubgraph.verts)
-      hle (Set.toFinite _)
-    exact fun v => heq ▸ Set.mem_univ v
+  refine ⟨fun h => ⟨_, (maximumMatchingSubgraph_isMaximumMatching G).isMatching, h⟩, ?_⟩
+  rintro ⟨M, hM⟩ v
+  have hm := maximumMatchingSubgraph_isMaximumMatching G
+  have hle := hm.isMatching.isMaximumMatching_iff_ncard_verts.mp hm M hM.1
+  rw [hM.2.verts_eq_univ] at hle
+  exact Set.eq_of_subset_of_ncard_le (Set.subset_univ _) hle (Set.toFinite _) ▸ Set.mem_univ v
 
 /-- Complete successful perfect-search specification in the existing Mathlib subgraph model. -/
 theorem perfectMatching_spec {edges : List (ℕ × ℕ)} (h : G.perfectMatching = some edges) :
     edges = G.maximumMatching ∧ G.maximumMatchingSubgraph.IsPerfectMatching := by
-  unfold perfectMatching at h
-  dsimp only at h
+  unfold perfectMatching at h; dsimp only at h
   split at h
-  next hc =>
-    cases Option.some.inj h
-    exact ⟨rfl, (maximumMatchingSubgraph_isMaximumMatching G).isMatching,
+  · next hc =>
+    exact ⟨(Option.some.inj h).symm, (maximumMatchingSubgraph_isMaximumMatching G).isMatching,
       (coversVertices_maximumMatching G).mp hc⟩
-  next => contradiction
+  · contradiction
 
 /-- Complete perfect decision, including normalization, empty graphs and isolates. -/
 theorem decidePerfectMatching_eq_true (G : Graph) :
     G.decidePerfectMatching = true ↔ ∃ M : G.induced.Subgraph, M.IsPerfectMatching := by
   rw [← maximumMatchingSubgraph_isSpanning_iff, ← coversVertices_maximumMatching]
-  unfold decidePerfectMatching perfectMatching
-  dsimp only
+  unfold decidePerfectMatching perfectMatching; dsimp only
   split <;> simp_all
 
 /-- Search fails exactly when the actual induced graph has no perfect matching. -/
 theorem perfectMatching_eq_none_iff (G : Graph) :
     G.perfectMatching = none ↔ ¬∃ M : G.induced.Subgraph, M.IsPerfectMatching := by
-  rw [← decidePerfectMatching_eq_true]
-  unfold decidePerfectMatching
+  rw [← decidePerfectMatching_eq_true]; unfold decidePerfectMatching
   cases G.perfectMatching <;> simp
 
 end Cslib.Complexity.Graph
@@ -175,21 +156,14 @@ theorem maximumMatchingSubgraph_adj_iff (G : Graph) (u v : {v // v ∈ G.vertice
     G.maximumMatchingSubgraph.Adj u v ↔
       (u.val, v.val) ∈ G.maximumMatching ∨ (v.val, u.val) ∈ G.maximumMatching := by
   constructor
-  · rintro ⟨_, i, hi, he⟩
-    rcases he with he | he
+  · rintro ⟨_, i, hi, he | he⟩
     · exact Or.inl (List.mem_map.mpr ⟨i, List.mem_toFinset.mp hi, he⟩)
     · exact Or.inr (List.mem_map.mpr ⟨i, List.mem_toFinset.mp hi, he⟩)
-  · intro h
-    have ha : G.induced.Adj u v := by
-      rw [induced_adj, toSimpleGraph_adj]
-      rcases h with h | h
-      · obtain ⟨hm, hne, _, _⟩ := of_mem_maximumMatching h
-        exact ⟨hne, Or.inl hm⟩
-      · obtain ⟨hm, hne, _, _⟩ := of_mem_maximumMatching h
-        exact ⟨hne.symm, Or.inr hm⟩
-    refine ⟨ha, ?_⟩
-    rcases h with h | h <;> obtain ⟨i, hi, he⟩ := List.mem_map.mp h
-    · exact ⟨i, List.mem_toFinset.mpr hi, Or.inl he⟩
-    · exact ⟨i, List.mem_toFinset.mpr hi, Or.inr he⟩
+  · rintro (h | h) <;> obtain ⟨hm, hne, _, _⟩ := of_mem_maximumMatching h <;>
+      obtain ⟨i, hi, he⟩ := List.mem_map.mp h
+    · exact ⟨by rw [induced_adj, toSimpleGraph_adj]; exact ⟨hne, Or.inl hm⟩,
+        i, List.mem_toFinset.mpr hi, Or.inl he⟩
+    · exact ⟨by rw [induced_adj, toSimpleGraph_adj]; exact ⟨hne.symm, Or.inr hm⟩,
+        i, List.mem_toFinset.mpr hi, Or.inr he⟩
 
 end Cslib.Complexity.Graph

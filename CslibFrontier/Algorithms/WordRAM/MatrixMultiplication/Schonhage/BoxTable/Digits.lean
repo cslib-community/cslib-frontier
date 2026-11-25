@@ -61,48 +61,34 @@ open Finset Cslib.Algorithms.MatrixMultiplication.Schonhage
 theorem leafAt_eq_P0_iff {L : ℕ} (c : Fin (10 ^ L)) (ℓ : Fin L) :
     leafAt c ℓ = .P0 ↔ digitAt c.val ℓ.val = 9 := by
   have hd := finFunctionFinEquiv_symm_apply_val c ℓ
-  constructor
-  · intro h
-    have h' := congrArg Encoding.termDigits.symm h
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have h' := congrArg Encoding.termDigits.symm h
     simp only [leafAt, Equiv.symm_apply_apply] at h'
-    change (finFunctionFinEquiv.symm c ℓ) = 9 at h'
-    simp [digitAt, ← hd, h']
-  · intro h
-    have h' : finFunctionFinEquiv.symm c ℓ = 9 := Fin.ext (hd.trans h)
+    simp [digitAt, ← hd, show finFunctionFinEquiv.symm c ℓ = 9 from h']
+  · have h' : finFunctionFinEquiv.symm c ℓ = 9 := Fin.ext (hd.trans h)
     simp [leafAt, h', Encoding.termDigits, Encoding.termAt]
 
 /-- The scan's population is the existing finite P0-coordinate cardinality. -/
 theorem population_eq_card_P0Levels {L : ℕ} (c : Fin (10 ^ L)) :
     population c.val L = (P0Levels (leafAt c)).card := by
   rw [population, Nat.count_eq_card_filter_range]
-  symm
-  refine card_bij (fun ℓ _ => ℓ.val) ?_ ?_ ?_
-  · intro ℓ hℓ
-    exact mem_filter.mpr ⟨mem_range.mpr ℓ.isLt,
-      (leafAt_eq_P0_iff c ℓ).mp (mem_P0Levels.mp hℓ)⟩
-  · intro ℓ _ ℓ' _ h
-    exact Fin.ext h
-  · intro k hk
-    obtain ⟨hkL, hkd⟩ := mem_filter.mp hk
-    exact ⟨⟨k, mem_range.mp hkL⟩,
-      mem_P0Levels.mpr ((leafAt_eq_P0_iff c _).mpr hkd), rfl⟩
+  exact (card_bij (fun ℓ _ => ℓ.val)
+    (fun ℓ hℓ => mem_filter.mpr ⟨mem_range.mpr ℓ.isLt,
+      (leafAt_eq_P0_iff c ℓ).mp (mem_P0Levels.mp hℓ)⟩)
+    (fun _ _ _ _ => Fin.ext)
+    fun k hk => ⟨⟨k, mem_range.mp (mem_filter.mp hk).1⟩,
+      mem_P0Levels.mpr ((leafAt_eq_P0_iff c _).mpr (mem_filter.mp hk).2), rfl⟩).symm
 
 /-- A prefix scan counts precisely the P0 coordinates below its native level. -/
 theorem population_eq_card_P0Levels_filter {L k : ℕ} (c : Fin (10 ^ L)) (hk : k ≤ L) :
     population c.val k = ((P0Levels (leafAt c)).filter fun ℓ => ℓ.val < k).card := by
   rw [population, Nat.count_eq_card_filter_range]
-  symm
-  refine card_bij (fun ℓ _ => ℓ.val) ?_ ?_ ?_
-  · intro ℓ hℓ
-    obtain ⟨hp, hlt⟩ := mem_filter.mp hℓ
-    exact mem_filter.mpr ⟨mem_range.mpr hlt,
-      (leafAt_eq_P0_iff c ℓ).mp (mem_P0Levels.mp hp)⟩
-  · intro ℓ _ ℓ' _ h
-    exact Fin.ext h
-  · intro i hi
-    obtain ⟨hilt, hid⟩ := mem_filter.mp hi
-    have hiL : i < L := (mem_range.mp hilt).trans_le hk
-    exact ⟨⟨i, hiL⟩, mem_filter.mpr
+  refine (card_bij (fun ℓ _ => ℓ.val) (fun ℓ hℓ => ?_) (fun _ _ _ _ => Fin.ext)
+    fun i hi => ?_).symm
+  · obtain ⟨hp, hlt⟩ := mem_filter.mp hℓ
+    exact mem_filter.mpr ⟨mem_range.mpr hlt, (leafAt_eq_P0_iff c ℓ).mp (mem_P0Levels.mp hp)⟩
+  · obtain ⟨hilt, hid⟩ := mem_filter.mp hi
+    exact ⟨⟨i, (mem_range.mp hilt).trans_le hk⟩, mem_filter.mpr
       ⟨mem_P0Levels.mpr ((leafAt_eq_P0_iff c _).mpr hid), mem_range.mp hilt⟩, rfl⟩
 
 /-- No scan prefix contains more P0 digits than scanned levels. -/
@@ -120,8 +106,7 @@ theorem starStride_le (c e k : ℕ) : starStride c e k ≤ 10 ^ k := by
   induction k with
   | zero => simp [starStride]
   | succ k ih =>
-    rw [starStride]
-    split
+    rw [starStride]; split
     · exact Nat.pow_le_pow_right (by decide) (by omega)
     · exact ih.trans (Nat.pow_le_pow_right (by decide) (by omega))
 
@@ -132,16 +117,11 @@ theorem starStride_of_rank {c e j k : ℕ} (hjk : j < k)
   induction k with
   | zero => omega
   | succ k ih =>
-    by_cases hj : j = k
-    · subst j
-      rw [starStride]
-      have hr : population c k + 1 = e := by simpa [population_succ, hd] using hrank
-      simp [hd, hr]
-    · have hjk' : j < k := by omega
-      have hmono : e ≤ population c k := by
-        rw [← hrank]
-        exact Nat.count_monotone _ (by omega)
+    rcases eq_or_ne j k with rfl | hj
+    · have hr : population c j + 1 = e := by simpa [population_succ, hd] using hrank
+      simp [starStride, hd, hr]
+    · have hmono : e ≤ population c k := hrank ▸ Nat.count_monotone _ (by omega)
       rw [starStride, ite_eq_right (by omega : ¬(digitAt c k = 9 ∧ population c k + 1 = e))]
-      exact ih hjk'
+      exact ih (by omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable
