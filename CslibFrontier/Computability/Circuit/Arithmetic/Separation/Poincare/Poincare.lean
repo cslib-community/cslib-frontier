@@ -92,10 +92,9 @@ private theorem exists_eq_zero_of_step {Z : Type*} [MetricSpace Z] [CompleteSpac
     | base => simp
     | succ m _ ih => linarith [dist_triangle (y n) (y m) (y (m + 1)), hstep m]
   have hq0 : 0 ≤ 1 - 1 / 2 / L := by
-    have : 1 / 2 / L ≤ 1 := by rw [div_le_one (by linarith)]; linarith
+    have : 1 / 2 / L ≤ 1 / 2 := div_le_self (by norm_num) hL
     linarith
-  have hq1 : 1 - 1 / 2 / L < 1 := by have : 0 < 1 / 2 / L := by positivity
-                                     linarith
+  have hq1 : 1 - 1 / 2 / L < 1 := sub_lt_self _ (by positivity)
   have hFlim : Tendsto (fun n => F (y n)) atTop (𝓝 0) := by
     refine squeeze_zero (g := fun n => (1 - 1 / 2 / L) ^ n * F z) (fun n => hF0 _)
       (fun n => ?_) (by simpa only [zero_mul] using
@@ -113,8 +112,8 @@ private theorem exists_eq_zero_of_step {Z : Type*} [MetricSpace Z] [CompleteSpac
     (htot 0 n (Nat.zero_le n)).trans (by linarith [hX0 n])
   calc dist z y₀ ^ 2 ≤ X 0 ^ 2 := pow_le_pow_left₀ dist_nonneg h1 2
     _ = 8 * F z := by
-      simp only [X, y, Function.iterate_zero, id_eq]
-      rw [mul_pow, div_pow, Real.sq_sqrt (by norm_num), Real.sq_sqrt (hF0 z)]
+      simp only [X, y, Function.iterate_zero, id_eq, mul_pow, div_pow,
+        Real.sq_sqrt (by norm_num : (0 : ℝ) ≤ 1 / 2), Real.sq_sqrt (hF0 z)]
       norm_num
 
 section Action
@@ -136,10 +135,10 @@ private theorem dist_P_P_sq_le_of_disjoint [CompleteCAT0Space Z] (A : IsoAct (U 
     (IsoAct.P_fix _ _) fun q σ hσ0 hσ1 hq => ?_).trans ?_
   · rw [P_eq_of_dist_add_dist (A.W p' n') (a := (A.W p n).P z) (q := q)
       (by rw [hq.dist_left hσ0.le hσ1, hq.dist_right hσ0.le hσ1]; ring), dist_comm q]
-    nlinarith [sq_nonneg (ε / (2 * r + 1)), sq_nonneg (dist v q)]
+    exact mul_le_of_le_one_left (sq_nonneg _) (by linarith [sq_nonneg (ε / (2 * r + 1))])
   · have : 2 * (ε / (2 * r + 1)) * r ≤ ε := by
       rw [mul_div_assoc', div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
-      nlinarith
+      linarith [show 2 * ε * r = ε * (2 * r) by ring]
     linarith
 
 variable {μ : ℕ} {s : ℝ} {u L : ℕ}
@@ -150,7 +149,7 @@ private noncomputable def windowSum [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
   ∑ i : Fin L, dist z ((A.W (i.1 * u) (2 * u)).P z) ^ 2
 
 private theorem window_le (hh : (L + 1) * u = h) (a : Fin L) : a.1 * u + 2 * u ≤ h :=
-  hh ▸ (by nlinarith [a.2] : a.1 * u + 2 * u ≤ (L + 1) * u)
+  hh ▸ by rw [← add_mul]; exact Nat.mul_le_mul_right u (by omega)
 
 /-- One step of averaging: for the barycenter `b` of the `L` points `Q_i z`,
 `Φ(b) ≤ (1 − (1 − 2c)/L) Φ(z)` and `L|zb|² ≤ Φ(z) − Φ(b)`, for `c = 1/4`. By (F.3),
@@ -171,14 +170,17 @@ private theorem exists_windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
       r a + r b + (if b.1 = a.1 + 1 then 1 / 4 * (r a + r b) else 0) := fun a b hab => by
     split_ifs with hb
     · have h1 := dist_P_P_sq_le A hμ hs hA (p := a.1 * u) hu
-        (by have := window_le hh b; rw [hb] at this; nlinarith)
+        (by have := window_le hh b; rw [hb, add_mul, one_mul] at this; omega)
         (by norm_num) hC (by norm_num) (by norm_num : 1 - (1 / 4 : ℝ) ^ 2 ≤ (1 - 1 / 32) ^ 2)
         (by norm_num) z
       rw [show a.1 * u + u = b.1 * u by rw [hb]; ring] at h1
-      nlinarith [sq_nonneg (dist z (Q a) - dist z (Q b))]
+      have h2 : 2 * (dist z (Q a) * dist z (Q b)) ≤ r a + r b :=
+        mul_assoc (2 : ℝ) _ _ ▸ two_mul_le_add_sq _ _
+      linarith
     · rw [add_zero]
       have hab2 : a.1 + 2 ≤ b.1 := by have := Fin.lt_def.1 hab; omega
-      exact dist_P_P_sq_le_of_disjoint A (by nlinarith) (window_le hh b) z
+      exact dist_P_P_sq_le_of_disjoint A
+        (by rw [← add_mul]; exact Nat.mul_le_mul_right u hab2) (window_le hh b) z
   have hpair : ∀ a b : Fin L, dist (Q a) (Q b) ^ 2 ≤ r a + r b + 1 / 4 *
       ((if b.1 = a.1 + 1 then r a else 0) + (if b.1 = a.1 + 1 then r b else 0) +
         ((if a.1 = b.1 + 1 then r a else 0) + (if a.1 = b.1 + 1 then r b else 0))) -
@@ -207,7 +209,7 @@ private theorem exists_windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
     have s3 := sum_sum_ite_le r hr (fun a b => a.1 = b.1 + 1) h2
     have s4 := sum_sum_ite_le r hr (fun b a => a.1 = b.1 + 1) h1
     rw [sum_comm] at s2 s4
-    nlinarith [sum_nonneg fun a (_ : a ∈ univ) => hr a]
+    linarith [sum_nonneg fun a (_ : a ∈ univ) => hr a]
   -- the barycenter `b` of the points `Q_i z`
   have : Nonempty Z := ⟨z⟩
   obtain ⟨b, hb⟩ := exists_isBarycenter (fun _ : Fin L => (1 : ℝ)) (fun _ => zero_le_one) Q
@@ -220,12 +222,11 @@ private theorem exists_windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
     ring
   have h4 : windowSum A u L b ≤ ∑ i, dist b (Q i) ^ 2 := sum_le_sum fun i _ =>
     pow_le_pow_left₀ dist_nonneg (dist_P_le _ (IsoAct.P_fix _ z) b) 2
-  have h5 : ∑ i, dist b (Q i) ^ 2 ≤ (1 - 1 / 2 / L) * windowSum A u L z := by
-    refine le_of_mul_le_mul_left ?_ (by linarith : (0 : ℝ) < 2 * L)
-    have e : 2 * (L : ℝ) * ((1 - 1 / 2 / L) * windowSum A u L z) =
-        2 * ((L : ℝ) - 1 / 2) * ∑ a, r a := by
-      simp only [windowSum, r, Q]; field_simp
-    linarith
+  have h5 : ∑ i, dist b (Q i) ^ 2 ≤ (1 - 1 / 2 / L) * windowSum A u L z :=
+    le_of_mul_le_mul_left (by
+      have : 2 * (L : ℝ) * ((1 - 1 / 2 / L) * windowSum A u L z) =
+          2 * ((L : ℝ) - 1 / 2) * ∑ a, r a := by simp only [windowSum, r, Q]; field_simp
+      linarith) (by linarith : (0 : ℝ) < 2 * L)
   exact ⟨b, h4.trans h5, by have := hb z; simp only [windowSum, Q] at *; linarith⟩
 
 /-- "Each generator lies in at most two of the windows, so (F.1) for `n = 2u` bounds `Φ(z)` by
@@ -241,7 +242,8 @@ private theorem windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (hμ : 2
     fun m => by
       induction m with
       | zero => simp
-      | succ m ih => rw [sum_range_succ, ih, sum_range_add_sum_Ico _ (by nlinarith)]
+      | succ m ih =>
+        rw [sum_range_succ, ih, sum_range_add_sum_Ico _ (Nat.mul_le_mul_right u (Nat.le_succ m))]
   set C := kappa μ s (2 * u) ^ 2 * (2 * u : ℕ)
   set S1 : ℕ → ℝ := fun a => ∑ j ∈ Ico (a * u) ((a + 1) * u), g j
   set S2 : ℕ → ℝ := fun a => ∑ j ∈ Ico ((a + 1) * u) ((a + 1 + 1) * u), g j
@@ -251,19 +253,19 @@ private theorem windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (hμ : 2
         (mul_le_mul_of_nonneg_left ?_ (by positivity))
       have e : (a.1 + 1 + 1) * u = a.1 * u + 2 * u := by ring
       simp only [S1, S2]
-      rw [sum_Ico_consecutive _ (by nlinarith) (by nlinarith)]
+      rw [sum_Ico_consecutive _ (Nat.mul_le_mul_right u (Nat.le_succ _))
+        (Nat.mul_le_mul_right u (Nat.le_succ _)), e]
       exact sum_le_sum_of_subset_of_nonneg (Ico_subset_Ico le_rfl (by omega)) fun j _ _ => hg j
   refine (sum_le_sum fun a _ => hwin a).trans ?_
   rw [← Finset.mul_sum, sum_add_distrib, Fin.sum_univ_eq_sum_range S1,
     Fin.sum_univ_eq_sum_range S2]
-  have e1 : ∑ a ∈ range L, S1 a ≤ ∑ j ∈ range h, g j := by
-    rw [hcons]
-    exact sum_le_sum_of_subset_of_nonneg (range_subset_range.2 (by nlinarith)) fun j _ _ => hg j
+  have e1 : ∑ a ∈ range L, S1 a ≤ ∑ j ∈ range h, g j :=
+    hcons L ▸ sum_le_sum_of_subset_of_nonneg
+      (range_subset_range.2 (hh ▸ Nat.mul_le_mul_right u (Nat.le_succ L))) fun j _ _ => hg j
   have e2 : ∑ a ∈ range L, S2 a ≤ ∑ j ∈ range h, g j := by
     rw [← hh, ← hcons, sum_range_succ' _ L]
     linarith [sum_nonneg fun j (_ : j ∈ Ico (0 * u) ((0 + 1) * u)) => hg j]
-  have hC0 : 0 ≤ C := by positivity
-  nlinarith [mul_le_mul_of_nonneg_left (add_le_add e1 e2) hC0]
+  linarith [mul_le_mul_of_nonneg_left (add_le_add e1 e2) (by positivity : 0 ≤ C)]
 
 /-- The Poincaré bound for an isometric action of `U_h`, `h = (L + 1)u`, on a complete CAT(0)
 space with contracting lengths, from the proof of Theorem F.6 with `ζ = 1/32` and `c = 1/4`:
@@ -275,12 +277,11 @@ private theorem mean_dist_sq_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (hμ 
     (∑ g, dist z (A g z) ^ 2) / Fintype.card (U h) ≤
       64 * (kappa μ s (2 * u) ^ 2 * (2 * u : ℕ)) * ∑ j, dist z (A (x h j) z) ^ 2 := by
   choose b hb1 hb2 using exists_windowSum_le A hμ hs hA hu hL hh hC
-  have hFc : Continuous (windowSum A u L) := by
-    unfold windowSum
-    refine continuous_finsetSum (univ : Finset (Fin L)) fun (a : Fin L) _ => Continuous.pow ?_ 2
-    exact (LipschitzWith.of_le_add (f := fun y : Z => dist y ((A.W (a.1 * u) (2 * u)).P y))
-      fun y w => by linarith [dist_P_le (A.W (a.1 * u) (2 * u)) (IsoAct.P_fix _ w) y,
-        dist_triangle y w ((A.W (a.1 * u) (2 * u)).P w)]).continuous
+  have hFc : Continuous (windowSum A u L) :=
+    continuous_finsetSum univ fun a _ => Continuous.pow
+      (LipschitzWith.of_le_add (f := fun y : Z => dist y ((A.W (a.1 * u) (2 * u)).P y))
+        fun y w => by linarith [dist_P_le (A.W (a.1 * u) (2 * u)) (IsoAct.P_fix _ w) y,
+          dist_triangle y w ((A.W (a.1 * u) (2 * u)).P w)]).continuous 2
   obtain ⟨y, hy0, hy⟩ := exists_eq_zero_of_step (F := windowSum A u L)
     (fun z => by unfold windowSum; positivity) hFc
     (by exact_mod_cast hL) hb1 hb2 z
@@ -303,19 +304,17 @@ private theorem mean_dist_sq_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (hμ 
     rw [IsoAct.e, dite_eq_left (by omega)] at he
     exact (dist_eq_zero.1 he).symm
   have hfix : A.Fix y := fun g => by
-    have hg : g ∈ Subgroup.closure (Set.range (x h)) :=
-      Cslib.SLTower.closure_range_x ▸ Subgroup.mem_top g
-    induction hg using Subgroup.closure_induction with
+    induction (Cslib.SLTower.closure_range_x ▸ Subgroup.mem_top g :
+        g ∈ Subgroup.closure (Set.range (x h))) using Subgroup.closure_induction with
     | mem _ hg => obtain ⟨j, rfl⟩ := hg; exact hx j
     | one => exact A.act_one y
     | mul a b _ _ ha hb => rw [A.act_mul, hb, ha]
-    | inv a _ ha =>
-      conv_lhs => rw [← ha]
-      rw [← A.act_mul, inv_mul_cancel, A.act_one]
+    | inv a _ ha => conv_lhs => rw [← ha]; rw [← A.act_mul, inv_mul_cancel, A.act_one]
   have hd : ∀ g, dist z (A g z) ^ 2 ≤ 4 * dist z y ^ 2 := fun g => by
     have h1 := dist_triangle z y (A g z)
     rw [← hfix g, (A g).dist_eq, hfix g, dist_comm y z] at h1
-    nlinarith [dist_nonneg (x := z) (y := A g z)]
+    exact (pow_le_pow_left₀ dist_nonneg (by linarith : dist z (A g z) ≤ 2 * dist z y) 2).trans_eq
+      (by ring)
   have hw := windowSum_le A hμ hs hA hh z
   have hsum : ∑ j ∈ range h, A.e j z ^ 2 = ∑ j, dist z (A (x h j) z) ^ 2 := by
     rw [← sum_subset (range_subset_range.2 (Nat.sub_le h 1)) fun j _ hj => by
@@ -326,8 +325,7 @@ private theorem mean_dist_sq_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (hμ 
   rw [div_le_iff₀ (by exact_mod_cast Fintype.card_pos)]
   refine (sum_le_card_nsmul univ _ _ fun g _ => hd g).trans ?_
   rw [card_univ, nsmul_eq_mul, mul_comm]
-  refine mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg _)
-  linarith
+  exact mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg _)
 
 end Action
 
