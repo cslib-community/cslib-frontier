@@ -82,6 +82,8 @@ private theorem two_mul_div_step_defect_le {q a b a₀ b₀ : ℝ} (hq0 : 0 ≤ 
     (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : q * b₀ ≤ a) (hba : q * a₀ ≤ b) :
     2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 - a * b ≤
       (if a₀ < a then a ^ 2 else 0) + (if b₀ < b then b ^ 2 else 0) := by
+  wlog horder : a ≤ b generalizing a b a₀ b₀
+  · simpa only [add_comm, mul_comm] using this hb ha hba hab (le_of_not_ge horder)
   have havg : 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 - a * b ≤
       (a ^ 2 + b ^ 2) / 2 :=
     (sub_le_self _ (mul_nonneg ha hb)).trans <| div_le_div_of_nonneg_right
@@ -89,26 +91,19 @@ private theorem two_mul_div_step_defect_le {q a b a₀ b₀ : ℝ} (hq0 : 0 ≤ 
       (by norm_num)
   have hleft : 0 ≤ if a₀ < a then a ^ 2 else 0 := by split <;> positivity
   have hright : 0 ≤ if b₀ < b then b ^ 2 else 0 := by split <;> positivity
-  by_cases hqa : q * a ≤ b
-  · by_cases hqb : q * b ≤ a
-    · have hden : 0 < 1 + q ^ 2 := by positivity
-      have hprod := mul_nonneg (sub_nonneg.mpr hqb) (sub_nonneg.mpr hqa)
-      calc 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 - a * b
-          = -((a - q * b) * (b - q * a)) / (1 + q ^ 2) := by field_simp; ring
-        _ ≤ 0 := div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hprod) hden.le
-        _ ≤ _ := add_nonneg hleft hright
-    · have hlt : b₀ < b :=
-        lt_of_not_ge fun h => hqb ((mul_le_mul_of_nonneg_left h hq0).trans hab)
-      have hab' : a ≤ b := (lt_of_not_ge hqb).le.trans (mul_le_of_le_one_left hb hq1)
-      rw [ite_eq_left hlt]
-      exact havg.trans ((by linarith [pow_le_pow_left₀ ha hab' 2] : _ ≤ b ^ 2).trans
-        (le_add_of_nonneg_left hleft))
-  · have hlt : a₀ < a :=
-      lt_of_not_ge fun h => hqa ((mul_le_mul_of_nonneg_left h hq0).trans hba)
-    have hba' : b ≤ a := (lt_of_not_ge hqa).le.trans (mul_le_of_le_one_left ha hq1)
+  by_cases hqb : q * b ≤ a
+  · have hqa : q * a ≤ b := (mul_le_of_le_one_left ha hq1).trans horder
+    have hden : 0 < 1 + q ^ 2 := by positivity
+    have hprod := mul_nonneg (sub_nonneg.mpr hqb) (sub_nonneg.mpr hqa)
+    calc 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 - a * b
+        = -((a - q * b) * (b - q * a)) / (1 + q ^ 2) := by field_simp; ring
+      _ ≤ 0 := div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hprod) hden.le
+      _ ≤ _ := add_nonneg hleft hright
+  · have hlt : b₀ < b :=
+      lt_of_not_ge fun h => hqb ((mul_le_mul_of_nonneg_left h hq0).trans hab)
     rw [ite_eq_left hlt]
-    exact havg.trans ((by linarith [pow_le_pow_left₀ hb hba' 2] : _ ≤ a ^ 2).trans
-      (le_add_of_nonneg_right hright))
+    exact havg.trans ((by linarith only [pow_le_pow_left₀ ha horder 2] : _ ≤ b ^ 2).trans
+      (le_add_of_nonneg_left hleft))
 
 private theorem sum_union_le_of_nonneg {α : Type*} [DecidableEq α] {A B : Finset α} {f : α → ℝ}
     (hf : ∀ x, 0 ≤ f x) :
