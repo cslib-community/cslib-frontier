@@ -601,9 +601,7 @@ requests. -/
     · dsimp only at hres' ⊢
       by_cases hmem : (party.queryDecoder.decode w).1 ∈ p.corrupted
       · simp only [hmem, ↓reduceIte, (cert.codec p.secParam p.corrupted).decode_enc] at hres'
-        have heq := OracleComp.eq_of_mem_supportWith_pure hres'
-        rw [heq]
-        exact Nat.le_add_right _ _
+        rw [OracleComp.eq_of_mem_supportWith_pure hres']; exact Nat.le_add_right _ _
       · simp only [hmem, ↓reduceIte] at hres'
         have hle := cert.preserve p (.inl (), w) s' result hres'
         dsimp only at hle
@@ -618,9 +616,7 @@ requests. -/
           dsimp only at hle ⊢
           omega
         · simp only [hmem, ↓reduceIte, (cert.codec p.secParam p.corrupted).decode_enc] at hres'
-          have heq := OracleComp.eq_of_mem_supportWith_pure hres'
-          rw [heq]
-          exact Nat.le_add_right _ _
+          rw [OracleComp.eq_of_mem_supportWith_pure hres']; exact Nat.le_add_right _ _
       · simp only [hhd, ↓reduceIte, OracleComp.mem_supportWith_map_iff] at hres'
         rcases hres' with ⟨out, hout, rfl⟩
         have hle := cert.preserve p (.inr (), w.tail) s' out hout
@@ -823,8 +819,7 @@ state word normalized. -/
           OracleComp.support (wordHandle ρ (WordInterface.net subParty)
             (WordInterface.protocol party net) cert.codec p (.inl (), w)
             ((cert.codec p.secParam p.corrupted).enc s')) := by
-        rw [wordHandle, OracleComp.mem_supportWith_map_iff]
-        exact ⟨x, hx, rfl⟩
+        rw [wordHandle, OracleComp.mem_supportWith_map_iff]; exact ⟨x, hx, rfl⟩
       have hle := cert.preserve p (.inl (), w) s' _ hmem
       dsimp only at hle ⊢
       omega
@@ -838,8 +833,7 @@ state word normalized. -/
             OracleComp.support (wordHandle ρ (WordInterface.net subParty)
               (WordInterface.protocol party net) cert.codec p (.inr (), w.tail)
               ((cert.codec p.secParam p.corrupted).enc s')) := by
-          rw [wordHandle, OracleComp.mem_supportWith_map_iff]
-          exact ⟨x, hx, rfl⟩
+          rw [wordHandle, OracleComp.mem_supportWith_map_iff]; exact ⟨x, hx, rfl⟩
         have hle := cert.preserve p (.inr (), w.tail) s' _ hmem
         dsimp only at hle ⊢
         omega
@@ -985,8 +979,7 @@ private theorem wordHandle_liftRight_inr {n : ℕ} {ιL ιR ιE : Type}
             (cert.codec p.secParam p.corrupted).enc x.2) ∈
           OracleComp.support (wordHandle M iR iE cert.codec p (cE, w)
             ((cert.codec p.secParam p.corrupted).enc s')) := by
-        rw [wordHandle, OracleComp.mem_supportWith_map_iff]
-        exact ⟨x, hx, rfl⟩
+        rw [wordHandle, OracleComp.mem_supportWith_map_iff]; exact ⟨x, hx, rfl⟩
       exact cert.preserve p (cE, w) s' _ hmem'
 
 /-- Library infrastructure (no cited result): lifting a strict-PPT machine family past an
