@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Combinatorics.SimpleGraph.Density
 public import Mathlib.Combinatorics.SimpleGraph.LapMatrix
+import CslibFrontier.Foundations.Algebra.Order.Ring.MaxZero
 import Mathlib.Algebra.Order.Chebyshev
 import Mathlib.Combinatorics.SimpleGraph.DegreeSum
 import Mathlib.Data.Finset.Max
@@ -165,17 +166,6 @@ private theorem exists_weighted_median (w : V → ℝ) (hw : ∀ v, 0 ≤ w v) (
           fun hv => lt_of_le_of_lt hv hv₁_lt⟩
       rw [hL_eq]
       linarith
-
-omit [Fintype V] G [DecidableRel G.Adj] in
-private theorem sq_max_sub_max_add_sq_max_sub_max_le (a b : ℝ) :
-    (max a 0 - max b 0) ^ 2 + (max (-a) 0 - max (-b) 0) ^ 2 ≤ (a - b) ^ 2 := by
-  rcases le_total a 0 with ha | ha <;> rcases le_total b 0 with hb | hb <;>
-    simp only [max_eq_left, max_eq_right, ha, hb, neg_nonneg, neg_nonpos] <;> nlinarith
-
-omit [Fintype V] G [DecidableRel G.Adj] in
-private theorem sq_max_add_sq_max (a : ℝ) : max a 0 ^ 2 + max (-a) 0 ^ 2 = a ^ 2 := by
-  rcases le_total a 0 with ha | ha <;>
-    simp only [max_eq_left, max_eq_right, ha, neg_nonneg, neg_nonpos] <;> ring
 
 omit [Fintype V] in
 private theorem card_interedges_comm' (s t : Finset V) :
@@ -1279,7 +1269,8 @@ private theorem exists_weighted_half_rayleigh_le {w f : V → ℝ} (hw : ∀ v, 
   have hN_neg_nn : 0 ≤ N_neg := sum_nonneg fun v _ => mul_nonneg (sq_nonneg _) (hw v)
   have hN_sum : ∑ v, f v ^ 2 * w v ≤ N_pos + N_neg := by
     have h1 : N_pos + N_neg = ∑ v, (f v - m) ^ 2 * w v := by
-      simp only [N_pos, N_neg, g_pos, g_neg, ← sum_add_distrib, ← add_mul, sq_max_add_sq_max]
+      simp only [N_pos, N_neg, g_pos, g_neg, ← sum_add_distrib, ← add_mul,
+        sq_max_zero_add_sq_max_neg_zero]
     have h2 : ∑ v, (f v - m) ^ 2 * w v =
         (∑ v, f v ^ 2 * w v) + m ^ 2 * ∑ v, w v := by
       calc ∑ v, (f v - m) ^ 2 * w v
@@ -1298,7 +1289,7 @@ private theorem exists_weighted_half_rayleigh_le {w f : V → ℝ} (hw : ∀ v, 
       ← add_div, div_le_div_iff_of_pos_right zero_lt_two, ← sum_add_distrib]
     refine sum_le_sum fun e _ => ?_
     simpa only [g_pos, g_neg, sub_sub_sub_cancel_right] using
-      sq_max_sub_max_add_sq_max_sub_max_le (f e.1 - m) (f e.2 - m)
+      sq_max_zero_sub_add_sq_max_neg_zero_sub_le (f e.1 - m) (f e.2 - m)
   have hlap_pos_nn : 0 ≤ g_pos ⬝ᵥ (G.lapMatrix ℝ *ᵥ g_pos) := by
     rw [G.dotProduct_mulVec_lapMatrix]; positivity
   have hlap_neg_nn : 0 ≤ g_neg ⬝ᵥ (G.lapMatrix ℝ *ᵥ g_neg) := by
