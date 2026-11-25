@@ -461,14 +461,11 @@ theorem guessSecret_eq_of_close {n q N : ℕ} [Fact (Nat.Prime q)]
   set cW := (trueCount (X (some (j, guessSecret X j))) : ℝ)
   have hN : |(N : ℝ) * pR - N * pU| = N * |pR - pU| := by
     rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg N)]
-  have h1 : |cW - cU| ≤ |cW - N * pU| + |cU - N * pU| := by
-    rw [abs_sub_comm cU]
-    exact abs_sub_le _ _ _
-  have h2 : |(N : ℝ) * pR - N * pU| ≤ |cR - N * pR| + |cR - cU| + |cU - N * pU| := by
-    rw [abs_sub_comm cR (N * pR)]
-    calc |(N : ℝ) * pR - N * pU| ≤ |N * pR - cR| + |cR - N * pU| := abs_sub_le _ _ _
-      _ ≤ |N * pR - cR| + (|cR - cU| + |cU - N * pU|) := by gcongr; exact abs_sub_le _ _ _
-      _ = _ := by ring
+  have h1 := abs_sub_le cW (N * pU) cU
+  have h2 := abs_sub_le (N * pR) cR (N * pU)
+  have h3 := abs_sub_le cR cU (N * pU)
+  rw [abs_sub_comm (N * pU) cU] at h1
+  rw [abs_sub_comm (N * pR) cR] at h2
   linarith
 
 private theorem pi_trueCount_far_le {N : ℕ} (μ : PMF Bool) {ε : ℝ} (hε : 0 ≤ ε) :
@@ -483,8 +480,7 @@ private theorem pi_trueCount_far_le {N : ℕ} (μ : PMF Bool) {ε : ℝ} (hε : 
   have hmean : ∑ _i : Fin N, ∑ a : Bool, (μ a).toReal * (if a then (1 : ℝ) else 0) =
       N * (μ true).toReal := by
     simp
-  simp only [hsum, hmean, Fintype.card_fin, one_pow, mul_one] at h
-  exact h
+  simpa only [hsum, hmean, Fintype.card_fin, one_pow, mul_one] using h
 
 /-- When the trials are drawn from their estimators' laws, `guessSecret` misses the secret with
 probability at most `(n * q + 1) * 2 * exp (-N * |pR - pU| ^ 2 / 8)`. -/
