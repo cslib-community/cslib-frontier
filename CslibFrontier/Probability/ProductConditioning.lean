@@ -73,18 +73,15 @@ theorem sum_mul_log_div_filter (p : PMF α) (event : Set α) (hevent : ∃ a ∈
   classical
   set w := (p.toOuterMeasure event).toReal
   have hw : 0 < w := (toOuterMeasure_toReal_pos_iff p event).mpr hevent
-  have hterm : ∀ a, ((p.filter event hevent) a).toReal *
+  have hterm (a : α) : ((p.filter event hevent) a).toReal *
       Real.log (((p.filter event hevent) a).toReal / (p a).toReal) =
         (if a ∈ event then (p a).toReal else 0) / w * Real.log (1 / w) := by
-    intro a
     rw [filter_apply_toReal]
     by_cases ha : a ∈ event
     · rw [ite_eq_left ha, ite_eq_left ha]
       by_cases hpa : (p a).toReal = 0
       · simp [hpa]
-      · congr 2
-        field_simp
-        exact div_self hw.ne'
+      · congr 2; field_simp; exact div_self hw.ne'
     · simp [ha]
   rw [sum_congr rfl fun a _ => hterm a, ← sum_mul, ← sum_div, ← toOuterMeasure_apply_toReal,
     div_self hw.ne', one_mul]
@@ -101,41 +98,29 @@ theorem sum_sum_mul_log_div_map_le [DecidableEq ι] (P : PMF (∀ i, β i)) (p :
         Real.log (((P.map fun u => u j) a).toReal / (p j a).toReal) ≤
       ∑ u, (P u).toReal * Real.log ((P u).toReal / (pi p u).toReal) := by
   set M : ∀ j, PMF (β j) := fun j => P.map fun u => u j
-  have hmarg : ∀ j, ∑ a, (M j a).toReal * Real.log ((M j a).toReal / (p j a).toReal) =
-      ∑ u, (P u).toReal * Real.log ((M j (u j)).toReal / (p j (u j)).toReal) := fun j =>
-    sum_map_mul P (fun u => u j) fun a => Real.log ((M j a).toReal / (p j a).toReal)
-  have hsupp : P.support ⊆ (pi M).support := by
-    intro u hu
-    rw [mem_support_pi_iff]
-    intro j
-    exact (PMF.mem_support_iff _ _).mpr (ne_of_gt (lt_of_lt_of_le
-      (pos_iff_ne_zero.mpr ((PMF.mem_support_iff _ _).mp hu)) (le_map_apply P _ u)))
-  have hgibbs := sum_mul_log_div_nonneg hsupp
-  have hpt : ∀ u, (P u).toReal * Real.log ((P u).toReal / (pi p u).toReal) =
+  have hmarg (j : ι) := sum_map_mul P (fun u => u j)
+    fun a => Real.log ((M j a).toReal / (p j a).toReal)
+  have hsupp : P.support ⊆ (pi M).support := fun u hu => (mem_support_pi_iff M u).mpr fun j =>
+    (PMF.mem_support_iff _ _).mpr ((pos_iff_ne_zero.mpr ((PMF.mem_support_iff _ _).mp hu)).trans_le
+      (le_map_apply P _ u)).ne'
+  have hpt (u : ∀ i, β i) : (P u).toReal * Real.log ((P u).toReal / (pi p u).toReal) =
       (P u).toReal * Real.log ((P u).toReal / (pi M u).toReal) +
         ∑ j, (P u).toReal * Real.log ((M j (u j)).toReal / (p j (u j)).toReal) := by
-    intro u
     by_cases hu : P u = 0
     · simp [hu]
     have hu' : u ∈ P.support := (PMF.mem_support_iff _ _).mpr hu
-    have hp : ∀ j, (p j (u j)).toReal ≠ 0 := fun j => ENNReal.toReal_ne_zero.mpr
-      ⟨(PMF.mem_support_iff _ _).mp ((mem_support_pi_iff p u).mp (h hu') j),
-        PMF.apply_ne_top _ _⟩
-    have hM : ∀ j, (M j (u j)).toReal ≠ 0 := fun j => ENNReal.toReal_ne_zero.mpr
-      ⟨(PMF.mem_support_iff _ _).mp ((mem_support_pi_iff M u).mp (hsupp hu') j),
-        PMF.apply_ne_top _ _⟩
+    have hne {q : ∀ i, PMF (β i)} (hq : P.support ⊆ (pi q).support) (j : ι) :
+        (q j (u j)).toReal ≠ 0 :=
+      ENNReal.toReal_ne_zero.mpr ⟨(PMF.mem_support_iff _ _).mp
+        ((mem_support_pi_iff q u).mp (hq hu') j), PMF.apply_ne_top _ _⟩
     have hP : (P u).toReal ≠ 0 := ENNReal.toReal_ne_zero.mpr ⟨hu, PMF.apply_ne_top _ _⟩
-    rw [← mul_sum, ← mul_add]
-    congr 1
-    simp only [pi_apply, ENNReal.toReal_prod]
-    rw [Real.log_div hP (prod_ne_zero_iff.mpr fun j _ => hp j),
-      Real.log_div hP (prod_ne_zero_iff.mpr fun j _ => hM j),
-      Real.log_prod (fun j _ => hp j), Real.log_prod (fun j _ => hM j)]
-    simp only [Real.log_div (hM _) (hp _), sum_sub_distrib]
-    ring
+    rw [← mul_sum, ← mul_add]; congr 1; simp only [pi_apply, ENNReal.toReal_prod]
+    rw [Real.log_div hP (prod_ne_zero_iff.mpr fun j _ => hne h j),
+      Real.log_div hP (prod_ne_zero_iff.mpr fun j _ => hne hsupp j),
+      Real.log_prod fun j _ => hne h j, Real.log_prod fun j _ => hne hsupp j]
+    simp only [Real.log_div (hne hsupp _) (hne h _), sum_sub_distrib]; ring
   rw [sum_congr rfl fun u _ => hpt u, sum_add_distrib, sum_comm (s := univ) (t := univ)]
-  simp only [← hmarg]
-  linarith
+  simp only [← hmarg]; linarith [sum_mul_log_div_nonneg hsupp]
 
 /-- **Pinsker's inequality for the marginals.** The squared statistical distances of the marginals
 of `P` from the factors `p j` add up to at most half the divergence of `P` from the product `pi p`,
@@ -144,17 +129,11 @@ theorem sum_sq_dist_map_le [DecidableEq ι] (P : PMF (∀ i, β i)) (p : ∀ i, 
     (h : P.support ⊆ (pi p).support) :
     ∑ j, dist (P.map fun u => u j) (p j) ^ 2 ≤
       (∑ u, (P u).toReal * Real.log ((P u).toReal / (pi p u).toReal)) / 2 := by
-  have hpinsker (j : ι) : 2 * dist (P.map fun u => u j) (p j) ^ 2 ≤
-      ∑ a, ((P.map fun u => u j) a).toReal *
-        Real.log (((P.map fun u => u j) a).toReal / (p j a).toReal) := by
-    refine two_mul_dist_sq_le_sum_mul_log_div fun a ha => ?_
-    rw [PMF.support_map] at ha
-    obtain ⟨u, hu, rfl⟩ := ha
-    exact (mem_support_pi_iff p u).mp (h hu) j
-  have hsum := (sum_le_sum fun j (_ : j ∈ univ) => hpinsker j).trans
-    (sum_sum_mul_log_div_map_le P p h)
-  rw [← mul_sum] at hsum
-  linarith
+  have hsum := (sum_le_sum fun j (_ : j ∈ univ) =>
+    two_mul_dist_sq_le_sum_mul_log_div (p := P.map fun u => u j) (q := p j) fun a ha => by
+      rw [PMF.support_map] at ha; rcases ha with ⟨u, hu, rfl⟩
+      exact (mem_support_pi_iff p u).mp (h hu) j).trans (sum_sum_mul_log_div_map_le P p h)
+  rw [← mul_sum] at hsum; linarith
 
 /-- **Raz's conditioning lemma** [Raz, Claim 5.1][Raz1998], [Holenstein, Lemma 4.1][Holenstein2009].
 Conditioning independent coordinates on an event `W` moves them little:
@@ -164,12 +143,8 @@ theorem sum_sq_dist_map_filter_pi_le (p : ∀ i, PMF (β i)) (W : Set (∀ i, β
     ∑ j, dist (((pi p).filter W hW).map fun u => u j) (p j) ^ 2 ≤
       Real.log (1 / ((pi p).toOuterMeasure W).toReal) / 2 := by
   classical
-  have hQ : ((pi p).filter W hW).support ⊆ (pi p).support := by
-    rw [PMF.support_filter]
-    exact Set.inter_subset_right
-  have h := sum_sq_dist_map_le _ p hQ
-  rw [sum_mul_log_div_filter] at h
-  exact h
+  simpa only [sum_mul_log_div_filter] using sum_sq_dist_map_le _ p
+    ((PMF.support_filter hW).subset.trans Set.inter_subset_right)
 
 /-- **Raz's conditioning lemma** in the form of [Holenstein, Lemma 4.1, (4.1)][Holenstein2009]:
 `Pr[W] ≤ 2 ^ (-∑ⱼ ‖P_{Uⱼ | W} - P_{Uⱼ}‖²)`. -/
@@ -179,34 +154,26 @@ theorem toOuterMeasure_toReal_le_two_rpow (p : ∀ i, PMF (β i)) (W : Set (∀ 
       (2 : ℝ) ^ (-∑ j, dist (((pi p).filter W hW).map fun u => u j) (p j) ^ 2) := by
   set w := ((pi p).toOuterMeasure W).toReal
   have hw0 : 0 < w := (toOuterMeasure_toReal_pos_iff _ W).mpr hW
-  have hw1 : w ≤ 1 := toOuterMeasure_toReal_le_one (pi p) W
-  have hlog : 0 ≤ Real.log (1 / w) := Real.log_nonneg (by rw [le_div_iff₀ hw0]; linarith)
-  have hln2 : 0 < Real.log 2 := Real.log_pos one_lt_two
-  -- `ln (1 / w) / 2 ≤ log₂ (1 / w)` because `ln 2 < 2`.
+  have hlog : 0 ≤ Real.log (1 / w) := Real.log_nonneg
+    (by rw [le_div_iff₀ hw0]; linarith [toOuterMeasure_toReal_le_one (pi p) W])
   have hle : Real.log (1 / w) / 2 ≤ Real.logb 2 (1 / w) := by
-    rw [Real.logb, div_le_div_iff₀ two_pos hln2]
-    have : Real.log 2 ≤ 2 := (Real.log_le_sub_one_of_pos two_pos).trans (by norm_num)
-    nlinarith
-  have hsum := (sum_sq_dist_map_filter_pi_le p W hW).trans hle
-  calc w = (2 : ℝ) ^ (-Real.logb 2 (1 / w)) := by
-        rw [Real.rpow_neg zero_le_two, Real.rpow_logb two_pos (by norm_num) (by positivity),
-          one_div, inv_inv]
-    _ ≤ _ := Real.rpow_le_rpow_of_exponent_le one_le_two (neg_le_neg hsum)
+    rw [Real.logb, div_le_div_iff₀ two_pos (Real.log_pos one_lt_two)]
+    nlinarith [(Real.log_le_sub_one_of_pos two_pos).trans (by norm_num : (2 : ℝ) - 1 ≤ 2)]
+  rw [show w = (2 : ℝ) ^ (-Real.logb 2 (1 / w)) by
+    rw [Real.rpow_neg zero_le_two, Real.rpow_logb two_pos (by norm_num) (by positivity),
+      one_div, inv_inv]]
+  exact Real.rpow_le_rpow_of_exponent_le one_le_two
+    (neg_le_neg ((sum_sq_dist_map_filter_pi_le p W hW).trans hle))
 
 /-- **Raz's conditioning lemma**, summed over any `k` of the independent coordinates by
 Cauchy–Schwarz: `(∑_{j ∈ s} ‖P_{Uⱼ | W} - P_{Uⱼ}‖)² ≤ k · ln (1 / Pr[W]) / 2` with `k = #s`. -/
 theorem sq_sum_dist_map_filter_pi_le (p : ∀ i, PMF (β i)) (W : Set (∀ i, β i))
     (hW : ∃ u ∈ W, u ∈ (pi p).support) (s : Finset ι) :
     (∑ j ∈ s, dist (((pi p).filter W hW).map fun u => u j) (p j)) ^ 2 ≤
-      #s * Real.log (1 / ((pi p).toOuterMeasure W).toReal) / 2 := by
-  have hcs := sq_sum_le_card_mul_sum_sq (s := s)
-    (f := fun j => dist (((pi p).filter W hW).map fun u => u j) (p j))
-  calc _ ≤ _ := hcs
-    _ ≤ #s * (Real.log (1 / ((pi p).toOuterMeasure W).toReal) / 2) := by
-        gcongr
-        exact (sum_le_univ_sum_of_nonneg fun j => sq_nonneg _).trans
-          (sum_sq_dist_map_filter_pi_le p W hW)
-    _ = _ := by ring
+      #s * Real.log (1 / ((pi p).toOuterMeasure W).toReal) / 2 :=
+  sq_sum_le_card_mul_sum_sq.trans <| (mul_le_mul_of_nonneg_left
+    ((sum_le_univ_sum_of_nonneg fun _ => sq_nonneg _).trans (sum_sq_dist_map_filter_pi_le p W hW))
+    (Nat.cast_nonneg _)).trans_eq (mul_div_assoc _ _ _).symm
 
 /-- **Raz's conditioning lemma** in the form of [Holenstein, (4.2)][Holenstein2009]:
 `∑ⱼ ‖P_{Uⱼ | W} - P_{Uⱼ}‖ ≤ √(k · ln (1 / Pr[W]))` for `k` independent coordinates. -/
@@ -214,16 +181,12 @@ theorem sum_dist_map_filter_pi_le (p : ∀ i, PMF (β i)) (W : Set (∀ i, β i)
     (hW : ∃ u ∈ W, u ∈ (pi p).support) :
     ∑ j, dist (((pi p).filter W hW).map fun u => u j) (p j) ≤
       Real.sqrt (Fintype.card ι * Real.log (1 / ((pi p).toOuterMeasure W).toReal)) := by
-  have hw : ((pi p).toOuterMeasure W).toReal ≤ 1 := toOuterMeasure_toReal_le_one (pi p) W
   have hw0 : 0 < ((pi p).toOuterMeasure W).toReal := (toOuterMeasure_toReal_pos_iff _ W).mpr hW
-  have hlog : 0 ≤ Real.log (1 / ((pi p).toOuterMeasure W).toReal) :=
-    Real.log_nonneg (by rw [le_div_iff₀ hw0]; linarith)
-  have h := sq_sum_dist_map_filter_pi_le p W hW univ
-  rw [card_univ] at h
-  refine Real.le_sqrt_of_sq_le (h.trans ?_)
-  have : (0 : ℝ) ≤ Fintype.card ι * Real.log (1 / ((pi p).toOuterMeasure W).toReal) := by
-    positivity
-  linarith
+  have hlog : 0 ≤ Real.log (1 / ((pi p).toOuterMeasure W).toReal) := Real.log_nonneg
+    (by rw [le_div_iff₀ hw0]; linarith [toOuterMeasure_toReal_le_one (pi p) W])
+  have h := card_univ (α := ι) ▸ sq_sum_dist_map_filter_pi_le p W hW univ
+  exact Real.le_sqrt_of_sq_le
+    (h.trans (by linarith [mul_nonneg (Nat.cast_nonneg (Fintype.card ι)) hlog]))
 
 end Product
 
