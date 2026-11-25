@@ -131,34 +131,16 @@ private theorem countQueries_maxScan_le (s : Store α β H)
       exact ih c₁
 
 theorem countQueries_maxR_le_fuel (s : Store α β H) (fuel : ℕ) (root : Option H) :
-    countQueries s (maxR fuel root) ≤ fuel := by
-  induction fuel generalizing root with
-  | zero => simp [maxR]
-  | succ fuel ih =>
-    cases root with
-    | none => simp [maxR]
-    | some h =>
-      simp only [maxR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_maxScan_le s (maxR fuel) ih (s h).first (s h).rest
-      omega
+    countQueries s (maxR fuel root) ≤ fuel :=
+  countQueries_le_fuel_of_step s maxR (fun rec v => maxScan rec v.first v.rest) (fun _ => rfl)
+    (fun _ => rfl) (fun _ _ => rfl) (fun rec _ hrec _ => countQueries_maxScan_le s rec hrec _ _)
+    fuel root
 
 private theorem head_map_eq_of_denotesRest {s : Store α β H} {rs : List (PageEntry α β H)}
     {rest : List (BTree.Triple α β)} (hd : DenotesRest s rs rest) :
     (rs.head?.map fun e => (e.key, e.val)) =
       (rest.head?.map fun (e : BTree.Triple α β) => (e.1, e.val)) := by
-  cases rs with
-  | nil =>
-    cases rest with
-    | nil => rfl
-    | cons e rest => exact (denotesRest_nil_cons s e rest hd).elim
-  | cons e rs =>
-    obtain ⟨k, v, r⟩ := e
-    cases rest with
-    | nil => exact (denotesRest_cons_nil s ⟨k, v, r⟩ rs hd).elim
-    | cons e' rest =>
-      obtain ⟨k', v', c⟩ := e'
-      obtain ⟨rfl, rfl, _, _⟩ := (denotesRest_cons_cons_iff s k k' v v' r c rs rest).mp hd
-      rfl
+  cases hd using DenotesRest.induction <;> rfl
 
 /-- `minR` evaluates to `BTree.min?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_minR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -209,6 +191,19 @@ theorem countQueries_minR_le {s : Store α β H} {fuel : ℕ} {root : Option H} 
         simp only [minR, countQueries_bind, countQueries_readNode, eval_readNode]
         split <;> simp only [countQueries_pure] <;> omega
 
+/-- In a descent step at `.node first rest`, the recursive call on `first` returns the expected
+result, and together with the node's page read stays within the node's height. -/
+private theorem first_spec {V γ : Type} {s : H → V} {D : Option H → BTree α β → Prop}
+    {m : Option H → (PFunctor.mk H fun _ => V).FreeM γ} {f : BTree α β → γ} {fuel : ℕ}
+    {first : BTree α β} {rest : List (BTree.Triple α β)} {r₀ : Option H}
+    (hrec : ∀ c ∈ (BTree.node first rest).children, ∀ r, D r c → c.height ≤ fuel →
+      eval s (m r) = f c ∧ countQueries s (m r) ≤ c.height)
+    (hdf : D r₀ first) (hf : (BTree.node first rest).height ≤ fuel + 1) :
+    eval s (m r₀) = f first ∧ 1 + countQueries s (m r₀) ≤ (BTree.node first rest).height := by
+  have hle := BTree.height_first_succ_le (first := first) (rest := rest)
+  obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
+  exact ⟨he, by omega⟩
+
 private theorem maxScan_spec {s : Store α β H} {fuel : ℕ}
     {r₀ : Option H} {first : BTree α β}
     {rs : List (PageEntry α β H)} {rest : List (BTree.Triple α β)}
@@ -218,75 +213,37 @@ private theorem maxScan_spec {s : Store α β H} {fuel : ℕ}
     (hf : (BTree.node first rest).height ≤ fuel + 1) :
     eval s (maxScan (maxR fuel) r₀ rs) = BTree.max? (.node first rest) ∧
       1 + countQueries s (maxScan (maxR fuel) r₀ rs) ≤ (BTree.node first rest).height := by
-  induction rs generalizing r₀ first rest with
+  induction hdr using DenotesRest.induction generalizing r₀ first with
   | nil =>
-    cases rest with
+    simp only [maxScan, BTree.max?_node_nil]
+    exact first_spec hrec hdf hf
+  | cons k₁ v₁ r₁ c₁ rs rest hdc₁ hdr ih =>
+    cases hdr using DenotesRest.induction with
     | nil =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := [])
-      obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-      simp only [maxScan, BTree.max?_node_nil]
+      have hc_mem : c₁ ∈ (BTree.node first [(k₁, v₁, c₁)]).children := by simp
+      have hle := BTree.height_succ_le_of_mem_children hc_mem
+      obtain ⟨he, hq⟩ := hrec c₁ hc_mem r₁ hdc₁ (by omega)
+      simp only [maxScan, eval_bind, countQueries_bind, he, BTree.max?_node_singleton]
+      cases BTree.max? c₁ <;> simp only [eval_pure, countQueries_pure] <;>
+        exact ⟨rfl, by omega⟩
+    | cons k₂ v₂ r₂ c₂ rs rest =>
+      have hhn := BTree.height_node_le_height_node_cons
+        (first := first) (k := k₁) (v := v₁) (c := c₁) (rest := (k₂, v₂, c₂) :: rest)
+      obtain ⟨he, hq⟩ := ih hdc₁
+        (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
+        (by omega)
+      simp only [maxScan]
+      rw [BTree.max?_node_cons_cons]
       exact ⟨he, by omega⟩
-    | cons e rest => exact (denotesRest_nil_cons s e rest hdr).elim
-  | cons e₁ rs ih =>
-    obtain ⟨k₁, v₁, r₁⟩ := e₁
-    cases rest with
-    | nil => exact (denotesRest_cons_nil s ⟨k₁, v₁, r₁⟩ rs hdr).elim
-    | cons e₁' rest' =>
-      obtain ⟨k₁', v₁', c₁⟩ := e₁'
-      obtain ⟨rfl, rfl, hdc₁, hdr'⟩ :=
-        (denotesRest_cons_cons_iff s k₁ k₁' v₁ v₁' r₁ c₁ rs rest').mp hdr
-      cases rs with
-      | nil =>
-        cases rest' with
-        | nil =>
-          have hc_mem : c₁ ∈ (BTree.node first [(k₁, v₁, c₁)]).children := by simp
-          have hle := BTree.height_succ_le_of_mem_children hc_mem
-          obtain ⟨he, hq⟩ := hrec c₁ hc_mem r₁ hdc₁ (by omega)
-          simp only [maxScan, eval_bind, countQueries_bind, he, BTree.max?_node_singleton]
-          cases BTree.max? c₁ <;> simp only [eval_pure, countQueries_pure] <;>
-            exact ⟨rfl, by omega⟩
-        | cons e₂' rest'' => exact (denotesRest_nil_cons s e₂' rest'' hdr').elim
-      | cons e₂ rs'' =>
-        cases rest' with
-        | nil => exact (denotesRest_cons_nil s e₂ rs'' hdr').elim
-        | cons e₂' rest'' =>
-          obtain ⟨k₂', v₂', c₂⟩ := e₂'
-          have hhn := BTree.height_node_le_height_node_cons
-            (first := first) (k := k₁) (v := v₁) (c := c₁) (rest := (k₂', v₂', c₂) :: rest'')
-          obtain ⟨he, hq⟩ := ih hdc₁ hdr'
-            (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
-            (by omega)
-          simp only [maxScan]
-          rw [BTree.max?_node_cons_cons]
-          exact ⟨he, by omega⟩
 
 private theorem maxR_spec {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
     (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
-    eval s (maxR fuel root) = BTree.max? tr ∧ countQueries s (maxR fuel root) ≤ tr.height := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none => cases fuel <;> simp [maxR]
-    | some h => exact (denotes_some_leaf s h hd).elim
-  | node first rest ih₁ ih₂ =>
-    cases root with
-    | none => exact (denotes_none_node s first rest hd).elim
-    | some h =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
-            Denotes s r c → c.height ≤ fuel →
-            eval s (maxR fuel r) = BTree.max? c ∧ countQueries s (maxR fuel r) ≤ c.height := by
-          intro c hc r hdc hcf
-          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-          rcases hc with rfl | ⟨e, he, rfl⟩
-          · exact ih₁ hdc hcf
-          · exact ih₂ e he hdc hcf
-        simp only [maxR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        exact maxScan_spec hdf hdr hchildren hf
+    eval s (maxR fuel root) = BTree.max? tr ∧ countQueries s (maxR fuel root) ≤ tr.height :=
+  spec_of_step maxR (fun rec v => maxScan rec v.first v.rest) (fun _ => rfl) (fun _ => rfl)
+    (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
+    (fun tr e q => e = BTree.max? tr ∧ q ≤ tr.height) ⟨BTree.max?_leaf.symm, Nat.zero_le _⟩
+    (fun _ h first rest hd => ((denotes_some_node_iff s h first rest).mp hd).elim maxScan_spec)
+    hd hf
 
 /-- `maxR` evaluates to `BTree.max?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_maxR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -405,16 +362,10 @@ private theorem countQueries_lookupScan_le (s : Store α β H)
     · exact ih c
 
 theorem countQueries_lookupR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
-    countQueries s (lookupR fuel k root) ≤ fuel := by
-  induction fuel generalizing root with
-  | zero => simp [lookupR]
-  | succ fuel ih =>
-    cases root with
-    | none => simp [lookupR]
-    | some h =>
-      simp only [lookupR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_lookupScan_le s (lookupR fuel k) k ih (s h).first (s h).rest
-      omega
+    countQueries s (lookupR fuel k root) ≤ fuel :=
+  countQueries_le_fuel_of_step s (lookupR · k) (fun rec v => lookupScan rec k v.first v.rest)
+    (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
+    (fun rec _ hrec _ => countQueries_lookupScan_le s rec k hrec _ _) fuel root
 
 theorem countQueries_containsR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
     countQueries s (containsR fuel k root) ≤ fuel := by
@@ -435,16 +386,10 @@ private theorem countQueries_predScan_le (s : Store α β H)
     · simpa only [countQueries_map] using ih c
 
 theorem countQueries_predR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
-    countQueries s (predR fuel k root) ≤ fuel := by
-  induction fuel generalizing root with
-  | zero => simp [predR]
-  | succ fuel ih =>
-    cases root with
-    | none => simp [predR]
-    | some h =>
-      simp only [predR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_predScan_le s (predR fuel k) k ih (s h).first (s h).rest
-      omega
+    countQueries s (predR fuel k root) ≤ fuel :=
+  countQueries_le_fuel_of_step s (predR · k) (fun rec v => predScan rec k v.first v.rest)
+    (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
+    (fun rec _ hrec _ => countQueries_predScan_le s rec k hrec _ _) fuel root
 
 private theorem countQueries_succScan_le (s : Store α β H)
     (rec : Option H → NodeM α β H (Option (α × β))) (k : α) {B : ℕ}
@@ -461,16 +406,10 @@ private theorem countQueries_succScan_le (s : Store α β H)
     · simpa only [countQueries_map] using hrec first
 
 theorem countQueries_succR_le_fuel (s : Store α β H) (fuel : ℕ) (k : α) (root : Option H) :
-    countQueries s (succR fuel k root) ≤ fuel := by
-  induction fuel generalizing root with
-  | zero => simp [succR]
-  | succ fuel ih =>
-    cases root with
-    | none => simp [succR]
-    | some h =>
-      simp only [succR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hscan := countQueries_succScan_le s (succR fuel k) k ih (s h).first (s h).rest
-      omega
+    countQueries s (succR fuel k root) ≤ fuel :=
+  countQueries_le_fuel_of_step s (succR · k) (fun rec v => succScan rec k v.first v.rest)
+    (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
+    (fun rec _ hrec _ => countQueries_succScan_le s rec k hrec _ _) fuel root
 
 private theorem countQueries_rankScan_le (s : RankedStore α β H)
     (rec : Option H → RankedNodeM α β H ℕ) (k : α) {B : ℕ}
@@ -488,16 +427,10 @@ private theorem countQueries_rankScan_le (s : RankedStore α β H)
     · simpa only [countQueries_map] using ih rc
 
 theorem countQueries_rankR_le_fuel (s : RankedStore α β H) (fuel : ℕ) (k : α) (root : Option H) :
-    countQueries s (rankR fuel k root) ≤ fuel := by
-  induction fuel generalizing root with
-  | zero => simp [rankR]
-  | succ fuel ih =>
-    cases root with
-    | none => simp [rankR]
-    | some h =>
-      simp only [rankR, countQueries_bind, countQueries_readRankedNode, eval_readRankedNode]
-      have hscan := countQueries_rankScan_le s (rankR fuel k) k ih (s h).first (s h).rest
-      omega
+    countQueries s (rankR fuel k root) ≤ fuel :=
+  countQueries_le_fuel_of_step s (rankR · k) (fun rec v => rankScan rec k v.first v.rest)
+    (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
+    (fun rec _ hrec _ => countQueries_rankScan_le s rec k hrec _ _) fuel root
 
 /-! ### Exact pure-model agreement and `≤ tr.height` page-read bounds -/
 
@@ -511,74 +444,39 @@ private theorem lookupScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
     eval s (lookupScan (lookupR fuel k) k r₀ rs) = BTree.lookup k (.node first rest) ∧
       1 + countQueries s (lookupScan (lookupR fuel k) k r₀ rs) ≤
         (BTree.node first rest).height := by
-  induction rs generalizing r₀ first rest with
+  induction hdr using DenotesRest.induction generalizing r₀ first with
   | nil =>
-    cases rest with
-    | nil =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := [])
-      obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-      simp only [lookupScan, BTree.lookup_node_nil]
+    simp only [lookupScan, BTree.lookup_node_nil]
+    exact first_spec hrec hdf hf
+  | cons k' v r₁ c rs rest' hdc _ ih =>
+    have hle₁ := BTree.height_first_succ_le (first := first) (rest := (k', v, c) :: rest')
+    have hle₂ := BTree.height_node_le_height_node_cons
+      (first := first) (k := k') (v := v) (c := c) (rest := rest')
+    simp only [lookupScan, BTree.lookup_node_cons]
+    by_cases hk₁ : k ≤ k'
+    · by_cases hk₂ : k' ≤ k
+      · refine ⟨?_, ?_⟩
+        · simp only [hk₁, hk₂, ↓reduceIte, eval_pure]
+        · simp only [hk₁, hk₂, ↓reduceIte, countQueries_pure]
+          omega
+      · simp only [hk₁, hk₂, ↓reduceIte]
+        exact first_spec hrec hdf hf
+    · obtain ⟨he, hq⟩ := ih hdc
+        (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
+        (by omega)
+      simp only [hk₁, ↓reduceIte]
       exact ⟨he, by omega⟩
-    | cons e rest => exact (denotesRest_nil_cons s e rest hdr).elim
-  | cons e rs ih =>
-    obtain ⟨k', v, r₁⟩ := e
-    cases rest with
-    | nil => exact (denotesRest_cons_nil s ⟨k', v, r₁⟩ rs hdr).elim
-    | cons e' rest' =>
-      obtain ⟨k'', v', c⟩ := e'
-      obtain ⟨rfl, rfl, hdc, hdr'⟩ :=
-        (denotesRest_cons_cons_iff s k' k'' v v' r₁ c rs rest').mp hdr
-      have hle₁ := BTree.height_first_succ_le (first := first) (rest := (k', v, c) :: rest')
-      have hle₂ := BTree.height_node_le_height_node_cons
-        (first := first) (k := k') (v := v) (c := c) (rest := rest')
-      simp only [lookupScan, BTree.lookup_node_cons]
-      by_cases hk₁ : k ≤ k'
-      · by_cases hk₂ : k' ≤ k
-        · refine ⟨?_, ?_⟩
-          · simp only [hk₁, hk₂, ↓reduceIte, eval_pure]
-          · simp only [hk₁, hk₂, ↓reduceIte, countQueries_pure]
-            omega
-        · obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-          simp only [hk₁, hk₂, ↓reduceIte]
-          exact ⟨he, by omega⟩
-      · obtain ⟨he, hq⟩ := ih hdc hdr'
-          (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
-          (by omega)
-        simp only [hk₁, ↓reduceIte]
-        exact ⟨he, by omega⟩
 
 private theorem lookupR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : Option H}
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (lookupR fuel k root) = BTree.lookup k tr ∧
-      countQueries s (lookupR fuel k root) ≤ tr.height := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none =>
-      have hl : BTree.lookup k (.leaf : BTree α β) = none := by
-        simp [BTree.lookup_def, BTree.lookupM]
-      cases fuel <;> simp [lookupR, hl]
-    | some h => exact (denotes_some_leaf s h hd).elim
-  | node first rest ih₁ ih₂ =>
-    cases root with
-    | none => exact (denotes_none_node s first rest hd).elim
-    | some h =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
-            Denotes s r c → c.height ≤ fuel →
-            eval s (lookupR fuel k r) = BTree.lookup k c ∧
-              countQueries s (lookupR fuel k r) ≤ c.height := by
-          intro c hc r hdc hcf
-          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-          rcases hc with rfl | ⟨e, he, rfl⟩
-          · exact ih₁ hdc hcf
-          · exact ih₂ e he hdc hcf
-        simp only [lookupR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        exact lookupScan_spec hdf hdr hchildren hf
+      countQueries s (lookupR fuel k root) ≤ tr.height :=
+  spec_of_step (lookupR · k) (fun rec v => lookupScan rec k v.first v.rest) (fun _ => rfl)
+    (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
+    (fun tr e q => e = BTree.lookup k tr ∧ q ≤ tr.height)
+    ⟨(BTree.lookup_leaf k).symm, Nat.zero_le _⟩
+    (fun _ h first rest hd => ((denotes_some_node_iff s h first rest).mp hd).elim lookupScan_spec)
+    hd hf
 
 /-- `lookupR` evaluates to `BTree.lookup` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_lookupR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -614,68 +512,35 @@ private theorem predScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
     eval s (predScan (predR fuel k) k r₀ rs) = BTree.pred? k (.node first rest) ∧
       1 + countQueries s (predScan (predR fuel k) k r₀ rs) ≤
         (BTree.node first rest).height := by
-  induction rs generalizing r₀ first rest with
+  induction hdr using DenotesRest.induction generalizing r₀ first with
   | nil =>
-    cases rest with
-    | nil =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := [])
-      obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-      simp only [predScan, BTree.pred?_node_nil]
-      exact ⟨he, by omega⟩
-    | cons e rest => exact (denotesRest_nil_cons s e rest hdr).elim
-  | cons e rs ih =>
-    obtain ⟨k', v, r₁⟩ := e
-    cases rest with
-    | nil => exact (denotesRest_cons_nil s ⟨k', v, r₁⟩ rs hdr).elim
-    | cons e' rest' =>
-      obtain ⟨k'', v', c⟩ := e'
-      obtain ⟨rfl, rfl, hdc, hdr'⟩ :=
-        (denotesRest_cons_cons_iff s k' k'' v v' r₁ c rs rest').mp hdr
-      have hle₁ := BTree.height_first_succ_le (first := first) (rest := (k', v, c) :: rest')
-      have hle₂ := BTree.height_node_le_height_node_cons
+    simp only [predScan, BTree.pred?_node_nil]
+    exact first_spec hrec hdf hf
+  | cons k' v r₁ c rs rest' hdc _ ih =>
+    simp only [predScan, BTree.pred?_node_cons]
+    by_cases hk : k ≤ k'
+    · simp only [hk, ↓reduceIte]
+      exact first_spec hrec hdf hf
+    · have hle₂ := BTree.height_node_le_height_node_cons
         (first := first) (k := k') (v := v) (c := c) (rest := rest')
-      simp only [predScan, BTree.pred?_node_cons]
-      by_cases hk : k ≤ k'
-      · obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-        simp only [hk, ↓reduceIte]
-        exact ⟨he, by omega⟩
-      · obtain ⟨he, hq⟩ := ih hdc hdr'
-          (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
-          (by omega)
-        refine ⟨?_, ?_⟩
-        · simp only [hk, ↓reduceIte, eval_map, he]
-        · simp only [hk, ↓reduceIte, countQueries_map]
-          omega
+      obtain ⟨he, hq⟩ := ih hdc
+        (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
+        (by omega)
+      refine ⟨?_, ?_⟩
+      · simp only [hk, ↓reduceIte, eval_map, he]
+      · simp only [hk, ↓reduceIte, countQueries_map]
+        omega
 
 private theorem predR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : Option H}
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (predR fuel k root) = BTree.pred? k tr ∧
-      countQueries s (predR fuel k root) ≤ tr.height := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none => cases fuel <;> simp [predR]
-    | some h => exact (denotes_some_leaf s h hd).elim
-  | node first rest ih₁ ih₂ =>
-    cases root with
-    | none => exact (denotes_none_node s first rest hd).elim
-    | some h =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
-            Denotes s r c → c.height ≤ fuel →
-            eval s (predR fuel k r) = BTree.pred? k c ∧
-              countQueries s (predR fuel k r) ≤ c.height := by
-          intro c hc r hdc hcf
-          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-          rcases hc with rfl | ⟨e, he, rfl⟩
-          · exact ih₁ hdc hcf
-          · exact ih₂ e he hdc hcf
-        simp only [predR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        exact predScan_spec hdf hdr hchildren hf
+      countQueries s (predR fuel k root) ≤ tr.height :=
+  spec_of_step (predR · k) (fun rec v => predScan rec k v.first v.rest) (fun _ => rfl)
+    (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
+    (fun tr e q => e = BTree.pred? k tr ∧ q ≤ tr.height)
+    ⟨(BTree.pred?_leaf k).symm, Nat.zero_le _⟩
+    (fun _ h first rest hd => ((denotes_some_node_iff s h first rest).mp hd).elim predScan_spec)
+    hd hf
 
 /-- `predR` evaluates to `BTree.pred?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_predR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -699,68 +564,36 @@ private theorem succScan_spec {s : Store α β H} {fuel : ℕ} {k : α}
     eval s (succScan (succR fuel k) k r₀ rs) = BTree.succ? k (.node first rest) ∧
       1 + countQueries s (succScan (succR fuel k) k r₀ rs) ≤
         (BTree.node first rest).height := by
-  induction rs generalizing r₀ first rest with
+  induction hdr using DenotesRest.induction generalizing r₀ first with
   | nil =>
-    cases rest with
-    | nil =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := [])
-      obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-      simp only [succScan, BTree.succ?_node_nil]
-      exact ⟨he, by omega⟩
-    | cons e rest => exact (denotesRest_nil_cons s e rest hdr).elim
-  | cons e rs ih =>
-    obtain ⟨k', v, r₁⟩ := e
-    cases rest with
-    | nil => exact (denotesRest_cons_nil s ⟨k', v, r₁⟩ rs hdr).elim
-    | cons e' rest' =>
-      obtain ⟨k'', v', c⟩ := e'
-      obtain ⟨rfl, rfl, hdc, hdr'⟩ :=
-        (denotesRest_cons_cons_iff s k' k'' v v' r₁ c rs rest').mp hdr
-      have hle₁ := BTree.height_first_succ_le (first := first) (rest := (k', v, c) :: rest')
-      have hle₂ := BTree.height_node_le_height_node_cons
+    simp only [succScan, BTree.succ?_node_nil]
+    exact first_spec hrec hdf hf
+  | cons k' v r₁ c rs rest' hdc _ ih =>
+    simp only [succScan, BTree.succ?_node_cons]
+    by_cases hk : k' ≤ k
+    · have hle₂ := BTree.height_node_le_height_node_cons
         (first := first) (k := k') (v := v) (c := c) (rest := rest')
-      simp only [succScan, BTree.succ?_node_cons]
-      by_cases hk : k' ≤ k
-      · obtain ⟨he, hq⟩ := ih hdc hdr'
-          (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
-          (by omega)
-        simp only [hk, ↓reduceIte]
-        exact ⟨he, by omega⟩
-      · obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-        refine ⟨?_, ?_⟩
-        · simp only [hk, ↓reduceIte, eval_map, he]
-        · simp only [hk, ↓reduceIte, countQueries_map]
-          omega
+      obtain ⟨he, hq⟩ := ih hdc
+        (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
+        (by omega)
+      simp only [hk, ↓reduceIte]
+      exact ⟨he, by omega⟩
+    · obtain ⟨he, hq⟩ := first_spec hrec hdf hf
+      refine ⟨?_, ?_⟩
+      · simp only [hk, ↓reduceIte, eval_map, he]
+      · simp only [hk, ↓reduceIte, countQueries_map]
+        omega
 
 private theorem succR_spec {s : Store α β H} {fuel : ℕ} {k : α} {root : Option H}
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (succR fuel k root) = BTree.succ? k tr ∧
-      countQueries s (succR fuel k root) ≤ tr.height := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none => cases fuel <;> simp [succR]
-    | some h => exact (denotes_some_leaf s h hd).elim
-  | node first rest ih₁ ih₂ =>
-    cases root with
-    | none => exact (denotes_none_node s first rest hd).elim
-    | some h =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
-            Denotes s r c → c.height ≤ fuel →
-            eval s (succR fuel k r) = BTree.succ? k c ∧
-              countQueries s (succR fuel k r) ≤ c.height := by
-          intro c hc r hdc hcf
-          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-          rcases hc with rfl | ⟨e, he, rfl⟩
-          · exact ih₁ hdc hcf
-          · exact ih₂ e he hdc hcf
-        simp only [succR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        exact succScan_spec hdf hdr hchildren hf
+      countQueries s (succR fuel k root) ≤ tr.height :=
+  spec_of_step (succR · k) (fun rec v => succScan rec k v.first v.rest) (fun _ => rfl)
+    (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
+    (fun tr e q => e = BTree.succ? k tr ∧ q ≤ tr.height)
+    ⟨(BTree.succ?_leaf k).symm, Nat.zero_le _⟩
+    (fun _ h first rest hd => ((denotes_some_node_iff s h first rest).mp hd).elim succScan_spec)
+    hd hf
 
 /-- `succR` evaluates to `BTree.succ?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_succR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
@@ -790,10 +623,8 @@ private theorem rankScan_spec {s : RankedStore α β H} {fuel : ℕ} {k : α}
     cases rest with
     | nil =>
       obtain ⟨r₀, sz₀⟩ := fc
-      have hle := BTree.height_first_succ_le (first := first) (rest := [])
-      obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
       simp only [rankScan, BTree.rank_node_nil]
-      exact ⟨he, by omega⟩
+      exact first_spec hrec hdf hf
     | cons e rest => exact (denotesRankedRest_nil_cons s e rest hdr).elim
   | cons e rs ih =>
     obtain ⟨k', v, rc⟩ := e
@@ -805,14 +636,12 @@ private theorem rankScan_spec {s : RankedStore α β H} {fuel : ℕ} {k : α}
       obtain ⟨k'', v', c⟩ := e'
       obtain ⟨rfl, rfl, hdc, hszc, hdr'⟩ :=
         (denotesRankedRest_cons_cons_iff s k' k'' v v' rc c rs rest').mp hdr
-      have hle₁ := BTree.height_first_succ_le (first := first) (rest := (k', v, c) :: rest')
       have hle₂ := BTree.height_node_le_height_node_cons
         (first := first) (k := k') (v := v) (c := c) (rest := rest')
       simp only [rankScan, BTree.rank_node_cons]
       by_cases hk : k ≤ k'
-      · obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-        simp only [hk, ↓reduceIte]
-        exact ⟨he, by omega⟩
+      · simp only [hk, ↓reduceIte]
+        exact first_spec hrec hdf hf
       · obtain ⟨he, hq⟩ := ih hdc hszc hdr'
           (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
           (by omega)
@@ -825,33 +654,14 @@ private theorem rankScan_spec {s : RankedStore α β H} {fuel : ℕ} {k : α}
 private theorem rankR_spec {s : RankedStore α β H} {fuel : ℕ} {k : α} {root : Option H}
     {tr : BTree α β} (hd : DenotesRanked s root tr) (hf : tr.height ≤ fuel) :
     eval s (rankR fuel k root) = BTree.rank k tr ∧
-      countQueries s (rankR fuel k root) ≤ tr.height := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none => cases fuel <;> simp [rankR]
-    | some h => exact (denotesRanked_some_leaf s h hd).elim
-  | node first rest ih₁ ih₂ =>
-    cases root with
-    | none => exact (denotesRanked_none_node s first rest hd).elim
-    | some h =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, hszf, hdr⟩ := (denotesRanked_some_node_iff s h first rest).mp hd
-        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
-            DenotesRanked s r c → c.height ≤ fuel →
-            eval s (rankR fuel k r) = BTree.rank k c ∧
-              countQueries s (rankR fuel k r) ≤ c.height := by
-          intro c hc r hdc hcf
-          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-          rcases hc with rfl | ⟨e, he, rfl⟩
-          · exact ih₁ hdc hcf
-          · exact ih₂ e he hdc hcf
-        simp only [rankR, eval_bind, eval_readRankedNode, countQueries_bind,
-          countQueries_readRankedNode]
-        exact rankScan_spec hdf hszf hdr hchildren hf
+      countQueries s (rankR fuel k root) ≤ tr.height :=
+  spec_of_step (rankR · k) (fun rec v => rankScan rec k v.first v.rest) (fun _ => rfl)
+    (fun _ => rfl) (fun _ _ => rfl) (denotesRanked_some_leaf s) (denotesRanked_none_node s)
+    (fun tr e q => e = BTree.rank k tr ∧ q ≤ tr.height) ⟨(BTree.rank_leaf k).symm, Nat.zero_le _⟩
+    (fun _ h first rest hd => by
+      obtain ⟨hdf, hszf, hdr⟩ := (denotesRanked_some_node_iff s h first rest).mp hd
+      exact rankScan_spec hdf hszf hdr)
+    hd hf
 
 /-- `rankR` evaluates to `BTree.rank` whenever `root` denotes `tr` in `RankedStore` `s` and
 `tr.height ≤ fuel`. -/

@@ -49,6 +49,9 @@ unaugmented store.
 * `NodeAccess.denotes_canonicalStore`, `NodeAccess.denotesRanked_canonicalRankedStore`: every
   `BTree α β` is denoted by its canonical handle reference.
 * `NodeAccess.DenotesRanked.toDenotes`: forgetting child-size annotations preserves `Denotes`.
+* `NodeAccess.countQueries_le_fuel_of_step`, `NodeAccess.spec_of_step`: the page-read bound and
+  the specification of a fuel-bounded descent, from the corresponding facts about its within-page
+  step.
 
 ## References
 
@@ -166,6 +169,34 @@ theorem denotesRest_cons_cons_iff (s : Store α β H) (k k' : α) (v v' : β)
       k = k' ∧ v = v' ∧ Denotes s r c ∧ DenotesRest s rs rest := by
   rw [DenotesRest]
 
+/-- Induction on a page-entry denotation: both lists are empty, or both start with the same key
+and value, the head child reference denotes the head child, and the tails denote each other. -/
+@[elab_as_elim]
+theorem DenotesRest.induction {s : Store α β H}
+    {motive : (rs : List (PageEntry α β H)) → (rest : List (BTree.Triple α β)) →
+      DenotesRest s rs rest → Prop}
+    (nil : motive [] [] (denotesRest_nil_nil s))
+    (cons : ∀ (k : α) (v : β) (r : Option H) (c : BTree α β) (rs : List (PageEntry α β H))
+      (rest : List (BTree.Triple α β)) (hc : Denotes s r c) (hr : DenotesRest s rs rest),
+      motive rs rest hr →
+        motive (⟨k, v, r⟩ :: rs) ((k, v, c) :: rest)
+          ((denotesRest_cons_cons_iff s k k v v r c rs rest).mpr ⟨rfl, rfl, hc, hr⟩))
+    {rs : List (PageEntry α β H)} {rest : List (BTree.Triple α β)} (h : DenotesRest s rs rest) :
+    motive rs rest h := by
+  induction rs generalizing rest with
+  | nil =>
+    cases rest with
+    | nil => exact nil
+    | cons e rest => exact (denotesRest_nil_cons s e rest h).elim
+  | cons e rs ih =>
+    obtain ⟨k, v, r⟩ := e
+    cases rest with
+    | nil => exact (denotesRest_cons_nil s ⟨k, v, r⟩ rs h).elim
+    | cons e' rest =>
+      obtain ⟨k', v', c⟩ := e'
+      obtain ⟨rfl, rfl, hc, hr⟩ := (denotesRest_cons_cons_iff s k k' v v' r c rs rest).mp h
+      exact cons k v r c rs rest hc hr (ih hr)
+
 theorem Denotes.eq_leaf_of_none {s : Store α β H} {tr : BTree α β} (hd : Denotes s none tr) :
     tr = .leaf := by
   cases tr with
@@ -175,19 +206,9 @@ theorem Denotes.eq_leaf_of_none {s : Store α β H} {tr : BTree α β} (hd : Den
 theorem DenotesRest.length_eq {s : Store α β H} {rs : List (PageEntry α β H)}
     {rest : List (BTree.Triple α β)} (hd : DenotesRest s rs rest) :
     rs.length = rest.length := by
-  induction rs generalizing rest with
-  | nil =>
-    cases rest with
-    | nil => rfl
-    | cons e rest => exact (denotesRest_nil_cons s e rest hd).elim
-  | cons e rs ih =>
-    obtain ⟨k, v, r⟩ := e
-    cases rest with
-    | nil => exact (denotesRest_cons_nil s ⟨k, v, r⟩ rs hd).elim
-    | cons e' rest =>
-      obtain ⟨k', v', c⟩ := e'
-      obtain ⟨_, _, _, hdr⟩ := (denotesRest_cons_cons_iff s k k' v v' r c rs rest).mp hd
-      simp only [List.length_cons, ih hdr]
+  induction hd using DenotesRest.induction with
+  | nil => rfl
+  | cons _ _ _ _ _ _ _ _ ih => simp only [List.length_cons, ih]
 
 /-- Canonical reference for a pure `BTree α β` when handles are non-leaf subtrees
 (`H := BTree α β`). -/
@@ -415,5 +436,81 @@ theorem denotesRanked_canonicalRankedStore (tr : BTree α β) :
     exact ⟨ih₁, rfl, denotesRankedRest_canonicalRankedStore rest ih₂⟩
 
 end Ranked
+
+section Descent
+
+/-! ### Fuel-bounded descents
+
+Each query in this model is a *descent* `R`: without fuel or at an empty reference it returns a
+default `d`, and at `some h` it reads the page of `h` and runs a within-page `step`, which may call
+`R` again with one unit less fuel. The pages may be unaugmented or ranked, so the lemmas below are
+stated for an arbitrary page type `V`. -/
+
+variable {α β H V γ : Type}
+
+/-- A descent issues at most `fuel` page reads under every store, provided its within-page step
+issues no more reads than its recursive calls. -/
+theorem countQueries_le_fuel_of_step (s : H → V)
+    (R : ℕ → Option H → (PFunctor.mk H fun _ => V).FreeM γ)
+    (step : (Option H → (PFunctor.mk H fun _ => V).FreeM γ) → V →
+      (PFunctor.mk H fun _ => V).FreeM γ)
+    {d : γ} (hzero : ∀ r, R 0 r = pure d) (hnone : ∀ fuel, R (fuel + 1) none = pure d)
+    (hsome : ∀ fuel h, R (fuel + 1) (some h) = lift h >>= step (R fuel))
+    (hstep : ∀ rec B, (∀ r, countQueries s (rec r) ≤ B) → ∀ v, countQueries s (step rec v) ≤ B)
+    (fuel : ℕ) (root : Option H) :
+    countQueries s (R fuel root) ≤ fuel := by
+  induction fuel generalizing root with
+  | zero => simp only [hzero, countQueries_pure, le_refl]
+  | succ fuel ih =>
+    cases root with
+    | none => simp only [hnone, countQueries_pure, Nat.zero_le]
+    | some h =>
+      rw [hsome, countQueries_bind, countQueries_lift, eval_lift]
+      have := hstep (R fuel) fuel ih (s h)
+      omega
+
+/-- A descent meets a specification `Spec` (relating a tree, the query result and its page-read
+count) at every tree `tr` that its root reference denotes under `D` with `tr.height ≤ fuel`. It
+suffices that `Spec` holds at the empty tree with result `d` and no reads, and that the within-page
+step at a denoted node meets `Spec`, counting the page read, whenever the recursive calls meet it at
+the node's children. -/
+theorem spec_of_step {s : H → V} (R : ℕ → Option H → (PFunctor.mk H fun _ => V).FreeM γ)
+    (step : (Option H → (PFunctor.mk H fun _ => V).FreeM γ) → V →
+      (PFunctor.mk H fun _ => V).FreeM γ)
+    {d : γ} (hzero : ∀ r, R 0 r = pure d) (hnone : ∀ fuel, R (fuel + 1) none = pure d)
+    (hsome : ∀ fuel h, R (fuel + 1) (some h) = lift h >>= step (R fuel))
+    {D : Option H → BTree α β → Prop} (hD_leaf : ∀ h, ¬D (some h) .leaf)
+    (hD_node : ∀ first rest, ¬D none (.node first rest))
+    (Spec : BTree α β → γ → ℕ → Prop) (hleaf : Spec .leaf d 0)
+    (hstep : ∀ fuel h first rest, D (some h) (.node first rest) →
+      (∀ c ∈ (BTree.node first rest).children, ∀ r, D r c → c.height ≤ fuel →
+        Spec c (eval s (R fuel r)) (countQueries s (R fuel r))) →
+      (BTree.node first rest).height ≤ fuel + 1 →
+      Spec (.node first rest) (eval s (step (R fuel) (s h)))
+        (1 + countQueries s (step (R fuel) (s h))))
+    {fuel : ℕ} {root : Option H} {tr : BTree α β} (hd : D root tr) (hf : tr.height ≤ fuel) :
+    Spec tr (eval s (R fuel root)) (countQueries s (R fuel root)) := by
+  induction tr generalizing fuel root with
+  | leaf =>
+    cases root with
+    | none =>
+      cases fuel <;> simp only [hzero, hnone, eval_pure, countQueries_pure] <;> exact hleaf
+    | some h => exact (hD_leaf h hd).elim
+  | node first rest ih₁ ih₂ =>
+    cases root with
+    | none => exact (hD_node first rest hd).elim
+    | some h =>
+      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
+      cases fuel with
+      | zero => omega
+      | succ fuel =>
+        rw [hsome, eval_bind, countQueries_bind, eval_lift, countQueries_lift]
+        refine hstep fuel h first rest hd (fun c hc r hdc hcf => ?_) hf
+        simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
+        rcases hc with rfl | ⟨e, he, rfl⟩
+        · exact ih₁ hdc hcf
+        · exact ih₂ e he hdc hcf
+
+end Descent
 
 end Cslib.DataStructure.BTree.NodeAccess

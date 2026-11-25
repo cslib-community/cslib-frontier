@@ -124,77 +124,48 @@ private theorem rangeScan_spec {s : Store α β H} {fuel : ℕ} {lo hi : α}
     eval s (rangeScan (rangeR fuel lo hi) lo hi r₀ rs) = BTree.range lo hi (.node first rest) ∧
       1 + countQueries s (rangeScan (rangeR fuel lo hi) lo hi r₀ rs) =
         rangeVisits lo hi (.node first rest) := by
-  induction rs generalizing r₀ first rest with
+  induction hdr using DenotesRest.induction generalizing r₀ first with
   | nil =>
-    cases rest with
-    | nil =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := [])
-      obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-      simp only [rangeScan, BTree.range_node_nil, rangeVisits_node_nil, hq]
-      exact ⟨he, by omega⟩
-    | cons e rest => exact (denotesRest_nil_cons s e rest hdr).elim
-  | cons e rs ih =>
-    obtain ⟨k, v, r₁⟩ := e
-    cases rest with
-    | nil => exact (denotesRest_cons_nil s ⟨k, v, r₁⟩ rs hdr).elim
-    | cons e' rest' =>
-      obtain ⟨k', v', c⟩ := e'
-      obtain ⟨rfl, rfl, hdc, hdr'⟩ :=
-        (denotesRest_cons_cons_iff s k k' v v' r₁ c rs rest').mp hdr
-      have hle₁ := BTree.height_first_succ_le (first := first) (rest := (k, v, c) :: rest')
-      have hle₂ := BTree.height_node_le_height_node_cons
-        (first := first) (k := k) (v := v) (c := c) (rest := rest')
-      obtain ⟨he₁, hq₁⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
-      obtain ⟨he₂, hq₂⟩ := ih hdc hdr'
-        (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
-        (by omega)
-      simp only [rangeScan, BTree.range_node_cons, rangeVisits_node_cons]
-      by_cases hlo : lo ≤ k <;> by_cases hhi : k ≤ hi
-      · refine ⟨?_, ?_⟩
-        · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, he₁, he₂, List.append_assoc]
-        · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure, hq₁]
-          omega
-      · refine ⟨?_, ?_⟩
-        · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, he₁, List.append_nil]
-        · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure, hq₁]
-          omega
-      · refine ⟨?_, ?_⟩
-        · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, he₂, List.nil_append]
-        · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure]
-          omega
-      · refine ⟨?_, ?_⟩
-        · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, List.nil_append]
-        · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure]
+    have hle := BTree.height_first_succ_le (first := first) (rest := [])
+    obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
+    simp only [rangeScan, BTree.range_node_nil, rangeVisits_node_nil, hq]
+    exact ⟨he, by omega⟩
+  | cons k v r₁ c rs rest' hdc _ ih =>
+    have hle₁ := BTree.height_first_succ_le (first := first) (rest := (k, v, c) :: rest')
+    have hle₂ := BTree.height_node_le_height_node_cons
+      (first := first) (k := k) (v := v) (c := c) (rest := rest')
+    obtain ⟨he₁, hq₁⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
+    obtain ⟨he₂, hq₂⟩ := ih hdc
+      (fun ch hch => hrec ch (BTree.children_node_subset_children_node_cons hch))
+      (by omega)
+    simp only [rangeScan, BTree.range_node_cons, rangeVisits_node_cons]
+    by_cases hlo : lo ≤ k <;> by_cases hhi : k ≤ hi
+    · refine ⟨?_, ?_⟩
+      · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, he₁, he₂, List.append_assoc]
+      · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure, hq₁]
+        omega
+    · refine ⟨?_, ?_⟩
+      · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, he₁, List.append_nil]
+      · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure, hq₁]
+        omega
+    · refine ⟨?_, ?_⟩
+      · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, he₂, List.nil_append]
+      · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure]
+        omega
+    · refine ⟨?_, ?_⟩
+      · simp only [hlo, hhi, ↓reduceIte, eval_bind, eval_pure, List.nil_append]
+      · simp only [hlo, hhi, ↓reduceIte, countQueries_bind, countQueries_pure]
 
 private theorem rangeR_spec {s : Store α β H} {fuel : ℕ} {lo hi : α} {root : Option H}
     {tr : BTree α β} (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
     eval s (rangeR fuel lo hi root) = BTree.range lo hi tr ∧
-      countQueries s (rangeR fuel lo hi root) = rangeVisits lo hi tr := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none => cases fuel <;> simp [rangeR]
-    | some h => exact (denotes_some_leaf s h hd).elim
-  | node first rest ih₁ ih₂ =>
-    cases root with
-    | none => exact (denotes_none_node s first rest hd).elim
-    | some h =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
-            Denotes s r c → c.height ≤ fuel →
-            eval s (rangeR fuel lo hi r) = BTree.range lo hi c ∧
-              countQueries s (rangeR fuel lo hi r) = rangeVisits lo hi c := by
-          intro c hc r hdc hcf
-          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-          rcases hc with rfl | ⟨e, he, rfl⟩
-          · exact ih₁ hdc hcf
-          · exact ih₂ e he hdc hcf
-        simp only [rangeR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        exact rangeScan_spec hdf hdr hchildren hf
+      countQueries s (rangeR fuel lo hi root) = rangeVisits lo hi tr :=
+  spec_of_step (rangeR · lo hi) (fun rec v => rangeScan rec lo hi v.first v.rest) (fun _ => rfl)
+    (fun _ => rfl) (fun _ _ => rfl) (denotes_some_leaf s) (denotes_none_node s)
+    (fun tr e q => e = BTree.range lo hi tr ∧ q = rangeVisits lo hi tr)
+    ⟨(BTree.range_leaf lo hi).symm, (rangeVisits_leaf lo hi).symm⟩
+    (fun _ h first rest hd => ((denotes_some_node_iff s h first rest).mp hd).elim rangeScan_spec)
+    hd hf
 
 /-- `rangeR` evaluates to `BTree.range` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_rangeR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
