@@ -40,6 +40,22 @@ noncomputable def degreePiecePolynomial (P : MvPolynomial (Fin (m + 1)) R)
   let a (j : ℕ) := rename Fin.succ ((finSuccEquiv R m P).coeff j)
   (a k * X 0 - 1) ^ 2 + ∑ j ∈ Finset.Ioc k N, a j ^ 2
 
+/-- The higher-coefficient squares can be evaluated by a bounded sum with a degree guard. -/
+theorem degreePiecePolynomial_eq_sum_range (P : MvPolynomial (Fin (m + 1)) R) (N k : ℕ) :
+    let a (j : ℕ) := rename Fin.succ ((finSuccEquiv R m P).coeff j)
+    degreePiecePolynomial P N k =
+      (a k * X 0 - 1) ^ 2 + ∑ j ∈ Finset.range (N + 1), (if k < j then a j else 0) ^ 2 := by
+  have hindex : (Finset.range (N + 1)).filter (fun j => k < j) = Finset.Ioc k N := by
+    ext j
+    simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_Ioc, Nat.lt_succ_iff, and_comm]
+  rw [degreePiecePolynomial]
+  dsimp
+  rw [← hindex, Finset.sum_filter]
+  congr 1
+  apply Finset.sum_congr rfl
+  intro j _
+  split_ifs <;> simp
+
 /-- Evaluating the lift substitutes the parameters into each coefficient and the first
 coordinate into the inverse equation. -/
 theorem eval₂_degreePiecePolynomial (P : MvPolynomial (Fin (m + 1)) R) (N k : ℕ)

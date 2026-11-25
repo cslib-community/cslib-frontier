@@ -3286,6 +3286,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledDegreePiece
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFirstCoefficient
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility

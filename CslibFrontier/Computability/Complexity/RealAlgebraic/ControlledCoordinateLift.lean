@@ -66,6 +66,16 @@ noncomputable def rename {α : Type} {n m : α → ℕ}
     funext i
     simp only [Function.comp_apply, ← List.getD_eq_getElem?_getD, hlookup]
 
+/-- Reindexing the evaluation point preserves the source prime cutoff. -/
+@[simp] theorem cutoff_rename {α : Type} {n m : α → ℕ}
+    {enc : α ↪ List Bool} {a : ℕ} {P : (w : α) → MvPolynomial (Fin (n w)) ℤ}
+    (C : Controlled P enc a) (hm : ComputableInPolyTime m enc encUnary)
+    (f : (w : α) → Fin (n w) → Fin (m w)) (point : α × List ℕ → List ℕ)
+    (hpoint : ComputableInPolyTime point (encPair enc (encList encNat)) (encList encNat))
+    (hlookup : ∀ w z (i : Fin (n w)), (point (w, z)).getD i.val 0 = z.getD (f w i).val 0) :
+    (C.rename hm f point hpoint hlookup).cutoff = C.cutoff := by
+  simp only [rename]
+
 /-- Append a block of unused variables, preserving the controlled evaluator and its bounds.
 The block size is computed in unary, as is the original arity. -/
 noncomputable def appendVariables {α : Type} {n : α → ℕ}
@@ -133,7 +143,7 @@ variable {α : Type} {n : α → ℕ} {enc : α ↪ List Bool} {a : ℕ}
 /-- Lifting to one coordinate preserves the prime cutoff. -/
 @[simp] theorem cutoff_onCoordinate :
     (C.onCoordinate hn i hi).cutoff = C.cutoff := by
-  simp only [onCoordinate, rename]
+  simp only [onCoordinate, cutoff_rename]
 
 end OnCoordinate
 
