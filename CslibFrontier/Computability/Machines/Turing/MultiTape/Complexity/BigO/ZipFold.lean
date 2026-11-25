@@ -213,7 +213,7 @@ theorem zipFold [Inhabited β]
       ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1)))
     (B := fun q => 2 * ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1) +
       k * ((encPair encP (encPair (encList encA) (encList encB)) q).length + 1))
-    (fun q i hi => hround q i hi) (fun q i hi => hround q i hi) (fun q i _ => hst q i)
+    hround hround (fun q i _ => hst q i)
   obtain ⟨C, hC⟩ : ∃ C, C = (K + 8) * (8 + 2 * k) + (2 + k) + 2 := ⟨_, rfl⟩
   refine (((snd (encList encB) (encList encC)).comp_linear hfold).mono (C + 8) (fun q => ?_)
     fun q => ?_).of_enc_eq fun q => ?_
