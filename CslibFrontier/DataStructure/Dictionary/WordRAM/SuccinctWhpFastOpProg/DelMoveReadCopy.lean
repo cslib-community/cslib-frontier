@@ -271,20 +271,9 @@ theorem delCopySlotGenProg_fastStep
     writeFastLocGenProg_fastStep henv hb hld hst_lt hwv_step.2.1 hwv_step.2.2.1 (s := s2)
   dsimp only
   unfold delCopySlotGenProg
-  have hs'_eq : (Memory.spec 0).clientState s
-      (physSlotGenProg (((cp, base), b), loc_last) >>= fun p_last =>
-        physSlotGenProg (((cp, base), b), loc_del) >>= fun p_del =>
-        readQuotGenProg ((cp, base), p_last) >>= fun q_last =>
-        readValGenProg ((cp, base), p_last) >>= fun v_last =>
-        writeQuotGenProg (((cp, base), p_del), q_last) >>= fun _ =>
-        writeValGenProg (((cp, base), p_del), v_last) >>= fun _ =>
-        writeFastLocGenProg ((((cp, base), b), loc_del), st_last)) =
-      (Memory.spec 0).clientState s2
-        (writeFastLocGenProg ((((cp, base), b), loc_del), st_last)) := by
-    rw [clientState_bind, hps1_st, hps1_res, clientState_bind, hps2_st, hps2_res,
-      clientState_bind, hrq_st, hrq_res, clientState_bind, hrv_st, hrv_res,
-      clientState_bind, clientState_bind]
-  rw [hs'_eq]
+  rw [clientState_bind, hps1_st, hps1_res, clientState_bind, hps2_st, hps2_res,
+    clientState_bind, hrq_st, hrq_res, clientState_bind, hrv_st, hrv_res,
+    clientState_bind, clientState_bind]
   refine ⟨?_, ?_, (hwq_step.trans hwv_step).trans hwl_step⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [hps1_st, hps1_res, hps2_st, hps2_res, hrq_st, hrq_res, hrq_mc, hrv_st, hrv_res, hrv_mc]
