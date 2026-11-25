@@ -59,21 +59,11 @@ theorem IsDeltaMatroid.sumProd {R : Set (ι → Bool)} {S : Set (κ → Bool)}
   exchange := by
     rintro x y ⟨hxR, hxS⟩ ⟨hyR, hyS⟩ (i | k) hi
     · obtain ⟨j, hj, hf⟩ := hR.exchange hxR hyR hi
-      refine ⟨.inl j, hj, ?_, ?_⟩
-      · convert hf using 1
-        ext a
-        simp [flipOn]
-      · convert hxS using 1
-        ext a
-        simp [flipOn]
+      exact ⟨.inl j, hj, by convert hf using 1; ext; simp [flipOn],
+        by convert hxS using 1; ext; simp [flipOn]⟩
     · obtain ⟨j, hj, hf⟩ := hS.exchange hxS hyS hi
-      refine ⟨.inr j, hj, ?_, ?_⟩
-      · convert hxR using 1
-        ext a
-        simp [flipOn]
-      · convert hf using 1
-        ext a
-        simp [flipOn]
+      exact ⟨.inr j, hj, by convert hxR using 1; ext; simp [flipOn],
+        by convert hf using 1; ext; simp [flipOn]⟩
 
 /-- Parity splits over disjoint coordinate types. -/
 theorem parityOn_univ_sum {α β : Type*} [Fintype α] [Fintype β] (x : (α ⊕ β) → Bool) :
@@ -226,10 +216,7 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
       let E : (β ⊕ (PEmpty × Bool)) ≃ β :=
         { toFun := Sum.elim id (fun p => p.1.elim)
           invFun := Sum.inl
-          left_inv := by
-            rintro (i | ⟨k, b⟩)
-            · rfl
-            · exact k.elim
+          left_inv := by rintro (i | ⟨⟨⟩, _⟩); rfl
           right_inv := fun _ => rfl }
       have he : BitString.trace T = {x | (fun i => x (E i)) ∈ T} := by
         ext x
@@ -237,16 +224,14 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
         · rintro ⟨z, hz⟩
           change _ ∈ T
           convert hz using 1
-          ext (i | ⟨k, b⟩)
-          · rfl
-          · exact k.elim
+          ext (i | ⟨⟨⟩, _⟩)
+          rfl
         · intro hx
           refine ⟨PEmpty.elim, ?_⟩
           change _ ∈ T at hx ⊢
           convert hx using 1
-          ext (i | ⟨k, b⟩)
-          · rfl
-          · exact k.elim
+          ext (i | ⟨⟨⟩, _⟩)
+          rfl
       rw [he]
       exact hT.reindex E
     · intro α _ ih _ β _ T hT hn
@@ -309,8 +294,7 @@ omit [DecidableEq ι] [DecidableEq κ] [DecidableEq τ] in
 private theorem comp_eq_trace (R : Set ((ι ⊕ κ) → Bool)) (S : Set ((κ ⊕ τ) → Bool)) :
     comp R S = trace {x | (fun i => x (compEquiv i)) ∈ sumProd R S} := by
   ext x
-  apply exists_congr
-  intro z
+  refine exists_congr fun z => ?_
   change (_ ∈ R ∧ _ ∈ S) ↔ (_ ∈ R ∧ _ ∈ S)
   have hR : (fun i => Sum.elim x (fun p => z p.1) (compEquiv (.inl i))) =
       Sum.elim (fun i => x (.inl i)) z := by
@@ -389,20 +373,10 @@ theorem mem_star_iff {x : (κ ⊕ Unit) → Bool} : x ∈ star κ ↔
       ∃ k, (∀ j, x (.inl j) = decide (j = k)) ∧ x (.inr ()) = true := by
   constructor
   · rintro ⟨k | u, hk⟩
-    · right
-      refine ⟨k, ?_, ?_⟩
-      · intro j
-        have h := congrFun hk (.inl j)
-        simpa [flipOn] using h.symm
-      · have h := congrFun hk (.inr ())
-        simpa [flipOn] using h.symm
-    · left
-      constructor
-      · intro j
-        have h := congrFun hk (.inl j)
-        simpa [flipOn] using h.symm
-      · have h := congrFun hk (.inr ())
-        simpa [flipOn] using h.symm
+    · exact .inr ⟨k, fun j => by simpa [flipOn] using (congrFun hk (.inl j)).symm,
+        by simpa [flipOn] using (congrFun hk (.inr ())).symm⟩
+    · exact .inl ⟨fun j => by simpa [flipOn] using (congrFun hk (.inl j)).symm,
+        by simpa [flipOn] using (congrFun hk (.inr ())).symm⟩
   · rintro (⟨hx, hc⟩ | ⟨k, hx, hc⟩)
     · refine ⟨.inr (), ?_⟩
       ext (j | u) <;> simp [flipOn, hx, hc]

@@ -109,8 +109,7 @@ private theorem le_four_mul_card_looseTribes (hw : 0 < w) (hJ : 4 * #J ≤ 3 * (
       obtain ⟨⟨j, i⟩, hj, rfl⟩ := hk
       simp only [hU, mem_filter, mem_univ, true_and, not_exists, not_not] at hj
       exact hj i
-    have := card_le_card this
-    simpa [card_product] using this
+    simpa [card_product] using card_le_card this
   have h3 : #U * w ≤ 3 * #T * w := by nlinarith
   have h4 : #U ≤ 3 * #T := Nat.le_of_mul_le_mul_right h3 hw
   omega
@@ -146,10 +145,8 @@ private theorem pivWeight_le_one (j : Fin s) (x : BitString (s * w)) : pivWeight
 
 private theorem pivWeight_ne_zero_self {j : Fin s} {x : BitString (s * w)}
     (hx : pivWeight T c j x ≠ 0) : ∀ i ≠ c j, x (finProdFinEquiv (j, i)) = true := by
-  have := prod_ne_zero_iff.1 hx j (mem_univ _)
-  simp only [pivFactor, ite_true, ne_eq, ite_eq_right_iff, one_ne_zero, imp_false, not_not,
-    mem_erase, mem_univ, and_true] at this
-  exact this
+  simpa only [pivFactor, ite_true, ne_eq, ite_eq_right_iff, one_ne_zero, imp_false, not_not,
+    mem_erase, mem_univ, and_true] using prod_ne_zero_iff.1 hx j (mem_univ _)
 
 private theorem pivWeight_ne_zero_other {j : Fin s} {x : BitString (s * w)}
     (hx : pivWeight T c j x ≠ 0) {j' : Fin s} (hj' : j' ≠ j) :
@@ -157,11 +154,9 @@ private theorem pivWeight_ne_zero_other {j : Fin s} {x : BitString (s * w)}
   have := prod_ne_zero_iff.1 hx j' (mem_univ _)
   simp only [pivFactor, hj', ite_false] at this
   split_ifs at this with h1 h2 h2
-  · obtain ⟨i, -, hi⟩ := h2
-    exact ⟨i, hi⟩
+  · exact h2.imp fun _ => And.right
   · exact absurd rfl this
-  · obtain ⟨i, -, hi⟩ := h2
-    exact ⟨i, hi⟩
+  · exact h2.imp fun _ => And.right
   · exact absurd rfl this
 
 /-- The pivotality events of distinct tribes of `T` are disjoint. -/
@@ -187,15 +182,13 @@ private theorem pivWeight_update (j : Fin s) (x : BitString (s * w)) (b : Bool) 
           ∀ i ∈ univ.erase (c j'), x (finProdFinEquiv (j', i)) = true := by
       refine forall₂_congr fun i hi => ?_
       rw [update_of_ne]
-      intro h
-      exact ne_of_mem_erase hi (by simpa using finProdFinEquiv.injective h)
+      exact fun h => ne_of_mem_erase hi (by simpa using finProdFinEquiv.injective h)
     simp only [hiff]
   · have hfun : (fun i => update x (finProdFinEquiv (j, c j)) b (finProdFinEquiv (j', i))) =
         fun i => x (finProdFinEquiv (j', i)) := by
       funext i
       rw [update_of_ne]
-      intro h
-      exact hj' (by simpa using congrArg Prod.fst (finProdFinEquiv.injective h))
+      exact fun h => hj' (by simpa using congrArg Prod.fst (finProdFinEquiv.injective h))
     rw [hfun]
 
 /-- On its pivotality event, Tribes is the free bit of tribe `j`. -/
@@ -226,14 +219,12 @@ private theorem expect_pivWeight {j : Fin s} (hj : j ∈ T) :
     simp only [pivFactor, ite_true]
     rw [expect_ite_forall_mem_eq, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin]
   have e1 : ∀ j' ∈ (univ.erase j).filter (· ∈ T),
-      𝔼 z, pivFactor T c j j' z = 1 - 2⁻¹ ^ (w - 1) := by
-    intro j' hj'
+      𝔼 z, pivFactor T c j j' z = 1 - 2⁻¹ ^ (w - 1) := fun j' hj' => by
     simp only [mem_filter, mem_erase, mem_univ, and_true] at hj'
     simp only [pivFactor, hj'.1, hj'.2, ite_false, ite_true]
     rw [expect_ite_exists_mem_eq, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin]
   have e2 : ∀ j' ∈ (univ.erase j).filter (· ∉ T),
-      𝔼 z, pivFactor T c j j' z = 1 - 2⁻¹ ^ w := by
-    intro j' hj'
+      𝔼 z, pivFactor T c j j' z = 1 - 2⁻¹ ^ w := fun j' hj' => by
     simp only [mem_filter, mem_erase, mem_univ, and_true] at hj'
     simp only [pivFactor, hj'.1, hj'.2, ite_false]
     rw [expect_ite_exists_mem_eq, card_univ, Fintype.card_fin]
@@ -262,10 +253,7 @@ private theorem card_mul_le_hammingDist_tribes_div {g : BitString (s * w) → Bo
     refine two_mul_expect_mul_ite_ne_eq (pivWeight T c j) (tribes w s) g
       (finProdFinEquiv (j, c j)) (fun x => pivWeight_update j x _) (fun x => ?_)
       (fun x hx => ?_)
-    · refine hg fun k hk => ?_
-      rw [update_of_ne]
-      rintro rfl
-      exact hc j hj hk
+    · exact hg fun k hk => update_of_ne (by rintro rfl; exact hc j hj hk) ..
     · rw [tribes_eq_of_pivWeight_ne_zero (by rwa [pivWeight_update]),
         tribes_eq_of_pivWeight_ne_zero hx, update_self]
   have hdist : (hammingDist (tribes w s) g : ℝ) / 2 ^ (s * w) =
@@ -278,9 +266,7 @@ private theorem card_mul_le_hammingDist_tribes_div {g : BitString (s * w) → Bo
       = ∑ j ∈ T, 𝔼 x, pivWeight T c j x * (if tribes w s x ≠ g x then 1 else 0) := by
         rw [← nsmul_eq_mul, ← sum_const]
         refine sum_congr rfl fun j hj => ?_
-        have := hhalf j hj
-        rw [expect_pivWeight hj] at this
-        linarith
+        linarith [hhalf j hj, expect_pivWeight (T := T) (c := c) hj]
     _ = 𝔼 x, ∑ j ∈ T, pivWeight T c j x * (if tribes w s x ≠ g x then 1 else 0) :=
         (expect_sum_comm ..).symm
     _ ≤ 𝔼 x, (if tribes w s x ≠ g x then (1 : ℝ) else 0) := by
@@ -292,8 +278,7 @@ private theorem card_mul_le_hammingDist_tribes_div {g : BitString (s * w) → Bo
             rw [pivWeight_eq_zero_of_ne hj hj' hjx, zero_mul]]
           exact mul_le_of_le_one_left hD (pivWeight_le_one j x)
         · simp only [not_exists, not_and, not_not] at hx
-          rw [sum_eq_zero fun j hj => by rw [hx j hj, zero_mul]]
-          exact hD
+          exact (sum_eq_zero fun j hj => by rw [hx j hj, zero_mul]).trans_le hD
 
 /-- The numerical estimate: with `2 ^ (w - 1) ≤ s ≤ 4 t`, `t ≤ s < 2 ^ w` and
 `(1 - 2 ^ (-w)) ^ s ≥ 1 / 2`, the disagreement bound is at least `1 / 256`. -/
@@ -314,12 +299,8 @@ private theorem one_div_256_le_card_mul (hw : 1 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ 
     cast_linarith [hs₁.trans ht]
   have hC : 1 / 16 ≤ (1 - y) ^ (t - 1) := by
     rcases Nat.lt_or_ge w 2 with hw2 | hw2
-    · have hw1 : w = 1 := by omega
-      subst hw1
-      have : t - 1 = 0 := by
-        norm_num at hs₂
-        omega
-      rw [this, pow_zero]
+    · obtain rfl : w = 1 := by omega
+      rw [show t - 1 = 0 by norm_num at hs₂; omega, pow_zero]
       norm_num
     · obtain ⟨n₀, hn₀⟩ : ∃ n₀ : ℕ, n₀ = 2 ^ (w - 2) := ⟨_, rfl⟩
       have hny : (n₀ : ℝ) * y = 1 / 2 := by
@@ -389,22 +370,17 @@ theorem exists_totalInfluence_le_lt_card_of_dependsOn {K : ℝ} (hK : 4 ≤ K) :
   obtain ⟨w, hw⟩ : ∃ w : ℕ, w = ⌊K / 2⌋₊ := ⟨_, rfl⟩
   have hw1 : (w : ℝ) ≤ K / 2 := hw ▸ Nat.floor_le (by linarith)
   have hw2 : K / 2 < w + 1 := hw ▸ Nat.lt_floor_add_one _
-  have hw2' : 2 ≤ w := by
-    rw [hw]
-    exact Nat.le_floor (by norm_num; linarith)
+  have hw2' : 2 ≤ w := hw ▸ Nat.le_floor (by norm_num; linarith)
   refine ⟨tribesSize w * w, tribes w (tribesSize w), ?_, fun J g hg hdist => ?_⟩
   · exact (totalInfluence_tribes_le w).trans (by linarith)
-  · by_contra hJ
-    push Not at hJ
+  · by_contra! hJ
     refine absurd (one_div_256_le_hammingDist_tribes_div (by omega) ?_ hg) (not_le.2 hdist)
     have hs₁ : 2 ^ (w - 1) ≤ tribesSize w := two_pow_sub_one_le_tribesSize (by omega)
     have h1 : (2 : ℝ) ^ (K / 2) ≤ 2 ^ ((w : ℝ) + 1) :=
       Real.rpow_le_rpow_of_exponent_le (by norm_num) hw2.le
     rw [Real.rpow_add (by norm_num), Real.rpow_natCast, Real.rpow_one] at h1
     have hpow : (2 : ℝ) ^ w = 2 * 2 ^ (w - 1) := by
-      rw [← pow_succ']
-      congr 1
-      omega
+      rw [← pow_succ', Nat.sub_add_cancel (by omega : 1 ≤ w)]
     have : (4 * #J : ℝ) ≤ 3 * (tribesSize w * w) := by cast_nlinarith [hw2', hs₁]
     exact_mod_cast this
 

@@ -124,19 +124,13 @@ private theorem reduceVar_mem_restrictDegree (i : ι) {q : MvPolynomial ι R}
   classical
   refine Submodule.sum_mem _ fun s hs => ?_
   have hsle : ∀ j, s j ≤ 1 := (mem_restrictDegree _ _ _).1 hq s hs
-  split_ifs with hsi
-  · rw [mem_restrictDegree]
-    intro t ht j
-    obtain rfl := Finset.mem_singleton.1 (support_monomial_subset ht)
-    by_cases hj : j = i
-    · subst hj
-      simp only [Finsupp.add_apply, hsi, Finsupp.single_eq_same, zero_add, le_refl]
-    · simp only [Finsupp.add_apply, Finsupp.single_eq_of_ne hj, add_zero]
-      exact hsle j
-  · rw [mem_restrictDegree]
-    intro t ht j
-    obtain rfl := Finset.mem_singleton.1 (support_monomial_subset ht)
-    exact hsle j
+  rw [mem_restrictDegree]
+  intro t ht j
+  split_ifs at ht with hsi <;> obtain rfl := Finset.mem_singleton.1 (support_monomial_subset ht)
+  · rcases eq_or_ne j i with rfl | hj
+    · simp only [Finsupp.add_apply, hsi, Finsupp.single_eq_same, zero_add, le_refl]
+    · simpa only [Finsupp.add_apply, Finsupp.single_eq_of_ne hj, add_zero] using hsle j
+  · exact hsle j
 
 private theorem mul_X_sub_reduceVar_mem_boolIdeal (i : ι)
     {q : MvPolynomial ι R} (hq : q ∈ restrictDegree ι R 1) :
@@ -147,10 +141,7 @@ private theorem mul_X_sub_reduceVar_mem_boolIdeal (i : ι)
         (MvPolynomial.monomial s (q.coeff s) * X i -
           if s i = 0 then MvPolynomial.monomial (s + Finsupp.single i 1) (q.coeff s)
           else MvPolynomial.monomial s (q.coeff s)) := by
-    conv_lhs =>
-      arg 1
-      arg 1
-      rw [q.as_sum]
+    nth_rw 1 [q.as_sum]
     rw [Finset.sum_mul]
     simp only [reduceVar, Finset.sum_sub_distrib]
   rw [hsum]
@@ -163,22 +154,14 @@ private theorem mul_X_sub_reduceVar_mem_boolIdeal (i : ι)
       rw [hX, MvPolynomial.monomial_mul_monomial, mul_one]
     rw [hmul, sub_self]
     exact Ideal.zero_mem _
-  · have hsi1 : s i = 1 := by omega
-    let s' : ι →₀ ℕ := s - Finsupp.single i 1
-    have hs' : s' + Finsupp.single i 1 = s := by
-      ext j
-      by_cases hj : j = i
-      · subst hj
-        simp only [s', Finsupp.add_apply, Finsupp.tsub_apply, Finsupp.single_eq_same, hsi1]
-      · simp only [s', Finsupp.add_apply, Finsupp.tsub_apply, Finsupp.single_eq_of_ne hj,
-          tsub_zero, add_zero]
+  · let s' : ι →₀ ℕ := s - Finsupp.single i 1
+    have hs' : s' + Finsupp.single i 1 = s :=
+      tsub_add_cancel_of_le (Finsupp.single_le_iff.2 (by omega))
     have hmul : MvPolynomial.monomial s (q.coeff s) =
         MvPolynomial.monomial s' (q.coeff s) * X i := by
       rw [← hs', hX, MvPolynomial.monomial_mul_monomial, mul_one]
     have hdiff : MvPolynomial.monomial s (q.coeff s) * X i - MvPolynomial.monomial s (q.coeff s) =
-        MvPolynomial.monomial s' (q.coeff s) * (X i ^ 2 - X i) := by
-      rw [hmul]
-      ring
+        MvPolynomial.monomial s' (q.coeff s) * (X i ^ 2 - X i) := by rw [hmul]; ring
     rw [hdiff]
     exact Ideal.mul_mem_left _ _ (X_sq_sub_X_mem_boolIdeal ι R i)
 
@@ -230,13 +213,8 @@ private theorem eq_indMon_of_le_one {s : ι →₀ ℕ} (hs : ∀ i, s i ≤ 1) 
   classical
   ext i
   rw [indMon_apply]
-  have hi := hs i
-  by_cases hmem : i ∈ s.support
-  · have hne : s i ≠ 0 := Finsupp.mem_support_iff.1 hmem
-    simp only [hmem, ↓reduceIte]
-    omega
-  · simp only [hmem, ↓reduceIte]
-    exact Finsupp.notMem_support_iff.1 hmem
+  have := hs i
+  split_ifs with h <;> rw [Finsupp.mem_support_iff] at h <;> omega
 
 /-- Over **any** commutative ring, a multilinear polynomial that vanishes at every point of the
 Boolean cube `{0, 1} ^ ι` is the zero polynomial. -/
@@ -277,18 +255,15 @@ theorem eq_zero_of_mem_restrictDegree_of_forall_eval_bitPoint {q : MvPolynomial 
           · have hssub : s.support ⊂ S := Finset.ssubset_iff_subset_ne.2 ⟨hsub, fun heq => by
               apply hne
               rw [eq_indMon_of_le_one (hsle s hs), heq]⟩
-            have hlt : #s.support < n := hS ▸ Finset.card_lt_card hssub
-            have hz := ih #s.support hlt s.support rfl
-            rwa [← eq_indMon_of_le_one (hsle s hs)] at hz
+            rw [eq_indMon_of_le_one (hsle s hs)]
+            exact ih _ (hS ▸ Finset.card_lt_card hssub) _ rfl
           · rfl
         · intro hnot
           simp only [notMem_support_iff.1 hnot, support_indMon, Subset.rfl, ↓reduceIte]
       exact hsum.symm.trans h0
   rw [q.as_sum]
   refine Finset.sum_eq_zero fun s hs => ?_
-  have hzero := hcoeff #s.support s.support rfl
-  rw [← eq_indMon_of_le_one (hsle s hs)] at hzero
-  rw [hzero, monomial_zero]
+  rw [eq_indMon_of_le_one (hsle s hs), hcoeff _ _ rfl, monomial_zero]
 
 /-- Two multilinear polynomials agreeing at every point of `{0, 1} ^ ι` are equal. -/
 theorem eq_of_mem_restrictDegree_of_forall_eval_bitPoint {p q : MvPolynomial ι R}
@@ -303,15 +278,11 @@ theorem ker_evalCubeHom : RingHom.ker (evalCubeHom ι R) = boolIdeal ι R := by
   refine le_antisymm ?_ boolIdeal_le_ker_evalCubeHom
   intro p hp
   obtain ⟨q, hq, hsub⟩ := exists_mem_restrictDegree_sub_mem_boolIdeal p
-  have hqker : q ∈ RingHom.ker (evalCubeHom ι R) := by
-    have hpq : p - (p - q) = q := by ring
-    rw [← hpq]
-    exact Ideal.sub_mem _ hp (boolIdeal_le_ker_evalCubeHom hsub)
-  have hq0 : q = 0 := eq_zero_of_mem_restrictDegree_of_forall_eval_bitPoint hq fun x => by
-    have hx := congrFun (RingHom.mem_ker.1 hqker) x
-    simpa only [evalCubeHom_apply, Pi.zero_apply] using hx
-  rw [hq0, sub_zero] at hsub
-  exact hsub
+  have hqker : q ∈ RingHom.ker (evalCubeHom ι R) :=
+    sub_sub_cancel p q ▸ Ideal.sub_mem _ hp (boolIdeal_le_ker_evalCubeHom hsub)
+  obtain rfl : q = 0 := eq_zero_of_mem_restrictDegree_of_forall_eval_bitPoint hq fun x => by
+    simpa only [evalCubeHom_apply, Pi.zero_apply] using congrFun (RingHom.mem_ker.1 hqker) x
+  simpa only [sub_zero] using hsub
 
 /-- A polynomial belongs to `boolIdeal ι R` if and only if it vanishes at every point of
 `{0, 1} ^ ι`. -/
@@ -337,10 +308,7 @@ radical. -/
 theorem boolIdeal_isRadical [IsReduced R] : (boolIdeal ι R).IsRadical := by
   rintro p ⟨n, hn⟩
   rw [mem_boolIdeal_iff_forall_eval_bitPoint] at hn ⊢
-  intro x
-  have h := hn x
-  rw [map_pow] at h
-  exact IsNilpotent.eq_zero ⟨n, h⟩
+  exact fun x => IsNilpotent.eq_zero ⟨n, (map_pow _ _ _).symm.trans (hn x)⟩
 
 /-- Membership in `boolIdeal ι R` is equivalent to vanishing on `{0, 1} ^ ι ⊆ ι → R`. -/
 theorem mem_boolIdeal_iff_forall_eval_zero_one {p : MvPolynomial ι R} :
@@ -349,13 +317,8 @@ theorem mem_boolIdeal_iff_forall_eval_zero_one {p : MvPolynomial ι R} :
   rw [mem_boolIdeal_iff_forall_eval_bitPoint]
   constructor
   · intro h z hz
-    have hzeq : z = bitPoint fun i => decide (z i = 1) := by
-      funext i
-      by_cases h1 : z i = 1
-      · simp [bitPoint, bitVal, h1]
-      · rcases hz i with h0 | h1'
-        · simp [bitPoint, bitVal, h0]
-        · exact False.elim (h1 h1')
+    have hzeq : z = bitPoint fun i => decide (z i = 1) := funext fun i => by
+      rcases hz i with hi | hi <;> simp [bitPoint, bitVal, hi]
     rw [hzeq]
     exact h _
   · intro h x

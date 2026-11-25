@@ -66,13 +66,10 @@ theorem card_filter_weight_le_le (d h : ℕ) : #{w : Fin d → Bool | weight w �
     simp [weight_eq_hammingNorm, hammingDist_comm, hammingDist_zero_right]
   rw [hset, hball]
   simp only [hsph]
-  calc ∑ j ∈ range (h + 1), d.choose j ≤ ∑ j ∈ range (h + 1), d ^ j * 1 ^ (h - j) * h.choose j :=
-        sum_le_sum fun j hj => by
-          have : 1 ≤ h.choose j := Nat.choose_pos (Nat.lt_succ_iff.mp (mem_range.mp hj))
-          calc d.choose j ≤ d ^ j := Nat.choose_le_pow d j
-            _ ≤ d ^ j * 1 ^ (h - j) * h.choose j := by
-              rw [one_pow, mul_one]; exact Nat.le_mul_of_pos_right _ this
-    _ = (d + 1) ^ h := (add_pow d 1 h).symm
+  rw [add_pow]
+  refine sum_le_sum fun j hj => (Nat.choose_le_pow d j).trans ?_
+  rw [one_pow, mul_one]
+  exact Nat.le_mul_of_pos_right _ (Nat.choose_pos (Nat.lt_succ_iff.mp (mem_range.mp hj)))
 
 /-- The shift-existence condition with the constants of [OpenAI2026ETH]: for `B, μ ≥ 1` and
 `ℓ ≤ μ + 1`, `2 · 2 ^ ℓ · exp(-ε² D₀ / 2) < 1` with `ε = 1 / (200 B μ)` and `D₀ = 320000 B² μ³`,
@@ -105,26 +102,17 @@ private theorem shift_condition {B μ ℓ : ℕ} (hB : 1 ≤ B) (hμ : 1 ≤ μ)
   rw [mul_inv_lt_iff₀ hpos, one_mul]
   cast_linarith
 
-/-- The quotient `⌈d / N⌉ = (d + N - 1) / N` satisfies `d ≤ N ⌈d / N⌉` and
-`N (⌈d / N⌉ - 1) < d`. -/
-private theorem le_mul_ceilDiv_and_lt {N : ℕ} (hN : 0 < N) {d : ℕ} (hd : 0 < d) :
-    d ≤ N * ((d + N - 1) / N) ∧ N * ((d + N - 1) / N - 1) < d := by
+/-- The quotient `⌈d / N⌉ = (d + N - 1) / N` satisfies `d ≤ N ⌈d / N⌉ < d + N`. -/
+private theorem le_mul_ceilDiv_and_lt {N : ℕ} (hN : 0 < N) (d : ℕ) :
+    d ≤ N * ((d + N - 1) / N) ∧ N * ((d + N - 1) / N) < d + N := by
   have h1 := Nat.div_add_mod (d + N - 1) N
   have h2 := Nat.mod_lt (d + N - 1) hN
-  set q := (d + N - 1) / N
-  set r := (d + N - 1) % N
-  refine ⟨by omega, ?_⟩
-  rw [Nat.mul_sub, mul_one]
   omega
 
 /-- The row count when `q = 1`: `2 c ≤ 3 n` for `c = ⌈d / (8 B)⌉` and `d ≤ m ≤ B n`. -/
 private theorem two_mul_le_of_le {n m d c B : ℕ} (hn : 1 ≤ n) (hm : m ≤ B * n)
     (hdm : d ≤ m) (hc : 8 * B * c < d + 8 * B) : 2 * c ≤ 3 * n := by
-  have h1 : B * (8 * c) < B * (n + 8) := by
-    calc B * (8 * c) = 8 * B * c := by ring
-      _ < d + 8 * B := hc
-      _ ≤ B * n + 8 * B := by omega
-      _ = B * (n + 8) := by ring
+  have h1 : B * (8 * c) < B * (n + 8) := by linarith
   have := Nat.lt_of_mul_lt_mul_left h1
   omega
 
@@ -209,13 +197,10 @@ theorem exists_initialTests {n m B : ℕ} (hn : 1 ≤ n) (hB : 1 ≤ B) (hm : m 
     rw [show ℓ = ℓ - 1 + 1 by omega, pow_succ]
     nlinarith
   have hℓd : 0 < ℓ → d = D0 := fun h => by
-    by_contra hne
-    have hdm' : d = m := by
-      rcases le_total m D0 with h' | h'
-      · exact min_eq_left h'
-      · exact absurd (min_eq_right h') hne
-    have : ℓ ≤ 0 := Nat.find_min' hex (by rw [hdm']; simp)
-    omega
+    rcases le_total m D0 with h' | h'
+    · have : ℓ ≤ 0 := Nat.find_min' hex (by rw [hddef, min_eq_left h']; simp)
+      omega
+    · exact min_eq_right h'
   have hℓμ : ℓ ≤ μ + 1 := by
     rcases Nat.eq_zero_or_pos ℓ with h | h
     · omega
@@ -239,31 +224,15 @@ theorem exists_initialTests {n m B : ℕ} (hn : 1 ≤ n) (hB : 1 ≤ B) (hm : m 
   -- the local code: `c = ⌈d / (8 B)⌉` checks of distance more than `h = ⌈d / (100 B μ)⌉ - 1`
   set N := 100 * B * μ with hN
   have hNpos : 0 < N := by positivity
+  obtain ⟨hk_ge, hk_lt⟩ := le_mul_ceilDiv_and_lt hNpos d
   set k := (d + N - 1) / N with hkdef
-  obtain ⟨hk_ge, hk_lt⟩ := le_mul_ceilDiv_and_lt hNpos hd
-  rw [← hkdef] at hk_ge hk_lt
-  have hk1 : 1 ≤ k := by
-    rcases Nat.eq_zero_or_pos k with hk0 | hk0
-    · rw [hk0, mul_zero] at hk_ge; omega
-    · exact hk0
+  have hk1 : 1 ≤ k := Nat.pos_of_ne_zero fun hk0 => by simp [hk0] at hk_ge; omega
   set h := k - 1 with hhdef
-  have h8B : 0 < 8 * B := by omega
+  obtain ⟨hc_ge, hc_lt⟩ := le_mul_ceilDiv_and_lt (by omega : 0 < 8 * B) d
   set c := (d + 8 * B - 1) / (8 * B) with hcdef
-  obtain ⟨hc_ge, hc_lt'⟩ := le_mul_ceilDiv_and_lt h8B hd
-  rw [← hcdef] at hc_ge hc_lt'
-  have hc_lt : 8 * B * c < d + 8 * B := by
-    rcases Nat.eq_zero_or_pos c with hc0 | hc0
-    · rw [hc0]; omega
-    · have : 8 * B * c = 8 * B * (c - 1) + 8 * B := by
-        rw [Nat.mul_sub, mul_one, Nat.sub_add_cancel (Nat.le_mul_of_pos_right _ hc0)]
-      omega
   have hμh : μ * h < c := by
-    have h1 : B * (100 * (μ * h)) < B * (8 * c) := by
-      have : N * h = B * (100 * (μ * h)) := by rw [hN]; ring
-      calc B * (100 * (μ * h)) = N * h := this.symm
-        _ < d := hk_lt
-        _ ≤ 8 * B * c := hc_ge
-        _ = B * (8 * c) := by ring
+    rw [show k = h + 1 by omega, mul_add_one, hN] at hk_lt
+    have h1 : B * (100 * (μ * h)) < B * (8 * c) := by linarith
     have h2 := Nat.lt_of_mul_lt_mul_left h1
     omega
   obtain ⟨A, hA⟩ : ∃ A : Fin c → Fin d → Bool,
@@ -276,12 +245,9 @@ theorem exists_initialTests {n m B : ℕ} (hn : 1 ≤ n) (hB : 1 ≤ B) (hm : m 
       _ ≤ (2 ^ μ) ^ h := Nat.pow_le_pow_left (by omega) h
       _ = 2 ^ (μ * h) := by rw [← pow_mul]
       _ < 2 ^ c := Nat.pow_lt_pow_right (by norm_num) hμh
-  have hAd : ∀ w : Fin d → Bool, w ≠ 0 → (∀ i, A i ⬝ᵥ w = false) → h < weight w := by
-    intro w hw hker
-    by_contra hle
-    obtain ⟨i, hi⟩ := hA w hw (not_lt.mp hle)
-    rw [hker i] at hi
-    exact Bool.false_ne_true hi
+  have hAd : ∀ w : Fin d → Bool, w ≠ 0 → (∀ i, A i ⬝ᵥ w = false) → h < weight w :=
+    fun w hw hker => not_le.mp fun hle =>
+      let ⟨i, hi⟩ := hA w hw hle; Bool.false_ne_true ((hker i).symm.trans hi)
   -- keep `m` of the `2 ^ ℓ d` edges
   have hcard : m ≤ Fintype.card ((Fin ℓ → Bool) × Fin d) := by
     simpa [Fintype.card_prod, Fintype.card_fun] using hℓ

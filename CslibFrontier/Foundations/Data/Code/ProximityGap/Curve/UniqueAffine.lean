@@ -86,21 +86,10 @@ private theorem card_biUnion_zero_affine_le
     (badI.biUnion fun i => Finset.univ.filter fun z : Fin ℓ → F =>
         (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card ≤
       Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) := by
-  calc _ ≤ ∑ i ∈ badI, (Finset.univ.filter fun z : Fin ℓ → F =>
-          (u₀ i - v₀ i) + ∑ j : Fin ℓ, z j * (u j i - v j i) = 0).card :=
-        Finset.card_biUnion_le
-    _ ≤ ∑ _i ∈ badI, (Fintype.card F) ^ (ℓ - 1) := by
-        refine Finset.sum_le_sum fun i hi => card_zero_affine_le _ _ ?_
-        by_cases h0 : u₀ i = v₀ i
-        · right
-          have hnotj : ¬ ∀ j : Fin ℓ, u j i = v j i := fun hj => hbad i hi ⟨h0, hj⟩
-          push Not at hnotj
-          obtain ⟨j, hj⟩ := hnotj
-          exact ⟨j, sub_ne_zero.2 hj⟩
-        · exact Or.inl (sub_ne_zero.2 h0)
-    _ = badI.card * (Fintype.card F) ^ (ℓ - 1) := by simp only [Finset.sum_const, smul_eq_mul]
-    _ ≤ Fintype.card ι * (Fintype.card F) ^ (ℓ - 1) :=
-        Nat.mul_le_mul_right _ (Finset.card_le_univ badI)
+  refine card_biUnion_le.trans <| (sum_le_sum fun i hi => card_zero_affine_le _ _ <| by
+    simpa only [ne_eq, sub_eq_zero, not_and_or, not_forall] using hbad i hi).trans ?_
+  rw [sum_const, smul_eq_mul]
+  exact Nat.mul_le_mul_right _ (card_le_univ badI)
 
 /-- **Exact-threshold correlated agreement on affine spaces in the unique-decoding regime, with
 unique maximal agreement set and unique codewords**
@@ -215,16 +204,9 @@ theorem exists_ratWeighted_correlatedAgreement_affine_unique_sharp
         (Nat.le_self_pow (by omega : ℓ ≠ 0) (Fintype.card F)) 1)).trans_lt hT).trans_eq
         (Nat.mul_comm _ _)
     have hT_exact : Fintype.card ι * (Fintype.card F) ^ ℓ < Fintype.card F * T.card := by
-      have h1 : Fintype.card ι * (Fintype.card F) ^ ℓ =
-          Fintype.card ι * ((Fintype.card F) ^ ℓ - 1) + Fintype.card ι := by
-        calc Fintype.card ι * (Fintype.card F) ^ ℓ
-            = Fintype.card ι * ((Fintype.card F) ^ ℓ - 1 + 1) := by
-                rw [Nat.sub_add_cancel hpow_pos]
-          _ = _ := by ring
-      have h2 : Fintype.card F * T.card = (Fintype.card F - 1) * T.card + T.card := by
-        calc Fintype.card F * T.card
-            = (Fintype.card F - 1 + 1) * T.card := by rw [Nat.sub_add_cancel (by omega)]
-          _ = _ := by ring
+      have := Nat.le_mul_of_pos_right (Fintype.card ι) hpow_pos
+      have := Nat.le_mul_of_pos_left T.card (by omega : 0 < Fintype.card F)
+      rw [Nat.mul_sub_one, Nat.sub_one_mul] at hT
       omega
     obtain ⟨D₀, hD₀, v₀, hv₀, v, hvRS, hagree₀, _⟩ :=
       exists_uniqueMaximal_correlatedAgreement_affine_unique hα hunique u₀ u T hT_exact
@@ -256,13 +238,9 @@ theorem exists_ratWeighted_correlatedAgreement_affine_unique_sharp
         hi_not (mem_filter.2 ⟨mem_univ i, h⟩)⟩, mem_filter.2 ⟨mem_univ z, ?_⟩⟩
       have heq := (mem_filter.1 hi_ag).2
       simp only [vz, Pi.add_apply, Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at heq
-      have hsum_sub : ∑ j : Fin ℓ, z j * (u j i - v j i) =
-          ∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i := by
-        rw [← Finset.sum_sub_distrib]; exact Finset.sum_congr rfl fun j _ => by ring
-      rw [hsum_sub]
-      calc u₀ i - v₀ i + (∑ j : Fin ℓ, z j * u j i - ∑ j : Fin ℓ, z j * v j i)
-          = (u₀ i + ∑ j : Fin ℓ, z j * u j i) - (v₀ i + ∑ j : Fin ℓ, z j * v j i) := by ring
-        _ = 0 := sub_eq_zero.2 heq
+      simp only [mul_sub, sum_sub_distrib]
+      rw [← sub_eq_zero.2 heq]
+      ring
     have hT_le := (Finset.card_le_card hT_sub).trans <|
       card_biUnion_zero_affine_le u₀ v₀ u v badI fun _ hi => (mem_filter.1 hi).2
     have hmul_le := (Nat.mul_le_mul_left (Fintype.card F) hT_le).trans_eq (by

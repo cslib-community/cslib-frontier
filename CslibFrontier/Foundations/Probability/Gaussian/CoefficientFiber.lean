@@ -49,6 +49,16 @@ variable (b : Module.Basis ι ℤ L) (p : ℕ) [NeZero p]
 local instance : DiscreteTopology ↥((p : ℝ) • L) :=
   DiscreteTopology.of_subset inferInstance (natCast_smul_le L p)
 
+omit [NormedSpace ℝ E] [FiniteDimensional ℝ E] [DiscreteTopology L] [NeZero p] in
+private theorem tsum_indicator_coefficientMod (q : PMF L) (a : ι → ZMod p) :
+    ∑' v, {v : L | coefficientMod L b p v = a}.indicator q v = q.map (coefficientMod L b p) a := by
+  classical
+  rw [PMF.map_apply]
+  refine tsum_congr fun v ↦ ?_
+  by_cases hv : coefficientMod L b p v = a
+  · rw [Set.indicator_of_mem hv, ite_eq_left hv.symm]
+  · rw [Set.indicator_of_notMem hv, ite_eq_right (Ne.symm hv)]
+
 /-- The probability of a coefficient residue is the mass of its coset divided by the total
 mass. The coset is represented by `coefficientLift`, with center shifted by subtraction. -/
 theorem map_coefficientMod_discreteGaussian_apply (r : ℝ) (hr : 0 < r) (c : E)
@@ -58,18 +68,8 @@ theorem map_coefficientMod_discreteGaussian_apply (r : ℝ) (hr : 0 < r) (c : E)
         ENNReal.ofReal (gaussianMass L r c) := by
   classical
   have hfiber : (discreteGaussian L r hr c).map (coefficientMod L b p) a =
-      ∑' v : {v : L // coefficientMod L b p v = a}, discreteGaussian L r hr c v.val := by
-    rw [PMF.map_apply]
-    calc
-      _ = ∑' v, {v : L | coefficientMod L b p v = a}.indicator
-          (fun v ↦ discreteGaussian L r hr c v) v := by
-        apply tsum_congr
-        intro v
-        by_cases hv : coefficientMod L b p v = a
-        · rw [ite_eq_left hv.symm, Set.indicator_of_mem hv]
-        · rw [ite_eq_right (Ne.symm hv), Set.indicator_of_notMem hv]
-      _ = _ := (tsum_subtype {v : L | coefficientMod L b p v = a}
-        (fun v ↦ discreteGaussian L r hr c v)).symm
+      ∑' v : {v : L // coefficientMod L b p v = a}, discreteGaussian L r hr c v.val :=
+    (tsum_indicator_coefficientMod L b p _ a).symm.trans (tsum_subtype _ _).symm
   rw [hfiber, ← (coefficientFiberEquiv L b p a).tsum_eq]
   simp only [discreteGaussian_apply, coe_coefficientFiberEquiv]
   have hsub (w : ↥((p : ℝ) • L)) :
@@ -99,19 +99,8 @@ theorem filter_coefficientMod_discreteGaussian (r : ℝ) (hr : 0 < r) (c : E)
   classical
   let f : ↥((p : ℝ) • L) → L :=
     fun w ↦ Submodule.inclusion (natCast_smul_le L p) w + coefficientLift L b p a
-  have hfi : Function.Injective f := by
-    intro w z h
-    apply Subtype.ext
-    exact add_right_cancel (congrArg (fun v : L ↦ (v : E)) h)
-  have hm : (∑' v, {v : L | coefficientMod L b p v = a}.indicator
-      (fun v ↦ discreteGaussian L r hr c v) v) =
-      (discreteGaussian L r hr c).map (coefficientMod L b p) a := by
-    rw [PMF.map_apply]
-    apply tsum_congr
-    intro v
-    by_cases hv : coefficientMod L b p v = a
-    · rw [Set.indicator_of_mem hv, ite_eq_left hv.symm]
-    · rw [Set.indicator_of_notMem hv, ite_eq_right (Ne.symm hv)]
+  have hfi : Function.Injective f := fun w z h ↦
+    Subtype.ext (add_right_cancel (congrArg (fun v : L ↦ (v : E)) h))
   ext v
   by_cases hv : coefficientMod L b p v = a
   · let w := (coefficientFiberEquiv L b p a).symm ⟨v, hv⟩
@@ -122,7 +111,7 @@ theorem filter_coefficientMod_discreteGaussian (r : ℝ) (hr : 0 < r) (c : E)
     rw [← hw, PMF.map_apply]
     simp only [hfi.eq_iff, tsum_ite_eq']
     apply (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
-    rw [PMF.filter_apply, hm,
+    rw [PMF.filter_apply, tsum_indicator_coefficientMod,
       Set.indicator_of_mem (show f w ∈ {v | coefficientMod L b p v = a} from hw ▸ hv),
       ENNReal.toReal_mul, ENNReal.toReal_inv, discreteGaussian_apply_toReal,
       map_coefficientMod_discreteGaussian_apply, ENNReal.toReal_div,
@@ -140,10 +129,8 @@ theorem filter_coefficientMod_discreteGaussian (r : ℝ) (hr : 0 < r) (c : E)
     rw [PMF.map_apply]
     symm
     have hz (w : ↥((p : ℝ) • L)) : v ≠ f w := by
-      intro he
-      apply hv
-      rw [he]
-      exact (coefficientFiberEquiv L b p a w).property
+      rintro rfl
+      exact hv (coefficientFiberEquiv L b p a w).property
     simp [hz]
 
 /-- The tagged joint sample is recovered by first sampling its actual residue marginal and
@@ -169,19 +156,11 @@ theorem map_coefficientMod_pair_discreteGaussian (r : ℝ) (hr : 0 < r) (c : E) 
   simp_rw [← hk]
   ext ⟨a, v⟩
   rw [Cslib.Probability.PMF.bind_map_prodMk_apply]
-  have hm : (∑' v, {v : L | coefficientMod L b p v = a}.indicator (fun v ↦ q v) v) =
-      q.map (coefficientMod L b p) a := by
-    rw [PMF.map_apply]
-    apply tsum_congr
-    intro v
-    by_cases hv : coefficientMod L b p v = a
-    · rw [Set.indicator_of_mem hv, ite_eq_left hv.symm]
-    · rw [Set.indicator_of_notMem hv, ite_eq_right (Ne.symm hv)]
   change q.map (fun v ↦ (coefficientMod L b p v, v)) (a, v) = _
   have hj : q.map (fun v ↦ (coefficientMod L b p v, v)) (a, v) =
       if a = coefficientMod L b p v then q v else 0 := by
     simp only [PMF.map_apply, Prod.mk.injEq, and_comm, ite_and, tsum_ite_eq']
-  rw [hj, show k a v = _ from PMF.filter_apply _ v, hm]
+  rw [hj, show k a v = _ from PMF.filter_apply _ v, tsum_indicator_coefficientMod]
   by_cases hv : coefficientMod L b p v = a
   · rw [ite_eq_left hv.symm, Set.indicator_of_mem hv]
     have hpos := (map_coefficientMod_discreteGaussian_pos L b p r hr c a).ne'

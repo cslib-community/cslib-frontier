@@ -41,32 +41,17 @@ private theorem isPathConnected_punctured_ball (hrank : 1 < Module.rank ℝ E)
     ext z
     constructor
     · rintro ⟨⟨u, t⟩, ⟨hu, ht⟩, rfl⟩
-      have hu' : ‖u‖ = 1 := by
-        simpa only [directions, Metric.mem_sphere, dist_zero_right] using hu
       have hd : dist (q + t • u) q = t := by
-        rw [dist_eq_norm, add_sub_cancel_left, norm_smul,
-          Real.norm_of_nonneg ht.1.le, hu', mul_one]
-      refine ⟨Metric.mem_ball.mpr (hd.trans_lt ht.2), ?_⟩
-      intro he
-      have heq : q + t • u = q := he
-      rw [heq, dist_self] at hd
-      exact ht.1.ne hd
+        rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_of_nonneg ht.1.le,
+          mem_sphere_zero_iff_norm.1 hu, mul_one]
+      exact ⟨Metric.mem_ball.mpr (hd.trans_lt ht.2), fun he =>
+        ht.1.ne (by rw [← hd, show q + t • u = q from he, dist_self])⟩
     · rintro ⟨hz, hzq⟩
-      let d := z - q
-      have hp : 0 < ‖d‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hzq)
-      let u := ‖d‖⁻¹ • d
-      have hu : u ∈ directions := by
-        change u ∈ Metric.sphere 0 1
-        rw [Metric.mem_sphere, dist_zero_right]
-        change ‖‖d‖⁻¹ • d‖ = 1
-        rw [norm_smul, Real.norm_of_nonneg (inv_nonneg.mpr hp.le), inv_mul_cancel₀ hp.ne']
-      have hrad' : ‖d‖ < r := by
-        simpa only [d, Metric.mem_ball, dist_eq_norm] using hz
-      refine ⟨(u, ‖d‖), ⟨hu, hp, hrad'⟩, ?_⟩
-      change q + ‖d‖ • (‖d‖⁻¹ • d) = z
-      rw [smul_smul, mul_inv_cancel₀ hp.ne', one_smul]
-      change q + (z - q) = z
-      rw [add_comm, sub_add_cancel]
+      have hp : 0 < ‖z - q‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hzq)
+      refine ⟨(‖z - q‖⁻¹ • (z - q), ‖z - q‖), ⟨?_, hp, by simpa [dist_eq_norm] using hz⟩, ?_⟩
+      · rw [mem_sphere_zero_iff_norm, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hp.ne']
+      · change q + ‖z - q‖ • (‖z - q‖⁻¹ • (z - q)) = z
+        rw [smul_smul, mul_inv_cancel₀ hp.ne', one_smul, add_sub_cancel]
   exact himage ▸ (hdirs.prod hrad).image hf
 
 /-- Deleting a finite set from an open path-connected region of real dimension at least two
@@ -94,27 +79,17 @@ theorem isPathConnected_sdiff_finite_of_isOpen (hrank : 1 < Module.rank ℝ E)
     rw [isOpen_iff_mem_nhds]
     rintro y ⟨hyc, hyu⟩
     by_cases hyf : y ∈ F
-    · have hpoints : (F \ {y}).Finite := hF.sdiff
-      have hopen : IsOpen (U \ (F \ {y})) := hU.sdiff hpoints.isClosed
-      have hym : y ∈ U \ (F \ {y}) := ⟨hyu, fun h => h.2 rfl⟩
-      obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hopen y hym
-      have hballV : Metric.ball y r \ {y} ⊆ V := by
-        intro z hz
-        obtain ⟨hzu, hzF⟩ := hball hz.1
-        exact ⟨hzu, fun hzf => hzF ⟨hzf, hz.2⟩⟩
+    · obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp
+        (hU.sdiff (show (F \ {y}).Finite from hF.sdiff).isClosed) y ⟨hyu, fun h => h.2 rfl⟩
+      have hballV : Metric.ball y r \ {y} ⊆ V := fun z hz =>
+        ⟨(hball hz.1).1, fun hzf => (hball hz.1).2 ⟨hzf, hz.2⟩⟩
       obtain ⟨w, hwb, haw⟩ := mem_closure_iff.mp hyc (Metric.ball y r)
         Metric.isOpen_ball (Metric.mem_ball_self hr)
-      have hwy : w ∉ ({y} : Set E) := by
-        intro he
-        have heq : w = y := he
-        exact (hP haw).2 (heq.symm ▸ hyf)
-      have hballP : Metric.ball y r \ {y} ⊆ P := by
-        intro z hz
-        have hwz := (isPathConnected_punctured_ball hrank y hr).joinedIn w ⟨hwb, hwy⟩ z hz
-        exact (show JoinedIn V a w from haw).trans (hwz.mono hballV)
-      apply Filter.mem_of_superset (Metric.ball_mem_nhds y hr)
-      intro z hz
-      refine ⟨?_, (hball hz).1⟩
+      have hwy : w ∉ ({y} : Set E) := fun he => (hP haw).2 ((show w = y from he).symm ▸ hyf)
+      have hballP : Metric.ball y r \ {y} ⊆ P := fun z hz =>
+        (show JoinedIn V a w from haw).trans
+          (((isPathConnected_punctured_ball hrank y hr).joinedIn w ⟨hwb, hwy⟩ z hz).mono hballV)
+      refine Filter.mem_of_superset (Metric.ball_mem_nhds y hr) fun z hz => ⟨?_, (hball hz).1⟩
       by_cases hzy : z = y
       · exact hzy.symm ▸ hyc
       · exact subset_closure (hballP ⟨hz, hzy⟩)
@@ -122,9 +97,7 @@ theorem isPathConnected_sdiff_finite_of_isOpen (hrank : 1 < Module.rank ℝ E)
       exact Filter.mem_of_superset (hPopen.mem_nhds hyP)
         (fun z hz => ⟨subset_closure hz, (hP hz).1⟩)
   have hCP : C ⊆ closure P := Set.inter_subset_left
-  have hclos : closure C ∩ U ⊆ C := by
-    intro z hz
-    exact ⟨closure_minimal hCP isClosed_closure hz.1, hz.2⟩
+  have hclos : closure C ∩ U ⊆ C := fun z hz => ⟨closure_minimal hCP isClosed_closure hz.1, hz.2⟩
   have hUC : U ⊆ C := hconn.isConnected.2.subset_of_closure_inter_subset hC
     ⟨a, ha.1, subset_closure haP, ha.1⟩ hclos
   exact ⟨a, ha, fun z hz => hclosedV ⟨(hUC hz.1).1, hz⟩⟩

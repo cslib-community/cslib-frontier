@@ -109,10 +109,9 @@ theorem exists_good_shift_and_factor
     have := Nat.mul_le_mul_right s hμ_pos; omega
   set H : F[X][X] := S.leadingCoeff * Δ
   have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 fun h => by simp [s, h] at hS_deg) hΔ_ne
-  obtain ⟨x₀, _, hHx₀_ne⟩ := exists_eval_C_ne_zero hH_ne (hH_degX.trans_lt (by
-    have h1 : 2 * s * D ≤ 2 * R.natDegree * (D + B_Z) :=
-      Nat.mul_le_mul (Nat.mul_le_mul_left 2 hs_le_dR) (Nat.le_add_right D B_Z)
-    exact lt_of_le_of_lt (h1.trans (Nat.le_add_right _ _)) hTR_card))
+  obtain ⟨x₀, _, hHx₀_ne⟩ := exists_eval_C_ne_zero (T := T_R) hH_ne (hH_degX.trans_lt <|
+    (Nat.mul_le_mul (Nat.mul_le_mul_left 2 hs_le_dR) (Nat.le_add_right D B_Z)).trans_lt
+      ((Nat.le_add_right _ _).trans_lt hTR_card))
   have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
   have hΔ_x₀_ne : Δ.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
   let φx₀ : F[X][X] →+* F[X] := Polynomial.evalRingHom (C x₀)

@@ -37,12 +37,13 @@ private theorem same_gap_origin {p q t x y : Real.Angle}
     · exact sbtw_irrefl_left (heq ▸ hx))
   exact h.not_sbtw (forward hx hs).cyclic_left
 
+private theorem sub_midpoint_right (p q : ℂ) : q - midpoint ℝ p q = -(p - midpoint ℝ p q) := by
+  simp only [right_sub_midpoint, left_sub_midpoint, ← smul_neg, neg_sub]
+
 /-- Reversing the chord interchanges positive and negative normal offsets. -/
 theorem chordOffset_swap (p q : ℂ) (t : ℝ) :
     chordOffset q p t = chordOffset p q (-t) := by
-  have hq : q - midpoint ℝ p q = -(p - midpoint ℝ p q) := by
-    simp only [right_sub_midpoint, left_sub_midpoint, ← smul_neg, neg_sub]
-  simp only [chordOffset, midpoint_comm q p, hq, mul_neg, smul_neg, neg_smul]
+  simp only [chordOffset, midpoint_comm q p, sub_midpoint_right p q, mul_neg, smul_neg, neg_smul]
 
 private theorem normal_complementary {p q : ℂ} (hpq : p ≠ q) :
     sbtw ((q - midpoint ℝ p q).arg : Real.Angle)
@@ -50,9 +51,7 @@ private theorem normal_complementary {p q : ℂ} (hpq : p ≠ q) :
       ((p - midpoint ℝ p q).arg : Real.Angle) := by
   have hd : p - midpoint ℝ p q ≠ 0 := fun h => hpq
     ((left_eq_midpoint_iff (R := ℝ)).mp (sub_eq_zero.mp h))
-  have hq : q - midpoint ℝ p q = -(p - midpoint ℝ p q) := by
-    simp only [right_sub_midpoint, left_sub_midpoint, ← smul_neg, neg_sub]
-  rw [hq, Complex.arg_neg_coe_angle hd, ← neg_mul,
+  rw [sub_midpoint_right, Complex.arg_neg_coe_angle hd, ← neg_mul,
     Complex.arg_mul_coe_angle (neg_ne_zero.mpr Complex.I_ne_zero) hd, Complex.arg_neg_I]
   have h := (sbtw_angle_of_lt_of_span_lt (by linarith [Real.pi_pos] :
       -(Real.pi / 2) < 0) Real.pi_pos (by linarith [Real.pi_pos])).cyclic_right
@@ -96,14 +95,10 @@ theorem eventually_connector_order_of_circle_arc {z p q x y : ℂ} {ρ : ℝ}
     hp hy hq hpy hyq hpq).mp hpyq
   have ht : sbtw ((q - m).arg : Real.Angle) ((-n).arg : Real.Angle)
       ((p - m).arg : Real.Angle) := normal_complementary hpq
-  have htx : ((-n).arg : Real.Angle) ≠ ((x - m).arg : Real.Angle) := by
-    intro heq
-    rw [← heq] at hxmid
-    exact ht.not_sbtw hxmid
-  have hty : ((-n).arg : Real.Angle) ≠ ((y - m).arg : Real.Angle) := by
-    intro heq
-    rw [← heq] at hymid
-    exact ht.not_sbtw hymid
+  have htx : ((-n).arg : Real.Angle) ≠ ((x - m).arg : Real.Angle) := fun heq =>
+    ht.not_sbtw (heq ▸ hxmid)
+  have hty : ((-n).arg : Real.Angle) ≠ ((y - m).arg : Real.Angle) := fun heq =>
+    ht.not_sbtw (heq ▸ hymid)
   have hxyarg : ((x - m).arg : Real.Angle) ≠ ((y - m).arg : Real.Angle) :=
     fun heq => hxy (arg_sub_injective_on_sphere hm hx hy heq)
   have hcont (w : ℂ) (hw : w ∈ Metric.sphere z ρ) :
@@ -150,44 +145,28 @@ theorem exists_split_fans_of_circle_gaps {z p q : ℂ} {ρ : ℝ}
   classical
   let n := Complex.I * (p - midpoint ℝ p q)
   have hqn : -(Complex.I * (q - midpoint ℝ q p)) = n := by
-    have hq' : q - midpoint ℝ p q = -(p - midpoint ℝ p q) := by
-      simp only [right_sub_midpoint, left_sub_midpoint, ← smul_neg, neg_sub]
-    simp only [midpoint_comm q p, hq', mul_neg, neg_neg, n]
+    simp only [midpoint_comm q p, sub_midpoint_right p q, mul_neg, neg_neg, n]
   have hleft : ∀ᶠ t in nhds (0 : ℝ), ∀ x ∈ A, ∀ y ∈ A, x ≠ y →
       (sbtw ((-n).arg : Real.Angle) ((x - chordOffset p q t).arg : Real.Angle)
         ((y - chordOffset p q t).arg : Real.Angle) ↔
       sbtw ((p - z).arg : Real.Angle) ((x - z).arg : Real.Angle)
         ((y - z).arg : Real.Angle)) := by
-    apply (Filter.eventually_all_finset A).mpr
-    intro x hx
-    apply (Filter.eventually_all_finset A).mpr
-    intro y hy
-    by_cases hxy : x = y
-    · exact Filter.Eventually.of_forall fun _ hne => False.elim (hne hxy)
-    · exact (eventually_connector_order_of_circle_arc hp hq (hA x hx).1 (hA y hy).1
-        hpq hxy (hA x hx).2 (hA y hy).2).mono fun _ h _ => h
+    simp only [Filter.eventually_all_finset, Filter.eventually_imp_distrib_left]
+    exact fun x hx y hy hxy => eventually_connector_order_of_circle_arc hp hq (hA x hx).1
+      (hA y hy).1 hpq hxy (hA x hx).2 (hA y hy).2
   have hright : ∀ᶠ t in nhds (0 : ℝ), ∀ x ∈ B, ∀ y ∈ B, x ≠ y →
       (sbtw (n.arg : Real.Angle) ((x - chordOffset p q (-t)).arg : Real.Angle)
         ((y - chordOffset p q (-t)).arg : Real.Angle) ↔
       sbtw ((q - z).arg : Real.Angle) ((x - z).arg : Real.Angle)
         ((y - z).arg : Real.Angle)) := by
-    apply (Filter.eventually_all_finset B).mpr
-    intro x hx
-    apply (Filter.eventually_all_finset B).mpr
-    intro y hy
-    by_cases hxy : x = y
-    · exact Filter.Eventually.of_forall fun _ hne => False.elim (hne hxy)
-    · have h := eventually_connector_order_of_circle_arc hq hp (hB x hx).1 (hB y hy).1
-        hpq.symm hxy (hB x hx).2 (hB y hy).2
-      simp only [hqn, chordOffset_swap p q] at h
-      exact h.mono fun _ h _ => h
+    simp only [Filter.eventually_all_finset, Filter.eventually_imp_distrib_left]
+    intro x hx y hy hxy
+    simpa only [hqn, chordOffset_swap p q] using eventually_connector_order_of_circle_arc hq hp
+      (hB x hx).1 (hB y hy).1 hpq.symm hxy (hB x hx).2 (hB y hy).2
   obtain ⟨δ, hδ, hlocal⟩ := Metric.eventually_nhds_iff.mp (hleft.and hright)
   obtain ⟨ε, hε, ha, hb, hsep, hpa, hpb⟩ :=
     exists_split_offsets_of_circle_gaps hp hq hpq A B hA hB hδ
-  have hεlocal : dist ε (0 : ℝ) < δ := by
-    rw [Real.dist_eq, sub_zero, abs_of_pos hε.1]
-    exact hε.2
-  obtain ⟨hAorder, hBorder⟩ := hlocal hεlocal
+  obtain ⟨hAorder, hBorder⟩ := hlocal (by rw [Real.dist_eq, sub_zero, abs_of_pos hε.1]; exact hε.2)
   have hconn : chordOffset p q (-ε) - chordOffset p q ε = (2 * ε) • (-n) := by
     change (midpoint ℝ p q + (-ε) • n) - (midpoint ℝ p q + ε • n) = (2 * ε) • (-n)
     module
@@ -195,10 +174,8 @@ theorem exists_split_fans_of_circle_gaps {z p q : ℂ} {ρ : ℝ}
     change (midpoint ℝ p q + ε • n) - (midpoint ℝ p q + (-ε) • n) = (2 * ε) • n
     module
   refine ⟨chordOffset p q ε, ha, chordOffset p q (-ε), hb, hsep, hpa, hpb, ?_, ?_⟩
-  · rw [hconn, Complex.real_smul, Complex.arg_real_mul _ (mul_pos (by norm_num) hε.1)]
-    exact hAorder
-  · rw [hconn', Complex.real_smul, Complex.arg_real_mul _ (mul_pos (by norm_num) hε.1)]
-    exact hBorder
+  · rwa [hconn, Complex.real_smul, Complex.arg_real_mul _ (mul_pos (by norm_num) hε.1)]
+  · rwa [hconn', Complex.real_smul, Complex.arg_real_mul _ (mul_pos (by norm_num) hε.1)]
 
 /-- Two finite consecutive blocks of actual circle ports determine separated interior
 fans and a straight connector in their prescribed insertion slots. Only the actual

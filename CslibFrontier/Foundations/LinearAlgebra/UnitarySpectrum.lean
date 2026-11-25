@@ -61,13 +61,9 @@ theorem exists_orthonormalBasis_eigenvectors
   have hR_decomp : ∀ x, R x = H x + Complex.I • K x := fun x => by
     simp only [H, K, LinearMap.smul_apply, LinearMap.add_apply, LinearMap.sub_apply,
       hR_apply, hRm_apply, smul_smul]
-    have hI : Complex.I * (-Complex.I / 2) = 1 / 2 := by
-      rw [mul_div_assoc', mul_neg, Complex.I_mul_I]
-      ring
-    rw [hI, ← smul_add]
-    have hsum : (R x + R.symm x) + (R x - R.symm x) = (2 : ℂ) • R x := by module
-    rw [hsum, smul_smul]
-    norm_num
+    rw [show Complex.I * (-Complex.I / 2) = 1 / 2 by
+      linear_combination (-1 / 2 : ℂ) * Complex.I_mul_I]
+    module
   let S (lam : Module.End.Eigenvalues H) : Submodule ℂ E := Module.End.eigenspace H (lam : ℂ)
   have hKS (lam : Module.End.Eigenvalues H) : ∀ x ∈ S lam, K x ∈ S lam := fun x hx => by
     rw [Module.End.mem_eigenspace_iff] at hx ⊢
@@ -103,9 +99,7 @@ theorem exists_orthonormalBasis_eigenvectors
     rw [hR_decomp, hvH k, hvK k, smul_smul, ← add_smul]
   have hunit : ∀ k, (μ k) ^ 2 + (ν k) ^ 2 = 1 := fun k => by
     have hnorm : ‖((μ k : ℂ) + Complex.I * (ν k : ℂ))‖ = 1 := by
-      have h1 : ‖R (b k)‖ = 1 := by rw [R.norm_map, b.orthonormal.1 k]
-      rw [heig k, norm_smul, b.orthonormal.1 k, mul_one] at h1
-      exact h1
+      simpa only [heig k, norm_smul, b.orthonormal.1 k, mul_one] using R.norm_map (b k)
     rw [← Complex.normSq_add_mul_I (μ k) (ν k), mul_comm (ν k : ℂ) Complex.I, ← Complex.sq_norm,
       hnorm, one_pow]
   exact ⟨b, μ, ν, hunit, heig⟩

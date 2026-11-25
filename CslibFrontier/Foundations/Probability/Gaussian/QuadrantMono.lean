@@ -86,8 +86,7 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ�
     (correlatedGaussian ρ₁).real {p | p.1 ≤ a ∧ p.2 ≤ b} ≤
       (correlatedGaussian ρ₂).real {p | p.1 ≤ a ∧ p.2 ≤ b} := by
   rcases eq_or_lt_of_le (h12.trans hρ₂) with rfl | hρ₁_lt
-  · obtain rfl : 1 = ρ₂ := le_antisymm h12 hρ₂
-    exact le_rfl
+  · rw [le_antisymm hρ₂ h12]
   set ac := √ρ₁
   set s := √(1 - ρ₁)
   have hs_pos : 0 < s := sqrt_pos.mpr (by linarith)
@@ -96,7 +95,6 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ�
   set r := (ρ₂ - ρ₁) / (1 - ρ₁)
   have hr0 : 0 ≤ r := div_nonneg (by linarith) (by linarith)
   have hr1 : r ≤ 1 := (div_le_one (by linarith)).mpr (by linarith)
-  have hr_sq : √(1 - r ^ 2) ^ 2 = 1 - r ^ 2 := sq_sqrt (by nlinarith)
   let u : EuclideanSpace ℝ (Fin 1 ⊕ Fin 2) :=
     WithLp.toLp 2 (Sum.elim (fun _ => ac) ![s, 0])
   let v : ℝ → EuclideanSpace ℝ (Fin 1 ⊕ Fin 2) := fun t =>
@@ -105,19 +103,14 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ�
     rw [EuclideanSpace.norm_eq, Fintype.sum_sum_type, Fin.sum_univ_one, Fin.sum_univ_two]
     simp only [u, Sum.elim_inl, Sum.elim_inr, Matrix.cons_val_zero, Matrix.cons_val_one,
       Real.norm_eq_abs, sq_abs]
-    have : ac ^ 2 + (s ^ 2 + 0 ^ 2) = 1 := by linarith [hac_sq, hs_sq]
-    rw [this, sqrt_one]
+    rw [sqrt_eq_one]
+    linear_combination hac_sq + hs_sq
   have hv_norm (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t ≤ 1) : ‖v t‖ = 1 := by
     rw [EuclideanSpace.norm_eq, Fintype.sum_sum_type, Fin.sum_univ_one, Fin.sum_univ_two]
     simp only [v, Sum.elim_inl, Sum.elim_inr, Matrix.cons_val_zero, Matrix.cons_val_one,
       Real.norm_eq_abs, sq_abs]
-    have ht_sq : √(1 - t ^ 2) ^ 2 = 1 - t ^ 2 := sq_sqrt (by nlinarith)
-    have : ac ^ 2 + ((s * t) ^ 2 + (s * √(1 - t ^ 2)) ^ 2) = 1 := by
-      calc ac ^ 2 + ((s * t) ^ 2 + (s * √(1 - t ^ 2)) ^ 2)
-          = ac ^ 2 + s ^ 2 * (t ^ 2 + √(1 - t ^ 2) ^ 2) := by ring
-        _ = ac ^ 2 + s ^ 2 * 1 := by rw [ht_sq]; ring
-        _ = 1 := by linarith [hac_sq, hs_sq]
-    rw [this, sqrt_one]
+    rw [sqrt_eq_one, mul_pow, mul_pow, sq_sqrt (by nlinarith : (0 : ℝ) ≤ 1 - t ^ 2)]
+    linear_combination hac_sq + hs_sq
   have huv_inner (t : ℝ) : ⟪u, v t⟫ = ρ₁ + (1 - ρ₁) * t := by
     rw [PiLp.inner_apply, Fintype.sum_sum_type, Fin.sum_univ_one, Fin.sum_univ_two]
     simp only [u, v, Sum.elim_inl, Sum.elim_inr, Matrix.cons_val_zero, Matrix.cons_val_one,

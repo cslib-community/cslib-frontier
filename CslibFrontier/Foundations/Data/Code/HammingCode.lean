@@ -114,10 +114,8 @@ theorem three_le_minDist_parityCheckCode_of_injective {κ ι : Type*} [Fintype �
     exact hne i hsum
   · obtain ⟨i, j, hij, hij_eq⟩ := Finset.card_eq_two.1 h2
     rw [hij_eq, Finset.sum_pair hij] at hsum
-    have heq : col i = col j := by
-      have := congrArg (· + col j) hsum
-      simpa only [BitString.add_cancel_right, zero_add] using this
-    exact hij (hinj heq)
+    exact hij (hinj (by
+      simpa only [BitString.add_cancel_right, zero_add] using congrArg (· + col j) hsum))
 
 end General
 
@@ -146,10 +144,8 @@ private theorem hammingCheckMatrix_col_ne_zero (n : ℕ) (i : Fin n) :
   omega
 
 private theorem hammingCheckMatrix_col_injective (n : ℕ) :
-    Function.Injective fun i k => hammingCheckMatrix n k i := by
-  intro i j hij
-  have hinj := BitString.indexBits_injective (n := n + 1) hij
-  exact Fin.ext (Nat.succ.inj (Fin.mk.inj hinj))
+    Function.Injective fun i k => hammingCheckMatrix n k i := fun _ _ hij =>
+  Fin.ext (Nat.succ.inj (Fin.mk.inj (BitString.indexBits_injective (n := n + 1) hij)))
 
 /-- The shortened binary Hamming code `parityCheckCode (hammingCheckMatrix n)` has minimum distance
 at least `3`. -/
@@ -170,12 +166,10 @@ theorem three_le_minDist_hammingSyndrome_preimage (n : ℕ)
 theorem two_pow_clog_succ_le_two_mul {n : ℕ} (hn : 1 ≤ n) :
     2 ^ Nat.clog 2 (n + 1) ≤ 2 * n := by
   have h1 : 1 < n + 1 := by omega
-  have hpos : 0 < Nat.clog 2 (n + 1) := Nat.clog_pos Nat.one_lt_two h1
+  have hpos : 1 ≤ Nat.clog 2 (n + 1) := Nat.clog_pos Nat.one_lt_two h1
   have hlt : 2 ^ (Nat.clog 2 (n + 1) - 1) < n + 1 :=
     Nat.pow_pred_clog_lt_self Nat.one_lt_two h1
-  obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero hpos.ne'
-  rw [hm] at hlt ⊢
-  simp only [Nat.succ_sub_one, pow_succ'] at hlt ⊢
+  rw [← Nat.sub_add_cancel hpos, pow_succ']
   omega
 
 /-- For every `n : ℕ`, `2 ^ ⌈log₂ (n + 1)⌉ ≤ max 1 (2 * n)`. -/
@@ -206,14 +200,12 @@ theorem exists_partition_minDist_three {n : ℕ} (hn : 1 ≤ n) :
         have hs : s₁ ≠ s₂ := fun h => hij (congrArg e h)
         simp only [Function.onFun, e.injective.extend_apply, fib, Set.disjoint_left,
           Set.mem_preimage, Set.mem_singleton_iff]
-        intro x hx1 hx2
-        exact hs (hx1.symm.trans hx2)
+        exact fun x hx1 hx2 => hs (hx1.symm.trans hx2)
       · simp only [Function.onFun, Function.extend_apply' _ _ _ hj, Set.disjoint_empty]
     · simp only [Function.onFun, Function.extend_apply' _ _ _ hi, Set.empty_disjoint]
   · refine Set.eq_univ_of_forall fun x => Set.mem_iUnion.2 ⟨e (syndrome (hammingCheckMatrix n) x),
       ?_⟩
-    rw [e.injective.extend_apply]
-    exact rfl
+    rw [e.injective.extend_apply]; exact rfl
   · intro i
     by_cases hi : ∃ s, e s = i
     · obtain ⟨s, rfl⟩ := hi
@@ -236,19 +228,15 @@ theorem three_le_card_symmDiff_of_finsetHammingSyndrome_eq {α : Type*} [Decidab
     3 ≤ (symmDiff a b).card := by
   let va : Fin S.card → Bool := fun i => decide ((S.equivFin.symm i : α) ∈ a)
   let vb : Fin S.card → Bool := fun i => decide ((S.equivFin.symm i : α) ∈ b)
-  have hvne : va ≠ vb := by
-    intro h
-    apply hab
-    ext x
+  have hvne : va ≠ vb := fun h => hab <| Finset.ext fun x => by
     by_cases hx : x ∈ S
     · have hi := congrFun h (S.equivFin ⟨x, hx⟩)
       simpa only [va, vb, Equiv.symm_apply_apply, Subtype.coe_mk, decide_eq_decide] using hi
     · exact iff_of_false (fun hxa => hx (ha hxa)) (fun hxb => hx (hb hxb))
   have hdist : 3 ≤ hammingDist va vb := by
-    have h3 := le_minDist_iff.1
+    exact_mod_cast le_minDist_iff.1
       (three_le_minDist_hammingSyndrome_preimage S.card (finsetHammingSyndrome S a))
       va rfl vb hsyn.symm hvne
-    exact_mod_cast h3
   have heq : hammingDist va vb = (symmDiff a b).card := by
     rw [hammingDist]
     refine Finset.card_bij (fun i _ => (S.equivFin.symm i : α))
@@ -257,17 +245,14 @@ theorem three_le_card_symmDiff_of_finsetHammingSyndrome_eq {α : Type*} [Decidab
       rw [Finset.mem_symmDiff]
       by_cases hia : (S.equivFin.symm i : α) ∈ a
       · exact Or.inl ⟨hia, fun hib => hi.2 (by simp only [va, vb, hia, hib])⟩
-      · exact Or.inr ⟨by
-          by_contra hib
-          exact hi.2 (by simp only [va, vb, hia, hib]), hia⟩
+      · exact Or.inr ⟨Classical.byContradiction fun hib => hi.2 (by simp only [va, vb, hia, hib]),
+          hia⟩
     · exact S.equivFin.symm.injective (Subtype.ext h)
     · have hxS : x ∈ S := (Finset.symmDiff_subset_union.trans (Finset.union_subset ha hb)) hx
       refine ⟨S.equivFin ⟨x, hxS⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩, ?_⟩
       · simp only [va, vb, Equiv.symm_apply_apply, Subtype.coe_mk, ne_eq, decide_eq_decide]
-        rw [Finset.mem_symmDiff] at hx
-        rcases hx with ⟨hxa, hxb⟩ | ⟨hxb, hxa⟩
-        · exact fun h => hxb (h.1 hxa)
-        · exact fun h => hxa (h.2 hxb)
+        exact (Finset.mem_symmDiff.1 hx).elim (fun ⟨hxa, hxb⟩ h => hxb (h.1 hxa))
+          fun ⟨hxb, hxa⟩ h => hxa (h.2 hxb)
       · simp only [Equiv.symm_apply_apply, Subtype.coe_mk]
   exact heq ▸ hdist
 

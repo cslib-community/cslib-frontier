@@ -52,9 +52,7 @@ theorem card_filter_vecMul_eq_mul_two_pow {k n : ℕ} {x : Fin k → ZMod 2} (hx
     (y : Fin n → ZMod 2) :
     #{G : Matrix (Fin k) (Fin n) (ZMod 2) | x ᵥ* G = y} * 2 ^ n = 2 ^ (k * n) := by
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hx
-  have hi1 : x i = 1 := by
-    have hcases : ∀ z : ZMod 2, z = 0 ∨ z = 1 := by decide
-    exact (hcases (x i)).resolve_left hi
+  have hi1 : x i = 1 := (show ∀ z : ZMod 2, z ≠ 0 → z = 1 by decide) _ hi
   -- The matrix whose row `i` is `z` contributes `z` to the combination.
   have hrow (z : Fin n → ZMod 2) : x ᵥ* (of fun r j => if r = i then z j else 0) = z := by
     funext j
@@ -125,12 +123,10 @@ theorem one_sub_inv_two_pow_lt_card_filter_le_hammingDist {k n d t : ℕ} (hd : 
     rw [hcard] at this
     cast_linarith [this]
   have hpos : (0 : ℝ) < 2 ^ (k * n) := by positivity
-  have hbadR : (#goodᶜ : ℝ) * 2 ^ n ≤ #X * #B * 2 ^ (k * n) := by exact_mod_cast hbadcard
   -- The light words: none if `d = 0`, and at most `2 ^ (n H₂(d / n))` otherwise.
   have hlight : (#X : ℝ) * #B < 2 ^ n * (1 / 2) ^ t := by
     rcases Nat.eq_zero_or_pos d with rfl | hd₀
-    · have : B = ∅ := by simp [B]
-      simp [this]
+    · simp [show B = ∅ by simp [B]]
     have hn : 0 < n := by omega
     have hnR : (0 : ℝ) < n := by exact_mod_cast hn
     have hα₀ : (0 : ℝ) ≤ d / n := by positivity
@@ -150,9 +146,7 @@ theorem one_sub_inv_two_pow_lt_card_filter_le_hammingDist {k n d t : ℕ} (hd : 
     rw [Fintype.card_fin, qaryEntropy_two] at hvol
     have hB : (#B : ℝ) ≤ exp (n * binEntropy (d / n)) :=
       (by exact_mod_cast card_le_card hsub : (#B : ℝ) ≤ _).trans hvol
-    have hB₁ : (1 : ℝ) ≤ #B := by
-      have : (0 : Fin n → ZMod 2) ∈ B := by simp [B, hd₀]
-      exact_mod_cast card_pos.2 ⟨_, this⟩
+    have hB₁ : (1 : ℝ) ≤ #B := by exact_mod_cast card_pos.2 ⟨0, by simp [B, hd₀]⟩
     have hlog : 0 < log 2 := log_pos one_lt_two
     have hexp : (2 : ℝ) ^ k * exp (n * binEntropy (d / n)) ≤ 2 ^ n * (1 / 2) ^ t := by
       rw [← rpow_natCast, ← rpow_natCast, ← rpow_natCast, ← exp_log two_pos, ← exp_mul,
@@ -167,13 +161,11 @@ theorem one_sub_inv_two_pow_lt_card_filter_le_hammingDist {k n d t : ℕ} (hd : 
       _ ≤ 2 ^ k * exp (n * binEntropy (d / n)) := by gcongr
       _ ≤ 2 ^ n * (1 / 2) ^ t := hexp
   rw [hcard, Nat.cast_pow, Nat.cast_ofNat, lt_div_iff₀ hpos, hsplit]
-  have h2n : (0 : ℝ) < 2 ^ n := by positivity
   have : (#goodᶜ : ℝ) < 2 ^ (k * n) * (1 / 2) ^ t := by
-    have h1 : (#goodᶜ : ℝ) * 2 ^ n < 2 ^ (k * n) * (1 / 2) ^ t * 2 ^ n := by
-      calc (#goodᶜ : ℝ) * 2 ^ n ≤ #X * #B * 2 ^ (k * n) := hbadR
-        _ < 2 ^ n * (1 / 2) ^ t * 2 ^ (k * n) := by gcongr
-        _ = 2 ^ (k * n) * (1 / 2) ^ t * 2 ^ n := by ring
-    exact lt_of_mul_lt_mul_right h1 h2n.le
+    refine lt_of_mul_lt_mul_right (a := 2 ^ n) ?_ (by positivity)
+    calc (#goodᶜ : ℝ) * 2 ^ n ≤ #X * #B * 2 ^ (k * n) := by exact_mod_cast hbadcard
+      _ < 2 ^ n * (1 / 2) ^ t * 2 ^ (k * n) := by gcongr
+      _ = 2 ^ (k * n) * (1 / 2) ^ t * 2 ^ n := by ring
   nlinarith
 
 end Cslib.Code

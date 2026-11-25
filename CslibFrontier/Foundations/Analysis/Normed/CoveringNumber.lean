@@ -87,52 +87,9 @@ noncomputable def packingNumber (s : Set X) (ε : ℝ) : ℕ∞ :=
   sSup {n : ℕ∞ | ∃ P : Finset X,
     (P.card : ℕ∞) = n ∧ (∀ x ∈ P, x ∈ s) ∧ ∀ x ∈ P, ∀ y ∈ P, x ≠ y → ε < dist x y}
 
-private theorem enat_sInf_mem_of_lt_top {S : Set ℕ∞} (hfin : ∀ x ∈ S, x ≠ ⊤)
-    (h : sInf S < ⊤) : sInf S ∈ S := by
-  let A : Set ℕ := {k | (k : ℕ∞) ∈ S}
-  have hAne : A.Nonempty := by
-    by_contra hAE
-    have hSE : S = ∅ := by
-      ext x
-      simp only [Set.mem_empty_iff_false, iff_false]
-      intro hx
-      obtain ⟨k, hk⟩ := ENat.ne_top_iff_exists.1 (hfin x hx)
-      exact hAE ⟨k, show (k : ℕ∞) ∈ S by rwa [hk]⟩
-    rw [hSE, sInf_empty] at h
-    exact (lt_irrefl ⊤) h
-  let m : ℕ := sInf A
-  have hmin : (m : ℕ∞) ∈ S := Nat.sInf_mem hAne
-  have heq : sInf S = (m : ℕ∞) := by
-    refine le_antisymm (sInf_le hmin) (le_sInf fun x hx => ?_)
-    obtain ⟨k, hk⟩ := ENat.ne_top_iff_exists.1 (hfin x hx)
-    have hkA : k ∈ A := show (k : ℕ∞) ∈ S by rwa [hk]
-    rw [← hk]
-    exact_mod_cast Nat.sInf_le hkA
-  rwa [heq]
-
-private theorem enat_sSup_mem_of_lt_top {S : Set ℕ∞} (hne : S.Nonempty)
-    (h : sSup S < ⊤) : sSup S ∈ S := by
-  obtain ⟨M, hM⟩ := ENat.ne_top_iff_exists.1 h.ne
-  let A : Set ℕ := {k | (k : ℕ∞) ∈ S}
-  have hAne : A.Nonempty := by
-    obtain ⟨x, hx⟩ := hne
-    have hxt : x ≠ ⊤ := ne_top_of_le_ne_top h.ne (le_sSup hx)
-    obtain ⟨k, hk⟩ := ENat.ne_top_iff_exists.1 hxt
-    exact ⟨k, show (k : ℕ∞) ∈ S by rwa [hk]⟩
-  have hAbd : BddAbove A := ⟨M, fun k hk => by
-    have hle : (k : ℕ∞) ≤ sSup S := le_sSup hk
-    rw [← hM] at hle
-    exact_mod_cast hle⟩
-  let m : ℕ := sSup A
-  have hmax : (m : ℕ∞) ∈ S := Nat.sSup_mem hAne hAbd
-  have heq : sSup S = (m : ℕ∞) := by
-    refine le_antisymm (sSup_le fun x hx => ?_) (le_sSup hmax)
-    have hxt : x ≠ ⊤ := ne_top_of_le_ne_top h.ne (le_sSup hx)
-    obtain ⟨k, hk⟩ := ENat.ne_top_iff_exists.1 hxt
-    have hkA : k ∈ A := show (k : ℕ∞) ∈ S by rwa [hk]
-    rw [← hk]
-    exact_mod_cast le_csSup hAbd hkA
-  rwa [heq]
+private theorem enat_sInf_mem_of_lt_top {S : Set ℕ∞} (h : sInf S < ⊤) : sInf S ∈ S :=
+  let ⟨x, hx, _⟩ := sInf_lt_iff.1 h
+  csInf_mem ⟨x, hx⟩
 
 /-! ### Basic order and membership lemmas -/
 
@@ -159,23 +116,15 @@ theorem card_le_packingNumber {s : Set X} {ε : ℝ} {P : Finset X}
 /-- Any finite external covering number is attained by a `Finset X` of that exact cardinality. -/
 theorem exists_cover_of_coveringNumber_lt_top {s : Set X} {ε : ℝ}
     (h : coveringNumber s ε < ⊤) :
-    ∃ T : Finset X, (T.card : ℕ∞) = coveringNumber s ε ∧ ∀ x ∈ s, ∃ y ∈ T, dist x y ≤ ε := by
-  have hfin : ∀ n ∈ {n : ℕ∞ | ∃ T : Finset X,
-      (T.card : ℕ∞) = n ∧ ∀ x ∈ s, ∃ y ∈ T, dist x y ≤ ε}, n ≠ ⊤ := by
-    rintro n ⟨T, rfl, -⟩
-    exact ENat.natCast_ne_top T.card
-  exact enat_sInf_mem_of_lt_top hfin h
+    ∃ T : Finset X, (T.card : ℕ∞) = coveringNumber s ε ∧ ∀ x ∈ s, ∃ y ∈ T, dist x y ≤ ε :=
+  enat_sInf_mem_of_lt_top h
 
 /-- Any finite internal covering number is attained by a `Finset X` contained in `s`. -/
 theorem exists_internalCover_of_lt_top {s : Set X} {ε : ℝ}
     (h : internalCoveringNumber s ε < ⊤) :
     ∃ T : Finset X, (T.card : ℕ∞) = internalCoveringNumber s ε ∧
-      (∀ y ∈ T, y ∈ s) ∧ ∀ x ∈ s, ∃ y ∈ T, dist x y ≤ ε := by
-  have hfin : ∀ n ∈ {n : ℕ∞ | ∃ T : Finset X,
-      (T.card : ℕ∞) = n ∧ (∀ y ∈ T, y ∈ s) ∧ ∀ x ∈ s, ∃ y ∈ T, dist x y ≤ ε}, n ≠ ⊤ := by
-    rintro n ⟨T, rfl, -⟩
-    exact ENat.natCast_ne_top T.card
-  exact enat_sInf_mem_of_lt_top hfin h
+      (∀ y ∈ T, y ∈ s) ∧ ∀ x ∈ s, ∃ y ∈ T, dist x y ≤ ε :=
+  enat_sInf_mem_of_lt_top h
 
 @[simp]
 theorem coveringNumber_empty (ε : ℝ) : coveringNumber (∅ : Set X) ε = 0 :=
@@ -253,34 +202,24 @@ theorem internalCoveringNumber_le_packingNumber (s : Set X) {ε : ℝ} (hε : 0 
   rcases eq_or_lt_of_le (le_top : packingNumber s ε ≤ ⊤) with htop | hlt
   · rw [htop]; exact le_top
   have hne : {n : ℕ∞ | ∃ P : Finset X, (P.card : ℕ∞) = n ∧ (∀ x ∈ P, x ∈ s) ∧
-      ∀ x ∈ P, ∀ y ∈ P, x ≠ y → ε < dist x y}.Nonempty :=
-    ⟨0, ∅, rfl, fun _ hx => (Finset.notMem_empty _ hx).elim,
-      fun _ hx => (Finset.notMem_empty _ hx).elim⟩
-  obtain ⟨P, hPcard, hPs, hsep⟩ := enat_sSup_mem_of_lt_top hne hlt
+      ∀ x ∈ P, ∀ y ∈ P, x ≠ y → ε < dist x y}.Nonempty := ⟨0, ∅, rfl, by simp, by simp⟩
+  have := hne.to_subtype
+  obtain ⟨P, hPcard, hPs, hsep⟩ := ENat.sSup_mem_of_nonempty_of_lt_top hlt
   change (P.card : ℕ∞) = packingNumber s ε at hPcard
   rw [← hPcard]
   refine internalCoveringNumber_le_card hPs fun x hx => ?_
   by_contra hnot
   have hfar : ∀ y ∈ P, ε < dist x y := by
     simpa only [not_exists, not_and, not_le] using hnot
-  have hxP : x ∉ P := fun hmem => by
-    have := hfar x hmem
-    rw [dist_self] at this
-    linarith
+  have hxP : x ∉ P := fun hmem => (hfar x hmem).not_ge ((dist_self x).trans_le hε)
   have hle : ((insert x P).card : ℕ∞) ≤ packingNumber s ε := by
-    refine card_le_packingNumber ?_ ?_
-    · intro y hy
-      rcases Finset.mem_insert.1 hy with rfl | hy
-      · exact hx
-      · exact hPs y hy
-    · intro y hy z hz hyz
-      rcases Finset.mem_insert.1 hy with rfl | hy'
-      · rcases Finset.mem_insert.1 hz with rfl | hz'
-        · exact (hyz rfl).elim
-        · exact hfar z hz'
-      · rcases Finset.mem_insert.1 hz with rfl | hz'
-        · rw [dist_comm]; exact hfar y hy'
-        · exact hsep y hy' z hz' hyz
+    refine card_le_packingNumber (fun y hy => (Finset.mem_insert.1 hy).elim (· ▸ hx) (hPs y))
+      fun y hy z hz hyz => ?_
+    rcases Finset.mem_insert.1 hy with rfl | hy' <;> rcases Finset.mem_insert.1 hz with rfl | hz'
+    · exact (hyz rfl).elim
+    · exact hfar z hz'
+    · rw [dist_comm]; exact hfar y hy'
+    · exact hsep y hy' z hz' hyz
   rw [Finset.card_insert_of_notMem hxP, ← hPcard] at hle
   have hnat : P.card + 1 ≤ P.card := by exact_mod_cast hle
   omega
@@ -293,26 +232,13 @@ theorem packingNumber_two_mul_le_coveringNumber (s : Set X) (ε : ℝ) :
   refine packingNumber_le_of_forall_card_le fun P hPs hsep => ?_
   refine le_sInf ?_
   rintro n ⟨T, rfl, hT⟩
-  have hpick : ∀ x : X, x ∈ P → ∃ y ∈ T, dist x y ≤ ε := fun x hx => hT x (hPs x hx)
-  classical
-  let φ : X → X := fun x => if hx : x ∈ P then Classical.choose (hpick x hx) else x
-  have hφ_eq (x : X) (hx : x ∈ P) : φ x = Classical.choose (hpick x hx) := by
-    simp only [φ, dite_eq_left_of_eq_true (eq_true hx)]
+  choose! φ hφT hφd using fun x (hx : x ∈ P) => hT x (hPs x hx)
   have hcard : P.card ≤ T.card := by
-    refine Finset.card_le_card_of_injOn φ ?_ ?_
-    · intro x hx
-      rw [Finset.mem_coe, hφ_eq x hx]
-      exact (Classical.choose_spec (hpick x hx)).1
-    · intro x hx y hy hxy
-      by_contra hne
-      have h1 : dist x (φ x) ≤ ε := by
-        rw [hφ_eq x hx]; exact (Classical.choose_spec (hpick x hx)).2
-      have h2 : dist y (φ y) ≤ ε := by
-        rw [hφ_eq y hy]; exact (Classical.choose_spec (hpick y hy)).2
-      have htri : dist x y ≤ dist x (φ x) + dist (φ y) y := by
-        rw [← hxy]; exact dist_triangle x (φ x) y
-      rw [dist_comm (φ y) y] at htri
-      linarith [hsep x hx y hy hne]
+    refine Finset.card_le_card_of_injOn φ (fun x hx => hφT x hx) fun x hx y hy hxy => ?_
+    by_contra hne
+    have hx' := hφd x hx
+    rw [hxy] at hx'
+    linarith [hsep x hx y hy hne, hφd y hy, dist_triangle_right x y (φ y)]
   exact_mod_cast hcard
 
 /-- Comparison between internal and external covering numbers at half scale. -/
@@ -410,21 +336,14 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
   let _ : MeasurableSpace E := borel E
   have _ : BorelSpace E := ⟨rfl⟩
   let μ : Measure E := Measure.addHaar
-  have hdisj : Set.PairwiseDisjoint (P : Set E) fun y => Metric.ball y (ε / 2) := by
-    intro y₁ hy₁ y₂ hy₂ hne
-    refine Set.disjoint_left.2 fun z hz₁ hz₂ => ?_
-    have h1 : dist z y₁ < ε / 2 := Metric.mem_ball.1 hz₁
-    have h2 : dist z y₂ < ε / 2 := Metric.mem_ball.1 hz₂
-    have htri : dist y₁ y₂ ≤ dist y₁ z + dist z y₂ := dist_triangle _ _ _
-    rw [dist_comm y₁ z] at htri
-    linarith [hsep y₁ hy₁ y₂ hy₂ hne]
-  have hsub : (⋃ y ∈ P, Metric.ball y (ε / 2)) ⊆ Metric.ball x₀ (R + ε / 2) := by
-    intro z hz
+  have hdisj : Set.PairwiseDisjoint (P : Set E) fun y => Metric.ball y (ε / 2) :=
+    fun y₁ hy₁ y₂ hy₂ hne => Set.disjoint_left.2 fun z hz₁ hz₂ => by
+      linarith [hsep y₁ hy₁ y₂ hy₂ hne, dist_triangle y₁ z y₂, dist_comm y₁ z,
+        Metric.mem_ball.1 hz₁, Metric.mem_ball.1 hz₂]
+  have hsub : (⋃ y ∈ P, Metric.ball y (ε / 2)) ⊆ Metric.ball x₀ (R + ε / 2) := fun z hz => by
     obtain ⟨y, hy, hzy⟩ := Set.mem_iUnion₂.1 hz
-    refine Metric.mem_ball.2 ?_
-    have hzy' : dist z y < ε / 2 := Metric.mem_ball.1 hzy
-    have hyx : dist y x₀ ≤ R := Metric.mem_closedBall.1 (hP y hy)
-    linarith [dist_triangle z y x₀]
+    exact Metric.mem_ball.2 <| by
+      linarith [dist_triangle z y x₀, Metric.mem_ball.1 hzy, Metric.mem_closedBall.1 (hP y hy)]
   have hmeas_sum : ∑ y ∈ P, μ (Metric.ball y (ε / 2)) ≤ μ (Metric.ball x₀ (R + ε / 2)) := by
     rw [← measure_biUnion_finset hdisj fun _ _ => measurableSet_ball]
     exact measure_mono hsub
@@ -453,15 +372,9 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
     (ENNReal.mul_le_mul_iff_left hpos1.ne' hlt1.ne).1 hineq
   have hreal : (P.card : ℝ) * (ε / 2) ^ Module.finrank ℝ E ≤
       (R + ε / 2) ^ Module.finrank ℝ E := by
-    have hL : ENNReal.ofReal ((P.card : ℝ) * (ε / 2) ^ Module.finrank ℝ E) =
-        (P.card : ℝ≥0∞) * ENNReal.ofReal (ε / 2) ^ Module.finrank ℝ E := by
-      rw [ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast,
-        ← ENNReal.ofReal_pow hhalf_pos.le]
-    have hR' : ENNReal.ofReal ((R + ε / 2) ^ Module.finrank ℝ E) =
-        ENNReal.ofReal (R + ε / 2) ^ Module.finrank ℝ E :=
-      ENNReal.ofReal_pow hbig_pos.le _
-    rw [← hL, ← hR'] at hcancel
-    exact (ENNReal.ofReal_le_ofReal_iff (by positivity)).1 hcancel
+    rwa [← ENNReal.ofReal_pow hhalf_pos.le, ← ENNReal.ofReal_natCast,
+      ← ENNReal.ofReal_mul (Nat.cast_nonneg _), ← ENNReal.ofReal_pow hbig_pos.le,
+      ENNReal.ofReal_le_ofReal_iff (by positivity)] at hcancel
   have hdiv : (P.card : ℝ) ≤ (R + ε / 2) ^ Module.finrank ℝ E / (ε / 2) ^ Module.finrank ℝ E :=
     (le_div_iff₀ (pow_pos hhalf_pos _)).2 hreal
   refine hdiv.trans_eq ?_

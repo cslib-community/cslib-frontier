@@ -98,20 +98,15 @@ private theorem lintegral_gaussianWeight_discreteGaussian (r s t : ℝ)
   rw [ENNReal.ofReal_tsum_of_nonneg (fun z ↦ div_nonneg
     (mul_nonneg (gaussianWeight_pos _ _).le (gaussianWeight_pos _ _).le)
     (mul_pos hp hmass).le) (hsum.div_const _)]
-  apply tsum_congr
-  intro z
+  refine tsum_congr fun z => ?_
   rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
     discreteGaussian_apply, ← ENNReal.ofReal_div_of_pos hmass,
     ← ENNReal.ofReal_mul (div_nonneg (gaussianWeight_pos _ _).le hp.le)]
   congr 1
   have hsq := gaussianWeight_mul_complete_square r s t hr hs ht ht2 x ((z : E) + u)
-  have hc : (z : E) + u - (r / t) ^ 2 • x =
-      (z : E) - ((r / t) ^ 2 • x - u) := by abel
-  rw [hc] at hsq
-  rw [sub_neg_eq_add]
-  have hx : -((z : E) + u) + x = x - ((z : E) + u) := by abel
-  rw [hx]
-  rw [div_mul_div_comm, mul_comm (gaussianWeight s _) (gaussianWeight r _), hsq]
+  rw [show (z : E) + u - (r / t) ^ 2 • x = (z : E) - ((r / t) ^ 2 • x - u) by abel] at hsq
+  rw [sub_neg_eq_add, show -((z : E) + u) + x = x - ((z : E) + u) by abel, div_mul_div_comm,
+    mul_comm (gaussianWeight s _) (gaussianWeight r _), hsq]
 
 /-- The actual coset discrete Gaussian convolved with a normalized continuous Gaussian has
 an exact density relative to the continuous Gaussian of combined width. The positive `t`
@@ -134,17 +129,15 @@ theorem conv_discreteGaussian_eq_withDensity (r s t : ℝ)
   have hg : Measurable (fun x : E ↦ ENNReal.ofReal
       ((covolume L / (r * s / t) ^ finrank ℝ E *
         gaussianMass L (r * s / t) ((r / t) ^ 2 • x - u)) /
-        (covolume L / r ^ finrank ℝ E * gaussianMass L r (-u)))) := by
-    apply Measurable.ennreal_ofReal
-    exact (continuous_const.mul ((continuous_gaussianMass L _ hh).comp
+        (covolume L / r ^ finrank ℝ E * gaussianMass L r (-u)))) := .ennreal_ofReal <|
+    (continuous_const.mul ((continuous_gaussianMass L _ hh).comp
       ((continuous_const.smul continuous_id).sub continuous_const))).measurable.div_const _
   rw [conv_withDensity_eq_withDensity_lintegral hf, ← withDensity_mul _
     (((continuous_gaussianWeight t).div_const _).measurable.ennreal_ofReal) hg]
   congr 1
   funext x
-  rw [lintegral_gaussianWeight_discreteGaussian L r s t hr hs ht ht2 u x]
-  simp only [Pi.mul_apply]
-  rw [← ENNReal.ofReal_mul (div_nonneg (gaussianWeight_pos _ _).le (pow_pos ht _).le)]
+  rw [lintegral_gaussianWeight_discreteGaussian L r s t hr hs ht ht2 u x, Pi.mul_apply,
+    ← ENNReal.ofReal_mul (div_nonneg (gaussianWeight_pos _ _).le (pow_pos ht _).le)]
   congr 1
   simp only [div_pow, mul_pow]
   field_simp
@@ -178,9 +171,8 @@ theorem tvDist_conv_discreteGaussian_le (r s t : ℝ)
       (volume.withDensity (fun x : E ↦ ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E))) =
       ν.withDensity f := conv_discreteGaussian_eq_withDensity L r s t hr hs ht ht2 u
   have : IsProbabilityMeasure (ν.withDensity f) := by rw [← hconv]; infer_instance
-  have hf : Measurable f := by
-    apply Measurable.ennreal_ofReal
-    exact (continuous_const.mul ((continuous_gaussianMass L h hh).comp
+  have hf : Measurable f := .ennreal_ofReal <|
+    (continuous_const.mul ((continuous_gaussianMass L h hh).comp
       ((continuous_const.smul continuous_id).sub continuous_const))).measurable.div_const _
   have hlin : ∫⁻ x, f x ∂ν = 1 := by
     simpa only [withDensity_apply f MeasurableSet.univ, Measure.restrict_univ] using
@@ -193,25 +185,19 @@ theorem tvDist_conv_discreteGaussian_le (r s t : ℝ)
     have hnum : 0 < A h ((r / t) ^ 2 • x - u) :=
       mul_pos (div_pos (covolume_pos L volume) (pow_pos hh _)) (gaussianMass_pos L h hh _)
     rw [show (f x).toReal = A h ((r / t) ^ 2 • x - u) / A r (-u) from
-      ENNReal.toReal_ofReal (div_pos hnum hA).le]
-    rw [one_sub_div hA.ne', abs_div, abs_of_pos hA]
+      ENNReal.toReal_ofReal (div_pos hnum hA).le, one_sub_div hA.ne', abs_div, abs_of_pos hA]
     apply div_le_div_of_nonneg_right _ hA.le
     calc
-      |A r (-u) - A h ((r / t) ^ 2 • x - u)| =
-          |(A r (-u) - 1) + (1 - A h ((r / t) ^ 2 • x - u))| := by congr 1; ring
-      _ ≤ |A r (-u) - 1| + |1 - A h ((r / t) ^ 2 • x - u)| := abs_add_le _ _
+      _ ≤ |A r (-u) - 1| + |1 - A h ((r / t) ^ 2 • x - u)| := abs_sub_le _ _ _
       _ ≤ δ r + δ h := add_le_add (abs_gaussianMass_normalized_sub_one_le L r hr (-u))
         (by simpa only [abs_sub_comm] using
           (abs_gaussianMass_normalized_sub_one_le L h hh ((r / t) ^ 2 • x - u)))
       _ = _ := add_comm _ _
   rw [hconv, tvDist_withDensity_self_eq_integral hfi]
   change (∫ x, |1 - (f x).toReal| ∂ν) ≤ (δ h + δ r) / A r (-u)
-  calc
-    _ ≤ ∫ _ : E, (δ h + δ r) / A r (-u) ∂ν := by
-      exact integral_mono ((integrable_const (1 : ℝ)).sub
-        (integrable_toReal_of_lintegral_ne_top hf.aemeasurable (by rw [hlin]; simp))).abs
-        (integrable_const _) hbound
-    _ = _ := by simp
+  refine (integral_mono ((integrable_const (1 : ℝ)).sub
+    (integrable_toReal_of_lintegral_ne_top hf.aemeasurable (by rw [hlin]; simp))).abs
+    (integrable_const _) hbound).trans_eq (by simp)
 
 /-- The source's `4ε` full-L1 bound follows from an actual nonzero dual mass bound at width
 `r * s / t`. The premise is a checkable sum bound, not a smoothing or sampling assertion. -/

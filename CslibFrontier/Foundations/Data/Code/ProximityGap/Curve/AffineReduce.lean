@@ -71,26 +71,20 @@ theorem exists_correlatedAgreement_affine_of_curve
   have hzero_le : (T \ T_nz).card ≤ ℓ * (Fintype.card F) ^ (ℓ - 1) := by
     have hsub : T \ T_nz ⊆ (Finset.univ : Finset (Fin ℓ)).biUnion
         fun j => Finset.univ.filter fun z : Fin ℓ → F => z j = 0 := fun z hz => by
-      obtain ⟨hzT, hnz⟩ := mem_sdiff.1 hz
-      have hnot : ¬ ∀ j : Fin ℓ, z j ≠ 0 := fun hall => hnz (mem_filter.2 ⟨hzT, hall⟩)
-      push Not at hnot; obtain ⟨j, hj⟩ := hnot
-      exact mem_biUnion.2 ⟨j, mem_univ j, mem_filter.2 ⟨mem_univ z, hj⟩⟩
+      simp only [T_nz, mem_sdiff, mem_filter, not_and, not_forall, not_not] at hz
+      simpa using hz.2 hz.1
     exact (Finset.card_le_card hsub).trans <| Finset.card_biUnion_le.trans_eq <|
       (Finset.sum_congr rfl fun j _ => card_filter_coord_eq_zero j).trans <| by
         simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  have hT_split : T.card = T_nz.card + (T \ T_nz).card := by
-    rw [← Finset.card_union_of_disjoint Finset.disjoint_sdiff,
-      Finset.union_sdiff_of_subset (Finset.filter_subset _ _)]
   have hT_nz : B_curve * (Fintype.card F) ^ (ℓ - 1) < T_nz.card := by
+    have : (T \ T_nz).card + T_nz.card = T.card :=
+      Finset.card_sdiff_add_card_eq_card (Finset.filter_subset _ T)
     rw [Nat.add_mul] at hT; omega
-  have hFunits_pos : 0 < Fintype.card Fˣ := Fintype.card_pos_iff.2 ⟨1⟩
   have hT_nz_units : B_curve * (Fintype.card Fˣ) ^ ℓ < Fintype.card Fˣ * T_nz.card := by
-    have hpow_le : (Fintype.card Fˣ) ^ (ℓ - 1) ≤ (Fintype.card F) ^ (ℓ - 1) :=
-      Nat.pow_le_pow_left (Fintype.card_le_of_injective (Units.val : Fˣ → F) Units.val_injective) _
-    have hsplit : (Fintype.card Fˣ) ^ ℓ = Fintype.card Fˣ * (Fintype.card Fˣ) ^ (ℓ - 1) := by
-      conv_lhs => rw [show ℓ = (ℓ - 1) + 1 by omega, pow_succ, mul_comm]
-    rw [hsplit, ← mul_assoc, mul_comm B_curve, mul_assoc]
-    exact Nat.mul_lt_mul_of_pos_left ((Nat.mul_le_mul_left _ hpow_le).trans_lt hT_nz) hFunits_pos
+    rw [← mul_pow_sub_one (by omega : ℓ ≠ 0), mul_left_comm]
+    refine Nat.mul_lt_mul_of_pos_left (lt_of_le_of_lt ?_ hT_nz) Fintype.card_pos
+    gcongr
+    exact Fintype.card_le_of_injective _ Units.val_injective
   let phi : (Fin ℓ → Fˣ) → Fˣ → (Fin ℓ → F) := fun a t j => (a j : F) * (t : F) ^ ((j : ℕ) + 1)
   have hfiber (t : Fˣ) : (Finset.univ.filter fun a : Fin ℓ → Fˣ => phi a t ∈ T_nz).card =
       T_nz.card :=
