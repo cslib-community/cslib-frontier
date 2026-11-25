@@ -2679,6 +2679,7 @@ public import CslibFrontier.Foundations.Data.Nat.OddMulMod
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.InsertLive
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Program
 public import CslibFrontier.Computability.Distributed.Paxos.Liveness.SoleLeaderWitness
+public import CslibFrontier.Logics.Propositional.CuttingPlanes.Completeness
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.DenseMask
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.NatPolynomial
 public import CslibFrontier.Algorithms.ThreeSum.ChanHe.Sizes
