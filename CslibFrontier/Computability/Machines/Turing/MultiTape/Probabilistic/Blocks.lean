@@ -91,23 +91,19 @@ variable {k : ℕ} {Symbol State : Type} {input : List Symbol}
 /-- Within distance `b` of a point of block `p / b`, the three blocks around it. -/
 private theorem mem_Ico_of_abs_sub_le {b p p' : ℤ} (hb : 0 < b) (h : |p' - p| ≤ b) :
     b * (p / b - 1) ≤ p' ∧ p' < b * (p / b + 2) := by
-  have hdiv := Int.mul_ediv_add_emod p b
-  have hlo := Int.emod_nonneg p hb.ne'
-  have hhi := Int.emod_lt_of_pos p hb
-  have := abs_le.mp h
+  have := Int.mul_ediv_add_emod p b; have := Int.emod_nonneg p hb.ne'
+  have := Int.emod_lt_of_pos p hb; have := abs_le.mp h
   constructor <;> nlinarith
 
 /-- Within distance `b`, block indices differ by at most one. -/
 private theorem abs_ediv_sub_ediv_le_one {b p p' : ℤ} (hb : 0 < b) (h : |p' - p| ≤ b) :
     |p' / b - p / b| ≤ 1 := by
   obtain ⟨hlo, hhi⟩ := mem_Ico_of_abs_sub_le hb h
-  have hdiv := Int.mul_ediv_add_emod p' b
-  have hlo' := Int.emod_nonneg p' hb.ne'
-  have hhi' := Int.emod_lt_of_pos p' hb
-  have h₁ : p' / b < p / b + 2 := lt_of_mul_lt_mul_left (by linarith) hb.le
-  have h₂ : p / b - 1 < p' / b + 1 := lt_of_mul_lt_mul_left (by linarith) hb.le
-  rw [abs_le]
-  constructor <;> omega
+  have := Int.mul_ediv_add_emod p' b; have := Int.emod_nonneg p' hb.ne'
+  have := Int.emod_lt_of_pos p' hb
+  have := lt_of_mul_lt_mul_left (by linarith : b * (p' / b) < b * (p / b + 2)) hb.le
+  have := lt_of_mul_lt_mul_left (by linarith : b * (p / b - 1) < b * (p' / b + 1)) hb.le
+  rw [abs_le]; constructor <;> omega
 
 /-- The three blocks of length `b` around the block of each work head: the cells a work head can
 visit within `b` steps. -/
@@ -132,12 +128,9 @@ theorem abs_headPos_stepCoins_sub_le (coins : List Bool) (c : Cfg k Symbol State
   induction coins generalizing c with
   | nil => simp
   | cons bit coins ih =>
-    rw [stepCoins_cons]
-    have h₁ := abs_le.mp (ih ((machine.withCoin bit).toTM.step c))
-    have h₂ := abs_le.mp ((machine.step_withCoin bit c).abs_headPos_sub_le head)
-    rw [abs_le, List.length_cons]
-    push_cast
-    constructor <;> linarith
+    have := abs_le.mp (ih ((machine.withCoin bit).toTM.step c))
+    have := abs_le.mp ((machine.step_withCoin bit c).abs_headPos_sub_le head)
+    rw [stepCoins_cons, abs_le, List.length_cons]; push_cast; constructor <;> linarith
 
 /-- **Three blocks.** Within `b` replayed bits, a head stays in the three blocks of length `b`
 around its starting block. -/
@@ -164,14 +157,9 @@ theorem workTapes_stepCoins_eq_of_lt_abs (coins : List Bool) (c : Cfg k Symbol S
   | cons bit coins ih =>
     have hstep := machine.step_withCoin bit c
     have hmove := abs_le.mp (hstep.abs_headPos_sub_le (some i))
-    simp only [Cfg.headPos_some] at hmove
-    simp only [List.length_cons, Nat.cast_add, Nat.cast_one] at hz
-    rw [stepCoins_cons, ih _ ?_]
-    · refine hstep.workTapes_eq_of_ne fun hzpos => ?_
-      rw [hzpos, sub_self, abs_zero] at hz
-      omega
-    · rw [lt_abs] at hz ⊢
-      omega
+    simp only [Cfg.headPos_some, List.length_cons, Nat.cast_add, Nat.cast_one] at hmove hz
+    rw [stepCoins_cons, ih _ (by rw [lt_abs] at hz ⊢; omega)]
+    exact hstep.workTapes_eq_of_ne fun h => by rw [h, sub_self, abs_zero] at hz; omega
 
 /-- **Locality of a run.** If two configurations agree on cells `W`, and the work heads of the
 first stay in `W` before each replayed bit, then after replaying the same bits they still agree
@@ -190,9 +178,8 @@ theorem agreeOn_stepCoins {W : Fin k → Set ℤ} {c c' : Cfg k Symbol State inp
     obtain ⟨hrest, e', hrest₁, hrest₂⟩ := ih hstep fun j hj => by
       simpa only [List.take_succ_cons, stepCoins_cons] using
         hpos (j + 1) (by simpa only [List.length_cons, Nat.add_lt_add_iff_right] using hj)
-    refine ⟨hrest, e ++ e', ?_, ?_⟩
-    · rw [stepCoins_cons, hrest₁, he, List.append_assoc]
-    · rw [stepCoins_cons, hrest₂, he', List.append_assoc]
+    exact ⟨hrest, e ++ e', by rw [stepCoins_cons, hrest₁, he, List.append_assoc],
+      by rw [stepCoins_cons, hrest₂, he', List.append_assoc]⟩
 
 /-- **An interval is determined by its window.** Two configurations agreeing on the three blocks
 around each work head of the first still agree there after at most `b` replayed bits, and have
@@ -215,17 +202,14 @@ theorem workTapes_stepCoins_eq_of_notMem_blockWindow {b : ℕ} (hb : 0 < b) {coi
     (machine.stepCoins coins c).workTapes i z = c.workTapes i z := by
   refine machine.workTapes_stepCoins_eq_of_lt_abs coins c ?_
   have hb' : (0 : ℤ) < b := by exact_mod_cast hb
-  have hdiv := Int.mul_ediv_add_emod (c.workTapePos i) b
-  have hlo := Int.emod_nonneg (c.workTapePos i) hb'.ne'
-  have hhi := Int.emod_lt_of_pos (c.workTapePos i) hb'
-  have hlen' : (coins.length : ℤ) ≤ b := by exact_mod_cast hlen
+  have := Int.mul_ediv_add_emod (c.workTapePos i) b
+  have := Int.emod_nonneg (c.workTapePos i) hb'.ne'
+  have := Int.emod_lt_of_pos (c.workTapePos i) hb'
+  have : (coins.length : ℤ) ≤ b := by exact_mod_cast hlen
   simp only [Cfg.blockWindow, Set.mem_Ico, not_and_or, not_le, not_lt] at hz
-  rw [lt_abs]
-  rcases hz with hz | hz
-  · right
-    nlinarith
-  · left
-    nlinarith
+  rw [lt_abs]; rcases hz with hz | hz
+  · exact .inr (by nlinarith)
+  · exact .inl (by nlinarith)
 
 /-! ### Time intervals and schedules -/
 
@@ -277,10 +261,9 @@ theorem coe_schedule {b : ℕ} (hb : 0 < b) (q : ℕ) (coins : List Bool)
     (c : Cfg k Symbol State input) (i : Fin q) (head : Option (Fin k)) :
     (machine.schedule b q coins c i head : ℤ) =
       (machine.intervalStart b coins c (i + 1)).headPos head / b -
-        (machine.intervalStart b coins c i).headPos head / b := by
-  refine coe_sign_eq_self ?_
-  rw [intervalStart_succ]
-  exact machine.abs_blockIndex_stepCoins_sub_le hb (length_intervalCoins_le _ _ _) _ head
+        (machine.intervalStart b coins c i).headPos head / b :=
+  coe_sign_eq_self (intervalStart_succ machine b coins c i ▸
+    machine.abs_blockIndex_stepCoins_sub_le hb (length_intervalCoins_le _ _ _) _ head)
 
 /-- **Schedules determine block indices.** At the start of interval `i ≤ q`, the block index of a
 head is its starting block index plus the schedule entries of the earlier intervals. -/
@@ -292,14 +275,13 @@ theorem blockIndex_intervalStart {b : ℕ} (hb : 0 < b) {q : ℕ} (coins : List 
   induction i with
   | zero => simp
   | succ i ih =>
-    have hsum : ∑ j : Fin i, (machine.schedule b q coins c (Fin.castLE hi j.castSucc) head : ℤ) =
-        ∑ j : Fin i, (machine.schedule b q coins c (Fin.castLE (by omega) j) head : ℤ) := rfl
-    rw [Fin.sum_univ_castSucc, hsum, ← add_assoc, ← ih (by omega)]
-    have := machine.coe_schedule hb q coins c ⟨i, by omega⟩ head
-    simp only at this
-    change _ = _ + (machine.schedule b q coins c ⟨i, by omega⟩ head : ℤ)
-    rw [this]
-    ring
+    rw [Fin.sum_univ_castSucc, ← add_assoc,
+      show (∑ j : Fin i, (machine.schedule b q coins c (Fin.castLE hi j.castSucc) head : ℤ)) =
+        ∑ j : Fin i, (machine.schedule b q coins c (Fin.castLE (by omega) j) head : ℤ) from rfl,
+      ← ih (by omega)]
+    have h := machine.coe_schedule hb q coins c (Fin.castLE hi (Fin.last i)) head
+    simp only [Fin.val_castLE, Fin.val_last] at h
+    linarith
 
 /-- Across interval `i`, a work-tape cell outside the window of interval `i` is unchanged. -/
 theorem workTapes_intervalStart_succ_eq {b : ℕ} (hb : 0 < b) (coins : List Bool)
