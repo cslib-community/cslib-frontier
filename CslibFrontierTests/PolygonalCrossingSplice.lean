@@ -128,7 +128,8 @@ private theorem observer_disjoint_disk : Disjoint (Metric.closedBall (0 : ℂ) 1
 outgoing directions, nondegenerate segments, exterior support and parity against an exterior
 observer. Points in the closed disk have unique positions. Exterior points gain no open segment
 visits on any fixed line. The shared start and finish trace back to distinct original endpoint
-positions. -/
+positions. Exterior points of the original support that are not listed points still have
+strict-interior visits after splicing. -/
 theorem removes_orthogonal_crossing :
     let r := Route.line (((-3 / 2 : ℝ) : ℂ) - Complex.I) (((-3 / 2 : ℝ) : ℂ) + Complex.I)
     let crossings (p : Route) := openSegmentCrossings
@@ -148,6 +149,8 @@ theorem removes_orthogonal_crossing :
         p.eval a u = q.start ∧ p.eval b v = q.finish ∧ p.position a u ≠ p.position b v ∧
         u ∉ Set.Ioo 0 1 ∧ v ∉ Set.Ioo 0 1) ∧
       (∀ k : Fin q.segments, q.point k.castSucc ≠ q.point k.succ) ∧
+      (∀ w ∉ Metric.closedBall (0 : ℂ) 1, w ∈ p.support → (∀ a, p.point a ≠ w) →
+        ∃ (k : Fin q.segments) (s : ℝ), s ∈ Set.Ioo 0 1 ∧ q.eval k s = w) ∧
       (∀ w ∉ Metric.closedBall (0 : ℂ) 1, ∀ L, Nat.card (onLine q w L) ≤ Nat.card (onLine p w L)) ∧
       q.intersectionParity r = p.intersectionParity r := by
   have hx : (0 : ℂ) ∈ openSegment ℝ (route.point (0 : Fin route.segments).castSucc)
@@ -175,11 +178,12 @@ theorem removes_orthogonal_crossing :
   intro r crossings onLine
   have hz : (0 : ℂ) ∈ crossings route := ⟨0, 3, by decide, hx, hy⟩
   refine ⟨route, hz, ?_⟩
-  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, hpos, hExt, hNondeg, hOpen, _⟩ :=
+  obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, hpos, hExt, hNondeg,
+    hVisit, _, _, hOpen, _⟩ :=
     route.exists_splice_of_isolated_crossing 0 3 (by decide) (by norm_num) hx hy hpair
       route_ends_outside connector_segments_outside
   refine ⟨q, hstart, hfinish, hn, hout, ?_, ?_, hpos, ?_,
-    hNondeg route_segments_nondegenerate, ?_, hparity r observer_disjoint_disk⟩
+    hNondeg route_segments_nondegenerate, ?_, ?_, hparity r observer_disjoint_disk⟩
   · intro b
     obtain ⟨c, hc, he⟩ := hgerm b
     rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
@@ -199,6 +203,21 @@ theorem removes_orthogonal_crossing :
         (hfirst.trans (hclosed.trans hlast.symm)) hneq
     exact ⟨a, b, u, v, hu, hv, ha.trans hfirst, hb.trans hlast, hab,
       fun h => (lt_irrefl 0) (hua.mpr h).1, fun h => (lt_irrefl 1) (hvb.mpr h).2⟩
+  · intro w hw hp hnodes
+    have hq : w ∈ q.support \ Metric.closedBall (0 : ℂ) 1 := hout.symm ▸ ⟨hp, hw⟩
+    obtain ⟨k, s, hs, hks⟩ := (q.mem_support_iff w).mp hq.1
+    obtain ⟨j, t, ht, hjt, hclass⟩ := hVisit k hs (hks.symm ▸ hw)
+    refine ⟨k, s, hclass.mpr ?_, hks⟩
+    by_contra hboundary
+    have ht' : t ∈ ({0, 1} : Set ℝ) :=
+      Set.Icc_sdiff_Ioo_same (show (0 : ℝ) ≤ 1 from zero_le_one) ▸ ⟨ht, hboundary⟩
+    rcases Set.mem_insert_iff.mp ht' with rfl | ht'
+    · apply hnodes j.castSucc
+      simpa only [Route.eval, AffineMap.lineMap_apply_zero] using hjt.trans hks
+    · rw [Set.mem_singleton_iff] at ht'
+      subst t
+      apply hnodes j.succ
+      simpa only [Route.eval, AffineMap.lineMap_apply_one] using hjt.trans hks
   · intro w hw L
     obtain ⟨f, hline⟩ := hOpen w hw
     let g (k : onLine q w L) : onLine route w L :=
