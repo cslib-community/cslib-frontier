@@ -109,10 +109,9 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
       (𝔼 u : (Fin m → F), (φ (star (K (a, g)) * K (a, g) * P.effect none *
         (B u).effect (eval u g.val))).re) =
         (φ (star (K (a, g)) * K (a, g) * P.effect none * H (a, g))).re := by
-    rw [show H (a, g) = _ from averagePolynomialPointEffect_eq B g]
-    rw [← φ.re_apply_uniformAverage, ← mul_sum, ← mul_smul_comm]
-  simp_rw [hsum, expect_sum_comm, hmean]
-  exact h
+    rw [show H (a, g) = _ from averagePolynomialPointEffect_eq B g,
+      ← φ.re_apply_uniformAverage, ← mul_sum, ← mul_smul_comm]
+  simpa only [hsum, expect_sum_comm, hmean] using h
 
 /-- After moving the varying point effect to the right, the same majorant controls
 the failure term with a second fixed point measurement. -/
@@ -174,8 +173,8 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
         (φ (star (K p * P.effect none) * averagePolynomialPointEffect B p.2 *
           (K p * P.effect none))).re := by
     simp only [hY]
-    rw [averagePolynomialPointEffect_eq]
-    rw [← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum, ← smul_mul_assoc, ← mul_smul_comm]
+    rw [averagePolynomialPointEffect_eq, ← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum,
+      ← smul_mul_assoc, ← mul_smul_comm]
   have hv : (𝔼 u : Fin m → F, ∑ p, φ.norm (Y u p) ^ 2) ≤ (φ (P.effect none * Z)).re := by
     simp only [expect_sum_comm, hmean, ← Complex.re_sum, ← map_sum]
     exact φ.re_apply_mono (sum_failure_conjugate_le K
@@ -307,12 +306,11 @@ theorem abs_average_evaluated_failure_pointProduct_le_atDegrees
     refine (expect_le_expect fun v _ => abs_expect_le _ _).trans ?_
     refine (expect_le_expect fun v _ => expect_le_expect fun x _ => hfixed x v).trans ?_
     rw [Fintype.expect_const]
-    apply (Fintype.expect_sqrt_le_sqrt_expect _ ?_).trans (Real.sqrt_le_sqrt hfail)
-    intro x
-    exact S.state.re_apply_nonneg (Commute.mul_nonneg ((M x).nonneg none) (hZ x) (hMZ x x none))
+    exact (Fintype.expect_sqrt_le_sqrt_expect _ fun x => S.state.re_apply_nonneg
+      (Commute.mul_nonneg ((M x).nonneg none) (hZ x) (hMZ x x none))).trans
+      (Real.sqrt_le_sqrt hfail)
   change |𝔼 u, 𝔼 v, ordered u v| ≤ _
-  simpa only [sub_zero] using (abs_sub_le _ (𝔼 u, 𝔼 v, reordered u v) 0).trans
-    (by simpa only [sub_zero] using add_le_add hswap hremaining)
+  linarith [abs_sub_abs_le_abs_sub (𝔼 u, 𝔼 v, ordered u v) (𝔼 u, 𝔼 v, reordered u v)]
 
 /-- The evaluated-slice term with a failure projection is bounded by the slice
 majorants and the diagonal test, as in Claim 11.3. -/

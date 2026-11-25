@@ -103,15 +103,7 @@ theorem sum_sq_state {B} [Fintype B] (p : MeasuredPrefix ι D V W B)
     simpa [state, apply_ite] using ih
   | measure p read ih =>
     simpa only [state, Fintype.sum_prod_type, sum_sq_norm_projOutcomes_fibers] using ih
-  | service p run K _ ih =>
-    simp only [state, Fintype.sum_prod_type]
-    convert ih using 1
-    apply sum_congr rfl
-    intro b _
-    rw [sum_eq_single (evalPure H (run b))]
-    · simp
-    · intro r _ hr; simp [Ne.symm hr]
-    · simp
+  | service p run K _ ih => simpa [state, Fintype.sum_prod_type, apply_ite] using ih
 
 omit [DecidableEq ι] in
 private theorem state_add {B} [Fintype B] (p : MeasuredPrefix ι D V W B) (H : ι → D)
@@ -225,11 +217,10 @@ private theorem sum_sq_service_change {R E : Type} [Fintype R] [DecidableEq R]
   calc
     _ ≤ ∑ i, if i ∈ reads then 2 * ‖u‖ ^ 2 else 0 := sum_le_sum fun i _ => row i
     _ = reads.card * (2 * ‖u‖ ^ 2) := by simp
-    _ ≤ _ := by
-      have hn := List.toFinset_card_le (queriesWith H run) |>.trans (budget.length_queriesWith_le H)
-      calc
-        _ ≤ (K : ℝ) * (2 * ‖u‖ ^ 2) := by gcongr
-        _ = _ := by ring
+    _ ≤ K * (2 * ‖u‖ ^ 2) := by
+      gcongr
+      exact_mod_cast (List.toFinset_card_le _).trans (budget.length_queriesWith_le H)
+    _ = _ := by ring
 
 /-- Sum, over changed table addresses and all outward histories, of the squared difference
 between the two retained states. The estimate includes all earlier adaptive classical services
@@ -279,8 +270,7 @@ theorem sum_sq_state_update_sub_le {B} [Fintype B] (p : MeasuredPrefix ι D V W 
       calc
         _ ≤ ∑ b, (2 * K : ℝ) * ‖p.state step ψ H b‖ ^ 2 := sum_le_sum fun b _ =>
           sum_sq_service_change H v (run b) (budget b) _
-        _ = _ := by rw [← mul_sum, sum_sq_state, Real.sq_sqrt (by positivity)]
-                    rw [hψ]; ring
+        _ = _ := by rw [← mul_sum, sum_sq_state, Real.sq_sqrt (by positivity), hψ, one_pow, mul_one]
 
 /-- Acceptance when a bounded classical service returns a reply and the adversary resumes its
 measured quantum computation on the same table, starting in the supplied residual state. -/

@@ -902,25 +902,19 @@ theorem card_le_two_mul_filter_notMem_succinctMCSP {n s k M : ℕ} (hk : 1 ≤ k
       simp [BadFor, Fintype.card_piFinset]
     rw [hc, ← mul_pow, ← mul_pow]
     exact Nat.pow_le_pow_left (hf g hg) q
-  have hBad_le : k ^ q * Bad.card ≤ 2 ^ M * (k - 1) ^ q * (2 ^ n) ^ q := by
+  have hBad_le : k ^ q * Bad.card ≤ 2 ^ M * ((k - 1) ^ q * (2 ^ n) ^ q) := by
     calc k ^ q * Bad.card
-        ≤ k ^ q * ((computableFunctions n s).biUnion BadFor).card :=
-          Nat.mul_le_mul_left _ (Finset.card_le_card hsub)
-      _ ≤ k ^ q * ∑ g ∈ computableFunctions n s, (BadFor g).card :=
-          Nat.mul_le_mul_left _ Finset.card_biUnion_le
+        ≤ k ^ q * ∑ g ∈ computableFunctions n s, (BadFor g).card :=
+          Nat.mul_le_mul_left _ ((Finset.card_le_card hsub).trans Finset.card_biUnion_le)
       _ = ∑ g ∈ computableFunctions n s, k ^ q * (BadFor g).card := Finset.mul_sum _ _ _
-      _ ≤ ∑ _g ∈ computableFunctions n s, (k - 1) ^ q * (2 ^ n) ^ q :=
-          Finset.sum_le_sum fun g hg => hBadFor_le g hg
-      _ = (computableFunctions n s).card * ((k - 1) ^ q * (2 ^ n) ^ q) := by
-          rw [Finset.sum_const, smul_eq_mul]
-      _ = (computableFunctions n s).card * (k - 1) ^ q * (2 ^ n) ^ q := by ring
-      _ ≤ 2 ^ M * (k - 1) ^ q * (2 ^ n) ^ q :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hcard)
+      _ ≤ (computableFunctions n s).card • ((k - 1) ^ q * (2 ^ n) ^ q) :=
+          Finset.sum_le_card_nsmul _ _ _ hBadFor_le
+      _ ≤ 2 ^ M * ((k - 1) ^ q * (2 ^ n) ^ q) := Nat.mul_le_mul_right _ hcard
   have hΩpos : 0 < (2 ^ n) ^ q := by positivity
   have hlt : k ^ q * (2 * Bad.card) < k ^ q * (2 ^ n) ^ q := by
     calc k ^ q * (2 * Bad.card)
         = 2 * (k ^ q * Bad.card) := by ring
-      _ ≤ 2 * (2 ^ M * (k - 1) ^ q * (2 ^ n) ^ q) := Nat.mul_le_mul_left 2 hBad_le
+      _ ≤ 2 * (2 ^ M * ((k - 1) ^ q * (2 ^ n) ^ q)) := Nat.mul_le_mul_left 2 hBad_le
       _ = 2 ^ (M + 1) * (k - 1) ^ (k * ((M + 1) + 1)) * (2 ^ n) ^ q := by
           rw [pow_succ']
           ring
@@ -1033,14 +1027,9 @@ theorem exists_formula_separating_approxMCSP_of_agrees
         (2 ^ n + 1) * B := by
     have hmap := List.sum_le_length_nsmul
       (qs.map fun p => formulaSize (L.slice (SuccinctMCSP.ofFunctionEncLength n p.1.card p.2))) B
-      (by
-        intro x hx
-        obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hx
+      (List.forall_mem_map.mpr fun p hp => by
         obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hp
-        refine hB (Finset.univ.image (ωs j)).card ?_
-        calc (Finset.univ.image (ωs j)).card
-            ≤ (Finset.univ : Finset (Fin (k n * (M + 2)))).card := Finset.card_image_le
-          _ = k n * (M + 2) := by simp)
+        exact hB _ (Finset.card_image_le.trans (by simp)))
     refine hmap.trans ?_
     simp only [qs, List.length_map, List.length_ofFn, smul_eq_mul]
     exact Nat.mul_le_mul_right B (Nat.le_succ _)
@@ -1376,12 +1365,11 @@ theorem card_filter_ofFunction_mem_succinctMCSP_le (n : ℕ) (S : Finset (BitStr
   calc (Finset.univ.filter fun T : BitString (2 ^ n) =>
         SuccinctMCSP.Instance.ofFunction
           ((MCSP.truthTable n).symm T) S s ∈ SuccinctMCSP).card
-      ≤ ((computableFunctions n s).biUnion AgreeOn).card := Finset.card_le_card hsub
-    _ ≤ ∑ g ∈ computableFunctions n s, (AgreeOn g).card := Finset.card_biUnion_le
-    _ = ∑ _g ∈ computableFunctions n s, 2 ^ (2 ^ n - S.card) :=
-        Finset.sum_congr rfl fun g _ => card_filter_agreesOn_eq_two_pow n S g
+      ≤ ∑ g ∈ computableFunctions n s, (AgreeOn g).card :=
+        (Finset.card_le_card hsub).trans Finset.card_biUnion_le
     _ = (computableFunctions n s).card * 2 ^ (2 ^ n - S.card) := by
-        rw [Finset.sum_const, smul_eq_mul]
+        rw [Finset.sum_congr rfl fun g _ => card_filter_agreesOn_eq_two_pow n S g, Finset.sum_const,
+          smul_eq_mul]
 
 open Classical in
 /-- **Oliveira–Santhanam Lemma 26 (exponential-tail form)**

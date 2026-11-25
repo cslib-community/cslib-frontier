@@ -177,10 +177,8 @@ private theorem Crossing.two_le_openHoles (hij : i ≠ j) (hpq : p < q) (hqz : q
   have hzlen := hpz.lt_length
   obtain ⟨-, -, hpk, -⟩ := hpz.of_isPushOn hp
   obtain ⟨-, -, hqk⟩ := hqp.of_isPushOn hq
-  have hpx : PendingAt w p (z - 1) := by
-    refine ⟨by omega, by omega, i, hp, ?_⟩
-    rw [show z - 1 + 1 = z by omega]
-    exact hpk
+  have hpx : PendingAt w p (z - 1) :=
+    ⟨by omega, by omega, i, hp, by rwa [show z - 1 + 1 = z by omega]⟩
   have hqx : PendingAt w q (z - 1) := by
     refine ⟨by omega, by omega, j, hq, fun k => ?_⟩
     rw [show z - 1 + 1 = z by omega,
@@ -192,11 +190,8 @@ private theorem Crossing.two_le_openHoles (hij : i ≠ j) (hpq : p < q) (hqz : q
     exists_first_openHolePush ⟨crossing_holePush_right hij hpq hqz hp hq hpz hqp, hqx⟩ hq
   have hne : r ≠ r' := fun h => hij (hri.unique (h ▸ hr'j))
   have hsub :
-      ({r, r'} : Set ℕ) ⊆ {q | OpenHolePush w (z - 1) q ∧ ¬∃ p, SameHole w (z - 1) p q} := by
-    intro s hs
-    rcases hs with rfl | rfl
-    · exact ⟨hr, hrl⟩
-    · exact ⟨hr', hr'l⟩
+      ({r, r'} : Set ℕ) ⊆ {q | OpenHolePush w (z - 1) q ∧ ¬∃ p, SameHole w (z - 1) p q} :=
+    Set.pair_subset ⟨hr, hrl⟩ ⟨hr', hr'l⟩
   unfold openHoles
   rw [← Set.ncard_pair hne]
   exact Set.ncard_le_ncard hsub (openHoles_finite w _)
@@ -233,16 +228,14 @@ private theorem PendingAt.append_left (h : PendingAt v p x) (l : List (α × Op 
     PendingAt (l ++ v) (l.length + p) (l.length + x) := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨by omega, by simp; omega, j, IsPushOn.append_left hj l, ?_⟩
-  rw [show l.length + p + 1 = l.length + (p + 1) by omega,
+  rwa [show l.length + p + 1 = l.length + (p + 1) by omega,
     show l.length + x + 1 = l.length + (x + 1) by omega, List.extract_append_left]
-  exact hk
 
 private theorem PendingAt.append_right (h : PendingAt v p x) (r : List (α × Op n Γ)) :
     PendingAt (v ++ r) p x := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨hpx, by simp; omega, j, IsPushOn.append_right hj r, ?_⟩
-  rw [List.extract_append_right _ _ (by omega)]
-  exact hk
+  rwa [List.extract_append_right _ _ (by omega)]
 
 private theorem Crossing.append_left (h : Crossing v) (l : List (α × Op n Γ)) :
     Crossing (l ++ v) := by
@@ -368,8 +361,7 @@ private theorem PendingAt.cons {v : List (α × Op n Γ)} {p x : ℕ} (h : Pendi
     (μ : α × Op n Γ) : PendingAt (μ :: v) (p + 1) (x + 1) := by
   obtain ⟨hpx, hx, j, hj, hk⟩ := h
   refine ⟨by omega, by simp; omega, j, IsPushOn.cons hj μ, ?_⟩
-  rw [List.extract_cons_succ]
-  exact hk
+  rwa [List.extract_cons_succ]
 
 /-- A push pending at `x` stays pending across a transition that does not pop its stack. -/
 private theorem PendingAt.succ {w : List (α × Op n Γ)} {j : Fin n} {p x : ℕ} {μ : α × Op n Γ}
@@ -419,16 +411,14 @@ private theorem Op.Apply.cases {op : Op n Γ} {σ σ' : Stacks n Γ} (h : op.App
   | push j γ =>
     rw [Op.apply_push] at h
     subst h
-    by_cases hj : j = i
-    · subst hj
-      exact .inr (.inl ⟨γ, by simp, by simp [Op.net]⟩)
+    rcases eq_or_ne j i with rfl | hj
+    · exact .inr (.inl ⟨γ, by simp, by simp [Op.net]⟩)
     · exact .inl ⟨Function.update_of_ne (Ne.symm hj) _ _, by simp [Op.net, hj]⟩
   | pop j γ =>
     rw [Op.apply_pop] at h
     subst h
-    by_cases hj : j = i
-    · subst hj
-      exact .inr (.inr ⟨γ, by simp, by simp [Op.net]⟩)
+    rcases eq_or_ne j i with rfl | hj
+    · exact .inr (.inr ⟨γ, by simp, by simp [Op.net]⟩)
     · exact .inl ⟨(Function.update_of_ne (Ne.symm hj) _ _).symm, by simp [Op.net, hj]⟩
 
 /-- Along a run, the height of each stack changes by the net effect of the run on it. -/
@@ -453,9 +443,8 @@ theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}
     simp only [Stacks.empty, List.length_nil, Nat.cast_zero, zero_add] at this
     exact this.symm
   · intro k
-    have h' := h
-    rw [← List.take_append_drop k w] at h'
-    obtain ⟨c, h₁, -⟩ := LTS.MTr.split h'
+    rw [← List.take_append_drop k w] at h
+    obtain ⟨c, h₁, -⟩ := LTS.MTr.split h
     have := configLTS_mTr_length h₁ i
     simp only [Stacks.empty, List.length_nil, Nat.cast_zero, zero_add] at this
     omega
@@ -479,9 +468,7 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
       · have := (hbal j).2 (k + 1)
         rwa [List.take_succ_cons, net_cons, show (Op.nop : Op n Γ).net j = 0 from rfl,
           zero_add] at this
-    | pop j γ =>
-      have := (hbal j).2 1
-      simp [Op.net] at this
+    | pop j γ => simpa [Op.net] using (hbal j).2 1
     | push i γ =>
       have hpushi : (Op.push i γ : Op n Γ).net i = 1 := by simp [Op.net]
       have hw'i : net i w' = -1 := by
@@ -492,23 +479,17 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
       simp only [Nat.cast_zero, zero_add] at hu0 huk
       -- The prefixes of `u` never pop below the initial height of any stack.
       have hupre : ∀ j k, 0 ≤ net j (u.take k) := fun j => by
-        by_cases hij : i = j
-        · subst hij
-          exact huk
+        rcases eq_or_ne i j with rfl | hij
+        · exact huk
         · refine net_take_nonneg_of_append (r := (b, .pop i δ) :: u') fun k => ?_
-          have := (hbal j).2 (k + 1)
-          rw [List.take_succ_cons, net_cons] at this
           have h0 : (Op.push i γ : Op n Γ).net j = 0 := by simp [Op.net, hij]
-          dsimp only at this
-          rw [h0] at this
-          omega
+          simpa only [List.take_succ_cons, net_cons, h0, zero_add] using (hbal j).2 (k + 1)
       -- Every stack returns to its initial height at the end of `u`, otherwise a push in `u` is
       -- pending across the matched pair, which is a crossing.
       have hunet : ∀ j, net j u = 0 := by
         intro j
-        by_cases hij : i = j
-        · subst hij
-          exact hu0
+        rcases eq_or_ne i j with rfl | hij
+        · exact hu0
         · by_contra hne
           have hpos : 0 < net j u := by
             have := hupre j u.length
@@ -528,13 +509,10 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
           have hqw := (hqu.append_right ((b, .pop i δ) :: u')).cons (a, .push i γ)
           rw [show u.length - 1 + 1 = u.length by omega] at hqw
           refine ⟨i, j, 0, q + 1, u.length + 1, hij, by omega, by omega, ⟨a, γ, rfl⟩,
-            (hqj.append_right _).cons _, ⟨by omega, i, ⟨a, γ, rfl⟩, ⟨b, δ, by simp⟩, ?_, ?_⟩,
+            (hqj.append_right _).cons _, ⟨by omega, i, ⟨a, γ, rfl⟩, ⟨b, δ, by simp⟩, by rwa [hfu],
+              by rwa [hfu]⟩,
             hqw.succ (μ := (b, .pop i δ)) ((hqj.append_right _).cons _) (by simp) ?_⟩
-          · rw [hfu]
-            exact huk
-          · rw [hfu]
-            exact hu0
-          · simp [Op.net, hij]
+          simp [Op.net, hij]
       have hpopnet : ∀ j, (Op.pop i δ : Op n Γ).net j + (Op.push i γ : Op n Γ).net j = 0 :=
         fun j => by rw [Op.net_pop j i δ γ]; omega
       -- `u'` is balanced as well.
@@ -570,10 +548,8 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
       subst hδ
       have hlu' : u'.length ≤ N := by simp at hlen; omega
       exact .pushPop hwu
-        (wellNested_of_not_crossing_aux N u' c₃ c' hlu' hrunu' hbal' fun h => by
-          apply hcr
-          rw [e]
-          exact h.append_left _)
+        (wellNested_of_not_crossing_aux N u' c₃ c' hlu' hrunu' hbal' fun h =>
+          hcr (e ▸ h.append_left _))
 
 /-- A balanced run without crossings is well-nested. -/
 theorem wellNested_of_not_crossing {M : MPDA n State α Γ} {c c' : Config n State Γ}

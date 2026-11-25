@@ -95,10 +95,8 @@ private theorem bitVal_flipBlocks_mem_lowDegree {m : ℕ} {B : Fin m → Block n
     have hmem (y : BitString m) :
         i ∈ ({j | y j = true} : Finset (Fin m)).biUnion B ↔ y j = true := by
       simp only [mem_biUnion, mem_filter, mem_univ, true_and]
-      refine ⟨fun ⟨j', hj', hij'⟩ => ?_, fun h => ⟨j, h, hj⟩⟩
-      by_cases hjj : j' = j
-      · exact hjj ▸ hj'
-      · exact absurd (hB hjj) (Finset.not_disjoint_iff.2 ⟨i, hij', hj⟩)
+      exact ⟨fun ⟨j', hj', hij'⟩ => hB.eq (Finset.not_disjoint_iff.2 ⟨i, hij', hj⟩) ▸ hj',
+        fun h => ⟨j, h, hj⟩⟩
     have h : (fun y => bitVal ℝ (flipBlocks B x y i)) = fun y => bitVal ℝ (x i ^^ y j) := by
       funext y
       unfold flipBlocks
@@ -116,10 +114,7 @@ private theorem bitVal_flipBlocks_mem_lowDegree {m : ℕ} {B : Fin m → Block n
   · push Not at hi
     have h : (fun y => bitVal ℝ (flipBlocks B x y i)) = fun _ => bitVal ℝ (x i) := by
       funext y
-      unfold flipBlocks
-      rw [flipBlock_apply_of_notMem]
-      simp only [mem_biUnion, not_exists, not_and]
-      exact fun j _ => hi j
+      rw [flipBlocks, flipBlock_apply_of_notMem (by simp [hi])]
     rw [h]
     exact const_mem_lowDegree 1 _
 
@@ -182,21 +177,14 @@ theorem one_sub_two_mul_mul_blockSensitivity_le_of_mem_Icc {p : BitString n → 
     · exact h₁
   have hg₀ (y : BitString m) (hy : weight y = 0) : g y ≤ ε := by
     have hy' : ({j | y j = true} : Finset (Fin m)) = ∅ := card_eq_zero.1 hy
-    have := (abs_le.1 (hhf (flipBlocks B x y))).2
-    simp only [flipBlocks, hy', biUnion_empty, flipBlock_empty, Bool.xor_self, bitVal_false]
-      at this
-    change h (flipBlocks B x y) ≤ ε
-    simp only [flipBlocks, hy', biUnion_empty, flipBlock_empty]
-    linarith
+    simpa [g, flipBlocks, hy'] using (abs_le.1 (hhf (flipBlocks B x y))).2
   have hg₁ (y : BitString m) (hy : weight y = 1) : 1 - ε ≤ g y := by
     obtain ⟨j, hj⟩ := card_eq_one.1 hy
-    have := (abs_le.1 (hhf (flipBlocks B x y))).1
     have hsens : f (flipBlock (B j) x) ≠ f x := hF.1 _ (hBF j)
-    have hxor : (f (flipBlock (B j) x) ^^ f x) = true := by
-      cases h₁ : f (flipBlock (B j) x) <;> cases h₂ : f x <;> simp_all
+    have hxor : (f (flipBlock (B j) x) ^^ f x) = true := by simpa using hsens
+    have := (abs_le.1 (hhf (flipBlocks B x y))).1
     simp only [flipBlocks, hj, singleton_biUnion, hxor, bitVal_true] at this
-    change 1 - ε ≤ h (flipBlocks B x y)
-    simp only [flipBlocks, hj, singleton_biUnion]
+    simp only [g, flipBlocks, hj, singleton_biUnion]
     linarith
   -- its symmetrization
   obtain ⟨q, hqdeg, hq⟩ := exists_natDegree_le_eval_eq_layerAverage hg

@@ -108,8 +108,7 @@ public theorem ComputesTidilyInTimeAndSpace.ite {tmc : MultiTapeTM k₀ Symbol S
     (fun _ _ h => h) ?_ ?_ ?_
   · rintro _ _ _ _ _ ⟨_, _, _, ⟨-, rfl⟩, ⟨hws, rfl⟩, rfl⟩
     exact ⟨hws, by simp⟩
-  · split_ifs <;> omega
-  · split_ifs <;> omega
+  all_goals split_ifs <;> omega
 
 end Turing.MultiTapeTM
 
@@ -221,8 +220,7 @@ public theorem computesTidilyInTimeAndSpace_ite
     fun _ _ _ _ hfirst hsecond => ⟨hfirst.1, hsecond.1⟩).imp (fun _ _ h => h) ?_ ?_ ?_
   · rintro _ _ _ _ _ ⟨_, _, _, ⟨-, rfl⟩, ⟨htapes, rfl⟩, rfl⟩
     exact ⟨htapes, by simp⟩
-  · split_ifs <;> omega
-  · split_ifs <;> omega
+  all_goals split_ifs <;> omega
 
 end Turing.MultiTapeMachine
 

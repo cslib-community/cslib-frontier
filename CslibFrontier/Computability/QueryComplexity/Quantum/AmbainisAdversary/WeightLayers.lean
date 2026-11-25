@@ -162,26 +162,22 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
       _ = (m * (b - a)) * (m' * (b - a)) := by rw [hx, hy]
       _ = (b - a) * (b - a) * (m * m') := by ring
   have hkeyR : ((N : ℝ) - a) * b * ((l : ℝ) * l') = ((b : ℝ) - a) * (b - a) * (m * m') := by
-    have := congrArg (Nat.cast : ℕ → ℝ) hkey
-    push_cast [Nat.cast_sub hab.le, Nat.cast_sub (hab.trans_le hbN).le] at this
-    exact this
+    rw [← Nat.cast_sub hab.le, ← Nat.cast_sub (hab.trans_le hbN).le]
+    exact_mod_cast hkey
   rw [Nat.cast_mul] at hcore
-  have habR : (a : ℝ) < b := by exact_mod_cast hab
-  have hbNR : (b : ℝ) ≤ N := by exact_mod_cast hbN
-  have hba : (0 : ℝ) ≤ b - a := by linarith
+  have hba : (0 : ℝ) ≤ b - a := sub_nonneg.2 (by exact_mod_cast hab.le)
   have hLpos : (0 : ℝ) < √((l : ℝ) * l') :=
     Real.sqrt_pos.2 (mul_pos (by exact_mod_cast hl) (by exact_mod_cast hl'))
-  have h0 : (0 : ℝ) ≤ (N - a) * b := mul_nonneg (by linarith) (Nat.cast_nonneg b)
+  have h0 : (0 : ℝ) ≤ (N - a) * b :=
+    mul_nonneg (sub_nonneg.2 (by exact_mod_cast (hab.trans_le hbN).le)) (Nat.cast_nonneg b)
   have hsq : √(((N : ℝ) - a) * b) * √((l : ℝ) * l') = √((m : ℝ) * m') * (b - a) := by
     rw [← Real.sqrt_mul h0, hkeyR, Real.sqrt_mul (mul_self_nonneg _), Real.sqrt_mul_self hba,
       mul_comm]
-  have key : (1 - δ) * √(((N : ℝ) - a) * b) * √((l : ℝ) * l') ≤
-      2 * T * (b - a) * √((l : ℝ) * l') := by
-    calc (1 - δ) * √(((N : ℝ) - a) * b) * √((l : ℝ) * l')
-        = (1 - δ) * √((m : ℝ) * m') * (b - a) := by rw [mul_assoc, hsq, ← mul_assoc]
-      _ ≤ 2 * T * √((l : ℝ) * l') * (b - a) := mul_le_mul_of_nonneg_right hcore hba
-      _ = 2 * T * (b - a) * √((l : ℝ) * l') := by ring
-  exact le_of_mul_le_mul_right key hLpos
+  refine le_of_mul_le_mul_right ?_ hLpos
+  calc (1 - δ) * √(((N : ℝ) - a) * b) * √((l : ℝ) * l')
+      = (1 - δ) * √((m : ℝ) * m') * (b - a) := by rw [mul_assoc, hsq, ← mul_assoc]
+    _ ≤ 2 * T * √((l : ℝ) * l') * (b - a) := mul_le_mul_of_nonneg_right hcore hba
+    _ = 2 * T * (b - a) * √((l : ℝ) * l') := by ring
 
 /-- **Telling weight `k` from weight `k'`** [Ambainis2002], Theorem 5, for general weights: if a
 `T`-query algorithm with a unit initial state accepts, by an outcome in `S`, every input of weight
@@ -235,11 +231,7 @@ theorem one_sub_mul_add_le_four_mul_mul_abs_sub_of_weight {ψ₀ : State N W}
   have hab : a ≤ b := min_le_max
   have hbN : b ≤ N := max_le hk hk'
   have habs : |(k : ℝ) - k'| = b - a := by
-    rcases le_total k k' with h | h
-    · rw [ha, hb, min_eq_left h, max_eq_right h, abs_sub_comm,
-        abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast h))]
-    · rw [ha, hb, min_eq_right h, max_eq_left h,
-        abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast h))]
+    rw [ha, hb, Nat.cast_max, Nat.cast_min, max_sub_min_eq_abs']
   rw [habs] at hmain ⊢
   have haR : (a : ℝ) ≤ b := by exact_mod_cast hab
   have hbR : (b : ℝ) ≤ N := by exact_mod_cast hbN

@@ -247,28 +247,20 @@ theorem unaryLe : ComputableInO (fun p : ℕ × ℕ => decide (p.1 ≤ p.2))
     (fst encUnary encUnary) hstep
     (R := fun p => 3 * ((encPair encUnary encUnary p).length + 1))
     (Q := fun p => 3 * ((encPair encUnary encUnary p).length + 1))
-    (B := fun p => (encPair encUnary encUnary p).length)
-    (fun p i hi => by
-      rw [List.take_replicate, hrep]
-      simp only [length_encPair, encUnary_apply, List.length_replicate,
-        encBool_apply, List.length_singleton]
-      omega)
-    (fun p i hi => by
-      rw [List.take_replicate, hrep]
-      simp only [length_encPair, encUnary_apply, List.length_replicate,
-        encBool_apply, List.length_singleton]
-      omega)
-    (fun p i hi => by
-      rw [List.take_replicate, hrep]
-      simp only [length_encPair, encUnary_apply, List.length_replicate]
-      omega)
-  have hz := ComputableInDegree.unary_isZero.inO_one.comp_linear h
-  refine (hz.mono 16 (fun p => ?_) fun p => ?_).of_enc_eq fun p => ?_
-  · simp only [length_encPair, encUnary_apply, List.length_replicate,
-      encBits_apply]
-    nlinarith
-  · enc_len
-  · simp only [Function.comp_apply, hrep, Nat.sub_eq_zero_iff_le]
+    (B := fun p => (encPair encUnary encUnary p).length) ?_ ?_ ?_
+  · have hz := ComputableInDegree.unary_isZero.inO_one.comp_linear h
+    refine (hz.mono 16 (fun p => ?_) fun p => ?_).of_enc_eq fun p => ?_
+    · simp only [length_encPair, encUnary_apply, List.length_replicate,
+        encBits_apply]
+      nlinarith
+    · enc_len
+    · simp only [Function.comp_apply, hrep, Nat.sub_eq_zero_iff_le]
+  all_goals
+    intro p i hi
+    rw [List.take_replicate, hrep]
+    simp only [length_encPair, encUnary_apply, List.length_replicate,
+      encBool_apply, List.length_singleton]
+    omega
 
 end ComputableInO
 
@@ -353,15 +345,10 @@ theorem ComputableInO.natToUnary : ComputableInO (fun n : ℕ => n) encNat encUn
   refine (ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hK)
     (K * (2 * ci + 2 * ce + 5 * D + 20) + 1)
     (fun n => ?_) (fun n => ?_) fun n => ?_)
-  · calc K * (2 * ci + 2 + (2 * ce + 2) + (encNat n).length +
-          (∑ j ∈ Finset.range (encNat n).length, D * (2 ^ j + 1)) +
-            (2 ^ (encNat n).length + 1) + 1)
-        ≤ K * ((2 * ci + 2 * ce + 5 * D + 20) * (n + 1)) := Nat.mul_le_mul_left K (hbound n)
-      _ ≤ _ := by nlinarith
+  · exact (Nat.mul_le_mul_left K (hbound n)).trans (by nlinarith)
   · have h₁ := two_pow_length_encNat_le n
-    calc K * (0 + 0 + D * (2 ^ (encNat n).length + 1) + (2 ^ (encNat n).length + 1) + 1)
-        ≤ K * ((2 * ci + 2 * ce + 5 * D + 20) * (n + 1)) := Nat.mul_le_mul_left K (by nlinarith)
-      _ ≤ _ := by nlinarith
+    exact (Nat.mul_le_mul_left K
+      (show _ ≤ (2 * ci + 2 * ce + 5 * D + 20) * (n + 1) by nlinarith)).trans (by nlinarith)
   · simp only [encUnary_apply, List.length_replicate]
     exact (Nat.le_succ n).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
 

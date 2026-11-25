@@ -67,8 +67,7 @@ theorem exists_viewChain (p : ntm.RunPath input) (hp : p.head = ntm.initCfg inpu
     have hne : views ≠ [] := by rintro rfl; simp at hlen
     have hlast : ViewRep (views.getLast hne) p.last := by
       have := hrep (views.length - 1) (by omega)
-      rw [List.getLast_eq_getElem]
-      rw [RelSeries.last]
+      rw [List.getLast_eq_getElem, RelSeries.last]
       convert this using 2
       ext; simp; omega
     change ntm.Step p.last c at hc
@@ -86,12 +85,10 @@ theorem exists_viewChain (p : ntm.RunPath input) (hp : p.head = ntm.initCfg inpu
         simp only [ViewStep, hlast.state.trans hs]
         exact ⟨action, by rwa [hin, hwork], rfl⟩
     refine ⟨views ++ [next], by simp [hlen], ?_, ?_, fun i hi => ?_⟩
-    · exact hchain.append (.singleton _) (by
-        intro x hx y hy
-        simp only [List.getLast?_eq_some_getLast hne, Option.mem_def, Option.some.injEq] at hx
-        simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hy
-        subst hx hy
-        exact hstep)
+    · exact hchain.append (.singleton _) fun x hx y hy => by
+        simp only [List.getLast?_eq_some_getLast hne, List.head?_cons, Option.mem_def,
+          Option.some.injEq] at hx hy
+        exact hx ▸ hy ▸ hstep
     · cases views with
       | nil => contradiction
       | cons => simpa using hhead
@@ -155,9 +152,8 @@ theorem runsInTime_of_runsInSpace {s t : ℕ} (hs : ntm.RunsInSpace input s)
       Relation.ReflTransGen ntm.ViewStep (ntm.initView input) finite := by
     intro finite hf
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hf
-    have := (hchain.relatesInSteps_getElem 0 j (by omega)).reflTransGen
-    simp only [Nat.zero_add, h0] at this
-    exact this
+    simpa only [Nat.zero_add, h0] using
+      (hchain.relatesInSteps_getElem 0 j (by omega)).reflTransGen
   -- more views than reachable views: some view repeats
   have hnotnodup : ¬ views.Nodup := fun hnodup => by
     have := length_le_of_nodup_reachable hs hnodup hreach
@@ -174,9 +170,7 @@ theorem runsInTime_of_runsInSpace {s t : ℕ} (hs : ntm.RunsInSpace input s)
   -- the cycle at the repeated view, pumped to length at least `t`
   have hpre :
       Relation.RelatesInSteps ntm.ViewStep (ntm.initView input) (views[i]'(by omega)) i := by
-    have := hchain.relatesInSteps_getElem 0 i (by omega)
-    simp only [Nat.zero_add, h0] at this
-    exact this
+    simpa only [Nat.zero_add, h0] using hchain.relatesInSteps_getElem 0 i (by omega)
   have hcycle : Relation.RelatesInSteps ntm.ViewStep (views[i]'(by omega)) (views[i]'(by omega))
       (j - i) := by
     have := hchain.relatesInSteps_getElem i (j - i) (by omega)

@@ -421,14 +421,13 @@ private theorem sum_map_zip {M : Type*} [AddCommMonoid M] {α β : Type*} (da : 
 private theorem sum_zipWith_mul (u w : List ℤ) :
     (List.zipWith (· * ·) u w).sum =
       ∑ i ∈ Finset.range (min u.length w.length), u.getD i 0 * w.getD i 0 := by
-  have hzw : List.zipWith (· * ·) u w =
-      (List.range (min u.length w.length)).map fun i => u.getD i 0 * w.getD i 0 := by
-    refine List.ext_getElem (by simp) fun i hi _ => ?_
-    have hu : i < u.length := (Nat.lt_min.mp (by simpa only [List.length_zipWith] using hi)).1
-    have hw : i < w.length := (Nat.lt_min.mp (by simpa only [List.length_zipWith] using hi)).2
-    simp only [List.getElem_zipWith, List.getElem_map, List.getElem_range,
-      List.getD_eq_getElem _ _ hu, List.getD_eq_getElem _ _ hw]
-  rw [hzw, List.sum_map_range, Fin.sum_univ_eq_sum_range (fun i => u.getD i 0 * w.getD i 0) _]
+  rw [← List.map_uncurry_zip_eq_zipWith, sum_map_zip 0 0]
+  rfl
+
+private theorem getD_inj_of_nodup {α : Type*} {l : List α} (hl : l.Nodup) (d : α) {i j : ℕ}
+    (hi : i < l.length) (hj : j < l.length) (h : l.getD i d = l.getD j d) : i = j := by
+  rw [List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj] at h
+  exact (hl.getElem_inj_iff (hi := hi) (hj := hj)).mp h
 
 private theorem sum_range_groupVars_eq_toFinset {M : Type*} [AddCommMonoid M]
     {groupVars : List ℕ} (hnodup : groupVars.Nodup) (g : ℕ → M) :
@@ -437,10 +436,8 @@ private theorem sum_range_groupVars_eq_toFinset {M : Type*} [AddCommMonoid M]
   refine Finset.sum_bij (fun j _ => groupVars.getD j 0)
     (fun j hj => List.mem_toFinset.mpr (List.getD_mem 0 (Finset.mem_range.mp hj))) ?_ ?_
     fun _ _ => rfl
-  · intro j₁ hj₁ j₂ hj₂ heq
-    have h₁ := Finset.mem_range.mp hj₁; have h₂ := Finset.mem_range.mp hj₂
-    rw [List.getD_eq_getElem _ _ h₁, List.getD_eq_getElem _ _ h₂] at heq
-    exact (hnodup.getElem_inj_iff (hi := h₁) (hj := h₂)).mp heq
+  · exact fun j₁ hj₁ j₂ hj₂ heq =>
+      getD_inj_of_nodup hnodup 0 (Finset.mem_range.mp hj₁) (Finset.mem_range.mp hj₂) heq
   · intro v hv
     obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp (List.mem_toFinset.mp hv)
     exact ⟨j, Finset.mem_range.mpr hj, List.getD_eq_getElem _ _ hj⟩
@@ -457,9 +454,7 @@ theorem copyEmbedExec_eq_of_nodup {K : Type*} [AddCommMonoid K] {placements : Li
   · intro i hi hne
     have hi_pl := (Nat.lt_min.mp (Finset.mem_range.mp hi)).1; have he_pl := (Nat.lt_min.mp he).1
     refine ite_eq_right fun ⟨h1, h2⟩ => hne ?_
-    have heq : placements.getD i (0, 0) = placements.getD e (0, 0) := Prod.ext h1 h2
-    rw [List.getD_eq_getElem _ _ hi_pl, List.getD_eq_getElem _ _ he_pl] at heq
-    exact (hnodup.getElem_inj_iff (hi := hi_pl) (hj := he_pl)).mp heq
+    exact getD_inj_of_nodup hnodup (0, 0) hi_pl he_pl (Prod.ext h1 h2)
   · exact fun hmem => absurd (Finset.mem_range.mpr he) hmem
 
 /-- At any unoccupied slot `(copyIdx, y) ∉ placements`, `copyEmbedExec` vanishes. -/
@@ -654,9 +649,7 @@ theorem getD_zero_pullbackReplacementRow {n R : ℕ} {placements : List (ℕ × 
     have hi_pl := (Nat.lt_min.mp (Finset.mem_range.mp hi)).1; have he_pl := (Nat.lt_min.mp he).1
     dsimp only; rw [hzero _ (List.getD_mem (0, 0) hi_pl)]
     split_ifs with hc hu
-    · have heq_p : placements.getD i (0, 0) = placements.getD e (0, 0) := Prod.ext hc.1 hu.symm
-      rw [List.getD_eq_getElem _ _ hi_pl, List.getD_eq_getElem _ _ he_pl] at heq_p
-      exact absurd ((hnodup.getElem_inj_iff (hi := hi_pl) (hj := he_pl)).mp heq_p) hne
+    · exact absurd (getD_inj_of_nodup hnodup (0, 0) hi_pl he_pl (Prod.ext hc.1 hu.symm)) hne
     all_goals rfl
   · exact fun hnot => absurd (Finset.mem_range.mpr he) hnot
 
@@ -746,13 +739,9 @@ theorem sum_abs_pullbackMeasurementRow_le {n D : ℕ} {placements : List (ℕ ×
     rw [Finset.card_le_one]; intro e₁ he₁ e₂ he₂
     simp only [Finset.mem_filter, Finset.mem_range] at he₁ he₂
     have hp₁ := (Nat.lt_min.mp he₁.1).1; have hp₂ := (Nat.lt_min.mp he₂.1).1
-    have heq : placements.getD e₁ (0, 0) = placements.getD e₂ (0, 0) :=
-      Prod.ext (he₁.2.1.trans he₂.2.1.symm) (he₁.2.2.trans he₂.2.2.symm)
-    rw [List.getD_eq_getElem _ _ hp₁, List.getD_eq_getElem _ _ hp₂] at heq
-    exact (hnodup.getElem_inj_iff (hi := hp₁) (hj := hp₂)).mp heq
-  have hcard_z : ((((Finset.range m).filter fun e => (placements.getD e (0, 0)).1 = copyIdx ∧
-      (placements.getD e (0, 0)).2 = y).card : ℕ) : ℤ) ≤ 1 := by exact_mod_cast hcard
-  have hnn : (0 : ℤ) ≤ |auxRow.getD y 0| := abs_nonneg _; nlinarith
+    exact getD_inj_of_nodup hnodup (0, 0) hp₁ hp₂
+      (Prod.ext (he₁.2.1.trans he₂.2.1.symm) (he₁.2.2.trans he₂.2.2.symm))
+  exact mul_le_of_le_one_left (abs_nonneg _) (by exact_mod_cast hcard)
 
 private theorem sum_map_natAbs_eq_sum_abs (row : List ℤ) :
     (((row.map Int.natAbs).sum : ℕ) : ℤ) = ∑ i ∈ Finset.range row.length, |row.getD i 0| := by
