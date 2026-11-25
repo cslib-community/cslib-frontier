@@ -78,12 +78,8 @@ private theorem net_take_append_nonneg {i : Fin n} {u v : List (α × Op n Γ)}
 private theorem IsContext.isContextOf {v : List (α × Op n Γ)} (h : IsContext v)
     {μ : α × Op n Γ} (hμ : μ ∈ v) {i : Fin n} (hi : μ.2.stack = some i) : IsContextOf i v := by
   obtain ⟨o, ho⟩ := h
-  rcases ho μ hμ with h' | h'
-  · rw [hi] at h'
-    cases h'
-  · rw [hi] at h'
-    subst h'
-    exact ho
+  rcases ho μ hμ with h' | h' <;> rw [hi] at h' <;> cases h'
+  exact ho
 
 private theorem net_eq_zero_of_isContextOf {i j : Fin n} (hij : i ≠ j) :
     ∀ {u : List (α × Op n Γ)}, IsContextOf i u → net j u = 0
@@ -184,13 +180,9 @@ private theorem exists_matches_of_net_neg {w : List (α × Op n Γ)} {i : Fin n}
     rw [← w.take_extract (Nat.le_add_right _ _) (show p + 1 + u.length ≤ e by omega), hv,
       Nat.add_sub_cancel_left]
     simp
-  refine ⟨p + 1 + u.length, by omega, by omega, i, hp, ⟨b, δ, ?_⟩, fun k => ?_, ?_⟩
-  · rw [← List.getElem?_extract _ hulen, hv]
-    simp
-  · rw [hu']
-    exact hk k
-  · rw [hu']
-    exact hu
+  refine ⟨p + 1 + u.length, by omega, by omega, i, hp, ⟨b, δ, ?_⟩, by rwa [hu'], by rwa [hu']⟩
+  rw [← List.getElem?_extract _ hulen, hv]
+  simp
 
 private theorem PendingAt.lt_of_matches {w : List (α × Op n Γ)} {i : Fin n} {p x m : ℕ}
     (h : PendingAt w p x) (hp : IsPushOn w i p) (hm : Matches w p m) : x < m := by
@@ -300,10 +292,7 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   by_cases hs : HolePush w (p' + 1 + q)
   · have := hmax (p' + 1 + q) (by omega) (by omega) ⟨hs, hspend⟩ hsj
     omega
-  · have hwm : WellMatched w (p' + 1 + q) := by
-      by_contra h
-      exact hs ⟨⟨j, hsj⟩, h⟩
-    obtain ⟨m, hm, hwn⟩ := hwm
+  · obtain ⟨m, hm, hwn⟩ : WellMatched w (p' + 1 + q) := not_not.1 fun h => hs ⟨⟨j, hsj⟩, h⟩
     have hxm := hspend.lt_of_matches hsj hm
     exact hbnwm (hwn.wellMatched_of_extract (by have := hm.lt_length; omega) (by omega)
       (by omega) hbj)
@@ -349,24 +338,16 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
     ext q
     simp only [T, Finset.coe_filter, Finset.mem_range, Set.mem_ofPred_eq]
     exact ⟨fun hq => ⟨by have := hq.1.2.1; omega, hq⟩, fun hq => hq.2⟩
-  have hge : ∀ t ∈ insert m₁ T, r₁ ≤ t := by
-    intro t ht
-    rcases Finset.mem_insert.mp ht with rfl | ht
-    · omega
-    · exact hmin t (Finset.mem_filter.mp ht).2
+  have hge : ∀ t ∈ insert m₁ T, r₁ ≤ t := (Finset.forall_mem_insert _ _ _).2
+    ⟨by omega, fun t ht => hmin t (Finset.mem_filter.mp ht).2⟩
   have hinj : Set.InjOn (· - r₁) ↑(insert m₁ T) := by
     intro a ha b hb hab
     have := hge a ha
     have := hge b hb
     simp only at hab
     omega
-  have hle_m₁ : ∀ a ∈ insert m₁ T, a ≤ m₁ := by
-    intro a ha
-    rcases Finset.mem_insert.mp ha with rfl | ha
-    · exact le_rfl
-    · have := (Finset.mem_filter.mp ha).1
-      simp only [Finset.mem_range] at this
-      omega
+  have hle_m₁ : ∀ a ∈ insert m₁ T, a ≤ m₁ := (Finset.forall_mem_insert _ _ _).2
+    ⟨le_rfl, fun a ha => by have := Finset.mem_range.1 (Finset.mem_filter.mp ha).1; omega⟩
   have hcard := List.Splits.card_le (fun _ _ huv hv => IsContext.of_isInfix huv hv) (h r₁ m₁ hm₁)
     ((insert m₁ T).image (· - r₁)) ?hT ?hTP
   · rw [Finset.card_image_of_injOn hinj, Finset.card_insert_of_notMem (by
