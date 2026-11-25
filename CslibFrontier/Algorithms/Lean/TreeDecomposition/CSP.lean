@@ -263,18 +263,11 @@ private theorem dpSpec_congr {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
   | .leaf, _, _, _, _ => rfl
   | .introduce v child, hval, α₁, α₂, h => by
     simp only [dpSpec]
-    have hbag : ∀ u ∈ child.bag, α₁ u = α₂ u := fun u hu => h u (Finset.mem_insert_of_mem hu)
-    have hAll : (F.all fun c => !(decide (c.scope.toFinset ⊆ insert v child.bag) &&
-        decide (v ∈ c.scope)) || c.eval sem α₁) =
-      (F.all fun c => !(decide (c.scope.toFinset ⊆ insert v child.bag) &&
-        decide (v ∈ c.scope)) || c.eval sem α₂) := by
-      refine List.all_congr rfl fun c => ?_
-      by_cases hc : c.scope.toFinset ⊆ insert v child.bag
-      · have hev : c.eval sem α₁ = c.eval sem α₂ :=
-          Constraint.eval_congr fun u hu => h u (hc (List.mem_toFinset.2 hu))
-        rw [hev]
-      · simp [hc]
-    rw [hAll, dpSpec_congr A q hq sem F U hval.2 hbag]
+    rw [List.all_congr rfl fun c => ?_,
+      dpSpec_congr A q hq sem F U hval.2 fun u hu => h u (Finset.mem_insert_of_mem hu)]
+    by_cases hc : c.scope.toFinset ⊆ insert v child.bag
+    · rw [Constraint.eval_congr (τ := α₂) fun u hu => h u (hc (List.mem_toFinset.2 hu))]
+    · simp [hc]
   | .forget v child, hval, α₁, α₂, h => by
     have hupd (d : Fin q) :
         dpSpec A q hq sem F U child (Function.update α₁ v d) =
@@ -312,22 +305,18 @@ private theorem getD_dpTree {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
     have hm' : m < q * q ^ (bagList child).length := by
       rw [Nat.mul_comm]
       simpa only [bagList, List.length_cons, Nat.pow_succ] using hm
-    have hmdiv : m / q < q ^ (bagList child).length := Nat.div_lt_of_lt_mul hm'
-    have ih := getD_dpTree A q hq sem F hval.2 hmdiv
-    have hbagC : (bagList child).toFinset = child.bag := toFinset_bagList hval.2
-    have hbagT : (v :: bagList child).toFinset = insert v child.bag := by
-      simp [hbagC]
     have hcongr : ∀ u ∈ child.bag,
-        ofRadixFin q hq (v :: bagList child) m u =
-          ofRadixFin q hq (bagList child) (m / q) u := fun u hu => by
+        ofRadixFin q hq (bagList child) (m / q) u =
+          ofRadixFin q hq (v :: bagList child) m u := fun u hu => by
       have huv : u ≠ v := fun h => hval.1 (child.bag_subset_subtreeVerts (h ▸ hu))
       ext
-      exact ofRadix_cons_ne huv (bagList child) m
+      exact (ofRadix_cons_ne huv (bagList child) m).symm
     dsimp only [dpTree]
     rw [getD_ofFn _ (by simpa only [bagList] using hm) A.zero]
     simp only [bagList, dpSpec]
-    rw [ih, dpSpec_congr A q hq sem F F.vars.toFinset hval.2 fun u hu => (hcongr u hu).symm]
-    exact if_congr (by simp [hbagT]) rfl rfl
+    rw [getD_dpTree A q hq sem F hval.2 (Nat.div_lt_of_lt_mul hm'),
+      dpSpec_congr A q hq sem F F.vars.toFinset hval.2 hcongr]
+    exact if_congr (by simp [toFinset_bagList hval.2]) rfl rfl
   | .forget v child, hval, m, hm => by
     have hbagC : (bagList child).toFinset = child.bag := toFinset_bagList hval.2
     have hret : ∀ d (hd : d < q),
@@ -363,20 +352,14 @@ private theorem getD_dpTree {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
     rw [getD_ofFn _ (by simpa only [bagList] using hm) A.zero]
     simp only [bagList, dpSpec]
     by_cases hv : v ∈ F.vars
-    · have hvF : v ∈ F.vars.toFinset := List.mem_toFinset.2 hv
-      simp only [hv, ite_true, hvF]
-      refine dpAlgFold_congr fun d hd => ?_
-      simp only [hd, ↓reduceDIte]
-      exact hret d hd
-    · have hvF : v ∉ F.vars.toFinset := by simpa only [List.mem_toFinset] using hv
-      simp only [hv, ite_false, hvF]
+    · simp only [hv, ite_true, List.mem_toFinset]
+      exact dpAlgFold_congr fun d hd => by simpa only [hd, ↓reduceDIte] using hret d hd
+    · simp only [hv, ite_false, List.mem_toFinset]
       exact hret 0 hq
   | .join left right, hval, m, hm => by
-    have hmL : m < q ^ (bagList left).length := by simpa only [bagList] using hm
-    have hmR : toRadix q (bagList right) (ofRadix q (bagList left) m) <
-        q ^ (bagList right).length := toRadix_lt hq _ _
-    have ihL := getD_dpTree A q hq sem F hval.2.2.1 hmL
-    have ihR := getD_dpTree A q hq sem F hval.2.2.2 hmR
+    have ihL := getD_dpTree A q hq sem F hval.2.2.1 (m := m) (by simpa only [bagList] using hm)
+    have ihR := getD_dpTree A q hq sem F hval.2.2.2
+      (toRadix_lt hq (bagList right) (ofRadix q (bagList left) m))
     have hbagR : (bagList right).toFinset = right.bag := toFinset_bagList hval.2.2.2
     have hagree : ∀ u ∈ right.bag,
         ofRadixFin q hq (bagList right) (toRadix q (bagList right) (ofRadix q (bagList left) m)) u =
