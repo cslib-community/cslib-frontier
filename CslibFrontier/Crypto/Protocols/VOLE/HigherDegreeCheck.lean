@@ -86,8 +86,10 @@ and Fiat–Shamir multi-round soundness are not formalized here.
 
 ## Source correspondence and gaps
 
-* [YangSarkarWengWang2021], Sections 3.1 and 4.2: QuickSilver IT-MAC polynomial arithmetic and
-  arbitrary-degree polynomial soundness framework.
+* [YangSarkarWengWang2021]: Sections 3.1 and 4.2 describe the circuit-satisfiability protocol
+  background (`VOLE.Circuit` / `VOLE.MulCheck`); the arbitrary-degree polynomial-set construction
+  is in Section 3.2 and Section 5 (Figure 6), with security stated in Theorem 3 (Section 5.1)
+  and proved in Appendix C (the Lean results remain finite algebraic and conditional).
 * [BaumBMRS2023Eprint], Appendix B.1 (printed p. 46; full version of [BaumBMRS2023]): sketches
   generalization of sVOLE checks to arbitrary degree `d` via `(d - 1)` masks.
 * [BaumEtAl2023FAEST], Section 2.3.2: affine masking and scalar-power batched VOLE checks.
