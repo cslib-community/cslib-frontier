@@ -187,14 +187,11 @@ private theorem snd_tr_eq {D : ℕ} {x : BitString n} (hx : ∀ k, P.depths k �
     (tr ℓ s ν P w).2 x = bitVal ℝ ((tr ℓ s ν P w).1 x)) (fun i _ => rfl)
     (fun k ih hk => ?_) w hw
   rw [Program.wireDepths_gateWire] at hk
-  have harg (a : Fin (P.lines k).op.arity) := ih a (by
-    have := P.wireDepths_lines_lt k a
-    omega)
   rw [tr_gate]
   change gateApprox (P.lines k).op (sets ℓ s ν P k)
       (fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x) =
     bitVal ℝ (Unbounded.interpretation (P.lines k).op (args ℓ s ν P k x))
-  simp only [harg]
+  simp only [fun a => ih a (by have := P.wireDepths_lines_lt k a; omega)]
   exact gateApprox_bitVal (hx k hk)
 
 end Pairs
@@ -382,16 +379,13 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
   let e := wireEquiv n C.size
   let Cw : Circuit Unbounded.signature n (n + C.size) :=
     ⟨P, fun i => if P.wireDepths (e.symm i) ≤ D then e.symm i else C.outputs 0⟩
-  have hCw_depth : Cw.depth ≤ D := by
-    refine (Circuit.depth_le_iff Cw).2 fun i => ?_
-    change P.wireDepths (if P.wireDepths (e.symm i) ≤ D then e.symm i else C.outputs 0) ≤ D
+  have hCw_depth : Cw.depth ≤ D := (Circuit.depth_le_iff Cw).2 fun i => by
+    dsimp only [Cw, Circuit.outputDepths, Function.comp_apply]
     split_ifs with h
     exacts [h, C.outputDepths_le_depth 0]
   have hCw_eval (x : BitString n) (w : Wire n C.size) (hw : P.wireDepths w ≤ D) :
       Cw.eval Unbounded.interpretation x (e w) = P.trace Unbounded.interpretation x w := by
-    change P.trace Unbounded.interpretation x
-      (if P.wireDepths (e.symm (e w)) ≤ D then e.symm (e w) else C.outputs 0) = _
-    rw [Equiv.symm_apply_apply, ite_eq_left hw]
+    simp [Cw, Circuit.eval, hw]
   -- the witness formula: some gate of depth at most `D` misses
   let wf : Formula Unbounded.signature (n + C.size) :=
     .gate (.or C.size) fun k => if P.depths k ≤ D then
@@ -440,9 +434,8 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
           sum_gateMiss_gateSets_le ℓ s ν _ ((hfan k).trans_lt hr) (args ℓ s ν P k)
       _ = (41 / 50) ^ s * C.size := by simp [mul_comm]
   · -- exactness where the witness is false
-    have hno : ∀ k, P.depths k ≤ D → ¬Miss ℓ s ν P k x := fun k hk hm =>
-      Bool.false_ne_true (hx.symm.trans ((hW x).2 ⟨k, hk, hm⟩))
-    rw [snd_tr_eq ℓ s ν P hno _ (C.outputDepths_le_depth 0), fst_tr]
-    rfl
+    exact (snd_tr_eq ℓ s ν P (fun k hk hm =>
+      Bool.false_ne_true (hx.symm.trans ((hW x).2 ⟨k, hk, hm⟩))) _
+      (C.outputDepths_le_depth 0)).trans (congrArg (bitVal ℝ) (fst_tr ℓ s ν P _ x))
 
 end Cslib.Circuits.Boolean.Braverman

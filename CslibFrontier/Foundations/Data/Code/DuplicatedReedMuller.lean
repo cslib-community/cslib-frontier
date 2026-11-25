@@ -235,14 +235,11 @@ private theorem walshSign_mul_toNat (p q : Bool) :
 
 private theorem card_dotProduct_eq_true (a : RMPoint) :
     #{x | a ⬝ᵥ x = true} = if a = 0 then 0 else 64 := by
-  by_cases ha : a = 0
-  · subst a
-    change #{_x : RMPoint | false = true} = 0
-    simp only [Bool.false_eq_true, filter_false, card_empty]
+  rcases eq_or_ne a 0 with rfl | ha
+  · simp [dotProduct]
   · rw [ite_eq_right ha]
     have h := two_mul_card_dotProduct_eq_true_add a
     simp only [Fintype.card_fin, ha, ite_false] at h
-    norm_num at h
     omega
 
 /-- The corrected coefficient at `a` is the distance from the received word to the unsigned
@@ -368,15 +365,8 @@ private theorem hammingDist_chosenSign_add_natAbs {μ : ℕ} (w : DRMWord μ) (a
         (drmHadamardCoeff w a).natAbs = 64 * μ := by
   have hcoeff := drmHadamardCoeff_eq_hammingDist_sub w a
   have htotal := hammingDist_drmEncode_true_add_false w a
-  by_cases hpos : 0 < drmHadamardCoeff w a
-  · simp only [hpos, decide_true]
-    have habs : ((drmHadamardCoeff w a).natAbs : ℤ) = drmHadamardCoeff w a :=
-      Int.natAbs_of_nonneg hpos.le
-    omega
-  · simp only [hpos, decide_false]
-    have habs : ((drmHadamardCoeff w a).natAbs : ℤ) = -drmHadamardCoeff w a :=
-      Int.ofNat_natAbs_of_nonpos (not_lt.mp hpos)
-    omega
+  by_cases hpos : 0 < drmHadamardCoeff w a <;>
+    simp only [hpos, decide_true, decide_false] <;> omega
 
 /-- The source's deterministic best-effort duplicated Reed–Muller decoder. -/
 def drmDecode {μ : ℕ} (w : DRMWord μ) : RMMessage :=

@@ -245,10 +245,7 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
     rw [hblock_eq, parity_update_of_eq_false hy₀_false]
     change ((z j ^^ r j) ^^ r j) = z j
     cases z j <;> cases r j <;> rfl
-  have hleaf_le : (F.bind σ).leafSize ≤ formulaSize (andreev b m ∘ ρ.fill) := by
-    have := F.leafSize_bind_le hσ_leaf
-    omega
-  exact (formulaSize_le hbind_computes).trans hleaf_le
+  exact (formulaSize_le hbind_computes).trans ((F.leafSize_bind_le hσ_leaf).trans (by omega))
 
 /-! ### Andreev's reduction and explicit formula lower bound -/
 
@@ -370,10 +367,7 @@ theorem pow_two_mul_pow_three_le_formulaSize_andreev_sq :
       _ ≤ 2 ^ b := twelve_mul_sq_mul_add_two_le_two_pow hb16
   have hhalf : 2 ^ b ≤ 6 * b * (formulaSize h - 2 * b * r) := by
     rw [Nat.mul_sub_left_distrib]
-    have h1 : 6 * b * formulaSize h = 2 * (3 * b * formulaSize h) := by ring
-    have h2 : 6 * b * (2 * b * r) = 12 * b ^ 2 * r := by ring
-    rw [h1, h2]
-    omega
+    exact Nat.le_sub_of_add_le (by nlinarith only [hh, hexp])
   have hsq : (2 ^ b) ^ 2 ≤ (6 * b * (formulaSize h - 2 * b * r)) ^ 2 := by gcongr
   calc 2 ^ (2 * b) * m ^ 3
       = (2 ^ b) ^ 2 * m ^ 3 := by rw [← pow_mul, mul_comm 2 b]

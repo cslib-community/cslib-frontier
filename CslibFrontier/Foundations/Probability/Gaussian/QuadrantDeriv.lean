@@ -126,13 +126,11 @@ theorem measureReal_correlatedGaussian_setOf_le_and_le {ρ : ℝ} (hρ : |ρ| < 
       (Iic t).indicator (fun x => ENNReal.ofReal (Φ ((t' - ρ * x) / √(1 - ρ ^ 2)))) x := by
     by_cases hx : x ≤ t
     · rw [indicator_of_mem (mem_Iic.2 hx), ofReal_cdf]
-      congr 1
-      ext y
+      refine congrArg _ (Set.ext fun y => ?_)
       simp only [mem_preimage, mem_ofPred_eq, hx, true_and, mem_Iic, le_div_iff₀ hs]
       exact ⟨fun h => by linarith, fun h => by linarith⟩
     · rw [indicator_of_notMem (by simpa using hx), ← measure_empty (μ := gaussianReal 0 1)]
-      congr 1
-      ext y
+      refine congrArg _ (Set.ext fun y => ?_)
       simp only [mem_preimage, mem_ofPred_eq, hx, false_and, mem_empty_iff_false]
   rw [measureReal_def, correlatedGaussian_def, Measure.map_apply (by fun_prop) hS,
     Measure.prod_apply (hS.preimage (by fun_prop))]
@@ -477,25 +475,19 @@ theorem negSemidef_rhoHessian_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 
   -- The two off-diagonal entries agree by the symmetry of the bivariate density.
   have hsymm : (rhoHessian ρ (gaussianQuadrant ρ) α β) 0 1 =
       (rhoHessian ρ (gaussianQuadrant ρ) α β) 1 0 := by
-    have hA := (gaussianPDFReal_pos 0 1 (gaussianQuantile α) one_ne_zero).ne'
-    have hB := (gaussianPDFReal_pos 0 1 (gaussianQuantile β) one_ne_zero).ne'
-    have hid := gaussianPDFReal_mul_gaussianPDFReal_comm hρ (gaussianQuantile α)
-      (gaussianQuantile β)
-    have hAB : (φ (gaussianQuantile α))⁻¹ *
-        φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2)) =
-        (φ (gaussianQuantile β))⁻¹ *
-          φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)) := by
-      rw [inv_mul_eq_div, inv_mul_eq_div, div_eq_div_iff hA hB]
-      linear_combination -hid
     rw [rhoHessian_gaussianQuadrant hρ hα hβ]
     simp only [Matrix.of_apply, Matrix.cons_val', Matrix.cons_val_zero, Matrix.cons_val_one,
-      Matrix.empty_val', Matrix.cons_val_fin_one, mul_assoc, hAB]
+      Matrix.empty_val', Matrix.cons_val_fin_one, mul_assoc]
+    congr 2
+    rw [inv_mul_eq_div, inv_mul_eq_div,
+      div_eq_div_iff (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne'
+        (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne']
+    linear_combination
+      -gaussianPDFReal_mul_gaussianPDFReal_comm hρ (gaussianQuantile α) (gaussianQuantile β)
   set M := rhoHessian ρ (gaussianQuadrant ρ) α β
   have hM : -M = !![-M 0 0, -M 0 1; -M 0 1, -M 1 1] := by
     ext i j
-    fin_cases i
-    · fin_cases j <;> simp [hsymm]
-    · fin_cases j <;> simp [hsymm]
+    fin_cases i <;> fin_cases j <;> simp [hsymm]
   rw [hM]
   refine Matrix.posSemidef_fin_two (by simpa [M, rhoHessian] using h00.le)
     (by simpa [M, rhoHessian] using h11.le) ?_

@@ -219,23 +219,16 @@ theorem boundedErrorAt_repeatMajority_sq {q p : Polynomial ℕ} {V : α × List 
       (2 * (univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
         V (a, List.ofFn r) = b).card - 2 ^ p.eval (enc a).length)) :
     BoundedErrorAt enc (2 * q ^ 2 * p) (repeatMajority enc (q ^ 2) p V) a b := by
-  have hlen : (2 * q ^ 2 * p).eval (enc a).length =
-      2 * (q ^ 2).eval (enc a).length * p.eval (enc a).length := by
-    simp only [eval_mul, eval_ofNat]
-  have hsq : (q ^ 2).eval (enc a).length = q.eval (enc a).length ^ 2 := eval_pow _
   unfold BoundedErrorAt
-  rw [hlen]
+  rw [eval_mul, eval_mul, eval_ofNat]
   refine BitString.two_mul_two_pow_le_of_four_mul_card_filter_not_le
     (fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = b) ?_
-  have hnot : (univ.filter fun x : BitString (2 * (q ^ 2).eval (enc a).length *
-        p.eval (enc a).length) => ¬repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = b) =
-      univ.filter fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = !b :=
-    filter_congr fun _ _ => by cases b <;> simp
-  rw [hnot]
+  rw [filter_congr (q := fun x => repeatMajority enc (q ^ 2) p V (a, List.ofFn x) = !b)
+    fun _ _ => by cases b <;> simp]
   have h1 := card_filter_repeatMajority_eq_not_le (enc := enc) (r := q ^ 2) (p := p) (V := V) a b
   have h2 := BitString.five_mul_card_filter_card_filter_block_le (q := q.eval (enc a).length)
     (fun s => V (a, List.ofFn s) = b) h
-  rw [← hsq] at h2
+  rw [← eval_pow] at h2
   calc 4 * _ ≤ 5 * _ := Nat.mul_le_mul_right _ (by norm_num)
     _ ≤ 5 * _ := Nat.mul_le_mul_left 5 h1
     _ ≤ _ := h2
@@ -260,21 +253,18 @@ theorem BPPWithError_subset_BPP {ε : ℕ → ℝ} (q : Polynomial ℕ)
   have hlong (a : α) (hN' : N ≤ (enc a).length) (b : Bool) (hb : b = true ↔ a ∈ A) :
       BoundedErrorAt enc (2 * q ^ 2 * p) V' a b := by
     obtain ⟨hq₀, hε⟩ := hN _ hN'
-    have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := a)
-      (n := p.eval (enc a).length)
+    have hsum : (acceptCount V a (p.eval (enc a).length) : ℝ) +
+        (univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
+          V (a, List.ofFn r) = false).card = 2 ^ p.eval (enc a).length := by
+      exact_mod_cast acceptCount_add_card_filter_eq_false (V := V) (a := a)
+        (n := p.eval (enc a).length)
     have hp2 : (0 : ℝ) < 2 ^ p.eval (enc a).length := pow_pos two_pos _
     refine (boundedErrorAt_repeatMajority_sq (V := V) (two_mul_le_mul_sub_of_le hq₀ ?_)).congr
       fun r => by simp [V', hN']
     cases b
-    · have := (hA a).2 (by simpa using hb)
-      have hcast : ((univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
-          V (a, List.ofFn r) = false).card : ℝ) =
-          2 ^ p.eval (enc a).length - acceptCount V a (p.eval (enc a).length) :=
-        eq_sub_of_add_eq' (by exact_mod_cast hsum)
-      rw [hcast]; nlinarith
-    · have := (hA a).1 (by simpa using hb)
-      change _ ≤ ((acceptCount V a _ : ℕ) : ℝ)
-      nlinarith
+    · nlinarith [(hA a).2 (by simpa using hb)]
+    · change _ ≤ ((acceptCount V a _ : ℕ) : ℝ)
+      nlinarith [(hA a).1 (by simpa using hb)]
   have hA' : {a | a ∈ A ∧ N ≤ (enc a).length} ∈ BPP enc :=
     ⟨2 * q ^ 2 * p, V', hV', fun a => ⟨fun ha => hlong a ha.2 true (iff_of_true rfl ha.1),
       fun ha => if hN' : N ≤ (enc a).length then

@@ -154,11 +154,9 @@ private theorem expectedCost_maskHandler (y : P → Γ) (j : P) (q' : ℕ ⊕ P)
     change expectedCost (wordOracle y) (readCost j) (maskAnswer H z j') = _
     rw [readCost_inr, maskAnswer]
     by_cases hj' : j' ∈ H
-    · rw [ite_eq_left hj', expectedCost_pure]
+    · simp only [hj', ↓reduceIte, expectedCost_pure]
       split_ifs <;> simp_all
-    · rw [ite_eq_right hj']
-      change expectedCost (wordOracle y) (readCost j) (OracleComp.query (.inr j')) = _
-      rw [expectedCost_query, readCost_inr]
+    · simp only [hj', ↓reduceIte, ProbOracleComp.query, expectedCost_query, readCost_inr]
       split_ifs <;> simp_all
 
 /-- The masked program run against `y` is the program run against `y` spliced with `z` on `H`. -/
@@ -257,14 +255,12 @@ theorem isSmoothDecoder_mask_heavyPositions {C : (ι → Bool) → P → Γ} {q 
   isQueryBounded i := isQueryBounded_mask _ _ (hA.isQueryBounded i)
   correct x i := by
     rw [decodeLaw_mask]
-    refine hA.correct x _ i ?_
-    exact (Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
-      (card_heavyPositions_le (hA.isQueryBounded i) z hδ)
+    exact hA.correct x _ i ((Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
+      (card_heavyPositions_le (hA.isQueryBounded i) z hδ))
   smooth x i j := by
     rw [expectedReads_mask]
     split_ifs with hj
-    · rw [ENNReal.toReal_zero]
-      exact div_nonneg (div_nonneg (Nat.cast_nonneg _) hδ.le) (Nat.cast_nonneg _)
+    · simp only [ENNReal.toReal_zero]; positivity
     · rw [(hobl i).expectedReads_eq _ z]
       simpa [heavyPositions] using hj
 
@@ -750,10 +746,7 @@ theorem toReal_decodeLaw_nonadaptivize [Fintype Γ] [Nonempty Γ] [DecidableEq �
         ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, NonadaptivePlan.eval, PMF.bind_pure,
         hpure, Nat.add_sub_cancel]
       rw [toReal_eval_attenuate]
-      by_cases hbb : b₀ = b
-      · subst hbb
-        simp
-      · simp [hbb, Ne.symm hbb]
+      cases b₀ <;> cases b <;> simp
   | liftBind q' cont ih =>
     cases q' with
     | inl k =>
@@ -868,10 +861,9 @@ theorem IsLocalDecoder.nonadaptivize [Fintype P] [Fintype Γ] [Nonempty Γ] [Dec
   correct x y i hy := by
     rw [toReal_decodeLaw_nonadaptivize]
     have hc := hA.correct x y i hy
-    have hpos : (0 : ℝ) < (Fintype.card Γ : ℝ) ^ (q - 1) := by positivity
     have hdiv : ε / (Fintype.card Γ : ℝ) ^ (q - 1) ≤
         ((decodeLaw (A i) y (x i)).toReal - 1 / 2) / (Fintype.card Γ : ℝ) ^ (q - 1) :=
-      div_le_div_of_nonneg_right (by linarith) hpos.le
+      div_le_div_of_nonneg_right (by linarith) (by positivity)
     linarith
 
 /-- Masking the heavy positions of a non-adaptive local decoder produces an explicit non-adaptive
@@ -887,14 +879,12 @@ theorem isSmoothDecoder_mask_nonadaptivePlan [Fintype P] [DecidableEq P] [Decida
   isQueryBounded i := isQueryBounded_nonadaptivePlan _
   correct x i := by
     rw [decodeLaw_nonadaptivePlan_mask]
-    refine hA.correct x _ i ?_
-    exact (Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
-      (card_heavyPositions_le (hA.isQueryBounded i) z hδ)
+    exact hA.correct x _ i ((Nat.cast_le.mpr (hammingDist_splice_le _ z (C x))).trans
+      (card_heavyPositions_le (hA.isQueryBounded i) z hδ))
   smooth x i j := by
     rw [expectedReads_nonadaptivePlan_mask]
     split_ifs with hj
-    · rw [ENNReal.toReal_zero]
-      exact div_nonneg (div_nonneg (Nat.cast_nonneg _) hδ.le) (Nat.cast_nonneg _)
+    · simp only [ENNReal.toReal_zero]; positivity
     · rw [(hasObliviousReads_nonadaptivePlan _).expectedReads_eq _ z]
       simpa [heavyPositions] using hj
 
