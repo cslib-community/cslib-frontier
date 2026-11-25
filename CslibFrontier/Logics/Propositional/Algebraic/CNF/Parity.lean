@@ -148,7 +148,8 @@ theorem CNF.sum_toBoolPoly_exclude_parityOn_ne [CommRing R] [CharP R 2] (B : Fin
         (Clause.exclude B fun i => decide (i ∈ A)).toBoolPoly R =
       (if c then 1 else 0) + ∑ i ∈ B, X i := by
   rw [← parityClauseSum_eq]
-  refine sum_congr rfl fun A _ => (Clause.toBoolPoly_exclude B _).trans ?_
+  refine sum_congr rfl fun A _ => ?_
+  rw [Clause.toBoolPoly_exclude]
   exact prod_congr rfl fun i _ => by simp only [decide_eq_true_eq]
 
 /-- In characteristic `2`, **the clause polynomials of the parity constraint

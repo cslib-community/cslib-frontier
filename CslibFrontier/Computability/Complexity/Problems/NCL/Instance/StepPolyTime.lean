@@ -58,7 +58,9 @@ theorem Vertex.computableInPolyTime_checkSat {α : Type} {input : α ↪ List Bo
 private theorem modify_not_eq_zip (s : List Bool) (i : ℕ) :
     s.modify i Bool.not =
       (s.zip (List.range s.length)).map (fun p => if p.2 = i then !p.1 else p.1) := by
-  refine List.ext_getElem (by simp) fun j hj _ => by simp [List.getElem_modify, eq_comm]
+  apply List.ext_getElem (by simp)
+  intro j hj _
+  simp [List.getElem_modify, eq_comm]
 
 private theorem computableInPolyTime_modify_not {α : Type} {input : α ↪ List Bool}
     {s : α → List Bool} {i : α → ℕ}
@@ -70,7 +72,8 @@ private theorem computableInPolyTime_modify_not {α : Type} {input : α ↪ List
       input (encList (encPair encBool encUnary)) := by fun_prop
   have hf : ComputableInPolyTime (fun x => (s x).modify (i x) Bool.not)
       input (encList encBool) := by
-    simp only [modify_not_eq_zip]; fun_prop
+    simp only [modify_not_eq_zip]
+    fun_prop
   exact (bits_encList_polyTime encBool).2.comp hf
 
 /-- Checking every local vertex condition is polynomial-time on raw configuration bits. -/

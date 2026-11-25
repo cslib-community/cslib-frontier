@@ -158,11 +158,13 @@ theorem hasUniformConvergenceRate_finset {H : Finset (α → β)}
       fun m δ => √(Real.log (2 * H.card / δ) / (2 * m)) := by
   intro D _ _ m hm δ hδ
   refine measure_pi_not_isRepresentative_le_of_log_le D hH (Real.sqrt_nonneg _) hδ ?_
-  rcases le_or_gt (Real.log (2 * H.card / δ)) 0 with hL | hL
+  set L := Real.log (2 * H.card / δ)
+  rcases le_or_gt L 0 with hL | hL
   · exact hL.trans (by positivity)
   · have hmR : (0 : ℝ) < m := by exact_mod_cast hm
     rw [Real.sq_sqrt (by positivity)]
-    field_simp; rfl
+    field_simp
+    rfl
 
 /-- **Hoeffding's inequality as a rate**: one hypothesis with a measurable misclassification set
 has uniform convergence rate `√(log (2 / δ) / (2 m))` over all distributions. -/
@@ -255,8 +257,9 @@ theorem Weighting.measure_pi_exists_not_isRepresentative_le {H : ι → ConceptC
         (ENNReal.ofReal_tsum_of_nonneg (fun i => (mul_pos (w.pos i) hδ).le)
           (w.summable.mul_right δ)).symm
     _ ≤ ENNReal.ofReal δ := by
+        refine ENNReal.ofReal_le_ofReal ?_
         rw [tsum_mul_right]
-        exact ENNReal.ofReal_le_ofReal (mul_le_of_le_one_left hδ.le w.tsum_le_one)
+        exact mul_le_of_le_one_left hδ.le w.tsum_le_one
 
 /-- **The SRM bound** [ShalevShwartzBenDavid2014, Theorem 7.4]: with probability at least `1 - δ`,
 every `h ∈ H i` has `L_D(h) ≤ L_S(h) + ε i m (w i · δ)`. -/

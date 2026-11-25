@@ -114,18 +114,21 @@ private theorem prefixOr_zero {r : ℕ} (F : Fin r → BooleanFunction n) (h : 0
     prefixOr F 0 = F ⟨0, h⟩ := by
   funext x
   rw [Bool.eq_iff_iff, prefixOr, decide_eq_true_iff]
-  exact ⟨fun ⟨e, he, hx⟩ => (show e = ⟨0, h⟩ from Fin.ext (Nat.eq_zero_of_le_zero he)) ▸ hx,
-    fun hx => ⟨⟨0, h⟩, le_rfl, hx⟩⟩
+  constructor
+  · rintro ⟨e, he, hx⟩
+    rwa [show e = ⟨0, h⟩ from Fin.ext (by lia)] at hx
+  · exact fun hx => ⟨⟨0, h⟩, le_rfl, hx⟩
 
 private theorem prefixOr_succ {r : ℕ} (F : Fin r → BooleanFunction n) (j : ℕ) (h : j + 1 < r) :
     prefixOr F (j + 1) = fun x => prefixOr F j x || F ⟨j + 1, h⟩ x := by
   funext x
   rw [Bool.eq_iff_iff, Bool.or_eq_true, prefixOr, prefixOr, decide_eq_true_iff,
     decide_eq_true_iff]
-  refine ⟨fun ⟨e, he, hx⟩ => ?_, ?_⟩
-  · rcases Nat.lt_or_ge e.val (j + 1) with hlt | hge
+  constructor
+  · rintro ⟨e, he, hx⟩
+    rcases Nat.lt_or_ge e.val (j + 1) with hlt | hge
     · exact Or.inl ⟨e, by lia, hx⟩
-    · exact Or.inr ((show e = ⟨j + 1, h⟩ from Fin.ext (by lia)) ▸ hx)
+    · exact Or.inr (by rwa [show e = ⟨j + 1, h⟩ from Fin.ext (by lia)] at hx)
   · rintro (⟨e, he, hx⟩ | hx)
     · exact ⟨e, by lia, hx⟩
     · exact ⟨⟨j + 1, h⟩, le_rfl, hx⟩

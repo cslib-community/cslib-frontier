@@ -165,10 +165,12 @@ theorem arccos_five_sixths_le : arccos (5 / 6) ≤ 5856858 / 10000000 := by
       (v := 95742707542009 / 100000000000000) (by norm_num)
     have h8 := Gaussian.cos_two_mul_le (by norm_num) h7
       (v := 41666660474747 / 50000000000000) (by norm_num)
-    simpa only [show (2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (5856858 / 2560000000 : ℝ))))))))) =
-      5856858 / 10000000 by norm_num] using h8.trans (by norm_num)
-  have hpi : (5856858 / 10000000 : ℝ) ≤ π := by linarith [pi_gt_d20]
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) hpi)
+    have hval : (5856858 / 10000000 : ℝ) =
+        2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (5856858 / 2560000000)))))))) := by norm_num
+    rw [hval]
+    exact h8.trans (by norm_num)
+  have hle : cos (5856858 / 10000000) ≤ 5 / 6 := hcos
+  exact (arccos_le_arccos hle).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_d20]))
 
 /-- **The sharpened numerical bound.** The circuit coefficient
 `1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972` is at least `457597 / 100000 = 4.57597`. -/

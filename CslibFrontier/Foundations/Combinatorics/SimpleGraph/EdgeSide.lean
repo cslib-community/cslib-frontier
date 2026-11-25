@@ -141,10 +141,13 @@ theorem edgeSide_eq_of_forall_adj (hT : T.IsTree) {u v : V} (huv : T.Adj u v) {S
     (hS : ∀ ⦃x y : V⦄, T.Adj x y → s(x, y) ≠ s(u, v) → (x ∈ S ↔ y ∈ S)) :
     edgeSide T u v = S := by
   ext x
-  refine ⟨fun hx => ((mem_edgeSide.mp hx).mem_iff_of_forall_adj hS).mp hu, fun hx => ?_⟩
-  by_contra hx'
-  have h := mem_edgeSide.mp ((mem_edgeSide_swap hT huv x).mpr hx')
-  rw [Sym2.eq_swap] at h
-  exact hv ((h.mem_iff_of_forall_adj hS).mpr hx)
+  constructor
+  · intro hx
+    exact ((mem_edgeSide.mp hx).mem_iff_of_forall_adj hS).mp hu
+  · intro hx
+    by_contra hx'
+    have h := (mem_edgeSide_swap hT huv x).mpr hx'
+    rw [mem_edgeSide, Sym2.eq_swap] at h
+    exact hv ((h.mem_iff_of_forall_adj hS).mpr hx)
 
 end SimpleGraph

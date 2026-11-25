@@ -87,14 +87,16 @@ theorem iterate_preloadedIncrement {s : Finset ι} {n K : ℕ → ℕ} {ρ : ℕ
       (preloadedIncrement Δ j)
       ⟨(iterate s n K ρ Δ a j).defaultValue, inputRow s n K ρ Δ a j⟩ r =
         iterate s n K ρ Δ a (j + r) := by
-  rcases r with _ | r
-  · omega
-  clear hr
-  induction r with
-  | zero => simp [iterate_succ, advance, inputRow]
-  | succ r ih =>
-    rw [iterate_succ, ih]
-    simp only [preloadedIncrement_succ, Nat.add_succ, iterate_succ]
+  cases r with
+  | zero => omega
+  | succ r =>
+    clear hr
+    induction r with
+    | zero =>
+      simp [iterate_succ, advance, inputRow]
+    | succ r ih =>
+      rw [iterate_succ, ih]
+      simp only [preloadedIncrement_succ, Nat.add_succ, iterate_succ]
 
 /-- Raw prefixes after the preloaded restart agree with the original raw prefixes. At local
 index zero the initial row is already global raw prefix `j + 1`. -/
@@ -106,7 +108,9 @@ theorem uncompressedRow_preloadedIncrement {Δ : ℕ → ι → Fin 2 → ℝ}
   · omega
   clear hr
   induction r with
-  | zero => ext; simp [uncompressedRow_succ]
+  | zero =>
+    ext
+    simp [uncompressedRow_succ]
   | succ r ih =>
     ext
     rw [uncompressedRow_succ, ih]
@@ -118,32 +122,45 @@ theorem prefixErrorBudget_preloadedError_le {ε : ℕ → ℝ} (j : ℕ) {r : �
     (hr : 0 < r) (hε : ∀ i ∈ Ico j (j + r), 0 ≤ ε i) :
     prefixErrorBudget (preloadedError ε j) r ≤
       4 * ∑ i ∈ Ico j (j + r), 28 ^ (j + r - i) * ε i := by
-  rcases r with _ | r
-  · omega
-  let T : ℝ := ∑ i ∈ range (r + 1), 28 ^ (r + 1 - i) * ε (j + i)
-  have hnonneg (i : ℕ) (hi : i < r + 1) : 0 ≤ ε (j + i) :=
-    hε (j + i) (mem_Ico.mpr ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hi _⟩)
-  have htail : (∑ i ∈ Ico j (j + (r + 1)), (28 : ℝ) ^ (j + (r + 1) - i) * ε i) = T := by
-    rw [sum_Ico_eq_sum_range]
-    simp only [Nat.add_sub_cancel_left, Nat.add_sub_add_left]; rfl
-  have hfirst : (28 : ℝ) ^ (r + 1) * ε j ≤ T := by
-    simpa only [Nat.sub_zero, Nat.add_zero] using single_le_sum (s := range (r + 1))
-      (f := fun i => (28 : ℝ) ^ (r + 1 - i) * ε (j + i))
-      (fun i hi => mul_nonneg (by positivity) (hnonneg i (mem_range.mp hi)))
-      (mem_range.mpr (Nat.zero_lt_succ r))
-  have hback : (∑ i ∈ range r, (28 : ℝ) ^ (r - i) * ε (j + i)) ≤ T :=
-    (sum_le_sum fun i hi => mul_le_mul_of_nonneg_right
-      (pow_le_pow_right₀ (by norm_num) (Nat.sub_le_sub_right r.le_succ i))
-      (hnonneg i ((mem_range.mp hi).trans_le r.le_succ))).trans
-    (sum_le_sum_of_subset_of_nonneg (range_mono r.le_succ)
-      fun i hi _ => mul_nonneg (by positivity) (hnonneg i (mem_range.mp hi)))
-  have hbefore :
-      (∑ i ∈ range (r + 1), (28 : ℝ) ^ (r + 1 - i) * preloadedError ε j i) ≤ 2 * T := by
-    rw [sum_range_succ']
-    simp only [preloadedError_succ, preloadedError_zero, Nat.add_sub_add_right, Nat.sub_zero]
+  cases r with
+  | zero => omega
+  | succ r =>
+    let T : ℝ := ∑ i ∈ range (r + 1), 28 ^ (r + 1 - i) * ε (j + i)
+    have hnonneg (i : ℕ) (hi : i < r + 1) : 0 ≤ ε (j + i) :=
+      hε (j + i) (mem_Ico.mpr ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hi _⟩)
+    have htail : (∑ i ∈ Ico j (j + (r + 1)), (28 : ℝ) ^ (j + (r + 1) - i) * ε i) =
+        T := by
+      rw [sum_Ico_eq_sum_range]
+      simp only [Nat.add_sub_cancel_left, Nat.add_sub_add_left]
+      rfl
+    have hfirst : (28 : ℝ) ^ (r + 1) * ε j ≤ T := by
+      have h := single_le_sum (s := range (r + 1))
+        (f := fun i => (28 : ℝ) ^ (r + 1 - i) * ε (j + i))
+        (fun i hi => mul_nonneg (by positivity) (hnonneg i (mem_range.mp hi)))
+        (mem_range.mpr (Nat.zero_lt_succ r))
+      simpa only [Nat.sub_zero, Nat.add_zero] using h
+    have hback :
+        (∑ i ∈ range r, (28 : ℝ) ^ (r - i) * ε (j + i)) ≤ T := by
+      calc
+        _ ≤ ∑ i ∈ range r, (28 : ℝ) ^ (r + 1 - i) * ε (j + i) := by
+          refine sum_le_sum fun i hi => mul_le_mul_of_nonneg_right
+            (pow_le_pow_right₀ (by norm_num) (Nat.sub_le_sub_right (Nat.le_succ r) i)) ?_
+          exact hnonneg i ((mem_range.mp hi).trans_le (Nat.le_succ r))
+        _ ≤ T := sum_le_sum_of_subset_of_nonneg (range_mono (Nat.le_succ r))
+          (fun i hi _ => mul_nonneg (by positivity) (hnonneg i (mem_range.mp hi)))
+    have hbefore :
+        (∑ i ∈ range (r + 1), (28 : ℝ) ^ (r + 1 - i) * preloadedError ε j i) ≤ 2 * T := by
+      rw [sum_range_succ']
+      simp only [preloadedError_succ, preloadedError_zero, Nat.add_sub_add_right, Nat.sub_zero]
+      linarith
+    have hafter :
+        (∑ i ∈ range (r + 1), (28 : ℝ) ^ (r + 1 - i) * preloadedError ε j (i + 1)) = T := by
+      simp only [preloadedError_succ]
+      rfl
+    rw [htail]
+    unfold prefixErrorBudget
+    simp only [mul_add, sum_add_distrib, preloadedError_zero]
+    rw [hafter]
     linarith
-  rw [htail, prefixErrorBudget]
-  simp only [mul_add, sum_add_distrib, preloadedError_zero, preloadedError_succ]
-  linarith
 
 end Cslib.RowCompression

@@ -128,18 +128,22 @@ theorem Op.apply_push_one_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ
 theorem Op.apply_pop_zero_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
     (Op.pop 0 γ).Apply (Stacks.pair s₀ s₁) σ ↔ ∃ t, s₀ = γ :: t ∧ σ = Stacks.pair t s₁ := by
   rw [Op.apply_pop]
-  refine ⟨fun h => ⟨σ 0, congrFun h 0, Stacks.eq_pair_iff.mpr ⟨rfl, (congrFun h 1).symm⟩⟩, ?_⟩
-  rintro ⟨t, rfl, rfl⟩
-  exact ((Stacks.eq_pair_iff
-    (σ := Function.update (Stacks.pair t s₁) 0 (γ :: Stacks.pair t s₁ 0))).mpr ⟨rfl, rfl⟩).symm
+  constructor
+  · intro h
+    exact ⟨σ 0, congrFun h 0, Stacks.eq_pair_iff.mpr ⟨rfl, (congrFun h 1).symm⟩⟩
+  · rintro ⟨t, rfl, rfl⟩
+    exact ((Stacks.eq_pair_iff (σ := Function.update (Stacks.pair t s₁) 0
+      (γ :: Stacks.pair t s₁ 0))).mpr ⟨rfl, rfl⟩).symm
 
 theorem Op.apply_pop_one_pair {γ : Γ} {s₀ s₁ : List Γ} {σ : Stacks 2 Γ} :
     (Op.pop 1 γ).Apply (Stacks.pair s₀ s₁) σ ↔ ∃ t, s₁ = γ :: t ∧ σ = Stacks.pair s₀ t := by
   rw [Op.apply_pop]
-  refine ⟨fun h => ⟨σ 1, congrFun h 1, Stacks.eq_pair_iff.mpr ⟨(congrFun h 0).symm, rfl⟩⟩, ?_⟩
-  rintro ⟨t, rfl, rfl⟩
-  exact ((Stacks.eq_pair_iff
-    (σ := Function.update (Stacks.pair s₀ t) 1 (γ :: Stacks.pair s₀ t 1))).mpr ⟨rfl, rfl⟩).symm
+  constructor
+  · intro h
+    exact ⟨σ 1, congrFun h 1, Stacks.eq_pair_iff.mpr ⟨(congrFun h 0).symm, rfl⟩⟩
+  · rintro ⟨t, rfl, rfl⟩
+    exact ((Stacks.eq_pair_iff (σ := Function.update (Stacks.pair s₀ t) 1
+      (γ :: Stacks.pair s₀ t 1))).mpr ⟨rfl, rfl⟩).symm
 
 /-- The kind of a stack operation: a push on stack `i`, a pop from stack `i`, or no stack
 operation. A visibly pushdown alphabet assigns a kind to each letter. -/

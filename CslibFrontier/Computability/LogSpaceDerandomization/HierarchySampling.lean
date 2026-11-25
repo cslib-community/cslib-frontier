@@ -90,7 +90,9 @@ theorem pilotInput_count_le
     (#({w | P.δ₁ * f ≤ pilotInput (P.cutoff f) P.γ
       (columnDetector X Y P.ϕ P.ρ P.J P.K f) C i w z} : Finset V) : ℝ) ≤ P.R / f := by
   have hct (t : ℝ) (ht : 0 ≤ t) : P.cutoff f t ≤ t :=
-    (P.cutoff_le hf t).trans (max_le (by linarith [mul_nonneg P.θ_pos.le hf.le]) ht)
+    (P.cutoff_le hf t).trans (max_le (by
+      have := mul_nonneg P.θ_pos.le hf.le
+      linarith) ht)
   exact card_le_of_pilot_pos hch hf hcπ hpair P.ϕ_one P.ρ_le_one P.η_pos P.ρ_one
     hC hC1 (P.cutoff_nonneg hf) hct P.γ_nonneg P.γ_le_one P.γ_zero
     P.gate P.J_pos P.R_rank P.R_var hi (lt_of_le_of_ne (P.γ_nonneg _) hg.symm)

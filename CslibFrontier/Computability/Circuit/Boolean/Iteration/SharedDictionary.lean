@@ -93,11 +93,13 @@ theorem synthesis_lookupOr {Q : ℕ} (s : Set (BooleanFunction a)) (keys : Fin M
     (hq : ∀ q bit, (fun x => queries x q bit) ∈ s) :
     Synthesis interpretation s (⋃ q, wires fun x => lookupOr keys values (queries x q))
       (48 * (Q + M + 1) * (Nat.clog 2 (Q + M) + 1) ^ 2 * (k + v + 1)) := by
-  refine (Synthesis.circuit (I := interpretation) (s := s)
-    (batchOrCircuit (input := Q * k) (fun j i => Sum.inr (keys j i))
-      (fun j bit => Sum.inr (values j bit)) (fun q i => Sum.inl (finProdFinEquiv (q, i))))
+  let c := batchOrCircuit (input := Q * k) (fun j i => Sum.inr (keys j i))
+    (fun j bit => Sum.inr (values j bit)) (fun q i => Sum.inl (finProdFinEquiv (q, i)))
+  have h := Synthesis.circuit (I := interpretation) (s := s) c
     (fun i x => queries x (finProdFinEquiv.symm i).1 (finProdFinEquiv.symm i).2)
-    fun _ => hq _ _).mono Set.Subset.rfl (fun g hg => ?_) (size_batchOrCircuit_le _ _ _)
+    fun i => hq _ _
+  refine h.mono Set.Subset.rfl ?_ (size_batchOrCircuit_le _ _ _)
+  intro g hg
   obtain ⟨q, bit, rfl⟩ := Set.mem_iUnion.mp hg
   refine ⟨finProdFinEquiv (q, bit), funext fun x => Bool.eq_iff_iff.mpr ?_⟩
   let y : BitString (Q * k) := fun i => queries x (finProdFinEquiv.symm i).1
@@ -191,11 +193,12 @@ theorem synthesis_finishHit (c : Circuit signature n n) (s : Set (BooleanFunctio
   have hsel := synthesis_chooseRecord s flags (fun x j => hitRecord (w := w) j.val (payloads x j))
     (fun _ _ => false) hf (fun j bit => ?_) fun _ => hc false
   · let src := s ∪ wires chosen
-    have hi : ∀ bit : Fin w, (fun x => (hitIndex (chosen x)).getLsbD bit.val) ∈ src := fun bit => by
+    have hi : ∀ bit : Fin w, (fun x => (hitIndex (chosen x)).getLsbD bit.val) ∈ src := by
+      intro bit
       simp only [hitIndex, BitString.getLsbD_equivBitVec]
       exact Or.inr ⟨_, rfl⟩
     have hpay : wires (fun x => hitPayload (chosen x)) ⊆ src := by
-      rintro _ ⟨_, rfl⟩
+      rintro _ ⟨bit, rfl⟩
       exact Or.inr ⟨_, rfl⟩
     have hh := synthesis_hitValue src c K (fun x => hitIndex (chosen x))
       (fun x => hitPayload (chosen x)) hi hpay fun b => Or.inl (hc b)

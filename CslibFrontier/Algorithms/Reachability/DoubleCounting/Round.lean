@@ -79,7 +79,8 @@ theorem nextTally_eq_expected (hw : Passes r s k w) :
     ext u
     rw [mem_union, mem_frontier_iff hw]
     exact ⟨fun h => by by_cases hu : u ∈ round r s k <;> tauto,
-      Or.rec (fun hu => mem_round.mpr (reachableWithin_mono (Nat.le_succ k) (mem_round.mp hu)))
+      fun h => h.elim
+        (fun hu => mem_round.mpr (reachableWithin_mono (Nat.le_succ k) (mem_round.mp hu)))
         And.left⟩
   unfold nextTally expected
   congr 1
@@ -109,16 +110,17 @@ private theorem exists_shortest_prefix {p : List α}
       p.dropLast.length = distance r s u + 1 := by
   have hi : k < p.length := by omega
   have hlast : k + 1 < p.length := by omega
-  have heq : p.length - 1 = k + 1 := by omega
+  let u := p[k]
   have hlast_eq : p[k + 1] = v := by
+    have heq : p.length - 1 = k + 1 := by omega
     simpa only [heq] using hp.1.getElem_length_sub_one
-  have he : r p[k] v := hlast_eq ▸ hp.1.isChain.getElem k hlast
+  have he : r u v := hlast_eq ▸ hp.1.isChain.getElem k hlast
   have htake := hp.1.take hi
   have hlen : (p.take (k + 1)).length = k + 1 := by simp [hp.2]
-  have hu : p[k] ∈ round r s k := mem_round.mpr ⟨k, le_rfl, htake.relatesInSteps hlen⟩
+  have hu : u ∈ round r s k := mem_round.mpr ⟨k, le_rfl, htake.relatesInSteps hlen⟩
   have hdrop : p.dropLast = p.take (k + 1) := by simp [List.dropLast_eq_take, hp.2]
-  exact ⟨p[k], hu, he, hdrop.symm ▸ htake,
-    by rw [hdrop, hlen, predecessor_distance hv hu he]⟩
+  refine ⟨u, hu, he, hdrop.symm ▸ htake, ?_⟩
+  rw [hdrop, hlen, predecessor_distance hv hu he]
 
 /-- Assuming uniqueness in the current round, a newly reached vertex has one shortest walk
 exactly when it has one predecessor in the current round. -/
@@ -151,11 +153,14 @@ theorem existsUnique_passes_succ_iff (hw : Passes r s k w) (hprev : ∃! t, Pass
     (∃! t, Passes r s (k + 1) t) ↔
       ∀ v ∈ frontier r w, ∃! u, u ∈ round r s k ∧ r u v := by
   rw [existsUnique_passes_iff]
-  refine ⟨fun h v hv => (existsUnique_shortest_iff_predecessor hw hv hprev).mp
-    (h v ((mem_frontier_iff hw).mp hv).1), fun h v hv => ?_⟩
-  by_cases hcur : v ∈ round r s k
-  · exact (existsUnique_passes_iff.mp hprev) v hcur
-  · have hnew := (mem_frontier_iff hw).mpr ⟨hv, hcur⟩
-    exact (existsUnique_shortest_iff_predecessor hw hnew hprev).mpr (h v hnew)
+  constructor
+  · intro h v hv
+    exact (existsUnique_shortest_iff_predecessor hw hv hprev).mp
+      (h v ((mem_frontier_iff hw).mp hv).1)
+  · intro h v hv
+    by_cases hcur : v ∈ round r s k
+    · exact (existsUnique_passes_iff.mp hprev) v hcur
+    · have hnew := (mem_frontier_iff hw).mpr ⟨hv, hcur⟩
+      exact (existsUnique_shortest_iff_predecessor hw hnew hprev).mpr (h v hnew)
 
 end Cslib.DoubleCounting

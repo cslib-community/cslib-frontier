@@ -129,8 +129,9 @@ theorem Design.restrict_apply (i : Fin m) (z : Fin ℓ → α) (k : Fin n) :
 theorem Design.extend_apply_orderEmbOfFin (i : Fin m) (x : Fin n → α) (w : Fin ℓ → α)
     (k : Fin n) : D.extend i x w ((D.block i).orderEmbOfFin (D.card_block i) k) = x k := by
   rw [Design.extend, dite_eq_left (orderEmbOfFin_mem _ _ k)]
-  exact congrArg x
-    ((OrderIso.symm_apply_eq _).2 (Subtype.ext (coe_orderIsoOfFin_apply _ _ k).symm))
+  congr
+  rw [OrderIso.symm_apply_eq]
+  exact Subtype.ext (coe_orderIsoOfFin_apply _ _ k).symm
 
 theorem Design.extend_apply_of_notMem (i : Fin m) (x : Fin n → α) (w : Fin ℓ → α) {k : Fin ℓ}
     (hk : k ∉ D.block i) : D.extend i x w k = w k :=
@@ -166,10 +167,13 @@ theorem Design.card_overlap (i j : Fin m) : #(D.overlap i j) = #(D.block i ∩ D
   ext p
   simp only [Design.overlap, mem_map, mem_filter, mem_univ, true_and, mem_inter,
     RelEmbedding.coe_toEmbedding]
-  refine ⟨fun ⟨k, hk, h⟩ => h ▸ ⟨orderEmbOfFin_mem _ _ k, hk⟩, fun ⟨hi, hj⟩ => ?_⟩
-  obtain ⟨k, rfl⟩ : p ∈ Set.range ((D.block i).orderEmbOfFin (D.card_block i)) := by
-    simpa using hi
-  exact ⟨k, hj, rfl⟩
+  constructor
+  · rintro ⟨k, hk, rfl⟩
+    exact ⟨orderEmbOfFin_mem _ _ k, hk⟩
+  · rintro ⟨hi, hj⟩
+    obtain ⟨k, rfl⟩ : p ∈ Set.range ((D.block i).orderEmbOfFin (D.card_block i)) := by
+      simpa using hi
+    exact ⟨k, hj, rfl⟩
 
 /-- For distinct blocks, at most `a` positions of the `i`-th block lie in the `j`-th block. -/
 theorem Design.card_overlap_le {i j : Fin m} (hij : i ≠ j) : #(D.overlap i j) ≤ a :=
@@ -192,7 +196,9 @@ theorem Design.dependsOn_restrict_extend (i j : Fin m) (w : Fin ℓ → α) :
 `x`, is an involution. -/
 private theorem Design.involutive_extend_restrict (i : Fin m) :
     Function.Involutive fun p : (Fin ℓ → α) × (Fin n → α) =>
-      (D.extend i p.2 p.1, D.restrict i p.1) := fun ⟨_, _⟩ => by simp
+      (D.extend i p.2 p.1, D.restrict i p.1) := by
+  rintro ⟨w, x⟩
+  simp
 
 end Design
 
@@ -252,7 +258,8 @@ theorem predictionExperiment_generator (D : Design ℓ n a m) (f : (Fin n → Bo
   simp only [Generator.predictionExperiment_eq_bind, Generator.outputDist, monad_bind_eq_bind,
     PMF.bind_map]
   rw [D.uniformOfFintype_bind_eq i]
-  simp only [Function.comp_apply, generator_apply, Design.restrict_extend]; rfl
+  simp only [Function.comp_apply, generator_apply, Design.restrict_extend]
+  rfl
 
 /-- **Hardwiring.** Some choice of the seed bits outside the `i`-th block keeps the probability
 that a predictor guesses bit `i` of the generator correctly. -/

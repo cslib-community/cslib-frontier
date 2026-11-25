@@ -221,12 +221,14 @@ theorem IsDeterministicAttack.failureProb_eq {dev : Dev} {pred : Secret → Bool
 theorem IsDeterministicAttack.failureProb_eq_one {dev : Dev} {pred : Secret → Bool}
     (h : M.IsDeterministicAttack dev pred) {w : Secret} (hw : pred w = true) :
     M.failureProb dev w = 1 := by
-  simp [h.failureProb_eq, hw]
+  rw [h.failureProb_eq, hw]
+  simp
 
 theorem IsDeterministicAttack.failureProb_eq_zero {dev : Dev} {pred : Secret → Bool}
     (h : M.IsDeterministicAttack dev pred) {w : Secret} (hw : pred w = false) :
     M.failureProb dev w = 0 := by
-  simp [h.failureProb_eq, hw]
+  rw [h.failureProb_eq, hw]
+  simp
 
 /-- A deterministic selective failure attack achieves maximum distinguishing advantage `1` between
 any two secrets `w₀, w₁` on which `pred` differs (`pred w₀ ≠ pred w₁`). -/

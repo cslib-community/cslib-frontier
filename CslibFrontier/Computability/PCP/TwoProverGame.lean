@@ -156,7 +156,8 @@ theorem winProb_pow [Finite X] [Finite Y] (n : ℕ) (ha : X → A) (hb : Y → B
   have := Cslib.Probability.PMF.toOuterMeasure_pi_forall (fun _ : Fin n => G.questions)
     fun _ => {q | G.accepts q.1 q.2 (ha q.1) (hb q.2)}
   simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin] at this
-  rw [← ENNReal.toReal_pow, ← this]; rfl
+  rw [← ENNReal.toReal_pow, ← this]
+  rfl
 
 /-- Answering each coordinate independently with an optimal strategy shows that parallel
 repetition cannot lower the value below `value G ^ n`. -/
@@ -273,12 +274,13 @@ theorem winProbOn_insert_le {n : ℕ} (ha : (Fin n → X) → Fin n → A)
       ε) :
     G.winProbOn ha hb (insert j C) ≤ G.winProbOn ha hb C * (G.value + ε) := by
   have hext := G.toOuterMeasure_accepts_le_value_add hε (fun x => ha x j) (fun y => hb y j)
+  rw [PMF.toOuterMeasure_map_apply] at hext
   have hpre : ((fun (x, y) => ((x j, y j), (x, y))) ⁻¹'
       {((x, y), (s, t)) : (X × Y) × ((Fin n → X) × (Fin n → Y)) |
         G.accepts x y (ha s j) (hb t j)}) = G.winsOn ha hb {j} := by
     ext ⟨x, y⟩
     simp [winsOn]
-  rw [PMF.toOuterMeasure_map_apply, hpre] at hext
+  rw [hpre] at hext
   rw [winProbOn, winProbOn, Finset.insert_eq, winsOn_union, Set.inter_comm,
     ← Cslib.Probability.PMF.toOuterMeasure_filter_mul_eq_inter _ _ _ hC, ENNReal.toReal_mul,
     mul_comm]

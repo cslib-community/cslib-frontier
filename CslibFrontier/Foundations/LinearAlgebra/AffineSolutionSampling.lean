@@ -151,8 +151,9 @@ theorem mem_and_map_eq_of_retrySampleSolution_eq_some {attempts : List Attempt}
     {target : Attempt → V} {randomness : Attempt → U} {a : Attempt} {x : U}
     (h : retrySampleSolution attempts system solver target randomness = some (a, x)) :
     a ∈ attempts ∧ system a x = target a := by
-  obtain ⟨before, after, rfl, hcurrent, -⟩ := retrySampleSolution_eq_some_iff.mp h
-  exact ⟨by simp, (solver a).map_eq_of_sampleSolution_eq_some hcurrent⟩
+  rw [retrySampleSolution_eq_some_iff] at h
+  obtain ⟨before, after, rfl, hcurrent, -⟩ := h
+  refine ⟨by simp, (solver a).map_eq_of_sampleSolution_eq_some hcurrent⟩
 
 /-- Bounded retries fail exactly when every listed attempt has a nonsurjective system. No
 probability or independence premise is hidden in this deterministic statement. -/

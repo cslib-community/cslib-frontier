@@ -121,19 +121,23 @@ bounded. -/
 theorem mem_FormulaPoly_iff_exists_formulas {L : Language Bool} :
     L ∈ FormulaPoly ↔ ∃ (F : ∀ n, Formula signature n) (p : ℕ → ℕ), PolynomiallyBounded p ∧
       ∀ n, (F n).leafSize ≤ p n ∧ (F n).Computes interpretation (L.slice n) := by
-  refine ⟨fun hL => ?_, fun ⟨F, p, hp, hF⟩ =>
-    hp.mono_of_le fun n => (formulaSize_le (hF n).2).trans (hF n).1⟩
-  choose F hF hsize using fun n => exists_computes_leafSize_eq (L.slice n)
-  exact ⟨F, _, hL, fun n => ⟨(hsize n).le, hF n⟩⟩
+  constructor
+  · intro hL
+    choose F hF hsize using fun n => exists_computes_leafSize_eq (L.slice n)
+    exact ⟨F, _, hL, fun n => ⟨(hsize n).le, hF n⟩⟩
+  · rintro ⟨F, p, hp, hF⟩
+    exact hp.mono_of_le fun n => (formulaSize_le (hF n).2).trans (hF n).1
 
 /-- Every Boolean function has a De Morgan formula of least leaf size with at most
 `3 * formulaSize f + 1` operation nodes (`Formula.size`). -/
 theorem exists_computes_size_le_three_mul_formulaSize_add_one (f : BooleanFunction n) :
     ∃ F : Formula signature n, F.Computes interpretation f ∧ F.leafSize = formulaSize f ∧
       F.size ≤ 3 * formulaSize f + 1 := by
-  obtain ⟨F, hF, hL, ⟨b, rfl⟩ | h⟩ := exists_computes_size_le f
-  · exact ⟨_, hF, hL, by simp⟩
-  · exact ⟨F, hF, hL, by omega⟩
+  obtain ⟨F, hF, hL, h⟩ := exists_computes_size_le f
+  refine ⟨F, hF, hL, ?_⟩
+  rcases h with ⟨b, rfl⟩ | h
+  · simp
+  · omega
 
 /-- **`FormulaPoly` with operation-node bounds.** Because every formula `F` satisfies
 `F.leafSize ≤ F.size + 1` (`Formula.leafSize_le`) and every Boolean function has a formula of

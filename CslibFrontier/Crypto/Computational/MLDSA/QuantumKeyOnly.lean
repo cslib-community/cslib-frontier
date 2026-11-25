@@ -58,7 +58,8 @@ def pointReply (H : DigestTable s) (p : ModuleSIS.SelfTarget.Point s.params.k 25
 private theorem pointReply_grid (H : DigestTable s) (p : GridPoint s) :
     pointReply s H (List.ofFn p.1, p.2.val) =
       (Keccak.fixedBytesEquivBitsLE _).symm (H (gridAddress s p)) := by
-  simp only [pointReply, List.length_ofFn, ite_true]; rfl
+  simp only [pointReply, List.length_ofFn, ite_true]
+  rfl
 
 /-- On the full canonical grid the expanded random-oracle table has *independent*
 coordinates, each with precisely the pushforward of a uniform digest through Algorithm 29.

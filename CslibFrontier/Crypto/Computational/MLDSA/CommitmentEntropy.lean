@@ -119,20 +119,21 @@ theorem commitmentGuessProbability_le_kernel_div_pow (s : Level) (A : PublicMatr
       (commitmentKernelSize s A : ℝ) / 2 ^ s.commitmentBoxBits := by
   let P := s.params
   have hγ : 0 < P.γ₁ := by cases s <;> decide
-  have h₂ : 0 < P.γ₂ := by cases s <;> decide
-  have hq : 2 * P.γ₁ < P.q := by cases s <;> decide
   have hdim : P.ℓ ≤ P.k := by cases s <;> decide
-  have h := commitmentGuessProbability_le_kernel P hγ h₂ hq hdim A
+  have h := commitmentGuessProbability_le_kernel P hγ (by cases s <;> decide)
+    (by cases s <;> decide) hdim A
   change _ ≤ (commitmentKernelSize s A : ℝ≥0∞) * _ / _ at h
   have hf := ENNReal.toReal_mono (by finiteness) h
   simp only [ENNReal.toReal_div, ENNReal.toReal_mul, ENNReal.toReal_pow,
-    ENNReal.toReal_natCast, mul_div_assoc] at hf
+    ENNReal.toReal_natCast] at hf
   have rounded : (2 * P.γ₂ + 1) ^ (P.ℓ * P.n) * 2 ^ s.commitmentBoxBits ≤
       (2 * P.γ₁) ^ (P.ℓ * P.n) := by cases s <;> decide +kernel
   have ratio : ((2 * P.γ₂ + 1 : ℕ) : ℝ) ^ (P.ℓ * P.n) / ((2 * P.γ₁ : ℕ) : ℝ) ^ (P.ℓ * P.n) ≤
       1 / (2 : ℝ) ^ s.commitmentBoxBits := by
-    rw [div_le_div_iff₀ (by positivity) (by positivity), one_mul]
+    apply (div_le_div_iff₀ (by positivity) (by positivity)).2
+    rw [one_mul]
     exact_mod_cast rounded
+  rw [mul_div_assoc] at hf
   exact hf.trans (by simpa only [← mul_div_assoc, mul_one] using
     mul_le_mul_of_nonneg_left ratio (Nat.cast_nonneg (commitmentKernelSize s A)))
 

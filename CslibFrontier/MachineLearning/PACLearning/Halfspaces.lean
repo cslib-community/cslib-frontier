@@ -223,7 +223,8 @@ theorem mem_affineHalfspaces {c : (Fin d → ℝ) → Bool} :
 theorem vcDim_homogeneousHalfspaces (d : ℕ) : vcDim (homogeneousHalfspaces d) = d := by
   refine (vcDim_positivityClass_eq (homogeneousForm d) (fun k : Fin d => Pi.single k (1 : ℝ))
     (Pi.single_left_injective one_ne_zero) (by rw [Fintype.card_fin, finrank_fin_fun])
-    fun t => ⟨t, fun i => by simp [dotProduct_single]⟩).trans (finrank_fin_fun ℝ)
+    fun t => ⟨t, fun i => ?_⟩).trans (finrank_fin_fun ℝ)
+  simp [dotProduct_single]
 
 /-- **The VC dimension of affine halfspaces** in `Fin d → ℝ` is `d + 1`
 [ShalevShwartzBenDavid2014, Theorem 9.3]. -/
@@ -233,12 +234,14 @@ theorem vcDim_affineHalfspaces (d : ℕ) : vcDim (affineHalfspaces d) = d + 1 :=
   let x : Option (Fin d) → Fin d → ℝ := fun o => o.elim 0 fun k => Pi.single k 1
   refine (vcDim_positivityClass_eq (affineForm d) x ?_
     (by rw [Fintype.card_option, Fintype.card_fin, hr])
-    fun t => ⟨(fun k => t (some k) - t none, t none),
-      by rintro (_ | i) <;> simp [x, dotProduct_single]⟩).trans hr
-  rintro (_ | i) (_ | j) hij
-  · rfl
-  · exact absurd (congrFun hij j).symm (by simp [x])
-  · exact absurd (congrFun hij i) (by simp [x])
-  · exact congrArg some (Pi.single_left_injective one_ne_zero hij)
+    fun t => ⟨(fun k => t (some k) - t none, t none), ?_⟩).trans hr
+  · rintro (_ | i) (_ | j) hij
+    · rfl
+    · exact absurd (congrFun hij j).symm (by simp [x])
+    · exact absurd (congrFun hij i) (by simp [x])
+    · exact congrArg some (Pi.single_left_injective one_ne_zero hij)
+  · rintro (_ | i)
+    · simp [x]
+    · simp [x, dotProduct_single]
 
 end Cslib.MachineLearning.PACLearning

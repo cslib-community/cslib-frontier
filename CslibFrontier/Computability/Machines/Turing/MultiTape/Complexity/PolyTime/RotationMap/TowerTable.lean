@@ -107,7 +107,8 @@ theorem valid_initial (H : RotationMap (Fin b) D) : (initial H).Valid := by
 theorem Valid.lookup_lt {table : TowerTable D} (h : table.Valid) {vertex : ℕ}
     (hv : vertex < table.length) (label : D × D) :
     (table.lookup vertex label).1 < table.length := by
-  rw [lookup, List.getD_eq_getElem _ _ hv]
+  unfold lookup
+  rw [List.getD_eq_getElem _ _ hv]
   exact h _ (List.getElem_mem hv) label
 
 /-- One complete level preserves the range of every neighbor. -/
@@ -147,9 +148,11 @@ private theorem square_relabel_rotation {V E B : Type*} (G : RotationMap V E)
       let step₁ := G.rot (vertex, e label 0)
       let step₂ := G.rot (step₁.1, e label 1)
       (step₂.1, e.symm ![step₂.2, step₁.2]) := by
-  refine Prod.ext rfl (congrArg e.symm ?_)
-  ext i
-  fin_cases i <;> rfl
+  apply Prod.ext
+  · rfl
+  · apply congrArg e.symm
+    ext i
+    fin_cases i <;> rfl
 
 private theorem lookup_initial (H : RotationMap (Fin b) D) (vertex : Fin b) (label : D × D) :
     (initial H).lookup vertex.val label =

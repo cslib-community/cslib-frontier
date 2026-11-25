@@ -84,7 +84,8 @@ theorem compactCoinMatrix_eq_coinTable (D : ℕ) (w : List Bool)
         ((coinTable machine D w).getD
           (2 * (u.val * vertexBound (k := k) (radix D w.length) + v.val) + 1)
           false).toNat : ℕ) / 2 := by
-  rw [coinTable_count]; rfl
+  rw [coinTable_count]
+  rfl
 
 section Ordered
 
@@ -108,12 +109,13 @@ theorem compactCoinMatrix_mulVec_one_le (B : ℕ) (w : List Bool) :
     w[queryIndex (k := k) B u]?
   have hcount : ∑ v : Fin (vertexBound (k := k) B),
       coinCountWithSymbol machine B w.length u v w[queryIndex (k := k) B u]? ≤ 2 := by
-    simp only [coinCountWithSymbol, Finset.sum_add_distrib]; omega
-  have hcountR : (∑ v : Fin (vertexBound (k := k) B),
+    simp only [coinCountWithSymbol, Finset.sum_add_distrib]
+    omega
+  have hcast : (∑ v : Fin (vertexBound (k := k) B),
       (coinCountWithSymbol machine B w.length u v w[queryIndex (k := k) B u]? : R)) ≤ 2 := by
     exact_mod_cast hcount
-  simpa only [mulVec, dotProduct, compactCoinMatrix, Pi.one_apply, mul_one, ← Finset.sum_div]
-    using (div_le_one zero_lt_two).mpr hcountR
+  simpa only [mulVec, dotProduct, compactCoinMatrix, Pi.one_apply, mul_one,
+    ← Finset.sum_div] using (div_le_one (by norm_num : (0 : R) < 2)).mpr hcast
 
 /-- The accepting reward is bounded at every ambient ID. -/
 theorem compactAcceptVec_mem_Icc (B n : ℕ) :

@@ -72,8 +72,9 @@ theorem noiseOp_sumElim (ρ : ℝ) (g : (ι ⊕ κ → Bool) → ℝ) (x₁ : ι
     noiseOp ρ g (Sum.elim x₁ x₂) =
       noiseOp ρ (fun y₁ => noiseOp ρ (fun y₂ => g (Sum.elim y₁ y₂)) x₂) x₁ := by
   have h (P₁ : ι → Bool) (P₂ : κ → Bool) :
-      Sum.elim x₁ x₂ + Sum.elim P₁ P₂ = Sum.elim (x₁ + P₁) (x₂ + P₂) :=
-    funext fun i => by cases i <;> rfl
+      Sum.elim x₁ x₂ + Sum.elim P₁ P₂ = Sum.elim (x₁ + P₁) (x₂ + P₂) := by
+    funext i
+    cases i <;> rfl
   simp only [noiseOp, bernoulliAverage_sumElim, h]
 
 /-! ### Tensorization -/
@@ -89,7 +90,8 @@ private theorem expect_mul_noiseOp_sumElim (ρ : ℝ) (f g : (ι ⊕ κ → Bool
   simp only [noiseOp_sumElim]
   refine expect_congr rfl fun x₁ _ => ?_
   rw [bernoulliAverage_expect_comm]
-  exact expect_congr rfl fun x₂ _ => by rw [noiseOp, ← bernoulliAverage_const_mul]
+  refine expect_congr rfl fun x₂ _ => ?_
+  rw [noiseOp, ← bernoulliAverage_const_mul]
 
 /-- The comparison `Φ (𝔼_x f x · T_ρ g x) (‖f‖_p ‖g‖_q)` for all functions `f` and `g` on the
 cube over `ι` with values in `S` and `T`: a forward inequality is `Φ = (· ≤ ·)` with

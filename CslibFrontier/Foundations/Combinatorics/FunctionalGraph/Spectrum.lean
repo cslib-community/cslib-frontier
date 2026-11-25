@@ -70,15 +70,18 @@ variable {α : Type u} [Finite α] (f : α → α)
 state. -/
 theorem iterate_add_cycleLength_mul (x : α) {a : ℕ} (ha : transientDepth f x ≤ a) (q : ℕ) :
     f^[a + cycleLength f x * q] x = f^[a] x := by
+  have hp := (isPeriodicPt_cycleLength f x).mul_const q
   calc f^[a + cycleLength f x * q] x
-      = f^[a - transientDepth f x] (f^[cycleLength f x * q] (f^[transientDepth f x] x)) := by
+      = f^[a - transientDepth f x]
+          (f^[cycleLength f x * q] (f^[transientDepth f x] x)) := by
         rw [← iterate_add_apply, ← iterate_add_apply]
-        exact congrArg (f^[·] x) (by omega)
-    _ = f^[a - transientDepth f x] (f^[transientDepth f x] x) := by
-        rw [((isPeriodicPt_cycleLength f x).mul_const q).eq]
+        congr 1
+        omega
+    _ = f^[a - transientDepth f x] (f^[transientDepth f x] x) := by rw [hp.eq]
     _ = f^[a] x := by
         rw [← iterate_add_apply]
-        exact congrArg (f^[·] x) (by omega)
+        congr 1
+        omega
 
 end Finite
 
@@ -91,11 +94,13 @@ variable {α : Type u} [Fintype α] (f : α → α)
 theorem iterate_eq_card_add_mod (x : α) {T : ℕ} (hT : Fintype.card α ≤ T) :
     f^[T] x = f^[Fintype.card α + (T - Fintype.card α) % cycleLength f x] x := by
   have hd := (transientDepth_lt_card f x).le
-  rw [← iterate_add_cycleLength_mul f x
+  have h := iterate_add_cycleLength_mul f x
     (a := Fintype.card α + (T - Fintype.card α) % cycleLength f x) (by omega)
-    ((T - Fintype.card α) / cycleLength f x)]
-  exact congrArg (f^[·] x)
-    (by have := Nat.mod_add_div (T - Fintype.card α) (cycleLength f x); omega)
+    ((T - Fintype.card α) / cycleLength f x)
+  rw [← h]
+  congr 1
+  have := Nat.mod_add_div (T - Fintype.card α) (cycleLength f x)
+  omega
 
 /-- **The cycle-length divisibility test.** `f^[Fintype.card α + ℓ] x = f^[Fintype.card α] x`
 holds iff `cycleLength f x ∣ ℓ`. -/

@@ -165,7 +165,8 @@ theorem Game.advantage_sampleModNat_units_le {p q n : ℕ} [NeZero (p * q)] (hp 
 theorem coprime_unitOrOne (N r : ℕ) : (unitOrOne N r).Coprime N := by
   unfold unitOrOne
   split_ifs with h
-  exacts [h, Nat.coprime_one_left N]
+  · exact h
+  · exact Nat.coprime_one_left N
 
 /-- The residue of a unit modulo `N` is kept. -/
 theorem unitOrOne_val_coe_unit {N : ℕ} (u : (ZMod N)ˣ) :

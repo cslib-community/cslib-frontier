@@ -145,25 +145,28 @@ private theorem evalTerminalBase_sat (p : ℕ) (ls : List Bool) (hl : ls.length 
 /-- The inactive terminal is legal for every literal input, including unsatisfied matrices. -/
 theorem legal_idle (p : ℕ) (ls : List Bool) (hl : ls.length = 2 * p) (ms : List (List Bool)) :
     ((terminalBase p ms).graph Gate.interp).Legal (idle p ls hl ms) := by
-  refine legal_top_mono Gate.interp_forward _ (Initial.terminalBase p ms).legal (fun i => ?_)
-    fun e => (congrFun (Initial.terminalBase_off p ms) (.inr e)).symm
-  have htail (xs : List Bool) : List.Forall₂ (· ≤ ·) (List.replicate xs.length false) xs := by
-    induction xs with
-    | nil => exact .nil
-    | cons x xs ih => exact .cons (Bool.false_le x) ih
-  have hb : List.Forall₂ (· ≤ ·)
-      ((terminalBase p ms).topList (Initial.terminalBase p ms).orient)
-      ((terminalBase p ms).topList (evalTerminalBase p ls hl ms true (by simp)).orient) := by
-    rw [(Initial.terminalBase p ms).top_eq, (evalTerminalBase p ls hl ms true (by simp)).top_eq]
-    simpa only [Initial.controls, bundle, List.length_append, List.length_replicate,
-      List.length_nil, Nat.add_zero, List.cons_append, List.nil_append, ← hl] using
-      List.Forall₂.cons le_rfl (.cons (Bool.false_le true) (htail ls))
-  unfold topList at hb
-  have hget := hb.get (by simpa only [List.length_ofFn] using i.isLt)
-    (by simpa only [List.length_ofFn] using i.isLt)
-  change (Initial.terminalBase p ms).orient (.inl i) ≤
-    (evalTerminalBase p ls hl ms true (by simp)).orient (.inl i)
-  simpa only [List.get_ofFn, Function.comp_apply, Fin.cast_mk, Fin.eta] using hget
+  refine legal_top_mono Gate.interp_forward _ (Initial.terminalBase p ms).legal ?_ ?_
+  · intro i
+    have htail : ∀ xs : List Bool, List.Forall₂ (· ≤ ·) (List.replicate xs.length false) xs := by
+      intro xs
+      induction xs with
+      | nil => exact .nil
+      | cons x xs ih => exact .cons (Bool.false_le x) ih
+    have hb : List.Forall₂ (· ≤ ·)
+        ((terminalBase p ms).topList (Initial.terminalBase p ms).orient)
+        ((terminalBase p ms).topList (evalTerminalBase p ls hl ms true (by simp)).orient) := by
+      rw [(Initial.terminalBase p ms).top_eq, (evalTerminalBase p ls hl ms true (by simp)).top_eq]
+      simp only [Initial.controls, bundle, List.length_append, List.length_replicate,
+        List.length_nil, Nat.add_zero, List.cons_append, List.nil_append, ← hl]
+      exact .cons le_rfl (.cons (Bool.false_le true) (htail ls))
+    unfold topList at hb
+    have hget := hb.get (by simpa only [List.length_ofFn] using i.isLt)
+      (by simpa only [List.length_ofFn] using i.isLt)
+    change (Initial.terminalBase p ms).orient (.inl i) ≤
+      (evalTerminalBase p ls hl ms true (by simp)).orient (.inl i)
+    simpa only [List.get_ofFn, Function.comp_apply, Fin.cast_mk, Fin.eta] using hget
+  · intro e
+    exact (congrFun (Initial.terminalBase_off p ms) (.inr e)).symm
 
 /-- Activate the terminal internally while fixing all boundary directions. -/
 theorem prepare (p : ℕ) (ls : List Bool) (hl : ls.length = 2 * p) (ms : List (List Bool)) :
@@ -196,12 +199,16 @@ theorem reachable_sat_iff (p : ℕ) (ls : List Bool) (hl : ls.length = 2 * p)
     (∃ t, ((terminalBase p ms).graph Gate.interp).ReachableOn
       (AllowsTop 0) (idle p ls hl ms) t ∧
       t (.inl ⟨0, by simp⟩) = false) ↔ ms.all (hits · ls) = true := by
-  refine ⟨?_, fun h => ⟨_, reachable_sat p ls hl ms h, by rw [Realization.orient_top]; rfl⟩⟩
-  rintro ⟨t, ht, hsat⟩
-  have htop := topList_of_reachableOn ht (topList_idle p ls hl ms)
-  rw [hsat] at htop
-  have hc := holds_terminal [] p ms t (ht.reachable.legal (legal_idle p ls hl ms))
-  rw [show (terminal p [] ms).topList t = [false, true] ++ ls from htop] at hc
-  exact (hc rfl).2
+  constructor
+  · rintro ⟨t, ht, hsat⟩
+    have htop := topList_of_reachableOn ht (topList_idle p ls hl ms)
+    rw [hsat] at htop
+    have hc := holds_terminal [] p ms t (ht.reachable.legal (legal_idle p ls hl ms))
+    rw [show (terminal p [] ms).topList t = [false, true] ++ ls from htop] at hc
+    exact (hc rfl).2
+  · intro h
+    exact ⟨_, reachable_sat p ls hl ms h, by
+      rw [Realization.orient_top]
+      rfl⟩
 
 end Cslib.Complexity.NCL.QBF.Matrix.Evaluation

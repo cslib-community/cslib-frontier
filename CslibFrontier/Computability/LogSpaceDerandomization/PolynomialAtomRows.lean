@@ -91,13 +91,15 @@ variable (kind : PolynomialAtomRow) {θ η v r r' : ℝ}
 
 theorem eval_nonneg (θ v r : ℝ) : 0 ≤ kind.eval θ v r := by
   cases kind
-  exacts [polynomialPrepRow4_nonneg _ _ _, polynomialAuxCutoff4_nonneg _ _ _,
-    polynomialWitnessCutoff4_nonneg _ _ _]
+  · exact polynomialPrepRow4_nonneg _ _ _
+  · exact polynomialAuxCutoff4_nonneg _ _ _
+  · exact polynomialWitnessCutoff4_nonneg _ _ _
 
 theorem eval_le_one (θ v r : ℝ) : kind.eval θ v r ≤ 1 := by
   cases kind
-  exacts [polynomialPrepRow4_le_one _ _ _, polynomialAuxCutoff4_le_one _ _ _,
-    polynomialWitnessCutoff4_le_one _ _ _]
+  · exact polynomialPrepRow4_le_one _ _ _
+  · exact polynomialAuxCutoff4_le_one _ _ _
+  · exact polynomialWitnessCutoff4_le_one _ _ _
 
 theorem entryThreshold_pos (hθ : 0 < θ) : 0 < kind.entryThreshold θ := by
   cases kind <;> dsimp only [entryThreshold] <;> positivity
@@ -164,7 +166,8 @@ theorem eval_default_eq_zero (hθ : 0 < θ) :
     kind.eval θ z (firstRank s K z w) = 0 := by
   by_cases hz : z ≤ kind.entryThreshold θ
   · exact kind.eval_eq_zero_of_entry_le hθ hz
-  · exact kind.eval_eq_zero_of_rank_ge hθ ((kind.gateThreshold_lt_entryThreshold hθ).le.trans
+  exact kind.eval_eq_zero_of_rank_ge hθ
+    ((kind.gateThreshold_lt_entryThreshold hθ).le.trans
       ((not_le.mp hz).le.trans default_le_firstRank))
 
 /-- Fewer than `K` retained endpoints have nonzero output for the actual padded rank. -/

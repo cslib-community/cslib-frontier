@@ -144,8 +144,9 @@ theorem endpoint_port_injective (G : Graph)
   have hj' := endpoint_index_lt G hj right
   have hv' : G.incidenceVertices[2 * i + left.toNat] =
       G.incidenceVertices[2 * j + right.toNat] := by
-    rwa [← List.getD_eq_getElem _ 0 hi', ← List.getD_eq_getElem _ 0 hj',
+    rw [← List.getD_eq_getElem _ 0 hi', ← List.getD_eq_getElem _ 0 hj',
       getD_incidenceVertices_endpoint, getD_incidenceVertices_endpoint]
+    exact hv
   have h := incidencePort_injective G hdeg hi' hj' hv' hp
   cases left <;> cases right <;> simp only [Bool.toNat_false, Bool.toNat_true] at h ⊢ <;>
     constructor <;> first | omega | trivial

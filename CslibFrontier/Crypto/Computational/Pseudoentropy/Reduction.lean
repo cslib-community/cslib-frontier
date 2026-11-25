@@ -168,11 +168,12 @@ theorem _root_.Cslib.Probability.IsTwoUniversal.fiber_correlation_le_guessInvert
   let source := (PMF.uniformOfFintype {x // f x = image}).map Subtype.val
   have hsource : ∀ x ∈ source.support, f x = image := by
     intro x hx
-    obtain ⟨preimage, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    obtain ⟨preimage, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
     exact preimage.property
+  have h := IsTwoUniversal.correlation_le_guessInverter
+    f image source hsource predictor hhash precision hp
   simpa only [source, sum_map_mul,
     collisionProbability_map_of_injective _ _ Subtype.val_injective,
-    collisionProbability_uniform, Nat.card_eq_fintype_card, div_eq_mul_inv] using
-    IsTwoUniversal.correlation_le_guessInverter f image source hsource predictor hhash precision hp
+    collisionProbability_uniform, Nat.card_eq_fintype_card, div_eq_mul_inv] using h
 
 end Cslib.Crypto.Pseudoentropy

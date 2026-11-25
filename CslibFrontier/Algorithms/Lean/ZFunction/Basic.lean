@@ -105,7 +105,8 @@ private theorem extend_eq_add_lcpLen (s : Array α) (j i h : ℕ) :
   | case3 h hlt =>
     have h1 := List.lcpLen_le_length_left (s.toList.drop (j + h)) (s.toList.drop (i + h))
     have h2 := List.lcpLen_le_length_right (s.toList.drop (j + h)) (s.toList.drop (i + h))
-    simp only [List.length_drop, Array.length_toList] at h1 h2; omega
+    simp only [List.length_drop, Array.length_toList] at h1 h2
+    omega
 
 /-- The main loop of the Z-algorithm at position `i`, with box `[l, r)` and the values `z` at
 the positions before `i`. If `z[i - l] < r - i` then `z[i] = z[i - l]`; otherwise extend the
@@ -153,7 +154,8 @@ private theorem z_push_getElem {s : Array α} {z : Array ℕ} {i v : ℕ} (hz : 
   rw [Array.getElem_push]
   split_ifs with hji
   · exact hzs j (hz ▸ hji)
-  · exact (show j = i by omega) ▸ hv
+  · rw [show j = i by omega]
+    exact hv
 
 private theorem getD_sub_eq_lcpLen {s : Array α} {z : Array ℕ} {i l r : ℕ}
     (hi1 : 1 ≤ i) (hl0 : r = 0 ∨ 0 < l) (hir : i < r) (hz : z.size = i)
@@ -209,7 +211,8 @@ theorem zArray_toList (s : Array α) : (zArray s).toList = zFunction s.toList :=
   · refine zLoop_spec s 1 0 0 #[s.size] (le_refl _) (by omega) rfl (fun j hj => ?_)
       Nat.zero_lt_one (Or.inl rfl) (Nat.zero_le _) (Nat.zero_le _)
     obtain rfl : j = 0 := by omega
-    rw [List.drop_zero, List.lcpLen_self, Array.length_toList]; rfl
+    rw [List.drop_zero, List.lcpLen_self, Array.length_toList]
+    rfl
 
 @[simp] theorem size_zArray (s : Array α) : (zArray s).size = s.size := by
   rw [← Array.length_toList, zArray_toList, length_zFunction, Array.length_toList]

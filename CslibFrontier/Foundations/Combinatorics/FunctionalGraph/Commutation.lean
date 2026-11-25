@@ -112,18 +112,24 @@ theorem disagreement_conjugate_card {β : Type*} [Fintype α] [Fintype β]
     (disagreement (e ∘ f ∘ e.symm) (e ∘ g ∘ e.symm)).card =
       (disagreement f g).card := by
   classical
-  refine (Finset.card_bij (fun x _ => e x) (fun x hx => ?_) (fun _ _ _ _ h => e.injective h)
-    fun y hy => ⟨e.symm y, ?_, by simp⟩).symm
-  · simpa only [mem_disagreement, Function.comp_apply, Equiv.symm_apply_apply,
+  symm
+  apply Finset.card_bij (fun x _ => e x)
+  · intro x hx
+    simpa only [mem_disagreement, Function.comp_apply, Equiv.symm_apply_apply,
       e.injective.ne_iff] using hx
-  · simpa only [mem_disagreement, Function.comp_apply, e.injective.ne_iff] using hy
+  · intro x _ y _ he
+    exact e.injective he
+  · intro y hy
+    refine ⟨e.symm y, ?_, by simp⟩
+    simpa only [mem_disagreement, Function.comp_apply, e.injective.ne_iff] using hy
 
 /-- If the relabeling `e` carries `g` to `g'`, then relabeling `f` edits `g'` in as many
 places as `f` edits `g`. -/
 theorem disagreement_semiconj_card {β : Type*} [Fintype α] [Fintype β]
     (f g : α → α) (e : α ≃ β) (g' : β → β) (h : Function.Semiconj e g g') :
     (disagreement (e ∘ f ∘ e.symm) g').card = (disagreement f g).card := by
-  have hg : e ∘ g ∘ e.symm = g' := funext fun y => by
+  have hg : e ∘ g ∘ e.symm = g' := by
+    funext y
     simpa only [Function.comp_apply, Equiv.apply_symm_apply] using h (e.symm y)
   rw [← hg, disagreement_conjugate_card]
 

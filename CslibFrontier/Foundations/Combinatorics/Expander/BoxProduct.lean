@@ -122,11 +122,14 @@ private theorem mul_expect_sq_le_of_secondEigenvalue [Nonempty K] (σ : K → Eq
     (f : V → ℝ) (hf : 𝔼 v, f v = 0) :
     2 * Fintype.card K * (1 - (ofPerms σ).secondEigenvalue) * 𝔼 v, f v ^ 2 ≤
       ∑ k, 𝔼 v, (f (σ k v) - f v) ^ 2 := by
-  have hK : (0 : ℝ) < 2 * Fintype.card K := by have := Fintype.card_pos (α := K); positivity
+  have hK : (0 : ℝ) < 2 * Fintype.card K := by
+    have := Fintype.card_pos (α := K)
+    positivity
   have h := (ofPerms σ).expect_mul_walk_le_secondEigenvalue_mul hf
   rw [expect_mul_walk_ofPerms] at h
   have := mul_le_mul_of_nonneg_left h hK.le
-  rw [mul_sub, mul_div_cancel₀ _ hK.ne'] at this; linarith
+  rw [mul_sub, mul_div_cancel₀ _ hK.ne'] at this
+  linarith
 
 /-- **The spectral gap of a box product**: the second eigenvalue of the box product of two
 permutation multigraphs is at most
@@ -171,6 +174,7 @@ theorem spectralExpansion_lazy_ofPerms_boxProdPerms_le [Nonempty K] [Nonempty K'
         (2 * (Fintype.card K + Fintype.card K')) := by
   have h₁ := (ofPerms (boxProdPerms σ τ)).spectralExpansion_lazy_le_one_add_secondEigenvalue_div_two
   have h₂ := secondEigenvalue_ofPerms_boxProdPerms_le σ τ
-  rw [div_mul_eq_div_div_swap]; linarith
+  rw [div_mul_eq_div_div_swap]
+  linarith
 
 end Cslib.RotationMap

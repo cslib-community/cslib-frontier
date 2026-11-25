@@ -93,8 +93,10 @@ theorem eulerLiars_eq_top {p : ℕ} [Fact p.Prime] (hp : p ≠ 2) : eulerLiars p
   intro a _
   rw [mem_eulerLiars, ← jacobiSym.legendreSym.to_jacobiSym, legendreSym.eq_pow, Int.cast_natCast,
     natCast_zmod_val]
-  obtain ⟨k, hk⟩ := (Fact.out : p.Prime).odd_of_ne_two hp
-  exact congrArg _ (by omega)
+  congr 1
+  have := (Fact.out : p.Prime).odd_of_ne_two hp
+  obtain ⟨k, hk⟩ := this
+  omega
 
 /-- **Euler liars of a composite**: modulo an odd composite `n`, some unit is not an Euler liar.
 If `p ^ 2 ∣ n` for an odd prime `p`, the unit `1 + n / p` has no power `-1` and its powers equal to

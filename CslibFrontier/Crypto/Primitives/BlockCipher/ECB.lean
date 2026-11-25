@@ -191,7 +191,9 @@ private theorem run_reduction (f : D → D) (ℓ : ℕ) {σ : Type}
         return false == b := by
   simp only [reduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
   refine bind_congr fun b => bind_congr fun p => ?_
-  split_ifs <;> simp [ProbOracleComp.run_mapM_query]
+  split_ifs
+  · simp [ProbOracleComp.run_mapM_query]
+  · rfl
 
 /-- The real block-cipher experiment of `ECB.reduction ℓ A` against a keyed permutation `E` is the
 bit-guessing form of the one-time experiment against `Cipher.ecb E`: when the reduction's oracle is
@@ -218,8 +220,8 @@ private theorem map_uniform_perm_map_eq [Fintype D] {m₀ m₁ : List D} (h₀ :
     (PMF.uniformOfFintype (Equiv.Perm D)).map (fun π : Equiv.Perm D => m₀.map ⇑π) =
       (PMF.uniformOfFintype (Equiv.Perm D)).map (fun π : Equiv.Perm D => m₁.map ⇑π) := by
   let x : Fin m₀.length ↪ D := ⟨fun i => m₀[i], List.nodup_iff_injective_get.mp h₀⟩
-  let y : Fin m₀.length ↪ D := ⟨fun i => m₁[i.cast hlen],
-    (List.nodup_iff_injective_get.mp h₁).comp (Fin.cast_injective hlen)⟩
+  let y : Fin m₀.length ↪ D := ⟨fun i => m₁[i.cast hlen], (List.nodup_iff_injective_get.mp h₁).comp
+    (Fin.cast_injective hlen)⟩
   obtain ⟨τ, hτ⟩ := Equiv.Perm.exists_smul_eq_embedding x y
   have hm : m₁ = m₀.map τ := by
     refine List.ext_getElem (by simp [hlen]) fun i hi₁ hi₂ => ?_
@@ -230,7 +232,9 @@ private theorem map_uniform_perm_map_eq [Fintype D] {m₀ m₁ : List D} (h₀ :
           (fun π : Equiv.Perm D => m₀.map ⇑π) := by rw [PMF.uniformOfFintype_map_equiv]
     _ = (PMF.uniformOfFintype (Equiv.Perm D)).map (fun π : Equiv.Perm D => m₁.map ⇑π) := by
       rw [PMF.map_comp, hm]
-      exact congrArg _ (funext fun π => by simp [Function.comp_def])
+      congr 1
+      funext π
+      simp [Function.comp_def]
 
 /-- **Theorem 4.1, equation (4.3)** ([BonehShoup2023], pp. 104–105): for the ECB cipher of a
 block cipher `E` over finite types, with challenge pairs restricted to sequences of at most `ℓ`

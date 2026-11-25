@@ -89,10 +89,11 @@ theorem medians_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) 
   fun_induction medians xs with
   | case1 => simp -- []
   | case2 x xs ih =>
+    simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
     have hg := groupMedian_countQueries_le oracle x (xs.take 4)
     have h5 := five_mul_mergeSortCountBound_le (j := (xs.take 4).length) (by simp)
     have htake : (xs.take 4).length + (xs.drop 4).length = xs.length := by simp; omega
-    simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero, List.length_cons]
+    simp only [List.length_cons]
     omega
 
 /-- Lists of at most `selectCutoff` elements are sorted with at most `10` comparisons per

@@ -167,7 +167,8 @@ theorem resumeDensity_posSemidef (request : Fin r → Bool) (service : PMF (Fin 
     {ρ} (hρ : ρ.PosSemidef) :
     (G.resumeDensity hG n hlen hmem H κ nextInput request service ρ).PosSemidef := by
   rw [resumeDensity_apply]
-  refine posSemidef_sum univ fun reply _ => ?_
+  apply posSemidef_sum
+  intro reply _
   rw [densityConj_apply]
   exact (hρ.mul_mul_conjTranspose_same _).smul ENNReal.toReal_nonneg
 
@@ -260,8 +261,10 @@ theorem runClassicalQuery_apply (ρ) :
 theorem runClassicalQuery_posSemidef {ρ} (hρ : ρ.PosSemidef) :
     (G.runClassicalQuery hG n x H κ F hF hx s t hnext hkeep nextInput service ρ).PosSemidef := by
   unfold runClassicalQuery
-  refine posSemidef_sum univ fun request _ => G.resumeDensity_posSemidef _ _ _ _ _ _ _ _ _
-    (classicalDensityBranch_posSemidef _ _ ?_)
+  apply posSemidef_sum
+  intro request _
+  apply G.resumeDensity_posSemidef
+  apply classicalDensityBranch_posSemidef
   rw [runDensityWithReference_apply, densityConj_apply]
   exact hρ.mul_mul_conjTranspose_same _
 

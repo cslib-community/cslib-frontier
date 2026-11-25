@@ -128,11 +128,12 @@ theorem card_filter_repeatMajority_eq_not_le {enc : α ↪ List Bool} {r p : Pol
   rw [mem_filter, repeatMajority_ofFn] at hx
   cases b
   · rw [Bool.not_false, decide_eq_true_iff] at hx
-    have hsum := card_filter_add_card_filter_not
-      (s := (univ : Finset (Fin (2 * r.eval (enc a).length))))
+    have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Fin (2 *
+      r.eval (enc a).length))))
       fun i => V (a, List.ofFn (BitString.block x i)) = true
     simp only [Bool.not_eq_true, card_univ, Fintype.card_fin] at hsum
-    exact mem_filter.2 ⟨mem_univ _, by omega⟩
+    refine mem_filter.2 ⟨mem_univ _, ?_⟩
+    omega
   · rw [Bool.not_true, decide_eq_false_iff_not, not_lt] at hx
     exact mem_filter.2 ⟨mem_univ _, hx.2⟩
 

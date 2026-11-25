@@ -117,8 +117,9 @@ theorem eval_literalsRailCircuit (x : BitString n) :
       railBitString x := by
   funext k
   have hconst : (const true : Formula _ (n + n)).toCircuit.eval interpretation
-      (Boolean.AltFormula.literals x) = fun _ => true :=
-    funext fun _ => by rw [Formula.eval_toCircuit, eval_const]
+      (Boolean.AltFormula.literals x) = fun _ => true := by
+    funext j
+    rw [Formula.eval_toCircuit, eval_const]
   simp only [circuit_simps, literalsRailCircuit, hconst, railBitString_eq_append_literals]
   rfl
 
@@ -211,7 +212,8 @@ theorem pairCoverComplexity_le_complexity (f : BooleanFunction n)
       admissible ≤ (complexity Boolean.interpretation (single f) : ℕ) := by
   obtain ⟨c, hc, hsize⟩ :=
     exists_computes_size_eq_complexity (I := Boolean.interpretation) (f := single f)
-  exact hsize ▸ pairCoverComplexity_le_size c hc admissible
+  rw [← hsize]
+  exact pairCoverComplexity_le_size c hc admissible
 
 open Boolean in
 /-- **Fusion upper bound for De Morgan circuits.** A `t`-pair cover yields a De Morgan circuit of
@@ -221,8 +223,9 @@ theorem PairCover.exists_computes_size_le {f : BooleanFunction n}
     ∃ d : Circuit Boolean.signature n 1, d.Computes Boolean.interpretation (single f) ∧
       d.size ≤ 4 * (c.pairs.length + 1) ^ 2 * (2 * n + c.pairs.length + 1) + n := by
   refine ⟨(c.toCircuit.mapOp Monotone.toDeMorgan).comp (AltFormula.deMorganLiteralsCircuit n),
-    fun x => funext fun _ => ?_, ?_⟩
-  · rw [Circuit.eval_comp, AltFormula.eval_deMorganLiteralsCircuit,
+    fun x => ?_, ?_⟩
+  · funext o
+    rw [Circuit.eval_comp, AltFormula.eval_deMorganLiteralsCircuit,
       Circuit.eval_mapOp (I := Monotone.interpretation),
       c.computesFrom_toCircuit x, single_apply]
   · rw [Circuit.size_comp, Circuit.size_mapOp, AltFormula.size_deMorganLiteralsCircuit, two_mul]

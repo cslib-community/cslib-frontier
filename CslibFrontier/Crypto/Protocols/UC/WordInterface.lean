@@ -431,7 +431,9 @@ theorem runWith_lowerWith {ι : Type} {E : ι → Type} {α : Type} (I : WordInt
     runWith (I.encodeOracle oracle) (program.lowerWith I limit) s =
       runWith oracle program s := by
   rw [lowerWith, runWith_simulate]
-  exact congrArg (runWith · program s) (funext₂ (I.runWith_lowerQuery oracle hfit))
+  congr 1
+  funext q t
+  exact I.runWith_lowerQuery oracle hfit q t
 
 end ProbOracleComp
 

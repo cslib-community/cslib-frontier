@@ -119,7 +119,8 @@ theorem complexity_trialGuess_le (D : Design ℓ n a m) (f : BooleanFunction n)
     (fun j x => generator D f (D.extend t.pos x t.seed) (Fin.castLE t.pos.isLt.le j))
     (Nat.le_add_left 1 _) fun j => ?_
   refine (complexity_le_of_dependsOn (dependsOn_generator_extend D f _ _ t.seed)).trans ?_
-  have := D.card_overlap_le (Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt))
+  have := D.card_overlap_le <|
+    Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt)
   gcongr
 
 /-- **The guess of every trial, reading its queries from input wires.** If the trial `t` makes at

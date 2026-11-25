@@ -357,10 +357,11 @@ theorem sufCmaGame_linearHashNonceMAC_toReal_le
             (prfIdealGame id id
               (prfNonceToPrfDistinguisher msgLen (fun k => BitString.sampleList (k * msgLen k))
                 BitString.LinearHash.wordHash adversary) n)) : ℝ) := by
+  have h := sufCmaGame_carterWegmanNonceMAC_toReal_le hmsgLen (isPPTOn_linearHashSeed hmsgLen)
+    computableInPolyTime_linearHashWordHash hfamily
+    (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) adversary
   simpa only [linearHashNonceMAC, ENNReal.toReal_inv, ENNReal.toReal_pow,
-    ENNReal.toReal_ofNat] using sufCmaGame_carterWegmanNonceMAC_toReal_le hmsgLen
-      (isPPTOn_linearHashSeed hmsgLen) computableInPolyTime_linearHashWordHash hfamily
-      (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) adversary
+    ENNReal.toReal_ofNat] using h
 
 private theorem isDeltaUniversalHash_linearHashWordHash_nnreal (msgLen : ℕ → ℕ) (n : ℕ) :
     IsDeltaUniversalHash (ProbComp.eval (BitString.sampleList (n * msgLen n)))

@@ -63,12 +63,14 @@ lemma actual_tail_le_envelope
   dsimp only
   unfold actualClippedTail meanRowTail firstOverflowNoiseTail
   rw [←sum_add_distrib, ←sum_add_distrib, ←sum_add_distrib]
-  refine sum_le_sum fun j _ => ?_
+  apply sum_le_sum
+  intro j _
   by_cases he : meanFirstEvent t D suffix k m j η G n K Δ raw σ x
   · have ho := he.1
     simp only [he, ho, ↓reduceIte, Fin.isValue, one_ne_zero]
     rw [←sum_add_distrib, ←sum_add_distrib, ←sum_add_distrib]
-    refine sum_le_sum fun i _ => ?_
+    apply sum_le_sum
+    intro i _
     have hh := actual_two_mask_row_max HP s t Ls (side P k) Lt D sourceSuffix suffix k G hG ζ
       (actualPrefix Δ raw i) (hz i) σ x
     dsimp only at hh
@@ -89,7 +91,8 @@ lemma actual_tail_le_envelope
       actualNoiseMax s t Ls (side P k) Lt D sourceSuffix suffix k G Δ raw 1 i σ x := by
       simpa only [actualClippedMean, actualNoiseMax, Fin.isValue, one_ne_zero, ↓reduceIte,
         div_one, abs_div, abs_abs, hden] using hh
-    linarith [mul_le_mul_of_nonneg_left hh' (by positivity : 0 ≤ (28 : ℝ) ^ (m - i))]
+    have hm := mul_le_mul_of_nonneg_left hh' (by positivity : 0 ≤ (28 : ℝ) ^ (m - i))
+    linarith
   · simp only [he, ↓reduceIte, zero_add]
     apply add_nonneg <;> split_ifs
     all_goals first

@@ -152,11 +152,13 @@ theorem computableInDegree_runClosedCoins [Finite State]
     have hh : ((Replay.compile machine prepare).runFrom
         ((Replay.compile machine prepare).initCfg (encPair encBits encBits p))
         (time p)).Halted := by
-      rw [show time p = c * size p + (2 + (p.1.length + 1)) from rfl, hr]; rfl
+      rw [show time p = c * size p + (2 + (p.1.length + 1)) from rfl, hr]
+      rfl
+    have hlen := length_le_encPair_left encBits encBits p
     have ht₀ : time p + 1 ≤ (c + 5) * size p := by
-      have hlen := length_le_encPair_left encBits encBits p
       dsimp only [time, size]
-      simp only [encBits_apply] at hlen; nlinarith
+      simp only [encBits_apply] at hlen
+      nlinarith
     have ht : time p ≤ b * size p :=
       (Nat.le_succ _).trans (ht₀.trans
         (Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_left (c + 5) (Nat.succ_pos n))))
@@ -165,13 +167,15 @@ theorem computableInDegree_runClosedCoins [Finite State]
         _ ≤ n * ((c + 5) * size p) := Nat.mul_le_mul_left n ht₀
         _ ≤ (n + 1) * ((c + 5) * size p) := Nat.mul_le_mul_right _ (Nat.le_succ n)
         _ = _ := (Nat.mul_assoc _ _ _).symm
-    refine ⟨⟨time p, hh, ?_⟩, (runsInTime_of_halted hh).mono ht, runsInSpace_of_halted hh
-      ((MultiTapeNTM.RunPath.ofDeterministic (Replay.compile machine prepare)
+    refine ⟨⟨time p, hh, ?_⟩, (runsInTime_of_halted hh).mono ht,
+      runsInSpace_of_halted hh ?_⟩
+    · change ((Replay.compile machine prepare).runFrom _
+        (c * size p + (2 + (p.1.length + 1)))).output = _
+      rw [hr]
+      rfl
+    · exact (MultiTapeNTM.RunPath.ofDeterministic (Replay.compile machine prepare)
         ((Replay.compile machine prepare).initCfg (encPair encBits encBits p))
-        (time p)).space_le_mul_time_add_one.trans hs)⟩
-    change ((Replay.compile machine prepare).runFrom _
-      (c * size p + (2 + (p.1.length + 1)))).output = _
-    rw [hr]; rfl
+        (time p)).space_le_mul_time_add_one.trans hs
   exact ComputableInDegree.one_one_iff.mpr ⟨b, hraw⟩
 
 /-- Running a fixed machine on a supplied pair of coins and input is computable in polynomial

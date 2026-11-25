@@ -44,7 +44,12 @@ theorem exists_isProof_of_sum {κ : Type*} {F : List (MvPolynomial V R)} (s : Fi
     ∃ P, IsProof F P (∑ t ∈ s, f t * g t) ∧ degree F P ≤ d := by
   classical
   induction s using Finset.induction_on with
-  | empty => exact ⟨0, by simp [IsProof], degree_le_iff.mpr fun _ hi => absurd rfl hi⟩
+  | empty =>
+    refine ⟨0, ?_, ?_⟩
+    · simp [IsProof]
+    · rw [degree_le_iff]
+      intro i hi
+      exact absurd rfl hi
   | insert t s hts ih =>
     obtain ⟨P, hP, hPd⟩ := ih (fun t' ht' => hf t' (Finset.mem_insert_of_mem ht'))
       (fun t' ht' => hd t' (Finset.mem_insert_of_mem ht'))
@@ -53,23 +58,27 @@ theorem exists_isProof_of_sum {κ : Type*} {F : List (MvPolynomial V R)} (s : Fi
     refine ⟨fun j => (Pi.single i (g t) : Fin F.length → MvPolynomial V R) j + P j, ?_, ?_⟩
     · have h1 : IsProof F (Pi.single i (g t)) (F.get i * g t) := by
         simp [IsProof, Pi.single_apply]
+      have h := h1.add hP
       rw [Finset.sum_insert hts]
-      simpa only [hi] using h1.add hP
+      rwa [hi] at h
     · rw [degree_le_iff] at hPd ⊢
       intro j hj
-      rcases eq_or_ne j i with rfl | hji
-      · rw [Pi.single_eq_same] at hj ⊢
-        rcases eq_or_ne (g t) 0 with hg | hg
+      by_cases hji : j = i
+      · subst hji
+        rw [Pi.single_eq_same] at hj ⊢
+        rw [hi]
+        by_cases hg : g t = 0
         · rw [hg, zero_add] at hj ⊢
-          exact hPd j hj
-        · rcases eq_or_ne (P j) 0 with hPj | hPj
-          · rw [hi, hPj, add_zero]
-            exact hdt hg
-          · have h2 := hPd j hPj
-            have h3 := hdt hg
-            have := totalDegree_add (g t) (P j)
-            rw [hi] at h2 ⊢
-            omega
+          have := hPd j hj
+          rwa [hi] at this
+        by_cases hPj : P j = 0
+        · rw [hPj, add_zero]
+          exact hdt hg
+        have h2 := hPd j hPj
+        rw [hi] at h2
+        have h3 := hdt hg
+        have := totalDegree_add (g t) (P j)
+        omega
       · rw [Pi.single_eq_of_ne hji, zero_add] at hj ⊢
         exact hPd j hj
 

@@ -66,17 +66,20 @@ theorem closeTo_runWith_schnorrEncodedROMScheme
       (runWith (handler (F.schnorrEncodedROMScheme d m keyLaw
         (PMF.uniformOfFintype (ZMod (F.order d)))) sk) program state)
       (Qs * (1 / 2 ^ n : ℝ≥0)) := by
-  refine h.closeTo_runWith (fun q state => ?_) state
-  rcases q with msg | word
-  · simpa only [signingCost, Nat.cast_one, one_mul, handler, schnorrEncodedROMScheme,
+  apply h.closeTo_runWith
+  intro q state
+  cases q with
+  | inl msg =>
+    simpa only [signingCost, Nat.cast_one, one_mul, handler, schnorrEncodedROMScheme,
       PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
       OracleComp.runWith_eq_run_interpret] using
-      (F.closeTo_uniform_sampleExp n d).symm.bind_left fun r => do
+      (F.closeTo_uniform_sampleExp n d).symm.bind_left (fun r => do
         let signed ← runWith (oracle (BitString m))
           ((F.schnorrEncodedROMScheme d m keyLaw
             (PMF.uniformOfFintype (ZMod (F.order d)))).sign sk msg r) state.1
-        return (signed.1, (signed.2, msg :: state.2))
-  · simpa only [signingCost, Nat.cast_zero, zero_mul, handler] using
+        return (signed.1, (signed.2, msg :: state.2)))
+  | inr word =>
+    simpa only [signingCost, Nat.cast_zero, zero_mul, handler] using
       CloseTo.refl (handler (F.schnorrEncodedROMScheme d m keyLaw
         (PMF.uniformOfFintype (ZMod (F.order d)))) sk (Sum.inr word) state)
 

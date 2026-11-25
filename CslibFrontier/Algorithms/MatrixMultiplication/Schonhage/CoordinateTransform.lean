@@ -117,7 +117,10 @@ private theorem index_cons {b L : ℕ} (s : Fin b) (u : Fin L → Fin b) :
     (finFunctionFinEquiv (Fin.cons s u) : ℕ) = s.val + b * (finFunctionFinEquiv u : ℕ) := by
   simp only [finFunctionFinEquiv_apply, Fin.sum_univ_succ, Fin.cons_zero, Fin.cons_succ,
     Fin.val_zero, pow_zero, mul_one, Fin.val_succ, pow_succ, Finset.mul_sum]
-  exact congrArg (_ + ·) (sum_congr rfl fun i _ => by ring)
+  congr 1
+  apply sum_congr rfl
+  intro i _
+  ring
 
 /-- Digitwise coefficients as a total flat table. Only the first ten rows and seven columns
 are read by the transform. -/
@@ -151,8 +154,11 @@ theorem value_final (c : Fin 10 → Fin 7 → ℤ) (L : ℕ)
     value (table c) L 0 arr (finFunctionFinEquiv τ) 0 =
       ∑ u, a u * ∏ i, c (τ i) (u i) := by
   simp only [value, pow_zero, mul_one, add_zero]
-  rw [← Fin.sum_univ_eq_sum_range, ← (finFunctionFinEquiv (m := 7) (n := L)).sum_comp]
-  exact sum_congr rfl fun u _ => by rw [weight_index, harr, mul_comm]
+  rw [← Fin.sum_univ_eq_sum_range]
+  rw [← (finFunctionFinEquiv (m := 7) (n := L)).sum_comp]
+  apply sum_congr rfl
+  intro u _
+  rw [weight_index, harr, mul_comm]
 
 /-- The mixed-radix stage fits into a buffer of `10^(j+k)` entries. -/
 theorem stageSize_le (j k : ℕ) : 10 ^ j * 7 ^ k ≤ 10 ^ (j + k) := by

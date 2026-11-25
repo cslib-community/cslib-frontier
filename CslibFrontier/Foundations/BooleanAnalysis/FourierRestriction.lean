@@ -93,13 +93,16 @@ theorem expect_fourierCoeff_piecewise_sq (f : (ι → Bool) → ℝ) (J S : Fins
       𝔼 z, fourierCoeff f U * chi ℝ (U \ J) z * (fourierCoeff f V * chi ℝ (V \ J) z) =
         fourierCoeff f U * fourierCoeff f V * if U \ J = V \ J then 1 else 0 := by
     rw [← expect_chi_mul_chi, mul_expect]
-    exact expect_congr rfl fun _ _ => by ring
+    exact expect_congr rfl fun z _ => by ring
   simp only [fourierCoeff_piecewise, sq, sum_mul_sum, expect_sum_comm, key]
-  refine sum_congr rfl fun U hU => (sum_eq_single_of_mem U hU fun V hV hVU => ?_).trans (by simp)
-  -- two sets meeting `J` in the same part differ outside `J`
-  exact mul_eq_zero_of_right _ <| ite_eq_right fun h => hVU <| by
-    rw [← sdiff_union_inter V J, ← sdiff_union_inter U J, h, (mem_filter.1 hU).2,
-      (mem_filter.1 hV).2]
+  refine sum_congr rfl fun U hU => ?_
+  rw [sum_eq_single_of_mem U hU fun V hV hVU => ?_]
+  · simp
+  · -- two sets meeting `J` in the same part differ outside `J`
+    rw [mem_filter] at hU hV
+    have hne : U \ J ≠ V \ J := fun h => hVU (by
+      rw [← sdiff_union_inter V J, ← sdiff_union_inter U J, h, hU.2, hV.2])
+    simp [hne]
 
 /-- **The expected weight of a restriction above a degree**: averaged over the fixed bits, the
 Fourier weight of the restriction on sets of at least `m` coordinates is the weight of `f` on the
@@ -115,7 +118,9 @@ theorem expect_sum_fourierCoeff_piecewise_sq (f : (ι → Bool) → ℝ) (J : Fi
     _ = ∑ U, ∑ S with m ≤ #S, if U ∩ J = S then fourierCoeff f U ^ 2 else 0 := sum_comm
     _ = ∑ U with m ≤ #(U ∩ J), fourierCoeff f U ^ 2 := by
         rw [sum_filter]
-        exact sum_congr rfl fun _ _ => by simp [sum_ite_eq]
+        refine sum_congr rfl fun U _ => ?_
+        rw [sum_ite_eq]
+        simp
 
 /-! ### Averaging out the coordinates outside a set -/
 
@@ -161,8 +166,9 @@ theorem expect_sub_expect_piecewise_sq (f : (ι → Bool) → ℝ) (J : Finset �
 `f`. -/
 theorem expect_expect_piecewise_sq (f : (ι → Bool) → ℝ) (J : Finset ι) :
     𝔼 z, 𝔼 x, f (J.piecewise x z) ^ 2 = 𝔼 x, f x ^ 2 := by
-  simpa only [zero_le, implies_true, filter_true_of_mem, ← expect_sq_eq_sum_fourierCoeff_sq] using
-    expect_sum_fourierCoeff_piecewise_sq f J 0
+  have h := expect_sum_fourierCoeff_piecewise_sq f J 0
+  simp only [zero_le, implies_true, filter_true_of_mem, ← expect_sq_eq_sum_fourierCoeff_sq] at h
+  exact h
 
 /-- The correlation of `f` with its average over the coordinates outside `J` is its Fourier weight
 on the subsets of `J`. -/

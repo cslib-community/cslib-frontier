@@ -109,9 +109,10 @@ theorem union_mem_differenceHierarchy (h1 : Set.univ ∈ C)
     (hI : ∀ E ∈ C, ∀ F ∈ C, E ∩ F ∈ C) {n m : ℕ} {A B : Set α}
     (hA : A ∈ differenceHierarchy C n) (hB : B ∈ differenceHierarchy C m) :
     A ∪ B ∈ differenceHierarchy C ((n + 1) * (m + 1) + 1) := by
-  simpa only [Set.compl_inter, compl_compl] using compl_mem_differenceHierarchy_succ h1
+  have h := compl_mem_differenceHierarchy_succ h1
     (inter_mem_differenceHierarchy hU hI
       (compl_mem_differenceHierarchy_succ h1 hA) (compl_mem_differenceHierarchy_succ h1 hB))
+  simpa only [Set.compl_inter, compl_compl] using h
 
 variable {α : Type} {enc : α ↪ List Bool} {A B : Set α} {n m : ℕ}
 

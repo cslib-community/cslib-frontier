@@ -108,7 +108,8 @@ theorem walk_reverse {c c' : T.X j} {l : List (T.Ed j)} (h1 : T.Walk c l c') : T
   | nil => exact h1.symm
   | cons e l ih =>
     rw [List.reverse_cons]
-    exact walk_append (ih h1.2) ⟨step_mem e h1.1, step_step e h1.1⟩
+    refine walk_append (ih h1.2) ⟨step_mem e h1.1, ?_⟩
+    exact step_step e h1.1
 
 end Tower
 
@@ -128,9 +129,10 @@ theorem path_walk (c c' γ : T.X 0) : T.Walk c (R.path c c' γ) c' :=
   Tower.walk_append (R.walk c γ) (Tower.walk_reverse (R.walk c' γ))
 
 theorem length_path (c c' γ : T.X 0) : (R.path c c' γ).length ≤ 2 * m := by
-  have h1 := R.len c γ
-  have h2 := R.len c' γ
-  rw [path, List.length_append, List.length_reverse]; omega
+  rw [path, List.length_append, List.length_reverse]
+  have := R.len c γ
+  have := R.len c' γ
+  omega
 
 theorem exists_end (c c' γ : T.X 0) : ∃ s, Tower.nodeAt c (R.path c c' γ) s = c' :=
   ⟨_, Tower.walk_end (R.path_walk c c' γ)⟩
@@ -154,7 +156,11 @@ theorem pl_le (c c' γ : T.X 0) : R.pl c c' γ ≤ (R.path c c' γ).length :=
   Nat.find_min' _ (Tower.walk_end (R.path_walk c c' γ))
 
 theorem pl_pos {c c' : T.X 0} (hne : c ≠ c') (γ : T.X 0) : 0 < R.pl c c' γ := by
-  exact Nat.pos_iff_ne_zero.mpr fun h0 => hne (by simpa [h0, pn_zero] using R.pn_pl c c' γ)
+  rw [Nat.pos_iff_ne_zero]
+  intro h0
+  have := R.pn_pl c c' γ
+  rw [h0] at this
+  exact hne this
 
 /-- The edge of step `s`. -/
 theorem exists_edge (c c' γ : T.X 0) {s : ℕ} (hs : s < R.pl c c' γ) :

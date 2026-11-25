@@ -84,17 +84,20 @@ theorem secondMeanEnvelope_moment (R : RoleProfile J) (D : ZMod P)
       P * (|ζ| * (Lh + Lρ) / rate k) ^ 4 *
         rowNormPow 4 N u (retainedMask R.source (side P ks) D ss)
           (retainedMask R.terminal (side P k) D st) (fun σ x y => A σ x y - G x y) := by
-  unfold secondMeanEnvelope
-  simpa only [ZMod.card, mul_div_assoc] using rowNormPow_clipped_conditional_le_fullRank
-    (X := retainedMask R.source (side P ks) D ss) (U := retainedMask R.terminal (side P ku) D st)
-    (Y := retainedMask R.terminal (side P k) D st) hNu (fun σ x y => A σ x y - G x y)
-    (preparationError R D st k Lh Lρ A G) (ζ := ζ) (by positivity)
+  have hb := rowNormPow_clipped_conditional_le_fullRank
+    (X := retainedMask R.source (side P ks) D ss)
+    (U := retainedMask R.terminal (side P ku) D st)
+    (Y := retainedMask R.terminal (side P k) D st) hNu
+    (fun σ x y => A σ x y - G x y) (preparationError R D st k Lh Lρ A G)
+    (ζ := ζ) (by positivity)
     (fun σ x y => by
       unfold preparationError
       exact div_nonneg
         (add_nonneg (mul_nonneg hLh (abs_nonneg _)) (mul_nonneg hLρ kthLargest_nonneg))
         (rate_pos k).le)
     (fun σ x y _ hy => preparationError_le_fullRank R D st k ku husage hLh hLρ A G σ x y hy)
+  unfold secondMeanEnvelope
+  simpa only [ZMod.card, mul_div_assoc] using hb
 
 /-- A centered RAW fourth moment and an ABSOLUTE deterministic mean-error moment pay B1.
 Both hypotheses concern the actual raw child, never the desired final envelope. -/
@@ -140,15 +143,16 @@ theorem secondMeanEnvelope_walk_moment (R : RoleProfile J) (D : ZMod P)
         rowNormPow 4 N u (retainedMask R.source (side P ks) D ss)
           (retainedMask R.terminal (side P k) D st) (fun _ => error))) := by
   dsimp only
-  refine secondMeanEnvelope_moment_le R D ss st ks k ku husage hLh hLρ ζ _
+  apply secondMeanEnvelope_moment_le R D ss st ks k ku husage hLh hLρ ζ _
     (rowSliceMean (retainedMask R.source (side P ks) D ss)
       (retainedMask R.terminal (side P k) D st) input) G hNu
-    (noise R.source R.terminal R.source_terminal (side P ks) (side P k)
+  · exact noise R.source R.terminal R.source_terminal (side P ks) (side P k)
       (side_le P ks) (side_le P k) (fun x => CopyPadding.identifier D ss x)
-      (fun y => CopyPadding.identifier D st y) hNu steps input)
-    ((rowNormPow_le_mul hNu (c := 1) fun _ x y _ _ => ?_).trans_eq (one_mul _))
-  rw [one_mul, abs_of_nonneg ((abs_nonneg _).trans (he x y))]
-  exact pow_le_pow_left₀ (abs_nonneg _) (he x y) 4
+      (fun y => CopyPadding.identifier D st y) hNu steps input
+  · apply (rowNormPow_le_mul hNu (c := 1) ?_).trans_eq (one_mul _)
+    intro σ x y _ _
+    rw [one_mul, abs_of_nonneg ((abs_nonneg _).trans (he x y))]
+    exact pow_le_pow_left₀ (abs_nonneg _) (he x y) 4
 
 /-- The actual clipped second discrepancy is bounded by the constructed B1. -/
 theorem actualSelectedSecondSignal_mean_le_envelope {E : Type*} [Fintype E] [Nonempty E]
@@ -197,7 +201,8 @@ theorem actualEstimatedResidual_second_envelope_moment
     (s.mean_sub_le children j) (by positivity)).trans ?_
   have hp := s.input_moment_le children (j + 1)
   gcongr
-  rw [pow_mul]; positivity
+  rw [pow_mul]
+  positivity
 
 /-- Actual range-based FirstPayment pays the centered RAW child in matrix units. Combined
 with an absolute input mean-error bound this yields B1; no relative noise is substituted. -/

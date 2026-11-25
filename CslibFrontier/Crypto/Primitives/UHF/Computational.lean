@@ -167,7 +167,8 @@ theorem IsMultiQueryUHF.isComputationalUHF {encD : D ↪ List Bool} {encM : M �
     {setup : ℕ → ProbComp D} {valid : ℕ → D → M → Bool} {H : ℕ → (d : D) → K d → M → Y d}
     (hH : IsMultiQueryUHF encD encM setup valid H) :
     IsComputationalUHF encD encM setup valid H := by
-  refine Game.Indistinguishable.of_negligible_succProbability fun _ hA => ?_
+  apply Game.Indistinguishable.of_negligible_succProbability
+  intro A hA
   simpa only [multiQueryGame_collisionPairToBatch] using
     hH.negligible_succProbability _ (isPPTOn_collisionPairToBatch hA)
 

@@ -75,9 +75,12 @@ theorem coinStepMatrix_mulVec (hs : ∀ x ∈ s, ∀ b, next x b ∈ s) (g : s �
     (coinStepMatrix next s *ᵥ g) x = ∑ b : Bool, g ⟨next x b, hs x x.2 b⟩ := by
   simp only [mulVec, dotProduct, coinStepMatrix, Finset.sum_mul, ite_mul, one_mul, zero_mul]
   rw [Finset.sum_comm]
-  exact Finset.sum_congr rfl fun b _ => (Finset.sum_eq_single ⟨next x b, hs x x.2 b⟩
-    (fun y _ hy => by simp [show ¬ next x b = y from fun h => hy (Subtype.ext h.symm)])
-    (by simp)).trans (by simp)
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [Finset.sum_eq_single ⟨next x b, hs x x.2 b⟩]
+  · simp
+  · intro y _ hy
+    simp only [show ¬ next x b = y from fun h => hy (Subtype.ext h.symm), ↓reduceIte]
+  · simp
 
 /-- A row of the live count matrix sums the two coin successors at a live state and vanishes
 elsewhere. -/
@@ -131,8 +134,9 @@ theorem liveCoinStepMatrix_pow_mulVec (hs : ∀ x ∈ s, ∀ b, next x b ∈ s) 
     · refine Finset.sum_congr rfl fun b _ => Finset.sum_congr rfl fun w _ => ?_
       simp only [hlive, hx, true_and]
       simp [List.ofFn_succ]
-    · exact (Finset.sum_eq_zero fun b _ => Finset.sum_eq_zero fun w _ =>
-        ite_eq_right_iff.mpr fun h => absurd ((hlive b w).mp h).1 hx).symm
+    · refine (Finset.sum_eq_zero fun b _ => Finset.sum_eq_zero fun w _ => ?_).symm
+      rw [ite_eq_right_iff, hlive]
+      exact fun h => absurd h.1 hx
 
 /-- **First-stop decomposition.** If the states that are not live are fixed by `next`, and `f`
 vanishes at live states, then counting the coin strings of length `T` by `f` at their endpoint

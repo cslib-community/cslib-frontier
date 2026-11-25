@@ -163,7 +163,8 @@ private theorem prevLast_eq {ρ : Fin A → RowData A} {X : Fin A → Fin A → 
 theorem stair_of_rows {ρ : Fin A → RowData A} (h : ∀ p, ValidRow ρ p)
     {X : Fin A → Fin A → List Γ} (hX : ∀ p, (ρ p).Ok (X p)) : Stair X := by
   intro a a' b b' hb hb' hlt
-  have h1 := prevLast_eq hX a' (fun p _ => h p) ▸ le_lastBefore (q := a') hlt hb
+  have h1 := le_lastBefore (q := a') hlt hb
+  rw [← prevLast_eq hX a' fun p _ => h p] at h1
   have hv := h a'
   have hok := hX a'
   simp only [ValidRow] at hv

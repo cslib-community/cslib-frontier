@@ -133,13 +133,15 @@ theorem card_filter_heavyCountEvent_le (Y : Ω → V → Prop) (T : Finset Ω)
     (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) ≤
       (2 * (1 + 4 * c * M) / ((n : ℝ) * ρ)) * #T := by
   classical
+  have h := card_filter_heavyCountEvent_mul_le Y T S y ha hρ hc hd hmass hpair n
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   rw [div_mul_eq_mul_div, le_div_iff₀ (mul_pos hn' hρ)]
-  calc _ = (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * n * ρ := by ring
-    _ ≤ #T * (2 * (ρ + 4 * c * M)) :=
-      card_filter_heavyCountEvent_mul_le Y T S y ha hρ hc hd hmass hpair n
-    _ ≤ #T * (2 * (1 + 4 * c * M)) := mul_le_mul_of_nonneg_left
-      (mul_le_mul_of_nonneg_left (add_le_add hρ1 le_rfl) (by norm_num)) (by positivity)
+  calc
+    _ = (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * n * ρ := by ring
+    _ ≤ #T * (2 * (ρ + 4 * c * M)) := h
+    _ ≤ #T * (2 * (1 + 4 * c * M)) :=
+      mul_le_mul_of_nonneg_left
+        (mul_le_mul_of_nonneg_left (add_le_add hρ1 le_rfl) (by norm_num)) (by positivity)
     _ = _ := by ring
 
 open Classical in
@@ -174,7 +176,8 @@ theorem card_filter_heavyCountEvent_product_div_card_le {Γ : Type*}
       2 * (1 + 4 * c * M) / ((n : ℝ) * ρ) := by
   classical
   refine card_filter_heavyCountEvent_div_card_le (fun (σ : Γ × Ω) w => Y σ.2 w)
-    (R ×ˢ T) S y ha hρ hρ1 hc hd hmass (fun w hw hdw hwy => ?_) hn
+    (R ×ˢ T) S y ha hρ hρ1 hc hd hmass ?_ hn
+  intro w hw hdw hwy
   have hset : {σ ∈ R ×ˢ T | Y σ.2 w} = R ×ˢ {σ ∈ T | Y σ w} := by
     ext σ
     simp [and_assoc]

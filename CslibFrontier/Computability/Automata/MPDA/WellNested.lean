@@ -89,19 +89,22 @@ theorem contents_eq {w : List (Symbol × Op n Γ)} (hw : WellNested w)
   | nil => rw [LTS.MTr.nil_eq _ h]
   | nop _ ih =>
     obtain ⟨c₁, htr, hrest⟩ := LTS.MTr.cons_iff.mp h
-    exact (ih hrest).trans (Op.apply_nop.mp (configLTS_tr.mp htr).2)
+    rw [ih hrest]
+    exact Op.apply_nop.mp (configLTS_tr.mp htr).2
   | @pushPop a b i γ w w' _ _ ih ih' =>
     obtain ⟨c₁, hpush, hrest⟩ := LTS.MTr.cons_iff.mp h
     obtain ⟨c₂, hw, hrest⟩ := LTS.MTr.split hrest
     obtain ⟨c₃, hpop, hw'⟩ := LTS.MTr.cons_iff.mp hrest
-    have h₃ := Op.apply_pop.mp (configLTS_tr.mp hpop).2
-    rw [ih hw, Op.apply_push.mp (configLTS_tr.mp hpush).2] at h₃
     rw [ih' hw']
+    have h₁ := Op.apply_push.mp (configLTS_tr.mp hpush).2
+    have h₃ := Op.apply_pop.mp (configLTS_tr.mp hpop).2
+    rw [ih hw, h₁] at h₃
     funext j
+    have hj' := congrFun h₃ j
     by_cases hj : j = i
     · subst hj
-      simpa only [Function.update_self, List.cons.injEq, true_and] using (congrFun h₃ j).symm
-    · simpa [hj] using (congrFun h₃ j).symm
+      simpa only [Function.update_self, List.cons.injEq, true_and] using hj'.symm
+    · simpa [hj] using hj'.symm
 
 /-- A well-nested run of the control lifts to a run on configurations that starts and ends with
 the same, arbitrary, stack contents. -/
@@ -127,13 +130,15 @@ control, and then the stacks are left unchanged. -/
 theorem configLTS_mTr_iff {w : List (Symbol × Op n Γ)} (hw : WellNested w)
     {c c' : Config n State Γ} :
     M.configLTS.MTr c w c' ↔ M.MTr c.state w c'.state ∧ c'.contents = c.contents := by
-  refine ⟨fun h => ⟨configLTS_mTr_state h, hw.contents_eq h⟩, ?_⟩
-  rintro ⟨h, hσ⟩
-  obtain ⟨s, σ⟩ := c
-  obtain ⟨s', σ'⟩ := c'
-  simp only at hσ
-  subst hσ
-  exact hw.configLTS_mTr h _
+  constructor
+  · intro h
+    exact ⟨configLTS_mTr_state h, hw.contents_eq h⟩
+  · rintro ⟨h, hσ⟩
+    obtain ⟨s, σ⟩ := c
+    obtain ⟨s', σ'⟩ := c'
+    simp only at hσ
+    subst hσ
+    exact hw.configLTS_mTr h _
 
 end WellNested
 
@@ -172,7 +177,9 @@ theorem wellNestedReach_iff {s s' : State} :
       exact ⟨_, .pushPop hw hw', .stepL hpush (hrun.comp _ (.stepL hpop hrun'))⟩
   · rintro ⟨w, hw, hrun⟩
     induction hw generalizing s s' with
-    | nil => exact LTS.MTr.nil_eq _ hrun ▸ .refl _
+    | nil =>
+      rw [LTS.MTr.nil_eq _ hrun]
+      exact .refl _
     | nop _ ih =>
       obtain ⟨s₁, htr, hrest⟩ := LTS.MTr.cons_iff.mp hrun
       exact .nop htr (ih hrest)

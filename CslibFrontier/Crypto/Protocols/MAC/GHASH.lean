@@ -111,8 +111,9 @@ theorem ghash_eq_sum (k : F) (z : List F) :
   | nil => simp
   | cons a z ih =>
     rw [ghash_cons, ih]
-    simpa using (Fin.sum_univ_succ fun i : Fin (z.length + 1) =>
-      (a :: z)[i] * k ^ (z.length + 1 - i)).symm
+    change _ = ∑ i : Fin (z.length + 1), (a :: z)[i] * k ^ (z.length + 1 - i)
+    rw [Fin.sum_univ_succ]
+    simp
 
 /-- A leading zero block does not change the hash, so (9.18) on its own does not separate inputs
 of different lengths. -/
@@ -178,8 +179,9 @@ theorem isDeltaUniversalHash_ghashBits {w : ℕ} (e : F ≃+ BitString w) {X : T
   have h := (isDeltaUniversalHash_ghash (F := F) (ℓ := ℓ) (fun x => (enc x).map e.symm)
     (fun x x' h => hinj (List.map_injective_iff.mpr e.symm.injective h))
     (fun x x' h => by
-      simpa only [List.length_map] using hlast x x'
-        (e.symm.injective (by rwa [← map_zero e.symm, List.getLastD_map, List.getLastD_map] at h)))
+      simpa only [List.length_map] using hlast x x' (e.symm.injective (by
+        rw [← map_zero e.symm, List.getLastD_map, List.getLastD_map] at h
+        exact h)))
     (fun x => by simpa only [List.length_map] using hlen x)).postcompose
     e.toAddMonoidHom e.injective
   rw [← PMF.uniformOfFintype_map_equiv e.symm.toEquiv, hcard] at h

@@ -147,8 +147,11 @@ theorem mem_bitPolyBlock {i : BitString ℓ} {p : Fin (n * q)} :
     p ∈ bitPolyBlock r num i ↔
       (finProdFinEquiv.symm p).2 = num (bitPoly i (r (finProdFinEquiv.symm p).1)) := by
   simp only [bitPolyBlock, mem_map, mem_univ, true_and, Function.Embedding.coeFn_mk]
-  exact ⟨fun ⟨j, hj⟩ => by simp [← hj],
-    fun h => ⟨_, by rw [← h, Prod.mk.eta, Equiv.apply_symm_apply]⟩⟩
+  constructor
+  · rintro ⟨j, rfl⟩
+    simp
+  · intro h
+    exact ⟨_, by rw [← h, Prod.mk.eta, Equiv.apply_symm_apply]⟩
 
 /-- Each block has one cell in each of the `n` rows. -/
 @[simp]

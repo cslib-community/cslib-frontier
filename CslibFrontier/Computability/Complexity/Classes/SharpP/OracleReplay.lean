@@ -131,8 +131,10 @@ theorem replayPathCount_pos_iff (machine : MultiTapePTM k Bool Control Operation
     (a : α) (answers : List Bool) :
     0 < replayPathCount machine input fYes fNo (a, answers) ↔
       answers = machine.oracleReplies g answers.length (input a) := by
-  rw [replayPathCount, CanonicallyOrderedAdd.prod_pos, machine.eq_oracleReplies_iff]
-  simp only [mem_range, replayStepFactor_pos_iff machine input hYes hNo a answers]
+  unfold replayPathCount
+  rw [CanonicallyOrderedAdd.prod_pos, machine.eq_oracleReplies_iff]
+  simp only [mem_range,
+    replayStepFactor_pos_iff machine input hYes hNo a answers]
 
 /-- Unambiguous oracle certificate counts give an unambiguous step certificate. -/
 private theorem replayStepFactor_le_one (machine : MultiTapePTM k Bool Control Operation)
@@ -201,11 +203,15 @@ theorem replayWeightedSum_pos_iff (machine : MultiTapePTM k Bool Control Operati
     (F : α × List Bool → ℕ) (a : α) :
     0 < replayWeightedSum machine input T fYes fNo F a ↔
       0 < F (a, machine.replayOutput (input a) (machine.oracleReplies g (T a) (input a))) := by
-  simp only [replayWeightedSum, Finset.sum_pos_iff, mem_univ, true_and,
-    CanonicallyOrderedAdd.mul_pos, replayPathCount_pos_iff machine input hYes hNo, List.length_ofFn]
-  refine ⟨fun ⟨_, hw, hF⟩ => hw ▸ hF, fun hF => ?_⟩
-  obtain ⟨w, hw⟩ := exists_ofFn_eq_oracleReplies machine g (T a) (input a)
-  exact ⟨w, hw, hw ▸ hF⟩
+  unfold replayWeightedSum
+  simp only [Finset.sum_pos_iff, mem_univ, true_and, CanonicallyOrderedAdd.mul_pos,
+    replayPathCount_pos_iff machine input hYes hNo, List.length_ofFn]
+  constructor
+  · rintro ⟨w, hw, hF⟩
+    rwa [← hw]
+  · intro hF
+    obtain ⟨w, hw⟩ := exists_ofFn_eq_oracleReplies machine g (T a) (input a)
+    exact ⟨w, hw, hw ▸ hF⟩
 
 /-- For unambiguous oracle certificate counts the weighted sum is the weight of the canonical
 replay: the canonical transcript has path count `1` and every other transcript `0`. -/

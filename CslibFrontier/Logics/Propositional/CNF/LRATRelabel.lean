@@ -133,7 +133,8 @@ theorem CNF.checkLRATAux_relabel (hg : Function.Injective g) (db : List (ℕ × 
           ((Clause.ofDIMACS c.toList).map Std.Sat.Literal.negate).map (Prod.map g id) := by
         simp [Clause.relabel, Function.comp_def, Literal.negate_prodMap]
       rw [htrail, CNF.propagateHints_relabel hg]
-      exact congrArg _ (ih ((i, Clause.ofDIMACS c.toList) :: db))
+      congr 1
+      exact ih ((i, Clause.ofDIMACS c.toList) :: db)
     | addRat => rfl
     | del ids =>
       simp only [List.map_cons, relabelAction, CNF.checkLRATAux, List.filter_map,

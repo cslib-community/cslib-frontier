@@ -63,8 +63,9 @@ public abbrev CopyStepSafe (w : ℕ) (x : CopyArgs × ℕ) (_ : Memory.State) : 
 private theorem copyStep_realizes :
     Realizes .exact copyStep (appendWords encCopyArgs wordWords) wordWords
       CopyStepSafe (fun _ _ => 0) := by
-  unfold copyStep; realize
-  all_goals rcases h with ⟨_, _, _⟩; assumption
+  unfold copyStep
+  realize
+  all_goals first | exact h.1 | exact h.2.1 | exact h.2.2
 
 /-- Loop copying `a.len` words from `a.src` to `a.dst`. -/
 @[expose] public def copyWordsProg (a : CopyArgs) : Memory.Prog ℕ :=
@@ -74,7 +75,8 @@ public theorem copyWordsProg_realizes :
     Realizes .exact copyWordsProg encCopyArgs wordWords
       (fun w a s => iterationSafe copyStep CopyStepSafe w a a.len 0 s)
       (fun _ _ => 0) := by
-  unfold copyWordsProg; realize [copyStep_realizes]
+  unfold copyWordsProg
+  realize [copyStep_realizes]
   exact h
 
 /-- Parameters for zero-filling `len` contiguous words starting at `dst`. -/
@@ -104,8 +106,9 @@ public abbrev ZeroStepSafe (w : ℕ) (x : ZeroArgs × ℕ) (_ : Memory.State) : 
 private theorem zeroStep_realizes :
     Realizes .exact zeroStep (appendWords encZeroArgs wordWords) wordWords
       ZeroStepSafe (fun _ _ => 0) := by
-  unfold zeroStep; realize
-  all_goals rcases h with ⟨_, _⟩; assumption
+  unfold zeroStep
+  realize
+  all_goals first | exact h.1 | exact h.2
 
 /-- Loop zero-filling `a.len` words starting at `a.dst`. -/
 @[expose] public def zeroWordsProg (a : ZeroArgs) : Memory.Prog ℕ :=
@@ -115,7 +118,8 @@ public theorem zeroWordsProg_realizes :
     Realizes .exact zeroWordsProg encZeroArgs wordWords
       (fun w a s => iterationSafe zeroStep ZeroStepSafe w a a.len 0 s)
       (fun _ _ => 0) := by
-  unfold zeroWordsProg; realize [zeroStep_realizes]
+  unfold zeroWordsProg
+  realize [zeroStep_realizes]
   exact h
 
 -- 2. `argMinArrayProg`
@@ -174,8 +178,10 @@ public abbrev ArgMinStepSafe (w : ℕ) (x : ArgMinArgs × ArgMinState) (_ : Memo
 private theorem argMinStep_realizes :
     Realizes .exact argMinStep (appendWords encArgMinArgs encArgMinState) encArgMinState
       ArgMinStepSafe (fun _ _ => 0) := by
-  unfold argMinStep; realize
-  all_goals rcases h with ⟨h1, _, _, _⟩; first | omega | exact h1.of_le (by omega)
+  unfold argMinStep
+  realize
+  all_goals
+    first | omega | exact h.1.of_le (by omega) | exact h.2.1 | exact h.2.2.1 | exact h.2.2.2
 
 /-- Returns the minimum-cost active index in `[0, a.n)`, or `a.n` if none is active. -/
 @[expose] public def argMinArrayProg (a : ArgMinArgs) : Memory.Prog ℕ := do
@@ -186,7 +192,8 @@ public theorem argMinArrayProg_realizes :
     Realizes .exact argMinArrayProg encArgMinArgs wordWords
       (fun w a s => iterationSafe argMinStep ArgMinStepSafe w a a.n ⟨0, a.n, 0⟩ s)
       (fun _ _ => 0) := by
-  unfold argMinArrayProg; realize [argMinStep_realizes]
+  unfold argMinArrayProg
+  realize [argMinStep_realizes]
   exact h
 
 -- 3. `selectParentsProg`
@@ -234,8 +241,11 @@ public abbrev SelectRowStepSafe (w : ℕ) (x : SelectRowArgs × ℕ) (_ : Memory
 private theorem selectRowStep_realizes :
     Realizes .exact selectRowStep (appendWords encSelectRowArgs wordWords) wordWords
       SelectRowStepSafe (fun _ _ => 0) := by
-  unfold selectRowStep; realize
-  all_goals rcases h with ⟨_, _, _, _, _, _⟩; assumption
+  unfold selectRowStep
+  realize
+  all_goals
+    obtain ⟨h1, ha, hc, hp, hco, hi⟩ := h
+    first | exact h1 | exact ha | exact hc | exact hp | exact hco | exact hi
 
 /-- Fills candidate feasibility and cost arrays for row `a.v`. -/
 @[expose] public def fillSelectRowProg (a : SelectRowArgs) : Memory.Prog ℕ :=
@@ -245,7 +255,8 @@ private theorem fillSelectRowProg_realizes :
     Realizes .exact fillSelectRowProg encSelectRowArgs wordWords
       (fun w a s => iterationSafe selectRowStep SelectRowStepSafe w a a.n 0 s)
       (fun _ _ => 0) := by
-  unfold fillSelectRowProg; realize [selectRowStep_realizes]
+  unfold fillSelectRowProg
+  realize [selectRowStep_realizes]
   exact h
 
 /-- Parameters for greedy parent selection across all non-root vertices at frame `k`. -/
@@ -316,13 +327,17 @@ public abbrev SelectOuterStepSafe (w : ℕ) (x : SelectArgs × SelectState)
 private theorem selectOuterStep_realizes :
     Realizes .exact selectOuterStep (appendWords encSelectArgs encSelectState) encSelectState
       SelectOuterStepSafe (fun _ _ => 0) := by
-  unfold selectOuterStep; realize [fillSelectRowProg_realizes, argMinArrayProg_realizes]
+  unfold selectOuterStep
+  realize [fillSelectRowProg_realizes, argMinArrayProg_realizes]
   all_goals
     obtain ⟨hv, hk, hws, hrow, harg⟩ := h
-    first | assumption | exact hws.of_le (by
-      dsimp only [wsSize, frameParentBase, frameBase, curAdjBase, curCostBase,
-        candPredBase, candCostBase]
-      nlinarith)
+    first
+    | exact hrow
+    | exact harg
+    | exact hws.of_le (by
+        dsimp only [wsSize, frameParentBase, frameBase, curAdjBase, curCostBase,
+          candPredBase, candCostBase]
+        nlinarith)
 
 /-- Populates frame `a.k`'s greedy parent table and returns `1` iff all non-root vertices have an
 active outgoing edge. -/
@@ -335,8 +350,9 @@ public theorem selectParentsProg_realizes :
       (fun w a s => Fits w 1 ∧
         iterationSafe selectOuterStep SelectOuterStepSafe w a a.n ⟨0, 1⟩ s)
       (fun _ _ => 0) := by
-  unfold selectParentsProg; realize [selectOuterStep_realizes]
-  all_goals rcases h with ⟨_, _⟩; assumption
+  unfold selectParentsProg
+  realize [selectOuterStep_realizes]
+  all_goals first | exact h.1 | exact h.2
 
 -- 4. `hasCycleFromProg` and `findCycleProg`
 
@@ -389,8 +405,11 @@ public abbrev HasCycleStepSafe (w : ℕ) (x : HasCycleArgs × HasCycleState)
 private theorem hasCycleStep_realizes :
     Realizes .exact hasCycleStep (appendWords encHasCycleArgs encHasCycleState) encHasCycleState
       HasCycleStepSafe (fun _ _ => 0) := by
-  unfold hasCycleStep; realize
-  all_goals rcases h with ⟨_, _, _⟩; assumption
+  unfold hasCycleStep
+  realize
+  all_goals
+    obtain ⟨h1, hp, hs⟩ := h
+    first | exact h1 | exact hp | exact hs
 
 /-- Walks `a.n` parent pointers from `a.start` and returns `1` iff `a.start` lies on a cycle. -/
 @[expose] public def hasCycleFromProg (a : HasCycleArgs) : Memory.Prog ℕ := do
@@ -401,7 +420,8 @@ private theorem hasCycleFromProg_realizes :
     Realizes .exact hasCycleFromProg encHasCycleArgs wordWords
       (fun w a s => iterationSafe hasCycleStep HasCycleStepSafe w a a.n ⟨0, a.start, 0⟩ s)
       (fun _ _ => 0) := by
-  unfold hasCycleFromProg; realize [hasCycleStep_realizes]
+  unfold hasCycleFromProg
+  realize [hasCycleStep_realizes]
   exact h
 
 /-- Parameters for finding the smallest cycle vertex in `parentBase` (excluding root `r`). -/
@@ -460,8 +480,11 @@ public abbrev FindCycleOuterStepSafe (w : ℕ) (x : FindCycleArgs × FindCycleSt
 private theorem findCycleOuterStep_realizes :
     Realizes .exact findCycleOuterStep (appendWords encFindCycleArgs encFindCycleState)
       encFindCycleState FindCycleOuterStepSafe (fun _ _ => 0) := by
-  unfold findCycleOuterStep; realize [hasCycleFromProg_realizes]
-  all_goals rcases h with ⟨_, _, _⟩; assumption
+  unfold findCycleOuterStep
+  realize [hasCycleFromProg_realizes]
+  all_goals
+    obtain ⟨h1, hv, hcyc⟩ := h
+    first | exact h1 | exact hv | exact hcyc
 
 /-- Returns the least non-root vertex lying on a cycle, or `a.n` if the parent map is acyclic. -/
 @[expose] public def findCycleProg (a : FindCycleArgs) : Memory.Prog ℕ := do
@@ -472,7 +495,8 @@ public theorem findCycleProg_realizes :
     Realizes .exact findCycleProg encFindCycleArgs wordWords
       (fun w a s => iterationSafe findCycleOuterStep FindCycleOuterStepSafe w a a.n ⟨0, a.n⟩ s)
       (fun _ _ => 0) := by
-  unfold findCycleProg; realize [findCycleOuterStep_realizes]
+  unfold findCycleProg
+  realize [findCycleOuterStep_realizes]
   exact h
 
 -- 5. `cycleMaskProg`
@@ -526,8 +550,11 @@ public abbrev CycleMaskStepSafe (w : ℕ) (x : CycleMaskArgs × CycleMaskState)
 private theorem cycleMaskStep_realizes :
     Realizes .exact cycleMaskStep (appendWords encCycleMaskArgs encCycleMaskState)
       encCycleMaskState CycleMaskStepSafe (fun _ _ => 0) := by
-  unfold cycleMaskStep; realize
-  all_goals rcases h with ⟨_, _, _, _⟩; assumption
+  unfold cycleMaskStep
+  realize
+  all_goals
+    obtain ⟨h1, hp, hm, hs⟩ := h
+    first | exact h1 | exact hp | exact hm | exact hs
 
 /-- Walks `a.n` steps from `a.x0`, setting `maskBase[v] := 1` along the cycle. -/
 @[expose] public def cycleMaskLoopProg (a : CycleMaskArgs) : Memory.Prog ℕ := do
@@ -538,7 +565,8 @@ private theorem cycleMaskLoopProg_realizes :
     Realizes .exact cycleMaskLoopProg encCycleMaskArgs wordWords
       (fun w a s => iterationSafe cycleMaskStep CycleMaskStepSafe w a a.n ⟨0, a.x0⟩ s)
       (fun _ _ => 0) := by
-  unfold cycleMaskLoopProg; realize [cycleMaskStep_realizes]
+  unfold cycleMaskLoopProg
+  realize [cycleMaskStep_realizes]
   exact h
 
 /-- Zeros `a.maskBase[0..a.n)` and marks every vertex on `a.x0`'s cycle with `1`. -/
@@ -553,7 +581,8 @@ public theorem cycleMaskProg_realizes :
         iterationSafe zeroStep ZeroStepSafe w ⟨a.maskBase, a.n⟩ a.n 0 s ∧
           iterationSafe cycleMaskStep CycleMaskStepSafe w a a.n ⟨0, a.x0⟩ s1)
       (fun _ _ => 0) := by
-  unfold cycleMaskProg; realize [zeroWordsProg_realizes, cycleMaskLoopProg_realizes]
-  all_goals rcases h with ⟨_, _⟩; assumption
+  unfold cycleMaskProg
+  realize [zeroWordsProg_realizes, cycleMaskLoopProg_realizes]
+  all_goals first | exact h.1 | exact h.2
 
 end Cslib.Algorithms.WordRAM.Arborescence.Internal

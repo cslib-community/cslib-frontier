@@ -67,7 +67,8 @@ theorem abs_stateRootError_le_one (θ : ℝ) (S : Finset ι) (K : ℕ)
     (kind.eval_le_one θ (b.row y 0) (firstRank S K b.defaultValue b.row))
     (by norm_num : (0 : ℝ) ≤ 4⁻¹)
   unfold stateRootError
-  exact abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
+  apply abs_sub_le_iff.mpr
+  constructor <;> linarith
 
 open Classical in
 /-- The discrepancy is supported on the union of the two output supports. -/

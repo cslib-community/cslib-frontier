@@ -109,10 +109,11 @@ private theorem exists_computes_patch (select : Fin k → Fin m) :
     · simpa only [patch, h, dite_false, ite_false] using input (oldWire j)
   obtain ⟨c, hc, hsize⟩ := (Synthesis.family _ _ each).exists_circuit_outputs
   refine ⟨c, hc, hsize.trans ?_⟩
+  rw [← sum_filter, sum_const, smul_eq_mul, Nat.mul_comm]
   have himage : ({j | ∃ i, select i = j} : Finset (Fin m)) = univ.image select := by
-    ext
+    ext j
     simp
-  rw [← sum_filter, sum_const, smul_eq_mul, Nat.mul_comm, himage]
+  rw [himage]
   exact Nat.mul_le_mul_left 5 (card_image_le.trans (by simp))
 
 /-- **Sparse correction.** Suppose that `f` and `g` agree outside `s`, and agree on every output

@@ -103,8 +103,9 @@ theorem holds_amplify {k : ℕ} {F : QuadSystem ℕ} {a : ℕ → Bool} (h : F.H
     (amplify k F).Holds a := by
   simp only [amplify, QuadSystem.Holds, List.mem_map]
   rintro _ ⟨r, -, rfl⟩
-  rw [QuadSystem.holds_linearCombination_iff, Finset.card_eq_zero.2
-    (Finset.filter_eq_empty_iff.2 fun i _ hi => hi.1 (h _ (List.getElem_mem _)))]
+  rw [QuadSystem.holds_linearCombination_iff]
+  rw [Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun i _ hi =>
+    hi.1 (h _ (List.getElem_mem _)))]
   exact ⟨0, rfl⟩
 
 /-- **The violation gap**: an assignment violating some equation of `F` violates at least a
@@ -153,7 +154,9 @@ theorem computableInPolyTime_linearCombination :
   have hsum : ComputableInPolyTime (fun G : QuadSystem ℕ =>
       (⟨G.flatMap (·.terms), (G.map (·.rhs)).sum⟩ : QuadEquation ℕ)) encoding
         (encQuadEquation encNat) := by
-    have hxor (l : List Bool) : l.sum = l.foldl xor false := by rw [List.sum_eq_foldl]; rfl
+    have hxor (l : List Bool) : l.sum = l.foldl xor false := by
+      rw [List.sum_eq_foldl]
+      rfl
     simp only [hxor]
     unfold encoding
     fun_prop

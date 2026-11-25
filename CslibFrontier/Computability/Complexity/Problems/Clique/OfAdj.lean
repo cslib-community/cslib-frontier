@@ -57,13 +57,14 @@ theorem mem_ofAdj_edges {vs : List V} {adj : V → V → Bool} {i j : ℕ} :
       ∃ (hi : i < vs.length) (hj : j < vs.length), adj vs[i] vs[j] = true := by
   simp only [ofAdj, List.mem_flatMap, List.mem_map, List.mem_filter, Prod.mk.injEq,
     List.mem_zipIdx_iff_getElem?]
-  refine ⟨?_, fun ⟨hi, hj, hadj⟩ =>
-    ⟨⟨vs[i], i⟩, by simp [hi], ⟨vs[j], j⟩, ⟨by simp [hj], hadj⟩, rfl, rfl⟩⟩
-  rintro ⟨⟨a, i'⟩, ha, ⟨b, j'⟩, ⟨hb, hadj⟩, rfl, rfl⟩
-  simp only [List.getElem?_eq_some_iff] at ha hb
-  obtain ⟨hi, rfl⟩ := ha
-  obtain ⟨hj, rfl⟩ := hb
-  exact ⟨hi, hj, hadj⟩
+  constructor
+  · rintro ⟨⟨a, i'⟩, ha, ⟨b, j'⟩, ⟨hb, hadj⟩, rfl, rfl⟩
+    simp only [List.getElem?_eq_some_iff] at ha hb
+    obtain ⟨hi, rfl⟩ := ha
+    obtain ⟨hj, rfl⟩ := hb
+    exact ⟨hi, hj, hadj⟩
+  · rintro ⟨hi, hj, hadj⟩
+    exact ⟨⟨vs[i], i⟩, by simp [hi], ⟨vs[j], j⟩, ⟨by simp [hj], hadj⟩, rfl, rfl⟩
 
 /-- Adjacency in `ofAdj vs adj`: distinct positions whose entries are adjacent in some
 direction. -/

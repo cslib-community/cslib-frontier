@@ -174,10 +174,12 @@ theorem negligible_prediction_of_negligible_inversion
           (maskCount n (precision degree n)))))) :
     Negligible (fun n => Game.guessingAdvantage
       (parityPredictionExperiment (f n) (predictor n) (coins n))) := by
-  rw [negligible_iff_coe]
+  apply negligible_iff_coe.mpr
   simp only [Game.coe_guessingAdvantage]
-  refine (Asymptotics.superpolynomialDecay_iff_abs_isBoundedUnder _
-    tendsto_natCast_atTop_atTop).mpr fun degree => ⟨9, Filter.eventually_map.mpr ?_⟩
+  apply (Asymptotics.superpolynomialDecay_iff_abs_isBoundedUnder _
+    tendsto_natCast_atTop_atTop).mpr
+  intro degree
+  refine ⟨9, Filter.eventually_map.mpr ?_⟩
   filter_upwards [((negligible_iff_coe.mp (hinversion degree)) degree).eventually_lt_const
     (by norm_num : (0 : ℝ) < 1)] with n hsmall
   rw [abs_of_nonneg (mul_nonneg (pow_nonneg (Nat.cast_nonneg n) _) (abs_nonneg _))]
@@ -188,7 +190,8 @@ theorem negligible_prediction_of_negligible_inversion
   have hprecision : (n : ℝ) ^ degree * (1 / (precision degree n : ℝ)) ≤ 1 := by
     rw [mul_one_div, div_le_one (by exact_mod_cast precision_pos degree n)]
     simp only [precision, Nat.cast_pow, Nat.cast_add, Nat.cast_one]
-    gcongr; linarith
+    gcongr
+    linarith
   simp only [Game.succProbability, ENNReal.toReal] at hsmall h ⊢
   nlinarith
 

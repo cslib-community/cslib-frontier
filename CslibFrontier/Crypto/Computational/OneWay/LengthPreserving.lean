@@ -158,7 +158,9 @@ theorem eval_familyInversionGame_core (g : List Bool → List Bool) (L : ℕ →
     ProbComp.eval_bind, ProbComp.eval_map, BitString.eval_sampleList, List.take_take,
     Nat.min_eq_left hn, ProbComp.eval_pure]
   rw [← BitString.uniformList_take hn, PMF.bind_map]
-  exact congrArg _ (funext fun a => by simp only [Function.comp_apply, PMF.bind_map]; rfl)
+  refine congrArg _ (funext fun a => ?_)
+  simp only [Function.comp_apply, PMF.bind_map]
+  rfl
 
 end OneWayLengthPreserving
 

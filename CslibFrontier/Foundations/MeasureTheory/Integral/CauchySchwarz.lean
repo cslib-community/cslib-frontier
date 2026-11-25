@@ -51,17 +51,18 @@ theorem sq_integral_mul_le {Ω : Type*} [MeasurableSpace Ω] {P : Measure Ω} {f
     (∫ x, f x * g x ∂P) ^ 2 ≤ (∫ x, f x ^ 2 ∂P) * ∫ x, g x ^ 2 ∂P := by
   have h (t : ℝ) : 0 ≤ (∫ x, f x ^ 2 ∂P) * (t * t) + (-2 * ∫ x, f x * g x ∂P) * t +
       ∫ x, g x ^ 2 ∂P := by
+    have h1 : ∫ x, (t * f x - g x) ^ 2 ∂P =
+        ∫ x, ((t * t) * f x ^ 2 + (-2 * t) * (f x * g x) + g x ^ 2) ∂P := by
+      congr 1 with x : 1; ring
     have h2 : ∫ x, (t * f x - g x) ^ 2 ∂P = (∫ x, f x ^ 2 ∂P) * (t * t) +
         (-2 * ∫ x, f x * g x ∂P) * t + ∫ x, g x ^ 2 ∂P := by
-      rw [show (fun x => (t * f x - g x) ^ 2) =
-          fun x => (t * t) * f x ^ 2 + (-2 * t) * (f x * g x) + g x ^ 2 from
-            funext fun x => by ring,
-        integral_add (f := fun x => t * t * f x ^ 2 + -2 * t * (f x * g x))
-          ((hf.const_mul _).add (hfg.const_mul _)) hg,
+      rw [h1, integral_add (f := fun x => t * t * f x ^ 2 + -2 * t * (f x * g x))
+        ((hf.const_mul _).add (hfg.const_mul _)) hg,
         integral_add (f := fun x => t * t * f x ^ 2) (g := fun x => -2 * t * (f x * g x))
-          (hf.const_mul _) (hfg.const_mul _), integral_const_mul, integral_const_mul]
+        (hf.const_mul _) (hfg.const_mul _), integral_const_mul, integral_const_mul]
       ring
-    exact h2 ▸ integral_nonneg fun _ => sq_nonneg _
+    rw [← h2]
+    exact integral_nonneg fun x => sq_nonneg _
   have := discrim_le_zero h
   rw [discrim] at this
   nlinarith
@@ -124,26 +125,28 @@ theorem _root_.LipschitzWith.abs_integral_comp_sub_le_sqrt {Ω : Type*} [Measura
     |∫ ω, ψ (X ω) ∂P - ∫ ω, ψ (Y ω) ∂P| ≤ K * √(∫ ω, (X ω - Y ω) ^ 2 ∂P) := by
   have hlip (a b : ℝ) : |ψ a - ψ b| ≤ K * |a - b| := by
     simpa [Real.dist_eq] using hψ.dist_le_mul a b
-  have hI {U : Ω → ℝ} (hU : MemLp U 2 P) : Integrable (fun ω => ψ (U ω)) P :=
-    Integrable.mono' (((hU.integrable one_le_two).norm.const_mul K).add
+  have hI {U : Ω → ℝ} (hU : MemLp U 2 P) : Integrable (fun ω => ψ (U ω)) P := by
+    refine Integrable.mono' (((hU.integrable one_le_two).norm.const_mul K).add
       (integrable_const |ψ 0|)) (hψ.continuous.comp_aestronglyMeasurable hU.aestronglyMeasurable)
-      (ae_of_all _ fun ω => by
-        simp only [Pi.add_apply, Real.norm_eq_abs]
-        linarith [show |ψ (U ω) - ψ 0| ≤ K * |U ω| by simpa using hlip (U ω) 0,
-          abs_sub_abs_le_abs_sub (ψ (U ω)) (ψ 0)])
+      (ae_of_all _ fun ω => ?_)
+    have h := hlip (U ω) 0
+    rw [sub_zero] at h
+    simp only [Pi.add_apply, Real.norm_eq_abs]
+    linarith [abs_sub_abs_le_abs_sub (ψ (U ω)) (ψ 0)]
   have hD : MemLp (fun ω => X ω - Y ω) 2 P := hX.sub hY
   have hDa : Integrable (fun ω => |X ω - Y ω|) P := (hD.integrable one_le_two).abs
-  have hCS : ∫ ω, |X ω - Y ω| ∂P ≤ √(∫ ω, (X ω - Y ω) ^ 2 ∂P) :=
-    Real.le_sqrt_of_sq_le (by
-      simpa only [mul_one, sq_abs, one_pow, integral_const, probReal_univ, smul_eq_mul] using
-        sq_integral_mul_le (P := P) (f := fun ω => |X ω - Y ω|) (g := fun _ => 1)
-          (by simpa only [sq_abs] using hD.integrable_sq) (integrable_const _)
-          (by simpa using hDa))
+  have hCS : ∫ ω, |X ω - Y ω| ∂P ≤ √(∫ ω, (X ω - Y ω) ^ 2 ∂P) := by
+    refine Real.le_sqrt_of_sq_le ?_
+    have h := sq_integral_mul_le (P := P)
+      (f := fun ω => |X ω - Y ω|) (g := fun _ => 1)
+      (by simpa only [sq_abs] using hD.integrable_sq) (integrable_const _) (by simpa using hDa)
+    simpa only [mul_one, sq_abs, one_pow, integral_const, probReal_univ, smul_eq_mul] using h
   rw [← integral_sub (hI hX) (hI hY)]
-  calc |∫ ω, (ψ (X ω) - ψ (Y ω)) ∂P| ≤ ∫ ω, |ψ (X ω) - ψ (Y ω)| ∂P := abs_integral_le_integral_abs
+  calc |∫ ω, (ψ (X ω) - ψ (Y ω)) ∂P| ≤ ∫ ω, |ψ (X ω) - ψ (Y ω)| ∂P :=
+        abs_integral_le_integral_abs
     _ ≤ ∫ ω, K * |X ω - Y ω| ∂P :=
         integral_mono_of_nonneg (ae_of_all _ fun _ => abs_nonneg _) (hDa.const_mul _)
-          (ae_of_all _ fun _ => hlip _ _)
+          (ae_of_all _ fun ω => hlip _ _)
     _ = K * ∫ ω, |X ω - Y ω| ∂P := integral_const_mul _ _
     _ ≤ K * √(∫ ω, (X ω - Y ω) ^ 2 ∂P) := by gcongr
 

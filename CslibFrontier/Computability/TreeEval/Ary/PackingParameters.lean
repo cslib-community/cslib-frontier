@@ -104,7 +104,8 @@ theorem chunkCount_mul_lt (hd : 0 < d) (hb : 0 < b) :
 /-- Positive-width chunks are no more numerous than the original bits. -/
 theorem chunkCount_le (hd : 0 < d) (hb : 0 < b) : chunkCount d b ≤ b := by
   apply (Nat.ceilDiv_le_iff (chunkWidth_pos hd hb)).mpr
-  nlinarith [chunkWidth_pos hd hb]
+  have := chunkWidth_pos hd hb
+  nlinarith
 
 /-- A nonempty value occupies at least one chunk. -/
 theorem chunkCount_pos (hd : 0 < d) (hb : 0 < b) : 0 < chunkCount d b :=
@@ -158,10 +159,11 @@ theorem chunkCount_mul_fieldModulus_size_le (hd : 0 < d) (hb : 0 < b) :
     chunkCount d b * (fieldModulus d b).size ≤ 4 * (b + chunkWidth d b) := by
   have hm := chunkWidth_pos hd hb
   have hp := fieldModulus_size_le hd hb
+  have hr := chunkCount_mul_lt hd hb
   calc
     chunkCount d b * (fieldModulus d b).size ≤
         chunkCount d b * (4 * chunkWidth d b) := Nat.mul_le_mul_left _ (by omega)
-    _ ≤ 4 * (b + chunkWidth d b) := by nlinarith [chunkCount_mul_lt hd hb]
+    _ ≤ 4 * (b + chunkWidth d b) := by nlinarith
 
 /-- Framing each residue with `c` payload copies and one cell marker preserves linear storage.
 The cases `c = 2` and `c = 4` account for the flat and padded bank layouts respectively. -/

@@ -155,8 +155,9 @@ theorem segMem_succ (j : ℕ) :
 
 /-- The start of segment `j` depends only on the lengths of the segments before it. -/
 theorem segStart_congr {seg seg' : ℕ → List Op} {j : ℕ} (h : ∀ k < j, seg k = seg' k) :
-    segStart seg t₀ j = segStart seg' t₀ j :=
-  congrArg (t₀ + ·) (sum_congr rfl fun k hk => by rw [h k (mem_range.mp hk)])
+    segStart seg t₀ j = segStart seg' t₀ j := by
+  unfold segStart
+  rw [sum_congr rfl fun k hk => by rw [h k (mem_range.mp hk)]]
 
 /-- The memory before segment `j` depends only on the segments before it. -/
 theorem segMem_congr {seg seg' : ℕ → List Op} {j : ℕ} (h : ∀ k < j, seg k = seg' k) :
@@ -243,9 +244,10 @@ theorem overlayMem_eq_of_notMem_lastCells {L j : ℕ} (hjL : j < L) {c : Fin cel
 /-- The overlay differs from the memory before segment `j` on at most `#laterCells` cells. -/
 theorem hammingDist_overlayMem_le (L j : ℕ) :
     hammingDist (D.segMem seg t₀ m₀ j) (D.overlayMem seg t₀ m₀ L j) ≤
-      #(D.laterCells seg t₀ m₀ L j) :=
-  card_le_card fun _ hc => by_contra fun hlater =>
-    (mem_filter.mp hc).2 (D.overlayMem_eq_segMem_of_notMem_laterCells seg t₀ m₀ hlater).symm
+      #(D.laterCells seg t₀ m₀ L j) := by
+  refine card_le_card fun c hc => ?_
+  by_contra hlater
+  exact (mem_filter.mp hc).2 (D.overlayMem_eq_segMem_of_notMem_laterCells seg t₀ m₀ hlater).symm
 
 /-- The cells last touched by different segments `j, k < L` are disjoint. -/
 theorem disjoint_lastCells {L j k : ℕ} (hj : j < L) (hk : k < L) (hjk : j ≠ k) :
@@ -261,7 +263,8 @@ theorem disjoint_lastCells {L j k : ℕ} (hj : j < L) (hk : k < L) (hjk : j ≠ 
 /-- The cells last touched by the segments `j < L` form a pairwise disjoint family. -/
 theorem pairwiseDisjoint_lastCells (L : ℕ) :
     ((range L : Finset ℕ) : Set ℕ).PairwiseDisjoint (D.lastCells seg t₀ m₀ L) :=
-  fun _ hj _ hk hjk => D.disjoint_lastCells seg t₀ m₀ (mem_range.mp hj) (mem_range.mp hk) hjk
+  fun _ hj _ hk hjk =>
+    D.disjoint_lastCells seg t₀ m₀ (mem_range.mp hj) (mem_range.mp hk) hjk
 
 /-- **Epoch counting**: a set `P` of cells meets the last-touched sets of at most `#P` segments. -/
 theorem card_filter_lastCells_le (L : ℕ) (P : Finset (Fin cells)) :
@@ -289,9 +292,11 @@ theorem probesInterval_le_mul_length {d : ℕ} (t : ℕ) (m : Mem cells w) (ops 
   induction ops generalizing t m with
   | nil => simp
   | cons o rest ih =>
-    rw [probesInterval_cons, List.length_cons, Nat.mul_succ, Nat.add_comm (d * _)]
-    exact Nat.add_le_add (((D.step t o).probes_le_depth m).trans (hd t o List.mem_cons_self))
-      (ih _ _ fun t o' ho' => hd t o' (List.mem_cons_of_mem _ ho'))
+    rw [probesInterval_cons, List.length_cons, Nat.mul_succ]
+    have h₁ := ((D.step t o).probes_le_depth m).trans (hd t o List.mem_cons_self)
+    have h₂ := ih (t + 1) ((D.step t o).run m).2 fun t o' ho' =>
+      hd t o' (List.mem_cons_of_mem _ ho')
+    omega
 
 /-- If every step on the operations of the segments between `j` and `L` has depth at most `d`,
 those segments probe at most `d * Σ |seg k|` cells. -/

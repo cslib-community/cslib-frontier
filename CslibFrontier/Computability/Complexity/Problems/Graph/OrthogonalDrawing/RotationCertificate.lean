@@ -164,7 +164,9 @@ theorem clockwiseSuccessor_eq_of_firstRay (G : Graph) (d : OrthogonalDrawing)
   interval_cases step
   · rw [htail]; rfl
   · rw [hempty 0 (by omega), List.nil_append, htail]; rfl
-  · rw [hempty 0 (by omega), hempty 1 (by omega)]; simp [htail]
-  · rw [hempty 0 (by omega), hempty 1 (by omega), hempty 2 (by omega)]; simp [htail]
+  · rw [hempty 0 (by omega), hempty 1 (by omega)]
+    simp [htail]
+  · rw [hempty 0 (by omega), hempty 1 (by omega), hempty 2 (by omega)]
+    simp [htail]
 
 end Cslib.Complexity.Graph.OrthogonalDrawing

@@ -85,7 +85,9 @@ theorem roabpProd_mem_supported (M : Fin n → Matrix (Fin w) (Fin w) F[X])
       roabpProd M l s t ∈ supported F S
   | [], _, s, t => by
     rw [roabpProd, List.map_nil, List.prod_nil, Matrix.one_apply]
-    split_ifs <;> simp [one_mem, zero_mem]
+    split_ifs
+    · exact one_mem _
+    · exact zero_mem _
   | i :: l, hl, s, t => by
     rw [roabpProd, List.map_cons, List.prod_cons, Matrix.mul_apply]
     refine sum_mem fun k _ => mul_mem ?_

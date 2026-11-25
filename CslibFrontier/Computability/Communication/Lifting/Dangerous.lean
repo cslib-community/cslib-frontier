@@ -115,10 +115,12 @@ theorem IsSafe.fiber_nonempty {g : Fin m → Fin m → Bool} {σ : ℝ} {F : Fin
     {Y : Finset (Fin n → Fin m)} {x : Fin n → Fin m}
     (h : IsSafe g σ F Y x) (hY : Y.Nonempty) {I : Finset (Fin n)} (hI : I ⊆ F)
     (β : Fin n → Bool) : (gadgetFiber g Y I x β).Nonempty := by
-  by_contra hn
   have hc := h.nonleaking I hI β
-  rw [not_nonempty_iff_eq_empty.mp hn, card_empty, Nat.cast_zero, mul_zero] at hc
-  linarith [show (0 : ℝ) < #Y by exact_mod_cast card_pos.mpr hY]
+  have hpos : (0 : ℝ) < #Y := by exact_mod_cast card_pos.mpr hY
+  by_contra hn
+  rw [not_nonempty_iff_eq_empty] at hn
+  rw [hn, card_empty, Nat.cast_zero, mul_zero] at hc
+  linarith
 
 /-- **The cardinality Bayes certificate** (CFKMP Claim 3.12). If a nonleaking fiber fails
 residual density, some disjoint coordinate slice has abnormally many inputs in that fiber.

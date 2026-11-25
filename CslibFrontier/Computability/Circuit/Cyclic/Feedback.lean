@@ -121,10 +121,12 @@ theorem eval_feedback_le {state : Fin k → U}
 /-- A proved functional update identifies the feedback output with its least fixed point. -/
 theorem eval_feedback_eq_lfp (step : (Fin k → U) →o (Fin k → U))
     (hstep : ∀ state, p.eval I (Fin.append input state) ∘ feed = step state) :
-    (p.feedback feed).eval I hI input = step.lfp :=
-  le_antisymm
-    (p.eval_feedback_le feed I hI input (by rw [hstep, step.map_lfp]))
-    (step.lfp_le (by rw [← hstep, p.eval_feedback_fixed feed I hI input]))
+    (p.feedback feed).eval I hI input = step.lfp := by
+  apply le_antisymm
+  · apply p.eval_feedback_le feed I hI input
+    rw [hstep, step.map_lfp]
+  · apply step.lfp_le
+    rw [← hstep, p.eval_feedback_fixed feed I hI input]
 
 end Cslib.Circuits.Program
 
@@ -148,7 +150,9 @@ private theorem outputs_feedbackGate (c : Circuit σ (n + k) k)
   split
   · assumption
   · rename_i j hj
-    exact False.elim ((h i).elim fun _ hl => nomatch hj.symm.trans hl)
+    obtain ⟨l, hl⟩ := h i
+    rw [hj] at hl
+    cases hl
 
 /-- Feed the outputs of a native circuit back into its final input block. Outputs must be
 internal gates; this excludes direct aliases between state inputs without an operation. -/

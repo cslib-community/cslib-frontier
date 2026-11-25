@@ -142,7 +142,8 @@ theorem yablonskiiFormula_zero (k o : ℕ) (h : o + (2 ^ k + 0) ≤ n) :
 /-- Counting only AND and OR gates, the balanced formula `parityFormula k o` has depth `2 k`. -/
 theorem depthWith_binaryCost_parityFormula (k o : ℕ) (h : o + 2 ^ k ≤ n) :
     (parityFormula k o h).depthWith binaryCost = 2 * k := by
-  simp [← yablonskiiFormula_zero k o h, depthWith_binaryCost_yablonskiiFormula]
+  rw [← yablonskiiFormula_zero k o h, depthWith_binaryCost_yablonskiiFormula]
+  simp
 
 /-- Yablonskii's formula on all `2 ^ k + r` bits computes their parity. -/
 theorem computes_yablonskiiFormula (k r : ℕ) (hr : r ≤ 2 ^ k) :

@@ -92,8 +92,11 @@ theorem reverse_graphEqDartEquiv {G H : Graph} (h : G = H) (d : Dart G) :
 /-- Complete reversal orbits are exactly the indexed listed edge occurrences. -/
 theorem sameCycle_reversal_iff {G : Graph} (a b : Dart G) :
     (Dart.reversal G).SameCycle a b ↔ a.1 = b.1 := by
-  rw [show Dart.reversal G = Perm.doubled (1 : Perm (Fin G.2.length)) from
-    Equiv.ext fun ⟨_, side⟩ => by cases side <;> rfl, Perm.sameCycle_doubled, Perm.sameCycle_one]
+  have he : Dart.reversal G = Perm.doubled (1 : Perm (Fin G.2.length)) := by
+    apply Equiv.ext
+    rintro ⟨i, side⟩
+    cases side <;> rfl
+  rw [he, Perm.sameCycle_doubled, Perm.sameCycle_one]
 
 open Classical in
 /-- Vertex orbits restricted to an actual edge component are its declared vertex set. -/
@@ -235,12 +238,14 @@ theorem numericalGenusZero_transport {G H : Graph} (r : RotationSystem G) (e : D
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)
     (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.1) (hr : r.NumericalGenusZero) :
     (r.transport e hv).NumericalGenusZero := by
-  refine ((r.transport e hv).numericalGenusZero_iff_component_cards hH).mpr fun d => ?_
+  apply ((r.transport e hv).numericalGenusZero_iff_component_cards hH).mpr
+  intro d
   obtain ⟨a, rfl⟩ := e.surjective d
   obtain ⟨hV, hE, hF⟩ := r.component_cards_transport e hv he hG hH a
   have h := (r.numericalGenusZero_iff_component_cards hG).mp hr a
-  rwa [card_componentFaceIndices, r.count_faceRepresentatives_eq_card_componentFace hG,
-    ← hV, ← hE, ← hF, ← (r.transport e hv).count_faceRepresentatives_eq_card_componentFace hH,
-    ← card_componentFaceIndices] at h
+  rw [card_componentFaceIndices, r.count_faceRepresentatives_eq_card_componentFace hG] at h
+  rw [card_componentFaceIndices,
+    (r.transport e hv).count_faceRepresentatives_eq_card_componentFace hH, hV, hE, hF]
+  exact h
 
 end Cslib.Complexity.Graph.RotationSystem

@@ -86,11 +86,18 @@ theorem fiberContribution_eq
   classical
   unfold fiberContribution
   split_ifs with hy
-  · refine Finset.prod_congr rfl fun g _ => Finset.sum_congr rfl fun u _ =>
-      locality g _ _ (fun h => ?_) (by simp)
-    obtain rfl | hh := eq_or_ne h g
+  · apply Finset.prod_congr rfl
+    intro g _
+    apply Finset.sum_congr rfl
+    intro u hu
+    apply locality
+    · intro h
+      by_cases hh : h = g
+      · subst h
+        simp
+      · simp only [Function.update_of_ne hh]
+        rw [valid, valid']
     · simp
-    · simp [Function.update_of_ne hh, valid, valid']
   · rfl
 
 /-- Finite shared-summary factorization. Every measurement tuple in the supplied box is

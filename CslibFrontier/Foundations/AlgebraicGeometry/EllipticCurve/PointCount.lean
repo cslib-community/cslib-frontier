@@ -133,26 +133,32 @@ private lemma ofCubic_b₂ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₂ = W.b₂ := by
   have := four_ne_zero_of_two h2
   simp only [b₂, ofCubic_a₁, ofCubic_a₂]
-  field_simp; ring
+  field_simp
+  ring
 
 private lemma ofCubic_b₄ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₄ = W.b₄ := by
   simp only [b₄, ofCubic_a₁, ofCubic_a₃, ofCubic_a₄]
-  field_simp; ring
+  field_simp
+  ring
 
 private lemma ofCubic_b₆ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₆ = W.b₆ := by
   have := four_ne_zero_of_two h2
   simp only [b₆, ofCubic_a₃, ofCubic_a₆]
-  field_simp; ring
+  field_simp
+  ring
 
 private lemma ofCubic_b₈ (h2 : (2 : F) ≠ 0) :
     (ofCubic (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).b₈ = W.b₈ := by
   have h4 := four_ne_zero_of_two h2
-  rw [show W.b₈ = (W.b₂ * W.b₆ - W.b₄ ^ 2) / 4 from
-    (eq_div_iff h4).2 (mul_comm W.b₈ 4 ▸ W.b_relation)]
+  have hb8 : W.b₈ = (W.b₂ * W.b₆ - W.b₄ ^ 2) / 4 := by
+    rw [eq_div_iff h4, mul_comm]
+    exact W.b_relation
+  rw [hb8]
   simp only [b₈, ofCubic_a₁, ofCubic_a₂, ofCubic_a₃, ofCubic_a₄, ofCubic_a₆]
-  field_simp; ring
+  field_simp
+  ring
 
 /-- Completing the square preserves the discriminant: when `2 ≠ 0`, the curve
 `Y² = X³ + (b₂/4) X² + (b₄/2) X + b₆/4` has the discriminant of `W`. -/
@@ -168,11 +174,16 @@ lemma equation_iff_sq_eq (h2 : (2 : F) ≠ 0) (x y : F) :
   have hg : 4 * (cubicPoly (W.b₂ / 4) (W.b₄ / 2) (W.b₆ / 4)).eval x =
       4 * x ^ 3 + W.b₂ * x ^ 2 + 2 * W.b₄ * x + W.b₆ := by
     rw [eval_cubicPoly]
-    field_simp; ring
+    field_simp
+    ring
   rw [Affine.equation_iff, hg]
   simp only [b₂, b₄, b₆]
-  exact ⟨fun h => by linear_combination 4 * h,
-    fun h => mul_left_cancel₀ h4 (by linear_combination h)⟩
+  constructor
+  · intro h
+    linear_combination 4 * h
+  · intro h
+    apply mul_left_cancel₀ h4
+    linear_combination h
 
 end CompleteSquare
 

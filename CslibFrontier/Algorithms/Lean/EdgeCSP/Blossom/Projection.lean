@@ -32,9 +32,11 @@ variable {F : CSP Table ℕ}
 theorem deviations_zero_of_agree (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
     (h : ∀ o : Occurrence F, o.var ∈ vs → g o = f o) (i : Fin F.length) :
     deviations (localTuple f i) (localTuple g i) (positions vs F[i.val].scope) = 0 := by
-  refine (deviations_eq_zero_iff _ _ _).mpr fun j hj => ?_
+  apply (deviations_eq_zero_iff _ _ _).mpr
+  intro j hj
   have hjb := List.mem_range.mp (List.mem_filter.mp hj).1
-  simpa [localTuple, hjb] using h ⟨i, ⟨j, hjb⟩⟩ ((mem_positions vs i ⟨j, hjb⟩).mp hj)
+  have hv := (mem_positions vs i ⟨j, hjb⟩).mp hj
+  simpa [localTuple, hjb] using h ⟨i, ⟨j, hjb⟩⟩ hv
 
 /-- One changed internal occurrence contributes one deviation at its original constraint and
 zero at all other original constraints, regardless of repeated copied visits or table arity. -/
@@ -107,8 +109,9 @@ theorem valid_projectZero {f g : OccurrenceLabeling F Bool} (hf : ValidLabeling 
     (h : ∀ o : Occurrence F, o.var ∈ vs → g o = f o) :
     ValidLabeling sem (projectZero f vs g) := by
   apply valid_transport hf hg vs (fun _ => false)
-  · exact (sem_exactlyOne_eq_true _ _).mpr ⟨by simp [listSingle],
-      count_true_listSingle (by simpa only [length_connectors] using List.length_pos_iff.mpr hne)⟩
+  · apply (sem_exactlyOne_eq_true _ _).mpr
+    exact ⟨by simp [listSingle], count_true_listSingle (by
+      simpa only [length_connectors] using List.length_pos_iff.mpr hne)⟩
   · intro i _
     rw [deviations_zero_of_agree f g vs h i]
     omega

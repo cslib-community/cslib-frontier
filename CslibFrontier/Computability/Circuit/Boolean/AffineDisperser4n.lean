@@ -200,7 +200,9 @@ theorem exists_disagreeing_input_of_cost_lt {n d : ℕ} {f : BooleanFunction n}
   obtain ⟨g, hg, hinj, b, hb⟩ := exists_affine_subspace_const_of_cost_lt C hC
   obtain ⟨u, v, huv⟩ := hf g hg hinj
   by_cases hu : C.eval fullInterpretation (g u) 0 = f (g u)
-  · exact ⟨g v, by rwa [hb v, ← hb u, hu]⟩
+  · refine ⟨g v, ?_⟩
+    rw [hb v, ← hb u, hu]
+    exact huv
   · exact ⟨g u, hu⟩
 
 /-- Every circuit of size strictly below `4 * n - 9 * d` disagrees with any `d`-affine disperser on

@@ -109,7 +109,8 @@ theorem addResidues_polyResidues {n q : ℕ} [NeZero q] (f g : Fin n → ZMod q)
 /-- Native subtraction computes polynomial subtraction. -/
 theorem subResidues_polyResidues {n q : ℕ} [NeZero q] (f g : Fin n → ZMod q) :
     subResidues q (polyResidues f) (polyResidues g) = polyResidues (f - g) := by
-  apply List.ext_getElem (by simp [subResidues, polyResidues]) fun i _ _ => ?_
+  apply List.ext_getElem (by simp [subResidues, polyResidues])
+  intro i h₁ h₂
   simp only [subResidues, polyResidues, List.getElem_map, List.getElem_zip, List.getElem_ofFn,
     Pi.sub_apply]
   rw [← ZMod.val_intCast, Int.toNat_natCast]

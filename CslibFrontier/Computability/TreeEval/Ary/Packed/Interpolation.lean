@@ -67,7 +67,9 @@ theorem iterate_basisStep_counter (p a x : ℕ) (n : ℕ) :
       (basisStep^[n] ((p, a, x), 0, 1 % p)).2.1 = n := by
   induction n with
   | zero => exact ⟨rfl, rfl⟩
-  | succ n ih => simp [Function.iterate_succ_apply', basisStep, ih.1, ih.2]
+  | succ n ih =>
+    rw [Function.iterate_succ_apply']
+    simp [basisStep, ih.1, ih.2]
 
 /-- Every intermediate accumulator fits within the modulus plus one, including malformed
 zero-modulus inputs and the initial accumulator. -/
@@ -76,7 +78,8 @@ theorem basisWeight_le (p n a x : ℕ) : basisWeight p n a x ≤ p + 1 := by
   | zero => exact (Nat.mod_le _ _).trans (by omega)
   | succ n =>
     rw [basisWeight, Function.iterate_succ_apply']
-    simp only [basisStep, (iterate_basisStep_counter p a x n).1]
+    have hp := (iterate_basisStep_counter p a x n).1
+    simp only [basisStep, hp]
     split_ifs with hz
     · omega
     · exact (Nat.mod_lt _ (Nat.pos_of_ne_zero hz)).le.trans (by omega)

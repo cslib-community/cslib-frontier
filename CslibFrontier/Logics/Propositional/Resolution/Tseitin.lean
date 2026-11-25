@@ -210,7 +210,8 @@ theorem exists_card_edgeCut_le_width [Nontrivial V]
     omega
   · obtain ⟨S, hS, hi⟩ := exists_card_eq_μ (implies_univ_of_derives (h.derives hc))
     refine ⟨c, hc, S, hS ▸ h₁, hS ▸ h₂, card_edgeCut_le_width hi fun v hv hv' => ?_⟩
-    have := (μ_le hv').trans_eq (card_erase_of_mem hv)
+    have h' := μ_le hv'
+    rw [card_erase_of_mem hv, hS] at h'
     omega
 
 /-- **The width lower bound for Tseitin formulas**

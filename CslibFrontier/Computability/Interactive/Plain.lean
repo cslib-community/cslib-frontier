@@ -59,20 +59,21 @@ private noncomputable def runLaw {α : Type}
 private theorem plain_eval {α : Type}
     (p : ProbOracleComp (OracleSpec.empty ⊕ₒ OracleSpec.empty) α) :
     World.plain.eval p = runLaw p := by
+  have h := OracleComp.run_interpret_stateless (m := PMF) (State := Unit)
+    (OracleComp.sumHandler ProbComp.unifOracle
+      (OracleComp.sumHandler (fun e => e.elim) fun e => e.elim)) p ()
   have hh : (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
       World.plain.impl) =
       fun q s => (fun a => (a, s)) <$> OracleComp.sumHandler ProbComp.unifOracle
         (OracleComp.sumHandler (fun e => e.elim) fun e => e.elim) q := by
     funext q s
-    rcases q with _ | e | e
+    rcases q with n | e | e
     · rfl
     · exact e.elim
     · exact e.elim
   unfold World.eval
   rw [ProbOracleComp.runWith_eq_run_interpret]
-  erw [hh, OracleComp.run_interpret_stateless (m := PMF) (State := Unit)
-    (OracleComp.sumHandler ProbComp.unifOracle
-      (OracleComp.sumHandler (fun e => e.elim) fun e => e.elim)) p ()]
+  erw [hh, h]
   exact (PMF.map_comp _ _ _).trans (PMF.map_id _)
 
 private theorem runLaw_liftProver {α : Type} (p : ProbOracleComp OracleSpec.empty α) :
@@ -148,7 +149,8 @@ private theorem runLaw_output {s : Spec} {StmtIn StmtOut : Type}
 
 private theorem toOuterMeasure_bind_pure {α β : Type} (p : PMF α) (g : α → β) (t : Set β) :
     (p.bind fun a => PMF.pure (g a)).toOuterMeasure t = p.toOuterMeasure (g ⁻¹' t) := by
-  rw [← PMF.toOuterMeasure_map_apply]; rfl
+  rw [← PMF.toOuterMeasure_map_apply]
+  rfl
 
 /-- **The law of an execution in the plain model**: run the prover's strategy against the
 challenge samplers, then apply the verifier's decision to the transcript. -/

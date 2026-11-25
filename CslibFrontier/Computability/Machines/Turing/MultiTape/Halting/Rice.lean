@@ -139,8 +139,10 @@ This is the counterpart of Mathlib's `ComputablePred.rice₂` for partial recurs
 theorem not_isDecidable_of_behavior {P : Set (List Bool)}
     (hP : ∀ w w', behavior w = behavior w' → w ∈ P → w' ∈ P) {w₀ w₁ : List Bool} (h₀ : w₀ ∉ P)
     (h₁ : w₁ ∈ P) : ¬IsDecidable P encBits := by
-  rw [show P = {w | behavior w ∈ {B | ∃ w ∈ P, behavior w = B}} from
-    Set.ext fun w => ⟨fun hw => ⟨w, hw, rfl⟩, fun ⟨w', hw', h⟩ => hP w' w h hw'⟩]
+  have hset : {w | behavior w ∈ {B | ∃ w ∈ P, behavior w = B}} = P := by
+    ext w
+    exact ⟨fun ⟨w', hw', h⟩ => hP w' w h hw', fun hw => ⟨w, hw, rfl⟩⟩
+  rw [← hset]
   exact rice (fun ⟨w, hw, h⟩ => h₀ (hP w w₀ h hw)) ⟨w₁, h₁, rfl⟩
 
 /-! ### Halting on a fixed input -/
@@ -179,9 +181,11 @@ function decides, of a word, whether the machine it describes halts on `x`. This
 counterpart of Mathlib's `ComputablePred.halting_problem`, a corollary of Rice's theorem. -/
 theorem not_isDecidable_halts (x : List Bool) :
     ¬IsDecidable {w | (decodeDesc w).Halts (x.map eBit)} encBits := by
-  rw [show {w | (decodeDesc w).Halts (x.map eBit)} =
-    {w | behavior w ∈ {B : List Bool → List ℕ → Prop | ∃ o, B x o}} from
-      Set.ext fun _ => Desc.halts_iff_exists_computes]
+  have hset : {w | (decodeDesc w).Halts (x.map eBit)} =
+      {w | behavior w ∈ {B : List Bool → List ℕ → Prop | ∃ o, B x o}} := by
+    ext w
+    exact Desc.halts_iff_exists_computes
+  rw [hset]
   refine rice (w₀ := eDesc loopDesc) (w₁ := eDesc haltDesc) (fun ⟨o, h⟩ => ?_) ⟨[], ?_⟩
   · rw [behavior, decodeDesc_eDesc] at h
     exact not_computes_loopDesc x o h

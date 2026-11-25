@@ -175,7 +175,8 @@ private theorem transcript_cost_phase {State : Type} (cost : Operation → ℕ)
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         2 * cost (.inl .gate) + cost (.inl .query) := by
   supp_cases h [phase, gate, command, runWith_norm, OracleComp.withTranscript]
-  simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]; omega
+  simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
+  omega
 
 private theorem transcript_cost_round {State : Type} (cost : Operation → ℕ)
     (oracle : Operation × List Bool → StateT State PMF (List Bool))
@@ -190,7 +191,8 @@ private theorem transcript_cost_round {State : Type} (cost : Operation → ℕ)
   supp_cases h [round, runWith_norm] with ⟨⟨next, middle, seen⟩, hnext, hphase⟩
   have hcost := transcript_cost_phase cost oracle next hphase
   supp_cases hnext [requestBit, runWith_norm, OracleComp.withTranscript]
-  simp only [List.map_cons, List.sum_cons] at hcost ⊢; omega
+  simp only [List.map_cons, List.sum_cons] at hcost ⊢
+  omega
 
 private theorem transcript_cost_walk {State : Type} (cost : Operation → ℕ)
     (oracle : Operation × List Bool → StateT State PMF (List Bool)) (count : ℕ)
@@ -209,9 +211,10 @@ private theorem transcript_cost_walk {State : Type} (cost : Operation → ℕ)
   | succ count ih =>
     supp_cases h [walk, OracleComp.iterate_succ, runWith_norm] with
       ⟨⟨next, middle, seen⟩, hwalk, hround⟩
-    have := ih hwalk
-    have := transcript_cost_round cost oracle next hround
-    rw [Nat.succ_mul]; omega
+    have hfirst := ih hwalk
+    have hlast := transcript_cost_round cost oracle next hround
+    rw [Nat.succ_mul]
+    omega
 
 private theorem transcript_cost_prepare {State : Type} (cost : Operation → ℕ)
     (oracle : Operation × List Bool → StateT State PMF (List Bool))
@@ -224,7 +227,8 @@ private theorem transcript_cost_prepare {State : Type} (cost : Operation → ℕ
       (before.map fun ⟨⟨operation, _⟩, _⟩ => cost operation).sum +
         3 * cost (.inl .gate) := by
   supp_cases h [prepare, gate, command, runWith_norm, OracleComp.withTranscript]
-  simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]; omega
+  simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
+  omega
 
 /-- Every supported execution has exactly the separate operation costs. Indicator weights count
 each channel independently; this is stronger than existence of an execution attaining a bound. -/
@@ -243,6 +247,7 @@ theorem transcript_cost_program {State : Type} (cost : Operation → ℕ)
   have hsecond := transcript_cost_walk cost oracle count ‹_›
   simp only [List.map_nil, List.sum_nil, Nat.zero_add] at hfirst
   simp only [Prod.map_snd, id_eq, List.map_cons, List.sum_cons]
-  rw [hsecond, hfirst]; ring
+  rw [hsecond, hfirst]
+  ring
 
 end Cslib.Quantum.PointerWalk

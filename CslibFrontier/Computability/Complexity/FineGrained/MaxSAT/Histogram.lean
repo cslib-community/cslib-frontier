@@ -73,22 +73,28 @@ def optimumFromCounts (counts : List ℕ) : ℕ :=
 /-- Differences of consecutive tail counts give the exact score count. -/
 theorem thresholdCount_sub (F : Instance) (q : ℕ) :
     thresholdCount F q - thresholdCount F (q + 1) = exactCount F q := by
-  have heq : (Finset.univ.filter fun x : BitString F.1 => q ≤ score F x) \
-      (Finset.univ.filter fun x : BitString F.1 => q + 1 ≤ score F x) =
-      Finset.univ.filter fun x : BitString F.1 => score F x = q := by
+  have hsub : (Finset.univ.filter (fun x : BitString F.1 => q + 1 ≤ score F x)) ⊆
+      Finset.univ.filter (fun x : BitString F.1 => q ≤ score F x) := by
+    intro x hx
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hx ⊢
+    omega
+  have heq : (Finset.univ.filter (fun x : BitString F.1 => q ≤ score F x)) \
+      (Finset.univ.filter (fun x : BitString F.1 => q + 1 ≤ score F x)) =
+      Finset.univ.filter (fun x : BitString F.1 => score F x = q) := by
     ext x
     simp only [Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and]
     omega
-  have hsub : (Finset.univ.filter fun x : BitString F.1 => q + 1 ≤ score F x) ⊆
-      Finset.univ.filter fun x : BitString F.1 => q ≤ score F x := fun x hx =>
-    Finset.mem_filter.2 ⟨Finset.mem_univ x, Nat.le_of_succ_le (Finset.mem_filter.1 hx).2⟩
-  simpa only [thresholdCount, exactCount, heq] using (Finset.card_sdiff_of_subset hsub).symm
+  simpa only [thresholdCount, exactCount, heq] using
+    (Finset.card_sdiff_of_subset hsub).symm
 
 /-- Adjacent differences preserve the increasing order of score indices. -/
 theorem histogramFromCounts_range (f : ℕ → ℕ) (m : ℕ) :
     histogramFromCounts ((List.range (m + 1)).map f) =
-      (List.range m).map (fun q => f q - f (q + 1)) :=
-  List.ext_getElem (by simp [histogramFromCounts]) fun _ _ _ => by simp [histogramFromCounts]
+      (List.range m).map (fun q => f q - f (q + 1)) := by
+  apply List.ext_getElem
+  · simp [histogramFromCounts]
+  · intro i hi hj
+    simp [histogramFromCounts]
 
 /-- The returned histogram contains every exact assignment count. -/
 theorem histogramFromCounts_thresholdCounts (F : Instance) :
@@ -173,7 +179,8 @@ theorem exists_histogram_algorithm :
   obtain ⟨A, d, hd⟩ := exists_thresholdCounts_algorithm
   obtain ⟨e, he⟩ := hd.polynomial_postprocessing histogramFromCounts_polyTime
     (fun _ => Nat.one_le_two_pow)
-  exact ⟨A, e, he.of_enc_eq fun F => congrArg _ (histogramFromCounts_thresholdCounts F).symm⟩
+  refine ⟨A, e, he.of_enc_eq fun F => ?_⟩
+  rw [Function.comp_apply, histogramFromCounts_thresholdCounts]
 
 /-- A native algorithm returns the exact MAX-SAT optimum at the contraction rate, with
 polynomial space. This is uniform in clause width and in the input's declared variable count. -/
@@ -185,7 +192,8 @@ theorem exists_optimum_algorithm :
   obtain ⟨A, d, hd⟩ := exists_thresholdCounts_algorithm
   obtain ⟨e, he⟩ := hd.polynomial_postprocessing optimumFromCounts_polyTime
     (fun _ => Nat.one_le_two_pow)
-  exact ⟨A, e, he.of_enc_eq fun F => congrArg _ (optimumFromCounts_thresholdCounts F).symm⟩
+  refine ⟨A, e, he.of_enc_eq fun F => ?_⟩
+  rw [Function.comp_apply, optimumFromCounts_thresholdCounts]
 
 /-! ### Sparse fixed-width instances -/
 

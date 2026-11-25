@@ -65,16 +65,17 @@ theorem rowNormPow_fine_omission_le {Γ Υ V : Type*}
     exact mul_le_mul (hX x) (hY y) (by positivity) (by positivity)
   rw [rowNormPow_const_eq_dens_sum]
   calc
-    _ ≤ (N * u)⁻¹ * ∑ x, ∑ y, (Cu * u * (Ca * a)) * ((Cb * b) ^ 3 * H x y / a ^ 4) := by
+    _ ≤ (N * u)⁻¹ * ∑ x, ∑ y, (Cu * u * (Ca * a)) *
+        ((Cb * b) ^ 3 * H x y / a ^ 4) := by
       apply mul_le_mul_of_nonneg_left _ (by positivity)
       exact sum_le_sum fun x _ => sum_le_sum fun y _ =>
         mul_le_mul (hdens x y) (hpoint x y) (by positivity) (by positivity)
-    _ = (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) * ∑ x, ∑ y, H x y := by
-      simp only [← mul_sum, ← sum_div]; ring
+    _ = (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) *
+        ∑ x, ∑ y, H x y := by simp only [← mul_sum, ← sum_div]; ring
     _ ≤ (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) *
         ((Fintype.card V : ℝ) * R) := by
       apply mul_le_mul_of_nonneg_left _ (by positivity)
-      simpa using sum_le_sum fun x (_ : x ∈ (univ : Finset V)) => hrow x
+      simpa using sum_le_sum (fun x (_ : x ∈ (univ : Finset V)) => hrow x)
     _ ≤ (N * u)⁻¹ * (Cu * u * (Ca * a) * (Cb * b) ^ 3 / a ^ 4) * (N * R) :=
       mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hcard hR) (by positivity)
     _ = _ := by field_simp

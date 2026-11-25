@@ -74,7 +74,8 @@ theorem agreement_le_sum_effect_sq_of_equal (φ : AlgState A) (L R : Measurement
     (hsq : ∀ a, (φ (L.effect a * L.effect a)).re = (φ (R.effect a * R.effect a)).re) :
     agreement φ L R ≤ ∑ a, (φ (L.effect a * L.effect a)).re := by
   have h := two_mul_agreement_le_sum_re_effect_sq φ L R hcomm
-  simp only [← hsq] at h; linarith only [h]
+  simp only [← hsq] at h
+  linarith only [h]
 
 /-- Relabeling both commuting measurements by the same function can only increase
 the probability that their outcomes match. -/
@@ -83,9 +84,11 @@ theorem agreement_le_agreement_map {β : Type*} [Fintype β] [DecidableEq β]
     (hcomm : ∀ a b, Commute (P.effect a) (Q.effect b)) :
     agreement φ P Q ≤ agreement φ (P.map f) (Q.map f) := by
   rw [agreement_map_map, agreement]
-  refine sum_le_sum fun a _ => le_trans (by simp) (single_le_sum (f := fun b =>
+  refine sum_le_sum fun a _ => ?_
+  refine le_trans ?_ (single_le_sum (f := fun b =>
     if f a = f b then (φ (P.effect a * Q.effect b)).re else 0) (fun b _ => ?_) (mem_univ a))
-  exact ite_nonneg (φ.re_apply_nonneg ((hcomm a b).mul_nonneg (P.nonneg a) (Q.nonneg b))) le_rfl
+  · simp
+  · exact ite_nonneg (φ.re_apply_nonneg ((hcomm a b).mul_nonneg (P.nonneg a) (Q.nonneg b))) le_rfl
 
 /-- Replacing one measurement changes its agreement with a fixed measurement by
 at most the square root of the state-dependent squared distance. -/
@@ -93,14 +96,15 @@ theorem abs_agreement_sub_right_le (φ : AlgState A) (P Q R : Measurement α A) 
     |agreement φ P Q - agreement φ P R| ≤
       √(∑ a, φ.norm (Q.effect a - R.effect a) ^ 2) := by
   have hP : (∑ a, φ.norm (P.effect a) ^ 2) ≤ 1 := by
-    simpa only [AlgState.norm_sq, fun a => (P.nonneg a).isSelfAdjoint.star_eq] using
-      sum_re_effect_sq_le_one φ P
+    have h (a : α) := (P.nonneg a).isSelfAdjoint.star_eq
+    simpa only [AlgState.norm_sq, h] using sum_re_effect_sq_le_one φ P
   calc
     _ = |∑ a, (φ (star (P.effect a) * (Q.effect a - R.effect a))).re| := by
       simp only [agreement, (P.nonneg _).isSelfAdjoint.star_eq, mul_sub, map_sub,
         Complex.sub_re, sum_sub_distrib]
     _ ≤ √(∑ a, φ.norm (P.effect a) ^ 2) *
-        √(∑ a, φ.norm (Q.effect a - R.effect a) ^ 2) := φ.abs_sum_re_star_mul_le P.effect _
+        √(∑ a, φ.norm (Q.effect a - R.effect a) ^ 2) :=
+      φ.abs_sum_re_star_mul_le P.effect _
     _ ≤ _ := by
       simpa only [Real.sqrt_one, one_mul] using
         mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt hP) (Real.sqrt_nonneg _)

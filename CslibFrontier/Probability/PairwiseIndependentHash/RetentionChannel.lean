@@ -127,11 +127,13 @@ private theorem isPairwiseIndependentHash_affineIdentifier :
 /-- **Retention probability**: every identifier is retained with probability `(L / P) ^ H`. -/
 theorem dens_affineRetains (hL : L ≤ P) (y : ZMod P) :
     dens {s | affineRetains P H L s y} = ((L : ℚ≥0) / P) ^ H := by
-  have h := isPairwiseIndependentHash_affineIdentifier.dens_filter_apply_mem y (retentionBox P H L)
+  have h := isPairwiseIndependentHash_affineIdentifier.dens_filter_apply_mem y
+    (retentionBox P H L)
   rw [card_retentionBox hL, Fintype.card_fun, Fintype.card_fin, ZMod.card] at h
   unfold affineRetains
   rw [h, div_pow]
-  push_cast; rfl
+  push_cast
+  rfl
 
 /-- **Pairwise independent retention**: two distinct identifiers are both retained with
 probability `((L / P) ^ H) ^ 2`. -/
@@ -143,7 +145,8 @@ theorem dens_affineRetains_and (hL : L ≤ P) {w y : ZMod P} (hwy : w ≠ y) :
   rw [card_retentionBox hL, Fintype.card_fun, Fintype.card_fin, ZMod.card] at h
   unfold affineRetains
   rw [h, div_pow]
-  push_cast; rfl
+  push_cast
+  rfl
 
 omit [Fact P.Prime] in
 /-- **Nested boxes**: an identifier retained with side `L₂` is retained with every side
@@ -167,7 +170,8 @@ theorem dens_affineRetains_and_affineRetains {L₁ L₂ : ℕ} (hL₁ : L₁ ≤
     ZMod.card] at h
   unfold affineRetains
   rw [h, div_pow, div_pow]
-  push_cast; rfl
+  push_cast
+  rfl
 
 /-- **Lower tail of the retained count**: a set `A` of identifiers retains fewer than half of its
 expected number `#A π`, with `π = (L / P) ^ H`, with probability at most `4 / (#A π)`. -/
@@ -178,10 +182,12 @@ theorem dens_two_mul_card_filter_affineRetains_lt_le (hL : L ≤ P) (A : Finset 
   have hrate : ((#(retentionBox P H L) : ℝ) / Fintype.card (Fin H → ZMod P)) =
       ((L : ℝ) / P) ^ H := by
     rw [card_retentionBox hL, Fintype.card_fun, Fintype.card_fin, ZMod.card, div_pow]
-    push_cast; rfl
-  simpa only [hrate] using
-    isPairwiseIndependentHash_affineIdentifier.dens_two_mul_card_filter_apply_mem_lt_le
-      (𝕜 := ℝ) A (retentionBox P H L) (by rwa [hrate])
+    push_cast
+    rfl
+  have h := isPairwiseIndependentHash_affineIdentifier.dens_two_mul_card_filter_apply_mem_lt_le
+    (𝕜 := ℝ) A (retentionBox P H L) (by rwa [hrate])
+  rw [hrate] at h
+  exact h
 
 /-- **The four channel properties at rate `f = a ^ H`.** Let `1 ≤ P a`, `a ≤ 1` and
 `L = ⌈P a⌉`, and write `π = (L / P) ^ H` for the retention probability. Then `L ≤ P`,

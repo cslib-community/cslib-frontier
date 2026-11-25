@@ -144,8 +144,10 @@ theorem eval_plaistedGreenbaumCNF_tseitinExtend (v : Atom → Bool) (A : Proposi
   cases h : A.eval v
   · simp [plaistedGreenbaumCNF, h]
   · rw [CNF.eval_eq_true_iff]
-    exact fun c hc => (CNF.eval_eq_true_iff ..).mp ((eval_tseitinCNF_tseitinExtend v A).trans h) c
-      (mem_tseitinCNF_of_mem_plaistedGreenbaumCNF hc)
+    intro c hc
+    have := (eval_tseitinCNF_tseitinExtend v A).trans h
+    rw [CNF.eval_eq_true_iff] at this
+    exact this c (mem_tseitinCNF_of_mem_plaistedGreenbaumCNF hc)
 
 /-- Under an assignment satisfying the definitional clauses needed at polarity `pol`, if the
 variable of `A` has the value `pol` then so does `A` at the atoms. -/
@@ -186,12 +188,15 @@ theorem not_forall_eq_of_eval_plaistedGreenbaumCNF [Nonempty Atom] :
         σ ∘ Sum.inl = τ ∘ Sum.inl → ∀ y ∈ A.plaistedGreenbaumCNF.vars, σ y = τ y := by
   intro h
   obtain ⟨x⟩ := ‹Nonempty Atom›
-  let τ : Atom ⊕ Proposition Atom → Bool | .inr (.and _ _) => false | _ => true
-  exact Bool.noConfusion <| h (.or (.and (.atom x) (.atom x)) (.atom x)) (fun _ => true) τ
-    rfl rfl rfl (.inr (.and (.atom x) (.atom x)))
+  let τ : Atom ⊕ Proposition Atom → Bool
+    | .inr (.and _ _) => false
+    | _ => true
+  have := h (.or (.and (.atom x) (.atom x)) (.atom x)) (fun _ => true) τ rfl rfl rfl
+    (.inr (.and (.atom x) (.atom x)))
     (CNF.mem_vars.2 ⟨[(.inr (.and (.atom x) (.atom x)), false), (.inl x, true)],
       by simp [plaistedGreenbaumCNF, plaistedGreenbaumDefs, tseitinVar], false,
       List.mem_cons_self⟩)
+  exact Bool.noConfusion this
 
 /-- **The Plaisted–Greenbaum transformation preserves satisfiability.** -/
 theorem satisfiable_plaistedGreenbaumCNF_iff (A : Proposition Atom) :

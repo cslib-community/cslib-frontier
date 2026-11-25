@@ -154,6 +154,7 @@ theorem forest_reachability_optimized (c : Circuit signature n n) :
       (out.size : ℝ) ≤ 9000000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := forest_reachability_circuit c L hL hLN
-  exact ⟨out, hout, by cast_linarith [hs]⟩
+  refine ⟨out, hout, ?_⟩
+  cast_linarith [hs]
 
 end Cslib.Circuits.Boolean.Iteration

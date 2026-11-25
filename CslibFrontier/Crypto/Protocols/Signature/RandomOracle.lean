@@ -209,14 +209,16 @@ theorem run_oracle_of_lookup_eq_none {q : Query} {cache : List (Query × Digest)
     (h : cache.lookup q = none) :
     (oracle Digest q).run cache =
       (PMF.uniformOfFintype Digest).bind fun c => PMF.pure (c, (q, c) :: cache) := by
-  simpa only [oracle, StateT.run, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure] using
-    memoize_of_none (fun _ => PMF.uniformOfFintype Digest) q cache h
+  change memoize (fun _ => PMF.uniformOfFintype Digest) q cache = _
+  rw [memoize_of_none _ _ _ h]
+  rfl
 
 /-- A query at a cached point returns the cached digest and leaves the cache unchanged. -/
 theorem run_oracle_of_lookup_eq_some {q : Query} {cache : List (Query × Digest)} {c : Digest}
     (h : cache.lookup q = some c) : (oracle Digest q).run cache = PMF.pure (c, cache) := by
   change memoize (fun _ => PMF.uniformOfFintype Digest) q cache = _
-  exact memoize_of_some _ _ _ _ h
+  rw [memoize_of_some _ _ _ _ h]
+  rfl
 
 /-- A table entry produced by a call of `oracle` is found at its queried point. -/
 theorem lookup_of_mem_support_oracle {q : Query} {cache : List (Query × Digest)}
@@ -227,7 +229,8 @@ theorem lookup_of_mem_support_oracle {q : Query} {cache : List (Query × Digest)
       PMF.mem_support_pure_iff, PMF.mem_support_bind_iff] at h
   · obtain ⟨_, _, rfl⟩ := h
     exact List.lookup_cons_self
-  · exact h ▸ hlookup
+  · subst h
+    exact hlookup
 
 /-- A call of `oracle` adds at most one entry to the cache. -/
 theorem length_le_of_mem_support_oracle {q : Query} {cache : List (Query × Digest)}
@@ -238,7 +241,8 @@ theorem length_le_of_mem_support_oracle {q : Query} {cache : List (Query × Dige
       PMF.mem_support_pure_iff, PMF.mem_support_bind_iff] at h
   · obtain ⟨_, _, rfl⟩ := h
     exact le_rfl
-  · exact h ▸ Nat.le_succ _
+  · subst h
+    exact Nat.le_succ _
 
 /-- Answer a forger's calls: sign with the secret key, recording the message, or query the
 oracle. Signing and the forger share the oracle. -/
@@ -369,7 +373,8 @@ theorem runWith_world_runLoggedForger_liftOracleForger
         (fun ⟨⟨msig, pairs⟩, cache'⟩ => (msig, (cache', pairs.map Prod.fst))) =
     (interpret (handler scheme sk) prog).run (cache, []) := by
   rw [runLoggedForger, ProbOracleComp.runWith_run_interpret, PMF.map_comp, liftOracleForger,
-    ProbOracleComp.runWith_interpret, OracleComp.runWith_eq_run_interpret]
+    ProbOracleComp.runWith_interpret]
+  rw [OracleComp.runWith_eq_run_interpret]
   refine OracleComp.run_interpret_map_state (oracle' := handler scheme sk)
     (represent := fun (state : List (M × Sig) × List (Query × Digest)) =>
       (state.2, state.1.map Prod.fst)) (step := fun q ⟨pairs, curCache⟩ => ?_) (program := prog)
@@ -395,7 +400,8 @@ theorem eval_world_worldRealize
   refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
   rw [ProbOracleComp.runWith_bind, runWith_world_liftVerify, PMF.map_bind]
   refine PMF.bind_congr_on_support _ _ _ fun verified _ => ?_
-  rw [ProbOracleComp.runWith_pure, PMF.pure_map]; rfl
+  rw [ProbOracleComp.runWith_pure, PMF.pure_map]
+  rfl
 
 /-- Evaluating `worldRealize` on a lifted deterministic `OracleComp` forger in `world scheme sk`
 matches running `logSigning` + `forgerWorldImpl` and then `scheme.verify` on the resulting cache. -/
@@ -437,11 +443,12 @@ theorem eufCmaGame_eq_worldGame [DecidableEq M]
         (worldRealize scheme keys.1 (liftOracleForger (forger.forge keys.1 s))
           (fun verified ⟨msg, _⟩ pairs => verified && !(pairs.map Prod.fst).contains msg))) := by
   unfold eufCmaGame
-  refine PMF.bind_congr_on_support _ _ _ fun keys _ =>
-    PMF.bind_congr_on_support _ _ _ fun s _ => ?_
+  refine PMF.bind_congr_on_support _ _ _ fun keys _ => ?_
+  refine PMF.bind_congr_on_support _ _ _ fun s _ => ?_
   rw [eval_world_worldRealize_liftOracleForger,
     ← runWith_world_runLoggedForger_liftOracleForger]
-  simp only [PMF.monad_bind_eq_bind, PMF.bind_map]; rfl
+  simp only [PMF.monad_bind_eq_bind, PMF.bind_map]
+  rfl
 
 /-- Key-only existential unforgeability (`ufCma0Game`): the forger wins when its candidate
 forgery verifies and it made zero signing queries (`pairs.isEmpty`). -/

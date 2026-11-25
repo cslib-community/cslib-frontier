@@ -177,11 +177,13 @@ theorem mulVec_realEncode {M' : Matrix (Fin (m + 1) → Bool) (Fin (m + 1) → B
   · simp only [Bool.false_eq_true, ite_false, realEntry, Complex.re_sum, Complex.ofReal_sum]
     refine sum_congr rfl fun x _ => ?_
     rw [Complex.mul_re]
-    push_cast; ring
+    push_cast
+    ring
   · simp only [ite_true, realEntry, Complex.im_sum, Complex.ofReal_sum]
     refine sum_congr rfl fun x _ => ?_
     rw [Complex.mul_im]
-    push_cast; ring
+    push_cast
+    ring
 
 /-! ### Simulation of circuits -/
 

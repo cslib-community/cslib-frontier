@@ -83,10 +83,12 @@ theorem sum_iid_comp_perm (μ : PMF α) {k : ℕ} (σ : Equiv.Perm (Fin k))
     (f : (Fin k → α) → ℝ) :
     ∑ y, (iid μ k y).toReal * f (y ∘ σ) = ∑ y, (iid μ k y).toReal * f y := by
   refine Fintype.sum_equiv (Equiv.arrowCongr σ.symm (Equiv.refl α)) _ _ fun y => ?_
-  have hy : (Equiv.arrowCongr σ.symm (Equiv.refl α)) y = y ∘ σ :=
-    funext fun i => by simp [Equiv.arrowCongr_apply]
+  have hy : (Equiv.arrowCongr σ.symm (Equiv.refl α)) y = y ∘ σ := by
+    funext i
+    simp [Equiv.arrowCongr_apply]
   rw [hy, iid_apply, iid_apply]
-  exact congrArg (·.toReal * f (y ∘ σ)) (Equiv.prod_comp σ fun i => μ (y i)).symm
+  congr 2
+  exact (Equiv.prod_comp σ fun i => μ (y i)).symm
 
 variable [DecidableEq α]
 
@@ -118,10 +120,11 @@ theorem occurrenceCount_comp_perm {k : ℕ} (y : Fin k → α) (σ : Equiv.Perm 
 
 /-- The occurrence counts of all values add up to the number of samples. -/
 theorem sum_occurrenceCount {k : ℕ} (x : Fin k → α) : ∑ b, occurrenceCount x b = k := by
-  suffices ∑ b, (occurrenceCount x b : ℝ) = k by exact_mod_cast this
-  simp only [occurrenceCount_eq_sum]
-  rw [Finset.sum_comm]
-  simp
+  have h : (∑ b, occurrenceCount x b : ℝ) = k := by
+    simp only [occurrenceCount_eq_sum]
+    rw [Finset.sum_comm]
+    simp
+  exact_mod_cast h
 
 /-- **Inverse occurrence moment.** Among `m` independent draws from `μ`, the value `a` occurs `N`
 times with `(m + 1) μ(a) E[1 / (N + 1)] ≤ 1`. -/

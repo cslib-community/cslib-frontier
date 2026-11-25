@@ -103,23 +103,27 @@ theorem computableInPolyTime_polarize_comp {α : Type} {enc : α ↪ List Bool} 
     (hlam : ComputableInPolyTime lam enc encUnary) (hell : ComputableInPolyTime ell enc encUnary)
     (hk : ComputableInPolyTime k enc encUnary) :
     ComputableInPolyTime (fun a => (x a).polarize (lam a) (ell a) (k a)) enc encSDInstance := by
-  have hraw := (ComputableInPolyTime.of_eq (encIn := encSDInstance)
-    (encOut := encPair (encPair encUnary encUnary) (encPair encCode encCode))
-    (f := fun y : SDInstance => ((y.inputs, y.outputs), (y.left.code, y.right.code)))
-    fun _ => rfl).comp' hx
+  have hproj : ComputableInPolyTime
+      (fun y : SDInstance => ((y.inputs, y.outputs), (y.left.code, y.right.code)))
+      encSDInstance (encPair (encPair encUnary encUnary) (encPair encCode encCode)) :=
+    .of_eq fun _ => rfl
+  have hraw := hproj.comp' hx
   have hn : ComputableInPolyTime (fun a => (x a).inputs) enc encUnary := hraw.fst'.fst'
   have hm : ComputableInPolyTime (fun a => (x a).outputs) enc encUnary := hraw.fst'.snd'
+  have hc₀ := hraw.snd'.fst'
+  have hc₁ := hraw.snd'.snd'
   have hN : ComputableInPolyTime
       (fun a => k a + (k a + 1) * (ell a * (lam a + (lam a + 1) * (x a).inputs)))
-      enc encUnary := by fun_prop
+      enc encUnary := by
+    fun_prop
   have hM : ComputableInPolyTime
       (fun a => (k a + 1) * (ell a * ((lam a + 1) * (x a).outputs)))
-      enc encUnary := by fun_prop
-  refine ((hN.prod hM).prod
-    ((computableInPolyTime_polarizeCode false hn hm hlam hell hk hraw.snd'.fst'
-        hraw.snd'.snd').prod
-      (computableInPolyTime_polarizeCode true hn hm hlam hell hk hraw.snd'.fst'
-        hraw.snd'.snd'))).of_enc_eq fun a => ?_
+      enc encUnary := by
+    fun_prop
+  have h := (hN.prod hM).prod
+    ((computableInPolyTime_polarizeCode false hn hm hlam hell hk hc₀ hc₁).prod
+      (computableInPolyTime_polarizeCode true hn hm hlam hell hk hc₀ hc₁))
+  refine h.of_enc_eq fun a => ?_
   rw [encSDInstance_apply, polarizeCode_code, polarizeCode_code]
   rfl
 
@@ -237,9 +241,12 @@ theorem StatisticalDifference.polyTimeReducible {α β α' β' : ℝ} (hβ : 0 �
   obtain ⟨hf, hdist⟩ := h (fun _ => k) (const k)
   have hβα₀ : β < α := hβα.trans_le (pow_le_of_le_one hα hα1 two_ne_zero)
   refine ⟨_, hf, fun x hx => ?_, fun x hx => ?_⟩
-  · rw [mem_yes_statisticalDifference]
-    linarith [(hdist x).1 hx, min_le_right β' (1 - α')]
-  · rw [mem_no_statisticalDifference hβα']
-    linarith [(hdist x).2 ((mem_no_statisticalDifference hβα₀).mp hx), min_le_left β' (1 - α')]
+  · have := (hdist x).1 hx
+    rw [mem_yes_statisticalDifference]
+    linarith [min_le_right β' (1 - α')]
+  · rw [mem_no_statisticalDifference hβα₀] at hx
+    have := (hdist x).2 hx
+    rw [mem_no_statisticalDifference hβα']
+    linarith [min_le_left β' (1 - α')]
 
 end Cslib.Complexity

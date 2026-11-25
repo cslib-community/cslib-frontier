@@ -103,8 +103,11 @@ theorem size_enc (t : Bt) : t.enc.size ≤ 4 * t.nds := by
   | none => simp [enc, Tree.size, nds]
   | leaf w =>
     have := Tree.size_ofBits w
-    simp only [enc, Tree.size, nds]; omega
-  | node _ _ _ _ => simp only [enc, Tree.size, nds]; omega
+    simp only [enc, Tree.size, nds]
+    omega
+  | node l r ihl ihr =>
+    simp only [enc, Tree.size, nds]
+    omega
 
 /-- Decrementing keeps the shape of the trie: its height and its number of nodes. -/
 private theorem ht_nds_dec {p : List Bool} {t t' : Bt} (h : dec p t = some t') :
@@ -136,7 +139,9 @@ theorem decAll_append (b b' : List (List Bool)) (t : Bt) : decAll (b ++ b') t =
   | nil => rfl
   | cons p b ih =>
     simp only [List.cons_append, decAll, Option.bind_assoc]
-    exact congrArg _ (funext ih)
+    congr 1
+    funext t
+    exact ih t
 
 theorem ht_decAll {b : List (List Bool)} {t t' : Bt} (h : decAll b t = some t') : t'.ht = t.ht := by
   induction b generalizing t with

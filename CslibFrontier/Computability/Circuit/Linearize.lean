@@ -135,7 +135,8 @@ noncomputable def taylorOp (P : MvPolynomial (Fin k) F) (z : Fin k → F) :
 theorem affineInterpretation_taylorOp (P : MvPolynomial (Fin k) F) (z y : Fin k → F) :
     affineInterpretation F (taylorOp P z) y =
       eval z P + ∑ a, eval z (pderiv a P) * (y a - z a) := by
-  simp only [taylorOp, affineInterpretation_apply, mul_sub, Finset.sum_sub_distrib]; ring
+  simp only [taylorOp, affineInterpretation_apply, mul_sub, Finset.sum_sub_distrib]
+  ring
 
 variable {σ : Signature} (P : (o : σ.Op) → MvPolynomial (Fin (σ.Arity o)) F)
 
@@ -155,8 +156,10 @@ theorem Program.arity_lines_linearize (p : Program σ n s) (g : Fin s) :
   | empty => exact g.elim0
   | gate p line ih =>
     refine Fin.lastCases ?_ (fun g => ?_) g
-    · simp only [linearize, Program.lines_gate_last, Line.mapWires_op]; rfl
-    · simpa only [linearize, Program.lines_gate_castSucc, Line.mapWires_op] using ih g
+    · simp only [linearize, Program.lines_gate_last, Line.mapWires_op]
+      rfl
+    · simp only [linearize, Program.lines_gate_castSucc, Line.mapWires_op]
+      exact ih g
 
 /-- Linearization preserves the inner gates. -/
 theorem Program.innerGates_linearize (p : Program σ n s) :
@@ -175,9 +178,12 @@ theorem Program.depths_linearize : ∀ {s : ℕ} (p : Program σ n s),
   | _, .empty => funext fun k => k.elim0
   | _, .gate p line => by
     have ih := depths_linearize p
-    refine funext fun k => Fin.lastCases ?_ (fun k => ?_) k
-    · simp only [Program.linearize, Program.depths_gate_last, Program.wireDepths, ih]; rfl
-    · simp only [Program.linearize, Program.depths_gate_castSucc, ih]
+    funext k
+    induction k using Fin.lastCases with
+    | last =>
+      simp only [Program.linearize, Program.depths_gate_last, Program.wireDepths, ih]
+      rfl
+    | cast k => simp only [Program.linearize, Program.depths_gate_castSucc, ih]
 
 /-- The real part of the value of a wire at the input `ε x` is its value at the zero input. -/
 private theorem Program.fst_trace_dualNumber (p : Program σ n s) (x : Fin n → F) (w : Wire n s) :
@@ -193,8 +199,9 @@ theorem Program.trace_linearize (p : Program σ n s) (x : Fin n → F) (w : Wire
         (p.trace (polynomialInterpretation P F[ε]) (fun j => inr (x j)) w).snd := by
   induction p with
   | empty =>
-    rcases w with i | g
-    exacts [by simp, g.elim0]
+    cases w with
+    | input i => simp
+    | gate g => exact g.elim0
   | gate p line ih =>
     refine Wire.lastCases ?_ (fun w => ?_) w
     · -- The new gate is the first-order Taylor expansion of the old one.
@@ -215,7 +222,8 @@ private theorem Circuit.trace_outputs_dualNumber [IsDomain F] [Infinite F] {c : 
       inr ((M *ᵥ x) i) := by
   -- The polynomial computed at the output.
   have hQ : c.program.trace (polynomialInterpretation P (MvPolynomial (Fin n) F)) X
-      (c.outputs i) = ∑ j, C (M i j) * X j := MvPolynomial.funext fun y => by
+      (c.outputs i) = ∑ j, C (M i j) * X j := by
+    refine MvPolynomial.funext fun y => ?_
     have h := c.program.map_trace_polynomialInterpretation P (aeval y) X (c.outputs i)
     simp only [aeval_X] at h
     rw [← aeval_eq_eval, h]

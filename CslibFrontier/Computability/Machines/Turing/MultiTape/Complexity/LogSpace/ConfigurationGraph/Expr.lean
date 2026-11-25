@@ -116,7 +116,8 @@ theorem eval_inputSymbolExpr {p : Expr} {symbol : Option Bool}
   rw [inputSymbolExpr, eval_iteB (eval_orB eval_eqB eval_eqB), inputSymbol]
   by_cases h : p.eval regs = 0 ∨ p.eval regs = n.eval regs + 1
   · rcases h with h | h <;> simp [h, symbolCode]
-  · simp [not_or.1 h, hs]
+  · push Not at h
+    simp [h.1, h.2, hs]
 
 /-- The test that a vertex observes a fixed entry of the transition table. -/
 noncomputable def matchesExpr (n : Expr) (r : Register k → Expr) (sym : Expr)

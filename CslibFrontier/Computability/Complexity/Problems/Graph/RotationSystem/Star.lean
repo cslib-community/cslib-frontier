@@ -87,10 +87,13 @@ theorem faceNext_starDartEquiv {n : ℕ} (i : Fin n) (b : Bool) :
     (starRotation n).faceNext (starDartEquiv n (i, b)) =
       starDartEquiv n (if b then i else (finRotate n).symm i, !b) := by
   apply (starRotation n).rotate.injective
-  rw [show (starRotation n).rotate ((starRotation n).faceNext (starDartEquiv n (i, b))) =
-    (starDartEquiv n (i, b)).reverse from Equiv.apply_symm_apply _ _, reverse_starDartEquiv]
+  change (starRotation n).rotate ((starRotation n).rotate.symm
+    (starDartEquiv n (i, b)).reverse) = _
+  rw [Equiv.apply_symm_apply, reverse_starDartEquiv]
   cases b
-  · exact congrArg (starDartEquiv n ⟨·, true⟩) ((finRotate n).apply_symm_apply i).symm
+  · change starDartEquiv n (i, true) =
+      starDartEquiv n (finRotate n ((finRotate n).symm i), true)
+    rw [Equiv.apply_symm_apply]
   · rfl
 
 private def starFaceEquiv (n : ℕ) : Fin n × Bool ≃ Dart (starGraph n) :=

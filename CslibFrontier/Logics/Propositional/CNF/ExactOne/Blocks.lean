@@ -77,9 +77,12 @@ theorem formulaFrom_eq_relabel (start : ℕ) (φ : CNF V) :
     formulaFrom start φ = (formula φ).relabel (shift start) := by
   unfold formulaFrom formula
   rw [List.zipIdx_eq_map_add (l := φ) (i := start)]
-  simp only [CNF.relabel, List.flatMap_def, List.map_flatten, List.map_map, Function.comp_def]
+  simp only [CNF.relabel, List.flatMap_def, List.map_flatten, List.map_map,
+    Function.comp_def]
   apply congrArg List.flatten
-  exact List.map_congr_left fun _ _ => (clauseClauses_shift ..).symm
+  apply List.map_congr_left
+  intro c _
+  exact (clauseClauses_shift _ _ _).symm
 
 /-- Compiling a concatenation gives the second part its exact signed-clause offset. -/
 theorem formulaFrom_append (start : ℕ) (φ ψ : CNF V) :
@@ -103,11 +106,14 @@ theorem compileBlocks_eq_flatMap (start : ℕ) (bs : List (CNF V)) :
   | nil => rfl
   | cons b bs ih =>
     simp only [compileBlocks, List.zipIdx_cons, List.flatMap_cons]
-    rw [ih, List.zipIdx_eq_map_add (l := bs) (i := 1), List.flatMap_map]
+    rw [ih]
+    rw [List.zipIdx_eq_map_add (l := bs) (i := 1), List.flatMap_map]
     congr 1
     simp only [List.flatMap_def]
     apply congrArg List.flatten
-    exact List.map_congr_left fun _ _ => by simp [blockOffset, Nat.add_assoc, Nat.one_add]
+    apply List.map_congr_left
+    intro c _
+    simp [blockOffset, Nat.add_assoc, Nat.one_add]
 
 /-- The blockwise compiler is exactly the indexed compiler on the flattened signed input. -/
 theorem formulaFrom_flatten (start : ℕ) (bs : List (CNF V)) :
@@ -148,14 +154,16 @@ theorem rawFormula_eq_flatMap (φ : CNF V) :
   rw [rawFormula_eq_blocks, PositiveExactOne.compileBlocks_eq_flatMap]
   simp only [List.zipIdx_map, List.flatMap_map, Nat.zero_add, signedOffset]
   simp only [List.flatMap_def]
+  apply congrArg List.flatten
   have map_index (f : Clause V × ℕ → CNF (Variable V)) :
-      φ.zipIdx.map f = φ.zipIdx.zipIdx.map fun c => f c.1 := by
+      (φ.zipIdx.map f) = (φ.zipIdx.zipIdx.map fun c => f c.1) := by
     simpa only [List.map_map, Function.comp_def] using
       congrArg (List.map f) (List.zipIdx_map_fst 0 φ.zipIdx).symm
   rw [map_index]
-  apply congrArg List.flatten
-  refine List.map_congr_left fun ⟨⟨c, i⟩, j⟩ hc => ?_
-  obtain ⟨_, he⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hc)
+  apply List.map_congr_left
+  intro ⟨⟨c, i⟩, j⟩ hc
+  have hi := List.mem_zipIdx_iff_getElem?.mp hc
+  obtain ⟨h, he⟩ := List.getElem?_eq_some_iff.mp hi
   have hij : i = j := by simpa using (congrArg Prod.snd he).symm
   simp only [Prod.map_fst, Prod.map_snd, id_eq, hij]
 

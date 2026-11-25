@@ -114,11 +114,14 @@ theorem PrefixValid.take {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} {s : List (Occurrence F × Occurrence F)}
     (h : PrefixValid sem f s) (n : ℕ) : PrefixValid sem f (s.take n) := by
   induction n generalizing f s with
-  | zero => cases s <;> first | exact h | exact h.1
+  | zero =>
+    cases s with
+    | nil => exact h
+    | cons a s => exact h.1
   | succ n ih =>
     cases s with
     | nil => exact h
-    | cons _ _ => exact ⟨h.1, ih h.2⟩
+    | cons a s => exact ⟨h.1, ih h.2⟩
 
 /-- Internal consistency is inherited by a shorter candidate prefix. -/
 theorem InternallyConsistent.take {f : OccurrenceLabeling F Bool}

@@ -142,6 +142,7 @@ def clientView (M : Methods (spec n K V) (Memory.spec w)) (src : Fin n) : Memory
 theorem clientView_eq (M : Methods (spec n K V) (Memory.spec w)) (src : Fin n) :
     clientView M src = link M (dijkstra src) := by
   unfold clientView dijkstra
-  rw [loopView_eq]; rfl
+  rw [loopView_eq]
+  rfl
 
 end Cslib.Algorithms.Lean.Dijkstra.Native

@@ -149,7 +149,8 @@ theorem eval_cascadePrefixHybridGame_eq_childTables_real (valid : ℕ → List B
     · simp [prefixHybridIndependentLabelOracle, hv]
     · simp only [↓reduceIte]
       exact realChildAnswer_eq hwidth hlen short parents query hv (halign query hv)
-  rw [cascadeChildTableGame, ← hparents, PMF.map_comp, ← PMF.uniformOfFintype_prod, PMF.bind_bind]
+  unfold cascadeChildTableGame
+  rw [← hparents, PMF.map_comp, ← PMF.uniformOfFintype_prod, PMF.bind_bind]
   simp only [PMF.bind_map, Function.comp_def, horacle]
   rfl
 

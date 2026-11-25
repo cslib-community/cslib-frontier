@@ -89,13 +89,15 @@ theorem degree_le_iff {F : List (MvPolynomial V R)} {P : Fin F.length → MvPoly
     {d : ℕ} :
     degree F P ≤ d ↔ ∀ i, P i ≠ 0 → (F.get i).totalDegree + (P i).totalDegree ≤ d := by
   simp only [degree, Finset.sup_le_iff, Finset.mem_univ, forall_const]
-  refine ⟨fun h i hi => ?_, fun h i m hm =>
-    (Nat.add_le_add_left (MvPolynomial.le_totalDegree hm) _).trans
-      (h i (MvPolynomial.support_nonempty.mp ⟨m, hm⟩))⟩
-  obtain ⟨m, hm, hdeg⟩ :=
-    (P i).support.exists_mem_eq_sup (MvPolynomial.support_nonempty.mpr hi) Finsupp.degree
-  have htot : (P i).totalDegree = m.degree := hdeg
-  exact htot ▸ h i m hm
+  constructor
+  · intro h i hi
+    obtain ⟨m, hm, hdeg⟩ :=
+      (P i).support.exists_mem_eq_sup (MvPolynomial.support_nonempty.mpr hi) Finsupp.degree
+    have htot : (P i).totalDegree = m.degree := hdeg
+    exact htot ▸ h i m hm
+  · intro h i m hm
+    exact (Nat.add_le_add_left (MvPolynomial.le_totalDegree hm) _).trans
+      (h i (MvPolynomial.support_nonempty.mp ⟨m, hm⟩))
 
 /-! ### Proofs -/
 

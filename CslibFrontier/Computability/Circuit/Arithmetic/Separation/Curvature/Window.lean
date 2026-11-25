@@ -60,9 +60,12 @@ theorem clamp_zero (N : ℕ) : clamp N 0 = 0 := by simp [clamp]
 /-- The clamp, cast to `ℝ`, is Mathlib's projection onto `[0, N]`. -/
 theorem cast_clamp (N : ℕ) (i : ℤ) :
     ((clamp N i : ℕ) : ℝ) = Set.projIcc (0 : ℝ) N (Nat.cast_nonneg N) i := by
-  rw [Set.coe_projIcc, ← Int.cast_natCast,
-    show ((clamp N i : ℕ) : ℤ) = max 0 (min (N : ℤ) i) by simp only [clamp]; omega]
-  push_cast; rfl
+  have hz : ((clamp N i : ℕ) : ℤ) = max 0 (min (N : ℤ) i) := by
+    simp only [clamp]
+    omega
+  rw [Set.coe_projIcc, ← Int.cast_natCast, hz]
+  push_cast
+  rfl
 
 /-- Clamping is `1`-Lipschitz, since `Set.projIcc` is. -/
 theorem abs_clamp_sub_le (N : ℕ) (i i' : ℤ) :
@@ -87,7 +90,8 @@ theorem clamp_cast {N : ℕ} {i : ℤ} (h0 : 0 ≤ i) (h1 : i ≤ N) :
 theorem clamp_window {n T : ℕ} {i k : ℤ} (h0 : 0 ≤ i + k + n) (h1 : i + k + n ≤ n ^ 2 * T) :
     ((clamp (n ^ 2 * T) (i + k + n) : ℕ) : ℝ) = i + k + n := by
   rw [clamp_cast h0 (by exact_mod_cast h1)]
-  push_cast; ring
+  push_cast
+  ring
 
 theorem clamp_sq (n : ℕ) : clamp (n ^ 2) ((n : ℤ) ^ 2) = n ^ 2 := by
   rw [clamp, ← Nat.cast_pow, Int.toNat_natCast, min_self]
@@ -113,7 +117,8 @@ noncomputable def windowPlace : WindowFn :=
 theorem windowPlace_natCast {n i : ℕ} (hi : i ≤ n ^ 2) (b : Bool) (k : ℤ) :
     windowPlace n b i k = (i : ℝ) / n ^ 2 := by
   rw [windowPlace, clamp_cast (Int.natCast_nonneg i) (by exact_mod_cast hi)]
-  push_cast; rfl
+  push_cast
+  rfl
 
 theorem windowPlace_nonneg (n : ℕ) (b : Bool) (i k : ℤ) : 0 ≤ windowPlace n b i k := by
   unfold windowPlace

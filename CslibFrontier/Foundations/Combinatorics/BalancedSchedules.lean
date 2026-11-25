@@ -60,8 +60,10 @@ theorem sum_occupancy_sq_eq_collisions (label : A → B) :
     ∑ u, occupancy label u ^ 2 =
       ∑ a, ∑ a', if label a = label a' then 1 else 0 := by
   rw [sum_occupancy_sq]
-  refine Finset.sum_congr rfl fun a _ => ?_
-  simp [occupancy, Fintype.card_subtype, eq_comm (a := label a)]
+  apply Finset.sum_congr rfl
+  intro a _
+  simp only [occupancy, Fintype.card_subtype, eq_comm (a := label a)]
+  simp
 
 /-- Rational squared-deviation potential at the exact uniform average. -/
 @[expose] def potential (label : A → B) : ℚ :=
@@ -115,7 +117,8 @@ theorem sum_potential_eq_collisions_sub {T : Type*} [Fintype T]
       (∑ t, ∑ a, ∑ a', if label t a = label t a' then (1 : ℚ) else 0) -
         Fintype.card T * (Fintype.card A : ℚ) ^ 2 / Fintype.card B := by
   simp_rw [potential_eq_collisions_sub]
-  simp only [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+  rw [Finset.sum_sub_distrib]
+  simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
   ring
 
 /-- The paper's normalized potential bound controls both nonnegative components separately.
@@ -125,7 +128,11 @@ theorem components_le_of_normalized_le_two {Φ Ξ x y : ℚ}
     (h : Φ / x + Ξ / y ≤ 2) : Φ ≤ 2 * x ∧ Ξ ≤ 2 * y := by
   have hΦ' : 0 ≤ Φ / x := div_nonneg hΦ hx.le
   have hΞ' : 0 ≤ Ξ / y := div_nonneg hΞ hy.le
-  exact ⟨(div_le_iff₀ hx).mp (by linarith), (div_le_iff₀ hy).mp (by linarith)⟩
+  constructor
+  · apply (div_le_iff₀ hx).mp
+    linarith
+  · apply (div_le_iff₀ hy).mp
+    linarith
 
 /-- Cross-multiplied natural form of the pointwise occupancy bound. -/
 theorem occupancy_mul_card_le (label : A → B)

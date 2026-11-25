@@ -135,9 +135,11 @@ theorem IsPTF.mono {k l : ℕ} {f : (ι → Bool) → Bool} (hkl : k ≤ l) (hf 
 theorem IsPTFOn.not {T : Finset (Finset ι)} {f : (ι → Bool) → Bool} (hf : IsPTFOn T f) :
     IsPTFOn T fun x => !f x := by
   obtain ⟨p, hpT, hp⟩ := hf
-  refine ⟨fun x => -p x, fun S hS => ?_,
-    fun x => by simpa only [signVal_not, neg_mul_neg] using hp x⟩
-  simpa only [fourierCoeff, neg_mul, expect_neg_distrib, neg_eq_zero] using hpT S hS
+  refine ⟨fun x => -p x, fun S hS => ?_, fun x => ?_⟩
+  · simp only [fourierCoeff, neg_mul, expect_neg_distrib, neg_eq_zero]
+    exact hpT S hS
+  · rw [signVal_not, neg_mul_neg]
+    exact hp x
 
 /-- **Negating and identifying input variables preserves polynomial threshold functions**: if `f`
 is a polynomial threshold function of degree at most `k`, then so is `w ↦ f (z + w ∘ π)` for every
@@ -166,15 +168,17 @@ theorem IsPTF.comp_add_comp {κ : Type*} [Fintype κ] [DecidableEq κ] {k : ℕ}
 (`threshold n 0` and `threshold n (n + 1)`) among the examples of
 [O'Donnell, Exercise 2.2][ODonnell2014]; the literals are `BitString.isPTF_one_xor`. -/
 theorem isPTF_one_threshold (n j : ℕ) : IsPTF 1 (threshold n j) := by
-  refine isPTF_iff.2 ⟨fun x => (j : ℝ) - 1 / 2 - weight x, fun S hS =>
-    fourierCoeff_eq_zero_of_mem_lowDegree
-      (sub_mem (const_mem_lowDegree 1 _) weight_mem_lowDegree) hS, fun x => ?_⟩
-  rw [threshold_apply]
-  by_cases h : j ≤ weight x
-  · simp only [h, decide_true, signVal_true]
-    linarith [show (j : ℝ) ≤ weight x by exact_mod_cast h]
-  · simp only [h, decide_false, signVal_false]
-    linarith [show (weight x : ℝ) + 1 ≤ j by exact_mod_cast (by omega : weight x + 1 ≤ j)]
+  refine isPTF_iff.2 ⟨fun x => (j : ℝ) - 1 / 2 - weight x, fun S hS => ?_, fun x => ?_⟩
+  · exact fourierCoeff_eq_zero_of_mem_lowDegree
+      (sub_mem (const_mem_lowDegree 1 _) weight_mem_lowDegree) hS
+  · rw [threshold_apply]
+    by_cases h : j ≤ weight x
+    · have : (j : ℝ) ≤ weight x := by exact_mod_cast h
+      simp only [h, decide_true, signVal_true]
+      linarith
+    · have : (weight x : ℝ) + 1 ≤ j := by exact_mod_cast (by omega : weight x + 1 ≤ j)
+      simp only [h, decide_false, signVal_false]
+      linarith
 
 /-- A Boolean function whose Fourier coefficients, read as signs, vanish outside `T` is a
 polynomial threshold function over `T`: the sign of itself. -/
@@ -187,9 +191,10 @@ has degree one, so it is the sign of itself. With `BitString.isPTF_one_threshold
 the examples of [O'Donnell, Exercise 2.2][ODonnell2014]. -/
 theorem isPTF_one_xor (b : Bool) (i : ι) : IsPTF 1 fun x => b ^^ x i :=
   isPTFOn_of_fourierCoeff_eq_zero fun S hS => by
-    rw [fourierCoeff_signVal_xor, ite_eq_right_iff]
-    rintro rfl
-    exact (hS (mem_filter.2 ⟨mem_univ _, (card_singleton i).le⟩)).elim
+    rw [fourierCoeff_signVal_xor]
+    refine ite_eq_right_iff.2 fun h => absurd ?_ hS
+    subst h
+    exact mem_filter.2 ⟨mem_univ _, (card_singleton i).le⟩
 
 /-- Every Boolean function on `n` coordinates is a polynomial threshold function of degree at
 most `n` [O'Donnell, Section 5.1, after Example 5.5][ODonnell2014]. -/

@@ -54,7 +54,9 @@ variable {n m q : ℕ} (window : Window n m)
 theorem patch_get {α : Type*} (base : Fin n → α) (fragment : Fin m → α) (i : Fin m) :
     window.patch base fragment (window.get i) = fragment i := by
   rw [patch, dite_eq_left (by dsimp only [get]; constructor <;> omega)]
-  exact congrArg fragment (Fin.ext (by simp only [get, Nat.add_sub_cancel_left]))
+  congr 1
+  apply Fin.ext
+  simp only [get, Nat.add_sub_cancel_left]
 
 /-- Replacing an interval by its existing contents preserves the whole word. -/
 theorem patch_eq {α : Type*} {base : Fin n → α} {fragment : Fin m → α}

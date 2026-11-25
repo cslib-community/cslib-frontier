@@ -177,8 +177,10 @@ theorem noNegCycle_of_forall_length_le [Fintype V]
 
 /-- Relabelling the vertices preserves the absence of negative cycles. -/
 theorem NoNegCycle.submatrix {U : Type*} (hW : NoNegCycle W) (e : U ≃ V) :
-    NoNegCycle (W.submatrix e e) := fun u l hl =>
-  (walkWeight_submatrix W e u l).symm ▸ hW (e u) (l.map e) (by rw [List.getLastD_map, hl])
+    NoNegCycle (W.submatrix e e) := by
+  intro u l hl
+  rw [walkWeight_submatrix]
+  exact hW (e u) (l.map e) (by rw [List.getLastD_map, hl])
 
 /-! ### Shortest distances -/
 
@@ -208,14 +210,20 @@ theorem isShortestDistances_of_sound_complete {D : Matrix V V (MinTropical R)}
 /-- Relabelling the vertices preserves shortest distances. -/
 theorem IsShortestDistances.submatrix {U : Type*} {D : Matrix V V (MinTropical R)}
     (h : IsShortestDistances W D) (e : U ≃ V) :
-    IsShortestDistances (W.submatrix e e) (D.submatrix e e) := fun u u' => by
-  suffices {x | ∃ l : List U, l.getLastD u = u' ∧ walkWeight (W.submatrix e e) u l = x} =
-      {x | ∃ l : List V, l.getLastD (e u) = e u' ∧ walkWeight W (e u) l = x} by
-    simpa only [this, Matrix.submatrix_apply] using h (e u) (e u')
-  ext x
-  refine ⟨fun ⟨l, hl, hx⟩ => ⟨l.map e, by rw [List.getLastD_map, hl],
-    (walkWeight_submatrix W e u l).symm.trans hx⟩, fun ⟨l, hl, hx⟩ => ⟨l.map e.symm, e.injective ?_,
-      by rw [walkWeight_submatrix, List.map_map, Equiv.self_comp_symm, List.map_id, hx]⟩⟩
-  rw [← List.getLastD_map (f := e), List.map_map, Equiv.self_comp_symm, List.map_id, hl]
+    IsShortestDistances (W.submatrix e e) (D.submatrix e e) := by
+  intro u u'
+  have hset : {x | ∃ l : List U, l.getLastD u = u' ∧ walkWeight (W.submatrix e e) u l = x} =
+      {x | ∃ l : List V, l.getLastD (e u) = e u' ∧ walkWeight W (e u) l = x} := by
+    ext x
+    constructor
+    · rintro ⟨l, hl, rfl⟩
+      exact ⟨l.map e, by rw [List.getLastD_map, hl], (walkWeight_submatrix W e u l).symm⟩
+    · rintro ⟨l, hl, rfl⟩
+      refine ⟨l.map e.symm, ?_, ?_⟩
+      · apply e.injective
+        rw [← List.getLastD_map (f := e), List.map_map, Equiv.self_comp_symm, List.map_id, hl]
+      · rw [walkWeight_submatrix, List.map_map, Equiv.self_comp_symm, List.map_id]
+  rw [hset]
+  exact h (e u) (e u')
 
 end Cslib.Algorithms.ShortestPaths

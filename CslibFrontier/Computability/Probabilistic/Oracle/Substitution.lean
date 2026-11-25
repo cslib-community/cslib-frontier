@@ -229,14 +229,16 @@ theorem IsOraclePPTOn.interpret_bitQueries
     IsOraclePPTOn input output (fun a => OracleComp.interpret ProbOracleComp.query
       (OracleComp.interpret (fun q : Unit × List Bool =>
         List.take 1 <$> OracleComp.query ((), request q.2)) (program a))) := by
-  convert hprogram.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+  have h := hprogram.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun _ q => List.take 1 <$> ProbOracleComp.query
       (spec := fun _ : Unit × List Bool => List Bool) ((), request q.2))
     (prepare := id) (resources := fun _ _ => 1) ComputableInPolyTime.id'
-    (IsOraclePPTOn.query_take () (hrequest.comp' (by fun_prop)) (by fun_prop))
-    (ComputableInPolyTime.const 1) (fun _ _ _ hreply => by
-      obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
-      exact List.length_take_le _ _) using 2 with a
+    (IsOraclePPTOn.query_take () (hrequest.comp' (by fun_prop))
+      (by fun_prop))
+    (ComputableInPolyTime.const 1) fun _ _ _ hreply => by
+      obtain ⟨r, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+      exact List.length_take_le _ _
+  convert h using 2 with a
   simp only [id, OracleComp.interpret_interpret, OracleComp.interpret_map,
     OracleComp.interpret_query, ProbOracleComp.interpret_query]
 

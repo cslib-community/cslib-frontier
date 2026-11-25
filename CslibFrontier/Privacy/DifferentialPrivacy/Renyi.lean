@@ -180,7 +180,8 @@ theorem pi {ι X Y : Type*} [Fintype ι] [Finite Y] {M : ι → X → PMF Y} {α
   classical
   refine ⟨hα, hε, fun x y hxy => ?_⟩
   by_cases hxy_eq : x = y
-  · subst hxy_eq; simp
+  · subst hxy_eq
+    simp
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hxy_eq
   have hupdate : (fun j => M j (y j)) = Function.update (fun j => M j (x j)) i (M i (y i)) := by
     funext j

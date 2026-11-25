@@ -179,13 +179,17 @@ private theorem find?_zipIdx_idxOf {c : Clause ℕ} :
 /-- **The checker accepts the certificate of every tree-like refutation.** -/
 theorem Derivation.checkLRAT_toLRAT (d : φ.Derivation []) : φ.checkLRAT d.toLRAT = true := by
   have hgood : LRATGood φ (φ.length + 1) φ.lratDB := by
-    refine ⟨fun e he => ?_, fun c hc => ?_⟩
-    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
-      exact Nat.succ_lt_succ (by simpa using List.snd_lt_add_of_mem_zipIdx hp)
-    · have h0 := find?_zipIdx_idxOf φ 0 hc
-      rwa [Nat.add_zero] at h0
+    refine ⟨fun e he => ?_, fun c hc => by
+      have := find?_zipIdx_idxOf φ 0 hc
+      simp only [Nat.add_zero] at this
+      exact this⟩
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
+    have := List.snd_lt_add_of_mem_zipIdx hp
+    simp only at this ⊢
+    omega
   obtain ⟨db, hrun, hid, -, -, -, -⟩ := d.checkLRATAux_lratSteps _ _ (by omega) hgood
-  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints_cons, hid]
+  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints_cons,
+    hid]
   rfl
 
 end CNF

@@ -124,12 +124,14 @@ theorem outputs_pi_eq_gate {m : ℕ} (cs : Fin m → Circuit σ n 1)
       obtain ⟨g, hg⟩ := h (Fin.last m)
       refine ⟨Fin.natAdd _ g, ?_⟩
       change ((pi fun i => cs i.castSucc).append (cs (Fin.last m))).outputs (Fin.natAdd m 0) = _
-      rw [outputs_append_natAdd, hg]; rfl
+      rw [outputs_append_natAdd, hg]
+      rfl
     | cast j =>
       obtain ⟨g, hg⟩ := ih (fun i => cs i.castSucc) (fun i => h i.castSucc) j
       refine ⟨Fin.castAdd _ g, ?_⟩
       change ((pi fun i => cs i.castSucc).append (cs (Fin.last m))).outputs (Fin.castAdd 1 j) = _
-      rw [outputs_append_castAdd, hg]; rfl
+      rw [outputs_append_castAdd, hg]
+      rfl
 
 end Circuit
 

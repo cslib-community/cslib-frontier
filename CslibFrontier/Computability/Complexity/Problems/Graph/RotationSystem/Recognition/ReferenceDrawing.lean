@@ -91,11 +91,13 @@ theorem subdivide_source_ne_target {I : FixedRotationInput} (hI : Valid I)
 theorem subdivisionGraph_endpoints_declared {I : FixedRotationInput} (hI : Valid I) :
     ∀ v ∈ (subdivisionGraph I).incidenceVertices, v ∈ (subdivisionGraph I).vertices := by
   intro v hv
-  obtain ⟨_, he, hv⟩ := List.mem_flatMap.mp hv
+  obtain ⟨edge, he, hv⟩ := List.mem_flatMap.mp hv
   obtain ⟨s, hs, rfl⟩ := List.mem_map.mp he
-  rcases List.mem_cons.mp hv with rfl | hv
-  · exact List.mem_range.mpr (boundedEndpoints_frame hI s hs).1
-  · exact List.mem_singleton.mp hv ▸ List.mem_range.mpr (boundedEndpoints_frame hI s hs).2
+  have hb := boundedEndpoints_frame hI s hs
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with rfl | rfl
+  · exact List.mem_range.mpr hb.1
+  · exact List.mem_range.mpr hb.2
 
 /-- Both ends of an actual indexed subdivision edge occur in the reference order and
 are distinct. The certificate includes original loops after twice subdivision. -/
@@ -113,14 +115,17 @@ theorem subdivision_endpoint_spec {I : FixedRotationInput} (hI : Valid I)
 
 /-- All declared subdivision points, including isolated points, have distinct coordinates. -/
 theorem referenceDrawing_vertices_injective {I : FixedRotationInput} (hI : Valid I) :
-    Set.InjOn (referenceDrawing I).vertex {v | v ∈ (subdivisionGraph I).vertices} :=
-  fun u hu _ _ h => rankPoint_inj (((referenceOrder_enumerates hI).2 u).mpr hu) h
+    Set.InjOn (referenceDrawing I).vertex {v | v ∈ (subdivisionGraph I).vertices} := by
+  intro u hu v _ h
+  exact rankPoint_inj (((referenceOrder_enumerates hI).2 u).mpr hu) h
 
 /-- Each indexed subdivision occurrence has a nondegenerate, simple one-segment route. -/
 theorem referenceDrawing_simple {I : FixedRotationInput} (hI : Valid I)
-    (e : Fin (subdivisionGraph I).edges.length) : ((referenceDrawing I).route e).IsSimple :=
-  Route.isSimple_line fun h =>
-    (subdivision_endpoint_spec hI e).2 (rankPoint_inj ((subdivision_endpoint_spec hI e).1 false) h)
+    (e : Fin (subdivisionGraph I).edges.length) : ((referenceDrawing I).route e).IsSimple := by
+  apply Route.isSimple_line
+  intro h
+  have hs := subdivision_endpoint_spec hI e
+  exact hs.2 (rankPoint_inj (hs.1 false) h)
 
 /-- An actual reference route meets a declared vertex only at that vertex's corresponding
 original end parameter. This is the vertex-contact field, without claiming `IsEmbedding`. -/
@@ -158,8 +163,9 @@ private theorem crossing_rankChord_iff {order : List ℕ} {e f : ℕ × ℕ}
         z ∈ openSegment ℝ (parabolaPoint (order.idxOf f.1 : ℝ))
           (parabolaPoint (order.idxOf f.2 : ℝ)) := by
   have rank_ne {u v : ℕ} (hu : u ∈ order) (hne : u ≠ v) :
-      (order.idxOf u : ℝ) ≠ (order.idxOf v : ℝ) :=
-    fun h => hne ((List.idxOf_inj hu).mp (Nat.cast_injective h))
+      (order.idxOf u : ℝ) ≠ (order.idxOf v : ℝ) := by
+    intro h
+    exact hne ((List.idxOf_inj hu).mp (Nat.cast_injective h))
   have hfour : e.1 ≠ f.1 ∧ e.1 ≠ f.2 ∧ e.2 ≠ f.1 ∧ e.2 ≠ f.2 := by
     simpa only [independent, Bool.and_eq_true, decide_eq_true_eq, and_assoc] using hind
   have hbetween (p : ℕ × ℕ) (v : ℕ) : between order p v = true ↔

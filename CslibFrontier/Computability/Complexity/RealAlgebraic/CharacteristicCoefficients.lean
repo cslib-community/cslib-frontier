@@ -85,8 +85,10 @@ theorem traceExponentialCoefficient_eq {p : ℕ} [Fact p.Prime] {D d : ℕ}
           (D - d)).val := by
   have hD : D < p - 1 := (Nat.le_mul_self D).trans_lt hdegree
   have hpoly : ofFn (D + 1) (fun k => (traceLogarithmResidue p k (t k) : ZMod p)) =
-      ofFn (D + 1) (fun k => -(t k : ZMod p) / ((k : ℕ) : ZMod p)) :=
-    congrArg (ofFn (D + 1)) (funext fun k => traceLogarithmResidue_cast (by omega) (t k))
+      ofFn (D + 1) (fun k => -(t k : ZMod p) / ((k : ℕ) : ZMod p)) := by
+    congr 1
+    funext k
+    exact traceLogarithmResidue_cast (by omega) (t k)
   rw [traceExponentialCoefficient, ite_eq_left hd,
     truncatedExponentialCoefficient_eq hdegree ((Nat.sub_le D d).trans_lt hD), hpoly]
 

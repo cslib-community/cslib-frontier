@@ -193,28 +193,32 @@ theorem exists_oracleReplay {k : ℕ} {State Oracle : Type} [Finite State] [Deci
         (c * ((encPair encBits encBits (coins, input)).length + 1))
         (target.initialConfig (encPair encBits encBits (coins, input))))).run s).support,
         result.1.tapes.state = none := by
-  obtain ⟨r, PrepareState, _, prepare, c, hp⟩ :=
+  obtain ⟨r, PrepareState, hfinite, prepare, c, hp⟩ :=
     PairEncoding.exists_prepare encBits encBits (encPair encBits encBits)
   refine ⟨k + r + 3, (PrepareState ⊕ MarkWorkState) ⊕ Control State, inferInstance,
-    compile machine prepare, c + 5, fun coins input Query Store spec coin query oracle coinLaw
-      hcoin store => ?_⟩
+    compile machine prepare, c + 5, ?_⟩
+  intro coins input Query Store spec coin query oracle coinLaw hcoin store
   let size := (encPair encBits encBits (coins, input)).length + 1
   let time := c * size
   let padding := (c + 5) * size - (time + 2 + (2 * coins.length + 1))
-  have hlen : coins.length ≤ (encPair encBits encBits (coins, input)).length := by
-    simpa only [encBits_apply] using length_le_encPair_left encBits encBits (coins, input)
+  have hlen := length_le_encPair_left encBits encBits (coins, input)
+  simp only [encBits_apply] at hlen
   have hbound : time + 2 + (2 * coins.length + 1) ≤ (c + 5) * size := by
-    dsimp only [time, size]; nlinarith
+    dsimp only [time, size]
+    nlinarith
+  have htime : time + 2 + (2 * coins.length + 1 + padding) = (c + 5) * size := by grind
   have hrun := run_interpret_compile machine prepare coin query oracle coinLaw hcoin
     coins input (encPair encBits encBits (coins, input)) time time padding store (hp (coins, input))
-  rw [show time + 2 + (2 * coins.length + 1 + padding) = (c + 5) * size by grind] at hrun
-  refine ⟨?_, fun result hresult => ?_⟩
-  · simpa only [run, runFrom, runCoins, runFromCoins, OracleComp.interpret_map, StateT.run_map,
+  rw [htime] at hrun
+  constructor
+  · have hout := congrArg (PMF.map (fun result => (result.1.tapes.output, result.2))) hrun
+    simpa only [run, runFrom, runCoins, runFromCoins, OracleComp.interpret_map, StateT.run_map,
       PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, compiledFinish,
       MultiTapeMachine.Sequential.right, Cfg.mapState, finish, InputFromTape.config_output,
-      AuxiliaryTape.stopped_output, Config.embed_output] using
-      congrArg (PMF.map fun result => (result.1.tapes.output, result.2)) hrun
-  · obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp (hrun ▸ hresult)
-    exact (congrArg (·.1.tapes.state) heq).symm
+      AuxiliaryTape.stopped_output, Config.embed_output] using hout
+  · intro result hresult
+    rw [hrun] at hresult
+    obtain ⟨⟨cfg, state⟩, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
+    exact (congrArg (fun result => result.1.tapes.state) heq).symm
 
 end Turing.MultiTapePTM

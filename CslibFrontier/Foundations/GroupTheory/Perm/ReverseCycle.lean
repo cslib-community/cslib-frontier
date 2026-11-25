@@ -76,7 +76,10 @@ theorem SameCycle.of_forall_sameCycle_apply {σ ρ : Perm α} (h : ∀ y, σ.Sam
     exact ih.trans (h _)
   | pred n ih =>
     rw [sub_eq_neg_add, _root_.zpow_add, _root_.zpow_neg_one, Perm.mul_apply]
-    exact ih.trans (by simpa only [apply_inv_apply] using (h (ρ⁻¹ ((ρ ^ (-(n : ℤ))) y))).symm)
+    refine ih.trans ?_
+    have := h (ρ⁻¹ ((ρ ^ (-(n : ℤ))) y))
+    rw [apply_inv_apply] at this
+    exact this.symm
 
 variable [Fintype α] [DecidableEq α]
 

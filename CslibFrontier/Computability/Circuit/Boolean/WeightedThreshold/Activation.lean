@@ -98,9 +98,12 @@ private theorem sum_activationLineWeight_mul (line : Line activationSignature n 
     ∑ a, line.op.weight a * values (line.wires a) =
       ∑ wire, activationLineWeight line wire * values wire := by
   rw [← sum_fiberwise univ line.wires (fun a => line.op.weight a * values (line.wires a))]
-  refine sum_congr rfl fun wire _ => ?_
+  apply sum_congr rfl
+  intro wire _
   rw [activationLineWeight, sum_mul]
-  exact sum_congr rfl fun a ha => by rw [(mem_filter.mp ha).2]
+  apply sum_congr rfl
+  intro a ha
+  rw [(mem_filter.mp ha).2]
 
 /-- An activation line's value splits into its aggregated input and gate contributions. -/
 theorem activationLine_eval_eq (line : Line activationSignature n g)
@@ -110,9 +113,10 @@ theorem activationLine_eval_eq (line : Line activationSignature n g)
       ∑ j, activationLineWeight line (.gate j) * (z j).toNat) := by
   unfold Line.eval activationInterpretation
   dsimp only [Function.comp_apply]
-  rw [sum_activationLineWeight_mul line (fun wire => (Wire.elim x z wire).toNat),
-    ← (Wire.equiv n g).symm.sum_comp (fun wire =>
-      activationLineWeight line wire * ((Wire.elim x z wire).toNat : ℝ)), Fintype.sum_sum_type]
+  congr 1
+  rw [sum_activationLineWeight_mul line (fun wire => (Wire.elim x z wire).toNat)]
+  rw [← (Wire.equiv n g).symm.sum_comp (fun wire =>
+    activationLineWeight line wire * ((Wire.elim x z wire).toNat : ℝ)), Fintype.sum_sum_type]
   rfl
 
 /-- The direct coefficient of an original input in an activation-program gate. -/
@@ -138,8 +142,9 @@ theorem eval_activationGate_eq (p : Program activationSignature n g)
 private theorem activationGateWeight_eq_zero_of_le (p : Program activationSignature n g)
     (gate prior : Fin g) (h : gate ≤ prior) : activationGateWeight p gate prior = 0 := by
   unfold activationGateWeight activationLineWeight
-  exact sum_eq_zero fun a ha =>
-    (not_lt_of_ge h (p.lt_of_lines_wires_eq_gate gate a prior (mem_filter.mp ha).2)).elim
+  apply sum_eq_zero
+  intro a ha
+  exact (not_lt_of_ge h (p.lt_of_lines_wires_eq_gate gate a prior (mem_filter.mp ha).2)).elim
 
 /-- The gates of an activation program with a nonzero aggregated direct-input coefficient. -/
 noncomputable def activationInputGates (p : Program activationSignature n g) : Finset (Fin g) :=

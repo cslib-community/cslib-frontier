@@ -74,13 +74,15 @@ theorem Elbow.target_mem (r : Elbow) : r.Contains (r.target, r.height) :=
 /-- Only the source lies on the top row. -/
 theorem Elbow.top_iff (r : Elbow) (x : ℕ) : r.Contains (x, 0) ↔ x = r.source := by
   have := r.bend_pos
-  simp only [Elbow.Contains]; omega
+  simp only [Elbow.Contains]
+  omega
 
 /-- Only the target lies on the bottom row. -/
 theorem Elbow.bottom_iff (r : Elbow) (x : ℕ) :
     r.Contains (x, r.height) ↔ x = r.target := by
   have := r.bend_lt
-  simp only [Elbow.Contains]; omega
+  simp only [Elbow.Contains]
+  omega
 
 private theorem disjoint_right (r s : Elbow) (hsource : r.source < s.source)
     (htarget : r.target < s.target) (hr : r.source ≤ r.target)
@@ -149,25 +151,32 @@ theorem OrderedRouting.bottom_iff {n : ℕ} {source target : Fin n → ℕ}
 theorem OrderedRouting.row_le {n : ℕ} {source target : Fin n → ℕ}
     (r : OrderedRouting source target) (i : Fin n) {p : Point} (hp : r.Contains i p) :
     p.2 ≤ 2 * (n + 1) := by
-  rcases hp with hp | ⟨_, hp⟩
-  · have : p.2 ≤ n + 1 := r.upper_height i ▸ (r.upper i).row_le hp
+  rcases hp with hp | ⟨hy, hp⟩
+  · have := (r.upper i).row_le hp
+    rw [r.upper_height] at this
     omega
-  · have : p.2 - (n + 1) ≤ n + 1 := r.lower_height i ▸ (r.lower i).row_le hp
+  · have := (r.lower i).row_le hp
+    rw [r.lower_height] at this
     omega
 
 private theorem OrderedRouting.upper_lower_disjoint {n : ℕ} {source target : Fin n → ℕ}
     (r : OrderedRouting source target) {i j : Fin n} (hij : i ≠ j) (p : Point)
     (hi : (r.upper i).Contains p)
     (hj : n + 1 ≤ p.2 ∧ (r.lower j).Contains (p.1, p.2 - (n + 1))) : False := by
-  have hy : p.2 ≤ n + 1 := r.upper_height i ▸ (r.upper i).row_le hi
+  have hy := (r.upper i).row_le hi
+  rw [r.upper_height] at hy
   have heq : p.2 = n + 1 := by omega
-  have hj' : p.1 = (r.upper j).target := by
-    rw [r.join_eq]
+  have hj' : p.1 = (r.lower j).source := by
     simpa only [heq, Nat.sub_self, Elbow.top_iff] using hj.2
-  refine r.upper_disjoint hij p ⟨hi, ?_⟩
-  rw [show p = ((r.upper j).target, (r.upper j).height) from
-    Prod.ext hj' (heq.trans (r.upper_height j).symm)]
-  exact (r.upper j).target_mem
+  have hu : (r.upper j).Contains p := by
+    rw [← r.join_eq] at hj'
+    cases p with
+    | mk x y =>
+      simp only at heq hj' ⊢
+      subst y
+      rw [← r.upper_height j, hj']
+      exact (r.upper j).target_mem
+  exact r.upper_disjoint hij p ⟨hi, hu⟩
 
 /-- The joined routes remain pairwise disjoint, including at the joining row. -/
 theorem OrderedRouting.disjoint {n : ℕ} {source target : Fin n → ℕ}

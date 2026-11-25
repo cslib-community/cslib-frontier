@@ -190,8 +190,9 @@ theorem exists_fin_run_pure_false {program : α → WordQueryComp Operation β}
   have := Fintype.ofFinite Control
   refine ⟨k, Fintype.card Control, machine.relabel (Fintype.equivFin Control), c, d,
     fun a answer => ?_⟩
-  simpa only [MultiTapePTM.run, MultiTapePTM.initialConfig_relabel,
-    MultiTapePTM.runFrom_relabel] using h a answer
+  rw [MultiTapePTM.run, MultiTapePTM.initialConfig_relabel, MultiTapePTM.runFrom_relabel,
+    ← MultiTapePTM.run]
+  exact h a answer
 
 end Cslib.Probability.IsOraclePPTOn
 
