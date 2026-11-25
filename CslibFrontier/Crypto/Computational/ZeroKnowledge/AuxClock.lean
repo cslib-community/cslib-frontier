@@ -280,20 +280,16 @@ theorem AuxiliaryInputZeroKnowledge.unboundedAuxiliaryInputZeroKnowledge
     have hz_V_bound : PolynomiallyBounded
         (fun n => c * ((2 * n + 1 + (enc (a n)).length) + 1) ^ d) := by
       fun_prop
-    have hz_V : PolynomiallyBounded (fun n => (z_V n).length) := by
-      refine hz_V_bound.mono_of_le fun n => ?_
-      have hlen : (z_V n).length ≤ T_V n (a n) := List.length_take_le _ _
-      simpa only [T_V, hpair] using hlen
+    have hz_V : PolynomiallyBounded (fun n => (z_V n).length) := hz_V_bound.mono_of_le fun n => by
+      simpa only [z_V, T_V, hpair] using List.length_take_le (T_V n (a n)) (z n)
     have hz_A_bound : PolynomiallyBounded
         (fun n =>
           c_A * ((2 * (2 * n + 1 + (enc (a n)).length) + 1 +
             (c_R * ((2 * n + 1 + (enc (a n)).length) + 1) ^ d_R +
              c_S * ((2 * n + 1 + (enc (a n)).length) + 1) ^ d_S)) + 1) ^ d_A) := by
       fun_prop
-    have hz_A : PolynomiallyBounded (fun n => (z_A n).length) := by
-      refine hz_A_bound.mono_of_le fun n => ?_
-      have hlen : (z_A n).length ≤ T_A n (a n) := List.length_take_le _ _
-      simpa only [T_A, L_view, hpair] using hlen
+    have hz_A : PolynomiallyBounded (fun n => (z_A n).length) := hz_A_bound.mono_of_le fun n => by
+      simpa only [z_A, T_A, L_view, hpair] using List.length_take_le (T_A n (a n)) (z n)
     have hprep : ComputableInPolyTime
         (fun p : (ℕ × α × List Bool) × List Bool => (((p.1.1, p.1.2.1), p.2), p.1.2.2))
         (encPair (encPair encUnary (encPair enc encBits)) encBits)
@@ -327,13 +323,8 @@ theorem AuxiliaryInputZeroKnowledge.unboundedAuxiliaryInputZeroKnowledge
       simp only [distinguishingGame_eq_bind, zkRealView, hrun_eq, PMF.monad_bind_eq_bind,
         PMF.bind_map]
       refine PMF.bind_congr_on_support _ _ _ fun p hp => ?_
-      have hview_le : p.1.length ≤ L_view n (a n) := by
-        have h1 : (encBits p.1).length ≤
-            c_R * ((encPair encUnary enc (n, a n)).length + 1) ^ d_R :=
-          hlen_real (n, a n) (z n) (prover n (a n) (w n)).State (prover n (a n) (w n)).respond
-            (prover n (a n) (w n)).init p.2 p.1 hp
-        simp only [encBits_apply] at h1
-        exact le_trans h1 (Nat.le_add_right _ _)
+      have hview_le : p.1.length ≤ L_view n (a n) :=
+        (hlen_real (n, a n) (z n) _ _ _ p.2 p.1 hp).trans (Nat.le_add_right _ _)
       exact hadv_take ((n, a n), p.1) (z n) (hm n p.1 hview_le)
     have hgame_sim (n : ℕ) :
         distinguishingGame
@@ -344,12 +335,8 @@ theorem AuxiliaryInputZeroKnowledge.unboundedAuxiliaryInputZeroKnowledge
           (adversary n (a n) (z n)) := by
       simp only [distinguishingGame_eq_bind, S, z_V, PMF.monad_bind_eq_bind]
       refine PMF.bind_congr_on_support _ _ _ fun view hview => ?_
-      have hview_le : view.length ≤ L_view n (a n) := by
-        have h1 : (encBits view).length ≤
-            c_S * ((encPair encUnary enc (n, a n)).length + 1) ^ d_S :=
-          hlen_sim (n, a n) (z n) view hview
-        simp only [encBits_apply] at h1
-        exact le_trans h1 (Nat.le_add_left _ _)
+      have hview_le : view.length ≤ L_view n (a n) :=
+        (hlen_sim (n, a n) (z n) view hview).trans (Nat.le_add_left _ _)
       exact hadv_take ((n, a n), view) (z n) (hm n view hview_le)
     simpa only [hgame_real, hgame_sim] using hneg
 
