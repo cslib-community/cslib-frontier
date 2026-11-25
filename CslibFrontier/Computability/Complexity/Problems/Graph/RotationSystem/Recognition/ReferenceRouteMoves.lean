@@ -32,8 +32,9 @@ open Polygonal
 
 /-- All sufficiently short end segments of the reference drawing fit in disjoint
 closed balls at their declared vertices. Inside each ball, two distinct reference
-edges can meet only at the center. The cuts use the same fraction of each half-edge
-as the parity-move construction. -/
+edges can meet only at the center. For every allowed cut fraction the ports are
+distinct across darts and avoid all declared vertices. The cuts use the same
+fraction of each half-edge as the parity-move construction. -/
 theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Valid I) :
     let G := subdivisionGraph I
     let ref := referenceDrawing I
@@ -43,11 +44,13 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
       (∀ v ∈ G.vertices, ∀ (e f : Fin G.edges.length), e ≠ f → ∀ z,
         z ∈ Metric.closedBall (ref.vertex v) ρ →
         z ∈ (ref.route e).support → z ∈ (ref.route f).support → z = ref.vertex v) ∧
-      ∀ δ ∈ Set.Ioc 0 δ₀, ∀ a : Dart G,
-        let c := ref.vertex a.vertex
-        let m := (ref.route a.1).eval 0 (1 / 2)
-        segment ℝ c (AffineMap.lineMap c m δ) ⊆
-          Metric.closedBall c ρ ∩ (ref.route a.1).support := by
+      ∀ δ ∈ Set.Ioc 0 δ₀,
+        let port (a : Dart G) :=
+          AffineMap.lineMap (ref.vertex a.vertex) ((ref.route a.1).eval 0 (1 / 2)) δ
+        (∀ a : Dart G, segment ℝ (ref.vertex a.vertex) (port a) ⊆
+          Metric.closedBall (ref.vertex a.vertex) ρ ∩ (ref.route a.1).support) ∧
+        Function.Injective port ∧
+        ∀ a, port a ∉ ref.vertex '' {v | v ∈ G.vertices} := by
   classical
   let G := subdivisionGraph I
   let ref := referenceDrawing I
@@ -109,15 +112,25 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
       exact div_pos hρ (add_pos_of_nonneg_of_pos dist_nonneg one_pos))
   have hδ₀ : δ₀ ∈ Set.Ioo (0 : ℝ) 1 :=
     ⟨hδpos _ (Finset.mem_singleton_self _), hbound _ (Finset.mem_insert_self ..)⟩
-  refine ⟨ρ, hρ, δ₀, hδ₀, hdisj, ?_, ?_⟩
-  · intro v hv e f hef z hz he hf
+  have hcontact (v : ℕ) (hv : v ∈ G.vertices) (e f : Fin G.edges.length) (hef : e ≠ f)
+      (z : ℂ) (hz : z ∈ Metric.closedBall (ref.vertex v) ρ)
+      (he : z ∈ (ref.route e).support) (hf : z ∈ (ref.route f).support) :
+      z = ref.vertex v := by
     by_contra hne
     have hc : z ∈ C := ⟨e, f, hef, hinterior hv hz hne e he, hinterior hv hz hne f hf⟩
     have hd := hdist (Or.inr hc) (hmem v hv) hne
     linarith [Metric.mem_closedBall.mp hz]
-  · intro δ hδ a
+  refine ⟨ρ, hρ, δ₀, hδ₀, hdisj, hcontact, ?_⟩
+  intro δ hδ
+  let port (a : Dart G) :=
+    AffineMap.lineMap (ref.vertex a.vertex) ((ref.route a.1).eval 0 (1 / 2)) δ
+  have hstub (a : Dart G) :
+      segment ℝ (ref.vertex a.vertex) (port a) ⊆
+        Metric.closedBall (ref.vertex a.vertex) ρ ∩ (ref.route a.1).support := by
     let c := ref.vertex a.vertex
     let m := (ref.route a.1).eval 0 (1 / 2)
+    change segment ℝ c (AffineMap.lineMap c m δ) ⊆
+      Metric.closedBall c ρ ∩ (ref.route a.1).support
     apply Set.subset_inter
     · apply (convex_closedBall c ρ).segment_subset (Metric.mem_closedBall_self hρ.le)
       rw [Metric.mem_closedBall, dist_lineMap_left, Real.norm_eq_abs, abs_of_pos hδ.1]
@@ -142,6 +155,57 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
         exact convex_segment _ _
       exact hs.segment_subset hc (hs.segment_subset hc hm
         (lineMap_mem_segment ℝ _ _ ⟨hδ.1.le, hδ.2.trans hδ₀.2.le⟩))
+  have hvertex (a : Dart G) : a.vertex ∈ G.vertices :=
+    RotationSystem.vertex_mem (subdivisionGraph_endpoints_declared hI) a
+  have hport (a : Dart G) :
+      port a ∈ Metric.closedBall (ref.vertex a.vertex) ρ ∩ (ref.route a.1).support :=
+    hstub a (right_mem_segment ℝ _ _)
+  have hcenter (a : Dart G) : port a ≠ ref.vertex a.vertex := by
+    have hmid : (ref.route a.1).eval 0 (1 / 2) ≠ ref.vertex a.vertex := by
+      rcases a with ⟨e, side⟩
+      let x := ref.vertex (Dart.vertex (e, false))
+      let y := ref.vertex (Dart.vertex (e, true))
+      have hxy : x ≠ y := fun h => (subdivision_endpoint_spec hI e).2
+        (referenceDrawing_vertices_injective hI (hvertex (e, false)) (hvertex (e, true)) h)
+      change (Route.line x y).eval 0 (1 / 2) ≠ _
+      rw [Route.eval_line]
+      cases side
+      · intro h
+        have ht := (AffineMap.lineMap_eq_left_iff.mp h).resolve_left hxy
+        norm_num at ht
+      · intro h
+        have ht := (AffineMap.lineMap_eq_right_iff.mp h).resolve_left hxy
+        norm_num at ht
+    intro h
+    exact hmid ((AffineMap.lineMap_eq_left_iff.mp h).resolve_right hδ.1.ne').symm
+  refine ⟨hstub, ?_, ?_⟩
+  · intro a b heq
+    change port a = port b at heq
+    have hv : a.vertex = b.vertex := by
+      by_contra h
+      exact Set.disjoint_left.mp (hdisj _ (hvertex a) _ (hvertex b) h)
+        (hport a).1 (heq.symm ▸ (hport b).1)
+    have he : a.1 = b.1 := by
+      by_contra h
+      exact hcenter a (hcontact _ (hvertex a) _ _ h _ (hport a).1 (hport a).2
+        (heq.symm ▸ (hport b).2))
+    rcases a with ⟨e, s⟩
+    rcases b with ⟨f, t⟩
+    change e = f at he
+    subst f
+    cases s <;> cases t
+    · rfl
+    · exact ((subdivision_endpoint_spec hI e).2 hv).elim
+    · exact ((subdivision_endpoint_spec hI e).2 hv.symm).elim
+    · rfl
+  · rintro a ⟨v, hv, heq⟩
+    change ref.vertex v = port a at heq
+    by_cases he : v = a.vertex
+    · exact hcenter a (heq.symm.trans (congrArg ref.vertex he))
+    · have hz : port a ∈ Metric.closedBall (ref.vertex v) ρ := by
+        rw [← heq]
+        exact Metric.mem_closedBall_self hρ.le
+      exact Set.disjoint_left.mp (hdisj _ (hvertex a) _ hv (Ne.symm he)) (hport a).1 hz
 
 /-- Realize the entire finite move table as ray-parity differences from the reference
 routes. Frozen routes remain literal. On free routes the initial and terminal segments

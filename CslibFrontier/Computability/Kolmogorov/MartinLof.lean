@@ -568,11 +568,12 @@ theorem exists_subset_universalMartinLofTest (T : MartinLofTest) :
   obtain ⟨e, he⟩ := rePred_iff_exists_code.mp T.re
   refine ⟨encode e + 1, fun m w hw => ?_⟩
   have hw' : w ∈ T.cover (m + encode e + 1) := by rwa [← add_assoc] at hw
+  have hset : {u | (e.eval (encode (m + encode e + 1, u))).Dom} = T.cover (m + encode e + 1) :=
+    Set.ext fun u => (he (m + encode e + 1, u)).symm
   have hle : Cslib.BitString.coinFlips
       (⋃ u ∈ {u | (e.eval (encode (m + encode e + 1, u))).Dom}, prefixCylinderList u) ≤
       (2 : ℝ≥0∞)⁻¹ ^ (m + encode e + 1) := by
-    rw [show {u | (e.eval (encode (m + encode e + 1, u))).Dom} = T.cover (m + encode e + 1) from
-      Set.ext fun u => (he (m + encode e + 1, u)).symm]
+    rw [hset]
     exact T.measure_le (m + encode e + 1)
   obtain ⟨n, hn⟩ :=
     mlCapped_eq_all_of_measure_le e (m + encode e + 1) hle ((he (m + encode e + 1, w)).mp hw')
@@ -784,21 +785,28 @@ theorem isMartinLofRandom_iff_exists_le_ecomplexity_of_optimal
     IsMartinLofRandom x ↔
       ∃ c : ℕ, ∀ n : ℕ,
         (n : ℕ∞) ≤ U.ecomplexity (List.ofFn fun i : Fin n => x i) + c := by
-  have hshift {f g : List Bool → ℕ∞} {d : ℕ} (hd : ∀ w, f w ≤ g w + d) :
-      (∃ c : ℕ, ∀ n : ℕ, (n : ℕ∞) ≤ f (List.ofFn fun i : Fin n => x i) + c) →
-        ∃ c : ℕ, ∀ n : ℕ, (n : ℕ∞) ≤ g (List.ofFn fun i : Fin n => x i) + c :=
-    fun ⟨c, hc⟩ => ⟨c + d, fun n =>
+  obtain ⟨c₁, hc₁⟩ :=
+    DescriptionMethod.exists_ecomplexity_universalPrefixBits_le_of_partrec_eval hU_pf heval hprod
+  obtain ⟨c₂, hc₂⟩ := exists_ecomplexity_le_universalPrefixBits hU_min
+  let prefixOf (n : ℕ) := List.ofFn fun i : Fin n => x i
+  rw [isMartinLofRandom_iff_exists_le_ecomplexity]
+  constructor
+  · exact fun ⟨c, hc⟩ => ⟨c + c₁, fun n =>
       calc (n : ℕ∞)
-        _ ≤ f (List.ofFn fun i : Fin n => x i) + c := hc n
-        _ ≤ (g (List.ofFn fun i : Fin n => x i) + d) + c := add_le_add_left (hd _) _
-        _ = g (List.ofFn fun i : Fin n => x i) + ((c + d : ℕ) : ℕ∞) := by
+        _ ≤ DescriptionMethod.universalPrefixBits.ecomplexity (prefixOf n) + c := hc n
+        _ ≤ (U.ecomplexity (prefixOf n) + c₁) + c := add_le_add_left (hc₁ _) _
+        _ = U.ecomplexity (prefixOf n) + ((c + c₁ : ℕ) : ℕ∞) := by
             push_cast
             ac_rfl⟩
-  obtain ⟨_, hc₁⟩ :=
-    DescriptionMethod.exists_ecomplexity_universalPrefixBits_le_of_partrec_eval hU_pf heval hprod
-  obtain ⟨_, hc₂⟩ := exists_ecomplexity_le_universalPrefixBits hU_min
-  rw [isMartinLofRandom_iff_exists_le_ecomplexity]
-  exact ⟨hshift hc₁, hshift hc₂⟩
+  · exact fun ⟨c, hc⟩ => ⟨c + c₂, fun n =>
+      calc (n : ℕ∞)
+        _ ≤ U.ecomplexity (prefixOf n) + c := hc n
+        _ ≤ (DescriptionMethod.universalPrefixBits.ecomplexity (prefixOf n) + c₂) + c :=
+            add_le_add_left (hc₂ _) _
+        _ = DescriptionMethod.universalPrefixBits.ecomplexity (prefixOf n) +
+              ((c + c₂ : ℕ) : ℕ∞) := by
+            push_cast
+            ac_rfl⟩
 
 /-- Natural-number form of the **machine-invariant Levin–Schnorr theorem**. -/
 theorem isMartinLofRandom_iff_exists_le_complexity_of_optimal

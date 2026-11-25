@@ -153,24 +153,30 @@ theorem blocks_apply_eq_foldl (h : ι → X → X) (k : ℕ) (x : X) (hs : Fin k
       Nat.add_sub_cancel, blocks]
     dsimp only
     by_cases hj : (j : ℕ) < 2 ^ k
-    · rw [show j.cast (by rw [pow_succ, mul_two]) = Fin.castAdd (2 ^ k) ⟨j, hj⟩ from Fin.ext rfl,
-        Fin.append_left, ih, Nat.testBit_lt_two_pow hj]
+    · have hcast : j.cast (by rw [pow_succ, mul_two]) = Fin.castAdd (2 ^ k) ⟨j, hj⟩ :=
+        Fin.ext rfl
+      rw [hcast, Fin.append_left, ih, Nat.testBit_lt_two_pow hj]
       simp only [Bool.false_eq_true, ↓reduceIte]
-      congr 1; funext y ℓ
-      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega]; rfl
+      congr 1
+      funext y ℓ
+      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega]
+      rfl
     · have hj' : (j : ℕ) - 2 ^ k < 2 ^ k := by
-        have := j.isLt; have := pow_succ 2 k
+        have := j.isLt
+        have := pow_succ 2 k
         omega
       have hjeq : (j : ℕ) = 2 ^ k + (j - 2 ^ k) := by omega
-      rw [show j.cast (by rw [pow_succ, mul_two]) = Fin.natAdd (2 ^ k) ⟨j - 2 ^ k, hj'⟩ from
-          Fin.ext (by simp; omega),
-        Fin.append_right, ih, show (j : ℕ).testBit k = true by
-          rw [hjeq, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj', Bool.not_false],
-        ite_eq_left rfl]
-      congr 1; funext y ℓ
+      have hcast : j.cast (by rw [pow_succ, mul_two]) = Fin.natAdd (2 ^ k) ⟨j - 2 ^ k, hj'⟩ :=
+        Fin.ext (by simp; omega)
+      have htop : (j : ℕ).testBit k = true := by
+        rw [hjeq, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj', Bool.not_false]
+      rw [hcast, Fin.append_right, ih, htop, ite_eq_left rfl]
+      congr 1
+      funext y ℓ
       have hlow := Nat.testBit_two_pow_add_gt (by omega : k - 1 - (ℓ : ℕ) < k) ((j : ℕ) - 2 ^ k)
       rw [← hjeq] at hlow
-      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega, hlow]; rfl
+      rw [Fin.val_succ, show k - (ℓ + 1) = k - 1 - ℓ by omega, hlow]
+      rfl
 
 /-- Nisan's generator with the hash family `h` and `k` hash seeds: the seed is a block and `k` hash
 seeds, the output is `2 ^ k` blocks. -/
@@ -299,15 +305,20 @@ private theorem expect_sum_abs_filter_le [Fintype ι] [Fintype X] [DecidableEq X
       Fintype.card S / √(Fintype.card X) := by
     calc ∑ s', ∑ s'', √((A s s').dens * (B s' s'').dens / Fintype.card X)
         = (∑ s', √((A s s').dens) * ∑ s'', √((B s' s'').dens)) / √(Fintype.card X) := by
-          rw [sum_div]; refine sum_congr rfl fun s' _ => ?_
-          rw [mul_sum, sum_div]; refine sum_congr rfl fun s'' _ => ?_
+          rw [sum_div]
+          refine sum_congr rfl fun s' _ => ?_
+          rw [mul_sum, sum_div]
+          refine sum_congr rfl fun s'' _ => ?_
           rw [Real.sqrt_div (by positivity), Real.sqrt_mul (by positivity)]
       _ ≤ (∑ s', √((A s s').dens) * √(Fintype.card S)) / √(Fintype.card X) := by
-          gcongr with s' _; exact sum_sqrt_le _ (fun _ => by positivity) (hB s')
+          gcongr with s' _
+          exact sum_sqrt_le _ (fun _ => by positivity) (hB s')
       _ ≤ (√(Fintype.card S) * √(Fintype.card S)) / √(Fintype.card X) := by
           rw [← sum_mul]
-          gcongr; exact sum_sqrt_le _ (fun _ => by positivity) (hA s)
-      _ = Fintype.card S / √(Fintype.card X) := by rw [Real.mul_self_sqrt (Nat.cast_nonneg _)]
+          gcongr
+          exact sum_sqrt_le _ (fun _ => by positivity) (hA s)
+      _ = Fintype.card S / √(Fintype.card X) := by
+          rw [Real.mul_self_sqrt (Nat.cast_nonneg _)]
   calc 𝔼 i, ∑ s'', |∑ s, π s * ∑ s', ((dens {x ∈ A s s' | h i x ∈ B s' s''} : ℝ) -
         (A s s').dens * (B s' s'').dens)|
       ≤ 𝔼 i, ∑ s'', ∑ s, ∑ s', π s * |(dens {x ∈ A s s' | h i x ∈ B s' s''} : ℝ) -
@@ -325,7 +336,8 @@ private theorem expect_sum_abs_filter_le [Fintype ι] [Fintype X] [DecidableEq X
           mul_le_mul_of_nonneg_left (hh.expect_abs_dens_filter_apply_mem_sub_le _ _) (hπ s)
     _ ≤ ∑ s, π s * (Fintype.card S / √(Fintype.card X)) :=
         sum_le_sum fun s _ => by
-          simp only [← mul_sum]; exact mul_le_mul_of_nonneg_left (hrow s) (hπ s)
+          simp only [← mul_sum]
+          exact mul_le_mul_of_nonneg_left (hrow s) (hπ s)
     _ = Fintype.card S / √(Fintype.card X) := by rw [← sum_mul, hπ1, one_mul]
 
 /-- **The junction bound**: a random member of a pairwise independent family correlates two runs,
@@ -370,18 +382,20 @@ private theorem sum_abs_step_le (π : S → ℝ) (G₁ U₁ G₂ U₂ : S → S 
     refine sum_congr rfl fun s _ => ?_
     rw [← sum_sub_distrib, mul_sum, ← sum_add_distrib, ← sum_add_distrib]
     exact sum_congr rfl fun s' _ => by ring
-  have hpt (s'' : S) : |∑ s, π s * (∑ s', C s s' s'' - ∑ s', U₁ s s' * U₂ s' s'')| ≤
-      ∑ s', |∑ s, π s * (G₁ s s' - U₁ s s')| * G₂ s' s'' +
-        |∑ s', (∑ s, π s * U₁ s s') * (G₂ s' s'' - U₂ s' s'')| +
-        |∑ s, π s * ∑ s', (C s s' s'' - G₁ s s' * G₂ s' s'')| := by
-    rw [key]
-    refine (abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans (add_le_add ?_ le_rfl))
-      le_rfl)
-    exact (abs_sum_le_sum_abs _ _).trans_eq
-      (sum_congr rfl fun s' _ => by rw [abs_mul, abs_of_nonneg (hG₂ s' s'')])
-  refine (sum_le_sum fun s'' _ => hpt s'').trans_eq ?_
-  rw [sum_add_distrib, sum_add_distrib, sum_comm]
-  congr 2; exact sum_congr rfl fun s' _ => by rw [← mul_sum, hG₂1, mul_one]
+  calc ∑ s'', |∑ s, π s * (∑ s', C s s' s'' - ∑ s', U₁ s s' * U₂ s' s'')|
+      ≤ ∑ s'', (∑ s', |∑ s, π s * (G₁ s s' - U₁ s s')| * G₂ s' s'' +
+          |∑ s', (∑ s, π s * U₁ s s') * (G₂ s' s'' - U₂ s' s'')| +
+          |∑ s, π s * ∑ s', (C s s' s'' - G₁ s s' * G₂ s' s'')|) := by
+        refine sum_le_sum fun s'' _ => ?_
+        rw [key]
+        refine (abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans (add_le_add ?_ le_rfl))
+          le_rfl)
+        exact (abs_sum_le_sum_abs _ _).trans_eq
+          (sum_congr rfl fun s' _ => by rw [abs_mul, abs_of_nonneg (hG₂ s' s'')])
+    _ = _ := by
+        rw [sum_add_distrib, sum_add_distrib, sum_comm]
+        congr 2
+        exact sum_congr rfl fun s' _ => by rw [← mul_sum, hG₂1, mul_one]
 
 /-- The induction step of `expect_sum_abs_le`. -/
 private theorem expect_sum_abs_succ_le [Fintype ι] [Fintype X] [Nonempty X] [DecidableEq X]
@@ -488,29 +502,33 @@ theorem abs_dens_foldlIdx_blocks_sub_le [Fintype ι] [Fintype X] [DecidableEq X]
   have hbound := expect_sum_abs_le hh δ k 0 (fun s => if s₀ = s then (1 : ℝ) else 0)
     (fun _ => ite_nonneg zero_le_one le_rfl) (by simp only [sum_ite_eq, mem_univ, ite_true])
   simp only [boole_mul, sum_ite_eq, mem_univ, ite_true] at hbound
-  rw [show (dens {z : X × (Fin k → ι) |
-        F ((List.ofFn (blocks h k z.1 z.2)).foldlIdx δ s₀) = true} : ℝ) =
-      𝔼 hs : Fin k → ι, ∑ s', genP h δ 0 k hs s₀ s' * (if F s' = true then 1 else 0) by
-        rw [← Fintype.expect_boole, Fintype.expect_prod_type, expect_comm]
-        exact expect_congr rfl fun hs _ =>
-          expect_comp_eq_sum (fun x => (List.ofFn (blocks h k x hs)).foldlIdx δ s₀)
-            fun s' => if F s' = true then 1 else 0,
-    show (dens {u : Fin (2 ^ k) → X | F ((List.ofFn u).foldlIdx δ s₀) = true} : ℝ) =
-      𝔼 _hs : Fin k → ι, ∑ s', uniP δ 0 (2 ^ k) s₀ s' * (if F s' = true then 1 else 0) by
-        rw [Fintype.expect_const, ← Fintype.expect_boole]
-        exact expect_comp_eq_sum (fun u : Fin (2 ^ k) → X => (List.ofFn u).foldlIdx δ s₀)
-          fun s' => if F s' = true then 1 else 0,
-    ← expect_sub_distrib]
-  have hpt (hs : Fin k → ι) : |∑ s', genP h δ 0 k hs s₀ s' * (if F s' = true then 1 else 0) -
-      ∑ s', uniP δ 0 (2 ^ k) s₀ s' * (if F s' = true then 1 else 0)| ≤
-      (∑ s', |genP h δ 0 k hs s₀ s' - uniP δ 0 (2 ^ k) s₀ s'|) / 2 := by
-    rw [← sum_sub_distrib]; simp only [← sub_mul]
-    exact abs_sum_mul_boole_le _
-      (by rw [sum_sub_distrib]; simp only [genP, uniP, sum_prob, sub_self]) F
-  refine ((abs_expect_le _ _).trans (expect_le_expect fun hs _ => hpt hs)).trans ?_
-  rw [← expect_div]
-  exact (div_le_div_of_nonneg_right hbound zero_le_two).trans_eq
-    (by rw [mul_div_assoc', div_div, mul_comm (√_) 2])
+  have hgen : (dens {z : X × (Fin k → ι) |
+      F ((List.ofFn (blocks h k z.1 z.2)).foldlIdx δ s₀) = true} : ℝ) =
+      𝔼 hs : Fin k → ι, ∑ s', genP h δ 0 k hs s₀ s' * (if F s' = true then 1 else 0) := by
+    rw [← Fintype.expect_boole, Fintype.expect_prod_type, expect_comm]
+    exact expect_congr rfl fun hs _ =>
+      expect_comp_eq_sum (fun x => (List.ofFn (blocks h k x hs)).foldlIdx δ s₀)
+        fun s' => if F s' = true then 1 else 0
+  have huni : (dens {u : Fin (2 ^ k) → X | F ((List.ofFn u).foldlIdx δ s₀) = true} : ℝ) =
+      𝔼 _hs : Fin k → ι, ∑ s', uniP δ 0 (2 ^ k) s₀ s' * (if F s' = true then 1 else 0) := by
+    rw [Fintype.expect_const, ← Fintype.expect_boole]
+    exact expect_comp_eq_sum (fun u : Fin (2 ^ k) → X => (List.ofFn u).foldlIdx δ s₀)
+      fun s' => if F s' = true then 1 else 0
+  rw [hgen, huni, ← expect_sub_distrib]
+  calc |𝔼 hs : Fin k → ι, (∑ s', genP h δ 0 k hs s₀ s' * (if F s' = true then 1 else 0) -
+        ∑ s', uniP δ 0 (2 ^ k) s₀ s' * (if F s' = true then 1 else 0))|
+      ≤ 𝔼 hs : Fin k → ι, (∑ s', |genP h δ 0 k hs s₀ s' - uniP δ 0 (2 ^ k) s₀ s'|) / 2 := by
+        refine (abs_expect_le _ _).trans (expect_le_expect fun hs _ => ?_)
+        rw [← sum_sub_distrib]
+        simp only [← sub_mul]
+        refine abs_sum_mul_boole_le _ ?_ F
+        rw [sum_sub_distrib]
+        simp only [genP, uniP, sum_prob, sub_self]
+    _ ≤ (2 ^ k - 1) * (Fintype.card S / √(Fintype.card X)) / 2 := by
+        rw [← expect_div]
+        gcongr
+    _ = (2 ^ k - 1) * Fintype.card S / (2 * √(Fintype.card X)) := by
+        rw [mul_div_assoc', div_div, mul_comm (√_) 2]
 
 /-- **Most hash seeds of Nisan's generator are good**: for a pairwise independent family
 `h i : X → X` and every transition function `δ` with states `S`, the fraction of the hash seeds
@@ -536,20 +554,25 @@ theorem dens_hashSeeds_far_le [Fintype ι] [Fintype X] [DecidableEq X] [Fintype 
     (fun _ => ite_nonneg zero_le_one le_rfl) (by simp only [sum_ite_eq, mem_univ, ite_true])
   simp only [boole_mul, sum_ite_eq, mem_univ, ite_true] at hbound
   rw [← Fintype.expect_boole]
-  have hpt (hs : Fin k → ι) :
-      (if ∃ s, ε < ∑ s', |(dens {x : X | (List.ofFn (blocks h k x hs)).foldlIdx δ s = s'} : ℝ) -
-        dens {u : Fin (2 ^ k) → X | (List.ofFn u).foldlIdx δ s = s'}| then (1 : ℝ) else 0) ≤
-      ∑ s, (∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε := by
-    have hnn (s : S) : 0 ≤ (∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε :=
-      div_nonneg (sum_nonneg fun _ _ => abs_nonneg _) hε.le
-    split_ifs with hfar
-    · obtain ⟨s, hs⟩ := hfar
-      exact ((one_le_div hε).2 hs.le).trans (single_le_sum (fun s _ => hnn s) (mem_univ s))
-    · exact sum_nonneg fun s _ => hnn s
-  refine (expect_le_expect fun hs _ => hpt hs).trans ?_
-  rw [expect_sum_comm]; simp only [← expect_div]
-  exact (sum_le_sum fun s _ => div_le_div_of_nonneg_right (hbound s) hε.le).trans_eq
-    (by rw [sum_const, card_univ, nsmul_eq_mul]; ring)
+  calc 𝔼 hs : Fin k → ι,
+        (if ∃ s, ε < ∑ s', |(dens {x : X | (List.ofFn (blocks h k x hs)).foldlIdx δ s = s'} : ℝ) -
+          dens {u : Fin (2 ^ k) → X | (List.ofFn u).foldlIdx δ s = s'}| then (1 : ℝ) else 0)
+      ≤ 𝔼 hs : Fin k → ι, ∑ s, (∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε := by
+        refine expect_le_expect fun hs _ => ?_
+        have hnn (s : S) : 0 ≤ (∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε :=
+          div_nonneg (sum_nonneg fun _ _ => abs_nonneg _) hε.le
+        split_ifs with hfar
+        · obtain ⟨s, hs⟩ := hfar
+          exact ((one_le_div hε).2 hs.le).trans (single_le_sum (fun s _ => hnn s) (mem_univ s))
+        · exact sum_nonneg fun s _ => hnn s
+    _ = ∑ s, (𝔼 hs : Fin k → ι, ∑ s', |genP h δ 0 k hs s s' - uniP δ 0 (2 ^ k) s s'|) / ε := by
+        rw [expect_sum_comm]
+        simp only [expect_div]
+    _ ≤ ∑ _s : S, (2 ^ k - 1) * (Fintype.card S / √(Fintype.card X)) / ε :=
+        sum_le_sum fun s _ => div_le_div_of_nonneg_right (hbound s) hε.le
+    _ = Fintype.card S * ((2 ^ k - 1) * Fintype.card S / √(Fintype.card X)) / ε := by
+        rw [sum_const, card_univ, nsmul_eq_mul]
+        ring
 
 /-- **Nisan's generator fools read-once branching programs** [Nisan1992]: for a pairwise independent
 family `h i : X → X` and every read-once branching program `P` of length `2 ^ k` over `X` with

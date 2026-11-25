@@ -580,7 +580,8 @@ private theorem map_extractOutBits_foldlM_realOutStep {m k : ℕ} [NeZero m]
       (fun s => (a_table s coord.1 coord.2, GMWCircuit.constShare true s)) tr
     rw [foldlM_realOutStep_eq_map _ (finishOutStep m coord.1 mul), Functor.map_map, Functor.map_map]
     conv_lhs =>
-      arg 1; ext acc_tail
+      arg 1
+      ext acc_tail
       rw [show (appendStep3Acc m (finishOutStep m coord.1 mul) acc_tail).2.2.2 =
           fun i' => (if i' = coord.1 then [∑ s : Fin m, mul.1 s] else []) ++ acc_tail.2.2.2 i'
           from rfl,
@@ -1298,7 +1299,8 @@ private theorem eval_simSharedMulSteps_gmwCircuitSim {m coins n k : ℕ} [NeZero
         (unitOTMsgSubCoins i.1 (allPairs m),
          receivedOTMsgScheduleOfInbox i.1
            (fun s => GMWCircuit.shareInputBits m (n + coins) (xr s) (c₁ s) i.1)
-           (allPairs m))) := simSharedMulSteps_inputShareSteps I _ _
+           (allPairs m))) :=
+    simSharedMulSteps_inputShareSteps I _ _
   dsimp only [gmwCircuitProtocol]
   simp_rw [simSharedMulSteps_append, hstep1, pure_bind, hout1_at]
   have hprog := congrArg

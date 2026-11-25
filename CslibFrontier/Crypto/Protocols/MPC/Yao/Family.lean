@@ -183,7 +183,8 @@ theorem length_circuitInput {c : Params G} (x : (i : Fin 2) → Input c i) :
     (circuitInput x).length = G.inLen c.fn := by
   have := c.garblerLen_le
   simp only [circuitInput, List.length_append, List.length_ofFn (f := x 0),
-    List.length_ofFn (f := x 1), Params.evaluatorLen]; omega
+    List.length_ofFn (f := x 1), Params.evaluatorLen]
+  omega
 
 /-- The garbler's message: the garbled function `F`, the tokens of the garbler's input bits and the
 decoding information `d`. -/
@@ -484,10 +485,12 @@ private theorem oneSidedReceived_zero (n : ℕ) (c : Params G) (x : (i : Fin 2) 
     (coins : List Bool) :
     (⟨x 0, coinTuple coins 0, oneSidedReceived G n c x coins 0⟩ :
         PartyView (Input c) Coins (oneSidedSchedule c) 0) =
-      oneSidedGarblerView c (x 0) coins :=
-  PartyView.ext rfl rfl (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
-    (Prod.ext (Round.received_oracle_ext fun s hs => by fin_cases s <;> [rfl; simp at hs])
-      rfl))
+      oneSidedGarblerView c (x 0) coins := by
+  refine PartyView.ext rfl rfl (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+    (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
+  fin_cases s
+  · rfl
+  · simp at hs
 
 /-- The evaluator's view in a run of `oneSidedProtocol`. -/
 private theorem oneSidedReceived_one (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i)
@@ -495,10 +498,12 @@ private theorem oneSidedReceived_one (n : ℕ) (c : Params G) (x : (i : Fin 2) �
     (⟨x 1, coinTuple coins 1, oneSidedReceived G n c x coins 1⟩ :
         PartyView (Input c) Coins (oneSidedSchedule c) 1) =
       oneSidedEvaluatorView c (x 1) (garblerMessage G n c (x 0) coins)
-        (fun j => garblerOffer G n c coins j (x 1 j)) :=
-  PartyView.ext rfl rfl (Prod.ext rfl
-    (Prod.ext (Round.received_oracle_ext fun s hs => by fin_cases s <;> [simp at hs; rfl])
-      rfl))
+        (fun j => garblerOffer G n c coins j (x 1 j)) := by
+  refine PartyView.ext rfl rfl (Prod.ext rfl
+    (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
+  fin_cases s
+  · simp at hs
+  · rfl
 
 /-- The garbler's view in a run of `protocol`. -/
 private theorem received_zero (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input c i)
@@ -523,7 +528,8 @@ private theorem received_one (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input
     congrArg PartyView.received (oneSidedReceived_one G n c x coins)
   have h2 : Round.deliverMessage (spec := batchOTSpec c.evaluatorLen (List Bool))
       (sender := (1 : Fin 2)) (receiver := (0 : Fin 2)) (runOutput G n c x coins) 1 =
-      fun h => absurd h (by decide) := Round.received_message_eq_of_ne (by decide) _ _
+      fun h => absurd h (by decide) :=
+    Round.received_message_eq_of_ne (by decide) _ _
   exact PartyView.ext rfl rfl (by simp only [received, evaluatorView, h1, h2])
 
 /-- Both parties' views in a run of `oneSidedProtocol` on inputs `x` with the garbler's coins
@@ -765,10 +771,12 @@ theorem oneSidedEvaluatorViewWords_injective (c : Params G) :
     Function.Injective (oneSidedEvaluatorViewWords (c := c)) := by
   rintro ⟨x, ⟨⟩, ⟨m, o, ⟨⟩⟩⟩ ⟨x', ⟨⟩, ⟨m', o', ⟨⟩⟩⟩ h
   injection h with hx hfn hlabels hdec hot
-  exact PartyView.ext (List.ofFn_injective hx) rfl
+  refine PartyView.ext (List.ofFn_injective hx) rfl
     (Prod.ext (Round.received_message_ext fun _ => Message.ext hfn hlabels hdec)
-      (Prod.ext (Round.received_oracle_ext fun s hs => by
-        fin_cases s <;> [simp at hs; exact List.ofFn_injective hot]) rfl))
+      (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
+  fin_cases s
+  · simp at hs
+  · exact List.ofFn_injective hot
 
 /-- The words determine a garbler's view in `protocol`. -/
 theorem garblerViewWords_injective (c : Params G) :
@@ -976,8 +984,9 @@ theorem isPPT_oneSidedGarblerSim {encFn : Fn ↪ List Bool}
     exact encOneSidedGarblerViewWords_mk_polyTime (hx₀.comp (.fst _ _)) (.snd _ _)
   · simp only [oneSidedGarblerSim, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
       ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    exact congrArg (PMF.bind _) (funext fun _ => congrArg PMF.pure
-      (funext fun ⟨_, hj⟩ => by obtain rfl := Finset.mem_singleton.mp hj; rfl))
+    refine congrArg (PMF.bind _) (funext fun _ => congrArg PMF.pure (funext fun ⟨_, hj⟩ => ?_))
+    obtain rfl := Finset.mem_singleton.mp hj
+    rfl
 
 /-- The simulator family `garblerSim` for a corrupted garbler is PPT for `encoding G encFn` when
 `G` computes its coin count in polynomial time: it draws `G.coins n c.fn` fair coins. -/
@@ -1000,8 +1009,9 @@ theorem isPPT_garblerSim {encFn : Fn ↪ List Bool}
     exact encGarblerViewWords_mk_polyTime (hx₀.comp (.fst _ _)) (.snd _ _) (hy.comp (.fst _ _))
   · simp only [garblerSim, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
       ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-    exact congrArg (PMF.bind _) (funext fun _ => congrArg PMF.pure
-      (funext fun ⟨_, hj⟩ => by obtain rfl := Finset.mem_singleton.mp hj; rfl))
+    refine congrArg (PMF.bind _) (funext fun _ => congrArg PMF.pure (funext fun ⟨_, hj⟩ => ?_))
+    obtain rfl := Finset.mem_singleton.mp hj
+    rfl
 
 /-- Perfect privacy from parameter `n = 1` on with a PPT simulator family gives
 `ProtocolFamily.SemiHonestSecure`. -/
@@ -1013,9 +1023,10 @@ private theorem semiHonestSecure_of_pos_perfect {P : ProtocolFamily 2} {setup : 
     P.SemiHonestSecure setup I E :=
   ⟨S, hS, fun Z _ => negligible_of_eventually_le negligible_zero <|
     (Filter.eventually_gt_atTop 0).mono fun n hn => by
+      have heq : P.realGame setup I Z n = P.idealGame setup I S Z n := by
+        simp only [ProtocolFamily.realGame, ProtocolFamily.idealGame, h hn]
       dsimp only
-      rw [show P.realGame setup I Z n = P.idealGame setup I S Z n by
-        simp only [ProtocolFamily.realGame, ProtocolFamily.idealGame, h hn], Game.advantage_self]⟩
+      rw [heq, Game.advantage_self]⟩
 
 /-- Step in the ideal `batchOTWorld` oblivious-transfer hybrid model (#6045), with no computational
 assumption: semi-honest security of `Yao.oneSidedFamily G` against a corrupted garbler, towards

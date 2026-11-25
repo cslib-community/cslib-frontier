@@ -167,7 +167,8 @@ theorem exists_secure_not_isSmallBias :
   -- Each output word has probability `1/2` (equal bits) or `0`, against `1/4` under uniform.
   have hcases : ∀ x : Fin (2 ^ 1) → Bool,
       #{σ : Fin 1 → Bool | (fun _ => σ 0 : Fin (2 ^ 1) → Bool) = x} = 1 ∨
-        #{σ : Fin 1 → Bool | (fun _ => σ 0 : Fin (2 ^ 1) → Bool) = x} = 0 := by decide
+        #{σ : Fin 1 → Bool | (fun _ => σ 0 : Fin (2 ^ 1) → Bool) = x} = 0 := by
+    decide
   have hdist : dist G.outputDist (PMF.uniformOfFintype (Fin (2 ^ 1) → Bool)) = 1 / 2 := by
     rw [PMF.dist_eq]
     have hx (x : Fin (2 ^ 1) → Bool) : |(G.outputDist x).toReal -

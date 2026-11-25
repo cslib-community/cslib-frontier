@@ -925,11 +925,11 @@ private theorem eq_of_circle_shift_bounds {V : Type*} (W : WeightedGraph V) [Fin
   have hσ_sq : σ * σ = 1 := by rcases hσ with rfl | rfl <;> norm_num
   have hnegσ : -σ = 1 ∨ -σ = -1 := by rcases hσ with rfl | rfl <;> [right; left] <;> norm_num
   have hσρ : |σ * ρ| ≤ 2 * η := by rw [abs_mul, hσ_abs, one_mul]; exact hρ
-  have hshift (X : ℝ) : s + ρ = (s + σ * X) + (-σ) * (X - σ * ρ) :=
-    calc s + ρ = s + (σ * σ) * ρ := by rw [hσ_sq, one_mul]
-      _ = (s + σ * X) + (-σ) * (X - σ * ρ) := by ring
   rcases lt_trichotomy (σ * ρ) 0 with hneg | hzero | hpos
-  · rw [hy_cm, hshift (R + η'), dist_circleMap_add_mul_dir hs hnegσ _ _
+  · have hmul : s + ρ = (s + σ * (R + η')) + (-σ) * (R + η' - σ * ρ) :=
+      calc s + ρ = s + (σ * σ) * ρ := by rw [hσ_sq, one_mul]
+        _ = (s + σ * (R + η')) + (-σ) * (R + η' - σ * ρ) := by ring
+    rw [hy_cm, hmul, dist_circleMap_add_mul_dir hs hnegσ _ _
       (by linarith [hη'.1, hη'.2])
       (by linarith [(abs_le.mp hσρ).1, hη'.2, hη_L])] at hb
     linarith
@@ -937,7 +937,10 @@ private theorem eq_of_circle_shift_bounds {V : Type*} (W : WeightedGraph V) [Fin
       have h := congrArg (σ * ·) hzero
       rwa [← mul_assoc, hσ_sq, one_mul, mul_zero] at h
     simpa only [hρ0, add_zero] using hy_cm
-  · rw [hy_cm, hshift R, dist_circleMap_add_mul_dir hs hnegσ _ _
+  · have hmul : s + ρ = (s + σ * R) + (-σ) * (R - σ * ρ) :=
+      calc s + ρ = s + (σ * σ) * ρ := by rw [hσ_sq, one_mul]
+        _ = (s + σ * R) + (-σ) * (R - σ * ρ) := by ring
+    rw [hy_cm, hmul, dist_circleMap_add_mul_dir hs hnegσ _ _
       (by linarith [(abs_le.mp hσρ).2])
       (by linarith)] at hb₀
     linarith

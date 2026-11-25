@@ -36,19 +36,6 @@ namespace Cslib.Complexity.Graph.ClosedPassages
 
 open Cslib.Polygonal
 
-private theorem regular_edge_endpoints_ne {G : Graph} {D : PolygonalDrawing G}
-    (hreg : D.HasRegularContacts) (e : Fin G.edges.length) :
-    Dart.vertex (G := G) (e, false) ≠ Dart.vertex (G := G) (e, true) := fun he => by
-  have hend : (D.route e).point 0 = (D.route e).point (Fin.last (D.route e).segments) := by
-    change (D.route e).endpoint false = (D.route e).endpoint true
-    rw [D.endpoint_eq, D.endpoint_eq, he]
-  exact Nat.succ_ne_zero _ (congrArg Fin.val (hreg.points_injective e hend)).symm
-
-private theorem regular_dart_endpoints_ne {G : Graph} {D : PolygonalDrawing G}
-    (hreg : D.HasRegularContacts) (d : Dart G) : d.reverse.vertex ≠ d.vertex := by
-  rcases d with ⟨e, _ | _⟩
-  exacts [(regular_edge_endpoints_ne hreg e).symm, regular_edge_endpoints_ne hreg e]
-
 private theorem not_alternates_of_passages_meeting_at {G : Graph}
     {D : PolygonalDrawing G} {r : RotationSystem G} {v : ℕ}
     (hR : D.Realizes r) (hreg : D.HasRegularContacts)
@@ -65,7 +52,7 @@ private theorem not_alternates_of_passages_meeting_at {G : Graph}
     (hmeet : ∀ e f : Dart G, x e.1 = true → y f.1 = true → e.vertex = f.vertex → e.vertex = v) :
     ¬r.Alternates (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true) := by
   have hdisjoint (e : Fin G.edges.length) (he : x e = true) (hf : y e = true) : False := by
-    exact regular_edge_endpoints_ne hreg e ((hmeet (e, false) (e, false) he hf rfl).trans
+    exact hreg.reverse_vertex_ne (e, true) ((hmeet (e, false) (e, false) he hf rfl).trans
       (hmeet (e, true) (e, true) he hf rfl).symm)
   exact P.not_alternates_of_unique_shared_passages Q hR hreg hsimple hvertices hdeclared
     hdisjoint (fun e f he hf => heven e f (fun h => hdisjoint e he (h ▸ hf))
@@ -219,8 +206,8 @@ theorem exists_separating_component_rank_interval {G : Graph}
     have hbOutside : b ∉ r.rotationInterval o d :=
       fun he => (not_lt_of_ge hgt.le)
         ((r.mem_rotationInterval_iff_lt_distance o b d hob hod hbo.symm hbd hod').mp he)
-    have ho' : o.reverse.vertex ≠ v := ho ▸ regular_dart_endpoints_ne hreg o
-    have hd' : d.reverse.vertex ≠ v := hd ▸ regular_dart_endpoints_ne hreg d
+    have ho' : o.reverse.vertex ≠ v := ho ▸ hreg.reverse_vertex_ne o
+    have hd' : d.reverse.vertex ≠ v := hd ▸ hreg.reverse_vertex_ne d
     apply not_alternates_of_component_after_deleting_pair hR hreg hsimple hvertices
       hdeclared heven u C ha haC hbC hoC hdC ho' hd'
       (hreach o ho hoC ho') (hreach d hd hdC hd')
@@ -285,7 +272,7 @@ theorem exists_consecutive_component_darts {G : Graph}
     else none
   have avoid (d : Dart G) (hd : d.vertex = v) : d.reverse.vertex ≠ v := by
     rw [← hd]
-    exact regular_dart_endpoints_ne hreg d
+    exact hreg.reverse_vertex_ne d
   have same (d e : Dart G) (hd : d.reverse.vertex ≠ v) (he : e.reverse.vertex ≠ v) :
       color d = color e ↔ K.Reachable ⟨d.reverse.vertex, hd⟩ ⟨e.reverse.vertex, he⟩ := by
     simp only [color, dite_eq_left hd, dite_eq_left he, Option.some.injEq]

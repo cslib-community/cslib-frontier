@@ -477,10 +477,15 @@ private theorem eval_onlineTranscript_eq_of_marginal {P : Scheme n k R St Toff T
     ProbComp.eval (P.onlineTranscript D₀ Q₀) = ProbComp.eval (P.onlineTranscript D₁ Q₁) := by
   have := Fin.nontrivial_iff_two_le.mpr hn
   obtain ⟨j₀, j₁, hj⟩ := exists_pair_ne (Fin n)
-  exact (hpriv_on _ _ (fun _ => j₀)).trans <|
-    (hdpriv_on (D₁ := Function.update D₁ j₀ (D₀ j₀)) (by funext; simp)).trans <|
-      (hpriv_on _ _ (fun _ => j₁)).trans <|
-        (hdpriv_on (by funext; simp [hj.symm])).trans (hpriv_on _ _ _)
+  calc ProbComp.eval (P.onlineTranscript D₀ Q₀)
+      = ProbComp.eval (P.onlineTranscript D₀ fun _ => j₀) := hpriv_on _ _ _
+    _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₀) :=
+        hdpriv_on (funext fun _ => by simp)
+    _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₁) :=
+        hpriv_on _ _ _
+    _ = ProbComp.eval (P.onlineTranscript D₁ fun _ => j₁) :=
+        hdpriv_on (funext fun _ => by simp [hj.symm])
+    _ = ProbComp.eval (P.onlineTranscript D₁ Q₁) := hpriv_on _ _ _
 
 /-- **Online transcript independence** (the first step of the proof of
 [Hoover, Persiano and Yeo, Theorem 6.2, p. 52][HooverPersianoYeo2026]): when `2 ≤ n`, perfect
@@ -673,8 +678,11 @@ theorem batchSPIR_limitation [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) (h
     (hdpriv : P.IsPerfectlyDataPrivate) : ¬ P.IsCorrectWith ε := by
   intro hcorr
   have hle := P.correct_le_two_pow_sub hn hkn hst hpriv hdpriv hcorr
+  have hexp_le : (s : ℤ) - k ≤ -1 := by omega
   have hpow : (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ 1 / 2 :=
-    (zpow_le_zpow_right₀ (by norm_num) (by omega : (s : ℤ) - k ≤ -1)).trans_eq (by norm_num)
+    calc (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ (2 : ℝ) ^ (-1 : ℤ) :=
+          zpow_le_zpow_right₀ (by norm_num) hexp_le
+      _ = 1 / 2 := by norm_num
   linarith
 
 end Scheme

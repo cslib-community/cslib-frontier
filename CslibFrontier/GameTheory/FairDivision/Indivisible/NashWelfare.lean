@@ -429,9 +429,10 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
           · rwa [BundleAllocation.transferGood_bundle_other A g hg hki hkj]
       have hi_notA : i ∉ W.posAgents A := by simp [hui0]
       have hcard_gt : (W.posAgents A).card < (W.posAgents B).card := by
-        calc (W.posAgents A).card < (insert i (W.posAgents A)).card := by
-              rw [Finset.card_insert_of_notMem hi_notA]
-              omega
+        calc
+          (W.posAgents A).card < (insert i (W.posAgents A)).card := by
+            rw [Finset.card_insert_of_notMem hi_notA]
+            omega
           _ ≤ (W.posAgents B).card := Finset.card_le_card hsub_pos
       exact not_lt_of_ge (hcard_max B hcompB) hcard_gt
   · -- `u_j(A_j) = 0`: transferring `g₁` (`0 < w_i(g₁)`, `w_j(g₁) = 0`) from `j` to `i`

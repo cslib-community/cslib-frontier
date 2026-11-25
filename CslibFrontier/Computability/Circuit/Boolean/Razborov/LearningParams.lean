@@ -125,24 +125,30 @@ private theorem cikkAC0Size_lt (e n s r : ℕ) :
   set g := 2 ^ r
   have hg : 1 ≤ g := Nat.one_le_two_pow
   set M := 2 ^ (e + 10) * (3 * e + 42)
-  have hk : cikkK e g ≤ M * g := (cikkK_le e g).trans <| by
-    rw [mul_assoc]
-    exact Nat.mul_le_mul_left _ (by nlinarith)
+  have hk : cikkK e g ≤ M * g :=
+    calc cikkK e g ≤ 2 ^ (e + 10) * (6 * g + 3 * e + 36) := cikkK_le e g
+      _ ≤ 2 ^ (e + 10) * ((3 * e + 42) * g) := Nat.mul_le_mul_left _ (by nlinarith)
+      _ = M * g := by ring
   have hM : 1 ≤ (M * g) ^ 2 := Nat.one_le_pow _ _ (Nat.mul_pos (by positivity) hg)
   have hMg : cikkK e g ≤ (M * g) ^ 2 := hk.trans (Nat.le_self_pow two_ne_zero _)
-  have h2 : (cikkK e g * n + cikkK e g) ^ 2 ≤ (M * g * (n + 1)) ^ 2 :=
-    Nat.pow_le_pow_left (by simpa [Nat.mul_succ] using Nat.mul_le_mul_right (n + 1) hk) 2
+  have h2 : (cikkK e g * n + cikkK e g) ^ 2 ≤ (M * g * (n + 1)) ^ 2 := by
+    refine Nat.pow_le_pow_left ?_ 2
+    calc cikkK e g * n + cikkK e g = cikkK e g * (n + 1) := by ring
+      _ ≤ M * g * (n + 1) := Nat.mul_le_mul_right _ hk
+  have h3 : 3 ≤ 3 * (M * g) ^ 2 :=
+    calc 3 = 3 * 1 := (Nat.mul_one 3).symm
+      _ ≤ 3 * (M * g) ^ 2 := Nat.mul_le_mul_left 3 hM
   have hle : cikkAC0Size e n s g ≤ g ^ 2 * (M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) := by
     unfold cikkAC0Size
     calc cikkK e g * s + 6 * (cikkK e g * n + cikkK e g) ^ 2 + 3
         ≤ (M * g) ^ 2 * s + 6 * (M * g * (n + 1)) ^ 2 + 3 * (M * g) ^ 2 :=
-          Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_right _ hMg) (Nat.mul_le_mul_left 6 h2))
-            ((Nat.mul_one 3).symm.le.trans (Nat.mul_le_mul_left 3 hM))
+          Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_right _ hMg) (Nat.mul_le_mul_left 6 h2)) h3
       _ = g ^ 2 * (M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) := by ring
-  have hW : M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3) < 2 ^ cikkAC0Bits e n s :=
-    Nat.lt_pow_succ_log_self (by norm_num) _
-  exact (hle.trans_lt (Nat.mul_lt_mul_of_pos_left hW (by positivity))).trans_eq
-    (by rw [← pow_mul, ← pow_add, mul_comm r 2])
+  calc cikkAC0Size e n s (2 ^ r)
+      ≤ g ^ 2 * (M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) := hle
+    _ < g ^ 2 * 2 ^ cikkAC0Bits e n s :=
+        Nat.mul_lt_mul_of_pos_left (Nat.lt_pow_succ_log_self (by norm_num) _) (by positivity)
+    _ = 2 ^ (2 * r + cikkAC0Bits e n s) := by rw [← pow_mul, ← pow_add, mul_comm r 2]
 
 /-- With `q = ⌊log₂ B⌋ + 5D + 25`: `2 · 2^{2D+7} (4 D q + B) ≤ 2 ^ q`. -/
 private theorem two_mul_le_two_pow (D B : ℕ) :

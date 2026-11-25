@@ -488,8 +488,9 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
       simp only [↓reduceIte, ← mul_div_assoc, mul_keepProb_eq_min]
     · rw [ite_eq_right hk]
       refine Finset.sum_eq_zero fun q _ => ?_
-      simp [show ((s₀, q₀) : S × Q) ≠ (eS.symm k, q) from
-        fun h => hk ((Equiv.eq_symm_apply eS).mp (Prod.mk.inj h).1).symm]
+      have hne : ((s₀, q₀) : S × Q) ≠ (eS.symm k, q) := fun h =>
+        hk ((Equiv.eq_symm_apply eS).mp (Prod.mk.inj h).1).symm
+      simp [hne]
   simp only [hk_val, Fintype.sum_ite_eq'] at hexp
   set p₀ : ℝ := (ProbComp.eval (P.serverQuery s₀ i₀) q₀).toReal
   set pᵢ : ℝ := (ProbComp.eval (P.serverQuery s₀ i) q₀).toReal

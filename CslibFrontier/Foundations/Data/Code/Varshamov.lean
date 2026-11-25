@@ -97,7 +97,7 @@ theorem exists_mulVec_ne_zero_of_card_lt {B : Finset (ι → ZMod 2)} (h0 : 0 �
   have hsum : (∑ x ∈ B, #{r : ι → ZMod 2 | ∀ y ∈ ({x} : Finset _), r ⬝ᵥ y = 0} ^ c) * 2 ^ c =
       #B * 2 ^ (Fintype.card ι * c) := by
     rw [sum_mul, sum_congr rfl fun x hx => ?_, sum_const, smul_eq_mul]
-    have h := card_filter_dotProduct_eq_zero_mul_two (ι := ι) (x := x) (by rintro rfl; exact h0 hx)
+    have h := card_filter_dotProduct_eq_zero_mul_two (ι := ι) (x := x) (fun hx0 => h0 (hx0 ▸ hx))
     simp only [mem_singleton, forall_eq]
     rw [← mul_pow, h, pow_mul]
   have := Nat.mul_le_mul_right (2 ^ c) hle

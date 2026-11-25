@@ -281,8 +281,9 @@ theorem noiseOp_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] (e : 
 /-- On the cube over no coordinates, a single point, the noise operator is the identity. -/
 theorem noiseOp_of_isEmpty [IsEmpty ι] (ρ : ℝ) (g : (ι → Bool) → ℝ) (x : ι → Bool) :
     noiseOp ρ g x = g x := by
-  simpa only [noiseOp, show (fun P => g (x + P)) = fun _ => g x from
-    funext fun _ => congrArg g (Subsingleton.elim _ _)] using bernoulliAverage_const _ (g x)
+  have h : (fun P : ι → Bool => g (x + P)) = fun _ => g x :=
+    funext fun _ => congrArg g (Subsingleton.elim _ _)
+  rw [noiseOp, h, bernoulliAverage_const]
 
 /-- The correlation of `f` with `T_ρ g` is the sum of the products of the Fourier coefficients
 damped by `ρ ^ |S|`. -/
@@ -407,8 +408,8 @@ theorem noiseSensitivity_eq_sum (δ : ℝ) (f : (ι → Bool) → Bool) :
 
 /-- With no noise, `f` never changes. -/
 @[simp] theorem noiseSensitivity_zero (f : (ι → Bool) → Bool) : noiseSensitivity 0 f = 0 := by
-  simp [noiseSensitivity, bernoulliAverage_zero, show ∀ x : ι → Bool, (x + fun _ => false) = x from
-    add_zero]
+  have h (x : ι → Bool) : (x + fun _ => false) = x := add_zero x
+  simp [noiseSensitivity, bernoulliAverage_zero, h]
 
 /-- On `0 ≤ δ ≤ 1`, the noise sensitivity is a probability. -/
 theorem noiseSensitivity_mem_Icc {δ : ℝ} (hδ : 0 ≤ δ) (hδ' : δ ≤ 1) (f : (ι → Bool) → Bool) :

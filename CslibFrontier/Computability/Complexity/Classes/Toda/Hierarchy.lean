@@ -165,11 +165,13 @@ theorem IsRandomParityRep.not {ℓ e ρ ζ : Polynomial ℕ} {W : α × List Boo
       acceptCount (fun x => W (x.1, u ++ List.ofFn r ++ x.2)) a (ζ.eval (enc a).length) + 1 := by
     rw [Polynomial.eval_add, Polynomial.eval_one, ← acceptCount_succVerifier]
     refine acceptCount_congr (fun w => ?_) _
-    have hlen : (u ++ List.ofFn r).length = ℓ.eval (enc a).length + ρ.eval (enc a).length := by
+    have hlen : (u ++ List.ofFn r).length =
+        ℓ.eval (enc a).length + ρ.eval (enc a).length := by
       rw [List.length_append, List.length_ofFn, hu]
     simp only [notVerifier, ← hlen, List.take_left' rfl, List.drop_left' rfl]
   refine le_of_eq_of_le ?_ (h a u hu)
-  congr 2; ext r
+  congr 2
+  ext r
   simp only [mem_filter, mem_univ, true_and, hcount, Nat.odd_add_one]
   tauto
 
@@ -431,7 +433,8 @@ theorem PH_subset_BPOp_ParityP : PH enc ⊆ BPOp enc (ParityP (encPair enc encBi
         (hW.comp (((fst _ _).fst').prod (bitsAppend ((fst _ _).snd') (snd _ _)))),
       fun x => ?_⟩
     rw [acceptCount_padVerifier_of_le _ _ (a := x)
-      (Polynomial.eval_mono _ (length_le_encPair_left _ _ x))]; rfl
+      (Polynomial.eval_mono _ (length_le_encPair_left _ _ x))]
+    rfl
   · -- error `1 / 4` is bounded error
     have ha := h a [] (by simp)
     simp only [Polynomial.eval_ofNat, List.nil_append] at ha

@@ -524,9 +524,9 @@ private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List 
         List.map_congr_left fun q hq => by
           rw [List.count_cons_of_ne fun (h : a = q.1) =>
             hnodup.1 (h ▸ List.mem_map.mpr ⟨q, hq, rfl⟩)]
-      simp only [List.count_cons_self, htail]
-      rw [show c.length • (msg.count a + 1) = c.length • msg.count a + c.length from
-        Nat.mul_succ _ _]
+      have hmul : c.length • (msg.count a + 1) = c.length • msg.count a + c.length :=
+        Nat.mul_succ _ _
+      simp only [List.count_cons_self, htail, hmul]
       omega
     · rw [List.count_cons_of_ne fun (h : a = p.1) =>
           hnodup.1 (h.symm ▸ List.mem_map.mpr ⟨_, hps, rfl⟩),

@@ -322,15 +322,16 @@ theorem three_mul_card_ofTable_mem_le {S : SetSystem} {k : ℕ}
     (Nat.pow_le_pow_right (by norm_num) (eighteen_le_arity S)).trans' (by norm_num)
   have hd : arity S * (5 * k + 5) ≤ 2 ^ arity S / S.ground.length := by
     rw [Nat.le_div_iff_mul_le hN]
-    have h30 : 30 ≤ bound S ^ 3 := by
-      calc 30 ≤ 4 ^ 3 := by norm_num
-        _ ≤ bound S ^ 3 := Nat.pow_le_pow_left hb 3
     calc arity S * (5 * k + 5) * S.ground.length
         ≤ (6 * bound S) * (5 * bound S) * bound S :=
           Nat.mul_le_mul (Nat.mul_le_mul (arity_le S) (by omega)) hNb
       _ = 30 * bound S ^ 3 := by ring
-      _ ≤ bound S ^ 3 * bound S ^ 3 := Nat.mul_le_mul_right _ h30
-      _ = bound S ^ 6 := by ring
+      _ ≤ bound S ^ 6 := by
+          have h30 : 30 ≤ bound S ^ 3 := by
+            calc 30 ≤ 4 ^ 3 := by norm_num
+              _ ≤ bound S ^ 3 := Nat.pow_le_pow_left hb 3
+          calc 30 * bound S ^ 3 ≤ bound S ^ 3 * bound S ^ 3 := Nat.mul_le_mul_right _ h30
+            _ = bound S ^ 6 := by ring
       _ ≤ 2 ^ arity S := hM.le
   refine (Nat.mul_le_mul_left 3 (card_le_card fun T hT => ?_)).trans
     (Window.three_mul_card_cheap_lift_le (I := I) hN (residues S) k hmiss (by omega)

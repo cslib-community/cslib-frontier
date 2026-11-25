@@ -86,33 +86,26 @@ theorem rpow_mul_rpow_le_apply_four (x y v u : I) :
       F (push ![x, y, v, u]
         (four fun (a : α) (b : β) c d => if a = c ∧ b = d then (1 : K) else 0)) := by
   classical
-  set D := Fintype.card α with hD
-  set D' := Fintype.card β with hD'
-  rw [← F.apply_wire x v (n := D) Fintype.card_pos, ← F.apply_wire y u (n := D') Fintype.card_pos,
-    ← F.map_mul]
-  refine F.monotone ?_
+  set D := Fintype.card α
+  set D' := Fintype.card β
+  rw [← F.apply_wire x v (n := D) Fintype.card_pos,
+    ← F.apply_wire y u (n := D') Fintype.card_pos, ← F.map_mul]
   let e : Fin D ≃ α := (Fintype.equivFin α).symm
   let e' : Fin D' ≃ β := (Fintype.equivFin β).symm
   let σ : Fin 2 ⊕ Fin 2 → Fin 4 := Sum.elim ![0, 2] ![1, 3]
-  let t : PartyTensor K (Fin 2 ⊕ Fin 2) := outerPair (unit K (Fin 2) D) (unit K (Fin 2) D')
   have h1 : (Sum.elim ![x, v] ![y, u] : Fin 2 ⊕ Fin 2 → I) = ![x, y, v, u] ∘ σ := by
     funext i
     rcases i with i | i <;> fin_cases i <;> rfl
-  have h2 :=
-      (antisymmRel_push_outerPair (Sum.elim ![x, v] ![y, u]) (unit K (Fin 2) D)
-          (unit K (Fin 2) D')).2
-  refine h2.trans ?_
+  refine F.monotone ((antisymmRel_push_outerPair (Sum.elim ![x, v] ![y, u])
+    (unit K (Fin 2) D) (unit K (Fin 2) D')).2.trans ?_)
   rw [h1]
-  refine (antisymmRel_push_push ![x, y, v, u] σ t).2.trans (push_le_push _ ?_)
-  refine le_of_entry_eq (fun q => match q with
-    | 0 => fun a => e (a ⟨Sum.inl 0, rfl⟩)
-    | 1 => fun a => e' (a ⟨Sum.inr 0, rfl⟩)
-    | 2 => fun a => e (a ⟨Sum.inl 1, rfl⟩)
-    | 3 => fun a => e' (a ⟨Sum.inr 1, rfl⟩)) fun z => ?_
-  have gen : ∀ (a0 a2 : Fin D) (a1 a3 : Fin D'),
+  refine (antisymmRel_push_push ![x, y, v, u] σ _).2.trans (push_le_push _ ?_)
+  refine le_of_entry_eq (fun
+    | 0, a => e (a ⟨Sum.inl 0, rfl⟩) | 1, a => e' (a ⟨Sum.inr 0, rfl⟩)
+    | 2, a => e (a ⟨Sum.inl 1, rfl⟩) | 3, a => e' (a ⟨Sum.inr 1, rfl⟩)) fun z => ?_
+  have gen (a0 a2 : Fin D) (a1 a3 : Fin D') :
       (if a0 = a2 then (1 : K) else 0) * (if a1 = a3 then 1 else 0) =
         if e a0 = e a2 ∧ e' a1 = e' a3 then 1 else 0 := by
-    intro a0 a2 a1 a3
     simp only [e.injective.eq_iff, e'.injective.eq_iff]
     rw [ite_and, ite_mul, one_mul, zero_mul]
   exact (congr_arg₂ (· * ·) (unit_two_entry fun l => z (σ (Sum.inl l)) ⟨Sum.inl l, rfl⟩)
@@ -130,17 +123,15 @@ theorem rpow_le_exp (r : ℕ) (z : ℝ) : (r : ℝ) ^ z ≤ Real.exp (Real.log r
 def quarter (ρ : ℝ) : Set (ℝ × ℝ) := {p | 0 ≤ p.1 ∧ 0 ≤ p.2 ∧ p.1 ^ 2 + p.2 ^ 2 ≤ ρ}
 
 private theorem isCompact_quarter (ρ : ℝ) : IsCompact (quarter ρ) := by
-  have h1 : IsCompact (Set.Icc (0 : ℝ) (ρ + 1) ×ˢ Set.Icc (0 : ℝ) (ρ + 1)) :=
-    isCompact_Icc.prod isCompact_Icc
-  refine h1.of_isClosed_subset ?_ ?_
-  · have h2 : IsClosed {p : ℝ × ℝ | 0 ≤ p.1} := isClosed_le continuous_const continuous_fst
-    have h3 : IsClosed {p : ℝ × ℝ | 0 ≤ p.2} := isClosed_le continuous_const continuous_snd
-    have h4 : IsClosed {p : ℝ × ℝ | p.1 ^ 2 + p.2 ^ 2 ≤ ρ} :=
-      isClosed_le (by fun_prop) continuous_const
-    exact h2.inter (h3.inter h4)
-  · rintro ⟨r, l⟩ ⟨hr, hl, h⟩
-    simp only at hr hl h
-    refine ⟨⟨hr, ?_⟩, ⟨hl, ?_⟩⟩ <;> nlinarith [sq_nonneg (r - 1), sq_nonneg (l - 1)]
+  have h4 : IsClosed {p : ℝ × ℝ | p.1 ^ 2 + p.2 ^ 2 ≤ ρ} :=
+    isClosed_le (by fun_prop) continuous_const
+  refine (isCompact_Icc.prod isCompact_Icc :
+    IsCompact (Set.Icc (0 : ℝ) (ρ + 1) ×ˢ Set.Icc (0 : ℝ) (ρ + 1))).of_isClosed_subset
+      ((isClosed_le continuous_const continuous_fst).inter
+        ((isClosed_le continuous_const continuous_snd).inter h4)) ?_
+  rintro ⟨r, l⟩ ⟨hr, hl, h⟩
+  simp only at hr hl h
+  refine ⟨⟨hr, ?_⟩, ⟨hl, ?_⟩⟩ <;> nlinarith [sq_nonneg (r - 1), sq_nonneg (l - 1)]
 
 /-- If X ≤ min(A + r·s, B + l·t) + δ for all δ > 0 with some (r, l) in the quarter disc, then also
 for δ = 0. -/

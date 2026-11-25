@@ -171,9 +171,9 @@ private theorem projective_of_synchronous_of_faithful
   let d := E - E * E
   have hd : 0 ≤ d := sub_nonneg.mpr ((S.aliceMeasurements x).effect_mul_self_le a)
   have hzero : S.aliceState d = 0 := by
+    have hE : (E : B) = (S.alice x).effect a := S.aliceMeasurements_effect x a
     rw [show d = E - E * E from rfl, map_sub, ← hS.ofReal_prob_eq_aliceState,
-      CommutingStrategy.aliceState_apply, show (E : B) = (S.alice x).effect a from
-        S.aliceMeasurements_effect x a, ← S.state.ofReal_re_apply ((S.alice x).nonneg a),
+      CommutingStrategy.aliceState_apply, hE, ← S.state.ofReal_re_apply ((S.alice x).nonneg a),
       ← S.sum_prob_bob x x a, hS.sum_prob_eq_diag, sub_self]
   have hy : CFC.sqrt d = 0 := hfaith (CFC.sqrt d) (by
     rw [(CFC.sqrt_nonneg d).isSelfAdjoint.star_eq, CFC.sqrt_mul_sqrt_self d hd, hzero])

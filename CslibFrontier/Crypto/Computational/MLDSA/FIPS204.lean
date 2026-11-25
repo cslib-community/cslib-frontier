@@ -314,7 +314,8 @@ private theorem secretPoly_short {H : Xofs} {s : Level} {seed : List Byte} {nonc
   change asPoly entries = some v at h
   dsimp only [asPoly] at h
   split_ifs at h with hlen
-  cases h; dsimp only
+  cases h
+  dsimp only
   rw [getElem!_pos entries.toArray j.val (by have := j.isLt; omega), List.getElem_toArray]
   obtain ⟨_, _, hmem⟩ := List.mem_flatMap.mp (List.getElem_mem _)
   obtain ⟨_, _, hval⟩ := List.mem_filterMap.mp hmem
@@ -915,8 +916,10 @@ theorem digest_of_sigDecode {s : Level} {x : List Byte} {σ : Signature s}
 representation. The hint rows determine their cumulative ends and their zero padding. -/
 theorem eq_of_sigDecode {s : Level} {a b : List Byte} {σ : Signature s}
     (ha : sigDecode s a = some σ) (hb : sigDecode s b = some σ) : a = b := by
-  let d := digestBytes s; let w := s.params.γ₁.log2 + 1
-  let r := 32 * w * s.params.ℓ; let t := d + r
+  let d := digestBytes s
+  let w := s.params.γ₁.log2 + 1
+  let r := 32 * w * s.params.ℓ
+  let t := d + r
   obtain ⟨la, da, ha', za⟩ := sigDecode_parts ha
   obtain ⟨lb, db, hb', zb⟩ := sigDecode_parts hb
   change a.length = t + hintLimit s + s.params.k at la
@@ -998,16 +1001,19 @@ theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
       (s.params.γ₁ : ZMod 8380417) -
         ↑(unpackCoeff (Keccak.bytesToBitsLE (resp ++ encodeHint σ.h)) w
           (256 * i.val + j.val)) = σ.z i j := by
-    rw [unpackCoeff_append_left (by
-      rw [plen]; have := i.isLt
-      have := j.isLt; nlinarith)]
+    have hlt : w * (256 * i.val + j.val + 1) ≤ 8 * resp.length := by
+      rw [plen]
+      have := i.isLt
+      have := j.isLt
+      nlinarith
+    have hcast : (((s.params.γ₁ : ℤ) - (σ.z i j).valMinAbs).toNat : ZMod 8380417) =
+        (s.params.γ₁ : ZMod 8380417) - σ.z i j := by
+      rw [← Int.cast_natCast, Int.toNat_of_nonneg (bounds i j).1]
+      push_cast; rfl
+    rw [unpackCoeff_append_left hlt]
     dsimp only [resp, packSigned]
     rw [unpack_packCoeffs _ fun i j => (Int.toNat_lt (bounds i j).1).mpr (bounds i j).2,
-      show (((s.params.γ₁ : ℤ) - (σ.z i j).valMinAbs).toNat : ZMod 8380417) =
-        (s.params.γ₁ : ZMod 8380417) - σ.z i j by
-          rw [← Int.cast_natCast, Int.toNat_of_nonneg (bounds i j).1]
-          push_cast; rfl,
-      sub_sub_cancel]
+      hcast, sub_sub_cancel]
   dsimp only [w, signatureBytes] at len tail coeff
   rw [sigDecode, len, tail, unpackHint_encodeHint σ.h hh, encodeSignature]
   simp only [BEq.rfl, guard, ↓reduceIte, Option.pure_def, Option.bind_eq_bind, Option.bind_some,
@@ -1066,10 +1072,13 @@ private theorem highTerm_publicKey (s : Level) (bytes : List Byte) (matrix) :
   funext i j
   simp only [publicKey, publicKeyHighTerm, power2RoundVec, Vector.getElem_ofFn]
   set v := decodeRounded s bytes i j
+  have hv : v.val * 8192 < 8380417 := by
+    have := v.isLt
+    lia
+  have hcast : ((v.val * 8192 : ℕ) : ZMod 8380417) = (v.val : ZMod 8380417) * 8192 := by
+    push_cast; norm_num
   have hval : ((v.val : ZMod 8380417) * 8192).val = v.val * 8192 := by
-    rw [← show ((v.val * 8192 : ℕ) : ZMod 8380417) = (v.val : ZMod 8380417) * 8192 by
-        push_cast; norm_num,
-      ZMod.val_natCast, Nat.mod_eq_of_lt (by have := v.isLt; lia)]
+    rw [← hcast, ZMod.val_natCast, Nat.mod_eq_of_lt hv]
   have hrem : ((((v.val * 8192 : ℕ) : ℤ) : ZMod (2 ^ 13))).valMinAbs = 0 := by
     push_cast
     simp only [show (8192 : ZMod (2 ^ 13)) = 0 by decide, mul_zero, ZMod.valMinAbs_zero]
@@ -1630,12 +1639,14 @@ theorem succProbability_verify_le_seededSelfTarget (s : Level)
     (keyOnlyGame s adv).succProbability ≤ (extractedSelfTargetGame s adv).succProbability := by
   apply Game.succProbability_mono
   unfold keyOnlyGame extractedSelfTargetGame keyExperiment Xofs.keyExperiment
-  apply Probability.PMF.bind_apply_mono_on_support; intro seed _
+  apply Probability.PMF.bind_apply_mono_on_support
+  intro seed _
   cases hk : Xofs.shake.keyGen s seed with
   | none => exact le_rfl
   | some keys =>
     simp only [PMF.map]
-    apply Probability.PMF.bind_apply_mono_on_support; intro f _
+    apply Probability.PMF.bind_apply_mono_on_support
+    intro f _
     cases hv : verify s keys.publicKey f.message f.context f.signature with
     | none => simp [hv]
     | some b => cases b <;> [simp [hv]; simp [hv, solves_extract_of_verify hv]]

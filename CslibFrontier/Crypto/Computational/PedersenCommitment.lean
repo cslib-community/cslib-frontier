@@ -286,10 +286,11 @@ theorem pedersenCommitLaw_eq_uniform_of_ne_zero (d : F.Desc) {h : F.Carrier d} (
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
   have hα : α ≠ 0 := fun h0 => hh (h0 ▸ zero_smul _ _)
   let e := (Equiv.mulRight₀ α hα).trans (Equiv.addLeft m)
-  rw [pedersenCommitLaw, show F.pedersenCommit d (α • F.generator d) m =
-      (fun γ : ZMod (F.order d) => γ • F.generator d) ∘ e by
-    funext r; simp [e, pedersenCommit_smul_generator], ← PMF.map_comp,
-    PMF.uniformOfFintype_map_equiv]
+  have hcomp : F.pedersenCommit d (α • F.generator d) m =
+      (fun γ : ZMod (F.order d) => γ • F.generator d) ∘ e := by
+    funext r
+    simp [e, pedersenCommit_smul_generator]
+  rw [pedersenCommitLaw, hcomp, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
 
 /-- **Perfect hiding** ([Pedersen1991], Section 3, Theorem 3.1): for any `h ≠ 0` and any two
 messages `m₀, m₁ : ZMod (F.order d)`, the commitment distributions `F.pedersenCommitLaw d h m₀` and
@@ -835,7 +836,8 @@ theorem pedersenToDLAdversary_encode
           adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩)) h := by
   simp only [pedersenToDLAdversary, pedersenToDL, pedersenScheme_encodeKey, map_bind,
     bind_map_left, map_pure]
-  congr 1; funext ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
+  congr 1
+  funext ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
   have hcoll : (decide (m₀ ≠ m₁) && F.encodePedersenVerify ((d, F.encode d h), m₀, c, o₀) &&
       F.encodePedersenVerify ((d, F.encode d h), m₁, c, o₁)) =
         F.pedersenScheme.isBindingCollision ⟨d, h⟩ (c, (m₀, o₀), (m₁, o₁)) := by

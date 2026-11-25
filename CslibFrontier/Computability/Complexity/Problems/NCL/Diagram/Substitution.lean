@@ -243,10 +243,12 @@ private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b
       reverse s₂ (.inl j) := reverse_compRight_comp _ _ s (.inl j)
   obtain ⟨h₁, h₂⟩ := (legal_comp_iff _ _ _).1 hs
   obtain ⟨h₁', h₂'⟩ := (legal_comp_iff _ _ _).1 hs'
-  rw [e₁] at h₁'; rw [e₂] at h₂'
+  rw [e₁] at h₁'
+  rw [e₂] at h₂'
   obtain ⟨u₁, hp₁, hf₁, hq₁⟩ := S₁.lift (D₁.bottom j) h₁ h₁'
   obtain ⟨u₂, hp₂, hf₂, hq₂⟩ := S₂.lift (.inl j) h₂ h₂'
-  rw [S₁.ι_bottom] at hf₁ hq₁; rw [S₂.ι_top] at hf₂ hq₂
+  rw [S₁.ι_bottom] at hf₁ hq₁
+  rw [S₂.ι_top] at hf₂ hq₂
   -- the two prepared parts agree on the shared wires, before and after the reversal
   have hu (k) : u₂ (.inl k) = u₁ (D₁'.bottom k) := by
     rw [InnerReach.boundary hp₂ (Or.inl ⟨k, rfl⟩), InnerReach.boundary hp₁ (Or.inr ⟨k, rfl⟩)]

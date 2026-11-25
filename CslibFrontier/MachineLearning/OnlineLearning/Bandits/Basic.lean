@@ -547,9 +547,10 @@ private theorem measurableSet_pullCount_eq_of_arms [Finite ι] {t : ℕ}
     have hcnt : pullCount (runStochastic pol X t) a =
         (univ.filter fun r : Fin t =>
           ((runStochastic pol X t)[r.1]'(by simp)).arm = a).card := by
-      conv_lhs => rw [show runStochastic pol X t =
-        List.ofFn (fun r : Fin t => (runStochastic pol X t)[r.1]'(by simp)) from
-          List.ext_getElem (by simp) fun _ _ _ => by simp]
+      have hl : runStochastic pol X t =
+          List.ofFn (fun r : Fin t => (runStochastic pol X t)[r.1]'(by simp)) :=
+        List.ext_getElem (by simp) fun _ _ _ => by simp
+      conv_lhs => rw [hl]
       exact pullCount_ofFn _ a
     exact ⟨fun hs => ⟨fun r => ((runStochastic pol X t)[r.1]'(by simp)).arm,
         by simpa [hcnt] using hs, fun _ => rfl⟩,

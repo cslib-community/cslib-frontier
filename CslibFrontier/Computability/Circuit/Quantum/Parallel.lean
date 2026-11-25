@@ -181,8 +181,9 @@ theorem Circuit.matrix_mapWires (e : Fin m ↪ Fin N) (C : Circuit m) (y x : Fin
     simp only [mapWires_cons, matrix_cons, Submonoid.coe_mul, Matrix.mul_apply, ih,
       PlacedGate.matrix_mapWires, ite_mul, zero_mul, mul_ite, mul_zero]
     split_ifs with hyx
-    · simp only [show ∀ z, AgreeOff e y z ↔ AgreeOff e z x from
-        fun _ => ⟨fun h => h.symm.trans hyx, fun h => hyx.trans h.symm⟩, ← ite_and, and_self]
+    · have hiff (z : Fin N → Bool) : AgreeOff e y z ↔ AgreeOff e z x :=
+        ⟨fun h => h.symm.trans hyx, fun h => hyx.trans h.symm⟩
+      simp only [hiff, ← ite_and, and_self]
       exact sum_agreeOff_comp e x fun w =>
         (Circuit.matrix C : Matrix _ _ ℂ) (y ∘ e) w * (g.matrix : Matrix _ _ ℂ) w (x ∘ e)
     · refine sum_eq_zero fun z _ => ?_
@@ -221,9 +222,9 @@ theorem Circuit.matrix_flatMap_mapWires (C : Circuit m) (L : List (Fin m ↪ Fin
                 (ite_eq_right hj').symm⟩
       simp only [hz₀x, true_and, hcond, hz₀e, List.map_cons, List.prod_cons]
       split_ifs
-      · rw [List.map_congr_left fun e' he' => by
-          rw [show z₀ ∘ e' = x ∘ e' from
-            funext fun i => ite_eq_right fun ⟨i', hi'⟩ => hdisj e' he' i i' hi'.symm], mul_comm]
+      · have hz₀L (e' : Fin m ↪ Fin N) (he' : e' ∈ L) : z₀ ∘ e' = x ∘ e' :=
+          funext fun i => ite_eq_right fun ⟨i', hi'⟩ => hdisj e' he' i i' hi'.symm
+        rw [List.map_congr_left fun e' he' => by rw [hz₀L e' he'], mul_comm]
       · rfl
     · intro z _ hz
       refine ite_eq_right fun ⟨h₁, h₂⟩ => hz (funext fun j => ?_)

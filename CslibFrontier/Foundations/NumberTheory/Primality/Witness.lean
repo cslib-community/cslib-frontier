@@ -56,10 +56,8 @@ theorem Nat.exists_sq_dvd_or_eq_mul_coprime {n : ℕ} (hodd : Odd n) (h1 : 1 < n
       ∃ p q, n = p * q ∧ p.Prime ∧ p ≠ 2 ∧ p.Coprime q ∧ Odd q ∧ 1 < q := by
   have hp : n.minFac.Prime := Nat.minFac_prime (by omega)
   have hpn : n.minFac ∣ n := Nat.minFac_dvd n
-  have hp2 : n.minFac ≠ 2 := by
-    intro h
-    rw [h] at hpn
-    exact (Nat.not_even_iff_odd.2 hodd) (even_iff_two_dvd.2 hpn)
+  have hp2 : n.minFac ≠ 2 := fun h =>
+    Nat.not_even_iff_odd.2 hodd (even_iff_two_dvd.2 (h ▸ hpn))
   by_cases hpq : n.minFac ∣ n / n.minFac
   · left
     refine ⟨n.minFac, hp, hp2, ?_⟩
@@ -69,18 +67,11 @@ theorem Nat.exists_sq_dvd_or_eq_mul_coprime {n : ℕ} (hodd : Odd n) (h1 : 1 < n
   · right
     refine ⟨n.minFac, n / n.minFac, (Nat.mul_div_cancel' hpn).symm, hp, hp2,
       (Nat.Prime.coprime_iff_not_dvd hp).2 hpq, Odd.of_dvd_nat hodd (Nat.div_dvd_of_dvd hpn), ?_⟩
-    rcases Nat.lt_or_ge 1 (n / n.minFac) with h | h
-    · exact h
-    · exfalso
-      interval_cases hq : n / n.minFac
-      · rw [Nat.div_eq_zero_iff] at hq
-        rcases hq with hq | hq
-        · exact hp.ne_zero hq
-        · exact absurd (Nat.minFac_le (show 0 < n by omega)) (not_le.2 hq)
-      · apply hn
-        have := Nat.mul_div_cancel' hpn
-        rw [hq, mul_one] at this
-        rwa [this] at hp
+    have hpos : 0 < n / n.minFac := Nat.div_pos (Nat.minFac_le (by omega)) hp.pos
+    by_contra hq
+    have hq1 : n / n.minFac = 1 := by omega
+    have hnp : n = n.minFac := by simpa [hq1] using (Nat.mul_div_cancel' hpn).symm
+    exact hn (hnp ▸ hp)
 
 /-- If `x ^ 2 = 0`, then `(1 + x) ^ k = 1 + k x`. -/
 theorem one_add_pow_of_sq_eq_zero {R : Type*} [CommRing R] {x : R} (hx : x ^ 2 = 0) (k : ℕ) :
@@ -108,11 +99,7 @@ theorem exists_unit_castHom_eq {p q : ℕ} (h : p.Coprime q) (u : (ZMod p)ˣ) (v
   set z := (chineseRemainder h).symm ((u : ZMod p), (v : ZMod q))
   have hz := (chineseRemainder h).apply_symm_apply ((u : ZMod p), (v : ZMod q))
   rw [chineseRemainder_apply, Prod.ext_iff] at hz
-  have hu : IsUnit z := by
-    have : IsUnit (chineseRemainder h z) := by
-      rw [(chineseRemainder h).apply_symm_apply]
-      exact Prod.isUnit_iff.2 ⟨u.isUnit, v.isUnit⟩
-    simpa [z] using this.map (chineseRemainder h).symm
+  have hu : IsUnit z := (Prod.isUnit_iff.2 ⟨u.isUnit, v.isUnit⟩).map (chineseRemainder h).symm
   exact ⟨hu.unit, hz.1, hz.2⟩
 
 /-- `-1 ≠ 1` modulo an odd `n > 1`. -/
@@ -136,9 +123,7 @@ theorem exists_unit_pow_of_sq_dvd {n p : ℕ} (hp : p.Prime) (hp2 : p ≠ 2) (hn
   refine ⟨c, fun m hm => ?_, fun m hm => ?_⟩
   · rw [one_add_pow_of_sq_eq_zero hx] at hm
     have h' : ((m * (p * k) : ℕ) : ZMod (p ^ 2 * k)) = 0 := by
-      push_cast
-      rw [hxdef] at hm
-      push_cast at hm
+      push_cast [hxdef] at hm ⊢
       linear_combination hm
     rw [natCast_eq_zero_iff] at h'
     refine Nat.dvd_of_mul_dvd_mul_right (Nat.mul_pos hp.pos hk) ?_

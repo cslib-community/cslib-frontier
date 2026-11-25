@@ -154,7 +154,9 @@ theorem sequentialProjective_weighted_le {k : ℕ} (φ : AlgState A)
   have hK : ∑ p, K p * star (K p) = 1 :=
     sum_transcriptProduct_mul_star (before M i) (fun j => hM _)
   let E := (sequentialProjective M hM).effect
-  have hgroup : (∑ g, (φ (E g * W (g i))).re) = ∑ a, ∑ g with g i = a, (φ (E g * W a)).re := by
+  have hgroup :
+      (∑ g, (φ (E g * W (g i))).re) =
+        ∑ a, ∑ g with g i = a, (φ (E g * W a)).re := by
     rw [← sum_fiberwise (univ : Finset (Fin k → α)) (fun g => g i)]
     exact sum_congr rfl fun _ _ => sum_congr rfl fun _ hg => by rw [(mem_filter.mp hg).2]
   have hcollapse (a : α) : (∑ g with g i = a, (φ (E g * W a)).re) =

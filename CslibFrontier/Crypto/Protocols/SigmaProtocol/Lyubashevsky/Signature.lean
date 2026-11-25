@@ -203,11 +203,10 @@ theorem mulVec_extractSISFromRelaxedWitness_eq_zero
     funext (RingHom.map_mulVec (Int.castRingHom (ZMod q)) S (u ∘ Sum.inr))
   have hadd : (Int.cast ∘ extractSISFromRelaxedWitness S u : Fin m → ZMod q) =
       (Int.cast ∘ (u ∘ Sum.inl)) + S.map Int.cast *ᵥ (Int.cast ∘ (u ∘ Sum.inr)) := by
-    rw [extractSISFromRelaxedWitness,
-      show (Int.cast ∘ ((u ∘ Sum.inl) + S *ᵥ (u ∘ Sum.inr)) : Fin m → ZMod q) =
-        Int.cast ∘ (u ∘ Sum.inl) + Int.cast ∘ (S *ᵥ (u ∘ Sum.inr)) from
-          funext fun _ => Int.cast_add _ _,
-      hmul]
+    have hcast : (Int.cast ∘ ((u ∘ Sum.inl) + S *ᵥ (u ∘ Sum.inr)) : Fin m → ZMod q) =
+        Int.cast ∘ (u ∘ Sum.inl) + Int.cast ∘ (S *ᵥ (u ∘ Sum.inr)) :=
+      funext fun _ => Int.cast_add _ _
+    rw [extractSISFromRelaxedWitness, hcast, hmul]
   rw [hadd, Matrix.mulVec_add, Matrix.mulVec_mulVec, hSy, ← hu, Matrix.fromCols_mulVec]
   rfl
 
@@ -267,12 +266,13 @@ theorem lyubashevskyForkToSIS {γ β η : ℕ}
     simp only [lyubashevskyExtract, Option.getD_some]
     change y.1 *ᵥ (Int.cast ∘ (z - z')) + y.2 *ᵥ
       (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c)) = 0
-    rw [show (Int.cast ∘ (z - z') : Fin m → ZMod q) = Int.cast ∘ z - Int.cast ∘ z' from
-          funext fun _ => Int.cast_sub _ _,
-      show (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c) : Fin k → ZMod q) =
-          Int.cast ∘ lyubashevskyChallenge c' - Int.cast ∘ lyubashevskyChallenge c from
-        funext fun _ => Int.cast_sub _ _,
-      Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
+    have hsub₁ : (Int.cast ∘ (z - z') : Fin m → ZMod q) = Int.cast ∘ z - Int.cast ∘ z' :=
+      funext fun _ => Int.cast_sub _ _
+    have hsub₂ :
+        (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c) : Fin k → ZMod q) =
+          Int.cast ∘ lyubashevskyChallenge c' - Int.cast ∘ lyubashevskyChallenge c :=
+      funext fun _ => Int.cast_sub _ _
+    rw [hsub₁, hsub₂, Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
     abel
   · simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
     calc |z i - z' i| ≤ |z i| + |z' i| := abs_sub _ _

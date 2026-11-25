@@ -103,8 +103,8 @@ theorem not_NEXP_subset_NP : ¬ (NEXP encBits ⊆ NP encBits) := by
       have : 2 ^ (2 ^ (x.length + 4)) ≤ 2 ^ (g₂ x).length := by gcongr
       have := Nat.zero_le (2 ^ (x.length + 4))
       simp only [List.length_append, length_frame, List.length_replicate]; omega
-    rw [show c * _ = Nat.card (Turing.Action k Bool State) * ((c₁ + c₂) * _) from
-      Nat.mul_assoc _ _ _]
+    dsimp only [c]
+    rw [Nat.mul_assoc]
     exact Nat.mul_le_mul_left _ ((Nat.add_le_add (Nat.mul_le_mul_left c₁ (Nat.le_succ _))
       (Nat.le_mul_of_pos_right c₂ (Nat.succ_pos _))).trans
         ((Nat.add_mul _ _ _).symm ▸ Nat.mul_le_mul_left _ hlen_ge))

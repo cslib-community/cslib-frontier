@@ -93,9 +93,9 @@ theorem levelWeight_signVal_eq_one_iff_fourierCoeff_eq_zero (k : ℕ) (f : (ι �
   set F : (ι → Bool) → ℝ := fun x => signVal (f x)
   have hsplit : levelWeight k F + ∑ S with #S ≠ k, fourierCoeff F S ^ 2 = 1 :=
     (sum_filter_add_sum_filter_not _ _ _).trans (sum_fourierCoeff_sq_signVal f)
-  rw [show (levelWeight k F = 1) ↔ ∑ S with #S ≠ k, fourierCoeff F S ^ 2 = 0 from
-    ⟨fun h => by linarith, fun h => by linarith⟩,
-    sum_eq_zero_iff_of_nonneg fun _ _ => sq_nonneg _]
+  have hrest : levelWeight k F = 1 ↔ ∑ S with #S ≠ k, fourierCoeff F S ^ 2 = 0 := by
+    constructor <;> intro h <;> linarith
+  rw [hrest, sum_eq_zero_iff_of_nonneg fun _ _ => sq_nonneg _]
   simp only [mem_filter, mem_univ, true_and, sq_eq_zero_iff]
 
 /-- **Boolean functions of degree-one weight one are the literals**: a Boolean function read as

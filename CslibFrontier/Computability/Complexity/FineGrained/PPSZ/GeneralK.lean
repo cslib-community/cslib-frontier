@@ -98,7 +98,9 @@ theorem Q_le_of_le (hr : r ∈ Icc (0 : ℝ) 1) (hx : 0 ≤ x)
 
 /-- The depth recursion is bounded on `[0, 1]`. -/
 theorem bddAbove_range_Q (hr : r ∈ Icc (0 : ℝ) 1) : BddAbove (range fun d => Q k d r) :=
-  ⟨1, by rintro _ ⟨d, rfl⟩; exact Q_le_one hr⟩
+  ⟨1, by
+    rintro _ ⟨d, rfl⟩
+    exact Q_le_one hr⟩
 
 /-- Each `Q k d r` is at most the limit. -/
 theorem Q_le_R (hr : r ∈ Icc (0 : ℝ) 1) (d : ℕ) : Q k d r ≤ R k r :=
@@ -168,12 +170,14 @@ private theorem one_div_cast_sub_one (hk : 2 ≤ k) : 1 / ((k : ℝ) - 1) = ((k 
 private theorem exponent_pos (hk : 2 ≤ k) : 0 < 1 / ((k : ℝ) - 1) :=
   one_div_pos.2 (by linarith [two_le_cast hk])
 
-private theorem exponent_le_one (hk : 2 ≤ k) : 1 / ((k : ℝ) - 1) ≤ 1 :=
-  (div_le_one (by linarith [two_le_cast hk])).2 (by linarith [two_le_cast hk])
+private theorem exponent_le_one (hk : 2 ≤ k) : 1 / ((k : ℝ) - 1) ≤ 1 := by
+  rw [div_le_one (by linarith [two_le_cast hk])]
+  linarith [two_le_cast hk]
 
 private theorem rpow_one_div_pow (hk : 2 ≤ k) (ht : 0 ≤ t) :
     (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) = t := by
-  rw [one_div_cast_sub_one hk]; exact Real.rpow_inv_natCast_pow ht (by omega)
+  rw [one_div_cast_sub_one hk]
+  exact Real.rpow_inv_natCast_pow ht (by omega)
 
 /-- `S k` is nonnegative on `[0, 1)`. -/
 theorem S_nonneg (hk : 2 ≤ k) (ht : t ∈ Ico (0 : ℝ) 1) : 0 ≤ S k t :=
@@ -185,12 +189,12 @@ itself if and only if `r ≤ S k t`. -/
 theorem pow_add_one_sub_mul_le_self_iff (hk : 2 ≤ k) (hr : r ∈ Icc (0 : ℝ) 1)
     (ht : t ∈ Ico (0 : ℝ) 1) :
     (r + (1 - r) * t) ^ (k - 1) ≤ t ↔ r ≤ S k t := by
-  rw [show (r + (1 - r) * t) ^ (k - 1) ≤ t ↔
-      (r + (1 - r) * t) ^ (k - 1) ≤ (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) by
-      rw [rpow_one_div_pow hk ht.1],
-    pow_le_pow_iff_left₀ (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
+  have hpow : (r + (1 - r) * t) ^ (k - 1) ≤ t ↔
+      (r + (1 - r) * t) ^ (k - 1) ≤ (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) := by
+    rw [rpow_one_div_pow hk ht.1]
+  rw [hpow, pow_le_pow_iff_left₀ (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
       (Real.rpow_nonneg ht.1 _) (by omega), S, le_div_iff₀ (sub_pos.2 ht.2)]
-  exact ⟨fun h => by linarith, fun h => by linarith⟩
+  constructor <;> intro h <;> linarith
 
 /-- **The fixed-point equation solved for `r`** [Paturi, Pudlák, Saks, Zane, proof of Claim 1
 (p. 352)][PaturiPudlakSaksZane2005]: for `t ∈ [0, 1)`, `t` is a fixed point of the recursion step
@@ -198,12 +202,12 @@ if and only if `r = S k t`. -/
 theorem pow_add_one_sub_mul_eq_self_iff (hk : 2 ≤ k) (hr : r ∈ Icc (0 : ℝ) 1)
     (ht : t ∈ Ico (0 : ℝ) 1) :
     (r + (1 - r) * t) ^ (k - 1) = t ↔ r = S k t := by
-  rw [show (r + (1 - r) * t) ^ (k - 1) = t ↔
-      (r + (1 - r) * t) ^ (k - 1) = (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) by
-      rw [rpow_one_div_pow hk ht.1],
-    pow_left_inj₀ (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
+  have hpow : (r + (1 - r) * t) ^ (k - 1) = t ↔
+      (r + (1 - r) * t) ^ (k - 1) = (t ^ (1 / ((k : ℝ) - 1))) ^ (k - 1) := by
+    rw [rpow_one_div_pow hk ht.1]
+  rw [hpow, pow_left_inj₀ (add_one_sub_mul_mem_Icc hr ⟨ht.1, ht.2.le⟩).1
       (Real.rpow_nonneg ht.1 _) (by omega), S, eq_div_iff (sub_pos.2 ht.2).ne']
-  exact ⟨fun h => by linarith, fun h => by linarith⟩
+  constructor <;> intro h <;> linarith
 
 private theorem one_le_geom_sum (hk : 2 ≤ k) {u : ℝ} (hu : 0 ≤ u) :
     1 ≤ ∑ i ∈ Finset.range (k - 1), u ^ i :=
@@ -404,7 +408,9 @@ theorem continuousOn_R (hk : 3 ≤ k) : ContinuousOn (R k) (Icc 0 1) := by
 `t ∈ (0, 1)` (`lt_R_iff`). -/
 theorem integral_R_eq_integral_one_sub_S (hk : 2 ≤ k) :
     ∫ r in (0 : ℝ)..1, R k r = ∫ t in (0 : ℝ)..1, (1 - S k t) := by
-  have hmono : MonotoneOn (R k) (uIcc 0 1) := by rw [uIcc_of_le zero_le_one]; exact monotoneOn_R
+  have hmono : MonotoneOn (R k) (uIcc 0 1) := by
+    rw [uIcc_of_le zero_le_one]
+    exact monotoneOn_R
   rw [intervalIntegral.integral_of_le zero_le_one, intervalIntegral.integral_of_le zero_le_one,
     integral_Ioc_eq_integral_Ioo (f := fun t => 1 - S k t),
     Integrable.integral_eq_integral_meas_lt (hmono.intervalIntegrable (μ := volume)).1
@@ -415,16 +421,15 @@ theorem integral_R_eq_integral_one_sub_S (hk : 2 ≤ k) :
   rcases lt_or_ge t 1 with ht1 | ht1
   · have htI : t ∈ Ico (0 : ℝ) 1 := ⟨le_of_lt ht, ht1⟩
     have hS0 := S_nonneg hk htI
-    rw [indicator_of_mem (show t ∈ Iio 1 from ht1), show {a | t < R k a} ∩ Ioc 0 1 =
-        Ioc (S k t) 1 from Set.ext fun r => ⟨fun ⟨h, h0, h1⟩ =>
-          ⟨(lt_R_iff hk ⟨h0.le, h1⟩ htI).1 h, h1⟩, fun ⟨h, h1⟩ =>
-          ⟨(lt_R_iff hk ⟨hS0.trans h.le, h1⟩ htI).2 h, hS0.trans_lt h, h1⟩⟩,
+    have hset : {a | t < R k a} ∩ Ioc 0 1 = Ioc (S k t) 1 :=
+      Set.ext fun r => ⟨fun ⟨h, h0, h1⟩ => ⟨(lt_R_iff hk ⟨h0.le, h1⟩ htI).1 h, h1⟩,
+        fun ⟨h, h1⟩ => ⟨(lt_R_iff hk ⟨hS0.trans h.le, h1⟩ htI).2 h, hS0.trans_lt h, h1⟩⟩
+    rw [indicator_of_mem (show t ∈ Iio 1 from ht1), hset,
       Real.volume_real_Ioc_of_le (S_lt_one hk htI).le]
-  · rw [indicator_of_notMem (show t ∉ Iio 1 from not_lt.2 ht1),
-      show {a | t < R k a} ∩ Ioc 0 1 = ∅ from Set.ext fun r =>
-        iff_false_intro fun ⟨h, h0, h1⟩ => by
-          linarith [show t < R k r from h, R_le_one (k := k) ⟨h0.le, h1⟩],
-      measureReal_empty]
+  · have hset : {a | t < R k a} ∩ Ioc 0 1 = ∅ :=
+      Set.ext fun r => iff_false_intro fun ⟨h, h0, h1⟩ => by
+        linarith [show t < R k r from h, R_le_one (k := k) ⟨h0.le, h1⟩]
+    rw [indicator_of_notMem (show t ∉ Iio 1 from not_lt.2 ht1), hset, measureReal_empty]
 
 /-- On `[0, 1]`, `∑_{i < N} (t ^ i - t ^ (i + a)) = (∑_{i < N} t ^ i) * (1 - t ^ a)`. -/
 private theorem sum_sub_rpow_eq {a : ℝ} (ha : 0 < a) (ht : 0 ≤ t) (N : ℕ) :
@@ -540,7 +545,8 @@ theorem mu_div_eq_tsum (hk : 2 ≤ k) :
   rw [mu, ← tsum_div_const]
   refine tsum_congr fun j => ?_
   rw [div_div]
-  congr 1; field_simp
+  congr 1
+  field_simp
 
 /-! ### The limit of `qbar k` and unique k-SAT -/
 

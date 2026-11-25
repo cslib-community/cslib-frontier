@@ -68,10 +68,8 @@ theorem mulColumn_le {x w : ℕ} (hx : x < 2 ^ w) (y j : ℕ) : mulColumn x y j 
   rw [mulColumn, ← Nat.sum_testBit_eq_length_bitIndices
     (lt_of_le_of_lt (mulColumnWord_le _ _ _) hx)]
   calc
-    (∑ i ∈ range w, ((mulColumnWord x y j).testBit i).toNat) ≤ ∑ _i ∈ range w, 1 := by
-      apply sum_le_sum
-      intro i _
-      cases (mulColumnWord x y j).testBit i <;> decide
+    (∑ i ∈ range w, ((mulColumnWord x y j).testBit i).toNat) ≤ ∑ _i ∈ range w, 1 :=
+      sum_le_sum (g := fun _ => 1) fun i _ => by cases (mulColumnWord x y j).testBit i <;> decide
     _ = w := by simp
 
 private def pairs (x y : ℕ) : Finset (ℕ × ℕ) := x.bitIndices.toFinset ×ˢ y.bitIndices.toFinset
@@ -79,22 +77,15 @@ private def pairs (x y : ℕ) : Finset (ℕ × ℕ) := x.bitIndices.toFinset ×�
 private theorem mulColumn_eq_card (x y j : ℕ) :
     mulColumn x y j = ((pairs x y).filter (fun p => p.1 + p.2 = j)).card := by
   rw [mulColumn, ← List.toFinset_card_of_nodup Nat.bitIndices_nodup]
-  apply card_bij (fun i _ => (i, j - i))
-  · intro i hi
-    simp only [List.mem_toFinset, Nat.mem_bitIndices, mulColumnWord_testBit] at hi
+  refine card_bij (fun i _ => (i, j - i)) (fun i hi => ?_) (fun _ _ _ _ he => (Prod.mk.inj he).1)
+    fun p hp => ?_
+  · simp only [List.mem_toFinset, Nat.mem_bitIndices, mulColumnWord_testBit] at hi
     simp only [mem_filter, pairs, mem_product, List.mem_toFinset, Nat.mem_bitIndices]
     exact ⟨⟨hi.1, hi.2.2⟩, by lia⟩
-  · intro i _ i' _ he
-    exact (Prod.mk.inj he).1
-  · intro p hp
-    simp only [mem_filter, pairs, mem_product, List.mem_toFinset, Nat.mem_bitIndices] at hp
-    refine ⟨p.1, ?_, ?_⟩
-    · simp only [List.mem_toFinset, Nat.mem_bitIndices, mulColumnWord_testBit]
-      exact ⟨hp.1.1, by lia, by simpa only [show j - p.1 = p.2 by lia] using hp.1.2⟩
-    · apply Prod.ext
-      · rfl
-      · dsimp
-        lia
+  · simp only [mem_filter, pairs, mem_product, List.mem_toFinset, Nat.mem_bitIndices] at hp
+    refine ⟨p.1, ?_, Prod.ext rfl (by dsimp only; omega)⟩
+    simp only [List.mem_toFinset, Nat.mem_bitIndices, mulColumnWord_testBit]
+    exact ⟨hp.1.1, by lia, by simpa only [show j - p.1 = p.2 by lia] using hp.1.2⟩
 
 private theorem sum_pairs (x y : ℕ) :
     ∑ p ∈ pairs x y, 2 ^ (p.1 + p.2) = x * y := by
@@ -115,46 +106,36 @@ private theorem mulPrefix_eq_filter (x y k : ℕ) :
         (pairs x y).filter (fun p => p.1 + p.2 = j) := by
     ext p
     simp only [mem_filter]
-    constructor
-    · exact fun h => ⟨h.1.1, h.2⟩
-    · rintro ⟨hp, he⟩
-      exact ⟨⟨hp, he ▸ mem_range.mp hj⟩, he⟩
+    exact ⟨fun h => ⟨h.1.1, h.2⟩, fun ⟨hp, he⟩ => ⟨⟨hp, he ▸ mem_range.mp hj⟩, he⟩⟩
   calc
     mulPrefix x y k = ∑ j ∈ range k,
         ∑ p ∈ ((pairs x y).filter (fun p => p.1 + p.2 < k)).filter
-          (fun p => p.1 + p.2 = j), 2 ^ (p.1 + p.2) := by
-      apply sum_congr rfl
-      intro j hj
-      rw [hf j hj, sum_const_nat (fun p hp => by rw [(mem_filter.mp hp).2]), mulColumn_eq_card]
-    _ = _ := sum_fiberwise_of_maps_to (fun p hp => mem_range.mpr (mem_filter.mp hp).2) _
+          (fun p => p.1 + p.2 = j), 2 ^ (p.1 + p.2) :=
+      sum_congr rfl fun j hj => by
+        rw [hf j hj, sum_const_nat (fun p hp => by rw [(mem_filter.mp hp).2]), mulColumn_eq_card]
+    _ = _ := sum_fiberwise_of_maps_to (fun p hp => mem_range.mpr (mem_filter.mp hp).2)
+      (fun p : ℕ × ℕ => 2 ^ (p.1 + p.2))
 
 /-- Omitting higher columns preserves all lower product bits. -/
 private theorem mulPrefix_mod (x y k : ℕ) : mulPrefix x y k % 2 ^ k = x * y % 2 ^ k := by
   rw [mulPrefix_eq_filter, sum_filter, ← sum_pairs]
   conv_lhs => rw [sum_nat_mod]
   conv_rhs => rw [sum_nat_mod]
-  congr 1
-  apply sum_congr rfl
-  intro p _
+  refine congrArg (· % 2 ^ k) (sum_congr rfl fun p _ => ?_)
   by_cases hp : p.1 + p.2 < k
   · simp [hp]
-  · simp only [hp, ite_false, Nat.zero_mod]
-    exact (Nat.mod_eq_zero_of_dvd (Nat.pow_dvd_pow 2 (by lia))).symm
+  · simpa [hp] using (Nat.mod_eq_zero_of_dvd (Nat.pow_dvd_pow 2 (by lia))).symm
 
 /-- Once both inputs' bit widths are covered, the weighted columns give the whole product. -/
 private theorem mulPrefix_eq_mul {x y w k : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)
     (hk : 2 * w ≤ k) : mulPrefix x y k = x * y := by
-  rw [mulPrefix_eq_filter]
-  have hp : (pairs x y).filter (fun p => p.1 + p.2 < k) = pairs x y := by
-    apply filter_eq_self.mpr
-    intro p hp
-    simp only [pairs, mem_product, List.mem_toFinset, Nat.mem_bitIndices] at hp
-    have hi := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
-      (lt_of_le_of_lt (Nat.ge_two_pow_of_testBit hp.1) hx)
-    have hj := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
-      (lt_of_le_of_lt (Nat.ge_two_pow_of_testBit hp.2) hy)
-    lia
-  rw [hp, sum_pairs]
+  rw [mulPrefix_eq_filter, filter_eq_self.mpr fun p hp => ?_, sum_pairs]
+  simp only [pairs, mem_product, List.mem_toFinset, Nat.mem_bitIndices] at hp
+  have hi := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
+    ((Nat.ge_two_pow_of_testBit hp.1).trans_lt hx)
+  have hj := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
+    ((Nat.ge_two_pow_of_testBit hp.2).trans_lt hy)
+  lia
 
 /-- The carry entering column `k`, constructed from the actual lower columns. -/
 def mulCarry (x y k : ℕ) : ℕ := mulPrefix x y k / 2 ^ k
@@ -247,14 +228,9 @@ theorem mul_eq_of_blocks {x y z w k s : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)
     | succ q ih =>
       rw [Nat.succ_mul] at hq ⊢
       obtain ⟨a, ha0, has, hast⟩ := hblock q (by lia)
-      have hstart : mulPrefix x y (q * s) = z % 2 ^ (q * s) + a 0 * 2 ^ (q * s) := by
-        rw [ha0]
-        exact ih (by lia)
-      simpa only [has] using mulPrefix_eq_of_carries a hstart hast
+      simpa only [has] using mulPrefix_eq_of_carries a (ha0 ▸ ih (by lia)) hast
   have he : k / s * s = k := Nat.div_mul_cancel hks
-  have hp' := hp (k / s) (by rw [he])
-  rw [he] at hp'
-  simpa only [mulPrefix_eq_mul hx hy hk, hend, Nat.zero_mul, Nat.add_zero,
-    Nat.mod_eq_of_lt hz] using hp'
+  simpa only [he, mulPrefix_eq_mul hx hy hk, hend, Nat.zero_mul, Nat.add_zero,
+    Nat.mod_eq_of_lt hz] using hp (k / s) he.le
 
 end Cslib.BitString

@@ -180,14 +180,20 @@ theorem half_le_succProbability_inversionGame {p : Polynomial ℕ}
     · exact (hlen j hj).1
   have hfail : (μ.map g) false ≤ 1 / 2 := by
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-    refine ((MeasureTheory.measure_mono hfalse).trans
-      (MeasureTheory.measure_biUnion_finset_le _ _)).trans
-      ((Finset.sum_le_sum fun j hj => hbad j (Finset.mem_range.1 hj)).trans ?_)
-    rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, pow_succ]
-    refine (mul_le_mul_of_nonneg_right
-      (by exact_mod_cast Nat.lt_two_pow_self.le : (n : ENNReal) ≤ 2 ^ n)
-      (by positivity)).trans_eq ?_
-    rw [← mul_div_assoc, ENNReal.mul_div_mul_left _ _ (by simp) (by simp)]
+    calc μ.toOuterMeasure (g ⁻¹' {false})
+        ≤ μ.toOuterMeasure (⋃ j ∈ Finset.range n, bad j) :=
+          MeasureTheory.measure_mono hfalse
+      _ ≤ ∑ j ∈ Finset.range n, μ.toOuterMeasure (bad j) :=
+          MeasureTheory.measure_biUnion_finset_le _ _
+      _ ≤ ∑ _j ∈ Finset.range n, (1 / 2 ^ (n + 1) : ENNReal) :=
+          Finset.sum_le_sum fun j hj => hbad j (Finset.mem_range.1 hj)
+      _ ≤ 1 / 2 := by
+          rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, pow_succ]
+          calc (n : ENNReal) * (1 / (2 ^ n * 2)) ≤ 2 ^ n * (1 / (2 ^ n * 2)) := by
+                gcongr
+                exact_mod_cast Nat.lt_two_pow_self.le
+            _ = 1 / 2 := by
+                rw [← mul_div_assoc, ENNReal.mul_div_mul_left _ _ (by simp) (by simp)]
   change 1 / 2 ≤ (μ.map g) true
   calc (1 / 2 : ENNReal) = 1 - 1 / 2 := by rw [one_div, ENNReal.one_sub_inv_two]
     _ ≤ 1 - (μ.map g) false := tsub_le_tsub_left hfail 1

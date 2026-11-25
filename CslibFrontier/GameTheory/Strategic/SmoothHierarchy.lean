@@ -138,8 +138,7 @@ theorem IsSmooth.smul [DecidableEq ι] {S : ι → Type*} {G : CostGame ι S} {l
     (hG : G.IsSmooth lam μ) (hc : 0 ≤ c) : (G.smul c).IsSmooth lam μ := by
   intro s s'
   rw [socialCost_smul, socialCost_smul]
-  simp only [CostGame.smul]
-  rw [← mul_sum]
+  simp only [CostGame.smul, ← mul_sum]
   calc c * ∑ i, G.cost i (update s i (s' i))
       ≤ c * (lam * G.socialCost s' + μ * G.socialCost s) := mul_le_mul_of_nonneg_left (hG s s') hc
     _ = lam * (c * G.socialCost s') + μ * (c * G.socialCost s) := by ring
@@ -186,21 +185,19 @@ theorem IsSmooth.simultaneous [DecidableEq ι] {κ : Type*} [Fintype κ] {S : κ
   rw [socialCost_simultaneous, socialCost_simultaneous]
   simp only [CostGame.simultaneous]
   rw [sum_comm]
-  have hupd : ∀ k i, (fun j => update s i (s' i) j k) =
+  have hupd (k : κ) (i : ι) : (fun j => update s i (s' i) j k) =
       update (fun j => s j k) i (s' i k) := by
-    intro k i
     funext j
     rcases eq_or_ne j i with rfl | hj
     · rw [update_self, update_self]
     · rw [update_of_ne hj, update_of_ne hj]
   calc ∑ k, ∑ i, (G k).cost i (fun j => update s i (s' i) j k)
-      = ∑ k, ∑ i, (G k).cost i (update (fun j => s j k) i (s' i k)) :=
-        sum_congr rfl fun k _ => sum_congr rfl fun i _ => by rw [hupd k i]
+      = ∑ k, ∑ i, (G k).cost i (update (fun j => s j k) i (s' i k)) := by simp_rw [hupd]
     _ ≤ ∑ k, (lam * (G k).socialCost (fun j => s' j k) +
           μ * (G k).socialCost (fun j => s j k)) := sum_le_sum fun k _ => hG k _ _
     _ = lam * ∑ k, (G k).socialCost (fun j => s' j k) +
           μ * ∑ k, (G k).socialCost (fun j => s j k) := by
-        rw [sum_add_distrib, mul_sum, mul_sum]
+        rw [sum_add_distrib, ← mul_sum, ← mul_sum]
 
 end Composition
 
@@ -287,10 +284,9 @@ theorem sum_mul_interimCost_eq (B : BayesianCostGame ι Θ S) (p : ∀ i, Θ i �
     (β : ∀ i, Θ i → S i) {i : ι} (hp : ∑ t, p i t = 1) :
     ∑ t, p i t * B.interimCost p β i t (β i t) =
       ∑ θ, productWeight p θ * B.cost i (θ i) (fun j => β j (θ j)) := by
-  have hupd : ∀ (θ : ∀ j, Θ j) (t : Θ i),
+  have hupd (θ : ∀ j, Θ j) (t : Θ i) :
       B.cost i t (update (fun j => β j (θ j)) i (β i t)) =
         B.cost i (update θ i t i) (fun j => β j (update θ i t j)) := by
-    intro θ t
     rw [update_self]
     congr 1
     funext j
@@ -345,23 +341,14 @@ theorem IsSmooth.expected_socialCost_le_of_isPureBayesNash {B : BayesianCostGame
         (lam * B.socialCost θ' (s' θ') + μ * B.socialCost θ (fun j => β j (θ j)))
       = lam * (∑ θ', productWeight p θ' * B.socialCost θ' (s' θ')) +
           μ * (∑ θ, productWeight p θ * B.socialCost θ (fun j => β j (θ j))) := by
-    have inner : ∀ θ', ∑ θ, productWeight p θ *
+    have hring1 (w a b : ℝ) : w * (lam * a + μ * b) = lam * a * w + μ * (w * b) := by ring
+    have hring2 (w a b : ℝ) : w * (lam * a + b) = lam * (w * a) + b * w := by ring
+    have inner (θ' : ∀ i, Θ i) : ∑ θ, productWeight p θ *
           (lam * B.socialCost θ' (s' θ') + μ * B.socialCost θ (fun j => β j (θ j)))
         = lam * B.socialCost θ' (s' θ') +
             μ * ∑ θ, productWeight p θ * B.socialCost θ (fun j => β j (θ j)) := by
-      intro θ'
-      have hring : ∀ θ, productWeight p θ *
-          (lam * B.socialCost θ' (s' θ') + μ * B.socialCost θ (fun j => β j (θ j)))
-        = lam * B.socialCost θ' (s' θ') * productWeight p θ +
-            μ * (productWeight p θ * B.socialCost θ (fun j => β j (θ j))) := fun _ => by ring
-      simp only [hring, sum_add_distrib, ← mul_sum, htot, mul_one]
-    simp only [inner]
-    have hring2 : ∀ θ', productWeight p θ' *
-        (lam * B.socialCost θ' (s' θ') +
-          μ * ∑ θ, productWeight p θ * B.socialCost θ (fun j => β j (θ j)))
-      = lam * (productWeight p θ' * B.socialCost θ' (s' θ')) +
-          (μ * ∑ θ, productWeight p θ * B.socialCost θ (fun j => β j (θ j))) *
-            productWeight p θ' := fun _ => by ring
+      simp only [hring1, sum_add_distrib, ← mul_sum, htot, mul_one]
+    simp_rw [inner]
     simp only [hring2, sum_add_distrib, ← mul_sum, htot, mul_one]
   rw [div_mul_eq_mul_div, le_div_iff₀ (by linarith)]
   nlinarith

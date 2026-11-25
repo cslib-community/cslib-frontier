@@ -169,8 +169,9 @@ private theorem refresh_law {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
   rw [avg, PMF.bind_comm R S]
   refine congrArg (PMF.bind S ·) (funext fun xi => ?_)
   rw [PMF.bind_comm R V]
-  exact congrArg (PMF.bind V ·) (funext fun rows =>
-    refresh_fixed base (by lia) (by lia) xi rows score)
+  refine congrArg (PMF.bind V ·) (funext fun rows => ?_)
+  exact refresh_fixed base (by lia)
+    (by lia) xi rows score
 
 private theorem independent_law {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
     (ha : 528 ≤ a) (hb : 481 ≤ b) (score : SeedScore s α) :
@@ -242,8 +243,10 @@ theorem publicHashMatch_le (s : Level) (base : Xofs) {a b : ℕ} (ha : 528 ≤ a
     PMF.pure v.publicHashMatch) true ≤ _
   rw [PMF.bind_congr_on_support V _ _ (fun v hv => (keep v hv).symm),
     base.refreshKeySeed_independent ha hb test]
-  apply PMF.bind_apply_le_on_support; intro v _
-  apply PMF.bind_apply_le_on_support; intro H _
+  apply PMF.bind_apply_le_on_support
+  intro v _
+  apply PMF.bind_apply_le_on_support
+  intro H _
   simp only [test, PMF.bind_const]
   refine FixedBytes.uniform_test_le (n := 64) fun x hx y hy => ?_
   cases hp : v.pair with
@@ -269,7 +272,8 @@ private theorem uniform_hit_le (s : Level) (address : Option (List Bool)) :
     by_cases width : x.length = 272
     · simp_rw [PMF.map]
       rw [PMF.bind_comm]
-      apply PMF.bind_apply_le_on_support; intro r _
+      apply PMF.bind_apply_le_on_support
+      intro r _
       refine FixedBytes.uniform_test_le (n := 32) fun i hi j hj => ?_
       have off (k : Fin (s.params.ℓ + s.params.k)) :
           x ≠ Keccak.bytesToBitsLE (nonceInput r.toList k.val) := fun h => by
@@ -279,14 +283,17 @@ private theorem uniform_hit_le (s : Level) (address : Option (List Bool)) :
         off, exists_false, or_false] at hi hj
       exact List.ofFn_inj.mp (List.append_cancel_right
         (Keccak.bytesToBitsLE_injective (hi.symm.trans hj)))
-    · apply PMF.bind_apply_le_on_support; intro xi _
+    · apply PMF.bind_apply_le_on_support
+      intro xi _
       have off : x ≠ keySeedInput s xi := fun h => width (h ▸ length_keySeedInput s xi)
       refine (FixedBytes.uniform_test_le (n := 64) fun r hr t ht => ?_).trans
         (ENNReal.inv_le_inv.mpr
-          (pow_le_pow_right₀ (by norm_num : (1 : ℝ≥0∞) ≤ 2) (by decide : 256 ≤ 8 * 64)))
+          (pow_le_pow_right₀ (by norm_num : (1 : ℝ≥0∞) ≤ 2)
+            (by decide : 256 ≤ 8 * 64)))
       simp only [Set.mem_ofPred_eq, hitsExpansionInput, Option.any_some, decide_eq_true_eq,
         off, false_or] at hr ht
-      obtain ⟨i, hi⟩ := hr; obtain ⟨j, hj⟩ := ht
+      obtain ⟨i, hi⟩ := hr
+      obtain ⟨j, hj⟩ := ht
       have eq := congrArg (List.take 64) (Keccak.bytesToBitsLE_injective (hi.symm.trans hj))
       simp only [nonceInput, List.take_left' (FixedBytes.length_toList _)] at eq
       exact List.ofFn_inj.mp eq
@@ -309,15 +316,18 @@ theorem Xofs.refreshKeySeed_queryHit_le {s : Level} (base : Xofs) {a b : ℕ}
   change ((base.sampleSecretExpansionViews s ha hb).bind fun v => v.refreshKeySeed.bind fun H =>
     test H v.publicSeed v.pair v.keySeed v.secretSeed) true ≤ _
   rw [base.refreshKeySeed_independent ha hb test]
-  apply PMF.bind_apply_le_on_support; intro v _
-  apply PMF.bind_apply_le_on_support; intro H _
+  apply PMF.bind_apply_le_on_support
+  intro v _
+  apply PMF.bind_apply_le_on_support
+  intro H _
   cases h : v.pair with
   | none => simp [test]
   | some pk =>
     simp only [test, PMF.map]
     simp_rw [PMF.bind_comm (PMF.uniformOfFintype (FixedBytes 64)) (query H v.publicSeed pk)]
     rw [PMF.bind_comm (PMF.uniformOfFintype (FixedBytes 32)) (query H v.publicSeed pk)]
-    apply PMF.bind_apply_le_on_support; exact fun q _ => uniform_hit_le s q
+    apply PMF.bind_apply_le_on_support
+    exact fun q _ => uniform_hit_le s q
 
 namespace QuantumSigningForger
 

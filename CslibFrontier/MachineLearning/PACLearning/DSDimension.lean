@@ -633,19 +633,25 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
           linarith
       _ ≤ 3 ^ d * 4 ^ (2 * s) * k ^ (2 * d) :=
           Nat.mul_le_mul_right _ (Cslib.sum_range_choose_mul_pow_le 3 (2 * s) d)
+  have h4split : (4 : ℕ) ^ (2 * s) = 2 ^ (2 * s) * 4 ^ s := by
+    calc (4 : ℕ) ^ (2 * s) = (2 ^ 2 * 4) ^ s := by rw [pow_mul]; rfl
+      _ = 2 ^ (2 * s) * 4 ^ s := by rw [mul_pow, ← pow_mul]
+  have h9eq : (3 : ℕ) ^ (2 * s) = 9 ^ s := by
+    calc (3 : ℕ) ^ (2 * s) = (3 ^ 2) ^ s := pow_mul 3 2 s
+      _ = 9 ^ s := rfl
   have h9le : 9 ^ s ≤ 4 ^ s * (3 ^ d * k ^ (2 * d)) := by
     refine Nat.le_of_mul_le_mul_left ?_ (by positivity : 0 < 2 ^ (2 * s))
-    have h4 : (4 : ℕ) ^ (2 * s) = 2 ^ (2 * s) * 4 ^ s := by
-      rw [pow_mul, show (4 : ℕ) ^ 2 = 2 ^ 2 * 4 by decide, mul_pow, ← pow_mul]
-    have h9 : (3 : ℕ) ^ (2 * s) = 9 ^ s := by rw [pow_mul]; rfl
-    rw [h4, h9] at hmul3; linarith
+    calc 2 ^ (2 * s) * 9 ^ s = 2 ^ (2 * s) * 3 ^ (2 * s) := by rw [h9eq]
+      _ ≤ 3 ^ d * (2 ^ (2 * s) * 4 ^ s) * k ^ (2 * d) := by rwa [h4split] at hmul3
+      _ = 2 ^ (2 * s) * (4 ^ s * (3 ^ d * k ^ (2 * d))) := by ring
   have hcoeff_lt : 3 ^ d * k ^ (2 * d) < 2 ^ s := by
     have h3lt : 3 ^ d < 2 ^ (2 * d) := by
-      rw [pow_mul]
-      exact Nat.pow_lt_pow_left (by decide) hdpos.ne'
-    have hkle : k ^ (2 * d) ≤ 2 ^ ((Nat.log 2 k + 1) * (2 * d)) :=
-      (Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self (by decide : 1 < 2) k).le _).trans_eq
-        (pow_mul ..).symm
+      calc 3 ^ d < 4 ^ d := Nat.pow_lt_pow_left (by decide) hdpos.ne'
+        _ = 2 ^ (2 * d) := by rw [pow_mul]; rfl
+    have hkle : k ^ (2 * d) ≤ 2 ^ ((Nat.log 2 k + 1) * (2 * d)) := by
+      calc k ^ (2 * d) ≤ (2 ^ (Nat.log 2 k + 1)) ^ (2 * d) :=
+            Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self (by decide) k).le _
+        _ = 2 ^ ((Nat.log 2 k + 1) * (2 * d)) := by rw [← pow_mul]
     calc 3 ^ d * k ^ (2 * d)
         < 2 ^ (2 * d) * k ^ (2 * d) := Nat.mul_lt_mul_of_pos_right h3lt (by positivity)
       _ ≤ 2 ^ (2 * d) * 2 ^ ((Nat.log 2 k + 1) * (2 * d)) := Nat.mul_le_mul_left _ hkle
@@ -654,9 +660,10 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
         congr 1
         dsimp only [s]
         ring
-  have h9lt8 : 9 ^ s < 8 ^ s :=
-    h9le.trans_lt <|
-      (Nat.mul_lt_mul_of_pos_left hcoeff_lt (by positivity)).trans_eq (mul_pow 4 2 s).symm
+  have h9lt8 : 9 ^ s < 8 ^ s := by
+    calc 9 ^ s ≤ 4 ^ s * (3 ^ d * k ^ (2 * d)) := h9le
+      _ < 4 ^ s * 2 ^ s := Nat.mul_lt_mul_of_pos_left hcoeff_lt (by positivity)
+      _ = 8 ^ s := (mul_pow 4 2 s).symm
   exact absurd h9lt8 (not_lt_of_ge (Nat.pow_le_pow_left (by decide : 8 ≤ 9) s))
 
 /-- Over a finite label space, `graphDim C ≤ 4 * natarajanDim C * (⌊log₂ |β|⌋ + 2)`. -/

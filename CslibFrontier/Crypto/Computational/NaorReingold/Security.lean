@@ -258,9 +258,10 @@ private theorem naorReingoldWordHybridAt_self (F : PrimeOrderGroupFamily) (d : F
   unfold naorReingoldWordHybridAt
   simp only [PMF.monad_bind_eq_bind]
   congr 1; funext B
-  rw [show (fun α => naorReingoldWordRun F d prog (F.naorReingoldHybridEval d m B α)) =
-      fun _ => naorReingoldWordRun F d prog (fun x => B x • F.generator d) from
-    funext fun _ => congrArg _ (funext fun x => by simp [naorReingoldHybridEval]), PMF.bind_const]
+  have hfn (α : Fin m → ZMod (F.order d)) :
+      F.naorReingoldHybridEval d m B α = fun x => B x • F.generator d :=
+    funext fun x => by simp [naorReingoldHybridEval]
+  simp_rw [hfn, PMF.bind_const]
 
 private noncomputable def naorReingoldWordLevelTest (F : PrimeOrderGroupFamily) (d : F.Desc)
     {m : ℕ} (k : ℕ) (hk : k < m) (prog : WordOracleComp Unit Bool) (_u : F.Carrier d)

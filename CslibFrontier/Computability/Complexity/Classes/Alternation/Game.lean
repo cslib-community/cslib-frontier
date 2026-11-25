@@ -106,22 +106,18 @@ theorem sum_replicate_one (n : ℕ) : (List.replicate n 1).sum = n := by
 theorem alternation_true_one_cons :
     Alternation true (1 :: ns) P ↔ ∃ b : Bool, Alternation false ns fun v => P (b :: v) := by
   rw [alternation_true_cons]
-  constructor
-  · rintro ⟨w, hw, h⟩
-    obtain ⟨b, rfl⟩ := List.length_eq_one_iff.mp hw
-    exact ⟨b, h⟩
-  · rintro ⟨b, h⟩
-    exact ⟨[b], rfl, h⟩
+  refine ⟨?_, fun ⟨b, h⟩ => ⟨[b], rfl, h⟩⟩
+  rintro ⟨w, hw, h⟩
+  obtain ⟨b, rfl⟩ := List.length_eq_one_iff.mp hw
+  exact ⟨b, h⟩
 
 /-- A universal move of one bit. -/
 theorem alternation_false_one_cons :
     Alternation false (1 :: ns) P ↔ ∀ b : Bool, Alternation true ns fun v => P (b :: v) := by
   rw [alternation_false_cons]
-  constructor
-  · exact fun h b => h [b] rfl
-  · intro h w hw
-    obtain ⟨b, rfl⟩ := List.length_eq_one_iff.mp hw
-    exact h b
+  refine ⟨fun h b => h [b] rfl, fun h w hw => ?_⟩
+  obtain ⟨b, rfl⟩ := List.length_eq_one_iff.mp hw
+  exact h b
 
 /-- One round of the game: an existential move, then a universal move. -/
 theorem alternation_replicate_succ {n : ℕ} :
@@ -151,18 +147,15 @@ theorem acceptsWithin_iff_alternation (atm : MultiTapeATM k Bool State) {input :
     atm.AcceptsWithin n c ↔ Alternation true (List.replicate (2 * n) 1)
       fun w => (atm.strict.stepCoins w (cfg c none)).output = [true] := by
   induction n generalizing c with
-  | zero =>
-    have hhalt : c.state = none := hn [] rfl
-    simp [AcceptsWithin, hhalt, cfg]
+  | zero => simp [AcceptsWithin, show c.state = none from hn [] rfl, cfg]
   | succ n ih =>
     rcases hs : c.state with _ | q
     · rw [atm.acceptsWithin_of_halted hs]
       simp only [stepCoins_cfg_of_halted atm hs]
-      rw [alternation_const]
-      simp [cfg]
-    · have hn' (b : Bool) : ∀ coins : List Bool, coins.length = n →
+      simp [alternation_const, cfg]
+    · have hn' (b : Bool) (coins : List Bool) (hlen : coins.length = n) :
           (atm.toPTM.stepCoins coins (atm.next b c)).state = none :=
-        fun coins hlen => hn (b :: coins) (by simp [hlen])
+        hn (b :: coins) (by simp [hlen])
       rw [alternation_replicate_succ]
       simp only [stepCoins_cfg atm hs]
       cases hq : atm.universal q
@@ -183,9 +176,9 @@ theorem accepts_iff_alternation (atm : MultiTapeATM k Bool State) {input : List 
       fun w => atm.strict.runClosedCoins w input = [true] := by
   rw [accepts_iff_acceptsWithin ht,
     acceptsWithin_iff_alternation atm fun _ hlen => state_stepCoins_eq_none ht hlen]
-  refine alternation_congr fun w => ?_
-  rw [MultiTapePTM.runClosedCoins, MultiTapePTM.tapes_runClosedConfigFromCoins,
-    initialConfig_strict]
+  exact alternation_congr fun w => by
+    rw [MultiTapePTM.runClosedCoins, MultiTapePTM.tapes_runClosedConfigFromCoins,
+      initialConfig_strict]
 
 end Turing.MultiTapeATM
 

@@ -60,15 +60,16 @@ theorem blockEquiv_pair {M N : Type*} (e : (Fin d → M) ≃ N) {k : ℕ}
       pair (blockEquiv e k xs) (blockEquiv e k ys) := by
   rw [← pair_left_right (blockEquiv e (2 * k) _)]
   congr 1 <;> funext i <;> simp only [left, right, blockEquiv_apply] <;> congr 1 <;> funext j
-  · rw [show Fin.cast (Nat.mul_assoc 2 k d)
-      (finProdFinEquiv (Fin.cast (Nat.two_mul k).symm (Fin.castAdd k i), j)) =
-      Fin.cast (Nat.two_mul (k * d)).symm (Fin.castAdd (k * d) (finProdFinEquiv (i, j))) from
-      Fin.ext (by simp), pair, Fin.cast_cast, Fin.cast_eq_self, Fin.append_left]
-  · rw [show Fin.cast (Nat.mul_assoc 2 k d)
-      (finProdFinEquiv (Fin.cast (Nat.two_mul k).symm (Fin.natAdd k i), j)) =
-      Fin.cast (Nat.two_mul (k * d)).symm (Fin.natAdd (k * d) (finProdFinEquiv (i, j))) from
-      Fin.ext (by simp only [Fin.val_cast, finProdFinEquiv_apply_val, Fin.val_natAdd]; grind),
-      pair, Fin.cast_cast, Fin.cast_eq_self, Fin.append_right]
+  · have h : Fin.cast (Nat.mul_assoc 2 k d)
+        (finProdFinEquiv (Fin.cast (Nat.two_mul k).symm (Fin.castAdd k i), j)) =
+        Fin.cast (Nat.two_mul (k * d)).symm (Fin.castAdd (k * d) (finProdFinEquiv (i, j))) :=
+      Fin.ext (by simp)
+    rw [h, pair, Fin.cast_cast, Fin.cast_eq_self, Fin.append_left]
+  · have h : Fin.cast (Nat.mul_assoc 2 k d)
+        (finProdFinEquiv (Fin.cast (Nat.two_mul k).symm (Fin.natAdd k i), j)) =
+        Fin.cast (Nat.two_mul (k * d)).symm (Fin.natAdd (k * d) (finProdFinEquiv (i, j))) :=
+      Fin.ext (by simp only [Fin.val_cast, finProdFinEquiv_apply_val, Fin.val_natAdd]; grind)
+    rw [h, pair, Fin.cast_cast, Fin.cast_eq_self, Fin.append_right]
 
 /-- Lay out the flattened coordinates of two endpoint tuples as one closure tuple. -/
 @[expose] def endpointMap {β : Type*} {k : ℕ} : β ⊕ Fin (2 * k * d) → β ⊕ Fin (2 * (k * d)) :=

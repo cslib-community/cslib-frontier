@@ -719,9 +719,12 @@ theorem run_gmwProver_fst {α : Type} (generator : List Bool → List Bool) (s m
   have hlhs : ((ProbOracleComp.runWith P.respond prog P.init).bind
         (fun (a, s') => (relate s').map (a, ·))).map Prod.fst =
       (P.run prog P.init).map Prod.fst := by
-    simp only [pmf_norm, Prover.run, show ∀ x : α × P.State,
-      PMF.map (fun _ => x.1) (relate x.2) = PMF.pure x.1 from fun _ => PMF.map_const _ _]; rfl
-  rw [hlhs] at hmap; rw [hmap]
+    have hconst (x : α × P.State) : PMF.map (fun _ => x.1) (relate x.2) = PMF.pure x.1 :=
+      PMF.map_const _ _
+    simp only [pmf_norm, Prover.run, hconst]
+    rfl
+  rw [hlhs] at hmap
+  rw [hmap]
   simp only [pmf_norm, P, gmwProver, relate]
   congr 1 with coins : 1
   have hstate_fst := congrArg (PMF.map Prod.fst) <| ProbOracleComp.runWith_map_state

@@ -88,42 +88,35 @@ theorem PairCover.exists_forallGuess {n : ℕ} (f : BooleanFunction n)
       g (Fin.append x y) = true ↔
         compactInvalid cover.pairs sources (AltFormula.literals x) y := by
     simpa only [g, Fin.append_left, Fin.append_right] using hc (Fin.append x y)
-  refine ⟨g, c, ?_, ?_, cc⟩
-  · funext x
-    apply Bool.eq_iff_iff.mpr
-    simp only [forallGuess, decide_eq_true_eq]
-    constructor
-    · intro h
-      by_contra hx
-      let u : ↥({x | f x = true}ᶜ) := ⟨x, hx⟩
-      have hvalid := not_invalid_pointLabels cover.pairs sources (AltFormula.literals x) u
-        (fun _ h => h)
-      have hbad := (invalid_expandLabels_iff cover.pairs sources (AltFormula.literals x)
-        (compactPointLabels cover.pairs u)).mpr
-          ((hspec x (compactPointLabels cover.pairs u)).mp (h _))
-      rw [expandLabels_compactPointLabels] at hbad
-      exact hvalid hbad
-    · intro hx y
-      apply (hspec x y).mpr
-      apply (invalid_expandLabels_iff cover.pairs sources (AltFormula.literals x) y).mp
-      simpa only [Set.mem_ofPred_eq, Bool.decide_eq_true] using
-        (cover.invalid_or_breaksPair ⟨x, hx⟩ (expandLabels cover.pairs y)).resolve_right
-          (not_breaksPair_expandLabels cover.pairs y)
-  · intro z
-    funext i
-    have hi : i = 0 := Subsingleton.elim _ _
-    subst i
-    rfl
+  refine ⟨g, c, ?_, fun _ => funext fun i => Subsingleton.elim i 0 ▸ rfl, cc⟩
+  funext x
+  apply Bool.eq_iff_iff.mpr
+  simp only [forallGuess, decide_eq_true_eq]
+  constructor
+  · intro h
+    by_contra hx
+    let u : ↥({x | f x = true}ᶜ) := ⟨x, hx⟩
+    have hvalid := not_invalid_pointLabels cover.pairs sources (AltFormula.literals x) u
+      (fun _ h => h)
+    have hbad := (invalid_expandLabels_iff cover.pairs sources (AltFormula.literals x)
+      (compactPointLabels cover.pairs u)).mpr
+        ((hspec x (compactPointLabels cover.pairs u)).mp (h _))
+    rw [expandLabels_compactPointLabels] at hbad
+    exact hvalid hbad
+  · intro hx y
+    apply (hspec x y).mpr
+    apply (invalid_expandLabels_iff cover.pairs sources (AltFormula.literals x) y).mp
+    simpa only [Set.mem_ofPred_eq, Bool.decide_eq_true] using
+      (cover.invalid_or_breaksPair ⟨x, hx⟩ (expandLabels cover.pairs y)).resolve_right
+        (not_breaksPair_expandLabels cover.pairs y)
 
 /-- The semi-ultrafilter bound applies after minimizing over all auxiliary counts and verifiers. -/
 theorem pairCoverComplexity_le_econondeterministicAndComplexity {n : ℕ}
     (f : BooleanFunction n) :
     pairCoverComplexity {x | f x = true} (fun i => {x | AltFormula.literals x i = true})
-      Semifilter.IsUltra ≤ econondeterministicAndComplexity f := by
-  apply le_econondeterministicAndComplexity_iff.mpr
-  intro a g hg c hc
-  subst f
-  exact pairCoverComplexity_forallGuess_le_cost g c hc
+      Semifilter.IsUltra ≤ econondeterministicAndComplexity f :=
+  le_econondeterministicAndComplexity_iff.mpr fun _ g hg c hc =>
+    hg ▸ pairCoverComplexity_forallGuess_le_cost g c hc
 
 /-- A semi-ultrafilter cover gives a universal verifier at most three times as costly. -/
 theorem econondeterministicAndComplexity_le_pairCoverComplexity {n : ℕ}
@@ -132,8 +125,7 @@ theorem econondeterministicAndComplexity_le_pairCoverComplexity {n : ℕ}
       3 * pairCoverComplexity {x | f x = true}
         (fun i => {x | AltFormula.literals x i = true}) Semifilter.IsUltra := by
   rw [pairCoverComplexity, ENat.mul_iInf_of_ne (by decide : (3 : ℕ∞) ≠ 0)]
-  apply le_iInf
-  intro cover
+  refine le_iInf fun cover => ?_
   obtain ⟨g, c, hg, hc, hcost⟩ := cover.exists_forallGuess f
   simpa only [hcost, Nat.cast_mul, Nat.cast_ofNat] using
     econondeterministicAndComplexity_le_cost g hg c hc

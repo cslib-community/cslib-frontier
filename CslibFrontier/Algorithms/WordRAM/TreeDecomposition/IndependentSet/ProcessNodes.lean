@@ -435,13 +435,15 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
       ⟨h2, inst.numVerts, inst.adjMatrix, inst.weights,
         inst.bagAt jFin, inst.bagAt pFin, tblList jFin, List.replicate tblPLen 0, capB,
         inst.adjMatrix_len, inst.weights_len, rfl,
-        hlay_a.adj_holds, hlay.adj_holds.1, hlay_a.wt_holds, hlay.wt_holds.1,
+        hlay_a.adj_holds, hlay.adj_holds.1,
+        hlay_a.wt_holds, hlay.wt_holds.1,
         hj_bag.mono_frontier hp_a, rfl, hj_blo.trans (le_trans (by omega) hlay.desc_hi),
         inst.bagAt_mem_lt jFin, hj_tbl.mono_frontier hp_a, hj_tlen,
         by simpa only [hj_tlen] using hj_tbl.1,
         hp_bag.mono_frontier hp_a, rfl, hp_blo.trans (le_trans (by omega) hlay.desc_hi),
         hbest_init, List.length_replicate,
-        by have : (inst.bagAt jFin).length * inst.maxWeight ≤ B := Nat.mul_le_mul_right _ hj_len_le
+        by have : (inst.bagAt jFin).length * inst.maxWeight ≤ B :=
+             Nat.mul_le_mul_right _ hj_len_le
            dsimp only [cpArgs, capB, B, W, M, MWISInstance.maxWeight] at *; omega,
         hfit_tfr.of_le (by
           have h := hlay.adj_holds.1
@@ -486,7 +488,8 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
           rw [hp_tlen] at h
           dsimp only [ppArgs, tblPLen]; omega),
         hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
-        hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _), hfit_sum⟩
+        hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _),
+        hfit_sum⟩
     exact ⟨hfit_tfr.of_le (by dsimp only [a] at hpar_lt_fr; omega),
       by simpa only [Nat.add_zero] using hdJ_f 0 (by decide), hdJ_f 1 (by decide),
       hdJ_f 2 (by decide), hdJ_f 3 (by decide),
@@ -559,7 +562,8 @@ theorem processNodesProg_spec {w : ℕ} (inst : MWISInstance) (descBase : ℕ)
     have h0 : iterate processNodeStep args 0 0 = pure 0 := rfl
     rw [h0]
     simp only [Nat.sub_zero] at hfr hpfx hagree
-    exact ⟨validHistory_pure w st 0, ⟨hfr, tblList, hlay, hpfx, hagree⟩, by simp [memoryCost_pure]⟩
+    exact ⟨validHistory_pure w st 0, ⟨hfr, tblList, hlay, hpfx, hagree⟩,
+      by simp [memoryCost_pure]⟩
   | succ k ih =>
     intro st tblList hk hfr hlay hpfx hagree
     have hfr_sub : st.frontier + 2 ^ M ≤ s₁.frontier + (n - k) * 2 ^ M := by

@@ -228,8 +228,9 @@ private theorem eval_replicate_uniform [Fintype H] [Nonempty H] (q : ℕ) :
       (PMF.uniformOfFintype (Fin q → H)).map List.ofFn := by
   induction q with
   | zero =>
-    simp [replicate_zero, show (List.ofFn : (Fin 0 → H) → List H) = Function.const _ [] from
-      funext fun _ => List.ofFn_zero]
+    have hconst : (List.ofFn : (Fin 0 → H) → List H) = Function.const _ [] :=
+      funext fun _ => List.ofFn_zero
+    simp [replicate_zero, hconst]
   | succ q ih =>
     rw [replicate_succ, ← Probability.PMF.pi_uniformOfFintype, Probability.PMF.pi_fin_succ,
       Probability.PMF.pi_uniformOfFintype]

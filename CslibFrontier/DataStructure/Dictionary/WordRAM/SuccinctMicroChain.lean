@@ -435,17 +435,9 @@ theorem clientResult_readLMMod4Prog {U V w n_max h_space c_base base b j : ℕ} 
       lmAt base U V w n_max h_space s.mem
         (c_base + j % 4, b * numMicroPerBucket n_max + j / 4) := by
   have hidx := lmSlotIdx_lt hb hj
-  have hmod : j % 4 < 4 := Nat.mod_lt j (by decide)
-  simp only [readLMMod4Prog, pure_bind]
-  split_ifs with h0 h1 h2
-  · rw [h0, Nat.add_zero]
-    exact clientResult_readLMProg s (by omega) hidx
-  · rw [h1]
-    exact clientResult_readLMProg s (by omega) hidx
-  · rw [h2]
-    exact clientResult_readLMProg s (by omega) hidx
-  · have h3 : j % 4 = 3 := by omega
-    rw [h3]
+  rcases (by omega : j % 4 = 0 ∨ j % 4 = 1 ∨ j % 4 = 2 ∨ j % 4 = 3) with h | h | h | h
+  all_goals
+    simp only [readLMMod4Prog, pure_bind, h, Nat.reduceEqDiff, ↓reduceIte, Nat.add_zero]
     exact clientResult_readLMProg s (by omega) hidx
 
 theorem clientResult_readLMPrevProg {U V w n_max h_space base b j : ℕ} (s : Memory.State)
@@ -618,19 +610,12 @@ theorem writeLMMod4Prog_effect {U V w n_max h_space c_base base b j val : ℕ}
         (c_base + j % 4, b * numMicroPerBucket n_max + j / 4) val ∧
     gmAt base U V w n_max h_space s'.mem = gmAt base U V w n_max h_space s.mem := by
   have hidx := lmSlotIdx_lt hb hj
-  have hmod : j % 4 < 4 := Nat.mod_lt j (by decide)
   change let s' := (Memory.spec 0).clientState s _
     s'.frontier = _ ∧ _
-  simp only [writeLMMod4Prog, lmEntryBase, lmEntryBucket, lmEntryIdx, pure_bind]
-  split_ifs with h0 h1 h2
-  · rw [h0, Nat.add_zero]
-    exact writeLMProg_effect hw (by omega) hidx hval_lt s
-  · rw [h1]
-    exact writeLMProg_effect hw (by omega) hidx hval_lt s
-  · rw [h2]
-    exact writeLMProg_effect hw (by omega) hidx hval_lt s
-  · have h3 : j % 4 = 3 := by omega
-    rw [h3]
+  rcases (by omega : j % 4 = 0 ∨ j % 4 = 1 ∨ j % 4 = 2 ∨ j % 4 = 3) with h | h | h | h
+  all_goals
+    simp only [writeLMMod4Prog, lmEntryBase, lmEntryBucket, lmEntryIdx, pure_bind,
+      h, Nat.reduceEqDiff, ↓reduceIte, Nat.add_zero]
     exact writeLMProg_effect hw (by omega) hidx hval_lt s
 
 /-- Pure state effect of `writeLMPrevProg`. -/
@@ -1164,6 +1149,24 @@ theorem realizes_lmPrependGen :
        have := h.2.2.2.2.2
        omega)
 
+private theorem lmField_eq_ite_update {n_max b j val b' j' : ℕ} {f f' : ℕ → ℕ → ℕ}
+    (hb' : b' < numBuckets n_max) (hj' : j' < effBucketCap n_max)
+    (heq : f' b j = val)
+    (hne : ∀ b₁ < numBuckets n_max, ∀ j₁ < effBucketCap n_max,
+      (b₁ ≠ b ∨ j₁ ≠ j) → f' b₁ j₁ = f b₁ j₁) :
+    f' b' j' = if b' = b then Function.update (f b) j val j' else f b' j' := by
+  by_cases hb_eq : b' = b
+  · subst hb_eq
+    rw [ite_eq_left rfl]
+    by_cases hj_eq : j' = j
+    · subst hj_eq
+      rw [Function.update_self]
+      exact heq
+    · rw [Function.update_of_ne hj_eq]
+      exact hne _ hb' j' hj' (Or.inr hj_eq)
+  · rw [ite_eq_right hb_eq]
+    exact hne b' hb' j' hj' (Or.inl hb_eq)
+
 /-- Pure state effect of `lmPrependProg`. -/
 theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
     (hw : 0 < w) (hb : b < numBuckets n_max) (hm : m < numMicroPerBucket n_max)
@@ -1215,18 +1218,15 @@ theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
     (writeLMNextProg U V w n_max h_space (((base, b), j_new), old_h))
   have eff₂ := writeLMNextProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
     (h_space := h_space) (base := base) (b := b) (j := j_new) (val := old_h) hw hb hj hold_lt s₁
-  have hs'_def : s' = (if 0 < old_h then
-      (Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s₂
-          (writeLMPrevProg U V w n_max h_space (((base, b), old_h - 1), j_new + 1)))
-        (writeLMHeadProg U V w n_max h_space (((base, b), m), j_new + 1))
-    else
+  let s₃ := if 0 < old_h then
       (Memory.spec 0).clientState s₂
-        (writeLMHeadProg U V w n_max h_space (((base, b), m), j_new + 1))) := by
-    dsimp only [s', s₂, s₁, old_h]
+        (writeLMPrevProg U V w n_max h_space (((base, b), old_h - 1), j_new + 1))
+    else s₂
+  have hs'_def : s' = (Memory.spec 0).clientState s₃
+      (writeLMHeadProg U V w n_max h_space (((base, b), m), j_new + 1)) := by
+    dsimp only [s', s₃, s₂, s₁, old_h]
     simp only [lmPrependProg, lmPrependGenProg, readLMHeadGenProg_mk, writeLMPrevGenProg_mk,
-      writeLMNextGenProg_mk, writeLMHeadGenProg_mk]
-    simp only [pure_bind]
+      writeLMNextGenProg_mk, writeLMHeadGenProg_mk, pure_bind]
     rw [StateTransitionSpec.clientState_bind, clientState_readLMHeadProg,
       clientResult_readLMHeadProg _ hb hm,
       StateTransitionSpec.clientState_bind,
@@ -1234,98 +1234,67 @@ theorem lmPrependProg_effect {U V w n_max h_space base b m j_new : ℕ}
     split_ifs
     · rw [StateTransitionSpec.clientState_bind]
     · rfl
+  have hprev₂ : ∀ b' < numBuckets n_max, ∀ j' < effBucketCap n_max,
+      lmPrev n_max (lmAt base U V w n_max h_space s₂.mem) b' j' =
+        if b' = b then
+          Function.update (lmPrev n_max (lmAt base U V w n_max h_space s.mem) b) j_new 0 j'
+        else lmPrev n_max (lmAt base U V w n_max h_space s.mem) b' j' := by
+    intro b' hb' j' hj'
+    rw [eff₂.2.2.2.2.2.2.1]
+    exact lmField_eq_ite_update hb' hj' eff₁.2.2.2.2.2.2.1 eff₁.2.2.2.2.2.2.2.1
+  have h₃_frame :
+      s₃.frontier = s₂.frontier ∧
+      (∀ a, ¬(base + offLM U V w n_max h_space ≤ a ∧ a < base + offGM U V w n_max h_space) →
+        s₃.mem a = s₂.mem a) ∧
+      quotAt base U w n_max h_space s₃.mem = quotAt base U w n_max h_space s₂.mem ∧
+      valAt base U V w n_max h_space s₃.mem = valAt base U V w n_max h_space s₂.mem ∧
+      gmAt base U V w n_max h_space s₃.mem = gmAt base U V w n_max h_space s₂.mem ∧
+      lmHead n_max (lmAt base U V w n_max h_space s₃.mem) =
+        lmHead n_max (lmAt base U V w n_max h_space s₂.mem) ∧
+      lmNext n_max (lmAt base U V w n_max h_space s₃.mem) =
+        lmNext n_max (lmAt base U V w n_max h_space s₂.mem) := by
+    dsimp only [s₃]
+    split_ifs with hpos
+    · have eff₃ := writeLMPrevProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+        (h_space := h_space) (base := base) (b := b) (j := old_h - 1) (val := j_new + 1)
+        hw hb (by omega) hval_lt s₂
+      exact ⟨eff₃.1, eff₃.2.1, eff₃.2.2.1, eff₃.2.2.2.1, eff₃.2.2.2.2.1,
+        eff₃.2.2.2.2.2.1, eff₃.2.2.2.2.2.2.2.2⟩
+    · exact ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, rfl⟩
   rw [hs'_def]
-  split_ifs with hpos
-  · have hold_idx : old_h - 1 < effBucketCap n_max := by omega
-    let s₃ := (Memory.spec 0).clientState s₂
-      (writeLMPrevProg U V w n_max h_space (((base, b), old_h - 1), j_new + 1))
-    have eff₃ := writeLMPrevProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (j := old_h - 1) (val := j_new + 1)
-      hw hb hold_idx hval_lt s₂
-    have eff₄ := writeLMHeadProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (m := m) (val := j_new + 1)
-      hw hb hm hval_lt s₃
-    refine ⟨by rw [eff₄.1, eff₃.1, eff₂.1, eff₁.1],
-      fun a ha => by rw [eff₄.2.1 a ha, eff₃.2.1 a ha, eff₂.2.1 a ha, eff₁.2.1 a ha],
-      by rw [eff₄.2.2.1, eff₃.2.2.1, eff₂.2.2.1, eff₁.2.2.1],
-      by rw [eff₄.2.2.2.1, eff₃.2.2.2.1, eff₂.2.2.2.1, eff₁.2.2.2.1],
-      by rw [eff₄.2.2.2.2.1, eff₃.2.2.2.2.1, eff₂.2.2.2.2.1, eff₁.2.2.2.2.1],
-      fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, fun b' hb' j' hj' => ?_⟩
-    · by_cases hbm : b' = b ∧ m' = m
-      · rcases hbm with ⟨rfl, rfl⟩
-        rw [ite_eq_left ⟨rfl, rfl⟩]
-        exact eff₄.2.2.2.2.2.1
-      · rw [ite_eq_right hbm, eff₄.2.2.2.2.2.2.1 b' hb' m' hm' (not_and_or.mp hbm),
-          eff₃.2.2.2.2.2.1, eff₂.2.2.2.2.2.1, eff₁.2.2.2.2.2.1]
-    · rw [eff₄.2.2.2.2.2.2.2.2, eff₃.2.2.2.2.2.2.2.2]
+  have eff₄ := writeLMHeadProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+    (h_space := h_space) (base := base) (b := b) (m := m) (val := j_new + 1)
+    hw hb hm hval_lt s₃
+  refine ⟨by rw [eff₄.1, h₃_frame.1, eff₂.1, eff₁.1],
+    fun a ha => by rw [eff₄.2.1 a ha, h₃_frame.2.1 a ha, eff₂.2.1 a ha, eff₁.2.1 a ha],
+    by rw [eff₄.2.2.1, h₃_frame.2.2.1, eff₂.2.2.1, eff₁.2.2.1],
+    by rw [eff₄.2.2.2.1, h₃_frame.2.2.2.1, eff₂.2.2.2.1, eff₁.2.2.2.1],
+    by rw [eff₄.2.2.2.2.1, h₃_frame.2.2.2.2.1, eff₂.2.2.2.2.1, eff₁.2.2.2.2.1],
+    fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, fun b' hb' j' hj' => ?_⟩
+  · by_cases hbm : b' = b ∧ m' = m
+    · rcases hbm with ⟨rfl, rfl⟩
+      rw [ite_eq_left ⟨rfl, rfl⟩]
+      exact eff₄.2.2.2.2.2.1
+    · rw [ite_eq_right hbm, eff₄.2.2.2.2.2.2.1 b' hb' m' hm' (not_and_or.mp hbm),
+        h₃_frame.2.2.2.2.2.1, eff₂.2.2.2.2.2.1, eff₁.2.2.2.2.2.1]
+  · rw [eff₄.2.2.2.2.2.2.2.2, h₃_frame.2.2.2.2.2.2,
+      lmField_eq_ite_update hb' hj' eff₂.2.2.2.2.2.2.2.1 eff₂.2.2.2.2.2.2.2.2,
+      eff₁.2.2.2.2.2.2.2.2]
+  · rw [eff₄.2.2.2.2.2.2.2.1]
+    by_cases hpos : 0 < old_h
+    · have eff₃ := writeLMPrevProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+        (h_space := h_space) (base := base) (b := b) (j := old_h - 1) (val := j_new + 1)
+        hw hb (by omega) hval_lt s₂
+      simp only [s₃, hpos, ↓reduceIte]
+      rw [lmField_eq_ite_update hb' hj' eff₃.2.2.2.2.2.2.1 eff₃.2.2.2.2.2.2.2.1]
       by_cases hb_eq : b' = b
       · subst hb_eq
-        rw [ite_eq_left rfl]
-        by_cases hj_eq : j' = j_new
-        · subst hj_eq
-          rw [Function.update_self]
-          exact eff₂.2.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_eq, eff₂.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inr hj_eq),
-            eff₁.2.2.2.2.2.2.2.2]
-      · rw [ite_eq_right hb_eq, eff₂.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inl hb_eq),
-          eff₁.2.2.2.2.2.2.2.2]
-    · rw [eff₄.2.2.2.2.2.2.2.1]
-      by_cases hb_eq : b' = b
-      · subst hb_eq
-        rw [ite_eq_left rfl]
         by_cases hj_old : j' = old_h - 1
-        · subst hj_old
-          rw [Function.update_self]
-          exact eff₃.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_old, eff₃.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inr hj_old),
-            eff₂.2.2.2.2.2.2.1]
-          by_cases hj_new : j' = j_new
-          · subst hj_new
-            rw [Function.update_self]
-            exact eff₁.2.2.2.2.2.2.1
-          · rw [Function.update_of_ne hj_new]
-            exact eff₁.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inr hj_new)
-      · rw [ite_eq_right hb_eq, eff₃.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inl hb_eq),
-          eff₂.2.2.2.2.2.2.1, eff₁.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inl hb_eq)]
-  · have eff₄ := writeLMHeadProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) (b := b) (m := m) (val := j_new + 1)
-      hw hb hm hval_lt s₂
-    refine ⟨by rw [eff₄.1, eff₂.1, eff₁.1],
-      fun a ha => by rw [eff₄.2.1 a ha, eff₂.2.1 a ha, eff₁.2.1 a ha],
-      by rw [eff₄.2.2.1, eff₂.2.2.1, eff₁.2.2.1],
-      by rw [eff₄.2.2.2.1, eff₂.2.2.2.1, eff₁.2.2.2.1],
-      by rw [eff₄.2.2.2.2.1, eff₂.2.2.2.2.1, eff₁.2.2.2.2.1],
-      fun b' hb' m' hm' => ?_, fun b' hb' j' hj' => ?_, fun b' hb' j' hj' => ?_⟩
-    · by_cases hbm : b' = b ∧ m' = m
-      · rcases hbm with ⟨rfl, rfl⟩
-        rw [ite_eq_left ⟨rfl, rfl⟩]
-        exact eff₄.2.2.2.2.2.1
-      · rw [ite_eq_right hbm, eff₄.2.2.2.2.2.2.1 b' hb' m' hm' (not_and_or.mp hbm),
-          eff₂.2.2.2.2.2.1, eff₁.2.2.2.2.2.1]
-    · rw [eff₄.2.2.2.2.2.2.2.2]
-      by_cases hb_eq : b' = b
-      · subst hb_eq
-        rw [ite_eq_left rfl]
-        by_cases hj_eq : j' = j_new
-        · subst hj_eq
-          rw [Function.update_self]
-          exact eff₂.2.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_eq, eff₂.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inr hj_eq),
-            eff₁.2.2.2.2.2.2.2.2]
-      · rw [ite_eq_right hb_eq, eff₂.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inl hb_eq),
-          eff₁.2.2.2.2.2.2.2.2]
-    · rw [eff₄.2.2.2.2.2.2.2.1, eff₂.2.2.2.2.2.2.1]
-      by_cases hb_eq : b' = b
-      · subst hb_eq
-        rw [ite_eq_left rfl]
-        by_cases hj_new : j' = j_new
-        · subst hj_new
-          rw [Function.update_self]
-          exact eff₁.2.2.2.2.2.2.1
-        · rw [Function.update_of_ne hj_new]
-          exact eff₁.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inr hj_new)
-      · rw [ite_eq_right hb_eq]
-        exact eff₁.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inl hb_eq)
+        · simp only [hj_old, ↓reduceIte, Function.update_self]
+        · simp only [↓reduceIte, Function.update_of_ne hj_old, hprev₂ _ hb' j' hj']
+      · simp only [hb_eq, ↓reduceIte, hprev₂ b' hb' j' hj']
+    · simp only [s₃, hpos, ↓reduceIte]
+      exact hprev₂ b' hb' j' hj'
 
 /-- Parameter-free `Memory.Prog` operation unlinking local slot `j_del = lmWriteVal d` from
 micro-bucket chain `(b, m) = (lmWriteBucket d, lmWriteIdx d)` at `base = lmWriteBase d`. -/
@@ -1417,41 +1386,27 @@ theorem realizes_lmUnlinkGen :
     writeLMHeadGenProg_mk, writeLMPrevGenProg_mk, writeLMNextGenProg_mk,
     lmReadBase, lmReadBucket, lmReadIdx, lmWriteBase, lmWriteBucket, lmWriteIdx, lmWriteVal,
     lmWriteLoc, lmWriteHeadArg, lmEntryBase, lmEntryBucket, lmEntryIdx]
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.2.1
-  · omega
-  · exact h.1
-  · exact h.2.1
-  · have hp : (Memory.spec 0).clientResult s (readLMPrevProg U V w₀ n_max h_space (d.1.1, d.2)) =
-        lmPrev n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2 :=
-      clientResult_readLMPrevProg s h.2.1 h.2.2.2.1
-    rw [hp] at hc ⊢
-    have := h.2.2.2.2.1
-    omega
-  · omega
-  · exact h.1
-  · exact h.2.1
-  · have hn : (Memory.spec 0).clientResult s (readLMNextProg U V w₀ n_max h_space (d.1.1, d.2)) =
-        lmNext n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2 :=
-      clientResult_readLMNextProg s h.2.1 h.2.2.2.1
-    rw [clientState_readLMPrevProg] at hc ⊢
-    rw [hn] at hc ⊢
-    have := h.2.2.2.2.2
-    omega
-  · exact h.1
-  · exact h.2.1
-  · exact h.2.2.1
-  · omega
-  · exact h.1
-  · exact h.2.1
-  · have hn : (Memory.spec 0).clientResult s (readLMNextProg U V w₀ n_max h_space (d.1.1, d.2)) =
-        lmNext n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2 :=
-      clientResult_readLMNextProg s h.2.1 h.2.2.2.1
-    rw [clientState_readLMPrevProg] at hc ⊢
-    rw [hn] at hc ⊢
-    have := h.2.2.2.2.2
-    omega
+  all_goals first
+    | exact h.1
+    | exact h.2.1
+    | exact h.2.2.1
+    | exact h.2.2.2.1
+    | omega
+    | (have hp :
+           (Memory.spec 0).clientResult s (readLMPrevProg U V w₀ n_max h_space (d.1.1, d.2)) =
+             lmPrev n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2 :=
+         clientResult_readLMPrevProg s h.2.1 h.2.2.2.1
+       rw [hp] at *
+       have := h.2.2.2.2.1
+       omega)
+    | (have hn :
+           (Memory.spec 0).clientResult s (readLMNextProg U V w₀ n_max h_space (d.1.1, d.2)) =
+             lmNext n_max (lmAt d.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.2 d.2 :=
+         clientResult_readLMNextProg s h.2.1 h.2.2.2.1
+       rw [clientState_readLMPrevProg] at *
+       rw [hn] at *
+       have := h.2.2.2.2.2
+       omega)
 
 /-- Pure state effect of `lmUnlinkProg`. -/
 theorem lmUnlinkProg_effect {U V w n_max h_space base b m j_del : ℕ}
@@ -1543,17 +1498,7 @@ theorem lmUnlinkProg_effect {U V w n_max h_space base b m j_del : ℕ}
         split_ifs with hbm
         · rcases hbm with ⟨rfl, rfl⟩; rfl
         · rfl
-      · by_cases hb_eq : b' = b
-        · subst hb_eq
-          rw [ite_eq_left rfl]
-          by_cases hj_p : j' = p - 1
-          · subst hj_p
-            rw [Function.update_self]
-            exact eff₁.2.2.2.2.2.2.2.1
-          · rw [Function.update_of_ne hj_p]
-            exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inr hj_p)
-        · rw [ite_eq_right hb_eq]
-          exact eff₁.2.2.2.2.2.2.2.2 b' hb' j' hj' (Or.inl hb_eq)
+      · exact lmField_eq_ite_update hb' hj' eff₁.2.2.2.2.2.2.2.1 eff₁.2.2.2.2.2.2.2.2
     · have eff₁ := writeLMHeadProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
         (h_space := h_space) (base := base) (b := b) (m := m) (val := n) hw hb hm hn_lt s
       simp only [s₁, hp_pos, ↓reduceIte]
@@ -1582,17 +1527,8 @@ theorem lmUnlinkProg_effect {U V w n_max h_space base b m j_del : ℕ}
       fun b' hb' m' hm' => by rw [eff₂.2.2.2.2.2.1]; exact h₁.2.2.2.2.2.1 b' hb' m' hm',
       fun b' hb' j' hj' => by rw [eff₂.2.2.2.2.2.2.2.2]; exact h₁.2.2.2.2.2.2.1 b' hb' j' hj',
       fun b' hb' j' hj' => ?_⟩
-    by_cases hb_eq : b' = b
-    · subst hb_eq
-      rw [ite_eq_left rfl]
-      by_cases hj_n : j' = n - 1
-      · subst hj_n
-        rw [Function.update_self]
-        exact eff₂.2.2.2.2.2.2.1
-      · rw [Function.update_of_ne hj_n, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inr hj_n),
-          h₁.2.2.2.2.2.2.2]
-    · rw [ite_eq_right hb_eq, eff₂.2.2.2.2.2.2.2.1 b' hb' j' hj' (Or.inl hb_eq),
-        h₁.2.2.2.2.2.2.2]
+    rw [lmField_eq_ite_update hb' hj' eff₂.2.2.2.2.2.2.1 eff₂.2.2.2.2.2.2.2.1,
+      h₁.2.2.2.2.2.2.2]
   · simp only [hs'_def, hn_pos, ↓reduceIte]
     refine ⟨h₁.1, h₁.2.1, h₁.2.2.1, h₁.2.2.2.1, h₁.2.2.2.2.1, h₁.2.2.2.2.2.1,
       h₁.2.2.2.2.2.2.1, fun b' _ j' _ => ?_⟩
@@ -2165,44 +2101,30 @@ theorem searchMicroChainProg_spec {U V w₀ n_max h_space w : ℕ}
        microAccStatus res = (0, 0)) := by
   rcases d with ⟨⟨⟨base, b⟩, q_target⟩, m⟩
   dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx, microAccStatus, microAccIdx] at *
-  let prog := searchMicroChainProg U V w₀ n_max h_space (((base, b), q_target), m)
   have hbw := boundedWhile_microStep_spec (q_target := q_target)
     (found := 0) (j_found := 0) (phys_found := 0)
     henv hb hinv hchain.2 hc_lt hchain.length_le hchain.1
-  have hst : (Memory.spec 0).clientState s prog = s := by
-    simp only [prog, searchMicroChainProg, searchMicroChainGenProg, lmWriteLoc, lmWriteVal,
+  have hprog : searchMicroChainProg U V w₀ n_max h_space (((base, b), q_target), m) =
+      (readLMHeadProg U V w₀ n_max h_space ((base, b), m) >>= fun h0 =>
+        boundedWhile microLoopGuard (microStepProg U V w₀ n_max h_space)
+          (((base, b), q_target), 0) (effBucketCap n_max) (((h0, 0), 0), 0)) := by
+    simp only [searchMicroChainProg, searchMicroChainGenProg, lmWriteLoc, lmWriteVal,
       lmWriteHeadArg, readLMHeadGenProg_mk, microLoopGenProg, microLoopCtxParams, p_nMax_mk,
-      boundedWhile_microStepGenProg_mk]
-    simp only [pure_bind]
-    rw [StateTransitionSpec.clientState_bind, clientState_readLMHeadProg,
+      boundedWhile_microStepGenProg_mk, pure_bind]
+  refine ⟨?_, ?_, hbw.2.2.1, ?_⟩
+  · rw [hprog, StateTransitionSpec.clientState_bind, clientState_readLMHeadProg,
       clientResult_readLMHeadProg _ hb hm]
     exact hbw.1
-  have hcost : memoryCost prog s ≤ 2 + 8 * L.length := by
-    simp only [prog, searchMicroChainProg, searchMicroChainGenProg, lmWriteLoc, lmWriteVal,
-      lmWriteHeadArg, readLMHeadGenProg_mk, microLoopGenProg, microLoopCtxParams, p_nMax_mk,
-      boundedWhile_microStepGenProg_mk]
-    simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-    rw [memoryCost_bind, memoryCost_readLMHeadProg, clientState_readLMHeadProg,
-      clientResult_readLMHeadProg _ hb hm]
+  · rw [hprog, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_readLMHeadProg,
+      clientState_readLMHeadProg, clientResult_readLMHeadProg _ hb hm]
     have := hbw.2.1
     omega
-  have hres_eq : (Memory.spec 0).clientResult s prog =
-      (Memory.spec 0).clientResult s
-        (boundedWhile microLoopGuard (microStepProg U V w₀ n_max h_space)
-          (((base, b), q_target), 0) (effBucketCap n_max)
-          (((lmHead n_max (lmAt base U V w₀ n_max h_space s.mem) b m, 0), 0), 0)) := by
-    simp only [prog, searchMicroChainProg, searchMicroChainGenProg, lmWriteLoc, lmWriteVal,
-      lmWriteHeadArg, readLMHeadGenProg_mk, microLoopGenProg, microLoopCtxParams, p_nMax_mk,
-      boundedWhile_microStepGenProg_mk]
-    simp only [pure_bind]
-    rw [StateTransitionSpec.clientResult_bind, clientState_readLMHeadProg,
+  · have hres := hbw.2.2.2
+    dsimp only [microAccStatus, microAccIdx] at hres
+    simp only [ite_self] at hres
+    rw [hprog, StateTransitionSpec.clientResult_bind, clientState_readLMHeadProg,
       clientResult_readLMHeadProg _ hb hm]
-  refine ⟨hst, hcost, hbw.2.2.1, ?_⟩
-  have hres := hbw.2.2.2
-  dsimp only [microAccStatus, microAccIdx] at hres ⊢
-  simp only [ite_self] at hres
-  rw [hres_eq]
-  exact hres
+    exact hres
 
 theorem realizes_searchMicroChainGen :
     Realizes .exact searchMicroChainGenProg

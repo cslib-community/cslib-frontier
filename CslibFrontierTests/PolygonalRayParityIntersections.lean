@@ -1121,4 +1121,57 @@ example : ∃ bend : Bool → Fin verticalWithBend.bends → ℂ,
   · exact (Route.start_replaceBends _ _).trans (Route.endpoint_concat _ _ hjoin false)
   · exact (Route.finish_replaceBends _ _).trans (Route.endpoint_concat _ _ hjoin true)
 
+-- The two perturbed segments have distinct lines and each avoids the fixed endpoint line.
+example : ∃ q : Route, q.start = 0 ∧ q.finish = ⟨0, 2⟩ ∧
+    Function.Injective (fun i : Fin q.segments =>
+      affineSpan ℝ ({q.point i.castSucc, q.point i.succ} : Set ℂ)) ∧
+    ∀ i : Fin q.segments, affineSpan ℝ ({q.point i.castSucc, q.point i.succ} : Set ℂ) ≠
+      affineSpan ℝ ({0, ⟨0, 2⟩} : Set ℂ) := by
+  let p : Unit → Route := fun _ => verticalWithBend
+  let protectedPoints : Finset ℂ := ∅
+  obtain ⟨bend, -, -, hinj, hfixed, hspans, -⟩ :=
+    Route.exists_replaceBends_avoiding_spans p protectedPoints ∅
+      (fun _ _ h => (Finset.notMem_empty _ h).elim) (η := 1) one_pos
+  let q (i : Unit) := (p i).replaceBends (bend i)
+  have hjoin : (Route.line 0 ⟨0, 1⟩).finish = (Route.line ⟨0, 1⟩ ⟨0, 2⟩).start := rfl
+  have hs (i : Unit) : (q i).start = 0 :=
+    (Route.start_replaceBends _ _).trans (Route.endpoint_concat _ _ hjoin false)
+  have hf (i : Unit) : (q i).finish = ⟨0, 2⟩ :=
+    (Route.finish_replaceBends _ _).trans (Route.endpoint_concat _ _ hjoin true)
+  have h0 : (0 : ℂ) ≠ ⟨0, 2⟩ := by
+    intro he
+    have hi := congrArg Complex.im he
+    norm_num at hi
+  have hends : Function.Injective (fun d : Unit × Bool => (q d.1).endpoint d.2) := by
+    rintro ⟨⟨⟩, a⟩ ⟨⟨⟩, b⟩ h
+    have hne : (q ()).start ≠ (q ()).finish := by
+      simpa only [hs, hf] using h0
+    cases a <;> cases b
+    · rfl
+    · exact (hne h).elim
+    · exact (hne h.symm).elim
+    · rfl
+  have hpoint (d : (i : Unit) × Fin (q i).bends) :
+      (q d.1).point d.2.castSucc.succ = bend d.1 d.2 :=
+    Route.point_replaceBends (p d.1) (bend d.1) d.2
+  have hstarts : (fun i => (q i).start) = fun i => (p i).start :=
+    funext fun i => Route.start_replaceBends (p i) (bend i)
+  have hfinishes : (fun i => (q i).finish) = fun i => (p i).finish :=
+    funext fun i => Route.finish_replaceBends (p i) (bend i)
+  have hsep := Route.family_affineSpan_separation q (↑protectedPoints : Set ℂ)
+    (fun _ => verticalBend.isLt) hends
+  dsimp only at hsep
+  rw [funext hpoint, hstarts, hfinishes] at hsep
+  obtain ⟨_, _, hlines, hfixedLines⟩ := hsep hinj (fun d => by
+    rw [hpoint]
+    exact hfixed d) (fun d a b ha hb hab hda hdb => by
+    rw [hpoint] at hda hdb ⊢
+    exact hspans d a b ha hb hab hda hdb)
+  refine ⟨q (), hs (), hf (), hlines.comp (sigma_mk_injective (i := ())), ?_⟩
+  intro i
+  exact hfixedLines ⟨(), i⟩ 0
+    (Or.inl (Or.inr ⟨(), Route.endpoint_concat _ _ hjoin false⟩)) ⟨0, 2⟩
+    (Or.inr ⟨(), Route.endpoint_concat _ _ hjoin true⟩)
+    h0
+
 end CslibFrontierTests.PolygonalRayParityIntersections

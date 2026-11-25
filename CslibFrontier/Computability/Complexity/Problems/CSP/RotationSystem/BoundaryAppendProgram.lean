@@ -76,18 +76,13 @@ theorem entries_appendRawCertificate_lt (leftBody leftPorts rightBody rightPorts
     intro a ha
     rcases List.mem_append.mp ha with ha | ha
     · have h := hl a ha
-      dsimp only [total]
-      omega
+      dsimp only [total]; omega
     · obtain ⟨b, hb, rfl⟩ := List.mem_map.mp ha
       have h := hr b hb
-      dsimp only [total, offset]
-      omega
+      dsimp only [total, offset]; omega
   have read_lt (table : List ℕ) (ht : ∀ a ∈ table, a < total) (j : ℕ) :
-      table.getD j 0 < total := by
-    rcases List.getD_mem_or table j 0 with hj | hj
-    · exact ht _ hj
-    · rw [hj]
-      exact hpos
+      table.getD j 0 < total :=
+    (List.getD_mem_or table j 0).elim (fun hj => ht _ hj) fun hj => by rw [hj]; omega
   have hjoined : ∀ a ∈ joined.successor, a < total := by
     dsimp only [joined]
     split
@@ -100,8 +95,7 @@ theorem entries_appendRawCertificate_lt (leftBody leftPorts rightBody rightPorts
   have hb' : joined.successor.getD
       (Nat.blockMove (2 * leftBody) (2 * (rightBody + rightPorts)) (2 * leftPorts) i) 0 <
       2 * leftBody + 2 * leftPorts + 2 * (rightBody + rightPorts) := by
-    dsimp only [total] at hb
-    omega
+    dsimp only [total] at hb; omega
   have hbound := Nat.blockMove_lt (before := 2 * leftBody) (moved := 2 * leftPorts)
     (after := 2 * (rightBody + rightPorts)) hb'
   omega
