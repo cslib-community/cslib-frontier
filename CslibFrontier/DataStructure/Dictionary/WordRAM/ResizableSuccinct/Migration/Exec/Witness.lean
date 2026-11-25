@@ -558,21 +558,20 @@ theorem fixedCoupled_of_shift {metaBase srcItemBase dstItemBase U V w N n : ℕ}
       split_ifs <;> [simp only [Nat.add_assoc, hmem_sh_add]; rfl]
   have htot₁ : totalSlots N (compGmAt metaBase U w N s₁.mem) = n :=
     (congrArg (totalSlots N) hgm_eq).trans htot
+  have hd_bd : ∀ d, d < epochTotalSlots N (compGmAt metaBase U w N s₁.mem) →
+      d < n ∧ d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) := fun d hd => by
+    change d < totalSlots N _ at hd; change _ ∧ d < totalSlots N _; omega
   refine ⟨⟨hgm_eq.trans hcpl.gm_eq, hlm_eq.trans hcpl.lm_eq,
       by rw [hgm_eq, htd_eq, hdt_eq]; exact hcpl.win_inv,
       fun i => by rw [htd_eq]; exact hcpl.td_lt i,
       fun i => by rw [hdt_eq]; exact hcpl.dt_lt i,
       fun d hd => by
-        have hd_n : d < n := by change d < totalSlots N _ at hd; omega
-        have hd₀ : d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) := by
-          change d < totalSlots N _; omega
+        obtain ⟨hd_n, hd₀⟩ := hd_bd d hd
         rw [compQuotAt_of_lt s₁.mem hd hd_n, hq_eq, compQuotAt_of_lt s₀.mem hd_n hd₀,
           hgm_eq, hdt_eq]
         exact hcpl.quot_eq d hd₀,
       fun d hd => by
-        have hd_n : d < n := by change d < totalSlots N _ at hd; omega
-        have hd₀ : d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) := by
-          change d < totalSlots N _; omega
+        obtain ⟨hd_n, hd₀⟩ := hd_bd d hd
         rw [compValAt_of_lt s₁.mem hd hd_n, hv_eq, compValAt_of_lt s₀.mem hd_n hd₀,
           hgm_eq, hdt_eq]
         exact hcpl.val_eq d hd₀⟩,
