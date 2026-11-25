@@ -382,9 +382,9 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
           intro code hbad hgood
           exact hbad (State.Invariant.shift_add _ _ _ _ hstate hparams hflag yes code
             hgoodShift hgoodStop hgood)
-        · exact add_le_add (by simpa only [Set.compl_ofPred, Nat.cast_one, shiftGuard, votes, predict,
-            State.margin, State.votes, Parameters.delta, Parameters.rate, Parameters.inverseRate]
-            using hshift) le_rfl
+        · exact add_le_add (by simpa only [Set.compl_ofPred, Nat.cast_one, shiftGuard, votes,
+            predict, State.margin, State.votes, Parameters.delta, Parameters.rate,
+            Parameters.inverseRate] using hshift) le_rfl
       · have hnext := State.invariant_stop (ProbComp.eval source) predict truth params
           (rounds + 1) state hgoodStop
         dsimp only [predict] at hnext
