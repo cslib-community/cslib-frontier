@@ -96,21 +96,19 @@ variable {R : Type*} [CommRing R] {n : ℕ}
 with a function of degree at most `D`. -/
 theorem exists_mem_lowDegree_forall_weight_le_eq (D : ℕ) (f : BitString n → R) :
     ∃ q ∈ lowDegree R (Fin n) D, ∀ x, weight x ≤ D → q x = f x := by
-  have hf := mem_lowDegree_self f
-  induction hf using Submodule.span_induction with
+  induction mem_lowDegree_self f using Submodule.span_induction with
   | mem g hg =>
     obtain ⟨S, -, rfl⟩ := hg
     by_cases hS : #S ≤ D
     · exact ⟨monomial R S, monomial_mem_lowDegree hS, fun _ _ => rfl⟩
     · refine ⟨0, zero_mem _, fun x hx => ?_⟩
-      rw [Pi.zero_apply, monomial_apply, ite_eq_right fun h => hS ?_]
-      exact (card_le_card fun i hi => by simpa using h i hi).trans hx
+      rw [Pi.zero_apply, monomial_apply, ite_eq_right fun h =>
+        hS ((card_le_card fun i hi => by simpa using h i hi).trans hx)]
   | zero => exact ⟨0, zero_mem _, fun _ _ => rfl⟩
-  | add f g _ _ hf hg =>
-    obtain ⟨p, hp, hpx⟩ := hf
-    obtain ⟨q, hq, hqx⟩ := hg
+  | add _ _ _ _ hf hg =>
+    obtain ⟨p, hp, hpx⟩ := hf; obtain ⟨q, hq, hqx⟩ := hg
     exact ⟨p + q, add_mem hp hq, fun x hx => by simp [hpx x hx, hqx x hx]⟩
-  | smul c f _ hf =>
+  | smul c _ _ hf =>
     obtain ⟨p, hp, hpx⟩ := hf
     exact ⟨c • p, Submodule.smul_mem _ c hp, fun x hx => by simp [hpx x hx]⟩
 
@@ -127,17 +125,11 @@ theorem exists_eq_add_majority_mul {m : ℕ} (f : BitString (2 * m + 1) → R) :
   refine ⟨q, hq, _, comp_not_mem_lowDegree hr, fun x => ?_⟩
   by_cases hx : weight x ≤ m
   · have hmaj : majority (2 * m + 1) x = false := by
-      rw [← Bool.not_eq_true, majority_eq_true_iff]
-      omega
+      rw [← Bool.not_eq_true, majority_eq_true_iff]; omega
     simp [hmaj, hqf x hx]
-  · have hmaj : majority (2 * m + 1) x = true := by
-      rw [majority_eq_true_iff]
-      omega
-    have hnot : weight (fun i => !x i) ≤ m := by
-      rw [weight_not, Fintype.card_fin]
-      omega
-    simp only [hmaj, bitVal_true, one_mul, hrf _ hnot, Bool.not_not]
-    ring
+  · have hmaj : majority (2 * m + 1) x = true := by rw [majority_eq_true_iff]; omega
+    have hnot : weight (fun i => !x i) ≤ m := by rw [weight_not, Fintype.card_fin]; omega
+    simp only [hmaj, bitVal_true, one_mul, hrf _ hnot, Bool.not_not]; ring
 
 end Interpolation
 
@@ -167,24 +159,19 @@ private theorem flipFirst_apply (a : Fin k → α × Bool) (i : Fin k) :
 
 private theorem fst_flipFirst (a : Fin k → α × Bool) (i : Fin k) :
     (flipFirst g a i).1 = (a i).1 := by
-  rw [flipFirst_apply]
-  split_ifs <;> rfl
+  rw [flipFirst_apply]; split_ifs <;> rfl
 
 private theorem flipFirst_flipFirst (a : Fin k → α × Bool) : flipFirst g (flipFirst g a) = a := by
-  funext i
-  rw [flipFirst_apply (flipFirst g a) i]
-  simp only [fst_flipFirst]
-  split_ifs with h
-  · rw [flipFirst_apply, ite_eq_left h, Bool.not_not]
-  · rw [flipFirst_apply, ite_eq_right h]
+  funext i; rw [flipFirst_apply (flipFirst g a) i]; simp only [fst_flipFirst]
+  split_ifs with h <;> rw [flipFirst_apply]
+  · rw [ite_eq_left h, Bool.not_not]
+  · rw [ite_eq_right h]
 
 /-- At most one coordinate is the first to satisfy `p`. -/
 private theorem eq_of_forall_lt_not {p : Fin k → Prop} {i j : Fin k} (hi : p i)
-    (hmi : ∀ t < i, ¬p t) (hj : p j) (hmj : ∀ t < j, ¬p t) : i = j := by
-  obtain h | h | h := lt_trichotomy i j
-  · exact absurd hi (hmj i h)
-  · exact h
-  · exact absurd hj (hmi j h)
+    (hmi : ∀ t < i, ¬p t) (hj : p j) (hmj : ∀ t < j, ¬p t) : i = j :=
+  (lt_trichotomy i j).elim (fun h => absurd hi (hmj i h))
+    (Or.elim · id fun h => absurd hj (hmi j h))
 
 omit [DecidablePred g] in
 private theorem firstFlagUnset_iff {a : Fin k → α × Bool} {i : Fin k} (hi : g (a i).1)
@@ -199,13 +186,12 @@ private theorem ite_firstFlagUnset_add_flipFirst (a : Fin k → α × Bool) :
       1 + if ∀ i, ¬g (a i).1 then 1 else 0 := by
   by_cases h : ∃ i, g (a i).1
   · have hi := Fin.find_spec h
-    have hmi : ∀ j < Fin.find _ h, ¬g (a j).1 := fun j hj => Fin.find_min h hj
-    have hfi : g (flipFirst g a (Fin.find _ h)).1 := by rwa [fst_flipFirst]
-    have hfmi : ∀ j < Fin.find _ h, ¬g (flipFirst g a j).1 := by simpa only [fst_flipFirst]
+    have hmi : ∀ j < Fin.find _ h, ¬g (a j).1 := fun _ => Fin.find_min h
     have e₁ := firstFlagUnset_iff hi hmi
-    have e₂ := firstFlagUnset_iff hfi hfmi
+    have e₂ := firstFlagUnset_iff (g := g) (a := flipFirst g a) (i := Fin.find _ h)
+      (by rw [fst_flipFirst]; exact hi) (by simpa only [fst_flipFirst] using hmi)
     rw [flipFirst_apply, ite_eq_left ⟨hi, hmi⟩] at e₂
-    have h' : ¬∀ i, ¬g (a i).1 := fun h' => h.elim fun i hi => h' i hi
+    have h' : ¬∀ i, ¬g (a i).1 := fun h' => h' _ hi
     cases hb : (a (Fin.find _ h)).2 <;> simp_all
   · push Not at h
     have h₁ : FirstFlagUnset g a := fun i hi => absurd hi (h i)
@@ -224,8 +210,7 @@ private theorem two_mul_card_filter_firstFlagUnset (S : Finset α) (k : ℕ) :
   have hflip : #{a ∈ P | FirstFlagUnset g (flipFirst g a)} = #{a ∈ P | FirstFlagUnset g a} := by
     refine card_nbij' (flipFirst g) (flipFirst g) (fun a ha => ?_) (fun a ha => ?_)
       (fun a _ => flipFirst_flipFirst a) (fun a _ => flipFirst_flipFirst a)
-    · simp only [coe_filter, Set.mem_ofPred_eq] at ha ⊢
-      exact ⟨(hP a).2 ha.1, ha.2⟩
+    · simp only [coe_filter, Set.mem_ofPred_eq] at ha ⊢; exact ⟨(hP a).2 ha.1, ha.2⟩
     · simp only [coe_filter, Set.mem_ofPred_eq] at ha ⊢
       exact ⟨(hP a).2 ha.1, by rw [flipFirst_flipFirst]; exact ha.2⟩
   have hsum : ∑ a ∈ P, (((if FirstFlagUnset g a then 1 else 0) +
@@ -235,8 +220,8 @@ private theorem two_mul_card_filter_firstFlagUnset (S : Finset α) (k : ℕ) :
   simp only [sum_add_distrib, ← card_filter, hflip, sum_const, smul_eq_mul, mul_one] at hsum
   have hnone : {a ∈ P | ∀ i, ¬g (a i).1} =
       Fintype.piFinset fun _ : Fin k => {A ∈ S | ¬g A} ×ˢ (univ : Finset Bool) := by
-    ext a
-    simp only [P, mem_filter, Fintype.mem_piFinset, mem_product, mem_univ, and_true, ← forall_and]
+    ext a; simp only [P, mem_filter, Fintype.mem_piFinset, mem_product, mem_univ, and_true,
+      ← forall_and]
   rw [two_mul, hsum, hnone, Fintype.card_piFinset, Fintype.card_piFinset, prod_const, prod_const,
     card_univ, Fintype.card_fin, card_product, card_product, card_univ, Fintype.card_bool,
     mul_comm #S, mul_comm #{A ∈ S | ¬g A}]
@@ -280,16 +265,12 @@ private def genSpan (k m r : ℕ) : Submodule (ZMod 2) (BitString (k * (2 * m + 
 
 private theorem majVal_mul_atom (c : Finset (Fin (2 * m + 1)) × Bool) :
     majVal * atom c = atom (c.1, true) := by
-  have h : (majVal : BitString (2 * m + 1) → ZMod 2) * majVal = majVal := by
-    funext y
-    simp only [Pi.mul_apply, majVal]
-    cases majority (2 * m + 1) y <;> simp
-  obtain ⟨A, b⟩ := c
-  cases b <;> simp [atom, ← mul_assoc, h]
+  have h : (majVal : BitString (2 * m + 1) → ZMod 2) * majVal = majVal :=
+    funext fun y => by simp only [Pi.mul_apply, majVal]; cases majority (2 * m + 1) y <;> simp
+  rcases c with ⟨A, _ | _⟩ <;> simp [atom, ← mul_assoc, h]
 
 private theorem atom_false (A : Finset (Fin (2 * m + 1))) :
-    atom (A, false) = monomial (ZMod 2) A := by
-  simp [atom]
+    atom (A, false) = monomial (ZMod 2) A := by simp [atom]
 
 private theorem atomSpan_mono {w w' : ℕ} (h : w ≤ w') : atomSpan m w ≤ atomSpan m w' :=
   Submodule.span_mono (Set.image_mono fun _ hc => ⟨hc.1, hc.2.trans h⟩)
@@ -299,17 +280,14 @@ private theorem atomSpan_eq_top : atomSpan m (m + 1) = ⊤ := by
   refine eq_top_iff.2 fun f _ => ?_
   obtain ⟨q, hq, r, hr, hf⟩ := exists_eq_add_majority_mul (R := ZMod 2) f
   have hlow : lowDegree (ZMod 2) (Fin (2 * m + 1)) m ≤ atomSpan m (m + 1) := by
-    refine Submodule.span_le.2 ?_
-    rintro _ ⟨A, hA, rfl⟩
+    refine Submodule.span_le.2 ?_; rintro _ ⟨A, hA, rfl⟩
     exact Submodule.subset_span
       ⟨(A, false), ⟨hA, by simpa [atomWeight] using Nat.le_succ_of_le hA⟩, atom_false A⟩
   have hmaj : lowDegree (ZMod 2) (Fin (2 * m + 1)) m ≤
       (atomSpan m (m + 1)).comap (LinearMap.mulLeft (ZMod 2) majVal) := by
-    refine Submodule.span_le.2 ?_
-    rintro _ ⟨A, hA, rfl⟩
-    refine Submodule.subset_span ⟨(A, true), ⟨hA, by simp [atomWeight]⟩, ?_⟩
-    rw [← majVal_mul_atom (A, false), atom_false]
-    rfl
+    refine Submodule.span_le.2 ?_; rintro _ ⟨A, hA, rfl⟩
+    exact Submodule.subset_span
+      ⟨(A, true), ⟨hA, by simp [atomWeight]⟩, by rw [← majVal_mul_atom (A, false), atom_false]; rfl⟩
   rw [show f = q + majVal * r from funext hf]
   exact add_mem (hlow hq) (hmaj hr)
 
@@ -324,15 +302,11 @@ private theorem bitVal_mul_atom_mem {c : Finset (Fin (2 * m + 1)) × Bool} (hc :
     have hcard := card_insert_le j A
     refine Submodule.subset_span
       ⟨(insert j A, false), ⟨show #(insert j A) ≤ m by omega, ?_⟩, ?_⟩
-    · simp only [atomWeight, Bool.false_eq_true, ↓reduceIte]
-      omega
+    · simp only [atomWeight, Bool.false_eq_true, ↓reduceIte]; omega
     · rw [atom_false, atom_false, ← monomial_singleton, monomial_mul, insert_eq]
   · refine atomSpan_mono ?_ (atomSpan_eq_top (m := m) ▸ Submodule.mem_top)
-    cases b
-    · simp only [true_and, not_lt] at h
-      simp only [atomWeight, Bool.false_eq_true, ↓reduceIte]
+    cases b <;> simp only [atomWeight, true_and, not_lt, Bool.false_eq_true, ↓reduceIte] at h ⊢ <;>
       omega
-    · simp [atomWeight]
 
 private theorem gen_update (a : Fin k → Finset (Fin (2 * m + 1)) × Bool) (i : Fin k)
     (c : Finset (Fin (2 * m + 1)) × Bool) (x : BitString (k * (2 * m + 1))) :
@@ -355,8 +329,7 @@ private theorem gen_update_true (a : Fin k → Finset (Fin (2 * m + 1)) × Bool)
     (x : BitString (k * (2 * m + 1))) :
     gen (Function.update a i ((a i).1, true)) x = majVal (block x i) * gen a x := by
   conv_rhs => rw [← Function.update_eq_self i a, gen_update]
-  rw [gen_update, ← mul_assoc, ← majVal_mul_atom]
-  rfl
+  rw [gen_update, ← mul_assoc, ← majVal_mul_atom]; rfl
 
 private theorem genSpan_mono {r s : ℕ} (h : r ≤ s) : genSpan k m r ≤ genSpan k m s :=
   Submodule.span_mono (Set.image_mono fun _ ha => ⟨ha.1, ha.2.trans h⟩)
@@ -369,35 +342,28 @@ private theorem comp_block_mul_mem_genSpan {a : Fin k → Finset (Fin (2 * m + 1
       genSpan k m (w + ∑ j ∈ univ.erase i, atomWeight m (a j)) := by
   let L := LinearMap.mulRight (ZMod 2) (fun x => ∏ j ∈ univ.erase i, atom (a j) (block x j)) ∘ₗ
     LinearMap.funLeft (ZMod 2) (ZMod 2) fun x : BitString (k * (2 * m + 1)) => block x i
-  suffices h : atomSpan m w ≤ (genSpan k m (w + ∑ j ∈ univ.erase i, atomWeight m (a j))).comap L
-    from h hf
-  refine Submodule.span_le.2 ?_
+  refine (Submodule.span_le.2 ?_ :
+    atomSpan m w ≤ (genSpan k m (w + ∑ j ∈ univ.erase i, atomWeight m (a j))).comap L) hf
   rintro _ ⟨c, ⟨hc, hcw⟩, rfl⟩
-  refine Submodule.subset_span ⟨Function.update a i c, ⟨fun j => ?_, ?_⟩, ?_⟩
-  · by_cases hj : j = i
-    · subst hj
-      simpa using hc
+  refine Submodule.subset_span ⟨Function.update a i c, ⟨fun j => ?_, ?_⟩, funext fun x => ?_⟩
+  · rcases eq_or_ne j i with rfl | hj
+    · simpa using hc
     · simpa [Function.update_of_ne hj] using ha j
-  · rw [genWeight_update]
-    omega
-  · funext x
-    simp [L, gen_update]
+  · rw [genWeight_update]; omega
+  · simp [L, gen_update]
 
 /-- Multiplying by a variable raises the weight by at most one. -/
 private theorem bitVal_mul_mem_genSpan (v : Fin (k * (2 * m + 1))) {r : ℕ}
     {f : BitString (k * (2 * m + 1)) → ZMod 2} (hf : f ∈ genSpan k m r) :
     (fun x => bitVal (ZMod 2) (x v)) * f ∈ genSpan k m (r + 1) := by
-  suffices h : genSpan k m r ≤
-      (genSpan k m (r + 1)).comap (LinearMap.mulLeft (ZMod 2) fun x => bitVal (ZMod 2) (x v))
-    from h hf
-  refine Submodule.span_le.2 ?_
+  refine (Submodule.span_le.2 ?_ : genSpan k m r ≤
+    (genSpan k m (r + 1)).comap (LinearMap.mulLeft (ZMod 2) fun x => bitVal (ZMod 2) (x v))) hf
   rintro _ ⟨a, ⟨ha, har⟩, rfl⟩
   obtain ⟨⟨i, j⟩, rfl⟩ := finProdFinEquiv.surjective v
   have hmem := comp_block_mul_mem_genSpan ha i (bitVal_mul_atom_mem (ha i) j)
   rw [add_right_comm, ← genWeight_eq] at hmem
   refine genSpan_mono (r := genWeight m a + 1) (by omega) ?_
-  convert hmem using 1
-  funext x
+  convert hmem using 1; funext x
   simp only [LinearMap.mulLeft_apply, Pi.mul_apply, gen, ← mul_prod_erase univ _ (mem_univ i),
     mul_assoc]
   rfl
@@ -418,20 +384,18 @@ weight by at most `d` [Chattopadhyay et al., Lemma 2.2][CHLLTV2026]. -/
 private theorem mul_mem_genSpan {d r : ℕ} {P f : BitString (k * (2 * m + 1)) → ZMod 2}
     (hP : P ∈ lowDegree (ZMod 2) (Fin (k * (2 * m + 1))) d) (hf : f ∈ genSpan k m r) :
     P * f ∈ genSpan k m (r + d) := by
-  suffices h : lowDegree (ZMod 2) (Fin (k * (2 * m + 1))) d ≤
-      (genSpan k m (r + d)).comap (LinearMap.mulRight (ZMod 2) f) from h hP
-  refine Submodule.span_le.2 ?_
+  refine (Submodule.span_le.2 ?_ : lowDegree (ZMod 2) (Fin (k * (2 * m + 1))) d ≤
+    (genSpan k m (r + d)).comap (LinearMap.mulRight (ZMod 2) f)) hP
   rintro _ ⟨S, hS, rfl⟩
   exact genSpan_mono (Nat.add_le_add_left hS r) (monomial_mul_mem_genSpan S hf)
 
 /-- The products span all functions. -/
 private theorem mem_genSpan (f : BitString (k * (2 * m + 1)) → ZMod 2) :
     f ∈ genSpan k m (k * (2 * m + 1)) := by
-  have h1 : (1 : BitString (k * (2 * m + 1)) → ZMod 2) ∈ genSpan k m 0 := by
-    refine Submodule.subset_span ⟨fun _ => (∅, false), ⟨fun _ => by simp, by
-      simp [genWeight, atomWeight]⟩, ?_⟩
-    funext x
-    simp [gen, atom_false]
+  have h1 : (1 : BitString (k * (2 * m + 1)) → ZMod 2) ∈ genSpan k m 0 :=
+    Submodule.subset_span ⟨fun _ => (∅, false),
+      ⟨fun _ => by simp, by simp [genWeight, atomWeight]⟩,
+      funext fun _ => by simp [gen, atom_false]⟩
   simpa using mul_mem_genSpan (mem_lowDegree_self f) h1
 
 /-- Parity in `ZMod 2` is the sum of the bits. -/
@@ -440,8 +404,7 @@ private theorem bitVal_parityOn {n : ℕ} (s : Finset (Fin n)) (y : BitString n)
   induction s using Finset.induction_on with
   | empty => simp
   | insert i s hi ih =>
-    rw [parityOn_insert hi, sum_insert hi, ← ih]
-    cases y i <;> cases parityOn s y <;> decide
+    rw [parityOn_insert hi, sum_insert hi, ← ih]; cases y i <;> cases parityOn s y <;> decide
 
 /-- The exclusive or of the majorities, in `ZMod 2`. -/
 private theorem bitVal_xorMajority (x : BitString (k * (2 * m + 1))) :
@@ -458,20 +421,12 @@ private theorem gen_update_update_mem_span_firstFlagUnset {d : ℕ}
       Submodule.span (ZMod 2) (gen '' {b | (∀ t, #(b t).1 ≤ m) ∧
         FirstFlagUnset (fun A : Finset (Fin (2 * m + 1)) => #A + d ≤ m) b}) := by
   intro a'
-  have hfst (t : Fin k) : (a' t).1 = (a t).1 := by
-    by_cases ht : t = i
-    · subst ht
-      simp [a']
-    · simp [a', Function.update_of_ne ht]
   have hfst' (t : Fin k) : (Function.update a' j ((a' j).1, true) t).1 = (a t).1 := by
-    by_cases ht : t = j
-    · subst ht
-      simp [hfst]
-    · simp [Function.update_of_ne ht, hfst]
+    rcases eq_or_ne t j with rfl | htj <;> rcases eq_or_ne t i with rfl | hti <;>
+      simp [a', Function.update_of_ne, *]
   refine Submodule.subset_span ⟨_, ⟨fun t => hfst' t ▸ ha t, fun t ht hmt => ?_⟩, rfl⟩
   simp only [hfst'] at ht hmt
-  rw [← eq_of_forall_lt_not hi hmi ht hmt, Function.update_of_ne hj.symm]
-  simp [a']
+  rw [← eq_of_forall_lt_not hi hmi ht hmt, Function.update_of_ne hj.symm]; simp [a']
 
 /-- The submodule of functions on `BitString (k * (2 * m + 1))` that agree on `E` with some element
 of `V`. -/
@@ -548,10 +503,8 @@ private theorem exists_mem_span_firstFlagUnset_eq {d : ℕ}
     obtain ⟨g, hg, hgx⟩ := add_mem hlow (Submodule.sum_mem U hrest)
     exact ⟨g, hg, fun x hx =>
       (hgx x hx).trans (mul_gen_update_false_add_sum_erase_eq (hE x hx) hb)⟩
-  suffices h : genSpan k m (k * (2 * m + 1)) ≤ U from h (mem_genSpan f)
-  refine Submodule.span_le.2 ?_
-  rintro _ ⟨a, ⟨ha, -⟩, rfl⟩
-  exact hgen _ a ha rfl
+  refine (Submodule.span_le.2 ?_ : genSpan k m (k * (2 * m + 1)) ≤ U) (mem_genSpan f)
+  rintro _ ⟨a, ⟨ha, -⟩, rfl⟩; exact hgen _ a ha rfl
 
 end Blocks
 
@@ -575,24 +528,16 @@ theorem two_mul_card_agree_xorMajority_le {k m d : ℕ}
   have hE : #E ≤ #T := LinearAlgebra.card_le_of_forall_exists_mem_span_eq E T gen fun f => by
     obtain ⟨g, hg, hgx⟩ := exists_mem_span_firstFlagUnset_eq hP (E := E)
       (fun x hx => by rw [← bitVal_xorMajority]; exact (mem_filter.1 hx).2) f
-    refine ⟨g, ?_, hgx⟩
-    convert hg using 3
-    ext a
-    simp [T, S, Fintype.mem_piFinset]
+    exact ⟨g, by convert hg using 3; ext a; simp [T, S, Fintype.mem_piFinset], hgx⟩
   have hS : 2 * #S ≤ 2 ^ (2 * m + 1) := by
     convert two_mul_card_small_le (2 * m + 1) using 3
-    ext A
-    simp only [S, mem_filter, mem_univ, true_and]
-    omega
-  have hband : #{A ∈ S | ¬#A + d ≤ m} =
-      #{A : Finset (Fin (2 * m + 1)) | #A ≤ m ∧ m < #A + d} := by
-    simp only [S, filter_filter, not_le]
+    ext A; simp only [S, mem_filter, mem_univ, true_and]; omega
   calc
     2 * #E ≤ 2 * #T := Nat.mul_le_mul_left 2 hE
     _ = (2 * #S) ^ k + (2 * #{A ∈ S | ¬#A + d ≤ m}) ^ k :=
       two_mul_card_filter_firstFlagUnset S k
     _ ≤ (2 ^ (2 * m + 1)) ^ k + (2 * #{A ∈ S | ¬#A + d ≤ m}) ^ k := by gcongr
-    _ = _ := by rw [hband, ← pow_mul, Nat.mul_comm (2 * m + 1)]
+    _ = _ := by simp only [S, filter_filter, not_le, ← pow_mul, Nat.mul_comm (2 * m + 1)]
 
 /-! ### Correlation -/
 
@@ -602,27 +547,17 @@ private theorem abs_expect_signVal_mul_le_of_two_mul_card_le {n : ℕ} {f p : Bo
     {B : ℝ} (h₁ : 2 * (#{x | p x = f x} : ℝ) ≤ 2 ^ n + B)
     (h₂ : 2 * (#{x | (!p x) = f x} : ℝ) ≤ 2 ^ n + B) :
     |𝔼 x, signVal (f x) * signVal (p x)| ≤ B / 2 ^ n := by
+  have hnot (x : BitString n) : ((!p x) = f x) ↔ p x ≠ f x := by cases f x <;> cases p x <;> decide
   have hd : #{x | (!p x) = f x} = hammingDist f p := by
-    simp only [hammingDist]
-    congr 1
-    ext x
-    simp only [mem_filter, mem_univ, true_and]
-    cases f x <;> cases p x <;> decide
+    simp only [hammingDist, hnot, ne_comm]
   have hsum : (#{x | p x = f x} : ℝ) + #{x | (!p x) = f x} = 2 ^ n := by
     have h := card_filter_add_card_filter_not (s := (univ : Finset (BitString n)))
       fun x => p x = f x
-    rw [card_univ, BitString.card] at h
-    have he : #{x | ¬p x = f x} = #{x | (!p x) = f x} := by
-      congr 1
-      ext x
-      simp only [mem_filter, mem_univ, true_and]
-      cases f x <;> cases p x <;> decide
-    rw [he] at h
+    simp only [card_univ, BitString.card, ← hnot] at h
     exact_mod_cast h
   have hpos : (0 : ℝ) < 2 ^ n := by positivity
   have key : 1 - 2 * (hammingDist f p : ℝ) / 2 ^ n = (2 * #{x | p x = f x} - 2 ^ n) / 2 ^ n := by
-    rw [eq_div_iff hpos.ne', sub_mul, div_mul_cancel₀ _ hpos.ne', one_mul, ← hd]
-    linarith
+    rw [eq_div_iff hpos.ne', sub_mul, div_mul_cancel₀ _ hpos.ne', one_mul, ← hd]; linarith
   rw [expect_signVal_mul_signVal, Fintype.card_fin, key, abs_div, abs_of_pos hpos]
   exact div_le_div_of_nonneg_right (abs_le.2 ⟨by linarith, by linarith⟩) hpos.le
 
@@ -641,10 +576,8 @@ theorem abs_expect_signVal_xorMajority_mul_signVal_le_card {k m d : ℕ}
     cases a <;> cases b <;> decide
   have h₁ := two_mul_card_agree_xorMajority_le hp
   have h₂ := two_mul_card_agree_xorMajority_le (P := fun x => bitVal (ZMod 2) (!p x)) (by
-    have h : (fun x => bitVal (ZMod 2) (!p x)) = 1 - fun x => bitVal (ZMod 2) (p x) := by
-      funext x
-      simp [bitVal_not]
-    rw [h]
+    rw [show (fun x => bitVal (ZMod 2) (!p x)) = 1 - fun x => bitVal (ZMod 2) (p x) from
+      funext fun _ => by simp [bitVal_not]]
     exact one_sub_mem_lowDegree hp)
   simp only [hinj] at h₁ h₂
   rw [div_pow, ← pow_mul, Nat.mul_comm (2 * m + 1)]
@@ -658,17 +591,16 @@ private theorem card_filter_card_le_le_choose (m d : ℕ) :
     _ ≤ #((Icc (m + 1 - d) m).biUnion fun s => powersetCard s (univ : Finset (Fin (2 * m + 1)))) :=
       card_le_card fun A hA => by
         simp only [mem_filter, mem_univ, true_and] at hA
-        simp only [mem_biUnion, mem_Icc, mem_powersetCard]
-        exact ⟨#A, ⟨by omega, hA.1⟩, subset_univ A, rfl⟩
+        exact mem_biUnion.2
+          ⟨#A, mem_Icc.2 ⟨by omega, hA.1⟩, mem_powersetCard.2 ⟨subset_univ A, rfl⟩⟩
     _ ≤ ∑ s ∈ Icc (m + 1 - d) m, #(powersetCard s (univ : Finset (Fin (2 * m + 1)))) :=
       card_biUnion_le
-    _ ≤ ∑ _s ∈ Icc (m + 1 - d) m, (2 * m + 1).choose m := by
-      refine sum_le_sum fun s _ => ?_
-      rw [card_powersetCard, card_univ, Fintype.card_fin]
-      simpa [show (2 * m + 1) / 2 = m by omega] using Nat.choose_le_middle s (2 * m + 1)
+    _ ≤ ∑ _s ∈ Icc (m + 1 - d) m, (2 * m + 1).choose m :=
+      sum_le_sum fun s _ => by
+        rw [card_powersetCard, card_univ, Fintype.card_fin]
+        simpa [show (2 * m + 1) / 2 = m by omega] using Nat.choose_le_middle s (2 * m + 1)
     _ ≤ d * (2 * m + 1).choose m := by
-      rw [sum_const, Nat.card_Icc, smul_eq_mul]
-      exact Nat.mul_le_mul_right _ (by omega)
+      rw [sum_const, Nat.card_Icc, smul_eq_mul]; exact Nat.mul_le_mul_right _ (by omega)
 
 /-- The middle binomial coefficient of an odd number `ℓ` is at most `2 ^ ℓ / √ℓ`. -/
 private theorem choose_mul_sqrt_le (m : ℕ) :
@@ -676,12 +608,8 @@ private theorem choose_mul_sqrt_le (m : ℕ) :
   have h := choose_half_sq_mul_le (2 * m + 1)
   rw [show (2 * m + 1) / 2 = m by omega] at h
   have h' : ((2 * m + 1).choose m : ℝ) ^ 2 * (2 * m + 1 : ℕ) ≤ (2 ^ (2 * m + 1)) ^ 2 := by
-    have : (2 * m + 1).choose m ^ 2 * (2 * m + 1) ≤ (2 ^ (2 * m + 1)) ^ 2 :=
-      calc
-        _ ≤ (2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1) := Nat.mul_le_mul_left _ (Nat.le_succ _)
-        _ ≤ 4 ^ (2 * m + 1) := h
-        _ = (2 ^ (2 * m + 1)) ^ 2 := by rw [← pow_mul, pow_mul']; norm_num
-    exact_mod_cast this
+    exact_mod_cast (Nat.mul_le_mul_left _ (Nat.le_succ _)).trans
+      (h.trans_eq (by rw [← pow_mul, pow_mul']; norm_num))
   rw [← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ 2 ^ (2 * m + 1)),
     ← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ (2 * m + 1).choose m),
     ← Real.sqrt_mul (by positivity)]

@@ -382,11 +382,6 @@ private theorem primrec_mlCappedStep :
   simp only [mlCappedStep]
   cases mlCand _ _ <;> rfl
 
-private theorem ofReal_two_inv_pow (n : ℕ) :
-    ENNReal.ofReal ((2 : ℝ)⁻¹ ^ n) = (2 : ℝ≥0∞)⁻¹ ^ n := by
-  rw [ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_inv_of_pos (by positivity)]
-  norm_num
-
 private theorem nat_mul_two_pow_le_iff_ennreal (c k M : ℕ) :
     c * 2 ^ k ≤ 2 ^ M ↔ (c : ℝ≥0∞) * (2 : ℝ≥0∞)⁻¹ ^ M ≤ (2 : ℝ≥0∞)⁻¹ ^ k := by
   have hM : (2 : ℝ≥0∞) ^ M ≠ 0 ∧ (2 : ℝ≥0∞) ^ M ≠ ⊤ := ⟨by positivity, by simp⟩
@@ -624,7 +619,9 @@ private theorem primrec_compressCand : Primrec compressCand := by
 private theorem tsum_universalPrefixBits_ennreal_le_one :
     (∑' q : DescriptionMethod.universalPrefixBits.haltingSet,
       (2 : ℝ≥0∞)⁻¹ ^ (q : List Bool).length) ≤ 1 := by
-  simp_rw [← ofReal_two_inv_pow]
+  have hpow (n : ℕ) : (2 : ℝ≥0∞)⁻¹ ^ n = ENNReal.ofReal ((2 : ℝ)⁻¹ ^ n) := by
+    rw [ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_inv_of_pos (by positivity)]; norm_num
+  simp_rw [hpow]
   rw [← ENNReal.ofReal_tsum_of_nonneg (fun _ => by positivity)
     DescriptionMethod.isPrefixFree_universalPrefixBits.summable_two_inv_pow_length]
   exact ENNReal.ofReal_le_one.mpr
