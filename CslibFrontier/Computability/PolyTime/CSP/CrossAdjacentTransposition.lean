@@ -163,9 +163,8 @@ private theorem positioned_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   rw [← hstate] at hp
   rw [transposeAdjacent, ite_eq_left hvalid, hr]
   refine ⟨left_body _ _, hb, hJ, ?_⟩
-  rw [left_ports, hp, List.map_append]
-  rw [show R.length = (R.map (2 * ·)).length from (List.length_map _).symm]
-  rw [List.append_assoc, List.rotate_append_length_eq]
+  rw [left_ports, hp, List.map_append, show R.length = (R.map (2 * ·)).length from
+    (List.length_map _).symm, List.append_assoc, List.rotate_append_length_eq]
 
 /-- The actual directed port word has fresh middle names carrying reversed values.
 Repeated names and malformed tables need no premise. -/
@@ -396,9 +395,7 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
           exact le_max_right _ _
         · intro v hv
           obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
-          apply hentry
-          intro j
-          exact Nat.mod_lt _ (by omega)
+          exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
 
 private theorem enc_ports_perm {xs ys : List ℕ} (h : xs.Perm ys) :
     (encList encNat xs).length = (encList encNat ys).length :=
