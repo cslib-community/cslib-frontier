@@ -279,9 +279,7 @@ private theorem doubleLogInv_preserve {S : IndexedSignatureScheme} {b : Bool}
   by_cases hfresh :
       (requestDecoder.decode w).1 < 2 ∧ (requestDecoder.decode w).1 ∉ signed.map Prod.fst
   · by_cases hslot : (requestDecoder.decode w).1 = b.toNat
-    · rw [doubleJointOracle_planted hcap hinv hfresh hslot] at hmem
-      simp only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨σ, -, -, rfl, rfl⟩ := hmem
+    · supp_cases hmem [doubleJointOracle_planted hcap hinv hfresh hslot]
       refine ⟨?_, ?_⟩
       · simp only [List.map_cons, List.mem_cons, true_or, hslot.symm]
       · intro m hm
@@ -289,17 +287,12 @@ private theorem doubleLogInv_preserve {S : IndexedSignatureScheme} {b : Bool}
         · rcases Prod.mk.inj heq with ⟨-, rfl⟩
           exact List.mem_cons.mpr (Or.inl (Prod.ext hslot.symm rfl))
         · exact List.mem_cons_of_mem _ (hinv.2 m hm)
-    · rw [doubleJointOracle_unplanted hfresh hslot] at hmem
-      simp only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨σ, -, -, rfl, rfl⟩ := hmem
+    · supp_cases hmem [doubleJointOracle_unplanted hfresh hslot]
       have hne : b.toNat ≠ (requestDecoder.decode w).1 := Ne.symm hslot
       refine ⟨?_, ?_⟩
       · simpa only [doubleLogInv, List.map_cons, List.mem_cons, hne, false_or] using hinv.1
-      · intro m hm
-        exact List.mem_cons_of_mem _ (hinv.2 m hm)
-  · rw [doubleJointOracle_refused hfresh] at hmem
-    simp only [PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    obtain ⟨-, rfl⟩ := hmem
+      · exact fun m hm => List.mem_cons_of_mem _ (hinv.2 m hm)
+  · supp_cases hmem [doubleJointOracle_refused hfresh]
     exact hinv
 
 /-- Projecting the joint run onto `(output, signed)` recovers `(S.double hcap).indexedSigningOracle`
@@ -397,8 +390,7 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true +
           (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary true) n)) true := by
     rw [hsplit, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-    have hunif : ∀ b : Bool, (ProbComp.eval (ProbComp.uniform Bool)) b = (2 : ℝ≥0∞)⁻¹ := by
-      intro b
+    have hunif (b : Bool) : (ProbComp.eval (ProbComp.uniform Bool)) b = (2 : ℝ≥0∞)⁻¹ := by
       simp [ProbComp.eval_uniform, PMF.uniformOfFintype_apply]
     rw [hunif false, hunif true, ← mul_add, ← mul_assoc,
       ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul, add_comm]
