@@ -212,6 +212,14 @@ lemma serialDictatorship_rank_le_of_lt {n : ℕ} (p : Profile n) (σ : Equiv.Per
   have hle := serialDictPick_optimal p σ (σ.symm j) hnot
   simpa only [serialDictFun, Equiv.apply_symm_apply] using hle
 
+/-- When `j` picks `a` strictly before `i` picks `b ≠ a`, `j` strictly prefers `a` over `b`. -/
+private lemma serialDictatorship_rank_lt_of_lt {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n))
+    {j i a b : Fin n} (hlt : (σ.symm j).val < (σ.symm i).val)
+    (ha : serialDictatorship p σ j = a) (hb : serialDictatorship p σ i = b) (hab : a ≠ b) :
+    (p j).symm a < (p j).symm b := by
+  subst ha hb
+  exact (serialDictatorship_rank_le_of_lt p σ hlt).lt_of_ne fun h => hab ((p j).symm.injective h)
+
 /-- Deterministic serial dictatorship is Pareto efficient for every priority order `σ`. -/
 theorem serialDictatorship_isParetoEfficient {n : ℕ} (p : Profile n) (σ : Equiv.Perm (Fin n)) :
     IsParetoEfficientPerm p (serialDictatorship p σ) := by
@@ -341,26 +349,10 @@ lemma rsd_apply {n : ℕ} (p : Profile n) (i o : Fin n) :
 
 lemma rsd_apply_pos_iff {n : ℕ} (p : Profile n) (i o : Fin n) :
     0 < rsd p i o ↔ ∃ σ : Equiv.Perm (Fin n), serialDictatorship p σ i = o := by
-  rw [rsd_apply]
-  have hfac_pos : (0 : ℝ) < (Nat.factorial n : ℝ)⁻¹ :=
-    inv_pos.mpr (Nat.cast_pos.mpr (Nat.factorial_pos n))
-  rw [mul_pos_iff_of_pos_left hfac_pos]
-  constructor
-  · intro hsum
-    by_contra! hnone
-    have : ∑ σ : Equiv.Perm (Fin n),
-        (if serialDictatorship p σ i = o then (1 : ℝ) else 0) = 0 :=
-      Finset.sum_eq_zero fun σ _ => by simp [hnone σ]
-    linarith
-  · rintro ⟨σ, hσ⟩
-    have hnn : ∀ τ : Equiv.Perm (Fin n),
-        (0 : ℝ) ≤ if serialDictatorship p τ i = o then 1 else 0 := fun τ => by
-      split_ifs <;> norm_num
-    have h1 : (1 : ℝ) ≤ ∑ τ : Equiv.Perm (Fin n),
-        if serialDictatorship p τ i = o then 1 else 0 := by
-      calc (1 : ℝ) = if serialDictatorship p σ i = o then 1 else 0 := by simp [hσ]
-        _ ≤ _ := Finset.single_le_sum (fun τ _ => hnn τ) (Finset.mem_univ σ)
-    linarith
+  rw [rsd_apply, mul_pos_iff_of_pos_left (by positivity),
+    Finset.sum_pos_iff_of_nonneg fun σ _ => by split_ifs <;> norm_num]
+  simp only [Finset.mem_univ, true_and]
+  exact exists_congr fun σ => by split_ifs with h <;> simp [h]
 
 /-- Every `rsd p` is doubly stochastic. -/
 theorem rsd_mem_doublyStochastic {n : ℕ} (p : Profile n) :
@@ -377,26 +369,15 @@ theorem rsd_mem_doublyStochastic {n : ℕ} (p : Profile n) :
   · simp_rw [rsd_apply, ← Finset.mul_sum]
     rw [Finset.sum_comm]
     have hrow : ∀ σ : Equiv.Perm (Fin n),
-        ∑ o : Fin n, (if serialDictatorship p σ i = o then (1 : ℝ) else 0) = 1 := by
-      intro σ
-      rw [Finset.sum_eq_single (serialDictatorship p σ i)]
-      · simp
-      · intro o _ ho; simp [ho.symm]
-      · intro h; exact absurd (Finset.mem_univ _) h
+        ∑ o : Fin n, (if serialDictatorship p σ i = o then (1 : ℝ) else 0) = 1 := by simp
     simp only [hrow, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one, hcard]
     exact inv_mul_cancel₀ hfac
   · simp_rw [rsd_apply, ← Finset.mul_sum]
     rw [Finset.sum_comm]
     have hcol : ∀ σ : Equiv.Perm (Fin n),
-        ∑ i : Fin n, (if serialDictatorship p σ i = o then (1 : ℝ) else 0) = 1 := by
-      intro σ
-      rw [Finset.sum_eq_single ((serialDictatorship p σ).symm o)]
-      · simp
-      · intro i _ hi
-        have hne : serialDictatorship p σ i ≠ o := fun heq =>
-          hi ((serialDictatorship p σ).eq_symm_apply.mpr heq)
-        simp [hne]
-      · intro h; exact absurd (Finset.mem_univ _) h
+        ∑ i : Fin n, (if serialDictatorship p σ i = o then (1 : ℝ) else 0) = 1 := fun σ =>
+      (Equiv.sum_comp (serialDictatorship p σ) fun x => if x = o then (1 : ℝ) else 0).trans
+        (by simp)
     simp only [hcol, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one, hcard]
     exact inv_mul_cancel₀ hfac
 
@@ -410,29 +391,17 @@ theorem rsd_isExPostEfficient {n : ℕ} (p : Profile n) : IsExPostEfficient p (r
   refine ⟨w, fun μ => mul_nonneg (inv_nonneg.mpr hfac_pos.le) (Nat.cast_nonneg _), ?_, ?_, ?_⟩
   · have hsum_card : ∑ μ : Equiv.Perm (Fin n),
         (Finset.univ.filter fun σ : Equiv.Perm (Fin n) => serialDictatorship p σ = μ).card =
-        Nat.factorial n := by
-      have hfib : ∑ μ : Equiv.Perm (Fin n),
-          (Finset.univ.filter fun σ : Equiv.Perm (Fin n) => serialDictatorship p σ = μ).card =
-          (Finset.univ : Finset (Equiv.Perm (Fin n))).card := by
-        have h1 : ∀ μ : Equiv.Perm (Fin n),
-            (Finset.univ.filter fun σ : Equiv.Perm (Fin n) => serialDictatorship p σ = μ).card =
-              ∑ _σ ∈ Finset.univ.filter (fun σ : Equiv.Perm (Fin n) =>
-                serialDictatorship p σ = μ), (1 : ℕ) := fun _ => by rw [Finset.card_eq_sum_ones]
-        simp_rw [h1]
-        rw [Finset.sum_fiberwise, Finset.card_eq_sum_ones]
-      rw [hfib, Finset.card_univ, Fintype.card_perm, Fintype.card_fin]
+        Nat.factorial n :=
+      (Finset.card_eq_sum_card_fiberwise (f := serialDictatorship p) (s := Finset.univ)
+        (t := Finset.univ) fun _ _ => Finset.mem_univ _).symm.trans (by simp [Fintype.card_perm])
     simp only [w, ← Finset.mul_sum, ← Nat.cast_sum, hsum_card]
     exact inv_mul_cancel₀ hfac_pos.ne'
   · intro μ hpos
     have hcard_pos : 0 <
-        (Finset.univ.filter fun σ : Equiv.Perm (Fin n) => serialDictatorship p σ = μ).card := by
-      by_contra h0
-      have heq : (Finset.univ.filter fun σ : Equiv.Perm (Fin n) =>
-          serialDictatorship p σ = μ).card = 0 := by omega
-      simp [w, heq] at hpos
+        (Finset.univ.filter fun σ : Equiv.Perm (Fin n) => serialDictatorship p σ = μ).card :=
+      Nat.pos_of_ne_zero fun h0 => by simp [w, h0] at hpos
     obtain ⟨σ, hσ⟩ := Finset.card_pos.mp hcard_pos
-    rw [Finset.mem_filter] at hσ
-    rw [← hσ.2]
+    rw [← (Finset.mem_filter.mp hσ).2]
     exact serialDictatorship_isParetoEfficient p σ
   · ext i o
     simp only [Matrix.sum_apply, Matrix.smul_apply, smul_eq_mul, rsd, w, mul_assoc,
@@ -529,32 +498,20 @@ private lemma rsd_no_twoCycle_of_le_three {n : ℕ} (hn : n ≤ 3) (p : Profile 
     serialDictatorship_taken_before p σ₁ (o := a) (by rwa [hσ₁])
   obtain ⟨j₂, hj₂_lt, hj₂_eq⟩ :=
     serialDictatorship_taken_before p σ₂ (o := b) (by rwa [hσ₂])
-  have hj₁_pref : (p j₁).symm a < (p j₁).symm b := by
-    have hle := serialDictatorship_rank_le_of_lt p σ₁ hj₁_lt
-    rw [hj₁_eq, hσ₁] at hle
-    exact lt_of_le_of_ne hle (fun h => by
-      have hab_eq : a = b := (p j₁).symm.injective h
-      exact lt_irrefl _ (hab_eq ▸ hpref₁))
-  have hj₂_pref : (p j₂).symm b < (p j₂).symm a := by
-    have hle := serialDictatorship_rank_le_of_lt p σ₂ hj₂_lt
-    rw [hj₂_eq, hσ₂] at hle
-    exact lt_of_le_of_ne hle (fun h => by
-      have hab_eq : b = a := (p j₂).symm.injective h
-      exact lt_irrefl _ (hab_eq ▸ hpref₁))
+  have hab : a ≠ b := by rintro rfl; exact lt_irrefl _ hpref₁
+  have hj₁_pref := serialDictatorship_rank_lt_of_lt p σ₁ hj₁_lt hj₁_eq hσ₁ hab
+  have hj₂_pref := serialDictatorship_rank_lt_of_lt p σ₂ hj₂_lt hj₂_eq hσ₂ hab.symm
   have hj₁_ne_i₁ : j₁ ≠ i₁ := fun h => by subst h; omega
   have hj₁_ne_i₂ : j₁ ≠ i₂ := fun h => by subst h; exact lt_asymm hj₁_pref hpref₂
   have hj₂_ne_i₁ : j₂ ≠ i₁ := fun h => by subst h; exact lt_asymm hj₂_pref hpref₁
   have hj₂_ne_i₂ : j₂ ≠ i₂ := fun h => by subst h; omega
-  have heq : j₁ = j₂ := by
-    ext
-    have h1 : j₁.val ≠ i₁.val := fun h => hj₁_ne_i₁ (Fin.ext h)
-    have h2 : j₁.val ≠ i₂.val := fun h => hj₁_ne_i₂ (Fin.ext h)
-    have h3 : j₂.val ≠ i₁.val := fun h => hj₂_ne_i₁ (Fin.ext h)
-    have h4 : j₂.val ≠ i₂.val := fun h => hj₂_ne_i₂ (Fin.ext h)
-    have h5 : i₁.val ≠ i₂.val := fun h => hi_ne (Fin.ext h)
-    omega
-  subst heq
+  obtain rfl : j₁ = j₂ := by omega
   exact lt_asymm hj₁_pref hj₂_pref
+
+/-- In `Fin 3`, an element other than `i₁` is one of the two other distinct elements. -/
+private lemma fin3_eq_or_eq {i₁ i₂ i₃ j : Fin 3} (h12 : i₁ ≠ i₂) (h13 : i₁ ≠ i₃) (h23 : i₂ ≠ i₃)
+    (hj : j ≠ i₁) : j = i₂ ∨ j = i₃ := by
+  revert i₁ i₂ i₃ j; decide
 
 /-- On a 3-cycle in `Fin 3`, helper forcing `i₂` to prefer `a` over `b` whenever `i₁` gets `b`
 (`a > b`), `i₂` prefers `b > c`, and `i₃` prefers `c > a`. -/
@@ -571,34 +528,14 @@ private lemma rsd_threeCycle_force (p : Profile 3)
   obtain ⟨j, hj_lt, hj_eq⟩ :=
     serialDictatorship_taken_before p σ (o := a) (by rwa [hσ_eq])
   have hj_ne1 : j ≠ i₁ := fun h => by subst h; omega
-  have hj_case : j = i₂ ∨ j = i₃ := by
-    by_contra! hnot
-    have : j.val ≠ i₁.val ∧ j.val ≠ i₂.val ∧ j.val ≠ i₃.val ∧
-        i₁.val ≠ i₂.val ∧ i₁.val ≠ i₃.val ∧ i₂.val ≠ i₃.val :=
-      ⟨fun h => hj_ne1 (Fin.ext h), fun h => hnot.1 (Fin.ext h), fun h => hnot.2 (Fin.ext h),
-        fun h => h12 (Fin.ext h), fun h => h13 (Fin.ext h), fun h => h23 (Fin.ext h)⟩
-    omega
-  rcases hj_case with heq2 | heq3
-  · subst heq2
-    have hle := serialDictatorship_rank_le_of_lt p σ hj_lt
-    rw [hj_eq, hσ_eq] at hle
-    exact lt_of_le_of_ne hle fun h => hab ((p j).symm.injective h)
-  · subst heq3
-    -- `j = i₃` took `a` before `i₁` took `b`, so `c` must have been taken before `j`.
+  obtain rfl | rfl := fin3_eq_or_eq h12 h13 h23 hj_ne1
+  · exact serialDictatorship_rank_lt_of_lt p σ hj_lt hj_eq hσ_eq hab
+  · -- `j = i₃` took `a` before `i₁` took `b`, so `c` must have been taken before `j`.
     obtain ⟨k, hk_lt, hk_eq⟩ :=
       serialDictatorship_taken_before p σ (o := c) (by rwa [hj_eq])
     have hk_ne3 : k ≠ j := fun h => by subst h; omega
-    have hk_ne1 : k ≠ i₁ := fun h => by
-      subst h
-      have : b = c := hσ_eq.symm.trans hk_eq
-      exact hbc this
-    have hk_eq2 : k = i₂ := by
-      have : i₁.val ≠ i₂.val ∧ i₁.val ≠ j.val ∧ i₂.val ≠ j.val ∧
-          k.val ≠ i₁.val ∧ k.val ≠ j.val :=
-        ⟨fun h => h12 (Fin.ext h), fun h => h13 (Fin.ext h), fun h => h23 (Fin.ext h),
-          fun h => hk_ne1 (Fin.ext h), fun h => hk_ne3 (Fin.ext h)⟩
-      ext; omega
-    subst hk_eq2
+    have hk_ne1 : k ≠ i₁ := fun h => by subst h; exact hbc (hσ_eq.symm.trans hk_eq)
+    obtain rfl := (fin3_eq_or_eq h12 h13 h23 hk_ne1).resolve_right hk_ne3
     have hle := serialDictatorship_rank_le_of_lt p σ (lt_trans hk_lt hj_lt)
     rw [hk_eq, hσ_eq] at hle
     exact absurd (lt_of_lt_of_le h2 hle) (lt_irrefl _)
@@ -615,24 +552,19 @@ theorem rsd_isSDEfficient_of_le_three {n : ℕ} (hn : n ≤ 3) (p : Profile n) :
       (c ⟨(j.val + 1) % m, Nat.mod_lt _ (Nat.zero_lt_of_lt j.isLt)⟩) (c j)) →
         False := by
     intro m hm2 hmn c hc_inj hcyc
-    have hm_le : m = 2 ∨ m = 3 := by omega
-    rcases hm_le with rfl | rfl
+    obtain rfl | rfl : m = 2 ∨ m = 3 := by omega
     · have h01 : tradeRel p (rsd p) (c ⟨1, by omega⟩) (c ⟨0, by omega⟩) := hcyc ⟨0, by omega⟩
       have h10 : tradeRel p (rsd p) (c ⟨0, by omega⟩) (c ⟨1, by omega⟩) := by
         simpa [show (⟨(1 + 1) % 2, Nat.mod_lt _ (by omega)⟩ : Fin 2) = ⟨0, by omega⟩ from rfl]
           using hcyc ⟨1, by omega⟩
       exact rsd_no_twoCycle_of_le_three hn p h01 h10
-    · have hn3 : n = 3 := by omega
-      subst hn3
+    · obtain rfl : n = 3 := by omega
       let a := c ⟨0, by omega⟩
       let b := c ⟨1, by omega⟩
       let d := c ⟨2, by omega⟩
-      have hab : a ≠ b := fun h => by
-        have := congrArg Fin.val (hc_inj h); simp at this
-      have had : a ≠ d := fun h => by
-        have := congrArg Fin.val (hc_inj h); simp at this
-      have hbd : b ≠ d := fun h => by
-        have := congrArg Fin.val (hc_inj h); simp at this
+      have hab : a ≠ b := fun h => by simpa using hc_inj h
+      have had : a ≠ d := fun h => by simpa using hc_inj h
+      have hbd : b ≠ d := fun h => by simpa using hc_inj h
       have hba : tradeRel p (rsd p) b a := hcyc ⟨0, by omega⟩
       have hdb : tradeRel p (rsd p) d b := hcyc ⟨1, by omega⟩
       have had_e : tradeRel p (rsd p) a d := by
@@ -657,9 +589,6 @@ theorem rsd_isSDEfficient_of_le_three {n : ℕ} (hn : n ≤ 3) (p : Profile n) :
       have hσ₁ := (rsd_apply_pos_iff p i₁ a).mp hpos₁
       have hσ₂ := (rsd_apply_pos_iff p i₂ b).mp hpos₂
       have hσ₃ := (rsd_apply_pos_iff p i₃ d).mp hpos₃
-      have hf₁ : (p i₃).symm b < (p i₃).symm a :=
-        rsd_threeCycle_force p h13 h12 h23.symm hab.symm had
-          hpref₁ hpref₃ hpref₂ hσ₁
       have hf₂ : (p i₁).symm d < (p i₁).symm b :=
         rsd_threeCycle_force p h12.symm h23 h13 hbd.symm hab.symm
           hpref₂ hpref₁ hpref₃ hσ₂
@@ -668,39 +597,17 @@ theorem rsd_isSDEfficient_of_le_three {n : ℕ} (hn : n ≤ 3) (p : Profile n) :
           hpref₃ hpref₂ hpref₁ hσ₃
       -- Now inside `σ₁` where `i₁` picks `a`: `i₁` prefers `d > b > a` (`hf₂` and `hpref₁`).
       obtain ⟨σ₁, hσ₁_eq⟩ := hσ₁
-      -- Both `b` and `d` must be taken strictly before `i₁` takes `a`.
-      obtain ⟨jb, hjb_lt, hjb_eq⟩ :=
-        serialDictatorship_taken_before p σ₁ (o := b) (by rwa [hσ₁_eq])
+      -- `d` must be taken by `i₂` or `i₃` strictly before `i₁` takes `a`.
       obtain ⟨jd, hjd_lt, hjd_eq⟩ :=
         serialDictatorship_taken_before p σ₁ (o := d) (by
           rw [hσ₁_eq]; exact lt_trans hf₂ hpref₁)
-      have hjb_ne_jd : jb ≠ jd := fun h => by
-        subst h; exact hbd (hjb_eq.symm.trans hjd_eq)
-      have hjb_ne1 : jb ≠ i₁ := fun h => by subst h; omega
       have hjd_ne1 : jd ≠ i₁ := fun h => by subst h; omega
-      -- Either `i₂` took `b` (or `i₃` took `d`): both contradict `a` still being free.
-      have hcases : (jb = i₂ ∧ jd = i₃) ∨ (jb = i₃ ∧ jd = i₂) := by
-        have hvals : i₁.val ≠ i₂.val ∧ i₁.val ≠ i₃.val ∧ i₂.val ≠ i₃.val ∧
-            jb.val ≠ i₁.val ∧ jd.val ≠ i₁.val ∧ jb.val ≠ jd.val :=
-          ⟨fun h => h12 (Fin.ext h), fun h => h13 (Fin.ext h), fun h => h23 (Fin.ext h),
-            fun h => hjb_ne1 (Fin.ext h), fun h => hjd_ne1 (Fin.ext h),
-            fun h => hjb_ne_jd (Fin.ext h)⟩
-        by_cases hb2 : jb = i₂
-        · left; refine ⟨hb2, ?_⟩; ext; subst hb2; omega
-        · right
-          have hb3 : jb = i₃ := by ext; have : jb.val ≠ i₂.val := fun h => hb2 (Fin.ext h); omega
-          refine ⟨hb3, ?_⟩; ext; subst hb3; omega
-      rcases hcases with ⟨_, hjd⟩ | ⟨_, hjd⟩
-      · -- `i₃` picked `d` while `a` was free, contradicting `i₃` prefers `a > d`.
-        rw [hjd] at hjd_lt hjd_eq
-        have hle := serialDictatorship_rank_le_of_lt p σ₁ hjd_lt
-        rw [hjd_eq, hσ₁_eq] at hle
-        exact lt_asymm hpref₃ (lt_of_le_of_ne hle fun h => had.symm ((p i₃).symm.injective h))
+      obtain rfl | rfl := fin3_eq_or_eq h12 h13 h23 hjd_ne1
       · -- `i₂` picked `d` while `a` was free, contradicting `i₂` prefers `a > d` (`hf₃`).
-        rw [hjd] at hjd_lt hjd_eq
-        have hle := serialDictatorship_rank_le_of_lt p σ₁ hjd_lt
-        rw [hjd_eq, hσ₁_eq] at hle
-        exact lt_asymm hf₃ (lt_of_le_of_ne hle fun h => had.symm ((p i₂).symm.injective h))
+        exact lt_asymm hf₃ (serialDictatorship_rank_lt_of_lt p σ₁ hjd_lt hjd_eq hσ₁_eq had.symm)
+      · -- `i₃` picked `d` while `a` was free, contradicting `i₃` prefers `a > d`.
+        exact lt_asymm hpref₃
+          (serialDictatorship_rank_lt_of_lt p σ₁ hjd_lt hjd_eq hσ₁_eq had.symm)
   -- Reduce `TransGen` to a shortest simple cycle and apply `hstep`.
   obtain ⟨m, hm2, c, hc_inj, hcyc⟩ := exists_simple_tradeCycle hx
   have hm_le_n : m ≤ n := by

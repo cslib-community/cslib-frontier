@@ -686,50 +686,23 @@ private theorem IsReversible.spectralContraction_le_of_abs_sum_mul_stepOp_le
         ∑ x, (π x).toReal * P.stepOp f x ^ 2 := by
       rw [hrev.sum_mul_stepOp_comm]
       exact sum_congr rfl fun x _ => by ring
-    have hcomm' : ∑ x, (π x).toReal * P.stepOp f x * P.stepOp f x =
-        ∑ x, (π x).toReal * P.stepOp f x ^ 2 :=
-      sum_congr rfl fun x _ => by ring
     have hdiff : 4 * t * ∑ x, (π x).toReal * P.stepOp f x ^ 2 =
         (∑ x, (π x).toReal * u x * P.stepOp u x) -
           ∑ x, (π x).toReal * v x * P.stepOp v x := by
-      have expand_u : ∑ x, (π x).toReal * u x * P.stepOp u x =
-          t ^ 2 * (∑ x, (π x).toReal * f x * P.stepOp f x) +
-            t * (∑ x, (π x).toReal * f x * P.stepOp (P.stepOp f) x) +
-            t * (∑ x, (π x).toReal * P.stepOp f x * P.stepOp f x) +
-            ∑ x, (π x).toReal * P.stepOp f x * P.stepOp (P.stepOp f) x := by
-        simp only [u, map_add, map_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-        simp_rw [show ∀ x : S, (π x).toReal * (t * f x + P.stepOp f x) *
-            (t * P.stepOp f x + P.stepOp (P.stepOp f) x) =
-          t ^ 2 * ((π x).toReal * f x * P.stepOp f x) +
-            t * ((π x).toReal * f x * P.stepOp (P.stepOp f) x) +
-            t * ((π x).toReal * P.stepOp f x * P.stepOp f x) +
-            (π x).toReal * P.stepOp f x * P.stepOp (P.stepOp f) x by intro x; ring]
-        simp only [sum_add_distrib, ← mul_sum]
-      have expand_v : ∑ x, (π x).toReal * v x * P.stepOp v x =
-          t ^ 2 * (∑ x, (π x).toReal * f x * P.stepOp f x) -
-            t * (∑ x, (π x).toReal * f x * P.stepOp (P.stepOp f) x) -
-            t * (∑ x, (π x).toReal * P.stepOp f x * P.stepOp f x) +
-            ∑ x, (π x).toReal * P.stepOp f x * P.stepOp (P.stepOp f) x := by
-        simp only [v, map_sub, map_smul, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
-        simp_rw [show ∀ x : S, (π x).toReal * (t * f x - P.stepOp f x) *
-            (t * P.stepOp f x - P.stepOp (P.stepOp f) x) =
-          t ^ 2 * ((π x).toReal * f x * P.stepOp f x) -
-            t * ((π x).toReal * f x * P.stepOp (P.stepOp f) x) -
-            t * ((π x).toReal * P.stepOp f x * P.stepOp f x) +
-            (π x).toReal * P.stepOp f x * P.stepOp (P.stepOp f) x by intro x; ring]
-        simp only [sum_add_distrib, sum_sub_distrib, ← mul_sum]
-      rw [expand_u, expand_v, hcomm, hcomm']
+      rw [← sum_sub_distrib, show 4 * t * ∑ x, (π x).toReal * P.stepOp f x ^ 2 =
+          2 * t * ∑ x, (π x).toReal * f x * P.stepOp (P.stepOp f) x +
+            2 * t * ∑ x, (π x).toReal * P.stepOp f x ^ 2 by rw [hcomm]; ring,
+        mul_sum, mul_sum, ← sum_add_distrib]
+      refine sum_congr rfl fun x _ => ?_
+      simp only [u, v, map_add, map_sub, map_smul, Pi.add_apply, Pi.sub_apply, Pi.smul_apply,
+        smul_eq_mul]
       ring
     have hsum_sq : (∑ x, (π x).toReal * u x ^ 2) + ∑ x, (π x).toReal * v x ^ 2 =
         2 * (t ^ 2 * ∑ x, (π x).toReal * f x ^ 2 +
           ∑ x, (π x).toReal * P.stepOp f x ^ 2) := by
-      rw [← sum_add_distrib]
-      have hpt : ∀ x, (π x).toReal * u x ^ 2 + (π x).toReal * v x ^ 2 =
-          2 * (t ^ 2 * ((π x).toReal * f x ^ 2)) + 2 * ((π x).toReal * P.stepOp f x ^ 2) := by
-        intro x
-        simp only [u, v, Pi.add_apply, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
-        ring
-      simp_rw [hpt, sum_add_distrib, ← mul_sum]
+      rw [← sum_add_distrib, mul_sum, ← sum_add_distrib, mul_sum]
+      refine sum_congr rfl fun x _ => ?_
+      simp only [u, v, Pi.add_apply, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
       ring
     calc 4 * t * ∑ x, (π x).toReal * P.stepOp f x ^ 2
         ≤ |∑ x, (π x).toReal * u x * P.stepOp u x| +
@@ -1194,6 +1167,21 @@ omit [Fintype S] in
 private theorem support_subset_of_forall_ne_zero {π : PMF S} (hπ : ∀ x, π x ≠ 0) (ν : PMF S) :
     ν.support ⊆ π.support := fun x _ => (PMF.mem_support_iff π x).mpr (hπ x)
 
+omit [Fintype S] in
+private theorem toReal_mul_div_sub_one {π : PMF S} (hπ : ∀ x, π x ≠ 0) (z : S) (a : ℝ) :
+    (π z).toReal * (a / (π z).toReal - 1) = a - (π z).toReal := by
+  field_simp [(ENNReal.toReal_pos (hπ z) (π.apply_ne_top z)).ne']
+
+private theorem sum_toReal_mul_div_sub_one {π : PMF S} (hπ : ∀ x, π x ≠ 0) (ν : PMF S) :
+    ∑ z, (π z).toReal * ((ν z).toReal / (π z).toReal - 1) = 0 := by
+  simp_rw [toReal_mul_div_sub_one hπ, sum_sub_distrib, sum_toReal, sub_self]
+
+private theorem chiSquare_eq_sum_toReal_mul_sq {π : PMF S} (hπ : ∀ x, π x ≠ 0) (μ : PMF S) :
+    chiSquare μ π = ∑ x, (π x).toReal * ((μ x).toReal / (π x).toReal - 1) ^ 2 := by
+  rw [chiSquare_eq_sum (support_subset_of_forall_ne_zero hπ μ)]
+  refine sum_congr rfl fun x _ => ?_
+  field_simp [(ENNReal.toReal_pos (hπ x) (π.apply_ne_top x)).ne']
+
 private theorem stepOp_pow_relDensity {P : MarkovChain S} {π : PMF S}
     (hrev : P.IsReversible π) (hπ : ∀ x, π x ≠ 0) (ν : PMF S) (t : ℕ) (y : S) :
     (P ^ t).stepOp (fun x => (ν x).toReal / (π x).toReal - 1) y =
@@ -1216,22 +1204,9 @@ theorem IsReversible.chiSquare_bind_pow_le {P : MarkovChain S} {π : PMF S}
     (hrev : P.IsReversible π) (hπ : ∀ x, π x ≠ 0) (ν : PMF S) (t : ℕ) :
     chiSquare (ν.bind (P ^ t : MarkovChain S)) π ≤
       P.spectralContraction π ^ (2 * t) * chiSquare ν π := by
-  let g : S → ℝ := fun x => (ν x).toReal / (π x).toReal - 1
-  have hg_mean : ∑ x, (π x).toReal * g x = 0 := by
-    have hpt (x : S) : (π x).toReal * g x = (ν x).toReal - (π x).toReal := by
-      have hx : 0 < (π x).toReal := ENNReal.toReal_pos (hπ x) (π.apply_ne_top x)
-      simp only [g]
-      field_simp [hx.ne']
-    simp_rw [hpt, sum_sub_distrib, sum_toReal, sub_self]
-  have hchi_eq (μ : PMF S) :
-      chiSquare μ π = ∑ x, (π x).toReal * ((μ x).toReal / (π x).toReal - 1) ^ 2 := by
-    rw [chiSquare_eq_sum (support_subset_of_forall_ne_zero hπ μ)]
-    refine sum_congr rfl fun x _ => ?_
-    have hx : 0 < (π x).toReal := ENNReal.toReal_pos (hπ x) (π.apply_ne_top x)
-    field_simp [hx.ne']
-  rw [hchi_eq (ν.bind (P ^ t : MarkovChain S)), hchi_eq ν]
+  rw [chiSquare_eq_sum_toReal_mul_sq hπ, chiSquare_eq_sum_toReal_mul_sq hπ]
   simp_rw [← stepOp_pow_relDensity hrev hπ ν t]
-  exact hrev.isStationary.sum_mul_stepOp_pow_sq_le hg_mean t
+  exact hrev.isStationary.sum_mul_stepOp_pow_sq_le (sum_toReal_mul_div_sub_one hπ ν) t
 
 /-- **Pointwise `χ²` contraction**: `χ²((P ^ t) x ‖ π) ≤ λ_*^{2t} (1 - π(x)) / π(x)`. -/
 theorem IsReversible.chiSquare_pow_le {P : MarkovChain S} {π : PMF S}
@@ -1249,47 +1224,20 @@ theorem IsReversible.abs_toReal_div_sub_one_le {P : MarkovChain S} {π : PMF S}
       P.spectralContraction π ^ t / Real.sqrt ((π x).toReal * (π y).toReal) := by
   classical
   let δ : S → S → ℝ := fun u z => ((PMF.pure u z).toReal / (π z).toReal) - 1
-  have hδ_mean (u : S) : ∑ z, (π z).toReal * δ u z = 0 := by
-    have hpt (z : S) : (π z).toReal * δ u z = (PMF.pure u z).toReal - (π z).toReal := by
-      have hz : 0 < (π z).toReal := ENNReal.toReal_pos (hπ z) (π.apply_ne_top z)
-      simp only [δ]
-      field_simp [hz.ne']
-    simp_rw [hpt, sum_sub_distrib, sum_toReal, sub_self]
+  have hδ_mean (u : S) : ∑ z, (π z).toReal * δ u z = 0 :=
+    sum_toReal_mul_div_sub_one hπ (PMF.pure u)
   have hδ_sq (u : S) : ∑ z, (π z).toReal * δ u z ^ 2 ≤ 1 / (π u).toReal := by
-    have hchi : ∑ z, (π z).toReal * δ u z ^ 2 = chiSquare (PMF.pure u) π := by
-      rw [chiSquare_eq_sum (support_subset_of_forall_ne_zero hπ (PMF.pure u))]
-      refine sum_congr rfl fun z _ => ?_
-      have hz : 0 < (π z).toReal := ENNReal.toReal_pos (hπ z) (π.apply_ne_top z)
-      simp only [δ]
-      field_simp [hz.ne']
     have hu : 0 < (π u).toReal := ENNReal.toReal_pos (hπ u) (π.apply_ne_top u)
-    rw [hchi, chiSquare_pure_left u (hπ u)]
+    refine ((chiSquare_eq_sum_toReal_mul_sq hπ (PMF.pure u)).symm.trans
+      (chiSquare_pure_left u (hπ u))).le.trans ?_
     exact div_le_div_of_nonneg_right (by linarith [ENNReal.toReal_nonneg (a := π u)]) hu.le
   have hpair : ∑ z, (π z).toReal * δ y z * (P ^ t).stepOp (δ x) z =
       ((P ^ t) x y).toReal / (π y).toReal - 1 := by
-    have hstep_δ (z : S) : (P ^ t).stepOp (δ x) z = ((P ^ t) x z).toReal / (π z).toReal - 1 := by
-      simpa only [δ, PMF.pure_bind] using stepOp_pow_relDensity hrev hπ (PMF.pure x) t z
-    simp_rw [hstep_δ]
-    have hpt (z : S) : (π z).toReal * δ y z = (PMF.pure y z).toReal - (π z).toReal := by
-      have hz : 0 < (π z).toReal := ENNReal.toReal_pos (hπ z) (π.apply_ne_top z)
-      simp only [δ]
-      field_simp [hz.ne']
-    simp_rw [hpt, sub_mul, sum_sub_distrib]
-    have hrest : ∑ z ∈ univ.erase y,
-        (PMF.pure y z).toReal * (((P ^ t) x z).toReal / (π z).toReal - 1) = 0 :=
-      sum_eq_zero fun z hz => by
-        rw [PMF.pure_apply_of_ne _ _ (ne_of_mem_erase hz), ENNReal.toReal_zero, zero_mul]
-    have h1 : ∑ z, (PMF.pure y z).toReal * (((P ^ t) x z).toReal / (π z).toReal - 1) =
-        ((P ^ t) x y).toReal / (π y).toReal - 1 := by
-      rw [← add_sum_erase _ _ (mem_univ y), PMF.pure_apply_self, ENNReal.toReal_one, one_mul,
-        hrest, add_zero]
-    have h2 : ∑ z, (π z).toReal * (((P ^ t) x z).toReal / (π z).toReal - 1) = 0 := by
-      have hpt2 (z : S) : (π z).toReal * (((P ^ t) x z).toReal / (π z).toReal - 1) =
-          ((P ^ t) x z).toReal - (π z).toReal := by
-        have hz : 0 < (π z).toReal := ENNReal.toReal_pos (hπ z) (π.apply_ne_top z)
-        field_simp [hz.ne']
-      simp_rw [hpt2, sum_sub_distrib, sum_toReal, sub_self]
-    rw [h1, h2, sub_zero]
+    simp only [δ, stepOp_pow_relDensity hrev hπ (PMF.pure x) t, PMF.pure_bind,
+      toReal_mul_div_sub_one hπ, sub_mul, sum_sub_distrib, sum_toReal, sub_self, sub_zero]
+    rw [Fintype.sum_eq_single y fun z hz => by
+        rw [PMF.pure_apply_of_ne _ _ hz, ENNReal.toReal_zero, zero_mul],
+      PMF.pure_apply_self, ENNReal.toReal_one, one_mul]
   have hx : 0 < (π x).toReal := ENNReal.toReal_pos (hπ x) (π.apply_ne_top x)
   have hy : 0 < (π y).toReal := ENNReal.toReal_pos (hπ y) (π.apply_ne_top y)
   have hrhs_nn : 0 ≤ P.spectralContraction π ^ t / Real.sqrt ((π x).toReal * (π y).toReal) :=
@@ -1373,19 +1321,12 @@ theorem IsReversible.distToStationary_le_exp {P : MarkovChain S} {π : PMF S}
         ≤ Real.sqrt (1 / π_min) :=
           Real.sqrt_le_sqrt (div_le_div_of_nonneg_right (by linarith) hpos.le)
       _ = 1 / Real.sqrt π_min := by rw [Real.sqrt_div zero_le_one, Real.sqrt_one]
-  have hnn_lam : 0 ≤ 1 - P.absSpectralGap π := by
-    rw [one_sub_absSpectralGap]
-    exact P.spectralContraction_nonneg π
   have hpow : P.spectralContraction π ^ t ≤ Real.exp (-(P.absSpectralGap π * t)) := by
-    calc P.spectralContraction π ^ t
-        = (1 - P.absSpectralGap π) ^ t := by rw [one_sub_absSpectralGap]
-      _ ≤ Real.exp (-P.absSpectralGap π) ^ t := by
-          refine pow_le_pow_left₀ hnn_lam ?_ t
-          linarith [Real.add_one_le_exp (-P.absSpectralGap π)]
-      _ = Real.exp (-(P.absSpectralGap π * t)) := by
-          rw [← Real.exp_nat_mul]
-          congr 1
-          ring
+    rw [← one_sub_absSpectralGap, show -(P.absSpectralGap π * t) = t * -P.absSpectralGap π by ring,
+      Real.exp_nat_mul]
+    exact pow_le_pow_left₀
+      (by linarith [P.spectralContraction_nonneg π, one_sub_absSpectralGap P π])
+      (by linarith [Real.add_one_le_exp (-P.absSpectralGap π)]) t
   calc (1 / 2) * Real.sqrt ((1 - π_min) / π_min) * P.spectralContraction π ^ t
       ≤ (1 / 2) * (1 / Real.sqrt π_min) * Real.exp (-(P.absSpectralGap π * t)) :=
         mul_le_mul (mul_le_mul_of_nonneg_left hsqrt (by positivity)) hpow
@@ -1406,10 +1347,7 @@ theorem IsReversible.mixingTime_le_of_absSpectralGap_pos {P : MarkovChain S} {π
   set t := ⌈(P.absSpectralGap π)⁻¹ * L⌉₊
   refine P.mixingTime_le_of_distToStationary_le ?_
   refine (hrev.distToStationary_le_exp hpos hmin t).trans ?_
-  have ht : L ≤ P.absSpectralGap π * t := by
-    have hceil : (P.absSpectralGap π)⁻¹ * L ≤ t := Nat.le_ceil _
-    have hmul := mul_le_mul_of_nonneg_left hceil hgap.le
-    rwa [← mul_assoc, mul_inv_cancel₀ hgap.ne', one_mul] at hmul
+  have ht : L ≤ P.absSpectralGap π * t := (inv_mul_le_iff₀ hgap).mp (Nat.le_ceil _)
   have hsqrt_pos : 0 < Real.sqrt π_min := Real.sqrt_pos.mpr hpos
   have hlog_sqrt : (1 / 2) * Real.log (1 / π_min) = Real.log (1 / Real.sqrt π_min) := by
     have hsq : (1 / Real.sqrt π_min) ^ 2 = 1 / π_min := by
@@ -1521,16 +1459,11 @@ theorem IsStationary.inv_one_sub_abs_sub_one_mul_log_le {P : MarkovChain S} {π 
     field_simp [hpos.ne']
   have hlog3 : Real.log (1 / (2 * ε)) ≤ (t : ℝ) * ((1 - |μ|) / |μ|) :=
     hlog1.trans (mul_le_mul_of_nonneg_left hlog2 (Nat.cast_nonneg t))
-  have hmul := mul_le_mul_of_nonneg_left hlog3 (div_nonneg hpos.le h1μ.le)
-  have hrew : (1 - |μ|)⁻¹ - 1 = |μ| / (1 - |μ|) := by
-    field_simp [h1μ.ne']
-    ring
-  have hrhs : (|μ| / (1 - |μ|)) * ((t : ℝ) * ((1 - |μ|) / |μ|)) = t := by
-    field_simp [hpos.ne', h1μ.ne']
-  calc ((1 - |μ|)⁻¹ - 1) * Real.log (1 / (2 * ε))
-      = (|μ| / (1 - |μ|)) * Real.log (1 / (2 * ε)) := by rw [hrew]
-    _ ≤ (|μ| / (1 - |μ|)) * ((t : ℝ) * ((1 - |μ|) / |μ|)) := hmul
-    _ = t := hrhs
+  rw [show (1 - |μ|)⁻¹ - 1 = |μ| / (1 - |μ|) by field_simp [h1μ.ne']; ring]
+  calc (|μ| / (1 - |μ|)) * Real.log (1 / (2 * ε))
+      ≤ (|μ| / (1 - |μ|)) * ((t : ℝ) * ((1 - |μ|) / |μ|)) :=
+        mul_le_mul_of_nonneg_left hlog3 (div_nonneg hpos.le h1μ.le)
+    _ = t := by field_simp [hpos.ne', h1μ.ne']
 
 /-- **Reversible contraction lower bound** `λ_*^t ≤ 2 d(t)` ([LevinPeres2017], `(12.15)`, p. 164)
 on a nontrivial state space with strictly positive `π`. -/

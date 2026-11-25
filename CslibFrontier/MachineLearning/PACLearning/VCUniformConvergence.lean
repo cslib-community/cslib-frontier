@@ -110,8 +110,7 @@ private theorem card_filter_le_abs_sum_mul_sub_half_le_of_abs_le {m : ℕ} (w : 
     simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at this
     exact_mod_cast this
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · refine hcard.trans ?_
-    simp
+  · exact hcard.trans (by simp)
   set S := ∑ i, w i ^ 2 with hS
   have hS4 : S ≤ 4 * m := by
     calc S ≤ ∑ _i : Fin m, (4 : ℝ) := Finset.sum_le_sum fun i _ => by
@@ -121,20 +120,14 @@ private theorem card_filter_le_abs_sum_mul_sub_half_le_of_abs_le {m : ℕ} (w : 
   have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
   rcases (Finset.sum_nonneg fun i _ => sq_nonneg (w i) : 0 ≤ S).eq_or_lt with hS0 | hSpos
   · -- all weights vanish, so the sum is `0`
-    have hw0 : ∀ i, w i = 0 := fun i => by
-      have := (Finset.sum_eq_zero_iff_of_nonneg fun i _ => sq_nonneg (w i)).1 hS0.symm i
-        (Finset.mem_univ _)
-      exact pow_eq_zero_iff two_ne_zero |>.1 this
     rcases hε.eq_or_lt with rfl | hεpos
-    · refine hcard.trans ?_
-      simp
-    · have hempty : (Finset.univ.filter fun σ : Fin m → Bool =>
-          m * ε / 2 ≤ |∑ i, w i * (((σ i).toNat : ℝ) - 1 / 2)|) = ∅ := by
-        refine Finset.filter_false_of_mem fun σ _ => ?_
-        simp only [hw0, zero_mul, Finset.sum_const_zero, abs_zero, not_le]
-        positivity
-      rw [hempty, Finset.card_empty, Nat.cast_zero]
-      positivity
+    · exact hcard.trans (by simp)
+    have hw0 (i : Fin m) : w i = 0 := pow_eq_zero_iff two_ne_zero |>.1 <|
+      (Finset.sum_eq_zero_iff_of_nonneg fun i _ => sq_nonneg (w i)).1 hS0.symm i (Finset.mem_univ _)
+    rw [Finset.filter_false_of_mem fun σ _ => by
+      simp only [hw0, zero_mul, Finset.sum_const_zero, abs_zero, not_le]; positivity,
+      Finset.card_empty, Nat.cast_zero]
+    positivity
   · refine (Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le w
       (t := m * ε / 2) (by positivity)).trans ?_
     rw [Fintype.card_fin]
@@ -192,18 +185,13 @@ private theorem card_filter_swapSamples_mem_gapEvent_le {Z : Type*} (G : Concept
     rw [← Set.ncard_eq_toFinset_card]
     exact_mod_cast ncard_restriction_le_growthFunction G x
   calc ((Finset.univ.filter fun σ : Fin m → Bool => swapSamples σ z ∈ gapEvent G m ε).card : ℝ)
-      ≤ ((R.biUnion fun v => Finset.univ.filter fun σ : Fin m → Bool =>
+      ≤ ∑ v ∈ R, ((Finset.univ.filter fun σ : Fin m → Bool =>
           m * ε / 2 ≤ |∑ i, w v i * (((σ i).toNat : ℝ) - 1 / 2)|).card : ℝ) := by
-        exact_mod_cast Finset.card_le_card hcover
-    _ ≤ ∑ v ∈ R, ((Finset.univ.filter fun σ : Fin m → Bool =>
-          m * ε / 2 ≤ |∑ i, w v i * (((σ i).toNat : ℝ) - 1 / 2)|).card : ℝ) := by
-        exact_mod_cast Finset.card_biUnion_le
-    _ ≤ ∑ _v ∈ R, 2 * 2 ^ m * Real.exp (-(m * ε ^ 2 / 8)) :=
-        Finset.sum_le_sum fun v _ =>
-          card_filter_le_abs_sum_mul_sub_half_le_of_abs_le (w v) (hw v) hε
-    _ = R.card * (2 * 2 ^ m * Real.exp (-(m * ε ^ 2 / 8))) := by
-        rw [Finset.sum_const, nsmul_eq_mul]
+        exact_mod_cast (Finset.card_le_card hcover).trans Finset.card_biUnion_le
+    _ ≤ R.card • (2 * 2 ^ m * Real.exp (-(m * ε ^ 2 / 8))) := Finset.sum_le_card_nsmul _ _ _
+        fun v _ => card_filter_le_abs_sum_mul_sub_half_le_of_abs_le (w v) (hw v) hε
     _ ≤ growthFunction G (m + m) * (2 * 2 ^ m * Real.exp (-(m * ε ^ 2 / 8))) := by
+        rw [nsmul_eq_mul]
         gcongr
 
 /-! ### Uniform convergence -/
@@ -236,10 +224,7 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_s
   set B := {S : Fin m → Z | ∃ g ∈ G, ε ≤ |((Finset.univ.filter fun i => g (S i) = true).card : ℝ) /
     m - (μ {z | g z = true}).toReal|}
   set J := gapEvent G m ε
-  have hm : 0 < m := by
-    rcases Nat.eq_zero_or_pos m with rfl | hm
-    · norm_num at hexp
-    · exact hm
+  have hm : 0 < m := Nat.pos_of_ne_zero fun h => by subst h; norm_num at hexp
   have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have hexp2 : 2 * Real.exp (-2 * m * (ε / 2) ^ 2) ≤ 1 / 2 := by
     rw [show -2 * (m : ℝ) * (ε / 2) ^ 2 = -(m * ε ^ 2 / 2) by ring]
@@ -265,11 +250,8 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_s
       set b := ((Finset.univ.filter fun i => g (T i) = true).card : ℝ)
       have hab : ε / 2 ≤ |a / m - b / m| := by
         linarith [abs_sub_le (a / m) (b / m) (μ {z | g z = true}).toReal]
-      have hdiff : a - b = m * (a / m - b / m) := by
-        field_simp
-      rw [hdiff, abs_mul, abs_of_pos hmR]
-      calc (m : ℝ) * ε / 2 = m * (ε / 2) := by ring
-        _ ≤ m * |a / m - b / m| := mul_le_mul_of_nonneg_left hab hmR.le
+      rw [show a - b = m * (a / m - b / m) by field_simp, abs_mul, abs_of_pos hmR]
+      linarith [mul_le_mul_of_nonneg_left hab hmR.le]
     calc (1 / 2 : ℝ≥0∞) = 1 - 1 / 2 := by rw [one_div, ENNReal.one_sub_inv_two]
       _ ≤ 1 - ν A := tsub_le_tsub_left hA 1
       _ = ν Aᶜ := (prob_compl_eq_one_sub .of_discrete).symm

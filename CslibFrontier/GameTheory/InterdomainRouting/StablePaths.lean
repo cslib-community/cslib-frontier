@@ -434,19 +434,16 @@ private theorem exists_flip_along_better (S : SPP V) {π₁ π₂ : V → Option
     ∃ x Q R, Q ≠ [] ∧ π₁ x ≠ π₂ x ∧ π₂ x = some R ∧ π₂ u = some (Q ++ R) ∧
       S.rank x (π₂ x) < S.rank x (π₁ x) := by
   classical
-  have hπ₂_some : ∃ p₂, π₂ u = some p₂ := by
+  obtain ⟨p₂, hp₂⟩ : ∃ p₂, π₂ u = some p₂ := by
     cases h : π₂ u with
+    | some p₂ => exact ⟨p₂, rfl⟩
     | none =>
-      rw [h, S.rank_none] at hle
-      have h10 : S.rank u (π₁ u) = 0 := Nat.le_zero.mp hle
       cases h' : π₁ u with
       | none => exact (hne (h'.trans h.symm)).elim
       | some p₁ =>
         have hpos := S.rank_pos u p₁ (h₁.permitted_of_eq_some h')
-        rw [h'] at h10
+        rw [h, h', S.rank_none] at hle
         omega
-    | some p₂ => exact ⟨p₂, rfl⟩
-  obtain ⟨p₂, hp₂⟩ := hπ₂_some
   let A : Finset V := Finset.univ.filter fun v => π₁ v = π₂ v
   have huA : u ∉ A := by simp [A, hne]
   have hdA : S.dest ∈ A := by simp [A, h₁.1, h₂.1]
@@ -476,13 +473,8 @@ private theorem exists_flip_along_better (S : SPP V) {π₁ π₂ : V → Option
       (by rwa [← hπ₂x])
     exact hx_ne (hEq.symm.trans hπ₂x.symm)
   have hQ_ne : Q ≠ [] := by
-    intro hQ
-    rw [hQ, List.nil_append] at hsplit
-    have hxu : x = u := by
-      have h1 := hsp.1
-      rw [hsplit] at h1
-      exact Option.some.inj h1
-    subst hxu
+    rintro rfl
+    obtain rfl : x = u := by simpa [hsplit] using hsp.1
     omega
   exact ⟨x, Q, x :: y :: t, hQ_ne, hx_ne, hπ₂x, by rwa [← hsplit], hlt_x⟩
 
@@ -544,30 +536,18 @@ theorem nonempty_disputeWheel_of_isStable_ne (S : SPP V) {π₁ π₂ : V → Op
   exact exists_disputeWheel_of_step (fun s => s.1.2) pivotOf step rimOf
     (fun s => by
       have hp := hpivot_eq s
-      cases hb : s.1.1
-      · simp only [hb, Bool.false_eq_true, ↓reduceIte] at hp
-        exact h₂.permitted_of_eq_some hp
-      · simp only [hb, ite_true] at hp
-        exact h₁.permitted_of_eq_some hp)
+      split_ifs at hp
+      exacts [h₁.permitted_of_eq_some hp, h₂.permitted_of_eq_some hp])
     (fun s => (hstep_exists s).choose_spec.choose_spec.1)
     (fun s => by
       have hbt := hbetter_eq s
-      cases hb : s.1.1
-      · simp only [hb, Bool.false_eq_true, ↓reduceIte] at hbt
-        exact h₁.permitted_of_eq_some hbt
-      · simp only [hb, ite_true] at hbt
-        exact h₂.permitted_of_eq_some hbt)
+      split_ifs at hbt
+      exacts [h₂.permitted_of_eq_some hbt, h₁.permitted_of_eq_some hbt])
     (fun s => by
       have hp := hpivot_eq s
       have hbt := hbetter_eq s
       have hlt := s.2.2
-      cases hb : s.1.1
-      · simp only [hb, Bool.false_eq_true, ↓reduceIte] at hp hbt hlt
-        rw [← hp, ← hbt]
-        exact hlt.2
-      · simp only [hb, ite_true] at hp hbt hlt
-        rw [← hp, ← hbt]
-        exact hlt.2)
+      split_ifs at hp hbt hlt <;> rw [← hp, ← hbt] <;> exact hlt.2)
 
 /-- Without a dispute wheel, an `SPP` has at most one stable path assignment. -/
 theorem subsingleton_isStable_of_isEmpty_disputeWheel (S : SPP V)
@@ -655,14 +635,18 @@ private def IsDirectCand {S : SPP V} (st : ElimState S) (u : V) (p : List V) : P
   u ∉ st.settled ∧ S.permitted u p ∧ ∃ w ∈ st.settled, ∃ q,
     S.graph.Adj u w ∧ st.assign w = some q ∧ p = u :: q
 
+/-- Extending a settled node's assigned route by a permitted first hop gives a surviving path. -/
+private theorem surviving_cons {S : SPP V} {st : ElimState S} {u w : V} {q : List V}
+    (hw : w ∈ st.settled) (hqw : st.assign w = some q) (hperm : S.permitted u (u :: q)) :
+    Surviving S st.settled st.assign u (u :: q) := by
+  obtain ⟨_, hpw, _, hall_w, _, hmatch_w⟩ := st.assign_some_of_mem w hw
+  obtain rfl := Option.some.inj (hqw.symm.trans hpw)
+  exact ⟨hperm, ⟨hperm, hall_w⟩, suffixesAgreeOn_of_allSuffixesMatch hmatch_w⟩
+
 private theorem isDirectCand_surviving {S : SPP V} {st : ElimState S} {u : V} {p : List V}
     (hc : IsDirectCand st u p) : Surviving S st.settled st.assign u p := by
   rcases hc with ⟨_, hperm, w, hw, q, _, hqw, rfl⟩
-  obtain ⟨p_w, hpw, _, hall_w, _, hmatch_w⟩ := st.assign_some_of_mem w hw
-  rw [hqw] at hpw
-  have hq_eq : q = p_w := Option.some.inj hpw
-  subst hq_eq
-  exact ⟨hperm, ⟨hperm, hall_w⟩, suffixesAgreeOn_of_allSuffixesMatch hmatch_w⟩
+  exact surviving_cons hw hqw hperm
 
 /-- If no unsettled node has a direct candidate, `st.assign` is already stable. -/
 private theorem isStable_of_no_directCand {S : SPP V} (st : ElimState S)
@@ -677,24 +661,13 @@ private theorem isStable_of_no_directCand {S : SPP V} (st : ElimState S)
     refine ⟨hchoice, fun o ho => ?_⟩
     rcases ho with rfl | ⟨p', rfl, hp', w, q, _, hqw, rfl⟩
     · rw [S.rank_none]; exact Nat.zero_le _
-    · have hwA : w ∈ st.settled := by
-        by_contra hnot
-        rw [st.assign_none_of_not_mem w hnot] at hqw
-        cases hqw
-      obtain ⟨p_w, hpw, _, hall_w, _, hmatch_w⟩ := st.assign_some_of_mem w hwA
-      rw [hqw] at hpw
-      have hq_eq : q = p_w := Option.some.inj hpw
-      subst hq_eq
-      exact st.optimal u huA hu (u :: q)
-        ⟨hp', ⟨hp', hall_w⟩, suffixesAgreeOn_of_allSuffixesMatch hmatch_w⟩
+    · have hwA : w ∈ st.settled := by_contra fun h => by simp [st.assign_none_of_not_mem w h] at hqw
+      exact st.optimal u huA hu (u :: q) (surviving_cons hwA hqw hp')
   · have hnone := st.assign_none_of_not_mem u huA
     refine ⟨by rw [hnone]; exact S.isChoice_none _ _, fun o ho => ?_⟩
     rcases ho with rfl | ⟨p, rfl, hperm, w, q, hadj, hqw, rfl⟩
     · simp [hnone]
-    · have hwA : w ∈ st.settled := by
-        by_contra hnot
-        rw [st.assign_none_of_not_mem w hnot] at hqw
-        cases hqw
+    · have hwA : w ∈ st.settled := by_contra fun h => by simp [st.assign_none_of_not_mem w h] at hqw
       exact (hempty u (u :: q) ⟨huA, hperm, w, hwA, q, hadj, hqw, rfl⟩).elim
 
 /-- Every unsettled node with at least one direct candidate has a highest-ranked direct
@@ -900,9 +873,7 @@ theorem exists_isStable_of_isEmpty_disputeWheel (S : SPP V) (hfree : IsEmpty (Di
     intro st hle
     have hcard : st.settled.card = Fintype.card V :=
       le_antisymm (Finset.card_le_univ _) (by omega)
-    have hall : ∀ u, u ∈ st.settled := fun u => by
-      rw [Finset.eq_univ_of_card st.settled hcard]
-      exact Finset.mem_univ u
+    have hall : ∀ u, u ∈ st.settled := by simp [Finset.eq_univ_of_card st.settled hcard]
     exact ⟨st.assign, isStable_of_no_directCand st fun u _ hdir => hdir.1 (hall u)⟩
   | succ n ih =>
     intro st hle
@@ -1060,8 +1031,7 @@ private theorem run_surviving_init (S : SPP V) (sched : ℕ → V) (t : ℕ) :
     simp only [run, initAssignment] at hp
     split_ifs at hp with hv
     subst hv
-    have hpeq : p = [S.dest] := (Option.some.inj hp).symm
-    subst hpeq
+    obtain rfl := Option.some.inj hp
     exact ⟨S.permitted_dest, ⟨S.permitted_dest, trivial⟩, trivial⟩
   | succ t ih =>
     intro v p hp
@@ -1071,16 +1041,13 @@ private theorem run_surviving_init (S : SPP V) (sched : ℕ → V) (t : ℕ) :
       rw [Function.update_self] at hp
       by_cases hd : sched t = S.dest
       · rw [hd, S.bestResponse_dest] at hp
-        have hpeq : p = [S.dest] := (Option.some.inj hp).symm
-        subst hpeq
+        obtain rfl := Option.some.inj hp
         rw [hd]
         exact ⟨S.permitted_dest, ⟨S.permitted_dest, trivial⟩, trivial⟩
       · rcases S.bestResponse_isChoice (S.run sched S.initAssignment t) hd with
             hnone | ⟨p', hp', hperm, w, q, _, hqw, rfl⟩
         · rw [hp] at hnone; cases hnone
-        · rw [hp] at hp'
-          have hpeq : p = sched t :: q := Option.some.inj hp'
-          subst hpeq
+        · obtain rfl := Option.some.inj (hp'.symm.trans hp)
           have hsurv_w := ih w q hqw
           refine ⟨hperm, ⟨hperm, hsurv_w.2.1⟩, ?_⟩
           cases q with
@@ -1090,11 +1057,9 @@ private theorem run_surviving_init (S : SPP V) (sched : ℕ → V) (t : ℕ) :
             have ha : a = w := Option.some.inj (S.permitted_isSimplePath w (a :: r) hsurv_w.1).1
             cases ha
             refine ⟨fun hw => ?_, hsurv_w.2.2⟩
-            have hw' : w = S.dest := Finset.mem_singleton.mp hw
-            subst hw'
+            obtain rfl : w = S.dest := Finset.mem_singleton.mp hw
             rw [S.run_dest_eq] at hqw
-            have hr : S.dest :: r = [S.dest] := (Option.some.inj hqw).symm
-            simpa [initElimState] using hr.symm
+            simpa [initElimState] using hqw
     · rw [Function.update_of_ne hv] at hp
       exact ih v p hp
 
@@ -1125,9 +1090,7 @@ theorem exists_converges_of_isEmpty_disputeWheel (S : SPP V) (hfree : IsEmpty (D
     intro st hle T hlock _
     have hcard : st.settled.card = Fintype.card V :=
       le_antisymm (Finset.card_le_univ _) (by omega)
-    have hall : ∀ u, u ∈ st.settled := fun u => by
-      rw [Finset.eq_univ_of_card st.settled hcard]
-      exact Finset.mem_univ u
+    have hall : ∀ u, u ∈ st.settled := by simp [Finset.eq_univ_of_card st.settled hcard]
     refine ⟨st.assign, isStable_of_no_directCand st fun u _ hdir => hdir.1 (hall u), T,
       fun t ht => funext fun v => hlock t ht v (hall v)⟩
   | succ n ih =>
@@ -1189,13 +1152,8 @@ theorem exists_converges_of_isEmpty_disputeWheel (S : SPP V) (hfree : IsEmpty (D
         induction L, hL using Nat.le_induction with
         | base =>
           refine ⟨T₁, le_rfl, fun t ht v q hq pref suff hsplit hlen => ?_⟩
-          have hpref : pref = [] := List.eq_nil_of_length_eq_zero (by omega)
-          rw [hpref, List.nil_append] at hsplit
-          have hv : v = u := by
-            have hh := hhead_run t v q hq
-            rw [hsplit] at hh
-            exact (Option.some.inj hh).symm
-          subst hv
+          obtain rfl : pref = [] := List.eq_nil_of_length_eq_zero (by omega)
+          obtain rfl : u = v := by simpa [hsplit] using hhead_run t v q hq
           rw [hlock_u t ht] at hq
           exact hsplit.symm.trans (Option.some.inj hq).symm
         | succ L hL ihL =>
@@ -1208,21 +1166,15 @@ theorem exists_converges_of_isEmpty_disputeWheel (S : SPP V) (hfree : IsEmpty (D
             by_cases hvd : v = S.dest
             · subst hvd
               rw [S.bestResponse_dest] at hbr
-              have hq : q = [S.dest] := (Option.some.inj hbr).symm
-              rw [hq] at hsplit
-              cases pref with
-              | nil =>
-                simp only [List.nil_append, List.cons.injEq] at hsplit
-                exact (hu_ne_dest hsplit.1.symm).elim
-              | cons a r =>
-                have hlen1 : ([S.dest] : List V).length = (a :: r ++ u :: suff).length :=
-                  congrArg List.length hsplit
-                simp only [List.length_cons, List.length_nil, List.length_append] at hlen1
+              obtain rfl := Option.some.inj hbr
+              rcases pref with _ | ⟨a, r⟩
+              · exact (hu_ne_dest (List.cons.inj hsplit).1.symm).elim
+              · have := congrArg List.length hsplit
+                simp only [List.length_cons, List.length_nil, List.length_append] at this
                 omega
             · by_cases hvu : v = u
               · rw [hvu, hbr_u s (by omega)] at hbr
-                have hq : q = p := (Option.some.inj hbr).symm
-                rw [hq] at hsplit
+                obtain rfl := Option.some.inj hbr
                 have hp_nodup := (S.permitted_isSimplePath u p hdir.2.1).2.2.2
                 have hp_head := (S.permitted_isSimplePath u p hdir.2.1).1
                 cases pref with
@@ -1237,9 +1189,7 @@ theorem exists_converges_of_isEmpty_disputeWheel (S : SPP V) (hfree : IsEmpty (D
               · rcases S.bestResponse_isChoice (S.run sched S.initAssignment s) hvd with
                     hnone | ⟨p', hp', _, w, qw, _, hqw, rfl⟩
                 · rw [hbr] at hnone; cases hnone
-                · rw [hbr] at hp'
-                  have hq_eq : q = v :: qw := Option.some.inj hp'
-                  rw [hq_eq] at hsplit
+                · obtain rfl := Option.some.inj (hp'.symm.trans hbr)
                   cases pref with
                   | nil =>
                     simp only [List.nil_append, List.cons.injEq] at hsplit
@@ -1397,70 +1347,36 @@ def badGadgetDisputeWheel : DisputeWheel badGadget where
 theorem not_exists_isStable_badGadget : ¬ ∃ π, badGadget.IsStable π := by
   rintro ⟨π, hπ⟩
   have h0 : π 0 = some [0] := hπ.1
-  have hdir1 : badGadget.IsChoice π 1 (some [1, 0]) :=
-    Or.inr ⟨[1, 0], rfl, by simp [badGadget], 0, [0], by simp [badGadget], h0, rfl⟩
-  have hdir2 : badGadget.IsChoice π 2 (some [2, 0]) :=
-    Or.inr ⟨[2, 0], rfl, by simp [badGadget], 0, [0], by simp [badGadget], h0, rfl⟩
-  have hdir3 : badGadget.IsChoice π 3 (some [3, 0]) :=
-    Or.inr ⟨[3, 0], rfl, by simp [badGadget], 0, [0], by simp [badGadget], h0, rfl⟩
-  have h1_cases : π 1 = some [1, 2, 0] ∨ π 1 = some [1, 0] := by
-    rcases (hπ.2 1 (by decide)).1 with hnone | ⟨p, hp, hperm, _⟩
-    · have hle := (hπ.2 1 (by decide)).2 _ hdir1
-      rw [hnone] at hle
-      simp [badGadget] at hle
-    · rcases hperm with ⟨h, _⟩ | ⟨_, rfl | rfl⟩ | ⟨h, _⟩ | ⟨h, _⟩
-      · exact (by decide : (1 : Fin 4) ≠ 0) h |>.elim
-      · exact Or.inl hp
-      · exact Or.inr hp
-      · exact (by decide : (1 : Fin 4) ≠ 2) h |>.elim
-      · exact (by decide : (1 : Fin 4) ≠ 3) h |>.elim
-  have h2_cases : π 2 = some [2, 3, 0] ∨ π 2 = some [2, 0] := by
-    rcases (hπ.2 2 (by decide)).1 with hnone | ⟨p, hp, hperm, _⟩
-    · have hle := (hπ.2 2 (by decide)).2 _ hdir2
-      rw [hnone] at hle
-      simp [badGadget] at hle
-    · rcases hperm with ⟨h, _⟩ | ⟨h, _⟩ | ⟨_, rfl | rfl⟩ | ⟨h, _⟩
-      · exact (by decide : (2 : Fin 4) ≠ 0) h |>.elim
-      · exact (by decide : (2 : Fin 4) ≠ 1) h |>.elim
-      · exact Or.inl hp
-      · exact Or.inr hp
-      · exact (by decide : (2 : Fin 4) ≠ 3) h |>.elim
-  have h3_cases : π 3 = some [3, 1, 0] ∨ π 3 = some [3, 0] := by
-    rcases (hπ.2 3 (by decide)).1 with hnone | ⟨p, hp, hperm, _⟩
-    · have hle := (hπ.2 3 (by decide)).2 _ hdir3
-      rw [hnone] at hle
-      simp [badGadget] at hle
-    · rcases hperm with ⟨h, _⟩ | ⟨h, _⟩ | ⟨h, _⟩ | ⟨_, rfl | rfl⟩
-      · exact (by decide : (3 : Fin 4) ≠ 0) h |>.elim
-      · exact (by decide : (3 : Fin 4) ≠ 1) h |>.elim
-      · exact (by decide : (3 : Fin 4) ≠ 2) h |>.elim
-      · exact Or.inl hp
-      · exact Or.inr hp
-  rcases h1_cases with h1 | h1
-  · have h2 : π 2 = some [2, 0] := hπ.suffix_eq_some h1 (q := [1]) (x := 2) (t := [0]) rfl
-    rcases h3_cases with h3 | h3
-    · have h1' : π 1 = some [1, 0] := hπ.suffix_eq_some h3 (q := [3]) (x := 1) (t := [0]) rfl
-      rw [h1] at h1'; simp at h1'
-    · have hc2 : badGadget.IsChoice π 2 (some [2, 3, 0]) :=
-        Or.inr ⟨[2, 3, 0], rfl, by simp [badGadget], 3, [3, 0], by simp [badGadget], h3, rfl⟩
-      have hle := (hπ.2 2 (by decide)).2 _ hc2
-      rw [h2] at hle; simp [badGadget] at hle
-  · have hc3 : badGadget.IsChoice π 3 (some [3, 1, 0]) :=
-      Or.inr ⟨[3, 1, 0], rfl, by simp [badGadget], 1, [1, 0], by simp [badGadget], h1, rfl⟩
-    have h3 : π 3 = some [3, 1, 0] := by
-      rcases h3_cases with h3 | h3
+  -- `u ≠ 0` ranks `π u` at least as high as any permitted extension of a neighbour's route
+  have hle : ∀ u w q, u ≠ 0 → u ≠ w → π w = some q → badGadget.permitted u (u :: q) →
+      (u :: q).length ≤ badGadget.rank u (π u) := fun u w q hu huw hw hp =>
+    (hπ.2 u hu).2 _ (Or.inr ⟨_, rfl, hp, w, q, huw, hw, rfl⟩)
+  -- since its direct path `[u, 0]` is available, every `u ≠ 0` selects a permitted path
+  have hroute : ∀ u, u ≠ 0 → ∃ p, π u = some p ∧ badGadget.permitted u p := fun u hu => by
+    rcases (hπ.2 u hu).1 with hnone | ⟨p, hp, hperm, _⟩
+    · have := hle u 0 [0] hu hu h0 (by simp [badGadget]; omega)
+      simp [hnone, badGadget] at this
+    · exact ⟨p, hp, hperm⟩
+  obtain ⟨p₁, h1, hp₁⟩ := hroute 1 (by decide)
+  obtain ⟨p₂, h2, hp₂⟩ := hroute 2 (by decide)
+  obtain ⟨p₃, h3, hp₃⟩ := hroute 3 (by decide)
+  obtain rfl | rfl : p₁ = [1, 2, 0] ∨ p₁ = [1, 0] := by simpa [badGadget] using hp₁
+  · have h2' : π 2 = some [2, 0] := hπ.suffix_eq_some h1 (q := [1]) (x := 2) (t := [0]) rfl
+    obtain rfl | rfl : p₃ = [3, 1, 0] ∨ p₃ = [3, 0] := by simpa [badGadget] using hp₃
+    · have := hπ.suffix_eq_some h3 (q := [3]) (x := 1) (t := [0]) rfl
+      simp [h1] at this
+    · have := hle 2 3 [3, 0] (by decide) (by decide) h3 (by simp [badGadget])
+      simp [h2', badGadget] at this
+  · have h3' : π 3 = some [3, 1, 0] := by
+      have := hle 3 1 [1, 0] (by decide) (by decide) h1 (by simp [badGadget])
+      obtain rfl | rfl : p₃ = [3, 1, 0] ∨ p₃ = [3, 0] := by simpa [badGadget] using hp₃
       · exact h3
-      · have hle := (hπ.2 3 (by decide)).2 _ hc3
-        rw [h3] at hle; simp [badGadget] at hle
-    have h2 : π 2 = some [2, 0] := by
-      rcases h2_cases with h2 | h2
-      · have h3' : π 3 = some [3, 0] := hπ.suffix_eq_some h2 (q := [2]) (x := 3) (t := [0]) rfl
-        rw [h3] at h3'; simp at h3'
-      · exact h2
-    have hc1 : badGadget.IsChoice π 1 (some [1, 2, 0]) :=
-      Or.inr ⟨[1, 2, 0], rfl, by simp [badGadget], 2, [2, 0], by simp [badGadget], h2, rfl⟩
-    have hle := (hπ.2 1 (by decide)).2 _ hc1
-    rw [h1] at hle; simp [badGadget] at hle
+      · simp [h3, badGadget] at this
+    obtain rfl | rfl : p₂ = [2, 3, 0] ∨ p₂ = [2, 0] := by simpa [badGadget] using hp₂
+    · have := hπ.suffix_eq_some h2 (q := [2]) (x := 3) (t := [0]) rfl
+      simp [h3'] at this
+    · have := hle 1 2 [2, 0] (by decide) (by decide) h2 (by simp [badGadget])
+      simp [h1, badGadget] at this
 
 /-- The classic 3-node `DISAGREE` instance ([GriffinShepherdWilfong2002]): destination `0`, with
 nodes `1` and `2` each preferring to route through the other (`1 → 2 → 0` over `1 → 0`, and
@@ -1519,24 +1435,15 @@ theorem exists_two_isStable_disagree :
         fun o ho => ?_⟩
       rcases ho with rfl | ⟨p, rfl, hperm, _⟩
       · decide
-      · rcases hperm with ⟨h, _⟩ | ⟨_, rfl | rfl⟩ | ⟨h, _⟩
-        · exact (by decide : (1 : Fin 3) ≠ 0) h |>.elim
-        · decide
-        · decide
-        · exact (by decide : (1 : Fin 3) ≠ 2) h |>.elim
+      · obtain rfl | rfl : p = [1, 2, 0] ∨ p = [1, 0] := by simpa [disagree] using hperm
+        all_goals decide
     · refine ⟨Or.inr ⟨[2, 0], rfl, by simp [disagree], 0, [0], by simp [disagree], rfl, rfl⟩,
         fun o ho => ?_⟩
       rcases ho with rfl | ⟨p, rfl, hperm, w, q, _, hqw, rfl⟩
       · decide
-      · rcases hperm with ⟨h, _⟩ | ⟨h, _⟩ | ⟨_, hEq | hEq⟩
-        · exact (by decide : (2 : Fin 3) ≠ 0) h |>.elim
-        · exact (by decide : (2 : Fin 3) ≠ 1) h |>.elim
-        · have hq : q = [1, 0] := (List.cons.inj hEq).2
-          subst hq
-          fin_cases w <;> simp [π₁] at hqw
-        · have hq : q = [0] := (List.cons.inj hEq).2
-          subst hq
-          decide
+      · obtain rfl | rfl : q = [1, 0] ∨ q = [0] := by simpa [disagree] using hperm
+        · fin_cases w <;> simp [π₁] at hqw
+        · decide
   · refine ⟨rfl, fun u hu => ?_⟩
     fin_cases u
     · exact (hu rfl).elim
@@ -1544,24 +1451,15 @@ theorem exists_two_isStable_disagree :
         fun o ho => ?_⟩
       rcases ho with rfl | ⟨p, rfl, hperm, w, q, _, hqw, rfl⟩
       · decide
-      · rcases hperm with ⟨h, _⟩ | ⟨_, hEq | hEq⟩ | ⟨h, _⟩
-        · exact (by decide : (1 : Fin 3) ≠ 0) h |>.elim
-        · have hq : q = [2, 0] := (List.cons.inj hEq).2
-          subst hq
-          fin_cases w <;> simp [π₂] at hqw
-        · have hq : q = [0] := (List.cons.inj hEq).2
-          subst hq
-          decide
-        · exact (by decide : (1 : Fin 3) ≠ 2) h |>.elim
+      · obtain rfl | rfl : q = [2, 0] ∨ q = [0] := by simpa [disagree] using hperm
+        · fin_cases w <;> simp [π₂] at hqw
+        · decide
     · refine ⟨Or.inr ⟨[2, 1, 0], rfl, by simp [disagree], 1, [1, 0], by simp [disagree], rfl, rfl⟩,
         fun o ho => ?_⟩
       rcases ho with rfl | ⟨p, rfl, hperm, _⟩
       · decide
-      · rcases hperm with ⟨h, _⟩ | ⟨h, _⟩ | ⟨_, rfl | rfl⟩
-        · exact (by decide : (2 : Fin 3) ≠ 0) h |>.elim
-        · exact (by decide : (2 : Fin 3) ≠ 1) h |>.elim
-        · decide
-        · decide
+      · obtain rfl | rfl : p = [2, 1, 0] ∨ p = [2, 0] := by simpa [disagree] using hperm
+        all_goals decide
   · intro hEq
     have h1 := congrFun hEq 1
     simp [π₁, π₂] at h1
