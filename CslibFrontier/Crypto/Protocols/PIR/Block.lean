@@ -114,24 +114,20 @@ def toBitScheme {κ : Type} (P : Scheme ι S R Q A (κ → Bool)) :
   reconstruct ib r a := P.reconstruct ib.1 r a ib.2
 
 theorem query_toBitScheme {κ : Type} (P : Scheme ι S R Q A (κ → Bool)) (ib : ι × κ) :
-    P.toBitScheme.query ib = P.query ib.1 := by
-  rfl
+    P.toBitScheme.query ib = P.query ib.1 := by rfl
 
 theorem answer_toBitScheme {κ : Type} (P : Scheme ι S R Q A (κ → Bool)) (s : S)
     (x : ι × κ → Bool) (q : Q) :
-    P.toBitScheme.answer s x q = P.answer s (fun i b => x (i, b)) q := by
-  rfl
+    P.toBitScheme.answer s x q = P.answer s (fun i b => x (i, b)) q := by rfl
 
 theorem reconstruct_toBitScheme {κ : Type} (P : Scheme ι S R Q A (κ → Bool)) (ib : ι × κ)
     (r : R) (a : S → A) :
-    P.toBitScheme.reconstruct ib r a = P.reconstruct ib.1 r a ib.2 := by
-  rfl
+    P.toBitScheme.reconstruct ib r a = P.reconstruct ib.1 r a ib.2 := by rfl
 
 theorem IsCorrect.toBitScheme {κ : Type} {P : Scheme ι S R Q A (κ → Bool)}
     (h : P.IsCorrect) : P.toBitScheme.IsCorrect := by
   rw [Scheme.isCorrect_iff]
-  intro x ib r q hrq
-  exact congrFun (h.reconstruct_eq (fun i b => x (i, b)) ib.1 hrq) ib.2
+  exact fun x ib _ _ hrq => congrFun (h.reconstruct_eq (fun i b => x (i, b)) ib.1 hrq) ib.2
 
 theorem IsTPrivate.toBitScheme {κ : Type} {P : Scheme ι S R Q A (κ → Bool)} {t : ℕ}
     (h : P.IsTPrivate t) : P.toBitScheme.IsTPrivate t :=
@@ -214,24 +210,19 @@ def toBlock (κ : Type) (P : Scheme ι S R Q A β) : Scheme ι S R Q (κ → A) 
   reconstruct i r a b := P.reconstruct i r (fun s => a s b)
 
 theorem query_toBlock (κ : Type) (P : Scheme ι S R Q A β) (i : ι) :
-    (P.toBlock κ).query i = P.query i := by
-  rfl
+    (P.toBlock κ).query i = P.query i := by rfl
 
 theorem answer_toBlock (κ : Type) (P : Scheme ι S R Q A β) (s : S) (x : ι → κ → β) (q : Q)
-    (b : κ) : (P.toBlock κ).answer s x q b = P.answer s (fun i' => x i' b) q := by
-  rfl
+    (b : κ) : (P.toBlock κ).answer s x q b = P.answer s (fun i' => x i' b) q := by rfl
 
 theorem reconstruct_toBlock (κ : Type) (P : Scheme ι S R Q A β) (i : ι) (r : R)
     (a : S → κ → A) (b : κ) :
-    (P.toBlock κ).reconstruct i r a b = P.reconstruct i r (fun s => a s b) := by
-  rfl
+    (P.toBlock κ).reconstruct i r a b = P.reconstruct i r (fun s => a s b) := by rfl
 
 theorem IsCorrect.toBlock (κ : Type) {P : Scheme ι S R Q A β} (h : P.IsCorrect) :
     (P.toBlock κ).IsCorrect := by
   rw [Scheme.isCorrect_iff]
-  intro x i r q hrq
-  funext b
-  exact h.reconstruct_eq (fun i' => x i' b) i hrq
+  exact fun x i _ _ hrq => funext fun b => h.reconstruct_eq (fun i' => x i' b) i hrq
 
 theorem IsPrivate.toBlock (κ : Type) {P : Scheme ι S R Q A β} (h : P.IsPrivate) :
     (P.toBlock κ).IsPrivate :=
@@ -250,13 +241,12 @@ def HasXorReconstruct [Fintype S] (P : Scheme ι S R Q Bool) : Prop :=
   ∀ i r a, P.reconstruct i r a = ∑ s : S, a s
 
 theorem hasXorReconstruct_iff [Fintype S] (P : Scheme ι S R Q Bool) :
-    P.HasXorReconstruct ↔ ∀ i r a, P.reconstruct i r a = ∑ s : S, a s := by
-  rw [HasXorReconstruct]
+    P.HasXorReconstruct ↔ ∀ i r a, P.reconstruct i r a = ∑ s : S, a s :=
+  Iff.rfl
 
 theorem hasXorReconstruct_twoServer (ι : Type) [Fintype ι] [DecidableEq ι] :
-    (twoServer ι).HasXorReconstruct := by
-  intro i r a
-  rw [reconstruct_twoServer, Fintype.sum_bool, add_comm]
+    (twoServer ι).HasXorReconstruct :=
+  fun _ _ _ => by rw [reconstruct_twoServer, Fintype.sum_bool, add_comm]
 
 theorem hasXorReconstruct_cube (D ι : Type) [Fintype D] [DecidableEq D] [Fintype ι]
     [DecidableEq ι] : (cube D ι).HasXorReconstruct :=
@@ -322,32 +312,23 @@ theorem IsCorrect.sumChunks [Fintype S] (m : ℕ) {P : Scheme (Option ι) S R Q 
     (hcorrect : P.IsCorrect) (hxor : P.HasXorReconstruct) :
     (P.sumChunks m).IsCorrect := by
   rw [Scheme.isCorrect_iff]
-  intro x ji _ q hrq
+  intro x ⟨j₀, i₀⟩ _ q hrq
   simp only [Scheme.sumChunks, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq,
     ProbComp.mem_support_pi_iff] at hrq
   obtain ⟨rqs, hrqs, -, rfl⟩ := hrq
   change (∑ s : S, ∑ j : Fin m,
-    P.answer s (fun o => Option.elim o false (fun i => x (j, i))) ((rqs j).2 s)) = x ji
+    P.answer s (fun o => Option.elim o false (fun i => x (j, i))) ((rqs j).2 s)) = x (j₀, i₀)
   rw [Finset.sum_comm]
   have hchunk (j : Fin m) :
       (∑ s : S, P.answer s (fun o => Option.elim o false (fun i => x (j, i))) ((rqs j).2 s)) =
-        if j = ji.1 then x ji else false := by
-    rw [← hxor (if j = ji.1 then some ji.2 else none) (rqs j).1,
-      hcorrect.reconstruct_eq _ _ (hrqs j)]
-    by_cases hj : j = ji.1
-    · subst hj
-      rcases ji with ⟨j, i⟩
-      simp
-    · simp [hj]
+        if j = j₀ then x (j₀, i₀) else false := by
+    rw [← hxor (if j = j₀ then some i₀ else none) (rqs j).1, hcorrect.reconstruct_eq _ _ (hrqs j)]
+    by_cases hj : j = j₀ <;> simp [hj]
   simp only [hchunk]
-  rw [Finset.sum_eq_single ji.1]
-  · simp
-  · intro j _ hj
-    rw [ite_eq_right hj]
-    rfl
-  · intro hmem
-    exact (hmem (Finset.mem_univ ji.1)).elim
+  rw [Finset.sum_eq_single j₀ (fun _ _ hj => by rw [ite_eq_right hj]; rfl)
+    (fun h => (h (Finset.mem_univ j₀)).elim)]
+  simp
 
 /-- `sumChunks` preserves `t`-privacy for every `t` (and hence single-server `IsPrivate` at
 `t = 1`), without any finiteness assumptions on `R` or `Q`. -/
@@ -361,17 +342,15 @@ theorem IsTPrivate.sumChunks [Fintype S] (m : ℕ)
         (ProbComp.eval (OracleComp.pi fun j : Fin m =>
           P.coalitionQuery T (if j = target.1 then some target.2 else none))).map
             (fun f (s : T) j => f j s) := by
-    rw [Scheme.eval_coalitionQuery, Scheme.sumChunks, ProbComp.eval_bind]
-    simp only [ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
     have hmap := ProbComp.eval_pi_map
       (fun j : Fin m => P.query (if j = target.1 then some target.2 else none))
       (fun _ rq (s : T) => rq.2 s)
     simp only [← Scheme.coalitionQuery_eq] at hmap
-    rw [hmap, PMF.map_comp]
+    simp only [Scheme.eval_coalitionQuery, Scheme.sumChunks, ProbComp.eval_bind,
+      ProbComp.eval_pure, PMF.map_bind, PMF.pure_map, hmap, PMF.map_comp]
     rfl
   rw [hlaw ji, hlaw ji']
-  congr 1
-  exact ProbComp.eval_pi_congr fun _ => hprivate.eval_coalitionQuery_eq T hT _ _
+  exact congrArg _ (ProbComp.eval_pi_congr fun _ => hprivate.eval_coalitionQuery_eq T hT _ _)
 
 theorem IsPrivate.sumChunks [Fintype S] (m : ℕ)
     {P : Scheme (Option ι) S R Q Bool} (hprivate : P.IsPrivate) :
@@ -452,8 +431,7 @@ theorem hasBlockScheme_four_of_le_sq {n m ℓ : ℕ} (hn : n ≤ m * m) (hm : 2 
     HasScheme (Fin n) 4 (8 * ℓ) (Fin ℓ → Bool) := by
   have hB := ((isCorrect_cube (D := Fin 2) (ι := Fin m)).toBlock (Fin ℓ)).hasScheme
     ((isPrivate_cube (D := Fin 2) (ι := Fin m)).toBlock (Fin ℓ))
-  have hcardS : Fintype.card (Fin 2 → Bool) = 4 := by decide
-  rw [hcardS, communication_rows] at hB
+  rw [show Fintype.card (Fin 2 → Bool) = 4 by decide, communication_rows] at hB
   simp only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, ← pow_mul,
     Nat.clog_pow 2 _ (by norm_num)] at hB
   exact (hB.mono (by omega)).fin_of_le_card (by simpa [pow_two] using hn)

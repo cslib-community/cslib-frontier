@@ -120,34 +120,28 @@ theorem output_eq_of_halted (h : machine.DecidesWithZeroErrorInExpectedTime enc 
     (hhalt : final.tapes.state = none) :
     final.tapes.output = [MultiTapeTM.indicator A a] := by
   by_contra hwrong
-  have hone := (h a).2
   set G : Set (MultiTapeMachine.Config k Bool State Empty (enc a)) :=
     {final | final.tapes.state = none ∧ final.tapes.output = [MultiTapeTM.indicator A a]}
-  have hδ :
-      ProbComp.eval (machine.runClosedConfigFrom s (machine.initialConfig (enc a))) final ≠ 0 :=
-    (PMF.mem_support_iff _ _).mp hfinal
   have hbound (s' : ℕ) : (ProbComp.eval (machine.runClosedConfigFrom s'
       (machine.initialConfig (enc a)))).toOuterMeasure G +
       ProbComp.eval (machine.runClosedConfigFrom s (machine.initialConfig (enc a))) final ≤ 1 := by
     have h₁ := machine.toOuterMeasure_halted_monotone (machine.initialConfig (enc a))
-      (S := G) (fun c hc => hc.1) (le_max_left s' s)
+      (S := G) (fun _ hc => hc.1) (le_max_left s' s)
     have h₂ := machine.toOuterMeasure_halted_monotone (machine.initialConfig (enc a))
-      (S := {final}) (by rintro c rfl; exact hhalt) (le_max_right s' s)
-    simp only [PMF.toOuterMeasure_apply_singleton] at h₁ h₂
-    -- the wrong halted run lies in the complement of the event of a right halted run
-    have h₃ := h₂.trans ((PMF.toOuterMeasure_apply_singleton _ final).symm.trans_le
-      ((PMF.toOuterMeasure _).mono (Set.singleton_subset_iff.mpr
-        (show final ∈ Gᶜ from fun hG => hwrong hG.2))))
-    exact (add_le_add h₁ h₃).trans_eq
+      (S := {final}) (by rintro _ rfl; exact hhalt) (le_max_right s' s)
+    simp only [PMF.toOuterMeasure_apply_singleton] at h₂
+    exact (add_le_add h₁ (h₂.trans ((PMF.toOuterMeasure_apply_singleton _ final).symm.trans_le
+      ((PMF.toOuterMeasure _).mono
+        (Set.singleton_subset_iff.mpr fun hG : final ∈ G => hwrong hG.2))))).trans_eq
       (Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal _ G)
   have hsup : (⨆ s', (ProbComp.eval (machine.runClosedConfigFrom s'
       (machine.initialConfig (enc a)))).toOuterMeasure G) +
       ProbComp.eval (machine.runClosedConfigFrom s (machine.initialConfig (enc a))) final ≤
         1 + 0 := by
-    rw [ENNReal.iSup_add, add_zero]
-    exact iSup_le hbound
-  rw [hone] at hsup
-  exact hδ (nonpos_iff_eq_zero.mp ((ENNReal.add_le_add_iff_left ENNReal.one_ne_top).mp hsup))
+    simpa only [ENNReal.iSup_add, add_zero] using iSup_le hbound
+  rw [(h a).2] at hsup
+  exact (PMF.mem_support_iff _ _).mp hfinal
+    (nonpos_iff_eq_zero.mp ((ENNReal.add_le_add_iff_left ENNReal.one_ne_top).mp hsup))
 
 /-- **The replay test decides with one-sided error.** If the expected running time is at most
 `q(n)`, replaying the machine on random strings of length `2 * q(n)` and testing whether the output
@@ -160,13 +154,11 @@ theorem decidesWithOneSidedError (h : machine.DecidesWithZeroErrorInExpectedTime
       {a | MultiTapeTM.indicator A a = b} := by
   intro a
   set Q := q.eval (enc a).length
-  have heval : (Polynomial.C 2 * q).eval (enc a).length = 2 * Q := by
-    simp only [Polynomial.eval_mul, Polynomial.eval_C, Q]
-  rw [heval]
+  rw [show (Polynomial.C (2 : ℕ) * q).eval (enc a).length = 2 * Q by
+    simp only [Polynomial.eval_mul, Polynomial.eval_C, Q]]
   set T := 2 * Q
   have hE : machine.expectedTime (enc a) ≤ Q := (h a).1.trans (by exact_mod_cast ht a)
-  refine ⟨fun (hb : MultiTapeTM.indicator A a = b) => ?_,
-    fun (hb : ¬MultiTapeTM.indicator A a = b) r => ?_⟩
+  refine ⟨fun hb => ?_, fun hb r => ?_⟩
   · -- by Markov's inequality, at most a `Q / (2 Q + 1)` fraction of the runs is still going
     set running := Finset.univ.filter fun r : Fin T → Bool =>
       (machine.runClosedConfigFromCoins (List.ofFn r)
@@ -185,23 +177,17 @@ theorem decidesWithOneSidedError (h : machine.DecidesWithZeroErrorInExpectedTime
       simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at hsplit
       rw [← hsplit]
       refine Nat.add_le_add_left (Finset.card_le_card fun r hr => ?_) _
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hr
-      have hr' : (machine.runClosedConfigFromCoins (List.ofFn r)
-          (machine.initialConfig (enc a))).tapes.state = none := by simpa using hr
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq]
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] at hr ⊢
       have hmem := machine.runClosedConfigFromCoins_mem_support (List.ofFn r)
         (machine.initialConfig (enc a))
       rw [List.length_ofFn] at hmem
-      rw [← hb]
-      exact output_eq_of_halted h a hmem hr'
+      exact (output_eq_of_halted h a hmem (by simpa using hr)).trans (congrArg (· :: []) hb)
     have hhalf : 2 * running.card ≤ 2 ^ T := by
-      by_contra hlt
-      rw [Nat.not_le] at hlt
-      have h1 : Q * (2 ^ T + 1) ≤ Q * (2 * running.card) := Nat.mul_le_mul_left Q hlt
-      have key (Q' X c : ℕ) (h₁ : (2 * Q' + 1) * c ≤ Q' * X) (h₂ : Q' * (X + 1) ≤ Q' * (2 * c))
-          (h₃ : X < 2 * c) : False := by
-        nlinarith
-      exact key Q _ _ hcount h1 hlt
+      by_contra! hlt
+      have hpos : 0 < 2 ^ T := by positivity
+      generalize 2 ^ T = X at hcount hlt hpos
+      dsimp only [T] at hcount
+      nlinarith
     omega
   · -- no coin string can already show the answer `[b]` on a non-member
     simp only [decide_eq_false_iff_not]
@@ -210,12 +196,10 @@ theorem decidesWithOneSidedError (h : machine.DecidesWithZeroErrorInExpectedTime
       (ne_top_of_le_ne_top (ENNReal.natCast_ne_top Q) hE) (List.ofFn r)
     have hmem := machine.runClosedConfigFromCoins_mem_support (List.ofFn r ++ more)
       (machine.initialConfig (enc a))
-    have hout := output_eq_of_halted h a hmem hmore
     have hpre := machine.output_isPrefix_append (List.ofFn r) more (machine.initialConfig (enc a))
-    rw [hout] at hpre
-    have hr' : (machine.runClosedConfigFromCoins (List.ofFn r)
-        (machine.initialConfig (enc a))).tapes.output = [b] := hr
-    rw [hr'] at hpre
+    rw [output_eq_of_halted h a hmem hmore,
+      show (machine.runClosedConfigFromCoins (List.ofFn r)
+        (machine.initialConfig (enc a))).tapes.output = [b] from hr] at hpre
     exact hb (List.singleton_inj.mp (hpre.eq_of_length (by simp))).symm
 
 end DecidesWithZeroErrorInExpectedTime
@@ -261,18 +245,16 @@ private theorem mem_RP_of_mem_ZTIME_pow {d : ℕ} {A : Set α} (hA : A ∈ ZTIME
 /-- **`ZTIME(n ^ d) ⊆ RP`**: replay the machine on twice as many coins as its expected-time bound
 and accept on the output `[true]`. -/
 theorem ZTIME_pow_subset_RP (d : ℕ) : ZTIME enc (· ^ d) ⊆ RP enc := fun A hA => by
-  have hset : {a | MultiTapeTM.indicator A a = true} = A := by
-    ext a
-    by_cases ha : a ∈ A <;> simp [MultiTapeTM.indicator, ha]
-  simpa only [hset] using mem_RP_of_mem_ZTIME_pow hA true
+  convert mem_RP_of_mem_ZTIME_pow hA true using 1
+  ext a
+  by_cases ha : a ∈ A <;> simp [MultiTapeTM.indicator, ha]
 
 /-- **`ZTIME(n ^ d) ⊆ coRP`**: accept the complement on the output `[false]`. -/
 theorem ZTIME_pow_subset_coRP (d : ℕ) : ZTIME enc (· ^ d) ⊆ coRP enc := fun A hA => by
-  have hset : {a | MultiTapeTM.indicator A a = false} = Aᶜ := by
-    ext a
-    by_cases ha : a ∈ A <;> simp [MultiTapeTM.indicator, ha]
-  rw [mem_coRP, ← hset]
-  exact mem_RP_of_mem_ZTIME_pow hA false
+  rw [mem_coRP]
+  convert mem_RP_of_mem_ZTIME_pow hA false using 1
+  ext a
+  by_cases ha : a ∈ A <;> simp [MultiTapeTM.indicator, ha]
 
 /-- **`ZTIME(n ^ d) ⊆ ZPP`**: the problems decided with zero error in expected polynomial time in
 the sense of [Arora and Barak, Definition 7.7][AroraBarak07] are in the library's `ZPP`. This is
