@@ -2667,6 +2667,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.TimePolyl
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.TinyDesc
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Translational
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.WordRAM
+public import CslibFrontier.Computability.Complexity.Classes.IOP
 public import CslibFrontier.Computability.Complexity.Classes.IP
 public import CslibFrontier.Computability.Complexity.Classes.IP.CoinFixing
 public import CslibFrontier.Computability.Complexity.Classes.IP.Deterministic
