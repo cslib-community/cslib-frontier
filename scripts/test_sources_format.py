@@ -141,6 +141,46 @@ class CanonicalTest(unittest.TestCase):
                 "| Col A | Col B |\n| --- | --- |\nCell 1. More. | Cell 2\n",
                 "| Col A | Col B |\n| --- | --- |\nCell 1.\nMore. | Cell 2\n",
             ),
+            # GFM §4.10 single-cell table body row with no `|` at all.
+            (
+                "A | B\n--- | ---\nSource note. Keep it in one cell.\n",
+                "A | B\n--- | ---\nSource note.\nKeep it in one cell.\n",
+            ),
+            # Blocks opened on the first line of a list item (`- <pre>`, `- ``` `, `- $$`,
+            # `- #`, `- >`, `- A | B`).
+            (
+                "- <pre>\n  Source note. Keep it on one physical line.\n  </pre>\n",
+                "- <pre> Source note.\n  Keep it on one physical line.\n  </pre>\n",
+            ),
+            (
+                "- <pre>\n  Source note. Keep it.\n\n  After blank.\n  </pre>\n",
+                "- <pre>\n  Source note.\n  Keep it.\n\n  After blank.\n  </pre>\n",
+            ),
+            (
+                "- ```\n  Code. Line.\n  ```\n",
+                "- ``` Code.\n  Line.\n  ```\n",
+            ),
+            (
+                "- $$\n  f(x) = 1. G(x) = 2.\n  $$\n",
+                "- $$ f(x) = 1.\n  G(x) = 2. $$\n",
+            ),
+            (
+                "- # Heading. Two.\n",
+                "- # Heading.\n  Two.\n",
+            ),
+            (
+                "- > Quote. Two.\n  Continuation. Three.\n",
+                "- > Quote.\n  Two. Continuation. Three.\n",
+            ),
+            (
+                "- A | B\n  --- | ---\n  Source note. Keep it in one cell.\n",
+                "- A | B\n  --- | ---\n  Source note.\n  Keep it in one cell.\n",
+            ),
+            # Block quote with a lazy continuation line.
+            (
+                "> Quote starts.\nLazy continuation. Keep it.\n",
+                "> Quote starts.\nLazy continuation.\nKeep it.\n",
+            ),
         )
         for original, mutated in cases:
             with self.subTest(original=original):
