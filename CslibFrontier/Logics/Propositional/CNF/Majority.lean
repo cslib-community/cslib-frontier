@@ -75,30 +75,25 @@ theorem mem_of_pairwise_of_majority [Finite V] {R : Set (V → Bool)}
   let _ := Fintype.ofFinite V
   have hclosed := (isPolymorphism_majority_iff R).mp hR
   have extend (s : Finset V) : ∃ b ∈ R, ∀ i ∈ s, b i = a i := by
-    refine Finset.strongInductionOn s ?_
-    intro s ih
+    refine Finset.strongInductionOn s fun s ih => ?_
     by_cases hs : 2 < s.card
     · obtain ⟨i, j, k, hi, hj, hk, hij, hik, hjk⟩ := Finset.two_lt_card_iff.mp hs
       obtain ⟨x, hx, hxa⟩ := ih (s.erase i) (Finset.erase_ssubset hi)
       obtain ⟨y, hy, hya⟩ := ih (s.erase j) (Finset.erase_ssubset hj)
       obtain ⟨z, hz, hza⟩ := ih (s.erase k) (Finset.erase_ssubset hk)
-      refine ⟨median x y z, hclosed x hx y hy z hz, ?_⟩
-      intro l hl
-      by_cases hli : l = i
-      · subst l
-        rw [median, hya i (Finset.mem_erase.mpr ⟨hij, hi⟩),
+      refine ⟨median x y z, hclosed x hx y hy z hz, fun l hl => ?_⟩
+      rcases eq_or_ne i l with rfl | hli
+      · rw [median, hya i (Finset.mem_erase.mpr ⟨hij, hi⟩),
           hza i (Finset.mem_erase.mpr ⟨hik, hi⟩)]
         cases a i <;> simp
-      · by_cases hlj : l = j
-        · subst l
-          rw [median, hxa j (Finset.mem_erase.mpr ⟨hij.symm, hj⟩),
+      · rcases eq_or_ne j l with rfl | hlj
+        · rw [median, hxa j (Finset.mem_erase.mpr ⟨hij.symm, hj⟩),
             hza j (Finset.mem_erase.mpr ⟨hjk, hj⟩)]
           cases a j <;> simp
-        · rw [median, hxa l (Finset.mem_erase.mpr ⟨hli, hl⟩),
-            hya l (Finset.mem_erase.mpr ⟨hlj, hl⟩)]
+        · rw [median, hxa l (Finset.mem_erase.mpr ⟨hli.symm, hl⟩),
+            hya l (Finset.mem_erase.mpr ⟨hlj.symm, hl⟩)]
           cases a l <;> simp
-    · have hs' : s.card = 0 ∨ s.card = 1 ∨ s.card = 2 := by omega
-      rcases hs' with hs' | hs' | hs'
+    · rcases (by omega : s.card = 0 ∨ s.card = 1 ∨ s.card = 2) with hs' | hs' | hs'
       · obtain rfl := Finset.card_eq_zero.mp hs'
         obtain ⟨b, hb⟩ := hne
         exact ⟨b, hb, by simp⟩
@@ -109,8 +104,7 @@ theorem mem_of_pairwise_of_majority [Finite V] {R : Set (V → Bool)}
         obtain ⟨b, hb, hi, hj⟩ := hp i j
         exact ⟨b, hb, by simp only [Finset.mem_insert, Finset.mem_singleton]; aesop⟩
   obtain ⟨b, hb, heq⟩ := extend Finset.univ
-  have : b = a := funext fun i => heq i (Finset.mem_univ i)
-  rwa [this] at hb
+  exact funext (fun i => heq i (Finset.mem_univ i)) ▸ hb
 
 /-- A clause of width at most two is preserved by coordinatewise majority, including arbitrary
 literal signs, repeated variables, the empty clause and unit clauses. -/
@@ -182,15 +176,11 @@ theorem isPolymorphism_majority_iff_exists_twoCNF [Finite V] (R : Set (V → Boo
       ls.flatMap (fun p => ls.map (fun q => [p, q])))
     let φ := cs.filter (fun c => ∀ b ∈ R, c.eval b = true)
     have mem_cs (c : Clause V) (hc : c.length ≤ 2) : c ∈ cs := by
-      cases c with
-      | nil => simp [cs]
-      | cons p c =>
-        cases c with
-        | nil => simp [cs, ls]
-        | cons q c =>
-          have : c = [] := by simpa using hc
-          subst c
-          simp [cs, ls]
+      rcases c with _ | ⟨p, _ | ⟨q, _ | ⟨r, c⟩⟩⟩
+      · simp [cs]
+      · simp [cs, ls]
+      · simp [cs, ls]
+      · simp at hc
     refine ⟨φ, ?_, fun a => ⟨?_, ?_⟩⟩
     · intro c hc
       have hc' := (List.mem_filter.mp hc).1
@@ -203,12 +193,9 @@ theorem isPolymorphism_majority_iff_exists_twoCNF [Finite V] (R : Set (V → Boo
       by_contra hn
       obtain ⟨c, hc, hmodels, hfalse⟩ := exists_separating_clause_of_majority hR hn
       have hmem : c ∈ φ := List.mem_filter.mpr ⟨mem_cs c hc, by simpa using hmodels⟩
-      have htrue := (CNF.eval_eq_true_iff _ _).mp ha c hmem
-      rw [hfalse] at htrue
-      contradiction
+      exact Bool.false_ne_true (hfalse.symm.trans ((CNF.eval_eq_true_iff _ _).mp ha c hmem))
   · rintro ⟨φ, hφ, heq⟩
-    have hset : R = {a | φ.eval a = true} := Set.ext heq
-    rw [hset]
+    rw [show R = {a | φ.eval a = true} from Set.ext heq]
     exact CNF.isPolymorphism_majority hφ
 
 end Cslib.Logic.PL
