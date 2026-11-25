@@ -107,8 +107,7 @@ theorem CounterIntervalChart.variable_time {f : BitVec n → BitVec n}
     rfl
   · obtain ⟨j, _, _⟩ := chart.covers 0
     have hR : 1 ≤ R := by have := j.isLt; lia
-    have hRk : n + 3 ≤ R * (n + 3) := by
-      simpa only [Nat.one_mul] using Nat.mul_le_mul_right (n + 3) hR
+    have hRk : n + 3 ≤ R * (n + 3) := Nat.le_mul_of_pos_left _ hR
     nlinarith only [hs, hRk, show 2 ≤ n + 3 by lia,
       Nat.zero_le (R * (n + 3)), Nat.zero_le (m * (n + 3))]
 
@@ -177,12 +176,8 @@ theorem sparse_coordinate_variable_time (f g e : Equiv.Perm (BitVec n))
   let args := fun z => Fin.append (encoded z) (bits z)
   have hargs (i : Fin (n + m)) : (fun z => args z i) ∈ s1 := by
     induction i using Fin.addCases with
-    | left i =>
-      apply Or.inr
-      exact ⟨i, by simp only [args, Fin.append_left]⟩
-    | right i =>
-      apply Or.inl
-      exact ⟨_, by simp only [args, Fin.append_right]; rfl⟩
+    | left i => exact Or.inr ⟨i, by simp only [args, Fin.append_left]⟩
+    | right i => exact Or.inl ⟨_, by simp only [args, Fin.append_right]; rfl⟩
   let mid := fun z => middle.eval Boolean.interpretation (args z)
   have hmid := Synthesis.circuit (I := Boolean.interpretation) (s := s1)
     middle (fun i z => args z i) hargs
