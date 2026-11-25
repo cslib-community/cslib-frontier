@@ -436,8 +436,7 @@ private theorem advantage_eval_cramerShoupMsgToDDHDistinguisher_le
           (α • F.generator d) (β • F.generator d) (γ • F.generator d)))
       (F.cramerShoupChallengeGame hasAD encodeMsg encodeAD H isElem adversary bit n d α β γ) ≤
       6 / 2 ^ n := by
-  unfold cramerShoupChallengeGame cramerShoupMsgToDDHDistinguisher
-  simp only [pmf_norm]
+  simp only [cramerShoupChallengeGame, cramerShoupMsgToDDHDistinguisher, pmf_norm]
   refine F.advantage_bind_sampleCramerShoupSK_le n d _ _ fun s t s₁ t₁ s₂ t₂ => ?_
   rw [F.encodeCramerShoupPublicKey_eq_skNatOfZMod d α ((s, t), ((s₁, t₁), (s₂, t₂))),
     F.cramerShoupPhase1Oracle_eq_skNatOfZMod hasAD H isElem hmem d ((s, t), ((s₁, t₁), (s₂, t₂)))]
@@ -638,8 +637,7 @@ private theorem advantage_cramerShoupGame2_game3_le_exactCollision
     · dsimp only at hbad
       rw [Bool.and_eq_true, F.isCramerShoupCollision_eq_isCollisionFor H n d,
         isCollisionFor_eq_true_iff] at hbad
-      rw [isCollisionFor_eq_true_iff]
-      exact ⟨hbad.2, htarget, hbad.1.2.2⟩
+      exact (isCollisionFor_eq_true_iff ..).mpr ⟨hbad.2, htarget, hbad.1.2.2⟩
   · simp only [h, Bool.false_eq_true, ↓reduceIte]
     exact ⟨le_self_add, le_self_add⟩
 
@@ -1261,8 +1259,7 @@ private theorem advantage_cramerShoupCCA2InnerSK_le
           (a : ZMod (F.order d)))
       (F.cramerShoupCCA2UniformSK hasAD encodeAD H isElem d adversary bit n true) ≤
       8 / 2 ^ n := by
-  unfold cramerShoupCCA2UniformSK
-  simp only [PMF.monad_bind_eq_bind]
+  simp only [cramerShoupCCA2UniformSK, PMF.monad_bind_eq_bind]
   refine advantage_four_le_eight _
     ((PMF.uniformOfFintype (ZMod (F.order d))).bind
       (F.cramerShoupCCA2SampledSK hasAD encodeAD H isElem d adversary bit n))
