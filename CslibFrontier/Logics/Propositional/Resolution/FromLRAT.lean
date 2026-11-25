@@ -138,6 +138,14 @@ private def LRATEntry.toPair (e : LRATEntry) : ℕ × Clause ℕ := (e.id, e.cla
 private def freeVars (φ : CNF ℕ) (t : List (Literal ℕ)) : Finset ℕ :=
   φ.vars.toFinset.filter fun v => (v, true) ∉ t ∧ (v, false) ∉ t
 
+private theorem freeVars_cons (l : Literal ℕ) (t : List (Literal ℕ)) :
+    freeVars φ (l :: t) = (freeVars φ t).erase l.1 := by
+  obtain ⟨v, b⟩ := l
+  ext w
+  cases b <;>
+    simp only [freeVars, Finset.mem_filter, Finset.mem_erase, List.mem_cons, Prod.mk.injEq,
+      reduceCtorEq, and_false, and_true, false_or, not_or] <;> tauto
+
 /-- Every clause of the formula is a line of a proof. -/
 private theorem isProof_of_subset : ∀ {ls : List (Clause ℕ)}, (∀ c ∈ ls, c ∈ φ) → φ.IsProof ls
   | [], _ => .nil
@@ -201,23 +209,17 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
     have hopen : ∀ m ∈ e.line, Literal.negate m ∈ t ∨ m = l := fun m hm =>
       (em (m = l)).elim .inr fun hne => .inl (hoth m (hsub m hm) hne)
     obtain ⟨ls₁, d₁, hc₁, hp₁, hd₁, hf₁, hlen₁, hvar₁⟩ := ih (l :: t) hprop
-    have hfree : freeVars φ (l :: t) ⊆ freeVars φ t := by
-      intro v hv
-      simp only [freeVars, Finset.mem_filter, List.mem_cons, not_or] at hv ⊢
-      exact ⟨hv.1, hv.2.1.2, hv.2.2.2⟩
-    have hrun : rupChain db t (h :: hs) =
-        if Literal.negate l ∈ d₁ ∧ l ∉ t then
-          if l ∈ e.line then some (resolveOn l e.line d₁ :: ls₁, resolveOn l e.line d₁)
-          else some ([], e.line)
-        else some (ls₁, d₁) := by
-      simp only [rupChain, hfind, hres, hc₁]
+    rw [freeVars_cons] at hvar₁
+    have hrun := rupChain.eq_2 db t h hs
+    simp only [hfind, hres, hc₁] at hrun
     rw [hrun]
     by_cases hA : Literal.negate l ∈ d₁ ∧ l ∉ t
     · simp only [hA, not_false_eq_true, and_self, ↓reduceIte]
       by_cases hl₀ : l ∈ e.line
       · simp only [hl₀, ↓reduceIte]
         obtain ⟨hp, hmem⟩ := isProof_resolveOn hp₁ (List.mem_append_right _ hd₀) hd₁ hl₀ hA.1
-        refine ⟨_ :: ls₁, _, rfl, hp, List.mem_cons_self, fun m hm => ?_, by simp; omega, ?_⟩
+        refine ⟨_ :: ls₁, _, rfl, hp, List.mem_cons_self, fun m hm => ?_,
+          Nat.succ_le_succ hlen₁, ?_⟩
         · rcases hmem m hm with ⟨hm, hne⟩ | ⟨hm, hne⟩
           exacts [(hopen m hm).resolve_right hne,
             (List.mem_cons.1 (hf₁ m hm)).resolve_left fun h => hne (negate_eq_iff.1 h)]
@@ -229,19 +231,13 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
             cases b
             · exact ⟨by simpa [Literal.negate] using hlnew, hA.2⟩
             · exact ⟨hA.2, by simpa [Literal.negate] using hlnew⟩
-          have hv' : l.1 ∉ freeVars φ (l :: t) := by
-            obtain ⟨v, b⟩ := l
-            cases b <;> simp [freeVars]
-          have := Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2
-            ⟨hfree, fun h => hv' (h ▸ hv)⟩)
-          simp only [List.length_cons]
-          omega
+          exact Nat.succ_le_of_lt (hvar₁.trans_lt (Finset.card_erase_lt_of_mem hv))
       · simp only [hl₀, ↓reduceIte]
         exact ⟨[], e.line, rfl, hls, hd₀, fun m hm => (hopen m hm).resolve_right
           (fun h => hl₀ (h ▸ hm)), Nat.zero_le _, Nat.zero_le _⟩
     · simp only [hA, ↓reduceIte]
-      refine ⟨ls₁, d₁, rfl, hp₁, hd₁, fun m hm => ?_, by simp; omega,
-        hvar₁.trans (Finset.card_le_card hfree)⟩
+      refine ⟨ls₁, d₁, rfl, hp₁, hd₁, fun m hm => ?_, hlen₁.trans (Nat.le_succ _),
+        hvar₁.trans Finset.card_erase_le⟩
       rcases List.mem_cons.1 (hf₁ m hm) with h | h
       · obtain rfl := negate_eq_iff.1 h
         simpa using Classical.not_not.1 fun hlt => hA ⟨hm, hlt⟩
