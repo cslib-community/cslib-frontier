@@ -121,27 +121,29 @@ theorem ptrField_lt_stride (f : Fin L.ptrFields) : f.val < stride L :=
 theorem dataField_lt_stride (f : Fin L.dataFields) : L.ptrFields + f.val < stride L :=
   lt_of_lt_of_le (Nat.add_lt_add_left f.isLt _) (le_max_right _ _)
 
-/-- Different nodes and offsets designate different cells. -/
-theorem cellAddr_injective {a b i j : ℕ} (hi : i < stride L) (hj : j < stride L)
-    (h : cellAddr L a i = cellAddr L b j) : a = b ∧ i = j := by
-  unfold cellAddr nodeAddr at h
-  by_cases hab : a = b
-  · subst b; exact ⟨rfl, by omega⟩
-  · have horder : a + 1 ≤ b ∨ b + 1 ≤ a := by omega
-    rcases horder with horder | horder
-    · have := Nat.mul_le_mul_left (stride L) horder
-      simp only [Nat.mul_add, Nat.mul_one] at this
-      omega
-    · have := Nat.mul_le_mul_left (stride L) horder
-      simp only [Nat.mul_add, Nat.mul_one] at this
-      omega
-
 /-- A cell of an allocated node precedes the first free address. -/
 theorem cellAddr_lt {a n i : ℕ} (ha : a < n) (hi : i < stride L) :
     cellAddr L a i < nodeAddr L n := by
   have h := Nat.mul_le_mul_left (stride L) (Nat.add_one_le_iff.mpr ha)
   simp only [Nat.mul_add, Nat.mul_one] at h
   unfold cellAddr nodeAddr
+  omega
+
+/-- Different nodes and offsets designate different cells. -/
+theorem cellAddr_injective {a b i j : ℕ} (hi : i < stride L) (hj : j < stride L)
+    (h : cellAddr L a i = cellAddr L b j) : a = b ∧ i = j := by
+  rcases lt_trichotomy a b with hab | rfl | hba
+  · exact absurd h (ne_of_lt ((cellAddr_lt hab hi).trans_le (Nat.le_add_right _ _)))
+  · exact ⟨rfl, Nat.add_left_cancel h⟩
+  · exact absurd h.symm (ne_of_lt ((cellAddr_lt hba hj).trans_le (Nat.le_add_right _ _)))
+
+private theorem cellAddr_eq_iff {a b i j : ℕ} (hi : i < stride L) (hj : j < stride L) :
+    cellAddr L a i = cellAddr L b j ↔ a = b ∧ i = j :=
+  ⟨cellAddr_injective hi hj, by rintro ⟨rfl, rfl⟩; rfl⟩
+
+private theorem cellAddr_ptr_ne_data (a b : ℕ) (f : Fin L.ptrFields) (g : Fin L.dataFields) :
+    cellAddr L a f.val ≠ cellAddr L b (L.ptrFields + g.val) := fun h => by
+  have := (cellAddr_injective (ptrField_lt_stride f) (dataField_lt_stride g) h).2
   omega
 
 /-- Pointer words retain pointer equality, including null. -/
@@ -286,26 +288,14 @@ theorem writePtr (a : ℕ) (f : Fin L.ptrFields) (p : Pointer) :
       (y.write (cellAddr L a f.val) (ptrWord L p)) := by
   refine h.modify (z := y.write (cellAddr L a f.val) (ptrWord L p)) a _ rfl ?_ ?_
   · intro b n hn t
-    have hf : f.val < stride L := ptrField_lt_stride f
-    have ht : t.val < stride L := ptrField_lt_stride t
     have he : cellAddr L b t.val = cellAddr L a f.val ↔ b = a ∧ t = f := by
-      constructor
-      · intro he
-        obtain ⟨hb, ht⟩ := cellAddr_injective ht hf he
-        exact ⟨hb, Fin.ext ht⟩
-      · rintro ⟨rfl, rfl⟩; rfl
+      rw [cellAddr_eq_iff (ptrField_lt_stride t) (ptrField_lt_stride f), Fin.ext_iff]
     have hmem := h.heapPtr b n hn t
     simp only [Cslib.WordRAM.Data.write, Function.update_apply, he]
     by_cases hb : b = a <;> by_cases ht : t = f <;> simp_all
   · intro b n hn t
-    have hf : f.val < stride L := ptrField_lt_stride f
-    have ht : L.ptrFields + t.val < stride L := dataField_lt_stride t
-    have he : cellAddr L b (L.ptrFields + t.val) ≠ cellAddr L a f.val := by
-      intro he
-      have hh := (cellAddr_injective ht hf he).2
-      have := f.isLt
-      omega
-    simp only [Cslib.WordRAM.Data.write, Function.update_of_ne he]
+    simp only [Cslib.WordRAM.Data.write,
+      Function.update_of_ne (cellAddr_ptr_ne_data a b f t).symm]
     split_ifs <;> exact h.heapData b n hn t
 
 /-- Storing a data field is a single word-memory update. -/
@@ -315,25 +305,13 @@ theorem writeData (a : ℕ) (f : Fin L.dataFields) (v : M.Value) :
       (y.write (cellAddr L a (L.ptrFields + f.val)) (e v)) := by
   refine h.modify (z := y.write (cellAddr L a (L.ptrFields + f.val)) (e v)) a _ rfl ?_ ?_
   · intro b n hn t
-    have hf : L.ptrFields + f.val < stride L := dataField_lt_stride f
-    have ht : t.val < stride L := ptrField_lt_stride t
-    have he : cellAddr L b t.val ≠ cellAddr L a (L.ptrFields + f.val) := by
-      intro he
-      have hh := (cellAddr_injective ht hf he).2
-      have := t.isLt
-      omega
-    simp only [Cslib.WordRAM.Data.write, Function.update_of_ne he]
+    simp only [Cslib.WordRAM.Data.write, Function.update_of_ne (cellAddr_ptr_ne_data b a t f)]
     split_ifs <;> exact h.heapPtr b n hn t
   · intro b n hn t
-    have hf : L.ptrFields + f.val < stride L := dataField_lt_stride f
-    have ht : L.ptrFields + t.val < stride L := dataField_lt_stride t
     have he : cellAddr L b (L.ptrFields + t.val) = cellAddr L a (L.ptrFields + f.val) ↔
         b = a ∧ t = f := by
-      constructor
-      · intro he
-        obtain ⟨hb, ht⟩ := cellAddr_injective ht hf he
-        exact ⟨hb, Fin.ext (by omega)⟩
-      · rintro ⟨rfl, rfl⟩; rfl
+      rw [cellAddr_eq_iff (dataField_lt_stride t) (dataField_lt_stride f),
+        Nat.add_left_cancel_iff, Fin.ext_iff]
     have hmem := h.heapData b n hn t
     simp only [Cslib.WordRAM.Data.write, Function.update_apply, he]
     by_cases hb : b = a <;> by_cases ht : t = f <;> simp_all
