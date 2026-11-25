@@ -71,22 +71,15 @@ section Helpers
 
 private theorem bool_profile_eq {α : Bool → Type*} (β : ∀ i : Bool, α i) :
     (fun | false => β false | true => β true) = β := by
-  funext i
-  cases i <;> rfl
+  funext i; cases i <;> rfl
 
 private theorem update_false_eq {α : Bool → Type*} (β : ∀ i : Bool, α i) (x : α false) :
     Function.update β false x = fun | false => x | true => β true := by
-  funext i
-  cases i
-  · simp
-  · rw [Function.update_of_ne Bool.false_ne_true.symm]
+  funext i; cases i <;> simp [Function.update_of_ne]
 
 private theorem update_true_eq {α : Bool → Type*} (β : ∀ i : Bool, α i) (y : α true) :
     Function.update β true y = fun | false => β false | true => y := by
-  funext i
-  cases i
-  · rw [Function.update_of_ne Bool.false_ne_true]
-  · simp
+  funext i; cases i <;> simp [Function.update_of_ne]
 
 private theorem dotProduct_neg_transpose_mulVec {α β : Type*} [Fintype α] [Fintype β]
     (A : Matrix α β ℝ) (x : α → ℝ) (y : β → ℝ) :
@@ -97,20 +90,33 @@ private theorem eval_isLeast_of_neg_isGreatest {α : Type*} (S : Set α) (f : α
     (hmax : IsGreatest ((fun y => -f y) '' S) u) :
     IsLeast (f '' S) (-u) := by
   obtain ⟨y₀, hy₀, hy₀_eq⟩ := hmax.1
-  refine ⟨⟨y₀, hy₀, by linarith⟩, ?_⟩
-  rintro _ ⟨y, hy, rfl⟩
-  have hle : -f y ≤ u := hmax.2 ⟨y, hy, rfl⟩
-  linarith
+  exact ⟨⟨y₀, hy₀, by linarith⟩, by rintro _ ⟨y, hy, rfl⟩; linarith [hmax.2 ⟨y, hy, rfl⟩]⟩
+
+private theorem ciSup_subtype_eq_of_isGreatest {α : Type*} {P : α → Prop} {f : α → ℝ} {v : ℝ}
+    (h : IsGreatest (f '' {x | P x}) v) : (⨆ x : {x // P x}, f x.1) = v := by
+  obtain ⟨⟨x₀, hx₀, hx₀_eq⟩, hmax⟩ := h
+  let _ : Nonempty {x // P x} := ⟨⟨x₀, hx₀⟩⟩
+  have hbdd : BddAbove (Set.range fun x : {x // P x} => f x.1) :=
+    ⟨v, by rintro _ ⟨⟨x, hx⟩, rfl⟩; exact hmax ⟨x, hx, rfl⟩⟩
+  exact le_antisymm (ciSup_le fun ⟨x, hx⟩ => hmax ⟨x, hx, rfl⟩)
+    (hx₀_eq.symm.trans_le (le_ciSup hbdd ⟨x₀, hx₀⟩))
+
+private theorem ciInf_subtype_eq_of_isLeast {α : Type*} {P : α → Prop} {f : α → ℝ} {u : ℝ}
+    (h : IsLeast (f '' {y | P y}) u) : (⨅ y : {y // P y}, f y.1) = u := by
+  obtain ⟨⟨y₀, hy₀, hy₀_eq⟩, hmin⟩ := h
+  let _ : Nonempty {y // P y} := ⟨⟨y₀, hy₀⟩⟩
+  have hbdd : BddBelow (Set.range fun y : {y // P y} => f y.1) :=
+    ⟨u, by rintro _ ⟨⟨y, hy⟩, rfl⟩; exact hmin ⟨y, hy, rfl⟩⟩
+  exact le_antisymm ((ciInf_le hbdd ⟨y₀, hy₀⟩).trans_eq hy₀_eq)
+    (le_ciInf fun ⟨y, hy⟩ => hmin ⟨y, hy, rfl⟩)
 
 private theorem iSup_eq_of_surjective {α β : Type*} {e : α → β} (he : Function.Surjective e)
     {f : α → ℝ} {g : β → ℝ} (h : ∀ a, f a = g (e a)) : (⨆ a, f a) = ⨆ b, g b := by
-  simp_rw [h]
-  exact congrArg sSup (he.range_comp g)
+  simp_rw [h]; exact congrArg sSup (he.range_comp g)
 
 private theorem iInf_eq_of_surjective {α β : Type*} {e : α → β} (he : Function.Surjective e)
     {f : α → ℝ} {g : β → ℝ} (h : ∀ a, f a = g (e a)) : (⨅ a, f a) = ⨅ b, g b := by
-  simp_rw [h]
-  exact congrArg sInf (he.range_comp g)
+  simp_rw [h]; exact congrArg sInf (he.range_comp g)
 
 end Helpers
 
@@ -143,33 +149,12 @@ theorem seqPayoffMat_apply [∀ i h, Fintype (Act i h)]
   let r₁ : Seq H Act true → ℝ := fun τ => if τ = σ₁.1 then 1 else 0
   have hb := seqPayoffMat_bilinear T p r₀ r₁
   have hr0 : (fun σ : SeqVar T false => r₀ σ.1) = Pi.single σ₀ (1 : ℝ) := by
-    ext σ
-    by_cases h : σ = σ₀
-    · subst h; simp [r₀]
-    · have hne : σ.1 ≠ σ₀.1 := fun heq => h (Subtype.ext heq)
-      simp [r₀, h, hne]
+    ext σ; simp [r₀, Pi.single_apply, Subtype.ext_iff]
   have hr1 : (fun τ : SeqVar T true => r₁ τ.1) = Pi.single σ₁ (1 : ℝ) := by
-    ext τ
-    by_cases h : τ = σ₁
-    · subst h; simp [r₁]
-    · have hne : τ.1 ≠ σ₁.1 := fun heq => h (Subtype.ext heq)
-      simp [r₁, h, hne]
-  rw [hr0, hr1] at hb
+    ext τ; simp [r₁, Pi.single_apply, Subtype.ext_iff]
   have hlhs : (Pi.single σ₀ (1 : ℝ)) ⬝ᵥ (T.seqPayoffMat p *ᵥ Pi.single σ₁ (1 : ℝ)) =
-      T.seqPayoffMat p σ₀ σ₁ := by
-    rw [dotProduct, sum_eq_single σ₀]
-    · simp only [Pi.single_eq_same, one_mul, Matrix.mulVec, dotProduct]
-      rw [sum_eq_single σ₁]
-      · simp
-      · intro τ _ hne
-        simp [hne]
-      · intro hmem
-        exact absurd (mem_univ σ₁) hmem
-    · intro σ _ hne
-      simp [hne]
-    · intro hmem
-      exact absurd (mem_univ σ₀) hmem
-  rw [hlhs] at hb
+      T.seqPayoffMat p σ₀ σ₁ := by simp [dotProduct, Matrix.mulVec, Pi.single_apply]
+  rw [hr0, hr1, hlhs] at hb
   rw [hb]
   refine sum_congr rfl fun z _ => ?_
   by_cases h0 : z.seq false = σ₀.1 <;> by_cases h1 : z.seq true = σ₁.1 <;>
@@ -232,17 +217,9 @@ theorem dotProduct_seqPayoffMat_mulVec_eq_sum_support [∀ i h, Fintype (Act i h
       ∑ e ∈ univ.filter (fun e : SeqVar T false × SeqVar T true =>
           T.seqPayoffMat p e.1 e.2 ≠ 0),
         x e.1 * T.seqPayoffMat p e.1 e.2 * y e.2 := by
-  rw [Finset.sum_filter]
-  have hprod : x ⬝ᵥ (T.seqPayoffMat p *ᵥ y) =
-      ∑ e : SeqVar T false × SeqVar T true, x e.1 * T.seqPayoffMat p e.1 e.2 * y e.2 := by
-    rw [dotProduct]
-    simp only [Matrix.mulVec, dotProduct, mul_sum, ← mul_assoc, Fintype.sum_prod_type]
-  rw [hprod]
-  refine sum_congr rfl fun e _ => ?_
-  split_ifs with hne
-  · rfl
-  · push Not at hne
-    simp [hne]
+  rw [Finset.sum_filter, dotProduct]
+  simp only [Matrix.mulVec, dotProduct, mul_sum, ← mul_assoc, Fintype.sum_prod_type]
+  exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by split_ifs with hne <;> simp_all
 
 open Classical in
 /-- Leaf-indexed evaluation of `x ⬝ᵥ (T.seqPayoffMat p *ᵥ y)` for arbitrary vectors `x, y`. -/
@@ -257,22 +234,13 @@ theorem dotProduct_seqPayoffMat_mulVec_eq_sum_terminal [∀ i h, Fintype (Act i 
   let r₁ : Seq H Act true → ℝ := fun τ => if h : ∃ z : Terminal T, τ <+: z.seq true then
     y ⟨τ, h⟩ else 0
   have hb := seqPayoffMat_bilinear T p r₀ r₁
-  have hr0 : (fun σ : SeqVar T false => r₀ σ.1) = x := by
-    ext σ
-    simp [r₀, σ.2]
-  have hr1 : (fun τ : SeqVar T true => r₁ τ.1) = y := by
-    ext τ
-    simp [r₁, τ.2]
-  rw [hr0, hr1] at hb
+  rw [show (fun σ : SeqVar T false => r₀ σ.1) = x by ext σ; simp [r₀, σ.2],
+    show (fun τ : SeqVar T true => r₁ τ.1) = y by ext τ; simp [r₁, τ.2]] at hb
   rw [hb]
   refine sum_congr rfl fun z _ => ?_
-  have hz0 : r₀ (z.seq false) = x (T.leafSeqPair z).1 := by
-    have hex : ∃ w : Terminal T, z.seq false <+: w.seq false := ⟨z, List.prefix_rfl⟩
-    simp [r₀, hex, ExtensiveTree.leafSeqPair]
-  have hz1 : r₁ (z.seq true) = y (T.leafSeqPair z).2 := by
-    have hex : ∃ w : Terminal T, z.seq true <+: w.seq true := ⟨z, List.prefix_rfl⟩
-    simp [r₁, hex, ExtensiveTree.leafSeqPair]
-  rw [hz0, hz1]
+  have h0 : ∃ w : Terminal T, z.seq false <+: w.seq false := ⟨z, List.prefix_rfl⟩
+  have h1 : ∃ w : Terminal T, z.seq true <+: w.seq true := ⟨z, List.prefix_rfl⟩
+  simp [r₀, r₁, h0, h1, ExtensiveTree.leafSeqPair]
 
 /-- An extensive-form game tree has no chance nodes (`HasNoChance`). -/
 @[expose] def ExtensiveTree.HasNoChance {ι : Type u} {H : ι → Type v} {Act : ∀ i, H i → Type} :
@@ -293,34 +261,21 @@ private theorem eq_of_hasNoChance_seq_eq {T : ExtensiveTree Bool H Act} (hnc : T
     ∀ {z₁ z₂ : Terminal T},
       z₁.seq false = z₂.seq false → z₁.seq true = z₂.seq true → z₁ = z₂ := by
   induction T with
-  | leaf _ =>
-    intro z₁ z₂ _ _
-    cases z₁
-    cases z₂
-    rfl
-  | chance _ _ _ =>
-    exact False.elim hnc
+  | leaf _ => rintro ⟨⟩ ⟨⟩ _ _; rfl
+  | chance _ _ _ => exact False.elim hnc
   | decision p _ _ ih =>
     intro z₁ z₂ h0 h1
-    cases z₁ with
-    | decision a₁ sub₁ =>
-      cases z₂ with
-      | decision a₂ sub₂ =>
-        cases p with
-        | false =>
-          simp only [Terminal.seq_decision_self,
-            Terminal.seq_decision_ne Bool.false_ne_true] at h0 h1
-          obtain ⟨hhead, htail⟩ := List.cons.inj h0
-          have ha : a₁ = a₂ := eq_of_heq (Sigma.mk.inj_iff.1 hhead).2
-          subst ha
-          exact congrArg (Terminal.decision a₁) (ih a₁ (hnc a₁) htail h1)
-        | true =>
-          simp only [Terminal.seq_decision_self,
-            Terminal.seq_decision_ne Bool.false_ne_true.symm] at h0 h1
-          obtain ⟨hhead, htail⟩ := List.cons.inj h1
-          have ha : a₁ = a₂ := eq_of_heq (Sigma.mk.inj_iff.1 hhead).2
-          subst ha
-          exact congrArg (Terminal.decision a₁) (ih a₁ (hnc a₁) h0 htail)
+    cases z₁ with | decision a₁ sub₁ => cases z₂ with | decision a₂ sub₂ =>
+    cases p
+    · simp only [Terminal.seq_decision_self, Terminal.seq_decision_ne Bool.false_ne_true] at h0 h1
+      obtain ⟨hhead, htail⟩ := List.cons.inj h0
+      obtain rfl : a₁ = a₂ := eq_of_heq (Sigma.mk.inj_iff.1 hhead).2
+      exact congrArg (Terminal.decision a₁) (ih a₁ (hnc a₁) htail h1)
+    · simp only [Terminal.seq_decision_self,
+        Terminal.seq_decision_ne Bool.false_ne_true.symm] at h0 h1
+      obtain ⟨hhead, htail⟩ := List.cons.inj h1
+      obtain rfl : a₁ = a₂ := eq_of_heq (Sigma.mk.inj_iff.1 hhead).2
+      exact congrArg (Terminal.decision a₁) (ih a₁ (hnc a₁) h0 htail)
 
 /-- In a chance-free two-player extensive game tree, distinct terminal leaves realize distinct
 player-sequence pairs `T.leafSeqPair z` ([vonStengel1996], §3; [vonStengel2007], §3.10). -/
@@ -337,15 +292,10 @@ theorem ExtensiveTree.HasNoChance.seqPayoffMat_leafSeqPair [∀ i h, Fintype (Ac
     {T : ExtensiveTree Bool H Act} (hnc : T.HasNoChance) (p : Bool) (z : Terminal T) :
     T.seqPayoffMat p (T.leafSeqPair z).1 (T.leafSeqPair z).2 = z.payoff p := by
   classical
-  rw [seqPayoffMat_eq_sum_filter_terminal]
-  rw [Finset.sum_eq_single z]
+  rw [seqPayoffMat_eq_sum_filter_terminal, Finset.sum_eq_single z]
   · rw [hnc.chanceWeight_eq_one z, one_mul]
-  · intro z' hz' hne
-    exfalso
-    exact hne (hnc.leafSeqPair_injective (mem_filter.1 hz').2)
-  · intro hmem
-    exfalso
-    exact hmem (mem_filter.2 ⟨mem_univ z, rfl⟩)
+  · exact fun _ hz' hne => absurd (hnc.leafSeqPair_injective (mem_filter.1 hz').2) hne
+  · exact fun hmem => (hmem (mem_filter.2 ⟨mem_univ z, rfl⟩)).elim
 
 end SparsePayoffMatrix
 
@@ -366,12 +316,7 @@ private theorem exists_isLeast_seqPayoff [∀ i h, Fintype (Act i h)] [∀ i h, 
   let _ := Fintype.ofFinite (H true)
   obtain ⟨u, hmax, _⟩ := exists_isGreatest_isLeast_seqLP (T := T) (i := true) hpr
     (-((T.seqPayoffMat false)ᵀ *ᵥ x))
-  have himg : ((fun y => (-((T.seqPayoffMat false)ᵀ *ᵥ x)) ⬝ᵥ y) ''
-      {y | T.IsRealizationPlan true y}) =
-      ((fun y => -(x ⬝ᵥ (T.seqPayoffMat false *ᵥ y))) '' {y | T.IsRealizationPlan true y}) := by
-    ext r
-    simp_rw [dotProduct_neg_transpose_mulVec]
-  rw [himg] at hmax
+  simp only [dotProduct_neg_transpose_mulVec] at hmax
   exact ⟨-u, eval_isLeast_of_neg_isGreatest _ _ hmax⟩
 
 open Classical in
@@ -387,11 +332,7 @@ private theorem exists_isGreatest_seqPayoff [∀ i h, Fintype (Act i h)] [∀ i 
   let _ := Fintype.ofFinite (H false)
   obtain ⟨v, hmax, _⟩ := exists_isGreatest_isLeast_seqLP (T := T) (i := false) hpr
     (T.seqPayoffMat false *ᵥ y)
-  have himg : ((fun x => (T.seqPayoffMat false *ᵥ y) ⬝ᵥ x) '' {x | T.IsRealizationPlan false x}) =
-      ((fun x => x ⬝ᵥ (T.seqPayoffMat false *ᵥ y)) '' {x | T.IsRealizationPlan false x}) := by
-    ext r
-    simp [dotProduct_comm]
-  rw [himg] at hmax
+  simp_rw [dotProduct_comm (T.seqPayoffMat false *ᵥ y)] at hmax
   exact ⟨v, hmax⟩
 
 open Classical in
@@ -419,15 +360,7 @@ theorem isLeast_seqLowerVal [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act
         {y | T.IsRealizationPlan true y})
       (T.seqLowerVal x) := by
   obtain ⟨u, hu⟩ := exists_isLeast_seqPayoff hpr x
-  obtain ⟨y₀, hy₀, hy₀_eq⟩ := hu.1
-  let _ : Nonempty {y : SeqVar T true → ℝ // T.IsRealizationPlan true y} := ⟨⟨y₀, hy₀⟩⟩
-  have hbdd : BddBelow (Set.range fun y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y} =>
-      x ⬝ᵥ (T.seqPayoffMat false *ᵥ y.1)) :=
-    ⟨u, by rintro _ ⟨⟨y, hy⟩, rfl⟩; exact hu.2 ⟨y, hy, rfl⟩⟩
-  have hval : T.seqLowerVal x = u :=
-    le_antisymm ((ciInf_le hbdd ⟨y₀, hy₀⟩).trans_eq hy₀_eq)
-      (le_ciInf fun ⟨y, hy⟩ => hu.2 ⟨y, hy, rfl⟩)
-  rwa [hval]
+  rwa [show T.seqLowerVal x = u from ciInf_subtype_eq_of_isLeast hu]
 
 open Classical in
 theorem isGreatest_seqUpperVal [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
@@ -438,15 +371,7 @@ theorem isGreatest_seqUpperVal [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (
         {x | T.IsRealizationPlan false x})
       (T.seqUpperVal y) := by
   obtain ⟨v, hv⟩ := exists_isGreatest_seqPayoff hpr y
-  obtain ⟨x₀, hx₀, hx₀_eq⟩ := hv.1
-  let _ : Nonempty {x : SeqVar T false → ℝ // T.IsRealizationPlan false x} := ⟨⟨x₀, hx₀⟩⟩
-  have hbdd : BddAbove (Set.range fun x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x} =>
-      x.1 ⬝ᵥ (T.seqPayoffMat false *ᵥ y)) :=
-    ⟨v, by rintro _ ⟨⟨x, hx⟩, rfl⟩; exact hv.2 ⟨x, hx, rfl⟩⟩
-  have hval : T.seqUpperVal y = v :=
-    le_antisymm (ciSup_le fun ⟨x, hx⟩ => hv.2 ⟨x, hx, rfl⟩)
-      (hx₀_eq.symm.trans_le (le_ciSup hbdd ⟨x₀, hx₀⟩))
-  rwa [hval]
+  rwa [show T.seqUpperVal y = v from ciSup_subtype_eq_of_isGreatest hv]
 
 theorem seqLowerVal_le [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
     {T : ExtensiveTree Bool H Act} [Finite (H true)] (hpr : T.PerfectRecall true)
@@ -542,22 +467,14 @@ theorem isBehaviorNash_iff_saddlePoint [∀ i h, Fintype (Act i h)]
           T.evalBehavior (fun | false => β₀ | true => β true) false ≤ T.evalBehavior β false) ∧
         (∀ β₁ : ∀ h : H true, Act true h → ℝ, IsBehaviorStrategy β₁ →
           T.evalBehavior β false ≤ T.evalBehavior (fun | false => β false | true => β₁) false) := by
-  constructor
-  · rintro ⟨hbeh, hopt⟩
-    refine ⟨hbeh, fun β₀ hβ₀ => ?_, fun β₁ hβ₁ => ?_⟩
-    · have h := hopt false β₀ hβ₀
-      rwa [update_false_eq] at h
-    · have h := hopt true β₁ hβ₁
-      rw [hzs.evalBehavior_true, hzs.evalBehavior_true, neg_le_neg_iff, update_true_eq] at h
-      exact h
-  · rintro ⟨hbeh, h0, h1⟩
-    refine ⟨hbeh, fun i β' hβ' => ?_⟩
-    cases i with
-    | false =>
-      rw [update_false_eq]
-      exact h0 β' hβ'
-    | true =>
-      rw [hzs.evalBehavior_true, hzs.evalBehavior_true, neg_le_neg_iff, update_true_eq]
+  refine and_congr_right fun _ => ⟨fun hopt => ⟨fun β₀ hβ₀ => ?_, fun β₁ hβ₁ => ?_⟩,
+    fun ⟨h0, h1⟩ i β' hβ' => ?_⟩
+  · have h := hopt false β₀ hβ₀; rwa [update_false_eq] at h
+  · have h := hopt true β₁ hβ₁
+    rwa [hzs.evalBehavior_true, hzs.evalBehavior_true, neg_le_neg_iff, update_true_eq] at h
+  · cases i
+    · rw [update_false_eq]; exact h0 β' hβ'
+    · rw [hzs.evalBehavior_true, hzs.evalBehavior_true, neg_le_neg_iff, update_true_eq]
       exact h1 β' hβ'
 
 private theorem forall_behavior_iff_forall_plan [∀ i h, Fintype (Act i h)]
@@ -656,27 +573,8 @@ theorem seq_iSup_iInf_eq_iInf_iSup [∀ i h, Fintype (Act i h)] [∀ i h, Nonemp
       ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y},
         ⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
           x.1 ⬝ᵥ (T.seqPayoffMat false *ᵥ y.1) := by
-  obtain ⟨v, ⟨⟨x₀, hx₀, hx₀_eq⟩, hmax⟩, ⟨⟨y₀, hy₀, hy₀_eq⟩, hmin⟩, _⟩ :=
-    hzs.seq_minimax_duality hpr
-  let _ : Nonempty {x : SeqVar T false → ℝ // T.IsRealizationPlan false x} := ⟨⟨x₀, hx₀⟩⟩
-  let _ : Nonempty {y : SeqVar T true → ℝ // T.IsRealizationPlan true y} := ⟨⟨y₀, hy₀⟩⟩
-  have hbdd_lo : BddAbove (Set.range fun x :
-      {x : SeqVar T false → ℝ // T.IsRealizationPlan false x} => T.seqLowerVal x.1) :=
-    ⟨v, by rintro _ ⟨⟨x, hx⟩, rfl⟩; exact hmax ⟨x, hx, rfl⟩⟩
-  have hbdd_up : BddBelow (Set.range fun y :
-      {y : SeqVar T true → ℝ // T.IsRealizationPlan true y} => T.seqUpperVal y.1) :=
-    ⟨v, by rintro _ ⟨⟨y, hy⟩, rfl⟩; exact hmin ⟨y, hy, rfl⟩⟩
-  have hleft : (⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
-      T.seqLowerVal x.1) = v :=
-    le_antisymm (ciSup_le fun ⟨x, hx⟩ => hmax ⟨x, hx, rfl⟩)
-      (hx₀_eq.symm.trans_le (le_ciSup hbdd_lo ⟨x₀, hx₀⟩))
-  have hright : (⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y},
-      T.seqUpperVal y.1) = v :=
-    le_antisymm ((ciInf_le hbdd_up ⟨y₀, hy₀⟩).trans_eq hy₀_eq)
-      (le_ciInf fun ⟨y, hy⟩ => hmin ⟨y, hy, rfl⟩)
-  change (⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x}, T.seqLowerVal x.1) =
-    ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y}, T.seqUpperVal y.1
-  rw [hleft, hright]
+  obtain ⟨v, hmax, hmin, _⟩ := hzs.seq_minimax_duality hpr
+  exact (ciSup_subtype_eq_of_isGreatest hmax).trans (ciInf_subtype_eq_of_isLeast hmin).symm
 
 open Classical in
 /-- Maximin/minimax characterization of sequence-form Nash equilibria in two-player zero-sum
@@ -698,20 +596,16 @@ theorem isSeqNash_iff_maximin_minimax [∀ i h, Fintype (Act i h)] [∀ i h, Non
     obtain ⟨hlo_eq, hup_eq⟩ := seqLowerVal_seqUpperVal_eq_of_saddle hpr hx hy hbest0 hbest1
     have hval : x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) = v :=
       le_antisymm (hlo_eq ▸ hmaxV.2 ⟨x, hx, rfl⟩) (hup_eq ▸ hminV.2 ⟨y, hy, rfl⟩)
-    have hlo_v : T.seqLowerVal x = v := hlo_eq.trans hval
-    have hup_v : T.seqUpperVal y = v := hup_eq.trans hval
-    exact ⟨⟨hx, hlo_v.symm ▸ hmaxV⟩, ⟨hy, hup_v.symm ▸ hminV⟩⟩
+    exact ⟨⟨hx, (hlo_eq.trans hval).symm ▸ hmaxV⟩, ⟨hy, (hup_eq.trans hval).symm ▸ hminV⟩⟩
   · rintro ⟨⟨hx, hx_max⟩, ⟨hy, hy_min⟩⟩
-    have hlo_v : T.seqLowerVal x = v :=
-      le_antisymm (hmaxV.2 ⟨x, hx, rfl⟩) (hx_max.2 hmaxV.1)
-    have hup_v : T.seqUpperVal y = v :=
-      le_antisymm (hy_min.2 hminV.1) (hminV.2 ⟨y, hy, rfl⟩)
+    have hlo_v : T.seqLowerVal x = v := le_antisymm (hmaxV.2 ⟨x, hx, rfl⟩) (hx_max.2 hmaxV.1)
+    have hup_v : T.seqUpperVal y = v := le_antisymm (hy_min.2 hminV.1) (hminV.2 ⟨y, hy, rfl⟩)
     have hxy : x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) = v :=
       le_antisymm ((le_seqUpperVal (hpr false) y hx).trans_eq hup_v)
         (hlo_v.symm.trans_le (seqLowerVal_le (hpr true) x hy))
-    refine (hzs.isSeqNash_iff_saddlePoint hpr x y).2 ⟨hx, hy, fun x' hx' => ?_, fun y' hy' => ?_⟩
-    · exact (le_seqUpperVal (hpr false) y hx').trans_eq (hup_v.trans hxy.symm)
-    · exact (hxy.trans hlo_v.symm).trans_le (seqLowerVal_le (hpr true) x hy')
+    exact (hzs.isSeqNash_iff_saddlePoint hpr x y).2
+      ⟨hx, hy, fun _ hx' => (le_seqUpperVal (hpr false) y hx').trans_eq (hup_v.trans hxy.symm),
+        fun _ hy' => (hxy.trans hlo_v.symm).trans_le (seqLowerVal_le (hpr true) x hy')⟩
 
 end ExtensiveTree.IsZeroSum
 
@@ -730,28 +624,11 @@ theorem payoff_eq [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
       x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) =
         ⨅ y' : {y' : SeqVar T true → ℝ // T.IsRealizationPlan true y'},
           T.seqUpperVal y'.1 := by
+  obtain ⟨⟨_, hmax⟩, ⟨_, hmin⟩⟩ := (hzs.isSeqNash_iff_maximin_minimax hpr x y).1 hnash
   obtain ⟨hx, hy, hbest0, hbest1⟩ := (hzs.isSeqNash_iff_saddlePoint hpr x y).1 hnash
-  obtain ⟨v, ⟨⟨x₀, hx₀, hx₀_eq⟩, hmax⟩, ⟨⟨y₀, hy₀, hy₀_eq⟩, hmin⟩, _⟩ :=
-    hzs.seq_minimax_duality hpr
-  let _ : Nonempty {x' : SeqVar T false → ℝ // T.IsRealizationPlan false x'} := ⟨⟨x₀, hx₀⟩⟩
-  let _ : Nonempty {y' : SeqVar T true → ℝ // T.IsRealizationPlan true y'} := ⟨⟨y₀, hy₀⟩⟩
-  obtain ⟨hlo_eq, hup_eq⟩ := seqLowerVal_seqUpperVal_eq_of_saddle hpr hx hy hbest0 hbest1
-  have hv1 : T.seqLowerVal x ≤ v := hmax ⟨x, hx, rfl⟩
-  have hv2 : v ≤ T.seqUpperVal y := hmin ⟨y, hy, rfl⟩
-  have hval : x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) = v := le_antisymm (hlo_eq ▸ hv1) (hup_eq ▸ hv2)
-  have hbdd_lo : BddAbove (Set.range fun x' : {x' // T.IsRealizationPlan false x'} =>
-      T.seqLowerVal x'.1) :=
-    ⟨v, by rintro _ ⟨⟨x', hx'⟩, rfl⟩; exact hmax ⟨x', hx', rfl⟩⟩
-  have hbdd_up : BddBelow (Set.range fun y' : {y' // T.IsRealizationPlan true y'} =>
-      T.seqUpperVal y'.1) :=
-    ⟨v, by rintro _ ⟨⟨y', hy'⟩, rfl⟩; exact hmin ⟨y', hy', rfl⟩⟩
-  have hsup : (⨆ x' : {x' // T.IsRealizationPlan false x'}, T.seqLowerVal x'.1) = v :=
-    le_antisymm (ciSup_le fun ⟨x', hx'⟩ => hmax ⟨x', hx', rfl⟩)
-      (hx₀_eq.symm.trans_le (le_ciSup hbdd_lo ⟨x₀, hx₀⟩))
-  have hinf : (⨅ y' : {y' // T.IsRealizationPlan true y'}, T.seqUpperVal y'.1) = v :=
-    le_antisymm ((ciInf_le hbdd_up ⟨y₀, hy₀⟩).trans_eq hy₀_eq)
-      (le_ciInf fun ⟨y', hy'⟩ => hmin ⟨y', hy', rfl⟩)
-  exact ⟨hval.trans hsup.symm, hval.trans hinf.symm⟩
+  obtain ⟨hlo, hup⟩ := seqLowerVal_seqUpperVal_eq_of_saddle hpr hx hy hbest0 hbest1
+  exact ⟨hlo.symm.trans (ciSup_subtype_eq_of_isGreatest hmax).symm,
+    hup.symm.trans (ciInf_subtype_eq_of_isLeast hmin).symm⟩
 
 open Classical in
 /-- **Interchangeability of sequence-form Nash equilibria** in two-player zero-sum games with
@@ -852,6 +729,17 @@ theorem behavior_iSup_iInf_eq_iInf_iSup [∀ i h, Fintype (Act i h)] [∀ i h, N
   exact hzs.seq_iSup_iInf_eq_iInf_iSup hpr
 
 open Classical in
+private theorem image_behavior_eq_image_plan [∀ i h, Fintype (Act i h)]
+    [∀ i h, Nonempty (Act i h)] {T : ExtensiveTree Bool H Act} {i : Bool}
+    (hpr : T.PerfectRecall i) {f : (∀ h : H i, Act i h → ℝ) → ℝ} {g : (SeqVar T i → ℝ) → ℝ}
+    (hfg : ∀ b, f b = g (T.behaviorToRealizationPlan i b)) :
+    f '' {b | IsBehaviorStrategy b} = g '' {x | T.IsRealizationPlan i x} := by
+  ext v; simp only [Set.mem_image, Set.mem_ofPred_eq, hfg]
+  exact ⟨fun ⟨b, hb, hv⟩ => ⟨_, isRealizationPlan_behaviorToRealizationPlan hpr hb, hv⟩,
+    fun ⟨x, hx, hv⟩ => let ⟨⟨b, hb⟩, hbx⟩ := surjective_behaviorToPlanSub hpr ⟨x, hx⟩
+      ⟨b, hb, (congrArg (g ∘ Subtype.val) hbx).trans hv⟩⟩
+
+open Classical in
 /-- **Maximin/minimax characterization of behavioral Nash equilibria** in two-player zero-sum
 extensive games with perfect recall: `β` is a behavioral Nash equilibrium iff `β false` maximizes
 `T.behaviorLowerVal` and `β true` minimizes `T.behaviorUpperVal`. -/
@@ -866,48 +754,14 @@ theorem isBehaviorNash_iff_maximin_minimax [∀ i h, Fintype (Act i h)] [∀ i h
       (IsBehaviorStrategy (β true) ∧
         IsLeast (T.behaviorUpperVal '' {β₁ | IsBehaviorStrategy β₁})
           (T.behaviorUpperVal (β true))) := by
-  have hval_lo : T.behaviorLowerVal (β false) =
-      T.seqLowerVal (T.behaviorToRealizationPlan false (β false)) :=
-    behaviorLowerVal_eq_seqLowerVal (hpr true) (β false)
-  have hval_up : T.behaviorUpperVal (β true) =
-      T.seqUpperVal (T.behaviorToRealizationPlan true (β true)) :=
-    behaviorUpperVal_eq_seqUpperVal (hpr false) (β true)
-  have himg_lo : (T.behaviorLowerVal '' {β₀ | IsBehaviorStrategy β₀}) =
-      (T.seqLowerVal '' {x | T.IsRealizationPlan false x}) := by
-    ext v
-    simp only [Set.mem_image, Set.mem_ofPred_eq]
-    constructor
-    · rintro ⟨β₀, hβ₀, rfl⟩
-      exact ⟨_, isRealizationPlan_behaviorToRealizationPlan (hpr false) hβ₀,
-        (behaviorLowerVal_eq_seqLowerVal (hpr true) β₀).symm⟩
-    · rintro ⟨x, hx, rfl⟩
-      exact ⟨T.realizationPlanToBehavior false (hpr false) x,
-        isBehaviorStrategy_realizationPlanToBehavior (hpr false) hx,
-        by rw [behaviorLowerVal_eq_seqLowerVal (hpr true),
-          behaviorToRealizationPlan_realizationPlanToBehavior (hpr false) hx]⟩
-  have himg_up : (T.behaviorUpperVal '' {β₁ | IsBehaviorStrategy β₁}) =
-      (T.seqUpperVal '' {y | T.IsRealizationPlan true y}) := by
-    ext v
-    simp only [Set.mem_image, Set.mem_ofPred_eq]
-    constructor
-    · rintro ⟨β₁, hβ₁, rfl⟩
-      exact ⟨_, isRealizationPlan_behaviorToRealizationPlan (hpr true) hβ₁,
-        (behaviorUpperVal_eq_seqUpperVal (hpr false) β₁).symm⟩
-    · rintro ⟨y, hy, rfl⟩
-      exact ⟨T.realizationPlanToBehavior true (hpr true) y,
-        isBehaviorStrategy_realizationPlanToBehavior (hpr true) hy,
-        by rw [behaviorUpperVal_eq_seqUpperVal (hpr false),
-          behaviorToRealizationPlan_realizationPlanToBehavior (hpr true) hy]⟩
   rw [isBehaviorNash_iff_isSeqNash hpr, hzs.isSeqNash_iff_maximin_minimax hpr,
-    hval_lo, hval_up, himg_lo, himg_up]
-  constructor
-  · rintro ⟨hbeh, ⟨_, hx_max⟩, ⟨_, hy_min⟩⟩
-    exact ⟨⟨hbeh false, hx_max⟩, ⟨hbeh true, hy_min⟩⟩
-  · rintro ⟨⟨hβ₀, hx_max⟩, ⟨hβ₁, hy_min⟩⟩
-    have hbeh : ∀ i, IsBehaviorStrategy (β i) := fun | false => hβ₀ | true => hβ₁
-    exact ⟨hbeh,
-      ⟨isRealizationPlan_behaviorToRealizationPlan (hpr false) hβ₀, hx_max⟩,
-      ⟨isRealizationPlan_behaviorToRealizationPlan (hpr true) hβ₁, hy_min⟩⟩
+    behaviorLowerVal_eq_seqLowerVal (hpr true), behaviorUpperVal_eq_seqUpperVal (hpr false),
+    image_behavior_eq_image_plan (hpr false) (behaviorLowerVal_eq_seqLowerVal (hpr true)),
+    image_behavior_eq_image_plan (hpr true) (behaviorUpperVal_eq_seqUpperVal (hpr false))]
+  exact ⟨fun ⟨h, ⟨_, h0⟩, ⟨_, h1⟩⟩ => ⟨⟨h false, h0⟩, ⟨h true, h1⟩⟩,
+    fun ⟨⟨h0, hm0⟩, ⟨h1, hm1⟩⟩ => ⟨fun | false => h0 | true => h1,
+      ⟨isRealizationPlan_behaviorToRealizationPlan (hpr false) h0, hm0⟩,
+      ⟨isRealizationPlan_behaviorToRealizationPlan (hpr true) h1, hm1⟩⟩⟩
 
 end ExtensiveTree.IsZeroSum
 
@@ -1163,12 +1017,9 @@ theorem ExtensiveTree.evalBehavior_pureToBehavior {ι : Type u} {H : ι → Type
     simp only [ExtensiveTree.evalBehavior_decision, ExtensiveTree.evalPure_decision,
       pureToBehavior_apply]
     rw [sum_eq_single (s i h)]
-    · simp only [Pi.single_eq_same, one_mul]
-      rw [evalBehavior_pureToBehavior s (next (s i h))]
-    · intro a _ ha
-      simp [ha]
-    · intro hmem
-      exact absurd (mem_univ _) hmem
+    · simp [evalBehavior_pureToBehavior s (next (s i h))]
+    · exact fun _ _ ha => by simp [ha]
+    · exact fun hmem => absurd (mem_univ _) hmem
 
 namespace PerfectInfoTree
 
@@ -1276,30 +1127,18 @@ theorem toExtensiveTree_isBehaviorNash_pure_iff (T : PerfectInfoTree Bool)
     (s : ∀ i, PureStrategy i T) :
     T.toExtensiveTree.IsBehaviorNash (T.toExtensiveBehavior s) ↔
       T.toCostGame.IsPureNash s := by
-  have hplan : ∀ i,
+  have hplan (i : Bool) :
       T.toExtensiveTree.behaviorToRealizationPlan i (T.toExtensiveBehavior s i) =
-        T.toExtensiveTree.mixedToRealizationPlan i
-          (Pi.single ((s i).toExtensive) (1 : ℝ)) := by
-    intro i
+        T.toExtensiveTree.mixedToRealizationPlan i (Pi.single ((s i).toExtensive) (1 : ℝ)) := by
     ext σ
     rw [ExtensiveTree.behaviorToRealizationPlan_apply, ExtensiveTree.mixedToRealizationPlan_def]
     exact (realizationProbBehavior_pureToBehavior_eq _ _).trans
       (realizationProbMixed_single_eq _ _).symm
-  rw [isBehaviorNash_iff_isSeqNash T.toExtensiveTree_perfectRecall, hplan false, hplan true]
-  constructor
-  · rintro ⟨_, hseq⟩
-    have hmix : T.toExtensiveTree.toCostGame.IsMixedNash
-        (fun i => Pi.single ((s i).toExtensive) (1 : ℝ)) :=
-      (isMixedNash_toCostGame_iff_isSeqNash T.toExtensiveTree_perfectRecall _).2
-        ⟨fun i => isMixedStrategy_single _, hseq⟩
-    exact (toExtensiveTree_isPureNash_iff T s).1
-      ((CostGame.isMixedNash_single_iff _ _).1 hmix)
-  · intro hpure
-    have hmix : T.toExtensiveTree.toCostGame.IsMixedNash
-        (fun i => Pi.single ((s i).toExtensive) (1 : ℝ)) :=
-      (CostGame.isMixedNash_single_iff _ _).2 ((toExtensiveTree_isPureNash_iff T s).2 hpure)
-    exact ⟨isBehaviorStrategy_toExtensiveBehavior T s,
-      ((isMixedNash_toCostGame_iff_isSeqNash T.toExtensiveTree_perfectRecall _).1 hmix).2⟩
+  rw [isBehaviorNash_iff_isSeqNash T.toExtensiveTree_perfectRecall, hplan false, hplan true,
+    ← toExtensiveTree_isPureNash_iff, ← CostGame.isMixedNash_single_iff,
+    isMixedNash_toCostGame_iff_isSeqNash T.toExtensiveTree_perfectRecall]
+  simp only [isMixedStrategy_single, implies_true, true_and]
+  exact ⟨And.right, fun h => ⟨isBehaviorStrategy_toExtensiveBehavior T s, h⟩⟩
 
 /-- A behavioral strategy profile `β` on `T.toExtensiveTree` is a **behavioral subgame-perfect
 equilibrium** (`IsBehaviorSPE`) if its restriction to every subgame of `T` is a behavioral Nash
