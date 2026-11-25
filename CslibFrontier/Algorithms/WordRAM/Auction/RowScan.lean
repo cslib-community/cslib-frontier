@@ -258,25 +258,15 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
         · omega
         · subst hbidx
           by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.bestVal
-          · have hlt_z : redCost cZ st.price i₀ jk < redCost cZ st.price i₀ j₀ := by
-              have hlt' : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) <
-                  (b.bestVal : ℤ) := Nat.cast_lt.mpr hlt
-              rwa [hrc_z, hbv] at hlt'
-            rw [ite_eq_left hlt, clientResult_pure]
-            dsimp only
+          · rw [ite_eq_left hlt, clientResult_pure]
             refine ⟨rfl, Or.inr ⟨jk, Nat.lt_succ_self _, ?_, rfl, hrc_z⟩⟩
             rw [List.take_succ_finRange hk', List.argmin_concat, htake]
-            dsimp only
-            exact ite_eq_left hlt_z
-          · have hnlt_z : ¬(redCost cZ st.price i₀ jk < redCost cZ st.price i₀ j₀) := by
-              intro hz
-              exact hlt (Nat.cast_lt.mp (by rwa [hrc_z, hbv]))
-            rw [ite_eq_right hlt, clientResult_pure]
-            dsimp only
+            exact ite_eq_left (hrc_z.symm.trans_lt ((Nat.cast_lt.mpr hlt).trans_eq hbv))
+          · rw [ite_eq_right hlt, clientResult_pure]
             refine ⟨rfl, Or.inr ⟨j₀, Nat.lt_succ_of_lt hj₀_lt, ?_, hbj, hbv⟩⟩
             rw [List.take_succ_finRange hk', List.argmin_concat, htake]
-            dsimp only
-            exact ite_eq_right hnlt_z)
+            exact ite_eq_right fun hz =>
+              hlt (Nat.cast_lt.mp (hrc_z.trans_lt (hz.trans_eq hbv.symm))))
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, Or.inl rfl⟩
   obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
   rcases hfinal with h0 | ⟨j₀, _, htake, hbj, hbv⟩
@@ -444,16 +434,12 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
               List.foldl_cons, List.foldl_nil]
           rw [hmin_app]
           by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.secondVal
-          · have hlt_z : redCost cZ st.price i₀ jk < wPrev := by
-              have hlt' : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) <
-                  (b.secondVal : ℤ) := Nat.cast_lt.mpr hlt
-              rwa [hrc_z, hsv_z] at hlt'
-            rw [ite_eq_left hlt, clientResult_pure, min_eq_right (le_of_lt hlt_z)]
+          · have hlt_z : redCost cZ st.price i₀ jk < wPrev :=
+              hrc_z.symm.trans_lt ((Nat.cast_lt.mpr hlt).trans_eq hsv_z)
+            rw [ite_eq_left hlt, clientResult_pure, min_eq_right hlt_z.le]
             exact ⟨rfl, rfl, hrc_z, hrc_le⟩
-          · have hle_z : wPrev ≤ redCost cZ st.price i₀ jk := by
-              by_contra hgt
-              have hlt_z : redCost cZ st.price i₀ jk < wPrev := lt_of_not_ge hgt
-              exact hlt (Nat.cast_lt.mp (by rwa [hrc_z, hsv_z]))
+          · have hle_z : wPrev ≤ redCost cZ st.price i₀ jk :=
+              not_lt.mp fun hz => hlt (Nat.cast_lt.mp (hrc_z.trans_lt (hz.trans_eq hsv_z.symm)))
             rw [ite_eq_right hlt, clientResult_pure, min_eq_left hle_z]
             exact ⟨rfl, hhs1, hsv_z, hsv_le⟩)
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, by simp [prefList]⟩
