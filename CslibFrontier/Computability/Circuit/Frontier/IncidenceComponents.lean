@@ -38,8 +38,8 @@ open Finset
 private theorem card_filter_mem_eq_sum {ι γ : Type*} [Fintype ι] [DecidableEq γ]
     (f : ι → γ) (s : Finset γ) :
     (univ.filter fun i => f i ∈ s).card =
-      ∑ c ∈ s, (univ.filter fun i => f i = c).card := by
-  exact (sum_card_fiberwise_eq_card_filter univ s f).symm
+      ∑ c ∈ s, (univ.filter fun i => f i = c).card :=
+  (sum_card_fiberwise_eq_card_filter univ s f).symm
 
 /-- A hereditary obstruction to two disjoint sets with excess at least `k` bounds the total
 coordinate count in terms of the largest positive excess of a partition. Each support must lie
@@ -62,16 +62,12 @@ theorem card_lt_of_partition {ι κ γ : Type*} [Fintype ι] [DecidableEq ι] [F
     simpa [N] using (card_filter_mem_eq_sum a (univ : Finset γ)).symm
   have hsumQ : ∑ c, Q c = Fintype.card κ := by
     simpa [Q] using (card_filter_mem_eq_sum b (univ : Finset γ)).symm
-  have hsumP : ∑ c ∈ P, (N c - Q c) = ∑ c, (N c - Q c) := by
-    apply sum_subset (filter_subset _ _)
-    intro c _ hc
-    have : N c ≤ Q c := by simpa [P] using hc
-    exact Nat.sub_eq_zero_of_le this
+  have hsumP : ∑ c ∈ P, (N c - Q c) = ∑ c, (N c - Q c) :=
+    sum_subset (filter_subset _ _) fun c _ hc => Nat.sub_eq_zero_of_le (by simpa [P] using hc)
   have htot : Fintype.card ι ≤ Fintype.card κ + ∑ c ∈ P, (N c - Q c) := by
     have h := sum_le_sum (s := (univ : Finset γ)) fun c _ =>
       (show N c ≤ Q c + (N c - Q c) by omega)
-    rw [sum_add_distrib, hsumN, hsumQ, ← hsumP] at h
-    exact h
+    rwa [sum_add_distrib, hsumN, hsumQ, ← hsumP] at h
   by_contra hn
   have hlarge : 2 * k + M ≤ ∑ c ∈ P, (N c - Q c) := by omega
   obtain ⟨A, hA, hkA, hkB⟩ :=
@@ -90,17 +86,12 @@ theorem card_lt_of_partition {ι κ γ : Type*} [Fintype ι] [DecidableEq ι] [F
     rw [card_filter_mem_eq_sum b C] at ht
     have heq : ∑ c ∈ C, N c = ∑ c ∈ C, Q c + ∑ c ∈ C, (N c - Q c) := by
       rw [← sum_add_distrib]
-      apply sum_congr rfl
-      intro c hc
-      have hpos : Q c < N c := (mem_filter.mp (hC hc)).2
-      omega
+      exact sum_congr rfl fun c hc => by have := (mem_filter.mp (hC hc)).2; omega
     have hcard : (U C).card = ∑ c ∈ C, N c := card_filter_mem_eq_sum a C
     change _ ≤ ∑ c ∈ C, Q c at ht
     omega
-  have hUV : Disjoint (U A) (U (P \ A)) := by
-    rw [disjoint_left]
-    intro i hiA hiB
-    exact (mem_sdiff.mp (mem_filter.mp hiB).2).2 (mem_filter.mp hiA).2
+  have hUV : Disjoint (U A) (U (P \ A)) := disjoint_left.mpr fun i hiA hiB =>
+    (mem_sdiff.mp (mem_filter.mp hiB).2).2 (mem_filter.mp hiA).2
   have h1 := hbad A hA hkA
   have h2 := hbad (P \ A) sdiff_subset hkB
   rcases hdisj (U A) (U (P \ A)) hUV with h | h <;> omega
@@ -175,10 +166,8 @@ theorem two_mul_card_lt_of_disjoint {ι κ : Type*} [Fintype ι] [DecidableEq ι
   let G := (graph S).toSimpleGraph
   let a (i : ι) := G.connectedComponentMk (.inl i)
   let b (j : κ) := G.connectedComponentMk (.inr j)
-  have hpart : ∀ j i, i ∈ S j → a i = b j := by
-    intro j i hi
-    exact SimpleGraph.ConnectedComponent.connectedComponentMk_eq_of_adj
-      ((adj_inl_inr S i j).mpr hi)
+  have hpart : ∀ j i, i ∈ S j → a i = b j := fun j i hi =>
+    SimpleGraph.ConnectedComponent.connectedComponentMk_eq_of_adj ((adj_inl_inr S i j).mpr hi)
   apply two_mul_card_lt_of_partition S a b hpart ?_ hdisj
   intro c
   let I := {i // a i = c}
@@ -220,25 +209,14 @@ theorem two_mul_card_lt_of_disjoint {ι κ : Type*} [Fintype ι] [DecidableEq ι
   have hcut (U : Finset I) :
       U.card < (univ.filter fun j => ¬ Disjoint (S' j) U).card + k ∨
       Uᶜ.card < (univ.filter fun j => ¬ Disjoint (S' j) Uᶜ).card + k := by
-    have hd : Disjoint (U.image Subtype.val) (Uᶜ.image Subtype.val) := by
-      rw [disjoint_left]
-      intro i hiU hiV
-      obtain ⟨u, hu, rfl⟩ := mem_image.mp hiU
-      obtain ⟨v, hv, hvu⟩ := mem_image.mp hiV
-      have : v = u := Subtype.ext hvu
-      exact mem_compl.mp hv (this.symm ▸ hu)
-    have h := hdisj (U.image Subtype.val) (Uᶜ.image Subtype.val) hd
-    rw [card_image_of_injective U Subtype.val_injective,
+    have h := hdisj (U.image Subtype.val) (Uᶜ.image Subtype.val)
+      ((disjoint_image Subtype.val_injective).mpr disjoint_compl_right)
+    rwa [card_image_of_injective U Subtype.val_injective,
       card_image_of_injective Uᶜ Subtype.val_injective,
       ← card_touched_part S a b hpart c U,
       ← card_touched_part S a b hpart c Uᶜ] at h
-    exact h
   have hc := two_mul_card_lt S' hs' hT' hconn hcut
-  have hI : Fintype.card I = (univ.filter fun i => a i = c).card :=
-    Fintype.card_subtype _
-  have hJ : Fintype.card J = (univ.filter fun j => b j = c).card :=
-    Fintype.card_subtype _
-  rw [hI, hJ] at hc
+  rw [Fintype.card_subtype, Fintype.card_subtype] at hc
   have hlog := Nat.log_mono_right (b := 2)
     (Nat.add_le_add (card_le_univ (univ.filter fun i => a i = c))
       (card_le_univ (univ.filter fun j => b j = c)))
