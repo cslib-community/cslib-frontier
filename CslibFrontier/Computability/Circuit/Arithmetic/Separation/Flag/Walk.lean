@@ -84,7 +84,7 @@ theorem Len.rms_comp {G H : Type*} [Group G] [Group H] [Fintype G] [Fintype H] (
   linarith
 
 /-- The bound of Lemma lem:first for one n with the constant κ. -/
-def Bd (m : ℕ) (s : ℝ) (n : ℕ) (κ : ℝ) : Prop :=
+@[expose] def Bd (m : ℕ) (s : ℝ) (n : ℕ) (κ : ℝ) : Prop :=
   ∀ l : Len (U n), Contr l m s → l.rms ≤ κ * l.S
 
 theorem bd_one (m : ℕ) (s : ℝ) : Bd m s 1 0 := by
