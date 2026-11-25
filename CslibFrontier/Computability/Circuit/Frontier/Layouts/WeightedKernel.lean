@@ -366,12 +366,10 @@ private theorem weightedKernelRow_defect_le (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) 
       rwa [edgeWeight_comm deg θ v u, hru] at hstep
     have hqb : q * b ≤ a :=
       (mul_le_of_le_one_left hb0 (edgeWeight_lt_one hθ0 hθ1 (hlo u) (hlo v)).le).trans hba
-    have hprod := mul_nonneg (sub_nonneg.mpr hqb) (sub_nonneg.mpr hqa)
-    have hden : 0 < 1 + q ^ 2 := by positivity
-    calc 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 - a * b
-        = -((a - q * b) * (b - q * a)) / (1 + q ^ 2) := by field_simp; ring
-      _ ≤ 0 := div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hprod) hden.le
-      _ ≤ _ := div_nonneg hIv two_pos.le
+    have hneg : 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 ≤ a * b := by
+      rw [div_le_iff₀ two_pos, div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
+      linarith [mul_nonpos_of_nonneg_of_nonpos (sub_nonneg.mpr hqa) (sub_nonpos.mpr hqb)]
+    linarith only [hneg, hIv]
 
 end FiniteProps
 

@@ -264,14 +264,14 @@ theorem countingInsertionCount_le_pow {M : ℕ} (hM : 2 ≤ M)
 /-- The closed insertion bound also holds for any declared-variable budget above the finite
 support's cardinality. No inhabitance or positivity of that budget is required. -/
 theorem countingInsertionCount_le_pow_of_card_le {M : ℕ} (hM : 2 ≤ M)
-  (N : ℕ) (ψ : ℕ → ClauseSet V) (c : ℕ → ℕ) (H : ℕ → Finset (Literal V)) (b : ℕ → Bool)
-  (hstep : ∀ i < N, ψ (i + 1) = countingChild (ψ i) (c i) (H i) (b i))
-  (hchoice : ∀ i < N, Choice (fun r => M ^ r) (ψ i) (c i) (H i)) (hred : Reduced (ψ 0))
-  (hnt : ∀ C ∈ ψ 0, ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C)
-  (declared : Finset V) (hsupport : ∀ C ∈ ψ 0, ∀ l ∈ C, l.1 ∈ declared)
-  {n : ℕ} (hn : declared.card ≤ n) {j : ℕ} (hj : 1 ≤ j) :
-  countingInsertionCount N ψ c H b j ≤ 4 * (3 * M) ^ (j - 1) * n :=
-(countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt declared hsupport hj).trans
-  (Nat.mul_le_mul_left _ hn)
+    (N : ℕ) (ψ : ℕ → ClauseSet V) (c : ℕ → ℕ) (H : ℕ → Finset (Literal V)) (b : ℕ → Bool)
+    (hstep : ∀ i < N, ψ (i + 1) = countingChild (ψ i) (c i) (H i) (b i))
+    (hchoice : ∀ i < N, Choice (fun r => M ^ r) (ψ i) (c i) (H i)) (hred : Reduced (ψ 0))
+    (hnt : ∀ C ∈ ψ 0, ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C)
+    (declared : Finset V) (hsupport : ∀ C ∈ ψ 0, ∀ l ∈ C, l.1 ∈ declared)
+    {n : ℕ} (hn : declared.card ≤ n) {j : ℕ} (hj : 1 ≤ j) :
+    countingInsertionCount N ψ c H b j ≤ 4 * (3 * M) ^ (j - 1) * n :=
+  (countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt declared hsupport hj).trans
+    (Nat.mul_le_mul_left _ hn)
 
 end Cslib.Logic.PL.ClauseSet.Sparsification

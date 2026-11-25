@@ -68,9 +68,8 @@ theorem exec_scatterStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ
   have hn2 : Fits w (n * 2) := hl.of_le (by omega)
   have ha0 : Fits w (n * 2 + 5) := hl.of_le (by omega)
   have ha1 : Fits w (n * 2 + 5 + 1) := hl.of_le (by omega)
-  have haddr : n * 2 + 5 = 5 + 2 * n := by ac_rfl
-  have hI : x.mem (n * 2 + 5) = I.val := haddr.symm ▸ hinput.1
-  have hJ : x.mem (n * 2 + 5 + 1) = J.val := haddr.symm ▸ hinput.2
+  obtain ⟨hI, hJ⟩ : x.mem (n * 2 + 5) = I.val ∧ x.mem (n * 2 + 5 + 1) = J.val := by
+    simpa only [Nat.mul_comm n 2, Nat.add_comm (2 * n) 5] using hinput
   have hrfit : Fits w (routeBudget L m N (tableAddress L Q)) :=
     hfit.of_le (by unfold wordBudget; omega)
   refine WP.exists_execWithin ?_

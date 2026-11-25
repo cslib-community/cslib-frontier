@@ -84,9 +84,8 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   have hcf : Fits w (countAddress L Q + key n) :=
     hf _ (by unfold countAddress tableAddress inputLimit; omega)
   have hload : x.mem (countAddress L Q + key n) = c := hcounts _ ht
-  have haddr : n * 2 + 5 = 5 + 2 * n := by ac_rfl
-  have hI : x.mem (n * 2 + 5) = I := haddr.symm ▸ hinput.1
-  have hJ : x.mem (n * 2 + 5 + 1) = J := haddr.symm ▸ hinput.2
+  obtain ⟨hI, hJ⟩ : x.mem (n * 2 + 5) = I ∧ x.mem (n * 2 + 5 + 1) = J := by
+    simpa only [Nat.mul_comm n 2, Nat.add_comm (2 * n) 5] using hinput
   dsimp only [β, γ, B, I, J, bandOf] at hβf hγf hpf
   dsimp only [I, J] at hI hJ
   dsimp only [key, Function.comp_def, tileKey, bandOf] at hkf hcf hload
