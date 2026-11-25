@@ -255,21 +255,11 @@ private theorem cut_resume (C : QuantumSigningForger) (prog : C.Program Forgery)
   | pure f => rfl
   | liftBind cmd k ih =>
     rcases cmd with coin | op | q
-    · change PFunctor.FreeM.liftBind _ _ = PFunctor.FreeM.liftBind _ _
-      congr 1
-      funext r
-      exact ih r i
-    · change PFunctor.FreeM.liftBind _ _ = PFunctor.FreeM.liftBind _ _
-      congr 1
-      funext r
-      exact ih r i
+    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
+    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
     · cases i with
       | zero => rfl
-      | succ i =>
-        change PFunctor.FreeM.liftBind _ _ = PFunctor.FreeM.liftBind _ _
-        congr 1
-        funext r
-        exact ih r i
+      | succ i => exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
 
 private theorem prefixRun_mix {V : Type} (C : QuantumSigningForger) (s : Level)
     (G : Xofs) (keys : KeyPair) (μ : PMF V) (resume : V → Resume C s) (ref : Resume C s)
