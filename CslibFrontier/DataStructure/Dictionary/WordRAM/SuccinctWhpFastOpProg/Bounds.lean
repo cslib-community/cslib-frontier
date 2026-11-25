@@ -78,24 +78,17 @@ theorem validFastState_delete_bounds {c U V n_max b : ℕ} {θ : SeedWhp c U n_m
     by_cases hce : ep = fs.curEp
     · subst hce
       obtain ⟨hia, hna, mp, hvb, _⟩ := hv.bufCur_valid
-      obtain ⟨hc1, hc2⟩ := bufTrie_caps_of_bounds hv.hth hia hna
-      exact ⟨hc1, hc2, mp, hvb⟩
+      exact (bufTrie_caps_of_bounds hv.hth hia hna).imp_right (⟨·, mp, hvb⟩)
     · have hoe : ep = fs.oldEp := by
         rcases hep with rfl | rfl <;> rcases hv.curEp_or with hc | hc <;>
           simp_all [FastState.oldEp]
       subst hoe
       have hbo := hv.bufOld_valid
-      by_cases hs3 : fs.rebStage ≤ 3
-      · rw [ite_eq_left hs3] at hbo
-        obtain ⟨hia, hna, mp, hvb, _⟩ := hbo
-        obtain ⟨hc1, hc2⟩ := bufTrie_caps_of_bounds hv.hth hia hna
-        exact ⟨hc1, hc2, mp, hvb⟩
-      · rw [ite_eq_right hs3] at hbo
-        by_cases hs4 : fs.rebStage = 4
-        · rw [ite_eq_left hs4] at hbo; exact absurd htag (hbo.1 b hb loc hloc)
-        · rw [ite_eq_right hs4] at hbo; exact absurd htag (hbo.1 b hb loc hloc)
-  refine ⟨fun loc hloc h2 => hbuf_of_tag 0 (Or.inl rfl) loc hloc h2,
-    fun loc hloc h3 => hbuf_of_tag 1 (Or.inr rfl) loc hloc h3,
+      split_ifs at hbo
+      · obtain ⟨hia, hna, mp, hvb, _⟩ := hbo
+        exact (bufTrie_caps_of_bounds hv.hth hia hna).imp_right (⟨·, mp, hvb⟩)
+      all_goals exact absurd htag (hbo.1 b hb loc hloc)
+  refine ⟨hbuf_of_tag 0 (Or.inl rfl), hbuf_of_tag 1 (Or.inr rfl),
     by unfold FastState.liveSliceIdx; omega,
     by unfold FastState.overmarsSliceIdx; omega,
     by unfold FastState.rebSliceIdx; omega,
@@ -114,9 +107,7 @@ theorem validFastState_delete_bounds {c U V n_max b : ℕ} {θ : SeedWhp c U n_m
     simp only [hs2, show ¬(2 = 0) by decide, show ¬(2 = 1) by decide, ↓reduceIte] at hstg
     obtain ⟨hcur_r, _, rm, hv_rm, _⟩ := hstg.2.2.2.2.2.2 hcs
     rw [hdb] at hcur_r hv_rm
-    rcases hcur_r with ⟨_, hi0⟩ | ⟨_, hcur_lt, hins⟩
-    · exact ⟨by omega, rm, hv_rm⟩
-    · exact ⟨by omega, rm, hv_rm⟩
+    rcases hcur_r with ⟨_, hi0⟩ | ⟨_, hcur_lt, hins⟩ <;> exact ⟨by omega, rm, hv_rm⟩
 
 theorem loc_lt_two_pow_valLaneBits {n_max loc : ℕ}
     (hloc : loc < totalLocalCoordsWhp n_max) : loc < 2 ^ valLaneBitsWhp n_max := by
