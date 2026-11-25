@@ -890,6 +890,68 @@ private theorem card_filter_evalPoly_mul_two_pow {n p s : ℕ} (X : Set (Fin n))
     simpa only [Fintype.card_sum, Fintype.card_prod, Fintype.card_fin] using this.symm
   rw [hcount_pair, hcard_idx, pow_add, mul_right_comm, mul_comm (2 ^ Fintype.card Rest)]
 
+/-- Union bound over `s × s` pivot grids. Some set `bad` of coefficient vectors contains every `c`
+whose table of values on a pivot grid `(X, a, b)` (independent pivot rows on both sides of the cut)
+satisfies `P`, and `#bad * 2 ^ (s * s) ≤ 2 ^ (n + n s) * 2 ^ #PolyIdx * #{T | P T}`. -/
+private theorem exists_pivotGrid_bad {n p s : ℕ} (P : (Fin s × Fin s → ZMod 2) → Prop)
+    [DecidablePred P] :
+    ∃ bad : Finset (PolyIdx n (2 * p) → ZMod 2),
+      #bad * 2 ^ (s * s) ≤
+        2 ^ (n + n * s) * (2 ^ Fintype.card (PolyIdx n (2 * p)) * #{T | P T}) ∧
+      ∀ (c : PolyIdx n (2 * p) → ZMod 2) (X : Set (Fin n)) [DecidablePred (· ∈ X)]
+        (a : Fin s → (X → Bool))
+        (J₁ : Fin s ↪ {I : Finset X // #I ≤ p}) (b : Fin s → (↥Xᶜ → Bool))
+        (J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}),
+        (∀ r : Fin s → ZMod 2,
+          (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (a i)) = 0 → r = 0) →
+        (∀ r : Fin s → ZMod 2,
+          (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (b i)) = 0 → r = 0) →
+        P (fun q => evalPoly c
+          ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (a q.1, b q.2))) →
+        c ∈ bad := by
+  classical
+  let Good (X : Set (Fin n)) (w : Fin s → Fin n → Bool) : Prop :=
+    (∃ J₁ : Fin s ↪ {I : Finset X // #I ≤ p}, ∀ r : Fin s → ZMod 2,
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (X.domRestrict (w i))) = 0 →
+        r = 0) ∧
+    (∃ J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}, ∀ r : Fin s → ZMod 2,
+      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (Xᶜ.domRestrict (w i))) = 0 →
+        r = 0)
+  let E (u : Set (Fin n) × (Fin s → Fin n → Bool)) : Finset (PolyIdx n (2 * p) → ZMod 2) :=
+    {c | Good u.1 u.2 ∧ P fun q => evalPoly c
+      ((Equiv.piEquivPiSubtypeProd (· ∈ u.1) fun _ => Bool).symm
+        (u.1.domRestrict (u.2 q.1), u.1ᶜ.domRestrict (u.2 q.2)))}
+  refine ⟨Finset.univ.biUnion E, ?_, fun c X inst a J₁ b J₂ ha hb hP => ?_⟩
+  · have hE (u : Set (Fin n) × (Fin s → Fin n → Bool)) :
+        #(E u) * 2 ^ (s * s) ≤ 2 ^ Fintype.card (PolyIdx n (2 * p)) * #{T | P T} := by
+      by_cases hu : Good u.1 u.2
+      · obtain ⟨⟨J₁, hJ₁⟩, ⟨J₂, hJ₂⟩⟩ := hu
+        refine (Nat.mul_le_mul_right _ (card_le_card fun c hc => ?_)).trans_eq
+          (card_filter_evalPoly_mul_two_pow u.1 _ J₁ _ J₂ hJ₁ hJ₂ P)
+        simp only [E, mem_filter, Finset.mem_univ, true_and] at hc ⊢
+        exact hc.2
+      · simp [E, hu]
+    calc #(Finset.univ.biUnion E) * 2 ^ (s * s)
+        ≤ ∑ u, #(E u) * 2 ^ (s * s) := by
+          rw [← sum_mul]; exact Nat.mul_le_mul_right _ card_biUnion_le
+      _ ≤ ∑ _u : Set (Fin n) × (Fin s → Fin n → Bool),
+            2 ^ Fintype.card (PolyIdx n (2 * p)) * #{T | P T} := sum_le_sum fun u _ => hE u
+      _ = _ := by
+          rw [sum_const, card_univ, smul_eq_mul, Fintype.card_prod, Fintype.card_set,
+            Fintype.card_fun, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
+            Fintype.card_fin, ← pow_mul, ← pow_add]
+  · obtain rfl : inst = fun _ => Classical.propDecidable _ := Subsingleton.elim _ _
+    let eCut := Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool
+    let w (i : Fin s) : Fin n → Bool := eCut.symm (a i, b i)
+    have hwX (i : Fin s) : X.domRestrict (w i) = a i :=
+      congrArg Prod.fst (eCut.apply_symm_apply (a i, b i))
+    have hwXc (i : Fin s) : Xᶜ.domRestrict (w i) = b i :=
+      congrArg Prod.snd (eCut.apply_symm_apply (a i, b i))
+    refine mem_biUnion.mpr ⟨(X, w), Finset.mem_univ _, mem_filter.mpr ⟨Finset.mem_univ _,
+      ⟨⟨J₁, fun r hr => ha r (by simpa only [hwX] using hr)⟩,
+        ⟨J₂, fun r hr => hb r (by simpa only [hwXc] using hr)⟩⟩, ?_⟩⟩
+    simpa only [hwX, hwXc] using hP
+
 end Kronecker
 
 /-! ### Worst-case dense rectangle-free low-degree polynomials -/
@@ -906,13 +968,6 @@ theorem exists_lowDegree_rectangleFree {p : ℕ} (hp : 1 ≤ p) (n : ℕ) :
   set s := n + 2
   set K := polyThreshold p s
   set M := Fintype.card (PolyIdx n (2 * p))
-  let Good (X : Set (Fin n)) (w : Fin s → Fin n → Bool) : Prop :=
-    (∃ J₁ : Fin s ↪ {I : Finset X // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (X.domRestrict (w i))) = 0 →
-        r = 0) ∧
-    (∃ J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (Xᶜ.domRestrict (w i))) = 0 →
-        r = 0)
   let isConst (T : Fin s × Fin s → ZMod 2) : Prop :=
     (∀ q, T q = 0) ∨ (∀ q, T q = 1)
   have hcard_const : #{T : Fin s × Fin s → ZMod 2 | isConst T} ≤ 2 := by
@@ -923,27 +978,23 @@ theorem exists_lowDegree_rectangleFree {p : ℕ} (hp : 1 ≤ p) (n : ℕ) :
       rw [Finset.mem_insert, Finset.mem_singleton]
       exact hTc.imp (fun h => funext h) (fun h => funext h)
     exact (Finset.card_le_card hsub).trans (card_insert_le _ _)
-  let E (u : Set (Fin n) × (Fin s → Fin n → Bool)) : Finset (PolyIdx n (2 * p) → ZMod 2) :=
-    {c | Good u.1 u.2 ∧ isConst fun q => evalPoly c
-      ((Equiv.piEquivPiSubtypeProd (· ∈ u.1) fun _ => Bool).symm
-        (u.1.domRestrict (u.2 q.1), u.1ᶜ.domRestrict (u.2 q.2)))}
-  have hE (u : Set (Fin n) × (Fin s → Fin n → Bool)) :
-      #(E u) * 2 ^ (s * s) ≤ 2 * 2 ^ M := by
-    by_cases hu : Good u.1 u.2
-    · have ⟨⟨J₁, hJ₁⟩, ⟨J₂, hJ₂⟩⟩ := hu
-      have heq : #(E u) = #{c : PolyIdx n (2 * p) → ZMod 2 | isConst fun q => evalPoly c
-          ((Equiv.piEquivPiSubtypeProd (· ∈ u.1) fun _ => Bool).symm
-            (u.1.domRestrict (u.2 q.1), u.1ᶜ.domRestrict (u.2 q.2)))} := by
-        congr 1; ext c; simp [E, hu]
-      rw [heq, card_filter_evalPoly_mul_two_pow u.1 _ J₁ _ J₂ hJ₁ hJ₂ isConst, mul_comm (2 ^ M)]
-      exact Nat.mul_le_mul_right _ hcard_const
-    · have hemp : E u = ∅ := by ext c; simp [E, hu]
-      simp [hemp]
-  set bad : Finset (PolyIdx n (2 * p) → ZMod 2) :=
-    {c | ¬ ∀ v : ZMod 2, RectangleFree {x | evalPoly c x = v} K}
-  have hbad : bad ⊆ Finset.univ.biUnion E := by
-    intro c hc
-    have hnc : ¬ ∀ v : ZMod 2, RectangleFree {x | evalPoly c x = v} K := (mem_filter.mp hc).2
+  obtain ⟨bad, hbad_card, hbad_mem⟩ := exists_pivotGrid_bad (n := n) (p := p) isConst
+  have hcount : #bad < 2 ^ M := by
+    have hsum := hbad_card.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left (2 ^ M) hcard_const))
+    have hss : s * s = n + n * s + (n + 4) := by simp only [s]; ring
+    rw [hss, pow_add] at hsum
+    -- Cancel `2 ^ (n + n * s)`: `16 * #bad ≤ #bad * 2 ^ (n + 4) ≤ 2 ^ M * 2`.
+    have h2 : #bad * 2 ^ (n + 4) ≤ 2 ^ M * 2 :=
+      Nat.le_of_mul_le_mul_left (by linarith only [hsum]) (by positivity : 0 < 2 ^ (n + n * s))
+    have h16 := Nat.mul_le_mul_left #bad
+      (show 16 ≤ 2 ^ (n + 4) from pow_add 2 n 4 ▸ Nat.le_mul_of_pos_left _ (by positivity))
+    have : 0 < 2 ^ M := by positivity
+    omega
+  have hlt_univ : #bad < #(Finset.univ : Finset (PolyIdx n (2 * p) → ZMod 2)) := by
+    simpa only [card_univ, Fintype.card_fun, ZMod.card] using hcount
+  obtain ⟨c, -, hc_bad⟩ := exists_mem_notMem_of_card_lt_card hlt_univ
+  have hc_good : ∀ v : ZMod 2, RectangleFree {x | evalPoly c x = v} K := by
+    by_contra hnc
     push Not at hnc
     obtain ⟨v, hv⟩ := hnc
     rw [rectangleFree_iff] at hv
@@ -952,53 +1003,17 @@ theorem exists_lowDegree_rectangleFree {p : ℕ} (hp : 1 ≤ p) (n : ℕ) :
     obtain ⟨a, J₁, -, ha_mem, ha_rows⟩ := exists_pivots_of_polyThreshold hp hA
     obtain ⟨b, J₂, -, hb_mem, hb_rows⟩ := exists_pivots_of_polyThreshold hp hB
     let eCut := Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool
-    let w (i : Fin s) : Fin n → Bool := eCut.symm (a i, b i)
-    have hwX (i : Fin s) : X.domRestrict (w i) = a i := by
-      change (eCut (w i)).1 = a i
-      simp only [w, Equiv.apply_symm_apply]
-    have hwXc (i : Fin s) : Xᶜ.domRestrict (w i) = b i := by
-      change (eCut (w i)).2 = b i
-      simp only [w, Equiv.apply_symm_apply]
-    refine mem_biUnion.mpr ⟨(X, w), Finset.mem_univ _,
-      mem_filter.mpr ⟨Finset.mem_univ _, ?_, ?_⟩⟩
-    · refine ⟨⟨J₁, fun r hr => ha_rows r ?_⟩, ⟨J₂, fun r hr => hb_rows r ?_⟩⟩
-      · simpa only [hwX] using hr
-      · simpa only [hwXc] using hr
-    · have hmem_rect (q : Fin s × Fin s) :
-          eCut.symm (X.domRestrict (w q.1), Xᶜ.domRestrict (w q.2)) ∈ rectangle X A B := by
-        rw [hwX q.1, hwXc q.2]
-        refine ⟨?_, ?_⟩
-        · change (eCut (eCut.symm (a q.1, b q.2))).1 ∈ A
-          rw [Equiv.apply_symm_apply]; exact ha_mem q.1
-        · change (eCut (eCut.symm (a q.1, b q.2))).2 ∈ B
-          rw [Equiv.apply_symm_apply]; exact hb_mem q.2
-      fin_cases v
-      · exact Or.inl fun q => hAB (hmem_rect q)
-      · exact Or.inr fun q => hAB (hmem_rect q)
-  have hcount : #bad < 2 ^ M := by
-    have hU : Fintype.card (Set (Fin n) × (Fin s → Fin n → Bool)) = 2 ^ n * 2 ^ (n * s) := by
-      simp [Fintype.card_set, ← pow_mul]
-    have hsum : #bad * 2 ^ (s * s) ≤ 2 ^ n * 2 ^ (n * s) * (2 * 2 ^ M) := by
-      calc #bad * 2 ^ (s * s)
-          ≤ (∑ u, #(E u)) * 2 ^ (s * s) :=
-            Nat.mul_le_mul_right _ ((Finset.card_le_card hbad).trans card_biUnion_le)
-        _ = ∑ u, #(E u) * 2 ^ (s * s) := sum_mul _ _ _
-        _ ≤ ∑ _u : Set (Fin n) × (Fin s → Fin n → Bool), 2 * 2 ^ M :=
-            Finset.sum_le_sum fun u _ => hE u
-        _ = 2 ^ n * 2 ^ (n * s) * (2 * 2 ^ M) := by rw [sum_const, card_univ, hU, smul_eq_mul]
-    have hss : s * s = n + n * s + (n + 4) := by simp only [s]; ring
-    rw [hss, pow_add, pow_add] at hsum
-    -- Cancel `2 ^ n * 2 ^ (n * s)`: `16 * #bad ≤ #bad * 2 ^ (n + 4) ≤ 2 * 2 ^ M`.
-    have h2 : #bad * 2 ^ (n + 4) ≤ 2 * 2 ^ M :=
-      Nat.le_of_mul_le_mul_left (by linarith only [hsum]) (by positivity : 0 < 2 ^ n * 2 ^ (n * s))
-    have h16 := Nat.mul_le_mul_left #bad
-      (show 16 ≤ 2 ^ (n + 4) from pow_add 2 n 4 ▸ Nat.le_mul_of_pos_left _ (by positivity))
-    have : 0 < 2 ^ M := by positivity
-    omega
-  have hlt_univ : #bad < #(Finset.univ : Finset (PolyIdx n (2 * p) → ZMod 2)) := by
-    simpa only [card_univ, Fintype.card_fun, ZMod.card] using hcount
-  obtain ⟨c, -, hc_good⟩ := exists_mem_notMem_of_card_lt_card hlt_univ
-  simp only [bad, mem_filter, Finset.mem_univ, true_and, not_not] at hc_good
+    have hmem_rect (q : Fin s × Fin s) : eCut.symm (a q.1, b q.2) ∈ rectangle X A B := by
+      have h₁ : X.domRestrict (eCut.symm (a q.1, b q.2)) = a q.1 :=
+        congrArg Prod.fst (eCut.apply_symm_apply _)
+      have h₂ : Xᶜ.domRestrict (eCut.symm (a q.1, b q.2)) = b q.2 :=
+        congrArg Prod.snd (eCut.apply_symm_apply _)
+      rw [mem_rectangle, h₁, h₂]
+      exact ⟨ha_mem q.1, hb_mem q.2⟩
+    refine hc_bad (hbad_mem c X a J₁ b J₂ ha_rows hb_rows ?_)
+    fin_cases v
+    · exact Or.inl fun q => hAB (hmem_rect q)
+    · exact Or.inr fun q => hAB (hmem_rect q)
   set f₀ := evalPoly c
   have hf₀_mem : f₀ ∈ BitString.lowDegree (ZMod 2) (Fin n) (2 * p) := evalPoly_mem_lowDegree c
   by_cases hdense : 2 ^ (n - 1) ≤ {x | f₀ x = 1}.ncard
@@ -1270,49 +1285,16 @@ theorem exists_lowDegree_rectangleBias {p : ℕ} (hp : 1 ≤ p) (n : ℕ) {b : �
           congr 2
           push_cast
           field_simp
-  let Good (X : Set (Fin n)) (w : Fin s → Fin n → Bool) : Prop :=
-    (∃ J₁ : Fin s ↪ {I : Finset X // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₁ j).1 (X.domRestrict (w i))) = 0 →
-        r = 0) ∧
-    (∃ J₂ : Fin s ↪ {I : Finset ↥Xᶜ // #I ≤ p}, ∀ r : Fin s → ZMod 2,
-      (fun j => ∑ i, r i * BitString.monomial (ZMod 2) (J₂ j).1 (Xᶜ.domRestrict (w i))) = 0 →
-        r = 0)
-  let E (u : Set (Fin n) × (Fin s → Fin n → Bool)) : Finset (PolyIdx n (2 * p) → ZMod 2) :=
-    {c | Good u.1 u.2 ∧ isBiased fun q => evalPoly c
-      ((Equiv.piEquivPiSubtypeProd (· ∈ u.1) fun _ => Bool).symm
-        (u.1.domRestrict (u.2 q.1), u.1ᶜ.domRestrict (u.2 q.2)))}
-  have hE (u : Set (Fin n) × (Fin s → Fin n → Bool)) :
-      (#(E u) : ℝ) ≤ 2 * 2 ^ M * exp (-(2 * b₀ ^ 2 * (s * s : ℕ))) := by
-    by_cases hu : Good u.1 u.2
-    · have ⟨⟨J₁, hJ₁⟩, ⟨J₂, hJ₂⟩⟩ := hu
-      have heq : #(E u) = #{c : PolyIdx n (2 * p) → ZMod 2 | isBiased fun q => evalPoly c
-          ((Equiv.piEquivPiSubtypeProd (· ∈ u.1) fun _ => Bool).symm
-            (u.1.domRestrict (u.2 q.1), u.1ᶜ.domRestrict (u.2 q.2)))} := by
-        congr 1; ext c; simp [E, hu]
-      have hmul : (#(E u) : ℝ) * 2 ^ (s * s) =
-          2 ^ M * (#{T : Fin s × Fin s → ZMod 2 | isBiased T} : ℝ) := by
-        rw [heq]
-        exact_mod_cast card_filter_evalPoly_mul_two_pow u.1 _ J₁ _ J₂ hJ₁ hJ₂ isBiased
-      have hpos : (0 : ℝ) < 2 ^ (s * s) := by positivity
-      rw [← mul_le_mul_iff_left₀ hpos, hmul]
-      nlinarith [hcard_biased, (by positivity : (0 : ℝ) ≤ 2 ^ M)]
-    · have hemp : E u = ∅ := by ext c; simp [E, hu]
-      rw [hemp, Finset.card_empty, Nat.cast_zero]
-      positivity
-  set bad : Finset (PolyIdx n (2 * p) → ZMod 2) := Finset.univ.biUnion E
+  obtain ⟨bad, hbad_card, hbad_mem⟩ := exists_pivotGrid_bad (n := n) (p := p) isBiased
   have hbad_lt : (#bad : ℝ) < 2 ^ M := by
-    have hU : (Fintype.card (Set (Fin n) × (Fin s → Fin n → Bool)) : ℝ) =
-        2 ^ (n + n * s) := by
-      rw [Fintype.card_prod, Fintype.card_set, Fintype.card_fun, Fintype.card_fun,
-        Fintype.card_bool, Fintype.card_fin, Fintype.card_fin, ← pow_mul, ← pow_add]
-      push_cast; rfl
+    have hcast : (#bad : ℝ) * 2 ^ (s * s) ≤
+        2 ^ (n + n * s) * (2 ^ M * #{T : Fin s × Fin s → ZMod 2 | isBiased T}) := by
+      exact_mod_cast hbad_card
     calc (#bad : ℝ)
-        ≤ ∑ u : Set (Fin n) × (Fin s → Fin n → Bool), (#(E u) : ℝ) := by
-          exact_mod_cast card_biUnion_le
-      _ ≤ ∑ _u : Set (Fin n) × (Fin s → Fin n → Bool),
-            2 * 2 ^ M * exp (-(2 * b₀ ^ 2 * (s * s : ℕ))) := Finset.sum_le_sum fun u _ => hE u
-      _ = (2 : ℝ) ^ (n + n * s + 1) * exp (-(2 * b₀ ^ 2 * (s * s : ℕ))) * 2 ^ M := by
-          rw [sum_const, card_univ, nsmul_eq_mul, hU, pow_succ]
+        ≤ (2 : ℝ) ^ (n + n * s + 1) * exp (-(2 * b₀ ^ 2 * (s * s : ℕ))) * 2 ^ M := by
+          rw [← mul_le_mul_iff_left₀ (by positivity : (0 : ℝ) < 2 ^ (s * s))]
+          refine hcast.trans ((mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left
+            hcard_biased (by positivity)) (by positivity)).trans_eq ?_)
           ring
       _ < 2 ^ M := by
           refine mul_lt_of_lt_one_left (by positivity) ?_
@@ -1343,19 +1325,8 @@ theorem exists_lowDegree_rectangleBias {p : ℕ} (hp : 1 ≤ p) (n : ℕ) {b : �
       (fun X _ hB => exists_pivots_of_polyThreshold hp hB) ?_
     intro X a J₁ b' J₂ ha_inj hb_inj ha_rows hb_rows
     let eCut := Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool
-    let w (i : Fin s) : Fin n → Bool := eCut.symm (a i, b' i)
-    have hwX (i : Fin s) : X.domRestrict (w i) = a i := by
-      change (eCut (w i)).1 = a i; simp only [w, Equiv.apply_symm_apply]
-    have hwXc (i : Fin s) : Xᶜ.domRestrict (w i) = b' i := by
-      change (eCut (w i)).2 = b' i; simp only [w, Equiv.apply_symm_apply]
-    have hcE : c ∉ E (X, w) := fun h => hc_good (mem_biUnion.mpr ⟨(X, w), Finset.mem_univ _, h⟩)
-    have hgood : Good X w :=
-      ⟨⟨J₁, fun r hr => ha_rows r (by simpa only [hwX] using hr)⟩,
-        ⟨J₂, fun r hr => hb_rows r (by simpa only [hwXc] using hr)⟩⟩
-    have hnbiased : ¬ isBiased fun q => evalPoly c (eCut.symm (a q.1, b' q.2)) := by
-      intro hb'
-      refine hcE (mem_filter.mpr ⟨Finset.mem_univ c, hgood, ?_⟩)
-      simpa only [hwX, hwXc] using hb'
+    have hnbiased : ¬ isBiased fun q => evalPoly c (eCut.symm (a q.1, b' q.2)) :=
+      fun hb' => hc_good (hbad_mem c X a J₁ b' J₂ ha_rows hb_rows hb')
     simp only [isBiased, not_lt] at hnbiased
     let zMap (q : Fin s × Fin s) : Fin n → Bool := eCut.symm (a q.1, b' q.2)
     have hz_inj : Function.Injective zMap := fun q₁ q₂ h => by
