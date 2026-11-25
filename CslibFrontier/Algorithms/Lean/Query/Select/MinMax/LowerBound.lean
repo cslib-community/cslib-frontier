@@ -202,14 +202,10 @@ private theorem sum_wt_le (S : Finset α) (A B A' B' : α → Prop) {w l : α}
   have hpt : ∀ x, wt (A' x) (B' x) ≤ wt (A x) (B x) + (if x = w then d w else 0) +
       (if x = l then d l else 0) := by
     intro x
-    by_cases hxw : x = w
-    · subst hxw
-      simp only [d, ↓reduceIte, hwl]
-      omega
-    by_cases hxl : x = l
-    · subst hxl
-      simp only [d, hxw, ↓reduceIte]
-      omega
+    obtain rfl | hxw := eq_or_ne x w
+    · simp only [d, ↓reduceIte, hwl]; omega
+    obtain rfl | hxl := eq_or_ne x l
+    · simp only [d, hxw, ↓reduceIte]; omega
     have hA' : A' x ↔ A x := by rw [hA]; simp [hxw]
     have hB' : B' x ↔ B x := by rw [hB]; simp [hxl]
     simp [hxw, hxl, propext hA', propext hB']
@@ -237,9 +233,8 @@ private theorem exists_step (S : Finset α) (r : α → α → Prop) [IsLinearOr
     ∃ r' : α → α → Prop, IsLinearOrder α r' ∧ AgreeOn r r' T ∧
       potential S r' (T ++ [(a, b)]) ≤ potential S r T + 2 := by
   classical
-  by_cases hab : a = b
-  · subst hab
-    refine ⟨r, inferInstance, AgreeOn.refl r T, ?_⟩
+  obtain rfl | hab := eq_or_ne a b
+  · refine ⟨r, inferInstance, AgreeOn.refl r T, ?_⟩
     unfold potential
     simp only [propext (foundAbove_append_singleton_self a _),
       propext (foundBelow_append_singleton_self a _)]
@@ -308,9 +303,7 @@ private theorem exists_adversary (S : Finset α) (p : FreeM (LEQuery α) γ) :
           potential S r T + 2 * p.countQueries
             (LEQuery.oracleOf fun a b => @decide (r' a b) (Classical.propDecidable _)) := by
   induction p with
-  | pure x =>
-    intro T r hr
-    exact ⟨r, hr, AgreeOn.refl r T, by simp⟩
+  | pure x => exact fun T r hr => ⟨r, hr, AgreeOn.refl r T, by simp⟩
   | lift_bind op cont ih =>
     cases op with
     | le a b =>
