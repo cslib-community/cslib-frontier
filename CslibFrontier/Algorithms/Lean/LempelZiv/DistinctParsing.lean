@@ -209,6 +209,7 @@ theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
   have hfl : (⌊u⌋₊ : ℝ) ≤ u := Nat.floor_le (by linarith)
   have hfl4 : 4 ≤ ⌊u⌋₊ := Nat.le_floor (mod_cast hu4.le)
   have hmR : (m : ℝ) = ⌊u⌋₊ - 2 := by rw [hm, Nat.cast_sub (by omega)]; norm_num
+  -- `k ^ m * k ^ 2 * log_k n ≤ n`, since `m + 2 + log_k log_k n ≤ log_k n`.
   have hpow : (k : ℝ) ^ m * ((k : ℝ) ^ 2 * L) ≤ n := by
     have := Real.rpow_le_rpow_of_exponent_le hk1.le
       (show (m : ℝ) + 2 + Real.logb k L ≤ L by rw [hmR]; linarith)
