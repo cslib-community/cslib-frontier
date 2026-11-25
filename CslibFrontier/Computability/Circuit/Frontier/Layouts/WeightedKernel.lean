@@ -370,17 +370,9 @@ private theorem weightedKernelRow_defect_le (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) 
       rwa [edgeWeight_comm deg θ v u, hru] at hstep
     have hqb : q * b ≤ a := by nlinarith
     have hneg : 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 ≤ a * b := by
-      have hfac : q * (a ^ 2 + b ^ 2) - (1 + q ^ 2) * (a * b) ≤ 0 := by
-        have hid : q * (a ^ 2 + b ^ 2) - (1 + q ^ 2) * (a * b) = (b - q * a) * (q * b - a) := by
-          ring
-        rw [hid]
-        exact mul_nonpos_of_nonneg_of_nonpos (by linarith) (by linarith)
-      have hden : (0 : ℝ) < 1 + q ^ 2 := by positivity
-      have hdiv : 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 =
-          q * (a ^ 2 + b ^ 2) / (1 + q ^ 2) := by
-        field_simp
-      rw [hdiv, div_le_iff₀ hden]
-      linarith
+      rw [div_le_iff₀ two_pos, div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
+      linarith [mul_nonpos_of_nonneg_of_nonpos (by linarith : 0 ≤ b - q * a)
+        (by linarith : q * b - a ≤ 0)]
     linarith
 
 end FiniteProps
@@ -507,16 +499,10 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
       have hbz : b ≠ z := Ne.symm (Finset.notMem_singleton.mp hzb)
       rw [ite_eq_right hbz, mul_zero] at hz'
       split_ifs at hz' <;> linarith
-    have hsum : ∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2 ≤ 1 := by
-      calc ∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2
-          ≤ ∑ z ∈ ({b} : Finset V), bestWalkWeight H deg θ 0 b z ^ 2 :=
-            Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => sq_nonneg _
-        _ = 1 := by simp [bestWalkWeight]
-    have h1 : edgeWeight deg θ a b ^ 2 *
-          (∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2) ≤
-        edgeWeight deg θ a b ^ 2 := by
-      nlinarith [sq_nonneg (edgeWeight deg θ a b)]
-    refine h1.trans ?_
+    have hsum : ∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2 ≤ 1 :=
+      (Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => sq_nonneg _).trans
+        (by simp [bestWalkWeight])
+    refine (mul_le_of_le_one_right (sq_nonneg _) hsum).trans ?_
     rw [edgeWeight_sq, pow_one]
     have hsb := sqrt_two_le_sqrt_deg_sub_one (hlo b)
     have hsa : 0 < √((deg a : ℝ) - 1) :=
@@ -533,13 +519,9 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
         (Finset.mem_filter.mp hz).2
       have hq0 := edgeWeight_nonneg deg hθ0 a b
       have hlt_b : bestWalkWeight H deg θ r b z < bestWalkWeight H deg θ (r + 1) b z := by
-        by_contra hle
-        push Not at hle
-        have hstep := step_le_bestWalkWeight_succ (deg := deg) (θ := θ) r hab z
-        have hmul : edgeWeight deg θ a b * bestWalkWeight H deg θ (r + 1) b z ≤
-            edgeWeight deg θ a b * bestWalkWeight H deg θ r b z :=
-          mul_le_mul_of_nonneg_left hle hq0
-        linarith
+        by_contra! hle
+        linarith [step_le_bestWalkWeight_succ (deg := deg) (θ := θ) r hab z,
+          mul_le_mul_of_nonneg_left hle hq0]
       obtain ⟨c, hc_mem, hc_piece, hc_eq⟩ := exists_mem_strictPiece_of_lt hlt_b
       have hca : c ≠ a := by
         intro hca_eq
@@ -575,18 +557,8 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
       have h2 : (H.neighborFinset b).card ≤ deg b := by
         rw [SimpleGraph.neighborFinset, ← ncard_eq_toFinset_card']
         exact hsimple b
-      have h3 : nb.card + 1 ≤ deg b := by omega
-      have h3R : (nb.card : ℝ) + 1 ≤ deg b := by exact_mod_cast h3
-      linarith
-    have hsum_nb : ∑ z ∈ strictStepSet H deg θ (r + 1) a b,
-          bestWalkWeight H deg θ (r + 1) b z ^ 2 ≤
-        ((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by
-      calc ∑ z ∈ strictStepSet H deg θ (r + 1) a b, bestWalkWeight H deg θ (r + 1) b z ^ 2
-          ≤ ∑ c ∈ nb, (θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2) :=
-            hsum_cov.trans (Finset.sum_le_sum hpiece_le)
-        _ = (nb.card : ℝ) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by
-            rw [Finset.sum_const, nsmul_eq_mul]
-        _ ≤ ((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by gcongr
+      rw [le_sub_iff_add_le]
+      exact_mod_cast (by omega : nb.card + 1 ≤ deg b)
     have hdb : (3 : ℝ) ≤ deg b := by exact_mod_cast hlo b
     have hda : (3 : ℝ) ≤ deg a := by exact_mod_cast hlo a
     have hsb_pos : 0 < √((deg b : ℝ) - 1) := sqrt_pos.mpr (by linarith)
@@ -595,7 +567,11 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
     calc edgeWeight deg θ a b ^ 2 *
           ∑ z ∈ strictStepSet H deg θ (r + 1) a b, bestWalkWeight H deg θ (r + 1) b z ^ 2
         ≤ edgeWeight deg θ a b ^ 2 *
-            (((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2))) := by gcongr
+            (((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2))) := by
+          gcongr
+          refine hsum_cov.trans ((Finset.sum_le_sum hpiece_le).trans ?_)
+          rw [Finset.sum_const, nsmul_eq_mul]
+          gcongr
       _ = (θ ^ 2) ^ (r + 1 + 1) / (√((deg a : ℝ) - 1) * √2) := by
           rw [edgeWeight_sq, pow_succ' (θ ^ 2) (r + 1)]
           field_simp
@@ -835,9 +811,7 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
   classical
   have hd2 : 2 ≤ d := by omega
   set D : ℝ := (d : ℝ)
-  have hD : 3 ≤ D := by
-    simp only [D]
-    exact_mod_cast hd
+  have hD : 3 ≤ D := by simp only [D]; exact_mod_cast hd
   have hden : (0 : ℝ) < 2 * d - 3 := by linarith
   have hpairs_symm : ∀ d₁ d₂ : ℕ, 3 ≤ d₁ → d₁ ≤ d → 3 ≤ d₂ → d₂ ≤ d → d + 3 ≤ d₁ + d₂ →
       arccos (pairCorrelation d₁ d₂) / π ≤ A * (1 - 1 / (d₁ : ℝ) - 1 / (d₂ : ℝ)) := by
@@ -854,27 +828,19 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     (fun p => pairCorrelation p.1 p.2) (ε := π * ξ) (by positivity)
   set μ : ℝ := min δ 1
   have hμ : 0 < μ := lt_min hδ one_pos
-  set θ : ℝ := 1 - μ / 4
-  have hθ0 : 0 ≤ θ := by
-    simp only [θ]
-    linarith [min_le_right δ 1]
-  have hθ1 : θ < 1 := by
-    simp only [θ]
-    linarith
+  set θ : ℝ := 1 - μ / 4 with hθ
+  have hθ0 : 0 ≤ θ := by linarith [min_le_right δ 1]
+  have hθ1 : θ < 1 := by linarith
   have hθsq1 : θ ^ 2 < 1 := by nlinarith
   obtain ⟨R₀, hR₀⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < μ / (2 * D)) hθsq1
   set R : ℕ := R₀ + 1
   have hR1 : 1 ≤ R := Nat.le_add_left 1 R₀
-  have hRpow : (θ ^ 2) ^ R ≤ (θ ^ 2) ^ R₀ :=
-    pow_le_pow_of_le_one (sq_nonneg θ) hθsq1.le (Nat.le_succ R₀)
   have hRerr : D / 2 * (θ ^ 2) ^ R < μ / 4 := by
-    have hlt : (θ ^ 2) ^ R < μ / (2 * D) := hRpow.trans_lt hR₀
-    have hmul := mul_lt_mul_of_pos_left hlt (by positivity : 0 < D / 2)
-    have hcancel : D / 2 * (μ / (2 * D)) = μ / 4 := by
-      have : D ≠ 0 := by linarith
-      field_simp
-      ring
-    rwa [hcancel] at hmul
+    have : D ≠ 0 := by linarith
+    calc D / 2 * (θ ^ 2) ^ R < D / 2 * (μ / (2 * D)) := by
+          gcongr
+          exact (pow_le_pow_of_le_one (sq_nonneg θ) hθsq1.le (Nat.le_succ R₀)).trans_lt hR₀
+      _ = μ / 4 := by field_simp; ring
   obtain ⟨N₀, hN₀⟩ := exists_width_le_of_unitRows_add_mul hd2 R hξ
   refine ⟨N₀, fun V E _ _ G Q hG hQ two big => ?_⟩
   let _ : Fintype Q.blocks := Fintype.ofFinite Q.blocks
@@ -931,20 +897,12 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
       have h2θ : 2 * (1 - θ) = μ / 2 := by simp only [θ]; ring
       have hμδ : μ ≤ δ := min_le_left δ 1
       linarith
-    have hdist : dist (ρ e) (pairCorrelation d₁ d₂) < δ := by
-      rw [Real.dist_eq, abs_sub_comm, abs_of_nonneg (by linarith)]
-      exact hρ_diff
-    have harc := hcont (d₁, d₂) hmem (ρ e) hdist
+    have harc := hcont (d₁, d₂) hmem (ρ e)
+      (by rw [Real.dist_eq, abs_sub_comm, abs_of_nonneg (by linarith)]; exact hρ_diff)
     rw [Real.dist_eq] at harc
-    have harc_le : arccos (ρ e) ≤ arccos (pairCorrelation d₁ d₂) + π * ξ := by
-      linarith [(abs_lt.mp harc).2]
     have hdiv : arccos (ρ e) / π ≤ arccos (pairCorrelation d₁ d₂) / π + ξ := by
-      rw [div_le_iff₀ pi_pos]
-      have heq : (arccos (pairCorrelation d₁ d₂) / π + ξ) * π =
-          arccos (pairCorrelation d₁ d₂) + π * ξ := by
-        field_simp
-      rw [heq]
-      exact harc_le
+      rw [div_add' _ _ _ pi_pos.ne', div_le_div_iff_of_pos_right pi_pos]
+      linarith [(abs_lt.mp harc).2]
     linarith [hpairs_symm d₁ d₂ hd₁_lo hd₁_hi hd₂_lo hd₂_hi hd_sum]
   have hsum_cross : (∑ e : Q.external, arccos (ρ e) / π) ≤
       A * ((Fintype.card Q.external : ℝ) - Fintype.card Q.blocks) +
@@ -967,11 +925,8 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     have hcard := Q.card_add_card_external_le
     have hconn := G.card_le_card_add_one_of_connected hG
     have hβ : Nat.card E + 1 ≤ G.cycleRank + Nat.card V := by grind [Multigraph.cycleRank]
-    have hnat : Nat.card Q.external ≤ Nat.card Q.blocks + G.cycleRank := by omega
-    rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card]
-    have hR : (Nat.card Q.external : ℝ) ≤ Nat.card Q.blocks + G.cycleRank := by
-      exact_mod_cast hnat
-    linarith
+    rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, sub_le_iff_le_add']
+    exact_mod_cast (by omega : Nat.card Q.external ≤ Nat.card Q.blocks + G.cycleRank)
   have ⟨hE3, hV3⟩ := hQ.card_external_and_blocks_le_three_mul_cycleRank hd hG two
   have hE3' : (Fintype.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
     rwa [← Nat.card_eq_fintype_card]
