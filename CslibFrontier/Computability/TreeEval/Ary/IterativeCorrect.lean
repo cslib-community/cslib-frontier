@@ -45,10 +45,9 @@ private theorem Reaches.single {α : Type*} {next : α → α} {a z : α}
 
 private theorem Reaches.trans {α : Type*} {next : α → α} {a b z : α}
     (hab : Reaches next a b) (hbz : Reaches next b z) : Reaches next a z := by
-  obtain ⟨m, hm⟩ := hab
-  obtain ⟨n, hn⟩ := hbz
-  refine ⟨m + n, ?_⟩
-  rw [Nat.add_comm, Function.iterate_add_apply, hm, hn]
+  obtain ⟨m, rfl⟩ := hab
+  obtain ⟨n, rfl⟩ := hbz
+  exact ⟨n + m, Function.iterate_add_apply next n m a⟩
 
 private theorem foldl_take_succ {α β : Type*} (l : List α) (f : β → α → β) (a : β)
     {j : ℕ} (hj : j < l.length) :
@@ -162,8 +161,7 @@ private theorem exists_runFrom_round (hd : 0 < d)
       else ⟨B d, st, .ret⟩ := by
     simp [next, step, show ¬(d - 1 + 1 < d) by omega, ← hscaleLast, u]
   have hrun := hupdate.trans (hbackward (d - 1) hlast) |>.trans (Reaches.single hexit)
-  rw [hBdone] at hrun
-  exact hrun
+  rwa [hBdone] at hrun
 
 
 private theorem unitAt_getElem (us : List Kˣ) (i : ℕ) (hi : i < us.length) :
@@ -211,11 +209,7 @@ private theorem exists_runFrom_gate (hd : 0 < d)
         obtain ⟨M, hM⟩ := exists_runFrom_round hd e E us read p f st c t j
           hgate hp ((us.take j).foldl F S)
         refine ⟨N + M, ?_⟩
-        rw [runFrom_add, hN, hM]
-        have hfold : (us.take (j + 1)).foldl F S =
-            gateRoundWith E p f c t (unitAt us j) ((us.take j).foldl F S) := by
-          rw [foldl_take_succ us F S hjlt, unitAt_getElem us j hjlt]
-        rw [hfold]
+        rw [runFrom_add, hN, hM, foldl_take_succ us F S hjlt, unitAt_getElem us j hjlt]
     obtain ⟨N, hN⟩ := hprefix us.length le_rfl
     refine ⟨N, ?_⟩
     simpa only [Nat.lt_irrefl, ↓reduceIte, List.take_length, F, hus] using hN
@@ -258,7 +252,7 @@ theorem exists_runFrom_root (hd : 0 < d)
     (us : List Kˣ) {h : ℕ} (T : Tree d b h)
     (S : Ary.State K d r) (c : K) (t : Fin (d + 1)) :
     ∃ N, runFrom hd e E us T.nodeAt (initialCfg S c t) N =
-      ⟨procWith e E us T c t S, [], .ret⟩ := by
-  exact exists_runFrom_call hd e E us T.nodeAt T [] (fun _ => rfl) S c t
+      ⟨procWith e E us T c t S, [], .ret⟩ :=
+  exists_runFrom_call hd e E us T.nodeAt T [] (fun _ => rfl) S c t
 
 end Cslib.TreeEval.Ary.Iter
