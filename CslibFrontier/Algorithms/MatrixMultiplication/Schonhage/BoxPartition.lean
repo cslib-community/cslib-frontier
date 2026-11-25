@@ -425,6 +425,7 @@ theorem box_query_counts {L : ℕ} (m t : ℕ) (ht : t ≤ m) (η : OutStr L)
     rw [sum_congr rfl fun V hV => card_boxesAt m t ht η hη V hV, sum_const, boxLevelSets,
       card_powersetCard, hη, Nat.choose_symm ht, smul_eq_mul, alpha]
   refine ⟨?_, hsum, by rw [card_biUnion (boxesAt_pairwiseDisjoint η _), hsum]⟩
+  -- "α_d leaves of order d contribute to w"
   have hlow : lowLeaves m t η = (range t).biUnion fun d =>
       univ.filter fun τ : Leaf L => Leaf.Contributes τ η ∧ order m τ = d := by
     ext τ
