@@ -61,20 +61,6 @@ end Reg
 
 open Reg
 
-local macro "reg_ne" : tactic =>
-  `(tactic| exact Fin.ne_of_val_ne (by
-    simp only [ne_eq, Fin.ext_iff, cZero, cOne, cThree, nVerts, offB, edgeB, visB, finB, stkB,
-      curB, revOffB, revEdgeB, ordB, compB, iReg, pReg, finCnt, compIdxReg, oldFinReg, uReg, vReg,
-      jReg, jEndReg, addr, mArcs, outReg] at *
-    omega))
-
-local macro "regs_lt" : tactic =>
-  `(tactic| (
-    repeat (first
-      | rw [Data.write_regs_apply]
-      | rw [Data.set_regs_of_ne (by reg_ne)])
-    try rfl))
-
 local macro "mem_upd" : tactic =>
   `(tactic| simp only [Data.set_mem, Data.set_mem_apply, Data.write_mem])
 
@@ -318,7 +304,7 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
   | 0, k, x, hk, _, hcp, _, hNv, _, _, hi => by
     have hend : ¬ (Cond.lt iReg nVerts).Holds x := by
       change ¬ x.regs iReg < x.regs nVerts; omega
-    exact ⟨x, ⟨2, by omega, Exec.loop_exit hend⟩, fun q hq => hcp q (by omega),
+    exact ⟨x, ExecWithin.loop_exit hend, fun q hq => hcp q (by omega),
       fun _ _ => rfl, fun _ _ => rfl⟩
   | rem + 1, k, x, hk, hord, hcp, hc1, hNv, hO, hP, hi => by
     have hm : x.mem (O + (N - 1 - k)) = f k := hord k (by omega)
@@ -343,7 +329,7 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
           exact hcp q (by omega)
       · mem_upd
         exact Function.update_of_ne (by omega) _ _
-      · regs_lt
+      · wram_simp
     obtain ⟨x₁, hx₁_ex, hx₁_ord, hx₁_cp, hx₁_low, hx₁_i, hx₁_fr⟩ := hstep
     obtain ⟨y, hy_ex, hy_cp, hy_low, hy_fr⟩ :=
       revCopyLoop_spec O P hOP hfit f rem (k + 1) x₁ (by omega) hx₁_ord hx₁_cp
