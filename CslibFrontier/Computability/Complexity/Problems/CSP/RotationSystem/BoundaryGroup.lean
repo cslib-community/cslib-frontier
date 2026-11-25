@@ -46,29 +46,23 @@ private def collapseTo (x : ℕ) (xs : List ℕ) (z : ℕ) : ℕ :=
 
 private theorem collapse_step (x y : ℕ) (ys : List ℕ) :
     collapseTo x (ys.map (Function.update id y x)) ∘ Function.update id y x =
-      collapseTo x (y::ys) := by
+      collapseTo x (y :: ys) := by
   funext z
-  let f := Function.update id y x
+  simp only [Function.comp_apply, collapseTo, List.mem_cons, List.mem_map]
   by_cases hzy : z = y
-  · subst z
-    simp [collapseTo]
-  · by_cases hzs : z ∈ ys
-    · have hm : f z ∈ ys.map f := List.mem_map.mpr ⟨z,hzs,rfl⟩
-      change (if f z ∈ ys.map f then x else f z) = collapseTo x (y :: ys) z
-      rw [ite_eq_left hm]
-      simp [collapseTo, hzs]
-    · have hfix : collapseTo x (ys.map f) z = z := by
-        by_cases hm : z ∈ ys.map f
-        · obtain ⟨v,hv,he⟩ := List.mem_map.mp hm
-          by_cases hvy : v = y
-          · subst v
-            have hx : x = z := by simpa only [f, Function.update_self] using he
-            simp [collapseTo,hm,hx]
-          · have hvz : v = z := by simpa only [f, Function.update_of_ne hvy, id_eq] using he
-            exact (hzs (hvz ▸ hv)).elim
-        · simp only [collapseTo, ite_eq_right hm]
-      simpa only [Function.comp_apply, f, Function.update_of_ne hzy, id_eq,
-        collapseTo, List.mem_cons, hzy, false_or, ite_eq_right hzs] using hfix
+  · subst z; simp
+  · simp only [Function.update_of_ne hzy, id_eq, hzy, false_or]
+    by_cases hzs : z ∈ ys
+    · simp only [hzs, ↓reduceIte]
+      exact ite_eq_left ⟨z, hzs, by simp [hzy]⟩
+    · simp only [hzs, ↓reduceIte]
+      split_ifs with h₁
+      · obtain ⟨v, hv, he⟩ := h₁
+        by_cases hvy : v = y
+        · subst v; simpa only [Function.update_self] using he
+        · simp only [Function.update_of_ne hvy, id_eq] at he
+          exact (hzs (he ▸ hv)).elim
+      · rfl
 
 private theorem fusion_fields (tasks : List ℕ) (F : CSP Rel ℕ) (x : ℕ)
     (xs rest : List ℕ) (c : RotationCertificate) (hlen : tasks.length = xs.length) :
@@ -77,46 +71,28 @@ private theorem fusion_fields (tasks : List ℕ) (F : CSP Rel ℕ) (x : ℕ)
       J.ports = x::rest.map (collapseTo x xs) := by
   induction tasks generalizing F xs rest c with
   | nil =>
-    have hx : xs = [] := by simpa only [List.length_nil, List.length_eq_zero_iff] using hlen.symm
-    subst xs
-    change F = F.relabel (collapseTo x []) ∧ x :: rest = x :: rest.map (collapseTo x [])
-    have hz : collapseTo x [] = id := by funext z; simp [collapseTo]
-    rw [hz]
-    constructor
-    · rw [CSP.relabel]
-      calc
-        F = F.map id := (List.map_id F).symm
-        _ = F.map (Constraint.relabel id) := by
-          apply List.map_congr_left
-          intro c _
-          cases c
-          simp [Constraint.relabel]
-    · simp
+    obtain rfl : xs = [] := List.eq_nil_of_length_eq_zero hlen.symm
+    have hz : collapseTo x [] = id := funext fun _ => by simp [collapseTo]
+    refine ⟨?_, by simp [hz]⟩
+    simpa only [List.foldl_nil, hz, CSP.relabel] using
+      (List.map_id'' (l := F) fun c => by cases c; simp [Constraint.relabel]).symm
   | cons t ts ih =>
     cases xs with
-    | nil => simp only [List.length_cons,List.length_nil] at hlen; omega
+    | nil => simp at hlen
     | cons y ys =>
       let f := Function.update id y x
-      let d := equalDropCertificate F (ys++rest).length c
-      have ht : ts.length = (ys.map f).length := by simp only [List.length_map]; simpa using hlen
-      have h := ih (F.relabel f) (ys.map f) (rest.map f) d ht
-      have hj : fuseHead (⟨F,x::((y::ys)++rest),c⟩ : State Rel) =
-          ⟨F.relabel f,x::(ys.map f++rest.map f),d⟩ := by
-        simp [f,d,fuseHead]
-      simp only [List.foldl_cons,hj]
+      let d := equalDropCertificate F (ys ++ rest).length c
+      have h := ih (F.relabel f) (ys.map f) (rest.map f) d (by simpa using hlen)
+      have hj : fuseHead (⟨F, x :: ((y :: ys) ++ rest), c⟩ : State Rel) =
+          ⟨F.relabel f, x :: (ys.map f ++ rest.map f), d⟩ := by
+        simp [f, d, fuseHead]
+      simp only [List.foldl_cons, hj]
       refine ⟨h.1.trans ?_, h.2.trans ?_⟩
-      · have hc := congrArg (fun k => F.relabel k) (collapse_step x y ys)
-        calc
-          (F.relabel f).relabel (collapseTo x (ys.map f)) =
-              F.relabel (collapseTo x (ys.map f) ∘ f) := by
-            simp only [CSP.relabel, List.map_map]
-            congr 1
-            funext c
-            cases c
-            simp [Constraint.relabel, Function.comp_def, List.map_map]
-          _ = _ := hc
-      · rw [List.map_map]
-        exact congrArg (fun k => x::rest.map k) (collapse_step x y ys)
+      · rw [← collapse_step x y ys]
+        simp only [CSP.relabel, List.map_map]
+        exact congrArg (F.map ·) (funext fun c => by
+          cases c; simp only [Function.comp_apply, Constraint.relabel, List.map_map, f])
+      · rw [List.map_map, collapse_step x y ys]
 
 /-- The executed fold globally collapses the selected names, removes exactly that prefix,
 and emits the literal final restriction with its unconditional raw entry bound. This needs
@@ -162,17 +138,14 @@ theorem fields_closeFirstMetadataRun (I : State Rel) (a : ℕ) (ks : List ℕ)
     have hd : (hideHead J).rotation =
         restrictPrefix (2*(F.occurrences.length+rest.length)) J.rotation := by
       simp only [hideHead,hf.2,hm,List.length_map]
-    refine ⟨?_,?_,?_,?_⟩
-    · simpa only [hideHead,hf.2] using hf.1
-    · simp only [hideHead,hf.2]
-      simp only [rest,List.drop_succ_cons]
-    · rw [hd,length_restrictPrefix]
-      simp only [rest,List.length_drop]
-      omega
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · simpa only [hideHead, hf.2] using hf.1
+    · simp only [hideHead, hf.2, rest, List.drop_succ_cons]
+    · rw [hd, length_restrictPrefix]; simp only [rest, List.length_drop]; omega
     · rw [hd]
-      have he := entries_restrictPrefix_lt (2*(F.occurrences.length+rest.length)) J.rotation
       intro v hv
-      have hv' := he v hv
+      have hv' := entries_restrictPrefix_lt
+        (2 * (F.occurrences.length + rest.length)) J.rotation v hv
       simp only [rest, List.length_drop] at hv' ⊢
       omega
 
