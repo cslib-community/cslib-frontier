@@ -122,7 +122,7 @@ theorem SH.ThreeSAT_notMem_P (h : SH) : ThreeSAT ∉ P encCNF := by
     DecidableInExpTime.of_computableInPolyTime hf hmem
   obtain ⟨e, he⟩ := htime
   exact (SH_iff_KSAT (k := 3) le_rfl).mp h (1 / 2) (by norm_num) (by norm_num)
-    ⟨0, e, by simpa only [Nat.cast_zero, zero_mul, Real.rpow_zero, one_mul] using he⟩
+    ⟨0, e, by simpa only [KSAT_three, Nat.cast_zero, zero_mul, Real.rpow_zero, one_mul] using he⟩
 
 /-- Under SH, the classes `P` and `NP` under the native CNF bit encoding differ, since
 width-at-most-three SAT is in `NP`. -/
