@@ -78,8 +78,9 @@ theorem read_insert (default : Value) (a : Address) (v : Value)
     (s : SparseMemory Address Value) :
     (fun b => read default b (s.insert a v)) = Function.update (fun b => read default b s) a v := by
   funext b
-  rcases eq_or_ne b a with rfl | h
-  · simp [read]
+  by_cases h : b = a
+  · subst b
+    simp [read]
   · simp [read, AList.lookup_insert_ne h, Function.update_of_ne h]
 
 /-- A write adds at most one distinct stored address. -/
