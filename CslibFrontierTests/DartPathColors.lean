@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (indexed path color regression)
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.ThreePathRestriction
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SeparatingPairOrder
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import Mathlib.Data.Fin.VecNotation
@@ -145,7 +145,7 @@ private def spurRotation : RotationSystem withSpurs where
 private def spurArms (k : Fin 3) (i : Fin (armLength k + 1)) : Dart withSpurs :=
   ⟨Fin.castLE (by decide) (arms k i).1, (arms k i).2⟩
 
-private def spurSite (k : Fin 3) (_ : Fin (armLength k)) : ℕ := 2
+private def interiorSets (k : Fin 3) : Set ℕ := if k = 0 then {2} else ∅
 
 -- Extra edges at an internal vertex and a separator do not change the triple comparison.
 example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
@@ -161,10 +161,26 @@ example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realize
   obtain ⟨D, hD, hR⟩ := spurRotation.exists_polygonalDrawing hG genus
   have hreg := hD.hasRegularContacts (fun d => RotationSystem.vertex_mem hG d) (by decide)
   refine ⟨D, hreg, hR, by decide, ?_⟩
-  exact hreg.opposite_three_path_orders hD.simple hR hG (by decide : 0 ≠ 1)
-    spurArms spurSite (by decide) (by decide) (by decide) (by decide) (by decide)
-    (fun a b hab i j => crossingParity_of_embedding hD
-      ((by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (spurArms a i).1 ≠ (spurArms b j).1)
-        a b hab i j))
+  let first (k : Fin 3) := spurArms k 0
+  let last (k : Fin 3) := (spurArms k (Fin.last (armLength k))).reverse
+  have heven : D.EvenCrossings (fun w => w = 0 ∨ w = 1) :=
+    fun _ _ hne _ => crossingParity_of_embedding hD hne
+  exact hreg.opposite_orders_of_induced_reachable hD.simple hR hG heven
+    (by decide : 0 ≠ 1) (Or.inl rfl) (Or.inr rfl) first last (by decide) (by decide) (by decide)
+    interiorSets (by
+      intro i j hij
+      by_cases hi : i = 0
+      · have hj : j ≠ 0 := fun h => hij (hi.trans h.symm)
+        simp [interiorSets, hi, hj]
+      · simp [interiorSets, hi])
+    (by
+      intro k
+      by_cases hk : k = 0 <;> simp [interiorSets, hk]) (by
+      have h₂ : 2 ∈ interiorSets 0 := by simp [interiorSets]
+      intro k
+      fin_cases k
+      · exact Or.inr ⟨h₂, h₂, .rfl⟩
+      · exact Or.inl rfl
+      · exact Or.inl rfl)
 
 end CslibFrontierTests.DartPathColors
