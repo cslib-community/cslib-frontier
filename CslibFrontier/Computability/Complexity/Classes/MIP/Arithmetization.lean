@@ -149,26 +149,22 @@ theorem exists_succinctCNF_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} {A :
   have h2T_pt : ComputableInPolyTime (fun a => 2 * T a) enc encNat := binary_mul' (const 2) hT_pt
   have hbits_poly : PolyBounded (fun a => (enc a).length)
       (fun a => colBits (T a) + timeBits (T a)) := by
-    have h1 := h2T_pt.polyBounded_length
-    have h2 := hT_pt.polyBounded_length
-    have heq : (fun a => colBits (T a) + timeBits (T a)) =
-        fun a => (encNat (2 * T a)).length + (encNat (T a)).length := by
-      funext a
-      simp only [colBits, timeBits, ← length_encNat_eq_size]
-    rw [heq]
-    exact h1.add h2
+    convert h2T_pt.polyBounded_length.add hT_pt.polyBounded_length using 2 with a
+    simp only [colBits, timeBits, ← length_encNat_eq_size]
   refine ⟨k, State, hF, hD, tm, n, T, hn_pt, hT_pt, hbits_poly, fun a =>
     ⟨hn_len a, hn_T a, ?_⟩⟩
   rw [@Tableau.satisfiable_succinctCNF_iff k State hF hD tm (n a) (T a) (hn_T a)
     (frame (enc a)) (hn_len a), hdec.mem_iff_exists_checkChoices le_rfl]
+  have hrun (w : List Bool) (hw_len : w.length = M * (c₁ * 2 ^ (enc a).length ^ d + c₂)) :=
+    (htm (a, w)).runFrom_of_le (J := T a) (by
+      simp only [T, n, encPair_apply, List.length_append, length_frame, encBits_apply, hw_len]
+      omega)
   constructor
   · rintro ⟨w, hw, hcheck⟩
     have hw_len : w.length = M * (c₁ * 2 ^ (enc a).length ^ d + c₂) := hw
     refine ⟨frame (enc a) ++ w, ?_, List.prefix_append _ _, ?_⟩
     · simp only [n, List.length_append, length_frame, hw_len]
-    · have hrun := (htm (a, w)).runFrom_of_le (J := T a) (by
-        simp only [T, n, encPair_apply, List.length_append, length_frame, encBits_apply, hw_len]
-        omega)
+    · have hrun := hrun w hw_len
       simp only [encPair_apply, encBits_apply] at hrun
       rw [hrun.2,
         show decide (ntm.choiceTable.runClosedCoins w (enc a) = [true]) = true from hcheck]
@@ -179,12 +175,9 @@ theorem exists_succinctCNF_of_mem_NEXP {α : Type} {enc : α ↪ List Bool} {A :
       simp only [n, List.length_append, length_frame, hy] at hlen
       omega
     refine ⟨w, hw_len, ?_⟩
-    have hrun := (htm (a, w)).runFrom_of_le (J := T a) (by
-      simp only [T, n, encPair_apply, List.length_append, length_frame, encBits_apply, hw_len]
-      omega)
     have heq : encPair enc encBits (a, w) = y := by
       simpa [encPair_apply, encBits_apply] using hw
-    rw [← heq, hrun.2] at hout
+    rw [← heq, (hrun w hw_len).2] at hout
     simp only [encBool, OutView.ofList] at hout
     exact OutView.one.inj hout
 
@@ -274,72 +267,14 @@ private theorem computableInPolyTime_chainFields (s j : ℕ) :
     (binary_sub' (binary_two_pow.comp hP) (const 1)).of_enc_eq fun _ => rfl
   have hK5 := binary_add' hn (const 1)
   have hK6 := binary_mul' (const 2) hT
-  by_cases h0 : j = 0
-  · subst h0
-    simp only [Decoder.chain, ↓reduceIte]
-    exact ⟨const _, const _, const _, const _, hcbB⟩
-  by_cases h1 : j = 1
-  · subst h1; simp only [Decoder.chain, one_ne_zero, ↓reduceIte]
-    exact ⟨hK1, const _, const _, const _, hcbB⟩
-  by_cases h2 : j = 2
-  · subst h2; simp only [Decoder.chain, show (2 : ℕ) ≠ 0 by omega, show (2 : ℕ) ≠ 1 by omega,
-      ↓reduceIte]
-    exact ⟨const _, const _, const _, hoff2, htbB⟩
-  by_cases h3 : j = 3
-  · subst h3; simp only [Decoder.chain, show (3 : ℕ) ≠ 0 by omega, show (3 : ℕ) ≠ 1 by omega,
-      show (3 : ℕ) ≠ 2 by omega, ↓reduceIte]
-    exact ⟨const _, const _, const _, const _, hcbB⟩
-  by_cases h4 : j = 4
-  · subst h4; simp only [Decoder.chain, show (4 : ℕ) ≠ 0 by omega, show (4 : ℕ) ≠ 1 by omega,
-      show (4 : ℕ) ≠ 2 by omega, show (4 : ℕ) ≠ 3 by omega, ↓reduceIte]
-    exact ⟨hn, const _, const _, const _, hcbB⟩
-  by_cases h5 : j = 5
-  · subst h5; simp only [Decoder.chain, show (5 : ℕ) ≠ 0 by omega, show (5 : ℕ) ≠ 1 by omega,
-      show (5 : ℕ) ≠ 2 by omega, show (5 : ℕ) ≠ 3 by omega, show (5 : ℕ) ≠ 4 by omega, ↓reduceIte]
-    exact ⟨hK5, const _, const _, const _, hcbB⟩
-  by_cases h6 : j = 6
-  · subst h6; simp only [Decoder.chain, show (6 : ℕ) ≠ 0 by omega, show (6 : ℕ) ≠ 1 by omega,
-      show (6 : ℕ) ≠ 2 by omega, show (6 : ℕ) ≠ 3 by omega, show (6 : ℕ) ≠ 4 by omega,
-      show (6 : ℕ) ≠ 5 by omega, ↓reduceIte]
-    exact ⟨hK6, const _, const _, const _, hcbB⟩
-  by_cases h7 : j = 7
-  · subst h7; simp only [Decoder.chain, show (7 : ℕ) ≠ 0 by omega, show (7 : ℕ) ≠ 1 by omega,
-      show (7 : ℕ) ≠ 2 by omega, show (7 : ℕ) ≠ 3 by omega, show (7 : ℕ) ≠ 4 by omega,
-      show (7 : ℕ) ≠ 5 by omega, show (7 : ℕ) ≠ 6 by omega, ↓reduceIte]
-    exact ⟨hK6, const _, const _, const _, hcbB⟩
-  by_cases h8 : j = 8
-  · subst h8; simp only [Decoder.chain, show (8 : ℕ) ≠ 0 by omega, show (8 : ℕ) ≠ 1 by omega,
-      show (8 : ℕ) ≠ 2 by omega, show (8 : ℕ) ≠ 3 by omega, show (8 : ℕ) ≠ 4 by omega,
-      show (8 : ℕ) ≠ 5 by omega, show (8 : ℕ) ≠ 6 by omega, show (8 : ℕ) ≠ 7 by omega, ↓reduceIte]
-    exact ⟨hT, const _, const _, const _, hcbB⟩
-  by_cases h9 : j = 9
-  · subst h9; simp only [Decoder.chain, show (9 : ℕ) ≠ 0 by omega, show (9 : ℕ) ≠ 1 by omega,
-      show (9 : ℕ) ≠ 2 by omega, show (9 : ℕ) ≠ 3 by omega, show (9 : ℕ) ≠ 4 by omega,
-      show (9 : ℕ) ≠ 5 by omega, show (9 : ℕ) ≠ 6 by omega, show (9 : ℕ) ≠ 7 by omega,
-      show (9 : ℕ) ≠ 8 by omega, ↓reduceIte]
-    exact ⟨hT, const _, const _, const _, hcbB⟩
-  by_cases h10 : j = 10
-  · subst h10; simp only [Decoder.chain, show (10 : ℕ) ≠ 0 by omega, show (10 : ℕ) ≠ 1 by omega,
-      show (10 : ℕ) ≠ 2 by omega, show (10 : ℕ) ≠ 3 by omega, show (10 : ℕ) ≠ 4 by omega,
-      show (10 : ℕ) ≠ 5 by omega, show (10 : ℕ) ≠ 6 by omega, show (10 : ℕ) ≠ 7 by omega,
-      show (10 : ℕ) ≠ 8 by omega, show (10 : ℕ) ≠ 9 by omega, ↓reduceIte]
-    exact ⟨hT, const _, const _, hoff2, htbB⟩
-  by_cases h11 : j = 11
-  · subst h11; simp only [Decoder.chain, show (11 : ℕ) ≠ 0 by omega, show (11 : ℕ) ≠ 1 by omega,
-      show (11 : ℕ) ≠ 2 by omega, show (11 : ℕ) ≠ 3 by omega, show (11 : ℕ) ≠ 4 by omega,
-      show (11 : ℕ) ≠ 5 by omega, show (11 : ℕ) ≠ 6 by omega, show (11 : ℕ) ≠ 7 by omega,
-      show (11 : ℕ) ≠ 8 by omega, show (11 : ℕ) ≠ 9 by omega, show (11 : ℕ) ≠ 10 by omega,
-      ↓reduceIte]
-    exact ⟨hxlen, const _, const _, const _, hPB⟩
-  by_cases h12 : j = 12
-  · subst h12; simp only [Decoder.chain, show (12 : ℕ) ≠ 0 by omega, show (12 : ℕ) ≠ 1 by omega,
-      show (12 : ℕ) ≠ 2 by omega, show (12 : ℕ) ≠ 3 by omega, show (12 : ℕ) ≠ 4 by omega,
-      show (12 : ℕ) ≠ 5 by omega, show (12 : ℕ) ≠ 6 by omega, show (12 : ℕ) ≠ 7 by omega,
-      show (12 : ℕ) ≠ 8 by omega, show (12 : ℕ) ≠ 9 by omega, show (12 : ℕ) ≠ 10 by omega,
-      show (12 : ℕ) ≠ 11 by omega, ↓reduceIte]
-    exact ⟨const _, const _, const _, const _, hPB⟩
-  · simp only [Decoder.chain, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, ↓reduceIte]
-    exact ⟨const _, const _, const _, const _, hPB⟩
+  obtain _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | j := j
+  exacts [⟨const _, const _, const _, const _, hcbB⟩, ⟨hK1, const _, const _, const _, hcbB⟩,
+    ⟨const _, const _, const _, hoff2, htbB⟩, ⟨const _, const _, const _, const _, hcbB⟩,
+    ⟨hn, const _, const _, const _, hcbB⟩, ⟨hK5, const _, const _, const _, hcbB⟩,
+    ⟨hK6, const _, const _, const _, hcbB⟩, ⟨hK6, const _, const _, const _, hcbB⟩,
+    ⟨hT, const _, const _, const _, hcbB⟩, ⟨hT, const _, const _, const _, hcbB⟩,
+    ⟨hT, const _, const _, hoff2, htbB⟩, ⟨hxlen, const _, const _, const _, hPB⟩,
+    ⟨const _, const _, const _, const _, hPB⟩, ⟨const _, const _, const _, const _, hPB⟩]
 
 private theorem computableInPolyTime_fieldGates (s : ℕ) :
     ComputableInPolyTime
@@ -411,15 +346,8 @@ private theorem computableInPolyTime_fieldGates (s : ℕ) :
     have harg1 := ite_decide (decide_eq' hiB (const 0))
       (ite' hinit (binary_add' haN (const 1)) haN)
       (binary_add' (binary_add' hcbB (binary_mul' (const j) haP)) (binary_sub' hiB (const 1)))
-    have hg : ComputableInPolyTime (fun p : DecoderArg × ℕ =>
-        Decoder.chainGate (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2))
-          (s + colBits p.1.2.2 + timeBits p.1.2.2) j
-          (Decoder.chain s (colBits p.1.2.2) (timeBits p.1.2.2)
-            p.1.1.length p.1.2.1 p.1.2.2 j) p.2)
-        (encPair encDecoderArg encUnary) encGate := by
-      unfold Decoder.chainGate Decoder.chainBase
-      exact hop.prod (harg0.cons' (harg1.cons' (const [])))
-    exact hg
+    unfold Decoder.chainGate Decoder.chainBase
+    exact hop.prod (harg0.cons' (harg1.cons' (const [])))
   -- Region 4: decoder tree on `m = Nat.size a.1.length`, with `2 ^ ℓ ≤ 2 * a.1.length + 1`.
   have htree : ComputableInPolyTime (fun a : DecoderArg =>
       Decoder.treeGates (4 + (s + colBits a.2.2 + timeBits a.2.2))
@@ -483,21 +411,15 @@ private theorem computableInPolyTime_fieldGates (s : ℕ) :
     have htbB := (computableInPolyTime_treeBase s).comp hp
     have hbit : ComputableInPolyTime (fun q : (DecoderArg × ℕ) × ℕ => q.2.testBit (q.1.2 - 1))
         encQ encBool := binary_testBit hqB' hℓ1U
-    have hbranch : ComputableInPolyTime (fun q : (DecoderArg × ℕ) × ℕ =>
-        Decoder.treeGate (4 + (s + colBits q.1.1.2.2 + timeBits q.1.1.2.2))
-          (Decoder.treeBase (4 + (s + colBits q.1.1.2.2 + timeBits q.1.1.2.2))
-            (s + colBits q.1.1.2.2 + timeBits q.1.1.2.2))
-          q.1.2 q.2) encQ encGate := by
-      unfold Decoder.treeGate
-      have ha0 := binary_add' (binary_add' htbB (binary_sub' hpowPrev (const 1)))
-        (binary_mod' hqB' hpowPrev)
-      have ha1 := ite' hbit
-        (binary_add' (const 4) hℓ1B)
-        (binary_add' (binary_add' hN' (const 2)) (binary_add' (const 4) hℓ1B))
-      exact ite_decide (unary_eq' hℓU' (const 0))
-        (const (Op.const true, ([] : List ℕ)))
-        ((const Op.and).prod (ha0.cons' (ha1.cons' (const []))))
-    exact hbranch
+    unfold Decoder.treeGate
+    have ha0 := binary_add' (binary_add' htbB (binary_sub' hpowPrev (const 1)))
+      (binary_mod' hqB' hpowPrev)
+    have ha1 := ite' hbit
+      (binary_add' (const 4) hℓ1B)
+      (binary_add' (binary_add' hN' (const 2)) (binary_add' (const 4) hℓ1B))
+    exact ite_decide (unary_eq' hℓU' (const 0))
+      (const (Op.const true, ([] : List ℕ)))
+      ((const Op.and).prod (ha0.cons' (ha1.cons' (const []))))
   -- Region 5: lookup chain across `x.length`.
   have hor : ComputableInPolyTime (fun a : DecoderArg =>
       (List.range a.1.length).map (Decoder.orGate
@@ -526,21 +448,12 @@ private theorem computableInPolyTime_fieldGates (s : ℕ) :
           (s + colBits p.1.2.2 + timeBits p.1.2.2) (Nat.size p.1.1.length)) encP encNat := by
       unfold Decoder.orBase
       exact binary_add' htb (binary_sub' hpowm1 (const 1))
-    have hor1 : ComputableInPolyTime (fun p : DecoderArg × ℕ =>
-        Decoder.orGate (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2))
-          (Decoder.treeBase (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2))
-            (s + colBits p.1.2.2 + timeBits p.1.2.2))
-          (Nat.size p.1.1.length)
-          (Decoder.orBase (4 + (s + colBits p.1.2.2 + timeBits p.1.2.2))
-            (s + colBits p.1.2.2 + timeBits p.1.2.2) (Nat.size p.1.1.length))
-          p.1.1 p.2) encP encGate := by
-      unfold Decoder.orGate
-      have ha0 := ite_decide (decide_eq' hiB (const 0)) haN
-        (binary_add' hob (binary_sub' hiB (const 1)))
-      have ha1 := ite' hxbit
-        (binary_add' (binary_add' htb (binary_sub' hpowm (const 1))) hiB) haN
-      exact (const Op.or).prod (ha0.cons' (ha1.cons' (const [])))
-    exact hor1
+    unfold Decoder.orGate
+    have ha0 := ite_decide (decide_eq' hiB (const 0)) haN
+      (binary_add' hob (binary_sub' hiB (const 1)))
+    have ha1 := ite' hxbit
+      (binary_add' (binary_add' htb (binary_sub' hpowm (const 1))) hiB) haN
+    exact (const Op.or).prod (ha0.cons' (ha1.cons' (const [])))
   -- Combine all five gate regions.
   have h12 := (listAppend encGate).comp (hconst.prod hnot)
   have h123 := (listAppend encGate).comp (h12.prod hchains)
@@ -978,37 +891,17 @@ theorem eqCubePoly_degreeOf_le {N : ℕ} {R : Type*} [CommRing R] (r : Fin N →
 theorem gateTracePoly_totalDegree_le {Q M : ℕ} (R : Type*) [CommRing R]
     (c : Circuit signature Q M) :
     (gateTracePoly R c).totalDegree ≤ 3 * c.size := by
+  have heq (u g : MvPolynomial (Fin (Q + c.size)) R) (hu : u.totalDegree ≤ 1)
+      (hg : g.totalDegree ≤ 2) : (eqBit u g).totalDegree ≤ 3 := by
+    have h1 := (totalDegree_sub 1 u).trans (max_le (by simp) hu)
+    have h2 := (totalDegree_sub 1 g).trans (max_le (by simp) hg)
+    refine (totalDegree_add _ _).trans (max_le ((totalDegree_mul _ _).trans (by omega))
+      ((totalDegree_mul _ _).trans (by omega)))
   unfold gateTracePoly
-  refine (totalDegree_finsetProd _ _).trans ?_
-  calc ∑ j : Fin c.size,
-        (eqBit (X (⟨Q + j.val, by omega⟩ : Fin (Q + c.size)))
-          (opEvalField (c.code.1.getD j.val (.const false, [])).1
-            (wireX (R := R) (Q + c.size) ((c.code.1.getD j.val (.const false, [])).2.getD 0 0))
-            (wireX (R := R) (Q + c.size)
-              ((c.code.1.getD j.val (.const false, [])).2.getD 1 0)))).totalDegree
-      ≤ ∑ _j : Fin c.size, 3 := Finset.sum_le_sum fun j _ => by
-        dsimp only
-        have hw :
-            (X ⟨Q + j.val, by omega⟩ : MvPolynomial (Fin (Q + c.size)) R).totalDegree ≤ 1 :=
-          (totalDegree_monomial_le _ _).trans (by simp)
-        have hg : (opEvalField (c.code.1.getD j.val (.const false, [])).1
-            (wireX (R := R) (Q + c.size) ((c.code.1.getD j.val (.const false, [])).2.getD 0 0))
-            (wireX (R := R) (Q + c.size)
-              ((c.code.1.getD j.val (.const false, [])).2.getD 1 0))).totalDegree ≤ 2 :=
-          totalDegree_opEvalField_le totalDegree_wireX_le totalDegree_wireX_le
-        unfold eqBit
-        refine (totalDegree_add _ _).trans (max_le ((totalDegree_mul _ _).trans (by omega)) ?_)
-        refine (totalDegree_mul _ _).trans ?_
-        have h1 : (1 - (X ⟨Q + j.val, by omega⟩ :
-            MvPolynomial (Fin (Q + c.size)) R)).totalDegree ≤ 1 :=
-          (totalDegree_sub _ _).trans (max_le (by simp) hw)
-        have h2 : (1 - opEvalField (c.code.1.getD j.val (.const false, [])).1
-            (wireX (R := R) (Q + c.size) ((c.code.1.getD j.val (.const false, [])).2.getD 0 0))
-            (wireX (R := R) (Q + c.size)
-              ((c.code.1.getD j.val (.const false, [])).2.getD 1 0))).totalDegree ≤ 2 :=
-          (totalDegree_sub _ _).trans (max_le (by simp) hg)
-        omega
-    _ = 3 * c.size := by simp [Nat.mul_comm]
+  refine (totalDegree_finsetProd _ _).trans
+    ((Finset.sum_le_sum (g := fun _ => 3) fun j _ => ?_).trans (by simp [Nat.mul_comm]))
+  exact heq _ _ ((totalDegree_monomial_le _ _).trans (by simp))
+    (totalDegree_opEvalField_le totalDegree_wireX_le totalDegree_wireX_le)
 
 /-- If `A ∈ restrictDegree (Fin L) R 1`, then
 `(clauseUnsatPoly c A).totalDegree ≤ 3 * (L + 1)`. -/
@@ -1142,34 +1035,24 @@ theorem eval_gateTracePoly_bitPoint {Q M : ℕ} (R : Type*) [CommRing R]
       simp only [opEvalField, map_sub, map_add, map_mul]
       rw [hstep _ h0, hstep _ h1, ← opEvalField_bitVal Op.or]
       rfl
+  have hwj (j : Fin c.size) : MvPolynomial.eval (bitPoint (Fin.append idx w))
+      (X ⟨Q + j.val, by omega⟩ : MvPolynomial (Fin (Q + c.size)) R) = bitVal R (w j) := by
+    have hna : (⟨Q + j.val, by omega⟩ : Fin (Q + c.size)) = Fin.natAdd Q j := Fin.ext rfl
+    simp only [eval_X, bitPoint, hna, Fin.append_right]
   rw [gateTracePoly, map_prod]
   split_ifs with hfull
   · refine Finset.prod_eq_one fun j _ => ?_
-    have hwj : MvPolynomial.eval (bitPoint (Fin.append idx w))
-        (X ⟨Q + j.val, by omega⟩ : MvPolynomial (Fin (Q + c.size)) R) = bitVal R (w j) := by
-      have hna : (⟨Q + j.val, by omega⟩ : Fin (Q + c.size)) = Fin.natAdd Q j := Fin.ext rfl
-      simp only [eval_X, bitPoint, hna, Fin.append_right]
     simp only [map_eqBit, hwj, heval_gate j fun k hk => hfull ⟨k, by omega⟩, hfull j, eqBit_bitVal,
       ↓reduceIte]
   · push Not at hfull
-    have hex : ∃ n : ℕ, ∃ hn : n < c.size, w ⟨n, hn⟩ ≠ trace.getD (Q + n) false := by
-      obtain ⟨j, hj⟩ := hfull
-      exact ⟨j.val, j.isLt, hj⟩
-    let j0 := Nat.find hex
-    have hj0_spec : ∃ hn : j0 < c.size, w ⟨j0, hn⟩ ≠ trace.getD (Q + j0) false :=
-      Nat.find_spec hex
-    obtain ⟨hj0_lt, hj0_ne⟩ := hj0_spec
-    have hmin (k : ℕ) (hk : k < j0) : w ⟨k, by omega⟩ = trace.getD (Q + k) false := by
-      by_contra hne
-      exact Nat.find_min hex hk ⟨by omega, hne⟩
-    refine Finset.prod_eq_zero (Finset.mem_univ (⟨j0, hj0_lt⟩ : Fin c.size)) ?_
-    have hwj : MvPolynomial.eval (bitPoint (Fin.append idx w))
-        (X ⟨Q + j0, by omega⟩ : MvPolynomial (Fin (Q + c.size)) R) =
-        bitVal R (w ⟨j0, hj0_lt⟩) := by
-      have hna : (⟨Q + j0, by omega⟩ : Fin (Q + c.size)) = Fin.natAdd Q ⟨j0, hj0_lt⟩ :=
-        Fin.ext rfl
-      simp only [eval_X, bitPoint, hna, Fin.append_right]
-    simp only [map_eqBit, hwj, heval_gate ⟨j0, hj0_lt⟩ hmin, eqBit_bitVal, hj0_ne, ↓reduceIte]
+    have hex : ∃ n : ℕ, ∃ hn : n < c.size, w ⟨n, hn⟩ ≠ trace.getD (Q + n) false :=
+      let ⟨j, hj⟩ := hfull; ⟨j.val, j.isLt, hj⟩
+    obtain ⟨hj0_lt, hj0_ne⟩ := Nat.find_spec hex
+    have hmin (k : ℕ) (hk : k < Nat.find hex) : w ⟨k, by omega⟩ = trace.getD (Q + k) false :=
+      not_not.mp fun hne => Nat.find_min hex hk ⟨by omega, hne⟩
+    refine Finset.prod_eq_zero (Finset.mem_univ ⟨_, hj0_lt⟩) ?_
+    simp only [map_eqBit, hwj ⟨_, hj0_lt⟩, heval_gate ⟨_, hj0_lt⟩ hmin, eqBit_bitVal, hj0_ne,
+      ↓reduceIte]
 
 /-- At the honest gate trace `w` of circuit `c` on input `idx`, `clauseUnsatPoly c A` evaluates
 to the product of the three literal violation weights under `A`. -/
@@ -1288,10 +1171,14 @@ theorem satisfiable_toCNF_iff_succinctCNF {k : ℕ} {State : Type} [Fintype Stat
   have hdec (idx : ℕ) (hidx : idx < 2 ^ Q) (r : Fin 3) :
       let clause := Tableau.clauseAt tm x n T idx
       let lit := clause.getD r.val (0, false)
+      (fun i : Fin L =>
+          c.eval interpretation (fun i => idx.testBit i) (SuccinctVerifier.addressWire L r i)) =
+        (fun i : Fin L => lit.1.testBit i.val) ∧
       (Nat.ofBits fun i : Fin L =>
           c.eval interpretation (fun i => idx.testBit i) (SuccinctVerifier.addressWire L r i)) =
         lit.1 ∧
-      c.eval interpretation (fun i => idx.testBit i) (SuccinctVerifier.signWire L r) = lit.2 := by
+      c.eval interpretation (fun i => idx.testBit i) (SuccinctVerifier.signWire L r) = lit.2 ∧
+      lit ∈ clause := by
     have hcl_mem : Tableau.clauseAt tm x n T idx ∈ Tableau.succinctCNF tm x n T := by
       simp only [Tableau.succinctCNF, List.mem_map, List.mem_range]
       exact ⟨idx, hidx, rfl⟩
@@ -1341,46 +1228,22 @@ theorem satisfiable_toCNF_iff_succinctCNF {k : ℕ} {State : Type} [Fintype Stat
       rw [List.getElem?_append_right (by simp)] at hl
       simp only [List.length_ofFn, Nat.sub_self, List.getElem?_cons_zero] at hl
       exact Option.some.inj hl
-    have hlt : ((Tableau.clauseAt tm x n T idx).getD r.val (0, false)).1 < 2 ^ L :=
-      hvar_lt _ (by rw [hget_lit]; exact List.getElem_mem hr_lt)
-    refine ⟨?_, hsign⟩
-    have hfun : (fun i : Fin L => c.eval interpretation (fun j => idx.testBit j)
-        (SuccinctVerifier.addressWire L r i)) =
-        fun i : Fin L => ((Tableau.clauseAt tm x n T idx).getD r.val (0, false)).1.testBit i.val :=
-      funext haddr
-    rw [hfun, Nat.ofBits_testBit, Nat.mod_eq_of_lt hlt]
+    have hmem : (Tableau.clauseAt tm x n T idx).getD r.val (0, false) ∈
+        Tableau.clauseAt tm x n T idx := by
+      rw [hget_lit]; exact List.getElem_mem hr_lt
+    refine ⟨funext haddr, ?_, hsign, hmem⟩
+    rw [funext haddr, Nat.ofBits_testBit, Nat.mod_eq_of_lt (hvar_lt _ hmem)]
   constructor
   · rintro ⟨σ, hσ⟩
     refine ⟨fun v => σ (fun i : Fin L => v.testBit i), ?_⟩
     rw [Tableau.succinctCNF, CNF.eval_map_eq_true_iff]
     intro idx hidx
     rw [List.mem_range] at hidx
-    have hcl_c : (SuccinctVerifier.clause c (fun i => idx.testBit i)).eval σ = true :=
-      (SuccinctVerifier.eval_toCNF_eq_true_iff c σ).1 hσ _
-    obtain ⟨r, hr⟩ := (SuccinctVerifier.eval_clause_eq_true_iff c σ _).1 hcl_c
-    obtain ⟨h1, h2⟩ := hdec idx hidx r
-    have hcl_mem : Tableau.clauseAt tm x n T idx ∈ Tableau.succinctCNF tm x n T := by
-      simp only [Tableau.succinctCNF, List.mem_map, List.mem_range]
-      exact ⟨idx, hidx, rfl⟩
-    have hcl_len : (Tableau.clauseAt tm x n T idx).length = 3 :=
-      Tableau.length_of_mem_succinctCNF tm hcl_mem
-    have hr_lt : r.val < (Tableau.clauseAt tm x n T idx).length := by omega
-    have hget_lit : (Tableau.clauseAt tm x n T idx).getD r.val (0, false) =
-        (Tableau.clauseAt tm x n T idx)[r.val]'hr_lt := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hr_lt, Option.getD_some]
+    obtain ⟨r, hr⟩ := (SuccinctVerifier.eval_clause_eq_true_iff c σ _).1
+      ((SuccinctVerifier.eval_toCNF_eq_true_iff c σ).1 hσ _)
+    obtain ⟨hfun, -, h2, hmem⟩ := hdec idx hidx r
     rw [Clause.eval_eq_true_iff]
-    refine ⟨(Tableau.clauseAt tm x n T idx).getD r.val (0, false),
-      by rw [hget_lit]; exact List.getElem_mem hr_lt, ?_⟩
-    have hfun : (fun i : Fin L => c.eval interpretation (fun j => idx.testBit j)
-        (SuccinctVerifier.addressWire L r i)) = fun i : Fin L =>
-          ((Tableau.clauseAt tm x n T idx).getD r.val (0, false)).1.testBit i.val := by
-      have hvar_lt : ((Tableau.clauseAt tm x n T idx).getD r.val (0, false)).1 < 2 ^ L := by
-        apply Tableau.lt_two_pow_labelBits_of_mem_vars tm hn hx
-        rw [CNF.mem_vars]
-        exact ⟨_, hcl_mem, _, by rw [hget_lit]; exact List.getElem_mem hr_lt⟩
-      funext i
-      rw [← h1, Nat.testBit_ofBits]
-      simp only [i.isLt, ↓reduceDIte]
+    refine ⟨_, hmem, ?_⟩
     rw [← h2, ← hr]
     congr 1
     exact hfun.symm
@@ -1404,7 +1267,7 @@ theorem satisfiable_toCNF_iff_succinctCNF {k : ℕ} {State : Type} [Fintype Stat
         exact ⟨idx, hidx, rfl⟩)
     obtain ⟨r_nat, hr_lt, rfl⟩ := List.mem_iff_getElem.1 hl
     let r : Fin 3 := ⟨r_nat, by omega⟩
-    obtain ⟨h1, h2⟩ := hdec idx hidx r
+    obtain ⟨-, h1, h2, -⟩ := hdec idx hidx r
     rw [SuccinctVerifier.eval_clause_eq_true_iff]
     refine ⟨r, ?_⟩
     have hget_lit : (Tableau.clauseAt tm x n T idx).getD r.val (0, false) =
