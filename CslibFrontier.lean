@@ -1030,6 +1030,7 @@ public import CslibFrontier.Algorithms.WordRAM.PPSZ.Round
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Amplify
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Forced
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Round
+public import CslibFrontier.Algorithms.WordRAM.PatternTextInput
 public import CslibFrontier.Algorithms.WordRAM.PrimeTable
 public import CslibFrontier.Algorithms.WordRAM.PrimeTrial
 public import CslibFrontier.Algorithms.WordRAM.PushRelabel
@@ -1046,7 +1047,6 @@ public import CslibFrontier.Algorithms.WordRAM.Schoening.Scan
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Trial
 public import CslibFrontier.Algorithms.WordRAM.Schoening.TrialCount
 public import CslibFrontier.Algorithms.WordRAM.StoerWagner
-public import CslibFrontier.Algorithms.WordRAM.StringInput
 public import CslibFrontier.Algorithms.WordRAM.SuffixArray
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Cell
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.BucketCounts

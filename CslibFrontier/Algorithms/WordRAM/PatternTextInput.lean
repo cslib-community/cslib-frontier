@@ -39,8 +39,7 @@ namespace Cslib.Algorithms.WordRAM
 
 open Cslib.WordRAM
 
-/-- Pattern-matching instance on the word RAM: a pattern `pat` and a text `txt` over `w`-bit
-words. -/
+/-- Pattern-matching instance on the word RAM: a pattern `pat` and a text `txt` over words. -/
 structure PatternTextInput where
   /-- Pattern word sequence. -/
   pat : List ℕ

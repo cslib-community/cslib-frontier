@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.ZFunction.Basic
 public import CslibFrontier.Algorithms.Lean.ZFunction.Search
-public import CslibFrontier.Algorithms.WordRAM.StringInput
+public import CslibFrontier.Algorithms.WordRAM.PatternTextInput
 public import CslibFrontier.Computability.WordRAM.ListOutput
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.ListArray
