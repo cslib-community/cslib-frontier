@@ -85,17 +85,13 @@ theorem lpNorm_two_le_exp_mul_lpNorm {p : ℝ} (hp₀ : 0 < p) (hp₂ : p ≤ 2)
   -- every absolute moment of order `r ≠ 0` is positive
   have hpos : ∀ r : ℝ, r ≠ 0 → 0 < 𝔼 x, |f x| ^ r := by
     intro r hr
-    refine lt_of_le_of_ne (expect_nonneg fun x _ => Real.rpow_nonneg (abs_nonneg _) _)
-      fun h => ?_
-    have h0 := (Fintype.expect_eq_zero_iff_of_nonneg
-      (fun x => Real.rpow_nonneg (abs_nonneg (f x)) r)).1 h.symm
+    refine (expect_nonneg fun x _ => by positivity).lt_of_ne' fun h => hmpos.ne' ?_
+    have h0 := (Fintype.expect_eq_zero_iff_of_nonneg fun x => by positivity).1 h
     have hf0 (x : ι → Bool) : f x = 0 := by
-      have := congrFun h0 x
-      simp only [Pi.zero_apply, Real.rpow_eq_zero (abs_nonneg _) hr, abs_eq_zero] at this
-      exact this
-    have : m = 0 := by simp only [hm, hf0, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true,
-      zero_pow, expect_const_zero]
-    linarith only [hmpos, this]
+      simpa only [Pi.zero_apply, Real.rpow_eq_zero (abs_nonneg _) hr, abs_eq_zero] using
+        congrFun h0 x
+    simp only [hm, hf0, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
+      expect_const_zero]
   set A := 𝔼 x, |f x| ^ p with hA
   have hApos : 0 < A := hpos p hp₀.ne'
   -- for each `ε > 0`, interpolating between `p` and `2 + ε`
@@ -137,15 +133,12 @@ theorem lpNorm_two_le_exp_mul_lpNorm {p : ℝ} (hp₀ : 0 < p) (hp₂ : p ≤ 2)
     have h2 : Real.log B ≤ (2 + ε) * (k * (Real.log (1 + ε) / 2) + Real.log m / 2) := by
       have := mul_le_mul_of_nonneg_left hlog2 (by positivity : (0 : ℝ) ≤ 2 + ε)
       rwa [← mul_assoc, mul_inv_cancel₀ (by positivity : (2 + ε : ℝ) ≠ 0), one_mul] at this
-    have h3 := mul_le_mul_of_nonneg_left h2 (by linarith only [hp₂] : (0 : ℝ) ≤ 2 - p)
-    have h4 : (2 - p) * (2 + ε) * k / 2 * Real.log (1 + ε) ≤ (2 - p) * (2 + ε) * k / 2 * ε :=
-      mul_le_mul_of_nonneg_left hlog3
-        (div_nonneg (mul_nonneg (mul_nonneg (by linarith only [hp₂]) (by positivity))
-          (Nat.cast_nonneg k)) two_pos.le)
-    have h5 : ε * (p / 2 * Real.log m) ≤
-        ε * (Real.log A + (2 - p) * k + (2 - p) * k / 2 * ε) := by
-      linarith only [h1, h3, h4]
-    exact le_of_mul_le_mul_left h5 hε
+    have h2p : (0 : ℝ) ≤ 2 - p := by linarith only [hp₂]
+    have h3 := mul_le_mul_of_nonneg_left h2 h2p
+    have h4 := mul_le_mul_of_nonneg_left hlog3
+      (mul_nonneg (mul_nonneg h2p (by positivity)) (Nat.cast_nonneg k) :
+        (0 : ℝ) ≤ (2 - p) * (2 + ε) * k)
+    exact le_of_mul_le_mul_left (by linarith only [h1, h3, h4]) hε
   have hkey : p / 2 * Real.log m ≤ Real.log A + (2 - p) * k := by
     refine le_of_forall_pos_le_add fun δ hδ => ?_
     have hc : 0 ≤ (2 - p) * k / 2 :=
@@ -220,35 +213,25 @@ theorem dens_le_exp_neg_mul_rpow {k : ℕ} {f : (ι → Bool) → ℝ} (hf : f �
   have hlogq : Real.log q = 2 / k * Real.log t - 1 := by
     rw [hq, Real.log_div hspos.ne' he.ne', hlogs, Real.log_exp]
   have hq2 : 2 ≤ q := by
-    have hlog2 : Real.log 2 ≤ Real.log q := by
-      rw [hlogq]
-      have h := mul_le_mul_of_nonneg_left hlogt (by positivity : (0 : ℝ) ≤ 2 / k)
-      rw [← mul_assoc, show 2 / (k : ℝ) * (k / 2) = 1 by field_simp, one_mul,
-        Real.log_mul two_ne_zero he.ne', Real.log_exp] at h
-      linarith only [h]
-    exact (Real.log_le_log_iff two_pos hqpos).1 hlog2
+    rw [← Real.log_le_log_iff two_pos hqpos, hlogq, le_sub_iff_add_le, div_mul_eq_mul_div,
+      le_div_iff₀ hkpos]
+    rw [Real.log_mul two_ne_zero he.ne', Real.log_exp] at hlogt
+    linarith only [hlogt]
   -- Markov's inequality for `|f| ^ q`
-  have hmk := Fintype.mul_dens_filter_le_expect (f := fun x => |f x| ^ q)
-    (fun x => Real.rpow_nonneg (abs_nonneg _) _) ((t * N) ^ q)
-  have hsub : ({x | t * N ≤ |f x|} : Finset (ι → Bool)) ⊆
-      ({x | (t * N) ^ q ≤ |f x| ^ q} : Finset (ι → Bool)) := by
-    intro x hx
-    simp only [mem_filter, mem_univ, true_and] at hx ⊢
-    exact Real.rpow_le_rpow (by positivity) hx hqpos.le
-  have hd : (dens ({x | t * N ≤ |f x|} : Finset (ι → Bool)) : ℝ) ≤
-      (dens ({x | (t * N) ^ q ≤ |f x| ^ q} : Finset (ι → Bool)) : ℝ) := by
-    exact_mod_cast dens_le_dens hsub
-  set D := (dens ({x | t * N ≤ |f x|} : Finset (ι → Bool)) : ℝ) with hD
+  set D := (dens ({x | t * N ≤ |f x|} : Finset (ι → Bool)) : ℝ)
   have hbon := lpNorm_le_sqrt_pow_mul_lpNorm_two hq2 hf
   rw [← hN] at hbon
-  have hmom : 𝔼 x, |f x| ^ q = lpNorm q f ^ q := (lpNorm_rpow hqpos.ne' f).symm
   have hmain : (t * N) ^ q * D ≤ (√(q - 1) ^ k * N) ^ q := by
     calc (t * N) ^ q * D ≤ (t * N) ^ q *
-          (dens ({x | (t * N) ^ q ≤ |f x| ^ q} : Finset (ι → Bool)) : ℝ) := by gcongr
-      _ ≤ 𝔼 x, |f x| ^ q := hmk
-      _ = lpNorm q f ^ q := hmom
-      _ ≤ (√(q - 1) ^ k * N) ^ q :=
-        Real.rpow_le_rpow (lpNorm_nonneg _ _) hbon hqpos.le
+          (dens ({x | (t * N) ^ q ≤ |f x| ^ q} : Finset (ι → Bool)) : ℝ) := by
+          gcongr
+          simp only [D]
+          exact_mod_cast dens_le_dens fun x hx => by
+            simp only [mem_filter, mem_univ, true_and] at hx ⊢
+            exact Real.rpow_le_rpow (by positivity) hx hqpos.le
+      _ ≤ 𝔼 x, |f x| ^ q := Fintype.mul_dens_filter_le_expect (fun x => by positivity) _
+      _ = lpNorm q f ^ q := (lpNorm_rpow hqpos.ne' f).symm
+      _ ≤ (√(q - 1) ^ k * N) ^ q := Real.rpow_le_rpow (lpNorm_nonneg _ _) hbon hqpos.le
   rcases (show (0 : ℝ) ≤ D by positivity).eq_or_lt with hD0 | hDpos
   · rw [← hD0]; positivity
   -- take logarithms
