@@ -193,10 +193,6 @@ theorem exists_unit_residuals {d : ℕ} {a : E} {b : Fin d → E}
       (∀ (i : Fin d) (hi : i.val < 3), ⟪a, b i⟫ < 1 → pick ⟨i.val, hi⟩ = i) := by
   obtain ⟨i₀, hi₀⟩ := hI
   have haa : ⟪a, a⟫ = 1 := by rw [real_inner_self_eq_norm_sq, ha]; norm_num
-  have hc : ∀ i, -1 ≤ ⟪a, b i⟫ ∧ ⟪a, b i⟫ ≤ 1 := fun i => by
-    have := abs_real_inner_le_norm a (b i)
-    rw [ha, hb i, mul_one] at this
-    exact abs_le.mp this
   let R : Fin d → E := fun i => remainder a (b i)
   have hRorth : ∀ i, ⟪a, R i⟫ = 0 := fun i => by
     simp only [R, remainder, inner_sub_right, real_inner_smul_right, haa, mul_one, sub_self]
@@ -211,26 +207,20 @@ theorem exists_unit_residuals {d : ℕ} {a : E} {b : Fin d → E}
   let W : Fin d → E := fun i => (‖R i‖)⁻¹ • R i
   have hSpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := fun i hi =>
     Real.sqrt_pos.mpr (sub_pos.mpr (by simpa using pow_lt_pow_left₀ hi (hab i) two_ne_zero))
-  have hRpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < ‖R i‖ := fun i hi => by
-    rw [hRnorm]; exact hSpos i hi
+  have hRpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < ‖R i‖ := fun i hi => by rw [hRnorm]; exact hSpos i hi
   let pick : Fin 3 → Fin d := fun j =>
     if h : j.val < d then (if ⟪a, b ⟨j.val, h⟩⟫ < 1 then ⟨j.val, h⟩ else i₀) else i₀
   refine ⟨W, pick, hSpos, ?_, ?_, ?_, ?_, ?_⟩
   · intro i hi
-    simp only [W, norm_smul, norm_inv, norm_norm]
-    exact inv_mul_cancel₀ (hRpos i hi).ne'
-  · intro i
-    simp only [W, real_inner_smul_right, hRorth, mul_zero]
+    simpa only [W, norm_smul, norm_inv, norm_norm] using inv_mul_cancel₀ (hRpos i hi).ne'
+  · intro i; simp only [W, real_inner_smul_right, hRorth, mul_zero]
   · intro i x hi
     rw [inner_decomp haa (b i) x, inner_remainder_of_orth (hRorth i)]
     simp only [W, real_inner_smul_left, ← hRnorm i]
     field_simp [(hRpos i hi).ne']
   · intro j
     simp only [pick]
-    split_ifs with h1 h2
-    · exact h2
-    · exact hi₀
-    · exact hi₀
+    split_ifs <;> assumption
   · intro i hi hgi
     simp [pick, i.isLt, hgi]
 
@@ -242,61 +232,35 @@ theorem starFrontier {r : ℝ} (hr : 0 < r) (hrs : r ≤ rStar) {a : E} {d : ℕ
     {t : ℝ} (ht : 0 ≤ t) :
     (stdGaussian E).real {x | t ≤ ⟪a, x⟫ ∧ ∃ i, ⟪b i, x⟫ ≤ t} ≤ kappa r := by
   have hr1 : r < 1 := lt_of_le_of_lt hrs rStar_lt_one
-  set μ := stdGaussian E
-  have hfinal : idealProb r t ≤ kappa r :=
-    (idealProb_le_zero hr hr1 ht).trans (idealProb_zero hr hr1).le
-  have hκ : 0 ≤ kappa r := by
-    unfold kappa
-    have := Real.arccos_nonneg (pairCorr r); have := Real.pi_pos; positivity
-  refine le_trans ?_ hfinal
-  have hc : ∀ i, -1 ≤ ⟪a, b i⟫ ∧ ⟪a, b i⟫ ≤ 1 := fun i => by
-    have := abs_real_inner_le_norm a (b i)
-    rw [ha, hb i, mul_one] at this
-    exact abs_le.mp this
+  refine le_trans ?_ ((idealProb_le_zero hr hr1 ht).trans (idealProb_zero hr hr1).le)
+  have hone : ∀ x i, t ≤ ⟪a, x⟫ → ⟪b i, x⟫ ≤ t → ¬⟪a, b i⟫ < 1 → ⟪a, x⟫ = t := by
+    intro x i hZ hi hg
+    have h1 : ⟪a, b i⟫ = 1 := le_antisymm
+      ((real_inner_le_norm a (b i)).trans_eq (by rw [ha, hb i, mul_one])) (not_lt.mp hg)
+    rw [eq_of_inner_eq_one ha (hb i) h1] at hi
+    exact le_antisymm hi hZ
   by_cases hI : ∃ i, ⟪a, b i⟫ < 1
   · obtain ⟨W, pick, hSpos, hWnorm, hWorth, hdecomp, hpick, hpick_eq⟩ :=
       exists_unit_residuals ha hb (fun i => hr.le.trans (hab i)) hI
     set w : Fin 3 → E := fun j => W (pick j)
-    have hw : ∀ j, ‖w j‖ = 1 := fun j => hWnorm _ (hpick j)
-    have hworth : ∀ j, ⟪a, w j⟫ = 0 := fun j => hWorth _
     have hcover : {x | t ≤ ⟪a, x⟫ ∧ ∃ i, ⟪b i, x⟫ ≤ t} ⊆
         {x | ⟪a, x⟫ = t} ∪
           {x | t ≤ ⟪a, x⟫ ∧ ∃ j, ⟪w j, x⟫ ≤ (t - r * ⟪a, x⟫) / Ideal.s r} := by
-      intro x hx
-      obtain ⟨hZ, i, hi⟩ := hx
+      rintro x ⟨hZ, i, hi⟩
       by_cases hgood : ⟪a, b i⟫ < 1
-      · right
-        refine ⟨hZ, ⟨i.val, by omega⟩, ?_⟩
+      · refine Or.inr ⟨hZ, ⟨i.val, by omega⟩, ?_⟩
         simp only [w, hpick_eq i (by omega) hgood]
         have hdec := hdecomp i x hgood
-        have hle : ⟪W i, x⟫ ≤ (t - ⟪a, b i⟫ * ⟪a, x⟫) / Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := by
-          rw [le_div_iff₀ (hSpos i hgood)]; linarith
-        exact hle.trans (coupling_ineq hr (hab i) hgood ht hZ)
-      · left
-        have h1 : ⟪a, b i⟫ = 1 := le_antisymm (hc i).2 (not_lt.mp hgood)
-        have hbi := eq_of_inner_eq_one ha (hb i) h1
-        rw [hbi] at hi
-        exact le_antisymm hi hZ
-    calc μ.real {x | t ≤ ⟪a, x⟫ ∧ ∃ i, ⟪b i, x⟫ ≤ t}
-        ≤ μ.real ({x | ⟪a, x⟫ = t} ∪
-            {x | t ≤ ⟪a, x⟫ ∧ ∃ j, ⟪w j, x⟫ ≤ (t - r * ⟪a, x⟫) / Ideal.s r}) :=
-          measureReal_mono hcover (measure_ne_top _ _)
-      _ ≤ μ.real {x | ⟪a, x⟫ = t} +
-            μ.real {x | t ≤ ⟪a, x⟫ ∧ ∃ j, ⟪w j, x⟫ ≤ (t - r * ⟪a, x⟫) / Ideal.s r} :=
-          measureReal_union_le _ _
-      _ ≤ idealProb r t := by
-          rw [prob_inner_eq ha t, zero_add]
-          exact compare_ideal ha hw hworth hr hr1
-  · push Not at hI
-    have hsub : {x | t ≤ ⟪a, x⟫ ∧ ∃ i, ⟪b i, x⟫ ≤ t} ⊆ {x | ⟪a, x⟫ = t} := by
-      intro x hx
-      obtain ⟨hZ, i, hi⟩ := hx
-      have h1 : ⟪a, b i⟫ = 1 := le_antisymm (hc i).2 (hI i)
-      rw [eq_of_inner_eq_one ha (hb i) h1] at hi
-      exact le_antisymm hi hZ
-    calc μ.real {x | t ≤ ⟪a, x⟫ ∧ ∃ i, ⟪b i, x⟫ ≤ t} ≤ μ.real {x | ⟪a, x⟫ = t} :=
-          measureReal_mono hsub (measure_ne_top _ _)
-      _ = 0 := prob_inner_eq ha t
-      _ ≤ idealProb r t := measureReal_nonneg
+        refine le_trans ?_ (coupling_ineq hr (hab i) hgood ht hZ)
+        rw [le_div_iff₀ (hSpos i hgood)]; linarith
+      · exact Or.inl (hone x i hZ hi hgood)
+    refine (measureReal_mono hcover (measure_ne_top _ _)).trans
+      ((measureReal_union_le _ _).trans ?_)
+    rw [prob_inner_eq ha t, zero_add]
+    exact compare_ideal ha (fun j => hWnorm _ (hpick j)) (fun j => hWorth _) hr hr1
+  · refine (measureReal_mono (s₂ := {x | ⟪a, x⟫ = t}) ?_ (measure_ne_top _ _)).trans
+      ((prob_inner_eq ha t).trans_le measureReal_nonneg)
+    rintro x ⟨hZ, i, hi⟩
+    exact hone x i hZ hi fun h => hI ⟨i, h⟩
 
 end Cslib.Circuits.Frontier.Switched
