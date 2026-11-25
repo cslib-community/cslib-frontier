@@ -126,8 +126,8 @@ theorem mem_support_deal211 {a : Fin 4 × Fin 4} {b : Fin 4} :
     · rw [← hb, ← ha2]
       exact ρ.injective.ne (by decide)
   · rintro ⟨h01, hb0, hb1⟩
-    have hrem : ∀ x y z : Fin 4, ∃ c : Fin 4, c ≠ x ∧ c ≠ y ∧ c ≠ z := by decide
-    obtain ⟨c, hc0, hc1, hcb⟩ := hrem a.1 a.2 b
+    obtain ⟨c, hc0, hc1, hcb⟩ :=
+      (by decide : ∀ x y z : Fin 4, ∃ c : Fin 4, c ≠ x ∧ c ≠ y ∧ c ≠ z) a.1 a.2 b
     let f : Fin 4 → Fin 4 := ![a.1, a.2, b, c]
     have hinj : Function.Injective f := by
       intro i j hij
