@@ -293,8 +293,7 @@ theorem hgArgmin_none {s : HgState n} (h : hgArgmin s = none) :
   have := hgArgmin_foldl s (List.finRange n) [] none (hgArgminOK_nil s)
   rw [hgArgmin] at h
   rw [h] at this
-  intro j
-  exact this.1 rfl j (by simp)
+  exact fun j => this.1 rfl j (by simp)
 
 theorem hgArgmin_some {s : HgState n} {k : Fin n} (h : hgArgmin s = some k) :
     vget s.used k = false ∧ ∀ j, vget s.used j = false → vget s.minv k ≤ vget s.minv j := by
@@ -677,9 +676,8 @@ theorem hgInv_extend {r : Fin n} {s : HgState n}
         refine ⟨h1, ?_⟩
         rw [hgRelax_minv]
         dsimp only
-        by_cases hjj : j = j₁
-        · subst hjj
-          rw [vget_vset_self, ite_eq_left rfl, h2, hj₁, hz, ite_self]
+        obtain rfl | hjj := eq_or_ne j j₁
+        · rw [vget_vset_self, ite_eq_left rfl, h2, hj₁, hz, ite_self]
         · rw [hU' j hjj] at hc ⊢
           cases hju : vget s.used j <;>
             simp only [hju, ite_true, Bool.false_eq_true, ite_false, true_and, not_lt] at h2 hc ⊢
@@ -1092,10 +1090,8 @@ private theorem foldl_min_ge (c : Fin n × Fin n → ℤ) (u : Fin n) {B : ℤ}
     ∀ (l : List (Fin n)) {a : ℤ}, B ≤ a → B ≤ l.foldl (fun a v => min a (c (u, v))) a := by
   intro l
   induction l with
-  | nil => intro a ha; exact ha
-  | cons x l ih =>
-    intro a ha
-    exact ih (le_min ha (hB x))
+  | nil => exact id
+  | cons x l ih => exact fun ha => ih (le_min ha (hB x))
 
 theorem hgRowMin_le (c : Fin n × Fin n → ℤ) (u v : Fin n) :
     hgRowMin c u ≤ c (u, v) :=
