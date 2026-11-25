@@ -137,7 +137,8 @@ private theorem exists_card_eq_and_mul_sum_le {n : Type*} [Fintype n] (c : n →
   let g : Fin N → ℕ := fun k => c (emb k)
   have hcross : (N - a) * ∑ x ∈ S, g x ≤ a * ∑ y ∈ Sc, g y := by
     rw [← hSc_card, ← hS_card]
-    calc #Sc * ∑ x ∈ S, g x = ∑ x ∈ S, ∑ _y ∈ Sc, g x := by simp only [sum_const, smul_eq_mul, mul_sum]
+    calc #Sc * ∑ x ∈ S, g x = ∑ x ∈ S, ∑ _y ∈ Sc, g x := by
+          simp only [sum_const, smul_eq_mul, mul_sum]
       _ ≤ ∑ x ∈ S, ∑ y ∈ Sc, g y := sum_le_sum fun x hx => sum_le_sum fun y hy =>
           hmono (Fin.mk_le_mk.mpr ((mem_filter.mp hx).2.le.trans (not_lt.mp (mem_filter.mp hy).2)))
       _ = #S * ∑ y ∈ Sc, g y := by rw [sum_comm]; simp only [sum_const, smul_eq_mul, mul_sum]
