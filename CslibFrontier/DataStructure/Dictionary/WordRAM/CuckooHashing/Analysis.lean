@@ -72,16 +72,10 @@ private theorem isCuckooHashPair_seedAux (reg : Bool) {c_exp n_max U M : ℕ}
         ((by omega : max n_max 2 ≤ max n_max 4).trans hmax_le_2b)
     have hev_le : maxEvictions n_max ≤ 12 * b + 12 := by grind [maxEvictions]
     have h18_ev : 18 ≤ maxEvictions n_max := eighteen_le_maxEvictions n_max
-    have h2ev_sq : 2 * max (maxEvictions n_max) 1 ≤ b ^ 2 := by
-      have : max (maxEvictions n_max) 1 = maxEvictions n_max := by omega
-      nlinarith
     have h2ev2 : 2 * maxEvictions n_max + 2 ≤ b ^ 2 := by nlinarith
     have hload_le : 2 * (max n_max 1 * max (maxEvictions n_max) 1) ≤ 2 ^ (2 * b) * b ^ 2 := by
-      have hmax1_le : max n_max 1 ≤ 2 ^ (2 * b) :=
-        (by omega : max n_max 1 ≤ max n_max 4).trans hmax_le_2b
-      calc 2 * (max n_max 1 * max (maxEvictions n_max) 1)
-          = max n_max 1 * (2 * max (maxEvictions n_max) 1) := by ring
-        _ ≤ 2 ^ (2 * b) * b ^ 2 := Nat.mul_le_mul hmax1_le h2ev_sq
+      rw [max_eq_left (by omega : 1 ≤ maxEvictions n_max), mul_left_comm]
+      exact Nat.mul_le_mul ((by omega : max n_max 1 ≤ max n_max 4).trans hmax_le_2b) (by linarith)
     have hprod_le : 2 * (max n_max 1 * max (maxEvictions n_max) 1) *
         doubleTabCodeBound c (8 * c) 4 (2 * maxEvictions n_max + 2) ≤ 2 ^ (3 * b) :=
       mul_doubleTabCodeBound_le hb_ge h2ev2 hload_le
