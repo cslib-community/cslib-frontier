@@ -187,9 +187,14 @@ theorem Op.eval_mapSimulates_of_some {w : ℕ} (ψ : B.Simulates B')
     (o.mapSimulates ψ).eval w x = some y := by
   cases o with
   | alu f d args =>
-    obtain ⟨v, hv, hput⟩ := Option.bind_eq_some_iff.mp (Op.eval_alu .. ▸ h)
-    exact (Op.eval_alu ..).trans
-      (Option.bind_eq_some_iff.mpr ⟨v, ψ.eval_some w f (x.regs ∘ args) hv, hput⟩)
+    rw [Op.eval_alu] at h
+    obtain ⟨v, hv, hput⟩ := Option.bind_eq_some_iff.mp h
+    rw [Op.mapSimulates, Op.eval_alu]
+    have hv' : B'.interp w (ψ.map f)
+        (x.regs ∘ fun a => args (Fin.cast (ψ.arity_map f) a)) = some v :=
+      ψ.eval_some w f (x.regs ∘ args) hv
+    rw [hv', Option.bind_some]
+    exact hput
   | _ => exact h
 
 /-- A translated data instruction has the same effect. -/
@@ -219,9 +224,10 @@ theorem Instr.readsWidth_of_mapOp {i : Instr B r} (h : (i.mapOp φ).ReadsWidth) 
 
 /-- A translated program reads the word size only if the program does. -/
 theorem Program.readsWidth_of_mapOp {p : Program B r} (h : (p.mapOp φ).ReadsWidth) :
-    p.ReadsWidth :=
-  let ⟨_, hi, hr⟩ := h; let ⟨j, hj, he⟩ := List.mem_map.1 hi
-  ⟨j, hj, Instr.readsWidth_of_mapOp φ (he ▸ hr)⟩
+    p.ReadsWidth := by
+  obtain ⟨i, hi, hr⟩ := h
+  obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hi
+  exact ⟨j, hj, Instr.readsWidth_of_mapOp φ hr⟩
 
 /-- A structured program translated along a simulation reads the word size only if the program
 does. -/
@@ -229,7 +235,8 @@ theorem Code.readsWidth_of_mapSimulates (ψ : B.Simulates B') {c : Code B r}
     (h : (c.mapSimulates ψ).ReadsWidth) : c.ReadsWidth := by
   induction c with
   | op o => exact Op.readsWidth_of_mapSimulates ψ h
-  | seq _ _ ih₁ ih₂ | branch _ _ _ ih₁ ih₂ => exact h.imp ih₁ ih₂
+  | seq _ _ ih₁ ih₂ => exact h.imp ih₁ ih₂
+  | branch _ _ _ ihp ihn => exact h.imp ihp ihn
   | loop _ _ ih => exact ih h
   | rand _ _ => exact h
 
@@ -266,10 +273,16 @@ theorem step_mapOp (w : ℕ) (p : Program B r) (s : State r) :
     step w (p.mapOp φ) s = step w p s := by
   unfold step Program.mapOp
   rw [List.getElem?_map]
-  rcases p[s.pc]? with _ | (_ | _ | _ | _ | _) <;> simp [Instr.mapOp]
+  cases p[s.pc]? with
+  | none => rfl
+  | some i =>
+    cases i with
+    | op o => simp only [Option.map_some, Instr.mapOp, Op.eval_mapOp]
+    | _ => rfl
 
 theorem next_mapOp (w : ℕ) (p : Program B r) : Next w (p.mapOp φ) = Next w p := by
-  ext; simp only [Next, step_mapOp]
+  funext s t
+  simp only [Next, step_mapOp]
 
 theorem runs_mapOp (w : ℕ) (p : Program B r) : Runs w (p.mapOp φ) = Runs w p := by
   rw [Runs, Runs, next_mapOp]
@@ -310,7 +323,8 @@ theorem Exec.mapOp {w : ℕ} {c : Code B r} {x y : Data r} {n : ℕ} (h : Exec w
 /-- Bounded-step structured executions transfer along `Simulates`. -/
 theorem ExecWithin.mapSimulates {w T : ℕ} (ψ : B.Simulates B') {c : Code B r} {x y : Data r}
     (h : ExecWithin w c x y T) : ExecWithin w (c.mapSimulates ψ) x y T :=
-  let ⟨n, hn, he⟩ := h; ⟨n, hn, he.mapSimulates ψ⟩
+  let ⟨n, hn, he⟩ := h
+  ⟨n, hn, he.mapSimulates ψ⟩
 
 /-- Bounded-step execution of a structured program transfers along a basis homomorphism. -/
 theorem ExecWithin.mapOp {w T : ℕ} {c : Code B r} {x y : Data r} (h : ExecWithin w c x y T) :
@@ -320,8 +334,15 @@ theorem ExecWithin.mapOp {w T : ℕ} {c : Code B r} {x y : Data r} (h : ExecWith
 /-- Translation commutes with assembly. -/
 theorem Code.assemble_mapOp (c : Code B r) (pc : ℕ) :
     (c.mapOp φ).assemble pc = (c.assemble pc).mapOp φ := by
-  induction c generalizing pc <;>
-    simp_all [Code.mapOp, Code.mapSimulates, Code.assemble, Program.mapOp, Instr.mapOp]
+  induction c generalizing pc with
+  | op o => rfl
+  | seq c₁ c₂ ih₁ ih₂ =>
+    simp [Code.mapOp, Code.mapSimulates, Code.assemble, Program.mapOp, ih₁, ih₂]
+  | branch c pos neg ihp ihn =>
+    simp [Code.mapOp, Code.mapSimulates, Code.assemble, Program.mapOp, ihp, ihn, Instr.mapOp]
+  | loop c body ih =>
+    simp [Code.mapOp, Code.mapSimulates, Code.assemble, Program.mapOp, ih, Instr.mapOp]
+  | rand _ _ => rfl
 
 /-- Translation commutes with compiling a structured program into a complete halting program. -/
 theorem Code.program_mapOp (c : Code B r) (out : Fin r) :
@@ -331,7 +352,8 @@ theorem Code.program_mapOp (c : Code B r) (out : Fin r) :
 /-- A structured program that answers a question continues to answer it after translation. -/
 theorem Code.Answers.mapOp {c : Code B r} {out : Fin r} {w : ℕ} {input : List ℕ} {b : Prop}
     {time : ℕ} (h : c.Answers out w input b time) : (c.mapOp φ).Answers out w input b time :=
-  let ⟨y, hy, hv⟩ := h; ⟨y, hy.mapOp φ, hv⟩
+  let ⟨y, hy, hv⟩ := h
+  ⟨y, hy.mapOp φ, hv⟩
 
 /-! ## Decision -/
 
@@ -357,7 +379,9 @@ def WordSizeDependentProgram.mapOp (P : WordSizeDependentProgram B r) :
 /-- Translation preserves the code-length bound. -/
 theorem WordSizeDependentProgram.BoundedCode.mapOp {P : WordSizeDependentProgram B r}
     (h : P.BoundedCode) : (P.mapOp φ).BoundedCode :=
-  let ⟨L, hL⟩ := h; ⟨L, fun w => by simpa [WordSizeDependentProgram.mapOp] using hL w⟩
+  let ⟨L, hL⟩ := h
+  ⟨L, fun w => by
+    simpa only [WordSizeDependentProgram.mapOp, Program.mapOp, List.length_map] using hL w⟩
 
 /-- Translation preserves family decision at the same width and instruction count. -/
 theorem WordSizeDependentProgram.DecidesInTime.mapOp {P : WordSizeDependentProgram B r}
@@ -371,36 +395,42 @@ theorem DecidableInTime.mapOp {encode : ℕ → α → List ℕ} {A : Set α}
     {time : α → ℕ → ℕ} {allowed : α → ℕ → Prop}
     (φ : B.Hom B') (h : DecidableInTime B A encode time allowed) :
     DecidableInTime B' A encode time allowed :=
-  let ⟨r, P, hP, hp, hi⟩ := h; ⟨r, P.mapOp φ, hP.mapOp φ, hp.mapOp φ, hi⟩
+  let ⟨r, P, hP, hp, hi⟩ := h
+  ⟨r, P.mapOp φ, hP.mapOp φ, hp.mapOp φ, hi⟩
 
 /-- Uniform decision grows with the operation basis. -/
 theorem UniformDecidableInTime.mapOp {encode : ℕ → α → List ℕ} {A : Set α}
     {time : α → ℕ → ℕ} {allowed : α → ℕ → Prop}
     (φ : B.Hom B') (h : UniformDecidableInTime B A encode time allowed) :
     UniformDecidableInTime B' A encode time allowed :=
-  let ⟨r, p, hp, hi⟩ := h; ⟨r, p.mapOp φ, hp.mapOp φ, hi⟩
+  let ⟨r, p, hp, hi⟩ := h
+  ⟨r, p.mapOp φ, hp.mapOp φ, hi⟩
 
 /-- Linear time over a basis is linear time over every larger basis. -/
 theorem LinearTime.mapOp {encode : ℕ → α → List ℕ} {A : Set α} {size : α → ℕ} (φ : B.Hom B')
     (h : LinearTime B A encode size) : LinearTime B' A encode size :=
-  let ⟨c, k, hk, hd⟩ := h; ⟨c, k, hk, hd.mapOp φ⟩
+  let ⟨c, k, hk, hd⟩ := h
+  ⟨c, k, hk, hd.mapOp φ⟩
 
 /-- Uniform linear time grows with the operation basis. -/
 theorem UniformLinearTime.mapOp {encode : ℕ → α → List ℕ} {A : Set α} {size : α → ℕ}
     (φ : B.Hom B') (h : UniformLinearTime B A encode size) :
     UniformLinearTime B' A encode size :=
-  let ⟨c, k, hk, hd⟩ := h; ⟨c, k, hk, hd.mapOp φ⟩
+  let ⟨c, k, hk, hd⟩ := h
+  ⟨c, k, hk, hd.mapOp φ⟩
 
 /-- Polynomial time over a basis is polynomial time over every larger basis. -/
 theorem PolynomialTime.mapOp {encode : ℕ → α → List ℕ} {A : Set α} {size : α → ℕ} (φ : B.Hom B')
     (h : PolynomialTime B A encode size) : PolynomialTime B' A encode size :=
-  let ⟨T, hT, k, hk, hd⟩ := h; ⟨T, hT, k, hk, hd.mapOp φ⟩
+  let ⟨T, hT, k, hk, hd⟩ := h
+  ⟨T, hT, k, hk, hd.mapOp φ⟩
 
 /-- Uniform polynomial time grows with the operation basis. -/
 theorem UniformPolynomialTime.mapOp {encode : ℕ → α → List ℕ} {A : Set α} {size : α → ℕ}
     (φ : B.Hom B') (h : UniformPolynomialTime B A encode size) :
     UniformPolynomialTime B' A encode size :=
-  let ⟨T, hT, k, hk, hd⟩ := h; ⟨T, hT, k, hk, hd.mapOp φ⟩
+  let ⟨T, hT, k, hk, hd⟩ := h
+  ⟨T, hT, k, hk, hd.mapOp φ⟩
 
 /-! ## Functoriality -/
 
@@ -418,14 +448,17 @@ theorem Op.mapOp_comp (ψ : B'.Hom B'') (φ : B.Hom B') (o : Op B r) :
 /-- Translating a program along the identity basis homomorphism leaves it unchanged. -/
 @[simp]
 theorem Program.mapOp_id (p : Program B r) : p.mapOp (Basis.Hom.id B) = p := by
-  simpa [Program.mapOp] using List.map_congr_left (g := id) fun i _ => by
-    cases i <;> simp [Instr.mapOp]
+  simp only [Program.mapOp]
+  conv_rhs => rw [← List.map_id p]
+  congr 1 with i : 1
+  cases i <;> simp [Instr.mapOp]
 
 /-- Translating a program along a composition of basis homomorphisms composes the translations. -/
 theorem Program.mapOp_comp (ψ : B'.Hom B'') (φ : B.Hom B') (p : Program B r) :
     p.mapOp (ψ.comp φ) = (p.mapOp φ).mapOp ψ := by
-  simpa only [Program.mapOp, List.map_map] using
-    List.map_congr_left fun i _ => by cases i <;> simp [Instr.mapOp, Op.mapOp_comp]
+  simp only [Program.mapOp, List.map_map]
+  congr 1 with i : 1
+  cases i <;> simp [Instr.mapOp, Op.mapOp_comp]
 
 end Cslib.WordRAM
 

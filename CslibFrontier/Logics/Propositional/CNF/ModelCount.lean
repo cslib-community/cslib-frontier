@@ -106,25 +106,32 @@ theorem mem_occurrences {φ : CNF V} {o : Occurrence V} :
     o ∈ occurrences φ ↔ ∃ (h₁ : o.clause < φ.length) (h₂ : o.pos < φ[o.clause].length),
       o.lit = φ[o.clause][o.pos] := by
   obtain ⟨i, j, l⟩ := o
-  simp only [occurrences, List.mem_flatMap, List.mem_map, List.mem_zipIdx_iff_getElem?,
-    Occurrence.mk.injEq, List.getElem?_eq_some_iff]
+  simp only [occurrences, List.mem_flatMap, List.mem_map, List.mem_zipIdx_iff_getElem?]
   constructor
-  · rintro ⟨⟨_, _⟩, ⟨hi, hci⟩, ⟨_, _⟩, ⟨hj, hlj⟩, rfl, rfl, rfl⟩
-    dsimp only at hi hci hj hlj
+  · rintro ⟨⟨c, i'⟩, hc, ⟨l', j'⟩, hl, he⟩
+    simp only [Occurrence.mk.injEq] at he hc hl
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    obtain ⟨hi, hci⟩ := List.getElem?_eq_some_iff.1 hc
     subst hci
+    obtain ⟨hj, hlj⟩ := List.getElem?_eq_some_iff.1 hl
     exact ⟨hi, hj, hlj.symm⟩
   · rintro ⟨hi, hj, hl⟩
-    exact ⟨(φ[i], i), ⟨hi, rfl⟩, (φ[i][j], j), ⟨hj, rfl⟩, rfl, rfl, hl.symm⟩
+    exact ⟨(φ[i], i), by simp [hi], (φ[i][j], j), by simp [hj], by rw [hl]⟩
 
 /-- The variables of the occurrences, in order, are the variables of the formula. -/
 theorem map_occurrences (φ : CNF V) : (occurrences φ).map (fun o => o.lit.1) = φ.vars := by
-  rw [occurrences, List.map_flatMap]
-  conv_rhs => rw [CNF.vars, List.map_flatten, ← List.flatMap_def, ← List.zipIdx_map_fst 0 φ,
-    List.flatMap_map]
-  refine List.flatMap_congr fun c _ => ?_
-  conv_rhs => rw [← List.zipIdx_map_fst 0 c.1, List.map_map]
-  rw [List.map_map]
-  rfl
+  have hc : ∀ c : Clause V × ℕ,
+      (c.1.zipIdx.map fun l => (⟨c.2, l.2, l.1⟩ : Occurrence V).lit.1) = c.1.map Prod.fst :=
+    fun c => by
+      calc (c.1.zipIdx.map fun l => (⟨c.2, l.2, l.1⟩ : Occurrence V).lit.1) =
+          (c.1.zipIdx.map Prod.fst).map Prod.fst := by rw [List.map_map]; rfl
+        _ = c.1.map Prod.fst := by rw [List.zipIdx_map_fst]
+  calc (occurrences φ).map (fun o => o.lit.1)
+      = φ.zipIdx.flatMap fun c => c.1.map Prod.fst := by
+        simp only [occurrences, List.map_flatMap, List.map_map, Function.comp_def, hc]
+    _ = (φ.zipIdx.map Prod.fst).flatMap fun c => c.map Prod.fst := by rw [List.flatMap_map]
+    _ = φ.vars := by
+        rw [List.zipIdx_map_fst, CNF.vars, List.map_flatten, List.flatMap_def]
 
 /-- The variable named by an indexed literal occurrence occurs in the formula. -/
 theorem variable_mem_of_mem_occurrences {φ : CNF V} {o : Occurrence V}
@@ -152,10 +159,13 @@ private theorem count_map_clause_flatMap_zipIdx (φ : CNF V) (i : ℕ) : ∀ s,
     simp only [List.zipIdx_cons, List.flatMap_cons, List.map_append, List.map_map,
       List.count_append, ih, Function.comp_def, List.map_const', List.count_replicate,
       List.length_zipIdx]
-    rcases lt_trichotomy i s with h | rfl | h
-    · simp [show ¬s ≤ i by omega, show ¬s + 1 ≤ i by omega, h.ne']
-    · simp
-    · simp [h.le, show s + 1 ≤ i by omega, show i - s = (i - (s + 1)) + 1 by omega, h.ne]
+    by_cases his : i = s
+    · subst his
+      simp
+    · by_cases hsi : s ≤ i
+      · have he : i - s = (i - (s + 1)) + 1 := by omega
+        simp [hsi, show s + 1 ≤ i by omega, he, Ne.symm his]
+      · simp [hsi, show ¬s + 1 ≤ i by omega, Ne.symm his]
 
 /-- Clause `i` has one occurrence for each of its literals; an out-of-range clause has none. -/
 theorem count_map_clause_occurrences (φ : CNF V) (i : ℕ) :
@@ -294,16 +304,22 @@ theorem CNF.modelCount_eq_one_iff {φ : CNF V} :
   rw [CNF.modelCount, Finset.card_eq_one]
   constructor
   · rintro ⟨τ₀, h⟩
-    have hmem {τ} : τ ∈ ({τ₀} : Finset _) ↔ φ.eval (φ.extendAssignment τ) = true := by simp [← h]
-    refine ⟨_, hmem.1 (Finset.mem_singleton_self τ₀), fun τ hτ v hv => ?_⟩
-    have heq : (fun v => τ v : φ.vars.toFinset → Bool) = τ₀ :=
-      Finset.mem_singleton.1 (hmem.2 (by rw [CNF.eval_extendAssignment_restrict, hτ]))
-    rw [CNF.extendAssignment_of_mem _ hv, ← heq]
+    have hτ₀ : φ.eval (φ.extendAssignment τ₀) = true := by
+      have := Finset.mem_singleton_self τ₀
+      rw [← h, Finset.mem_filter] at this
+      exact this.2
+    refine ⟨_, hτ₀, fun τ hτ v hv => ?_⟩
+    have hmem : (fun v => τ v : φ.vars.toFinset → Bool) ∈ ({τ₀} : Finset _) := by
+      rw [← h, Finset.mem_filter]
+      exact ⟨Finset.mem_univ _, by rw [CNF.eval_extendAssignment_restrict, hτ]⟩
+    rw [Finset.mem_singleton] at hmem
+    rw [CNF.extendAssignment_of_mem _ hv, ← hmem]
   · rintro ⟨σ, hσ, h⟩
     refine ⟨fun v => σ v, Finset.eq_singleton_iff_unique_mem.2
       ⟨Finset.mem_filter.2 ⟨Finset.mem_univ _, by rw [CNF.eval_extendAssignment_restrict, hσ]⟩,
         fun τ hτ => funext fun ⟨v, hv⟩ => ?_⟩⟩
-    rw [← CNF.extendAssignment_of_mem τ (List.mem_toFinset.1 hv)]
-    exact h _ (Finset.mem_filter.1 hτ).2 v (List.mem_toFinset.1 hv)
+    have hv' := List.mem_toFinset.1 hv
+    rw [← CNF.extendAssignment_of_mem τ hv']
+    exact h _ (Finset.mem_filter.1 hτ).2 v hv'
 
 end Cslib.Logic.PL

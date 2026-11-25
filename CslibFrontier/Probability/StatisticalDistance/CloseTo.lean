@@ -83,7 +83,7 @@ theorem PMF.toOuterMeasure_eq_add_tsum_tsub {α : Type*} (μ ν : PMF α) {s : S
     (h₁ : ∀ a ∈ s, ν a ≤ μ a) (h₂ : ∀ a ∉ s, μ a ≤ ν a) :
     μ.toOuterMeasure s = ν.toOuterMeasure s + ∑' a, (μ a - ν a) := by
   rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, ← tsum_add]
-  refine tsum_congr fun a => ?_
+  congr 1 with a
   by_cases ha : a ∈ s
   · simp only [Set.indicator_of_mem ha, add_tsub_cancel_of_le (h₁ a ha)]
   · simp only [Set.indicator_of_notMem ha, tsub_eq_zero_of_le (h₂ a ha), add_zero]
@@ -92,14 +92,19 @@ theorem PMF.toOuterMeasure_eq_add_tsum_tsub {α : Type*} (μ ν : PMF α) {s : S
 `ℝ≥0∞`) being at most `ε`: the event `{a | ν a < μ a}` is the worst case. -/
 theorem closeTo_iff_tsum_tsub_le {α : Type*} {μ ν : PMF α} {ε : ℝ≥0∞} :
     CloseTo μ ν ε ↔ ∑' a, (μ a - ν a) ≤ ε := by
-  refine ⟨fun h => ?_, fun h E => ?_⟩
+  refine ⟨fun h => ?_, fun h event => ?_⟩
   · have h := h {a | ν a < μ a}
-    rwa [PMF.toOuterMeasure_eq_add_tsum_tsub μ ν (fun _ ha => le_of_lt ha)
-      (fun _ ha => not_lt.1 ha), ENNReal.add_le_add_iff_left (PMF.toOuterMeasure_ne_top ν _)] at h
+    rw [PMF.toOuterMeasure_eq_add_tsum_tsub μ ν (fun _ ha => le_of_lt ha)
+      fun _ ha => not_lt.1 ha] at h
+    exact (ENNReal.add_le_add_iff_left (PMF.toOuterMeasure_ne_top ν _)).1 h
   · rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
-    refine (tsum_le_tsum fun a => show E.indicator μ a ≤ E.indicator ν a + (μ a - ν a) by
-      by_cases ha : a ∈ E <;> simp [ha, le_add_tsub]).trans ?_
-    rw [tsum_add]; exact add_le_add le_rfl h
+    calc
+      ∑' a, event.indicator μ a ≤ ∑' a, (event.indicator ν a + (μ a - ν a)) :=
+        tsum_le_tsum fun a => by
+          by_cases ha : a ∈ event
+          · simpa only [Set.indicator_of_mem ha] using le_add_tsub
+          · simp only [Set.indicator_of_notMem ha, zero_add, zero_le]
+      _ ≤ ∑' a, event.indicator ν a + ε := by rw [tsum_add]; gcongr
 
 /-- The two positive-part sums of a pair of PMFs agree. -/
 theorem PMF.tsum_tsub_comm {α : Type*} (μ ν : PMF α) : ∑' a, (μ a - ν a) = ∑' a, (ν a - μ a) := by
@@ -122,22 +127,29 @@ theorem CloseTo.map {α : Type*} {β : Type*} {μ ν : PMF α} {ε : ℝ≥0∞}
 
 /-- Statistical closeness errors add along a chain. -/
 theorem CloseTo.trans {α : Type*} {μ ν ρ : PMF α} {ε δ : ℝ≥0∞} (h₁ : CloseTo μ ν ε)
-    (h₂ : CloseTo ν ρ δ) : CloseTo μ ρ (ε + δ) := fun E => by
-  rw [add_comm ε δ, ← add_assoc]; exact (h₁ E).trans (add_le_add (h₂ E) le_rfl)
+    (h₂ : CloseTo ν ρ δ) : CloseTo μ ρ (ε + δ) := fun event =>
+  (h₁ event).trans <| by
+    rw [add_comm ε δ, ← add_assoc]
+    exact add_le_add (h₂ event) le_rfl
 
 /-- Data processing in the first stage: replacing `μ` by an `ε`-close `ν` before a common
 randomized continuation `f` preserves `ε`-closeness, without finiteness assumptions. -/
 theorem CloseTo.bind_left {α : Type*} {β : Type*} {μ ν : PMF α} {ε : ℝ≥0∞} (h : CloseTo μ ν ε)
     (f : α → PMF β) : CloseTo (μ.bind f) (ν.bind f) ε := fun event => by
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-  refine (tsum_le_tsum fun a => show μ a * (f a).toOuterMeasure event ≤
-      ν a * (f a).toOuterMeasure event + (μ a - ν a) from
-    calc μ a * (f a).toOuterMeasure event
-        ≤ (ν a + (μ a - ν a)) * (f a).toOuterMeasure event := by gcongr; exact le_add_tsub
-      _ ≤ ν a * (f a).toOuterMeasure event + (μ a - ν a) := by
-          rw [add_mul]; gcongr
-          exact mul_le_of_le_one_right zero_le (PMF.toOuterMeasure_le_one (f a) event)).trans ?_
-  rw [tsum_add]; exact add_le_add le_rfl (closeTo_iff_tsum_tsub_le.1 h)
+  calc
+    ∑' a, μ a * (f a).toOuterMeasure event
+      ≤ ∑' a, (ν a * (f a).toOuterMeasure event + (μ a - ν a)) :=
+        tsum_le_tsum fun a => calc
+          _ ≤ (ν a + (μ a - ν a)) * (f a).toOuterMeasure event := by gcongr; exact le_add_tsub
+          _ ≤ _ := by
+            rw [add_mul]
+            gcongr
+            exact mul_le_of_le_one_right zero_le (PMF.toOuterMeasure_le_one (f a) event)
+    _ ≤ ∑' a, ν a * (f a).toOuterMeasure event + ε := by
+        rw [tsum_add]
+        gcongr
+        exact closeTo_iff_tsum_tsub_le.1 h
 
 /-- Pointwise statistical closeness of continuations on `μ.support` is preserved across
 `PMF.bind`. -/
@@ -145,12 +157,16 @@ theorem CloseTo.bind_right {α : Type*} {β : Type*} (μ : PMF α) {f g : α →
     (h : ∀ a ∈ μ.support, CloseTo (f a) (g a) ε) :
     CloseTo (μ.bind f) (μ.bind g) ε := fun event => by
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-  refine (tsum_le_tsum fun a => show μ a * (f a).toOuterMeasure event ≤
-      μ a * ((g a).toOuterMeasure event + ε) by
-    by_cases ha : a ∈ μ.support
-    · exact mul_le_mul_of_nonneg_left (h a ha event) zero_le
-    · simp [(PMF.apply_eq_zero_iff μ a).mpr ha]).trans_eq ?_
-  simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
+  calc
+    ∑' a, μ a * (f a).toOuterMeasure event
+      ≤ ∑' a, μ a * ((g a).toOuterMeasure event + ε) := by
+        refine tsum_le_tsum fun a => ?_
+        by_cases ha : a ∈ μ.support
+        · exact mul_le_mul_of_nonneg_left (h a ha event) zero_le
+        · have hz : μ a = 0 := (PMF.apply_eq_zero_iff μ a).mpr ha
+          simp [hz]
+    _ = ∑' a, μ a * (g a).toOuterMeasure event + ε := by
+        simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
 
 /-- Combining `CloseTo.bind_left` and `CloseTo.bind_right` adds the first-stage and continuation
 errors. -/
@@ -177,31 +193,46 @@ theorem CloseTo.of_one_sub_mul_le {β : Type*} {μ ν : PMF β} {ε : ℝ≥0∞
   refine CloseTo.symm fun E => ?_
   have hle : (1 - ε) * ν.toOuterMeasure E ≤ μ.toOuterMeasure E := by
     rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
-    exact tsum_le_tsum fun b => by by_cases hb : b ∈ E <;> simp [hb, h b]
+    refine tsum_le_tsum fun b => ?_
+    by_cases hb : b ∈ E
+    · simp only [Set.indicator_of_mem hb]
+      exact h b
+    · simp only [Set.indicator_of_notMem hb, mul_zero, le_refl]
   have hν := PMF.toOuterMeasure_le_one ν E
   rcases le_or_gt 1 ε with hε1 | hε1
   · exact (hν.trans hε1).trans le_add_self
-  · calc ν.toOuterMeasure E = (1 - ε) * ν.toOuterMeasure E + ε * ν.toOuterMeasure E := by
-          rw [← add_mul, tsub_add_cancel_of_le hε1.le, one_mul]
-      _ ≤ μ.toOuterMeasure E + ε := add_le_add hle (mul_le_of_le_one_right zero_le hν)
+  calc ν.toOuterMeasure E
+      = (1 - ε) * ν.toOuterMeasure E + ε * ν.toOuterMeasure E := by
+        rw [← add_mul, tsub_add_cancel_of_le hε1.le, one_mul]
+    _ ≤ μ.toOuterMeasure E + ε :=
+        add_le_add hle (mul_le_of_le_one_right zero_le hν)
 
 /-- A law dominating `(1 - ε) ν` pointwise is within statistical distance `ε` of `ν`. -/
 theorem CloseTo.of_le_apply {β : Type*} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
     (h : ∀ b, ENNReal.ofReal (1 - ε) * ν b ≤ μ b) :
-    CloseTo μ ν (ENNReal.ofReal ε) :=
-  CloseTo.of_one_sub_mul_le fun b => by
-    simpa only [ENNReal.ofReal_sub 1 hε, ENNReal.ofReal_one] using h b
+    CloseTo μ ν (ENNReal.ofReal ε) := by
+  refine CloseTo.of_one_sub_mul_le fun b => ?_
+  simpa only [ENNReal.ofReal_sub 1 hε, ENNReal.ofReal_one] using h b
 
 /-- `μ` is within statistical distance `ε` of `PMF.pure b` if and only if `{b}ᶜ` has `μ`-measure at
 most `ε`. -/
 theorem closeTo_pure_iff {β : Type*} {μ : PMF β} {b : β} {ε : ℝ≥0∞} :
     CloseTo μ (PMF.pure b) ε ↔ μ.toOuterMeasure {b}ᶜ ≤ ε := by
-  refine ⟨fun h => by simpa [PMF.toOuterMeasure_pure_apply] using h {b}ᶜ, fun h E => ?_⟩
-  by_cases hb : b ∈ E
-  · simpa [PMF.toOuterMeasure_pure_apply, hb] using
-      (PMF.toOuterMeasure_le_one μ E).trans le_self_add
-  · simpa [PMF.toOuterMeasure_pure_apply, hb] using
-      (μ.toOuterMeasure.mono (Set.subset_compl_singleton_iff.mpr hb)).trans h
+  constructor
+  · intro h
+    have hc := h {b}ᶜ
+    rw [PMF.toOuterMeasure_pure_apply, Set.mem_compl_singleton_iff, ite_eq_right (not_not.mpr rfl),
+      zero_add] at hc
+    exact hc
+  · intro h E
+    by_cases hb : b ∈ E
+    · rw [PMF.toOuterMeasure_pure_apply, ite_eq_left hb]
+      exact (PMF.toOuterMeasure_le_one μ E).trans le_self_add
+    · rw [PMF.toOuterMeasure_pure_apply, ite_eq_right hb, zero_add]
+      refine (μ.toOuterMeasure.mono fun x hx => ?_).trans h
+      rw [Set.mem_compl_singleton_iff]
+      rintro rfl
+      exact hb hx
 
 /-- If `ν` is within statistical distance `δ` of the uniform distribution on a finite nonempty
 type `α`, every atom of `ν` has real probability at most `1 / Fintype.card α + δ`. -/
