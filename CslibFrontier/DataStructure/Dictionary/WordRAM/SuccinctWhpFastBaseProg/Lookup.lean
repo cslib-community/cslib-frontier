@@ -573,7 +573,8 @@ private theorem probeOldBufCandGenProg_spec {c U V w n_max base b q_val rKey : â
        | some loc => (1, loc) | none => (0, 0))
       (2 * cTabWhp c + 16) := by
   have hst := ReadSpec.of_eq (readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
-    (base := base) (hdrOff := hdrRebStage) (s := s) (by dsimp only [largeSpaceWhp, hdrRebStage]; omega))
+    (base := base) (hdrOff := hdrRebStage) (s := s)
+    (by dsimp only [largeSpaceWhp, hdrRebStage]; omega))
   rw [hrep.2.2.2.2.2.1] at hst
   unfold probeOldBufCandGenProg
   simp only [pure_bind]
