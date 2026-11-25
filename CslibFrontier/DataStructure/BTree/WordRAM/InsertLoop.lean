@@ -126,14 +126,10 @@ private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ 
   have hna_u : base + u * (6 * t) + 1 + 1 = au := by
     rw [← hau_def]; simp only [nodeAddr, nodeStride]; omega
   have hau2_eq : au + 1 + 1 = au + 2 := by omega
-  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub2 : Fits w (base + u * (6 * t) + 1 + 1) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
+  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by omega)
+  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by omega)
+  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_ub2 : Fits w (base + u * (6 * t) + 1 + 1) := hfit.of_le (by omega)
   have hf_au : Fits w au := hfit.of_le (by omega)
   have hf_au1 : Fits w (au + 1) := hfit.of_le (by omega)
   have hf_au11 : Fits w (au + 1 + 1) := hfit.of_le (by omega)
@@ -264,16 +260,11 @@ private theorem insertDescendOrLeaf_int_spec
   have hf_t40 : Fits w (au + t + t + t + t) := hfit.of_le (by omega)
   have hf_t4 : Fits w (au + 4 * t) := hfit.of_le (by omega)
   have hf_cs : Fits w (au + 4 * t + slot) := hfit.of_le (by omega)
-  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb2 : Fits w (base + c * (6 * t) + 1 + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_ac10 : Fits w (base + c * (6 * t) + 1 + 1 + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
+  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_cb2 : Fits w (base + c * (6 * t) + 1 + 1) := hfit.of_le (by omega)
+  have hf_ac10 : Fits w (base + c * (6 * t) + 1 + 1 + 1) := hfit.of_le (by omega)
   have hf_ac1 : Fits w (ac + 1) := hfit.of_le (by omega)
   have hf_2t : Fits w (t + t) := hfit.of_le (by omega)
   have hf_2tm10 : Fits w (t + t - 1) := hfit.of_le (by omega)
