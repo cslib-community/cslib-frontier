@@ -259,10 +259,8 @@ theorem Verifier.RbrKnowledgeSound.append
     fun x τ₁ => ∃ y w₂, V₁.outputOn x τ₁ = some y ∧ rel₂ y w₂ ∧ ¬ rel₁ x (E₁ x τ₁ w₂)
   let next : S₁ → Transcript s₁ → Prefix s₂ → Prop :=
     fun x τ₁ p => wins₁ x τ₁ ∨ ∃ y, V₁.outputOn x τ₁ = some y ∧ T₂ y p
-  have hjunc : ∀ x τ₁, ¬ wins₁ x τ₁ → ¬ next x τ₁ (Prefix.empty s₂) := by
-    rintro x τ₁ hw (hw' | ⟨y, _, hT⟩)
-    · exact hw hw'
-    · exact hinit₂ y hT
+  have hjunc : ∀ x τ₁, ¬ wins₁ x τ₁ → ¬ next x τ₁ (Prefix.empty s₂) :=
+    fun _ _ hw h => h.elim hw fun ⟨y, _, hT⟩ => hinit₂ y hT
   have hsecond : ∀ x τ₁, RbrFrom s₂ V₂.samplers ε₂ (next x τ₁)
       (fun τ₂ => ∃ z w₃,
         (V₁.outputOn x τ₁).bind (fun y => V₂.outputOn y τ₂) = some z ∧
@@ -322,10 +320,8 @@ theorem Verifier.RbrKnowledgeSound.seqProd
     fun x₁ τ₁ => ∃ y₁ w₂, V₁.outputOn x₁ τ₁ = some y₁ ∧ rel₁' y₁ w₂ ∧ ¬ rel₁ x₁ (E₁ x₁ τ₁ w₂)
   let next : S₁ × T₁ → Transcript s₁ → Prefix s₂ → Prop :=
     fun x τ₁ p₂ => wins₁ x.1 τ₁ ∨ St₂ x.2 p₂
-  have hjunc : ∀ x τ₁, ¬ wins₁ x.1 τ₁ → ¬ next x τ₁ (Prefix.empty s₂) := by
-    rintro x τ₁ hw (hw' | hSt₂)
-    · exact hw hw'
-    · exact hinit₂ x.2 hSt₂
+  have hjunc : ∀ x τ₁, ¬ wins₁ x.1 τ₁ → ¬ next x τ₁ (Prefix.empty s₂) :=
+    fun x _ hw h => h.elim hw (hinit₂ x.2)
   have hsecond : ∀ x τ₁, RbrFrom s₂ V₂.samplers ε₂ (next x τ₁)
       (fun τ₂ => ∃ y w,
         ((V₁.outputOn x.1 τ₁).bind fun y₁ =>
