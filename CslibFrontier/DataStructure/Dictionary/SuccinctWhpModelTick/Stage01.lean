@@ -81,7 +81,8 @@ theorem epochTickStage0_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     dsimp only [ValidEpochStage]
     simp only [Nat.reduceEqDiff, ↓reduceIte]
     exact ⟨Nat.zero_le _, le_rfl, fun _ h => absurd h (Nat.not_lt_zero _),
-      fun _ h => absurd h (Nat.not_lt_zero _), fun id hid b' loc' hc' => Or.inl (hz id hid b' loc' hc'),
+      fun _ h => absurd h (Nat.not_lt_zero _),
+      fun id hid b' loc' hc' => Or.inl (hz id hid b' loc' hc'),
       fun _ h => absurd h (Nat.not_lt_zero _)⟩
   -- Continuing Stage 0 with the flags of the slots below the cursor `sc` cleared.
   have hcont : ∀ (rq df : ℕ → ℕ) (sc : ℕ), sc ≤ oldTr.itemAlloc →

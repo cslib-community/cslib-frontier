@@ -359,7 +359,8 @@ theorem fastDelete_afterDel_reloc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
     (fun loc' hloc' => by
       have hl' : loc' < fsA.bktCount b := by omega
       obtain ⟨ho, -, -, -, -, hq, hv', hne⟩ := horig b hb loc' hl'
-      refine ⟨orig b loc', by omega, hne rfl, hq, hv', fun l₂ hl₂ heq => horig_inj hl' (by omega) ?_⟩
+      refine ⟨orig b loc', by omega, hne rfl, hq, hv',
+        fun l₂ hl₂ heq => horig_inj hl' (by omega) ?_⟩
       obtain ⟨ho₂, -, -, -, -, hq₂, -⟩ := horig b hb l₂ (by omega)
       rw [hphys_eq, hq, hq₂] at heq
       exact hv.quot_inj b hb _ ho _ ho₂ heq)

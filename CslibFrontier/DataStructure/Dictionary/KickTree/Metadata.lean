@@ -519,7 +519,7 @@ theorem query_insert_prefix (val : α) (t t' : PrefixTrie α) (k ext : List Bool
     (hins : insert? val t k = some t') :
     query t' (k ++ ext) = some val := by
   induction k generalizing t t' with
-  | nil => cases t <;> simp [insert?] at hins; subst hins; rfl
+  | nil => cases t <;> cases hins; rfl
   | cons b bs ih =>
     obtain ⟨l, r, s, _, hrec, rfl⟩ := insert?_cons b hins
     cases b <;> exact ih _ _ hrec
