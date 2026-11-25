@@ -27,20 +27,24 @@ open Cslib.WordRAM Cslib.Algorithms.ExactTriangle
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 
+private theorem m_le_D (m : ℕ) : m ≤ D m := by
+  have hlog := Nat.log_le_self 2 (4 ^ m)
+  rw [log_two_four_pow] at hlog
+  change m ≤ 4 ^ m
+  omega
+
+private theorem D_le_mul_of_pow_le {m n : ℕ} (hN : D m ^ 18 ≤ n) : D m ≤ n * D m :=
+  Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.pow_pos (by decide : 0 < (4 : ℕ))) |>.trans_le hN)
+
 /-- All real descriptor/log/header/copy/invocation work is linear in original matrices and
 occurrences. This includes standalone halt, but not another execution of the producer. -/
 theorem timeBound_le {m n : ℕ} (qs : List (Fin n × Fin n)) (hN : D m ^ 18 ≤ n) :
     timeBound (m := m) qs + 1 ≤
       3 * (QueriedProduct.timeBound (show m ≤ 19 * m by omega) qs + 1) +
         4096 * (n * D m + qs.length + 1) := by
-  have hn : 1 ≤ n := Nat.pow_pos (Nat.pow_pos (by decide : 0 < (4 : ℕ))) |>.trans_le hN
-  have hm : m ≤ D m := by
-    have hlog := Nat.log_le_self 2 (4 ^ m)
-    rw [log_two_four_pow] at hlog
-    change m ≤ 4 ^ m
-    omega
-  have hND : D m ≤ n * D m := Nat.le_mul_of_pos_left _ hn
-  have ht := CallableProduct.timeBound_le (m := m) qs
+  have := m_le_D m
+  have := D_le_mul_of_pow_le hN
+  have := CallableProduct.timeBound_le (m := m) qs
   unfold timeBound
   omega
 
@@ -49,47 +53,35 @@ This comparison reuses its established sparse bounds without a separate polylog 
 theorem timeBound_le_twice_callable {m n : ℕ} (qs : List (Fin n × Fin n))
     (hN : D m ^ 18 ≤ n) :
     timeBound (m := m) qs + 1 ≤ 2 * (CallableProduct.timeBound (m := m) qs + 3) := by
-  have hn : 1 ≤ n := Nat.pow_pos (Nat.pow_pos (by decide : 0 < (4 : ℕ))) |>.trans_le hN
-  have hm : m ≤ n * D m := by
-    have hlog := Nat.log_le_self 2 (4 ^ m)
-    rw [log_two_four_pow] at hlog
-    have hmul : D m ≤ n * D m := Nat.le_mul_of_pos_left _ hn
-    change 4 ^ m ≤ n * D m at hmul
-    omega
+  have := (m_le_D m).trans (D_le_mul_of_pow_le hN)
   unfold timeBound CallableProduct.timeBound CallableProduct.coreTime QueriedProduct.timeBound
     QueriedProduct.inputEnd
   omega
+
+private theorem real_timeBound_le_of_callable {m n : ℕ} {B : ℝ} (qs : List (Fin n × Fin n))
+    (hN : D m ^ 18 ≤ n) (h : ((CallableProduct.timeBound (m := m) qs + 3 : ℕ) : ℝ) ≤ B) :
+    ((timeBound (m := m) qs + 1 : ℕ) : ℝ) ≤ 2 * B := by
+  have ht : ((timeBound (m := m) qs + 1 : ℕ) : ℝ) ≤
+      2 * ((CallableProduct.timeBound (m := m) qs + 3 : ℕ) : ℝ) := by
+    exact_mod_cast timeBound_le_twice_callable qs hN
+  linarith
 
 /-- Distinct-set sparsity retains the actual list-occurrence charge. -/
 theorem thin_timeBound {m n : ℕ} (qs : List (Fin n × Fin n)) (hN : D m ^ 18 ≤ n)
     (hQ : qs.toFinset.card * 2 ^ m ≤ n ^ 2) :
     ((timeBound (m := m) qs + 1 : ℕ) : ℝ) ≤
       524288 * ((19 * m + 1 : ℕ) : ℝ) *
-        (65 * ((D m : ℝ) ^ (-(1 / 18 : ℝ)) * (n : ℝ) ^ 2) + qs.length) := by
-  have ht : ((timeBound (m := m) qs + 1 : ℕ) : ℝ) ≤
-      2 * ((CallableProduct.timeBound (m := m) qs + 3 : ℕ) : ℝ) := by
-    exact_mod_cast timeBound_le_twice_callable qs hN
-  have h := CallableProduct.thin_timeBound qs hN hQ
-  calc
-    _ ≤ 2 * ((CallableProduct.timeBound (m := m) qs + 3 : ℕ) : ℝ) := ht
-    _ ≤ 2 * (262144 * ((19 * m + 1 : ℕ) : ℝ) *
-        (65 * ((D m : ℝ) ^ (-(1 / 18 : ℝ)) * (n : ℝ) ^ 2) + qs.length)) := by linarith
-    _ = _ := by ring
+        (65 * ((D m : ℝ) ^ (-(1 / 18 : ℝ)) * (n : ℝ) ^ 2) + qs.length) :=
+  (real_timeBound_le_of_callable qs hN (CallableProduct.thin_timeBound qs hN hQ)).trans_eq
+    (by ring)
 
 /-- Occurrence sparsity, which actual producer chunks supply, absorbs every occurrence charge.
 The bound includes the adapter's standalone halt; producer execution is charged separately. -/
 theorem thin_timeBound_sparse {m n : ℕ} (qs : List (Fin n × Fin n))
     (hN : D m ^ 18 ≤ n) (hQ : qs.length * 2 ^ m ≤ n ^ 2) :
     ((timeBound (m := m) qs + 1 : ℕ) : ℝ) ≤
-      34603008 * ((19 * m + 1 : ℕ) : ℝ) * (n : ℝ) ^ 2 / (D m : ℝ) ^ (1 / 18 : ℝ) := by
-  have ht : ((timeBound (m := m) qs + 1 : ℕ) : ℝ) ≤
-      2 * ((CallableProduct.timeBound (m := m) qs + 3 : ℕ) : ℝ) := by
-    exact_mod_cast timeBound_le_twice_callable qs hN
-  have h := CallableProduct.thin_timeBound_sparse qs hN hQ
-  calc
-    _ ≤ 2 * ((CallableProduct.timeBound (m := m) qs + 3 : ℕ) : ℝ) := ht
-    _ ≤ 2 * (17301504 * ((19 * m + 1 : ℕ) : ℝ) * (n : ℝ) ^ 2 /
-        (D m : ℝ) ^ (1 / 18 : ℝ)) := by linarith
-    _ = _ := by ring
+      34603008 * ((19 * m + 1 : ℕ) : ℝ) * (n : ℝ) ^ 2 / (D m : ℝ) ^ (1 / 18 : ℝ) :=
+  (real_timeBound_le_of_callable qs hN (CallableProduct.thin_timeBound_sparse qs hN hQ)).trans_eq
+    (by ring)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct
