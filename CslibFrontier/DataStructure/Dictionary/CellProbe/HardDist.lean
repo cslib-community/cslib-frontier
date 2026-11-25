@@ -1338,9 +1338,10 @@ theorem validHistory_of_mem_support_insertDeleteDist {U V n : ℕ} {hU : 2 * n �
 /-- Pushing a uniform distribution forward along the first component of an equivalence gives the
 uniform distribution. -/
 private theorem uniformOfFintype_map_of_fst_equiv {α β γ : Type*} [Fintype α] [Fintype β]
-    [Fintype γ] [Nonempty α] [Nonempty β] [Nonempty γ] (e : α ≃ β × γ) {f : α → β}
+    [Finite γ] [Nonempty α] [Nonempty β] [Nonempty γ] (e : α ≃ β × γ) {f : α → β}
     (hf : ∀ a, (e a).1 = f a) :
     (PMF.uniformOfFintype α).map f = PMF.uniformOfFintype β := by
+  have := Fintype.ofFinite γ
   rw [show f = Prod.fst ∘ e from funext fun a => (hf a).symm, ← _root_.PMF.map_comp,
     PMF.uniformOfFintype_map_equiv e]
   exact PMF.uniformOfFintype_prod_map_fst
