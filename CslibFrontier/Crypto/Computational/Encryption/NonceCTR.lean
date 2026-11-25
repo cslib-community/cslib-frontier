@@ -498,14 +498,9 @@ theorem isOraclePPT_nonceCTRToPRF {nonceLen : ℕ → ℕ} {adversary : OracleDi
         have hselLen : ((MessagePair.mk m₀ m₁).select cb.2).length ≤ m₀.length + m₁.length := by
           cases cb.2 <;> simp [MessagePair.select]
         refine ⟨trivial, by simp only [List.length_cons, length_xorWithStream]; omega, ?_⟩
-        simp only [length_encPair, encBool_apply, List.length_singleton, encList_cons,
-          encBits_apply, List.length_append, length_frame]
-        omega
+        enc_len [List.length_singleton]
       · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-        refine ⟨trivial, by simp, ?_⟩
-        dsimp only
-        simp only [length_encPair, encBool_apply, List.length_singleton]
-        omega
+        exact ⟨trivial, by simp, by enc_len [List.length_singleton]⟩
   ppt [nonceCTRToPRF, nonceCTRSimView]
 
 /-! ### Real and ideal PRF worlds and Theorem 5.6 -/
