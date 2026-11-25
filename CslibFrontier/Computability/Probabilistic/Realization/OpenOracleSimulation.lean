@@ -149,9 +149,7 @@ theorem isOraclePPTOn_step [Fintype Operation] {input : α ↪ List Bool}
         cases machine.tr control inputSymbol workSymbols answerSymbols coin with
         | step action symbol move => fun_prop
         | query channel next =>
-          apply IsOraclePPTOn.bind_with (middle := encPair encBits stateEncoding)
-          · fun_prop
-          · fun_prop
+          apply IsOraclePPTOn.bind_with (middle := encPair encBits stateEncoding) <;> fun_prop
 
 /-- A bounded native run with an open stateful handler is strict oracle PPT. A local invariant,
 over every possible handler result under every external oracle, bounds reply length and
