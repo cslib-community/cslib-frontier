@@ -158,10 +158,11 @@ private theorem penaltyFrom_eq (s : ℕ) (σ : List Job) :
 @[fun_prop]
 theorem computableInPolyTime_totalPenalty :
     ComputableInPolyTime totalPenalty (encList encJob) encNat := by
-  rw [show totalPenalty = fun σ : List Job => ((List.range σ.length).map fun i =>
+  have heq : totalPenalty = fun σ : List Job => ((List.range σ.length).map fun i =>
       if (σ.getD i ⟨0, 0, 0⟩).deadline < ((σ.take (i + 1)).map Job.time).sum then
-        (σ.getD i ⟨0, 0, 0⟩).penalty else 0).sum from
-    funext fun σ => by simpa only [totalPenalty, Nat.zero_add] using penaltyFrom_eq 0 σ]
+        (σ.getD i ⟨0, 0, 0⟩).penalty else 0).sum :=
+    funext fun σ => by simpa only [totalPenalty, Nat.zero_add] using penaltyFrom_eq 0 σ
+  rw [heq]
   fun_prop
 
 /-- The check of an order against an instance: it is a permutation of the jobs, by counting

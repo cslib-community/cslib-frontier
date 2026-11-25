@@ -203,8 +203,9 @@ private theorem inv_cons {W : V → V → ℕ} (hW : IsMultigraph W) {A : Finset
     {l : List V} (hx : x ∉ A) (hma : ∀ y ∈ l, attachWeight W A y ≤ attachWeight W A x)
     (hinv : Inv W C A last (x :: l)) : Inv W C (insert x A) x l := by
   intro y hy hyx
-  rw [show sameSide C (insert x A) y = sameSide C A y from
-    (Finset.filter_insert ..).trans (ite_eq_right fun h => hyx h.symm)]
+  have hsame : sameSide C (insert x A) y = sameSide C A y :=
+    (Finset.filter_insert ..).trans (ite_eq_right fun h => hyx h.symm)
+  rw [hsame]
   by_cases hxl : x ∈ C ↔ last ∈ C
   · exact (hinv y (List.mem_cons_of_mem x hy) fun h => hyx (h.trans hxl.symm)).trans
       (crossIn_le_insert C hW hx)

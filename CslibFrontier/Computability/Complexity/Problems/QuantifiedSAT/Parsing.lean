@@ -82,8 +82,9 @@ private theorem isInitial_polyTime (q : Bool) :
 private theorem initialVars_polyTime (q : Bool) :
     ComputableInPolyTime (initialVars q) encQBF (encList encNat) := by
   have := isInitial_polyTime q
-  rw [show initialVars q = fun φ => (φ.tokens.takeWhile (isInitial q)).map Prod.snd from
-    funext fun φ => (initial_tokens q φ).1]
+  have heq : initialVars q = fun φ => (φ.tokens.takeWhile (isInitial q)).map Prod.snd :=
+    funext fun φ => (initial_tokens q φ).1
+  rw [heq]
   fun_prop
 
 private theorem initialBody_polyTime (q : Bool) :

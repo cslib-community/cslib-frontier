@@ -343,12 +343,11 @@ theorem Solves.amplify
   intro x hx
   set e : M → Bool := fun m => decide (C.eval m x ≠ f x)
   have he : ((μ.map e) true).toReal ≤ ε := by
-    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-      show e ⁻¹' {true} = {m | ¬f x = C.eval m x} by
-        ext
-        simp only [e, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq,
-          Set.mem_ofPred_eq]
-        exact ne_comm]
+    have hpre : e ⁻¹' {true} = {m | ¬f x = C.eval m x} := by
+      ext
+      simp only [e, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq, Set.mem_ofPred_eq]
+      exact ne_comm
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply, hpre]
     exact hμ x hx
   refine le_trans ?_ (PMF.iid_card_ge_le he hε r)
   rw [errorProb, PMF.errorProb, RandomizedCost.amplify, PMF.toOuterMeasure_map_apply, PMF.iid_map,

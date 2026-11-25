@@ -106,8 +106,10 @@ private theorem subfunctions_subset_of_isConst (φ : Bool → Bool → Bool)
   obtain ⟨z, rfl⟩ := mem_subfunctions.1 hg
   obtain ⟨c, hc⟩ := isConst_iff_exists_forall_eq.1
     (isConst_of_mem_subfunctions (I := I) hG (mem_subfunctions.2 ⟨z, rfl⟩))
-  rw [show (fun x => F.eval I (Y.piecewise x z)) = φ c ∘ fun x => H.eval I (Y.piecewise x z) from
-    funext fun x => by simp [hF, hc x]]
+  have heq : (fun x => F.eval I (Y.piecewise x z)) =
+      φ c ∘ fun x => H.eval I (Y.piecewise x z) :=
+    funext fun x => by simp [hF, hc x]
+  rw [heq]
   exact comp_mem_unaryClosure _ (mem_subfunctions.2 ⟨z, rfl⟩)
 
 /-- The step of Nechiporuk's lemma at a gate computing a binary operation `φ`. -/
@@ -165,9 +167,10 @@ private theorem four_mul_card_le_of_gate {k : ℕ} (hk : k ≤ 2) (φ : (Fin k �
     rw [hl, Fin.sum_univ_one]
     refine (Nat.mul_le_mul_left 4 (card_le_card (unaryClosure_subset fun g hg => ?_))).trans (ih 0)
     obtain ⟨z, rfl⟩ := mem_subfunctions.1 hg
-    rw [show (fun x => F.eval I (Y.piecewise x z)) =
-        (fun b => φ fun _ => b) ∘ fun x => (args 0).eval I (Y.piecewise x z) from
-      funext fun x => (hF _).trans (congrArg φ (funext fun j => by rw [Fin.fin_one_eq_zero j]))]
+    have heq : (fun x => F.eval I (Y.piecewise x z)) =
+        (fun b => φ fun _ => b) ∘ fun x => (args 0).eval I (Y.piecewise x z) :=
+      funext fun x => (hF _).trans (congrArg φ (funext fun j => by rw [Fin.fin_one_eq_zero j]))
+    rw [heq]
     exact comp_mem_unaryClosure _ (mem_subfunctions.2 ⟨z, rfl⟩)
   | 2, _, φ, args, hF, hl, ih =>
     four_mul_card_le_of_binary (fun b c => φ ![b, c])

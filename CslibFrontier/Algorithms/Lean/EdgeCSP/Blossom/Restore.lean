@@ -205,9 +205,9 @@ theorem restoreWalk_isFPrefix (hF : EdgeInstance F) {f : OccurrenceLabeling F Bo
     obtain ⟨hbits, hcentral⟩ := flip_reference_connectors f vs (p.take n) hno'
     have hv := valid_expandZero hF hf vs ((p.take n).flip (reference f vs))
       (hp.valid_take n hnp) hbits hcentral
-    rwa [← restoreWalk_flip hF f vs fallback (p.take n) hno',
-      show restoreWalk f vs fallback (p.take n) = (restoreWalk f vs fallback p).take n from
-        Walk.mapPorts_take ..,
+    have htake : restoreWalk f vs fallback (p.take n) = (restoreWalk f vs fallback p).take n :=
+      Walk.mapPorts_take ..
+    rwa [← restoreWalk_flip hF f vs fallback (p.take n) hno', htake,
       Walk.flip, Walk.edges, ← Walk.flipSteps_eq_flipOn f _ (hw.take n).2] at hv
 
 /-- Distinct endpoints are retained when restoring a contracted f-walk avoiding connectors. -/

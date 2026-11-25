@@ -290,8 +290,10 @@ theorem litChars_ne_nil (l : Literal ℕ) : litChars l ≠ [] := Int.toDecimal_n
 /-- The words of a clause line. -/
 theorem words_clause (cl : Clause ℕ) :
     words (cl.flatMap (litChars · ++ [' ']) ++ ['0']) [] = cl.map litChars ++ [['0']] := by
-  rw [show cl.flatMap (litChars · ++ [' ']) = (cl.map litChars).flatMap (· ++ [' ']) by
-    simp [List.flatMap_map], words_flatMap_space]
+  have hflat : cl.flatMap (litChars · ++ [' ']) =
+      (cl.map litChars).flatMap (· ++ [' ']) := by
+    simp [List.flatMap_map]
+  rw [hflat, words_flatMap_space]
   · rfl
   · intro _ hw
     obtain ⟨l, -, rfl⟩ := List.mem_map.1 hw

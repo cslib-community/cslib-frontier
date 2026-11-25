@@ -219,8 +219,9 @@ theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
 theorem th_x (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : (th i (x h l) : G h n) =
     gen h2 (sh i l) := by
   refine Subtype.ext ?_
-  rw [show (th i (x h l) : G h n).1 = shMat i (1 + Matrix.single (lo l) (hi l) 1) from
-    congrArg (shMat i) (x_val h l).symm, gen_val, transvection, sh_sub_one h2]
+  have hth : (th i (x h l) : G h n).1 = shMat i (1 + Matrix.single (lo l) (hi l) 1) :=
+    congrArg (shMat i) (x_val h l).symm
+  rw [hth, gen_val, transvection, sh_sub_one h2]
   ext a b
   rw [shMat_apply, Matrix.add_apply, Matrix.add_apply]
   have hcond : (lo l = a - i ∧ hi l = b - i) ↔ (lo l + i = a ∧ sh i l = b) := by

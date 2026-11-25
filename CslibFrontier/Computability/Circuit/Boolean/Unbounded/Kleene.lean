@@ -205,8 +205,9 @@ theorem kleeneInterpretation_approx (op : Op) (a : Fin (signature.Arity op) → 
     split_ifs at hc with h₁ h₂
     · obtain ⟨i, hi⟩ := h₁
       cases hc
-      simp [interpretation_and, show ¬∀ j, b j = true from
-        fun hall => Bool.false_ne_true ((h i false hi).trans (hall i))]
+      have hnb : ¬∀ j, b j = true :=
+        fun hall => Bool.false_ne_true ((h i false hi).trans (hall i))
+      simp [interpretation_and, hnb]
     · cases hc
       simp [interpretation_and, fun i => (h i true (h₂ i)).symm]
     · cases hc
