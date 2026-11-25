@@ -45,17 +45,14 @@ private theorem uniform_shift_lookup_le {M D : Type} [DecidableEq M] {n q : ℕ}
       (fun w => (cache.lookup (msg, w - shift)).isSome)) true ≤
       cache.length / (q : ℝ≥0∞) ^ n := by
   classical
-  let targets := cache.map (fun p => p.1.2 + shift)
-  have h := toOuterMeasure_uniformOfFintype_mem_list_le targets
-  have hsub : {w : Fin n → ZMod q | (cache.lookup (msg, w - shift)).isSome} ⊆
-      {w | w ∈ targets} := by
-    intro w hw
-    obtain ⟨p, hp, he⟩ := List.lookup_isSome_iff.mp hw
-    have heq : (msg, w - shift) = p.1 := eq_of_beq he
-    exact List.mem_map.mpr ⟨p, hp, (sub_eq_iff_eq_add.mp (congrArg Prod.snd heq)).symm⟩
+  let targets := cache.map fun p => p.1.2 + shift
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-  exact ((PMF.uniformOfFintype (Fin n → ZMod q)).toOuterMeasure.mono hsub).trans (by
-    simpa [targets, Fintype.card_fun, div_eq_mul_inv] using h)
+  refine (show _ ≤ (PMF.uniformOfFintype (Fin n → ZMod q)).toOuterMeasure {w | w ∈ targets} from
+    (PMF.uniformOfFintype _).toOuterMeasure.mono fun w hw => ?_).trans
+    (by simpa [targets, Fintype.card_fun, div_eq_mul_inv] using
+      toOuterMeasure_uniformOfFintype_mem_list_le (α := Fin n → ZMod q) targets)
+  obtain ⟨p, hp, he⟩ := List.lookup_isSome_iff.mp hw
+  exact List.mem_map.mpr ⟨p, hp, (sub_eq_iff_eq_add.mp (congrArg Prod.snd (eq_of_beq he))).symm⟩
 
 private theorem intBox_shift_lookup_le {Ω M D : Type} [DecidableEq M]
     (n m q r Q : ℕ) [Fact q.Prime] (hr : 2 * r < q)
@@ -87,25 +84,20 @@ private theorem intBox_shift_lookup_le {Ω M D : Type} [DecidableEq M]
       let y ← uniformOfFinset (intBox (Fin m) r) (intBox_nonempty r)
       return (cache h).lookup (msg h, A *ᵥ (Int.cast ∘ y) - shift A h) |>.isSome) := by
     simp only [pmf_norm, real, test, PMF.map]
-    congr 1 with A : 1
-    exact PMF.bind_comm _ _ _
+    exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   have hideal : ideal.bind test = (do
       let A ← PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))
       let h ← H A
       let w ← PMF.uniformOfFintype (Fin n → ZMod q)
       return (cache h).lookup (msg h, w - shift A h) |>.isSome) := by
     simp only [pmf_norm, ideal, test, PMF.map]
-    congr 1 with A : 1
-    exact PMF.bind_comm _ _ _
+    exact congrArg _ (funext fun _ => PMF.bind_comm _ _ _)
   have hi : (ideal.bind test) true ≤ Q / (q : ℝ≥0∞) ^ n := by
     rw [hideal]
-    apply bind_apply_le_on_support
-    intro A _
-    apply bind_apply_le_on_support
-    intro h hh
-    exact (uniform_shift_lookup_le (msg h) (cache h) (shift A h)).trans (by
-      gcongr
-      exact_mod_cast hcache A h hh)
+    apply bind_apply_le_on_support; intro A _
+    apply bind_apply_le_on_support; intro h hh
+    exact (uniform_shift_lookup_le (msg h) (cache h) (shift A h)).trans
+      (by gcongr; exact_mod_cast hcache A h hh)
   have h := (hc.bind_left test) {true}
   rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton, hreal] at h
   exact h.trans (add_le_add hi le_rfl)
@@ -164,23 +156,21 @@ theorem lyubashevskySimulate_lookup_le {Ω M D : Type} [DecidableEq M]
       simpa only [mass, inner, Fintype.card_fin] using
         boxReject_apply_some hβ (zero_mem_intBox β) z)]
     simp [PMF.map, shift]
-  have hfactor :
-      ((PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))).bind fun A =>
-        (H A).bind fun h =>
-          (lyubashevskySimulate n m k q γ β (A, T A h) (challenge h)).map
-            (fun view => view.any (fun wz => (cache h).lookup (msg h, wz.1) |>.isSome))) true =
-      mass * ((PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))).bind fun A =>
-        (H A).bind fun h => inner.map (fun z =>
-          (cache h).lookup (msg h, A *ᵥ (Int.cast ∘ z) - shift A h) |>.isSome)) true := by
-    simp only [PMF.bind_apply, hpoint]
-    simp_rw [mul_left_comm _ mass, ← ENNReal.tsum_mul_left]
-    simp only [mul_left_comm]
   calc
     _ = mass * (do
         let A ← PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))
         let h ← H A
         let z ← inner
-        return (cache h).lookup (msg h, A *ᵥ (Int.cast ∘ z) - shift A h) |>.isSome) true := hfactor
+        return (cache h).lookup (msg h, A *ᵥ (Int.cast ∘ z) - shift A h) |>.isSome) true := by
+      change ((PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))).bind fun A =>
+        (H A).bind fun h => (lyubashevskySimulate n m k q γ β (A, T A h) (challenge h)).map
+          (fun view => view.any (fun wz => (cache h).lookup (msg h, wz.1) |>.isSome))) true =
+        mass * ((PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))).bind fun A =>
+          (H A).bind fun h => inner.map (fun z =>
+            (cache h).lookup (msg h, A *ᵥ (Int.cast ∘ z) - shift A h) |>.isSome)) true
+      simp only [PMF.bind_apply, hpoint]
+      simp_rw [mul_left_comm _ mass, ← ENNReal.tsum_mul_left]
+      simp only [mul_left_comm]
     _ ≤ _ := by
       gcongr
       exact intBox_shift_lookup_le n m q (γ - β) Q hγ H msg cache shift hcache

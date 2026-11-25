@@ -74,10 +74,9 @@ theorem source_pair_count (hD : D ≠ 0) (hid : Function.Injective ident)
     (hs : r.source.rate = rate s) (x w : V) (hw : w ≠ x) :
     (#{a | splitSource D ident r hr a x ∧ splitSource D ident r hr a w} : ℝ) ≤
       32 * rate s * #{a | splitSource D ident r hr a x} := by
-  have hh := split_channels D ident {r with terminal := {r.terminal with rate := r.source.rate}}
-    hr hD hid H hsH hs hs
   apply card_filter_and_le_of_dens_le
-  convert hh.2.pair w x hw using 1 <;> congr 1
+  convert (split_channels D ident {r with terminal := {r.terminal with rate := r.source.rate}}
+    hr hD hid H hsH hs hs).2.pair w x hw using 1 <;> congr 1
 
 omit [Fintype V] in
 /-- Positive actual source density, without identifying it with the true stage rate. -/
@@ -87,8 +86,7 @@ theorem source_nonempty (hD : D ≠ 0) (hid : Function.Injective ident)
     ({a | splitSource D ident r hr a x} : Finset _).Nonempty := by
   convert split_source_nonempty D ident
     {r with terminal := {r.terminal with rate := r.source.rate}}
-    hr hD hid H hsH hs hs x using 1
-  congr 1
+    hr hD hid H hsH hs hs x using 1; congr 1
 
 /-- The bounded computational cutoff preserves the genuine stage input. This entry bound
 uses the true recurrence, independently of the actual sampling-source rate. -/
@@ -99,10 +97,9 @@ theorem stage_atomCutoff_eq {C : Matrix V V ℝ} {i : ℕ}
       HP.Q (stageRaw HP D ident r hr C i x y / r.terminal.rate) := by
   have hb := HP.toHierarchyParams.correctionInput_bounds
     (X := stageSource D ident r hr) (Y := splitTerminal D ident r) hf hC hC1 hCf i
-  apply HP.toHierarchyParams.atomCutoff_eq (div_nonneg (hb.1 x y) hf.le)
-  apply (div_le_iff₀ hf).mpr
-  exact (hb.2.2 x y).trans (mul_le_mul_of_nonneg_right
-    (by exact_mod_cast Nat.add_le_add_right hi 1) hf.le)
+  exact HP.toHierarchyParams.atomCutoff_eq (div_nonneg (hb.1 x y) hf.le)
+    ((div_le_iff₀ hf).mpr ((hb.2.2 x y).trans
+      (mul_le_mul_of_nonneg_right (by exact_mod_cast Nat.add_le_add_right hi 1) hf.le)))
 
 /-- In particular, clipping preserves genuine nonvanishing, rather than defining a new target. -/
 theorem stage_atomCutoff_ne_zero_iff {C : Matrix V V ℝ} {i : ℕ}
@@ -121,8 +118,7 @@ theorem source_normalizer (C : Matrix V V ℝ) (i : ℕ) (x y : V) :
     rowSliceMean (fun σ v => r.source.retains (channels D) σ (ident v))
       (fun σ v => r.usage.retains (channels D) σ (ident v))
       (sourcePreparation HP D ident r hr C i) x y := by
-  convert normalizer_full D ident r hr (sourcePreparation HP D ident r hr C i) x y using 1
-  rfl
+  convert normalizer_full D ident r hr (sourcePreparation HP D ident r hr C i) x y using 1; rfl
 
 /-- Pointwise actual request identity with true stage children and actual conditioning.
 The preparatory denominator is its joint actual source/usage mean. -/
@@ -139,8 +135,8 @@ theorem source_request_eq (C : Matrix V V ℝ) (i : ℕ)
       (CorrectionRowRecipe.preparation (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff
         (polynomialPrepCutoff4 HP.θ) HP.ρ HP.K ⌈4 * (1 + 32 * HP.R)⌉₊ r.terminal.rate
         (splitSource D ident r hr) (splitTerminal D ident r) (stageRaw HP D ident r hr C i))
-      (stageMaximum HP D ident r hr C) (terminalSplit r.terminal.role σ) x y := by
-  exact correctionRequest_eq_split HP D ident r hr _ _ _ σ x y
+      (stageMaximum HP D ident r hr C) (terminalSplit r.terminal.role σ) x y :=
+  correctionRequest_eq_split HP D ident r hr _ _ _ σ x y
 
 /-- Honest incoming cost at an arbitrary sampling-source rate: relative to the true stage
 budget it grows by fs/ft. A coarser source therefore needs additional rank margin before
@@ -157,29 +153,16 @@ theorem source_incoming_cost_le (hD : D ≠ 0) (hid : Function.Injective ident)
   have hh := stage_channels D ident r hr hD hid H hk ht
   rw [← ht] at hh
   have hf : 0 < r.terminal.rate := ht ▸ rate_pos k
-  have hs0 : 0 ≤ r.source.rate := (hs ▸ rate_pos s).le
-  have hg' : HP.γ (HP.toHierarchyParams.pilot
-      (stageSource D ident r hr) (splitTerminal D ident r) r.terminal.rate C y) ≠ 0 := by
-    simpa only [stageMaximum, PilotTask.value_maximum_last] using hg
   have hc := HP.toHierarchyParams.correctionInput_count_le
-    (stageSource D ident r hr) (splitTerminal D ident r) hh.1 hf
-    (by norm_num) hC hC1 hi hg'
-  have hsub : ({w | HP.δ₁ < stageRaw HP D ident r hr C i w y / r.terminal.rate} : Finset V) ⊆
-      ({w | HP.δ₁ * r.terminal.rate ≤ stageRaw HP D ident r hr C i w y} : Finset V) := by
-    intro w hw
-    simp only [mem_filter, mem_univ, true_and] at hw ⊢
-    exact ((lt_div_iff₀ hf).mp hw).le
+    (stageSource D ident r hr) (splitTerminal D ident r) hh.1 hf (by norm_num) hC hC1 hi
+    (by simpa only [stageMaximum, PilotTask.value_maximum_last] using hg)
   have hn : (#({w | HP.δ₁ < stageRaw HP D ident r hr C i w y / r.terminal.rate} : Finset V) : ℝ)
-      ≤ HP.R / r.terminal.rate := by
-    have hcard : (#({w | HP.δ₁ < stageRaw HP D ident r hr C i w y / r.terminal.rate} :
-        Finset V) : ℝ) ≤
-        #({w | HP.δ₁ * r.terminal.rate ≤ stageRaw HP D ident r hr C i w y} : Finset V) := by
-      exact_mod_cast card_le_card hsub
-    exact hcard.trans hc
-  calc
-    _ ≤ 32 * r.source.rate * (HP.R / r.terminal.rate) :=
-      mul_le_mul_of_nonneg_left hn (mul_nonneg (by norm_num) hs0)
-    _ = _ := by ring
+      ≤ HP.R / r.terminal.rate :=
+    (Nat.cast_le.mpr (card_le_card fun w hw => by
+      simp only [mem_filter, mem_univ, true_and] at hw ⊢
+      exact ((lt_div_iff₀ hf).mp hw).le)).trans hc
+  exact (mul_le_mul_of_nonneg_left hn
+    (mul_nonneg (by norm_num) (hs ▸ rate_pos s).le)).trans_eq (by ring)
 
 /-- The actual single-Ω mean equals the existing true-stage correction recurrence.
 A narrower sampling source fits the unchanged incoming budget. Its own exponent is
@@ -199,32 +182,22 @@ theorem source_request_mean (hD : D ≠ 0) (hid : Function.Injective ident)
           (fun _ => stageMaximum HP D ident r hr C) σ x y) =
       HP.toHierarchyParams.correctionIter (stageSource D ident r hr) (splitTerminal D ident r)
         r.terminal.rate C (i + 1) x y := by
-  have hk := hks.trans hsH
-  have hh := stage_channels D ident r hr hD hid H hk ht
+  have hh := stage_channels D ident r hr hD hid H (hks.trans hsH) ht
   rw [← ht] at hh
   have hf : 0 < r.terminal.rate := ht ▸ rate_pos k
   have hπ : 0 < (((side P k : ℝ)/P)^4) := by linarith [hh.1.lower]
   have huπ : 0 < (((side P u : ℝ)/P)^4) := by have := (Fact.out : P.Prime).pos; positivity
   let A := HP.correctionSampling (stageSource D ident r hr) (splitTerminal D ident r)
     hh.1 hh.2 hf hπ hC hC1 hi
-  have hp : ∀ x w, w ≠ x →
-      (#{a | splitSource D ident r hr a x ∧ splitSource D ident r hr a w} : ℝ) ≤
-        A.p * #{a | splitSource D ident r hr a x} := by
-    rw [show A.p = 32 * r.terminal.rate from
-      HP.selected_p _ _ hh.1 hh.2 hf hπ hC hC1 hi]
-    intro x w hw
+  let B := A.withSource (splitSource D ident r hr) fun x w hw => by
+    rw [show A.p = 32 * r.terminal.rate from HP.selected_p _ _ hh.1 hh.2 hf hπ hC hC1 hi]
     exact (source_pair_count D ident r hr hD hid H hsH hs x w hw).trans
       (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left
         (ht ▸ rate_antitone hks) (by norm_num)) (by positivity))
-  let B := A.withSource (splitSource D ident r hr) hp
-  have htP : ∀ z w, w ≠ z →
-      (#{t | splitUsage D ident r t z ∧ splitTerminal D ident r t w} : ℝ) ≤
-        B.c * r.terminal.rate * #{t | splitUsage D ident r t z} := by
+  let T := B.withUsage (splitUsage D ident r) _ huπ (split_usage_density D ident r hu) (by
     change ∀ z w, w ≠ z → _ ≤ A.c * r.terminal.rate * _
     rw [show A.c = 32 from HP.selected_c _ _ hh.1 hh.2 hf hπ hC hC1 hi]
-    exact split_usage_pair D ident r hr hD hid H hk ht hu
-  let T := B.withUsage (splitUsage D ident r) _ huπ
-    (split_usage_density D ident r hu) htP
+    exact split_usage_pair D ident r hr hD hid H (hks.trans hsH) ht hu)
   have hm := T.expect_normalizedRecipe hf hC hC1 hCf hi.le
     (source_nonempty D ident r hr hD hid H hsH hs x) y
   unfold HierarchyParams.CorrectionSampling.normalizedRecipe
@@ -232,16 +205,12 @@ theorem source_request_mean (hD : D ≠ 0) (hid : Function.Injective ident)
   rw [channel_density D r.usage u hu, source_expect_split D ident r hr]
   simp_rw [source_request_eq HP D ident r hr C i, Equiv.apply_symm_apply]
   simpa only [T, B, HierarchyParams.CorrectionSampling.withUsage_π,
-    HierarchyParams.CorrectionSampling.withUsage_I,
-    HierarchyParams.CorrectionSampling.withUsage_τ,
-    HierarchyParams.CorrectionSampling.withUsage_h,
-    HierarchyParams.CorrectionSampling.withUsage_ρ,
-    HierarchyParams.CorrectionSampling.withUsage_K,
-    HierarchyParams.CorrectionSampling.withUsage_Kc,
-    HierarchyParams.CorrectionSampling.withSource,
-    A, FourthRootHierarchyParams.selected_I, FourthRootHierarchyParams.selected_τ,
-    FourthRootHierarchyParams.selected_h, FourthRootHierarchyParams.selected_ρ,
-    FourthRootHierarchyParams.selected_K, FourthRootHierarchyParams.selected_Kc,
-    stageRaw, stageMaximum] using hm
+    HierarchyParams.CorrectionSampling.withUsage_I, HierarchyParams.CorrectionSampling.withUsage_τ,
+    HierarchyParams.CorrectionSampling.withUsage_h, HierarchyParams.CorrectionSampling.withUsage_ρ,
+    HierarchyParams.CorrectionSampling.withUsage_K, HierarchyParams.CorrectionSampling.withUsage_Kc,
+    HierarchyParams.CorrectionSampling.withSource, A, FourthRootHierarchyParams.selected_I,
+    FourthRootHierarchyParams.selected_τ, FourthRootHierarchyParams.selected_h,
+    FourthRootHierarchyParams.selected_ρ, FourthRootHierarchyParams.selected_K,
+    FourthRootHierarchyParams.selected_Kc, stageRaw, stageMaximum] using hm
 
 end Matrix.HierarchyParams.H4RankEnvironment

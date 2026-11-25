@@ -60,28 +60,25 @@ theorem exec_cell {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
   let t : Fin 10 := ⟨i / n % 10, Nat.mod_lt _ (by decide)⟩
   let r := i % n
   -- Keep nonlinear arithmetic focused on index bounds, rather than the execution context.
-  have hp : p < P := by
-    apply (Nat.div_lt_iff_lt_mul (by positivity : 0 < 10 * n)).mpr
-    nlinarith only [hi]
+  have hp : p < P :=
+    (Nat.div_lt_iff_lt_mul (by positivity : 0 < 10 * n)).mpr (by nlinarith only [hi])
   have hr : r < n := Nat.mod_lt _ hnpos
-  have hn1 : 1 ≤ n := hnpos
   have hPn : n ≤ P * n := Nat.le_mul_of_pos_left n hP
   have hmul : p * n < P * n := Nat.mul_lt_mul_of_pos_right hp hnpos
   have h10n : Fits (w + 2) (10 * n) := haddr.of_le (by nlinarith only [hPn])
-  have hpfit : Fits (w + 2) p := haddr.of_le (by nlinarith only [hp, hn1])
+  have hpfit : Fits (w + 2) p := haddr.of_le (by nlinarith only [hp, hnpos])
   have hdiv : i / n ≤ i := Nat.div_le_self _ _
   have hdivfit : Fits (w + 2) (i / n) := haddr.of_le (by nlinarith only [hdiv, hi])
   have htfit : Fits (w + 2) t.val := haddr.of_le (by have := t.isLt; omega)
   have hrfit : Fits (w + 2) r := haddr.of_le (by nlinarith only [hr, hPn])
-  have hp7 : Fits (w + 2) (p * 7) := haddr.of_le (by nlinarith only [hp, hn1])
+  have hp7 : Fits (w + 2) (p * 7) := haddr.of_le (by nlinarith only [hp, hnpos])
   have hp7n : Fits (w + 2) (p * 7 * n) := haddr.of_le (by nlinarith only [hmul])
-  have hp7nr : Fits (w + 2) (p * 7 * n + r) :=
-    haddr.of_le (by nlinarith only [hmul, hr, hPn])
+  have hp7nr : Fits (w + 2) (p * 7 * n + r) := haddr.of_le (by nlinarith only [hmul, hr, hPn])
   have hgroup : Fits (w + 2) (s + (p * 7 * n + r)) :=
     haddr.of_le (by nlinarith only [hmul, hr, hPn])
   have hzmem (a : Fin 7) : x.mem (s + (p * 7 * n + r) + a.val * n) = encode (v a) := by
-    have hidx : s + (p * 7 * n + r) + a.val * n = s + (p * 7 + a.val) * n + r := by ring
-    simpa only [hidx] using hmem a
+    simpa only [show s + (p * 7 * n + r) + a.val * n = s + (p * 7 + a.val) * n + r by ring] using
+      hmem a
   have hspan : Fits (w + 2) (s + (p * 7 * n + r) + 7 * n) :=
     haddr.of_le (by nlinarith only [hmul, hr, hPn])
   have hdfit : Fits (w + 2) (d + i) := haddr.of_le (by nlinarith only [hi])
@@ -91,17 +88,16 @@ theorem exec_cell {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
   wram_exec [hsrc, hcell, hn, hseven, hten, h10n, hpfit, hdivfit, htfit, hrfit, hp7, hp7n,
     hp7nr, hgroup]
   wram_call (exec_dispatch hw side (List.finRange 10) t (List.mem_finRange _) _ B
-    (s + (p * 7 * n + r)) n v (by wram_simp; rfl) (by wram_simp; rfl) (by wram_simp [hn]) hzmem
+    (s + (p * 7 * n + r)) n v (by wram_simp; rfl)
+    (by wram_simp; rfl) (by wram_simp [hn]) hzmem
     hB hv hval hspan (haddr.of_le (by omega))) with u ⟨huacc, humem, hureg⟩
   wram_exec * [hdfit, hinc, huacc]
   refine ⟨?_, by wram_simp, fun a ha hl => ?_⟩
   · wram_simp
-    rw [humem]
-    rfl
+    rw [humem]; rfl
   · simp only [CellLocal, not_or] at hl
     rcases hl with ⟨hc, hb, ht', hs, had, hac, hg, htmp⟩
     wram_simp
-    rw [hureg a ha had hac htmp]
-    wram_simp
+    rw [hureg a ha had hac htmp]; wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding

@@ -93,10 +93,9 @@ theorem isPolyTime_enumCoins (hV : V.PolyTime enc)
 theorem isPolyTime_queryTable (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime V.queryTable enc (encList encNat) := by
-  have he := isPolyTime_enumCoins hV hcoins
-  have hq := hV.queries
-  unfold queryTable
-  fun_prop
+  have := isPolyTime_enumCoins hV hcoins
+  have := hV.queries
+  unfold queryTable; fun_prop
 
 /-- Extracting the compact table `answers proof (V.queryTable a)` from `(a, proof)` is
 polynomial-time under a logarithmic coin bound, using capped binary lookup on `proof`. -/
@@ -104,13 +103,13 @@ theorem isPolyTime_answers (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime (fun p : α × List Bool => answers p.2 (V.queryTable p.1))
       (encPair enc encBits) encBits := by
-  have ht := (isPolyTime_queryTable hV hcoins).comp (ComputableInPolyTime.fst enc encBits)
-  have hget := ComputableInPolyTime.listGetD_binary (encA := encBool) (encL := encBits) false
-    ((ComputableInPolyTime.snd enc encBits).comp
-      (ComputableInPolyTime.fst (encPair enc encBits) encNat))
-    (ComputableInPolyTime.snd (encPair enc encBits) encNat)
   simpa only [answers, Function.comp_def] using
-    ComputableInPolyTime.mapToBitsWithInput (f := fun p q => p.2.getD q false) ht hget
+    ComputableInPolyTime.mapToBitsWithInput (f := fun p q => p.2.getD q false)
+      ((isPolyTime_queryTable hV hcoins).comp (ComputableInPolyTime.fst enc encBits))
+      (ComputableInPolyTime.listGetD_binary (encA := encBool) (encL := encBits) false
+        ((ComputableInPolyTime.snd enc encBits).comp
+          (ComputableInPolyTime.fst (encPair enc encBits) encNat))
+        (ComputableInPolyTime.snd (encPair enc encBits) encNat))
 
 /-- Evaluating `V.verdict` on a candidate table `(a, table)` and a random word `word` using
 first-occurrence lookup in `V.queryTable a` is polynomial-time under a logarithmic coin bound. -/
@@ -121,24 +120,18 @@ theorem isPolyTime_tableWordVerdict (hV : V.PolyTime enc)
         V.verdict ((x.1.1, x.2), (V.queries (x.1.1, x.2)).map fun address =>
           x.1.2.getD ((V.queryTable x.1.1).idxOf address) false))
       (encPair (encPair enc encBits) encBits) encBool := by
-  have hq := hV.queries
-  have hv := hV.verdict
-  have ht := isPolyTime_queryTable hV hcoins
   have hinput := ComputableInPolyTime.fst (encPair enc encBits) encBits
   have hword := ComputableInPolyTime.snd (encPair enc encBits) encBits
-  have hqueries := hq.comp (hinput.fst'.prod hword)
-  have htable := ht.comp hinput.fst'
-  have hproof := hinput.snd'
   have houter := ComputableInPolyTime.fst (encPair (encPair enc encBits) encBits) encNat
-  have haddress := ComputableInPolyTime.snd (encPair (encPair enc encBits) encBits) encNat
   have hlookup := (ComputableInPolyTime.bitsGetD false).comp
-    ((hproof.comp houter).prod ((ComputableInPolyTime.idxOf encNat).comp
-      ((htable.comp houter).prod haddress)))
-  have hanswers := ComputableInPolyTime.listToBits.comp
+    ((hinput.snd'.comp houter).prod ((ComputableInPolyTime.idxOf encNat).comp
+      ((((isPolyTime_queryTable hV hcoins).comp hinput.fst').comp houter).prod
+        (ComputableInPolyTime.snd (encPair (encPair enc encBits) encBits) encNat))))
+  exact hV.verdict.comp ((hinput.fst'.prod hword).prod (ComputableInPolyTime.listToBits.comp
     (ComputableInPolyTime.mapWithInput
       (f := fun input address => input.1.2.getD (List.idxOf address (V.queryTable input.1.1)) false)
-      hqueries (by simpa only [Function.comp_def] using hlookup))
-  exact hv.comp ((hinput.fst'.prod hword).prod hanswers)
+      (hV.queries.comp (hinput.fst'.prod hword))
+      (by simpa only [Function.comp_def] using hlookup))))
 
 /-- Exhaustive verification is polynomial time for every table, including short inputs. -/
 theorem isPolyTime_tableVerifier (hV : V.PolyTime enc)
@@ -161,11 +154,10 @@ theorem verdict_answers_queryTable_append (a : α) (proof padding word : List Bo
     V.verdict ((a, word), (V.queries (a, word)).map fun address =>
       (answers proof (V.queryTable a) ++ padding).getD ((V.queryTable a).idxOf address) false) =
       V.accepts a proof word := by
-  unfold accepts answers
-  congr 2
-  refine List.map_congr_left fun address haddress => ?_
-  have hmem := mem_queryTable hword haddress
-  simp [List.getD_eq_getElem?_getD, List.getElem?_append_left, List.idxOf_lt_length_iff.2 hmem]
+  unfold accepts answers; congr 2
+  exact List.map_congr_left fun address haddress => by
+    simp [List.getD_eq_getElem?_getD, List.getElem?_append_left,
+      List.idxOf_lt_length_iff.2 (mem_queryTable hword haddress)]
 
 /-- A genuine proof supplies a consistent table; trailing padding is never read. -/
 theorem tableVerifier_complete (a : α) (proof padding : List Bool)
@@ -189,12 +181,10 @@ theorem accepts_proofOfTable (a : α) (table word : List Bool)
     V.accepts a (V.proofOfTable a table) word =
       V.verdict ((a, word), (V.queries (a, word)).map fun address =>
         table.getD ((V.queryTable a).idxOf address) false) := by
-  unfold accepts answers
-  congr 2
-  refine List.map_congr_left fun address haddress => ?_
-  have hmem := mem_queryTable hword haddress
-  have hbound : address < (V.queryTable a).sum + 1 := Nat.lt_succ_of_le (List.le_sum_of_mem hmem)
-  simp [proofOfTable, List.getD_eq_getElem?_getD, hbound]
+  unfold accepts answers; congr 2
+  exact List.map_congr_left fun address haddress => by
+    simp [proofOfTable, List.getD_eq_getElem?_getD,
+      Nat.lt_succ_of_le (List.le_sum_of_mem (mem_queryTable hword haddress))]
 
 /-- Every table, including malformed or short certificates, is the restriction of a finite proof.
 The expanded proof is only a mathematical witness; its length need not be polynomial. -/
@@ -216,22 +206,16 @@ theorem mem_NP_of_tableCheck {A : Set α} {check : α × List Bool → Bool}
       check (a, answers proof (V.queryTable a) ++ padding) = true)
     (hsound : ∀ a table, check (a, table) = true → a ∈ A) :
     A ∈ NP enc := by
-  obtain ⟨p, hlength⟩ :=
-    (isPolyTime_queryTable hV hcoins).polyBounded_length.exists_polynomial
-  have hbound (a : α) : (V.queryTable a).length ≤ p.eval (enc a).length :=
-    (length_le_length_encList encNat (V.queryTable a)).trans (hlength a)
-  refine ⟨p, check, hcheck, fun a => ?_⟩
-  constructor
-  · intro ha
-    obtain ⟨proof, hproof⟩ := hcomplete a ha
-    let table := answers proof (V.queryTable a)
-    refine ⟨table ++ List.replicate (p.eval (enc a).length - table.length) false, ?_, hproof _⟩
-    have htable : table.length ≤ p.eval (enc a).length := by
-      simpa [table, answers] using hbound a
-    simp only [List.length_append, List.length_replicate]
-    lia
-  · rintro ⟨table, _, htable⟩
-    exact hsound a table htable
+  obtain ⟨p, hlength⟩ := (isPolyTime_queryTable hV hcoins).polyBounded_length.exists_polynomial
+  refine ⟨p, check, hcheck, fun a => ⟨fun ha => ?_,
+    fun ⟨table, _, htable⟩ => hsound a table htable⟩⟩
+  obtain ⟨proof, hproof⟩ := hcomplete a ha
+  let table := answers proof (V.queryTable a)
+  refine ⟨table ++ List.replicate (p.eval (enc a).length - table.length) false, ?_, hproof _⟩
+  have htable : table.length ≤ p.eval (enc a).length := by
+    simpa [table, answers] using
+      (length_le_length_encList encNat (V.queryTable a)).trans (hlength a)
+  simp only [List.length_append, List.length_replicate]; lia
 
 end Cslib.Complexity.PCPVerifier
 
@@ -250,11 +234,9 @@ theorem IsPCPVerifier.mem_iff_exists_tableVerifier {r q : ℕ → ℕ} {V : PCPV
   · by_contra ha
     obtain ⟨proof, hproof⟩ := PCPVerifier.tableVerifier_sound a table htable
     have hs := h.sound a ha proof
-    have hc : acceptCount (fun x => V.accepts x.1 proof x.2) a (V.coins a) = 2 ^ V.coins a := by
-      simp [acceptCount, hproof]
-    rw [hc] at hs
-    have hp : 0 < 2 ^ V.coins a := Nat.two_pow_pos _
-    lia
+    rw [show acceptCount (fun x => V.accepts x.1 proof x.2) a (V.coins a) = 2 ^ V.coins a by
+      simp [acceptCount, hproof]] at hs
+    have := Nat.two_pow_pos (V.coins a); lia
 
 /-- Logarithmically many random bits can be checked exhaustively in NP, regardless of the query
 bound. Binary proof addresses are represented by a polynomial-length table of queried bits. -/

@@ -83,24 +83,20 @@ theorem turingComputableInPolyTime_iff_exists_computesInTime (φ : Basis.additiv
       ∃ (r : ℕ) (p : Program B r) (T W : ℕ → ℕ), PolynomiallyBounded T ∧
         PolynomiallyBounded W ∧ p.ComputesInTime (fun _ a => (encIn a).map Bool.toNat)
           (fun a _ => T (encIn a).length) (fun a w => W (encIn a).length ≤ w) f := by
-  constructor
-  · intro h
-    obtain ⟨r, p, T, W, hT, hW, hp⟩ := h.exists_wordRAM_nat
+  refine ⟨fun h => ?_, fun ⟨r, p, T, W, hT, hW, hp⟩ => ?_⟩
+  · obtain ⟨r, p, T, W, hT, hW, hp⟩ := h.exists_wordRAM_nat
     exact ⟨r, p.mapOp φ, T, W, hT, hW, hp.mapOp φ⟩
-  · rintro ⟨r, p, T, W, hT, hW, hp⟩
-    -- Simulate at a computable width above `W |encIn a|` and the input length.
-    obtain ⟨width, hwidth, hge⟩ := exists_unary_majorant (encIn := encIn)
+  -- Simulate at a computable width above `W |encIn a|` and the input length.
+  · obtain ⟨width, hwidth, hge⟩ := exists_unary_majorant (encIn := encIn)
       (u := fun a => W (encIn a).length + (encIn a).length + 1) (by growth_poly)
-    refine hp.turingComputableInPolyTime_of_width hop hwidth
-      (fun a => by have := hge a; omega) (fun a => ⟨?_, fun v hv => ?_⟩)
-      (computableInPolyTime_map_toNat encIn) (by growth_poly)
+    refine hp.turingComputableInPolyTime_of_width hop hwidth (fun a => by have := hge a; omega)
+      (fun a => ⟨?_, fun v hv => ?_⟩) (computableInPolyTime_map_toNat encIn) (by growth_poly)
     · have := hge a
       rw [List.length_map]
       exact Nat.lt_two_pow_self.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
     · obtain ⟨b, -, rfl⟩ := List.mem_map.1 hv
       have := hge a
-      exact (Bool.toNat_le b).trans_lt
-        (Nat.one_lt_two_pow_iff.2 (by omega))
+      exact (Bool.toNat_le b).trans_lt (Nat.one_lt_two_pow_iff.2 (by omega))
 
 /-! ## Logarithmic word sizes -/
 
@@ -129,7 +125,7 @@ theorem UniformComputableInPolyTime.polyBounded {f : α → ℕ}
   obtain ⟨T, -, k, hk, r, p, hp, _⟩ := h
   refine ⟨fun n => 2 ^ k * (n + 1) ^ k, .of_forall_le (2 ^ k) k fun _ => le_rfl, fun a => ?_⟩
   have hi := inputFits_map_toNat (encIn := encIn) hk a le_rfl
-  obtain ⟨n, hex, -⟩ := hp a _ le_rfl hi
+  obtain ⟨_, hex, -⟩ := hp a _ le_rfl hi
   exact (hex.fits_init hi).le.trans (two_pow_logWidth_le k _)
 
 /-- **Turing-machine polynomial time is uniform polynomial word-RAM time at logarithmic word
@@ -148,38 +144,33 @@ theorem turingComputableInPolyTime_iff_uniformComputableInPolyTime (φ : Basis.a
     Turing.MultiTapeTM.ComputableInPolyTime f encIn encNat ↔
       UniformComputableInPolyTime B f (fun _ a => (encIn a).map Bool.toNat)
         (fun a => (encIn a).length) := by
-  refine ⟨fun h => ?_, fun h =>
+  refine ⟨fun ⟨t, s, ht, _, K, Q, hfin, tm, htm⟩ => ?_, fun h =>
     h.turingComputableInPolyTime hop PolyBounded.self (computableInPolyTime_map_toNat encIn)⟩
-  obtain ⟨t, s, ht, -, K, Q, hfin, tm, htm⟩ := h
   have := Fintype.ofFinite Q
   -- The simulator's words stay below `D (n + 1) ^ e`, and the values below `D' (n + 1) ^ e'`.
-  have hS : PolynomiallyBounded fun n => simBound K (Fintype.card Q) n (t n) := by
-    unfold simBound
-    fun_prop
-  obtain ⟨D, e, hD⟩ := polynomiallyBounded_iff_le.1 hS
+  obtain ⟨D, e, hD⟩ := polynomiallyBounded_iff_le.1
+    (show PolynomiallyBounded fun n => simBound K (Fintype.card Q) n (t n) by
+      unfold simBound; fun_prop)
   obtain ⟨bound, hbound, hfb⟩ := hf
   obtain ⟨D', e', hD'⟩ := polynomiallyBounded_iff_le.1 hbound
-  refine ⟨fun n => simTime K (Fintype.card Q) (t n), ?_, D + e + D' + e' + 1, by omega, regs K,
+  refine ⟨fun n => simTime K (Fintype.card Q) (t n),
+    (PolynomiallyBounded.const _).add (ht.mul (.const _)), D + e + D' + e' + 1, by omega, regs K,
     _, Program.ComputesInTime.mapOp (p := simProgram tm.tr tm.q₀ (Fintype.equivFin Q)) φ
       fun a w hw _ => ?_,
     inputAdmissible_of_widthIndependent _ _⟩
-  · unfold simTime
-    exact (PolynomiallyBounded.const _).add (ht.mul (.const _))
-  · obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
-    have hb : simBound K (Fintype.card Q) (encIn a).length (t (encIn a).length) < 2 ^ w :=
-      calc _ ≤ D * ((encIn a).length + 1) ^ e := hD _
-        _ < 2 ^ logWidth (D + e) (encIn a).length := lt_two_pow_logWidth _ _ _
-        _ ≤ 2 ^ w := Nat.pow_le_pow_right (by norm_num)
-          ((logWidth_mono (by omega) le_rfl).trans hw)
-    -- The output has at most `logWidth (D' + e') |encIn a|` bits, fewer than `w`.
-    have hsize : (f a).size ≤ logWidth (D' + e') (encIn a).length :=
-      Nat.size_le.2 (((hfb a).trans (hD' _)).trans_lt (lt_two_pow_logWidth _ _ _))
-    have hlt : logWidth (D' + e') (encIn a).length < w :=
-      lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right (by omega) (by omega)) hw
-    obtain ⟨n, hn, hex⟩ := executes_simProgram (fun _ _ _ => rfl) (Fintype.equivFin Q) hhalt hb
-      (by rw [hout, encNat_apply, Nat.size_eq_bits_len]; omega)
-    rw [hout, encNat_apply, Cslib.BitString.lsbValue_bits] at hex
-    exact ⟨n, hex, hn⟩
+  obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
+  have hb : simBound K (Fintype.card Q) (encIn a).length (t (encIn a).length) < 2 ^ w :=
+    (hD _).trans_lt <| (lt_two_pow_logWidth _ _ _).trans_le <|
+      Nat.pow_le_pow_right (by norm_num) ((logWidth_mono (by omega) le_rfl).trans hw)
+  -- The output has at most `logWidth (D' + e') |encIn a|` bits, fewer than `w`.
+  have hsize : (f a).size ≤ logWidth (D' + e') (encIn a).length :=
+    Nat.size_le.2 (((hfb a).trans (hD' _)).trans_lt (lt_two_pow_logWidth _ _ _))
+  have hlt : logWidth (D' + e') (encIn a).length < w :=
+    (Nat.mul_lt_mul_of_pos_right (by omega) (by omega)).trans_le hw
+  obtain ⟨n, hn, hex⟩ := executes_simProgram (fun _ _ _ => rfl) (Fintype.equivFin Q) hhalt hb
+    (by rw [hout, encNat_apply, Nat.size_eq_bits_len]; omega)
+  rw [hout, encNat_apply, Cslib.BitString.lsbValue_bits] at hex
+  exact ⟨n, hex, hn⟩
 
 end LogWidth
 

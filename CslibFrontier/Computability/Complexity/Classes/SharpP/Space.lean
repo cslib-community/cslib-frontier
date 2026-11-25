@@ -84,43 +84,30 @@ private theorem iterate_acceptCountStep (V : α × List Bool → Bool) (a : α) 
   | zero => simp
   | succ j ih =>
     rw [Function.iterate_succ_apply', ih]
-    simp only [acceptCountStep, Function.iterate_succ_apply', Prod.mk.injEq, true_and]
-    rw [Finset.range_add_one, Finset.filter_insert]
-    split_ifs with hacc
-    · rw [Finset.card_insert_of_notMem (by simp)]
-    · rfl
+    simp only [acceptCountStep, Function.iterate_succ_apply', Prod.mk.injEq, true_and,
+      Finset.range_add_one, Finset.filter_insert]
+    split_ifs <;> simp
 
 /-- The streaming count of accepted certificates is `acceptCount`. -/
 theorem streamAcceptCount_eq_acceptCount (V : α × List Bool → Bool) (a : α) (t : ℕ) :
     streamAcceptCount V a t = acceptCount V a t := by
-  rw [streamAcceptCount, iterate_acceptCountStep, acceptCount]
-  simp only
+  rw [streamAcceptCount, iterate_acceptCountStep, acceptCount]; dsimp only
   refine Finset.card_bij'
-    (fun i _ j => (increment^[i] (List.replicate t false)).getD j false)
-    (fun f _ => lsbValue (List.ofFn f)) ?_ ?_ ?_ ?_
-  · intro i hi
-    simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hi ⊢
-    obtain ⟨_, hl⟩ := BitString.iterate_increment t i hi.1
-    rw [List.ofFn_getD_eq_of_length false hl]
+    (fun i _ (j : Fin t) => (increment^[i] (List.replicate t false)).getD j false)
+    (fun f _ => lsbValue (List.ofFn f)) (fun i hi => ?_) (fun f hf => ?_) (fun i hi => ?_)
+    fun f _ => funext fun j => ?_
+  · simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hi ⊢
+    rw [List.ofFn_getD_eq_of_length false (BitString.iterate_increment t i hi.1).2]
     exact hi.2
-  · intro f hf
-    simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hf ⊢
-    have hlt := BitString.lsbValue_lt (List.ofFn f)
-    rw [List.length_ofFn] at hlt
-    refine ⟨hlt, ?_⟩
-    have := BitString.iterate_increment_lsbValue (List.ofFn f)
-    rw [List.length_ofFn] at this
-    rw [this]
-    exact hf
-  · intro i hi
-    simp only [Finset.mem_filter, Finset.mem_range] at hi
-    obtain ⟨hv, hl⟩ := BitString.iterate_increment t i hi.1
+  · simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_univ, true_and] at hf ⊢
+    refine ⟨by simpa using BitString.lsbValue_lt (List.ofFn f), ?_⟩
+    rwa [show increment^[lsbValue (List.ofFn f)] (List.replicate t false) = List.ofFn f by
+      simpa using BitString.iterate_increment_lsbValue (List.ofFn f)]
+  · obtain ⟨hv, hl⟩ := BitString.iterate_increment t i
+      (Finset.mem_range.mp (Finset.mem_filter.mp hi).1)
     rw [List.ofFn_getD_eq_of_length false hl, hv]
-  · intro f _
-    funext j
-    have := BitString.iterate_increment_lsbValue (List.ofFn f)
-    rw [List.length_ofFn] at this
-    rw [this]
+  · rw [show increment^[lsbValue (List.ofFn f)] (List.replicate t false) = List.ofFn f by
+      simpa using BitString.iterate_increment_lsbValue (List.ofFn f)]
     simp
 
 /-- Count certificates accepted by a polynomial-space verifier, at a polynomial-time unary length.
@@ -135,14 +122,10 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
   · exact (ComputableInPolySpace.of_polyTime
       (ComputableInPolyTime.const 0)).congr fun a => isEmptyElim a
   let _ : Inhabited α := Classical.inhabited_of_nonempty hα
-  have hn : ComputableInPolyTime (fun a => 2 ^ r a) enc encNat :=
-    ComputableInPolyTime.binary_two_pow.comp hr
-  have hinit : ComputableInPolyTime
-      (fun a => (a, List.replicate (r a) false, 0)) enc
+  have hinit : ComputableInPolyTime (fun a => (a, List.replicate (r a) false, 0)) enc
       (encPair enc (encPair encBits encNat)) :=
-    ComputableInPolyTime.id'.prod
-      (((ComputableInPolyTime.bitsReplicate false).comp hr).prod
-        (ComputableInPolyTime.const 0))
+    ComputableInPolyTime.id'.prod (((ComputableInPolyTime.bitsReplicate false).comp hr).prod
+      (ComputableInPolyTime.const 0))
   have hfirst : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.1)
       (encPair enc (encPair encBits encNat)) enc := .of_polyTime (by fun_prop)
   have hword : ComputableInPolySpace (fun s : α × List Bool × ℕ => s.2.1)
@@ -153,23 +136,18 @@ theorem computableInPolySpace_acceptCount {V : α × List Bool → Bool} {r : α
   have hadd := ComputableInPolySpace.of_polyTime ComputableInPolyTime.binary_add
   have hstep : ComputableInPolySpace (acceptCountStep V)
       (encPair enc (encPair encBits encNat)) (encPair enc (encPair encBits encNat)) := by
-    unfold acceptCountStep
-    fun_prop
-  have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit) hstep
-    (B := fun a => 2 * (enc a).length + 3 * r a + 5) (by growth_poly)
-    (fun a j hj => ?_)
-  · exact ((ComputableInPolySpace.of_polyTime
-      ((ComputableInPolyTime.snd _ _).snd')).comp hit).congr
-        fun a => streamAcceptCount_eq_acceptCount V a (r a)
-  · rw [iterate_acceptCountStep]
-    have hcard : ((Finset.range j).filter fun i =>
-        V (a, increment^[i] (List.replicate (r a) false))).card ≤ 2 ^ r a :=
-      (Finset.card_filter_le _ _).trans (by simpa using hj)
-    have hsize : (encNat ((Finset.range j).filter fun i =>
-        V (a, increment^[i] (List.replicate (r a) false))).card).length ≤ r a + 1 := by
-      rw [encNat_apply, Nat.size_eq_bits_len]
-      exact Nat.size_le.mpr (hcard.trans_lt (Nat.pow_lt_pow_right (by norm_num) (by lia)))
-    enc_len [BitString.length_iterate_increment] at hsize ⊢
+    unfold acceptCountStep; fun_prop
+  refine ((ComputableInPolySpace.of_polyTime ((ComputableInPolyTime.snd _ _).snd')).comp
+    (ComputableInPolySpace.iterate (ComputableInPolyTime.binary_two_pow.comp hr)
+      (.of_polyTime hinit) hstep (B := fun a => 2 * (enc a).length + 3 * r a + 5) (by growth_poly)
+      fun a j hj => ?_)).congr fun a => streamAcceptCount_eq_acceptCount V a (r a)
+  rw [iterate_acceptCountStep]
+  have hsize : (encNat ((Finset.range j).filter fun i =>
+      V (a, increment^[i] (List.replicate (r a) false))).card).length ≤ r a + 1 := by
+    rw [encNat_apply, Nat.size_eq_bits_len]
+    exact Nat.size_le.mpr (((Finset.card_filter_le _ _).trans (by simpa using hj)).trans_lt
+      (Nat.pow_lt_pow_right (by norm_num) (by lia)))
+  enc_len [BitString.length_iterate_increment] at hsize ⊢
 
 /-- Every #P function is computable in polynomial space when its output is written in binary. -/
 theorem SharpP.computableInPolySpace {f : α → ℕ} (hf : f ∈ SharpP enc) :

@@ -58,13 +58,12 @@ public theorem exec_saveOffsets {w L m N Q : ℕ} (x : Data 160)
         y.regs i = x.regs i) := by
   have hb := group_copy_bounds L m N Q
   have hn : Fits w (numBands L m N ^ 2 + 1) := allocated_fits hfit (by omega)
-  have hz :
-      ExecWithin (B := .standard) w (.seq (.op (.copy Reg.source (bank Wanted.offsets))) (ram[
+  obtain ⟨y, he, hy⟩ := exec_setupCopy x hp hfit
+    (show ExecWithin (B := .standard) w (.seq (.op (.copy Reg.source (bank Wanted.offsets))) (ram[
         Reg.destination ← Reg.offsets; Reg.length ← Reg.tiles + Reg.one ])) x
         (((x.set Reg.source (Wanted.offsetAddress L m N Q)).set Reg.destination
-          (offsetBase L m N Q)).set Reg.length (numBands L m N ^ 2 + 1)) 3 := by
-    wram_exec * [hn]
-  obtain ⟨y, he, hy⟩ := exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inl (by omega))
+          (offsetBase L m N Q)).set Reg.length (numBands L m N ^ 2 + 1)) 3 by wram_exec * [hn])
+    (by omega) (by omega) (Or.inl (by omega))
   exact ⟨y, he.mono (by omega), hy⟩
 
 /-- Actual argument setup and native copying preserve the caller protocol and every other
@@ -79,15 +78,13 @@ public theorem exec_saveCodes {w L m N Q : ℕ} (x : Data 160)
       (∀ i, 7 ≤ i.val → i ≠ Reg.source → i ≠ Reg.destination → i ≠ Reg.length →
         y.regs i = x.regs i) := by
   have hb := group_copy_bounds L m N Q
-  have horder : offsetBase L m N Q ≤ codeBase L m N Q := by
-    unfold codeBase
-    omega
-  have hz : ExecWithin (B := .standard) w (.seq (.op (.copy Reg.source (bank Wanted.codes))) (ram[
-      Reg.destination ← Reg.codes; Reg.length ← Reg.queryCount ])) x
-      (((x.set Reg.source (Wanted.codeAddress L m N Q)).set Reg.destination
-        (codeBase L m N Q)).set Reg.length Q) 3 := by
-    wram_exec *
-  exact exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inl (by omega))
+  have horder : offsetBase L m N Q ≤ codeBase L m N Q := by unfold codeBase; omega
+  exact exec_setupCopy x hp hfit
+    (show ExecWithin (B := .standard) w (.seq (.op (.copy Reg.source (bank Wanted.codes))) (ram[
+        Reg.destination ← Reg.codes; Reg.length ← Reg.queryCount ])) x
+        (((x.set Reg.source (Wanted.codeAddress L m N Q)).set Reg.destination
+          (codeBase L m N Q)).set Reg.length Q) 3 by wram_exec *)
+    (by omega) (by omega) (Or.inl (by omega))
 
 /-- Actual argument setup and native copying preserve the caller protocol and every other
 register beyond the copy routine. This is an internal producer-consumer execution interface. -/
@@ -101,16 +98,13 @@ public theorem exec_saveOriginals {w L m N Q : ℕ} (x : Data 160)
       (∀ i, 7 ≤ i.val → i ≠ Reg.source → i ≠ Reg.destination → i ≠ Reg.length →
         y.regs i = x.regs i) := by
   have hb := group_copy_bounds L m N Q
-  have horder : offsetBase L m N Q ≤ originalBase L m N Q := by
-    unfold originalBase codeBase
-    omega
-  have hz :
-      ExecWithin (B := .standard) w (.seq (.op (.copy Reg.source (bank Wanted.originals))) (ram[
+  have horder : offsetBase L m N Q ≤ originalBase L m N Q := by unfold originalBase codeBase; omega
+  exact exec_setupCopy x hp hfit
+    (show ExecWithin (B := .standard) w (.seq (.op (.copy Reg.source (bank Wanted.originals))) (ram[
         Reg.destination ← Reg.originals; Reg.length ← Reg.queryCount ])) x
         (((x.set Reg.source (Wanted.originalAddress L m N Q)).set Reg.destination
-          (originalBase L m N Q)).set Reg.length Q) 3 := by
-    wram_exec *
-  exact exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inl (by omega))
+          (originalBase L m N Q)).set Reg.length Q) 3 by wram_exec *)
+    (by omega) (by omega) (Or.inl (by omega))
 
 /-- Save all three actual routing arrays before the second producer reuses low memory.
 Every protected value is read from the router's executed memory, and the complete outside
@@ -130,33 +124,17 @@ public theorem exec_saveGroups {w L m N Q : ℕ} (x : Data 160)
   obtain ⟨b, hb, bp, bm, bf⟩ := exec_saveCodes a ap (by regs_frame) hfit
   obtain ⟨y, hy, yp, ym, _⟩ := exec_saveOriginals b bp (by regs_frame) hfit
   have hbounds := group_copy_bounds L m N Q
-  have horder : offsetBase L m N Q ≤ codeBase L m N Q ∧
-      codeBase L m N Q ≤ originalBase L m N Q := by
-    simp only [codeBase, originalBase]
-    omega
-  refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), yp, ?_, ?_, ?_, ?_⟩
-  · intro t ht
-    have hbefore : offsetBase L m N Q + t < codeBase L m N Q := by unfold codeBase; omega
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm,
-      ArrayCopy.copyPrefix_outside (by omega), am]
-    exact ArrayCopy.copyPrefix_read (by omega)
-  · intro j hj
-    have hbefore : codeBase L m N Q + j < originalBase L m N Q := by
-      unfold originalBase
-      omega
-    have hlow : Wanted.codeAddress L m N Q + j < offsetBase L m N Q := by omega
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_read hj,
+  have hoff : offsetBase L m N Q + (numBands L m N ^ 2 + 1) = codeBase L m N Q := rfl
+  have hcode : codeBase L m N Q + Q = originalBase L m N Q := rfl
+  refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), yp, fun t ht => ?_, fun j hj => ?_,
+    fun j hj => ?_, fun p hp => ?_⟩
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_outside (by omega),
+      am, ArrayCopy.copyPrefix_read (by omega)]
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_read hj,
       am, ArrayCopy.copyPrefix_outside (by omega)]
-  · intro j hj
-    have hlow : Wanted.originalAddress L m N Q + j < offsetBase L m N Q := by omega
-    rw [ym, ArrayCopy.copyPrefix_read hj, bm, ArrayCopy.copyPrefix_outside (by omega),
+  · rw [ym, ArrayCopy.copyPrefix_read hj, bm, ArrayCopy.copyPrefix_outside (by omega),
       am, ArrayCopy.copyPrefix_outside (by omega)]
-  · intro p hp
-    have hoff : offsetBase L m N Q + (numBands L m N ^ 2 + 1) = codeBase L m N Q := by
-      unfold codeBase
-      omega
-    have hcode : codeBase L m N Q + Q = originalBase L m N Q := rfl
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm,
-      ArrayCopy.copyPrefix_outside (by omega), am, ArrayCopy.copyPrefix_outside (by omega)]
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_outside (by omega),
+      am, ArrayCopy.copyPrefix_outside (by omega)]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
