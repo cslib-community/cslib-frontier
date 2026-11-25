@@ -68,15 +68,13 @@ theorem query_bounds_runFrom (machine : MultiTapePTM k Symbol Control Operation)
   | zero =>
     simp only [runFrom_zero, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
       Prod.mk.injEq] at h
-    rw [h.2.2]
-    exact ⟨by simp, by simpa using htranscript⟩
+    rw [h.2.2]; exact ⟨by simp, by simpa using htranscript⟩
   | succ fuel ih =>
     cases hs : cfg.tapes.state with
     | none =>
       simp only [runFrom_succ, hs, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
         Prod.mk.injEq] at h
-      rw [h.2.2]
-      exact ⟨by simp, fun entry hentry => (htranscript entry hentry).trans (Nat.le_add_right ..)⟩
+      rw [h.2.2]; exact ⟨by simp, fun e he => (htranscript e he).trans (Nat.le_add_right ..)⟩
     | some control =>
       simp only [runFrom_succ, hs, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
         ProbComp.eval_uniform, PMF.bind_map, Function.comp_def, PMF.mem_support_bind_iff] at h
@@ -85,33 +83,22 @@ theorem query_bounds_runFrom (machine : MultiTapePTM k Symbol Control Operation)
           cfg.answerSymbols coin with
       | step action symbol move =>
         rw [ha] at h
-        have hnext : ∀ op, ((cfg.step action symbol move).channels op).queryBuffer.length ≤
-            bound + 1 := by
-          intro op
-          simp only [Config.step, List.length_append]
-          exact Nat.add_le_add (hbuffers op) (symbol op).length_toList_le
-        obtain ⟨hcount, hsize⟩ := ih _ (bound + 1) hnext _ _
-          (fun entry hentry => (htranscript entry hentry).trans (Nat.le_add_right ..)) h
-        exact ⟨by lia, fun entry hentry => by have := hsize entry hentry; lia⟩
+        obtain ⟨hcount, hsize⟩ := ih _ (bound + 1) (fun op => by
+          simpa only [Config.step, List.length_append] using
+            Nat.add_le_add (hbuffers op) (symbol op).length_toList_le) _ _
+          (fun e he => (htranscript e he).trans (Nat.le_add_right ..)) h
+        exact ⟨by lia, fun e he => by have := hsize e he; lia⟩
       | query op next =>
-        simp only [ha, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query] at h
-        simp only [OracleComp.withTranscript, PMF.bind_map, Function.comp_def,
+        simp only [ha, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+          OracleComp.withTranscript, PMF.bind_map, Function.comp_def,
           PMF.mem_support_bind_iff] at h
-        obtain ⟨⟨answer, nextState⟩, _, h⟩ := h
-        have hnext : ∀ operation,
-            ((cfg.receive op next answer).channels operation).queryBuffer.length ≤ bound := by
-          intro operation
-          by_cases heq : operation = op
-          · subst operation
-            simp [Config.receive]
-          · simpa [Config.receive, heq] using hbuffers operation
-        obtain ⟨hcount, hsize⟩ := ih _ bound hnext _ _ (by
-          intro entry hentry
-          rcases List.mem_cons.mp hentry with rfl | hentry
-          · exact (hrequest op _).trans (hbuffers op)
-          · exact htranscript entry hentry) h
+        obtain ⟨⟨answer, _⟩, _, h⟩ := h
+        obtain ⟨hcount, hsize⟩ := ih _ bound (fun other => by
+          by_cases heq : other = op <;> simp [Config.receive, heq, hbuffers]) _ _
+          (fun e he => (List.mem_cons.mp he).elim
+            (fun h => h ▸ (hrequest op _).trans (hbuffers op)) (htranscript e)) h
         exact ⟨by simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hcount,
-          fun entry hentry => (hsize entry hentry).trans (by lia)⟩
+          fun e he => (hsize e he).trans (by lia)⟩
 
 /-- From blank channels, the same clock bounds external calls and every request length. -/
 theorem query_bounds_runOracle (machine : MultiTapePTM k Symbol Control Operation)
@@ -154,10 +141,9 @@ limit. -/
 theorem _root_.Turing.MultiTapeMachine.FiniteConfig.representsTake_init (limit : ℕ)
     (state : Control) (input : List Symbol) :
     (FiniteConfig.init (k := k) (Oracle := Operation) state input).RepresentsTake limit
-      { tapes := Cfg.init state input } := by
-  refine ⟨FiniteCfg.represents_init _ _, fun _ => rfl, ?_⟩
-  intro op position
-  simp [FiniteConfig.init, Cslib.Turing.BiTape.read_nil]
+      { tapes := Cfg.init state input } :=
+  ⟨FiniteCfg.represents_init _ _, fun _ => rfl,
+    fun _ _ => by simp [FiniteConfig.init, Cslib.Turing.BiTape.read_nil]⟩
 
 omit [DecidableEq Operation] in
 /-- When every answer head lies strictly before `limit`, the truncated finite configuration sees
@@ -169,13 +155,9 @@ theorem _root_.Turing.MultiTapeMachine.FiniteConfig.RepresentsTake.answerSymbols
     (hpos : ∀ op, (cfg.channels op).answerPos < (limit : ℤ)) :
     finite.answerSymbols = cfg.answerSymbols := by
   funext op
-  rw [FiniteConfig.answerSymbols, Config.answerSymbols, Channel.answerSymbol,
-    (h.answers op).head]
-  split_ifs with hnonneg
-  · have hlt : (cfg.channels op).answerPos.toNat < limit := by
-      have := hpos op
-      lia
-    exact List.getElem?_take_of_lt hlt
+  rw [FiniteConfig.answerSymbols, Config.answerSymbols, Channel.answerSymbol, (h.answers op).head]
+  split_ifs
+  · exact List.getElem?_take_of_lt (by have := hpos op; lia)
   · rfl
 
 omit [DecidableEq Operation] in
@@ -186,13 +168,11 @@ theorem _root_.Turing.MultiTapeMachine.FiniteConfig.RepresentsTake.step {limit :
     (h : finite.RepresentsTake limit cfg)
     (action : Turing.Action k Symbol Control) (symbol : Operation → Option Symbol)
     (move : Operation → SignType) :
-    (finite.step action symbol move).RepresentsTake limit (cfg.step action symbol move) := by
-  refine ⟨h.tapes.step action, ?_, ?_⟩
-  · intro op
-    simp only [FiniteConfig.step, Config.step, h.queries]
-  · intro op
-    simpa only [FiniteConfig.step, Config.step, Option.elim_none] using
-      (h.answers op).step (none, move op)
+    (finite.step action symbol move).RepresentsTake limit (cfg.step action symbol move) :=
+  ⟨h.tapes.step action, fun _ => by simp only [FiniteConfig.step, Config.step, h.queries],
+    fun op => by
+      simpa only [FiniteConfig.step, Config.step, Option.elim_none] using
+        (h.answers op).step (none, move op)⟩
 
 /-- Installing a truncated reply in finite storage represents installing the full reply in native
 storage. -/
@@ -203,18 +183,12 @@ theorem _root_.Turing.MultiTapeMachine.FiniteConfig.RepresentsTake.receive {limi
     (op : Operation) (next : Control) (answer : List Symbol) :
     (finite.receive op next (answer.take limit)).RepresentsTake limit
       (cfg.receive op next answer) := by
-  refine ⟨⟨rfl, h.tapes.inputPos, h.tapes.workTapes, h.tapes.output⟩, ?_, ?_⟩
-  · intro other
-    by_cases heq : other = op
-    · subst other
-      simp [FiniteConfig.receive, Config.receive]
-    · simpa [FiniteConfig.receive, Config.receive, heq] using h.queries other
-  · intro other
-    by_cases heq : other = op
-    · subst other
-      intro position
-      simp [FiniteConfig.receive, Config.receive, Cslib.Turing.BiTape.read_mk₁]
-    · simpa [FiniteConfig.receive, Config.receive, heq] using h.answers other
+  refine ⟨⟨rfl, h.tapes.inputPos, h.tapes.workTapes, h.tapes.output⟩, fun other => ?_,
+    fun other => ?_⟩ <;> by_cases heq : other = op
+  · subst other; simp [FiniteConfig.receive, Config.receive]
+  · simpa [FiniteConfig.receive, Config.receive, heq] using h.queries other
+  · subst other; intro; simp [FiniteConfig.receive, Config.receive, Cslib.Turing.BiTape.read_mk₁]
+  · simpa [FiniteConfig.receive, Config.receive, heq] using h.answers other
 
 /-- Truncating every reply to `limit` symbols in `finiteRunFrom` produces the exact same typed
 program as `runFrom` whenever the remaining fuel keeps every answer head below `limit`. -/
@@ -237,34 +211,26 @@ theorem finiteRunFrom_take_eq {spec : OracleSpec.{0, 0} Query}
     | none =>
       simp only [finiteStep, h.tapes.state, hs, pure_bind]
       change machine.finiteRunFrom _ _ fuel finite = _
-      rw [ih finite cfg h (by lia) (fun op => by have := hpos op; lia)]
+      rw [ih finite cfg h (by lia) fun op => by have := hpos op; lia]
       simp [runFrom, runConfigFrom, MultiTapeMachine.runConfigFrom, hs]
     | some state =>
-      have hans : finite.answerSymbols = cfg.answerSymbols :=
-        h.answerSymbols (fun op => by have := hpos op; lia)
-      simp only [finiteStep, h.tapes.state, h.tapes.inputSymbol,
-        h.tapes.workTapeSymbols, hans, bind_assoc, runFrom, runConfigFrom,
+      simp only [finiteStep, h.tapes.state, h.tapes.inputSymbol, h.tapes.workTapeSymbols,
+        h.answerSymbols fun op => by have := hpos op; lia, bind_assoc, runFrom, runConfigFrom,
         MultiTapeMachine.runConfigFrom, hs, map_bind]
       congr 1 with action : 1
       cases action with
       | step action symbol move =>
         simp only [pure_bind]
-        refine ih _ _ (h.step action symbol move) (by lia) (fun op => ?_)
-        have hmove : ((move op : SignType) : ℤ) ≤ 1 := by cases move op <;> decide
-        have := hpos op
-        simp only [Config.step]
-        lia
+        refine ih _ _ (h.step action symbol move) (by lia) fun op => ?_
+        have : ((move op : SignType) : ℤ) ≤ 1 := by cases move op <;> decide
+        have := hpos op; simp only [Config.step]; lia
       | query op next =>
         simp only [h.queries, bind_map_left, bind_assoc, pure_bind, map_bind]
         congr 1 with answer : 1
-        refine ih _ _ (h.receive op next answer) (by lia) (fun other => ?_)
+        refine ih _ _ (h.receive op next answer) (by lia) fun other => ?_
         by_cases heq : other = op
-        · subst other
-          simp only [Config.receive, Function.update_self, zero_add]
-          lia
-        · have := hpos other
-          simp only [Config.receive, Function.update_of_ne heq]
-          lia
+        · subst other; simp only [Config.receive, Function.update_self, zero_add]; lia
+        · have := hpos other; simp only [Config.receive, Function.update_of_ne heq]; lia
 
 /-- Over `fuel` steps from blank initial storage, truncating every oracle reply to `fuel` symbols
 preserves the exact typed `OracleComp` program. -/

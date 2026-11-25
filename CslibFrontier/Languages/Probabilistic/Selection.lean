@@ -147,14 +147,10 @@ private theorem SelectionInvariant.update {trials i : ℕ} {rate : ℕ → ℝ} 
     refine ⟨by lia, by simp, fun _ => ⟨by lia, ?_⟩, ?_⟩
     · simpa only [hindex] using (show (successes : ℝ) / trials ≤ rate i + ε by linarith)
     · intro j hj
-      by_cases hji : j < i
-      · have := hall j hji
-        dsimp only
-        linarith
-      · have : j = i := by lia
-        subst j
-        dsimp only
-        linarith
+      dsimp only
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hji | rfl
+      · linarith [hall j hji]
+      · linarith
   · have hi : 0 < i := by
       by_contra h
       obtain ⟨rfl, rfl⟩ := hzero (by lia)
@@ -164,11 +160,8 @@ private theorem SelectionInvariant.update {trials i : ℕ} {rate : ℕ → ℝ} 
     obtain ⟨hchosenIndex, hchosenRate⟩ := hchosen hi
     refine ⟨by lia, by simp, fun _ => ⟨by lia, hchosenRate⟩, ?_⟩
     intro j hj
-    by_cases hji : j < i
-    · exact hall j hji
-    · have : j = i := by lia
-      subst j
-      linarith
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hji | rfl
+    exacts [hall j hji, by linarith]
 
 /-- If every empirical probability is accurate except with probability `error`, selection loses
 at most twice the tolerance relative to every candidate, except with probability `count * error`.
@@ -187,21 +180,16 @@ theorem selectBest_error_le (count trials : ℕ) (hcount : 0 < count)
     (0, 0, 0) (SelectionInvariant trials rate ε)
     (by simp [SelectionInvariant]) herror (by
       intro i hi state hstate
-      rw [OracleComp.selectStep, eval_map, PMF.toOuterMeasure_map_apply]
-      rw [hstate.1]
+      rw [OracleComp.selectStep, eval_map, PMF.toOuterMeasure_map_apply, hstate.1]
       refine le_trans ?_ (hestimate i hi)
-      apply Probability.PMF.toOuterMeasure_toReal_mono
-      intro successes hbad
-      by_contra haccurate
-      exact hbad (hstate.update successes (le_of_lt (lt_of_not_ge haccurate))))
+      exact Probability.PMF.toOuterMeasure_toReal_mono _ fun successes hbad =>
+        by_contra fun h => hbad (hstate.update successes (lt_of_not_ge h).le))
   rw [OracleComp.selectBest, eval_map, PMF.toOuterMeasure_map_apply]
   refine le_trans ?_ hrun
   apply Probability.PMF.toOuterMeasure_toReal_mono
-  rintro ⟨next, best, count⟩ hbad hstate
-  obtain ⟨_, _, hchosen, hall⟩ := hstate
+  rintro ⟨next, best, count⟩ hbad ⟨_, _, hchosen, hall⟩
   obtain ⟨hindex, hselected⟩ := hchosen hcount
-  apply hbad
-  refine ⟨hindex, fun i hi => ?_⟩
+  refine hbad ⟨hindex, fun i hi => ?_⟩
   have := hall i hi
   dsimp only [rate] at *
   linarith
@@ -261,14 +249,11 @@ theorem selectFrom_error_pow {α : Type} (values : List α) (hvalues : 0 < value
   refine le_trans ?_ (selectBest_error_pow values.length confidence inverseTolerance hvalues
     htolerance (fun i => test (values[i]?.getD fallback)))
   apply Probability.PMF.toOuterMeasure_toReal_mono
-  intro chosen hbad hgood
-  obtain ⟨hchosen, hbest⟩ := hgood
-  apply hbad
-  refine ⟨?_, ?_⟩
+  rintro chosen hbad ⟨hchosen, hbest⟩
+  refine hbad ⟨?_, fun value hmem => ?_⟩
   · simp only [List.getElem?_eq_getElem hchosen, Option.getD_some]
     exact List.getElem_mem hchosen
-  · intro value hmem
-    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hmem
+  · obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hmem
     simpa only [List.getElem?_eq_getElem hi, Option.getD_some] using hbest i hi
 
 /-- A noticeable chance of drawing a good candidate can be amplified by sampling a pool and

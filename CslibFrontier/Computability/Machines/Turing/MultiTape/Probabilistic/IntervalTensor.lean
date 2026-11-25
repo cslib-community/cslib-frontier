@@ -169,9 +169,15 @@ private theorem mem_blockWindow_of_window {c : Cfg k Bool State input} (h : Fin 
     b * (c.blockIndex b (some h) + d - 1) + (r.val : ℤ) ∈ c.blockWindow b h := by
   have hb : (0 : ℤ) < b := by exact_mod_cast Nat.pos_of_neZero b
   have hr : (r.val : ℤ) < b := by exact_mod_cast ZMod.val_lt r
-  have hd : ((d : ℕ) : ℤ) < 3 := by exact_mod_cast d.isLt
+  have hd : ((d : ℕ) : ℤ) ≤ 2 := by exact_mod_cast Nat.lt_succ_iff.mp d.isLt
   simp only [Cfg.blockWindow, Cfg.blockIndex, Cfg.headPos_some, Set.mem_Ico]
-  constructor <;> nlinarith
+  have hlo : (b : ℤ) * (c.workTapePos h / b - 1) ≤ b * (c.workTapePos h / b + d - 1) :=
+    mul_le_mul_of_nonneg_left (by omega) hb.le
+  have hhi : (b : ℤ) * (c.workTapePos h / b + d - 1) + b ≤ b * (c.workTapePos h / b + 2) := by
+    have : (b : ℤ) * (c.workTapePos h / b + d) ≤ b * (c.workTapePos h / b + 2) :=
+      mul_le_mul_of_nonneg_left (by omega) hb.le
+    linarith
+  exact ⟨by omega, by omega⟩
 
 /-- **An embedded view agrees with the configuration.** Embedding the block indices, control
 record and window contents of `c` gives a configuration with the state, heads and window contents
@@ -197,31 +203,20 @@ theorem agreeOn_embedCfg_view (c : Cfg k Bool State input) :
     exact mul_ediv_add_val_intCast (c.headPos (some h))
   · -- A window cell `z` is entry `z / b - J + 1` of the window, at offset `z mod b`.
     simp only [Cfg.blockWindow, Set.mem_Ico] at hz
-    have hlo := Int.emod_nonneg z hb.ne'
-    have hhi := Int.emod_lt_of_pos z hb
-    have hval := mul_ediv_add_val_intCast (b := b) z
-    have hdiv := Int.mul_ediv_add_emod z b
-    have hJ : c.blockIndex b (some h) = c.workTapePos h / b := rfl
-    have h₁ : c.workTapePos h / b - 1 ≤ z / b := by
-      by_contra hcon
-      have : b * (z / b) ≤ b * (c.workTapePos h / b - 2) :=
-        mul_le_mul_of_nonneg_left (by omega) hb.le
-      nlinarith
-    have h₂ : z / b < c.workTapePos h / b + 2 := by
-      by_contra hcon
-      have : b * (c.workTapePos h / b + 2) ≤ b * (z / b) :=
-        mul_le_mul_of_nonneg_left (by omega) hb.le
-      nlinarith
+    have h₁ : c.workTapePos h / b - 1 ≤ z / b :=
+      (Int.le_ediv_iff_mul_le hb).mpr (by rw [mul_comm]; exact hz.1)
+    have h₂ : z / b < c.workTapePos h / b + 2 :=
+      (Int.ediv_lt_iff_lt_mul hb).mpr (by rw [mul_comm]; exact hz.2)
     have hcond : 0 ≤ z / b - c.blockIndex b (some h) + 1 ∧
         z / b - c.blockIndex b (some h) + 1 < 3 := by
-      rw [hJ]
+      change 0 ≤ z / b - c.workTapePos h / b + 1 ∧ z / b - c.workTapePos h / b + 1 < 3
       omega
     change windowCell b (c.blockIndex b) (c.windowContents b (c.blockIndex b)) h z = _
     rw [windowCell, dite_eq_left hcond]
     simp only [Cfg.windowContents, Cfg.blockContents]
     rw [Int.toNat_of_nonneg hcond.1,
-      show c.blockIndex b (some h) + (z / b - c.blockIndex b (some h) + 1) - 1 = z / b by ring,
-      hval]
+      show c.blockIndex b (some h) + (z / b - c.blockIndex b (some h) + 1) - 1 = z / b by omega,
+      mul_ediv_add_val_intCast]
 
 end Embed
 
@@ -338,8 +333,8 @@ theorem intervalStart_succ_ofFn {q b : ℕ} (y : Fin (q * b) → Bool) (c : Cfg 
         (machine.intervalStart b (List.ofFn y) c i) := by
   rw [intervalStart_succ]
   congr 1
-  have hi := i.isLt
-  have hle : i * b + b ≤ q * b := by nlinarith
+  have hle : i * b + b ≤ q * b := by
+    simpa only [Nat.succ_mul] using Nat.mul_le_mul_right b i.isLt
   refine List.ext_getElem (by simp; omega) fun r h₁ h₂ => ?_
   simp only [List.getElem_take, List.getElem_drop, List.getElem_ofFn]
   congr 1

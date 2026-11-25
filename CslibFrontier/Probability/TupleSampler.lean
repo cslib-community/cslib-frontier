@@ -156,29 +156,23 @@ theorem sub_mul_le_two_mul_sum_sum [Nonempty U] (F : U → ℝ)
     ((#W : ℝ) - Fintype.card U ^ Fintype.card ι * Real.exp (-(μ * Fintype.card ι / 8))) *
         (μ * Fintype.card ι) ≤ 2 * ∑ b ∈ W, ∑ i, F (b i) := by
   classical
-  set t : ℝ := μ * Fintype.card ι with ht
+  set t : ℝ := μ * Fintype.card ι
   have ht0 : 0 ≤ t := by positivity
   set bad := W.filter fun b => ∑ i, F (b i) ≤ t / 2
-  have hbad : (#bad : ℝ) ≤ Fintype.card U ^ Fintype.card ι * Real.exp (-(t / 8)) := by
-    refine le_trans ?_ (card_filter_sum_le_half_le_exp F hF hμ)
-    exact_mod_cast card_le_card fun b hb => by
-      simp only [bad, mem_filter] at hb
-      simpa using hb.2
+  have hbad : (#bad : ℝ) ≤ Fintype.card U ^ Fintype.card ι * Real.exp (-(t / 8)) :=
+    le_trans (by exact_mod_cast card_le_card fun b hb => by simpa using (mem_filter.1 hb).2)
+      (card_filter_sum_le_half_le_exp F hF hμ)
+  have hcard : (#W : ℝ) - #bad = #(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) := by
+    rw [← card_filter_add_card_filter_not (s := W) (p := fun b => ∑ i, F (b i) ≤ t / 2)]
+    push_cast; ring
+  have hlow : (#(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) : ℝ) * (t / 2) ≤
+      ∑ b ∈ W.filter (fun b => ¬∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) := by
+    simpa only [nsmul_eq_mul] using card_nsmul_le_sum
+      (W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) (fun b => ∑ i, F (b i)) (t / 2)
+      fun b hb => (not_le.1 (mem_filter.1 hb).2).le
   have hgood : ((#W : ℝ) - #bad) * (t / 2) ≤ ∑ b ∈ W, ∑ i, F (b i) := by
-    rw [← sum_filter_add_sum_filter_not W fun b => ∑ i, F (b i) ≤ t / 2]
-    have hnn : 0 ≤ ∑ b ∈ W.filter (fun b => ∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) :=
-      sum_nonneg fun b _ => sum_nonneg fun i _ => (hF _).1
-    have hcard : (#W : ℝ) - #bad = #(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) := by
-      rw [← card_filter_add_card_filter_not (s := W) (p := fun b => ∑ i, F (b i) ≤ t / 2)]
-      push_cast
-      ring
-    have hlow : (#(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) : ℝ) * (t / 2) ≤
-        ∑ b ∈ W.filter (fun b => ¬∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) := by
-      have h := card_nsmul_le_sum (W.filter fun b => ¬∑ i, F (b i) ≤ t / 2)
-        (fun b => ∑ i, F (b i)) (t / 2) fun b hb => (not_le.1 (mem_filter.1 hb).2).le
-      simpa only [nsmul_eq_mul] using h
-    rw [hcard]
-    linarith
+    rw [hcard, ← sum_filter_add_sum_filter_not W fun b => ∑ i, F (b i) ≤ t / 2]
+    linarith [sum_nonneg (s := bad) fun b _ => sum_nonneg (s := univ) fun i _ => (hF (b i)).1]
   nlinarith
 
 /-- **Edges into a dense slice**: for a family `S` of tuples that agree on `P`, the entries

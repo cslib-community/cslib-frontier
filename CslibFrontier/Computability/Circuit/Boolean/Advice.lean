@@ -80,10 +80,10 @@ theorem PPoly.of_advice {L M : Language Bool} (hM : M ∈ PPoly) (α : ℕ → L
   let a : Fin (frame (α n)).length → Bool := fun j => (frame (α n))[j]
   have ha : List.ofFn a = frame (α n) := List.ofFn_getElem
   have hslice : L.slice n = fun x => M.slice ((frame (α n)).length + n)
-      (substitute (prependInputs a) x) := by
-    funext x
-    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, Language.slice_eq_true_iff,
-      substitute_prependInputs, List.ofFn_fin_append, h, List.length_ofFn, ha]
+      (substitute (prependInputs a) x) :=
+    funext fun x => by
+      rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, Language.slice_eq_true_iff,
+        substitute_prependInputs, List.ofFn_fin_append, h, List.length_ofFn, ha]
   have hc := complexity_substitute_le (prependInputs a) (M.slice ((frame (α n)).length + n))
   rwa [← hslice, length_frame] at hc
 
@@ -191,12 +191,11 @@ theorem PAdvice_subset_PPoly : PAdvice ⊆ PPoly := by
 /-- Polynomial advice is the union of the exact polynomially bounded advice-length classes. -/
 theorem mem_PAdvice_iff_exists_mem_PWithAdvice {L : Language Bool} :
     L ∈ PAdvice ↔ ∃ length : ℕ → ℕ, PolynomiallyBounded length ∧
-      L ∈ Complexity.PWithAdvice length := by
-  constructor
-  · rintro ⟨advice, hpoly, A, hA, hL⟩
-    exact ⟨fun n => (advice n).length, hpoly, advice, fun _ => rfl, A, hA, hL⟩
-  · rintro ⟨length, hpoly, advice, hlen, A, hA, hL⟩
-    exact ⟨advice, by simpa only [hlen] using hpoly, A, hA, hL⟩
+      L ∈ Complexity.PWithAdvice length :=
+  ⟨fun ⟨advice, hpoly, A, hA, hL⟩ =>
+    ⟨fun n => (advice n).length, hpoly, advice, fun _ => rfl, A, hA, hL⟩,
+    fun ⟨_, hpoly, advice, hlen, A, hA, hL⟩ =>
+      ⟨advice, by simpa only [hlen] using hpoly, A, hA, hL⟩⟩
 
 /-- A specified polynomially bounded advice length is polynomial advice. -/
 theorem PWithAdvice_subset_PAdvice {length : ℕ → ℕ} (h : PolynomiallyBounded length) :
@@ -224,26 +223,19 @@ theorem PPoly.exists_evalAdvice {L : Language Bool} (hL : L ∈ PPoly) (N : Poly
   let S : Polynomial ℕ := Polynomial.C c * (N + 1) ^ d
   let W : Polynomial ℕ := S + (N + S) + S * (3 + 2 * (N + S))
   let P : Polynomial ℕ := (N + 1) * W
-  have hS (n : ℕ) : S.eval n = c * (N.eval n + 1) ^ d := by
-    simp only [S, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow,
-      Polynomial.eval_add, Polynomial.eval_one]
   have hW (n : ℕ) : W.eval n = certLength (N.eval n) (S.eval n) := by
     simp only [W, certLength, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat]
-  have hP (n : ℕ) : P.eval n = (N.eval n + 1) * certLength (N.eval n) (S.eval n) := by
-    simp only [P, hW, Polynomial.eval_mul, Polynomial.eval_add, Polynomial.eval_one]
-  have hsize (n : ℕ) : ∀ m ≤ N.eval n, (C m).size ≤ S.eval n := fun m hm =>
+  have hsize (n : ℕ) {m : ℕ} (hm : m ≤ N.eval n) : (C m).size ≤ S.eval n :=
     ((hC m).1.trans (hcd m)).trans (by
-      rw [hS]
+      simp only [S, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow,
+        Polynomial.eval_add, Polynomial.eval_one]
       exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left (Nat.add_le_add_right hm 1) d))
-  let α : ℕ → List Bool := fun n => familyAdvice (N.eval n) (S.eval n) C
-  have hlen (n : ℕ) : (α n).length = P.eval n :=
-    (length_familyAdvice (hsize n)).trans (hP n).symm
-  have hα : PolynomiallyBounded fun n => (α n).length := by
-    have hfun : (fun n => (α n).length) = fun n => P.eval n := funext hlen
-    rw [hfun]
-    fun_prop
-  refine ⟨S, W, P, α, hlen, hα, fun n x hx => ?_⟩
-  rw [hW, evalAdvice_familyAdvice (hsize n) hx, (hC _).2, single_apply,
+  have hlen (n : ℕ) : (familyAdvice (N.eval n) (S.eval n) C).length = P.eval n := by
+    simp only [length_familyAdvice (fun m hm => hsize n hm), P, hW, Polynomial.eval_mul,
+      Polynomial.eval_add, Polynomial.eval_one]
+  refine ⟨S, W, P, fun n => familyAdvice (N.eval n) (S.eval n) C, hlen,
+    funext hlen ▸ by fun_prop, fun n x hx => ?_⟩
+  rw [hW, evalAdvice_familyAdvice (fun m hm => hsize n hm) hx, (hC _).2, single_apply,
     Language.slice_eq_true_iff]
   simp only [Fin.getElem_fin, List.ofFn_getElem]
 
@@ -252,15 +244,9 @@ polynomial size has polynomial advice. -/
 theorem PPoly_subset_PAdvice : PPoly ⊆ PAdvice := by
   intro L hL
   obtain ⟨S, W, _, α, -, hα, h_eval⟩ := PPoly.exists_evalAdvice hL Polynomial.X
-  refine ⟨α, hα, {p : List Bool × List Bool |
-    evalAdvice (S.eval p.2.length) (W.eval p.2.length) p.1 p.2 = true}, ?_, fun x => ?_⟩
-  · refine ⟨fun p => evalAdvice (S.eval p.2.length) (W.eval p.2.length) p.1 p.2,
-      ?_, fun _ => Iff.rfl⟩
-    have hx : ComputableInPolyTime Prod.snd (encPair encBits encBits) encBits :=
-      ComputableInPolyTime.snd _ _
-    exact computableInPolyTime_evalAdvice_eval S W (length_bits.comp hx)
-      (ComputableInPolyTime.fst _ _) hx
-  · exact (h_eval x.length x (by simp)).symm
+  refine ⟨α, hα, {p | evalAdvice (S.eval p.2.length) (W.eval p.2.length) p.1 p.2 = true},
+    ⟨_, computableInPolyTime_evalAdvice_eval S W (length_bits.comp (.snd _ _)) (.fst _ _)
+      (.snd _ _), fun _ => .rfl⟩, fun x => (h_eval x.length x (by simp)).symm⟩
 
 /-- **P/poly = P/advice** [Arora and Barak, Theorem 6.18][AroraBarak09]: the circuit class P/poly
 equals the advice class P/advice. -/

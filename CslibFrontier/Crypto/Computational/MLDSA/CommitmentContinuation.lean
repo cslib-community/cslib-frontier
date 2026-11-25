@@ -259,9 +259,7 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
       simp only [scored_eq_measured, measured_sign (C := C) (ask := ask) (k := k), tapeReply,
         PMF.pure_bind, isXofQuery, Bool.toNat_false, Nat.add_zero]
       simp only [← scored_eq_measured]
-      have len : n = n - 1 + 1 := by
-        change 1 ≤ n at fits
-        lia
+      have len : n = n - 1 + 1 := (Nat.sub_add_cancel fits).symm
       have eq : S + (m * Q + (n - 1 : ℕ) * S + T) = m * Q + n * S + T := by
         conv_rhs => rw [len, Nat.cast_add_one]
         ring

@@ -276,11 +276,10 @@ def rawStrideHash {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U) :
 
 theorem two_mul_rawStrideHash_add_one_lt {c_exp U n_max : ℕ} (θ : Seed c_exp n_max) (u : Fin U) :
     2 * (rawStrideHash θ u).val + 1 < numBuckets n_max := by
-  have hlt := (rawStrideHash θ u).isLt
-  have hpos := bucketBits_pos n_max
-  have hpow : 2 * 2 ^ (bucketBits n_max - 1) = numBuckets n_max := by
+  have := (rawStrideHash θ u).isLt
+  have : 2 * 2 ^ (bucketBits n_max - 1) = numBuckets n_max := by
     dsimp only [numBuckets]
-    rw [← pow_succ', Nat.sub_add_cancel hpos]
+    rw [← pow_succ', Nat.sub_add_cancel (bucketBits_pos n_max)]
   omega
 
 /-- Odd probe stride `2 * (rawStrideHash θ u).val + 1 ∈ Fin (numBuckets n_max)`. -/
@@ -442,24 +441,20 @@ theorem Rep.unique {w base c_exp U V n_max : ℕ} {θ : Seed c_exp n_max}
 theorem SlotArrayWF.congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ → ℕ}
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, mem' a = mem a)
     (hwf : SlotArrayWF base c_exp U n_max mem) :
-    SlotArrayWF base c_exp U n_max mem' := by
-  intro j
-  have h0 := hmem _ (by simpa using
-    slotAddr_mem_footprint (base := base) (c_exp := c_exp) 0 (by omega) j)
-  have h1 := hmem _ (by simpa using
-    slotAddr_mem_footprint (base := base) (c_exp := c_exp) 1 (by omega) j)
-  simpa only [SlotArrayWF, h0, h1] using hwf j
+    SlotArrayWF base c_exp U n_max mem' := fun j => by
+  simpa only [SlotArrayWF,
+    hmem _ (by simpa using slotAddr_mem_footprint (base := base) (c_exp := c_exp) 0 (by decide) j),
+    hmem _ (by simpa using slotAddr_mem_footprint (base := base) (c_exp := c_exp) 1 (by decide) j)]
+    using hwf j
 
 theorem extractSlots_congr_mem {base c_exp U n_max : ℕ} {mem mem' : ℕ → ℕ}
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, mem' a = mem a) :
     extractSlots base c_exp U n_max mem' = extractSlots base c_exp U n_max mem := by
   funext j
-  have h0 := hmem _ (by simpa using
-    slotAddr_mem_footprint (base := base) (c_exp := c_exp) 0 (by omega) j)
-  have h1 := hmem _ (by simpa using
-    slotAddr_mem_footprint (base := base) (c_exp := c_exp) 1 (by omega) j)
-  have h2 := hmem _ (slotAddr_mem_footprint 2 (by omega) j)
-  simp only [extractSlots, h0, h1, h2]
+  simp only [extractSlots,
+    hmem _ (by simpa using slotAddr_mem_footprint (base := base) (c_exp := c_exp) 0 (by decide) j),
+    hmem _ (by simpa using slotAddr_mem_footprint (base := base) (c_exp := c_exp) 1 (by decide) j),
+    hmem _ (slotAddr_mem_footprint 2 (by decide) j)]
 
 theorem Rep.congr {w base c_exp U V n_max : ℕ} {θ : Seed c_exp n_max} {s : Dictionary.State U}
     {x x' : Data 16}
@@ -1359,13 +1354,11 @@ theorem encode_matches {c_exp U n_max : ℕ} (op : Dictionary.Op U) (regs : Fin 
       (fun i => if (subroutineCode c_exp n_max).input i then encodeOp op i else regs i) := by
   cases op with
   | query u =>
-    refine ⟨rfl, ?_, fun _ _ h => by nomatch h⟩
-    simp +decide [subroutineCode, encodeOp, opKey]
+    exact ⟨rfl, by simp +decide [subroutineCode, encodeOp, opKey], fun _ _ h => nomatch h⟩
   | insert u v =>
-    refine ⟨rfl, ?_, fun u' v' h => ?_⟩
-    · simp +decide [subroutineCode, encodeOp, opKey]
-    · cases h
-      simp +decide [subroutineCode, encodeOp]
+    refine ⟨rfl, by simp +decide [subroutineCode, encodeOp, opKey], ?_⟩
+    rintro _ _ ⟨⟩
+    simp +decide [subroutineCode, encodeOp]
 
 theorem arguments_fit {w base c_exp U V n_max : ℕ}
     (hS : Fits w (base + space c_exp n_max))
@@ -1380,11 +1373,7 @@ theorem arguments_fit {w base c_exp U V n_max : ℕ}
   | query u => dsimp only [encodeOp]; split_ifs <;> first | exact fits_zero w | exact hU_fit u
   | insert u v =>
     dsimp only [encodeOp]
-    split_ifs
-    · exact hfit1
-    · exact hU_fit u
-    · exact hV.of_le hv.2.le
-    · exact fits_zero w
+    split_ifs <;> first | exact hfit1 | exact hU_fit u | exact hV.of_le hv.2.le | exact fits_zero w
 
 private theorem decodeOp_eq_step {U V n_max : ℕ} {s : Dictionary.State U}
     (op : Dictionary.Op U) (regs : Fin 16 → ℕ)
@@ -1417,13 +1406,13 @@ def charge (c_exp n_max : ℕ) : ℕ :=
 
 theorem probeBound_le_doubleTabThreshold (c_exp n_max : ℕ) :
     probeBound c_exp n_max ≤ doubleTabThreshold c_exp := by
-  have h4 := four_le_doubleTabThreshold c_exp
+  have := four_le_doubleTabThreshold c_exp
   dsimp only [probeBound]
   split_ifs <;> omega
 
 theorem charge_le_expectedOpCharge (c_exp n_max : ℕ) :
     charge c_exp n_max ≤ expectedOpCharge c_exp := by
-  have h := probeBound_le_doubleTabThreshold c_exp n_max
+  have := probeBound_le_doubleTabThreshold c_exp n_max
   dsimp only [charge, expectedOpCharge]
   omega
 
@@ -1578,13 +1567,10 @@ theorem step_exec_spec {w base c_exp U V n_max : ℕ}
     obtain ⟨e, hrep_y, hout, hmod⟩ := Classical.choose_spec
       (opCode_execWithin hS hV (hsupp p hp).1 o hv (hU_fit (opKey o))
         (hsupp p hp).2.1 (hsupp p hp).2.2.1 (hsupp p hp).2.2.2)
-    have hy : yOf p = Classical.choose (opCode_execWithin hS hV (hsupp p hp).1 o hv
-        (hU_fit (opKey o)) (hsupp p hp).2.1 (hsupp p hp).2.2.1 (hsupp p hp).2.2.2) := by
-      simp only [yOf, hp, ↓reduceDIte]
-    have hTp : T_probe p = probeCount (extractSlots base c_exp U n_max p.2.mem)
-        (opKey o) (probePerm p.1 (opKey o)) := by simp only [T_probe, hp, ↓reduceIte]
+    have hy : yOf p = _ := dite_eq_left hp
     refine ⟨?_, fun q hq => ?_⟩
-    · simpa only [PMF.pure_map, hy, hTp, opPathSteps] using ExecCodeDist.of_execWithin e
+    · simpa only [PMF.pure_map, hy, T_probe, hp, ↓reduceIte, opPathSteps] using
+        ExecCodeDist.of_execWithin e
     · obtain rfl : q = (p.1, yOf p) := by simpa using hq
       exact ⟨decodeOp_eq_step o _ (by rwa [hy]), hy ▸ hrep_y, hy ▸ hmod⟩
   · intro θ'

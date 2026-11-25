@@ -117,29 +117,35 @@ theorem cutTime_eq_upper_iff (p : Route) {s t : ℝ}
   dsimp [cutTime]
   simp only [AffineMap.lineMap_eq_right_iff, ne_of_lt hlu, false_or]
 
+private theorem cutTime_mem_of_bounds (p : Route) {s t : ℝ} (i : Fin p.segments)
+    (h : 0 ≤ p.cutLower s i ∧ p.cutLower s i < p.cutUpper t i ∧ p.cutUpper t i ≤ 1)
+    {u : ℝ} (hu : u ∈ Set.Icc 0 1) :
+    p.cutTime s t i u ∈ Set.Icc 0 1 := by
+  obtain ⟨hl, hlt, hh⟩ := h
+  have hu' := lineMap_mem_segment ℝ (p.cutLower s i) (p.cutUpper t i) hu
+  rw [segment_eq_Icc hlt.le] at hu'
+  exact ⟨hl.trans hu'.1, hu'.2.trans hh⟩
+
 /-- Cutting both ends never sends a retained real parameter outside its old segment. -/
 theorem cutTime_mem (p : Route) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t)
     (hst : s + t < 1) (i : Fin p.segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1) :
-    p.cutTime s t i u ∈ Set.Icc 0 1 := by
-  obtain ⟨hl, hlu, hh⟩ := p.cut_bounds hs ht hst i
-  dsimp [cutTime]
-  rw [AffineMap.lineMap_apply_ring']
-  constructor <;> nlinarith [hu.1, hu.2]
+    p.cutTime s t i u ∈ Set.Icc 0 1 :=
+  p.cutTime_mem_of_bounds i (p.cut_bounds hs ht hst i) hu
 
-private theorem cutTime_eq_zero (p : Route) {s t u : ℝ}
-    (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
-    (i : Fin p.segments) (hu : u ∈ Set.Icc 0 1) (heq : p.cutTime s t i u = 0) :
+private theorem cutTime_eq_zero (p : Route) {s t u : ℝ} (i : Fin p.segments)
+    (h : 0 ≤ p.cutLower s i ∧ p.cutLower s i < p.cutUpper t i ∧ p.cutUpper t i ≤ 1)
+    (hu : u ∈ Set.Icc 0 1) (heq : p.cutTime s t i u = 0) :
     u = 0 := by
-  obtain ⟨hl, hlu, _⟩ := p.cut_bounds hs ht hst i
+  obtain ⟨hl, hlu, _⟩ := h
   dsimp [cutTime] at heq
   rw [AffineMap.lineMap_apply_ring'] at heq
   nlinarith [hu.1]
 
-private theorem cutTime_eq_one (p : Route) {s t u : ℝ}
-    (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
-    (i : Fin p.segments) (hu : u ∈ Set.Icc 0 1) (heq : p.cutTime s t i u = 1) :
+private theorem cutTime_eq_one (p : Route) {s t u : ℝ} (i : Fin p.segments)
+    (h : 0 ≤ p.cutLower s i ∧ p.cutLower s i < p.cutUpper t i ∧ p.cutUpper t i ≤ 1)
+    (hu : u ∈ Set.Icc 0 1) (heq : p.cutTime s t i u = 1) :
     u = 1 := by
-  obtain ⟨_, hlu, hh⟩ := p.cut_bounds hs ht hst i
+  obtain ⟨_, hlu, hh⟩ := h
   dsimp [cutTime] at heq
   rw [AffineMap.lineMap_apply_ring'] at heq
   nlinarith [hu.2]
@@ -154,16 +160,16 @@ theorem support_cutEnds_subset (p : Route) {s t : ℝ}
   rw [eval_cutEnds p s t i u]
   exact p.at_mem_support i (p.cutTime_mem hs ht hst i hu)
 
-private theorem cut_position_eq {p : Route} {s t u v : ℝ}
-    (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
+/-- If every retained segment has positive width within the unit interval, equal original
+chain positions give equal restricted positions, including at shared segment endpoints. -/
+theorem position_cutEnds_eq_of_source_position_eq {p : Route} {s t u v : ℝ}
+    (hbounds : ∀ k, 0 ≤ p.cutLower s k ∧ p.cutLower s k < p.cutUpper t k ∧ p.cutUpper t k ≤ 1)
     (i j : Fin p.segments) (hu : u ∈ Set.Icc 0 1) (hv : v ∈ Set.Icc 0 1)
     (heq : p.position i (p.cutTime s t i u) = p.position j (p.cutTime s t j v)) :
     (p.cutEnds s t).position i u = (p.cutEnds s t).position j v := by
-  have hi := p.cutTime_mem hs ht hst i hu
-  have hj := p.cutTime_mem hs ht hst j hv
   by_cases hij : i = j
   · subst j
-    obtain ⟨_, hlt, _⟩ := p.cut_bounds hs ht hst i
+    obtain ⟨_, hlt, _⟩ := hbounds i
     dsimp [position, cutTime] at heq ⊢
     rw [AffineMap.lineMap_apply_ring', AffineMap.lineMap_apply_ring'] at heq
     have huv : u = v := by nlinarith
@@ -173,13 +179,13 @@ private theorem cut_position_eq {p : Route} {s t u v : ℝ}
         (hij : i.val < j.val)
         (heq : p.position i (p.cutTime s t i u) = p.position j (p.cutTime s t j v)) :
         (p.cutEnds s t).position i u = (p.cutEnds s t).position j v := by
-      have hi := p.cutTime_mem hs ht hst i hu
-      have hj := p.cutTime_mem hs ht hst j hv
+      have hi := p.cutTime_mem_of_bounds i (hbounds i) hu
+      have hj := p.cutTime_mem_of_bounds j (hbounds j) hv
       have hcast : (i.val : ℝ) + 1 ≤ j.val := by exact_mod_cast hij
       have hi1 : p.cutTime s t i u = 1 := by dsimp [position] at heq; linarith [hi.2, hj.1]
       have hj0 : p.cutTime s t j v = 0 := by dsimp [position] at heq; linarith [hi.2, hj.1]
-      have hu1 := cutTime_eq_one p hs ht hst i hu hi1
-      have hv0 := cutTime_eq_zero p hs ht hst j hv hj0
+      have hu1 := cutTime_eq_one p i (hbounds i) hu hi1
+      have hv0 := cutTime_eq_zero p j (hbounds j) hv hj0
       dsimp [position] at heq ⊢
       rw [hi1, hj0] at heq
       rw [hu1, hv0]
@@ -199,13 +205,13 @@ theorem atEnd_cutEnds_of_atEnd {p : Route} {s t u : ℝ}
   have hi1 : (i.val : ℝ) + 1 ≤ p.segments := by exact_mod_cast i.isLt
   cases b
   · have hu0 : p.cutTime s t i u = 0 := by dsimp [AtEnd, position] at heq; linarith [hi.1]
-    have hu' := cutTime_eq_zero p hs ht hst i hu hu0
+    have hu' := cutTime_eq_zero p i (p.cut_bounds hs ht hst i) hu hu0
     dsimp [AtEnd, position] at heq ⊢
     rw [hu0] at heq
     rw [hu']
     exact heq
   · have hu1 : p.cutTime s t i u = 1 := by dsimp [AtEnd, position] at heq; linarith [hi.2]
-    have hu' := cutTime_eq_one p hs ht hst i hu hu1
+    have hu' := cutTime_eq_one p i (p.cut_bounds hs ht hst i) hu hu1
     dsimp [AtEnd, position] at heq ⊢
     rw [hu1] at heq
     rw [hu']
@@ -220,7 +226,7 @@ theorem IsSimple.cutEnds {p : Route} (hp : p.IsSimple) {s t : ℝ}
   rw [eval_cutEnds p s t i u, eval_cutEnds p s t j v] at heq
   rcases hp i j _ _ (p.cutTime_mem hs ht hst i hu)
       (p.cutTime_mem hs ht hst j hv) heq with h | ⟨h, k⟩ | ⟨h, k⟩
-  · exact Or.inl (cut_position_eq hs ht hst i j hu hv h)
+  · exact Or.inl (position_cutEnds_eq_of_source_position_eq (p.cut_bounds hs ht hst) i j hu hv h)
   · exact Or.inr (Or.inl ⟨atEnd_cutEnds_of_atEnd hs ht hst i hu false h,
       atEnd_cutEnds_of_atEnd hs ht hst j hv true k⟩)
   · exact Or.inr (Or.inr ⟨atEnd_cutEnds_of_atEnd hs ht hst i hu true h,

@@ -29,7 +29,7 @@ open Cslib.WordRAM.Realization.Signed
 
 attribute [local client_simps] StateTransitionSpec.clientState
   StateTransitionSpec.runClient_pure'
-  runClient_read runClient_write runClient_allocDirty runClient_ite runClient_map
+  runClient_read runClient_write runClient_allocDirty runClient_ite
   prog_clientState_ite
 
 private structure TransposeRowArgs where
@@ -402,26 +402,12 @@ public theorem edmondsOutProg_spec {w M₀ : ℕ} (I : ArborescenceInput)
       | some pTab => I.expectedOutParentList = (List.finRange n).map fun v => (pTab[v.1]).1
       | none => I.expectedOutParentList = [] := by
     have hmap_eq := edmondsOut_fin_map_eq I.digraph cost root
+    rw [show initAdjTable n _ = a₀ from rfl, show initCostTable n _ = c₀ from rfl] at hmap_eq
     unfold ArborescenceInput.expectedOutParentList
-    dsimp only [I]
-    cases haux : edmondsTableAux root n a₀ c₀ with
-    | some pTab =>
-      cases hedm : edmondsOut (ArborescenceInput.digraph ⟨n, root, adj, cost⟩) cost root with
-      | none =>
-        rw [hedm, show initAdjTable n _ = a₀ from rfl, show initCostTable n _ = c₀ from rfl,
-          haux] at hmap_eq
-        simp at hmap_eq
-      | some f =>
-        rw [hedm, show initAdjTable n _ = a₀ from rfl, show initCostTable n _ = c₀ from rfl,
-          haux] at hmap_eq
-        exact Option.some.inj hmap_eq
-    | none =>
-      cases hedm : edmondsOut (ArborescenceInput.digraph ⟨n, root, adj, cost⟩) cost root with
-      | none => rfl
-      | some f =>
-        rw [hedm, show initAdjTable n _ = a₀ from rfl, show initCostTable n _ = c₀ from rfl,
-          haux] at hmap_eq
-        simp at hmap_eq
+    dsimp only [I] at hmap_eq ⊢
+    revert hmap_eq
+    cases edmondsTableAux root n a₀ c₀ <;>
+      cases edmondsOut (ArborescenceInput.digraph ⟨n, root, adj, cost⟩) cost root <;> simp
   have hfin := finishArbProg_spec root a₀ c₀ s3 I.expectedOutParentList hfit_top hs3_fr hwb
     ha3 hc3 hB₀ hexp
   unfold edmondsOutProg

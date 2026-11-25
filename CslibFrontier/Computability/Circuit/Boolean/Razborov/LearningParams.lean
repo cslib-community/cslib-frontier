@@ -119,68 +119,30 @@ theorem notMem_rankProperty_cikkAC0Len_of_computes {d e n s g : ℕ}
 
 /-! ### The fixed point -/
 
-/-- For `g ≥ 1`, `k ≤ M g` with `M = 2^{e+10} (3e + 42)`. -/
-private theorem cikkK_le_mul {e g : ℕ} (hg : 1 ≤ g) :
-    cikkK e g ≤ 2 ^ (e + 10) * (3 * e + 42) * g := by
-  have h : 6 * g + 3 * e + 36 ≤ (3 * e + 42) * g := by nlinarith
-  calc cikkK e g ≤ 2 ^ (e + 10) * (6 * g + 3 * e + 36) := cikkK_le e g
-    _ ≤ 2 ^ (e + 10) * ((3 * e + 42) * g) := Nat.mul_le_mul_left _ h
-    _ = 2 ^ (e + 10) * (3 * e + 42) * g := by ring
-
-/-- For `g ≥ 1`, `S(g) ≤ g² M² (s + 6 (n + 1)² + 3)`. -/
-private theorem cikkAC0Size_le {e n s g : ℕ} (hg : 1 ≤ g) :
-    cikkAC0Size e n s g ≤
-      g ^ 2 * ((2 ^ (e + 10) * (3 * e + 42)) ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) := by
-  have hk := cikkK_le_mul (e := e) hg
-  have hM : 0 < 2 ^ (e + 10) * (3 * e + 42) := by positivity
-  unfold cikkAC0Size
-  generalize cikkK e g = k at hk ⊢
-  generalize 2 ^ (e + 10) * (3 * e + 42) = M at hk hM ⊢
-  have hMg : k ≤ (M * g) ^ 2 := hk.trans (Nat.le_self_pow two_ne_zero _)
-  have h1 : k * s ≤ (M * g) ^ 2 * s := Nat.mul_le_mul_right _ hMg
-  have h2 : (k * n + k) ^ 2 ≤ (M * g * (n + 1)) ^ 2 := by
-    refine Nat.pow_le_pow_left ?_ 2
-    calc k * n + k = k * (n + 1) := by ring
-      _ ≤ M * g * (n + 1) := Nat.mul_le_mul_right _ hk
-  have hpos : 1 ≤ (M * g) ^ 2 := Nat.one_le_pow _ _ (Nat.mul_pos hM hg)
-  calc k * s + 6 * (k * n + k) ^ 2 + 3
-      ≤ (M * g) ^ 2 * s + 6 * (M * g * (n + 1)) ^ 2 + 3 * (M * g) ^ 2 :=
-        Nat.add_le_add (Nat.add_le_add h1 (Nat.mul_le_mul_left 6 h2))
-          ((Nat.mul_one 3).symm.le.trans (Nat.mul_le_mul_left 3 hpos))
-    _ = g ^ 2 * (M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) := by ring
-
 /-- `S(2 ^ r) < 2 ^ (2 r + B)`. -/
 private theorem cikkAC0Size_lt (e n s r : ℕ) :
     cikkAC0Size e n s (2 ^ r) < 2 ^ (2 * r + cikkAC0Bits e n s) := by
-  have hW : (2 ^ (e + 10) * (3 * e + 42)) ^ 2 * (s + 6 * (n + 1) ^ 2 + 3) <
-      2 ^ cikkAC0Bits e n s :=
+  set g := 2 ^ r
+  have hg : 1 ≤ g := Nat.one_le_two_pow
+  set M := 2 ^ (e + 10) * (3 * e + 42)
+  have hk : cikkK e g ≤ M * g := (cikkK_le e g).trans <| by
+    rw [mul_assoc]
+    exact Nat.mul_le_mul_left _ (by nlinarith)
+  have hM : 1 ≤ (M * g) ^ 2 := Nat.one_le_pow _ _ (Nat.mul_pos (by positivity) hg)
+  have hMg : cikkK e g ≤ (M * g) ^ 2 := hk.trans (Nat.le_self_pow two_ne_zero _)
+  have h2 : (cikkK e g * n + cikkK e g) ^ 2 ≤ (M * g * (n + 1)) ^ 2 :=
+    Nat.pow_le_pow_left (by simpa [Nat.mul_succ] using Nat.mul_le_mul_right (n + 1) hk) 2
+  have hle : cikkAC0Size e n s g ≤ g ^ 2 * (M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) := by
+    unfold cikkAC0Size
+    calc cikkK e g * s + 6 * (cikkK e g * n + cikkK e g) ^ 2 + 3
+        ≤ (M * g) ^ 2 * s + 6 * (M * g * (n + 1)) ^ 2 + 3 * (M * g) ^ 2 :=
+          Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_right _ hMg) (Nat.mul_le_mul_left 6 h2))
+            ((Nat.mul_one 3).symm.le.trans (Nat.mul_le_mul_left 3 hM))
+      _ = g ^ 2 * (M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) := by ring
+  have hW : M ^ 2 * (s + 6 * (n + 1) ^ 2 + 3) < 2 ^ cikkAC0Bits e n s :=
     Nat.lt_pow_succ_log_self (by norm_num) _
-  calc cikkAC0Size e n s (2 ^ r)
-      ≤ (2 ^ r) ^ 2 * ((2 ^ (e + 10) * (3 * e + 42)) ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) :=
-        cikkAC0Size_le Nat.one_le_two_pow
-    _ < (2 ^ r) ^ 2 * 2 ^ cikkAC0Bits e n s := by gcongr
-    _ = 2 ^ (2 * r + cikkAC0Bits e n s) := by rw [← pow_mul, ← pow_add, mul_comm r 2]
-
-/-- The polynomial part of the exponent bound, with `t = 2 ^ b ≥ b`, `2 t > B` and `u = 2 ^ D > D`:
-`2 · u² · 128 · (4 D q + B) ≤ t u⁵ 2²⁵` for `q = b + 5D + 25`. -/
-private theorem two_mul_le_aux {D b B t u : ℕ} (hb : b < t) (hB : B < 2 * t) (hD : D < u) :
-    2 * (u * u * 128 * (2 * (2 * D * (b + 5 * D + 25)) + B)) ≤ t * u ^ 5 * 2 ^ 25 := by
-  have ht : 1 ≤ t := by omega
-  have hu : 1 ≤ u := by omega
-  have huu : 1 ≤ u * u := Nat.mul_le_mul hu hu
-  have hu3 : 1 ≤ u ^ 3 := Nat.one_le_pow _ _ hu
-  have h1 : D * b ≤ u * t := Nat.mul_le_mul hD.le hb.le
-  have h2 : D * D ≤ u * u := Nat.mul_le_mul hD.le hD.le
-  have h3 : u * t * 1 ≤ u * t * (u * u) := Nat.mul_le_mul_left _ huu
-  have h4 : 1 * (u * u) ≤ t * (u * u) := Nat.mul_le_mul_right _ ht
-  have h5 : t * (u * u) * 1 ≤ t * (u * u) * u := Nat.mul_le_mul_left _ hu
-  have h6 : u * 1 ≤ u * u := Nat.mul_le_mul_left _ hu
-  have h7 : t * 1 ≤ t * u ^ 3 := Nat.mul_le_mul_left _ hu3
-  have hin : 2 * (2 * D * (b + 5 * D + 25)) + B ≤ 131072 * (t * u ^ 3) := by nlinarith
-  calc 2 * (u * u * 128 * (2 * (2 * D * (b + 5 * D + 25)) + B))
-      = 256 * (u * u) * (2 * (2 * D * (b + 5 * D + 25)) + B) := by ring
-    _ ≤ 256 * (u * u) * (131072 * (t * u ^ 3)) := Nat.mul_le_mul_left _ hin
-    _ = t * u ^ 5 * 2 ^ 25 := by ring
+  exact (hle.trans_lt (Nat.mul_lt_mul_of_pos_left hW (by positivity))).trans_eq
+    (by rw [← pow_mul, ← pow_add, mul_comm r 2])
 
 /-- With `q = ⌊log₂ B⌋ + 5D + 25`: `2 · 2^{2D+7} (4 D q + B) ≤ 2 ^ q`. -/
 private theorem two_mul_le_two_pow (D B : ℕ) :
@@ -188,24 +150,36 @@ private theorem two_mul_le_two_pow (D B : ℕ) :
       2 ^ (Nat.log 2 B + 5 * D + 25) := by
   have hb : Nat.log 2 B < 2 ^ Nat.log 2 B := Nat.lt_two_pow_self
   have hB : B < 2 * 2 ^ Nat.log 2 B := by
-    have h : B < 2 ^ (Nat.log 2 B + 1) := Nat.lt_pow_succ_log_self (by norm_num) B
-    rw [pow_succ] at h
-    omega
+    simpa [pow_succ, mul_comm] using Nat.lt_pow_succ_log_self (by norm_num) B
   have hD : D < 2 ^ D := Nat.lt_two_pow_self
   have e1 : 2 ^ (2 * D + 7) = 2 ^ D * 2 ^ D * 128 := by
     rw [show 2 * D + 7 = D + D + 7 by ring, pow_add, pow_add]
     norm_num
-  have e2 : 2 ^ (Nat.log 2 B + 5 * D + 25) = 2 ^ Nat.log 2 B * (2 ^ D) ^ 5 * 2 ^ 25 := by
-    rw [pow_add, pow_add, pow_mul']
-  rw [e1, e2]
+  rw [e1, pow_add, pow_add, pow_mul']
   generalize Nat.log 2 B = b at hb hB ⊢
   generalize 2 ^ b = t at hb hB ⊢
   generalize 2 ^ D = u at hD ⊢
-  exact two_mul_le_aux hb hB hD
+  have ht : 0 < t := by omega
+  have hu : 0 < u := by omega
+  have hDb : D * b ≤ t * u ^ 3 := (Nat.mul_le_mul hD.le hb.le).trans <| by
+    rw [show t * u ^ 3 = (u * t) * (u * u) by ring]
+    exact Nat.le_mul_of_pos_right _ (by positivity)
+  have hDD : D * D ≤ t * u ^ 3 := (Nat.mul_le_mul hD.le hD.le).trans <| by
+    rw [show t * u ^ 3 = (u * u) * (t * u) by ring]
+    exact Nat.le_mul_of_pos_right _ (by positivity)
+  have hDu : D ≤ t * u ^ 3 := hD.le.trans <| by
+    rw [show t * u ^ 3 = u * (t * u ^ 2) by ring]
+    exact Nat.le_mul_of_pos_right _ (by positivity)
+  have htu : t ≤ t * u ^ 3 := Nat.le_mul_of_pos_right _ (by positivity)
+  have hin : 2 * (2 * D * (b + 5 * D + 25)) + B ≤ 131072 * (t * u ^ 3) := by linarith
+  calc 2 * (u * u * 128 * (2 * (2 * D * (b + 5 * D + 25)) + B))
+      = 256 * (u * u) * (2 * (2 * D * (b + 5 * D + 25)) + B) := by ring
+    _ ≤ 256 * (u * u) * (131072 * (t * u ^ 3)) := Nat.mul_le_mul_left _ hin
+    _ = t * u ^ 5 * 2 ^ 25 := by ring
 
-/-- **The fixed point, abstractly**: for `D ≥ 7`, `B ≥ 1` and `0 < S < 2 ^ (2 r + B)` with
+/-- **The fixed point, abstractly**: for `D ≥ 7` and `0 < S < 2 ^ (2 r + B)` with
 `r = 2D (⌊log₂ B⌋ + 5D + 25)`, `rankLength D (⌊log₂ S⌋ + 1) + 2 ≤ 2 ^ r`. -/
-private theorem rankLength_log_add_two_le {D B S : ℕ} (hD : 7 ≤ D) (hB : 1 ≤ B) (hS0 : S ≠ 0)
+private theorem rankLength_log_add_two_le {D B S : ℕ} (hD : 7 ≤ D) (hS0 : S ≠ 0)
     (hS : S < 2 ^ (2 * (2 * D * (Nat.log 2 B + 5 * D + 25)) + B)) :
     rankLength D (Nat.log 2 S + 1) + 2 ≤ 2 ^ (2 * D * (Nat.log 2 B + 5 * D + 25)) := by
   have hx : Nat.log 2 S + 1 ≤ 2 * (2 * D * (Nat.log 2 B + 5 * D + 25)) + B :=
@@ -241,8 +215,7 @@ private theorem rankLength_log_add_two_le {D B S : ℕ} (hD : 7 ≤ D) (hB : 1 �
 theorem cikkAC0Len_add_two_le_cikkAC0Gap (d e n s : ℕ) :
     cikkAC0Len d e n s (cikkAC0Gap d e n s) + 2 ≤ cikkAC0Gap d e n s := by
   unfold cikkAC0Len cikkAC0Gap cikkAC0Exp
-  refine rankLength_log_add_two_le (by omega) (by unfold cikkAC0Bits; omega) ?_
-    (cikkAC0Size_lt e n s _)
+  refine rankLength_log_add_two_le (by omega) ?_ (cikkAC0Size_lt e n s _)
   unfold cikkAC0Size
   omega
 

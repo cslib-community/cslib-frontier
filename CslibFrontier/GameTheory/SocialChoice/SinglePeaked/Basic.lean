@@ -179,16 +179,11 @@ theorem atLeast_of_between_left (R : Preference a b) {x y : Set.Icc a b}
 /-- Two single-peaked preferences with the same underlying weak ranking are equal (their peaks
 are uniquely determined as the strict top element). -/
 @[ext] theorem ext {R₁ R₂ : Preference a b} (h : R₁.ranking = R₂.ranking) : R₁ = R₂ := by
-  have hpeak : R₁.peak = R₂.peak := by
-    by_contra hne
-    have h1 : R₁.ranking.Prefers R₁.peak R₂.peak := R₁.prefers_peak (Ne.symm hne)
-    have h2 : R₂.ranking.Prefers R₂.peak R₁.peak := R₂.prefers_peak hne
-    rw [← h] at h2
-    exact R₁.ranking.prefers_asymm h1 h2
+  have hpeak : R₁.peak = R₂.peak := by_contra fun hne =>
+    R₁.ranking.prefers_asymm (R₁.prefers_peak (Ne.symm hne)) (h ▸ R₂.prefers_peak hne)
   cases R₁
   cases R₂
-  simp only [mk.injEq]
-  exact ⟨h, hpeak⟩
+  exact mk.injEq .. ▸ ⟨h, hpeak⟩
 
 /-- Equivalence between the order-theoretic betweenness condition and the convex-combination
 definition of single-peakedness in [SchummerVohra2007] (§10.2, p. 245): for every `x ≠ p` and
@@ -199,36 +194,34 @@ theorem isSinglePeaked_iff_convex (R : WeakRanking (Set.Icc a b)) (p : Set.Icc a
     ∀ (x : Set.Icc a b), x ≠ p → ∀ (t : ℝ) (ht0 : 0 ≤ t) (ht1 : t < 1),
       R.Prefers ⟨t * x + (1 - t) * p,
         ⟨by nlinarith [x.2.1, p.2.1], by nlinarith [x.2.2, p.2.2]⟩⟩ x := by
-  constructor
-  · rintro ⟨hR, hL⟩ x hx t ht0 ht1
-    rcases lt_or_gt_of_ne (fun h => hx (Subtype.ext h)) with hlt | hgt
+  refine ⟨fun ⟨hR, hL⟩ x hx t ht0 ht1 => ?_, fun hconv => ?_⟩
+  · rcases lt_or_gt_of_ne (fun h => hx (Subtype.ext h)) with hlt | hgt
     · exact hL (by nlinarith) (by nlinarith)
     · exact hR (by nlinarith) (by nlinarith)
-  · intro hconv
-    have hstep : ∀ {x y : Set.Icc a b}, x ≠ p →
+  · have hstep : ∀ {x y : Set.Icc a b}, x ≠ p →
         (((p : ℝ) ≤ y ∧ (y : ℝ) < x) ∨ ((x : ℝ) < y ∧ (y : ℝ) ≤ p)) → R.Prefers y x := by
       intro x y hxp hbet
-      have hne : (x : ℝ) - p ≠ 0 := sub_ne_zero.mpr (fun h => hxp (Subtype.ext h))
+      have hne : (x : ℝ) - p ≠ 0 := sub_ne_zero.mpr fun h => hxp (Subtype.ext h)
       let t : ℝ := ((y : ℝ) - p) / ((x : ℝ) - p)
-      have ht0 : 0 ≤ t := by
+      have ht : 0 ≤ t ∧ t < 1 := by
         rcases hbet with ⟨h1, h2⟩ | ⟨h1, h2⟩
-        · exact div_nonneg (by linarith) (by linarith)
-        · exact div_nonneg_of_nonpos (by linarith) (by linarith)
-      have ht1 : t < 1 := by
-        rcases hbet with ⟨h1, h2⟩ | ⟨h1, h2⟩
-        · exact (div_lt_one (by linarith)).mpr (by linarith)
-        · rw [show t = ((p : ℝ) - y) / ((p : ℝ) - x) by
-            dsimp only [t]; rw [← neg_div_neg_eq]; congr 1 <;> ring]
+        · exact ⟨div_nonneg (by linarith) (by linarith),
+            (div_lt_one (by linarith)).mpr (by linarith)⟩
+        · refine ⟨div_nonneg_of_nonpos (by linarith) (by linarith), ?_⟩
+          have ht_eq : t = ((p : ℝ) - y) / ((p : ℝ) - x) := by
+            dsimp only [t]
+            rw [← neg_div_neg_eq]
+            congr 1 <;> ring
+          rw [ht_eq]
           exact (div_lt_one (by linarith)).mpr (by linarith)
-      have hEq : (⟨t * x + (1 - t) * p,
+      have hy_eq : (⟨t * x + (1 - t) * p,
           ⟨by nlinarith [x.2.1, p.2.1], by nlinarith [x.2.2, p.2.2]⟩⟩ : Set.Icc a b) = y := by
         ext
-        dsimp only [t]
-        field_simp [hne]
-        ring
-      simpa only [hEq] using hconv x hxp t ht0 ht1
-    exact ⟨fun {x y} hpy hyx => hstep (fun h => by rw [h] at hyx; linarith) (Or.inl ⟨hpy, hyx⟩),
-      fun {x y} hxy hyp => hstep (fun h => by rw [h] at hxy; linarith) (Or.inr ⟨hxy, hyp⟩)⟩
+        dsimp [t]
+        field_simp [hne]; ring
+      exact hy_eq ▸ hconv x hxp t ht.1 ht.2
+    exact ⟨fun hpy hyx => hstep (fun h => by rw [h] at hyx; linarith) (.inl ⟨hpy, hyx⟩),
+      fun hxy hyp => hstep (fun h => by rw [h] at hxy; linarith) (.inr ⟨hxy, hyp⟩)⟩
 
 /-! ### Standard single-peaked preference constructors -/
 
@@ -407,30 +400,18 @@ def rightExtreme (hab : a ≤ b) : Preference a b where
 theorem eq_leftExtreme_of_peak_eq {hab : a ≤ b} {R : Preference a b}
     (hpeak : R.peak = ⟨a, le_rfl, hab⟩) : R = leftExtreme hab := by
   ext x y
-  constructor
-  · intro hxy
-    by_contra hlt
-    have hyx : (y : ℝ) < x := lt_of_not_ge hlt
-    have hpy : (R.peak : ℝ) ≤ y := by rw [hpeak]; exact y.2.1
-    exact R.prefers_of_between_right hpy hyx hxy
-  · intro hxy
-    have hpx : (R.peak : ℝ) ≤ x := by rw [hpeak]; exact x.2.1
-    exact R.atLeast_of_between_right hpx hxy
+  exact ⟨fun hxy => not_lt.mp fun hyx =>
+    R.prefers_of_between_right (by simpa only [hpeak] using y.2.1) hyx hxy,
+    fun hxy => R.atLeast_of_between_right (by simpa only [hpeak] using x.2.1) hxy⟩
 
 /-- There is a unique single-peaked preference with peak at the right endpoint `b`
 ([SchummerVohra2007], §10.2.1, p. 247). -/
 theorem eq_rightExtreme_of_peak_eq {hab : a ≤ b} {R : Preference a b}
     (hpeak : R.peak = ⟨b, hab, le_rfl⟩) : R = rightExtreme hab := by
   ext x y
-  constructor
-  · intro hxy
-    by_contra hlt
-    have hxy' : (x : ℝ) < y := lt_of_not_ge hlt
-    have hyp : (y : ℝ) ≤ R.peak := by rw [hpeak]; exact y.2.2
-    exact R.prefers_of_between_left hxy' hyp hxy
-  · intro hxy
-    have hxp : (x : ℝ) ≤ R.peak := by rw [hpeak]; exact x.2.2
-    exact R.atLeast_of_between_left hxy hxp
+  exact ⟨fun hxy => not_lt.mp fun hlt =>
+    R.prefers_of_between_left hlt (by simpa only [hpeak] using y.2.2) hxy,
+    fun hxy => R.atLeast_of_between_left hxy (by simpa only [hpeak] using x.2.2)⟩
 
 end Preference
 
@@ -497,23 +478,15 @@ Exercise 10.3, p. 264). -/
 variable {f}
 
 theorem mem_optionSet_iff_update [DecidableEq ι] (P : Profile ι a b) (i : ι) (x : Set.Icc a b) :
-    x ∈ f.optionSet P i ↔ ∃ R' : Preference a b, f (Function.update P i R') = x := by
-  constructor
-  · rintro ⟨Q, hQ, rfl⟩
-    refine ⟨Q i, congrArg f (funext fun j => ?_)⟩
-    by_cases hji : j = i
-    · subst hji; simp only [Function.update_self]
-    · simp only [Function.update_of_ne hji, hQ j hji]
-  · rintro ⟨R', rfl⟩
-    exact ⟨Function.update P i R', fun j hji => (Function.update_of_ne hji R' P).symm, rfl⟩
+    x ∈ f.optionSet P i ↔ ∃ R' : Preference a b, f (Function.update P i R') = x :=
+  ⟨fun ⟨Q, hQ, h⟩ => ⟨Q i, h ▸ congrArg f (funext fun j => by
+    by_cases hj : j = i <;> simp [hj, hQ])⟩,
+   fun ⟨R', h⟩ => ⟨Function.update P i R', fun _ hji => (Function.update_of_ne hji R' P).symm, h⟩⟩
 
-theorem IsGroupStrategyProof.isStrategyProof (hf : f.IsGroupStrategyProof) : f.IsStrategyProof := by
-  intro P Q i hPQ
-  by_contra hnot
-  refine hf P Q {i} (fun j hj => hPQ j hj) ⟨?_, i, Set.mem_singleton i, hnot⟩
-  intro j hj
-  rw [Set.mem_singleton_iff.mp hj]
-  exact (P i).atLeast_of_prefers hnot
+theorem IsGroupStrategyProof.isStrategyProof (hf : f.IsGroupStrategyProof) : f.IsStrategyProof :=
+  fun P Q i hPQ => by_contra fun hnot =>
+    hf P Q {i} (fun j hj => hPQ j hj) ⟨fun _ hj =>
+      Set.mem_singleton_iff.mp hj ▸ (P i).atLeast_of_prefers hnot, i, Set.mem_singleton i, hnot⟩
 
 theorem IsStrategyProof.atLeast_update [DecidableEq ι] (hf : f.IsStrategyProof)
     (P : Profile ι a b) (i : ι) (R' : Preference a b) :
@@ -535,28 +508,22 @@ theorem isParetoOptimal_iff_peaks_bounds [Finite ι] [Nonempty ι] :
       ∀ P : Profile ι a b,
         (∃ i : ι, ((P i).peak : ℝ) ≤ f P) ∧ (∃ j : ι, (f P : ℝ) ≤ (P j).peak) := by
   let _ := Fintype.ofFinite ι
-  constructor
-  · intro hPO P
-    constructor
-    · by_contra h
-      push Not at h
-      obtain ⟨i₀, _, hi₀⟩ :=
-        Finset.exists_min_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
-      refine hPO P (P i₀).peak fun i => ?_
-      exact (P i).prefers_of_between_left (h i₀) (hi₀ i (Finset.mem_univ i))
-    · by_contra h
-      push Not at h
-      obtain ⟨j₀, _, hj₀⟩ :=
-        Finset.exists_max_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
-      refine hPO P (P j₀).peak fun i => ?_
-      exact (P i).prefers_of_between_right (hj₀ i (Finset.mem_univ i)) (h j₀)
-  · intro hbounds P x hpref
-    obtain ⟨⟨i, hi⟩, ⟨j, hj⟩⟩ := hbounds P
+  refine ⟨fun hPO P => ⟨?_, ?_⟩, fun hbounds P x hpref => ?_⟩
+  · by_contra! h
+    obtain ⟨i₀, _, hi₀⟩ :=
+      Finset.exists_min_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
+    exact hPO P (P i₀).peak fun i =>
+      (P i).prefers_of_between_left (h i₀) (hi₀ i (Finset.mem_univ i))
+  · by_contra! h
+    obtain ⟨j₀, _, hj₀⟩ :=
+      Finset.exists_max_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
+    exact hPO P (P j₀).peak fun i =>
+      (P i).prefers_of_between_right (hj₀ i (Finset.mem_univ i)) (h j₀)
+  · obtain ⟨⟨i, hi⟩, ⟨j, hj⟩⟩ := hbounds P
     rcases lt_trichotomy (x : ℝ) (f P) with hlt | heq | hgt
     · exact (P j).prefers_asymm ((P j).prefers_of_between_left hlt hj) (hpref j)
-    · have hx : x = f P := Subtype.ext heq
-      obtain ⟨i₀⟩ := ‹Nonempty ι›
-      exact (P i₀).prefers_irrefl (f P) (hx ▸ hpref i₀)
+    · obtain ⟨i₀⟩ := ‹Nonempty ι›
+      exact (P i₀).prefers_irrefl (f P) (Subtype.ext heq ▸ hpref i₀)
     · exact (P i).prefers_asymm ((P i).prefers_of_between_right hi hgt) (hpref i)
 
 /-- On single-peaked profiles with finitely many agents, weak and strong Pareto-optimality
@@ -606,69 +573,47 @@ theorem IsStrategyProof.isParetoOptimal_of_isUnanimous [Finite ι] [Nonempty ι]
     (hf : f.IsStrategyProof) (hU : f.IsUnanimous) : f.IsParetoOptimal := by
   classical
   let _ := Fintype.ofFinite ι
-  rw [isParetoOptimal_iff_peaks_bounds]
-  intro P
-  constructor
-  · by_contra h
-    push Not at h
+  refine isParetoOptimal_iff_peaks_bounds.mpr fun P => ⟨?_, ?_⟩
+  · by_contra! h
     obtain ⟨i₀, _, hi₀⟩ :=
       Finset.exists_min_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
-    let p₁ : Set.Icc a b := (P i₀).peak
-    let Q : Profile ι a b := fun i => Preference.preferLeft p₁
-    have hQ : f Q = f P := by
-      refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl ?_
-      intro R _ hR i hRi _
+    let p₁ := (P i₀).peak
+    let Q : Profile ι a b := fun _ => Preference.preferLeft p₁
+    have hQ : f Q = f P := Function.update_induction (x := P) (y := Q)
+      (P := fun R => f R = f P) rfl fun R _ hR i hRi _ => by
       set y := f (Function.update R i (Q i))
-      have hsp1 : (P i).AtLeast (f P) y := by
-        rw [← hR, ← hRi]
-        exact hf.atLeast_update R i (Q i)
+      have hsp1 : (P i).AtLeast (f P) y := hR ▸ hRi ▸ hf.atLeast_update R i (Q i)
       have hsp2 : (Q i).AtLeast y (f P) := by
-        have h' := hf (Function.update R i (Q i)) R i fun j hji =>
-          Function.update_of_ne hji (Q i) R
-        simpa only [Function.update_self, hR] using h'
-      have hy_ge : (f P : ℝ) ≤ y := by
-        by_contra hlt
-        exact (Q i).prefers_of_between_left (lt_of_not_ge hlt) (le_of_lt (h i₀)) hsp2
-      have hy_le : (y : ℝ) ≤ p₁ := by
-        by_contra hgt
-        exact Preference.preferLeft_prefers_of_le_of_gt (le_of_lt (h i₀))
-          (lt_of_not_ge hgt) hsp2
-      have hy_not_gt : ¬ (f P : ℝ) < y := fun hgt =>
-        (P i).prefers_of_between_left hgt (hy_le.trans (hi₀ i (Finset.mem_univ i))) hsp1
-      exact Subtype.ext (le_antisymm (le_of_not_gt hy_not_gt) hy_ge)
-    have hQp : f Q = p₁ := hU Q p₁ fun _ => Preference.preferLeft_peak p₁
-    have heq : (f P : ℝ) = p₁ := congrArg Subtype.val (hQ.symm.trans hQp)
-    linarith [h i₀]
-  · by_contra h
-    push Not at h
+        simpa only [Function.update_self, hR] using
+          hf (Function.update R i (Q i)) R i fun _ hji => Function.update_of_ne hji _ _
+      have hy_ge : (f P : ℝ) ≤ y := not_lt.mp fun hlt =>
+        (Q i).prefers_of_between_left hlt (h i₀).le hsp2
+      have hy_le : (y : ℝ) ≤ p₁ := not_lt.mp fun hgt =>
+        Preference.preferLeft_prefers_of_le_of_gt (h i₀).le hgt hsp2
+      exact Subtype.ext <| le_antisymm (not_lt.mp fun hgt =>
+        (P i).prefers_of_between_left hgt (hy_le.trans (hi₀ i (Finset.mem_univ i))) hsp1) hy_ge
+    linarith [h i₀,
+      congrArg Subtype.val (hQ.symm.trans (hU Q p₁ fun _ => Preference.preferLeft_peak p₁))]
+  · by_contra! h
     obtain ⟨j₀, _, hj₀⟩ :=
       Finset.exists_max_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
-    let pₙ : Set.Icc a b := (P j₀).peak
-    let Q : Profile ι a b := fun i => Preference.preferRight pₙ
-    have hQ : f Q = f P := by
-      refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl ?_
-      intro R _ hR i hRi _
+    let pₙ := (P j₀).peak
+    let Q : Profile ι a b := fun _ => Preference.preferRight pₙ
+    have hQ : f Q = f P := Function.update_induction (x := P) (y := Q)
+      (P := fun R => f R = f P) rfl fun R _ hR i hRi _ => by
       set y := f (Function.update R i (Q i))
-      have hsp1 : (P i).AtLeast (f P) y := by
-        rw [← hR, ← hRi]
-        exact hf.atLeast_update R i (Q i)
+      have hsp1 : (P i).AtLeast (f P) y := hR ▸ hRi ▸ hf.atLeast_update R i (Q i)
       have hsp2 : (Q i).AtLeast y (f P) := by
-        have h' := hf (Function.update R i (Q i)) R i fun j hji =>
-          Function.update_of_ne hji (Q i) R
-        simpa only [Function.update_self, hR] using h'
-      have hy_le : (y : ℝ) ≤ f P := by
-        by_contra hgt
-        exact (Q i).prefers_of_between_right (le_of_lt (h j₀)) (lt_of_not_ge hgt) hsp2
-      have hy_ge : (pₙ : ℝ) ≤ y := by
-        by_contra hlt
-        exact Preference.preferRight_prefers_of_ge_of_lt (le_of_lt (h j₀))
-          (lt_of_not_ge hlt) hsp2
-      have hy_not_lt : ¬ (y : ℝ) < f P := fun hlt =>
-        (P i).prefers_of_between_right ((hj₀ i (Finset.mem_univ i)).trans hy_ge) hlt hsp1
-      exact Subtype.ext (le_antisymm hy_le (le_of_not_gt hy_not_lt))
-    have hQp : f Q = pₙ := hU Q pₙ fun _ => Preference.preferRight_peak pₙ
-    have heq : (f P : ℝ) = pₙ := congrArg Subtype.val (hQ.symm.trans hQp)
-    linarith [h j₀]
+        simpa only [Function.update_self, hR] using
+          hf (Function.update R i (Q i)) R i fun _ hji => Function.update_of_ne hji _ _
+      have hy_le : (y : ℝ) ≤ f P := not_lt.mp fun hgt =>
+        (Q i).prefers_of_between_right (h j₀).le hgt hsp2
+      have hy_ge : (pₙ : ℝ) ≤ y := not_lt.mp fun hlt =>
+        Preference.preferRight_prefers_of_ge_of_lt (h j₀).le hlt hsp2
+      exact Subtype.ext <| le_antisymm hy_le (not_lt.mp fun hlt =>
+        (P i).prefers_of_between_right ((hj₀ i (Finset.mem_univ i)).trans hy_ge) hlt hsp1)
+    linarith [h j₀,
+      congrArg Subtype.val (hQ.symm.trans (hU Q pₙ fun _ => Preference.preferRight_peak pₙ))]
 
 /-- **Lemma 10.1** ([SchummerVohra2007], §10.2, pp. 245–246): for a strategy-proof rule on
 single-peaked preferences, surjectivity is equivalent to unanimity. -/
@@ -702,72 +647,47 @@ theorem IsStrategyProof.isClosed_optionSet (hf : f.IsStrategyProof)
   rw [← closure_subset_iff_isClosed]
   intro z hz
   have hsub : Subtype.val '' f.optionSet P i ⊆ Set.Icc a b := by
-    rintro _ ⟨x, -, rfl⟩; exact x.2
-  have hz_mem : z ∈ Set.Icc a b := isClosed_Icc.closure_subset_iff.mpr hsub hz
-  let zPt : Set.Icc a b := ⟨z, hz_mem⟩
+    rintro _ ⟨x, -, rfl⟩
+    exact x.2
+  let zPt : Set.Icc a b := ⟨z, isClosed_Icc.closure_subset_iff.mpr hsub hz⟩
+  have hopt_upd : ∀ {R' : Preference a b} {y : Set.Icc a b}, y ∈ f.optionSet P i →
+      R'.AtLeast (f (Function.update P i R')) y := by
+    rintro R' y ⟨Q, hQ, hQy⟩
+    have h := hf (Function.update P i R') Q i fun j hji => by
+      rw [Function.update_of_ne hji, hQ j hji]
+    rwa [Function.update_self, hQy] at h
   have hsplit : Subtype.val '' f.optionSet P i =
       ((Subtype.val '' f.optionSet P i) ∩ Set.Iic z) ∪
       ((Subtype.val '' f.optionSet P i) ∩ Set.Ici z) := by
     ext t
     simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_Iic, Set.mem_Ici]
-    exact ⟨fun ht => (le_total t z).imp (⟨ht, ·⟩) (⟨ht, ·⟩),
-      fun h => h.elim And.left And.left⟩
+    exact ⟨fun ht => (le_total t z).imp (⟨ht, ·⟩) (⟨ht, ·⟩), fun h => h.elim And.left And.left⟩
   rw [hsplit, closure_union] at hz
   rcases hz with hzL | hzR
   · let P_L := Function.update P i (Preference.preferLeft zPt)
-    have hxL_mem : f P_L ∈ f.optionSet P i :=
-      (mem_optionSet_iff_update P i (f P_L)).mpr ⟨Preference.preferLeft zPt, rfl⟩
-    have hxL_eq : (f P_L : ℝ) = z := by
-      rcases lt_trichotomy (f P_L : ℝ) z with hlt | heq | hgt
-      · exfalso
-        obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, ht2⟩ :=
-          Metric.mem_closure_iff.mp hzL (z - f P_L) (by linarith)
-        have hty : (f P_L : ℝ) < y := by
-          rw [Real.dist_eq] at ht2
-          linarith [(abs_lt.mp ht2).2]
-        have hy_opt : y ∈ f.optionSet P_L i := by
-          rcases hyO with ⟨Q, hQ, rfl⟩
-          exact ⟨Q, fun j hji => by simp only [P_L, Function.update_of_ne hji, hQ j hji], rfl⟩
-        have hsp := hf.atLeast_of_mem_optionSet P_L i hy_opt
-        simp only [P_L, Function.update_self] at hsp
-        exact (Preference.preferLeft zPt).prefers_of_between_left hty hyz hsp
-      · exact heq
-      · exfalso
-        obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, _⟩ := Metric.mem_closure_iff.mp hzL 1 one_pos
-        have hy_opt : y ∈ f.optionSet P_L i := by
-          rcases hyO with ⟨Q, hQ, rfl⟩
-          exact ⟨Q, fun j hji => by simp only [P_L, Function.update_of_ne hji, hQ j hji], rfl⟩
-        have hsp := hf.atLeast_of_mem_optionSet P_L i hy_opt
-        simp only [P_L, Function.update_self] at hsp
-        exact Preference.preferLeft_prefers_of_le_of_gt (p := zPt) hyz hgt hsp
-    exact ⟨f P_L, hxL_mem, hxL_eq⟩
+    refine ⟨f P_L, (mem_optionSet_iff_update P i _).mpr ⟨_, rfl⟩, ?_⟩
+    rcases lt_trichotomy (f P_L : ℝ) z with hlt | heq | hgt
+    · obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, ht2⟩ :=
+        Metric.mem_closure_iff.mp hzL (z - f P_L) (by linarith)
+      rw [Real.dist_eq] at ht2
+      exact absurd (hopt_upd hyO) ((Preference.preferLeft zPt).prefers_of_between_left
+        (by linarith [(abs_lt.mp ht2).2]) (Set.mem_Iic.mp hyz))
+    · exact heq
+    · obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, _⟩ := Metric.mem_closure_iff.mp hzL 1 one_pos
+      exact absurd (hopt_upd hyO)
+        (Preference.preferLeft_prefers_of_le_of_gt (p := zPt) (Set.mem_Iic.mp hyz) hgt)
   · let P_R := Function.update P i (Preference.preferRight zPt)
-    have hxR_mem : f P_R ∈ f.optionSet P i :=
-      (mem_optionSet_iff_update P i (f P_R)).mpr ⟨Preference.preferRight zPt, rfl⟩
-    have hxR_eq : (f P_R : ℝ) = z := by
-      rcases lt_trichotomy (f P_R : ℝ) z with hlt | heq | hgt
-      · exfalso
-        obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, _⟩ := Metric.mem_closure_iff.mp hzR 1 one_pos
-        have hy_opt : y ∈ f.optionSet P_R i := by
-          rcases hyO with ⟨Q, hQ, rfl⟩
-          exact ⟨Q, fun j hji => by simp only [P_R, Function.update_of_ne hji, hQ j hji], rfl⟩
-        have hsp := hf.atLeast_of_mem_optionSet P_R i hy_opt
-        simp only [P_R, Function.update_self] at hsp
-        exact Preference.preferRight_prefers_of_ge_of_lt (p := zPt) hyz hlt hsp
-      · exact heq
-      · exfalso
-        obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, ht2⟩ :=
-          Metric.mem_closure_iff.mp hzR (f P_R - z) (by linarith)
-        have hty : (y : ℝ) < f P_R := by
-          rw [Real.dist_eq] at ht2
-          linarith [(abs_lt.mp ht2).1]
-        have hy_opt : y ∈ f.optionSet P_R i := by
-          rcases hyO with ⟨Q, hQ, rfl⟩
-          exact ⟨Q, fun j hji => by simp only [P_R, Function.update_of_ne hji, hQ j hji], rfl⟩
-        have hsp := hf.atLeast_of_mem_optionSet P_R i hy_opt
-        simp only [P_R, Function.update_self] at hsp
-        exact (Preference.preferRight zPt).prefers_of_between_right hyz hty hsp
-    exact ⟨f P_R, hxR_mem, hxR_eq⟩
+    refine ⟨f P_R, (mem_optionSet_iff_update P i _).mpr ⟨_, rfl⟩, ?_⟩
+    rcases lt_trichotomy (f P_R : ℝ) z with hlt | heq | hgt
+    · obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, _⟩ := Metric.mem_closure_iff.mp hzR 1 one_pos
+      exact absurd (hopt_upd hyO)
+        (Preference.preferRight_prefers_of_ge_of_lt (p := zPt) (Set.mem_Ici.mp hyz) hlt)
+    · exact heq
+    · obtain ⟨_, ⟨⟨y, hyO, rfl⟩, hyz⟩, ht2⟩ :=
+        Metric.mem_closure_iff.mp hzR (f P_R - z) (by linarith)
+      rw [Real.dist_eq] at ht2
+      exact absurd (hopt_upd hyO) ((Preference.preferRight zPt).prefers_of_between_right
+        (Set.mem_Ici.mp hyz) (by linarith [(abs_lt.mp ht2).1]))
 
 /-- **Exercise 10.3** ([SchummerVohra2007], pp. 264–265): for a strategy-proof onto rule on
 single-peaked preferences, every single-agent option set is the closed interval between the
@@ -785,123 +705,98 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
   set u := f (Function.update P i (Preference.rightExtreme hab))
   ext z
   simp only [Set.mem_Icc]
-  constructor
-  · intro hz
-    have hL : (l : ℝ) ≤ z := by
-      have h := hf.atLeast_of_mem_optionSet (Function.update P i (Preference.leftExtreme hab)) i
-        (x := z) (by
-          rcases hz with ⟨Q, hQ, rfl⟩
-          exact ⟨Q, fun j hji => by rw [Function.update_of_ne hji, hQ j hji], rfl⟩)
-      simpa only [Function.update_self, Preference.leftExtreme_atLeast_iff] using h
-    have hU : (z : ℝ) ≤ u := by
-      have h := hf.atLeast_of_mem_optionSet (Function.update P i (Preference.rightExtreme hab)) i
-        (x := z) (by
-          rcases hz with ⟨Q, hQ, rfl⟩
-          exact ⟨Q, fun j hji => by rw [Function.update_of_ne hji, hQ j hji], rfl⟩)
-      simpa only [Function.update_self, Preference.rightExtreme_atLeast_iff] using h
-    exact ⟨hL, hU⟩
-  · rintro ⟨hlz, hzu⟩
-    let P_L := Function.update P i (Preference.preferLeft z)
+  refine ⟨fun ⟨Q, hQ, hQz⟩ => ?_, fun ⟨hlz, hzu⟩ => ?_⟩
+  · subst hQz
+    refine ⟨?_, ?_⟩
+    · have h := hf (Function.update P i (Preference.leftExtreme hab)) Q i fun j hji => by
+        rw [Function.update_of_ne hji, hQ j hji]
+      rw [Function.update_self, Preference.leftExtreme_atLeast_iff] at h
+      exact Subtype.coe_le_coe.mp h
+    · have h := hf (Function.update P i (Preference.rightExtreme hab)) Q i fun j hji => by
+        rw [Function.update_of_ne hji, hQ j hji]
+      rw [Function.update_self, Preference.rightExtreme_atLeast_iff] at h
+      exact Subtype.coe_le_coe.mp h
+  · let P_L := Function.update P i (Preference.preferLeft z)
     let P_R := Function.update P i (Preference.preferRight z)
-    have hxL_le : (f P_L : ℝ) ≤ z := by
-      by_contra hgt
-      have hsp := hf.atLeast_update P_L i (Preference.leftExtreme hab)
-      simp only [P_L, Function.update_self, Function.update_idem] at hsp
-      exact Preference.preferLeft_prefers_of_le_of_gt hlz (lt_of_not_ge hgt) hsp
-    have hxR_ge : (z : ℝ) ≤ f P_R := by
-      by_contra hlt
-      have hsp := hf.atLeast_update P_R i (Preference.rightExtreme hab)
-      simp only [P_R, Function.update_self, Function.update_idem] at hsp
-      exact Preference.preferRight_prefers_of_ge_of_lt hzu (lt_of_not_ge hlt) hsp
+    have hxL_le : (f P_L : ℝ) ≤ z := not_lt.mp fun hgt =>
+      Preference.preferLeft_prefers_of_le_of_gt hlz hgt <| by
+        have h := hf.atLeast_update P_L i (Preference.leftExtreme hab)
+        dsimp only [P_L] at h ⊢
+        rw [Function.update_self, Function.update_idem] at h
+        exact h
+    have hxR_ge : (z : ℝ) ≤ f P_R := not_lt.mp fun hlt =>
+      Preference.preferRight_prefers_of_ge_of_lt hzu hlt <| by
+        have h := hf.atLeast_update P_R i (Preference.rightExtreme hab)
+        dsimp only [P_R] at h ⊢
+        rw [Function.update_self, Function.update_idem] at h
+        exact h
     by_cases hEq : f P_R = z
     · exact (mem_optionSet_iff_update P i z).mpr ⟨Preference.preferRight z, hEq⟩
     · exfalso
-      have hxR_gt : (z : ℝ) < f P_R := lt_of_le_of_ne hxR_ge (fun h => hEq (Subtype.ext h.symm))
+      have hxR_gt : (z : ℝ) < f P_R := lt_of_le_of_ne hxR_ge fun h => hEq (Subtype.ext h.symm)
       let Q_L : Profile ι a b :=
         fun j => if j = i ∨ ((P j).peak : ℝ) ≤ z then Preference.preferLeft z else P j
       let Q_R : Profile ι a b :=
         fun j => if j = i ∨ ((P j).peak : ℝ) ≤ z then Preference.preferRight z else P j
-      have hfQL_le : (f Q_L : ℝ) ≤ z := by
-        refine Function.update_induction (x := P_L) (y := Q_L)
-          (P := fun R => (f R : ℝ) ≤ z) hxL_le ?_
-        intro R _ hR j hjP hjne
-        have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by
-          by_contra hnot
-          have hji : j ≠ i := fun h => hnot (Or.inl h)
-          apply hjne
+      have hfQL_le : (f Q_L : ℝ) ≤ z := Function.update_induction (x := P_L) (y := Q_L)
+        (P := fun R => (f R : ℝ) ≤ z) hxL_le fun R _ hR j hjP hjne => by
+        have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by_contra fun hnot => hjne <| by
           rw [hjP]
-          simp only [P_L, Q_L, Function.update_of_ne hji, hnot, ↓reduceIte]
-        have hQLj : Q_L j = Preference.preferLeft z := by simp only [Q_L, hj_cond, ↓reduceIte]
-        by_contra hgt
-        have hsp : (Preference.preferLeft z).AtLeast (f (Function.update R j (Q_L j))) (f R) := by
-          have h := hf (Function.update R j (Q_L j)) R j fun _ hkj =>
-            Function.update_of_ne hkj _ _
-          rw [Function.update_self] at h
-          rwa [← hQLj]
-        exact Preference.preferLeft_prefers_of_le_of_gt hR (lt_of_not_ge hgt) hsp
-      have hfQL_ge : (z : ℝ) ≤ f Q_L := by
-        obtain ⟨⟨j, hj⟩, _⟩ := (isParetoOptimal_iff_peaks_bounds.mp hPO) Q_L
-        have hzj : (z : ℝ) ≤ (Q_L j).peak := by
-          by_cases hc : j = i ∨ ((P j).peak : ℝ) ≤ z
-          · simp only [Q_L, hc, ↓reduceIte, Preference.preferLeft_peak, le_rfl]
-          · simp only [Q_L, hc, ↓reduceIte]
-            push Not at hc
-            exact le_of_lt hc.2
-        exact hzj.trans hj
-      have hfQL_eq : f Q_L = z := Subtype.ext (le_antisymm hfQL_le hfQL_ge)
-      have hfQR_eq_z : f Q_R = z := by
-        refine Function.update_induction (x := Q_L) (y := Q_R)
-          (P := fun R => f R = z) hfQL_eq ?_
-        intro R _ hR j hjQL hjne
-        have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by
-          by_contra hnot
-          apply hjne
+          dsimp only [P_L, Q_L]
+          rw [Function.update_of_ne fun h => hnot (.inl h), ite_eq_right hnot]
+        set yL := f (Function.update R j (Q_L j))
+        refine not_lt.mp fun hgt => Preference.preferLeft_prefers_of_le_of_gt hR hgt ?_
+        have h := hf (Function.update R j (Q_L j)) R j fun _ hkj => Function.update_of_ne hkj _ _
+        change (Function.update R j (Q_L j) j).AtLeast yL (f R) at h
+        rw [Function.update_self, show Q_L j = Preference.preferLeft z from ite_eq_left hj_cond]
+          at h
+        exact h
+      obtain ⟨⟨j₀, hj₀⟩, _⟩ := (isParetoOptimal_iff_peaks_bounds.mp hPO) Q_L
+      have hzj₀ : (z : ℝ) ≤ (Q_L j₀).peak := by
+        dsimp only [Q_L]
+        split_ifs with hc
+        · simp
+        · push Not at hc
+          exact hc.2.le
+      have hfQL_eq : f Q_L = z := Subtype.ext (le_antisymm hfQL_le (hzj₀.trans hj₀))
+      have hfQR_eq_z : f Q_R = z := Function.update_induction (x := Q_L) (y := Q_R)
+        (P := fun R => f R = z) hfQL_eq fun R _ hR j hjQL hjne => by
+        have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by_contra fun hnot => hjne <| by
           rw [hjQL]
-          simp only [Q_L, Q_R, hnot, ↓reduceIte]
-        have hQRj : Q_R j = Preference.preferRight z := by simp only [Q_R, hj_cond, ↓reduceIte]
-        have hsp : (Preference.preferRight z).AtLeast (f (Function.update R j (Q_R j))) z := by
-          have h := hf (Function.update R j (Q_R j)) R j fun _ hkj =>
-            Function.update_of_ne hkj _ _
-          rw [Function.update_self, hR] at h
-          rwa [← hQRj]
+          dsimp only [Q_L, Q_R]
+          rw [ite_eq_right hnot, ite_eq_right hnot]
+        set yR := f (Function.update R j (Q_R j))
+        have h := hf (Function.update R j (Q_R j)) R j fun _ hkj => Function.update_of_ne hkj _ _
+        change (Function.update R j (Q_R j) j).AtLeast yR (f R) at h
+        rw [Function.update_self, hR,
+          show Q_R j = Preference.preferRight z from ite_eq_left hj_cond] at h
         exact (Preference.preferRight z).eq_peak_of_atLeast_peak
-          (by simpa only [Preference.preferRight_peak] using hsp)
-      have hfQR_eq_xR : f Q_R = f P_R := by
-        refine Function.update_induction (x := P_R) (y := Q_R)
-          (P := fun R => f R = f P_R) rfl ?_
-        intro R _ hR j hjPR hjne
-        have hj_not_i : j ≠ i := by
-          rintro rfl
-          apply hjne
+          ((Preference.preferRight_peak z).symm ▸ h)
+      have hfQR_eq_xR : f Q_R = f P_R := Function.update_induction (x := P_R) (y := Q_R)
+        (P := fun R => f R = f P_R) rfl fun R _ hR j hjPR hjne => by
+        have hj_not_i : j ≠ i := fun h => hjne <| by
+          subst h
           rw [hjPR]
-          simp only [P_R, Q_R, Function.update_self, true_or, ↓reduceIte]
-        have hj_le : ((P j).peak : ℝ) ≤ z := by
-          by_contra hgt
-          apply hjne
+          dsimp only [P_R, Q_R]
+          rw [Function.update_self, ite_eq_left (.inl rfl)]
+        have hj_le : ((P j).peak : ℝ) ≤ z := by_contra fun hgt => hjne <| by
           rw [hjPR]
-          simp only [P_R, Q_R, Function.update_of_ne hj_not_i, hj_not_i, hgt, or_self, ↓reduceIte]
-        have hRj : R j = P j := by rw [hjPR]; simp only [P_R, Function.update_of_ne hj_not_i]
-        have hQRj : Q_R j = Preference.preferRight z := by
-          simp only [Q_R, Or.inr hj_le, ↓reduceIte]
+          dsimp only [P_R, Q_R]
+          rw [Function.update_of_ne hj_not_i, ite_eq_right (not_or.mpr ⟨hj_not_i, hgt⟩)]
+        have hQRj : Q_R j = Preference.preferRight z := ite_eq_left (.inr hj_le)
         set y := f (Function.update R j (Q_R j))
         have hsp1 : (P j).AtLeast (f P_R) y := by
-          rw [← hR, ← hRj]
-          exact hf.atLeast_update R j (Q_R j)
+          have hRj : R j = P j := hjPR.trans (Function.update_of_ne hj_not_i _ _)
+          exact hR ▸ hRj ▸ hf.atLeast_update R j (Q_R j)
         have hsp2 : (Preference.preferRight z).AtLeast y (f P_R) := by
-          have h := hf (Function.update R j (Q_R j)) R j fun _ hkj =>
-            Function.update_of_ne hkj _ _
-          rw [Function.update_self, hR] at h
-          rwa [← hQRj]
-        have hy_ge_z : (z : ℝ) ≤ y := by
-          by_contra hlt
-          exact Preference.preferRight_prefers_of_ge_of_lt hxR_ge (lt_of_not_ge hlt) hsp2
-        have hy_le_xR : (y : ℝ) ≤ f P_R := by
-          by_contra hgt
-          exact (Preference.preferRight z).prefers_of_between_right hxR_ge (lt_of_not_ge hgt) hsp2
-        have hy_ge_xR : (f P_R : ℝ) ≤ y := by
-          by_contra hlt
-          exact (P j).prefers_of_between_right (hj_le.trans hy_ge_z) (lt_of_not_ge hlt) hsp1
-        exact Subtype.ext (le_antisymm hy_le_xR hy_ge_xR)
+          have h := hf (Function.update R j (Q_R j)) R j fun _ hkj => Function.update_of_ne hkj _ _
+          change (Function.update R j (Q_R j) j).AtLeast y (f R) at h
+          rwa [Function.update_self, hR, hQRj] at h
+        have hy_ge_z : (z : ℝ) ≤ y := not_lt.mp fun hlt =>
+          Preference.preferRight_prefers_of_ge_of_lt hxR_ge hlt hsp2
+        exact Subtype.ext <| le_antisymm
+          (not_lt.mp fun hgt => (Preference.preferRight z).prefers_of_between_right hxR_ge hgt hsp2)
+          (not_lt.mp fun hlt => (P j).prefers_of_between_right (hj_le.trans hy_ge_z) hlt hsp1)
       exact hxR_gt.ne' (congrArg Subtype.val (hfQR_eq_xR.symm.trans hfQR_eq_z))
 
 /-- For a strategy-proof onto rule on single-peaked preferences, agent `i`'s response is its peak
@@ -916,31 +811,25 @@ theorem IsStrategyProof.apply_update_eq_clamp [Finite ι] [DecidableEq ι]
   set u := f (Function.update P i (Preference.rightExtreme hab))
   set y := f (Function.update P i R')
   have hO := hf.optionSet_eq_Icc hsurj P i hab
-  have hP'O : f.optionSet (Function.update P i R') i = f.optionSet P i := by
-    ext x
-    simp only [mem_optionSet_iff_update, Function.update_idem]
-  have hy_mem : y ∈ Set.Icc l u := by
-    rw [← hO]
-    exact (mem_optionSet_iff_update P i y).mpr ⟨R', rfl⟩
+  have hy_mem : y ∈ Set.Icc l u := hO ▸ (mem_optionSet_iff_update P i y).mpr ⟨R', rfl⟩
   have hlu : (l : ℝ) ≤ u := hy_mem.1.trans hy_mem.2
+  have hO' : f.optionSet (Function.update P i R') i = Set.Icc l u := by
+    ext w
+    rw [mem_optionSet_iff_update, ← hO, mem_optionSet_iff_update]
+    simp only [Function.update_idem]
   have hsp : ∀ x ∈ Set.Icc l u, R'.AtLeast y x := fun x hx => by
-    have h := hf.atLeast_of_mem_optionSet (Function.update P i R') i (by rw [hP'O, hO]; exact hx)
-    simpa only [Function.update_self] using h
+    have h := hf.atLeast_of_mem_optionSet (Function.update P i R') i (hO' ▸ hx)
+    rwa [Function.update_self] at h
   rcases le_or_gt (R'.peak : ℝ) l with hpl | hlp
-  · have hyl : y = l := by
-      by_contra hne
-      have hgt : (l : ℝ) < y := lt_of_le_of_ne hy_mem.1 (fun h => hne (Subtype.ext h.symm))
-      exact R'.prefers_of_between_right hpl hgt (hsp l ⟨le_rfl, hlu⟩)
-    rw [hyl, min_eq_left (hpl.trans hlu), max_eq_left hpl]
+  · rw [show y = l from by_contra fun hne => R'.prefers_of_between_right hpl
+      (lt_of_le_of_ne hy_mem.1 fun h => hne (Subtype.ext h.symm)) (hsp l ⟨le_rfl, hlu⟩),
+      min_eq_left (hpl.trans hlu), max_eq_left hpl]
   · rcases le_or_gt (R'.peak : ℝ) u with hpu | hup
-    · have hyp : y = R'.peak :=
-        R'.eq_peak_of_atLeast_peak (hsp R'.peak ⟨le_of_lt hlp, hpu⟩)
-      rw [hyp, min_eq_left hpu, max_eq_right (le_of_lt hlp)]
-    · have hyu : y = u := by
-        by_contra hne
-        have hlt : (y : ℝ) < u := lt_of_le_of_ne hy_mem.2 (fun h => hne (Subtype.ext h))
-        exact R'.prefers_of_between_left hlt (le_of_lt hup) (hsp u ⟨hlu, le_rfl⟩)
-      rw [hyu, min_eq_right (le_of_lt hup), max_eq_right hlu]
+    · rw [R'.eq_peak_of_atLeast_peak (hsp R'.peak ⟨hlp.le, hpu⟩),
+        min_eq_left hpu, max_eq_right hlp.le]
+    · rw [show y = u from by_contra fun hne => R'.prefers_of_between_left
+        (lt_of_le_of_ne hy_mem.2 fun h => hne (Subtype.ext h)) hup.le (hsp u ⟨hlu, le_rfl⟩),
+        min_eq_right hup.le, max_eq_right hlu]
 
 /-- **Ching's peaks-only theorem** ([Ching1997]; [SchummerVohra2007], §10.2.1, p. 247 and §10.6,
 p. 263): every strategy-proof onto rule on ordinal single-peaked preferences depends only on the
@@ -949,17 +838,16 @@ theorem IsStrategyProof.isPeaksOnly_of_surjective [Finite ι]
     (hf : f.IsStrategyProof) (hsurj : Function.Surjective f) : f.IsPeaksOnly := by
   classical
   intro P Q hpeaks
-  have hEq : f Q = f P := by
-    refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl ?_
-    intro R _ hR i hRi _
-    have hab : a ≤ b := (P i).peak.2.1.trans (P i).peak.2.2
-    have h1 := hf.apply_update_eq_clamp hsurj R i (Q i) hab
-    have h2 := hf.apply_update_eq_clamp hsurj R i (P i) hab
-    have hR_eq : Function.update R i (P i) = R := by rw [← hRi, Function.update_eq_self]
-    rw [hR_eq, hR] at h2
-    rw [← hpeaks i] at h1
-    exact Subtype.ext (h1.trans h2.symm)
-  exact hEq.symm
+  symm
+  refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = f P) rfl
+    fun R _ hR i hRi _ => ?_
+  have hab : a ≤ b := (P i).peak.2.1.trans (P i).peak.2.2
+  have h1 := hf.apply_update_eq_clamp hsurj R i (Q i) hab
+  have h2 := hf.apply_update_eq_clamp hsurj R i (P i) hab
+  have hupd : Function.update R i (P i) = R := hRi ▸ Function.update_eq_self i R
+  rw [hupd, hR] at h2
+  rw [← hpeaks i] at h1
+  exact Subtype.ext (h1.trans h2.symm)
 
 end Rule
 

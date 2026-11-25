@@ -107,10 +107,8 @@ theorem ApproximatedWithin.of_isAffineProjection {P : MvPolynomial σ K} {Q : Mv
   refine ⟨_, ?_, ComputedWithin.of_isAffineProjection hc hP⟩
   intro d i hi
   classical
-  have hsub : Q.support ⊆ Q'.support := fun b hb => by
-    rw [mem_support_iff] at hb ⊢
-    intro h0
-    exact hb (by simpa [h0] using (hQ' b 0 le_rfl).symm)
+  have hsub : Q.support ⊆ Q'.support := fun b hb => mem_support_iff.2 fun h0 =>
+    mem_support_iff.1 hb (by simpa [h0] using (hQ' b 0 le_rfl).symm)
   have e1 : (aeval (fun i => map HahnSeries.C (ρ i)) Q').coeff d =
       ∑ b ∈ Q'.support, Q'.coeff b * HahnSeries.C ((aeval ρ (monomial b (1 : K))).coeff d) := by
     conv_lhs => rw [Q'.as_sum, map_sum, coeff_sum]
@@ -186,8 +184,7 @@ private theorem ordGe_C {t : ℤ} {a : K⸨X⸩} (ha : ∀ i < t, a.coeff i = 0)
   classical
   rw [coeff_C]
   split_ifs
-  · exact ha i hi
-  · rfl
+  exacts [ha i hi, rfl]
 
 /-- A variable has no terms below `ε ^ 0`. -/
 private theorem ordGe_X (j : σ) : OrdGe 0 (X j : MvPolynomial σ K⸨X⸩) := fun d i hi => by
@@ -205,8 +202,7 @@ private theorem exists_ordGe (u : MvPolynomial σ K⸨X⸩) : ∃ B : ℤ, 0 ≤
     classical
     rw [coeff_monomial]
     split_ifs
-    · exact HahnSeries.coeff_eq_zero_of_lt_order (lt_of_lt_of_le hi (neg_abs_le _))
-    · rfl
+    exacts [HahnSeries.coeff_eq_zero_of_lt_order (lt_of_lt_of_le hi (neg_abs_le _)), rfl]
   | add p q hp hq =>
     obtain ⟨B, hB, h⟩ := hp
     obtain ⟨B', hB', h'⟩ := hq
@@ -222,8 +218,7 @@ private theorem OrdGe.rename {t : ℤ} {u : MvPolynomial σ K⸨X⸩} (h : OrdGe
   intro d i hi
   rw [coeff_monomial]
   split_ifs
-  · exact h e i hi
-  · rfl
+  exacts [h e i hi, rfl]
 
 variable {n g : ℕ}
 

@@ -33,7 +33,7 @@ open SimpleGraph
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
-attribute [local client_simps] runClient_read runClient_write clientState_map
+attribute [local client_simps] runClient_read runClient_write StateTransitionSpec.clientState_map
 
 private theorem validHistory_readSplitCap {w : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ} {s : Memory.State}
     (hs : MemReady w d.1.1.1 s) :

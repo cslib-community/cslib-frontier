@@ -91,28 +91,22 @@ theorem phase_even_of_involutive {β : Type*} (φ : ℤ → ℤ → β) (e n : �
     (east : ∀ x y, φ (x + 1) y = e (φ x y)) (north : ∀ x y, φ x (y + 1) = n (φ x y))
     (x y u v : ℤ) : φ (x + 2 * u) (y + 2 * v) = φ x y := by
   have hx : Function.Periodic (fun a : ℤ => φ a (y + 2 * v)) 2 := fun a => by
-    change φ (a + 2) _ = _
-    rw [show a + 2 = a + 1 + 1 by omega, east, east, he]
+    simpa only [show a + 2 = a + 1 + 1 by omega, east] using he _
   have hy : Function.Periodic (fun b : ℤ => φ x b) 2 := fun b => by
-    change φ x (b + 2) = _
-    rw [show b + 2 = b + 1 + 1 by omega, north, north, hn]
-  calc φ (x + 2 * u) (y + 2 * v) = φ x (y + 2 * v) := by
-        simpa only [Int.cast_id, mul_comm] using hx.int_mul u x
-    _ = φ x y := by simpa only [Int.cast_id, mul_comm] using hy.int_mul v y
+    simpa only [show b + 2 = b + 1 + 1 by omega, north] using hn _
+  exact Eq.trans (by simpa [mul_comm] using hx.int_mul u x)
+    (by simpa [mul_comm] using hy.int_mul v y)
 
 private theorem exists_phase_origin (p : IndexPlane) :
     ∃ x y : Fin 2, (components (p.index x.val y.val)).thin = .a := by
   have he := thin_east (p.horizontal 0 0)
-  have hn := thin_north (p.vertical 0 0)
-  have hen := thin_north (p.vertical 1 0)
   cases h : (components (p.index 0 0)).thin with
   | a => exact ⟨0, 0, h⟩
   | b =>
-    have he' : (components (p.index 1 0)).thin = .d := by
-      simpa [h, phaseEast] using he
-    exact ⟨1, 1, by simpa [he', phaseNorth] using hen⟩
+    have he' : (components (p.index 1 0)).thin = .d := by simpa [h, phaseEast] using he
+    exact ⟨1, 1, by simpa [he', phaseNorth] using thin_north (p.vertical 1 0)⟩
   | c => exact ⟨1, 0, by simpa [h, phaseEast] using he⟩
-  | d => exact ⟨0, 1, by simpa [h, phaseNorth] using hn⟩
+  | d => exact ⟨0, 1, by simpa [h, phaseNorth] using thin_north (p.vertical 0 0)⟩
 
 private def neighborhood (p : IndexPlane) (x y : ℤ)
     (hphase : (components (p.index x y)).thin = .a) : Neighborhood where
@@ -143,26 +137,19 @@ theorem nonempty_parent (fine : IndexPlane) : Nonempty (Parent fine) := by
           phaseEast phaseNorth phaseEast_involutive phaseNorth_involutive
           (fun x y => thin_east (fine.horizontal x y))
           (fun x y => thin_north (fine.vertical x y)) ox.val oy.val x y).trans hphase))
-    refine ⟨p, ?_⟩
-    intro i j
+    refine ⟨p, fun i j => ?_⟩
     fin_cases i <;> fin_cases j
     · simpa [neighborhood, add_sub_assoc] using hp.1
     · simpa [neighborhood, add_sub_assoc] using hp.2.2.1
     · simpa [neighborhood, add_sub_assoc] using hp.2.1
     · simpa [neighborhood, add_sub_assoc] using hp.2.2.2
   choose coarse hc using hlocal
-  refine ⟨{ coarse := { index := coarse, horizontal := ?_, vertical := ?_ }
-            offsetX := ox, offsetY := oy, children := hc }⟩
-  · intro x y
-    apply (horizontal_iff_children _ _).mpr
-    intro j
-    rw [hc x y 1 j, hc (x + 1) y 0 j]
+  refine ⟨⟨⟨coarse, fun x y => (horizontal_iff_children _ _).mpr fun j => ?_,
+    fun x y => (vertical_iff_children _ _).mpr fun i => ?_⟩, ox, oy, hc⟩⟩
+  · rw [hc x y 1 j, hc (x + 1) y 0 j]
     simpa [mul_add, add_assoc] using
       fine.horizontal ((ox.val : ℤ) + 2 * x + 1) ((oy.val : ℤ) + 2 * y + j.val)
-  · intro x y
-    apply (vertical_iff_children _ _).mpr
-    intro i
-    rw [hc x y i 1, hc x (y + 1) i 0]
+  · rw [hc x y i 1, hc x (y + 1) i 0]
     simpa [mul_add, add_assoc] using
       fine.vertical ((ox.val : ℤ) + 2 * x + i.val) ((oy.val : ℤ) + 2 * y + 1)
 
@@ -204,17 +191,15 @@ theorem Tower.refined_patch {base : IndexPlane} (t : Tower base) (depth : ℕ) :
       (fun x y : ℕ => (t.plane level).index (u + x) (v + y)) =
         iterateRefine depth (fun x y : ℕ => (t.plane (level + depth)).index (a + x) (b + y)) := by
   induction depth with
-  | zero => exact fun level a b => ⟨a, b, rfl⟩
+  | zero => exact fun _ a b => ⟨a, b, rfl⟩
   | succ depth ih =>
     intro level a b
     obtain ⟨u, v, h⟩ := ih (level + 1) a b
-    refine ⟨(t.offsetX level).val + 2 * u, (t.offsetY level).val + 2 * v, ?_⟩
-    funext x y
+    refine ⟨(t.offsetX level).val + 2 * u, (t.offsetY level).val + 2 * v,
+      funext fun x => funext fun y => ?_⟩
     have index := congrFun (congrFun h (x / 2)) (y / 2)
     simp only [Nat.add_assoc, Nat.add_comm 1 depth] at index
-    simp only [iterateRefine, refineIndexGrid, ← index]
-    rw [t.children]
-    dsimp only
+    simp only [iterateRefine, refineIndexGrid, ← index, t.children]
     congr 1 <;> omega
 
 private theorem expansion_occurs {base : IndexPlane} (t : Tower base)
@@ -276,13 +261,13 @@ private theorem fromZero_ok :
   decide +kernel
 
 private theorem fromZero_child (p : Index) :
-    childBlock (fromZeroParent p) (fromZeroDx p) (fromZeroDy p) = p := by
-  have h := List.all_eq_true.mp fromZero_ok p (List.mem_finRange p)
-  exact beq_iff_eq.mp (Bool.and_eq_true_iff.mp h).1
+    childBlock (fromZeroParent p) (fromZeroDx p) (fromZeroDy p) = p :=
+  beq_iff_eq.mp
+    (Bool.and_eq_true_iff.mp (List.all_eq_true.mp fromZero_ok p (List.mem_finRange p))).1
 
-private theorem fromZero_root (p : Index) : fromZeroParent^[5] p = 0 := by
-  have h := List.all_eq_true.mp fromZero_ok p (List.mem_finRange p)
-  exact beq_iff_eq.mp (Bool.and_eq_true_iff.mp h).2
+private theorem fromZero_root (p : Index) : fromZeroParent^[5] p = 0 :=
+  beq_iff_eq.mp
+    (Bool.and_eq_true_iff.mp (List.all_eq_true.mp fromZero_ok p (List.mem_finRange p))).2
 
 private theorem descends_step (n : ℕ) (p : Index) :
     ∃ i j : Fin (2 ^ n), iterateRefine n (fun _ _ => fromZeroParent^[n] p) i j = p := by
@@ -296,10 +281,9 @@ private theorem descends_step (n : ℕ) (p : Index) :
       fromZero_child p
 
 private theorem descends_zero :
-    ∀ p : Index, ∃ i j : Fin 32, iterateRefine 5 (fun _ _ => 0) i j = p := by
-  intro p
-  obtain ⟨i, j, hij⟩ := descends_step 5 p
-  exact ⟨⟨i.val, i.isLt⟩, ⟨j.val, j.isLt⟩, by simpa only [fromZero_root p] using hij⟩
+    ∀ p : Index, ∃ i j : Fin 32, iterateRefine 5 (fun _ _ => 0) i j = p := fun p =>
+  let ⟨i, j, hij⟩ := descends_step 5 p
+  ⟨i, j, by simpa only [fromZero_root p] using hij⟩
 
 /-- Every corrected tile type occurs at every level of every parent tower. -/
 theorem Tower.every_tile {base : IndexPlane} (t : Tower base) (level : ℕ) (target : Index) :
@@ -320,31 +304,26 @@ private theorem expansion_horizontal (n : ℕ) (p : Index) (x y : ℕ)
     (tile (components (iterateRefine n (fun _ _ => p) x y))).right =
       (tile (components (iterateRefine n (fun _ _ => p) (x + 1) y))).left := by
   induction n generalizing x y with
-  | zero => simp only [pow_zero] at hx; omega
+  | zero => omega
   | succ n ih =>
-    rcases parity_step x with h | h
-    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
-      exact child_horizontal _ _
-    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
-      apply (horizontal_iff_children _ _).mp (ih (x / 2) (y / 2) ?_)
+    rcases parity_step x with ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ <;>
+      simp only [iterateRefine, refineIndexGrid, h1, h2, h3]
+    · exact child_horizontal _ _
+    · exact (horizontal_iff_children _ _).mp (ih (x / 2) (y / 2) (by rw [pow_succ] at hx; omega))
         ⟨y % 2, Nat.mod_lt _ (by decide)⟩
-      rw [pow_succ] at hx
-      omega
 
 private theorem expansion_vertical (n : ℕ) (p : Index) (x y : ℕ)
     (hy : y + 1 < 2 ^ n) :
     (tile (components (iterateRefine n (fun _ _ => p) x y))).top =
       (tile (components (iterateRefine n (fun _ _ => p) x (y + 1)))).bottom := by
   induction n generalizing x y with
-  | zero => simp only [pow_zero] at hy; omega
+  | zero => omega
   | succ n ih =>
-    rcases parity_step y with h | h
-    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
-      exact child_vertical _ _
-    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
-      apply (vertical_iff_children _ _).mp (ih (x / 2) (y / 2) ?_) ⟨x % 2, Nat.mod_lt _ (by decide)⟩
-      rw [pow_succ] at hy
-      omega
+    rcases parity_step y with ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ <;>
+      simp only [iterateRefine, refineIndexGrid, h1, h2, h3]
+    · exact child_vertical _ _
+    · exact (vertical_iff_children _ _).mp (ih (x / 2) (y / 2) (by rw [pow_succ] at hy; omega))
+        ⟨x % 2, Nat.mod_lt _ (by decide)⟩
 
 private theorem square_bound {n x : ℕ} (h : x < n + 1) : x < 2 ^ n :=
   lt_of_lt_of_le h (Nat.succ_le_of_lt (show n < 2 ^ n from Nat.lt_two_pow_self))

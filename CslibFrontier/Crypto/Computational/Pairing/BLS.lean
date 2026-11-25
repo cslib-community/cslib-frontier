@@ -171,18 +171,25 @@ private theorem list_lookup_beq_congr {α β : Type} (inst₁ : BEq α) [hL₁ :
   induction l with
   | nil => rfl
   | cons hd tl ih =>
-    rcases hd with ⟨k', v'⟩
-    have hbeq : @BEq.beq α inst₁ k k' = @BEq.beq α inst₂ k k' :=
+    have hbeq : @BEq.beq α inst₁ k hd.1 = @BEq.beq α inst₂ k hd.1 :=
       Bool.eq_iff_iff.mpr
-        ((@beq_iff_eq α inst₁ hL₁ k k').trans (@beq_iff_eq α inst₂ hL₂ k k').symm)
-    dsimp only [List.lookup]
-    rw [hbeq, ih]
+        ((@beq_iff_eq α inst₁ hL₁ k hd.1).trans (@beq_iff_eq α inst₂ hL₂ k hd.1).symm)
+    simp only [List.lookup, hbeq, ih]
 
 private theorem list_contains_beq_congr {α : Type} (inst₁ : BEq α) [LawfulBEq α]
     (inst₂ : BEq α) [LawfulBEq α] (l : List α) (x : α) :
     @List.contains α inst₁ l x = @List.contains α inst₂ l x :=
   Bool.eq_iff_iff.mpr ((@List.contains_iff_mem α inst₁ _ _ _).trans
     (@List.contains_iff_mem α inst₂ _ _ _).symm)
+
+private theorem list_lookup_map_snd {α β γ : Type} [BEq α] (f : β → γ)
+    (l : List (α × β)) (q : α) :
+    (l.map fun x => (x.1, f x.2)).lookup q = (l.lookup q).map f := by
+  induction l with
+  | nil => rfl
+  | cons hd tl ih =>
+    simp only [List.map_cons, List.lookup]
+    cases (q == hd.1) <;> simp [ih]
 
 private theorem mem_support_memoize_lookup_preserve {Query Digest : Type} [DecidableEq Query]
     (compute : Query → PMF Digest) {key q : Query} {cache : List (Query × Digest)} {h : Digest}
@@ -192,14 +199,13 @@ private theorem mem_support_memoize_lookup_preserve {Query Digest : Type} [Decid
   cases hkey : cache.lookup key with
   | some v =>
     rw [memoize_of_some _ _ _ _ hkey, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hres
-    subst hres
-    exact hlookup
+    exact hres ▸ hlookup
   | none =>
     rw [memoize_of_none _ _ _ hkey, PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hres
     obtain ⟨v, _, hv⟩ := hres
     rw [PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hv
     subst hv
-    have hne : q ≠ key := fun heq => by rw [heq, hkey] at hlookup; cases hlookup
+    have hne : q ≠ key := fun heq => by simp [heq, hkey] at hlookup
     simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr hne, hlookup]
 
 private theorem mem_support_interpret_oracle_lookup_preserve {Query Digest α : Type}
@@ -213,8 +219,7 @@ private theorem mem_support_interpret_oracle_lookup_preserve {Query Digest α : 
   | pure a =>
     simp only [interpret_pure, StateT.run_pure, PMF.monad_pure_eq_pure,
       PMF.mem_support_pure_iff] at hres
-    subst hres
-    exact hlookup
+    exact hres ▸ hlookup
   | query_bind key cont ih =>
     change res ∈ ((interpret (oracle Digest) (OracleComp.query key >>= cont)).run cache).support
       at hres
@@ -246,68 +251,57 @@ private theorem sufCma_worldRealize_eq_eufCma_of_unique {PK SK M Sig Digest : Ty
   rw [eval_world_worldRealize, eval_world_worldRealize]
   simp only [PMF.monad_bind_eq_bind]
   have hlogged :
-      ∀ (res : ((M × Sig) × List (M × Sig)) × List (M × Digest)),
-        res ∈ (ProbOracleComp.runWith (forgerWorldImpl scheme sk)
-          (runLoggedForger forger) []).support →
-          ∀ p ∈ res.1.2, ∃ d, res.2.lookup p.1 = some d ∧ pred d p.2 = true := by
+      ∀ res ∈ (ProbOracleComp.runWith (forgerWorldImpl scheme sk)
+          (runLoggedForger forger) []).support,
+        ∀ p ∈ res.1.2, ∃ d, res.2.lookup p.1 = some d ∧ pred d p.2 = true := by
     intro res hres
     unfold runLoggedForger at hres
     rw [ProbOracleComp.runWith_run_interpret logSigning (forgerWorldImpl scheme sk)
       forger [] [], PMF.mem_support_map_iff] at hres
-    obtain ⟨⟨msig, pairs, cache⟩, hmem, heq⟩ := hres
-    have hinv := ProbOracleComp.runWith_invariant
-      _
+    obtain ⟨⟨msig, pairs, cache⟩, hmem, rfl⟩ := hres
+    refine ProbOracleComp.runWith_invariant _
       (fun st : List (M × Sig) × List (M × Digest) =>
         ∀ p ∈ st.1, ∃ d, st.2.lookup p.1 = some d ∧ pred d p.2 = true)
-      (fun q state hs a st' hstep => by
-        rw [PMF.mem_support_map_iff] at hstep
-        obtain ⟨⟨⟨a', b⟩, c⟩, hrun, heqc⟩ := hstep
-        cases heqc
-        rcases q with m | x
-        · have hlog : (logSigning (Sum.inl m)).run state.1 =
-              (ProbOracleComp.query (spec := ForgerSpec M M Sig Digest) (Sum.inl m) >>=
-                fun sig => pure (sig, (m, sig) :: state.1)) := rfl
-          change ((a, b), c) ∈ (ProbOracleComp.runWith (forgerWorldImpl scheme sk)
-              ((logSigning (Sum.inl m)).run state.1) state.2).support at hrun
-          rw [hlog] at hrun
-          simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-            ProbOracleComp.runWith_pure, forgerWorldImpl, sumHandler, PMF.monad_bind_eq_bind,
-            PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hrun
-          obtain ⟨⟨sig, cache₁⟩, ⟨coins, hcoins, hsig⟩, hpair⟩ := hrun
-          cases hpair
-          intro p hp
-          rcases List.mem_cons.mp hp with rfl | hp
-          · exact hsign m coins state.2 (sig, cache₁) hcoins hsig
-          · obtain ⟨d, hd, hpred⟩ := hs p hp
-            exact ⟨d, mem_support_interpret_oracle_lookup_preserve
-              (scheme.sign sk m coins) hsig hd, hpred⟩
-        · have hlog : (logSigning (Sum.inr x)).run state.1 =
-              (ProbOracleComp.query (spec := ForgerSpec M M Sig Digest) (Sum.inr x) >>=
-                fun d => pure (d, state.1)) := rfl
-          change ((a, b), c) ∈ (ProbOracleComp.runWith (forgerWorldImpl scheme sk)
-              ((logSigning (Sum.inr x)).run state.1) state.2).support at hrun
-          rw [hlog] at hrun
-          simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
-            ProbOracleComp.runWith_pure, forgerWorldImpl, sumHandler, PMF.monad_bind_eq_bind,
-            PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hrun
-          obtain ⟨⟨d, cache₁⟩, hd, hpair⟩ := hrun
-          cases hpair
-          intro p hp
-          obtain ⟨dp, hdp, hpred⟩ := hs p hp
-          exact ⟨dp, mem_support_memoize_lookup_preserve _ hd hdp, hpred⟩)
-      forger ([], []) (fun _ h => by cases h) msig (pairs, cache) hmem
-    subst heq
-    exact hinv
+      (fun q state hs a st' hstep => ?_) forger ([], []) (fun _ h => by cases h)
+      msig (pairs, cache) hmem
+    rw [PMF.mem_support_map_iff] at hstep
+    obtain ⟨⟨⟨a', b⟩, c⟩, hrun, heqc⟩ := hstep
+    cases heqc
+    rcases q with m | x
+    · change ((a, b), c) ∈ (ProbOracleComp.runWith (forgerWorldImpl scheme sk)
+        (ProbOracleComp.query (spec := ForgerSpec M M Sig Digest) (Sum.inl m) >>=
+          fun sig => pure (sig, (m, sig) :: state.1)) state.2).support at hrun
+      simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+        ProbOracleComp.runWith_pure, forgerWorldImpl, sumHandler, PMF.monad_bind_eq_bind,
+        PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hrun
+      obtain ⟨⟨sig, cache₁⟩, ⟨coins, hcoins, hsig⟩, hpair⟩ := hrun
+      cases hpair
+      intro p hp
+      rcases List.mem_cons.mp hp with rfl | hp
+      · exact hsign m coins state.2 (sig, cache₁) hcoins hsig
+      · obtain ⟨d, hd, hpred⟩ := hs p hp
+        exact ⟨d, mem_support_interpret_oracle_lookup_preserve
+          (scheme.sign sk m coins) hsig hd, hpred⟩
+    · change ((a, b), c) ∈ (ProbOracleComp.runWith (forgerWorldImpl scheme sk)
+        (ProbOracleComp.query (spec := ForgerSpec M M Sig Digest) (Sum.inr x) >>=
+          fun d => pure (d, state.1)) state.2).support at hrun
+      simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+        ProbOracleComp.runWith_pure, forgerWorldImpl, sumHandler, PMF.monad_bind_eq_bind,
+        PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hrun
+      obtain ⟨⟨d, cache₁⟩, hd, hpair⟩ := hrun
+      cases hpair
+      intro p hp
+      obtain ⟨dp, hdp, hpred⟩ := hs p hp
+      exact ⟨dp, mem_support_memoize_lookup_preserve _ hd hdp, hpred⟩
   refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨msig, pairs⟩, cache⟩ hmem => ?_
-  have hinv := hlogged ⟨⟨msig, pairs⟩, cache⟩ hmem
+  have hinv := hlogged _ hmem
   refine PMF.bind_congr_on_support _ _ _ fun verified hver => ?_
   rw [hverify msig.1 msig.2, interpret_map, interpret_query, StateT.run_map,
     PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hver
   obtain ⟨⟨d, cache'⟩, hd, rfl⟩ := hver
   by_cases hpred : pred d msig.2 = true
   · by_cases hmsg : (pairs.map Prod.fst).contains msig.1 = true
-    · have hmemMsg : msig.1 ∈ pairs.map Prod.fst := List.contains_iff_mem.mp hmsg
-      obtain ⟨⟨m', sig₀⟩, hpMem, hm'⟩ := List.mem_map.mp hmemMsg
+    · obtain ⟨⟨m', sig₀⟩, hpMem, hm'⟩ := List.mem_map.mp (List.contains_iff_mem.mp hmsg)
       dsimp only at hm'
       subst hm'
       obtain ⟨d₀, hd₀, hpred₀⟩ := hinv (msig.1, sig₀) hpMem
@@ -315,11 +309,9 @@ private theorem sufCma_worldRealize_eq_eufCma_of_unique {PK SK M Sig Digest : Ty
       rw [run_oracle_of_lookup_eq_some hd₀, PMF.mem_support_pure_iff] at hd
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj hd
       obtain rfl : msig.2 = sig₀ := hunique _ msig.2 sig₀ hpred hpred₀
-      have hpairMem : msig ∈ pairs := by simpa only [Prod.eta] using hpMem
-      rw [List.contains_iff_mem.mpr hpairMem, hmsg]
-    · have hnotMem : msig.1 ∉ pairs.map Prod.fst := fun hm => hmsg (List.contains_iff_mem.mpr hm)
-      have hpairNotMem : msig ∉ pairs := fun hm =>
-        hnotMem (List.mem_map.mpr ⟨msig, hm, rfl⟩)
+      rw [List.contains_iff_mem.mpr (by simpa only [Prod.eta] using hpMem), hmsg]
+    · have hpairNotMem : msig ∉ pairs := fun hm =>
+        hmsg (List.contains_iff_mem.mpr (List.mem_map.mpr ⟨msig, hm, rfl⟩))
       rw [Bool.eq_false_iff.mpr fun h => hpairNotMem (List.contains_iff_mem.mp h),
         Bool.eq_false_iff.mpr hmsg]
   · simp [hpred]
@@ -356,11 +348,8 @@ theorem pair_right_generator_injective (d : P.G₀.Desc) :
   intro σ₁ σ₂ h
   obtain ⟨a₁, rfl⟩ := P.G₀.smul_generator_surjective d σ₁
   obtain ⟨a₂, rfl⟩ := P.G₀.smul_generator_surjective d σ₂
-  have hg₁ : P.G₁.generator d = (1 : ZMod (P.G₀.order d)) • P.G₁.generator d := (one_smul _ _).symm
-  dsimp only at h
-  rw [hg₁, P.pair_smul_generator_smul_generator, P.pair_smul_generator_smul_generator,
-    mul_one, mul_one] at h
-  rw [(P.GT.toFamily.smul_generator_injective d) h]
+  simp only [map_smul, LinearMap.smul_apply, P.pair_generator] at h
+  rw [P.GT.toFamily.smul_generator_injective d h]
 
 /-- **Correctness** of the typed BLS signature scheme: every honest signature verifies. -/
 theorem blsTypedROMScheme_correct (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)] :
@@ -371,9 +360,9 @@ theorem blsTypedROMScheme_correct (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)]
     PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hsigned hverified
   obtain ⟨r, hr, rfl⟩ := hsigned
   obtain ⟨r', hr', rfl⟩ := hverified
-  have hlookup := lookup_of_mem_support_oracle hr
   change r' ∈ ((oracle (P.G₀.Carrier d) m).run r.2).support at hr'
-  rw [run_oracle_of_lookup_eq_some hlookup, PMF.mem_support_pure_iff] at hr'
+  rw [run_oracle_of_lookup_eq_some (lookup_of_mem_support_oracle hr), PMF.mem_support_pure_iff]
+    at hr'
   subst hr'
   simp only [map_smul, LinearMap.smul_apply, decide_true]
 
@@ -441,15 +430,12 @@ private theorem isQueryBounded_blsRunCore (d : P.G₀.Desc) (α : ZMod (P.G₀.o
   have htotal : prog.IsQueryBounded (Qs + Qro) :=
     (hs.add hh).of_le fun q => by cases q <;> simp [signingCost, hashCost]
   have hrun : ((OracleComp.interpret (P.blsCoreHandler d α) prog).run []).IsQueryBounded
-      (Qs + Qro) := by
-    refine IsCostBounded.run_interpret (cost' := fun _ => 1) (fun q => ?_) htotal []
-    intro s
-    cases q with
-    | inl m => exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.query m)
-    | inr x => exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.query x)
-  refine (IsCostBounded.bind hrun (fun _ =>
-    IsCostBounded.bind (IsCostBounded.query _) (fun _ => IsCostBounded.pure _ 0))).mono ?_
-  omega
+      (Qs + Qro) :=
+    IsCostBounded.run_interpret (cost' := fun _ => 1)
+      (fun q _ => by cases q <;> exact (isCostBounded_map_iff _ _ _).mpr (IsCostBounded.query _))
+      htotal []
+  exact (IsCostBounded.bind hrun fun _ =>
+    IsCostBounded.bind (IsCostBounded.query _) fun _ => IsCostBounded.pure _ 0).mono (by omega)
 
 private theorem run_interpret_blsRunCore (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)]
     (α : ZMod (P.G₀.order d))
@@ -468,8 +454,7 @@ private theorem run_interpret_blsRunCore (d : P.G₀.Desc) [Fintype (P.G₀.Carr
         return verified.1 && !(forged.2.2.contains forged.1.1)) := by
   have hinner :
       ∀ (p : OracleComp (ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d))
-          (List Bool × P.G₀.Carrier d))
-        (c : List (List Bool × P.G₀.Carrier d)) (signed : List (List Bool)),
+          (List Bool × P.G₀.Carrier d)) c signed,
       (interpret (oracle (P.G₀.Carrier d))
         ((interpret (P.blsCoreHandler d α) p).run signed)).run c =
       ((interpret (handler (P.blsTypedROMScheme d) α) p).run (c, signed)).map
@@ -486,8 +471,7 @@ private theorem run_interpret_blsRunCore (d : P.G₀.Desc) [Fintype (P.G₀.Carr
         ((interpret (handler (P.blsTypedROMScheme d) α)
           (OracleComp.query q >>= cont)).run (c, s)).map
           fun (res, c', s') => ((res, s'), c')
-      cases q with
-      | inl m =>
+      cases q <;> (
         simp only [interpret_bind, interpret_query, blsCoreHandler, handler, blsTypedROMScheme,
           StateT.run_bind]
         dsimp only [StateT.run]
@@ -495,17 +479,7 @@ private theorem run_interpret_blsRunCore (d : P.G₀.Desc) [Fintype (P.G₀.Carr
         dsimp only [Functor.map, StateT.map]
         simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
           PMF.map_bind]
-        refine PMF.bind_congr_on_support _ _ _ fun hc _ => ?_
-        exact ih (α • hc.1) hc.2 (m :: s)
-      | inr x =>
-        simp only [interpret_bind, interpret_query, blsCoreHandler, handler, StateT.run_bind]
-        dsimp only [StateT.run]
-        rw [interpret_map, interpret_query]
-        dsimp only [Functor.map, StateT.map]
-        simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind,
-          PMF.map_bind]
-        refine PMF.bind_congr_on_support _ _ _ fun hc _ => ?_
-        exact ih hc.1 hc.2 s
+        exact PMF.bind_congr_on_support _ _ _ fun hc _ => ih _ hc.2 _)
   simp only [blsRunCore, StateT.run_bind, interpret_bind, interpret_pure,
     StateT.run_pure, interpret_query, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     PMF.map_bind, hinner, PMF.bind_map, blsTypedROMScheme, interpret_map, StateT.run_map,
@@ -537,45 +511,38 @@ private theorem bankStepIndexed_step_bounds {Val H : Type} (proj : Val → H)
     (hnodup : ∀ q₁ v₁ q₂ v₂ i, table.lookup q₁ = some (v₁, i) →
       table.lookup q₂ = some (v₂, i) → q₁ = q₂) :
     let r := bankStepIndexed proj fallback vals x (table, count)
+    let vstar := match table.lookup x with
+      | some (v, _) => v
+      | none => vals.getD count fallback
     (∀ q v i, (q, (v, i)) ∈ r.2.1 → i < count + 1) ∧
       (∀ q₁ v₁ q₂ v₂ i, r.2.1.lookup q₁ = some (v₁, i) →
         r.2.1.lookup q₂ = some (v₂, i) → q₁ = q₂) ∧
       (∀ q v i, table.lookup q = some (v, i) → r.2.1.lookup q = some (v, i)) ∧
-      (∃ v i, r.2.1.lookup x = some (v, i) ∧ r.1 = proj v ∧ i < count + 1) ∧
+      (∃ i, r.2.1.lookup x = some (vstar, i) ∧ r.1 = proj vstar ∧ i < count + 1) ∧
       r.2.2 = count + 1 := by
   dsimp only [bankStepIndexed]
   cases hlook : table.lookup x with
   | some entry =>
-    refine ⟨fun q v i h => Nat.lt_succ_of_lt (hidx q v i h), hnodup,
-      fun _ _ _ h => h,
-      ⟨entry.1, entry.2, hlook, rfl,
+    refine ⟨fun q v i h => Nat.lt_succ_of_lt (hidx q v i h), hnodup, fun _ _ _ h => h,
+      ⟨entry.2, hlook, rfl,
         Nat.lt_succ_of_lt (hidx x entry.1 entry.2 (List.mem_of_lookup_eq_some hlook))⟩, rfl⟩
   | none =>
-    let val := vals.getD count fallback
-    let table' := (x, (val, count)) :: table
-    refine ⟨?_, ?_, ?_, ⟨val, count, by simp [val, List.getD_eq_getElem?_getD], rfl,
-      Nat.lt_succ_self _⟩, rfl⟩
-    · intro q v i h
-      rcases List.mem_cons.mp h with hhead | htail
-      · obtain ⟨_, _, rfl⟩ := hhead
-        exact Nat.lt_succ_self _
+    refine ⟨?_, ?_, ?_, ⟨count, by simp, rfl, Nat.lt_succ_self _⟩, rfl⟩
+    · rintro q v i h
+      rcases List.mem_cons.mp h with ⟨_, _, rfl⟩ | htail
+      · exact Nat.lt_succ_self _
       · exact Nat.lt_succ_of_lt (hidx q v i htail)
     · intro q₁ v₁ q₂ v₂ i h1 h2
-      by_cases eq1 : q₁ = x <;> by_cases eq2 : q₂ = x
+      rw [List.lookup_cons_eq_ite] at h1 h2
+      split_ifs at h1 h2 with eq1 eq2 eq2
       · exact eq1.trans eq2.symm
-      · rw [List.lookup_cons_eq_ite] at h1 h2
-        simp only [eq1, eq2, ↓reduceIte, Option.some.injEq] at h1 h2
-        obtain ⟨_, rfl⟩ := Prod.mk.inj h1
+      · cases h1
         exact absurd (hidx q₂ v₂ count (List.mem_of_lookup_eq_some h2)) (lt_irrefl _)
-      · rw [List.lookup_cons_eq_ite] at h1 h2
-        simp only [eq1, eq2, ↓reduceIte, Option.some.injEq] at h1 h2
-        obtain ⟨_, rfl⟩ := Prod.mk.inj h2
+      · cases h2
         exact absurd (hidx q₁ v₁ count (List.mem_of_lookup_eq_some h1)) (lt_irrefl _)
-      · rw [List.lookup_cons_eq_ite] at h1 h2
-        simp only [eq1, eq2, ↓reduceIte] at h1 h2
-        exact hnodup q₁ v₁ q₂ v₂ i h1 h2
+      · exact hnodup q₁ v₁ q₂ v₂ i h1 h2
     · intro q v i hq
-      have hne : q ≠ x := fun h => by rw [h, hlook] at hq; cases hq
+      have hne : q ≠ x := fun h => by simp [h, hlook] at hq
       simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr hne, hq]
 
 private theorem bankStepIndexed_eq_withSampleList {Val H : Type} (proj : Val → H)
@@ -644,37 +611,24 @@ private theorem interpret_online_bankStep_eq_oracle (d : P.G₀.Desc) [Fintype (
         (interpret (oracle (P.G₀.Carrier d)) (OracleComp.query q >>= cont)).run _
     simp only [StateT.run_bind, interpret_bind, interpret_query,
       PMF.monad_bind_eq_bind, PMF.map_bind]
-    have hlook : (table.map fun (key, v, _) => (key, v)).lookup q =
-        (table.lookup q).map Prod.fst := by
-      induction table with
-      | nil => rfl
-      | cons head tail iht =>
-        rcases head with ⟨hk, hv, hi⟩
-        dsimp only [List.map]
-        rw [List.lookup_cons_eq_ite, List.lookup_cons_eq_ite]
-        by_cases hq : q = hk <;> simp [hq, iht]
+    have hlook := (list_lookup_beq_congr List.instBEq instBEqOfDecidableEq q _).symm.trans
+      (list_lookup_map_snd Prod.fst table q)
     cases htab : table.lookup q with
     | some entry =>
-      have hlook' : @List.lookup _ _ instBEqOfDecidableEq q
-          (table.map fun (key, v, _) => (key, v)) = some entry.1 :=
-        (list_lookup_beq_congr List.instBEq instBEqOfDecidableEq q _).symm.trans
-          (by simp [hlook, htab])
-      rw [run_oracle_of_lookup_eq_some hlook', PMF.pure_bind]
+      rw [htab] at hlook
+      rw [run_oracle_of_lookup_eq_some hlook, PMF.pure_bind]
       dsimp only [bankOnlineHandler, StateT.run]
       rw [htab]
       simp only [PMF.pure_bind, PMF.bind_const]
       exact ih entry.1 table (k + 1)
     | none =>
-      have hlook' : @List.lookup _ _ instBEqOfDecidableEq q
-          (table.map fun (key, v, _) => (key, v)) = none :=
-        (list_lookup_beq_congr List.instBEq instBEqOfDecidableEq q _).symm.trans
-          (by simp [hlook, htab])
-      rw [run_oracle_of_lookup_eq_none hlook']
+      rw [htab] at hlook
+      rw [run_oracle_of_lookup_eq_none hlook]
       dsimp only [bankOnlineHandler, StateT.run]
       rw [htab]
       simp only [PMF.bind_bind]
       refine PMF.bind_congr_on_support _ _ _ fun val _ => ?_
-      rw [PMF.pure_bind, PMF.pure_bind]
+      simp only [PMF.pure_bind]
       exact ih val ((q, (val, k)) :: table) (k + 1)
 
 private def runBankedHandler {Val : Type} (d : P.G₀.Desc) (α : ZMod (P.G₀.order d))
@@ -701,6 +655,36 @@ private def runBankedForge {Val : Type} (d : P.G₀.Desc) (α : ZMod (P.G₀.ord
   ((OracleComp.interpret (P.runBankedHandler d α proj fallback vals) prog).run signed).run
     (table, count)
 
+private theorem runBankedForge_query_inl {Val : Type} (d : P.G₀.Desc) (α : ZMod (P.G₀.order d))
+    (proj : Val → P.G₀.Carrier d) (fallback : Val) (vals : List Val) (m : List Bool)
+    (cont : P.G₀.Carrier d → OracleComp
+      (ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d))
+      (List Bool × P.G₀.Carrier d))
+    (signed : List (List Bool)) (table : List (List Bool × (Val × ℕ))) (count : ℕ) :
+    runBankedForge P d α proj fallback vals (PFunctor.FreeM.liftBind (.inl m) cont)
+        signed table count =
+      let r := bankStepIndexed proj fallback vals m (table, count)
+      runBankedForge P d α proj fallback vals (cont (α • r.1)) (m :: signed) r.2.1 r.2.2 := by
+  change runBankedForge P d α proj fallback vals (OracleComp.query (.inl m) >>= cont)
+    signed table count = _
+  simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query, runBankedHandler]
+  rfl
+
+private theorem runBankedForge_query_inr {Val : Type} (d : P.G₀.Desc) (α : ZMod (P.G₀.order d))
+    (proj : Val → P.G₀.Carrier d) (fallback : Val) (vals : List Val) (x : List Bool)
+    (cont : P.G₀.Carrier d → OracleComp
+      (ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d))
+      (List Bool × P.G₀.Carrier d))
+    (signed : List (List Bool)) (table : List (List Bool × (Val × ℕ))) (count : ℕ) :
+    runBankedForge P d α proj fallback vals (PFunctor.FreeM.liftBind (.inr x) cont)
+        signed table count =
+      let r := bankStepIndexed proj fallback vals x (table, count)
+      runBankedForge P d α proj fallback vals (cont r.1) signed r.2.1 r.2.2 := by
+  change runBankedForge P d α proj fallback vals (OracleComp.query (.inr x) >>= cont)
+    signed table count = _
+  simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query, runBankedHandler]
+  rfl
+
 private theorem runBankedForge_eq_interpret_blsRunCore_forge {Val : Type} (d : P.G₀.Desc)
     (α : ZMod (P.G₀.order d)) (proj : Val → P.G₀.Carrier d) (fallback : Val) (vals : List Val)
     (prog : OracleComp (ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d))
@@ -716,17 +700,23 @@ private theorem runBankedForge_eq_interpret_blsRunCore_forge {Val : Type} (d : P
       ((OracleComp.interpret (P.blsCoreHandler d α)
         (OracleComp.query q >>= cont)).run signed)).run (table, count) =
       runBankedForge P d α proj fallback vals (OracleComp.query q >>= cont) signed table count
-    cases q with
-    | inl m =>
+    cases q <;> (
       simp only [runBankedForge, runBankedHandler, blsCoreHandler, interpret_bind,
         interpret_query, StateT.run_bind]
-      exact ih _ (m :: signed) (bankStepIndexed proj fallback vals m (table, count)).2.1
-        (bankStepIndexed proj fallback vals m (table, count)).2.2
-    | inr x =>
-      simp only [runBankedForge, runBankedHandler, blsCoreHandler, interpret_bind,
-        interpret_query, StateT.run_bind]
-      exact ih _ signed (bankStepIndexed proj fallback vals x (table, count)).2.1
-        (bankStepIndexed proj fallback vals x (table, count)).2.2
+      exact ih _ _ _ _)
+
+private theorem interpret_bankStep_blsRunCore {Val : Type} (d : P.G₀.Desc)
+    (α : ZMod (P.G₀.order d)) (proj : Val → P.G₀.Carrier d) (fallback : Val) (vals : List Val)
+    (prog : OracleComp (ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d))
+      (List Bool × P.G₀.Carrier d)) :
+    (OracleComp.interpret (bankStepHandler proj fallback vals)
+        (P.blsRunCore d α prog)).run ([], 0) =
+      let f := P.runBankedForge d α proj fallback vals prog [] [] 0
+      let last := bankStepIndexed proj fallback vals f.1.1.1 f.2
+      ((f.1.1, f.1.2, last.1), last.2) := by
+  simp only [blsRunCore, StateT.run_bind, interpret_bind, interpret_pure,
+    StateT.run_pure, interpret_query, P.runBankedForge_eq_interpret_blsRunCore_forge]
+  rfl
 
 private theorem runBankedForge_bounds {Val : Type} (d : P.G₀.Desc) (α : ZMod (P.G₀.order d))
     (proj : Val → P.G₀.Carrier d) (fallback : Val) (vals : List Val)
@@ -746,49 +736,48 @@ private theorem runBankedForge_bounds {Val : Type} (d : P.G₀.Desc) (α : ZMod 
       (∀ q₁ v₁ q₂ v₂ i, res.2.1.lookup q₁ = some (v₁, i) →
         res.2.1.lookup q₂ = some (v₂, i) → q₁ = q₂) ∧
       (∀ q v i, table.lookup q = some (v, i) → res.2.1.lookup q = some (v, i)) ∧
-      (∀ m ∈ res.1.2, ∃ v i, res.2.1.lookup m = some (v, i) ∧ i < res.2.2) := by
+      (∀ m ∈ res.1.2, ∃ v i, res.2.1.lookup m = some (v, i) ∧ i < res.2.2) ∧
+      (∀ q ∈ signed, q ∈ res.1.2) := by
   induction prog generalizing Qs Qro signed table count with
   | pure a =>
-    refine ⟨by change signed.length ≤ signed.length + Qs; omega,
-      by change count ≤ count + Qs + Qro; omega,
-      hidx, hnodup, fun _ _ _ h => h, hsigned⟩
+    exact ⟨Nat.le_add_right _ _, by
+        change count ≤ count + Qs + Qro
+        omega,
+      hidx, hnodup, fun _ _ _ h => h, hsigned, fun _ h => h⟩
   | liftBind q cont ih =>
+    obtain ⟨hQs, hcontS⟩ := IsCostBounded.liftBind_iff.mp hs
+    obtain ⟨hQro, hcontH⟩ := IsCostBounded.liftBind_iff.mp hh
     rcases q with m | x
-    · obtain ⟨hQs, hcontS⟩ := IsCostBounded.liftBind_iff.mp hs
-      obtain ⟨_, hcontH⟩ := IsCostBounded.liftBind_iff.mp hh
-      simp only [signingCost] at hQs hcontS
-      simp only [hashCost, Nat.sub_zero] at hcontH
-      let r := bankStepIndexed proj fallback vals m (table, count)
-      obtain ⟨hidx', hnodup', hpres0, ⟨vm, im, hmLook, _, hmLt⟩, hcnt⟩ :=
+    · dsimp only
+      rw [P.runBankedForge_query_inl]
+      change 1 ≤ Qs at hQs
+      change ∀ r, OracleComp.IsCostBounded signingCost (cont r) (Qs - 1) at hcontS
+      change ∀ r, OracleComp.IsCostBounded hashCost (cont r) (Qro - 0) at hcontH
+      simp only [Nat.sub_zero] at hcontH
+      set r := bankStepIndexed proj fallback vals m (table, count)
+      obtain ⟨hidx', hnodup', hpres0, ⟨im, hmLook, _, hmLt⟩, hcnt⟩ :=
         bankStepIndexed_step_bounds proj fallback vals m table count hidx hnodup
       have hsigned' : ∀ q ∈ m :: signed, ∃ v i, r.2.1.lookup q = some (v, i) ∧ i < r.2.2 := by
         intro q hq
         rw [hcnt]
         rcases List.mem_cons.mp hq with rfl | hq
-        · exact ⟨vm, im, hmLook, hmLt⟩
+        · exact ⟨_, im, hmLook, hmLt⟩
         · obtain ⟨v, i, hv, hi⟩ := hsigned q hq
           exact ⟨v, i, hpres0 q v i hv, Nat.lt_succ_of_lt hi⟩
-      obtain ⟨hlen, htot, hi1, hn1, hp1, hs1⟩ :=
+      obtain ⟨hlen, htot, hi1, hn1, hp1, hs1, hmono1⟩ :=
         ih (α • r.1) (hcontS (α • r.1)) (hcontH (α • r.1)) (m :: signed) r.2.1 r.2.2
           (hcnt ▸ hidx') hnodup' hsigned'
-      have hstep : runBankedForge P d α proj fallback vals (PFunctor.FreeM.liftBind (.inl m) cont)
-          signed table count =
-          runBankedForge P d α proj fallback vals (cont (α • r.1)) (m :: signed) r.2.1 r.2.2 := by
-        change runBankedForge P d α proj fallback vals (OracleComp.query (.inl m) >>= cont)
-          signed table count = _
-        simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query,
-          runBankedHandler]
-        rfl
-      rw [hstep]
-      refine ⟨?_, ?_, hi1, hn1, fun q v i h => hp1 q v i (hpres0 q v i h), hs1⟩
-      · simp only [List.length_cons] at hlen
-        omega
-      · exact le_trans htot (by rw [hcnt]; omega)
-    · obtain ⟨_, hcontS⟩ := IsCostBounded.liftBind_iff.mp hs
-      obtain ⟨hQro, hcontH⟩ := IsCostBounded.liftBind_iff.mp hh
-      simp only [signingCost, Nat.sub_zero] at hcontS
-      simp only [hashCost] at hQro hcontH
-      let r := bankStepIndexed proj fallback vals x (table, count)
+      refine ⟨le_trans hlen (by simp only [List.length_cons]; omega),
+        le_trans htot (by rw [hcnt]; omega), hi1, hn1,
+        fun q v i h => hp1 q v i (hpres0 q v i h), hs1,
+        fun q hq => hmono1 q (List.mem_cons_of_mem _ hq)⟩
+    · dsimp only
+      rw [P.runBankedForge_query_inr]
+      change ∀ r, OracleComp.IsCostBounded signingCost (cont r) (Qs - 0) at hcontS
+      change 1 ≤ Qro at hQro
+      change ∀ r, OracleComp.IsCostBounded hashCost (cont r) (Qro - 1) at hcontH
+      simp only [Nat.sub_zero] at hcontS
+      set r := bankStepIndexed proj fallback vals x (table, count)
       obtain ⟨hidx', hnodup', hpres0, _, hcnt⟩ :=
         bankStepIndexed_step_bounds proj fallback vals x table count hidx hnodup
       have hsigned' : ∀ q ∈ signed, ∃ v i, r.2.1.lookup q = some (v, i) ∧ i < r.2.2 := by
@@ -796,20 +785,10 @@ private theorem runBankedForge_bounds {Val : Type} (d : P.G₀.Desc) (α : ZMod 
         rw [hcnt]
         obtain ⟨v, i, hv, hi⟩ := hsigned q hq
         exact ⟨v, i, hpres0 q v i hv, Nat.lt_succ_of_lt hi⟩
-      obtain ⟨hlen, htot, hi1, hn1, hp1, hs1⟩ :=
-        ih r.1 (hcontS r.1) (hcontH r.1) signed r.2.1 r.2.2
-          (hcnt ▸ hidx') hnodup' hsigned'
-      have hstep : runBankedForge P d α proj fallback vals (PFunctor.FreeM.liftBind (.inr x) cont)
-          signed table count =
-          runBankedForge P d α proj fallback vals (cont r.1) signed r.2.1 r.2.2 := by
-        change runBankedForge P d α proj fallback vals (OracleComp.query (.inr x) >>= cont)
-          signed table count = _
-        simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query,
-          runBankedHandler]
-        rfl
-      rw [hstep]
-      refine ⟨hlen, ?_, hi1, hn1, fun q v i h => hp1 q v i (hpres0 q v i h), hs1⟩
-      exact le_trans htot (by rw [hcnt]; omega)
+      obtain ⟨hlen, htot, hi1, hn1, hp1, hs1, hmono1⟩ :=
+        ih r.1 (hcontS r.1) (hcontH r.1) signed r.2.1 r.2.2 (hcnt ▸ hidx') hnodup' hsigned'
+      exact ⟨hlen, le_trans htot (by rw [hcnt]; omega), hi1, hn1,
+        fun q v i h => hp1 q v i (hpres0 q v i h), hs1, hmono1⟩
 
 /-- Challenge element represented by a Coron sample `(c, ρ) : Bool × ZMod q` relative to
 `v₀ : G₀`: `v₀ + ρ • g₀` when `c = true`, and `ρ • g₀` when `c = false`. -/
@@ -903,114 +882,57 @@ private theorem blsBankedReductionStep_eq_runBankedForge (d : P.G₀.Desc)
       let r := runBankedForge P d α (P.coronSampleElem d (β • P.G₀.generator d))
         (false, 0) samples prog signed0 table0 count0
       (r.1.1, (r.2.1, false, r.2.2)) := by
-  induction prog using OracleComp.induction generalizing Qs Qro signed0 table0 count0 with
+  let proj := P.coronSampleElem d (β • P.G₀.generator d)
+  induction prog generalizing Qs Qro signed0 table0 count0 with
   | pure a => rfl
-  | query_bind q cont ih =>
-    obtain ⟨_, hcontS⟩ := (IsCostBounded.liftBind_iff
-      (spec := ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d))
-      (cost := signingCost)).mp hs
-    obtain ⟨_, hcontH⟩ := (IsCostBounded.liftBind_iff
-      (spec := ForgerSpec (List Bool) (List Bool) (P.G₀.Carrier d) (P.G₀.Carrier d))
-      (cost := hashCost)).mp hh
+  | liftBind q cont ih =>
+    obtain ⟨_, hcontS⟩ := IsCostBounded.liftBind_iff.mp hs
+    obtain ⟨_, hcontH⟩ := IsCostBounded.liftBind_iff.mp hh
+    change (OracleComp.interpret
+      (P.blsBankedReductionStep d (α • P.G₀.generator d) (β • P.G₀.generator d) samples)
+      (OracleComp.query q >>= cont)).run _ = _
+    simp only [StateT.run_bind, interpret_bind, interpret_query]
+    dsimp only [StateT.run]
     cases q with
     | inl m =>
-      let proj := P.coronSampleElem d (β • P.G₀.generator d)
+      rw [P.runBankedForge_query_inl] at havoid ⊢
       let r := bankStepIndexed proj (false, 0) samples m (table0, count0)
-      have hsub :
-          runBankedForge P d α proj (false, 0) samples
-            (PFunctor.FreeM.bind (OracleComp.query (.inl m)) cont) signed0 table0 count0 =
-          runBankedForge P d α proj (false, 0) samples (cont (α • r.1))
-            (m :: signed0) r.2.1 r.2.2 := by
-        change runBankedForge P d α proj (false, 0) samples (OracleComp.query (.inl m) >>= cont)
-          signed0 table0 count0 = _
-        simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query,
-          runBankedHandler]
-        rfl
-      rw [hsub] at havoid ⊢
-      obtain ⟨hidx', hnodup', hpres0, ⟨⟨cm, ρm⟩, im, hmLook, hr1, hmLt⟩, hcnt⟩ :=
+      obtain ⟨hidx', hnodup', hpres0, ⟨im, hmLook, _, hmLt⟩, hcnt⟩ :=
         bankStepIndexed_step_bounds proj (false, 0) samples m table0 count0 hidx0 hnodup0
       have hsigned' : ∀ q ∈ m :: signed0, ∃ v i, r.2.1.lookup q = some (v, i) ∧ i < r.2.2 := by
         intro q hq
         rw [hcnt]
         rcases List.mem_cons.mp hq with rfl | hq
-        · exact ⟨(cm, ρm), im, hmLook, hmLt⟩
+        · exact ⟨_, im, hmLook, hmLt⟩
         · obtain ⟨v, i, hv, hi⟩ := hsigned0 q hq
           exact ⟨v, i, hpres0 q v i hv, Nat.lt_succ_of_lt hi⟩
-      obtain ⟨_, _, _, _, hpres1, _⟩ := runBankedForge_bounds P d α proj (false, 0) samples
+      obtain ⟨_, _, _, _, hpres1, _, hmono1⟩ := runBankedForge_bounds P d α proj (false, 0) samples
         (hcontS (α • r.1)) (hcontH (α • r.1)) (m :: signed0) r.2.1 r.2.2
         (hcnt ▸ hidx') hnodup' hsigned'
-      have hm_final := hpres1 m (cm, ρm) im hmLook
-      have hm_in_signed : m ∈ (runBankedForge P d α proj (false, 0) samples
-          (cont (α • r.1)) (m :: signed0) r.2.1 r.2.2).1.2 := by
-        clear ih hm_final havoid
-        have hmem_grow : ∀ (p : OracleComp (ForgerSpec (List Bool) (List Bool)
-            (P.G₀.Carrier d) (P.G₀.Carrier d)) (List Bool × P.G₀.Carrier d))
-            s0 t0 c0, ∀ q ∈ s0,
-              q ∈ (runBankedForge P d α proj (false, 0) samples p s0 t0 c0).1.2 := by
-          intro p
-          induction p using OracleComp.induction with
-          | pure _ => intro s0 t0 c0 q hq; exact hq
-          | query_bind q' _ ih' =>
-            intro s0 t0 c0 q0 hq0
-            change _ ∈ (runBankedForge P d α proj (false, 0) samples
-              (OracleComp.query q' >>= _) s0 t0 c0).1.2
-            cases q' with
-            | inl m' =>
-              simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query,
-                runBankedHandler]
-              exact ih' _ _ _ _ _ (List.mem_cons_of_mem _ hq0)
-            | inr _ =>
-              simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query,
-                runBankedHandler]
-              exact ih' _ _ _ _ _ hq0
-        exact hmem_grow _ (m :: signed0) r.2.1 r.2.2 m List.mem_cons_self
-      have hcm_false : cm = false := havoid m hm_in_signed cm ρm im hm_final
-      have hval_eq : ρm • (α • P.G₀.generator d) = α • r.1 := by
-        rw [hr1]
-        simp only [proj, coronSampleElem, hcm_false, Bool.false_eq_true, ↓reduceIte, smul_smul,
-          mul_comm]
+      have hm_final := hpres1 m _ im hmLook
+      have hm_signed := hmono1 m List.mem_cons_self
       have hstep_red :
-          (P.blsBankedReductionStep d (α • P.G₀.generator d) (β • P.G₀.generator d) samples
-            (Sum.inl m) (table0, false, count0)) =
-            (α • r.1, (r.2.1, false, r.2.2)) := by
+          P.blsBankedReductionStep d (α • P.G₀.generator d) (β • P.G₀.generator d) samples
+            (.inl m) (table0, false, count0) = (α • r.1, (r.2.1, false, r.2.2)) := by
         dsimp only [blsBankedReductionStep, r, bankStepIndexed]
-        dsimp only [bankStepIndexed] at hmLook
         cases hlook : table0.lookup m with
-        | some entry =>
-          rcases entry with ⟨⟨cm', ρm'⟩, im'⟩
-          rw [hlook] at hmLook
-          dsimp only at hmLook
-          rw [hlook, Option.some.injEq] at hmLook
-          cases hmLook
+        | some e =>
+          rcases e with ⟨⟨cm, ρm⟩, i'⟩
+          simp only [hlook] at hm_final
+          have hcm_false : cm = false := havoid m hm_signed cm ρm im hm_final
           simp [hcm_false, proj, coronSampleElem, smul_smul, mul_comm]
         | none =>
-          rw [hlook] at hmLook
-          dsimp only at hmLook
-          simp only [List.lookup_cons, beq_self_eq_true, Option.some.injEq] at hmLook
-          obtain ⟨hval, _⟩ := Prod.mk.inj hmLook
-          rw [List.getD_eq_getElem?_getD] at hval
-          simp [hval, hcm_false, proj, coronSampleElem, smul_smul, mul_comm]
-      change (OracleComp.interpret
-        (P.blsBankedReductionStep d (α • P.G₀.generator d) (β • P.G₀.generator d) samples)
-        (OracleComp.query (Sum.inl m) >>= cont)).run _ = _
-      simp only [StateT.run_bind, interpret_bind, interpret_query]
-      dsimp only [StateT.run]
+          simp only [hlook] at hm_final
+          rcases hv : samples.getD count0 (false, 0) with ⟨cm, ρm⟩
+          rw [hv] at hm_final
+          have hcm_false : cm = false := havoid m hm_signed cm ρm im hm_final
+          simp [hcm_false, proj, coronSampleElem, smul_smul, mul_comm]
       rw [hstep_red]
       exact ih (α • r.1) (hcontS (α • r.1)) (hcontH (α • r.1)) (m :: signed0) r.2.1 r.2.2
         (hcnt ▸ hidx') hnodup' hsigned' havoid
     | inr x =>
-      let proj := P.coronSampleElem d (β • P.G₀.generator d)
+      rw [P.runBankedForge_query_inr] at havoid ⊢
       let r := bankStepIndexed proj (false, 0) samples x (table0, count0)
-      have hsub :
-          runBankedForge P d α proj (false, 0) samples
-            (PFunctor.FreeM.bind (OracleComp.query (.inr x)) cont) signed0 table0 count0 =
-          runBankedForge P d α proj (false, 0) samples (cont r.1) signed0 r.2.1 r.2.2 := by
-        change runBankedForge P d α proj (false, 0) samples (OracleComp.query (.inr x) >>= cont)
-          signed0 table0 count0 = _
-        simp only [runBankedForge, StateT.run_bind, interpret_bind, interpret_query,
-          runBankedHandler]
-        rfl
-      rw [hsub] at havoid ⊢
       obtain ⟨hidx', hnodup', hpres0, _, hcnt⟩ :=
         bankStepIndexed_step_bounds proj (false, 0) samples x table0 count0 hidx0 hnodup0
       have hsigned' : ∀ q ∈ signed0, ∃ v i, r.2.1.lookup q = some (v, i) ∧ i < r.2.2 := by
@@ -1019,16 +941,10 @@ private theorem blsBankedReductionStep_eq_runBankedForge (d : P.G₀.Desc)
         obtain ⟨v, i, hv, hi⟩ := hsigned0 q hq
         exact ⟨v, i, hpres0 q v i hv, Nat.lt_succ_of_lt hi⟩
       have hstep_red :
-          (P.blsBankedReductionStep d (α • P.G₀.generator d) (β • P.G₀.generator d) samples
-            (.inr x) (table0, false, count0)) =
-            (r.1, (r.2.1, false, r.2.2)) := by
+          P.blsBankedReductionStep d (α • P.G₀.generator d) (β • P.G₀.generator d) samples
+            (.inr x) (table0, false, count0) = (r.1, (r.2.1, false, r.2.2)) := by
         dsimp only [blsBankedReductionStep, r, bankStepIndexed]
-        cases hlook : table0.lookup x <;> rfl
-      change (OracleComp.interpret
-        (P.blsBankedReductionStep d (α • P.G₀.generator d) (β • P.G₀.generator d) samples)
-        (OracleComp.query (Sum.inr x) >>= cont)).run _ = _
-      simp only [StateT.run_bind, interpret_bind, interpret_query]
-      dsimp only [StateT.run]
+        cases table0.lookup x <;> rfl
       rw [hstep_red]
       exact ih r.1 (hcontS r.1) (hcontH r.1) signed0 r.2.1 r.2.2
         (hcnt ▸ hidx') hnodup' hsigned' havoid
@@ -1039,39 +955,21 @@ private theorem map_coronSampleElem_uniform (d : P.G₀.Desc) [Fintype (P.G₀.C
     (v₀ : P.G₀.Carrier d) (c : Bool) :
     (PMF.uniformOfFintype (ZMod (P.G₀.order d))).map (fun ρ => P.coronSampleElem d v₀ (c, ρ)) =
       PMF.uniformOfFintype (P.G₀.Carrier d) := by
+  have hbi : Function.Bijective fun ρ => P.coronSampleElem d v₀ (c, ρ) := by
+    cases c
+    · simpa [coronSampleElem] using P.G₀.smul_generator_bijective d
+    · simpa [coronSampleElem] using
+        (Equiv.addLeft v₀).bijective.comp (P.G₀.smul_generator_bijective d)
+  let e := Equiv.ofBijective _ hbi
   ext h
-  rw [PMF.map_apply]
-  have hcard : ((P.G₀.order d : ℝ≥0∞)⁻¹) = (Fintype.card (P.G₀.Carrier d) : ℝ≥0∞)⁻¹ :=
-    congrArg (fun k : ℕ => (k : ℝ≥0∞)⁻¹)
+  rw [PMF.map_apply, tsum_eq_single (e.symm h)]
+  · simp only [show P.coronSampleElem d v₀ (c, e.symm h) = h from e.apply_symm_apply h,
+      ↓reduceIte, PMF.uniformOfFintype_apply, ZMod.card]
+    exact congrArg (fun k : ℕ => (k : ℝ≥0∞)⁻¹)
       ((P.G₀.card_carrier d).symm.trans Nat.card_eq_fintype_card)
-  cases c
-  · simp only [coronSampleElem, Bool.false_eq_true, ↓reduceIte]
-    have hbi := P.G₀.smul_generator_bijective d
-    rw [tsum_eq_single (Equiv.ofBijective _ hbi |>.symm h)]
-    · have hpt : (Equiv.ofBijective _ hbi).symm h • P.G₀.generator d = h :=
-        (Equiv.ofBijective _ hbi).apply_symm_apply h
-      rw [hpt]
-      simp only [↓reduceIte, PMF.uniformOfFintype_apply, ZMod.card]
-      exact hcard
-    · intro ρ hρ
-      have hne : h ≠ ρ • P.G₀.generator d := fun eq => hρ (by
-        have heq := (Equiv.ofBijective _ hbi).symm.apply_eq_iff_eq.mpr eq
-        simpa using heq.symm)
-      simp [hne]
-  · simp only [coronSampleElem, ↓reduceIte]
-    have hbi : Function.Bijective fun ρ : ZMod (P.G₀.order d) => v₀ + ρ • P.G₀.generator d :=
-      (Equiv.addLeft v₀).bijective.comp (P.G₀.smul_generator_bijective d)
-    rw [tsum_eq_single (Equiv.ofBijective _ hbi |>.symm h)]
-    · have hpt : v₀ + (Equiv.ofBijective _ hbi).symm h • P.G₀.generator d = h :=
-        (Equiv.ofBijective _ hbi).apply_symm_apply h
-      rw [hpt]
-      simp only [↓reduceIte, PMF.uniformOfFintype_apply, ZMod.card]
-      exact hcard
-    · intro ρ hρ
-      have hne : h ≠ v₀ + ρ • P.G₀.generator d := fun eq => hρ (by
-        have heq := (Equiv.ofBijective _ hbi).symm.apply_eq_iff_eq.mpr eq
-        simpa using heq.symm)
-      simp [hne]
+  · intro ρ hρ
+    have hne : h ≠ P.coronSampleElem d v₀ (c, ρ) := fun eq => hρ (e.symm_apply_eq.mpr eq).symm
+    simp [hne]
 
 private theorem bankStepIndexed_interpret_mem_val {Val H γ : Type} (proj : Val → H)
     (fallback : Val) (vals : List Val) (p : OracleComp (fun _ : List Bool => H) γ)
@@ -1081,7 +979,7 @@ private theorem bankStepIndexed_interpret_mem_val {Val H γ : Type} (proj : Val 
         (table, count)).2.1 →
       v = vals.getD i fallback := by
   induction p using OracleComp.induction generalizing table count with
-  | pure _ => exact fun q v i h => htable q v i h
+  | pure _ => exact htable
   | query_bind x cont ih =>
     intro q v i h
     change (q, (v, i)) ∈ ((OracleComp.interpret (bankStepHandler proj fallback vals)
@@ -1095,11 +993,18 @@ private theorem bankStepIndexed_interpret_mem_val {Val H γ : Type} (proj : Val 
     | none =>
       rw [hlook] at h
       refine ih _ ((x, (vals.getD count fallback, count)) :: table) (count + 1) ?_ q v i h
-      intro q' v' i' hmem
-      rcases List.mem_cons.mp hmem with hhead | htail
-      · obtain ⟨_, rfl, rfl⟩ := hhead
-        rfl
+      rintro q' v' i' hmem
+      rcases List.mem_cons.mp hmem with ⟨_, rfl, rfl⟩ | htail
+      · rfl
       · exact htable q' v' i' htail
+
+private theorem mul_bind_apply_le {α β : Type} (c : ℝ≥0∞) (p : PMF α) (f g : α → PMF β) (y : β)
+    (h : ∀ x, c * f x y ≤ g x y) :
+    c * (p.bind f) y ≤ (p.bind g) y := by
+  rw [PMF.bind_apply, PMF.bind_apply, ← ENNReal.tsum_mul_left]
+  refine tsum_le_tsum fun x => ?_
+  rw [← mul_assoc, mul_comm c, mul_assoc]
+  exact mul_le_mul_of_nonneg_left (h x) zero_le
 
 /-- **Quantitative Coron bound for typed BLS (`blsTypedROMScheme`)**: for any typed call-bounded
 forger `A` (`Qs` signing calls, `Qro` hash calls) and any Bernoulli coin `coin` with
@@ -1122,102 +1027,92 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
         return decide (z = (α * β) • P.G₀.generator d)) : ℝ) := by
   let K := Qs + Qro + 1
   have ha_pos : 0 < a := by linarith [Nat.cast_nonneg (α := ℝ) Qs]
+  let resFn (α : ZMod (P.G₀.order d)) (s : A.Coins) (hs : Fin K → P.G₀.Carrier d) :=
+    (OracleComp.interpret (bankStepHandler id 0 (List.ofFn hs))
+      (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0)
+  let wonPred (α : ZMod (P.G₀.order d))
+      (x : (List Bool × P.G₀.Carrier d) × List (List Bool) × P.G₀.Carrier d) : Bool :=
+    decide (P.pair d x.2.2 (α • P.G₁.generator d) =
+      P.pair d x.1.2 (P.G₁.generator d)) && !(x.2.1.contains x.1.1)
+  let wonFn α s hs := wonPred α (resFn α s hs).1
+  let RFn α s hs : Finset (Fin K) :=
+    ((resFn α s hs).1.2.1.filterMap fun m =>
+      ((resFn α s hs).2.1.lookup m).bind
+        fun e => if h : e.2 < K then some ⟨e.2, h⟩ else none).toFinset
+  let idxFn α s hs : Fin K :=
+    match (resFn α s hs).2.1.lookup (resFn α s hs).1.1.1 with
+    | some e => if h : e.2 < K then ⟨e.2, h⟩ else ⟨0, Nat.succ_pos _⟩
+    | none => ⟨0, Nat.succ_pos _⟩
+  let E_R : Game := do
+    let α ← PMF.uniformOfFintype (ZMod (P.G₀.order d))
+    let β ← PMF.uniformOfFintype (ZMod (P.G₀.order d))
+    let z ← P.blsBankedReduction d A K coin
+      (α • P.G₀.generator d) (α • P.G₁.generator d) (β • P.G₀.generator d)
+    return decide (z = (α * β) • P.G₀.generator d)
   -- Step 1: Express `eufCmaGame` via `blsRunCore` presampled with `K` uniform `G₀` elements.
   have heuf_eq :
       ROMSignature.eufCmaGame (P.blsTypedROMScheme d) A =
         (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun α =>
           A.coins.bind fun s =>
-            (PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map fun hs =>
-              let res := (OracleComp.interpret (bankStepHandler id 0 (List.ofFn hs))
-                  (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0)
-              decide (P.pair d res.1.2.2 (α • P.G₁.generator d) =
-                P.pair d res.1.1.2 (P.G₁.generator d)) && !(res.1.2.1.contains res.1.1.1) := by
+            (PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map (wonFn α s) := by
     unfold ROMSignature.eufCmaGame
-    have hkg : (P.blsTypedROMScheme d).keyGen =
-        (PMF.uniformOfFintype (ZMod (P.G₀.order d))).map fun α =>
-          (α • P.G₁.generator d, α) := rfl
-    rw [hkg, PMF.monad_bind_eq_bind, PMF.bind_map]
+    change ((PMF.uniformOfFintype (ZMod (P.G₀.order d))).map
+        fun α => (α • P.G₁.generator d, α)).bind _ = _
+    rw [PMF.bind_map]
     refine PMF.bind_congr_on_support _ _ _ fun α _ => ?_
     simp only [Function.comp_apply, PMF.monad_bind_eq_bind]
     refine PMF.bind_congr_on_support _ _ _ fun s _ => ?_
-    have hcontainsMsg : ∀ (msgs : List (List Bool)) (msg : List Bool),
+    have hcontainsMsg : ∀ msgs msg,
         @List.contains (List Bool) List.instBEq msgs msg =
-          @List.contains (List Bool) instBEqOfDecidableEq msgs msg := fun msgs msg =>
-      @list_contains_beq_congr (List Bool) List.instBEq _ instBEqOfDecidableEq _ msgs msg
+          @List.contains (List Bool) instBEqOfDecidableEq msgs msg :=
+      @list_contains_beq_congr (List Bool) List.instBEq _ instBEqOfDecidableEq _
     simp only [← hcontainsMsg]
     have hcore := P.run_interpret_blsRunCore d α (A.forge (α • P.G₁.generator d) s) []
     simp only [PMF.monad_bind_eq_bind] at hcore
     rw [← hcore]
+    let step : P.G₀.Carrier d → List Bool →
+        List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ →
+        PMF (P.G₀.Carrier d × (List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ)) :=
+      fun val q st => match st.1.lookup q with
+        | some entry => PMF.pure (entry.1, (st.1, st.2 + 1))
+        | none => PMF.pure (val, ((q, (val, st.2)) :: st.1, st.2 + 1))
     have hpre := (P.isQueryBounded_blsRunCore d α
       (hA (α • P.G₁.generator d) s).1 (hA (α • P.G₁.generator d) s).2).run_interpret_presample
-        (PMF.uniformOfFintype (P.G₀.Carrier d)) (0 : P.G₀.Carrier d)
-        (fun val q (st : List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ) =>
-          match st.1.lookup q with
-          | some entry => PMF.pure (entry.1, (st.1, st.2 + 1))
-          | none => PMF.pure (val, ((q, (val, st.2)) :: st.1, st.2 + 1))) ([], 0)
+        (PMF.uniformOfFintype (P.G₀.Carrier d)) (0 : P.G₀.Carrier d) step ([], 0)
     have honline := P.interpret_online_bankStep_eq_oracle d
       (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s)) [] 0
     dsimp only [List.map] at honline
-    let wonPred : (List Bool × P.G₀.Carrier d) × List (List Bool) × P.G₀.Carrier d → Bool :=
-      fun x =>
-        decide (P.pair d x.2.2 (α • P.G₁.generator d) =
-          P.pair d x.1.2 (P.G₁.generator d)) && !(x.2.1.contains x.1.1)
     have hmap :
         ((interpret (oracle (P.G₀.Carrier d))
           (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run []).map
-            (wonPred ∘ Prod.fst) =
+            (wonPred α ∘ Prod.fst) =
         ((PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map List.ofFn).bind fun values =>
-          ((interpret
-            (withSampleList (spec := fun _ : List Bool => P.G₀.Carrier d) (m := PMF)
-              (0 : P.G₀.Carrier d)
-              (fun val q (st : List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ) =>
-              match st.1.lookup q with
-              | some entry => PMF.pure (entry.1, (st.1, st.2 + 1))
-              | none => PMF.pure (val, ((q, (val, st.2)) :: st.1, st.2 + 1))))
+          ((interpret (withSampleList (spec := fun _ : List Bool => P.G₀.Carrier d) (m := PMF)
+              (0 : P.G₀.Carrier d) step)
             (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run (([], 0), values)).map
-              (wonPred ∘ Prod.fst) := by
-      have h1 := congrArg (PMF.map (wonPred ∘ Prod.fst)) honline
+              (wonPred α ∘ Prod.fst) := by
+      have h1 := congrArg (PMF.map (wonPred α ∘ Prod.fst)) honline
       rw [PMF.map_comp] at h1
-      have h1l : ((wonPred ∘ Prod.fst) ∘
-          fun (a, (st : List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ)) =>
-            (a, st.1.map fun (key, v, _) => (key, v))) = wonPred ∘ Prod.fst :=
-        funext fun ⟨_, _⟩ => rfl
-      rw [h1l] at h1
       rw [← h1]
       have hbo : P.bankOnlineHandler d = fun (q : List Bool)
           (st : List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ) =>
-          (PMF.uniformOfFintype (P.G₀.Carrier d)).bind fun val =>
-            match st.1.lookup q with
-            | some entry => PMF.pure (entry.1, (st.1, st.2 + 1))
-            | none => PMF.pure (val, ((q, (val, st.2)) :: st.1, st.2 + 1)) := rfl
+          (PMF.uniformOfFintype (P.G₀.Carrier d)).bind fun val => step val q st := rfl
       rw [hbo, ← hpre, PMF.map_bind]
       congr 1 with values : 1
-      rw [PMF.map_comp]
-      have h1r : ((wonPred ∘ Prod.fst) ∘
-          fun (res, (next : List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ),
-              (_ : List (P.G₀.Carrier d))) => (res, next)) =
-          wonPred ∘ Prod.fst :=
-        funext fun ⟨_, _, _⟩ => rfl
-      rw [h1r]
+      rw [PMF.map_comp]; rfl
     change ((interpret (oracle (P.G₀.Carrier d))
-      (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run []).map (wonPred ∘ Prod.fst) = _
+      (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run []).map (wonPred α ∘ Prod.fst) = _
     rw [hmap, PMF.bind_map]
     refine PMF.bind_congr_on_support _ _ _ fun hs _ => ?_
-    dsimp only [Function.comp_def]
     have hdet := bankStepIndexed_eq_withSampleList (id : P.G₀.Carrier d → _) 0 (List.ofFn hs)
       (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s)) [] 0
     simp only [List.drop_zero, id_eq] at hdet
-    have hmap2 := congrArg (PMF.map (wonPred ∘ Prod.fst)) hdet
+    have hmap2 := congrArg (PMF.map (wonPred α ∘ Prod.fst)) hdet
     rw [PMF.pure_map, PMF.map_comp] at hmap2
-    have h2r : ((wonPred ∘ Prod.fst) ∘
-        fun (a, (st : List (List Bool × (P.G₀.Carrier d × ℕ)) × ℕ),
-            (_ : List (P.G₀.Carrier d))) => (a, st)) =
-        wonPred ∘ Prod.fst :=
-      funext fun ⟨_, _, _⟩ => rfl
-    have hfinal := (h2r ▸ hmap2).symm
-    dsimp only [Function.comp_def, wonPred] at hfinal ⊢
-    convert hfinal
+    dsimp only [Function.comp_def, wonFn] at hmap2 ⊢
+    convert hmap2.symm
     rename_i _ q st
+    dsimp only [step]
     cases List.lookup q st.1 <;> rfl
   -- Step 2: Pointwise recovery when `(won = true ∧ cs idxStar = true ∧ ∀ i ∈ R, cs i = false)`.
   have hpointwise (α β : ZMod (P.G₀.order d)) (s : A.Coins)
@@ -1225,18 +1120,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       let samples := List.ofFn fun i : Fin K => (cs i, rhos i)
       let hs : Fin K → P.G₀.Carrier d :=
         fun i => P.coronSampleElem d (β • P.G₀.generator d) (cs i, rhos i)
-      let res := (OracleComp.interpret (bankStepHandler id 0 (List.ofFn hs))
-          (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0)
-      let won := decide (P.pair d res.1.2.2 (α • P.G₁.generator d) =
-        P.pair d res.1.1.2 (P.G₁.generator d)) && !(res.1.2.1.contains res.1.1.1)
-      let R : Finset (Fin K) :=
-        (res.1.2.1.filterMap fun m =>
-          (res.2.1.lookup m).bind fun e => if h : e.2 < K then some ⟨e.2, h⟩ else none).toFinset
-      let idxStar : Fin K :=
-        match res.2.1.lookup res.1.1.1 with
-        | some e => if h : e.2 < K then ⟨e.2, h⟩ else ⟨0, Nat.succ_pos _⟩
-        | none => ⟨0, Nat.succ_pos _⟩
-      (won = true ∧ cs idxStar = true ∧ ∀ i ∈ R, cs i = false) →
+      (wonFn α s hs = true ∧ cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false) →
         P.blsBankedReductionFinish d (α • P.G₀.generator d) samples
           ((OracleComp.interpret (P.blsBankedReductionStep d (α • P.G₀.generator d)
               (β • P.G₀.generator d) samples)
@@ -1245,27 +1129,14 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
               (β • P.G₀.generator d) samples)
             (A.forge (α • P.G₁.generator d) s)).run ([], false, 0)).2 =
           (α * β) • P.G₀.generator d := by
-    intro samples hs res won R idxStar ⟨hwon, hcsStar, hcsR⟩
+    intro samples hs ⟨hwon, hcsStar, hcsR⟩
     let proj := P.coronSampleElem d (β • P.G₀.generator d)
     have hhs : List.ofFn hs = samples.map proj := by
       simp [samples, hs, List.map_ofFn, proj, Function.comp_def]
     -- Relate `bankStepHandler id 0 (samples.map proj)` to `bankStepHandler proj (false, 0)`.
-    have hlookup_map :
-        ∀ (tbl : List (List Bool × ((Bool × ZMod (P.G₀.order d)) × ℕ))) (q : List Bool),
-          (tbl.map fun (k, (v, i)) => (k, (proj v, i))).lookup q =
-            (tbl.lookup q).map fun (v, i) => (proj v, i) := by
-      intro tbl q
-      induction tbl with
-      | nil => rfl
-      | cons hd tl iht =>
-        rcases hd with ⟨hk, hv, hi⟩
-        dsimp only [List.map]
-        rw [List.lookup_cons_eq_ite, List.lookup_cons_eq_ite]
-        by_cases hq : q = hk <;> simp [hq, iht]
     have hrel_step :
         ∀ (p : OracleComp (fun _ : List Bool => P.G₀.Carrier d)
-            ((List Bool × P.G₀.Carrier d) × List (List Bool) × P.G₀.Carrier d))
-          (t : List (List Bool × ((Bool × ZMod (P.G₀.order d)) × ℕ))) (cnt : ℕ),
+            ((List Bool × P.G₀.Carrier d) × List (List Bool) × P.G₀.Carrier d)) t cnt,
         let rr := (OracleComp.interpret (bankStepHandler id 0 (samples.map proj)) p).run
             (t.map (fun (k, (v, i)) => (k, (proj v, i))), cnt)
         let rs := (OracleComp.interpret (bankStepHandler proj (false, 0) samples) p).run
@@ -1279,288 +1150,161 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
         intro t cnt
         have hget : (samples.map proj).getD cnt 0 = proj (samples.getD cnt (false, 0)) := by
           rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_map]
-          cases samples[cnt]? with
-          | none => simp [proj]
-          | some x => rfl
-        have hbind :
-            PFunctor.FreeM.bind
-              (OracleComp.query (spec := fun _ : List Bool => P.G₀.Carrier d) q) cont =
-            (OracleComp.query (spec := fun _ : List Bool => P.G₀.Carrier d) q >>= cont) := rfl
+          cases samples[cnt]? <;> simp [proj]
+        have hbind : PFunctor.FreeM.bind
+            (OracleComp.query (spec := fun _ : List Bool => P.G₀.Carrier d) q) cont =
+            (OracleComp.query q >>= cont) := rfl
         rw [hbind]
         simp only [StateT.run_bind, interpret_bind, interpret_query]
         dsimp only [StateT.run, bankStepHandler, bankStepIndexed, id_eq]
-        have hlook' :
-            (List.map (fun x => (x.1, proj x.2.1, x.2.2)) t).lookup q =
-              (t.lookup q).map (fun e => (proj e.1, e.2)) := hlookup_map t q
-        rw [hlook']
-        cases hlt : t.lookup q with
-        | some e =>
-          dsimp only [Option.map]
-          exact ih (proj e.1) t (cnt + 1)
+        rw [list_lookup_map_snd (fun e => (proj e.1, e.2)) t q]
+        cases t.lookup q with
+        | some e => exact ih (proj e.1) t (cnt + 1)
         | none =>
-          dsimp only [Option.map]
-          simp only [hget]
+          simp only [Option.map_none, hget]
           exact ih (proj (samples.getD cnt (false, 0)))
             ((q, (samples.getD cnt (false, 0), cnt)) :: t) (cnt + 1)
+    -- Relate `res` (with `id, hs`) to `(f1, last)`.
     let f1 := P.runBankedForge d α proj (false, 0) samples
       (A.forge (α • P.G₁.generator d) s) [] [] 0
-    have hcore_eq :
-        (OracleComp.interpret (bankStepHandler proj (false, 0) samples)
-            (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0) =
-          let last := bankStepIndexed proj (false, 0) samples f1.1.1.1 f1.2
-          ((f1.1.1, f1.1.2, last.1), last.2) := by
-      simp only [blsRunCore, StateT.run_bind, interpret_bind, interpret_pure,
-        StateT.run_pure, interpret_query, P.runBankedForge_eq_interpret_blsRunCore_forge]
-      rfl
+    have hcore_eq := P.interpret_bankStep_blsRunCore d α proj (false, 0) samples
+      (A.forge (α • P.G₁.generator d) s)
     have hbounds := P.runBankedForge_bounds d α proj (false, 0) samples
       (hA (α • P.G₁.generator d) s).1 (hA (α • P.G₁.generator d) s).2 [] [] 0
       (fun _ _ _ h => by cases h) (fun _ _ _ _ _ h => by cases h) (fun _ h => by cases h)
+    have hstep1 := bankStepIndexed_step_bounds proj (false, 0) samples f1.1.1.1 f1.2.1 f1.2.2
+      hbounds.2.2.1 hbounds.2.2.2.1
     have hmem_val : ∀ q v i,
         (q, (v, i)) ∈ (bankStepIndexed proj (false, 0) samples f1.1.1.1 f1.2).2.1 →
           v = samples.getD i (false, 0) := by
       have hall := bankStepIndexed_interpret_mem_val proj (false, 0) samples
         (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s)) [] 0 (fun _ _ _ h => by cases h)
       intro q v i hmem
-      have hmem' : (q, (v, i)) ∈ ((OracleComp.interpret (bankStepHandler proj (false, 0) samples)
-          (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0)).2.1 := by
-        rw [hcore_eq]
-        exact hmem
-      exact hall q v i hmem'
-    -- Relate `res` (with `id, hs`) to `(f1, last)`.
+      exact hall q v i (hcore_eq.symm ▸ hmem)
+    have hget_samples : ∀ {i : ℕ} (hi : i < K),
+        samples.getD i (false, 0) = (cs ⟨i, hi⟩, rhos ⟨i, hi⟩) := fun hi => by
+      dsimp only [samples]
+      rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
+      simp [hi]
     have hr := hrel_step (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s)) [] 0
-    dsimp only at hr
-    rw [← hhs] at hr
-    change res.1 = _ ∧ res.2.1 = _ ∧ res.2.2 = _ at hr
-    rw [hcore_eq] at hr
-    obtain ⟨hr1, hr2, hr3⟩ := hr
+    simp only [List.map_nil] at hr
+    rw [← hhs, hcore_eq] at hr
+    obtain ⟨hr1, hr2, _⟩ := hr
+    have hf1_lt : f1.2.2 < K := by have h : f1.2.2 ≤ 0 + Qs + Qro := hbounds.2.1; omega
     -- Show every signed message in `f1` has slot coin `false`.
     have havoid : ∀ m ∈ f1.1.2, ∀ c ρ i, f1.2.1.lookup m = some ((c, ρ), i) → c = false := by
       intro m hm c ρ i hmLook
-      obtain ⟨_, i', hlook', hi'⟩ := hbounds.2.2.2.2.2 m hm
+      obtain ⟨_, i', hlook', hi'⟩ := hbounds.2.2.2.2.2.1 m hm
       rw [hmLook, Option.some.injEq] at hlook'
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj hlook'
-      have hf1_lt : f1.2.2 ≤ Qs + Qro := by
-        have h : f1.2.2 ≤ 0 + Qs + Qro := hbounds.2.1
-        omega
       have hiK : i < K := by omega
-      have hpres_last :
-          (bankStepIndexed proj (false, 0) samples f1.1.1.1 f1.2).2.1.lookup m =
-            some ((c, ρ), i) := by
-        dsimp only [bankStepIndexed]
-        cases hfl : f1.2.1.lookup f1.1.1.1 with
-        | some _ => exact hmLook
-        | none =>
-          have hne' : m ≠ f1.1.1.1 := fun eq => by rw [← eq, hmLook] at hfl; cases hfl
-          rw [List.lookup_cons_eq_ite]
-          simp [hne', hmLook]
-      have hres_look : res.2.1.lookup m = some (proj (c, ρ), i) := by
+      have hpres_last := hstep1.2.2.1 m (c, ρ) i hmLook
+      have hres_look : (resFn α s hs).2.1.lookup m = some (proj (c, ρ), i) := by
+        dsimp only [resFn]
         rw [hr2]
-        dsimp only
-        rw [hlookup_map, hpres_last]
-        rfl
-      have hm_res : m ∈ res.1.2.1 := by rw [hr1]; exact hm
-      have hi_mem : ⟨i, hiK⟩ ∈ R := by
-        refine List.mem_toFinset.mpr (List.mem_filterMap.mpr ⟨m, hm_res, ?_⟩)
-        simp [hres_look, hiK]
-      have hcsi := hcsR ⟨i, hiK⟩ hi_mem
-      have hi_eq := hmem_val m (c, ρ) i (List.mem_of_lookup_eq_some hpres_last)
-      have hget_i : samples.getD i (false, 0) = (cs ⟨i, hiK⟩, rhos ⟨i, hiK⟩) := by
-        rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-        simp [hiK]
-      rw [hget_i] at hi_eq
-      exact (Prod.mk.inj hi_eq).1.trans hcsi
-    have hred := P.blsBankedReductionStep_eq_runBankedForge d α β samples
+        exact (list_lookup_map_snd (fun e : (Bool × ZMod (P.G₀.order d)) × ℕ => (proj e.1, e.2))
+          _ m).trans (by
+            dsimp only
+            rw [hpres_last]
+            rfl)
+      have hi_mem : ⟨i, hiK⟩ ∈ RFn α s hs :=
+        List.mem_toFinset.mpr (List.mem_filterMap.mpr ⟨m, hr1 ▸ hm, by simp [hres_look, hiK]⟩)
+      have hi_eq := (hmem_val m (c, ρ) i (List.mem_of_lookup_eq_some hpres_last)).trans
+        (hget_samples hiK)
+      exact (Prod.mk.inj hi_eq).1.trans (hcsR ⟨i, hiK⟩ hi_mem)
+    rw [P.blsBankedReductionStep_eq_runBankedForge d α β samples
       (A.forge (α • P.G₁.generator d) s) (hA (α • P.G₁.generator d) s).1
       (hA (α • P.G₁.generator d) s).2 [] [] 0
-      (fun _ _ _ h => by cases h) (fun _ _ _ _ _ h => by cases h) (fun _ h => by cases h) havoid
-    dsimp only at hred
-    rw [hred]
-    change P.blsBankedReductionFinish d (α • P.G₀.generator d) samples f1.1.1
-      (f1.2.1, false, f1.2.2) = (α * β) • P.G₀.generator d
-    dsimp only [blsBankedReductionFinish]
-    have hf1_lt : f1.2.2 < K := by
-      have h : f1.2.2 ≤ 0 + Qs + Qro := hbounds.2.1
-      omega
-    have hstar : ∃ rhostar : ZMod (P.G₀.order d),
-        (match f1.2.1.lookup f1.1.1.1 with
-          | some entry => entry.1
-          | none => samples.getD f1.2.2 (false, 0)) = (true, rhostar) ∧
-          res.1.2.2 = β • P.G₀.generator d + rhostar • P.G₀.generator d := by
-      have hlast_h : res.1.2.2 = (bankStepIndexed proj (false, 0) samples f1.1.1.1 f1.2).1 := by
-        rw [hr1]
-      cases hfl : f1.2.1.lookup f1.1.1.1 with
-      | some entry =>
-        have hiK : entry.2 < K := by
-          have := hbounds.2.2.1 f1.1.1.1 entry.1 entry.2 (List.mem_of_lookup_eq_some hfl)
-          omega
-        have hlast_look :
-            (bankStepIndexed proj (false, 0) samples f1.1.1.1 f1.2).2.1.lookup f1.1.1.1 =
-              some (entry.1, entry.2) := by
-          dsimp only [bankStepIndexed]
-          rw [hfl]
-          exact hfl
-        have hres_look : res.2.1.lookup res.1.1.1 = some (proj entry.1, entry.2) := by
-          rw [hr1, hr2]
+      (fun _ _ _ h => by cases h)
+      (fun _ _ _ _ _ h => by cases h)
+      (fun _ h => by cases h)
+      havoid]
+    simp only [blsBankedReductionFinish, Bool.false_eq_true, ↓reduceIte]
+    obtain ⟨iStar, hlast_look, hlast_val, hiStar_lt⟩ := hstep1.2.2.2.1
+    have hiK : iStar < K := by omega
+    have hres_look : (resFn α s hs).2.1.lookup (resFn α s hs).1.1.1 =
+        some (proj (match f1.2.1.lookup f1.1.1.1 with
+          | some (v, _) => v | none => samples.getD f1.2.2 (false, 0)), iStar) := by
+      dsimp only [resFn]
+      rw [hr1, hr2]
+      exact (list_lookup_map_snd (fun e : (Bool × ZMod (P.G₀.order d)) × ℕ => (proj e.1, e.2))
+        _ _).trans (by
           dsimp only
-          rw [hlookup_map, hlast_look]
-          rfl
-        have hidx_eq : idxStar = ⟨entry.2, hiK⟩ := by
-          dsimp only [idxStar]
-          rw [hres_look]
-          simp [hiK]
-        have hentry_eq := hmem_val f1.1.1.1 entry.1 entry.2 (List.mem_of_lookup_eq_some hlast_look)
-        have hget_i : samples.getD entry.2 (false, 0) =
-            (cs ⟨entry.2, hiK⟩, rhos ⟨entry.2, hiK⟩) := by
-          rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-          simp [hiK]
-        rw [hget_i, ← hidx_eq] at hentry_eq
-        refine ⟨rhos idxStar, ?_, ?_⟩
-        · simpa [hcsStar] using hentry_eq
-        · rw [hlast_h]
-          dsimp only [bankStepIndexed]
-          rw [hfl]
-          simp only
-          rw [hentry_eq, hcsStar]
-          rfl
-      | none =>
-        have hlast_look :
-            (bankStepIndexed proj (false, 0) samples f1.1.1.1 f1.2).2.1.lookup f1.1.1.1 =
-              some (samples.getD f1.2.2 (false, 0), f1.2.2) := by
-          dsimp only [bankStepIndexed]
-          rw [hfl]
-          simp
-        have hres_look : res.2.1.lookup res.1.1.1 =
-            some (proj (samples.getD f1.2.2 (false, 0)), f1.2.2) := by
-          rw [hr1, hr2]
-          dsimp only
-          rw [hlookup_map, hlast_look]
-          rfl
-        have hidx_eq : idxStar = ⟨f1.2.2, hf1_lt⟩ := by
-          dsimp only [idxStar]
-          rw [hres_look]
-          simp [hf1_lt]
-        have hget_i : samples.getD f1.2.2 (false, 0) = (cs idxStar, rhos idxStar) := by
-          rw [hidx_eq, List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-          simp [hf1_lt]
-        refine ⟨rhos idxStar, ?_, ?_⟩
-        · simpa [hcsStar] using hget_i
-        · rw [hlast_h]
-          dsimp only [bankStepIndexed]
-          rw [hfl]
-          simp only
-          rw [hget_i, hcsStar]
-          rfl
-    obtain ⟨rhostar, hpairStar, hlastStar⟩ := hstar
-    have hmatch_eq :
-        (match f1.2.1.lookup f1.1.1.1 with
-          | some (sample, _) => sample
-          | none => samples.getD f1.2.2 (false, 0)) = (true, rhostar) := by
-      cases hfl : f1.2.1.lookup f1.1.1.1 with
-      | none => simp only [hfl] at hpairStar; exact hpairStar
-      | some e => rcases e with ⟨s, i⟩; simp only [hfl] at hpairStar; exact hpairStar
-    rw [hmatch_eq]
+          rw [hlast_look]
+          cases f1.2.1.lookup f1.1.1.1 <;> rfl)
+    have hidx_eq : idxFn α s hs = ⟨iStar, hiK⟩ := by
+      dsimp only [idxFn]
+      rw [hres_look]
+      simp [hiK]
+    have hstar_eq : (match f1.2.1.lookup f1.1.1.1 with
+        | some (sample, _) => sample | none => samples.getD f1.2.2 (false, 0)) =
+        (true, rhos (idxFn α s hs)) := by
+      have hval := (hmem_val _ _ _ (List.mem_of_lookup_eq_some hlast_look)).trans
+        (hget_samples hiK)
+      rw [← hidx_eq, hcsStar] at hval
+      cases hfl : f1.2.1.lookup f1.1.1.1 <;> simpa only [hfl] using hval
+    rw [hstar_eq]
     simp only [↓reduceIte]
-    have hpair_won : P.pair d res.1.2.2 (α • P.G₁.generator d) =
+    have hpair_won : P.pair d (resFn α s hs).1.2.2 (α • P.G₁.generator d) =
         P.pair d f1.1.1.2 (P.G₁.generator d) := by
-      have hwon' := (Bool.and_eq_true _ _).mp hwon |>.1
-      have hf1_sig : res.1.1.2 = f1.1.1.2 := by rw [hr1]
-      rw [hf1_sig] at hwon'
+      have hwon' := ((Bool.and_eq_true _ _).mp hwon).1
+      rw [show (resFn α s hs).1.1.2 = f1.1.1.2 from congrArg (fun x => x.1.2) hr1] at hwon'
       exact decide_eq_true_eq.mp hwon'
-    have hpair_eq : P.pair d (α • res.1.2.2) (P.G₁.generator d) =
-        P.pair d f1.1.1.2 (P.G₁.generator d) := by
-      have h1 : P.pair d (α • res.1.2.2) (P.G₁.generator d) =
-          P.pair d res.1.2.2 (α • P.G₁.generator d) := by
-        simp only [map_smul, LinearMap.smul_apply]
-      exact h1.trans hpair_won
-    have hsig_eq : f1.1.1.2 = α • res.1.2.2 := (P.pair_right_generator_injective d hpair_eq).symm
-    rw [hsig_eq, hlastStar, smul_add, ← mul_smul, smul_comm α rhostar, add_sub_cancel_right]
-    simp only [Bool.false_eq_true, ↓reduceIte]
+    have hsig_eq : f1.1.1.2 = α • (resFn α s hs).1.2.2 :=
+      (P.pair_right_generator_injective d
+        ((by simp only [map_smul, LinearMap.smul_apply] :
+          P.pair d (α • (resFn α s hs).1.2.2) (P.G₁.generator d) =
+            P.pair d (resFn α s hs).1.2.2 (α • P.G₁.generator d)).trans hpair_won)).symm
+    have hlast_h : (resFn α s hs).1.2.2 =
+        β • P.G₀.generator d + rhos (idxFn α s hs) • P.G₀.generator d := by
+      dsimp only [resFn]
+      rw [hr1]
+      dsimp only
+      rw [hlast_val]
+      cases hfl : f1.2.1.lookup f1.1.1.1 <;> (
+        simp only [hfl] at hstar_eq ⊢
+        rw [hstar_eq]
+        rfl)
+    rw [hsig_eq, hlast_h, smul_add, ← mul_smul, smul_comm α (rhos _), add_sub_cancel_right]
   -- Step 3: Bound `won` from `one_div_le_toOuterMeasure_iid_marked`, then decouple and transfer.
-  let wonFn : ZMod (P.G₀.order d) → A.Coins → (Fin K → P.G₀.Carrier d) → Bool := fun α s hs =>
-    let res := (OracleComp.interpret (bankStepHandler id 0 (List.ofFn hs))
-        (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0)
-    decide (P.pair d res.1.2.2 (α • P.G₁.generator d) =
-      P.pair d res.1.1.2 (P.G₁.generator d)) && !(res.1.2.1.contains res.1.1.1)
-  let RFn : ZMod (P.G₀.order d) → A.Coins → (Fin K → P.G₀.Carrier d) → Finset (Fin K) :=
-    fun α s hs =>
-      let res := (OracleComp.interpret (bankStepHandler id 0 (List.ofFn hs))
-          (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0)
-      (res.1.2.1.filterMap fun m =>
-        (res.2.1.lookup m).bind fun e => if h : e.2 < K then some ⟨e.2, h⟩ else none).toFinset
-  let idxFn : ZMod (P.G₀.order d) → A.Coins → (Fin K → P.G₀.Carrier d) → Fin K :=
-    fun α s hs =>
-      let res := (OracleComp.interpret (bankStepHandler id 0 (List.ofFn hs))
-          (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0)
-      match res.2.1.lookup res.1.1.1 with
-      | some e => if h : e.2 < K then ⟨e.2, h⟩ else ⟨0, Nat.succ_pos _⟩
-      | none => ⟨0, Nat.succ_pos _⟩
-  let E_R : Game := do
-    let α ← PMF.uniformOfFintype (ZMod (P.G₀.order d))
-    let β ← PMF.uniformOfFintype (ZMod (P.G₀.order d))
-    let z ← P.blsBankedReduction d A K coin
-      (α • P.G₀.generator d) (α • P.G₁.generator d) (β • P.G₀.generator d)
-    return decide (z = (α * β) • P.G₀.generator d)
   have hmarked (α : ZMod (P.G₀.order d)) (s : A.Coins) (hs : Fin K → P.G₀.Carrier d)
       (hwon : wonFn α s hs = true) :
       idxFn α s hs ∉ RFn α s hs ∧ ((RFn α s hs).card : ℝ) + 1 ≤ a := by
     let f0 := P.runBankedForge d α id 0 (List.ofFn hs)
       (A.forge (α • P.G₁.generator d) s) [] [] 0
-    have hcore0 :
-        (OracleComp.interpret (bankStepHandler id 0 (List.ofFn hs))
-            (P.blsRunCore d α (A.forge (α • P.G₁.generator d) s))).run ([], 0) =
-          let last := bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2
-          ((f0.1.1, f0.1.2, last.1), last.2) := by
-      simp only [blsRunCore, StateT.run_bind, interpret_bind, interpret_pure,
-        StateT.run_pure, interpret_query, P.runBankedForge_eq_interpret_blsRunCore_forge]
-      rfl
+    have hcore0 := P.interpret_bankStep_blsRunCore d α id 0 (List.ofFn hs)
+      (A.forge (α • P.G₁.generator d) s)
     have hbounds0 := P.runBankedForge_bounds d α id 0 (List.ofFn hs)
       (hA (α • P.G₁.generator d) s).1 (hA (α • P.G₁.generator d) s).2 [] [] 0
       (fun _ _ _ h => by cases h) (fun _ _ _ _ _ h => by cases h) (fun _ h => by cases h)
     have hstep0 := bankStepIndexed_step_bounds id 0 (List.ofFn hs) f0.1.1.1 f0.2.1 f0.2.2
       hbounds0.2.2.1 hbounds0.2.2.2.1
-    have hf0_lt : f0.2.2 < K := by
-      have h : f0.2.2 ≤ 0 + Qs + Qro := hbounds0.2.1
-      omega
+    have hf0_lt : f0.2.2 < K := by have h : f0.2.2 ≤ 0 + Qs + Qro := hbounds0.2.1; omega
     have hnotMem : f0.1.1.1 ∉ f0.1.2 := by
-      have hc := (Bool.and_eq_true _ _).mp hwon |>.2
+      have hc := ((Bool.and_eq_true _ _).mp hwon).2
+      dsimp only [wonFn, wonPred, resFn] at hc
       rw [hcore0] at hc
       intro hm
       dsimp only at hc
       cases hc' : f0.1.2.contains f0.1.1.1
       · exact Bool.false_ne_true (hc'.symm.trans (List.contains_iff_mem.mpr hm))
       · rw [hc'] at hc; cases hc
-    have hstar_look : ∃ vStar,
-        (bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup f0.1.1.1 =
-          some (vStar, (idxFn α s hs).1) := by
-      dsimp only [idxFn]
+    obtain ⟨iStar, hlookStar, _, hiStar_lt⟩ := hstep0.2.2.2.1
+    have hiK : iStar < K := by omega
+    have hidx0 : idxFn α s hs = ⟨iStar, hiK⟩ := by
+      dsimp only [idxFn, resFn]
       rw [hcore0]
       dsimp only
-      cases hfl : f0.2.1.lookup f0.1.1.1 with
-      | some entry =>
-        have hiK : entry.2 < K := by
-          have := hbounds0.2.2.1 f0.1.1.1 entry.1 entry.2 (List.mem_of_lookup_eq_some hfl)
-          omega
-        have hlook : (bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup f0.1.1.1 =
-            some (entry.1, entry.2) := by
-          dsimp only [bankStepIndexed]
-          rw [hfl]
-          exact hfl
-        rw [hlook]
-        exact ⟨entry.1, by simp [hiK]⟩
-      | none =>
-        have hlook : (bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup f0.1.1.1 =
-            some ((List.ofFn hs).getD f0.2.2 0, f0.2.2) := by
-          dsimp only [bankStepIndexed]
-          rw [hfl]
-          simp
-        rw [hlook]
-        exact ⟨(List.ofFn hs).getD f0.2.2 0, by simp [hf0_lt]⟩
+      rw [hlookStar]
+      simp only [hiK, ↓reduceDIte]
     refine ⟨?_, ?_⟩
     · intro hmem
-      dsimp only [RFn] at hmem
+      dsimp only [RFn, resFn] at hmem
       rw [hcore0] at hmem
       dsimp only at hmem
       obtain ⟨m, hm_signed, hm_eq⟩ := List.mem_filterMap.mp (List.mem_toFinset.mp hmem)
+      change Option.bind ((bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup m) _ = _
+        at hm_eq
       cases hml : (bankStepIndexed id 0 (List.ofFn hs) f0.1.1.1 f0.2).2.1.lookup m with
       | none =>
         rw [hml] at hm_eq
@@ -1568,19 +1312,17 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       | some em =>
         simp only [hml, Option.bind_some] at hm_eq
         split_ifs at hm_eq with hmK
-        have hm_idx : em.2 = (idxFn α s hs).1 := congrArg Fin.val (Option.some.inj hm_eq)
-        obtain ⟨vStar, hstar⟩ := hstar_look
-        have hmeq := hstep0.2.1 m em.1 f0.1.1.1 vStar (idxFn α s hs).1
-          (by rw [← hm_idx]; exact hml) hstar
-        exact hnotMem (hmeq ▸ hm_signed)
+        have hm_idx : em.2 = iStar := by
+          have := congrArg Fin.val (Option.some.inj hm_eq)
+          simpa only [hidx0] using this
+        exact hnotMem (hstep0.2.1 m em.1 f0.1.1.1 _ iStar (hm_idx ▸ hml) hlookStar ▸ hm_signed)
     · have hcard_le : (RFn α s hs).card ≤ Qs := by
-        dsimp only [RFn]
+        dsimp only [RFn, resFn]
         rw [hcore0]
         refine (List.toFinset_card_le _).trans ((List.length_filterMap_le _ _).trans ?_)
         have h : f0.1.2.length ≤ [].length + Qs := hbounds0.1
         simpa only [List.length_nil, Nat.zero_add] using h
-      have hsucc : (RFn α s hs).card + 1 ≤ Qs + 1 := Nat.succ_le_succ hcard_le
-      exact le_trans (by exact_mod_cast hsucc) ha
+      exact le_trans (by exact_mod_cast Nat.succ_le_succ hcard_le) ha
   have hterm (α : ZMod (P.G₀.order d)) (s : A.Coins) (hs : Fin K → P.G₀.Carrier d) :
       ENNReal.ofReal (1 / (2.72 * a)) * (if wonFn α s hs = true then 1 else 0) ≤
         ((PMF.iid coin K).map fun cs =>
@@ -1599,13 +1341,9 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
         rw [PMF.map_apply, PMF.toOuterMeasure_apply]
         refine tsum_congr fun cs => ?_
         by_cases hcs : cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false
-        · have hmem : cs ∈ {cs : Fin K → Bool |
-              cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false} := hcs
-          rw [Set.indicator_of_mem hmem]
+        · rw [Set.indicator_of_mem hcs]
           simp only [hwon, Bool.true_and, decide_eq_true hcs, ↓reduceIte]
-        · have hnotmem : cs ∉ {cs : Fin K → Bool |
-              cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false} := hcs
-          rw [Set.indicator_of_notMem hnotmem]
+        · rw [Set.indicator_of_notMem hcs]
           simp only [hwon, Bool.true_and, decide_eq_false hcs, Bool.true_eq_false, ↓reduceIte]
       calc
         ENNReal.ofReal (1 / (2.72 * a)) * (if wonFn α s hs = true then 1 else 0) =
@@ -1617,10 +1355,8 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
         _ = _ := heq_om.symm
     · simp [hwon]
   have hmap_bind : ∀ {α β : Type} (p : PMF α) (f : α → β),
-      p.map f = p.bind fun x => PMF.pure (f x) := fun p f => by
-    ext y
-    simp [PMF.map_apply, PMF.bind_apply]
-  have hinner_hs (α : ZMod (P.G₀.order d)) (β : ZMod (P.G₀.order d)) (s : A.Coins) :
+      p.map f = p.bind fun x => PMF.pure (f x) := fun _ _ => rfl
+  have hinner_hs (α β : ZMod (P.G₀.order d)) (s : A.Coins) :
       ENNReal.ofReal (1 / (2.72 * a)) *
           ((PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map (wonFn α s)) true ≤
         ((PMF.iid coin K).bind fun cs =>
@@ -1659,8 +1395,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       exact PMF.bind_comm _ _ _
     refine hmap_left.trans ?_
     rw [hcomm, PMF.bind_apply, PMF.bind_apply]
-    refine tsum_le_tsum fun cs => ?_
-    refine mul_le_mul_of_nonneg_left ?_ zero_le
+    refine tsum_le_tsum fun cs => mul_le_mul_of_nonneg_left ?_ zero_le
     have hiid_proj :
         (PMF.iid (PMF.uniformOfFintype (ZMod (P.G₀.order d))) K).map
             (fun rhos i => P.coronSampleElem d (β • P.G₀.generator d) (cs i, rhos i)) =
@@ -1668,8 +1403,7 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       rw [← PMF.piFin_const,
         ← PMF.piFin_map (fun _ : Fin K => PMF.uniformOfFintype (ZMod (P.G₀.order d)))
           (fun j ρ => P.coronSampleElem d (β • P.G₀.generator d) (cs j, ρ))]
-      simp only [P.map_coronSampleElem_uniform]
-      exact PMF.piFin_const _ K
+      simp only [P.map_coronSampleElem_uniform, PMF.piFin_const]
     rw [← hiid_proj, PMF.map_comp, PMF.map_apply, PMF.map_apply]
     refine tsum_le_tsum fun rhos => ?_
     by_cases hpred : (wonFn α s
@@ -1679,10 +1413,9 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
           ∀ i ∈ RFn α s (fun i => P.coronSampleElem d (β • P.G₀.generator d) (cs i, rhos i)),
             cs i = false)) = true
     · simp only [Function.comp_apply, hpred, ↓reduceIte]
-      have hpred' := hpred
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at hpred'
-      have hwin := hpointwise α β s cs rhos ⟨hpred'.1, hpred'.2.1, hpred'.2.2⟩
-      simp only [decide_eq_true_eq.mpr hwin, ↓reduceIte, le_refl]
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hpred
+      simp only [decide_eq_true_eq.mpr (hpointwise α β s cs rhos ⟨hpred.1, hpred.2.1, hpred.2.2⟩),
+        ↓reduceIte, le_refl]
     · simp only [Bool.and_eq_true, decide_eq_true_eq] at hpred
       simp [hpred]
   have henn :
@@ -1697,14 +1430,8 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
         (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun α =>
           (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun _ =>
             A.coins.bind fun s =>
-              (PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map (wonFn α s) := by
-      refine PMF.bind_congr_on_support _ _ _ fun α _ => ?_
-      exact (PMF.bind_const _ _).symm
-    change ENNReal.ofReal (1 / (2.72 * a)) *
-      (((PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun α =>
-        A.coins.bind fun s =>
-          (PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map (wonFn α s)) true) ≤ E_R true
-    rw [hconst]
+              (PMF.iid (PMF.uniformOfFintype (P.G₀.Carrier d)) K).map (wonFn α s) :=
+      PMF.bind_congr_on_support _ _ _ fun _ _ => (PMF.bind_const _ _).symm
     have hER : E_R =
         (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun α =>
           (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun β =>
@@ -1720,24 +1447,10 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
       dsimp only [E_R, blsBankedReduction]
       simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, hmap_bind, PMF.bind_bind,
         PMF.pure_bind]
-    rw [hER, PMF.bind_apply]
-    conv_rhs => rw [PMF.bind_apply]
-    rw [← ENNReal.tsum_mul_left]
-    refine tsum_le_tsum fun α => ?_
-    rw [← mul_assoc, mul_comm (ENNReal.ofReal (1 / (2.72 * a))) _, mul_assoc]
-    refine mul_le_mul_of_nonneg_left ?_ zero_le
-    rw [PMF.bind_apply]
-    conv_rhs => rw [PMF.bind_apply]
-    rw [← ENNReal.tsum_mul_left]
-    refine tsum_le_tsum fun β => ?_
-    rw [← mul_assoc, mul_comm (ENNReal.ofReal (1 / (2.72 * a))) _, mul_assoc]
-    refine mul_le_mul_of_nonneg_left ?_ zero_le
-    rw [PMF.bind_apply]
-    conv_rhs => rw [PMF.bind_apply]
-    rw [← ENNReal.tsum_mul_left]
-    refine tsum_le_tsum fun s => ?_
-    rw [← mul_assoc, mul_comm (ENNReal.ofReal (1 / (2.72 * a))) _, mul_assoc]
-    exact mul_le_mul_of_nonneg_left (hinner_hs α β s) zero_le
+    rw [hconst, hER]
+    exact mul_bind_apply_le _ _ _ _ true fun α =>
+      mul_bind_apply_le _ _ _ _ true fun β =>
+        mul_bind_apply_le _ _ _ _ true fun s => hinner_hs α β s
   have hreal := ENNReal.toReal_mono (E_R.apply_ne_top true) henn
   rw [ENNReal.toReal_mul, ENNReal.toReal_ofReal (by positivity)] at hreal
   rw [Game.coe_succProbability, Game.coe_succProbability]
@@ -1878,28 +1591,40 @@ private theorem ofBits_encScalar_eq (d : P.G₀.Desc) (α : ZMod (P.G₀.order d
     Turing.MultiTapeTM.Decoder.nat.decode_enc α.val
   rw [hnat, ZMod.natCast_zmod_val]
 
+private theorem blsNativeROMScheme_sign_verifies (n : ℕ) (d : P.G₀.Desc)
+    [Fintype (P.G₀.Carrier d)] (α : ZMod (P.G₀.order d)) (m : List Bool)
+    (cache : List (List Bool × P.G₀.Carrier d))
+    (res : List Bool × List (List Bool × P.G₀.Carrier d))
+    (hres : res ∈ ((interpret (oracle (P.G₀.Carrier d))
+      ((P.blsNativeROMScheme n d).sign (P.G₁.toFamily.encScalar d α) m ())).run cache).support) :
+    ∃ h, @List.lookup _ _ instBEqOfDecidableEq m res.2 = some h ∧
+      (P.isElem₀ (d, res.1) &&
+        decide (P.pairEncoded (d, P.G₀.encode d h, P.G₁.encode d (α • P.G₁.generator d)) =
+          P.pairEncoded (d, res.1, P.G₁.encode d (P.G₁.generator d)))) = true := by
+  simp only [blsNativeROMScheme, interpret_map, interpret_query, StateT.run_map,
+    PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hres
+  obtain ⟨r, hr, rfl⟩ := hres
+  refine ⟨r.1, lookup_of_mem_support_oracle hr, ?_⟩
+  rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α,
+    show P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true from
+      DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1), Bool.true_and]
+  simp only [P.pairEncoded_encode, map_smul, LinearMap.smul_apply, decide_true]
+
 /-- **Correctness** of `blsNativeROMScheme`: every generated key pair and signature verifies. -/
 theorem blsNativeROMScheme_correct (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)] :
     (P.blsNativeROMScheme n d).Correct := by
   intro keys hkeys m _ _ cache signed hsigned verified hverified
-  have hkeys' : keys ∈ (ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d)).support := hkeys
-  rw [PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys'
-  obtain ⟨α, _, hkeq⟩ := hkeys'
-  dsimp only [PrimeOrderGroupFamily.Companion.toFamily] at α hkeq
-  rw [← hkeq] at hsigned hverified
+  rw [show (P.blsNativeROMScheme n d).keyGen =
+    ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d) from rfl,
+    PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys
+  obtain ⟨α, _, rfl⟩ := hkeys
+  obtain ⟨h, hlookup, hver⟩ := P.blsNativeROMScheme_sign_verifies n d α m cache signed hsigned
   simp only [blsNativeROMScheme, interpret_map, interpret_query, StateT.run_map,
-    PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hsigned hverified
-  obtain ⟨r, hr, rfl⟩ := hsigned
+    PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hverified
   obtain ⟨r', hr', rfl⟩ := hverified
-  have hlookup := lookup_of_mem_support_oracle hr
-  change r' ∈ ((oracle (P.G₀.Carrier d) m).run r.2).support at hr'
+  change r' ∈ ((oracle (P.G₀.Carrier d) m).run signed.2).support at hr'
   rw [run_oracle_of_lookup_eq_some hlookup, PMF.mem_support_pure_iff] at hr'
-  subst hr'
-  rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α]
-  have h_isElem : P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true :=
-    DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1)
-  rw [h_isElem, Bool.true_and]
-  simp only [P.pairEncoded_encode, map_smul, LinearMap.smul_apply, decide_true]
+  exact hr' ▸ hver
 
 /-- **Canonical unique signatures** for native BLS verification under a canonical `G₁` public key
 `P.G₁.encode d u`: checking `P.isElem₀` and the pairing equation determines `sig : List Bool`
@@ -1922,8 +1647,7 @@ theorem blsNativeROMScheme_unique_of_canonical (d : P.G₀.Desc) (u : P.G₁.Car
   have hp₂ := h₂.2
   rw [← hσ₁, P.pairEncoded_encode, P.pairEncoded_encode, (P.GT.encode_injective d).eq_iff] at hp₁
   rw [← hσ₂, P.pairEncoded_encode, P.pairEncoded_encode, (P.GT.encode_injective d).eq_iff] at hp₂
-  have hσeq := P.blsTypedROMScheme_unique d u h σ₁ σ₂ hp₁ hp₂
-  rw [← hσ₁, ← hσ₂, hσeq]
+  rw [← hσ₁, ← hσ₂, P.blsTypedROMScheme_unique d u h σ₁ σ₂ hp₁ hp₂]
 
 /-- **Strong = existential unforgeability for native BLS**: for every word forger, `wordSufCmaGame`
 and `wordEufCmaGame` coincide. -/
@@ -1935,50 +1659,27 @@ theorem wordSufCmaGame_blsNativeROMScheme_eq_wordEufCmaGame (n : ℕ) (d : P.G�
         forger := by
   unfold wordSufCmaGame wordEufCmaGame worldGame
   refine PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
-  have hkeys' : keys ∈ (ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d)).support := hkeys
-  rw [PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys'
-  obtain ⟨α, _, hkeq⟩ := hkeys'
-  dsimp only [PrimeOrderGroupFamily.Companion.toFamily] at α hkeq
-  rw [← hkeq]
-  dsimp only
-  have hcontains : ∀ pairs msig,
-      @List.contains (List Bool × List Bool)
-        (@instBEqProd (List Bool) (List Bool) List.instBEq List.instBEq) pairs msig =
-      @List.contains (List Bool × List Bool)
-        (@instBEqProd (List Bool) (List Bool) instBEqOfDecidableEq instBEqOfDecidableEq)
-        pairs msig :=
-    fun pairs msig =>
-      @list_contains_beq_congr (List Bool × List Bool)
-        (@instBEqProd (List Bool) (List Bool) List.instBEq List.instBEq) _
-        (@instBEqProd (List Bool) (List Bool) instBEqOfDecidableEq instBEqOfDecidableEq) _
-        pairs msig
-  have hcontainsMsg : ∀ (msgs : List (List Bool)) (msg : List Bool),
-      @List.contains (List Bool) List.instBEq msgs msg =
-      @List.contains (List Bool) instBEqOfDecidableEq msgs msg :=
-    fun msgs msg =>
-      @list_contains_beq_congr (List Bool) List.instBEq _ instBEqOfDecidableEq _ msgs msg
-  have heq_main := sufCma_worldRealize_eq_eufCma_of_unique (P.blsNativeROMScheme n d)
-    (P.G₁.encode d (α • P.G₁.generator d)) (P.G₁.toFamily.encScalar d α)
+  rw [show (P.blsNativeROMScheme n d).keyGen =
+    ProbComp.eval (P.G₁.toFamily.schnorrSigKeyGen n d) from rfl,
+    PrimeOrderGroupFamily.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys
+  obtain ⟨α, _, rfl⟩ := hkeys
+  change ZMod (P.G₀.order d) at α
+  have hcontains := @list_contains_beq_congr (List Bool × List Bool)
+    (@instBEqProd _ _ List.instBEq List.instBEq) _
+    (@instBEqProd _ _ instBEqOfDecidableEq instBEqOfDecidableEq) _
+  have hcontainsMsg := @list_contains_beq_congr (List Bool) List.instBEq _ instBEqOfDecidableEq _
+  simpa only [hcontains, hcontainsMsg] using sufCma_worldRealize_eq_eufCma_of_unique
+    (P.blsNativeROMScheme n d) (P.G₁.encode d (α • P.G₁.generator d)) (P.G₁.toFamily.encScalar d α)
     (fun h sig => P.isElem₀ (d, sig) &&
       decide (P.pairEncoded (d, P.G₀.encode d h, P.G₁.encode d (α • P.G₁.generator d)) =
         P.pairEncoded (d, sig, P.G₁.encode d (P.G₁.generator d))))
     (fun _ _ => rfl)
-    (fun m _ cache res _ hres => by
-      simp only [blsNativeROMScheme, interpret_map, interpret_query, StateT.run_map,
-        PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hres
-      obtain ⟨r, hr, rfl⟩ := hres
-      refine ⟨r.1, lookup_of_mem_support_oracle hr, ?_⟩
-      rw [P.G₀.smul_encode, P.ofBits_encScalar_eq d α]
-      have h_isElem : P.isElem₀ (d, P.G₀.encode d (α • r.1)) = true :=
-        DecodablePrimeOrderGroupFamily.isElem_encode P.toDecodableG₀ d (α • r.1)
-      rw [h_isElem, Bool.true_and]
-      simp only [P.pairEncoded_encode, map_smul, LinearMap.smul_apply, decide_true])
+    (fun m _ cache res _ hres => P.blsNativeROMScheme_sign_verifies n d α m cache res hres)
     (fun h sig₁ sig₂ h₁ h₂ => by
       simp only [Bool.and_eq_true, decide_eq_true_eq] at h₁ h₂
       exact P.blsNativeROMScheme_unique_of_canonical d (α • P.G₁.generator d) h sig₁ sig₂ h₁ h₂)
     (routeWordProgram ⟨P.G₀.encode d, P.G₀.encode_injective d⟩
       (forger (P.G₁.encode d (α • P.G₁.generator d))))
-  simpa only [hcontains, hcontainsMsg] using heq_main
 
 /-- **Native BLS SUF-CMA ↔ EUF-CMA**: strong unforgeability and existential unforgeability coincide
 in the random-oracle model. -/
@@ -1987,11 +1688,10 @@ theorem sufCma_iff_eufCma_blsNativeROMScheme (description : ℕ → P.G₀.Desc)
     ROMSignature.SUFCMA (fun n => ⟨P.G₀.encode (description n), P.G₀.encode_injective _⟩)
       (fun n => P.blsNativeROMScheme n (description n)) ↔
     ROMSignature.EUFCMA (fun n => ⟨P.G₀.encode (description n), P.G₀.encode_injective _⟩)
-      (fun n => P.blsNativeROMScheme n (description n)) := by
-  refine ⟨ROMSignature.SUFCMA.eufCma,
-    fun hEuf => ROMSignature.SUFCMA.of_negligible fun prog hprog => ?_⟩
-  have hneg := hEuf.negligible prog hprog
-  simpa only [wordSufCmaGame_blsNativeROMScheme_eq_wordEufCmaGame] using hneg
+      (fun n => P.blsNativeROMScheme n (description n)) :=
+  ⟨ROMSignature.SUFCMA.eufCma, fun hEuf => ROMSignature.SUFCMA.of_negligible fun prog hprog => by
+    simpa only [wordSufCmaGame_blsNativeROMScheme_eq_wordEufCmaGame] using
+      hEuf.negligible prog hprog⟩
 
 end DecodablePairingGroupFamily
 

@@ -33,15 +33,6 @@ open Reg
 
 /-! ## Phase 4: Amortized text scanning (`scanCode`) -/
 
-private theorem exec_set_r7 {w v : ℕ} (hv : Fits w v) (x : Data 26) :
-    ∃ y, ExecWithin (B := .standard) w (ram[ r7 ← #v ]) x y 1 ∧
-      y.regs r7 = v ∧ y.regs rState = x.regs rState ∧ y.regs r1 = x.regs r1 ∧
-      y.regs r2 = x.regs r2 ∧ y.regs r3 = x.regs r3 ∧ y.regs r5 = x.regs r5 ∧
-      y.mem = x.mem := by
-  refine WP.exists_execWithin ?_; wram_exec [hv]
-  exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-    by wram_simp⟩
-
 private theorem exec_computeFailCond (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound)
     {T : PTrie} {B : PBFS} {x : Data 26}
     (hL : LayoutInv inp x) (hM : BFSMem inp T B x.mem)
@@ -57,67 +48,31 @@ private theorem exec_computeFailCond (inp : Input) (w : ℕ) (hw : Fits w inp.wo
       y.regs r7 =
         (if 0 < x.regs rState ∧ T.trie (x.regs rState) (x.regs r5) = 0 then 1 else 0) := by
   have hlo := layout_order inp
-  have hf0 : Fits w 0 := fits_zero w
+  have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu ha
   have hf1 : Fits w 1 := fits_of_le_outBase hw (by omega)
-  obtain ⟨x₀, he₀, _, hs0, h10, h20, h30, h50, hm0⟩ := exec_set_r7 hf0 x
-  have hL₀ : LayoutInv inp x₀ :=
-    hL.of_preserves he₀
-  by_cases hupos : 0 < x.regs rState
-  · have hc1 : (Cond.lt zero rState).Holds x₀ := by
-      simp only [Cond.holds_lt, hL₀.h_zero, hs0]; exact hupos
-    have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu ha
-    have hf_m : Fits w (x.regs rState * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-    have hf_a : Fits w (x.regs rState * inp.alphabetSize + x.regs r5) :=
-      fits_of_le_outBase hw (by omega)
-    have hf_t : Fits w (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) :=
-      fits_of_le_outBase hw (by omega)
-    have ht_read : x₀.mem (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) =
-        T.trie (x.regs rState) (x.regs r5) := by
-      rw [hm0, ← Nat.add_assoc]; exact hM.trie_cell _ hu _ ha
-    have hld : ∃ x₁, ExecWithin w (ram[
-        r6 ← rState * sigma; r6 ← r6 + r5; r6 ← trieBase + r6; r6 ← *r6 ]) x₀ x₁ 4 ∧
-        x₁.regs r6 = T.trie (x.regs rState) (x.regs r5) ∧
-        x₁.regs rState = x.regs rState ∧ x₁.regs r1 = x.regs r1 ∧ x₁.regs r2 = x.regs r2 ∧
-        x₁.regs r3 = x.regs r3 ∧ x₁.regs r5 = x.regs r5 ∧ x₁.mem = x.mem := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hL₀.h_sigma, hL₀.h_trieBase, hs0, h50, ht_read, hf_m, hf_a, hf_t]
-      exact ⟨by wram_simp, by wram_simp [hs0], by wram_simp [h10], by wram_simp [h20],
-        by wram_simp [h30], by wram_simp [h50], by wram_simp [hm0]⟩
-    obtain ⟨x₁, he₁, hr6₁, hs1, h11, h21, h31, h51, hm1⟩ := hld
-    have hL₁ : LayoutInv inp x₁ :=
-      hL₀.of_preserves he₁
-    by_cases htpos : 0 < T.trie (x.regs rState) (x.regs r5)
-    · have hc2 : (Cond.lt zero r6).Holds x₁ := by
-        simp only [Cond.holds_lt, hL₁.h_zero, hr6₁]; exact htpos
-      obtain ⟨y, hep, hr7y, hsy, h1y, h2y, h3y, h5y, hmy⟩ := exec_set_r7 hf0 x₁
-      have hetot : ExecWithin w computeFailCond x y 9 :=
-        (he₀.seq (ExecWithin.branch_pos hc1 (he₁.seq (ExecWithin.branch_pos hc2 hep)))).mono
-          (by omega)
-      have hLy := hL.of_preserves hetot
-      have hnot0 : T.trie (x.regs rState) (x.regs r5) ≠ 0 := by omega
-      simp only [hupos, hnot0, and_false, ↓reduceIte]
-      exact ⟨y, hetot, hLy, hmy.trans hm1, hsy.trans hs1, h1y.trans h11, h2y.trans h21,
-        h3y.trans h31, h5y.trans h51, hr7y⟩
-    · have ht0 : T.trie (x.regs rState) (x.regs r5) = 0 := by omega
-      have hc2 : ¬(Cond.lt zero r6).Holds x₁ := by
-        simp only [Cond.holds_lt, hL₁.h_zero, hr6₁, ht0]; omega
-      obtain ⟨y, hen, hr7y, hsy, h1y, h2y, h3y, h5y, hmy⟩ := exec_set_r7 hf1 x₁
-      have hetot : ExecWithin w computeFailCond x y 9 :=
-        (he₀.seq (ExecWithin.branch_pos hc1 (he₁.seq (ExecWithin.branch_neg hc2 hen)))).mono
-          (by omega)
-      have hLy := hL.of_preserves hetot
-      simp only [hupos, ht0, and_self, ↓reduceIte]
-      exact ⟨y, hetot, hLy, hmy.trans hm1, hsy.trans hs1, h1y.trans h11, h2y.trans h21,
-        h3y.trans h31, h5y.trans h51, hr7y⟩
-  · have hc1 : ¬(Cond.lt zero rState).Holds x₀ := by
-      simp only [Cond.holds_lt, hL₀.h_zero, hs0]; exact hupos
-    obtain ⟨y, hen, hr7y, hsy, h1y, h2y, h3y, h5y, hmy⟩ := exec_set_r7 hf0 x₀
-    have hetot : ExecWithin w computeFailCond x y 9 :=
-      (he₀.seq (ExecWithin.branch_neg hc1 hen)).mono (by omega)
-    have hLy := hL.of_preserves hetot
-    simp only [hupos, false_and, ↓reduceIte]
-    exact ⟨y, hetot, hLy, hmy.trans hm0, hsy.trans hs0, h1y.trans h10, h2y.trans h20,
-      h3y.trans h30, h5y.trans h50, hr7y⟩
+  have hf_m : Fits w (x.regs rState * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
+  have hf_a : Fits w (x.regs rState * inp.alphabetSize + x.regs r5) :=
+    fits_of_le_outBase hw (by omega)
+  have hf_t : Fits w (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) :=
+    fits_of_le_outBase hw (by omega)
+  have ht_read : x.mem (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) =
+      T.trie (x.regs rState) (x.regs r5) := by
+    rw [← Nat.add_assoc]; exact hM.trie_cell _ hu _ ha
+  obtain ⟨y, he, hy⟩ : ∃ y, ExecWithin w computeFailCond x y 9 ∧ y.mem = x.mem ∧
+      y.regs rState = x.regs rState ∧ y.regs r1 = x.regs r1 ∧ y.regs r2 = x.regs r2 ∧
+      y.regs r3 = x.regs r3 ∧ y.regs r5 = x.regs r5 ∧
+      y.regs r7 =
+        (if 0 < x.regs rState ∧ T.trie (x.regs rState) (x.regs r5) = 0 then 1 else 0) := by
+    refine WP.exists_execWithin ?_
+    unfold computeFailCond
+    by_cases hupos : 0 < x.regs rState
+    · wram_exec [hL.h_sigma, hL.h_trieBase, hL.h_zero, hupos, ht_read, hf1, hf_m, hf_a, hf_t]
+      all_goals exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+        by wram_simp, by wram_simp; split_ifs <;> omega⟩
+    · wram_exec [hL.h_zero, hupos]
+      exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+        by wram_simp [hupos, false_and]⟩
+  exact ⟨y, he, hL.of_preserves he, hy⟩
 
 private theorem exec_failLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) :

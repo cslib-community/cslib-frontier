@@ -143,51 +143,41 @@ theorem mem_correlatedPolytope_iff {G : BimatrixGame M N} {P : Matrix M N ℝ} :
   rw [correlatedPolytope, Set.mem_ofPred_eq]
 
 theorem IsCorrelated.nonneg {G : BimatrixGame M N} {P : Matrix M N ℝ}
-    (hP : G.IsCorrelated P) (i : M) (j : N) : 0 ≤ P i j := by
-  rcases hP with ⟨hnn, -, -, -⟩
-  exact hnn i j
+    (hP : G.IsCorrelated P) (i : M) (j : N) : 0 ≤ P i j :=
+  hP.1 i j
 
 theorem IsCorrelated.sum_eq_one {G : BimatrixGame M N} {P : Matrix M N ℝ}
-    (hP : G.IsCorrelated P) : ∑ i, ∑ j, P i j = 1 := by
-  rcases hP with ⟨-, hsum, -, -⟩
-  exact hsum
+    (hP : G.IsCorrelated P) : ∑ i, ∑ j, P i j = 1 :=
+  hP.2.1
 
 theorem IsCorrelated.row_le {G : BimatrixGame M N} {P : Matrix M N ℝ}
     (hP : G.IsCorrelated P) (i i' : M) :
-    ∑ j : N, P i j * G.A i' j ≤ ∑ j : N, P i j * G.A i j := by
-  rcases hP with ⟨-, -, hrow, -⟩
-  exact hrow i i'
+    ∑ j : N, P i j * G.A i' j ≤ ∑ j : N, P i j * G.A i j :=
+  hP.2.2.1 i i'
 
 theorem IsCorrelated.col_le {G : BimatrixGame M N} {P : Matrix M N ℝ}
     (hP : G.IsCorrelated P) (j j' : N) :
-    ∑ i : M, P i j * G.B i j' ≤ ∑ i : M, P i j * G.B i j := by
-  rcases hP with ⟨-, -, -, hcol⟩
-  exact hcol j j'
+    ∑ i : M, P i j * G.B i j' ≤ ∑ i : M, P i j * G.B i j :=
+  hP.2.2.2 j j'
 
 /-- Swapping the players transposes correlated equilibria. -/
 @[simp]
 theorem isCorrelated_swap {G : BimatrixGame M N} {P : Matrix M N ℝ} :
     G.swap.IsCorrelated Pᵀ ↔ G.IsCorrelated P := by
-  constructor
-  · rintro ⟨hnn, hsum, hrow, hcol⟩
-    refine ⟨fun i j => hnn j i, ?_, fun i i' => ?_, fun j j' => ?_⟩
-    · exact (Finset.sum_comm (f := fun i j => P i j)).trans hsum
-    · simpa only [transpose_apply, swap_B] using hcol i i'
-    · simpa only [transpose_apply, swap_A] using hrow j j'
-  · rintro ⟨hnn, hsum, hrow, hcol⟩
-    refine ⟨fun j i => hnn i j, ?_, fun j j' => ?_, fun i i' => ?_⟩
-    · exact (Finset.sum_comm (f := fun j i => Pᵀ j i)).trans hsum
-    · simpa only [transpose_apply, swap_A] using hcol j j'
-    · simpa only [transpose_apply, swap_B] using hrow i i'
+  simp only [IsCorrelated, transpose_apply, swap_A, swap_B]
+  exact ⟨fun ⟨hnn, hsum, hrow, hcol⟩ =>
+      ⟨fun i j => hnn j i, (Finset.sum_comm (f := fun i j => P i j)).trans hsum, hcol, hrow⟩,
+    fun ⟨hnn, hsum, hrow, hcol⟩ =>
+      ⟨fun j i => hnn i j, (Finset.sum_comm (f := fun j i => P i j)).trans hsum, hcol, hrow⟩⟩
 
 /-- **The correlated-equilibrium polytope is convex** ([Papadimitriou2007], Section 2.7, p. 47). -/
 theorem convex_correlatedPolytope (G : BimatrixGame M N) : Convex ℝ G.correlatedPolytope := by
   rintro P₁ hP₁ P₂ hP₂ a b ha hb hab
-  rw [mem_correlatedPolytope_iff] at hP₁ hP₂ ⊢
-  rcases hP₁ with ⟨hnn₁, hsum₁, hrow₁, hcol₁⟩
-  rcases hP₂ with ⟨hnn₂, hsum₂, hrow₂, hcol₂⟩
-  refine ⟨fun i j => ?_, ?_, fun i i' => ?_, fun j j' => ?_⟩
-  · exact add_nonneg (mul_nonneg ha (hnn₁ i j)) (mul_nonneg hb (hnn₂ i j))
+  rcases mem_correlatedPolytope_iff.1 hP₁ with ⟨hnn₁, hsum₁, hrow₁, hcol₁⟩
+  rcases mem_correlatedPolytope_iff.1 hP₂ with ⟨hnn₂, hsum₂, hrow₂, hcol₂⟩
+  refine mem_correlatedPolytope_iff.2
+    ⟨fun i j => add_nonneg (mul_nonneg ha (hnn₁ i j)) (mul_nonneg hb (hnn₂ i j)), ?_,
+      fun i i' => ?_, fun j j' => ?_⟩
   · simp only [Matrix.add_apply, Matrix.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum,
       hsum₁, hsum₂, mul_one, hab]
   · simp only [Matrix.add_apply, Matrix.smul_apply, smul_eq_mul, add_mul, mul_assoc,
@@ -248,102 +238,71 @@ theorem isCorrelated_jointMatrix_iff (G : BimatrixGame M N)
     (σ : StdSimplex ℝ (∀ b, PureStrategy M N b)) :
     G.IsCorrelated (jointMatrix σ) ↔ G.toCostGame.IsCorrelatedEquilibrium σ := by
   classical
-  have hnn : ∀ i j, 0 ≤ jointMatrix σ i j := fun i j => by
-    rw [jointMatrix_apply]
-    exact σ.weights_nonneg _
+  have hnn : ∀ i j, 0 ≤ jointMatrix σ i j := fun i j => σ.weights_nonneg _
   have hsum : ∑ i : M, ∑ j : N, jointMatrix σ i j = 1 := by
     have htot := σ.total_of_fintype
     rw [← pureProfileEquiv.symm.sum_comp, Fintype.sum_prod_type] at htot
     exact htot
-  have hrow_sum : ∀ (i i' : M),
+  have hrow_sum (i i' : M) :
       σ.weights.sum (fun s w =>
         w * if s false = ULift.up i then G.toCostGame.cost false (update s false (ULift.up i'))
-          else 0) =
-      -∑ j : N, jointMatrix σ i j * G.A i' j := fun i i' => by
+          else 0) = -∑ j : N, jointMatrix σ i j * G.A i' j := by
     rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _), ← pureProfileEquiv.symm.sum_comp,
       Fintype.sum_prod_type]
     have hinner : ∀ x : M,
         (∑ y : N, σ.weights (pureProfile x y) *
-          if (pureProfile x y) false = ULift.up i then
-            G.toCostGame.cost false (update (pureProfile x y) false (ULift.up i'))
-          else 0) =
-        if x = i then ∑ y : N, -(jointMatrix σ i y * G.A i' y) else 0 := fun x => by
+          if pureProfile x y false = ULift.up i then
+            G.toCostGame.cost false (update (pureProfile x y) false (ULift.up i')) else 0) =
+        if x = i then -(∑ y : N, jointMatrix σ i y * G.A i' y) else 0 := fun x => by
       by_cases hxi : x = i
       · subst hxi
-        simp only [↓reduceIte]
-        refine sum_congr rfl fun y _ => ?_
-        have hf : pureProfile x y false = ULift.up x := rfl
-        have hcost : G.toCostGame.cost false (update (pureProfile x y) false (ULift.up i')) =
-            -G.A i' y := by
-          simp only [toCostGame, pureProfile, update_self,
-            update_of_ne (by decide : true ≠ false)]
-        rw [hf, hcost]
-        simp only [↓reduceIte, mul_neg]
-        rfl
+        simp only [pureProfile, toCostGame, update_self, update_of_ne (by decide : true ≠ false),
+          ↓reduceIte, mul_neg, sum_neg_distrib]; rfl
       · simp only [hxi, ↓reduceIte]
-        refine sum_eq_zero fun y _ => ?_
-        have hne : pureProfile x y false ≠ ULift.up i := fun h => hxi (congrArg ULift.down h)
-        simp only [hne, ↓reduceIte, mul_zero]
+        exact sum_eq_zero fun y _ => by
+          have hne : pureProfile x y false ≠ ULift.up i := fun h => hxi (congrArg ULift.down h)
+          simp only [hne, ↓reduceIte, mul_zero]
     exact (sum_congr rfl fun x _ => hinner x).trans
-      (by simp only [sum_ite_eq', mem_univ, ↓reduceIte, sum_neg_distrib])
-  have hcol_sum : ∀ (j j' : N),
+      (by simp only [sum_ite_eq', mem_univ, ↓reduceIte])
+  have hcol_sum (j j' : N) :
       σ.weights.sum (fun s w =>
         w * if s true = ULift.up j then G.toCostGame.cost true (update s true (ULift.up j'))
-          else 0) =
-      -∑ i : M, jointMatrix σ i j * G.B i j' := fun j j' => by
+          else 0) = -∑ i : M, jointMatrix σ i j * G.B i j' := by
     rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _), ← pureProfileEquiv.symm.sum_comp,
       Fintype.sum_prod_type, sum_comm]
     have hinner : ∀ y : N,
         (∑ x : M, σ.weights (pureProfile x y) *
-          if (pureProfile x y) true = ULift.up j then
-            G.toCostGame.cost true (update (pureProfile x y) true (ULift.up j'))
-          else 0) =
-        if y = j then ∑ x : M, -(jointMatrix σ x j * G.B x j') else 0 := fun y => by
+          if pureProfile x y true = ULift.up j then
+            G.toCostGame.cost true (update (pureProfile x y) true (ULift.up j')) else 0) =
+        if y = j then -(∑ x : M, jointMatrix σ x j * G.B x j') else 0 := fun y => by
       by_cases hyj : y = j
       · subst hyj
-        simp only [↓reduceIte]
-        refine sum_congr rfl fun x _ => ?_
-        have ht : pureProfile x y true = ULift.up y := rfl
-        have hcost : G.toCostGame.cost true (update (pureProfile x y) true (ULift.up j')) =
-            -G.B x j' := by
-          simp only [toCostGame, pureProfile, update_self,
-            update_of_ne (by decide : false ≠ true)]
-        rw [ht, hcost]
-        simp only [↓reduceIte, mul_neg]
-        rfl
+        simp only [pureProfile, toCostGame, update_self, update_of_ne (by decide : false ≠ true),
+          ↓reduceIte, mul_neg, sum_neg_distrib]; rfl
       · simp only [hyj, ↓reduceIte]
-        refine sum_eq_zero fun x _ => ?_
-        have hne : pureProfile x y true ≠ ULift.up j := fun h => hyj (congrArg ULift.down h)
-        simp only [hne, ↓reduceIte, mul_zero]
+        exact sum_eq_zero fun x _ => by
+          have hne : pureProfile x y true ≠ ULift.up j := fun h => hyj (congrArg ULift.down h)
+          simp only [hne, ↓reduceIte, mul_zero]
     exact (sum_congr rfl fun y _ => hinner y).trans
-      (by simp only [sum_ite_eq', mem_univ, ↓reduceIte, sum_neg_distrib])
-  have hself_eq : ∀ (b : Bool) (a : PureStrategy M N b),
-      σ.weights.sum (fun s w =>
-        w * if s b = a then G.toCostGame.cost b s else 0) =
-      σ.weights.sum (fun s w =>
-        w * if s b = a then G.toCostGame.cost b (update s b a) else 0) :=
-    fun b a => Finsupp.sum_congr fun s _ => by
+      (by simp only [sum_ite_eq', mem_univ, ↓reduceIte])
+  have hself_eq (b : Bool) (a : PureStrategy M N b) :
+      σ.weights.sum (fun s w => w * if s b = a then G.toCostGame.cost b s else 0) =
+      σ.weights.sum (fun s w => w * if s b = a then G.toCostGame.cost b (update s b a) else 0) :=
+    Finsupp.sum_congr fun s _ => by
       split_ifs with hs
       · rw [← hs, update_eq_self]
       · rfl
   rw [CostGame.isCorrelatedEquilibrium_iff]
   constructor
-  · rintro ⟨-, -, hrow, hcol⟩ b a a'
-    cases b
-    · obtain ⟨i⟩ := a
-      obtain ⟨i'⟩ := a'
-      rw [hself_eq false (ULift.up i), hrow_sum i i, hrow_sum i i', neg_le_neg_iff]
-      exact hrow i i'
-    · obtain ⟨j⟩ := a
-      obtain ⟨j'⟩ := a'
-      rw [hself_eq true (ULift.up j), hcol_sum j j, hcol_sum j j', neg_le_neg_iff]
-      exact hcol j j'
+  · rintro ⟨-, -, hrow, hcol⟩ (_ | _) ⟨a⟩ ⟨a'⟩
+    · rw [hself_eq false ⟨a⟩, hrow_sum a a, hrow_sum a a', neg_le_neg_iff]; exact hrow a a'
+    · rw [hself_eq true ⟨a⟩, hcol_sum a a, hcol_sum a a', neg_le_neg_iff]; exact hcol a a'
   · intro hce
     refine ⟨hnn, hsum, fun i i' => ?_, fun j j' => ?_⟩
-    · have h := hce false (ULift.up i) (ULift.up i')
-      rwa [hself_eq false (ULift.up i), hrow_sum i i, hrow_sum i i', neg_le_neg_iff] at h
-    · have h := hce true (ULift.up j) (ULift.up j')
-      rwa [hself_eq true (ULift.up j), hcol_sum j j, hcol_sum j j', neg_le_neg_iff] at h
+    · simpa only [hself_eq false ⟨i⟩, hrow_sum i i, hrow_sum i i', neg_le_neg_iff] using
+        hce false ⟨i⟩ ⟨i'⟩
+    · simpa only [hself_eq true ⟨j⟩, hcol_sum j j, hcol_sum j j', neg_le_neg_iff] using
+        hce true ⟨j⟩ ⟨j'⟩
 
 /-- **Polytope-level bridge to `G.toCostGame`**: `P` lies in `G.correlatedPolytope` iff
 `jointWeight P` belongs to the switching-function correlated-equilibrium polytope of `G.toCostGame`
@@ -356,70 +315,47 @@ theorem isCorrelated_iff_toCostGame (G : BimatrixGame M N) (P : Matrix M N ℝ) 
   have hmix : IsMixedStrategy (jointWeight P) ↔
       (∀ i j, 0 ≤ P i j) ∧ ∑ i : M, ∑ j : N, P i j = 1 := by
     rw [isMixedStrategy_iff, ← pureProfileEquiv.symm.sum_comp, Fintype.sum_prod_type]
-    refine and_congr ?_ Iff.rfl
-    exact ⟨fun h i j => h (pureProfile i j), fun h s => h _ _⟩
+    exact and_congr ⟨fun h i j => h (pureProfile i j), fun h s => h _ _⟩ Iff.rfl
   constructor
-  · intro hP
-    rcases hP with ⟨hnn, hsum, hrow, hcol⟩
+  · rintro ⟨hnn, hsum, hrow, hcol⟩
     refine ⟨hmix.2 ⟨hnn, hsum⟩, fun b δ => ?_⟩
     cases b
     · rw [sum_jointWeight_eq, sum_jointWeight_eq]
       refine sum_le_sum fun i _ => ?_
-      cases hδ : δ (ULift.up i) with | up i' =>
-      have hL : ∑ j : N, P i j * G.toCostGame.cost false (pureProfile i j) =
-          -∑ j : N, P i j * G.A i j := by
-        simp only [pureProfile, toCostGame, mul_neg, sum_neg_distrib]
-      have hR : ∑ j : N, P i j *
-            G.toCostGame.cost false (update (pureProfile i j) false (δ (pureProfile i j false))) =
-          -∑ j : N, P i j * G.A i' j := by
-        simp only [pureProfile, toCostGame, hδ, update_self,
-          update_of_ne (by decide : true ≠ false), mul_neg, sum_neg_distrib]
-      rw [hL, hR, neg_le_neg_iff]
-      exact hrow i i'
-    · have hswapL : (∑ s, jointWeight P s * G.toCostGame.cost true s) =
-          ∑ j : N, ∑ i : M, P i j * G.toCostGame.cost true (pureProfile i j) :=
-        (sum_jointWeight_eq P _).trans Finset.sum_comm
-      have hswapR :
-          (∑ s, jointWeight P s * G.toCostGame.cost true (update s true (δ (s true)))) =
-            ∑ j : N, ∑ i : M, P i j *
-              G.toCostGame.cost true (update (pureProfile i j) true (δ (pureProfile i j true))) :=
-        (sum_jointWeight_eq P _).trans Finset.sum_comm
-      rw [hswapL, hswapR]
+      cases hδ : δ ⟨i⟩ with | up i' =>
+      simpa only [pureProfile, toCostGame, hδ, update_self,
+        update_of_ne (by decide : true ≠ false), mul_neg, sum_neg_distrib, neg_le_neg_iff]
+        using hrow i i'
+    · rw [(sum_jointWeight_eq P _).trans Finset.sum_comm,
+        (sum_jointWeight_eq P _).trans Finset.sum_comm]
       refine sum_le_sum fun j _ => ?_
-      cases hδ : δ (ULift.up j) with | up j' =>
-      have hL : ∑ i : M, P i j * G.toCostGame.cost true (pureProfile i j) =
-          -∑ i : M, P i j * G.B i j := by
-        simp only [pureProfile, toCostGame, mul_neg, sum_neg_distrib]
-      have hR : ∑ i : M, P i j *
-            G.toCostGame.cost true (update (pureProfile i j) true (δ (pureProfile i j true))) =
-          -∑ i : M, P i j * G.B i j' := by
-        simp only [pureProfile, toCostGame, hδ, update_self,
-          update_of_ne (by decide : false ≠ true), mul_neg, sum_neg_distrib]
-      rw [hL, hR, neg_le_neg_iff]
-      exact hcol j j'
+      cases hδ : δ ⟨j⟩ with | up j' =>
+      simpa only [pureProfile, toCostGame, hδ, update_self,
+        update_of_ne (by decide : false ≠ true), mul_neg, sum_neg_distrib, neg_le_neg_iff]
+        using hcol j j'
   · rintro ⟨hw, hsw⟩
     let σ : StdSimplex ℝ (∀ b, PureStrategy M N b) :=
       { weights := Finsupp.equivFunOnFinite.symm (jointWeight P)
         nonneg := hw.nonneg
-        total := by
-          rw [Finsupp.sum_fintype _ _ (fun _ => rfl)]
-          exact hw.sum_eq_one }
-    have hσ : G.toCostGame.IsCorrelatedEquilibrium σ := by
-      intro b δ
-      have h1 : σ.weights.sum (fun s w => w * G.toCostGame.cost b s) =
-          ∑ s, jointWeight P s * G.toCostGame.cost b s := by
-        rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _)]
-        rfl
-      have h2 : σ.weights.sum (fun s w => w * G.toCostGame.cost b (update s b (δ (s b)))) =
-          ∑ s, jointWeight P s * G.toCostGame.cost b (update s b (δ (s b))) := by
-        rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _)]
-        rfl
-      rw [h1, h2]
+        total := (Finsupp.sum_fintype _ _ (fun _ => rfl)).trans hw.sum_eq_one }
+    have hσ : G.toCostGame.IsCorrelatedEquilibrium σ := fun b δ => by
+      rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _),
+        Finsupp.sum_fintype _ _ (fun _ => zero_mul _)]
       exact hsw b δ
-    have hmat : jointMatrix σ = P := by
-      ext i j
-      rfl
-    exact hmat ▸ (G.isCorrelated_jointMatrix_iff σ).2 hσ
+    exact (G.isCorrelated_jointMatrix_iff σ).2 hσ
+
+omit [Fintype M] in
+private theorem sum_vecMulVec_mul_A (x : M → ℝ) (y : N → ℝ) (A : Matrix M N ℝ) (i k : M) :
+    ∑ j : N, Matrix.vecMulVec x y i j * A k j = x i * (A *ᵥ y) k := by
+  simp only [vecMulVec_apply, mul_assoc, ← mul_sum, mulVec, dotProduct]
+  exact congrArg (x i * ·) (sum_congr rfl fun _ _ => mul_comm _ _)
+
+omit [Fintype N] in
+private theorem sum_vecMulVec_mul_B (x : M → ℝ) (y : N → ℝ) (B : Matrix M N ℝ) (j k : N) :
+    ∑ i : M, Matrix.vecMulVec x y i j * B i k = y j * (x ᵥ* B) k := by
+  calc ∑ i : M, Matrix.vecMulVec x y i j * B i k = ∑ i : M, y j * (x i * B i k) :=
+        sum_congr rfl fun _ _ => by rw [vecMulVec_apply]; ring
+    _ = y j * (x ᵥ* B) k := by rw [← mul_sum]; rfl
 
 /-! ### Product distributions and Nash equilibria -/
 
@@ -430,23 +366,15 @@ theorem IsNash.isCorrelated_vecMulVec {G : BimatrixGame M N} {x : M → ℝ} {y 
   obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
   have hx := h₁.isMixedStrategy
   have hy := h₂.isMixedStrategy
-  refine ⟨fun i j => mul_nonneg (hx.nonneg i) (hy.nonneg j), ?_, fun i i' => ?_, fun j j' => ?_⟩
-  · simp only [vecMulVec_apply, ← mul_sum, hy.sum_eq_one, mul_one, hx.sum_eq_one]
-  · have hmul : ∀ k : M, ∑ j : N, (x i * y j) * G.A k j = x i * (G.A *ᵥ y) k := fun k => by
-      simp only [mul_assoc, ← mul_sum, mulVec, dotProduct]
-      exact congrArg (x i * ·) (sum_congr rfl fun j _ => mul_comm _ _)
-    simp only [vecMulVec_apply]
-    rw [hmul i', hmul i]
+  refine ⟨fun i j => mul_nonneg (hx.nonneg i) (hy.nonneg j),
+    by simp only [vecMulVec_apply, ← mul_sum, hy.sum_eq_one, mul_one, hx.sum_eq_one],
+    fun i i' => ?_, fun j j' => ?_⟩
+  · rw [sum_vecMulVec_mul_A, sum_vecMulVec_mul_A]
     rcases (hx.nonneg i).eq_or_lt with h0 | hi
     · rw [← h0, zero_mul, zero_mul]
     · exact mul_le_mul_of_nonneg_left
         (isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₁).2 i hi) i') hi.le
-  · have hmul : ∀ k : N, ∑ i : M, (x i * y j) * G.B i k = y j * (x ᵥ* G.B) k := fun k => by
-      calc ∑ i : M, (x i * y j) * G.B i k = ∑ i : M, y j * (x i * G.B i k) :=
-            sum_congr rfl fun _ _ => by ring
-        _ = y j * (x ᵥ* G.B) k := by rw [← mul_sum]; rfl
-    simp only [vecMulVec_apply]
-    rw [hmul j', hmul j]
+  · rw [sum_vecMulVec_mul_B, sum_vecMulVec_mul_B]
     rcases (hy.nonneg j).eq_or_lt with h0 | hj
     · rw [← h0, zero_mul, zero_mul]
     · exact mul_le_mul_of_nonneg_left
@@ -458,26 +386,12 @@ correlated equilibrium iff `(x, y)` is a Nash equilibrium. -/
 theorem isCorrelated_vecMulVec_iff_isNash {G : BimatrixGame M N} {x : M → ℝ} {y : N → ℝ}
     (hx : IsMixedStrategy x) (hy : IsMixedStrategy y) :
     G.IsCorrelated (Matrix.vecMulVec x y) ↔ G.IsNash x y := by
-  refine ⟨fun hP => ?_, fun h => h.isCorrelated_vecMulVec⟩
-  rcases hP with ⟨-, -, hrow, hcol⟩
-  refine isNash_iff.2 ⟨isBestResponse₁_iff.2 ⟨hx, fun i hi => isPureBestResponse₁_iff.2
-    fun i' => ?_⟩, isBestResponse₂_iff.2 ⟨hy, fun j hj => isPureBestResponse₂_iff.2
-    fun j' => ?_⟩⟩
-  · have h := hrow i i'
-    have hmul : ∀ k : M, ∑ j : N, Matrix.vecMulVec x y i j * G.A k j = x i * (G.A *ᵥ y) k :=
-      fun k => by
-        simp only [vecMulVec_apply, mul_assoc, ← mul_sum, mulVec, dotProduct]
-        exact congrArg (x i * ·) (sum_congr rfl fun j _ => mul_comm _ _)
-    rw [hmul i', hmul i] at h
-    exact le_of_mul_le_mul_left h hi
-  · have h := hcol j j'
-    have hmul : ∀ k : N, ∑ i : M, Matrix.vecMulVec x y i j * G.B i k = y j * (x ᵥ* G.B) k :=
-      fun k => by
-        calc ∑ i : M, (x i * y j) * G.B i k = ∑ i : M, y j * (x i * G.B i k) :=
-              sum_congr rfl fun _ _ => by ring
-          _ = y j * (x ᵥ* G.B) k := by rw [← mul_sum]; rfl
-    rw [hmul j', hmul j] at h
-    exact le_of_mul_le_mul_left h hj
+  refine ⟨fun hP => isNash_iff.2
+    ⟨isBestResponse₁_iff.2 ⟨hx, fun i hi => isPureBestResponse₁_iff.2 fun i' =>
+        le_of_mul_le_mul_left (by simpa only [sum_vecMulVec_mul_A] using hP.row_le i i') hi⟩,
+      isBestResponse₂_iff.2 ⟨hy, fun j hj => isPureBestResponse₂_iff.2 fun j' =>
+        le_of_mul_le_mul_left (by simpa only [sum_vecMulVec_mul_B] using hP.col_le j j') hj⟩⟩,
+    IsNash.isCorrelated_vecMulVec⟩
 
 /-- Every convex combination of Nash equilibrium product matrices belongs to `G.correlatedPolytope`
 ([Papadimitriou2007], Section 2.7, pp. 46–47). -/
@@ -536,20 +450,12 @@ theorem IsNondegenerate.eq_of_support_subset_of_isPureBestResponse₁ {G : Bimat
   have hd_sum : ∑ j : N, d j = 0 := by
     simp only [d, Pi.sub_apply, sum_sub_distrib, hy'.sum_eq_one, hy.sum_eq_one, sub_self]
   have hd_zero_outside : ∀ j : N, y j = 0 → d j = 0 := fun j hyj => by
-    have hy'j : y' j = 0 := by
-      by_contra h0
-      exact (hsupp h0) hyj
+    have hy'j : y' j = 0 := by_contra fun h0 => hsupp h0 hyj
     simp only [d, Pi.sub_apply, hy'j, hyj, sub_self]
   have hex_neg : ∃ j : N, d j < 0 := by
     by_contra! hnn
-    have hd0 : ∀ j ∈ (univ : Finset N), d j = 0 :=
-      (sum_eq_zero_iff_of_nonneg fun j _ => hnn j).1 hd_sum
-    apply hne
-    funext j
-    have hj := hd0 j (mem_univ j)
-    simp only [d, Pi.sub_apply, sub_eq_zero] at hj
-    exact hj
-  -- Obtain a pure best response `i₀` to `y` from `hy.exists_pos` and `hcard`.
+    have hd0 := (sum_eq_zero_iff_of_nonneg fun j _ => hnn j).1 hd_sum
+    exact hne <| funext fun j => sub_eq_zero.1 (hd0 j (mem_univ j))
   obtain ⟨j_pos, hj_pos⟩ := hy.exists_pos
   have hsupp_pos : 0 < (Function.support y).ncard :=
     (Set.ncard_pos (Set.toFinite _)).2 ⟨j_pos, hj_pos.ne'⟩
@@ -558,145 +464,98 @@ theorem IsNondegenerate.eq_of_support_subset_of_isPureBestResponse₁ {G : Bimat
   have hi₀_le : ∀ k : M, (G.A *ᵥ y) k ≤ (G.A *ᵥ y) i₀ := isPureBestResponse₁_iff.1 hi₀
   have hi₀'_le : ∀ k : M, (G.A *ᵥ y') k ≤ (G.A *ᵥ y') i₀ :=
     isPureBestResponse₁_iff.1 (hbr i₀ hi₀)
-  -- Every row in `I := {i | G.IsPureBestResponse₁ y i}` ties `i₀` along `y + t • d`.
-  have hAd_eq : ∀ i : M, G.IsPureBestResponse₁ y i → (G.A *ᵥ d) i = (G.A *ᵥ d) i₀ := by
-    intro i hi
+  have hray_eq : ∀ (t : ℝ) (i : M), G.IsPureBestResponse₁ y i →
+      (G.A *ᵥ (y + t • d)) i = (G.A *ᵥ (y + t • d)) i₀ := fun t i hi => by
     have hy_eq : (G.A *ᵥ y) i = (G.A *ᵥ y) i₀ :=
       le_antisymm (hi₀_le i) ((isPureBestResponse₁_iff.1 hi) i₀)
     have hy'_eq : (G.A *ᵥ y') i = (G.A *ᵥ y') i₀ :=
       le_antisymm (hi₀'_le i) ((isPureBestResponse₁_iff.1 (hbr i hi)) i₀)
-    simp only [d, mulVec_sub, Pi.sub_apply, hy_eq, hy'_eq]
-  have hray_eq : ∀ (t : ℝ) (i : M), G.IsPureBestResponse₁ y i →
-      (G.A *ᵥ (y + t • d)) i = (G.A *ᵥ (y + t • d)) i₀ := by
-    intro t i hi
-    have hy_eq : (G.A *ᵥ y) i = (G.A *ᵥ y) i₀ :=
-      le_antisymm (hi₀_le i) ((isPureBestResponse₁_iff.1 hi) i₀)
-    simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul, hy_eq,
-      hAd_eq i hi]
-  -- Minimum positive step `t₁` hitting `y j + t₁ * d j = 0` for some `j` with `d j < 0`.
+    simp only [d, mulVec_add, mulVec_smul, mulVec_sub, Pi.add_apply, Pi.smul_apply, Pi.sub_apply,
+      smul_eq_mul, hy_eq, hy'_eq]
   set S_neg : Finset N := univ.filter fun j => d j < 0
   obtain ⟨j_neg, hj_neg⟩ := hex_neg
-  have hS_neg : S_neg.Nonempty := ⟨j_neg, mem_filter.2 ⟨mem_univ j_neg, hj_neg⟩⟩
-  obtain ⟨j₁, hj₁S, hj₁_min⟩ := exists_min_image S_neg (fun j => y j / (-d j)) hS_neg
+  obtain ⟨j₁, hj₁S, hj₁_min⟩ :=
+    exists_min_image S_neg (fun j => y j / (-d j)) ⟨j_neg, mem_filter.2 ⟨mem_univ _, hj_neg⟩⟩
   have hj₁_neg : d j₁ < 0 := (mem_filter.1 hj₁S).2
   have hy_j₁_pos : 0 < y j₁ :=
     (hy.nonneg j₁).lt_of_ne' fun h0 => hj₁_neg.ne (hd_zero_outside j₁ h0)
   set t₁ : ℝ := y j₁ / (-d j₁)
   have ht₁_pos : 0 < t₁ := div_pos hy_j₁_pos (neg_pos.2 hj₁_neg)
-  have hmix_of_le : ∀ t : ℝ, 0 ≤ t → t ≤ t₁ → IsMixedStrategy (y + t • d) := by
-    intro t ht₀ ht₁
-    refine isMixedStrategy_iff.2 ⟨fun j => ?_, ?_⟩
-    · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+  have hmix_of_le : ∀ t : ℝ, 0 ≤ t → t ≤ t₁ → IsMixedStrategy (y + t • d) := fun t ht₀ ht₁ =>
+    isMixedStrategy_iff.2 ⟨fun j => by
+      simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
       rcases lt_or_ge (d j) 0 with hdj | hdj
-      · have hmin := hj₁_min j (mem_filter.2 ⟨mem_univ j, hdj⟩)
-        have htle : t ≤ y j / (-d j) := ht₁.trans hmin
-        have hmul : t * (-d j) ≤ y j := (le_div_iff₀ (neg_pos.2 hdj)).1 htle
+      · have hmul := (le_div_iff₀ (neg_pos.2 hdj)).1
+          (ht₁.trans (hj₁_min j (mem_filter.2 ⟨mem_univ _, hdj⟩)))
         linarith
-      · exact add_nonneg (hy.nonneg j) (mul_nonneg ht₀ hdj)
-    · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum,
-        hy.sum_eq_one, hd_sum, mul_zero, add_zero]
-  have hsupp_ray : ∀ t : ℝ, Function.support (y + t • d) ⊆ Function.support y := by
-    intro t j hj
+      · exact add_nonneg (hy.nonneg j) (mul_nonneg ht₀ hdj),
+      by simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum,
+          hy.sum_eq_one, hd_sum, mul_zero, add_zero]⟩
+  have hsupp_ray : ∀ t : ℝ, Function.support (y + t • d) ⊆ Function.support y := fun t j hj => by
     by_contra hyj
     rw [Function.mem_support, not_not] at hyj
-    apply hj
-    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, hyj, hd_zero_outside j hyj, mul_zero,
-      add_zero]
-  -- Case split on whether `i₀` (hence every row in `I`) is still a pure best response at `t₁`.
+    exact hj (by simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, hyj,
+      hd_zero_outside j hyj, mul_zero, add_zero])
   by_cases hbr_t₁ : ∀ i' : M, (G.A *ᵥ (y + t₁ • d)) i' ≤ (G.A *ᵥ (y + t₁ • d)) i₀
-  · -- Case 1: `I` remains optimal at `y + t₁ • d`, while `j₁ ∈ support y` drops out of support.
-    have hy_t₁ : IsMixedStrategy (y + t₁ • d) := hmix_of_le t₁ ht₁_pos.le le_rfl
+  · have hy_t₁ := hmix_of_le t₁ ht₁_pos.le le_rfl
     have hj₁_zero : (y + t₁ • d) j₁ = 0 := by
       simp only [t₁, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
       field_simp [hj₁_neg.ne]
       ring
-    have hssub : Function.support (y + t₁ • d) ⊂ Function.support y :=
-      lt_of_le_of_ne (hsupp_ray t₁) fun heq => by
-        have hj₁_in : j₁ ∈ Function.support y := hy_j₁_pos.ne'
-        rw [← heq] at hj₁_in
-        exact hj₁_in hj₁_zero
     have hlt_supp : (Function.support (y + t₁ • d)).ncard < (Function.support y).ncard :=
-      Set.ncard_lt_ncard hssub (Set.toFinite _)
-    have hI_sub : {i | G.IsPureBestResponse₁ y i} ⊆
-        {i | G.IsPureBestResponse₁ (y + t₁ • d) i} := by
-      intro i hi
-      rw [Set.mem_ofPred_eq] at hi ⊢
-      exact isPureBestResponse₁_iff.2 fun i' => (hbr_t₁ i').trans_eq (hray_eq t₁ i hi).symm
+      Set.ncard_lt_ncard (lt_of_le_of_ne (hsupp_ray t₁) fun heq => by
+        have hj₁_in : j₁ ∈ Function.support y := hy_j₁_pos.ne'
+        rw [← heq] at hj₁_in; exact hj₁_in hj₁_zero) (Set.toFinite _)
     have hle_br : {i | G.IsPureBestResponse₁ y i}.ncard ≤
         {i | G.IsPureBestResponse₁ (y + t₁ • d) i}.ncard :=
-      Set.ncard_le_ncard hI_sub (Set.toFinite _)
+      Set.ncard_le_ncard (fun i hi => isPureBestResponse₁_iff.2 fun i' =>
+        (hbr_t₁ i').trans_eq (hray_eq t₁ i hi).symm) (Set.toFinite _)
     have hnd := (isNondegenerate_iff.1 hG).2 (y + t₁ • d) hy_t₁
     omega
-  · -- Case 2: Some row outside `I` overtakes `i₀` before `t₁`; stop at the first tie `t₂ < t₁`.
-    push Not at hbr_t₁
+  · push Not at hbr_t₁
     obtain ⟨i₁, hi₁_gt⟩ := hbr_t₁
-    have hi₁_not : ¬G.IsPureBestResponse₁ y i₁ := fun h =>
-      hi₁_gt.ne (hray_eq t₁ i₁ h).symm
-    have hgap_pos : ∀ i' : M, ¬G.IsPureBestResponse₁ y i' → 0 < (G.A *ᵥ y) i₀ - (G.A *ᵥ y) i' := by
-      intro i' hi'
-      refine sub_pos.2 ((hi₀_le i').lt_of_ne fun heq => hi' (isPureBestResponse₁_iff.2 fun k => ?_))
-      exact (hi₀_le k).trans_eq heq.symm
+    have hi₁_not : ¬G.IsPureBestResponse₁ y i₁ := fun h => hi₁_gt.ne (hray_eq t₁ i₁ h).symm
+    have hgap_pos : ∀ i' : M, ¬G.IsPureBestResponse₁ y i' → 0 < (G.A *ᵥ y) i₀ - (G.A *ᵥ y) i' :=
+      fun i' hi' => sub_pos.2 <| (hi₀_le i').lt_of_ne fun heq =>
+        hi' (isPureBestResponse₁_iff.2 fun k => (hi₀_le k).trans_eq heq.symm)
     have hi₁_slope : 0 < (G.A *ᵥ d) i₁ - (G.A *ᵥ d) i₀ := by
       have hgap₁ := hgap_pos i₁ hi₁_not
       simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul] at hi₁_gt
       by_contra! hle
-      have hmul : t₁ * ((G.A *ᵥ d) i₁ - (G.A *ᵥ d) i₀) ≤ 0 :=
-        mul_nonpos_of_nonneg_of_nonpos ht₁_pos.le hle
-      linarith
+      linarith [mul_nonpos_of_nonneg_of_nonpos ht₁_pos.le hle]
     set S_viol : Finset M :=
       univ.filter fun i' => ¬G.IsPureBestResponse₁ y i' ∧ 0 < (G.A *ᵥ d) i' - (G.A *ᵥ d) i₀
-    have hS_viol : S_viol.Nonempty :=
-      ⟨i₁, mem_filter.2 ⟨mem_univ i₁, hi₁_not, hi₁_slope⟩⟩
     obtain ⟨i₂, hi₂S, hi₂_min⟩ := exists_min_image S_viol
-      (fun i' => ((G.A *ᵥ y) i₀ - (G.A *ᵥ y) i') / ((G.A *ᵥ d) i' - (G.A *ᵥ d) i₀)) hS_viol
+      (fun i' => ((G.A *ᵥ y) i₀ - (G.A *ᵥ y) i') / ((G.A *ᵥ d) i' - (G.A *ᵥ d) i₀))
+      ⟨i₁, mem_filter.2 ⟨mem_univ _, hi₁_not, hi₁_slope⟩⟩
     obtain ⟨hi₂_not, hi₂_slope⟩ := (mem_filter.1 hi₂S).2
     set t₂ : ℝ := ((G.A *ᵥ y) i₀ - (G.A *ᵥ y) i₂) / ((G.A *ᵥ d) i₂ - (G.A *ᵥ d) i₀)
     have ht₂_pos : 0 < t₂ := div_pos (hgap_pos i₂ hi₂_not) hi₂_slope
     have ht₂_lt_t₁ : t₂ < t₁ := by
-      have hle := hi₂_min i₁ (mem_filter.2 ⟨mem_univ i₁, hi₁_not, hi₁_slope⟩)
-      refine hle.trans_lt ?_
+      refine (hi₂_min i₁ (mem_filter.2 ⟨mem_univ _, hi₁_not, hi₁_slope⟩)).trans_lt ?_
       rw [div_lt_iff₀ hi₁_slope]
       simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul] at hi₁_gt
       linarith
-    have hy_t₂ : IsMixedStrategy (y + t₂ • d) := hmix_of_le t₂ ht₂_pos.le ht₂_lt_t₁.le
-    have hbr_t₂ : ∀ i' : M, (G.A *ᵥ (y + t₂ • d)) i' ≤ (G.A *ᵥ (y + t₂ • d)) i₀ := by
-      intro i'
+    have hbr_t₂ : ∀ i' : M, (G.A *ᵥ (y + t₂ • d)) i' ≤ (G.A *ᵥ (y + t₂ • d)) i₀ := fun i' => by
       by_cases hi' : G.IsPureBestResponse₁ y i'
       · exact (hray_eq t₂ i' hi').le
-      · rcases lt_or_ge 0 ((G.A *ᵥ d) i' - (G.A *ᵥ d) i₀) with hslope | hslope
-        · have hmin := hi₂_min i' (mem_filter.2 ⟨mem_univ i', hi', hslope⟩)
-          have hmul : t₂ * ((G.A *ᵥ d) i' - (G.A *ᵥ d) i₀) ≤ (G.A *ᵥ y) i₀ - (G.A *ᵥ y) i' :=
-            (le_div_iff₀ hslope).1 hmin
-          simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-          linarith
-        · have hmul : t₂ * ((G.A *ᵥ d) i' - (G.A *ᵥ d) i₀) ≤ 0 :=
-            mul_nonpos_of_nonneg_of_nonpos ht₂_pos.le hslope
-          have hgap := (hgap_pos i' hi').le
-          simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-          linarith
+      · simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+        rcases lt_or_ge 0 ((G.A *ᵥ d) i' - (G.A *ᵥ d) i₀) with hslope | hslope
+        · linarith [(le_div_iff₀ hslope).1 (hi₂_min i' (mem_filter.2 ⟨mem_univ _, hi', hslope⟩))]
+        · linarith [mul_nonpos_of_nonneg_of_nonpos ht₂_pos.le hslope, (hgap_pos i' hi').le]
     have hi₂_tie : (G.A *ᵥ (y + t₂ • d)) i₂ = (G.A *ᵥ (y + t₂ • d)) i₀ := by
       simp only [t₂, mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-      have hne_slope : (G.A *ᵥ d) i₂ - (G.A *ᵥ d) i₀ ≠ 0 := hi₂_slope.ne'
-      field_simp [hne_slope]
-      ring
+      field_simp [hi₂_slope.ne']; ring
     have hins_sub : insert i₂ {i | G.IsPureBestResponse₁ y i} ⊆
-        {i | G.IsPureBestResponse₁ (y + t₂ • d) i} := by
-      intro i hi
-      rw [Set.mem_ofPred_eq]
-      refine isPureBestResponse₁_iff.2 fun i' => ?_
-      rcases Set.mem_insert_iff.1 hi with rfl | hi
-      · exact (hbr_t₂ i').trans_eq hi₂_tie.symm
-      · rw [Set.mem_ofPred_eq] at hi
-        exact (hbr_t₂ i').trans_eq (hray_eq t₂ i hi).symm
+        {i | G.IsPureBestResponse₁ (y + t₂ • d) i} := fun i hi =>
+      isPureBestResponse₁_iff.2 fun i' =>
+        (hbr_t₂ i').trans_eq (hi.elim (· ▸ hi₂_tie.symm) fun h => (hray_eq t₂ i h).symm)
     have hcard_ins : (insert i₂ {i | G.IsPureBestResponse₁ y i}).ncard =
         (Function.support y).ncard + 1 := by
       rw [Set.ncard_insert_of_notMem hi₂_not (Set.toFinite _), hcard]
-    have hle_br : (insert i₂ {i | G.IsPureBestResponse₁ y i}).ncard ≤
-        {i | G.IsPureBestResponse₁ (y + t₂ • d) i}.ncard :=
-      Set.ncard_le_ncard hins_sub (Set.toFinite _)
-    have hle_supp : (Function.support (y + t₂ • d)).ncard ≤ (Function.support y).ncard :=
-      Set.ncard_le_ncard (hsupp_ray t₂) (Set.toFinite _)
-    have hnd := (isNondegenerate_iff.1 hG).2 (y + t₂ • d) hy_t₂
+    have hle_br := Set.ncard_le_ncard hins_sub (Set.toFinite _)
+    have hle_supp := Set.ncard_le_ncard (hsupp_ray t₂) (Set.toFinite _)
+    have hnd := (isNondegenerate_iff.1 hG).2 (y + t₂ • d) (hmix_of_le t₂ ht₂_pos.le ht₂_lt_t₁.le)
     omega
 
 /-- **Uniqueness of support-equation solutions in nondegenerate games**, row-strategy form
@@ -721,6 +580,12 @@ section ExtremePoints
 
 variable {M N : Type*} [Fintype M] [Fintype N]
 
+private theorem sum_sum_eq_zero_apply {α β : Type*} [Fintype α] [Fintype β] {f : α → β → ℝ}
+    (hf : ∀ a b, 0 ≤ f a b) (hsum : ∑ a, ∑ b, f a b = 0) (a : α) (b : β) : f a b = 0 :=
+  (sum_eq_zero_iff_of_nonneg fun b' _ => hf a b').1
+    ((sum_eq_zero_iff_of_nonneg fun a' _ => sum_nonneg fun b' _ => hf a' b').1 hsum a (mem_univ a))
+    b (mem_univ b)
+
 /-- Conditional row factorization via Exercise 3.1: if `P ∈ G.correlatedPolytope` vanishes outside
 `support x × support y` and has zero row-deviation slack among rows in `support x`, then every row
 of `P` is proportional to `y`. -/
@@ -735,54 +600,37 @@ private theorem row_eq_sum_mul_of_tight {G : BimatrixGame M N} (hG : G.IsNondege
   have hy := h₂.isMixedStrategy
   intro i
   set s : ℝ := ∑ j' : N, P i j'
-  have hs_nn : 0 ≤ s := sum_nonneg fun j' _ => hP.nonneg i j'
-  rcases hs_nn.eq_or_lt with hs0 | hs_pos
+  rcases (sum_nonneg fun j' _ => hP.nonneg i j' : 0 ≤ s).eq_or_lt with hs0 | hs_pos
   · intro j
-    have hij0 : P i j = 0 :=
-      (sum_eq_zero_iff_of_nonneg fun j' _ => hP.nonneg i j').1 hs0.symm j (mem_univ j)
-    rw [hij0, ← hs0, zero_mul]
-  · have hxi_pos : 0 < x i := by
-      refine (hx.nonneg i).lt_of_ne' fun hxi0 => hs_pos.ne' ?_
-      exact sum_eq_zero fun j' _ => hzero i j' (.inl hxi0)
+    rw [(sum_eq_zero_iff_of_nonneg fun j' _ => hP.nonneg i j').1 hs0.symm j (mem_univ j),
+      show s = 0 from hs0.symm, zero_mul]
+  · have hxi_pos : 0 < x i := (hx.nonneg i).lt_of_ne' fun hxi0 =>
+      hs_pos.ne' (sum_eq_zero fun j' _ => hzero i j' (.inl hxi0))
     have hPi_ne : (fun j' => P i j') ≠ 0 := fun h0 => by
-      simp only [s, h0, Pi.zero_apply, sum_const_zero, lt_self_iff_false] at hs_pos
+      simp only [h0, Pi.zero_apply, sum_const_zero, lt_self_iff_false] at hs_pos
     set yi : N → ℝ := s⁻¹ • fun j' => P i j'
     have hyi : IsMixedStrategy yi := isMixedStrategy_inv_sum_smul (fun j' => hP.nonneg i j') hPi_ne
-    have hsupp_yi : Function.support yi ⊆ Function.support y := by
-      intro j hj
+    have hsupp_yi : Function.support yi ⊆ Function.support y := fun j hj => by
       by_contra hyj0
       rw [Function.mem_support, not_not] at hyj0
-      apply hj
-      simp only [yi, Pi.smul_apply, smul_eq_mul, hzero i j (.inr hyj0), mul_zero]
-    have hcard_y : {i' | G.IsPureBestResponse₁ y i'}.ncard = (Function.support y).ncard := by
-      rw [← hG.support_left_eq_of_isNash h]
-      exact h.ncard_support_eq hG
-    have hbr_yi : ∀ i', G.IsPureBestResponse₁ y i' → G.IsPureBestResponse₁ yi i' := by
-      intro i' hi'
-      have hi'_supp : i' ∈ Function.support x := by
-        rw [hG.support_left_eq_of_isNash h]
-        exact hi'
+      exact hj (by simp only [yi, Pi.smul_apply, smul_eq_mul, hzero i j (.inr hyj0), mul_zero])
+    have hcard_y : {i' | G.IsPureBestResponse₁ y i'}.ncard = (Function.support y).ncard :=
+      hG.support_left_eq_of_isNash h ▸ h.ncard_support_eq hG
+    have hbr_yi : ∀ i', G.IsPureBestResponse₁ y i' → G.IsPureBestResponse₁ yi i' := fun i' hi' => by
+      have hi'_supp : i' ∈ Function.support x := by rw [hG.support_left_eq_of_isNash h]; exact hi'
       have hxi'_pos : 0 < x i' := (hx.nonneg i').lt_of_ne' hi'_supp
       have heq : ∑ j : N, P i j * G.A i j = ∑ j : N, P i j * G.A i' j := by
-        have ht := htight i i' hxi_pos hxi'_pos
-        simp only [mul_sub, sum_sub_distrib, sub_eq_zero] at ht
-        exact ht
-      refine isPureBestResponse₁_iff.2 fun i'' => ?_
-      have hle : ∑ j : N, P i j * G.A i'' j ≤ ∑ j : N, P i j * G.A i' j :=
-        (hP.row_le i i'').trans_eq heq
+        simpa only [mul_sub, sum_sub_distrib, sub_eq_zero] using htight i i' hxi_pos hxi'_pos
       have hmulVec : ∀ k : M, (G.A *ᵥ yi) k = s⁻¹ * ∑ j : N, P i j * G.A k j := fun k => by
-        calc (G.A *ᵥ yi) k = ∑ j : N, G.A k j * (s⁻¹ * P i j) := rfl
-          _ = ∑ j : N, s⁻¹ * (P i j * G.A k j) := sum_congr rfl fun _ _ => by ring
-          _ = s⁻¹ * ∑ j : N, P i j * G.A k j := by rw [← mul_sum]
-      rw [hmulVec i'', hmulVec i']
-      exact mul_le_mul_of_nonneg_left hle (inv_nonneg.2 hs_pos.le)
-    have hyi_eq : yi = y :=
-      hG.eq_of_support_subset_of_isPureBestResponse₁ hy hyi hsupp_yi hcard_y hbr_yi
+        rw [mul_sum]
+        exact sum_congr rfl fun _ _ => by simp only [yi, Pi.smul_apply, smul_eq_mul]; ring
+      exact isPureBestResponse₁_iff.2 fun i'' => by
+        rw [hmulVec i'', hmulVec i']
+        exact mul_le_mul_of_nonneg_left ((hP.row_le i i'').trans_eq heq) (inv_nonneg.2 hs_pos.le)
+    have hyi_eq := hG.eq_of_support_subset_of_isPureBestResponse₁ hy hyi hsupp_yi hcard_y hbr_yi
     intro j
-    have hj := congrFun hyi_eq j
-    simp only [yi, Pi.smul_apply, smul_eq_mul] at hj
-    calc P i j = s * (s⁻¹ * P i j) := by rw [← mul_assoc, mul_inv_cancel₀ hs_pos.ne', one_mul]
-      _ = s * y j := by rw [hj]
+    have hj : s⁻¹ * P i j = y j := congrFun hyi_eq j
+    rw [← hj, ← mul_assoc, mul_inv_cancel₀ hs_pos.ne', one_mul]
 
 /-- **Every Nash equilibrium of a nondegenerate bimatrix game is the unique correlated-equilibrium
 maximizer of some linear objective** ([Papadimitriou2007], Section 2.7.1, p. 47): for any
@@ -798,7 +646,6 @@ theorem IsNondegenerate.exists_unique_maximizer_correlatedPolytope {G : Bimatrix
         ∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j ↔ P = Matrix.vecMulVec x y) := by
   classical
   obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
-  have hx := h₁.isMixedStrategy
   have hy := h₂.isMixedStrategy
   let c₁ : M → N → ℝ := fun i j => if x i = 0 ∨ y j = 0 then 1 else 0
   let c₂ : M → N → ℝ := fun i j =>
@@ -806,183 +653,110 @@ theorem IsNondegenerate.exists_unique_maximizer_correlatedPolytope {G : Bimatrix
   let c₃ : M → N → ℝ := fun i j =>
     if 0 < y j then ∑ j' : N, (if 0 < y j' then G.B i j - G.B i j' else 0) else 0
   let W : Matrix M N ℝ := Matrix.of fun i j => -(c₁ i j + c₂ i j + c₃ i j)
-  -- Decompose `-∑ i, ∑ j, W i j * P i j` into the three nonnegative slack penalties.
-  have hpen : ∀ P : Matrix M N ℝ,
+  have hpen (P : Matrix M N ℝ) :
       -(∑ i : M, ∑ j : N, W i j * P i j) =
         (∑ i : M, ∑ j : N, c₁ i j * P i j) +
         (∑ i : M, ∑ i' : M,
           if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0) +
         (∑ j : N, ∑ j' : N,
           if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0) := by
-    intro P
     have hW_expand : -(∑ i : M, ∑ j : N, W i j * P i j) =
-        (∑ i : M, ∑ j : N, c₁ i j * P i j) +
-        (∑ i : M, ∑ j : N, c₂ i j * P i j) +
+        (∑ i : M, ∑ j : N, c₁ i j * P i j) + (∑ i : M, ∑ j : N, c₂ i j * P i j) +
         (∑ i : M, ∑ j : N, c₃ i j * P i j) := by
       simp only [W, of_apply, neg_mul, sum_neg_distrib, neg_neg, add_mul, sum_add_distrib]
     have hc₂_sum : (∑ i : M, ∑ j : N, c₂ i j * P i j) =
         ∑ i : M, ∑ i' : M,
-          if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0 := by
-      refine sum_congr rfl fun i _ => ?_
-      by_cases hxi : 0 < x i
-      · simp only [c₂, hxi, ↓reduceIte, true_and, sum_mul]
-        rw [sum_comm]
-        refine sum_congr rfl fun i' _ => ?_
-        by_cases hxi' : 0 < x i'
-        · simp only [hxi', ↓reduceIte]
-          exact sum_congr rfl fun j _ => mul_comm _ _
-        · simp only [hxi', ↓reduceIte, zero_mul, sum_const_zero]
-      · simp only [c₂, hxi, ↓reduceIte, false_and, zero_mul, sum_const_zero]
+          if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0 :=
+      sum_congr rfl fun i _ => by
+        by_cases hxi : 0 < x i
+        · simp only [c₂, hxi, ↓reduceIte, true_and, sum_mul]
+          rw [sum_comm]
+          refine sum_congr rfl fun i' _ => ?_
+          by_cases hxi' : 0 < x i'
+          · simp only [hxi', ↓reduceIte]; exact sum_congr rfl fun _ _ => mul_comm _ _
+          · simp only [hxi', ↓reduceIte, zero_mul, sum_const_zero]
+        · simp only [c₂, hxi, ↓reduceIte, false_and, zero_mul, sum_const_zero]
     have hc₃_sum : (∑ i : M, ∑ j : N, c₃ i j * P i j) =
         ∑ j : N, ∑ j' : N,
           if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0 := by
       rw [sum_comm]
-      refine sum_congr rfl fun j _ => ?_
-      by_cases hyj : 0 < y j
-      · simp only [c₃, hyj, ↓reduceIte, true_and, sum_mul]
-        rw [sum_comm]
-        refine sum_congr rfl fun j' _ => ?_
-        by_cases hyj' : 0 < y j'
-        · simp only [hyj', ↓reduceIte]
-          exact sum_congr rfl fun i _ => mul_comm _ _
-        · simp only [hyj', ↓reduceIte, zero_mul, sum_const_zero]
-      · simp only [c₃, hyj, ↓reduceIte, false_and, zero_mul, sum_const_zero]
+      exact sum_congr rfl fun j _ => by
+        by_cases hyj : 0 < y j
+        · simp only [c₃, hyj, ↓reduceIte, true_and, sum_mul]
+          rw [sum_comm]
+          refine sum_congr rfl fun j' _ => ?_
+          by_cases hyj' : 0 < y j'
+          · simp only [hyj', ↓reduceIte]; exact sum_congr rfl fun _ _ => mul_comm _ _
+          · simp only [hyj', ↓reduceIte, zero_mul, sum_const_zero]
+        · simp only [c₃, hyj, ↓reduceIte, false_and, zero_mul, sum_const_zero]
     rw [hW_expand, hc₂_sum, hc₃_sum]
-  -- At `vecMulVec x y`, all three slack penalties vanish.
   have hopt_zero : ∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j = 0 := by
-    suffices hneg : -(∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j) = 0 by linarith
-    rw [hpen]
-    have h₁_zero : ∑ i : M, ∑ j : N, c₁ i j * Matrix.vecMulVec x y i j = 0 :=
+    suffices -(∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j) = 0 by linarith
+    rw [hpen,
       sum_eq_zero fun i _ => sum_eq_zero fun j _ => by
-        dsimp only [c₁]
-        rw [vecMulVec_apply]
-        rcases eq_or_ne (x i) 0 with hxi | hxi
-        · simp only [hxi, zero_mul, mul_zero]
-        · rcases eq_or_ne (y j) 0 with hyj | hyj
-          · simp only [hyj, mul_zero]
-          · simp only [hxi, hyj, or_self, ↓reduceIte, zero_mul]
-    have h₂_zero : (∑ i : M, ∑ i' : M,
-        if 0 < x i ∧ 0 < x i' then
-          ∑ j : N, Matrix.vecMulVec x y i j * (G.A i j - G.A i' j) else 0) = 0 :=
+        dsimp only [c₁]; rw [vecMulVec_apply]
+        by_cases hxy : x i = 0 ∨ y j = 0
+        · rcases hxy with h0 | h0 <;> simp [h0]
+        · simp [hxy],
       sum_eq_zero fun i _ => sum_eq_zero fun i' _ => by
         split_ifs with hpos
-        · obtain ⟨hi, hi'⟩ := hpos
-          have heq : (G.A *ᵥ y) i = (G.A *ᵥ y) i' :=
-            (h₁.payoff₁_eq_of_pos hi).symm.trans (h₁.payoff₁_eq_of_pos hi')
-          have hrow_term : ∀ k : M,
-              ∑ j : N, Matrix.vecMulVec x y i j * G.A k j = x i * (G.A *ᵥ y) k := fun k => by
-            calc ∑ j : N, Matrix.vecMulVec x y i j * G.A k j
-                = ∑ j : N, x i * (G.A k j * y j) :=
-                  sum_congr rfl fun _ _ => by rw [vecMulVec_apply]; ring
-              _ = x i * (G.A *ᵥ y) k := by rw [← mul_sum]; rfl
-          calc ∑ j : N, Matrix.vecMulVec x y i j * (G.A i j - G.A i' j)
-              = (∑ j : N, Matrix.vecMulVec x y i j * G.A i j) -
-                  ∑ j : N, Matrix.vecMulVec x y i j * G.A i' j := by
-                simp only [mul_sub, sum_sub_distrib]
-            _ = x i * (G.A *ᵥ y) i - x i * (G.A *ᵥ y) i' := by
-                rw [hrow_term i, hrow_term i']
-            _ = 0 := by rw [heq, sub_self]
-        · rfl
-    have h₃_zero : (∑ j : N, ∑ j' : N,
-        if 0 < y j ∧ 0 < y j' then
-          ∑ i : M, Matrix.vecMulVec x y i j * (G.B i j - G.B i j') else 0) = 0 :=
+        · simp only [mul_sub, sum_sub_distrib, sum_vecMulVec_mul_A,
+            (h₁.payoff₁_eq_of_pos hpos.1).symm.trans (h₁.payoff₁_eq_of_pos hpos.2), sub_self]
+        · rfl,
       sum_eq_zero fun j _ => sum_eq_zero fun j' _ => by
         split_ifs with hpos
-        · obtain ⟨hj, hj'⟩ := hpos
-          have heq : (x ᵥ* G.B) j = (x ᵥ* G.B) j' :=
-            (h₂.payoff₂_eq_of_pos hj).symm.trans (h₂.payoff₂_eq_of_pos hj')
-          have hcol_term : ∀ k : N,
-              ∑ i : M, Matrix.vecMulVec x y i j * G.B i k = y j * (x ᵥ* G.B) k := fun k => by
-            calc ∑ i : M, Matrix.vecMulVec x y i j * G.B i k
-                = ∑ i : M, y j * (x i * G.B i k) :=
-                  sum_congr rfl fun _ _ => by rw [vecMulVec_apply]; ring
-              _ = y j * (x ᵥ* G.B) k := by rw [← mul_sum]; rfl
-          calc ∑ i : M, Matrix.vecMulVec x y i j * (G.B i j - G.B i j')
-              = (∑ i : M, Matrix.vecMulVec x y i j * G.B i j) -
-                  ∑ i : M, Matrix.vecMulVec x y i j * G.B i j' := by
-                simp only [mul_sub, sum_sub_distrib]
-            _ = y j * (x ᵥ* G.B) j - y j * (x ᵥ* G.B) j' := by
-                rw [hcol_term j, hcol_term j']
-            _ = 0 := by rw [heq, sub_self]
-        · rfl
-    rw [h₁_zero, h₂_zero, h₃_zero, add_zero, add_zero]
+        · simp only [mul_sub, sum_sub_distrib, sum_vecMulVec_mul_B,
+            (h₂.payoff₂_eq_of_pos hpos.1).symm.trans (h₂.payoff₂_eq_of_pos hpos.2), sub_self]
+        · rfl,
+      add_zero, add_zero]
   refine ⟨W, fun P hP_mem => ?_⟩
-  have hP : G.IsCorrelated P := mem_correlatedPolytope_iff.1 hP_mem
+  have hP := mem_correlatedPolytope_iff.1 hP_mem
   have hc₁_nn : ∀ i j, 0 ≤ c₁ i j * P i j := fun i j => by
     dsimp only [c₁]
     split_ifs
     · exact mul_nonneg zero_le_one (hP.nonneg i j)
     · rw [zero_mul]
-  have hrow_term_nn : ∀ i i' : M,
-      0 ≤ if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0 := by
-    intro i i'
+  have hrow_nn : ∀ i i' : M,
+      0 ≤ if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0 := fun i i' => by
     split_ifs
-    · simp only [mul_sub, sum_sub_distrib]
-      exact sub_nonneg.2 (hP.row_le i i')
+    · simp only [mul_sub, sum_sub_distrib]; exact sub_nonneg.2 (hP.row_le i i')
     · exact le_rfl
-  have hcol_term_nn : ∀ j j' : N,
-      0 ≤ if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0 := by
-    intro j j'
+  have hcol_nn : ∀ j j' : N,
+      0 ≤ if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0 := fun j j' => by
     split_ifs
-    · simp only [mul_sub, sum_sub_distrib]
-      exact sub_nonneg.2 (hP.col_le j j')
+    · simp only [mul_sub, sum_sub_distrib]; exact sub_nonneg.2 (hP.col_le j j')
     · exact le_rfl
   have hb₁_nn : 0 ≤ ∑ i : M, ∑ j : N, c₁ i j * P i j :=
     sum_nonneg fun i _ => sum_nonneg fun j _ => hc₁_nn i j
   have hb₂_nn : 0 ≤ ∑ i : M, ∑ i' : M,
       if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0 :=
-    sum_nonneg fun i _ => sum_nonneg fun i' _ => hrow_term_nn i i'
+    sum_nonneg fun i _ => sum_nonneg fun i' _ => hrow_nn i i'
   have hb₃_nn : 0 ≤ ∑ j : N, ∑ j' : N,
       if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0 :=
-    sum_nonneg fun j _ => sum_nonneg fun j' _ => hcol_term_nn j j'
-  have hle_zero : ∑ i : M, ∑ j : N, W i j * P i j ≤ 0 := by
-    have hneg_nn : 0 ≤ -(∑ i : M, ∑ j : N, W i j * P i j) := by
-      rw [hpen P]
-      exact add_nonneg (add_nonneg hb₁_nn hb₂_nn) hb₃_nn
-    linarith
+    sum_nonneg fun j _ => sum_nonneg fun j' _ => hcol_nn j j'
   rw [hopt_zero]
-  refine ⟨hle_zero, ⟨fun heq0 => ?_, fun hPeq => by rw [hPeq, hopt_zero]⟩⟩
-  have hpen0 : -(∑ i : M, ∑ j : N, W i j * P i j) = 0 := by rw [heq0, neg_zero]
-  rw [hpen P] at hpen0
-  have hb₁_zero : ∑ i : M, ∑ j : N, c₁ i j * P i j = 0 := by linarith
-  have hb₂_zero : (∑ i : M, ∑ i' : M,
-      if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0) = 0 := by
-    linarith
-  have hb₃_zero : (∑ j : N, ∑ j' : N,
-      if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0) = 0 := by
-    linarith
-  have hzero : ∀ i j, (x i = 0 ∨ y j = 0) → P i j = 0 := by
-    intro i j hij
-    have hi0 := (sum_eq_zero_iff_of_nonneg fun i' _ =>
-      sum_nonneg fun j' _ => hc₁_nn i' j').1 hb₁_zero i (mem_univ i)
-    have hij0 := (sum_eq_zero_iff_of_nonneg fun j' _ => hc₁_nn i j').1 hi0 j (mem_univ j)
-    simpa only [c₁, hij, ↓reduceIte, one_mul] using hij0
-  have htight₁ : ∀ i i', 0 < x i → 0 < x i' →
-      ∑ j : N, P i j * (G.A i j - G.A i' j) = 0 := by
-    intro i i' hxi hxi'
-    have hi0 := (sum_eq_zero_iff_of_nonneg fun k _ =>
-      sum_nonneg fun k' _ => hrow_term_nn k k').1 hb₂_zero i (mem_univ i)
-    have hii'0 := (sum_eq_zero_iff_of_nonneg fun k' _ => hrow_term_nn i k').1 hi0 i' (mem_univ i')
-    simpa only [hxi, hxi', and_self, ↓reduceIte] using hii'0
+  refine ⟨by linarith [hpen P], ⟨fun heq0 => ?_, fun hPeq => by rw [hPeq, hopt_zero]⟩⟩
+  have hpen0 := hpen P; rw [heq0, neg_zero] at hpen0
+  have hzero : ∀ i j, (x i = 0 ∨ y j = 0) → P i j = 0 := fun i j hij => by
+    simpa only [c₁, hij, ↓reduceIte, one_mul] using
+      sum_sum_eq_zero_apply hc₁_nn (by linarith) i j
+  have htight₁ : ∀ i i', 0 < x i → 0 < x i' → ∑ j : N, P i j * (G.A i j - G.A i' j) = 0 :=
+    fun i i' hxi hxi' => by
+      simpa only [hxi, hxi', and_self, ↓reduceIte] using
+        sum_sum_eq_zero_apply hrow_nn (by linarith) i i'
   have htight₂ : ∀ j j', 0 < y j → 0 < y j' →
-      ∑ i : M, Pᵀ j i * (G.swap.A j i - G.swap.A j' i) = 0 := by
-    intro j j' hyj hyj'
-    have hj0 := (sum_eq_zero_iff_of_nonneg fun k _ =>
-      sum_nonneg fun k' _ => hcol_term_nn k k').1 hb₃_zero j (mem_univ j)
-    have hjj'0 := (sum_eq_zero_iff_of_nonneg fun k' _ => hcol_term_nn j k').1 hj0 j' (mem_univ j')
-    simpa only [hyj, hyj', and_self, ↓reduceIte, transpose_apply, swap_A] using hjj'0
+      ∑ i : M, Pᵀ j i * (G.swap.A j i - G.swap.A j' i) = 0 := fun j j' hyj hyj' => by
+    simpa only [hyj, hyj', and_self, ↓reduceIte, transpose_apply, swap_A] using
+      sum_sum_eq_zero_apply hcol_nn (by linarith) j j'
   have hrow_fac := row_eq_sum_mul_of_tight hG h hP hzero htight₁
   have hcol_fac := row_eq_sum_mul_of_tight (isNondegenerate_swap.2 hG) (isNash_swap.2 h)
     (isCorrelated_swap.2 hP) (fun j i hji => hzero i j hji.symm) htight₂
-  -- `P i j = (∑ j', P i j') * y j = (∑ i', P i' j) * x i`; summing over `i` identifies marginals.
-  have hmarg : ∀ i : M, ∑ j' : N, P i j' = x i := by
-    intro i
-    have hsum_col : ∑ j : N, ∑ i' : M, P i' j = 1 :=
-      (Finset.sum_comm (f := fun j i' => P i' j)).trans hP.sum_eq_one
+  have hmarg : ∀ i : M, ∑ j' : N, P i j' = x i := fun i => by
     calc ∑ j' : N, P i j' = (∑ j' : N, P i j') * ∑ j : N, y j := by rw [hy.sum_eq_one, mul_one]
       _ = ∑ j : N, P i j := by rw [mul_sum]; exact sum_congr rfl fun j _ => (hrow_fac i j).symm
       _ = ∑ j : N, (∑ i' : M, P i' j) * x i := sum_congr rfl fun j _ => hcol_fac j i
-      _ = x i := by rw [← sum_mul, hsum_col, one_mul]
+      _ = x i := by
+          rw [← sum_mul, Finset.sum_comm (f := fun j i' => P i' j), hP.sum_eq_one, one_mul]
   ext i j
   rw [hrow_fac i j, hmarg i, vecMulVec_apply]
 
@@ -995,30 +769,18 @@ theorem IsNondegenerate.vecMulVec_mem_extremePoints_correlatedPolytope {G : Bima
     Matrix.vecMulVec x y ∈ G.correlatedPolytope.extremePoints ℝ := by
   obtain ⟨W, hW⟩ := hG.exists_unique_maximizer_correlatedPolytope h
   refine mem_extremePoints_iff_left.2 ⟨mem_correlatedPolytope_iff.2 h.isCorrelated_vecMulVec,
-    fun P₁ hP₁ P₂ hP₂ hseg => ?_⟩
-  rcases hseg with ⟨a, b, ha, hb, hab, hcomb⟩
+    fun P₁ hP₁ P₂ hP₂ ⟨a, b, ha, hb, hab, hcomb⟩ => ?_⟩
   set f : Matrix M N ℝ → ℝ := fun P => ∑ i : M, ∑ j : N, W i j * P i j
-  have hf_smul : ∀ (c : ℝ) (Q : Matrix M N ℝ), f (c • Q) = c * f Q := fun c Q => by
-    calc ∑ i : M, ∑ j : N, W i j * (c * Q i j)
-        = ∑ i : M, ∑ j : N, c * (W i j * Q i j) :=
-          sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
-      _ = ∑ i : M, c * ∑ j : N, W i j * Q i j := sum_congr rfl fun _ _ => by rw [← mul_sum]
-      _ = c * ∑ i : M, ∑ j : N, W i j * Q i j := by rw [← mul_sum]
   have hf_comb : a * f P₁ + b * f P₂ = f (Matrix.vecMulVec x y) := by
-    rw [← hcomb, ← hf_smul, ← hf_smul]
-    simp only [f, Matrix.add_apply, mul_add, sum_add_distrib]
-  have hf₁ : f P₁ ≤ f (Matrix.vecMulVec x y) := (hW P₁ hP₁).1
-  have hf₂ : f P₂ ≤ f (Matrix.vecMulVec x y) := (hW P₂ hP₂).1
+    rw [← hcomb]
+    simp only [f, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul, mul_add, sum_add_distrib,
+      mul_sum]
+    congr 1 <;> exact sum_congr rfl fun _ _ => sum_congr rfl fun _ _ => by ring
   have hsum_ab : a * f (Matrix.vecMulVec x y) + b * f (Matrix.vecMulVec x y) =
-      f (Matrix.vecMulVec x y) := by
-    rw [← add_mul, hab, one_mul]
-  have hf₁_eq : f P₁ = f (Matrix.vecMulVec x y) := by
-    by_contra hne₁
-    have hlt₁ : f P₁ < f (Matrix.vecMulVec x y) := hf₁.lt_of_ne hne₁
-    have hlt_a : a * f P₁ < a * f (Matrix.vecMulVec x y) := mul_lt_mul_of_pos_left hlt₁ ha
-    have hle_b : b * f P₂ ≤ b * f (Matrix.vecMulVec x y) := mul_le_mul_of_nonneg_left hf₂ hb.le
-    linarith
-  exact (hW P₁ hP₁).2.1 hf₁_eq
+      f (Matrix.vecMulVec x y) := by rw [← add_mul, hab, one_mul]
+  refine (hW P₁ hP₁).2.1 (by_contra fun hne₁ => ?_)
+  linarith [mul_lt_mul_of_pos_left ((hW P₁ hP₁).1.lt_of_ne hne₁) ha,
+    mul_le_mul_of_nonneg_left (hW P₂ hP₂).1 hb.le]
 
 end ExtremePoints
 
@@ -1072,42 +834,29 @@ private theorem chickenGame_ncard_pureBestResponse₁_le {y : Fin 2 → ℝ} (hy
   have hr₀ := chickenGame_mulVec_zero hsum
   have hr₁ := chickenGame_mulVec_one y
   by_cases hhalf : y 0 = 1 / 2
-  · have hy1 : y 1 = 1 / 2 := by linarith
-    have hsupp_univ : Function.support y = Set.univ := by
-      ext i
-      fin_cases i
-      · simp only [Fin.zero_eta, Function.mem_support, hhalf, Set.mem_univ, iff_true]
-        norm_num
-      · simp only [Fin.mk_one, Function.mem_support, hy1, Set.mem_univ, iff_true]
-        norm_num
+  · have hsupp_univ : Function.support y = Set.univ := by
+      ext i; fin_cases i <;>
+        simp only [Fin.zero_eta, Fin.mk_one, Function.mem_support, Set.mem_univ, iff_true] <;>
+        linarith
     rw [hsupp_univ]
     exact Set.ncard_le_ncard (Set.subset_univ _) (Set.toFinite _)
   · obtain ⟨j₀, hj₀⟩ := hy.exists_pos
-    have hsupp_ge : 1 ≤ (Function.support y).ncard := by
-      have hsub : ({j₀} : Set (Fin 2)) ⊆ Function.support y :=
-        Set.singleton_subset_iff.2 hj₀.ne'
-      simpa only [Set.ncard_singleton] using Set.ncard_le_ncard hsub (Set.toFinite _)
+    have hsupp_ge : 1 ≤ (Function.support y).ncard :=
+      Set.ncard_singleton j₀ ▸
+        Set.ncard_le_ncard (Set.singleton_subset_iff.2 hj₀.ne') (Set.toFinite _)
     rcases lt_or_gt_of_ne hhalf with hlt | hgt
-    · have hsub : {i | chickenGame.IsPureBestResponse₁ y i} ⊆ {0} := by
-        intro i hi
-        rw [Set.mem_ofPred_eq, isPureBestResponse₁_iff] at hi
-        fin_cases i
-        · exact Set.mem_singleton 0
-        · exfalso
-          have h01 : (chickenGame.A *ᵥ y) 0 ≤ (chickenGame.A *ᵥ y) 1 := hi 0
-          linarith
-      exact ((Set.ncard_le_ncard hsub (Set.toFinite _)).trans_eq (Set.ncard_singleton 0)).trans
-        hsupp_ge
-    · have hsub : {i | chickenGame.IsPureBestResponse₁ y i} ⊆ {1} := by
-        intro i hi
-        rw [Set.mem_ofPred_eq, isPureBestResponse₁_iff] at hi
-        fin_cases i
-        · exfalso
-          have h10 : (chickenGame.A *ᵥ y) 1 ≤ (chickenGame.A *ᵥ y) 0 := hi 1
-          linarith
-        · exact Set.mem_singleton 1
-      exact ((Set.ncard_le_ncard hsub (Set.toFinite _)).trans_eq (Set.ncard_singleton 1)).trans
-        hsupp_ge
+    · refine ((Set.ncard_le_ncard (t := {0}) (fun i hi => ?_) (Set.toFinite _)).trans_eq
+        (Set.ncard_singleton 0)).trans hsupp_ge
+      rw [Set.mem_ofPred_eq, isPureBestResponse₁_iff] at hi
+      fin_cases i
+      · exact Set.mem_singleton 0
+      · exfalso; have h01 : (chickenGame.A *ᵥ y) 0 ≤ (chickenGame.A *ᵥ y) 1 := hi 0; linarith
+    · refine ((Set.ncard_le_ncard (t := {1}) (fun i hi => ?_) (Set.toFinite _)).trans_eq
+        (Set.ncard_singleton 1)).trans hsupp_ge
+      rw [Set.mem_ofPred_eq, isPureBestResponse₁_iff] at hi
+      fin_cases i
+      · exfalso; have h10 : (chickenGame.A *ᵥ y) 1 ≤ (chickenGame.A *ᵥ y) 0 := hi 1; linarith
+      · exact Set.mem_singleton 1
 
 /-- The `2 × 2` Chicken game is nondegenerate. -/
 theorem chickenGame_isNondegenerate : chickenGame.IsNondegenerate := by
@@ -1115,15 +864,12 @@ theorem chickenGame_isNondegenerate : chickenGame.IsNondegenerate := by
     ⟨fun x hx => ?_, fun _ hy => chickenGame_ncard_pureBestResponse₁_le hy⟩
   have hswap : {j | chickenGame.IsPureBestResponse₂ x j} =
       {j | chickenGame.IsPureBestResponse₁ x j} := by
-    ext j
-    rw [Set.mem_ofPred_eq, Set.mem_ofPred_eq, ← isPureBestResponse₁_swap,
+    ext j; rw [Set.mem_ofPred_eq, Set.mem_ofPred_eq, ← isPureBestResponse₁_swap,
       chickenGame_isSymmetric.swap_eq]
-  rw [hswap]
-  exact chickenGame_ncard_pureBestResponse₁_le hx
+  rw [hswap]; exact chickenGame_ncard_pureBestResponse₁_le hx
 
-private theorem fin2_eq_pair (v : Fin 2 → ℝ) : v = ![v 0, v 1] := by
-  funext i
-  fin_cases i <;> rfl
+private theorem fin2_eq_pair (v : Fin 2 → ℝ) : v = ![v 0, v 1] :=
+  funext fun i => by fin_cases i <;> rfl
 
 /-- **Complete classification of the Nash equilibria of Chicken** ([Papadimitriou2007], Section 2.7,
 p. 46): `chickenGame` has exactly three Nash equilibria — the two asymmetric pure equilibria
@@ -1137,80 +883,58 @@ theorem chickenGame_isNash_iff {x y : Fin 2 → ℝ} :
   constructor
   · intro h
     obtain ⟨h₁, h₂⟩ := isNash_iff.1 h
-    have h₂' : chickenGame.IsBestResponse₁ y x :=
-      (chickenGame_isSymmetric.isBestResponse₂_iff_isBestResponse₁).1 h₂
-    have hx := h₁.isMixedStrategy
-    have hy := h₂.isMixedStrategy
-    have hx_sum : x 0 + x 1 = 1 := by simpa only [Fin.sum_univ_two] using hx.sum_eq_one
-    have hy_sum : y 0 + y 1 = 1 := by simpa only [Fin.sum_univ_two] using hy.sum_eq_one
+    have h₂' := (chickenGame_isSymmetric.isBestResponse₂_iff_isBestResponse₁).1 h₂
+    have hx_sum : x 0 + x 1 = 1 := by
+      simpa only [Fin.sum_univ_two] using h₁.isMixedStrategy.sum_eq_one
+    have hy_sum : y 0 + y 1 = 1 := by
+      simpa only [Fin.sum_univ_two] using h₂.isMixedStrategy.sum_eq_one
     have hy_r₀ := chickenGame_mulVec_zero hy_sum
     have hy_r₁ := chickenGame_mulVec_one y
     have hx_r₀ := chickenGame_mulVec_zero hx_sum
     have hx_r₁ := chickenGame_mulVec_one x
     have hzero_of_lt : ∀ {u v : Fin 2 → ℝ}, chickenGame.IsBestResponse₁ u v →
-        ∀ (i i' : Fin 2), (chickenGame.A *ᵥ v) i < (chickenGame.A *ᵥ v) i' → u i = 0 := by
-      intro u v huv i i' hlt
-      by_contra hne
-      have hpos : 0 < u i := (huv.isMixedStrategy.nonneg i).lt_of_ne' hne
-      exact not_le_of_gt hlt (isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 huv).2 i hpos) i')
+        ∀ (i i' : Fin 2), (chickenGame.A *ᵥ v) i < (chickenGame.A *ᵥ v) i' → u i = 0 :=
+      fun huv i i' hlt => by_contra fun hne => not_le_of_gt hlt <| isPureBestResponse₁_iff.1
+        ((isBestResponse₁_iff.1 huv).2 i ((huv.isMixedStrategy.nonneg i).lt_of_ne' hne)) i'
     rcases lt_trichotomy (y 0) (1 / 2) with hylt | hyeq | hygt
-    · have hx1_zero : x 1 = 0 := hzero_of_lt h₁ 1 0 (by linarith)
-      have hx0_one : x 0 = 1 := by linarith
-      have hy0_zero : y 0 = 0 := hzero_of_lt h₂' 0 1 (by linarith)
-      have hy1_one : y 1 = 1 := by linarith
-      right; left
-      exact ⟨by rw [fin2_eq_pair x, hx0_one, hx1_zero], by rw [fin2_eq_pair y, hy0_zero, hy1_one]⟩
-    · have hy1_half : y 1 = 1 / 2 := by linarith
-      have hy0_pos : 0 < y 0 := by linarith
-      have hy1_pos : 0 < y 1 := by linarith
-      have hbr0 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 0 hy0_pos) 1
-      have hbr1 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 1 hy1_pos) 0
-      have hx0_half : x 0 = 1 / 2 := by linarith
-      have hx1_half : x 1 = 1 / 2 := by linarith
-      right; right
-      exact ⟨by rw [fin2_eq_pair x, hx0_half, hx1_half], by rw [fin2_eq_pair y, hyeq, hy1_half]⟩
-    · have hx0_zero : x 0 = 0 := hzero_of_lt h₁ 0 1 (by linarith)
-      have hx1_one : x 1 = 1 := by linarith
-      have hy1_zero : y 1 = 0 := hzero_of_lt h₂' 1 0 (by linarith)
-      have hy0_one : y 0 = 1 := by linarith
-      left
-      exact ⟨by rw [fin2_eq_pair x, hx0_zero, hx1_one], by rw [fin2_eq_pair y, hy0_one, hy1_zero]⟩
+    · have hx1 : x 1 = 0 := hzero_of_lt h₁ 1 0 (by linarith)
+      have hy0 : y 0 = 0 := hzero_of_lt h₂' 0 1 (by linarith)
+      exact Or.inr <| Or.inl ⟨by rw [fin2_eq_pair x, hx1, show x 0 = 1 by linarith],
+        by rw [fin2_eq_pair y, hy0, show y 1 = 1 by linarith]⟩
+    · have hbr0 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 0 (by linarith)) 1
+      have hbr1 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 1 (by linarith)) 0
+      exact Or.inr <| Or.inr
+        ⟨by rw [fin2_eq_pair x, show x 0 = 1 / 2 by linarith, show x 1 = 1 / 2 by linarith],
+        by rw [fin2_eq_pair y, hyeq, show y 1 = 1 / 2 by linarith]⟩
+    · have hx0 : x 0 = 0 := hzero_of_lt h₁ 0 1 (by linarith)
+      have hy1 : y 1 = 0 := hzero_of_lt h₂' 1 0 (by linarith)
+      exact Or.inl ⟨by rw [fin2_eq_pair x, hx0, show x 1 = 1 by linarith],
+        by rw [fin2_eq_pair y, show y 0 = 1 by linarith, hy1]⟩
   · have hcheck : ∀ a b c d : ℝ, 0 ≤ a → 0 ≤ b → a + b = 1 → 0 ≤ c → 0 ≤ d → c + d = 1 →
         (∀ i : Fin 2, 0 < (![a, b] : Fin 2 → ℝ) i →
           ∀ i' : Fin 2, (chickenGame.A *ᵥ ![c, d]) i' ≤ (chickenGame.A *ᵥ ![c, d]) i) →
         (∀ j : Fin 2, 0 < (![c, d] : Fin 2 → ℝ) j →
           ∀ j' : Fin 2, (chickenGame.A *ᵥ ![a, b]) j' ≤ (chickenGame.A *ᵥ ![a, b]) j) →
-        chickenGame.IsNash ![a, b] ![c, d] := by
-      intro a b c d ha hb hab hc hd hcd h1 h2
-      have hmx : IsMixedStrategy ![a, b] :=
-        isMixedStrategy_iff.2 ⟨fun i => by fin_cases i <;> assumption,
-          by simp [Fin.sum_univ_two, hab]⟩
-      have hmy : IsMixedStrategy ![c, d] :=
-        isMixedStrategy_iff.2 ⟨fun j => by fin_cases j <;> assumption,
-          by simp [Fin.sum_univ_two, hcd]⟩
-      exact isNash_iff.2
-        ⟨isBestResponse₁_iff.2 ⟨hmx, fun i hi => isPureBestResponse₁_iff.2 (h1 i hi)⟩,
+        chickenGame.IsNash ![a, b] ![c, d] := fun a b c d ha hb hab hc hd hcd h1 h2 =>
+      isNash_iff.2
+        ⟨isBestResponse₁_iff.2 ⟨isMixedStrategy_iff.2 ⟨fun i => by fin_cases i <;> assumption,
+            by simp [Fin.sum_univ_two, hab]⟩, fun i hi => isPureBestResponse₁_iff.2 (h1 i hi)⟩,
         (chickenGame_isSymmetric.isBestResponse₂_iff_isBestResponse₁).2
-          (isBestResponse₁_iff.2 ⟨hmy, fun j hj => isPureBestResponse₁_iff.2 (h2 j hj)⟩)⟩
+          (isBestResponse₁_iff.2 ⟨isMixedStrategy_iff.2 ⟨fun j => by fin_cases j <;> assumption,
+            by simp [Fin.sum_univ_two, hcd]⟩, fun j hj => isPureBestResponse₁_iff.2 (h2 j hj)⟩)⟩
     rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩)
     · refine hcheck 0 1 1 0 le_rfl zero_le_one (by norm_num) zero_le_one le_rfl (by norm_num)
-        (fun i hi i' => ?_) (fun j hj j' => ?_)
-      · revert hi; fin_cases i <;> fin_cases i' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
-      · revert hj; fin_cases j <;> fin_cases j' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
+        (fun i hi i' => ?_) (fun i hi i' => ?_) <;>
+        (revert hi; fin_cases i <;> fin_cases i' <;>
+          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two])
     · refine hcheck 1 0 0 1 zero_le_one le_rfl (by norm_num) le_rfl zero_le_one (by norm_num)
-        (fun i hi i' => ?_) (fun j hj j' => ?_)
-      · revert hi; fin_cases i <;> fin_cases i' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
-      · revert hj; fin_cases j <;> fin_cases j' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
+        (fun i hi i' => ?_) (fun i hi i' => ?_) <;>
+        (revert hi; fin_cases i <;> fin_cases i' <;>
+          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two])
     · refine hcheck (1 / 2) (1 / 2) (1 / 2) (1 / 2) (by norm_num) (by norm_num) (by norm_num)
-        (by norm_num) (by norm_num) (by norm_num) (fun i _ i' => ?_) (fun j _ j' => ?_)
-      · fin_cases i <;> fin_cases i' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
-      · fin_cases j <;> fin_cases j' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
+        (by norm_num) (by norm_num) (by norm_num) (fun i _ i' => ?_) (fun i _ i' => ?_) <;>
+        (fin_cases i <;> fin_cases i' <;>
+          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two])
 
 /-- The 50–50 traffic-signal correlated equilibrium `C₁ = !![0, 1 / 2; 1 / 2, 0]` of
 [Papadimitriou2007], Section 2.7, pp. 46–47 (cf. [TardosVazirani2007], Example 1.10, p. 15). -/
@@ -1219,8 +943,7 @@ noncomputable def chickenTrafficLight : Matrix (Fin 2) (Fin 2) ℝ :=
 
 theorem chickenTrafficLight_mem_correlatedPolytope :
     chickenTrafficLight ∈ chickenGame.correlatedPolytope := by
-  rw [mem_correlatedPolytope_iff]
-  refine ⟨fun i j => ?_, ?_, fun i i' => ?_, fun j j' => ?_⟩
+  refine mem_correlatedPolytope_iff.2 ⟨fun i j => ?_, ?_, fun i i' => ?_, fun j j' => ?_⟩
   · fin_cases i <;> fin_cases j <;> norm_num [chickenTrafficLight]
   · norm_num [chickenTrafficLight, Fin.sum_univ_two]
   · fin_cases i <;> fin_cases i' <;> norm_num [chickenTrafficLight, chickenGame, Fin.sum_univ_two]
@@ -1238,10 +961,8 @@ theorem chickenTrafficLight_ne_vecMulVec (x y : Fin 2 → ℝ) :
   have h10 : x 1 * y 0 = 1 / 2 := by
     simpa [vecMulVec_apply, chickenTrafficLight] using congrFun (congrFun h 1) 0
   rcases mul_eq_zero.1 h00 with hx0 | hy0
-  · rw [hx0, zero_mul] at h01
-    norm_num at h01
-  · rw [hy0, mul_zero] at h10
-    norm_num at h10
+  · rw [hx0, zero_mul] at h01; norm_num at h01
+  · rw [hy0, mul_zero] at h10; norm_num at h10
 
 /-- The social-welfare-optimal correlated equilibrium `C₂ = !![1 / 3, 1 / 3; 1 / 3, 0]` of
 [Papadimitriou2007], Section 2.7, p. 47 ("a traffic light that is red for both one third of the
@@ -1251,8 +972,7 @@ noncomputable def chickenOptimalCorrelated : Matrix (Fin 2) (Fin 2) ℝ :=
 
 theorem chickenOptimalCorrelated_mem_correlatedPolytope :
     chickenOptimalCorrelated ∈ chickenGame.correlatedPolytope := by
-  rw [mem_correlatedPolytope_iff]
-  refine ⟨fun i j => ?_, ?_, fun i i' => ?_, fun j j' => ?_⟩
+  refine mem_correlatedPolytope_iff.2 ⟨fun i j => ?_, ?_, fun i i' => ?_, fun j j' => ?_⟩
   · fin_cases i <;> fin_cases j <;> norm_num [chickenOptimalCorrelated]
   · norm_num [chickenOptimalCorrelated, Fin.sum_univ_two]
   · fin_cases i <;> fin_cases i' <;>
@@ -1269,7 +989,7 @@ theorem chickenGame_socialWelfare_optimalCorrelated :
 theorem chickenGame_socialWelfare_le_of_correlated {P : Matrix (Fin 2) (Fin 2) ℝ}
     (hP : P ∈ chickenGame.correlatedPolytope) :
     chickenGame.socialWelfare P ≤ 20 / 3 := by
-  have hcorr : chickenGame.IsCorrelated P := mem_correlatedPolytope_iff.1 hP
+  have hcorr := mem_correlatedPolytope_iff.1 hP
   have hnn11 : 0 ≤ P 1 1 := hcorr.nonneg 1 1
   have hsum : (P 0 0 + P 0 1) + (P 1 0 + P 1 1) = 1 := by
     simpa [Fin.sum_univ_two] using hcorr.sum_eq_one
@@ -1277,12 +997,9 @@ theorem chickenGame_socialWelfare_le_of_correlated {P : Matrix (Fin 2) (Fin 2) �
     simpa [Fin.sum_univ_two, chickenGame_A] using hcorr.row_le 0 1
   have hcol01 : P 0 0 * 5 + P 1 0 * 0 ≤ P 0 0 * 4 + P 1 0 * 1 := by
     simpa [Fin.sum_univ_two, chickenGame_B] using hcorr.col_le 0 1
-  have hsw : chickenGame.socialWelfare P = 8 * P 0 0 + 6 * P 0 1 + 6 * P 1 0 := by
-    have hsw' : chickenGame.socialWelfare P =
-        (P 0 0 * (4 + 4) + P 0 1 * (1 + 5)) + (P 1 0 * (5 + 1) + P 1 1 * (0 + 0)) := by
-      simp [socialWelfare, Fin.sum_univ_two, chickenGame_A, chickenGame_B]
-    linarith
-  rw [hsw]
+  have hsw : chickenGame.socialWelfare P =
+      (P 0 0 * (4 + 4) + P 0 1 * (1 + 5)) + (P 1 0 * (5 + 1) + P 1 1 * (0 + 0)) := by
+    simp [socialWelfare, Fin.sum_univ_two, chickenGame_A, chickenGame_B]
   linarith
 
 /-- Every point in the convex hull of Nash equilibrium product distributions of `chickenGame` has
@@ -1297,9 +1014,8 @@ theorem chickenGame_socialWelfare_le_six_of_mem_convexHull_isNash {P : Matrix (F
         a * chickenGame.socialWelfare Q₁ + b * chickenGame.socialWelfare Q₂ := by
       simp only [socialWelfare, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul, add_mul,
         mul_assoc, sum_add_distrib, ← mul_sum]
-    have hab6 : a * 6 + b * 6 = (6 : ℝ) := by rw [← add_mul, hab, one_mul]
-    rw [hlin]
-    linarith [mul_le_mul_of_nonneg_left h₁ ha, mul_le_mul_of_nonneg_left h₂ hb]
+    linarith [mul_le_mul_of_nonneg_left h₁ ha, mul_le_mul_of_nonneg_left h₂ hb,
+      show a * 6 + b * 6 = (6 : ℝ) by rw [← add_mul, hab, one_mul]]
   refine convexHull_min (fun Q hQ => ?_) hconv hP
   rcases hQ with ⟨x, y, hNash, rfl⟩
   rw [Set.mem_ofPred_eq]

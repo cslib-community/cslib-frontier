@@ -101,10 +101,8 @@ private theorem Frame.disjoint (F : Frame D) (hD : D.IsEmbedding)
   rw [segment_eq_image_lineMap]
   rintro ⟨s, hs, heq⟩
   rw [F.lineMap, F.lineMap] at heq
-  have hpoint := mul_left_cancel₀ F.nonzero heq
-  apply hD.segment_interior_disjoint i j hne t ht
-  rw [← hpoint]
-  exact lineMap_mem_segment ℝ _ _ hs
+  exact hD.segment_interior_disjoint i j hne t ht
+    (mul_left_cancel₀ F.nonzero heq ▸ lineMap_mem_segment ℝ _ _ hs)
 
 private theorem Frame.remote (F : Frame D)
     (hcontact : ∀ (k : D.SegmentIndex × Bool) j,
@@ -117,27 +115,20 @@ private theorem Frame.remote (F : Frame D)
     (rayEndpoint F.a F.b k).im ≠ (F.a j).im ∧
       (rayEndpoint F.a F.b k).im ≠ (F.b j).im ∧
       rayEndpoint F.a F.b k ∉ segment ℝ (F.a j) (F.b j) := by
-  have ha' : D.segmentStart j ≠ rayEndpoint D.segmentStart D.segmentFinish k := by
-    intro h
-    exact ha (by rw [F.endpoint]; exact congrArg (F.u * ·) h)
-  have hb' : D.segmentFinish j ≠ rayEndpoint D.segmentStart D.segmentFinish k := by
-    intro h
-    exact hb (by rw [F.endpoint]; exact congrArg (F.u * ·) h)
-  refine ⟨?_, ?_, ?_⟩
-  · intro h
-    rw [F.endpoint] at h
-    exact ha' (F.heights (F.mem_endpoint k) (F.mem_start j) h).symm
-  · intro h
-    rw [F.endpoint] at h
-    exact hb' (F.heights (F.mem_endpoint k) (F.mem_finish j) h).symm
-  · rw [segment_eq_image_lineMap]
-    rintro ⟨t, ht, heq⟩
-    rw [F.lineMap, F.endpoint] at heq
-    have hpoint := mul_left_cancel₀ F.nonzero heq
-    have hp : rayEndpoint D.segmentStart D.segmentFinish k ∈
-        segment ℝ (D.segmentStart j) (D.segmentFinish j) :=
-      hpoint ▸ lineMap_mem_segment ℝ _ _ ht
-    exact (hcontact k j hp).elim ha' hb'
+  have ha' : D.segmentStart j ≠ rayEndpoint D.segmentStart D.segmentFinish k := fun h => ha <| by
+    rw [F.endpoint]
+    exact congrArg (F.u * ·) h
+  have hb' : D.segmentFinish j ≠ rayEndpoint D.segmentStart D.segmentFinish k := fun h => hb <| by
+    rw [F.endpoint]
+    exact congrArg (F.u * ·) h
+  refine ⟨fun h => ha'
+      (F.heights (F.mem_endpoint k) (F.mem_start j) (by rwa [F.endpoint] at h)).symm,
+    fun h => hb' (F.heights (F.mem_endpoint k) (F.mem_finish j) (by rwa [F.endpoint] at h)).symm,
+    ?_⟩
+  rw [segment_eq_image_lineMap]
+  rintro ⟨t, ht, heq⟩
+  rw [F.lineMap, F.endpoint] at heq
+  exact (hcontact k j (mul_left_cancel₀ F.nonzero heq ▸ lineMap_mem_segment ℝ _ _ ht)).elim ha' hb'
 
 private structure Frame.Contacts (F : Frame D) : Prop where
   height : ∀ i, (F.a i).im ≠ (F.b i).im
@@ -212,23 +203,10 @@ private theorem Frame.color_bend (F : Frame D) (hc : F.Contacts)
   let k : D.SegmentIndex × Bool := (⟨e, i.castSucc⟩, true)
   let l : D.SegmentIndex × Bool := (⟨e, i.succ⟩, false)
   let p := F.u * (D.route e).point i.castSucc.succ
-  have hk : rayEndpoint F.a F.b k = p := rfl
-  have hl : rayEndpoint F.a F.b l = p := rfl
-  have hkl : k ≠ l := by
-    intro h
-    have := congrArg Prod.snd h
-    exact Bool.false_ne_true this.symm
-  have hclass (j : D.SegmentIndex × Bool) (hj : rayEndpoint F.a F.b j = p) :
-      j = k ∨ j = l := by
-    rw [F.endpoint] at hj
-    exact hc.atBend e i j (mul_left_cancel₀ F.nonzero hj)
-  have hgap (j : D.SegmentIndex × Bool) (hj : rayEndpoint F.a F.b j = p)
-      (hjk : j ≠ k) (hjl : j ≠ l) :
-      ¬sbtw ((rayEndVector F.a F.b k).arg : Real.Angle)
-        ((rayEndVector F.a F.b j).arg : Real.Angle)
-        ((rayEndVector F.a F.b l).arg : Real.Angle) := by
-    exact ((hclass j hj).elim hjk hjl).elim
-  exact F.color_adjacent hc x hx p k l hk hl hkl hgap
+  refine F.color_adjacent hc x hx p k l rfl rfl
+    (fun h => Bool.false_ne_true (congrArg Prod.snd h).symm) fun j hj hjk hjl => ?_
+  rw [F.endpoint] at hj
+  exact ((hc.atBend e i j (mul_left_cancel₀ F.nonzero hj)).elim hjk hjl).elim
 
 private theorem Frame.color_route_ends_of_segment_crossings (F : Frame D)
     (x : Fin G.2.length → Bool) (e : Fin G.2.length)
@@ -281,46 +259,30 @@ private theorem Frame.color_vertex (F : Frame D) (hc : F.Contacts)
     rw [F.endpoint] at hj
     exact hc.atVertex d.vertex hv j (mul_left_cancel₀ F.nonzero hj)
   by_cases had : a = d
-  · have hfixed : r.rotate d = d := by simpa only [had] using har
-    have honly (j : D.SegmentIndex × Bool) (hj : rayEndpoint F.a F.b j = p) : j = k := by
-      obtain ⟨c, hcv, hc⟩ := hclass j hj
-      have hcd : c = d := ((r.sameCycle_iff c d).mpr hcv).eq_of_right hfixed
-      simpa only [hcd] using hc.symm
+  · have hfixed : r.rotate d = d := had ▸ har
     have hsum : (∑ j : D.SegmentIndex × Bool,
         if rayEndpoint F.a F.b j = p then x j.1.1 else 0) = x d.1 := by
-      rw [Finset.sum_eq_single k]
-      · rw [ite_eq_left hk]
-        rfl
-      · intro j _ hj
-        have hpoint : rayEndpoint F.a F.b j ≠ p := fun hp => hj (honly j hp)
-        simp only [hpoint, ↓reduceIte]
-      · simp
+      rw [Finset.sum_eq_single k (fun j _ hj => ite_eq_right fun hp => hj ?_) (by simp)]
+      · exact ite_eq_left hk
+      · obtain ⟨c, hcv, hcj⟩ := hclass j hp
+        exact (((r.sameCycle_iff c d).mpr hcv).eq_of_right hfixed ▸ hcj).symm
     have heven : (∑ j : D.SegmentIndex × Bool,
         if rayEndpoint F.a F.b j = p then x j.1.1 else 0) = 0 := by
       simpa only [Fintype.sum_prod_type, Fintype.sum_bool, rayEndpoint,
         Bool.false_eq_true, ↓reduceIte, add_comm, Bool.zero_eq_false] using F.even x hx p
-    have hx0 : x d.1 = 0 := hsum.symm.trans heven
-    change F.color x k + F.color x l = x d.1
-    have hkl : l = k := congrArg D.segmentEnd had
-    rw [hkl, BooleanRing.add_self, hx0]
-  · have hkl : k ≠ l := fun h => had (D.segmentEnd_injective h.symm)
-    have hgap (j : D.SegmentIndex × Bool) (hj : rayEndpoint F.a F.b j = p)
-        (hjk : j ≠ k) (hjl : j ≠ l) :
-        ¬sbtw ((rayEndVector F.a F.b k).arg : Real.Angle)
-          ((rayEndVector F.a F.b j).arg : Real.Angle)
-          ((rayEndVector F.a F.b l).arg : Real.Angle) := by
-      obtain ⟨c, hcv, hc⟩ := hclass j hj
-      have hcd : c ≠ d := fun h => hjk (by rw [← hc, h])
-      have hca : c ≠ a := fun h => hjl (by rw [← hc, h])
-      rw [← hc]
-      change ¬sbtw ((rayEndVector F.a F.b (D.segmentEnd d)).arg : Real.Angle)
-        ((rayEndVector F.a F.b (D.segmentEnd c)).arg : Real.Angle)
-        ((rayEndVector F.a F.b (D.segmentEnd a)).arg : Real.Angle)
-      simp only [F.vector, D.segmentEnd_vector]
-      rw [sbtw_arg_mul_iff F.u (D.germ d) (D.germ c) (D.germ a) F.nonzero
-        (hR.nonzero d) (hR.nonzero c) (hR.nonzero a)]
-      exact hR.not_sbtw_inverse_rotate d c hcv hcd hca
-    exact F.color_adjacent hc x hx p k l hk hl hkl hgap
+    change F.color x (D.segmentEnd d) + F.color x (D.segmentEnd a) = x d.1
+    rw [had, BooleanRing.add_self, hsum.symm.trans heven]
+  · refine F.color_adjacent hc x hx p k l hk hl (fun h => had (D.segmentEnd_injective h.symm))
+      fun j hj hjk hjl => ?_
+    obtain ⟨c, hcv, rfl⟩ := hclass j hj
+    change ¬sbtw ((rayEndVector F.a F.b (D.segmentEnd d)).arg : Real.Angle)
+      ((rayEndVector F.a F.b (D.segmentEnd c)).arg : Real.Angle)
+      ((rayEndVector F.a F.b (D.segmentEnd a)).arg : Real.Angle)
+    simp only [F.vector, D.segmentEnd_vector]
+    rw [sbtw_arg_mul_iff F.u (D.germ d) (D.germ c) (D.germ a) F.nonzero
+      (hR.nonzero d) (hR.nonzero c) (hR.nonzero a)]
+    exact hR.not_sbtw_inverse_rotate d c hcv (fun h => hjk (congrArg D.segmentEnd h))
+      (fun h => hjl (congrArg D.segmentEnd h))
 
 open Classical in
 private noncomputable def Frame.crossingParity (F : Frame D) (x : Fin G.edges.length → Bool)
@@ -364,15 +326,11 @@ private theorem Frame.sum_crossingParity (F : Frame D) (x : Fin G.edges.length �
   unfold Frame.crossingParity
   simp_rw [F.open_inter, Set.image_nonempty, Fintype.sum_sigma]
   rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro f _
+  refine Finset.sum_congr rfl fun f _ => ?_
   by_cases hfe : f = e
   · subst f
     rw [ite_eq_left rfl, zero_mul]
-    apply Finset.sum_eq_zero
-    intro i _
-    apply Finset.sum_eq_zero
-    intro j _
+    refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => ?_
     by_cases hji : j = i
     · subst j
       simp
@@ -388,11 +346,8 @@ private theorem Frame.sum_crossingParity (F : Frame D) (x : Fin G.edges.length �
   · simp only [Sigma.mk.injEq, hfe, false_and, ↓reduceIte,
       Route.intersectionParity, Finset.mul_sum, segmentStart, segmentFinish]
     rw [Finset.sum_comm]
-    apply Finset.sum_congr rfl
-    intro j _
-    apply Finset.sum_congr rfl
-    intro i _
-    exact congrArg (x f * ·) (Bool.decide_congr Iff.rfl)
+    exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
+      congrArg (x f * ·) (Bool.decide_congr Iff.rfl)
 
 open Classical in
 /-- A vertex-even edge selection on a regular polygonal drawing with simple routes has
@@ -413,40 +368,25 @@ theorem HasRegularContacts.exists_dart_colors {G : Graph} {D : PolygonalDrawing 
   obtain ⟨u, hu, hheight⟩ := exists_mul_im_injOn (endpointSet D)
   let F : Frame D := ⟨u, hu, hheight⟩
   have hc := F.contacts_of_regular hD hsimple
-  refine ⟨fun d => F.color x (D.segmentEnd d), ?_, ?_⟩
-  · intro e
-    have hr := F.color_route_ends_of_segment_crossings x e
-      (fun i => F.crossingParity x ⟨e, i⟩)
-      (fun i => F.color_regular_segment hD hc x hx ⟨e, i⟩) (F.color_bend hc x hx e)
-    rw [F.sum_crossingParity x e (hsimple e)] at hr
-    exact hr
-  · intro d
-    exact F.color_vertex hc hR x hx d (RotationSystem.vertex_mem hG d)
+  exact ⟨fun d => F.color x (D.segmentEnd d),
+    fun e => F.sum_crossingParity x e (hsimple e) ▸ F.color_route_ends_of_segment_crossings x e
+      (fun i => F.crossingParity x ⟨e, i⟩) (fun i => F.color_regular_segment hD hc x hx ⟨e, i⟩)
+      (F.color_bend hc x hx e),
+    fun d => F.color_vertex hc hR x hx d (RotationSystem.vertex_mem hG d)⟩
 
 private theorem faceColors_of_route_and_sector_colors {r : RotationSystem G}
     (x : Fin G.edges.length → Bool) (color : Dart G → Bool)
     (hedge : ∀ e, color (e, false) + color (e, true) = x e)
     (hsector : ∀ d, color d + color (r.rotate.symm d) = x d.1) :
     ∃ q : r.Face → Bool, r.faceBoundary q = x := by
-  have edge (d : Dart G) : color d + color d.reverse = x d.1 := by
-    rcases d with ⟨e, tag⟩
-    cases tag
-    · exact hedge e
-    · exact (add_comm _ _).trans (hedge e)
-  have step (d : Dart G) : color (r.faceNext d) = color d := by
-    have h := (edge d).trans (hsector d.reverse).symm
-    rw [add_comm (color d)] at h
-    exact (add_left_cancel h).symm
-  refine r.exists_faceColors_of_dartColors x (fun d => color d.reverse) ?_ ?_
-  · intro d
-    have hnext : r.faceNext (r.rotate d).reverse = d := by
-      change r.rotate.symm (r.rotate d).reverse.reverse = d
-      rw [Dart.reverse_reverse, Equiv.symm_apply_apply]
-    change color (r.rotate d).reverse = color d.reverse.reverse
-    rw [Dart.reverse_reverse]
-    exact (hnext ▸ step (r.rotate d).reverse).symm
-  · intro d
-    rw [Dart.reverse_reverse, ← Bool.add_eq_xor, add_comm]
+  have edge : ∀ d : Dart G, color d + color d.reverse = x d.1
+    | (e, false) => hedge e
+    | (e, true) => (add_comm _ _).trans (hedge e)
+  refine r.exists_faceColors_of_dartColors x (fun d => color d.reverse) (fun d => ?_) fun d => ?_
+  · have step := add_left_cancel ((add_comm _ _).trans ((edge (r.rotate d).reverse).trans
+      (hsector (r.rotate d).reverse.reverse).symm))
+    simpa only [RotationSystem.faceNext, Dart.reverse_reverse, Equiv.symm_apply_apply] using step
+  · rw [Dart.reverse_reverse, ← Bool.add_eq_xor, add_comm]
     exact edge d
 
 /-- In a regular polygonal drawing with simple routes and even crossings between

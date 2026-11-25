@@ -201,24 +201,26 @@ unchanged code. An approval carries across a mechanical delta only when a coordi
 that meaning, exports, attributes, imports and automation are preserved; changed reasoning, API,
 source claims or security claims need fresh non-author review.
 
-A non-authoring agent may review work from the same coordinator or account, in a separate
-review context, reaching its own verdict. Anyone who took part in the implementation or its
-design cannot supply that review. If a shared GitHub account prevents formal approval, use one
-brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
-never presented as human review. A headline for a cited result is presented as a step or is
-registered in the [results inventory](results/README.md), once a reviewer, human or agent, from
-outside the authoring fleet checks its statement against the source, opens the definitions it
-names and records the check ([policy/review.md](policy/review.md#review-cycle)).
+Agent review is the gate: no PR waits for human review. Humans intend to read and spot-check
+merged code, including when it is upstreamed to CSLib; agent review is never presented as human
+review. A non-authoring agent may review work from the same coordinator or account, in a
+separate review context, reaching its own verdict. Anyone who took part in the implementation or
+its design cannot supply that review. If a shared GitHub account prevents formal approval, use
+one brief PR comment naming the reviewer agent or session, revision and verdict. A headline for
+a cited result is registered in the [results inventory](results/README.md) only after such a
+reviewer checks its statement against the source, opens the definitions it names and records
+who checked and what was read; until then it is presented as a step
+([policy/review.md](policy/review.md#review-cycle)).
 
 ### Approve and queue
 
 Approving a PR's exact current head and queueing it are one step. The non-authoring reviewer
 queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout of current
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
-Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
-been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
-source or advisory-notice review). A passing check does not release a review hold; do not start
-`queue_pr.py --wait` while running CI will still produce notices that need review.
+Authors do not queue their own PRs. Approve without queueing, and say why, when the approval
+names a hold (an unlanded lower PR, a migration, or pending source or advisory-notice review); a
+request for human review is not a hold, but a maintainer's hold is. A passing check does not release a review hold; do not
+start `queue_pr.py --wait` while running CI will still produce notices that need review.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
 REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With
@@ -229,11 +231,24 @@ recorded in the PR.
 A queued PR is not done. Coordinators watch queued batches until they land, requeue ejected PRs,
 and sequence tree-wide refactors so they do not stall smaller PRs behind cold rebuilds.
 
+### Verdicts, claims and holds
+
+Every review ends in a verdict whose first line begins `**APPROVE** at <sha> by <id>` or
+`**REQUEST_CHANGES** at <sha> by <id>` (` by <id>` is optional only on an account that reviewer
+alone uses); a request to split the PR is the latter. A reviewer first posts
+`CLAIM review head=<sha> by=<id> until=<time>`, an exclusive lease of at most 45 minutes,
+renewable once and ended by its verdict. A hold is a line `HOLD owner=<id> until=<time>
+reason=<text>`. Do not queue during a hold or another reviewer's claim, or over a later
+`**REQUEST_CHANGES**` at the approved head. Coordinators sweep expired holds and non-draft PRs
+whose head has gone 12 hours without a verdict
+([formats and sweeps](policy/review.md#verdicts-claims-and-holds)).
+
 ### Restacks
 
 Merge `main` into a PR only when it conflicts with `main`, needs a change on `main` to pass CI,
 or a lower stacked PR has landed; refreshing an approved PR only replaces the approved head.
-Dequeue a queued PR before pushing to it. A restack keeps its approval when
+Dequeue a queued PR before pushing to it. A restack, such as one that only merges entries of
+`references.bib` or `manual/sources.md`, keeps its approval without fresh review when
 `python3 scripts/check_restack.py <approved head> <new head>` passes, run from a checkout of
 current `origin/main`, and CI passes at the new head; the non-author who queues reruns the
 command. `scripts/restack_mechanical.py` performs restacks whose only conflicts are in the
@@ -306,14 +321,15 @@ remains.
 2. Update the task when scope changes, a blocker needs help, work is handed off, or you stop.
 3. Before taking over work, inspect the issue, PR, recent commits and activity, and notify the
    owner in the task record. Explicitly released work is available immediately; a claim with no
-   open PR and no owner activity for 24 hours after that notice is released (record the
-   takeover). A coordinator may reassign a PR that needs author action (changes requested, a
-   conflict or failing CI) after the same notice and wait; silence never releases a PR awaiting
-   review. Preserve the earlier work and its credit.
+   open PR and no owner activity for 24 hours after that notice (6 hours for an agent session on
+   your own account) is released (record the takeover). A coordinator may reassign a PR that
+   needs author action (changes requested, a conflict or failing CI) after the same notice and
+   wait; silence never releases a PR awaiting review. Preserve the earlier work and its credit.
 4. Implement, self-review and validate. Explain the change in its docstrings and the PR
    description; the manual's reference chapters are frozen.
 5. Open a PR with validation and limitations and request coordinator review.
-6. Address requested changes before starting more work. Do not approve or merge your own PR.
+6. Address requested changes before starting more work; a PR with no author response 48 hours
+   after a request for changes is converted to draft. Do not approve or merge your own PR.
 
 ### Coordinators
 
@@ -328,8 +344,10 @@ and obtain non-author review.
 ## Working on changes
 
 Full text: [policy/workflow.md](policy/workflow.md). Use ordinary branches or isolated worktrees,
-and split large developments into independently useful, reviewable milestones. Preserve other
-contributors' work and source credit.
+and split large developments into independently useful, reviewable milestones. A stacked chain
+has at most three open unlanded layers; reviewers skip layers above a root that cannot land, and
+approved contiguous layers may land as a rollup ([details](policy/review.md#stacked-chains)).
+Preserve other contributors' work and source credit.
 
 ### Repository isolation
 

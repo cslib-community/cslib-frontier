@@ -129,18 +129,15 @@ relation, every honest signature verifies. -/
 theorem fiatShamir_correct {P : SigmaProtocol X Y T C Z} {keyGen : PMF (X × Y)}
     {R : X → Y → Prop} (hP : P.Complete R) (hkey : ∀ key ∈ keyGen.support, R key.1 key.2) :
     (fiatShamir hashPoint P keyGen).Correct := by
-  intro keys hkeys m coins hcoins cache signed hsigned verified hverified
+  intro _ hkeys m coins hcoins _ _ hsigned _ hverified
   obtain ⟨key, hmem, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hkeys
   simp only [fiatShamir, interpret_map, interpret_query, StateT.run_map,
     PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hsigned hverified
-  obtain ⟨r, hr, rfl⟩ := hsigned
-  obtain ⟨r', hr', rfl⟩ := hverified
-  have hlookup := lookup_of_mem_support_oracle hr
+  obtain ⟨r, hr, rfl⟩ := hsigned; obtain ⟨r', hr', rfl⟩ := hverified
   change r' ∈ (oracle C (hashPoint (m, coins.1)) r.2).support at hr'
-  rw [oracle] at hr'
-  rw [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hr'
-  subst hr'
-  exact hP.accepts_of_mem_support_commit (hkey key hmem) hcoins r.1
+  rw [oracle, memoize_of_some _ _ _ _ (lookup_of_mem_support_oracle hr),
+    PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hr'
+  subst hr'; exact hP.accepts_of_mem_support_commit (hkey key hmem) hcoins r.1
 
 /-! ### The reduction -/
 
@@ -214,11 +211,10 @@ private theorem eufCmaGame_fiatShamir (P : SigmaProtocol X Y T C Z) (keyGen : PM
   simp only [eufCmaGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   rw [show (fiatShamir hashPoint P keyGen).keyGen = keyGen.map fun key => (key.2, key) from rfl,
     PMF.bind_map]
-  refine congrArg keyGen.bind (funext fun key => congrArg A.coins.bind (funext fun s => ?_))
-  refine congrArg (PMF.bind _) (funext fun forged => ?_)
+  refine congrArg keyGen.bind (funext fun key => congrArg A.coins.bind (funext fun s =>
+    congrArg (PMF.bind _) (funext fun _ => ?_)))
   simp only [fiatShamir, ForkingReduction.finishGame, FiatShamir.check, interpret_map,
-    interpret_query, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]
-  rfl
+    interpret_query, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]; rfl
 
 omit [DecidableEq M] in
 private theorem handler_fiatShamir_eq_lazyProgramHandler (P : SigmaProtocol X Y T C Z)
@@ -230,11 +226,9 @@ private theorem handler_fiatShamir_eq_lazyProgramHandler (P : SigmaProtocol X Y 
         (fun m ts c signed => ((ts.1, P.respond key.1 key.2 ts.2 c), m :: signed)) := by
   funext q ⟨cache, signed⟩
   cases q with
-  | inl m =>
-    simp only [pmf_norm, handler, fiatShamir, RandomOracle.lazyProgramHandler, ↓reduceDIte,
-      interpret_map, interpret_query, StateT.run_map, oracle]
-    rfl
-  | inr x =>
+  | inl _ => simp only [pmf_norm, handler, fiatShamir, RandomOracle.lazyProgramHandler, ↓reduceDIte,
+      interpret_map, interpret_query, StateT.run_map, oracle]; rfl
+  | inr _ =>
     simp only [pmf_norm, handler, RandomOracle.lazyProgramHandler, oracle]
     exact (PMF.bind_pure_comp _ _).symm
 
@@ -252,14 +246,13 @@ private theorem overwriteProgramHandler_eq_gameHandler [Nonempty T] [Nonempty Z]
         ForkingReduction.gameHandler (FiatShamir.signer hashPoint) v q st := by
   funext q ⟨cache, signed⟩
   cases q with
-  | inl m =>
+  | inl _ =>
     simp only [pmf_norm, RandomOracle.overwriteProgramHandler, ↓reduceDIte,
       ForkingReduction.gameHandler, FiatShamir.signer, ForkingReduction.recordGame,
       simulateConversation, hzk.transcript_eq key.1 key.2 hkey, SigmaProtocol.transcript]
     rw [PMF.bind_comm]
-  | inr x =>
-    simp only [RandomOracle.overwriteProgramHandler, ForkingReduction.gameHandler, PMF.bind_const,
-      oracle]
+  | inr _ => simp only [RandomOracle.overwriteProgramHandler, ForkingReduction.gameHandler,
+      PMF.bind_const, oracle]
 
 /-! ### The reduction simulates the game -/
 
@@ -274,8 +267,7 @@ theorem rejectsProgrammed [Nonempty T] [Nonempty Z] (P : SigmaProtocol X Y T C Z
   simp only [signer, Option.some.injEq, Prod.mk.injEq] at hr
   obtain ⟨rfl, -, rfl⟩ := hr
   simp only [check, EmbeddingLike.apply_eq_iff_eq, Prod.mk.injEq] at hpt ⊢
-  obtain ⟨rfl, -⟩ := hpt
-  simp [hl]
+  simp [hpt.1 ▸ hl]
 
 variable [Nonempty T] [Nonempty Z]
 
@@ -298,23 +290,20 @@ private theorem run_bind_finishGame_le {P : SigmaProtocol X Y T C Z} {keyGen : P
       (fun _ h _ => Bool.noConfusion h) (fun _ => P.commit key.1 key.2)
       (fun m ts => hashPoint (m, ts.1))
       (fun m ts c signed => ((ts.1, P.respond key.1 key.2 ts.2 c), m :: signed))
-      (fun m _ q => RandomOracle.map_comp_apply_le_of_injective
-        (fun _ _ h => (Prod.mk.inj (hashPoint.injective h)).2) hcommit q)
-      ((hA key.2 c).1.of_le fun q => by cases q <;> rfl)
-      (hA.isQueryBounded key.2 c) [] []
+      (fun _ _ => RandomOracle.map_comp_apply_le_of_injective
+        (fun _ _ h => (Prod.mk.inj (hashPoint.injective h)).2) hcommit)
+      ((hA key.2 c).1.of_le fun q => by cases q <;> rfl) (hA.isQueryBounded key.2 c) [] []
   rw [handler_fiatShamir_eq_lazyProgramHandler]
   have hle := (hclose.bind_left (ForkingReduction.finishGame (check hashPoint P key.2))) {true}
   simp only [PMF.toOuterMeasure_apply_singleton, List.length_nil, zero_add] at hle
   refine hle.trans_eq ?_
-  rw [overwriteProgramHandler_eq_gameHandler hashPoint hzk hkey]
-  have hpre := (hA.isQueryBounded key.2 c).run_interpret_presample
-    (simulateConversation simulate key.2) (signer hashPoint).fallback
-    (ForkingReduction.gameHandler (signer hashPoint)) ([], [])
-  rw [← hpre, PMF.bind_bind]
-  refine congrArg (· + (Qs * (Qs + Qro) : ℕ) * δ) ?_
-  refine congrArg (fun p : PMF Bool => p true) (congrArg (PMF.bind _) (funext fun trs => ?_))
-  rw [PMF.bind_map, forkingProgram, ForkingReduction.map_run_program]
-  rfl
+  rw [overwriteProgramHandler_eq_gameHandler hashPoint hzk hkey,
+    ← (hA.isQueryBounded key.2 c).run_interpret_presample (simulateConversation simulate key.2)
+      (signer hashPoint).fallback (ForkingReduction.gameHandler (signer hashPoint)) ([], []),
+    PMF.bind_bind]
+  refine congrArg (· + (Qs * (Qs + Qro) : ℕ) * δ) <| congrArg (fun p : PMF Bool => p true) <|
+    congrArg (PMF.bind _) <| funext fun _ => ?_
+  rw [PMF.bind_map, forkingProgram, ForkingReduction.map_run_program]; rfl
 
 variable [DecidableEq C]
 
@@ -330,12 +319,11 @@ private theorem fork_le_oneWayGame {P : SigmaProtocol X Y T C Z}
         (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A))).map
           Option.isSome true ≤
       oneWayGame keyGen R (reduction hashPoint P simulate extract fallback A Qs Qro) true := by
-  have hfork : Forking.fork (keyGen.bind fun key => coins simulate A (Qs + Qro) key.2)
+  rw [show Forking.fork (keyGen.bind fun key => coins simulate A (Qs + Qro) key.2)
       (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A)) =
       keyGen.bind fun key => Forking.fork (coins simulate A (Qs + Qro) key.2)
-        (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A)) := by
-    simp only [Forking.fork, PMF.monad_bind_eq_bind, PMF.bind_bind]
-  rw [hfork, PMF.map_bind]
+        (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (forkingProgram hashPoint P A)) by
+      simp only [Forking.fork, PMF.monad_bind_eq_bind, PMF.bind_bind], PMF.map_bind]
   simp only [pmf_norm, oneWayGame, reduction]
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun key hkey => ?_
   rw [← PMF.bind_pure_comp]
@@ -348,12 +336,11 @@ private theorem fork_le_oneWayGame {P : SigmaProtocol X Y T C Z}
       (fun s => A.forge s.1 s.2.1) (fun s => s.2.2) hresult
     simp only [coins, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff] at hs
-    obtain ⟨c, -, trs, -, rfl⟩ := hs
+    obtain ⟨_, -, _, -, rfl⟩ := hs
     have ht : outcome.commitment = outcome'.commitment :=
       congrArg Prod.snd (hashPoint.injective hpt)
-    have hR := hsound key hkey outcome.commitment outcome.challenge outcome.response
-      outcome'.challenge outcome'.response hne hv (by rw [ht]; exact hv')
-    simp [hR]
+    simp [hsound key hkey outcome.commitment outcome.challenge outcome.response
+      outcome'.challenge outcome'.response hne hv (by rw [ht]; exact hv')]
 
 end FiatShamir
 
@@ -393,21 +380,18 @@ theorem succProbability_eufCmaGame_le [Nonempty T] [Nonempty Z] [DecidableEq C]
   have hA' : eufCmaGame (fiatShamir hashPoint P keyGen) A true ≤
       first.bind (fun s => ((interpret countingUniform (forkingProgram hashPoint P A s)).run 0).map
         fun ((_, outcome), _) => outcome.won) true + (Qs * (Qs + Qro) : ℕ) * (δ : ENNReal) := by
-    rw [(eufCmaGame_fiatShamir hashPoint), hfirst]
-    simp only [coins, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.pure_bind]
-    refine Probability.PMF.bind_apply_le_add_const_on_support _ _ fun key hkey' =>
-      Probability.PMF.bind_apply_le_add_const_on_support _ _ fun c _ => ?_
-    exact (run_bind_finishGame_le hashPoint) hzk (hkey key hkey') (hcommit key hkey') A hA c
+    rw [eufCmaGame_fiatShamir hashPoint, hfirst]
+    simp only [coins, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
+    exact Probability.PMF.bind_apply_le_add_const_on_support _ _ fun key hkey' =>
+      Probability.PMF.bind_apply_le_add_const_on_support _ _ fun c _ =>
+        run_bind_finishGame_le hashPoint hzk (hkey key hkey') (hcommit key hkey') A hA c
   have h := ForkingReduction.toReal_le_add_sqrt_fork_of_le first (signer hashPoint)
     (fun s => check hashPoint P s.1) (fun _ => rejectsProgrammed hashPoint P _)
     (fun s => A.forge s.1 s.2.1) (fun s => s.2.2) (fun s => (hA s.1 s.2.1).2)
     (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.coe_ne_top) hA'
-    ((fork_le_oneWayGame (P := P) hashPoint) hsound simulate fallback A Qs Qro)
-    (PMF.apply_ne_top _ _)
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
-  rw [ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.coe_toReal] at h
-  push_cast at h ⊢
-  linarith
+    (fork_le_oneWayGame (P := P) hashPoint hsound simulate fallback A Qs Qro) (PMF.apply_ne_top _ _)
+  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, ENNReal.toReal_mul,
+    ENNReal.toReal_natCast, ENNReal.coe_toReal] at h ⊢
+  push_cast at h ⊢; linarith
 
 end Cslib.Crypto.Protocols.SigmaProtocol

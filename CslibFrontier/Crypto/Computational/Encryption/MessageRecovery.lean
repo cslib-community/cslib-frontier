@@ -157,14 +157,13 @@ private theorem succProbability_oneTimeExperiment_messageRecoveryReduction_false
         MessagePair.select_false, hvalid, ↓reduceIte, ProbComp.eval_uniform, pmf_norm]
       pmf_swap
     rw [hrewrite]
-    apply Probability.PMF.bind_apply_of_forall; intro k
-    apply Probability.PMF.bind_apply_of_forall; intro m₀
-    apply Probability.PMF.bind_apply_of_forall; intro c
-    apply Probability.PMF.bind_apply_of_forall; intro mHat
-    exact Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true mHat
+    exact Probability.PMF.bind_apply_of_forall _ fun k =>
+      Probability.PMF.bind_apply_of_forall _ fun m₀ =>
+      Probability.PMF.bind_apply_of_forall _ fun c =>
+      Probability.PMF.bind_apply_of_forall _ fun mHat =>
+      Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true mHat
   apply NNReal.coe_injective
-  rw [Game.coe_succProbability, htrue, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-    NNReal.coe_inv, NNReal.coe_natCast]
+  simp [Game.coe_succProbability, htrue]
 
 /-- **Concrete advantage equality for Theorem 2.7** ([BonehShoup2023], p. 19):
 `MRadv[A, E] = SSadv[messageRecoveryReduction (ProbComp.uniform M) A, E]` whenever `valid` admits

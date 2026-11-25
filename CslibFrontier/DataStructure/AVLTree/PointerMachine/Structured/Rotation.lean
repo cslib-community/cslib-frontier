@@ -90,12 +90,10 @@ theorem recomputeHeight_mkNode (zero maxSucc : M.Op) (encode : ℕ → M.Value)
     change BinaryTree.node _ (updateData l label.address field value)
       (updateData r label.address field value) = _
     rw [keepL, keepR]
-  refine ⟨y, exec, ?_, ?_, ?_, ?_, data, ptr⟩
+  refine ⟨y, exec, ?_, ?_, ⟨by simp [Ne.symm notKey], by simp, ml, mr⟩,
+    shape ▸ distinct.updateData _ _ _, data, ptr⟩
   · simpa only [cachedHeight_mkNode, lh, rh, Nat.add_comm] using heap
   · simpa only [height, shape] using rep'
-  · exact ⟨by simp [Ne.symm notKey], by simp, ml, mr⟩
-  · rw [← shape]
-    exact distinct.updateData _ _ _
 
 /-- `recomputeHeight_mkNode`, with the children named by side. -/
 theorem recomputeHeight_mkNodeAt (right : Bool) (zero maxSucc : M.Op) (encode : ℕ → M.Value)
@@ -119,14 +117,12 @@ theorem recomputeHeight_mkNodeAt (right : Bool) (zero maxSucc : M.Op) (encode : 
       Represents y.heap parent tree ∧
       Matches encode field tree (mkNodeAt right (label.data 0) C S) ∧ AddressesDistinct tree := by
   cases right
-  · obtain ⟨y, run, heap, rep', matched, distinct', _⟩ := recomputeHeight_mkNode zero maxSucc
-      encode zero_spec max_spec field notKey x label child sibling C S parent rep distinct mc ms
-      hc hs cursor
-    exact ⟨y, run, heap, rep', matched, distinct'⟩
-  · obtain ⟨y, run, heap, rep', matched, distinct', _⟩ := recomputeHeight_mkNode zero maxSucc
-      encode zero_spec max_spec field notKey x label sibling child S C parent rep distinct ms mc
-      hs hc cursor
-    exact ⟨y, run, heap, rep', matched, distinct'⟩
+  · exact (recomputeHeight_mkNode zero maxSucc encode zero_spec max_spec field notKey x label
+      child sibling C S parent rep distinct mc ms hc hs cursor).imp
+      fun _ ⟨r, e, p, m, d, _⟩ => ⟨r, e, p, m, d⟩
+  · exact (recomputeHeight_mkNode zero maxSucc encode zero_spec max_spec field notKey x label
+      sibling child S C parent rep distinct ms mc hs hc cursor).imp
+      fun _ ⟨r, e, p, m, d, _⟩ => ⟨r, e, p, m, d⟩
 
 /-- A node named by side matches a functional node named by the same side. -/
 theorem matches_nodeAt {encode : ℕ → M.Value} {field : Fin (extra + 1)} {right : Bool}
@@ -147,8 +143,7 @@ theorem matches_nodeAt_mkNodeAt {encode : ℕ → M.Value} {field : Fin (extra +
     (m : Matches encode field (nodeAt right label child sibling) (mkNodeAt right key C S)) :
     Matches encode field child C ∧ Matches encode field sibling S := by
   cases right
-  · exact ⟨m.2.2.1, m.2.2.2⟩
-  · exact ⟨m.2.2.2, m.2.2.1⟩
+  exacts [⟨m.2.2.1, m.2.2.2⟩, ⟨m.2.2.2, m.2.2.1⟩]
 
 open SearchTree.PointerMachine.Structured renaming rotate → rotateLinks,
   recomputeHeight → updateHeight in

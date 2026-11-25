@@ -84,10 +84,7 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
         refine ⟨l :: ls, ?_, ?_⟩
         · simp only [List.sections, List.mem_flatMap, List.mem_map]
           exact ⟨ls, hls, l, hlc, rfl⟩
-        · intro l' hl'
-          rcases List.mem_cons.mp hl' with rfl | hl'
-          · simpa [Literal.eval] using hlσ
-          · exact hl l' hl'
+        · exact List.forall_mem_cons.2 ⟨by simpa [Literal.eval] using hlσ, hl⟩
     obtain ⟨ls, hls, hl⟩ := key ψ hψ
     refine ⟨ls, hls, ?_⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq]
@@ -112,9 +109,7 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
       intro l hl
       simp only [σ]
       rcases hf : ls.find? (fun l' => l'.1 = l.1) with _ | l'
-      · exact absurd hf (by
-          rw [List.find?_eq_none]
-          exact fun h => h l hl (by simp))
+      · exact absurd hf fun h => List.find?_eq_none.1 h l hl (by simp)
       · have hl' := List.mem_of_find?_eq_some hf
         have hv : l'.1 = l.1 := by simpa using List.find?_some hf
         have := hpair l hl l' hl'
@@ -213,11 +208,8 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
   have hsearch : (∃ ψ : CNF (Fin n), (∀ c ∈ ψ, c ∈ φ) ∧ ψ.length ≤ w ∧ ¬SatExt ρ ψ) ↔
       ∃ cs ∈ (List.replicate w φ).sections, ¬SatExt ρ cs := by
     constructor
-    · rintro ⟨ψ, hsub, hlen, hsat⟩
-      obtain ⟨c₀, ψ', rfl⟩ : ∃ c₀ ψ', ψ = c₀ :: ψ' := by
-        rcases ψ with _ | ⟨c₀, ψ'⟩
-        · exact absurd (satExt_nil ρ) hsat
-        · exact ⟨c₀, ψ', rfl⟩
+    · rintro ⟨_ | ⟨c₀, ψ'⟩, hsub, hlen, hsat⟩
+      · exact absurd (satExt_nil ρ) hsat
       refine ⟨c₀ :: ψ' ++ List.replicate (w - (ψ'.length + 1)) c₀, ?_, ?_⟩
       · rw [mem_sections_replicate]
         refine ⟨by simp at hlen ⊢; omega, fun c hc => ?_⟩
@@ -225,12 +217,10 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
         · exact hsub c hc
         · rw [List.eq_of_mem_replicate hc]; exact hsub c₀ (by simp)
       · rwa [satExt_congr fun c => ?_]
-        constructor
-        · intro hc
-          rcases List.mem_append.mp hc with hc | hc
-          · exact hc
-          · rw [List.eq_of_mem_replicate hc]; simp
-        · intro hc; exact List.mem_append_left _ hc
+        refine ⟨fun hc => ?_, List.mem_append_left _⟩
+        rcases List.mem_append.mp hc with hc | hc
+        · exact hc
+        · rw [List.eq_of_mem_replicate hc]; simp
     · rintro ⟨cs, hcs, hsat⟩
       rw [mem_sections_replicate] at hcs
       exact ⟨cs, hcs.2, hcs.1.le, hsat⟩

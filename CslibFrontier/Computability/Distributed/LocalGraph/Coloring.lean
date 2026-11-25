@@ -99,32 +99,24 @@ theorem firstFreeColor_lt (Δ : ℕ) (used : Finset ℕ) : firstFreeColor Δ use
   unfold firstFreeColor
   cases h : (List.range (Δ + 1)).find? (fun c => decide (c ∉ used)) with
   | none => exact Nat.succ_pos Δ
-  | some c =>
-    have hmem := List.mem_of_find?_eq_some h
-    exact List.mem_range.1 hmem
+  | some c => exact List.mem_range.1 (List.mem_of_find?_eq_some h)
 
 /-- Whenever at most `Δ` colors are excluded (`used.card ≤ Δ`), `firstFreeColor Δ used` is absent
 from `used`. -/
 theorem firstFreeColor_notMem {Δ : ℕ} {used : Finset ℕ} (hcard : used.card ≤ Δ) :
     firstFreeColor Δ used ∉ used := by
   have hex : ∃ c ∈ List.range (Δ + 1), c ∉ used := by
-    by_contra hall
-    push Not at hall
-    have hsub : Finset.range (Δ + 1) ⊆ used := fun c hc =>
+    by_contra! hall
+    have hle := Finset.card_le_card (s := Finset.range (Δ + 1)) fun c hc =>
       hall c (List.mem_range.2 (Finset.mem_range.1 hc))
-    have hle := Finset.card_le_card hsub
     rw [Finset.card_range] at hle
     omega
   unfold firstFreeColor
   cases h : (List.range (Δ + 1)).find? (fun c => decide (c ∉ used)) with
   | none =>
     obtain ⟨c, hc_mem, hc_not⟩ := hex
-    have hfalse := (List.find?_eq_none.1 h) c hc_mem
-    simp only [decide_eq_true_eq] at hfalse
-    exact absurd hc_not hfalse
-  | some c =>
-    have hpred := List.find?_some h
-    simpa only [Option.getD_some, decide_eq_true_eq] using hpred
+    exact absurd (by simpa using List.find?_eq_none.1 h c hc_mem) hc_not
+  | some c => simpa using List.find?_some h
 
 /-- One step of greedy local-maximum color reduction ([Hirvonen and Suomela][HirvonenSuomela2020],
 §4.5, Lemma 4.1, p. 69): a node whose color strictly exceeds every neighbor's color recolors to
@@ -139,23 +131,18 @@ theorem greedyStep_ne_of_adj {V : Type*} {H : SimpleGraph V} [H.LocallyFinite]
     (hf : ∀ u v, H.Adj u v → f u ≠ f v) {u v : V} (huv : H.Adj u v) :
     greedyStep Δ (f u) ((H.neighborFinset u).image f) ≠
       greedyStep Δ (f v) ((H.neighborFinset v).image f) := by
-  have hne : f u ≠ f v := hf u v huv
   have hfu_mem : f u ∈ (H.neighborFinset v).image f :=
     Finset.mem_image.2 ⟨u, (H.mem_neighborFinset v u).2 huv.symm, rfl⟩
   have hfv_mem : f v ∈ (H.neighborFinset u).image f :=
     Finset.mem_image.2 ⟨v, (H.mem_neighborFinset u v).2 huv, rfl⟩
-  have hcard_u : ((H.neighborFinset u).image f).card ≤ Δ :=
-    Finset.card_image_le.trans ((SimpleGraph.card_neighborFinset_eq_degree _ _).trans_le (hdeg u))
-  have hcard_v : ((H.neighborFinset v).image f).card ≤ Δ :=
-    Finset.card_image_le.trans ((SimpleGraph.card_neighborFinset_eq_degree _ _).trans_le (hdeg v))
+  have hcard : ∀ w, ((H.neighborFinset w).image f).card ≤ Δ := fun w =>
+    Finset.card_image_le.trans ((SimpleGraph.card_neighborFinset_eq_degree _ _).trans_le (hdeg w))
   unfold greedyStep
   split_ifs with hau hav
   · exact absurd (hau (f v) hfv_mem) (not_lt_of_gt (hav (f u) hfu_mem))
-  · intro heq
-    exact firstFreeColor_notMem hcard_u (heq ▸ hfv_mem)
-  · intro heq
-    exact firstFreeColor_notMem hcard_v (heq.symm ▸ hfu_mem)
-  · exact hne
+  · exact fun heq => firstFreeColor_notMem (hcard u) (heq ▸ hfv_mem)
+  · exact fun heq => firstFreeColor_notMem (hcard v) (heq.symm ▸ hfu_mem)
+  · exact hf u v huv
 
 /-- On any graph `H` where every vertex has degree at most `Δ`, if `f` is proper on `H` and bounded
 below `q`, then `greedyStep Δ` produces colors bounded below `max (q - 1) (Δ + 1)`. -/
@@ -168,9 +155,8 @@ theorem greedyStep_lt {V : Type*} {H : SimpleGraph V} [H.LocallyFinite]
   · push Not at hau
     obtain ⟨b, hb_mem, hb_le⟩ := hau
     obtain ⟨w, hw_mem, rfl⟩ := Finset.mem_image.1 hb_mem
-    have hne : f u ≠ f w := hf u w ((H.mem_neighborFinset u w).1 hw_mem)
-    have hlt : f u < f w := lt_of_le_of_ne hb_le hne
-    have hfw : f w < q := hq w
+    have := hf u w ((H.mem_neighborFinset u w).1 hw_mem)
+    have := hq w
     omega
 
 /-- One-round greedy local-maximum color reduction as a `BroadcastProtocol`. -/
@@ -208,12 +194,11 @@ theorem greedyColorReduction_run {V : Type*} [Fintype V]
       rw [BroadcastProtocol.state_succ]
       dsimp only [greedyColorReduction, BroadcastProtocol.fullInfo]
       rw [multiset_map_toFinset_eq_image]
-    refine ⟨fun u v huv => ?_, fun u => ?_⟩
-    · rw [hst u, hst v]
-      exact greedyStep_ne_of_adj hdeg ih_ne huv
-    · rw [hst u]
-      have hlt := greedyStep_lt (Δ := Δ) ih_ne ih_lt u
-      omega
+    refine ⟨fun u v huv => by rw [hst u, hst v]; exact greedyStep_ne_of_adj hdeg ih_ne huv,
+      fun u => ?_⟩
+    have hlt := greedyStep_lt (Δ := Δ) ih_ne ih_lt u
+    rw [hst u]
+    omega
 
 /-! ### Kuhn–Wattenhofer one-round disjoint-block palette compression -/
 
@@ -228,25 +213,13 @@ theorem greedyColorReduction_run {V : Type*} [Fintype V]
 private theorem le_kwBound_add_div (Δ m : ℕ) :
     m ≤ kwBound Δ m + kwBound Δ m / (Δ + 1) := by
   set q := kwBound Δ m
-  have hdiv := Nat.div_add_mod (m * (Δ + 1) + (Δ + 1)) (Δ + 2)
+  have hdiv : (Δ + 2) * q + _ = _ := Nat.div_add_mod (m * (Δ + 1) + (Δ + 1)) (Δ + 2)
   have hmod := Nat.mod_lt (m * (Δ + 1) + (Δ + 1)) (by omega : 0 < Δ + 2)
-  have h1 : (Δ + 1) * m ≤ (Δ + 2) * q := by
-    have hq_def : (m * (Δ + 1) + (Δ + 1)) / (Δ + 2) = q := rfl
-    rw [hq_def] at hdiv
-    have hcomm : m * (Δ + 1) = (Δ + 1) * m := Nat.mul_comm _ _
-    omega
-  have h2 : q < (Δ + 1) * (q / (Δ + 1) + 1) := by
-    have hq_div := Nat.div_add_mod q (Δ + 1)
-    have hq_mod : q % (Δ + 1) < Δ + 1 := Nat.mod_lt q (by omega)
-    have hmul : (Δ + 1) * (q / (Δ + 1) + 1) = (Δ + 1) * (q / (Δ + 1)) + (Δ + 1) :=
-      Nat.mul_succ _ _
-    omega
+  have hq_div := Nat.div_add_mod q (Δ + 1)
+  have hq_mod : q % (Δ + 1) < Δ + 1 := Nat.mod_lt q (by omega)
+  have hsplit : (Δ + 2) * q = (Δ + 1) * q + q := Nat.succ_mul _ _
   have h3 : (Δ + 1) * m < (Δ + 1) * (q + (q / (Δ + 1) + 1)) := by
-    have hsplit : (Δ + 2) * q = (Δ + 1) * q + q := by
-      calc (Δ + 2) * q = ((Δ + 1) + 1) * q := rfl
-        _ = (Δ + 1) * q + 1 * q := Nat.add_mul _ _ _
-        _ = (Δ + 1) * q + q := by rw [Nat.one_mul]
-    rw [Nat.mul_add]
+    rw [Nat.mul_add, Nat.mul_add, Nat.mul_one, Nat.mul_comm (Δ + 1) m]
     omega
   have h4 : m < q + (q / (Δ + 1) + 1) := Nat.lt_of_mul_lt_mul_left h3
   omega
@@ -306,12 +279,8 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
         ((((G.neighborFinset w).image x).filter fun b => base ≤ b).image fun b => b - base) ∉
         (G.neighborFinset w).image x := by
     intro w base hmem
-    set k := firstFreeColor Δ
-      ((((G.neighborFinset w).image x).filter fun b => base ≤ b).image fun b => b - base)
-    have hk_not := firstFreeColor_notMem (hcard_used w base)
-    apply hk_not
-    refine Finset.mem_image.2 ⟨base + k, Finset.mem_filter.2 ⟨hmem, Nat.le_add_right _ _⟩, ?_⟩
-    exact Nat.add_sub_cancel_left base k
+    exact firstFreeColor_notMem (hcard_used w base) <| Finset.mem_image.2
+      ⟨_, Finset.mem_filter.2 ⟨hmem, Nat.le_add_right _ _⟩, Nat.add_sub_cancel_left _ _⟩
   refine ⟨fun u v huv => ?_, fun u => ?_⟩
   · rw [hrun u, hrun v]
     have hne : x u ≠ x v := hx u v huv
@@ -323,44 +292,22 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
     dsimp only
     split_ifs with hu hv
     · exact hne
+    · exact fun heq => hnot_nbr v ((x v - kwBound Δ m) * (Δ + 1)) (heq ▸ hxu_in_v)
+    · exact fun heq => hnot_nbr u ((x u - kwBound Δ m) * (Δ + 1)) (heq.symm ▸ hxv_in_u)
     · intro heq
-      exact hnot_nbr v ((x v - kwBound Δ m) * (Δ + 1)) (heq ▸ hxu_in_v)
-    · intro heq
-      exact hnot_nbr u ((x u - kwBound Δ m) * (Δ + 1)) (heq.symm ▸ hxv_in_u)
-    · intro heq
-      have hku := firstFreeColor_lt Δ
-        ((((G.neighborFinset u).image x).filter fun b =>
-          (x u - kwBound Δ m) * (Δ + 1) ≤ b).image fun b => b - (x u - kwBound Δ m) * (Δ + 1))
-      have hkv := firstFreeColor_lt Δ
-        ((((G.neighborFinset v).image x).filter fun b =>
-          (x v - kwBound Δ m) * (Δ + 1) ≤ b).image fun b => b - (x v - kwBound Δ m) * (Δ + 1))
-      have hi_eq : x u - kwBound Δ m = x v - kwBound Δ m := by
-        by_contra hdi
-        rcases lt_or_gt_of_ne hdi with hlt | hgt
-        · have hle : (x u - kwBound Δ m + 1) * (Δ + 1) ≤ (x v - kwBound Δ m) * (Δ + 1) :=
-            Nat.mul_le_mul_right (Δ + 1) hlt
-          rw [Nat.add_mul, Nat.one_mul] at hle
-          omega
-        · have hle : (x v - kwBound Δ m + 1) * (Δ + 1) ≤ (x u - kwBound Δ m) * (Δ + 1) :=
-            Nat.mul_le_mul_right (Δ + 1) hgt
-          rw [Nat.add_mul, Nat.one_mul] at hle
-          omega
+      have h := congrArg (· / (Δ + 1)) heq
+      simp [Nat.mul_comm _ (Δ + 1), Nat.mul_add_div, Nat.div_eq_of_lt (firstFreeColor_lt _ _)] at h
       omega
   · rw [hrun u]
     unfold kwCompress
     dsimp only
     split_ifs with hu
     · exact hu
-    · have hpack := le_kwBound_add_div Δ m
-      have hxu := hm u
-      have hi_lt : x u - kwBound Δ m < kwBound Δ m / (Δ + 1) := by omega
-      have hmul_le : (x u - kwBound Δ m + 1) * (Δ + 1) ≤ kwBound Δ m :=
-        le_trans (Nat.mul_le_mul_right (Δ + 1) hi_lt) (Nat.div_mul_le_self _ _)
-      have hk := firstFreeColor_lt Δ
-        ((((G.neighborFinset u).image x).filter fun b =>
-          (x u - kwBound Δ m) * (Δ + 1) ≤ b).image fun b => b - (x u - kwBound Δ m) * (Δ + 1))
-      rw [Nat.add_mul, Nat.one_mul] at hmul_le
-      omega
+    · have hi_lt : x u - kwBound Δ m < kwBound Δ m / (Δ + 1) := by
+        have := le_kwBound_add_div Δ m; have := hm u; omega
+      refine (Nat.add_lt_add_left (firstFreeColor_lt _ _) _).trans_le ?_
+      rw [← Nat.add_one_mul]
+      exact (Nat.mul_le_mul_right (Δ + 1) hi_lt).trans (Nat.div_mul_le_self _ _)
 
 /-! ### Orientation-decomposed Cole–Vishkin `(Δ + 1)`-coloring in `O(log* C + Δ²)` rounds -/
 
@@ -387,14 +334,8 @@ theorem deltaPlusOneRounds_le {Δ : ℕ} (hΔ : 1 ≤ Δ) (C : ℕ) :
     deltaPlusOneRounds Δ C ≤ Δ * Nat.logStar C + 10 * Δ ^ 2 + 1 := by
   unfold deltaPlusOneRounds
   have h1 : Nat.logStar C ≤ Δ * Nat.logStar C := Nat.le_mul_of_pos_left _ hΔ
-  have h2 : 5 * Δ * (Δ + 1) ≤ 10 * Δ ^ 2 := by
-    rw [Nat.pow_two]
-    have hle : Δ * (Δ + 1) ≤ 2 * (Δ * Δ) := by
-      calc Δ * (Δ + 1) ≤ Δ * (2 * Δ) := Nat.mul_le_mul_left Δ (by omega)
-        _ = 2 * (Δ * Δ) := by rw [← Nat.mul_assoc, Nat.mul_comm Δ 2, Nat.mul_assoc]
-    have h5 := Nat.mul_le_mul_left 5 hle
-    rw [← Nat.mul_assoc 5 Δ, ← Nat.mul_assoc 5 2] at h5
-    exact h5
+  have h2 : Δ ≤ Δ * Δ := Nat.le_mul_self Δ
+  rw [Nat.pow_two, Nat.mul_assoc, Nat.mul_add, Nat.mul_one]
   omega
 
 /-- Deterministic `(Δ + 1)`-coloring step function at round `r`. -/
@@ -539,13 +480,10 @@ private theorem two_le_iterate_cvBound {C : ℕ} (hC : 2 ≤ C) (s : ℕ) :
     exact Nat.le_mul_of_pos_right 2 (Nat.clog_pos one_lt_two (by omega))
 
 private theorem multiset_filterMap_eq_zero {α β : Type*} {m : Multiset α} {f : α → Option β}
-    (h : ∀ a ∈ m, f a = none) : m.filterMap f = 0 := by
-  induction m using Multiset.induction_on with
-  | empty => rfl
-  | cons a m ih =>
-    rw [Multiset.filterMap_cons, h a (Multiset.mem_cons_self a m)]
-    simp only [Option.map_none, Option.getD_none, zero_add]
-    exact ih fun z hz => h z (Multiset.mem_cons_of_mem hz)
+    (h : ∀ a ∈ m, f a = none) : m.filterMap f = 0 :=
+  Multiset.eq_zero_of_forall_notMem fun b hb => by
+    obtain ⟨a, ha, hfa⟩ := (Multiset.mem_filterMap _ _).1 hb
+    simp [h a ha] at hfa
 
 private theorem filterMap_unique_neighbor {Δ C : ℕ} {x : V → ℕ} (hx : Function.Injective x)
     (r : ℕ) (u w : V) (huw : G.Adj u w) (i : Fin Δ) :
@@ -585,33 +523,16 @@ private theorem state_cv_phase {Δ C : ℕ} {x : V → ℕ} (hx : Function.Injec
     ∀ u : V, ((deltaPlusOneColoring Δ C).state G x (1 + s) u).mergedColor = 0 := by
   induction s with
   | zero =>
-    have hst1 : ∀ u, ((deltaPlusOneColoring Δ C).state G x 1 u).slotColor = fun _ => x u := by
-      intro u
-      rw [BroadcastProtocol.state_succ]
-      rfl
-    have hm1 : ∀ u, ((deltaPlusOneColoring Δ C).state G x 1 u).mergedColor = 0 := by
-      intro u
-      rw [BroadcastProtocol.state_succ]
-      rfl
-    refine ⟨fun i u w huw _ => ?_, fun i u => ?_, hm1⟩
-    · rw [hst1 u, hst1 w]
-      exact fun heq => G.ne_of_adj huw (hx heq)
-    · rw [hst1 u]
-      exact hC u
+    exact ⟨fun i u w huw _ heq => G.ne_of_adj huw (hx heq), fun i u => hC u, fun _ => rfl⟩
   | succ s ih =>
     have hC2 : 2 ≤ C := by
-      by_contra hlt
-      have h0 : Nat.logStar C = 0 := Nat.logStar_of_le_one (by omega)
-      omega
+      by_contra; have := Nat.logStar_of_le_one (n := C) (by omega); omega
     obtain ⟨ih_ne, ih_lt, ih_m⟩ := ih (by omega)
     have ih_lt' : ∀ (i : Fin Δ) (u : V),
-        ((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i < cvBound^[s] C := by
-      intro i u
-      have h := ih_lt i u
-      split_ifs at h with hs0
-      · subst hs0
-        exact h
-      · exact h
+        ((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i < cvBound^[s] C :=
+      fun i u => by cases s <;> simpa using ih_lt i u
+    have hnz : 1 + s ≠ 0 := by omega
+    have hlt : 1 + s < 1 + Nat.logStar C := by omega
     have hstep_eq : ∀ (i : Fin Δ) (u : V),
         ((deltaPlusOneColoring Δ C).state G x (1 + (s + 1)) u).slotColor i =
           match (nbrList G x u)[i.val]? with
@@ -625,16 +546,12 @@ private theorem state_cv_phase {Δ C : ℕ} {x : V → ℕ} (hx : Function.Injec
                   if m.uid = tid then some (m.slotColor i) else none).sort (· ≤ ·)).headD 0
             cvColor (((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i) target := by
       intro i u
-      have hnz : 1 + s ≠ 0 := by omega
-      have hlt : 1 + s < 1 + Nat.logStar C := by omega
       rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
       dsimp only [deltaPlusOneStep]
       simp only [hnz, ↓reduceIte, hlt, ↓reduceDIte]
       rw [state_nbrUIDs_of_pos G Δ C x (by omega : 1 ≤ 1 + s) u]
     have hm_succ : ∀ u, ((deltaPlusOneColoring Δ C).state G x (1 + (s + 1)) u).mergedColor = 0 := by
       intro u
-      have hnz : 1 + s ≠ 0 := by omega
-      have hlt : 1 + s < 1 + Nat.logStar C := by omega
       rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
       dsimp only [deltaPlusOneStep]
       simp only [hnz, ↓reduceIte, hlt, ↓reduceDIte]
@@ -643,27 +560,18 @@ private theorem state_cv_phase {Δ C : ℕ} {x : V → ℕ} (hx : Function.Injec
     · rw [hstep_eq i u, hout]
       dsimp only
       rw [filterMap_unique_neighbor G hx (1 + s) u w huw i, hstep_eq i w]
-      cases (nbrList G x w)[i.val]? with
-      | none => exact cvColor_ne (ih_ne i u w huw hout)
-      | some tid' => exact cvColor_ne (ih_ne i u w huw hout)
+      cases (nbrList G x w)[i.val]? <;> exact cvColor_ne (ih_ne i u w huw hout)
     · simp only [Nat.succ_ne_zero, ↓reduceIte, Function.iterate_succ_apply']
       rw [hstep_eq i u]
       have h2B : 2 ≤ cvBound^[s] C := two_le_iterate_cvBound hC2 s
       cases hopt : (nbrList G x u)[i.val]? with
       | none =>
         dsimp only
-        set a := ((deltaPlusOneColoring Δ C).state G x (1 + s) u).slotColor i
-        have ha : a < cvBound^[s] C := ih_lt' i u
-        have hne_dummy : a ≠ (if a = 0 then 1 else 0) := by split_ifs <;> omega
-        have hlt_dummy : (if a = 0 then 1 else 0) < cvBound^[s] C := by split_ifs <;> omega
-        exact cvColor_lt hne_dummy ha hlt_dummy
+        have ha := ih_lt' i u
+        exact cvColor_lt (by split_ifs <;> omega) ha (by split_ifs <;> omega)
       | some tid =>
-        obtain ⟨hlt_len, hget⟩ := List.getElem?_eq_some_iff.1 hopt
-        have hmem_tid : tid ∈ nbrList G x u := hget ▸ List.getElem_mem hlt_len
-        obtain ⟨w, hw_mem, rfl⟩ : ∃ w ∈ G.neighborFinset u, x w = tid := by
-          have hm := (Multiset.mem_sort _).1 hmem_tid
-          obtain ⟨w, hw, hwx⟩ := Multiset.mem_map.1 hm
-          exact ⟨w, hw, hwx⟩
+        obtain ⟨w, hw_mem, rfl⟩ :=
+          Multiset.mem_map.1 ((Multiset.mem_sort _).1 (List.mem_of_getElem? hopt))
         have huw : G.Adj u w := (G.mem_neighborFinset u w).1 hw_mem
         dsimp only
         rw [filterMap_unique_neighbor G hx (1 + s) u w huw i]
@@ -694,25 +602,14 @@ private theorem slotColor_after_cv {Δ C : ℕ} {x : V → ℕ} (hx : Function.I
       split_ifs <;> exact ih u
   · have h := hcv_lt i u
     split_ifs at h with hs0
-    · have hC1 : C ≤ 1 := by
-        by_contra hgt
-        have := Nat.logStar_of_two_le (n := C) (by omega)
-        omega
+    · have : C ≤ 1 := by by_contra; have := Nat.logStar_of_two_le (n := C) (by omega); omega
       omega
     · exact lt_of_lt_of_le h (iterate_cvBound_logStar_le C)
 
 private theorem getElem?_eq_some_of_mem_take_succ {α : Type*} {l : List α} {k : ℕ} {a : α}
     (hmem : a ∈ l.take (k + 1)) (hnot : a ∉ l.take k) : l[k]? = some a := by
-  obtain ⟨i, hi_lt_len, hi_eq⟩ := List.mem_iff_getElem.1 hmem
-  rw [List.length_take] at hi_lt_len
-  rw [List.getElem_take] at hi_eq
-  have hik : i = k := by
-    by_contra hne_k
-    have hilt : i < (l.take k).length := by rw [List.length_take]; omega
-    have hget_k : (l.take k)[i]'hilt = l[i] := List.getElem_take
-    exact hnot (hi_eq ▸ hget_k ▸ List.getElem_mem hilt)
-  subst hik
-  exact List.getElem?_eq_some_iff.2 ⟨by omega, hi_eq⟩
+  rw [List.take_add_one, List.mem_append] at hmem
+  simpa [hnot] using hmem
 
 /-- Adding slot `k` turns a proper `(Δ + 1)`-coloring of `partialGraph G x k` into a proper
 `6 (Δ + 1)`-coloring of `partialGraph G x (k + 1)`. -/
@@ -727,14 +624,10 @@ private theorem combined_proper_partialGraph {x : V → ℕ} {k : ℕ} {mc : V �
   by_cases hprev : (partialGraph G x k).Adj u v
   · have hne := hmc_prop u v hprev
     omega
-  · have hnot : ¬ (x v ∈ (nbrList G x u).take k ∨ x u ∈ (nbrList G x v).take k) :=
-      fun h => hprev ⟨huv.1, h⟩
-    push Not at hnot
+  · obtain ⟨hn1, hn2⟩ := not_or.1 fun h => hprev ⟨huv.1, h⟩
     rcases huv.2 with hu | hv
-    · have hne := hsc_ne u v huv.1 (getElem?_eq_some_of_mem_take_succ hu hnot.1)
-      omega
-    · have hne := (hsc_ne v u huv.1.symm (getElem?_eq_some_of_mem_take_succ hv hnot.2)).symm
-      omega
+    · have := hsc_ne u v huv.1 (getElem?_eq_some_of_mem_take_succ hu hn1); omega
+    · have := hsc_ne v u huv.1.symm (getElem?_eq_some_of_mem_take_succ hv hn2); omega
 
 private theorem activeMsgs_toFinset_eq {Δ C : ℕ} (x : V → ℕ) {r : ℕ} (hr : 1 ≤ r)
     (k : ℕ) (valOf : ColoringState Δ → ℕ) (u : V) :
@@ -747,19 +640,9 @@ private theorem activeMsgs_toFinset_eq {Δ C : ℕ} (x : V → ℕ) {r : ℕ} (h
         (fun w => valOf ((deltaPlusOneColoring Δ C).state G x r w)) := by
   ext c
   simp only [Multiset.mem_toFinset, Multiset.mem_filterMap, Multiset.mem_map, Finset.mem_val,
-    SimpleGraph.mem_neighborFinset, Finset.mem_image]
-  constructor
-  · rintro ⟨_, ⟨w, huw, rfl⟩, hif⟩
-    rw [state_uid G Δ C x r w, state_uid G Δ C x r u,
-      state_nbrUIDs_of_pos G Δ C x hr u, state_nbrUIDs_of_pos G Δ C x hr w] at hif
-    split_ifs at hif with hcond
-    simp only [Option.some.injEq] at hif
-    exact ⟨w, ⟨huw, hcond⟩, hif⟩
-  · rintro ⟨w, ⟨huw, hcond⟩, rfl⟩
-    refine ⟨(deltaPlusOneColoring Δ C).state G x r w, ⟨w, huw, rfl⟩, ?_⟩
-    rw [state_uid G Δ C x r w, state_uid G Δ C x r u,
-      state_nbrUIDs_of_pos G Δ C x hr u, state_nbrUIDs_of_pos G Δ C x hr w]
-    simp only [hcond, ↓reduceIte]
+    SimpleGraph.mem_neighborFinset, Finset.mem_image, exists_exists_and_eq_and, state_uid,
+    state_nbrUIDs_of_pos G Δ C x hr, Option.ite_none_right_eq_some, Option.some.injEq]
+  exact exists_congr fun _ => and_assoc.symm
 
 /-- Inductive invariant across the `Δ` greedy orientation-merging phases: after `k` completed
 phases (`0 ≤ k ≤ Δ`), `mergedColor` is a proper `(Δ + 1)`-coloring of `partialGraph G x k`. -/
@@ -792,105 +675,70 @@ private theorem state_merge_phases {Δ C : ℕ} (hΔ : G.maxDegree ≤ Δ) {x : 
         6 * st.mergedColor +
           ((deltaPlusOneColoring Δ C).state G x (1 + Nat.logStar C) w).slotColor kFin
       else st.mergedColor
-    have step_in_merge_phase : ∀ {j : ℕ}, j < 5 * (Δ + 1) →
-        (∀ u v, (partialGraph G x (k + 1)).Adj u v → fj j u ≠ fj j v) →
-        (∀ w, fj j w < 6 * (Δ + 1) - j) →
-        (∀ u v, (partialGraph G x (k + 1)).Adj u v →
-          ((deltaPlusOneColoring Δ C).state G x
-            (1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)) u).mergedColor ≠
-            ((deltaPlusOneColoring Δ C).state G x
-              (1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)) v).mergedColor) ∧
-        ∀ u, ((deltaPlusOneColoring Δ C).state G x
-          (1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)) u).mergedColor <
-            6 * (Δ + 1) - (j + 1) := by
-      intro j hj hfj_prop hfj_lt
-      set r := 1 + Nat.logStar C + k * (5 * (Δ + 1)) + j
-      have hstep : ∀ w,
-          ((deltaPlusOneColoring Δ C).state G x (r + 1) w).mergedColor =
-            greedyStep Δ (fj j w) (((partialGraph G x (k + 1)).neighborFinset w).image (fj j)) := by
-        intro w
-        have hnz : r ≠ 0 := by omega
-        have hnlt : ¬ r < 1 + Nat.logStar C := by omega
-        have hphase : r < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
-          have : (k + 1) * (5 * (Δ + 1)) ≤ Δ * (5 * (Δ + 1)) :=
-            Nat.mul_le_mul_right (5 * (Δ + 1)) hk
-          rw [Nat.add_mul, Nat.one_mul] at this
-          omega
-        have hsub : r - (1 + Nat.logStar C) = j + k * (5 * (Δ + 1)) := by omega
-        have hdiv : (r - (1 + Nat.logStar C)) / (5 * (Δ + 1)) = k := by
-          rw [hsub, Nat.add_mul_div_right _ _ (by omega : 0 < 5 * (Δ + 1)),
-            Nat.div_eq_of_lt hj, Nat.zero_add]
-        have hmod : (r - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = j := by
-          rw [hsub, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
-        have hk_r : (r - (1 + Nat.logStar C)) / (5 * (Δ + 1)) < Δ := hdiv ▸ hk_lt
-        rw [deltaPlusOneColoring_state_succ]
-        dsimp only [deltaPlusOneStep]
-        simp only [hnz, ↓reduceIte, hnlt, hphase, ↓reduceDIte]
-        rw [activeMsgs_toFinset_eq G (Δ := Δ) (C := C) x (by omega : 1 ≤ r)
-          ((r - (1 + Nat.logStar C)) / (5 * (Δ + 1))) _ w]
-        have hval_eq : ∀ z,
-            (if (r - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
-              fun m : ColoringState Δ =>
-                6 * m.mergedColor +
-                  m.slotColor ⟨(r - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r⟩
-             else ColoringState.mergedColor)
-              ((deltaPlusOneColoring Δ C).state G x r z) = fj j z := by
-          intro z
-          simp only [hmod]
-          by_cases hj0 : j = 0
-          · subst hj0
-            dsimp only [r, fj]
-            simp only [↓reduceIte, Nat.add_zero]
-            have hsc := congrFun (hslot_const (k * (5 * (Δ + 1))) z) kFin
-            rw [show (⟨(1 + Nat.logStar C + k * (5 * (Δ + 1)) - (1 + Nat.logStar C)) /
-                (5 * (Δ + 1)), hk_r⟩ : Fin Δ) = kFin from Fin.ext hdiv]
-            exact congrArg
-              (6 * ((deltaPlusOneColoring Δ C).state G x
-                (1 + Nat.logStar C + k * (5 * (Δ + 1))) z).mergedColor + ·) hsc
-          · simp only [fj, hj0, ↓reduceIte]; rfl
-        rw [hval_eq w, Finset.image_congr (fun z _ => hval_eq z), hdiv]
-      refine ⟨fun u v huv => ?_, fun u => ?_⟩
-      · rw [show 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1) = r + 1 by omega, hstep u, hstep v]
-        exact greedyStep_ne_of_adj (hdeg_part (k + 1)) hfj_prop huv
-      · rw [show 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1) = r + 1 by omega, hstep u]
-        have hlt := greedyStep_lt (Δ := Δ) (f := fj j) hfj_prop hfj_lt u
-        omega
-    -- Prove inner loop invariant for `1 ≤ t ≤ 5 * (Δ + 1)` rounds into phase `k`.
-    have hinner : ∀ {t : ℕ}, 1 ≤ t → t ≤ 5 * (Δ + 1) →
-        (∀ u v, (partialGraph G x (k + 1)).Adj u v →
-          ((deltaPlusOneColoring Δ C).state G x
-            (1 + Nat.logStar C + k * (5 * (Δ + 1)) + t) u).mergedColor ≠
-            ((deltaPlusOneColoring Δ C).state G x
-              (1 + Nat.logStar C + k * (5 * (Δ + 1)) + t) v).mergedColor) ∧
-        ∀ u, ((deltaPlusOneColoring Δ C).state G x
-          (1 + Nat.logStar C + k * (5 * (Δ + 1)) + t) u).mergedColor <
-            6 * (Δ + 1) - t := by
-      intro t ht1 htL
-      obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le ht1
-      clear ht1
-      rw [Nat.add_comm 1 j]
+    have hinv : ∀ j ≤ 5 * (Δ + 1),
+        (∀ u v, (partialGraph G x (k + 1)).Adj u v → fj j u ≠ fj j v) ∧
+          ∀ w, fj j w < 6 * (Δ + 1) - j := by
+      intro j hj
       induction j with
       | zero =>
-        refine step_in_merge_phase (by omega)
-          (fun u v huv => ?_) (fun w => ?_)
-        · dsimp only [fj]; simp only [↓reduceIte, Nat.add_zero]
-          exact combined_proper_partialGraph G ih_prop
-            (fun w => hslot_lt kFin w) (fun u' w' => hslot_ne kFin u' w') huv
+        refine ⟨fun u v huv => ?_, fun w => ?_⟩
+        · exact combined_proper_partialGraph G ih_prop (hslot_lt kFin) (hslot_ne kFin) huv
         · have hm := ih_lt w; have hs := hslot_lt kFin w
           dsimp only [fj]; simp only [↓reduceIte, Nat.add_zero]; omega
       | succ j ihj =>
-        obtain ⟨ihj_prop, ihj_lt⟩ := ihj (by omega)
-        refine step_in_merge_phase (by omega)
-          (fun u v huv => ?_) (fun w => ?_)
-        · simpa only [fj, Nat.succ_ne_zero, ↓reduceIte] using ihj_prop u v huv
-        · simpa only [fj, Nat.succ_ne_zero, ↓reduceIte] using ihj_lt w
-    obtain ⟨hL_prop, hL_lt⟩ := hinner (by omega : 1 ≤ 5 * (Δ + 1)) le_rfl
-    have hR_eq : 1 + Nat.logStar C + (k + 1) * (5 * (Δ + 1)) =
-        1 + Nat.logStar C + k * (5 * (Δ + 1)) + 5 * (Δ + 1) := by
-      have : (k + 1) * (5 * (Δ + 1)) = k * (5 * (Δ + 1)) + 5 * (Δ + 1) := by
-        rw [Nat.add_mul, Nat.one_mul]
-      omega
-    rw [hR_eq]
+        obtain ⟨hfj_prop, hfj_lt⟩ := ihj (by omega)
+        have hj : j < 5 * (Δ + 1) := hj
+        set r := 1 + Nat.logStar C + k * (5 * (Δ + 1)) + j
+        have hstep : ∀ w, fj (j + 1) w =
+            greedyStep Δ (fj j w) (((partialGraph G x (k + 1)).neighborFinset w).image (fj j)) := by
+          intro w
+          have hfj : fj (j + 1) w = ((deltaPlusOneColoring Δ C).state G x
+              (1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1)) w).mergedColor := by
+            simp only [fj, Nat.succ_ne_zero, ↓reduceIte]
+          rw [hfj, show 1 + Nat.logStar C + k * (5 * (Δ + 1)) + (j + 1) = r + 1 by omega]
+          have hnz : r ≠ 0 := by omega
+          have hnlt : ¬ r < 1 + Nat.logStar C := by omega
+          have hphase : r < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
+            have := Nat.mul_le_mul_right (5 * (Δ + 1)) hk; rw [Nat.add_one_mul] at this; omega
+          have hsub : r - (1 + Nat.logStar C) = j + k * (5 * (Δ + 1)) := by omega
+          have hdiv : (r - (1 + Nat.logStar C)) / (5 * (Δ + 1)) = k := by
+            rw [hsub, Nat.add_mul_div_right _ _ (by omega : 0 < 5 * (Δ + 1)),
+              Nat.div_eq_of_lt hj, Nat.zero_add]
+          have hmod : (r - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = j := by
+            rw [hsub, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
+          have hk_r : (r - (1 + Nat.logStar C)) / (5 * (Δ + 1)) < Δ := hdiv ▸ hk_lt
+          rw [deltaPlusOneColoring_state_succ]
+          dsimp only [deltaPlusOneStep]
+          simp only [hnz, ↓reduceIte, hnlt, hphase, ↓reduceDIte]
+          rw [activeMsgs_toFinset_eq G (Δ := Δ) (C := C) x (by omega : 1 ≤ r)
+            ((r - (1 + Nat.logStar C)) / (5 * (Δ + 1))) _ w]
+          have hval_eq : ∀ z,
+              (if (r - (1 + Nat.logStar C)) % (5 * (Δ + 1)) = 0 then
+                fun m : ColoringState Δ =>
+                  6 * m.mergedColor +
+                    m.slotColor ⟨(r - (1 + Nat.logStar C)) / (5 * (Δ + 1)), hk_r⟩
+               else ColoringState.mergedColor)
+                ((deltaPlusOneColoring Δ C).state G x r z) = fj j z := by
+            intro z
+            simp only [hmod]
+            by_cases hj0 : j = 0
+            · subst hj0
+              dsimp only [r, fj]
+              simp only [↓reduceIte, Nat.add_zero]
+              rw [hslot_const]
+              congr 2
+              exact Fin.ext hdiv
+            · simp only [fj, hj0, ↓reduceIte]; rfl
+          rw [hval_eq w, Finset.image_congr (fun z _ => hval_eq z), hdiv]
+        refine ⟨fun u v huv => ?_, fun u => ?_⟩
+        · rw [hstep u, hstep v]
+          exact greedyStep_ne_of_adj (hdeg_part (k + 1)) hfj_prop huv
+        · have hlt := greedyStep_lt (Δ := Δ) (f := fj j) hfj_prop hfj_lt u
+          rw [hstep u]
+          omega
+    obtain ⟨hL_prop, hL_lt⟩ := hinv _ le_rfl
+    simp only [fj, show 5 * (Δ + 1) ≠ 0 by omega, ↓reduceIte] at hL_prop hL_lt
+    rw [Nat.add_one_mul, ← Nat.add_assoc]
     exact ⟨hL_prop, fun u => by have := hL_lt u; omega⟩
 
 /-- After `deltaPlusOneRounds Δ C` rounds, every node's state remains permanently fixed. -/
@@ -904,10 +752,7 @@ theorem deltaPlusOneColoring_state_add (Δ C : ℕ) (x : V → ℕ) (t : ℕ) (u
     have hnlt1 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C := by
       unfold deltaPlusOneRounds; omega
     have hnlt2 : ¬ deltaPlusOneRounds Δ C + t < 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) := by
-      unfold deltaPlusOneRounds
-      have : 5 * Δ * (Δ + 1) = Δ * (5 * (Δ + 1)) := by
-        rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]
-      omega
+      unfold deltaPlusOneRounds; rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]; omega
     rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
     dsimp only [deltaPlusOneStep]
     simp only [hnz, ↓reduceIte, hnlt1, hnlt2, ↓reduceDIte]
@@ -926,8 +771,7 @@ theorem deltaPlusOneColoring_isProperColoring {Δ C : ℕ} (hΔ : G.maxDegree �
   obtain ⟨t, rfl⟩ := Nat.exists_eq_add_of_le hr
   obtain ⟨hprop, hlt⟩ := state_merge_phases G (C := C) hΔ hx hC le_rfl
   have hR : 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) = deltaPlusOneRounds Δ C := by
-    unfold deltaPlusOneRounds
-    rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]
+    unfold deltaPlusOneRounds; rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]
   rw [hR] at hprop hlt
   rw [SimpleGraph.isProperColoring_iff]
   intro u v huv heq

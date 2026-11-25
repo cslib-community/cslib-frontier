@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Env
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Internal
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Compacted `GlobalMeta` Tail Append (`compAppendTailGMGenProg`)
@@ -47,8 +48,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -231,33 +233,20 @@ theorem compAppendTailGMGenProg_effect {metaBase itemBase U V w N m_items b : �
     dsimp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog]
     repeat rw [StateTransitionSpec.clientResult_bind]
     rfl
-  have hst : s' = (Memory.spec 0).clientState
-      ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState
-          ((Memory.spec 0).clientState s
-            (writeCompGMGenProg (((mkCompParams U V w N, metaBase),
-              gmTailPtrBase N + (b * tailCapPerBucket N + gm (gmRIdx b))), gm 1)))
-          (writeCompGMGenProg (((mkCompParams U V w N, metaBase),
-            gmTailOwnerBase N + gm 1), b * tailCapPerBucket N + gm (gmRIdx b))))
-        (writeCompGMGenProg (((mkCompParams U V w N, metaBase), gmRIdx b), gm (gmRIdx b) + 1)))
-      (writeCompGMGenProg (((mkCompParams U V w N, metaBase), 1), gm 1 + 1)) := by
-    change (Memory.spec 0).clientState s _ = _
-    dsimp only [compAppendTailGMGenProg]
-    rw [StateTransitionSpec.clientState_bind, hrd_st, hrd_res]
-    dsimp only [compAppendTailWriteGMProg]
-    rw [StateTransitionSpec.clientState_bind]
-    dsimp only [compAppendTailWrite1Prog, compAppendTailWrite2Prog,
-      cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
-    rw [hr_eq]
-    repeat rw [StateTransitionSpec.clientState_bind]
-    rw [StateTransitionSpec.clientState_pure]
+  refine ⟨hres, ?_⟩
+  dsimp only [s', compAppendTailGMGenProg]
+  rw [StateTransitionSpec.clientState_bind, hrd_st, hrd_res]
+  dsimp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog,
+    cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
+  rw [hr_eq]
+  repeat rw [StateTransitionSpec.clientState_bind]
+  rw [StateTransitionSpec.clientState_pure]
   obtain ⟨hf1, hg1⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hptr_lt ht_val s
   obtain ⟨hf2, hg2⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hown_lt hd_val _
   obtain ⟨hf3, hg3⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hr_idx_lt
     hr1_val _
   obtain ⟨hf4, hg4⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem h1_lt ht1_val _
-  rw [hst]
-  refine ⟨hres, hf1.trans (hf2.trans (hf3.trans hf4)), ?_⟩
+  refine ⟨hf1.trans (hf2.trans (hf3.trans hf4)), ?_⟩
   rw [hg4, hg3, hg2, hg1]; rfl
 
 /-- Precondition for appending to the tail of global metadata. -/

@@ -142,18 +142,15 @@ theorem hammingDist_le_of_subsetCountsWithin {r : Finset ι → ℝ} {c d : ι �
       congrArg Finset.card (Finset.filter_true_of_mem fun i hi => ?_)⟩
     · simp only [(Finset.mem_filter.mp hi).2.1, Bool.false_eq_true, not_false_eq_true]
     · exact (Finset.mem_filter.mp hi).2.2
-  have h1 := hc P
-  have h2 := hd P
-  have h3 := hc N
-  have h4 := hd N
+  have h1 := abs_le.1 (hc P)
+  have h2 := abs_le.1 (hd P)
+  have h3 := abs_le.1 (hc N)
+  have h4 := abs_le.1 (hd N)
   rw [hP.1] at h1
-  rw [hP.2] at h2
-  rw [hN.1] at h3
+  rw [hP.2, Nat.cast_zero] at h2
+  rw [hN.1, Nat.cast_zero] at h3
   rw [hN.2] at h4
-  rw [hdist]
-  push_cast
-  rw [abs_le] at h1 h2 h3 h4
-  push_cast at h1 h2 h3 h4
+  rw [hdist, Nat.cast_add]
   linarith [h1.1, h1.2, h2.1, h2.2, h3.1, h3.2, h4.1, h4.2]
 
 open Classical in

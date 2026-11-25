@@ -84,11 +84,9 @@ theorem pderiv_prod_X {ι R : Type*} [DecidableEq ι] [CommSemiring R] (σ : Per
     by_cases hca : c = a
     · subst hca
       by_cases hr : σ c = r <;> simp [ha, hr, erase_insert ha]
-    · have hne : (σ a, a) ≠ (r, c) := fun h => hca (congrArg Prod.snd h).symm
-      rw [Pi.single_eq_of_ne hne, smul_zero, add_zero, erase_insert_of_ne (Ne.symm hca),
-        prod_insert fun h => ha (mem_of_mem_erase h)]
-      simp only [mem_insert, hca, false_or]
-      split_ifs <;> simp [smul_eq_mul]
+    · rw [Pi.single_eq_of_ne fun h => hca (congrArg Prod.snd h).symm, smul_zero, add_zero,
+        erase_insert_of_ne (Ne.symm hca), prod_insert fun h => ha (mem_of_mem_erase h)]
+      split_ifs <;> simp_all [smul_eq_mul]
 
 private theorem iteratedPDeriv_prod_X (σ τ : Perm (Fin n)) {k : ℕ} (e : Fin k → Fin n)
     (he : Function.Injective e) (S : Finset (Fin n)) :
@@ -99,20 +97,18 @@ private theorem iteratedPDeriv_prod_X (σ τ : Perm (Fin n)) {k : ℕ} (e : Fin 
   induction k generalizing S with
   | zero => simp
   | succ k ih =>
-    rw [iteratedPDeriv_succ_apply]
-    have htail : Fin.tail (fun t => (τ (e t), e t)) =
-        fun t => (τ ((e ∘ Fin.succ) t), (e ∘ Fin.succ) t) := rfl
     have he0 : e 0 ∉ univ.image (e ∘ Fin.succ) := by
       simpa using fun t h => Fin.succ_ne_zero t (he h)
     have himage : univ.image e = insert (e 0) (univ.image (e ∘ Fin.succ)) := by
       ext x
       simp [Fin.exists_fin_succ, eq_comm]
-    rw [htail, ih (e ∘ Fin.succ) (he.comp (Fin.succ_injective k))]
+    rw [iteratedPDeriv_succ_apply, show Fin.tail (fun t => (τ (e t), e t)) =
+        fun t => (τ ((e ∘ Fin.succ) t), (e ∘ Fin.succ) t) from rfl,
+      ih (e ∘ Fin.succ) (he.comp (Fin.succ_injective k))]
     by_cases htl : ∀ t, (e ∘ Fin.succ) t ∈ S ∧ σ ((e ∘ Fin.succ) t) = τ ((e ∘ Fin.succ) t)
     · rw [ite_eq_left htl, pderiv_prod_X, himage, sdiff_insert]
-      have hiff : (∀ t, e t ∈ S ∧ σ (e t) = τ (e t)) ↔ e 0 ∈ S ∧ σ (e 0) = τ (e 0) := by
-        rw [Fin.forall_fin_succ]
-        exact and_iff_left htl
+      have hiff : (∀ t, e t ∈ S ∧ σ (e t) = τ (e t)) ↔ e 0 ∈ S ∧ σ (e 0) = τ (e 0) :=
+        Fin.forall_fin_succ.trans (and_iff_left htl)
       by_cases h0 : e 0 ∈ S ∧ σ (e 0) = τ (e 0)
       · rw [ite_eq_left (hiff.2 h0), ite_eq_left ⟨mem_sdiff.2 ⟨h0.1, he0⟩, h0.2⟩]
       · rw [ite_eq_right (mt hiff.1 h0), ite_eq_right fun h => h0 ⟨(mem_sdiff.1 h.1).1, h.2⟩]
@@ -154,18 +150,13 @@ private theorem choose_sq_le_rank_partialDerivatives_permSum (w : Perm (Fin n) �
     (hw : ∀ σ, w σ ≠ 0) (k : ℕ) :
     ((n.choose k ^ 2 : ℕ) : Cardinal) ≤ (partialDerivatives k (permSum w)).rank := by
   classical
-  -- Pairs of `k`-sets of rows and of columns.
   let s := powersetCard k (univ : Finset (Fin n)) ×ˢ powersetCard k (univ : Finset (Fin n))
-  have hcard (ρ : s) : ρ.1.1.card = k ∧ ρ.1.2.card = k := by
-    have := ρ.2
-    simp only [s, mem_product, mem_powersetCard] at this
-    exact ⟨this.1.2, this.2.2⟩
+  have hcard (ρ : s) : ρ.1.1.card = k ∧ ρ.1.2.card = k :=
+    ⟨(mem_powersetCard.1 (mem_product.1 ρ.2).1).2, (mem_powersetCard.1 (mem_product.1 ρ.2).2).2⟩
   choose τ hτ using fun ρ : s => exists_perm_mem_iff ((hcard ρ).1.trans (hcard ρ).2.symm)
-  -- The columns of each pair, enumerated, and the entries of `τ ρ` there.
   let e (ρ : s) : Fin k → Fin n := ρ.1.2.orderEmbOfFin (hcard ρ).2
   have hrange (ρ : s) : univ.image (e ρ) = ρ.1.2 := image_orderEmbOfFin_univ _ _
   let α (ρ : s) (t : Fin k) : Fin n × Fin n := (τ ρ (e ρ t), e ρ t)
-  -- The `0`/`1` point of the entries of `τ ρ` off its columns.
   let point (ρ : s) (x : Fin n × Fin n) : K := if x.2 ∉ ρ.1.2 ∧ τ ρ x.2 = x.1 then 1 else 0
   let E : MvPolynomial (Fin n × Fin n) K →ₗ[K] s → K :=
     LinearMap.pi fun ρ => (aeval (point ρ)).toLinearMap
@@ -173,19 +164,15 @@ private theorem choose_sq_le_rank_partialDerivatives_permSum (w : Perm (Fin n) �
       E (iteratedPDeriv (α ρ) (permSum w)) ρ' = if ρ = ρ' then w (τ ρ) else 0 := by
     have hagree (σ : Perm (Fin n)) : ((∀ t, σ (e ρ t) = τ ρ (e ρ t)) ∧
         ∀ i ∈ univ \ univ.image (e ρ), i ∉ ρ'.1.2 ∧ τ ρ' i = σ i) ↔ ρ = ρ' ∧ σ = τ ρ := by
-      rw [hrange]
       have hcols : (∀ t, σ (e ρ t) = τ ρ (e ρ t)) ↔ ∀ i ∈ ρ.1.2, σ i = τ ρ i := by
-        rw [← hrange ρ]
-        simp
-      simp only [hcols, mem_sdiff, mem_univ, true_and]
-      constructor
-      · rintro ⟨hon, hoff⟩
-        obtain ⟨hR, hC⟩ := eq_of_agree ((hcard ρ).1.trans (hcard ρ').1.symm)
+        simp [← hrange ρ]
+      simp only [hrange, hcols, mem_sdiff, mem_univ, true_and]
+      refine ⟨fun ⟨hon, hoff⟩ => ?_, fun ⟨hρ, hσ⟩ => ?_⟩
+      · obtain ⟨hR, hC⟩ := eq_of_agree ((hcard ρ).1.trans (hcard ρ').1.symm)
           ((hcard ρ).2.trans (hcard ρ').2.symm) (hτ ρ) (hτ ρ') hon hoff
-        have hρ : ρ = ρ' := Subtype.ext (Prod.ext hR.symm hC.symm)
-        subst hρ
+        obtain rfl : ρ = ρ' := Subtype.ext (Prod.ext hR.symm hC.symm)
         exact ⟨rfl, Equiv.ext fun i => if hi : i ∈ ρ.1.2 then hon i hi else (hoff i hi).2.symm⟩
-      · rintro ⟨rfl, rfl⟩
+      · subst hρ hσ
         exact ⟨fun _ _ => rfl, fun _ hi => ⟨hi, rfl⟩⟩
     have hterm (σ : Perm (Fin n)) : eval (point ρ') (w σ •
         if ∀ t, σ (e ρ t) = τ ρ (e ρ t) then ∏ i ∈ univ \ univ.image (e ρ), X (σ i, i) else 0) =
@@ -194,8 +181,7 @@ private theorem choose_sq_le_rank_partialDerivatives_permSum (w : Perm (Fin n) �
       simp only [eval_X, point, prod_boole, ← hagree σ]
       split_ifs <;> simp_all
     change eval (point ρ') (iteratedPDeriv (α ρ) (permSum w)) = _
-    rw [iteratedPDeriv_permSum w (τ ρ) (e ρ) (ρ.1.2.orderEmbOfFin (hcard ρ).2).injective,
-      map_sum]
+    rw [iteratedPDeriv_permSum w (τ ρ) (e ρ) (ρ.1.2.orderEmbOfFin (hcard ρ).2).injective, map_sum]
     simp only [hterm]
     by_cases h : ρ = ρ' <;> simp [h]
   have htop : LinearMap.range (E ∘ₗ partialDerivatives k (permSum w)) = ⊤ := by
@@ -237,9 +223,8 @@ field. -/
 theorem choose_sq_le_rank_partialDerivatives_permanent_mvPolynomialX (k : ℕ) :
     ((n.choose k ^ 2 : ℕ) : Cardinal) ≤
       (partialDerivatives k (mvPolynomialX (Fin n) (Fin n) K).permanent).rank := by
-  have : (mvPolynomialX (Fin n) (Fin n) K).permanent = permSum fun _ => 1 :=
-    permanent_mvPolynomialX_eq_sum
-  rw [this]
+  rw [show (mvPolynomialX (Fin n) (Fin n) K).permanent = permSum fun _ => 1 from
+    permanent_mvPolynomialX_eq_sum]
   exact choose_sq_le_rank_partialDerivatives_permSum _ (fun _ => one_ne_zero) k
 
 end Matrix

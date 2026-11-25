@@ -284,15 +284,13 @@ theorem seedTable_disagree_le {ι : Type*} [Finite ι] (vbl : ι → Finset V)
         = (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
             (readSeed B G ⁻¹' E) := rfl
       _ = coupledTable κ E := by rw [toOuterMeasure_readSeed B G hEdep, coupledTable_def]
-      _ ≤ coupledTable κ {T | Diverge vbl r T} := measure_mono fun T hT => by
-          by_contra hd
-          exact hT (budgetedOutput_eq_of_not_diverge hd)
+      _ ≤ coupledTable κ {T | Diverge vbl r T} := measure_mono fun T hT =>
+          Classical.byContradiction fun hd => hT (budgetedOutput_eq_of_not_diverge hd)
       _ ≤ 2 * ∑ v, κ v {x | x.1 ≠ x.2} :=
           coupledTable_diverge_le_two_mul κ vbl r A (fun i => measurableSet_of_dependsOn (hA i)) hA
             Γ hΓ hΓd hP' hp hr
       _ ≤ 2 * ∑ v, ENNReal.ofReal (2 * dist (P v).toPMF (Q v).toPMF) := by
-          gcongr with v
-          exact hdis v
+          gcongr with v; exact hdis v
   ennreal_to_real at hcalc
   simp only [← mul_sum, ← mul_assoc] at hcalc
   linarith
@@ -376,22 +374,18 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
     rw [one_sub_div h2, show (d + 2 : ℝ) - 1 = d + 1 by ring, div_div_div_cancel_right₀ h2]
   have hint : ∫⁻ T, ∑ i, g i T ∂table μ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) := by
     rw [lintegral_finsetSum _ fun i _ => hgm i]
-    calc ∑ i, ∫⁻ T, g i T ∂table μ ≤ ∑ _i : ι, ENNReal.ofReal (1 / (d + 1)) :=
-          sum_le_sum fun i _ => (hg i).trans_eq (by rw [hxd])
-      _ = _ := by rw [sum_const, card_univ, nsmul_eq_mul]
+    exact (sum_le_sum fun i _ => (hg i).trans_eq (by rw [hxd])).trans_eq
+      (by rw [sum_const, card_univ, nsmul_eq_mul])
   have hB0 : ((B + 1 : ℕ) : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.2 (Nat.succ_ne_zero B)
   have hcalc : (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
       {σ | budgetedOutput vbl r B (seedTable B P σ) = none} ≤
-      Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) :=
-    calc (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
-            {σ | budgetedOutput vbl r B (seedTable B P σ) = none}
-        = table μ E := hseed
-      _ ≤ table μ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ ∑ i, g i T} := measure_mono hsub
+      Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by
+    rw [hseed]
+    calc table μ E ≤ table μ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ ∑ i, g i T} := measure_mono hsub
       _ ≤ (∫⁻ T, ∑ i, g i T ∂table μ) / ((B + 1 : ℕ) : ℝ≥0∞) :=
           meas_ge_le_lintegral_div (Finset.measurable_sum _ fun i _ => hgm i).aemeasurable hB0
             (ENNReal.natCast_ne_top _)
-      _ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by
-          gcongr
+      _ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by gcongr
   ennreal_to_real at hcalc
   refine hcalc.trans_eq ?_
   push_cast
@@ -457,8 +451,7 @@ theorem isAccurateOn_budgetedMoserTardos {ι X : Type*} [Fintype ι] {m : ℕ}
           refine tsum_le_tsum fun S => ?_
           gcongr
           have h := hS S
-          rw [← PMF.bind_pure_comp] at h
-          exact h
+          rwa [← PMF.bind_pure_comp] at h
       _ = ENNReal.ofReal c + (Probability.PMF.iid D m).toOuterMeasure goodᶜ := by
           simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul,
             PMF.toOuterMeasure_apply]

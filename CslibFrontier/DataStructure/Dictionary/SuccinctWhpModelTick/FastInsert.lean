@@ -69,34 +69,23 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
     set p := fs.physSlot n_max b loc
     set fs_ov : FastState := { fs with valArr := Function.update fs.valArr p v }
     have hc_ov : CoreFastInv c U V n_max θ fs_ov (Function.update dict u (some v)) :=
-      { hth := hv.hth
-        curEp_or := hv.curEp_or
-        epochClock_lt := hv.epochClock_lt
-        rebStage_le := hv.rebStage_le
-        rebCollision_zero := hv.rebCollision_zero
+      { hv.toCore with
         qv_global := fun p' => by
           dsimp only [fs_ov]
           by_cases hp : p' = p
           · subst hp; rw [Function.update_self]; exact ⟨(hv.qv_global _).1, hv_max⟩
           · rw [Function.update_of_ne hp]; exact hv.qv_global p'
-        bktCount_le := hv.bktCount_le
-        bktCount_ge_zero := hv.bktCount_ge_zero
-        locState_active := hv.locState_active
-        locState_inactive := hv.locState_inactive
         active_item := fun b' hb' l' hl' => by
           obtain ⟨h1', h2', h3', h4'⟩ := hv.active_item b' hb' l' hl'
           refine ⟨h1', h2', h3', ?_⟩
-          have hp_eq : fs_ov.physSlot n_max b' l' = fs.physSlot n_max b' l' := rfl
-          rw [hp_eq]
+          rw [show fs_ov.physSlot n_max b' l' = fs.physSlot n_max b' l' from rfl]
           dsimp only [fs_ov]
           by_cases hp : fs.physSlot n_max b' l' = p
           · rw [hp, Function.update_self]; exact hv_lt
           · rw [Function.update_of_ne hp]; exact h4'
-        quot_inj := hv.quot_inj
         dict_map := fun u' => by
           dsimp only
-          have hp_eq : fs_ov.physSlot n_max = fs.physSlot n_max := rfl
-          rw [hp_eq]
+          rw [show fs_ov.physSlot n_max = fs.physSlot n_max from rfl]
           dsimp only [fs_ov]
           set b' := feistelBucket (bWhp n_max) h1 u'.val
           set q' := keyQuotient (bWhp n_max) u'.val
@@ -134,21 +123,7 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
             refine ⟨fun ⟨l', hl', hql, hvl⟩ => ⟨l', hl', hql, ?_⟩,
               fun ⟨l', hl', hql, hvl⟩ => ⟨l', hl', hql, ?_⟩⟩
             · rwa [Function.update_of_ne (hne_p_of l' hl' hql)]
-            · rwa [Function.update_of_ne (hne_p_of l' hl' hql)] at hvl
-        poolFreeTop_le := hv.poolFreeTop_le
-        backPtr_valid := hv.backPtr_valid
-        freeStack_lt := hv.freeStack_lt
-        backPtr_inj := hv.backPtr_inj
-        freeStack_inj := hv.freeStack_inj
-        back_free_disj := hv.back_free_disj
-        pool_conservation := hv.pool_conservation
-        roles_valid := hv.roles_valid
-        bktSalt_lt := hv.bktSalt_lt
-        live_fp_inj := hv.live_fp_inj
-        live_valid := hv.live_valid
-        rKey_buf_inj := hv.rKey_buf_inj
-        bufCur_valid := hv.bufCur_valid
-        bufOld_valid := hv.bufOld_valid }
+            · rwa [Function.update_of_ne (hne_p_of l' hl' hql)] at hvl }
     have hom_ov : ∀ b' < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs_ov b' :=
       fun b' hb' => hv.overmars_valid b' hb'
     have hst_ov : ValidEpochStage c U n_max θ fs_ov := hv.stage_valid
@@ -174,16 +149,11 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
           (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome)
     · rw [ite_eq_left hg2] at hins; cases hins
     rw [ite_eq_right hg2] at hins
-    have hcur_lk_none : bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey = none := by
-      cases hlk : bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey with
-      | none => rfl
-      | some _ => exact absurd (Or.inl (by simp [hlk])) hg2
+    have hcur_lk_none : bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey = none :=
+      Option.not_isSome_iff_eq_none.mp fun h => hg2 (.inl h)
     have hold_lk_none : fs.rebStage ≤ 3 →
-        bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey = none := by
-      intro hle3
-      cases hlk : bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey with
-      | none => rfl
-      | some _ => exact absurd (Or.inr ⟨hle3, by simp [hlk]⟩) hg2
+        bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey = none := fun hle3 =>
+      Option.not_isSome_iff_eq_none.mp fun h => hg2 (.inr ⟨hle3, h⟩)
     set fp := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
     set lIdx := fs.liveSliceIdx b
     set hasFpCollision :=

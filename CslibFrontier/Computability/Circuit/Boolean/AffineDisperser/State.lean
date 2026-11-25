@@ -142,13 +142,12 @@ theorem Valid.exists_out_ne {f : BooleanFunction n} {d : ℕ} (hS : S.Valid f)
     ∃ u v val val', S.Consistent val ∧ S.Consistent val' ∧ (∀ j ∈ S.params, val j = σ u j) ∧
       (∀ j ∈ S.params, val' j = σ v j) ∧ S.out.eval val ≠ S.out.eval val' := by
   obtain ⟨u, v, huv⟩ := hf.mono hk (S.phi ∘ σ) (hS.phi_affine k σ hσ htame)
-    (fun u v h => hinj u v (hS.phi_injective _ _ h))
+    fun u v h => hinj u v (hS.phi_injective _ _ h)
   obtain ⟨val, hval, hcons⟩ := hS.wf.exists_consistent (σ u)
   obtain ⟨val', hval', hcons'⟩ := hS.wf.exists_consistent (σ v)
   refine ⟨u, v, val, val', hcons, hcons', hval, hval', ?_⟩
-  rw [hS.computes val hcons trivial, hS.computes val' hcons' trivial,
+  rwa [hS.computes val hcons trivial, hS.computes val' hcons' trivial,
     hS.phi_congr val (σ u) hval, hS.phi_congr val' (σ v) hval']
-  exact huv
 
 /-- **Proposition 2.2** of [Mishra and Santhanam][MishraSanthanam2026]: the image of the
 parameter map of a valid state contains the image of an injective affine map from
@@ -158,14 +157,11 @@ theorem Valid.exists_affine_embedding {f : BooleanFunction n} (hS : S.Valid f) :
       ∀ u, ∃ val, S.Consistent val ∧ g u = S.phi val := by
   set F := S.params \ S.pairs.image Prod.fst
   have hF : F.card = S.a := hS.card_sdiff_image Prod.fst fun _ _ => Or.inl rfl
-  have hFp : F ⊆ S.params := Finset.sdiff_subset
-  refine ⟨S.phi ∘ spread F hF, hS.phi_affine _ _ (isAffine_spread F hF) ?_, ?_, fun u => ?_⟩
-  · intro pr hpr
-    refine Or.inl fun u v => ?_
-    have : pr.1 ∉ F := fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_image_of_mem _ hpr)
+  refine ⟨S.phi ∘ spread F hF, hS.phi_affine _ _ (isAffine_spread F hF) fun pr hpr =>
+    Or.inl fun u v => ?_, fun u v h => eq_of_spread hF fun i hi =>
+      hS.phi_injective _ _ h i (Finset.sdiff_subset hi), fun u => ?_⟩
+  · have : pr.1 ∉ F := fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_image_of_mem _ hpr)
     rw [spread_of_notMem hF u this, spread_of_notMem hF v this]
-  · intro u v h
-    exact eq_of_spread hF fun i hi => hS.phi_injective _ _ h i (hFp hi)
   · obtain ⟨val, hval, hcons⟩ := hS.wf.exists_consistent (spread F hF u)
     exact ⟨val, hcons, (hS.phi_congr val _ hval).symm⟩
 
@@ -176,12 +172,11 @@ theorem Valid.exists_out_ne_of_le {f : BooleanFunction n} {d : ℕ} (hS : S.Vali
     ∃ val val', S.Consistent val ∧ S.Consistent val' ∧ S.out.eval val ≠ S.out.eval val' := by
   set F := S.params \ S.pairs.image Prod.fst
   have hF : F.card = S.a := hS.card_sdiff_image Prod.fst fun _ _ => Or.inl rfl
-  have hFp : F ⊆ S.params := Finset.sdiff_subset
   obtain ⟨-, -, val, val', h, h', -, -, hne⟩ := Valid.exists_out_ne hS hf (spread F hF)
     (isAffine_spread F hF) (fun pr hpr => Or.inl fun u v => by
       have : pr.1 ∉ F := fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_image_of_mem _ hpr)
       rw [spread_of_notMem hF u this, spread_of_notMem hF v this])
-    (fun u v h => eq_of_spread hF fun i hi => h i (hFp hi)) ha
+    (fun u v h => eq_of_spread hF fun i hi => h i (Finset.sdiff_subset hi)) ha
   exact ⟨val, val', h, h', hne⟩
 
 /-- If `d < a`, the output of a valid state for an affine disperser for dimension `d` is not
@@ -195,51 +190,41 @@ theorem Valid.false_of_fix {f : BooleanFunction n} {d : ℕ} (hS : S.Valid f)
     False := by
   classical
   let rep : ℕ × ℕ → ℕ := fun pr => if pr.1 = x then pr.2 else pr.1
-  have hrep : ∀ pr ∈ S.pairs, config.Contains pr (rep pr) := fun pr _ => by
+  have hrep (pr) (_ : pr ∈ S.pairs) : config.Contains pr (rep pr) := by
     by_cases h : pr.1 = x <;> simp [rep, h, Config.Contains]
-  have hrepx : ∀ pr ∈ S.pairs, rep pr ≠ x := fun pr hpr => by
+  have hrepx (pr) (hpr : pr ∈ S.pairs) : rep pr ≠ x := by
     by_cases h : pr.1 = x
-    · simp only [rep, h, ite_true]
-      exact fun h' => (hS.pair_mem pr hpr).2.2 (h.trans h'.symm)
-    · simp only [rep, h, ite_false]
-      exact h
+    · simp only [rep, h, ite_true]; exact fun h' => (hS.pair_mem pr hpr).2.2 (h.trans h'.symm)
+    · simp only [rep, h, ite_false]; exact h
   set F := S.params \ S.pairs.image rep
-  have hF : F.card = S.a := hS.card_sdiff_image rep hrep
-  have hxF : x ∈ F := Finset.mem_sdiff.2 ⟨hx, fun h => by
-    obtain ⟨pr, hpr, he⟩ := Finset.mem_image.1 h
-    exact hrepx pr hpr he⟩
+  have hxF : x ∈ F := Finset.mem_sdiff.2 ⟨hx, fun h =>
+    let ⟨pr, hpr, he⟩ := Finset.mem_image.1 h; hrepx pr hpr he⟩
   set F' := F.erase x
-  have hF' : F'.card = S.a - 1 := by rw [Finset.card_erase_of_mem hxF, hF]
-  have hF'p : F' ⊆ S.params := (Finset.erase_subset _ _).trans Finset.sdiff_subset
+  have hF' : F'.card = S.a - 1 := by
+    rw [Finset.card_erase_of_mem hxF, hS.card_sdiff_image rep hrep]
   let σ : BitString (S.a - 1) → ℕ → Bool := fun u =>
     Function.update (spread F' hF' u) x (c + ∑ j ∈ R, spread F' hF' u j)
-  have hσx : ∀ u, σ u x = c + ∑ j ∈ R, σ u j := fun u => by
-    simp only [σ, Function.update_self]
-    congr 1
-    exact Finset.sum_congr rfl fun j hj =>
-      (Function.update_of_ne (by rintro rfl; exact hxR hj) _ _).symm
-  have hσ : IsAffine σ :=
-    isAffine_update (isAffine_spread F' hF') x (isAffine_const_add_sum (isAffine_spread F' hF') c R)
-  obtain ⟨u, v, val, val', hcons, hcons', hval, hval', hne⟩ := Valid.exists_out_ne hS hf σ hσ
+  obtain ⟨u, v, val, val', hcons, hcons', hval, hval', hne⟩ := Valid.exists_out_ne hS hf σ
+    (isAffine_update (isAffine_spread F' hF') x
+      (isAffine_const_add_sum (isAffine_spread F' hF') c R))
     (fun pr hpr => by
       have hnot : rep pr ∉ F' := fun h =>
         (Finset.mem_sdiff.1 (Finset.mem_of_mem_erase h)).2 (Finset.mem_image_of_mem _ hpr)
-      have hconst : ∀ u, σ u (rep pr) = false := fun u => by
+      have hconst (u) : σ u (rep pr) = false := by
         simp only [σ, Function.update_of_ne (hrepx pr hpr), spread_of_notMem hF' u hnot]
       rcases hrep pr hpr with h | h
-      · exact Or.inl fun u v => by
-          have hw : rep pr = pr.1 := h.symm
-          rw [← hw, hconst, hconst]
-      · exact Or.inr (Or.inl fun u v => by
-          have hw : rep pr = pr.2 := h.symm
-          rw [← hw, hconst, hconst]))
+      · dsimp only [config] at h; exact Or.inl fun u v => by rw [h, hconst, hconst]
+      · dsimp only [config] at h; exact Or.inr (Or.inl fun u v => by rw [h, hconst, hconst]))
     (fun u v h => eq_of_spread hF' fun i hi => by
-      have := h i (hF'p hi)
-      simpa only [σ, Function.update_of_ne (Finset.ne_of_mem_erase hi)] using this)
+      simpa only [σ, Function.update_of_ne (Finset.ne_of_mem_erase hi)] using
+        h i (((Finset.erase_subset _ _).trans Finset.sdiff_subset) hi))
     (by omega)
-  have hfix : ∀ w : ℕ → Bool, ∀ u', (∀ j ∈ S.params, w j = σ u' j) →
-      w x = c + ∑ j ∈ R, w j := fun w u' hw => by
-    rw [hw x hx, hσx, Finset.sum_congr rfl fun j hj => hw j (hR hj)]
+  have hfix (w : ℕ → Bool) (u') (hw : ∀ j ∈ S.params, w j = σ u' j) :
+      w x = c + ∑ j ∈ R, w j := by
+    rw [hw x hx, Finset.sum_congr rfl fun j hj => hw j (hR hj)]
+    simp only [σ, Function.update_self]
+    exact congrArg (c + ·) (Finset.sum_congr rfl fun j hj =>
+      (Function.update_of_ne (fun h : j = x => hxR (h ▸ hj)) _ _).symm)
   exact hne ((hout val hcons (hfix val u hval)).trans (hout val' hcons' (hfix val' v hval')).symm)
 
 /-- Part of **Lemma 2.3** of [Mishra and Santhanam][MishraSanthanam2026]: if `d < a`, the output

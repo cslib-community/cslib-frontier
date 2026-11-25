@@ -640,15 +640,9 @@ private theorem two_mul_card_good_le (hD : AnswersQueries D) (hβ : 4 ≤ β) (h
     have hb := (mem_filter.mp hx).2
     have hb' := (mem_filter.mp hx').2
     rw [Nat.le_div_iff_mul_le (by norm_num)]
-    have h32 : 32 * (hammingDist (prefixParity x) (prefixParity x') * β ^ (j : ℕ)) <
-        2 * (β ^ (L - (j : ℕ)) * β ^ (j : ℕ)) := by
-      rw [← hβj]; omega
-    have h16 : hammingDist (prefixParity x) (prefixParity x') * 16 * β ^ (j : ℕ) <
-        β ^ (L - (j : ℕ)) * β ^ (j : ℕ) := by
-      have : 32 * (hammingDist (prefixParity x) (prefixParity x') * β ^ (j : ℕ)) =
-          2 * (hammingDist (prefixParity x) (prefixParity x') * 16 * β ^ (j : ℕ)) := by ring
-      omega
-    exact (Nat.lt_of_mul_lt_mul_right h16).le
+    refine (Nat.lt_of_mul_lt_mul_right (a := β ^ (j : ℕ)) ?_).le
+    rw [← hβj]
+    linarith
   -- every overlay lies close to the memory before epoch `j`
   have himage : #(G.image ov) ≤ (S * 2 ^ w + 1) ^ R := by
     have hsub : G.image ov ⊆
@@ -771,21 +765,13 @@ theorem card_mul_le_sum_probes {β L : ℕ} (hn : L * β ^ L ≤ n) (hL : 0 < L)
             exact pow_mul_le_sum_card_badSet hn D hD hβ hL htu hH X j
       _ = 2 ^ β ^ (L - (j : ℕ)) * ∑ X : HardInput β L, #(badSet hn D hL X j) * 64 := by
           rw [sum_sum_update (fun X => #(badSet hn D hL X j) * 64) j, hcard]
-  have hsum : Fintype.card (HardInput β L) * (L * β ^ L) ≤
-      ∑ X : HardInput β L, ∑ j : Fin L, #(badSet hn D hL X j) * 64 := by
-    rw [sum_comm]
-    calc Fintype.card (HardInput β L) * (L * β ^ L)
-        = ∑ _j : Fin L, Fintype.card (HardInput β L) * β ^ L := by
-          rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]; ring
-      _ ≤ _ := sum_le_sum fun j _ => hcol j
   calc Fintype.card (HardInput β L) * β ^ L * L
-      = Fintype.card (HardInput β L) * (L * β ^ L) := by ring
-    _ ≤ ∑ X : HardInput β L, ∑ j : Fin L, #(badSet hn D hL X j) * 64 := hsum
+      = ∑ _j : Fin L, Fintype.card (HardInput β L) * β ^ L := by
+        rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]
+    _ ≤ ∑ j : Fin L, ∑ X : HardInput β L, #(badSet hn D hL X j) * 64 :=
+        sum_le_sum fun j _ => hcol j
     _ = 64 * ∑ X : HardInput β L, ∑ j : Fin L, #(badSet hn D hL X j) := by
-        rw [mul_sum]
-        refine sum_congr rfl fun X _ => ?_
-        rw [mul_sum]
-        exact sum_congr rfl fun j _ => mul_comm _ _
+        rw [sum_comm]; simp only [mul_sum, mul_comm _ 64]
     _ ≤ 64 * ∑ X : HardInput β L, ∑ q : Fin (β ^ L),
           (hardQuery hn D hL q).probes (hardMem hn D X L) :=
         Nat.mul_le_mul_left _ (sum_le_sum fun X _ => sum_card_badSet_le hn D hL X)

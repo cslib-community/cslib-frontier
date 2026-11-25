@@ -155,7 +155,8 @@ then the other, resolve them, and erase both. -/
 theorem exists_configLTS_mTr : {c : Clause V} → (d : φ.Derivation c) → (K : Finset (Clause V)) →
     ∃ ms, (φ.configLTS (#K + d.strahler + 2)).MTr K ms (insert c K)
   | _, mem hc, K => ⟨[.download _], .stepL ⟨.download hc, by
-      rw [strahler_mem]; exact (Finset.card_insert_le _ _).trans (by omega)⟩ .refl⟩
+      rw [strahler_mem]
+      exact (Finset.card_insert_le _ _).trans (by omega)⟩ .refl⟩
   | _, resolvent (c₁ := c₁) (c₂ := c₂) v d₁ d₂ hv₁ hv₂, K => by
     have ih₁ := exists_configLTS_mTr d₁
     have ih₂ := exists_configLTS_mTr d₂
@@ -165,21 +166,18 @@ theorem exists_configLTS_mTr : {c : Clause V} → (d : φ.Derivation c) → (K :
       by_cases h : d₂.strahler ≤ d₁.strahler
       · exact exists_mTr_pair ih₁ ih₂ (by split_ifs at hr <;> omega)
           (by split_ifs at hr <;> omega) K
-      · rw [Finset.insert_comm]
-        exact exists_mTr_pair ih₂ ih₁ (by split_ifs at hr <;> omega)
-          (by split_ifs at hr <;> omega) K
-    have hr1 : 1 ≤ r := by split_ifs at hr <;> omega
-    have hK : #(insert c₂ (insert c₁ K)) ≤ #K + 2 :=
-      (Finset.card_insert_le _ _).trans (by have := Finset.card_insert_le c₁ K; omega)
-    have hinf : (φ.configLTS (#K + r + 2)).Tr (insert c₂ (insert c₁ K)) (.infer c₁ c₂ v)
-        (insert (c₁.resolvent c₂ v) (insert c₂ (insert c₁ K))) :=
-      ⟨.infer v (by simp) (by simp) hv₁ hv₂, (Finset.card_insert_le _ _).trans (by omega)⟩
+      · exact Finset.insert_comm c₁ c₂ K ▸ exists_mTr_pair ih₂ ih₁
+          (by split_ifs at hr <;> omega) (by split_ifs at hr <;> omega) K
+    have hbd : #(insert (c₁.resolvent c₂ v) (insert c₂ (insert c₁ K))) ≤ #K + r + 2 := by
+      have := (Finset.card_insert_le c₂ (insert c₁ K)).trans
+        (Nat.add_le_add_right (Finset.card_insert_le c₁ K) 1)
+      exact (Finset.card_insert_le _ _).trans (by split_ifs at hr <;> omega)
     obtain ⟨ms', hms'⟩ := exists_configLTS_mTr_of_subset (φ := φ) (s := #K + r + 2)
       (N := insert (c₁.resolvent c₂ v) K)
       (Finset.insert_subset_insert _ fun _ hx =>
-        Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hx))
-      ((Finset.card_insert_le _ (insert c₂ (insert c₁ K))).trans (by omega))
-    exact ⟨ms ++ .infer c₁ c₂ v :: ms', LTS.MTr.comp _ hms (.stepL hinf hms')⟩
+        Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hx)) hbd
+    exact ⟨ms ++ .infer c₁ c₂ v :: ms',
+      LTS.MTr.comp _ hms (.stepL ⟨.infer v (by simp) (by simp) hv₁ hv₂, hbd⟩ hms')⟩
 
 /-- **A tree-like refutation of Strahler number `r` gives clause space `r + 2`.** -/
 theorem refutableInSpace (d : φ.Derivation []) : φ.RefutableInSpace (d.strahler + 2) := by
@@ -203,11 +201,10 @@ has at least `2 ^ s - 1` nodes. The survey states `tree-size(F) ≥ 2 ^ space(F)
 game that shifts a pebble from a premise to the resolvent, whose space is at most one less than
 clause space here. -/
 theorem two_pow_le_size_add_one (d : φ.Derivation []) {s : ℕ} (h : ¬ φ.RefutableInSpace s) :
-    2 ^ s ≤ d.size + 1 := by
-  have hs : s ≤ d.strahler + 1 := by
-    by_contra hs
-    exact h (d.refutableInSpace.mono (by omega))
-  exact (Nat.pow_le_pow_right (by norm_num) hs).trans d.two_pow_strahler_add_one_le
+    2 ^ s ≤ d.size + 1 :=
+  (Nat.pow_le_pow_right (by norm_num)
+    (not_lt.1 fun hs => h (d.refutableInSpace.mono (by omega)))).trans
+    d.two_pow_strahler_add_one_le
 
 end Derivation
 
@@ -270,8 +267,7 @@ private theorem exists_derivation_strahler_le_aux (φ : CNF V) (h : ¬ φ.Satisf
     · refine ⟨_, .resolvent v f₀ f₁ hv₀ hv₁,
         List.eq_nil_iff_forall_not_mem.2 fun l hl => ?_, ?_⟩
       · rcases Clause.mem_resolvent.1 hl with ⟨hl, hne⟩ | ⟨hl, hne⟩
-        · exact hne (h₀' l hl)
-        · exact hne (h₁' l hl)
+        exacts [hne (h₀' l hl), hne (h₁' l hl)]
       · rw [Derivation.strahler_resolvent]
         split_ifs <;> omega
     · exact ⟨_, f₁, List.eq_nil_iff_forall_not_mem.2 fun l hl => hv₁ (h₁' l hl ▸ hl), by omega⟩
@@ -290,9 +286,9 @@ theorem exists_derivation_strahler_le (h : ¬ φ.Satisfiable) :
 `n + 1` of [Torán, Section 4][Toran2004], for a pebble game that shifts a pebble from a premise to
 the resolvent, in the convention of `Cslib.Logic.PL.CNF.configLTS`. -/
 theorem refutableInSpace_of_not_satisfiable (h : ¬ φ.Satisfiable) :
-    φ.RefutableInSpace (#φ.vars.toFinset + 2) := by
-  obtain ⟨d, hd⟩ := exists_derivation_strahler_le h
-  exact d.refutableInSpace.mono (by omega)
+    φ.RefutableInSpace (#φ.vars.toFinset + 2) :=
+  let ⟨d, hd⟩ := exists_derivation_strahler_le h
+  d.refutableInSpace.mono (by omega)
 
 end CNF
 

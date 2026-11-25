@@ -130,14 +130,12 @@ theorem isSISSolution_sub_smul_secret {B η : ℕ}
     (hne : v ≠ Δc • s) :
     SIS.IsSolution A (B + Δc.natAbs * η) (v - Δc • s) := by
   refine ⟨sub_ne_zero.mpr hne, fun i => ?_, ?_⟩
-  · have hvi := mem_intBox.mp hv i
-    have hsi := mem_intBox.mp hs i
-    simp only [Pi.sub_apply, zsmul_eq_mul]
-    calc |v i - (Δc * s) i| = |v i - Δc * s i| := rfl
-      _ ≤ |v i| + |Δc * s i| := abs_sub _ _
+  · simp only [Pi.sub_apply, zsmul_eq_mul, Pi.mul_apply]
+    calc |v i - Δc * s i| ≤ |v i| + |Δc * s i| := abs_sub _ _
       _ = |v i| + |Δc| * |s i| := by rw [abs_mul]
       _ ≤ (B : ℤ) + |Δc| * (η : ℤ) :=
-        add_le_add hvi (mul_le_mul_of_nonneg_left hsi (abs_nonneg Δc))
+        add_le_add (mem_intBox.mp hv i)
+          (mul_le_mul_of_nonneg_left (mem_intBox.mp hs i) (abs_nonneg Δc))
       _ = ((B + Δc.natAbs * η : ℕ) : ℤ) := by
         rw [Nat.cast_add, Nat.cast_mul, Int.natCast_natAbs]
   · have hcast : (Int.cast ∘ (v - Δc • s) : Fin m → ZMod q) =
@@ -208,14 +206,10 @@ theorem mulVec_extractSISFromRelaxedWitness_eq_zero
     rw [extractSISFromRelaxedWitness,
       show (Int.cast ∘ ((u ∘ Sum.inl) + S *ᵥ (u ∘ Sum.inr)) : Fin m → ZMod q) =
         Int.cast ∘ (u ∘ Sum.inl) + Int.cast ∘ (S *ᵥ (u ∘ Sum.inr)) from
-          funext fun i => Int.cast_add _ _,
+          funext fun _ => Int.cast_add _ _,
       hmul]
-  rw [hadd, Matrix.mulVec_add, Matrix.mulVec_mulVec, hSy]
-  have hcols : Matrix.fromCols y.1 y.2 *ᵥ (Int.cast ∘ u) =
-      y.1 *ᵥ (Int.cast ∘ (u ∘ Sum.inl)) + y.2 *ᵥ (Int.cast ∘ (u ∘ Sum.inr)) := by
-    rw [Matrix.fromCols_mulVec]
-    rfl
-  rw [← hcols, hu]
+  rw [hadd, Matrix.mulVec_add, Matrix.mulVec_mulVec, hSy, ← hu, Matrix.fromCols_mulVec]
+  rfl
 
 /-- Sup-norm bound on `S *ᵥ v` when the entries of `S` are at most `η` and the entries of `v` are
 at most `1`. -/
@@ -267,39 +261,29 @@ theorem lyubashevskyForkToSIS {γ β η : ℕ}
     SIS.IsSolution y.1 (2 * (γ - β) + k * η)
       (extractSISFromTwoTranscripts S c (some z) c' (some z')) := by
   rw [lyubashevsky_accepts_some_iff] at hz hz'
-  have hu : Matrix.fromCols y.1 y.2 *ᵥ
-      (Int.cast ∘ lyubashevskyExtract n m k q y w c (some z) c' (some z')) = 0 := by
-    rw [Matrix.fromCols_mulVec]
+  rw [← extractSISFromRelaxedWitness_lyubashevskyExtract S y w]
+  refine isSISSolution_extractSISFromRelaxedWitness hSy ?_ (fun i => ?_) (fun j => ?_) ?_
+  · rw [Matrix.fromCols_mulVec]
     simp only [lyubashevskyExtract, Option.getD_some]
     change y.1 *ᵥ (Int.cast ∘ (z - z')) + y.2 *ᵥ
       (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c)) = 0
-    have hsub₁ : (Int.cast ∘ (z - z') : Fin m → ZMod q) = Int.cast ∘ z - Int.cast ∘ z' :=
-      funext fun i => Int.cast_sub _ _
-    have hsub₂ :
-        (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c) : Fin k → ZMod q) =
-          Int.cast ∘ lyubashevskyChallenge c' - Int.cast ∘ lyubashevskyChallenge c :=
-      funext fun j => Int.cast_sub _ _
-    rw [hsub₁, hsub₂, Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
+    rw [show (Int.cast ∘ (z - z') : Fin m → ZMod q) = Int.cast ∘ z - Int.cast ∘ z' from
+          funext fun _ => Int.cast_sub _ _,
+      show (Int.cast ∘ (lyubashevskyChallenge c' - lyubashevskyChallenge c) : Fin k → ZMod q) =
+          Int.cast ∘ lyubashevskyChallenge c' - Int.cast ∘ lyubashevskyChallenge c from
+        funext fun _ => Int.cast_sub _ _,
+      Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
     abel
-  have hinl (i : Fin m) :
-      |lyubashevskyExtract n m k q y w c (some z) c' (some z') (Sum.inl i)| ≤
-        ((2 * (γ - β) : ℕ) : ℤ) := by
-    simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
-    have hzi := mem_intBox.mp hz.1 i
-    have hzi' := mem_intBox.mp hz'.1 i
+  · simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
     calc |z i - z' i| ≤ |z i| + |z' i| := abs_sub _ _
-      _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) := add_le_add hzi hzi'
+      _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) :=
+        add_le_add (mem_intBox.mp hz.1 i) (mem_intBox.mp hz'.1 i)
       _ = ((2 * (γ - β) : ℕ) : ℤ) := by push_cast; ring
-  have hinr (j : Fin k) :
-      |lyubashevskyExtract n m k q y w c (some z) c' (some z') (Sum.inr j)| ≤ 1 := by
-    simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, lyubashevskyChallenge]
+  · simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, lyubashevskyChallenge]
     split_ifs <;> simp
-  have hne' : extractSISFromRelaxedWitness S
-      (lyubashevskyExtract n m k q y w c (some z) c' (some z')) ≠ 0 := by
-    rw [extractSISFromRelaxedWitness_lyubashevskyExtract, extractSISFromTwoTranscripts_eq_sub,
+  · rw [extractSISFromRelaxedWitness_lyubashevskyExtract, extractSISFromTwoTranscripts_eq_sub,
       Option.getD_some, Option.getD_some]
     exact sub_ne_zero.mpr hne
-  exact isSISSolution_extractSISFromRelaxedWitness hSy hu hinl hinr hne'
 
 end SISReduction
 
@@ -368,16 +352,14 @@ theorem lyubashevsky_succProbability_directAttack_le {γ β : ℕ}
       verify := (lyubashevsky n m k q γ β).verify }
   have hP' : P'.SpecialSoundness
       (fun u y => SIS.IsSolution (Matrix.fromCols y.1 y.2) (max (2 * (γ - β)) 1) u)
-      (lyubashevskyExtract n m k q) :=
-    lyubashevsky_specialSoundness (n := n) (m := m) (k := k) (q := q) (γ := γ) (β := β)
+      (lyubashevskyExtract n m k q) := lyubashevsky_specialSoundness
   have hdir : (lyubashevsky n m k q γ β).directAttack keyGen A =
       P'.directAttack (keyGen.map fun key => ((0 : Fin m ⊕ Fin k → ℤ), key.2)) A := by
     simp only [directAttack, P', PMF.monad_bind_eq_bind, PMF.bind_map]
     rfl
   rw [hdir]
-  have h := succProbability_directAttack_le
+  simpa [Fintype.card_pi, Fintype.card_bool] using succProbability_directAttack_le
     (hP'.specialSoundOn (keyGen.map fun key => ((0 : Fin m ⊕ Fin k → ℤ), key.2))) A
-  simpa [Fintype.card_pi, Fintype.card_bool] using h
 
 end Identification
 

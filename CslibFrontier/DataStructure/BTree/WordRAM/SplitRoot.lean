@@ -114,11 +114,11 @@ theorem splitRootCode_spec {w base capNodes t oldRoot cnt : ℕ} {x : Data 20}
     simp only [nodeAddr, nodeStride, Nat.add_mul, Nat.one_mul] at hmul ⊢; omega
   have hk_med_m1 : x₁.mem (nodeAddr base t oldRoot + 2 + (t - 1)) =
       keyAt base t x.mem oldRoot (t - 1) := by
-    dsimp only [keyAt]; rw [hmem₁]; simp only [Nat.add_assoc]
+    simp only [keyAt, hmem₁, Nat.add_assoc]
     exact memCopyUpper_at_c hsep_rc (2 + (t - 1)) (by omega) (by omega) x.mem
   have hv_med_m1 : x₁.mem (nodeAddr base t oldRoot + (2 * t + 1) + (t - 1)) =
       valAt base t x.mem oldRoot (t - 1) := by
-    dsimp only [valAt]; rw [hmem₁]; simp only [Nat.add_assoc]
+    simp only [valAt, hmem₁, Nat.add_assoc]
     exact memCopyUpper_at_c hsep_rc (2 * t + (1 + (t - 1))) (by omega) (by omega) x.mem
   obtain ⟨ar, har_def⟩ : ∃ ar, nodeAddr base t (cnt + 1) = ar := ⟨_, rfl⟩
   obtain ⟨ac, hac_def⟩ : ∃ ac, nodeAddr base t oldRoot = ac := ⟨_, rfl⟩
@@ -131,56 +131,14 @@ theorem splitRootCode_spec {w base capNodes t oldRoot cnt : ℕ} {x : Data 20}
   rw [hac_def] at hk_med_m1 hv_med_m1 hsep_rc
   rw [hac_def, har_def] at hsep_rn
   have hna_r : base + (cnt + 1) * (6 * t) + 1 + 1 = ar := by
-    rw [← har_def]; simp only [nodeAddr, nodeStride]; omega
+    simp only [← har_def, nodeAddr, nodeStride]; omega
   have hna_c : base + oldRoot * (6 * t) + 1 + 1 = ac := by
-    rw [← hac_def]; simp only [nodeAddr, nodeStride]; omega
-  have h2t_c : ac + t + t + 1 = ac + (2 * t + 1) := by omega
-  have h2t_r : ar + t + t + 1 = ar + (2 * t + 1) := by omega
-  have h4t_r : ar + t + t + t + t = ar + 4 * t := by omega
-  have hcap_le : capNodes ≤ capNodes * nodeStride t :=
-    Nat.le_mul_of_pos_right _ (by simp only [nodeStride]; omega)
-  have hf_c1 : Fits w (cnt + 1) := hfit.of_le (by simp only [arenaWords]; omega)
-  have hf_c2 : Fits w (cnt + 1 + 1) := hfit.of_le (by simp only [arenaWords]; omega)
-  have hf_b1 : Fits w (base + 1) := hfit.of_le (by simp only [arenaWords]; omega)
-  have hf_tm1 : Fits w (t - 1) := hfit.of_le (by omega)
-  have hf_rmul : Fits w ((cnt + 1) * (6 * t)) := hfit.of_le (by omega)
-  have hf_rb0 : Fits w (base + (cnt + 1) * (6 * t)) := hfit.of_le (by omega)
-  have hf_rb1 : Fits w (base + (cnt + 1) * (6 * t) + 1) := hfit.of_le (by omega)
-  have hf_rb2 : Fits w (base + (cnt + 1) * (6 * t) + 1 + 1) := hfit.of_le (by omega)
-  have hf_ar : Fits w ar := hfit.of_le (by omega)
-  have hf_ar1 : Fits w (ar + 1) := hfit.of_le (by omega)
-  have hf_ar2 : Fits w (ar + 1 + 1) := hfit.of_le (by omega)
-  have hf_ar2' : Fits w (ar + 2) := hfit.of_le (by omega)
-  have hf_art1 : Fits w (ar + t) := hfit.of_le (by omega)
-  have hf_art2 : Fits w (ar + t + t) := hfit.of_le (by omega)
-  have hf_art21 : Fits w (ar + t + t + 1) := hfit.of_le (by omega)
-  have hf_ar2t1 : Fits w (ar + (2 * t + 1)) := hfit.of_le (by omega)
-  have hf_art3 : Fits w (ar + t + t + t) := hfit.of_le (by omega)
-  have hf_art4 : Fits w (ar + t + t + t + t) := hfit.of_le (by omega)
-  have hf_ar4t : Fits w (ar + 4 * t) := hfit.of_le (by omega)
-  have hf_ar4t1 : Fits w (ar + 4 * t + 1) := hfit.of_le (by omega)
-  have hf_cmul : Fits w (oldRoot * (6 * t)) := hfit.of_le (by omega)
-  have hf_cb0 : Fits w (base + oldRoot * (6 * t)) := hfit.of_le (by omega)
-  have hf_cb1 : Fits w (base + oldRoot * (6 * t) + 1) := hfit.of_le (by omega)
-  have hf_cb2 : Fits w (base + oldRoot * (6 * t) + 1 + 1) := hfit.of_le (by omega)
-  have hf_ac : Fits w ac := hfit.of_le (by omega)
-  have hf_ac1 : Fits w (ac + 1) := hfit.of_le (by omega)
-  have hf_ac2 : Fits w (ac + 1 + 1) := hfit.of_le (by omega)
-  have hf_ack : Fits w (ac + 1 + 1 + (t - 1)) := hfit.of_le (by omega)
-  have hf_ack' : Fits w (ac + 2 + (t - 1)) := hfit.of_le (by omega)
-  have hf_act1 : Fits w (ac + t) := hfit.of_le (by omega)
-  have hf_act2 : Fits w (ac + t + t) := hfit.of_le (by omega)
-  have hf_act21 : Fits w (ac + t + t + 1) := hfit.of_le (by omega)
-  have hf_ac2t1 : Fits w (ac + (2 * t + 1)) := hfit.of_le (by omega)
-  have hf_acv : Fits w (ac + (2 * t + 1) + (t - 1)) := hfit.of_le (by omega)
-  have hack_eq : ac + 1 + 1 + (t - 1) = ac + 2 + (t - 1) := by omega
-  have har2_eq : ar + 1 + 1 = ar + 2 := by omega
-  have hc2_eq : cnt + 1 + 1 = cnt + 2 := by omega
-  have hk_ne1 : ac + 2 + (t - 1) ≠ ar := by omega
-  have hk_ne2 : ac + 2 + (t - 1) ≠ ar + 1 := by omega
-  have hv_ne1 : ac + (2 * t + 1) + (t - 1) ≠ ar := by omega
-  have hv_ne2 : ac + (2 * t + 1) + (t - 1) ≠ ar + 1 := by omega
-  have hv_ne3 : ac + (2 * t + 1) + (t - 1) ≠ ar + 2 := by omega
+    simp only [← hac_def, nodeAddr, nodeStride]; omega
+  have hcap_aw : base + 2 + capNodes ≤ base + arenaWords t capNodes := by
+    have : capNodes ≤ capNodes * nodeStride t :=
+      Nat.le_mul_of_pos_right _ (by simp only [nodeStride]; omega)
+    simp only [arenaWords]; omega
+  have hf (k : ℕ) (hk : k ≤ base + arenaWords t capNodes) : Fits w k := hfit.of_le hk
   obtain ⟨y, he2, hymem, hz_y, ho_y, hb_y, hd_y, hst_y, hk_y, hv_y, hcur_y, hcnt_y⟩ :
       ∃ y, ExecWithin w splitRootPost x₁ y 40 ∧
         y.mem = memSplitRoot base t oldRoot cnt x.mem ∧
@@ -190,26 +148,44 @@ theorem splitRootCode_spec {w base capNodes t oldRoot cnt : ℕ} {x : Data 20}
         y.regs rCur = cnt + 1 ∧ y.regs rCnt = cnt + 2 := by
     unfold splitRootPost
     apply WP.exists_execWithin
-    wram_exec [hz₁, ho₁, hb₁_reg, hd₁, hst₁, hch₁, hcnt₁,
-      hna_r, hna_c, h2t_c, h2t_r, h4t_r, hack_eq, har2_eq, hc2_eq,
-      hk_ne1, hk_ne2, hv_ne1, hv_ne2, hv_ne3, hk_med_m1, hv_med_m1,
-      hf_c1, hf_c2, hf_b1, hf_tm1, hf_rmul, hf_rb0, hf_rb1, hf_rb2,
-      hf_ar, hf_ar1, hf_ar2, hf_ar2', hf_art1, hf_art2, hf_art21, hf_ar2t1, hf_art3, hf_art4,
-      hf_ar4t, hf_ar4t1,
-      hf_cmul, hf_cb0, hf_cb1, hf_cb2, hf_ac, hf_ac1, hf_ac2, hf_ack, hf_ack',
-      hf_act1, hf_act2, hf_act21, hf_ac2t1, hf_acv]
+    wram_exec [hz₁, ho₁, hb₁_reg, hd₁, hst₁, hch₁, hcnt₁, hna_r, hna_c, hk_med_m1, hv_med_m1,
+      (by omega : ac + t + t + 1 = ac + (2 * t + 1)),
+      (by omega : ar + t + t + 1 = ar + (2 * t + 1)),
+      (by omega : ar + t + t + t + t = ar + 4 * t),
+      (by omega : ac + 1 + 1 + (t - 1) = ac + 2 + (t - 1)),
+      (by omega : ar + 1 + 1 = ar + 2),
+      (by omega : cnt + 1 + 1 = cnt + 2),
+      (by omega : ac + 2 + (t - 1) ≠ ar),
+      (by omega : ac + 2 + (t - 1) ≠ ar + 1),
+      (by omega : ac + (2 * t + 1) + (t - 1) ≠ ar),
+      (by omega : ac + (2 * t + 1) + (t - 1) ≠ ar + 1),
+      (by omega : ac + (2 * t + 1) + (t - 1) ≠ ar + 2),
+      hf (cnt + 1) (by omega), hf (cnt + 1 + 1) (by omega), hf (base + 1) (by omega),
+      hf (t - 1) (by omega), hf ((cnt + 1) * (6 * t)) (by omega),
+      hf (base + (cnt + 1) * (6 * t)) (by omega), hf (base + (cnt + 1) * (6 * t) + 1) (by omega),
+      hf (base + (cnt + 1) * (6 * t) + 1 + 1) (by omega),
+      hf ar (by omega), hf (ar + 1) (by omega), hf (ar + 1 + 1) (by omega), hf (ar + 2) (by omega),
+      hf (ar + t) (by omega), hf (ar + t + t) (by omega), hf (ar + t + t + 1) (by omega),
+      hf (ar + (2 * t + 1)) (by omega), hf (ar + t + t + t) (by omega),
+      hf (ar + t + t + t + t) (by omega), hf (ar + 4 * t) (by omega),
+      hf (ar + 4 * t + 1) (by omega),
+      hf (oldRoot * (6 * t)) (by omega), hf (base + oldRoot * (6 * t)) (by omega),
+      hf (base + oldRoot * (6 * t) + 1) (by omega),
+      hf (base + oldRoot * (6 * t) + 1 + 1) (by omega),
+      hf ac (by omega), hf (ac + 1) (by omega), hf (ac + 1 + 1) (by omega),
+      hf (ac + 1 + 1 + (t - 1)) (by omega), hf (ac + 2 + (t - 1)) (by omega),
+      hf (ac + t) (by omega), hf (ac + t + t) (by omega), hf (ac + t + t + 1) (by omega),
+      hf (ac + (2 * t + 1)) (by omega), hf (ac + (2 * t + 1) + (t - 1)) (by omega)]
     wram_simp [hz₁, ho₁, hb₁_reg, hd₁, hst₁, hk₁, hv₁]
     simp only [memSplitRoot, har_def, ← hmem₁]
   have hmod₂ : Modifies (Block.mk base (arenaWords t capNodes)).footprint x₁.mem y.mem := by
     intro addr hnot
+    have hb_lo : base + 1 < ar := har_def ▸ base_lt_nodeAddr base t (cnt + 1) 0
     rw [hymem]
     dsimp only [memSplitRoot]
-    have hb_lo : base + 1 < ar := har_def ▸ base_lt_nodeAddr base t (cnt + 1) 0
     rw [har_def]
-    repeat rw [Function.update_of_ne (by
-      intro heq; apply hnot
-      simp only [Block.mem_footprint, Block.Owns] at heq har_le ⊢
-      omega)]
+    repeat rw [Function.update_of_ne fun heq => hnot <| by
+      simp only [Block.mem_footprint, Block.Owns] at heq har_le ⊢; omega]
     rw [← hmem₁]
   have hfull : ExecWithin w splitRootCode x y (21 * t + 88) :=
     (he1.seq he2).mono (by omega)

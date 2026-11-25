@@ -44,20 +44,16 @@ open scoped BigOperators
 private theorem traceLogarithmResidue_polyTime :
     ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => let (p, k, t) := q; traceLogarithmResidue p k t)
       encNat3 encNat := by
-  have hp : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => let (p, _k, _t) := q; p)
-      encNat3 encNat := by fun_prop
-  have hk : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => let (_p, k, _t) := q; k)
-      encNat3 encNat := by fun_prop
-  have ht : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => let (_p, _k, t) := q; t)
-      encNat3 encNat := by fun_prop
-  have hpower := computableInPolyTime_powMod hp hk
-    (ComputableInPolyTime.binary_sub' hp (.const 2))
-  have hmul := ComputableInPolyTime.binary_mul' ht hpower
-  have hmod := ComputableInPolyTime.binary_mod.comp (hmul.prod hp)
-  have hsub := ComputableInPolyTime.binary_sub' hp hmod
-  have hres := ComputableInPolyTime.binary_mod.comp (hsub.prod hp)
-  have hzero : ComputableInPolyTime
-      (fun q : ℕ × ℕ × ℕ => let (_p, k, _t) := q; decide (k = 0)) encNat3 encBool := by fun_prop
+  have hp : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => q.1) encNat3 encNat := by fun_prop
+  have hk : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => q.2.1) encNat3 encNat := by fun_prop
+  have ht : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => q.2.2) encNat3 encNat := by fun_prop
+  have hmod := ComputableInPolyTime.binary_mod.comp
+    ((ComputableInPolyTime.binary_mul' ht
+      (computableInPolyTime_powMod hp hk (ComputableInPolyTime.binary_sub' hp (.const 2)))).prod hp)
+  have hres := ComputableInPolyTime.binary_mod.comp
+    ((ComputableInPolyTime.binary_sub' hp hmod).prod hp)
+  have hzero : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => decide (q.2.1 = 0)) encNat3 encBool := by
+    fun_prop
   simpa only [traceLogarithmResidue, decide_eq_true_eq, Function.comp_apply] using
     ComputableInPolyTime.ite' hzero (ComputableInPolyTime.const 0) hres
 
@@ -114,12 +110,9 @@ theorem traceExponentialCoefficient_mem (E : Decoder enc) {p D d : α → ℕ}
     (ht : t ∈ CountingFunction a (encPair enc encNat) encNat) :
     (fun w => traceExponentialCoefficient (p w) (D w) (d w) (fun k => t (w, k))) ∈
       CountingFunction (max (a + 1) 3 + 2) enc encNat := by
-  have hlog := traceLogarithmResidue_mem
-    (hp.comp (ComputableInPolyTime.fst enc encNat)) (ComputableInPolyTime.snd enc encNat) ht
-  have hc := truncatedExponentialCoefficient_mem E hp hD
-    (ComputableInPolyTime.binary_sub' hD hd) hlog
-  have hguard : ComputableInPolyTime
-      (fun w => decide (d w ≤ D w)) enc encBool := by fun_prop
+  have hc := truncatedExponentialCoefficient_mem E hp hD (ComputableInPolyTime.binary_sub' hD hd)
+    (traceLogarithmResidue_mem (hp.comp (.fst enc encNat)) (.snd enc encNat) ht)
+  have hguard : ComputableInPolyTime (fun w => decide (d w ≤ D w)) enc encBool := by fun_prop
   simpa only [traceExponentialCoefficient, decide_eq_true_eq, Function.comp_apply] using
     CountingFunction.ite (CountingFunction.of_polyTime hguard) hc
       (CountingFunction.of_polyTime (ComputableInPolyTime.const 0))
@@ -134,21 +127,15 @@ theorem traceExponentialCoefficient_eq_charpoly {p : ℕ} [Fact p.Prime]
     traceExponentialCoefficient p (Fintype.card ι) d t = (M.charpoly.coeff d).val := by
   have hD : Fintype.card ι < p - 1 := (Nat.le_mul_self _).trans_lt hdegree
   by_cases hd : d ≤ Fintype.card ι
-  · have hK : ∀ j, 1 ≤ j → j ≤ Fintype.card ι → (j : ZMod p) ≠ 0 := by
-      intro j hj hle hz
-      exact Nat.not_dvd_of_pos_of_lt (by omega) (by omega)
-        ((ZMod.natCast_eq_zero_iff j p).mp hz)
-    have hpoly : ofFn (Fintype.card ι + 1)
-        (fun k => -(t k : ZMod p) / ((k : ℕ) : ZMod p)) =
-        ofFn (Fintype.card ι + 1)
-          (fun k => -(M ^ (k : ℕ)).trace / ((k : ℕ) : ZMod p)) := by
-      congr 1
-      funext k
-      by_cases hk : (k : ℕ) = 0
-      · simp [hk]
-      · rw [ht k (by omega) (by omega)]
+  · have hpoly : ofFn (Fintype.card ι + 1) (fun k => -(t k : ZMod p) / ((k : ℕ) : ZMod p)) =
+        ofFn (Fintype.card ι + 1) (fun k => -(M ^ (k : ℕ)).trace / ((k : ℕ) : ZMod p)) :=
+      congrArg (ofFn _) (funext fun k => by
+        by_cases hk : (k : ℕ) = 0
+        · simp [hk]
+        · rw [ht k (by omega) (by omega)])
     rw [traceExponentialCoefficient_eq hdegree hd, hpoly,
-      Matrix.trace_exponential_coeff_eq_charpoly M hK d hd]
+      Matrix.trace_exponential_coeff_eq_charpoly M (fun j _ _ hz =>
+        Nat.not_dvd_of_pos_of_lt (by omega) (by omega) ((ZMod.natCast_eq_zero_iff j p).mp hz)) d hd]
   · rw [traceExponentialCoefficient, ite_eq_right hd,
       coeff_eq_zero_of_natDegree_lt (by rw [Matrix.charpoly_natDegree_eq_dim]; omega),
       ZMod.val_zero]

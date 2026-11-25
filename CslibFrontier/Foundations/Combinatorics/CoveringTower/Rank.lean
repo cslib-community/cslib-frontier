@@ -45,6 +45,11 @@ def rk (F : Finset U) (u : U) : ℕ := (F.filter fun v => key v = key u ∧ idx 
 
 variable {idx key}
 
+/-- The rank of `u` is the number of elements of `F` with its key and a smaller index. -/
+theorem rk_eq (F : Finset U) (u : U) :
+    rk idx key F u = (F.filter fun v => key v = key u ∧ idx v < idx u).card := by
+  rw [rk]
+
 theorem rk_congr {F F' : Finset U} {u : U} (h : ∀ v, key v = key u → (v ∈ F ↔ v ∈ F')) :
     rk idx key F u = rk idx key F' u := by
   unfold rk

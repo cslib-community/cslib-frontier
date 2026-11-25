@@ -131,11 +131,10 @@ theorem half_le_commonCoinLaw (P : Type*) (b : Bool) :
     (1 / 2 : ℝ≥0∞) ≤ commonCoinLaw P (fun _ => b) := by
   classical
   rw [commonCoinLaw, PMF.map_apply, tsum_fintype]
-  have hle := Finset.single_le_sum
+  simpa [uniformOfFintype_apply, one_div] using Finset.single_le_sum
     (f := fun a : Bool =>
       if (fun _ : P => b) = (fun _ : P => a) then uniformOfFintype Bool a else 0)
     (fun _ _ => bot_le) (Finset.mem_univ b)
-  simpa [uniformOfFintype_apply, one_div] using hle
 
 /-- On a nonempty process set `P`, `commonCoinLaw P` assigns probability `1 / 2` to each constant
 coin vector `fun _ => b`. -/
@@ -145,9 +144,7 @@ theorem commonCoinLaw_const {P : Type*} [Nonempty P] (b : Bool) :
   obtain ⟨p₀⟩ := ‹Nonempty P›
   rw [commonCoinLaw, PMF.map_apply, tsum_eq_single b]
   · simp [uniformOfFintype_apply, one_div]
-  · intro b' hb'
-    have hne : (fun _ : P => b) ≠ (fun _ : P => b') := fun h => hb' (congrFun h p₀).symm
-    simp [hne]
+  · exact fun _ hb' => ite_eq_right fun h => hb' (congrFun h p₀).symm
 
 /-- Under `localCoinLaw P`, every coin assignment `c : P → Bool` has probability `(1 / 2) ^ |P|`. -/
 @[simp]
@@ -176,7 +173,7 @@ private lemma singlePhase_not_unanimous_eq_zero {P : Type*} [Fintype P] {t : ℕ
     {st : P → ProcState} (hu : IsUnanimous st) :
     (coinLaw.map fun c => phaseStep t sched c st).toOuterMeasure {st' | ¬ IsUnanimous st'} = 0 := by
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro st' hsupp hnot
+  intro _ hsupp hnot
   supp_cases hsupp with ⟨c, _, rfl⟩
   exact hnot (hu.phaseStep ht hv c)
 
@@ -202,7 +199,7 @@ private lemma singlePhase_not_allDecided_eq_zero {P : Type*} [Fintype P] {t : �
     (coinLaw.map fun c => phaseStep t sched c st).toOuterMeasure {st' | ¬ AllDecided st'} = 0 := by
   obtain ⟨b, hb⟩ := hu
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro st' hsupp hnot
+  intro _ hsupp hnot
   supp_cases hsupp with ⟨c, _, rfl⟩
   exact hnot ⟨b, phaseStep_allDecided_of_est_eq ht hv c hlock hb⟩
 
@@ -299,9 +296,8 @@ theorem tendsto_probRun_commonCoin_not_allDecided {P : Type*} [Fintype P] {t : �
     (hv : ∀ r st, (strat r st).Valid t) (inp : P → Bool) :
     Tendsto
       (fun m => (probRun t (commonCoinLaw P) strat inp m).toOuterMeasure {st | ¬ AllDecided st})
-      atTop (nhds 0) := by
-  have hp : (0 : ℝ≥0∞) < 1 / 2 := by simp [one_div]
-  exact tendsto_probRun_not_allDecided ht hp (half_le_commonCoinLaw P) hv inp
+      atTop (nhds 0) :=
+  tendsto_probRun_not_allDecided ht (by simp [one_div]) (half_le_commonCoinLaw P) hv inp
 
 /-! ### Independent local fair coins: pre-coin phase-scheduler step (`≤ (1 - (1 / 2) ^ |P|) ^ k`) -/
 
@@ -328,10 +324,8 @@ theorem tendsto_probRun_localCoin_not_allDecided {P : Type*} [Fintype P] {t : �
     (hv : ∀ r st, (strat r st).Valid t) (inp : P → Bool) :
     Tendsto
       (fun m => (probRun t (localCoinLaw P) strat inp m).toOuterMeasure {st | ¬ AllDecided st})
-      atTop (nhds 0) := by
-  have hp : (0 : ℝ≥0∞) < (1 / 2 : ℝ≥0∞) ^ Fintype.card P :=
-    pos_iff_ne_zero.mpr (pow_ne_zero _ (by simp [one_div]))
-  exact tendsto_probRun_not_allDecided ht hp
+      atTop (nhds 0) :=
+  tendsto_probRun_not_allDecided ht (pos_iff_ne_zero.mpr (pow_ne_zero _ (by simp [one_div])))
     (fun b => (localCoinLaw_apply (fun _ => b)).ge) hv inp
 
 end Cslib.Distributed.BenOr

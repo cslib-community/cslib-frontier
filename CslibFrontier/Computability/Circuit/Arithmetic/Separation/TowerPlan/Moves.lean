@@ -33,6 +33,7 @@ of the tree among the parties (`Placement`) they are the moves of a play (`moves
 
 ## Main results
 
+* `VertexMove.sum_eq`, `Move.sum_eq`: sums over the law moves and over all moves.
 * `Move.party_injective`: the nodes at the roles of a move are different.
 * `Move.time_lt_time_target`: the units of the channels of a move are given later.
 * `lt_of_time_moveOrder_lt`: a move with a smaller time comes earlier in the order.
@@ -69,6 +70,13 @@ instance (FL : VertexLaws F T) : DecidableEq (VertexMove FL) :=
 instance (FL : VertexLaws F T) : Fintype (VertexMove FL) :=
   Fintype.ofEquiv _ (proxy_equiv% (VertexMove FL))
 
+/-- A sum over the law moves, by their stages, types, vertices and kinds. -/
+theorem VertexMove.sum_eq {FL : VertexLaws F T} {M : Type*} [AddCommMonoid M]
+    (g : VertexMove FL → M) : ∑ l, g l = ∑ j, ∑ i, ∑ ω, ∑ d, g ⟨j, i, ω, d⟩ := by
+  rw [← (proxy_equiv% (VertexMove FL)).sum_comp]
+  simp only [Fintype.sum_sigma]
+  rfl
+
 /-- The same vertex with another kind of law. -/
 @[expose] def VertexMove.withKind {FL : VertexLaws F T} (l : VertexMove FL) (d : FL.Kind) :
     VertexMove FL :=
@@ -92,6 +100,18 @@ instance (R : Routes T m Uu) (ch : Fin A ↪ T.X 0) (FL : VertexLaws F T) :
 namespace Move
 
 variable {R : Routes T m Uu} {ch : Fin A ↪ T.X 0} {FL : VertexLaws F T}
+
+/-- A sum over the moves: the relays of the plan and the law moves. -/
+theorem sum_eq {M : Type*} [AddCommMonoid M] (g : Move R ch FL → M) :
+    ∑ mv, g mv = (∑ x, if hx : x.Occurs R ch then g (.relay x hx) else 0) + ∑ l, g (.vertex l) := by
+  rw [← (proxy_equiv% (Move R ch FL)).sum_comp]
+  simp only [Fintype.sum_sum_type, Fintype.sum_sigma]
+  congr 1
+  refine Finset.sum_congr rfl fun x _ => ?_
+  split_ifs with hx
+  · exact Fintype.sum_eq_single ⟨hx⟩ fun y hy => absurd rfl hy
+  · have : IsEmpty (PLift (x.Occurs R ch)) := ⟨fun y => hx y.down⟩
+    exact Fintype.sum_empty _
 
 /-- The law of a move. -/
 @[expose] def law : Move R ch FL → Law F

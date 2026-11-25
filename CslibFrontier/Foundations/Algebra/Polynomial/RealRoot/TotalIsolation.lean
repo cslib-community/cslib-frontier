@@ -235,44 +235,42 @@ private theorem separatePair_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separ
   simp only [separatePair]
   split_ifs with hlt hel
   · exact ⟨hiso₁.1, le_rfl, le_rfl, hiso₂.1, hlt, fun _ h => h.2.1, fun _ h => h.1⟩
-  · rcases hgap with hlt' | ⟨heq_m, hnotm⟩
-    · exact (hlt hlt').elim
-    · have hl_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
-        IsRoot.def.mpr ((eval_rat_eq_zero_iff cs I₁.lower).mp hel)
-      have hl_lt : I₁.lower < I₁.upper :=
-        lt_of_le_of_ne hiso₁.1 fun h => hnotm (h ▸ hl_root)
-      obtain ⟨_, _, huniq⟩ := hiso₁.2
-      refine ⟨le_rfl, hiso₁.1, le_rfl, hiso₂.1, heq_m ▸ hl_lt, fun r hr => ?_, fun _ h => h.1⟩
-      rw [huniq r hr, ← huniq _ ⟨le_rfl, Rat.cast_le.mpr hiso₁.1, hl_root⟩]
-  · rcases hgap with hlt' | ⟨heq_m, hnotm⟩
-    · exact (hlt hlt').elim
-    · have hnotl : ¬((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
-        fun h => hel ((eval_rat_eq_zero_iff cs I₁.lower).mpr h.eq_zero)
-      have heqR : (I₁.upper : ℝ) = (I₂.lower : ℝ) := congrArg Rat.cast heq_m
-      obtain ⟨r₁, ⟨hr₁l, hr₁u, hr₁r⟩, hr₁_uniq⟩ := hiso₁.2
-      obtain ⟨r₂, ⟨hr₂l, hr₂u, hr₂r⟩, hr₂_uniq⟩ := hiso₂.2
-      have hr₁_gt : (I₁.lower : ℝ) < r₁ := lt_of_le_of_ne hr₁l fun h => hnotl (h ▸ hr₁r)
-      have hr₁_lt : r₁ < (I₁.upper : ℝ) := lt_of_le_of_ne hr₁u fun h => hnotm (h.symm ▸ hr₁r)
-      have hr₂_gt : (I₁.upper : ℝ) < r₂ :=
-        lt_of_le_of_ne (heqR ▸ hr₂l) fun h => hnotm (h ▸ hr₂r)
-      have ham : I₁.lower < I₁.upper := Rat.cast_lt.mp (hr₁_gt.trans hr₁_lt)
-      have hmb : I₁.upper < I₂.upper := Rat.cast_lt.mp (hr₂_gt.trans_le hr₂u)
-      have hca := sturmVariationsList_sub_eq_one_of_unique_Ioc hsep ham.le hr₁r hr₁_gt hr₁u
-        fun x hxl hxu hx => hr₁_uniq x ⟨hxl.le, hxu, hx⟩
-      have hcb := sturmVariationsList_sub_eq_one_of_unique_Ioc hsep hmb.le hr₂r hr₂_gt hr₂u
-        fun x hxl hxu hx => hr₂_uniq x ⟨(heqR ▸ hxl).le, hxu, hx⟩
-      have hw0 : (I₂.upper - I₁.lower : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ 0 := by
-        have := Rat.cast_le (K := ℝ).mpr hb₁
-        have := Rat.cast_le (K := ℝ).mpr hb₂
-        push_cast at *
-        simp only [pow_zero, div_one]; linarith
-      rcases separateMidLoop_spec hsep (mignotteBisectionDepth cs) 0 I₁.lower I₁.upper I₂.upper
-          _ (Nat.zero_add _) ham hmb rfl hca hcb hnotm hw0 with
-        ⟨hm1, hm2, hm3, hm4, hmlt, hno1, hno2⟩
-      refine ⟨hm1, hm2, heq_m ▸ hm3, hm4, hmlt,
-        fun r ⟨_, hru, hrr⟩ => le_of_not_gt fun hgt => hno1 r hgt hru hrr,
-        fun r ⟨hrl, _, hrr⟩ => le_of_not_gt fun hgt =>
-          hno2 r (lt_of_le_of_ne (heqR.symm ▸ hrl) fun h => hnotm (h ▸ hrr)) hgt.le hrr⟩
+  · obtain ⟨heq_m, hnotm⟩ := Or.resolve_left hgap hlt
+    have hl_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
+      IsRoot.def.mpr ((eval_rat_eq_zero_iff cs I₁.lower).mp hel)
+    have hl_lt : I₁.lower < I₁.upper :=
+      lt_of_le_of_ne hiso₁.1 fun h => hnotm (h ▸ hl_root)
+    obtain ⟨_, _, huniq⟩ := hiso₁.2
+    refine ⟨le_rfl, hiso₁.1, le_rfl, hiso₂.1, heq_m ▸ hl_lt, fun r hr => ?_, fun _ h => h.1⟩
+    rw [huniq r hr, ← huniq _ ⟨le_rfl, Rat.cast_le.mpr hiso₁.1, hl_root⟩]
+  · obtain ⟨heq_m, hnotm⟩ := Or.resolve_left hgap hlt
+    have hnotl : ¬((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
+      fun h => hel ((eval_rat_eq_zero_iff cs I₁.lower).mpr h.eq_zero)
+    have heqR : (I₁.upper : ℝ) = (I₂.lower : ℝ) := congrArg Rat.cast heq_m
+    obtain ⟨r₁, ⟨hr₁l, hr₁u, hr₁r⟩, hr₁_uniq⟩ := hiso₁.2
+    obtain ⟨r₂, ⟨hr₂l, hr₂u, hr₂r⟩, hr₂_uniq⟩ := hiso₂.2
+    have hr₁_gt : (I₁.lower : ℝ) < r₁ := lt_of_le_of_ne hr₁l fun h => hnotl (h ▸ hr₁r)
+    have hr₁_lt : r₁ < (I₁.upper : ℝ) := lt_of_le_of_ne hr₁u fun h => hnotm (h.symm ▸ hr₁r)
+    have hr₂_gt : (I₁.upper : ℝ) < r₂ :=
+      lt_of_le_of_ne (heqR ▸ hr₂l) fun h => hnotm (h ▸ hr₂r)
+    have ham : I₁.lower < I₁.upper := Rat.cast_lt.mp (hr₁_gt.trans hr₁_lt)
+    have hmb : I₁.upper < I₂.upper := Rat.cast_lt.mp (hr₂_gt.trans_le hr₂u)
+    have hca := sturmVariationsList_sub_eq_one_of_unique_Ioc hsep ham.le hr₁r hr₁_gt hr₁u
+      fun x hxl hxu hx => hr₁_uniq x ⟨hxl.le, hxu, hx⟩
+    have hcb := sturmVariationsList_sub_eq_one_of_unique_Ioc hsep hmb.le hr₂r hr₂_gt hr₂u
+      fun x hxl hxu hx => hr₂_uniq x ⟨(heqR ▸ hxl).le, hxu, hx⟩
+    have hw0 : (I₂.upper - I₁.lower : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ 0 := by
+      have := Rat.cast_le (K := ℝ).mpr hb₁
+      have := Rat.cast_le (K := ℝ).mpr hb₂
+      push_cast at *
+      simp only [pow_zero, div_one]; linarith
+    rcases separateMidLoop_spec hsep (mignotteBisectionDepth cs) 0 I₁.lower I₁.upper I₂.upper
+        _ (Nat.zero_add _) ham hmb rfl hca hcb hnotm hw0 with
+      ⟨hm1, hm2, hm3, hm4, hmlt, hno1, hno2⟩
+    refine ⟨hm1, hm2, heq_m ▸ hm3, hm4, hmlt,
+      fun r ⟨_, hru, hrr⟩ => le_of_not_gt fun hgt => hno1 r hgt hru hrr,
+      fun r ⟨hrl, _, hrr⟩ => le_of_not_gt fun hgt =>
+        hno2 r (lt_of_le_of_ne (heqR.symm ▸ hrl) fun h => hnotm (h ▸ hrr)) hgt.le hrr⟩
 
 /-- Walk a chain of isolating intervals carrying an updated `curLower` endpoint and separating
 every adjacent pair. -/
@@ -313,9 +311,7 @@ theorem separateChain_dyadicBounded (t : List ℚ) (seq : List (List ℚ))
       (∀ I ∈ L, DyadicBounded B e I.lower ∧ DyadicBounded B e I.upper) →
       ∀ J ∈ separateChain t seq depth curLower L,
         DyadicBounded B (e + depth) J.lower ∧ DyadicBounded B (e + depth) J.upper
-  | [], _, _, _ => by
-    simp only [separateChain]
-    intro _ h; cases h
+  | [], _, _, _ => by simp [separateChain]
   | [I], curLower, hcur, hL => by
     simp only [separateChain, List.mem_singleton]
     rintro J rfl
@@ -383,8 +379,7 @@ private theorem separateChain_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
         (fun I hI => hiso_all I (List.mem_cons_of_mem I₀ hI)) hpw_tail hp3 hproot2 with
       ⟨⟨J₁, Js, htail_eq, hJ₁_low⟩, htail_pw, htail_idx⟩
     have hJ₁_le : J₁.lower ≤ J₁.upper := by
-      have h0 := (htail_idx 0 (Nat.zero_lt_succ _)).1.1
-      simpa only [htail_eq, List.getElem_cons_zero] using h0
+      simpa only [htail_eq, List.getElem_cons_zero] using (htail_idx 0 (Nat.zero_lt_succ _)).1.1
     simp only [separateChain]
     refine ⟨⟨_, _, rfl, rfl⟩, List.pairwise_cons.mpr ⟨fun B hB => ?_, htail_pw⟩, ?_⟩
     · rw [htail_eq] at hB htail_pw
@@ -458,10 +453,7 @@ private theorem isolateRootsTotal_index_spec {cs : List ℚ} (hsep : (ofCoeffLis
     J.IsIsolatingFor pR ∧ I.lower ≤ J.lower ∧ J.upper ≤ I.upper ∧
       ∀ r : ℝ, ((J.lower : ℝ) ≤ r ∧ r ≤ (J.upper : ℝ) ∧ pR.IsRoot r) ↔
         ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r) := by
-  obtain ⟨I₀, rest, hL⟩ : ∃ I₀ rest, isolateRoots cs = I₀ :: rest := by
-    cases h : isolateRoots cs with
-    | nil => simp only [h, List.length_nil] at hidx; omega
-    | cons I₀ rest => exact ⟨I₀, rest, rfl⟩
+  obtain ⟨I₀, rest, hL⟩ := List.exists_cons_of_length_pos (Nat.zero_lt_of_lt hidx)
   have h := (separateChain_spec hsep rest I₀ I₀.lower
     (fun I hI => ⟨isolateRoots_isIsolatingFor hsep I (hL ▸ hI),
       isolateRoots_mem_cauchy hsep I (hL ▸ hI)⟩)
@@ -633,9 +625,9 @@ theorem coeffsBelow_eq_of_ofCoeffList {cs : List ℚ} {p : ℚ[X]}
   have heq : ofCoeffList (p.coeffsBelow (p.natDegree + 1)) = ofCoeffList cs := by
     rw [Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree), hp]
   refine List.ext_getElem (by rw [Polynomial.length_coeffsBelow, hlen]) fun i hi1 hi2 => ?_
-  have hc := congrArg (fun q : ℚ[X] => q.coeff i) heq
   simpa only [Polynomial.coeff_ofCoeffList, List.getD_eq_getElem?_getD,
-    List.getElem?_eq_getElem hi1, List.getElem?_eq_getElem hi2, Option.getD_some] using hc
+    List.getElem?_eq_getElem hi1, List.getElem?_eq_getElem hi2, Option.getD_some] using
+    congrArg (fun q : ℚ[X] => q.coeff i) heq
 
 /-- Soundness for `isolatePolyRootsTotal p` on squarefree `p : ℚ[X]`. -/
 theorem isolatePolyRootsTotal_isIsolatingFor {p : ℚ[X]} (hsq : Squarefree p) :
@@ -651,11 +643,9 @@ theorem isolatePolyRootsTotal_isIsolatingFor {p : ℚ[X]} (hsq : Squarefree p) :
 theorem isolatePolyRootsTotal_aeval_unique {p : ℚ[X]} (hsq : Squarefree p) :
     ∀ J ∈ isolatePolyRootsTotal p, J.lower ≤ J.upper ∧
       ∃! x : ℝ, x ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ) ∧ Polynomial.aeval x p = 0 := by
-  have heq : ofCoeffList (p.coeffsBelow (p.natDegree + 1)) = p :=
-    Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)
   intro J hJ
-  have h := isolateRootsTotal_aeval_unique (polySeparable hsq) J hJ
-  simpa only [heq] using h
+  simpa only [Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)] using
+    isolateRootsTotal_aeval_unique (polySeparable hsq) J hJ
 
 /-- Strict separation `J₁.upper < J₂.lower` for `isolatePolyRootsTotal p`. -/
 theorem isolatePolyRootsTotal_pairwise_lt {p : ℚ[X]} (hsq : Squarefree p) :
@@ -724,7 +714,6 @@ theorem isolatePolyRootsTotal_endpoint_bounds_of_bitBound {B : ℕ} {p : ℚ[X]}
         Int.natAbs J.lower.num ≤ 3 * 2 ^ (2 * B + E) ∧
         Int.natAbs J.upper.num ≤ 3 * 2 ^ (2 * B + E) := fun J hJ => by
   have h := isolateRootsTotal_endpoint_bounds_of_bitBound (hasCoeffBitBound_coeffsBelow hB) J hJ
-  rw [Polynomial.length_coeffsBelow] at h
-  exact h
+  rwa [Polynomial.length_coeffsBelow] at h
 
 end Cslib.RealRoot

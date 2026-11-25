@@ -70,10 +70,7 @@ theorem initial_iff (tm : MultiTapeTM m Bool State) (input : List Bool)
   cases q with
   | head i sign =>
     cases sign <;> simp [initial, row, Tag.feature, Feature.Holds, offset, eq_comm]
-  | state q => simp [initial, row, Tag.feature, Feature.Holds, eq_comm]
-  | out o => simp [initial, row, Tag.feature, Feature.Holds, eq_comm]
-  | inPos => simp [initial, row, Tag.feature, Feature.Holds, eq_comm]
-  | cell i sign s => simp [initial, row, Tag.feature, Feature.Holds, eq_comm]
+  | _ => simp [initial, row, Tag.feature, Feature.Holds, eq_comm]
 
 /-- The row of a ternary relation at time `t`, using the fixed feature tags. -/
 def traceRow (R : Set (Fin 3 → Fin B)) (t : Fin B) : Row m State B :=
@@ -104,12 +101,9 @@ theorem traceRow_runTable (tm : MultiTapeTM m Bool State) (input : List Bool)
     (hB : Fintype.card (Tag m State) ≤ B) (t : Fin B) (q : Tag m State) (a : Fin B) :
     traceRow (runTable tm input) t q a ↔
       row (tm.runFrom (tm.initCfg input) t.val) q a := by
-  constructor
-  · rintro ⟨z, hz, q', hq', hr⟩
-    have hqq : q' = q := tagIndex_injective (hq'.symm.trans hz)
-    simpa [hqq] using hr
-  · intro hr
-    exact ⟨⟨tagIndex q, tagIndex_lt hB q⟩, rfl, q, rfl, hr⟩
+  refine ⟨?_, fun hr => ⟨⟨tagIndex q, tagIndex_lt hB q⟩, rfl, q, rfl, hr⟩⟩
+  rintro ⟨z, hz, q', hq', hr⟩
+  simpa [tagIndex_injective (hq'.symm.trans hz)] using hr
 
 private theorem traceRow_runTable_eq (tm : MultiTapeTM m Bool State) (input : List Bool)
     (hB : Fintype.card (Tag m State) ≤ B) (t : Fin B) :
@@ -121,56 +115,45 @@ theorem traceStep_runTable_le (tm : MultiTapeTM m Bool State) (input : List Bool
     (hn : input.length + 1 < B) (hB : Fintype.card (Tag m State) ≤ B) :
     traceStep (B := B) tm input (runTable tm input) ⊆ runTable tm input := by
   rintro x ⟨q, hq, ⟨ht, hinit⟩ | ⟨t, ht, hstep⟩⟩
-  · refine ⟨q, hq, ?_⟩
-    simpa only [ht, runFrom, Function.iterate_zero_apply]
-      using (initial_iff tm input q (x 2)).1 hinit
-  · refine ⟨q, hq, ?_⟩
-    rw [traceRow_runTable_eq tm input hB] at hstep
-    have hb : ∀ i, |(tm.runFrom (tm.initCfg input) t.val).workTapePos i| + 1 < B := by
-      intro i
+  · exact ⟨q, hq, by simpa only [ht, runFrom, Function.iterate_zero_apply]
+      using (initial_iff tm input q (x 2)).1 hinit⟩
+  · rw [traceRow_runTable_eq tm input hB] at hstep
+    have hb (i) : |(tm.runFrom (tm.initCfg input) t.val).workTapePos i| + 1 < B := by
       have := tm.abs_workTapePos_runFrom_le input t.val i
       have := (x 1).isLt
       omega
-    have hs := (rowStep_row tm hn hb q (x 2)).1 hstep
-    simpa only [← ht, runFrom_succ] using hs
+    exact ⟨q, hq,
+      by simpa only [← ht, runFrom_succ] using (rowStep_row tm hn hb q (x 2)).1 hstep⟩
 
 /-- The least fixed point contains every native row. -/
 theorem runTable_le_traceStep_lfp (tm : MultiTapeTM m Bool State) (input : List Bool)
     (hn : input.length + 1 < B) (hB : Fintype.card (Tag m State) ≤ B) :
     runTable tm input ⊆ (traceStep (B := B) tm input).lfp := by
-  have hrow : ∀ n, ∀ (t : Fin B), t.val = n → ∀ q a,
-      row (tm.runFrom (tm.initCfg input) n) q a →
-        traceRow (traceStep tm input).lfp t q a := by
-    intro n
+  have hrow (n : ℕ) : ∀ (t : Fin B), t.val = n → ∀ q a,
+      row (tm.runFrom (tm.initCfg input) n) q a → traceRow (traceStep tm input).lfp t q a := by
     induction n with
     | zero =>
       intro t ht q a hr
-      let z : Fin B := ⟨tagIndex q, tagIndex_lt hB q⟩
-      refine ⟨z, rfl, ?_⟩
+      refine ⟨⟨tagIndex q, tagIndex_lt hB q⟩, rfl, ?_⟩
       rw [← (traceStep (B := B) tm input).map_lfp]
       exact ⟨q, rfl, Or.inl ⟨ht, (initial_iff tm input q a).2 hr⟩⟩
     | succ n ih =>
       intro t ht q a hr
       let p : Fin B := ⟨n, by have := t.isLt; omega⟩
-      let z : Fin B := ⟨tagIndex q, tagIndex_lt hB q⟩
-      refine ⟨z, rfl, ?_⟩
+      refine ⟨⟨tagIndex q, tagIndex_lt hB q⟩, rfl, ?_⟩
       rw [← (traceStep (B := B) tm input).map_lfp]
-      refine ⟨q, rfl, Or.inr ⟨p, ht.symm, ?_⟩⟩
-      have hb : ∀ i, |(tm.runFrom (tm.initCfg input) n).workTapePos i| + 1 < B := by
-        intro i
+      have hb (i) : |(tm.runFrom (tm.initCfg input) n).workTapePos i| + 1 < B := by
         have := tm.abs_workTapePos_runFrom_le input n i
         have := t.isLt
         omega
-      have hs : rowStep tm input (row (tm.runFrom (tm.initCfg input) n)) q a :=
-        (rowStep_row tm hn hb q a).2 (by simpa only [runFrom_succ] using hr)
-      exact rowStep_mono tm input (fun q a ha => ih p rfl q a ha) q a hs
+      refine ⟨q, rfl, Or.inr ⟨p, ht.symm, rowStep_mono tm input (ih p rfl) q a ?_⟩⟩
+      exact (rowStep_row tm hn hb q a).2 (by simpa only [runFrom_succ] using hr)
   rintro x ⟨q, hq, hx⟩
   obtain ⟨z, hz, hr⟩ := hrow (x 1).val (x 1) rfl q (x 2) hx
   have hz' : z = x 0 := Fin.ext (hz.trans hq.symm)
-  have hvec : ![z, x 1, x 2] = x := by
-    ext i
-    fin_cases i <;> simp [hz']
-  rwa [hvec] at hr
+  suffices ![z, x 1, x 2] = x by rwa [this] at hr
+  ext i
+  fin_cases i <;> simp [hz']
 
 /-- The native deterministic tableau is exactly a least fixed point of positive local rules. -/
 theorem traceStep_lfp (tm : MultiTapeTM m Bool State) (input : List Bool)

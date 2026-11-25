@@ -441,6 +441,14 @@ Algorithms and Computation in Mathematics 10, Springer, 2006. https://doi.org/10
 Section 10.2, Algorithm 10.4 (printed pp. 373–374)—which works over integer coefficients, uses Bernstein coefficient variation, and returns open rational intervals together with singleton rational roots—is related work, not the formalized algorithm.
 The executable `List ℚ` Sturm-bisection isolators (`isolateRoots`, which may return touching intervals, and `isolateRootsTotal` in [`Isolation.lean`](../CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/Isolation.lean) and [`TotalIsolation.lean`](../CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/TotalIsolation.lean), which refines boundaries on squarefree input to strictly separated pairwise-disjoint closed intervals `J₁.upper < J₂.lower` in strictly monotone bijection with `{x : ℝ // aeval x p = 0}` and satisfies dyadic endpoint bit bounds under `HasCoeffBitBound B cs` via [`BitBounds.lean`](../CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/BitBounds.lean)), the Sylvester/Hadamard rational Sturm bit-bound ([`SturmBitBounds.lean`](../CslibFrontier/Foundations/Algebra/Polynomial/RealRoot/SturmBitBounds.lean)), and the unconditional multi-tape Turing-machine polynomial-time certification ([`RootIsolation.lean`](../CslibFrontier/Computability/Complexity/RealAlgebraic/RootIsolation.lean), `isolateRoots_computableInPolyTime`, `isolateRootsTotal_computableInPolyTime`) are the library's own construction.
 
+<a id="baumbmrs23eprint"></a>
+## baumbmrs23eprint
+
+Carsten Baum, Lennart Braun, Cyprien Delpech de Saint Guilhem, Michael Klooß, Emmanuela Orsini, Lawrence Roy and Peter Scholl.
+*Publicly Verifiable Zero-Knowledge and Post-Quantum Signatures From VOLE-in-the-Head*, Cryptology ePrint Archive, Paper 2023/996 (full version of CRYPTO 2023, `BaumBMRS2023Eprint`). https://eprint.iacr.org/2023/996 . Checked on 2026-11-24 against the IACR ePrint 2023/996 full version: Appendix B.1 ("ZK from Generalized sVOLE for Arbitrary Degree-d Relations", printed p. 46) sketches how to generalize sVOLE polynomial checks over a vector of degree-`d` constraints using `(d - 1)` random VOLE masks and independent challenges `χ_i ∈ F_p` (both independent weights in `toOuterMeasure_qsHomogLinearBatch_le` / `toOuterMeasure_qsMaskedCheckValue_le` and single-scalar powers `χ^i` in `toOuterMeasure_qsHomogScalarBatch_le` are proved in [HigherDegreeCheck.lean](../CslibFrontier/Crypto/Protocols/VOLE/HigherDegreeCheck.lean)), and Section 4, Lemma 4 ("FS ◦ O2C", printed pp. 19–20) proves straight-line NIZK knowledge extraction across `Q_Verify` calls with per-call VC extraction loss and `µ · (Q_FS + Q_Verify) · κ`.
+[ROExtractor.lean](../CslibFrontier/Crypto/Protocols/VOLE/ROExtractor.lean) specializes that straight-line RO construction to a single repetition (`µ = 1`) over flat `2 ^ d`-leaf RO commitments, and [ROBridge.lean](../CslibFrontier/Crypto/Protocols/AnonymousToken/ROBridge.lean) composes it with `AnonymousToken.Basic` and `AnonymousToken.Conservation`.
+Cited in [HigherDegreeCheck.lean](../CslibFrontier/Crypto/Protocols/VOLE/HigherDegreeCheck.lean), [ROExtractor.lean](../CslibFrontier/Crypto/Protocols/VOLE/ROExtractor.lean), and [ROBridge.lean](../CslibFrontier/Crypto/Protocols/AnonymousToken/ROBridge.lean); the CRYPTO 2023 LNCS proceedings entry (`BaumBMRS2023`) lists pp. 581–615 without Appendix B.1 (the LNCS volume PDF was not separately opened).
+
 <a id="baumetal26faest"></a>
 ## baumetal26faest
 
@@ -448,6 +456,15 @@ Carsten Baum, Ward Beullens, Lennart Braun, Cyprien Delpech de Saint Guilhem, Mi
 *FAEST v3: Algorithm Specifications*, Version 3.0, September 1, 2026 (bibliography key `BaumEtAl2026FAEST`). https://faest.info/faest-spec-v3.0.pdf . Checked against that PDF on 2026-11-22 (SHA-256 `a880ae59c1f35e0a54a83316de85e2b70bf3ca80f1b4b593340008bc4ef9107b`): Section 10.6, Lemma 10.26 (printed pp. 97–98) specifies the affine-line extractor `E_{KOS,S}(H, ũ, ṽ)` over a finite opening set `S` and states the relaxed cubic bound `(|S|^3 / 6 + |S|^2 / 2) ε` after deriving the sharper binomial sum `(choose |S| 2 + choose |S| 3) ε` from the two bad events (same-challenge distinct-response hash collisions and three distinct-challenge non-collinear openings with collinear hashed images), and Corollary 10.27 (printed pp. 98–99) specializes to a partial-function response graph `S_t` where Bad event 1 is impossible (stating `|S_t|^3 / 6 · ε_v` from the proof's `choose |S_t| 3 · ε_v`).
 `CslibFrontier.Crypto.Protocols.VOLE.KOSExtractor` formalizes these abstract `IsUniversalHash` steps: the executable total extractor `kosExtract`, the affine collinearity defect `kosAffineDefect`, the explicit computable failure witness `kosFailureWitness`, and the exact list-position binomial bounds `ε * (responses.length.choose 3)` on response graphs and `ε * (responses.length.choose 2 + responses.length.choose 3)` on arbitrary opening lists (matching `|S|` on duplicate-free enumerations `responses.Nodup`).
 Concrete `VOLEHash` universality (Lemma 4.6), BAVC reconstruction ([#5302](https://github.com/cslib-community/cslib-frontier/issues/5302)), Lemma 10.19's response-graph construction, QuickSilver v3, and ROM/QROM signature reductions remain open under [#4987](https://github.com/cslib-community/cslib-frontier/issues/4987).
+Re-checked on 2026-11-25 against that same specification for `CslibFrontier.Crypto.Protocols.AnonymousToken.CRTHazard` and `CslibFrontier.Crypto.Protocols.AnonymousToken.CRTDecoupling`: Section 3.1 (Tables 3.1–3.2, printed pp. 13–15, e.g. `nmult = 312` for `FAEST-128s`/`FAEST-128f` and `nmask = dzk + 3`), Section 3.3 (p. 18, `H5 : {0, 1}^128 × {0, 1}^32 × {0, 1}^λ → {0, 1}^nmask`), Section 6 (pp. 35–43, Figures 6.1–6.3, `FAEST.VOLECommit` / `FAEST.VOLEReconstruct` CRT-based masks, `H5(iv, e, L0e)` / `H5(iv, e, L1e)` queries, and `cmult` gate correction bits), and Section 10.10 (Theorem 10.42, Games `G6`–`G11`, pp. 115–121, switching `VOLECommit` to uniform `u`, `ci`, `cmult` with programmed/checked `H5` queries).
+Those two modules provide background-motivated finite query-bounded `ZMod 2` parity/`H5` and CRT-decoupling formalizations over abstract matrix and commitment interfaces rather than the concrete AES/Rijndael QuickSilver circuits or asymptotic PPT proofs of FAEST v3 ([#7068](https://github.com/cslib-community/cslib-frontier/issues/7068)).
+
+<a id="baumetal26faester"></a>
+## baumetal26faester
+
+Carsten Baum, Ward Beullens, Lennart Braun, Cyprien Delpech de Saint Guilhem, Michael Klooß, Christian Majenz, Shibam Mukherjee, Emmanuela Orsini, Sebastian Ramacher, Christian Rechberger, Lawrence Roy and Peter Scholl.
+*Shorter, Tighter, FAESTer: Optimizations and Improved (QROM) Analysis for VOLE-in-the-Head Signatures*, Cryptology ePrint Archive, Paper 2026/164 (`BaumEtAl2026FAESTer`). https://eprint.iacr.org/2026/164 . Checked on 2026-11-24 against the IACR ePrint 2026/164 preprint (https://eprint.iacr.org/2026/164): Section 3, Definition 27 (printed pp. 17–18, "Almost-Injective PRG" assumption for the `Simple` AES-PRG leaf commitment variant `(r, PRG_{2λ}(r))`, noting that multiple seeds may otherwise map to the same commitment and defeat preimage extraction), and Section 3.3, Lemma 32 (printed pp. 25–26, "Extractable Binding of VOLE Commitment", together with Lemma 33 "Random oracle graph game" on p. 26).
+Cited in [PRGLeafSeparation.lean](../CslibFrontier/Crypto/Protocols/VOLE/PRGLeafSeparation.lean) for the PRG leaf separation showing that `leaf_hash::aes_ctr` allows zero-query valid proofs (defeating statement- and proof-less leaf-query-log extractors `extLog : LeafTrace → Option Wit` against disjoint-witness statements with probability `1`, excluding the `(tr, prf)` extractor shape of `extractWitnessFromTrace`), that colliding PRG commitments (`hComEq`, `hdCorrEq` across disjoint-witness statements with injective `encWit`) defeat every deterministic preimage-table seed extractor `extPre` with probability `1`, and that colliding proofs break unbounded proof-only extractors omitting `stmt` with probability at least `1 / |Chal|` for arbitrary `d : ℕ` (`d ≥ 1` opening `2 ^ d - 1 ≥ 1` leaves; while full Definition 27 / Lemma 32 post-challenge equivocation for unbounded extractors that also receive `stmt` remains open).
 
 <a id="bax93"></a>
 ## bax93
@@ -887,6 +904,14 @@ Elizabeth Borowsky and Eli Gafni.
 "A Simple Algorithmically Reasoned Characterization of Wait-Free Computations (Extended Abstract)."
 *Proceedings of the Sixteenth Annual ACM Symposium on Principles of Distributed Computing (PODC 1997)*, 189–198, 1997. https://doi.org/10.1145/259380.259439 ; author-hosted PostScript https://web.cs.ucla.edu/~eli/eli/podc2col.ps . Inspected the 10-page author-hosted PostScript (SHA-256 `405f4c23f7912550cd304009f69262ddede4b333e323165880abc3fe9aafc325`; proceedings pagination 189–198 taken from the bibliographic record) on 2026-11-22 UTC: Section 3.4 ("Immediate Snapshot Model", PS p. 5, ordered-partition `WriteRead` schedules), Section 3.5 ("Iterated Immediate Snapshot Model", PS pp. 5–6, one-shot immediate snapshot conditions 1–3 of self-inclusion, containment, and immediacy, and the iterated full-information view recurrence), and Section 3.6 ("Characterization of the b-shot Iterated Immediate Full-Information Protocol", PS p. 6, Lemmas 3.2–3.3 and Proposition 3.1).
 Cited by [SetAgreement/ImmediateSnapshot.lean](../CslibFrontier/Computability/Distributed/SetAgreement/ImmediateSnapshot.lean) and [SetAgreement/Impossibility.lean](../CslibFrontier/Computability/Distributed/SetAgreement/Impossibility.lean); Section 4's emulation of atomic snapshot memory by iterated immediate snapshot memory remains open in [#7504](https://github.com/cslib-community/cslib-frontier/issues/7504).
+
+<a id="bouillaguetetal25"></a>
+## bouillaguetetal25
+
+Charles Bouillaguet, Thibauld Feneuil, Jules Maire, Matthieu Rivain, Julia Sauvage and Damien Vergnaud.
+*Multivariate Commitments and Signatures with Efficient Protocols*.
+Cryptology ePrint Archive, Paper 2025/2035 (`BouillaguetEtAl2025`), https://eprint.iacr.org/2025/2035 . Checked directly on 2026-11-25 UTC against the 51-page ePrint PDF (ModDate 2025-11-03, SHA-256 `6fe3531109ca6c9363da53f65f53253f5a619ecbfabb0a7284c829f2beae2eea`; printed page numbers match PDF page numbers): Section 6.1 ("Parameters selection", printed pp. 21–22, Table 3 "Parameter sets for the MQ-commitment with q = 256" on printed p. 22, containing `k = 32, n = 83, m = 131`); Section 7 (starting on printed p. 23) and Section 7.2 (printed pp. 27–28, informal blind-signature security reduction and Theorem 5); Appendix A, Definition 12 ("One-More Claw-Freeness", printed p. 38, sampling uniform `J ← MQ(q, n, m)` and granting an arbitrary-target inversion oracle `O_Invert(H^{-1}, ·)` while requiring `q(κ) + 1` claws with distinct `H(x_i) = J(z_i)`); and Appendix D.1, proof of Theorem 5 (printed p. 50, informally applying `ℓ+1`-claw-freeness to `(x, y) ↦ (x + F(y), H(y))`).
+Cited by [ACTMQ.lean](../CslibFrontier/Crypto/Protocols/AnonymousToken/ACTMQ.lean) (`#7068`), which formalizes the structured-target one-more claw-freeness game for `(F r + μ, G r)` with a distinct-target dedup budget and an explicit `gCollisionExperiment` binding term.
 
 <a id="bracha1987"></a>
 ## bracha1987
@@ -3296,6 +3321,14 @@ Bernhard Korte and Jens Vygen.
 Springer, Algorithms and Combinatorics 21, 2018. https://doi.org/10.1007/978-3-662-56039-6 . Cited for Section 2.4 (Eulerian and bipartite graphs), which characterizes connected graphs with a closed Eulerian walk by even degrees (Euler, Hierholzer).
 The section was located from secondary sources and not checked against the printed book; its theorem number is not cited.
 
+<a id="kosugexagawa2022"></a>
+## kosugexagawa2022
+
+Haruhisa Kosuge and Keita Xagawa.
+*Probabilistic Hash-and-Sign with Retry in the Quantum Random Oracle Model*.
+IACR Cryptology ePrint Archive Report 2022/1359 (bibliography key `KosugeXagawa2022`). https://eprint.iacr.org/2022/1359 . Checked on 2026-11-24 UTC against the archived 53-page PDF (ModDate 2024-02-08, SHA-256 `60cb3368f368beeaec030cc9446e6fe1d4151106299b3f2984245a9ac6d5e031`): Section 2.3 (p. 10, Figure 4 and Definition 7) defines the preimage-sampling (`PS`) game comparing `x ← I(y)` on uniform `y` (with retry until `x ≠ ⊥` in `Sample_0`) against `x ← SampDom(F)`; Section 4, Theorem 1 (pp. 17–18) proves `INV ⇒ EUF-CMA` for `HaS[T_wpsf, H]`, including the classical-ROM specialization on p. 18 with `(q_ro + 1) Adv^{INV} + Adv^{PS} + q'_sign (q'_sign + q_ro + 1) / |R| + (q_ro + 1)(q'_sign - q_sign) / |R|`; and Appendix B.2, Proposition 3 (p. 36) applies Theorem 1 to original UOV.
+[UOV/HashAndSign.lean](../CslibFrontier/Crypto/Protocols/UOV/HashAndSign.lean) proves finite classical-ROM reductions without retry (`Option Preimage` failure retained so `q'_sign = q_sign`, exact `Salt` collision slack `(q_S * q_H + q_S.choose 2) / |Salt|`, and an unsalted deterministic counterpart with explicit `PS_1` and target-birthday slack); QROM bounds remain unformalized.
+
 <a id="kov17"></a>
 ## kov17
 
@@ -3643,8 +3676,13 @@ Cited for the constant-factor and logarithmic Set Cover inapproximability reduct
 O. B. Lupanov.
 "On Rectifier and Switching-and-Rectifier Schemes" (in Russian).
 *Doklady Akademii Nauk SSSR* 111(6), 1171–1174, 1956.
-Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [5], pp. 1, 3); the Russian original was not inspected.
-Cited by [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) as historical attribution for the rectifier `(m, n)`-circuit model.
+Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [5], pp. 1, 3); the Russian original was not inspected, so no printed page within 1171–1174 is cited (locator not verified).
+English translation, "On rectifier and switching-and-rectifier circuits", hosted by Stasys Jukna: https://web.vu.lt/mif/s.jukna/boolean/lupanov56.pdf (6 pages; its footnote gives the same journal data, and Jukna's note [Lupanov's decomposition lemma](https://web.vu.lt/mif/s.jukna/boolean/Lupanov-decomposition.html) credits the translation to Igor Sergeev).
+Read in that translation on 2026-11-24 UTC (SHA-256 `9ff0b51d926de7f1fb8e86c451a401a390679a68eca84c2b7f6b75f31731068b`): section 2°, the Definition of a rectifier `(p, q)`-circuit with its conditions 1)–3) (no chain between two inputs, between two outputs, or from an output to an input), the rank, and the measures `B_r(A)` and `B_r(p, q)` (PDF pp. 1–2); the unnumbered Lemma `B₂(p, q) ≤ p + q · 2^(q−1)` with its proof (PDF p. 2); Theorem 1, `B₂(pₙ, qₙ) ∼ pₙqₙ / lg₂ pₙ`, with part 1 of its proof, the upper bound (PDF p. 3).
+Theorem 1 as displayed in the translation assumes `pₙ → ∞`, `pₙ ≥ qₙ` and `lg₂ pₙ / qₙ → ∞`; the upper-bound proof needs `qₙ / lg₂ pₙ → ∞`, which is the regime `log n ≪ m ≤ n` of Jukna's note (the note presents the statement as Lemma 1.2 of Jukna's book, bibliography key `Jukna2012`; the book was not inspected), and the library states the bound under that corrected condition.
+[Boolean/Rectifier.lean](../CslibFrontier/Computability/Circuit/Boolean/Rectifier.lean) proves the Lemma (`exists_depth_two`) and the count of the blocked construction (`exists_depth_two_blocked_exact`), and [Boolean/Rectifier/Asymptotic.lean](../CslibFrontier/Computability/Circuit/Boolean/Rectifier/Asymptotic.lean) proves the upper bound of Theorem 1 without `pₙ ≥ qₙ` (`exists_depth_two_asymptotic_upper`, `exists_depth_two_eventually`).
+The witnesses are two-layer circuits over a disjunction signature, which are `(p, q)`-circuits of rank at most two; `B₂` is not defined in the library, and the lower bound and asymptotic equivalence of Theorem 1 are not formalized.
+[Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) cites the paper as historical attribution for its rectifier-graph model, which does not impose conditions 1)–3): its `orDepthComplexity 2` is at most `B₂` and can be smaller, so `orDepthComplexity_two_le_add_mul_two_pow` and `orDepthComplexity_two_asymptotic_upper` are weaker than the Lemma and Theorem 1.
 
 <a id="lynchshvartsman1997"></a>
 ## lynchshvartsman1997
@@ -3889,6 +3927,17 @@ Jayadev Misra, David Gries.
 “Finding Repeated Elements.”
 *Science of Computer Programming* 2(2), 143–152, 1982. https://doi.org/10.1016/0167-6423(82)90012-0 . Bibliographic data from search summaries of the DOI record; the Misra–Gries statements formalized here follow the presentation of [chakrabarti25](#chakrabarti25), Unit 1.
 The journal text was not inspected in this pass.
+
+<a id="mithardnessgroup2026sh"></a>
+## mithardnessgroup2026sh
+
+MIT Hardness Group, Josh Brunner, Erik D. Demaine, Fabian Frei, Timothy Gomez, Markus Hecher, Jeffery Li and Jayson Lynch.
+*ETH is Dead, Long Live SH*. arXiv:2611.02650v2, 16 November 2026.
+[Versioned PDF](https://arxiv.org/pdf/2611.02650v2).
+The independent source review checked §1 and footnotes 1–2 (pp. 1–2) for the decision SH input-size conventions, §2.1, Lemma 2.1 (p. 5) for the decision fixed-width size formulation, and §3, Theorem 3.1 (p. 8) for exponent transfer.
+The library uses occurring variables in `CNF ℕ` and allows polynomial overhead in the native binary encoding length.
+The counting half of Lemma 2.1 is tracked in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457).
+[Independent review](https://github.com/cslib-community/cslib-frontier/pull/8539#pullrequestreview-6055020260).
 
 <a id="mitzenmacherupfal17"></a>
 ## mitzenmacherupfal17
@@ -4228,6 +4277,8 @@ Its width, the length of its terms, is then the book's number of literals.
 The base 2 of `log` comes from the book's List of Notation (p. xvi), not from Proposition 4.9 itself.
 §9.5, p. 264, Corollary 9.25 (`Inf_i^{(ρ)}[f] ≤ Inf_i[f]^{2/(1+ρ)}` for `f : {−1, 1}ⁿ → {−1, 1}`, `0 ≤ ρ ≤ 1` and all `i`), introduced as the generalization of Corollary 9.12 obtained from the `(p, 2)`-Hypercontractivity Theorem; Corollary 9.12 (recorded on 2026-11-20) is its case `ρ = 1/3`.
 [StableInfluenceBound](../CslibFrontier/Foundations/BooleanAnalysis/StableInfluenceBound.lean) proves Corollary 9.25 as `stableInfluence_signVal_le_influence_rpow`; [KahnKalaiLinial](../CslibFrontier/Foundations/BooleanAnalysis/KahnKalaiLinial.lean) uses the case `ρ = 1/3`, which is not stated separately.
+§9.7, p. 276, Exercise 9.33 (a nonconstant monotone `f` has some `S ≠ ∅` with `f̂(S)² ≥ exp(−O(I[f]/Var[f]))`, with the hint that `|S| ≤ 1` is possible by the KKL Edge-Isoperimetric Theorem of §9.6, p. 267, and Proposition 2.21 of §2.2, p. 48, `Infᵢ[f] = f̂(i)` for monotone `f`).
+[KahnKalaiLinial](../CslibFrontier/Foundations/BooleanAnalysis/KahnKalaiLinial.lean) proves it with `S` a singleton and the constant `10` (`exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone`), from the book-form edge-isoperimetric bound `MaxInf[f] ≥ (9 / Ĩ²) 9^{−Ĩ}` and `(9 / Ĩ²) 9^{−Ĩ} ≥ exp(−5 Ĩ)` for `Ĩ = I[f]/Var[f] > 0`.
 Read on 2026-11-23: §3.5, p. 83, Theorem 3.37 (a concept class whose members have spectra `ε/4`-concentrated on collections of at most `M` sets is learnable using queries with error `ε` in time `poly(M, n, 1/ε)`), and p. 84, Definition 3.39 (the Fourier weight of `f` on the sets whose intersection with `J` is `S`, for `S ⊆ J`) and Proposition 3.40 with its proof (query access to `f` estimates that weight within `ε` except with probability `δ` in time `poly(n, 1/ε) log(1/δ)`, by a Chernoff bound on `O(log(1/δ)/ε²)` samples); §3.6, p. 89, Exercise 3.39 (deduce Theorem 3.37 from the Goldreich–Levin Algorithm).
 [KushilevitzMansour](../CslibFrontier/MachineLearning/UniformLearning/KushilevitzMansour.lean) proves the query and sample step toward Theorem 3.37 for the largest such class, `concentratedClass ι M (ε/4)`: it certifies samples and queries, not running time, which remains open on [#2131](https://github.com/cslib-community/cslib-frontier/issues/2131) since the bucket search has no cap on the number of buckets.
 It goes through the combined error bound on accurate samples rather than through the Goldreich–Levin list guarantee followed by Theorem 3.29, the route of Exercise 3.39.
@@ -4299,6 +4350,18 @@ OpenAI.
 *Exact Derandomization of Logarithmic Space: L = RL = BPL*.
 Preprint, 23 September 2026, not peer reviewed; cited here only for construction provenance.
 Accompanying Lean file at revision `7ef5c0cc5ca4b0e072b7a050fca09ab24bc6fa3a`: https://github.com/openai/math/blob/7ef5c0cc5ca4b0e072b7a050fca09ab24bc6fa3a/lean/OAI/Computability/Logspace/CatalyticComparison.lean .
+
+<a id="openai-metric-ports26"></a>
+## openai-metric-ports26
+
+OpenAI.
+*Circuit Lower Bounds for Hamiltonian Cycle and the Permanent*, Lemma 4.1 and Theorem 4.2, and *Euclidean Geometry in the Asymptotic Spectrum of Tensors*, Definition 11.1.
+AI-authored, unrefereed preprints dated 24 November 2026.
+Bibliography keys `OpenAI2026HamiltonianPermanent` and `OpenAI2026EuclideanSpectrum`.
+The [graph obstruction](../CslibFrontier/Probability/MarkovChain/PortObstruction.lean) smooths a walk by barycentric averaging, realizes it with a finite set of labels and replaces each vertex by a copy of the candidate graph.
+This gives the explicit integer bound `n < (8d)^(2 ⌈7000(1+b)⌉)` on the order of a degree-`d` graph with uniform squared Poincaré constant `b` in a family of complete CAT(0) spaces without ports.
+[Graph amplification](https://github.com/openai/math/blob/3344da59991ed94f9ba711217b29c1d760badfa6/preprints/Circuit-lower-bounds-for-Hamiltonian-cycle-and-the-permanent-November-24-2026/build/entropy.tex#L54-L117).
+[Ports](https://github.com/openai/math/blob/3344da59991ed94f9ba711217b29c1d760badfa6/preprints/Euclidean-geometry-in-the-asymptotic-spectrum-of-tensors-November-24-2026/build/port-graphs.tex#L10-L36).
 
 <a id="openaieth26"></a>
 ## openaieth26
@@ -5330,6 +5393,10 @@ The scaling lemmas cover the abstract vector equations and the fixed-zero-openin
 Re-read on 2026-11-24: Overview, Parameters / Tag, Initial Issuance (Issue Request and Issue Response), Spending (Spend Request and Spend Response, including checks V1–V4 and the per-key, per-context nullifier records) and Proof status, for `AnonymousToken.Conservation`.
 That module proves an original extracted-model credit-conservation reduction step for single-issuer VOLE-ACT: an order-independent accounting bound over request transcripts, an adaptive game bounded by the target EUF-CMA success of `targetForger` plus a target-collision term, and, for `tag = Prod.mk`, a bound on that term by the binding of a keyless commitment scheme.
 The draft states no security game or theorem for this property, and the module claims none for the unextracted protocol.
+Re-read on 2026-11-25 for `AnonymousToken.ACTMQ`: Instantiations / VOLE-ACT-MQ (`#mq-commitment`, `#mq-com`, `#mq-tag`), Spending `(V4)` `< 2^(8*L)` range checks (`#spending`), Security Considerations (`#mq-zero-opening-forgery`), and Proof status (`#proof-status`).
+That module defines the concrete `clawExperiment` and `gCollisionExperiment` games, enforces `(V4)` note range bounds (`NoteInRange`, `actMQConservationExperiment`) so `Set.InjOn actEmbed` instantiates over finite fields, proves structural `G`-collision and zero-opening scaling bounds/obstructions, and keeps all results concrete-game-only.
+Re-read on 2026-11-25: Protocol Specification / Initial Issuance (`IssueRequest`, `IssueResponse`, witness `(nf, r)`, `T_init > 0`), Spending (`SpendRequest`, `SpendResponse`, witness `(t, r, x, s, nf', t', r')`, checks V1–V4 and `2^(8L)` range checks), and Proof status (explicitly leaving the unlinkability reduction to VOLEitH zero-knowledge and commitment hiding open), for `AnonymousToken.Unlinkability`, `AnonymousToken.CRTDecoupling`, and `AnonymousToken.CRTHazard` (with generic `[Field K]` left-kernel lemmas in `CslibFrontier.Foundations.LinearAlgebra.Matrix.LeftKernel`).
+Those modules formalize original finite query-bounded adaptive malicious-issuer unlinkability bounds, concrete unguarded-vs-guarded balance-partitioning counterexamples, non-black-box CRT decoupling, finite-field/`ZMod 2` left-kernel parity leakage, Issue-to-Spend / Spend balance-prefix distinguishers, and witness-order repair.
 Full adaptive extraction, random-oracle realization, privacy, and machine resource certificates remain [#7068](https://github.com/cslib-community/cslib-frontier/issues/7068).
 
 <a id="voleihat26"></a>
@@ -5340,6 +5407,14 @@ Tianyu Zhang and Christopher Patton.
 Read on 2026-11-21: RedeemRelation and Security Considerations.
 The shared certification interface represents the selected issuer and any valid UOV preimage; fixed-budget one-more hardness refers to the independent random-target game of PoMFRIT.
 The extracted single-issuer prefix reduction preserves the signing-call budget; it does not prove the source's issuer-hiding, adaptive extraction, or multi-issuer random-oracle security claim, tracked in [#7068](https://github.com/cslib-community/cslib-frontier/issues/7068).
+
+<a id="volemole26"></a>
+## volemole26
+
+Christopher Patton and Tianyu Zhang.
+*vole-mole: Post-quantum anonymous credentials based on UOV and VOLE-in-the-Head* (`VoleMole2026`), GitHub repository https://github.com/cloudflareresearch/vole-mole at [commit 87af6871f49d29f9613ee893485c50566ca7d620](https://github.com/cloudflareresearch/vole-mole/tree/87af6871f49d29f9613ee893485c50566ca7d620) (2026-11-18).
+Checked firsthand on 2026-11-24: `src/keccak/segmented.hpp` (lines 1–35) instantiates the segmented Keccak-p[800, 12] constraint gadget at `d_zk = 9` (`max(2^3, 3^2) = 9`), `src/act/spend.hpp` specifies `SPEND_WITNESS_BYTES` offsets across lines 92–108 (`ℓ' = 6784`, `C' = 12283`) and invokes `ACT_SPEND_COMBINE_DST` (line 383), `src/dst.hpp` (line 44) defines `ACT_SPEND_COMBINE_DST = make_dst("rata", act::VERSION, 'l', '0')` (trailing ASCII byte `'0'` / `0x30`, also hashed inside the `Combination` constructor for batching `m_uov` constraints in `src/uov/circuit.hpp:63–64`; note `vole-mole`'s other 7-byte tags mostly share trailing `0x30` via distinct penultimate purpose bytes outside the single-trailing-byte model), `src/voleith.hpp` (line 126) extends the FAEST v3 domain-separator convention up to `domain_separator = 4` (`8 + 4 = 12`), and `src/act/issue.hpp:121`, `src/act/spend.hpp:289`, `src/ihat/circuit.hpp:33`, and `src/pomfrit/redeem.hpp:75` instantiate leaf hashing with `faest::leaf_hash::aes_ctr` (`EM128F::leaf_hash_v`).
+[HigherDegreeCheck.lean](../CslibFrontier/Crypto/Protocols/VOLE/HigherDegreeCheck.lean) cites the algebraic parameters and models only single-shot conditional Round-2+3 algebraic checks (it does not formalize full `vole-mole` `ZKHash`/`VOLEHash` or Fiat–Shamir soundness); [PRGLeafSeparation.lean](../CslibFrontier/Crypto/Protocols/VOLE/PRGLeafSeparation.lean) cites the `leaf_hash::aes_ctr` instantiation for why PRG-based leaf commitments do not yield a plain-ROM query-log extractor.
 
 <a id="vonstengel07"></a>
 ## vonstengel07

@@ -190,55 +190,35 @@ private theorem eval_pi_single {m : ℕ} {β : Type} (i₀ : Fin m) (p : ProbCom
   | zero => exact i₀.elim0
   | succ m ih =>
     refine Fin.cases ?_ (fun j₀ => ?_) i₀
-    · have h00 : (if h : (0 : Fin (m + 1)) = 0 then
-          (fun (c : β) (_ : (0 : Fin (m + 1)) = 0) => c) <$> p
-        else
-          pure (fun h' : (0 : Fin (m + 1)) = 0 => (h h').elim)) =
-          (fun (c : β) (_ : (0 : Fin (m + 1)) = 0) => c) <$> p := rfl
-      have hrest : (fun i : Fin m =>
-          if h : (0 : Fin (m + 1)) = i.succ then
-            (fun (c : β) (_ : (0 : Fin (m + 1)) = i.succ) => c) <$> p
-          else
-            pure (fun h' : (0 : Fin (m + 1)) = i.succ => (h h').elim)) =
-          fun i : Fin m =>
-            pure (fun h' : (0 : Fin (m + 1)) = i.succ => (Fin.succ_ne_zero i h'.symm).elim) := by
-        funext i
-        have hne : ¬ ((0 : Fin (m + 1)) = i.succ) := fun h => Fin.succ_ne_zero i h.symm
-        simp [hne]
-      rw [OracleComp.pi_succ, h00, hrest]
+    · have htail : (fun i : Fin m =>
+          if h : (0 : Fin (m + 1)) = i.succ then (fun (c : β) (_ : 0 = i.succ) => c) <$> p
+          else pure (fun h' : 0 = i.succ => (h h').elim)) =
+        fun i : Fin m => pure (fun h' : (0 : Fin (m + 1)) = i.succ =>
+          (Fin.succ_ne_zero i h'.symm).elim) :=
+        funext fun i => dite_eq_right fun h => Fin.succ_ne_zero i h.symm
+      rw [OracleComp.pi_succ, htail, dite_eq_left rfl]
       simp only [pmf_norm, eval_pi_pure]
       refine congrArg (PMF.map · (ProbComp.eval p)) (funext fun c => ?_)
       ext i h
-      refine Fin.cases (fun _ => rfl) (fun j hj => (Fin.succ_ne_zero j hj.symm).elim) i h
+      exact Fin.cases (fun _ => rfl) (fun j hj => (Fin.succ_ne_zero j hj.symm).elim) i h
     · have h0 : ¬ (j₀.succ = (0 : Fin (m + 1))) := Fin.succ_ne_zero j₀
-      have h0_Br : (if h : j₀.succ = (0 : Fin (m + 1)) then
-          (fun (c : β) (_ : j₀.succ = 0) => c) <$> p
-        else
-          pure (fun h' : j₀.succ = 0 => (h h').elim)) =
-          pure (fun h' : j₀.succ = 0 => (h0 h').elim) := by
-        simp [h0]
-      have hrest : (fun i : Fin m =>
-          if h : j₀.succ = i.succ then
-            (fun (c : β) (_ : j₀.succ = i.succ) => c) <$> p
-          else
-            pure (fun h' : j₀.succ = i.succ => (h h').elim)) =
-          fun i : Fin m =>
-            (fun (f : (j₀ = i) → β) (h' : j₀.succ = i.succ) => f (Fin.succ_inj.1 h')) <$>
-              (if h : j₀ = i then
-                (fun (c : β) (_ : j₀ = i) => c) <$> p
-              else
-                pure (fun h' : j₀ = i => (h h').elim)) := by
+      have htail : (fun i : Fin m =>
+          if h : j₀.succ = i.succ then (fun (c : β) (_ : j₀.succ = i.succ) => c) <$> p
+          else pure (fun h' : j₀.succ = i.succ => (h h').elim)) =
+        fun i : Fin m => (fun (f : (j₀ = i) → β) (h' : j₀.succ = i.succ) =>
+          f (Fin.succ_inj.1 h')) <$>
+            (if h : j₀ = i then (fun (c : β) (_ : j₀ = i) => c) <$> p
+              else pure (fun h' : j₀ = i => (h h').elim)) := by
         funext i
         by_cases h : j₀ = i
         · subst h
           simp [Functor.map_map]
-        · have hs : ¬ (j₀.succ = i.succ) := fun hs => h (Fin.succ_inj.1 hs)
-          simp [hs, h]
-      rw [OracleComp.pi_succ, h0_Br, hrest]
+        · simp [h, show ¬ j₀.succ = i.succ from fun hs => h (Fin.succ_inj.1 hs)]
+      rw [OracleComp.pi_succ, dite_eq_right h0, htail]
       simp only [pmf_norm, ProbComp.eval_pi_map, ih j₀]
       refine congrArg (PMF.map · (ProbComp.eval p)) (funext fun c => ?_)
       ext i h
-      refine Fin.cases (fun h0' => (h0 h0').elim) (fun _ _ => rfl) i h
+      exact Fin.cases (fun h0' => (h0 h0').elim) (fun _ _ => rfl) i h
 
 /-! #### Induced sub-coalitions, tuple pushforwards, and subprotocol coin sampling -/
 
@@ -1006,35 +986,22 @@ private theorem bind_restrict_and_sum_pi_uniform {m : ℕ} (coins : ℕ) {β : T
           (ProbComp.eval (ProbComp.uniform (BitString coins))).bind fun s =>
             k rI s := by
   classical
-  have hex : ∃ ℓ : Fin m, ℓ ∉ I := by
-    by_contra h
-    apply hI
-    ext i
-    simp only [Finset.mem_univ, iff_true]
-    by_contra hi
-    exact h ⟨i, hi⟩
-  obtain ⟨ℓ, hℓ⟩ := hex
-  have hstep1 :
-      (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
-          (fun r => k (I.restrict r) (∑ j : Fin m, r j)) =
-      (ProbComp.eval (OracleComp.pi (fun _ : Fin m => ProbComp.uniform (BitString coins)))).bind
-        fun r =>
-          (ProbComp.eval (ProbComp.uniform (BitString coins))).bind fun s =>
-            k (I.restrict r) s := by
-    rw [ProbComp.eval_pi_uniform]
-    conv_lhs => rw [← PMF.uniformOfFintype_update ℓ, PMF.bind_bind]
-    simp only [PMF.bind_map, Function.comp_def, ProbComp.eval_uniform]
-    pmf_swap with r
-    have hsum :
-        ((PMF.uniformOfFintype (BitString coins)).bind fun v =>
-          k (I.restrict (Function.update r ℓ v)) (∑ j : Fin m, Function.update r ℓ v j)) =
-        ((PMF.uniformOfFintype (BitString coins)).map
-          (fun v => ∑ j : Fin m, Function.update r ℓ v j)).bind (k (I.restrict r)) := by
-      simp only [restrict_update_of_notMem hℓ, PMF.bind_map, Function.comp_def]
-    rw [hsum, PMF.uniformOfFintype_map_sum_update r ℓ]
-  rw [hstep1]
-  exact ProbComp.eval_bind_restrict_pi I (fun _ : Fin m => ProbComp.uniform (BitString coins))
-    (fun rI => (ProbComp.eval (ProbComp.uniform (BitString coins))).bind (k rI))
+  obtain ⟨ℓ, hℓ⟩ : ∃ ℓ, ℓ ∉ I := by
+    by_contra! h
+    exact hI (Finset.eq_univ_iff_forall.mpr h)
+  refine Eq.trans ?_ (ProbComp.eval_bind_restrict_pi I
+    (fun _ : Fin m => ProbComp.uniform (BitString coins))
+    (fun rI => (ProbComp.eval (ProbComp.uniform (BitString coins))).bind (k rI)))
+  rw [ProbComp.eval_pi_uniform]
+  conv_lhs => rw [← PMF.uniformOfFintype_update ℓ, PMF.bind_bind]
+  simp only [PMF.bind_map, Function.comp_def, ProbComp.eval_uniform]
+  pmf_swap with r
+  simp only [show ∀ v, k (I.restrict (Function.update r ℓ v)) (∑ j, Function.update r ℓ v j) =
+      k (I.restrict r) (∑ j, Function.update r ℓ v j) from
+    fun v => by rw [restrict_update_of_notMem hℓ]]
+  rw [show (fun v => k (I.restrict r) (∑ j, Function.update r ℓ v j)) =
+      k (I.restrict r) ∘ fun v => ∑ j, Function.update r ℓ v j from rfl,
+    ← PMF.bind_map, PMF.uniformOfFintype_map_sum_update r ℓ]
 
 /-- Proposition 7.3.4 (Goldreich Section 7.3.1, pp. 639–640) combined with the composition theorem
 (Section 7.3.1 Application, pp. 638–639, Eq. 7.19) and Section 7.5.2.4 Eq. 7.48 (p. 707):
@@ -1190,12 +1157,8 @@ private theorem eval_sumBlocksCircuit (m coins : ℕ) (r : Fin m → BitString c
           (fun i : Fin m => r i.castSucc) := by
       funext idx
       obtain ⟨⟨i, c⟩, rfl⟩ := finProdFinEquiv.surjective idx
-      have hcast :
-          Fin.castLE (Nat.mul_le_mul_right coins (Nat.le_succ m)) (finProdFinEquiv (i, c)) =
-            finProdFinEquiv (i.castSucc, c) := by
-        ext
-        rfl
-      simp [Function.comp_apply, hcast]
+      simp [Function.comp_apply, show Fin.castLE (Nat.mul_le_mul_right coins (Nat.le_succ m))
+        (finProdFinEquiv (i, c)) = finProdFinEquiv (i.castSucc, c) from Fin.ext rfl]
     have hlast :
         ((Cslib.BitString.blocksEquiv (α := Bool) (m := m + 1) (k := coins)).symm r ∘
           fun c => finProdFinEquiv (Fin.last m, c)) =
@@ -1355,27 +1318,13 @@ theorem perfectSemiHonestPrivateProper_gmwOT14Randomized (m coins n k : ℕ) [Ne
               ((Cslib.BitString.blocksEquiv (α := Bool) (m := m) (k := n)).symm x) r)) i))
       (gmwOT14RandomizedSim m coins n k C) := by
   apply perfectSemiHonestPrivate_randomizedWrapper
-  have hmap :=
-    (perfectSemiHonestPrivate_gmwOT14 m (n + coins) k
+  convert (perfectSemiHonestPrivate_gmwOT14 m (n + coins) k
       (C.comp (xorPreludeCircuit m n coins))).mapInput
-      (enc := fun _ (xr : BitString n × BitString coins) => Fin.append xr.1 xr.2)
-  have hfunc :
-      (fun xr : Fin m → BitString n × BitString coins =>
-        Functionality.ofDeterministic
-          (circuitFunctionality m (n + coins) k (C.comp (xorPreludeCircuit m n coins)))
-          (fun i => Fin.append (xr i).1 (xr i).2)) =
-      Functionality.ofDeterministic
-        (detOfRandomized coins (fun r x i =>
-          Cslib.BitString.block
-            (C.eval Boolean.interpretation
-              (Fin.append
-                ((Cslib.BitString.blocksEquiv (α := Bool) (m := m) (k := n)).symm x) r)) i)) := by
-    funext xr
-    dsimp [Functionality.ofDeterministic, detOfRandomized]
-    congr 1 with i : 1
-    dsimp [circuitFunctionality]
-    rw [Circuit.eval_comp, eval_xorPreludeCircuit]
-  rw [← hfunc]
-  exact hmap
+    (enc := fun _ (xr : BitString n × BitString coins) => Fin.append xr.1 xr.2) using 1
+  funext xr
+  dsimp [Functionality.ofDeterministic, detOfRandomized]
+  congr 1 with i : 1
+  dsimp [circuitFunctionality]
+  rw [Circuit.eval_comp, eval_xorPreludeCircuit]
 
 end Cslib.Crypto.Protocols.MPC

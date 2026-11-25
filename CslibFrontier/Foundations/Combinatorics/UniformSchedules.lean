@@ -82,12 +82,10 @@ theorem expect_schedule_apply_apply (i j : A) (hji : j ≠ i) (f : L → L → �
     (𝔼 a : A → L, f (a i) (a j)) =
         𝔼 p : L × ({k : A // k ≠ i} → L), f p.1 (p.2 ⟨j, hji⟩) :=
       Fintype.expect_equiv (Equiv.funSplitAt i L) _ _ (fun _ => rfl)
-    _ = 𝔼 x : L, 𝔼 a : ({k : A // k ≠ i} → L), f x (a ⟨j, hji⟩) :=
-      expect_prod _
-    _ = 𝔼 x, 𝔼 y, f x y := by
-      apply Finset.expect_congr rfl
-      intro x _
-      exact expect_schedule_apply (A := {k : A // k ≠ i}) (L := L) ⟨j, hji⟩ (f x)
+    _ = 𝔼 x : L, 𝔼 a : ({k : A // k ≠ i} → L), f x (a ⟨j, hji⟩) := expect_prod _
+    _ = 𝔼 x, 𝔼 y, f x y :=
+      Finset.expect_congr rfl fun x _ =>
+        expect_schedule_apply (A := {k : A // k ≠ i}) (L := L) ⟨j, hji⟩ (f x)
 
 /-- Exact collision average, retaining the diagonal case separately. -/
 theorem expect_schedule_collision [DecidableEq L] (i j : A) :
@@ -108,11 +106,9 @@ theorem expect_potential [DecidableEq L] :
   have hrow (i : A) :
       (∑ j : A, if i = j then (1 : ℚ) else 1 / (Fintype.card L : ℚ)) =
         (Fintype.card A : ℚ) / Fintype.card L + 1 - 1 / (Fintype.card L : ℚ) := by
-    have hite (j : A) : (if i = j then (1 : ℚ) else 1 / (Fintype.card L : ℚ)) =
-        1 / (Fintype.card L : ℚ) +
-          if i = j then (1 - 1 / (Fintype.card L : ℚ)) else 0 := by
-      split_ifs <;> ring
-    simp_rw [hite]
+    simp_rw [show ∀ j : A, (if i = j then (1 : ℚ) else 1 / (Fintype.card L : ℚ)) =
+      1 / (Fintype.card L : ℚ) + if i = j then 1 - 1 / (Fintype.card L : ℚ) else 0
+      from fun _ => by split_ifs <;> ring]
     simp only [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ,
       nsmul_eq_mul, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
     ring
@@ -132,13 +128,12 @@ theorem expect_group_potential {T V G : Type*} [Fintype T] [DecidableEq T]
     (𝔼 a : V → T → G, ∑ t, potential (fun v => a v t)) =
         𝔼 a : T → V → G, ∑ t, potential (a t) :=
       Fintype.expect_equiv (Equiv.piComm (fun _ : V => fun _ : T => G)) _ _ (fun _ => rfl)
-    _ = ∑ t : T, 𝔼 a : T → V → G, potential (a t) :=
-      Finset.expect_sum_comm _ _ _
-    _ = ∑ _ : T, (Fintype.card V : ℚ) * (1 - 1 / (Fintype.card G : ℚ)) := by
-      apply Finset.sum_congr rfl
-      intro t _
-      rw [expect_schedule_apply t potential, expect_potential]
-    _ = _ := by simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]; ring
+    _ = ∑ t : T, 𝔼 a : T → V → G, potential (a t) := Finset.expect_sum_comm _ _ _
+    _ = ∑ _ : T, (Fintype.card V : ℚ) * (1 - 1 / (Fintype.card G : ℚ)) :=
+      Finset.sum_congr rfl fun t _ => (expect_schedule_apply t potential).trans expect_potential
+    _ = _ := by
+      simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+      ring
 
 /-- Exact average collision probability for two incidence labels. Only variable labels and
 factor labels are independently enumerated; incidences sharing either endpoint stay correlated. -/
@@ -153,10 +148,8 @@ theorem expect_incidence_collision {V F : Type*} [Fintype V] [DecidableEq V]
         (if a v = a v' then (1 : ℚ) else 0) *
           (if f = f' then 1 else 1 / (Fintype.card L : ℚ)) := by
     by_cases h : a v = a v'
-    · simp only [Prod.mk.injEq, h, true_and, ↓reduceIte, one_mul]
-      exact expect_schedule_collision f f'
-    · simp only [Prod.mk.injEq, h, false_and, ↓reduceIte, zero_mul,
-        Finset.expect_const_zero]
+    · simpa [h] using expect_schedule_collision f f'
+    · simp [h, Finset.expect_const_zero]
   simp_rw [hd]
   rw [← Finset.expect_mul, expect_schedule_collision]
 
@@ -166,9 +159,8 @@ theorem expect_group_potential_le {T V G : Type*} [Fintype T] [DecidableEq T]
     (𝔼 a : V → T → G, ∑ t, potential (fun v => a v t)) ≤
       (Fintype.card T : ℚ) * Fintype.card V := by
   rw [expect_group_potential]
-  have hG : (0 : ℚ) ≤ 1 / (Fintype.card G : ℚ) := by positivity
-  have hTV : (0 : ℚ) ≤ (Fintype.card T : ℚ) * Fintype.card V := by positivity
-  nlinarith
+  nlinarith [show (0 : ℚ) ≤ 1 / (Fintype.card G : ℚ) by positivity,
+    show (0 : ℚ) ≤ (Fintype.card T : ℚ) * Fintype.card V by positivity]
 
 /-- The incidence label map `u_e = (a (varOf e), d (factorOf e))` assigning each incidence `e : A`
 the pair of schedules of its variable `varOf e` and its factor `factorOf e` (Section 4.4, p. 30). -/
@@ -199,17 +191,11 @@ private theorem incidence_pair_excess_le {A V F L : Type*} [Fintype L] [Nonempty
       1 / (Fintype.card (L × L) : ℚ) ≤
       (if varOf e' = varOf e then (1 : ℚ) else 0) +
         (if factorOf e' = factorOf e then (1 : ℚ) else 0) := by
-  have hcard_pos : 0 < Fintype.card L := Fintype.card_pos
-  have hcard_ge_one : (1 : ℚ) ≤ Fintype.card L := by exact_mod_cast hcard_pos
-  have hp_nonneg : (0 : ℚ) ≤ 1 / (Fintype.card L : ℚ) := by positivity
-  have hp_le_one : 1 / (Fintype.card L : ℚ) ≤ 1 := div_le_one_of_le₀ hcard_ge_one (by positivity)
-  have hprod :
-      1 / (Fintype.card (L × L) : ℚ) =
-        (1 / (Fintype.card L : ℚ)) * (1 / (Fintype.card L : ℚ)) := by
-    rw [Fintype.card_prod, Nat.cast_mul, one_div_mul_one_div]
-  rw [hprod]
+  have hp_le_one : 1 / (Fintype.card L : ℚ) ≤ 1 :=
+    div_le_one_of_le₀ (by exact_mod_cast Fintype.card_pos) (by positivity)
+  rw [Fintype.card_prod, Nat.cast_mul, ← one_div_mul_one_div]
   simp only [@eq_comm V (varOf e) (varOf e'), @eq_comm F (factorOf e) (factorOf e')]
-  split_ifs <;> nlinarith
+  split_ifs <;> nlinarith [show (0 : ℚ) ≤ 1 / (Fintype.card L : ℚ) by positivity]
 
 omit [DecidableEq A] in
 /-- **Lemma 4.5 expected incidence potential bound (p. 31)**: when each variable occurs in at
@@ -225,47 +211,18 @@ theorem expect_incidence_potential_le {V F : Type*} [Fintype V] [DecidableEq V]
   simp_rw [potential_eq_collisions_sub]
   simp only [Finset.expect_sub_distrib, Fintype.expect_const]
   simp_rw [Finset.expect_sum_comm, expect_incidenceLabel_collision]
-  have hconst :
-      (Fintype.card A : ℚ) ^ 2 / Fintype.card (L × L) =
-        ∑ _e : A, ∑ _e' : A, (1 / (Fintype.card (L × L) : ℚ)) := by
-    simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-    ring
-  rw [hconst, ← Finset.sum_sub_distrib]
-  have hrow :
-      ∀ e : A,
-        (∑ e' : A,
-            ((if varOf e' = varOf e then (1 : ℚ) else 0) +
-              (if factorOf e' = factorOf e then (1 : ℚ) else 0))) ≤
-          (b : ℚ) + w := by
-    intro e
-    rw [Finset.sum_add_distrib]
-    have hb_e :
-        (∑ e' : A, if varOf e' = varOf e then (1 : ℚ) else 0) ≤ b := by
-      rw [← Finset.sum_filter]
-      simp only [Finset.sum_const, nsmul_eq_mul, mul_one]
-      exact_mod_cast hb e
-    have hw_e :
-        (∑ e' : A, if factorOf e' = factorOf e then (1 : ℚ) else 0) ≤ w := by
-      rw [← Finset.sum_filter]
-      simp only [Finset.sum_const, nsmul_eq_mul, mul_one]
-      exact_mod_cast hw e
-    linarith
-  calc
-    (∑ e : A,
-        ((∑ e' : A,
-            (if varOf e = varOf e' then 1 else 1 / (Fintype.card L : ℚ)) *
-              (if factorOf e = factorOf e' then 1 else 1 / (Fintype.card L : ℚ))) -
-          ∑ _e' : A, (1 / (Fintype.card (L × L) : ℚ)))) ≤
-      ∑ e : A,
-        ∑ e' : A,
-          ((if varOf e' = varOf e then (1 : ℚ) else 0) +
-            (if factorOf e' = factorOf e then (1 : ℚ) else 0)) := by
-      refine Finset.sum_le_sum fun e _ => ?_
-      rw [← Finset.sum_sub_distrib]
-      exact Finset.sum_le_sum fun e' _ => incidence_pair_excess_le varOf factorOf e e'
-    _ ≤ ∑ _e : A, ((b : ℚ) + w) := Finset.sum_le_sum fun e _ => hrow e
-    _ = (Fintype.card A : ℚ) * (b + w) := by
+  rw [show (Fintype.card A : ℚ) ^ 2 / Fintype.card (L × L) =
+      ∑ _ : A, ∑ _ : A, (1 / (Fintype.card (L × L) : ℚ)) by
       simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+      ring,
+    ← Finset.sum_sub_distrib]
+  refine (Finset.sum_le_sum (g := fun _ => (b : ℚ) + w) fun e _ => ?_).trans_eq
+    (by simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul])
+  rw [← Finset.sum_sub_distrib]
+  refine (Finset.sum_le_sum fun e' _ => incidence_pair_excess_le varOf factorOf e e').trans ?_
+  rw [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_filter]
+  simp only [Finset.sum_const, nsmul_eq_mul, mul_one]
+  exact add_le_add (by exact_mod_cast hb e) (by exact_mod_cast hw e)
 
 /-- Any rational function on a nonempty finite type attains a value at most its uniform average. -/
 theorem exists_le_expect {Ω : Type*} [Fintype Ω] [Nonempty Ω] (f : Ω → ℚ) :
@@ -279,18 +236,9 @@ theorem exists_coord_expect_le (i : A) (f : (A → L) → ℚ) :
     ∃ x : L,
       (𝔼 a' : ({j : A // j ≠ i} → L), f ((Equiv.funSplitAt i L).symm (x, a'))) ≤
         𝔼 a : A → L, f a := by
-  have heq :
-      (𝔼 a : A → L, f a) =
-        𝔼 x : L, 𝔼 a' : ({j : A // j ≠ i} → L), f ((Equiv.funSplitAt i L).symm (x, a')) := by
-    calc
-      (𝔼 a : A → L, f a) =
-          𝔼 p : L × ({j : A // j ≠ i} → L), f ((Equiv.funSplitAt i L).symm p) :=
-        Fintype.expect_equiv (Equiv.funSplitAt i L) _ _ fun a =>
-          congrArg f ((Equiv.funSplitAt i L).symm_apply_apply a).symm
-      _ = 𝔼 x : L, 𝔼 a' : ({j : A // j ≠ i} → L),
-          f ((Equiv.funSplitAt i L).symm (x, a')) :=
-        expect_prod _
-  rw [heq]
+  rw [Fintype.expect_equiv (Equiv.funSplitAt i L) _
+    (fun p => f ((Equiv.funSplitAt i L).symm p))
+    (fun a => congrArg f ((Equiv.funSplitAt i L).symm_apply_apply a).symm), expect_prod]
   exact exists_le_expect _
 
 omit [DecidableEq A] in
@@ -358,46 +306,30 @@ theorem exists_balanced_schedules {T V F G : Type*}
       (∀ t : T, ∀ g : G,
         occupancy (fun v => a v t) g * Fintype.card G ≤ 2 * Fintype.card V) := by
   cases nonempty_fintype F
-  have hT : 0 < Fintype.card T := Fintype.card_pos
-  have hV : 0 < Fintype.card V := Fintype.card_pos
-  have hA : 0 < Fintype.card A := by
-    have hpos : 0 < 2 * (b + w) * Fintype.card ((T → G) × (T → G)) ^ 2 := by positivity
-    exact hpos.trans_le hincidenceSize
-  have hx : (0 : ℚ) < (Fintype.card A : ℚ) * (b + w : ℕ) := by positivity
-  have hy : (0 : ℚ) < (Fintype.card T : ℚ) * Fintype.card V := by positivity
+  have hA : 0 < Fintype.card A :=
+    (show 0 < 2 * (b + w) * Fintype.card ((T → G) × (T → G)) ^ 2 by positivity).trans_le
+      hincidenceSize
   let obj (p : (V → T → G) × (F → T → G)) : ℚ :=
     potential (incidenceLabel varOf factorOf p.1 p.2) / ((Fintype.card A : ℚ) * (b + w : ℕ)) +
       (∑ t : T, potential (fun v => p.1 v t)) / ((Fintype.card T : ℚ) * Fintype.card V)
   obtain ⟨⟨a, d₀⟩, hle⟩ := exists_le_expect obj
-  have hexp_le : (𝔼 p : (V → T → G) × (F → T → G), obj p) ≤ 2 := by
+  have hpot : obj (a, d₀) ≤ 2 := hle.trans <| by
     rw [expect_prod]
     simp only [obj, Finset.expect_add_distrib, Fintype.expect_const]
-    have h1 :
-        (𝔼 a' : V → T → G,
-            𝔼 d' : F → T → G,
-              potential (incidenceLabel varOf factorOf a' d') /
-                ((Fintype.card A : ℚ) * (b + w : ℕ))) ≤ 1 := by
-      simp_rw [div_eq_mul_inv, ← Finset.expect_mul, ← div_eq_mul_inv]
-      rw [div_le_one hx]
+    refine (add_le_add (b := 1) (d := 1) ?_ ?_).trans_eq (by norm_num)
+    · simp_rw [div_eq_mul_inv, ← Finset.expect_mul, ← div_eq_mul_inv]
+      rw [div_le_one (by positivity)]
       simpa only [Nat.cast_add] using expect_incidence_potential_le varOf factorOf hb hw
-    have h2 :
-        (𝔼 a' : V → T → G,
-            (∑ t : T, potential (fun v => a' v t)) /
-              ((Fintype.card T : ℚ) * Fintype.card V)) ≤ 1 := by
-      simp_rw [div_eq_mul_inv, ← Finset.expect_mul, ← div_eq_mul_inv]
-      rw [div_le_one hy]
+    · simp_rw [div_eq_mul_inv, ← Finset.expect_mul, ← div_eq_mul_inv]
+      rw [div_le_one (by positivity)]
       exact expect_group_potential_le
-    linarith
-  have hpot : obj (a, d₀) ≤ 2 := hle.trans hexp_le
-  have hbounds :=
-    incidence_and_group_bounds
-      (incidenceLabel varOf factorOf a d₀) (fun t v => a v t) (b + w)
-      hA hbw hT hV hincidenceSize hgroupSize hpot
-  refine ⟨a, normalizeEmptyFactors factorOf g₀ d₀, ?_, ?_, hbounds.2⟩
-  · intro f hf
-    exact normalizeEmptyFactors_of_not_exists factorOf g₀ d₀ hf
-  · rw [incidenceLabel_normalizeEmptyFactors]
-    exact hbounds.1
+  have hbounds := incidence_and_group_bounds
+    (incidenceLabel varOf factorOf a d₀) (fun t v => a v t) (b + w)
+    hA hbw Fintype.card_pos Fintype.card_pos hincidenceSize hgroupSize hpot
+  refine ⟨a, normalizeEmptyFactors factorOf g₀ d₀,
+    fun _ => normalizeEmptyFactors_of_not_exists factorOf g₀ d₀, ?_, hbounds.2⟩
+  rw [incidenceLabel_normalizeEmptyFactors]
+  exact hbounds.1
 
 /-! ### Explicit factor-scope incidence type `A = {(f, v) : f ∈ F, v ∈ I_f}` (eq. 4.1, p. 26) -/
 
@@ -427,18 +359,12 @@ theorem card_filter_scopeFactorOf_eq {F V : Type*} [Fintype F] [DecidableEq F]
     #{e' : ScopeIncidence scope | scopeFactorOf scope e' = scopeFactorOf scope e} =
       #(scope (scopeFactorOf scope e)) := by
   symm
-  refine Finset.card_bij (fun v hv => ⟨scopeFactorOf scope e, ⟨v, hv⟩⟩) ?_ ?_ ?_
-  · intro v hv
-    rw [mem_filter]
-    exact ⟨mem_univ _, rfl⟩
-  · intro v₁ _ v₂ _ hEq
-    cases hEq
-    rfl
-  · rintro ⟨f', v', hv'⟩ he'
-    rw [mem_filter] at he'
-    have hf' : f' = scopeFactorOf scope e := he'.2
-    subst hf'
-    exact ⟨v', hv', rfl⟩
+  refine Finset.card_bij (fun v hv => ⟨scopeFactorOf scope e, ⟨v, hv⟩⟩)
+    (fun _ _ => mem_filter.2 ⟨mem_univ _, rfl⟩)
+    (fun _ _ _ _ h => by cases h; rfl) ?_
+  rintro ⟨f', v', hv'⟩ he'
+  obtain rfl : f' = scopeFactorOf scope e := (mem_filter.1 he').2
+  exact ⟨v', hv', rfl⟩
 
 /-- For each `e : ScopeIncidence scope`, the number of incidences sharing variable
 `scopeVarOf scope e` equals `#{f : F | scopeVarOf scope e ∈ scope f}`. -/
@@ -446,24 +372,15 @@ theorem card_filter_scopeVarOf_eq {F V : Type*} [Fintype F] [DecidableEq V]
     (scope : F → Finset V) (e : ScopeIncidence scope) :
     #{e' : ScopeIncidence scope | scopeVarOf scope e' = scopeVarOf scope e} =
       #{f : F | scopeVarOf scope e ∈ scope f} := by
-  refine Finset.card_bij (fun e' _ => e'.1) ?_ ?_ ?_
-  · rintro ⟨f, v, hv⟩ he'
-    rw [mem_filter] at he' ⊢
-    refine ⟨mem_univ _, ?_⟩
-    have hv_eq : v = scopeVarOf scope e := he'.2
-    rwa [← hv_eq]
-  · rintro ⟨f₁, v₁, hv₁⟩ h₁ ⟨f₂, v₂, hv₂⟩ h₂ hEq
-    rw [mem_filter] at h₁ h₂
-    dsimp only at hEq
-    subst hEq
-    have hv_eq : v₁ = v₂ := h₁.2.trans h₂.2.symm
-    subst hv_eq
-    rfl
-  · intro f hf
-    rw [mem_filter] at hf
-    refine ⟨⟨f, ⟨scopeVarOf scope e, hf.2⟩⟩, ?_, rfl⟩
-    rw [mem_filter]
-    exact ⟨mem_univ _, rfl⟩
+  refine Finset.card_bij (fun e' _ => e'.1)
+    (fun ⟨_, _, hv⟩ he' => mem_filter.2 ⟨mem_univ _, (mem_filter.1 he').2 ▸ hv⟩) ?_
+    fun f hf => ⟨⟨f, ⟨scopeVarOf scope e, (mem_filter.1 hf).2⟩⟩,
+      mem_filter.2 ⟨mem_univ _, rfl⟩, rfl⟩
+  rintro ⟨f₁, v₁, hv₁⟩ h₁ ⟨_, v₂, _⟩ h₂ hEq
+  dsimp only at hEq
+  subst hEq
+  obtain rfl : v₁ = v₂ := (mem_filter.1 h₁).2.trans (mem_filter.1 h₂).2.symm
+  rfl
 
 /-- A factor `f : F` has an incidence in `ScopeIncidence scope` iff `scope f` is nonempty. -/
 theorem exists_scopeFactorOf_eq_iff {F V : Type*} (scope : F → Finset V) (f : F) :

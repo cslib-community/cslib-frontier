@@ -55,15 +55,6 @@ private def localCode (v : Vert U C R)
     (e : Edge C R ⊕ Diagram.Replacement.Inner (cell N A v).openSim) : ℕ :=
   code N A order budget (Sum.map id (fun i => (⟨v, i⟩ : Private N A)) e)
 
-private theorem boundaryName (v : Vert U C R)
-    (x : Fin (cell N A v).top.length ⊕ Fin (cell N A v).bottom.length) :
-    (context N A order budget v).boundaryNames.getD (finSumFinEquiv x).val 0 =
-      code N A order budget (.inl (port N A v x)) := by
-  have hi : (finSumFinEquiv x).val < (context N A order budget v).boundaryNames.length := by
-    simpa only [context, List.length_ofFn] using (finSumFinEquiv x).isLt
-  rw [List.getD_eq_getElem _ _ hi]
-  simp only [context, List.getElem_ofFn, finSumFinEquiv.symm_apply_apply]
-
 /-- Resolving a portable reference gives the original cell wire's actual sparse address. -/
 private theorem resolve_wireRef (v : Vert U C R) (e : (cell N A v).diagram.Edge) :
     WireRef.resolve (context N A order budget v) ((cell N A v).wireRef e) =
@@ -71,19 +62,16 @@ private theorem resolve_wireRef (v : Vert U C R) (e : (cell N A v).diagram.Edge)
         (Diagram.Replacement.label (cell N A v).openSim (port N A v) e) := by
   classical
   let S := (cell N A v).openSim
+  unfold Cell.wireRef
   by_cases he : e ∈ Set.range S.ι
   · obtain ⟨x, rfl⟩ := he
-    unfold Cell.wireRef
     rw [Diagram.Replacement.label_ι, Diagram.Replacement.label_ι]
     change (context N A order budget v).boundaryNames.getD (finSumFinEquiv x).val 0 = _
-    exact boundaryName N A order budget v x
-  · have hleft := Diagram.Replacement.label_private S
-      (fun x => (finSumFinEquiv x).val) ⟨e, he⟩
-    have hright := Diagram.Replacement.label_private S (port N A v) ⟨e, he⟩
-    unfold Cell.wireRef
-    rw [hleft, hright]
-    change (budget * (order v).val + 2) + (cell N A v).diagram.num e =
-      budget * (order v).val + (2 + (cell N A v).diagram.num e)
+    rw [List.getD_eq_getElem _ _
+      (by simpa only [context, List.length_ofFn] using (finSumFinEquiv x).isLt)]
+    simp only [context, List.getElem_ofFn, finSumFinEquiv.symm_apply_apply]; rfl
+  · rw [Diagram.Replacement.label_private S (fun x => (finSumFinEquiv x).val) ⟨e, he⟩,
+      Diagram.Replacement.label_private S (port N A v) ⟨e, he⟩]
     exact Nat.add_assoc _ _ _
 
 private theorem map_reorient {E F : Type*} (v : Vertex E) (f : E → F)
@@ -117,23 +105,18 @@ private theorem instantiate_template
         ((w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v))).reorient
           (Sum.elim (polarity N A v) (fun _ => false))).map (localCode N A order budget v)) := by
   simp only [Template.instantiate, Cell.template, List.map_map]
-  apply List.map_congr_left
-  intro w _
+  refine List.map_congr_left fun w _ => ?_
   unfold Template.instantiateVertex
   simp only [Function.comp_def]
-  rw [Vertex.map_map]
-  have hnames : WireRef.resolve (context N A order budget v) ∘ (cell N A v).wireRef =
+  rw [Vertex.map_map, show WireRef.resolve (context N A order budget v) ∘ (cell N A v).wireRef =
       localCode N A order budget v ∘
-        Diagram.Replacement.label (cell N A v).openSim (port N A v) :=
-    funext (resolve_wireRef N A order budget v)
-  rw [hnames]
-  rw [map_reorient
-    (w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v)))
-    (localCode N A order budget v) (Sum.elim (polarity N A v) (fun _ => false))
-    (fun e : ℕ => (context N A order budget v).reverse &&
-      decide (e = (context N A order budget v).anchor))
-    (mask_localCode N A order budget hbudget v)]
-  rw [Vertex.map_map]
+        Diagram.Replacement.label (cell N A v).openSim (port N A v) from
+    funext (resolve_wireRef N A order budget v),
+    map_reorient (w.map (Diagram.Replacement.label (cell N A v).openSim (port N A v)))
+      (localCode N A order budget v) (Sum.elim (polarity N A v) (fun _ => false))
+      (fun e : ℕ => (context N A order budget v).reverse &&
+        decide (e = (context N A order budget v).anchor))
+      (mask_localCode N A order budget hbudget v), Vertex.map_map]
 
 /-- Portable-template vertices emitted in the source-cell order. -/
 @[expose] def rawVertices : List (Vertex ℕ) :=
@@ -146,10 +129,10 @@ private theorem enumerated_vertices {a b : List Color} (D : Diagram Prim a b)
       (D.vertexList Prim.interp).map f := by
   rw [List.map_ofFn]
   simp only [Function.comp_def]
-  have h : (fun i => f (D.graph Prim.interp ((Diagram.vertexEquiv Prim.interp D).symm i))) =
-      (fun i => f ((D.vertexList Prim.interp).get i)) :=
-    funext fun i => congrArg f (get_vertexList Prim.interp D i).symm
-  rw [h, List.ofFn_comp', List.ofFn_get]
+  rw [show (fun i => f (D.graph Prim.interp ((Diagram.vertexEquiv Prim.interp D).symm i))) =
+      fun i => f ((D.vertexList Prim.interp).get i) from
+    funext fun i => congrArg f (get_vertexList Prim.interp D i).symm,
+    List.ofFn_comp', List.ofFn_get]
 
 /-- Complete portable emission is the original standard graph with sparse edge names. -/
 private theorem rawVertices_eq
@@ -174,9 +157,8 @@ end
 private theorem code_private (v : Vert U C R)
     (e : Diagram.Replacement.Inner (cell N A v).openSim) :
     code N A order budget (.inr ⟨v, e⟩) =
-      budget * (order v).val + 2 + (cell N A v).diagram.num e.val := by
-  change budget * (order v).val + (2 + (cell N A v).diagram.num e.val) = _
-  exact (Nat.add_assoc _ _ _).symm
+      budget * (order v).val + 2 + (cell N A v).diagram.num e.val :=
+  (Nat.add_assoc _ _ _).symm
 
 /-- Actual sparse wire names in owner-cell and local creation order. -/
 @[expose] def names : List ℕ :=

@@ -371,8 +371,7 @@ theorem eval_berExpLazyCoin_accepted (threshold : BerExpThreshold) :
             (fun bits => berExpByteOfNat (BitString.binaryValue bits)))).accepted) =
         (BitString.uniformList (8 * 8)).map
           (fun tape => decide (BitString.binaryValue tape < threshold.val)) := by
-    apply PMF.map_congr_on_support
-    intro tape htape
+    refine PMF.map_congr_on_support _ _ _ fun tape htape => ?_
     have htapeLength : tape.length = 64 :=
       BitString.length_of_mem_support_uniformList htape
     rw [berExpLazyTrace_accepted (by simp)]
@@ -408,22 +407,7 @@ theorem eval_berExpLazyCoin_accepted (threshold : BerExpThreshold) :
           (fun value : Fin (2 ^ 64) => decide (value.val < threshold.val)) by rfl,
       Cslib.Probability.uniformFin_decide_lt, Nat.min_eq_right threshold.isLt.le]
     norm_num
-  apply PMF.ext
-  intro result
-  cases result with
-  | true => exact htrue.trans (eval_berExpThresholdCoin_true threshold).symm
-  | false =>
-      ennreal_to_real
-      calc
-        (((BitString.uniformList (8 * 8)).map
-          (fun tape => decide (BitString.binaryValue tape < threshold.val))) false).toReal =
-            1 - (((BitString.uniformList (8 * 8)).map
-              (fun tape => decide (BitString.binaryValue tape < threshold.val))) true).toReal :=
-          PMF.toReal_false_eq_one_sub _
-        _ = 1 - (ProbComp.eval (berExpThresholdCoin threshold) true).toReal := by
-          rw [htrue, eval_berExpThresholdCoin_true]
-        _ = (ProbComp.eval (berExpThresholdCoin threshold) false).toReal :=
-          (PMF.toReal_false_eq_one_sub _).symm
+  exact PMF.ext_bool (htrue.trans (eval_berExpThresholdCoin_true threshold).symm)
 
 /-- The lazy comparison accepts with the same exact mass `z / 2^64`. -/
 theorem eval_berExpLazyCoin_accepted_true (threshold : BerExpThreshold) :
@@ -520,18 +504,8 @@ private theorem eval_berExpLazyBytes_bytesRead_gt_one (first second : Byte)
     (fun sample =>
       (ProbComp.eval (OracleComp.replicate (thresholds.length + 1) berExpLazyByte)).map
         (fun samples => decide ((sample :: samples).headD 0 = first)))
-    (fun sample => PMF.pure (decide (sample = first))) (fun sample _hsample => by
-      calc
-        (ProbComp.eval
-            (OracleComp.replicate (thresholds.length + 1) berExpLazyByte)).map
-              (fun samples => decide ((sample :: samples).headD 0 = first)) =
-            (ProbComp.eval
-              (OracleComp.replicate (thresholds.length + 1) berExpLazyByte)).map
-                (fun _samples => decide (sample = first)) := by
-          apply PMF.map_congr_on_support
-          intro samples _hsamples
-          exact decide_eq_decide.mpr (by simp)
-        _ = PMF.pure (decide (sample = first)) := PMF.map_const _ _)
+    (fun sample => PMF.pure (decide (sample = first))) fun sample _ =>
+      (PMF.map_congr_on_support _ _ _ fun _ _ => by simp).trans (PMF.map_const _ _)
   rw [hbind, Probability.PMF.bind_pure_decide_eq_apply_true',
     eval_berExpLazyByte, PMF.uniformOfFintype_apply]
   norm_num

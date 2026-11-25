@@ -98,13 +98,10 @@ theorem support_dilateRoute (k : ℕ) (r : Route) :
 /-- Proper axis alignment is invariant under positive integer dilation. -/
 theorem axisAligned_nsmul_iff {k : ℕ} (hk : k ≠ 0) (a b : Point) :
     AxisAligned (k • a) (k • b) ↔ AxisAligned a b := by
-  have hk' : (k : ℤ) ≠ 0 := Nat.cast_ne_zero.mpr hk
-  have hm (x y : ℤ) : (k : ℤ) * x = (k : ℤ) * y ↔ x = y :=
-    ⟨mul_left_cancel₀ hk', congrArg _⟩
   rcases a with ⟨ax, ay⟩
   rcases b with ⟨bx, by'⟩
-  simp only [AxisAligned, Prod.smul_mk, Int.nsmul_eq_mul, hm,
-    Prod.mk.injEq, ne_eq]
+  simp only [AxisAligned, Prod.smul_mk, Int.nsmul_eq_mul,
+    mul_right_inj' (Nat.cast_ne_zero.mpr hk : (k : ℤ) ≠ 0), Prod.mk.injEq, ne_eq]
 
 /-- Proper orthogonality is invariant under positive integer dilation. -/
 theorem isOrthogonal_dilateRoute_iff {k : ℕ} (hk : k ≠ 0) (r : Route) :
@@ -128,20 +125,16 @@ theorem wireLength_dilateRoute (k : ℕ) (r : Route) :
 /-- Endpoint-only segment contacts are invariant under positive integer dilation. -/
 theorem endpointContacts_nsmul_iff {k : ℕ} (hk : k ≠ 0) (a b c d : Point) :
     EndpointContacts (k • a) (k • b) (k • c) (k • d) ↔ EndpointContacts a b c d := by
-  constructor
-  · intro h p hp hq
-    have hh := h ((k : ℝ) • p) ((mem_segment_nsmul_iff hk a b p).2 hp)
+  have hinj := smul_right_injective (ℝ × ℝ) (Nat.cast_ne_zero.mpr hk : (k : ℝ) ≠ 0)
+  refine ⟨fun h p hp hq => ?_, fun h p hp hq => ?_⟩
+  · have hh := h ((k : ℝ) • p) ((mem_segment_nsmul_iff hk a b p).2 hp)
       ((mem_segment_nsmul_iff hk c d p).2 hq)
-    simp only [realPoint_nsmul] at hh
-    have hinj := smul_right_injective (ℝ × ℝ) (Nat.cast_ne_zero.mpr hk : (k : ℝ) ≠ 0)
-    exact ⟨hh.1.imp (fun h => hinj h) (fun h => hinj h),
-      hh.2.imp (fun h => hinj h) (fun h => hinj h)⟩
-  · intro h p hp hq
-    obtain ⟨q, hqa, rfl⟩ := (segment_nsmul k a b) ▸ hp
-    have hqc := (mem_segment_nsmul_iff hk c d q).1 hq
-    have hh := h q hqa hqc
-    simp only [realPoint_nsmul]
-    exact ⟨hh.1.imp (congrArg _) (congrArg _), hh.2.imp (congrArg _) (congrArg _)⟩
+    simp only [realPoint_nsmul, hinj.eq_iff] at hh
+    exact hh
+  · obtain ⟨q, hqa, rfl⟩ := (segment_nsmul k a b) ▸ hp
+    have hh := h q hqa ((mem_segment_nsmul_iff hk c d q).1 hq)
+    simp only [realPoint_nsmul, hinj.eq_iff]
+    exact hh
 
 /-- Continuous simplicity is invariant under positive integer dilation. -/
 theorem isSimple_dilateRoute_iff {k : ℕ} (hk : k ≠ 0) (r : Route) :

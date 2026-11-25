@@ -102,16 +102,15 @@ def rsaUnblind (N r σ : ℕ) : ℕ := σ * BinaryGcd.modInv r N % N
 theorem rsaEval_rsaUnblind {N e m r σ : ℕ} (hN : 0 < N) (hr : Nat.Coprime r N)
     (hσ : rsaEval N e σ = rsaBlind N e m r) :
     rsaEval N e (rsaUnblind N r σ) = m % N := by
-  have hinv : r * BinaryGcd.modInv r N ≡ 1 [MOD N] := BinaryGcd.mul_modInv_modEq_one hN hr
   have h1 : σ ^ e ≡ m * r ^ e [MOD N] := by
     have : σ ^ e % N = m * (r ^ e % N) % N := hσ
     calc σ ^ e ≡ m * (r ^ e % N) [MOD N] := this
       _ ≡ m * r ^ e [MOD N] := Nat.ModEq.mul_left _ (Nat.mod_modEq _ _)
   have h2 : (σ * BinaryGcd.modInv r N) ^ e ≡ m [MOD N] := by
     calc (σ * BinaryGcd.modInv r N) ^ e = σ ^ e * BinaryGcd.modInv r N ^ e := mul_pow _ _ _
-      _ ≡ m * r ^ e * BinaryGcd.modInv r N ^ e [MOD N] := Nat.ModEq.mul_right _ h1
+      _ ≡ m * r ^ e * BinaryGcd.modInv r N ^ e [MOD N] := h1.mul_right _
       _ = m * (r * BinaryGcd.modInv r N) ^ e := by rw [mul_pow, mul_assoc]
-      _ ≡ m * 1 ^ e [MOD N] := Nat.ModEq.mul_left _ (hinv.pow e)
+      _ ≡ m * 1 ^ e [MOD N] := ((BinaryGcd.mul_modInv_modEq_one hN hr).pow e).mul_left _
       _ = m := by rw [one_pow, mul_one]
   unfold rsaEval rsaUnblind
   rw [← Nat.pow_mod]
@@ -131,18 +130,15 @@ private theorem rsaBlind_eq_iff (desc : RSADesc) {m : ℕ} (hm : m < desc.modulu
     rsaBlind desc.modulus desc.e m r = m ↔
       rsaInvert desc.modulus desc.d m * r ≡ rsaInvert desc.modulus desc.d m [MOD desc.modulus] := by
   have hσ : rsaInvert desc.modulus desc.d m < desc.modulus := Nat.mod_lt _ desc.modulus_pos
-  constructor
-  · intro h
-    have := congrArg (rsaInvert desc.modulus desc.d) h
+  have hlt : rsaBlind desc.modulus desc.e m r < desc.modulus := Nat.mod_lt _ desc.modulus_pos
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have := congrArg (rsaInvert desc.modulus desc.d) h
     rw [rsaInvert_rsaBlind] at this
     exact this.trans (Nat.mod_eq_of_lt hσ).symm
-  · intro h
-    have h1 : rsaInvert desc.modulus desc.d (rsaBlind desc.modulus desc.e m r) =
-        rsaInvert desc.modulus desc.d m := by
-      rw [rsaInvert_rsaBlind]
-      exact h.trans (Nat.mod_eq_of_lt hσ)
+  · have h1 : rsaInvert desc.modulus desc.d (rsaBlind desc.modulus desc.e m r) =
+        rsaInvert desc.modulus desc.d m :=
+      (rsaInvert_rsaBlind desc m r).trans (h.trans (Nat.mod_eq_of_lt hσ))
     have h2 := congrArg (rsaEval desc.modulus desc.e) h1
-    have hlt : rsaBlind desc.modulus desc.e m r < desc.modulus := Nat.mod_lt _ desc.modulus_pos
     rwa [rsaEval_rsaInvert desc hlt, rsaEval_rsaInvert desc hm] at h2
 
 /-- Blinding fixes a unit `m` exactly when `r = 1` modulo `N`. -/
@@ -179,9 +175,9 @@ theorem eval_eufCmaExperiment_unhashedRSAExistentialForger (desc : RSADesc)
       fun _ => unhashedRSAExistentialForger desc.publicKey pick) = PMF.pure true := by
   have h (σ : Fin desc.modulus) : rsaEval desc.modulus desc.e σ =
       rsaEval desc.modulus desc.e σ % desc.modulus := (Nat.mod_mod _ _).symm
-  have hmap : (ProbComp.eval pick).map (fun _ => true) = PMF.pure true := PMF.map_const _ _
   simp [forgeExperiment, ProbOracleComp.runLogWith, unhashedRSAExistentialForger, rsaSignature,
-    freshMessage, ← h, hmap]
+    freshMessage, ← h, show (ProbComp.eval pick).map (fun _ => true) = PMF.pure true from
+      PMF.map_const _ _]
 
 /-! ### Universal forgery with one query (p. 537, equation (13.4)) -/
 
@@ -227,13 +223,10 @@ theorem eval_eufCmaExperiment_unhashedRSAUniversalForger (desc : RSADesc)
     List.map_nil, List.mem_cons, List.not_mem_nil, or_false, pure_bind, ProbComp.eval_map]
   refine PMF.map_congr_on_support _ _ _ fun r hr => ?_
   have hlt : rsaBlind desc.modulus desc.e m r < desc.modulus := Nat.mod_lt _ desc.modulus_pos
-  have hv := rsaEval_rsaUnblind (m := m) desc.modulus_pos (hpick r hr) (rsaEval_rsaInvert desc hlt)
-  have hfresh : m = (⟨rsaBlind desc.modulus desc.e m r, hlt⟩ : Fin desc.modulus) ↔
-      rsaBlind desc.modulus desc.e m r = m := by rw [Fin.ext_iff, eq_comm]
-  have hσ : rsaUnblind desc.modulus r
-      (rsaInvert desc.modulus desc.d (rsaBlind desc.modulus desc.e m r)) < desc.modulus :=
-    Nat.mod_lt _ desc.modulus_pos
-  simp [hσ, hv, hfresh, rsaBlind_eq_iff_of_coprime desc m.isLt hm r]
+  have hu : rsaUnblind desc.modulus r (rsaInvert desc.modulus desc.d
+      (rsaBlind desc.modulus desc.e m r)) < desc.modulus := Nat.mod_lt _ desc.modulus_pos
+  simp [hu, rsaEval_rsaUnblind (m := m) desc.modulus_pos (hpick r hr) (rsaEval_rsaInvert desc hlt),
+    Fin.ext_iff, eq_comm (a := (m : ℕ)), rsaBlind_eq_iff_of_coprime desc m.isLt hm r]
 
 /-- On a message that is not a unit modulo `N`, the forger of p. 537 makes no query and wins
 Attack Game 13.1 with probability `1`. -/
@@ -263,17 +256,11 @@ theorem eval_eufCmaExperiment_unhashedRSAUniversalForger_uniform (desc : RSADesc
     exact ZMod.val_coe_unit_coprime u
   have hfun : ((fun r : ℕ => decide (¬ r ≡ 1 [MOD desc.modulus])) ∘
       fun u : (ZMod desc.modulus)ˣ => (desc.unitResidue u : ℕ)) =
-      (! ·) ∘ fun u => decide (u = 1) := by
-    funext u
-    have h : (desc.unitResidue u : ℕ) ≡ 1 [MOD desc.modulus] ↔ u = 1 := by
-      rw [← ZMod.natCast_eq_natCast_iff]
-      simp [RSADesc.unitResidue]
-    simp [h]
-  have hone : ((PMF.uniformOfFintype (ZMod desc.modulus)ˣ).map fun u => decide (u = 1)) true =
-      (Nat.totient desc.modulus : ENNReal)⁻¹ := by
-    rw [PMF.map_decide_eq_apply_true, PMF.uniformOfFintype_apply, ZMod.card_units_eq_totient]
+      (! ·) ∘ fun u => decide (u = 1) :=
+    funext fun u => by simp [← ZMod.natCast_eq_natCast_iff, RSADesc.unitResidue]
   rw [eval_eufCmaExperiment_unhashedRSAUniversalForger desc hm _ hpick, ProbComp.eval_map,
-    ProbComp.eval_uniform, PMF.map_comp, hfun, ← PMF.map_comp, ← hone]
+    ProbComp.eval_uniform, PMF.map_comp, hfun, ← PMF.map_comp, ← ZMod.card_units_eq_totient,
+    ← PMF.uniformOfFintype_apply (1 : (ZMod desc.modulus)ˣ), ← PMF.map_decide_eq_apply_true]
   simp [PMF.map_apply]
 
 /-- **Unhashed RSA signatures are universally forgeable** ([BonehShoup2023], p. 537): with the
@@ -286,14 +273,11 @@ theorem eval_eufCmaExperiment_unhashedRSAUniversalForger_sub_one (desc : RSADesc
       fun _ => unhashedRSAUniversalForger desc.publicKey m (pure (desc.modulus - 1))) =
       PMF.pure true := by
   by_cases hm : Nat.Coprime m desc.modulus
-  · have hN : 2 * 2 ≤ desc.modulus := Nat.mul_le_mul desc.hp.two_le desc.hq.two_le
-    have hcop : Nat.Coprime (desc.modulus - 1) desc.modulus :=
-      (Nat.coprime_self_sub_left (by omega)).mpr (Nat.coprime_one_left _)
+  · have hN : 4 ≤ desc.modulus := Nat.mul_le_mul desc.hp.two_le desc.hq.two_le
     rw [eval_eufCmaExperiment_unhashedRSAUniversalForger desc hm (pure (desc.modulus - 1))
-      (by simpa using hcop)]
-    have hne : ¬ desc.modulus - 1 ≡ 1 [MOD desc.modulus] := by
-      intro h
-      have := Nat.ModEq.eq_of_lt_of_lt h (by omega) (by omega)
+      (by simpa using (Nat.coprime_self_sub_left (by omega)).mpr (Nat.coprime_one_left _))]
+    have hne : ¬ desc.modulus - 1 ≡ 1 [MOD desc.modulus] := fun h => by
+      have := h.eq_of_lt_of_lt (by omega) (by omega)
       omega
     simp [hne]
   · exact eval_eufCmaExperiment_unhashedRSAUniversalForger_of_not_coprime desc hm _

@@ -12,7 +12,6 @@ public import Mathlib.Data.Finset.Sort
 import CslibFrontier.Foundations.Data.Fin.Order
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Ring
 
 /-!
 # Splitting segments at coordinate levels
@@ -136,21 +135,20 @@ private theorem segmentCuts_adjacent_no_level_real {levels : Finset ℝ} {a b : 
     exact (not_lt_of_ge hbetween.1.le) hbetween.2
   let t := (y - a) / (b - a)
   have ht_eq : t * (b - a) + a = y := by
-    dsimp [t]
-    field_simp [hne]
-    ring
+    dsimp only [t]
+    rw [div_mul_cancel₀ _ hne, sub_add_cancel]
   have ht : α < t ∧ t < β := by
     rcases lt_or_gt_of_ne hne with hneg | hpos
-    · have he : β * (b - a) + a < α * (b - a) + a := by nlinarith
+    · have he : β * (b - a) + a < α * (b - a) + a := by
+        linarith [mul_lt_mul_of_neg_right hαβ hneg]
       rw [min_eq_right he.le, max_eq_left he.le] at hbetween
-      constructor
-      · exact (mul_lt_mul_right_of_neg hneg).mp (by linarith [hbetween.2])
-      · exact (mul_lt_mul_right_of_neg hneg).mp (by linarith [hbetween.1])
-    · have he : α * (b - a) + a < β * (b - a) + a := by nlinarith
+      exact ⟨(mul_lt_mul_right_of_neg hneg).mp (by linarith [hbetween.2]),
+        (mul_lt_mul_right_of_neg hneg).mp (by linarith [hbetween.1])⟩
+    · have he : α * (b - a) + a < β * (b - a) + a := by
+        linarith [mul_lt_mul_of_pos_right hαβ hpos]
       rw [min_eq_left he.le, max_eq_right he.le] at hbetween
-      constructor
-      · exact (mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.1])
-      · exact (mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.2])
+      exact ⟨(mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.1]),
+        (mul_lt_mul_iff_left₀ hpos).mp (by linarith [hbetween.2])⟩
   have htm : t ∈ segmentInteriorCuts levels a b := by
     rw [segmentInteriorCuts, ite_eq_right (sub_ne_zero.mp hne), Finset.mem_filter]
     exact ⟨Finset.mem_image.mpr ⟨y, hy, rfl⟩,
@@ -166,28 +164,19 @@ private theorem segmentCuts_adjacent_no_level_real {levels : Finset ℝ} {a b : 
 theorem segmentCuts_cover {levels : Finset ℝ} {a b : ℝ} {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     ∃ (k : ℕ) (hk : k + 1 < (segmentCuts levels a b).length),
       (segmentCuts levels a b)[k] ≤ t ∧ t ≤ (segmentCuts levels a b)[k + 1] := by
-  let L := segmentCuts levels a b
+  set L := segmentCuts levels a b
+  change ∃ (k : ℕ) (hk : k + 1 < L.length), L[k] ≤ t ∧ t ≤ L[k + 1]
   have hlen : 2 ≤ L.length := segmentCuts_length_ge_two levels a b
   have hends : L[0] = 0 ∧ L[L.length - 1] = 1 := segmentCuts_first_last levels a b
-  dsimp only [L] at hlen hends
   by_cases ht1 : t = 1
-  · refine ⟨L.length - 2, by dsimp only [L] at *; omega, ?_, ?_⟩
-    · exact (segmentCuts_mem_Icc
-        (List.getElem_mem (by dsimp only [L] at *; omega))).2.trans_eq ht1.symm
-    · change t ≤ L[L.length - 2 + 1]
-      simp only [show L.length - 2 + 1 = L.length - 1 by dsimp only [L] at *; omega]
-      exact ht1.trans_le (show L[L.length - 1] = 1 from hends.2).symm.le
-  · let f : Fin (L.length - 1 + 1) → ℝ := fun j => L[j.val]'(by
-      have := j.isLt
-      dsimp only [L] at *
-      omega)
+  · refine ⟨L.length - 2, by omega,
+      (segmentCuts_mem_Icc (List.getElem_mem (l := L) (by omega))).2.trans_eq ht1.symm, ?_⟩
+    simp only [show L.length - 2 + 1 = L.length - 1 by omega, hends.2, ht1, le_refl]
+  · let f : Fin (L.length - 1 + 1) → ℝ := fun j => L[j.val]'(by have := j.isLt; omega)
     obtain ⟨i, hlo, hhi⟩ := Fin.exists_le_lt_adjacent (f := f) (x := t)
-      (by change L[0] ≤ t; rw [show L[0] = 0 from hends.1]; exact ht.1)
-      (by
-        change t < L[L.length - 1]
-        rw [show L[L.length - 1] = 1 from hends.2]
-        exact lt_of_le_of_ne ht.2 ht1)
-    exact ⟨i.val, by have := i.isLt; dsimp only [L] at *; omega, hlo, hhi.le⟩
+      (by simpa only [f, Fin.val_zero, hends.1] using ht.1)
+      (by simpa only [f, Fin.val_last, hends.2] using lt_of_le_of_ne ht.2 ht1)
+    exact ⟨i.val, by have := i.isLt; omega, hlo, hhi.le⟩
 
 /-- Every listed parameter except the final endpoint is strictly below one. -/
 theorem segmentCuts_dropLast_bounds {levels : Finset ℝ} {a b : ℝ} {t : ℝ}

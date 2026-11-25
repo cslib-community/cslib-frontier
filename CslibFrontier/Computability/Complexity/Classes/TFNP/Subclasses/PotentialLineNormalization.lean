@@ -188,28 +188,18 @@ witness `0 ^ (n a)` when `LineSourcePromise` fails. -/
 theorem endOfPotentialLineViolationRel_iff_promised_or :
     endOfPotentialLineViolationRel n P S V a x ↔
       (x = zeroVertex (n a) ∧ ¬LineSourcePromise n P S a) ∨
-        endOfPotentialLinePromisedRel n P S V a x := by
-  constructor
-  · rintro ⟨hx, h | h⟩
-    · exact .inl h
-    · exact .inr ⟨hx, h⟩
-  · rintro (⟨rfl, h⟩ | ⟨hx, h⟩)
-    · exact ⟨length_zeroVertex _, .inl ⟨rfl, h⟩⟩
-    · exact ⟨hx, .inr h⟩
+        endOfPotentialLinePromisedRel n P S V a x :=
+  ⟨fun ⟨hx, h⟩ => h.imp id fun h => ⟨hx, h⟩,
+   fun | .inl ⟨hx, h⟩ => ⟨hx ▸ length_zeroVertex _, .inl ⟨hx, h⟩⟩ | .inr ⟨hx, h⟩ => ⟨hx, .inr h⟩⟩
 
 /-- `sinkOfPotentialLineViolationRel` is `sinkOfPotentialLinePromisedRel` together with the fallback
 witness `0 ^ (n a)` when `LineSourcePromise` fails. -/
 theorem sinkOfPotentialLineViolationRel_iff_promised_or :
     sinkOfPotentialLineViolationRel n P S V a x ↔
       (x = zeroVertex (n a) ∧ ¬LineSourcePromise n P S a) ∨
-        sinkOfPotentialLinePromisedRel n P S V a x := by
-  constructor
-  · rintro ⟨hx, h | h⟩
-    · exact .inl h
-    · exact .inr ⟨hx, h⟩
-  · rintro (⟨rfl, h⟩ | ⟨hx, h⟩)
-    · exact ⟨length_zeroVertex _, .inl ⟨rfl, h⟩⟩
-    · exact ⟨hx, .inr h⟩
+        sinkOfPotentialLinePromisedRel n P S V a x :=
+  ⟨fun ⟨hx, h⟩ => h.imp id fun h => ⟨hx, h⟩,
+   fun | .inl ⟨hx, h⟩ => ⟨hx ▸ length_zeroVertex _, .inl ⟨hx, h⟩⟩ | .inr ⟨hx, h⟩ => ⟨hx, .inr h⟩⟩
 
 /-- Under `LineSourcePromise`, the totalized violation relation coincides with the pure `(R1)/(R2)`
 relation of [Fearnley et al., Definition 9][FearnleyGordonMehtaSavani2020]. -/
@@ -433,31 +423,25 @@ theorem length_normalizedPotentialPred
     (hP : ∀ u, u.length = n a → (P (a, u)).length = n a)
     (hw : w.length = normalizedPotentialWidth n a) :
     (normalizedPotentialPred n P S V (a, w)).length = normalizedPotentialWidth n a := by
-  cases w with
-  | nil => simp [normalizedPotentialWidth] at hw
-  | cons b u =>
-    have hu : u.length = n a := by simpa [normalizedPotentialWidth] using hw
-    cases b
-    · simp [normalizedPotentialWidth, hu]
-    · by_cases huz : u = zeroVertex (n a)
-      · subst huz; simp [normalizedPotentialWidth]
-      · simp [normalizedPotentialPred_true_of_ne huz, normalizedPotentialWidth,
-          length_potentialPred hP hu]
+  rcases w with _ | ⟨_ | _, u⟩
+  · simp [normalizedPotentialWidth] at hw
+  · simpa [normalizedPotentialWidth] using hw
+  · have hu : u.length = n a := by simpa [normalizedPotentialWidth] using hw
+    by_cases huz : u = zeroVertex (n a) <;>
+      simp [huz, normalizedPotentialPred, normalizedPotentialWidth, length_potentialPred hP hu]
 
 /-- `normalizedPotentialSucc` preserves the vertex bit-length `n a + 1`. -/
 theorem length_normalizedPotentialSucc
     (hS : ∀ u, u.length = n a → (S (a, u)).length = n a)
     (hw : w.length = normalizedPotentialWidth n a) :
     (normalizedPotentialSucc n P S V (a, w)).length = normalizedPotentialWidth n a := by
-  cases w with
-  | nil => simp [normalizedPotentialWidth] at hw
-  | cons b u =>
-    have hu : u.length = n a := by simpa [normalizedPotentialWidth] using hw
-    cases b
-    · by_cases huz : u = zeroVertex (n a)
-      · subst huz; simp [normalizedPotentialSucc, normalizedPotentialWidth]
-      · simp [normalizedPotentialSucc_false_of_ne huz, normalizedPotentialWidth, hu]
-    · simp [normalizedPotentialWidth, length_potentialSucc hS hu]
+  rcases w with _ | ⟨_ | _, u⟩
+  · simp [normalizedPotentialWidth] at hw
+  · have hu : u.length = n a := by simpa [normalizedPotentialWidth] using hw
+    by_cases huz : u = zeroVertex (n a) <;>
+      simp [huz, normalizedPotentialSucc, normalizedPotentialWidth, hu]
+  · simp [normalizedPotentialWidth,
+      length_potentialSucc hS (by simpa [normalizedPotentialWidth] using hw)]
 
 /-- Binary length growth of `normalizedPotential`: incrementing `V (a, w.tail)` adds at most `1` bit
 to its binary representation. -/
@@ -664,12 +648,10 @@ theorem endOfPotentialLinePromisedRel_normalized_iff :
       (normalizedPotential V) a w ↔
     ∃ u, w = true :: u ∧ endOfPotentialLineRel n P S V a u := by
   rw [← endOfPotentialLineViolationRel_normalized_iff, ← endOfPotentialLineRel_normalized_iff]
-  constructor
-  · intro h
-    cases w with
-    | nil => simp [endOfPotentialLineViolationRel, normalizedPotentialWidth] at h
-    | cons b u =>
-      apply endOfPotentialLineRel_of_violation
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · rcases w with _ | ⟨b, u⟩
+    · simp [endOfPotentialLineViolationRel, normalizedPotentialWidth] at h
+    · apply endOfPotentialLineRel_of_violation
       obtain ⟨bP, uP, hP_eq⟩ := nonEmpty_normalizedPred (n := n) (P := P) (S := S) (V := V)
         (a := a) b u
       obtain ⟨bS, uS, hS_eq⟩ := nonEmpty_normalizedSucc (n := n) (P := P) (S := S) (V := V)
@@ -679,32 +661,19 @@ theorem endOfPotentialLinePromisedRel_normalized_iff :
         show normalizedPotentialPred n P S V (a, b :: u) = bP :: uP from hP_eq,
         show normalizedPotentialSucc n P S V (a, b :: u) = bS :: uS from hS_eq,
         potentialSucc_normalized_cons, potentialPred_normalized_cons, ← hP_eq, ← hS_eq]
-      rcases h.2 with ⟨hz, hnp⟩ | h₁ | h₂ | h₃
-      · exact (hnp (lineSourcePromise_normalized n P S V a)).elim
-      · exact .inr (.inl h₁)
-      · exact .inr (.inr (.inl h₂))
-      · exact .inr (.inr (.inr h₃))
-  · intro h
-    obtain ⟨u, rfl, hu⟩ := endOfPotentialLineRel_normalized_iff.mp h
-    by_cases huz : u = zeroVertex (n a)
-    · subst huz
-      have hout : hasPotentialOut n P S V a (zeroVertex (n a)) = false := by
-        cases h0 : hasPotentialOut n P S V a (zeroVertex (n a))
-        · rfl
-        · simp [endOfPotentialLineRel, h0] at hu
-      refine ⟨by simp, .inr (.inr (.inl ?_))⟩
-      simp [potentialSucc_of_false hout]
-    · rcases endOfPotentialLineRel_iff.mp hu with ⟨hlen, hout, hin'⟩ | ⟨hlen, -, hin, hout⟩
-      · have hin : hasPotentialIn n P S V a u = true := hin'.resolve_left huz
-        have hPu : P (a, u) ≠ u := (hasPotentialIn_eq_true_iff.mp hin).2.1
-        refine ⟨by simp [hlen], .inr (.inr (.inl ?_))⟩
-        simp [potentialSucc_of_false hout, normalizedPotentialPred_true_of_ne huz,
-          potentialPred_of_true hin, hPu]
-      · have hSu : S (a, u) ≠ u := (hasPotentialOut_eq_true_iff.mp hout).2.1
-        refine ⟨by simp [hlen], .inr (.inl ⟨?_, ?_⟩)⟩
-        · simp [normalizedPotentialPred_true_of_ne huz, potentialPred_of_false hin,
-            potentialSucc_of_true hout, hSu]
-        · simp
+      exact h.2.resolve_left (fun ⟨_, hnp⟩ => hnp (lineSourcePromise_normalized n P S V a))
+        |> .inr
+  · obtain ⟨u, rfl, hu⟩ := endOfPotentialLineRel_normalized_iff.mp h
+    rcases endOfPotentialLineRel_iff.mp hu with ⟨hlen, hout, rfl | hin⟩ | ⟨hlen, huz, hin, hout⟩
+    · exact ⟨by simp, .inr (.inr (.inl (by simp [potentialSucc_of_false hout])))⟩
+    · obtain ⟨-, hPu, huz, -⟩ := hasPotentialIn_eq_true_iff.mp hin
+      exact ⟨by simp [hlen], .inr (.inr (.inl
+        (by simp [potentialSucc_of_false hout, normalizedPotentialPred_true_of_ne huz,
+          potentialPred_of_true hin, hPu])))⟩
+    · have hSu := (hasPotentialOut_eq_true_iff.mp hout).2.1
+      exact ⟨by simp [hlen], .inr (.inl
+        ⟨by simp [normalizedPotentialPred_true_of_ne huz, potentialPred_of_false hin,
+          potentialSucc_of_true hout, hSu], by simp⟩)⟩
 
 /-- **Exact sink-only `(R1)/(R2)` solution characterization (`SOPL`).** Pure sink-only `(R1)/(R2)`
 solutions of the normalized family are precisely the strings `true :: u` with `u` a sink of
@@ -715,30 +684,23 @@ theorem sinkOfPotentialLinePromisedRel_normalized_iff :
       (normalizedPotential V) a w ↔
     ∃ u, w = true :: u ∧ sinkOfPotentialLineRel n P S V a u := by
   rw [← sinkOfPotentialLineViolationRel_normalized_iff, ← sinkOfPotentialLineRel_normalized_iff]
-  constructor
-  · intro h
-    cases w with
-    | nil => simp [sinkOfPotentialLineViolationRel, normalizedPotentialWidth] at h
-    | cons b u =>
-      apply sinkOfPotentialLineRel_of_violation
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · rcases w with _ | ⟨b, u⟩
+    · simp [sinkOfPotentialLineViolationRel, normalizedPotentialWidth] at h
+    · apply sinkOfPotentialLineRel_of_violation
       obtain ⟨bS, uS, hS_eq⟩ := nonEmpty_normalizedSucc (n := n) (P := P) (S := S) (V := V)
         (a := a) b u
       refine ⟨h.1, ?_⟩
       rw [potentialSucc_normalized_cons,
         show normalizedPotentialSucc n P S V (a, b :: u) = bS :: uS from hS_eq,
         potentialPred_normalized_cons, ← hS_eq]
-      rcases h.2 with ⟨_, hnp⟩ | h₁ | h₂
-      · exact (hnp (lineSourcePromise_normalized n P S V a)).elim
-      · exact .inr (.inl h₁)
-      · exact .inr (.inr h₂)
-  · intro h
-    obtain ⟨u, rfl, hlen, hout, hu⟩ := sinkOfPotentialLineRel_normalized_iff.mp h
-    refine ⟨by simp [hlen], .inr (.inl ?_)⟩
-    rcases hu with rfl | hin
-    · simp [potentialSucc_of_false hout]
+      exact .inr (h.2.resolve_left fun ⟨_, hnp⟩ => hnp (lineSourcePromise_normalized n P S V a))
+  · obtain ⟨u, rfl, hlen, hout, rfl | hin⟩ := sinkOfPotentialLineRel_normalized_iff.mp h
+    · exact ⟨by simp [hlen], .inr (.inl (by simp [potentialSucc_of_false hout]))⟩
     · obtain ⟨-, hPu, huz, -⟩ := hasPotentialIn_eq_true_iff.mp hin
-      simp [potentialSucc_of_false hout, normalizedPotentialPred_true_of_ne huz,
-        potentialPred_of_true hin, hPu]
+      exact ⟨by simp [hlen], .inr (.inl
+        (by simp [potentialSucc_of_false hout, normalizedPotentialPred_true_of_ne huz,
+          potentialPred_of_true hin, hPu]))⟩
 
 /-- Forward witness embedding (`EOPL`): every end `u` of `(n, P, S, V)` embeds as `true :: u`. -/
 theorem endOfPotentialLinePromisedRel_normalized_cons (h : endOfPotentialLineRel n P S V a u) :

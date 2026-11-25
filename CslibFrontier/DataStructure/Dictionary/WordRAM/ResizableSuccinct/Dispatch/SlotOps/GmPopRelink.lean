@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Env
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Internal
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Internal Top-Slab Unlink and Moved-Slab Relink Helpers for `compGmPopSlabGenProg`
@@ -34,8 +35,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -198,6 +200,17 @@ theorem realizesBounded_compGmUnlinkWrite :
     refine fits_of_le_globalMetaLen_comp hb_pos hw hnU hU ?_
     unfold gmSlabTopIdx gmQIdx at *; omega)
 
+/-- Index facts for the three `GlobalMeta` reads of `compGmRelinkMovedSlabGenProg`. -/
+private theorem compGmRelinkRead_idx {N p_last b_last : ℕ} (hb_pos : 0 < bucketBits N)
+    (hp_last_cap : p_last < maxFullSlabs N) (hb_last : b_last < numBuckets N) :
+    gmSlabOwnerBIdx N p_last < globalMetaLen N ∧
+      gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N ∧
+      gmSlabMetaBase N + (p_last + p_last + (p_last + p_last)) = gmSlabOwnerBIdx N p_last ∧
+      gmQIdx b_last < globalMetaLen N ∧
+      4 + (b_last + b_last + b_last) = gmQIdx b_last :=
+  ⟨gmSlabOwnerBIdx_lt hb_pos hp_last_cap, gmSlabOwnerSIdx_lt hb_pos hp_last_cap,
+    by unfold gmSlabOwnerBIdx; omega, gmQIdx_lt hb_pos hb_last, by unfold gmQIdx; omega⟩
+
 theorem compGmRelinkMovedSlabGenProg_effect
     {metaBase itemBase U V w N m_items p_del p_last : ℕ}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase) (s : Memory.State)
@@ -212,14 +225,8 @@ theorem compGmRelinkMovedSlabGenProg_effect
   let b_last := gm (gmSlabOwnerBIdx N p_last)
   let s_last := gm (gmSlabOwnerSIdx N p_last)
   let q_last := gm (gmQIdx b_last)
-  have hownB_lt : gmSlabOwnerBIdx N p_last < globalMetaLen N :=
-    gmSlabOwnerBIdx_lt hb_pos hp_last_cap
-  have hownS_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
-    gmSlabOwnerSIdx_lt hb_pos hp_last_cap
-  have hq_lt : gmQIdx b_last < globalMetaLen N := gmQIdx_lt hb_pos hb_last
-  have hpl4 : gmSlabMetaBase N + (p_last + p_last + (p_last + p_last)) =
-      gmSlabOwnerBIdx N p_last := by unfold gmSlabOwnerBIdx; omega
-  have hq_eq : 4 + (b_last + b_last + b_last) = gmQIdx b_last := by unfold gmQIdx; omega
+  obtain ⟨hownB_lt, hownS_lt, hpl4, hq_lt, hq_eq⟩ :=
+    compGmRelinkRead_idx (b_last := b_last) hb_pos hp_last_cap hb_last
   have htop_eq : gmQIdx b_last + 2 = gmSlabTopIdx b_last := rfl
   have hdir_lt : s_last < dirSlabsPerBucket N →
       gmSlabDirIdx N b_last s_last < globalMetaLen N :=
@@ -310,17 +317,8 @@ theorem realizesBounded_compGmRelinkMovedSlab :
     rcases d with ⟨⟨⟨cp, metaBase⟩, p_del⟩, p_last⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr,
       hp_del_cap, hp_last_cap, hb_last, hs_le, _, _, hb_pos⟩ := h
-    have hownB_lt := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
-    have hownS_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
-      gmSlabOwnerSIdx_lt hb_pos hp_last_cap
-    have hpl4 : gmSlabMetaBase N + (p_last + p_last + (p_last + p_last)) =
-        gmSlabOwnerBIdx N p_last := by unfold gmSlabOwnerBIdx; omega
-    have hq_lt := gmQIdx_lt hb_pos hb_last
-    have hq_eq : 4 + (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last) +
-        compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last) +
-        compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) =
-        gmQIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) := by
-      unfold gmQIdx; omega
+    obtain ⟨hownB_lt, hownS_lt, hpl4, hq_lt, hq_eq⟩ :=
+      compGmRelinkRead_idx hb_pos hp_last_cap hb_last
     simp only [cpGmSlabMetaBase_mk, hpl4, StateTransitionSpec.clientState,
       runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg hownB_lt] at *
@@ -358,20 +356,10 @@ theorem validProg_compGmRelinkMovedSlab {w : ℕ} {d : ((CompParams × ℕ) × �
   have mkEnv : ∀ s' : Memory.State, s'.frontier = s.frontier →
       CompMetaEnv w (mkCompParams U V w N) metaBase s' :=
     fun s' hs' => ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hs' ▸ hfr⟩
-  have hownB_lt := gmSlabOwnerBIdx_lt hb_pos hp_last_cap
-  have hownS_lt : gmSlabOwnerBIdx N p_last + 1 < globalMetaLen N :=
-    gmSlabOwnerSIdx_lt hb_pos hp_last_cap
-  have hpl4 : gmSlabMetaBase N + (p_last + p_last + (p_last + p_last)) =
-      gmSlabOwnerBIdx N p_last := by unfold gmSlabOwnerBIdx; omega
-  have hq_lt : gmQIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) <
-      globalMetaLen N := gmQIdx_lt hb_pos hb_last
+  obtain ⟨hownB_lt, hownS_lt, hpl4, hq_lt, hq_eq⟩ :=
+    compGmRelinkRead_idx hb_pos hp_last_cap hb_last
   have htop_lt : gmSlabTopIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) <
       globalMetaLen N := gmSlabTopIdx_lt hb_pos hb_last
-  have hq_eq : 4 + (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last) +
-      compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last) +
-      compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) =
-      gmQIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) := by
-    unfold gmQIdx; omega
   have htop_eq : gmQIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) + 2 =
       gmSlabTopIdx (compGmAt metaBase U w N s.mem (gmSlabOwnerBIdx N p_last)) := rfl
   dsimp only [compGmRelinkMovedSlabGenProg, compGmRelinkWriteProg, cpGmSlabMetaBase_mk,

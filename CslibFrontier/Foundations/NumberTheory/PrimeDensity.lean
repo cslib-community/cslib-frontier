@@ -44,52 +44,36 @@ public section
 
 open Nat
 
-/-- A duplicate-free list of `n`-bit primes of length at least `2 ^ (n - 1) / (3 n)` certifies
-the density bound for `n`. -/
-private theorem two_pow_le_card_primes_of_list (n : ℕ) (L : List ℕ) (hnd : L.Nodup)
-    (hL : ∀ p ∈ L, p.Prime ∧ 2 ^ (n - 1) ≤ p ∧ p < 2 ^ n)
-    (hlen : 2 ^ (n - 1) ≤ 3 * n * L.length) :
-    2 ^ (n - 1) ≤ 3 * n * ((Finset.Ico (2 ^ (n - 1)) (2 ^ n)).filter Nat.Prime).card := by
-  refine hlen.trans (Nat.mul_le_mul_left _ ?_)
-  rw [← List.toFinset_card_of_nodup hnd]
-  refine Finset.card_le_card fun x hx => ?_
-  obtain ⟨h1, h2, h3⟩ := hL x (List.mem_toFinset.mp hx)
-  exact Finset.mem_filter.mpr ⟨Finset.mem_Ico.mpr ⟨h2, h3⟩, h1⟩
-
-/-- The density bound for `1 < n < 13`, from explicit lists of primes. -/
 private theorem two_pow_le_card_primes_small (n : ℕ) (hn : 1 < n) (h13 : n < 13) :
     2 ^ (n - 1) ≤ 3 * n * ((Finset.Ico (2 ^ (n - 1)) (2 ^ n)).filter Nat.Prime).card := by
-  interval_cases n
-  · exact two_pow_le_card_primes_of_list 2 [2] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 3 [5] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 4 [11] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 5 [17, 19] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 6 [37, 41] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 7 [67, 71, 73, 79] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 8 [131, 137, 139, 149, 151, 157] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 9
-      [257, 263, 269, 271, 277, 281, 283, 293, 307, 311] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 10 [521, 523, 541, 547, 557, 563, 569, 571, 577, 587,
-      593, 599, 601, 607, 613, 617, 619, 631] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 11 [1031, 1033, 1039, 1049, 1051, 1061, 1063, 1069,
-      1087, 1091, 1093, 1097, 1103, 1109, 1117, 1123, 1129, 1151, 1153, 1163, 1171, 1181, 1187,
-      1193, 1201, 1213, 1217, 1223, 1229, 1231, 1237, 1249] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
-  · exact two_pow_le_card_primes_of_list 12 [2053, 2063, 2069, 2081, 2083, 2087, 2089, 2099,
-      2111, 2113, 2129, 2131, 2137, 2141, 2143, 2153, 2161, 2179, 2203, 2207, 2213, 2221, 2237,
-      2239, 2243, 2251, 2267, 2269, 2273, 2281, 2287, 2293, 2297, 2309, 2311, 2333, 2339, 2341,
-      2347, 2351, 2357, 2371, 2377, 2381, 2383, 2389, 2393, 2399, 2411, 2417, 2423, 2437, 2441,
-      2447, 2459, 2467, 2473] (by decide)
-      (by simp only [List.forall_mem_cons]; norm_num) (by norm_num)
+  let L (k : ℕ) : List ℕ := match k with
+    | 2 => [2] | 3 => [5] | 4 => [11] | 5 => [17, 19] | 6 => [37, 41] | 7 => [67, 71, 73, 79]
+    | 8 => [131, 137, 139, 149, 151, 157]
+    | 9 => [257, 263, 269, 271, 277, 281, 283, 293, 307, 311]
+    | 10 => [521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617,
+        619, 631]
+    | 11 => [1031, 1033, 1039, 1049, 1051, 1061, 1063, 1069, 1087, 1091, 1093, 1097, 1103, 1109,
+        1117, 1123, 1129, 1151, 1153, 1163, 1171, 1181, 1187, 1193, 1201, 1213, 1217, 1223, 1229,
+        1231, 1237, 1249]
+    | _ => [2053, 2063, 2069, 2081, 2083, 2087, 2089, 2099, 2111, 2113, 2129, 2131, 2137, 2141,
+        2143, 2153, 2161, 2179, 2203, 2207, 2213, 2221, 2237, 2239, 2243, 2251, 2267, 2269, 2273,
+        2281, 2287, 2293, 2297, 2309, 2311, 2333, 2339, 2341, 2347, 2351, 2357, 2371, 2377, 2381,
+        2383, 2389, 2393, 2399, 2411, 2417, 2423, 2437, 2441, 2447, 2459, 2467, 2473]
+  obtain ⟨hnd, hL, hlen⟩ : (L n).Nodup ∧ (∀ p ∈ L n, p.Prime ∧ 2 ^ (n - 1) ≤ p ∧ p < 2 ^ n) ∧
+      2 ^ (n - 1) ≤ 3 * n * (L n).length := by
+    interval_cases n
+    all_goals
+      refine ⟨by decide, ?_, ?_⟩
+      · dsimp only [L]
+        simp only [List.forall_mem_cons]
+        norm_num
+      · dsimp only [L]
+        norm_num
+  refine hlen.trans (Nat.mul_le_mul_left _ ?_)
+  rw [← List.toFinset_card_of_nodup hnd]
+  exact Finset.card_le_card fun x hx =>
+    let ⟨h1, h2, h3⟩ := hL x (List.mem_toFinset.mp hx)
+    Finset.mem_filter.mpr ⟨Finset.mem_Ico.mpr ⟨h2, h3⟩, h1⟩
 
 /-- `9 n² (2 + 2 ^ (n + 1)) ≤ 4 ^ (n - 1)` for `n ≥ 14`. -/
 private theorem nine_mul_sq_mul_le_two_pow (n : ℕ) (hn : 14 ≤ n) :
@@ -97,14 +81,12 @@ private theorem nine_mul_sq_mul_le_two_pow (n : ℕ) (hn : 14 ≤ n) :
   induction n, hn using Nat.le_induction with
   | base => norm_num
   | succ n hn ih =>
-    rw [show 2 * (n + 1) - 2 = (2 * n - 2) + 2 by omega,
-        show 2 ^ (n + 1) = 2 ^ n * 2 from pow_succ 2 n]
+    rw [show 2 * (n + 1) - 2 = (2 * n - 2) + 2 by omega, pow_succ 2 n, pow_add]
     have h1 : (n + 1) ^ 2 ≤ 2 * n ^ 2 := by nlinarith
     calc 9 * (n + 1) ^ 2 * (2 + 2 * (2 ^ n * 2))
         ≤ 9 * (2 * n ^ 2) * (2 * (2 + 2 * 2 ^ n)) := by gcongr; omega
       _ = 4 * (9 * n ^ 2 * (2 + 2 * 2 ^ n)) := by ring
-      _ ≤ 4 * 2 ^ (2 * n - 2) := by gcongr
-      _ = 2 ^ (2 * n - 2 + 2) := by rw [pow_add]; ring
+      _ ≤ 2 ^ (2 * n - 2) * 2 ^ 2 := by omega
 
 /-- `3 ((n - 1) + n √(2 ^ n)) ≤ 2 ^ (n - 1)` for `n ≥ 13`. -/
 private theorem three_mul_add_mul_sqrt_le_two_pow (n : ℕ) (hn : 13 ≤ n) :

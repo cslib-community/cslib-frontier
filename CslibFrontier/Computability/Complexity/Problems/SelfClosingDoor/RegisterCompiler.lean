@@ -271,24 +271,19 @@ private theorem MachineStep.actual {p : Program} {s t : MachineState}
   | enter j =>
     right
     refine ⟨hv, ⟨external p.instructions[j].source, entry j.val⟩, ?_, rfl, rfl⟩
-    apply List.mem_append_right
-    apply List.mem_flatMap.mpr
-    exact ⟨(p.instructions[j], j.val), indexed_instruction_mem p j, by simp⟩
+    exact List.mem_append_right _
+      (List.mem_flatMap.mpr ⟨_, indexed_instruction_mem p j, by simp⟩)
   | approach j =>
     right
     refine ⟨hv, ⟨entry j.val, input p.instructions[j].register p.instructions[j].guard⟩,
       ?_, rfl, rfl⟩
-    apply List.mem_append_right
-    apply List.mem_flatMap.mpr
-    exact ⟨(p.instructions[j], j.val), indexed_instruction_mem p j, by simp⟩
+    exact List.mem_append_right _
+      (List.mem_flatMap.mpr ⟨_, indexed_instruction_mem p j, by simp⟩)
   | connect r b =>
     right
     refine ⟨hv, ⟨output r.val b, input r.val (!b)⟩, ?_, rfl, rfl⟩
-    apply List.mem_append_left
-    apply List.mem_append_right
-    apply List.mem_flatMap.mpr
-    refine ⟨r.val, List.mem_range.mpr r.isLt, ?_⟩
-    cases b <;> simp [Bool.not_false]
+    exact List.mem_append_left _ (List.mem_append_right _
+      (List.mem_flatMap.mpr ⟨r.val, List.mem_range.mpr r.isLt, by cases b <;> simp⟩))
   | register r b hb =>
     exact Or.inl (actual_register_step p _ _ hs.1 hs.2 r b hb)
   | openMarker j hb =>
@@ -447,32 +442,23 @@ private theorem Certified.step {p : Program} {s t : MachineState}
   all_goals
     obtain ⟨hloc, hregs, hmarkers⟩ := MachineState.mk.inj hsource
     try cases hloc
-  case boundary.jump source hr registers markers a ha =>
-    subst registers
-    subst markers
+  all_goals subst hregs hmarkers
+  case boundary.jump source hr a ha =>
     apply Certified.boundary ⟨a.target, source.bits⟩
     apply hr.tail
     exact ⟨hr.length rfl, Or.inl ⟨a, ha, Place.external.inj hloc, rfl⟩⟩
-  case boundary.enter source hr registers markers j =>
-    subst registers
-    subst markers
+  case boundary.enter source hr j =>
     rw [← selectedMarkers_false p j]
     exact Certified.entry source hr j (Place.external.inj hloc) false
-  case entry.approach source hr j hp m registers markers k =>
-    subst registers
-    subst markers
+  case entry.approach source hr j hp m k =>
     have he : j = k := Fin.ext (Place.entry.inj hloc)
     subst k
     exact Certified.ready source hr j hp m
-  case entry.openMarker source hr j hp m registers markers k hb =>
-    subst registers
-    subst markers
+  case entry.openMarker source hr j hp m k hb =>
     have he : j = k := Fin.ext (Place.entry.inj hloc)
     subst k
     simpa only [selectedMarkers, List.set_set] using Certified.entry source hr j hp true
-  case ready.register source hr j hp m registers markers r b hb =>
-    subst registers
-    subst markers
+  case ready.register source hr j hp m r b hb =>
     obtain ⟨hri, hbi⟩ := Place.input.inj hloc
     have hg : source.bits.getD p.instructions[j].register false = p.instructions[j].guard := by
       simpa only [hri, hbi] using hb
@@ -482,19 +468,13 @@ private theorem Certified.step {p : Program} {s t : MachineState}
       exact r.isLt
     simpa only [hri, hbi] using
       Certified.output source hr j hp hg hreg m p.instructions[j].guard
-  case input.register source hr j hp hg hreg m b₀ registers markers r b hb =>
-    subst registers
-    subst markers
+  case input.register source hr j hp hg hreg m b₀ r b hb =>
     obtain ⟨hri, hbi⟩ := Place.input.inj hloc
     simpa only [hri, hbi, List.set_set] using Certified.output source hr j hp hg hreg m b₀
-  case output.connect source hr j hp hg hreg m b₀ registers markers r b =>
-    subst registers
-    subst markers
+  case output.connect source hr j hp hg hreg m b₀ r b =>
     obtain ⟨hri, hbi⟩ := Place.output.inj hloc
     simpa only [hri, hbi] using Certified.input source hr j hp hg hreg m (!b₀)
-  case output.returnMarker source hr j hp hg hreg m b registers markers k hb =>
-    subst registers
-    subst markers
+  case output.returnMarker source hr j hp hg hreg m b k hb =>
     obtain ⟨he, hm⟩ := selectedMarkers_true hb
     subst k
     subst m

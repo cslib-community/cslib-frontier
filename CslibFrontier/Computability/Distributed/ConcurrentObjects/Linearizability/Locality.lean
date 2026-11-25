@@ -327,14 +327,13 @@ private theorem nthObjPos_pair_of_isSequential [DecidableEq Obj] {x : Obj}
         simp only [hstep₀, nthObjPos_cons_succ, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte, hk₀,
           Option.map_some]
         exact congrArg some (by omega)
-    · rw [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-        nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx] at h
-      simp only [Option.map_eq_some_iff] at h
+    · simp only [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
+        nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx, Option.map_eq_some_iff] at h
       obtain ⟨_, ⟨m', hm', rfl⟩, rfl⟩ := h
       obtain ⟨k', rfl, hk₀⟩ := nthObjPos_pair_of_isSequential hrest hm'
       refine ⟨k' + 1, by omega, ?_⟩
-      rw [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-        nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx, hk₀, Option.map_some, Option.map_some]
+      simp only [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
+        nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx, hk₀, Option.map_some]
       exact congrArg some (by omega)
 
 private theorem nthObjPos_complete_eq [DecidableEq P] [DecidableEq Obj] {x : Obj}
@@ -362,9 +361,8 @@ private theorem nthObjPos_complete_eq [DecidableEq P] [DecidableEq Obj] {x : Obj
           Option.map_eq_some_iff] at h ⊢
         obtain ⟨_, ⟨m₂, hm₂, rfl⟩, rfl⟩ := h
         exact ⟨m₂ + 1, ⟨m₂, nthObjPos_complete_eq hrest hm₂, rfl⟩, rfl⟩
-    · rw [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-        nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx] at h ⊢
-      simp only [Option.map_eq_some_iff] at h ⊢
+    · simp only [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
+        nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx, Option.map_eq_some_iff] at h ⊢
       obtain ⟨_, ⟨m₂, hm₂, rfl⟩, rfl⟩ := h
       exact ⟨m₂ + 1, ⟨m₂, nthObjPos_complete_eq hrest hm₂, rfl⟩, rfl⟩
 
@@ -407,19 +405,10 @@ private theorem nthObjPos_eq_complete_of_odd [DecidableEq P] [DecidableEq Obj] {
           simp only [nthObjPos_cons_succ, Event.obj_inv, Event.obj_resp, hxx, ↓reduceIte,
             ih₀ m₂ hm₂]
     · obtain ⟨ih₁, ih₀⟩ := nthObjPos_eq_complete_of_odd (x := x) hrest (k_x := k_x)
-      refine ⟨?_, fun m hm => ?_⟩
-      · rw [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-          nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx,
-          nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-          nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx, ih₁]
-      · rw [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-          nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx] at hm
-        simp only [Option.map_eq_some_iff] at hm
-        obtain ⟨_, ⟨m₂, hm₂, rfl⟩, rfl⟩ := hm
-        rw [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-          nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx,
-          nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
-          nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx, ih₀ m₂ hm₂]
+      simp only [nthObjPos_cons_ne x (.inv p₁ x₁ op) _ _ hxx,
+        nthObjPos_cons_ne x (.resp p₁ x₁ res) _ _ hxx, ih₁, Option.map_eq_some_iff, true_and]
+      rintro _ ⟨_, ⟨m₂, hm₂, rfl⟩, rfl⟩
+      rw [ih₀ m₂ (ih₁.trans hm₂)]
 
 private theorem nthProcPos_cons_of_ne [DecidableEq P] {p : P} {e : Event P Op Resp}
     (rest : History P Op Resp) (n : ℕ) (h : e.proc ≠ p) :
@@ -662,17 +651,14 @@ theorem IsLinearizable.objSubhistory {P Obj : Type*} {Op Resp : Obj → Type*}
   · rw [← History.objSubhistory_append, History.complete_objSubhistory hwf' x]
     exact heqS.objSubhistory x
   · intro e₀ e₁ hc₀ hc₁ hprec_x
-    have hc₀' : History.IsCompletedOp (History.objSubhistory (H ++ R) x) e₀ := by
-      rw [History.objSubhistory_append]; exact hc₀
-    have hc₁' : History.IsCompletedOp (History.objSubhistory (H ++ R) x) e₁ := by
-      rw [History.objSubhistory_append]; exact hc₁
+    rw [← History.objSubhistory_append] at hc₀ hc₁
     have h₁ : History.prec (History.objSubhistory (H ++ R) x) e₀ e₁ := by
-      rw [History.objSubhistory_append]
+      rw [History.objSubhistory_append] at hc₁ ⊢
       exact (History.prec_append_resp_iff (hwfH.objSubhistory x) hresp_x hwf'_x hc₁).mpr hprec_x
     have h₂ : History.prec (H ++ R) (liftOp (H ++ R) x e₀) (liftOp (H ++ R) x e₁) :=
-      (prec_objSubhistory_iff hwf' hc₀' hc₁').mp h₁
-    obtain ⟨hc₀_HR, _⟩ := liftOp_spec hwf' hc₀'
-    obtain ⟨hc₁_HR, _⟩ := liftOp_spec hwf' hc₁'
+      (prec_objSubhistory_iff hwf' hc₀ hc₁).mp h₁
+    obtain ⟨hc₀_HR, _⟩ := liftOp_spec hwf' hc₀
+    obtain ⟨hc₁_HR, _⟩ := liftOp_spec hwf' hc₁
     have h₄ : History.prec S (liftOp (H ++ R) x e₀) (liftOp (H ++ R) x e₁) :=
       hprecS _ _ hc₀_HR hc₁_HR
         ((History.prec_append_resp_iff hwfH hresp hwf' hc₁_HR).mp h₂)
@@ -682,17 +668,15 @@ theorem IsLinearizable.objSubhistory {P Obj : Type*} {Op Resp : Obj → Type*}
         (History.complete (History.objSubhistory (H ++ R) x)) (History.objSubhistory S x) := by
       rw [History.complete_objSubhistory hwf' x]
       exact heqS.objSubhistory x
-    have hc₀_Sx : History.IsCompletedOp (History.objSubhistory S x) e₀ :=
-      (h_eq_x.isCompletedOp_iff e₀).mp
-        ((History.isCompletedOp_complete_iff (hwf'.objSubhistory x) e₀).mpr hc₀')
-    have hc₁_Sx : History.IsCompletedOp (History.objSubhistory S x) e₁ :=
-      (h_eq_x.isCompletedOp_iff e₁).mp
-        ((History.isCompletedOp_complete_iff (hwf'.objSubhistory x) e₁).mpr hc₁')
+    have hc_Sx : ∀ e, History.IsCompletedOp (History.objSubhistory (H ++ R) x) e →
+        History.IsCompletedOp (History.objSubhistory S x) e := fun e hc =>
+      (h_eq_x.isCompletedOp_iff e).mp
+        ((History.isCompletedOp_complete_iff (hwf'.objSubhistory x) e).mpr hc)
     have hwfS : History.WellFormed S := by
       obtain ⟨cs, rfl⟩ := History.exists_calls_of_isSequential_even hseqS
         (History.even_length_of_equivalent_complete hwf' hseqS heqS)
       exact History.wellFormed_flatMap_toEvents cs
-    exact (prec_objSubhistory_iff hwfS hc₀_Sx hc₁_Sx).mpr h₄
+    exact (prec_objSubhistory_iff hwfS (hc_Sx e₀ hc₀) (hc_Sx e₁ hc₁)).mpr h₄
 
 private theorem exists_normalized_obj_linearization {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] [DecidableEq Obj] {spec : ∀ x, SeqSpec P Op Resp x}
@@ -974,6 +958,11 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
     exact hpne (congrArg (fun x : α => x.1.proc) heq).symm
   obtain ⟨order, hperm, hord_nd, hord_rel⟩ := exists_topoSort_of_acyclic hacyc helems_nd
   have hord_mem : ∀ a : α, a ∈ order := fun a => hperm.mem_iff.mpr (helems_mem a)
+  -- Distinct, and no `loc ⊔ rt`-edge points backwards; inherited by every filter of `order`.
+  have hpw : order.Pairwise fun a b => a ≠ b ∧ ¬ (loc ⊔ rt) b a :=
+    List.pairwise_iff_getElem.mpr fun i j hi hj hij =>
+      ⟨fun h => by have := (List.Nodup.getElem_inj_iff hord_nd).mp h; omega,
+        fun h => by have := hord_rel j i hj hi (.single h); omega⟩
   let calls := order.map callOf
   let S := calls.flatMap OpCall.toEvents
   have hord_proc : ∀ p : P,
@@ -982,8 +971,6 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
       (order.filter fun a => decide (a.1.proc = p)).map callOf = pCalls p := by
     intro p
     let ord_p := order.filter fun a => decide (a.1.proc = p)
-    obtain ⟨fidx, hfval, hfmono⟩ :=
-      List.filter_strictMono_indices order (fun a => decide (a.1.proc = p))
     refine List.map_eq_of_strictMono_surj (src := ord_p) (dst := pCalls p)
       (fun a => a.1.idx) callOf ?_ ?_ ?_
     · intro a ha
@@ -992,60 +979,36 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
       refine ⟨hlt, ?_⟩
       dsimp only [callOf]; cases hap; rfl
     · intro i j hi hj hij
-      have hne_ij : ord_p[i] ≠ ord_p[j] := fun h => by
-        have := (List.Nodup.getElem_inj_iff (hord_nd.filter _)).mp h; omega
+      obtain ⟨hne_ij, hback⟩ := List.pairwise_iff_getElem.mp (hpw.filter _) i j hi hj hij
       have hp_i : ord_p[i].1.proc = p :=
         of_decide_eq_true (List.mem_filter.mp (List.getElem_mem hi)).2
       have hp_j : ord_p[j].1.proc = p :=
         of_decide_eq_true (List.mem_filter.mp (List.getElem_mem hj)).2
-      have hidx_ne : ord_p[i].1.idx ≠ ord_p[j].1.idx :=
-        fun h => hne_ij (Subtype.ext (OpId.ext (hp_i.trans hp_j.symm) h))
-      rcases Nat.lt_or_gt_of_ne hidx_ne with hlt | hgt
+      rcases lt_trichotomy ord_p[i].1.idx ord_p[j].1.idx with hlt | heq | hgt
       · exact hlt
-      · exfalso
-        have hrt_ji : rt ord_p[j] ord_p[i] :=
-          History.prec_of_same_proc_lt (hp_j.trans hp_i.symm) hgt ord_p[j].2 ord_p[i].2
-        have hrel : TransGen (loc ⊔ rt) order[(fidx ⟨j, hj⟩).1] order[(fidx ⟨i, hi⟩).1] := by
-          rw [← hfval ⟨i, hi⟩, ← hfval ⟨j, hj⟩]
-          exact TransGen.single (Or.inr hrt_ji)
-        have := hord_rel _ _ (fidx ⟨j, hj⟩).2 (fidx ⟨i, hi⟩).2 hrel
-        have := hfmono ⟨i, hi⟩ ⟨j, hj⟩ hij
-        omega
+      · exact absurd (Subtype.ext (OpId.ext (hp_i.trans hp_j.symm) heq)) hne_ij
+      · exact absurd (Or.inr (History.prec_of_same_proc_lt (hp_j.trans hp_i.symm) hgt
+          ord_p[j].2 ord_p[i].2)) hback
     · intro k hk
       let a : α := ⟨⟨p, k⟩, (hcomp_op_iff ⟨p, k⟩).mpr hk⟩
       exact ⟨a, List.mem_filter.mpr ⟨hord_mem a, decide_eq_true rfl⟩, rfl⟩
   have heq_S : History.Equivalent (History.complete H') S := by
     intro p
     rw [History.procSubhistory_complete, hpCalls_eq p]
-    simp only [S, calls, History.procSubhistory_flatMap_toEvents, List.filter_map]
-    have hfn : ((fun c : OpCall P Op Resp => decide (c.proc = p)) ∘ callOf) =
-        fun a : α => decide (a.1.proc = p) :=
-      funext fun a => by simp only [Function.comp_apply, hcallOf_proc a]
-    rw [hfn, (hord_proc p).2]
+    simp only [S, calls, History.procSubhistory_flatMap_toEvents, List.filter_map,
+      Function.comp_def, hcallOf_proc]
+    rw [(hord_proc p).2]
   have hopIdAt_order : ∀ (j : ℕ) (hj : j < order.length),
       opIdAt calls j (by simp only [calls, List.length_map]; exact hj) = order[j].1 := by
     intro j hj
-    let p := order[j].1.proc
-    let predP : α → Bool := fun a => decide (a.1.proc = p)
+    obtain ⟨hlt_f, hget_f⟩ := List.filter_getElem_count_take
+      (fun a : α => decide (a.1.proc = order[j].1.proc)) order j hj (decide_eq_true rfl)
+    have hidx := List.getElem_of_eq (hord_proc order[j].1.proc).1 (by simpa using hlt_f)
+    simp only [List.getElem_map, List.getElem_range, hget_f] at hidx
     ext
     · simp only [opIdAt, calls, List.getElem_map, hcallOf_proc]
-    · simp only [opIdAt, calls, List.getElem_map, hcallOf_proc]
-      have hcnt_eq : countProcCalls p ((order.map callOf).take j) =
-          ((order.take j).filter predP).length := by
-        simp only [countProcCalls, ← List.map_take, List.filter_map, List.length_map]
-        exact congrArg (fun f => (List.filter f (order.take j)).length)
-          (funext fun a => by simp only [Function.comp_apply, predP, hcallOf_proc a])
-      rw [hcnt_eq]
-      obtain ⟨hlt_f, hget_f⟩ := List.filter_getElem_count_take predP order j hj (decide_eq_true rfl)
-      have hlen_ordp : (order.filter predP).length = (pCalls p).length := by
-        have := congrArg List.length (hord_proc p).1
-        simpa only [List.length_map, List.length_range] using this
-      have hu' : ((order.take j).filter predP).length < (pCalls p).length := hlen_ordp ▸ hlt_f
-      have hget := congrArg (fun l => l[((order.take j).filter predP).length]?) (hord_proc p).1
-      dsimp only [predP] at hlt_f hget_f hu' hget ⊢
-      simp only [List.getElem?_map, List.getElem?_eq_getElem hlt_f, Option.map_some,
-        List.getElem?_range hu', Option.some.injEq, hget_f] at hget
-      exact hget.symm
+    · simp only [opIdAt, calls, List.getElem_map, hcallOf_proc, countProcCalls, ← List.map_take,
+        List.filter_map, List.length_map, Function.comp_def, hidx]
   have hS_leg : History.IsLegal spec S := by
     intro x
     have hfil_obj : History.objSubhistory S x =
@@ -1054,8 +1017,6 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
       simp only [S, calls, History.objSubhistory_flatMap_toEvents, List.filter_map]; rfl
     rw [hfil_obj]
     let ord_x := order.filter fun a => decide ((callOf a).obj = x)
-    obtain ⟨fidx, hfval, hfmono⟩ :=
-      List.filter_strictMono_indices order (fun a => decide ((callOf a).obj = x))
     have hlocal_in_callsX : ∀ a : α, (callOf a).obj = x →
         (localOp a).idx < countProcCalls (localOp a).proc (callsX x) := by
       intro a hax
@@ -1109,18 +1070,10 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
           have h₁ : (((pCalls p).take a.1.idx).filter fun c => decide (c.obj = x)).length =
               (localOp a).idx := by dsimp only [localOp, countObjCalls]; rw [hax]
           exact h₁.trans hcnt_j.symm
-        have hget_opt :
-            ((pCalls p).filter fun c => decide (c.obj = x))[
-              (((pCalls p).take a.1.idx).filter fun c => decide (c.obj = x)).length]? =
-            ((callsX x).filter fun c => decide (c.proc = p))[
-              (((callsX x).take (posInSx a)).filter fun c => decide (c.proc = p)).length]? := by
-          rw [hlists_eq, hidx_same]
-        rw [List.getElem?_eq_getElem hlt_pc, List.getElem?_eq_getElem hlt_cx, Option.some.injEq]
-          at hget_opt
-        rwa [hget_pc, hget_cx] at hget_opt
+        refine hget_pc.symm.trans (Eq.trans ?_ hget_cx)
+        simp only [hlists_eq, hidx_same]
       · intro i j hi hj hij
-        have hne_ij : ord_x[i] ≠ ord_x[j] := fun h => by
-          have := (List.Nodup.getElem_inj_iff (hord_nd.filter _)).mp h; omega
+        obtain ⟨hne_ij, hback⟩ := List.pairwise_iff_getElem.mp (hpw.filter _) i j hi hj hij
         have hx_i : (callOf ord_x[i]).obj = x :=
           of_decide_eq_true (List.mem_filter.mp (List.getElem_mem hi)).2
         have hx_j : (callOf ord_x[j]).obj = x :=
@@ -1135,19 +1088,11 @@ theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
           have hlift_j := (hlift_localOp ord_x[j]).1
           rw [hx_i] at hlift_i; rw [hx_j, ← hloc_eq] at hlift_j
           exact hne_ij (Subtype.ext (hlift_i.symm.trans hlift_j))
-        rcases Nat.lt_or_gt_of_ne hpos_ne with hlt | hgt
-        · exact hlt
-        · exfalso
-          have hpr_ji : History.prec (Sx x) (localOp ord_x[j]) (localOp ord_x[i]) := by
-            rw [hSx_eq x, ← hop_j, ← hop_i]
-            exact (prec_flatMap_toEvents_opIdAt_iff (callsX x) hj_j hj_i).mpr hgt
-          have hloc_ji : loc ord_x[j] ord_x[i] := ⟨hx_j.trans hx_i.symm, hx_j ▸ hpr_ji⟩
-          have hrel : TransGen (loc ⊔ rt) order[(fidx ⟨j, hj⟩).1] order[(fidx ⟨i, hi⟩).1] := by
-            rw [← hfval ⟨i, hi⟩, ← hfval ⟨j, hj⟩]
-            exact TransGen.single (Or.inl hloc_ji)
-          have := hord_rel _ _ (fidx ⟨j, hj⟩).2 (fidx ⟨i, hi⟩).2 hrel
-          have := hfmono ⟨i, hi⟩ ⟨j, hj⟩ hij
-          omega
+        refine (Nat.lt_or_gt_of_ne hpos_ne).resolve_right fun hgt => hback (Or.inl ?_)
+        have hpr_ji : History.prec (Sx x) (localOp ord_x[j]) (localOp ord_x[i]) := by
+          rw [hSx_eq x, ← hop_j, ← hop_i]
+          exact (prec_flatMap_toEvents_opIdAt_iff (callsX x) hj_j hj_i).mpr hgt
+        exact (show loc ord_x[j] ord_x[i] from ⟨hx_j.trans hx_i.symm, hx_j ▸ hpr_ji⟩)
       · intro k hk
         let e_x := opIdAt (callsX x) k hk
         have hc_Sx_k : History.IsCompletedOp (Sx x) e_x := by

@@ -93,37 +93,36 @@ private theorem le_grow {D : ℕ → ℝ} {μ k : ℕ} {s : ℝ} (hμ : 2 ≤ μ
     (h1 : 0 ≤ D 1) (hadd : ∀ i j, i + j ≤ k → D (i + j) ≤ D i + D j)
     (hmul : ∀ i, μ * i ≤ k → D (μ * i) ≤ s * D i) {r : ℕ} (hr : r ≤ k) :
     D r ≤ grow μ s r * D 1 := by
-  have hsmall : ∀ t ≤ k, D t ≤ t * D 1 := fun t ht => by
-    induction t with
-    | zero => simp [h0]
-    | succ t ih => push_cast; linarith [hadd t 1 ht, ih (by omega)]
-  induction r using Nat.strong_induction_on with
-  | _ r ih =>
   unfold grow
   by_cases hrm : r < μ
   · rw [Nat.log_of_lt hrm]
-    refine (hsmall r hr).trans ?_
-    have : (r : ℝ) ≤ μ := by exact_mod_cast hrm.le
     simp only [CharP.cast_eq_zero, zero_add, mul_one, pow_zero]
-    gcongr
-  push Not at hrm
-  have hlog : Nat.log μ r = Nat.log μ (r / μ) + 1 := Nat.log_of_one_lt_of_le (by omega) hrm
-  have h2 := ih (r / μ) (Nat.div_lt_self (by omega) (by omega)) ((Nat.div_le_self r μ).trans hr)
-  have h3 := hmul (r / μ) ((Nat.mul_div_le r μ).trans hr)
-  have h4 := hadd (μ * (r / μ)) (r % μ) (by rw [Nat.div_add_mod]; exact hr)
-  have h5 := hsmall (r % μ) ((Nat.mod_le r μ).trans hr)
-  have hm : ((r % μ : ℕ) : ℝ) ≤ μ := by exact_mod_cast (Nat.mod_lt r (by omega)).le
-  have hp : 1 ≤ s ^ (Nat.log μ (r / μ) + 1) := one_le_pow₀ hs
-  rw [Nat.div_add_mod] at h4
-  unfold grow at h2
-  rw [hlog]
-  push_cast
-  calc D r ≤ s * D (r / μ) + (r % μ : ℕ) * D 1 := by linarith
-    _ ≤ s * (μ * (Nat.log μ (r / μ) + 1) * s ^ Nat.log μ (r / μ) * D 1) +
-        μ * D 1 * s ^ (Nat.log μ (r / μ) + 1) :=
-      add_le_add (mul_le_mul_of_nonneg_left h2 (by linarith))
-        ((mul_le_mul_of_nonneg_right hm h1).trans (le_mul_of_one_le_right (by positivity) hp))
-    _ = _ := by ring
+    have hlin : ∀ t ≤ k, D t ≤ t * D 1 := fun t ht => by
+      induction t with
+      | zero => simp [h0]
+      | succ t ih => push_cast; linarith [hadd t 1 ht, ih (by omega)]
+    exact (hlin r hr).trans (mul_le_mul_of_nonneg_right (by exact_mod_cast hrm.le) h1)
+  · have hdiv := le_grow hμ hs h0 h1 hadd hmul ((Nat.div_le_self r μ).trans hr)
+    have hmod := le_grow hμ hs h0 h1 hadd hmul ((Nat.mod_le r μ).trans hr)
+    rw [grow, Nat.log_of_lt (Nat.mod_lt r (by omega))] at hmod
+    simp only [CharP.cast_eq_zero, zero_add, mul_one, pow_zero] at hmod
+    have h3 := hmul (r / μ) ((Nat.mul_div_le r μ).trans hr)
+    have h4 := hadd (μ * (r / μ)) (r % μ) (by rw [Nat.div_add_mod]; exact hr)
+    rw [Nat.div_add_mod] at h4
+    rw [grow] at hdiv
+    rw [Nat.log_of_one_lt_of_le (by omega) (by omega)]
+    push_cast
+    have hp : 1 ≤ s ^ (Nat.log μ (r / μ) + 1) := one_le_pow₀ hs
+    calc D r ≤ s * D (r / μ) + D (r % μ) := by linarith
+      _ ≤ s * (μ * (Nat.log μ (r / μ) + 1) * s ^ Nat.log μ (r / μ) * D 1) +
+          μ * D 1 * s ^ (Nat.log μ (r / μ) + 1) :=
+        add_le_add (mul_le_mul_of_nonneg_left hdiv (by linarith))
+          (hmod.trans (le_mul_of_one_le_right (by positivity) hp))
+      _ = _ := by ring
+termination_by r
+decreasing_by
+  · exact Nat.div_lt_self (by omega) (by omega)
+  · exact (Nat.mod_lt r (by omega)).trans_le (by omega)
 
 /-- **Lemma F.1** (p. 38): for a homomorphism `τ` from `Mat_k(F₂)` into a group with a
 contracting length, `D(r) ≤ μ(j + 1)s^j D(1)`, `j = ⌊log_μ r⌋`, where `D(r)²` is the mean of
@@ -291,45 +290,38 @@ private theorem bd_add_self (hμ : 2 ≤ μ) (hs : 1 ≤ s) {a : ℕ} {κ : ℝ}
   have hcU : (0 : ℝ) < Fintype.card (U a) := by exact_mod_cast Fintype.card_pos
   have key := three_le (fun t => l (blk t)) (fun t => B t.2.2) (fun t => l (up t.2.1))
     (fun t => A t.1) (fun _ => apply_nonneg l _) (fun _ => apply_nonneg l _)
-    (fun _ => apply_nonneg A _) fun t => by
-      obtain ⟨A', M, C⟩ := t
-      have h1 := map_mul_le_add l (win hr C * up M) (win hl A')
-      have h2 := map_mul_le_add l (win hr C) (up M)
-      change l (win hr C * up M * win hl A') ≤ l (win hr C) + (l (up M) + l (win hl A'))
-      linarith
+    (fun _ => apply_nonneg A _) fun ⟨A', M, C⟩ =>
+      (map_mul_le_add l (win hr C * up M) (win hl A')).trans <| by
+        change _ ≤ l (win hr C) + (l (up M) + l (win hl A'))
+        linarith [map_mul_le_add l (win hr C) (up M)]
   -- each sum is `N` times a mean square
-  have hsq : ∀ (S : ℝ) (r : ℝ), 0 ≤ r → S = N * r ^ 2 → √S = √N * r := fun S r hr e => by
+  have hsq : ∀ (S r : ℝ), 0 ≤ r → S = N * r ^ 2 → √S = √N * r := fun S r hr e => by
     rw [e, Real.sqrt_mul hN.le, Real.sqrt_sq hr]
-  have e0 : √(∑ t : U a × Mt a × U a, l (blk t) ^ 2) = √N * l.rms := by
-    refine hsq _ _ (Len.rms_nonneg _) ?_
-    rw [blk_bijective.sum_comp (fun g => l g ^ 2), Len.rms_sq,
-      ← Fintype.card_of_bijective (blk_bijective (a := a) (b := a))]
-    simp only [N]
-    field_simp
-  have eA : √(∑ t : U a × Mt a × U a, A t.1 ^ 2) = √N * Len.rms A := by
-    refine hsq _ _ (Len.rms_nonneg _) ?_
-    rw [Len.rms_sq, Fintype.sum_prod_type]
-    simp only [sum_const, card_univ, nsmul_eq_mul, N, Fintype.card_prod, Nat.cast_mul]
-    rw [← mul_sum]
-    field_simp
-  have eB : √(∑ t : U a × Mt a × U a, B t.2.2 ^ 2) = √N * Len.rms B := by
-    refine hsq _ _ (Len.rms_nonneg _) ?_
-    rw [Len.rms_sq, Fintype.sum_prod_type]
-    simp only [Fintype.sum_prod_type, sum_const, card_univ, nsmul_eq_mul, N, Fintype.card_prod,
-      Nat.cast_mul]
-    field_simp
+  have e0 : √(∑ t : U a × Mt a × U a, l (blk t) ^ 2) = √N * l.rms :=
+    hsq _ _ (Len.rms_nonneg _) <| by
+      rw [blk_bijective.sum_comp (fun g => l g ^ 2), Len.rms_sq,
+        ← Fintype.card_of_bijective (blk_bijective (a := a) (b := a))]
+      simp only [N]; field_simp
+  have eA : √(∑ t : U a × Mt a × U a, A t.1 ^ 2) = √N * Len.rms A :=
+    hsq _ _ (Len.rms_nonneg _) <| by
+      simp only [Len.rms_sq, Fintype.sum_prod_type, sum_const, card_univ, nsmul_eq_mul,
+        ← mul_sum, N, Fintype.card_prod, Nat.cast_mul]; field_simp
+  have eB : √(∑ t : U a × Mt a × U a, B t.2.2 ^ 2) = √N * Len.rms B :=
+    hsq _ _ (Len.rms_nonneg _) <| by
+      simp only [Len.rms_sq, Fintype.sum_prod_type, sum_const, card_univ, nsmul_eq_mul,
+        N, Fintype.card_prod, Nat.cast_mul]; field_simp
   have eM : √(∑ t : U a × Mt a × U a, l (up t.2.1) ^ 2) ≤ √N * (grow μ s a * (18 * l.S)) := by
     rw [← hsq _ _ (by positivity) rfl]
     refine Real.sqrt_le_sqrt ?_
     simp only [Fintype.sum_prod_type, sum_const, card_univ, nsmul_eq_mul, N, Fintype.card_prod,
       Nat.cast_mul, ← mul_sum]
-    have := mul_le_mul_of_nonneg_left (sum_len_up_le l hμ hs hC (a := a))
-      (by positivity : (0 : ℝ) ≤ Fintype.card (U a) * Fintype.card (U a))
-    nlinarith
+    calc _ ≤ (Fintype.card (U a) : ℝ) * ((Fintype.card (U a) : ℝ) *
+            (Fintype.card (Mt a) * (grow μ s a * (18 * l.S)) ^ 2)) := by
+          gcongr; exact sum_len_up_le l hμ hs hC
+      _ = _ := by ring
   rw [e0, eA, eB] at key
-  have h1 : l.rms ≤ Len.rms B + (grow μ s a * (18 * l.S) + Len.rms A) := by
-    refine le_of_mul_le_mul_left ?_ (Real.sqrt_pos.2 hN)
-    linarith
+  have h1 : l.rms ≤ Len.rms B + (grow μ s a * (18 * l.S) + Len.rms A) :=
+    le_of_mul_le_mul_left (by linarith) (Real.sqrt_pos.2 hN)
   have := mul_le_mul_of_nonneg_left (S_add_le l) hκ
   have := h A (hC.comp _)
   have := h B (hC.comp _)
@@ -361,13 +353,10 @@ theorem bd_kappa (hμ : 2 ≤ μ) (hs : 1 ≤ s) (n : ℕ) : Bd μ s n (kappa μ
 theorem exists_kappa_le (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hsm : s ^ 2 < μ) :
     ∃ u : ℕ, 2 ≤ u ∧
       4 * (kappa μ s (3 * u) ^ 2 * (3 * u : ℕ)) ≤ (1 / 32) ^ 2 * ((u : ℝ) - 1) ^ 2 := by
-  have harith : ∀ v : ℝ, 2 ≤ v → 23328 / 2 ^ 30 * v ^ 2 ≤ (1 / 32) ^ 2 * (v - 1) ^ 2 :=
-    fun v hv => by
-    nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ v - 2) (by linarith : (0 : ℝ) ≤ 3 * v - 2)]
   have hm0 : (0 : ℝ) < μ := by exact_mod_cast (by omega : 0 < μ)
   set ρ : ℝ := s ^ 2 / μ
   have hρ0 : 0 < ρ := by positivity
-  have hρ1 : ρ < 1 := by rw [div_lt_one hm0]; exact hsm
+  have hρ1 : ρ < 1 := (div_lt_one hm0).2 hsm
   set ε : ℝ := 1 / (2 ^ 30 * μ ^ 4)
   obtain ⟨L₀, hL₀⟩ := exists_log_large hρ0 hρ1 (show 0 < ε by positivity)
   refine ⟨μ ^ L₀ + 2, by omega, ?_⟩
@@ -376,12 +365,9 @@ theorem exists_kappa_le (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hsm : s ^ 2 < μ) :
   set L := Nat.log μ (2 ^ i)
   have hni : n ≤ 2 ^ i := Nat.le_pow_clog one_lt_two n
   have hi2 : 2 ^ i ≤ 2 * n := by
-    obtain ⟨j, hj⟩ : ∃ j, i = j + 1 :=
-      ⟨i - 1, by have := Nat.clog_pos one_lt_two (show 1 < n by omega); omega⟩
+    have hi0 : 0 < i := Nat.clog_pos one_lt_two (by omega)
     have h : 2 ^ i.pred < n := Nat.pow_pred_clog_lt_self one_lt_two (by omega)
-    rw [hj, Nat.pred_succ] at h
-    rw [hj, pow_succ]
-    omega
+    rw [← Nat.succ_pred_eq_of_pos hi0, pow_succ']; omega
   have hLL : L₀ ≤ L := Nat.le_log_of_pow_le (by omega) (by omega)
   have hiL : (i : ℝ) ≤ μ * ((L : ℝ) + 1) := by
     have h1 : 2 ^ i < 2 ^ (μ * (L + 1)) :=
@@ -391,29 +377,27 @@ theorem exists_kappa_le (hμ : 2 ≤ μ) (hs : 1 ≤ s) (hsm : s ^ 2 < μ) :
     exact_mod_cast ((Nat.pow_lt_pow_iff_right (by norm_num)).1 h1).le
   have hmL : (μ : ℝ) ^ L ≤ 2 * n := by
     exact_mod_cast (Nat.pow_log_le_self μ (Nat.two_pow_pos i).ne').trans hi2
-  have e0 : (s ^ L) ^ 2 = ρ ^ L * (μ : ℝ) ^ L := by
-    rw [← mul_pow, div_mul_cancel₀ _ hm0.ne', ← pow_mul, ← pow_mul, mul_comm]
-  have hk : kappa μ s n ^ 2 ≤ 648 * (μ : ℝ) ^ 4 * (((L : ℝ) + 1) ^ 4 * ρ ^ L) * n := by
+  have hk : kappa μ s n ^ 2 ≤ 648 / 2 ^ 30 * n := by
+    have e0 : (s ^ L) ^ 2 = ρ ^ L * (μ : ℝ) ^ L := by
+      rw [← mul_pow, div_mul_cancel₀ _ hm0.ne', ← pow_mul, ← pow_mul, mul_comm]
     have e : kappa μ s n ^ 2 = 324 * (i : ℝ) ^ 2 * ((μ : ℝ) ^ 2 * ((L : ℝ) + 1) ^ 2 *
         (ρ ^ L * (μ : ℝ) ^ L)) := by
-      rw [kappa, grow, ← e0]
-      ring
-    rw [e]
-    calc _ ≤ 324 * ((μ : ℝ) * ((L : ℝ) + 1)) ^ 2 * ((μ : ℝ) ^ 2 * ((L : ℝ) + 1) ^ 2 *
-          (ρ ^ L * (2 * n))) := by gcongr
-      _ = _ := by ring
-  have hε := mul_le_mul_of_nonneg_left (hL₀ L hLL) (by positivity : (0 : ℝ) ≤ 648 * μ ^ 4)
-  have hn : (n : ℝ) = 3 * ((μ ^ L₀ + 2 : ℕ) : ℝ) := by simp [n]
-  have hu : (2 : ℝ) ≤ ((μ ^ L₀ + 2 : ℕ) : ℝ) := by exact_mod_cast (by omega : 2 ≤ μ ^ L₀ + 2)
-  have hμε : 648 * (μ : ℝ) ^ 4 * ε = 648 / 2 ^ 30 := by simp only [ε]; field_simp
-  rw [hμε] at hε
-  have hk' := hk.trans (mul_le_mul_of_nonneg_right hε (Nat.cast_nonneg n))
-  rw [hn] at hk' ⊢
+      rw [kappa, grow, ← e0]; ring
+    calc kappa μ s n ^ 2
+        ≤ 324 * ((μ : ℝ) * ((L : ℝ) + 1)) ^ 2 * ((μ : ℝ) ^ 2 * ((L : ℝ) + 1) ^ 2 *
+            (ρ ^ L * (2 * n))) := by rw [e]; gcongr
+      _ = 648 * (μ : ℝ) ^ 4 * (((L : ℝ) + 1) ^ 4 * ρ ^ L) * n := by ring
+      _ ≤ 648 * (μ : ℝ) ^ 4 * ε * n := by gcongr; exact hL₀ L hLL
+      _ = 648 / 2 ^ 30 * n := by simp only [ε]; field_simp
   set u : ℝ := ((μ ^ L₀ + 2 : ℕ) : ℝ)
-  calc 4 * (kappa μ s n ^ 2 * (3 * u)) = 12 * u * kappa μ s n ^ 2 := by ring
-    _ ≤ 12 * u * (648 / 2 ^ 30 * (3 * u)) :=
-      mul_le_mul_of_nonneg_left hk' (by positivity)
-    _ = 23328 / 2 ^ 30 * u ^ 2 := by ring
-    _ ≤ _ := harith u hu
+  have hn : (n : ℝ) = 3 * u := by simp [n, u]
+  have hu : 2 ≤ u := by simp only [u]; exact_mod_cast (by omega : 2 ≤ μ ^ L₀ + 2)
+  calc 4 * (kappa μ s n ^ 2 * (n : ℝ))
+      ≤ 4 * (648 / 2 ^ 30 * n * n) := by gcongr
+    _ = 23328 / 2 ^ 30 * u ^ 2 := by rw [hn]; ring
+    _ ≤ (1 / 32) ^ 2 * (u - 1) ^ 2 := by
+      have hsq : 0 ≤ (u - 2) * (3 * u - 2) := mul_nonneg (by linarith) (by linarith)
+      have hexp : (u - 2) * (3 * u - 2) = 3 * u ^ 2 - 8 * u + 4 := by ring
+      linarith
 
 end Cslib.Circuits.Arithmetic.Separation.Poincare

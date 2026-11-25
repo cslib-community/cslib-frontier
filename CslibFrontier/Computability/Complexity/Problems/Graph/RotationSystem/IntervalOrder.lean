@@ -53,7 +53,8 @@ theorem rotationDistance_lt_period {a b : Dart G} (hab : a.vertex = b.vertex) :
     exact r.pow_rotationDistance a b hab
   exact (r.rotationDistance_le hab hm).trans_lt (Nat.mod_lt _ (r.period_pos a))
 
-private theorem pow_eq_iff_rank_eq (o a b : Dart G) (hoa : o.vertex = a.vertex)
+/-- First-hit ranks from a common origin distinguish darts on that vertex cycle. -/
+theorem rotationDistance_eq_iff_eq (o a b : Dart G) (hoa : o.vertex = a.vertex)
     (hob : o.vertex = b.vertex) :
     r.rotationDistance o a = r.rotationDistance o b ↔ a = b := by
   refine ⟨fun h => ?_, fun h => congrArg _ h⟩
@@ -128,9 +129,9 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
   have hd : dist < n := by
     have h := r.rotationDistance_lt_period (hoa.symm.trans hoc)
     rwa [r.period_eq o a hoa] at h
-  have hneab : ra ≠ rb := fun h => hab ((r.pow_eq_iff_rank_eq o a b hoa hob).mp h)
-  have hnebc : rb ≠ rc := fun h => hbc ((r.pow_eq_iff_rank_eq o b c hob hoc).mp h)
-  have hneac : ra ≠ rc := fun h => hac ((r.pow_eq_iff_rank_eq o a c hoa hoc).mp h)
+  have hneab : ra ≠ rb := fun h => hab ((r.rotationDistance_eq_iff_eq o a b hoa hob).mp h)
+  have hnebc : rb ≠ rc := fun h => hbc ((r.rotationDistance_eq_iff_eq o b c hob hoc).mp h)
+  have hneac : ra ≠ rc := fun h => hac ((r.rotationDistance_eq_iff_eq o a c hoa hoc).mp h)
   have hdist : ra + dist = rc ∨ ra + dist = rc + n := by
     apply (add_mod_eq_iff ha hd hc).mp
     have h := r.rotationDistance_pow_from o a hoa dist
@@ -140,7 +141,7 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
     have hv : o.vertex = ((r.rotate ^ k) a).vertex :=
       hoa.trans ((r.sameCycle_iff _ _).mp
         (Equiv.Perm.sameCycle_pow_right.mpr .rfl))
-    rw [← r.pow_eq_iff_rank_eq o _ b hv hob, r.rotationDistance_pow_from o a hoa]
+    rw [← r.rotationDistance_eq_iff_eq o _ b hv hob, r.rotationDistance_pow_from o a hoa]
   constructor
   · intro hmem
     obtain ⟨k, hk, heq⟩ := Finset.mem_image.mp hmem
@@ -188,7 +189,7 @@ theorem portRank_injective (a b : Dart G) (hab : a.vertex = b.vertex)
   have hoa : o.vertex = a.vertex := Classical.choose_spec (show ∃ d : Dart G,
     d.vertex = a.vertex from ⟨a, rfl⟩)
   rw [r.portRank_at a a rfl, r.portRank_at a b hab] at heq
-  exact (r.pow_eq_iff_rank_eq o a b hoa (hoa.trans hab)).mp heq
+  exact (r.rotationDistance_eq_iff_eq o a b hoa (hoa.trans hab)).mp heq
 
 /-- The chosen linear ranks retain the supplied clockwise cyclic interval. -/
 theorem mem_rotationInterval_iff_portRank (a b c : Dart G)

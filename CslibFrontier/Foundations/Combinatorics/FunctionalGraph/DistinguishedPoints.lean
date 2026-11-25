@@ -138,44 +138,21 @@ private theorem scan_invariant (K : ℕ) (x : α) :
     obtain ⟨hu, hiff, hfd⟩ := ih (by omega)
     rw [runStages_succ]
     generalize hσ : runStages (scanStep f H K) k ⟨x, false, 0, x⟩ = σ at hu hiff hfd
-    have hmin : min k K = k := by omega
-    rw [hmin] at hu
-    refine ⟨?_, ?_, ?_⟩
+    rw [show min k K = k by omega] at hu
+    refine ⟨?_, by simp only [scanStep, Bool.or_eq_true, decide_eq_true_eq, hiff, hu,
+      Nat.exists_lt_succ_right], fun hfound => ?_⟩
     · simp only [scanStep]
-      by_cases hkK : k < K
-      · rw [ite_eq_left hkK, hu, ← iterate_succ_apply' f k x]
-        congr 1
-        omega
-      · rw [ite_eq_right hkK, hu]
-        congr 1
-        omega
-    · simp only [scanStep, Bool.or_eq_true, decide_eq_true_eq, hiff, hu]
-      constructor
-      · rintro (⟨i, hi, hHi⟩ | hHk)
-        · exact ⟨i, by omega, hHi⟩
-        · exact ⟨k, by omega, hHk⟩
-      · rintro ⟨i, hi, hHi⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hi | rfl
-        · exact Or.inl ⟨i, hi, hHi⟩
-        · exact Or.inr hHi
-    · intro hfound
-      simp only [scanStep]
-      by_cases hσt : σ.found = true
-      · obtain ⟨hd, hHd, hfirst, hc⟩ := hfd hσt
-        have hnot : ¬ (σ.found = false ∧ H σ.u) := by simp [hσt]
-        rw [ite_eq_right hnot, ite_eq_right hnot]
-        exact ⟨by omega, hHd, hfirst, hc⟩
-      · have hσf : σ.found = false := by simpa using hσt
-        have hHu : H σ.u := by
-          simpa [scanStep, hσf] using hfound
-        have hyes : σ.found = false ∧ H σ.u := ⟨hσf, hHu⟩
-        rw [ite_eq_left hyes, ite_eq_left hyes]
-        have hnone : ¬ ∃ i < k, H (f^[i] x) := by
-          rw [← hiff, hσf]
-          simp
-        refine ⟨by omega, hu ▸ hHu, ?_, hu⟩
-        intro i hi hHi
-        exact hnone ⟨i, hi, hHi⟩
+      split_ifs
+      · rw [hu, show min (k + 1) K = k + 1 by omega, iterate_succ_apply']
+      · rw [hu, show min (k + 1) K = k by omega]
+    simp only [scanStep]
+    cases hσf : σ.found
+    · have hHu : H σ.u := by simpa [scanStep, hσf] using hfound
+      rw [ite_eq_left ⟨rfl, hHu⟩, ite_eq_left ⟨rfl, hHu⟩]
+      exact ⟨by omega, hu ▸ hHu, fun i hi hHi => by simpa [hσf] using hiff.2 ⟨i, hi, hHi⟩, hu⟩
+    · obtain ⟨hd, hHd, hfirst, hc⟩ := hfd hσf
+      rw [ite_eq_right (by simp), ite_eq_right (by simp)]
+      exact ⟨by omega, hHd, hfirst, hc⟩
 
 /-- The scan ends at `f^[K] x` and records the first distinguished point among
 `x, f x, …, f^[K] x` whenever one exists. -/
@@ -189,12 +166,7 @@ theorem scan_spec (K : ℕ) (x : α) :
   unfold scan
   obtain ⟨hu, hiff, hfd⟩ := scan_invariant f H K x (K + 1) le_rfl
   rw [show min (K + 1) K = K by omega] at hu
-  refine ⟨hu, ?_, ?_⟩
-  · rw [hiff]
-    exact ⟨fun ⟨i, hi, h⟩ => ⟨i, by omega, h⟩, fun ⟨i, hi, h⟩ => ⟨i, by omega, h⟩⟩
-  · intro hfound
-    obtain ⟨hd, hHd, hfirst, hc⟩ := hfd hfound
-    exact ⟨by omega, hHd, hfirst, hc⟩
+  exact ⟨hu, by simp only [hiff, Nat.lt_add_one_iff], fun h => (hfd h).imp Nat.le_of_lt_succ id⟩
 
 end Scan
 
@@ -211,13 +183,9 @@ theorem correction_run (d k : ℕ) (v : α) :
   | zero => simp
   | succ k ih =>
     rw [runStages_succ, ih, correctionStep]
-    by_cases hd : d ≤ k
-    · rw [ite_eq_left hd, ← iterate_succ_apply' f (k - d) v]
-      congr 1
-      omega
-    · rw [ite_eq_right hd]
-      congr 1
-      omega
+    split_ifs with hd
+    · rw [Nat.sub_add_comm hd, iterate_succ_apply']
+    · rw [show k + 1 - d = k - d by omega]
 
 /-! ### Step 4: Period walk in a separate register -/
 
@@ -256,12 +224,7 @@ private theorem periodWalk_invariant (y : α) (k : ℕ) :
       ∀ j, 1 ≤ j → j < (runStages (periodStep f y) k ⟨y, false, 1⟩).period →
         f^[j] y ≠ y) := by
   induction k with
-  | zero =>
-    refine ⟨rfl, ?_, ?_⟩
-    · simp only [runStages_zero, Bool.false_eq_true, false_iff, not_exists, not_and]
-      intro j h1 h0
-      omega
-    · simp
+  | zero => simp
   | succ k ih =>
     obtain ⟨hw, hiff, hfd⟩ := ih
     rw [runStages_succ]
@@ -272,32 +235,20 @@ private theorem periodWalk_invariant (y : α) (k : ℕ) :
     · simp only [periodStep, Bool.or_eq_true, decide_eq_true_eq, hiff, hstep]
       constructor
       · rintro (⟨j, h1, hj, he⟩ | he)
-        · exact ⟨j, h1, by omega, he⟩
-        · exact ⟨k + 1, by omega, le_rfl, he⟩
+        exacts [⟨j, h1, by omega, he⟩, ⟨k + 1, by omega, le_rfl, he⟩]
       · rintro ⟨j, h1, hj, he⟩
-        rcases Nat.lt_or_ge j (k + 1) with hj' | hj'
-        · exact Or.inl ⟨j, h1, by omega, he⟩
-        · have : j = k + 1 := by omega
-          subst this
-          exact Or.inr he
+        obtain hj | rfl := Nat.lt_or_eq_of_le hj
+        exacts [.inl ⟨j, h1, by omega, he⟩, .inr he]
     · intro hfound
       simp only [periodStep]
-      by_cases hσt : σ.found = true
-      · obtain ⟨h1, hle, he, hmin⟩ := hfd hσt
-        have hnot : ¬ (σ.found = false ∧ f σ.w = y) := by simp [hσt]
-        rw [ite_eq_right hnot]
+      cases hσf : σ.found
+      · have hret : f σ.w = y := by simpa [periodStep, hσf] using hfound
+        rw [ite_eq_left ⟨rfl, hret⟩]
+        exact ⟨by omega, le_rfl, hstep ▸ hret,
+          fun j h1 hj he => by simpa [hσf] using hiff.2 ⟨j, h1, by omega, he⟩⟩
+      · obtain ⟨h1, hle, he, hmin⟩ := hfd hσf
+        rw [ite_eq_right (by simp)]
         exact ⟨h1, by omega, he, hmin⟩
-      · have hσf : σ.found = false := by simpa using hσt
-        have hret : f σ.w = y := by
-          simpa [periodStep, hσf] using hfound
-        have hyes : σ.found = false ∧ f σ.w = y := ⟨hσf, hret⟩
-        rw [ite_eq_left hyes]
-        have hnone : ¬ ∃ j, 1 ≤ j ∧ j ≤ k ∧ f^[j] y = y := by
-          rw [← hiff, hσf]
-          simp
-        refine ⟨by omega, le_rfl, hstep ▸ hret, ?_⟩
-        intro j h1 hj he
-        exact hnone ⟨j, h1, by omega, he⟩
 
 /-- If `y` returns to itself within `K` positive steps, `periodWalk f K y` records the least
 positive return time `1 ≤ λ ≤ K`. -/
@@ -323,13 +274,9 @@ theorem walk_run (r k : ℕ) (v : α) :
   | zero => simp
   | succ k ih =>
     rw [runStages_succ, ih, walkStep]
-    by_cases hk : k < r
-    · rw [ite_eq_left hk, ← iterate_succ_apply' f (min r k) v]
-      congr 1
-      omega
-    · rw [ite_eq_right hk]
-      congr 1
-      omega
+    split_ifs
+    · rw [show min r (k + 1) = min r k + 1 by omega, iterate_succ_apply']
+    · rw [show min r (k + 1) = min r k by omega]
 
 /-! ### The complete distinguished-point procedure -/
 
@@ -375,32 +322,19 @@ theorem distinguishedPower_correct (K T : ℕ) (z : α → α) (R : ℕ → ℕ)
     exact shifted_payload hd hTK
   | false =>
     simp only [Bool.false_eq_true, ite_false]
-    have hnohit : ¬ ∃ i ≤ K, H (f^[i] x) := by
-      rw [← hiff, hfound]
-      simp
     have hrep : ∃ i j, i < j ∧ j ≤ K ∧ f^[i] x = f^[j] x := by
       by_contra hno
-      apply hnohit
-      apply hhit x
-      intro i hi j hj he
-      by_contra hne
-      rcases Nat.lt_or_gt_of_ne hne with hij | hji
-      · exact hno ⟨i, j, hij, hj, he⟩
-      · exact hno ⟨j, i, hji, hi, he.symm⟩
+      refine hiff.not.1 (by simp [hfound]) (hhit x fun i hi j hj he => ?_)
+      rcases lt_trichotomy i j with hij | rfl | hji
+      exacts [(hno ⟨i, j, hij, hj, he⟩).elim, rfl, (hno ⟨j, i, hji, hi, he.symm⟩).elim]
     obtain ⟨i, j, hij, hjK, he⟩ := hrep
     have hperK : IsPeriodicPt f (j - i) (f^[K] x) := by
       have hp := (isPeriodicPt_of_iterate_eq hij.le he).apply_iterate (K - i)
       rwa [← iterate_add_apply, Nat.sub_add_cancel (by omega : i ≤ K)] at hp
     obtain ⟨hl1, hlK, hlper, -⟩ :=
       periodWalk_spec f K (scan f H K x).u ⟨j - i, by omega, by omega, hu ▸ hperK⟩
-    set l := (periodWalk f K (scan f H K x).u).period
-    have hr : R l = (T - K) % l := hR l hl1 hlK
-    have hrK : min (R l) K = (T - K) % l := by
-      have := Nat.mod_lt (T - K) (by omega : 0 < l)
-      rw [hr]
-      omega
-    rw [walk_run, hrK, hlper.iterate_mod_apply, hu, ← iterate_add_apply,
-      Nat.sub_add_cancel hTK]
+    rw [walk_run, hR _ hl1 hlK, min_eq_left ((Nat.mod_lt _ hl1).le.trans hlK),
+      hlper.iterate_mod_apply, hu, ← iterate_add_apply, Nat.sub_add_cancel hTK]
 
 end Algorithm
 

@@ -108,19 +108,15 @@ def AtomicIndex.Holds {k : ℕ} (a : Fin k → M) : AtomicIndex L k → Prop
   | .inr ⟨⟨_, R⟩, f⟩ => RelMap R (a ∘ f)
 
 @[simp] theorem AtomicIndex.holds_inl {k : ℕ} (a : Fin k → M) (i j : Fin k) :
-    AtomicIndex.Holds a (Sum.inl ⟨(i, j)⟩ : AtomicIndex L k) ↔ a i = a j := by
-  rw [AtomicIndex.Holds]
+    AtomicIndex.Holds a (Sum.inl ⟨(i, j)⟩ : AtomicIndex L k) ↔ a i = a j := Iff.rfl
 
 @[simp] theorem AtomicIndex.holds_inr {k l : ℕ} (a : Fin k → M) (R : L.Relations l)
     (f : Fin l → Fin k) :
-    AtomicIndex.Holds a (Sum.inr ⟨⟨l, R⟩, f⟩ : AtomicIndex L k) ↔ RelMap R (a ∘ f) := by
-  rw [AtomicIndex.Holds]
+    AtomicIndex.Holds a (Sum.inr ⟨⟨l, R⟩, f⟩ : AtomicIndex L k) ↔ RelMap R (a ∘ f) := Iff.rfl
 
 @[simp] theorem AtomicIndex.realize_formula {k : ℕ} (i : AtomicIndex L k) (a : Fin k → M) :
     i.formula.Realize default a ↔ i.Holds a := by
-  rcases i with ⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩
-  · rfl
-  · rfl
+  rcases i with ⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩ <;> rfl
 
 @[simp] theorem AtomicIndex.quantifierRank_formula {k : ℕ} (i : AtomicIndex L k) :
     quantifierRank i.formula = 0 := by
@@ -131,13 +127,9 @@ def AtomicIndex.Holds {k : ℕ} (a : Fin k → M) : AtomicIndex L k → Prop
 /-- A position is a partial isomorphism exactly when both tuples satisfy the same atomic
 formulas. -/
 theorem partialIso_iff_holds {k : ℕ} {a : Fin k → M} {b : Fin k → N} :
-    PartialIso L a b ↔ ∀ i : AtomicIndex L k, i.Holds a ↔ i.Holds b := by
-  constructor
-  · rintro ⟨heq, hrel⟩ (⟨⟨i, j⟩⟩ | ⟨⟨l, R⟩, f⟩)
-    · exact heq i j
-    · exact hrel R f
-  · intro h
-    exact ⟨fun i j => h (.inl ⟨(i, j)⟩), fun R f => h (.inr ⟨⟨_, R⟩, f⟩)⟩
+    PartialIso L a b ↔ ∀ i : AtomicIndex L k, i.Holds a ↔ i.Holds b :=
+  ⟨fun ⟨heq, hrel⟩ => Sum.rec (fun ⟨(i, j)⟩ => heq i j) (fun ⟨⟨_, R⟩, f⟩ => hrel R f),
+    fun h => ⟨fun i j => h (.inl ⟨(i, j)⟩), fun R f => h (.inr ⟨⟨_, R⟩, f⟩)⟩⟩
 
 /-! ### Rank types -/
 
@@ -162,8 +154,7 @@ def rankType : ∀ (n : ℕ) {k : ℕ}, (Fin k → M) → RankType L n k
   | n + 1, _, a => ({i | i.Holds a}, Set.range fun c : M => rankType n (Fin.snoc a c : Fin _ → M))
 
 theorem rankType_zero {k : ℕ} (a : Fin k → M) :
-    rankType (L := L) 0 a = {i | i.Holds a} := by
-  rw [rankType]
+    rankType (L := L) 0 a = {i | i.Holds a} := by rw [rankType]
 
 /-- Equality of rank-`(n + 1)` types is componentwise. -/
 theorem RankType.succ_ext_iff {n k : ℕ} {T T' : RankType L (n + 1) k} :
@@ -184,19 +175,16 @@ theorem rankType_eq_iff : ∀ {n k : ℕ} {a : Fin k → M} {b : Fin k → N},
   | n + 1, k, a, b => by
     rw [duplicatorWins_succ, partialIso_iff_holds, RankType.succ_ext_iff, rankType_succ,
       rankType_succ, Set.ext_iff, Set.ext_iff]
-    simp only [Set.mem_ofPred_eq, Set.mem_range]
-    refine and_congr Iff.rfl ⟨fun h => ⟨fun c => ?_, fun d => ?_⟩, fun ⟨hf, hb⟩ T => ?_⟩
+    simp only [Set.mem_ofPred_eq, Set.mem_range, ← rankType_eq_iff]
+    refine and_congr Iff.rfl ⟨fun h => ⟨fun c => ?_, fun d => (h _).2 ⟨d, rfl⟩⟩,
+      fun ⟨hf, hb⟩ T => ⟨?_, ?_⟩⟩
     · obtain ⟨d, hd⟩ := (h _).1 ⟨c, rfl⟩
-      exact ⟨d, rankType_eq_iff.1 hd.symm⟩
-    · obtain ⟨c, hc⟩ := (h _).2 ⟨d, rfl⟩
-      exact ⟨c, rankType_eq_iff.1 hc⟩
-    · constructor
-      · rintro ⟨c, rfl⟩
-        obtain ⟨d, hd⟩ := hf c
-        exact ⟨d, (rankType_eq_iff.2 hd).symm⟩
-      · rintro ⟨d, rfl⟩
-        obtain ⟨c, hc⟩ := hb d
-        exact ⟨c, rankType_eq_iff.2 hc⟩
+      exact ⟨d, hd.symm⟩
+    · rintro ⟨c, rfl⟩
+      obtain ⟨d, hd⟩ := hf c
+      exact ⟨d, hd.symm⟩
+    · rintro ⟨d, rfl⟩
+      exact hb d
 
 /-! ### Hintikka formulas -/
 
@@ -210,14 +198,12 @@ theorem realize_atomicDiagram [Finite (Σ l, L.Relations l)] {k : ℕ} (T : Set 
     (a : Fin k → M) : (atomicDiagram T).Realize default a ↔ {i | i.Holds a} = T := by
   classical
   simp only [atomicDiagram, BoundedFormula.realize_iInf, Set.ext_iff, Set.mem_ofPred_eq]
-  refine forall_congr' fun i => ?_
-  by_cases hi : i ∈ T <;> simp [hi]
+  exact forall_congr' fun i => by by_cases hi : i ∈ T <;> simp [hi]
 
 theorem quantifierRank_atomicDiagram [Finite (Σ l, L.Relations l)] {k : ℕ}
     (T : Set (AtomicIndex L k)) : quantifierRank (atomicDiagram T) = 0 := by
   classical
-  refine Nat.le_zero.1 (quantifierRank_iInf_le fun i => ?_)
-  by_cases hi : i ∈ T <;> simp [hi]
+  exact Nat.le_zero.1 (quantifierRank_iInf_le fun i => by by_cases hi : i ∈ T <;> simp [hi])
 
 /-- The Hintikka formula of a rank-`n` type: a formula of quantifier rank at most `n` satisfied
 exactly by the tuples of that type. For `n + 1` it states the atomic diagram, that every
@@ -233,34 +219,24 @@ noncomputable def hintikka [Finite (Σ l, L.Relations l)] :
 theorem realize_hintikka [Finite (Σ l, L.Relations l)] :
     ∀ {n k : ℕ} (T : RankType L n k) (a : Fin k → M),
       (hintikka T).Realize default a ↔ rankType n a = T
-  | 0, _, T, a => by
-    rw [hintikka, rankType_zero]
-    exact realize_atomicDiagram T a
+  | 0, _, T, a => realize_atomicDiagram T a
   | n + 1, k, T, a => by
     rw [RankType.succ_ext_iff, rankType_succ, hintikka]
     fo_simp [realize_hintikka, realize_atomicDiagram, Subtype.forall, Subtype.exists,
       exists_eq_right', and_assoc]
-    refine and_congr Iff.rfl ?_
-    rw [Set.ext_iff]
-    simp only [Set.mem_range]
-    constructor
-    · rintro ⟨h₁, h₂⟩ T
-      exact ⟨fun ⟨c, hc⟩ => hc ▸ h₂ c, fun hT => h₁ T hT⟩
-    · intro h
-      exact ⟨fun T hT => (h T).2 hT, fun c => (h _).1 ⟨c, rfl⟩⟩
+    simp only [Set.ext_iff, Set.mem_range]
+    exact and_congr Iff.rfl ⟨fun ⟨h₁, h₂⟩ S => ⟨fun ⟨c, hc⟩ => hc ▸ h₂ c, h₁ S⟩,
+      fun h => ⟨fun S => (h S).2, fun c => (h _).1 ⟨c, rfl⟩⟩⟩
 
 theorem quantifierRank_hintikka_le [Finite (Σ l, L.Relations l)] :
     ∀ {n k : ℕ} (T : RankType L n k), quantifierRank (hintikka T) ≤ n
-  | 0, _, T => by
-    rw [hintikka]
-    exact (quantifierRank_atomicDiagram T).le
+  | 0, _, T => (quantifierRank_atomicDiagram T).le
   | n + 1, k, T => by
-    rw [hintikka]
-    simp only [quantifierRank_inf, quantifierRank_all, quantifierRank_atomicDiagram, max_le_iff]
-    refine ⟨⟨Nat.zero_le _, quantifierRank_iInf_le fun T => ?_⟩,
-      Nat.succ_le_succ (quantifierRank_iSup_le fun T => quantifierRank_hintikka_le T.1)⟩
-    rw [quantifierRank_ex]
-    exact Nat.succ_le_succ (quantifierRank_hintikka_le T.1)
+    simp only [hintikka, quantifierRank_inf, quantifierRank_all, quantifierRank_atomicDiagram,
+      max_le_iff, Nat.zero_le, true_and]
+    exact ⟨quantifierRank_iInf_le fun S => (quantifierRank_ex _).trans_le
+      (Nat.succ_le_succ (quantifierRank_hintikka_le S.1)),
+      Nat.succ_le_succ (quantifierRank_iSup_le fun S => quantifierRank_hintikka_le S.1)⟩
 
 /-! ### The Ehrenfeucht–Fraïssé theorem -/
 
@@ -270,11 +246,10 @@ if `a` and `b` satisfy the same formulas of quantifier rank at most `n`, then Du
 theorem duplicatorWins_of_forall_realize_iff [Finite (Σ l, L.Relations l)] {n k : ℕ}
     {a : Fin k → M} {b : Fin k → N}
     (h : ∀ φ : L.BoundedFormula Empty k, quantifierRank φ ≤ n →
-      (φ.Realize default a ↔ φ.Realize default b)) : DuplicatorWins L n a b := by
-  rw [← rankType_eq_iff]
-  have hb := (h _ (quantifierRank_hintikka_le (rankType (L := L) n a))).1
-    ((realize_hintikka _ a).2 rfl)
-  exact ((realize_hintikka _ b).1 hb).symm
+      (φ.Realize default a ↔ φ.Realize default b)) : DuplicatorWins L n a b :=
+  rankType_eq_iff.1 ((realize_hintikka _ b).1
+    ((h _ (quantifierRank_hintikka_le (rankType (L := L) n a))).1
+      ((realize_hintikka _ a).2 rfl))).symm
 
 /-- **The Ehrenfeucht–Fraïssé theorem** [Libkin2004]. For a relational language with finitely
 many relation symbols, Duplicator wins the `n`-round game from `(a, b)` exactly when `a` and `b`
@@ -293,8 +268,8 @@ theorem duplicatorWins_iff_forall_formula [L.IsRelational] [Finite (Σ l, L.Rela
     {n k : ℕ} {a : Fin k → M} {b : Fin k → N} :
     DuplicatorWins L n a b ↔ ∀ φ : L.Formula (Fin k), quantifierRank φ ≤ n →
       (φ.Realize a ↔ φ.Realize b) := by
-  refine ⟨fun h _ hφ => h.formula_realize_iff hφ, fun h => ?_⟩
-  refine duplicatorWins_of_forall_realize_iff fun ψ hψ => ?_
+  refine ⟨fun h _ hφ => h.formula_realize_iff hφ,
+    fun h => duplicatorWins_of_forall_realize_iff fun ψ hψ => ?_⟩
   rw [← realize_toFormula_relabel, ← realize_toFormula_relabel]
   exact h _ (by rwa [quantifierRank_formula_relabel, quantifierRank_toFormula])
 
@@ -303,10 +278,8 @@ many relation symbols, Duplicator wins the `n`-round game on `M` and `N` exactly
 satisfy the same sentences of quantifier rank at most `n`. -/
 theorem duplicatorWins_iff_forall_sentence [L.IsRelational] [Finite (Σ l, L.Relations l)]
     {n : ℕ} {a : Fin 0 → M} {b : Fin 0 → N} :
-    DuplicatorWins L n a b ↔ ∀ φ : L.Sentence, quantifierRank φ ≤ n → (M ⊨ φ ↔ N ⊨ φ) := by
-  obtain rfl := Subsingleton.elim a default
-  obtain rfl := Subsingleton.elim b default
-  exact duplicatorWins_iff_forall_realize_iff
+    DuplicatorWins L n a b ↔ ∀ φ : L.Sentence, quantifierRank φ ≤ n → (M ⊨ φ ↔ N ⊨ φ) :=
+  Subsingleton.elim a default ▸ Subsingleton.elim b default ▸ duplicatorWins_iff_forall_realize_iff
 
 /-! ### Consequences -/
 

@@ -123,16 +123,14 @@ theorem randomWalk_ne_zero_of_adj {x y : V} (h : G.Adj x y) : randomWalk G x y �
 /-- The degrees form a stationary measure of the simple random walk. -/
 theorem sum_degree_mul_randomWalk (y : V) :
     ∑ x, (G.degree x : ℝ≥0∞) * randomWalk G x y = G.degree y := by
-  have : ∀ x, (G.degree x : ℝ≥0∞) * randomWalk G x y = if G.Adj y x then 1 else 0 := by
-    intro x
+  have hterm (x) : (G.degree x : ℝ≥0∞) * randomWalk G x y = if G.Adj y x then 1 else 0 := by
     rcases (G.degree x).eq_zero_or_pos with hx | hx
-    · have : ¬ G.Adj y x := fun h => hx.not_gt h.degree_pos_right
-      simp [hx, this]
+    · simp [hx, show ¬ G.Adj y x from fun h => hx.not_gt h.degree_pos_right]
     by_cases h : G.Adj x y
     · rw [randomWalk_apply_of_adj h, ite_eq_left h.symm]
       exact ENNReal.mul_inv_cancel (by exact_mod_cast hx.ne') (ENNReal.natCast_ne_top _)
-    · rw [randomWalk_apply_of_not_adj hx h, ite_eq_right fun h' => h h'.symm, mul_zero]
-  simp_rw [this]
+    · simp [randomWalk_apply_of_not_adj hx h, show ¬ G.Adj y x from fun h' => h h'.symm]
+  simp_rw [hterm]
   rw [sum_boole, ← neighborFinset_eq_filter, card_neighborFinset_eq_degree]
 
 variable [DecidableEq V]
@@ -163,11 +161,10 @@ theorem degree_add_sum_hittingTime_randomWalk (hG : G.Connected) {v : V} (hv : 0
   have hd : (G.degree v : ℝ≥0∞) ≠ 0 := by exact_mod_cast hv.ne'
   rw [← degree_mul_returnTime_randomWalk hG v, returnTime_eq, mul_add, mul_one, mul_sum]
   congr 1
-  rw [← sum_filter_add_sum_filter_not univ (G.Adj v)]
-  have hzero : ∑ u ∈ univ.filter (fun u => ¬ G.Adj v u),
-      (G.degree v : ℝ≥0∞) * (randomWalk G v u * hittingTime (randomWalk G) v u) = 0 :=
-    sum_eq_zero fun u hu => by simp [randomWalk_apply_of_not_adj hv (mem_filter.1 hu).2]
-  rw [hzero, add_zero, ← neighborFinset_eq_filter]
+  rw [← sum_filter_add_sum_filter_not univ (G.Adj v),
+    sum_eq_zero (s := univ.filter fun u => ¬ G.Adj v u) fun u hu => by
+      simp [randomWalk_apply_of_not_adj hv (mem_filter.1 hu).2],
+    add_zero, ← neighborFinset_eq_filter]
   refine sum_congr rfl fun u hu => ?_
   rw [randomWalk_apply_of_adj ((mem_neighborFinset G v u).1 hu), ← mul_assoc,
     ENNReal.mul_inv_cancel hd (ENNReal.natCast_ne_top _), one_mul]
@@ -213,13 +210,11 @@ theorem hittingTime_randomWalk_le_dist_mul (hG : G.Connected) (u v : V) :
 
 omit [DecidableEq V] in
 private theorem two_mul_card_edgeFinset_pos (hG : G ≠ ⊥) : 0 < 2 * #G.edgeFinset := by
-  have hex : ∃ u v, G.Adj u v := by
-    by_contra hall
-    push Not at hall
-    apply hG
+  obtain ⟨u, v, huv⟩ : ∃ u v, G.Adj u v := by
+    by_contra! hall
+    refine hG (SimpleGraph.ext ?_)
     ext u v
     simp [hall u v]
-  obtain ⟨u, v, huv⟩ := hex
   rw [← G.sum_degrees_eq_twice_card_edges]
   exact sum_pos' (fun _ _ => Nat.zero_le _) ⟨u, mem_univ u, huv.degree_pos_left⟩
 
@@ -288,6 +283,13 @@ private theorem inv_two_mul_edges_le_degreeStationary [Nontrivial V] (hconn : G.
   exact div_le_div_of_nonneg_right (by exact_mod_cast hdeg) hpos.le
 
 omit [DecidableEq V] in
+private theorem degreeStationary_ne_zero [Nontrivial V] (hconn : G.Connected) (hG : G ≠ ⊥)
+    (v : V) : degreeStationary G hG v ≠ 0 := fun hv0 => by
+  have hpos : (0 : ℝ) < 2 * #G.edgeFinset := by exact_mod_cast two_mul_card_edgeFinset_pos hG
+  linarith [inv_two_mul_edges_le_degreeStationary hconn hG v, inv_pos.mpr hpos,
+    show (degreeStationary G hG v).toReal = 0 by simp [hv0]]
+
+omit [DecidableEq V] in
 /-- **Lazy random-walk total-variation contraction on a connected nontrivial graph**:
 `d(t) ≤ (1 / 2) √(2 |E| - 1) · (1 - γ / 2)^t`. -/
 theorem distToStationary_lazy_randomWalk_le [Nontrivial V] (hconn : G.Connected)
@@ -297,20 +299,13 @@ theorem distToStationary_lazy_randomWalk_le [Nontrivial V] (hconn : G.Connected)
         (1 - (randomWalk G).spectralGap (degreeStationary G hG) / 2) ^ t := by
   have hpos : (0 : ℝ) < 2 * #G.edgeFinset := by exact_mod_cast two_mul_card_edgeFinset_pos hG
   have hedg : (#G.edgeFinset : ℝ) ≠ 0 := by linarith
-  have hπ : ∀ v, degreeStationary G hG v ≠ 0 := by
-    intro v hv0
-    have hle := inv_two_mul_edges_le_degreeStationary hconn hG v
-    rw [hv0, ENNReal.toReal_zero] at hle
-    linarith [inv_pos.mpr hpos]
   have hrev := isReversible_randomWalk hG
   have hd := hrev.lazy.distToStationary_le_of_le_toReal (inv_pos.mpr hpos)
     (inv_two_mul_edges_le_degreeStationary hconn hG) t
-  rw [hrev.spectralContraction_lazy hπ] at hd
-  refine hd.trans_eq ?_
-  have hratio : (1 - (2 * (#G.edgeFinset : ℝ))⁻¹) / (2 * (#G.edgeFinset : ℝ))⁻¹ =
-      2 * (#G.edgeFinset : ℝ) - 1 := by
-    field_simp [hedg]
-  rw [hratio]
+  rw [hrev.spectralContraction_lazy (degreeStationary_ne_zero hconn hG)] at hd
+  exact hd.trans_eq (by
+    rw [show (1 - (2 * (#G.edgeFinset : ℝ))⁻¹) / (2 * (#G.edgeFinset : ℝ))⁻¹ =
+      2 * (#G.edgeFinset : ℝ) - 1 by field_simp [hedg]])
 
 omit [DecidableEq V] in
 /-- **Lazy random-walk mixing-time bound on a connected nontrivial graph**:
@@ -322,21 +317,13 @@ theorem mixingTime_lazy_randomWalk_le [Nontrivial V] (hconn : G.Connected) (hG :
       (⌈2 * ((randomWalk G).spectralGap (degreeStationary G hG))⁻¹ *
         ((1 / 2) * Real.log (2 * #G.edgeFinset) + Real.log (1 / (2 * ε)))⌉₊ : ℕ) := by
   have hpos : (0 : ℝ) < 2 * #G.edgeFinset := by exact_mod_cast two_mul_card_edgeFinset_pos hG
-  have hπ : ∀ v, degreeStationary G hG v ≠ 0 := by
-    intro v hv0
-    have hle := inv_two_mul_edges_le_degreeStationary hconn hG v
-    rw [hv0, ENNReal.toReal_zero] at hle
-    linarith [inv_pos.mpr hpos]
+  have hπ := degreeStationary_ne_zero hconn hG
   have hrev := isReversible_randomWalk hG
-  have hgap_lazy : 0 < ((randomWalk G).lazy).absSpectralGap (degreeStationary G hG) := by
-    rw [hrev.absSpectralGap_lazy hπ]
-    linarith
   refine (hrev.lazy.mixingTime_le_of_absSpectralGap_pos (inv_pos.mpr hpos)
-    (inv_two_mul_edges_le_degreeStationary hconn hG) hgap_lazy hε).trans_eq ?_
-  have hinv_e : 1 / (2 * (#G.edgeFinset : ℝ))⁻¹ = 2 * (#G.edgeFinset : ℝ) := by
-    rw [one_div, inv_inv]
+    (inv_two_mul_edges_le_degreeStationary hconn hG)
+    (by rw [hrev.absSpectralGap_lazy hπ]; linarith) hε).trans_eq ?_
   congr 2
-  rw [hrev.absSpectralGap_lazy hπ, hinv_e, inv_div]
+  rw [hrev.absSpectralGap_lazy hπ, div_inv_eq_mul, one_mul, inv_div]
   ring
 
 end Cslib.Probability.MarkovChain

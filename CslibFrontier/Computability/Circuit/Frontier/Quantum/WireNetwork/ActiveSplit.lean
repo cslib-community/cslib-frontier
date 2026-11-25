@@ -106,12 +106,7 @@ theorem controlled_hasBondRankTwo (V : Quantum.Gate 1) :
       else if y₁ = x₁ then 1 else 0,
     fun y x => ?_⟩
   rw [Quantum.Gate.controlled_apply, Fintype.sum_bool]
-  by_cases hx0 : x 0 = true <;> by_cases hy0 : y 0 = true
-  · simp [hx0, hy0]
-  · simp [hx0, hy0]
-  · simp [hx0, hy0]
-  · simp only [Bool.not_eq_true] at hx0 hy0
-    simp [hx0, hy0]
+  cases x 0 <;> cases y 0 <;> simp
 
 /-! ### Active-qubit decoupling on `Quantum.Circuit N` -/
 
@@ -149,19 +144,14 @@ private theorem placeAct_apply {W : Type} [Fintype W] [DecidableEq W]
   have hcomp (z : W → Bool) :
       Equiv.arrowCongr (Equiv.ofInjective g.2.2 g.2.2.injective).symm (Equiv.refl Bool)
         (fun q : Set.range g.2.2 => z q.1) = z ∘ g.2.2 := by
-    ext i
-    simp only [Equiv.arrowCongr_apply, Equiv.refl_apply, Equiv.symm_symm,
-      Equiv.ofInjective_apply, Function.comp_apply]
+    ext i; simp [Equiv.ofInjective_apply]
   change (placeAct g).1 y x = _
   simp only [placeAct, Matrix.submatrix_apply, Matrix.kroneckerMap_apply, Equiv.trans_apply,
     Equiv.piEquivPiSubtypeProd_apply, Equiv.prodCongr_apply, Prod.map_apply, Equiv.refl_apply,
-    Matrix.one_apply]
-  rw [hcomp y, hcomp x]
-  have hiff : ((fun a : {q // q ∉ Set.range g.2.2} => y a.1) =
-      (fun a : {q // q ∉ Set.range g.2.2} => x a.1)) ↔
-      ∀ q : W, (¬∃ i, g.2.2 i = q) → y q = x q := by
-    simp only [funext_iff, Subtype.forall, Set.mem_range]
-  rw [if_congr hiff rfl rfl]
+    Matrix.one_apply, hcomp]
+  rw [if_congr (show ((fun a : {q // q ∉ Set.range g.2.2} => y a.1) = fun a => x a.1) ↔
+      ∀ q : W, (¬∃ i, g.2.2 i = q) → y q = x q by
+    simp only [funext_iff, Subtype.forall, Set.mem_range]) rfl rfl]
   split_ifs <;> simp
 
 /-- Sequential unitary matrix of a list of active gates, applied first to last. -/
@@ -198,21 +188,15 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
     have hsplit : (y = x) ↔
         (A.domRestrict y = A.domRestrict x ∧ ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1) := by
       refine ⟨fun h => h ▸ ⟨rfl, fun _ => rfl⟩, fun ⟨hA, hAc⟩ => funext fun j => ?_⟩
-      by_cases hj : j ∈ A
-      · exact congrFun hA ⟨j, hj⟩
-      · exact hAc ⟨j, hj⟩
+      exact if hj : j ∈ A then congrFun hA ⟨j, hj⟩ else hAc ⟨j, hj⟩
     rw [if_congr hsplit rfl rfl]
-    by_cases hA : A.domRestrict y = A.domRestrict x
-    · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1
-      · rw [ite_eq_left ⟨hA, hAc⟩, ite_eq_left hA, ite_eq_left hAc, mul_one]
-      · rw [ite_eq_right (fun h => hAc h.2), ite_eq_right hAc, mul_zero]
-    · rw [ite_eq_right (fun h => hA h.1), ite_eq_right hA, zero_mul]
+    by_cases hA : A.domRestrict y = A.domRestrict x <;>
+      by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, y q.1 = x q.1 <;> simp [hA, hAc]
   | cons g C ih =>
     have htwo_g : g.arity ≤ 2 := htwo g List.mem_cons_self
-    have htwo_C : TwoLocal C := fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg')
-    have htouch_C : TouchingIn A C := fun g' hg' => htouch g' (List.mem_cons_of_mem _ hg')
-    obtain ⟨L, inactU, hlen, hbondL, hmatC⟩ := ih htwo_C htouch_C
-    -- Express the single gate `g` as `(L_g, inact_g)` and compose with `(L, inactU)`.
+    obtain ⟨L, inactU, hlen, hbondL, hmatC⟩ :=
+      ih (fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg'))
+        (fun g' hg' => htouch g' (List.mem_cons_of_mem _ hg'))
     suffices hstep : ∃ (Lg : List (ActiveGate ↥A))
         (inactG : {q : Fin N // q ∉ A} → unitaryGroup Bool ℂ),
         (Lg.filter fun a => decide (a.1.val = 2)).length = (if g.arity = 2 then 1 else 0) ∧
@@ -225,9 +209,8 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       refine ⟨Lg ++ L, fun q => inactU q * inactG q, ?_, ?_, fun y x => ?_⟩
       · rw [List.filter_append, List.length_append, hlenG, hlen, twoQubitCount_cons]
       · intro hbond a ha h2
-        rcases List.mem_append.mp ha with haG | haL
-        · exact hbondG hbond a haG h2
-        · exact hbondL (fun g' hg' => hbond g' (List.mem_cons_of_mem _ hg')) a haL h2
+        exact (List.mem_append.mp ha).elim (fun haG => hbondG hbond a haG h2) fun haL =>
+          hbondL (fun g' hg' => hbond g' (List.mem_cons_of_mem _ hg')) a haL h2
       · rw [Quantum.Circuit.matrix_cons, Submonoid.coe_mul, Matrix.mul_apply]
         simp_rw [hmatC, hmatG]
         have hsum_eq : (∑ z : Fin N → Bool,
@@ -244,23 +227,18 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
                   (inactG q : Matrix _ _ ℂ) (zAc ⟨q.1, q.2⟩) (x q.1) := by
           rw [Finset.sum_mul_sum, ← Fintype.sum_prod_type']
           refine Fintype.sum_equiv (Equiv.piEquivPiSubtypeProd (· ∈ A) fun _ => Bool) _ _
-            fun z => ?_
+            fun _ => ?_
           rw [mul_mul_mul_comm, ← Finset.prod_mul_distrib]
           rfl
         rw [hsum_eq, evalAct_append, Submonoid.coe_mul, Matrix.mul_apply]
         congr 1
         let eqvAc : (↥Aᶜ → Bool) ≃ ({q : Fin N // q ∉ A} → Bool) :=
-          Equiv.arrowCongr
-            { toFun := fun q => ⟨q.1, q.2⟩
-              invFun := fun q => ⟨q.1, q.2⟩
-              left_inv := fun _ => rfl
-              right_inv := fun _ => rfl } (Equiv.refl Bool)
+          Equiv.arrowCongr (Equiv.subtypeEquivRight fun _ => Iff.rfl) (Equiv.refl Bool)
         let fProd (q : {q : Fin N // q ∉ A}) (b : Bool) : ℂ :=
           (inactU q : Matrix Bool Bool ℂ) (y q.1) b * (inactG q : Matrix Bool Bool ℂ) b (x q.1)
-        refine (Fintype.sum_equiv eqvAc _ (fun w => ∏ q, fProd q (w q)) fun _ => rfl).trans ?_
-        refine (Fintype.prod_sum fProd).symm.trans (Finset.prod_congr rfl fun q _ => ?_)
-        simp only [fProd, Submonoid.coe_mul, Matrix.mul_apply]
-    -- Case split on whether all wires of `g` lie in `A`.
+        exact (Fintype.sum_equiv eqvAc _ (fun w => ∏ q, fProd q (w q)) fun _ => rfl).trans
+          ((Fintype.prod_sum fProd).symm.trans (Finset.prod_congr rfl fun q _ => by
+            simp only [fProd, Submonoid.coe_mul, Matrix.mul_apply]))
     by_cases hallA : ∀ i, g.wires i ∈ A
     · let k3 : Fin 3 := ⟨g.arity, by omega⟩
       let wA : Fin k3.val ↪ ↥A :=
@@ -269,40 +247,33 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       refine ⟨[actG], fun _ => 1, ?_, ?_, fun z x => ?_⟩
       · simp only [actG, k3, List.filter_cons, List.filter_nil, decide_eq_true_eq]
         split_ifs <;> rfl
-      · intro hbond a ha h2
+      · rintro hbond a ha h2
         rcases List.mem_singleton.mp ha with rfl
         exact (hbond g List.mem_cons_self).2 h2
       · rw [Quantum.PlacedGate.matrix_apply]
-        simp only [evalAct, one_mul, placeAct_apply]
+        simp only [evalAct, one_mul, placeAct_apply, Submonoid.coe_one, Matrix.one_apply,
+          Fintype.prod_boole]
         dsimp only [actG]
         have hoff : (∀ j : Fin N, (¬∃ i, g.wires i = j) → z j = x j) ↔
             ((∀ q : ↥A, (¬∃ i, wA i = q) → A.domRestrict z q = A.domRestrict x q) ∧
-              ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1) := by
-          constructor
-          · intro h
-            refine ⟨fun q hq => h q.1 fun ⟨i, hi⟩ => hq ⟨i, Subtype.ext hi⟩,
-              fun q => h q.1 fun ⟨i, hi⟩ => q.2 (hi ▸ hallA i)⟩
-          · rintro ⟨hA, hAc⟩ j hj
-            by_cases hjA : j ∈ A
-            · exact hA ⟨j, hjA⟩ fun ⟨i, hi⟩ => hj ⟨i, congrArg Subtype.val hi⟩
-            · exact hAc ⟨j, hjA⟩
-        simp only [Submonoid.coe_one, Matrix.one_apply, Fintype.prod_boole]
+              ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1) :=
+          ⟨fun h => ⟨fun q hq => h q.1 fun ⟨i, hi⟩ => hq ⟨i, Subtype.ext hi⟩,
+              fun q => h q.1 fun ⟨i, hi⟩ => q.2 (hi ▸ hallA i)⟩,
+            fun ⟨hA, hAc⟩ j hj => if hjA : j ∈ A
+              then hA ⟨j, hjA⟩ fun ⟨i, hi⟩ => hj ⟨i, congrArg Subtype.val hi⟩ else hAc ⟨j, hjA⟩⟩
         rw [if_congr hoff rfl rfl]
         by_cases hA_cond : ∀ q : ↥A, (¬∃ i, wA i = q) → A.domRestrict z q = A.domRestrict x q
         · by_cases hAc : ∀ q : {q : Fin N // q ∉ A}, z q.1 = x q.1
           · rw [ite_eq_left ⟨hA_cond, hAc⟩, ite_eq_left hA_cond, ite_eq_left hAc, mul_one]; rfl
-          · rw [ite_eq_right (fun h => hAc h.2), ite_eq_right hAc, mul_zero]
-        · rw [ite_eq_right (fun h => hA_cond h.1), ite_eq_right hA_cond, zero_mul]
-    · -- Not all wires of `g` lie in `A`: since `TouchingIn A (g :: C)` and `g.arity ≤ 2`,
-      -- we must have `g.arity = 1` and its single wire `q₀ ∉ A`!
-      have har1 : g.arity = 1 := by
-        rcases (by omega : g.arity = 0 ∨ g.arity = 1 ∨ g.arity = 2) with h0 | h1 | h2
-        · exfalso; apply hallA; intro i; exact absurd i.isLt (by omega)
+          · rw [ite_eq_right fun h => hAc h.2, ite_eq_right hAc, mul_zero]
+        · rw [ite_eq_right fun h => hA_cond h.1, ite_eq_right hA_cond, zero_mul]
+    · rcases g with ⟨arity, gate, wires⟩
+      dsimp only at htwo_g hallA
+      obtain rfl : arity = 1 := by
+        rcases (by omega : arity = 0 ∨ arity = 1 ∨ arity = 2) with rfl | h1 | h2
+        · exact absurd (fun i : Fin 0 => i.elim0) hallA
         · exact h1
-        · exfalso; exact hallA (htouch g List.mem_cons_self (by omega))
-      rcases g with ⟨arity, gate, wires⟩
-      dsimp only at har1 hallA
-      subst har1
+        · exact absurd (htouch _ List.mem_cons_self (show 2 ≤ arity by omega)) hallA
       have hq₀_notA : wires 0 ∉ A := fun h => hallA fun i => by rw [Fin.eq_zero i]; exact h
       let q₀ : {q : Fin N // q ∉ A} := ⟨wires 0, hq₀_notA⟩
       let u1 : unitaryGroup Bool ℂ :=
@@ -315,46 +286,30 @@ private theorem exists_active_split {N : ℕ} (A : Set (Fin N)) (C : Quantum.Cir
       simp only [evalAct, Submonoid.coe_one, Matrix.one_apply]
       have hoff : (∀ j : Fin N, (¬∃ i : Fin 1, wires i = j) → z j = x j) ↔
           (A.domRestrict z = A.domRestrict x ∧
-            ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.1 = x q.1) := by
-        constructor
-        · intro h
-          refine ⟨funext fun q => h q.1 fun ⟨i, hi⟩ =>
+            ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.1 = x q.1) :=
+        ⟨fun h => ⟨funext fun q => h q.1 fun ⟨i, hi⟩ =>
             hq₀_notA (by rw [← Fin.eq_zero i, hi]; exact q.2),
-            fun q hq => h q.1 fun ⟨i, hi⟩ =>
-              hq (Subtype.ext (by rw [← hi, Fin.eq_zero i]))⟩
-        · rintro ⟨hA, hAc⟩ j hj
-          by_cases hjA : j ∈ A
-          · exact congrFun hA ⟨j, hjA⟩
-          · exact hAc ⟨j, hjA⟩ fun h => hj ⟨0, congrArg Subtype.val h.symm⟩
+            fun q hq => h q.1 fun ⟨i, hi⟩ => hq (Subtype.ext (by rw [← hi, Fin.eq_zero i]))⟩,
+          fun ⟨hA, hAc⟩ j hj => if hjA : j ∈ A then congrFun hA ⟨j, hjA⟩
+            else hAc ⟨j, hjA⟩ fun h => hj ⟨0, congrArg Subtype.val h.symm⟩⟩
       rw [if_congr hoff rfl rfl]
       by_cases hA_eq : A.domRestrict z = A.domRestrict x
       · rw [ite_eq_left hA_eq, one_mul]
         by_cases hAc_eq : ∀ q : {q : Fin N // q ∉ A}, q ≠ q₀ → z q.1 = x q.1
-        · rw [ite_eq_left ⟨hA_eq, hAc_eq⟩]
-          rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀)]
-          have hrest : (∏ q ∈ Finset.univ.erase q₀,
-              ((if q = q₀ then u1 else 1 : unitaryGroup Bool ℂ) : Matrix Bool Bool ℂ)
-                (z q.1) (x q.1)) = 1 := by
-            refine Finset.prod_eq_one fun q hq => ?_
-            have hne : q ≠ q₀ := (Finset.mem_erase.mp hq).1
-            simp only [hne, ↓reduceIte, Submonoid.coe_one, Matrix.one_apply, hAc_eq q hne]
-          rw [hrest, mul_one]
+        · rw [ite_eq_left ⟨hA_eq, hAc_eq⟩,
+            ← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ q₀),
+            Finset.prod_eq_one fun q hq => by
+              have hne := (Finset.mem_erase.mp hq).1
+              simp [hne, hAc_eq q hne], mul_one]
           simp only [↓reduceIte, u1]
-          change (gate : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ) (z ∘ wires) (x ∘ wires) =
-            (gate : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ)
-              (fun _ => z (wires 0)) (fun _ => x (wires 0))
-          have hz0 : z ∘ wires = fun _ => z (wires 0) :=
-            funext fun i => by rw [Function.comp_apply, Fin.eq_zero i]
-          have hx0 : x ∘ wires = fun _ => x (wires 0) :=
-            funext fun i => by rw [Function.comp_apply, Fin.eq_zero i]
-          exact congrArg₂ _ hz0 hx0
-        · rw [ite_eq_right (fun h => hAc_eq h.2)]
+          exact congrArg₂ (gate : Matrix (Fin 1 → Bool) (Fin 1 → Bool) ℂ)
+            (funext fun i => by rw [Function.comp_apply, Fin.eq_zero i]; rfl)
+            (funext fun i => by rw [Function.comp_apply, Fin.eq_zero i]; rfl)
+        · rw [ite_eq_right fun h => hAc_eq h.2]
           push Not at hAc_eq
           obtain ⟨q₁, hq₁_ne, hq₁_diff⟩ := hAc_eq
-          symm
-          refine Finset.prod_eq_zero (Finset.mem_univ q₁) ?_
-          simp only [hq₁_ne, ↓reduceIte, Submonoid.coe_one, Matrix.one_apply, hq₁_diff]
-      · simp only [hA_eq, false_and, ↓reduceIte, zero_mul]
+          exact (Finset.prod_eq_zero (Finset.mem_univ q₁) (by simp [hq₁_ne, hq₁_diff])).symm
+      · simp [hA_eq]
 
 /-- The active qubit set of `C` together with embedded data qubits `e : Fin n ↪ Fin N` and an
 optional output qubit `q_extra : Fin N`. -/
@@ -383,44 +338,32 @@ private theorem ncard_activeSet_le {n N : ℕ} (e : Fin n ↪ Fin N) (q_extra : 
     | nil => simp
     | cons g C ih =>
       have hg_le : g.arity ≤ 2 := htwo g List.mem_cons_self
-      have hC_two : TwoLocal C := fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg')
       have hsub : {q : Fin N | ∃ g' ∈ g :: C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q} ⊆
           {q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q} ∪
             {q : Fin N | ∃ g' ∈ C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q} := by
         rintro q ⟨g', hg', h2, i, rfl⟩
-        rcases List.mem_cons.mp hg' with rfl | hmem
-        · exact Or.inl ⟨h2, i, rfl⟩
-        · exact Or.inr ⟨g', hmem, h2, i, rfl⟩
+        exact (List.mem_cons.mp hg').elim (fun h => h ▸ Or.inl ⟨h2, i, rfl⟩)
+          fun hm => Or.inr ⟨g', hm, h2, i, rfl⟩
       have hhead : {q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q}.ncard ≤
           2 * (if g.arity = 2 then 1 else 0) := by
         by_cases h2 : g.arity = 2
         · simp only [h2, le_refl, true_and, ↓reduceIte, mul_one]
-          change (Set.range g.wires).ncard ≤ 2
-          rw [ncard_range_of_injective g.wires.injective, Nat.card_eq_fintype_card,
-            Fintype.card_fin, h2]
-        · have hnot2 : ¬(2 ≤ g.arity) := by omega
-          have hempty : {q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q} = ∅ := by
-            ext q; simp only [mem_ofPred_eq, mem_empty_iff_false, iff_false, not_and]
-            exact fun h => absurd h hnot2
-          simp only [hempty, ncard_empty, h2, ↓reduceIte, mul_zero, le_refl]
-      calc {q : Fin N | ∃ g' ∈ g :: C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q}.ncard
-          ≤ ({q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q} ∪
-              {q : Fin N | ∃ g' ∈ C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q}).ncard :=
-            ncard_le_ncard hsub (toFinite _)
-        _ ≤ {q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q}.ncard +
-              {q : Fin N | ∃ g' ∈ C, 2 ≤ g'.arity ∧ ∃ i, g'.wires i = q}.ncard :=
-            ncard_union_le _ _
-        _ ≤ 2 * (if g.arity = 2 then 1 else 0) + 2 * twoQubitCount C :=
-            Nat.add_le_add hhead (ih hC_two)
-        _ = 2 * twoQubitCount (g :: C) := by rw [twoQubitCount_cons, mul_add]
+          exact (ncard_range_of_injective g.wires.injective).trans_le
+            (by simp [Nat.card_eq_fintype_card, h2])
+        · rw [show {q : Fin N | 2 ≤ g.arity ∧ ∃ i, g.wires i = q} = ∅ by
+            ext q; simp [show ¬2 ≤ g.arity by omega]]
+          simp [h2]
+      refine (ncard_le_ncard hsub (toFinite _)).trans ((ncard_union_le _ _).trans ?_)
+      have := ih fun g' hg' => htwo g' (List.mem_cons_of_mem _ hg')
+      rw [twoQubitCount_cons, mul_add]
+      omega
+  rw [activeSet]
+  set S : Set (Fin N) := {q | ∃ g ∈ C, 2 ≤ g.arity ∧ ∃ i, g.wires i = q}
   have hrange : (Set.range e).ncard = n := by
-    rw [ncard_range_of_injective e.injective, Nat.card_eq_fintype_card, Fintype.card_fin]
-  calc (activeSet e q_extra C).ncard
-      ≤ (Set.range e ∪ {q | ∃ g ∈ C, 2 ≤ g.arity ∧ ∃ i, g.wires i = q}).ncard + 1 :=
-        ncard_insert_le _ _
-    _ ≤ ((Set.range e).ncard + {q | ∃ g ∈ C, 2 ≤ g.arity ∧ ∃ i, g.wires i = q}.ncard) + 1 :=
-        Nat.add_le_add_right (ncard_union_le _ _) 1
-    _ ≤ n + 2 * twoQubitCount C + 1 := by omega
+    simp [ncard_range_of_injective e.injective, Nat.card_eq_fintype_card]
+  have h1 := ncard_insert_le q_extra (Set.range e ∪ S)
+  have h2 := ncard_union_le (Set.range e) S
+  omega
 
 end ActiveSplit
 
