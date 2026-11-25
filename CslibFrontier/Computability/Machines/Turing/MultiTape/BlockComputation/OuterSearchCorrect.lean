@@ -133,38 +133,26 @@ theorem exists_first_decision {E : ScheduleSearch.Evaluator} {M : MultiTapeTM k 
       ∀ t ≤ T, (encState E ((machine E k P).runFrom w (.inl (w.length, guess, none)) t)).length ≤
         space k A P w.length bound := by
     obtain ⟨T, hpre, hT, hans, hsize⟩ := exists_first_candidate hE P w guess
-    have hrun := runFrom_one E P w guess T hpre hT
-    have hnext : (encCaller (resume E (w.length, guess, none)
+    have hresume : resume E (w.length, guess, none)
         ((ScheduleSearch.machine E k).runFrom w (ScheduleSearch.initial E
-          (w.length, P.blockWidth guess, P.horizon guess)) T))).length ≤
-        callerSpace w.length bound := by
-      change (encCaller (match ScheduleSearch.answer _ with
-        | none => (w.length, guess + 1, none)
-        | some answer => (w.length, guess, some answer))).length ≤ _
-      rw [hans]
-      change (encCaller (match value guess with
-        | none => (w.length, guess + 1, none)
-        | some answer => (w.length, guess, some answer))).length ≤ callerSpace w.length bound
-      cases hv : value guess with
-      | none =>
-        have hlt : guess < bound := by grind
-        exact caller_encoding_le w.length bound (guess + 1) none (by omega)
-      | some answer => exact caller_encoding_le w.length bound guess (some answer) hguess
-    refine ⟨T + 2, ?_, ?_⟩
-    · have hresume : resume E (w.length, guess, none)
-          ((ScheduleSearch.machine E k).runFrom w (ScheduleSearch.initial E
-            (w.length, P.blockWidth guess, P.horizon guess)) T) =
-          (match value guess with
-            | none => (w.length, guess + 1, none)
-            | some answer => (w.length, guess, some answer)) := by
-        change (match ScheduleSearch.answer _ with
+          (w.length, P.blockWidth guess, P.horizon guess)) T) =
+        (match value guess with
           | none => (w.length, guess + 1, none)
-          | some answer => (w.length, guess, some answer)) = _
-        rw [hans]
-      exact hrun.trans (congrArg Sum.inl hresume)
-    · exact runFrom_one_encoding_le E A P w.length guess bound none w T rfl hguess hpre hT
+          | some answer => (w.length, guess, some answer)) := by
+      change (match ScheduleSearch.answer _ with
+        | none => (w.length, guess + 1, none)
+        | some answer => (w.length, guess, some answer)) = _
+      rw [hans]
+    refine ⟨T + 2, (runFrom_one E P w guess T hpre hT).trans (congrArg Sum.inl hresume),
+      runFrom_one_encoding_le E A P w.length guess bound none w T rfl hguess hpre hT
         (fun t ht => (hsize t ht).trans
-          (candidate_space_le k A P w.length bound guess hguess)) hnext
+          (candidate_space_le k A P w.length bound guess hguess)) ?_⟩
+    rw [hresume]
+    cases hv : value guess with
+    | none =>
+      have hlt : guess < bound := by grind
+      exact caller_encoding_le w.length bound (guess + 1) none (by omega)
+    | some answer => exact caller_encoding_le w.length bound guess (some answer) hguess
   have hlo : (encState E (.inl (w.length, w.length + 1, none))).length ≤
       space k A P w.length bound := by
     have := caller_encoding_le w.length bound (w.length + 1) none (Nat.le_max_left _ _)
