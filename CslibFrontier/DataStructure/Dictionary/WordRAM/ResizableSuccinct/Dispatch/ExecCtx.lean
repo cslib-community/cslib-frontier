@@ -234,19 +234,28 @@ noncomputable def inEpochFactor : ℕ :=
 
 theorem one_le_inEpochFactor : 1 ≤ inEpochFactor := le_max_left _ _
 
-theorem factor_wItemWords_le : wItemWords.factor ≤ inEpochFactor := by simp [inEpochFactor]
+theorem factor_wItemWords_le : wItemWords.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
 private theorem factor_wExtractQuot_le : wExtractQuot.factor ≤ inEpochFactor := by
-  simp [inEpochFactor]
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
 private theorem factor_wEvalHash_le : wEvalHash.factor ≤ inEpochFactor := by
-  simp [inEpochFactor]
-theorem factor_wQuery_le : wQuery.factor ≤ inEpochFactor := by simp [inEpochFactor]
-theorem factor_wInsSearch_le : wInsSearch.factor ≤ inEpochFactor := by simp [inEpochFactor]
-theorem factor_wWriteVal_le : wWriteVal.factor ≤ inEpochFactor := by simp [inEpochFactor]
-theorem factor_wGrowDelta_le : wGrowDelta.factor ≤ inEpochFactor := by simp [inEpochFactor]
-theorem factor_wInsAppend_le : wInsAppend.factor ≤ inEpochFactor := by simp [inEpochFactor]
-theorem factor_wDelPrep_le : wDelPrep.factor ≤ inEpochFactor := by simp [inEpochFactor]
-theorem factor_wDelFin_le : wDelFin.factor ≤ inEpochFactor := by simp [inEpochFactor]
-theorem factor_wShrinkDelta_le : wShrinkDelta.factor ≤ inEpochFactor := by simp [inEpochFactor]
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wQuery_le : wQuery.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wInsSearch_le : wInsSearch.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wWriteVal_le : wWriteVal.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wGrowDelta_le : wGrowDelta.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wInsAppend_le : wInsAppend.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wDelPrep_le : wDelPrep.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wDelFin_le : wDelFin.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wShrinkDelta_le : wShrinkDelta.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true]
 
 /-! ## Section 2: Generic Register-Wiring Combinators and Emitted Subroutines -/
 
