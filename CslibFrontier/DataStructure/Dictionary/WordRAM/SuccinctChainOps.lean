@@ -85,8 +85,7 @@ def AllChainsValid (n_max : ℕ) (lm : ℕ × ℕ → ℕ) (L : ℕ → ℕ → 
 theorem allChainsValid_of_zero (n_max : ℕ) {lm : ℕ × ℕ → ℕ} (hzero : ∀ p, lm p = 0) :
     AllChainsValid n_max lm (fun _ _ => []) := by
   refine ⟨fun b _ m _ => ?_, fun _ _ _ _ _ _ _ h => by nomatch h⟩
-  have hh : lmHead n_max lm b m = 0 := by unfold lmHead; exact hzero _
-  rw [hh]
+  rw [show lmHead n_max lm b m = 0 from hzero _]
   exact isDLChain_nil n_max _ _
 
 /-- `AllChainsValid` depends only on `lm`. -/
@@ -118,19 +117,12 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
     by_cases hbm : b' = b ∧ m' = m
     · rcases hbm with ⟨rfl, rfl⟩
       rw [ite_eq_left ⟨rfl, rfl⟩]
-      have hprep := isDLChain_prepend (hvalid.1 b' hb' m' hm') hj_cap (hj_not m' hm')
-      refine hprep.congr (by rw [hhead b' hb' m' hm', ite_eq_left ⟨rfl, rfl⟩])
-        (fun x hx => ?_) (fun x hx => ?_)
-      · have hx_cap : x < effBucketCap n_max := by
-          rcases List.mem_cons.mp hx with rfl | hx_old
-          · exact hj_cap
-          · exact (hvalid.1 b' hb' m' hm').lt_cap_of_mem hx_old
-        rw [hprev b' hb' x hx_cap, ite_eq_left rfl]
-      · have hx_cap : x < effBucketCap n_max := by
-          rcases List.mem_cons.mp hx with rfl | hx_old
-          · exact hj_cap
-          · exact (hvalid.1 b' hb' m' hm').lt_cap_of_mem hx_old
-        rw [hnext b' hb' x hx_cap, ite_eq_left rfl]
+      have hcap : ∀ x ∈ j_new :: L b' m', x < effBucketCap n_max := fun x hx =>
+        (List.mem_cons.mp hx).elim (fun h => h ▸ hj_cap) (hvalid.1 b' hb' m' hm').lt_cap_of_mem
+      refine (isDLChain_prepend (hvalid.1 b' hb' m' hm') hj_cap (hj_not m' hm')).congr
+        (by rw [hhead b' hb' m' hm', ite_eq_left ⟨rfl, rfl⟩])
+        (fun x hx => by rw [hprev b' hb' x (hcap x hx), ite_eq_left rfl])
+        (fun x hx => by rw [hnext b' hb' x (hcap x hx), ite_eq_left rfl])
     · rw [ite_eq_right hbm]
       refine (hvalid.1 b' hb' m' hm').congr
         (by rw [hhead b' hb' m' hm', ite_eq_right hbm])
@@ -233,36 +225,24 @@ theorem lmUnlinkProg_allChainsValid {U V w n_max h_space base b m j_del : ℕ}
             rw [Function.update_of_ne hx_ne]
         · subst hb_eq; rfl
         · rfl
-  · have hj₁_old : j ∈ L b' m₁ := by
-      dsimp only [L'] at hj₁
-      split_ifs at hj₁ with h1
-      · exact h1.1 ▸ h1.2 ▸ List.mem_of_mem_erase hj₁
-      · exact hj₁
-    have hj₂_old : j ∈ L b' m₂ := by
-      dsimp only [L'] at hj₂
-      split_ifs at hj₂ with h2
-      · exact h2.1 ▸ h2.2 ▸ List.mem_of_mem_erase hj₂
-      · exact hj₂
-    exact hvalid.2 b' hb' m₁ hm₁ m₂ hm₂ j hj₁_old hj₂_old
+  · have hold : ∀ m', j ∈ L' b' m' → j ∈ L b' m' := fun m' hj => by
+      dsimp only [L'] at hj
+      split_ifs at hj with h
+      · exact h.1 ▸ h.2 ▸ List.mem_of_mem_erase hj
+      · exact hj
+    exact hvalid.2 b' hb' m₁ hm₁ m₂ hm₂ j (hold m₁ hj₁) (hold m₂ hj₂)
   · dsimp only [L']
     by_cases hbm : b' = b ∧ m' = m
     · rcases hbm with ⟨rfl, rfl⟩
       rw [ite_eq_left ⟨rfl, rfl⟩]
-      have hnodup := (hvalid.1 b' hb' m' hm').nodup
-      constructor
-      · intro hj_er
-        refine ⟨List.mem_of_mem_erase hj_er, ?_⟩
-        rintro ⟨_, rfl⟩
-        exact (List.Nodup.not_mem_erase hnodup) hj_er
-      · rintro ⟨hj_in, hne⟩
-        exact (List.mem_erase_of_ne (fun heq => hne ⟨rfl, heq⟩)).mpr hj_in
+      refine ⟨fun hj_er => ⟨List.mem_of_mem_erase hj_er, ?_⟩, fun ⟨hj_in, hne⟩ =>
+        (List.mem_erase_of_ne (fun heq => hne ⟨rfl, heq⟩)).mpr hj_in⟩
+      rintro ⟨_, rfl⟩
+      exact (List.Nodup.not_mem_erase (hvalid.1 b' hb' m' hm').nodup) hj_er
     · rw [ite_eq_right hbm]
-      constructor
-      · intro hj_in
-        refine ⟨hj_in, ?_⟩
-        rintro ⟨rfl, rfl⟩
-        exact hbm ⟨rfl, hvalid.2 b' hb' m' hm' m hm j hj_in hmem⟩
-      · exact And.left
+      refine ⟨fun hj_in => ⟨hj_in, ?_⟩, And.left⟩
+      rintro ⟨rfl, rfl⟩
+      exact hbm ⟨rfl, hvalid.2 b' hb' m' hm' m hm j hj_in hmem⟩
 
 /-! ## Section 2: `prependIfIndexedProg`, `unlinkIfIndexedProg`, and bucket readers -/
 
@@ -380,19 +360,10 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
     by_cases hbm : b' = b ∧ m' = m
     · rcases hbm with ⟨rfl, rfl⟩
       rw [ite_eq_left ⟨rfl, rfl⟩, List.mem_cons]
-      constructor
-      · rintro (rfl | hj_in)
-        · exact Or.inr ⟨rfl, rfl, rfl, hj_cap⟩
-        · exact Or.inl hj_in
-      · rintro (hj_in | ⟨_, _, rfl, _⟩)
-        · exact Or.inr hj_in
-        · exact Or.inl rfl
+      exact ⟨fun h => h.elim (fun h => Or.inr ⟨rfl, rfl, h, hj_cap⟩) Or.inl,
+        fun h => h.elim Or.inr fun h => Or.inl h.2.2.1⟩
     · rw [ite_eq_right hbm]
-      constructor
-      · exact Or.inl
-      · rintro (hj_in | ⟨rfl, rfl, _⟩)
-        · exact hj_in
-        · exact False.elim (hbm ⟨rfl, rfl⟩)
+      exact ⟨Or.inl, fun h => h.elim id fun h => absurd ⟨h.1, h.2.1⟩ hbm⟩
   · have hj_not_cap : ¬(j_new < effBucketCap n_max) := fun hc => hj_min (lt_min hj_n hc)
     have hs' : s' = s := by
       change (Memory.spec 0).clientState s (prependIfIndexedProg U V w n_max h_space d) = s
@@ -401,12 +372,8 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
       rw [ite_eq_right hj_min]
       rfl
     rw [hs']
-    refine ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' _ m' _ j => ?_⟩
-    constructor
-    · exact Or.inl
-    · rintro (hj_in | ⟨_, _, _, hcap⟩)
-      · exact hj_in
-      · exact False.elim (hj_not_cap hcap)
+    exact ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' _ m' _ j =>
+      ⟨Or.inl, fun h => h.elim id fun h => absurd h.2.2.2 hj_not_cap⟩⟩
 
 /-- Parameter-free `Memory.Prog` operation unlinking `j_del = d.2` from micro-bucket chain
 `(b, m) = (d.1.2.1.2, d.1.2.2)` at `base = d.1.2.1.1` when
@@ -530,13 +497,10 @@ theorem unlinkIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_del :
       rw [ite_eq_right hj_min]
       rfl
     rw [hs']
-    refine ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' hb' m' hm' j => ?_⟩
-    constructor
-    · intro hj_in
-      refine ⟨hj_in, ?_⟩
-      rintro ⟨_, rfl⟩
-      exact hj_not_cap ((hvalid.1 b' hb' m' hm').lt_cap_of_mem hj_in)
-    · exact And.left
+    refine ⟨rfl, fun _ _ => rfl, rfl, rfl, rfl, L, hvalid, fun b' hb' m' hm' j =>
+      ⟨fun hj_in => ⟨hj_in, ?_⟩, And.left⟩⟩
+    rintro ⟨_, rfl⟩
+    exact hj_not_cap ((hvalid.1 b' hb' m' hm').lt_cap_of_mem hj_in)
 
 /-- Parameter-free `Memory.Prog` reader returning `totalSlots n_max gm` at `base = d.2`. -/
 @[expose]
