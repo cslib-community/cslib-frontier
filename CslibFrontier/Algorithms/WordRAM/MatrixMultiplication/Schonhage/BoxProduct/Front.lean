@@ -153,10 +153,8 @@ theorem exec_frontFromSnapshot {w L m t N A : ℕ} (hw : 0 < w)
       c.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j := by
     rw [cf _ (Or.inr (by unfold QueriedProduct.inputEnd at hs; omega)), rs j hj]
   have cg : QueriedProduct.SavedGroups L m N qs.length old c.mem :=
-    rg.reframe (fun a ha _ => cf a (Or.inr (by
-      unfold QueriedProduct.offsetBase at ha
-      unfold QueriedProduct.inputEnd at hs
-      omega)))
+    rg.reframe fun a ha _ => cf a (Or.inr (by
+      unfold QueriedProduct.offsetBase at ha; unfold QueriedProduct.inputEnd at hs; omega))
   obtain ⟨y, hy, yp, yl, yr, yf⟩ := QueriedProduct.exec_bands hw hm X Y c cp
     (by rw [cf 1 (Or.inl (by decide)), rf 1 (Or.inl (by decide))]; exact hL)
     (by rw [cf 2 (Or.inl (by decide)), rf 2 (Or.inl (by decide))]; exact hm')
@@ -167,9 +165,7 @@ theorem exec_frontFromSnapshot {w L m t N A : ℕ} (hw : 0 < w)
     cg.reframe (fun a ha _ => yf a (Or.inr (by unfold QueriedProduct.offsetBase at ha; omega)))
   refine ⟨y, old, ?_, yp, yt, yg, ⟨yl, yr⟩, rv, ro, ?_, ?_⟩
   · exact (hr.seq (hc.seq hy)).mono (by unfold snapshotFrontTime; omega)
-  · intro j hj
-    rw [yf _ (Or.inr (by omega))]
-    exact cs j hj
+  · exact fun j hj => (yf _ (Or.inr (by omega))).trans (cs j hj)
   · intro p hp
     rw [yf p (hp.imp (fun _ => by unfold BandPreparation.inputEnd; omega) fun _ => by omega),
       cf p (hp.imp_right fun _ => by unfold QueriedProduct.inputEnd at hs; omega)]
@@ -210,9 +206,8 @@ theorem exec_front {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
   have horder := QueriedProduct.producers_le_snapshot L m N qs.length
   obtain ⟨y, old, hy, yp, yt, yg, ye, yv, yo, ys, yf⟩ :=
     exec_frontFromSnapshot hw hm bits X Y qs x.mem s hinput sp st
-      (fun a ha hb => (sf a (Or.inl (by
-        unfold QueriedProduct.inputEnd at horder
-        omega))).trans (hinput a ha (by unfold QueriedProduct.inputEnd; omega)))
+      (fun a ha hb => (sf a (Or.inl (by unfold QueriedProduct.inputEnd at horder; omega))).trans
+        (hinput a ha (by unfold QueriedProduct.inputEnd; omega)))
       ss hX hY hbits hmag hfit
   refine ⟨y, old, ?_, yp, yt, yg, ye, yv, yo, ys, ?_⟩
   · obtain ⟨u, A, B, hu, hs, hAB⟩ := ExecWithin.seq_iff.mp hs
