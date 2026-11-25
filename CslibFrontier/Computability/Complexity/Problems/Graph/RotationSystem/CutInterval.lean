@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.IntervalOrder
 import CslibFrontier.Foundations.GroupTheory.Perm.CycleSurgery
-import Mathlib.Data.List.GetD
 
 /-!
 # Cutting an interval out of a vertex rotation
@@ -97,21 +96,9 @@ theorem exists_split_cutInterval (a b : Dart G) (hab : a.vertex = b.vertex)
   classical
   let selected (d : Dart G) := d.vertex = a.vertex ∧
     r.rotationDistance a d ≤ r.rotationDistance a b
-  let endpoint (d : Dart G) := if selected d then w else d.vertex
-  let H : Graph := ⟨w :: G.vertices,
-    List.ofFn fun i : Fin G.edges.length => (endpoint (i, false), endpoint (i, true))⟩
-  have hlen : H.edges.length = G.edges.length := List.length_ofFn
-  let E : Fin G.edges.length ≃ Fin H.edges.length := finCongr hlen.symm
+  obtain ⟨H, E, hdecl, hEnds⟩ := G.exists_split_darts selected w
   let D : Dart G ≃ Dart H := Equiv.prodCongr E (Equiv.refl Bool)
-  have hvertex (d : Dart G) : (D d).vertex = endpoint d := by
-    rcases d with ⟨i, b⟩
-    have hi : i.val < H.edges.length := hlen.symm ▸ i.isLt
-    change (if b then (H.edges.getD i.val (0, 0)).2 else (H.edges.getD i.val (0, 0)).1) = _
-    rw [List.getD_eq_getElem _ _ hi]
-    change (if b then ((List.ofFn fun j => (endpoint (j, false), endpoint (j, true)))[i.val]).2
-      else ((List.ofFn fun j => (endpoint (j, false), endpoint (j, true)))[i.val]).1) = _
-    rw [List.getElem_ofFn]
-    cases b <;> rfl
+  have hvertex (d : Dart G) : (D d).vertex = if selected d then w else d.vertex := hEnds d
   let f := r.rotate * swap b (r.rotate.symm a)
   let s : RotationSystem H :=
     { rotate := D.permCongr f
@@ -129,6 +116,6 @@ theorem exists_split_cutInterval (a b : Dart G) (hab : a.vertex = b.vertex)
         · simp [hd, he, Ne.symm (hfresh e)]
         · simp [hd, he, hfresh d]
         · simp [hd, he] }
-  exact ⟨H, E, s, rfl, hvertex, rfl⟩
+  exact ⟨H, E, s, hdecl, hEnds, rfl⟩
 
 end Cslib.Complexity.Graph.RotationSystem

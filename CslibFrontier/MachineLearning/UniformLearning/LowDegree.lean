@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation
 public import CslibFrontier.MachineLearning.UniformLearning.Basic
 public import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 import CslibFrontier.Probability.PMF
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
@@ -211,17 +212,8 @@ theorem lowDegreeLearner_learns {t m : ℕ} {ε δ : ℝ} (hε : 0 < ε) (hδ : 
     (ENNReal.ofReal_le_ofReal ?_)
   set N : ℝ := (#{S : Finset ι | #S ≤ t} : ℝ)
   have hN : 0 < N := Nat.cast_pos.2 (card_filter_card_le_pos t)
-  have hlog : Real.log (2 * N / δ) ≤ m * ε / (4 * N) := by
-    rw [le_div_iff₀ (by positivity)]
-    have := (div_mul_eq_mul_div (4 * N) ε (Real.log (2 * N / δ))).symm.trans_le hm
-    rw [div_le_iff₀ hε] at this
-    linarith
-  have hexp : Real.exp (-(m * ε) / (4 * N)) ≤ δ / (2 * N) := by
-    calc Real.exp (-(m * ε) / (4 * N)) = Real.exp (-(m * ε / (4 * N))) := by ring_nf
-      _ ≤ Real.exp (-Real.log (2 * N / δ)) := Real.exp_le_exp.2 (neg_le_neg hlog)
-      _ = δ / (2 * N) := by
-          rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
-  calc 2 * N * Real.exp (-(m * ε) / (4 * N)) ≤ 2 * N * (δ / (2 * N)) := by gcongr
-    _ = δ := by field_simp
+  rw [show -(m * ε) / (4 * N) = -(ε / (4 * N) * m) by ring]
+  exact Real.mul_exp_neg_le_of_log le_rfl (by positivity) (by positivity) hδ
+    (hm.trans_eq' (by rw [div_div_eq_mul_div]; ring))
 
 end Cslib.MachineLearning.UniformLearning

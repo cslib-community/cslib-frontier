@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceCounts
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbits
 public import CslibFrontier.Computability.Complexity.Problems.Graph.DartConnectivity
+import Mathlib.Data.List.GetD
 
 /-!
 # Transport of actual indexed rotations
@@ -21,6 +22,33 @@ and parallel edges remain indexed throughout.
 -/
 
 public section
+
+namespace Cslib.Complexity.Graph
+
+/-- Actual indexed edge reindexing preserves declaration of all listed endpoints. -/
+theorem endpoints_declared_edge_reindex {G H : Graph}
+    (e : Fin G.edges.length ≃ Fin H.edges.length)
+    (hv : ∀ i b, Dart.vertex (G := H) (e i, b) = Dart.vertex (G := G) (i, b))
+    (hm : ∀ v, v ∈ G.vertices ↔ v ∈ H.vertices)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
+    ∀ v ∈ H.incidenceVertices, v ∈ H.vertices := by
+  intro v hvlist
+  obtain ⟨k, hk, hkv⟩ := List.mem_iff_getElem.mp hvlist
+  let d : Dart H := (Dart.indexEquiv H).symm ⟨k, by
+    simpa only [incidenceVertices_length] using hk⟩
+  have hdindex : d.index = k := congrArg Fin.val ((Dart.indexEquiv H).apply_symm_apply
+    ⟨k, by simpa only [incidenceVertices_length] using hk⟩)
+  have hd : d.vertex = v := by
+    rw [← Dart.vertex_index, hdindex, List.getD_eq_getElem _ _ hk]
+    exact hkv
+  have h := RotationSystem.vertex_mem hG (e.symm d.1, d.2)
+  have heq : Dart.vertex (G := G) (e.symm d.1, d.2) = v := by
+    have he := hv (e.symm d.1) d.2
+    simp only [e.apply_symm_apply] at he
+    exact he.symm.trans hd
+  exact (hm v).mp (heq ▸ h)
+
+end Cslib.Complexity.Graph
 
 namespace Cslib.Complexity.Graph.RotationSystem
 

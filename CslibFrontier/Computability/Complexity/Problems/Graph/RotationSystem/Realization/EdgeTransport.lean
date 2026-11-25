@@ -10,8 +10,6 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Basic
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Transport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletion
-import Mathlib.Data.List.OfFn
-import Mathlib.Data.List.GetD
 
 /-!
 # Transport of polygonal realizations along indexed edge equivalences
@@ -24,79 +22,6 @@ membership suffices; declaration lists need not be equal or without repetitions.
 public section
 
 namespace Cslib.Complexity.Graph
-
-/-- Move any selected indexed edge to the last position by an actual permutation of
-edge occurrences. Both end tags and all declared names remain unchanged. Equal edge
-pairs are still transported by their positions. -/
-theorem exists_lastEdge_reindex (G : Graph) (i : Fin G.edges.length) :
-    ∃ H : Graph, ∃ u v : ℕ,
-      ∃ e : Fin G.edges.length ≃ Fin (RotationSystem.lastEdgeGraph H u v).edges.length,
-        H.vertices = G.vertices ∧ H.edges.length + 1 = G.edges.length ∧
-        (∀ j b, Dart.vertex (e j, b) = Dart.vertex (j, b)) ∧
-        e i = (RotationSystem.lastEdgeDart H u v false).1 ∧
-        u = Dart.vertex (i, false) ∧ v = Dart.vertex (i, true) := by
-  classical
-  rcases G with ⟨V, E⟩
-  cases E with
-  | nil => exact Fin.elim0 i
-  | cons edge E =>
-    let σ : Equiv.Perm (Fin (E.length + 1)) := Equiv.swap i (Fin.last E.length)
-    let f : Fin (E.length + 1) → ℕ × ℕ := fun j => (edge :: E)[(σ j).val]
-    let H : Graph := ⟨V, List.ofFn fun j : Fin E.length => f j.castSucc⟩
-    let u := ((edge :: E)[i.val]).1
-    let v := ((edge :: E)[i.val]).2
-    have hlist : (RotationSystem.lastEdgeGraph H u v).edges = List.ofFn f := by
-      rw [List.ofFn_succ']
-      simp [RotationSystem.lastEdgeGraph, H, u, v, f, σ, List.concat_eq_append]
-    have hlen : (RotationSystem.lastEdgeGraph H u v).edges.length = E.length + 1 := by
-      rw [hlist, List.length_ofFn]
-    let e : Fin (edge :: E).length ≃ Fin (RotationSystem.lastEdgeGraph H u v).edges.length :=
-      σ.trans (finCongr hlen.symm)
-    refine ⟨H, u, v, e, rfl, by simp [H], ?_, ?_, ?_, ?_⟩
-    · intro j b
-      change (if b then ((RotationSystem.lastEdgeGraph H u v).edges.getD (σ j).val (0, 0)).2
-        else ((RotationSystem.lastEdgeGraph H u v).edges.getD (σ j).val (0, 0)).1) = _
-      rw [hlist, List.getD_eq_getElem _ _ (by simpa only [List.length_ofFn] using
-        (σ j).isLt),
-        List.getElem_ofFn]
-      have hj : σ (σ j) = j := Equiv.swap_apply_self _ _ _
-      change (if b then ((edge :: E)[(σ (σ j)).val]).2
-        else ((edge :: E)[(σ (σ j)).val]).1) = _
-      rw [hj]
-      change _ = if b then ((edge :: E).getD j.val (0, 0)).2
-        else ((edge :: E).getD j.val (0, 0)).1
-      rw [List.getD_eq_getElem _ _ j.isLt]
-    · apply Fin.ext
-      change (σ i).val = H.edges.length
-      rw [show σ i = Fin.last E.length from Equiv.swap_apply_left _ _]
-      simp [H]
-    · change u = ((edge :: E).getD i.val (0, 0)).1
-      rw [List.getD_eq_getElem _ _ i.isLt]
-    · change v = ((edge :: E).getD i.val (0, 0)).2
-      rw [List.getD_eq_getElem _ _ i.isLt]
-
-/-- Actual indexed edge reindexing preserves declaration of all listed endpoints. -/
-theorem endpoints_declared_edge_reindex {G H : Graph}
-    (e : Fin G.edges.length ≃ Fin H.edges.length)
-    (hv : ∀ i b, Dart.vertex (G := H) (e i, b) = Dart.vertex (G := G) (i, b))
-    (hm : ∀ v, v ∈ G.vertices ↔ v ∈ H.vertices)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
-    ∀ v ∈ H.incidenceVertices, v ∈ H.vertices := by
-  intro v hvlist
-  obtain ⟨k, hk, hkv⟩ := List.mem_iff_getElem.mp hvlist
-  let d : Dart H := (Dart.indexEquiv H).symm ⟨k, by
-    simpa only [incidenceVertices_length] using hk⟩
-  have hdindex : d.index = k := congrArg Fin.val ((Dart.indexEquiv H).apply_symm_apply
-    ⟨k, by simpa only [incidenceVertices_length] using hk⟩)
-  have hd : d.vertex = v := by
-    rw [← Dart.vertex_index, hdindex, List.getD_eq_getElem _ _ hk]
-    exact hkv
-  have h := RotationSystem.vertex_mem hG (e.symm d.1, d.2)
-  have heq : Dart.vertex (G := G) (e.symm d.1, d.2) = v := by
-    have he := hv (e.symm d.1) d.2
-    simp only [e.apply_symm_apply] at he
-    exact he.symm.trans hd
-  exact (hm v).mp (heq ▸ h)
 
 namespace RotationSystem
 
