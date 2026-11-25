@@ -3320,27 +3320,18 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
 
 /-! #### Tower collapse and restriction equivalence -/
 
-private noncomputable def layersOfSpec (P : Program Unbounded.extSignature n g) (m ℓ : ℕ) :
-    List (Option ℕ) → List (SLayer (Seed ℓ) (Slot n g m))
-  | [] => []
-  | opt :: rest => layerOfOpt P m ℓ opt :: layersOfSpec P m ℓ rest
+private noncomputable def layersOfSpec (P : Program Unbounded.extSignature n g) (m ℓ : ℕ)
+    (Ls : List (Option ℕ)) : List (SLayer (Seed ℓ) (Slot n g m)) :=
+  Ls.map (layerOfOpt P m ℓ)
 
 private theorem layersOfSpec_layerSpec (P : Program Unbounded.extSignature n g) (m ℓ d : ℕ) :
     layersOfSpec P m ℓ (layerSpec d m) = towerS P m ℓ d := by
   induction d with
   | zero => rfl
   | succ d ih =>
-    have happ : ∀ (l₁ l₂ : List (Option ℕ)),
-        layersOfSpec P m ℓ (l₁ ++ l₂) = layersOfSpec P m ℓ l₁ ++ layersOfSpec P m ℓ l₂ := by
-      intro l₁ l₂; induction l₁ with
-      | nil => rfl
-      | cons a l₁ ih1 => simp [layersOfSpec, ih1]
-    have hmap : ∀ (ps : List ℕ),
-        layersOfSpec P m ℓ (ps.map some) = ps.map fun p₀ => ⟨p₀, fun _ => digitQ P p₀⟩ := by
-      intro ps; induction ps with
-      | nil => rfl
-      | cons p₀ ps ihp => simp [layersOfSpec, layerOfOpt, ihp]
-    simp only [layerSpec, towerS, macroS, happ, layersOfSpec, layerOfOpt, hmap, ih]
+    simp only [layersOfSpec] at ih ⊢
+    simp only [layerSpec, towerS, macroS, List.map_append, List.map_cons, List.map_map,
+      Function.comp_def, layerOfOpt, ih]
 
 private theorem collapseRun_out {T : Type*} [Fintype T] [DecidableEq T]
     (C : SymAnd T) (Ls : List (ModPolyLayer T)) (B : ℕ) :
@@ -3752,27 +3743,13 @@ private theorem compileSymAndFixed_spec (d : ℕ) {m : ℕ} (hm : 0 < m)
       rw [List.mem_singleton.1 ha, ← hslot_r r hr]
       exact slotToNat_lt _
   -- Check hypotheses of `collapseRunExec_spec`
+  obtain ⟨hLs_tower, hT, hf, hs⟩ := towerS_lift_bounds d hm c
   have hLs_ok : ∀ layer ∈ layerSpec d m, (layer.getD 2).Prime ∧ layer.getD 2 ≤ B₀ := by
     intro layer hlayer
     have hmem : layerOfOpt c.2.program m ℓ layer ∈ towerS c.2.program m ℓ d := by
-      rw [← layersOfSpec_layerSpec]
-      have haux : ∀ (Ls : List (Option ℕ)), layer ∈ Ls →
-          layerOfOpt c.2.program m ℓ layer ∈ layersOfSpec c.2.program m ℓ Ls := by
-        intro Ls; induction Ls with
-        | nil => intro h; exact absurd h List.not_mem_nil
-        | cons a rest ih =>
-          intro h
-          rcases List.mem_cons.1 h with rfl | h
-          · exact List.mem_cons_self
-          · exact List.mem_cons_of_mem _ (ih h)
-      exact haux (layerSpec d m) hlayer
-    obtain ⟨hp, hpM, _⟩ := layer_ok c.2.program hm (mem_macroS_of_mem_towerS c.2.program hmem)
-    have hpeq : layer.getD 2 = (layerOfOpt c.2.program m ℓ layer).p := by
-      cases layer <;> rfl
-    have hm1 : m + 1 ≤ (m + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
-    rw [hpeq]
-    exact ⟨hp, by omega⟩
-  obtain ⟨hLs_tower, hT, hf, hs⟩ := towerS_lift_bounds d hm c
+      rw [← layersOfSpec_layerSpec]; exact List.mem_map_of_mem hlayer
+    have h := hLs_tower _ (List.mem_map_of_mem hmem)
+    cases layer <;> exact ⟨h.1, h.2.1⟩
   have hLs_deg : ∀ L ∈ (layersOfSpec c.2.program m ℓ (layerSpec d m)).map SLayer.lift,
       L.p.Prime ∧ L.p ≤ B₀ ∧ ∀ t, L.q t ∈ lowDegree ℤ (Seed ℓ × Slot c.1 c.2.size m) B₀ := by
     rwa [layersOfSpec_layerSpec]
@@ -3846,14 +3823,10 @@ private theorem compileSymAndFixed_spec (d : ℕ) {m : ℕ} (hm : 0 < m)
       simp only [Multiset.coe_card, List.length_map] at h1
       rw [congrArg (fun p => p.1.gates) hcompile_eq, h1, ACC0ToSymAnd.compile, SymAnd.size]
     rw [hcard, ACC0ToSymAnd.compile]
-    have hLs_deg' : ∀ L ∈ (towerS c.2.program m ℓ d).map SLayer.lift,
-        L.p.Prime ∧ L.p ≤ B₀ ∧ ∀ t, L.q t ∈ lowDegree ℤ (Seed ℓ × Slot c.1 c.2.size m) B₀ := by
-      simpa only [layersOfSpec_layerSpec] using hLs_deg
     have hlen_t : ((towerS c.2.program m ℓ d).map SLayer.lift).length ≤ d * (m + 2) := by
-      rw [List.length_map, length_towerS]
-      exact Nat.mul_le_mul_left d (by have := length_primes_le m; omega)
+      rwa [List.length_map, length_towerS, ← length_layerSpec]
     exact (SymAnd.size_restrict_le _ _).trans
-      ((SymAnd.size_collapseRun_le _ _ hLs_deg' hT hf hs).trans
+      ((SymAnd.size_collapseRun_le _ _ hLs_tower hT hf hs).trans
         (Nat.pow_le_pow_right (by decide)
           (Nat.pow_le_pow_right (by omega) (Nat.pow_le_pow_right (by decide) hlen_t))))
   have hg_mem : ∀ g ∈ (compileSymAndFixed d m c).1.gates, g.length = c.1 := by
