@@ -574,7 +574,8 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
       have := Cslib.Probability.trinomialDeg_le_three_mul (P.routerRightUniv ℓ) (P.branchBits ℓ)
       have := max_le (Nat.clog_le_of_le_pow hT_le) (show max (P.branchBits ℓ) 1 ≤ 4 * ly by omega)
       omega
-    -- `2 * (96 * ly ^ 2) ^ 2 ≤ (s ^ 2) ^ 8 ≤ 2 ^ (8 * s) ≤ 2 ^ (ly - 1)` for `s = (ly - 1) / 8 ≥ 9`.
+    -- With `s = (ly - 1) / 8 ≥ 9`:
+    -- `2 * (96 * ly ^ 2) ^ 2 ≤ (s ^ 2) ^ 8 ≤ 2 ^ (8 * s) ≤ 2 ^ (ly - 1)`.
     have h2_sq : 2 * (96 * ly ^ 2) ^ 2 ≤ 2 ^ (ly - 1) := by
       set s := (ly - 1) / 8
       have hs : 9 ≤ s := by omega
