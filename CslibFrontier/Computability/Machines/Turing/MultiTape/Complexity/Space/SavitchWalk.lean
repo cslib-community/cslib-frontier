@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Algorithms.Reachability.SavitchWalk
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Reachability
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.ZipTransducer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeUnaryPrimitives
@@ -150,17 +152,16 @@ private theorem width_inSpace :
     rw [encBool_apply, encUnary_apply, encBits_apply, show widthZip.q₀ = true from rfl,
       widthZip_run, Bool.true_and]).inO_one
 
-/-- Writes `false` for every digit of a width in unary, then `true` if `top` holds. -/
-private def zerosT (top : Bool) : Transducer Bool Unit where
+/-- Writes `false` for every digit of a width in unary. -/
+private def zerosT : Transducer Bool Unit where
   q₀ := ()
   step _ _ := ((), [false])
-  final _ := if top then [true] else []
+  final _ := []
   length_step_le _ _ := by simp
-  length_final_le _ := by split_ifs <;> simp
+  length_final_le _ := by simp
 
-private theorem zerosT_run (top : Bool) (w : ℕ) (q : Unit) :
-    (zerosT top).run q (List.replicate w true) =
-      List.replicate w false ++ if top then [true] else [] := by
+private theorem zerosT_run (w : ℕ) (q : Unit) :
+    zerosT.run q (List.replicate w true) = List.replicate w false := by
   induction w generalizing q with
   | zero => rfl
   | succ w ih => exact congrArg (false :: ·) (ih ())
@@ -169,24 +170,8 @@ private theorem zerosT_run (top : Bool) (w : ℕ) (q : Unit) :
 private theorem zeros_inSpace :
     ComputableInSpace (fun w => List.replicate w false) encUnary encBits
       fun w => (encUnary w).length :=
-  of_inO (ComputableInDegree.of_transducer (zerosT false) fun w => by
-    rw [encBits_apply, encUnary_apply, zerosT_run]
-    simp).inO_one
-
-/-- `2 ^ w` in binary is `w` zeros and a one. -/
-private theorem bits_two_pow (w : ℕ) : Nat.bits (2 ^ w) = List.replicate w false ++ [true] := by
-  induction w with
-  | zero => exact Nat.one_bits
-  | succ w ih =>
-    rw [pow_succ, mul_comm, Nat.bit0_bits _ (pow_ne_zero w two_ne_zero), ih]
-    rfl
-
-/-- **`2 ^ w` in binary, from `w` in unary**, in linear space. -/
-private theorem twoPow_inSpace :
-    ComputableInSpace (fun w => 2 ^ w) encUnary encNat fun w => (encUnary w).length :=
-  of_inO (ComputableInDegree.of_transducer (zerosT true) fun w => by
-    rw [encNat_apply, bits_two_pow, encUnary_apply, zerosT_run]
-    rfl).inO_one
+  of_inO (ComputableInDegree.of_transducer zerosT fun w => by
+    rw [encBits_apply, encUnary_apply, zerosT_run]).inO_one
 
 /-- **The binary counter**, in linear space. -/
 private theorem increment_inSpace :
@@ -305,7 +290,7 @@ private theorem midLoop_inSpace [Inhabited π] {edge : π → List Bool → List
   have hwA := fst' (snd' hidA)
   have huA := fst' (snd' (snd' (snd' hidA)))
   have hvA := snd' (snd' (snd' (snd' hidA)))
-  have hn := budget_comp_linear twoPow_inSpace hwA
+  have hn := budget_comp_linear twoPowUnary hwA
   have hinit : ComputableInSpace (fun a : Args π => (a, List.replicate a.2.1 false)) (encArgs encP)
       (encLoop encP) fun a => (encArgs encP a).length :=
     budget_prod hidA (budget_comp_linear zeros_inSpace hwA)
@@ -343,9 +328,7 @@ private theorem midLoop_inSpace [Inhabited π] {edge : π → List Bool → List
   have hL : (fun a => (encArgs encP a).length) ≼ loopSpace encP Se :=
     .of_le fun a => by simp only [loopSpace]; omega
   have hiterL := (snd' hiter).weaken (S₁ := loopSpace encP Se) (.of_le_linear 11 3 fun a => by
-    have hn : (encNat (2 ^ a.2.1)).length = a.2.1 + 1 := by
-      rw [encNat_apply, bits_two_pow, List.length_append, List.length_replicate,
-        List.length_singleton]
+    have hn := length_encNat_two_pow a.2.1
     have hwl : a.2.1 ≤ (encArgs encP a).length := by
       obtain ⟨p, w, i, u, v⟩ := a
       enc_len

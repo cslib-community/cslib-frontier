@@ -95,29 +95,6 @@ theorem decoder_coverage (n : ℕ) (word : List Bool) (hw : word.length = n) :
   intro k hk
   exact decoder_injective n (hk.trans heq.symm)
 
-private theorem bits_power (n : ℕ) : (2 ^ n).bits = List.replicate n false ++ [true] := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [pow_succ, Nat.mul_comm, Nat.bit0_bits _ (by positivity), ih]
-    rfl
-
-private def clockTransducer : Transducer Bool Unit where
-  q₀ := ()
-  step _ _ := ((), [false])
-  final _ := [true]
-  length_step_le _ _ := by decide
-  length_final_le _ := by decide
-
-private theorem clockRun (n : ℕ) :
-    clockTransducer.run () (List.replicate n true) = List.replicate n false ++ [true] := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    change false :: clockTransducer.run () (List.replicate n true) = _
-    rw [ih]
-    rfl
-
 /-- Construct the exponential visit count in binary, in linear time in the unary dimension.
 Only `n + 1` output bits are produced; no unary representation of `2 ^ n` is constructed. -/
 def clock : NativeCertificate (fun n : ℕ => 2 ^ n) encUnary encNat where
@@ -125,10 +102,10 @@ def clock : NativeCertificate (fun n : ℕ => 2 ^ n) encUnary encNat where
   space n := (encUnary n).length
   computes := by
     apply ComputableInO.of_linear
-    apply ComputableInDegree.of_transducer clockTransducer
+    apply ComputableInDegree.of_transducer twoPowT
     intro n
-    change (2 ^ n).bits = clockTransducer.run () (List.replicate n true)
-    rw [bits_power, clockRun]
+    change encNat (2 ^ n) = twoPowT.run () (encUnary n)
+    rw [encNat_two_pow, twoPowT_run, encUnary_apply, List.length_replicate]
 
 variable {β : Type}
 

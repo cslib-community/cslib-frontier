@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.InductiveCounting.Machine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.InductiveCounting.Routines
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 
 /-!
@@ -81,16 +82,6 @@ private theorem runtime_budget {n B : α → ℕ} {chk : α → Bool}
     ComputableInSpace (fun a => (⟨n a, B a, chk a, c a⟩ : Runtime)) enc encRuntime S :=
   (budget_prod hn (budget_prod hB (budget_prod hchk hc))).of_enc_eq fun _ => rfl
 
-private theorem and_budget {f g : α → Bool}
-    (hf : ComputableInSpace f enc encBool S) (hg : ComputableInSpace g enc encBool S) :
-    ComputableInSpace (fun a => f a && g a) enc encBool S :=
-  budget_finite (fun p : Bool × Bool => p.1 && p.2) (budget_prod hf hg)
-
-private theorem or_budget {f g : α → Bool}
-    (hf : ComputableInSpace f enc encBool S) (hg : ComputableInSpace g enc encBool S) :
-    ComputableInSpace (fun a => f a || g a) enc encBool S :=
-  budget_finite (fun p : Bool × Bool => p.1 || p.2) (budget_prod hf hg)
-
 private theorem controller_budget {s : α → Runtime}
     (hs : ComputableInSpace s enc encRuntime S) :
     ComputableInSpace
@@ -107,7 +98,7 @@ private theorem phaseEq_budget {s : α → Cslib.InductiveCounting.State}
 private theorem overflowed_budget {s : α → Cslib.InductiveCounting.State}
     (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => overflowed (s a)) enc encBool S :=
-  (and_budget (and_budget (and_budget (phaseEq_budget hs .done) (finalScan_budget hs))
+  (budget_boolAnd (budget_boolAnd (budget_boolAnd (phaseEq_budget hs .done) (finalScan_budget hs))
     (budget_natEq (selected_budget hs) (count_budget hs))) (hit_budget hs)).of_enc_eq
     fun a => by simp only [overflowed, Bool.beq_eq_decide_eq]
 
@@ -183,8 +174,8 @@ private theorem runtimeHalted_budget {s : α → Runtime}
     ComputableInSpace (fun a => runtimeHalted (s a)) enc encBool S := by
   have hc := controller_budget hs
   exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
-    (or_budget (phaseEq_budget hc .reject)
-      (and_budget (runtimeChecked_budget hs) (phaseEq_budget hc .accept)))
+    (budget_boolOr (phaseEq_budget hc .reject)
+      (budget_boolAnd (runtimeChecked_budget hs) (phaseEq_budget hc .accept)))
     (budget_const false)).of_enc_eq fun a => by
       cases h : (s a).counting <;> simp [runtimeHalted, h]
 
@@ -192,7 +183,7 @@ private theorem runtimeHalted_budget {s : α → Runtime}
 private theorem runtimeAccept_budget {s : α → Runtime}
     (hs : ComputableInSpace s enc encRuntime S) :
     ComputableInSpace (fun a => runtimeAccept (s a)) enc encBool S := by
-  exact (and_budget (runtimeChecked_budget hs)
+  exact (budget_boolAnd (runtimeChecked_budget hs)
     (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
       (accepting_budget (controller_budget hs)) (budget_const false))).of_enc_eq
     fun a => by cases h : (s a).counting <;> simp [runtimeAccept, h]
@@ -229,9 +220,9 @@ private theorem runtimeNext_budget (ntm : MultiTapeNTM k Bool State)
     (budget_optionSome (install_budget ntm hB₄))
   have hcheck := runtime_budget hn hB (budget_const true)
     (budget_optionSome (install_budget ntm hB))
-  have hnot := budget_finite (encC := encBool) Bool.not hchk
-  have hcounting := budget_ite (and_budget hnot (overflowed_budget hc)) hgrow
-    (budget_ite (and_budget hnot (phaseEq_budget hc .accept)) hcheck hadvance)
+  have hnot := budget_boolNot hchk
+  have hcounting := budget_ite (budget_boolAnd hnot (overflowed_budget hc)) hgrow
+    (budget_ite (budget_boolAnd hnot (phaseEq_budget hc .accept)) hcheck hadvance)
   have hstart := budget_natMul (budget_natAdd hn (budget_const 2))
     (budget_const (2 ^ (Fintype.card (Option State) + 2)))
   have hscan := budget_ite (budget_finite Option.isSome hsymbol)

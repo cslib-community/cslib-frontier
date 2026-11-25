@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Foundations.Data.Nat.BinarySize
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Binary natural powers with a runtime exponent
@@ -23,6 +24,8 @@ of the exponent. No unary charge for the base is introduced.
 * `Turing.MultiTapeTM.ComputableInSpace.natPow`: power with both arguments supplied at runtime.
 * `Turing.MultiTapeTM.ComputableInSpace.budget_natPow_variable`: compute a power within a
   caller's budget that covers this output-length bound.
+* `Turing.MultiTapeTM.ComputableInSpace.twoPowUnary`: `2 ^ n` in binary from `n` in unary, in
+  linear space.
 -/
 
 public section
@@ -76,5 +79,12 @@ theorem budget_natPow_variable {α : Type} {encIn : α ↪ List Bool} {Bs : α �
     (hbound : (fun x => (n x + 1) * (encNat (a x)).length + (encNat (n x)).length + 1) ≼ Bs) :
     ComputableInSpace (fun x => a x ^ n x) encIn encNat Bs :=
   budget_comp natPow (budget_prod ha hn) hbound
+
+/-- Binary powers of two from unary exponents, in linear space, without an exponential unary
+intermediate. -/
+theorem twoPowUnary :
+    ComputableInSpace (fun n : ℕ => 2 ^ n) encUnary encNat fun n => (encUnary n).length := by
+  simpa only [encUnary_apply, List.length_replicate] using
+    (of_inO (ComputableInDegree.two_pow_length encUnary).inO_one)
 
 end Turing.MultiTapeTM.ComputableInSpace
