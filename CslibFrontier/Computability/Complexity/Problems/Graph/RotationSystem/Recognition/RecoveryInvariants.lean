@@ -73,6 +73,12 @@ theorem advance_invariant {I : FixedRotationInput} {v : ℕ} {block result : Lis
       · have : e = d := List.mem_singleton.mp he
         simpa only [this] using hd
 
+/-- The initial block of `recoverWord`: the first dart of the fiber, if there is one. -/
+private theorem initial_spec (darts : List ℕ) :
+    let initial := if darts.isEmpty then [] else [darts.headD 0]
+    initial.Nodup ∧ (∀ d ∈ initial, d ∈ darts) ∧ initial.length = min 1 darts.length := by
+  cases darts <;> simp
+
 /-- A successful recovered word uses at most the actual fiber length, with no repeated or invalid
 binary dart index. This holds on malformed input too. -/
 theorem recoverWord_invariant {I : FixedRotationInput} {v : ℕ} {word : List ℕ}
@@ -81,15 +87,8 @@ theorem recoverWord_invariant {I : FixedRotationInput} {v : ℕ} {word : List �
       word.length ≤ (fiber I.graph v).length := by
   let darts := fiber I.graph v
   let initial := if darts.isEmpty then [] else [darts.headD 0]
-  have hinit : initial.Nodup ∧ (∀ d ∈ initial, d ∈ darts) ∧ initial.length ≤ 1 := by
-    dsimp only [initial]
-    split
-    · simp
-    · rename_i hn
-      have hne : darts ≠ [] := by simpa using hn
-      cases hd : darts with
-      | nil => exact False.elim (hne hd)
-      | cons a rest => simp
+  have hinit : initial.Nodup ∧ (∀ d ∈ initial, d ∈ darts) ∧
+      initial.length = min 1 darts.length := initial_spec darts
   have step (i : ℕ) {w : List ℕ}
       (hi : (advance I v)^[i] (some initial) = some w) :
       w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ w.length ≤ initial.length + i := by
@@ -108,17 +107,8 @@ theorem recoverWord_invariant {I : FixedRotationInput} {v : ℕ} {word : List �
         obtain ⟨hn', hm', _, hl'⟩ := advance_invariant hi hn hm
         exact ⟨hn', hm', by omega⟩
   have hstep := step (darts.length - 1) h
-  refine ⟨hstep.1, hstep.2.1, ?_⟩
-  change word.length ≤ darts.length
-  change (advance I v)^[darts.length - 1] (some initial) = some word at h
-  by_cases hd : darts = []
-  · have hz : (advance I v)^[darts.length - 1] (some initial) = some [] := by
-      simp [hd, initial]
-    rw [hz] at h
-    have : word = [] := (Option.some.inj h).symm
-    simp [this]
-  · have hp : 0 < darts.length := List.length_pos_iff.mpr hd
-    omega
+  have := hinit.2.2
+  exact ⟨hstep.1, hstep.2.1, by change word.length ≤ darts.length; omega⟩
 
 /-- Every successful word enumerates its entire original endpoint fiber. -/
 theorem recoverWord_enumerates {I : FixedRotationInput} {v : ℕ} {word : List ℕ}
@@ -126,15 +116,8 @@ theorem recoverWord_enumerates {I : FixedRotationInput} {v : ℕ} {word : List �
     word.Nodup ∧ ∀ d, d ∈ word ↔ d ∈ fiber I.graph v := by
   let darts := fiber I.graph v
   let initial := if darts.isEmpty then [] else [darts.headD 0]
-  have hinit : initial.Nodup ∧ (∀ d ∈ initial, d ∈ darts) := by
-    dsimp only [initial]
-    split
-    · simp
-    · rename_i hn
-      have hne : darts ≠ [] := by simpa using hn
-      cases hd : darts with
-      | nil => exact False.elim (hne hd)
-      | cons a rest => simp
+  have hinit : initial.Nodup ∧ (∀ d ∈ initial, d ∈ darts) ∧
+      initial.length = min 1 darts.length := initial_spec darts
   have step (i : ℕ) {w : List ℕ}
       (hi : (advance I v)^[i] (some initial) = some w) :
       w.Nodup ∧ (∀ d ∈ w, d ∈ darts) ∧ min darts.length (initial.length + i) ≤ w.length := by
@@ -142,7 +125,7 @@ theorem recoverWord_enumerates {I : FixedRotationInput} {v : ℕ} {word : List �
     | zero =>
       have hw := Option.some.inj hi
       subst w
-      exact ⟨hinit.1, hinit.2, by omega⟩
+      exact ⟨hinit.1, hinit.2.1, by omega⟩
     | succ i ih =>
       rw [Function.iterate_succ_apply'] at hi
       cases hx : (advance I v)^[i] (some initial) with
@@ -166,27 +149,10 @@ theorem recoverWord_enumerates {I : FixedRotationInput} {v : ℕ} {word : List �
   have hstep := step (darts.length - 1) h
   obtain ⟨hn, hm, hu⟩ := recoverWord_invariant h
   change word.length ≤ darts.length at hu
-  have heq : word.length = darts.length := by
-    by_cases hd : darts = []
-    · simp only [hd, List.length_nil] at hu ⊢
-      exact Nat.eq_zero_of_le_zero hu
-    · have hp : 0 < darts.length := List.length_pos_iff.mpr hd
-      have hlen : initial.length = 1 := by simp [initial, List.isEmpty_iff, hd]
-      rw [hlen] at hstep
-      omega
-  have hsub : word.toFinset ⊆ darts.toFinset := by
-    intro d hd
-    exact List.mem_toFinset.mpr (hm d (List.mem_toFinset.mp hd))
-  have hcard : darts.toFinset.card ≤ word.toFinset.card := by
-    rw [List.toFinset_card_of_nodup (nodup_fiber I.graph v), List.toFinset_card_of_nodup hn]
-    exact heq.ge
-  have hset := Finset.eq_of_subset_of_card_le hsub hcard
-  have hreverse : darts ⊆ word := by
-    intro d hd
-    apply List.mem_toFinset.mp
-    rw [hset]
-    exact List.mem_toFinset.mpr hd
-  exact ⟨hn, fun d => ⟨hm d, fun hd => hreverse hd⟩⟩
+  have := hinit.2.2
+  have hperm := (hn.subperm fun d hd => hm d hd).perm_of_length_le
+    (by change darts.length ≤ word.length; omega)
+  exact ⟨hn, fun d => hperm.mem_iff⟩
 
 /-- Explicit polynomial storage for a recovered binary dart word, including its list framing. -/
 theorem length_enc_recoverWord {I : FixedRotationInput} {v : ℕ} {word : List ℕ}
