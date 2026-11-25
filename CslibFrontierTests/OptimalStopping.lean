@@ -155,7 +155,7 @@ example (k : ℕ) : valueFrom reward (tightLaws k) [] = 1 := by
     refine le_iSup_of_le (fun _ => true) (le_of_eq ?_)
     rw [tightLaws_eq, tsum_jointLaw_cons_mul]
     simp only [payoff_cons, ite_true, reward]
-    simp [tsum_pmf_mul_const]
+    simp [Cslib.Probability.PMF.tsum_mul_const]
 
 end Prophet
 

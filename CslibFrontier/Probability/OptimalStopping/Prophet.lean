@@ -184,7 +184,7 @@ private theorem expectedMax_le_add (t : ℝ≥0) (laws : List (PMF ℝ≥0)) :
         tsum_le_tsum fun xs => by gcongr; exact listMax_le_add_excessSum t xs
     _ = ∑' xs, (jointLaw laws xs * t + jointLaw laws xs * excessSum t xs) :=
         tsum_congr fun xs => mul_add _ _ _
-    _ = _ := by rw [tsum_add, tsum_pmf_mul_const]
+    _ = _ := by rw [tsum_add, PMF.tsum_mul_const]
 
 private theorem tsum_excessSum (t : ℝ≥0) : ∀ laws : List (PMF ℝ≥0),
     ∑' xs, jointLaw laws xs * excessSum t xs =
@@ -192,7 +192,7 @@ private theorem tsum_excessSum (t : ℝ≥0) : ∀ laws : List (PMF ℝ≥0),
   | [] => by simp [excessSum]
   | μ :: laws => by
       rw [tsum_jointLaw_cons_mul, List.map_cons, List.sum_cons, ← tsum_excessSum t laws]
-      simp only [excessSum, mul_add, tsum_add, tsum_pmf_mul_const]
+      simp only [excessSum, mul_add, tsum_add, PMF.tsum_mul_const]
 
 /-- The prophet collects at most `t + ∑ᵢ E[(Xᵢ - t)⁺]`, for every cutoff `t`. -/
 theorem expectedMax_le_add_sum (t : ℝ≥0) (laws : List (PMF ℝ≥0)) :
@@ -261,7 +261,7 @@ private theorem prophet_step (μ : PMF ℝ≥0) {t : ℝ≥0} {a : ℝ≥0 → B
         gcongr; exact mul_le_of_le_one_left zero_le hqR
     _ = ∑' x, (μ x * t + μ x * ((x - t : ℝ≥0) : ℝ≥0∞) +
           μ x * (if a x then 0 else 1) * (R * S)) := by
-        rw [tsum_add, tsum_add, tsum_pmf_mul_const, ENNReal.tsum_mul_right]
+        rw [tsum_add, tsum_add, PMF.tsum_mul_const, ENNReal.tsum_mul_right]
     _ = ∑' x, μ x * ((t : ℝ≥0∞) + ((x - t : ℝ≥0) : ℝ≥0∞) + (if a x then 0 else 1) * (R * S)) :=
         tsum_congr fun x => by ring
     _ ≤ ∑' x, μ x * ((if a x then (x : ℝ≥0∞) else A) + (if a x then 0 else 1) * (t * R)) :=
@@ -291,13 +291,13 @@ private theorem prophet_key {t : ℝ≥0} {a : ℝ≥0 → Bool} (ha₁ : ∀ x,
       have hSc : ∑' xs, jointLaw (μ :: L) xs * excessSum t xs =
           ∑' x, μ x * ((x - t : ℝ≥0) : ℝ≥0∞) + ∑' xs, jointLaw L xs * excessSum t xs := by
         rw [tsum_jointLaw_cons_mul]
-        simp only [excessSum, mul_add, tsum_add, tsum_pmf_mul_const]
+        simp only [excessSum, mul_add, tsum_add, PMF.tsum_mul_const]
       have hAc : ∑' xs, jointLaw (μ :: L) xs * acceptPayoff a xs =
           ∑' x, μ x * (if a x then (x : ℝ≥0∞) else ∑' xs, jointLaw L xs * acceptPayoff a xs) := by
         rw [tsum_jointLaw_cons_mul]
         refine tsum_congr fun x => ?_
         by_cases hx : a x = true
-        · simp only [acceptPayoff, hx, ↓reduceIte, tsum_pmf_mul_const]
+        · simp only [acceptPayoff, hx, ↓reduceIte, PMF.tsum_mul_const]
         · have hx' : a x = false := by simpa using hx
           simp only [acceptPayoff, hx', Bool.false_eq_true, ↓reduceIte]
       rw [hRc, hSc, hAc]
@@ -516,7 +516,7 @@ theorem expectedReward_tightLaws_le (k : ℕ) (stop : List ℝ≥0 → Bool) :
   simp only [tsum_jointLaw_nil_mul]
   by_cases h1 : stop [1] = true
   · simp only [payoff_cons, h1, ↓reduceIte]
-    exact (tsum_pmf_mul_const _ _).le.trans (by simp)
+    exact (PMF.tsum_mul_const _ _).le.trans (by simp)
   · calc ∑' y, longShot k y * payoff stop reward [] [1, y]
         ≤ ∑' y, longShot k y * (y : ℝ≥0∞) := tsum_le_tsum fun y => by
           gcongr longShot k y * ?_

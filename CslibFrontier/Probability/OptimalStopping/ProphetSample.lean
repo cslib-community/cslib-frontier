@@ -897,7 +897,7 @@ theorem expectedMax_le_two_mul_singleSampleExpectedReward {n : ℕ} (μ : Fin n 
     rw [expectedMax, tsum_jointLaw_ofFn_mul]
     refine tsum_congr fun x => ?_
     congr 1
-    simp only [P, tsum_pmf_mul_const]
+    simp only [P, PMF.tsum_mul_const]
   have hRHS : singleSampleExpectedReward μ =
       ∑' x, piFin μ x * ∑' s, piFin μ s *
         ∑' π, uniformOfFintype (Equiv.Perm (Fin (2 * n))) π * G x s π := by

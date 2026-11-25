@@ -30,6 +30,7 @@ import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.IID
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.Union
 import CslibFrontier.Probability.PMF.Uniform
@@ -392,11 +393,6 @@ private theorem tsum_mul_le_add {α : Type*} (μ : PMF α) {f g err : α → ℝ
     ∑' a, μ a * f a ≤ (∑' a, μ a * g a) + ∑' a, μ a * err a :=
   (tsum_le_tsum fun a => mul_le_mul_of_nonneg_left (h a) zero_le).trans_eq
     (by simp only [mul_add, tsum_add])
-
-omit [AddGroup G] [Fintype G] [DecidableEq G] in
-private theorem tsum_mul_const {α : Type*} (μ : PMF α) (c : ℝ≥0∞) :
-    ∑' a, μ a * c = c := by
-  rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
 
 omit [AddGroup G] [Fintype G] [DecidableEq G] in
 private theorem tsum_toOuterMeasure_of_pointwise_le {α β : Type} (μ : PMF α) (d : PMF β)
@@ -1000,7 +996,7 @@ private theorem tsum_seed_toOuterMeasure_hasCollision_le {seed₁ : PMF K₁} {h
     rw [List.length_nil, zero_add] at hlen
     exact (toOuterMeasure_hasColl_delta_le hh₁ Prod.fst hpair).trans
       (mul_le_mul_of_nonneg_right (Nat.cast_le.mpr (Nat.choose_le_choose 2 hlen)) zero_le)
-  · rw [tsum_mul_const]
+  · rw [PMF.tsum_mul_const]
     simpa only [List.length_nil, mul_zero, zero_add] using
       toOuterMeasure_hasVCollision_le hQ (qc := []) rfl
 
@@ -1017,7 +1013,7 @@ theorem feistel3HashIdealGame_apply_le {seed₁ : PMF K₁} {h₁ : K₁ → G �
   rw [feistel3HashIdealGame, Probability.PMF.monad_bind_eq_bind, PMF.bind_apply]
   refine (tsum_mul_le_add seed₁ fun k₁ =>
     (feistel3FixedGame_and_randomFunctionGame_le (h₁ k₁) program b).1).trans ?_
-  rw [tsum_mul_const]
+  rw [PMF.tsum_mul_const]
   exact add_le_add le_rfl (tsum_seed_toOuterMeasure_hasCollision_le hh₁ hQ)
 
 /-- Reverse inequality for the 3-round Luby–Rackoff bound with Δ-universal Round 1:
@@ -1030,7 +1026,7 @@ theorem randomFunctionGame_apply_le_feistel3HashIdealGame {seed₁ : PMF K₁} {
     randomFunctionGame program b ≤
       feistel3HashIdealGame seed₁ h₁ program b +
         (Q.choose 2 * ε + Q.choose 2 * (Fintype.card G : ℝ≥0∞)⁻¹) := by
-  rw [← tsum_mul_const seed₁ (randomFunctionGame program b),
+  rw [← PMF.tsum_mul_const seed₁ (randomFunctionGame program b),
     feistel3HashIdealGame, Probability.PMF.monad_bind_eq_bind, PMF.bind_apply]
   exact (tsum_mul_le_add seed₁ fun k₁ =>
     (feistel3FixedGame_and_randomFunctionGame_le (h₁ k₁) program b).2).trans
@@ -1593,12 +1589,12 @@ private theorem tsum_uniform_toOuterMeasure_hasCollision4_le
           (Q.choose 2 * (Fintype.card G : ℝ≥0∞)⁻¹ +
             (Q.choose 2 : ℝ≥0∞) * (Fintype.card (G × G) : ℝ≥0∞)⁻¹) := by
     refine (tsum_mul_le_add unif (hsplit f₁)).trans ?_
-    rw [tsum_mul_const]
+    rw [PMF.tsum_mul_const]
     refine add_le_add le_rfl ((tsum_mul_le_add unif fun _ => le_rfl).trans ?_)
-    rw [tsum_mul_const]
+    rw [PMF.tsum_mul_const]
     exact add_le_add hV le_rfl
   refine (tsum_le_tsum fun f₁ => mul_le_mul_of_nonneg_left (hinner f₁) zero_le).trans ?_
-  simp only [mul_add, tsum_add, tsum_mul_const]
+  simp only [mul_add, tsum_add, PMF.tsum_mul_const]
   exact (add_le_add hU le_rfl).trans_eq (by ring)
 
 /-- **4-round strong Luby–Rackoff theorem in `ℝ≥0∞` (one-sided)**: for any adaptive
@@ -1624,7 +1620,7 @@ theorem feistel4StrongRandomRoundsGame_apply_le
     refine (tsum_mul_le_add unif fun f₁ =>
       tsum_mul_le_add unif fun f₄ =>
         (feistel4StrongFixedGame_and_forgetful_le f₁ f₄ program b).1).trans ?_
-    simp only [tsum_mul_const]
+    simp only [PMF.tsum_mul_const]
     exact add_le_add le_rfl (tsum_uniform_toOuterMeasure_hasCollision4_le hQ')
   have hperm := RandomPermutation.forgetfulAnswer_bind_apply_le_uniformPerm hQ' PMF.pure b
   simp only [Probability.PMF.monad_bind_eq_bind, PMF.bind_pure,
@@ -1652,9 +1648,9 @@ theorem idealStrongGame_apply_le_feistel4StrongRandomRoundsGame
           (Q.choose 2 : ℝ≥0∞) * (Fintype.card (G × G) : ℝ≥0∞)⁻¹) := by
     rw [feistel4StrongRandomRoundsGame_eq_bind_fixed, Probability.PMF.monad_bind_eq_bind]
     simp only [PMF.bind_apply]
-    rw [← tsum_mul_const unif forgetVal]
+    rw [← PMF.tsum_mul_const unif forgetVal]
     refine (tsum_mul_le_add unif fun f₁ => by
-      rw [← tsum_mul_const unif forgetVal]
+      rw [← PMF.tsum_mul_const unif forgetVal]
       exact tsum_mul_le_add unif fun f₄ =>
         (feistel4StrongFixedGame_and_forgetful_le f₁ f₄ program b).2).trans ?_
     exact add_le_add le_rfl (tsum_uniform_toOuterMeasure_hasCollision4_le hQ')
