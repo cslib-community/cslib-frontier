@@ -95,8 +95,9 @@ game nor a security reduction.
   `#mq-tag`), Security Considerations / MQ zero-opening scaling forgery
   (`#mq-zero-opening-forgery`), and Proof status (`#proof-status`).
 * [Baum et al., *PoMFRIT*, USENIX prepublication, Definition 3.1][PoMFRIT2026].
-* C. Bouillaguet, P. Frixons, P. Méaux, G. Renault, L. Simon, B. Vasseur, *Multivariate
-  Commitments and Signatures with Efficient Protocols*, ePrint 2025/2035 (Table 3).
+* C. Bouillaguet, T. Feneuil, J. Maire, M. Rivain, J. Sauvage, D. Vergnaud, *Multivariate
+  Commitments and Signatures with Efficient Protocols*, ePrint 2025/2035 (Section 6.1, Table 3;
+  also cited in [VOLEACT2026], `#mq-commitment`).
 -/
 
 public section
@@ -185,11 +186,13 @@ def invalidReplyExperiment (S : Signature.Scheme PK SK Target Sig) (target : Mes
     (B : ExtractedForger PK Message R Sig) : Experiment :=
   anyInvalidReply S target <$> runExtracted S target B
 
+end
+
 /-! ### Explicit reductions from `ExtractedForger` to `clawExperiment` and `gCollisionExperiment`
 -/
 
 /-- Pure transcript transition filtering verified log entries with pairwise distinct `J`-targets. -/
-def stepValidClaim [DecidableEq Target]
+private def stepValidClaim [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (J : M → R → Target) (embed : Message → M)
     (pk : PK) (acc : List (ClawClaim M R Sig)) (entry : Payload Message R × Sig) :
     List (ClawClaim M R Sig) :=
@@ -201,7 +204,7 @@ def stepValidClaim [DecidableEq Target]
 
 /-- Stateful query handler forwarding each semantic payload `(m, r)` to `(embed m, r)` while
 recording verified claims with distinct `J`-targets. -/
-def clawReductionHandler [DecidableEq Target]
+private def clawReductionHandler [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (J : M → R → Target) (embed : Message → M)
     (pk : PK) (payload : Payload Message R) :
     StateT (List (ClawClaim M R Sig)) (ProbOracleComp (fun _ : M × R => Sig)) Sig :=
@@ -226,6 +229,8 @@ def clawReduction [DecidableEq Target]
     return ⟨embed token.payload.message, token.payload.opening, token.signature⟩ :: logged
   else
     return []
+
+@[expose] section
 
 /-- Explicit reduction from `ExtractedForger` target collisions to `G`-collisions in `R`. -/
 def gCollisionReduction [DecidableEq Target] (S : Signature.Scheme PK SK Target Sig)
@@ -410,7 +415,7 @@ theorem structuredTarget_collision {Message' : Type} [AddCommGroup Message]
   refine ⟨fun hr => hm (hembed (add_left_cancel (a := F r₁) ?_)), hsnd⟩
   simpa [hr] using hfst
 
-/-! ### Reduction proofs and VOLE-ACT-MQ credit conservation (Theorem 3) -/
+/-! ### Reduction proofs and extracted VOLE-ACT-MQ credit conservation -/
 
 /-- Transform an `ExtractedForger` execution into the corresponding `clawReduction` execution. -/
 private def clawExecutionOfExtracted [DecidableEq Target]
@@ -767,7 +772,7 @@ theorem extractedExperiment_succProbability_le_structuredClaw
   have h2 := bindingExperiment_structuredTarget_le_gCollision F G embed hembed target htarget S B
   exact h1.trans (add_le_add (add_le_add le_rfl h2) le_rfl)
 
-/-- **Theorem 3 (Extracted VOLE-ACT-MQ credit conservation).** Under an injective embedding
+/-- **Extracted-model VOLE-ACT-MQ credit conservation.** Under an injective embedding
 `actEmbed encodeState refundEmbed`, any adversary winning the extracted VOLE-ACT credit-conservation
 game against `(actCom F G encodeState, actTag refundEmbed, S)` either yields a win in the
 structured-target one-more claw-freeness game via `clawReduction … (noteForger … A)`, yields a

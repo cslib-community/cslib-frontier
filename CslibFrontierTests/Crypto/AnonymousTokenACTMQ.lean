@@ -42,7 +42,7 @@ open scoped NNReal
 
 private instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 
-/-! ### 1. Disjoint-slot `Fin 4 → ℤ` embedding and Theorem 3 client -/
+/-! ### 1. Disjoint-slot `Fin 4 → ℤ` embedding and credit-conservation client -/
 
 /-- State embedding `(nf, ctx, t) ↦ ![↑nf, ↑ctx, ↑t, 0]`, vanishing on the refund slot `3`. -/
 private def encodeStateFin4 (nf ctx t : ℕ) : Fin 4 → ℤ :=
@@ -93,7 +93,7 @@ example {R Tail : Type} (F : R → Fin 4 → ℤ) (G : R → Tail)
       UOV.structuredTarget F G (actEmbed encodeStateFin4 refundEmbedFin4 note) r :=
   credit_target_actCom_actTag F G encodeStateFin4 refundEmbedFin4 note r
 
--- Generic Theorem 3 client on the disjoint `Fin 4 → ℤ` block split.
+-- Generic extracted-conservation client on the disjoint `Fin 4 → ℤ` block split.
 example {R Tail PK SK Sig : Type}
     [DecidableEq Tail] [DecidableEq R] [Inhabited R] [Inhabited Sig]
     (F : R → Fin 4 → ℤ) (G : R → Tail)
@@ -398,7 +398,7 @@ example :
 example : (131 : ℕ) - 32 - 83 = 16 := by decide
 example : (256 : ℕ) ^ 16 = 2 ^ 128 := by decide
 
--- Semantic message width `nf_len + ctx_len + 2 * 1 = 16 + 12 + 2 + 2 = 32` bytes.
+-- Semantic message width `nf_len + ctx_len + 2 * L = 16 + 12 + 2 + 2 = 32` bytes (`L = 2`).
 example : (16 : ℕ) + 12 + 2 + 2 = 32 := by decide
 
 end CslibFrontierTests.Crypto.AnonymousTokenACTMQ
