@@ -7,7 +7,10 @@ Authors: Samuel Schlesinger, Karn Seth
 module
 
 import CslibFrontier.Computability.Circuit.Pi
+import CslibFrontier.Crypto.Protocols.FAEST.Conversion
+import CslibFrontier.Crypto.Protocols.VOLE.Circuit
 import CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck
+import CslibFrontier.Crypto.Protocols.VOLE.MulCheck
 import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
 import Mathlib.Algebra.MvPolynomial.CommRing
 import Mathlib.Algebra.Polynomial.Coeff
@@ -18,20 +21,23 @@ import Mathlib.Tactic.NormNum
 # Higher-degree QuickSilver, ACT Spend degree-9 parameters, and ACT V1 RLC clients
 
 Exercises `CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck` across:
-- Completeness and full honest-receiver view simulation at `d = 1`, `d = 2` (`MulCheck`/`Circuit`
-  bridge), and `d = actSpendDegree = 9` over prime fields (`ZMod 5`, `ZMod 11`), binary fields
-  (`BinaryField 2`, `BinaryField 4`), and a non-field ring with zero divisors (`ZMod 4`).
+- Completeness and full honest-receiver view simulation at `d = 1`, `d = 2` (local `MulCheck`/
+  `Circuit` compatibility checks), and `d = actSpendDegree = 9` over prime fields (`ZMod 5`,
+  `ZMod 11`), binary fields (`BinaryField 2`, `BinaryField 4`), and a non-field ring with zero
+  divisors (`ZMod 4`).
 - Negative ZK and completeness witnesses (unmasked view leakage separating valid witnesses at
   `d = 9`, and a non-vanishing witness diverging from the zero-knowledge simulator).
 - Sharpness of the Schwartz–Zippel bound `d / |F|` at `d = 9` (`9 / 11`) and small-field failure
   over `ZMod 2` (`100%` acceptance on `X ^ 9 - X`).
-- Scalar-batched soundness (`t / |F| + d / |C|`) and single-shot FAEST grinding subsets.
-- ACT Spend numeric bounds (`9 ∉ {7, 14}`, `(6784 - 1) ^ 5 < 2 ^ 64`, `12283 ^ 2 * 2 ^ 36 < 2 ^ 64`)
-  and `FAEST.Conversion` VOLE lifting into characteristic-2 rings.
-- ACT V1 RLC (`actSpendRLCCount = 45`) non-adaptive, adaptive, single-RO FAEST domain-separated,
-  folded Round-2+3, and conditional Round-2+3 soundness, paired with negative witnesses for omitted
-  domain separation (shared/colliding bytes), predictable challenges (`q * δ_K = 1`), and small
-  challenge fields (`ZMod 2`).
+- Independent-weight batching (`toOuterMeasure_qsHomogLinearBatch_le` and
+  `toOuterMeasure_qsMaskedCheckValue_le`), scalar-batched soundness (`t / |F| + d / |C|`), and
+  single-shot FAEST grinding subsets.
+- ACT Spend degree witness (`9 ∉ {7, 14}`), `"rata\x00l0"` trailing domain byte `0x30`, and local
+  `FAEST.Conversion` VOLE lifting into characteristic-2 rings.
+- ACT V1 RLC (`actSpendRLCCount = 45`) single-oracle, domain-separated single-RO FAEST+ACT, and
+  folded Round-2+3 QuickSilver bounds, paired with negative witnesses for omitted domain
+  separation (shared/colliding bytes), predictable challenges (`q * δ_K = 1`), and small challenge
+  fields (`ZMod 2`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -53,46 +59,6 @@ private abbrev actSpendDegree : ℕ := 9
 
 /-- Number of field components in ACT Spend's V1 RLC (`m_uov = 45`). -/
 private abbrev actSpendRLCCount : ℕ := 45
-
-private theorem pow_add64_div_le_of_mul_le (baseExp x num den : ℕ) (hden : 0 < den)
-    (hbound : x * den ≤ num * 2 ^ 64) :
-    (1 : ℝ≥0∞) / 2 ^ baseExp + (x : ℝ≥0∞) / 2 ^ (baseExp + 64) ≤
-      (1 + (num : ℝ≥0∞) / den) / 2 ^ baseExp := by
-  have h2_64_ne0 : ((2 : ℝ≥0∞) ^ 64) ≠ 0 := by norm_num
-  have h2_64_top : ((2 : ℝ≥0∞) ^ 64) ≠ ⊤ := by norm_num
-  have hden_ne0 : (den : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hden.ne'
-  have hden_top : (den : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hcast : (x : ℝ≥0∞) * (den : ℝ≥0∞) ≤ (num : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64 := by
-    exact_mod_cast hbound
-  have hfrac : (x : ℝ≥0∞) / (2 : ℝ≥0∞) ^ 64 ≤ (num : ℝ≥0∞) / (den : ℝ≥0∞) := by
-    rw [ENNReal.div_le_iff_le_mul (Or.inl h2_64_ne0) (Or.inl h2_64_top)]
-    calc (x : ℝ≥0∞)
-        = (x : ℝ≥0∞) * (den : ℝ≥0∞) * (den : ℝ≥0∞)⁻¹ := by
-          rw [mul_assoc, ENNReal.mul_inv_cancel hden_ne0 hden_top, mul_one]
-      _ ≤ ((num : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64) * (den : ℝ≥0∞)⁻¹ := by gcongr
-      _ = (num : ℝ≥0∞) / (den : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64 := by
-          simp only [div_eq_mul_inv]
-          ring
-  rw [ENNReal.add_div, div_eq_mul_inv (x : ℝ≥0∞), pow_add,
-    ENNReal.mul_inv (Or.inr h2_64_top) (Or.inl (ENNReal.pow_ne_top (by norm_num)))]
-  gcongr
-  rw [← mul_assoc, mul_right_comm]
-  simp only [div_eq_mul_inv] at hfrac ⊢
-  gcongr
-
-private theorem voleHashError_le_of_pow_le (lam ell' num den : ℕ) (hden : 0 < den)
-    (hbound : (ell' - 1) ^ 5 * den ≤ num * 2 ^ 64) :
-    (1 : ℝ≥0∞) / 2 ^ (4 * lam) + ((ell' - 1 : ℕ) : ℝ≥0∞) ^ 5 / 2 ^ (4 * lam + 64) ≤
-      (1 + (num : ℝ≥0∞) / den) / 2 ^ (4 * lam) := by
-  simpa only [Nat.cast_pow] using
-    pow_add64_div_le_of_mul_le (4 * lam) ((ell' - 1) ^ 5) num den hden hbound
-
-private theorem zkHashError_le_of_pow_le (lam c' num den : ℕ) (hden : 0 < den)
-    (hbound : c' ^ 2 * den ≤ num * 2 ^ 64) :
-    (1 : ℝ≥0∞) / 2 ^ lam + (c' : ℝ≥0∞) ^ 2 / 2 ^ (lam + 64) ≤
-      (1 + (num : ℝ≥0∞) / den) / 2 ^ lam := by
-  simpa only [Nat.cast_pow] using
-    pow_add64_div_le_of_mul_le lam (c' ^ 2) num den hden hbound
 
 /-- Degree-`9` (`actSpendDegree`) polynomial constraint `w 0 ^ 9 - w 1 = 0` over any `CommRing`. -/
 private noncomputable def spendPoly {R : Type} [CommRing R] : MvPolynomial (Fin 2) R :=
@@ -561,7 +527,357 @@ example (a : Fin actSpendDegree → BinaryField 4) :
     simp only [Nat.cast_ofNat]
   exact h
 
+-- Independent-weight degree-9 soundness (`1 / |F| + (1 - 1 / |F|) * (d / |C|)`) on `spendPoly`.
+example (a : (Fin 2 → ZMod 13) → PMF (Fin actSpendDegree → ZMod 13)) :
+    (do
+      let r ← PMF.uniformOfFintype (Fin 2 → ZMod 13)
+      let reply ← a r
+      let delta ← PMF.uniformOfFintype (ZMod 13)
+      let P_batch : Polynomial (ZMod 13) := ∑ i : Fin 2, Polynomial.C (r i) *
+        qsHomogPoly actSpendDegree spendPoly ![2, 0] 0
+      return decide (P_batch.eval delta = qsPolySum actSpendDegree reply delta)).toOuterMeasure
+        {true} ≤ (13 : ℝ≥0∞)⁻¹ + (1 - (13 : ℝ≥0∞)⁻¹) * (9 / (13 : ℝ≥0∞)) := by
+  have h := toOuterMeasure_qsHomogLinearBatch_le (Function.Embedding.refl (ZMod 13))
+    (fun _ : Fin 2 => (spendPoly (R := ZMod 13))) (fun _ => totalDegree_spendPoly_le)
+    ![2, 0] 0 ⟨0, by rw [spendPoly_eval_eq]; decide⟩ a
+  simpa only [Function.Embedding.refl_apply, ZMod.card, show actSpendDegree = 9 from rfl,
+    Nat.cast_ofNat] using h
+
+-- Independent-weight degree-9 soundness of `qsMaskedCheckValue` with nonzero VOLE masks `(u, v)`.
+example (a : (Fin 2 → ZMod 13) → PMF (Fin actSpendDegree → ZMod 13)) :
+    (do
+      let r ← PMF.uniformOfFintype (Fin 2 → ZMod 13)
+      let reply ← a r
+      let delta ← PMF.uniformOfFintype (ZMod 13)
+      let u : Fin (2 + (actSpendDegree - 1)) → ZMod 13 := fun _ => 1
+      let v : Fin (2 + (actSpendDegree - 1)) → ZMod 13 := fun j => (j.val : ZMod 13)
+      let d_corr : Fin 2 → ZMod 13 := ![1, -1]
+      let q : Fin (2 + (actSpendDegree - 1)) → ZMod 13 := fun j => u j * delta + v j
+      return decide (qsMaskedCheckValue actSpendDegree (fun _ : Fin 2 => spendPoly)
+        delta q d_corr r = qsPolySum actSpendDegree reply delta)).toOuterMeasure {true} ≤
+      (13 : ℝ≥0∞)⁻¹ + (1 - (13 : ℝ≥0∞)⁻¹) * (9 / (13 : ℝ≥0∞)) := by
+  have hfalse : ∃ i : Fin 2, MvPolynomial.eval
+      (fun j => (1 : ZMod 13) + (![1, -1] : Fin 2 → ZMod 13) j) spendPoly ≠ 0 := by
+    refine ⟨0, ?_⟩
+    rw [spendPoly_eval_eq]
+    decide
+  have h := toOuterMeasure_qsMaskedCheckValue_le (Function.Embedding.refl (ZMod 13))
+    (fun _ : Fin 2 => (spendPoly (R := ZMod 13))) (fun _ => totalDegree_spendPoly_le)
+    (fun _ => 1) (fun j => (j.val : ZMod 13)) ![1, -1] hfalse a
+  simpa only [Function.Embedding.refl_apply, ZMod.card, show actSpendDegree = 9 from rfl,
+    Nat.cast_ofNat] using h
+
 /-! ### Bridges to `VOLE.MulCheck`, `VOLE.Circuit`, and `FAEST.Conversion` -/
+
+section Bridges
+
+variable {R : Type} [CommRing R]
+
+private theorem mvTotalDegree_X_le {n : ℕ} (i : Fin n) :
+    (MvPolynomial.X i : MvPolynomial (Fin n) R).totalDegree ≤ 1 := by
+  rcases subsingleton_or_nontrivial R with hsub | _
+  · have : (MvPolynomial.X i : MvPolynomial (Fin n) R) = 0 := Subsingleton.eq_zero _
+    simp [this]
+  · exact (MvPolynomial.totalDegree_X i).le
+
+private noncomputable def mulGatePoly {n : ℕ} (a b c : Fin n) : MvPolynomial (Fin n) R :=
+  MvPolynomial.X a * MvPolynomial.X b - MvPolynomial.X c
+
+private theorem totalDegree_mulGatePoly_le {n : ℕ} (a b c : Fin n) :
+    (mulGatePoly (R := R) a b c).totalDegree ≤ 2 := by
+  rw [mulGatePoly, sub_eq_add_neg]
+  refine (MvPolynomial.totalDegree_add _ _).trans (max_le ?_ ?_)
+  · exact (MvPolynomial.totalDegree_mul _ _).trans
+      (Nat.add_le_add (mvTotalDegree_X_le a) (mvTotalDegree_X_le b))
+  · rw [MvPolynomial.totalDegree_neg]
+    exact (mvTotalDegree_X_le c).trans (by omega)
+
+private theorem qsHomogVerifierValue_add {n : ℕ} (d : ℕ)
+    (F₁ F₂ : MvPolynomial (Fin n) R) (delta : R) (q' : Fin n → R) :
+    qsHomogVerifierValue d (F₁ + F₂) delta q' =
+      qsHomogVerifierValue d F₁ delta q' + qsHomogVerifierValue d F₂ delta q' := by
+  let term (F : MvPolynomial (Fin n) R) (m : Fin n →₀ ℕ) : R :=
+    F.coeff m * delta ^ (d - m.sum fun _ e => e) * ∏ i : Fin n, q' i ^ m i
+  have hzero : ∀ (F : MvPolynomial (Fin n) R) m, m ∉ F.support → term F m = 0 := by
+    intro F m hm
+    simp [term, MvPolynomial.notMem_support_iff.mp hm]
+  have h1 : qsHomogVerifierValue d (F₁ + F₂) delta q' =
+      (F₁.support ∪ F₂.support).sum (term (F₁ + F₂)) :=
+    Finset.sum_subset MvPolynomial.support_add fun m _ hm => hzero _ m hm
+  have h2 : qsHomogVerifierValue d F₁ delta q' =
+      (F₁.support ∪ F₂.support).sum (term F₁) :=
+    Finset.sum_subset Finset.subset_union_left fun m _ hm => hzero _ m hm
+  have h3 : qsHomogVerifierValue d F₂ delta q' =
+      (F₁.support ∪ F₂.support).sum (term F₂) :=
+    Finset.sum_subset Finset.subset_union_right fun m _ hm => hzero _ m hm
+  rw [h1, h2, h3, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun m _ => ?_
+  dsimp only [term]
+  rw [AddMonoidAlgebra.coeff_add, Finsupp.add_apply]
+  ring
+
+private theorem qsHomogVerifierValue_neg {n : ℕ} (d : ℕ)
+    (F : MvPolynomial (Fin n) R) (delta : R) (q' : Fin n → R) :
+    qsHomogVerifierValue d (-F) delta q' = -qsHomogVerifierValue d F delta q' := by
+  rw [qsHomogVerifierValue, qsHomogVerifierValue]
+  rw [MvPolynomial.support_neg (p := F), ← Finset.sum_neg_distrib]
+  refine Finset.sum_congr rfl fun m _ => ?_
+  rw [MvPolynomial.coeff_neg]
+  ring
+
+private theorem qsHomogVerifierValue_sub {n : ℕ} (d : ℕ)
+    (F₁ F₂ : MvPolynomial (Fin n) R) (delta : R) (q' : Fin n → R) :
+    qsHomogVerifierValue d (F₁ - F₂) delta q' =
+      qsHomogVerifierValue d F₁ delta q' - qsHomogVerifierValue d F₂ delta q' := by
+  rw [sub_eq_add_neg, qsHomogVerifierValue_add, qsHomogVerifierValue_neg, sub_eq_add_neg]
+
+private theorem qsHomogPoly_add {n : ℕ} (d : ℕ)
+    (F₁ F₂ : MvPolynomial (Fin n) R) (w v : Fin n → R) :
+    qsHomogPoly d (F₁ + F₂) w v = qsHomogPoly d F₁ w v + qsHomogPoly d F₂ w v := by
+  let term (F : MvPolynomial (Fin n) R) (m : Fin n →₀ ℕ) : Polynomial R :=
+    Polynomial.C (F.coeff m) * Polynomial.X ^ (d - m.sum fun _ e => e) *
+      ∏ i : Fin n, qsWirePoly w v i ^ m i
+  have hzero : ∀ (F : MvPolynomial (Fin n) R) m, m ∉ F.support → term F m = 0 := by
+    intro F m hm
+    simp [term, MvPolynomial.notMem_support_iff.mp hm]
+  have h1 : qsHomogPoly d (F₁ + F₂) w v = (F₁.support ∪ F₂.support).sum (term (F₁ + F₂)) :=
+    Finset.sum_subset MvPolynomial.support_add fun m _ hm => hzero _ m hm
+  have h2 : qsHomogPoly d F₁ w v = (F₁.support ∪ F₂.support).sum (term F₁) :=
+    Finset.sum_subset Finset.subset_union_left fun m _ hm => hzero _ m hm
+  have h3 : qsHomogPoly d F₂ w v = (F₁.support ∪ F₂.support).sum (term F₂) :=
+    Finset.sum_subset Finset.subset_union_right fun m _ hm => hzero _ m hm
+  rw [h1, h2, h3, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun m _ => ?_
+  dsimp only [term]
+  rw [AddMonoidAlgebra.coeff_add, Finsupp.add_apply, map_add]
+  ring
+
+private theorem qsHomogPoly_neg {n : ℕ} (d : ℕ)
+    (F : MvPolynomial (Fin n) R) (w v : Fin n → R) :
+    qsHomogPoly d (-F) w v = -qsHomogPoly d F w v := by
+  rw [qsHomogPoly, qsHomogPoly, MvPolynomial.support_neg (p := F), ← Finset.sum_neg_distrib]
+  refine Finset.sum_congr rfl fun m _ => ?_
+  rw [MvPolynomial.coeff_neg, map_neg]
+  ring
+
+private theorem qsHomogPoly_sub {n : ℕ} (d : ℕ)
+    (F₁ F₂ : MvPolynomial (Fin n) R) (w v : Fin n → R) :
+    qsHomogPoly d (F₁ - F₂) w v = qsHomogPoly d F₁ w v - qsHomogPoly d F₂ w v := by
+  rw [sub_eq_add_neg, qsHomogPoly_add, qsHomogPoly_neg, sub_eq_add_neg]
+
+private theorem qsHomogPoly_monomial {n : ℕ} (d : ℕ) (m : Fin n →₀ ℕ) (c : R)
+    (w v : Fin n → R) :
+    qsHomogPoly d (MvPolynomial.monomial m c) w v =
+      Polynomial.C c * Polynomial.X ^ (d - m.sum fun _ e => e) *
+        ∏ i : Fin n, qsWirePoly w v i ^ m i := by
+  classical
+  by_cases hc : c = 0
+  · subst hc
+    simp [qsHomogPoly]
+  · rw [qsHomogPoly, MvPolynomial.support_monomial, ite_eq_right hc, Finset.sum_singleton,
+      MvPolynomial.coeff_monomial, ite_eq_left rfl]
+
+private theorem prod_pow_finsupp_single {n : ℕ} {M : Type} [CommMonoid M] (g : Fin n → M)
+    (a : Fin n) : (∏ j : Fin n, g j ^ (Finsupp.single a 1 : Fin n →₀ ℕ) j) = g a := by
+  rw [Finset.prod_eq_single a]
+  · simp
+  · intro j _ hj
+    simp [hj.symm]
+  · intro ha
+    exact (ha (Finset.mem_univ a)).elim
+
+private theorem prod_pow_finsupp_pair {n : ℕ} {M : Type} [CommMonoid M] (g : Fin n → M)
+    (a b : Fin n) :
+    (∏ j : Fin n, g j ^ ((Finsupp.single a 1 + Finsupp.single b 1 : Fin n →₀ ℕ) j)) =
+      g a * g b := by
+  calc (∏ j : Fin n, g j ^ ((Finsupp.single a 1 + Finsupp.single b 1 : Fin n →₀ ℕ) j))
+      = (∏ j : Fin n, g j ^ (Finsupp.single a 1 : Fin n →₀ ℕ) j *
+          g j ^ (Finsupp.single b 1 : Fin n →₀ ℕ) j) := by
+        refine Finset.prod_congr rfl fun j _ => ?_
+        simp only [Finsupp.add_apply, pow_add]
+    _ = (∏ j : Fin n, g j ^ (Finsupp.single a 1 : Fin n →₀ ℕ) j) *
+        (∏ j : Fin n, g j ^ (Finsupp.single b 1 : Fin n →₀ ℕ) j) := Finset.prod_mul_distrib
+    _ = g a * g b := by
+        rw [prod_pow_finsupp_single g a, prod_pow_finsupp_single g b]
+
+private theorem qsHomogVerifierValue_C_mul_X {n : ℕ} (d : ℕ)
+    (c : R) (i : Fin n) (delta : R) (q' : Fin n → R) :
+    qsHomogVerifierValue d (MvPolynomial.C c * MvPolynomial.X i) delta q' =
+      c * q' i * delta ^ (d - 1) := by
+  classical
+  by_cases hc : c = 0
+  · subst hc
+    simp [qsHomogVerifierValue]
+  · have hmon : MvPolynomial.C c * MvPolynomial.X i =
+        MvPolynomial.monomial (Finsupp.single i 1) c := by
+      rw [MvPolynomial.C_mul_X_eq_monomial]
+    rw [hmon, qsHomogVerifierValue, MvPolynomial.support_monomial, ite_eq_right hc,
+      Finset.sum_singleton, MvPolynomial.coeff_monomial, ite_eq_left rfl,
+      Finsupp.sum_single_index rfl, prod_pow_finsupp_single]
+    ring
+
+private theorem X_mul_X_eq_monomial {n : ℕ} (a b : Fin n) :
+    (MvPolynomial.X a * MvPolynomial.X b : MvPolynomial (Fin n) R) =
+      MvPolynomial.monomial (Finsupp.single a 1 + Finsupp.single b 1) 1 := by
+  rw [MvPolynomial.X, MvPolynomial.X, MvPolynomial.monomial_mul_monomial, one_mul]
+
+private theorem sum_single_add_single {n : ℕ} (a b : Fin n) :
+    (Finsupp.single a 1 + Finsupp.single b 1 : Fin n →₀ ℕ).sum (fun _ e => e) = 2 := by
+  rw [Finsupp.sum_add_index' (fun _ => rfl) (fun _ _ _ => rfl),
+    Finsupp.sum_single_index rfl, Finsupp.sum_single_index rfl]
+
+private theorem qsHomogVerifierValue_X_mul_X {n : ℕ} (d : ℕ)
+    (a b : Fin n) (delta : R) (q' : Fin n → R) :
+    qsHomogVerifierValue d (MvPolynomial.X a * MvPolynomial.X b) delta q' =
+      q' a * q' b * delta ^ (d - 2) := by
+  classical
+  by_cases h1 : (1 : R) = 0
+  · have hzero : ∀ x : R, x = 0 := fun x => by rw [← one_mul x, h1, zero_mul]
+    rw [hzero (qsHomogVerifierValue _ _ _ _), hzero (_ * _ * _)]
+  · rw [X_mul_X_eq_monomial, qsHomogVerifierValue, MvPolynomial.support_monomial, ite_eq_right h1,
+      Finset.sum_singleton, MvPolynomial.coeff_monomial, ite_eq_left rfl,
+      sum_single_add_single, prod_pow_finsupp_pair q' a b, one_mul]
+    ring
+
+private theorem qsHomogVerifierValue_mulGatePoly {n : ℕ} (a b c : Fin n)
+    (delta : R) (q' : Fin n → R) :
+    qsHomogVerifierValue 2 (mulGatePoly a b c) delta q' = q' a * q' b - q' c * delta := by
+  rw [mulGatePoly, qsHomogVerifierValue_sub, qsHomogVerifierValue_X_mul_X 2,
+    show MvPolynomial.X c = MvPolynomial.C (1 : R) * MvPolynomial.X c by simp,
+    qsHomogVerifierValue_C_mul_X 2]
+  simp
+
+private theorem qsHomogPoly_mulGatePoly {n : ℕ} (a b c : Fin n) (w v : Fin n → R) :
+    qsHomogPoly 2 (mulGatePoly a b c) w v =
+      Polynomial.C (w a * w b - w c) * Polynomial.X ^ 2 +
+        Polynomial.C (voleMulCrossTerm (w a) (v a) (w b) (v b) (v c)) * Polynomial.X +
+        Polynomial.C (voleMulConstTerm (v a) (v b)) := by
+  classical
+  rw [mulGatePoly, qsHomogPoly_sub, X_mul_X_eq_monomial, qsHomogPoly_monomial,
+    sum_single_add_single, prod_pow_finsupp_pair (qsWirePoly w v) a b, MvPolynomial.X,
+    qsHomogPoly_monomial, Finsupp.sum_single_index rfl,
+    prod_pow_finsupp_single (qsWirePoly w v) c]
+  simp only [Nat.sub_self, pow_zero, map_one, one_mul, mul_one,
+    show 2 - 1 = 1 by rfl, pow_one, qsWirePoly, voleMulCrossTerm, voleMulConstTerm, map_sub,
+    map_add, map_mul]
+  ring
+
+private noncomputable def circuitLinearRowPoly {p k m : ℕ}
+    (C_circ : Circuit (arithSignature R) (p + k) m) (x : Fin p → R) (y : Fin m → R)
+    (row : Fin p ⊕ Fin C_circ.size ⊕ Fin m) : MvPolynomial (Fin ((p + k) + C_circ.size)) R :=
+  (∑ j : Fin ((p + k) + C_circ.size),
+    MvPolynomial.C (circuitLinearCoeffs C_circ row j) * MvPolynomial.X j) -
+    MvPolynomial.C (circuitLinearTargets C_circ x y row)
+
+private noncomputable def circuitConstraintPoly {p k m : ℕ}
+    (C_circ : Circuit (arithSignature R) (p + k) m) (x : Fin p → R) (y : Fin m → R) :
+    (Fin p ⊕ Fin C_circ.size ⊕ Fin m) ⊕ CircuitMulGate C_circ →
+      MvPolynomial (Fin ((p + k) + C_circ.size)) R
+  | .inl row => circuitLinearRowPoly C_circ x y row
+  | .inr g =>
+    mulGatePoly (circuitMulInput C_circ g 0) (circuitMulInput C_circ g 1)
+      (circuitMulOutput C_circ g)
+
+private theorem totalDegree_circuitConstraintPoly_le {p k m : ℕ}
+    (C_circ : Circuit (arithSignature R) (p + k) m) (x : Fin p → R) (y : Fin m → R)
+    (idx : (Fin p ⊕ Fin C_circ.size ⊕ Fin m) ⊕ CircuitMulGate C_circ) :
+    (circuitConstraintPoly C_circ x y idx).totalDegree ≤ 2 := by
+  rcases idx with row | g
+  · rw [circuitConstraintPoly, circuitLinearRowPoly, sub_eq_add_neg]
+    refine (MvPolynomial.totalDegree_add _ _).trans (max_le ?_ ?_)
+    · refine MvPolynomial.totalDegree_finsetSum_le fun j _ => ?_
+      exact (MvPolynomial.totalDegree_mul _ _).trans <| by
+        simpa using (mvTotalDegree_X_le j).trans (by omega)
+    · rw [MvPolynomial.totalDegree_neg]
+      simp
+  · exact totalDegree_mulGatePoly_le _ _ _
+
+private theorem eval_circuitLinearRowPoly {p k m : ℕ}
+    (C_circ : Circuit (arithSignature R) (p + k) m) (x : Fin p → R) (y : Fin m → R)
+    (row : Fin p ⊕ Fin C_circ.size ⊕ Fin m) (a : Fin ((p + k) + C_circ.size) → R) :
+    MvPolynomial.eval a (circuitLinearRowPoly C_circ x y row) =
+      (circuitLinearCoeffs C_circ *ᵥ a) row - circuitLinearTargets C_circ x y row := by
+  simp [circuitLinearRowPoly, Matrix.mulVec, dotProduct]
+
+private theorem eval_circuitConstraintPoly_circuitTrace {p k m : ℕ}
+    (C_circ : Circuit (arithSignature R) (p + k) m) (x : Fin p → R) (w : Fin k → R)
+    (y : Fin m → R) (hy : C_circ.eval (arithInterpretation R) (Fin.append x w) = y)
+    (idx : (Fin p ⊕ Fin C_circ.size ⊕ Fin m) ⊕ CircuitMulGate C_circ) :
+    MvPolynomial.eval (circuitTrace C_circ x w) (circuitConstraintPoly C_circ x y idx) = 0 := by
+  rcases idx with row | g
+  · rw [circuitConstraintPoly, eval_circuitLinearRowPoly,
+      circuitTrace_linear C_circ x w y hy, sub_self]
+  · simp [circuitConstraintPoly, mulGatePoly, circuitTrace_mul C_circ x w g]
+
+private theorem exists_witness_of_eval_circuitConstraintPoly_eq_zero {p k m : ℕ}
+    (C_circ : Circuit (arithSignature R) (p + k) m) (x : Fin p → R) (y : Fin m → R)
+    (a : Fin ((p + k) + C_circ.size) → R)
+    (h : ∀ idx, MvPolynomial.eval a (circuitConstraintPoly C_circ x y idx) = 0) :
+    ∃ w : Fin k → R, C_circ.eval (arithInterpretation R) (Fin.append x w) = y := by
+  refine exists_witness_of_circuitChecks C_circ x y a ?_ ?_
+  · funext row
+    have hr := h (.inl row)
+    rw [circuitConstraintPoly, eval_circuitLinearRowPoly, sub_eq_zero] at hr
+    exact hr
+  · intro g
+    have hg := h (.inr g)
+    simp only [circuitConstraintPoly, mulGatePoly, map_sub, map_mul, MvPolynomial.eval_X,
+      sub_eq_zero] at hg
+    exact hg
+
+private def boolToChar2 (b : Bool) : R :=
+  if b then 1 else 0
+
+private theorem boolToChar2_xor [CharP R 2] (a b : Bool) :
+    boolToChar2 (R := R) (a != b) = boolToChar2 a + boolToChar2 b := by
+  cases a <;> cases b <;> simp [boolToChar2]
+  have h2 : (2 : R) = 0 := (CharP.cast_eq_zero_iff R 2 2).mpr (dvd_refl 2)
+  simpa only [one_add_one_eq_two] using h2.symm
+
+private theorem boolToChar2_and (a b : Bool) :
+    boolToChar2 (R := R) (a && b) = boolToChar2 a * boolToChar2 b := by
+  cases a <;> cases b <;> simp [boolToChar2]
+
+private def faestConversionVOLE {depth outputLength : ℕ}
+    (rows : Fin (2 ^ depth) → BitString outputLength) (delta : Fin (2 ^ depth))
+    (beta : Fin depth → R) :
+    VOLECorrelation R outputLength where
+  u i := boolToChar2 ((convertExpandedRows depth rows).u i)
+  v i := ∑ j : Fin depth, boolToChar2 ((convertExpandedRows depth rows).columns j i) * beta j
+  delta := ∑ j : Fin depth, boolToChar2 ((BitString.equivFin depth).symm delta j) * beta j
+  w i := ∑ j : Fin depth,
+    boolToChar2 ((convertExpandedRows depth (verifierRows rows delta)).columns j i) * beta j
+
+private theorem faestConversionVOLE_valid [CharP R 2] {depth outputLength : ℕ}
+    (rows : Fin (2 ^ depth) → BitString outputLength) (delta : Fin (2 ^ depth))
+    (beta : Fin depth → R) :
+    (faestConversionVOLE rows delta beta).Valid := by
+  intro i
+  simp only [faestConversionVOLE, Finset.mul_sum, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  have hvalid := conversionCorrelation_valid rows delta j i
+  change boolToChar2 ((conversionCorrelation rows delta j).w i) * beta j = _
+  rw [hvalid]
+  have hadd :
+      (conversionCorrelation rows delta j).u i * (conversionCorrelation rows delta j).delta +
+        (conversionCorrelation rows delta j).v i =
+      (((conversionCorrelation rows delta j).u i &&
+        (conversionCorrelation rows delta j).delta) !=
+        (conversionCorrelation rows delta j).v i) := by
+    cases (conversionCorrelation rows delta j).u i <;>
+      cases (conversionCorrelation rows delta j).delta <;>
+      cases (conversionCorrelation rows delta j).v i <;> rfl
+  rw [hadd, boolToChar2_xor, boolToChar2_and]
+  simp only [conversionCorrelation, add_mul, mul_assoc]
+
+private theorem faestConversionVOLE_u_binary {depth outputLength : ℕ}
+    (rows : Fin (2 ^ depth) → BitString outputLength) (delta : Fin (2 ^ depth))
+    (beta : Fin depth → R) (i : Fin outputLength) :
+    (faestConversionVOLE rows delta beta).u i = 0 ∨
+      (faestConversionVOLE rows delta beta).u i = 1 := by
+  cases h : (convertExpandedRows depth rows).u i <;> simp [faestConversionVOLE, boolToChar2, h]
+
+end Bridges
 
 example (w v : Fin 3 → ZMod 5) (q' : Fin 3 → ZMod 5) (delta : ZMod 5) :
     qsHomogVerifierValue 2 (mulGatePoly 0 1 2) delta q' = q' 0 * q' 1 - q' 2 * delta ∧
@@ -570,14 +886,6 @@ example (w v : Fin 3 → ZMod 5) (q' : Fin 3 → ZMod 5) (delta : ZMod 5) :
           Polynomial.C (voleMulCrossTerm (w 0) (v 0) (w 1) (v 1) (v 2)) * Polynomial.X +
           Polynomial.C (voleMulConstTerm (v 0) (v 1)) :=
   ⟨qsHomogVerifierValue_mulGatePoly 0 1 2 delta q', qsHomogPoly_mulGatePoly 0 1 2 w v⟩
-
-example (delta : ZMod 5) (q : Fin 4 → ZMod 5) (d_corr : Fin 3 → ZMod 5) (r : Fin 2 → ZMod 5) :
-    (∑ i : Fin 2, r i * qsHomogVerifierValue 2 (mulGatePoly 0 1 2) delta
-        (voleAdjustReceiver (Fin.init q) d_corr delta)) +
-        qsMaskValue 2 (fun _ => q (Fin.last 3)) delta =
-      maskedMulCheckValue (fun _ : Fin 2 => 0) (fun _ => 1) (fun _ => 2) delta q d_corr r :=
-  qsMaskedValue_two_eq_maskedMulCheckValue (fun _ : Fin 2 => 0) (fun _ => 1) (fun _ => 2)
-    delta q d_corr r
 
 private def sqCirc : Circuit (arithSignature (ZMod 5)) (1 + 0) 1 :=
   Circuit.oneGate .mul (fun _ => 0)
@@ -625,34 +933,16 @@ example {R : Type} [CommRing R] [CharP R 2] (beta : Fin 2 → R) :
 -- ACT Spend uses degree 9 ∉ {7, 14}, exceeding FAEST v3.0 Lemma 10.40's {7, 14} hypothesis.
 example : actSpendDegree ∉ ({7, 14} : Finset ℕ) := by decide
 
--- Concrete ACT Spend `VOLEHash` (`ℓ' = 6784`, `(6784 - 1) ^ 5 * 5 ≤ 4 * 2 ^ 64`) and `ZKHash`
--- (`C' = 12283`, `12283 ^ 2 * 16 ≤ 9 * 2 ^ 64`) parameter-arithmetic checks.
-example : (6784 - 1) ^ 5 * 5 ≤ 4 * 2 ^ 64 ∧ 12283 ^ 2 * 16 ≤ 9 * 2 ^ 64 := by decide
-
-example :
-    (1 : ℝ≥0∞) / 2 ^ (4 * 128) + ((6784 - 1 : ℕ) : ℝ≥0∞) ^ 5 / 2 ^ (4 * 128 + 64) ≤
-      (1 + (4 : ℝ≥0∞) / 5) / 2 ^ (4 * 128) :=
-  voleHashError_le_of_pow_le 128 6784 4 5 (by decide) (by decide)
-
-example :
-    (1 : ℝ≥0∞) / 2 ^ 128 + (12283 : ℝ≥0∞) ^ 2 / 2 ^ (128 + 64) ≤
-      (1 + (9 : ℝ≥0∞) / 16) / 2 ^ 128 :=
-  zkHashError_le_of_pow_le 128 12283 9 16 (by decide) (by decide)
+/-- Full 7-byte domain separation tag `"rata\x00l0"` defining `ACT_SPEND_COMBINE_DST` in
+[VoleMole2026] (`src/dst.hpp:44`; invoked at `src/act/spend.hpp:383`). -/
+private def actSpendCombineDst : List (Fin 256) := [0x72, 0x61, 0x74, 0x61, 0x00, 0x6c, 0x30]
 
 example :
     actRLCDomainByte ∉ faestTrailingDomainBytes ∧
       actSpendCombineDst.getLast? = some actRLCDomainByte ∧
-      (∀ b ∈ faestTrailingDomainBytes,
-        Disjoint (Set.range (appendDomainByte actRLCDomainByte)) (Set.range (appendDomainByte b))) ∧
-      (∀ b ∈ faestTrailingDomainBytes,
-        Disjoint (Set.range (appendDomainByteFin (n := 4) actRLCDomainByte))
-          (Set.range (appendDomainByteFin (n := 4) b))) ∧
       Disjoint (Set.range (appendDomainByteFin (n := 4) actRLCDomainByte))
         (Set.range (appendFaestDomainByteFin (n := 4))) :=
-  ⟨actRLCDomainByte_notMem_faest, actSpendCombineDst_getLast?,
-    fun _ hb => disjoint_range_appendDomainByte fun h => actRLCDomainByte_notMem_faest (h ▸ hb),
-    fun _ hb => disjoint_range_appendDomainByteFin fun h => actRLCDomainByte_notMem_faest (h ▸ hb),
-    disjoint_range_actRLC_faestDomainByteFin 4⟩
+  ⟨actRLCDomainByte_notMem_faest, by decide, disjoint_range_actRLC_faestDomainByteFin 4⟩
 
 example :
     (PMF.uniformOfFintype (Fin 4 → Bool)).map
@@ -680,65 +970,19 @@ example :
 
 /-! ### ACT V1 RLC (`m = 45`), Single-RO Domain Separation, Round-2+3, and Negative Boundaries -/
 
--- Concrete non-adaptive ACT V1 RLC (`m = 45`) over `ZMod 11`, `K = Bool`, `ε_zk = 1 / 2`,
--- yielding strict soundness bound `1 / 11 + (1 - 1 / 11) * (1 / 2) = 6 / 11 < 1`.
-example :
-    let lhs : Fin actSpendRLCCount → ZMod 11 := fun j => if j = 0 then 1 else 0
-    let rhs : Fin actSpendRLCCount → ZMod 11 := 0
-    (do
-      let H ← PMF.uniformOfFintype (Bool → Fin actSpendRLCCount → ZMod 11)
-      let k ← PMF.uniformOfFintype Bool
-      return decide (foldedResidual lhs rhs (H k) = 0 ∨ k = true)).toOuterMeasure {true} ≤
-      (11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * (1 / (2 : ℝ≥0∞)) := by
-  have hbound := toOuterMeasure_actV1RLC_of_zkError_le (K := Bool)
-    (fun j : Fin actSpendRLCCount => if j = 0 then (1 : ZMod 11) else 0) 0
-    ⟨0, by simp⟩ (fun k _ => k = true) (ε_zk := 1 / (2 : ℝ≥0∞)) (fun _ _ => by
-      have hset : {k : Bool | k = true} = {true} := by
-        ext k
-        simp
-      rw [hset, PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply, Fintype.card_bool]
-      norm_num [one_div])
-  simpa only [ZMod.card, Nat.cast_ofNat] using hbound
+private theorem qsPolySum_zero {R : Type} [CommRing R] (d : ℕ) (x : R) :
+    qsPolySum d 0 x = 0 := by
+  simp [qsPolySum]
 
--- Concrete adaptive 1-query ACT V1 RLC (`m = 45`) over `ZMod 11` and `Fin 64` (`ε_zk = 1 / 64`).
-private noncomputable def rlcQuery0Adversary :
-    ProbOracleComp (fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 11)
-      (Fin actSpendRLCCount → ZMod 11) := do
-  let _ ← ProbOracleComp.query 0
-  return fun j => if j = 0 then 1 else 0
-
-example :
-    (do
-      let H ← PMF.uniformOfFintype (Fin 64 → Fin actSpendRLCCount → ZMod 11)
-      let s ← OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k)))
-        rlcQuery0Adversary
-      let k ← PMF.uniformOfFintype (Fin 64)
-      return decide ((∃ j, s j ≠ 0) ∧
-        (foldedResidual s 0 (H k) = 0 ∨ k = 0))).toOuterMeasure {true} ≤
-      1 * (1 / (64 : ℝ≥0∞)) + ((11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * (1 / (64 : ℝ≥0∞))) := by
-  have hq : ProbOracleComp.IsQueryBounded rlcQuery0Adversary 1 := by
-    unfold rlcQuery0Adversary
-    simpa only [Nat.add_zero] using
-      (ProbOracleComp.IsQueryBounded.query
-        (spec := fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 11) 0).bind fun _ =>
-        OracleComp.IsCostBounded.pure _ 0
-  have hdist : ∀ k₀ : Fin 64, PMF.uniformOfFintype (Fin 64) k₀ ≤ 1 / (64 : ℝ≥0∞) := fun _ => by
-    simp [PMF.uniformOfFintype_apply, one_div]
-  have h := toOuterMeasure_actV1RLC_adaptive_of_zkError_le rlcQuery0Adversary hq
-    (PMF.uniformOfFintype (Fin 64)) hdist id (fun _ k _ => k = 0) (ε_zk := 1 / (64 : ℝ≥0∞))
-    (fun _ _ _ => by
-      rw [show {k : Fin 64 | k = 0} = {0} from rfl, PMF.toOuterMeasure_apply_singleton,
-        PMF.uniformOfFintype_apply, Fintype.card_fin, one_div]
-      norm_num)
-  simpa only [id_eq, ZMod.card, Nat.cast_ofNat, Nat.cast_one] using h
-
--- Concrete single-RO FAEST / `vole-mole` domain-separated adversary querying both `H_0` (`b = 0`)
--- and `ACT_SPEND_COMBINE_DST` trailing byte `0x30` against `H : ByteMsg 2 → Fin 2 → ZMod 11`.
+-- Concrete single-RO FAEST / `vole-mole` (`H_0` + `H_2^4`) domain-separated QuickSilver check
+-- against `H : ByteMsg 2 → Fin 2 → ZMod 17`, querying `H_0` (`b = 0`) at zero ACT budget and
+-- ACT's `0x30` table once (`cost = 1`), exercising
+-- `toOuterMeasure_actV1_domainSeparated_qs_of_zkBinding_le` and
+-- `disjoint_range_actRLC_faestDomainByteFin`.
 private noncomputable def singleROMixedAdversary :
     ProbOracleComp
-      ((fun _ : ByteMsg 1 => Fin 2 → ZMod 11) ⊕ₒ (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 11))
-      (Fin 2 → ZMod 11) := do
+      ((fun _ : ByteMsg 1 => Fin 2 → ZMod 17) ⊕ₒ (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 17))
+      (Fin 2 → ZMod 17) := do
   let h0 ← ProbOracleComp.query (.inr ((fun _ => 0), ⟨0, by decide⟩))
   let act ← ProbOracleComp.query (.inl (fun _ => 0))
   return ![1, h0 0 + act 0]
@@ -747,43 +991,80 @@ example :
     OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
         singleROMixedAdversary 1 ∧
       (do
-        let H ← PMF.uniformOfFintype (ByteMsg 2 → Fin 2 → ZMod 11)
+        let H ← PMF.uniformOfFintype (ByteMsg 2 → Fin 2 → ZMod 17)
         let s ← OracleComp.interpret
           (OracleComp.sumHandler ProbComp.unifOracle
             (OracleComp.sumHandler
               (fun msg => PMF.pure (H (appendDomainByteFin actRLCDomainByte msg)))
               (fun p => PMF.pure (H (appendFaestDomainByteFin p))))) singleROMixedAdversary
         let k ← PMF.uniformOfFintype (ByteMsg 1)
-        return decide ((∃ j, s j ≠ 0) ∧
-          (foldedResidual s 0 (H (appendDomainByteFin actRLCDomainByte k)) = 0 ∨
-            k = fun _ => 0))).toOuterMeasure {true} ≤
-      1 * (1 / (256 : ℝ≥0∞)) + ((11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * (1 / (256 : ℝ≥0∞))) := by
+        let l := H (appendDomainByteFin actRLCDomainByte k)
+        let c ← PMF.uniformOfFintype (ZMod 17)
+        let P : Fin 2 → Polynomial (ZMod 17) :=
+          fun j => Polynomial.C (s j) * Polynomial.X ^ actSpendDegree
+        let Q : Polynomial (ZMod 17) :=
+          if k = (fun _ => 0) then 0 else foldedConstraint P l
+        return decide ((∃ j, (P j).coeff actSpendDegree ≠ 0) ∧ True ∧ Q.eval c = 0)).toOuterMeasure
+          {true} ≤
+      1 * (1 / (256 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ +
+        (1 - (17 : ℝ≥0∞)⁻¹) * (1 / (256 : ℝ≥0∞) + 9 / (17 : ℝ≥0∞))) := by
   have hq : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
       singleROMixedAdversary 1 := by
     unfold singleROMixedAdversary
     have hfaest := ProbOracleComp.isCostBounded_query
-      (spec := (fun _ : ByteMsg 1 => Fin 2 → ZMod 11) ⊕ₒ
-        (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 11))
+      (spec := (fun _ : ByteMsg 1 => Fin 2 → ZMod 17) ⊕ₒ
+        (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 17))
       (Sum.elim (fun _ => 1) (fun _ => 0)) (.inr ((fun _ => 0), ⟨0, by decide⟩))
     have hact := ProbOracleComp.isCostBounded_query
-      (spec := (fun _ : ByteMsg 1 => Fin 2 → ZMod 11) ⊕ₒ
-        (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 11))
+      (spec := (fun _ : ByteMsg 1 => Fin 2 → ZMod 17) ⊕ₒ
+        (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 17))
       (Sum.elim (fun _ => 1) (fun _ => 0)) (.inl (fun _ => 0))
     simpa only [Sum.elim_inr, Sum.elim_inl, Nat.zero_add, Nat.add_zero] using
       hfaest.bind fun _ => hact.bind fun _ => OracleComp.IsCostBounded.pure _ 0
   refine ⟨hq, ?_⟩
+  let P : (Fin 2 → ZMod 17) → Fin 2 → Polynomial (ZMod 17) :=
+    fun s j => Polynomial.C (s j) * Polynomial.X ^ actSpendDegree
+  let Q : (Fin 2 → ZMod 17) → ByteMsg 1 → (Fin 2 → ZMod 17) → Polynomial (ZMod 17) :=
+    fun s k l => if k = (fun _ => 0) then 0 else foldedConstraint (P s) l
+  have hdegQ : ∀ s k l, (Q s k l).natDegree ≤ actSpendDegree := fun s k l => by
+    dsimp only [Q]
+    split_ifs
+    · simp
+    · exact natDegree_foldedConstraint_le (fun j =>
+        (Polynomial.natDegree_C_mul_le _ _).trans (Polynomial.natDegree_X_pow_le _)) l
   have hdist : ∀ k₀ : ByteMsg 1, PMF.uniformOfFintype (ByteMsg 1) k₀ ≤ 1 / (256 : ℝ≥0∞) := by
     intro _
     simp [PMF.uniformOfFintype_apply, one_div]
-  have h := toOuterMeasure_actV1_faestDomainSeparated_adaptive_of_zkError_le
-    singleROMixedAdversary hq
-    (PMF.uniformOfFintype (ByteMsg 1)) hdist id (fun _ k _ => k = fun _ => 0)
-    (ε_zk := 1 / (256 : ℝ≥0∞)) (fun _ _ _ => by
-      rw [show {k : ByteMsg 1 | k = fun _ => 0} = {fun _ => 0} from rfl,
-        PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply, Fintype.card_fun,
+  have h := toOuterMeasure_actV1_domainSeparated_qs_of_zkBinding_le
+    (appendDomainByteFin actRLCDomainByte) appendFaestDomainByteFin
+    (disjoint_range_actRLC_faestDomainByteFin 1) (Function.Embedding.refl (ZMod 17))
+    singleROMixedAdversary hq (PMF.uniformOfFintype (ByteMsg 1)) hdist P Q hdegQ
+    (fun _ _ _ => 0) (fun _ _ _ => True) (ε_zk := 1 / (256 : ℝ≥0∞)) (fun s l hl => by
+      have hsub : {k : ByteMsg 1 | True ∧ (Q s k l).coeff actSpendDegree = 0} ⊆
+          {fun _ => 0} := by
+        intro k hk
+        by_contra hne
+        have hne' : k ≠ (fun _ => 0) := Set.mem_singleton_iff.not.mp hne
+        have hmem := (Set.mem_ofPred_eq.mp hk).2
+        have hqeq : Q s k l = foldedConstraint (P s) l := by
+          dsimp only [Q]
+          rw [ite_eq_right_iff.mpr fun h0 => (hne' h0).elim]
+        rw [hqeq] at hmem
+        exact hl hmem
+      refine (MeasureTheory.measure_mono hsub).trans_eq ?_
+      rw [PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply, Fintype.card_fun,
         Fintype.card_fin 1, pow_one, one_div]
       norm_num)
-  simpa only [id_eq, ZMod.card, Nat.cast_ofNat, Nat.cast_one] using h
+  simp only [Function.Embedding.refl_apply, qsPolySum_zero] at h
+  have hrhs : (1 : ℝ≥0∞) * (1 / (256 : ℝ≥0∞)) + ((Fintype.card (ZMod 17) : ℝ≥0∞)⁻¹ +
+      (1 - (Fintype.card (ZMod 17) : ℝ≥0∞)⁻¹) *
+        (1 / (256 : ℝ≥0∞) + (actSpendDegree : ℝ≥0∞) / (Fintype.card (ZMod 17) : ℝ≥0∞))) =
+      1 * (1 / (256 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ +
+        (1 - (17 : ℝ≥0∞)⁻¹) * (1 / (256 : ℝ≥0∞) + 9 / (17 : ℝ≥0∞))) := by
+    rw [ZMod.card, show actSpendDegree = 9 from rfl]
+    norm_num
+  rw [Nat.cast_one] at h
+  exact h.trans_eq hrhs
 
 -- Concrete degree-9 folded QuickSilver polynomial family (`P j = X^9 - 1` at `j = 0`, `0` else)
 -- exercising `natDegree_foldedConstraint_le`, unconditional `toOuterMeasure_actV1_foldedQS_le`,
@@ -798,10 +1079,6 @@ private theorem natDegree_spendRLCPolys (j : Fin actSpendRLCCount) :
   · exact (Polynomial.natDegree_sub_le _ _).trans (max_le (Polynomial.natDegree_X_pow_le _)
       (by simp))
   · simp
-
-private theorem qsPolySum_zero {R : Type} [CommRing R] (d : ℕ) (x : R) :
-    qsPolySum d 0 x = 0 := by
-  simp [qsPolySum]
 
 private theorem foldedConstraint_spendRLCPolys_coeff9 (l : Fin actSpendRLCCount → ZMod 17) :
     (foldedConstraint spendRLCPolys l).coeff actSpendDegree = l 0 := by
