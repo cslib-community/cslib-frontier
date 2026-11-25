@@ -84,16 +84,11 @@ theorem countingDepthCoeff_le_mul_pow {k M : ℕ} (hM : 1 ≤ M) :
     countingDepthCoeff k M ≤ countingBChoiceCoeff k * M ^ (k - 2) := by
   calc countingDepthCoeff k M
       ≤ 4 * ∑ r ∈ range (k - 1), 3 ^ r * M ^ (k - 2) := by
-        apply Nat.mul_le_mul_left 4
-        apply sum_le_sum
-        intro r hr
+        refine Nat.mul_le_mul_left 4 (sum_le_sum fun r hr => ?_)
         rw [Nat.mul_pow]
-        exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) (by
-          have := mem_range.mp hr
-          omega))
+        exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hM (by have := mem_range.mp hr; omega))
     _ = countingBChoiceCoeff k * M ^ (k - 2) := by
-      rw [← sum_mul]
-      exact (Nat.mul_assoc _ _ _).symm
+      rw [← sum_mul, ← Nat.mul_assoc]; rfl
 
 /-- Acceptance predicate for a candidate dyadic exponent `m` at width `k` and parameter `B`. -/
 abbrev CountingExponentAccepts (k B m : ℕ) : Prop :=
@@ -126,56 +121,56 @@ private theorem clog_depthCoeff_le {k : ℕ} (hk : 2 ≤ k) (m : ℕ) :
 private theorem offset_budget {k : ℕ} (hk : 2 ≤ k) :
     countingBChoiceCoeff k * (Nat.clog 2 (4 * countingBChoiceCoeff k) +
       (k - 1) * offset k + 2 * (k - 1)) ≤ 2 ^ offset k := by
-  let g := countingBChoiceCoeff k
-  let a := Nat.clog 2 (4 * g)
-  let s := k - 1
-  let t := g * (a + 3 * s + 1)
-  have hg : 1 ≤ g := (by have := four_le_countingBChoiceCoeff hk; omega)
-  have hga : g * a + 2 * g * s ≤ t := by dsimp only [t]; nlinarith
-  have hgs : g * s + 1 ≤ t := by dsimp only [t]; nlinarith
-  have hpoly : g * (a + s * (2 * t) + 2 * s) ≤ 2 * t ^ 2 + 1 := by
-    nlinarith [Nat.mul_le_mul_right (2 * t) hgs]
-  exact hpoly.trans (Nat.two_mul_sq_add_one_le_two_pow_two_mul t)
+  let g := countingBChoiceCoeff k; let a := Nat.clog 2 (4 * g)
+  let s := k - 1; let t := g * (a + 3 * s + 1)
+  have hg : 1 ≤ g := (by decide : 1 ≤ 4).trans (four_le_countingBChoiceCoeff hk)
+  have hga : g * a + 2 * g * s ≤ 2 * t := by
+    have : t = g * a + 2 * g * s + g * (s + 1) := by dsimp only [t]; ring
+    omega
+  have hgs : g * s + 1 ≤ t := by
+    have : t = g * s + g + g * (a + 2 * s) := by dsimp only [t]; ring
+    omega
+  calc g * (a + s * (2 * t) + 2 * s)
+      = (g * a + 2 * g * s) + (g * s) * (2 * t) := by ring
+    _ ≤ (g * s + 1) * (2 * t) := by rw [Nat.add_mul, Nat.one_mul]; omega
+    _ ≤ t * (2 * t) := Nat.mul_le_mul_right _ hgs
+    _ ≤ 2 * t ^ 2 + 1 := by rw [show t * (2 * t) = 2 * t ^ 2 by ring]; omega
+    _ ≤ 2 ^ (2 * t) := Nat.two_mul_sq_add_one_le_two_pow_two_mul t
 
-private theorem gamma_le_two_pow_offset {k : ℕ} (hk : 2 ≤ k) :
+private theorem gamma_le_two_pow_offset (k : ℕ) :
     countingBChoiceCoeff k ≤ 2 ^ offset k := by
-  have hg : 1 ≤ countingBChoiceCoeff k := (by have := four_le_countingBChoiceCoeff hk; omega)
-  have hgo : countingBChoiceCoeff k ≤ offset k := by unfold offset; nlinarith
+  have hgo : countingBChoiceCoeff k ≤ offset k :=
+    (Nat.le_mul_of_pos_right _ (by omega : 0 < Nat.clog 2 (4 * countingBChoiceCoeff k) +
+      3 * (k - 1) + 1)).trans (by unfold offset; omega)
   exact hgo.trans Nat.lt_two_pow_self.le
 
 private theorem candidate_accepts {k B : ℕ} (hk : 2 ≤ k) :
     CountingExponentAccepts k B (candidateExponent k B) := by
-  let L := Nat.clog 2 B
+  let L := Nat.clog 2 B; let g := countingBChoiceCoeff k
+  let a := Nat.clog 2 (4 * g); let s := k - 1
   have hL : Nat.clog 2 (L + 1) ≤ L := Nat.clog_le_of_le_pow Nat.lt_two_pow_self
   have hm : candidateExponent k B ≤ offset k + 2 * L := by
-    dsimp only [candidateExponent, L] at *
-    omega
-  have hbudget := offset_budget hk
-  have hcoeff : countingBChoiceCoeff k *
-      (Nat.clog 2 (4 * countingBChoiceCoeff k) + (k - 1) * candidateExponent k B) ≤
-      2 ^ offset k * (L + 1) := by
-    have h1 := Nat.mul_le_mul_left (countingBChoiceCoeff k * (k - 1)) hm
-    have h2 := Nat.mul_le_mul_right (L + 1) hbudget
-    nlinarith [Nat.zero_le (countingBChoiceCoeff k *
-      (Nat.clog 2 (4 * countingBChoiceCoeff k) + (k - 1) * offset k) * L)]
-  refine ⟨(gamma_le_two_pow_offset hk).trans (Nat.pow_le_pow_right (by decide) (by
+    dsimp only [candidateExponent, L] at *; omega
+  have hbudget : g * (a + s * offset k + 2 * s) ≤ 2 ^ offset k := offset_budget hk
+  have hcoeff : g * (a + s * candidateExponent k B) ≤ 2 ^ offset k * (L + 1) := by
+    calc g * (a + s * candidateExponent k B)
+        ≤ g * (a + s * (offset k + 2 * L)) := by gcongr
+      _ ≤ g * (a + s * offset k + 2 * s) * (L + 1) := by
+          have : g * (a + s * offset k + 2 * s) * (L + 1) =
+              g * (a + s * (offset k + 2 * L)) + g * (a + s * offset k) * L + 2 * g * s := by ring
+          omega
+      _ ≤ 2 ^ offset k * (L + 1) := by gcongr
+  refine ⟨(gamma_le_two_pow_offset k).trans (Nat.pow_le_pow_right (by decide) (by
     unfold candidateExponent; omega)), ?_⟩
-  calc B * countingBChoiceCoeff k *
-        Nat.clog 2 (4 * countingDepthCoeff k (2 ^ candidateExponent k B) *
+  calc B * g * Nat.clog 2 (4 * countingDepthCoeff k (2 ^ candidateExponent k B) *
           2 ^ candidateExponent k B)
-      ≤ B * (countingBChoiceCoeff k *
-          (Nat.clog 2 (4 * countingBChoiceCoeff k) + (k - 1) * candidateExponent k B)) := by
-        have := Nat.mul_le_mul_left (B * countingBChoiceCoeff k)
-          (clog_depthCoeff_le hk (candidateExponent k B))
-        simpa only [Nat.mul_assoc] using this
-    _ ≤ B * (2 ^ offset k * (L + 1)) := Nat.mul_le_mul_left B hcoeff
+      ≤ B * (g * (a + s * candidateExponent k B)) := by
+        rw [Nat.mul_assoc]; gcongr; exact clog_depthCoeff_le hk _
+    _ ≤ B * (2 ^ offset k * (L + 1)) := by gcongr
     _ ≤ 2 ^ L * (2 ^ offset k * 2 ^ Nat.clog 2 (L + 1)) :=
       Nat.mul_le_mul (Nat.le_pow_clog (by decide) B)
         (Nat.mul_le_mul_left _ (Nat.le_pow_clog (by decide) (L + 1)))
-    _ = 2 ^ candidateExponent k B := by
-      unfold candidateExponent
-      rw [pow_add, pow_add]
-      ring
+    _ = 2 ^ candidateExponent k B := by unfold candidateExponent; rw [pow_add, pow_add]; ring
 
 private theorem exists_accepts {k : ℕ} (hk : 2 ≤ k) (B : ℕ) :
     ∃ m, CountingExponentAccepts k B m := ⟨candidateExponent k B, candidate_accepts hk⟩

@@ -222,9 +222,7 @@ theorem realize_checkPolarity {variance : Variances shape} (I : Interpretation s
       exact (hρ r _).2 hm
     | true => exact (hρ r _).1
   | neg φ ih =>
-    cases sign with
-    | false => exact fun h hp => h (ih hφ hρ v hp)
-    | true => exact fun h hp => h (ih hφ hρ v hp)
+    cases sign <;> exact fun h hp => h (ih hφ hρ v hp)
   | conj φ ψ ihφ ihψ =>
     have ⟨hφ, hψ⟩ : φ.checkPolarity variance sign mark = true ∧
         ψ.checkPolarity variance sign mark = true := by simpa [checkPolarity] using hφ
@@ -235,9 +233,8 @@ theorem realize_checkPolarity {variance : Variances shape} (I : Interpretation s
     simp only [checkPolarity, decide_eq_true_eq] at hφ
     -- `ih` is generic in the sign, so positive and negative bodies are handled alike;
     -- an arbitrary body is checked in both directions.
-    cases sign with
-    | true =>
-      apply hI o
+    cases sign <;>
+    · apply hI o
       intro i δ xs
       have hi := hφ i
       cases hv : variance o i with
@@ -246,18 +243,9 @@ theorem realize_checkPolarity {variance : Variances shape} (I : Interpretation s
         exact ih i hi (hρ.append δ) _
       | arbitrary =>
         simp only [hv, Bool.and_eq_true] at hi
-        exact ⟨ih i hi.1 (hρ.append δ) _, ih i hi.2 (hρ.append δ) _⟩
-    | false =>
-      apply hI o
-      intro i δ xs
-      have hi := hφ i
-      cases hv : variance o i with
-      | positive | negative =>
-        simp only [hv] at hi
-        exact ih i hi (hρ.append δ) _
-      | arbitrary =>
-        simp only [hv, Bool.and_eq_true] at hi
-        exact ⟨ih i hi.2 (hρ.append δ) _, ih i hi.1 (hρ.append δ) _⟩
+        first
+        | exact ⟨ih i hi.1 (hρ.append δ) _, ih i hi.2 (hρ.append δ) _⟩
+        | exact ⟨ih i hi.2 (hρ.append δ) _, ih i hi.1 (hρ.append δ) _⟩
 
 end Formula
 
