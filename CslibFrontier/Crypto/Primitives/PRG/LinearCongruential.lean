@@ -135,8 +135,10 @@ theorem prev_next (P : LinearCongruential) (ha : P.a.Coprime P.q) {s : ℕ} (hs 
       have := Nat.div_add_mod' P.b P.q
       lia
     rw [e]
-    exact (((Nat.ModEq.refl _).add (Nat.modEq_zero_iff_dvd.mpr (Nat.dvd_mul_left ..))).add
-      (Nat.modEq_zero_iff_dvd.mpr dvd_rfl)).trans (by simpa [next] using Nat.mod_modEq _ _)
+    calc P.next s + P.b / P.q * P.q + P.q ≡ P.next s + 0 + 0 [MOD P.q] :=
+          ((Nat.ModEq.refl _).add (Nat.modEq_zero_iff_dvd.mpr (Nat.dvd_mul_left ..))).add
+            (Nat.modEq_zero_iff_dvd.mpr dvd_rfl)
+      _ ≡ P.a * s + P.b [MOD P.q] := by simpa [next] using Nat.mod_modEq _ _
   refine Nat.ModEq.eq_of_lt_of_lt ?_ (Nat.mod_lt _ hq) hs
   calc P.prev (P.next s) ≡ BinaryGcd.modInv P.a P.q * (P.next s + P.q - P.b % P.q) [MOD P.q] :=
         Nat.mod_modEq _ _

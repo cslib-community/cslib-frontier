@@ -187,8 +187,10 @@ theorem Correct.reproduceGame_eq_pure_true [DecidableEq Key]
         (ProbComp.eval (fe.rep w' rp.2)).bind fun r' => PMF.pure (decide (r' = rp.1)))
       = (ProbComp.eval (fe.gen w)).bind fun _ => PMF.pure true :=
         PMF.bind_congr_on_support _ _ _ fun ⟨r, p⟩ hrp => by
-          rw [← PMF.bind_const (ProbComp.eval (fe.rep w' p)) (PMF.pure true)]
-          exact PMF.bind_congr_on_support _ _ _ fun r' hr' => by simp [h w w' hdis r p hrp r' hr']
+          calc (ProbComp.eval (fe.rep w' p)).bind (fun r' => PMF.pure (decide (r' = r)))
+              = (ProbComp.eval (fe.rep w' p)).bind fun _ => PMF.pure true :=
+                PMF.bind_congr_on_support _ _ _ fun r' hr' => by simp [h w w' hdis r p hrp r' hr']
+            _ = PMF.pure true := PMF.bind_const _ _
     _ = PMF.pure true := PMF.bind_const _ _
 
 /-- Zero-error correctness implies `CorrectWithError` with error `0`. -/
