@@ -579,20 +579,6 @@ private theorem toOuterMeasure_eq_tsum_mul {β : Type*} (p : PMF β) (s : Set β
   refine tsum_congr fun x => ?_
   by_cases hx : x ∈ s <;> simp [Set.indicator, hx]
 
-private theorem length_filter_eq_card_fin {β : Type*} (l : List β) (p : β → Bool) :
-    (l.filter p).length = (Finset.univ.filter fun j : Fin l.length => p l[j.val] = true).card := by
-  induction l with
-  | nil => simp
-  | cons a t ih =>
-    simp only [List.filter_cons]
-    change (if p a = true then a :: t.filter p else t.filter p).length =
-      (Finset.univ.filter fun i : Fin (t.length + 1) => p (a :: t)[i.val] = true).card
-    rw [Finset.card_filter, Fin.sum_univ_succ]
-    rw [Finset.card_filter] at ih
-    cases hpa : p a with
-    | false => simp [hpa, ih]
-    | true => simp [hpa, ih]; ring
-
 private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ) (i : ι)
     (hi : (Finset.univ.filter fun a : α => part a = i).Nonempty) :
     let B := Finset.univ.filter fun a : α => part a = i
@@ -654,8 +640,18 @@ private theorem block_prob_max_eq_successProb (part : α → ι) (w : α → ℝ
         rw [Secretary.relRanks, List.ext_getElem_iff]
         refine ⟨by simp [hlen'], fun k hk₁ _ => ?_⟩
         simp only [List.length_ofFn, hlen'] at hk₁
-        simp only [List.getElem_ofFn, Secretary.relRank, length_filter_eq_card_fin,
-          decide_eq_true_eq]
+        have hlen_filt : ∀ (l : List α) (p : α → Bool), (l.filter p).length =
+            (Finset.univ.filter fun j : Fin l.length => p l[j.val] = true).card := by
+          intro l p; induction l with
+          | nil => simp
+          | cons a t ih =>
+            simp only [List.filter_cons]
+            change (if p a = true then a :: t.filter p else t.filter p).length =
+              (Finset.univ.filter fun i : Fin (t.length + 1) => p (a :: t)[i.val] = true).card
+            rw [Finset.card_filter, Fin.sum_univ_succ]
+            rw [Finset.card_filter] at ih
+            cases hpa : p a <;> simp [hpa, ih]; ring
+        simp only [List.getElem_ofFn, Secretary.relRank, hlen_filt, decide_eq_true_eq]
         have hlt_take : (seq'.take k).length = k :=
           List.length_take_of_le (by rw [hlen']; exact hk₁.le)
         refine Finset.card_bij (fun j _ => ⟨j.val, by omega⟩) ?_
