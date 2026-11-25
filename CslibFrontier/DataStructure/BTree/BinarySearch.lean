@@ -218,14 +218,15 @@ variable {α β : Type} {m n : Type → Type*} [Monad m] [Monad n]
 theorem _root_.Cslib.IsMonadHom.map_slotBinM (hf : IsMonadHom m n f) (le : α → α → m Bool)
     (k : α) (rest : List (Triple α β)) :
     f (slotBinM le k rest) = slotBinM (fun a b => f (le a b)) k rest := by
-  induction hn : rest.length using Nat.strong_induction_on generalizing rest with
-  | _ n ih =>
-    rcases rest with _ | ⟨e, l⟩
-    · simp [hf.map_pure]
-    · simp only [List.length_cons] at hn
-      simp [slotBinM_cons, hf.map_bind, hf.map_pure, apply_ite f,
-        ih _ (by simp only [List.length_take]; omega) ((e :: l).take ((l.length + 1) / 2)) rfl,
-        ih _ (by simp only [List.length_drop]; omega) (l.drop ((l.length + 1) / 2)) rfl]
+  fun_induction slotBinM le k rest with
+  | case1 rest h =>
+    conv_rhs => rw [slotBinM, h]
+    exact hf.map_pure 0
+  | case2 rest e h ih1 ih2 =>
+    conv_rhs => rw [slotBinM, h]
+    simp only [hf.map_bind]
+    refine bind_congr fun b => ?_
+    cases b <;> simp [ih1, ih2, hf.map_bind, hf.map_pure]
 
 private theorem map_childOpt {γ : Type} (hf : IsMonadHom m n f) (d : γ)
     {g₁ : BTree α β → m γ} {g₂ : BTree α β → n γ} {first : BTree α β}
@@ -318,40 +319,37 @@ theorem rankBin_node (k : α) (first : BTree α β) (rest : List (Triple α β))
 other lists it is unspecified. -/
 theorem slotBin_eq_slot (k : α) {rest : List (Triple α β)}
     (hs : (rest.map (·.1)).Pairwise (· < ·)) : slotBin k rest = slot k rest := by
-  induction hn : rest.length using Nat.strong_induction_on generalizing rest with
-  | _ n ih =>
-    rcases hrest : rest with _ | ⟨e₀, l⟩
-    · simp [slotBin]
-    · have hlt : rest.length / 2 < rest.length := by rw [hrest, List.length_cons]; omega
-      have hstep : slotBin k rest = if k ≤ rest[rest.length / 2].1 then
-          slotBin k (rest.take (rest.length / 2))
-          else slotBin k (rest.drop (rest.length / 2 + 1)) + (rest.length / 2 + 1) := by
-        subst hrest; rw [slotBin, slotBinM_cons]
-        by_cases hk : k ≤ ((e₀ :: l)[(l.length + 1) / 2]'(by simp; omega)).1 <;>
-          simp [slotBin, leI, hk]
-      have hsplit : rest =
-          rest.take (rest.length / 2) ++ rest[rest.length / 2] :: rest.drop (rest.length / 2 + 1) :=
-        by simp
-      rw [← hrest, hstep, slot_eq_findIdx]
-      set l₁ := rest.take (rest.length / 2)
-      set l₂ := rest.drop (rest.length / 2 + 1)
-      set e := rest[rest.length / 2]
-      have hlen₁ : l₁.length = rest.length / 2 := by simp [l₁, Nat.min_eq_left hlt.le]
-      have hlen₂ : l₂.length < rest.length := by simp [l₂]; omega
-      rw [hsplit] at hs
-      simp only [List.map_append, List.map_cons, List.pairwise_append, List.pairwise_cons] at hs
-      obtain ⟨h₁, ⟨-, h₂⟩, h₁₂⟩ := hs
-      conv_rhs => rw [hsplit, List.findIdx_append, List.findIdx_cons]
-      by_cases hk : k ≤ e.1
-      · simp only [hk, decide_true, ↓reduceIte, ih _ (by omega) h₁ rfl, slot_eq_findIdx]
-        have := List.findIdx_le_length (p := fun e => decide (k ≤ e.1)) (xs := l₁)
-        split <;> omega
-      · have hnone : l₁.findIdx (fun e => decide (k ≤ e.1)) = l₁.length :=
-          List.findIdx_eq_length.2 fun x hx => by
-            simpa using (h₁₂ x.1 (List.mem_map_of_mem hx) e.1 (by simp)).trans (lt_of_not_ge hk)
-        simp only [hk, decide_false, Bool.false_eq_true, ↓reduceIte, ih _ (by omega) h₂ rfl,
-          slot_eq_findIdx, hnone, lt_irrefl]
-        omega
+  unfold slotBin
+  fun_induction slotBinM leI k rest with
+  | case1 rest h =>
+    have hlen : rest.length = 0 := by have := List.getElem?_eq_none_iff.1 h; omega
+    obtain rfl : rest = [] := List.eq_nil_of_length_eq_zero hlen
+    rfl
+  | case2 rest e h ih1 ih2 =>
+    obtain ⟨hlt, rfl⟩ := List.getElem?_eq_some_iff.1 h
+    have hsplit : rest =
+        rest.take (rest.length / 2) ++ rest[rest.length / 2] :: rest.drop (rest.length / 2 + 1) :=
+      by simp
+    set l₁ := rest.take (rest.length / 2)
+    set l₂ := rest.drop (rest.length / 2 + 1)
+    set e := rest[rest.length / 2]
+    have hlen₁ : l₁.length = rest.length / 2 := by simp [l₁, Nat.min_eq_left hlt.le]
+    rw [hsplit] at hs
+    simp only [List.map_append, List.map_cons, List.pairwise_append, List.pairwise_cons] at hs
+    obtain ⟨h₁, ⟨-, h₂⟩, h₁₂⟩ := hs
+    rw [slot_eq_findIdx]
+    conv_rhs => rw [hsplit, List.findIdx_append, List.findIdx_cons]
+    by_cases hk : k ≤ e.1
+    · simp only [leI, hk, decide_true, ↓reduceIte, Id.run_bind, Id.run_pure, ih1 h₁,
+        slot_eq_findIdx]
+      have := List.findIdx_le_length (p := fun e => decide (k ≤ e.1)) (xs := l₁)
+      split <;> omega
+    · have hnone : l₁.findIdx (fun e => decide (k ≤ e.1)) = l₁.length :=
+        List.findIdx_eq_length.2 fun x hx => by
+          simpa using (h₁₂ x.1 (List.mem_map_of_mem hx) e.1 (by simp)).trans (lt_of_not_ge hk)
+      simp only [leI, hk, decide_false, Bool.false_eq_true, ↓reduceIte, Id.run_bind, Id.run_pure,
+        ih2 h₂, slot_eq_findIdx, hnone, lt_irrefl]
+      omega
 
 /-- The keys of a node with sorted entries are strictly increasing. -/
 private theorem pairwise_keys_of_isSortedAssoc {first : BTree α β} {rest : List (Triple α β)}
