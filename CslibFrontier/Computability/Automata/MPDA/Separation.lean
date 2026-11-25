@@ -146,10 +146,8 @@ private theorem wellNested_of_replicate {c c' : Config 2 State Γ} {v : List (Le
       rw [hvp] at hmem
       simp only [List.mem_append, List.mem_replicate] at hmem
       rcases hmem with ⟨-, rfl⟩ | ⟨-, rfl⟩
-      · rw [hx] at hk
-        simpa [Op.kind, eq_comm] using hk
-      · rw [hy] at hk
-        simp [Op.kind] at hk
+      · simpa [hx, Op.kind, eq_comm] using hk
+      · simp [hy, Op.kind] at hk
     exact hne ((hstack h₁).trans (hstack h₂).symm)
 
 /-- In a run, a push inside a factor reading `xᵖ yᵖ`, where `x` pushes on stack `i` and `y` pops
@@ -183,14 +181,11 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
       -- The letter at the push.
       obtain ⟨a', γ', hpush'⟩ := hpush
       have hvgk : vg[k]? = some (a', .push i γ') := by
-        rw [List.append_assoc, List.getElem?_append_right (by omega), Nat.add_sub_cancel_left,
+        rwa [List.append_assoc, List.getElem?_append_right (by omega), Nat.add_sub_cancel_left,
           List.getElem?_append_left (by simp; omega), List.getElem?_append_left hkg] at hpush'
-        exact hpush'
       have hkind' := hkind _ (List.mem_of_getElem? hpush')
       simp only [Op.kind] at hkind'
-      have hsym : (group p q)[k]? = some a' := by
-        rw [← hvg, List.getElem?_map, hvgk]
-        rfl
+      have hsym : (group p q)[k]? = some a' := by rw [← hvg, List.getElem?_map, hvgk]; rfl
       -- Split the group into its four blocks.
       unfold group at hvg hsym
       obtain ⟨v₁, ld, rfl, hv₁, hld⟩ := List.map_eq_append_iff.mp hvg
@@ -234,13 +229,12 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
         obtain ⟨-, rfl⟩ := hsym
         simp [kind] at hkind'
     · -- The push lies in a later group.
+      have hk' : u.length + vg.length + (k - vg.length) = u.length + k := by omega
       have := wellMatched_of_groups gs (fun g' hg' => hgs g' (List.mem_cons_of_mem _ hg'))
         (u ++ vg) vr u' (by simpa [List.append_assoc] using h)
         (by simpa [List.append_assoc] using hkind) hvr (k - vg.length) (by simp at hk; omega) i
-        (by rw [List.length_append, show u.length + vg.length + (k - vg.length) = u.length + k by
-          omega]; simpa [List.append_assoc] using hpush)
-      rw [List.length_append, show u.length + vg.length + (k - vg.length) = u.length + k by
-        omega] at this
+        (by rw [List.length_append, hk']; simpa [List.append_assoc] using hpush)
+      rw [List.length_append, hk'] at this
       simpa [List.append_assoc] using this
 
 /-- **`L_bh` is `2`-hole-bounded**, the hole bound in the second sentence of Proposition 2 of
@@ -265,14 +259,13 @@ theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     obtain ⟨⟨⟨i, hpush⟩, hnot⟩, -, hqx, -⟩ := id hq
     by_cases hq2 : n + n ≤ q
     · -- Pushes in the groups are closed by well-nested continuations.
-      exact absurd (by
-        have := wellMatched_of_groups gs hgs wab wg [] (by simpa using h) (by simpa using hkind)
-          hwg (q - wab.length) (by
-            have := (List.getElem?_eq_some_iff.mp hpush.choose_spec.choose_spec).1
-            simp at this; omega) i (by
-            rw [show wab.length + (q - wab.length) = q by omega]; simpa using hpush)
-        rw [show wab.length + (q - wab.length) = q by omega] at this
-        simpa using this) hnot
+      have hq' : wab.length + (q - wab.length) = q := by omega
+      have := wellMatched_of_groups gs hgs wab wg [] (by simpa using h) (by simpa using hkind)
+        hwg (q - wab.length) (by
+          have := (List.getElem?_eq_some_iff.mp hpush.choose_spec.choose_spec).1
+          simp at this; omega) i (by rw [hq']; simpa using hpush)
+      rw [hq'] at this
+      exact (hnot (by simpa using this)).elim
     · -- Every other pending `a` or `b` belongs to the hole of the push before it.
       simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
       by_contra hq0
@@ -286,18 +279,11 @@ theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
           (isPushOn_of_letter hkind (by rw [hlet, h₁]) hx')
           (isPushOn_of_letter hkind (by rw [hlet, h₂]) hx')⟩
       by_cases hqn : q < n
-      · exact hsame .a 0 rfl
-          (by rw [List.append_assoc, List.getElem?_append_left (by simp; omega),
-            List.getElem?_replicate_of_lt (by omega)])
-          (by rw [List.append_assoc, List.getElem?_append_left (by simp; omega),
-            List.getElem?_replicate_of_lt (by omega)])
-      · exact hsame .b 1 rfl
-          (by rw [List.getElem?_append_left (by simp; omega),
-            List.getElem?_append_right (by simp; omega), List.getElem?_replicate_of_lt (by
-              simp; omega)])
-          (by rw [List.getElem?_append_left (by simp; omega),
-            List.getElem?_append_right (by simp; omega), List.getElem?_replicate_of_lt (by
-              simp; omega)])
+      · refine hsame .a 0 rfl ?_ ?_ <;> rw [List.append_assoc,
+          List.getElem?_append_left (by simp; omega), List.getElem?_replicate_of_lt (by omega)]
+      · refine hsame .b 1 rfl ?_ ?_ <;> rw [List.getElem?_append_left (by simp; omega),
+          List.getElem?_append_right (by simp; omega),
+          List.getElem?_replicate_of_lt (by simp; omega)]
   calc openHoles (wab ++ wg) x ≤ ({0, n} : Set ℕ).ncard :=
         Set.ncard_le_ncard hsub (Set.toFinite _)
     _ ≤ 2 := (Set.ncard_insert_le _ _).trans (by simp)
