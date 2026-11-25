@@ -9478,6 +9478,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.DegreeThreeCap
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Decode
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.InductiveCounting.Callbacks
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.CompileCuttingPlanes
 public import CslibFrontier.Crypto.Computational.OneWay.CondEPPRG
 public import CslibFrontier.Crypto.Computational.Basic
 public import CslibFrontier.Computability.Circuit.Arithmetic.Permanent.Formula
