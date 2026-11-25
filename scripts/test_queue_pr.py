@@ -135,9 +135,47 @@ class AssessTests(unittest.TestCase):
 
 class ArgumentTests(unittest.TestCase):
     def test_abbreviated_sha_and_bad_repo_are_rejected(self) -> None:
-        for argv in (["12", "abc1234"], ["12", SHA, "--repo", "cslib-frontier"]):
+        for argv in (["12", "abc1234"], ["12", SHA, "--repo", "cslib-frontier"],
+                     ["12", SHA, "--hold-hubs", "--allow-hub"]):
             with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
                 queue_pr.main(argv)
+
+
+class QueueEstimateTests(unittest.TestCase):
+    def test_estimate_counts_the_entries_ahead_of_a_new_or_queued_pr(self) -> None:
+        self.assertEqual(
+            queue_pr.queue_estimate(pr(queueDepth=16), 12),
+            "Merge queue: 16 entries ahead of #12; roughly 42 min to land (16 x 14 min / 8 "
+            "concurrent group builds, then its own build) if no group build fails.")
+        queued = pr(queueDepth=16, mergeQueueEntry={"position": 2, "state": "QUEUED"})
+        self.assertIn("1 entry ahead of #12; roughly 16 min", queue_pr.queue_estimate(queued, 12))
+        self.assertIn("0 entries ahead of #12; roughly 14 min",
+                      queue_pr.queue_estimate(pr(queueDepth=0), 12))
+        self.assertIsNone(queue_pr.queue_estimate(pr(), 12))
+
+    def test_fetch_pr_reads_the_queue_depth_only_when_well_formed(self) -> None:
+        for queue, depth in (({"entries": {"totalCount": 5}}, 5), (None, None),
+                             ({"entries": {"totalCount": True}}, None),
+                             ({"entries": {"totalCount": -1}}, None)):
+            response = first_page(check_run(), cursor=None)
+            response["repository"]["mergeQueue"] = queue
+            with self.subTest(queue=queue), \
+                 patch.object(queue_pr, "gh_graphql", return_value=response):
+                self.assertEqual(queue_pr.fetch_pr("o", "r", 12).get("queueDepth"), depth)
+
+    def test_every_run_prints_the_estimate_first_even_when_refused(self) -> None:
+        for fields, status in (({}, 0), ({"isDraft": True}, 1)):
+            out = io.StringIO()
+            with self.subTest(fields=fields), \
+                 patch.object(queue_pr, "fetch_pr",
+                              return_value=pr(check_run(), queueDepth=3, **fields)), \
+                 patch.object(queue_pr, "check_queue_prefix", return_value=None), \
+                 patch.object(queue_pr, "gh_graphql", return_value={
+                     "enqueuePullRequest": {"mergeQueueEntry": {"position": 4}}}), \
+                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                self.assertEqual(queue_pr.main(["12", SHA]), status, out.getvalue())
+                self.assertTrue(out.getvalue().startswith(
+                    "Merge queue: 3 entries ahead of #12; roughly 19 min"), out.getvalue())
 
 
 class PaginationTests(unittest.TestCase):
@@ -1103,31 +1141,36 @@ class HubImpactQueueTests(unittest.TestCase):
             "leaf_pr": leaf_pr_sha,
         }
 
-    def test_hub_notice_and_hold_hubs_with_active_queue(self) -> None:
+    @staticmethod
+    def _run_main(root: pathlib.Path, sha: str, base_sha: str, entries: list[tuple[int, str]],
+                  extra_args: list[str] = (), threshold: int = 3,
+                  high: int = 4) -> tuple[int, str, int]:
         import check_hub_impact
         import queue_status
 
+        enqueue_ok = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 2, "state": "QUEUED"}}}
+        candidate_pr = pr(check_run(), baseRefOid=base_sha, headRefOid=sha)
+        candidate_pr["commits"]["nodes"][0]["commit"]["oid"] = sha
+        out = io.StringIO()
+        with patch.object(queue_pr, "ROOT", root), \
+             patch.object(queue_pr, "replay_repository", return_value=root), \
+             patch.object(queue_pr, "fetch_pr", return_value=candidate_pr), \
+             patch.object(queue_pr, "fetch_discussion", return_value=("same",)), \
+             patch.object(queue_status, "prefix", return_value=(base_sha, entries)), \
+             patch.object(queue_status, "fetch_objects"), \
+             patch.object(check_hub_impact, "DEFAULT_THRESHOLD", threshold), \
+             patch.object(check_hub_impact, "HIGH_THRESHOLD", high), \
+             patch.object(queue_pr, "gh_graphql", return_value=enqueue_ok) as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = queue_pr.main(["12", sha, *extra_args])
+        return rc, out.getvalue(), api.call_count
+
+    def test_hub_notice_and_hold_hubs_with_active_queue(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, self.GIT_ENV):
             root, shas = self._seed_hub_repo(pathlib.Path(tmp))
-            enqueue_ok = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 2, "state": "QUEUED"}}}
 
-            def run_case(sha: str, base_sha: str, entries: list[tuple[int, str]],
-                         extra_args: list[str] = (), threshold: int = 3, high: int = 4) -> tuple[int, str, int]:
-                candidate_pr = pr(check_run(), baseRefOid=base_sha, headRefOid=sha)
-                candidate_pr["commits"]["nodes"][0]["commit"]["oid"] = sha
-                out = io.StringIO()
-                with patch.object(queue_pr, "ROOT", root), \
-                     patch.object(queue_pr, "replay_repository", return_value=root), \
-                     patch.object(queue_pr, "fetch_pr", return_value=candidate_pr), \
-                     patch.object(queue_pr, "fetch_discussion", return_value=("same",)), \
-                     patch.object(queue_status, "prefix", return_value=(base_sha, entries)), \
-                     patch.object(queue_status, "fetch_objects"), \
-                     patch.object(check_hub_impact, "DEFAULT_THRESHOLD", threshold), \
-                     patch.object(check_hub_impact, "HIGH_THRESHOLD", high), \
-                     patch.object(queue_pr, "gh_graphql", return_value=enqueue_ok) as api, \
-                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
-                    rc = queue_pr.main(["12", sha, *extra_args])
-                return rc, out.getvalue(), api.call_count
+            def run_case(*args, **kwargs) -> tuple[int, str, int]:
+                return self._run_main(root, *args, **kwargs)
 
             # 1. >= HIGH_THRESHOLD (4 >= 4): default queues and prints `Warning:`.
             rc, out, calls = run_case(shas["hub_pr"], shas["m0"], [(10, shas["queued"])])
@@ -1168,6 +1211,37 @@ class HubImpactQueueTests(unittest.TestCase):
             self.assertEqual(calls, 1)
             self.assertNotIn("Hub.lean", out)
 
+    def test_hub_pacing_refuses_by_queue_depth_and_the_rebuilds_it_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, self.GIT_ENV), \
+             patch.object(queue_pr, "HUB_PACING_DEPTH", 1):
+            root, shas = self._seed_hub_repo(pathlib.Path(tmp))
+            # `Hub.lean` rebuilds Hub, Mid, Leaf1, Leaf2 and Smoke; #11 already rebuilds only Leaf2.
+            leaf_ahead = [(10, shas["queued"]), (11, shas["leaf_pr"])]
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], leaf_ahead)
+            self.assertEqual((rc, calls), (1, 0), out)
+            self.assertIn("#12 not queued: modifies high-fan-in hub module(s) "
+                          "(`CslibFrontier/Hub.lean` (4 transitive importers)) and it adds 4 "
+                          "modules to the 1 that the 2 entries ahead already rebuild; a hub PR "
+                          "waits while more than 1 entries are ahead", out)
+            self.assertIn("--allow-hub", out)
+
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], leaf_ahead,
+                                            ["--allow-hub"])
+            self.assertEqual((rc, calls), (0, 1), out)
+            self.assertIn("Warning: #12 modifies high-fan-in hub module(s)", out)
+            self.assertIn("(#10, #11); it adds 4 modules to the 1 that the 2 entries ahead", out)
+
+            # #11 already rebuilds Mid's cone, so the hub PR adds only Hub itself: below threshold.
+            mid_ahead = [(10, shas["queued"]), (11, shas["mid_pr"])]
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], mid_ahead)
+            self.assertEqual((rc, calls), (0, 1), out)
+            self.assertIn("it adds 1 module to the 4 that the 2 entries ahead already rebuild", out)
+
+            # At most `HUB_PACING_DEPTH` entries ahead: advisory only.
+            rc, out, calls = self._run_main(root, shas["hub_pr"], shas["m0"], leaf_ahead[1:])
+            self.assertEqual((rc, calls), (0, 1), out)
+            self.assertIn("it adds 4 modules to the 1 that the 1 entries ahead", out)
+
     def test_bare_repo_without_checkout_skips_advisory_but_fails_closed_for_hold_hubs(self) -> None:
         import queue_status
 
@@ -1190,6 +1264,20 @@ class HubImpactQueueTests(unittest.TestCase):
                     )
                 )
                 self.assertEqual(notices, [])
+                # Hub pacing that cannot check the PR still queues it, with a note saying so.
+                with patch.object(queue_pr, "HUB_PACING_DEPTH", 0):
+                    for allow_hub in (False, True):
+                        notices = []
+                        self.assertIsNone(queue_pr.check_queue_prefix(
+                            "o", "r", 12, shas["hub_pr"], root=scratch,
+                            on_hub_notice=notices.append, allow_hub=allow_hub))
+                        if allow_hub:
+                            self.assertEqual(notices, [])
+                        else:
+                            self.assertEqual(len(notices), 1, notices)
+                            self.assertTrue(notices[0].startswith(
+                                "Note: hub pacing needs a local `CslibFrontier/` checkout"),
+                                notices)
                 # `--hold-hubs` fails closed when `CslibFrontier/*.lean` changed and cannot be scanned.
                 refusal = queue_pr.check_queue_prefix(
                     "o", "r", 12, shas["hub_pr"], root=scratch, hold_hubs=True,
@@ -1219,15 +1307,15 @@ class HubImpactQueueTests(unittest.TestCase):
             root, shas = self._seed_hub_repo(pathlib.Path(tmp))
             seen: list[tuple[object, str]] = []
 
-            def fake_transitive(graph: object, mod: str) -> int:
+            def fake_rebuilt(graph: object, mod: str) -> set[str]:
                 seen.append((graph, mod))
-                return 650
+                return {f"CslibFrontier.Client{i}" for i in range(650)}
 
             notices: list[str] = []
             with patch.object(queue_status, "prefix", return_value=(shas["m0"], [(10, shas["queued"])])), \
                  patch.object(queue_status, "fetch_objects"), \
                  patch.object(check_hub_impact, "build_reverse_graph", return_value=(sentinel, 1000)), \
-                 patch.object(check_hub_impact, "transitive_importers", side_effect=fake_transitive):
+                 patch.object(check_hub_impact, "rebuilt_importers", side_effect=fake_rebuilt):
                 rc_reason = queue_pr.check_queue_prefix(
                     "o", "r", 12, shas["hub_pr"], root=root, on_hub_notice=notices.append,
                 )

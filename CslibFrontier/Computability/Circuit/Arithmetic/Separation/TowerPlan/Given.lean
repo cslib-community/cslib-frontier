@@ -389,12 +389,6 @@ private theorem moveCount_vertex_le_lift (hg : ∀ mv, GoodOutcome lhat n o mv)
   exact (hc ν).trans ((ite_eq_left hs).symm.trans_le ((alive_le_load ⟨.vertex l, ν⟩).trans
     (load_edge_le_lift (ν := ⟨.vertex l, ν⟩) rfl b)))
 
-private theorem sum_vertexMove {M : Type*} [AddCommMonoid M] (g : VertexMove FL → M) :
-    ∑ l, g l = ∑ j, ∑ i, ∑ ω, ∑ d, g ⟨j, i, ω, d⟩ := by
-  rw [← (proxy_equiv% (VertexMove FL)).sum_comp]
-  simp only [Fintype.sum_sigma]
-  rfl
-
 /-- **The units given in the law moves at a node**, for good outcomes and if every place is an
 end of a near pair: at most the number of kinds of laws times the units between the chamber and
 its parent. -/
@@ -442,7 +436,7 @@ theorem sum_unitsAt_vertex_le (hg : ∀ mv, GoodOutcome lhat n o mv)
         (mem_filter.1 ha).2.unique (mem_filter.1 hb).2)).trans_eq (one_mul _)
   have h4 := Tower.Node.sum_ofChamber_succ (fun _ _ => V) P
   have h5 : P.lift (fun _ _ => V) 0 ≤ V := by cases P <;> simp [Tower.Node.lift, V]
-  rw [sum_vertexMove]
+  rw [VertexMove.sum_eq]
   refine (sum_le_sum fun j _ => (sum_le_sum fun i _ => sum_le_sum fun ω _ =>
     sum_le_sum fun d _ => h1 ⟨j, i, ω, d⟩).trans (h3 j)).trans ?_
   rw [← mul_sum]

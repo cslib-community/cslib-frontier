@@ -79,30 +79,17 @@ theorem count_succ (x : Fin N → Bool) (src : ℕ → ℕ) (s : ℕ) :
   · rw [card_insert_of_notMem (fun h' => by simpa using (mem_filter.mp h').1)]
   · rw [Nat.add_zero]
 
-private theorem level_lt {base T s i : ℕ} (hi : i < T) :
-    level base T s i < base + 1 + (s + 1) * T := by
-  unfold level
-  rw [Nat.add_mul, Nat.one_mul]
-  omega
-
 theorem isClassical_stage {base T b s : ℕ} (hb : b < base) (hN : base + 1 + (s + 2) * T ≤ N) :
     IsClassical N (stage base T b s) := by
   refine IsClassical.flatMap fun i hi => ?_
   have hi : i < T := List.mem_range.mp hi
-  have h₁ := level_lt (base := base) (s := s + 1) hi
-  have h₀ : base + 1 + s * T + i < base + 1 + (s + 1) * T * 1 := by
-    rw [Nat.mul_one, Nat.add_mul, Nat.one_mul]
-    omega
-  rw [show s + 2 = s + 1 + 1 by rfl, Nat.add_mul (s + 1), Nat.one_mul] at hN
-  rw [Nat.add_mul, Nat.one_mul] at h₁
-  rw [Nat.mul_one, Nat.add_mul, Nat.one_mul] at h₀
-  have hl : base + 1 + (s + 1) * T + i = base + 1 + s * T + T + i := by
-    rw [Nat.add_mul, Nat.one_mul]
+  have hN' : base + 1 + s * T + T + T ≤ N := by
+    rw [show s + 2 = s + 1 + 1 by rfl, Nat.add_mul, Nat.add_mul, Nat.one_mul] at hN
     omega
   simp only [IsClassical, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp,
-    forall_eq, WellFormed, List.length_cons, List.length_nil, List.nodup_cons, List.mem_cons,
-    List.not_mem_nil, List.nodup_nil, level, below, hl]
-  split_ifs with h0 <;> refine ⟨⟨trivial, ?_⟩, ⟨trivial, ?_⟩, ⟨trivial, ?_⟩⟩ <;> simp <;> omega
+    forall_eq, WellFormed, List.length_cons, List.length_nil, List.nodup_cons, List.nodup_nil,
+    level, below, Nat.add_mul, Nat.one_mul]
+  split_ifs <;> refine ⟨⟨trivial, ?_⟩, ⟨trivial, ?_⟩, ⟨trivial, ?_⟩⟩ <;> simp <;> omega
 
 theorem isClassical_codes {base T k : ℕ} {src : ℕ → ℕ} (hsrc : ∀ s < k, src s < base)
     (hN : base + 1 + (k + 1) * T ≤ N) : IsClassical N (codes base T src k) := by

@@ -36,8 +36,10 @@ it is not a security theorem for the corrected construction.
 The attack programs and their exact probabilities are original game-level results. The rescaling
 results require correct oracle answers only on the single query made, and do not implement a UOV
 signer. The raw zero-target forgery does not query the oracle or require its correctness. Their
-query certificates bound external calls, not running time. Scheme-level composition and the
-concrete signer are tracked in #7068 and #4987, respectively.
+query certificates bound external calls, not running time. Classical-ROM hash-and-sign
+composition for abstract trapdoor preimage systems (including `UOV.idealRawScheme`) is supplied in
+`Cslib.Crypto.UOV.HashAndSign`, while the concrete round-3 UOV signer, concrete `Keccak-p[800, 12]`,
+and runtime PPT certificates remain tracked in #4987 and #7068.
 
 ## Main definitions
 

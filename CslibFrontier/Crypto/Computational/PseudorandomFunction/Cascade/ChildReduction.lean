@@ -23,6 +23,7 @@ are capped at the state width.
 
 * `Cslib.Crypto.CascadeChildChallengeState`: first-use cursor and lazy answer cache.
 * `Cslib.Crypto.cascadeChildChallengeHandler`: one simulated child query.
+* `Cslib.Crypto.cascadeChildChallengeAtProgram`: simulate the client at a fixed index and key word.
 * `Cslib.Crypto.cascadeChildChallengeProgram`: sample the challenge index and private keys,
   then simulate the client.
 
@@ -73,6 +74,17 @@ noncomputable def cascadeChildChallengeHandler
     else pure ((family (BitString.listRow n request.1 keys) block).take n, next)
   else pure ([], state)
 
+/-- Run the simulated child oracle from an empty state with a fixed challenge channel and
+key word. The sampled wrapper rejects out-of-range channels before calling this program. -/
+@[expose]
+noncomputable def cascadeChildChallengeAtProgram
+    (family : List Bool → List Bool → List Bool) (width n count selected : ℕ)
+    (keys : List Bool) (program : WordOracleComp ℕ Bool) : WordOracleComp Unit Bool :=
+  Prod.fst <$> (OracleComp.interpret
+    (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
+      (cascadeChildChallengeHandler family width n count selected keys))
+    program).run ⟨0, []⟩
+
 /-- Sample a challenge index from `indexBits` fair bits. If it is in range, draw one private
 `n`-bit key per channel and run the client with the simulated child oracle. An out-of-range
 index returns `false` before the client runs. -/
@@ -83,10 +95,7 @@ noncomputable def cascadeChildChallengeProgram
   let selected ← ProbOracleComp.sample (ProbComp.sampleBinaryNat indexBits)
   if selected < count then
     let keys ← ProbOracleComp.sample (BitString.sampleList (count * n))
-    Prod.fst <$> (OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-        (cascadeChildChallengeHandler family width n count selected keys))
-      program).run ⟨0, []⟩
+    cascadeChildChallengeAtProgram family width n count selected keys program
   else pure false
 
 private theorem isQueryBounded_cascadeChildChallengeHandler
@@ -118,6 +127,7 @@ theorem isQueryBounded_cascadeChildChallengeProgram
   split
   · refine ((ProbOracleComp.IsQueryBounded.sample _).bind (m := budget) fun keys => ?_).mono
       (by simp)
+    unfold cascadeChildChallengeAtProgram
     apply (OracleComp.isCostBounded_map_iff _ _ _).mpr
     refine OracleComp.IsCostBounded.run_interpret (fun query state => ?_) hbudget _
     cases query with

@@ -98,7 +98,7 @@ inductive Target (T : Tower h b D J r) (m A : ℕ) where
   | relay (x : Relay T m A)
   /-- The units are end segments on the pair `q` of places of the vertex `ω`. -/
   | segment (j : Fin J) (i : Fin h) (ω : T.V (j + 1) i) (q : Sym2 T.Fl)
-  deriving DecidableEq
+  deriving DecidableEq, Fintype
 
 variable {T : Tower h b D J r}
 

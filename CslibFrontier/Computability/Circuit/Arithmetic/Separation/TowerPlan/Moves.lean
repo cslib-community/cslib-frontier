@@ -33,7 +33,7 @@ of the tree among the parties (`Placement`) they are the moves of a play (`moves
 
 ## Main results
 
-* `Move.sum_eq`: a sum over the moves, by the relays and the law moves.
+* `VertexMove.sum_eq`, `Move.sum_eq`: sums over the law moves and over all moves.
 * `Move.party_injective`: the nodes at the roles of a move are different.
 * `Move.time_lt_time_target`: the units of the channels of a move are given later.
 * `lt_of_time_moveOrder_lt`: a move with a smaller time comes earlier in the order.
@@ -69,6 +69,13 @@ instance (FL : VertexLaws F T) : DecidableEq (VertexMove FL) :=
 
 instance (FL : VertexLaws F T) : Fintype (VertexMove FL) :=
   Fintype.ofEquiv _ (proxy_equiv% (VertexMove FL))
+
+/-- A sum over the law moves, by their stages, types, vertices and kinds. -/
+theorem VertexMove.sum_eq {FL : VertexLaws F T} {M : Type*} [AddCommMonoid M]
+    (g : VertexMove FL → M) : ∑ l, g l = ∑ j, ∑ i, ∑ ω, ∑ d, g ⟨j, i, ω, d⟩ := by
+  rw [← (proxy_equiv% (VertexMove FL)).sum_comp]
+  simp only [Fintype.sum_sigma]
+  rfl
 
 /-- The same vertex with another kind of law. -/
 @[expose] def VertexMove.withKind {FL : VertexLaws F T} (l : VertexMove FL) (d : FL.Kind) :

@@ -11,6 +11,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.PlayMoves
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Capacity
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EndUnits
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EverHeld
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.ProgramUnits
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Rules
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Transfer
 import CslibFrontier.Foundations.Algebra.BigOperators.Sym
@@ -39,6 +40,12 @@ import Mathlib.Data.Fintype.BigOperators
   `false`, and by `card_assignedUnits_le` it is the only unit between that chamber and its parent,
   within `edgeUnitBound` at the rate `1`; the initial unit is not current after all moves
   (`unitTarget_eq_done_of_mem_cur`).
+* The sizes of that tower, its routes and its laws are at most `2` (`SizeBound`): its tree has
+  three nodes, and a placement with one extra party exists (`exists_placement`). With one initial
+  unit between two base parties and one unit on every channel, its plan has at most `1092` units
+  and satisfies the bounds of the program (`ProgramBound`, `UnitBound`) for `Y = 1100`, and from
+  any program for the inputs, `counts_stage`, `tree_stage` and `units_stage` compute its numbers,
+  its tree and its units.
 * For an arbitrary tower, under the hypotheses of the statements: `towerPlan_ok` bounds the units
   given at a slot by `cap`; no alive unit of a channel of a law move is current after all moves;
   the units that a party ever holds, exactly; possible outcomes are good, in the form that
@@ -53,7 +60,7 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.SeparationTowerPlan
 
-open Finset Cslib Cslib.CoveringTower Cslib.Circuits.Arithmetic.Separation
+open Finset Cslib Cslib.CoveringTower Cslib.Circuits Cslib.Circuits.Arithmetic.Separation
   Cslib.Circuits.Arithmetic.Separation.Cut Cslib.Circuits.Arithmetic.Separation.TowerPlan
 
 variable {F : Type} [CommSemiring F] {h b D J r m Uu A A' U0 U1 lhat cap : ℕ}
@@ -527,6 +534,84 @@ example : UnitId.init 0 1 0 ∉ (towerPlan edgeRoutes (edgeLaws F) edgePlacement
   have := unitTarget_eq_done_of_mem_cur hu ⟨by decide, by decide⟩
   simp only [unitTarget, initialTarget_edge] at this
   cases this
+
+/-! ### The sizes and the program of the tower with one edge -/
+
+/-- The sizes of the tower with one edge, its routes and its laws are at most `2`. -/
+private theorem edgeSize : SizeBound (edgeLaws F) 1 2 2 where
+  one_le := by norm_num
+  types_le := by norm_num
+  places_le := by norm_num
+  degree_le := by norm_num
+  length_le := by norm_num
+  stages_le := by norm_num
+  base_le := le_rfl
+  card_X_zero_le := le_rfl
+  card_kind_le := by simp [unitLaws]
+  card_slot_le _ := (rfl : Fintype.card Empty = 0).trans_le (Nat.zero_le 2)
+
+/-- The tree of the tower with one edge has three nodes, the parties of its placement, at most
+`3 · 2 ^ 2`. -/
+example : Fintype.card edgeTower.Node = 3 ∧ Fintype.card edgeTower.Node ≤ 3 * 2 ^ 2 :=
+  ⟨Placement.card_node edgePlacement, card_node_le two_pos (edgeSize (F := ℕ))⟩
+
+/-- A placement of the tower with one edge exists, with one extra party. -/
+example : Nonempty (Placement edgeTower edgeBase 1) := by
+  simpa [Placement.card_node edgePlacement] using exists_placement edgeTower edgeBase
+
+/-- The plan of the tower with one edge has at most `1092` units, with one initial unit between
+two base parties and one unit on every channel: `4` initial units, and at most `17 · 2 ^ 6`
+channels (`card_moveChannel_le`). -/
+private theorem edge_numUnits_le : numUnits edgeRoutes edgeBase (edgeLaws F) 1 1 ≤ 1092 := by
+  have := card_moveChannel_le (R := edgeRoutes) (ch := edgeBase) two_pos (edgeSize (F := F))
+  simp only [numUnits]
+  omega
+
+/-- The bounds for the program of the plan of the tower with one edge, for `Y = 1100`. -/
+private theorem edgeProgramBound : ProgramBound edgeRoutes edgeBase (edgeLaws F) 1 1 1100 where
+  base_mul_base_le := by norm_num
+  numUnits_le := edge_numUnits_le.trans (by norm_num)
+  card_channel_le := (card_moveChannel_le two_pos edgeSize).trans (by norm_num)
+  card_move_le := (card_move_le two_pos edgeSize Nat.one_pos).trans (by norm_num)
+  card_target_le := (show Fintype.card (Target edgeTower 1 2) = 19 by decide).trans_le
+    (by norm_num)
+  card_node_le := (card_node_le two_pos (edgeSize (F := F))).trans (by norm_num)
+  card_pair_le := (show Fintype.card (Sym2 Unit) = 1 by decide).trans_le (by norm_num)
+  card_kind_le := by simp [unitLaws]
+  types_le := by norm_num
+  endTime_le := by decide
+  units_le := by
+    have := edge_numUnits_le (F := F)
+    simp only [show Fintype.card (Sym2 edgeTower.Fl) = 1 by decide]
+    omega
+
+/-- The bounds for the units of the plan of the tower with one edge, for `Y = 1100` and `TM = 0`:
+at most `9 · 2 ^ 5` slots and `1092` units. -/
+private theorem edgePlanUnitBound : UnitBound edgeRoutes (edgeLaws F) edgePlacement 1 1 1100 0 where
+  card_slot_le := (card_moveSlot_le two_pos edgeSize Nat.one_pos).trans (by norm_num)
+  card_unit_le := (card_planUnit edgePlacement).trans_le (edge_numUnits_le.trans (by norm_num))
+  padding_le := by norm_num
+
+/-- **The program of the plan of the tower with one edge.** From a program that computes the
+numbers of initial units and the outcomes, `11 + 8 · 1100` stages of `1100 ^ 12` gates compute the
+numbers of the plan, two more the tree for its loads, and nine more its units. -/
+example {Inp : Type} {N p c : ℕ} {inp : Fin N → Inp → Fin (1100 ^ 4)} {H : Set (Inp → ℕ)}
+    (nI : Inp → Fin 2 → Fin 2 → Fin 2)
+    (oI : Inp → (moves edgeRoutes (edgeLaws F) edgePlacement).Channel → Fin 1)
+    (hS : SlpN inp (p + c * 1100 ^ 12) H)
+    (hi : InputsIn (fun x => initialCounts (nI x))
+      (fun x => outcomeOf _ _ edgePlacement (oI x)) H) :
+    ∃ H', SlpN inp (p + (c + 11 + 8 * 1100 + 2 + 9) * 1100 ^ 12) H' ∧
+      TreeIn Nat.one_pos (fun x => load 2 (initialCounts (nI x))
+        (outcomeOf _ _ edgePlacement (oI x))) H' ∧ UnitsIn nI oI 2 0 H' := by
+  have hY : StepBase (1100 ^ 4) 1100 := ⟨by norm_num, le_rfl⟩
+  obtain ⟨H1, s1, -, f1⟩ := counts_stage hY edgeProgramBound (InputBound.ofPlan nI oI)
+    Nat.one_pos hS hi
+  obtain ⟨H2, s2, u2, f2⟩ := tree_stage hY edgeProgramBound Nat.one_pos
+    (fun x τ => loadGiven_le_numUnits ((InputBound.ofPlan nI oI).initial_le x)
+      ((InputBound.ofPlan nI oI).outcome_le x) _ τ) s1 f1.load f1.toChoicesIn
+  obtain ⟨H3, s3, u3, f3⟩ := units_stage hY edgeProgramBound edgePlanUnitBound s2 (f1.mono u2)
+  exact ⟨H3, s3, ⟨fun P P' => u3 (f2.parent P P'), fun P => u3 (f2.parentUnits P)⟩, f3⟩
 
 /-! ### The rules and the units for an arbitrary tower -/
 

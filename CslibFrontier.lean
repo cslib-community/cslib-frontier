@@ -1472,6 +1472,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.Run
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.Task
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.WordCode
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Capacity
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Cardinalities
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Counts
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EndUnits
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EverHeld
@@ -1481,6 +1482,9 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPla
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Moves
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Norms
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Plan
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.ProgramChoices
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.ProgramLoads
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.ProgramUnits
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Relays
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Rules
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.StageBounds
@@ -2350,6 +2354,7 @@ public import CslibFrontier.Computability.Circuit.Simulation
 public import CslibFrontier.Computability.Circuit.SimulationContext
 public import CslibFrontier.Computability.Circuit.SimulationDepth
 public import CslibFrontier.Computability.Circuit.SlpCost
+public import CslibFrontier.Computability.Circuit.SlpCostPow
 public import CslibFrontier.Computability.Circuit.SlpStep
 public import CslibFrontier.Computability.Circuit.SourceComplexity
 public import CslibFrontier.Computability.Circuit.SpanProgram.Basic
@@ -3889,6 +3894,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.Characteristi
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
@@ -6481,6 +6487,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChallenge
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReduction
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReductionLaw
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingLaw
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
@@ -7066,12 +7073,14 @@ public import CslibFrontier.Crypto.Protocols.UOV.Attacks
 public import CslibFrontier.Crypto.Protocols.UOV.BlockKey
 public import CslibFrontier.Crypto.Protocols.UOV.Field
 public import CslibFrontier.Crypto.Protocols.UOV.Games
+public import CslibFrontier.Crypto.Protocols.UOV.HashAndSign
 public import CslibFrontier.Crypto.Protocols.VOLE.AdaptiveMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Basic
 public import CslibFrontier.Crypto.Protocols.VOLE.BatchMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Circuit
 public import CslibFrontier.Crypto.Protocols.VOLE.CircuitPrivacy
 public import CslibFrontier.Crypto.Protocols.VOLE.CircuitSound
+public import CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.KOSExtractor
 public import CslibFrontier.Crypto.Protocols.VOLE.MaskedMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.MulCheck
@@ -8784,6 +8793,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.CircleGaps
 public import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 public import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
 public import CslibFrontier.Foundations.Geometry.Polygonal.CoordinateOrder
+public import CslibFrontier.Foundations.Geometry.Polygonal.CrossingSplice
 public import CslibFrontier.Foundations.Geometry.Polygonal.CutGerms
 public import CslibFrontier.Foundations.Geometry.Polygonal.CutTransport
 public import CslibFrontier.Foundations.Geometry.Polygonal.FiniteAngleOrder
