@@ -322,6 +322,14 @@ theorem RunInv.push {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ} (h :
     · exact hv
     · exact h.subset x hx
 
+/-- A variable occurring in the database or on the trail lies in `V`. -/
+private theorem RunInv.mem_of_occurs {φ : CNF ℕ} {V : List ℕ} {M : Trail} {F : CNF ℕ}
+    (h : RunInv φ V M F) {x : ℕ} (hx : x ∈ F.vars ∨ x ∈ Trail.vars M) : x ∈ V := by
+  rcases hx with hx | hx
+  · obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hx
+    exact h.db_vars c hc (_, b) hb
+  · exact h.subset _ hx
+
 /-- **Steps keep the invariant** [NieuwenhuisOliverasTinelli2006, Lemma 2.7]. -/
 theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S') (h : Inv φ V S) :
     Inv φ V S' := by
@@ -333,8 +341,7 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
       exact Trail.eval_of_forall_ne
         ((CNF.eval_eq_true_iff σ F).1 (by rw [h.models]; exact hσ) c hc) hM hfalse
     | @decide M F l hundef hv =>
-      obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 hv
-      obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef (h.db_vars c hc (_, b) hb)
+      obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef (h.mem_of_occurs (.inl hv))
       exact ⟨h.models, h.pmodels, hnd, hsub, h.db_vars, .decision l h.entailed⟩
     | @fail M F c hc hconf hnodec =>
       rintro ⟨σ, hσ⟩
@@ -349,16 +356,10 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
         have := h.nodup
         simp only [Trail.vars, List.map_append, List.map_cons] at this
         exact (List.nodup_cons.1 (List.nodup_append.1 this).2.1).2
-      refine ⟨h.models, h.pmodels, ?_, ?_, h.db_vars, ?_⟩
-      · simp only [Trail.vars, List.map_cons, List.nodup_cons]
-        exact ⟨hundef, hnodup⟩
-      · intro x hx
-        simp only [Trail.vars, List.map_cons, List.mem_cons] at hx
-        rcases hx with rfl | hx
-        · rcases hocc with hocc | hocc
-          · obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hocc
-            exact h.db_vars c' hc' (_, b) hb
-          · exact h.subset _ hocc
+      refine ⟨h.models, h.pmodels, List.nodup_cons.2 ⟨hundef, hnodup⟩, fun x hx => ?_,
+        h.db_vars, ?_⟩
+      · rcases List.mem_cons.1 hx with rfl | hx
+        · exact h.mem_of_occurs hocc
         · exact h.subset x (by simp [Trail.vars] at hx ⊢; tauto)
       · refine .implied l (Trail.entailed_append (N := N ++ [⟨d, true⟩])
           (by simpa using h.entailed)) fun σ hσ hM => ?_
@@ -368,15 +369,10 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
       refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => hρ c (List.mem_cons_of_mem _ hc),
         h.nodup, h.subset, ?_, h.entailed⟩
       · rw [CNF.eval_cons, ← h.models]
-        cases hF : CNF.eval σ F
-        · simp
-        · simp [hC σ hF]
+        cases hF : CNF.eval σ F <;> simp [hC σ, hF]
       · intro c hc l hl
         rcases List.mem_cons.1 hc with rfl | hc
-        · rcases hCV l hl with hocc | hocc
-          · obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hocc
-            exact h.db_vars c' hc' (_, b) hb
-          · exact h.subset _ hocc
+        · exact h.mem_of_occurs (hCV l hl)
         · exact h.db_vars c hc l hl
   · cases hstep with
     | @forget M F₁ F₂ C hC =>
