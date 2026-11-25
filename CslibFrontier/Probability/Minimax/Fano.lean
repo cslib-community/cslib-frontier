@@ -69,19 +69,11 @@ private theorem joint_error_eq_avg [Nonempty V] (P : V → PMF X) (ψ : X → V)
         ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal := by
   classical
   let _ := Fintype.ofFinite X
-  have hjoint_apply (x : X) (v : V) :
-      (((uniformOfFintype V).bind fun v => (P v).map (·, v)) (x, v)).toReal =
-        (Fintype.card V : ℝ)⁻¹ * (P v x).toReal := by
-    rw [toReal_bind_map_prodMk_apply, uniformOfFintype_apply, ENNReal.toReal_inv,
-      ENNReal.toReal_natCast]
-  rw [toOuterMeasure_apply_toReal, Fintype.sum_prod_type, Finset.sum_comm]
-  simp only [Set.mem_ofPred_eq, hjoint_apply]
-  rw [Finset.mul_sum]
-  refine Finset.sum_congr rfl fun v _ => ?_
-  rw [toOuterMeasure_apply_toReal, Finset.mul_sum]
-  refine Finset.sum_congr rfl fun x _ => ?_
-  simp only [Set.mem_ofPred_eq]
-  split_ifs <;> ring
+  simp only [toOuterMeasure_apply_toReal, Fintype.sum_prod_type, Set.mem_ofPred_eq,
+    toReal_bind_map_prodMk_apply, uniformOfFintype_apply, ENNReal.toReal_inv,
+    ENNReal.toReal_natCast, Finset.mul_sum]
+  rw [Finset.sum_comm]
+  exact Finset.sum_congr rfl fun v _ => Finset.sum_congr rfl fun x _ => by split_ifs <;> ring
 
 /-- **Sharp binary-entropy Fano bound** under a uniform prior on `V`: for a channel `P : V → PMF X`
 and decoder `ψ : X → V` with average error probability `Pe`,
@@ -115,11 +107,11 @@ theorem fano_avg_testing_error_ge_of_mutualInfo [Nonempty V] (hV : 2 ≤ Fintype
   rw [joint_error_eq_avg P ψ] at hfano
   set Pe := (Fintype.card V : ℝ)⁻¹ * ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal
   have hlog2 : 0 < Real.log 2 := Real.log_pos one_lt_two
-  have hcard_gt : (1 : ℝ) < Fintype.card V := by exact_mod_cast (show 1 < Fintype.card V by omega)
-  have hlogV : 0 < Real.log (Fintype.card V) := Real.log_pos hcard_gt
-  have hcond : Real.logb 2 (Fintype.card V) - mutualInfo joint ≤
-      1 + Pe * Real.logb 2 (Fintype.card V) := by linarith
-  have hmul := mul_le_mul_of_nonneg_right hcond hlog2.le
+  have hlogV : 0 < Real.log (Fintype.card V) :=
+    Real.log_pos (by exact_mod_cast (show 1 < Fintype.card V by omega))
+  have hmul := mul_le_mul_of_nonneg_right
+    (by linarith : Real.logb 2 (Fintype.card V) - mutualInfo joint ≤
+      1 + Pe * Real.logb 2 (Fintype.card V)) hlog2.le
   rw [sub_mul, add_mul, one_mul, mul_assoc, Real.logb, div_mul_cancel₀ _ hlog2.ne'] at hmul
   rw [sub_div' hlogV.ne', one_mul, div_le_iff₀ hlogV]
   linarith
@@ -129,14 +121,9 @@ private theorem fano_avg_testing_error_ge_of_mutualInfo_le [Nonempty V] (hV : 2 
     (hmi_le : mutualInfo ((uniformOfFintype V).bind fun v => (P v).map (·, v)) * Real.log 2 ≤ β)
     (ψ : X → V) :
     1 - (β + Real.log 2) / Real.log (Fintype.card V) ≤
-      (Fintype.card V : ℝ)⁻¹ * ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal := by
-  have hlogV : 0 < Real.log (Fintype.card V) :=
-    Real.log_pos (by exact_mod_cast (show 1 < Fintype.card V by omega))
-  have hdiv : (mutualInfo ((uniformOfFintype V).bind fun v => (P v).map (·, v)) * Real.log 2 +
-        Real.log 2) / Real.log (Fintype.card V) ≤
-      (β + Real.log 2) / Real.log (Fintype.card V) :=
-    div_le_div_of_nonneg_right (by linarith) hlogV.le
-  exact (by linarith : 1 - (β + Real.log 2) / Real.log (Fintype.card V) ≤ _).trans
+      (Fintype.card V : ℝ)⁻¹ * ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal :=
+  (sub_le_sub_left (div_le_div_of_nonneg_right (add_le_add_left hmi_le _)
+    (Real.log_nonneg (Nat.one_le_cast.mpr (Nat.one_le_of_lt hV)))) 1).trans
     (fano_avg_testing_error_ge_of_mutualInfo hV P ψ)
 
 /-- **KL-center Fano testing lower bound** (Yang–Barron / [Tsybakov2009], Section 2.6): if a
@@ -152,13 +139,10 @@ theorem fano_avg_testing_error_ge_of_klDiv_center [MeasurableSpace X] [Measurabl
     1 - (β + Real.log 2) / Real.log (Fintype.card V) ≤
       (Fintype.card V : ℝ)⁻¹ * ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal := by
   have : Nonempty V := Fintype.card_pos_iff.mp (by omega)
-  refine fano_avg_testing_error_ge_of_mutualInfo_le hV P ?_ ψ
-  refine (mutualInfo_bind_mul_log_two_le_sum_klDiv (uniformOfFintype V) P
-    fun v _ => hQ v).trans ?_
-  have hunif (v : V) : (uniformOfFintype V v).toReal = (Fintype.card V : ℝ)⁻¹ := by
-    rw [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-  simp only [hunif, ← Finset.mul_sum]
-  exact hβ
+  refine fano_avg_testing_error_ge_of_mutualInfo_le hV P
+    ((mutualInfo_bind_mul_log_two_le_sum_klDiv (uniformOfFintype V) P fun v _ => hQ v).trans ?_) ψ
+  simpa only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
+    ← Finset.mul_sum] using hβ
 
 /-- **Pairwise KL-Fano testing lower bound**: if `(P v).support ⊆ (P w).support` and the average
 pairwise divergence satisfies `(|V| : ℝ)⁻² · ∑ v, ∑ w, D(P v ‖ P w) ≤ β`, then average testing error
@@ -172,24 +156,13 @@ theorem fano_avg_testing_error_ge_of_klDiv_pairwise [MeasurableSpace X] [Measura
     1 - (β + Real.log 2) / Real.log (Fintype.card V) ≤
       (Fintype.card V : ℝ)⁻¹ * ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal := by
   have : Nonempty V := Fintype.card_pos_iff.mp (by omega)
-  refine fano_avg_testing_error_ge_of_mutualInfo_le hV P ?_ ψ
-  refine (mutualInfo_bind_mul_log_two_le_sum_sum_klDiv (uniformOfFintype V) P
-    fun v _ w _ => hsupp v w).trans ?_
-  have hunif (v : V) : (uniformOfFintype V v).toReal = (Fintype.card V : ℝ)⁻¹ := by
-    rw [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-  have hpull : (∑ v : V, ∑ w : V,
-      (uniformOfFintype V v).toReal * (uniformOfFintype V w).toReal *
-        (klDiv (P v).toMeasure (P w).toMeasure).toReal) =
-      ((Fintype.card V : ℝ) ^ 2)⁻¹ *
-        ∑ v : V, ∑ w : V, (klDiv (P v).toMeasure (P w).toMeasure).toReal := by
-    simp only [hunif]
-    rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun v _ => ?_
-    rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun w _ => ?_
-    ring
-  rw [hpull]
-  exact hβ
+  refine fano_avg_testing_error_ge_of_mutualInfo_le hV P
+    ((mutualInfo_bind_mul_log_two_le_sum_sum_klDiv (uniformOfFintype V) P
+      fun v _ w _ => hsupp v w).trans ?_) ψ
+  refine (le_of_eq ?_).trans hβ
+  simp only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, mul_assoc,
+    ← Finset.mul_sum, ← inv_pow]
+  ring
 
 end Testing
 
@@ -206,15 +179,9 @@ private theorem exists_decoder_err_imp_ge [Finite V] [Nonempty V] {loss : T → 
     ∃ ψ : X → V, ∀ x v, ψ x ≠ v → Δ ≤ loss (est x) (θ v) := by
   classical
   let _ := Fintype.ofFinite V
-  let ψ : X → V := fun x =>
-    (Finset.exists_min_image Finset.univ (fun v => loss (est x) (θ v)) Finset.univ_nonempty).choose
-  refine ⟨ψ, fun x v hne => ?_⟩
-  have hspec :=
-    (Finset.exists_min_image Finset.univ (fun v => loss (est x) (θ v))
-      Finset.univ_nonempty).choose_spec.2 v (Finset.mem_univ v)
-  have hsum := hpack (est x) (ψ x) v hne
-  change loss (est x) (θ (ψ x)) ≤ loss (est x) (θ v) at hspec
-  linarith
+  choose ψ hψ using fun x =>
+    Finset.exists_min_image Finset.univ (fun v => loss (est x) (θ v)) Finset.univ_nonempty
+  exact ⟨ψ, fun x v hne => by linarith [(hψ x).2 v (Finset.mem_univ v), hpack (est x) (ψ x) v hne]⟩
 
 private theorem exists_mem_ge_of_avg_ge [Fintype V] [Nonempty V] {f : V → ℝ} {c : ℝ}
     (h : c ≤ (Fintype.card V : ℝ)⁻¹ * ∑ v : V, f v) :
@@ -243,18 +210,14 @@ theorem fano_minimax_prob_ge_of_klDiv_center [Finite X] [MeasurableSpace X]
   let _ := Fintype.ofFinite X
   have : Nonempty V := Fintype.card_pos_iff.mp (by omega)
   obtain ⟨ψ, hψ⟩ := exists_decoder_err_imp_ge hpack est
-  have havg := fano_avg_testing_error_ge_of_klDiv_center hV P hQ hβ ψ
-  obtain ⟨v, hv⟩ := exists_mem_ge_of_avg_ge havg
+  obtain ⟨v, hv⟩ := exists_mem_ge_of_avg_ge
+    (fano_avg_testing_error_ge_of_klDiv_center hV P hQ hβ ψ)
   refine ⟨v, hv.trans ?_⟩
-  rw [toOuterMeasure_apply_toReal, toOuterMeasure_apply_toReal]
+  simp only [toOuterMeasure_apply_toReal, Set.mem_ofPred_eq]
   refine Finset.sum_le_sum fun x _ => ?_
-  simp only [Set.mem_ofPred_eq]
   by_cases herr : ψ x ≠ v
-  · rw [ite_eq_left herr, ite_eq_left (hψ x v herr)]
-  · rw [ite_eq_right herr]
-    split_ifs
-    · exact ENNReal.toReal_nonneg
-    · exact le_rfl
+  · simp [herr, hψ x v herr]
+  · simp only [herr, ↓reduceIte]; split_ifs <;> positivity
 
 private theorem minimax_risk_ge_of_avg_testing_error [Fintype X] [Nonempty V]
     (P : V → PMF X) {c : ℝ}
@@ -270,12 +233,9 @@ private theorem minimax_risk_ge_of_avg_testing_error [Fintype X] [Nonempty V]
   refine ⟨v, (mul_le_mul_of_nonneg_left hv hΔ).trans ?_⟩
   rw [toOuterMeasure_apply_toReal, Finset.mul_sum]
   refine Finset.sum_le_sum fun x _ => ?_
-  simp only [Set.mem_ofPred_eq]
   by_cases hx : ψ x ≠ v
-  · rw [ite_eq_left hx, mul_comm]
-    exact mul_le_mul_of_nonneg_left (hψ x v hx) ENNReal.toReal_nonneg
-  · rw [ite_eq_right hx, mul_zero]
-    exact mul_nonneg ENNReal.toReal_nonneg (hloss (est x) v)
+  · simpa [hx, mul_comm] using mul_le_mul_of_nonneg_left (hψ x v hx) ENNReal.toReal_nonneg
+  · simpa [hx] using mul_nonneg ENNReal.toReal_nonneg (hloss (est x) v)
 
 /-- **Expected-risk KL-center Fano minimax lower bound** ([Tsybakov2009], Theorem 2.5): if
 `θ : V → Θ` (`2 ≤ |V|`) is `2Δ`-separated under a nonnegative `loss` (`Δ ≥ 0`) and
@@ -312,13 +272,10 @@ theorem fano_randomized_minimax_risk_ge_of_klDiv_center [Fintype X] [Fintype T]
     (loss := fun (q : PMF T) θ' => ∑ t : T, (q t).toReal * loss t θ')
     (fun q v => Finset.sum_nonneg fun t _ => mul_nonneg ENNReal.toReal_nonneg (hloss t v))
     (fun q v w hne => ?_) est
-  rw [← Finset.sum_add_distrib]
-  calc 2 * Δ = ∑ t : T, (q t).toReal * (2 * Δ) := by
-        rw [← Finset.sum_mul, sum_toReal, one_mul]
-    _ ≤ ∑ t : T, ((q t).toReal * loss t (θ v) + (q t).toReal * loss t (θ w)) := by
-        refine Finset.sum_le_sum fun t _ => ?_
-        rw [← mul_add]
-        exact mul_le_mul_of_nonneg_left (hpack t v w hne) ENNReal.toReal_nonneg
+  rw [← Finset.sum_add_distrib, show 2 * Δ = ∑ t : T, (q t).toReal * (2 * Δ) by
+    rw [← Finset.sum_mul, sum_toReal, one_mul]]
+  exact Finset.sum_le_sum fun t _ => by
+    simpa only [mul_add] using mul_le_mul_of_nonneg_left (hpack t v w hne) ENNReal.toReal_nonneg
 
 /-- **Expected-risk pairwise KL-Fano minimax lower bound**: if `(P v).support ⊆ (P w).support` and
 `(|V| : ℝ)⁻² · ∑ v, ∑ w, D(P v ‖ P w) ≤ β`, then for every estimator `est : X → T` some `v : V` has
@@ -353,19 +310,8 @@ theorem fano_iid_minimax_risk_ge_of_klDiv_pairwise [Fintype X] [MeasurableSpace 
       ∑ x : Fin n → X, (iid (P v) n x).toReal * loss (est x) (θ v) := by
   refine fano_minimax_risk_ge_of_klDiv_pairwise hV (fun v => iid (P v) n)
     (fun v w => support_iid_subset (hsupp v w) n) ?_ hΔ hloss hpack est
-  have hiid : (∑ v : V, ∑ w : V,
-      (klDiv (iid (P v) n).toMeasure (iid (P w) n).toMeasure).toReal) =
-      (n : ℝ) * ∑ v : V, ∑ w : V, (klDiv (P v).toMeasure (P w).toMeasure).toReal := by
-    simp only [toReal_klDiv_iid (hsupp _ _) n]
-    rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun v _ => ?_
-    rw [Finset.mul_sum]
-  rw [hiid]
-  calc ((Fintype.card V : ℝ) ^ 2)⁻¹ *
-        ((n : ℝ) * ∑ v : V, ∑ w : V, (klDiv (P v).toMeasure (P w).toMeasure).toReal)
-      = (n : ℝ) * (((Fintype.card V : ℝ) ^ 2)⁻¹ *
-          ∑ v : V, ∑ w : V, (klDiv (P v).toMeasure (P w).toMeasure).toReal) := by ring
-    _ ≤ n * β := mul_le_mul_of_nonneg_left hβ (Nat.cast_nonneg n)
+  simpa only [toReal_klDiv_iid (hsupp _ _) n, ← Finset.mul_sum, mul_left_comm _ (n : ℝ)] using
+    mul_le_mul_of_nonneg_left hβ (Nat.cast_nonneg n)
 
 end Estimation
 
