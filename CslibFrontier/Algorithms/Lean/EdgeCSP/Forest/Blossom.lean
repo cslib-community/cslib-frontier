@@ -157,6 +157,12 @@ theorem Trace.constraint_first_copies (h : Trace sem f m) {c : Copy F}
   exact ⟨hside (m.ancestor_constraint_index_lt hc).1 (m.ancestor_at_common_index hc).1 hs,
     hside (m.ancestor_constraint_index_lt hc).2 (m.ancestor_at_common_index hc).2 ht⟩
 
+private theorem Trace.ancestry_times_drop (h : Trace sem f m) (u : V) (n : ℕ) :
+    (m.older.ancestry u).times.drop n =
+      ((m.older.ancestry u).walk.drop n).steps.map fun s => m.older.stamp s.1 := by
+  simpa only [Walk.drop, List.map_drop] using
+    congrArg (List.drop n) (h.expansion.grown.ancestry_times_eq_stamp u)
+
 private theorem Trace.stamp_gt_of_drop_succ (h : Trace sem f m) {u : V} {k : ℕ}
     {s t : Occurrence F × Occurrence F}
     (hs : (m.older.ancestry u).walk.steps[k]? = some s)
@@ -223,11 +229,10 @@ theorem Trace.constraint_fork_earliest (h : Trace sem f m) {c : Copy F}
     intro p s tail hp he ho hs d hd
     obtain ⟨u, hu, heq⟩ := hp.mem_copies.mp hd
     rw [he] at hu ho
-    have hst : m.older.stamp s.1 = c.2 := congrArg Prod.snd hs
-    have hut : m.older.stamp u.1 = d.2 := congrArg Prod.snd heq
+    rw [← congrArg Prod.snd hs, ← congrArg Prod.snd heq]
     rcases List.mem_cons.mp hu with rfl | hu
-    · omega
-    · have := (List.pairwise_cons.mp ho).1 u hu; omega
+    · exact le_rfl
+    · exact ((List.pairwise_cons.mp ho).1 u hu).le
   refine ⟨?_, ?_⟩
   · exact Finset.mem_union_left _ (Finset.mem_union_left _ (hw.mem_copies.mpr ⟨s, hsm, hcs.1⟩))
   · intro d hd
@@ -293,12 +298,11 @@ theorem Trace.constraint_fork_incoming_eq (h : Trace sem f m) (hF : EdgeInstance
   have hsub := (h.fork_subgraph hF hf k).1
   intro a ha hi hac
   have haT := hsub.2.2 ha
-  rw [h.pruned_arcs] at haT
-  rcases Finset.mem_insert.mp haT with rfl | haT
+  simp only [h.pruned_arcs, Finset.mem_insert, List.mem_toFinset] at haT
+  rcases haT with rfl | rfl | haT
   · exact absurd (congrArg Prod.snd hac) hbound.ne'
-  rcases Finset.mem_insert.mp haT with rfl | haT
   · exact absurd (congrArg Prod.snd hac) hbound.ne'
-  exact Log.incoming_time_unique (List.mem_toFinset.mp haT) hA hi rfl (congrArg Prod.snd hac)
+  · exact Log.incoming_time_unique haT hA hi rfl (congrArg Prod.snd hac)
 
 /-- Source Lemma 41's constraint-LCA surgery: flip the actual root-to-left-child path,
 remove its root-side input, and reverse that child's LCA incidence. The full remaining
@@ -376,13 +380,9 @@ theorem Trace.constraint_cycle_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     fun u hu => htt ▸ h.stamp_gt_of_drop_succ ht hu
   have hlate : c.2 < m.older.length :=
     hst ▸ (m.older.mem_arcs (h.expansion.grown.ancestry_arcs _ hsm).1).2
-  have hsurvive : ∀ a ∈ (m.forkDAG k).arcs, c.2 < a.time → a ∈ R.arcs := by
-    intro a ha hl
-    apply mem_reroot_arcs.mpr
-    refine Or.inr ⟨ha, ?_, ?_⟩ <;>
-    · intro he
-      have hh : a.time = m.older.stamp s.1 := congrArg Arc.time he
-      omega
+  have hsurvive : ∀ a ∈ (m.forkDAG k).arcs, c.2 < a.time → a ∈ R.arcs := fun a ha hl =>
+    mem_reroot_arcs.mpr (.inr ⟨ha, fun he => hl.ne' ((congrArg Arc.time he).trans hst),
+      fun he => hl.ne' ((congrArg Arc.time he).trans hst)⟩)
   have hpathArcs : ∀ {p : Walk F} {u}, u ∈ p.steps →
       inArc m.older.stamp u ∈ pathArcs p m.older.stamp ∧
       outArc m.older.stamp u ∈ pathArcs p m.older.stamp := fun hu =>
@@ -543,17 +543,8 @@ theorem Trace.constraint_blossom_isFDAG (h : Trace sem f m) (hF : EdgeInstance F
   rcases (m.blossomData_eq_some_iff b).mp hb with ⟨_, ha, _⟩ | ⟨c', s, t, ha, hs, ht, rfl⟩
   · rw [hc] at ha; cases ha
   · cases Sum.inr.inj (Option.some.inj (hc.symm.trans ha))
-    let k := (m.commonNodes.length - 1) / 2
-    have htl : m.left.times.drop (k + 1) = (m.left.walk.drop (k + 1)).steps.map
-        (fun u => m.older.stamp u.1) := by
-      simpa only [Meeting.left, Walk.drop, List.map_drop] using congrArg (List.drop (k + 1))
-        (h.expansion.grown.ancestry_times_eq_stamp m.current.input.var)
-    have htr : m.right.times.drop (k + 1) = (m.right.walk.drop (k + 1)).steps.map
-        (fun u => m.older.stamp u.1) := by
-      simpa only [Meeting.right, Walk.drop, List.map_drop] using congrArg (List.drop (k + 1))
-        (h.expansion.grown.ancestry_times_eq_stamp m.output.var)
-    dsimp only
-    rw [htl, htr]
+    dsimp only [Meeting.left, Meeting.right]
+    rw [h.ancestry_times_drop, h.ancestry_times_drop]
     exact h.constraint_cycle_isFDAG hF hf hM hc hs ht
 
 /-- Both LCA branches return the full timestamped f-DAG required in Definition 39,
@@ -649,27 +640,20 @@ private theorem Trace.join_times_nodup (h : Trace sem f m) (k : ℕ)
     (hk : m.commonNodes.length < 2 * k + 2) :
     (m.left.times.drop k ++ [m.older.length] ++ (m.right.times.drop k).reverse).Nodup := by
   have hleft : (m.left.times.drop k).Nodup :=
-    ((m.older.ancestry_times_pairwise m.current.input.var).imp
-      (fun hlt he => by rw [he] at hlt; exact Nat.lt_irrefl _ hlt)).sublist (List.drop_sublist _ _)
+    ((m.older.ancestry_times_pairwise m.current.input.var).imp ne_of_lt).sublist
+      (List.drop_sublist _ _)
   have hright : (m.right.times.drop k).Nodup :=
-    ((m.older.ancestry_times_pairwise m.output.var).imp
-      (fun hlt he => by rw [he] at hlt; exact Nat.lt_irrefl _ hlt)).sublist (List.drop_sublist _ _)
+    ((m.older.ancestry_times_pairwise m.output.var).imp ne_of_lt).sublist
+      (List.drop_sublist _ _)
   have hfreshL : ∀ t ∈ m.left.times.drop k, t < m.older.length :=
     fun t ht => m.older.ancestry_time_lt _ (List.mem_of_mem_drop ht)
   have hfreshR : ∀ t ∈ m.right.times.drop k, t < m.older.length :=
     fun t ht => m.older.ancestry_time_lt _ (List.mem_of_mem_drop ht)
   have hcross : ∀ t ∈ m.left.times.drop k, ∀ u ∈ m.right.times.drop k, t ≠ u := by
     intro t ht u hu he
-    have htl : m.left.times.drop k = (m.left.walk.drop k).steps.map
-        (fun s => m.older.stamp s.1) := by
-      simpa only [Meeting.left, Walk.drop, List.map_drop] using congrArg (List.drop k)
-        (h.expansion.grown.ancestry_times_eq_stamp m.current.input.var)
-    have htr : m.right.times.drop k = (m.right.walk.drop k).steps.map
-        (fun s => m.older.stamp s.1) := by
-      simpa only [Meeting.right, Walk.drop, List.map_drop] using congrArg (List.drop k)
-        (h.expansion.grown.ancestry_times_eq_stamp m.output.var)
-    rw [htl] at ht
-    rw [htr] at hu
+    dsimp only [Meeting.left, Meeting.right] at ht hu
+    rw [h.ancestry_times_drop] at ht
+    rw [h.ancestry_times_drop] at hu
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp ht
     obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hu
     have hzfull := List.mem_of_mem_drop hz
@@ -711,7 +695,7 @@ theorem Trace.blossom_times_nodup (h : Trace sem f m) {b : BlossomData F}
         (m.older.ancestry v).walk.steps[k]? = some x → (inArc m.older.stamp x).copy = c →
         ∀ t' ∈ (m.older.ancestry v).times.drop (k + 1), c.2 < t' := by
       intro v x hx hxc t' ht'
-      rw [h.expansion.grown.ancestry_times_eq_stamp v, ← List.map_drop] at ht'
+      rw [h.ancestry_times_drop] at ht'
       obtain ⟨w, hw, rfl⟩ := List.mem_map.mp ht'
       exact (congrArg Prod.snd hxc) ▸ h.stamp_gt_of_drop_succ hx hw
     apply List.nodup_append.mpr
