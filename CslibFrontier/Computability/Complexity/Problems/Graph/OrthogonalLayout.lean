@@ -73,9 +73,7 @@ theorem getElem_orthogonalRoutes_endpoint (G : Graph) (ports : List (Fin 3 × Fi
       Layout.route G.vertices.length i (G.vertices.idxOf (G.edgeEndpoint i false))
         (G.vertices.idxOf (G.edgeEndpoint i true)) (portAt ports i false)
         (portAt ports i true) := by
-  rw [getElem_orthogonalRoutes G ports hi]
-  simp only [edgeEndpoint, portAt, Bool.false_eq_true, ↓reduceIte]
-  rw [List.getD_eq_getElem _ _ hi]
+  simp [getElem_orthogonalRoutes G ports hi, edgeEndpoint, portAt, hi]
 
 /-- Every route has the actual indexed graph edge's endpoints, regardless of the port table. -/
 theorem orthogonalRoutes_endpoints (G : Graph) (ports : List (Fin 3 × Fin 3))
@@ -124,9 +122,8 @@ theorem mem_crossingCandidates (G : Graph) (ports : List (Fin 3 × Fin 3))
     {i j : ℕ} (hi : i < G.edges.length) (hj : j < G.edges.length) (side : Bool) :
     (Layout.column (G.vertices.idxOf (G.edgeEndpoint j side)) (portAt ports j side),
         Layout.track G.vertices.length i) ∈ G.crossingCandidates ports := by
-  apply List.mem_flatMap.2
-  refine ⟨i, List.mem_range.2 hi, List.mem_flatMap.2 ⟨j, List.mem_range.2 hj, ?_⟩⟩
-  cases side <;> simp
+  refine List.mem_flatMap.2 ⟨i, List.mem_range.2 hi,
+    List.mem_flatMap.2 ⟨j, List.mem_range.2 hj, by cases side <;> simp⟩⟩
 
 /-- Every contact in the canonical drawing lies at a vertex center or in an explicit list of
 `2m²` candidate crossing sites. Strict transversality is supplied by `Layout.route_contact`;
@@ -144,25 +141,19 @@ theorem orthogonalRoutes_contact_cover (G : Graph)
     List.idxOf_lt_length_iff.2 (edgeEndpoint_mem G hG hk side)
   rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hp
   rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hq
-  have hc := Layout.route_contact (hindex i hi false) (hindex i hi true)
-    (hindex j hj false) (hindex j hj true) hij
-    (canonical_index_port_ne G hG hdeg hi hj hij false false)
-    (canonical_index_port_ne G hG hdeg hi hj hij false true)
-    (canonical_index_port_ne G hG hdeg hi hj hij true false)
-    (canonical_index_port_ne G hG hdeg hi hj hij true true) hp hq
-  rcases hc with ⟨w, hw, _, hp⟩ | h | h | h | h
-  · refine Or.inl ⟨w, ?_, hp⟩
-    rcases hw with rfl | rfl
-    · exact hindex i hi false
-    · exact hindex i hi true
-  · exact Or.inr ⟨_, mem_crossingCandidates G G.canonicalPorts hi hj false,
-      Layout.bridge_stem_crossing_point h⟩
-  · exact Or.inr ⟨_, mem_crossingCandidates G G.canonicalPorts hi hj true,
-      Layout.bridge_stem_crossing_point h⟩
-  · exact Or.inr ⟨_, mem_crossingCandidates G G.canonicalPorts hj hi false,
-      Layout.bridge_stem_crossing_point h⟩
-  · exact Or.inr ⟨_, mem_crossingCandidates G G.canonicalPorts hj hi true,
-      Layout.bridge_stem_crossing_point h⟩
+  rcases Layout.route_contact (hindex i hi false) (hindex i hi true)
+      (hindex j hj false) (hindex j hj true) hij
+      (canonical_index_port_ne G hG hdeg hi hj hij false false)
+      (canonical_index_port_ne G hG hdeg hi hj hij false true)
+      (canonical_index_port_ne G hG hdeg hi hj hij true false)
+      (canonical_index_port_ne G hG hdeg hi hj hij true true) hp hq with
+    ⟨w, rfl | rfl, _, hp⟩ | h | h | h | h
+  · exact Or.inl ⟨_, hindex i hi false, hp⟩
+  · exact Or.inl ⟨_, hindex i hi true, hp⟩
+  · exact Or.inr ⟨_, mem_crossingCandidates _ _ hi hj false, Layout.bridge_stem_crossing_point h⟩
+  · exact Or.inr ⟨_, mem_crossingCandidates _ _ hi hj true, Layout.bridge_stem_crossing_point h⟩
+  · exact Or.inr ⟨_, mem_crossingCandidates _ _ hj hi false, Layout.bridge_stem_crossing_point h⟩
+  · exact Or.inr ⟨_, mem_crossingCandidates _ _ hj hi true, Layout.bridge_stem_crossing_point h⟩
 
 /-- Exactly five segments are emitted for every edge occurrence. -/
 theorem orthogonalRoutes_segments (G : Graph) (ports : List (Fin 3 × Fin 3)) :
@@ -182,13 +173,12 @@ theorem orthogonalRoutes_wireLength_le (G : Graph) (ports : List (Fin 3 × Fin 3
     obtain ⟨⟨edge, i⟩, he, rfl⟩ := List.mem_map.1 hr
     obtain ⟨hi, heq⟩ := List.getElem?_eq_some_iff.1 (List.mem_zipIdx_iff_getElem?.1 he)
     change G.edges[i] = edge at heq
-    have hm : edge ∈ G.edges := by grind
-    exact Layout.route_wireLength_le hi (List.idxOf_lt_length_iff.2 (hG edge hm).1)
-      (List.idxOf_lt_length_iff.2 (hG edge hm).2) _ _
+    have hm := hG edge (heq ▸ List.getElem_mem hi)
+    exact Layout.route_wireLength_le hi (List.idxOf_lt_length_iff.2 hm.1)
+      (List.idxOf_lt_length_iff.2 hm.2) _ _
   calc
     _ ≤ ((G.orthogonalRoutes ports).map fun _ =>
-          80 * G.vertices.length + 10 * G.edges.length).sum :=
-      List.sum_le_sum hbound
+          80 * G.vertices.length + 10 * G.edges.length).sum := List.sum_le_sum hbound
     _ = G.edges.length * (80 * G.vertices.length + 10 * G.edges.length) := by simp
     _ ≤ 90 * (G.vertices.length + G.edges.length) ^ 2 := by nlinarith
 

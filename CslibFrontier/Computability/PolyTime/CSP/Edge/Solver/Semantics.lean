@@ -41,29 +41,17 @@ the full model guard rejects it, including a false nullary relation. -/
 theorem initialRows_spec (F : CSP Table ℕ) (h : checkModel F = true) (i : Fin F.length) :
     F[i.val].rel.sem ((initialRows F).getD i.val []) = true ∧
       ((initialRows F).getD i.val []).length = F[i.val].scope.length := by
-  have hc : F.all checkConstraint = true := by
-    have hh : checkEdge F = true ∧ F.all checkConstraint = true := by
-      simpa only [checkModel, Bool.and_eq_true] using h
-    exact hh.2
-  have hrow (i : Fin F.length) :
-      F[i.val].rel.sem ((initialRows F).getD i.val []) = true ∧
-      ((initialRows F).getD i.val []).length = F[i.val].scope.length := by
-    have hi := List.all_eq_true.mp hc _ (List.getElem_mem i.isLt)
-    simp only [checkConstraint, Bool.and_eq_true, decide_eq_true_eq,
-      Bool.not_eq_true', List.isEmpty_eq_false_iff] at hi
-    have hw := hi.1.1.1
-    have ha := hi.1.1.2
-    have hn := hi.1.2
-    have hm : F[i.val].rel.rows.headD [] ∈ F[i.val].rel.rows := by
-      cases he : F[i.val].rel.rows with
-      | nil => exact (hn he).elim
-      | cons r rs => simp
-    have he : (initialRows F).getD i.val [] = F[i.val].rel.rows.headD [] := by
-      simp [initialRows, i.isLt]
-    rw [he]
-    exact ⟨Table.sem_eq_true.mpr ⟨hw, hm⟩,
-      (Table.wellFormed_eq_true.mp hw _ hm).trans ha⟩
-  exact hrow i
+  have hc : F.all checkConstraint = true := ((Bool.and_eq_true _ _).mp h).2
+  have hi := List.all_eq_true.mp hc _ (List.getElem_mem i.isLt)
+  simp only [checkConstraint, Bool.and_eq_true, decide_eq_true_eq,
+    Bool.not_eq_true', List.isEmpty_eq_false_iff] at hi
+  have hm : F[i.val].rel.rows.headD [] ∈ F[i.val].rel.rows := by
+    cases he : F[i.val].rel.rows with
+    | nil => exact (hi.1.2 he).elim
+    | cons _ _ => simp
+  rw [show (initialRows F).getD i.val [] = F[i.val].rel.rows.headD [] by simp [initialRows, i.isLt]]
+  exact ⟨Table.sem_eq_true.mpr ⟨hi.1.1.1, hm⟩,
+    (Table.wellFormed_eq_true.mp hi.1.1.1 _ hm).trans hi.1.1.2⟩
 
 /-- Choosing one actual first stored row per constraint gives valid occurrence labels,
 including true nullaries and repeated stored rows. -/
@@ -111,12 +99,9 @@ theorem no_inconsistent_iff (F : CSP Table ℕ) (bits : List Bool) :
       (defects (EdgeAugmenting.labeling F bits)).card = 0 := by
   simp only [List.any_eq_false, EdgeAugmenting.inconsistent_eq, decide_eq_true_eq,
     Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem, mem_defects]
-  constructor
-  · intro h v hi
-    have hv := hi
-    obtain ⟨o, _, ho, _, _⟩ := hv
-    exact h v (ho ▸ o.var_mem) hi
-  · exact fun h v _ => h v
+  refine ⟨fun h v hi => ?_, fun h v _ => h v⟩
+  have ⟨o, _, ho, _, _⟩ := hi
+  exact h v (ho ▸ o.var_mem) hi
 
 /-- Every returned optimizer buffer has actual width and is a minimum over all valid original
 occurrence labelings. The complete model guard is derived from its successful return. -/
@@ -126,11 +111,8 @@ theorem optimize_result_spec (F : CSP Table ℕ) {bits : List Bool}
         IsOptimalLabeling Table.sem (EdgeAugmenting.labeling F bits) := by
   by_cases hm : checkModel F = true
   · obtain ⟨out, ho, hopt⟩ := optimize_spec F hm
-    have he : out = bits := Option.some.inj (ho.symm.trans h)
-    subst out
-    exact ⟨hm, optimize_width F h, hopt⟩
-  · simp only [optimize, hm, Bool.false_eq_true, ↓reduceIte] at h
-    contradiction
+    exact ⟨hm, optimize_width F h, Option.some.inj (ho.symm.trans h) ▸ hopt⟩
+  · simp [optimize, hm] at h
 
 /-- SAT correctness on the full raw input: acceptance is equivalent to passing the actual
 finite model checks and satisfiability under `Table.sem`. No runtime assumption is supplied. -/
@@ -138,21 +120,14 @@ theorem decideSAT_eq_true (F : CSP Table ℕ) :
     decideSAT F = true ↔ checkModel F = true ∧ F.Satisfiable Table.sem := by
   by_cases hm : checkModel F = true
   · obtain ⟨bits, hb, ho⟩ := optimize_spec F hm
-    have hz : (defects (EdgeAugmenting.labeling F bits)).card = 0 ↔
-        F.Satisfiable Table.sem := by
+    have hz : (defects (EdgeAugmenting.labeling F bits)).card = 0 ↔ F.Satisfiable Table.sem := by
       rw [satisfiable_iff_exists_zero_defects Table.sem]
-      constructor
-      · exact fun h => ⟨_, ho.1, h⟩
-      · rintro ⟨g, hg, he⟩
-        have := ho.2 g hg
-        omega
-    simp only [decideSAT, solve, hb, Option.bind_eq_bind, Option.bind_some]
+      exact ⟨fun h => ⟨_, ho.1, h⟩, fun ⟨g, hg, _⟩ => by have := ho.2 g hg; omega⟩
     have hh := (no_inconsistent_iff F bits).trans hz
-    cases he : F.vars.any (EdgeAugmenting.inconsistent F bits) with
-    | false => simp [hm, hh.mp he]
-    | true =>
-      have hn : ¬ F.Satisfiable Table.sem := fun hs => Bool.noConfusion (he.symm.trans (hh.mpr hs))
-      simp [hm, hn]
+    simp only [decideSAT, solve, hb, Option.bind_eq_bind, Option.bind_some]
+    cases he : F.vars.any (EdgeAugmenting.inconsistent F bits)
+    · simp [hm, hh.mp he]
+    · simp [hm, mt hh.mpr (by simp [he])]
   · simp [decideSAT, solve, optimize, hm]
 
 end Cslib.Complexity.CSP.EdgeSolver
