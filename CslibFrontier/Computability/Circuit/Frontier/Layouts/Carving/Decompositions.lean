@@ -496,18 +496,10 @@ private theorem mem_nodeChildren_iff (s : BinTree α) {x c : s.Node} :
   | leaf _ => rcases x with ⟨⟩; rcases c with ⟨⟩; dsimp only [nodeRoot]; simp
   | node l r ihl ihr =>
     have hr : (BinTree.node l r).nodeRoot = Sum.inl () := rfl
-    rcases x with ⟨⟩ | x | y
-    · rcases c with ⟨⟩ | cx | cy <;>
-        simp only [nodeChildren, Finset.mem_insert, Finset.mem_singleton, ne_eq, hr, nodeParent] <;>
-        (try split_ifs) <;> simp_all
-    · rcases c with ⟨⟩ | cx | cy <;>
-        simp only [nodeChildren, Finset.mem_map, Function.Embedding.coeFn_mk, Function.comp_apply,
-          ne_eq, hr, nodeParent, ihl] <;>
-        (try split_ifs) <;> simp_all
-    · rcases c with ⟨⟩ | cx | cy <;>
-        simp only [nodeChildren, Finset.mem_map, Function.Embedding.coeFn_mk, Function.comp_apply,
-          ne_eq, hr, nodeParent, ihr] <;>
-        (try split_ifs) <;> simp_all
+    rcases x with ⟨⟩ | x | y <;> rcases c with ⟨⟩ | cx | cy <;>
+      simp only [nodeChildren, Finset.mem_insert, Finset.mem_singleton, Finset.mem_map,
+        Function.Embedding.coeFn_mk, Function.comp_apply, ne_eq, hr, nodeParent, ihl, ihr] <;>
+      (try split_ifs) <;> simp_all
 
 private theorem card_nodeChildren (s : BinTree α) (x : s.Node) :
     (s.nodeChildren x).card = if s.isLeafNode x then 0 else 2 := by
@@ -603,20 +595,10 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
         · exact ⟨fun h => (hdepth_lt hy).ne (congrArg depth h), Or.inr rfl⟩
     have hT : T.IsTree := by
       have hreach (z : TopNode l r) : T.Reachable z root := by
-        suffices ∀ d (z : TopNode l r), depth z ≤ d → T.Reachable z root from
-          this (depth z) z le_rfl
-        intro d
-        induction d with
-        | zero =>
-          intro z hz
-          rw [(hdepth_zero z).mp (Nat.eq_zero_of_le_zero hz)]
-        | succ d ih =>
-          intro z hz
+        induction z using (measure depth).wf.induction with | h z ih =>
           by_cases hzr : z = root
           · rw [hzr]
-          · have hadjz : T.Adj z (par z) := hadj.mpr (Or.inl ⟨hzr, rfl⟩)
-            exact hadjz.reachable.trans (ih (par z) (Nat.lt_succ_iff.mp
-              ((hdepth_lt hzr).trans_le hz)))
+          · exact (hadj.mpr (Or.inl ⟨hzr, rfl⟩)).reachable.trans (ih _ (hdepth_lt hzr))
       rw [SimpleGraph.isTree_iff_connected_and_card]
       refine ⟨{ preconnected := fun x y => (hreach x).trans (hreach y).symm
                 nonempty := ⟨root⟩ }, ?_⟩
@@ -737,46 +719,22 @@ theorem exists_subcubicLeafTree_of_binTree (t : BinTree α) (hp : t.IsPartition 
         leaf := leafEquiv }
     -- Relate `hT.parent root z` to `par z` by induction on `depth z` using `adj_iff_parent`.
     have hparent_eq : ∀ {z : TopNode l r}, z ≠ root → hT.parent root z = par z := by
-      suffices ∀ d (z : TopNode l r), depth z ≤ d → z ≠ root → hT.parent root z = par z from
-        fun {z} hz => this (depth z) z le_rfl hz
-      intro d
-      induction d with
-      | zero =>
-        intro z hz hne
-        exact absurd ((hdepth_zero z).mp (Nat.eq_zero_of_le_zero hz)) hne
-      | succ d ih =>
-        intro z hz hne
-        have hadjz : T.Adj z (par z) := hadj.mpr (Or.inl ⟨hne, rfl⟩)
-        rcases (hT.adj_iff_parent root).mp hadjz with ⟨-, hpz⟩ | ⟨hpr, hpp⟩
+      intro z hne
+      induction z using (measure depth).wf.induction with | h z ih =>
+        rcases (hT.adj_iff_parent root).mp (hadj.mpr (Or.inl ⟨hne, rfl⟩)) with ⟨-, hpz⟩ | ⟨hpr, hpp⟩
         · exact hpz
-        · exfalso
-          have hlt := hdepth_lt hne
-          have hp_eq := ih (par z) (Nat.lt_succ_iff.mp (hlt.trans_le hz)) hpr
-          rw [hp_eq] at hpp
+        · have hlt := hdepth_lt hne
+          rw [ih _ hlt hpr] at hpp
           have hlt2 := hdepth_lt hpr
           rw [hpp] at hlt2
-          exact lt_asymm hlt hlt2
+          exact absurd hlt (lt_asymm hlt2)
     have hdepth_eq_len (w : TopNode l r) : depth w = (hT.pathTo root w).length := by
-      suffices ∀ m (w : TopNode l r), (hT.pathTo root w).length ≤ m →
-          depth w = (hT.pathTo root w).length from this _ w le_rfl
-      intro m
-      induction m with
-      | zero =>
-        intro w hw
-        have hwr : w = root := by
-          by_contra hne
-          cases hq : hT.pathTo root w with
-          | nil => exact hne rfl
-          | cons _ _ => rw [hq] at hw; simp at hw
-        rw [hwr, (hdepth_zero root).mpr rfl, SimpleGraph.IsTree.pathTo_self]
-        rfl
-      | succ m ihm =>
-        intro w hw
+      induction w using (measure depth).wf.induction with | h w ih =>
         by_cases hwr : w = root
         · rw [hwr, (hdepth_zero root).mpr rfl, SimpleGraph.IsTree.pathTo_self]; rfl
         · have hlen_p := hT.length_pathTo_parent root hwr
           rw [hparent_eq hwr] at hlen_p
-          have hp := ihm (par w) (by omega)
+          have hp := ih _ (hdepth_lt hwr)
           have hst := hdepth_step hwr
           omega
     have hdepth_lt_card (w : TopNode l r) : depth w < Fintype.card (TopNode l r) := by
@@ -912,21 +870,13 @@ theorem exists_binTree_of_subcubicLeafTree {ι : Type*} [Finite ι] [Nonempty α
       rw [ncard_pair hne] at hnc
       omega
     -- Build a `BinTree` on `D.cutSet t (parent r₀ t)` for any `t ≠ r₀` by recursion on fuel.
-    have hrec : ∀ fuel (t : ι), Fintype.card ι - (D.isTree.pathTo r₀ t).length ≤ fuel →
-        t ≠ r₀ →
+    have hrec (t : ι) : t ≠ r₀ →
         ∃ bt : BinTree α, bt.IsPartition (D.cutSet t (D.isTree.parent r₀ t)) ∧
           ∀ S, bt.IsSubtreeSet S → ∃ u v, D.tree.Adj u v ∧ D.cutSet u v = S := by
-      intro fuel
-      induction fuel with
-      | zero =>
-        intro t hfuel _
-        exfalso
-        have hnd := (D.isTree.isPath_pathTo r₀ t).support_nodup
-        have hle := hnd.length_le_card
-        rw [SimpleGraph.Walk.length_support] at hle
-        omega
-      | succ fuel ih =>
-        intro t hfuel ht
+      intro ht
+      induction t using
+        (measure fun t => Fintype.card ι - (D.isTree.pathTo r₀ t).length).wf.induction with
+      | h t ih =>
         let p := D.isTree.parent r₀ t
         have htp : D.tree.Adj t p := D.isTree.adj_parent r₀ ht
         let ch : Finset ι := (D.tree.neighborFinset t).erase p
@@ -946,7 +896,8 @@ theorem exists_binTree_of_subcubicLeafTree {ι : Type*} [Finite ι] [Nonempty α
           · exact absurd hpt.symm hcp
           · exact hcr
         have hch_fuel {c : ι} (hc : c ∈ ch) :
-            Fintype.card ι - (D.isTree.pathTo r₀ c).length ≤ fuel := by
+            Fintype.card ι - (D.isTree.pathTo r₀ c).length <
+              Fintype.card ι - (D.isTree.pathTo r₀ t).length := by
           obtain ⟨hcr, hpct⟩ := hch_parent hc
           have hlen := D.isTree.length_pathTo_parent r₀ hcr
           rw [hpct] at hlen
@@ -1021,11 +972,9 @@ theorem exists_binTree_of_subcubicLeafTree {ι : Type*} [Finite ι] [Nonempty α
           | right hs => exact hbt₂_sub S hs
     -- Combine `{a₀}` at `r₀` with `c₀`.
     have hc₀_ne : c₀ ≠ r₀ := hc₀_adj.ne'
-    have hpc₀ : D.isTree.parent r₀ c₀ = r₀ := by
-      rcases (D.isTree.adj_iff_parent r₀).mp hc₀_adj with ⟨hr, -⟩ | ⟨-, hp⟩
-      · exact absurd rfl hr
-      · exact hp
-    obtain ⟨bt₀, hbt₀_part, hbt₀_sub⟩ := hrec (Fintype.card ι) c₀ (Nat.sub_le _ _) hc₀_ne
+    have hpc₀ : D.isTree.parent r₀ c₀ = r₀ :=
+      (((D.isTree.adj_iff_parent r₀).mp hc₀_adj).resolve_left fun h => h.1 rfl).2
+    obtain ⟨bt₀, hbt₀_part, hbt₀_sub⟩ := hrec c₀ hc₀_ne
     rw [hpc₀] at hbt₀_part
     have hr₀_side : D.isTree.treeSide r₀ c₀ = {r₀} := by
       rw [D.isTree.treeSide_eq_insert_biUnion hc₀_adj]
@@ -1308,13 +1257,9 @@ private theorem expandSrcEdges_spec (G : Multigraph V E) [Finite E] (t : BinTree
       · exact Or.inl ⟨l.leafSet ∪ r.leafSet, by simpa using BinTree.IsSubtreeSet.here (.node l r),
           rfl⟩
       · rw [ht₁] at ihl'
-        rcases ihl'.2 A hs₁ with ⟨Y, hY, rfl⟩ | hv
-        · exact Or.inl ⟨Y, .left hY, rfl⟩
-        · exact Or.inr hv
+        exact (ihl'.2 A hs₁).imp (fun ⟨Y, hY, h⟩ => ⟨Y, .left hY, h⟩) id
       · rw [ht₂] at ihr'
-        rcases ihr'.2 A hs₂ with ⟨Y, hY, rfl⟩ | hv
-        · exact Or.inl ⟨Y, .right hY, rfl⟩
-        · exact Or.inr hv
+        exact (ihr'.2 A hs₂).imp (fun ⟨Y, hY, h⟩ => ⟨Y, .right hY, h⟩) id
 
 /-- **Branchwidth is at most carving-width on finite loopless cubic multigraphs.** -/
 theorem branchwidth_le_carvingWidth (G : Multigraph V E) [Finite V] [Finite E] (hloop : G.Loopless)
@@ -1325,11 +1270,14 @@ theorem branchwidth_le_carvingWidth (G : Multigraph V E) [Finite V] [Finite E] (
   · have := hV
     obtain ⟨v₀⟩ := hV
     obtain ⟨t, hp, hcw⟩ := G.exists_binTree_carvingWidth
-    have hv₀_mem : v₀ ∈ t.leaves := by
-      have : v₀ ∈ t.leafSet := hp.2 ▸ trivial
-      exact this
+    have hsing (v : V) : t.IsSubtreeSet {v} :=
+      BinTree.IsSubtreeSet.singleton_of_mem (show v ∈ t.leafSet from hp.2 ▸ trivial)
+    have hmid (Y : Set V) (hY : t.IsSubtreeSet Y) :
+        (G.middleSet {e : E | G.src e ∈ Y}).ncard ≤ G.carvingWidth :=
+      ((ncard_le_ncard (G.middleSet_src_preimage_subset Y)).trans
+        (ncard_image_le (toFinite _))).trans (hcw Y hY)
     have hcw_ge_three : 3 ≤ G.carvingWidth := by
-      have hsub := hcw {v₀} (BinTree.IsSubtreeSet.singleton_of_mem hv₀_mem)
+      have hsub := hcw {v₀} (hsing v₀)
       rwa [G.edgeCut_singleton hloop v₀, h3 v₀] at hsub
     have hspec := G.expandSrcEdges_spec t hp
     obtain ⟨e₀, _⟩ : (G.incidenceSet v₀).Nonempty :=
@@ -1337,28 +1285,17 @@ theorem branchwidth_le_carvingWidth (G : Multigraph V E) [Finite V] [Finite E] (
     cases hexp : G.expandSrcEdges t with
     | none =>
       rw [hexp] at hspec
-      exfalso
-      have : e₀ ∈ ({e : E | G.src e ∈ (Set.univ : Set V)} : Set E) := trivial
-      rw [hspec] at this
-      exact this
+      exact (eq_empty_iff_forall_notMem.mp hspec e₀ trivial).elim
     | some te =>
       rw [hexp] at hspec
       have huniv : {e : E | G.src e ∈ (Set.univ : Set V)} = Set.univ := by ext; simp
       rw [huniv] at hspec
       refine G.branchwidth_le_of_binTree hspec.1 fun A hA => ?_
       rcases hspec.2 A hA with ⟨Y, hY, rfl⟩ | ⟨v, hv⟩
-      · exact ((ncard_le_ncard (G.middleSet_src_preimage_subset Y)).trans
-          (ncard_image_le (toFinite _))).trans (hcw Y hY)
+      · exact hmid Y hY
       · by_cases hfull : A = {e : E | G.src e = v}
         · subst hfull
-          have hv_mem : v ∈ t.leaves := by
-            have : v ∈ t.leafSet := by rw [hp.2]; trivial
-            exact this
-          have heq : {e : E | G.src e = v} = {e : E | G.src e ∈ ({v} : Set V)} := by ext; simp
-          rw [heq]
-          exact ((ncard_le_ncard (G.middleSet_src_preimage_subset {v})).trans
-            (ncard_image_le (toFinite _))).trans
-            (hcw {v} (BinTree.IsSubtreeSet.singleton_of_mem hv_mem))
+          exact hmid {v} (hsing v)
         · have hssub : A ⊂ {e : E | G.src e = v} := ssubset_of_subset_of_ne hv hfull
           have hle_inc : {e : E | G.src e = v} ⊆ G.incidenceSet v := fun e he => Or.inl he
           have hcard_lt : A.ncard < 3 :=
