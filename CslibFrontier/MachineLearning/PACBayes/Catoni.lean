@@ -270,7 +270,8 @@ private theorem lintegral_exp_catoni_le_one {θ : Θ} (hℓ : ∀ z, ℓ θ z �
     fun S => ?_
   · calc ∫ z, exp (-c * ℓ θ z) ∂D ≤ ∫ z, (1 - ℓ θ z * (1 - exp (-c))) ∂D :=
           integral_mono (Integrable.of_mem_Icc 0 1 hgm.aemeasurable (ae_of_all _ hg))
-            ((integrable_const 1).sub (hint_ell.mul_const _)) fun z => exp_neg_mul_le_catoniArg (hℓ z)
+            ((integrable_const 1).sub (hint_ell.mul_const _)) fun z =>
+              exp_neg_mul_le_catoniArg (hℓ z)
       _ = 1 - trueRisk ℓ D θ * (1 - exp (-c)) := by
           rw [integral_sub (integrable_const 1) (hint_ell.mul_const _), integral_mul_const,
             integral_const, probReal_univ, smul_eq_mul, one_mul, trueRisk_def]
@@ -560,7 +561,8 @@ private theorem measure_pi_hoeffding_core
       (measurable_empiricalRisk_prod hℓ m))).exp.ennreal_ofReal
   have hmom (θ : Θ) : ∫⁻ S, F S θ ∂Measure.pi (fun _ : Fin m => D) ≤ ENNReal.ofReal B := by
     have hθm : Measurable (ℓ θ) := hℓ.comp (measurable_const.prodMk measurable_id)
-    have hmgf := (Cslib.Probability.hasSubgaussianMGF_integral_sub_sum_div D hθm (hℓ01 θ) hm).mgf_le t
+    have hmgf :=
+      (Cslib.Probability.hasSubgaussianMGF_integral_sub_sum_div D hθm (hℓ01 θ) hm).mgf_le t
     have hint : Integrable (fun S : Fin m → Z =>
         exp (t * (trueRisk ℓ D θ - empiricalRisk ℓ S θ))) (Measure.pi fun _ : Fin m => D) :=
       Integrable.of_mem_Icc 0 (exp |t|)
