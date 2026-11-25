@@ -41,23 +41,19 @@ private theorem exists_word_slices (n m : ℕ) (R : ℕ → List Bool → Prop) 
     constructor
     · rintro ⟨t, ht, h⟩ i hi
       refine ⟨(t.drop (i * m)).take m, ?_, h i hi⟩
-      simp only [List.length_take, List.length_drop, ht, Nat.add_mul, Nat.one_mul]
       have hmul := Nat.mul_le_mul_right m hi
-      simp only [Nat.succ_mul] at hmul
+      simp only [List.length_take, List.length_drop, ht, Nat.succ_mul] at *
       omega
     · intro h
       obtain ⟨w, hw, hR⟩ := h 0 (by omega)
-      obtain ⟨t, ht, hT⟩ := (ih (fun i => R (i + 1))).mpr
-        (fun i hi => h (i + 1) (by omega))
+      obtain ⟨t, ht, hT⟩ := (ih fun i => R (i + 1)).mpr fun i hi => h (i + 1) (by omega)
       refine ⟨w ++ t, by simp [hw, ht, Nat.succ_mul, Nat.add_comm], fun i hi => ?_⟩
       cases i with
       | zero => simpa [← hw] using hR
       | succ i =>
         have heq : (w ++ t).drop ((i + 1) * m) = t.drop (i * m) := by
-          rw [Nat.add_mul, Nat.one_mul, Nat.add_comm, ← hw, ← List.drop_drop,
-            List.drop_left]
-        rw [heq]
-        exact hT i (by omega)
+          rw [Nat.add_mul, Nat.one_mul, Nat.add_comm, ← hw, ← List.drop_drop, List.drop_left]
+        exact heq ▸ hT i (by omega)
 
 variable {α : Type} {enc : α ↪ List Bool} {k : ℕ}
 
@@ -71,9 +67,7 @@ theorem mem_PiP_of_forall_lt {N : α → ℕ}
   · subst k
     rw [PiP_zero] at hB ⊢
     obtain ⟨V, hV, hB⟩ := hB
-    exact ⟨fun a => (List.range (N a)).all (fun i => V (a, i)), by fun_prop,
-      fun a => by simp [hB]⟩
-  have hk : 1 ≤ k := Nat.one_le_iff_ne_zero.mpr hk
+    exact ⟨fun a => (List.range (N a)).all fun i => V (a, i), by fun_prop, fun a => by simp [hB]⟩
   let C : Set (α × List Bool) :=
     {x | x.2.count true < N x.1 → (x.1, x.2.count true) ∈ B}
   have hred : PolyTimeReducible (encPair enc encBits) (encPair enc encUnary)
@@ -82,19 +76,14 @@ theorem mem_PiP_of_forall_lt {N : α → ℕ}
   have hguard : {x : α × List Bool | ¬ x.2.count true < N x.1} ∈ P (encPair enc encBits) :=
     ⟨fun x => !(decide (x.2.count true < N x.1)), by fun_prop, by simp⟩
   have hC : C ∈ PiP k (encPair enc encBits) := by
-    convert union_mem_PiP (PiP_mono (Nat.zero_le k) (PiP_zero ▸ hguard))
-      (hred.mem_PiP hB) using 1
-    ext x
-    simp [C, or_iff_not_imp_left]
-  convert mem_PiP_of_forall_length hk hN hC using 1
+    convert union_mem_PiP (PiP_mono (Nat.zero_le k) (PiP_zero ▸ hguard)) (hred.mem_PiP hB) using 1
+    ext; simp [C, or_iff_not_imp_left]
+  convert mem_PiP_of_forall_length (Nat.one_le_iff_ne_zero.mpr hk) hN hC using 1
   ext a
-  constructor
-  · intro h w _ hw
-    exact h _ hw
-  · intro h i hi
-    have hw : (List.replicate i true ++ List.replicate (N a - i) false).length = N a := by
-      simp only [List.length_append, List.length_replicate]; omega
-    simpa [C, List.count_replicate, hi] using h _ hw
+  refine ⟨fun h w _ hw => h _ hw, fun h i hi => ?_⟩
+  simpa [C, List.count_replicate, hi] using
+    h (List.replicate i true ++ List.replicate (N a - i) false)
+      (by simp only [List.length_append, List.length_replicate]; omega)
 
 /-- Existential levels are closed under polynomially bounded conjunctions. A single existential
 word stores one padded certificate per index; the remaining universal level checks every slice. -/
@@ -117,41 +106,29 @@ theorem mem_SigmaP_of_forall_lt {N : α → ℕ}
     have hred : PolyTimeReducible (encPair (encPair enc encBits) encUnary)
         (encPair (encPair enc encUnary) encBits) C D :=
       ⟨_, by
-        have hpair : ComputableInPolyTime
-            (fun x : (α × List Bool) × ℕ => (x.1.1, x.2))
+        have hpair : ComputableInPolyTime (fun x : (α × List Bool) × ℕ => (x.1.1, x.2))
             (encPair (encPair enc encBits) encUnary) (encPair enc encUnary) := by fun_prop
-        have hp := (ComputableInPolyTime.unary_eval p).comp
-          ((ComputableInPolyTime.encoding_length _).comp hpair)
         have hm := hM.comp (ComputableInPolyTime.fst (encPair enc encBits) encUnary).fst'
-        have hoff : ComputableInPolyTime (fun x : (α × List Bool) × ℕ => x.2 * M x.1.1)
-            (encPair (encPair enc encBits) encUnary) encUnary :=
-          ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.snd _ _).prod hm)
-        have hword : ComputableInPolyTime (fun x : (α × List Bool) × ℕ => x.1.2)
-            (encPair (encPair enc encBits) encUnary) encBits := by fun_prop
-        exact hpair.prod
-          (((hword.bitsDropWithInput hoff).bitsTakeWithInput hm).bitsTakeWithInput hp),
+        exact hpair.prod (((((ComputableInPolyTime.fst _ encUnary).snd').bitsDropWithInput
+          (ComputableInPolyTime.unary_mul.comp
+            ((ComputableInPolyTime.snd _ _).prod hm))).bitsTakeWithInput hm).bitsTakeWithInput
+              ((ComputableInPolyTime.unary_eval p).comp
+                ((ComputableInPolyTime.encoding_length _).comp hpair))),
         fun _ => Iff.rfl⟩
-    have hC := hred.mem_PiP hD
-    have hAll := mem_PiP_of_forall_lt (hN.comp (.fst enc encBits)) hC
-    have hE := mem_SigmaP_of_exists_length (k := k + 1) (by omega)
+    convert mem_SigmaP_of_exists_length (k := k + 1) (by omega)
       (ComputableInPolyTime.unary_mul.comp (hN.prod hM))
-      (PiP_subset_SigmaP_succ k hAll)
-    convert hE using 1
+      (PiP_subset_SigmaP_succ k (mem_PiP_of_forall_lt (hN.comp (.fst enc encBits))
+        (hred.mem_PiP hD))) using 1
     ext a
-    have hle (i : ℕ) (hi : i < N a) :
-        p.eval (encPair enc encUnary (a, i)).length ≤ M a := by
-      apply Polynomial.eval_mono
-      simp only [length_encPair, encUnary_apply, List.length_replicate]
-      omega
     simp only [Set.mem_ofPred_eq, hBD, C]
     change (∀ i < N a, ∃ w : List Bool, w.length = p.eval (encPair enc encUnary (a, i)).length ∧
       ((a, i), w) ∈ D) ↔ ∃ w : List Bool, w.length = N a * M a ∧
         ∀ i < N a, ((a, i), (((w.drop (i * M a)).take (M a)).take
           (p.eval (encPair enc encUnary (a, i)).length))) ∈ D
     rw [exists_word_slices (N a) (M a)
-      (fun i w => ((a, i), w.take (p.eval (encPair enc encUnary (a, i)).length)) ∈ D)]
-    refine forall₂_congr fun i hi => ?_
-    exact (List.exists_length_eq_take_iff
-      (P := fun w => ((a, i), w) ∈ D) (hle i hi)).symm
+      fun i w => ((a, i), w.take (p.eval (encPair enc encUnary (a, i)).length)) ∈ D]
+    refine forall₂_congr fun i hi => (List.exists_length_eq_take_iff
+      (P := fun w => ((a, i), w) ∈ D) (Polynomial.eval_mono (p := p) (by
+        simp only [length_encPair, encUnary_apply, List.length_replicate]; omega))).symm
 
 end Cslib.Complexity

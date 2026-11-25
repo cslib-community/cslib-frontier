@@ -162,10 +162,8 @@ private theorem snoc_eq_restrict {r m : ℕ} {α : Type} {f : Fin m → α} {a :
     (hm : m + 1 ≤ r)
     (hprev : ∀ i : Fin m, f i = g ⟨i.val, Nat.lt_of_lt_of_le i.isLt (Nat.le_of_succ_le hm)⟩)
     (hlast : a = g ⟨m, hm⟩) (i : Fin (m + 1)) :
-    Fin.snoc (α := fun _ => α) f a i = g ⟨i.val, Nat.lt_of_lt_of_le i.isLt hm⟩ := by
-  induction i using Fin.lastCases with
-  | last => simpa using hlast
-  | cast i => simpa using hprev i
+    Fin.snoc (α := fun _ => α) f a i = g ⟨i.val, Nat.lt_of_lt_of_le i.isLt hm⟩ :=
+  Fin.lastCases (by simpa using hlast) (fun j => by simpa using hprev j) i
 
 private theorem ofFn_snoc_chainedFS {r m : ℕ} {Stmt Chal : Type} (hm : m + 1 ≤ r)
     (f : BCSFSQuery Stmt Chal → Chal) (x : Stmt) (roots : Fin r → List Bool)
@@ -200,9 +198,8 @@ private theorem evalPure_bcsChallengesAuxProg {r : ℕ} {Stmt Chal : Type}
 theorem evalPure_bcsChallengesProg {r : ℕ} {Stmt Chal : Type}
     (f : BCSFSQuery Stmt Chal → Chal) (x : Stmt) (roots : Fin r → List Bool) :
     OracleComp.evalPure f (bcsChallengesProg x roots) =
-      bcsChallenge (chainedFS f) x roots := by
-  funext j
-  exact (evalPure_bcsChallengesAuxProg f x roots r le_rfl).2 j
+      bcsChallenge (chainedFS f) x roots :=
+  funext (evalPure_bcsChallengesAuxProg f x roots r le_rfl).2
 
 section ROMProtocol
 
@@ -323,17 +320,12 @@ theorem evalPure_bcsProveROM (hTree : List Bool → List Bool)
     (encSym : Sym → List Bool) (x : Stmt) (w : Wit) :
     OracleComp.evalPure (bcsOracle hTree f) (bcsProveROM iop encSym x w) =
       bcsProve iop (fun _ => hTree) [] encSym (chainedFS f) x w := by
-  obtain ⟨htab, hrt, hch, -⟩ :=
-    evalPure_bcsProveRoundsProg hTree f iop encSym x w r le_rfl
+  obtain ⟨htab, hrt, hch, -⟩ := evalPure_bcsProveRoundsProg hTree f iop encSym x w r le_rfl
   rcases hout : OracleComp.evalPure (bcsOracle hTree f)
     (bcsProveRoundsProg iop encSym x w r le_rfl) with ⟨tables, roots, chals⟩
   rw [hout] at htab hrt hch
-  obtain rfl : tables = bcsHonestTables iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
-    funext htab
-  obtain rfl : roots = bcsHonestRoots iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
-    funext hrt
-  obtain rfl : chals = bcsHonestChallenges iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
-    funext hch
+  rcases (⟨funext htab, funext hrt, funext hch⟩ :
+    tables = _ ∧ roots = _ ∧ chals = _) with ⟨rfl, rfl, rfl⟩
   simp only [bcsProveROM, OracleComp.evalPure_bind, hout, OracleComp.evalPure_liftLeft,
     OracleComp.evalPure_mapM, evalPure_merklePathProg, OracleComp.evalPure_pure, bcsProve,
     bcsHonestOpenings]
@@ -349,10 +341,9 @@ theorem evalPure_bcsVerifyOpeningsProg (hTree : List Bool → List Bool)
         iop.decide x chals (prf.openings.map MerkleOpening.leaf)) := by
   simp only [bcsVerifyOpeningsProg, OracleComp.evalPure_bind, OracleComp.evalPure_mapM,
     OracleComp.evalPure_pure, List.all_map]
-  congr 2
-  refine List.all_congr rfl ?_
-  rintro ⟨⟨j, idx⟩, ⟨val, path⟩⟩
-  simp [MerkleOpening.verify]
+  exact congrArg (fun b => _ && b && _) (List.all_congr rfl (by
+    rintro ⟨⟨_, _⟩, ⟨_, _⟩⟩
+    simp [MerkleOpening.verify]))
 
 @[simp]
 theorem evalPure_bcsVerifyROM (hTree : List Bool → List Bool)
