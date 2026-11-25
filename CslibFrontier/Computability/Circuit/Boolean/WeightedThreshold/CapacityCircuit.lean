@@ -389,11 +389,8 @@ private theorem piecesAtMost_prefixValues (p : Program signature n g) (fixed : F
       have hbb : b t = b t' := by omega
       have hgg : val t = val t' := by
         simp only [b] at hbb
-        by_cases hpos : 0 < slope j₀
-        · simp only [hpos, ite_true] at hbb
-          exact bool_eq_of_toNat_eq _ _ hbb
-        · simp only [hpos, ite_false] at hbb
-          exact bool_eq_of_not_toNat_eq _ _ hbb
+        split_ifs at hbb
+        exacts [bool_eq_of_toNat_eq _ _ hbb, bool_eq_of_not_toNat_eq _ _ hbb]
       rw [hsucc t, hsucc t', fac t t' hπ]
       exact congrArg _ hgg
 
