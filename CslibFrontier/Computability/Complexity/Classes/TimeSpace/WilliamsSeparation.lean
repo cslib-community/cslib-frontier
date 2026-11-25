@@ -293,54 +293,36 @@ private theorem eventually_rpow_sub_mul_log2_le_sq {s : ℕ → ℕ} (hn : ∀�
     simpa only [add_zero, pow_one, Nat.cast_ofNat] using hKbd
   have hsR1 : (1 : ℝ) ≤ s n := by exact_mod_cast (by omega : 1 ≤ s n)
   have hsR0 : (0 : ℝ) < s n := by positivity
-  have hn_le_rpow : (n : ℝ) ≤ (s n : ℝ) ^ α :=
-    (show (n : ℝ) ≤ (s n : ℝ) by exact_mod_cast hns).trans <| by
-      simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le hsR1 hα1
-  have hfl_le_rpow : (⌊(s n : ℝ) ^ (2 - ε)⌋₊ : ℝ) ≤ (s n : ℝ) ^ α :=
-    (Nat.floor_le (Real.rpow_nonneg hsR0.le _)).trans
-      (Real.rpow_le_rpow_of_exponent_le hsR1 (le_max_right 1 (2 - ε)))
-  have hm_le_rpow : ((max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊ : ℕ) : ℝ) ≤ (s n : ℝ) ^ α := by
-    push_cast
-    exact max_le hn_le_rpow hfl_le_rpow
-  have hm_le_sq : max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊ ≤ s n ^ 2 := by
-    have h1 : ((max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊ : ℕ) : ℝ) ≤ ((s n ^ 2 : ℕ) : ℝ) := by
+  set m := max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊ with hm
+  have hm_le_rpow : (m : ℝ) ≤ (s n : ℝ) ^ α := by
+    rw [hm, Nat.cast_max]
+    refine max_le ((show (n : ℝ) ≤ s n by exact_mod_cast hns).trans ?_)
+      ((Nat.floor_le (Real.rpow_nonneg hsR0.le _)).trans ?_)
+    · simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le hsR1 hα1
+    · exact Real.rpow_le_rpow_of_exponent_le hsR1 (le_max_right 1 (2 - ε))
+  have hm_le_sq : m ≤ s n ^ 2 := by
+    have h1 : (m : ℝ) ≤ ((s n ^ 2 : ℕ) : ℝ) := by
       refine hm_le_rpow.trans ?_
       rw [Nat.cast_pow, ← Real.rpow_natCast (s n : ℝ) 2]
       exact Real.rpow_le_rpow_of_exponent_le hsR1 hα2.le
     exact_mod_cast h1
-  have hlog_sq : Nat.log2 (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊) ≤ 2 * Nat.log2 (s n) + 1 :=
-    log2_le_two_mul_log2_add_one (by omega) hm_le_sq
-  have hlogR : ((Nat.log2 (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊) : ℝ) + 1) ≤
-      2 * ((Nat.log 2 (s n) : ℝ) + 2) := by
-    have hnat : Nat.log2 (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊) + 1 ≤ 2 * (Nat.log 2 (s n) + 2) := by
-      simp only [Nat.log2_eq_log_two] at hlog_sq ⊢
-      omega
-    exact_mod_cast hnat
-  have hreal_bd :
-      ((2 * c * (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊ *
-          (Nat.log2 (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊) + 1)) : ℕ) : ℝ) ≤
-        ((s n ^ 2 : ℕ) : ℝ) := by
-    set m := max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊
-    have hprod :
-        ((2 * c * (m * (Nat.log2 m + 1)) : ℕ) : ℝ) ≤
-          (s n : ℝ) ^ α * (K * ((Nat.log 2 (s n) : ℝ) + 2)) := by
-      simp only [Nat.cast_mul, Nat.cast_add, Nat.cast_one, Nat.cast_ofNat]
-      have hK_le : (2 : ℝ) * (2 * (c : ℝ)) ≤ K := by dsimp only [K]; push_cast; linarith
+  have hlogR : ((Nat.log2 m : ℝ) + 1) ≤ 2 * ((Nat.log 2 (s n) : ℝ) + 2) := by
+    have hlog_sq := log2_le_two_mul_log2_add_one (by omega) hm_le_sq
+    simp only [Nat.log2_eq_log_two] at hlog_sq ⊢
+    exact_mod_cast (by omega : Nat.log 2 m + 1 ≤ 2 * (Nat.log 2 (s n) + 2))
+  have hnat_bd : 2 * c * (m * (Nat.log2 m + 1)) ≤ s n ^ 2 := by
+    have hK_le : (2 : ℝ) * (2 * (c : ℝ)) ≤ K := by dsimp only [K]; push_cast; linarith
+    have h : ((2 * c * (m * (Nat.log2 m + 1)) : ℕ) : ℝ) ≤ ((s n ^ 2 : ℕ) : ℝ) := by
+      push_cast
       calc (2 : ℝ) * c * ((m : ℝ) * ((Nat.log2 m : ℝ) + 1))
           ≤ 2 * c * ((s n : ℝ) ^ α * (2 * ((Nat.log 2 (s n) : ℝ) + 2))) := by gcongr
         _ = (s n : ℝ) ^ α * ((2 * (2 * (c : ℝ))) * ((Nat.log 2 (s n) : ℝ) + 2)) := by ring
         _ ≤ (s n : ℝ) ^ α * (K * ((Nat.log 2 (s n) : ℝ) + 2)) := by gcongr
-    refine hprod.trans ?_
-    calc (s n : ℝ) ^ α * (K * ((Nat.log 2 (s n) : ℝ) + 2))
-        ≤ (s n : ℝ) ^ α * (s n : ℝ) ^ (2 - α) := by gcongr
-      _ = (s n : ℝ) ^ (α + (2 - α)) := (Real.rpow_add hsR0 _ _).symm
-      _ = ((s n ^ 2 : ℕ) : ℝ) := by
-          rw [show α + (2 - α) = (2 : ℝ) by ring, Real.rpow_two, Nat.cast_pow]
-  have hnat_bd :
-      2 * c * (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊ * (Nat.log2 (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊) + 1)) ≤
-        s n ^ 2 := by
-    exact_mod_cast hreal_bd
-  have hone : 1 ≤ max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊ * (Nat.log2 (max n ⌊(s n : ℝ) ^ (2 - ε)⌋₊) + 1) :=
+        _ ≤ (s n : ℝ) ^ α * (s n : ℝ) ^ (2 - α) := by gcongr
+        _ = (s n : ℝ) ^ 2 := by
+          rw [← Real.rpow_add hsR0, show α + (2 - α) = (2 : ℝ) by ring, Real.rpow_two]
+    exact_mod_cast h
+  have hone : 1 ≤ m * (Nat.log2 m + 1) :=
     Nat.mul_pos (lt_of_lt_of_le hn1 (le_max_left _ _)) (Nat.succ_pos _)
   nlinarith
 
@@ -397,9 +379,8 @@ private theorem eventually_sq_div_log2_sq_mul_log2_le_sq {s : ℕ → ℕ}
   set t := s n ^ 2 / L ^ 2
   have hLpos : 0 < L := Nat.succ_pos _
   have hL_ge : 8 * c + 9 ≤ L := by omega
-  have hns_le_t : s n ≤ t := (Nat.le_div_iff_mul_le (pow_pos hLpos 2)).mpr (by
-    calc s n * L ^ 2 ≤ s n * s n := Nat.mul_le_mul_left _ hL2
-      _ = s n ^ 2 := (sq (s n)).symm)
+  have hns_le_t : s n ≤ t := (Nat.le_div_iff_mul_le (pow_pos hLpos 2)).mpr
+    ((Nat.mul_le_mul_left _ hL2).trans_eq (sq (s n)).symm)
   have hmax : max n t = t := max_eq_right (hns.trans hns_le_t)
   have ht_le_sq : t ≤ s n ^ 2 := Nat.div_le_self _ _
   have hlogt : Nat.log2 t + 1 ≤ 2 * L := by
@@ -412,25 +393,18 @@ private theorem eventually_sq_div_log2_sq_mul_log2_le_sq {s : ℕ → ℕ}
       rw [sq L, Nat.div_div_eq_div_mul]
     rw [this]
     exact Nat.div_mul_le_self _ L
-  have ht_log : t * (Nat.log2 t + 1) ≤ 2 * (s n ^ 2 / L) := by
-    calc t * (Nat.log2 t + 1) ≤ t * (2 * L) := Nat.mul_le_mul_left _ hlogt
-      _ = 2 * (t * L) := by ring
-      _ ≤ 2 * (s n ^ 2 / L) := Nat.mul_le_mul_left 2 ht_mul_L
+  have ht_log : t * (Nat.log2 t + 1) ≤ 2 * (s n ^ 2 / L) :=
+    (Nat.mul_le_mul_left _ hlogt).trans (by linarith)
   have hc_mul : (c + 1) * (2 * (s n ^ 2 / L)) ≤ s n ^ 2 := by
-    have hdiv : 2 * (c + 1) * (s n ^ 2 / L) ≤ L * (s n ^ 2 / L) :=
-      Nat.mul_le_mul_right _ (by omega)
-    calc (c + 1) * (2 * (s n ^ 2 / L)) = 2 * (c + 1) * (s n ^ 2 / L) := by ring
-      _ ≤ L * (s n ^ 2 / L) := hdiv
-      _ ≤ s n ^ 2 := Nat.mul_div_le _ L
+    linarith [Nat.mul_le_mul_right (s n ^ 2 / L) (show 2 * (c + 1) ≤ L by omega),
+      Nat.mul_div_le (s n ^ 2) L]
   have hlast : c * (t * (Nat.log2 t + 1)) + c ≤ s n ^ 2 := by
     have hc1 : c * (t * (Nat.log2 t + 1)) ≤ c * (2 * (s n ^ 2 / L)) :=
       Nat.mul_le_mul_left c ht_log
     have hone : c ≤ 2 * (s n ^ 2 / L) := by
-      have hsdiv : c ≤ s n ^ 2 / L := (Nat.le_div_iff_mul_le hLpos).mpr (by
-        calc c * L ≤ L * L := Nat.mul_le_mul_right _ (by omega)
-          _ = L ^ 2 := (sq L).symm
-          _ ≤ s n := hL2
-          _ ≤ s n ^ 2 := Nat.le_self_pow (by decide) _)
+      have hsdiv : c ≤ s n ^ 2 / L := (Nat.le_div_iff_mul_le hLpos).mpr
+        ((Nat.mul_le_mul_right _ (by omega)).trans
+          ((sq L).symm.trans_le (hL2.trans (Nat.le_self_pow (by decide) _))))
       omega
     nlinarith
   simpa only [hmax] using hlast

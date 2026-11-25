@@ -123,16 +123,14 @@ theorem exists_isCircuitTest_le_advantage_one {ε : ℝ} (hε : 0 < ε) (G : Lis
     omega
   set g : BitString 1 → BitString m :=
     fun z => PRG.wordFamily G (fun ℓ => ⌈(2 : ℝ) ^ (ε * ℓ)⌉₊) 1 z with hg_def
-  have hseed (z : BitString 1) : z = (fun _ => z 0) := by
-    funext j
-    rw [Subsingleton.elim j 0]
+  have hseed (z : BitString 1) : z = (fun _ => z 0) :=
+    funext fun j => by rw [Subsingleton.elim j 0]
   set a := g fun _ => false
   set b := g fun _ => true
   have hgz (z : BitString 1) : g z = a ∨ g z = b := by
     rw [hseed z]
     cases z 0
-    · exact Or.inl rfl
-    · exact Or.inr rfl
+    exacts [Or.inl rfl, Or.inr rfl]
   let i₀ : Fin m := ⟨0, by omega⟩
   let i₁ : Fin m := ⟨1, by omega⟩
   have hi : i₀ ≠ i₁ := by simp [i₀, i₁, Fin.ext_iff]
@@ -150,9 +148,8 @@ theorem exists_isCircuitTest_le_advantage_one {ε : ℝ} (hε : 0 < ε) (G : Lis
     · change (a i₀ ^^ a i₁) = (b i₀ ^^ b i₁)
       revert h0 h1
       cases a i₀ <;> cases b i₀ <;> cases a i₁ <;> cases b i₁ <;> simp
-  refine ⟨fun y => _root_.PMF.pure (T y), ⟨T, hTc.trans ?_, rfl⟩, ?_⟩
-  · calc 4 ≤ 2 ^ 3 := by norm_num
-      _ ≤ m ^ 3 := Nat.pow_le_pow_left hm2 3
+  refine ⟨fun y => _root_.PMF.pure (T y),
+    ⟨T, hTc.trans ((Nat.pow_le_pow_left hm2 3).trans' (by norm_num)), rfl⟩, ?_⟩
   have hhalf := two_mul_card_filter_of_flip hTi T hT
   rw [Generator.advantage_pure_eq]
   have hconst (z : BitString 1) : T (g z) = T a := by
@@ -317,9 +314,8 @@ private theorem exists_forall_complexity_le_abs_sub_lt {ℓ m : ℕ} (hm : 60 �
     rw [hc]
     exact_mod_cast hbad
   obtain ⟨g, -, hg⟩ := exists_mem_notMem_of_card_lt_card hlt
-  refine ⟨g, fun T hT => lt_of_not_ge fun h => hg (mem_biUnion.mpr ⟨T, ?_, ?_⟩)⟩
-  · exact mem_computableFunctions_iff_complexity_le.mpr hT
-  · simpa using h
+  exact ⟨g, fun T hT => lt_of_not_ge fun h => hg (mem_biUnion.mpr
+    ⟨T, mem_computableFunctions_iff_complexity_le.mpr hT, by simpa using h⟩)⟩
 
 /-- The corrected output length: `⌈2 ^ (ℓ / 10)⌉` for `ℓ ≥ 2`, and `ℓ` for `ℓ ≤ 1`. -/
 private noncomputable def outputLength (ℓ : ℕ) : ℕ :=
@@ -409,8 +405,7 @@ theorem exists_generator_advantage_lt :
   have hG (ℓ : ℕ) (z : BitString ℓ) : PRG.wordFamily G outputLength ℓ z = g ℓ z := by
     have key : ∀ (w : List Bool) (hw : w.length = ℓ),
         BitString.ofList (outputLength ℓ) (G w) = g ℓ (BitString.ofList ℓ w) := by
-      intro w hw
-      subst hw
+      rintro w rfl
       simp [G]
     change BitString.ofList (outputLength ℓ) (G (List.ofFn z)) = g ℓ z
     rw [key _ (List.length_ofFn), BitString.ofList_ofFn]

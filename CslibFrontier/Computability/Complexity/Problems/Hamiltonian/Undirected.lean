@@ -360,10 +360,9 @@ private theorem exists_eq_gadgets {G : Graph} (n : ℕ) : ∀ (l : List ℕ) (v 
       apply hlast v
       rw [List.getLast?_eq_getElem?, List.length_cons, Nat.add_sub_cancel,
         (by omega : l₁.length = j + 1), List.getElem?_cons_succ, List.getElem?_eq_getElem hj, hjm]
-    have hsucc : l₁[j + 1] = G.splitVertex v 2 := by
-      rcases eq_of_adj_mid (hjm ▸ hch₁.getElem j hj₁) with h | h
-      · exact absurd (h ▸ List.getElem_mem hj₁) hnd₀
-      · exact h
+    have hsucc : l₁[j + 1] = G.splitVertex v 2 :=
+      (eq_of_adj_mid (hjm ▸ hch₁.getElem j hj₁)).resolve_left fun h =>
+        hnd₀ (h ▸ List.getElem_mem hj₁)
     -- The predecessor of `mid(v)` is `in(v)`, so `mid(v)` is the second vertex.
     have hj₀ : j = 0 := by
       rcases j with _ | i
@@ -463,12 +462,10 @@ theorem split_mem_HamCycle_iff (G : Graph) : G.split ∈ HamCycle ↔ G ∈ DirH
       rintro L (h | h)
       · exact ⟨h.nodup_iff.2 hnd, fun x => h.mem_iff.trans (hcov x), h.perm.length_eq ▸ hlen,
           (Cycle.coe_eq_coe.2 h) ▸ hch⟩
-      · refine ⟨h.nodup_iff.2 (List.nodup_reverse.2 hnd),
-          fun x => h.mem_iff.trans (List.mem_reverse.trans (hcov x)), ?_, ?_⟩
-        · rw [h.perm.length_eq, List.length_reverse]
-          exact hlen
-        · rw [Cycle.coe_eq_coe.2 h, chain_reverse_coe (fun _ _ h => h.symm)]
-          exact hch
+      · exact ⟨h.nodup_iff.2 (List.nodup_reverse.2 hnd),
+          fun x => h.mem_iff.trans (List.mem_reverse.trans (hcov x)),
+          by rw [h.perm.length_eq, List.length_reverse]; exact hlen,
+          by rw [Cycle.coe_eq_coe.2 h, chain_reverse_coe fun _ _ h => h.symm]; exact hch⟩
     -- Rotate to start at `in(u)`, and reverse if the cycle then ends at `mid(u)`.
     obtain ⟨L₁, hL, hlast⟩ : ∃ L₁ : List ℕ,
         ((G.splitVertex u 0 :: L₁) ~r (A ++ G.splitVertex u 0 :: B) ∨
@@ -479,11 +476,9 @@ theorem split_mem_HamCycle_iff (G : Graph) : G.split ∈ HamCycle ↔ G ∈ DirH
         (List.isRotated_append (l := A) (l' := G.splitVertex u 0 :: B)).symm
       by_cases h : (G.splitVertex u 0 :: (B ++ A)).getLast? = some (G.splitVertex u 1)
       · obtain ⟨M, hM⟩ := List.getLast?_eq_some_iff.1 h
-        obtain ⟨M', rfl⟩ : ∃ M', M = G.splitVertex u 0 :: M' := by
-          rcases M with _ | ⟨a, M'⟩
-          · simp [splitVertex_eq_splitVertex_iff] at hM
-          · simp only [List.cons_append, List.cons.injEq] at hM
-            exact ⟨M', by rw [hM.1]⟩
+        rcases M with _ | ⟨_, M'⟩
+        · simp [splitVertex_eq_splitVertex_iff] at hM
+        obtain rfl := (List.cons.inj hM).1
         refine ⟨G.splitVertex u 1 :: M'.reverse, Or.inr ?_, Or.inr ⟨_, rfl⟩⟩
         have := hrot.reverse
         rw [hM] at this

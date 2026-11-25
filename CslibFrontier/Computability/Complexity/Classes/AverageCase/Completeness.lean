@@ -245,10 +245,9 @@ theorem distHard_problem : DistHard DistNP problem := by
         (header_polyTime.comp ((ComputableInPolyTime.const c).prod hcode))
     have hNx : ComputableInPolyTime (fun x : List Bool => N.eval x.length) encBits encUnary :=
       (ComputableInPolyTime.unary_eval N).comp ComputableInPolyTime.length_bits
-    have := encode_polyTime (ComputableInPolyTime.const c) hcode
-      (ComputableInPolyTime.unary_sub' hNx hh)
     rw [show f = _ from funext hf]
-    exact this
+    exact encode_polyTime (ComputableInPolyTime.const c) hcode
+      (ComputableInPolyTime.unary_sub' hNx hh)
   refine ⟨⟨f, fun n => N.eval n, P, hfpoly, fun n x _ => ?_, fun n y => ?_⟩⟩
   · -- correctness
     rw [problem_lang, hf, encode_mem_BH_iff, accepts_iff]
@@ -304,21 +303,10 @@ theorem distHard_problem : DistHard DistNP problem := by
       obtain rfl := L.ens.length_eq n x hx
       rw [Probability.PMF.map_apply_of_injective _ hfinj, problem_ens, ← hflen x, hf,
         uniformBH_dist_encode, hP]
-      have hkey := two_pow_length_header_code_mul_le hcdf hden0 c x
-      have h0 : (2 : ℝ≥0∞) ^ (header c (code num den x)).length ≠ 0 := pow_ne_zero _ two_ne_zero
-      calc L.ens.dist x.length x
-          = (2 ^ (header c (code num den x)).length)⁻¹ *
-              (2 ^ (header c (code num den x)).length * L.ens.dist x.length x) := by
-            rw [← mul_assoc, ENNReal.inv_mul_cancel h0 (by finiteness), one_mul]
-        _ ≤ (2 ^ (header c (code num den x)).length)⁻¹ *
-              ((2 ^ (2 * c.length + 4) * (6 * x.length + 5) ^ 2 * (2 * x.length + 1) ^ 2 : ℕ) :
-                ℝ≥0∞) := mul_le_mul_of_nonneg_left hkey zero_le
-        _ = _ := mul_comm _ _
-    · have hzero : (L.ens.dist n).map f y = 0 := by
-        rw [PMF.apply_eq_zero_iff, PMF.support_map]
-        rintro ⟨x, hx, rfl⟩
-        exact hy ⟨x, hx, rfl⟩
-      rw [hzero]
+      rw [← div_eq_mul_inv, ENNReal.le_div_iff_mul_le (Or.inl (pow_ne_zero _ two_ne_zero))
+        (Or.inl (by finiteness)), mul_comm]
+      exact two_pow_length_header_code_mul_le hcdf hden0 c x
+    · rw [(PMF.apply_eq_zero_iff _ _).2 fun h => hy ((PMF.mem_support_map_iff ..).1 h)]
       exact zero_le
 
 /-- **Levin's theorem** [Bogdanov and Trevisan, Theorem 19][BogdanovTrevisan2006]: the

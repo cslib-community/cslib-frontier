@@ -138,20 +138,19 @@ private theorem relocated_cases {G : Graph} (D : PolygonalDrawing G)
   generalize hq : relocatedRoute D v ρ a e = q
   have hq' := hq.symm.trans hroute
   clear hq hroute
-  by_cases h₀ : Dart.vertex (e, false) = v <;>
-    by_cases h₁ : Dart.vertex (e, true) = v
-  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
-    subst q
-    intro i
-    rcases Route.attach_eval_cases a p a i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩ | ⟨heq, hpos⟩
+  -- the first segment, from the new point `a` to the old start
+  have hfirst (h₀ : Dart.vertex (e, false) = v) {q : Route} {i : Fin q.segments}
+      (heq : q.eval i t = AffineMap.lineMap a p.start t) (hpos : q.position i t = t) :
+      q.eval i t = AffineMap.lineMap a (D.cutPort ρ (e, false)) (Route.endTime false t) ∧
+        (Route.endTime false t = 0 → q.AtEnd i t false) :=
+    ⟨by simpa only [Route.endpoint, Route.endTime, Bool.false_eq_true, h₀, ↓reduceIte] using
+        heq.trans (congrArg (fun z => AffineMap.lineMap a z t) hp₀),
+      fun ht => by change t = 0 at ht; simpa [Route.AtEnd, ht] using hpos⟩
+  by_cases h₀ : Dart.vertex (e, false) = v <;> by_cases h₁ : Dart.vertex (e, true) = v <;>
+    simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq' <;> subst q <;> intro i
+  · rcases Route.attach_eval_cases a p a i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩ | ⟨heq, hpos⟩
     · exact Or.inl ⟨j, heq, by simpa [attachmentCount, or_self, h₀] using hpos⟩
-    · refine Or.inr ⟨false, h₀, ?_, ?_⟩
-      · simpa only [Route.endpoint, Route.endTime, Bool.false_eq_true, h₀, ↓reduceIte] using
-          heq.trans
-          (congrArg (fun z => AffineMap.lineMap a z t) hp₀)
-      · intro ht
-        change t = 0 at ht
-        simpa [Route.AtEnd, ht] using hpos
+    · exact Or.inr ⟨false, h₀, hfirst h₀ heq hpos⟩
     · refine Or.inr ⟨true, h₁, ?_, ?_⟩
       · simp only [Route.endTime, ↓reduceIte]
         rw [AffineMap.lineMap_apply_one_sub]
@@ -161,22 +160,10 @@ private theorem relocated_cases {G : Graph} (D : PolygonalDrawing G)
         have ht1 : t = 1 := by change 1 - t = 0 at ht; linarith
         norm_num [p, Route.AtEnd, Route.segments, ht1, Nat.cast_add] at hpos ⊢
         linarith
-  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
-    subst q
-    intro i
-    rcases Route.prepend_eval_cases a p i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩
+  · rcases Route.prepend_eval_cases a p i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩
     · exact Or.inl ⟨j, heq, by simpa [attachmentCount, or_self, h₀] using hpos⟩
-    · refine Or.inr ⟨false, h₀, ?_, ?_⟩
-      · simpa only [Route.endpoint, Route.endTime, Bool.false_eq_true, h₀, ↓reduceIte] using
-          heq.trans
-          (congrArg (fun z => AffineMap.lineMap a z t) hp₀)
-      · intro ht
-        change t = 0 at ht
-        simpa [Route.AtEnd, ht] using hpos
-  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
-    subst q
-    intro i
-    rcases Route.append_eval_cases p a i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩
+    · exact Or.inr ⟨false, h₀, hfirst h₀ heq hpos⟩
+  · rcases Route.append_eval_cases p a i t with ⟨j, heq, hpos⟩ | ⟨heq, hpos⟩
     · exact Or.inl ⟨j, heq, by simpa [attachmentCount, or_self, h₀] using hpos⟩
     · refine Or.inr ⟨true, h₁, ?_, ?_⟩
       · simp only [Route.endTime, ↓reduceIte]
@@ -186,10 +173,7 @@ private theorem relocated_cases {G : Graph} (D : PolygonalDrawing G)
       · intro ht
         have ht1 : t = 1 := by change 1 - t = 0 at ht; linarith
         simpa [Route.AtEnd, Route.segments, ht1, Nat.cast_add] using hpos
-  · simp only [restoreFirst, restoreLast, h₀, h₁, ↓reduceIte] at hq'
-    subst q
-    intro i
-    exact Or.inl ⟨i, rfl, by simp [attachmentCount, or_self, h₀]⟩
+  · exact Or.inl ⟨i, rfl, by simp [attachmentCount, or_self, h₀]⟩
 
 private theorem relocated_outside_end {G : Graph} (D : PolygonalDrawing G)
     (v : ℕ) (ρ : ℝ) (a : ℂ) (e : Fin G.edges.length)

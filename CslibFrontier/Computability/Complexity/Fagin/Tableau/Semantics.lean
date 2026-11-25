@@ -132,15 +132,13 @@ theorem realize_inputAtFormula {u w : List Bool}
       omega
     · exact ⟨![⟨u.length + w.length, by omega⟩], (hI.endPos_iff _).2 rfl, hj⟩
   · -- `s = some b`
-    have huBit_iff : ∀ (p : Fin B) (hp : (p : ℕ) < u.length),
+    have huBit_iff (p : Fin B) (hp : (p : ℕ) < u.length) :
         (if b then RelMap r.uBit ![p] else ¬RelMap r.uBit ![p]) ↔ u[(p : ℕ)]? = some b := by
-      intro p hp
       rw [hI.uBit_iff p hp, List.getElem?_eq_getElem hp]
       cases b <;> cases u[(p : ℕ)] <;> simp
-    have hcert_iff : ∀ (j : Fin B) (hgt : u.length < (j : ℕ)) (hle : (j : ℕ) ≤ u.length + w.length),
+    have hcert_iff (j : Fin B) (hgt : u.length < (j : ℕ)) (hle : (j : ℕ) ≤ u.length + w.length) :
         (if b then RelMap r.certBit ![j] else ¬RelMap r.certBit ![j]) ↔
           w[(j : ℕ) - 1 - u.length]? = some b := by
-      intro j hgt hle
       have hidx : (j : ℕ) - 1 - u.length < w.length := by omega
       rw [hI.certBit_iff j hgt hle, List.getElem?_eq_getElem hidx]
       cases b <;> cases w[(j : ℕ) - 1 - u.length] <;> simp
@@ -160,13 +158,10 @@ theorem realize_inputAtFormula {u w : List Bool}
     · rintro (⟨y, ⟨⟨hp, hU⟩, hltU⟩, hBit⟩ | ⟨y, ⟨⟨⟨hU, hE⟩, hgtU⟩, hleE⟩, hCert⟩)
       · have hU' := (hI.uLen_iff (y 1)).1 hU
         have hp_lt : (y 0 : ℕ) < u.length := by omega
-        refine ⟨y 0, hp, ?_⟩
-        rw [List.getElem?_append_left hp_lt]
-        exact (huBit_iff (y 0) hp_lt).1 hBit
+        exact ⟨y 0, hp, (List.getElem?_append_left hp_lt).trans ((huBit_iff _ hp_lt).1 hBit)⟩
       · have hU' := (hI.uLen_iff (y 0)).1 hU
         have hE' := (hI.endPos_iff (y 1)).1 hE
-        refine ⟨(env vJ : ℕ) - 1, by omega, ?_⟩
-        rw [List.getElem?_append_right (by omega)]
+        refine ⟨(env vJ : ℕ) - 1, by omega, (List.getElem?_append_right (by omega)).trans ?_⟩
         exact (hcert_iff (env vJ) (by omega) (by omega)).1 hCert
     · rintro ⟨q, hq, hsome⟩
       rcases lt_or_ge q u.length with hqu | hqu
@@ -181,8 +176,7 @@ theorem realize_inputAtFormula {u w : List Bool}
         refine Or.inr ⟨![⟨u.length, by omega⟩, ⟨u.length + w.length, by omega⟩],
           ⟨⟨⟨(hI.uLen_iff _).2 rfl, (hI.endPos_iff _).2 rfl⟩, by dsimp; omega⟩, by dsimp; omega⟩,
           ?_⟩
-        rw [hcert_iff (env vJ) (by omega) (by omega), hq, Nat.add_sub_cancel]
-        exact hsome
+        rwa [hcert_iff (env vJ) (by omega) (by omega), hq, Nat.add_sub_cancel]
 
 /-- Predicate stating that the relation symbols of `r` at time `t : Fin B` agree with a
 configuration `cfg : Cfg m Bool State input`. -/
@@ -226,8 +220,7 @@ private theorem realize_readFormula {input : List Bool} {cfg : Cfg m Bool State 
   constructor
   · rintro ⟨y, (⟨hh, hc⟩ | ⟨hh, hc⟩)⟩ <;> rwa [hh]
   · intro hs
-    have hbi := hb i
-    rw [abs_lt] at hbi
+    have hbi := abs_lt.mp (hb i)
     by_cases hnonneg : 0 ≤ cfg.workTapePos i
     · let a : Fin B := ⟨(cfg.workTapePos i).toNat, by omega⟩
       refine ⟨![a], Or.inl ⟨by dsimp [a]; omega, ?_⟩⟩
@@ -272,8 +265,7 @@ private theorem realize_inPosPrevFormula {u w : List Bool} {cfg : Cfg m Bool Sta
     · intro hmove
       by_cases hp0 : cfg.inputPos.val = 0
       · exact Or.inl ⟨by omega, by omega⟩
-      · right
-        refine ⟨![(⟨cfg.inputPos.val, by omega⟩ : Fin B)], by dsimp; omega, rfl⟩
+      · exact Or.inr ⟨![(⟨cfg.inputPos.val, by omega⟩ : Fin B)], by dsimp; omega, rfl⟩
   · -- `d = .pos`
     fo_simp [inPosPrevFormula, realize_succ hlt, realize_le hlt, Fin.le_def, ht, hA.inPos,
       holds_inPos, moveInputPosNat, SignType.pos_eq_one, SignType.coe_one]
@@ -285,13 +277,11 @@ private theorem realize_inPosPrevFormula {u w : List Bool} {cfg : Cfg m Bool Sta
         omega
     · intro hmove
       by_cases hpe : cfg.inputPos.val = u.length + w.length + 1
-      · left
-        refine ⟨![(⟨u.length + w.length, by omega⟩ : Fin B)],
+      · exact Or.inl ⟨![(⟨u.length + w.length, by omega⟩ : Fin B)],
           ⟨(hend _).2 rfl, by dsimp; omega⟩, by omega⟩
-      · right
-        let j' : Fin B := ⟨cfg.inputPos.val, by omega⟩
+      · let j' : Fin B := ⟨cfg.inputPos.val, by omega⟩
         let eFin : Fin B := ⟨u.length + w.length, by omega⟩
-        refine ⟨![j', eFin], ⟨⟨⟨(hend eFin).2 rfl, by dsimp [j', eFin]; omega⟩,
+        exact Or.inr ⟨![j', eFin], ⟨⟨⟨(hend eFin).2 rfl, by dsimp [j', eFin]; omega⟩,
           by dsimp [j']; omega⟩, rfl⟩⟩
 
 include hlt in
@@ -324,9 +314,7 @@ private theorem realize_headPrevFormula {headSame headOpp : L'.Relations 2} {t :
     fo_simp [headPrevFormula, realize_isZero hlt, realize_succ hlt, ht, hSame, hOpp,
       SignType.pos_eq_one, SignType.coe_one, mul_one]
     constructor
-    · rintro (⟨ha0, y, hsucc, hpos⟩ | ⟨y, hsucc, hpos⟩)
-      · rcases hsign with rfl | rfl <;> omega
-      · rcases hsign with rfl | rfl <;> omega
+    · rintro (⟨ha0, y, hsucc, hpos⟩ | ⟨y, hsucc, hpos⟩) <;> rcases hsign with rfl | rfl <;> omega
     · intro hmove
       by_cases ha0 : (env vA : ℕ) = 0
       · left
@@ -460,13 +448,9 @@ include hlt in
 theorem realize_initSentence [DecidableEq State] {input : List Bool} (hB1 : 1 < B) :
     (Fin B) ⊨ initSentence r tm ↔ r.AgreesAt (tm.initCfg input) (⟨0, by omega⟩ : Fin B) := by
   fo_simp [initSentence, realize_isZero hlt, realize_succ hlt]
-  have h1_iff : ∀ j : Fin B,
-      (∃ y : Fin 1 → Fin B, (y 0 : ℕ) = 0 ∧ (j : ℕ) = (y 0 : ℕ) + 1) ↔ (j : ℕ) = 1 := by
-    intro j
-    constructor
-    · rintro ⟨y, h0, hj⟩; omega
-    · intro hj
-      exact ⟨![(⟨0, by omega⟩ : Fin B)], rfl, hj⟩
+  have h1_iff (j : Fin B) :
+      (∃ y : Fin 1 → Fin B, (y 0 : ℕ) = 0 ∧ (j : ℕ) = (y 0 : ℕ) + 1) ↔ (j : ℕ) = 1 :=
+    ⟨fun ⟨y, h0, hj⟩ => by omega, fun hj => ⟨![(⟨0, by omega⟩ : Fin B)], rfl, hj⟩⟩
   constructor
   · intro h
     obtain ⟨⟨⟨hstate, hout⟩, hinPos⟩, hwork⟩ := h ![(⟨0, by omega⟩ : Fin B)] rfl
@@ -476,12 +460,9 @@ theorem realize_initSentence [DecidableEq State] {input : List Bool} (hB1 : 1 < 
         simpa [hq0, Feature.Holds, eq_comm] using hstate q
     · by_cases ho0 : o = .empty <;>
         simpa [ho0, Feature.Holds, OutView.ofList, eq_comm] using hout o
-    · have hj := (hinPos ![j]).trans (h1_iff j)
-      simpa [Feature.Holds, eq_comm] using hj
-    · have ha := (hwork i ![a]).1.1
-      simpa [Feature.Holds, eq_comm] using ha
-    · have ha := (hwork i ![a]).1.2
-      simpa [Feature.Holds, eq_comm] using ha
+    · simpa [Feature.Holds, eq_comm] using (hinPos ![j]).trans (h1_iff j)
+    · simpa [Feature.Holds, eq_comm] using (hwork i ![a]).1.1
+    · simpa [Feature.Holds, eq_comm] using (hwork i ![a]).1.2
     · by_cases hs0 : s = none <;>
         simpa [hs0, Feature.Holds, eq_comm] using ((hwork i ![a]).2 s).1
     · by_cases hs0 : s = none <;>
@@ -491,11 +472,9 @@ theorem realize_initSentence [DecidableEq State] {input : List Bool} (hB1 : 1 < 
     rw [hy]
     refine ⟨⟨⟨fun q => ?_, fun o => ?_⟩, fun yJ => ?_⟩, fun i yA => ⟨⟨?_, ?_⟩, fun s => ⟨?_, ?_⟩⟩⟩
     · rw [hA.state q]
-      by_cases hq0 : q = some tm.q₀ <;>
-        simp [hq0, Feature.Holds, eq_comm]
+      by_cases hq0 : q = some tm.q₀ <;> simp [hq0, Feature.Holds, eq_comm]
     · rw [hA.out o]
-      by_cases ho0 : o = .empty <;>
-        simp [ho0, Feature.Holds, OutView.ofList, eq_comm]
+      by_cases ho0 : o = .empty <;> simp [ho0, Feature.Holds, OutView.ofList, eq_comm]
     · rw [hA.inPos (yJ 0), h1_iff (yJ 0)]
       simp [Feature.Holds, eq_comm]
     · rw [hA.headPos i (yA 0)]
@@ -504,11 +483,9 @@ theorem realize_initSentence [DecidableEq State] {input : List Bool} (hB1 : 1 < 
     · rw [hA.headNeg i (yA 0)]
       simp [Feature.Holds]
     · rw [hA.cellPos i s (yA 0)]
-      by_cases hs0 : s = none <;>
-        simp [hs0, Feature.Holds, eq_comm]
+      by_cases hs0 : s = none <;> simp [hs0, Feature.Holds, eq_comm]
     · rw [hA.cellNeg i s (yA 0)]
-      by_cases hs0 : s = none <;>
-        simp [hs0, Feature.Holds, eq_comm]
+      by_cases hs0 : s = none <;> simp [hs0, Feature.Holds, eq_comm]
 
 end Semantics
 

@@ -348,63 +348,31 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
       obtain ⟨c, hc_len, hc_acc⟩ :=
         (hdec.mem_iff_exists_checkChoices (a := a)
           (L := M * (c₁ * 2 ^ p (enc a).length + c₂)) le_rfl).mp ha
-      have hpow_pos : 1 ≤ 2 ^ (p (enc a).length + (enc a).length) := Nat.one_le_two_pow
-      have hpow_p : 2 ^ p (enc a).length ≤ 2 ^ (p (enc a).length + (enc a).length) :=
-        Nat.pow_le_pow_right (by omega) (by omega)
-      have hn_le : (enc a).length ≤ 2 ^ (p (enc a).length + (enc a).length) :=
+      set E := 2 ^ (p (enc a).length + (enc a).length) with hE
+      have hE1 : 1 ≤ E := Nat.one_le_two_pow
+      have hnE : (enc a).length ≤ E :=
         Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right (by omega) (by omega))
-      have hC_pow : C ≤ 2 ^ C := Nat.lt_two_pow_self.le
-      have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤
-          (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by
-        calc c₁ * 2 ^ p (enc a).length + c₂
-          _ ≤ c₁ * 2 ^ (p (enc a).length + (enc a).length) +
-              c₂ * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.add_le_add (Nat.mul_le_mul_left _ hpow_p) (Nat.le_mul_of_pos_right _ hpow_pos)
-          _ = (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by ring
-      have hc_le_M : c.length ≤ M * (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by
-        calc c.length
-          _ = M * (c₁ * 2 ^ p (enc a).length + c₂) := hc_len
-          _ ≤ M * ((c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length)) :=
-            Nat.mul_le_mul_left M h1
-          _ = M * (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by ring
-      have hM_le_C : M * (c₁ + c₂) ≤ C := by
-        have hM1 : M * (c₁ + c₂) ≤ (M + 1) * (c₁ + c₂ + 4) :=
-          Nat.mul_le_mul (by omega) (by omega)
-        calc M * (c₁ + c₂)
-          _ ≤ 1 * ((M + 1) * (c₁ + c₂ + 4)) := by omega
-          _ ≤ (cV + 1) * ((M + 1) * (c₁ + c₂ + 4)) :=
-            Nat.mul_le_mul_right _ (by omega)
-          _ = C := by ring
-      have hc_step : c.length ≤ stepBound a := by
-        calc c.length
-          _ ≤ M * (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := hc_le_M
-          _ ≤ C * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.mul_le_mul_right _ hM_le_C
-          _ ≤ 2 ^ C * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.mul_le_mul_right _ hC_pow
-          _ = stepBound a := by rw [← Nat.pow_add, Nat.add_comm C]
+      -- `|c| + 2 n + 2 ≤ (M + 1) (c₁ + c₂ + 4) E` and `(cV + 1)` times this is below the clock.
+      have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤ (c₁ + c₂) * E := by
+        rw [add_mul]
+        exact Nat.add_le_add (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) (by omega)))
+          (Nat.le_mul_of_pos_right _ hE1)
+      have hbound : c.length + 2 * (enc a).length + 2 ≤ (M + 1) * (c₁ + c₂ + 4) * E := by
+        rw [hc_len]
+        linarith [Nat.mul_le_mul_left M h1, Nat.zero_le (M * E), Nat.zero_le (c₁ * E),
+          Nat.zero_le (c₂ * E)]
+      have hCE : (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) * E) ≤ stepBound a := by
+        rw [show stepBound a = 2 ^ C * E by rw [hE, ← Nat.pow_add, Nat.add_comm C], ← mul_assoc,
+          ← mul_assoc]
+        exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
+      have hB := (Nat.le_mul_of_pos_left ((M + 1) * (c₁ + c₂ + 4) * E) (Nat.succ_pos cV)).trans hCE
+      have hc_step : c.length ≤ stepBound a := by omega
       have htV_step : tV (enc a, c) ≤ stepBound a := by
         have hlen_pair : (encPair encBits encBits (enc a, c)).length + 1 =
             2 * (enc a).length + c.length + 2 := by
           simp only [length_encPair, encBits, Function.Embedding.refl_apply]
           omega
-        have h2 : 2 * (enc a).length + c.length + 2 ≤
-            (M + 1) * (c₁ + c₂ + 4) * 2 ^ (p (enc a).length + (enc a).length) := by
-          have : 4 + M * (c₁ + c₂) ≤ (M + 1) * (c₁ + c₂ + 4) := by nlinarith
-          nlinarith
-        have htV_bound : tV (enc a, c) ≤ C * 2 ^ (p (enc a).length + (enc a).length) := by
-          calc tV (enc a, c)
-            _ ≤ cV * ((encPair encBits encBits (enc a, c)).length + 1) := htV (enc a, c)
-            _ = cV * (2 * (enc a).length + c.length + 2) := by rw [hlen_pair]
-            _ ≤ (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) *
-                  2 ^ (p (enc a).length + (enc a).length)) :=
-              Nat.mul_le_mul (by omega) h2
-            _ = C * 2 ^ (p (enc a).length + (enc a).length) := by ring
-        calc tV (enc a, c)
-          _ ≤ C * 2 ^ (p (enc a).length + (enc a).length) := htV_bound
-          _ ≤ 2 ^ C * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.mul_le_mul_right _ hC_pow
-          _ = stepBound a := by rw [← Nat.pow_add, Nat.add_comm C]
+        exact ((htV _).trans (Nat.mul_le_mul (Nat.le_succ cV) (by omega))).trans hCE
       obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
       change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) (stepBound a)).output =
         [ntm.checkChoices encBits (enc a, c)] at hout

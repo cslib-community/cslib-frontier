@@ -141,8 +141,7 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
           (referenceOrder I).idxOf v + word.length - word.idxOf d := by
   have hv : v < I.graph.vertices.length := by
     by_contra hn
-    have ho : I.orders.length ≤ v := by rw [hI.2.2.1]; omega
-    rw [List.getD_eq_default _ _ ho] at hw
+    rw [List.getD_eq_default _ _ (by rw [hI.2.2.1]; omega)] at hw
     contradiction
   obtain ⟨before, after, hcenters⟩ := List.mem_iff_append.mp (List.mem_range.mpr hv)
   let block := fun u => u :: ((fixedWord I u).reverse.map fun d => I.graph.vertices.length + d)
@@ -194,11 +193,7 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
       blockPrefix.length + (k + 1) := by
     rw [← hget]
     exact hn.idxOf_getElem _ hpos
-  refine ⟨hget ▸ List.getElem_mem hpos, ?_, ?_⟩
-  · rw [hvrank, hrank]
-    omega
-  · rw [hvrank, hrank]
-    dsimp [k, i]
+  refine ⟨hget ▸ List.getElem_mem hpos, ?_, ?_⟩ <;> rw [hvrank, hrank] <;> dsimp only [k, i] <;>
     omega
 
 /-- Actual outgoing arguments decrease along the literal prescribed word. No inequality
@@ -214,19 +209,13 @@ theorem referenceDrawing_fixedWord_arg_lt_iff {I : FixedRotationInput} (hI : Val
   have hev := fixedWord_dart_vertex hI hw he
   have hdl := hs.2 d.index hd
   have hel := hs.2 e.index he
-  -- Both actual leaf names and the center belong to the enumeration before reading ranks.
-  have hdc : ((referenceOrder I).idxOf v : ℝ) <
-      ((referenceOrder I).idxOf (I.graph.vertices.length + d.index) : ℝ) :=
-    Nat.cast_lt.mpr hdl.2.1
-  have hec : ((referenceOrder I).idxOf v : ℝ) <
-      ((referenceOrder I).idxOf (I.graph.vertices.length + e.index) : ℝ) :=
-    Nat.cast_lt.mpr hel.2.1
   rw [referenceDrawing_subdivisionDart_germ, referenceDrawing_subdivisionDart_germ,
     hdv, hev]
   change (parabolaPoint _ - parabolaPoint _).arg <
     (parabolaPoint _ - parabolaPoint _).arg ↔ _
-  rw [arg_parabolaChord_lt_iff (Nat.cast_nonneg _) hdc hec, Nat.cast_lt,
-    hdl.2.2, hel.2.2]
+  -- Both actual leaf names and the center belong to the enumeration before reading ranks.
+  rw [arg_parabolaChord_lt_iff (Nat.cast_nonneg _) (Nat.cast_lt.mpr hdl.2.1)
+    (Nat.cast_lt.mpr hel.2.1), Nat.cast_lt, hdl.2.2, hel.2.2]
   have hdi := List.idxOf_lt_length_of_mem hd
   have hei := List.idxOf_lt_length_of_mem he
   omega
@@ -278,10 +267,8 @@ theorem referenceDrawing_fixedWord_clockwise_iff {I : FixedRotationInput} (hI : 
     dsimp [A]
     linarith only [hupper, Real.pi_pos]
   have hne {d e : Dart I.graph} (hd : d.index ∈ word) (he : e.index ∈ word) (hne : d ≠ e) :
-      A d ≠ A e := by
-    intro h
-    exact hne (referenceDrawing_fixedWord_directions_injective hI hw hd he
-      (congrArg (fun x : ℝ => (x : Real.Angle)) h))
+      A d ≠ A e := fun h => hne (referenceDrawing_fixedWord_directions_injective hI hw hd he
+    (congrArg (fun x : ℝ => (x : Real.Angle)) h))
   change sbtw (A c : Real.Angle) (A b : Real.Angle) (A a : Real.Angle) ↔ _
   rw [sbtw_angle_iff_cyclic_lt (hmem hc) (hmem hb) (hmem ha)
     (hne hc hb hbc.symm) (hne hb ha hab.symm) (hne hc ha hac.symm)]

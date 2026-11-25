@@ -257,27 +257,18 @@ theorem signedSum_eq (k : ℕ) (s : State)
               false_or] at hmem hx
             refine mem_erase.2 ⟨fun h => lt_irrefl _ (h ▸ hx.2), ?_⟩
             simp only [hA, above, mem_filter, mem_univ, true_and]
-            refine ⟨hx.1, ?_⟩
-            rcases hmem.2 with h | h
-            · exact Or.inl h
-            · exact Or.inr (h.trans hx.2)
-          have hle : (above acc len ⟨true, !par, false, true, List.ofFn c⟩).card ≤ k := by
-            have := card_le_card hsub
-            rw [card_erase_of_mem hmem] at this
-            omega
+            exact ⟨hx.1, hmem.2.imp_right (·.trans hx.2)⟩
+          have hle : (above acc len ⟨true, !par, false, true, List.ofFn c⟩).card ≤ k :=
+            (card_le_card hsub).trans (by rw [card_erase_of_mem hmem]; omega)
           rw [(cond_eq_true_iff (par := par)).2 hmem, ih ⟨true, !par, false, true, List.ofFn c⟩
             (fun _ _ => hle)]
           have hiff := above_eq_empty_iff hmem true (!par) false
           by_cases hmax : ∀ x ∈ A, binaryValue (List.ofFn x) ≤ binaryValue (List.ofFn c)
-          · have hempty : ¬ (above acc len ⟨true, !par, false, true, List.ofFn c⟩).Nonempty :=
-              Finset.not_nonempty_iff_eq_empty.2 (hiff.2 hmax)
-            rw [ite_eq_right_of_eq_false _ _ (eq_false fun h => hempty h.2),
-              ite_eq_left_of_eq_true _ _ (eq_true ⟨hmem, hmax⟩)]
+          · rw [ite_eq_right fun h => Finset.not_nonempty_iff_eq_empty.2 (hiff.2 hmax) h.2,
+              ite_eq_left ⟨hmem, hmax⟩]
             cases par <;> rfl
-          · have hne : (above acc len ⟨true, !par, false, true, List.ofFn c⟩).Nonempty :=
-              Finset.nonempty_iff_ne_empty.2 fun h => hmax (hiff.1 h)
-            rw [ite_eq_left_of_eq_true _ _ (eq_true ⟨rfl, hne⟩),
-              ite_eq_right_of_eq_false _ _ (eq_false fun h => hmax h.2)]
+          · rw [ite_eq_left ⟨rfl, Finset.nonempty_iff_ne_empty.2 fun h => hmax (hiff.1 h)⟩,
+              ite_eq_right fun h => hmax h.2]
         · have hcond : (acc (List.ofFn c) &&
               (!started || decide (binaryValue prev < binaryValue (List.ofFn c)))) = false :=
             Bool.eq_false_iff.2 fun h => hmem ((cond_eq_true_iff (par := par)).1 h)

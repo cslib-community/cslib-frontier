@@ -184,8 +184,7 @@ theorem iterate_step_node (n : ℕ) (st : List (Frame X)) (hst : st.length + n =
       | zero => rw [Nat.zero_mul]; rfl
       | succ j ihj =>
         rw [Nat.succ_mul, Nat.add_comm, Function.iterate_add_apply, ihj (by lia),
-          hreply i j hi (by lia),
-          ite_eq_left hj]
+          hreply i j hi (by lia), ite_eq_left hj]
     have hmessages (i : ℕ) (hi : i < N) :
         F^[N * T] ((next^[i] first, next^[0] first, S i, M i 0) :: st, none) =
           if i + 1 < N then ((next^[i + 1] first, next^[0] first, S (i + 1), M (i + 1) 0) ::
@@ -202,8 +201,7 @@ theorem iterate_step_node (n : ℕ) (st : List (Frame X)) (hst : st.length + n =
       | zero => rw [Nat.zero_mul]; rfl
       | succ i ihi =>
         rw [Nat.succ_mul, Nat.add_comm, Function.iterate_add_apply, ihi (by lia),
-          hmessages i (by lia),
-          ite_eq_left hi]
+          hmessages i (by lia), ite_eq_left hi]
     have hstart : F (st, none) = ((next^[0] first, next^[0] first, S 0, M 0 0) :: st, none) := by
       simp only [F, step, show st.length ≠ D by lia, ite_false]
       simp [S, partialSum, M, partialMax]
@@ -264,34 +262,19 @@ private theorem Good.step {P : X → Prop} (hfirst : P first) (hnext : ∀ x, P 
   · simp only [GameTree.step]
     split_ifs with hD
     · exact ⟨h.length, h.frames, by simp⟩
-    · refine ⟨by simp only [List.length_cons]; have := h.length; lia, ?_, by simp⟩
-      intro f hf
-      rcases List.mem_cons.mp hf with rfl | hf
-      · exact ⟨hfirst, hfirst, min_le_left _ _, Nat.zero_le _⟩
-      · exact h.frames f hf
+    · exact ⟨by simp only [List.length_cons]; have := h.length; lia, List.forall_mem_cons.2
+        ⟨⟨hfirst, hfirst, min_le_left _ _, Nat.zero_le _⟩, h.frames⟩, by simp⟩
   · obtain _ | ⟨⟨u, w, s, a⟩, st⟩ := st
     · exact h
     have hv : v ≤ cap := h.value v rfl
-    have hf0 := h.frames _ (List.mem_cons_self ..)
-    have hrest : ∀ f ∈ st, P f.1 ∧ P f.2.1 ∧ f.2.2.1 ≤ cap ∧ f.2.2.2 ≤ cap :=
-      fun f hf => h.frames f (List.mem_cons_of_mem _ hf)
-    have hlen : st.length ≤ D := by
-      have := h.length
-      simp only [List.length_cons] at this
-      lia
+    obtain ⟨hf0, hrest⟩ := List.forall_mem_cons.1 h.frames
     simp only [GameTree.step]
     split_ifs
-    · exact ⟨hlen, hrest, by simp⟩
-    · refine ⟨by simpa using h.length, ?_, by simp⟩
-      intro f hf
-      rcases List.mem_cons.mp hf with rfl | hf
-      · exact ⟨hnext _ hf0.1, hfirst, min_le_left _ _, Nat.zero_le _⟩
-      · exact hrest f hf
-    · refine ⟨by simpa using h.length, ?_, by simp⟩
-      intro f hf
-      rcases List.mem_cons.mp hf with rfl | hf
-      · exact ⟨hf0.1, hnext _ hf0.2.1, hf0.2.2.1, max_le hf0.2.2.2 hv⟩
-      · exact hrest f hf
+    · exact ⟨Nat.le_of_succ_le h.length, hrest, by simp⟩
+    · exact ⟨h.length, List.forall_mem_cons.2
+        ⟨⟨hnext _ hf0.1, hfirst, min_le_left _ _, Nat.zero_le _⟩, hrest⟩, by simp⟩
+    · exact ⟨h.length, List.forall_mem_cons.2
+        ⟨⟨hf0.1, hnext _ hf0.2.1, hf0.2.2.1, max_le hf0.2.2.2 hv⟩, hrest⟩, by simp⟩
 
 /-- **The states stay small**: every state of the evaluation from the empty stack satisfies the
 invariant. -/

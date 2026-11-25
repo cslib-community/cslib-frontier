@@ -422,9 +422,8 @@ theorem bernoulliProb_union_of_forall_insert [DecidableEq α] {D : Finset α} (h
   induction D using Finset.induction_on with
   | empty => rw [union_empty]
   | insert v D hv ih =>
-    have hvU : v ∉ U ∪ D := by
-      rw [mem_union, not_or]
-      exact ⟨fun h => disjoint_left.1 hUD h (mem_insert_self v D), hv⟩
+    have hvU : v ∉ U ∪ D :=
+      mem_union.not.2 <| not_or.2 ⟨fun h => disjoint_left.1 hUD h (mem_insert_self v D), hv⟩
     rw [union_insert, bernoulliProb_insert hvU,
       bernoulliProb_congr (E := fun S => E (insert v S)) (F := E)
         fun S _ => hE v (mem_insert_self v D) S,
@@ -730,11 +729,7 @@ private theorem classify_eq_one {α : Type*} [DecidableEq α] {P : Finset α} {p
   unfold classify
   by_cases hy : y ∈ P
   · simp only [hy, ite_true]
-    constructor
-    · intro h
-      exact absurd h (by decide)
-    · rintro rfl
-      exact absurd hy hp
+    exact ⟨fun h => absurd h (by decide), fun h => (hp (h ▸ hy)).elim⟩
   · by_cases hyp : y = p
     · subst hyp
       simp [hy]
@@ -817,8 +812,7 @@ private theorem placedBefore_eq_iff {π : Equiv.Perm (Fin n)} {x : Fin n} {S : F
     have hxs : π.symm x = s := by
       have := congrFun h x
       simp only [Function.comp_apply] at this
-      rw [(classify_eq_one hx).2 rfl, classify_eq_one hsI] at this
-      exact this
+      rwa [(classify_eq_one hx).2 rfl, classify_eq_one hsI] at this
     ext y
     have := congrArg (· = 0) (congrFun h y)
     simp only [Function.comp_apply, classify_eq_zero, mem_Iio, eq_iff_iff] at this

@@ -101,15 +101,13 @@ private theorem computableInPolyTime_lagrangeNum : ComputableInPolyTime
           List Bool => lagrangeStep q.1.1 q.1.2 q.2)
       (encPair (encPair encLagrangePar encBits) encBits) encBits := by
     unfold lagrangeStep
-    exact ite_decide
-      (decide_eq' (snd _ _) ((fst _ _).comp ((snd _ _).comp ((fst _ _).comp (fst _ _)))))
-      ((snd _ _).comp (fst _ _)) helse
+    fun_prop
   have hlen : ComputableInPolyTime
       (fun p : ((List (List (List Bool)) × ℕ) × List (List Bool)) × (List Bool × List Bool) =>
         p.1.1.1.length)
       (encPair (encPair (encPair encTable encUnary) (encList encBits)) (encPair encBits encBits))
-      encUnary :=
-    (length_list (encList encBits)).comp ((fst _ _).comp ((fst _ _).comp (fst _ _)))
+      encUnary := by
+    fun_prop
   have h := foldlWith_of_bounded_growth (encA := encBits) (encL := encList encBits)
     (encIn := encPair (encPair (encPair encTable encUnary) (encList encBits))
       (encPair encBits encBits)) (encP := encLagrangePar)
@@ -169,26 +167,8 @@ private theorem computableInPolyTime_termVal : ComputableInPolyTime
         ((List (List Bool) × List (List Bool)) × List Bool) =>
       termVal p.1.1.1.1 p.1.1.1.2 p.1.1.2 p.1.2 p.2.1.1 p.2.1.2 p.2.2) encTermIn encBits := by
   let encQ := encPair (encPair encTermIn encBits) encUnary
-  have htabP : ComputableInPolyTime (fun p => p.1.1.1.1) encTermIn encTable :=
-    (fst _ _).comp ((fst _ _).comp ((fst _ _).comp (fst _ _)))
-  have hlen : ComputableInPolyTime (fun p => p.1.1.1.1.length) encTermIn encUnary :=
-    (length_list (encList encBits)).comp htabP
-  have hqP : ComputableInPolyTime (fun q => q.1.1) encQ encTermIn :=
-    (fst _ _).comp (fst _ _)
-  have htabQ : ComputableInPolyTime (fun q => q.1.1.1.1.1.1) encQ encTable := htabP.comp hqP
-  have hwQ : ComputableInPolyTime (fun q => q.1.1.1.1.1.2) encQ encUnary :=
-    ((snd _ _).comp ((fst _ _).comp ((fst _ _).comp (fst _ _)))).comp hqP
-  have hbQ : ComputableInPolyTime (fun q => q.1.1.1.1.2) encQ encUnary :=
-    ((snd _ _).comp ((fst _ _).comp (fst _ _))).comp hqP
-  have hEQ : ComputableInPolyTime (fun q => q.1.1.2.1.1) encQ (encList encBits) :=
-    ((fst _ _).comp ((fst _ _).comp (snd _ _))).comp hqP
-  have hxsQ : ComputableInPolyTime (fun q => q.1.1.2.1.2) encQ (encList encBits) :=
-    ((snd _ _).comp ((fst _ _).comp (snd _ _))).comp hqP
-  have hzQ : ComputableInPolyTime (fun q => q.1.1.2.2) encQ encBits :=
-    ((snd _ _).comp (snd _ _)).comp hqP
-  have haccQ : ComputableInPolyTime (fun q => q.1.2) encQ encBits :=
-    (snd _ _).comp (fst _ _)
-  have hiQ : ComputableInPolyTime (fun q => q.2) encQ encUnary := snd _ _
+  have hlen : ComputableInPolyTime (fun p => p.1.1.1.1.length) encTermIn encUnary := by
+    fun_prop
   have hstep : ComputableInPolyTime
       (fun q : ((((((List (List (List Bool)) × ℕ) × ℕ) × ℕ) ×
           ((List (List Bool) × List (List Bool)) × List Bool)) × List Bool) × ℕ) =>
@@ -196,11 +176,9 @@ private theorem computableInPolyTime_termVal : ComputableInPolyTime
           (BitString.listBlock q.1.1.1.1.2 q.1.1.2.2 q.2) (q.1.1.2.1.2.getD q.2 [])))
       encQ encBits := by
     unfold BitString.listBlock
-    exact computableInPolyTime_fieldMul' htabQ haccQ (computableInPolyTime_lagrangeVal' htabQ hwQ
-      hEQ (bitsTakeWithInput (bitsDropWithInput hzQ (unary_mul.comp (hiQ.prod hbQ))) hbQ)
-      (listGetDWithInput hxsQ hiQ []))
-  have hM : ComputableInPolyTime (fun p => p.1.2) encTermIn encUnary :=
-    (snd _ _).comp (fst _ _)
+    fun_prop
+  have hM : ComputableInPolyTime (fun p => p.1.2) encTermIn encUnary := by
+    fun_prop
   have h := foldlWithInput_of_bounded_growth (encIn := encTermIn) (encA := encUnary)
     (encL := encList encUnary) (encB := encBits)
     (list := fun p => List.range p.1.2) (init := fun _ => [true])

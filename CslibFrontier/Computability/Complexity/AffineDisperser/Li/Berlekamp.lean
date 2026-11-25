@@ -345,16 +345,12 @@ theorem polyDivMod_eq_coeffList (a b : List Bool) :
       have hb_pos := List.length_pos_of_ne_nil hbne
       have hr_ne : CoeffList.trim st.2 ≠ [] :=
         fun h0 => by simp only [h0, List.length_nil] at hle; omega
-      have hlc_b : bt'.getLastD 0 = 1 := by
-        obtain ⟨l, x, hx, heq⟩ := (CoeffList.isTrimmed_trim _).exists_append_singleton hbne
-        dsimp only [bt']
+      have hlc (l : List (ZMod 2)) (hl : CoeffList.trim l ≠ []) :
+          (CoeffList.trim l).getLastD 0 = 1 := by
+        obtain ⟨l', x, hx, heq⟩ := (CoeffList.isTrimmed_trim _).exists_append_singleton hl
         rw [heq, List.getLastD_concat]
         exact (by decide : ∀ x : ZMod 2, x ≠ 0 → x = 1) x hx
-      have hlc_r : (CoeffList.trim st.2).getLastD 0 = 1 := by
-        obtain ⟨l, x, hx, heq⟩ := (CoeffList.isTrimmed_trim _).exists_append_singleton hr_ne
-        rw [heq, List.getLastD_concat]
-        exact (by decide : ∀ x : ZMod 2, x ≠ 0 → x = 1) x hx
-      rw [hlc_r, hlc_b, div_one]
+      rw [hlc _ hr_ne, hlc _ hbne, div_one]
       set d := (CoeffList.trim st.2).length - bt'.length
       have hd : ((CoeffList.trim st.2).map bitEquiv).length - (bt'.map bitEquiv).length = d := by
         simp [d]
@@ -366,21 +362,13 @@ theorem polyDivMod_eq_coeffList (a b : List Bool) :
       · refine eq_of_polyTrim_eq_of_polyOfBits_eq (polyTrim_polyAdd _ _)
           (by simp [polyTrim_eq_coeffList]) ?_
         simp [polyOfBits_append, CharTwo.sub_eq_add]
-  have hiter : ∀ (k : ℕ) (st : List (ZMod 2) × List (ZMod 2)),
-      let bt' := CoeffList.trim (b.map bitEquiv.symm)
-      let res := (CoeffList.divModStep bt')^[k] st
-      (polyDivModStep (bt'.map bitEquiv))^[k] (st.1.map bitEquiv, st.2.map bitEquiv) =
-        (res.1.map bitEquiv, res.2.map bitEquiv) := by
-    intro k
-    induction k with
-    | zero => intro st; rfl
-    | succ k ih =>
-      intro st
-      dsimp only
-      rw [Function.iterate_succ_apply, Function.iterate_succ_apply, hstep st]
-      exact ih _
+  have hsemi : Function.Semiconj
+      (fun st : List (ZMod 2) × List (ZMod 2) => (st.1.map bitEquiv, st.2.map bitEquiv))
+      (CoeffList.divModStep (CoeffList.trim (b.map bitEquiv.symm)))
+      (polyDivModStep ((CoeffList.trim (b.map bitEquiv.symm)).map bitEquiv)) :=
+    fun st => (hstep st).symm
   simpa [polyDivMod, CoeffList.divMod, polyTrim_eq_coeffList] using
-    hiter a.length ([], CoeffList.trim (a.map bitEquiv.symm))
+    (hsemi.iterate_right a.length ([], CoeffList.trim (a.map bitEquiv.symm))).symm
 
 private theorem polyQuot_eq_coeffList (a b : List Bool) :
     polyQuot a b = (CoeffList.div (a.map bitEquiv.symm) (b.map bitEquiv.symm)).map bitEquiv :=
