@@ -8238,6 +8238,7 @@ public import CslibFrontier.Foundations.Computability.RecursiveInContinuous
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Computability.RecursiveInJoin
 public import CslibFrontier.Foundations.Computability.RecursiveInSmn
+public import CslibFrontier.Foundations.Computability.RecursiveInStream
 public import CslibFrontier.Foundations.Computability.RecursiveInUniform
 public import CslibFrontier.Foundations.Computability.RecursiveInUniversal
 public import CslibFrontier.Foundations.Computability.TuringJoin

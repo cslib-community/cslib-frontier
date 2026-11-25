@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Computability.RecursiveInClockedJoin
-public import CslibFrontier.Foundations.Computability.RecursiveInContinuous
+public import CslibFrontier.Foundations.Computability.RecursiveInStream
 public import CslibFrontier.Languages.CombinatoryLogic.PartialCombinatoryAlgebra
 
 /-!
@@ -68,7 +68,8 @@ side is the standard argument and is not formalized). The two models are not cla
 isomorphic as pcas here.
 
 Application is defined pointwise: `a ⬝ x` is defined when the program of `a` converges on `x` at
-every entry. The combinators are fixed elements `kleeneTwoCode c (fun _ => 0)` for codes `c`
+every entry. It is the partial map `Nat.RecursiveIn.Code.evalStream` of the code `a 0` relative to
+the tail of `a`. The combinators are fixed elements `kleeneTwoCode c (fun _ => 0)` for codes `c`
 chosen once, so they are computable, and `K₂^rec` is a sub-pca with the same `k` and `s`.
 
 ## References
@@ -100,23 +101,14 @@ theorem kleeneTwoEval_kleeneTwoCode (c : Code) (p x : ℕ → ℕ) :
     kleeneTwoEval (kleeneTwoCode c p) x = Code.eval (Partrec.join p x) c := by
   simp [kleeneTwoEval, kleeneTwoCode]
 
-/-- A partial function defined everywhere, as a total function. -/
-private def total (φ : ℕ →. ℕ) : Part (ℕ → ℕ) :=
-  ⟨∀ n, (φ n).Dom, fun h n => (φ n).get (h n)⟩
-
-private theorem mem_total {φ : ℕ →. ℕ} {y : ℕ → ℕ} : y ∈ total φ ↔ ∀ n, y n ∈ φ n := by
-  refine ⟨fun ⟨h, hy⟩ n => ?_, fun h => ⟨fun n => (h n).1, funext fun n => (h n).2⟩⟩
-  subst hy
-  exact Part.get_mem (h n)
-
-private theorem total_eq_some_iff {φ : ℕ →. ℕ} {y : ℕ → ℕ} :
-    total φ = Part.some y ↔ φ = (y : ℕ →. ℕ) := by
-  rw [Part.eq_some_iff, mem_total]
-  exact ⟨fun h => funext fun n => Part.eq_some_iff.2 (h n), fun h n => h ▸ Part.mem_some _⟩
-
-/-- Application in Kleene's second model. -/
+/-- Application in Kleene's second model: the partial map on Baire space that the code with
+index `a 0` computes relative to the tail of `a`. -/
 private def kApp (a x : ℕ → ℕ) : Part (ℕ → ℕ) :=
-  total (kleeneTwoEval a x)
+  evalStream (fun n => a (n + 1) : ℕ → ℕ) (ofNat Code (a 0)) x
+
+private theorem kApp_eq_some_iff {a x y : ℕ → ℕ} :
+    kApp a x = Part.some y ↔ kleeneTwoEval a x = (y : ℕ →. ℕ) :=
+  Part.eq_some_iff.trans mem_evalStream
 
 /-! ### Codes for the combinators -/
 
@@ -207,7 +199,7 @@ private noncomputable def codeS : Code :=
 
 private theorem kApp_eq_some {a x y : ℕ → ℕ} (h : kleeneTwoEval a x = (y : ℕ →. ℕ)) :
     kApp a x = Part.some y :=
-  total_eq_some_iff.2 h
+  kApp_eq_some_iff.2 h
 
 private theorem kApp_k (a : ℕ → ℕ) :
     kApp (kleeneTwoCode codeK fun _ => 0) a = Part.some (kleeneTwoCode joinLeft a) :=
@@ -241,18 +233,23 @@ private theorem kApp_s_a_b (a b c : ℕ → ℕ) :
   have hC : Code.eval h joinRight = (c : ℕ →. ℕ) := eval_joinRight _ _
   have hA := eval_apCode hL hC
   have hB := eval_apCode hR hC
-  have hS : kApp (kleeneTwoCode codeS₂ (joinFun a b)) c = total (Code.eval h codeS₂) := by
-    rw [kApp, kleeneTwoEval_kleeneTwoCode]
+  have hS : kApp (kleeneTwoCode codeS₂ (joinFun a b)) c = evalStream (joinFun a b) codeS₂ c := by
+    simp [kApp, kleeneTwoCode]
   rw [hS]
   by_cases hd : (kApp a c).Dom ∧ (kApp b c).Dom
   · obtain ⟨hac, hbc⟩ := hd
-    have hy := (total_eq_some_iff.1 (Part.some_get hac).symm)
-    have hz := (total_eq_some_iff.1 (Part.some_get hbc).symm)
-    rw [← Part.some_get hac, ← Part.some_get hbc, ap_some_some, kApp, codeS₂,
-      eval_apCode (hA.trans hy) (hB.trans hz)]
-  · have hl : ¬ (total (Code.eval h codeS₂)).Dom := fun hl => hd ⟨fun n => by
-      simpa [hA] using (dom_of_dom_apCode (hl n)).1, fun n => by
-      simpa [hB] using (dom_of_dom_apCode (hl n)).2⟩
+    have hy := kApp_eq_some_iff.1 (Part.some_get hac).symm
+    have hz := kApp_eq_some_iff.1 (Part.some_get hbc).symm
+    rw [← Part.some_get hac, ← Part.some_get hbc, ap_some_some]
+    refine Part.ext fun w => ?_
+    rw [kApp, mem_evalStream, mem_evalStream]
+    change Code.eval h codeS₂ = _ ↔ kleeneTwoEval _ _ = _
+    rw [codeS₂, eval_apCode (hA.trans hy) (hB.trans hz)]
+  · have hl : ¬ (evalStream (joinFun a b) codeS₂ c).Dom := fun hl => by
+      have hl' : ∀ n, (Code.eval h codeS₂ n).Dom := dom_evalStream.1 hl
+      exact hd ⟨dom_evalStream.2 fun n => (by simpa [hA] using (dom_of_dom_apCode (hl' n)).1 :
+        (kleeneTwoEval a c n).Dom), dom_evalStream.2 fun n => (by
+          simpa [hB] using (dom_of_dom_apCode (hl' n)).2 : (kleeneTwoEval b c n).Dom)⟩
     have hr : ¬ (ap kApp (kApp a c) (kApp b c)).Dom := fun hr => hd ⟨hr.1, hr.2.1⟩
     rw [Part.eq_none_iff'.2 hl, Part.eq_none_iff'.2 hr]
 
@@ -272,12 +269,12 @@ noncomputable def kleeneTwo : PartialCombinatoryAlgebra (ℕ → ℕ) where
 /-- `a ⬝ x` has value `y` in `K₂` exactly when the program of `a` computes `y` from `x`. -/
 theorem kleeneTwo_app_eq_some_iff {a x y : ℕ → ℕ} :
     kleeneTwo.app a x = Part.some y ↔ kleeneTwoEval a x = (y : ℕ →. ℕ) :=
-  total_eq_some_iff
+  kApp_eq_some_iff
 
 /-- `a ⬝ x` is defined in `K₂` exactly when the program of `a` converges on `x` at every entry. -/
 theorem dom_kleeneTwo_app {a x : ℕ → ℕ} :
     (kleeneTwo.app a x).Dom ↔ ∀ n, (kleeneTwoEval a x n).Dom :=
-  Iff.rfl
+  dom_evalStream
 
 /-- **The interpreter of `K₂`.** One oracle code computes `a ⬝ x` entry by entry, relative to the
 join `a ⊕ x` of the element with its argument. -/
@@ -331,7 +328,7 @@ theorem computable_of_mem_kleeneTwo_app {a x y : ℕ → ℕ} (ha : Computable a
         ((joinFun (fun n => a (n + 1)) x : ℕ → ℕ) : ℕ →. ℕ) :=
       Partrec.join_coe _ _
     rw [← hj]
-    exact total_eq_some_iff.1 (Part.eq_some_iff.2 hy)
+    exact mem_evalStream.1 hy
   exact Partrec.nat_iff.2 (Nat.RecursiveIn.partrec_of_oracle
     (fun g hg => (Set.mem_singleton_iff.1 hg) ▸ Partrec.nat_iff.1 hJ)
     (exists_code.2 ⟨_, hev⟩))
