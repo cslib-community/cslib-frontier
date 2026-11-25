@@ -98,68 +98,65 @@ private theorem shiftedCount_inO {α : Type} {encA : α ↪ List Bool}
   have htot := hmul_deg.inO.comp hpair
   set B₁ : ℕ := d₁ + d₂ + q * b₀
   set M : ℕ := c_pair * (3 + (p + 1) ^ b₀) + 1
-  refine ⟨B₁ + q * e₀ + B₁ * d₃, B₁ + B₁ * d₃,
-    htot.mono (2 + (p + 1) ^ e₀ + (p + 1) ^ b₀ + M ^ d₃ + 1) (fun x => ?_) (fun x => ?_)⟩
-  all_goals
-    set Y : ℕ := (encA x).length + 1
+  have hSpair (x : α) :
+      ((encA x).length + 1) ^ d₂ +
+        (((encA x).length + 1) ^ d₁ + ((encCNF (φ x)).length + 1) ^ b₀) ≤
+      (2 + (p + 1) ^ b₀) * ((encA x).length + 1) ^ B₁ := by
+    set Y := (encA x).length + 1
     have hY1 : 1 ≤ Y := Nat.le_add_left 1 _
-    have hφ_pow := Nat.add_one_pow_le_of_le_mul_pow hY1 (hφ_len x)
-    have hφ_b₀ : ((encCNF (φ x)).length + 1) ^ b₀ ≤ (p + 1) ^ b₀ * Y ^ (q * b₀) := hφ_pow b₀
-    have hSpair : Y ^ d₂ + (Y ^ d₁ + ((encCNF (φ x)).length + 1) ^ b₀) ≤
-        (2 + (p + 1) ^ b₀) * Y ^ B₁ := by
-      have hd₂ : Y ^ d₂ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by omega)
-      have hd₁ : Y ^ d₁ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by omega)
-      have hqb₀ : Y ^ (q * b₀) ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by omega)
-      have h3 := hφ_b₀.trans (Nat.mul_le_mul_left _ hqb₀)
-      nlinarith
-    have hpair_d₃ : ((encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1) ^ d₃ ≤
-        M ^ d₃ * Y ^ (B₁ * d₃) := by
-      have h1 : (encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length ≤
-          c_pair * (Y ^ d₂ + (Y ^ d₁ + ((encCNF (φ x)).length + 1) ^ b₀) + 1) := hpair_len x
-      have hYB₁ : 1 ≤ Y ^ B₁ := Nat.one_le_pow B₁ Y hY1
-      have h2 : (encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1 ≤
-          M * Y ^ B₁ := by
-        have h3 : Y ^ d₂ + (Y ^ d₁ + ((encCNF (φ x)).length + 1) ^ b₀) + 1 ≤
-            (3 + (p + 1) ^ b₀) * Y ^ B₁ := by nlinarith
-        calc (encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1
-            ≤ c_pair * ((3 + (p + 1) ^ b₀) * Y ^ B₁) + Y ^ B₁ :=
-              Nat.add_le_add (h1.trans (Nat.mul_le_mul_left c_pair h3)) hYB₁
-          _ = M * Y ^ B₁ := by ring
-      exact Nat.pow_le_pow_mul_pow_of_le_mul_pow h2 d₃
+    have h1 : Y ^ d₁ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by omega)
+    have h2 : Y ^ d₂ ≤ Y ^ B₁ := Nat.pow_le_pow_right hY1 (by omega)
+    have h3 : ((encCNF (φ x)).length + 1) ^ b₀ ≤ (p + 1) ^ b₀ * Y ^ B₁ :=
+      (Nat.add_one_pow_le_of_le_mul_pow hY1 (hφ_len x) b₀).trans
+        (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (by omega)))
+    calc Y ^ d₂ + (Y ^ d₁ + ((encCNF (φ x)).length + 1) ^ b₀)
+        ≤ Y ^ B₁ + (Y ^ B₁ + (p + 1) ^ b₀ * Y ^ B₁) := by gcongr
+      _ = (2 + (p + 1) ^ b₀) * Y ^ B₁ := by ring
+  have hpair_d₃ (x : α) :
+      ((encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1) ^ d₃ ≤
+      M ^ d₃ * ((encA x).length + 1) ^ (B₁ * d₃) := by
+    set Y := (encA x).length + 1
+    have hYB₁ : 1 ≤ Y ^ B₁ := Nat.one_le_pow B₁ Y (Nat.le_add_left 1 _)
+    refine Nat.pow_le_pow_mul_pow_of_le_mul_pow ?_ d₃
+    calc (encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1
+        ≤ c_pair * ((2 + (p + 1) ^ b₀) * Y ^ B₁ + 1) + 1 :=
+          Nat.add_le_add_right
+            ((hpair_len x).trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right (hSpair x) 1))) 1
+      _ ≤ c_pair * ((2 + (p + 1) ^ b₀) * Y ^ B₁ + Y ^ B₁) + Y ^ B₁ := by gcongr
+      _ = M * Y ^ B₁ := by simp only [M]; ring
+  set e : ℕ := B₁ + q * e₀ + B₁ * d₃
+  set b : ℕ := B₁ + B₁ * d₃
+  refine ⟨e, b,
+    htot.mono (2 + (p + 1) ^ e₀ + (p + 1) ^ b₀ + M ^ d₃ + 1) (fun x => ?_) (fun x => ?_)⟩
   · -- time
-    set e : ℕ := B₁ + q * e₀ + B₁ * d₃
+    set Y : ℕ := (encA x).length + 1
     set N : ℕ := G x
-    have hN1 : 1 ≤ N := hG1 x
+    have hY1 : 1 ≤ Y := Nat.le_add_left 1 _
+    have hNY {d : ℕ} (hd : d ≤ e) : Y ^ d ≤ N * Y ^ e :=
+      (Nat.pow_le_pow_right hY1 hd).trans (Nat.le_mul_of_pos_left _ (hG1 x))
     have hφ_e₀ : ((encCNF (φ x)).length + 1) ^ e₀ ≤ (p + 1) ^ e₀ * Y ^ e :=
-      (hφ_pow e₀).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (by omega)))
+      (Nat.add_one_pow_le_of_le_mul_pow hY1 (hφ_len x) e₀).trans
+        (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (by omega)))
     have hsub : F (φ x) * ((encCNF (φ x)).length + 1) ^ e₀ ≤ (p + 1) ^ e₀ * (N * Y ^ e) := by
       calc F (φ x) * ((encCNF (φ x)).length + 1) ^ e₀ ≤ N * ((p + 1) ^ e₀ * Y ^ e) :=
             Nat.mul_le_mul (hG x) hφ_e₀
         _ = (p + 1) ^ e₀ * (N * Y ^ e) := by ring
-    have hNY {d : ℕ} (hd : d ≤ e) : Y ^ d ≤ N * Y ^ e :=
-      (Nat.pow_le_pow_right hY1 hd).trans (Nat.le_mul_of_pos_left _ hN1)
-    have hd₂ : Y ^ d₂ ≤ N * Y ^ e := hNY (by omega)
     have hd₁ : Y ^ d₁ ≤ N * Y ^ e := hNY (by omega)
-    have hd₃ := hpair_d₃.trans (Nat.mul_le_mul_left (M ^ d₃) (hNY (d := B₁ * d₃) (by omega)))
-    change Y ^ d₂ + (Y ^ d₁ + F (φ x) * ((encCNF (φ x)).length + 1) ^ e₀) +
-      ((encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1) ^ d₃ ≤
-      (2 + (p + 1) ^ e₀ + (p + 1) ^ b₀ + M ^ d₃ + 1) * (N * Y ^ e + 1)
+    have hd₂ : Y ^ d₂ ≤ N * Y ^ e := hNY (by omega)
+    have hd₃ := (hpair_d₃ x).trans (Nat.mul_le_mul_left (M ^ d₃) (hNY (by omega)))
     calc Y ^ d₂ + (Y ^ d₁ + F (φ x) * ((encCNF (φ x)).length + 1) ^ e₀) +
           ((encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1) ^ d₃
-        ≤ N * Y ^ e + (N * Y ^ e + (p + 1) ^ e₀ * (N * Y ^ e)) + M ^ d₃ * (N * Y ^ e) :=
-          Nat.add_le_add (Nat.add_le_add hd₂ (Nat.add_le_add hd₁ hsub)) hd₃
+        ≤ N * Y ^ e + (N * Y ^ e + (p + 1) ^ e₀ * (N * Y ^ e)) + M ^ d₃ * (N * Y ^ e) := by gcongr
       _ = (2 + (p + 1) ^ e₀ + M ^ d₃) * (N * Y ^ e) := by ring
       _ ≤ (2 + (p + 1) ^ e₀ + (p + 1) ^ b₀ + M ^ d₃ + 1) * (N * Y ^ e + 1) :=
           Nat.mul_le_mul (by omega) (Nat.le_succ _)
   · -- space
-    set b : ℕ := B₁ + B₁ * d₃
-    have hs1 := hSpair.trans (Nat.mul_le_mul_left _
-      (Nat.pow_le_pow_right hY1 (show B₁ ≤ b by omega)))
-    have hs2 := hpair_d₃.trans (Nat.mul_le_mul_left (M ^ d₃)
-      (Nat.pow_le_pow_right hY1 (show B₁ * d₃ ≤ b by omega)))
-    change Y ^ d₂ + (Y ^ d₁ + ((encCNF (φ x)).length + 1) ^ b₀) +
-      ((encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1) ^ d₃ ≤
-      (2 + (p + 1) ^ e₀ + (p + 1) ^ b₀ + M ^ d₃ + 1) * (Y ^ b + 1)
+    set Y : ℕ := (encA x).length + 1
+    have hY1 : 1 ≤ Y := Nat.le_add_left 1 _
+    have hs1 := (hSpair x).trans
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (show B₁ ≤ b by omega)))
+    have hs2 := (hpair_d₃ x).trans
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (show B₁ * d₃ ≤ b by omega)))
     calc Y ^ d₂ + (Y ^ d₁ + ((encCNF (φ x)).length + 1) ^ b₀) +
           ((encPair encNat encNat (2 ^ shift x, countCNF (φ x))).length + 1) ^ d₃
         ≤ (2 + (p + 1) ^ b₀) * Y ^ b + M ^ d₃ * Y ^ b := Nat.add_le_add hs1 hs2
