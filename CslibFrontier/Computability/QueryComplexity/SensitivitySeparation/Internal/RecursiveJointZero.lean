@@ -81,9 +81,7 @@ theorem recursive_joint_zero_at {k r h : ℕ} {I : Type} [Fintype I]
       have hgon' := hF.accepts_of_le (gateIndex_strictAnti hqq).le hgon
       have hgoff' := ((rowClause_eq_true_iff T A.label F q' _ i).mp hi').2 j hij
       rw [recursiveChild_flip_same] at hgoff'
-      apply Finset.mem_union_right
-      apply Finset.mem_biUnion.mpr
-      refine ⟨i, hig, ?_⟩
+      refine Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨i, hig, ?_⟩)
       have hn :
           F (gateIndex q') (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
             F (gateIndex q') (recursiveChild x j (A.label i j)) ∧
