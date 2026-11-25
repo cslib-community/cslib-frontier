@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChild
+import CslibFrontier.Foundations.Data.Fintype.Sum
 import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.List.GetD
 
@@ -201,13 +202,6 @@ theorem card_packet_le {E R C : Type*} [Fintype E] {rowOf : E → R} {colOf : E 
           exact Q.injective (Prod.ext (he.trans he'.symm) h)
     _ = 2 ^ a := by rw [card_univ, Fintype.card_fin]
 
-/-- Counting the elements of a sum type with a property. -/
-private theorem card_filter_sum {A B : Type*} [Fintype A] [Fintype B] (p : A ⊕ B → Prop)
-    [DecidablePred p] :
-    #{x | p x} = #{a | p (.inl a)} + #{b | p (.inr b)} := by
-  rw [← Fintype.card_subtype, Fintype.card_congr Equiv.subtypeSum, Fintype.card_sum,
-    Fintype.card_subtype, Fintype.card_subtype]
-
 include hD in
 /-- **The degree bound passes to the native child**: if the parent has maximum degree at most `Δ`
 and `2 · 2 ^ a ≤ Δ`, every vertex of the child has at most `Δ` ports. A parent vertex keeps its
@@ -239,7 +233,7 @@ theorem length_le_of_mem_vertices_nativeChild (hK : 64 ^ a ≤ D.numEdges) (hia 
             (parentPacking hD a).packet g (E.symm j) = .inr q) from rfl, length_members,
         ← Fintype.card_subtype, ← Fintype.card_subtype]
       exact Fintype.card_congr (E.symm.subtypeEquiv fun _ => Iff.rfl)
-    rw [hcount, card_filter_sum]
+    rw [hcount, Sum.card_filter_univ]
     simp only [childTgt, Sum.elim_inl, Sum.elim_inr, Sum.inr.injEq]
     have h1 : ∀ (P : Fin D.numEdges → Prop) [DecidablePred P],
         #{e : {e // P e} | (parentPacking hD a).packet e.1 = q} ≤ 2 ^ a := fun P _ =>

@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
+import CslibFrontier.Foundations.Data.List.FlatMapRange
 
 /-!
 # The cursor over the children of an active call
@@ -112,17 +113,6 @@ private theorem isChain_range_of {R : ℕ → ℕ → Prop} {n : ℕ} (h : ∀ m
   rcases n with _ | n
   · simp
   · exact (List.isChain_range_succ R n).mpr fun m hm => h m (by omega)
-
-private theorem head?_flatMap_range {β : Type*} (f : ℕ → List β) {n : ℕ} (hn : 0 < n) {x : β}
-    (hx : (f 0).head? = some x) : ((List.range n).flatMap f).head? = some x := by
-  obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hn.ne'
-  rw [List.range_succ_eq_map, List.flatMap_cons, List.head?_append, hx, Option.some_or]
-
-private theorem getLast?_flatMap_range {β : Type*} (f : ℕ → List β) {n : ℕ} (hn : 0 < n)
-    (hne : f (n - 1) ≠ []) : ((List.range n).flatMap f).getLast? = (f (n - 1)).getLast? := by
-  obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hn.ne'
-  rw [List.range_succ, getLast?_flatMap_concat f _ _ (by simpa using hne)]
-  rfl
 
 /-! ### The cursor -/
 
@@ -233,7 +223,8 @@ include hn
 
 theorem head?_nodeBlock (t : ℕ) :
     (nodeBlock ws ps n r t).head? = some (t, 0, List.replicate (ws t).length 0, 0) :=
-  head?_flatMap_range _ hn (head?_pointBlock hr hps hws t 0)
+  (List.head?_flatMap_range hn (pointBlock_ne_nil hr hps hws t 0)).trans
+    (head?_pointBlock hr hps hws t 0)
 
 theorem nodeBlock_ne_nil (t : ℕ) : nodeBlock ws ps n r t ≠ [] := by
   rw [Ne, ← List.head?_eq_none_iff, head?_nodeBlock hr hn hps hws]
@@ -242,8 +233,8 @@ theorem nodeBlock_ne_nil (t : ℕ) : nodeBlock ws ps n r t ≠ [] := by
 theorem getLast?_nodeBlock (t : ℕ) : ∃ β, (nodeBlock ws ps n r t).getLast? =
     some (t, n - 1, β, r - 1) ∧ budgetNext (ws t) (ps t) β = none := by
   obtain ⟨β, hβ, hnone⟩ := getLast?_pointBlock hr hps hws t (n - 1)
-  exact ⟨β, by rw [nodeBlock, getLast?_flatMap_range _ hn (pointBlock_ne_nil hr hps hws t _), hβ],
-    hnone⟩
+  refine ⟨β, ?_, hnone⟩
+  rw [nodeBlock, List.getLast?_flatMap_range hn (pointBlock_ne_nil hr hps hws t _), hβ]
 
 omit hn in
 /-- Within one node, the cursor walks the points, the exponent tuples and the groups. -/
@@ -262,7 +253,8 @@ theorem isChain_nodeBlock (t : ℕ) :
 
 /-- **The walk starts at `cursorStart`.** -/
 theorem head?_cursorList (hT : 0 < T) : (cursorList ws ps T n r).head? = some (cursorStart ws) :=
-  head?_flatMap_range _ hT (head?_nodeBlock hr hn hps hws 0)
+  (List.head?_flatMap_range hT (nodeBlock_ne_nil hr hn hps hws 0)).trans
+    (head?_nodeBlock hr hn hps hws 0)
 
 /-- **Each index is followed by its successor.** -/
 theorem isChain_cursorList :
@@ -286,7 +278,7 @@ theorem cursorNext_getLast? :
   rcases Nat.eq_zero_or_pos T with rfl | hT
   · simp [cursorList] at hx
   obtain ⟨β, hβ, hnone⟩ := getLast?_nodeBlock hr hn hps hws (T - 1)
-  rw [cursorList, getLast?_flatMap_range _ hT (nodeBlock_ne_nil hr hn hps hws _), hβ] at hx
+  rw [cursorList, List.getLast?_flatMap_range hT (nodeBlock_ne_nil hr hn hps hws _), hβ] at hx
   simp only [Option.mem_def, Option.some.injEq] at hx
   subst hx
   have h1 : ¬ r - 1 + 1 < r := by omega

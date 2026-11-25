@@ -300,13 +300,6 @@ theorem portRank_eq (sel : ℕ × ℕ → ℕ) (endF : Fin m → Fin k)
   simp only [Function.comp_apply, getD_ofFn_group src tgt group sel endF hsel, Fin.val_inj,
     decide_eq_true_eq]
 
-/-- Counting a group among the groups of the vertices gives the number of its vertices. -/
-theorem count_ofFn_group :
-    (List.ofFn fun v => (group v : ℕ)).count (g : ℕ) = (members fun v => group v = g).length := by
-  rw [List.ofFn_eq_map, List.count, List.countP_map, members, ← List.countP_eq_length_filter]
-  refine List.countP_congr fun u _ => ?_
-  simp [Fin.val_inj]
-
 /-- The native vertices of group `g` are its members, in order. -/
 theorem filter_range_group :
     (List.range k).filter (fun v => (List.ofFn fun v => (group v : ℕ)).getD v 0 = (g : ℕ)) =

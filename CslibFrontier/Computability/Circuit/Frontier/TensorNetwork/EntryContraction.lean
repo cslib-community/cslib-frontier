@@ -338,9 +338,6 @@ private theorem lengths_le (P : ℕ) (fl : List ℕ) (r : ℕ) (G : DescribedNet
   have h := length_le_length_encList encNat fl
   enc_len [encInput, DescribedNetwork.encInput] at h ⊢
 
-private theorem mul_pow_le {c W d E : ℕ} (hW : 1 ≤ W) (hd : d ≤ E) : c * W ^ d ≤ c * W ^ E :=
-  Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW hd)
-
 /-- **The resources of direct summation with an entry procedure.** There is `K` such that on an
 input `(P, fl, r, G)` of encoded length `n`, with `m` edges and `k` vertices in `G`, if the entry
 procedure takes time at most `E` and space at most `ES` on every vertex and bits on its ports,
@@ -406,9 +403,12 @@ theorem directCore_le
     exact h.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hnW _))
   obtain ⟨K, hK⟩ : ∃ K, K = ct + cs + c₁ + dt + ds + 2 * K₁ := ⟨_, rfl⟩
   rw [← hK]
-  have hct : ct * W ^ dt ≤ ct * W ^ K := mul_pow_le hW1 (by omega)
-  have hcs : cs * W ^ ds ≤ cs * W ^ K := mul_pow_le hW1 (by omega)
-  have hc1 : c₁ * W ^ (2 * K₁) ≤ c₁ * W ^ K := mul_pow_le hW1 (by omega)
+  have hct : ct * W ^ dt ≤ ct * W ^ K :=
+    Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW1 (by omega))
+  have hcs : cs * W ^ ds ≤ cs * W ^ K :=
+    Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW1 (by omega))
+  have hc1 : c₁ * W ^ (2 * K₁) ≤ c₁ * W ^ K :=
+    Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW1 (by omega))
   have hsum : ct * W ^ K + cs * W ^ K + c₁ * W ^ K ≤ K * W ^ K := by
     rw [← Nat.add_mul, ← Nat.add_mul]; exact Nat.mul_le_mul_right _ (by omega)
   have hP1 : 1 ≤ 2 ^ G.numEdges * (G.vertices.length + 1) + 1 := by omega

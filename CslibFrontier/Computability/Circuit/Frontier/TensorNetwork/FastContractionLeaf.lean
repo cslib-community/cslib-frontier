@@ -139,11 +139,6 @@ end Lengths
 private theorem mul_pow_le_of_le {c y d W : ℕ} (hy : y + 1 ≤ W) : c * (y + 1) ^ d ≤ c * W ^ d :=
   Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hy _)
 
-/-- Raising the exponent of `W ≥ 1`. -/
-private theorem mul_pow_le_mul_pow {c W d E : ℕ} (hW : 1 ≤ W) (hd : d ≤ E) :
-    c * W ^ d ≤ c * W ^ E :=
-  Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW hd)
-
 /-- The reduced coefficient lists against `W`. -/
 private theorem rv_le {n W cf df cp dp : ℕ} (hnW : n + 1 ≤ W) :
     n * (2 * n + 3) + cf * (n + 1) ^ df * (2 * (cp * (n + 1) ^ dp) + 3) ≤
@@ -163,16 +158,17 @@ private theorem rv_le {n W cf df cp dp : ℕ} (hnW : n + 1 ≤ W) :
         ≤ cf * W ^ df * ((2 * cp + 3) * W ^ dp) :=
           Nat.mul_le_mul (Nat.mul_le_mul_left _ hb1) this
       _ = cf * (2 * cp + 3) * W ^ (df + dp) := by rw [pow_add]; ring
-  have l1 : 5 * W ^ 2 ≤ 5 * W ^ (2 + df + dp) := mul_pow_le_mul_pow hW1 (by omega)
+  have l1 : 5 * W ^ 2 ≤ 5 * W ^ (2 + df + dp) :=
+    Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW1 (by omega))
   have l2 : cf * (2 * cp + 3) * W ^ (df + dp) ≤ cf * (2 * cp + 3) * W ^ (2 + df + dp) :=
-    mul_pow_le_mul_pow hW1 (by omega)
+    Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW1 (by omega))
   rw [add_mul]
   omega
 
 /-- The input of direct summation against `W`. -/
 private theorem sum_le_of_le {W a b c₀ d₀ cR E₀ : ℕ} (hW : 1 ≤ W) (ha : a ≤ c₀ * W ^ d₀)
     (hd : d₀ ≤ E₀) (hb : b ≤ cR * W ^ E₀) : a + b + b + 1 ≤ (c₀ + 2 * cR + 1) * W ^ E₀ := by
-  have h1 : c₀ * W ^ d₀ ≤ c₀ * W ^ E₀ := mul_pow_le_mul_pow hW hd
+  have h1 : c₀ * W ^ d₀ ≤ c₀ * W ^ E₀ := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW hd)
   have h2 : 1 ≤ W ^ E₀ := Nat.one_le_pow _ _ (by omega)
   rw [add_mul, add_mul, Nat.mul_assoc 2]
   omega
@@ -235,11 +231,11 @@ private theorem time_assemble {Td Ti Ts cd dd ci di P X E k W A Zb c₁ c₂ E�
             (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW (by omega))))
   have hPY : 1 ≤ P * Y := Nat.one_le_iff_ne_zero.mpr (by positivity)
   have hd' : Td ≤ cd * S * P * Y :=
-    calc Td ≤ cd * S := hd.trans (mul_pow_le_mul_pow hW (by omega))
+    calc Td ≤ cd * S := hd.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW (by omega)))
       _ ≤ cd * S * (P * Y) := Nat.le_mul_of_pos_right _ hPY
       _ = cd * S * P * Y := by ring
   have hi' : Ti ≤ ci * S * P * Y :=
-    calc Ti ≤ ci * S := hi.trans (mul_pow_le_mul_pow hW (by omega))
+    calc Ti ≤ ci * S := hi.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW (by omega)))
       _ ≤ ci * S * (P * Y) := Nat.le_mul_of_pos_right _ hPY
       _ = ci * S * P * Y := by ring
   have e : (2 * (K₁ * c₁ ^ K₁ + 2 * (K₂ * c₂ ^ K₂) + 2) + cd + ci) * S * P * Y =
@@ -272,8 +268,8 @@ private theorem space_assemble {Sd Si Ss cd dd ci di W A Zb c₁ c₂ E₀ K₁ 
       _ ≤ K₂ * c₂ ^ K₂ * S := Nat.mul_le_mul_left _ hWF2
   have hWS : ES ≤ S :=
     hESW.trans ((pow_one W).symm.le.trans (Nat.pow_le_pow_right hW (by omega)))
-  have hd' : Sd ≤ cd * S := hd.trans (mul_pow_le_mul_pow hW (by omega))
-  have hi' : Si ≤ ci * S := hi.trans (mul_pow_le_mul_pow hW (by omega))
+  have hd' : Sd ≤ cd * S := hd.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW (by omega)))
+  have hi' : Si ≤ ci * S := hi.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hW (by omega)))
   have e : (K₁ * c₁ ^ K₁ + K₂ * c₂ ^ K₂ + cd + ci + 1) * S =
       K₁ * c₁ ^ K₁ * S + K₂ * c₂ ^ K₂ * S + cd * S + ci * S + S := by ring
   omega
