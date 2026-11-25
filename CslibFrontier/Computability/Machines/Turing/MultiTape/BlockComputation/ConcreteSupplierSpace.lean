@@ -55,11 +55,10 @@ private theorem normalized_point_encoding_le {p d r : ℕ} (point : List ℕ)
     (hp : 0 < p) (hlen : point.length ≤ d * r) :
     (encList encNat (NormalizePoint.normalize p point)).length ≤
       d * r * (2 * (encNat p).length + 1) := by
-  have h := length_encList_le encNat (NormalizePoint.normalize p point)
-    (b := (encNat p).length) (by
-      intro value hvalue
-      obtain ⟨v, _, rfl⟩ := List.mem_map.mp hvalue
-      exact length_encNat_mono (Nat.mod_lt v hp).le)
+  have h := length_encList_le encNat (NormalizePoint.normalize p point) (b := (encNat p).length)
+    fun _ hv => by
+      obtain ⟨v, _, rfl⟩ := List.mem_map.mp hv
+      exact length_encNat_mono (Nat.mod_lt v hp).le
   rw [NormalizePoint.length_normalize] at h
   exact h.trans (Nat.mul_le_mul_right _ hlen)
 
@@ -86,11 +85,9 @@ private theorem interpolation_params_encoding_le
           2 * (d * r * (2 * (encNat p).length + 1)) := by
   have hi' := length_encNat_mono hi
   have hc' := length_encNat_mono hc
+  have hnil : (encList encNat []).length = 0 := rfl
   simp only [metadataSpace, QueryGate.encParams, Interpolation.encContext_apply,
-    Interpolation.encContextFields, encNat3,
-    length_encPair]
-  have hempty : (encList encNat []).length = 0 := rfl
-  rw [hempty]
+    Interpolation.encContextFields, encNat3, length_encPair, hnil]
   omega
 
 /-- Every stored request point of the stated dimensions has one explicit uniform gate bound.
@@ -108,18 +105,14 @@ theorem allowance_le {k s : ℕ} {Q : Type}
     (NormalizePoint.normalize p point) hi (Nat.zero_le r) hpoint
   have hmax := interpolation_params_encoding_le N b σ q m alphabet limit p d r i r
     (NormalizePoint.normalize p point) hi le_rfl hpoint
-  have hcallee := calleeSpace_le_replaySpace (k := k) (s := s) (Q := Q)
-    N b σ q m r i hi
-  change 2 * GateVector.callerSpace
-      ((⟨N, b, σ, i, m, 0, r * m⟩, (p, alphabet, d * r),
-        NormalizePoint.normalize p point, limit), r) +
-      16 * ((QueryGate.encParams Interpolation.encContext
-        (⟨N, b, σ, i, m, r, r * m⟩, (p, alphabet, d * r),
-          NormalizePoint.normalize p point, limit)).length + 1) +
-      Interpolation.calleeSpace k s Q ⟨N, b, σ, i, m, r, r * m⟩ + 5 ≤ _
-  simp only [GateVector.callerSpace, GateVector.encParams, length_encPair, gateSpace]
-    at hparams hmax ⊢
-  simp only [Nat.mul_assoc] at hparams hmax ⊢
+  have hcallee := calleeSpace_le_replaySpace (k := k) (s := s) (Q := Q) N b σ q m r i hi
+  change 2 * GateVector.callerSpace ((⟨N, b, σ, i, m, 0, r * m⟩, (p, alphabet, d * r),
+      NormalizePoint.normalize p point, limit), r) +
+    16 * ((QueryGate.encParams Interpolation.encContext (⟨N, b, σ, i, m, r, r * m⟩,
+      (p, alphabet, d * r), NormalizePoint.normalize p point, limit)).length + 1) +
+    Interpolation.calleeSpace k s Q ⟨N, b, σ, i, m, r, r * m⟩ + 5 ≤ _
+  simp only [GateVector.callerSpace, GateVector.encParams, length_encPair, gateSpace,
+    Nat.mul_assoc] at hparams hmax ⊢
   omega
 
 /-- Actual modulus-padded field points satisfy the uniform dimension bound directly. -/
@@ -141,24 +134,20 @@ theorem node_reply_encoding_le {k s p r m : ℕ} {Q : Type}
     (RawController.encReply (NodeReply.reply M e ((σ, q, path), (limit, m, r)))).length ≤
       r * (2 * (encNat p).length + 1) + 8 := by
   have hvalues := length_encList_le encNat (InitialVector.values M e (limit, m, r))
-    (b := (encNat p).length) (by
-      intro value hvalue
+    (b := (encNat p).length) fun value hvalue => by
       rw [InitialVector.values_eq_packBits M e limit b hcapacity hb] at hvalue
       obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hvalue
-      exact length_encNat_mono ((Fin.isLt _).trans_le hsp).le)
-  have hlength : (InitialVector.values M e (limit, m, r)).length = r := by
-    rw [InitialVector.length_values, Nat.min_eq_left hcapacity]
-  rw [hlength] at hvalues
-  have htag : ImplicitNode.classify k (σ, q, path) ≤ 2 := by grind [ImplicitNode.classify]
-  have htaglen := length_encNat_mono htag
+      exact length_encNat_mono ((Fin.isLt _).trans_le hsp).le
+  rw [InitialVector.length_values, Nat.min_eq_left hcapacity] at hvalues
+  have htaglen := length_encNat_mono (show ImplicitNode.classify k (σ, q, path) ≤ 2 by
+    grind [ImplicitNode.classify])
   have htwo : (encNat 2).length = 2 := rfl
   have hone : (encNat 1).length = 1 := rfl
   simp only [NodeReply.reply, hcapacity, ↓reduceIte]
   split
   · enc_len [RawController.encReply]
-  · simp only [RawController.encReply, length_encPair]
-    have hempty : (encList encNat []).length = 0 := rfl
-    rw [hempty]
+  · have hnil : (encList encNat []).length = 0 := rfl
+    simp only [RawController.encReply, length_encPair, hnil]
     omega
 
 end Turing.MultiTapePTM.BlockComputation.ConcreteSupplier

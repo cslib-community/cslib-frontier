@@ -141,12 +141,11 @@ theorem isSatExtension_restrict {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : 
 /-- A frozen variable stays frozen when another unassigned variable is assigned. -/
 theorem Frozen.update {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x y : Fin n}
     (h : Frozen φ τ x) (hxy : x ≠ y) (hy : τ y = none) (b : Bool) :
-    Frozen φ (Function.update τ y (some b)) x := by
-  have hext : ∀ σ, IsSatExtension φ (Function.update τ y (some b)) σ → IsSatExtension φ τ σ :=
-    fun σ hσ => ((isSatExtension_update_iff hy).1 hσ).1
-  refine ⟨?_, fun σ σ' hσ hσ' => h.2 σ σ' (hext σ hσ) (hext σ' hσ')⟩
-  rw [Function.update_of_ne hxy]
-  exact h.1
+    Frozen φ (Function.update τ y (some b)) x :=
+  ⟨by
+    rw [Function.update_of_ne hxy]
+    exact h.1, fun σ σ' hσ hσ' =>
+    h.2 σ σ' ((isSatExtension_update_iff hy).1 hσ).1 ((isSatExtension_update_iff hy).1 hσ').1⟩
 
 /-- An unassigned variable that is not frozen takes both values among the satisfying
 extensions. -/
@@ -159,12 +158,8 @@ theorem exists_ne_of_not_frozen {φ : CNF (Fin n)} {τ : Fin n → Option Bool} 
 satisfying extension `σ`, the only satisfying literal on `y` is `y = σ y`. -/
 theorem satLit_iff_of_frozen {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {σ : Fin n → Bool}
     (hσ : IsSatExtension φ τ σ) {y : Fin n} (hfr : Frozen φ τ y) {b : Bool} :
-    SatLit φ τ y b ↔ b = σ y := by
-  constructor
-  · rintro ⟨-, σ', hσ', rfl⟩
-    exact hfr.2 σ' σ hσ' hσ
-  · rintro rfl
-    exact ⟨hfr.1, σ, hσ, rfl⟩
+    SatLit φ τ y b ↔ b = σ y :=
+  ⟨fun ⟨_, σ', hσ', h⟩ => h ▸ hfr.2 σ' σ hσ' hσ, fun h => h ▸ ⟨hfr.1, σ, hσ, rfl⟩⟩
 
 /-! ### The guess probability -/
 
@@ -191,10 +186,7 @@ theorem guessProb_nonneg : 0 ≤ guessProb φ w T σ x := by
 theorem guessProb_le_one : guessProb φ w T σ x ≤ 1 := by
   unfold guessProb
   rw [div_le_one (by exact_mod_cast Nat.factorial_pos n)]
-  have := card_le_univ (univ.filter fun π : Equiv.Perm (Fin n) =>
-    ¬ WImplied φ w (restrict σ (T ∪ placedBefore π x)) x (σ x))
-  rw [Fintype.card_perm, Fintype.card_fin] at this
-  exact_mod_cast this
+  exact_mod_cast (card_le_univ _).trans_eq (by rw [Fintype.card_perm, Fintype.card_fin])
 
 /-- **Monotonicity of the guess probability** [Hertli, Lemma 10 (p. 5)][Hertli2011]: fixing more
 variables of `σ` does not increase the guess probability, since w-implication is monotone
@@ -231,14 +223,10 @@ theorem guessProb_empty (hσ : φ.eval σ = true) :
   have h := card_filter_add_card_filter_not (s := (univ : Finset (Equiv.Perm (Fin n))))
     fun π => Forced φ w σ π x
   rw [card_univ, Fintype.card_perm, Fintype.card_fin] at h
-  have hcongr : (univ.filter fun π : Equiv.Perm (Fin n) =>
-      ¬ WImplied φ w (restrict σ (∅ ∪ placedBefore π x)) x (σ x)) =
-      univ.filter fun π => ¬ Forced φ w σ π x := by
-    refine filter_congr fun π _ => ?_
-    rw [empty_union, forced_iff_wImplied hσ, placedBefore_eq_prefixSet]
   unfold guessProb
-  rw [hcongr, eq_sub_iff_add_eq, ← add_div, div_eq_one_iff_eq hN.ne', ← Nat.cast_add,
-    add_comm, h]
+  rw [filter_congr fun π _ => by
+      rw [empty_union, placedBefore_eq_prefixSet, ← forced_iff_wImplied hσ],
+    eq_sub_iff_add_eq, ← add_div, div_eq_one_iff_eq hN.ne', ← Nat.cast_add, add_comm, h]
 
 /-- **The guess probability as an integral** (original). The event that `x` is guessed depends
 only on the unassigned variables placed before `x`, so the guess probability is the average over
@@ -255,11 +243,10 @@ theorem guessProb_eq_integral (φ : CNF (Fin n)) (w : ℕ) (T : Finset (Fin n)) 
   have hU : univ.erase x = Tᶜ.erase x ∪ T.erase x := by
     ext y
     by_cases hy : y ∈ T <;> simp [hy]
-  have hdisj : Disjoint (Tᶜ.erase x) (T.erase x) :=
-    disjoint_left.2 fun y hy hy' => (mem_compl.1 (mem_erase.1 hy).2) (mem_erase.1 hy').2
   rw [hU]
-  refine bernoulliProb_union_of_forall_insert hdisj fun v hv S => ?_
-  rw [union_insert, insert_eq_of_mem (mem_union_left S (mem_erase.1 hv).2)]
+  exact bernoulliProb_union_of_forall_insert
+    (disjoint_left.2 fun y hy hy' => (mem_compl.1 (mem_erase.1 hy).2) (mem_erase.1 hy').2)
+    fun v hv S => by rw [union_insert, insert_eq_of_mem (mem_union_left S (mem_erase.1 hv).2)]
 
 /-- **The first-step identity**, the analogue for the unmodified algorithm of
 [Hertli, Lemma 11 (p. 6)][Hertli2011], in the form `m * u = f + ∑ y, u_y` (original, by
@@ -302,40 +289,35 @@ the restricted formula. -/
 theorem exists_isCriticalTreeAt_restrictBy (hσ : φ.eval σ = true) (hfr : Frozen φ (restrict σ T) x)
     (h : ℕ) : ∃ C, IsCriticalTreeAt (φ.restrictBy (restrict σ T)) σ x h C := by
   classical
-  have key : ∀ p : List (Fin n), x ∈ p →
+  have key (p : List (Fin n)) (hxp : x ∈ p) :
       ∃ c ∈ φ.restrictBy (restrict σ T), c.eval (flipOn p.toFinset σ) = false := by
-    intro p hxp
     have hxT : x ∉ T := fun hxT => by
       have := hfr.1
       simp [restrict, hxT] at this
     set γ := flipOn (p.toFinset \ T) σ with hγ
-    have hγT : ∀ y c, restrict σ T y = some c → γ y = c := fun y c hy => by
+    have hγT (y c) (hy : restrict σ T y = some c) : γ y = c := by
       have hyT : y ∈ T := by grind [restrict]
-      rw [hγ, flipOn_apply_of_notMem (fun h => (mem_sdiff.1 h).2 hyT)]
+      rw [hγ, flipOn_apply_of_notMem fun h => (mem_sdiff.1 h).2 hyT]
       exact PPZ.eq_of_restrict_eq_some hy
-    by_contra hall
-    push Not at hall
-    have hψ : (φ.restrictBy (restrict σ T)).eval γ = true := by
-      refine (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_
-      obtain ⟨l, hl, hls⟩ := (Clause.eval_eq_true_iff _ _).1 (by simpa using hall c hc)
-      have hlT : l.1 ∉ T := fun hlT => by
-        have := CNF.eq_none_of_mem_restrictBy hc hl
-        simp [restrict, hlT] at this
-      refine (Clause.eval_eq_true_iff _ _).2 ⟨l, hl, ?_⟩
-      rw [← hls]
-      exact flipOn_apply_eq_of_iff (by simp [hlT])
+    by_contra! hall
+    have hψ : (φ.restrictBy (restrict σ T)).eval γ = true :=
+      (CNF.eval_eq_true_iff _ _).2 fun c hc => by
+        obtain ⟨l, hl, hls⟩ := (Clause.eval_eq_true_iff _ _).1 (by simpa using hall c hc)
+        have hlT : l.1 ∉ T := fun hlT => by
+          have := CNF.eq_none_of_mem_restrictBy hc hl
+          simp [restrict, hlT] at this
+        exact (Clause.eval_eq_true_iff _ _).2
+          ⟨l, hl, (flipOn_apply_eq_of_iff (by simp [hlT])).trans hls⟩
     rw [CNF.eval_restrictBy hγT] at hψ
     have := hfr.2 γ σ ⟨hγT, hψ⟩ (isSatExtension_restrict hσ T)
     rw [hγ, flipOn_apply_of_mem (mem_sdiff.2 ⟨List.mem_toFinset.2 hxp, hxT⟩)] at this
     cases hσx : σ x <;> simp [hσx] at this
-  have key' : ∀ p : List (Fin n), ∃ c : Clause (Fin n), x ∈ p →
-      c ∈ φ.restrictBy (restrict σ T) ∧ c.eval (flipOn p.toFinset σ) = false := by
-    intro p
-    by_cases hxp : x ∈ p
-    · obtain ⟨c, hc, hce⟩ := key p hxp
-      exact ⟨c, fun _ => ⟨hc, hce⟩⟩
-    · exact ⟨[], fun h => absurd h hxp⟩
-  choose C hC using key'
+  choose C hC using fun p : List (Fin n) =>
+    if hxp : x ∈ p then
+      let ⟨c, hc, hce⟩ := key p hxp
+      (⟨c, fun _ => ⟨hc, hce⟩⟩ :
+        ∃ c, x ∈ p → c ∈ φ.restrictBy (restrict σ T) ∧ c.eval (flipOn p.toFinset σ) = false)
+    else ⟨[], fun h => absurd h hxp⟩
   exact ⟨C, fun p hxp _ => hC p hxp⟩
 
 /-- **The guess bound for frozen variables**, for the unmodified algorithm the frozen-variable part
@@ -354,8 +336,7 @@ theorem guessProb_le_of_frozen {k h : ℕ} (hσ : φ.eval σ = true) (hfr : Froz
   classical
   set ψ := φ.restrictBy (restrict σ T)
   have hψσ : ψ.eval σ = true := by
-    rw [CNF.eval_restrictBy fun _ _ => PPZ.eq_of_restrict_eq_some]
-    exact hσ
+    rwa [CNF.eval_restrictBy fun _ _ => PPZ.eq_of_restrict_eq_some]
   have hψlen := CNF.length_le_of_mem_restrictBy (ρ := restrict σ T) hlen
   obtain ⟨C, hC⟩ := exists_isCriticalTreeAt_restrictBy hσ hfr h
   have hq := qbar_le_card_filter_placedBefore_div_factorial (E := fun A => Cut C A h [x])
@@ -364,20 +345,14 @@ theorem guessProb_le_of_frozen {k h : ℕ} (hσ : φ.eval σ = true) (hfr : Froz
   have hsum := card_filter_add_card_filter_not (s := (univ : Finset (Equiv.Perm (Fin n))))
     fun π => Cut C (placedBefore π x) h [x]
   rw [card_univ, Fintype.card_perm, Fintype.card_fin] at hsum
-  have hsub : (univ.filter fun π : Equiv.Perm (Fin n) =>
-      ¬ WImplied φ w (restrict σ (T ∪ placedBefore π x)) x (σ x)) ⊆
-      univ.filter fun π => ¬ Cut C (placedBefore π x) h [x] := by
-    intro π hπ
-    rw [mem_filter] at hπ ⊢
-    refine ⟨hπ.1, fun hcut => hπ.2 ?_⟩
-    exact (hC.wImplied_of_cut hψσ hψlen hw hcut).of_restrictBy
-      (fun y c => restrict_eq_some_of_subset subset_union_left)
-      (fun y c => restrict_eq_some_of_subset subset_union_right)
   have hle : guessProb φ w T σ x ≤
       (#(univ.filter fun π : Equiv.Perm (Fin n) => ¬ Cut C (placedBefore π x) h [x]) : ℝ) /
-        n.factorial := by
-    unfold guessProb
-    exact div_le_div_of_nonneg_right (by exact_mod_cast card_le_card hsub) hN.le
+        n.factorial :=
+    div_le_div_of_nonneg_right (Nat.cast_le.2 (card_le_card fun π hπ => by
+      rw [mem_filter] at hπ ⊢
+      exact ⟨hπ.1, fun hcut => hπ.2 ((hC.wImplied_of_cut hψσ hψlen hw hcut).of_restrictBy
+        (fun _ _ => restrict_eq_some_of_subset subset_union_left)
+        (fun _ _ => restrict_eq_some_of_subset subset_union_right))⟩)) hN.le
   have hsplit : (#(univ.filter fun π : Equiv.Perm (Fin n) =>
       ¬ Cut C (placedBefore π x) h [x]) : ℝ) / n.factorial =
       1 - (#(univ.filter fun π : Equiv.Perm (Fin n) => Cut C (placedBefore π x) h [x]) : ℝ) /

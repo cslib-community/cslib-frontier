@@ -30,23 +30,25 @@ open Cslib.WordRAM Cslib.Algorithms.MatrixMultiplication.Schonhage
 /-- The complete allocation contains the computed shared geometry/table and native stack. -/
 @[expose] def memoryEnd (L m t : ℕ) : ℕ := stackBase L m t + 5 * stackCapacity L
 
+private theorem box_span_bounds (L m t : ℕ) (hm : m ≤ L) :
+    (boxes L m t).card ≤ (m - t + 1) * 10 ^ L ∧
+      (m - t + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L ∧
+      10 ^ L ≤ (L + 1) * 10 ^ L := by
+  have hB := Nat.count_le (BoxTable.Eligible L (m - t)) (n := (m - t + 1) * 10 ^ L)
+  rw [BoxTable.count_eligible_eq_card_boxes] at hB
+  exact ⟨hB, Nat.mul_le_mul_right (10 ^ L) (by omega), Nat.le_mul_of_pos_left _ (by omega)⟩
+
 /-- Original headers derive the reusable query's scalar/address budget. -/
 theorem query_address_le (L m t : ℕ) (hm : m ≤ L) :
     queryAddressBound L t 5 (5 + 10 ^ L) (directoryBase L) (valueBase L m t)
       (boxes L m t).card ≤ originalAddressBound L m t := by
-  have hB := Nat.count_le (BoxTable.Eligible L (m - t)) (n := (m - t + 1) * 10 ^ L)
-  rw [BoxTable.count_eligible_eq_card_boxes] at hB
-  have hS := Nat.mul_le_mul_right (10 ^ L) (by omega : m - t + 1 ≤ L + 1)
-  have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
+  obtain ⟨hB, hS, hT⟩ := box_span_bounds L m t hm
   unfold queryAddressBound originalAddressBound valueBase recordBase directoryBase
   omega
 
 /-- All native stack addresses fit the original scalar envelope, without clearing that space. -/
 theorem memoryEnd_le (L m t : ℕ) (hm : m ≤ L) : memoryEnd L m t ≤ originalAddressBound L m t := by
-  have hB := Nat.count_le (BoxTable.Eligible L (m - t)) (n := (m - t + 1) * 10 ^ L)
-  rw [BoxTable.count_eligible_eq_card_boxes] at hB
-  have hS := Nat.mul_le_mul_right (10 ^ L) (by omega : m - t + 1 ≤ L + 1)
-  have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
+  obtain ⟨hB, hS, hT⟩ := box_span_bounds L m t hm
   unfold memoryEnd stackBase valueBase recordBase directoryBase stackCapacity originalAddressBound
   omega
 
@@ -62,20 +64,14 @@ theorem admissionWidth_pos (L m t A B : ℕ) : 0 < admissionWidth L m t A B := b
 theorem admission_bounds {W L m t A B : ℕ} (hW : admissionWidth L m t A B ≤ W) :
     0 < W - 2 ∧ Fits W (originalAddressBound L m t) ∧
       GenericRAM.Signed.Fits (W - 2) (magnitudeBound L A B : ℕ) := by
-  have hs : Nat.clog 2 (magnitudeBound L A B + originalAddressBound L m t + 1) ≤
-      (W - 2) - 1 := by unfold admissionWidth at hW; omega
+  unfold admissionWidth at hW
   have hmag : magnitudeBound L A B < 2 ^ ((W - 2) - 1) :=
-    fits_of_lt_clog_le
-      (by omega : magnitudeBound L A B < magnitudeBound L A B + originalAddressBound L m t + 1) hs
-  have hw : 0 < W - 2 := by unfold admissionWidth at hW; omega
-  refine ⟨hw, ?_, hw, ?_, ?_⟩
-  · exact fits_of_lt_clog_le
-      (by omega : originalAddressBound L m t <
-        magnitudeBound L A B + originalAddressBound L m t + 1) (by omega)
-  · have hn : 0 ≤ (magnitudeBound L A B : ℤ) := Int.natCast_nonneg _
-    have hp : 0 ≤ (2 : ℤ) ^ ((W - 2) - 1) := by positivity
-    omega
-  · exact_mod_cast hmag
+    fits_of_lt_clog_le (B := magnitudeBound L A B + originalAddressBound L m t + 1)
+      (by omega) (by omega)
+  refine ⟨by omega,
+    fits_of_lt_clog_le (B := magnitudeBound L A B + originalAddressBound L m t + 1)
+      (by omega) (by omega),
+    by omega, (neg_nonpos.mpr (by positivity)).trans (Int.natCast_nonneg _), by exact_mod_cast hmag⟩
 
 /-- A fixed original-input word/support envelope, independent of larger physical widths. -/
 @[expose] def wordBound (L m t A B : ℕ) : ℕ :=

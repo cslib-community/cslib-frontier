@@ -89,8 +89,7 @@ theorem sum_norm_tensorPowerApply
   | n + 1, Φ => by
     rw [← (Fin.insertNthEquiv (fun _ => κ) 0).sum_comp, Fintype.sum_prod_type_right,
       ← (Fin.insertNthEquiv (fun _ => β) 0).sum_comp, Fintype.sum_prod_type]
-    simp only [Fin.insertNthEquiv, Equiv.coe_fn_mk, tensorPowerApply_insertNth]
-    simp only [hiso]
+    simp only [Fin.insertNthEquiv, Equiv.coe_fn_mk, tensorPowerApply_insertNth, hiso]
     rw [sum_comm]
     exact sum_congr rfl fun b _ =>
       sum_norm_tensorPowerApply hiso fun w => Φ ((0 : Fin (n + 1)).insertNth b w)
@@ -124,9 +123,8 @@ theorem sum_filter_mul_norm_tensorPowerApply_le
   have hΩ (a : κ) : tensorPowerApply A Φ (j.insertNth a v) = ∑ b, A a b * φ b :=
     tensorPowerApply_insertNth A Φ j a v
   simp only [hΩ, hiso φ, filter_mem_eq_inter, univ_inter]
-  have := hA φ
-  have := hg (j.insertNth a₀ v)
-  nlinarith
+  rw [mul_left_comm]
+  exact mul_le_mul_of_nonneg_left (hA φ) (hg _)
 
 /-- **The exponential moment of the number of copies in `T`**: for `t ≥ 1`, the expectation of
 `t ^ #{j | u j ∈ T}` is at most `(1 + (t - 1) s) ^ k` times the squared norm, as for `k`
@@ -154,15 +152,13 @@ theorem sum_pow_card_filter_mul_norm_tensorPowerApply_le
       simp only [hsplit, sum_add_distrib, ← sum_filter, ← mul_sum]
       have hA' := sum_filter_mul_norm_tensorPowerApply_le A T s hA hiso Φ J
         (fun u => t ^ (S.filter fun j => u j ∈ T).card) (fun u => by positivity)
-        (fun u a => by
-          congr 2
-          refine filter_congr fun j hj => ?_
-          rw [Function.update_of_ne (show j ≠ J from fun h => hJ (h ▸ hj))])
+        (fun u a => congrArg (t ^ Finset.card ·) (filter_congr fun j hj => by
+          rw [Function.update_of_ne (fun (h : j = J) => hJ (h ▸ hj))]))
       rw [card_insert_of_notMem hJ, pow_succ]
       have h1 : 0 ≤ t - 1 := by linarith
       have h2 : 0 ≤ ∑ u, t ^ (S.filter fun j => u j ∈ T).card * μ u :=
         sum_nonneg fun u _ => by positivity
-      have h3 : 0 ≤ 1 + (t - 1) * s := by nlinarith
+      have h3 : 0 ≤ 1 + (t - 1) * s := by positivity
       calc ∑ u, t ^ (S.filter fun j => u j ∈ T).card * μ u +
             (t - 1) * ∑ u with u J ∈ T, t ^ (S.filter fun j => u j ∈ T).card * μ u
           ≤ ∑ u, t ^ (S.filter fun j => u j ∈ T).card * μ u +
@@ -195,8 +191,7 @@ theorem sum_card_filter_ge_norm_tensorPowerApply_le
       (sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun u _ _ => by positivity)
     exact mul_le_mul_of_nonneg_right (pow_le_pow_right₀ (by norm_num) (mem_filter.mp hu).2)
       (by positivity)
-  have h2r : (0 : ℝ) < 2 ^ r := by positivity
-  rw [← mul_le_mul_iff_of_pos_left h2r]
+  rw [← mul_le_mul_iff_of_pos_left (by positivity : (0 : ℝ) < 2 ^ r)]
   calc (2 : ℝ) ^ r * ∑ u with r ≤ (univ.filter fun j => u j ∈ T).card, μ u
       ≤ (16 / 9 : ℝ) ^ r * ∑ u, μ u := hlow.trans (hB.trans (by gcongr))
     _ = 2 ^ r * ((8 / 9) ^ r * ∑ u, μ u) := by

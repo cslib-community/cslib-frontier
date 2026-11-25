@@ -142,10 +142,7 @@ theorem bind_elim_bind_roundGame {β : Type}
     (e.bind (Sum.elim (fun b => PMF.pure (Sum.inl b)) g)).bind (roundGame κ) =
       e.bind (Sum.elim PMF.pure fun a => (g a).bind (roundGame κ)) := by
   rw [PMF.bind_bind]
-  refine congrArg _ (funext fun a => ?_)
-  cases a with
-  | inl b => simp only [Sum.elim_inl, PMF.pure_bind, roundGame]
-  | inr a => rfl
+  exact congrArg _ (funext fun | .inl _ => by simp [roundGame] | .inr _ => rfl)
 
 /-- **The environment of the `j`-th hybrid hop of a kernel program.** It runs `steps` from the
 states `st`, drawing the first `j` oracle rounds from the kernel `ν`, and stops at the next oracle
@@ -214,13 +211,11 @@ theorem roundEnv_zero_bind_roundGame (steps : Steps State Out sc₁) (st : (i : 
       (kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I steps
         st).bind fun res => ProbComp.eval (D res) := by
   induction steps with
-  | done output =>
+  | done =>
     simp only [roundEnv, kernelRun, roundGame, PMF.bind_map, Function.comp_def, Sum.elim_inl,
       PMF.bind_pure, PMF.pure_bind]
-  | @message _ _ s₀ r₀ _ _ send next ih =>
-    rw [roundEnv, ih, kernelRun, PMF.bind_map]
-    rfl
-  | @oracle _ _ op parties rest query next ih =>
+  | message _ _ ih => rw [roundEnv, ih, kernelRun, PMF.bind_map]; rfl
+  | oracle _ _ ih =>
     rw [roundEnv, PMF.pure_bind, kernelRun_oracle, PMF.bind_bind]
     simp only [roundGame, Sum.elim_inr, roundDistinguisher, ProbComp.eval_bind, eval_kernelProg,
       PMF.bind_map, Function.comp_def]
@@ -238,19 +233,19 @@ theorem roundEnv_succ_bind_roundGame (steps : Steps State Out sc₁) (j : ℕ)
         (roundGame fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) =
       (roundEnv W₁ S₂ ν I steps j st D).bind (roundGame ν) := by
   induction steps generalizing j with
-  | done output => simp only [roundEnv, roundGame, PMF.bind_map, Function.comp_def, Sum.elim_inl]
-  | @message _ _ s₀ r₀ _ _ send next ih =>
+  | done => simp only [roundEnv, roundGame, PMF.bind_map, Function.comp_def, Sum.elim_inl]
+  | message _ _ ih =>
     rw [roundEnv, roundEnv]
     exact ih _ _ _
-  | @oracle _ _ op parties rest query next ih =>
+  | oracle _ _ ih =>
     cases j with
     | zero =>
       rw [roundEnv, roundEnv, PMF.pure_bind, PMF.bind_bind]
       simp only [roundGame, Sum.elim_inr, roundDistinguisher, ProbComp.eval_bind, eval_kernelProg]
-      exact congrArg _ (funext fun r => roundEnv_zero_bind_roundGame W₁ S₂ ν I next _ _)
+      exact congrArg _ (funext fun _ => roundEnv_zero_bind_roundGame W₁ S₂ ν I _ _ _)
     | succ j =>
       rw [roundEnv, roundEnv, PMF.bind_bind, PMF.bind_bind]
-      exact congrArg _ (funext fun r => ih _ _ _)
+      exact congrArg _ (funext fun _ => ih _ _ _)
 
 /-- **The last hybrid is the real run.** When `steps` has at most `j` oracle rounds, the
 environment of hop `j` challenges no round, and its game on any kernel `κ` is the kernel program on
@@ -268,18 +263,14 @@ theorem roundEnv_bind_roundGame_of_oracleRounds_le
     (roundEnv W₁ S₂ ν I steps j st D).bind (roundGame κ) =
       (kernelRun ν I steps st).bind fun res => ProbComp.eval (D res) := by
   induction steps generalizing j with
-  | done output =>
+  | done =>
     simp only [roundEnv, kernelRun, roundGame, PMF.bind_map, Function.comp_def, Sum.elim_inl,
       PMF.bind_pure, PMF.pure_bind]
-  | @message _ _ s₀ r₀ _ _ send next ih =>
-    rw [roundEnv, ih hj, kernelRun, PMF.bind_map]
-    rfl
-  | @oracle _ _ op parties rest query next ih =>
+  | message _ _ ih => rw [roundEnv, ih hj, kernelRun, PMF.bind_map]; rfl
+  | oracle _ _ ih =>
     obtain ⟨j, rfl⟩ : ∃ j', j = j' + 1 := ⟨j - 1, by rw [Schedule.oracleRounds] at hj; omega⟩
     rw [roundEnv, PMF.bind_bind, kernelRun_oracle, PMF.bind_bind]
-    refine congrArg _ (funext fun r => ?_)
-    rw [ih (Nat.le_of_succ_le_succ hj), PMF.bind_map]
-    rfl
+    exact congrArg _ (funext fun _ => by rw [ih (Nat.le_of_succ_le_succ hj), PMF.bind_map]; rfl)
 
 end Composition
 

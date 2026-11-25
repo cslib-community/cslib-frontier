@@ -135,45 +135,28 @@ theorem enqueue_modifies {w : ℕ} {d : Input} {s : Memory.State}
 /-- Pop never changes any memory cell or the frontier, including its empty path. -/
 theorem clientState_popFront (w : ℕ) (d : Input) (s : Memory.State) :
     (Memory.spec w).clientState s (popFront d) = s := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz]
-    rfl
-  · rw [popFront, ite_eq_right hz]
-    rfl
+  unfold popFront; split_ifs <;> rfl
 
 /-- Both returned counts are exact even when the unused physical top cell remains dirty. -/
 theorem clientResult_popFront (w : ℕ) (d : Input) (s : Memory.State) :
     (Memory.spec w).clientResult s (popFront d) =
       if d 0 = 0 then (⟨d 0, d 1⟩, none)
       else (⟨d 0 - 1, d 1⟩, some (s.mem (d 2 + (d 0 - 1)))) := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz, ite_eq_left hz]
-    rfl
-  · rw [popFront, ite_eq_right hz, ite_eq_right hz]
-    rfl
+  unfold popFront; split_ifs <;> rfl
 
 /-- A nonempty front performs one read; an empty front performs no memory operation. -/
 theorem memoryCost_popFront (d : Input) (s : Memory.State) :
     memoryCost (popFront d) s = if d 0 = 0 then 0 else 1 := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz, ite_eq_left hz]
-    rfl
-  · rw [popFront, ite_eq_right hz, ite_eq_right hz]
-    rfl
+  unfold popFront; split_ifs <;> rfl
 
 /-- Every nonempty front read lies in the old physical region. -/
 theorem valid_popFront {w : ℕ} {d : Input} {s : Memory.State}
     (h : transferDomain w d s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (popFront d)) := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz]
-    trivial
-  · rw [popFront, ite_eq_right hz]
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (do
-        let v ← Memory.read (d 2 + (d 0 - 1))
-        pure (Counts.mk (d 0 - 1) (d 1), some v)))
-    change (d 2 + (d 0 - 1) < s.frontier) ∧ True
+  unfold popFront
+  split_ifs
+  · trivial
+  · change (d 2 + (d 0 - 1) < s.frontier) ∧ True
     exact ⟨by have := h.1; have := h.2; omega, trivial⟩
 
 /-- Dequeue's source summary retains the actual final counts, valid physical history and
@@ -196,53 +179,32 @@ theorem dequeue_invariant {w : ℕ} {d : Input} {s : Memory.State}
       simpa only [hz, Nat.zero_add] using hr
     let t := (Memory.spec 0).clientState s (transfer d)
     let e : Input := ![d 1, 0, d 2, d 3, d 4]
-    have he : transferDomain w e t := by
-      refine ⟨?_, ?_⟩
-      · change d 1 + 0 ≤ d 3
-        have := h.1
-        omega
-      · change d 2 + 2 * d 3 ≤ t.frontier
-        rw [hf]
-        exact h.2
+    have he : transferDomain w e t :=
+      ⟨by change d 1 + 0 ≤ d 3; have := h.1; omega, by rw [hf]; exact h.2⟩
     have hs : (Memory.spec 0).clientState s (dequeue d) = t := by
       rw [dequeue, ite_eq_left hz, StateTransitionSpec.clientState_bind, hr']
       exact clientState_popFront 0 e t
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, hs ▸ hwt, ?_, hs ▸ hf, ?_, hs ▸ hm⟩
     · rw [dequeue, ite_eq_left hz]
       change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
         ((transfer d).bind (fun m => popFront ![m.front, m.rear, d 2, d 3, d 4])))
-      rw [validHistory_bind]
-      refine ⟨hv, ?_⟩
-      rw [clientState_width w, clientResult_width w, hr']
-      exact valid_popFront he
-    · rw [hs]
-      exact hwt
+      rw [validHistory_bind, clientState_width w, clientResult_width w, hr']
+      exact ⟨hv, valid_popFront he⟩
     · rw [dequeue, ite_eq_left hz, StateTransitionSpec.clientResult_bind, hr',
         clientResult_popFront, ite_eq_left hz]
       change (if d 1 = 0 then (Counts.mk (d 1) 0, none)
         else (Counts.mk (d 1 - 1) 0, some (t.mem (d 2 + (d 1 - 1))))).1 = Counts.mk (d 1 - 1) 0
       split <;> simp_all
-    · rw [hs]
-      exact hf
     · rw [dequeue, ite_eq_left hz]
       change memoryCost ((transfer d).bind (fun m => popFront ![m.front, m.rear, d 2, d 3, d 4]))
         s = _
       rw [memoryCost_bind, hr', hc, memoryCost_popFront, ite_eq_left hz]
       rfl
-    · rw [hs]
-      exact hm
   · have hs : (Memory.spec 0).clientState s (dequeue d) = s := by
       rw [dequeue, ite_eq_right hz, clientState_popFront]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [dequeue, ite_eq_right hz]
-      exact valid_popFront h
-    · rw [hs]
-      exact hw
-    · rw [dequeue, ite_eq_right hz, clientResult_popFront, ite_eq_right hz, ite_eq_right hz]
-    · rw [hs]
-    · rw [dequeue, ite_eq_right hz, memoryCost_popFront, ite_eq_right hz, ite_eq_right hz]
-    · rw [hs]
-      exact fun _ _ => rfl
+    rw [hs]
+    simp only [dequeue, ite_eq_right hz, clientResult_popFront, memoryCost_popFront]
+    exact ⟨valid_popFront h, hw, trivial, trivial, trivial, fun _ _ => rfl⟩
 
 /-- At the source-memory boundary, one enqueue pays for its write and the added rear credit.
 Native glue and the final halt are accounted for separately by the realized dispatcher. -/

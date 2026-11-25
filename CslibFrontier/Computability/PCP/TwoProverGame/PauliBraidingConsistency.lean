@@ -121,8 +121,7 @@ theorem rejection_pauliBraidingSameBasisGame_le
     (↥(oddPairs (Fin n)) × (Fin n → Bool))) (fun (p, dummy) =>
       PauliBraidingSeed.sameBasis swapRoles basis p dummy) answer
   change 1 - (game.pullbackSeed _ _).answersWinProb answer ≤ _
-  rw [hpull]
-  exact h
+  rwa [hpull]
 
 /-- The matched-question rejection probability, weighted by its probability in the
 second-question marginal, costs at most eight times the consistency-branch rejection. -/
@@ -267,8 +266,7 @@ theorem expect_norm_averaged_sub_sq_nonzero_le [Module ℚ≥0 𝒜]
     simp
   let partners := (univ : Finset (Fin n → Bool)).filter fun y => x ⬝ᵥ y = true
   have hmem (y : Fin n → Bool) : (x ⬝ᵥ y = true) ↔ y ∈ partners := by simp [partners]
-  simp only [hx, ite_false]
-  simp_rw [hmem]
+  simp only [hx, ite_false, hmem]
   rw [Fintype.expect_ite_mem, Fintype.expect_ite_mem, NNRat.smul_def, NNRat.smul_def,
     dens_oddFiber hx]
   have h := φ.norm_expect_sub_expect_sq_le_of_half partners (oddFiber_nonempty hx)
@@ -308,16 +306,14 @@ private theorem oddExpect_pauliBraidingRoundDistances_le
       density * (32 * δ) := by
     apply le_trans _ (mul_le_mul_of_nonneg_left (hround false) (by positivity))
     cases basis
-    · rw [oddExpect_expect_eq_dens_mul]
-      rfl
+    · exact (oddExpect_expect_eq_dens_mul _).le
     · rw [← oddExpect_swap, oddExpect_expect_eq_dens_mul]
       rfl
   have hreverse : oddExpect (fun x y => 𝔼 z, S.state.norm (a x z - b x y) ^ 2) ≤
       density * (32 * δ) := by
     apply le_trans _ (mul_le_mul_of_nonneg_left (hround true) (by positivity))
     cases basis
-    · rw [oddExpect_expect_eq_dens_mul]
-      rfl
+    · exact (oddExpect_expect_eq_dens_mul _).le
     · rw [← oddExpect_swap, oddExpect_expect_eq_dens_mul]
       rfl
   exact ⟨hforward, hreverse⟩
@@ -365,8 +361,7 @@ theorem oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le [Module �
     · exact hforward
     · refine le_trans ?_ hreverse
       refine oddExpect_mono fun x y _ => expect_le_expect fun z _ => ?_
-      change S.state.norm (a x y - b x z) ^ 2 ≤ S.state.norm (b x z - a x y) ^ 2
-      rw [← neg_sub (a x y) (b x z), S.state.norm_neg]
+      exact (congrArg (· ^ 2) (S.state.norm_sub_comm (a x y) (b x z))).le
   have hcross : oddExpect (fun x _ => S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2)
       ≤ 448 * density * δ := by
     rw [oddExpect_fst]
@@ -378,9 +373,7 @@ theorem oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le [Module �
         refine expect_congr rfl fun x _ => ?_
         split_ifs
         · rfl
-        · change S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2 =
-            S.state.norm ((𝔼 z, a x z) - (𝔼 z, b x z)) ^ 2
-          rw [← neg_sub (𝔼 z, b x z) (𝔼 z, a x z), S.state.norm_neg]
+        · exact congrArg (· ^ 2) (S.state.norm_sub_comm _ _)
       · exact h
     linarith only [hcompare]
   have hjensen : oddExpect (fun x y => S.state.norm (a x y - (𝔼 z, b x z)) ^ 2) ≤
@@ -427,21 +420,9 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
       G special decode roles basis S
     let f (x y : Fin n → Bool) := S.state.norm (a x y - (𝔼 z, a x z)) ^ 2
     change oddExpect f ≤ _ at h
-    have hcoord : oddExpect (fun x y => if basis then f y x else f x y) = oddExpect f := by
-      cases basis
-      · rfl
-      · exact oddExpect_swap f
-    rw [← hcoord] at h
-    have hconvert := oddExpect_expect_eq_dens_mul (fun x y _ =>
-      if basis then f y x else f x y)
-    rw [Fintype.expect_prod_type] at hconvert
-    simp only [Fintype.expect_const] at hconvert
-    rw [hconvert] at h
-    change _ ≤ 960 * density * δ
-    convert h using 1
-    congr 1
-    refine expect_congr rfl fun p _ => ?_
-    cases basis <;> rfl
+    cases basis
+    · rwa [oddExpect_eq_dens_mul_expect] at h
+    · rwa [← oddExpect_swap, oddExpect_eq_dens_mul_expect] at h
   have hlocal : mass * (𝔼 p, S.state.norm (point p - b p) ^ 2) ≤ 32 * δ := by
     have h := weighted_sum_norm_sub_sq_le_of_pauliBraidingMatchedGame
       G special decode roles basis S
@@ -458,18 +439,15 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
     cases roles <;> cases basis
     · exact le_rfl
     · exact le_rfl
-    · change S.state.norm (point p - b p) ^ 2 ≤ S.state.norm (b p - point p) ^ 2
-      rw [← neg_sub (point p) (b p), S.state.norm_neg]
-    · change S.state.norm (point p - b p) ^ 2 ≤ S.state.norm (b p - point p) ^ 2
-      rw [← neg_sub (point p) (b p), S.state.norm_neg]
+    · exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
+    · exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
   have htri : (𝔼 p, S.state.norm (avg p - b p) ^ 2) ≤
       2 * (𝔼 p, S.state.norm (point p - avg p) ^ 2) +
       2 * (𝔼 p, S.state.norm (point p - b p) ^ 2) := by
     rw [Finset.mul_expect, Finset.mul_expect, ← expect_add_distrib]
     refine expect_le_expect fun p _ => ?_
-    have h := S.state.norm_sub_sq_le_through (avg p) (point p) (b p)
-    rw [← neg_sub (point p) (avg p), S.state.norm_neg] at h
-    exact h
+    rw [← S.state.norm_sub_comm (avg p) (point p)]
+    exact S.state.norm_sub_sq_le_through (avg p) (point p) (b p)
   have hmass : 0 ≤ mass := ENNReal.toReal_nonneg
   have hdensity : 0 ≤ density := NNRat.cast_nonneg _
   have hscaled := mul_le_mul_of_nonneg_left htri (mul_nonneg hmass hdensity)

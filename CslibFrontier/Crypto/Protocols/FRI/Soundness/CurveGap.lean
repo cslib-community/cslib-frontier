@@ -127,11 +127,9 @@ theorem friSmoothSupRBRError_const_le_friSmoothRBRError [Fintype F] (params : FR
     friSmoothSupRBRError params e (fun _ => (B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞)) ≤
       friSmoothRBRError params e B_commit := by
   refine Finset.sup_le fun j _ => ?_
-  by_cases hj : j.val < params.m
-  · simp only [friSmoothRoundEscape, hj, ↓reduceDIte]
-    exact le_max_left _ _
-  · simp only [friSmoothRoundEscape, hj, ↓reduceDIte]
-    exact le_max_right _ _
+  unfold friSmoothRoundEscape
+  split_ifs
+  exacts [le_max_left _ _, le_max_right _ _]
 
 
 /-- Single-word smooth FRI commit-phase game: runs `m` interactive smooth folding rounds and samples
@@ -267,8 +265,7 @@ private theorem hammingDist_le_div_of_weighted_agree [DecidableEq F] {N M total 
   have hpart : S.card + hammingDist x y = N := by
     simpa only [S, Fintype.card_fin] using card_filter_eq_add_hammingDist x y
   have hmul : M * S.card + M * hammingDist x y = total := by rw [← mul_add, hpart, hMN]
-  refine (Nat.le_div_iff_mul_le hM).mpr ?_
-  rw [mul_comm]
+  rw [Nat.le_div_iff_mul_le hM, mul_comm]
   change total - e - 1 < ∑ j ∈ S, W j at hwt
   omega
 
@@ -287,43 +284,36 @@ theorem weightedCurveGapPerRound_of_uniqueCurveGap [DecidableEq F]
   have hM_pos : 0 < 2 ^ params.cumLog (i.val + 1) := Nat.pow_pos (by omega)
   have hMN := params.two_pow_cumLog_mul_domainSize i.isLt
   have he_lt : e < 2 ^ params.d := by have := params.one_le_dim 0; omega
-  by_contra hgt
-  have hZ_gt : (params.arity i - 1) * params.domainSize (i.val + 1) < Z.card :=
-    Nat.lt_of_not_ge hgt
+  by_contra! hZ_gt
   obtain ⟨D', v, hv_rs, hD'_card, hD'_agree⟩ := hgap i u Z hZ_gt fun z hz =>
     let ⟨w, hw, hwt⟩ := hZ_good z hz
     ⟨w, hw, hammingDist_le_div_of_weighted_agree hM_pos hMN he_lt hW_le hwt⟩
-  have hgood_curve (z : F) (hz : z ∈ Z) :
-      2 ^ params.d - e - 1 < ∑ j ∈ Finset.univ.filter (fun j =>
-        (∑ r : Fin (params.arity i), z ^ r.val * u r j) =
-          ∑ r : Fin (params.arity i), z ^ r.val * v r j), W j := by
-    obtain ⟨w, hw_rs, hw_wt⟩ := hZ_good z hz
-    have hcurve_rs : (∑ r : Fin (params.arity i), z ^ r.val • v r) ∈ params.rsCode (i.val + 1) :=
-      Submodule.sum_mem _ fun r _ => (params.rsCode (i.val + 1)).smul_mem _ (hv_rs r)
-    have hsub : D' ⊆ Finset.univ.filter (fun j =>
-        (∑ r : Fin (params.arity i), z ^ r.val • u r) j =
-          (∑ r : Fin (params.arity i), z ^ r.val • v r) j) := fun j hj => by
+  refine not_lt_of_ge (hno_corr v hv_rs) <| weighted_agree_of_curve_many
+    (le_trans (by omega) (params.two_le_arity i)) W u v Z _
+    (lt_of_le_of_lt (Nat.mul_le_mul_left _ <| by
+      simpa only [Finset.card_univ, Fintype.card_fin] using
+        Finset.card_filter_le
+          (Finset.univ : Finset (Fin (params.domainSize (i.val + 1)))) _) hZ_gt)
+    fun z hz => ?_
+  obtain ⟨w, hw_rs, hw_wt⟩ := hZ_good z hz
+  have hpart := card_filter_eq_add_hammingDist
+    (∑ r : Fin (params.arity i), z ^ r.val • u r) (∑ r : Fin (params.arity i), z ^ r.val • v r)
+  rw [Fintype.card_fin] at hpart
+  have hcard : D'.card ≤ (Finset.univ.filter fun j =>
+      (∑ r : Fin (params.arity i), z ^ r.val • u r) j =
+        (∑ r : Fin (params.arity i), z ^ r.val • v r) j).card :=
+    Finset.card_le_card fun j hj => by
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.sum_apply, Pi.smul_apply,
         smul_eq_mul]
       exact Finset.sum_congr rfl fun r _ => by rw [hD'_agree j hj r]
-    have hpart := card_filter_eq_add_hammingDist
-      (∑ r : Fin (params.arity i), z ^ r.val • u r) (∑ r : Fin (params.arity i), z ^ r.val • v r)
-    rw [Fintype.card_fin] at hpart
-    have hcard := Finset.card_le_card hsub
-    have hweq := eq_of_hammingDist_le_reedSolomon
-      (cosetEval_injective params.hg params.hω (params.cumLog_le_d i.isLt))
-      (by simpa only [Fintype.card_fin] using params.two_mul_div_add_dim_le huniq i)
-      hw_rs hcurve_rs (hammingDist_le_div_of_weighted_agree hM_pos hMN he_lt hW_le hw_wt)
-      (by omega)
-    rw [hweq] at hw_wt
-    simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using hw_wt
-  have hZ_filt : (params.arity i - 1) * (Finset.univ.filter fun j => 0 < W j).card < Z.card :=
-    lt_of_le_of_lt (Nat.mul_le_mul_left _ <| by
-      simpa only [Finset.card_univ, Fintype.card_fin] using
-        Finset.card_filter_le (Finset.univ : Finset (Fin (params.domainSize (i.val + 1)))) _) hZ_gt
-  exact not_lt_of_ge (hno_corr v hv_rs) <| weighted_agree_of_curve_many
-    (show 1 ≤ params.arity i from le_trans (by omega) (params.two_le_arity i))
-    W u v Z _ hZ_filt hgood_curve
+  have hcurve_rs : (∑ r : Fin (params.arity i), z ^ r.val • v r) ∈ params.rsCode (i.val + 1) :=
+    Submodule.sum_mem _ fun r _ => (params.rsCode (i.val + 1)).smul_mem _ (hv_rs r)
+  rw [eq_of_hammingDist_le_reedSolomon
+    (cosetEval_injective params.hg params.hω (params.cumLog_le_d i.isLt))
+    (by simpa only [Fintype.card_fin] using params.two_mul_div_add_dim_le huniq i)
+    hw_rs hcurve_rs
+    (hammingDist_le_div_of_weighted_agree hM_pos hMN he_lt hW_le hw_wt) (by omega)] at hw_wt
+  simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using hw_wt
 
 /-- **Conditional step (uniform smooth unique-decoding weighted upgrade)**: inside the
 unique-decoding regime `2 * e + params.dim 0 ≤ 2 ^ d`, assuming `UniqueCurveGapHypothesis params e`

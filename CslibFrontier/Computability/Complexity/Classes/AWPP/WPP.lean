@@ -59,29 +59,25 @@ theorem WPP_subset_AWPP : WPP enc ⊆ AWPP enc := by
   refine mem_AWPP_of_polyTime_exponent hnum
     ((ComputableInPolyTime.unary_add.comp (hr.prod hr))) (fun a => ?_)
   have hkcast : (k a : ℤ) = f a * f a := Int.toNat_of_nonneg (mul_self_nonneg _)
-  have hkpos : 0 < k a := by
-    have := mul_self_pos.mpr (hf0 a)
-    lia
+  have hkpos : 0 < k a := by have := mul_self_pos.mpr (hf0 a); omega
   have hrs : r a = (k a).size := by simp [r, encNat_apply, Nat.size_eq_bits_len]
-  have hlow : (2 : ℤ) ^ r a ≤ 2 * (k a : ℤ) := by
+  have hlow : D a ≤ 2 * (k a : ℤ) := by
     have hs := Nat.size_pos.mpr hkpos
-    have hl := Nat.lt_size.mp (show (k a).size - 1 < (k a).size by lia)
+    have hl : 2 ^ ((k a).size - 1) ≤ k a := Nat.lt_size.mp (by omega)
     have he : 2 ^ (k a).size = 2 * 2 ^ ((k a).size - 1) := by
       rw [← pow_succ', Nat.sub_add_cancel hs]
+    dsimp only [D]
     rw [hrs]
-    exact_mod_cast (show 2 ^ (k a).size ≤ 2 * k a by lia)
-  have hupp : (k a : ℤ) ≤ (2 : ℤ) ^ r a := by
+    exact_mod_cast (by omega : 2 ^ (k a).size ≤ 2 * k a)
+  have hupp : (k a : ℤ) ≤ D a := by
+    dsimp only [D]
     rw [hrs]
     exact_mod_cast (Nat.lt_size_self (k a)).le
-  have hDpos : 0 < D a := by dsimp [D]; positivity
-  change (0 ≤ G a * D a + G a * D a - G a * G a ∧ _) ∧ _
-  simp only [Function.comp_apply, pow_add]
+  simp only [Pi.sub_apply, Pi.add_apply, Pi.mul_apply, Function.comp_apply, pow_add]
   change (0 ≤ G a * D a + G a * D a - G a * G a ∧
       G a * D a + G a * D a - G a * G a ≤ D a * D a) ∧
     (a ∈ A → 2 * (D a * D a) ≤ 3 * (G a * D a + G a * D a - G a * G a)) ∧
     (a ∉ A → 3 * (G a * D a + G a * D a - G a * G a) ≤ D a * D a)
-  change D a ≤ 2 * (k a : ℤ) at hlow
-  change (k a : ℤ) ≤ D a at hupp
   rcases hrange a with hz | ht
   · have hn : a ∉ A := by rw [hA a, hz]; exact (hf0 a).symm
     have hG0 : G a = 0 := by simp [G, hz]
@@ -89,17 +85,9 @@ theorem WPP_subset_AWPP : WPP enc ⊆ AWPP enc := by
   · have hy : a ∈ A := (hA a).mpr ht
     have hGk : G a = (k a : ℤ) := by simp [G, ht, hkcast]
     rw [hGk]
-    have hk0 : (0 : ℤ) ≤ k a := by positivity
-    have hsq := sq_nonneg (D a - (k a : ℤ))
-    have hprod := mul_nonneg (show 0 ≤ 2 * (k a : ℤ) - D a by lia)
-      (show 0 ≤ D a - (k a : ℤ) by lia)
-    have hmul := mul_nonneg hk0 (show 0 ≤ D a - (k a : ℤ) by lia)
-    constructor
-    · constructor <;> nlinarith
-    · constructor
-      · intro _
-        nlinarith [sq_nonneg (k a : ℤ)]
-      · exact fun hn => False.elim (hn hy)
+    have hprod : 0 ≤ (2 * (k a : ℤ) - D a) * (D a - k a) := mul_nonneg (by omega) (by omega)
+    refine ⟨⟨by nlinarith, by nlinarith [sq_nonneg (D a - k a)]⟩,
+      fun _ => by nlinarith [sq_nonneg (k a : ℤ)], fun hn => (hn hy).elim⟩
 
 /-- Length-dependent wide gaps are a special case of wide gaps. -/
 theorem LWPP_subset_AWPP : LWPP enc ⊆ AWPP enc := fun _ h =>

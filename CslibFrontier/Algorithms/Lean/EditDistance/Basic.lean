@@ -224,27 +224,19 @@ theorem editDist_cons_cons (a b : α) (x y : List α) :
 
 /-- Deleting every letter of `x`. -/
 theorem editDist_nil_right (x : List α) : editDist C x [] = (x.map C.del).sum := by
-  induction x with
-  | nil => rfl
-  | cons a x ih => rw [editDist_cons_nil, ih, List.map_cons, List.sum_cons]
+  induction x <;> simp [editDist_cons_nil, *]
 
 /-- Inserting every letter of `y`. -/
 theorem editDist_nil_left (y : List α) : editDist C [] y = (y.map C.ins).sum := by
-  induction y with
-  | nil => rfl
-  | cons b y ih => rw [editDist_nil_cons, ih, List.map_cons, List.sum_cons]
+  induction y <;> simp [editDist_nil_cons, *]
 
 theorem editDist_cons_left_le (a : α) (x y : List α) :
     editDist C (a :: x) y ≤ C.del a + editDist C x y := by
-  cases y with
-  | nil => exact Nat.le_of_eq (editDist_cons_nil C a x)
-  | cons b y => rw [editDist_cons_cons]; omega
+  cases y <;> simp only [editDist_cons_nil, editDist_cons_cons] <;> omega
 
 theorem editDist_cons_right_le (b : α) (x y : List α) :
     editDist C x (b :: y) ≤ C.ins b + editDist C x y := by
-  cases x with
-  | nil => exact Nat.le_of_eq (editDist_nil_cons C b y)
-  | cons a x => rw [editDist_cons_cons]; omega
+  cases x <;> simp only [editDist_nil_cons, editDist_cons_cons] <;> omega
 
 theorem editDist_cons_cons_le (a b : α) (x y : List α) :
     editDist C (a :: x) (b :: y) ≤ C.sub a b + editDist C x y := by
@@ -254,9 +246,9 @@ theorem editDist_cons_cons_le (a b : α) (x y : List α) :
 theorem editDist_le_sum_del_ins (x y : List α) :
     editDist C x y ≤ (x.map C.del).sum + (y.map C.ins).sum := by
   induction x with
-  | nil => rw [editDist_nil_left, List.map_nil, List.sum_nil, Nat.zero_add]
+  | nil => simp [editDist_nil_left]
   | cons a x ih =>
-    have h := editDist_cons_left_le C a x y
+    have := editDist_cons_left_le C a x y
     simp only [List.map_cons, List.sum_cons]
     omega
 
@@ -268,24 +260,14 @@ theorem editDist_unit_le_add [DecidableEq α] (x y : List α) :
 /-- Every script from `x` to `y` costs at least `editDist C x y`. -/
 theorem editDist_le_cost (s : EditScript α) : editDist C s.src s.tgt ≤ s.cost C := by
   induction s with
-  | nil => exact Nat.le_refl 0
+  | nil => exact le_rfl
   | cons o s ih =>
-    cases o with
-    | del a =>
+    rcases o with a | b | ⟨a, b⟩ <;>
       simp only [src_cons, tgt_cons, cost_cons, EditOp.src, EditOp.tgt, EditOp.cost,
         List.singleton_append, List.nil_append]
-      have := editDist_cons_left_le C a (src s) (tgt s)
-      omega
-    | ins b =>
-      simp only [src_cons, tgt_cons, cost_cons, EditOp.src, EditOp.tgt, EditOp.cost,
-        List.singleton_append, List.nil_append]
-      have := editDist_cons_right_le C b (src s) (tgt s)
-      omega
-    | sub a b =>
-      simp only [src_cons, tgt_cons, cost_cons, EditOp.src, EditOp.tgt, EditOp.cost,
-        List.singleton_append]
-      have := editDist_cons_cons_le C a b (src s) (tgt s)
-      omega
+    · exact (editDist_cons_left_le C a (src s) (tgt s)).trans (Nat.add_le_add_left ih _)
+    · exact (editDist_cons_right_le C b (src s) (tgt s)).trans (Nat.add_le_add_left ih _)
+    · exact (editDist_cons_cons_le C a b (src s) (tgt s)).trans (Nat.add_le_add_left ih _)
 
 /-- The traceback for a nonempty source and target: given the optimal scripts `d`, `u`, `l` for
 `(x, y)`, `(x, b :: y)` and `(a :: x, y)`, extend the cheapest of them. Ties prefer a replacement,
@@ -325,31 +307,21 @@ theorem optScript_spec : ∀ x y : List α,
     (optScript C x y).src = x ∧ (optScript C x y).tgt = y ∧
       (optScript C x y).cost C = editDist C x y
   | [], y => by
-    refine ⟨?_, ?_, ?_⟩
-    · induction y with
-      | nil => rfl
-      | cons b y ih => simpa [optScript_nil, EditOp.src] using ih
-    · induction y with
-      | nil => rfl
-      | cons b y ih => simpa [optScript_nil, EditOp.tgt] using ih
-    · rw [optScript_nil, editDist_nil_left, EditScript.cost, List.map_map]
-      rfl
+    rw [optScript_nil]
+    refine ⟨by induction y <;> simp [EditOp.src, *],
+      by induction y <;> simp [EditOp.tgt, *], ?_⟩
+    rw [editDist_nil_left, EditScript.cost, List.map_map]
+    rfl
   | a :: x, [] => by
     obtain ⟨h1, h2, h3⟩ := optScript_spec x []
-    rw [optScript_cons_nil, src_cons, tgt_cons, cost_cons, h1, h2, h3, editDist_cons_nil]
-    exact ⟨rfl, rfl, rfl⟩
+    simp [optScript_cons_nil, EditOp.src, EditOp.tgt, EditOp.cost, editDist_cons_nil, h1, h2, h3]
   | a :: x, b :: y => by
     obtain ⟨d1, d2, d3⟩ := optScript_spec x y
     obtain ⟨u1, u2, u3⟩ := optScript_spec x (b :: y)
     obtain ⟨l1, l2, l3⟩ := optScript_spec (a :: x) y
     rw [optScript_cons_cons, editDist_cons_cons, optScriptStep]
-    split_ifs with h h'
-    · rw [src_cons, tgt_cons, cost_cons, d1, d2, d3]
-      exact ⟨rfl, rfl, by simp only [EditOp.cost]; omega⟩
-    · rw [src_cons, tgt_cons, cost_cons, u1, u2, u3]
-      exact ⟨rfl, rfl, by simp only [EditOp.cost]; omega⟩
-    · rw [src_cons, tgt_cons, cost_cons, l1, l2, l3]
-      exact ⟨rfl, rfl, by simp only [EditOp.cost]; omega⟩
+    split_ifs <;> simp only [src_cons, tgt_cons, cost_cons, EditOp.src, EditOp.tgt, EditOp.cost,
+      List.cons_append, List.nil_append, d1, d2, d3, u1, u2, u3, l1, l2, l3, true_and] <;> omega
 termination_by x y => x.length + y.length
 
 @[simp] theorem src_optScript (x y : List α) : (optScript C x y).src = x := (optScript_spec C x y).1

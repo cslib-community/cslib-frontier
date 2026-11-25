@@ -97,8 +97,7 @@ theorem j_mul_j (p : ℚ) : j p * j p = (-p : BpInfinity p) := by
   simp [Algebra.smul_def]
 
 @[simp]
-theorem i_mul_j (p : ℚ) : i p * j p = k p := by
-  exact (sourceBasis p).i_mul_j
+theorem i_mul_j (p : ℚ) : i p * j p = k p := (sourceBasis p).i_mul_j
 
 @[simp]
 theorem j_mul_i (p : ℚ) : j p * i p = -k p := by
@@ -108,8 +107,7 @@ theorem j_mul_i (p : ℚ) : j p * i p = -k p := by
 theorem star_mk (p x y z t : ℚ) :
     star (QuaternionAlgebra.mk x y z t : BpInfinity p) =
       QuaternionAlgebra.mk x (-y) (-z) (-t) := by
-  rw [QuaternionAlgebra.star_mk]
-  simp
+  simp [QuaternionAlgebra.star_mk]
 
 /-- The reduced norm of `q`, namely the scalar `q * star q`. -/
 def reducedNorm {p : ℚ} (q : BpInfinity p) : ℚ := (q * star q).re
@@ -117,14 +115,12 @@ def reducedNorm {p : ℚ} (q : BpInfinity p) : ℚ := (q * star q).re
 /-- Multiplication by the conjugate is the scalar reduced norm. -/
 theorem mul_star_eq_reducedNorm {p : ℚ} (q : BpInfinity p) :
     q * star q = (reducedNorm q : BpInfinity p) := by
-  rw [QuaternionAlgebra.mul_star_eq_coe]
-  rfl
+  rw [QuaternionAlgebra.mul_star_eq_coe]; rfl
 
 /-- Multiplication by the conjugate on the left gives the same reduced norm. -/
 theorem star_mul_eq_reducedNorm {p : ℚ} (q : BpInfinity p) :
     star q * q = (reducedNorm q : BpInfinity p) := by
-  rw [star_comm_self]
-  exact mul_star_eq_reducedNorm q
+  rw [star_comm_self, mul_star_eq_reducedNorm]
 
 /-- The coordinate formula for the reduced norm. -/
 @[simp]
@@ -161,10 +157,8 @@ theorem reducedNorm_pos {p : ℚ} (hp : 0 < p) {q : BpInfinity p} (hq : q ≠ 0)
   rcases q with ⟨x, y, z, t⟩
   rw [reducedNorm_mk]
   have hxyzt : x ≠ 0 ∨ y ≠ 0 ∨ z ≠ 0 ∨ t ≠ 0 := by
-    by_contra h
-    push Not at h
-    apply hq
-    ext <;> simp [h]
+    by_contra! h
+    exact hq (by ext <;> simp [h])
   rcases hxyzt with hx | hy | hz | ht
   · nlinarith [sq_pos_of_ne_zero hx, sq_nonneg y, sq_nonneg z, sq_nonneg t]
   · nlinarith [sq_nonneg x, sq_pos_of_ne_zero hy, sq_nonneg z, sq_nonneg t]

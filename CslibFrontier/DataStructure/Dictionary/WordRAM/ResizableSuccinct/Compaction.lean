@@ -79,51 +79,35 @@ open Cslib.DataStructure.HashFamily.WordRAM
 theorem denseOfCirc_ge (M b c : ℕ) : b ≤ denseOfCirc M b c := by
   unfold denseOfCirc; split_ifs <;> omega
 
+theorem denseOfCirc_mod {M base_tail c : ℕ} (hM : 0 < M) (hc : c < M) :
+    denseOfCirc M base_tail c % M = c := by
+  unfold denseOfCirc
+  rw [ite_eq_right hM.ne', Nat.add_mod_mod,
+    show base_tail + (c + M - base_tail % M) = c + M * (base_tail / M + 1) by
+      have := Nat.div_add_mod base_tail M
+      have := Nat.mod_lt base_tail hM
+      rw [Nat.mul_add, Nat.mul_one]; omega,
+    Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hc]
+
 theorem denseOfCirc_mod_self {M base_tail d : ℕ} (hM : 0 < M)
     (hlo : base_tail ≤ d) (hhi : d < base_tail + M) :
     denseOfCirc M base_tail (d % M) = d := by
-  have hM0 : M ≠ 0 := Nat.ne_of_gt hM
-  unfold denseOfCirc
-  rw [ite_eq_right hM0]
-  set δ := d - base_tail
-  have hδ_lt : δ < M := by omega
-  have hd_eq : d = base_tail + δ := (Nat.add_sub_of_le hlo).symm
-  set r := base_tail % M
-  have hr_lt : r < M := Nat.mod_lt base_tail hM
-  have hd_mod : d % M = (r + δ) % M := by
-    conv_lhs => rw [hd_eq, ← Nat.div_add_mod base_tail M, Nat.add_assoc, Nat.mul_add_mod]
-  have hmod : (d % M + M - r) % M = δ := by
-    by_cases hlt : r + δ < M
-    · have hrm : (r + δ) % M = r + δ := Nat.mod_eq_of_lt hlt
-      have h1 : (r + δ) + M - r = δ + 1 * M := by omega
-      rw [hd_mod, hrm, h1, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hδ_lt]
-    · have hrm : (r + δ) % M = r + δ - M := by
-        rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
-      have h1 : (r + δ - M) + M - r = δ := by omega
-      rw [hd_mod, hrm, h1, Nat.mod_eq_of_lt hδ_lt]
-  omega
-
-theorem denseOfCirc_mod {M base_tail c : ℕ} (hM : 0 < M) (hc : c < M) :
-    denseOfCirc M base_tail c % M = c := by
-  have hM0 : M ≠ 0 := Nat.ne_of_gt hM
-  unfold denseOfCirc
-  rw [ite_eq_right hM0]
-  have hbm : base_tail % M < M := Nat.mod_lt base_tail hM
-  have hdiv_b := Nat.div_add_mod base_tail M
-  by_cases hle : base_tail % M ≤ c
-  · have h1 : (c + M - base_tail % M) % M = c - base_tail % M := by
-      have heq : c + M - base_tail % M = (c - base_tail % M) + 1 * M := by omega
-      rw [heq, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
-    rw [h1]
-    have hsum : base_tail + (c - base_tail % M) = c + M * (base_tail / M) := by omega
-    rw [hsum, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hc]
-  · have h1 : (c + M - base_tail % M) % M = c + M - base_tail % M := Nat.mod_eq_of_lt (by omega)
-    rw [h1]
-    have hsum : base_tail + (c + M - base_tail % M) = c + M * (base_tail / M + 1) := by
-      calc base_tail + (c + M - base_tail % M)
-          = (M * (base_tail / M) + base_tail % M) + (c + M - base_tail % M) := by rw [hdiv_b]
-        _ = c + M * (base_tail / M + 1) := by rw [Nat.mul_add, Nat.mul_one]; omega
-    rw [hsum, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hc]
+  set x := denseOfCirc M base_tail (d % M)
+  have hx_lo : base_tail ≤ x := denseOfCirc_ge M base_tail (d % M)
+  have hx_hi : x < base_tail + M := by
+    simp only [x, denseOfCirc, ite_eq_right hM.ne']
+    exact Nat.add_lt_add_left (Nat.mod_lt _ hM) _
+  have hmod : x % M = d % M := denseOfCirc_mod hM (Nat.mod_lt d hM)
+  have hx_div := Nat.div_add_mod x M
+  have hd_div := Nat.div_add_mod d M
+  rcases lt_trichotomy (x / M) (d / M) with hlt | heq | hgt
+  · have : M * (x / M) + M ≤ M * (d / M) := by
+      simpa [Nat.mul_add] using Nat.mul_le_mul_left M (Nat.succ_le_of_lt hlt)
+    omega
+  · rw [← hx_div, ← hd_div, heq, hmod]
+  · have : M * (d / M) + M ≤ M * (x / M) := by
+      simpa [Nat.mul_add] using Nat.mul_le_mul_left M (Nat.succ_le_of_lt hgt)
+    omega
 
 theorem denseOfCirc_eq_self_iff {M b c d : ℕ} (hM : 0 < M) (hc : c < M)
     (hlo : b ≤ d) (hhi : d < b + M) :
@@ -570,7 +554,7 @@ theorem ownerBucketOfDense_lt_and_slotOf {N : ℕ} {gm td dt : ℕ → ℕ}
     have htail := hslot.multi_tail hb_pos
     have hSN := hslot.multi_total_le hb_pos
     by_cases hdS : d < gm 0 * slabSize N
-    · have hp_lt : d / slabSize N < gm 0 := by stride_omega
+    · have hp_lt : d / slabSize N < gm 0 := (Nat.div_lt_iff_lt_mul hK).mpr hdS
       have hrem_lt : d % slabSize N < slabSize N := Nat.mod_lt d hK
       obtain ⟨hb_lt, hs_lt, hptr_eq⟩ := hslab.owner_valid (d / slabSize N)
         (by rwa [← hslab.nslabs_eq])
@@ -578,7 +562,10 @@ theorem ownerBucketOfDense_lt_and_slotOf {N : ℕ} {gm td dt : ℕ → ℕ}
         simp [b, ownerBucketOfDense, hb_ne, hdS]
       have hj_def : j = gm (gmSlabOwnerSIdx N (d / slabSize N)) * slabSize N +
           (slabSize N - 1 - d % slabSize N) := by simp [j, logicalIdxOfDense, hb_ne, hdS]
-      have hj_slab : j < gm (gmQIdx b) * slabSize N := by rw [hj_def, hb_def]; stride_omega
+      have hj_slab : j < gm (gmQIdx b) * slabSize N := by
+        rw [hj_def, hb_def]
+        simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hs_lt
+          (show slabSize N - 1 - d % slabSize N < slabSize N by omega)
       have hj_bc : j < bCount N gm b := by
         unfold bCount; rw [ite_eq_right hb_ne, ite_eq_left (by omega)]; omega
       have hj_div : j / slabSize N = gm (gmSlabOwnerSIdx N (d / slabSize N)) := by
@@ -591,7 +578,7 @@ theorem ownerBucketOfDense_lt_and_slotOf {N : ℕ} {gm td dt : ℕ → ℕ}
         rw [ite_eq_right hb_ne, ite_eq_left hj_slab, hj_div, hj_mod,
           show slabPtrOf N gm b (gm (gmSlabOwnerSIdx N (d / slabSize N))) = d / slabSize N by
             rw [hb_def]; exact hptr_eq]
-        stride_omega
+        rw [Nat.sub_sub_self (by omega), Nat.mul_comm, Nat.div_add_mod]
       exact ⟨by omega, hj_bc, by rw [hslot_eq, denseOfPhys_slab gm td hdS]⟩
     · have hd_ge : gm 0 * slabSize N ≤ d := by omega
       obtain ⟨ht_lt, htd_eq⟩ := htd'.owner_valid d hd_ge hd
@@ -633,12 +620,13 @@ private theorem slotOf_slab_lt_or_tail_eq {N : ℕ} {gm : ℕ → ℕ}
   unfold bCount at hj; simp only [hb_ne, ↓reduceIte, hb] at hj
   by_cases hj_slab : j < gm (gmQIdx b) * slabSize N
   · left
-    have hs_lt : j / slabSize N < gm (gmQIdx b) := by stride_omega
+    have hs_lt : j / slabSize N < gm (gmQIdx b) := (Nat.div_lt_iff_lt_mul hK).mpr hj_slab
     have hp_lt : slabPtrOf N gm b (j / slabSize N) < gm 0 :=
       hslab.nslabs_eq ▸ hslab.ptr_lt b hb _ hs_lt
     have hmod_lt : j % slabSize N < slabSize N := Nat.mod_lt j hK
     unfold slotOf; rw [ite_eq_right hb_ne, ite_eq_left hj_slab]
-    stride_omega
+    simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hp_lt
+      (show slabSize N - 1 - j % slabSize N < slabSize N by omega)
   · right
     have hr_lt : j - gm (gmQIdx b) * slabSize N < gm (gmRIdx b) := by omega
     refine ⟨_, htail.ntails_eq ▸ htail.ptr_lt b hb _ hr_lt, ?_⟩

@@ -115,9 +115,7 @@ theorem runFrom_eq_of_prefix_agree {input₁ input₂ : List Symbol} {m : ℕ}
         · simp only [Config.step, Turing.Action.apply_inputPos]
           lia
       | query op next =>
-        have hq : (cfg₁.channels op).queryBuffer = (cfg₂.channels op).queryBuffer := by
-          rw [hchan]
-        simp only [hq, map_bind]
+        simp only [hchan, map_bind]
         congr 1
         funext answer
         refine ih (cfg₁.receive op next answer) (cfg₂.receive op next answer)

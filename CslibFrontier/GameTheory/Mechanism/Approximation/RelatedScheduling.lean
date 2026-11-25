@@ -105,10 +105,9 @@ variable {ι : Type*}
   {c | ∀ i, 0 < c i}
 
 theorem update_mem_posCosts [DecidableEq ι] {c : ι → ℝ} (hc : c ∈ posCosts) (i : ι) {x : ℝ}
-    (hx : 0 < x) : Function.update c i x ∈ posCosts := by
-  intro j
-  by_cases hji : j = i
-  · subst hji; simpa only [Function.update_self] using hx
+    (hx : 0 < x) : Function.update c i x ∈ posCosts := fun j => by
+  rcases eq_or_ne j i with rfl | hji
+  · simpa only [Function.update_self] using hx
   · simpa only [Function.update_of_ne hji] using hc j
 
 /-- Quasilinear utility `payment c i - v * work c i` of agent `i` with true unit cost `v` on
@@ -155,43 +154,34 @@ primary PDF): `pᵢ(c) = cᵢ * qᵢ(c) + ∫ x in Ioi (cᵢ), qᵢ(update c i x
 theorem CostMechanism.IsDSIC.isAntitoneWork [DecidableEq ι] {M : CostMechanism ι}
     (hM : M.IsDSIC) : IsAntitoneWork M.work := by
   intro c hc i a ha b hb hab
-  change M.work (Function.update c i b) i ≤ M.work (Function.update c i a) i
-  have h1 := hM (Function.update c i b) (update_mem_posCosts hc i hb) i a ha
-  have h2 := hM (Function.update c i a) (update_mem_posCosts hc i ha) i b hb
-  simp only [CostMechanism.utility, Function.update_idem] at h1 h2
   rcases hab.lt_or_eq with hlt | rfl
-  · nlinarith
+  · have h1 := hM (Function.update c i b) (update_mem_posCosts hc i hb) i a ha
+    have h2 := hM (Function.update c i a) (update_mem_posCosts hc i ha) i b hb
+    simp only [CostMechanism.utility, Function.update_idem] at h1 h2
+    change M.work (Function.update c i b) i ≤ M.work (Function.update c i a) i
+    nlinarith
   · exact le_rfl
 
 private theorem setIntegral_Ioc_bounds_of_antitoneOn {f : ℝ → ℝ}
     (hf : AntitoneOn f (Set.Ioi 0)) {a b : ℝ} (ha : 0 < a) (hab : a ≤ b)
     (hint : IntegrableOn f (Set.Ioc a b) volume) :
     (b - a) * f b ≤ ∫ x in Set.Ioc a b, f x ∧ ∫ x in Set.Ioc a b, f x ≤ (b - a) * f a := by
-  have hb : 0 < b := ha.trans_le hab
-  have hmeas : volume (Set.Ioc a b) ≠ ⊤ := by
-    rw [Real.volume_Ioc]
-    exact ENNReal.ofReal_ne_top
-  have hconst_int : ∀ k : ℝ, IntegrableOn (fun _ : ℝ => k) (Set.Ioc a b) volume :=
-    fun k => integrableOn_const (hs := hmeas)
-  have hconst_val : ∀ k : ℝ, ∫ _x in Set.Ioc a b, k = (b - a) * k := fun k => by
+  have hmeas : volume (Set.Ioc a b) ≠ ⊤ := by simp [Real.volume_Ioc]
+  have hval (k : ℝ) : ∫ _x in Set.Ioc a b, k = (b - a) * k := by
     rw [setIntegral_const, Measure.real, Real.volume_Ioc, ENNReal.toReal_ofReal (sub_nonneg.2 hab),
       smul_eq_mul]
-  constructor
-  · have hle := setIntegral_mono_on (hconst_int (f b)) hint measurableSet_Ioc
-      fun x hx => hf (ha.trans hx.1) hb hx.2
-    rwa [hconst_val (f b)] at hle
-  · have hle := setIntegral_mono_on hint (hconst_int (f a)) measurableSet_Ioc
-      fun x hx => hf ha (ha.trans hx.1) hx.1.le
-    rwa [hconst_val (f a)] at hle
+  exact ⟨(hval (f b)).symm.trans_le
+      (setIntegral_mono_on (integrableOn_const (hs := hmeas)) hint measurableSet_Ioc
+        fun x hx => hf (ha.trans hx.1) (ha.trans_le hab) hx.2),
+    (setIntegral_mono_on hint (integrableOn_const (hs := hmeas)) measurableSet_Ioc
+      fun x hx => hf ha (ha.trans hx.1) hx.1.le).trans_eq (hval (f a))⟩
 
 private theorem setIntegral_Ioi_split {f : ℝ → ℝ} {a b : ℝ} (hab : a ≤ b)
     (hint : IntegrableOn f (Set.Ioi a) volume) :
     ∫ x in Set.Ioi a, f x = (∫ x in Set.Ioc a b, f x) + ∫ x in Set.Ioi b, f x := by
-  have hunion : Set.Ioi a = Set.Ioc a b ∪ Set.Ioi b := (Set.Ioc_union_Ioi_eq_Ioi hab).symm
-  have hdisj : Disjoint (Set.Ioc a b) (Set.Ioi b) := Set.Ioc_disjoint_Ioi_same
-  rw [hunion, setIntegral_union hdisj measurableSet_Ioi
-    (hint.mono_set (Set.Ioc_subset_Ioi_self))
-    (hint.mono_set (Set.Ioi_subset_Ioi hab))]
+  rw [← Set.Ioc_union_Ioi_eq_Ioi hab,
+    setIntegral_union Set.Ioc_disjoint_Ioi_same measurableSet_Ioi
+      (hint.mono_set Set.Ioc_subset_Ioi_self) (hint.mono_set (Set.Ioi_subset_Ioi hab))]
 
 /-- **Archer–Tardos sufficiency** ([ArcherTardos2001]; [NisanRoughgardenTardosVazirani2007],
 Chapter 12, Theorem 12.2, locator not verified against primary PDF): an antitone work rule with
@@ -201,8 +191,6 @@ theorem archerTardosMechanism_isDSIC [DecidableEq ι] {q : (ι → ℝ) → ι �
     (archerTardosMechanism q).IsDSIC := by
   intro c hc i v hv
   set f : ℝ → ℝ := fun x => q (Function.update c i x) i
-  have hf_anti : AntitoneOn f (Set.Ioi 0) := hq c hc i
-  have hf_int : ∀ a, 0 < a → IntegrableOn f (Set.Ioi a) volume := fun a ha => hint c hc i a ha
   have hu_c : (archerTardosMechanism q).utility i v c =
       (c i - v) * f (c i) + ∫ x in Set.Ioi (c i), f x := by
     simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment, f,
@@ -215,14 +203,12 @@ theorem archerTardosMechanism_isDSIC [DecidableEq ι] {q : (ι → ℝ) → ι �
     ring
   rw [hu_c, hu_v]
   rcases le_total v (c i) with hvc | hcv
-  · rw [setIntegral_Ioi_split hvc (hf_int v hv)]
-    have hb := (setIntegral_Ioc_bounds_of_antitoneOn hf_anti hv hvc
-      ((hf_int v hv).mono_set Set.Ioc_subset_Ioi_self)).1
-    linarith
-  · rw [setIntegral_Ioi_split hcv (hf_int (c i) (hc i))]
-    have hb := (setIntegral_Ioc_bounds_of_antitoneOn hf_anti (hc i) hcv
-      ((hf_int (c i) (hc i)).mono_set Set.Ioc_subset_Ioi_self)).2
-    linarith
+  · rw [setIntegral_Ioi_split hvc (hint c hc i v hv)]
+    linarith [(setIntegral_Ioc_bounds_of_antitoneOn (hq c hc i) hv hvc
+      ((hint c hc i v hv).mono_set Set.Ioc_subset_Ioi_self)).1]
+  · rw [setIntegral_Ioi_split hcv (hint c hc i (c i) (hc i))]
+    linarith [(setIntegral_Ioc_bounds_of_antitoneOn (hq c hc i) (hc i) hcv
+      ((hint c hc i (c i) (hc i)).mono_set Set.Ioc_subset_Ioi_self)).2]
 
 /-- Truthful utility under Archer–Tardos payments equals the tail integral
 `∫ x in Ioi (c i), q (update c i x) i`. -/
@@ -245,13 +231,9 @@ theorem archerTardosMechanism_isIR [DecidableEq ι] {q : (ι → ℝ) → ι →
 /-- With nonnegative work, Archer–Tardos payments are nonnegative on positive cost profiles. -/
 theorem archerTardosPayment_nonneg [DecidableEq ι] {q : (ι → ℝ) → ι → ℝ}
     (hq0 : ∀ c ∈ posCosts, ∀ i, 0 ≤ q c i) {c : ι → ℝ} (hc : c ∈ posCosts) (i : ι) :
-    0 ≤ archerTardosPayment q c i := by
-  simp only [archerTardosPayment]
-  have h1 : 0 ≤ c i * q c i := mul_nonneg (hc i).le (hq0 c hc i)
-  have h2 : 0 ≤ ∫ x in Set.Ioi (c i), q (Function.update c i x) i :=
-    setIntegral_nonneg measurableSet_Ioi fun x hx =>
-      hq0 _ (update_mem_posCosts hc i ((hc i).trans hx)) i
-  linarith
+    0 ≤ archerTardosPayment q c i :=
+  add_nonneg (mul_nonneg (hc i).le (hq0 c hc i))
+    (utility_archerTardosMechanism q i c ▸ archerTardosMechanism_isIR hq0 c hc i)
 
 /-- Finite-interval payment identity for any DSIC cost mechanism: on `0 < a ≤ b`,
 `(p(a) - a q(a)) - (p(b) - b q(b)) = ∫ x in Ioc a b, q(x)`. -/
@@ -263,15 +245,13 @@ theorem CostMechanism.IsDSIC.utility_sub_utility_eq_integral [DecidableEq ι] {M
   set f : ℝ → ℝ := fun x => M.work (Function.update c i x) i
   set u : ℝ → ℝ := fun x => M.utility i x (Function.update c i x)
   have hf_anti : AntitoneOn f (Set.Ioi 0) := hM.isAntitoneWork c hc i
-  have hf_int : ∀ x y, a ≤ x → x ≤ y → y ≤ b → IntegrableOn f (Set.Ioc x y) volume := by
-    intro x y hax hxy _
-    have hmono : AntitoneOn f (Set.uIcc x y) :=
-      hf_anti.mono fun t ht => ha.trans_le (hax.trans (Set.uIcc_of_le hxy ▸ ht).1)
-    exact (hmono.intervalIntegrable).1
+  have hf_int (x y : ℝ) (hax : a ≤ x) (hxy : x ≤ y) : IntegrableOn f (Set.Ioc x y) volume :=
+    (hf_anti.mono fun _ ht =>
+      ha.trans_le (hax.trans (Set.uIcc_of_le hxy ▸ ht).1)).intervalIntegrable.1
   set φ : ℝ → ℝ := fun v => u v + ∫ x in Set.Ioc a v, f x
   have hconst : φ b = φ a := by
     refine Cslib.GameTheory.SingleParameter.eq_of_abs_sub_le_mul_sub (f := fun x => -f x) hab
-      fun z y haz hzy hyb => ?_
+      fun z y haz hzy _ => ?_
     have hz : 0 < z := ha.trans_le haz
     have hy : 0 < y := hz.trans_le hzy
     have h1 := hM (Function.update c i y) (update_mem_posCosts hc i hy) i z hz
@@ -279,18 +259,13 @@ theorem CostMechanism.IsDSIC.utility_sub_utility_eq_integral [DecidableEq ι] {M
     simp only [CostMechanism.utility, Function.update_idem] at h1 h2
     have hsplit : ∫ x in Set.Ioc a y, f x =
         (∫ x in Set.Ioc a z, f x) + ∫ x in Set.Ioc z y, f x := by
-      have hunion : Set.Ioc a y = Set.Ioc a z ∪ Set.Ioc z y :=
-        (Set.Ioc_union_Ioc_eq_Ioc haz hzy).symm
-      rw [hunion, setIntegral_union (Set.Ioc_disjoint_Ioc_of_le le_rfl) measurableSet_Ioc
-        (hf_int a z le_rfl haz (hzy.trans hyb)) (hf_int z y haz hzy hyb)]
-    obtain ⟨hI1, hI2⟩ := setIntegral_Ioc_bounds_of_antitoneOn hf_anti hz hzy
-      (hf_int z y haz hzy hyb)
-    have huz_diff : u z - u y ≤ (y - z) * f z ∧ (y - z) * f y ≤ u z - u y := by
-      simp only [u, CostMechanism.utility]
-      constructor <;> nlinarith
-    simp only [φ]
+      rw [← Set.Ioc_union_Ioc_eq_Ioc haz hzy,
+        setIntegral_union (Set.Ioc_disjoint_Ioc_of_le le_rfl) measurableSet_Ioc
+          (hf_int a z le_rfl haz) (hf_int z y haz hzy)]
+    obtain ⟨hI1, hI2⟩ := setIntegral_Ioc_bounds_of_antitoneOn hf_anti hz hzy (hf_int z y haz hzy)
+    simp only [φ, u, CostMechanism.utility]
     rw [hsplit, abs_le]
-    constructor <;> linarith
+    exact ⟨by nlinarith, by nlinarith⟩
   simp only [φ, Set.Ioc_self, Measure.restrict_empty, integral_zero_measure, add_zero] at hconst
   linarith
 
@@ -309,16 +284,13 @@ private theorem tendsto_mul_zero_of_antitoneOn_integrableOn {f : ℝ → ℝ} {a
     have hab2 : a ≤ b / 2 := by linarith
     rw [intervalIntegral.integral_of_le hab2, setIntegral_Ioi_split hab2 hint]
     ring
-  have h2tail : Tendsto (fun b => 2 * ∫ x in Set.Ioi (b / 2), f x) atTop (𝓝 0) := by
-    simpa only [mul_zero] using htail.const_mul 2
-  refine squeeze_zero' ?_ ?_ h2tail
+  refine squeeze_zero' ?_ ?_ (by simpa only [mul_zero] using htail.const_mul 2)
   · filter_upwards [eventually_gt_atTop (0 : ℝ)] with b hb
     exact mul_nonneg hb.le (hnonneg b hb)
   · filter_upwards [eventually_ge_atTop (2 * a)] with b hb
     have hb2 : 0 < b / 2 := by linarith
     have hab2 : a ≤ b / 2 := by linarith
-    have hle : b / 2 ≤ b := by linarith
-    have hIoc := (setIntegral_Ioc_bounds_of_antitoneOn hf hb2 hle
+    have hIoc := (setIntegral_Ioc_bounds_of_antitoneOn hf hb2 (by linarith : b / 2 ≤ b)
       (hint.mono_set (Set.Ioc_subset_Ioi_self.trans (Set.Ioi_subset_Ioi hab2)))).1
     have hsub : ∫ x in Set.Ioc (b / 2) b, f x ≤ ∫ x in Set.Ioi (b / 2), f x :=
       setIntegral_mono_set (hint.mono_set (Set.Ioi_subset_Ioi hab2))
@@ -336,29 +308,24 @@ theorem CostMechanism.IsDSIC.payment_eq_archerTardosPayment [DecidableEq ι] {M 
     (hlim : Tendsto (fun x => M.payment (Function.update c i x) i) atTop (𝓝 0)) :
     M.payment c i = archerTardosPayment M.work c i := by
   set f : ℝ → ℝ := fun x => M.work (Function.update c i x) i
-  have hf_anti : AntitoneOn f (Set.Ioi 0) := hM.isAntitoneWork c hc i
   have hf_int : IntegrableOn f (Set.Ioi (c i)) volume := hint c hc i (c i) (hc i)
   have hmul : Tendsto (fun b => b * f b) atTop (𝓝 0) :=
     tendsto_mul_zero_of_antitoneOn_integrableOn (hc i)
-      (fun x hx => hq0 _ (update_mem_posCosts hc i hx) i) hf_anti hf_int
+      (fun x hx => hq0 _ (update_mem_posCosts hc i hx) i) (hM.isAntitoneWork c hc i) hf_int
   have hutil_lim : Tendsto (fun b => M.utility i b (Function.update c i b)) atTop (𝓝 0) := by
     simpa only [CostMechanism.utility, sub_zero] using hlim.sub hmul
   have hint_lim : Tendsto (fun b => ∫ x in c i..b, f x) atTop (𝓝 (∫ x in Set.Ioi (c i), f x)) :=
     intervalIntegral_tendsto_integral_Ioi (c i) hf_int tendsto_id
   have hconst_lim : Tendsto (fun _ : ℝ => M.utility i (c i) c) atTop
       (𝓝 (∫ x in Set.Ioi (c i), f x)) := by
-    have hsum := hint_lim.add hutil_lim
-    rw [add_zero] at hsum
-    refine hsum.congr' ?_
+    refine (add_zero (∫ x in Set.Ioi (c i), f x) ▸ hint_lim.add hutil_lim).congr' ?_
     filter_upwards [eventually_ge_atTop (c i)] with b hb
     have hid := hM.utility_sub_utility_eq_integral hc i (hc i) hb
     rw [Function.update_eq_self] at hid
     rw [intervalIntegral.integral_of_le hb]
     linarith
-  have heq : M.utility i (c i) c = ∫ x in Set.Ioi (c i), f x :=
-    tendsto_nhds_unique tendsto_const_nhds hconst_lim
-  simp only [CostMechanism.utility] at heq
-  simp only [archerTardosPayment]
+  have heq := tendsto_nhds_unique tendsto_const_nhds hconst_lim
+  simp only [CostMechanism.utility, archerTardosPayment] at heq ⊢
   linarith
 
 end ArcherTardos
@@ -409,23 +376,12 @@ theorem sum_weight_le_optRelatedMakespan_mul_sum_inv {w : J → ℝ} {c : M → 
     ∑ j : J, w j ≤ optRelatedMakespan w c * ∑ i : M, (c i)⁻¹ := by
   obtain ⟨a, -, ha⟩ := Finset.exists_mem_eq_inf'
     (Finset.univ_nonempty (α := J → M)) (fun a => relatedMakespan w c a)
-  rw [optRelatedMakespan, ha]
-  have hsum : ∑ j : J, w j = ∑ i : M, work w a i := by
-    simp only [work, Finset.sum_filter]
-    rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    rw [Finset.sum_eq_single (a j)]
-    · simp only [↓reduceIte]
-    · intro i _ hne
-      simp only [Ne.symm hne, ↓reduceIte]
-    · intro h
-      exact absurd (Finset.mem_univ _) h
-  rw [hsum, Finset.mul_sum]
-  refine Finset.sum_le_sum fun i _ => ?_
-  have hle := cost_mul_work_le_relatedMakespan w c a i
-  have hci : 0 < c i := hc i
-  rw [← le_div_iff₀' hci] at hle
-  rwa [div_eq_mul_inv] at hle
+  rw [optRelatedMakespan, ha,
+    ← Finset.sum_fiberwise_of_maps_to (g := a) (fun j _ => Finset.mem_univ (a j)) w,
+    Finset.mul_sum]
+  exact Finset.sum_le_sum fun i _ =>
+    ((le_div_iff₀' (hc i)).2 (cost_mul_work_le_relatedMakespan w c a i)).trans_eq
+      (div_eq_mul_inv _ _)
 
 private noncomputable def optSchedules (w : J → ℝ) (c : M → ℝ) : Finset (J → M) :=
   Finset.univ.filter fun a => relatedMakespan w c a = optRelatedMakespan w c
@@ -469,46 +425,39 @@ theorem lexOptWork_isAntitoneWork [LinearOrder (J → M)] {w : J → ℝ} (hw : 
   by_contra hnot
   have hwork_lt : work w ax i < work w ay i := lt_of_not_ge hnot
   -- Every schedule's makespan at `cx` is at most its makespan at `cy`.
-  have hmono : ∀ a : J → M, relatedMakespan w cx a ≤ relatedMakespan w cy a := by
-    intro a
-    rw [relatedMakespan_le_iff]
-    intro k
-    by_cases hki : k = i
-    · subst hki
-      calc
-        cx k * work w a k = x * work w a k := by simp only [cx, Function.update_self]
-        _ ≤ y * work w a k := mul_le_mul_of_nonneg_right hlt.le (work_nonneg hw a k)
-        _ = cy k * work w a k := by simp only [cy, Function.update_self]
-        _ ≤ relatedMakespan w cy a := cost_mul_work_le_relatedMakespan w cy a k
-    · calc
-        cx k * work w a k = cy k * work w a k := by
-          simp only [cx, cy, Function.update_of_ne hki]
-        _ ≤ relatedMakespan w cy a := cost_mul_work_le_relatedMakespan w cy a k
+  have hmono (a : J → M) : relatedMakespan w cx a ≤ relatedMakespan w cy a :=
+    (relatedMakespan_le_iff w cx a).2 fun k => by
+      rcases eq_or_ne k i with rfl | hki
+      · calc cx k * work w a k
+          _ = x * work w a k := by simp only [cx, Function.update_self]
+          _ ≤ y * work w a k := mul_le_mul_of_nonneg_right hlt.le (work_nonneg hw a k)
+          _ = cy k * work w a k := by simp only [cy, Function.update_self]
+          _ ≤ relatedMakespan w cy a := cost_mul_work_le_relatedMakespan w cy a k
+      · calc cx k * work w a k
+          _ = cy k * work w a k := by simp only [cx, cy, Function.update_of_ne hki]
+          _ ≤ relatedMakespan w cy a := cost_mul_work_le_relatedMakespan w cy a k
   have hopt_x : relatedMakespan w cx ax = optRelatedMakespan w cx := lexOptAlloc_isOptimal w cx
   have hopt_y : relatedMakespan w cy ay = optRelatedMakespan w cy := lexOptAlloc_isOptimal w cy
-  have hax_le_ay : relatedMakespan w cx ax ≤ relatedMakespan w cx ay := by
-    rw [hopt_x]; exact optRelatedMakespan_le w cx ay
-  have hay_le_ax_cy : relatedMakespan w cy ay ≤ relatedMakespan w cy ax := by
-    rw [hopt_y]; exact optRelatedMakespan_le w cy ax
+  have hax_le_ay : relatedMakespan w cx ax ≤ relatedMakespan w cx ay :=
+    hopt_x.trans_le (optRelatedMakespan_le w cx ay)
+  have hay_le_ax_cy : relatedMakespan w cy ay ≤ relatedMakespan w cy ax :=
+    hopt_y.trans_le (optRelatedMakespan_le w cy ax)
   -- Show `relatedMakespan w cy ax ≤ relatedMakespan w cy ay`:
   -- machine `i` has strictly less completion time under `ax` than under `ay` at cost `y`,
   -- and every other machine `k ≠ i` has the same cost under `cx` and `cy`.
-  have hax_cy_i : cy i * work w ax i < relatedMakespan w cy ay := by
-    have h1 : cy i * work w ax i < cy i * work w ay i := by
-      have hy_pos : 0 < cy i := by simpa only [cy, Function.update_self] using Set.mem_Ioi.1 hy
-      exact mul_lt_mul_of_pos_left hwork_lt hy_pos
-    exact h1.trans_le (cost_mul_work_le_relatedMakespan w cy ay i)
-  have hax_cy_le : relatedMakespan w cy ax ≤ relatedMakespan w cy ay := by
-    rw [relatedMakespan_le_iff]
-    intro k
-    by_cases hki : k = i
-    · subst hki; exact hax_cy_i.le
-    · calc
-        cy k * work w ax k = cx k * work w ax k := by
-          simp only [cx, cy, Function.update_of_ne hki]
-        _ ≤ relatedMakespan w cx ax := cost_mul_work_le_relatedMakespan w cx ax k
-        _ ≤ relatedMakespan w cx ay := hax_le_ay
-        _ ≤ relatedMakespan w cy ay := hmono ay
+  have hax_cy_i : cy i * work w ax i < relatedMakespan w cy ay :=
+    (mul_lt_mul_of_pos_left hwork_lt
+      (by simpa only [cy, Function.update_self] using Set.mem_Ioi.1 hy)).trans_le
+      (cost_mul_work_le_relatedMakespan w cy ay i)
+  have hax_cy_le : relatedMakespan w cy ax ≤ relatedMakespan w cy ay :=
+    (relatedMakespan_le_iff w cy ax).2 fun k => by
+      rcases eq_or_ne k i with rfl | hki
+      · exact hax_cy_i.le
+      · calc cy k * work w ax k
+          _ = cx k * work w ax k := by simp only [cx, cy, Function.update_of_ne hki]
+          _ ≤ relatedMakespan w cx ax := cost_mul_work_le_relatedMakespan w cx ax k
+          _ ≤ relatedMakespan w cx ay := hax_le_ay
+          _ ≤ relatedMakespan w cy ay := hmono ay
   have hax_opt_cy : relatedMakespan w cy ax = optRelatedMakespan w cy :=
     (le_antisymm hax_cy_le hay_le_ax_cy).trans hopt_y
   -- Now `ax` attains `relatedMakespan w cy ax = relatedMakespan w cy ay` on some machine `k₀`.
@@ -517,26 +466,20 @@ theorem lexOptWork_isAntitoneWork [LinearOrder (J → M)] {w : J → ℝ} (hw : 
   obtain ⟨k₀, -, hk₀⟩ := Finset.exists_mem_eq_sup' (Finset.univ_nonempty (α := M))
     (fun k => cy k * work w ax k)
   change relatedMakespan w cy ax = cy k₀ * work w ax k₀ at hk₀
-  have hk₀_ne : k₀ ≠ i := by
-    intro h
+  have hk₀_ne : k₀ ≠ i := fun h => by
     subst h
-    have : cy k₀ * work w ax k₀ = relatedMakespan w cy ay := by
-      rw [← hk₀, hax_opt_cy, ← hopt_y]
-    linarith
+    linarith [hax_opt_cy.trans hopt_y.symm]
   have hay_cx_le : relatedMakespan w cx ay ≤ relatedMakespan w cx ax := by
     calc
       relatedMakespan w cx ay ≤ relatedMakespan w cy ay := hmono ay
-      _ = relatedMakespan w cy ax := by rw [hopt_y, ← hax_opt_cy]
-      _ = cy k₀ * work w ax k₀ := hk₀
-      _ = cx k₀ * work w ax k₀ := by simp only [cx, cy, Function.update_of_ne hk₀_ne]
+      _ = cx k₀ * work w ax k₀ := by
+        rw [hopt_y, ← hax_opt_cy, hk₀]
+        simp only [cx, cy, Function.update_of_ne hk₀_ne]
       _ ≤ relatedMakespan w cx ax := cost_mul_work_le_relatedMakespan w cx ax k₀
   have hay_opt_cx : relatedMakespan w cx ay = optRelatedMakespan w cx :=
     (le_antisymm hay_cx_le hax_le_ay).trans hopt_x
-  have hle1 : ax ≤ ay := lexOptAlloc_le_of_optimal w cx hay_opt_cx
-  have hle2 : ay ≤ ax := lexOptAlloc_le_of_optimal w cy hax_opt_cy
-  have heq : ax = ay := le_antisymm hle1 hle2
-  rw [heq] at hwork_lt
-  exact lt_irrefl _ hwork_lt
+  exact lt_irrefl _ (le_antisymm (lexOptAlloc_le_of_optimal w cx hay_opt_cx)
+    (lexOptAlloc_le_of_optimal w cy hax_opt_cy) ▸ hwork_lt)
 
 /-- When there are at least two machines (`[Nontrivial M]`), any machine whose unit cost exceeds a
 finite threshold receives zero total work under `lexOptAlloc`. -/
@@ -547,57 +490,37 @@ theorem lexOptWork_eq_zero_of_large_cost [LinearOrder (J → M)] [Nontrivial M] 
   let posJobs : Finset J := Finset.univ.filter fun j => 0 < w j
   by_cases hne : posJobs.Nonempty
   · let wMin : ℝ := posJobs.inf' hne w
-    have hwMin_pos : 0 < wMin := by
-      rw [Finset.lt_inf'_iff]
-      intro j hj
-      exact (Finset.mem_filter.1 hj).2
+    have hwMin_pos : 0 < wMin := (Finset.lt_inf'_iff hne).2 fun _ hj => (Finset.mem_filter.1 hj).2
     let W : ℝ := ∑ j : J, w j
     refine ⟨(c k * W) / wMin, fun x hx => ?_⟩
     set cx := Function.update c i x
     let aAllK : J → M := fun _ => k
     have hopt_le : optRelatedMakespan w cx ≤ c k * W := by
-      refine (optRelatedMakespan_le w cx aAllK).trans ((relatedMakespan_le_iff w cx aAllK).2 ?_)
-      intro m
-      by_cases hmk : m = k
-      · subst hmk
-        simp only [cx, Function.update_of_ne hki, work, aAllK, Finset.filter_true, W, le_refl]
-      · have hfilt : (Finset.univ.filter fun _ : J => k = m) = ∅ := by
-          ext j
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
-          exact Ne.symm hmk
-        rw [work, hfilt, Finset.sum_empty, mul_zero]
+      refine (optRelatedMakespan_le w cx aAllK).trans ((relatedMakespan_le_iff w cx aAllK).2
+        fun m => ?_)
+      rcases eq_or_ne m k with rfl | hmk
+      · simp only [cx, Function.update_of_ne hki, work, aAllK, Finset.filter_true, W, le_refl]
+      · rw [work, Finset.filter_false_of_mem fun _ _ => Ne.symm hmk, Finset.sum_empty, mul_zero]
         exact mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)
-    have hle_opt : x * work w (lexOptAlloc w cx) i ≤ c k * W := by
-      calc
-        x * work w (lexOptAlloc w cx) i = cx i * work w (lexOptAlloc w cx) i := by
-          simp only [cx, Function.update_self]
+    have hle_opt : x * work w (lexOptAlloc w cx) i ≤ c k * W :=
+      calc x * work w (lexOptAlloc w cx) i
+        _ = cx i * work w (lexOptAlloc w cx) i := by simp only [cx, Function.update_self]
         _ ≤ relatedMakespan w cx (lexOptAlloc w cx) :=
-          cost_mul_work_le_relatedMakespan w cx (lexOptAlloc w cx) i
+              cost_mul_work_le_relatedMakespan w cx (lexOptAlloc w cx) i
         _ = optRelatedMakespan w cx := lexOptAlloc_isOptimal w cx
         _ ≤ c k * W := hopt_le
     refine Finset.sum_eq_zero fun j hj => ?_
     by_contra hne0
     have hwj_pos : 0 < w j := lt_of_le_of_ne (hw j) (Ne.symm hne0)
-    have hwMin_le : wMin ≤ w j :=
-      Finset.inf'_le w (Finset.mem_filter.2 ⟨Finset.mem_univ j, hwj_pos⟩)
-    have hwj_le_work : w j ≤ work w (lexOptAlloc w cx) i :=
-      Finset.single_le_sum (fun j' _ => hw j') hj
-    have hx_pos : 0 < x := by
-      have hnonneg : 0 ≤ c k * W / wMin :=
-        div_nonneg (mul_nonneg (hc k).le (Finset.sum_nonneg fun j' _ => hw j')) hwMin_pos.le
-      linarith
+    have hwMin_le : wMin ≤ work w (lexOptAlloc w cx) i :=
+      (Finset.inf'_le w (Finset.mem_filter.2 ⟨Finset.mem_univ j, hwj_pos⟩)).trans
+        (Finset.single_le_sum (fun j' _ => hw j') hj)
     have hgt : c k * W < x * wMin := (div_lt_iff₀ hwMin_pos).1 hx
-    have h1 : x * wMin ≤ x * work w (lexOptAlloc w cx) i :=
-      mul_le_mul_of_nonneg_left (hwMin_le.trans hwj_le_work) hx_pos.le
-    linarith
-  · refine ⟨0, fun x _ => ?_⟩
-    rw [Finset.not_nonempty_iff_eq_empty] at hne
-    refine Finset.sum_eq_zero fun j _ => ?_
-    by_contra hne0
-    have hj : j ∈ posJobs :=
-      Finset.mem_filter.2 ⟨Finset.mem_univ j, lt_of_le_of_ne (hw j) (Ne.symm hne0)⟩
-    rw [hne] at hj
-    exact Finset.notMem_empty j hj
+    have hx_pos : 0 < x := pos_of_mul_pos_left
+      ((mul_nonneg (hc k).le (Finset.sum_nonneg fun _ _ => hw _)).trans_lt hgt) hwMin_pos.le
+    linarith [mul_le_mul_of_nonneg_left hwMin_le hx_pos.le]
+  · refine ⟨0, fun x _ => Finset.sum_eq_zero fun j _ => le_antisymm ?_ (hw j)⟩
+    exact not_lt.1 fun hpos => hne ⟨j, Finset.mem_filter.2 ⟨Finset.mem_univ j, hpos⟩⟩
 
 /-- With at least two machines, the work tail of `lexOptAlloc` is integrable on every `(a, ∞)`. -/
 theorem lexOptWork_hasIntegrableTail [LinearOrder (J → M)] [Nontrivial M] {w : J → ℝ}

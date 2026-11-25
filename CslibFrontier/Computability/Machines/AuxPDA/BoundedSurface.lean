@@ -115,29 +115,22 @@ instance [DecidableEq StackSym] [DecidableEq State] :
 
 /-- Every embedded bounded surface configuration fits in the uniform window `fun _ => s`. -/
 theorem toSurface_fitsIn (b : BoundedSurfaceCfg k StackSym State input s) :
-    b.toSurface.storage.FitsIn (fun _ => s) := by
-  refine ⟨fun j => Turing.mem_window.mp (b.workTapePos j).property, fun j z hz => ?_⟩
-  by_contra hout
-  have hnotmem : z ∉ Turing.window s := fun hm => hout (Turing.mem_window.mp hm)
-  simp [toSurface, hnotmem] at hz
+    b.toSurface.storage.FitsIn (fun _ => s) :=
+  ⟨fun j => Turing.mem_window.mp (b.workTapePos j).2, fun _ _ hz => by
+    simp only [toSurface, ne_eq, dite_eq_right_iff, Classical.not_forall] at hz
+    exact Turing.mem_window.mp hz.1⟩
 
 /-- Embedding into `SurfaceCfg` is injective. -/
 theorem toSurface_injective :
     Function.Injective (toSurface (k := k) (StackSym := StackSym) (State := State)
-      (input := input) (s := s)) := by
-  intro a b hab
-  have hpos : a.inputPos = b.inputPos := congrArg SurfaceCfg.inputPos hab
-  have hst : a.state = b.state := congrArg (fun sc => sc.storage.state) hab
-  have htop : a.topSym = b.topSym := congrArg SurfaceCfg.topSym hab
-  have hout : a.outputSummary = b.outputSummary := congrArg SurfaceCfg.outputSummary hab
-  have hwt : a.workTapes = b.workTapes := by
-    funext i z
-    have hz := congrFun (congrFun (congrArg (fun sc => sc.storage.workTapes) hab) i) z.val
-    simpa only [toSurface, z.property, ↓reduceDIte] using hz
-  have hwp : a.workTapePos = b.workTapePos := by
-    funext i
-    exact Subtype.ext (congrFun (congrArg (fun sc => sc.storage.workTapePos) hab) i)
-  exact BoundedSurfaceCfg.ext hpos hst hwt hwp htop hout
+      (input := input) (s := s)) := fun a b hab =>
+  BoundedSurfaceCfg.ext (congrArg SurfaceCfg.inputPos hab)
+    (congrArg (fun sc => sc.storage.state) hab)
+    (funext fun i => funext fun z => by
+      simpa only [toSurface, z.2, ↓reduceDIte] using
+        congrFun (congrFun (congrArg (fun sc => sc.storage.workTapes) hab) i) z.1)
+    (funext fun i => Subtype.ext (congrFun (congrArg (fun sc => sc.storage.workTapePos) hab) i))
+    (congrArg SurfaceCfg.topSym hab) (congrArg SurfaceCfg.outputSummary hab)
 
 /-- Restrict a surface configuration fitting in `fun _ => s` to `BoundedSurfaceCfg`. -/
 @[expose] def ofSurface (sc : SurfaceCfg k StackSym State input)
@@ -157,11 +150,8 @@ theorem toSurface_ofSurface (sc : SurfaceCfg k StackSym State input)
   refine SurfaceCfg.ext rfl (Turing.Storage.ext rfl (funext fun i => funext fun z => ?_) rfl)
     rfl rfl
   dsimp only [toSurface, ofSurface]
-  split_ifs with hz
-  · rfl
-  · symm
-    by_contra hne
-    exact hz (Turing.mem_window.mpr (h.cell_le i z hne))
+  exact dite_eq_left_iff.mpr fun hz =>
+    (not_not.mp fun hne => hz (Turing.mem_window.mpr (h.cell_le i z hne))).symm
 
 @[simp]
 theorem ofSurface_toSurface (b : BoundedSurfaceCfg k StackSym State input s) :
@@ -178,9 +168,8 @@ theorem ofSurface_toSurface (b : BoundedSurfaceCfg k StackSym State input s) :
   b.workTapes i (b.workTapePos i)
 
 lemma workTapeSymbols_eq_toSurface (b : BoundedSurfaceCfg k StackSym State input s) :
-    b.workTapeSymbols = b.toSurface.workTapeSymbols := by
-  funext i
-  simp [workTapeSymbols, SurfaceCfg.workTapeSymbols, toSurface]
+    b.workTapeSymbols = b.toSurface.workTapeSymbols :=
+  funext fun _ => by simp [workTapeSymbols, SurfaceCfg.workTapeSymbols, toSurface]
 
 /-- A bounded surface configuration is accepting when halted with output summary `.accept`. -/
 abbrev IsAccepting (b : BoundedSurfaceCfg k StackSym State input s) : Prop :=
@@ -207,13 +196,10 @@ end BoundedSurfaceCfg
 theorem toSurface_initBoundedSurface {k : ℕ} {StackSym State : Type*}
     (M : AuxPDA k Bool StackSym State) (input : List Bool) (s : ℕ) :
     (initBoundedSurface M input s).toSurface = M.initSurface input := by
-  refine SurfaceCfg.ext ?_ (Turing.Storage.ext rfl ?_ rfl) rfl rfl
-  · ext
-    change 1 = (1 : ℕ) % (input.length + 2)
-    exact (Nat.mod_eq_of_lt (by omega)).symm
-  · funext i z
-    simp [initBoundedSurface, BoundedSurfaceCfg.toSurface, initSurface, initCfg, Cfg.init,
-      Cfg.surface, Turing.Cfg.init, Turing.Cfg.storage]
+  refine SurfaceCfg.ext (Fin.ext (Nat.mod_eq_of_lt (by omega)).symm)
+    (Turing.Storage.ext rfl (funext fun _ => funext fun _ => ?_) rfl) rfl rfl
+  simp [initBoundedSurface, BoundedSurfaceCfg.toSurface, initSurface, initCfg, Cfg.init,
+    Cfg.surface, Turing.Cfg.init, Turing.Cfg.storage]
 
 /-! ### Computable mixed-radix `Fin` indexing and polynomial cardinality bounds -/
 
@@ -347,61 +333,46 @@ theorem card_boundedSurfaceCfg {k : ℕ} {StackSym State : Type*}
 /-- The bounded surface-configuration count is always at least `n + 2` (from the input head). -/
 theorem input_length_add_two_le_boundedSurfaceCard (mStack mState k n s : ℕ) :
     n + 2 ≤ boundedSurfaceCard mStack mState k n s := by
-  unfold boundedSurfaceCard
-  have hprod : 0 < (mState + 1) * (2 * s + 1) ^ k * (3 ^ (2 * s + 1)) ^ k * (mStack + 1) * 3 := by
-    positivity
-  have heq :
-      (((((n + 2) * (mState + 1)) * (2 * s + 1) ^ k) * (3 ^ (2 * s + 1)) ^ k) *
-        (mStack + 1)) * 3 =
+  have heq : boundedSurfaceCard mStack mState k n s =
       (n + 2) * ((mState + 1) * (2 * s + 1) ^ k * (3 ^ (2 * s + 1)) ^ k * (mStack + 1) * 3) := by
+    unfold boundedSurfaceCard
     ring
   rw [heq]
-  exact Nat.le_mul_of_pos_right (n + 2) hprod
+  exact Nat.le_mul_of_pos_right _ (by positivity)
 
 /-- The bounded surface-configuration cardinality is at most `surfaceCfgBound … (k * s)`. -/
 theorem boundedSurfaceCard_le_surfaceCfgBound {StackSym State : Type*}
     [Fintype StackSym] [Fintype State] (k n s : ℕ) :
     boundedSurfaceCard (Fintype.card StackSym) (Fintype.card State) k n s ≤
       surfaceCfgBound StackSym State k n (k * s) := by
-  unfold boundedSurfaceCard surfaceCfgBound Turing.storageBound
-  have hcardBool : Fintype.card Bool + 1 = 3 := by decide
-  rw [hcardBool]
-  have hpow3 : (3 ^ (2 * s + 1)) ^ k = 3 ^ (2 * (k * s) + k) := by
-    rw [← pow_mul]
-    congr 1
-    ring
-  have hpowPos : (2 * s + 1) ^ k ≤ (2 * (k * s) + 1) ^ k := by
-    cases k with
-    | zero => simp
-    | succ k' =>
-      refine Nat.pow_le_pow_left ?_ _
-      have : s ≤ (k' + 1) * s := Nat.le_mul_of_pos_left s (Nat.succ_pos k')
+  have hpow : (2 * s + 1) ^ k ≤ (2 * (k * s) + 1) ^ k := by
+    rcases k with _ | k'
+    · simp
+    · refine Nat.pow_le_pow_left ?_ _
+      have := Nat.le_mul_of_pos_left s (by omega : 0 < k' + 1)
       omega
-  rw [hpow3]
-  have hrearr1 :
-      (((((n + 2) * (Fintype.card State + 1)) * (2 * s + 1) ^ k) * 3 ^ (2 * (k * s) + k)) *
-        (Fintype.card StackSym + 1)) * 3 =
-      ((n + 2) * (Fintype.card StackSym + 1) * 3 * (Fintype.card State + 1)) *
-        ((2 * s + 1) ^ k * 3 ^ (2 * (k * s) + k)) := by ring
-  have hrearr2 :
-      (n + 2) * (Fintype.card StackSym + 1) * 3 *
-        ((Fintype.card State + 1) * ((2 * (k * s) + 1) ^ k * 3 ^ (2 * (k * s) + k))) =
-      ((n + 2) * (Fintype.card StackSym + 1) * 3 * (Fintype.card State + 1)) *
-        ((2 * (k * s) + 1) ^ k * 3 ^ (2 * (k * s) + k)) := by ring
-  rw [hrearr1, hrearr2]
-  exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hpowPos)
+  calc boundedSurfaceCard (Fintype.card StackSym) (Fintype.card State) k n s
+      = (n + 2) * (Fintype.card StackSym + 1) * 3 * (Fintype.card State + 1) *
+          3 ^ (2 * (k * s) + k) * (2 * s + 1) ^ k := by
+        unfold boundedSurfaceCard
+        rw [← pow_mul]
+        ring_nf
+    _ ≤ (n + 2) * (Fintype.card StackSym + 1) * 3 * (Fintype.card State + 1) *
+          3 ^ (2 * (k * s) + k) * (2 * (k * s) + 1) ^ k := Nat.mul_le_mul_left _ hpow
+    _ = surfaceCfgBound StackSym State k n (k * s) := by
+        unfold surfaceCfgBound Turing.storageBound
+        rw [show Fintype.card Bool + 1 = 3 from rfl]
+        ring
 
 /-- **Polynomial bounded-surface cardinality in logarithmic space**: for `s(n) = c * (log₂ n + 1)`,
 `boundedSurfaceCard` is polynomially bounded in `n`. -/
 theorem boundedSurfaceCard_log_polynomiallyBounded (mStack mState k c : ℕ) :
     Cslib.PolynomiallyBounded fun n =>
-      boundedSurfaceCard mStack mState k n (c * (Nat.log2 n + 1)) := by
-  have h := surfaceCfgBound_log_polynomiallyBounded (StackSym := Fin mStack) (State := Fin mState)
-    k c
-  refine h.mono_of_le fun n => ?_
-  simpa only [Fintype.card_fin] using
-    boundedSurfaceCard_le_surfaceCfgBound (StackSym := Fin mStack) (State := Fin mState) k n
-      (c * (Nat.log2 n + 1))
+      boundedSurfaceCard mStack mState k n (c * (Nat.log2 n + 1)) :=
+  (surfaceCfgBound_log_polynomiallyBounded (StackSym := Fin mStack) (State := Fin mState)
+    k c).mono_of_le fun n => by
+    simpa only [Fintype.card_fin] using
+      boundedSurfaceCard_le_surfaceCfgBound (StackSym := Fin mStack) (State := Fin mState) k n _
 
 /-! ### Window-checked tape updates and decidable bounded surface transitions -/
 
@@ -448,19 +419,15 @@ private lemma toSurface_applyBoundedTapes_some (act : Turing.Action k Bool State
   refine SurfaceCfg.ext rfl (Turing.Storage.ext rfl (funext fun i => funext fun z => ?_) rfl)
     rfl rfl
   dsimp only [BoundedSurfaceCfg.toSurface, applySurfaceTapes]
-  cases hw : (act.workTapes i).1 with
+  cases (act.workTapes i).1 with
   | none =>
-    simp only
+    dsimp only
     split_ifs <;> rfl
   | some sym =>
     by_cases hz : z ∈ Turing.window s
-    · simp only [hz, ↓reduceDIte, Function.update]
-      by_cases heq : z = (b.workTapePos i).val
-      · simp [heq]
-      · have hsub : (⟨z, hz⟩ : Turing.window s) ≠ b.workTapePos i := fun h' =>
-          heq (congrArg Subtype.val h')
-        simp [heq, hsub]
-    · have hne : z ≠ (b.workTapePos i).val := fun h' => hz (h' ▸ (b.workTapePos i).property)
+    · by_cases heq : z = (b.workTapePos i).val <;>
+        simp [hz, heq, Function.update, Subtype.ext_iff]
+    · have hne : z ≠ (b.workTapePos i).val := fun h => hz (h ▸ (b.workTapePos i).2)
       simp [hz, hne, Function.update]
 
 /-- Window-checked bounded application agrees identically with `applySurfaceTapes` on embedded
@@ -469,25 +436,15 @@ theorem applyBoundedTapes?_eq_some_iff (act : Turing.Action k Bool State)
     (b c : BoundedSurfaceCfg k StackSym State input s) (newTop : Option StackSym) :
     applyBoundedTapes? act b newTop = some c ↔
       c.toSurface = applySurfaceTapes act b.toSurface newTop := by
-  constructor
-  · intro h
-    unfold applyBoundedTapes? at h
-    split_ifs at h with hwin
-    simp only [Option.some.injEq] at h
-    subst h
-    exact toSurface_applyBoundedTapes_some act b newTop hwin
-  · intro h
-    have hwin : ∀ i : Fin k, (b.workTapePos i).val + (act.workTapes i).2 ∈ Turing.window s := by
-      intro i
-      have hpos := congrFun (congrArg (fun sc => sc.storage.workTapePos) h) i
-      dsimp only [BoundedSurfaceCfg.toSurface, applySurfaceTapes] at hpos
-      rw [← hpos]
-      exact (c.workTapePos i).property
-    unfold applyBoundedTapes?
-    rw [dite_eq_left_of_eq_true (eq_true hwin), Option.some.injEq]
-    apply BoundedSurfaceCfg.toSurface_injective
-    rw [h]
-    exact toSurface_applyBoundedTapes_some act b newTop hwin
+  unfold applyBoundedTapes?
+  split_ifs with hwin
+  · simp only [Option.some.injEq]
+    exact ⟨fun h => h ▸ toSurface_applyBoundedTapes_some act b newTop hwin,
+      fun h => BoundedSurfaceCfg.toSurface_injective
+        ((toSurface_applyBoundedTapes_some act b newTop hwin).trans h.symm)⟩
+  · refine ⟨by simp, fun h => False.elim (hwin fun i => ?_)⟩
+    exact (congrFun (congrArg (fun sc => sc.storage.workTapePos) h) i :
+      (c.workTapePos i).val = (b.workTapePos i).val + (act.workTapes i).2) ▸ (c.workTapePos i).2
 
 /-- Bounded-space height-preserving surface transition (`StayStep` on embedded surfaces). -/
 @[expose] def BoundedStayStep (M : AuxPDA k Bool StackSym State)
@@ -583,18 +540,9 @@ lemma boundedStayStep_iff {M : AuxPDA k Bool StackSym State}
           M.Tr q u.inputSymbol u.workTapeSymbols u.topSym act ∧
           act.stackOp = .stay ∧
           applyBoundedTapes? act.tape u u.topSym = some v := by
-  unfold BoundedStayStep StayStep
-  constructor
-  · rintro (⟨hhalt, heq⟩ | ⟨q, act, hq, htr, hop, heq⟩)
-    · exact .inl ⟨hhalt, BoundedSurfaceCfg.toSurface_injective heq⟩
-    · refine .inr ⟨q, act, hq, ?_, hop,
-        (applyBoundedTapes?_eq_some_iff act.tape u v u.topSym).mpr heq⟩
-      rwa [u.workTapeSymbols_eq_toSurface]
-  · rintro (⟨hhalt, rfl⟩ | ⟨q, act, hq, htr, hop, happ⟩)
-    · exact .inl ⟨hhalt, rfl⟩
-    · refine .inr ⟨q, act, hq, ?_, hop,
-        (applyBoundedTapes?_eq_some_iff act.tape u v u.topSym).mp happ⟩
-      rwa [← u.workTapeSymbols_eq_toSurface]
+  simp only [BoundedStayStep, StayStep, BoundedSurfaceCfg.toSurface_injective.eq_iff,
+    ← u.workTapeSymbols_eq_toSurface, ← applyBoundedTapes?_eq_some_iff]
+  rfl
 
 lemma boundedPushStep_iff {M : AuxPDA k Bool StackSym State}
     {u v : BoundedSurfaceCfg k StackSym State input s} {γ : StackSym} :
@@ -603,14 +551,9 @@ lemma boundedPushStep_iff {M : AuxPDA k Bool StackSym State}
         M.Tr q u.inputSymbol u.workTapeSymbols u.topSym act ∧
         act.stackOp = .push γ ∧
         applyBoundedTapes? act.tape u (some γ) = some v := by
-  unfold BoundedPushStep PushStep
-  constructor
-  · rintro ⟨q, act, hq, htr, hop, heq⟩
-    refine ⟨q, act, hq, ?_, hop, (applyBoundedTapes?_eq_some_iff act.tape u v (some γ)).mpr heq⟩
-    rwa [u.workTapeSymbols_eq_toSurface]
-  · rintro ⟨q, act, hq, htr, hop, happ⟩
-    refine ⟨q, act, hq, ?_, hop, (applyBoundedTapes?_eq_some_iff act.tape u v (some γ)).mp happ⟩
-    rwa [← u.workTapeSymbols_eq_toSurface]
+  simp only [BoundedPushStep, PushStep, ← u.workTapeSymbols_eq_toSurface,
+    ← applyBoundedTapes?_eq_some_iff]
+  rfl
 
 lemma boundedPopStep_iff {M : AuxPDA k Bool StackSym State}
     {u v : BoundedSurfaceCfg k StackSym State input s} {γ : StackSym} {baseTop : Option StackSym} :
@@ -620,16 +563,9 @@ lemma boundedPopStep_iff {M : AuxPDA k Bool StackSym State}
           M.Tr q u.inputSymbol u.workTapeSymbols (some γ) act ∧
           act.stackOp = .pop ∧
           applyBoundedTapes? act.tape u baseTop = some v := by
-  unfold BoundedPopStep PopStep
-  constructor
-  · rintro ⟨htop, q, act, hq, htr, hop, heq⟩
-    refine ⟨htop, q, act, hq, ?_, hop,
-      (applyBoundedTapes?_eq_some_iff act.tape u v baseTop).mpr heq⟩
-    rwa [u.workTapeSymbols_eq_toSurface]
-  · rintro ⟨htop, q, act, hq, htr, hop, happ⟩
-    refine ⟨htop, q, act, hq, ?_, hop,
-      (applyBoundedTapes?_eq_some_iff act.tape u v baseTop).mp happ⟩
-    rwa [← u.workTapeSymbols_eq_toSurface]
+  simp only [BoundedPopStep, PopStep, ← u.workTapeSymbols_eq_toSurface,
+    ← applyBoundedTapes?_eq_some_iff]
+  rfl
 
 instance instDecidableBoundedStayStep [Fintype StackSym] [Fintype State]
     [DecidableEq StackSym] [DecidableEq State]

@@ -61,59 +61,44 @@ private theorem acceptsFrom_iff_exists_acceptsWithin (M : AlternatingQueryMachin
     {start : α → σ × Option Bool} {S : α → ℕ} (R : Routines M.guess start enc S) (a : α)
     (s : σ) (hr : (M.guess.withInit (start a)).Reachable (enc a) (s, none)) :
     M.AcceptsFrom (enc a) s ↔ ∃ n, R.atm.AcceptsWithin n (R.boundaryCfg a (s, none) none) := by
-  have hlive {s : σ} (hh : M.halted s = false) (p : Option Bool) (hp : p ≠ some false) :
+  have hlive {s : σ} (hh : M.halted s = false) {p : Option Bool} (hp : p ≠ some false) :
       M.guess.halted (s, p) = false := by
     cases p with
     | none => simp [guess, hh]
     | some v => cases v <;> simp_all [guess]
-  have hreach {p : σ × Option Bool} (hp : (M.guess.withInit (start a)).Reachable (enc a) p)
-      (b : Bool) : (M.guess.withInit (start a)).Reachable (enc a) (M.guess.step (enc a) p b) :=
-    hp.step _ (enc a) b
   have hround := R.exists_acceptsWithin_boundaryCfg_of_live a
   constructor
   · intro h
     induction h with
     | @halt s hh ha =>
-      have hh' : M.guess.halted (s, none) = true := by simp [guess, hh]
-      obtain ⟨τ, hτ⟩ := R.exists_acceptsWithin_boundaryCfg_of_halted a _ hr hh' none
+      obtain ⟨τ, hτ⟩ :=
+        R.exists_acceptsWithin_boundaryCfg_of_halted a _ hr (by simp [guess, hh]) none
       exact ⟨τ, (hτ τ).mpr ⟨le_rfl, by simpa [guess] using ha⟩⟩
     | @existsChoice s b hh hu _ ih =>
       have hstep₁ : M.guess.step (enc a) (s, none) false = (s, some true) := by
-        rw [M.guess_step_none (enc a) hh]
-        simp [hu]
-      have hr₁ := hreach hr false
-      rw [hstep₁] at hr₁
+        simp [M.guess_step_none (enc a) hh, hu]
+      have hr₁ := hstep₁ ▸ hr.step _ (enc a) false
       have hstep₂ := M.guess_step_some_true (enc a) hh b
-      have hr₂ := hreach hr₁ b
-      rw [hstep₂] at hr₂
-      obtain ⟨n, hn⟩ := ih hr₂
-      obtain ⟨τ, hτ⟩ := hround _ hr (hlive hh none (by simp)) none
-      obtain ⟨τ₁, hτ₁⟩ := hround _ hr₁ (hlive hh (some true) (by simp)) (some false)
+      obtain ⟨n, hn⟩ := ih (hstep₂ ▸ hr₁.step _ (enc a) b)
+      obtain ⟨τ, hτ⟩ := hround _ hr (hlive hh (by simp)) none
+      obtain ⟨τ₁, hτ₁⟩ := hround _ hr₁ (hlive hh (by simp)) (some false)
       refine ⟨n + τ₁ b + 1 + τ false + 1, ?_⟩
       rw [hτ, ite_eq_right (by simp)]
       refine ⟨false, by omega, ?_⟩
       rw [hstep₁, show Native.nextGuess none false = some false from rfl,
-        show n + τ₁ b + 1 + τ false - τ false = n + τ₁ b + 1 by omega, hτ₁, ite_eq_right (by simp)]
+        Nat.add_sub_cancel, hτ₁, ite_eq_right (by simp)]
       refine ⟨b, by omega, ?_⟩
-      rw [hstep₂, show Native.nextGuess (some false) b = none from rfl,
-        show n + τ₁ b - τ₁ b = n by omega]
-      exact hn
+      simpa only [hstep₂, show Native.nextGuess (some false) b = none from rfl,
+        Nat.add_sub_cancel] using hn
     | @forallChoice s hh hu _ ih =>
       have hstep₁ : M.guess.step (enc a) (s, none) true = (s, some true) := by
-        rw [M.guess_step_none (enc a) hh]
-        simp [hu]
-      have hr₁ := hreach hr true
-      rw [hstep₁] at hr₁
-      have hstep₂ (b : Bool) := M.guess_step_some_true (enc a) hh b
-      have hr₂ (b : Bool) : (M.guess.withInit (start a)).Reachable (enc a)
-          (M.step (enc a) s b, none) := by
-        have := hreach hr₁ b
-        rwa [hstep₂ b] at this
-      have hn (b : Bool) := ih b (hr₂ b)
-      choose n hn using hn
-      obtain ⟨τ, hτ⟩ := hround _ hr (hlive hh none (by simp)) none
-      obtain ⟨τ₁, hτ₁⟩ := hround _ hr₁ (hlive hh (some true) (by simp)) (some true)
-      set N := max (n false + τ₁ false) (n true + τ₁ true) with hN
+        simp [M.guess_step_none (enc a) hh, hu]
+      have hr₁ := hstep₁ ▸ hr.step _ (enc a) true
+      have hstep₂ := M.guess_step_some_true (enc a) hh
+      choose n hn using fun b => ih b (hstep₂ b ▸ hr₁.step _ (enc a) b)
+      obtain ⟨τ, hτ⟩ := hround _ hr (hlive hh (by simp)) none
+      obtain ⟨τ₁, hτ₁⟩ := hround _ hr₁ (hlive hh (by simp)) (some true)
+      let N := max (n false + τ₁ false) (n true + τ₁ true)
       have hle (b : Bool) : n b + τ₁ b ≤ N := by
         cases b
         · exact le_max_left _ _
@@ -122,65 +107,47 @@ private theorem acceptsFrom_iff_exists_acceptsWithin (M : AlternatingQueryMachin
       rw [hτ, ite_eq_right (by simp)]
       refine ⟨true, by omega, ?_⟩
       rw [hstep₁, show Native.nextGuess none true = some true from rfl,
-        show N + 1 + τ true - τ true = N + 1 by omega, hτ₁, ite_eq_left rfl]
-      intro b
-      refine ⟨by have := hle b; omega, ?_⟩
+        Nat.add_sub_cancel, hτ₁, ite_eq_left rfl]
+      refine fun b => ⟨by have := hle b; omega, ?_⟩
       rw [hstep₂ b, show Native.nextGuess (some true) b = none from rfl]
       exact (hn b).mono (by have := hle b; omega)
   · rintro ⟨n, hn⟩
-    induction n using Nat.strong_induction_on generalizing s with
-    | _ n ih =>
+    induction n using Nat.strong_induction_on generalizing s with | _ n ih => ?_
     cases hh : M.halted s with
     | true =>
-      have hh' : M.guess.halted (s, none) = true := by simp [guess, hh]
-      obtain ⟨τ, hτ⟩ := R.exists_acceptsWithin_boundaryCfg_of_halted a _ hr hh' none
+      obtain ⟨τ, hτ⟩ :=
+        R.exists_acceptsWithin_boundaryCfg_of_halted a _ hr (by simp [guess, hh]) none
       exact .halt hh (by simpa [guess] using ((hτ n).mp hn).2)
     | false =>
-      obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := by
-        cases n with
-        | zero => exact absurd hn (MultiTapeATM.not_acceptsWithin_zero _ rfl)
-        | succ m => exact ⟨m, rfl⟩
-      obtain ⟨τ, hτ⟩ := hround _ hr (hlive hh none (by simp)) none
+      rcases n with _ | m
+      · exact absurd hn (MultiTapeATM.not_acceptsWithin_zero _ rfl)
+      obtain ⟨τ, hτ⟩ := hround _ hr (hlive hh (by simp)) none
       rw [hτ, ite_eq_right (by simp)] at hn
-      obtain ⟨g, hg, hn⟩ := hn
+      obtain ⟨g, _, hn⟩ := hn
+      have hr₁ := M.guess_step_none (enc a) hh g ▸ hr.step _ (enc a) g
       rw [M.guess_step_none (enc a) hh] at hn
-      have hr₁ := hreach hr g
-      rw [M.guess_step_none (enc a) hh] at hr₁
       cases hgu : (g == M.universal s) with
       | false =>
         rw [hgu] at hn hr₁
-        have hh₁ : M.guess.halted (s, some false) = true := by simp [guess]
-        obtain ⟨τ', hτ'⟩ := R.exists_acceptsWithin_boundaryCfg_of_halted a _ hr₁ hh₁ _
-        have hacc : M.guess.accept (s, some false) = false := rfl
-        exact absurd ((hτ' _).mp hn).2 (by rw [hacc]; decide)
+        obtain ⟨τ', hτ'⟩ := R.exists_acceptsWithin_boundaryCfg_of_halted a _ hr₁ (by simp [guess]) _
+        exact absurd ((hτ' _).mp hn).2 Bool.false_ne_true
       | true =>
         rw [hgu] at hn hr₁
-        have hg' : M.universal s = g := (beq_iff_eq.mp hgu).symm
-        obtain ⟨τ₁, hτ₁⟩ := hround _ hr₁ (hlive hh (some true) (by simp))
-          (Native.nextGuess none g)
-        obtain ⟨m', hm'⟩ : ∃ m', m - τ g = m' + 1 := by
-          cases h : m - τ g with
-          | zero =>
-            rw [h] at hn
-            exact absurd hn (MultiTapeATM.not_acceptsWithin_zero _ rfl)
-          | succ m' => exact ⟨m', rfl⟩
+        obtain ⟨τ₁, hτ₁⟩ := hround _ hr₁ (hlive hh (by simp)) (Native.nextGuess none g)
+        rcases hm' : m - τ g with _ | m'
+        · exact absurd (hm' ▸ hn) (MultiTapeATM.not_acceptsWithin_zero _ rfl)
         rw [hm', hτ₁] at hn
-        have hr₂ (b : Bool) : (M.guess.withInit (start a)).Reachable (enc a)
-            (M.step (enc a) s b, none) := by
-          have := hreach hr₁ b
-          rwa [M.guess_step_some_true (enc a) hh b] at this
-        cases g with
-        | false =>
-          rw [show Native.nextGuess none false = some false from rfl, ite_eq_right (by simp)] at hn
-          obtain ⟨b, hb, hn⟩ := hn
+        have hr₂ (b : Bool) := M.guess_step_some_true (enc a) hh b ▸ hr₁.step _ (enc a) b
+        cases g
+        · rw [show Native.nextGuess none false = some false from rfl, ite_eq_right (by simp)] at hn
+          obtain ⟨b, _, hn⟩ := hn
           rw [M.guess_step_some_true (enc a) hh b] at hn
-          exact .existsChoice b hh hg' (ih (m' - τ₁ b) (by omega) _ (hr₂ b) hn)
-        | true =>
-          rw [show Native.nextGuess none true = some true from rfl, ite_eq_left rfl] at hn
-          refine .forallChoice hh hg' fun b => ?_
-          obtain ⟨hb, hn⟩ := hn b
-          rw [M.guess_step_some_true (enc a) hh b] at hn
-          exact ih (m' - τ₁ b) (by omega) _ (hr₂ b) hn
+          exact .existsChoice b hh (beq_iff_eq.mp hgu).symm (ih _ (by omega) _ (hr₂ b) hn)
+        · rw [show Native.nextGuess none true = some true from rfl, ite_eq_left rfl] at hn
+          refine .forallChoice hh (beq_iff_eq.mp hgu).symm fun b => ?_
+          have hnb := (hn b).2
+          rw [M.guess_step_some_true (enc a) hh b] at hnb
+          exact ih _ (by omega) _ (hr₂ b) hnb
 
 /-- **Compiling alternating query machines into alternating Turing machines.** Let `M` be an
 alternating query machine whose callbacks (query, step, halting, acceptance and player) are
@@ -212,23 +179,18 @@ theorem exists_decidesInSpace (M : AlternatingQueryMachine σ)
   obtain ⟨c, hc⟩ := hsize
   have hS (a : α) : 1 ≤ S a := (Nat.le_add_left _ _).trans (hlog a)
   let start' : α → σ × Option Bool := fun a => (start a, none)
-  have hstart' : ComputableInSpace start' enc (encGuessState encS) S :=
-    budget_prod hstart (budget_const none)
   have hsize' : ∃ c', ∀ a (choices : List Bool),
       (encGuessState encS ((M.guess.withInit (start' a)).run (enc a) choices)).length ≤
-        c' * S a := by
-    refine ⟨2 * c + 6, fun a choices => ?_⟩
+        c' * S a := ⟨2 * c + 6, fun a choices => by
     obtain ⟨choices', p', h⟩ := M.guess_replay (enc a) choices (start a) none
-    rw [run_withInit, h]
-    have h₁ := hc a choices'
-    have h₂ : (encOption encBool p').length ≤ 4 := by
+    have hp : (encOption encBool p').length ≤ 4 := by
       cases p' <;> simp [encOption_none, encOption_some, encBool_apply]
-    have h₃ := hS a
+    rw [run_withInit, h]
     simp only [encGuessState, length_encPair]
-    nlinarith
+    nlinarith [hc a choices', hS a]⟩
   obtain ⟨R⟩ := M.guess.exists_routines (M.guess_query_inSpace hquery)
     (M.guess_next_inSpace hnext huniversal) (M.guess_halted_inSpace hhalted)
-    (M.guess_accept_inSpace haccept) start' S hlog hstart' hsize'
+    (M.guess_accept_inSpace haccept) start' S hlog (budget_prod hstart (budget_const none)) hsize'
   let : Finite R.SI := R.finiteI
   let : ∀ b, Finite (R.SP b) := R.finiteP
   let : Finite R.SF := R.finiteF

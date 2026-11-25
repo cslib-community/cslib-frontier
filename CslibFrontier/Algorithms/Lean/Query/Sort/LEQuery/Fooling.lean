@@ -69,16 +69,11 @@ theorem moveToTop_top (r : α → α → Prop) (x a : α) : moveToTop r x a x :=
 
 theorem isLinearOrder_moveToBot (r : α → α → Prop) [IsLinearOrder α r] (x : α) :
     IsLinearOrder α (moveToBot r x) where
-  refl a := by
-    by_cases h : a = x
-    · exact Or.inl h
-    · exact Or.inr ⟨h, refl_of r a⟩
+  refl a := by exact (eq_or_ne a x).imp_right fun h => ⟨h, refl_of r a⟩
   trans a b c hab hbc := by
     rcases hab with hab | ⟨hbx, hab⟩
     · exact Or.inl hab
-    rcases hbc with hbc | ⟨hcx, hbc⟩
-    · exact absurd hbc hbx
-    · exact Or.inr ⟨hcx, _root_.trans hab hbc⟩
+    exact hbc.elim (fun hbc => absurd hbc hbx) fun ⟨hcx, hbc⟩ => Or.inr ⟨hcx, _root_.trans hab hbc⟩
   antisymm a b hab hba := by
     rcases hab with hab | ⟨hbx, hab⟩ <;> rcases hba with hba | ⟨hax, hba⟩
     · exact hab.trans hba.symm
@@ -90,9 +85,7 @@ theorem isLinearOrder_moveToBot (r : α → α → Prop) [IsLinearOrder α r] (x
     · exact Or.inl (Or.inl ha)
     by_cases hb : b = x
     · exact Or.inr (Or.inl hb)
-    rcases total_of r a b with h | h
-    · exact Or.inl (Or.inr ⟨hb, h⟩)
-    · exact Or.inr (Or.inr ⟨ha, h⟩)
+    exact (total_of r a b).imp (fun h => Or.inr ⟨hb, h⟩) fun h => Or.inr ⟨ha, h⟩
 
 /-- Moving `x` to the top is moving it to the bottom of the reversed order, reversed. -/
 theorem isLinearOrder_moveToTop (r : α → α → Prop) [IsLinearOrder α r] (x : α) :
@@ -125,12 +118,10 @@ theorem foundBelow_iff {r : α → α → Prop} {T : List (α × α)} {x : α} :
   Iff.rfl
 
 @[simp] theorem not_foundAbove_nil (r : α → α → Prop) (x : α) : ¬ FoundAbove r [] x := by
-  rintro ⟨a, b, hab, -⟩
-  simp at hab
+  rintro ⟨_, _, ⟨⟩, -⟩
 
 @[simp] theorem not_foundBelow_nil (r : α → α → Prop) (x : α) : ¬ FoundBelow r [] x := by
-  rintro ⟨a, b, hab, -⟩
-  simp at hab
+  rintro ⟨_, _, ⟨⟩, -⟩
 
 /-- Appending one comparison `(a, b)` to `T` adds exactly that comparison to an existential
 over the comparisons of `T`; the six `append_singleton` lemmas below specialize it. -/
@@ -146,7 +137,7 @@ theorem foundAbove_append_singleton_of_rel {r : α → α → Prop} {T : List (�
     FoundAbove r (T ++ [(a, b)]) x ↔ FoundAbove r T x ∨ x = b := by
   unfold FoundAbove
   rw [exists_mem_append_singleton_iff]
-  simp [hab, h]
+  exact or_congr_right (by simp [hab, h])
 
 /-- A comparison `a ≤ b` with `a ≠ b` answered false finds `a` above. -/
 theorem foundAbove_append_singleton_of_not_rel {r : α → α → Prop} {T : List (α × α)} {a b : α}
@@ -154,7 +145,7 @@ theorem foundAbove_append_singleton_of_not_rel {r : α → α → Prop} {T : Lis
     FoundAbove r (T ++ [(a, b)]) x ↔ FoundAbove r T x ∨ x = a := by
   unfold FoundAbove
   rw [exists_mem_append_singleton_iff]
-  simp [hab, h]
+  exact or_congr_right (by simp [hab, h])
 
 /-- A comparison `a ≤ b` with `a ≠ b` answered true finds `a` below. -/
 theorem foundBelow_append_singleton_of_rel {r : α → α → Prop} {T : List (α × α)} {a b : α}
@@ -162,7 +153,7 @@ theorem foundBelow_append_singleton_of_rel {r : α → α → Prop} {T : List (�
     FoundBelow r (T ++ [(a, b)]) x ↔ FoundBelow r T x ∨ x = a := by
   unfold FoundBelow
   rw [exists_mem_append_singleton_iff]
-  simp [hab, h]
+  exact or_congr_right (by simp [hab, h])
 
 /-- A comparison `a ≤ b` with `a ≠ b` answered false finds `b` below. -/
 theorem foundBelow_append_singleton_of_not_rel {r : α → α → Prop} {T : List (α × α)} {a b : α}
@@ -170,21 +161,21 @@ theorem foundBelow_append_singleton_of_not_rel {r : α → α → Prop} {T : Lis
     FoundBelow r (T ++ [(a, b)]) x ↔ FoundBelow r T x ∨ x = b := by
   unfold FoundBelow
   rw [exists_mem_append_singleton_iff]
-  simp [hab, h]
+  exact or_congr_right (by simp [hab, h])
 
 /-- A comparison of an element with itself finds nothing above. -/
 theorem foundAbove_append_singleton_self {r : α → α → Prop} {T : List (α × α)} (a x : α) :
     FoundAbove r (T ++ [(a, a)]) x ↔ FoundAbove r T x := by
   unfold FoundAbove
   rw [exists_mem_append_singleton_iff]
-  simp
+  exact or_iff_left_of_imp (by simp)
 
 /-- A comparison of an element with itself finds nothing below. -/
 theorem foundBelow_append_singleton_self {r : α → α → Prop} {T : List (α × α)} (a x : α) :
     FoundBelow r (T ++ [(a, a)]) x ↔ FoundBelow r T x := by
   unfold FoundBelow
   rw [exists_mem_append_singleton_iff]
-  simp
+  exact or_iff_left_of_imp (by simp)
 
 theorem AgreeOn.refl (r : α → α → Prop) (T : List (α × α)) : AgreeOn r r T :=
   fun _ _ _ => Iff.rfl
@@ -238,11 +229,8 @@ private theorem foundAbove_swap_iff {r : α → α → Prop} {T : List (α × α
     FoundAbove (Function.swap r) (T.map Prod.swap) x ↔ FoundBelow r T x := by
   simp only [FoundAbove, FoundBelow, List.mem_map, Prod.exists, Prod.swap_prod_mk,
     Prod.mk.injEq, Function.swap]
-  constructor
-  · rintro ⟨a, b, ⟨c, d, hcd, rfl, rfl⟩, hab, h⟩
-    exact ⟨c, d, hcd, Ne.symm hab, h⟩
-  · rintro ⟨c, d, hcd, hcd', h⟩
-    exact ⟨d, c, ⟨c, d, hcd, rfl, rfl⟩, Ne.symm hcd', h⟩
+  exact ⟨fun ⟨_, _, ⟨c, d, hcd, rfl, rfl⟩, hab, h⟩ => ⟨c, d, hcd, hab.symm, h⟩,
+    fun ⟨c, d, hcd, hab, h⟩ => ⟨d, c, ⟨c, d, hcd, rfl, rfl⟩, hab.symm, h⟩⟩
 
 /-- Moving an element that is never found below to the top keeps every answer. -/
 theorem agreeOn_moveToTop {r : α → α → Prop} [Std.Refl r] {T : List (α × α)} {x : α}
@@ -260,9 +248,7 @@ theorem eval_moveToBot_eq {r : α → α → Prop} [DecidableRel r] [IsLinearOrd
     (horacle : ∀ a b, oracle (.le a b) = decide (r a b)) (p : FreeM (LEQuery α) γ) {x : α}
     (hx : ¬ FoundAbove r (LEQuery.queriedPairs oracle p) x) :
     p.eval (LEQuery.oracleOf fun a b => decide (moveToBot r x a b)) = p.eval oracle :=
-  LEQuery.eval_eq_of_agree _ _ p fun a b hab => by
-    rw [horacle, LEQuery.oracleOf_le]
-    exact decide_eq_decide.mpr (agreeOn_moveToBot hx a b hab)
+  LEQuery.eval_eq_of_agree _ _ p fun a b hab => by simp [horacle, agreeOn_moveToBot hx a b hab]
 
 open Classical in
 /-- If `x` is never found below along the run of `p` against `oracle`, which implements `r`, then
@@ -272,8 +258,6 @@ theorem eval_moveToTop_eq {r : α → α → Prop} [DecidableRel r] [IsLinearOrd
     (horacle : ∀ a b, oracle (.le a b) = decide (r a b)) (p : FreeM (LEQuery α) γ) {x : α}
     (hx : ¬ FoundBelow r (LEQuery.queriedPairs oracle p) x) :
     p.eval (LEQuery.oracleOf fun a b => decide (moveToTop r x a b)) = p.eval oracle :=
-  LEQuery.eval_eq_of_agree _ _ p fun a b hab => by
-    rw [horacle, LEQuery.oracleOf_le]
-    exact decide_eq_decide.mpr (agreeOn_moveToTop hx a b hab)
+  LEQuery.eval_eq_of_agree _ _ p fun a b hab => by simp [horacle, agreeOn_moveToTop hx a b hab]
 
 end Cslib.Query

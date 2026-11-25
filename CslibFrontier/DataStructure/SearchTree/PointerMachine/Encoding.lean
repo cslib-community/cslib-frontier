@@ -71,15 +71,19 @@ theorem addressesDistinct_labelTree (base : ℕ)
   induction t generalizing base with
   | nil => exact AddressesDistinct.nil
   | node data l r il ir =>
-    apply (AddressesDistinct.node_iff _ _ _).mpr
-    refine ⟨il _, ir _, ?_, ?_, ?_⟩
-    · intro mem; have := address_labelTree mem; dsimp at this; omega
-    · intro mem; have := address_labelTree mem; dsimp at this; omega
-    · apply Finset.disjoint_left.mpr
-      intro a hl hr
-      have := address_labelTree hl
-      have := address_labelTree hr
-      omega
+    refine (AddressesDistinct.node_iff _ _ _).mpr ⟨il _, ir _,
+      fun mem => by
+        have := address_labelTree mem
+        dsimp at this
+        omega,
+      fun mem => by
+        have := address_labelTree mem
+        dsimp at this
+        omega,
+      Finset.disjoint_left.mpr fun a hl hr => by
+        have := address_labelTree hl
+        have := address_labelTree hr
+        omega⟩
 
 /-- The encoded records represent the tree at their actual positions in any ambient heap. -/
 theorem represents_encodeHeap (t : BinaryTree (Fin (extra + 1) → M.Value))
@@ -92,22 +96,20 @@ theorem represents_encodeHeap (t : BinaryTree (Fin (extra + 1) → M.Value))
     let entry : Record M (layout extra regs) := record (root (labelTree (pre.length + 1) l))
       (root (labelTree (pre.length + 1 + l.numNodes) r)) parent
       (⟨pre.length, data⟩ : Label M extra)
-    refine ⟨?_, ?_, ?_⟩
-    · simp [encodeHeap]
-    · have h := il (pre ++ [entry])
-        (encodeHeap r (pre.length + 1 + l.numNodes) (some pre.length) ++ post)
-        (some pre.length)
-      simpa [encodeHeap, entry, List.append_assoc] using h
-    · have h := ir (pre ++ entry :: encodeHeap l (pre.length + 1) (some pre.length))
-        post (some pre.length)
-      simpa [encodeHeap, entry, List.append_assoc, Nat.add_assoc, Nat.add_comm,
-        Nat.add_left_comm] using h
+    refine ⟨by simp [encodeHeap], ?_, ?_⟩
+    · simpa [encodeHeap, entry, List.append_assoc] using il (pre ++ [entry])
+        (encodeHeap r (pre.length + 1 + l.numNodes) (some pre.length) ++ post) (some pre.length)
+    · simpa [encodeHeap, entry, List.append_assoc, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using ir (pre ++ entry :: encodeHeap l (pre.length + 1)
+          (some pre.length)) post (some pre.length)
 
 private theorem root_labelTree_lt {t : BinaryTree (Fin (extra + 1) → M.Value)}
     {base a : ℕ} (eq : root (labelTree base t) = some a) : a < base + t.numNodes := by
   cases t with
   | nil => cases eq
-  | node data l r => simp only [labelTree, root, Option.some.injEq] at eq; subst a; simp
+  | node data l r =>
+    obtain rfl := Option.some.inj eq
+    simp
 
 /-- Every heap edge is valid within an ambient heap containing this tree and its parent. -/
 theorem encodeHeap_links (t : BinaryTree (Fin (extra + 1) → M.Value))
@@ -117,27 +119,20 @@ theorem encodeHeap_links (t : BinaryTree (Fin (extra + 1) → M.Value))
   induction t generalizing base parent with
   | nil => simp [encodeHeap]
   | node data l r il ir =>
+    simp only [BinaryTree.numNodes] at bound
+    have hp (b : ℕ) (hb : some base = some b) : b < size := Option.some.inj hb ▸ by omega
     intro n mem f a eq
     simp only [encodeHeap, List.mem_cons, List.mem_append] at mem
     rcases mem with rfl | hl | hr
     · simp only [record] at eq
       split at eq
-      · have := root_labelTree_lt eq; simp only [BinaryTree.numNodes] at bound; omega
+      · have := root_labelTree_lt eq
+        omega
       · split at eq
-        · have := root_labelTree_lt eq; simp only [BinaryTree.numNodes] at bound; omega
+        · have := root_labelTree_lt eq
+          omega
         · exact parentBound a eq
-    · exact il (base + 1) (some base) (by simp only [BinaryTree.numNodes] at bound; omega)
-        (fun b hb => by
-          simp only [Option.some.injEq] at hb
-          subst b
-          simp only [BinaryTree.numNodes] at bound
-          omega) n hl f a eq
-    · exact ir (base + 1 + l.numNodes) (some base)
-        (by simp only [BinaryTree.numNodes] at bound; omega)
-        (fun b hb => by
-          simp only [Option.some.injEq] at hb
-          subst b
-          simp only [BinaryTree.numNodes] at bound
-          omega) n hr f a eq
+    · exact il (base + 1) (some base) (by omega) hp n hl f a eq
+    · exact ir (base + 1 + l.numNodes) (some base) (by omega) hp n hr f a eq
 
 end Cslib.DataStructure.SearchTree.PointerMachine

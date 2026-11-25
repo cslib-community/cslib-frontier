@@ -295,26 +295,18 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
     htarget hline hmenu.1
   -- Some entry succeeds, so there is a first successful entry.
   obtain ⟨e₀, C, hC, hCclean⟩ := hmenu.2 (acceptedLines a T dirs) P
-  have hsucc₀ : success hk bits scalar menu x e₀ = true := by
-    rw [success, decide_eq_true_iff]
-    refine hC.trans (Nat.mul_le_mul_left 2 (card_le_card fun i hi => ?_))
-    simp only [mem_filter, mem_univ, true_and]
-    exact (hclean e₀ i).mpr (hCclean i hi)
+  have hsucc₀ : success hk bits scalar menu x e₀ = true := decide_eq_true <| hC.trans <|
+    Nat.mul_le_mul_left 2 <| card_le_card fun i hi =>
+      mem_filter.mpr ⟨mem_univ _, (hclean e₀ i).mpr (hCclean i hi)⟩
   obtain ⟨e, he, hmin⟩ := exists_min_image ({e | success hk bits scalar menu x e = true} :
     Finset (Fin r)) id ⟨e₀, by simpa using hsucc₀⟩
   simp only [mem_filter, mem_univ, true_and, id] at he hmin
   have hchosen (e' : Fin r) : chosen hk bits scalar menu x e' = true ↔ e' = e := by
     rw [chosen, decide_eq_true_iff]
-    constructor
-    · rintro ⟨hs, hfirst⟩
-      rcases lt_trichotomy e' e with h | h | h
-      · exact absurd (hmin e' hs) (not_le.mpr h)
-      · exact h
-      · exact absurd he (by rw [hfirst e h]; decide)
+    refine ⟨fun ⟨hs, hfirst⟩ => (hmin e' hs).antisymm' (not_lt.mp fun h => ?_), ?_⟩
+    · simp [hfirst e h] at he
     · rintro rfl
-      refine ⟨he, fun e'' h'' => ?_⟩
-      by_contra hn
-      exact absurd (hmin e'' (by simpa using hn)) (not_le.mpr h'')
+      exact ⟨he, fun e'' h'' => Bool.eq_false_iff.mpr fun hn => (hmin e'' hn).not_gt h''⟩
   have hflag (i : Fin (arity p)) :
       flag hk bits scalar menu x i = clean hk bits scalar menu x e i := by
     rw [Bool.eq_iff_iff, flag, decide_eq_true_iff]
@@ -337,12 +329,8 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
     rw [← hflagbit]
     refine (sort_flag_eq_true_iff (fun record => record ∘ flagKey) p
       (enriched hk bits scalar menu x) j).mpr ?_
-    have hcount : #{i | (enriched hk bits scalar menu x i ∘ flagKey) 0 = true} =
-        #{i | clean hk bits scalar menu x e i = true} := by
-      simp only [Function.comp_apply, flagKey, enriched, Fin.append_left, hflag]
-    rw [hcount]
-    have := he
-    rw [success, decide_eq_true_iff] at this
+    simp only [Function.comp_apply, flagKey, enriched, Fin.append_left, hflag]
+    have := of_decide_eq_true he
     lia
   -- The new state.
   let E : Fin a ⊕ Fin (arity p) ≃ Fin (2 ^ D) := finSumFinEquiv.trans (finCongr hk)
@@ -378,9 +366,7 @@ theorem good_next [Fintype K] [DecidableEq K] (bits : K ≃+ BitString b)
     · simp only [label, next_accepted, Equiv.trans_apply, hτa]
       exact congrFun (hlabel _) jj
     · simp only [label, next_pending, Equiv.trans_apply, hτp, hsorted, enriched, labelBit]
-      rw [show Fin.natAdd 1 (Fin.castAdd (ℓ * b + s * (ℓ * b)) jj) =
-          Fin.natAdd 1 (Fin.castAdd (ℓ * b + s * (ℓ * b)) jj) from rfl, Fin.append_right,
-        Fin.append_left]
+      rw [Fin.append_right, Fin.append_left]
       exact congrFun (hlabel _) jj
   · funext β
     rcases accepted_or_pending (hk := hk) m with ⟨m', rfl⟩ | ⟨j, rfl⟩

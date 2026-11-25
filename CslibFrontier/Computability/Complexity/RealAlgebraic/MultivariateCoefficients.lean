@@ -66,18 +66,19 @@ theorem multivariateCoefficientResidue_mem {α : Type} {enc : α ↪ List Bool} 
   have hp' := hp.comp (ComputableInPolyTime.fst enc encNat)
   have hn' := hn.comp (ComputableInPolyTime.fst enc encNat)
   have hpoint := gridPoint_polyTime hp' hn' (ComputableInPolyTime.snd enc encNat)
-  have hvalues := CountingFunction.preprocess (input := encPair enc encNat) hv
-    (g := fun (w, address) => (w, gridPoint (p w) (n w) address))
-    ((ComputableInPolyTime.fst enc encNat).prod hpoint)
-  have hweight := gridWeight_polyTime hp' hn'
-    (hβ.comp (ComputableInPolyTime.fst enc encNat)) hpoint
   have hsum := CountingFunction.sum_range E
-    (CountingFunction.nat_mul hvalues (CountingFunction.of_polyTime hweight))
+    (CountingFunction.nat_mul
+      (CountingFunction.preprocess (input := encPair enc encNat) hv
+        (g := fun (w, address) => (w, gridPoint (p w) (n w) address))
+        ((ComputableInPolyTime.fst enc encNat).prod hpoint))
+      (CountingFunction.of_polyTime (gridWeight_polyTime hp' hn'
+        (hβ.comp (ComputableInPolyTime.fst enc encNat)) hpoint)))
     (ComputableInPolyTime.binary_pow' hp hn)
-  have hsign := CountingFunction.powMod (a := a + 1) (CountingFunction.of_polyTime hp)
-    (CountingFunction.of_polyTime (ComputableInPolyTime.binary_sub' hp (.const 1)))
-    (CountingFunction.of_polyTime (ComputableInPolyTime.unary_to_binary.comp hn))
-  exact CountingFunction.nat_mod (CountingFunction.nat_mul hsign hsum)
+  exact CountingFunction.nat_mod
+    (CountingFunction.nat_mul
+      (CountingFunction.powMod (a := a + 1) (CountingFunction.of_polyTime hp)
+        (CountingFunction.of_polyTime (ComputableInPolyTime.binary_sub' hp (.const 1)))
+        (CountingFunction.of_polyTime (ComputableInPolyTime.unary_to_binary.comp hn))) hsum)
     (CountingFunction.of_polyTime hp)
 
 /-- Correctness requires modular evaluation only at the addressed canonical points. -/
@@ -90,24 +91,21 @@ theorem multivariateCoefficientResidue_cast {p n : ℕ} [Fact p.Prime]
         (fun i : Fin n => (((gridPoint p n r)[i.val]?.getD 0 : ℕ) : ZMod p)) P) :
     (multivariateCoefficientResidue p n β value : ZMod p) = P.coeff e := by
   have hp : p.Prime := Fact.out
-  rw [multivariateCoefficientResidue, ZMod.natCast_mod, Nat.cast_mul,
-    powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod, Nat.cast_pow,
-    Nat.cast_sub hp.one_lt.le, ZMod.natCast_self, Nat.cast_one, zero_sub]
-  rw [Nat.cast_sum]
   have hterms :
       (∑ r ∈ Finset.range (p ^ n),
         ((value (gridPoint p n r) * gridWeight p n β (gridPoint p n r) : ℕ) : ZMod p)) =
       ∑ r ∈ Finset.range (p ^ n),
         MvPolynomial.eval
           (fun i : Fin n => (((gridPoint p n r)[i.val]?.getD 0 : ℕ) : ZMod p)) P *
-          ∏ i : Fin n, (((gridPoint p n r)[i.val]?.getD 0 : ℕ) : ZMod p) ^
-            (p - 1 - e i) := by
-    apply Finset.sum_congr rfl
-    intro r hr
-    rw [Nat.cast_mul, hvalue r (Finset.mem_range.mp hr), gridWeight_cast]
-    simp_rw [hβ]
-  rw [hterms, sum_gridPoint (p := p) (n := n)
-    (fun z : Fin n → ZMod p => MvPolynomial.eval z P * ∏ i, z i ^ (p - 1 - e i))]
+          ∏ i : Fin n, (((gridPoint p n r)[i.val]?.getD 0 : ℕ) : ZMod p) ^ (p - 1 - e i) :=
+    Finset.sum_congr rfl fun r hr => by
+      rw [Nat.cast_mul, hvalue r (Finset.mem_range.mp hr), gridWeight_cast]
+      simp_rw [hβ]
+  rw [multivariateCoefficientResidue, ZMod.natCast_mod, Nat.cast_mul,
+    powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod, Nat.cast_pow,
+    Nat.cast_sub hp.one_lt.le, ZMod.natCast_self, Nat.cast_one, zero_sub, Nat.cast_sum, hterms,
+    sum_gridPoint (p := p) (n := n)
+      (fun z : Fin n → ZMod p => MvPolynomial.eval z P * ∏ i, z i ^ (p - 1 - e i))]
   simpa only [ZMod.card] using (MvPolynomial.coeff_eq_signed_sum_eval P e
     (by simpa only [ZMod.card] using hP) (by simpa only [ZMod.card] using he)).symm
 
@@ -122,8 +120,7 @@ theorem multivariateCoefficientResidue_eq_val {p n : ℕ} [Fact p.Prime]
     multivariateCoefficientResidue p n β value = (P.coeff e).val := by
   have hlt : multivariateCoefficientResidue p n β value < p :=
     Nat.mod_lt _ (Fact.out : p.Prime).pos
-  have h := congrArg ZMod.val
-    (multivariateCoefficientResidue_cast P e β value hP he hβ hvalue)
-  simpa only [ZMod.val_natCast_of_lt hlt] using h
+  simpa only [ZMod.val_natCast_of_lt hlt] using
+    congrArg ZMod.val (multivariateCoefficientResidue_cast P e β value hP he hβ hvalue)
 
 end Cslib.Complexity.RealAlgebraic

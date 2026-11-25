@@ -46,6 +46,7 @@ vertex, to which a law is applied (`Target.segment`).
 
 ## Main results
 
+* `Relay.sum_eq`: a sum over the relays, by their kinds.
 * `Relay.party_injective`: the three parties of a relay of the plan are different.
 * `Relay.time_lt_time_target`, `Relay.time_input_le`: the units of the channels of a relay are
   given later, and the units given in a relay are made earlier.
@@ -79,6 +80,14 @@ inductive Relay (T : Tower h b D J r) (m A : ℕ) where
   | final (e : T.Ed J)
   deriving DecidableEq, Fintype
 
+/-- A sum over the relays, by their kinds. -/
+theorem Relay.sum_eq {T : Tower h b D J r} {M : Type*} [AddCommMonoid M] (g : Relay T m A → M) :
+    ∑ x, g x = (∑ a, ∑ c, ∑ γ, ∑ s, g (.start a c γ s)) + ((∑ j, ∑ i, ∑ e, g (.inner j i e)) +
+      ((∑ j, ∑ e, ∑ s, g (.middle j e s)) + ∑ e, g (.final e))) := by
+  rw [← (proxy_equiv% (Relay T m A)).sum_comp]
+  simp only [Fintype.sum_sum_type, Fintype.sum_sigma]
+  rfl
+
 /-- The targets: what becomes of the units of a channel. -/
 inductive Target (T : Tower h b D J r) (m A : ℕ) where
   /-- The units stay between a node and its parent. -/
@@ -89,7 +98,7 @@ inductive Target (T : Tower h b D J r) (m A : ℕ) where
   | relay (x : Relay T m A)
   /-- The units are end segments on the pair `q` of places of the vertex `ω`. -/
   | segment (j : Fin J) (i : Fin h) (ω : T.V (j + 1) i) (q : Sym2 T.Fl)
-  deriving DecidableEq
+  deriving DecidableEq, Fintype
 
 variable {T : Tower h b D J r}
 

@@ -65,8 +65,7 @@ lemma soleLeaderSweep_pos (b : Ballot Proposer) (p : Proposer)
     (Q : Finset Acceptor) (l : Learner)
     (u : SynodState Proposer Acceptor Learner V) :
     0 < (soleLeaderSweep b p Q l u).length := by
-  simp only [soleLeaderSweep, List.length_append, List.length_singleton]
-  omega
+  simp [soleLeaderSweep]
 
 omit [DecidableEq Learner] [DecidableEq V] in
 /-- Membership characterization for `soleLeaderSweep`. -/
@@ -83,35 +82,16 @@ private lemma mem_soleLeaderSweep_cases {b : Ballot Proposer} {p : Proposer}
   simp only [soleLeaderSweep, soleLeaderMsgActs, List.mem_append, List.mem_singleton,
     List.mem_flatMap, Finset.mem_toList] at hmem
   rcases hmem with ⟨m, hm_msgs, hm_act⟩ | rfl
-  · cases m with
-    | phase1a b' =>
-      dsimp only at hm_act
-      split_ifs at hm_act with hb
-      · subst hb
-        obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hm_act
-        exact Or.inr (Or.inl ⟨a, Finset.mem_toList.mp ha, hm_msgs, rfl⟩)
-      · cases hm_act
-    | phase1b a b' mv =>
-      dsimp only at hm_act
-      split_ifs at hm_act with hba
-      · obtain ⟨rfl, haQ⟩ := hba
-        rw [List.mem_singleton] at hm_act
-        exact Or.inr (Or.inr (Or.inl ⟨a, haQ, mv, hm_msgs, hm_act⟩))
-      · cases hm_act
-    | phase2a b' v =>
-      dsimp only at hm_act
-      split_ifs at hm_act with hb
-      · subst hb
-        obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hm_act
-        exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, Finset.mem_toList.mp ha, v, hm_msgs, rfl⟩)))
-      · cases hm_act
-    | phase2b a b' v =>
-      dsimp only at hm_act
-      split_ifs at hm_act with hba
-      · obtain ⟨rfl, haQ⟩ := hba
-        rw [List.mem_singleton] at hm_act
-        exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, haQ, v, hm_msgs, hm_act⟩)))
-      · cases hm_act
+  · cases m <;> simp only [List.mem_ite_nil_right, List.mem_map, Finset.mem_toList,
+      List.mem_singleton] at hm_act
+    · obtain ⟨rfl, a, ha, rfl⟩ := hm_act
+      exact Or.inr (Or.inl ⟨a, ha, hm_msgs, rfl⟩)
+    · obtain ⟨⟨rfl, ha⟩, rfl⟩ := hm_act
+      exact Or.inr (Or.inr (Or.inl ⟨_, ha, _, hm_msgs, rfl⟩))
+    · obtain ⟨rfl, a, ha, rfl⟩ := hm_act
+      exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, ha, _, hm_msgs, rfl⟩)))
+    · obtain ⟨⟨rfl, ha⟩, rfl⟩ := hm_act
+      exact Or.inr (Or.inr (Or.inr (Or.inr ⟨_, ha, _, hm_msgs, rfl⟩)))
   · exact Or.inl rfl
 
 /-- Delivery-only actions that neither prepare new rounds, drop packets, nor crash nodes. -/
@@ -145,22 +125,12 @@ lemma synodStep_preserve_of_delivery {w : SynodState Proposer Acceptor Learner V
   refine ⟨fun m hm => mem_msgs_synodStep_of_mem hm (hnodrop m), fun q => ?_, fun a => ?_,
     fun l₀ => ?_⟩
   · rcases proposers_synodStep_cases qs w act q with heq | ⟨_, _, heq⟩ |
-        ⟨_, _, _, _, _, _, _, _, _, _, heq, _⟩ | ⟨_, _, _, _, _, _, _, _, _, heq⟩ | ⟨hact, _⟩
-    · rw [heq]
-    · rw [heq]
-    · rw [heq]
-    · rw [heq]
-    · exact absurd hact (hnocp q)
+        ⟨_, _, _, _, _, _, _, _, _, _, heq, _⟩ | ⟨_, _, _, _, _, _, _, _, _, heq⟩ | ⟨hact, _⟩ <;>
+      first | rw [heq] | exact absurd hact (hnocp q)
   · rcases acceptors_synodStep_cases qs w act a with heq | ⟨_, _, _, heq, _⟩ |
-        ⟨_, _, _, _, heq⟩ | ⟨hact, _⟩
-    · rw [heq]
-    · rw [heq]
-    · rw [heq]
-    · exact absurd hact (hnoca a)
-  · rcases learners_synodStep_cases qs w act l₀ with heq | ⟨_, _, _, _, heq⟩ | ⟨hact, _⟩
-    · rw [heq]
-    · rw [heq]
-    · exact absurd hact (hnocl l₀)
+        ⟨_, _, _, _, heq⟩ | ⟨hact, _⟩ <;> first | rw [heq] | exact absurd hact (hnoca a)
+  · rcases learners_synodStep_cases qs w act l₀ with heq | ⟨_, _, _, _, heq⟩ | ⟨hact, _⟩ <;>
+      first | rw [heq] | exact absurd hact (hnocl l₀)
 
 /-- Valid multi-step transition and liveness preservation across one `soleLeaderSweep`. -/
 lemma soleLeaderSweep_mTr {b : Ballot Proposer} {p : Proposer}

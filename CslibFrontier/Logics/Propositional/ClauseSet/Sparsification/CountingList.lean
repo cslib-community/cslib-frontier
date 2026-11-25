@@ -143,8 +143,7 @@ theorem eval_eq_true_of_isTautology {C : Clause V} (h : Clause.isTautology C = t
   rw [Clause.eval_eq_true_iff]
   by_cases hσ : σ v = b
   · exact ⟨(v, b), hl, hσ⟩
-  · refine ⟨Std.Sat.Literal.negate (v, b), hneg, ?_⟩
-    cases b <;> cases hσ' : σ v <;> simp_all [Std.Sat.Literal.negate]
+  · exact ⟨_, hneg, by cases b <;> cases hσ' : σ v <;> simp_all [Std.Sat.Literal.negate]⟩
 
 /-- `removeTautologies φ` is a sublist of `φ`. -/
 theorem removeTautologies_sublist (φ : CNF V) : removeTautologies φ <+ φ :=
@@ -155,13 +154,10 @@ theorem removeTautologies_sublist (φ : CNF V) : removeTautologies φ <+ φ :=
 theorem eval_removeTautologies (φ : CNF V) (σ : V → Bool) :
     (removeTautologies φ).eval σ = φ.eval σ := by
   rw [Bool.eq_iff_iff, CNF.eval_eq_true_iff, CNF.eval_eq_true_iff]
-  constructor
-  · intro h C hC
-    rcases Bool.eq_false_or_eq_true (Clause.isTautology C) with htrue | hfalse
-    · exact eval_eq_true_of_isTautology htrue σ
-    · exact h C (List.mem_filter.mpr ⟨hC, by simp [hfalse]⟩)
-  · intro h C hC
-    exact h C (List.mem_filter.mp hC).1
+  refine ⟨fun h C hC => ?_, fun h C hC => h C (List.mem_filter.mp hC).1⟩
+  rcases Bool.eq_false_or_eq_true (Clause.isTautology C) with htrue | hfalse
+  · exact eval_eq_true_of_isTautology htrue σ
+  · exact h C (List.mem_filter.mpr ⟨hC, by simp only [hfalse, Bool.not_false]⟩)
 
 /-- Removing tautological clauses preserves the declared-variable model count. -/
 @[simp]
@@ -171,11 +167,8 @@ theorem modelCountOn_removeTautologies (φ : CNF V) (declared : Finset V) :
 
 /-- `removeTautologies φ` is nontautological. -/
 theorem nontautological_removeTautologies (φ : CNF V) :
-    Nontautological (removeTautologies φ) := by
-  intro C hC
-  have h := (List.mem_filter.mp hC).2
-  rw [Bool.not_eq_true'] at h
-  exact Clause.isTautology_eq_false_iff.mp h
+    Nontautological (removeTautologies φ) := fun _ hC =>
+  Clause.isTautology_eq_false_iff.mp (Bool.not_eq_true' _ ▸ (List.mem_filter.mp hC).2)
 
 /-- The clause set of `countingNormalize φ` has the same satisfying assignments as `φ`. -/
 theorem sat_toClauseSet_countingNormalize_iff (φ : CNF V) (σ : V → Bool) :
@@ -198,9 +191,8 @@ theorem modelCountOn_countingNormalize (φ : CNF V) (declared : Finset V) :
 theorem exists_of_mem_countingNormalize {φ : CNF V} {C : Clause V}
     (hC : C ∈ countingNormalize φ) :
     ∃ D ∈ removeTautologies φ, C.toFinset = D.toFinset := by
-  have hsub : countingNormalize φ <+ (removeTautologies φ).map dedup :=
-    (reduce_sublist _).trans (dedupClauses_sublist _)
-  obtain ⟨D, hD, rfl⟩ := List.mem_map.mp (hsub.subset hC)
+  obtain ⟨D, hD, rfl⟩ := List.mem_map.mp
+    (((reduce_sublist _).trans (dedupClauses_sublist _)).subset hC)
   exact ⟨D, hD, toFinset_dedup D⟩
 
 /-- The number of clauses of `countingNormalize φ` is at most that of `φ`. -/
@@ -215,9 +207,8 @@ theorem mem_vars_of_mem_countingNormalize {φ : CNF V} :
   intro C hC l hl
   obtain ⟨C', hC', rfl⟩ := mem_toClauseSet.mp hC
   obtain ⟨D, hD, hDeq⟩ := exists_of_mem_countingNormalize hC'
-  rw [hDeq, List.mem_toFinset] at hl
-  have hDφ := (removeTautologies_sublist φ).subset hD
-  exact List.mem_toFinset.mpr (List.mem_map.mpr ⟨l, List.mem_flatten.mpr ⟨D, hDφ, hl⟩, rfl⟩)
+  exact List.mem_toFinset.mpr (List.mem_map.mpr ⟨l, List.mem_flatten.mpr
+    ⟨D, (removeTautologies_sublist φ).subset hD, List.mem_toFinset.mp (hDeq ▸ hl)⟩, rfl⟩)
 
 /-- Every formula of width `k` is brought into nontautological normal form by
 `countingNormalize`. -/
@@ -226,10 +217,9 @@ theorem countingNormalized_countingNormalize {k : ℕ} {φ : CNF V}
   refine ⟨normalized_normalize fun C hC => hφ C ((removeTautologies_sublist φ).subset hC),
     fun C hC l hl hneg => ?_⟩
   obtain ⟨D, hD, hCD⟩ := exists_of_mem_countingNormalize hC
-  have hlD : l ∈ D := List.mem_toFinset.mp (hCD ▸ List.mem_toFinset.mpr hl)
-  have hnegD : Std.Sat.Literal.negate l ∈ D :=
-    List.mem_toFinset.mp (hCD ▸ List.mem_toFinset.mpr hneg)
-  exact nontautological_removeTautologies φ D hD l hlD hnegD
+  exact nontautological_removeTautologies φ D hD l
+    (List.mem_toFinset.mp (hCD ▸ List.mem_toFinset.mpr hl))
+    (List.mem_toFinset.mp (hCD ▸ List.mem_toFinset.mpr hneg))
 
 /-! ### Agreement with clause-set counting operations -/
 
@@ -286,10 +276,9 @@ theorem modelCountOn_countingNext {θ : ℕ → ℕ} {k : ℕ} {ψ : CNF V} (h :
 
 /-! ### Preservation of normal form under the counting step -/
 
-omit [DecidableEq V] in
-private theorem literal_negate_ne_self (l : Literal V) : Std.Sat.Literal.negate l ≠ l := by
-  rcases l with ⟨v, b⟩
-  cases b <;> simp [Std.Sat.Literal.negate]
+private theorem mem_countingChild {ψ : CNF V} {c : ℕ} {H : Clause V} {b : Bool} {C : Clause V}
+    (hC : C ∈ countingChild ψ c H b) : C ∈ ψ ∨ C ∈ countingIntro ψ c H b :=
+  List.mem_append.mp (((reduce_sublist _).trans (dedupClauses_sublist _)).subset hC)
 
 /-- The counting children preserve `CountingNormalized k` whenever `1 ≤ k` and the heart `H` is a
 duplicate-free nontautological clause of width at most `k`. -/
@@ -297,39 +286,31 @@ theorem countingNormalized_countingChild {k : ℕ} {ψ : CNF V} (hk : 1 ≤ k)
     (h : CountingNormalized k ψ) {c : ℕ} {H : Clause V} (hH_nodup : H.Nodup)
     (hH_len : H.length ≤ k) (hH_nontaut : ∀ l ∈ H, Std.Sat.Literal.negate l ∉ H) (b : Bool) :
     CountingNormalized k (countingChild ψ c H b) := by
-  have hsub : countingChild ψ c H b <+ ψ ++ countingIntro ψ c H b :=
-    (reduce_sublist _).trans (dedupClauses_sublist _)
-  have hintro : ∀ C ∈ countingIntro ψ c H b,
+  have hall : ∀ C ∈ countingChild ψ c H b,
       C.Nodup ∧ C.length ≤ k ∧ ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C := by
     intro C hC
-    cases b
-    · simp only [countingIntro, Bool.false_eq_true, ite_false, List.mem_singleton] at hC
-      subst hC
-      exact ⟨hH_nodup, hH_len, hH_nontaut⟩
-    · simp only [countingIntro, ite_true, List.mem_append, petals, negatedHeartUnits,
-        List.mem_map] at hC
-      rcases hC with ⟨D, hD, rfl⟩ | ⟨l₀, _, rfl⟩
-      · have hDψ : D ∈ ψ := List.filter_sublist.subset hD
-        refine ⟨(h.nodup D hDψ).filter _, ?_, fun l hl hneg => ?_⟩
-        · exact (List.length_filter_le _ D).trans (h.length_le D hDψ)
-        · exact h.nontautological D hDψ l (List.mem_filter.mp hl).1 (List.mem_filter.mp hneg).1
-      · refine ⟨List.nodup_singleton _, by simpa using hk, fun l hl hneg => ?_⟩
-        rw [List.mem_singleton] at hl hneg
-        subst hl
-        exact literal_negate_ne_self _ hneg
-  refine ⟨⟨fun C hC => ?_, fun C hC => ?_, ?_, ?_⟩, fun C hC => ?_⟩
-  · rcases List.mem_append.mp (hsub.subset hC) with hC | hC
-    · exact h.nodup C hC
-    · exact (hintro C hC).1
-  · rcases List.mem_append.mp (hsub.subset hC) with hC | hC
-    · exact h.length_le C hC
-    · exact (hintro C hC).2.1
-  · exact ((reduce_sublist _).map _).nodup (nodup_toFinset_dedupClauses _)
-  · rw [countingChild, toClauseSet_reduce]
-    exact reduced_reduce _
-  · rcases List.mem_append.mp (hsub.subset hC) with hC | hC
-    · exact h.nontautological C hC
-    · exact (hintro C hC).2.2
+    rcases mem_countingChild hC with hC | hC
+    · exact ⟨h.nodup C hC, h.length_le C hC, h.nontautological C hC⟩
+    · cases b
+      · obtain rfl := List.mem_singleton.mp hC
+        exact ⟨hH_nodup, hH_len, hH_nontaut⟩
+      · simp only [countingIntro, ite_true, List.mem_append, petals, negatedHeartUnits,
+          List.mem_map] at hC
+        rcases hC with ⟨D, hD, rfl⟩ | ⟨⟨v, bv⟩, _, rfl⟩
+        · have hDψ := List.filter_sublist.subset hD
+          exact ⟨(h.nodup D hDψ).filter _, (List.length_filter_le _ D).trans (h.length_le D hDψ),
+            fun l hl hneg => h.nontautological D hDψ l (List.mem_filter.mp hl).1
+              (List.mem_filter.mp hneg).1⟩
+        · refine ⟨List.nodup_singleton _, hk, fun l hl hneg => ?_⟩
+          rw [List.mem_singleton] at hl hneg
+          subst hl
+          cases bv <;> exact Bool.noConfusion (congrArg Prod.snd hneg)
+  exact ⟨⟨fun C hC => (hall C hC).1, fun C hC => (hall C hC).2.1,
+    ((reduce_sublist _).map _).nodup (nodup_toFinset_dedupClauses _),
+    by
+      rw [countingChild, toClauseSet_reduce]
+      exact reduced_reduce _⟩,
+    fun C hC => (hall C hC).2.2⟩
 
 private theorem choice_snd_sublist_or_nil (θ : ℕ → ℕ) (k : ℕ) (ψ : CNF V) :
     (choice θ k ψ).2 = [] ∨ ∃ C ∈ ψ, (choice θ k ψ).2 <+ C := by
@@ -337,13 +318,10 @@ private theorem choice_snd_sublist_or_nil (θ : ℕ → ℕ) (k : ℕ) (ψ : CNF
   rcases hhead : ((List.range ((k + 1) * (k + 1) + 1)).flatMap fun r =>
       ((candidates k ψ).filter (heavy θ ψ)).filter fun x => rank k x == r).head? with _ | x
   · exact Or.inl rfl
-  · refine Or.inr ?_
-    have hx := List.mem_of_mem_head? hhead
-    obtain ⟨r, -, hxr⟩ := List.mem_flatMap.mp hx
-    have hxcand := (List.mem_filter.mp (List.mem_filter.mp hxr).1).1
-    obtain ⟨C, hC, hxH⟩ := List.mem_flatMap.mp hxcand
+  · obtain ⟨_, -, hxr⟩ := List.mem_flatMap.mp (List.mem_of_mem_head? hhead)
+    obtain ⟨C, hC, hxH⟩ := List.mem_flatMap.mp (List.mem_filter.mp (List.mem_filter.mp hxr).1).1
     obtain ⟨H, hH, rfl⟩ := List.mem_map.mp hxH
-    exact ⟨C, hC, mem_hearts hH⟩
+    exact Or.inr ⟨C, hC, mem_hearts hH⟩
 
 /-- **One counting-sparsification step preserves `CountingNormalized k`.** -/
 theorem countingNormalized_countingNext (θ : ℕ → ℕ) {k : ℕ} (hk : 1 ≤ k) {ψ : CNF V}
@@ -359,21 +337,17 @@ theorem countingNormalized_countingNext (θ : ℕ → ℕ) {k : ℕ} (hk : 1 ≤
 theorem support_countingChild {ψ : CNF V} {c : ℕ} {H : Clause V} {declared : Finset V}
     (hψ : ∀ C ∈ ψ, ∀ l ∈ C, l.1 ∈ declared) (hH : ∀ l ∈ H, l.1 ∈ declared) (b : Bool) :
     ∀ C ∈ countingChild ψ c H b, ∀ l ∈ C, l.1 ∈ declared := by
-  have hsub : countingChild ψ c H b <+ ψ ++ countingIntro ψ c H b :=
-    (reduce_sublist _).trans (dedupClauses_sublist _)
   intro C hC l hl
-  rcases List.mem_append.mp (hsub.subset hC) with hC | hC
+  rcases mem_countingChild hC with hC | hC
   · exact hψ C hC l hl
   · cases b
-    · simp only [countingIntro, Bool.false_eq_true, ite_false, List.mem_singleton] at hC
-      subst hC
+    · rw [List.mem_singleton.mp hC] at hl
       exact hH l hl
     · simp only [countingIntro, ite_true, List.mem_append, petals, negatedHeartUnits,
         List.mem_map] at hC
       rcases hC with ⟨D, hD, rfl⟩ | ⟨l₀, hl₀, rfl⟩
       · exact hψ D (List.filter_sublist.subset hD) l (List.mem_filter.mp hl).1
-      · rw [List.mem_singleton] at hl
-        subst hl
+      · rw [List.mem_singleton.mp hl]
         exact hH l₀ hl₀
 
 /-- Every literal occurring in `countingNext θ k ψ b` has its variable in `declared` whenever `ψ`

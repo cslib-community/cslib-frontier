@@ -85,16 +85,13 @@ private noncomputable def bermanTest (dA : Desc) (κ : ℕ → ℕ) (b : Bool) (
     !decide (universal (dA, (simRun p.1 p.2).1, κ p.2) = ([eBit true], true))
   else b
 
-private theorem computableInPolyTime_simRun :
-    ComputableInPolyTime (fun p : List Bool × ℕ => simRun p.1 p.2) (encPair encBits encUnary)
-      eOut := by
-  unfold simRun
-  fun_prop
-
 private theorem computableInPolyTime_bermanTest (dA : Desc) {κ : ℕ → ℕ}
     (hκ : ComputableInPolyTime κ encUnary encUnary) (b : Bool) :
     ComputableInPolyTime (bermanTest dA κ b) (encPair encBits encUnary) encBool := by
-  have hs := computableInPolyTime_simRun
+  have hs : ComputableInPolyTime (fun p : List Bool × ℕ => simRun p.1 p.2)
+      (encPair encBits encUnary) eOut := by
+    unfold simRun
+    fun_prop
   unfold bermanTest
   fun_prop
 
@@ -113,7 +110,7 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
   -- for each `b`, an infinite problem in `P` inside `A` or its complement, according to `b`
   have key (b : Bool) : ∃ Q ∈ P encBits, Q.Infinite ∧ ∀ y ∈ Q, (y ∈ A ↔ b = true) := by
     obtain ⟨f, hf, hfA⟩ := hred b
-    obtain ⟨t, s, ht, hs, k, State, hfinite, tm, htm⟩ := id hf
+    obtain ⟨t, _, ht, _, _, State, _, tm, htm⟩ := id hf
     have := Fintype.ofFinite State
     let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
     have hrun (x : List Bool) : (tm.runFrom (tm.initCfg x) (t x.length)).Halted ∧
@@ -123,10 +120,8 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
     let pw (m : ℕ) : List Bool := frame (eDesc (desc eS eBit tm)) ++ List.replicate m false
     have hpw (m : ℕ) : m ≤ (pw m).length := by simp [pw]
     have hpad : ComputableInPolyTime pw encUnary encBits :=
-      ComputableInPolyTime.bitsAppend (ComputableInPolyTime.const _)
-        (ComputableInPolyTime.bitsReplicate false)
-    have himage : ComputableInPolyTime (fun m => f (pw m)) encUnary encBits :=
-      hf.comp hpad
+      ComputableInPolyTime.bitsAppend (.const _) (.bitsReplicate false)
+    have himage : ComputableInPolyTime (fun m => f (pw m)) encUnary encBits := hf.comp hpad
     obtain ⟨M₁, hM₁⟩ := Filter.eventually_atTop.mp (hG t ht)
     let M := max M₁ L
     have hsim (m : ℕ) (hm : M ≤ m) :
@@ -136,16 +131,11 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         (hM₁ _ (by have := hpw m; omega))
     -- the reduction lengthens the padded descriptions
     have hlong (m : ℕ) (hm : M ≤ m) : (pw m).length < (f (pw m)).length := by
-      by_contra hle
-      rw [not_lt] at hle
+      by_contra! hle
       have h := hfA (pw m)
       simp only [Set.mem_ofPred_eq, bermanTest, hsim m hm, List.length_map, hle, and_self,
         ite_true, hdA _ (by have := hpw m; omega) _ hle, hg] at h
       cases hgf : g (f (pw m)) <;> simp [hgf, eBit] at h
-    have hmem (m : ℕ) (hm : M ≤ m) : f (pw m) ∈ A ↔ b = true := by
-      rw [← hfA]
-      simp only [Set.mem_ofPred_eq, bermanTest, hsim m hm, List.length_map,
-        not_le.mpr (hlong m hm), and_false, ite_false]
     refine ⟨{y | ∃ m, M ≤ m ∧ f (pw m) = y}, ?_, ?_, ?_⟩
     · -- a witness `m` is at most the length of `y`
       have htest : ComputableInPolyTime
@@ -157,7 +147,7 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
         decide (f (pw m) = y), ComputableInPolyTime.anyWithInput hlist htest, fun y => ?_⟩
       simp only [Set.mem_ofPred_eq, List.any_eq_true, List.mem_range, Bool.and_eq_true,
         decide_eq_true_eq]
-      constructor
+      refine ⟨?_, ?_⟩
       · rintro ⟨m, hm, rfl⟩
         exact ⟨m, by have := hpw m; have := hlong m hm; omega, hm, rfl⟩
       · rintro ⟨m, -, hm, rfl⟩
@@ -165,12 +155,14 @@ private theorem exists_infinite_subset_mem_P_of_reducible {A : Set (List Bool)}
     · -- the lengths are unbounded
       intro hfin
       obtain ⟨B, hB⟩ := (hfin.image List.length).bddAbove
-      have h := hB ⟨f (pw (M + B)), ⟨M + B, by omega, rfl⟩, rfl⟩
+      have := hB ⟨f (pw (M + B)), ⟨M + B, by omega, rfl⟩, rfl⟩
       have := hpw (M + B)
       have := hlong (M + B) (by omega)
       omega
-    · rintro y ⟨m, hm, rfl⟩
-      exact hmem m hm
+    · rintro _ ⟨m, hm, rfl⟩
+      rw [← hfA]
+      simp only [Set.mem_ofPred_eq, bermanTest, hsim m hm, List.length_map,
+        not_le.mpr (hlong m hm), and_false, ite_false]
   obtain ⟨Q₁, hQ₁, hinf₁, hA₁⟩ := key true
   obtain ⟨Q₀, hQ₀, hinf₀, hA₀⟩ := key false
   exact ⟨⟨Q₁, hQ₁, hinf₁, fun y hy => (hA₁ y hy).mpr rfl⟩,
@@ -182,53 +174,41 @@ variable {A : Set (List Bool)}
 polynomial-time many-one reductions has an infinite subset in `P`, and so does its complement. -/
 theorem exists_infinite_subset_mem_P_of_polyTimeComplete_E (h : PolyTimeComplete @E encBits A) :
     (∃ B ∈ P encBits, B.Infinite ∧ B ⊆ A) ∧ (∃ B ∈ P encBits, B.Infinite ∧ B ⊆ Aᶜ) := by
-  obtain ⟨k, c₁, c₂, s, hdec⟩ := mem_E_iff.mp h.1
-  obtain ⟨g, ⟨kt, State, hfin, tm, htm⟩, hg⟩ := decidableInTimeAndSpace_iff.mp hdec
+  obtain ⟨k, c₁, c₂, _, hdec⟩ := mem_E_iff.mp h.1
+  obtain ⟨g, ⟨_, State, _, tm, htm⟩, hg⟩ := decidableInTimeAndSpace_iff.mp hdec
   have := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
-  have hrun (x : List Bool) :
-      (tm.runFrom (tm.initCfg x) (c₁ * 2 ^ (k * x.length) + c₂)).Halted ∧
-      (tm.runFrom (tm.initCfg x) (c₁ * 2 ^ (k * x.length) + c₂)).output = [g x] :=
-    (htm x).runFrom_of_le le_rfl
-  let κ : ℕ → ℕ := fun N => c₁ * N ^ k + c₂
-  have hκ : ComputableInPolyTime κ encUnary encUnary := by fun_prop
-  refine exists_infinite_subset_mem_P_of_reducible hg (desc eS eBit tm) (κ := κ)
-    (G := fun n => 2 ^ n) (L := 0) (fun n _ y hy => ?_) (fun t ht => ?_)
-    (fun b => h.2 encBits _ ?_)
-  · refine universal_desc_of_halted eS tm (t := fun x => c₁ * 2 ^ (k * x.length) + c₂) hrun ?_
-    change c₁ * 2 ^ (k * y.length) + c₂ ≤ c₁ * (2 ^ n) ^ k + c₂
-    rw [← pow_mul, mul_comm n k]
-    gcongr
-  · filter_upwards [PolynomiallyBounded.eventually_lt_two_pow ht] with n hn using hn.le
-  · exact setOf_mem_E_of_computableInPolyTime_pad (computableInPolyTime_bermanTest _ hκ b)
+  refine exists_infinite_subset_mem_P_of_reducible hg (desc eS eBit tm)
+    (κ := fun N => c₁ * N ^ k + c₂) (G := fun n => 2 ^ n) (L := 0) (fun n _ y hy => ?_)
+    (fun t ht => (PolynomiallyBounded.eventually_lt_two_pow ht).mono fun _ => le_of_lt)
+    fun b => h.2 encBits _
+      (setOf_mem_E_of_computableInPolyTime_pad (computableInPolyTime_bermanTest _ (by fun_prop) b))
+  refine universal_desc_of_halted eS tm (t := fun x => c₁ * 2 ^ (k * x.length) + c₂)
+    (fun x => (htm x).runFrom_of_le le_rfl) ?_
+  rw [← pow_mul, mul_comm n k]
+  gcongr
 
 /-- **Berman's theorem for `EXP`**: a problem complete for `EXP` under polynomial-time many-one
 reductions has an infinite subset in `P`, and so does its complement. -/
 theorem exists_infinite_subset_mem_P_of_polyTimeComplete_EXP
     (h : PolyTimeComplete @EXP encBits A) :
     (∃ B ∈ P encBits, B.Infinite ∧ B ⊆ A) ∧ (∃ B ∈ P encBits, B.Infinite ∧ B ⊆ Aᶜ) := by
-  obtain ⟨k, c₁, c₂, s, hdec⟩ := mem_EXP_iff.mp h.1
-  obtain ⟨g, ⟨kt, State, hfin, tm, htm⟩, hg⟩ := decidableInTimeAndSpace_iff.mp hdec
+  obtain ⟨k, c₁, c₂, _, hdec⟩ := mem_EXP_iff.mp h.1
+  obtain ⟨g, ⟨_, State, _, tm, htm⟩, hg⟩ := decidableInTimeAndSpace_iff.mp hdec
   have := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
-  have hrun (x : List Bool) :
-      (tm.runFrom (tm.initCfg x) (c₁ * 2 ^ x.length ^ k + c₂)).Halted ∧
-      (tm.runFrom (tm.initCfg x) (c₁ * 2 ^ x.length ^ k + c₂)).output = [g x] :=
-    (htm x).runFrom_of_le le_rfl
-  let κ : ℕ → ℕ := fun N => c₁ * N + c₂
-  have hκ : ComputableInPolyTime κ encUnary encUnary := by fun_prop
-  refine exists_infinite_subset_mem_P_of_reducible hg (desc eS eBit tm) (κ := κ)
-    (G := fun n => 2 ^ n ^ (k + 1)) (L := 1) (fun n hn y hy => ?_) (fun t ht => ?_)
-    (fun b => h.2 encBits _ ?_)
-  · refine universal_desc_of_halted eS tm (t := fun x => c₁ * 2 ^ x.length ^ k + c₂) hrun ?_
-    change c₁ * 2 ^ y.length ^ k + c₂ ≤ c₁ * 2 ^ n ^ (k + 1) + c₂
-    have hexp : y.length ^ k ≤ n ^ (k + 1) :=
-      (Nat.pow_le_pow_left hy k).trans (Nat.pow_le_pow_right (by omega) (by omega))
-    exact Nat.add_le_add_right (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num) hexp)) _
-  · exact (PolynomiallyBounded.eventually_lt_two_pow ht).mono fun n hn =>
-      hn.le.trans (Nat.pow_le_pow_right (by norm_num) (Nat.le_self_pow k.succ_ne_zero n))
-  · exact setOf_mem_EXP_of_computableInPolyTime_pad (computableInPolyTime_bermanTest _ hκ b)
-      (L := fun w => w.length ^ (k + 1)) (by fun_prop)
+  refine exists_infinite_subset_mem_P_of_reducible hg (desc eS eBit tm)
+    (κ := fun N => c₁ * N + c₂) (G := fun n => 2 ^ n ^ (k + 1)) (L := 1) (fun n hn y hy => ?_)
+    (fun t ht => (PolynomiallyBounded.eventually_lt_two_pow ht).mono fun n hn =>
+      hn.le.trans (Nat.pow_le_pow_right (by norm_num) (Nat.le_self_pow k.succ_ne_zero n)))
+    fun b => h.2 encBits _ (setOf_mem_EXP_of_computableInPolyTime_pad
+      (computableInPolyTime_bermanTest _ (by fun_prop) b)
+      (L := fun w => w.length ^ (k + 1)) (by fun_prop))
+  refine universal_desc_of_halted eS tm (t := fun x => c₁ * 2 ^ x.length ^ k + c₂)
+    (fun x => (htm x).runFrom_of_le le_rfl) ?_
+  have hexp : y.length ^ k ≤ n ^ (k + 1) :=
+    (Nat.pow_le_pow_left hy k).trans (Nat.pow_le_pow_right (by omega) (by omega))
+  exact Nat.add_le_add_right (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num) hexp)) _
 
 /-- **No problem complete for `E` is `P`-bi-immune**; in fact neither the problem nor its
 complement is `P`-immune [Berman][Berman1976]. -/

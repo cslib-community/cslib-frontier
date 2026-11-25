@@ -241,19 +241,10 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
         · rfl
       by_cases ht : t = t_fn j
       · subst ht
-        have hnone : ρ (andreevBlockVar b m j (t_fn j)) = none :=
-          PartialAssignment.mem_free.1 (ht_fn j)
-        have hσ_eq : (σ (andreevBlockVar b m j (t_fn j))).eval interpretation z = (z j ^^ r j) := by
-          simp [hσ_val]
-        rw [PartialAssignment.fill_of_eq_none hnone, hσ_eq, update_self]
+        rw [PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)), hσ_val,
+          ite_eq_left rfl, update_self]
       · rw [update_of_ne ht]
-        have hσ_false : (σ (andreevBlockVar b m j t)).eval interpretation z = false := by
-          simp [hσ_val, ht]
-        cases hρ : ρ (andreevBlockVar b m j t) with
-        | none =>
-          simp [y₀, PartialAssignment.fill, hρ, hσ_false]
-        | some c =>
-          simp [y₀, PartialAssignment.fill, hρ]
+        cases hρ : ρ (andreevBlockVar b m j t) <;> simp [y₀, PartialAssignment.fill, hρ, hσ_val, ht]
     have hy₀_false : y₀ j (t_fn j) = false :=
       PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)) (fun _ => false)
     rw [hblock_eq, parity_update_of_eq_false hy₀_false]

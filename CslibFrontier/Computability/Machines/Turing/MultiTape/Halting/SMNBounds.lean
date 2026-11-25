@@ -104,10 +104,8 @@ private theorem length_redirectEntry_le (e : Key × Act) (s : Option ℕ)
   have hs_le : (eSym s).length ≤ (eSym i).length + 3 := by
     rcases i with _ | b
     · rcases (by simpa [vlift] using hs : s = some marker ∨ s = none) with rfl | rfl <;> decide
-    · by_cases hb : b = marker
-      · simp [vlift, hb] at hs
-      · obtain rfl : s = some b := by simpa [vlift, hb] using hs
-        omega
+    · obtain ⟨-, rfl⟩ : b ≠ marker ∧ s = some b := by simpa [vlift] using hs
+      omega
   have hvm := length_encSign_le (vmove s move)
   have hnext : (eSym (next.map fun q => 2 * q + 1)).length ≤ 2 * (eSym next).length := by
     cases next <;> enc_len [Option.map_none, Option.map_some]
@@ -117,21 +115,19 @@ private theorem length_encList_redirect_le (d : Desc) :
     (encList (encPair eKey eAct)
       (redirect (fun q => 2 * q + 1) none [] 0 id d.table)).length ≤
         (2 * d.table.length) * (2 * (50 * (descLen d + 1)) + 1) := by
-  refine (length_encList_le (encPair eKey eAct) _ (b := 50 * (descLen d + 1)) ?_).trans ?_
-  · intro e' he'
-    simp only [redirect, List.mem_flatMap, List.mem_map] at he'
-    obtain ⟨e, he, s, hs, rfl⟩ := he'
-    have hentry := length_le_encList_of_mem (encPair eKey eAct) he
-    have htable : (encList (encPair eKey eAct) d.table).length ≤ descLen d := by
-      enc_len [descLen, eDesc_apply]
-    exact (length_redirectEntry_le e s hs).trans
-      (Nat.mul_le_mul_left 50 (Nat.add_le_add_right (hentry.trans htable) 1))
-  · exact Nat.mul_le_mul_right _ (length_redirect_le d.table)
+  refine (length_encList_le (encPair eKey eAct) _ (b := 50 * (descLen d + 1)) ?_).trans
+    (Nat.mul_le_mul_right _ (length_redirect_le d.table))
+  intro e' he'
+  simp only [redirect, List.mem_flatMap, List.mem_map] at he'
+  obtain ⟨e, he, s, hs, rfl⟩ := he'
+  have htable : (encList (encPair eKey eAct) d.table).length ≤ descLen d := by
+    enc_len [descLen, eDesc_apply]
+  exact (length_redirectEntry_le e s hs).trans (Nat.mul_le_mul_left 50
+    (Nat.add_le_add_right ((length_le_encList_of_mem (encPair eKey eAct) he).trans htable) 1))
 
 private theorem length_eSym_of_mem_bitSyms {s : Option ℕ} (hs : s ∈ bitSyms) :
     (eSym s).length ≤ 2 := by
-  simp only [bitSyms, List.mem_cons, List.not_mem_nil, or_false] at hs
-  rcases hs with rfl | rfl | rfl <;> decide
+  rcases (by simpa [bitSyms] using hs : s = _ ∨ s = _ ∨ s = _) with rfl | rfl | rfl <;> decide
 
 private theorem length_prepEntry_of_bounds {q k next : ℕ} {r s : Option ℕ} {mv : SignType}
     {acts : List TapeAct} {B : ℕ} (hq : q ≤ 2 * B + 4) (hk : k ≤ B) (hnext : next ≤ 2 * B + 4)

@@ -155,20 +155,18 @@ private theorem joined_simple {I : FixedRotationInput} (hI : Valid I)
     rw [← hsrc]
     apply hF.vertex_ne (hm 0 false) (hm 1 true)
     intro he
-    have hh : false = true ∧ true = false := by
-      simpa using same_occurrence_end_contact hI i 0 1 (by decide) false true he
-    exact Bool.noConfusion hh.1
+    simpa using same_occurrence_end_contact hI i 0 1 (by decide) false true he
   change ((p.concat q).concat r).IsSimple
   apply hprefix.concat (hF.simple (pieceEdge I i 2)) hopen (piece_open hI hF i 2)
     hjoin
   intro a b s t hs' ht' he
-  rcases Route.concat_eval_cases p q hpq a s with ⟨j, hj, hval⟩ | ⟨j, hj, hval⟩
+  rcases Route.concat_eval_cases p q hpq a with ⟨j, hj, hval⟩ | ⟨j, hj, hval⟩ <;>
+    specialize hval s
   · obtain ⟨c, d, hc, hd, hcd⟩ :=
       route_pair_contact hF i 0 2 (by decide) j b hs' ht' (hval.symm.trans he)
     have hh : c = false ∧ d = true := by
       simpa using same_occurrence_end_contact hI i 0 2 (by decide) c d hcd
-    right
-    refine ⟨?_, hh.2 ▸ hd⟩
+    refine .inr ⟨?_, hh.2 ▸ hd⟩
     have ha : p.AtEnd j s false := hh.1 ▸ hc
     change (a.val : ℝ) + s = 0
     rw [hj]
@@ -177,10 +175,8 @@ private theorem joined_simple {I : FixedRotationInput} (hI : Valid I)
       route_pair_contact hF i 1 2 (by decide) j b hs' ht' (hval.symm.trans he)
     have hh : c = true ∧ d = false := by
       simpa using same_occurrence_end_contact hI i 1 2 (by decide) c d hcd
-    left
-    refine ⟨?_, hh.2 ▸ hd⟩
+    refine .inl ⟨?_, hh.2 ▸ hd⟩
     have ha : q.AtEnd j s true := hh.1 ▸ hc
-    change (p.concat q).position a s = ((p.concat q).segments : ℝ)
     change (a.val : ℝ) + s = ((p.concat q).segments : ℝ)
     exact (end_position_of_shift hj ha).trans
       (congrArg (fun n : ℕ => (n : ℝ)) (Route.segments_concat p q).symm)
@@ -199,8 +195,10 @@ private theorem joined_trace {I : FixedRotationInput}
   let q := F.route (pieceEdge I i 1)
   let r := F.route (pieceEdge I i 2)
   obtain ⟨_, hpq, hj, _⟩ := piece_endpoints F i
-  rcases Route.concat_eval_cases (p.concat q) r hj a s with ⟨b, hb, hv⟩ | ⟨b, hb, hv⟩
-  · rcases Route.concat_eval_cases p q hpq b s with ⟨j, hidx, hval⟩ | ⟨j, hidx, hval⟩
+  rcases Route.concat_eval_cases (p.concat q) r hj a with ⟨b, hb, hv⟩ | ⟨b, hb, hv⟩ <;>
+    specialize hv s
+  · rcases Route.concat_eval_cases p q hpq b with ⟨j, hidx, hval⟩ | ⟨j, hidx, hval⟩ <;>
+      specialize hval s
     · exact ⟨0, j, by simpa [shift] using hb.trans hidx, hv.trans hval⟩
     · exact ⟨1, j, by simpa [shift, p] using hb.trans hidx, hv.trans hval⟩
   · exact ⟨2, b, by simpa [shift, Route.segments_concat, p, q] using hb, hv⟩
@@ -222,15 +220,10 @@ private theorem joined_support {I : FixedRotationInput}
   ext x
   simp only [Set.mem_union, Set.mem_iUnion]
   constructor
-  · rintro ((hp | hq) | hr)
-    · exact ⟨0, hp⟩
-    · exact ⟨1, hq⟩
-    · exact ⟨2, hr⟩
+  · rintro ((h | h) | h) <;> exact ⟨_, h⟩
   · rintro ⟨k, hk⟩
     fin_cases k
-    · exact Or.inl (Or.inl hk)
-    · exact Or.inl (Or.inr hk)
-    · exact Or.inr hk
+    exacts [.inl (.inl hk), .inl (.inr hk), .inr hk]
 
 /-- Undo the indexed twice subdivision of an actual embedding. Original vertex points and
 outgoing germs are retained, and each original route has exactly its three-piece support.
@@ -273,9 +266,8 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
     obtain ⟨b, hb, hname⟩ := hF.vertex_contacts _ j s hs v (hsub v hv) (hval.symm.trans he)
     rcases piece_vertex_cases i k b with ⟨rfl, rfl, hend⟩ | ⟨rfl, rfl, hend⟩ | ⟨c, hnew⟩
     · refine ⟨false, ?_, hend.symm.trans hname⟩
-      have hj' : a.val = j.val := by simpa [shift] using hj
       change (a.val : ℝ) + s = 0
-      rw [hj']
+      rw [show a.val = j.val by simpa [shift] using hj]
       exact hb
     · refine ⟨true, ?_, hend.symm.trans hname⟩
       change (a.val : ℝ) + s = (joinedRoute F i).segments
@@ -295,8 +287,7 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
       · rw [hb, hc] at he
         exact (hne (Fin.ext (by cases d <;> cases a <;> simp at he <;> omega))).elim
   refine ⟨D, ⟨?_, joined_simple hI hF, hvertex, ?_⟩, rfl, joined_support F, ?_⟩
-  · intro u hu v hv he
-    exact hF.vertices_injective (hsub u hu) (hsub v hv) he
+  · exact fun u hu v hv he => hF.vertices_injective (hsub u hu) (hsub v hv) he
   · intro i j hne a b s t hs ht he
     obtain ⟨k, a', _, ha⟩ := joined_trace F i a s
     obtain ⟨l, b', _, hb⟩ := joined_trace F j b t

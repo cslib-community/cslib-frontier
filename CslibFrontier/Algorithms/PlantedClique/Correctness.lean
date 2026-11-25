@@ -46,17 +46,15 @@ theorem approximateSet_overlap (M : Matrix (Fin n) (Fin n) ℤ) (S : Finset (Fin
   have hk : (0 : ℝ) < S.card := Nat.cast_pos.mpr hS.card_pos
   have hresidual (y : EuclideanSpace ℝ (Fin n)) :
       ‖T y - ((S.card : ℝ) * inner ℝ u y) • u‖ ≤ (S.card : ℝ) / 16 * ‖y‖ := by
-    rw [← cliqueSignal_apply hS y]
     have heq : T y - (cliqueSignal S).toEuclideanLin y =
         Matrix.toEuclideanCLM (𝕜 := ℝ) (A - cliqueSignal S) y := by
       rw [map_sub]
       rfl
-    rw [heq]
+    rw [← cliqueSignal_apply hS y, heq]
     exact (ContinuousLinearMap.le_opNorm _ y).trans
       (mul_le_mul_of_nonneg_right hnoise (norm_nonneg y))
   have hsignal : ‖T u - (S.card : ℝ) • u‖ ≤ (S.card : ℝ) / 16 := by
-    have hr := hresidual u
-    simpa only [real_inner_self_eq_norm_sq, hu, one_pow, mul_one] using hr
+    simpa only [real_inner_self_eq_norm_sq, hu, one_pow, mul_one] using hresidual u
   have hgain := LinearMap.half_sq_le_norm_apply_sq (T := T.toLinearMap) hu hk hsignal
   have hsearch := growingColumn?_isSome_of_large_direction M hS.card_pos hM hu hgain
   obtain ⟨c, _, hw, hpositive, hgrowth⟩ := recoveredVector_spec M S.card hsearch
@@ -70,41 +68,35 @@ theorem approximateSet_overlap (M : Matrix (Fin n) (Fin n) ℤ) (S : Finset (Fin
       ((dotProduct (recoveredVector M S.card) (recoveredVector M S.card) : ℤ) : ℝ) := by
     rw [hw]
     exact norm_sq_powerVector M (c.steps + 1) c.seed
-  have hz : z ≠ 0 := by
-    have hp : (0 : ℝ) < ‖z‖ ^ 2 := by rw [hznorm]; exact_mod_cast hpositive
-    intro hz
-    simp [hz] at hp
+  have hz : z ≠ 0 := fun h0 => by
+    have hp : (0 : ℝ) < ‖z‖ ^ 2 := hznorm ▸ Int.cast_pos.mpr hpositive
+    simp [h0] at hp
   have hgrowth' : (S.card : ℝ) ^ 2 * ‖y‖ ^ 2 ≤ 4 * ‖z‖ ^ 2 := by
     rw [hznorm]
     dsimp only [y, T, A]
     rw [norm_sq_powerVector]
     exact_mod_cast hgrowth
   obtain ⟨s, hs, hclose⟩ := exists_sign_normalize_sub_sq_le_of_growth hu hz hk
-    (by rw [hzT]; exact hresidual y) hgrowth'
-  apply sixteen_mul_card_sdiff_le_of_signed_norm_sub_sq_le hS
+    (hzT ▸ hresidual y) hgrowth'
+  refine sixteen_mul_card_sdiff_le_of_signed_norm_sub_sq_le hS
     (card_approximateSet M (by simpa only [Fintype.card_fin] using Finset.card_le_univ S)).symm
-    hs ?_ hclose
-  intro i hi j hj
+    hs (fun i hi j hj => ?_) hclose
   have hwcast : WithLp.toLp 2 (fun i => (recoveredVector M S.card i : ℝ)) = z := by
     rw [hw]
     exact toLp_powerVector M (c.steps + 1) c.seed
-  have hweights := natAbs_le_of_notMem_approximateSet M S.card hi hj
-  have hcast : |(recoveredVector M S.card i : ℝ)| ≤
-      |(recoveredVector M S.card j : ℝ)| := by
-    have hi' : |recoveredVector M S.card i| ≤ |recoveredVector M S.card j| := by
-      rw [← Int.natCast_natAbs, ← Int.natCast_natAbs]
-      exact_mod_cast hweights
-    exact_mod_cast hi'
+  have hcast : |(recoveredVector M S.card i : ℝ)| ≤ |(recoveredVector M S.card j : ℝ)| := by
+    exact_mod_cast (by
+      simpa only [Int.natCast_natAbs] using
+        Int.ofNat_le.mpr (natAbs_le_of_notMem_approximateSet M S.card hi hj) :
+      |recoveredVector M S.card i| ≤ |recoveredVector M S.card j|)
   change |‖z‖⁻¹ * z i| ≤ |‖z‖⁻¹ * z j|
   rw [abs_mul, abs_mul, ← hwcast]
   exact mul_le_mul_of_nonneg_left hcast (abs_nonneg _)
 
 /-- The real signed adjacency matrix is symmetric. -/
 theorem isHermitian_signedAdjacency (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] :
-    ((signedAdjacency G).map (Int.castRingHom ℝ)).IsHermitian := by
-  apply Matrix.IsHermitian.ext
-  intro i j
-  simp [signedAdjacency, Matrix.map_apply, eq_comm, G.adj_comm]
+    ((signedAdjacency G).map (Int.castRingHom ℝ)).IsHermitian :=
+  Matrix.IsHermitian.ext fun _ _ => by simp [signedAdjacency, Matrix.map_apply, eq_comm, G.adj_comm]
 
 /-- Complete deterministic recovery: a spectral perturbation bound and outside-degree bounds
 imply that the executable algorithm returns exactly the planted clique. -/

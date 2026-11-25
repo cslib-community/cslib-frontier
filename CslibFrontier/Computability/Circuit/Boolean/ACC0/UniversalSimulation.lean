@@ -85,9 +85,7 @@ private def opOfNat : ℕ → Op
 private theorem opOfNat_toNat (op : Op) : opOfNat op.toNat = op := by
   cases op with
   | const b => cases b <;> rfl
-  | not => rfl
-  | and => rfl
-  | or => rfl
+  | _ => rfl
 
 private theorem toNat_opOfNat (n : ℕ) : (opOfNat n).toNat = min n 4 := by
   rcases n with _ | _ | _ | _ | n <;> simp only [opOfNat, Op.toNat] <;> omega
@@ -200,12 +198,11 @@ private theorem eval_hardwirePrefix {σ : Signature} {φ : Unbounded.signature.H
     Circuit.eval_wiring]
   congr 1
   funext k
-  have hklt : k.val < (p ++ List.ofFn x).length := by simp
   simp only [BitString.ofList, Fin.append, Fin.addCases, List.getD_eq_getElem?_getD,
-    List.getElem?_eq_getElem hklt, Option.getD_some]
+    List.getElem?_eq_getElem (show k.val < (p ++ List.ofFn x).length by simp), Option.getD_some]
   split_ifs with hk
   · simp [List.getElem_append_left hk]
-  · simp [List.getElem_append_right (Nat.not_lt.1 hk), Fin.subNat, Fin.cast]
+  · simp [List.getElem_append_right (Nat.not_lt.1 hk), Fin.subNat]
 
 private theorem size_hardwirePrefix {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
     (p : List Bool) (U : Circuit σ (p.length + n) 1) :
@@ -224,15 +221,10 @@ private theorem hardwirePrefix_computes_eval {σ : Signature} {φ : Unbounded.si
     (hUc : U.Computes I (single (circuitEvalLanguage.slice ((evalPrefix C).length + n)))) :
     (hardwirePrefix φ (evalPrefix C) U).Computes I (C.eval interpretation) := by
   intro x
-  classical
   funext o
-  rw [Subsingleton.elim o 0, eval_hardwirePrefix]
-  have hU := congrFun (hUc (BitString.ofList ((evalPrefix C).length + n)
-    (evalPrefix C ++ List.ofFn x))) 0
-  rw [hU]
-  simp only [single, Language.slice]
-  rw [BitString.ofFn_ofList (by simp), Bool.eq_iff_iff, decide_eq_true_eq]
-  exact mem_circuitEvalLanguage_evalPrefix C x
+  rw [Subsingleton.elim o 0, eval_hardwirePrefix,
+    congrFun (hUc (BitString.ofList _ (evalPrefix C ++ List.ofFn x))) 0]
+  simp [single, Language.slice, BitString.ofFn_ofList, mem_circuitEvalLanguage_evalPrefix]
 
 /-- **Universal circuit simulation from circuits for `P`** ([Williams2014], Lemma 5.1, Section 5,
 p. 18 of the July 31, 2012 version): if `circuitEvalLanguage` (in particular every language in `P`)
@@ -255,16 +247,13 @@ theorem exists_circuit_of_P_circuits {σ : Signature} (φ : Unbounded.signature.
       C'.Computes I (C.eval interpretation) ∧
       C'.depth ≤ d N + 1 ∧
       C'.size ≤ S N + 2 := by
-  set p := evalPrefix C with hp
-  set N := p.length + n with hN
-  obtain ⟨U, hUc, hUd, hUs⟩ := hP circuitEvalLanguage circuitEvalLanguage_mem_P N
-  refine ⟨N, hardwirePrefix φ p U, ?_, hardwirePrefix_computes_eval C U hUc, ?_, ?_⟩
-  · have hlen := length_evalPrefix_le C
-    rw [hN, hp]
-    omega
-  · exact (depth_hardwirePrefix_le φ p U).trans (Nat.add_le_add_right hUd 1)
-  · rw [size_hardwirePrefix]
-    exact Nat.add_le_add_right hUs 2
+  obtain ⟨U, hUc, hUd, hUs⟩ := hP circuitEvalLanguage circuitEvalLanguage_mem_P
+    ((evalPrefix C).length + n)
+  refine ⟨_, hardwirePrefix φ (evalPrefix C) U, ?_, hardwirePrefix_computes_eval C U hUc,
+    (depth_hardwirePrefix_le φ _ U).trans (Nat.add_le_add_right hUd 1),
+    (size_hardwirePrefix φ _ U).trans_le (Nat.add_le_add_right hUs 2)⟩
+  have := length_evalPrefix_le C
+  omega
 
 /-- **Uniform-depth `ACC⁰` collapse of `P/poly` when `P ⊆ ACC⁰`** ([Williams2014], remark after
 Lemma 5.1, Section 5, p. 19 of the July 31, 2012 version): if `P ⊆ ACC⁰`, then there exist a single
@@ -285,27 +274,19 @@ theorem exists_uniform_depth_ACC0_of_P_subset_ACC0
   let Nbound : ℕ → ℕ := fun n => n + 124 * (p n + 1) * (n + p n + 2)
   refine ⟨fun n => cE * (Nbound n + 1) ^ kE + 2, by dsimp [Nbound]; fun_prop, fun n => ?_⟩
   obtain ⟨hCs, hCc⟩ := hCfam n
-  set pr := evalPrefix (Cfam n) with hpr
-  set N := pr.length + n with hN
-  obtain ⟨U, hUc, hUd, hUs⟩ := hU N
-  refine ⟨hardwirePrefix Unbounded.toExt pr U, ?_, ?_, ?_⟩
-  · intro x
-    rw [hardwirePrefix_computes_eval (Cfam n) U hUc x, hCc x]
-  · exact (depth_hardwirePrefix_le Unbounded.toExt pr U).trans (Nat.add_le_add_right hUd 1)
-  · rw [size_hardwirePrefix]
+  obtain ⟨U, hUc, hUd, hUs⟩ := hU ((evalPrefix (Cfam n)).length + n)
+  refine ⟨hardwirePrefix Unbounded.toExt (evalPrefix (Cfam n)) U,
+    fun x => (hardwirePrefix_computes_eval (Cfam n) U hUc x).trans (hCc x),
+    (depth_hardwirePrefix_le _ _ U).trans (Nat.add_le_add_right hUd 1), ?_⟩
+  have hNle : (evalPrefix (Cfam n)).length + n ≤ Nbound n := by
+    have := length_evalPrefix_le (Cfam n)
     have hlog : Nat.log 2 (n + (Cfam n).size + 1) + 1 ≤ n + p n + 2 :=
       Nat.add_le_add_right ((Nat.log_le_self 2 _).trans (by omega)) 1
-    have hNle : N ≤ Nbound n := by
-      have hlen := length_evalPrefix_le (Cfam n)
-      have hmul : 124 * ((Cfam n).size + 1) * (Nat.log 2 (n + (Cfam n).size + 1) + 1) ≤
-          124 * (p n + 1) * (n + p n + 2) :=
-        Nat.mul_le_mul (Nat.mul_le_mul_left 124 (Nat.add_le_add_right hCs 1)) hlog
-      dsimp only [Nbound]
-      rw [hN, hpr]
-      omega
-    have hSN : sE N ≤ cE * (Nbound n + 1) ^ kE :=
-      (hsE_le N).trans
-        (Nat.mul_le_mul_left cE (Nat.pow_le_pow_left (Nat.add_le_add_right hNle 1) kE))
-    exact Nat.add_le_add_right (hUs.trans hSN) 2
+    have := Nat.mul_le_mul (Nat.mul_le_mul_left 124 (Nat.add_le_add_right hCs 1)) hlog
+    dsimp only [Nbound]
+    omega
+  rw [size_hardwirePrefix]
+  exact Nat.add_le_add_right ((hUs.trans (hsE_le _)).trans
+    (Nat.mul_le_mul_left cE (Nat.pow_le_pow_left (Nat.add_le_add_right hNle 1) kE))) 2
 
 end Cslib.Circuits.Boolean

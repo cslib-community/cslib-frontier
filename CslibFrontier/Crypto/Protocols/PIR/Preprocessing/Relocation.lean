@@ -277,30 +277,17 @@ private theorem walk_injective_of_step_ne_none {α : Type} {f g : α → Option 
       rw [heq] at hgi
       exact congrArg Nat.succ (ih j (by omega) (by omega) (Option.some.inj (hgi.symm.trans hgj)))
 
-private theorem step_walk_eq_none_of_dom_mem {α : Type} {f g : α → Option α} {H : Finset α}
-    (hfg : ∀ x y, f x = some y ↔ g y = some x) (hH : ∀ x y, f x = some y → x ∈ H)
-    {c : α} (hc : g c = none) {k : ℕ} (hk : H.card ≤ k) :
+private theorem step_walk_eq_none_of_walk_mem {α : Type} {f g : α → Option α} {H : Finset α}
+    (hfg : ∀ x y, f x = some y ↔ g y = some x) {c : α} (hc : g c = none) {k : ℕ}
+    (hk : H.card ≤ k) (d : ℕ) (hd : d ≤ 1)
+    (hmem : f (walk f k c) ≠ none → ∀ i ≤ k, walk f (i + d) c ∈ H) :
     f (walk f k c) = none := by
   by_contra hne
   have hinj := walk_injective_of_step_ne_none hfg hc hne
   let emb : Fin (k + 1) ↪ H :=
-    ⟨fun i => ⟨walk f i.val c, hH _ _ (step_walk_eq_some_of_le (Nat.le_of_lt_succ i.isLt) hne)⟩,
-      fun i j h => Fin.ext (hinj i.val j.val (by omega) (by omega) (Subtype.ext_iff.mp h))⟩
-  have hcard := Fintype.card_le_of_embedding emb
-  simp only [Fintype.card_fin, Fintype.card_coe] at hcard
-  omega
-
-private theorem step_walk_eq_none_of_cod_mem {α : Type} {f g : α → Option α} {H : Finset α}
-    (hfg : ∀ x y, f x = some y ↔ g y = some x) (hH : ∀ x y, f x = some y → y ∈ H)
-    {c : α} (hc : g c = none) {k : ℕ} (hk : H.card ≤ k) :
-    f (walk f k c) = none := by
-  by_contra hne
-  have hinj := walk_injective_of_step_ne_none hfg hc hne
-  let emb : Fin (k + 1) ↪ H :=
-    ⟨fun i => ⟨walk f (i.val + 1) c,
-      hH _ _ (step_walk_eq_some_of_le (Nat.le_of_lt_succ i.isLt) hne)⟩,
+    ⟨fun i => ⟨walk f (i.val + d) c, hmem hne i.val (Nat.le_of_lt_succ i.isLt)⟩,
       fun i j h => by
-        have := hinj (i.val + 1) (j.val + 1) (by omega) (by omega) (Subtype.ext_iff.mp h)
+        have := hinj (i.val + d) (j.val + d) (by omega) (by omega) (Subtype.ext_iff.mp h)
         omega⟩
   have hcard := Fintype.card_le_of_embedding emb
   simp only [Fintype.card_fin, Fintype.card_coe] at hcard
@@ -471,10 +458,10 @@ no out-edge. -/
 theorem outEdge?_walk_eq_none {m m' : ℕ} {s : RelocationState m m'} (hnd : s.history.Nodup)
     {c : Fin m'} (hc : inEdge? s c = none) {k : ℕ} (hk : s.history.length ≤ k) :
     outEdge? s (walk (outEdge? s) k c) = none :=
-  step_walk_eq_none_of_dom_mem (H := s.history.toFinset)
-    (outEdge?_eq_some_iff_inEdge?_eq_some hnd)
-    (fun _ _ h => List.mem_toFinset.mpr (mem_history_of_outEdge?_eq_some h))
-    hc (le_trans (List.toFinset_card_le s.history) hk)
+  step_walk_eq_none_of_walk_mem (H := s.history.toFinset)
+    (outEdge?_eq_some_iff_inEdge?_eq_some hnd) hc
+    (le_trans (List.toFinset_card_le s.history) hk) 0 (by omega) fun hne _ hi =>
+      List.mem_toFinset.mpr (mem_history_of_outEdge?_eq_some (step_walk_eq_some_of_le hi hne))
 
 /-- **Corollary 3.10** of [WangRen2025] (p. 15, backward direction): starting from a node `c` with
 no out-edge, walking backward along `inEdge?` for `k ≥ s.history.length` steps reaches a node with
@@ -482,10 +469,10 @@ no in-edge. -/
 theorem inEdge?_walk_eq_none {m m' : ℕ} {s : RelocationState m m'} (hnd : s.history.Nodup)
     {c : Fin m'} (hc : outEdge? s c = none) {k : ℕ} (hk : s.history.length ≤ k) :
     inEdge? s (walk (inEdge? s) k c) = none :=
-  step_walk_eq_none_of_cod_mem (H := s.history.toFinset)
-    (fun x y => (outEdge?_eq_some_iff_inEdge?_eq_some hnd y x).symm)
-    (fun _ _ h => List.mem_toFinset.mpr (mem_history_of_inEdge?_eq_some hnd h))
-    hc (le_trans (List.toFinset_card_le s.history) hk)
+  step_walk_eq_none_of_walk_mem (H := s.history.toFinset)
+    (fun x y => (outEdge?_eq_some_iff_inEdge?_eq_some hnd y x).symm) hc
+    (le_trans (List.toFinset_card_le s.history) hk) 1 le_rfl fun hne _ hi =>
+      List.mem_toFinset.mpr (mem_history_of_inEdge?_eq_some hnd (step_walk_eq_some_of_le hi hne))
 
 private theorem walk_outEdge?_eq_endOfChain {m m' : ℕ} {s : RelocationState m m'}
     (hnd : s.history.Nodup) {c : Fin m'} (hc : inEdge? s c = none) {k : ℕ}
@@ -1296,20 +1283,13 @@ private theorem realRunSteps_snoc_stateToIdealArray {m m' : ℕ} (perm : Equiv.P
     simpa [init] using realRunSteps_fst (init (m := m) perm) cs hm
   have hv : (⟨perm, cs⟩ : RelocationState m m').Valid := ⟨hnd_cs, Nat.le_of_lt hlt⟩
   have hrel := stateToIdealArray_relocate hv hc hlt hm
-  dsimp only
+  rw [Prod.ext_iff] at hrel
+  dsimp only at hrel ⊢
   rw [realRunSteps_append (init (m := m) perm) cs [c] hm]
   dsimp only
   rw [hfst]
   simp only [realRunSteps]
-  have h1 : stateToIdealArray (realStep ⟨perm, cs⟩ c hm).1 =
-      (idealUpdate (stateToIdealArray ⟨perm, cs⟩) c
-        (endOfChain ⟨perm, cs⟩ (perm ⟨m + cs.length, hlt⟩))).1 :=
-    congrArg Prod.fst hrel
-  have h2 : (realStep ⟨perm, cs⟩ c hm).2 =
-      (idealUpdate (stateToIdealArray ⟨perm, cs⟩) c
-        (endOfChain ⟨perm, cs⟩ (perm ⟨m + cs.length, hlt⟩))).2 :=
-    congrArg Prod.snd hrel
-  rw [h1, h2]
+  rw [show (realStep ⟨perm, cs⟩ c hm).1 = relocate ⟨perm, cs⟩ c from rfl, hrel.1, hrel.2]
 
 private theorem realJointPMF_eq_idealJointPMF {m m' : ℕ} (cs : List (Fin m')) (hm : m ≤ m')
     (hnd : cs.Nodup) (hlen : m + cs.length ≤ m') :

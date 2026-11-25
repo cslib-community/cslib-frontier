@@ -584,43 +584,20 @@ variable [Finite Control]
 theorem computableInPolyTime_checkCert (c d : ℕ) :
     Turing.MultiTapeTM.ComputableInPolyTime (fun q : List Bool × Cert => checkCert M c d q.1 q.2)
       (encPair encBits encCert) encBool := by
-  have haccepts := computableInPolyTime_accepts M
-  have hproj := computableInPolyTime_projHistory
-  have hconsistent := computableInPolyTime_consistentHist
-  have ht : ComputableInPolyTime
-      (fun q : List Bool × Cert => c * (q.1.length + 1) ^ d)
+  dsimp only [checkCert]
+  have ht : ComputableInPolyTime (fun q : List Bool × Cert => c * (q.1.length + 1) ^ d)
       (encPair encBits encCert) encUnary := by fun_prop
-  have h1 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e => (e.1.length == c * (q.1.length + 1) ^ d) && accepts M q.1 e.1 e.2)
-      (encPair encBits encCert) encBool := by fun_prop
-  have h2 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e₁ => q.2.countP (fun e₂ => e₁.1 == e₂.1) == 1)
-      (encPair encBits encCert) encBool := by fun_prop
-  have h3 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        q.2.all fun e₁ => q.2.all fun e₂ =>
-          (List.range p).all fun i => consistentHist (projHistory i e₁.2) (projHistory i e₂.2))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h4 : ComputableInPolyTime
-      (fun q : List Bool × Cert =>
-        decide (2 ^ (c * (q.1.length + 1) ^ d) < 2 * q.2.length))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h := bool_and.comp ((bool_and.comp ((bool_and.comp (h1.prod h2)).prod h3)).prod h4)
-  exact h
+  refine ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.bool_and' ?_ ?_) ?_) ?_ <;> fun_prop
 
 /-- `checkPaddedCert` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_checkPaddedCert (c d : ℕ) :
     Turing.MultiTapeTM.ComputableInPolyTime (checkPaddedCert M c d) (encPair encBits encCert)
       encBool := by
-  have hlen : ComputableInPolyTime
-      (fun q : List Bool × Cert => decide ((encCert q.2).length ≤ q.1.length))
-      (encPair encBits encCert) encBool := by fun_prop
-  have h := bool_and.comp (hlen.prod ((computableInPolyTime_checkCert M c d).comp
-    ((unframe.comp (fst encBits encCert)).prod (snd encBits encCert))))
-  exact h
+  unfold checkPaddedCert
+  have := computableInPolyTime_checkCert M c d
+  fun_prop
 
 /-- The padded multiprover language `paddedMIP M c d` belongs to `NP encBits`. -/
 theorem paddedMIP_mem_NP (c d : ℕ) : paddedMIP M c d ∈ NP encBits := by

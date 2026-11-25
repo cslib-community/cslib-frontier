@@ -86,30 +86,14 @@ private theorem isPPT_rsaInverter_iff (inverter : RSAInverter) :
     TrapdoorFunction.Inverter.IsPPT encRSAPublicKey RSAPublicKey.encResidue
       RSAPublicKey.encResidue inverter ↔ inverter.IsPPT := by
   open scoped TrapdoorFunction in
-  constructor
-  · intro h
-    have hprep : ComputableInPolyTime
-        (fun x : RSAInput => (x.secParam,
-          (⟨x.publicKey, x.challenge⟩ :
-            TrapdoorFunction.Transcript RSAPublicKey fun pk => Fin pk.N)))
-        encRSAInput
-        (encPair encUnary
-          (TrapdoorFunction.encTranscript encRSAPublicKey RSAPublicKey.encResidue)) := by
-      fun_prop
-    refine isPPTOn_iff_encoded.mpr ((IsPPTOn.preprocess h hprep).congr fun x => ?_)
-    simp only [Functor.map_map]
-    rfl
-  · intro h
-    have hprep : ComputableInPolyTime
-        (fun input : ℕ × TrapdoorFunction.Transcript RSAPublicKey (fun pk => Fin pk.N) =>
-          (⟨input.1, input.2.publicKey, input.2.ciphertext⟩ : RSAInput))
-        (encPair encUnary
-          (TrapdoorFunction.encTranscript encRSAPublicKey RSAPublicKey.encResidue))
-        encRSAInput := by
-      fun_prop
-    refine (IsPPTOn.preprocess (isPPTOn_iff_encoded.mp h) hprep).congr fun input => ?_
-    simp only [Functor.map_map]
-    rfl
+  refine ⟨fun h => isPPTOn_iff_encoded.mpr ((h.preprocess (prepare := fun x : RSAInput =>
+      (x.secParam, (⟨x.publicKey, x.challenge⟩ :
+        TrapdoorFunction.Transcript RSAPublicKey fun pk => Fin pk.N))) (by fun_prop)).congr
+      fun _ => by simp only [Functor.map_map]; rfl),
+    fun h => ((isPPTOn_iff_encoded.mp h).preprocess
+      (prepare := fun input : ℕ × TrapdoorFunction.Transcript RSAPublicKey (fun pk => Fin pk.N) =>
+        (⟨input.1, input.2.publicKey, input.2.ciphertext⟩ : RSAInput)) (by fun_prop)).congr
+      fun _ => by simp only [Functor.map_map]; rfl⟩
 
 private theorem owGame_rsaTrapdoor (gen : RSAGen) (inverter : RSAInverter) (n : ℕ) :
     (rsaTrapdoor (gen n)).owGame (inverter n) = rsaInversionGame gen inverter n :=

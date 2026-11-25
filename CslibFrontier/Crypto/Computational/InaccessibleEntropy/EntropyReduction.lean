@@ -659,8 +659,7 @@ private theorem uniformList_shrunkHashInLen_eq (n₁ m₁ s : ℕ) :
     exact Prod.ext hpk.1.1 (Prod.ext hpk.1.2 hpk.2)
   · simp only [Fintype.card_prod, Fintype.card_pi, Fintype.card_bool, Fintype.card_fin,
       Finset.prod_const, Finset.card_univ, shrunkHashInLen, inputHashInLen, Cslib.BitString,
-      ← pow_mul, ← pow_add, Nat.mul_comm]
-    simp only [add_assoc]
+      ← pow_mul, ← pow_add, Nat.mul_comm, add_assoc]
   · simp only [Cslib.BitString.ofFn_ofList (ShrunkHashInput.mk ⟨t.1, t.2.1⟩ t.2.2).length_packWord]
 
 private theorem uniformList_mul_eq_map_blocks (k m : ℕ) :
@@ -716,9 +715,8 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
     simpa only [ShrunkHashOutput.unpackWord_packWord] using
       congrArg (ShrunkHashOutput.unpackWord w₁ out₁ s) hp
   have hoRows_eq : v'.outRows = oRows := congrArg ShrunkHashOutput.outRows hf₃_eq
-  have hf₂_eq : inputHashFin f₁ j₀ v'.inner = inputHashFin f₁ j₀ ⟨z, iRows⟩ := by
-    by_contra hne₂
-    exact hnot_out ⟨v'.inner, hne₂,
+  have hf₂_eq : inputHashFin f₁ j₀ v'.inner = inputHashFin f₁ j₀ ⟨z, iRows⟩ :=
+    Classical.byContradiction fun hne₂ => hnot_out ⟨v'.inner, hne₂,
       by rwa [show (⟨v'.inner, oRows⟩ : ShrunkHashInput _ _ _) = v' by rw [← hoRows_eq]]⟩
   have hiRows_eq : v'.inner.inRows = iRows := congrArg InputHashedOutput.inRows hf₂_eq
   have hz_ne : v'.inner.base ≠ z := fun hz_eq => hne_raw <| by
@@ -823,11 +821,10 @@ private theorem shrunkHash_escape_succProbability_eq (n₁ m₁ s : ℕ → ℕ)
       PMF.bind_bind]
     rw [Cslib.BitString.uniformList, PMF.bind_map]
     refine congrArg (PMF.uniformOfFintype (BitString (n₁ n))).bind (funext fun z => ?_)
-    change ((Cslib.BitString.uniformList (n₁ n * n₁ n)).bind _) = _
+    dsimp only [Function.comp_def]
     rw [uniformList_mul_eq_map_blocks, PMF.bind_map]
     refine congrArg (PMF.uniformOfFintype _).bind (funext fun iRows => ?_)
-    change ((Cslib.BitString.uniformList
-      (outHashLen (n₁ n) (s n) * inputHashOutLen (n₁ n) (m₁ n))).bind _) = _
+    dsimp only [Function.comp_def]
     rw [uniformList_mul_eq_map_blocks, PMF.bind_map]
     refine congrArg (PMF.uniformOfFintype _).bind (funext fun oRows => ?_)
     simp only [Function.comp_def, listRow_zero_ofFn, Cslib.BitString.ofList_ofFn, PMF.pure_bind,
@@ -850,13 +847,11 @@ private theorem shrunkBadIn_sum_le {w₁ out₁ j₀ s : ℕ} (f₁ : BitString 
         (2 : ℝ) ^ (A_max - (min j₀ w₁ : ℝ)) := by
     by_cases hA_ge : A_max ≤ Real.logb 2 #(L z)
     · simp only [hA_ge, ↓reduceIte]
-      have hle1 : (∑ iRows : Fin w₁ → BitString w₁,
-          if shrunkBadIn f₁ j₀ L z iRows then
-            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal
-          else 0) ≤ 1 :=
-        (sum_le_sum fun _ _ => by
-          split_ifs <;> first | exact le_rfl | exact ENNReal.toReal_nonneg).trans_eq
-          (PMF.sum_toReal (PMF.uniformOfFintype (Fin w₁ → BitString w₁)))
+      have hle1 := (sum_le_sum fun iRows (_ : iRows ∈ univ) => show
+          (if shrunkBadIn f₁ j₀ L z iRows then
+            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal else 0) ≤
+            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal by
+        split_ifs <;> simp).trans_eq (PMF.sum_toReal _)
       linarith [Real.rpow_nonneg two_pos.le (A_max - (min j₀ w₁ : ℝ))]
     · simp only [hA_ge, ↓reduceIte, zero_add]
       have hcard_le : (#(L z) : ℝ) ≤ (2 : ℝ) ^ A_max := by
@@ -896,9 +891,8 @@ private theorem shrunkBadOut_sum_le {w₁ out₁ j₀ s : ℕ} (hs : s ≤ input
         (2 : ℝ) ^ ((min j₀ w₁ : ℝ) - K_min)) := by
   have hpow_ratio :
       (2 : ℝ) ^ inputHashInLen w₁ / (2 : ℝ) ^ outHashLen w₁ s = (2 : ℝ) ^ s := by
-    have hout_add : outHashLen w₁ s + s = inputHashInLen w₁ := by
-      simp only [outHashLen, inputHashInLen] at hs ⊢; omega
-    rw [← hout_add, pow_add, mul_div_cancel_left₀ _ (by positivity)]
+    rw [← Nat.sub_add_cancel hs, pow_add]
+    exact mul_div_cancel_left₀ _ (by positivity)
   let C := (2 : ℝ) ^ s * (((PMF.uniformOfFintype (BitString w₁)).toOuterMeasure
       {z | realSampleEntropy f₁ z ≤ K_min}).toReal + (2 : ℝ) ^ ((min j₀ w₁ : ℝ) - K_min))
   have hper_w (z : BitString w₁) (iRows : Fin w₁ → BitString w₁) :

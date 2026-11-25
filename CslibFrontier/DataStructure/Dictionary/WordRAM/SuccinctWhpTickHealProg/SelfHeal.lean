@@ -382,12 +382,7 @@ private theorem csrToFast_phases_A_to_E1 {c U V w n_max base : ℕ}
       readPacked_congr hw (hidx := mul_add_lt_mul_bound hb hk)
         (fun a ⟨ha1, _⟩ => hout_pt a (Or.inr (by omega))),
       hfbp_k b hb k hk]
-    dsimp only [backPtr, bktCnt]
-    by_cases hk' : k < (csr.fbStart (b + 1) - csr.fbStart b) - cf
-    · rw [ite_eq_left hk', ite_eq_left ⟨hb, by simp only [hb, ↓reduceIte]; exact hk'⟩]
-    · have hnot : ¬(b < M ∧ k < (if b < M then csr.fbStart (b + 1) - csr.fbStart b else 0) - cf) :=
-        fun h => hk' (by have h2 := h.2; simp only [hb, ↓reduceIte] at h2; exact h2)
-      rw [ite_eq_right hk', ite_eq_right hnot]
+    simp only [backPtr, bktCnt, hb, true_and, ↓reduceIte]; rfl
   · intro j hj
     exact ⟨(readPacked_congr hw (hidx := hj) (fun a ⟨ha1, _⟩ =>
         (hout_ras a (Or.inr (by omega))).trans (hout_ls a (Or.inr (by omega))))).trans
@@ -845,13 +840,7 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
         hfin_to_ras_nonBmBt a (by omega) (Or.inl (by
           dsimp only [M] at hq_bm ha2; omega))),
         hls_ras b hb loc hloc]
-      dsimp only [bktCnt]
-      by_cases hlt : loc < csr.fbStart (b + 1) - csr.fbStart b
-      · rw [ite_eq_left (by rwa [ite_eq_left hb]),
-          ite_eq_left ⟨hb, by rwa [ite_eq_left hb]⟩]
-      · have hnot : ¬(b < M ∧ loc < if b < M then csr.fbStart (b + 1) - csr.fbStart b else 0) :=
-          fun h => hlt (by have h2 := h.2; rwa [ite_eq_left hb] at h2)
-        rw [ite_eq_right (by rwa [ite_eq_left hb]), ite_eq_right hnot]
+      simp only [hb, true_and, ↓reduceIte]
     · intro b hb
       have hbm_fin_eq : ∀ idx < 16 * M,
           readPacked (base + offBktMeta c U V w n_max) gBits w s_fin.mem idx =
@@ -859,21 +848,13 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
         fun idx hidx => readPacked_congr hw (hidx := hidx)
           (fun a ⟨ha1, ha2⟩ =>
             hfin_to_ffm a (by omega) (by dsimp only [M, gBits] at hq_bm ha2; omega))
-      have hf := hffm_bm b hb
       have hs_b : readPacked (base + offBktMeta c U V w n_max) gBits w s_ffm.mem (16 * b + 1) =
           salts b :=
         (hffm_keep (16 * b + 1) (by omega) (Or.inl (by omega))).trans (hbab_salts b hb)
+      obtain ⟨_, _, _, _, _, _, _, _, _⟩ := hffm_bm b hb
       simp only [hb, ↓reduceIte]
-      exact ⟨(hbm_fin_eq _ (by omega)).trans hf.1,
-        (hbm_fin_eq _ (by omega)).trans hs_b,
-        (hbm_fin_eq _ (by omega)).trans hf.2.1,
-        (hbm_fin_eq _ (by omega)).trans hf.2.2.1,
-        (hbm_fin_eq _ (by omega)).trans hf.2.2.2.1,
-        (hbm_fin_eq _ (by omega)).trans hf.2.2.2.2.1,
-        (hbm_fin_eq _ (by omega)).trans hf.2.2.2.2.2.1,
-        (hbm_fin_eq _ (by omega)).trans hf.2.2.2.2.2.2.1,
-        (hbm_fin_eq _ (by omega)).trans hf.2.2.2.2.2.2.2.1,
-        (hbm_fin_eq _ (by omega)).trans hf.2.2.2.2.2.2.2.2⟩
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+        exact (hbm_fin_eq _ (by omega)).trans (by assumption)
     · intro b hb k hk
       exact (readPacked_congr hw (hidx := mul_add_lt_mul_bound hb hk) (fun a ⟨ha1, ha2⟩ =>
         hfin_to_ras_nonBmBt a (by omega) (Or.inr ⟨by omega, by
@@ -905,15 +886,7 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
         ⟨hbm_eq_bab _ (by omega) (by omega), hbm_eq_bab _ (by omega) (by omega)⟩
         hbt_eq_bab hsl_bab
       have hdiv_lt' : sIdx / 3 < numBucketsWhp n_max := hdiv_lt
-      dsimp only [backPtr, bktCnt] at hsl_fin ⊢
-      by_cases hr0 : sIdx % 3 = 0
-      · have hcond : sIdx / 3 < numBucketsWhp n_max ∧ sIdx % 3 = 0 := ⟨hdiv_lt', hr0⟩
-        rw [ite_eq_left hcond] at hsl_fin ⊢
-        rw [ite_eq_left hdiv_lt']
-        exact hsl_fin
-      · have hnr : ¬(sIdx / 3 < numBucketsWhp n_max ∧ sIdx % 3 = 0) := fun h => hr0 h.2
-        rw [ite_eq_right hnr] at hsl_fin ⊢
-        exact hsl_fin
+      simpa only [backPtr, bktCnt, hdiv_lt, hdiv_lt', true_and, ↓reduceIte] using hsl_fin
     · dsimp only [BufTrieMemRep, emptyBufTrie]
       simp only [↓reduceIte]
       refine ⟨hmt_pos, Nat.zero_le _, hm12, hm13, fun u hu ch hch => ?_,

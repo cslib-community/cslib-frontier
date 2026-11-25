@@ -507,11 +507,7 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     have hmemA : ∀ a, a ∈ A ↔ a.1 < φ.distinctVars.length ∧ a.2 = b a.1 := by
       rintro ⟨i, c⟩
       simp only [hA, mem_image, mem_range, Prod.mk.injEq]
-      constructor
-      · rintro ⟨i, hi, rfl, rfl⟩
-        exact ⟨hi, rfl⟩
-      · rintro ⟨hi, rfl⟩
-        exact ⟨i, hi, rfl, rfl⟩
+      grind
     set cnt : ℕ → ℕ := fun j => #{a ∈ A | covers φ a.1 a.2 j} with hcnt
     set B : Finset (ℕ × Bool) := (range φ.length ×ˢ univ).filter
       (fun c => cnt c.1 + (!c.2).toNat ≤ 2) with hB
@@ -520,11 +516,7 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     · refine card_eq_one.2 ⟨(i, b i), ?_⟩
       ext ⟨i', c⟩
       simp only [mem_filter, hmemA, mem_singleton, Prod.mk.injEq]
-      constructor
-      · rintro ⟨⟨-, rfl⟩, rfl⟩
-        exact ⟨rfl, rfl⟩
-      · rintro ⟨rfl, rfl⟩
-        exact ⟨⟨hi, rfl⟩, rfl⟩
+      grind
     · have hle : cnt j ≤ 3 := (card_filter_covers_le A j).trans (hφ _ (List.getD_mem [] hj))
       have hpos : 1 ≤ cnt j := by
         obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1

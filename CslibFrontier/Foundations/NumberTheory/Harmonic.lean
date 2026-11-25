@@ -83,19 +83,17 @@ theorem cast_harmonic {K : Type*} [DivisionRing K] [CharZero K] (n : ℕ) :
 theorem sub_div_le_harmonic_sub {a b : ℕ} (hba : b ≤ a) :
     ((a : ℚ) - b) / a ≤ harmonic a - harmonic b := by
   rcases Nat.eq_zero_or_pos a with rfl | ha
-  · rw [Nat.le_zero.1 hba]
-    simp
+  · simp [Nat.le_zero.1 hba]
   have hsplit : harmonic a - harmonic b = ∑ i ∈ Finset.Ico b a, ((i : ℚ) + 1)⁻¹ := by
     unfold harmonic
     rw [← Finset.sum_range_add_sum_Ico _ hba]
-    push_cast
-    ring
+    push_cast; ring
   rw [hsplit]
   calc ((a : ℚ) - b) / a = ∑ _i ∈ Finset.Ico b a, (a : ℚ)⁻¹ := by
         rw [Finset.sum_const, Nat.card_Ico, nsmul_eq_mul, Nat.cast_sub hba, div_eq_mul_inv]
-    _ ≤ ∑ i ∈ Finset.Ico b a, ((i : ℚ) + 1)⁻¹ := by
-        refine Finset.sum_le_sum fun i hi => inv_anti₀ (by positivity) ?_
-        exact_mod_cast (Finset.mem_Ico.1 hi).2
+    _ ≤ ∑ i ∈ Finset.Ico b a, ((i : ℚ) + 1)⁻¹ :=
+        Finset.sum_le_sum fun i hi => inv_anti₀ (by positivity)
+          (by exact_mod_cast (Finset.mem_Ico.1 hi).2)
 
 /-- Weighted summation identity
 `2 ∑_{r < m} (r + 1) H_r = m (m + 1) H_m - m (m + 3) / 2` in `ℚ`. -/
@@ -119,26 +117,19 @@ theorem harmonic_le_log_add_one (n : ℕ) :
   · set half := n / 2
     have hhalf_lt : half < n := Nat.div_lt_self (by omega) (by decide)
     have hlog : Nat.log 2 n = Nat.log 2 half + 1 :=
-      Nat.log_of_one_lt_of_le (by decide) (by omega)
-    have hsplit : harmonic n =
-        harmonic half + ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹ := by
+      Nat.log_of_one_lt_of_le (by decide) hn2
+    have hsplit : harmonic n = harmonic half + ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹ := by
       unfold harmonic
-      rw [← Finset.sum_range_add_sum_Ico _ (Nat.le_of_lt hhalf_lt)]
+      rw [← Finset.sum_range_add_sum_Ico _ hhalf_lt.le]
       simp only [Nat.cast_add, Nat.cast_one]
     have htail : ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹ ≤ 1 := by
       calc
         ∑ i ∈ Finset.Ico half n, ((i : ℚ) + 1)⁻¹
-          ≤ ∑ _i ∈ Finset.Ico half n, ((half : ℚ) + 1)⁻¹ := by
-            refine Finset.sum_le_sum fun i hi => ?_
-            have hle : (half : ℚ) + 1 ≤ (i : ℚ) + 1 := by
-              exact_mod_cast Nat.add_le_add_right (Finset.mem_Ico.mp hi).1 1
-            exact inv_anti₀ (by positivity) hle
-        _ = ((n - half : ℕ) : ℚ) / ((half : ℚ) + 1) := by
-            simp [div_eq_mul_inv]
-        _ ≤ 1 := by
-            rw [div_le_one (by positivity)]
-            have hcnt : n - half ≤ half + 1 := by omega
-            exact_mod_cast hcnt
+          ≤ ∑ _i ∈ Finset.Ico half n, ((half : ℚ) + 1)⁻¹ :=
+            Finset.sum_le_sum fun i hi => inv_anti₀ (by positivity)
+              (by exact_mod_cast Nat.add_le_add_right (Finset.mem_Ico.mp hi).1 1)
+        _ = ((n - half : ℕ) : ℚ) / ((half : ℚ) + 1) := by simp [div_eq_mul_inv]
+        _ ≤ 1 := (div_le_one (by positivity)).2 (by exact_mod_cast (by omega : n - half ≤ half + 1))
     rw [hsplit, hlog]
     push_cast
     linarith [harmonic_le_log_add_one half]

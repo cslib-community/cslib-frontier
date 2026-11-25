@@ -85,14 +85,11 @@ theorem isSunflower_empty_of_pairwise_disjoint {S : Finset (Finset α)}
 /-- Adding a point to every member and to the core of a sunflower gives a sunflower. -/
 theorem IsSunflower.image_insert {S : Finset (Finset α)} {K : Finset α} (h : IsSunflower S K)
     (x : α) : IsSunflower (S.image (insert x)) (insert x K) := by
-  refine ⟨?_, ?_⟩
-  · rintro _ hs'
-    obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
-    exact insert_subset_insert x (h.subset_of_mem hs)
-  · rintro _ hs' _ ht' hne
-    obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
-    obtain ⟨t, ht, rfl⟩ := mem_image.1 ht'
-    rw [← insert_inter_distrib, h.2 hs ht fun e => hne (by rw [e])]
+  refine ⟨forall_mem_image.2 fun s hs => insert_subset_insert x (h.subset_of_mem hs), ?_⟩
+  rintro _ hs' _ ht' hne
+  obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
+  obtain ⟨t, ht, rfl⟩ := mem_image.1 ht'
+  rw [← insert_inter_distrib, h.2 hs ht (ne_of_apply_ne _ hne)]
 
 private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
     ∀ (w : ℕ) (F : Finset (Finset α)), (∀ s ∈ F, s.card ≤ w) →
@@ -153,36 +150,29 @@ private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
           ((card_biUnion_le.trans (sum_le_card_nsmul _ _ _ h)).trans_eq (smul_eq_mul _ _)) _))
       have hUB : U.card * B ≤ (D.erase ∅).card * ((w + 1) * B) :=
         (Nat.mul_le_mul_right B hU).trans_eq (Nat.mul_assoc _ _ _)
-      have hsucc : sunflowerBound p (w + 1) = (p - 2) * ((w + 1) * B) + (w + 1) * B := by
-        rw [← Nat.succ_mul, show (p - 2).succ = p - 1 by omega]
+      have hsucc : sunflowerBound p (w + 1) = (p - 1) * ((w + 1) * B) := by
         simp only [B, sunflowerBound, pow_succ, Nat.factorial_succ]
         ring
-      have hX : 1 ≤ (w + 1) * B := Nat.one_le_iff_ne_zero.2 (by positivity)
-      by_cases hE : ∅ ∈ F
-      · have h1 : (F.filter (· = ∅)).card = 1 := by
-          simp [filter_eq' F ∅, hE]
-        have h2 : (D.erase ∅).card ≤ p - 2 := by
-          have := hmemD ∅ hE (disjoint_empty_left _)
-          rw [card_erase_of_mem this]
+      -- The empty set, if present, lies in `D`, so at most `p - 1` sets are counted here.
+      have hed : (F.filter (· = ∅)).card + (D.erase ∅).card ≤ p - 1 := by
+        by_cases hE : ∅ ∈ F
+        · rw [card_erase_of_mem (hmemD ∅ hE (disjoint_empty_left _))]
+          simp only [filter_eq' F ∅, hE, ↓reduceIte, card_singleton]
           omega
-        have := Nat.mul_le_mul_right ((w + 1) * B) h2
-        omega
-      · have h1 : (F.filter (· = ∅)).card = 0 := by
-          simp [filter_eq' F ∅, hE]
-        have h2 : (D.erase ∅).card ≤ p - 1 :=
-          (card_le_card (erase_subset _ _)).trans (by omega)
-        have := Nat.mul_le_mul_right ((w + 1) * B) h2
-        have : (p - 1) * ((w + 1) * B) = (p - 2) * ((w + 1) * B) + (w + 1) * B := by
-          rw [← Nat.succ_mul, show (p - 2).succ = p - 1 by omega]
-        omega
+        · simp only [filter_eq' F ∅, hE, ↓reduceIte, card_empty, zero_add]
+          exact card_erase_le.trans (by omega)
+      have h1 := Nat.mul_le_mul_right ((w + 1) * B) hed
+      rw [Nat.add_mul] at h1
+      have h2 := Nat.le_mul_of_pos_right (F.filter (· = ∅)).card
+        (Nat.mul_pos w.succ_pos hB : 0 < (w + 1) * B)
+      omega
     -- Remove `x`, apply the lemma for size `w`, and put `x` back.
     set G := F.filter (x ∈ ·)
     have hinj : Set.InjOn (fun s : Finset α => s.erase x) G := fun s hs t ht hst => by
       rw [← insert_erase (mem_filter.1 hs).2, ← insert_erase (mem_filter.1 ht).2]
       exact congrArg (insert x) hst
     obtain ⟨S, hSG, hS, K, hSK⟩ := containsSunflower_aux hp w (G.image (·.erase x))
-      (fun s hs => by
-        obtain ⟨t, ht, rfl⟩ := mem_image.1 hs
+      (forall_mem_image.2 fun t ht => by
         rw [card_erase_of_mem (mem_filter.1 ht).2]
         have := hF t (mem_filter.1 ht).1
         omega)
@@ -190,11 +180,10 @@ private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
     have hxS : ∀ s ∈ S, x ∉ s := fun s hs => by
       obtain ⟨t, -, rfl⟩ := mem_image.1 (hSG hs)
       exact notMem_erase x t
-    refine ⟨S.image (insert x), fun _ hs' => ?_, ?_, insert x K, hSK.image_insert x⟩
-    · obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
-      obtain ⟨t, ht, rfl⟩ := mem_image.1 (hSG hs)
-      rw [insert_erase (mem_filter.1 ht).2]
-      exact (mem_filter.1 ht).1
+    refine ⟨S.image (insert x), forall_mem_image.2 fun s hs => ?_, ?_, insert x K,
+      hSK.image_insert x⟩
+    · obtain ⟨t, ht, rfl⟩ := mem_image.1 (hSG hs)
+      simpa only [insert_erase (mem_filter.1 ht).2] using (mem_filter.1 ht).1
     · rw [card_image_of_injOn fun s hs t ht hst => by
         rw [← erase_insert (hxS s hs), ← erase_insert (hxS t ht)]
         exact congrArg (·.erase x) hst, hS]

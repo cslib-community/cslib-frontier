@@ -120,80 +120,39 @@ theorem exists_kilianArgument_of_npRelation (hH : HashFamily H) {enc : α ↪ Li
               (encBool (kilianVerify H V key x view.root ρs view.response))
               (tHonest (n + (enc x).length)) (sHonest (n + (enc x).length)))) := by
   obtain ⟨V, compile, c, d, hV, hpcp, hcompile, hacc⟩ := exists_pcpVerifier_of_npRelation enc R
-  have hq : ∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d := by
-    intro x ρ hρ
+  have hq : ∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d := fun x ρ hρ => by
     simpa using hpcp.length_queries_le x ρ hρ
-  have hk : Turing.MultiTapeTM.ComputableInPolyTime
-      (fun p : List Bool × α × List Bool => p.1)
-      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
-        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
-      Turing.MultiTapeTM.encBits :=
-    Turing.MultiTapeTM.ComputableInPolyTime.fst _ _
-  have hsnd : Turing.MultiTapeTM.ComputableInPolyTime
-      (fun p : List Bool × α × List Bool => p.2)
-      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
-        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
-      (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits) :=
-    Turing.MultiTapeTM.ComputableInPolyTime.snd _ _
-  have hx : Turing.MultiTapeTM.ComputableInPolyTime
-      (fun p : List Bool × α × List Bool => p.2.1)
-      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
-        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
-      enc :=
-    (Turing.MultiTapeTM.ComputableInPolyTime.fst _ _).comp hsnd
-  have hin : Turing.MultiTapeTM.ComputableInPolyTime
+  have hk : ComputableInPolyTime (fun p : List Bool × α × List Bool => p.1)
+      (encPair encBits (encPair enc encBits)) encBits := ComputableInPolyTime.fst _ _
+  have hsnd : ComputableInPolyTime (fun p : List Bool × α × List Bool => p.2)
+      (encPair encBits (encPair enc encBits)) (encPair enc encBits) :=
+    ComputableInPolyTime.snd _ _
+  have hx : ComputableInPolyTime (fun p : List Bool × α × List Bool => p.2.1)
+      (encPair encBits (encPair enc encBits)) enc := (ComputableInPolyTime.fst _ _).comp hsnd
+  have hin : ComputableInPolyTime
       (fun p : List Bool × α × List Bool =>
         ({ key := p.1, stmt := p.2.1, table := compile p.2 } : KilianProverInput α))
-      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
-        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
-      (encKilianProverInput enc) :=
+      (encPair encBits (encPair enc encBits)) (encKilianProverInput enc) :=
     encKilianProverInput_mk_polyTime enc hk hx (hcompile.comp hsnd)
-  have hcommit_raw :=
-    (computableInPolyTime_kilianCommit hH.polyTime hH.length_eq hV hpcp.coins_le).comp hin
-  have hcommit : Turing.MultiTapeTM.ComputableInPolyTime
+  have hcommit : ComputableInPolyTime
       (fun p : List Bool × α × List Bool =>
         let (key, state) := p
         let (x, w) := state
         kilianCommit H V key x (compile (x, w)))
-      (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
-        (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
-      Turing.MultiTapeTM.encBits := by
-    have heq : (fun p : List Bool × α × List Bool =>
-        kilianCommit H V p.1 p.2.1 (compile p.2)) =
-        fun p : List Bool × α × List Bool =>
-          let (key, state) := p
-          let (x, w) := state
-          kilianCommit H V key x (compile (x, w)) := by
-      funext p
-      rcases p with ⟨key, ⟨x, w⟩⟩
-      rfl
-    simpa only [Function.comp_def, heq] using hcommit_raw
-  have hrespond_raw :=
-    (computableInPolyTime_kilianRespond hH.polyTime hH.length_eq hV hpcp.coins_le).comp
-      ((hin.comp (Turing.MultiTapeTM.ComputableInPolyTime.fst _ _)).prod
-        (Turing.MultiTapeTM.ComputableInPolyTime.snd _ _))
-  have hrespond : Turing.MultiTapeTM.ComputableInPolyTime
+      (encPair encBits (encPair enc encBits)) encBits := by
+    simpa only [Function.comp_def] using
+      (computableInPolyTime_kilianCommit hH.polyTime hH.length_eq hV hpcp.coins_le).comp hin
+  have hrespond : ComputableInPolyTime
       (fun p : (List Bool × α × List Bool) × List (List Bool) =>
         let (proverIn, ρs) := p
         let (key, state) := proverIn
         let (x, w) := state
         kilianRespond H V key x (compile (x, w)) ρs)
-      (Turing.MultiTapeTM.encPair
-        (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits
-          (Turing.MultiTapeTM.encPair enc Turing.MultiTapeTM.encBits))
-        (Turing.MultiTapeTM.encList Turing.MultiTapeTM.encBits))
+      (encPair (encPair encBits (encPair enc encBits)) (encList encBits))
       encKilianResponse := by
-    have heq : (fun p : (List Bool × α × List Bool) × List (List Bool) =>
-        kilianRespond H V p.1.1 p.1.2.1 (compile p.1.2) p.2) =
-        fun p : (List Bool × α × List Bool) × List (List Bool) =>
-          let (proverIn, ρs) := p
-          let (key, state) := proverIn
-          let (x, w) := state
-          kilianRespond H V key x (compile (x, w)) ρs := by
-      funext p
-      rcases p with ⟨⟨key, ⟨x, w⟩⟩, ρs⟩
-      rfl
-    simpa only [Function.comp_def, heq] using hrespond_raw
+    simpa only [Function.comp_def] using
+      (computableInPolyTime_kilianRespond hH.polyTime hH.length_eq hV hpcp.coins_le).comp
+        ((hin.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _))
   refine ⟨V, compile, c, d, hV, hpcp.coins_le, hq, hcompile, hcommit, hrespond,
     hpcp.mem_iff_exists_tableVerifier, hacc,
     fun x w hw n => eval_kilianHonestGame H V hH.length_eq (hacc x w hw) n,

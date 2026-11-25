@@ -425,13 +425,9 @@ theorem registers_bounds {start len : ℕ} {h : start + len ≤ r}
 
 /-- The contiguous register slice `registers start len h` has no duplicate registers. -/
 theorem nodup_registers (start len : ℕ) (h : start + len ≤ r) :
-    (registers start len h).Nodup := by
-  apply List.nodup_ofFn_ofInjective
-  intro i j hij
-  apply Fin.ext
-  have := congrArg Fin.val hij
-  dsimp at this
-  omega
+    (registers start len h).Nodup :=
+  List.nodup_ofFn_ofInjective fun _ _ hij =>
+    Fin.ext (by simpa using congrArg Fin.val hij)
 
 /-- The first operand occupies the first `m` digit registers. -/
 def leftRegs (m n : ℕ) : List (Fin (2 * (m + n) + 4)) :=
@@ -468,26 +464,17 @@ private theorem layout (m n : ℕ) :
       List.Disjoint (lowRegs m n ++ highRegs m n) (leftRegs m n ++ rightRegs m n) := by
   have hin (i : Fin (2 * (m + n) + 4)) (hi : i ∈ leftRegs m n ++ rightRegs m n) :
       4 ≤ i.val ∧ i.val < 4 + m + n := by
-    rcases List.mem_append.mp hi with hi | hi
-    · have := registers_bounds hi
-      omega
-    · have := registers_bounds hi
-      omega
-  have hout (i : Fin (2 * (m + n) + 4))
-      (hi : i ∈ lowRegs m n ++ highRegs m n) :
+    rcases List.mem_append.mp hi with hi | hi <;> have := registers_bounds hi <;> omega
+  have hout (i : Fin (2 * (m + n) + 4)) (hi : i ∈ lowRegs m n ++ highRegs m n) :
       4 + m + n ≤ i.val := by
     rw [output_split] at hi
     have := registers_bounds hi
     omega
-  refine ⟨fun i hi => (hin i hi).1, fun i hi => ?_, ?_, ?_⟩
-  · exact le_trans (by omega) (hout i hi)
-  · rw [output_split]
-    exact nodup_registers _ _ _
-  · apply List.disjoint_left.mpr
-    intro i ho hi
-    have := hin i hi
-    have := hout i ho
-    omega
+  refine ⟨fun i hi => (hin i hi).1, fun i hi => le_trans (by omega) (hout i hi),
+    output_split m n ▸ nodup_registers _ _ _, List.disjoint_left.mpr fun i ho hi => ?_⟩
+  have := hin i hi
+  have := hout i ho
+  omega
 
 /-- A concrete schoolbook program with `2 * (m + n) + 4` registers and no address words.
 The code and register count depend only on the limb counts, not on the physical word width. -/
@@ -567,19 +554,11 @@ private theorem input_right (m n : ℕ) (a : Fin m → ℕ) (b : Fin n → ℕ) 
 
 private theorem value_input_left (β m n : ℕ) (a : Fin m → ℕ) (b : Fin n → ℕ) :
     value β (input m n a b) (leftRegs m n) = Nat.ofDigits β (List.ofFn a) := by
-  simp only [value, leftRegs, registers, List.map_ofFn]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
-  exact input_left m n a b i
+  simp [value, leftRegs, registers, Function.comp_def, input_left]
 
 private theorem value_input_right (β m n : ℕ) (a : Fin m → ℕ) (b : Fin n → ℕ) :
     value β (input m n a b) (rightRegs m n) = Nat.ofDigits β (List.ofFn b) := by
-  simp only [value, rightRegs, registers, List.map_ofFn]
-  congr 1
-  apply congrArg List.ofFn
-  funext i
-  exact input_right m n a b i
+  simp [value, rightRegs, registers, Function.comp_def, input_right]
 
 private theorem bounded_input_left {β : ℕ} (m n : ℕ) (a : Fin m → ℕ) (b : Fin n → ℕ)
     (ha : ∀ i, a i < β) : Bounded β (input m n a b) (leftRegs m n) := by

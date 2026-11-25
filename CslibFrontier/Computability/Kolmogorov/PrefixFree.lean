@@ -107,50 +107,26 @@ private theorem eq_bits_foldr_of_length_eq_size {l : List Bool}
       cases a <;> simp at h ⊢
     | cons b t' =>
       set m := (b :: t').foldr Nat.bit 0
-      have hpos : m ≠ 0 := by
-        intro hm
-        have hlen : (a :: b :: t').length = (Nat.bit a m).size := h
-        rw [hm] at hlen
-        cases a <;> simp at hlen
+      have hpos : m ≠ 0 := fun hm => by cases a <;> simp [m, hm] at h
+      have hbits := Nat.bits_append_bit m a fun hm => absurd hm hpos
       have hsize : (Nat.bit a m).size = m.size + 1 := by
-        rw [← Nat.size_eq_bits_len, ← Nat.size_eq_bits_len,
-          Nat.bits_append_bit m a (fun hm => absurd hm hpos), List.length_cons]
+        simpa only [← Nat.size_eq_bits_len, List.length_cons] using congrArg List.length hbits
       have hih : (b :: t').length = m.size := by
         change (b :: t').length + 1 = (Nat.bit a m).size at h
         omega
-      have ht := ih hih
-      rw [List.foldr_cons]
-      change a :: b :: t' = (Nat.bit a m).bits
-      rw [Nat.bits_append_bit m a (fun hm => absurd hm hpos), ← ht]
+      rw [List.foldr_cons, hbits, ← ih hih]
 
 private theorem size_eq_iff_pow_le_of_lt {n k : ℕ} (hn : n < 2 ^ k) :
     n.size = k ↔ k = 0 ∨ 2 ^ (k - 1) ≤ n := by
-  constructor
-  · intro h
-    cases k with
-    | zero => exact Or.inl rfl
-    | succ k' =>
-      right
-      by_contra hlt
-      have hlt' : n < 2 ^ k' := not_le.mp hlt
-      have hle : n.size ≤ k' := Nat.size_le.mpr hlt'
-      omega
-  · rintro (rfl | hpow)
-    · simp only [pow_zero, Nat.lt_one_iff] at hn
-      simp [hn]
-    · have hkpos : 0 < k := by
-        by_contra hk0
-        have hk : k = 0 := Nat.eq_zero_of_not_pos hk0
-        subst hk
-        simp only [pow_zero, Nat.lt_one_iff] at hn
-        rw [hn] at hpow
-        simp at hpow
-      have hle : n.size ≤ k := Nat.size_le.mpr hn
-      have hnot : ¬ n.size ≤ k - 1 := by
-        intro hsz
-        have hlt := Nat.size_le.mp hsz
-        omega
-      omega
+  cases k with
+  | zero =>
+    simp only [pow_zero, Nat.lt_one_iff] at hn
+    simp [hn]
+  | succ k =>
+    simp only [Nat.add_eq_zero_iff, one_ne_zero, and_false, false_or, Nat.add_sub_cancel,
+      ← not_lt (a := n), ← Nat.size_le]
+    have hle := Nat.size_le.mpr hn
+    omega
 
 /-- Strict partial decoder for `selfDelimitingCode`: `decodeSelfDelimiting? q = some (b, p)` if and
 only if `selfDelimitingCode b ++ p = q`. -/
@@ -168,18 +144,11 @@ private theorem take_idxOf_false_append (q : List Bool) (hk : q.idxOf false < q.
   induction q with
   | nil => simp at hk
   | cons b q' ih =>
-    cases b with
-    | false =>
-      have hidx : (false :: q').idxOf false = 0 := List.idxOf_cons_self
-      rw [hidx]
-      rfl
-    | true =>
-      have hidx : (true :: q').idxOf false = q'.idxOf false + 1 := by
-        simp [List.idxOf_cons_ne]
-      have hk' : q'.idxOf false < q'.length := by
-        simp only [List.length_cons] at hk
-        omega
-      rw [hidx, List.take_succ_cons, ih hk', List.replicate_succ, List.cons_append]
+    cases b
+    · rfl
+    · have hidx : (true :: q').idxOf false = q'.idxOf false + 1 := by simp [List.idxOf_cons_ne]
+      rw [hidx, List.take_succ_cons, ih (by simp only [List.length_cons] at hk; omega),
+        List.replicate_succ, List.cons_append]
 
 private theorem drop_take_foldr_eq {r : List Bool} {k : ℕ} (hk : k ≤ r.length)
     (hsize : ((r.take k).foldr Nat.bit 0).size = k) :
@@ -193,31 +162,23 @@ theorem decodeSelfDelimiting?_eq_some_iff {q b p : List Bool} :
   · intro h
     simp only [decodeSelfDelimiting?] at h
     split_ifs at h with hcond
-    · obtain ⟨hk, hkn, hsize⟩ := hcond
-      cases h
-      set k := q.idxOf false
-      set r := q.drop (k + 1)
-      set n := (r.take k).foldr Nat.bit 0
-      set b' := (r.drop k).take n
-      set p' := (r.drop k).drop n
-      have htake_q := take_idxOf_false_append q hk
-      have hq_split : q = List.replicate k true ++ false :: r := by
-        have htd := List.take_append_drop (k + 1) q
-        rw [htake_q, List.append_assoc, List.singleton_append] at htd
-        exact htd.symm
-      have hkr : k ≤ r.length := by omega
-      have hbits : r.take k = n.bits := drop_take_foldr_eq hkr hsize
-      have hblen : b'.length = n := by
-        rw [List.length_take_of_le]
-        rw [List.length_drop]
-        omega
-      have hr_split : r = n.bits ++ (b' ++ p') := by
-        have h1 := List.take_append_drop k r
-        have h2 := List.take_append_drop n (r.drop k)
-        rw [hbits, ← h2] at h1
-        exact h1.symm
-      simp only [selfDelimitingCode, hblen, hsize, hq_split, hr_split, List.append_assoc,
-        List.cons_append]
+    obtain ⟨hk, hkn, hsize⟩ := hcond
+    cases h
+    set k := q.idxOf false
+    set r := q.drop (k + 1)
+    set n := (r.take k).foldr Nat.bit 0
+    set b' := (r.drop k).take n
+    set p' := (r.drop k).drop n
+    have hq_split : q = List.replicate k true ++ false :: r := by
+      have htd := List.take_append_drop (k + 1) q
+      rwa [take_idxOf_false_append q hk, List.append_assoc, List.singleton_append, eq_comm] at htd
+    have hbits : r.take k = n.bits := drop_take_foldr_eq (by omega) hsize
+    have hblen : b'.length = n := List.length_take_of_le (by simp; omega)
+    have hr_split : r = n.bits ++ (b' ++ p') := by
+      rw [← hbits, show b' ++ p' = r.drop k from List.take_append_drop n (r.drop k),
+        List.take_append_drop]
+    rw [hq_split, hr_split]
+    simp only [selfDelimitingCode, hblen, hsize, List.append_assoc, List.cons_append]
   · rintro rfl
     have hidx : (selfDelimitingCode b ++ p).idxOf false = b.length.size := by
       rw [selfDelimitingCode, List.append_assoc, List.idxOf_append_of_notMem (by simp),
@@ -361,24 +322,19 @@ theorem IsPrefixFree.map {α β : Type*} {M : DescriptionMethod α} (hM : M.IsPr
 theorem parseCodeHeader_eq_some_iff {q : List Bool} {c : Code} {p : List Bool} :
     parseCodeHeader q = some (c, p) ↔ codeHeader c ++ p = q := by
   constructor
-  · intro h
-    simp only [parseCodeHeader] at h
+  · simp only [parseCodeHeader]
     cases hd : decodeSelfDelimiting? q with
-    | none => simp [hd] at h
+    | none => simp
     | some bp =>
       rcases bp with ⟨b, p'⟩
-      simp only [hd] at h
-      split_ifs at h with hsz
-      · simp only [Option.some.injEq, Prod.mk.injEq] at h
-        rcases h with ⟨rfl, rfl⟩
-        have hb := eq_bits_foldr_of_length_eq_size hsz
-        have hq := decodeSelfDelimiting?_eq_some_iff.mp hd
-        have hcode : codeHeader (ofNat Code (b.foldr Nat.bit 0)) = selfDelimitingCode b := by
-          rw [codeHeader, encode_ofNat, ← hb]
-        rw [hcode, hq]
+      dsimp only
+      split_ifs with hsz <;>
+        simp only [Option.some.injEq, Prod.mk.injEq, false_imp_iff]
+      rintro ⟨rfl, rfl⟩
+      rw [codeHeader, encode_ofNat, ← eq_bits_foldr_of_length_eq_size hsz,
+        decodeSelfDelimiting?_eq_some_iff.mp hd]
   · rintro rfl
-    simp only [parseCodeHeader, codeHeader, decodeSelfDelimiting?_selfDelimitingCode_append]
-    rw [Nat.foldr_bit_bits, Nat.size_eq_bits_len, ite_eq_left rfl, ofNat_encode]
+    simp [parseCodeHeader, codeHeader, Nat.foldr_bit_bits, Nat.size_eq_bits_len]
 
 @[simp]
 theorem parseCodeHeader_codeHeader_append (c : Code) (p : List Bool) :
@@ -481,38 +437,32 @@ private theorem prefixAccepted_invariants (c : Code) (n : ℕ) :
       · exact ⟨hpf, hnodup, hsound⟩
       · have hno : ∀ entry ∈ prefixAccepted c n, ¬ (q <+: entry.1) ∧ ¬ (entry.1 <+: q) := by
           intro entry hent
-          have hfalse : (prefixAccepted c n).any
-              (fun entry => decide (q <+: entry.1) || decide (entry.1 <+: q)) = false :=
-            Bool.eq_false_iff.mpr hconf
-          have h1 := List.any_eq_false.mp hfalse entry hent
-          simp only [Bool.or_eq_true, decide_eq_true_eq, not_or] at h1
-          exact h1
+          simpa [List.any_eq_true, not_or] using fun h : q <+: entry.1 ∨ entry.1 <+: q =>
+            hconf (List.any_eq_true.mpr ⟨entry, hent, by simpa using h⟩)
         have hq_notMem : q ∉ (prefixAccepted c n).map Prod.fst := by
-          intro hmem
-          obtain ⟨⟨q', x'⟩, hent, rfl⟩ := List.mem_map.mp hmem
-          exact (hno (q', x') hent).1 (List.prefix_refl q')
+          rintro hmem
+          obtain ⟨entry, hent, rfl⟩ := List.mem_map.mp hmem
+          exact (hno entry hent).1 List.prefix_rfl
         have hq_eval : x ∈ c.eval (encode q) := by
           simp only [prefixCand, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hcand
-          obtain ⟨⟨q', t⟩, _, x', hx', hpair⟩ := hcand
+          obtain ⟨⟨_, _⟩, _, _, hx', hpair⟩ := hcand
           cases hpair
           exact Code.evaln_sound hx'
         refine ⟨?_, ?_, ?_⟩
         · rintro p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp
           simp only [List.mem_append, List.mem_singleton, Prod.mk.injEq] at hy₁ hy₂
-          rcases hy₁ with hy₁ | ⟨rfl, rfl⟩
-          · rcases hy₂ with hy₂ | ⟨rfl, rfl⟩
-            · exact hpf p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp
-            · exact absurd hp (hno (p₁, y₁) hy₁).2
-          · rcases hy₂ with hy₂ | ⟨rfl, rfl⟩
-            · exact absurd hp (hno (p₂, y₂) hy₂).1
-            · rfl
+          rcases hy₁ with hy₁ | ⟨rfl, rfl⟩ <;> rcases hy₂ with hy₂ | ⟨rfl, rfl⟩
+          · exact hpf p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp
+          · exact absurd hp (hno (p₁, y₁) hy₁).2
+          · exact absurd hp (hno (p₂, y₂) hy₂).1
+          · rfl
         · rw [List.map_append, List.map_cons, List.map_nil]
           exact hnodup.append (List.nodup_singleton q) (by simpa using hq_notMem)
         · intro p y hy
-          simp only [List.mem_append, List.mem_singleton, Prod.mk.injEq] at hy
-          rcases hy with hy | ⟨rfl, rfl⟩
+          rcases List.mem_append.mp hy with hy | hy
           · exact hsound p y hy
-          · exact hq_eval
+          · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (List.mem_singleton.mp hy)
+            exact hq_eval
 
 theorem mem_prefixAccepted_iff_lookup {c : Code} {n : ℕ} {p : List Bool} {x : ℕ} :
     (p, x) ∈ prefixAccepted c n ↔ (prefixAccepted c n).lookup p = some x :=
@@ -623,17 +573,10 @@ private theorem primrec₂_prefixAccepted : Primrec₂ prefixAccepted := by
       Primrec.list_append.comp (Primrec.snd.comp (Primrec.snd.comp Primrec.fst))
         (Primrec.list_cons.comp Primrec.snd (Primrec.const []))
     refine (Primrec.ite hpred (Primrec.snd.comp (Primrec.snd.comp Primrec.fst)) happend).of_eq
-      fun arg => ?_
-    have hiff : (arg.1.2.2.any fun entry =>
-        decide (arg.2.1 <+: entry.1) || decide (entry.1 <+: arg.2.1)) = true ↔
-        ∃ entry ∈ arg.1.2.2, entry.1 <+: arg.2.1 ∨ arg.2.1 <+: entry.1 := by
-      simp [List.any_eq_true, or_comm]
-    by_cases h : ∃ entry ∈ arg.1.2.2, entry.1 <+: arg.2.1 ∨ arg.2.1 <+: entry.1
-    · simp [h, hiff.mpr h]
-    · have hf : (arg.1.2.2.any fun entry =>
-          decide (arg.2.1 <+: entry.1) || decide (entry.1 <+: arg.2.1)) = false :=
-        Bool.eq_false_iff.mpr (mt hiff.mp h)
-      simp [h, hf]
+      fun _ => by
+        simp only [List.any_eq_true, Bool.or_eq_true, decide_eq_true_eq]
+        congr 1
+        exact propext (exists_congr fun _ => and_congr_right' or_comm)
   have hg : Primrec₂ fun (c : Code) (p : ℕ × List (List Bool × ℕ)) =>
       match prefixCand c p.1 with
       | Option.none => p.2
@@ -643,30 +586,18 @@ private theorem primrec₂_prefixAccepted : Primrec₂ prefixAccepted := by
     Primrec₂.mk <| (Primrec.option_casesOn
       (primrec₂_prefixCand.comp Primrec.fst (Primrec.fst.comp Primrec.snd))
       (Primrec.snd.comp Primrec.snd)
-      hstep_some.to₂).of_eq fun ⟨c, n, acc⟩ => by
-        cases prefixCand c n <;> rfl
-  refine (Primrec.nat_rec (f := fun _ : Code => ([] : List (List Bool × ℕ)))
-    (g := fun c (p : ℕ × List (List Bool × ℕ)) =>
-      match prefixCand c p.1 with
-      | Option.none => p.2
-      | some qx =>
-        if p.2.any (fun entry => decide (qx.1 <+: entry.1) || decide (entry.1 <+: qx.1)) then p.2
-        else p.2 ++ [qx])
-    (Primrec.const []) hg).of_eq fun c n => ?_
+      hstep_some.to₂).of_eq fun ⟨c, n, _⟩ => by cases prefixCand c n <;> rfl
+  refine (Primrec.nat_rec (Primrec.const []) hg).of_eq fun c n => ?_
   induction n with
   | zero => rfl
   | succ n ih =>
-    have hrec : ∀ s : List (List Bool × ℕ), (match prefixCand c n with
-        | Option.none => s
-        | some qx =>
-          if (s.any fun entry => decide (qx.1 <+: entry.1) || decide (entry.1 <+: qx.1)) = true
-          then s else s ++ [qx]) =
-        match prefixCand c n with
-        | Option.none => s
-        | some (q, x) =>
-          if s.any (fun entry => decide (q <+: entry.1) || decide (entry.1 <+: q)) then s
-          else s ++ [(q, x)] := fun s => by cases prefixCand c n <;> simp
-    exact (hrec _).trans (by rw [ih]; rfl)
+    change (match prefixCand c n with | Option.none => _ | some qx => _) = prefixAccepted c (n + 1)
+    rw [ih]
+    cases h : prefixCand c n with
+    | none => simp [prefixAccepted, h]
+    | some qx =>
+      rcases qx with ⟨q, x⟩
+      simp [prefixAccepted, h]
 
 theorem primrec₂_prefixAccepted_lookup :
     Primrec₂ fun (cp : Code × List Bool) (n : ℕ) => (prefixAccepted cp.1 n).lookup cp.2 := by
@@ -849,17 +780,12 @@ theorem universalPrefix_exists_incomparable_prefix :
     exact Part.notMem_none x hev
   rw [parseCodeHeader_eq_some_iff] at hcp
   subst hcp
-  constructor
-  · intro hp
-    have hp' : codeHeader cLoop ++ [] <+: codeHeader c ++ p := by simpa using hp
-    exact hne (codeHeader_injective
+  have hinj : ∀ {c₁ c₂ p₁ p₂}, codeHeader c₁ ++ p₁ <+: codeHeader c₂ ++ p₂ → c₁ = c₂ :=
+    fun hp => codeHeader_injective
       (Cslib.BitString.prefix_append_of_isPrefixFree isPrefixFree_range_codeHeader
-        ⟨cLoop, rfl⟩ ⟨c, rfl⟩ hp').1).symm
-  · intro hp
-    have hp' : codeHeader c ++ p <+: codeHeader cLoop ++ [] := by simpa using hp
-    exact hne (codeHeader_injective
-      (Cslib.BitString.prefix_append_of_isPrefixFree isPrefixFree_range_codeHeader
-        ⟨c, rfl⟩ ⟨cLoop, rfl⟩ hp').1)
+        ⟨_, rfl⟩ ⟨_, rfl⟩ hp).1
+  exact ⟨fun hp => hne (hinj (p₁ := []) (by simpa using hp)).symm,
+    fun hp => hne (hinj (p₂ := []) (by simpa using hp))⟩
 
 /-! ### Prefix-free minorization and binary strings -/
 
@@ -967,59 +893,31 @@ theorem exists_ecomplexity_universalPrefixBits_le_of_partrec_eval
     ∃ c : ℕ, ∀ x : List Bool, universalPrefixBits.ecomplexity x ≤ M.ecomplexity x + c :=
   minorizesPrefixPartrec_universalPrefixBits.exists_ecomplexity_le_of_partrec_eval hM_pf heval hprod
 
+private theorem mem_range_selfDelimitingCode_of_snd_nil {q : List Bool}
+    (h : ∃ b, decodeSelfDelimiting? q = some (b, [])) : q ∈ Set.range selfDelimitingCode := by
+  obtain ⟨b, hb⟩ := h
+  exact ⟨b, by simpa using decodeSelfDelimiting?_eq_some_iff.mp hb⟩
+
 /-- **Self-delimiting upper bound**: `K(x) ≤ |x| + 2 size |x| + O(1)` for every binary string. -/
 theorem exists_ecomplexity_universalPrefixBits_le_selfDelimiting :
     ∃ c : ℕ, ∀ x : List Bool,
       universalPrefixBits.ecomplexity x ≤ (x.length + 2 * x.length.size + 1 + c : ℕ) := by
-  let g : List Bool →. List Bool := fun q =>
-    match decodeSelfDelimiting? q with
-    | Option.none => Part.none
-    | some (b, p) => if p = [] then Part.some b else Part.none
-  have hg : Partrec g := by
-    have hstep : Primrec₂ fun (q : List Bool) (_ : ℕ) =>
-        match decodeSelfDelimiting? q with
-        | Option.none => Option.none
-        | some (b, p) => if p = [] then some b else Option.none := by
-      have hf : Primrec fun bp : List Bool × List Bool =>
-          if bp.2 = [] then some bp.1 else Option.none :=
-        Primrec.ite (Primrec.eq.comp Primrec.snd (Primrec.const []))
-          (Primrec.option_some.comp Primrec.fst) (Primrec.const Option.none)
-      refine Primrec₂.mk <| (Primrec.option_bind (primrec_decodeSelfDelimiting?.comp Primrec.fst)
-        (hf.comp Primrec.snd).to₂).of_eq fun ⟨q, _⟩ => ?_
-      cases decodeSelfDelimiting? q <;> rfl
-    refine (Partrec.rfindOpt hstep.to_comp).of_eq fun q => ?_
-    ext x
-    cases hd : decodeSelfDelimiting? q with
-    | none =>
-      simp only [g, hd, Part.notMem_none, iff_false]
-      intro hmem
-      obtain ⟨_, hn⟩ := Nat.rfindOpt_spec hmem
-      simp at hn
-    | some bp =>
-      rcases bp with ⟨b, p⟩
-      by_cases hp : p = []
-      · simp only [g, hd, hp, ↓reduceIte, Part.mem_some_iff]
-        rw [Nat.rfindOpt_mono (fun {_ _ _} _ h => h)]
-        simp [eq_comm]
-      · simp only [g, hd, hp, ↓reduceIte, Part.notMem_none, iff_false]
-        intro hmem
-        obtain ⟨_, hn⟩ := Nat.rfindOpt_spec hmem
-        simp at hn
-  have hg_pf : InformationTheory.IsPrefixFree {q | (g q).Dom} := by
-    refine isPrefixFree_range_selfDelimitingCode.anti fun q hq => ?_
-    cases hd : decodeSelfDelimiting? q with
-    | none => simp [g, hd] at hq
-    | some bp =>
-      rcases bp with ⟨b, p⟩
-      by_cases hp : p = []
-      · subst hp
-        exact ⟨b, by simpa using (decodeSelfDelimiting?_eq_some_iff.mp hd)⟩
-      · simp [g, hd, hp] at hq
-  obtain ⟨c, hc⟩ := minorizesPrefixPartrec_universalPrefixBits g hg hg_pf
+  let f : List Bool → Option (List Bool) := fun q =>
+    (decodeSelfDelimiting? q).bind fun bp => if bp.2 = [] then some bp.1 else Option.none
+  have hf : Primrec f :=
+    Primrec.option_bind primrec_decodeSelfDelimiting? <| Primrec₂.mk <|
+      Primrec.ite (Primrec.eq.comp (Primrec.snd.comp Primrec.snd) (Primrec.const []))
+        (Primrec.option_some.comp (Primrec.fst.comp Primrec.snd)) (Primrec.const Option.none)
+  have hg_pf : InformationTheory.IsPrefixFree {q | ((f q : Part (List Bool))).Dom} :=
+    isPrefixFree_range_selfDelimitingCode.anti fun q hq => by
+      obtain ⟨b, hb⟩ := Part.dom_iff_mem.mp hq
+      obtain ⟨⟨b', p⟩, hd, hp⟩ := Option.bind_eq_some_iff.mp (Part.mem_ofOption.mp hb)
+      split_ifs at hp with hp0
+      exact mem_range_selfDelimitingCode_of_snd_nil ⟨b', hp0 ▸ hd⟩
+  obtain ⟨c, hc⟩ :=
+    minorizesPrefixPartrec_universalPrefixBits _ (Computable.ofOption hf.to_comp) hg_pf
   refine ⟨c, fun x => ?_⟩
-  have hmem : x ∈ g (selfDelimitingCode x) := by
-    simp [g]
-  have hle := hc (selfDelimitingCode x) x hmem
+  have hle := hc (selfDelimitingCode x) x (by simp [f])
   rw [length_selfDelimitingCode] at hle
   exact_mod_cast hle
 
@@ -1036,65 +934,51 @@ theorem MinorizesPrefixPartrec.exists_ecomplexity_lt_of_computable {α : Type*} 
     match decodeSelfDelimiting? r with
     | Option.none => false
     | some bp => decide (bp.2 = [])
-  have hvalid : Primrec validHeader := by
-    refine (Primrec.option_casesOn primrec_decodeSelfDelimiting? (Primrec.const false)
+  have hvalid : Primrec validHeader :=
+    (Primrec.option_casesOn primrec_decodeSelfDelimiting? (Primrec.const false)
       ((Primrec.eq.decide.comp (Primrec.snd.comp Primrec.snd) (Primrec.const [])).to₂)).of_eq
-      fun r => ?_
-    cases hd : decodeSelfDelimiting? r <;> simp [validHeader, hd]
+      fun r => by cases hd : decodeSelfDelimiting? r <;> simp [validHeader, hd]
   let step : List Bool → ℕ → Option α := fun r n =>
     bif validHeader r then
       (decode (α := α) n).bind fun x => bif decide (2 * r.length ≤ f x) then some x else Option.none
     else Option.none
   have hstep : Computable₂ step := by
-    have hdec : Computable₂ fun (_ : List Bool) (n : ℕ) => decode (α := α) n :=
-      Computable.decode.comp Computable.snd
     have hcond : Computable fun rnx : (List Bool × ℕ) × α =>
         decide (2 * rnx.1.1.length ≤ f rnx.2) :=
-      (Primrec.nat_le.decide.to_comp).comp
+      Primrec.nat_le.decide.to_comp.comp
         ((Primrec.nat_double.comp Primrec.list_length).to_comp.comp
           (Computable.fst.comp Computable.fst))
         (hf.comp Computable.snd)
-    have hfilter : Computable₂ fun (rn : List Bool × ℕ) (x : α) =>
-        bif decide (2 * rn.1.length ≤ f x) then some x else Option.none :=
-      Computable.cond hcond (Computable.option_some.comp Computable.snd)
-        (Computable.const Option.none)
-    have hbody : Computable₂ fun (r : List Bool) (n : ℕ) =>
-        (decode (α := α) n).bind fun x =>
-          bif decide (2 * r.length ≤ f x) then some x else Option.none :=
-      Computable.option_bind hdec hfilter
-    exact Computable.cond (hvalid.to_comp.comp Computable.fst) hbody (Computable.const Option.none)
+    exact Computable.cond (hvalid.to_comp.comp Computable.fst)
+      (Computable.option_bind (Computable.decode.comp Computable.snd)
+        (Computable.cond hcond (Computable.option_some.comp Computable.snd)
+          (Computable.const Option.none)))
+      (Computable.const Option.none)
   let search : List Bool →. α := fun r => Nat.rfindOpt (step r)
-  have hsearch_part : Partrec search := Partrec.rfindOpt hstep
-  have hsearch_pf : InformationTheory.IsPrefixFree {r | (search r).Dom} := by
-    refine isPrefixFree_range_selfDelimitingCode.anti fun r hr => ?_
-    obtain ⟨n, x, hx⟩ := Nat.rfindOpt_dom.mp hr
-    by_cases hv : validHeader r = true
-    · cases hd : decodeSelfDelimiting? r with
+  have hsearch_pf : InformationTheory.IsPrefixFree {r | (search r).Dom} :=
+    isPrefixFree_range_selfDelimitingCode.anti fun r hr => by
+      obtain ⟨n, x, hx⟩ := Nat.rfindOpt_dom.mp hr
+      cases hv : validHeader r <;> simp only [step, hv, Bool.cond_false, Option.mem_def,
+        reduceCtorEq] at hx
+      cases hd : decodeSelfDelimiting? r with
       | none => simp [validHeader, hd] at hv
       | some bp =>
-        rcases bp with ⟨b, p⟩
         simp only [validHeader, hd, decide_eq_true_eq] at hv
-        subst hv
-        exact ⟨b, by simpa using decodeSelfDelimiting?_eq_some_iff.mp hd⟩
-    · simp [step, hv] at hx
-  obtain ⟨c, hc⟩ := hU search hsearch_part hsearch_pf
+        exact mem_range_selfDelimitingCode_of_snd_nil ⟨bp.1, hv ▸ hd⟩
+  obtain ⟨c, hc⟩ := hU search (Partrec.rfindOpt hstep) hsearch_pf
   let r : List Bool := selfDelimitingCode (List.replicate (c + 1) true)
-  have hrlen : c + 1 ≤ r.length := by
-    simp only [r, length_selfDelimitingCode, List.length_replicate]
-    omega
+  have hrlen : c + 1 ≤ r.length := by simp [r, length_selfDelimitingCode]
   have hr_valid : validHeader r = true := by simp [validHeader, r]
   obtain ⟨x, hx⟩ := hunb (2 * r.length)
   have hstep_mem : x ∈ step r (encode x) := by
     simp [step, hr_valid, encodek, hx]
   obtain ⟨y, hy⟩ := Part.dom_iff_mem.mp (Nat.rfindOpt_dom.mpr ⟨encode x, x, hstep_mem⟩)
   obtain ⟨n, hn⟩ := Nat.rfindOpt_spec hy
-  simp only [step, hr_valid, Bool.cond_true, Option.mem_def, Option.bind_eq_some_iff] at hn
-  obtain ⟨y', -, hcmp⟩ := hn
+  obtain ⟨y', -, hcmp⟩ := Option.bind_eq_some_iff.mp (by simpa [step, hr_valid] using hn)
   by_cases h2r : 2 * r.length ≤ f y'
-  · simp only [h2r, decide_true, Bool.cond_true, Option.some.injEq] at hcmp
+  · simp only [h2r, ↓reduceIte, Option.some.injEq] at hcmp
     subst hcmp
-    have hcomp := (hle y').trans (hc r y' hy)
-    have hcomp_nat : f y' ≤ r.length + c := by exact_mod_cast hcomp
+    have hcomp_nat : f y' ≤ r.length + c := by exact_mod_cast (hle y').trans (hc r y' hy)
     omega
   · simp [h2r] at hcmp
 
@@ -1139,45 +1023,26 @@ theorem MinorizesPrefixPartrec.exists_forall_le_complexity_universalPrefix_add_o
   set D : List Bool →. α := fun p => (f (p.drop (p.idxOf false + 1))).bind fun m =>
     Nat.rfindOpt (chaitinSearch read m (B p))
   have hD_pf : InformationTheory.IsPrefixFree {p | (D p).Dom} := by
-    have hmem_false : ∀ {p}, (D p).Dom → false ∈ p := by
+    have hdom : ∀ {p}, (D p).Dom →
+        false ∈ p ∧ p.drop (p.idxOf false + 1) ∈ universalPrefix.haltingSet := by
       intro p hp
-      by_contra hnot
       obtain ⟨_, hm⟩ := Part.dom_iff_mem.mp hp
       obtain ⟨m, hm', _⟩ := Part.mem_bind_iff.mp hm
-      have hdrop_nil : p.drop (p.idxOf false + 1) = [] := by
-        rw [List.idxOf_of_notMem hnot]
-        exact List.drop_of_length_le (Nat.le_succ _)
-      rw [hdrop_nil] at hm'
-      have hprod := (hfU [] m).mpr hm'
+      have hprod := (hfU _ m).mpr hm'
+      refine ⟨by_contra fun hnot => ?_, m, hprod⟩
+      rw [List.idxOf_of_notMem hnot, List.drop_of_length_le (Nat.le_succ _)] at hprod
       obtain ⟨c, p', hparse, _⟩ := universalPrefix_produces_iff.mp hprod
       simp [parseCodeHeader, decodeSelfDelimiting?] at hparse
-    rintro p₁ h₁ p₂ h₂ hp
-    have hf₁ := hmem_false h₁
-    have hf₂ := hmem_false h₂
-    obtain ⟨_, hm₁⟩ := Part.dom_iff_mem.mp h₁
-    obtain ⟨_, hm₂⟩ := Part.dom_iff_mem.mp h₂
-    obtain ⟨m₁, hm₁', _⟩ := Part.mem_bind_iff.mp hm₁
-    obtain ⟨m₂, hm₂', _⟩ := Part.mem_bind_iff.mp hm₂
-    have hr₁ : p₁.drop (p₁.idxOf false + 1) ∈ universalPrefix.haltingSet :=
-      ⟨m₁, (hfU _ m₁).mpr hm₁'⟩
-    have hr₂ : p₂.drop (p₂.idxOf false + 1) ∈ universalPrefix.haltingSet :=
-      ⟨m₂, (hfU _ m₂).mpr hm₂'⟩
-    have hlt₁ : p₁.idxOf false < p₁.length := List.idxOf_lt_length_iff.mpr hf₁
-    have hidx_eq : p₁.idxOf false = p₂.idxOf false := by
-      rcases hp with ⟨t, rfl⟩
-      exact (List.idxOf_append_of_mem hf₁).symm
-    have htake_eq : p₁.take (p₁.idxOf false + 1) = p₂.take (p₂.idxOf false + 1) := by
-      rw [← hidx_eq]
-      rcases hp with ⟨t, rfl⟩
-      exact (List.take_append_of_le_length hlt₁).symm
-    have hdrop_pref : p₁.drop (p₁.idxOf false + 1) <+: p₂.drop (p₂.idxOf false + 1) := by
-      have hp' := hp
-      rw [← List.take_append_drop (p₁.idxOf false + 1) p₁,
-        ← List.take_append_drop (p₂.idxOf false + 1) p₂, htake_eq] at hp'
-      exact (List.prefix_append_right_inj _).mp hp'
-    have hdrop_eq := isPrefixFree_universalPrefix _ hr₁ _ hr₂ hdrop_pref
-    rw [← List.take_append_drop (p₁.idxOf false + 1) p₁,
-      ← List.take_append_drop (p₂.idxOf false + 1) p₂, htake_eq, hdrop_eq]
+    rintro p₁ h₁ _ h₂ ⟨t, rfl⟩
+    obtain ⟨hf₁, hr₁⟩ := hdom h₁
+    obtain ⟨-, hr₂⟩ := hdom h₂
+    have hlt₁ : p₁.idxOf false + 1 ≤ p₁.length := List.idxOf_lt_length_iff.mpr hf₁
+    have hdrop : (p₁ ++ t).drop ((p₁ ++ t).idxOf false + 1) =
+        p₁.drop (p₁.idxOf false + 1) ++ t := by
+      rw [List.idxOf_append_of_mem hf₁, List.drop_append_of_le_length hlt₁]
+    have hdrop_eq := isPrefixFree_universalPrefix _ hr₁ _ hr₂ (hdrop ▸ List.prefix_append _ _)
+    rw [hdrop] at hdrop_eq
+    simp [List.self_eq_append_right.mp hdrop_eq]
   obtain ⟨k, hk⟩ := hU D hD hD_pf
   refine ⟨2 * k + 1, fun e T hT hsound t ht x n hxn => ?_⟩
   obtain ⟨r, hr, hrlen⟩ :=

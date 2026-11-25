@@ -157,21 +157,17 @@ theorem adaptiveComposition {M : List R → D → PMF R} {ε : ℕ → ℝ}
     RenyiDifferentiallyPrivate Adj (Privacy.adaptiveComposition M k) α
       (∑ i ∈ Finset.range k, ε i) := by
   induction k with
-  | zero =>
-    refine ⟨hα, by simp, fun x y _ => ?_⟩
-    simp [Privacy.adaptiveComposition_zero]
+  | zero => exact ⟨hα, by simp, fun _ _ _ => by simp [Privacy.adaptiveComposition_zero]⟩
   | succ k ih =>
-    have ih' := ih (fun i hi => hε i (Nat.lt_succ_of_lt hi))
-      (fun history hlen => h history (Nat.lt_succ_of_lt hlen))
-    have hpair := ih'.bind_pair_of_support (M₂ := M) (hε k (Nat.lt_succ_self k))
-      (fun history => history.length = k)
-      (fun x _ hl => length_of_mem_support_adaptiveComposition M k x hl)
-      (fun history hl => hl ▸ h history (hl.symm ▸ Nat.lt_succ_self k))
-    have hmap := hpair.map fun p => p.2 :: p.1
     rw [Finset.sum_range_succ]
-    convert hmap using 2 with x
-    rw [Privacy.adaptiveComposition_succ]
-    simp only [monad_bind_eq_bind, monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+    convert ((ih (fun i hi => hε i (Nat.lt_succ_of_lt hi))
+      fun history hlen => h history (Nat.lt_succ_of_lt hlen)).bind_pair_of_support (M₂ := M)
+      (hε k k.lt_succ_self) (fun history => history.length = k)
+      (fun x _ => length_of_mem_support_adaptiveComposition M k x)
+      (fun history hl => hl ▸ h history (hl.symm ▸ k.lt_succ_self))).map
+      (fun p => p.2 :: p.1) using 2 with x
+    simp [Privacy.adaptiveComposition_succ, monad_bind_eq_bind, monad_pure_eq_pure,
+      PMF.map_bind, PMF.pure_map]
 
 /-- Products of local randomizers under `HammingAdjacent`: if `1 < α`, `0 ≤ ε`, and each coordinate
 randomizer `M i` is `(α, ε)`-RDP against arbitrary changes of its own input, their independent
@@ -191,16 +187,11 @@ theorem pi {ι X Y : Type*} [Fintype ι] [Finite Y] {M : ι → X → PMF Y} {α
     funext j
     rcases eq_or_ne j i with rfl | hji
     · simp
-    · rw [Function.update_of_ne hji]
-      have hxy_j : x j = y j := by
-        by_contra hne
-        exact hji (hxy hne hi)
-      rw [hxy_j]
-  have hL := Probability.PMF.pi_bind_update (fun j => M j (x j)) i
+    · rw [Function.update_of_ne hji, Classical.not_not.mp fun hne => hji (hxy hne hi)]
   have hR := Probability.PMF.pi_bind_update (Function.update (fun j => M j (x j)) i (M i (y i))) i
   simp only [Function.update_self, Function.update_idem] at hR
   dsimp only
-  rw [hupdate, ← hL, ← hR]
+  rw [hupdate, ← Probability.PMF.pi_bind_update (fun j => M j (x j)) i, ← hR]
   exact ((h i).bind _).2.2 trivial
 
 end Composition
@@ -234,10 +225,8 @@ theorem DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure
     (h : DifferentiallyPrivate Adj M ε 0) :
     RenyiDifferentiallyPrivate Adj M α (α * ε ^ 2 / 2) := by
   refine (h.renyiDifferentiallyPrivate_tanh hAdj hε hα).mono ?_
-  have htanh : Real.tanh (ε / 2) ≤ ε / 2 := Real.tanh_le_self (by linarith)
-  calc ε * Real.tanh (ε / 2) + (α - 1) * ε ^ 2 / 2
-      ≤ ε * (ε / 2) + (α - 1) * ε ^ 2 / 2 := by gcongr
-    _ = α * ε ^ 2 / 2 := by ring
+  have := mul_le_mul_of_nonneg_left (Real.tanh_le_self (by linarith : 0 ≤ ε / 2)) hε
+  linarith
 
 end FromPureDP
 

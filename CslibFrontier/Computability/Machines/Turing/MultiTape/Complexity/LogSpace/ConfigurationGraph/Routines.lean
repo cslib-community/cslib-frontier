@@ -86,19 +86,15 @@ theorem valid_budget (hB : ComputableInSpace B enc encNat S)
     ComputableInSpace (fun a => valid (k := k) (State := State) (B a) (n a) (u a))
       enc encBool S := by
   have hr := readRegisters_budget (k := k) hB hu
-  have hb := vertexBound_budget (k := k) hB
-  have hi := budget_natLt (hr .inputPos) (budget_natAdd hn (budget_const 2))
-  have hc := budget_natLt (hr .control) (budget_const (Fintype.card (Option State)))
-  have ho := budget_natLt (hr .output) (budget_const 3)
   have hh := all_inSpace (List.ofFn fun i : Fin k => i)
     (fun i => budget_natLt (hr (.head i)) (budget_const 3))
-  apply (budget_boolAnd (budget_boolAnd (budget_boolAnd
-    (budget_boolAnd (budget_natLt hu hb) hi) hc) ho) hh).of_enc_eq
-  intro a
+  refine (budget_boolAnd (budget_boolAnd (budget_boolAnd
+    (budget_boolAnd (budget_natLt hu (vertexBound_budget (k := k) hB))
+      (budget_natLt (hr .inputPos) (budget_natAdd hn (budget_const 2))))
+    (budget_natLt (hr .control) (budget_const (Fintype.card (Option State)))))
+    (budget_natLt (hr .output) (budget_const 3))) hh).of_enc_eq fun a => ?_
   congr 1
-  dsimp only [valid]
-  rw [List.map_ofFn]
-  rfl
+  simp [valid, List.map_ofFn, Function.comp_def]
 
 private theorem inputSymbol_budget {p : α → ℕ}
     (hn : ComputableInSpace n enc encNat S)
@@ -122,9 +118,8 @@ theorem nextRegisters_budget {r : α → Register k → ℕ}
     | neg => simpa only [nextRegisters, hm, inputMove] using budget_natPred (hr .inputPos)
     | zero => simpa only [nextRegisters, hm, inputMove] using hr .inputPos
     | pos =>
-      have hp := budget_natSucc (hr .inputPos)
-      have hn' := budget_natSucc hn
-      simpa only [nextRegisters, hm, inputMove] using budget_natMin hp hn'
+      simpa only [nextRegisters, hm, inputMove] using
+        budget_natMin (budget_natSucc (hr .inputPos)) (budget_natSucc hn)
   | control => exact budget_const _
   | output =>
     cases ho : act.output with

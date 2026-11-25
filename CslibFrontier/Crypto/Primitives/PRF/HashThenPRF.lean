@@ -129,14 +129,10 @@ theorem length_le_of_mem_support_idealQueries [DecidableEq M] [Fintype Z] [Nonem
     (hms : ms ∈ (ProbComp.eval (idealQueries A)).support) : ms.length ≤ Q := by
   rw [idealQueries, ProbComp.eval_map, PMF.mem_support_map_iff] at hms
   rcases hms with ⟨⟨r, cache⟩, hmem, rfl⟩
-  rw [ProbOracleComp.eval_runState] at hmem
-  have hmem' : (r, cache) ∈ (ProbOracleComp.runWith
-      (memoize fun _ : M => PMF.uniformOfFintype Z) A []).support := by
-    simpa only [ProbComp.eval_memoize, ProbComp.eval_uniform] using hmem
-  have hbounds := (RandomOracle.memoize_cache_bounds_prob
-    (fun _ : M => PMF.uniformOfFintype Z) A (fun _ => 0) Q 0 hQ
-    (ProbOracleComp.QueriesSatisfy.of_forall (fun _ => le_rfl) A) [] cache r hmem').1
-  simpa only [List.length_map, List.length_nil, Nat.zero_add] using hbounds
+  simp only [ProbOracleComp.eval_runState, ProbComp.eval_memoize, ProbComp.eval_uniform] at hmem
+  simpa only [List.length_map, List.length_nil, Nat.zero_add] using
+    (RandomOracle.memoize_cache_bounds_prob (fun _ : M => PMF.uniformOfFintype Z) A (fun _ => 0) Q 0
+      hQ (ProbOracleComp.QueriesSatisfy.of_forall (fun _ => le_rfl) A) [] cache r hmem).1
 
 /-- Law of `idealQueries A` in terms of `ProbOracleComp.runWith (memoize _)`. -/
 private theorem eval_idealQueries [DecidableEq M] [Fintype Z] [Nonempty Z] (A : Adversary M Z) :
@@ -188,11 +184,7 @@ private theorem eval_multiQueryExperiment_idealQueries_true [Fintype K₁] [None
   rw [PMF.bind_comm, PMF.bind_apply]
   refine tsum_congr fun k => congrArg (PMF.uniformOfFintype K₁ k * ·) ?_
   rw [Probability.PMF.bind_pure_decide_apply_true]
-  refine congrArg
-    (fun s => (ProbOracleComp.runWith (memoize fun _ : M => PMF.uniformOfFintype Z) A
-      []).toOuterMeasure s)
-    (Set.ext fun x => ?_)
-  exact (RandomOracle.hasImageCollision_iff (H k) x.2).symm
+  exact congrArg _ (Set.ext fun x => (RandomOracle.hasImageCollision_iff (H k) x.2).symm)
 
 /-- Equation (7.22) ([BonehShoup2023], Version 0.6, Section 7.3, p. 264), Games 1 and 2: against
 a uniform function, hashing the queries first changes the adversary's output only when two
@@ -205,14 +197,9 @@ theorem advantage_idealExperiment_hashReduction_le [Fintype K₁] [Nonempty K₁
       ProbComp.eval (UHF.multiQueryExperiment H (idealQueries A)) true := by
   rw [Game.advantage_comm, ← Game.closeTo_iff_coe_advantage_le,
     eval_idealExperiment_eq_runWith_memoize, eval_idealExperiment_hashReduction,
-    eval_multiQueryExperiment_idealQueries_true]
-  have hconst : (ProbOracleComp.runWith
-      (memoize fun _ : M => PMF.uniformOfFintype Z) A []).map Prod.fst =
-      (PMF.uniformOfFintype K₁).bind fun _ =>
-        (ProbOracleComp.runWith
-          (memoize fun _ : M => PMF.uniformOfFintype Z) A []).map Prod.fst :=
-    (PMF.bind_const _ _).symm
-  rw [hconst]
+    eval_multiQueryExperiment_idealQueries_true,
+    ← PMF.bind_const (PMF.uniformOfFintype K₁) ((ProbOracleComp.runWith
+      (memoize fun _ : M => PMF.uniformOfFintype Z) A []).map Prod.fst)]
   exact Probability.CloseTo.bind_right_tsum (PMF.uniformOfFintype K₁) fun k _ =>
     RandomOracle.closeTo_runWith_memoize_simulate_query (H k) (PMF.uniformOfFintype Z) A
 
@@ -228,15 +215,10 @@ theorem advantage_hashThenPRF_le_add_multiQuery [Fintype K₁] [Nonempty K₁] [
     (advantage (hashThenPRF H F) A : ℝ≥0∞) ≤
       advantage F (hashReduction H A) +
         ProbComp.eval (UHF.multiQueryExperiment H (idealQueries A)) true := by
-  have htri : advantage (hashThenPRF H F) A ≤
-      advantage F (hashReduction H A) +
-        Game.advantage (ProbComp.eval (idealExperiment (hashReduction H A)))
-          (ProbComp.eval (idealExperiment A)) := by
-    rw [advantage, eval_realExperiment_hashThenPRF]
-    exact Game.advantage_triangle _ (ProbComp.eval (idealExperiment (hashReduction H A))) _
-  refine (ENNReal.coe_le_coe.mpr htri).trans ?_
-  rw [ENNReal.coe_add]
-  exact add_le_add le_rfl (advantage_idealExperiment_hashReduction_le H A)
+  refine (ENNReal.coe_le_coe.mpr ?_).trans
+    (ENNReal.coe_add _ _ ▸ add_le_add le_rfl (advantage_idealExperiment_hashReduction_le H A))
+  rw [advantage, eval_realExperiment_hashThenPRF]
+  exact Game.advantage_triangle _ (ProbComp.eval (idealExperiment (hashReduction H A))) _
 
 /-- Concrete bound for finite types and an `ε`-bounded UHF, a step toward [BonehShoup2023],
 Theorem 7.7 (Version 0.6, Section 7.3, p. 262), not the cited result: for an adversary making at
@@ -299,15 +281,10 @@ theorem toOuterMeasure_collision_le_advantage_collisionDistinguisher [Fintype K�
   have hideal :
       ProbComp.eval (idealExperiment (collisionDistinguisher (Z := Z) m₀ m₁)) true =
         (Fintype.card Z : ℝ≥0∞)⁻¹ := by
-    rw [eval_idealExperiment_collisionDistinguisher]
-    let e : Bool ↪ M :=
-      ⟨fun b => bif b then m₀ else m₁,
-        fun a b hab => by
-          cases a <;> cases b <;> first | rfl | exact absurd hab hm | exact absurd hab hm.symm⟩
-    have hmap : ((PMF.uniformOfFintype (M → Z)).bind fun f =>
-        PMF.pure (decide (f m₀ = f m₁))) =
-        ((PMF.uniformOfFintype (Bool → Z)).bind fun g =>
-          PMF.pure (decide (g true = g false))) := by
+    let e : Bool ↪ M := ⟨fun b => bif b then m₀ else m₁, fun a b hab => by
+      cases a <;> cases b <;> first | rfl | exact absurd hab hm | exact absurd hab hm.symm⟩
+    have hmap : ((PMF.uniformOfFintype (M → Z)).bind fun f => PMF.pure (decide (f m₀ = f m₁))) =
+        (PMF.uniformOfFintype (Bool → Z)).bind fun g => PMF.pure (decide (g true = g false)) := by
       rw [← Probability.PMF.uniformOfFintype_pi_map_comp_embedding e, PMF.bind_map]
       rfl
     have hpair : ((PMF.uniformOfFintype (Bool → Z)).bind fun g =>
@@ -316,7 +293,8 @@ theorem toOuterMeasure_collision_le_advantage_collisionDistinguisher [Fintype K�
       rw [← Probability.PMF.uniformOfFintype_map_equiv
         ((Equiv.boolArrowEquivProd Z).trans (Equiv.prodComm Z Z)), PMF.bind_map]
       rfl
-    rw [hmap, hpair, ← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
+    rw [eval_idealExperiment_collisionDistinguisher, hmap, hpair,
+      ← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
     refine Probability.PMF.bind_apply_of_forall _ fun z₀ => ?_
     simpa only [PMF.bind_map, Function.comp_def] using
       Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true z₀
@@ -330,7 +308,7 @@ theorem toOuterMeasure_collision_le_advantage_collisionDistinguisher [Fintype K�
     (game2 := ProbComp.eval (idealExperiment (collisionDistinguisher (Z := Z) m₀ m₁)))).mpr
     le_rfl {true}
   simp only [PMF.toOuterMeasure_apply_singleton] at hclose
-  rw [add_comm] at hclose
-  exact hreal.trans (hclose.trans (by rw [hideal]))
+  rw [hideal, add_comm] at hclose
+  exact hreal.trans hclose
 
 end Cslib.Crypto.PRF

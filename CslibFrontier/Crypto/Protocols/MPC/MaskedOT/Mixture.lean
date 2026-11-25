@@ -70,11 +70,10 @@ private theorem bindSigma_bind_elim {α : Type} {β : α → Type} (p : PMF (Boo
   rw [bindSigma, PMF.bind_bind]
   refine congrArg _ (funext fun s => ?_)
   cases s with
-  | inl b => simp only [Sum.elim_inl, PMF.pure_bind]
-  | inr a =>
-    simp only [Sum.elim_inr, PMF.bind_map]
-    refine congrArg _ (funext fun t => ?_)
-    cases t <;> rfl
+  | inl _ => simp only [Sum.elim_inl, PMF.pure_bind]
+  | inr _ =>
+    rw [Sum.elim_inr, PMF.bind_map]
+    exact congrArg _ (funext fun t => by cases t <;> rfl)
 
 variable {α : Type} {m : α → ℕ} {spec₂ : α → MultiOracleSpec}
   {sc₂ : (a : α) → Schedule 2 (spec₂ a)} {Coins₂ : α → Fin 2 → Type}
@@ -162,13 +161,9 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_sum_roundGame (p : PMF (Boo
     (fun _ => batchOTFunctionality k M) (fun _ => seqBatchOTSim k M) (fun c _ => Sub c.1)
     (fun c _ => S₂ c.1) (fun c => c.2.coalition) (fun c => c.2.query) (fun c => c.2.guess) k
     (fun _ => (oracleRounds_seqBatchOTSchedule k M).le)
-  have h₀ (c : Σ a, RoundChallenge (spec₁ := batchOTSpec k M)
-      (fun _ => Schedule.compose (fun _ => sc₂ a) (seqBatchOTSchedule k M))
-      (fun _ => Schedule.ComposedCoins (fun _ => Coins₂ a) (fun _ => Unit)
-        (seqBatchOTSchedule k M))) :=
-    perfectSemiHonestPrivate_seqBatchOT k M c.2.coalition c.2.query
-  simp only [h₀, Game.advantage_self, zero_add] at h
-  simp only [bindSigma_bind_elim] at h
+  have h₀ := perfectSemiHonestPrivate_seqBatchOT k M
+  dsimp only [PerfectSemiHonestPrivate] at h₀
+  simp only [h₀, Game.advantage_self, zero_add, bindSigma_bind_elim] at h
   simp only [composeSeqBatchOTRoundEnv, bind_elim_bind_roundGame]
   exact h
 
@@ -310,8 +305,7 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_sum_roundGame {G : α → 
     (fun c => W₂ c.1) (fun _ => otFunctionality M) (fun c => Sm c.1) (fun c _ => Sub c.1)
     (fun c _ => S₂ c.1) (fun c => c.2.coalition) (fun c => c.2.query) (fun c => c.2.guess) 1
     (fun _ => le_rfl)
-  rw [Finset.sum_range_one] at h
-  simp only [bindSigma_bind_elim] at h
+  simp only [Finset.sum_range_one, bindSigma_bind_elim] at h
   exact h
 
 /-- **An outer protocol over the batched transfer run by sequential single transfers, under a
@@ -397,13 +391,9 @@ theorem advantage_bind_compose_seqBatchOT_compose_le_add_mul_roundGame (p : PMF 
     (fun _ => batchOTFunctionality k M) (fun _ => seqBatchOTSim k M) (fun c _ => Sub c.1)
     (fun c _ => S₂ c.1) (fun c => c.2.coalition) (fun c => c.2.query) (fun c => c.2.guess) k L
     (fun _ => (oracleRounds_seqBatchOTSchedule k M).le) hL
-  have h₀ (c : Σ a, RoundChallenge (spec₁ := batchOTSpec k M)
-      (fun _ => Schedule.compose (fun _ => sc₂ a) (seqBatchOTSchedule k M))
-      (fun _ => Schedule.ComposedCoins (fun _ => Coins₂ a) (fun _ => Unit)
-        (seqBatchOTSchedule k M))) :=
-    perfectSemiHonestPrivate_seqBatchOT k M c.2.coalition c.2.query
-  simp only [h₀, Game.advantage_self, zero_add] at h
-  simp only [bindSigma_bind_elim] at h
+  have h₀ := perfectSemiHonestPrivate_seqBatchOT k M
+  dsimp only [PerfectSemiHonestPrivate] at h₀
+  simp only [h₀, Game.advantage_self, zero_add, bindSigma_bind_elim] at h
   simp only [composeSeqBatchOTRoundEnv, bind_elim_bind_roundGame]
   exact h
 
@@ -544,8 +534,7 @@ theorem advantage_bind_compose_seqBatchOT_maskedOT_le_add_mul_roundGame {G : α 
     (fun c => W₂ c.1) (fun _ => otFunctionality M) (fun c => Sm c.1) (fun c _ => Sub c.1)
     (fun c _ => S₂ c.1) (fun c => c.2.coalition) (fun c => c.2.query) (fun c => c.2.guess) 1
     (fun _ => le_rfl)
-  rw [Finset.sum_range_one] at h
-  simp only [PMF.bind_bind, bindSigma_bind_elim] at h
+  simp only [Finset.sum_range_one, PMF.bind_bind, bindSigma_bind_elim] at h
   exact mul_le_mul' le_rfl h
 
 end Cslib.Crypto.Protocols.MPC

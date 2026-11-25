@@ -150,13 +150,7 @@ theorem card_filter_extensions_free_subset (ρ₀ : PartialAssignment ι) (ℓ :
   rw [sum_congr rfl (g := fun _ => 2 ^ (#ρ₀.free - ℓ)), sum_const, card_powersetCard, smul_eq_mul]
   intro S hS
   obtain ⟨hSsub, hScard⟩ := mem_powersetCard.1 hS
-  have hfilter :
-      {ρ ∈ {ρ ∈ ρ₀.extensions ℓ | ρ.free ⊆ U} | ρ.free = S} =
-        {ρ ∈ ρ₀.extensions ℓ | ρ.free = S} := by
-    ext ρ
-    simp only [mem_filter]
-    exact ⟨fun ⟨⟨h1, _⟩, h2⟩ => ⟨h1, h2⟩, fun ⟨h1, h2⟩ => ⟨⟨h1, h2 ▸ hSsub⟩, h2⟩⟩
-  rw [hfilter]
+  rw [filter_filter, filter_congr fun ρ _ => and_iff_right_of_imp fun h => h ▸ hSsub]
   exact card_filter_extensions_free_eq ρ₀ ℓ (mem_powersetCard.2 ⟨hSsub.trans hU, hScard⟩)
 
 /-- The number of extensions in `ρ₀.extensions ℓ` that fix every coordinate of `B ⊆ ρ₀.free` is
@@ -169,19 +163,9 @@ theorem card_filter_extensions_not_nonempty_inter (ρ₀ : PartialAssignment ι)
       {ρ ∈ ρ₀.extensions ℓ | ¬(ρ.free ∩ B).Nonempty} =
         {ρ ∈ ρ₀.extensions ℓ | ρ.free ⊆ ρ₀.free \ B} := by
     ext ρ
-    simp only [mem_filter, not_nonempty_iff_eq_empty]
-    refine and_congr_right fun hρ => ?_
-    have hsub := (mem_extensions.1 hρ).1.free_subset
-    constructor
-    · intro hemp i hi
-      refine mem_sdiff.2 ⟨hsub hi, fun hiB => ?_⟩
-      have : i ∈ (∅ : Finset ι) := hemp ▸ mem_inter.2 ⟨hi, hiB⟩
-      exact notMem_empty i this
-    · intro hsub'
-      ext i
-      simp only [mem_inter, notMem_empty, iff_false, not_and]
-      intro hi
-      exact (mem_sdiff.1 (hsub' hi)).2
+    simp only [mem_filter, not_nonempty_iff_eq_empty, ← disjoint_iff_inter_eq_empty,
+      subset_sdiff]
+    exact and_congr_right fun hρ => (and_iff_right (mem_extensions.1 hρ).1.free_subset).symm
   rw [heq, card_filter_extensions_free_subset ρ₀ ℓ sdiff_subset, card_sdiff_of_subset hB]
 
 variable (ι) in
@@ -206,9 +190,8 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
     (hℓ : #ρ'.free ≤ ℓ) :
     #((withFree ι ℓ).filter fun ρ => ρ'.Extends ρ) =
       (Fintype.card ι - #ρ'.free).choose (ℓ - #ρ'.free) := by
-  have h := card_filter_powersetCard_subset ρ'.free univ ℓ (subset_univ _) hℓ
-  rw [card_univ] at h
-  rw [← h]
+  rw [show Fintype.card ι = #(univ : Finset ι) from card_univ.symm,
+    ← card_filter_powersetCard_subset ρ'.free univ ℓ (subset_univ _) hℓ]
   -- Freeing the coordinates of a superset `F` of `ρ'.free` leaves exactly `F` free.
   have hfree {F : Finset ι} (hsub : ρ'.free ⊆ F) :
       free (fun i => if i ∈ F then none else ρ' i) = F := by
@@ -223,13 +206,11 @@ theorem card_filter_extends_withFree {ρ' : PartialAssignment ι} {ℓ : ℕ}
     exact mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _, (mem_withFree.1 hρ)⟩,
       hext.free_subset⟩
   · obtain ⟨hF, hsub⟩ := mem_filter.1 hF
-    refine mem_filter.2 ⟨mem_withFree.2 ?_, fun i b hb => ?_⟩
-    · rw [hfree hsub]
-      exact (mem_powersetCard.1 hF).2
-    · by_cases hi : i ∈ F
-      · simp only [hi, ↓reduceIte, reduceCtorEq] at hb
-      · simp only [hi, ↓reduceIte] at hb
-        exact hb
+    refine mem_filter.2 ⟨mem_withFree.2
+      ((congrArg Finset.card (hfree hsub)).trans (mem_powersetCard.1 hF).2), fun i b hb => ?_⟩
+    dsimp only at hb
+    split_ifs at hb
+    exact hb
   · obtain ⟨-, hext⟩ := mem_filter.1 hρ
     funext i
     by_cases hi : i ∈ ρ.free
@@ -269,17 +250,12 @@ theorem sum_card_filter_outside (Q : PartialAssignment ι → Prop) [DecidablePr
     refine card_nbij' (fun p => p.2) (fun z => ⟨ρ.free, z⟩) (fun p hp => ?_) (fun z hz => ?_)
       (fun p hp => ?_) (fun z _ => rfl)
     · obtain ⟨-, hpρ⟩ := mem_filter.1 hp
-      have h1 : p.1 = ρ.free := by rw [← hpρ, free_outside]
-      exact mem_filter.2 ⟨mem_univ _, h1 ▸ hpρ⟩
+      exact mem_filter.2 ⟨mem_univ _, (hpρ ▸ free_outside p.1 p.2) ▸ hpρ⟩
     · have hz' : outside ρ.free z = ρ := (mem_filter.1 hz).2
-      refine mem_filter.2 ⟨mem_sigma.2 ⟨mem_powersetCard.2 ⟨subset_univ _, rfl⟩, ?_⟩, hz'⟩
-      refine mem_filter.2 ⟨mem_univ _, ?_⟩
-      change Q (outside ρ.free z)
-      rw [hz']
-      exact (mem_filter.1 hρ).2
+      exact mem_filter.2 ⟨mem_sigma.2 ⟨mem_powersetCard.2 ⟨subset_univ _, rfl⟩,
+        mem_filter.2 ⟨mem_univ _, hz'.symm ▸ (mem_filter.1 hρ).2⟩⟩, hz'⟩
     · obtain ⟨-, hpρ⟩ := mem_filter.1 hp
-      have h1 : p.1 = ρ.free := by rw [← hpρ, free_outside]
-      exact Sigma.ext h1.symm HEq.rfl
+      exact Sigma.ext (hpρ ▸ free_outside p.1 p.2) HEq.rfl
   · obtain ⟨hJ, hz⟩ := mem_sigma.1 hp
     exact mem_filter.2 ⟨mem_withFree.2 (by rw [free_outside]; exact (mem_powersetCard.1 hJ).2),
       (mem_filter.1 hz).2⟩
@@ -360,9 +336,7 @@ theorem mul_card_extensions_sub_one (ρ₀ : PartialAssignment ι) {t : ℕ} (ht
   have h := (sum_extensions_update ρ₀ ht1 (fun _ => 1)).symm
   rw [sum_const, smul_eq_mul, mul_one] at h
   have hinner (ρ : PartialAssignment ι) (hρ : ρ ∈ ρ₀.extensions t) :
-      ∑ i ∈ ρ.free, (1 + 1) = 2 * t := by
-    rw [sum_const, smul_eq_mul, (mem_extensions.1 hρ).2]
-    ring
+      ∑ _ ∈ ρ.free, (1 + 1) = 2 * t := by simp [(mem_extensions.1 hρ).2, Nat.mul_comm]
   rw [h, sum_congr rfl hinner, sum_const, smul_eq_mul]
   ring
 
@@ -404,8 +378,7 @@ theorem card_extensions_le_two_mul_card_filter_forall_nonempty
       _ ≤ (b * m).choose k * 2 ^ (b * m - k) :=
           Nat.mul_le_mul_right _ (Nat.two_pow_mul_choose_sub_le hb r)
       _ = #E := hE_card.symm
-  have hAsub : A ⊆ E := filter_subset _ _
-  have hpart : #(E \ A) + #A = #E := card_sdiff_add_card_eq_card hAsub
+  have hpart : #(E \ A) + #A = #E := card_sdiff_add_card_eq_card (filter_subset _ _)
   omega
 
 /-- **Two stages of restrictions, counted.** Drawing a restriction with `ℓ'` free bits by first
@@ -429,13 +402,10 @@ theorem mul_card_filter_withFree_le {n c G H G' ℓ ℓ' : ℕ} (hℓ'ℓ : ℓ'
   -- each restriction with `ℓ` free bits has few bad extensions, unless it satisfies `B`
   have hper : ∀ ρ ∈ W, c * #{ρ' ∈ ρ.extensions ℓ' | B' ρ'} ≤
       (if B ρ then c else 0) * T + H * T := fun ρ hρ => by
-    by_cases hb : B ρ
-    · simp only [hb, ↓reduceIte]
-      rw [← hT ρ hρ]
-      exact (Nat.mul_le_mul_left _ (card_filter_le _ _)).trans (Nat.le_add_right _ _)
-    · simp only [hb, ↓reduceIte, zero_mul, zero_add]
-      rw [← hT ρ hρ]
-      exact h₂ ρ hρ hb
+    rw [← hT ρ hρ]
+    split_ifs with hb
+    · exact (Nat.mul_le_mul_left _ (card_filter_le _ _)).trans (Nat.le_add_right _ _)
+    · simpa only [zero_mul, zero_add] using h₂ ρ hρ hb
   -- double counting the extensions, with and without the condition
   have hdc := sum_card_filter_extensions B' hℓ'ℓ
   have hall := sum_card_filter_extensions (ι := Fin n) (fun _ => True) hℓ'ℓ

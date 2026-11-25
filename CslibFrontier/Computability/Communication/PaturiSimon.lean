@@ -128,33 +128,20 @@ private theorem rank_sum_mul_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [
     (wA : X → S → ℝ) (wB : Y → T → ℝ) (g : Z → ℝ) :
     (Matrix.of fun x y => ∑ s, ∑ t, wA x s * (wB y t * g (p.run (α x s) (β y t)))).rank ≤
       2 ^ (p.depth - 1) := by
-  have rank_mul (u : X → ℝ) (v : Y → ℝ) : (Matrix.of fun x y => u x * v y).rank ≤ 1 :=
-    Matrix.rank_vecMulVec_le u v
+  have rank_le (F : X → Y → S → T → ℝ) (u : X → S → ℝ) (v : Y → T → ℝ) {k : ℕ}
+      (h : ∀ x y s t, F x y s t = u x s * v y t) :
+      (Matrix.of fun x y => ∑ s, ∑ t, F x y s t).rank ≤ 2 ^ k := by
+    simp only [h, ← sum_mul_sum]
+    exact (Matrix.rank_vecMulVec_le (fun x => ∑ s, u x s) fun y => ∑ t, v y t).trans
+      Nat.one_le_two_pow
   induction p generalizing wA wB with
-  | output z =>
-    have heq : (Matrix.of fun x y =>
-          ∑ s, ∑ t, wA x s * (wB y t * g (run (.output z) (α x s) (β y t)))) =
-        Matrix.of fun x y => (∑ s, wA x s) * ∑ t, wB y t * g z := by
-      ext x y
-      simp only [Matrix.of_apply, run_output, ← mul_sum, ← sum_mul]
-    rw [heq]
-    exact (rank_mul _ _).trans Nat.one_le_two_pow
+  | output z => exact rank_le _ wA (fun y t => wB y t * g z) fun _ _ _ _ => rfl
   | alice send p₀ p₁ ih₀ ih₁ =>
     by_cases hd : max p₀.depth p₁.depth = 0
     · obtain ⟨z₀, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₀.depth = 0)
       obtain ⟨z₁, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₁.depth = 0)
-      have heq : (Matrix.of fun x y => ∑ s, ∑ t,
-            wA x s * (wB y t * g (run (.alice send (.output z₀) (.output z₁)) (α x s) (β y t)))) =
-          Matrix.of fun x y =>
-            (∑ s, wA x s * g (cond (send (α x s)) z₁ z₀)) * ∑ t, wB y t := by
-        ext x y
-        simp only [Matrix.of_apply, run_alice, run_output]
-        calc ∑ s, ∑ t, wA x s * (wB y t * g (cond (send (α x s)) z₁ z₀))
-            = ∑ s, (wA x s * g (cond (send (α x s)) z₁ z₀)) * ∑ t, wB y t :=
-              sum_congr rfl fun s _ => by rw [mul_sum]; exact sum_congr rfl fun t _ => by ring
-          _ = (∑ s, wA x s * g (cond (send (α x s)) z₁ z₀)) * ∑ t, wB y t := (sum_mul ..).symm
-      rw [heq]
-      exact (rank_mul _ _).trans Nat.one_le_two_pow
+      exact rank_le _ (fun x s => wA x s * g (cond (send (α x s)) z₁ z₀)) wB fun _ _ _ _ => by
+        simp only [run_alice, run_output]; ring
     · let wA₀ : X → S → ℝ := fun x s => if send (α x s) then 0 else wA x s
       let wA₁ : X → S → ℝ := fun x s => if send (α x s) then wA x s else 0
       have hsplit : (Matrix.of fun x y =>
@@ -165,24 +152,14 @@ private theorem rank_sum_mul_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [
         simp only [Matrix.of_apply, Matrix.add_apply, ← sum_add_distrib]
         refine sum_congr rfl fun s _ => sum_congr rfl fun t _ => ?_
         cases h : send (α x s) <;> simp [wA₀, wA₁, h]
-      rw [hsplit]
-      refine (Matrix.rank_add_le _ _).trans
-        ((Nat.add_le_two_pow_max_succ (ih₀ wA₀ wB) (ih₁ wA₁ wB)).trans_eq ?_)
-      simp only [depth_alice]
-      congr 1
-      omega
+      rw [hsplit, depth_alice]
+      exact (Matrix.rank_add_le _ _).trans
+        ((Nat.add_le_two_pow_max_succ (ih₀ wA₀ wB) (ih₁ wA₁ wB)).trans_eq (by congr 1; omega))
   | bob send p₀ p₁ ih₀ ih₁ =>
     by_cases hd : max p₀.depth p₁.depth = 0
     · obtain ⟨z₀, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₀.depth = 0)
       obtain ⟨z₁, rfl⟩ := eq_output_of_depth_eq_zero (by omega : p₁.depth = 0)
-      have heq : (Matrix.of fun x y => ∑ s, ∑ t,
-            wA x s * (wB y t * g (run (.bob send (.output z₀) (.output z₁)) (α x s) (β y t)))) =
-          Matrix.of fun x y =>
-            (∑ s, wA x s) * ∑ t, wB y t * g (cond (send (β y t)) z₁ z₀) := by
-        ext x y
-        simp only [Matrix.of_apply, run_bob, run_output, ← mul_sum, ← sum_mul]
-      rw [heq]
-      exact (rank_mul _ _).trans Nat.one_le_two_pow
+      exact rank_le _ wA (fun y t => wB y t * g (cond (send (β y t)) z₁ z₀)) fun _ _ _ _ => rfl
     · let wB₀ : Y → T → ℝ := fun y t => if send (β y t) then 0 else wB y t
       let wB₁ : Y → T → ℝ := fun y t => if send (β y t) then wB y t else 0
       have hsplit : (Matrix.of fun x y =>
@@ -193,12 +170,9 @@ private theorem rank_sum_mul_comp_run_le {S T : Type*} [Fintype S] [Fintype T] [
         simp only [Matrix.of_apply, Matrix.add_apply, ← sum_add_distrib]
         refine sum_congr rfl fun s _ => sum_congr rfl fun t _ => ?_
         cases h : send (β y t) <;> simp [wB₀, wB₁, h]
-      rw [hsplit]
-      refine (Matrix.rank_add_le _ _).trans
-        ((Nat.add_le_two_pow_max_succ (ih₀ wA wB₀) (ih₁ wA wB₁)).trans_eq ?_)
-      simp only [depth_bob]
-      congr 1
-      omega
+      rw [hsplit, depth_bob]
+      exact (Matrix.rank_add_le _ _).trans
+        ((Nat.add_le_two_pow_max_succ (ih₀ wA wB₀) (ih₁ wA wB₁)).trans_eq (by congr 1; omega))
 
 /-- For a leaf-output protocol `p`, finite sets `S` and `T` of random choices, maps `α` and `β`
 into Alice's and Bob's inputs and a relabelling `g` of the outputs, the matrix with entry
@@ -421,15 +395,11 @@ private theorem exists_protocol_of_weights {ι : Type*} [Fintype ι] [Nonempty �
   · exact Protocol.depth_aliceSend_le fun m => by simp
   · simp only [Protocol.run_aliceSend, Protocol.run_bob, Protocol.run_output,
       Function.leftInverse_invFun e.injective _]
-    have hb : ∀ i, ∑ t, BitString.signVal (cond (τ y i t) true false) = 2 ^ β - 2 * c y i := by
-      intro i
+    have hb (i) : ∑ t, BitString.signVal (cond (τ y i t) true false) = 2 ^ β - 2 * c y i := by
       have := hτ y i BitString.signVal
       simp only [Fintype.sum_bool, ite_true, Bool.false_eq_true, ite_false,
-        BitString.signVal_true, BitString.signVal_false] at this
-      rw [Nat.cast_sub (hc y i)] at this
-      have hcond : ∀ b : Bool, cond b true false = b := fun b => by cases b <;> rfl
-      simp only [hcond]
-      rw [this]
+        BitString.signVal_true, BitString.signVal_false, Nat.cast_sub (hc y i)] at this
+      simp only [Bool.cond_true_left, Bool.or_false, this]
       push_cast
       ring
     simp only [hb]
@@ -537,28 +507,13 @@ private theorem not_alice_solvesUnbounded_equality_fin_three {a b : ℕ}
     classical
     simp only [V, Protocol.run_alice]
     rw [← sum_filter_add_sum_filter_not univ (fun s => send (x, s) = false)]
-    congr 1
-    · refine sum_congr rfl fun s hs => ?_
-      rw [(mem_filter.mp hs).2]; rfl
-    · refine sum_congr (by ext s; cases send (x, s) <;> simp) fun s hs => ?_
-      have hs' : send (x, s) = true := by
-        have := (mem_filter.mp hs).2; cases h : send (x, s) <;> simp_all
-      rw [hs']; rfl
+    congr 1 <;> refine sum_congr (by ext; simp) fun s hs => ?_ <;> rw [(mem_filter.mp hs).2] <;> rfl
   have no_shift (q g w : Fin 3 → ℝ) (hq : ∀ x, 0 ≤ q x)
       (heq : ∀ x y, V x y = q x * g y + w x) : False := by
-    have h00 := hdiag 0
-    have h01 := hoff (by decide : (0 : Fin 3) ≠ 1)
-    have h10 := hoff (by decide : (1 : Fin 3) ≠ 0)
-    have h11 := hdiag 1
-    rw [heq] at h00 h01 h10 h11
-    have d0 : 0 < q 0 * (g 1 - g 0) := by linarith
-    have d1 : 0 < q 1 * (g 0 - g 1) := by linarith
-    rcases eq_or_lt_of_le (hq 0) with hq0 | hq0
-    · rw [← hq0, zero_mul] at d0; exact lt_irrefl _ d0
-    · rcases eq_or_lt_of_le (hq 1) with hq1 | hq1
-      · rw [← hq1, zero_mul] at d1; exact lt_irrefl _ d1
-      · linarith [mul_pos hq1 d0, mul_pos hq0 d1,
-          show q 1 * (q 0 * (g 1 - g 0)) + q 0 * (q 1 * (g 0 - g 1)) = 0 by ring]
+    rcases le_total (g 0) (g 1) with h | h <;>
+      linarith [heq 0 0, heq 0 1, heq 1 0, heq 1 1, hdiag 0, hdiag 1,
+        hoff (by decide : (0 : Fin 3) ≠ 1), hoff (by decide : (1 : Fin 3) ≠ 0),
+        mul_nonneg (hq 0) (sub_nonneg.2 h), mul_nonneg (hq 1) (sub_nonneg.2 h)]
   classical
   let n₀ : Fin 3 → ℝ := fun x => #{s | send (x, s) = false}
   let n₁ : Fin 3 → ℝ := fun x => #{s | send (x, s) = true}
@@ -569,30 +524,18 @@ private theorem not_alice_solvesUnbounded_equality_fin_three {a b : ℕ}
   · have hn_sum (x : Fin 3) : n₀ x + n₁ x = 2 ^ a := by
       have hc := card_filter_add_card_filter_not (s := (univ : Finset (BitString a)))
         fun s => send (x, s) = false
-      have heq_f : (univ.filter fun s : BitString a => ¬send (x, s) = false) =
-          univ.filter fun s => send (x, s) = true := by
-        ext s; cases send (x, s) <;> simp
-      rw [heq_f, card_univ, BitString.card] at hc
-      have hc' := congrArg (Nat.cast (R := ℝ)) hc
-      simpa [n₀, n₁] using hc'
+      rw [card_univ, BitString.card] at hc
+      simpa [n₀, n₁] using congrArg (Nat.cast (R := ℝ)) hc
     have haff (x y : Fin 3) : V x y = (2 ^ a - n₁ x) * g₀ y + n₁ x * g₁ y := by
-      rw [hV]
+      rw [hV, ← hn_sum x, add_sub_cancel_right]
       simp only [hg₀, hg₁, sum_const, nsmul_eq_mul]
-      have hn0_eq : n₀ x = 2 ^ a - n₁ x := by linarith [hn_sum x]
-      change n₀ x * g₀ y + n₁ x * g₁ y = _
-      rw [hn0_eq]
+      rfl
     have no_mid (i j k : Fin 3) (hij : i ≠ j) (hkj : k ≠ j)
         (h₁ : n₁ i ≤ n₁ j) (h₂ : n₁ j ≤ n₁ k) : False := by
-      have hijV := hoff hij
-      have hkjV := hoff hkj
-      have hjjV := hdiag j
-      have hid : (n₁ k - n₁ j) * V i j + (n₁ j - n₁ i) * V k j = (n₁ k - n₁ i) * V j j := by
-        rw [haff i j, haff k j, haff j j]; ring
-      rcases eq_or_lt_of_le (h₁.trans h₂) with heq_n | hlt_n
-      · have hij_eq : n₁ i = n₁ j := by linarith
-        have : V i j = V j j := by rw [haff i j, haff j j, hij_eq]
-        linarith
-      · nlinarith
+      rcases le_total (g₀ j) (g₁ j) with h | h <;>
+        linarith [haff i j, haff k j, haff j j, hoff hij, hoff hkj, hdiag j,
+          mul_nonneg (sub_nonneg.2 h₁) (sub_nonneg.2 h),
+          mul_nonneg (sub_nonneg.2 h₂) (sub_nonneg.2 h)]
     rcases le_total (n₁ 0) (n₁ 1) with h01 | h10 <;>
       rcases le_total (n₁ 1) (n₁ 2) with h12 | h21 <;>
       rcases le_total (n₁ 0) (n₁ 2) with h02 | h20
@@ -631,13 +574,8 @@ theorem uppComplexityFun_equality_eq_three [Fintype X] [DecidableEq X] (hX : 2 <
   have hd' : P.depth < 3 := by exact_mod_cast hd
   have h2 : 2 ≤ P.depth := by
     have hsr : 2 ≤ signRank (equality (X := Fin 3)) := two_le_signRank_equality (by decide)
-    have hc := clog_signRank_add_one_le_depth P hP hsr
-    have hpos : 1 ≤ Nat.clog 2 (signRank (equality (X := Fin 3))) := by
-      have := Nat.le_pow_clog one_lt_two (signRank (equality (X := Fin 3)))
-      by_contra h0
-      have h0' : Nat.clog 2 (signRank (equality (X := Fin 3))) = 0 := by omega
-      rw [h0', pow_zero] at this
-      omega
+    have := clog_signRank_add_one_le_depth P hP hsr
+    have := Nat.clog_pos one_lt_two hsr
     omega
   rcases P with z | ⟨send, p₀, p₁⟩ | ⟨send, p₀, p₁⟩
   · simp only [Protocol.depth_output] at h2; omega

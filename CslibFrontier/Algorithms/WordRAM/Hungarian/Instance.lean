@@ -84,19 +84,13 @@ theorem getElem_assignment (inst : Instance) (u : Fin inst.n) :
 theorem mem_matching_assignedCol (inst : Instance) (u : Fin inst.n) :
     (u, inst.assignedCol u) ∈ (hungarian inst.cost).matching := by
   obtain ⟨⟨_, hleft, _⟩, _⟩ := (hungarian_correct inst.cost).1
-  have hu : u ∈ matchedLeft (hungarian inst.cost).matching := by
-    rw [hleft]
-    exact Finset.mem_univ u
-  obtain ⟨v₀, hv₀⟩ := mem_matchedLeft.mp hu
+  obtain ⟨v₀, hv₀⟩ := mem_matchedLeft.mp (hleft.symm ▸ Finset.mem_univ u)
   let p : Fin inst.n → Bool := fun v => decide ((u, v) ∈ (hungarian inst.cost).matching)
   change (u, match (List.finRange inst.n).find? p with | some v => v | none => u) ∈ _
   cases hfind : (List.finRange inst.n).find? p with
-  | some v =>
-    have hv : p v = true := List.find?_some hfind
-    exact of_decide_eq_true hv
+  | some v => exact of_decide_eq_true (List.find?_some hfind : p v = true)
   | none =>
-    have hfalse := (List.find?_eq_none.mp hfind) v₀ (List.mem_finRange v₀)
-    exact absurd (decide_eq_true hv₀) hfalse
+    exact absurd (decide_eq_true hv₀) (List.find?_eq_none.mp hfind v₀ (List.mem_finRange v₀))
 
 theorem assignedCol_eq_of_mem (inst : Instance) {u v : Fin inst.n}
     (h : (u, v) ∈ (hungarian inst.cost).matching) : inst.assignedCol u = v := by
@@ -109,26 +103,21 @@ theorem image_assignedCol_eq_matching (inst : Instance) :
       (hungarian inst.cost).matching := by
   ext ⟨u, v⟩
   simp only [Finset.mem_image, Finset.mem_univ, true_and, Prod.mk.injEq]
-  constructor
-  · rintro ⟨u', rfl, rfl⟩
-    exact inst.mem_matching_assignedCol u'
-  · intro h
-    exact ⟨u, rfl, inst.assignedCol_eq_of_mem h⟩
+  exact ⟨fun ⟨u', hu, hv⟩ => hu ▸ hv ▸ inst.mem_matching_assignedCol u',
+    fun h => ⟨u, rfl, inst.assignedCol_eq_of_mem h⟩⟩
 
 /-- The induced matching of `inst.assignment` is a minimum-cost perfect matching of `inst.cost`. -/
 theorem isMinCostPerfectMatching_assignment (inst : Instance) :
     IsMinCostPerfectMatching (fun _ => true) inst.cost
-      (Finset.univ.image fun u : Fin inst.n => (u, inst.assignedCol u)) := by
-  rw [inst.image_assignedCol_eq_matching]
-  exact (hungarian_correct inst.cost).1
+      (Finset.univ.image fun u : Fin inst.n => (u, inst.assignedCol u)) :=
+  inst.image_assignedCol_eq_matching ▸ (hungarian_correct inst.cost).1
 
 /-- Summing `inst.cost (u, inst.assignedCol u)` over all rows equals the minimum matching cost. -/
 theorem sum_cost_assignedCol (inst : Instance) :
     (∑ u : Fin inst.n, inst.cost (u, inst.assignedCol u)) =
       matchingCost inst.cost (hungarian inst.cost).matching := by
-  rw [matchingCost, ← inst.image_assignedCol_eq_matching, Finset.sum_image]
-  intro u₁ _ u₂ _ h
-  exact (Prod.mk.inj h).1
+  rw [matchingCost, ← inst.image_assignedCol_eq_matching,
+    Finset.sum_image fun _ _ _ _ h => (Prod.mk.inj h).1]
 
 theorem encode_length (inst : Instance) : inst.encode.length = 1 + inst.n * inst.n := by
   simp [encode, List.length_flatMap, Nat.add_comm]

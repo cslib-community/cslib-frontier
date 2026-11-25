@@ -61,22 +61,16 @@ theorem Op.eval_replay {w : ℕ} {o : Op B r} {x x' y : Data r} {D : Finset ℕ}
     exact ⟨_, rfl, by simpa [Data.AgreeOutside, Data.set, hr]⟩
   | alu f d args =>
     obtain ⟨v, hv, hfit, rfl⟩ := Op.eval_alu_eq_some.mp h
-    refine ⟨y.set d v, ?_, ?_⟩
-    · apply Op.eval_alu_eq_some.mpr
-      exact ⟨v, by simpa only [hr] using hv, hfit, rfl⟩
-    · simpa [Data.AgreeOutside, Data.set, hr]
+    exact ⟨y.set d v, Op.eval_alu_eq_some.mpr ⟨v, hr ▸ hv, hfit, rfl⟩,
+      by simpa [Data.AgreeOutside, Data.set, hr]⟩
   | load d a =>
     cases h
-    have hnot : x.regs a ∉ D := by
-      apply Finset.disjoint_left.mp hd
-      simp [Op.probes, Probe.reads]
-    have he := hm (x.regs a) hnot
-    have he' : x.mem (y.regs a) = y.mem (y.regs a) := by rw [← hr]; exact he.symm
+    have hnot : x.regs a ∉ D := Finset.disjoint_left.mp hd (by simp [Op.probes, Probe.reads])
+    have he' : x.mem (y.regs a) = y.mem (y.regs a) := hr ▸ (hm (x.regs a) hnot).symm
     exact ⟨_, rfl, by simpa [Data.AgreeOutside, Data.set, hr, he']⟩
   | store a s =>
     cases h
-    refine ⟨_, rfl, hr, ?_⟩
-    intro b hb
+    refine ⟨_, rfl, hr, fun b hb => ?_⟩
     simp only [Data.write_mem, hr]
     by_cases he : b = y.regs a
     · simp [he]
@@ -89,18 +83,14 @@ private theorem Next.cases_instr {w : ℕ} {p : Program B r} {s t : State r} (h 
     ∃ c k, p[s.pc]? = some (.branch c k) ∧
       t = ⟨if c.Holds s.data then k else s.pc + 1, s.data⟩ := by
   unfold Next step at h
-  cases hp : p[s.pc]? with
-  | none => simp [hp] at h
-  | some i =>
-    cases i with
-    | op o =>
-      cases ho : o.eval w s.data with
-      | none => simp [hp, ho] at h
-      | some x => exact Or.inl ⟨o, x, rfl, ho, by simpa [hp, ho] using h.symm⟩
-    | jump k => exact Or.inr (Or.inl ⟨k, rfl, by simpa [hp] using h.symm⟩)
-    | branch c k => exact Or.inr (Or.inr ⟨c, k, rfl, by simpa [hp] using h.symm⟩)
-    | halt i => simp [hp] at h
-    | rand d s => simp [hp] at h
+  match hp : p[s.pc]? with
+  | some (.op o) =>
+    cases ho : o.eval w s.data with
+    | none => simp [hp, ho] at h
+    | some x => exact Or.inl ⟨o, x, rfl, ho, by simpa [hp, ho] using h.symm⟩
+  | some (.jump k) => exact Or.inr (Or.inl ⟨k, rfl, by simpa [hp] using h.symm⟩)
+  | some (.branch c k) => exact Or.inr (Or.inr ⟨c, k, rfl, by simpa [hp] using h.symm⟩)
+  | none | some (.halt _) | some (.rand _ _) => simp [hp] at h
 
 /-- Replaying a continuing flat step preserves its control and register file. -/
 theorem Next.replay {w : ℕ} {p : Program B r} {s t s' : State r} {D : Finset ℕ}
@@ -118,7 +108,7 @@ theorem Next.replay {w : ℕ} {p : Program B r} {s t s' : State r} {D : Finset �
 /-- A continuing step changes memory only at its actual store address. -/
 theorem Next.modifies {w : ℕ} {p : Program B r} {s t : State r}
     (h : Next w p s t) : Modifies (Probe.writes (probes p s)) s.data.mem t.data.mem := by
-  rcases h.cases_instr with ⟨o, x, hp, ho, rfl⟩ | ⟨k, hp, rfl⟩ | ⟨c, k, hp, rfl⟩
+  rcases h.cases_instr with ⟨o, x, hp, ho, rfl⟩ | ⟨_, _, rfl⟩ | ⟨_, _, _, rfl⟩
   · simpa only [probes, hp] using o.eval_modifies ho
   · exact Modifies.refl _ _
   · exact Modifies.refl _ _
@@ -146,14 +136,12 @@ theorem Runs.exists_footprints {w n : ℕ} {p : Program B r} {s t : State r}
   | @tail u t n h hu ih =>
     obtain ⟨R, W, hR, hW, hm, hr⟩ := ih
     refine ⟨R ∪ Probe.reads (probes p u), W ∪ Probe.writes (probes p u),
-      (Finset.card_union_le _ _).trans ?_, (Finset.card_union_le _ _).trans ?_,
-      hm.trans hu.modifies, ?_⟩
-    · exact Nat.add_le_add hR (card_probes_le p u).1
-    · exact Nat.add_le_add hW (card_probes_le p u).2
-    · intro D s' hd hpc ha
-      obtain ⟨u', hu', hpc', ha'⟩ := hr D s' (Finset.disjoint_union_left.mp hd).1 hpc ha
-      obtain ⟨t', ht', hpc'', ha''⟩ := hu.replay hpc' ha' (Finset.disjoint_union_left.mp hd).2
-      exact ⟨t', hu'.tail _ _ _ _ ht', hpc'', ha''⟩
+      (Finset.card_union_le _ _).trans (Nat.add_le_add hR (card_probes_le p u).1),
+      (Finset.card_union_le _ _).trans (Nat.add_le_add hW (card_probes_le p u).2),
+      hm.trans hu.modifies, fun D s' hd hpc ha => ?_⟩
+    obtain ⟨u', hu', hpc', ha'⟩ := hr D s' (Finset.disjoint_union_left.mp hd).1 hpc ha
+    obtain ⟨t', ht', hpc'', ha''⟩ := hu.replay hpc' ha' (Finset.disjoint_union_left.mp hd).2
+    exact ⟨t', hu'.tail _ _ _ _ ht', hpc'', ha''⟩
 
 /-- Every successful halting execution depends on at most `n - 1` read cells. The final
 halt costs one instruction and reads only a register. -/
@@ -163,20 +151,14 @@ theorem Executes.exists_readFootprint {w n v : ℕ} {p : Program B r} {s : State
       s.pc = s'.pc → s.data.AgreeOutside D s'.data → Executes w p s' v n := by
   obtain ⟨t, m, hr, hh, rfl⟩ := h
   obtain ⟨R, _, hR, _, _, hreplay⟩ := hr.exists_footprints
-  refine ⟨R, by omega, ?_⟩
-  intro D s' hd hpc ha
+  refine ⟨R, by omega, fun D s' hd hpc ha => ?_⟩
   obtain ⟨t', ht', hpc', ha'⟩ := hreplay D s' hd hpc ha
   refine ⟨t', m, ht', ?_, rfl⟩
   unfold step at hh ⊢
   rw [← hpc']
-  cases hp : p[t.pc]? with
-  | none => simp [hp] at hh
-  | some i =>
-    cases i with
-    | halt i => simpa only [hp, ha'.1] using hh
-    | op o => cases ho : o.eval w t.data <;> simp [hp, ho] at hh
-    | jump k => simp [hp] at hh
-    | branch c k => simp [hp] at hh
-    | rand d s => simp [hp] at hh
+  match hp : p[t.pc]? with
+  | some (.halt i) => simpa only [hp, ha'.1] using hh
+  | some (.op o) => cases ho : o.eval w t.data <;> simp [hp, ho] at hh
+  | none | some (.jump _) | some (.branch _ _) | some (.rand _ _) => simp [hp] at hh
 
 end Cslib.WordRAM

@@ -112,9 +112,7 @@ theorem rewire_frame (near far : Fin 3)
     (rewire near far h x y middle parent)[a]? = h[a]? := by
   cases middle with
   | none => simp [rewire, Ne.symm ax, Ne.symm ay]
-  | some b =>
-    have ab : b ≠ a := fun eq => am (congrArg some eq)
-    simp [rewire, Ne.symm ax, Ne.symm ay, ab]
+  | some b => simp [rewire, Ne.symm ax, Ne.symm ay, ne_of_apply_ne some am]
 
 /-- Rotation creates no records. -/
 theorem length_rewire (near far : Fin 3) (h : List (Record M (layout extra regs))) (x y : ℕ)
@@ -138,9 +136,8 @@ private theorem rewire_pivots (near far : Fin 3) (h : List (Record M (layout ext
   cases mid : rx.ptr far with
   | none => simp [rewire, different, Ne.symm different, hx, hy]
   | some b =>
-    have bx : b ≠ x := fun eq => mx (mid.trans (congrArg some eq))
-    have by' : b ≠ y := fun eq => my (mid.trans (congrArg some eq))
-    simp [rewire, different, Ne.symm different, bx, by', hx, hy]
+    simp [rewire, different, Ne.symm different, ne_of_apply_ne some (mid ▸ mx),
+      ne_of_apply_ne some (mid ▸ my), hx, hy]
 
 /-- The middle subtree changes only its root's parent link. -/
 private theorem rewire_middle (near far : Fin 3)
@@ -168,13 +165,9 @@ private theorem Represents.reparent {h k : List (Record M (layout extra regs))}
   | nil => trivial
   | node label l r =>
     obtain ⟨_, _, nl, nr, _⟩ := (AddressesDistinct.node_iff ..).mp distinct
-    have inside (z : ℕ) (hz : z ∈ addresses l ∨ z ∈ addresses r) : k[z]? = h[z]? := by
-      refine rest z ?_ ?_
-      · change z ∈ Insert.insert label.address (addresses l ∪ addresses r)
-        simpa using Or.inr hz
-      · rintro eq
-        cases Option.some.inj eq
-        exact hz.elim nl nr
+    have inside (z : ℕ) (hz : z ∈ addresses l ∨ z ∈ addresses r) : k[z]? = h[z]? :=
+      rest z (Finset.mem_insert_of_mem (Finset.mem_union.mpr hz)) fun eq =>
+        hz.elim (Option.some.inj eq ▸ nl) (Option.some.inj eq ▸ nr)
     refine ⟨?_, rep.2.1.congr_addresses fun z hz => inside z (.inl hz),
       rep.2.2.congr_addresses fun z hz => inside z (.inr hz)⟩
     rw [top _ rfl _ rep.1]
@@ -290,19 +283,13 @@ theorem rotateRight_represents (s : State M (layout extra regs))
       (∀ i, i ≠ 0 → i ≠ 2 → i ≠ 3 → i ≠ 4 → t.ptr i = s.ptr i) ∧
       (∀ z, z ≠ x.address → z ≠ y.address → root b ≠ some z →
         t.heap[z]? = s.heap[z]?) := by
-  have hy := rep.1
-  have hx := rep.2.1.1
   obtain ⟨t, exec, heap, cur, data, keep⟩ := rotate_executes 0 1 s x.address y.address
     (record (root a) (root b) (some y.address) x)
-    (record (some x.address) (root c) parent y) pc cursor hy hx rfl
-  refine ⟨t, exec, ?_, cur, data, ?_, keep, ?_⟩
-  · rw [heap]
-    exact represents_rewire_rotateRight s.heap x y a b c parent rep distinct
-  · rw [heap]
-    exact length_rewire _ _ _ _ _ _ _
-  · intro z zx zy zb
-    rw [heap]
-    exact rewire_frame _ _ _ _ _ _ _ _ zx zy zb
+    (record (some x.address) (root c) parent y) pc cursor rep.1 rep.2.1.1 rfl
+  refine ⟨t, exec, ?_⟩
+  rw [heap]
+  exact ⟨represents_rewire_rotateRight s.heap x y a b c parent rep distinct, cur, data,
+    length_rewire .., keep, fun z zx zy zb => rewire_frame _ _ _ _ _ _ _ _ zx zy zb⟩
 
 /-- A left rotation preserves the full recursive subtree representation, including
 parent links, in ten actual instructions. The external parent's child link and cached
@@ -319,18 +306,12 @@ theorem rotateLeft_represents (s : State M (layout extra regs))
       (∀ i, i ≠ 0 → i ≠ 2 → i ≠ 3 → i ≠ 4 → t.ptr i = s.ptr i) ∧
       (∀ z, z ≠ x.address → z ≠ y.address → root b ≠ some z →
         t.heap[z]? = s.heap[z]?) := by
-  have hy := rep.1
-  have hx := rep.2.2.1
   obtain ⟨t, exec, heap, cur, data, keep⟩ := rotate_executes 1 0 s x.address y.address
     (record (root b) (root c) (some y.address) x)
-    (record (root a) (some x.address) parent y) pc cursor hy hx rfl
-  refine ⟨t, exec, ?_, cur, data, ?_, keep, ?_⟩
-  · rw [heap]
-    exact represents_rewire_rotateLeft s.heap x y a b c parent rep distinct
-  · rw [heap]
-    exact length_rewire _ _ _ _ _ _ _
-  · intro z zx zy zb
-    rw [heap]
-    exact rewire_frame _ _ _ _ _ _ _ _ zx zy zb
+    (record (root a) (some x.address) parent y) pc cursor rep.1 rep.2.2.1 rfl
+  refine ⟨t, exec, ?_⟩
+  rw [heap]
+  exact ⟨represents_rewire_rotateLeft s.heap x y a b c parent rep distinct, cur, data,
+    length_rewire .., keep, fun z zx zy zb => rewire_frame _ _ _ _ _ _ _ _ zx zy zb⟩
 
 end Cslib.DataStructure.SearchTree.PointerMachine

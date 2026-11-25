@@ -68,11 +68,8 @@ theorem incoming_time_unique {es : Log F} {a b : Arc F} (ha : a ∈ es.arcs)
 theorem ancestry_cons_old {es : Log F} {e : Expansion F} {rs : List V} {v : V}
     (hf : ∀ o ∈ e.outputs, ¬ es.Visited rs o.var) (hv : es.Visited rs v) :
     Log.ancestry (e :: es) v = es.ancestry v := by
-  have hh : e.outputs.find? (fun o => o.var == v) = none := by
-    apply List.find?_eq_none.mpr
-    intro o ho he
-    have he' : o.var = v := by simpa only [beq_iff_eq] using he
-    exact hf o ho (he'.symm ▸ hv)
+  have hh : e.outputs.find? (fun o => o.var == v) = none :=
+    List.find?_eq_none.mpr fun o ho he => hf o ho (beq_iff_eq.mp he ▸ hv)
   simp [ancestry, hh]
 
 /-- Actual ancestry timestamps strictly increase, without any condition on variable names. -/
@@ -84,10 +81,8 @@ theorem ancestry_times_pairwise (es : Log F) (v : V) :
     simp only [ancestry]
     split
     · rw [List.pairwise_append]
-      refine ⟨ih e.input.var, by simp, ?_⟩
-      intro a ha b hb
-      have he : b = es.length := List.mem_singleton.mp hb
-      exact he ▸ ancestry_time_lt es e.input.var ha
+      refine ⟨ih e.input.var, by simp, fun a ha b hb => ?_⟩
+      exact List.mem_singleton.mp hb ▸ ancestry_time_lt es e.input.var ha
     · exact ih v
 
 end Log
@@ -103,12 +98,9 @@ theorem ancestry_times_eq_stamp (hg : Grown sem f rs es) (v : V) :
   induction hg generalizing v with
   | nil => rfl
   | @cons es e hp hv hu hf hn hfe hsat ih =>
-    have hmap : ∀ u, (es.ancestry u).walk.steps.map (fun s => Log.stamp (e :: es) s.1) =
-        (es.ancestry u).walk.steps.map (fun s => es.stamp s.1) := by
-      intro u
-      apply List.map_congr_left
-      intro s hs
-      exact (hp.stamp_cons_of_mem_ancestry hu hs).1
+    have hmap (u : V) : (es.ancestry u).walk.steps.map (fun s => Log.stamp (e :: es) s.1) =
+        (es.ancestry u).walk.steps.map (fun s => es.stamp s.1) :=
+      List.map_congr_left fun s hs => (hp.stamp_cons_of_mem_ancestry hu hs).1
     simp only [Log.ancestry]
     split
     · simp only [Walk.snoc, List.map_append, List.map_singleton]
@@ -119,9 +111,7 @@ theorem ancestry_times_eq_stamp (hg : Grown sem f rs es) (v : V) :
 /-- Ancestral steps are chronological with respect to their actual incoming timestamps. -/
 theorem ancestry_chronological (hg : Grown sem f rs es) (v : V) :
     ((es.ancestry v).walk.steps).Pairwise (fun s t => es.stamp s.1 < es.stamp t.1) := by
-  have hh := es.ancestry_times_pairwise v
-  rw [hg.ancestry_times_eq_stamp v, List.pairwise_map] at hh
-  exact hh
+  simpa only [hg.ancestry_times_eq_stamp v, List.pairwise_map] using es.ancestry_times_pairwise v
 
 /-- Ancestor nodes carry precisely the copied constraints certified by the incoming arcs. -/
 theorem ancestry_nodes (hg : Grown sem f rs es) (v : V) :
@@ -152,9 +142,7 @@ theorem ancestry_step_prefix (hg : Grown sem f rs es) {v : V}
   | @cons es e hp hv hu hf hn hfe hsat ih =>
     cases hfind : e.outputs.find? (fun o => o.var == v) with
     | none =>
-      have hvpath : Log.ancestry (e :: es) v = es.ancestry v := by
-        simp [Log.ancestry, hfind]
-      rw [hvpath] at hs ⊢
+      rw [show Log.ancestry (e :: es) v = es.ancestry v by simp [Log.ancestry, hfind]] at hs ⊢
       rw [Log.ancestry_cons_old (v := s.1.var) hf
         (Log.Grown.used_visited hp (es.mem_arcs (hp.ancestry_arcs v hs).1).1)]
       exact ih hs
@@ -169,8 +157,7 @@ theorem ancestry_step_prefix (hg : Grown sem f rs es) {v : V}
           (Log.Grown.used_visited hp (es.mem_arcs (hp.ancestry_arcs _ hs).1).1)]
         obtain ⟨he, ⟨tail, htail⟩⟩ := ih hs
         exact ⟨he, ⟨tail ++ [(e.input, o)], by simp only [← htail, List.append_assoc]⟩⟩
-      · have he : s = (e.input, o) := List.mem_singleton.mp hs
-        subst s
+      · obtain rfl := List.mem_singleton.mp hs
         rw [Log.ancestry_cons_old hf hv]
         exact ⟨rfl, ⟨[], by simp⟩⟩
 
@@ -248,11 +235,9 @@ theorem ancestry_root_eq_of_copy (hg : Grown sem f rs es) {u v : V}
         s ∈ (es.ancestry x).walk.steps → t ∈ (es.ancestry y).walk.steps →
         (inArc (Log.stamp (e :: es)) s).copy =
           (inArc (Log.stamp (e :: es)) t).copy →
-        (es.ancestry x).walk.start = (es.ancestry y).walk.start := by
-      intro x y s t hs ht hc
-      apply ih hs ht
-      simpa only [inArc, Arc.copy, (hp.stamp_cons_of_mem_ancestry hu hs).1,
-        (hp.stamp_cons_of_mem_ancestry hu ht).1] using hc
+        (es.ancestry x).walk.start = (es.ancestry y).walk.start := fun hs ht hc =>
+      ih hs ht (by simpa only [inArc, Arc.copy, (hp.stamp_cons_of_mem_ancestry hu hs).1,
+        (hp.stamp_cons_of_mem_ancestry hu ht).1] using hc)
     have notnew : ∀ {x : V} {s : Occurrence F × Occurrence F},
         s ∈ (es.ancestry x).walk.steps →
         (inArc (Log.stamp (e :: es)) s).copy ≠ (e.input.1, es.length) := by
@@ -268,8 +253,7 @@ theorem ancestry_root_eq_of_copy (hg : Grown sem f rs es) {u v : V}
         simp only [Log.ancestry, hfu, hfv, Walk.snoc] at hs ht ⊢
         rcases List.mem_append.mp hs with hs | hs
         · exact older hs ht hc
-        · have he : s = (e.input, a) := List.mem_singleton.mp hs
-          subst s
+        · obtain rfl := List.mem_singleton.mp hs
           apply False.elim (notnew ht ?_)
           simpa only [inArc, Arc.copy, Log.stamp, ↓reduceIte] using hc.symm
     | none =>
@@ -278,8 +262,7 @@ theorem ancestry_root_eq_of_copy (hg : Grown sem f rs es) {u v : V}
         simp only [Log.ancestry, hfu, hfv, Walk.snoc] at hs ht ⊢
         rcases List.mem_append.mp ht with ht | ht
         · exact older hs ht hc
-        · have he : t = (e.input, b) := List.mem_singleton.mp ht
-          subst t
+        · obtain rfl := List.mem_singleton.mp ht
           apply False.elim (notnew hs ?_)
           simpa only [inArc, Arc.copy, Log.stamp, ↓reduceIte] using hc
       | none =>
@@ -394,12 +377,10 @@ theorem nodes_getElem?_even (p : Ancestry F) (hl : p.times.length = p.walk.steps
       | nil => simp at hl
       | cons t ts =>
         rcases s with ⟨a, b⟩
-        have hl' : ts.length = ss.length := by simpa using hl
-        have hk' : k ≤ ss.length := by simpa only [List.length_cons, Nat.succ_le_succ_iff] using hk
-        have hh := ih (v := b.var) (ss := ss) (ts := ts) hl' hk'
         simpa only [nodes, Walk.take, Walk.finish, Walk.finishFrom, List.zip_cons_cons,
           List.flatMap_cons, List.cons_append, List.nil_append, Nat.mul_succ,
-          List.getElem?_cons_succ, List.take_succ_cons] using hh
+          List.getElem?_cons_succ, List.take_succ_cons] using
+          ih (v := b.var) (ss := ss) (ts := ts) (by simpa using hl) (by simpa using hk)
 
 omit [DecidableEq V] in
 /-- Odd node indices are exactly the timestamped constraints of the corresponding steps. -/
@@ -423,12 +404,10 @@ theorem nodes_getElem?_odd (p : Ancestry F) (hl : p.times.length = p.walk.steps.
       | nil => simp at hl
       | cons t ts =>
         rcases s with ⟨a, b⟩
-        have hl' : ts.length = ss.length := by simpa using hl
-        have hk' : k < ss.length := by simpa only [List.length_cons, Nat.succ_lt_succ_iff] using hk
-        have hh := ih (v := b.var) (ss := ss) (ts := ts) hl' hk'
         simpa only [nodes, List.zip_cons_cons, List.flatMap_cons, List.cons_append,
           List.nil_append, Nat.mul_succ, Nat.add_assoc, List.getElem?_cons_succ,
-          List.getElem_cons_succ] using hh
+          List.getElem_cons_succ] using
+          ih (v := b.var) (ss := ss) (ts := ts) (by simpa using hl) (by simpa using hk)
 
 end Ancestry
 
@@ -453,12 +432,10 @@ theorem commonNodes_prefix (m : Meeting F) :
         by_cases he : a = b
         · subst b
           obtain ⟨⟨xs, hxs⟩, ⟨ys, hys⟩⟩ := ih rs
-          constructor
-          · exact ⟨xs, by simpa using congrArg (List.cons a) hxs⟩
-          · exact ⟨ys, by simpa using congrArg (List.cons a) hys⟩
-        · constructor
-          · exact ⟨a :: ls, by simp [he]⟩
-          · exact ⟨b :: rs, by simp [he]⟩
+          exact ⟨⟨xs, by simpa using congrArg (List.cons a) hxs⟩,
+            ⟨ys, by simpa using congrArg (List.cons a) hys⟩⟩
+        · exact ⟨⟨a :: ls, by simp [he]⟩,
+            ⟨b :: rs, by simp [he]⟩⟩
   exact hp _ _
 
 /-- Every common node prefix is contained in the prefix selected by the extractor. -/
@@ -873,8 +850,7 @@ theorem Trace.variable_blossom_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     (hb : m.blossomData = some b) :
     (blossomDAG b.cycle b.times b.pivot).IsFDAG sem (b.prepare.flip f) := by
   rcases (m.blossomData_eq_some_iff b).mp hb with ⟨_, _, rfl⟩ | ⟨_, _, _, hc, _, _, _⟩; swap
-  · rw [ha] at hc
-    cases hc
+  · simp [ha] at hc
   let k := (m.commonNodes.length - 1) / 2
   have hlen : m.commonNodes.length = 2 * k + 1 := m.ancestor_variable_length ha
   have htl : m.left.times.drop k = (m.left.walk.drop k).steps.map
@@ -911,12 +887,10 @@ theorem Trace.variable_blossom_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     · obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
       rw [← he]
       exact (h.expansion.grown.ancestry_chronological _).rel_of_mem_take_of_mem_drop hs ht'
-    · have he : c.2 = m.older.length := List.mem_singleton.mp hc
-      rw [he]
+    · rw [List.mem_singleton.mp hc]
       exact (m.older.mem_arcs
         (h.expansion.grown.ancestry_arcs _ (List.mem_of_mem_take hs)).1).2
-  · rw [List.mem_reverse] at hc
-    obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
+  · obtain ⟨t, ht', he⟩ := List.mem_map.mp (List.mem_reverse.mp hc)
     rw [← he]
     exact h.prefix_time_lt_right_drop k (by omega) hs ht'
 
