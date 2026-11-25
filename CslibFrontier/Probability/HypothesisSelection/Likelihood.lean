@@ -266,7 +266,7 @@ private theorem mle_hellingerDist_pred_le [Finite α]
       rw [← hellingerDist_sq]
       exact sq_le_sq' (by linarith) hrle
     refine (bhattacharyya_pow_le_exp_hellingerSq _ _ n).trans (Real.exp_le_exp.mpr ?_)
-    nlinarith [show (0 : ℝ) ≤ n from Nat.cast_nonneg n]
+    linarith [mul_le_mul_of_nonneg_left hsq (Nat.cast_nonneg n)]
   have hcard_bad : bad.card ≤ s.card - 1 :=
     (Finset.card_filter_le _ _).trans (Finset.card_erase_of_mem hi₀).le
   have hcard_sub : ((s.card - 1 : ℕ) : ℝ) = (s.card : ℝ) - 1 := by
