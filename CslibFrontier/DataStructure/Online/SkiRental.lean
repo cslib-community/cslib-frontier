@@ -249,9 +249,7 @@ theorem rentThenBuy_costFrom_true (B t k : Nat) (reqs : List Unit) :
     (rentThenBuy B t).costFrom (true, k) reqs = 0 := by
   induction reqs with
   | nil => rfl
-  | cons r rs ih =>
-    rw [DetStrategy.costFrom_cons, rentThenBuy_step_true, ih]
-    rfl
+  | cons _ _ ih => rw [DetStrategy.costFrom_cons, rentThenBuy_step_true, ih]; rfl
 
 /-- From the rented state after `k ≤ t` days, the remaining cost is the number of remaining days if
 the skier stops before day `t + 1`, and `t - k + B` otherwise. -/
@@ -309,17 +307,13 @@ theorem breakEven_isCompetitive_two (B : Nat) : (breakEven B).IsCompetitive 2 0 
   intro s₀ hs₀ reqs states hv
   subst hs₀
   rw [Nat.add_zero]
-  rcases Nat.eq_zero_or_pos B with hB | hB
-  · subst hB
+  rcases Nat.eq_zero_or_pos B with rfl | hB
+  · have := min_le_scheduleCost hv
     rw [cost_rentThenBuy]
-    have := min_le_scheduleCost hv
     split_ifs <;> omega
-  · have h := breakEven_mul_cost_le hv
-    have h2 : (2 * B - 1) * (problem B).scheduleCost false reqs states ≤
-        B * (2 * (problem B).scheduleCost false reqs states) := by
-      rw [← Nat.mul_assoc, Nat.mul_comm B 2]
-      exact Nat.mul_le_mul_right _ (by omega)
-    exact Nat.le_of_mul_le_mul_left (Nat.le_trans h h2) hB
+  · refine Nat.le_of_mul_le_mul_left ((breakEven_mul_cost_le hv).trans ?_) hB
+    rw [← Nat.mul_assoc, Nat.mul_comm B 2]
+    exact Nat.mul_le_mul_right _ (by omega)
 
 /-- With additive constant `B - 1`, the break-even strategy is even `(1, B - 1)`-competitive, which
 is why the ski-rental ratio `2 - 1/B` is a statement without additive constant. -/
@@ -384,8 +378,7 @@ theorem exists_witness {B : Nat} (hB : 1 ≤ B) (A : DetStrategy (problem B)) :
     have hcost : A.cost false full = N := by
       change (problem B).scheduleCost false full (A.states false full) = N
       rw [hall, hlen]
-      have := scheduleCost_replicate_false B full
-      rwa [List.length_replicate] at this
+      simpa [full] using scheduleCost_replicate_false B full
     have hne : full ≠ [] := by rw [Ne, List.replicate_eq_nil_iff]; omega
     have hvopt := validSchedule_replicate (B := B) (b₀ := false) (b := true) (fun _ => rfl) full
     refine ⟨full, _, hvopt, ?_, ?_⟩ <;> rw [scheduleCost_replicate_true B hne]
@@ -460,10 +453,9 @@ theorem exists_rentThenBuy_cost_eq {B : Nat} (A : DetStrategy (problem B)) (N : 
   have htake : ∀ n ≤ N, A.states false (List.replicate n ()) =
       (A.states false (List.replicate N ())).take n := fun n hn => by
     rw [← DetStrategy.states_take, List.take_replicate, Nat.min_eq_left hn]
-  have hrep : ∀ n, (problem B).scheduleCost false (List.replicate n ())
-      (List.replicate n false) = n := fun n => by
-    have := scheduleCost_replicate_false B (List.replicate n ())
-    rwa [List.length_replicate] at this
+  have hrep (n : Nat) : (problem B).scheduleCost false (List.replicate n ())
+      (List.replicate n false) = n := by
+    simpa using scheduleCost_replicate_false B (List.replicate n ())
   rcases bool_list_cases (A.states false (List.replicate N ())) with hall | ⟨d, tail, hsplit⟩
   · -- The strategy never buys within `N` days.
     refine ⟨N, fun n hn => ?_⟩
