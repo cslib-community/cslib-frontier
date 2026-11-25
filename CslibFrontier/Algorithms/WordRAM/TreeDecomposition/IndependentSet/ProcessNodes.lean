@@ -403,9 +403,10 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
     unfold processNodeStep
     dsimp only
     iterate 9 rw [memoryCost_bind', memoryCost_read, hr_s, hr_r]
-    rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m, memoryCost_bind', memoryCost_alloc,
-      show (Memory.spec 0).clientState t (Memory.alloc tblPLen) = t_a from rfl,
-      show (Memory.spec 0).clientResult t (Memory.alloc tblPLen) = bestPtr from rfl,
+    rw [hp_read, hj_len_m, hj_pow_m, hp_len_m, hp_pow_m]
+    have ha_st : (Memory.spec 0).clientState t (Memory.alloc tblPLen) = t_a := rfl
+    have ha_res : (Memory.spec 0).clientResult t (Memory.alloc tblPLen) = bestPtr := rfl
+    rw [memoryCost_bind', memoryCost_alloc, ha_st, ha_res,
       memoryCost_bind', memoryCost_bind', memoryCost_pure, Nat.add_zero]
     have hc_cp_M : memoryCost (childPassProg cpArgs) t_a ≤ 2 ^ M * (4 * M ^ 2 + 4 * M + 3) :=
       hc_cp.trans (Nat.mul_le_mul hj_pow_le (cp_cost_poly_le hj_len_le hp_len_le))
