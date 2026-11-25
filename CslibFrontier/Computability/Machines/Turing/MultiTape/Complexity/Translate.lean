@@ -392,24 +392,16 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
     simp only [Translator.passState_lift, Translator.streamState_lift, List.take_length,
       encBits_apply, streamEmit_const_nil, List.nil_append]
     rfl
-  case refine_3 =>
+  case refine_3 | refine_4 =>
     intro x i hi j hj
     rw [Translator.passState_lift, Translator.streamState_lift]
-    exact hround_bound htMax x i hi j hj
-  case refine_4 =>
-    intro x i hi j hj
-    rw [Translator.passState_lift, Translator.streamState_lift]
-    exact hround_bound hsMax x i hi j hj
-  case refine_5 =>
+    first | exact hround_bound htMax x i hi j hj | exact hround_bound hsMax x i hi j hj
+  case refine_5 | refine_6 =>
     intro x i hi
     rw [Translator.passState_lift, Translator.streamState_lift, List.take_length,
       Translator.passState_lift]
-    simpa only [st, Translator.events, passState, Function.comp_apply] using hend_bound htEnd x i hi
-  case refine_6 =>
-    intro x i hi
-    rw [Translator.passState_lift, Translator.streamState_lift, List.take_length,
-      Translator.passState_lift]
-    simpa only [st, Translator.events, passState, Function.comp_apply] using hend_bound hsEnd x i hi
+    simp only [st, Translator.events, passState] at hend_bound
+    first | exact hend_bound htEnd x i hi | exact hend_bound hsEnd x i hi
   case refine_7 =>
     intro x i hi j hj
     rw [Translator.passState_lift, Translator.streamState_lift]
