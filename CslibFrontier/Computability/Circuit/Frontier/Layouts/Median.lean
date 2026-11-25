@@ -124,17 +124,13 @@ variable {score : E → α} {v : V} {m : α}
 
 /-- Some edge at `v` scores at most a median. -/
 theorem exists_score_le (h : G.IsMedian score v m) :
-    ∃ e ∈ G.incidenceSet v, score e ≤ m := by
-  obtain ⟨e, he⟩ := nonempty_of_ncard_ne_zero (s := {e ∈ G.incidenceSet v | score e ≤ m})
-    (by have := h.1; omega)
-  exact ⟨e, he⟩
+    ∃ e ∈ G.incidenceSet v, score e ≤ m :=
+  nonempty_of_ncard_ne_zero (s := {e ∈ G.incidenceSet v | score e ≤ m}) (by have := h.1; omega)
 
 /-- Some edge at `v` scores at least a median. -/
 theorem exists_le_score (h : G.IsMedian score v m) :
-    ∃ e ∈ G.incidenceSet v, m ≤ score e := by
-  obtain ⟨e, he⟩ := nonempty_of_ncard_ne_zero (s := {e ∈ G.incidenceSet v | m ≤ score e})
-    (by have := h.2; omega)
-  exact ⟨e, he⟩
+    ∃ e ∈ G.incidenceSet v, m ≤ score e :=
+  exists_score_le (α := αᵒᵈ) (score := OrderDual.toDual ∘ score) ⟨h.2, h.1⟩
 
 variable [Finite E]
 
@@ -156,17 +152,8 @@ private theorem eq_of_score_lt (h : G.IsMedian score v m) (hv : (G.incidenceSet 
 /-- At a vertex with three edges, at most one edge scores above a median. -/
 private theorem eq_of_lt_score (h : G.IsMedian score v m) (hv : (G.incidenceSet v).ncard = 3)
     {e e' : E} (he : e ∈ G.incidenceSet v) (he' : e' ∈ G.incidenceSet v) (hlt : m < score e)
-    (hlt' : m < score e') : e = e' := by
-  by_contra hne
-  have hsub : {f ∈ G.incidenceSet v | score f ≤ m} ⊆ G.incidenceSet v \ {e, e'} := by
-    rintro f ⟨hf, hmf⟩
-    refine ⟨hf, ?_⟩
-    rintro (rfl | rfl)
-    exacts [hmf.not_gt hlt, hmf.not_gt hlt']
-  have := ncard_le_ncard hsub
-  rw [ncard_sdiff (by simp [insert_subset_iff, he, he']), ncard_pair hne, hv] at this
-  have := h.1
-  omega
+    (hlt' : m < score e') : e = e' :=
+  eq_of_score_lt (α := αᵒᵈ) (score := OrderDual.toDual ∘ score) ⟨h.2, h.1⟩ hv he he' hlt hlt'
 
 end IsMedian
 
@@ -278,11 +265,8 @@ theorem ncard_edgeCut_le_of_isMedian [Finite V] (h3 : ∀ v, (G.incidenceSet v).
   have hsub (p : ℝ → Prop) : {e ∈ G.edgeCut P | p (score e)}.ncard ≤ {e | p (score e)}.ncard :=
     ncard_le_ncard fun e he => he.2
   -- The empty window between a threshold and itself.
-  have hempty (t : ℝ) : {e ∈ G.edgeCut P | t ≤ score e ∧ score e < t}.ncard = 0 := by
-    rw [ncard_eq_zero]
-    ext e
-    simp only [mem_sep_iff, mem_empty_iff_false, iff_false]
-    exact fun h => h.2.1.not_gt h.2.2
+  have hempty (t : ℝ) : {e ∈ G.edgeCut P | t ≤ score e ∧ score e < t}.ncard = 0 :=
+    (ncard_eq_zero).mpr (eq_empty_of_forall_notMem fun e h => h.2.1.not_gt h.2.2)
   rcases lt_or_ge m a with hlow | hge
   · -- Below the grid: the vertices of `P` charged by high edges are endpoints of low edges.
     have hU : {u | u ∈ P ∧ ∃ e ∈ G.incidenceSet u, a ≤ score e} ⊆
