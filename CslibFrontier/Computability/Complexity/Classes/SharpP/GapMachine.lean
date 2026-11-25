@@ -74,11 +74,9 @@ theorem exists_signed_verifier_machine (enc : α ↪ List Bool) (p : Polynomial 
       ((BitString.enumList (p.eval (enc a).length)).map
         (fun word => encBool (verifier (a, word)))) := (hm a).2
   have hbool : ∀ result ∈ source.runList (sourceClock.eval (enc a).length)
-      (Cfg.init source.initial (enc a)), ∃ bit, result.output = encBool bit := by
-    intro result hresult
-    have hout := hp.mem_iff.mp (List.mem_map.mpr ⟨result, hresult, rfl⟩)
-    obtain ⟨word, _, hword⟩ := List.mem_map.mp hout
-    exact ⟨verifier (a, word), hword.symm⟩
+      (Cfg.init source.initial (enc a)), ∃ bit, result.output = encBool bit := fun result hr =>
+    let ⟨word, _, hword⟩ := List.mem_map.mp (hp.mem_iff.mp (List.mem_map.mpr ⟨result, hr, rfl⟩))
+    ⟨verifier (a, word), hword.symm⟩
   have hlength : (source.runList (sourceClock.eval (enc a).length)
       (Cfg.init source.initial (enc a))).length = 2 ^ p.eval (enc a).length := by
     simpa using hp.length_eq
@@ -88,12 +86,9 @@ theorem exists_signed_verifier_machine (enc : α ↪ List Bool) (p : Polynomial 
     rw [rejectCount, hhalt.branchCount_eq_countP (fun out => !(out == [true]))]
     have hc := hp.countP_eq (fun out => !(out == [true]))
     simp only [List.countP_map, Function.comp_def] at hc
-    rw [hc]
-    have he := BitString.countP_enumList (p.eval (enc a).length)
-      (fun word => !(encBool (verifier (a, word)) == [true]))
+    rw [hc, BitString.countP_enumList]
     have hn := Complexity.acceptCount_add_card_filter_eq_false
       (V := verifier) (a := a) (n := p.eval (enc a).length)
-    rw [he]
     simpa [encBool_apply] using (show
       (Finset.univ.filter fun word : BitString (p.eval (enc a).length) =>
         verifier (a, List.ofFn word) = false).card =
