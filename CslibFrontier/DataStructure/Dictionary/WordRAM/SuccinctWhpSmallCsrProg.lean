@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpHashProg
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -316,13 +317,6 @@ private def smallScanLoopProg (d : ((SmallRt × ℕ) × (ℕ × (ℕ × ℕ))) �
     Memory.Prog (ℕ × (ℕ × ℕ)) :=
   iterate smallScanStepProg d.1.1 d.2 d.1.2
 
-private theorem smallScanLoopProg_zero (env : SmallRt × ℕ) (acc : ℕ × (ℕ × ℕ)) :
-    smallScanLoopProg ((env, acc), 0) = pure acc := rfl
-
-private theorem smallScanLoopProg_succ (env : SmallRt × ℕ) (acc : ℕ × (ℕ × ℕ)) (m : ℕ) :
-    smallScanLoopProg ((env, acc), m + 1) =
-      (smallScanStepProg (env, acc) >>= fun acc' => smallScanLoopProg ((env, acc'), m)) := rfl
-
 private theorem realizes_smallScanLoop :
     Realizes .exact smallScanLoopProg
       (WordEncoding.encode (α := ((SmallRt × ℕ) × (ℕ × (ℕ × ℕ))) × ℕ))
@@ -387,57 +381,32 @@ private theorem smallScanLoop_invariant {c U V w n_max base u_val : ℕ}
       memoryCost (smallScanLoopProg (((srt, u_val), (i, (f1, free1))), m)) s = 4 * m ∧
       ValidProg w (base + smallSpaceWhp U V w n_max) s
         (smallScanLoopProg (((srt, u_val), (i, (f1, free1))), m)) := by
-  intro srt m
+  intro srt m i f1 free1 him hf1 hfr1
   have hw := henv.2.1
   have hsegb := small_seg_base_bounds base U V w n_max
-  induction m with
-  | zero =>
-    intro i f1 free1 _ hf1 hfr1
-    exact ⟨trivial, rfl, hf1, hfr1, rfl, validProg_pure _⟩
-  | succ m ih =>
-    intro i f1 free1 him hf1 hfr1
-    have hi_lt : i < n_max := by omega
-    have hpre : SmallScanStepPre w ((srt, u_val), (i, (f1, free1))) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hi_lt, hf1, hfr1⟩
-    set p := readPacked (base + offSmallPres) 1 w s.mem i
-    set ki := readPacked (base + offSmallKeys U w n_max) (keyBits U) w s.mem i
-    set nxt : ℕ × ℕ :=
-      if p != 0 then
-        if ki == u_val && f1 == 0 then (i + 1, free1) else (f1, free1)
-      else
-        if free1 == 0 then (f1, i + 1) else (f1, free1)
-    obtain ⟨hst1, hres1⟩ :
-        (Memory.spec 0).clientState s (smallScanStepProg ((srt, u_val), (i, (f1, free1)))) = s ∧
-        (Memory.spec 0).clientResult s (smallScanStepProg ((srt, u_val), (i, (f1, free1)))) =
-          (i + 1, nxt) :=
-      smallScanStepProg_step
-    have hnxt_le : nxt.1 ≤ n_max ∧ nxt.2 ≤ n_max := by
-      dsimp only [nxt]
-      split_ifs <;> exact ⟨by omega, by omega⟩
-    have hvp1 : ValidProg w (base + smallSpaceWhp U V w n_max) s
-        (smallScanStepProg ((srt, u_val), (i, (f1, free1)))) := by
-      unfold smallScanStepProg
-      simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw hi_lt hsegb.1) ?_
-      refine validProg_bind (validProg_readPacked hw hi_lt hsegb.2.1) ?_
-      split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_m, hst_m, hr1_m, hr2_m, hmc_m, hvp_m⟩ :=
-      ih (i + 1) nxt.1 nxt.2 (by omega) hnxt_le.1 hnxt_le.2
-    rw [Prod.mk.eta] at hsafe_m hst_m hr1_m hr2_m hmc_m hvp_m
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [clientResult_width, clientState_width, hst1, hres1]; exact hsafe_m
-    · rw [smallScanLoopProg_succ, clientState_bind, hst1, hres1]
-      exact hst_m
-    · rw [smallScanLoopProg_succ, clientResult_bind, hst1, hres1]
-      exact hr1_m
-    · rw [smallScanLoopProg_succ, clientResult_bind, hst1, hres1]
-      exact hr2_m
-    · rw [smallScanLoopProg_succ, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-        memoryCost_smallScanStepProg, hst1, hres1, hmc_m]
-      ring
-    · rw [smallScanLoopProg_succ]
-      refine validProg_bind hvp1 ?_
-      rw [hst1, hres1]; exact hvp_m
+  obtain ⟨hsafe, hvp, hst, -, hr1, hr2⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + smallSpaceWhp U V w n_max) (body := smallScanStepProg)
+    (safe := SmallScanStepPre) (d := (srt, u_val)) (n := m)
+    (fun k a t => t = s ∧ a.1 = i + k ∧ a.2.1 ≤ n_max ∧ a.2.2 ≤ n_max)
+    (fun k hk ⟨j, f, fr⟩ t ⟨ht, (hj : j = i + k), hf, hfr⟩ => by
+      subst ht hj
+      have hi_lt : i + k < n_max := by omega
+      obtain ⟨hst1, hres1⟩ := smallScanStepProg_step (U := U) (V := V) (w := w)
+        (n_max := n_max) (base := base) (u_val := u_val) (i := i + k) (f1 := f) (free1 := fr)
+        (s := t)
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hi_lt, hf, hfr⟩, ?_, ?_⟩
+      · unfold smallScanStepProg
+        simp only [pure_bind]
+        refine validProg_bind (validProg_readPacked hw hi_lt hsegb.1) ?_
+        refine validProg_bind (validProg_readPacked hw hi_lt hsegb.2.1) ?_
+        split_ifs <;> exact validProg_pure _
+      · rw [hst1, hres1]
+        refine ⟨rfl, Nat.add_assoc i k 1, ?_⟩
+        dsimp only
+        split_ifs <;> exact ⟨by omega, by omega⟩)
+    (a := (i, (f1, free1))) ⟨rfl, rfl, hf1, hfr1⟩
+  exact ⟨hsafe, hst, hr1, hr2,
+    memoryCost_iterate_eq_of _ 4 _ (fun _ _ => memoryCost_smallScanStepProg _ _) _ _ _, hvp⟩
 
 private theorem smallScanLoop_result_eq {U V w n_max base u_val : ℕ} {sm : SmallDictState}
     {s : Memory.State} (hrep : SmallMemRep base U V w n_max sm s.mem) :
@@ -446,28 +415,21 @@ private theorem smallScanLoop_result_eq {U V w n_max base u_val : ℕ} {sm : Sma
         (smallScanLoopProg (((mkSmallRt U V w n_max base, u_val),
           (i, smallScan sm u_val i)), m)) =
         (i + m, smallScan sm u_val (i + m)) := by
-  intro m
-  induction m with
-  | zero =>
-    intro i _
-    rw [smallScanLoopProg_zero, clientResult_pure_whp, Nat.add_zero]
-  | succ m ih =>
-    intro i him
-    have hi_lt : i < n_max := by omega
-    obtain ⟨hst1, hres1⟩ := smallScanStepProg_step (U := U) (V := V) (w := w) (n_max := n_max)
-      (base := base) (u_val := u_val) (i := i)
-      (f1 := (smallScan sm u_val i).1) (free1 := (smallScan sm u_val i).2) (s := s)
-    rw [(hrep.2 i hi_lt).1, (hrep.2 i hi_lt).2.1] at hres1
-    have hstep_eq : (Memory.spec 0).clientResult s
-        (smallScanStepProg ((mkSmallRt U V w n_max base, u_val),
-          (i, smallScan sm u_val i))) =
-        (i + 1, smallScan sm u_val (i + 1)) := by
-      rw [Prod.mk.eta] at hres1
-      exact hres1
-    rw [smallScanLoopProg_succ, clientResult_bind, hst1, hstep_eq]
-    have hrec := ih (i + 1) (by omega)
-    have hadd : i + 1 + m = i + (m + 1) := by omega
-    rwa [hadd] at hrec
+  intro m i him
+  obtain ⟨-, k, hk, hres⟩ := iterate_invariant_of smallScanStepProg
+    (mkSmallRt U V w n_max base, u_val)
+    (fun j a t => t = s ∧ ∃ k, k + j = m ∧ a = (i + k, smallScan sm u_val (i + k)))
+    (fun j a t ⟨ht, k, hk, ha⟩ => by
+      subst ht ha
+      have hi_lt : i + k < n_max := by omega
+      obtain ⟨hst1, hres1⟩ := smallScanStepProg_step (U := U) (V := V) (w := w)
+        (n_max := n_max) (base := base) (u_val := u_val) (i := i + k)
+        (f1 := (smallScan sm u_val (i + k)).1) (free1 := (smallScan sm u_val (i + k)).2) (s := t)
+      rw [(hrep.2 _ hi_lt).1, (hrep.2 _ hi_lt).2.1, Prod.mk.eta] at hres1
+      exact ⟨hst1, k + 1, by omega, hres1⟩)
+    (n := m) (a := (i, smallScan sm u_val i)) ⟨rfl, 0, Nat.zero_add m, rfl⟩
+  obtain rfl : k = m := hk
+  exact hres
 
 /-- Small-regime operation dispatcher (`d = (((cp, base), opTag), (u_val, v_val))`). -/
 @[irreducible] def smallStepOpGenProg :
@@ -1167,13 +1129,6 @@ private def csrScanLoopProg (d : ((CsrRt × (ℕ × ℕ)) × (ℕ × ℕ)) × �
     Memory.Prog (ℕ × ℕ) :=
   iterate csrScanStepProg d.1.1 d.2 d.1.2
 
-private theorem csrScanLoopProg_zero (env : CsrRt × (ℕ × ℕ)) (acc : ℕ × ℕ) :
-    csrScanLoopProg ((env, acc), 0) = pure acc := rfl
-
-private theorem csrScanLoopProg_succ (env : CsrRt × (ℕ × ℕ)) (acc : ℕ × ℕ) (m : ℕ) :
-    csrScanLoopProg ((env, acc), m + 1) =
-      (csrScanStepProg (env, acc) >>= fun acc' => csrScanLoopProg ((env, acc'), m)) := rfl
-
 private theorem realizes_csrScanLoop :
     Realizes .exact csrScanLoopProg
       (WordEncoding.encode (α := ((CsrRt × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ))
@@ -1201,60 +1156,47 @@ private theorem csrScanLoop_spec {c U V w n_max base lo q_val : ℕ}
       (f1 = csrScanRange qMem lo q_val k →
         (Memory.spec 0).clientResult s (csrScanLoopProg (((crt, (lo, q_val)), (k, f1)), m)) =
           (k + m, csrScanRange qMem lo q_val (k + m))) := by
-  intro crt qMem m
+  intro crt qMem m k f1 hkm hf1
   have hw := henv.2.1
   have hsegb := csr_seg_base_bounds base c U V w n_max
-  induction m with
-  | zero =>
-    intro k f1 _ hf1
-    refine ⟨trivial, rfl, hf1, validProg_pure _, fun heq => ?_⟩
-    rw [csrScanLoopProg_zero, clientResult_pure_whp, Nat.add_zero, heq]
-  | succ m ih =>
-    intro k f1 hkm hf1
-    have hpos : lo + k < n_max := by omega
-    have hpre : CsrScanStepPre w ((crt, (lo, q_val)), (k, f1)) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hpos, hf1⟩
-    have hst1 : (Memory.spec 0).clientState s
-        (csrScanStepProg ((crt, (lo, q_val)), (k, f1))) = s := by
-      unfold csrScanStepProg
-      simp only [pure_bind, clientState_bind_prog, runClient_state_readPackedGen]
-      split_ifs <;> rfl
-    set nxt := if f1 != 0 then f1 else if qMem (lo + k) == q_val then (lo + k) + 1 else 0
-    have hres1 : (Memory.spec 0).clientResult s
-        (csrScanStepProg ((crt, (lo, q_val)), (k, f1))) = (k + 1, nxt) := by
-      unfold csrScanStepProg
-      simp only [pure_bind, clientResult_bind, runClient_state_readPackedGen]
-      have hrp : (Memory.spec 0).clientResult s
-          (readPackedGenProg (((crBase crt, crOffQuot crt), (crQuotBits crt, crW crt)), lo + k)) =
-          qMem (lo + k) := clientResult_readPackedProg _ _ _ _ _ _
-      rw [hrp]
-      dsimp only [nxt]
-      by_cases hf0 : f1 = 0
-      · simp [hf0]; by_cases hq : qMem (lo + k) = q_val <;> simp [hq]
-      · simp [hf0]
-    have hnxt_le : nxt ≤ n_max := by dsimp only [nxt]; split_ifs <;> omega
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (csrScanStepProg ((crt, (lo, q_val)), (k, f1))) := by
-      unfold csrScanStepProg
-      simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw hpos hsegb.1) ?_
-      split_ifs <;> exact validProg_pure _
-    obtain ⟨hsafe_m, hst_m, hr_m, hvp_m, heq_m⟩ := ih (k + 1) nxt (by omega) hnxt_le
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_, fun hf_eq => ?_⟩
-    · rw [clientResult_width, clientState_width, hst1, hres1]; exact hsafe_m
-    · rw [csrScanLoopProg_succ, clientState_bind, hst1, hres1]
-      exact hst_m
-    · rw [csrScanLoopProg_succ, clientResult_bind, hst1, hres1]
-      exact hr_m
-    · rw [csrScanLoopProg_succ]
-      refine validProg_bind hvp1 ?_
-      rw [hst1, hres1]; exact hvp_m
-    · rw [csrScanLoopProg_succ, clientResult_bind, hst1, hres1]
-      have hnxt_eq : nxt = csrScanRange qMem lo q_val (k + 1) := by
-        dsimp only [nxt, csrScanRange]; rw [hf_eq]
-      have hrec := heq_m hnxt_eq
-      have hadd : k + 1 + m = k + (m + 1) := by omega
-      rwa [hadd] at hrec
+  obtain ⟨hsafe, hvp, hst, hr1, hr2, hreq⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := csrScanStepProg)
+    (safe := CsrScanStepPre) (d := (crt, (lo, q_val))) (n := m)
+    (fun j a t => t = s ∧ a.1 = k + j ∧ a.2 ≤ n_max ∧
+      (f1 = csrScanRange qMem lo q_val k → a.2 = csrScanRange qMem lo q_val (k + j)))
+    (fun j hj ⟨k', f⟩ t ⟨ht, (hk' : k' = k + j), hf, himp⟩ => by
+      subst ht hk'
+      have hpos : lo + (k + j) < n_max := by omega
+      have hst1 : (Memory.spec 0).clientState t
+          (csrScanStepProg ((crt, (lo, q_val)), (k + j, f))) = t := by
+        unfold csrScanStepProg
+        simp only [pure_bind, clientState_bind_prog, runClient_state_readPackedGen]
+        split_ifs <;> rfl
+      have hres1 : (Memory.spec 0).clientResult t
+          (csrScanStepProg ((crt, (lo, q_val)), (k + j, f))) =
+          (k + j + 1, if f != 0 then f else
+            if qMem (lo + (k + j)) == q_val then lo + (k + j) + 1 else 0) := by
+        unfold csrScanStepProg
+        simp only [pure_bind, clientResult_bind, runClient_state_readPackedGen]
+        have hrp : (Memory.spec 0).clientResult t
+            (readPackedGenProg (((crBase crt, crOffQuot crt), (crQuotBits crt, crW crt)),
+              lo + (k + j))) = qMem (lo + (k + j)) := clientResult_readPackedProg _ _ _ _ _ _
+        rw [hrp]
+        by_cases hf0 : f = 0
+        · simp [hf0]; by_cases hq : qMem (lo + (k + j)) = q_val <;> simp [hq]
+        · simp [hf0]
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hpos, hf⟩, ?_, ?_⟩
+      · unfold csrScanStepProg
+        simp only [pure_bind]
+        refine validProg_bind (validProg_readPacked hw hpos hsegb.1) ?_
+        split_ifs <;> exact validProg_pure _
+      · rw [hst1, hres1]
+        refine ⟨rfl, Nat.add_assoc k j 1, by dsimp only; split_ifs <;> omega, fun hf_eq => ?_⟩
+        change _ = csrScanRange qMem lo q_val (k + j + 1)
+        dsimp only [csrScanRange] at himp ⊢
+        rw [himp hf_eq])
+    (a := (k, f1)) ⟨rfl, rfl, hf1, fun h => h⟩
+  exact ⟨hsafe, hst, hr2, hvp, fun heq => Prod.ext hr1 (hreq heq)⟩
 
 /-! ### Loop 2: `csrShiftDown` -/
 
@@ -1321,13 +1263,6 @@ private theorem realizes_csrShiftDownStep :
 private def csrShiftDownLoopProg (d : ((CsrRt × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ :=
   iterate csrShiftDownStepProg d.1.1 d.2 d.1.2
 
-private theorem csrShiftDownLoopProg_zero (env : CsrRt × ℕ) (acc : ℕ) :
-    csrShiftDownLoopProg ((env, acc), 0) = pure acc := rfl
-
-private theorem csrShiftDownLoopProg_succ (env : CsrRt × ℕ) (acc m : ℕ) :
-    csrShiftDownLoopProg ((env, acc), m + 1) =
-      (csrShiftDownStepProg (env, acc) >>= fun acc' => csrShiftDownLoopProg ((env, acc'), m)) := rfl
-
 private theorem realizes_csrShiftDownLoop :
     Realizes .exact csrShiftDownLoopProg
       (WordEncoding.encode (α := ((CsrRt × ℕ) × ℕ) × ℕ))
@@ -1339,6 +1274,11 @@ private theorem realizes_csrShiftDownLoop :
     (WordEncoding.encode (α := ℕ))
     realizes_csrShiftDownStep
     memoryCost_csrShiftDownStepProg_pos
+
+private theorem csrShiftDownStepProg_res (crt : CsrRt) (i₀ k : ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (csrShiftDownStepProg ((crt, i₀), k)) = k + 1 := by
+  unfold csrShiftDownStepProg
+  simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
 
 private theorem csrShiftDownLoop_spec {c U V w n_max base i₀ : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base) :
@@ -1363,107 +1303,88 @@ private theorem csrShiftDownLoop_spec {c U V w n_max base i₀ : ℕ}
           (csrShiftDown i₀ (k + m) (q₀, v₀)).2 i) ∧
       (∀ a, (a < base + offQuotWhp c w n_max ∨ base + offPermAct c U V w n_max ≤ a) →
         s'.mem a = s.mem a) := by
-  intro crt m
+  intro crt m k q₀ v₀ s _ hlt hqv prog s'
   have hw := henv.2.1
   have hseg := csr_seg_disjoint c U V w n_max
   have hsegb := csr_seg_base_bounds base c U V w n_max
   have hpa : offPermAct c U V w n_max =
       offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-  induction m with
-  | zero =>
-    intro k q₀ v₀ s _ _ hqv
-    dsimp only
-    rw [csrShiftDownLoopProg_zero, clientState_pure_whp, Nat.add_zero]
-    exact ⟨trivial, rfl, validProg_pure _, hqv, fun _ _ => rfl⟩
-  | succ m ih =>
-    intro k q₀ v₀ s _ hlt_pos hqv
-    dsimp only
-    have hpos1 : i₀ + k + 1 < n_max := by have := hlt_pos (Nat.succ_pos m); omega
-    have hpos : i₀ + k < n_max := by omega
-    have hpre : CsrShiftDownStepPre w ((crt, i₀), k) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hpos1⟩
-    set qk := (csrShiftDown i₀ k (q₀, v₀)).1
-    set vk := (csrShiftDown i₀ k (q₀, v₀)).2
-    have hqn_lt : qk (i₀ + k + 1) < 2 ^ quotBitsWhp U n_max := by
-      rw [← (hqv (i₀ + k + 1) hpos1).1]; exact readPacked_lt _ _ _ _ _
-    have hvn_lt : vk (i₀ + k + 1) < 2 ^ valBits V := by
-      rw [← (hqv (i₀ + k + 1) hpos1).2]; exact readPacked_lt _ _ _ _ _
-    set m1 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s.mem
-      (i₀ + k) (qk (i₀ + k + 1))
-    set m2 := writePacked (base + offValWhp c U w n_max) (valBits V) w m1
-      (i₀ + k) (vk (i₀ + k + 1))
-    have hstep_st : (Memory.spec 0).clientState s (csrShiftDownStepProg ((crt, i₀), k)) =
-        { mem := m2, frontier := s.frontier } := by
-      unfold csrShiftDownStepProg
-      simp only [pure_bind]
-      rw [clientState_bind]
-      have hr1 : (Memory.spec 0).clientResult s
-          (readPackedGenProg (((crBase crt, crOffQuot crt), (crQuotBits crt, crW crt)),
-            i₀ + k + 1)) = qk (i₀ + k + 1) :=
-        (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (i₀ + k + 1) hpos1).1
-      change (Memory.spec 0).clientState s _ = _
-      rw [hr1, clientState_bind]
-      have hr2 : (Memory.spec 0).clientResult s
-          (readPackedGenProg (((crBase crt, crOffVal crt), (crValBits crt, crW crt)),
-            i₀ + k + 1)) = vk (i₀ + k + 1) :=
-        (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (i₀ + k + 1) hpos1).2
-      change (Memory.spec 0).clientState s _ = _
-      rw [hr2, clientState_bind, clientState_bind]
-      rfl
-    have hstep_res : (Memory.spec 0).clientResult s (csrShiftDownStepProg ((crt, i₀), k)) =
-        k + 1 := by
-      unfold csrShiftDownStepProg
-      simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (csrShiftDownStepProg ((crt, i₀), k)) := by
-      unfold csrShiftDownStepProg
-      simp only [pure_bind]
-      have hqk_w : quotBitsWhp U n_max ≤ w :=
-        (Nat.sub_le _ _).trans (keyBits_le_w henv.2.2.2.2.2.1)
-      refine validProg_bind (validProg_readPacked hw hpos1 hsegb.1) ?_
-      refine validProg_bind (validProg_readPacked hw hpos1 hsegb.2.1) ?_
-      refine validProg_bind (validProg_writePacked hw hqk_w hpos hsegb.1) ?_
-      refine validProg_bind
-        (validProg_writePacked hw (valBits_le_w henv.2.2.2.2.2.2.1) hpos hsegb.2.1) ?_
-      exact validProg_pure _
-    have hqv_nxt : ∀ i < n_max,
-        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w m2 i =
-          (csrShiftDown i₀ (k + 1) (q₀, v₀)).1 i ∧
-        readPacked (base + offValWhp c U w n_max) (valBits V) w m2 i =
-          (csrShiftDown i₀ (k + 1) (q₀, v₀)).2 i := by
-      intro i hi
-      dsimp only [csrShiftDown, m2, m1]
-      rw [readPacked_writePacked_disjoint hw hi hpos (by omega)]
-      refine ⟨?_, ?_⟩
-      · by_cases heq : i = i₀ + k
-        · subst heq
-          rw [readPacked_writePacked_self _ _ _ _ _ hqn_lt, Function.update_self]
-        · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq, (hqv i hi).1]
-      · by_cases heq : i = i₀ + k
-        · subst heq
-          rw [readPacked_writePacked_self _ _ _ _ _ hvn_lt, Function.update_self]
-        · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq,
-            readPacked_writePacked_disjoint hw hi hpos (by omega), (hqv i hi).2]
-    have hlt_m := hlt_pos (Nat.succ_pos m)
-    obtain ⟨hsafe_m, hfr_m, hvp_m, hqv_m, hout_m⟩ := ih (k + 1) q₀ v₀
-      { mem := m2, frontier := s.frontier } (by omega) (fun _ => by omega) hqv_nxt
-    have hadd : k + 1 + m = k + (m + 1) := by omega
-    rw [hadd] at hqv_m
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_, fun a ha => ?_⟩
-    · rw [clientResult_width, clientState_width, hstep_st, hstep_res]; exact hsafe_m
-    · rw [csrShiftDownLoopProg_succ, clientState_bind, hstep_st, hstep_res]
-      exact hfr_m
-    · rw [csrShiftDownLoopProg_succ]
-      refine validProg_bind hvp1 ?_
-      rw [hstep_st, hstep_res]; exact hvp_m
-    · intro i hi
-      rw [csrShiftDownLoopProg_succ, clientState_bind, hstep_st, hstep_res]
-      exact hqv_m i hi
-    · rw [csrShiftDownLoopProg_succ, clientState_bind, hstep_st, hstep_res,
-        hout_m a ha]
-      dsimp only [m2, m1]
-      rw [writePacked_outside hw _ hpos _ (by omega),
-        writePacked_outside hw _ hpos _ (by omega)]
+  obtain ⟨hsafe, hvp, hres, hfr, hqv', hout⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := csrShiftDownStepProg)
+    (safe := CsrShiftDownStepPre) (d := (crt, i₀)) (n := m)
+    (fun j a t => a = k + j ∧ t.frontier = s.frontier ∧
+      (∀ i < n_max,
+        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w t.mem i =
+          (csrShiftDown i₀ a (q₀, v₀)).1 i ∧
+        readPacked (base + offValWhp c U w n_max) (valBits V) w t.mem i =
+          (csrShiftDown i₀ a (q₀, v₀)).2 i) ∧
+      (∀ x, (x < base + offQuotWhp c w n_max ∨ base + offPermAct c U V w n_max ≤ x) →
+        t.mem x = s.mem x))
+    (fun j hj a t ⟨ha, hfr, hqv, hout⟩ => by
+      have hpos1 : i₀ + a + 1 < n_max := by have := hlt (by omega); omega
+      have hpos : i₀ + a < n_max := by omega
+      set qk := (csrShiftDown i₀ a (q₀, v₀)).1
+      set vk := (csrShiftDown i₀ a (q₀, v₀)).2
+      have hqn_lt : qk (i₀ + a + 1) < 2 ^ quotBitsWhp U n_max := by
+        rw [← (hqv (i₀ + a + 1) hpos1).1]; exact readPacked_lt _ _ _ _ _
+      have hvn_lt : vk (i₀ + a + 1) < 2 ^ valBits V := by
+        rw [← (hqv (i₀ + a + 1) hpos1).2]; exact readPacked_lt _ _ _ _ _
+      set m1 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w t.mem
+        (i₀ + a) (qk (i₀ + a + 1))
+      set m2 := writePacked (base + offValWhp c U w n_max) (valBits V) w m1
+        (i₀ + a) (vk (i₀ + a + 1))
+      have hstep_st : (Memory.spec 0).clientState t (csrShiftDownStepProg ((crt, i₀), a)) =
+          { mem := m2, frontier := t.frontier } := by
+        unfold csrShiftDownStepProg
+        simp only [pure_bind]
+        rw [clientState_bind]
+        have hr1 : (Memory.spec 0).clientResult t
+            (readPackedGenProg (((crBase crt, crOffQuot crt), (crQuotBits crt, crW crt)),
+              i₀ + a + 1)) = qk (i₀ + a + 1) :=
+          (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (i₀ + a + 1) hpos1).1
+        change (Memory.spec 0).clientState t _ = _
+        rw [hr1, clientState_bind]
+        have hr2 : (Memory.spec 0).clientResult t
+            (readPackedGenProg (((crBase crt, crOffVal crt), (crValBits crt, crW crt)),
+              i₀ + a + 1)) = vk (i₀ + a + 1) :=
+          (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (i₀ + a + 1) hpos1).2
+        change (Memory.spec 0).clientState t _ = _
+        rw [hr2, clientState_bind, clientState_bind]
+        rfl
+      have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) t
+          (csrShiftDownStepProg ((crt, i₀), a)) := by
+        unfold csrShiftDownStepProg
+        simp only [pure_bind]
+        have hqk_w : quotBitsWhp U n_max ≤ w :=
+          (Nat.sub_le _ _).trans (keyBits_le_w henv.2.2.2.2.2.1)
+        refine validProg_bind (validProg_readPacked hw hpos1 hsegb.1) ?_
+        refine validProg_bind (validProg_readPacked hw hpos1 hsegb.2.1) ?_
+        refine validProg_bind (validProg_writePacked hw hqk_w hpos hsegb.1) ?_
+        refine validProg_bind
+          (validProg_writePacked hw (valBits_le_w henv.2.2.2.2.2.2.1) hpos hsegb.2.1) ?_
+        exact validProg_pure _
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hpos1⟩, hvp1, ?_⟩
+      rw [hstep_st, csrShiftDownStepProg_res]
+      refine ⟨by omega, hfr, fun i hi => ?_, fun x hx => ?_⟩
+      · dsimp only [csrShiftDown, m2, m1]
+        rw [readPacked_writePacked_disjoint hw hi hpos (by omega)]
+        refine ⟨?_, ?_⟩
+        · by_cases heq : i = i₀ + a
+          · subst heq
+            rw [readPacked_writePacked_self _ _ _ _ _ hqn_lt, Function.update_self]
+          · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq, (hqv i hi).1]
+        · by_cases heq : i = i₀ + a
+          · subst heq
+            rw [readPacked_writePacked_self _ _ _ _ _ hvn_lt, Function.update_self]
+          · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq,
+              readPacked_writePacked_disjoint hw hi hpos (by omega), (hqv i hi).2]
+      · rw [← hout x hx]
+        dsimp only [m2, m1]
+        rw [writePacked_outside hw _ hpos _ (by omega),
+          writePacked_outside hw _ hpos _ (by omega)])
+    (a := k) (s := s) ⟨rfl, rfl, hqv, fun _ _ => rfl⟩
+  rw [hres] at hqv'
+  exact ⟨hsafe, hfr, hvp, hqv', hout⟩
 
 /-! ### Loop 3: `csrShiftUp` -/
 
@@ -1530,13 +1451,6 @@ private theorem realizes_csrShiftUpStep :
 private def csrShiftUpLoopProg (d : ((CsrRt × ℕ) × ℕ) × ℕ) : Memory.Prog ℕ :=
   iterate csrShiftUpStepProg d.1.1 d.2 d.1.2
 
-private theorem csrShiftUpLoopProg_zero (env : CsrRt × ℕ) (acc : ℕ) :
-    csrShiftUpLoopProg ((env, acc), 0) = pure acc := rfl
-
-private theorem csrShiftUpLoopProg_succ (env : CsrRt × ℕ) (acc m : ℕ) :
-    csrShiftUpLoopProg ((env, acc), m + 1) =
-      (csrShiftUpStepProg (env, acc) >>= fun acc' => csrShiftUpLoopProg ((env, acc'), m)) := rfl
-
 private theorem realizes_csrShiftUpLoop :
     Realizes .exact csrShiftUpLoopProg
       (WordEncoding.encode (α := ((CsrRt × ℕ) × ℕ) × ℕ))
@@ -1548,6 +1462,11 @@ private theorem realizes_csrShiftUpLoop :
     (WordEncoding.encode (α := ℕ))
     realizes_csrShiftUpStep
     memoryCost_csrShiftUpStepProg_pos
+
+private theorem csrShiftUpStepProg_res (crt : CsrRt) (N k : ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (csrShiftUpStepProg ((crt, N), k)) = k + 1 := by
+  unfold csrShiftUpStepProg
+  simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
 
 private theorem csrShiftUpLoop_spec {c U V w n_max base N : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base) (hN_lt : N < n_max) :
@@ -1571,107 +1490,89 @@ private theorem csrShiftUpLoop_spec {c U V w n_max base N : ℕ}
           (csrShiftUp N (k + m) (q₀, v₀)).2 i) ∧
       (∀ a, (a < base + offQuotWhp c w n_max ∨ base + offPermAct c U V w n_max ≤ a) →
         s'.mem a = s.mem a) := by
-  intro crt m
+  intro crt m k q₀ v₀ s hkm hqv prog s'
   have hw := henv.2.1
   have hseg := csr_seg_disjoint c U V w n_max
   have hsegb := csr_seg_base_bounds base c U V w n_max
   have hpa : offPermAct c U V w n_max =
       offValWhp c U w n_max + packedWords n_max (valBits V) w := rfl
-  induction m with
-  | zero =>
-    intro k q₀ v₀ s _ hqv
-    dsimp only
-    rw [csrShiftUpLoopProg_zero, clientState_pure_whp, Nat.add_zero]
-    exact ⟨trivial, rfl, validProg_pure _, hqv, fun _ _ => rfl⟩
-  | succ m ih =>
-    intro k q₀ v₀ s hkm hqv
-    dsimp only
-    have hk_lt : k < N := by omega
-    have hidx : N - k < n_max := by omega
-    have hsrc : N - k - 1 < n_max := by omega
-    have hpre : CsrShiftUpStepPre w ((crt, N), k) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hk_lt, hN_lt⟩
-    set qk := (csrShiftUp N k (q₀, v₀)).1
-    set vk := (csrShiftUp N k (q₀, v₀)).2
-    have hqp_lt : qk (N - k - 1) < 2 ^ quotBitsWhp U n_max := by
-      rw [← (hqv (N - k - 1) hsrc).1]; exact readPacked_lt _ _ _ _ _
-    have hvp_lt : vk (N - k - 1) < 2 ^ valBits V := by
-      rw [← (hqv (N - k - 1) hsrc).2]; exact readPacked_lt _ _ _ _ _
-    set m1 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w s.mem
-      (N - k) (qk (N - k - 1))
-    set m2 := writePacked (base + offValWhp c U w n_max) (valBits V) w m1
-      (N - k) (vk (N - k - 1))
-    have hstep_st : (Memory.spec 0).clientState s (csrShiftUpStepProg ((crt, N), k)) =
-        { mem := m2, frontier := s.frontier } := by
-      unfold csrShiftUpStepProg
-      simp only [pure_bind]
-      rw [clientState_bind]
-      have hr1 : (Memory.spec 0).clientResult s
-          (readPackedGenProg (((crBase crt, crOffQuot crt), (crQuotBits crt, crW crt)),
-            N - k - 1)) = qk (N - k - 1) :=
-        (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (N - k - 1) hsrc).1
-      change (Memory.spec 0).clientState s _ = _
-      rw [hr1, clientState_bind]
-      have hr2 : (Memory.spec 0).clientResult s
-          (readPackedGenProg (((crBase crt, crOffVal crt), (crValBits crt, crW crt)),
-            N - k - 1)) = vk (N - k - 1) :=
-        (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (N - k - 1) hsrc).2
-      change (Memory.spec 0).clientState s _ = _
-      rw [hr2, clientState_bind, clientState_bind]
-      rfl
-    have hstep_res : (Memory.spec 0).clientResult s (csrShiftUpStepProg ((crt, N), k)) =
-        k + 1 := by
-      unfold csrShiftUpStepProg
-      simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (csrShiftUpStepProg ((crt, N), k)) := by
-      unfold csrShiftUpStepProg
-      simp only [pure_bind]
-      have hqk_w : quotBitsWhp U n_max ≤ w :=
-        (Nat.sub_le _ _).trans (keyBits_le_w henv.2.2.2.2.2.1)
-      refine validProg_bind (validProg_readPacked hw hsrc hsegb.1) ?_
-      refine validProg_bind (validProg_readPacked hw hsrc hsegb.2.1) ?_
-      refine validProg_bind (validProg_writePacked hw hqk_w hidx hsegb.1) ?_
-      refine validProg_bind
-        (validProg_writePacked hw (valBits_le_w henv.2.2.2.2.2.2.1) hidx hsegb.2.1) ?_
-      exact validProg_pure _
-    have hqv_nxt : ∀ i < n_max,
-        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w m2 i =
-          (csrShiftUp N (k + 1) (q₀, v₀)).1 i ∧
-        readPacked (base + offValWhp c U w n_max) (valBits V) w m2 i =
-          (csrShiftUp N (k + 1) (q₀, v₀)).2 i := by
-      intro i hi
-      dsimp only [csrShiftUp, m2, m1]
-      rw [readPacked_writePacked_disjoint hw hi hidx (by omega)]
-      refine ⟨?_, ?_⟩
-      · by_cases heq : i = N - k
-        · subst heq
-          rw [readPacked_writePacked_self _ _ _ _ _ hqp_lt, Function.update_self]
-        · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq, (hqv i hi).1]
-      · by_cases heq : i = N - k
-        · subst heq
-          rw [readPacked_writePacked_self _ _ _ _ _ hvp_lt, Function.update_self]
-        · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq,
-            readPacked_writePacked_disjoint hw hi hidx (by omega), (hqv i hi).2]
-    obtain ⟨hsafe_m, hfr_m, hvp_m, hqv_m, hout_m⟩ := ih (k + 1) q₀ v₀
-      { mem := m2, frontier := s.frontier } (by omega) hqv_nxt
-    have hadd : k + 1 + m = k + (m + 1) := by omega
-    rw [hadd] at hqv_m
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_, fun a ha => ?_⟩
-    · rw [clientResult_width, clientState_width, hstep_st, hstep_res]; exact hsafe_m
-    · rw [csrShiftUpLoopProg_succ, clientState_bind, hstep_st, hstep_res]
-      exact hfr_m
-    · rw [csrShiftUpLoopProg_succ]
-      refine validProg_bind hvp1 ?_
-      rw [hstep_st, hstep_res]; exact hvp_m
-    · intro i hi
-      rw [csrShiftUpLoopProg_succ, clientState_bind, hstep_st, hstep_res]
-      exact hqv_m i hi
-    · rw [csrShiftUpLoopProg_succ, clientState_bind, hstep_st, hstep_res,
-        hout_m a ha]
-      dsimp only [m2, m1]
-      rw [writePacked_outside hw _ hidx _ (by omega),
-        writePacked_outside hw _ hidx _ (by omega)]
+  obtain ⟨hsafe, hvp, hres, hfr, hqv', hout⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := csrShiftUpStepProg)
+    (safe := CsrShiftUpStepPre) (d := (crt, N)) (n := m)
+    (fun j a t => a = k + j ∧ t.frontier = s.frontier ∧
+      (∀ i < n_max,
+        readPacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w t.mem i =
+          (csrShiftUp N a (q₀, v₀)).1 i ∧
+        readPacked (base + offValWhp c U w n_max) (valBits V) w t.mem i =
+          (csrShiftUp N a (q₀, v₀)).2 i) ∧
+      (∀ x, (x < base + offQuotWhp c w n_max ∨ base + offPermAct c U V w n_max ≤ x) →
+        t.mem x = s.mem x))
+    (fun j hj a t ⟨ha, hfr, hqv, hout⟩ => by
+      have hk_lt : a < N := by omega
+      have hidx : N - a < n_max := by omega
+      have hsrc : N - a - 1 < n_max := by omega
+      set qk := (csrShiftUp N a (q₀, v₀)).1
+      set vk := (csrShiftUp N a (q₀, v₀)).2
+      have hqp_lt : qk (N - a - 1) < 2 ^ quotBitsWhp U n_max := by
+        rw [← (hqv (N - a - 1) hsrc).1]; exact readPacked_lt _ _ _ _ _
+      have hvp_lt : vk (N - a - 1) < 2 ^ valBits V := by
+        rw [← (hqv (N - a - 1) hsrc).2]; exact readPacked_lt _ _ _ _ _
+      set m1 := writePacked (base + offQuotWhp c w n_max) (quotBitsWhp U n_max) w t.mem
+        (N - a) (qk (N - a - 1))
+      set m2 := writePacked (base + offValWhp c U w n_max) (valBits V) w m1
+        (N - a) (vk (N - a - 1))
+      have hstep_st : (Memory.spec 0).clientState t (csrShiftUpStepProg ((crt, N), a)) =
+          { mem := m2, frontier := t.frontier } := by
+        unfold csrShiftUpStepProg
+        simp only [pure_bind]
+        rw [clientState_bind]
+        have hr1 : (Memory.spec 0).clientResult t
+            (readPackedGenProg (((crBase crt, crOffQuot crt), (crQuotBits crt, crW crt)),
+              N - a - 1)) = qk (N - a - 1) :=
+          (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (N - a - 1) hsrc).1
+        change (Memory.spec 0).clientState t _ = _
+        rw [hr1, clientState_bind]
+        have hr2 : (Memory.spec 0).clientResult t
+            (readPackedGenProg (((crBase crt, crOffVal crt), (crValBits crt, crW crt)),
+              N - a - 1)) = vk (N - a - 1) :=
+          (clientResult_readPackedProg _ _ _ _ _ _).trans (hqv (N - a - 1) hsrc).2
+        change (Memory.spec 0).clientState t _ = _
+        rw [hr2, clientState_bind, clientState_bind]
+        rfl
+      have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) t
+          (csrShiftUpStepProg ((crt, N), a)) := by
+        unfold csrShiftUpStepProg
+        simp only [pure_bind]
+        have hqk_w : quotBitsWhp U n_max ≤ w :=
+          (Nat.sub_le _ _).trans (keyBits_le_w henv.2.2.2.2.2.1)
+        refine validProg_bind (validProg_readPacked hw hsrc hsegb.1) ?_
+        refine validProg_bind (validProg_readPacked hw hsrc hsegb.2.1) ?_
+        refine validProg_bind (validProg_writePacked hw hqk_w hidx hsegb.1) ?_
+        refine validProg_bind
+          (validProg_writePacked hw (valBits_le_w henv.2.2.2.2.2.2.1) hidx hsegb.2.1) ?_
+        exact validProg_pure _
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hk_lt, hN_lt⟩, hvp1, ?_⟩
+      rw [hstep_st, csrShiftUpStepProg_res]
+      refine ⟨by omega, hfr, fun i hi => ?_, fun x hx => ?_⟩
+      · dsimp only [csrShiftUp, m2, m1]
+        rw [readPacked_writePacked_disjoint hw hi hidx (by omega)]
+        refine ⟨?_, ?_⟩
+        · by_cases heq : i = N - a
+          · subst heq
+            rw [readPacked_writePacked_self _ _ _ _ _ hqp_lt, Function.update_self]
+          · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq, (hqv i hi).1]
+        · by_cases heq : i = N - a
+          · subst heq
+            rw [readPacked_writePacked_self _ _ _ _ _ hvp_lt, Function.update_self]
+          · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq,
+              readPacked_writePacked_disjoint hw hi hidx (by omega), (hqv i hi).2]
+      · rw [← hout x hx]
+        dsimp only [m2, m1]
+        rw [writePacked_outside hw _ hidx _ (by omega),
+          writePacked_outside hw _ hidx _ (by omega)])
+    (a := k) (s := s) ⟨rfl, rfl, hqv, fun _ _ => rfl⟩
+  rw [hres] at hqv'
+  exact ⟨hsafe, hfr, hvp, hqv', hout⟩
 
 /-! ### Loop 4: `csrAdjustStarts` -/
 
@@ -1754,13 +1655,6 @@ private theorem realizes_csrAdjustStep :
 private def csrAdjustLoopProg (d : ((CsrRt × (ℕ × ℕ)) × ℕ) × ℕ) : Memory.Prog ℕ :=
   iterate csrAdjustStepProg d.1.1 d.2 d.1.2
 
-private theorem csrAdjustLoopProg_zero (env : CsrRt × (ℕ × ℕ)) (acc : ℕ) :
-    csrAdjustLoopProg ((env, acc), 0) = pure acc := rfl
-
-private theorem csrAdjustLoopProg_succ (env : CsrRt × (ℕ × ℕ)) (acc m : ℕ) :
-    csrAdjustLoopProg ((env, acc), m + 1) =
-      (csrAdjustStepProg (env, acc) >>= fun acc' => csrAdjustLoopProg ((env, acc'), m)) := rfl
-
 private theorem realizes_csrAdjustLoop :
     Realizes .exact csrAdjustLoopProg
       (WordEncoding.encode (α := ((CsrRt × (ℕ × ℕ)) × ℕ) × ℕ))
@@ -1783,6 +1677,12 @@ private theorem csrAdjustStarts_unchanged_ge (b : ℕ) (dec : Bool) :
     dsimp only [csrAdjustStarts]
     rw [Function.update_of_ne (by omega)]
     exact ih f x (by omega)
+
+private theorem csrAdjustStepProg_res (crt : CsrRt) (b decTag k : ℕ) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (csrAdjustStepProg ((crt, (b, decTag)), k)) = k + 1 := by
+  unfold csrAdjustStepProg
+  simp only [pure_bind, clientResult_bind, runClient_state_readPackedGen]
+  split_ifs <;> simp only [clientResult_bind, clientResult_pure_whp]
 
 private theorem csrAdjustLoop_spec {c U V w n_max base b : ℕ} {dec : Bool}
     (henv : WhpLargeEnv c U V w n_max w base) :
@@ -1807,105 +1707,88 @@ private theorem csrAdjustLoop_spec {c U V w n_max base b : ℕ} {dec : Bool}
           base + offFbStart c U V w n_max +
             packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w ≤ a) →
         s'.mem a = s.mem a) := by
-  intro crt decTag m
+  intro crt decTag m k f₀ s hbkm hbnd hfb prog s'
   have hw := henv.2.1
   have hsegb := csr_seg_base_bounds base c U V w n_max
   have hg_le := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
-  induction m with
-  | zero =>
-    intro k f₀ s _ _ hfb
-    dsimp only
-    rw [csrAdjustLoopProg_zero, clientState_pure_whp, Nat.add_zero]
-    exact ⟨trivial, rfl, validProg_pure _, hfb, fun _ _ => rfl⟩
-  | succ m ih =>
-    intro k f₀ s hbkm hbnd hfb
-    dsimp only
-    set idx := b + 1 + k
-    have hidx_le_M : idx ≤ numBucketsWhp n_max := by omega
-    have hidx_lt : idx < numBucketsWhp n_max + 1 := by omega
-    have hpre : CsrAdjustStepPre w ((crt, (b, decTag)), k) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hidx_le_M⟩
-    set fk := csrAdjustStarts b dec k f₀
-    have hfk_idx : fk idx = f₀ idx := csrAdjustStarts_unchanged_ge b dec k f₀ idx le_rfl
-    set nxtVal := if dec then fk idx - 1 else fk idx + 1
-    have hnxt_le : nxtVal ≤ n_max := by
-      dsimp only [nxtVal]; rw [hfk_idx]
-      cases dec
-      · have := (hbnd idx hidx_le_M).2 rfl
-        simp only [Bool.false_eq_true, ↓reduceIte]; omega
-      · have := (hbnd idx hidx_le_M).1 rfl
-        simp only [↓reduceIte]; omega
-    set m1 := writePacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w s.mem
-      idx nxtVal
-    have hstep_st : (Memory.spec 0).clientState s (csrAdjustStepProg ((crt, (b, decTag)), k)) =
-        { mem := m1, frontier := s.frontier } := by
-      unfold csrAdjustStepProg
-      simp only [pure_bind, clientState_bind_prog, runClient_state_readPackedGen]
-      have hr1 : (Memory.spec 0).clientResult s
-          (readPackedGenProg (((crBase crt, crOffFb crt), (crGBits crt, crW crt)), b + 1 + k)) =
-          fk idx :=
-        (clientResult_readPackedProg _ _ _ _ _ _).trans (hfb idx hidx_le_M)
-      rw [hr1]
-      have hcrN : crNMax crt = n_max := rfl
-      cases dec
-      · have hfk_lt : fk idx < n_max := by rw [hfk_idx]; exact (hbnd idx hidx_le_M).2 rfl
-        dsimp only [decTag, nxtVal]
-        simp only [Bool.false_eq_true, ↓reduceIte, Nat.zero_ne_one, hcrN, hfk_lt,
-          clientState_bind_prog, runClient_state_writePackedGen]
-        rfl
-      · dsimp only [decTag, nxtVal]
-        simp only [↓reduceIte]
-        by_cases hpos_fk : 0 < fk idx
-        · simp only [hpos_fk, ↓reduceIte, clientState_bind_prog,
-            runClient_state_writePackedGen]
-          rfl
-        · have hfk0 : fk idx = 0 := by omega
-          simp only [hpos_fk, ↓reduceIte,
+  obtain ⟨hsafe, hvp, hres, hfr, hfb', hout⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := csrAdjustStepProg)
+    (safe := CsrAdjustStepPre) (d := (crt, (b, decTag))) (n := m)
+    (fun j a t => a = k + j ∧ t.frontier = s.frontier ∧
+      (∀ x ≤ numBucketsWhp n_max,
+        readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem x =
+          csrAdjustStarts b dec a f₀ x) ∧
+      (∀ x, (x < base + offFbStart c U V w n_max ∨
+          base + offFbStart c U V w n_max +
+            packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w ≤ x) →
+        t.mem x = s.mem x))
+    (fun j hj a t ⟨ha, hfr, hfb, hout⟩ => by
+      set idx := b + 1 + a
+      have hidx_le_M : idx ≤ numBucketsWhp n_max := by omega
+      have hidx_lt : idx < numBucketsWhp n_max + 1 := by omega
+      set fk := csrAdjustStarts b dec a f₀
+      have hfk_idx : fk idx = f₀ idx := csrAdjustStarts_unchanged_ge b dec a f₀ idx le_rfl
+      set nxtVal := if dec then fk idx - 1 else fk idx + 1
+      have hnxt_le : nxtVal ≤ n_max := by
+        dsimp only [nxtVal]; rw [hfk_idx]
+        cases dec
+        · have := (hbnd idx hidx_le_M).2 rfl
+          simp only [Bool.false_eq_true, ↓reduceIte]; omega
+        · have := (hbnd idx hidx_le_M).1 rfl
+          simp only [↓reduceIte]; omega
+      set m1 := writePacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w t.mem
+        idx nxtVal
+      have hstep_st : (Memory.spec 0).clientState t (csrAdjustStepProg ((crt, (b, decTag)), a)) =
+          { mem := m1, frontier := t.frontier } := by
+        unfold csrAdjustStepProg
+        simp only [pure_bind, clientState_bind_prog, runClient_state_readPackedGen]
+        have hr1 : (Memory.spec 0).clientResult t
+            (readPackedGenProg (((crBase crt, crOffFb crt), (crGBits crt, crW crt)), b + 1 + a)) =
+            fk idx :=
+          (clientResult_readPackedProg _ _ _ _ _ _).trans (hfb idx hidx_le_M)
+        rw [hr1]
+        have hcrN : crNMax crt = n_max := rfl
+        cases dec
+        · have hfk_lt : fk idx < n_max := by rw [hfk_idx]; exact (hbnd idx hidx_le_M).2 rfl
+          dsimp only [decTag, nxtVal]
+          simp only [Bool.false_eq_true, ↓reduceIte, Nat.zero_ne_one, hcrN, hfk_lt,
             clientState_bind_prog, runClient_state_writePackedGen]
-          dsimp only [m1, nxtVal]
-          simp only [↓reduceIte, hfk0, Nat.zero_sub]
           rfl
-    have hstep_res : (Memory.spec 0).clientResult s (csrAdjustStepProg ((crt, (b, decTag)), k)) =
-        k + 1 := by
-      unfold csrAdjustStepProg
-      simp only [pure_bind, clientResult_bind, runClient_state_readPackedGen]
-      split_ifs <;> simp only [clientResult_bind, clientResult_pure_whp]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (csrAdjustStepProg ((crt, (b, decTag)), k)) := by
-      unfold csrAdjustStepProg
-      simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw hidx_lt hsegb.2.2) ?_
-      rw [clientState_readPackedGen]
-      split_ifs <;>
-        exact validProg_bind (validProg_writePacked hw hg_le hidx_lt hsegb.2.2)
-          (validProg_pure _)
-    have hfb_nxt : ∀ x ≤ numBucketsWhp n_max,
-        readPacked (base + offFbStart c U V w n_max) (globalPtrBits n_max) w m1 x =
-          csrAdjustStarts b dec (k + 1) f₀ x := by
-      intro x hx
-      dsimp only [csrAdjustStarts, m1]
-      by_cases heq : x = idx
-      · subst heq
-        rw [readPacked_writePacked_self _ _ _ _ _ (lt_two_pow_globalPtrBits_of_le_n_max hnxt_le),
-          Function.update_self]
-      · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq, hfb x hx]
-    obtain ⟨hsafe_m, hfr_m, hvp_m, hfb_m, hout_m⟩ := ih (k + 1) f₀
-      { mem := m1, frontier := s.frontier } (by omega) hbnd hfb_nxt
-    have hadd : k + 1 + m = k + (m + 1) := by omega
-    rw [hadd] at hfb_m
-    refine ⟨⟨hpre, ?_⟩, ?_, ?_, ?_, fun a ha => ?_⟩
-    · rw [clientResult_width, clientState_width, hstep_st, hstep_res]; exact hsafe_m
-    · rw [csrAdjustLoopProg_succ, clientState_bind, hstep_st, hstep_res]
-      exact hfr_m
-    · rw [csrAdjustLoopProg_succ]
-      refine validProg_bind hvp1 ?_
-      rw [hstep_st, hstep_res]; exact hvp_m
-    · intro x hx
-      rw [csrAdjustLoopProg_succ, clientState_bind, hstep_st, hstep_res]
-      exact hfb_m x hx
-    · rw [csrAdjustLoopProg_succ, clientState_bind, hstep_st, hstep_res,
-        hout_m a ha]
-      exact writePacked_outside hw _ hidx_lt _ (by omega)
+        · dsimp only [decTag, nxtVal]
+          simp only [↓reduceIte]
+          by_cases hpos_fk : 0 < fk idx
+          · simp only [hpos_fk, ↓reduceIte, clientState_bind_prog,
+              runClient_state_writePackedGen]
+            rfl
+          · have hfk0 : fk idx = 0 := by omega
+            simp only [hpos_fk, ↓reduceIte,
+              clientState_bind_prog, runClient_state_writePackedGen]
+            dsimp only [m1, nxtVal]
+            simp only [↓reduceIte, hfk0, Nat.zero_sub]
+            rfl
+      have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) t
+          (csrAdjustStepProg ((crt, (b, decTag)), a)) := by
+        unfold csrAdjustStepProg
+        simp only [pure_bind]
+        refine validProg_bind (validProg_readPacked hw hidx_lt hsegb.2.2) ?_
+        rw [clientState_readPackedGen]
+        split_ifs <;>
+          exact validProg_bind (validProg_writePacked hw hg_le hidx_lt hsegb.2.2)
+            (validProg_pure _)
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hidx_le_M⟩, hvp1, ?_⟩
+      rw [hstep_st, csrAdjustStepProg_res]
+      refine ⟨by omega, hfr, fun x hx => ?_, fun x hx => ?_⟩
+      · dsimp only [csrAdjustStarts, m1]
+        by_cases heq : x = idx
+        · subst heq
+          rw [readPacked_writePacked_self _ _ _ _ _ (lt_two_pow_globalPtrBits_of_le_n_max hnxt_le),
+            Function.update_self]
+        · rw [readPacked_writePacked_of_ne hw _ heq, Function.update_of_ne heq, hfb x hx]
+      · rw [← hout x hx]
+        exact writePacked_outside hw _ hidx_lt _ (by omega))
+    (a := k) (s := s) ⟨rfl, rfl, hfb, fun _ _ => rfl⟩
+  rw [hres] at hfb'
+  exact ⟨hsafe, hfr, hvp, hfb', hout⟩
 
 /-! ### Top-Level `csrPrefixGenProg` and `csrStepOpGenProg` -/
 
@@ -1914,63 +1797,35 @@ private theorem csrAdjustLoop_safe {c U V w n_max base b decTag : ℕ}
     let crt := mkCsrRt c U V w n_max base
     ∀ m k (s : Memory.State), b + 1 + k + m ≤ numBucketsWhp n_max + 1 →
       iterationSafe csrAdjustStepProg CsrAdjustStepPre w (crt, (b, decTag)) m k s := by
-  intro crt m
-  induction m with
-  | zero => intros; trivial
-  | succ m ih =>
-    intro k s hbkm
-    have hidx_le : b + 1 + k ≤ crM crt := by change b + 1 + k ≤ numBucketsWhp n_max; omega
-    have hpre : CsrAdjustStepPre w ((crt, (b, decTag)), k) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hidx_le⟩
-    have hres : (Memory.spec 0).clientResult s (csrAdjustStepProg ((crt, (b, decTag)), k)) =
-        k + 1 := by
-      unfold csrAdjustStepProg
-      simp only [pure_bind, clientResult_bind, runClient_state_readPackedGen]
-      split_ifs <;> simp only [clientResult_bind, clientResult_pure_whp]
-    refine ⟨hpre, ?_⟩
-    rw [clientResult_width, hres]
-    exact ih (k + 1) _ (by omega)
+  intro crt m k s hbkm
+  exact iterationSafe_of_stateless_step csrAdjustStepProg CsrAdjustStepPre
+    (N := numBucketsWhp n_max - b)
+    (fun i hi _ => ⟨⟨c, U, V, w, n_max, henv, rfl⟩, show b + 1 + i ≤ numBucketsWhp n_max by omega⟩)
+    (fun i _ => csrAdjustStepProg_res crt b decTag i) m k s (by omega)
 
 private theorem csrShiftUpLoop_safe {c U V w n_max base N : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base) (hN_lt : N < n_max) :
     let crt := mkCsrRt c U V w n_max base
     ∀ m k (s : Memory.State), k + m ≤ N →
       iterationSafe csrShiftUpStepProg CsrShiftUpStepPre w (crt, N) m k s := by
-  intro crt m
-  induction m with
-  | zero => intros; trivial
-  | succ m ih =>
-    intro k s hkm
-    have hk_lt : k < N := by omega
-    have hpre : CsrShiftUpStepPre w ((crt, N), k) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hk_lt, hN_lt⟩
-    have hres : (Memory.spec 0).clientResult s (csrShiftUpStepProg ((crt, N), k)) = k + 1 := by
-      unfold csrShiftUpStepProg
-      simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    refine ⟨hpre, ?_⟩
-    rw [clientResult_width, hres]
-    exact ih (k + 1) _ (by omega)
+  intro crt
+  exact iterationSafe_of_stateless_step csrShiftUpStepProg CsrShiftUpStepPre
+    (fun i hi _ => ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hi, hN_lt⟩)
+    (fun i _ => csrShiftUpStepProg_res crt N i)
 
 private theorem csrShiftDownLoop_safe {c U V w n_max base i₀ : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base) :
     let crt := mkCsrRt c U V w n_max base
     ∀ m k (s : Memory.State), (m > 0 → i₀ + k + m < n_max) →
       iterationSafe csrShiftDownStepProg CsrShiftDownStepPre w (crt, i₀) m k s := by
-  intro crt m
-  induction m with
-  | zero => intros; trivial
-  | succ m ih =>
-    intro k s hlt
-    have hpos1 : i₀ + k + 1 < n_max := by have := hlt (Nat.succ_pos m); omega
-    have hpre : CsrShiftDownStepPre w ((crt, i₀), k) s :=
-      ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hpos1⟩
-    have hres : (Memory.spec 0).clientResult s (csrShiftDownStepProg ((crt, i₀), k)) = k + 1 := by
-      unfold csrShiftDownStepProg
-      simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    refine ⟨hpre, ?_⟩
-    rw [clientResult_width, hres]
-    have hm := hlt (Nat.succ_pos m)
-    exact ih (k + 1) _ (fun _ => by omega)
+  intro crt m k s hlt
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · trivial
+  have := hlt hm
+  exact iterationSafe_of_stateless_step csrShiftDownStepProg CsrShiftDownStepPre
+    (N := n_max - i₀ - 1)
+    (fun i hi _ => ⟨⟨c, U, V, w, n_max, henv, rfl⟩, show i₀ + i + 1 < n_max by omega⟩)
+    (fun i _ => csrShiftDownStepProg_res crt i₀ i) m k s (by omega)
 
 /-- Return tuple of `csrPrefixGenProg`: `(((crt, ok), (b, q_val)), ((lo, hi), (N, f1)))`. -/
 private abbrev CsrPrefixOut : Type :=
