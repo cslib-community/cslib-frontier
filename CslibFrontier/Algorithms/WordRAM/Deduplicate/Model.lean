@@ -58,11 +58,8 @@ theorem expand_singleton (k c : ℕ) : expand [(k, c)] = List.replicate c k := b
 theorem mem_expand {rs : List (ℕ × ℕ)} {k : ℕ} :
     k ∈ expand rs ↔ ∃ p ∈ rs, p.1 = k ∧ 0 < p.2 := by
   simp only [expand, List.mem_flatMap, List.mem_replicate]
-  constructor
-  · rintro ⟨p, hp, hc, hk⟩
-    exact ⟨p, hp, hk.symm, by omega⟩
-  · rintro ⟨p, hp, hk, hc⟩
-    exact ⟨p, hp, by omega, hk.symm⟩
+  exact ⟨fun ⟨p, hp, hc, hk⟩ => ⟨p, hp, hk.symm, by omega⟩,
+    fun ⟨p, hp, hk, hc⟩ => ⟨p, hp, by omega, hk.symm⟩⟩
 
 /-- Positive runs contain at least one element each. -/
 theorem length_le_expand {rs : List (ℕ × ℕ)} (hp : ∀ p ∈ rs, 0 < p.2) :
@@ -71,7 +68,7 @@ theorem length_le_expand {rs : List (ℕ × ℕ)} (hp : ∀ p ∈ rs, 0 < p.2) :
   | nil => simp [expand]
   | cons p rs ih =>
     have hc := hp p (by simp)
-    have ht := ih (fun q hq => hp q (by simp [hq]))
+    have ht := ih fun q hq => hp q (by simp [hq])
     simp only [expand, List.flatMap_cons, List.length_append, List.length_replicate,
       List.length_cons] at *
     omega
@@ -84,43 +81,33 @@ private theorem count_expand {rs : List (ℕ × ℕ)}
   | cons q rs ih =>
     obtain ⟨hq, ht⟩ := List.pairwise_cons.mp ho
     rcases List.mem_cons.mp hp with rfl | hp
-    · have hnot : p.1 ∉ expand rs := by
-        rintro hk
-        obtain ⟨p, hp, he, _⟩ := mem_expand.mp hk
-        have := hq p hp
-        omega
+    · have hnot : p.1 ∉ expand rs := fun hk => by
+        obtain ⟨r, hr, hpr, _⟩ := mem_expand.mp hk
+        exact (hq r hr).ne hpr.symm
       change (List.replicate p.2 p.1 ++ expand rs).count p.1 = p.2
       rw [List.count_append, List.count_replicate_self, List.count_eq_zero_of_not_mem hnot,
         Nat.add_zero]
-    · have hlt := hq p hp
-      have hc := ih ht hp
-      simp only [expand, List.flatMap_cons, List.count_append]
-      rw [show (List.replicate q.2 q.1).count p.1 = 0 by
-        simp [List.count_replicate, Nat.ne_of_lt hlt]]
-      simpa only [Nat.zero_add, expand] using hc
+    · simp only [expand, List.flatMap_cons, List.count_append]
+      have hrep : (List.replicate q.2 q.1).count p.1 = 0 := by
+        simp [List.count_replicate, (hq p hp).ne]
+      rw [hrep]
+      simpa only [Nat.zero_add, expand] using ih ht hp
 
 /-- The key array contains no repeated key. -/
 theorem RunEncoding.keys_nodup {xs : List ℕ} {rs : List (ℕ × ℕ)}
-    (h : RunEncoding xs rs) : (rs.map Prod.fst).Nodup := by
-  rw [List.nodup_iff_pairwise_ne, List.pairwise_map]
-  exact h.ordered.imp (fun hlt => Nat.ne_of_lt hlt)
+    (h : RunEncoding xs rs) : (rs.map Prod.fst).Nodup :=
+  List.nodup_iff_pairwise_ne.mpr (List.pairwise_map.mpr (h.ordered.imp Nat.ne_of_lt))
 
 /-- The key array enumerates precisely the input set. -/
 theorem RunEncoding.mem_iff {xs : List ℕ} {rs : List (ℕ × ℕ)}
     (h : RunEncoding xs rs) (k : ℕ) : k ∈ rs.map Prod.fst ↔ k ∈ xs := by
-  rw [← h.reconstruct, mem_expand]
-  rw [List.mem_map]
-  constructor
-  · rintro ⟨p, hp, hk⟩
-    exact ⟨p, hp, hk, h.positive p hp⟩
-  · rintro ⟨p, hp, hk, _⟩
-    exact ⟨p, hp, hk⟩
+  rw [← h.reconstruct, mem_expand, List.mem_map]
+  exact ⟨fun ⟨p, hp, hk⟩ => ⟨p, hp, hk, h.positive p hp⟩, fun ⟨p, hp, hk, _⟩ => ⟨p, hp, hk⟩⟩
 
 /-- Each emitted count equals the full multiplicity in the input list. -/
 theorem RunEncoding.multiplicity {xs : List ℕ} {rs : List (ℕ × ℕ)}
-    (h : RunEncoding xs rs) {p : ℕ × ℕ} (hp : p ∈ rs) : xs.count p.1 = p.2 := by
-  rw [← h.reconstruct]
-  exact count_expand h.ordered hp
+    (h : RunEncoding xs rs) {p : ℕ × ℕ} (hp : p ∈ rs) : xs.count p.1 = p.2 :=
+  h.reconstruct ▸ count_expand h.ordered hp
 
 /-- A nonempty sorted list starts with a positive run of its head, followed only by larger
 keys. This is a mathematical decomposition used to verify the adjacent scan, not an oracle
@@ -131,16 +118,14 @@ theorem first_run (k : ℕ) (xs : List ℕ) (hs : (k :: xs).Pairwise (· ≤ ·)
   | nil => exact ⟨1, [], by decide, rfl, by simp⟩
   | cons j xs ih =>
     obtain ⟨hk, ht⟩ := List.pairwise_cons.mp hs
-    by_cases heq : k = j
-    · subst j
-      obtain ⟨c, rest, hc, he, hr⟩ := ih k ht
-      refine ⟨c + 1, rest, by omega, ?_, hr⟩
-      simpa only [List.replicate_succ, List.cons_append] using congrArg (List.cons k) he
+    rcases eq_or_ne k j with rfl | heq
+    · obtain ⟨c, rest, hc, he, hr⟩ := ih k ht
+      exact ⟨c + 1, rest, by omega,
+        by simpa only [List.replicate_succ, List.cons_append] using congrArg (List.cons k) he, hr⟩
     · have hkj : k < j := lt_of_le_of_ne (hk j (by simp)) heq
-      refine ⟨1, j :: xs, by decide, rfl, ?_⟩
-      intro v hv
+      refine ⟨1, j :: xs, by decide, rfl, fun v hv => ?_⟩
       rcases List.mem_cons.mp hv with rfl | hv
       · exact hkj
-      · exact lt_of_lt_of_le hkj ((List.pairwise_cons.mp ht).1 v hv)
+      · exact hkj.trans_le ((List.pairwise_cons.mp ht).1 v hv)
 
 end Cslib.Algorithms.WordRAM.Deduplicate

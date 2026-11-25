@@ -215,10 +215,7 @@ private theorem refutableInWidth_of_countP_wide (N d k : ℕ) :
     -- the wide lines, and a literal `(v, β)` occurring in many of them
     set F := ls.filter (fun c => d < c.width)
     have hFlen : F.length = f := by rw [hf, List.countP_eq_length_filter]
-    have hFne : F ≠ [] := by
-      intro hF
-      rw [hF, List.length_nil] at hFlen
-      omega
+    have hFne : F ≠ [] := List.ne_nil_of_length_pos (by omega)
     obtain ⟨⟨v, β⟩, hU, hmany⟩ := exists_lt_countP_mem _ d F
       (fun c hc => mem_literals_of_isProof h c (List.mem_filter.1 hc).1)
       (fun c hc => by simpa using (List.mem_filter.1 hc).2) hFne
@@ -231,11 +228,9 @@ private theorem refutableInWidth_of_countP_wide (N d k : ℕ) :
       have := h.width_le h1.1
       simp only [decide_eq_true_eq] at h1
       omega
-    obtain ⟨b, rfl⟩ : ∃ b', b = b' + 1 := by
-      rcases b with _ | b
-      · simp only [pow_zero, mul_one, Nat.lt_one_iff] at hcount
-        omega
-      · exact ⟨b, rfl⟩
+    obtain ⟨b, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := b) fun hb => by
+      simp only [hb, pow_zero, mul_one, Nat.lt_one_iff] at hcount
+      omega
     have hvars (γ : Bool) : (φ.restrict v γ).vars.toFinset.card ≤ n := by
       have := (Finset.card_le_card (vars_restrict_subset (b := γ))).trans_eq
         (Finset.card_erase_of_mem hv)
@@ -259,9 +254,6 @@ private theorem refutableInWidth_of_countP_wide (N d k : ℕ) :
       congr 1 with c : 1
       simp [Bool.and_comm]
     rw [hcnt] at hmany
-    have hpow : (2 * N - d) * (2 * N) ^ b ≤ (2 * N) ^ (b + 1) := by
-      rw [pow_succ, mul_comm]
-      exact Nat.mul_le_mul_left _ (Nat.sub_le _ _)
     have hwidth₁ : (φ.restrict v β).RefutableInWidth (max d k + b) := by
       refine ih _ ls₁ b (hvars β) (by omega) h₁ hnil₁ (hk' β) ?_
       -- `f₁ * 2N < f * (2N - d)`, hence `f₁ (2N - d)^b < (2N)^b`
@@ -272,15 +264,9 @@ private theorem refutableInWidth_of_countP_wide (N d k : ℕ) :
           omega
         rw [Nat.mul_sub, Nat.lt_sub_iff_add_lt]
         nlinarith
-      have hpos : 0 < 2 * N := by omega
       refine Nat.lt_of_mul_lt_mul_right (a := 2 * N) ?_
-      calc ls₁.countP (fun c => d < c.width) * (2 * N - d) ^ b * (2 * N)
-          = ls₁.countP (fun c => d < c.width) * (2 * N) * (2 * N - d) ^ b := by ring
-        _ < f * (2 * N - d) * (2 * N - d) ^ b :=
-          Nat.mul_lt_mul_of_pos_right hf₁ (Nat.pow_pos (by omega))
-        _ = f * (2 * N - d) ^ (b + 1) := by ring
-        _ < (2 * N) ^ (b + 1) := hcount
-        _ = (2 * N) ^ b * (2 * N) := pow_succ _ _
+      rw [pow_succ, pow_succ] at hcount
+      linarith [Nat.mul_lt_mul_of_pos_right hf₁ (Nat.pow_pos (n := b) (by omega : 0 < 2 * N - d))]
     -- fixing it to be false keeps at most the same wide lines, over fewer variables
     obtain ⟨ls₀, h₀, hnil₀, hcount₀⟩ := hres (!β)
     have hwidth₀ : (φ.restrict v (!β)).RefutableInWidth (max d k + (b + 1)) := by
@@ -381,8 +367,7 @@ theorem exists_refutableInWidth_le_of_refutableInSize {k s N : ℕ} (hk : ∀ c 
       linarith
     have : (s : ℝ) * ((2 * N - d : ℕ) : ℝ) ^ b < (2 * N) ^ b := by
       calc (s : ℝ) * ((2 * N - d : ℕ) : ℝ) ^ b
-          ≤ s * ((2 * N) ^ b * Real.exp (b * -(d / (2 * N)))) :=
-            mul_le_mul_of_nonneg_left hexp (by positivity)
+          ≤ s * ((2 * N) ^ b * Real.exp (b * -(d / (2 * N)))) := by gcongr
         _ = (2 * N) ^ b * (s * Real.exp (b * -(d / (2 * N)))) := by ring
         _ < (2 * N) ^ b * 1 := mul_lt_mul_of_pos_left hlt (by positivity)
         _ = (2 * N) ^ b := mul_one _

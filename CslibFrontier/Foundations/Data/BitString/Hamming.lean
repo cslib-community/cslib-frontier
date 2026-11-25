@@ -92,7 +92,7 @@ def median (f g h : ι → Bool) : ι → Bool :=
 /-- The median is the majority of three bits at each coordinate. -/
 theorem median_apply_eq_majority (f g h : ι → Bool) (i : ι) :
     median f g h i = majority 3 ![f i, g i, h i] := by
-  simp only [median]
+  rw [median]
   cases f i <;> cases g i <;> cases h i <;> decide
 
 /-- **The majority law**: a point repeated twice is the median. -/
@@ -203,17 +203,17 @@ theorem hammingDist_or_le (f f' g g' : ι → Bool) :
 theorem hammingDist_add_hammingDist_median (f g h : ι → Bool) :
     hammingDist f (median f g h) + hammingDist (median f g h) g = hammingDist f g := by
   simp only [hammingDist_eq_sum, ← sum_add_distrib, median]
-  refine sum_congr rfl fun i _ => ?_
-  by_cases hf : f i <;> by_cases hg : g i <;> by_cases hh : h i <;> simp_all
+  exact sum_congr rfl fun i _ => by
+    by_cases hf : f i <;> by_cases hg : g i <;> by_cases hh : h i <;> simp_all
 
 /-- **The median minimizes the total distance** to its three arguments. -/
 theorem hammingDist_median_le (f g h k : ι → Bool) :
     hammingDist (median f g h) f + hammingDist (median f g h) g + hammingDist (median f g h) h ≤
       hammingDist k f + hammingDist k g + hammingDist k h := by
   simp only [hammingDist_eq_sum, ← sum_add_distrib, median]
-  refine sum_le_sum fun i _ => ?_
-  by_cases hf : f i <;> by_cases hg : g i <;> by_cases hh : h i <;>
-    by_cases hk : k i <;> simp_all
+  exact sum_le_sum fun i _ => by
+    by_cases hf : f i <;> by_cases hg : g i <;> by_cases hh : h i <;>
+      by_cases hk : k i <;> simp_all
 
 /-! ### Parities and coordinate projections -/
 
@@ -244,11 +244,9 @@ theorem two_mul_hammingDist_proj {i j : ι} (hij : i ≠ j) :
 /-- The relative Hamming distance between two distinct coordinate projections is one half. -/
 theorem hammingDist_proj_div {𝕜 : Type*} [Semifield 𝕜] [CharZero 𝕜] {i j : ι} (hij : i ≠ j) :
     (hammingDist (fun x : ι → Bool => x i) (fun x => x j) : 𝕜) / 2 ^ Fintype.card ι = 1 / 2 := by
-  have h : (2 * hammingDist (fun x : ι → Bool => x i) (fun x => x j) : 𝕜) =
-      2 ^ Fintype.card ι := by
-    exact_mod_cast two_mul_hammingDist_proj hij
   have h2 : (2 : 𝕜) ≠ 0 := OfNat.ofNat_ne_zero 2
-  rw [div_eq_div_iff (pow_ne_zero _ h2) h2, one_mul, ← h, mul_comm]
+  rw [div_eq_div_iff (pow_ne_zero _ h2) h2, one_mul, mul_comm]
+  exact_mod_cast two_mul_hammingDist_proj hij
 
 /-- **Shifts of distinct projections by a common function differ on half of the inputs**, however
 complicated the common function `f` is. -/

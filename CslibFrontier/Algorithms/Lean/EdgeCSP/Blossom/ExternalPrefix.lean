@@ -49,24 +49,17 @@ theorem blossom_after_prefix {f : OccurrenceLabeling F Bool} (hb : w.IsBlossom T
         ¬ ((q.take n).snoc o e).IsFWalk Table.sem f) :
     w.IsBlossom Table.sem (q.flip f) := by
   obtain ⟨ts, pivot, hd, hp0, hp1, h⟩ := hb.2.2.2.2.2
-  have hnative : (blossomDAG w ts pivot).IsFDAG Table.sem f := by
-    have hi : Classical.decEq ℕ = instDecidableEqNat := Subsingleton.elim _ _
-    exact congrArg (fun d => @blossomDAG Table ℕ F d w ts pivot) hi ▸ h
+  have hnative : (blossomDAG w ts pivot).IsFDAG Table.sem f :=
+    congrArg (fun d => @blossomDAG Table ℕ F d w ts pivot) (Subsingleton.elim _ _) ▸ h
   have hsupport := blossomDAG_vars_eq_internal hb.1 hb.2.2.1 hd.1 pivot
   have hdag : (blossomDAG w ts pivot).IsFDAG Table.sem (q.flip f) := by
     apply hnative.flip_walk_of_no_prefix_extension hM hq
     · rwa [hsupport, List.mem_toFinset]
-    · intro o ho
-      rw [hsupport, List.mem_toFinset]
-      exact hvars o ho
-    · intro n hn a ha o hov hoc
-      have ham : a.occurrence ∈ w.edges := by
-        apply List.mem_toFinset.mp
-        rw [← blossomDAG_occurrences _ _ _ hd.1]
-        exact mem_image.mpr ⟨a, ha, rfl⟩
-      exact hno n hn a.occurrence ham o hov hoc
-  have hagree : ∀ o : Occurrence F, o.var ∈ internal w → q.flip f o = f o := by
-    intro o ho
+    · exact fun o ho => by rw [hsupport, List.mem_toFinset]; exact hvars o ho
+    · refine fun n hn a ha => hno n hn a.occurrence (List.mem_toFinset.mp ?_)
+      rw [← blossomDAG_occurrences _ _ _ hd.1]
+      exact mem_image.mpr ⟨a, ha, rfl⟩
+  have hagree : ∀ o : Occurrence F, o.var ∈ internal w → q.flip f o = f o := fun o ho => by
     have hon : o ∉ q.edges := fun he => hvars o he ho
     simp [Walk.flip, BitString.flipOn_apply, hon]
   have hstartmem : w.start ∈ internal w := List.mem_dedup.mpr
@@ -75,16 +68,12 @@ theorem blossom_after_prefix {f : OccurrenceLabeling F Bool} (hb : w.IsBlossom T
   have hcons : Walk.InternallyConsistent (q.flip f) w.steps := by
     apply (Walk.internallyConsistent_iff_splits _ _).mpr
     intro pre o p a b post he
-    have hp : p.var ∈ internal w := by
-      apply List.mem_dedup.mpr
-      apply List.mem_map.mpr
-      refine ⟨p, ?_, rfl⟩
-      exact List.mem_flatMap.mpr ⟨(o, p), by simp [he], by simp⟩
+    have hp : p.var ∈ internal w := List.mem_dedup.mpr
+      (List.mem_map.mpr ⟨p, List.mem_flatMap.mpr ⟨(o, p), by simp [he], by simp⟩, rfl⟩)
     exact fun hi => ((Walk.internallyConsistent_iff_splits f _).mp hb.2.2.2.2.1
       pre o p a b post he) ((inconsistent_congr (fun o ho => hagree o (ho ▸ hp))).mp hi)
-  refine ⟨hb.1, hb.2.1, hb.2.2.1, hbase, hcons, ts, pivot, hd, hp0, hp1, ?_⟩
-  have hi : instDecidableEqNat = Classical.decEq ℕ := Subsingleton.elim _ _
-  exact congrArg (fun d => @blossomDAG Table ℕ F d w ts pivot) hi ▸ hdag
+  exact ⟨hb.1, hb.2.1, hb.2.2.1, hbase, hcons, ts, pivot, hd, hp0, hp1,
+    congrArg (fun d => @blossomDAG Table ℕ F d w ts pivot) (Subsingleton.elim _ _) ▸ hdag⟩
 
 /-- Actual unused outside ports and cycle ports allowing an exchange at a given prefix. -/
 @[expose] def exitsAt (f : OccurrenceLabeling F Bool) (w r : Walk F)
@@ -126,32 +115,21 @@ theorem firstExit_spec (f : OccurrenceLabeling F Bool) (w r : Walk F)
     ∃ ex, firstExit f w r = some ex ∧ ex.length ≤ r.steps.length ∧
       (ex.input, ex.output) ∈ exitsAt f w r ex.length ∧
       ∀ n < ex.length, exitsAt f w r n = [] := by
-  let pred := fun n => !(exitsAt f w r n).isEmpty
-  let ns := List.range (r.steps.length + 1)
-  let n := ns.findIdx pred
-  have hlt : n < ns.length := List.findIdx_lt_length.mpr (by
+  set n := (List.range (r.steps.length + 1)).findIdx (fun n => !(exitsAt f w r n).isEmpty)
+    with hn_def
+  have hlt : n < (List.range (r.steps.length + 1)).length := List.findIdx_lt_length.mpr (by
     obtain ⟨k, hk, he⟩ := hex
-    exact ⟨k, List.mem_range.mpr (by omega), by simpa [pred] using he⟩)
-  have hn : n ≤ r.steps.length := by simpa [ns] using hlt
-  have hyes : exitsAt f w r n ≠ [] := by
-    have hh := List.findIdx_getElem (p := pred) (xs := ns) (w := hlt)
-    simpa [ns, pred] using hh
-  have hno : ∀ k < n, exitsAt f w r k = [] := by
-    intro k hk
-    have hh := List.not_of_lt_findIdx (p := pred) (xs := ns) hk
-    simpa [ns, pred] using hh
+    exact ⟨k, List.mem_range.mpr (by omega), by simpa using he⟩)
+  have hn1 : n < r.steps.length + 1 := by simpa using hlt
+  have hyes : exitsAt f w r n ≠ [] := by simpa using List.findIdx_getElem (w := hlt)
+  have hno : ∀ k < n, exitsAt f w r k = [] := fun k hk => by
+    simpa using List.not_of_lt_findIdx hk
   cases he : exitsAt f w r n with
   | nil => exact (hyes he).elim
   | cons p ps =>
     rcases p with ⟨o, e⟩
-    refine ⟨⟨n, o, e⟩, ?_, hn, by rw [he]; exact List.mem_cons_self, hno⟩
-    simp only [firstExit]
-    change (if n < r.steps.length + 1 then
-      match exitsAt f w r n with
-      | [] => none
-      | (o, e) :: _ => some (⟨n, o, e⟩ : Exit F)
-      else none) = some (⟨n, o, e⟩ : Exit F)
-    simp only [show n < r.steps.length + 1 by omega, ↓reduceIte, he]
+    refine ⟨⟨n, o, e⟩, ?_, Nat.lt_succ_iff.mp hn1, he.symm ▸ List.mem_cons_self, hno⟩
+    simp only [firstExit, ← hn_def, hn1, ↓reduceIte, he]
 
 private theorem snoc_exchange {f : OccurrenceLabeling F Bool} {p : Walk F}
     {o e : Occurrence F} (h : (p.snoc o e).IsFWalk Table.sem f) :
@@ -210,18 +188,15 @@ theorem liftPrefix_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F Bool}
   obtain ⟨he, hov, hoc, _, hv⟩ := (mem_exitsAt f w r ex.length ex.input ex.output).mp hports
   let q := r.take ex.length
   have hq : q.IsFPrefix Table.sem f := hr.take ex.length
-  have hqvars : ∀ o ∈ q.edges, o.var ∉ internal w := by
-    intro o ho
-    exact hvars o ((List.take_sublist ex.length r.steps).flatMap
-      (fun s => [s.1, s.2]) |>.subset ho)
+  have hqvars : ∀ o ∈ q.edges, o.var ∉ internal w := fun o ho =>
+    hvars o ((List.take_sublist ex.length r.steps).flatMap (fun s => [s.1, s.2]) |>.subset ho)
   have hB : w.IsBlossom Table.sem (q.flip f) := by
     by_cases hk0 : ex.length = 0
     · simpa only [q, hk0, Walk.take, List.take_zero, Walk.flip, Walk.edges, Walk.edgesOf,
         List.flatMap_nil, List.toFinset_nil, BitString.flipOn_empty] using hb
     · have hqends : q.start ≠ q.finish := by
         by_cases heq : ex.length = r.steps.length
-        · have he : q = r := by simp [q, heq, Walk.take]
-          rw [he]
+        · rw [show q = r by simp [q, heq, Walk.take]]
           exact hend.resolve_left (fun hn => by simp [hn] at hk; omega)
         · have hcons := hr.not_inconsistent_finish_take (n := ex.length) (by omega) (by omega)
           exact fun he => hcons (he ▸ hroot)
@@ -231,25 +206,19 @@ theorem liftPrefix_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F Bool}
     rw [hov]
     by_cases hqn : q.steps = []
     · have heq : q.finish = r.start := by
-        change Walk.finishFrom r.start q.steps = r.start
-        rw [hqn]
-        rfl
+        change Walk.finishFrom r.start q.steps = r.start; rw [hqn]; rfl
       exact heq ▸ hstart
     · obtain ⟨s, hs, heq⟩ := Walk.finish_step q hqn
       exact heq ▸ hqvars s.2 (List.mem_flatMap.mpr ⟨s, hs, by simp⟩)
   obtain ⟨p, hp, _, hpw, hps, hpf, hpv⟩ := attachmentWalk_spec hB hM ex.input hx
     ⟨ex.output, he, hoc, hv⟩
-  have hne : w.start ≠ r.start := by
-    intro he
-    exact hstart (he ▸ List.mem_dedup.mpr (hb.1.start_mem_vars hb.2.2.1))
+  have hne : w.start ≠ r.start := fun he =>
+    hstart (he ▸ List.mem_dedup.mpr (hb.1.start_mem_vars hb.2.2.1))
   have hbasemem : w.start ∈ (defects f).erase r.start :=
     mem_erase.mpr ⟨hne, mem_defects.mpr hb.2.2.2.1⟩
   refine ⟨p.flip (q.flip f), ?_, hpv, ?_⟩
-  · simp only [liftPrefix, hexit, Option.bind_eq_bind, Option.bind_some]
-    change (attachmentWalk (q.flip f) w ex.input).bind
-      (fun arm => some (arm.flip (q.flip f))) = _
-    rw [hp]
-    rfl
+  · simp only [liftPrefix, hexit, Option.bind_eq_bind, Option.bind_some,
+      show r.take ex.length = q from rfl, hp, pure]
   · have hd : defects (p.flip (q.flip f)) = ((defects f).erase r.start).erase w.start := by
       rw [hpw.defects_flip hF, hr.1.take ex.length |>.defects_flip hF, hps, hpf, hov]
       change defects f ∆ {r.start} ∆ {q.finish} ∆ {w.start} ∆ {q.finish} = _

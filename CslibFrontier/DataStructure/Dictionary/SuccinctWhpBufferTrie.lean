@@ -275,6 +275,17 @@ theorem ValidBufTrie.lookup_eq {cTab bChar rKey : ℕ} {tr : BufTrie}
     bufLookup cTab bChar tr rKey = mapFn rKey :=
   (hv.2.2.2.1 rKey hk).symm
 
+/-- Allocation and index-range projections of `ValidBufTrie` for Word-RAM packed-array safety. -/
+theorem ValidBufTrie.bounds {cTab bChar : ℕ} {tr : BufTrie}
+    {mapFn : ℕ → Option (ℕ × ℕ)} (hv : ValidBufTrie cTab bChar tr mapFn) :
+    1 ≤ tr.nodeAlloc ∧
+    (∀ u, tr.nodeAlloc ≤ u → tr.nodeLeafItem u = 0) ∧
+    (∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc) ∧
+    (∀ u < tr.nodeAlloc, tr.nodeLeafItem u ≠ 0 → tr.nodeLeafItem u ≤ tr.itemAlloc) := by
+  obtain ⟨halloc, hzero, _, _, _, _, _, hiff, hleaf⟩ := hv
+  exact ⟨halloc, hzero, fun v ch hnz => ((hiff v ch).mp hnz).2.1,
+    fun u hu hnz => (hleaf u hu hnz).2.1⟩
+
 /-- Walk depth and injectivity lemma: under `ValidBufTrie`'s edge invariant, `bufWalk` from a node
 `cur < nodeAlloc` of depth `off` reaches a node `< nodeAlloc` of depth `off + rem`, and any two
 walks of length `rem` from depth `off` reaching the same node started at the same `cur` and read
@@ -424,8 +435,8 @@ theorem ValidBufTrie.delete_spec {cTab bChar rKey : ℕ} {tr : BufTrie}
   obtain ⟨halloc, hzero, hout, hmap, depth, hd0, hedge, hiff, hleaf⟩ := hv
   have hp_edge : ∀ u, 1 ≤ u → u < tr.nodeAlloc → depth u = depth (tr.nodeParent u) + 1 :=
     fun u h1 h2 => (hedge u h1 h2).2.2.1
-  have hnoop : mapFn rKey = none → Function.update mapFn rKey none = mapFn := fun hmr => by
-    funext x; by_cases hx : x = rKey <;> simp [hx, hmr]
+  have hnoop : mapFn rKey = none → Function.update mapFn rKey none = mapFn := fun hmr =>
+    Function.update_eq_self_iff.mpr hmr.symm
   dsimp only [bufDelete]
   cases hw : bufWalk bChar tr.trieChild rKey cTab 0 0 with
   | none =>
@@ -479,6 +490,14 @@ private structure BufTrieInv (cTab bChar : ℕ) (tr : BufTrie) (depth : ℕ → 
     tr.itemLeaf (tr.nodeLeafItem u - 1) = u ∧
     ∃ k < 2 ^ (cTab * bChar), bufWalk bChar tr.trieChild k cTab 0 0 = some u
 
+/-- Updating entry `(cur, ch)` of a two-argument table leaves every other entry unchanged. -/
+private theorem update_update_apply_of_ne {f : ℕ → ℕ → ℕ} {cur ch u v c : ℕ}
+    (h : ¬(v = cur ∧ c = ch)) :
+    Function.update f cur (Function.update (f cur) ch u) v c = f v c := by
+  by_cases hv : v = cur
+  · subst hv; simp [show c ≠ ch from fun hc => h ⟨rfl, hc⟩]
+  · simp [hv]
+
 private theorem BufTrieInv.child_lt {cTab bChar : ℕ} {tr : BufTrie} {depth : ℕ → ℕ}
     (hinv : BufTrieInv cTab bChar tr depth) (v c : ℕ) (hnz : tr.trieChild v c ≠ 0) :
     v < tr.trieChild v c := by
@@ -504,11 +523,7 @@ private theorem BufTrieInv.allocStep {cTab bChar cur ch off : ℕ} {tr : BufTrie
     (∀ v c, tr.trieChild v c ≠ 0 → tr'.trieChild v c = tr.trieChild v c) := by
   intro u tr' depth'
   have hmono : ∀ v c, tr.trieChild v c ≠ 0 → tr'.trieChild v c = tr.trieChild v c :=
-    fun v c hnz => by
-      dsimp only [tr']
-      by_cases hv : v = cur
-      · subst hv; simp [show c ≠ ch from fun hc => hnz (hc ▸ h0)]
-      · simp [hv]
+    fun v c hnz => update_update_apply_of_ne fun ⟨hv, hc⟩ => hnz (hv ▸ hc ▸ h0)
   refine ⟨⟨by dsimp [tr']; omega,
     fun w hw_ge => by
       dsimp only [tr'] at hw_ge ⊢
@@ -537,12 +552,7 @@ private theorem BufTrieInv.allocStep {cTab bChar cur ch off : ℕ} {tr : BufTrie
       simp only [Function.update_self]
       exact ⟨fun _ => ⟨hinv.alloc, by omega, trivial, trivial⟩,
         fun _ => by have := hinv.alloc; omega⟩
-    · have hupd : Function.update tr.trieChild cur (Function.update (tr.trieChild cur) ch u) v c =
-          tr.trieChild v c := by
-        by_cases hv : v = cur
-        · subst hv; simp [show c ≠ ch from fun hc => hvc ⟨rfl, hc⟩]
-        · simp [hv]
-      rw [hupd]
+    · rw [update_update_apply_of_ne hvc]
       refine ⟨fun hnz => ?_, fun ⟨h1, _⟩ => by omega⟩
       obtain ⟨h1, h2, h3, h4⟩ := (hinv.iff v c).mp hnz
       rw [Function.update_of_ne (by omega : tr.trieChild v c ≠ u),
@@ -631,11 +641,8 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
             tr_step.trieChild v c
         · have := hnew1 v c hne1; rw [hna_step] at this; omega
         · rw [not_ne_iff.mp hne1] at hne ⊢
-          have hvc : v = cur ∧ c = ch := by
-            by_contra hvc; apply hne; dsimp [tr_step]
-            by_cases hv : v = cur
-            · subst hv; simp [show c ≠ ch from fun hc => hvc ⟨rfl, hc⟩]
-            · simp [hv]
+          have hvc : v = cur ∧ c = ch :=
+            by_contra fun hvc => hne (update_update_apply_of_ne hvc)
           rcases hvc with ⟨rfl, rfl⟩; simp [tr_step]
       · exact Or.inr ⟨by simp [bufWalk, ch, nxt, h0],
           bufWalk_le_leaf hinv1.child_lt rem (off + 1) u _ rKey hw_rem⟩
@@ -703,15 +710,12 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
     fun u h1 h2 => (hinv1.edge u h1 h2).2.2.1
   by_cases hid1 : tr1.nodeLeafItem leaf = 0
   · simp only [hid1, ↓reduceIte]
-    have hever_false : bufEverPresent cTab bChar tr rKey = false := by
-      rcases hwalk_or with ⟨hw_old, htr_eq⟩ | ⟨hw_none, _⟩
-      · simp [bufEverPresent, hw_old, htr_eq ▸ hid1]
-      · simp [bufEverPresent, hw_none]
-    have hmap_none : mapFn rKey = none := by
+    obtain ⟨hever_false, hmap_none⟩ :
+        bufEverPresent cTab bChar tr rKey = false ∧ mapFn rKey = none := by
       rw [hmap rKey hk]
       rcases hwalk_or with ⟨hw_old, htr_eq⟩ | ⟨hw_none, _⟩
-      · simp [bufLookup, hw_old, htr_eq ▸ hid1]
-      · simp [bufLookup, hw_none]
+      · simp [bufEverPresent, bufLookup, hw_old, htr_eq ▸ hid1]
+      · simp [bufEverPresent, bufLookup, hw_none]
     have hother : ∀ k < 2 ^ (cTab * bChar), k ≠ rKey →
         (∀ l, bufWalk bChar tr.trieChild k cTab 0 0 = some l →
           bufWalk bChar tr1.trieChild k cTab 0 0 = some l ∧ l < tr.nodeAlloc ∧ l ≠ leaf ∧
@@ -909,6 +913,14 @@ theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
   exact ⟨halloc, hzero, fun u h1 h2 => ⟨(hedge u h1 h2).1, (hedge u h1 h2).2.2.2.2⟩,
     fun v ch hnz => (hiff v ch).mp hnz⟩
 
+/-- Allocation and parent-index projections of `ClearableBufTrie` for Word-RAM packed-array
+safety. -/
+theorem ClearableBufTrie.bounds {tr : BufTrie} (hc : ClearableBufTrie tr) :
+    1 ≤ tr.nodeAlloc ∧
+    (∀ u, 1 ≤ u → u < tr.nodeAlloc → tr.nodeParent u < u) := by
+  obtain ⟨halloc, _, hedge, _⟩ := hc
+  exact ⟨halloc, fun u h1 h2 => (hedge u h1 h2).1⟩
+
 /-- One step of `bufClearOne` preserves `ClearableBufTrie` and decrements `nodeAlloc` toward `1`. -/
 theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr) :
     ClearableBufTrie (bufClearOne tr) ∧
@@ -930,19 +942,12 @@ theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr)
         by_cases hvc : tr.nodeParent w = p ∧ tr.nodeChar w = ch
         · have : w = u := by rw [← hc_w, hvc.1, hvc.2, (hedge u (by omega) (by omega)).2]
           omega
-        · by_cases hv : tr.nodeParent w = p
-          · rw [hv] at hc_w ⊢; simp [show tr.nodeChar w ≠ ch from fun h => hvc ⟨hv, h⟩, hc_w]
-          · simp [hv, hc_w],
+        · rw [update_update_apply_of_ne hvc, hc_w],
       fun v c hnz => by
         dsimp only at hnz ⊢
         by_cases hvc : v = p ∧ c = ch
         · rcases hvc with ⟨rfl, rfl⟩; simp at hnz
-        · have hupd : Function.update tr.trieChild p (Function.update (tr.trieChild p) ch 0) v c =
-              tr.trieChild v c := by
-            by_cases hv : v = p
-            · subst hv; simp [show c ≠ ch from fun h => hvc ⟨rfl, h⟩]
-            · simp [hv]
-          rw [hupd] at hnz ⊢
+        · rw [update_update_apply_of_ne hvc] at hnz ⊢
           obtain ⟨h1, h2, h3, h4⟩ := hchild v c hnz
           have hne_u : tr.trieChild v c ≠ u := fun heq => hvc ⟨h3 ▸ heq ▸ rfl, h4 ▸ heq ▸ rfl⟩
           exact ⟨h1, by omega, h3, h4⟩⟩, by omega⟩

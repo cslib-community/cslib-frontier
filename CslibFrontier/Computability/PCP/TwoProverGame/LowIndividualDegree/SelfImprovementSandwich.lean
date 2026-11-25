@@ -139,8 +139,7 @@ theorem abs_sandwichedPolynomial_score_sub_le (φ : AlgState A)
         (fun z => sum_nonneg fun g _ =>
           φ.re_apply_nonneg (star_left_conjugate_nonneg (T.nonneg g) (V z.1 z.2 g)))
   simp only [expect_add_distrib, ← mul_expect, Fintype.expect_const]
-  exact add_le_add (mul_le_mul_of_nonneg_left hcopy (by norm_num))
-    (mul_le_mul_of_nonneg_left hvar (by norm_num))
+  gcongr
 
 omit [DecidableEq F] in
 private theorem state_successfulMass_sandwichedPolynomial_eq (φ : AlgState A)
@@ -288,9 +287,7 @@ theorem average_successfulMismatch_sandwichedPolynomial_le (φ : AlgState A)
       sub_le_self _ ((L u).nonneg _)⟩) hCT hCR hLT
   simp only [hzero, map_zero, Complex.zero_re, sum_const_zero, Fintype.expect_const, sub_zero]
     at h
-  change (𝔼 u : Point F m, successfulMismatch φ (evaluatePolynomialMeasurement H u) (L u)) ≤ _
-  simp_rw [hgroup]
-  exact (le_abs_self _).trans h
+  exact (expect_congr rfl fun u _ => hgroup u).trans_le ((le_abs_self _).trans h)
 
 /-- A step of the boundedness proof. The dual majorant's state value exceeds the
 sandwiched measurement's point-agreement score by at most the stated copy and variance

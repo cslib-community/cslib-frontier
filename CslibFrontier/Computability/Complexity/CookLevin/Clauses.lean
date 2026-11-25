@@ -191,13 +191,9 @@ private theorem stepTerms_head (i : Fin k) {z : α → ℤ}
     ComputableInPolyTime (fun a => Feature.stepTerms tm (n a) (T a) (.head i (z a)))
       enc (encList (encList (encPair encFeature encBool))) := by
   unfold Feature.stepTerms
-  apply cons'
+  refine cons' (by fun_prop) (mapFilterConst_plain _ (fun _ _ => ?_) fun _ _ => ?_)
   · fun_prop
-  · apply mapFilterConst_plain
-    · intro y _
-      fun_prop
-    · intro y _
-      fun_prop
+  · fun_prop
 
 private theorem stepTerms_inPos {j : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary)
@@ -205,15 +201,12 @@ private theorem stepTerms_inPos {j : α → ℕ}
     ComputableInPolyTime (fun a => Feature.stepTerms tm (n a) (T a) (.inPos (j a)))
       enc (encList (encList (encPair encFeature encBool))) := by
   unfold Feature.stepTerms
-  apply cons'
+  refine cons' (by fun_prop) ?_
+  simp only [SProd.sprod, List.product, List.filter_flatMap, List.filter_map,
+    List.map_flatMap, List.map_map, Function.comp_def]
+  refine flatMapConst_plain _ fun _ _ => mapWithInput (encA := encUnary) ?_ ?_
   · fun_prop
-  · simp only [SProd.sprod, List.product, List.filter_flatMap, List.filter_map,
-      List.map_flatMap, List.map_map, Function.comp_def]
-    apply flatMapConst_plain
-    intro y _
-    apply mapWithInput (encA := encUnary)
-    · fun_prop
-    · fun_prop
+  · fun_prop
 
 omit [DecidableEq State] in
 private theorem stepImpClauses {t : α → ℕ} {feature : α → Feature k State}
@@ -224,10 +217,8 @@ private theorem stepImpClauses {t : α → ℕ} {feature : α → Feature k Stat
       (encList (encList (encPair encFeature encBool)))) :
     ComputableInPolyTime (fun a => (terms a).map fun c =>
       Clause.impLits (c.map fun l => (.holds (t a) l.1, l.2))
-        (.holds (t a + 1) (feature a))) enc (encCNFOver encVar) := by
-  apply mapWithInput (encA := encList (encPair encFeature encBool))
-  · exact hterms
-  · fun_prop
+        (.holds (t a + 1) (feature a))) enc (encCNFOver encVar) :=
+  mapWithInput (encA := encList (encPair encFeature encBool)) hterms (by fun_prop)
 
 end Step
 

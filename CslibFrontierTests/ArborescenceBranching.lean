@@ -8,23 +8,30 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Algorithms.Lean.Arborescence.PolyTime
+import CslibFrontier.Algorithms.Lean.Arborescence.Table
+import CslibFrontier.Algorithms.WordRAM.Arborescence
 import Mathlib.Data.Fin.VecNotation
 
 /-!
-# Tests for branchings, materialized `O(n³)` solvers, and `P` certificates
+# Tests for branchings, materialized `O(n³)` Word-RAM solvers, and `P` certificates
 
 Exercises the full `#3526` arborescence and branching stack:
 
 * `Digraph.Branching`: `IsBranching`, `superRootExtend`, `restrictOption`, undirected acyclicity,
   and non-branching counterexamples (in-degree `2` and directed cycles);
-* `Arborescence.Table`: `edmondsTableM` and `edmondsOutTableM` exact values, `O(n³)` tick bounds,
-  optimality, and infeasibility (`none`);
-* `Arborescence.Branching`: `optimumBranching`, `optimumBranchingM`, `minBranching` on mixed
-  positive/negative cyclic digraphs, and Edmonds (1967, Section 2) weight-shift reductions
+* `Arborescence.Table`: `edmondsTable` and `edmondsOutTable` exact values, optimality, and
+  infeasibility (`none`);
+* `Arborescence.Branching`: `optimumBranching` and `minBranching` on mixed positive/negative
+  cyclic digraphs, and Edmonds (1967, Section 2) weight-shift reductions
   (`edmonds_shift_weight_branching`, `edmonds_rooted_outArborescence_of_shift`);
 * `Arborescence.PolyTime`: list-table solvers (`edmondsList`, `edmondsOutList`,
   `optimumBranchingList`), positive/negative/out-of-bounds threshold deciders, and `P` membership
-  (`minArborescenceDec_mem_P`, `minOutArborescenceDec_mem_P`, `maxBranchingDec_mem_P`).
+  (`minArborescenceDec_mem_P`, `minOutArborescenceDec_mem_P`, `maxBranchingDec_mem_P`);
+* `WordRAM.Arborescence`: `O(n³)` standard-basis width-blind Word-RAM execution
+  (`exists_edmonds_program`, `exists_edmondsOut_program`, `exists_optimumBranching_program`) at
+  polynomial word width (`wordBound`) on cyclic, reversed, infeasible (`n = 2`, `n = 3`),
+  negative-cost self-loop, 2-round nested cycle contraction, singleton (`n = 1`), empty (`n = 0`),
+  mixed-sign branching, and `n = 20` instances at `w = 64`.
 -/
 
 set_option linter.privateModule false
@@ -86,7 +93,7 @@ example : ¬ twoCycleDigraph.IsBranching := by
       (Relation.TransGen.single (show twoCycleDigraph.Adj 1 0 by simp [twoCycleDigraph]))
   exact hB.acyclic hwalk
 
-/-! ### 2. `Arborescence.Table`: `edmondsTableM` and `edmondsOutTableM` -/
+/-! ### 2. `Arborescence.Table`: `edmondsTable` and `edmondsOutTable` -/
 
 private def arbArcs : List (Fin 4 × Fin 4) :=
   [(1, 0), (2, 0), (1, 2), (2, 1), (3, 1), (2, 3), (3, 2)]
@@ -116,12 +123,9 @@ private def c_int (u w : Fin 4) : ℤ :=
 
 private def arbOpt : Fin 4 → Fin 4 := ![0, 2, 0, 1]
 
-example : (edmondsTableM G_cyc c_int 0).ret = some arbOpt := by
-  rw [edmondsTableM_ret_eq_edmonds]
+example : edmondsTable G_cyc c_int 0 = some arbOpt := by
+  rw [edmondsTable_eq_edmonds]
   decide
-
-example : (edmondsTableM G_cyc c_int 0).time ≤ 15 * (FinEnum.card (Fin 4)) ^ 3 :=
-  time_edmondsTableM_le G_cyc c_int 0
 
 example : (Digraph.parentDigraph 0 arbOpt).IsInArborescence 0 ∧
     Digraph.parentDigraph 0 arbOpt ≤ G_cyc ∧
@@ -130,7 +134,7 @@ example : (Digraph.parentDigraph 0 arbOpt).IsInArborescence 0 ∧
       T.IsInArborescence 0 → T ≤ G_cyc → 8 ≤ arcCost T c_int := by
   obtain ⟨hT, hTG, hopt⟩ :=
     edmondsTable_optimal (G := G_cyc) (c := c_int) (r := 0) (p := arbOpt) (by
-      rw [edmondsTableM_ret_eq_edmonds]; decide)
+      rw [edmondsTable_eq_edmonds]; decide)
   have hcost : arcCost (Digraph.parentDigraph (0 : Fin 4) arbOpt) c_int = 8 := by
     rw [arcCost_parentDigraph]; decide
   refine ⟨hT, hTG, hcost, fun T _ hT' hTG' => ?_⟩
@@ -142,13 +146,9 @@ private def G_rev : Digraph (Fin 4) where
 private instance : DecidableRel G_rev.Adj :=
   fun u w => inferInstanceAs (Decidable (G_cyc.Adj w u))
 
-example : (edmondsOutTableM G_rev (fun u w => c_int w u) 0).ret = some arbOpt := by
-  rw [edmondsOutTableM_ret_eq_edmondsOut]
+example : edmondsOutTable G_rev (fun u w => c_int w u) 0 = some arbOpt := by
+  rw [edmondsOutTable_eq_edmondsOut]
   decide
-
-example : (edmondsOutTableM G_rev (fun u w => c_int w u) 0).time ≤
-    15 * (FinEnum.card (Fin 4)) ^ 3 :=
-  time_edmondsOutTableM_le G_rev (fun u w => c_int w u) 0
 
 private def H_infeas : Digraph (Fin 3) where
   Adj u w := (u, w) ∈ ([(1, 2), (2, 1)] : List (Fin 3 × Fin 3))
@@ -156,13 +156,13 @@ private def H_infeas : Digraph (Fin 3) where
 private instance : DecidableRel H_infeas.Adj :=
   fun u w => inferInstanceAs (Decidable ((u, w) ∈ ([(1, 2), (2, 1)] : List (Fin 3 × Fin 3))))
 
-example : (edmondsOutTableM H_infeas (fun _ _ => (1 : ℤ)) 0).ret = none := by
-  rw [edmondsOutTableM_ret_eq_edmondsOut]
+example : edmondsOutTable H_infeas (fun _ _ => (1 : ℤ)) 0 = none := by
+  rw [edmondsOutTable_eq_edmondsOut]
   decide
 
 example : ∀ t, ¬ IsInArborescenceParent (fun u w => H_infeas.Adj w u) 0 t :=
   (edmondsOutTable_spec (G := H_infeas) (c := fun _ _ => (1 : ℤ)) (r := 0)).2
-    (by rw [edmondsOutTableM_ret_eq_edmondsOut]; decide)
+    (by rw [edmondsOutTable_eq_edmondsOut]; decide)
 
 /-! ### 3. `Arborescence.Branching` and Edmonds Section 2 reductions -/
 
@@ -217,13 +217,6 @@ example : (optimumBranching G_br w_br).IsBranching ∧ optimumBranching G_br w_b
   ⟨optimumBranching_isBranching G_br w_br, optimumBranching_le G_br w_br,
     optimumBranching_optimal G_br w_br B_sub B_sub_isBranching (fun u v huv => by
       fin_cases u <;> fin_cases v <;> simp_all [B_sub, G_br, brArcs])⟩
-
-example : (optimumBranchingM G_br w_br).ret = ![0, 0, 1, 3] := by
-  rw [optimumBranchingM_ret_eq]
-  decide
-
-example : (optimumBranchingM G_br w_br).time ≤ 15 * (FinEnum.card (Fin 4) + 1) ^ 3 :=
-  time_optimumBranchingM_le G_br w_br
 
 example : (minBranching G_br w_br).IsBranching ∧ minBranching G_br w_br ≤ G_br ∧
     arcCost (minBranching G_br w_br) w_br = -7 := by
@@ -396,5 +389,226 @@ example : minOutArborescenceDec ∈ Cslib.Complexity.P encArborescenceDecInstanc
 
 example : maxBranchingDec ∈ Cslib.Complexity.P encBranchingDecInstance :=
   maxBranchingDec_mem_P
+
+/-! ### 5. `WordRAM.Arborescence`: `O(n³)` standard-basis Word-RAM execution -/
+
+section WordRAMTests
+
+open Cslib.Algorithms.WordRAM.Arborescence
+open Cslib.WordRAM
+
+private def cycArbInput : ArborescenceInput where
+  n := 4
+  root := 0
+  adj u v := decide (G_cyc.Adj u v)
+  cost := c_int
+
+private def revArbInput : ArborescenceInput where
+  n := 4
+  root := 0
+  adj u v := decide (G_rev.Adj u v)
+  cost u v := c_int v u
+
+private def infeasArbInput : ArborescenceInput where
+  n := 3
+  root := 0
+  adj u v := decide (H_infeas.Adj u v)
+  cost _ _ := 1
+
+private def singletonArbInput : ArborescenceInput where
+  n := 1
+  root := 0
+  adj _ _ := true
+  cost _ _ := -100
+
+private def infeasTwoArbInput : ArborescenceInput where
+  n := 2
+  root := 0
+  adj u v := decide (u = 0 ∧ v = 1)
+  cost _ _ := 1
+
+private def negSelfLoopArcs : List (Fin 3 × Fin 3) :=
+  [(1, 1), (2, 2), (1, 0), (2, 1), (2, 0)]
+
+private def negSelfLoopArbInput : ArborescenceInput where
+  n := 3
+  root := 0
+  adj u v := decide ((u, v) ∈ negSelfLoopArcs)
+  cost u v :=
+    match u.val, v.val with
+    | 1, 1 => -1000 | 2, 2 => -500 | 1, 0 => 5 | 2, 1 => 7 | 2, 0 => 20
+    | _, _ => 0
+
+private def nestedCycArcs : List (Fin 5 × Fin 5) :=
+  [(1, 2), (2, 1), (2, 3), (3, 4), (4, 2), (1, 0), (3, 0), (4, 0)]
+
+/-- A 5-vertex digraph requiring two nested contraction rounds (`{1, 2}`, then `{1, 3, 4}`) and
+two expansion rounds, with unique optimum `1 → 2 → 3 → 4 → 0` of cost `16`. -/
+private def nestedCycArbInput : ArborescenceInput where
+  n := 5
+  root := 0
+  adj u v := decide ((u, v) ∈ nestedCycArcs)
+  cost u v :=
+    match u.val, v.val with
+    | 1, 2 => 1 | 2, 1 => 1 | 2, 3 => 3 | 3, 4 => 2 | 4, 2 => 2
+    | 1, 0 => 50 | 3, 0 => 100 | 4, 0 => 10
+    | _, _ => 0
+
+/-- A 20-vertex instance (`M₀ = 100`), exercising polynomial word width `wordBound 20 100 < 2^64`
+where exponential `(n + 1)^n * M₀` contraction bounds would exceed 64-bit words. -/
+private def largeArbInput : ArborescenceInput where
+  n := 20
+  root := 0
+  adj u v := decide (v.val + 1 = u.val ∨ (u.val = 1 ∧ v.val = 2))
+  cost u v := if u.val = 1 ∧ v.val = 2 then 1 else if u.val = 2 ∧ v.val = 1 then 1 else 100
+
+private def mixedBranchingInput : BranchingInput where
+  n := 4
+  adj u v := decide (G_br.Adj u v)
+  weight := w_br
+
+private def singletonBranchingInput : BranchingInput where
+  n := 1
+  adj _ _ := true
+  weight _ _ := 50
+
+private def emptyBranchingInput : BranchingInput where
+  n := 0
+  adj u _ := Fin.elim0 u
+  weight u _ := Fin.elim0 u
+
+example : cycArbInput.expectedParentList = [0, 2, 0, 1] := by decide
+
+example : revArbInput.expectedOutParentList = [0, 2, 0, 1] := by decide
+
+example : infeasArbInput.expectedOutParentList = [] := by decide
+
+example : singletonArbInput.expectedParentList = [0] ∧
+    singletonArbInput.expectedOutParentList = [0] := by decide
+
+example : infeasTwoArbInput.expectedParentList = [] ∧
+    ∀ t, ¬ IsInArborescenceParent infeasTwoArbInput.digraph.Adj infeasTwoArbInput.root t :=
+  ⟨by decide, infeasTwoArbInput.expectedParentList_eq_nil_iff.mp (by decide)⟩
+
+example : negSelfLoopArbInput.expectedParentList = [0, 0, 1] := by decide
+
+example : nestedCycArbInput.expectedParentList = [0, 2, 3, 4, 0] := by decide
+
+example : mixedBranchingInput.expectedParentList = [0, 0, 1, 3] := by decide
+
+example : singletonBranchingInput.expectedParentList = [0] := by decide
+
+example : emptyBranchingInput.expectedParentList = [] := by decide
+
+private theorem largeArbInput_wordBound_fits : Fits 64 largeArbInput.wordBound := by
+  have hM : largeArbInput.maxAbsCost ≤ 100 := by
+    refine Finset.sup_le fun p _ => ?_
+    dsimp only [largeArbInput]
+    split_ifs <;> decide
+  have hle : largeArbInput.wordBound ≤ wordBound 20 100 := by
+    rw [ArborescenceInput.wordBound, wordBound, wordBound]
+    have hn : largeArbInput.n = 20 := rfl
+    rw [hn]
+    exact Nat.add_le_add_right (Nat.mul_le_mul_left _ hM) _
+  exact (show Fits 64 (wordBound 20 100) by decide).of_le hle
+
+example : ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
+    (∃ t₁, ExecutesList 64 prog (State.init cycArbInput.encode) [0, 2, 0, 1] t₁ ∧
+      t₁ ≤ C * 125) ∧
+    (∃ t₂, ExecutesList 64 prog (State.init singletonArbInput.encode) [0] t₂ ∧
+      t₂ ≤ C * 8) ∧
+    (∃ t₃, ExecutesList 64 prog (State.init infeasTwoArbInput.encode) [] t₃ ∧
+      t₃ ≤ C * 27) ∧
+    (∃ t₄, ExecutesList 64 prog (State.init negSelfLoopArbInput.encode) [0, 0, 1] t₄ ∧
+      t₄ ≤ C * 64) ∧
+    (∃ t₅, ExecutesList 64 prog (State.init nestedCycArbInput.encode) [0, 2, 3, 4, 0] t₅ ∧
+      t₅ ≤ C * 216) ∧
+    (∃ t₆, ExecutesList 64 prog (State.init largeArbInput.encode)
+      largeArbInput.expectedParentList t₆ ∧ t₆ ≤ C * 9261) := by
+  obtain ⟨r, C, prog, hnw, hprog⟩ := exists_edmonds_program
+  have h1 : Fits 64 cycArbInput.wordBound := by decide
+  have h2 : Fits 64 singletonArbInput.wordBound := by decide
+  have h3 : Fits 64 infeasTwoArbInput.wordBound := by decide
+  have h4 : Fits 64 negSelfLoopArbInput.wordBound := by decide
+  have h5 : Fits 64 nestedCycArbInput.wordBound := by decide
+  obtain ⟨t₁, he₁, hl₁⟩ := hprog cycArbInput 64 h1 (cycArbInput.inputFits_encode h1)
+  obtain ⟨t₂, he₂, hl₂⟩ := hprog singletonArbInput 64 h2 (singletonArbInput.inputFits_encode h2)
+  obtain ⟨t₃, he₃, hl₃⟩ := hprog infeasTwoArbInput 64 h3 (infeasTwoArbInput.inputFits_encode h3)
+  obtain ⟨t₄, he₄, hl₄⟩ := hprog negSelfLoopArbInput 64 h4 (negSelfLoopArbInput.inputFits_encode h4)
+  obtain ⟨t₅, he₅, hl₅⟩ := hprog nestedCycArbInput 64 h5 (nestedCycArbInput.inputFits_encode h5)
+  obtain ⟨t₆, he₆, hl₆⟩ := hprog largeArbInput 64 largeArbInput_wordBound_fits
+    (largeArbInput.inputFits_encode largeArbInput_wordBound_fits)
+  exact ⟨r, C, prog, hnw,
+    ⟨t₁, (show cycArbInput.expectedParentList = [0, 2, 0, 1] by decide) ▸ he₁, hl₁⟩,
+    ⟨t₂, (show singletonArbInput.expectedParentList = [0] by decide) ▸ he₂, hl₂⟩,
+    ⟨t₃, (show infeasTwoArbInput.expectedParentList = [] by decide) ▸ he₃, hl₃⟩,
+    ⟨t₄, (show negSelfLoopArbInput.expectedParentList = [0, 0, 1] by decide) ▸ he₄, hl₄⟩,
+    ⟨t₅, (show nestedCycArbInput.expectedParentList = [0, 2, 3, 4, 0] by decide) ▸ he₅, hl₅⟩,
+    ⟨t₆, he₆, hl₆⟩⟩
+
+example : ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
+    (∃ t₁, ExecutesList 64 prog (State.init revArbInput.encode) [0, 2, 0, 1] t₁ ∧
+      t₁ ≤ C * 125) ∧
+    (∃ t₂, ExecutesList 64 prog (State.init infeasArbInput.encode) [] t₂ ∧
+      t₂ ≤ C * 64) ∧
+    (∃ t₃, ExecutesList 64 prog (State.init singletonArbInput.encode) [0] t₃ ∧
+      t₃ ≤ C * 8) := by
+  obtain ⟨r, C, prog, hnw, hprog⟩ := exists_edmondsOut_program
+  have h1 : Fits 64 revArbInput.wordBound := by decide
+  have h2 : Fits 64 infeasArbInput.wordBound := by decide
+  have h3 : Fits 64 singletonArbInput.wordBound := by decide
+  obtain ⟨t₁, he₁, hl₁⟩ := hprog revArbInput 64 h1 (revArbInput.inputFits_encode h1)
+  obtain ⟨t₂, he₂, hl₂⟩ := hprog infeasArbInput 64 h2 (infeasArbInput.inputFits_encode h2)
+  obtain ⟨t₃, he₃, hl₃⟩ := hprog singletonArbInput 64 h3 (singletonArbInput.inputFits_encode h3)
+  exact ⟨r, C, prog, hnw,
+    ⟨t₁, (show revArbInput.expectedOutParentList = [0, 2, 0, 1] by decide) ▸ he₁, hl₁⟩,
+    ⟨t₂, (show infeasArbInput.expectedOutParentList = [] by decide) ▸ he₂, hl₂⟩,
+    ⟨t₃, (show singletonArbInput.expectedOutParentList = [0] by decide) ▸ he₃, hl₃⟩⟩
+
+example : ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
+    (∃ t₁, ExecutesList 64 prog (State.init mixedBranchingInput.encode) [0, 0, 1, 3] t₁ ∧
+      t₁ ≤ C * 125) ∧
+    (∃ t₂, ExecutesList 64 prog (State.init singletonBranchingInput.encode) [0] t₂ ∧
+      t₂ ≤ C * 8) ∧
+    (∃ t₃, ExecutesList 64 prog (State.init emptyBranchingInput.encode) [] t₃ ∧
+      t₃ ≤ C) := by
+  obtain ⟨r, C, prog, hnw, hprog⟩ := exists_optimumBranching_program
+  have h1 : Fits 64 mixedBranchingInput.wordBound := by decide
+  have h2 : Fits 64 singletonBranchingInput.wordBound := by decide
+  have h3 : Fits 64 emptyBranchingInput.wordBound := by decide
+  obtain ⟨t₁, he₁, hl₁⟩ := hprog mixedBranchingInput 64 h1 (mixedBranchingInput.inputFits_encode h1)
+  obtain ⟨t₂, he₂, hl₂⟩ := hprog singletonBranchingInput 64 h2
+    (singletonBranchingInput.inputFits_encode h2)
+  obtain ⟨t₃, he₃, hl₃⟩ := hprog emptyBranchingInput 64 h3 (emptyBranchingInput.inputFits_encode h3)
+  exact ⟨r, C, prog, hnw,
+    ⟨t₁, (show mixedBranchingInput.expectedParentList = [0, 0, 1, 3] by decide) ▸ he₁, hl₁⟩,
+    ⟨t₂, (show singletonBranchingInput.expectedParentList = [0] by decide) ▸ he₂, hl₂⟩,
+    ⟨t₃, (show emptyBranchingInput.expectedParentList = [] by decide) ▸ he₃,
+      by simpa [emptyBranchingInput] using hl₃⟩⟩
+
+example :
+    ∃ p : Fin nestedCycArbInput.n → Fin nestedCycArbInput.n,
+      nestedCycArbInput.expectedParentList =
+        (List.finRange nestedCycArbInput.n).map (fun v => (p v).1) ∧
+      (Digraph.parentDigraph nestedCycArbInput.root p).IsInArborescence nestedCycArbInput.root ∧
+      Digraph.parentDigraph nestedCycArbInput.root p ≤ nestedCycArbInput.digraph ∧
+      ∀ (T : Digraph (Fin nestedCycArbInput.n)) [DecidableRel T.Adj],
+        T.IsInArborescence nestedCycArbInput.root → T ≤ nestedCycArbInput.digraph →
+        arcCost (Digraph.parentDigraph nestedCycArbInput.root p) nestedCycArbInput.cost ≤
+          arcCost T nestedCycArbInput.cost :=
+  nestedCycArbInput.expectedParentList_spec (by decide)
+
+example :
+    (optimumBranching mixedBranchingInput.digraph mixedBranchingInput.weight).IsBranching ∧
+    optimumBranching mixedBranchingInput.digraph mixedBranchingInput.weight ≤
+      mixedBranchingInput.digraph ∧
+    ∀ (B : Digraph (Fin mixedBranchingInput.n)) [DecidableRel B.Adj],
+      B.IsBranching → B ≤ mixedBranchingInput.digraph →
+      arcCost B mixedBranchingInput.weight ≤
+        arcCost (optimumBranching mixedBranchingInput.digraph mixedBranchingInput.weight)
+          mixedBranchingInput.weight :=
+  mixedBranchingInput.expectedParentList_spec.2
+
+end WordRAMTests
 
 end CslibFrontierTests.ArborescenceBranching

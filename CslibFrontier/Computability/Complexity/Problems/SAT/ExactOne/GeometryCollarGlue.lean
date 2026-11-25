@@ -77,11 +77,9 @@ theorem collarReal_injective (reflected : Bool) : Function.Injective (collarReal
   cases reflected <;> simpa [collarReal, mirrorReal, Prod.ext_iff] using h
 
 /-- The common affine placement does not identify integer vertices. -/
-theorem collarPoint_injective (reflected : Bool) : Function.Injective (collarPoint reflected) := by
-  intro p q h
-  apply realPoint_injective
-  apply collarReal_injective reflected
-  simpa only [← realPoint_collarPoint] using congrArg realPoint h
+theorem collarPoint_injective (reflected : Bool) : Function.Injective (collarPoint reflected) :=
+  fun _ _ h => realPoint_injective <| collarReal_injective reflected <| by
+    simpa only [← realPoint_collarPoint] using congrArg realPoint h
 
 /-- Placement maps the full continuous support. -/
 theorem support_collarRoute (reflected : Bool) (r : Route) :
@@ -153,12 +151,11 @@ theorem support_inPointBox_of_points {r : Route} {c : Point} {radius : ℕ}
   · have hm := List.of_mem_zip he
     have ha := hr e.1 hm.1
     have hb := hr e.2 (List.mem_of_mem_tail hm.2)
-    have hc := mem_segment_bounds hp
-    change (min (e.1.1 : ℝ) (e.2.1 : ℝ) ≤ p.1 ∧ p.1 ≤ max (e.1.1 : ℝ) (e.2.1 : ℝ)) ∧
-      (min (e.1.2 : ℝ) (e.2.2 : ℝ) ≤ p.2 ∧ p.2 ≤ max (e.1.2 : ℝ) (e.2.2 : ℝ)) at hc
-    exact ⟨(le_min ha.1 hb.1).trans hc.1.1, hc.1.2.trans (max_le ha.2.1 hb.2.1),
-      (le_min ha.2.2.1 hb.2.2.1).trans hc.2.1,
-      hc.2.2.trans (max_le ha.2.2.2 hb.2.2.2)⟩
+    obtain ⟨hx, hy⟩ : (min (e.1.1 : ℝ) (e.2.1 : ℝ) ≤ p.1 ∧ p.1 ≤ max (e.1.1 : ℝ) (e.2.1 : ℝ)) ∧
+      (min (e.1.2 : ℝ) (e.2.2 : ℝ) ≤ p.2 ∧ p.2 ≤ max (e.1.2 : ℝ) (e.2.2 : ℝ)) :=
+        mem_segment_bounds hp
+    exact ⟨(le_min ha.1 hb.1).trans hx.1, hx.2.trans (max_le ha.2.1 hb.2.1),
+      (le_min ha.2.2.1 hb.2.2.1).trans hy.1, hy.2.trans (max_le ha.2.2.2 hb.2.2.2)⟩
 
 /-- Placed points of the original template lie in the collar's closed inner square. -/
 theorem collarPoint_in_innerBox (reflected : Bool) {q : Point}
@@ -176,8 +173,7 @@ theorem collarRoute_in_innerBox (reflected : Bool) {r : Route}
     (hr : ∀ q ∈ r, 0 ≤ q.1 ∧ q.1 ≤ 180000 ∧ 0 ≤ q.2 ∧ q.2 ≤ 180000)
     {p : ℝ × ℝ} (hp : p ∈ support (collarRoute reflected r)) :
     inPointBox (270000, 270000) 90000 p := by
-  apply support_inPointBox_of_points (r := collarRoute reflected r) ?_ hp
-  intro q hq
+  refine support_inPointBox_of_points (fun _ hq => ?_) hp
   rw [collarRoute_eq_map] at hq
   obtain ⟨q, hqr, rfl⟩ := List.mem_map.mp hq
   exact collarPoint_in_innerBox reflected (hr q hqr)
@@ -192,10 +188,9 @@ private theorem collarPrefix_join_endpoints {s : PortAssignment} (hs : s.Distinc
         some (collarInnerPort (collarReflected s) i) ∧
       ((collarRoutes s).getD i []).reverse.head? =
         some (collarInnerPort (collarReflected s) i) := by
-  constructor
-  · rw [collarRoute_eq_map, List.getLast?_map, hr]
-    exact congrArg some (collarPoint_innerTemplatePort _ _)
-  · simpa only [List.head?_reverse] using ((collar_check s hs).2 i).2.1
+  refine ⟨?_, by simpa only [List.head?_reverse] using ((collar_check s hs).2 i).2.1⟩
+  rw [collarRoute_eq_map, List.getLast?_map, hr]
+  exact congrArg some (collarPoint_innerTemplatePort _ _)
 
 /-- Extending a local prefix preserves proper orthogonality. -/
 theorem isOrthogonal_collarPrefixRoute {s : PortAssignment} (hs : s.Distinct)
@@ -222,8 +217,7 @@ theorem isSimple_collarPrefixRoute {s : PortAssignment} (hs : s.Distinct)
     IsSimple (collarPrefixRoute s i r) := by
   have he := collarPrefix_join_endpoints hs hr
   refine isSimple_join he.1 he.2 (isSimple_collarRoute _ hsr)
-    ((isSimple_reverse_iff _).2 (collar_isSimple hs i)) ?_
-  intro p hp hq
+    ((isSimple_reverse_iff _).2 (collar_isSimple hs i)) fun p hp hq => ?_
   rw [support_reverse] at hq
   exact collar_core_contact hs hq (collarRoute_in_innerBox _ hb hp)
 
@@ -255,7 +249,9 @@ theorem disjoint_collarRoute_connector {s : PortAssignment}
   rw [Set.disjoint_left]
   intro p hp hq
   by_cases hs : s.Distinct
-  swap
+  · rw [collar_core_contact hs hq (collarRoute_in_innerBox _ hb hp),
+      ← collarPoint_innerTemplatePort, realPoint_collarPoint] at hp
+    exact hi ((mem_support_collarRoute_iff _ r _).1 hp)
   · -- Repeated sides have no table entry, so the connector is empty.
     have hall : ∀ a ∈ collarAssignments, a.Distinct := by decide
     have hn : s ∉ collarAssignments := fun hm => hs (hall s hm)
@@ -264,15 +260,7 @@ theorem disjoint_collarRoute_connector {s : PortAssignment}
         List.getElem?_eq_none (by decide : collarRouteTable.length ≤ collarAssignments.length),
         Option.getD_none]
     rw [hnil, List.getD_nil] at hq
-    rcases hq with ⟨_, ha, _⟩ | ⟨_, he, _⟩
-    · exact List.not_mem_nil ha
-    · exact List.not_mem_nil he
-  have hport := collar_core_contact hs hq (collarRoute_in_innerBox _ hb hp)
-  have he : collarReal (collarReflected s) (realPoint (innerTemplatePort i)) =
-      realPoint (collarInnerPort (collarReflected s) i) := by
-    rw [← realPoint_collarPoint, collarPoint_innerTemplatePort]
-  rw [hport, ← he] at hp
-  exact hi ((mem_support_collarRoute_iff _ r _).1 hp)
+    rcases hq with ⟨_, h, _⟩ | ⟨_, h, _⟩ <;> exact List.not_mem_nil h
 
 /-- Intersections between two distinct extended prefixes come entirely from intersections
 of their original local routes. The two local routes must avoid each other's inner port. -/
@@ -291,14 +279,13 @@ theorem collarPrefixRoute_contact {s : PortAssignment} (hs : s.Distinct)
   rw [support_collarPrefixRoute hs ht] at hq
   rcases hp with hp | hp <;> rcases hq with hq | hq
   · rw [support_collarRoute] at hp hq
-    obtain ⟨x, hx, hxp⟩ := hp
+    obtain ⟨x, hx, rfl⟩ := hp
     obtain ⟨y, hy, hyp⟩ := hq
-    have hxy := collarReal_injective (collarReflected s) (hxp.trans hyp.symm)
-    subst y
-    exact ⟨x, hx, hy, hxp.symm⟩
-  · exact False.elim (Set.disjoint_left.mp (disjoint_collarRoute_connector hbr hri) hp hq)
-  · exact False.elim (Set.disjoint_left.mp (disjoint_collarRoute_connector hbt htj) hq hp)
-  · exact False.elim (Set.disjoint_left.mp (collar_disjoint hs hij) hp hq)
+    cases collarReal_injective _ hyp
+    exact ⟨x, hx, hy, rfl⟩
+  · exact (Set.disjoint_left.mp (disjoint_collarRoute_connector hbr hri) hp hq).elim
+  · exact (Set.disjoint_left.mp (disjoint_collarRoute_connector hbt htj) hq hp).elim
+  · exact (Set.disjoint_left.mp (collar_disjoint hs hij) hp hq).elim
 
 /-- An extended prefix avoids a placed inner-template vertex when its local route avoids
 that vertex and it is not the prefix's own boundary terminal. -/
@@ -307,11 +294,10 @@ theorem collarPrefixRoute_not_mem_corePoint {s : PortAssignment} (hs : s.Distinc
     {q : Point} (hq : 0 ≤ q.1 ∧ q.1 ≤ 180000 ∧ 0 ≤ q.2 ∧ q.2 ≤ 180000)
     (hqi : q ≠ innerTemplatePort i) (hn : realPoint q ∉ support r) :
     realPoint (collarPoint (collarReflected s) q) ∉ support (collarPrefixRoute s i r) := by
-  intro hp
-  rw [support_collarPrefixRoute hs hr] at hp
-  rcases hp with hp | hp
+  rw [support_collarPrefixRoute hs hr]
+  rintro (hp | hp)
   · rw [realPoint_collarPoint] at hp
-    exact hn ((mem_support_collarRoute_iff _ _ _).1 hp)
+    exact hn ((mem_support_collarRoute_iff ..).1 hp)
   · have he := collar_core_contact hs hp (collarPoint_in_innerBox _ hq)
     rw [← collarPoint_innerTemplatePort] at he
     exact hqi (collarPoint_injective _ (realPoint_injective he))

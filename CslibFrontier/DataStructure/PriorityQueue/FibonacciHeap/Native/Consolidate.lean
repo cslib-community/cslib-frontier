@@ -48,9 +48,8 @@ open Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap
 private def finishBody (d : Fin 3 → ℕ) : Memory.Prog Unit := do
   Memory.write (d 1 + 9 * d 0 + 1) 0
   Memory.write (d 1 + 9 * d 0 + 2) 0
-  let args ← pure ((d 0, d 1), (d 2 + 1, 0))
-  DataStructure.link (E := Memory.spec 0) ((layout args.1.1 args.1.2).methods 0)
-    (gather args.2.1 args.2.2)
+  DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (gather (d 2 + 1) 0)
 
 /-- Entry envelope and the gather domain at the actual two-write endpoint. -/
 @[expose] def finishSafe (w : ℕ) (d : Fin 3 → ℕ) (s : Memory.State) : Prop :=
@@ -62,17 +61,8 @@ private def finishBody (d : Fin 3 → ℕ) : Memory.Prog Unit := do
 
 private theorem realizes_finishBody : Realizes .exact finishBody (.refl _)
     (WordEncoding.encode (α := Unit)) finishSafe (fun _ _ => 0) := by
-  have hGather : Realizes .exact
-      (fun d : (ℕ × ℕ) × (ℕ × ℕ) => DataStructure.link (E := Memory.spec 0)
-        ((layout d.1.1 d.1.2).methods 0) (gather d.2.1 d.2.2))
-      (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
-      (fun w d s => gatherSafe w ![d.1.1, d.1.2, d.2.1, d.2.2] s) (fun _ _ => 0) :=
-    realizes_gather.reindex (fun d : (ℕ × ℕ) × (ℕ × ℕ) => ![d.1.1, d.1.2, d.2.1, d.2.2])
-      (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × ℕ))) ![0, 1, 2, 3]
-      fun _ i => by fin_cases i <;> rfl
   have nine (n : ℕ) : n + n + n + n + n + n + n + n + n = 9 * n := by omega
-  conv => arg 2; ext d; simp only [finishBody, ← nine]
-  realize
+  realize [realizes_gather] rewriting [finishBody, ← nine]
   all_goals simp only [nine] at *
   all_goals first
     | exact h.1.of_le (by omega)
@@ -135,45 +125,17 @@ old root count/right pointer and the minimum's child count/child pointer. -/
 
 private def forestBody (d : Fin 6 → ℕ) : Memory.Prog Unit := do
   let child ← if d 5 = 0 then pure 0 else pure (d 5 - 1)
-  let args ← pure ((((d 0, d 1), d 4), child), 0)
-  let md ← DataStructure.link (E := Memory.spec 0) ((layout args.1.1.1.1 args.1.1.1.2).methods 0)
-    (scatterList (args.1.1.1.1 + 1) true args.1.1.2 args.1.2 args.2)
-  let count ← pure (d 2 - 1)
-  let args' ← pure ((((d 0, d 1), count), d 3), md)
-  let md' ← DataStructure.link (E := Memory.spec 0)
-    ((layout args'.1.1.1.1 args'.1.1.1.2).methods 0)
-    (scatterList (args'.1.1.1.1 + 1) false args'.1.1.2 args'.1.2 args'.2)
-  let final ← pure ((d 0, d 1), md')
-  DataStructure.link (E := Memory.spec 0) ((layout final.1.1 final.1.2).methods 0)
-    (finishRoots final.2)
-
-private theorem realizes_scatterList_tuple (prep : Bool) : Realizes .exact
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1.1.1 d.1.1.1.2).methods 0)
-      (scatterList (d.1.1.1.1 + 1) prep d.1.1.2 d.1.2 d.2))
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-    (fun w d s => scatterListSafe prep w ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2] s)
-    (fun _ _ => 0) :=
-  (realizes_scatterList prep).reindex
-    (fun d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ => ![d.1.1.1.1, d.1.1.1.2, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := (((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3, 4]
-    fun _ i => by fin_cases i <;> rfl
-
-private theorem realizes_finishRoots_tuple : Realizes .exact
-    (fun d : (ℕ × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1 d.1.2).methods 0) (finishRoots d.2))
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-    (fun w d s => finishSafe w ![d.1.1, d.1.2, d.2] s) (fun _ _ => 0) :=
-  realizes_finishRoots.reindex (fun d : (ℕ × ℕ) × ℕ => ![d.1.1, d.1.2, d.2])
-    (WordEncoding.encode (α := (ℕ × ℕ) × ℕ)) ![0, 1, 2] fun _ i => by fin_cases i <;> rfl
+  let md ← DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (scatterList (d 0 + 1) true (d 4) child 0)
+  let md' ← DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (scatterList (d 0 + 1) false (d 2 - 1) (d 3) md)
+  DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
+    (finishRoots md')
 
 private theorem realizes_forestBody : Realizes .exact forestBody (.refl _)
     (WordEncoding.encode (α := Unit)) forestSafe (fun _ _ => 0) := by
-  have hChildren := realizes_scatterList_tuple true
-  have hRoots := realizes_scatterList_tuple false
-  have hFinish := realizes_finishRoots_tuple
   unfold forestBody
-  realize
+  realize [realizes_scatterList true, realizes_scatterList false, realizes_finishRoots]
   all_goals simp only [forestSafe] at h
   all_goals try simp only [hc, Nat.zero_sub] at h
   all_goals first

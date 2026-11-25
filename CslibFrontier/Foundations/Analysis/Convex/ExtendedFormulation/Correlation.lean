@@ -97,49 +97,32 @@ omit [LinearOrder K] [IsStrictOrderedRing K] in
 theorem corrValidVec_dotProduct_corrVertex (a b : Finset α) :
     corrValidVec K a ⬝ᵥ corrVertex K b =
       2 * ((a ∩ b).card : K) - ((a ∩ b).card : K) ^ 2 := by
-  have hterm : ∀ i j : α,
-      corrValidVec K a (i, j) * corrVertex K b (i, j) =
-        if i ∈ a ∩ b ∧ j ∈ a ∩ b then (if i = j then (2 : K) else 0) - 1 else 0 := fun i j => by
-    dsimp only [corrValidVec, corrVertex_apply]
-    by_cases ha : i ∈ a ∧ j ∈ a <;> by_cases hb : i ∈ b ∧ j ∈ b
-    · have hab : i ∈ a ∩ b ∧ j ∈ a ∩ b :=
-        ⟨Finset.mem_inter.2 ⟨ha.1, hb.1⟩, Finset.mem_inter.2 ⟨ha.2, hb.2⟩⟩
-      rw [ite_eq_left ha, ite_eq_left hb, ite_eq_left hab, mul_one]
+  have hterm (p : α × α) : corrValidVec K a p * corrVertex K b p =
+      if p ∈ (a ∩ b) ×ˢ (a ∩ b) then (if p.1 = p.2 then (2 : K) else 0) - 1 else 0 := by
+    simp only [corrValidVec, corrVertex, Finset.mem_product, Finset.mem_inter]
+    by_cases h : (p.1 ∈ a ∧ p.2 ∈ a) ∧ (p.1 ∈ b ∧ p.2 ∈ b)
+    · simp only [h.1, h.2, ↓reduceIte, mul_one, and_self]
       split_ifs <;> norm_num
-    · have nhab : ¬ (i ∈ a ∩ b ∧ j ∈ a ∩ b) := fun h =>
-        hb ⟨(Finset.mem_inter.1 h.1).2, (Finset.mem_inter.1 h.2).2⟩
-      rw [ite_eq_right hb, ite_eq_right nhab, mul_zero]
-    · have nhab : ¬ (i ∈ a ∩ b ∧ j ∈ a ∩ b) := fun h =>
-        ha ⟨(Finset.mem_inter.1 h.1).1, (Finset.mem_inter.1 h.2).1⟩
-      rw [ite_eq_right ha, ite_eq_right nhab, zero_mul]
-    · have nhab : ¬ (i ∈ a ∩ b ∧ j ∈ a ∩ b) := fun h =>
-        ha ⟨(Finset.mem_inter.1 h.1).1, (Finset.mem_inter.1 h.2).1⟩
-      rw [ite_eq_right hb, ite_eq_right nhab, mul_zero]
-  calc
-    corrValidVec K a ⬝ᵥ corrVertex K b
-        = ∑ i : α, ∑ j : α, corrValidVec K a (i, j) * corrVertex K b (i, j) := by
-      simp only [dotProduct, Fintype.sum_prod_type]
+    · have h' : ¬((p.1 ∈ a ∧ p.1 ∈ b) ∧ (p.2 ∈ a ∧ p.2 ∈ b)) := fun ⟨⟨h1a, h1b⟩, ⟨h2a, h2b⟩⟩ =>
+        h ⟨⟨h1a, h2a⟩, ⟨h1b, h2b⟩⟩
+      rw [ite_eq_right h']
+      by_cases ha : p.1 ∈ a ∧ p.2 ∈ a
+      · simp [ha, show ¬(p.1 ∈ b ∧ p.2 ∈ b) from fun hb => h ⟨ha, hb⟩]
+      · simp [ha]
+  calc corrValidVec K a ⬝ᵥ corrVertex K b
+      = ∑ p : α × α, if p ∈ (a ∩ b) ×ˢ (a ∩ b)
+          then (if p.1 = p.2 then (2 : K) else 0) - 1 else 0 :=
+        Finset.sum_congr rfl fun p _ => hterm p
     _ = ∑ i ∈ a ∩ b, ∑ j ∈ a ∩ b, ((if i = j then (2 : K) else 0) - 1) := by
-      simp only [hterm]
-      rw [← Finset.sum_subset (Finset.subset_univ (a ∩ b))]
-      · refine Finset.sum_congr rfl fun i hi => ?_
-        rw [← Finset.sum_subset (Finset.subset_univ (a ∩ b))]
-        · refine Finset.sum_congr rfl fun j hj => ?_
-          simp only [hi, hj, and_self, ↓reduceIte]
-        · intro j _ hj
-          simp only [hj, and_false, ↓reduceIte]
-      · intro i _ hi
-        refine Finset.sum_eq_zero fun j _ => ?_
-        simp only [hi, false_and, ↓reduceIte]
-    _ = (∑ i ∈ a ∩ b, ∑ j ∈ a ∩ b, (if i = j then (2 : K) else 0)) -
-          (∑ _i ∈ a ∩ b, ∑ _j ∈ a ∩ b, (1 : K)) := by
-      simp only [Finset.sum_sub_distrib]
+        rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter, Finset.sum_product]
+    _ = (∑ i ∈ a ∩ b, ∑ j ∈ a ∩ b, if i = j then (2 : K) else 0) -
+          ∑ _i ∈ a ∩ b, ∑ _j ∈ a ∩ b, (1 : K) := by
+        simp only [Finset.sum_sub_distrib]
     _ = 2 * ((a ∩ b).card : K) - ((a ∩ b).card : K) ^ 2 := by
-      congr 1
-      · have hdiag : ∀ i ∈ a ∩ b, (∑ j ∈ a ∩ b, if i = j then (2 : K) else 0) = 2 :=
-          fun i hi => by rw [Finset.sum_ite_eq (a ∩ b) i (fun _ => (2 : K)), ite_eq_left hi]
-        rw [Finset.sum_congr rfl hdiag, Finset.sum_const, nsmul_eq_mul, mul_comm]
-      · simp only [Finset.sum_const, nsmul_eq_mul, mul_one, sq]
+        congr 1
+        · rw [Finset.sum_congr rfl fun i hi => by rw [Finset.sum_ite_eq, ite_eq_left hi],
+            Finset.sum_const, nsmul_eq_mul, mul_comm]
+        · simp only [Finset.sum_const, nsmul_eq_mul, mul_one, sq]
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 /-- The slack of `corrValidVec K a` at vertex `corrVertex K b` is `(|a ∩ b| - 1) ^ 2`

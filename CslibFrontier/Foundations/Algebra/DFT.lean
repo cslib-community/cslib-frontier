@@ -104,8 +104,8 @@ theorem dft_cyclicConv {n : ℕ} {ω : R} (hω : ω ^ n = 1) (a b : Fin n → R)
   rw [sum_mul_sum]
   simp only [sum_mul]
   rw [sum_comm]
-  refine sum_congr rfl fun i _ => ?_
-  refine (Fintype.sum_equiv (Equiv.addRight i) _ _ fun m => ?_).symm
+  refine sum_congr rfl fun i _ =>
+    (Fintype.sum_equiv (Equiv.addRight i) _ _ fun m => ?_).symm
   simp only [Equiv.coe_addRight, add_sub_cancel_right, pow_val_add hω m i]
   ring
 
@@ -134,12 +134,9 @@ private theorem sum_even_add_sum_odd {M : Type*} [AddCommMonoid M] {n m : ℕ} (
   subst hn
   rw [← (finProdFinEquiv.trans (finCongr (mul_comm m 2))).sum_comp, Fintype.sum_prod_type]
   simp only [Fin.sum_univ_two, sum_add_distrib]
-  congr 1 <;> refine sum_congr rfl fun i _ => congrArg f (Fin.ext ?_)
-  · simp only [Equiv.trans_apply, finProdFinEquiv_apply_val, finCongr_apply, Fin.val_cast,
-      Fin.val_zero, zero_add, mul_comm]
-  · simp only [Equiv.trans_apply, finProdFinEquiv_apply_val, finCongr_apply, Fin.val_cast,
-      Fin.val_one]
-    ring
+  congr 1 <;> refine sum_congr rfl fun i _ => congrArg f (Fin.ext ?_) <;>
+    simp only [Equiv.trans_apply, finProdFinEquiv_apply_val, finCongr_apply, Fin.val_cast,
+      Fin.val_zero, Fin.val_one] <;> ring
 
 /-- **Cooley–Tukey splitting, lower half.** For `n = 2 m` and `j < m`, the transform of length
 `n` at `j` combines the length-`m` transforms of the even and odd parts with respect to `ω ^ 2`:

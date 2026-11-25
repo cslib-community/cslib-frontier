@@ -106,13 +106,9 @@ private theorem firstHit_mem_iff {R : Set β} {d : β} {ω : ℕ → β} (h : �
     firstHit R d ω ∈ B ↔ ∃ n, ω ∈ hitAt R B n := by
   classical
   rw [firstHit, dite_eq_left h]
-  constructor
-  · intro hB
-    exact ⟨Nat.find h, fun i hi => Nat.find_min h hi, hB, Nat.find_spec h⟩
-  · rintro ⟨n, hlt, hB, hR⟩
-    have hn : Nat.find h = n :=
-      le_antisymm (Nat.find_min' h hR) (not_lt.1 fun hlt' => hlt _ hlt' (Nat.find_spec h))
-    rwa [hn]
+  refine ⟨fun hB => ⟨Nat.find h, fun i hi => Nat.find_min h hi, hB, Nat.find_spec h⟩, ?_⟩
+  rintro ⟨n, hlt, hB, hR⟩
+  rwa [le_antisymm (Nat.find_min' h hR) (not_lt.1 fun hlt' => hlt _ hlt' (Nat.find_spec h))]
 
 theorem firstHit_of_forall_notMem {R : Set β} {d : β} {ω : ℕ → β} (h : ∀ n, ω n ∉ R) :
     firstHit R d ω = d := by
@@ -146,23 +142,16 @@ private theorem pairwise_disjoint_hitAt (R B : Set β) :
   intro n m hnm
   rw [Function.onFun, Set.disjoint_left]
   rintro ω ⟨hn, -, hnR⟩ ⟨hm, -, hmR⟩
-  rcases lt_or_gt_of_ne hnm with h | h
-  · exact hm n h hnR
-  · exact hn m h hmR
+  exact (lt_or_gt_of_ne hnm).elim (fun h => hm n h hnR) fun h => hn m h hmR
 
 private theorem hitAt_eq_pi (R B : Set β) (n : ℕ) :
     hitAt R B n = Set.pi (range (n + 1) : Set ℕ) fun i => if i < n then Rᶜ else B ∩ R := by
   ext ω
   simp only [hitAt, Set.mem_ofPred_eq, Set.mem_pi, coe_range, Set.mem_Iio]
-  constructor
-  · rintro ⟨h, hn⟩ i hi
-    split_ifs with hin
-    · exact h i hin
-    · rwa [show i = n by omega]
-  · intro h
-    refine ⟨fun i hi => ?_, ?_⟩
-    · simpa [hi] using h i (by omega)
-    · simpa using h n (by omega)
+  refine ⟨fun ⟨h, hn⟩ i hi => ?_, fun h => ⟨fun i hi => by simpa [hi] using h i (by omega),
+    by simpa using h n (by omega)⟩⟩
+  split_ifs with hin
+  exacts [h i hin, by rwa [show i = n by omega]]
 
 variable [MeasurableSpace β]
 
@@ -170,10 +159,7 @@ private theorem measurableSet_hitAt {R B : Set β} (hR : MeasurableSet R) (hB : 
     (n : ℕ) :
     MeasurableSet (hitAt R B n) := by
   rw [hitAt_eq_pi]
-  refine MeasurableSet.pi (Set.to_countable _) fun i _ => ?_
-  split_ifs
-  · exact hR.compl
-  · exact hB.inter hR
+  exact .pi (Set.to_countable _) fun _ _ => by split_ifs; exacts [hR.compl, hB.inter hR]
 
 theorem measurable_firstHit {R : Set β} (hR : MeasurableSet R) (d : β) :
     Measurable (firstHit R d) := by
@@ -195,8 +181,7 @@ private theorem infinitePi_hitAt {R B : Set β} (hR : MeasurableSet R) (hB : Mea
     ite_eq_right (lt_irrefl n), prod_congr rfl (g := fun _ => μ Rᶜ) fun i hi => by
       rw [ite_eq_left (mem_range.1 hi)], prod_const, card_range]
   split_ifs
-  · exact hR.compl
-  · exact hB.inter hR
+  exacts [hR.compl, hB.inter hR]
 
 private theorem infinitePi_iUnion_hitAt {R B : Set β} (hR : MeasurableSet R)
     (hB : MeasurableSet B) :
@@ -212,12 +197,8 @@ theorem infinitePi_forall_notMem {R : Set β} (hR : MeasurableSet R) (h0 : μ R 
   have hc : {ω : ℕ → β | ∀ n, ω n ∉ R} = (⋃ n, hitAt R Set.univ n)ᶜ := by
     ext ω
     simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, Set.mem_iUnion, not_exists]
-    constructor
-    · rintro h n ⟨-, -, hn⟩
-      exact h n hn
-    · intro h n hn
-      obtain ⟨m, hm⟩ := (firstHit_mem_iff (d := ω 0) ⟨n, hn⟩ Set.univ).1 (Set.mem_univ _)
-      exact h m hm
+    exact ⟨fun h n hn => h n hn.2.2, fun h n hn =>
+      ((firstHit_mem_iff (d := ω 0) ⟨n, hn⟩ Set.univ).1 (Set.mem_univ _)).elim h⟩
   rw [hc, prob_compl_eq_one_sub (MeasurableSet.iUnion fun n => measurableSet_hitAt hR .univ n),
     infinitePi_iUnion_hitAt μ hR .univ, Set.inter_univ,
     ENNReal.inv_mul_cancel h0 (measure_ne_top _ _), tsub_self]
@@ -276,10 +257,8 @@ theorem measurableSet_underGraph [Finite S] (t : S → ℝ) : MeasurableSet (und
     ((measurable_of_countable t).comp measurable_fst)
 
 omit [Fintype S] [Nonempty S] [MeasurableSpace S] [MeasurableSingletonClass S] in
-private theorem underGraph_mono {t t' : S → ℝ} (h : t ≤ t') : underGraph t ⊆ underGraph t' := by
-  intro p hp
-  simp only [underGraph, Set.mem_ofPred_eq] at hp ⊢
-  exact hp.trans_le (h _)
+private theorem underGraph_mono {t t' : S → ℝ} (h : t ≤ t') : underGraph t ⊆ underGraph t' :=
+  fun _ hp => hp.trans_le (h _)
 
 /-- The region under the graph of `t` has area `(∑ s, t s) / |S|`. -/
 theorem seedPoint_underGraph {t : S → ℝ} (h0 : ∀ s, 0 ≤ t s) (h1 : ∀ s, t s ≤ 1) :
@@ -296,9 +275,7 @@ private theorem seedPoint_real_underGraph {t : S → ℝ} (h0 : ∀ s, 0 ≤ t s
     (seedPoint S).real (underGraph t) = (∑ s, t s) / Fintype.card S := by
   rw [measureReal_def, seedPoint_underGraph h0 h1, ENNReal.toReal_mul,
     ENNReal.toReal_sum fun _ _ => ENNReal.ofReal_ne_top, ENNReal.toReal_inv,
-    ENNReal.toReal_natCast, div_eq_mul_inv]
-  congr 1
-  exact sum_congr rfl fun s _ => ENNReal.toReal_ofReal (h0 s)
+    ENNReal.toReal_natCast, div_eq_mul_inv, sum_congr rfl fun s _ => ENNReal.toReal_ofReal (h0 s)]
 
 omit [Nonempty S] [MeasurableSpace S] [MeasurableSingletonClass S] in
 private theorem sum_ofReal_toReal (P : PMF S) : ∑ s, ENNReal.ofReal (P s).toReal = 1 := by
@@ -336,12 +313,10 @@ theorem map_seedSample (P : PMF S) : (seed S).map (seedSample P) = P.toMeasure :
     by_cases hx : x = s
     · simp [underGraph, hx]
     · simpa [underGraph, hx] using u.2.1
-  have hn : (Fintype.card S : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
-  have hn' : (Fintype.card S : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
   rw [hslice, seedPoint_underGraph h0 h1, seedPoint_underGraph (fun x => by split_ifs <;> simp [h0])
       (fun x => by split_ifs <;> simp [h1]), sum_ofReal_toReal, one_mul,
-    inv_inv, mul_left_comm, ENNReal.mul_inv_cancel hn hn', mul_one]
-  rw [sum_eq_single s (fun b _ hb => by simp [hb]) (by simp)]
+    inv_inv, mul_left_comm, ENNReal.mul_inv_cancel (Nat.cast_ne_zero.2 Fintype.card_ne_zero)
+      (ENNReal.natCast_ne_top _), mul_one, sum_eq_single s (fun b _ hb => by simp [hb]) (by simp)]
   simp [t, ENNReal.ofReal_toReal (P.apply_ne_top s)]
 
 open scoped Cslib.Probability.PMF in
@@ -366,13 +341,11 @@ theorem seedSample_disagree_le (P Q : PMF S) :
   have hMU : M ⊆ U := hMP.trans hPU
   -- The outputs can differ only if the first point under `max P Q` is not under `min P Q`.
   have hsub : {ω | seedSample P ω ≠ seedSample Q ω} ⊆ firstHit U d ⁻¹' Mᶜ := by
-    intro ω hne hM
-    refine hne ?_
+    refine fun ω hne hM => hne ?_
+    change (firstHit (underGraph tP) d ω).1 = (firstHit (underGraph tQ) d ω).1
     by_cases h : ∃ n, ω n ∈ U
-    · change (firstHit (underGraph tP) d ω).1 = (firstHit (underGraph tQ) d ω).1
-      rw [firstHit_eq_of_subset hPU h (hMP hM), firstHit_eq_of_subset hQU h (hMQ hM)]
+    · rw [firstHit_eq_of_subset hPU h (hMP hM), firstHit_eq_of_subset hQU h (hMQ hM)]
     · push Not at h
-      change (firstHit (underGraph tP) d ω).1 = (firstHit (underGraph tQ) d ω).1
       rw [firstHit_of_forall_notMem fun n hn => h n (hPU hn),
         firstHit_of_forall_notMem fun n hn => h n (hQU hn)]
   have hU0 : seedPoint S U ≠ 0 := fun h =>
@@ -400,9 +373,9 @@ theorem seedSample_disagree_le (P Q : PMF S) :
   have hδ : 0 ≤ dist P Q := dist_nonneg
   have hn : (0 : ℝ) < Fintype.card S := Nat.cast_pos.2 Fintype.card_pos
   refine (measureReal_mono hsub).trans ?_
-  rw [hprob, hUr, hMr, ← sub_div, div_div_div_cancel_right₀ hn.ne']
-  calc (1 + dist P Q - (1 - dist P Q)) / (1 + dist P Q) = 2 * dist P Q / (1 + dist P Q) := by ring
-    _ ≤ 2 * dist P Q := div_le_self (by positivity) (by linarith)
+  rw [hprob, hUr, hMr, ← sub_div, div_div_div_cancel_right₀ hn.ne',
+    show 1 + dist P Q - (1 - dist P Q) = 2 * dist P Q by ring]
+  exact div_le_self (by positivity) (by linarith)
 
 end Holenstein
 

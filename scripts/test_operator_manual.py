@@ -13,9 +13,10 @@ from unittest import mock
 
 from build_operator_manual import main as build_main
 from check_operator_manual import (LABEL_LOCATOR, LIST_AFTER_PARAGRAPH, MISNAMED_SOURCE_ANCHOR,
-                                   STALE_SOURCE_ANCHOR, book_input_errors, check, comment_depths,
-                                   fix_anchors, frozen, lists_after_paragraphs, main as check_main,
-                                   source_anchor_error)
+                                   SOURCES_LINE_FORMAT, STALE_SOURCE_ANCHOR, book_input_errors,
+                                   check, comment_depths, fix_anchors, frozen,
+                                   lists_after_paragraphs, main as check_main, source_anchor_error)
+import sources_format
 
 DATA = Path(__file__).resolve().parents[1] / "manual/data"
 with mock.patch.object(sys, "path", [str(DATA), *sys.path]):
@@ -208,6 +209,15 @@ class ManualChecks(unittest.TestCase):
                          [f"sources.md: Line 6: {LABEL_LOCATOR}: [Author, Section 5.6] "
                           "(`Section 5`)"])
 
+    def test_sources_must_be_one_sentence_per_line(self):
+        sources = self.manual / "sources.md"
+        sources.write_text('# Sources\n\n<a id="book"></a>\n## book\n\nFirst sentence. Second sentence.\n')
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text() + "[Sources](sources.md)\n")
+        self.assertEqual(self.errors(), [f"sources.md: Line 6: {SOURCES_LINE_FORMAT}"])
+        self.assertEqual(sources_format.main(["--write", str(sources)]), 0)
+        self.assertEqual(self.errors(), [])
+
     def test_context_requires_link_to_complete_client(self):
         self.doc.write_text(self.doc.read_text().replace(
             "[Complete client](../../CslibFrontierTests/Client.lean)", "Complete client omitted"))
@@ -379,9 +389,11 @@ class ManualChecks(unittest.TestCase):
             f"[Pair]({url.format(at['theorem in a docstring is not a declaration. -/'])})",
             f"[`one_eq`]({url.format(9999)})",
             f"[one](<{url.format(at['  2'])}>) and [two]({url.format(at['  2'])} \"sec\")",
+            f"[`three`](\n  {url.format(at['  2'])})",
+            f"[\n  Anchored.three\n]({url.format(at['/-- A documented definition. -/'])})",
         ]
         self.doc.write_text(self.doc.read_text() + "\n" + "\n".join(doc_lines) + "\n")
-        self.assertEqual(len(self.errors()), 5)
+        self.assertEqual(len(self.errors()), 7)
         fixes = fix_anchors(self.repo)
         self.assertEqual([f["new"] for f in fixes], [
             f"L{at['/-- A documented definition. -/']}",
@@ -389,12 +401,16 @@ class ManualChecks(unittest.TestCase):
             f"L{at['@[simp] theorem one_eq : one = 1 := rfl']}",
             f"L{at['/-- A documented definition. -/']}",
             f"L{at['private noncomputable def two : Nat :=']}",
+            f"L{at['def three : Nat := 3']}",
+            f"L{at['def three : Nat := 3']}",
         ])
         self.assertEqual(self.errors(), [])
         text = self.doc.read_text()
         self.assertIn(f"[one](<{url.format(at['/-- A documented definition. -/'])}>)", text)
         self.assertIn(f"[two]({url.format(at['private noncomputable def two : Nat :='])} \"sec\")",
                       text)
+        self.assertIn(f"[`three`](\n  {url.format(at['def three : Nat := 3'])})", text)
+        self.assertIn(f"[\n  Anchored.three\n]({url.format(at['def three : Nat := 3'])})", text)
         self.assertEqual(fix_anchors(self.repo), [])
         # Exercise the CLI `--fix-anchors` flag end-to-end on another drifted anchor.
         self.doc.write_text(text + f"\n[three]({url.format(at['  2'])})\n")

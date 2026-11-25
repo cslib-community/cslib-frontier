@@ -171,6 +171,6 @@ theorem index_fits {W L m t N Q j : ℕ} (hfit : Fits W (wordBudget L m t N Q))
     have h := ho.2.2.2
     unfold memoryEnd
     omega
-  exact allocated_fits hfit ((Nat.succ_le_of_lt hj).trans (hc.trans (hcd.trans hde)))
+  exact allocated_fits hfit (by omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

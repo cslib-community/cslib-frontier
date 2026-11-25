@@ -449,12 +449,7 @@ public theorem ComputesTidilyInTimeAndSpace.comp {tm₁ : MultiTapeTM k₁ Symbo
     (fun _ _ hws => hws.trans hA.symm) (fun _ _ _ _ _ ⟨hws', he⟩ => ⟨hws'.trans hA, he⟩)
     le_rfl le_rfl
   -- phase 3: clear `A`
-  have hclear : Function.update (Function.update (fun _ => []) A w) A [] = fun _ => [] := by grind
-  have hp₃ := (transformsTapes_clearWork_tapeEmb (Symbol := Symbol) A w).imp
-    (P' := fun _ ws => ws = Function.update (fun _ => []) A w)
-    (Q' := fun _ _ ws' e => ws' = (fun _ => []) ∧ e = [])
-    (fun _ _ hws => by rw [hws, Function.update_self])
-    (fun _ _ _ _ hws ⟨hws', he⟩ => ⟨by rw [hws', hws, hclear], he⟩) le_rfl le_rfl
+  have hp₃ := transformsTapes_clearWork_only (Symbol := Symbol) A w
   refine (transformsTapes_seq hp₁ (transformsTapes_seq hp₂ hp₃ fun _ _ _ _ _ hQ => hQ.1)
     fun _ _ _ _ _ hQ => hQ.1).imp (fun _ _ h => h) ?_ (by omega) (by omega)
   rintro _ _ _ _ _ ⟨_, _, _, ⟨-, rfl⟩, ⟨_, _, _, ⟨-, rfl⟩, ⟨hws, rfl⟩, rfl⟩, rfl⟩

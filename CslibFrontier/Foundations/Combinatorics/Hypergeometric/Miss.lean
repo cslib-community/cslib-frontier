@@ -78,12 +78,7 @@ theorem card_filter_disjoint_powersetCard {s U : Finset α} (hU : U ⊆ s) (ℓ 
   rw [← card_sdiff_of_subset hU, ← card_powersetCard]
   congr 1
   ext J
-  simp only [mem_filter, mem_powersetCard, subset_sdiff]
-  constructor
-  · rintro ⟨⟨hJ, hc⟩, hd⟩
-    exact ⟨⟨hJ, hd.symm⟩, hc⟩
-  · rintro ⟨⟨hJ, hd⟩, hc⟩
-    exact ⟨⟨hJ, hc⟩, hd.symm⟩
+  simp [subset_sdiff, disjoint_comm, and_right_comm]
 
 /-- **Few subsets miss a fixed set**: at most a `exp (-#U ℓ / #s)` fraction of the `ℓ`-subsets of
 `s` are disjoint from `U ⊆ s`. -/

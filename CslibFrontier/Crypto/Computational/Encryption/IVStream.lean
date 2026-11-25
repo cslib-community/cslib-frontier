@@ -135,19 +135,15 @@ theorem ivStreamDecrypt_ivStreamEncrypt {keystream : ℕ → List Bool → List 
       (keystream n k iv (msg.length / n)).length = msg.length / n * n)
     (hmsg : msg.length % n = 0) {ct : List Bool}
     (hct : ct ∈ (ProbComp.eval (ivStreamEncrypt keystream n k msg)).support) :
-    ivStreamDecrypt keystream n k ct = some msg :=
-  ivModeDecrypt_ivModeEncrypt
+    ivStreamDecrypt keystream n k ct = some msg := by
+  have hks (iv : List Bool) (hiv : iv.length = n) :
+      (keystream n k iv (msg.length / n)).length = msg.length := by
+    rw [hkeystream iv hiv, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
+  exact ivModeDecrypt_ivModeEncrypt
+    (fun iv hiv => by simp [hks iv hiv])
     (fun iv hiv => by
-      have hks : (keystream n k iv (msg.length / n)).length = msg.length := by
-        rw [hkeystream iv hiv, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
-      simp [hks])
-    (fun iv hiv => by
-      have hks : (keystream n k iv (msg.length / n)).length = msg.length := by
-        rw [hkeystream iv hiv, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
-      have hzip :
-          (List.zipWith xor (keystream n k iv (msg.length / n)) msg).length = msg.length := by
-        simp [hks]
-      rw [hzip, BitString.zipWith_xor_self_left _ _ hks])
+      rw [List.length_zipWith, hks iv hiv, min_self,
+        BitString.zipWith_xor_self_left _ _ (hks iv hiv)])
     hmsg hct
 
 /-- Decryption under an initial value is computable in polynomial time on `(n, k, ct)` when the

@@ -42,14 +42,10 @@ variable {T : Type} {encT : T ↪ List Bool} {entry : T → List Bool → List �
   | (_, _, _, G) => decide (G.numEdges < (k + 1) ^ 10 + 2)
 
 theorem truncSmallSize_polyTime (k : ℕ) :
-    ComputableInPolyTime (truncSmallSize (T := T) k) (encTrunc encT) encBool := by
-  have hnet : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ × DescribedNetwork T => x.2.2.2)
-      (encTrunc encT) (DescribedNetwork.encDescribed encT) :=
-    (ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-      (ComputableInPolyTime.snd _ _))
-  exact ComputableInPolyTime.unary_lt.comp
-    ((DescribedNetwork.numEdges_polyTime.comp hnet).prod
-      (ComputableInPolyTime.const ((k + 1) ^ 10 + 2)))
+    ComputableInPolyTime (truncSmallSize (T := T) k) (encTrunc encT) encBool :=
+  ComputableInPolyTime.unary_lt.comp ((DescribedNetwork.numEdges_polyTime.comp
+    ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
+      (ComputableInPolyTime.snd _ _)))).prod (ComputableInPolyTime.const ((k + 1) ^ 10 + 2)))
 
 /-- A native truncated contraction for bounded-degree applications. Both branches compute the
 same contraction on every input; the degree hypothesis is used only for the resource bound. -/
@@ -92,12 +88,9 @@ theorem truncBoundedDegreeCertificate_bound
   have hX : 1 ≤ X := Nat.one_le_two_pow
   have hFp' : F n ≤ (KF + KT) * (n + 1) ^ (KF + KT) := hF _ (Nat.le_add_right _ _) n
   have hX' : X ≤ 2 ^ ((KF + KT) * G.numEdges / Nat.sqrt (Nat.log 2 G.numEdges)) :=
-    Nat.pow_le_pow_right (by norm_num)
-      (Nat.div_le_div_right (Nat.mul_le_mul_right _ (by omega)))
-  have hgt : (NativeCertificate.ofPolyTime (truncSmallSize_polyTime k)).time (P, ℓ, r, G) ≤
-      pg n := (hgle _).1
-  have hgs : (NativeCertificate.ofPolyTime (truncSmallSize_polyTime k)).space (P, ℓ, r, G) ≤
-      pg n := (hgle _).2
+    Nat.pow_le_pow_right (by norm_num) (Nat.div_le_div_right (Nat.mul_le_mul_right _ (by omega)))
+  have hgt : _ ≤ pg n := (hgle (P, ℓ, r, G)).1
+  have hgs : _ ≤ pg n := (hgle (P, ℓ, r, G)).2
   have hfast (hg : truncSmallSize k (P, ℓ, r, G) = false) :
       (truncEntryContractionAlgorithm ce).certificate.time (P, ℓ, r, G) ≤
           KT * (n + 1) ^ KT * X ∧
@@ -106,16 +99,15 @@ theorem truncBoundedDegreeCertificate_bound
     have hM : (k + 1) ^ 10 + 2 ≤ G.numEdges := by simpa [truncSmallSize] using hg
     have hdegree : k ≤ ceilNineTenths G.numEdges := by
       apply (le_ceilNineTenths_iff (by omega)).2
-      have h1 : (k - 1) ^ 10 ≤ (k + 1) ^ 10 := Nat.pow_le_pow_left (by omega) _
+      have h1 := Nat.pow_le_pow_left (by omega : k - 1 ≤ k + 1) 10
       have h2 : G.numEdges ≤ G.numEdges ^ 9 := by
         calc G.numEdges = G.numEdges ^ 1 := (pow_one _).symm
           _ ≤ G.numEdges ^ 9 := Nat.pow_le_pow_right (by omega) (by norm_num)
       omega
-    have hA : TruncEntryAdmissible ce (C + C₀ + 1) G.numEdges (r, G) :=
+    exact hKT G.numEdges P ℓ r G hs hP hPD hℓ hℓD
       ⟨hC₀ (C + C₀ + 1) G.numEdges r G (by omega) hrows le_rfl
         (Nat.le_mul_of_pos_left _ (by omega)) (fun v hmem => (hk v hmem).trans hdegree),
         hv.trans (Nat.mul_le_mul_right _ (by omega))⟩
-    exact hKT G.numEdges P ℓ r G hs hP hPD hℓ hℓD hA
   have hsmall (hg : truncSmallSize k (P, ℓ, r, G) = true) :
       (truncDirectCertificate entry ce).time (P, ℓ, r, G) ≤ KD * 2 ^ M * (n + 1) ^ KD ∧
         (truncDirectCertificate entry ce).space (P, ℓ, r, G) ≤ KD * 2 ^ M * (n + 1) ^ KD := by
@@ -126,16 +118,15 @@ theorem truncBoundedDegreeCertificate_bound
     · calc _ ≤ KD * (n + 1) ^ KD * 2 ^ M := hT.trans (Nat.mul_le_mul_left _ hpow)
         _ = _ := by ring
     · calc _ ≤ KD * (n + 1) ^ KD := hS
-        _ ≤ KD * (n + 1) ^ KD * 2 ^ M := Nat.le_mul_of_pos_right _ Nat.one_le_two_pow
+        _ ≤ KD * (n + 1) ^ KD * 2 ^ M := Nat.le_mul_of_pos_right _ (Nat.two_pow_pos M)
         _ = _ := by ring
   have htime : (truncBoundedDegreeCertificate ce k).time (P, ℓ, r, G) ≤ F n * X := by
     simp only [truncBoundedDegreeCertificate, NativeCertificate.congr,
       NativeCertificate.branch_time]
-    have hpgX : pg n ≤ pg n * X := Nat.le_mul_of_pos_right _ hX
-    have hsX : KD * 2 ^ M * (n + 1) ^ KD ≤ KD * 2 ^ M * (n + 1) ^ KD * X :=
-      Nat.le_mul_of_pos_right _ hX
-    have hsum : F n * X = pg n * X + KT * (n + 1) ^ KT * X +
-        KD * 2 ^ M * (n + 1) ^ KD * X := by simp only [F]; ring
+    have hpgX := Nat.le_mul_of_pos_right (pg n) hX
+    have hsX := Nat.le_mul_of_pos_right (KD * 2 ^ M * (n + 1) ^ KD) hX
+    have hsum : F n * X = pg n * X + KT * (n + 1) ^ KT * X + KD * 2 ^ M * (n + 1) ^ KD * X := by
+      simp only [F]; ring
     split
     · next hg => have := (hsmall hg).1; omega
     · next hg => have := (hfast (by simpa using hg)).1; omega

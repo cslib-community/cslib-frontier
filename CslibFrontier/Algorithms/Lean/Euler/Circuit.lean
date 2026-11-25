@@ -292,14 +292,11 @@ vertices of even degree. -/
 theorem even_degree_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α}
     (h : IsEulerCircuit H u w) (x : α) : Even (degree H x) := by
   obtain ⟨w', rfl⟩ := List.head?_eq_some_iff.mp h.head
-  have hl : (u :: w').getLast (List.cons_ne_nil _ _) = u := by
-    have := h.getLast
-    rw [List.getLast?_eq_some_getLast (List.cons_ne_nil _ _)] at this
-    exact Option.some.inj this
-  have := degree_consecutivePairs_cons u w' x
-  rw [hl] at this
-  rw [← degree_eq_of_perm h.perm]
-  exact Nat.even_iff.mpr (by split_ifs at this <;> omega)
+  have hl : (u :: w').getLast (List.cons_ne_nil _ _) = u :=
+    Option.some.inj ((List.getLast?_eq_some_getLast _).symm.trans h.getLast)
+  have hdeg := degree_consecutivePairs_cons u w' x
+  rw [degree_eq_of_perm h.perm, hl] at hdeg
+  exact Nat.even_iff.mpr (by split_ifs at hdeg <;> omega)
 
 /-! ### Greedy walks -/
 
@@ -396,25 +393,15 @@ theorem walkFrom_spec (fuel : ℕ) (H : List (α × α)) (u t : α) (hfuel : H.l
       ∀ y, degree (walkFrom fuel H u).2 y % 2 = 0 := by
   fun_induction walkFrom fuel H u with
   | case1 H u =>
-    have hH : H = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hfuel)
-    subst hH
-    have hu := hpar u
-    have hut : u = t := by
-      by_contra h
-      simp [h] at hu
-    subst hut
+    obtain rfl : H = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hfuel)
+    obtain rfl : u = t := by_contra fun h => by simpa [h] using hpar u
     simp
   | case2 fuel H u hfind =>
     have hdeg := degree_eq_zero_of_find?_eq_none hfind
-    have hut : u = t := by
-      by_contra h
-      have hu := hpar u
-      simp [h, hdeg] at hu
-    subst hut
+    obtain rfl : u = t := by_contra fun h => by simpa [h, hdeg] using hpar u
     refine ⟨rfl, rfl, by simp, fun y => ?_⟩
     change degree H y % 2 = 0
-    have := hpar y
-    split_ifs at this <;> omega
+    have := hpar y; split_ifs at this <;> omega
   | case3 fuel H u e hfind r ih =>
     have he : e ∈ H := List.mem_of_find?_eq_some hfind
     have hte : touches u e = true := List.find?_some hfind
@@ -476,10 +463,9 @@ theorem eq_nil_of_forall_not_touches {H R : List (α × α)} {w : List α} {u : 
     | refl => exact Iff.rfl
     | symm _ _ _ ih => exact ih.symm
     | trans _ _ _ _ _ ih1 ih2 => exact ih1.trans ih2
-  cases R with
-  | nil => rfl
-  | cons e R' =>
-    exfalso
+  obtain _ | ⟨e, R'⟩ := R
+  · rfl
+  · exfalso
     have hm : undirected e ∈ H.map undirected := hperm.symm.subset (by simp)
     obtain ⟨h, hh, hhe⟩ := List.mem_map.mp hm
     have h1w : h.1 ∈ w := (key _ _ (hconn h hh)).mpr hu
@@ -512,19 +498,13 @@ theorem eulerLoop_spec {H : List (α × α)} {u : α}
   fun_induction eulerLoop fuel w R with
   | case1 w R =>
     intro h1 h2 h3 _ h5
-    have : R = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp h5)
-    subst this
+    obtain rfl : R = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp h5)
     exact ⟨h1, h2, by simpa using h3.symm⟩
   | case2 fuel w R hfind =>
     intro h1 h2 h3 _ _
-    have hR : R = [] := by
-      refine eq_nil_of_forall_not_touches (List.mem_of_mem_head? h1) hconn h3 ?_
-      intro x hx e he
-      rw [List.find?_eq_none] at hfind
-      have := hfind x hx
-      simp only [List.any_eq_true, not_exists, not_and, Bool.not_eq_true] at this
-      exact this e he
-    subst hR
+    obtain rfl : R = [] := eq_nil_of_forall_not_touches (List.mem_of_mem_head? h1) hconn h3
+      fun x hx e he => Bool.eq_false_iff.mpr fun ht =>
+        List.find?_eq_none.mp hfind x hx (List.any_eq_true.mpr ⟨e, he, ht⟩)
     exact ⟨h1, h2, by simpa using h3.symm⟩
   | case3 fuel w R x hfind r ih =>
     intro h1 h2 h3 h4 h5
@@ -534,9 +514,7 @@ theorem eulerLoop_spec {H : List (α × α)} {u : α}
     obtain ⟨e, he, hte⟩ := List.any_eq_true.mp hxR
     have hpar : ∀ y,
         (degree R y + (if y = x then 1 else 0) + (if y = x then 1 else 0)) % 2 = 0 :=
-      fun y => by
-        have := h4 y
-        split_ifs <;> omega
+      fun y => by have := h4 y; split_ifs <;> omega
     obtain ⟨s1, s2, s3, s4⟩ := walkFrom_spec R.length R x x le_rfl hpar
     obtain ⟨A, B, hw, hsp⟩ := exists_splice (walkFrom R.length R x).1 hxw
     have hlt := length_walkFrom_snd_lt (List.length_pos_of_mem he) he hte

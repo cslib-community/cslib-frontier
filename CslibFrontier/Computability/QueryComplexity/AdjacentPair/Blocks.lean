@@ -57,23 +57,19 @@ theorem adjacentPairBlocks_eq_true_iff {h : ∑ b, sizes b = n} {x : BitString n
 
 /-- No block of the all-false word is accepted. -/
 @[simp] theorem adjacentPairBlocks_zero (h : ∑ b, sizes b = n) :
-    adjacentPairBlocks h (fun _ => false) = false := by
-  cases hx : adjacentPairBlocks h (fun _ => false) with
-  | false => rfl
-  | true =>
-    obtain ⟨b, hb⟩ := adjacentPairBlocks_eq_true_iff.mp hx
-    have hz : blockOf h (fun _ => false) b = fun _ => false := rfl
-    rw [hz, adjacentPair_zero] at hb
-    exact absurd hb (by decide)
+    adjacentPairBlocks h (fun _ => false) = false :=
+  Bool.eq_false_iff.mpr fun hx =>
+    let ⟨b, hb⟩ := adjacentPairBlocks_eq_true_iff.mp hx
+    Bool.noConfusion ((adjacentPair_zero (sizes b)).symm.trans hb)
 
 /-- **Sensitivity upper bound.** A rejected block has local sensitivity at most three and an
 accepted block of size at most `M` has local sensitivity at most `M`. -/
 theorem sensitivity_adjacentPairBlocks_le (h : ∑ b, sizes b = n) {M : ℕ}
     (hM : ∀ b, sizes b ≤ M) : sensitivity (adjacentPairBlocks h) ≤ max (3 * k) M := by
-  have h' := sensitivity_orBlocks_le h (fun b => adjacentPair (sizes b)) (S₀ := 3) (S₁ := M)
-    (fun _ _ hx => sensitivityAt_adjacentPair_le_three hx)
-    (fun b _ hx => (sensitivityAt_adjacentPair_of_true hx).trans_le (hM b))
-  rwa [mul_comm] at h'
+  rw [adjacentPairBlocks, mul_comm]
+  exact sensitivity_orBlocks_le h (fun b => adjacentPair (sizes b))
+    (S₀ := 3) (S₁ := M) (fun _ _ => sensitivityAt_adjacentPair_le_three)
+    fun b _ hx => (sensitivityAt_adjacentPair_of_true hx).trans_le (hM b)
 
 /-- The input whose only true bits are the first two positions of block `b`. -/
 @[expose] def adjacentPairStart (h : ∑ b, sizes b = n) (b : Fin k) : BitString n :=
@@ -115,15 +111,12 @@ pairs. -/
 theorem isSensitiveBlock_adjacentPairWitness (h : ∑ b, sizes b = n)
     (p : (b : Fin k) × Fin (sizes b / 2)) :
     IsSensitiveBlock (adjacentPairBlocks h) (fun _ => false) (adjacentPairWitness h p) := by
-  rw [IsSensitiveBlock, adjacentPairBlocks_zero]
-  have ht : adjacentPairBlocks h (flipBlock (adjacentPairWitness h p) (fun _ => false)) =
-      true := by
-    refine adjacentPairBlocks_eq_true_iff.mpr ⟨p.1, adjacentPair_eq_true_iff.mpr
-      ⟨⟨2 * p.2.val, by have := p.2.isLt; omega⟩,
-        ⟨2 * p.2.val + 1, by have := p.2.isLt; omega⟩, rfl, fun i => ?_⟩⟩
-    simp [blockOf, flipBlock, adjacentPairWitness]
-  rw [ht]
-  decide
+  have hlt := p.2.isLt
+  rw [IsSensitiveBlock, adjacentPairBlocks_zero, ne_eq, Bool.not_eq_false]
+  refine adjacentPairBlocks_eq_true_iff.mpr ⟨p.1, adjacentPair_eq_true_iff.mpr
+    ⟨⟨2 * p.2.val, by omega⟩,
+      ⟨2 * p.2.val + 1, by omega⟩, rfl, fun i => ?_⟩⟩
+  simp [blockOf, flipBlock, adjacentPairWitness]
 
 /-- Witnesses with distinct indices are disjoint, within a block and across blocks. -/
 theorem pairwise_disjoint_adjacentPairWitness (h : ∑ b, sizes b = n) :
@@ -160,15 +153,12 @@ theorem adjacentPairWitness_injective (h : ∑ b, sizes b = n) :
 theorem isSensitiveFamily_adjacentPairSensitiveFamily (h : ∑ b, sizes b = n) :
     IsSensitiveFamily (adjacentPairBlocks h) (fun _ => false)
       (adjacentPairSensitiveFamily h) := by
-  constructor
-  · intro B hB
-    obtain ⟨p, _, rfl⟩ := mem_image.mp hB
+  refine ⟨fun B hB => ?_, ?_⟩
+  · obtain ⟨p, _, rfl⟩ := mem_image.mp hB
     exact isSensitiveBlock_adjacentPairWitness h p
   · change (↑(adjacentPairSensitiveFamily h) : Set (Block n)).Pairwise Disjoint
-    have hp : (Set.univ : Set ((b : Fin k) × Fin (sizes b / 2))).Pairwise
-        (fun p q => Disjoint (adjacentPairWitness h p) (adjacentPairWitness h q)) :=
-      fun _ _ _ _ hne => pairwise_disjoint_adjacentPairWitness h hne
-    simpa only [adjacentPairSensitiveFamily, Finset.coe_image, Finset.coe_univ] using hp.image
+    simpa only [adjacentPairSensitiveFamily, Finset.coe_image, Finset.coe_univ] using
+      (Set.pairwise_univ.mpr (pairwise_disjoint_adjacentPairWitness h)).image
 
 /-- There are exactly as many designated disjoint pairs as the sum of the half block sizes. -/
 theorem card_adjacentPairSensitiveFamily (h : ∑ b, sizes b = n) :

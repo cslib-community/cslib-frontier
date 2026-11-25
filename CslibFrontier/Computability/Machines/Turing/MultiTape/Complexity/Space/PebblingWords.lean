@@ -161,8 +161,8 @@ theorem diffIndex_inSpace :
       (encPair encS encBool) encS fun q => (encPair encS encBool q).length :=
     (budget_ite hdone hs (budget_ite hbeq
       (budget_prod (budget_comp_linear htail hw)
-        (budget_prod (budget_natSucc hk) (budget_const false (.refl _))))
-      (budget_prod hw (budget_prod hk (budget_const true (.refl _)))))).of_enc_eq fun _ => rfl
+        (budget_prod (budget_natSucc hk) (budget_const false)))
+      (budget_prod hw (budget_prod hk (budget_const true))))).of_enc_eq fun _ => rfl
   have hstate (p : List Bool × List Bool) (i : ℕ) :
       (encS ((p.1.take i).foldl diffStep (p.2, 0, false))).length ≤
         4 * (p.1.length + p.2.length) + 8 := by
@@ -174,7 +174,7 @@ theorem diffIndex_inSpace :
       cases ((p.1.take i).foldl diffStep (p.2, 0, false)).2.2 <;> decide
     omega
   have hfold := foldl (encA := encBool) (encL := encBits) (encB := encS) (fst encBits encBits)
-    (budget_prod (snd encBits encBits) (budget_const (0, false) (.refl _))) hstep
+    (budget_prod (snd encBits encBits) (budget_const (0, false))) hstep
     (Q := fun p => 8 * (p.1.length + p.2.length) + 20)
     (B := fun p => 4 * (p.1.length + p.2.length) + 8)
     (fun p i hi => by

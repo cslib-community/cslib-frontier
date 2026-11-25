@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalProgram
 import CslibFrontier.Algorithms.ThreeSum.ChanHe.SelectorBounds
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Actual native argument delivery in the Chan–He traversal
@@ -82,25 +83,17 @@ theorem recordLayout_congr (x y : Data 128) (M : ℕ)
     (h : ∀ i, 64 ≤ i.val → i ≠ selected → y.regs i = x.regs i) :
     recordLayout y M = recordLayout x M := by
   unfold recordLayout
-  congr 1
-  · exact h heap (by decide) (by decide)
-  · funext j
-    fin_cases j <;> exact h _ (by decide) (by decide)
-  · exact h groups (by decide) (by decide)
-  · exact h magnitude (by decide) (by decide)
+  congr 1 <;> try exact h _ (by decide) (by decide)
+  funext j; fin_cases j <;> exact h _ (by decide) (by decide)
 
 /-- The final endpoint formula expressed entirely in the persistent traversal ABI. -/
 theorem recordLayout_endpoint (x : Data 128) (M : ℕ) :
     (recordLayout x M).endpoint = x.regs heap + 3 + 2 *
       (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) + 4 * x.regs groups + M := by
-  rw [NodePacking.Layout.endpoint_eq]
-  rfl
+  rw [NodePacking.Layout.endpoint_eq]; rfl
 
-private theorem kernel_ne {i : Fin 128} (hi : 64 ≤ i.val) (j : Fin 64) : i ≠ kernel j := by
-  intro h
-  have := congrArg Fin.val h
-  dsimp [kernel] at this
-  omega
+private theorem kernel_ne {i : Fin 128} (hi : 64 ≤ i.val) (j : Fin 64) : i ≠ kernel j :=
+  fun h => by have := congrArg Fin.val h; dsimp [kernel] at this; omega
 
 private theorem set_kernel_regs (i : Fin 128) (hi : 64 ≤ i.val)
     (x : Data 128) (j : Fin 64) (v : ℕ) :
@@ -121,23 +114,17 @@ A fit for their largest value derives all intermediate address fits. -/
 theorem prepareModulus_exec {w : ℕ} (x : Data 128)
     (h : Fits w (x.regs heap + x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6))) :
     Exec w prepareModulus x (modulusState x) 14 := by
-  have h₀ : Fits w (x.regs heap + x.regs (slot 2)) := h.of_le (by omega)
-  have h₁ : Fits w (x.regs heap + x.regs (slot 2) + x.regs (slot 4)) := h.of_le (by omega)
-  dsimp only [heap, slot] at h₀ h₁ h
-  ram_eval [prepareModulus, modulusState, kernel, slot, CountCall.source, CountCall.length,
-    CountCall.scratch, CountCall.histogram, Search.limit, Search.primes, CollisionTest.card,
-    Modulus.digits, heap, limit, bitmap, primeCount, digits, h₀, h₁, h]
+  unfold prepareModulus modulusState
+  wram_exec
 
 /-- Complete node argument delivery is ten native copies; no address arithmetic is hidden. -/
 theorem prepareNode_exec {w : ℕ} (x : Data 128) :
     Exec w prepareNode x (nodeState x) 10 := by
-  ram_eval [prepareNode, nodeState, kernel, slot, NodePacking.source, NodePacking.length,
-    NodePacking.base, NodePacking.groups, NodePacking.magnitude, NodePacking.modulus,
-    heap, groups, magnitude, selected]
+  unfold prepareNode nodeState
+  wram_exec
 
-private theorem kernel_injective : Function.Injective kernel := by
-  intro i j h
-  exact Fin.ext (congrArg (fun i : Fin 128 => i.val) h)
+private theorem kernel_injective : Function.Injective kernel :=
+  fun _ _ h => Fin.ext (congrArg (fun i : Fin 128 => i.val) h)
 
 /-- Actual argument delivery and complete two-prime computation inside the traversal's fixed
 register file. The mathematical filters may fail; their default-one selections are still bounded.
@@ -178,9 +165,7 @@ theorem callModulus_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → �
       (x.regs heap + x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) := by
     change Fits (w + 2) (z.regs CountCall.histogram)
     have hbz : Fits (w + 2) (Modulus.budget z) := hbudget
-    apply hbz.of_le
-    dsimp only [Modulus.budget]
-    omega
+    exact hbz.of_le (by dsimp only [Modulus.budget]; omega)
   have ha := prepareModulus_exec x hhist
   obtain ⟨y, hb, ⟨_, hprefix, _, hout⟩, hframe⟩ := ExecWithin.rename_post kernel_injective
     (Modulus.exec z values hm hmod hbudget hcard hbefore
@@ -194,12 +179,9 @@ theorem callModulus_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → �
         x.regs heap + x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)
       rw [hn j]
       fin_cases j
-      · change x.regs heap + x.regs (slot 2) ≤ _
-        omega
-      · change x.regs heap + x.regs (slot 4) ≤ _
-        omega
-      · change x.regs heap + x.regs (slot 6) ≤ _
-        omega)
+      · change x.regs heap + x.regs (slot 2) ≤ _; omega
+      · change x.regs heap + x.regs (slot 4) ≤ _; omega
+      · change x.regs heap + x.regs (slot 6) ≤ _; omega)
     (by intro j i hi; change x.mem (z.regs (CountCall.source j) + i) = _
         rw [hs j]; exact hinput j i ((hn j) ▸ hi))
     (by intro j; simpa only [hn j] using hinj j))
@@ -209,15 +191,13 @@ theorem callModulus_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → �
       ((Finset.range (x.regs (arrayLength 1))).image (values 1))
       ((Finset.range (x.regs (arrayLength 2))).image (values 2)) := by
     simpa only [Data.comap_regs, hn, hzm, hzd] using hout
-  refine ⟨y, ha.within.seq hb, ?_, ?_, hout', ?_⟩
-  · intro i hi
-    exact (hframe i (fun j => (kernel_ne hi j).symm)).trans (modulusState_preserves x i hi)
-  · intro p hp
-    exact hprefix p hp
-  · rw [hout']
-    exact Cslib.Algorithms.ThreeSum.ChanHe.modulus_bounds_of_candidates (by omega)
-      (fun q hq => (Nat.prime_of_mem_primesLE hq).two_le.trans' (by decide))
-      (fun _ hq => Nat.le_of_mem_primesLE hq) _ _ _ _
+  refine ⟨y, ha.within.seq hb,
+    fun i hi => (hframe i (fun j => (kernel_ne hi j).symm)).trans (modulusState_preserves x i hi),
+    hprefix, hout', ?_⟩
+  rw [hout']
+  exact Cslib.Algorithms.ThreeSum.ChanHe.modulus_bounds_of_candidates (by omega)
+    (fun q hq => (Nat.prime_of_mem_primesLE hq).two_le.trans' (by decide))
+    (fun _ hq => Nat.le_of_mem_primesLE hq) _ _ _ _
 
 /-- Ten actual argument copies followed by the complete native heavy/packed-node program.
 The existing exact semantic output and the full allocation frame survive register renaming. -/
@@ -251,13 +231,10 @@ theorem callNode_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → ℤ)
     (by intro j i hi; exact hbdd j i ((hn j) ▸ hi))
     (by intro j i hi; change x.mem (z.regs (NodePacking.source j) + i) = _
         rw [hs j]; exact hinput j i ((hn j) ▸ hi)) hinj')
-  refine ⟨b, ?_, ?_, ?_⟩
-  · simpa only [Nat.add_assoc] using
-      (prepareNode_exec (w := w + 2) x).within.seq hb
-  · simp only [Data.comap_mem] at hmem
-    rw [hmem]
-    exact NodePacking.memory_output L values z.mem hM hN hinj'
-  · intro i hi
-    exact (hframe i (fun j => (kernel_ne hi j).symm)).trans (nodeState_preserves x i hi)
+  refine ⟨b, by simpa only [Nat.add_assoc] using (prepareNode_exec (w := w + 2) x).within.seq hb,
+    ?_, fun i hi => (hframe i (fun j => (kernel_ne hi j).symm)).trans
+      (nodeState_preserves x i hi)⟩
+  simp only [Data.comap_mem] at hmem
+  rw [hmem]; exact NodePacking.memory_output L values z.mem hM hN hinj'
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

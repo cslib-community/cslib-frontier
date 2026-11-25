@@ -32,17 +32,15 @@ variable {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
 theorem map_incidenceList_edgeLabels (x : Fin (incidenceGraph F).edges.length → Bool) :
     (CSP.incidenceList F).map (fun o => x (incidenceDart o false).1) = List.ofFn x := by
   calc
-    _ = (CSP.incidenceList F).map (fun o => (List.ofFn x).getD (incidenceEdgeIndex o) false) := by
-      apply List.map_congr_left
-      intro o _
-      exact (List.getD_ofFn x (incidenceDart o false).1 false).symm
+    _ = (CSP.incidenceList F).map (fun o => (List.ofFn x).getD (incidenceEdgeIndex o) false) :=
+      List.map_congr_left fun o _ => (List.getD_ofFn x (incidenceDart o false).1 false).symm
     _ = (List.range F.occurrences.length).map (fun j => (List.ofFn x).getD j false) := by
       rw [← map_incidenceEdgeIndex_incidenceList, List.map_map]
       rfl
     _ = List.ofFn x := by
       rw [List.map_range_eq_ofFn]
-      exact List.ofFn_getD_eq_of_length false (by
-        simp only [List.length_ofFn, incidenceGraph_edges, List.length_map])
+      exact List.ofFn_getD_eq_of_length false
+        (by simp only [List.length_ofFn, incidenceGraph_edges, List.length_map])
 
 /-- The actual constraint-endpoint parity is the sum in its original ordered scope. -/
 theorem vertexParity_eq_sum_scope
@@ -53,23 +51,16 @@ theorem vertexParity_eq_sum_scope
   let i := o.1
   let word := List.ofFn fun j : Fin F[i.val].scope.length =>
     incidenceDart (⟨i, j⟩ : F.Occurrence) true
-  have hn : word.Nodup := List.nodup_ofFn.mpr (by
-    intro j k hjk
-    have heq : (⟨i, j⟩ : F.Occurrence) = ⟨i, k⟩ := incidenceDart_injective true hjk
-    exact eq_of_heq (Sigma.mk.inj heq).2)
+  have hn : word.Nodup := List.nodup_ofFn.mpr fun j k hjk =>
+    eq_of_heq (Sigma.mk.inj (incidenceDart_injective true hjk : (⟨i, j⟩ : F.Occurrence) = ⟨i, k⟩)).2
   have hw (d : Dart (incidenceGraph F)) : d ∈ word ↔
       d.vertex = (incidenceDart o true).vertex := by
-    constructor
-    · intro hd
-      obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hd
+    refine ⟨fun hd => ?_, fun hd => ?_⟩
+    · obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hd
       exact (vertex_incidenceDart_eq_iff _ _ true true).mpr ⟨rfl, rfl⟩
-    · intro hd
-      obtain ⟨p, hp⟩ := exists_incidenceDart d
-      have hv := (vertex_incidenceDart_eq_iff p o d.2 true).mp (hp ▸ hd)
-      have hrow : p.1 = i := by simpa only [hv.1, ite_true] using hv.2
-      rcases p with ⟨k, j⟩
-      change k = i at hrow
-      subst k
+    · obtain ⟨⟨k, j⟩, hp⟩ := exists_incidenceDart d
+      have hv := (vertex_incidenceDart_eq_iff ⟨k, j⟩ o d.2 true).mp (hp ▸ hd)
+      obtain rfl : k = i := by simpa only [hv.1, ite_true] using hv.2
       exact List.mem_ofFn.mpr ⟨j, hv.1 ▸ hp⟩
   rw [(incidenceGraph F).vertexParity_eq_sum_word x _ word hn hw]
   simp only [word, i, List.map_ofFn, Function.comp_def]
@@ -83,15 +74,11 @@ theorem sum_scope_eq_false_of_constraintParity
     (i : Fin F.length) :
     (List.ofFn fun j : Fin F[i.val].scope.length =>
       x (incidenceDart (⟨i, j⟩ : F.Occurrence) true).1).sum = false := by
-  by_cases he : F[i.val].scope.length = 0
-  · have hn : (List.ofFn fun j : Fin F[i.val].scope.length =>
-        x (incidenceDart (⟨i, j⟩ : F.Occurrence) true).1) = [] :=
-      List.eq_nil_iff_length_eq_zero.mpr (by simpa only [List.length_ofFn] using he)
-    simp [hn, Bool.zero_eq_false]
-  let o : F.Occurrence := ⟨i, ⟨0, Nat.pos_of_ne_zero he⟩⟩
-  have h := hx o
-  rw [vertexParity_eq_sum_scope] at h
-  exact h
+  rcases eq_or_ne F[i.val].scope.length 0 with he | he
+  · simp [List.eq_nil_iff_length_eq_zero.mpr (by simpa only [List.length_ofFn] using he),
+      Bool.zero_eq_false]
+  · simpa only [← vertexParity_eq_sum_scope x ⟨i, ⟨0, Nat.pos_of_ne_zero he⟩⟩] using
+      hx ⟨i, ⟨0, Nat.pos_of_ne_zero he⟩⟩
 
 /-- If every actual constraint endpoint has even parity, the sum over every actual edge
 is zero. Arbitrary repeated variables and nullary constraints retain their positions. -/
@@ -107,7 +94,7 @@ theorem sum_edgeLabels_eq_false_of_constraintParity
         x (incidenceDart (⟨i, j⟩ : F.Occurrence) false).1).sum = false := by
     simpa only [incidenceDart] using sum_scope_eq_false_of_constraintParity x hx i
   simp only [List.map_ofFn, Function.comp_def]
-  have he := congrArg (fun f : Fin F.length → Bool => (List.ofFn f).sum) (funext hs)
-  exact he.trans (by simp [← Bool.zero_eq_false])
+  exact (congrArg (fun f : Fin F.length → Bool => (List.ofFn f).sum) (funext hs)).trans
+    (by simp [← Bool.zero_eq_false])
 
 end Cslib.Complexity.CSP

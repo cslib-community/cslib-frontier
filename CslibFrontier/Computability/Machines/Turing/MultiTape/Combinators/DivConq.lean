@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StackLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Cases
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -254,30 +255,6 @@ private abbrev encVal (encA : α ↪ List Bool) (encB : β ↪ List Bool) : Val 
 private abbrev encFrame (encA : α ↪ List Bool) (encG : γ ↪ List Bool) : Frame α γ ↪ List Bool :=
   encSum encA encG
 
-/-- `Option.toList`, in linear time. -/
-private lemma toList_inO {δ : Type} {enc : δ ↪ List Bool} :
-    ComputableInO (Option.toList (α := δ)) (encOption enc) (encList enc)
-      (fun o => (encOption enc o).length) (fun o => (encOption enc o).length) := by
-  have htail : ComputableInO List.tail encBits encBits (fun w => w.length)
-      (fun w => w.length) :=
-    of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits) fun _ => rfl)
-  have hframe : ComputableInO frame encBits encBits (fun w => w.length)
-      (fun w => w.length) :=
-    of_linear (.of_frame (f := frame) (encIn := encBits) (encMid := encBits) fun _ => rfl)
-  have hft : ComputableInO (fun w : List Bool => frame w.tail) encBits encBits
-      (fun w => w.length) (fun w => w.length) :=
-    (hframe.comp htail).mono 2 (fun w => by simp; omega) (fun w => by simp; omega)
-  have hw : ComputableInO (fun w : List Bool => if w.isEmpty then [] else frame w.tail)
-      encBits encBits (fun w => w.length) (fun w => w.length) :=
-    ((of_linear (.of_isEmpty (f := List.isEmpty) (encIn := encBits) fun _ => rfl)).ite
-      (const (encMid := encBits) []) hft).mono 2 (fun w => by split_ifs <;> simp <;>
-        omega) (fun w => by split_ifs <;> simp <;> omega)
-  refine (hw.comp (of_linear (.of_eq (f := fun o : Option δ => encOption enc o)
-    (encIn := encOption enc) (encMid := encBits) fun _ => rfl))).of_enc_eq (fun o => ?_) |>.mono
-      2 (fun o => ?_) (fun o => ?_)
-  · cases o <;> simp [encBits]
-  all_goals omega
-
 /-- The sums of the costs of a run of `m + 1` rounds followed by a halting test, against a bound
 on the first `m` rounds. -/
 private lemma sums_le {A B R : ℕ → ℕ} {m X : ℕ} (h : ∀ i < m, A i + B i ≤ R i) :
@@ -316,7 +293,7 @@ private lemma roundCall_inO (hisBase : ComputableInO D.isBase encA encBool Tt St
   have hfst := fst (encOption (encFrame encA encG)) encA
   have hsnd := snd (encOption (encFrame encA encG)) encA
   have hc := hisBase.comp hsnd
-  have hl := (toList_inO (enc := encFrame encA encG)).comp hfst
+  have hl := (ComputableInO.optionToList (enc := encFrame encA encG)).comp hfst
   have hb := (ComputableInO.inr encA (encSum encB encB)).comp
     ((ComputableInO.inl encB encB).comp (hbase.comp hsnd))
   have hcons := (ComputableInDegree.cons (encFrame encA encG)).inO_one.comp
@@ -404,7 +381,7 @@ private lemma round_inO (hisBase : ComputableInO D.isBase encA encBool Tt St)
   have hCall := D.roundCall_inO (encG := encG) hisBase hbase hleft
   have hRet := (D.retSwap_inO hmid hjoin).comp
     (swap_inO (encS := encOption (encFrame encA encG)) (encT := encB))
-  have hFin := ((toList_inO (enc := encFrame encA encG)).comp
+  have hFin := ((ComputableInO.optionToList (enc := encFrame encA encG)).comp
     (fst (encOption (encFrame encA encG)) encB)).prod
     ((ComputableInO.inr encA (encSum encB encB)).comp
       ((ComputableInO.inr encB encB).comp (snd (encOption (encFrame encA encG)) encB)))

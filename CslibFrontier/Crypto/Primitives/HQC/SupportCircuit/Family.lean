@@ -168,15 +168,10 @@ private theorem classicalRun_clearInput {s width : ℕ} (hwidth : 2 * s + 1 ≤ 
     frame_replicate_true]
   by_cases hc : c ≤ 2 * s
   · rw [List.getD_replicate_true_append_false_of_le [] hc]
-    simp only [List.mem_range, List.getD_nil]
     by_cases hlt : c < 2 * s <;> simp [hlt]
-  · have hc' : 2 * s + 1 ≤ c := by omega
-    have hlen : (List.replicate (2 * s) true ++ [false]).length ≤ c := by
-      simp only [List.length_append, List.length_replicate, List.length_singleton]
-      omega
-    rw [List.getD_eq_default _ _ hlen]
+  · rw [List.getD_eq_default _ _ (by simp; omega)]
     have hnot : ¬c < 2 * s := by omega
-    simp [List.mem_range, hnot]
+    simp [hnot]
 
 private theorem run_gateCodes (s : ℕ) :
     Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
@@ -188,16 +183,9 @@ private theorem run_gateCodes (s : ℕ) :
         (Circuit.run (Circuit.ofCodes (S.activeWidth s)
             (samplerCodes (S.seedBits s) (S.circuit s).code))
           (inputState (S.activeWidth s) [])) := by
-  have hwidth : 2 * s + 1 ≤ S.activeWidth s := by
-    change 2 * s + 1 ≤ samplerWidth (S.supportWeight s * S.wordWidth s)
-      (supportSamplerCircuit (S.wordWidth s) (S.valueBits s) (S.universeSize s)
-        (S.supportWeight s)).code
-    exact S.framedInput_le_activeWidth s
+  have hwidth : 2 * s + 1 ≤ S.activeWidth s := S.framedInput_le_activeWidth s
   have hclear : IsClassical (S.activeWidth s) (flipCodes (List.range (2 * s))) :=
-    isClassical_flipCodes (by
-      intro j hj
-      have hj' := List.mem_range.mp hj
-      omega)
+    isClassical_flipCodes fun j hj => (List.mem_range.mp hj).trans (by omega)
   rw [Circuit.run, gateCodes, Circuit.ofCodes_append, Circuit.ofCodes_append,
     Quantum.Circuit.eval_append, Quantum.Circuit.eval_append,
     Circuit.eval_ofCodes_ket hclear,
@@ -216,21 +204,14 @@ theorem measureOut_gateCodes (s : ℕ) :
   let ψ : Qubits (S.activeWidth s) := Circuit.run
     (Circuit.ofCodes (S.activeWidth s) (samplerCodes (S.seedBits s) (S.circuit s).code))
     (inputState (S.activeWidth s) [])
-  have hψ : ‖ψ‖ = 1 := by
-    dsimp only [ψ]
-    exact Circuit.norm_run _ _
+  have hψ : ‖ψ‖ = 1 := Circuit.norm_run _ _
   have hrun :
       Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
           (inputState (S.activeWidth s) (encPair encUnary encBits (s, []))) =
         Circuit.eval
           (Circuit.ofCodes (S.activeWidth s) (prefixSwapCodes source (S.universeSize s))) ψ := by
     simpa only [source, ψ] using S.run_gateCodes s
-  have hdisjoint : S.universeSize s ≤ source := by
-    change S.universeSize s ≤ samplerOutputStart
-      (S.supportWeight s * S.wordWidth s)
-      (supportSamplerCircuit (S.wordWidth s) (S.valueBits s) (S.universeSize s)
-        (S.supportWeight s)).code
-    exact S.outputPrefix_disjoint s
+  have hdisjoint : S.universeSize s ≤ source := S.outputPrefix_disjoint s
   have hfit : source + S.universeSize s ≤ S.activeWidth s := by
     unfold source activeWidth seedBits circuit samplerWidth
     simp only [Circuit.code, List.length_ofFn]
@@ -292,34 +273,16 @@ private theorem wellFormed_description (s ℓ : ℕ) :
   let seed := S.seedBits s
   let source := samplerOutputStart seed code
   let width := S.activeWidth s
-  have hinput : 2 * s + 1 + ℓ ≤ width + ℓ := by
-    have h := S.framedInput_le_activeWidth s
-    change 2 * s + 1 + ℓ ≤ S.activeWidth s + ℓ
-    change 2 * s + 1 + ℓ ≤ width + ℓ
-    change 2 * s + 1 ≤ S.activeWidth s at h
-    exact Nat.add_le_add_right h ℓ
-  have hsource : S.universeSize s ≤ source := by
-    change S.universeSize s ≤ samplerOutputStart
-      (S.supportWeight s * S.wordWidth s)
-      (supportSamplerCircuit (S.wordWidth s) (S.valueBits s) (S.universeSize s)
-        (S.supportWeight s)).code
-    exact S.outputPrefix_disjoint s
+  have hinput : 2 * s + 1 + ℓ ≤ width + ℓ :=
+    Nat.add_le_add_right (S.framedInput_le_activeWidth s) ℓ
+  have hsource : S.universeSize s ≤ source := S.outputPrefix_disjoint s
   have hfit : source + S.universeSize s ≤ width := by
-    have hlen : code.2.length = S.universeSize s := by
-      simp only [code, circuit, Circuit.code, List.length_ofFn]
-    change source + S.universeSize s ≤ source + code.2.length
-    rw [hlen]
+    simp only [width, activeWidth, samplerWidth, seed, source, code, circuit, Circuit.code,
+      List.length_ofFn, le_refl]
   have hclear : IsClassical width (flipCodes (List.range (2 * s))) :=
-    isClassical_flipCodes (by
-      intro j hj
-      have hj' := List.mem_range.mp hj
-      have h := S.framedInput_le_activeWidth s
-      change 2 * s + 1 ≤ width at h
-      omega)
-  have hsampler : ∀ g ∈ samplerCodes seed code, g.WellFormed width := by
-    dsimp only [width, seed]
-    unfold activeWidth
-    simpa only [code] using wellFormed_samplerCodes (S.seedBits s) (S.circuit s).code
+    isClassical_flipCodes fun j hj => (List.mem_range.mp hj).trans_le (by omega)
+  have hsampler : ∀ g ∈ samplerCodes seed code, g.WellFormed width :=
+    wellFormed_samplerCodes seed code
   have hprefix : IsClassical width (prefixSwapCodes source (S.universeSize s)) :=
     isClassical_prefixSwapCodes hsource hfit
   refine ⟨hinput, by simp [description], ?_, ?_⟩
@@ -333,9 +296,7 @@ private theorem wellFormed_description (s ℓ : ℕ) :
   have hgwidth : g.WellFormed width := by
     simp only [gateCodes, List.mem_append] at hg
     rcases hg with (hg | hg) | hg
-    · exact (hclear g hg).2
-    · exact hsampler g hg
-    · exact (hprefix g hg).2
+    exacts [(hclear g hg).2, hsampler g hg, (hprefix g hg).2]
   simpa using hgwidth.shift (o := 0) (by omega : 0 + width ≤ width + ℓ)
 
 /-- Native uniform oracle-circuit family realizing one scheduled HQC support draw. The family is
@@ -360,9 +321,7 @@ private theorem output_family_eq_measureOut (s : ℕ) :
         (S.family.description s 0).instructions)
       (ket (inputState (S.family.description s 0).width
         (encPair encUnary encBits (s, ([] : List Bool)) ++ List.ofFn z)))
-  have hψ : ‖ψ‖ = 1 := by
-    dsimp only [ψ]
-    rw [Circuit.norm_eval, norm_ket]
+  have hψ : ‖ψ‖ = 1 := (Circuit.norm_eval _ _).trans (norm_ket _)
   calc
     S.family.output s [] (fun _ _ => false) (ket (fun _ => false)) (norm_ket _) =
       measureOut ψ hψ (fun y => List.ofFn fun i =>
@@ -376,8 +335,8 @@ private theorem output_family_eq_measureOut (s : ℕ) :
         (blockReadout 0 (S.family.description s 0).outputWidth)).map List.ofFn :=
       (measureOut_map ψ hψ _ List.ofFn).symm
     _ = _ := by
-      simp only [H, z, ψ, family, description, List.ofFn_zero, List.append_nil, Nat.add_zero]
-      simp only [OracleCircuit.toCircuit_map_gateCode, Quantum.Circuit.run]
+      simp only [H, z, ψ, family, description, List.ofFn_zero, List.append_nil, Nat.add_zero,
+        OracleCircuit.toCircuit_map_gateCode, Quantum.Circuit.run]
       congr 1
 
 /-- On empty auxiliary input, the uniform family returns exactly the scheduled finite

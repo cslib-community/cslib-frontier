@@ -102,48 +102,36 @@ theorem splitForest_eq_some_iff {arity : τ → ℕ} {pending : ℕ}
     {tokens front rest : List τ} :
     splitForest arity pending tokens = some (front, rest) ↔
       Forest arity pending front ∧ front ++ rest = tokens := by
-  induction tokens generalizing pending front rest with
-  | nil =>
-    cases pending with
-    | zero =>
-      constructor
-      · intro h
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-        exact ⟨.nil, rfl⟩
-      · rintro ⟨h, heq⟩
-        cases h
-        simpa [splitForest] using heq.symm
-    | succ pending =>
-      constructor
-      · simp [splitForest]
-      · rintro ⟨h, heq⟩
-        cases h
-        simp at heq
-  | cons token tokens ih =>
-    cases pending with
-    | zero =>
-      constructor
-      · intro h
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-        exact ⟨.nil, rfl⟩
-      · rintro ⟨h, heq⟩
-        cases h
-        simpa [splitForest] using heq.symm
-    | succ pending =>
-      change (splitForest arity (pending + arity token) tokens).bind
-        (fun p => some (token :: p.1, p.2)) = some (front, rest) ↔ _
-      rw [Option.bind_eq_some_iff]
-      constructor
-      · rintro ⟨⟨front', rest'⟩, hparse, hresult⟩
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hresult)
-        obtain ⟨hforest, hrest⟩ := ih.mp hparse
-        exact ⟨.cons hforest, by simpa using congrArg (token :: ·) hrest⟩
-      · rintro ⟨h, heq⟩
-        cases h with
-        | cons h =>
-          simp only [List.cons_append, List.cons.injEq] at heq
-          obtain ⟨rfl, heq⟩ := heq
-          exact ⟨_, ih.mpr ⟨h, heq⟩, rfl⟩
+  fun_induction splitForest arity pending tokens generalizing front rest with
+  | case1 tokens => -- no pending roots
+    constructor
+    · intro h
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+      exact ⟨.nil, rfl⟩
+    · rintro ⟨h, heq⟩
+      cases h
+      simpa using heq.symm
+  | case2 pending => -- roots pending, no tokens left
+    constructor
+    · simp
+    · rintro ⟨h, heq⟩
+      cases h
+      simp at heq
+  | case3 pending token tokens ih => -- roots pending, `token :: tokens`
+    change (splitForest arity (pending + arity token) tokens).bind
+      (fun p => some (token :: p.1, p.2)) = some (front, rest) ↔ _
+    rw [Option.bind_eq_some_iff]
+    constructor
+    · rintro ⟨⟨front', rest'⟩, hparse, hresult⟩
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hresult)
+      obtain ⟨hforest, hrest⟩ := ih.mp hparse
+      exact ⟨.cons hforest, by simpa using congrArg (token :: ·) hrest⟩
+    · rintro ⟨h, heq⟩
+      cases h with
+      | cons h =>
+        simp only [List.cons_append, List.cons.injEq] at heq
+        obtain ⟨rfl, heq⟩ := heq
+        exact ⟨_, ih.mpr ⟨h, heq⟩, rfl⟩
 
 /-- A successful tree split recognizes exactly a complete tree prefix. -/
 theorem splitTree_eq_some_iff {arity : τ → ℕ} {tokens front rest : List τ} :
@@ -169,22 +157,16 @@ theorem isTree_eq_true_iff {arity : τ → ℕ} {tokens : List τ} :
     simp only [Option.elim_none, Bool.false_eq_true, false_iff]
     intro hforest
     have h := splitTree_append hforest []
-    simp only [List.append_nil] at h
-    rw [hs] at h
+    simp only [List.append_nil, hs] at h
     contradiction
   | some p =>
     obtain ⟨front, rest⟩ := p
     simp only [Option.elim_some, List.isEmpty_iff]
     obtain ⟨hforest, hrest⟩ := splitTree_eq_some_iff.mp hs
-    constructor
-    · rintro rfl
-      rw [List.append_nil] at hrest
-      exact hrest ▸ hforest
-    · intro hfull
-      have h := splitTree_append hfull []
-      simp only [List.append_nil] at h
-      rw [hs] at h
-      exact congrArg Prod.snd (Option.some.inj h)
+    refine ⟨fun h => by subst h; simpa [← hrest] using hforest, fun hfull => ?_⟩
+    have h := splitTree_append hfull []
+    simp only [List.append_nil, hs, Option.some.injEq, Prod.mk.injEq] at h
+    exact h.2
 
 /-- The counter scanner's state. It stops counting at the end of its initial forest. -/
 private structure ScanState where
@@ -224,28 +206,22 @@ private theorem splitForest_eq_scan (arity : τ → ℕ) (tokens : List τ) (pen
       if state.pending = 0 then
         some (tokens.take (state.consumed - count), tokens.drop (state.consumed - count))
       else none := by
-  induction tokens generalizing pending count with
-  | nil => cases pending <;> simp [splitForest]
-  | cons token tokens ih =>
-    cases pending with
-    | zero => rw [scanStep_zero]; simp [splitForest]
-    | succ pending =>
-      change (splitForest arity (pending + arity token) tokens).bind
-        (fun p => some (token :: p.1, p.2)) = _
-      rw [ih (pending + arity token) (count + 1)]
-      simp only [List.foldl_cons, scanStep, Nat.succ_ne_zero, ite_false, Nat.add_sub_cancel]
-      by_cases h : (tokens.foldl (scanStep arity)
-        ⟨pending + arity token, count + 1⟩).pending = 0
-      · simp only [h, ite_true, Option.bind_some]
-        have hc : count + 1 ≤
-            (tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩).consumed := by
-          exact consumed_le_scan arity tokens ⟨pending + arity token, count + 1⟩
-        have hsub :
-            (tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩).consumed - count =
-              ((tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩).consumed -
-                (count + 1)) + 1 := by omega
-        rw [hsub, List.take_succ_cons, List.drop_succ_cons]
-      · simp [h]
+  fun_induction splitForest arity pending tokens generalizing count with
+  | case1 => rw [scanStep_zero]; simp -- no pending roots
+  | case2 => simp -- roots pending, no tokens left
+  | case3 pending token tokens ih => -- roots pending, `token :: tokens`
+    change (splitForest arity (pending + arity token) tokens).bind
+      (fun p => some (token :: p.1, p.2)) = _
+    rw [ih (count + 1)]
+    simp only [List.foldl_cons, scanStep, Nat.succ_ne_zero, ite_false, Nat.succ_sub_one]
+    set state := tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩
+    by_cases h : state.pending = 0
+    · simp only [h, ite_true, Option.bind_some]
+      have hc : count + 1 ≤ state.consumed :=
+        consumed_le_scan arity tokens ⟨pending + arity token, count + 1⟩
+      have hsub : state.consumed - count = state.consumed - (count + 1) + 1 := by omega
+      rw [hsub, List.take_succ_cons, List.drop_succ_cons]
+    · simp [h]
 
 /-- The token scanner's arithmetic state grows at most linearly with the number of tokens. -/
 private theorem scan_bounds (arity : τ → ℕ) {maximum : ℕ}
@@ -297,7 +273,8 @@ private theorem scan_polyTime {encToken : τ ↪ List Bool} {arity : τ → ℕ}
   have hm := Nat.mul_le_mul_left maximum hi
   simp only [encScanState_apply, encScanStateFields, length_encPair,
     encUnary_apply, List.length_replicate] at hp hc ⊢
-  nlinarith
+  rw [Nat.add_mul, Nat.one_mul, Nat.mul_assoc]
+  omega
 
 /-- Splitting one typed tree has a native polynomial-time certificate, assuming only native
 arity recognition and a fixed arity bound. The returned prefix and suffix retain the token

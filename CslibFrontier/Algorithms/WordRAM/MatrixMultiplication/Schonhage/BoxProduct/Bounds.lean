@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.FrontProgram
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Computability.WordRAM.Admission
+import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Foundations.Data.Nat.PowClog
 
 /-!
@@ -63,16 +64,12 @@ theorem pow_admissionWidth_lt_wordBound (L m t N Q A : ℕ) :
   rw [pow_add]
   omega
 
-set_option maxRecDepth 8192 in
--- This closed structural check traverses both fixed producer/router/box program trees.
 /-- Complete native code, including halt, has constant size independently of all inputs. -/
 theorem program_size_le (bits : Bool) : (program bits).size + 1 ≤ 32768 := by
   cases bits <;> decide +kernel
 
-set_option maxRecDepth 8192 in
--- This is a finite syntactic check of the actual renamed kernels in the fixed program.
 /-- Neither input mode reads physical width. -/
 theorem not_readsWidth (bits : Bool) : ¬(program bits).ReadsWidth := by
-  cases bits <;> decide +kernel
+  cases bits <;> exact Code.not_readsWidth_of_readsWidthBool rfl
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

@@ -45,17 +45,12 @@ theorem fine_cost_pow_four {a b u u' : ℝ} (ha : 0 < a) (hb : 0 < b)
     (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4)) ^ 4 =
       (b / a) ^ 3 * (u' / u) := by
   have hhR : (h : ℝ) < 0 := by exact_mod_cast hh
-  rw [binNormCost, ite_eq_right (not_le.mpr hhR), mul_pow]
-  have hpow (r : ℝ) : ((2 : ℝ) ^ (r / 4)) ^ 4 = (2 : ℝ) ^ r := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
-    congr 1
-    norm_num
-  rw [hpow, hpow]
-  have heq : (4 - 1 : ℝ) * (h : ℝ) = (h : ℝ) * 3 := by ring
-  rw [heq, Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2), ← hscale,
-    Real.rpow_logb (by norm_num) (by norm_num) (div_pos hb ha),
-    Real.rpow_logb (by norm_num) (by norm_num) (div_pos hu' hu)]
-  norm_num
+  rw [binNormCost, ite_eq_right hhR.not_ge, ← Real.rpow_add zero_lt_two, ← Real.rpow_natCast,
+    ← Real.rpow_mul zero_le_two, show ((4 - 1) * (h : ℝ) / 4 + Real.logb 2 (u' / u) / 4) *
+      (4 : ℕ) = Real.logb 2 (b / a) * (3 : ℕ) + Real.logb 2 (u' / u) by push_cast; linarith,
+    Real.rpow_add zero_lt_two, Real.rpow_mul zero_le_two, Real.rpow_natCast,
+    Real.rpow_logb zero_lt_two (by norm_num) (div_pos hb ha),
+    Real.rpow_logb zero_lt_two (by norm_num) (div_pos hu' hu)]
 
 /-- A child root-moment induction hypothesis at the scheduled budget pays the fine scale
 and source costs. The output is an explicit parent-precision bound, not an assumed aggregate. -/
@@ -69,21 +64,8 @@ theorem scheduled_fine_error_le {A a a' b c₁ u u' C E : ℝ} (hA : 0 ≤ A) (h
       (C * (2 : ℝ) ^ (-Real.logb 2 c₁ / 2) *
         ((2 : ℝ) ^ (-precision (16 * c) A M i a u - A +
           (d : ℝ) / (16 * c) + 1 / 16) * scaleMajorant h)) ^ 4 := by
-  have hbin := (binNormCost_pos 4 (h : ℝ)).le
-  have hu' := hu.trans_le huu'
-  have hcost := scheduled_child_cost_le_of_rate_le hA M d c i i' hc h hi ha hb hc₁ hba'
-    hu huu' hscale
-  have hweighted := mul_le_mul_of_nonneg_left hcost hC
-  have hpower := pow_le_pow_left₀ (by positivity) hweighted 4
-  calc
-    _ ≤ (b / a) ^ 3 * (u' / u) * (C * (2 : ℝ) ^
-        (-precision (16 * c) A (lastBudget M d c h) i' a' u')) ^ 4 :=
-      mul_le_mul_of_nonneg_left hE (by positivity)
-    _ = (C * (binNormCost 4 (h : ℝ) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / 4) *
-        (2 : ℝ) ^ (-precision (16 * c) A (lastBudget M d c h) i' a' u'))) ^ 4 := by
-      rw [mul_pow, mul_pow, mul_pow, fine_cost_pow_four ha hb hu (hu.trans_le huu') hh hscale]
-      ring
-    _ ≤ _ := by convert hpower using 1; ring
+  rw [← fine_cost_pow_four ha hb hu (hu.trans_le huu') hh hscale]
+  exact scheduled_binNormCost_error_le hA hC M d c i i' hc h hi ha hb hc₁ hba' hu huu' hscale hE
 
 /-- The actual fine-product conditional mean error, paid by the two earlier child root-moment
 bounds. The correction child's endpoint rate may only dominate a constant multiple of the bin
@@ -129,33 +111,15 @@ theorem scheduled_fineProductMean_le {Γ Υ : Type*} [Fintype Γ] [Fintype Υ]
           (2 ^ (2 * (4 - 1)) * (4 : ℝ) ^ 4) *
           (CB * Kr * (C * (2 : ℝ) ^ (-Real.logb 2 c₁ / 2) * payment) ^ 4 +
             CF * Kc * (C * payment) ^ 4)) := by
-  dsimp only
-  let payment := (2 : ℝ) ^ (-precision (16 * c) A M i a u - A +
-    (d : ℝ) / (16 * c) + 1 / 16) * scaleMajorant offset
-  let E : (Γ × Υ) → V → V → ℝ := fun σ x y =>
-    (∑ z ∈ ({z | Z σ z} : Finset V), F σ x z * B σ z y) -
-      ∑ z ∈ ({z | Z σ z} : Finset V), F' σ x z * B' σ z y
+  intro payment E
   have ha := hb.trans_le hba
   have hf : 0 < f := (mul_pos hc₁ hb).trans_le hbf
   have hπb : 0 < πb := (mul_pos hcb hb).trans_le hlower
-  by_cases hV : Nonempty V
-  swap
-  · have hemp : ∀ γ, ({x | X γ x} : Finset V) = ∅ := fun _ =>
-      filter_eq_empty_iff.mpr fun x _ => (hV ⟨x⟩).elim
-    have hlhs : rowNormPow 4 N u (fun (σ : Γ × Υ) x => X σ.1 x) (fun σ y => Ya σ.2 y)
-        (fun _ x y => conditionalTableMean (fun σ x => X σ.1 x) (fun σ y => Ya σ.2 y)
-          (fun σ x y => (b / a) * (f / πf) * (πa / πb) * E σ x y) x y) = 0 := by
-      simp [rowNormPow, hemp]
-    rw [hlhs]
-    positivity
-  obtain ⟨y₀⟩ := hV
-  have hπa : 0 < πa := by
-    have hle : (dens {τ | Yb τ y₀} : ℝ) ≤ dens {τ | Ya τ y₀} := by
-      exact_mod_cast Finset.dens_le_dens fun τ hτ => by
-        simp only [mem_filter, mem_univ, true_and] at hτ ⊢
-        exact hsub τ y₀ hτ
-    rw [hYbπ y₀, hYaπ y₀] at hle
-    exact hπb.trans_le hle
+  rcases isEmpty_or_nonempty V with hV | ⟨⟨y₀⟩⟩
+  · exact (Eq.le (by simp [rowNormPow] : _ = (0 : ℝ))).trans (by positivity)
+  have hle : (dens {τ | Yb τ y₀} : ℝ) ≤ dens {τ | Ya τ y₀} := by
+    exact_mod_cast Finset.dens_le_dens fun τ hτ => by simpa using hsub τ y₀ (by simpa using hτ)
+  have hπa : 0 < πa := hπb.trans_le (by rwa [hYbπ y₀, hYaπ y₀] at hle)
   have core (πf' : ℝ) (hπf' : 0 < πf') :
       rowNormPow 4 N u (fun (σ : Γ × Υ) x => X σ.1 x) (fun σ y => Ya σ.2 y)
         (fun _ x y => conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x)
@@ -170,12 +134,13 @@ theorem scheduled_fineProductMean_le {Γ Υ : Type*} [Fintype Γ] [Fintype Υ]
       (by decide : 4 ≠ 0) hN hu hb hba hf hπa hπb hπf' hCa hcb hupper hlower
       hYaπ hYbπ hsub hCF hCB hF hF' hB hB' hFbound hF'bound hBbound hB'bound
       hleft hleft' hrow hcol hBsupport hB'support
-    have hpayF := scheduled_fine_error_le hA hC M d c i iF hc offset hoffset hiF
-      ha hb hc₁ hbf hu (le_refl u) hscale hleftError
-    have hpayB := scheduled_fine_error_le hA hC M d c i iB hc offset hoffset hiB
-      ha hb (by norm_num : (0 : ℝ) < 1) (by simp) hu huf hscale hrightError
-    simp only [div_self hu.ne', mul_one] at hpayF
-    simp only [Real.logb_one, neg_zero, zero_div, Real.rpow_zero, mul_one] at hpayB
+    have hpayF := by
+      simpa only [div_self hu.ne', mul_one] using scheduled_fine_error_le hA hC M d c i iF hc
+        offset hoffset hiF ha hb hc₁ hbf hu le_rfl hscale hleftError
+    have hpayB := by
+      simpa only [Real.logb_one, neg_zero, zero_div, Real.rpow_zero, mul_one] using
+        scheduled_fine_error_le hA hC M d c i iB hc offset hoffset hiB ha hb zero_lt_one
+          (one_mul b).le hu huf hscale hrightError
     refine hprod.trans ?_
     calc
       _ = ((f / πf') ^ 4 * (Ca / cb)) *
@@ -266,46 +231,30 @@ theorem scheduled_fine_correctionAtom_denseAtom_mean_le
           ((2 * AB) * KB * (C * (2 : ℝ) ^ (-Real.logb 2 c₁ / 2) * payment) ^ 4 +
             (2 * AF) * Kc * (C * payment) ^ 4)) := by
   classical
-  dsimp only
-  intro hleftError hrightBroad
+  intro F F' B B' Xu Zf payment hleftError hrightBroad
   have hf : 0 < f := hu.trans_le huf
   have hrightError := (Cslib.rowNormPow_mono_terminal (p := 4) (by positivity : 0 ≤ N * f)
-    (X := fun (σ : Γ × Υ) z => Zt (drawF σ.1).2 z)
-    (Y := fun σ y => Yt (drawB σ.2) y) (Y' := fun σ y => Y (drawB σ.2) y)
+    (X := Zf) (Y := fun σ y => Yt (drawB σ.2) y) (Y' := fun σ y => Y (drawB σ.2) y)
     (fun σ y => hYt (drawB σ.2) y)
-    (fun σ z y => (denseAtom Y Yt k hB ρB KB b (H σ) (drawB σ.2) z y) ^ (4⁻¹ : ℝ) -
-      (denseAtom Y Yt k hB ρB KB b (H' σ) (drawB σ.2) z y) ^ (4⁻¹ : ℝ))).trans hrightBroad
+    (fun σ z y => B σ z y ^ (4⁻¹ : ℝ) - B' σ z y ^ (4⁻¹ : ℝ))).trans hrightBroad
   have hFbound (J : Matrix V V ℝ) (v : V → ℝ) (hv0 : ∀ z, 0 ≤ v z)
       (hv1 : ∀ z, v z ≤ 1) (t : ι × κ) (x z : V) :
-      correctionAtom I τ KF Kc f J X Z Zt Q hF ρF v t x z ≤ 2 * AF := by
-    calc
-      _ ≤ |correctionAtom I τ KF Kc f J X Z Zt Q hF ρF v t x z| := le_abs_self _
-      _ ≤ 2 * |Q (J x z / f)| * |v z| := abs_correctionAtom_le hρF0 hρF1 hτ0 hτ1 _ _ _
-      _ = 2 * Q (J x z / f) * v z := by rw [abs_of_nonneg (hQ0 _), abs_of_nonneg (hv0 _)]
-      _ ≤ (2 * AF) * 1 := mul_le_mul
-        (mul_le_mul_of_nonneg_left (hQbound _) (by norm_num)) (hv1 z) (hv0 z) (by positivity)
-      _ = _ := mul_one _
+      correctionAtom I τ KF Kc f J X Z Zt Q hF ρF v t x z ≤ 2 * AF :=
+    (le_abs_self _).trans <| (abs_correctionAtom_le hρF0 hρF1 hτ0 hτ1 t x z).trans <| by
+      rw [abs_of_nonneg (hQ0 _), abs_of_nonneg (hv0 _)]
+      exact (mul_le_of_le_one_right (mul_nonneg zero_le_two (hQ0 _)) (hv1 z)).trans
+        (mul_le_mul_of_nonneg_left (hQbound _) zero_le_two)
   have hBbound (J : Matrix V V ℝ) (t : υ) (z y : V) :
-      denseAtom Y Yt k hB ρB KB b J t z y ≤ 2 * AB := by
-    calc
-      _ ≤ |denseAtom Y Yt k hB ρB KB b J t z y| := le_abs_self _
-      _ ≤ 2 * |k (J z y / b)| := abs_denseAtom_le hρB0 hρB1 _ _ _
-      _ = 2 * k (J z y / b) := by rw [abs_of_nonneg (hk0 _)]
-      _ ≤ _ := mul_le_mul_of_nonneg_left (hkbound _) (by norm_num)
+      denseAtom Y Yt k hB ρB KB b J t z y ≤ 2 * AB :=
+    (le_abs_self _).trans <| (abs_denseAtom_le hρB0 hρB1 t z y).trans <| by
+      rw [abs_of_nonneg (hk0 _)]
+      exact mul_le_mul_of_nonneg_left (hkbound _) (by norm_num)
   have hleftCap (J : Matrix V V ℝ) (v : V → ℝ) (t : ι × κ) (x : V) :
       #{z ∈ ({z | Zt t.2 z} : Finset V) |
-        correctionAtom I τ KF Kc f J X Z Zt Q hF ρF v t x z ≠ 0} ≤ KF := by
-    refine (card_le_card ?_).trans
-      (card_filter_correctionAtom_row_ne_zero_lt (I := I) (τ := τ) (Kc := Kc)
-        (f := f) (G := J) (X := X) (Y := Z) (Yt := Zt) (h := hF) (g₀ := v)
-        hKF heF hQzero hrF hρFclose t x).le
-    intro z hz
-    have hzZ : Zt t.2 z := by
-      simpa only [mem_filter, mem_univ, true_and] using (mem_filter.mp hz).1
-    refine mem_filter.mpr ⟨?_, (mem_filter.mp hz).2⟩
-    simpa only [mem_filter, mem_univ, true_and] using hZt t.2 z hzZ
-  refine scheduled_fineProductMean_le (fun γ x => X (drawF γ).1 x) Ya
-    (fun t y => Yt (drawB t) y) (fun σ z => Zt (drawF σ.1).2 z)
+        correctionAtom I τ KF Kc f J X Z Zt Q hF ρF v t x z ≠ 0} ≤ KF :=
+    (card_le_card (filter_subset_filter _ fun z => by simpa using hZt t.2 z)).trans
+      (card_filter_correctionAtom_row_ne_zero_lt hKF heF hQzero hrF hρFclose t x).le
+  refine scheduled_fineProductMean_le Xu Ya (fun t y => Yt (drawB t) y) Zf
     hN hu hb hba hCa hcb hupper hlower hYaπ hYbπ hsub
     (by positivity) (by positivity)
     (fun σ => correctionAtom_nonneg hQ0 hρF0 hτ0 (hg0 σ) (drawF σ.1))
@@ -316,19 +265,12 @@ theorem scheduled_fine_correctionAtom_denseAtom_mean_le
     (fun σ => hFbound (G' σ) (g' σ) (hg'0 σ) (hg'1 σ) (drawF σ.1))
     (fun σ => hBbound (H σ) (drawB σ.2)) (fun σ => hBbound (H' σ) (drawB σ.2))
     (fun σ x _ => hleftCap (G σ) (g σ) (drawF σ.1) x)
-    (fun σ x _ => hleftCap (G' σ) (g' σ) (drawF σ.1) x) ?_ ?_ ?_ ?_
-    hA hC hc₁ hbf huf M d c i iF iB hc offset hoffset hiF hiB hscale hleftError hrightError
-  · intro σ z _
-    refine (card_le_card ?_).trans
+    (fun σ x _ => hleftCap (G' σ) (g' σ) (drawF σ.1) x)
+    (fun σ z _ => (card_le_card (filter_subset_filter _ (subset_univ _))).trans
       (card_filter_denseAtom_ne_zero_lt (h := hB) (a := b) (G := H σ)
-        hYt hKB heB hkzero hrB hρBclose (drawB σ.2) z).le
-    intro y hy
-    exact mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hy).2⟩
-  · intro σ z _
-    exact (card_filter_correctionAtom_col_ne_zero_lt hKc hIQ hgF hτclose (drawF σ.1) z).le
-  · intro σ z y hy
-    simp [denseAtom, hy]
-  · intro σ z y hy
-    simp [denseAtom, hy]
+        hYt hKB heB hkzero hrB hρBclose (drawB σ.2) z).le)
+    (fun σ z _ => (card_filter_correctionAtom_col_ne_zero_lt hKc hIQ hgF hτclose (drawF σ.1) z).le)
+    (fun _ _ _ hy => by simp [denseAtom, hy]) (fun _ _ _ hy => by simp [denseAtom, hy])
+    hA hC hc₁ hbf huf M d c i iF iB hc offset hoffset hiF hiB hscale hleftError hrightError
 
 end Matrix

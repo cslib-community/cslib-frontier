@@ -75,11 +75,10 @@ def bank {k : ℕ} (offset : ℕ) (hk : offset + k ≤ registers) (i : Fin k) :
 
 /-- Contiguous register embeddings are injective. -/
 theorem bank_injective {k offset : ℕ} (hk : offset + k ≤ registers) :
-    Function.Injective (bank offset hk) := by
-  intro i j he
-  apply Fin.ext
+    Function.Injective (bank offset hk) := fun _ _ he => by
   have := congrArg Fin.val he
   dsimp only [bank] at this
+  ext
   omega
 
 /-- Eighteen-word header reader, including its pointer and address scratch. -/
@@ -111,23 +110,19 @@ theorem Frame.trans {x y z : Data registers} (hxy : Frame x y) (hyz : Frame y z)
 
 /-- Updating a register at index at least `40` preserves `Frame`. -/
 theorem frame_set (x : Data registers) (i : Fin registers) (v : ℕ) (hi : 40 ≤ i.val) :
-    Frame x (x.set i v) := by
-  refine ⟨rfl, ?_⟩
-  intro j hj
-  have hn : j ≠ i := by intro he; subst j; omega
-  exact Function.update_of_ne hn _ _
+    Frame x (x.set i v) :=
+  ⟨rfl, fun _ _ => Function.update_of_ne (by
+    rintro rfl
+    omega) _ _⟩
 
 /-- Extending a subroutine state into a register bank at offset at least `40` preserves `Frame`. -/
 theorem frame_extend {k offset : ℕ} (hk : offset + k ≤ registers) (ho : 40 ≤ offset)
     (x : Data registers) (y : Data k) (hm : y.mem = x.mem) :
-    Frame x (y.extend (bank offset hk) x) := by
-  refine ⟨hm, ?_⟩
-  intro i hi
-  apply Function.extend_apply'
-  rintro ⟨j, he⟩
-  have := congrArg Fin.val he
-  dsimp only [bank] at this
-  omega
+    Frame x (y.extend (bank offset hk) x) :=
+  ⟨hm, fun _ _ => Function.extend_apply' _ _ _ fun ⟨_, he⟩ => by
+    have := congrArg Fin.val he
+    dsimp only [bank] at this
+    omega⟩
 
 /-- Copy a finite sequence of registers, charging also a final self-copy of register 39.
 The final self-copy supplies an executable empty sequence without a special RAM primitive. -/
@@ -203,30 +198,23 @@ structure Prepared {w n : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w keys
 
 /-- The `Prepared` header invariant is preserved across `Frame` transitions. -/
 theorem Prepared.frame {w n : ℕ} {keys : Fin n → ℕ} {p : NodeParameters w keys}
-    {x y : Data registers} (hx : Prepared p x) (hf : Frame x y) : Prepared p y := by
-  constructor
-  · exact (hf.2 count (by decide)).trans hx.count_eq
-  · intro j
-    exact (hf.2 (parameter j) (by dsimp [parameter, headerBank, bank]; omega)).trans
-      (hx.words_eq j)
+    {x y : Data registers} (hx : Prepared p x) (hf : Frame x y) : Prepared p y :=
+  ⟨(hf.2 count (by decide)).trans hx.count_eq, fun j =>
+    (hf.2 (parameter j) (by dsimp [parameter, headerBank, bank]; omega)).trans (hx.words_eq j)⟩
 
 /-- Caller scratch registers zero through nine are disjoint from the loaded header. -/
 theorem Prepared.set_low {w n : ℕ} {keys : Fin n → ℕ} {p : NodeParameters w keys}
     {x : Data registers} (hx : Prepared p x) (i : Fin registers) (v : ℕ) (hi : i.val < 10) :
-    Prepared p (x.set i v) := by
-  constructor
-  · have hn : count ≠ i := by
+    Prepared p (x.set i v) :=
+  ⟨(Function.update_of_ne (by
       intro he
       have := congrArg Fin.val he
       dsimp only [count, headerBank, bank] at this
-      omega
-    exact (Function.update_of_ne hn _ _).trans hx.count_eq
-  · intro j
-    have hn : parameter j ≠ i := by
+      omega) _ _).trans hx.count_eq,
+   fun j => (Function.update_of_ne (by
       intro he
       have := congrArg Fin.val he
       dsimp only [parameter, headerBank, bank] at this
-      omega
-    exact (Function.update_of_ne hn _ _).trans (hx.words_eq j)
+      omega) _ _).trans (hx.words_eq j)⟩
 
 end Cslib.DataStructure.FusionTree.WordRAM.NodeProgram

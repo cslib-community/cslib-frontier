@@ -70,18 +70,13 @@ theorem rawCubeDigit_le_ten {L : ℕ} (π : Cube L) (k : ℕ) : rawCubeDigit π 
   cases h : π k with
   | star => simp [cubeDigit, h]
   | term lam =>
-    have he : (Encoding.termDigits.symm lam).val = 9 ↔ lam = .P0 := by
-      constructor
-      · intro hh
-        have hf : Encoding.termDigits.symm lam = 9 := Fin.ext hh
-        calc
-          lam = Encoding.termDigits (Encoding.termDigits.symm lam) :=
-            (Encoding.termDigits.apply_symm_apply lam).symm
-          _ = Encoding.termDigits 9 := congrArg Encoding.termDigits hf
-          _ = .P0 := by decide
-      · intro hh
-        simp [hh, Encoding.termDigits]
-    simpa [cubeDigit, h] using he
+    simp only [cubeDigit, h, CubeSymbol.term.injEq]
+    refine ⟨fun hh => ?_, fun hh => by simp [hh, Encoding.termDigits]⟩
+    calc
+      lam = Encoding.termDigits (Encoding.termDigits.symm lam) :=
+        (Encoding.termDigits.apply_symm_apply lam).symm
+      _ = Encoding.termDigits 9 := congrArg Encoding.termDigits (Fin.ext hh)
+      _ = .P0 := by decide
 
 /-- Native prefix completion is the ordinary little-endian weighted digit sum. -/
 theorem lookupCompletion_eq_sum (raw : ℕ → ℕ) (k : ℕ) :
@@ -97,9 +92,9 @@ theorem lookupCompletion_lt {raw : ℕ → ℕ} {k : ℕ} (hraw : ∀ i < k, raw
   induction k with
   | zero => simp [lookupCompletion]
   | succ k ih =>
-    have hk := ih (fun i hi => hraw i (by omega))
+    have hk := ih fun i hi => hraw i (by omega)
     have hd : (if raw k = 10 then 9 else raw k) ≤ 9 := by
-      split <;> have h := hraw k (by omega) <;> omega
+      split <;> have := hraw k (by omega) <;> omega
     calc
       lookupCompletion raw (k + 1) <
           10 ^ k + (if raw k = 10 then 9 else raw k) * 10 ^ k :=
@@ -112,36 +107,28 @@ theorem lookupCompletion_rawCubeDigit {L : ℕ} (π : Cube L) :
     lookupCompletion (rawCubeDigit π) L = (Encoding.leafIndex π.starsToP0).val := by
   rw [lookupCompletion_eq_sum, ← Fin.sum_univ_eq_sum_range, Encoding.leafIndex,
     finFunctionFinEquiv_apply]
-  apply sum_congr rfl
-  intro k _
+  refine sum_congr rfl fun k _ => ?_
   rw [rawCubeDigit_fin]
   cases h : π k with
   | star => simp [cubeDigit, Cube.starsToP0, h, Encoding.termDigits]
-  | term lam =>
-    have hn : (Encoding.termDigits.symm lam).val ≠ 10 :=
-      Nat.ne_of_lt (Encoding.termDigits.symm lam).isLt
-    simp [cubeDigit, Cube.starsToP0, h, hn]
+  | term lam => simp [cubeDigit, Cube.starsToP0, h, (Encoding.termDigits.symm lam).isLt.ne]
 
 private theorem count_rawCubeDigit {L : ℕ} (π : Cube L) (p : ℕ → Prop) [DecidablePred p] :
     Nat.count (fun i => p (rawCubeDigit π i)) L =
       (univ.filter fun k : Fin L => p (cubeDigit π k)).card := by
   rw [Nat.count_eq_card_filter_range]
-  symm
-  refine card_bij (fun k _ => k.val) ?_ ?_ ?_
-  · intro k hk
-    exact mem_filter.mpr ⟨mem_range.mpr k.isLt, by
-      simpa only [rawCubeDigit_fin] using (mem_filter.mp hk).2⟩
-  · intro k _ k' _ hh
-    exact Fin.ext hh
-  · intro i hi
-    obtain ⟨hiL, hp⟩ := mem_filter.mp hi
-    refine ⟨⟨i, mem_range.mp hiL⟩, mem_filter.mpr ⟨mem_univ _, ?_⟩, rfl⟩
-    simpa only [rawCubeDigit, dite_eq_left (mem_range.mp hiL)] using hp
+  refine (card_bij (fun k _ => k.val)
+    (fun k hk => mem_filter.mpr ⟨mem_range.mpr k.isLt,
+      by simpa only [rawCubeDigit_fin] using (mem_filter.mp hk).2⟩)
+    (fun _ _ _ _ hh => Fin.ext hh) fun i hi => ?_).symm
+  obtain ⟨hiL, hp⟩ := mem_filter.mp hi
+  exact ⟨⟨i, mem_range.mp hiL⟩, mem_filter.mpr ⟨mem_univ _,
+    by simpa only [rawCubeDigit, dite_eq_left (mem_range.mp hiL)] using hp⟩, rfl⟩
 
 /-- The native star counter reads the actual finite cube's star count. -/
 theorem count_rawCubeDigit_stars {L : ℕ} (π : Cube L) :
     Nat.count (fun i => rawCubeDigit π i = 10) L = π.starLevels.card := by
-  rw [count_rawCubeDigit π (fun d => d = 10)]
+  rw [count_rawCubeDigit π (· = 10)]
   congr 1
   ext k
   simp
@@ -150,12 +137,12 @@ theorem count_rawCubeDigit_stars {L : ℕ} (π : Cube L) :
 theorem count_rawCubeDigit_population {L : ℕ} (π : Cube L) :
     Nat.count (fun i => rawCubeDigit π i = 9 ∨ rawCubeDigit π i = 10) L =
       π.starLevels.card + π.P0Levels.card := by
-  rw [count_rawCubeDigit π (fun d => d = 9 ∨ d = 10)]
   have hf : (univ.filter fun k : Fin L => cubeDigit π k = 9 ∨ cubeDigit π k = 10) =
       π.starLevels ∪ π.P0Levels := by
     ext k
     simp [or_comm]
-  rw [hf, card_union_of_disjoint π.disjoint_starLevels_P0Levels]
+  rw [count_rawCubeDigit π (fun d => d = 9 ∨ d = 10), hf,
+    card_union_of_disjoint π.disjoint_starLevels_P0Levels]
 
 /-- Completing stars preserves the population counted by the native lookup scan. -/
 theorem population_lookupCompletion {L : ℕ} (π : Cube L) :
@@ -170,18 +157,16 @@ theorem no_fixed_before_star {L m t : ℕ} {π : Cube L} (hπ : IsBox m t π)
     (k : Fin L) (hk : π k = .star) :
     ¬ ∃ i : Fin L, i < k ∧ cubeDigit π i = 9 := by
   rintro ⟨i, hik, hi⟩
-  have hki := hπ.2 k (Cube.mem_starLevels.mpr hk) i
-    (Cube.mem_P0Levels.mpr ((cubeDigit_eq_nine_iff π i).mp hi))
-  exact lt_asymm hik hki
+  exact lt_asymm hik (hπ.2 k (Cube.mem_starLevels.mpr hk) i
+    (Cube.mem_P0Levels.mpr ((cubeDigit_eq_nine_iff π i).mp hi)))
 
 /-- Natural-index form of the order invariant consumed by the native lookup scan. -/
 theorem rawCubeDigit_no_fixed_before_star {L m t : ℕ} {π : Cube L} (hπ : IsBox m t π)
     {k : ℕ} (hk : k < L) (hs : rawCubeDigit π k = 10) :
     ¬ ∃ i < k, rawCubeDigit π i = 9 := by
   rintro ⟨i, hik, hi⟩
-  have hiL : i < L := hik.trans hk
-  apply no_fixed_before_star hπ ⟨k, hk⟩
+  exact no_fixed_before_star hπ ⟨k, hk⟩
     ((cubeDigit_eq_ten_iff π _).mp (by simpa only [rawCubeDigit, dite_eq_left hk] using hs))
-  exact ⟨⟨i, hiL⟩, hik, by simpa only [rawCubeDigit, dite_eq_left hiL] using hi⟩
+    ⟨⟨i, hik.trans hk⟩, hik, by simpa only [rawCubeDigit, dite_eq_left (hik.trans hk)] using hi⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

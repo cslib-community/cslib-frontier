@@ -169,12 +169,8 @@ private theorem crossing_literal_count (p : Point) :
 
 private theorem links_literal_count (sites : List Point) (r : Route) :
     ((links sites r).map fun c => c.1.length).sum = 4 * (r.length - 2) := by
-  have hmap : (links sites r).map (fun c => c.1.length) = (links sites r).map (fun _ => 2) :=
-    List.map_congr_left fun c hc => width_links sites r c hc
-  rw [hmap]
-  have hsum : ((links sites r).map fun _ => 2).sum = 2 * (links sites r).length := by
-    simp [Nat.mul_comm]
-  rw [hsum, length_links]
+  rw [List.map_congr_left (width_links sites r)]
+  simp only [List.map_const', List.sum_replicate, smul_eq_mul, length_links]
   omega
 
 /-- Exact literal count, including repetitions and all ordinary ring ports. -/
@@ -202,10 +198,9 @@ theorem length_formula_le (φ : CNF ℕ) :
   have ho := ordinaryCells_length_le φ
   have hc := crossingSites_length_le φ
   have hl := PlanarCompile.linkCount_le φ
+  simp only [PlanarCompile.budget, SAT.length_vertices_incidenceGraph,
+    SAT.length_edges_incidenceGraph] at ho hl
   rw [length_formula]
-  have hb : PlanarCompile.budget φ = 80 * (φ.numVars + φ.length) + 10 * φ.vars.length := by
-    simp [PlanarCompile.budget, SAT.length_vertices_incidenceGraph, SAT.length_edges_incidenceGraph]
-  rw [hb] at ho hl
   nlinarith
 
 /-- A generous explicit quadratic bound on output literal occurrences. -/
@@ -214,10 +209,9 @@ theorem length_vars_formula_le (φ : CNF ℕ) :
   have ho := ordinaryCells_length_le φ
   have hc := crossingSites_length_le φ
   have hl := PlanarCompile.linkCount_le φ
+  simp only [PlanarCompile.budget, SAT.length_vertices_incidenceGraph,
+    SAT.length_edges_incidenceGraph] at ho hl
   rw [length_vars_formula]
-  have hb : PlanarCompile.budget φ = 80 * (φ.numVars + φ.length) + 10 * φ.vars.length := by
-    simp [PlanarCompile.budget, SAT.length_vertices_incidenceGraph, SAT.length_edges_incidenceGraph]
-  rw [hb] at ho hl
   nlinarith
 
 end Cslib.Complexity.SAT.ParsimoniousPlanar

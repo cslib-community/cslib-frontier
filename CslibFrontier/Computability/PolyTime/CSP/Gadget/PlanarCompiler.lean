@@ -61,15 +61,11 @@ theorem verifyRotationCertificate_compileGadgets_iff
     verifyRotationCertificate (compileGadgets gadgets witnesses B p).1
       (compileGadgets gadgets witnesses B p).2 = true ↔ sourceGuard srcArity p = true := by
   cases hg : sourceGuard srcArity p
-  · have h := verifyRotationCertificate_compile_of_sourceGuard_false srcArity B
-      (fun r => (gadgets r).template)
-      (fun r => freeBoundaryBlocks (gadgets r) (witnesses r))
-      (fun r => auxiliaryBoundaryBlocks (gadgets r) (witnesses r)) p hg
-    simp only [compileGadgets, h, Bool.false_eq_true]
+  · simp [compileGadgets,
+      verifyRotationCertificate_compile_of_sourceGuard_false srcArity B _ _ _ p hg]
   · obtain ⟨hF, hc⟩ := (sourceGuard_eq_true_iff srcArity p).mp hg
-    have ht := verifyRotationCertificate_replacementCertificate
-      gadgets witnesses B hB p.1 hF p.2 hc
-    simp only [compileGadgets, compile, hg, ite_true, ht]
+    simp [compileGadgets, compile, hg,
+      verifyRotationCertificate_replacementCertificate gadgets witnesses B hB p.1 hF p.2 hc]
 
 /-- Complete guarded satisfiability equivalence on all raw inputs, including malformed
 scopes, malformed certificates, empty alphabets and nullary or closed components. -/
@@ -84,18 +80,15 @@ theorem wellFormed_certifiedSatisfiable_compileGadgets_iff
       (compileGadgets gadgets witnesses B p).1.Satisfiable sem) ↔
       WellFormed srcArity p.1 ∧ verifyRotationCertificate p.1 p.2 = true ∧
         p.1.Satisfiable srcSem := by
-  rw [verifyRotationCertificate_compileGadgets_iff gadgets witnesses B hB p]
-  have hw := wellFormed_compileGadgets gadgets witnesses B p
-  simp only [hw, true_and]
+  simp only [verifyRotationCertificate_compileGadgets_iff gadgets witnesses B hB p,
+    wellFormed_compileGadgets gadgets witnesses B p, true_and]
   cases hg : sourceGuard srcArity p
-  · have hn : ¬ (WellFormed srcArity p.1 ∧ verifyRotationCertificate p.1 p.2 = true) := by
-      rw [← sourceGuard_eq_true_iff, hg]
-      exact Bool.false_ne_true
-    simp only [Bool.false_eq_true, false_and, false_iff, ← and_assoc]
-    exact fun h => hn h.1
+  · have hn : ¬(WellFormed srcArity p.1 ∧ verifyRotationCertificate p.1 p.2 = true) := by
+      rw [← sourceGuard_eq_true_iff, hg]; decide
+    simp [← and_assoc, hn]
   · obtain ⟨hF, hc⟩ := (sourceGuard_eq_true_iff srcArity p).mp hg
-    simp only [true_and, hF, hc, compileGadgets, compile, hg, ite_true]
-    exact satisfiable_replaceGadgets_iff gadgets B hB p.1 hF
+    simpa [compileGadgets, compile, hg, hF, hc] using
+      satisfiable_replaceGadgets_iff gadgets B hB p.1 hF
 
 /-- Ordinary native polynomial time for the actual checked family on every binary/framed
 input. The source alphabet alone is finite; no input-validity premise funds a clock. -/

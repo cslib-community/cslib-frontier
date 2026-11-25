@@ -151,7 +151,8 @@ theorem map_fst_links (sites : List Point) (r : Route) :
   apply List.ext_getElem
   · simp [wire, List.consecutivePairs]
   · intro i hi hj
-    have hi' : i + 2 < r.length := by grind
+    simp only [List.length_map, List.consecutivePairs, List.length_zip, List.length_tail,
+      length_wire] at hj
     simp only [List.getElem_map, List.consecutivePairs, List.getElem_zip, List.getElem_tail]
     rw [getElem_wire sites r i (by omega), getElem_wire sites r (i + 1) (by omega)]
     simp only [List.getElem_dropLast]
@@ -169,11 +170,8 @@ def sourceValue (φ : CNF ℕ) (σ : Variable → Bool) (v : ℕ) : Bool :=
 theorem wire_ne_nil {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
     wire (crossingSites φ) (occurrencePath φ o) ≠ [] := by
-  have hlen := PlanarCompile.occurrencePath_length_ge_two ho
-  change 2 ≤ (occurrencePath φ o).length at hlen
-  intro he
-  have hw := length_wire (crossingSites φ) (occurrencePath φ o)
-  rw [he, List.length_nil] at hw
+  have hlen : 2 ≤ (occurrencePath φ o).length := PlanarCompile.occurrencePath_length_ge_two ho
+  rw [← List.length_pos_iff_ne_nil, length_wire]
   omega
 
 /-- The actual first entry has the source cell's value. -/
@@ -182,36 +180,27 @@ theorem wire_first_value {φ : CNF ℕ} {σ : Variable → Bool}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) (fallback : PairedWire.Cell Variable) :
     σ (((wire (crossingSites φ) (occurrencePath φ o)).headD fallback 0).1) =
       sourceValue φ σ o.lit.1 := by
-  have hlen := PlanarCompile.occurrencePath_length_ge_two ho
-  change 2 ≤ (occurrencePath φ o).length at hlen
+  have hlen : 2 ≤ (occurrencePath φ o).length := PlanarCompile.occurrencePath_length_ge_two ho
   have hwpos : 0 < (wire (crossingSites φ) (occurrencePath φ o)).length := by
-    rw [length_wire]
-    omega
+    rw [length_wire]; omega
   have hhead : (wire (crossingSites φ) (occurrencePath φ o)).headD fallback =
       (wire (crossingSites φ) (occurrencePath φ o))[0] := by
-    generalize hc : wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
+    generalize wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
     cases xs with
-    | nil => simp at hwpos
-    | cons a rest => rfl
-  have hp := (PlanarCompile.occurrencePath_endpoints ho).1
-  change (occurrencePath φ o).head? = _ at hp
+    | nil => cases hwpos
+    | cons _ _ => rfl
+  have hp : (occurrencePath φ o).head? = some (Layout.center (φ.distinctVars.idxOf o.lit.1)) :=
+    (PlanarCompile.occurrencePath_endpoints ho).1
   rw [List.head?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hp
   have hp' : (occurrencePath φ o)[0] = Layout.center (φ.distinctVars.idxOf o.lit.1) :=
     Option.some.inj hp
-  have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈
-      (occurrencePath φ o).dropLast := by
-    rw [← hp']
-    have hdrop : 0 < (occurrencePath φ o).dropLast.length := by
-      simp only [List.length_dropLast]
-      omega
-    rw [← List.getElem_dropLast hdrop]
+  have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈ (occurrencePath φ o).dropLast := by
+    rw [← hp', ← List.getElem_dropLast (by simp only [List.length_dropLast]; omega)]
     exact List.getElem_mem _
   have hord := (mem_ordinaryCells φ _).2
     ⟨⟨_, PlanarCompile.occurrencePath_mem_paths ho, hret⟩,
       PlanarCompile.source_center_not_crossing ho⟩
-  rw [hhead, getElem_wire _ _ 0 (by omega)]
-  simp only [Nat.zero_sub]
-  rw [List.getD_eq_getElem _ _ (by omega), hp']
+  rw [hhead, getElem_wire _ _ 0 (by omega), Nat.zero_sub, List.getD_eq_getElem _ _ (by omega), hp']
   exact ordinary_port_value h hord _ 0
 
 /-- Every actual entry and exit along an occurrence wire has exactly its source value. -/
@@ -276,25 +265,22 @@ theorem eval_originalClauses_of_values (φ : CNF ℕ) (sites : List Point)
       calc
         _ = c.1.zipIdx.map (fun l => Literal.eval τ l.1) := by
           rw [List.map_map]
-          apply List.map_congr_left
-          intro l hl
-          have ho := mk_mem_occurrences_of_mem_zipIdx hc hl
-          simp only [Function.comp_def, Literal.eval]
-          rw [hvalues _ ho]
+          refine List.map_congr_left fun l hl => ?_
+          simp only [Function.comp_def, Literal.eval,
+            hvalues _ (mk_mem_occurrences_of_mem_zipIdx hc hl)]
           rfl
         _ = _ := map_zipIdx_fst (Literal.eval τ) c.1
-    have he := congrArg (fun bs : List Bool => bs.any id) hm
-    simpa only [List.any_map, Function.comp_def, id_eq, Clause.eval] using he
+    simpa only [List.any_map, Function.comp_def, id_eq, Clause.eval] using
+      congrArg (List.any · id) hm
   have hm : ((originalClauses φ sites).map Prod.fst).map (Clause.eval σ) =
       φ.map (Clause.eval τ) := by
     calc
       _ = φ.zipIdx.map (fun c => Clause.eval τ c.1) := by
         simp only [originalClauses, List.map_map, Function.comp_def]
-        apply List.map_congr_left
-        exact hc
+        exact List.map_congr_left hc
       _ = _ := map_zipIdx_fst (Clause.eval τ) φ
-  have he := congrArg (fun bs : List Bool => bs.all id) hm
-  simpa only [List.all_map, Function.comp_def, id_eq, CNF.eval] using he
+  simpa only [List.all_map, Function.comp_def, id_eq, CNF.eval] using
+    congrArg (List.all · id) hm
 
 /-- Every satisfying output assignment projects to a satisfying source assignment. -/
 theorem eval_source_of_rawFormula {φ : CNF ℕ}
@@ -344,20 +330,14 @@ theorem exists_compatible_assignment {φ : CNF ℕ}
       (∀ p ∈ crossingSites φ,
         PairedCrossover.formula.eval (fun v => σ (p, Sum.inr v)) = true) := by
   obtain ⟨σ, hcompat, hcross⟩ := PlanarCompile.exists_compatible_assignment hw hv τ
-  refine ⟨liftAssignment σ, ?_, ?_, ?_⟩
-  · intro o ho c hc lane
-    unfold wire at hc
-    obtain ⟨⟨p, k⟩, hpk, rfl⟩ := List.mem_map.mp hc
-    dsimp only
-    rw [liftAssignment_signal _ σ hcross, liftAssignment_signal _ σ hcross]
-    apply hcompat o ho
-      (PlanarCompile.signal (crossingSites φ) p ((occurrencePath φ o).getD (k - 1) p),
-        PlanarCompile.signal (crossingSites φ) p ((occurrencePath φ o).getD (k + 1) p))
-    exact List.mem_map.mpr ⟨(p, k), hpk, rfl⟩
-  · intro p _
-    exact OrdinaryRing.eval_constant _
-  · intro p _
-    exact PairedCrossover.eval_canonicalExtension _ _
+  refine ⟨liftAssignment σ, ?_, fun _ _ => OrdinaryRing.eval_constant _,
+    fun _ _ => PairedCrossover.eval_canonicalExtension _ _⟩
+  intro o ho c hc lane
+  unfold wire at hc
+  obtain ⟨⟨p, k⟩, hpk, rfl⟩ := List.mem_map.mp hc
+  dsimp only
+  rw [liftAssignment_signal _ σ hcross, liftAssignment_signal _ σ hcross]
+  exact hcompat o ho _ (List.mem_map.mpr ⟨(p, k), hpk, rfl⟩)
 
 /-- Compatible local assignments satisfy the actual output if the source holds. -/
 theorem eval_rawFormula_of_compatible {φ : CNF ℕ} (τ : ℕ → Bool) (σ : Variable → Bool)
@@ -369,20 +349,11 @@ theorem eval_rawFormula_of_compatible {φ : CNF ℕ} (τ : ℕ → Bool) (σ : V
     (hcross : ∀ p ∈ crossingSites φ,
       PairedCrossover.formula.eval (fun v => σ (p, Sum.inr v)) = true)
     (h : φ.eval τ = true) : (rawFormula φ).eval σ = true := by
-  apply (eval_rawFormula_iff φ σ).2
-  refine ⟨?_, hord, hcross, ?_⟩
-  · rw [eval_originalClauses_of_values φ (crossingSites φ) σ τ ?_]
-    · exact h
-    · intro o ho
-      exact lastLiteral_value_of_wire _ _ _ _ σ
-        (PlanarCompile.occurrencePath_length_ge_two ho) (hcompat o ho)
-  · intro o ho
-    rw [map_fst_links]
+  refine (eval_rawFormula_iff φ σ).2 ⟨?_, hord, hcross, fun o ho => ?_⟩
+  · rwa [eval_originalClauses_of_values φ (crossingSites φ) σ τ fun o ho =>
+      lastLiteral_value_of_wire _ _ _ _ σ (PlanarCompile.occurrencePath_length_ge_two ho)
+        (hcompat o ho)]
+  · rw [map_fst_links]
     exact PairedWire.eval_links_of_constant σ (τ o.lit.1) _ (hcompat o ho)
-
-
-
-
-
 
 end Cslib.Complexity.SAT.ParsimoniousPlanar

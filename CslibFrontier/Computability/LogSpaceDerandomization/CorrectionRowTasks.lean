@@ -154,6 +154,7 @@ theorem rank_lt_of_mem_children {k : ℕ} {parent child : CorrectionRowTask}
   | pilot t =>
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp h
     exact PilotRowTask.rank_lt_of_mem_children hs
+  | previousReward => simp [children] at h
   | correction i =>
     cases i with
     | zero => simp [children] at h
@@ -161,34 +162,14 @@ theorem rank_lt_of_mem_children {k : ℕ} {parent child : CorrectionRowTask}
       simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
       rcases h with rfl | rfl | rfl <;>
         simp only [rank, PilotRowTask.rank, PilotTask.rank] <;> omega
-  | input i =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl <;> simp only [rank, PilotRowTask.rank, PilotTask.rank] <;> omega
-  | preparation i =>
-    simp only [children, List.mem_singleton] at h
-    subst child
-    simp only [rank]
-    omega
-  | normalized i =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl | rfl <;> simp only [rank, PilotRowTask.rank, PilotTask.rank] <;> omega
-  | previousReward => simp [children] at h
-  | weights =>
-    simp only [children, List.mem_singleton] at h
-    subst child
-    simp only [rank, PilotRowTask.rank, PilotTask.rank]
-    omega
-  | reward i =>
-    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with rfl | rfl <;> simp only [rank] <;> omega
   | projectedReward i =>
-    cases i with
-    | zero =>
-      simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-      rcases h with rfl | rfl <;> simp only [rank] <;> omega
-    | succ i =>
-      simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-      rcases h with rfl | rfl | rfl | rfl <;> simp only [rank] <;> omega
+    cases i <;>
+      (simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
+       rcases h with rfl | rfl | rfl | rfl <;> simp only [rank] <;> omega)
+  | _ =>
+    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
+    rcases h with rfl | rfl | rfl <;>
+      simp only [rank, PilotRowTask.rank, PilotTask.rank] <;> omega
 
 /-- A channel argument includes its role, rate and already inherited padding.
 The suffix type is abstract: this does not introduce a native identifier encoding. -/
@@ -267,6 +248,18 @@ theorem scheduled_child_cost_le {k : ℕ} {parent child : CorrectionRowTask}
   Cslib.LogSpaceEstimation.scheduled_child_cost_le hA M d c (parent.rank k) (child.rank k) hc h
     (rank_lt_of_mem_children hchild) ha ha' hu huu' hscale
 
+private theorem rewardRequest_source_rate_le {Role Suffix : Type*}
+    {source broadSource midpoint : Channel Role Suffix} {i : ℕ} {r : Request Role Suffix}
+    (hr : r ∈ rewardRequests source broadSource midpoint i)
+    {f : ℝ} (hbroad : broadSource.rate = f) (hmid : midpoint.rate = f) (huf : source.rate ≤ f) :
+    source.rate ≤ r.source.rate := by
+  simp only [rewardRequests, List.mem_cons, List.not_mem_nil, or_false] at hr
+  rcases hr with rfl | rfl | rfl | rfl
+  · exact hbroad.symm ▸ huf
+  · exact le_rfl
+  · exact le_rfl
+  · exact hmid.symm ▸ huf
+
 /-- Calls of the concrete copy/reward recipe pay for their inherited or reset source rate.
 The broad detector and midpoint channels are at the stage rate, as in (7.5). -/
 theorem reward_request_cost_le {Role Suffix : Type*}
@@ -282,16 +275,9 @@ theorem reward_request_cost_le {Role Suffix : Type*}
       (2 : ℝ) ^ (-Cslib.LogSpaceEstimation.precision (16 * c) A M
         ((projectedReward (i + 1)).rank k) f source.rate - A +
         (d : ℝ) / (16 * c) + 1 / 16) * Cslib.LogSpaceEstimation.scaleMajorant 0 := by
-  have hrates : source.rate ≤ r.source.rate := by
-    simp only [rewardRequests, List.mem_cons, List.not_mem_nil, or_false] at hr
-    rcases hr with rfl | rfl | rfl | rfl
-    · simpa only [hbroad] using huf
-    · exact le_rfl
-    · exact le_rfl
-    · simpa only [hmid] using huf
   simpa only [Int.cast_zero] using
     scheduled_child_cost_le (k := k) (rewardRequest_mem_children hr) hA M d c hc 0
-      hf hf hu hrates (by simp [ne_of_gt hf])
+      hf hf hu (rewardRequest_source_rate_le hr hbroad hmid huf) (by simp [ne_of_gt hf])
 
 /-- Pilot values keep their existing types; stochastic rows have two seed coordinates. -/
 abbrev Value (m : ℕ) (V κ Γ Ζ : Type u) : CorrectionRowTask → Type _
@@ -595,15 +581,10 @@ theorem expect_rewardRequests
         A.value W (.projectedReward (i + 1)) a ∧
       ∀ r ∈ rewardRequests source broadSource midpoint i,
         r.task.rank P.k < (projectedReward (i + 1)).rank P.k ∧
-          source.rate ≤ r.source.rate := by
-  refine ⟨A.expect_projectedRewardRecipe hf hC hC1 hCf hi W a hx, fun r hr =>
-    ⟨rank_lt_of_mem_children (rewardRequest_mem_children hr), ?_⟩⟩
-  simp only [rewardRequests, List.mem_cons, List.not_mem_nil, or_false] at hr
-  rcases hr with rfl | rfl | rfl | rfl
-  · simpa only [hbroad] using huf
-  · exact le_rfl
-  · exact le_rfl
-  · simpa only [hmid] using huf
+          source.rate ≤ r.source.rate :=
+  ⟨A.expect_projectedRewardRecipe hf hC hC1 hCf hi W a hx, fun _ hr =>
+    ⟨rank_lt_of_mem_children (rewardRequest_mem_children hr),
+      rewardRequest_source_rate_le hr hbroad hmid huf⟩⟩
 
 end CorrectionRowTask
 end Matrix.HierarchyParams

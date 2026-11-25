@@ -233,40 +233,25 @@ private theorem realize_foldr_or (l : List (Formula α m n)) :
     (first x : Formula α m n).Realize w v V ↔ (v x : ℕ) = 0 := by
   simp only [first, realize_all, realize_not, realize_lt, Fin.snoc_last, Fin.snoc_castSucc,
     not_lt, Fin.le_def]
-  constructor
-  · intro h
-    have := h ⟨0, Fin.pos (v x)⟩
-    simp only at this
-    omega
-  · intro h i
-    omega
+  exact ⟨fun h => Nat.eq_zero_of_le_zero (h ⟨0, Fin.pos (v x)⟩), fun h i => by omega⟩
 
 @[simp] theorem realize_last (x : Fin m) :
     (last x : Formula α m n).Realize w v V ↔ (v x : ℕ) + 1 = ℓ := by
   simp only [last, realize_all, realize_not, realize_lt, Fin.snoc_last, Fin.snoc_castSucc,
     not_lt, Fin.le_def]
   have hx := (v x).isLt
-  constructor
-  · intro h
-    by_contra hne
-    have := h ⟨v x + 1, by omega⟩
-    simp only at this
-    omega
-  · intro h i
-    have := i.isLt
-    omega
+  refine ⟨fun h => ?_, fun h i => Nat.le_of_lt_succ (i.isLt.trans_eq h.symm)⟩
+  by_contra hne
+  exact Nat.not_succ_le_self _ (h ⟨v x + 1, by omega⟩)
 
 @[simp] theorem realize_succ (x y : Fin m) :
     (succ x y : Formula α m n).Realize w v V ↔ (v y : ℕ) = v x + 1 := by
   simp only [succ, realize_and, realize_lt, realize_all, realize_not, Fin.snoc_last,
     Fin.snoc_castSucc, Fin.lt_def]
   have hy := (v y).isLt
-  constructor
-  · rintro ⟨hxy, h⟩
-    by_contra hne
-    exact h ⟨v x + 1, by omega⟩ ⟨by simp, by simp only; omega⟩
-  · intro h
-    exact ⟨by omega, fun i ⟨h₁, h₂⟩ => by omega⟩
+  refine ⟨fun ⟨hxy, h⟩ => ?_, fun h => ⟨h ▸ Nat.lt_succ_self _, fun i ⟨h₁, h₂⟩ => by omega⟩⟩
+  by_contra hne
+  exact h ⟨v x + 1, by omega⟩ ⟨Nat.lt_succ_self _, Nat.lt_of_le_of_ne hxy (Ne.symm hne)⟩
 
 end Realize
 

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Program
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Meaning
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.Tiling
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 
 /-!
 # Native routing of one wanted position
@@ -55,10 +56,6 @@ def RouteLocal (i : Fin 96) : Prop := i.val < 16 ∨ i = rowBand ∨ i = colBand
 instance (i : Fin 96) : Decidable (RouteLocal i) :=
   inferInstanceAs (Decidable (i.val < 16 ∨ i = rowBand ∨ i = colBand ∨ i = tile))
 
-private theorem route_preserves (i : Fin 96) (hi : ¬RouteLocal i) : routeCode.Preserves i := by
-  revert i
-  decide +kernel
-
 /-- The register map embeds the packer without identifying any pair of registers. -/
 theorem packRegisters_injective : Function.Injective packRegisters := by
   intro i j h
@@ -102,12 +99,10 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   have hv : v ≤ N := (Nat.div_le_self _ _).trans J.isLt.le
   have hg : g.val < K0 L m := g.isLt
   have hh : h.val < K0 L m := h.isLt
+  have hp : rank = (MaskTable.pairRank (g, h)).val := by
+    change g.val * K0 L m + h.val = h.val + K0 L m * g.val; ring
   have hrank : rank < 2 ^ L := by
-    have hp : rank = (MaskTable.pairRank (g, h)).val := by
-      change g.val * K0 L m + h.val = h.val + K0 L m * g.val
-      ring
-    rw [hp]
-    exact (MaskTable.pairRank (g, h)).isLt.trans_le (Nat.choose_le_two_pow L m)
+    rw [hp]; exact (MaskTable.pairRank (g, h)).isLt.trans_le (Nat.choose_le_two_pow L m)
   have hmul : g.val * K0 L m ≤ rank := by dsimp [rank]; omega
   have ha : a < 2 ^ L := (MaskTable.selectedMask (g, h)).isLt
   have hr : r ≤ N := (Nat.mod_le _ _).trans I.isLt.le
@@ -124,63 +119,42 @@ theorem exec_route {w L m N tab : ℕ} (hm : m ≤ L) (I J : Fin N) (x : Data 96
   have hfc : Fits w c := hbfit _ (by omega)
   have hfu : Fits w u := hbfit _ (by omega)
   have hfv : Fits w v := hbfit _ (by omega)
-  have hfg : Fits w g.val := hbfit _ (by
-    have hle : g.val ≤ u := Nat.mod_le _ _
-    omega)
-  have hfh : Fits w h.val := hbfit _ (by
-    have hle : h.val ≤ v := Nat.mod_le _ _
-    omega)
+  have hfg : Fits w g.val := hbfit _ (by have hle : g.val ≤ u := Nat.mod_le _ _; omega)
+  have hfh : Fits w h.val := hbfit _ (by have hle : h.val ≤ v := Nat.mod_le _ _; omega)
   have hfgmul : Fits w (g.val * K0 L m) := hbfit _ (by omega)
   have hfrank : Fits w rank := hbfit _ (by omega)
   have hfaddr : Fits w (tab + rank) := hbfit _ (by omega)
-  have hload : x.mem (tab + rank) = a := by
-    convert htable (g, h) using 1
-    congr 1
-    change tab + rank = tab + (h.val + K0 L m * g.val)
-    dsimp [rank]
-    ring
-  let y := (((((((((((((((x.set rowBand β).set colBand γ).set tile (β * b)).set
-    tile k).set (packRegisters depth) L).set (packRegisters row) r).set
-    (packRegisters col) c).set (packRegisters mask) u).set (packRegisters mask) g.val).set
-    (packRegisters mask) (g.val * K0 L m)).set (packRegisters temporary) v).set
-    (packRegisters temporary) h.val).set (packRegisters mask) rank).set
-    (packRegisters temporary) (tab + rank)).set (packRegisters mask) a)
-  have he : ExecWithin w routeHead x y 15 := by
-    dsimp only [β, γ, b, k, bandOf] at hfβ hfγ hfprod hfk
-    dsimp only [r, c, u, v, g, h, blockOf, lay] at hfr hfc hfu hfv hfg hfh
-    dsimp only [rank, g, h, blockOf, lay] at hfgmul hfrank hfaddr hload
-    ram_eval [routeHead, tileCode, y, hx.bandWidth, hx.bands, hx.levels, hx.outerSize,
-      hx.root, hx.table, hI, hJ, hfβ, hfγ, hfprod, hfk, hfr, hfc, hfu, hfv, hfg, hfh,
-      hfgmul, hfrank, hfaddr, hload, β, γ, b, k, r, c, u, v, rank, g, h, blockOf,
-      lay, bandOf, packRegisters, depth, mask, row, col, temporary,
-      queryRow, queryCol, rowBand, colBand, tile, BandPreparation.levels,
-      BandPreparation.outerSize, BandPreparation.root, BandPreparation.table,
-      BandPreparation.bands, bandWidth, Fin.reduceFinMk, Fin.mk.injEq]
+  have hload : x.mem (tab + rank) = a := by rw [hp]; exact htable (g, h)
   have hpackfit : Fits w (a + r + c + L + 32 * 10 ^ L + 32) := hfit.of_le (by
     change a + r + c + L + 32 * 10 ^ L + 32 ≤
       64 * (L + N + tab + b ^ 2 + 10 ^ L + 2 ^ L + 1)
     omega)
-  obtain ⟨z, hz, hcode, _, hmem⟩ := exec_pack L a r c (y.comap packRegisters)
-    (by simp [y, packRegisters, depth, row, col, mask, temporary, rowBand, colBand, tile])
-    (by simp [y, packRegisters, mask])
-    (by simp [y, packRegisters, row, col, mask, temporary, depth])
-    (by simp [y, packRegisters, col, mask, temporary, depth]) hpackfit
-  have hrun : ExecWithin w routeCode x (z.extend packRegisters y) (15 * L + 25) := by
-    exact (he.seq (hz.rename packRegisters_injective)).mono (by omega)
-  refine ⟨z.extend packRegisters y, hrun, ?_, ?_, ?_, ?_, hmem, ?_⟩
-  · have hp : (packCode.rename packRegisters).Preserves rowBand := by decide +kernel
-    exact ((hz.rename packRegisters_injective).regs_eq hp).trans (by simp [y, rowBand,
-      colBand, tile, packRegisters, depth, row, col, mask, temporary, β])
-  · have hp : (packCode.rename packRegisters).Preserves colBand := by decide +kernel
-    exact ((hz.rename packRegisters_injective).regs_eq hp).trans (by simp [y, rowBand,
-      colBand, tile, packRegisters, depth, row, col, mask, temporary, γ])
-  · have hp : (packCode.rename packRegisters).Preserves tile := by decide +kernel
-    exact ((hz.rename packRegisters_injective).regs_eq hp).trans (by simp [y, rowBand,
-      colBand, tile, packRegisters, depth, row, col, mask, temporary]; rfl)
-  · have hout := congrArg (fun q : Data 16 => q.regs code)
-      (Data.comap_extend packRegisters_injective z y)
-    exact hout.trans (hcode.trans (pack_outStrOfPos hm I J))
-  · intro i hi
-    exact hrun.regs_eq (route_preserves i hi)
+  dsimp only [β, γ, b, k, bandOf] at hfβ hfγ hfprod hfk
+  dsimp only [r, c, u, v, g, h, blockOf, lay] at hfr hfc hfu hfv hfg hfh
+  dsimp only [rank, g, h, blockOf, lay] at hfgmul hfrank hfaddr hload
+  refine WP.exists_execWithin ?_
+  unfold routeCode
+  conv in routeHead => unfold routeHead tileCode packRegisters
+  wram_exec * [hfβ, hfγ, hfprod, hfk, hfr, hfc, hfu, hfv, hfg, hfh, hfgmul, hfrank, hfaddr,
+    hload]
+  wram_call (exec_pack L a r c _
+    (by simp only [Data.comap_regs, packRegisters]; wram_simp)
+    (by simp only [Data.comap_regs, packRegisters]; wram_simp)
+    (by simp only [Data.comap_regs, packRegisters]; wram_simp; rfl)
+    (by simp only [Data.comap_regs, packRegisters]; wram_simp; rfl)
+    hpackfit) canonical packRegisters_injective with z ⟨hcode, _, hmem⟩
+  have hinj := packRegisters_injective
+  refine ⟨by omega, by wram_simp; rfl, by wram_simp; rfl, by wram_simp; rfl, ?_, hmem,
+    fun i hi => ?_⟩
+  · wram_simp [hcode]
+    exact pack_outStrOfPos hm I J
+  · simp only [RouteLocal, not_or, not_lt] at hi
+    rcases hi with ⟨hi16, hrb, hcb, ht⟩
+    have hout : ∀ k, packRegisters k ≠ i := fun k hk => by
+      have hv := congrArg Fin.val hk; dsimp [packRegisters] at hv; omega
+    have h0 := hout depth; have h1 := hout mask; have h2 := hout row
+    have h3 := hout col; have h4 := hout temporary
+    dsimp only [packRegisters] at h0 h1 h2 h3 h4
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

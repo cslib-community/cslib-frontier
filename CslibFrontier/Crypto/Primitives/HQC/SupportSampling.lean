@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.PMF.MultiplyHigh
 public import CslibFrontier.Probability.PMF.DensityBounds
 public import CslibFrontier.Foundations.Data.List.CollisionReplace
 import CslibFrontier.Tactic.FinIndex
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Order.Interval.Finset.Nat
 
 /-!
@@ -88,27 +89,17 @@ theorem resolveSupport_mem_powersetCard {n offset count : ℕ} (candidates : Fin
   induction count generalizing offset with
   | zero => simp [resolveSupport]
   | succ count ih =>
-    have ht := ih (Fin.tail candidates) (offset := offset + 1) (fun j => by
-      simpa only [Fin.tail, Fin.val_succ, Nat.add_right_comm, Nat.add_assoc] using h j.succ)
-    obtain ⟨hsub, hcard⟩ := mem_powersetCard.mp ht
-    have hp : offset ∉ resolveSupport (offset + 1) (Fin.tail candidates) := by
-      intro hm
-      have := (mem_Ico.mp (hsub hm)).1
-      omega
-    apply mem_powersetCard.mpr
-    constructor
-    · intro x hx
-      have hx' := collisionInsert_subset hsub offset
-        (show candidates 0 ∈ insert offset (Ico (offset + 1) n) from by
-          simp only [mem_insert, mem_Ico]
-          have := h 0
-          simp only [Fin.val_zero, Nat.add_zero] at this
-          omega) hx
+    obtain ⟨hsub, hcard⟩ := mem_powersetCard.mp <| ih (Fin.tail candidates) (offset := offset + 1)
+      fun j => by
+        simpa only [Fin.tail, Fin.val_succ, Nat.add_right_comm, Nat.add_assoc] using h j.succ
+    have h0 : offset ≤ candidates 0 ∧ candidates 0 < n := by simpa using h 0
+    refine mem_powersetCard.mpr ⟨fun x hx => ?_, ?_⟩
+    · have hx' := collisionInsert_subset hsub offset
+        (by simp only [mem_insert, mem_Ico]; omega) hx
       simp only [mem_insert, mem_Ico] at hx' ⊢
-      have h0 := h 0
-      simp only [Fin.val_zero, Nat.add_zero] at h0
       omega
-    · rw [resolveSupport, card_collisionInsert hp, hcard]
+    · rw [resolveSupport,
+        card_collisionInsert (fun hm => by have := (mem_Ico.mp (hsub hm)).1; omega), hcard]
 
 /-- Draw the whole candidate array in increasing order, then resolve collisions in reverse.
 The offset form permits induction on a suffix of the source array. -/
@@ -123,15 +114,13 @@ theorem eval_sampleSupportFrom_succ (draw : ℕ → ProbComp ℕ) (offset count 
         (ProbComp.eval (sampleSupportFrom draw (offset + 1) count)).map
           fun tail => tail.collisionInsert offset r := by
   simp only [sampleSupportFrom, ProbComp.eval_map, OracleComp.pi_succ,
-    ProbComp.eval_bind, ProbComp.eval_map, Fin.val_zero, Nat.add_zero,
+    ProbComp.eval_bind, Fin.val_zero, Nat.add_zero,
     PMF.map_bind, PMF.map_comp, Function.comp_def]
   congr 1 with r : 1
-  have hshift : (fun j : Fin count => draw (offset + j.succ.val)) =
-      (fun j : Fin count => draw (offset + 1 + j.val)) := by
-    funext j
-    congr 1
-    simp only [Fin.val_succ, Nat.add_right_comm, Nat.add_assoc]
-  rw [hshift]
+  have hdraw : (fun j : Fin count => draw (offset + j.succ.val)) =
+      fun j => draw (offset + 1 + j.val) :=
+    funext fun j => congrArg draw (by simp only [Fin.val_succ, Nat.add_right_comm, Nat.add_assoc])
+  rw [hdraw]
   rfl
 
 /-- The source's line 5, using independent fair bits in place of the XOF words. -/
@@ -151,13 +140,6 @@ is only a totality convention; all uniformity theorems require `offset + count �
     (fun j : Fin (n - offset) => offset + j.val) <$> ProbComp.uniform (Fin (n - offset))
   else pure offset
 
-private def intervalEquiv {offset n : ℕ} (h : offset < n) :
-    Fin (n - offset) ≃ ↥(Ico offset n) where
-  toFun j := ⟨offset + j.val, mem_Ico.mpr ⟨by omega, by omega⟩⟩
-  invFun j := ⟨j.val - offset, by have := mem_Ico.mp j.property; omega⟩
-  left_inv j := by fin_index
-  right_inv j := by apply Subtype.ext; dsimp; have := mem_Ico.mp j.property; omega
-
 /-- The ideal candidate is uniform on the complete shrinking interval. -/
 theorem eval_idealCandidate {n offset : ℕ} (h : offset < n) :
     ProbComp.eval (idealCandidate n offset) =
@@ -166,8 +148,9 @@ theorem eval_idealCandidate {n offset : ℕ} (h : offset < n) :
   let : Nonempty ↥(Ico offset n) := ⟨⟨offset, mem_Ico.mpr ⟨le_rfl, h⟩⟩⟩
   simp only [idealCandidate, dite_eq_left h, ProbComp.eval_map, ProbComp.eval_uniform]
   rw [← PMF.uniformOfFintype_finset_map_val]
-  rw [← PMF.uniformOfFintype_map_equiv (intervalEquiv h), PMF.map_comp]
-  rfl
+  relabel_uniform (fun j : Fin (n - offset) =>
+    (⟨offset + j.val, mem_Ico.mpr ⟨by omega, by omega⟩⟩ : ↥(Ico offset n)))
+  simp
 
 /-- Independent exact uniform candidates give an exact uniform fixed-cardinality support. -/
 theorem eval_idealSupport {n offset count : ℕ} (h : offset + count ≤ n) :
@@ -179,19 +162,17 @@ theorem eval_idealSupport {n offset count : ℕ} (h : offset + count ≤ n) :
     ext S
     simp [sampleSupportFrom, resolveSupport, PMF.uniformOfFinset_apply, PMF.pure_apply]
   | succ count ih =>
-    have hoff : offset < n := by omega
     have hrange : insert offset (Ico (offset + 1) n) = Ico offset n := by
-      ext j
-      simp only [mem_insert, mem_Ico]
-      omega
-    rw [eval_sampleSupportFrom_succ, ih (by omega), eval_idealCandidate hoff]
+      ext
+      simp only [mem_insert, mem_Ico]; omega
+    rw [eval_sampleSupportFrom_succ, ih (by omega), eval_idealCandidate (by omega)]
     change ((PMF.uniformOfFinset (Ico offset n) _).bind fun r =>
       (PMF.uniformOfFinset ((Ico (offset + 1) n).powersetCard count) _).bind
         fun U => _root_.PMF.pure (U.collisionInsert offset r)) = _
     rw [_root_.PMF.bind_comm]
-    simpa only [hrange, PMF.map, Function.comp_def] using PMF.uniformOfFinset_collisionInsert
-      (S := Ico (offset + 1) n) (p := offset) (k := count)
-      (by simp) (by rw [Nat.card_Ico]; omega)
+    simpa only [hrange, PMF.map, Function.comp_def] using
+      PMF.uniformOfFinset_collisionInsert (S := Ico (offset + 1) n) (p := offset) (k := count)
+        (by simp) (by rw [Nat.card_Ico]; omega)
 
 /-- A word consists of exactly `width` fair bits, and line 5 uses multiply-high. -/
 theorem eval_sampleCandidate (width n offset : ℕ) :
@@ -219,10 +200,10 @@ theorem sampleSupport2_mem_powersetCard {width n count : ℕ} (h : count ≤ n)
   rw [sampleSupport2, sampleSupportFrom, ProbComp.eval_map, PMF.mem_support_map_iff] at hS
   obtain ⟨candidates, hc, rfl⟩ := hS
   rw [ProbComp.mem_support_pi_iff] at hc
-  have hr := resolveSupport_mem_powersetCard (n := n) (offset := 0) candidates fun j => by
-    simpa only [Nat.zero_add, mem_Ico] using
-      sampleCandidate_mem_Ico (by have := j.isLt; omega) (hc j)
-  simpa only [Nat.Ico_zero_eq_range] using hr
+  simpa only [Nat.Ico_zero_eq_range] using
+    resolveSupport_mem_powersetCard (n := n) (offset := 0) candidates fun j => by
+      simpa only [Nat.zero_add, mem_Ico] using
+        sampleCandidate_mem_Ico (by have := j.isLt; omega) (hc j)
 
 /-- The deterministic output from a fixed array of bounded words. This is the formula on
 line 5 followed by the descending collision pass, without any distributional idealization. -/
@@ -234,14 +215,12 @@ line 5 followed by the descending collision pass, without any distributional ide
 theorem supportFromWords_mem_powersetCard {width n count : ℕ} (h : count ≤ n)
     (words : Fin count → Fin (2 ^ width)) :
     supportFromWords width n words ∈ (range n).powersetCard count := by
-  have hc (j : Fin count) : j.val < n := j.isLt.trans_le h
-  have hr := resolveSupport_mem_powersetCard (n := n) (offset := 0)
-    (fun j => j.val + (words j).val * (n - j.val) / 2 ^ width) fun j => by
-      have hm := Nat.mul_div_lt_of_lt (M := 2 ^ width) (d := n - j.val)
-        (by positivity) (by have := hc j; omega) (words j).isLt
-      simp only [Nat.zero_add]
-      exact ⟨Nat.le_add_right _ _, by have := hc j; omega⟩
-  simpa only [supportFromWords, Nat.Ico_zero_eq_range] using hr
+  simpa only [supportFromWords, Nat.Ico_zero_eq_range] using
+    resolveSupport_mem_powersetCard (n := n) (offset := 0) _ fun j => by
+      have hj := j.isLt.trans_le h
+      have := Nat.mul_div_lt_of_lt (M := 2 ^ width) (d := n - j.val)
+        (by positivity) (by omega) (words j).isLt
+      exact ⟨by simp, by omega⟩
 
 /-- At full weight every word array produces the entire support. -/
 theorem supportFromWords_full (width n : ℕ) (words : Fin n → Fin (2 ^ width)) :
@@ -259,16 +238,13 @@ uniform words. In particular, this law retains the multiply-high bias. -/
 theorem eval_sampleSupport2 (width n count : ℕ) :
     ProbComp.eval (sampleSupport2 width n count) =
       (PMF.uniformOfFintype (Fin count → Fin (2 ^ width))).map (supportFromWords width n) := by
-  rw [sampleSupport2, sampleSupportFrom, ProbComp.eval_map]
-  have hc : ProbComp.eval (OracleComp.pi
-      (fun j : Fin count => sampleCandidate width n (0 + j.val))) =
-      ProbComp.eval (OracleComp.pi (fun j : Fin count =>
-        (fun u : Fin (2 ^ width) => j.val + u.val * (n - j.val) / 2 ^ width) <$>
-          ProbComp.uniform (Fin (2 ^ width)))) := by
-    apply ProbComp.eval_pi_congr
-    intro j
-    simp only [eval_sampleCandidate, ProbComp.eval_map, ProbComp.eval_uniform, Nat.zero_add]
-  rw [hc, ProbComp.eval_pi_map, ProbComp.eval_pi_uniform, PMF.map_comp]
+  have hc := ProbComp.eval_pi_congr fun j : Fin count =>
+    show ProbComp.eval (sampleCandidate width n (0 + j.val)) =
+      ProbComp.eval ((fun u : Fin (2 ^ width) => j.val + u.val * (n - j.val) / 2 ^ width) <$>
+        ProbComp.uniform (Fin (2 ^ width))) by
+      simp only [eval_sampleCandidate, ProbComp.eval_map, ProbComp.eval_uniform, Nat.zero_add]
+  rw [sampleSupport2, sampleSupportFrom, ProbComp.eval_map, hc,
+    ProbComp.eval_pi_map, ProbComp.eval_pi_uniform, PMF.map_comp]
   rfl
 
 end Cslib.Crypto.HQC

@@ -10,6 +10,7 @@ module
 import CslibFrontier.Computability.WordRAM.MemoryView
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Forced
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Trial
@@ -178,20 +179,8 @@ theorem RoundFrame.congr {φ : CNF (Fin n)} {C Tb : ℕ} {M : ℕ → ℕ} {x y 
     (ht : y.regs two = x.regs two) (hc : y.regs cBeg = x.regs cBeg)
     (he : y.regs cEnd = x.regs cEnd) (hb : y.regs tBase = x.regs tBase)
     (hn : y.regs nReg = x.regs nReg) (hp : y.regs pBase = x.regs pBase)
-    (hmem : ∀ a, a < Tb ∨ Tb + 2 * n ≤ a → y.mem a = x.mem a) : RoundFrame φ C Tb M y where
-  zero_eq := hz.trans h.zero_eq
-  one_eq := ho.trans h.one_eq
-  two_eq := ht.trans h.two_eq
-  cBeg_eq := hc.trans h.cBeg_eq
-  cEnd_eq := he.trans h.cEnd_eq
-  tBase_eq := hb.trans h.tBase_eq
-  nReg_eq := hn.trans h.nReg_eq
-  pBase_eq := hp.trans h.pBase_eq
-  clauses := by
-    have hs := h.span
-    ram_keep h.clauses using hmem
-  span := h.span
-  rest a ha := (hmem a (Or.inr ha)).trans (h.rest a ha)
+    (hmem : ∀ a, a < Tb ∨ Tb + 2 * n ≤ a → y.mem a = x.mem a) : RoundFrame φ C Tb M y := by
+  struct_frame h
 
 /-- The frame with the memory after the order array taken as it is. -/
 theorem RoundFrame.self {φ : CNF (Fin n)} {C Tb : ℕ} {M : ℕ → ℕ} {x : Data 32}
@@ -221,11 +210,9 @@ theorem RoundFrame.set {φ : CNF (Fin n)} {C Tb : ℕ} {M : ℕ → ℕ} {x : Da
     (h : RoundFrame φ C Tb M x) {i : Fin 32}
     (hi : i ∉ ({zero, one, two, cBeg, cEnd, tBase, nReg, pBase} : Finset (Fin 32))) (v : ℕ) :
     RoundFrame φ C Tb M (x.set i v) := by
-  simp only [Finset.mem_insert, Finset.mem_singleton, not_or, ← ne_eq] at hi
-  obtain ⟨h0, h1, h2, h3, h4, h5, h6, h7⟩ := hi
-  exact h.congr (by wram_simp [h0.symm]) (by wram_simp [h1.symm]) (by wram_simp [h2.symm])
-    (by wram_simp [h3.symm]) (by wram_simp [h4.symm]) (by wram_simp [h5.symm])
-    (by wram_simp [h6.symm]) (by wram_simp [h7.symm]) fun _ _ => rfl
+  simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hi
+  obtain ⟨_, _, _, _, _, _, _, _⟩ := hi
+  struct_frame h
 
 /-! ### The initial arrays -/
 
@@ -255,20 +242,12 @@ theorem initLoop_spec {φ : CNF (Fin n)} {C Tb w : ℕ} {M : ℕ → ℕ} (hw : 
       (WP.loop_iter (by simp [Cond.holds_lt, hx.nReg_eq, ← hi]; omega) ?_)
     unfold initBody
     wram_exec [hx.tBase_eq, hx.pBase_eq, hx.two_eq, hx.one_eq, ← hi]
-    wram_call (initLoop_spec hw d _
-      (hx.congr (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-        (by wram_simp) (by wram_simp) (by wram_simp) fun a ha => by
-          simp only [Data.set_mem, Data.write_mem]
-          rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)])
-      (by wram_simp; omega)
+    wram_call (initLoop_spec hw d _ (by struct_frame hx) (by wram_simp; omega)
       (fun v hv' => by
         wram_simp at hv'
-        simp only [Data.set_mem, Data.write_mem]
         rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp hv') with rfl | hvi
-        · exact ⟨by rw [Function.update_of_ne (by omega), Function.update_self], by simp⟩
-        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-          exact hv v hvi))
+        · exact ⟨by mem_frame, by mem_frame⟩
+        · have := hv v hvi; exact ⟨by mem_frame, by mem_frame⟩))
       with z ⟨hzf, hzv⟩
     exact ⟨by omega, hzf, hzv⟩
 
@@ -448,13 +427,8 @@ theorem roundBodyWith_law {φ : CNF (Fin n)} {C Tb w T : ℕ} {M : ℕ → ℕ}
         (Tb + n + i + (k : ℕ)) (g 0 : ℕ) := by
       simp only [y₁, Data.write_mem, Data.set_mem, x₂]
       rw [show Tb + n + (k'.val + i) = Tb + n + i + (k : ℕ) by omega]
-    have hy₁far : ∀ a, a < Tb + n → y₁.mem a = x.mem a := fun a ha => by
-      rw [hy₁m, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    have hfy₁ : RoundFrame φ C Tb M y₁ :=
-      hf.congr (by wram_simp [y₁, x₂]) (by wram_simp [y₁, x₂]) (by wram_simp [y₁, x₂])
-        (by wram_simp [y₁, x₂]) (by wram_simp [y₁, x₂]) (by wram_simp [y₁, x₂])
-        (by wram_simp [y₁, x₂]) (by wram_simp [y₁, x₂]) fun a ha => by
-          rw [hy₁m, Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+    have hy₁far : ∀ a, a < Tb + n → y₁.mem a = x.mem a := by dsimp only [y₁, x₂]; mem_frame
+    have hfy₁ : RoundFrame φ C Tb M y₁ := by dsimp only [y₁, x₂]; struct_frame hf
     have hst₁ : PartialAt y₁.mem Tb τ := fun v => by rw [hy₁far _ (by omega)]; exact hx.stored v
     -- the oracle's value
     obtain ⟨z, hz, hzm, hzr⟩ := hoc.exec τ (g k) y₁ hfy₁ (by wram_simp [y₁]) hst₁
@@ -472,11 +446,7 @@ theorem roundBodyWith_law {φ : CNF (Fin n)} {C Tb w T : ℕ} {M : ℕ → ℕ}
       unfold storeCode
       wram_exec [hfz.tBase_eq, hxz, hiz, hfz.one_eq]
       refine ⟨⟨k, b, by wram_simp [hjz]; omega, by wram_simp, ?_⟩, by wram_simp [F]⟩
-      refine ⟨hfz.congr (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-        (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) fun a ha => ?_,
-        by wram_simp, ?_, ?_, cover_succ hx.cover k b⟩
-      · simp only [Data.set_mem, Data.write_mem]
-        rw [Function.update_of_ne (by omega)]
+      refine ⟨by struct_frame hfz, by wram_simp, ?_, ?_, cover_succ hx.cover k b⟩
       · intro v
         simp only [Data.set_mem, Data.write_mem, hzm]
         by_cases hv : v = g k

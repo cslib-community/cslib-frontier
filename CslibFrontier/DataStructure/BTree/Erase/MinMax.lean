@@ -165,42 +165,26 @@ theorem eraseMax?_eq : eraseMax? t tr = tr.toList.getLast?.map fun p => (p, eras
 its key erased. -/
 theorem eraseMin?_eq_some_iff {p : α × β} {tr' : BTree α β} :
     eraseMin? t tr = some (p, tr') ↔ tr.toList.head? = some p ∧ tr' = erase t p.1 tr := by
-  rw [eraseMin?_eq, Option.map_eq_some_iff]
-  constructor
-  · rintro ⟨q, hq, hpq⟩
-    simp only [Prod.mk.injEq] at hpq
-    obtain ⟨rfl, rfl⟩ := hpq
-    exact ⟨hq, rfl⟩
-  · rintro ⟨hp, rfl⟩
-    exact ⟨p, hp, rfl⟩
+  simp only [eraseMin?_eq, Option.map_eq_some_iff, Prod.mk.injEq, and_left_comm, exists_eq_left]
+  exact and_congr_right' eq_comm
 
 /-- `eraseMax?` returns `p` and `tr'` exactly when `p` is the last entry and `tr'` the tree with
 its key erased. -/
 theorem eraseMax?_eq_some_iff {p : α × β} {tr' : BTree α β} :
     eraseMax? t tr = some (p, tr') ↔ tr.toList.getLast? = some p ∧ tr' = erase t p.1 tr := by
-  rw [eraseMax?_eq, Option.map_eq_some_iff]
-  constructor
-  · rintro ⟨q, hq, hpq⟩
-    simp only [Prod.mk.injEq] at hpq
-    obtain ⟨rfl, rfl⟩ := hpq
-    exact ⟨hq, rfl⟩
-  · rintro ⟨hp, rfl⟩
-    exact ⟨p, hp, rfl⟩
+  simp only [eraseMax?_eq, Option.map_eq_some_iff, Prod.mk.injEq, and_left_comm, exists_eq_left]
+  exact and_congr_right' eq_comm
 
 /-- On a tree with sorted entries, `eraseMin?` splits the entries into the first and the rest. -/
 theorem toList_of_eraseMin?_eq_some_of_isSortedAssoc (h : tr.toList.IsSortedAssoc)
     {p : α × β} {tr' : BTree α β} (he : eraseMin? t tr = some (p, tr')) :
     tr.toList = p :: tr'.toList := by
   obtain ⟨hq, rfl⟩ := eraseMin?_eq_some_iff.1 he
-  obtain ⟨l, hl⟩ : ∃ l, tr.toList = p :: l := by
-    cases hc : tr.toList with
-    | nil => simp [hc] at hq
-    | cons a l => simp only [hc, List.head?_cons, Option.some.injEq] at hq; exact ⟨l, hq ▸ rfl⟩
+  obtain ⟨l, hl⟩ := List.head?_eq_some_iff.1 hq
   have hs := h
   rw [hl, List.isSortedAssoc_cons_iff] at hs
   rw [toList_erase_of_isSortedAssoc h, hl, SortedAssoc.erase_cons]
-  simp only [↓reduceIte]
-  rw [SortedAssoc.erase_of_forall_ne fun r hr => (hs.1 r hr).ne']
+  simp [SortedAssoc.erase_of_forall_ne fun r hr => (hs.1 r hr).ne']
 
 /-- On a tree with sorted entries, `eraseMax?` splits the entries into the rest and the last. -/
 theorem toList_of_eraseMax?_eq_some_of_isSortedAssoc (h : tr.toList.IsSortedAssoc)

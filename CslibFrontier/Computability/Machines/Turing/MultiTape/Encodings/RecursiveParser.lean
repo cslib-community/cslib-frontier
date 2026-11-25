@@ -44,31 +44,18 @@ private theorem forest_split {arity : τ → ℕ} {pending : ℕ} {stream : List
   induction h with
   | nil =>
     intro n m h
-    have hn : n = 0 := by omega
-    have hm : m = 0 := by omega
-    subst n m
+    obtain ⟨rfl, rfl⟩ : n = 0 ∧ m = 0 := by omega
     exact ⟨[], [], .nil, .nil, rfl⟩
   | @cons pending token stream h ih =>
-    intro n m heq
-    cases n with
-    | zero =>
-      have hm : pending + 1 = m := by omega
-      exact ⟨[], token :: stream, .nil, hm ▸ Forest.cons h, rfl⟩
-    | succ n =>
-      obtain ⟨left, right, hl, hr, heq'⟩ :=
-        ih (n + arity token) m (by omega)
-      exact ⟨token :: left, right, .cons hl, hr, by simpa using congrArg (token :: ·) heq'⟩
+    rintro (_ | n) m heq
+    · exact ⟨[], token :: stream, .nil, (by omega : pending + 1 = m) ▸ Forest.cons h, rfl⟩
+    · obtain ⟨left, right, hl, hr, rfl⟩ := ih (n + arity token) m (by omega)
+      exact ⟨token :: left, right, .cons hl, hr, rfl⟩
 
-private theorem ofFn_prepend {n : ℕ} (first : α) (others : Fin n → α) :
-    List.ofFn (fun i : Fin (n + 1) =>
-      match i with
-      | ⟨0, _⟩ => first
-      | ⟨index + 1, h⟩ => others ⟨index, Nat.lt_of_succ_lt_succ h⟩) =
-      first :: List.ofFn others := by
-  rw [← List.ofFn_cons]
-  congr 1
-  funext i
-  exact Fin.cases rfl (fun _ => rfl) i
+private theorem ofFn_prepend {n : ℕ} (first : α) (others : Fin n → α)
+    (f : Fin (n + 1) → α) (h0 : f 0 = first) (hs : ∀ i : Fin n, f i.succ = others i) :
+    List.ofFn f = first :: List.ofFn others := by
+  rw [List.ofFn_succ, h0, funext hs]
 
 private theorem operands_sound {arity : τ → ℕ} {tokens : α → List τ}
     {read : List τ → Option (α × List τ)}
@@ -80,27 +67,18 @@ private theorem operands_sound {arity : τ → ℕ} {tokens : α → List τ}
   intro n
   induction n with
   | zero =>
-    intro stream children rest h
-    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    rintro stream children rest ⟨⟩
     exact ⟨rfl, .nil⟩
   | succ n ih =>
     intro stream children rest h
-    change (read stream).bind (fun p => (parseOperands read n p.2).bind (fun q =>
-      let values : Fin (n + 1) → α
-        | ⟨0, _⟩ => p.1
-        | ⟨index + 1, h⟩ => q.1 ⟨index, Nat.lt_of_succ_lt_succ h⟩
-      some (values, q.2))) = some (children, rest) at h
-    rw [Option.bind_eq_some_iff] at h
-    obtain ⟨⟨first, tail⟩, hfirst, h⟩ := h
-    rw [Option.bind_eq_some_iff] at h
-    obtain ⟨⟨others, final⟩, hothers, h⟩ := h
-    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-    obtain ⟨heq, htree⟩ := hread stream first tail hfirst
-    obtain ⟨heq', hforest⟩ := ih tail others final hothers
-    simp only [ofFn_prepend, List.flatMap_cons]
-    constructor
-    · rw [List.append_assoc, heq', heq]
-    · simpa only [Nat.add_comm] using htree.append hforest
+    simp only [parseOperands, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨⟨first, tail⟩, hfirst, ⟨others, final⟩, hothers, rfl, rfl⟩ := h
+    obtain ⟨rfl, htree⟩ := hread stream first tail hfirst
+    obtain ⟨rfl, hforest⟩ := ih tail others final hothers
+    rw [ofFn_prepend first others _ rfl fun ⟨_, _⟩ => rfl]
+    simp only [List.flatMap_cons, List.append_assoc]
+    exact ⟨trivial, Nat.add_comm 1 n ▸ htree.append hforest⟩
 
 /-- Every successful node parse produces a complete tree prefix and preserves its suffix. -/
 theorem parseFuel_readNode_sound (arity : τ → ℕ)
@@ -112,21 +90,16 @@ theorem parseFuel_readNode_sound (arity : τ → ℕ)
         tokens value ++ rest = stream ∧ Forest arity 1 (tokens value) := by
   intro fuel
   induction fuel with
-  | zero => intro stream value rest h; simp [parseFuel] at h
+  | zero => nofun
   | succ fuel ih =>
-    intro stream value rest h
-    cases stream with
-    | nil => simp [parseFuel] at h
-    | cons token stream =>
-      change (parseOperands (parseFuel (readNode arity make) fuel) (arity token) stream).bind
-        (fun p => some (make token p.1, p.2)) = some (value, rest) at h
-      rw [Option.bind_eq_some_iff] at h
-      obtain ⟨⟨children, tail⟩, hchildren, h⟩ := h
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
-      obtain ⟨heq, hforest⟩ := operands_sound ih (arity token) stream children tail hchildren
+    rintro (_ | ⟨token, stream⟩) value rest h
+    · simp [parseFuel] at h
+    · simp only [parseFuel, readNode, Option.bind_eq_bind, Option.bind_eq_some_iff,
+        Option.pure_def, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨⟨children, tail⟩, hchildren, rfl, rfl⟩ := h
+      obtain ⟨rfl, hforest⟩ := operands_sound ih (arity token) stream children tail hchildren
       rw [htokens]
-      exact ⟨by simpa using congrArg (token :: ·) heq,
-        .cons (pending := 0) (by simpa using hforest)⟩
+      exact ⟨rfl, .cons (pending := 0) (by simpa using hforest)⟩
 
 private theorem operands_complete {arity : τ → ℕ} {tokens : α → List τ}
     {read : List τ → Option (α × List τ)} {bound : ℕ}
@@ -138,36 +111,21 @@ private theorem operands_complete {arity : τ → ℕ} {tokens : α → List τ}
   intro n
   induction n with
   | zero =>
-    intro stream hforest hlength rest
-    cases hforest
+    rintro stream ⟨⟩ _ rest
     exact ⟨Fin.elim0, rfl, rfl⟩
   | succ n ih =>
     intro stream hforest hlength rest
-    obtain ⟨tree, others, htree, hothers, heq⟩ :=
-      forest_split hforest 1 n (by omega)
-    have hlength' : tree.length + others.length ≤ bound := by
-      simpa only [← heq, List.length_append] using hlength
-    obtain ⟨first, hfirst, hfirst_tokens⟩ :=
-      hread tree htree (by omega) (others ++ rest)
-    obtain ⟨values, hvalues, hvalues_tokens⟩ :=
-      ih others hothers (by omega) rest
-    let children : Fin (n + 1) → α
-      | ⟨0, _⟩ => first
-      | ⟨index + 1, h⟩ => values ⟨index, Nat.lt_of_succ_lt_succ h⟩
-    refine ⟨children, ?_, ?_⟩
-    · rw [← heq, List.append_assoc]
-      change (read (tree ++ (others ++ rest))).bind
-        (fun p => (parseOperands read n p.2).bind (fun q =>
-          let operands : Fin (n + 1) → α
-            | ⟨0, _⟩ => p.1
-            | ⟨index + 1, h⟩ => q.1 ⟨index, Nat.lt_of_succ_lt_succ h⟩
-          some (operands, q.2))) = some (children, rest)
-      rw [hfirst]
-      simp only [Option.bind_some]
-      rw [hvalues]
-      rfl
-    · simp only [children, ofFn_prepend, List.flatMap_cons,
-        hfirst_tokens, hvalues_tokens, heq]
+    obtain ⟨tree, others, htree, hothers, rfl⟩ := forest_split hforest 1 n (by omega)
+    rw [List.length_append] at hlength
+    obtain ⟨first, hfirst, hfirst_tokens⟩ := hread tree htree (by omega) (others ++ rest)
+    obtain ⟨values, hvalues, hvalues_tokens⟩ := ih others hothers (by omega) rest
+    refine ⟨fun | ⟨0, _⟩ => first | ⟨Nat.succ i, h⟩ => values ⟨i, Nat.lt_of_succ_lt_succ h⟩,
+      ?_, ?_⟩
+    · simp only [List.append_assoc, parseOperands, Option.bind_eq_bind, hfirst, Option.bind_some,
+        hvalues, Option.pure_def, Option.some.injEq, Prod.mk.injEq, and_true]
+      exact funext (Fin.cases rfl fun _ => rfl)
+    · rw [ofFn_prepend first values _ rfl fun ⟨_, _⟩ => rfl]
+      simp only [List.flatMap_cons, hfirst_tokens, hvalues_tokens]
 
 /-- A complete node stream is parsed with fuel at least its token count, preserving every
 following token. No semantic inhabitant or field decoder is required. -/
@@ -181,26 +139,17 @@ theorem parseFuel_readNode_complete (arity : τ → ℕ)
   intro fuel
   induction fuel with
   | zero =>
-    intro tree htree hlength rest
-    have hnil : tree = [] := List.length_eq_zero_iff.mp (by omega)
-    subst tree
-    cases htree
+    rintro tree htree hlength _
+    cases List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hlength) ▸ htree
   | succ fuel ih =>
     intro tree htree hlength rest
-    cases htree with
-    | @cons _ token tail hforest =>
-      simp only [Nat.zero_add] at hforest
-      have htail : tail.length ≤ fuel := by
-        simp only [List.length_cons] at hlength
-        omega
-      obtain ⟨children, hchildren, hchildren_tokens⟩ :=
-        operands_complete ih (arity token) tail hforest htail rest
-      refine ⟨make token children, ?_, ?_⟩
-      · change (parseOperands (parseFuel (readNode arity make) fuel) (arity token)
-          (tail ++ rest)).bind (fun p => some (make token p.1, p.2)) = _
-        rw [hchildren]
-        rfl
-      · rw [htokens, hchildren_tokens]
+    cases htree with | @cons _ token tail hforest =>
+    simp only [Nat.zero_add] at hforest
+    simp only [List.length_cons] at hlength
+    obtain ⟨children, hchildren, hchildren_tokens⟩ :=
+      operands_complete ih (arity token) tail hforest (by omega) rest
+    exact ⟨make token children, by simp [parseFuel, readNode, hchildren],
+      by rw [htokens, hchildren_tokens]⟩
 
 /-- Decoding succeeds exactly on complete node streams, and re-encoding its value recovers
 every input token. Missing operands and trailing input are rejected. -/
@@ -211,30 +160,20 @@ theorem decode_readNode_tokens (arity : τ → ℕ)
     (stream : List τ) :
     (decode (readNode arity make) stream).map tokens =
       if isTree arity stream then some stream else none := by
-  by_cases htree : Forest arity 1 stream
-  · have hv := (isTree_eq_true_iff.mpr htree)
-    rw [hv, ite_eq_left rfl]
-    obtain ⟨value, hvalue, htokens_value⟩ :=
-      parseFuel_readNode_complete arity make tokens htokens stream.length stream htree le_rfl []
-    simp only [List.append_nil] at hvalue
-    simp only [decode, parse, hvalue, Option.map_some, htokens_value]
-  · have hv : isTree arity stream = false := by
-      cases h : isTree arity stream with
-      | false => rfl
-      | true => exact False.elim (htree (isTree_eq_true_iff.mp h))
-    rw [hv, ite_eq_right Bool.false_ne_true]
-    unfold decode parse
-    cases hparse : parseFuel (readNode arity make) stream.length stream with
-    | none => rfl
-    | some p =>
-      obtain ⟨value, rest⟩ := p
-      cases rest with
-      | nil =>
-        obtain ⟨heq, hforest⟩ :=
-          parseFuel_readNode_sound arity make tokens htokens _ _ _ _ hparse
-        simp only [List.append_nil] at heq
-        exact False.elim (htree (heq ▸ hforest))
-      | cons token rest => rfl
+  cases hv : isTree arity stream with
+  | true =>
+    obtain ⟨value, hvalue, htokens_value⟩ := parseFuel_readNode_complete arity make tokens htokens
+      stream.length stream (isTree_eq_true_iff.mp hv) le_rfl []
+    rw [List.append_nil] at hvalue
+    simp [decode, parse, hvalue, htokens_value]
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte, decode, parse]
+    split
+    · next value hparse =>
+      obtain ⟨heq, hforest⟩ := parseFuel_readNode_sound arity make tokens htokens _ _ _ _ hparse
+      rw [List.append_nil] at heq
+      exact absurd (isTree_eq_true_iff.mpr (heq ▸ hforest)) (by simp [hv])
+    · rfl
 
 /-- Typed constructor-stream decoding has a native polynomial-time certificate. Its machine
 validates the stream and emits its original encoded word; it need not build semantic Lean
@@ -249,17 +188,13 @@ theorem decode_readNode_polyTime {encToken : τ ↪ List Bool} {encTree : α ↪
     {maximum : ℕ} (hmax : ∀ token, arity token ≤ maximum) :
     ComputableInPolyTime (decode (readNode arity make)) (encList encToken)
       (encOption encTree) := by
-  have hcopy := (ComputableInPolyTime.optionSome (encList encToken)).comp
-    (ComputableInPolyTime.id' (encIn := encList encToken))
-  apply ((isTree_polyTime harity hmax).ite hcopy (ComputableInPolyTime.const none)).of_enc_eq
-  intro stream
-  have h := decode_readNode_tokens arity make tokens htokens stream
+  refine ((isTree_polyTime harity hmax).ite
+    ((ComputableInPolyTime.optionSome (encList encToken)).comp .id')
+    (.const none)).of_enc_eq fun stream => ?_
   have hword : encOption encTree (decode (readNode arity make) stream) =
       encOption (encList encToken) ((decode (readNode arity make) stream).map tokens) := by
-    cases decode (readNode arity make) stream with
-    | none => rfl
-    | some value => simp only [Option.map_some, encOption_some, henc]
-  rw [hword, h]
+    cases decode (readNode arity make) stream <;> simp [Option.map_some, encOption_some, henc]
+  rw [hword, decode_readNode_tokens arity make tokens htokens]
   split <;> rfl
 
 end Turing.MultiTapeTM.RecursiveEncoding

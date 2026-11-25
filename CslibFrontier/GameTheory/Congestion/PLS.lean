@@ -10,14 +10,11 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.GameTheory.Congestion.Basic
-import CslibFrontier.Foundations.Data.BitString.Block
 import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 
 /-!
 # Pure Nash equilibria of congestion games are in `PLS`
@@ -482,20 +479,14 @@ theorem pureNash_eq_localOptRel :
     have := List.find?_eq_none.1 hf (i, a) (mem_moves.2 ⟨i.2, a.2⟩)
     simpa [improving, not_lt] using this
   | some m =>
-    have hm := List.find?_some hf
     obtain ⟨hi, hk⟩ := mem_moves.1 (List.mem_of_find?_eq_some hf)
-    simp only [Option.elim]
-    have hupd : updateProfile (c.profileList (c.decode u)) m.1 m.2
-        = c.profileList (Function.update (c.decode u) ⟨m.1, hi⟩ ⟨m.2, hk⟩) :=
-      (c.profileList_update (c.decode u) ⟨m.1, hi⟩ ⟨m.2, hk⟩).symm
-    rw [hupd, decodeList_eq, decode_encode]
-    simp only [improving, decide_eq_true_eq] at hm
-    rw [hupd] at hm
-    constructor
-    · intro h
-      exact absurd (h ⟨m.1, hi⟩ ⟨m.2, hk⟩) (by rw [← profileList_update]; exact not_le.2 hm)
-    · intro h
-      exact absurd h (not_le.2 hm)
+    have hupd := (c.profileList_update (c.decode u) ⟨m.1, hi⟩ ⟨m.2, hk⟩).symm
+    have hm : c.potential (c.profileList (Function.update (c.decode u) ⟨m.1, hi⟩ ⟨m.2, hk⟩)) <
+        c.potential (c.profileList (c.decode u)) := by
+      simpa only [improving, decide_eq_true_eq, hupd] using List.find?_some hf
+    simp only [Option.elim, hupd, decodeList_eq, decode_encode]
+    exact ⟨fun h => absurd (h ⟨m.1, hi⟩ ⟨m.2, hk⟩) (hupd ▸ not_le.2 hm),
+      fun h => absurd h (not_le.2 hm)⟩
 
 /-- **Finding a pure Nash equilibrium of a congestion game is in `PLS`**
 ([Roughgarden2013CS364A], Lecture #19, Section 3; the class is that of

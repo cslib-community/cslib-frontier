@@ -147,16 +147,11 @@ def cnfVertexNumber {m : ℕ} : ℕ ⊕ Fin m → ℕ
 /-- The numbering separates all variable vertices and clause vertices. -/
 private theorem cnfVertexNumber_injective (m : ℕ) :
     Function.Injective (cnfVertexNumber (m := m)) := by
-  intro v w h
-  cases v with
-  | inl x =>
-    cases w with
-    | inl y => simp only [cnfVertexNumber] at h; congr 1; lia
-    | inr j => simp only [cnfVertexNumber] at h; lia
-  | inr j =>
-    cases w with
-    | inl y => simp only [cnfVertexNumber] at h; lia
-    | inr k => simp only [cnfVertexNumber] at h; congr 1; apply Fin.ext; lia
+  rintro (x | j) (y | k) h <;> simp only [cnfVertexNumber] at h
+  · exact congrArg Sum.inl (by omega)
+  · omega
+  · omega
+  · exact congrArg Sum.inr (Fin.ext (by omega))
 
 /-- Every clause contributes exactly three edges, including missing-position self-loops. -/
 @[simp]

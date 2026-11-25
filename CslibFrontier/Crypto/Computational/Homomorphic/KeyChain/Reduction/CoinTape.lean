@@ -61,13 +61,12 @@ theorem chooseLinkAt_support (E : Scheme) (n beforeCount afterCount cut : ℕ)
   split at hchoice
   · rename_i hcut
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hchoice
-    refine Or.inr ⟨before, predecessor, after, hbeforeLength, hafterLength, ?_, hcut, hchoice⟩
-    intro key hkey
-    simp only [List.mem_append, List.mem_cons] at hkey
-    rcases hkey with h | rfl | h
+    refine Or.inr ⟨before, predecessor, after, hbeforeLength, hafterLength, fun key hkey => ?_,
+      hcut, hchoice⟩
+    rcases List.mem_append.mp hkey with h | h
     · exact hbeforeKeys _ h
-    · exact hpredecessor
-    · exact hafterKeys _ h
+    · rcases List.mem_cons.mp h with rfl | h
+      exacts [hpredecessor, hafterKeys _ h]
   · simpa only [ProbComp.eval_pure, PMF.mem_support_pure_iff] using Or.inl hchoice
 
 /-- Replay the actual guess, including total saved-state decoding and the inactive branch.
@@ -131,12 +130,8 @@ theorem eval_guessLink_active_eq_map_coins (E : Scheme)
       · simp
       · simp [target]
       · exact List.mem_cons_of_mem _ (List.mem_map.mpr ⟨key, by simp [h], rfl⟩)) bit)
-  rw [guessLink_active, ProbComp.eval_bind]
-  trans (ProbComp.eval (E.spliceEncryptedKeyLink n before predecessor target after cut
-    challenge)).bind (fun links => (BitString.uniformList testCoins).map
-      (evaluateTest (n, (before ++ predecessor :: target :: after).map Prod.fst, links)))
-  · exact PMF.bind_congr_on_support _ _ _ htest
-  rw [hsplice, PMF.bind_map]
+  rw [guessLink_active, ProbComp.eval_bind,
+    PMF.bind_congr_on_support _ _ _ htest, hsplice, PMF.bind_map]
   unfold guessLinkCoins
   simp only [Function.comp_def, linkStateDecoder_decode_active, ↓reduceIte]
   exact (BitString.uniformList_map_split _ _ _).symm

@@ -58,29 +58,19 @@ theorem gate_le_default_or_iterate_row_eq (m : ℕ)
   | succ m ih =>
     by_cases hu : G ≤ stepThreshold s n K ρ Δ a m
     · exact Or.inl (hu.trans threshold_le_newDefault)
-    · have hprevious : ∀ y ∈ D, (iterate s n K ρ Δ a m).row y =
-          uncompressedRow Δ a.row m y := by
-        rcases ih (fun i hi => hraw i (hi.trans (Nat.le_succ m))) with hz | hw
-        · exact False.elim (hu (hz.trans le_threshold))
-        · exact hw
+    · have hprev := (ih fun i hi => hraw i (hi.trans (Nat.le_succ m))).resolve_left
+        fun hz => hu (hz.trans le_threshold)
       refine Or.inr fun y hy => ?_
       have hinput : inputRow s n K ρ Δ a m y = uncompressedRow Δ a.row (m + 1) y := by
         funext ν
         rw [uncompressedRow_succ]
-        change (iterate s n K ρ Δ a m).row y ν + Δ m y ν = _
-        rw [hprevious y hy]
-      have hlarge : 3 * stepThreshold s n K ρ Δ a m ≤
-          entrySize (inputRow s n K ρ Δ a m y) := by
-        have hr := hraw (m + 1) (le_refl _) y hy
+        exact congrArg (· + Δ m y ν) (congrFun (hprev y hy) ν)
+      have hlarge : 3 * stepThreshold s n K ρ Δ a m ≤ entrySize (inputRow s n K ρ Δ a m y) := by
         have hv := (le_abs_self (inputRow s n K ρ Δ a m y 0)).trans
           (abs_apply_le_entrySize (inputRow s n K ρ Δ a m y) 0)
-        rw [hinput]
-        rw [hinput] at hv
-        linarith [not_le.mp hu]
-      change update s (n m) (K m) (ρ m) (iterate s n K ρ Δ a m).defaultValue
-        (inputRow s n K ρ Δ a m) y = _
-      rw [update_eq_self_of_three_mul_le hlarge]
-      exact hinput
+        rw [hinput] at hv ⊢
+        linarith [hraw (m + 1) le_rfl y hy, not_le.mp hu]
+      exact (update_eq_self_of_three_mul_le hlarge).trans hinput
 
 /-- At least `k` large raw first entries close the actual padded rank gate. The compression
 capacities may vary independently; no threshold upper bound is assumed. -/
@@ -92,12 +82,8 @@ theorem le_iterate_firstRank_of_raw_large {k : ℕ} (hG : 0 < G) (hk : 0 < k)
   classical
   rcases gate_le_default_or_iterate_row_eq m hraw with hz | hw
   · exact hz.trans default_le_firstRank
-  · apply le_trans _ kthLargest_le_firstRank
-    apply (le_kthLargest_iff hk hG).mpr
-    apply hcard.trans (card_le_card ?_)
-    intro y hy
-    apply mem_filter.mpr ⟨hDs hy, ?_⟩
-    rw [hw y hy]
-    linarith [hraw m (le_refl _) y hy]
+  · refine ((le_kthLargest_iff hk hG).mpr <| hcard.trans <| card_le_card fun y hy =>
+      mem_filter.mpr ⟨hDs hy, ?_⟩).trans kthLargest_le_firstRank
+    rw [hw y hy]; linarith [hraw m le_rfl y hy]
 
 end Cslib.RowCompression

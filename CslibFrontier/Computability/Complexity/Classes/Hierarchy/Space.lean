@@ -157,21 +157,15 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     ∃ c t, ComputableInTimeAndSpace (spaceDiagonal G) encBits encBool t
       fun x => c * (G x.length + Nat.log2 x.length + 1) := by
   -- the description and the symbols of the input, in logarithmic space
-  have hD : ComputableInLogSpace (fun x => decodeDesc (tinyCut x)) encBits (encFramed eDesc) :=
-    (ComputableInLogSpace.of_frame (encIn := eDesc) (encOut := encFramed eDesc)
-      (f := fun d => d) fun _ => rfl).comp computableInLogSpace_decodeDesc_tinyCut
-  have hS : ComputableInLogSpace (fun x : List Bool => x.map eBit) encBits
-      (encFramed (encList encUnary)) :=
-    (ComputableInLogSpace.of_frame (encIn := encList encUnary)
-      (encOut := encFramed (encList encUnary)) (f := fun l => l) fun _ => rfl).comp
-      ((symbolsT.computableInLogSpace (encIn := encTrueDoubled) (encOut := encList encUnary)
-        (f := fun x : List Bool => x.map eBit) fun x => (symbolsT_run x).symm).comp
-        (trueDoubleT.computableInLogSpace (encIn := encBits) (encOut := encTrueDoubled)
-          (f := fun x => x) fun x => (trueDoubleT_run x).symm))
-  have hAB := ComputableInLogSpace.append (encOut := encBits)
-    (g := fun x => frame (eDesc (decodeDesc (tinyCut x))) ++
-      frame (encList encUnary (x.map eBit))) hD hS fun _ => rfl
-  obtain ⟨tAB, cAB, hAB⟩ := hAB
+  have hD := computableInLogSpace_decodeDesc_tinyCut
+  have hS : ComputableInLogSpace (fun x : List Bool => x.map eBit) encBits (encList encUnary) :=
+    (symbolsT.computableInLogSpace (encIn := encTrueDoubled) (encOut := encList encUnary)
+      (f := fun x : List Bool => x.map eBit) fun x => (symbolsT_run x).symm).comp
+      (trueDoubleT.computableInLogSpace (encIn := encBits) (encOut := encTrueDoubled)
+        (f := fun x => x) fun x => (trueDoubleT_run x).symm)
+  obtain ⟨tAB, cAB, hAB⟩ : ComputableInLogSpace
+      (fun x => frame (eDesc (decodeDesc (tinyCut x))) ++ frame (encList encUnary (x.map eBit)))
+      encBits encBits := by fun_prop
   obtain ⟨dAB, hAB⟩ := hAB.exists_computableTidilyInTimeAndSpace
   -- the clock and the budget, within space `O(G n)`
   obtain ⟨TG, hGb⟩ := hG.computableInO
@@ -223,8 +217,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     have hB : budgetSpace (universalInput G x) ≤ _ :=
       budgetSpace_le (decodeDesc (tinyCut x)) (x.map eBit) (G x.length) (2 ^ G x.length)
     have hD : (eDesc (decodeDesc (tinyCut x))).length ≤ cD * (Nat.log2 x.length + 1) := hcD x
-    have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [length_encNat_two_pow]
+    have hclk := length_encNat_two_pow (G x.length)
     have hn : (encNat ((x.map eBit).length + 1)).length ≤ Nat.log2 x.length + 2 := by
       rw [List.length_map]; exact length_encNat_le_log2_add_two le_rfl
     have hmax : (x.map eBit).foldr max 0 ≤ 1 := listMax_le fun b _ => by cases b <;> decide
@@ -243,8 +236,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
         obtain ⟨c, -, rfl⟩ := List.mem_map.mp hb
         rw [encUnary_apply, List.length_replicate]
         cases c <;> decide
-    have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [length_encNat_two_pow]
+    have hclk := length_encNat_two_pow (G x.length)
     have hlen : (eInS (universalInput G x)).length + 1 ≤
         (2 * (eDesc (decodeDesc (tinyCut x))).length + 3 * G x.length + 12) * (x.length + 1) := by
       simp only [universalInput, eInS, length_encPair, encUnary_apply, List.length_replicate, hclk,
@@ -338,12 +330,8 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
       rw [pow_add]
       omega
     have hb : base ≤ 2 ^ base := Nat.lt_two_pow_self.le
-    have hes : 4 * (e * s) ≤ 4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) := by
-      have := Nat.mul_le_mul_left (4 * e) hsf
-      have e₁ : 4 * e * ((c₁ + c₂) * (f x.length + 1)) =
-          4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) := by ring
-      have e₂ : 4 * (e * s) = 4 * e * s := by ring
-      omega
+    have hes : 4 * (e * s) ≤ 4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) :=
+      (Nat.mul_le_mul_left 4 (Nat.mul_le_mul_left e hsf)).trans_eq (by ring)
     have hy : 4 * e * (c₁ + c₂) * f x.length ≤
         (4 * e * (c₁ + c₂) + 2 * base + 8) * f x.length := Nat.mul_le_mul_right _ (by omega)
     calc (x.length + 2) * storageBound Bool State k s

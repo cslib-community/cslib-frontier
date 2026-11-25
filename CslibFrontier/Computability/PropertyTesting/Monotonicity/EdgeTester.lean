@@ -113,10 +113,10 @@ theorem one_sub_acceptProb_edgeTest [Nonempty ι] (f : (ι → Bool) → Bool) :
     refine sum_congr rfl fun x _ => ?_
     simp only [passes_edgeTest]
     cases f (update x i false) <;> cases f (update x i true) <;> simp
-  have hc := congrArg (Nat.cast : ℕ → ℝ) hcard
-  push_cast at hc
   rw [LocalTest.one_sub_acceptProb, Fintype.card_prod, Fintype.card_fun, Fintype.card_bool,
-    violatedEdgeFraction_eq, ← hc]
+    violatedEdgeFraction_eq, ← (by exact_mod_cast hcard :
+      (#{r : ι × (ι → Bool) | ¬ (edgeTest ι).Passes f r} : ℝ) =
+        2 * ∑ i, (#(violatedEdges f i) : ℝ))]
   push_cast
   congr!
 
@@ -134,8 +134,7 @@ theorem acceptProb_edgeTest_le {f : (ι → Bool) → Bool} {ε : ℝ}
   rcases isEmpty_or_nonempty ι with hι | hι
   · rw [Fintype.card_eq_zero, Nat.cast_zero, div_zero, sub_zero]
     exact LocalTest.acceptProb_le_one _ _
-  · have h := one_sub_acceptProb_edgeTest f
-    linarith [div_card_le_violatedEdgeFraction hε]
+  · linarith [one_sub_acceptProb_edgeTest f, div_card_le_violatedEdgeFraction hε]
 
 /-- `k` trials of the edge tester, run as a decision tree, make at most `2 k` queries on every
 random string; the queries are fixed by the random string, so the tester is non-adaptive. -/
@@ -164,22 +163,21 @@ theorem acceptProb_repeatAll_edgeTest_le_one_third {f : (ι → Bool) → Bool} 
     (hε0 : 0 < ε) (hε : ε ≤ relDistMonotone f) {k : ℕ}
     (hk : 2 * Fintype.card ι ≤ ε * k) :
     ((edgeTest ι).repeatAll k).acceptProb f ≤ 1 / 3 := by
-  have hι : Nonempty ι := by
-    by_contra h
+  have hι : Nonempty ι := by_contra fun h => by
     rw [not_nonempty_iff] at h
     linarith [relDistMonotone_of_monotone (Subsingleton.monotone f)]
   have hn : (0 : ℝ) < Fintype.card ι := by exact_mod_cast Fintype.card_pos
   set p := 1 - (edgeTest ι).acceptProb f with hp
   have hp0 : 0 ≤ p := by linarith [(edgeTest ι).acceptProb_le_one f]
-  have hp1 : p ≤ 1 := by linarith [(edgeTest ι).acceptProb_nonneg f]
   have hpε : ε / Fintype.card ι ≤ p := by linarith [acceptProb_edgeTest_le hε]
   rw [LocalTest.acceptProb_repeatAll, show (edgeTest ι).acceptProb f = 1 - p by rw [hp]; ring]
-  refine (Real.one_sub_pow_le_one_div_one_add_mul hp0 hp1 k).trans ?_
+  refine (Real.one_sub_pow_le_one_div_one_add_mul hp0
+    (by linarith [(edgeTest ι).acceptProb_nonneg f]) k).trans ?_
   rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-  have : 2 ≤ (k : ℝ) * p := by
-    calc (2 : ℝ) ≤ ε * k / Fintype.card ι := by rw [le_div_iff₀ hn]; linarith
-      _ = k * (ε / Fintype.card ι) := by ring
-      _ ≤ k * p := by gcongr
+  have : 2 ≤ (k : ℝ) * p := calc
+    (2 : ℝ) ≤ ε * k / Fintype.card ι := by rw [le_div_iff₀ hn]; linarith
+    _ = k * (ε / Fintype.card ι) := by ring
+    _ ≤ k * p := by gcongr
   linarith
 
 /-- **The edge tester with `O(n / ε)` queries**: `⌈2 n / ε⌉` trials, making at most
@@ -187,10 +185,8 @@ theorem acceptProb_repeatAll_edgeTest_le_one_third {f : (ι → Bool) → Bool} 
 from monotone with probability at most `1 / 3`. -/
 theorem acceptProb_repeatAll_edgeTest_ceil_le_one_third {f : (ι → Bool) → Bool} {ε : ℝ}
     (hε0 : 0 < ε) (hε : ε ≤ relDistMonotone f) :
-    ((edgeTest ι).repeatAll ⌈2 * Fintype.card ι / ε⌉₊).acceptProb f ≤ 1 / 3 := by
-  refine acceptProb_repeatAll_edgeTest_le_one_third hε0 hε ?_
-  have h := Nat.le_ceil (2 * Fintype.card ι / ε)
-  rw [div_le_iff₀ hε0] at h
-  linarith
+    ((edgeTest ι).repeatAll ⌈2 * Fintype.card ι / ε⌉₊).acceptProb f ≤ 1 / 3 :=
+  acceptProb_repeatAll_edgeTest_le_one_third hε0 hε
+    (by linarith [(div_le_iff₀ hε0).1 (Nat.le_ceil (2 * Fintype.card ι / ε))])
 
 end Cslib.BitString

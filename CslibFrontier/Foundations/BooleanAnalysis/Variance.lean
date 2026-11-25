@@ -42,6 +42,8 @@ the variance is within a factor two of four times the distance `ε` to the neare
 * `Cslib.BitString.two_mul_min_le_expect_sub_expect_sq_signVal`,
   `Cslib.BitString.expect_sub_expect_sq_signVal_le_four_mul_min`: the variance is between twice and
   four times the distance to the nearer constant.
+* `Cslib.BitString.expect_sub_expect_sq_signVal_pos`: a nonconstant Boolean function has positive
+  variance.
 
 ## References
 
@@ -136,5 +138,16 @@ theorem expect_sub_expect_sq_signVal_le_four_mul_min (f : (ι → Bool) → Bool
   rw [expect_sub_expect_sq_signVal_eq_four_mul]
   exact (two_mul_min_le_four_mul_mul_and_le (hammingDist_div_nonneg f false)
     (hammingDist_div_nonneg f true) (hammingDist_false_div_add_hammingDist_true_div f)).2
+
+/-- A nonconstant Boolean function read as signs has positive variance. -/
+theorem expect_sub_expect_sq_signVal_pos {f : (ι → Bool) → Bool} (hc : ∃ x y, f x ≠ f y) :
+    0 < 𝔼 x, (signVal (f x) - 𝔼 y, signVal (f y)) ^ 2 := by
+  obtain ⟨x, y, h⟩ := hc
+  have h₁ : (0 : ℝ) < hammingDist f fun _ => false :=
+    Nat.cast_pos.2 <| hammingDist_pos.2 fun h' => by simp [h'] at h
+  have h₂ : (0 : ℝ) < hammingDist f fun _ => true :=
+    Nat.cast_pos.2 <| hammingDist_pos.2 fun h' => by simp [h'] at h
+  rw [expect_sub_expect_sq_signVal_eq_four_mul]
+  positivity
 
 end Cslib.BitString

@@ -60,25 +60,14 @@ lemma actualNoiseMax_budget
     vertexNormPow 4 N u (retainedMask s Ls D sourceSuffix)
       (actualNoiseMax s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i) ≤ e ^ 4 := by
   have hnonneg (σ : Environment P J) (x y : ZMod P) :
-      0 ≤ actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i σ x y := by
-    unfold actualNoiseEntry
-    apply div_nonneg (abs_nonneg _)
-    split_ifs
-    · linarith [div_nonneg (hG x y) (rate_pos k).le]
-    · norm_num
-  have hh := vertex_row_max (retainedMask s Ls D sourceSuffix)
+      0 ≤ actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i σ x y :=
+    div_nonneg (abs_nonneg _) (by split_ifs <;> linarith [div_nonneg (hG x y) (rate_pos k).le])
+  have hh := (vertex_row_max (retainedMask s Ls D sourceSuffix)
     (retainedMask t (if ν = 0 then La else Lt) D suffix) hNu
-    (actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i)
-  have he : (fun σ x => kthLargest 1 {y | retainedMask t (if ν = 0 then La else Lt) D suffix σ y}
-      (fun y => |actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i σ x y|)) =
-      actualNoiseMax s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i := by
-    funext σ x
-    apply congrArg (kthLargest 1 _)
-    funext y
-    rw [abs_of_nonneg (hnonneg σ x y)]
-    rfl
-  rw [he] at hh
-  exact hh.trans hb
+    (actualNoiseEntry s t Ls La Lt D sourceSuffix suffix k G Δ raw ν i)).trans hb
+  simp only [abs_of_nonneg (hnonneg _ _ _)] at hh
+  unfold actualNoiseMax
+  simpa only [actualNoiseEntry] using hh
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
 namespace Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
 open Finset Cslib Matrix Cslib.RowCompression Cslib.Probability
@@ -126,47 +115,24 @@ theorem raw_prefix_row_budget
     · simpa only [μ, Fin.reduceFinMk, Fin.isValue, one_ne_zero, ↓reduceIte, row_mask_subset X Ya Yt
         hsub] using hmean 1
   have hz' (ν : Fin 2) : rowNormPow 4 N u X Ya (z ν) ≤ (e * 2 ^ dyadicSlack m i) ^ 4 := by
-    have hn : e * (1 / 64 : ℝ) ^ dyadicSlack m i ≤ e * 2 ^ dyadicSlack m i :=
-      mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by norm_num) (by norm_num : (1 / 64 : ℝ) ≤ 2)
-        _) he
-    have hb : rowNormPow 4 N u X Ya (z ν) ≤ (e * (1 / 64 : ℝ) ^ dyadicSlack m i) ^ 4 := by
-      fin_cases ν
-      · simpa [z] using hnoise 0
-      · simpa only [z, Fin.reduceFinMk, Fin.isValue, one_ne_zero, ↓reduceIte,
-          row_mask_subset X Ya Yt hsub] using hnoise 1
-    exact hb.trans (pow_le_pow_left₀ (by positivity) hn 4)
+    refine le_trans ?_ (pow_le_pow_left₀ (by positivity) (mul_le_mul_of_nonneg_left
+      (pow_le_pow_left₀ (by norm_num) (by norm_num : (1 / 64 : ℝ) ≤ 2) _) he) 4)
+    fin_cases ν
+    · simpa [z] using hnoise 0
+    · simpa only [z, Fin.reduceFinMk, Fin.isValue, one_ne_zero, ↓reduceIte,
+        row_mask_subset X Ya Yt hsub] using hnoise 1
   have hsum := row_add_budget X Ya hNu (by positivity) (by positivity) _ _
     (row_add_budget X Ya hNu (by positivity) (by positivity) _ _ (hm 0) (hm 1))
     (row_add_budget X Ya hNu (by positivity) (by positivity) _ _ (hz' 0) (hz' 1))
-  have hbound := row_mono_abs X Ya hNu
-    (fun σ x y => clippedError (G x y / rate k)
-      (genuineTarget HP s t Ls Lt D sourceSuffix suffix k G ζ σ x y 1) (actualPrefix Δ raw i σ x y))
-    (fun σ x y => (μ 0 σ x y + μ 1 σ x y) + (z 0 σ x y + z 1 σ x y)) (by
-      intro σ x y _ _
-      rw [abs_of_nonneg (clippedError_nonneg _ _ _)]
-      have hh := actual_two_mask_clipped_split HP s t Ls La Lt D sourceSuffix suffix k G hG ζ
-        (actualPrefix Δ raw i) hz σ x y
-      dsimp only at hh
-      have heq : (μ 0 σ x y + μ 1 σ x y) + (z 0 σ x y + z 1 σ x y) =
-        min 1 (|twoMaskMean s t Ls La Lt D sourceSuffix suffix (actualPrefix Δ raw i) x y 0 - G x
-          y / rate k| / (1 + G x y / rate k)) +
-        (if Yt σ y then min 1 |twoMaskMean s t Ls La Lt D sourceSuffix suffix (actualPrefix Δ raw
-          i) x y 1-
-          ζ * genuineMean HP s t Ls Lt (CopyPadding.identifier D sourceSuffix x) D suffix k G x y|
-            else 0) +
-        |actualPrefix Δ raw i σ x y 0 - twoMaskMean s t Ls La Lt D sourceSuffix suffix
-          (actualPrefix Δ raw i) x y 0| / (1 + G x y / rate k) +
-        (if Yt σ y then |actualPrefix Δ raw i σ x y 1 - twoMaskMean s t Ls La Lt D sourceSuffix
-          suffix (actualPrefix Δ raw i) x y 1| else 0) := by
-          simp only [μ, z, actualClippedMean, actualNoiseEntry, Fin.isValue, ↓reduceIte,
-            one_ne_zero, div_one]
-          ring
-      rw [heq]
-      exact hh.trans (le_abs_self _))
-  have heq : (e * 2 ^ dyadicSlack m i + e * 2 ^ dyadicSlack m i) + (e * 2 ^ dyadicSlack m i + e *
-    2 ^ dyadicSlack m i) = 4 * e * 2 ^ dyadicSlack m i := by ring
-  rw [heq] at hsum
-  exact hbound.trans hsum
+  refine (row_mono_abs X Ya hNu _
+    (fun σ x y => (μ 0 σ x y + μ 1 σ x y) + (z 0 σ x y + z 1 σ x y)) fun σ x y _ _ => ?_).trans
+    (hsum.trans_eq (by ring))
+  rw [abs_of_nonneg (clippedError_nonneg _ _ _)]
+  refine (actual_two_mask_clipped_split HP s t Ls La Lt D sourceSuffix suffix k G hG ζ
+    (actualPrefix Δ raw i) hz σ x y).trans ((le_of_eq ?_).trans (le_abs_self _))
+  simp only [μ, z, actualClippedMean, actualNoiseEntry, Fin.isValue, ↓reduceIte,
+    one_ne_zero, div_one]
+  ring
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
 namespace Matrix.FourthRootHierarchyParams.NormalizedRow
 open Finset Cslib Matrix Cslib.RowCompression Cslib.Probability
@@ -209,8 +175,7 @@ theorem uniform_moment_capacity {scale : ℝ} (hs : 0 < scale) (hmargin : scale 
         ℝ) *
         (rangeBound HP) ^ 4 / η ^ 4 / 63) * ε ^ 4 := by
   obtain ⟨C, hC, hscale⟩ := exists_compression_rowNormPow_le HP ζ hζ hs hmargin hcapscale
-  refine ⟨C, hC, ?_⟩
-  intro η hη hηs hη1
+  refine ⟨C, hC, fun η hη hηs hη1 => ?_⟩
   obtain ⟨A, hA, hbound⟩ := hscale η hη hηs hη1
   refine ⟨A, hA, ?_⟩
   intro Ω V _ _ N u hNu X Y m hm n hnscale Δ raw truth S e hn hfirst hsecond hzero ε T hε hT hrow
@@ -218,18 +183,15 @@ theorem uniform_moment_capacity {scale : ℝ} (hs : 0 < scale) (hmargin : scale 
   have he (i : ℕ) : vertexNormPow 4 N u X (e i) ≤ rowNormPow 4 N u X Y
       (fun σ x y => clippedError (truth σ x y 0) (truth σ x y 1) (uncompressedRow (Δ σ x) (raw σ
         x) (i + 1) y)) := by
-    have hh := vertex_row_max X Y hNu
-      (fun σ x y => clippedError (truth σ x y 0) (truth σ x y 1) (uncompressedRow (Δ σ x) (raw σ
-        x) (i + 1) y))
-    simpa only [abs_of_nonneg (clippedError_nonneg _ _ _)] using hh
+    simpa only [abs_of_nonneg (clippedError_nonneg _ _ _)] using vertex_row_max X Y hNu
+      (fun σ x y => clippedError (truth σ x y 0) (truth σ x y 1)
+        (uncompressedRow (Δ σ x) (raw σ x) (i + 1) y))
   have herr (i : ℕ) (σ : Ω) (x y : V) (hy : Y σ y) :
       clippedError (truth σ x y 0) (truth σ x y 1) (uncompressedRow (Δ σ x) (raw σ x) (i + 1) y) ≤
         e i σ x := by
-    have hh := abs_le_kthLargest_one (S σ)
-      (fun y => clippedError (truth σ x y 0) (truth σ x y 1) (uncompressedRow (Δ σ x) (raw σ x) (i
- + 1) y))
-      y (mem_filter.mpr ⟨mem_univ _, hy⟩)
-    simpa only [abs_of_nonneg (clippedError_nonneg _ _ _)] using hh
+    simpa only [abs_of_nonneg (clippedError_nonneg _ _ _)] using abs_le_kthLargest_one (S σ)
+      (fun y => clippedError (truth σ x y 0) (truth σ x y 1)
+        (uncompressedRow (Δ σ x) (raw σ x) (i + 1) y)) y (mem_filter.mpr ⟨mem_univ _, hy⟩)
   have hb := hbound N u hNu X Y n m hn Δ raw truth hfirst hsecond hzero e (e (m - 1))
     (fun _ _ _ _ _ => kthLargest_nonneg) (fun _ _ _ => kthLargest_nonneg)
     (fun i _ σ x y _ hy => herr i σ x y hy)
@@ -237,10 +199,10 @@ theorem uniform_moment_capacity {scale : ℝ} (hs : 0 < scale) (hmargin : scale 
   dsimp only at hb
   have hp := vertexNormPow_sum_le_pow_sum (X := X) (by decide : 4 ≠ 0) hNu (range m) e
     (dyadicFloor η m) (fun i => ε * 2 ^ dyadicSlack m i)
-    (fun _ _ => dyadicFloor_nonneg hη.le _ _) (fun _ _ => by positivity)
+    (fun _ _ => by positivity) (fun _ _ => by positivity)
     (fun i hi => (he i).trans (hrow i (mem_range.mp hi)))
-  have hp' := hp.trans (pow_le_pow_left₀ (sum_nonneg fun _ _ => mul_nonneg (dyadicFloor_nonneg
-    hη.le _ _) (by positivity)) (pre_schedule_sum hη.le hε m) 4)
+  have hp' := hp.trans (pow_le_pow_left₀ (sum_nonneg fun _ _ => by positivity)
+    (pre_schedule_sum hη.le hε m) 4)
   have hf : vertexNormPow 4 N u X (fun σ x => if ∀ i < m,
       stepThreshold (S σ) n (fun _ => HP.K) (dyadicFloor η m) (Δ σ x) ⟨0, raw σ x⟩ i ≤ dyadicFloor
         η m i
@@ -257,9 +219,8 @@ theorem uniform_moment_capacity {scale : ℝ} (hs : 0 < scale) (hmargin : scale 
     mul_le_mul_of_nonneg_left (hrow i (mem_range.mp hi))
       (by positivity : 0 ≤ 64 * (HP.K : ℝ) * (rangeBound HP) ^ 4 / ((n i : ℝ) * dyadicFloor η m i
  ^ 4)))
-  have hc := false_schedule_sum_capacity (ε := ε) (R := rangeBound HP) hη (Nat.cast_nonneg HP.K) m
-    n hnscale
-  have hcharge' := hcharge.trans hc
+  have hcharge' := hcharge.trans (false_schedule_sum_capacity (ε := ε) (R := rangeBound HP) hη
+    (Nat.cast_nonneg HP.K) m n hnscale)
   calc
     _ ≤ 128 * (HP.K : ℝ) * (A ^ 4 * (η * ε / 511) ^ 4 + C ^ 4 * (2 * ε) ^ 4 + C ^ 4 * (T * ε) ^ 4)
  +

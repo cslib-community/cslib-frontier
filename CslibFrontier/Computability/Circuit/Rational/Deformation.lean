@@ -77,27 +77,21 @@ lemma polynomialLift_embed (R : Matrix (ZMod d) (ZMod d) K) :
     PolynomialHahn.embed.mapMatrix (polynomialLift χ R) = representation χ (liftD χ R) := by
   ext i j g
   change (PolynomialHahn.embed (polynomialLift χ R i j)).coeff g = (lift χ R).coeff g i j
-  simp only [polynomialLift, map_sum, HahnSeries.coeff_sum, embed_monomial,
-    lift, Matrix.sum_apply]
-  apply Finset.sum_congr rfl
-  intro a ha
-  apply Finset.sum_congr rfl
-  intro b hb
+  simp only [polynomialLift, map_sum, HahnSeries.coeff_sum, embed_monomial, lift,
+    Matrix.sum_apply]
+  refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => ?_
   have he : exponent (Finsupp.single 0 a.val + Finsupp.single 1 b.val) =
       toLex ((a.val : ℤ), (b.val : ℤ)) := by simp [exponent]
-  rw [he]
-  simp only [HahnSeries.coeff_single]
+  simp only [he, HahnSeries.coeff_single]
   split_ifs <;> rfl
 
 /-- Evaluating `polynomialLift χ R` at `(1, 1)` recovers `R` when `χ` is primitive. -/
 lemma polynomialLift_specialize (hχ : χ.IsPrimitive) (R : Matrix (ZMod d) (ZMod d) K) :
     (MvPolynomial.aeval (fun _ : Fin 2 => (1 : K))).toRingHom.mapMatrix
       (polynomialLift χ R) = R := by
-  have h := fourier_reconstruction χ hχ R
   ext i j
-  have hij := congrFun (congrFun h i) j
-  simpa [polynomialLift, eval_monomial, Matrix.sum_apply, Matrix.smul_apply,
-    smul_eq_mul] using hij
+  simpa [polynomialLift, eval_monomial, Matrix.sum_apply, Matrix.smul_apply, smul_eq_mul] using
+    congrFun (congrFun (fourier_reconstruction χ hχ R) i) j
 
 variable {m : Type*} [Fintype m] [DecidableEq m]
 
@@ -132,19 +126,14 @@ theorem blockPolynomial_det_ne_zero (hχ : χ.IsPrimitive)
     (hm : 1 ≤ Fintype.card m)
     (hA : (Fintype.card m - 1) * d < (blockOriginal A).rank) :
     (blockPolynomial χ A).det ≠ 0 := by
-  let B := blockPolynomial χ A
   have hrank := Rational.RankSpecialization.rank_le
     (MvPolynomial.aeval (fun _ : Fin 2 => (1 : K))) PolynomialHahn.embed
-    PolynomialHahn.embed_injective B
+    PolynomialHahn.embed_injective (blockPolynomial χ A)
   rw [blockPolynomial_specialize χ hχ, blockPolynomial_embed] at hrank
   have hu := isUnit_of_rank_gt (representation χ) (fun i j => liftD χ (A i j)) hm
     (by simpa [ZMod.card] using hA.trans_le hrank)
-  have hdet : (PolynomialHahn.embed.mapMatrix B).det ≠ 0 := by
-    rw [blockPolynomial_embed]
-    exact (Matrix.isUnit_iff_isUnit_det _).mp hu |>.ne_zero
-  intro hz
-  rw [← RingHom.map_det, hz, map_zero] at hdet
-  exact hdet rfl
+  exact fun hz => ((Matrix.isUnit_iff_isUnit_det _).mp hu).ne_zero
+    (by rw [← blockPolynomial_embed, ← RingHom.map_det, hz, map_zero])
 
 end
 end Rational.QuantumLift
@@ -178,14 +167,10 @@ def specialize (φ : K →+* E) (t : E) :
   eval₂Hom (MvPolynomial.C.comp φ) (Fin.cases (MvPolynomial.C t) MvPolynomial.X)
 
 private lemma specialize_uni (φ : K →+* E) (t : E) (p : K[X]) :
-    specialize φ t (uni p) = MvPolynomial.C (p.eval₂ φ t) := by
-  have he : (specialize φ t).comp uni =
-      MvPolynomial.C.comp (Polynomial.eval₂RingHom φ t) := by
-    apply Polynomial.ringHom_ext
-    · intro a
-      simp [specialize, uni]
-    · simp [specialize, uni]
-  exact congrArg (fun h : K[X] →+* MvPolynomial (Fin 2) E => h p) he
+    specialize φ t (uni p) = MvPolynomial.C (p.eval₂ φ t) :=
+  congrFun (congrArg DFunLike.coe <| Polynomial.ringHom_ext
+    (f := (specialize φ t).comp uni) (g := MvPolynomial.C.comp (Polynomial.eval₂RingHom φ t))
+    (fun _ => by simp [specialize, uni]) (by simp [specialize, uni])) p
 
 /-- Evaluating `coeffP χ R a b` at `t` along `φ` gives the `(a, b)` Fourier coefficient of `R`
 evaluated at `t`. -/
@@ -205,52 +190,41 @@ private lemma specialize_lift (φ : K →+* E) (t : E)
     (R : Matrix (ZMod d) (ZMod d) K[X]) :
     (specialize φ t).mapMatrix (lift χ R) =
       polynomialLift (φ.toMonoidHom.compAddChar χ) ((Polynomial.eval₂RingHom φ t).mapMatrix R) := by
-  apply Matrix.ext
-  intro i j
+  ext1 i j
   simp only [RingHom.mapMatrix_apply, Matrix.map_apply, lift, map_sum, map_mul, map_pow,
     specialize_uni, coeffP_eval]
   simp only [specialize, eval₂Hom_X', eval₂Hom_C, RingHom.comp_apply, weyl_map, polynomialLift]
-  apply Finset.sum_congr rfl
-  intro a _
-  apply Finset.sum_congr rfl
-  intro b _
+  refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => ?_
   rw [MvPolynomial.monomial_add_single, ← MvPolynomial.C_mul_X_pow_eq_monomial, map_mul]
   rfl
 
 private lemma uni_totalDegree_le (p : K[X]) : (uni p).totalDegree ≤ p.natDegree := by
   classical
   conv_lhs => rw [p.as_sum_range_C_mul_X_pow]
-  simp only [map_sum, map_mul, map_pow]
-  apply totalDegree_finsetSum_le
-  intro j hj
-  simp only [uni, Polynomial.coe_eval₂RingHom, Polynomial.eval₂_C, Polynomial.eval₂_X]
-  apply (totalDegree_mul _ _).trans
-  apply (Nat.add_le_add (totalDegree_C _).le (totalDegree_pow _ _)).trans
-  simp only [zero_add, totalDegree_X, Nat.mul_one]
-  exact Nat.le_of_lt_succ (Finset.mem_range.mp hj)
+  simp only [map_sum, map_mul, map_pow, uni, Polynomial.coe_eval₂RingHom, Polynomial.eval₂_C,
+    Polynomial.eval₂_X]
+  refine totalDegree_finsetSum_le fun j hj => (totalDegree_mul _ _).trans ?_
+  exact (Nat.add_le_add (totalDegree_C _).le (totalDegree_pow _ _)).trans
+    (by simp [Nat.le_of_lt_succ (Finset.mem_range.mp hj)])
 
 private lemma coeffP_natDegree_le (R : Matrix (ZMod d) (ZMod d) K[X]) (D : ℕ)
     (hR : ∀ i j, (R i j).natDegree ≤ D) (a b : ZMod d) :
-    (coeffP χ R a b).natDegree ≤ D := by
-  apply (Polynomial.natDegree_C_mul_le _ _).trans
-  apply Polynomial.natDegree_sum_le_of_forall_le
-  intro j _
-  exact (Polynomial.natDegree_C_mul_le _ _).trans (hR _ _)
+    (coeffP χ R a b).natDegree ≤ D :=
+  (Polynomial.natDegree_C_mul_le _ _).trans <|
+    Polynomial.natDegree_sum_le_of_forall_le _ _ fun _ _ =>
+      (Polynomial.natDegree_C_mul_le _ _).trans (hR _ _)
 
 private lemma lift_totalDegree_le (R : Matrix (ZMod d) (ZMod d) K[X]) (D : ℕ)
     (hR : ∀ i j, (R i j).natDegree ≤ D) (i j : ZMod d) :
     (lift χ R i j).totalDegree ≤ D + 2 * (d - 1) := by
-  apply totalDegree_finsetSum_le
-  intro a _
-  apply totalDegree_finsetSum_le
-  intro b _
+  refine totalDegree_finsetSum_le fun a _ => totalDegree_finsetSum_le fun b _ => ?_
   apply (totalDegree_mul _ _).trans
   apply (Nat.add_le_add (totalDegree_mul _ _) (totalDegree_pow _ _)).trans
   apply (Nat.add_le_add (Nat.add_le_add (totalDegree_mul _ _) (totalDegree_pow _ _)) le_rfl).trans
   simp only [totalDegree_C, totalDegree_X, Nat.mul_one, Nat.add_zero]
-  have hh := (uni_totalDegree_le (coeffP χ R a b)).trans (coeffP_natDegree_le χ R D hR a b)
-  have ha : a.val ≤ d - 1 := Nat.le_sub_one_of_lt (ZMod.val_lt a)
-  have hb : b.val ≤ d - 1 := Nat.le_sub_one_of_lt (ZMod.val_lt b)
+  have := (uni_totalDegree_le (coeffP χ R a b)).trans (coeffP_natDegree_le χ R D hR a b)
+  have := ZMod.val_lt a
+  have := ZMod.val_lt b
   omega
 
 end
@@ -305,14 +279,7 @@ private lemma raw_specialize (φ : K →+* E)
     Polynomial.coe_eval₂RingHom, Polynomial.eval₂_finsetSum, Polynomial.eval₂_mul,
     Polynomial.eval₂_C, Matrix.reindex_apply, Equiv.prodCongr_symm,
     Equiv.prodCongr_apply, Equiv.refl_symm, test]
-  apply Finset.sum_congr rfl
-  intro i _
-  change ((HahnSeries.C : E →+* F E).comp φ) (A i α β) *
-    (padded M N (points i) ((ZMod.finEquiv M).symm j) ((ZMod.finEquiv M).symm k)).eval₂
-      ((HahnSeries.C : E →+* F E).comp φ) (HahnSeries.single 1 1) =
-    ((HahnSeries.C : E →+* F E).comp φ) (A i α β) *
-      embed (padded M N (φ (points i)) ((ZMod.finEquiv M).symm j) ((ZMod.finEquiv M).symm k))
-  rw [eval₂_padded]
+  exact Finset.sum_congr rfl fun i _ => congrArg (_ * ·) (eval₂_padded ..)
 
 omit [CharZero K] in
 /-- The three-variable determinant is nonzero. The witness can lie over an
@@ -328,42 +295,33 @@ theorem det_ne_zero (χ : AddChar (ZMod M) K) (hχ : χ.IsPrimitive)
     (polynomial (N := N) χ A points).det ≠ 0 := by
   let ψ : K →+* F E := (HahnSeries.C : E →+* F E).comp φ
   let τ : F E := HahnSeries.single 1 1
-  let A' := fun i => ψ.mapMatrix (A i)
-  let W := fun α β => (Polynomial.eval₂RingHom ψ τ).mapMatrix (polyBlocks (M := M) (N := N) A
-    points α β)
+  let W := fun α β =>
+    (Polynomial.eval₂RingHom ψ τ).mapMatrix (polyBlocks (M := M) (N := N) A points α β)
   have hr := PaddedRank.rank_ge w B M N q e hw hN hMN hqB he
-    (fun i => φ (points i)) (φ.injective.comp hp) A' X hX
-  have hr' : (q - 1) * M < (QuantumLift.blockOriginal W).rank := by
-    rw [show QuantumLift.blockOriginal W = _ from raw_specialize φ A points, Matrix.rank_reindex]
+    (fun i => φ (points i)) (φ.injective.comp hp) (fun i => ψ.mapMatrix (A i)) X hX
+  have hr' : (Fintype.card (Fin q) - 1) * M < (QuantumLift.blockOriginal W).rank := by
+    rw [Fintype.card_fin, raw_specialize φ A points, Matrix.rank_reindex]
     exact (PaddedRank.numeric_gap w B M N q hq hqB hMN hM).trans_le hr
-  have hχ' : (ψ.toMonoidHom.compAddChar χ).IsPrimitive :=
-    hχ.compMulHom_of_isPrimitive ψ.injective
-  have hd := QuantumLift.blockPolynomial_det_ne_zero (ψ.toMonoidHom.compAddChar χ) hχ' W
-    (by simpa using hq) (by simpa using hr')
-  intro hz
-  have hm := congrArg (ThreeLift.specialize ψ τ) hz
-  rw [map_zero, RingHom.map_det, specialize χ ψ τ] at hm
-  exact hd hm
+  have hd := QuantumLift.blockPolynomial_det_ne_zero (ψ.toMonoidHom.compAddChar χ)
+    (hχ.compMulHom_of_isPrimitive ψ.injective) W (by simpa using hq) hr'
+  exact fun hz => hd (by rw [← specialize χ ψ τ, ← RingHom.map_det, hz, map_zero])
 
 omit [CharZero K] in
 private lemma polyBlocks_degree (A : Fin w → Matrix (Fin q) (Fin q) K) (points : Fin w → K)
     (α β : Fin q) (i j : ZMod M) :
     (polyBlocks (M := M) (N := N) A points α β i j).natDegree ≤ M - 1 := by
   simp only [polyBlocks, Matrix.sum_apply, Matrix.smul_apply, Polynomial.smul_eq_C_mul]
-  apply Polynomial.natDegree_sum_le_of_forall_le
-  intro r _
-  apply (Polynomial.natDegree_C_mul_le _ _).trans
-  exact padded_natDegree_le M N (points r) _ _
+  exact Polynomial.natDegree_sum_le_of_forall_le _ _ fun r _ =>
+    (Polynomial.natDegree_C_mul_le _ _).trans (padded_natDegree_le M N (points r) _ _)
 
 omit [CharZero K] in
 /-- Every entry of `polynomial χ A points` has total degree at most `3 * M`. -/
 lemma entry_degree (χ : AddChar (ZMod M) K)
     (A : Fin w → Matrix (Fin q) (Fin q) K) (points : Fin w → K)
     (a b : Fin q × ZMod M) :
-    (polynomial (N := N) χ A points a b).totalDegree ≤ 3 * M := by
-  have hh := ThreeLift.lift_totalDegree_le χ (polyBlocks (M := M) (N := N) A points a.1 b.1)
-    (M - 1) (polyBlocks_degree A points a.1 b.1) a.2 b.2
-  exact hh.trans (by omega)
+    (polynomial (N := N) χ A points a b).totalDegree ≤ 3 * M :=
+  (ThreeLift.lift_totalDegree_le χ (polyBlocks (M := M) (N := N) A points a.1 b.1)
+    (M - 1) (polyBlocks_degree A points a.1 b.1) a.2 b.2).trans (by omega)
 
 end
 end Rational.PencilDeformation
@@ -376,29 +334,21 @@ noncomputable section
 variable {K : Type*} [Field K] {d : ℕ} [NeZero d]
 variable (χ : AddChar (ZMod d) K)
 
-private lemma coeffP_zero (a b : ZMod d) : coeffP χ 0 a b = 0 := by simp [coeffP]
-
-private lemma coeffP_add (R S : Matrix (ZMod d) (ZMod d) K[X]) (a b : ZMod d) :
-    coeffP χ (R + S) a b = coeffP χ R a b + coeffP χ S a b := by
-  simp [coeffP, mul_add, Finset.sum_add_distrib]
-
 private lemma coeffP_smul (c : K) (R : Matrix (ZMod d) (ZMod d) K[X]) (a b : ZMod d) :
     coeffP χ (c • R) a b = Polynomial.C c * coeffP χ R a b := by
   simp only [coeffP, Matrix.smul_apply, Polynomial.smul_eq_C_mul, Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro j _
-  ring
+  exact Finset.sum_congr rfl fun _ _ => by ring
 
 /-- The three-parameter lift of the zero matrix is zero. -/
 lemma lift_zero : lift χ 0 = 0 := by
   funext i j
-  simp [lift, coeffP_zero]
+  simp [lift, coeffP]
 
 /-- The three-parameter lift is additive. -/
 lemma lift_add (R S : Matrix (ZMod d) (ZMod d) K[X]) :
     lift χ (R + S) = lift χ R + lift χ S := by
   funext i j
-  simp [lift, coeffP_add, map_add, add_mul, Finset.sum_add_distrib]
+  simp [lift, coeffP, map_add, add_mul, mul_add, Finset.sum_add_distrib]
 
 /-- The three-parameter lift commutes with scalar multiplication by constants in `K`. -/
 lemma lift_smul (c : K) (R : Matrix (ZMod d) (ZMod d) K[X]) :
@@ -406,11 +356,7 @@ lemma lift_smul (c : K) (R : Matrix (ZMod d) (ZMod d) K[X]) :
   funext i j
   simp only [lift, coeffP_smul, map_mul, uni, Polynomial.coe_eval₂RingHom, Polynomial.eval₂_C,
     Matrix.smul_apply, MvPolynomial.smul_eq_C_mul, Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro a _
-  apply Finset.sum_congr rfl
-  intro b _
-  ring
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
 
 /-- The three-parameter lift `lift χ` as a `K`-linear map. -/
 def linear : Matrix (ZMod d) (ZMod d) K[X] →ₗ[K]

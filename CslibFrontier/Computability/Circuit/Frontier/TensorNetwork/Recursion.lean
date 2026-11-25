@@ -113,19 +113,15 @@ open Polynomial Finset
 namespace Cslib.Circuits.Frontier
 
 open ContractionSchedule (nodePrecision)
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
+open scoped TensorNetwork
 
 /-! ### Node precisions -/
 
 /-- A node of positive multiplicity has valuation below `u`. -/
 theorem padicValInt_lt_of_taperMult_pos_left {u h : ℕ} {t : ℤ} (hq : 0 < taperMult u h t) :
     padicValInt 2 t < u := by
-  unfold taperMult at hq
   by_contra hc
-  rw [Nat.sub_eq_zero_of_le (not_lt.mp hc), mul_zero] at hq
-  exact lt_irrefl 0 hq
+  simp [taperMult, Nat.sub_eq_zero_of_le (not_lt.mp hc)] at hq
 
 /-- A node of positive multiplicity has valuation below `u`, so below `a` when `u ≤ a`. -/
 theorem padicValInt_lt_of_taperMult_pos {u h a : ℕ} {t : ℤ} (hq : 0 < taperMult u h t)
@@ -460,7 +456,7 @@ theorem exists_callValue_eq_add {rec : ContractionOracle B} (hrec : rec.Correct)
     push_cast
     rfl
   refine ⟨⟨b, hb⟩, ?_⟩
-  rw [callValue, dite_eq_left (by rw [hx']; exact (N.contraction + 2 ^ p * ⟨b, hb⟩).2)]
+  rw [callValue, dite_eq_left (hx' ▸ (N.contraction + 2 ^ p * ⟨b, hb⟩).2)]
   exact Subtype.ext hx'
 
 end Call
@@ -486,21 +482,19 @@ theorem rowsToColumnsLE_child {Δ a : ℕ} {slot : E → ℕ} (hrow : ∀ v, #{e
   src_le := by
     rintro (v | q)
     · rw [S.card_child_src_inl]
-      by_cases hv : S.side v.1
-      · have h0 : #{e | N.tgt e = v.1} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
-          fun e _ he => by
-            have := S.side_tgt e
-            rw [he, hv] at this
-            exact absurd this (by decide)
-        rw [h0, add_zero]
-        exact hrow _
-      · have h0 : #{e | N.src e = v.1} = 0 := card_eq_zero.mpr <| filter_eq_empty_iff.mpr
-          fun e _ he => by
-            have := S.side_src e
-            rw [he] at this
-            exact hv this
+      cases hv : S.side v.1
+      · have h0 : #{e | N.src e = v.1} = 0 := by
+          refine card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => ?_)
+          rw [← he, S.side_src] at hv
+          cases hv
         rw [h0, zero_add]
         exact hcol _
+      · have h0 : #{e | N.tgt e = v.1} = 0 := by
+          refine card_eq_zero.mpr (filter_eq_empty_iff.mpr fun e _ he => ?_)
+          rw [← he, S.side_tgt] at hv
+          cases hv
+        rw [h0, add_zero]
+        exact hrow _
     · rw [S.card_child_src_inr]
       exact Nat.zero_le _
   tgt_le := by
@@ -677,20 +671,15 @@ contraction modulo `2 ^ p`, for every schedule and depth. -/
 theorem exists_contractRec_eq_add (hpts : Pairwise fun k l => IsUnit (pts k - pts l)) (d n m : ℕ)
     (N : TensorNetwork B Bool (Fin n) (Fin m)) (side : Fin n → Bool) (p : ℕ) :
     ∃ c : B, contractRec B hB sched pts d n m N side p = N.contraction + 2 ^ p * c := by
-  induction m using Nat.strong_induction_on generalizing d n p with
-  | _ m ih =>
-  rw [contractRec]
-  split
-  · exact ⟨0, by simp⟩
-  · rename_i θ _
-    split_ifs with hθ
-    · obtain ⟨hu, huM, hua, hh, hh', hn⟩ := hθ.admissible
-      refine exists_callValue_eq_add B hB (fun n' m' N' side' p' => ?_) N side hθ.side_src
-        hθ.side_tgt _ hu (by simpa using huM) hua (by simpa using hh) (by simpa using hh') _
-        (fun k l hkl => hpts fun h => hkl (Fin.castLE_injective _ h)) (by simp)
-      split_ifs with hm
-      · exact ih m' hm (d + 1) n' N' side' p'
-      · exact ⟨0, by simp⟩
+  fun_induction contractRec B hB sched pts d n m N side p with
+  | case1 | case3 => exact ⟨0, by simp⟩ -- no parameters, or guard fails
+  | case2 d n m N side p θ _ hθ ih => -- active call
+    obtain ⟨hu, huM, hua, hh, hh', hn⟩ := hθ.admissible
+    refine exists_callValue_eq_add B hB (fun n' m' N' side' p' => ?_) N side hθ.side_src
+      hθ.side_tgt _ hu (by simpa using huM) hua (by simpa using hh) (by simpa using hh') _
+      (fun k l hkl => hpts fun h => hkl (Fin.castLE_injective _ h)) (by simp)
+    split_ifs with hm
+    · exact ih n' m' N' side' p' hm
     · exact ⟨0, by simp⟩
 
 /-- **The recursion computes the contraction modulo `2 ^ p`.** -/
