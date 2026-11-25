@@ -93,38 +93,17 @@ whose value lies in `[v(h) 2^(N-|h|), (v(h) + 1) 2^(N-|h|))`, for `N` their leng
 theorem isPrefix_iff_binaryValue {h r : List Bool} (hlen : h.length ≤ r.length) :
     h <+: r ↔ binaryValue h * 2 ^ (r.length - h.length) ≤ binaryValue r ∧
       binaryValue r < (binaryValue h + 1) * 2 ^ (r.length - h.length) := by
-  have hr : r = r.take h.length ++ r.drop h.length := (List.take_append_drop _ _).symm
-  have hlt : (r.take h.length).length = h.length := by simp [hlen]
-  have hld : (r.drop h.length).length = r.length - h.length := by simp
-  have hbv : binaryValue r = binaryValue (r.take h.length) * 2 ^ (r.length - h.length) +
-      binaryValue (r.drop h.length) := by
-    conv_lhs => rw [hr]
-    rw [binaryValue_append, hld]
-  have hv : binaryValue (r.drop h.length) < 2 ^ (r.length - h.length) := by
-    have := binaryValue_lt_two_pow (r.drop h.length)
-    rwa [hld] at this
-  rw [hbv]
-  generalize hu : r.take h.length = u at hlt ⊢
-  generalize 2 ^ (r.length - h.length) = P at hv ⊢
-  generalize binaryValue (r.drop h.length) = v at hv ⊢
-  constructor
-  · intro hp
-    have huh : u = h := by rw [← hu]; exact (List.prefix_iff_eq_take.mp hp).symm
-    rw [huh, add_mul, one_mul]
-    constructor <;> omega
-  · rintro ⟨h1, h2⟩
-    have huh : binaryValue u = binaryValue h := by
-      apply le_antisymm
-      · by_contra hc
-        have := Nat.mul_le_mul_right P (Nat.succ_le_of_lt (not_le.mp hc))
-        rw [Nat.succ_eq_add_one] at this
-        omega
-      · by_contra hc
-        have := Nat.mul_le_mul_right P (Nat.succ_le_of_lt (not_le.mp hc))
-        rw [Nat.succ_mul] at this
-        omega
-    rw [List.prefix_iff_eq_take, hu]
-    exact (binaryValue_injective_of_length_eq hlt huh).symm
+  have hP : 0 < 2 ^ (r.length - h.length) := Nat.two_pow_pos _
+  have hdiv : binaryValue r / 2 ^ (r.length - h.length) = binaryValue (r.take h.length) := by
+    have hv : binaryValue (r.drop h.length) < 2 ^ (r.length - h.length) :=
+      List.length_drop ▸ binaryValue_lt_two_pow (r.drop h.length)
+    rw [show binaryValue r = binaryValue (r.take h.length ++ r.drop h.length) from
+      congrArg binaryValue (List.take_append_drop h.length r).symm,
+      binaryValue_append, List.length_drop, mul_comm, Nat.mul_add_div hP,
+      Nat.div_eq_of_lt hv, add_zero]
+  rw [← Nat.le_div_iff_mul_le hP, ← Nat.div_lt_iff_lt_mul hP, hdiv, List.prefix_iff_eq_take]
+  exact ⟨fun hp => by rw [← hp]; omega,
+    fun heq => binaryValue_injective_of_length_eq (by simp [hlen]) (by omega)⟩
 
 /-- The word of the same length as `x` whose value is one less (`x` itself when its value is
 `0`). -/
@@ -189,25 +168,19 @@ theorem carry_cut_unique {u u' : List Bool} {k k' : ℕ}
   have h1 := congrArg List.reverse h
   simp only [List.reverse_append, List.reverse_cons, List.reverse_replicate,
     List.append_assoc, List.singleton_append] at h1
-  have key : ∀ (k k' : ℕ) (a b : List Bool),
-      List.replicate k true ++ false :: a = List.replicate k' true ++ false :: b →
-        k = k' ∧ a = b := by
-    intro k
-    induction k with
+  have key {k k' : ℕ} {a b : List Bool}
+      (e : List.replicate k true ++ false :: a = List.replicate k' true ++ false :: b) :
+      k = k' ∧ a = b := by
+    induction k generalizing k' with
     | zero =>
-      intro k' a b e
       cases k' with
       | zero => simpa using e
-      | succ k' => simp [List.replicate_succ] at e
+      | succ _ => simp [List.replicate_succ] at e
     | succ k ih =>
-      intro k' a b e
       cases k' with
       | zero => simp [List.replicate_succ] at e
-      | succ k' =>
-        simp only [List.replicate_succ, List.cons_append, List.cons.injEq, true_and] at e
-        obtain ⟨h2, h3⟩ := ih k' a b e
-        exact ⟨by rw [h2], h3⟩
-  obtain ⟨h2, h3⟩ := key k k' _ _ h1
+      | succ k' => simpa using ih (by simpa [List.replicate_succ] using e)
+  obtain ⟨h2, h3⟩ := key h1
   exact ⟨List.reverse_injective h3, h2⟩
 
 end Cslib.BitString

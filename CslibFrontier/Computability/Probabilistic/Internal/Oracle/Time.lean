@@ -542,15 +542,6 @@ private theorem oComp_computesOracleInTimeOn [Finite Operation]
         (m₂.runOracleConfigFrom (t₂ b) (m₂.initialConfig (middle b))) s₁ :=
     fun b s₁ hb => run_interpret_runOracleConfigFrom_eq_of_halted m₂ oracle
       (m₂.initialConfig (middle b)) (ht₂ a State oracle s s₁ b hb) s₁ (hm₂ b State oracle s₁).2
-  have hhalt₂_word : ∀ word (b : β) (s₁ : State),
-      (b, s₁) ∈ (ProbOracleComp.runWith oracle (first a) s).support →
-      middle b = word →
-      ∀ final ∈ (ProbOracleComp.runWith oracle
-        (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig word)) s₁).support,
-        final.1.tapes.state = none := by
-    rintro _ b s₁ hb rfl final hfinal
-    rw [hpad₂ b s₁ hb] at hfinal
-    exact (hm₂ b State oracle s₁).2 final hfinal
   have hhalt₂_open : ∀ result ∈ (ProbOracleComp.runWith oracle
       (m₁.runOracleConfigFrom (t₁ a) (m₁.initialConfig (input a))) s).support,
       ∀ final ∈ (ProbOracleComp.runWith oracle
@@ -560,6 +551,14 @@ private theorem oComp_computesOracleInTimeOn [Finite Operation]
         final.1.tapes.state = none := by
     rintro ⟨cfg₀, s₁⟩ hcfg₀ ⟨cfg₁, s₂⟩ hfinal
     obtain ⟨b, hb, hmid⟩ := hmem_word cfg₀ s₁ hcfg₀
+    have hhalt₂_word {word} (hw : middle b = word) :
+        ∀ final ∈ (ProbOracleComp.runWith oracle
+          (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig word)) s₁).support,
+          final.1.tapes.state = none := by
+      subst hw
+      intro final hf
+      rw [hpad₂ b s₁ hb] at hf
+      exact (hm₂ b State oracle s₁).2 final hf
     have hmap : ((cfg₁.tapes.output, cfg₁.tapes.state), s₂) ∈ ((ProbOracleComp.runWith oracle
         (m₂.runOracleConfigFrom (t₂' a)
           { tapes := Cfg.init m₂.initial cfg₀.tapes.output,
@@ -570,7 +569,7 @@ private theorem oComp_computesOracleInTimeOn [Finite Operation]
     obtain ⟨⟨cfg₁', s₂'⟩, hcfg₁', heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmap
     rcases Prod.mk.inj heq with ⟨houtst, rfl⟩
     rw [← (Prod.mk.inj houtst).2]
-    exact hhalt₂_word cfg₀.tapes.output b s₁ hb hmid (cfg₁', s₂') hcfg₁'
+    exact hhalt₂_word hmid (cfg₁', s₂') hcfg₁'
   have hstep : 2 * t₁ a + t₂' a + 4 = t₁ a + (t₁ a + 4 + t₂' a) := by omega
   dsimp only
   rw [hstep]
@@ -610,18 +609,14 @@ private theorem oComp_computesOracleInTimeOn [Finite Operation]
       _ = _ := by
           refine PMF.bind_congr_on_support _ _ _ fun ⟨cfg₀, s₁⟩ hcfg₀ => ?_
           obtain ⟨b, hb, hmid⟩ := hmem_word cfg₀ s₁ hcfg₀
+          have hproj : (Prod.map (fun c : Config k₂ Bool State₂ Operation cfg₀.tapes.output =>
+                c.tapes.output) (id : State → State)) =
+              Prod.map Prod.fst id ∘ Prod.map (fun c => (c.tapes.output, c.tapes.state)) id := rfl
+          have hchan := congrArg (PMF.map (Prod.map Prod.fst id))
+            (hchannels a State oracle s cfg₀ s₁ hcfg₀)
+          simp only [PMF.map_comp, ← hproj] at hchan
           rw [PMF.map_comp]
-          change cont (cfg₀.tapes.output, s₁) =
-            PMF.map (Prod.map Prod.fst id ∘
-              Prod.map (fun c => (c.tapes.output, c.tapes.state)) id)
-              (ProbOracleComp.runWith oracle
-                (m₂.runOracleConfigFrom (t₂' a)
-                  { tapes := Cfg.init m₂.initial cfg₀.tapes.output,
-                    channels := cfg₀.channels }) s₁)
-          rw [← PMF.map_comp, hchannels a State oracle s cfg₀ s₁ hcfg₀, PMF.map_comp]
-          change cont (cfg₀.tapes.output, s₁) = PMF.map (Prod.map (fun c => c.tapes.output) id)
-            (ProbOracleComp.runWith oracle
-              (m₂.runOracleConfigFrom (t₂' a) (m₂.initialConfig cfg₀.tapes.output)) s₁)
+          refine Eq.trans ?_ hchan.symm
           rw [← ProbOracleComp.runWith_map, ← runOracle_eq_map, ← hmid, hcont b s₁,
             (hm₂ b State oracle s₁).1, runOracle_eq_map, runOracle_eq_map,
             ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, hpad₂ b s₁ hb]
@@ -677,13 +672,11 @@ theorem bind_sample_right {first : α → WordOracleComp Operation β} {second :
   obtain ⟨k₂, State₂, hfin₂, m₂, hm₂⟩ := hsecond
   refine oComp_computesOracleInTimeOn m₁ (ofClosed m₂) hm₁ (ofClosed_spec m₂ hm₂) ht₂ ?_
   intro a State oracle s cfg₀ s₁ _
-  change (ProbOracleComp.runWith oracle ((ofClosed m₂).runOracleConfigFrom (t₂' a)
-      { tapes := (m₂.initialConfig cfg₀.tapes.output).tapes, channels := cfg₀.channels }) s₁).map
-      (Prod.map (fun c => (c.tapes.output, c.tapes.state)) id) =
-    (ProbOracleComp.runWith oracle ((ofClosed m₂).runOracleConfigFrom (t₂' a)
-      { tapes := (m₂.initialConfig cfg₀.tapes.output).tapes, channels := fun _ => {} }) s₁).map
-      (Prod.map (fun c => (c.tapes.output, c.tapes.state)) id)
-  rw [runWith_runOracleConfigFrom_ofClosed, runWith_runOracleConfigFrom_ofClosed,
+  have hinit : ((ofClosed (Operation := Operation) m₂).initialConfig cfg₀.tapes.output) =
+      { tapes := (m₂.initialConfig cfg₀.tapes.output).tapes, channels := fun _ => {} } := rfl
+  rw [hinit, show Cfg.init (ofClosed (Operation := Operation) m₂).initial cfg₀.tapes.output =
+      (m₂.initialConfig cfg₀.tapes.output).tapes from rfl,
+    runWith_runOracleConfigFrom_ofClosed, runWith_runOracleConfigFrom_ofClosed,
     PMF.map_comp, PMF.map_comp]
   rfl
 
