@@ -1475,8 +1475,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
       let q_out : StepROutcome (LatentSeed U) Unit rResize := ⟨ls, z, ()⟩
       have hs'_emp : st'.dict = Dictionary.empty U := by
         dsimp only [st', EpochState.step, Dynamic.spec, StateTransitionSpec.stepFn, Dynamic.step]
-        rw [hs_emp]; funext k
-        by_cases hku : k = u <;> simp [hku, Dictionary.empty]
+        rw [hs_emp]; exact Function.update_eq_self_iff.mpr rfl
       have hn'0 : n' = 0 := by dsimp only [n']; rw [hs'_emp, Dictionary.dom_empty]; rfl
       have hcap0 : st'.cap = 0 := by
         dsimp only [st', EpochState.step, nextEpochCap]; rw [ite_eq_left hn0]
