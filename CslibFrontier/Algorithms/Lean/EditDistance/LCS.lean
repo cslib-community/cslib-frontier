@@ -192,12 +192,11 @@ def kept : EditScript α → List α
   | .sub a b :: s => if a = b then a :: kept s else kept s
 
 theorem kept_sublist_src : ∀ s : EditScript α, s.kept <+ s.src
-  | [] => by
-    rw [kept, src_nil]
+  | [] => by rw [kept, src_nil]
   | .del a :: s => by
     rw [kept, src_cons, EditOp.src, List.singleton_append]
     exact (kept_sublist_src s).cons a
-  | .ins b :: s => by
+  | .ins _ :: s => by
     rw [kept, src_cons, EditOp.src, List.nil_append]
     exact kept_sublist_src s
   | .sub a b :: s => by
@@ -207,9 +206,8 @@ theorem kept_sublist_src : ∀ s : EditScript α, s.kept <+ s.src
     · exact (kept_sublist_src s).cons a
 
 theorem kept_sublist_tgt : ∀ s : EditScript α, s.kept <+ s.tgt
-  | [] => by
-    rw [kept, tgt_nil]
-  | .del a :: s => by
+  | [] => by rw [kept, tgt_nil]
+  | .del _ :: s => by
     rw [kept, tgt_cons, EditOp.tgt, List.nil_append]
     exact kept_sublist_tgt s
   | .ins b :: s => by
@@ -218,44 +216,36 @@ theorem kept_sublist_tgt : ∀ s : EditScript α, s.kept <+ s.tgt
   | .sub a b :: s => by
     rw [kept, tgt_cons]
     split_ifs with h
-    · subst h
-      exact (kept_sublist_tgt s).cons_cons a
+    · subst h; exact (kept_sublist_tgt s).cons_cons a
     · exact (kept_sublist_tgt s).cons b
 
 /-- Under `Costs.indel`, a script costs `|src| + |tgt|` less twice the number of letters it
 keeps. -/
 theorem cost_indel_add_two_mul : ∀ s : EditScript α,
-    s.cost Costs.indel + 2 * s.kept.length = s.src.length + s.tgt.length
-  | [] => by
-    rw [cost_nil, kept, src_nil, tgt_nil]
-    rfl
-  | .del a :: s => by
-    have := cost_indel_add_two_mul s
-    simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
-      Costs.indel_del, List.length_append, List.length_singleton, List.length_nil]
-    omega
-  | .ins b :: s => by
-    have := cost_indel_add_two_mul s
-    simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
-      Costs.indel_ins, List.length_append, List.length_singleton, List.length_nil]
-    omega
-  | .sub a b :: s => by
-    have := cost_indel_add_two_mul s
-    simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
-      Costs.indel_sub, List.length_append, List.length_singleton]
-    split_ifs
-    · rw [List.length_cons]
+    s.cost Costs.indel + 2 * s.kept.length = s.src.length + s.tgt.length := by
+  intro s
+  induction s with
+  | nil => rw [cost_nil, kept, src_nil, tgt_nil]; rfl
+  | cons op s ih =>
+    cases op with
+    | del a | ins b =>
+      simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
+        Costs.indel_del, Costs.indel_ins, List.length_append, List.length_singleton,
+        List.length_nil]
       omega
-    · omega
+    | sub a b =>
+      simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
+        Costs.indel_sub, List.length_append, List.length_singleton]
+      split_ifs
+      · rw [List.length_cons]; omega
+      · omega
 
 /-- A script with no replacement by a different letter: each operation is an insertion, a
 deletion, or keeps a letter. -/
 def IsIndel (s : EditScript α) : Prop := ∀ o ∈ s, ∀ a b, o = .sub a b → a = b
 
 omit [DecidableEq α] in
-theorem isIndel_nil : IsIndel ([] : EditScript α) := by
-  intro o h
-  cases h
+theorem isIndel_nil : IsIndel ([] : EditScript α) := fun _ h => nomatch h
 
 omit [DecidableEq α] in
 theorem isIndel_cons {o : EditOp α} {s : EditScript α} :
@@ -269,55 +259,33 @@ def splitSubs : EditScript α → EditScript α
   | .ins b :: s => .ins b :: splitSubs s
   | .sub a b :: s => if a = b then .sub a b :: splitSubs s else .del a :: .ins b :: splitSubs s
 
-theorem src_splitSubs : ∀ s : EditScript α, (splitSubs s).src = s.src
-  | [] => by rw [splitSubs]
-  | .del a :: s => by simp only [splitSubs, src_cons, src_splitSubs s]
-  | .ins b :: s => by simp only [splitSubs, src_cons, src_splitSubs s]
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs <;> simp only [src_cons, EditOp.src, List.nil_append, src_splitSubs s]
+theorem src_splitSubs : ∀ s : EditScript α, (splitSubs s).src = s.src := by
+  intro s
+  fun_induction splitSubs s <;> simp_all [src_cons, EditOp.src]
 
-theorem tgt_splitSubs : ∀ s : EditScript α, (splitSubs s).tgt = s.tgt
-  | [] => by rw [splitSubs]
-  | .del a :: s => by simp only [splitSubs, tgt_cons, tgt_splitSubs s]
-  | .ins b :: s => by simp only [splitSubs, tgt_cons, tgt_splitSubs s]
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs <;> simp only [tgt_cons, EditOp.tgt, List.nil_append, tgt_splitSubs s]
+theorem tgt_splitSubs : ∀ s : EditScript α, (splitSubs s).tgt = s.tgt := by
+  intro s
+  fun_induction splitSubs s <;> simp_all [tgt_cons, EditOp.tgt]
 
 /-- Under `Costs.indel`, splitting replacements keeps the cost. -/
 theorem cost_indel_splitSubs : ∀ s : EditScript α,
-    (splitSubs s).cost Costs.indel = s.cost Costs.indel
-  | [] => by rw [splitSubs]
-  | .del a :: s => by simp only [splitSubs, cost_cons, cost_indel_splitSubs s]
-  | .ins b :: s => by simp only [splitSubs, cost_cons, cost_indel_splitSubs s]
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs with h
-    · simp only [cost_cons, cost_indel_splitSubs s]
-    · simp only [cost_cons, EditOp.cost, Costs.indel_del, Costs.indel_ins, Costs.indel_sub, h,
-        ↓reduceIte, cost_indel_splitSubs s]
-      omega
+    (splitSubs s).cost Costs.indel = s.cost Costs.indel := by
+  intro s
+  fun_induction splitSubs s <;>
+    simp_all [cost_cons, EditOp.cost, Costs.indel_del, Costs.indel_ins, Costs.indel_sub]
+  omega
 
-theorem isIndel_splitSubs : ∀ s : EditScript α, (splitSubs s).IsIndel
-  | [] => by
-    rw [splitSubs]
-    exact isIndel_nil
-  | .del a :: s => by
-    rw [splitSubs, isIndel_cons]
-    exact ⟨fun _ _ h => (nomatch h), isIndel_splitSubs s⟩
-  | .ins b :: s => by
-    rw [splitSubs, isIndel_cons]
-    exact ⟨fun _ _ h => (nomatch h), isIndel_splitSubs s⟩
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs with h
-    · rw [isIndel_cons]
-      refine ⟨fun _ _ h' => ?_, isIndel_splitSubs s⟩
-      cases h'
-      exact h
-    · rw [isIndel_cons, isIndel_cons]
-      exact ⟨fun _ _ h' => (nomatch h'), fun _ _ h' => (nomatch h'), isIndel_splitSubs s⟩
+theorem isIndel_splitSubs : ∀ s : EditScript α, (splitSubs s).IsIndel := by
+  intro s
+  fun_induction splitSubs s with
+  | case1 => exact isIndel_nil
+  | case2 _ _ ih | case3 _ _ ih =>
+    exact isIndel_cons.2 ⟨fun _ _ h => (nomatch h), ih⟩
+  | case4 _ _ ih =>
+    exact isIndel_cons.2 ⟨fun _ _ h' => by cases h'; rfl, ih⟩
+  | case5 _ _ _ _ ih =>
+    exact isIndel_cons.2 ⟨fun _ _ h => (nomatch h),
+      isIndel_cons.2 ⟨fun _ _ h => (nomatch h), ih⟩⟩
 
 end EditScript
 
