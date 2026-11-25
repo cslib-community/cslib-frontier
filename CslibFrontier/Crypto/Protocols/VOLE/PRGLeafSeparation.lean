@@ -700,15 +700,16 @@ private theorem prgLeaf_preimage_extractor_fails_of_not_rel {d sdLen comLen rowL
   simp
 
 
-/-- **Conditional pre-challenge preimage-table separation (#7068, #4987)**: conditional on two
-valid executions `(stmt₀, w₀, keys₀)` and `(stmt₁, w₁, keys₁)` with disjoint `Rel`-witness sets
-(`hDisj`), an injective witness encoding `encWit` (`hEncInj`), identical PRG commitments (`hComEq`),
-and colliding corrected masks `d_corr` (`hdCorrEq`), the key vectors must differ (`keys₀ ≠ keys₁`,
-forcing a PRG commitment collision; unsatisfiable for any injective `prgLeaf`) and **every**
-deterministic preimage-table seed extractor `extPre : coms → iv → idx → Seed` fails `Rel` with
-probability `1` on at least one of the two executions. Full post-challenge equivocation reductions
-([BaumEtAl2026FAESTer], Definition 27, pp. 17–18, and Lemma 32, pp. 25–26) for extractors with
-`stmt` remain open under #7068 (#4987). -/
+/-- Conditional step toward a pre-challenge preimage-table separation (#7068, #4987), not the
+cited equivocation result: conditional on two valid executions `(stmt₀, w₀, keys₀)` and
+`(stmt₁, w₁, keys₁)` with disjoint `Rel`-witness sets (`hDisj`), an injective witness encoding
+`encWit` (`hEncInj`), identical PRG commitments (`hComEq`), and colliding corrected masks
+`d_corr` (`hdCorrEq`), the key vectors must differ (`keys₀ ≠ keys₁`, forcing a PRG commitment
+collision; unsatisfiable for any injective `prgLeaf`) and every deterministic preimage-table seed
+extractor `extPre : coms → iv → idx → Seed` fails `Rel` with probability `1` on at least one of
+the two executions. Full post-challenge equivocation reductions ([BaumEtAl2026FAESTer],
+Definition 27, pp. 17–18, and Lemma 32, pp. 25–26) for extractors with `stmt` remain open under
+#7068 (#4987). -/
 theorem prgLeaf_preimage_extractor_fails {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
     [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
@@ -794,7 +795,7 @@ theorem prgLeaf_preimage_extractor_fails {d sdLen comLen rowLen : ℕ}
       (Bool.eq_false_iff.mpr h0)⟩
 
 
-/-- **Conditional proof-only extraction separation for arbitrary `d : ℕ` (#7068, #4987)**:
+/-- Conditional proof-only extraction separation step for arbitrary `d : ℕ` (#7068, #4987):
 conditional on two valid pairs `(stmt₀, w₀, keys₀)` and `(stmt₁, w₁, keys₁)` with disjoint
 `Rel`-witness sets (`hDisj`) that emit the same `VOLEITHProof` at some challenge `deltaStar : Chal`
 (`hPrfEq`), any unbounded proof-only extractor `ext : LeafTrace → VOLEITHProof → Option Wit` (which

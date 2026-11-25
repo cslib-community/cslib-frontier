@@ -1784,13 +1784,14 @@ while `extractWitnessFromTrace` on `P`'s pre-verification trace `tr_P` fails `Re
       fun (ok, _) => ok && !Rel stmt (extractWitnessFromTrace expand decWit st_mid.1 prf)
 
 
-/-- **Bounded conditional single-repetition knowledge soundness (#7068, #4987)**: conditional
-on `hSound : VOLEITHSoundnessError ... ε_rel` for a single challenge repetition (`µ = 1`) over flat
-`2 ^ d`-leaf `leaf_hash::shake` RO commitments (`ProbOracleComp` query bounds, not full multi-tree
-BAVC or runtime certificates), running prover `P` and extracting `w* = extractWitnessFromTrace` from
-`tr_P` without rewinding prior to `voleithVerifyROM` fails with probability at most
-`voleithKSBound d comLen (Q_leaf + (2 ^ d - 1)) (Q_FS + 1) ε_rel : ℝ≥0` (cf.
-[BaumBMRS2023Eprint], Lemma 4, pp. 19–20). -/
+/-- Bounded, conditional step toward straight-line VOLEitH knowledge soundness (#7068, #4987), not
+the cited lemma itself: conditional on `hSound : VOLEITHSoundnessError ... ε_rel` for a single
+challenge repetition (`µ = 1`) over flat `2 ^ d`-leaf `leaf_hash::shake` RO commitments
+(`ProbOracleComp` query bounds, not full multi-tree BAVC or runtime certificates), running prover
+`P` and extracting `w* = extractWitnessFromTrace` from `tr_P` without rewinding prior to
+`voleithVerifyROM` fails with probability at most
+`voleithKSBound d comLen (Q_leaf + (2 ^ d - 1)) (Q_FS + 1) ε_rel : ℝ≥0`. After
+[BaumBMRS2023Eprint], Lemma 4, pp. 19–20. -/
 theorem voleithKnowledgeSoundness_bound {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
     [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
@@ -2223,15 +2224,15 @@ private theorem isCostBounded_mvFSCost_add {d sdLen comLen rowLen : ℕ}
   refine (hfs.add hm).of_le fun q => ?_
   rcases q with k | (⟨_, _⟩ | qRO) <;> simp [mvFSCost]
 
-/-- **Bounded conditional adaptive multi-verify soundness (#7068, #4987)**: conditional on
-`hSound : VOLEITHSoundnessError ... ε_rel` for single-repetition flat `2 ^ d`-leaf
-`leaf_hash::shake` commitments (`ProbOracleComp` query bounds, modeling ePrint 2023/996
-[BaumBMRS2023Eprint] Lemma 4, pp. 19–20, at `µ = 1`, without full multi-tree BAVC or runtime
-certificates), if an adaptive adversary `A` with access to `Verify` and `VOLEITHROSpec` makes at
-most `m` verification queries, `Q_leaf` direct `H_leaf` queries, and `Q_FS` direct `H_FS` queries,
-then against `voleithMultiVerifyHandler` the probability that *any* verified proof fails `Rel`
-extraction from `tr_leaf` prior to that call is at most
-`voleithKSBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0`. -/
+/-- Bounded, conditional step toward adaptive multi-verify VOLEitH soundness (#7068, #4987), not the
+cited lemma itself: conditional on `hSound : VOLEITHSoundnessError ... ε_rel` for
+single-repetition flat `2 ^ d`-leaf `leaf_hash::shake` commitments (`ProbOracleComp` query bounds,
+without full multi-tree BAVC or runtime certificates), if an adaptive adversary `A` with access to
+`Verify` and `VOLEITHROSpec` makes at most `m` verification queries, `Q_leaf` direct `H_leaf`
+queries, and `Q_FS` direct `H_FS` queries, then against `voleithMultiVerifyHandler` the probability
+that *any* verified proof fails `Rel` extraction from `tr_leaf` prior to that call is at most
+`voleithKSBound d comLen (Q_leaf + m * (2 ^ d - 1)) (Q_FS + m) ε_rel : ℝ≥0`. After
+[BaumBMRS2023Eprint], Lemma 4, pp. 19–20, at `µ = 1`. -/
 theorem voleithMultiVerifyROM_sound_bound {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit α : Type}
     [BEq (LeafQuery d Seed IV)] [LawfulBEq (LeafQuery d Seed IV)]
