@@ -737,27 +737,20 @@ theorem exists_layout_signalWidth_reuse_le (c : Circuit σ n m) (hfan : c.FanInA
       obtain rfl := Option.some.inj h
       have hspec := (exists_support_eq_pair_of_isUnitGateSignal hg).choose_spec
       exact ⟨g, hg, rfl, hspec.1, hspec.2⟩
-  have hrank : ∀ v u, parent v = some u → v.rank < u.rank := fun v u h => by
-    obtain ⟨g, _, rfl, hlt, _⟩ := hparent_spec v u h
-    exact hlt
+  have hrank : ∀ v u, parent v = some u → v.rank < u.rank := fun v u h =>
+    let ⟨_, _, hv, hlt, _⟩ := hparent_spec v u h; hv ▸ hlt
   have hdeg : ∀ u : Node c, (Finset.univ.filter fun v => parent v = some u).card ≤ 2 := by
     intro u
     have hsub : (Finset.univ.filter fun v => parent v = some u : Set (Node c)) ⊆
         Node.gate '' {g : InnerGate c | u ∈ support c (.gate g) ∧ Node.gate g ≠ u} := by
       intro v hv
-      have hvu : parent v = some u := (Finset.mem_filter.mp hv).2
-      obtain ⟨g, _, rfl, hlt, hsup⟩ := hparent_spec v u hvu
+      obtain ⟨g, _, rfl, hlt, hsup⟩ := hparent_spec v u (Finset.mem_filter.mp hv).2
       refine ⟨g, ⟨?_, fun heq => lt_irrefl _ (heq ▸ hlt)⟩, rfl⟩
       rw [hsup]
       exact mem_insert_of_mem _ (mem_singleton u)
-    calc (Finset.univ.filter fun v => parent v = some u).card
-        = (Finset.univ.filter fun v => parent v = some u : Set (Node c)).ncard :=
-          (ncard_coe_finset _).symm
-      _ ≤ (Node.gate '' {g : InnerGate c | u ∈ support c (.gate g) ∧ Node.gate g ≠ u}).ncard :=
-          ncard_le_ncard hsub (toFinite _)
-      _ = {g : InnerGate c | u ∈ support c (.gate g) ∧ Node.gate g ≠ u}.ncard :=
-          ncard_image_of_injective _ fun _ _ h => Node.gate.inj h
-      _ ≤ 2 := (ncard_gate_mem_support_ne_le hfan u).trans_eq (by decide)
+    rw [← ncard_coe_finset]
+    exact (ncard_le_ncard hsub).trans <| (ncard_image_le (toFinite _)).trans <|
+      (ncard_gate_mem_support_ne_le hfan u).trans_eq (by decide)
   obtain ⟨piece, hR, hsev⟩ := exists_forest_pieces parent Node.rank hrank hdeg B
   obtain ⟨π, hπ⟩ := exists_layout_signalWidth_of_piece c hfan piece hR hM
   refine ⟨π, hπ.trans ?_⟩
@@ -819,23 +812,15 @@ theorem exists_layout_signalWidth_reuse_le (c : Circuit σ n m) (hfan : c.FanInA
       let toOpt : ActiveSignal c → Option (Node c)
         | .gate g => some (.gate g)
         | .input _ _ => none
-      have hinj : InjOn toOpt (sevSet : Set (ActiveSignal c)) := by
-        intro w₁ hw₁ w₂ hw₂ h
-        obtain ⟨_, g₁, _, rfl, _, _⟩ := (Finset.mem_filter.mp hw₁).2
-        obtain ⟨_, g₂, _, rfl, _, _⟩ := (Finset.mem_filter.mp hw₂).2
+      rw [← ncard_coe_finset]
+      refine (ncard_le_ncard_of_injOn toOpt (fun w hw => ?_) (fun a ha b hb h => ?_)).trans_eq
+        (ncard_image_of_injective _ (Option.some_injective _))
+      · obtain ⟨_, g, u, rfl, hp, hne⟩ := (Finset.mem_filter.mp hw).2
+        exact ⟨.gate g, ⟨u, hp, hne⟩, rfl⟩
+      · obtain ⟨_, g₁, _, rfl, _, _⟩ := (Finset.mem_filter.mp ha).2
+        obtain ⟨_, g₂, _, rfl, _, _⟩ := (Finset.mem_filter.mp hb).2
         cases Node.gate.inj (Option.some.inj h)
         rfl
-      have himg : toOpt '' (sevSet : Set (ActiveSignal c)) ⊆
-          some '' {v : Node c | ∃ u, parent v = some u ∧ piece v ≠ piece u} := by
-        rintro _ ⟨w, hw, rfl⟩
-        obtain ⟨_, g, u, rfl, hp, hne⟩ := (Finset.mem_filter.mp hw).2
-        exact ⟨.gate g, ⟨u, hp, hne⟩, rfl⟩
-      calc sevSet.card = (sevSet : Set (ActiveSignal c)).ncard := (ncard_coe_finset sevSet).symm
-        _ = (toOpt '' (sevSet : Set (ActiveSignal c))).ncard := hinj.ncard_image.symm
-        _ ≤ (some '' {v : Node c | ∃ u, parent v = some u ∧ piece v ≠ piece u}).ncard :=
-            ncard_le_ncard himg (toFinite _)
-        _ = {v : Node c | ∃ u, parent v = some u ∧ piece v ≠ piece u}.ncard :=
-            ncard_image_of_injective _ (Option.some_injective (Node c))
     have hsevR : ((B + 1 : ℝ)) * sevSet.card ≤ Nat.card (Node c) := by
       rw [Nat.card_eq_fintype_card]
       exact_mod_cast (Nat.mul_le_mul_left (B + 1) hsev_card).trans hsev
