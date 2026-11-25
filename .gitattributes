@@ -10,3 +10,7 @@ CslibFrontierResults.lean merge=leanagg
 # `references.bib` names the opt-in local driver of `scripts/resolve_bib_conflict.py`, which merges
 # entries by key. Where `merge.bibkeys.driver` is not configured, git uses its ordinary text merge.
 references.bib merge=bibkeys
+# `manual/sources.md` names the opt-in local driver of `scripts/resolve_sources_conflict.py`, which
+# merges entries by key and their lines three ways. Where `merge.sourcesmd.driver` is not
+# configured, git uses its ordinary text merge.
+manual/sources.md merge=sourcesmd
