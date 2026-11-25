@@ -309,14 +309,13 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       (∀ a, ¬ ((offBase ≤ a ∧ a < offBase + N + 1) ∨ (degBase ≤ a ∧ a < degBase + N)) →
         y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) := by
-  have hprep : ∃ x₀, ExecWithin (B := .standard) w
+  obtain ⟨x₀, hx₀_ex, hx₀_mem, hx₀_p, hx₀_i, hx₀_fr⟩ : ∃ x₀, ExecWithin (B := .standard) w
       (ram[ *offB ← cZero; pReg ← cZero; iReg ← cZero ]) x x₀ 3 ∧
       x₀.mem = Function.update x.mem offBase 0 ∧
       x₀.regs pReg = 0 ∧ x₀.regs iReg = 0 ∧
       (∀ r : Fin 28, r.val < 18 → x₀.regs r = x.regs r) := by
     wram_exec [hc0, hoffB]
     exact ⟨by wram_simp, by wram_simp, by wram_simp, fun r hr => by wram_simp⟩
-  obtain ⟨x₀, hx₀_ex, hx₀_mem, hx₀_p, hx₀_i, hx₀_fr⟩ := hprep
   let P (k : ℕ) (y : Data 28) : Prop :=
     (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) ∧
       y.regs pReg = csrOffset targetAdj k ∧
@@ -353,11 +352,7 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       · rw [huk, Function.update_self]
         simp [hoff_succ]
       · rw [Function.update_of_ne (by omega), hy_deg u]
-        by_cases hlt' : u.val < y.regs iReg
-        · have hlt'' : u.val < y.regs iReg + 1 := by omega
-          simp [hlt', hlt'']
-        · have hlt'' : ¬ u.val < y.regs iReg + 1 := by omega
-          simp [hlt', hlt'']
+        simp only [show u.val < y.regs iReg + 1 ↔ u.val < y.regs iReg by omega]
     · mem_upd
       rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       exact hy_out a (by omega)
@@ -373,10 +368,9 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
   obtain ⟨y, hy_loop, hy_P, -⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 nVerts (by decide)).trans hL) hbody
     (x := x₀) (by omega) hx₀_P
-  refine ⟨y, (hx₀_ex.seq hy_loop).mono (by omega), hy_P.2.2.1, fun u => ?_, fun a ha => ?_,
-    hy_P.1⟩
-  · simpa [u.isLt] using hy_P.2.2.2.1 u
-  · exact hy_P.2.2.2.2 a (by omega)
+  exact ⟨y, (hx₀_ex.seq hy_loop).mono (by omega), hy_P.2.2.1,
+    fun u => by simpa [u.isLt] using hy_P.2.2.2.1 u,
+    fun a ha => hy_P.2.2.2.2 a (by omega), hy_P.1⟩
 
 /-- Decrement `curB[vReg]` and write `uReg` into `edgeB[curB[vReg]]` in `6` instructions. -/
 def backfillStepCode : Code .standard 28 := ram[
@@ -502,9 +496,7 @@ private theorem partialCSRAt_step {N : ℕ}
       change Function.update mem (curBase + src.val) c (edgeBase + mem (curBase + u.val) + k) = _
       rw [Function.update_of_ne (by omega)]
       exact hp.2.2 u k hk_u
-  · change Function.update (Function.update mem (curBase + src.val) c) (edgeBase + c) dst.val a =
-      mem a
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+  · exact (Function.update_of_ne (by omega) _ _).trans (Function.update_of_ne (by omega) _ _)
 
 theorem backfillStepCode_spec {N w : ℕ}
     (targetAdj part : Fin N → List (Fin N))
@@ -540,7 +532,6 @@ theorem backfillStepCode_spec {N w : ℕ}
   · mem_upd; exact hstep.1
   · mem_upd; exact hstep.2 a ha
   · wram_simp [h1, h2]
-
 
 -- Shared purely mathematical offset identity used by both `Transpose` and `Kosaraju`.
 private theorem csrOffset_transposeAdj_eq {N : ℕ} (adj : Fin N → List (Fin N)) :
