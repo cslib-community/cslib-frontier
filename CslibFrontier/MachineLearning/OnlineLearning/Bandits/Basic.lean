@@ -374,10 +374,12 @@ theorem pseudoRegret_eq_sup_regretAt [Fintype ι] [Nonempty ι] (pol : Randomize
   apply le_antisymm
   · obtain ⟨i, _, hi⟩ := exists_mem_eq_inf' univ_nonempty (E.cumLoss T)
     have hle := le_sup' (E.regretAt pol T) (mem_univ i)
-    unfold pseudoRegret bestCumLoss regretAt at *; linarith
+    unfold pseudoRegret bestCumLoss regretAt at *
+    linarith
   · refine (Finset.sup'_le_iff _ _).mpr fun i _ => ?_
     have hle := inf'_le (E.cumLoss T) (mem_univ i)
-    unfold pseudoRegret bestCumLoss regretAt at *; linarith
+    unfold pseudoRegret bestCumLoss regretAt at *
+    linarith
 
 /-- Bounding `regretAt` uniformly by `B` against every arm `i` bounds `pseudoRegret` by `B`. -/
 theorem pseudoRegret_le_of_forall [Fintype ι] [Nonempty ι] {pol : RandomizedPolicy ι} {T : ℕ}
@@ -457,7 +459,9 @@ theorem pullCount_runStochastic_mono {t₁ t₂ : ℕ} (h : t₁ ≤ t₂) (i : 
     pullCount (runStochastic pol X t₁) i ≤ pullCount (runStochastic pol X t₂) i := by
   induction h with
   | refl => exact le_rfl
-  | @step _ _ ih => rw [runStochastic_succ, pullCount_append]; exact ih.trans (Nat.le_add_right _ _)
+  | @step _ _ ih =>
+    rw [runStochastic_succ, pullCount_append]
+    exact ih.trans (Nat.le_add_right _ _)
 
 /-- Per-arm cumulative reward in `runStochastic pol X t` (`t ≤ T`) equals the sum of the first
 `pullCount` entries of arm `i`'s reward stack `X (i, ·)`. -/
@@ -484,7 +488,8 @@ theorem feedbackSum_runStochastic_eq {t : ℕ} (ht : t ≤ T) (i : ι) :
         rcases lt_trichotomy (s : ℕ) u with h1 | h2 | h3
         · simp [h1, Nat.lt_succ_of_lt h1,
             show s ≠ ⟨u, hu⟩ from fun h => h1.ne (congrArg Fin.val h)]
-        · obtain rfl : s = ⟨u, hu⟩ := Fin.ext h2; simp
+        · obtain rfl : s = ⟨u, hu⟩ := Fin.ext h2
+          simp
         · simp [show ¬(s : ℕ) < u by omega, show ¬(s : ℕ) < u + 1 by omega,
             show s ≠ ⟨u, hu⟩ from fun h => h3.ne' (congrArg Fin.val h)]
       simp_rw [hsplit]
@@ -597,9 +602,11 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
     refine ⟨fun r i => Fin.lastCases ?_ (fun r₀ => ?_) r,
       fun r => Fin.lastCases ?_ (fun r₀ => ?_) r⟩
     · convert hchoose i using 1
-      ext X; simp [runStochastic_succ]
+      ext X
+      simp [runStochastic_succ]
     · convert hA r₀ i using 1
-      ext X; simp [runStochastic_succ]
+      ext X
+      simp [runStochastic_succ]
     · suffices hlast : (fun X : ι × Fin T → ℝ =>
           ((runStochastic pol X (t + 1))[(Fin.last t).1]'(by simp)).value) =
           fun X => ∑ a : ι, ∑ s : Fin T,
@@ -637,7 +644,8 @@ theorem measurable_runStochastic_arms_and_vals [Finite ι]
         refine sum_eq_zero fun _ _ => sum_eq_zero fun s _ => ite_eq_right fun h => ?_
         exact hs₀ (h.2 ▸ s.isLt)
     · convert hV r₀ using 1
-      funext X; simp [runStochastic_succ]
+      funext X
+      simp [runStochastic_succ]
 
 theorem measurableSet_pullCount_eq [Finite ι] (hpol : pol.IsMeasurable) (t : ℕ) (i : ι)
     (s : ℕ) :
@@ -819,7 +827,8 @@ theorem expectedReward_eq_sum_mean {pol : DeterministicPolicy ι}
     refine hcoord.norm.mono' ((Measurable.ite (measurableSet_lt_pullCount pol hpol T i s)
       (measurable_pi_apply (i, s)) measurable_const).aestronglyMeasurable) (ae_of_all _ fun X => ?_)
     split_ifs <;> simp [abs_nonneg]
-  rw [integral_finsetSum univ fun i _ => integrable_finsetSum univ fun s _ => hint_term i s]
+  rw [integral_finsetSum univ fun i _ =>
+    integrable_finsetSum univ fun s _ => hint_term i s]
   refine sum_congr rfl fun i _ => ?_
   rw [integral_finsetSum univ fun s _ => hint_term i s]
   have hstep (s : Fin T) :

@@ -148,7 +148,8 @@ theorem reindex_reindex (e₁ : X ≃ X') (e₂ : Y ≃ Y') (e₃ : Z ≃ Z') (f
 
 @[simp] theorem reindex_symm_reindex (e₁ : X ≃ X') (e₂ : Y ≃ Y') (e₃ : Z ≃ Z')
     (T : Tensor R X Y Z) : reindex e₁.symm e₂.symm e₃.symm (reindex e₁ e₂ e₃ T) = T := by
-  ext; simp
+  ext
+  simp
 
 /-- The tensor product of two tensors, on product index types. -/
 def tprod [Mul R] (T : Tensor R X Y Z) (T' : Tensor R X' Y' Z') :
@@ -265,7 +266,8 @@ def incl [DecidableEq X'] (f : X → X') : Matrix X' X R :=
 
 /-- The inclusion of the identity is the identity matrix. -/
 theorem incl_id [DecidableEq X] : (incl id : Matrix X X R) = 1 := by
-  ext; simp [Matrix.one_apply, eq_comm]
+  ext
+  simp [Matrix.one_apply, eq_comm]
 
 /-- Restriction computes the bilinear map of `T` from the bilinear map of `S`: encode the inputs
 by `α` and `β`, evaluate `S`, decode by `γ`. -/
@@ -295,7 +297,8 @@ theorem ext_of_bil [Fintype X] [Fintype Y] {T T' : Tensor R X Y Z}
 theorem restrict_add [Fintype X'] [Fintype Y'] [Fintype Z'] (α : Matrix X' X R) (β : Matrix Y' Y R)
     (γ : Matrix Z Z' R) (S S' : Tensor R X' Y' Z') :
     restrict α β γ (S + S') = restrict α β γ S + restrict α β γ S' := by
-  funext; simp only [restrict, Pi.add_apply, mul_add, Finset.sum_add_distrib]
+  funext
+  simp only [restrict, Pi.add_apply, mul_add, Finset.sum_add_distrib]
 
 /-- Restriction is linear in the source tensor. -/
 theorem restrict_smul [Fintype X'] [Fintype Y'] [Fintype Z'] (α : Matrix X' X R) (β : Matrix Y' Y R)
@@ -309,7 +312,8 @@ theorem restrict_smul [Fintype X'] [Fintype Y'] [Fintype Z'] (α : Matrix X' X R
 /-- Restriction by identity matrices is the identity. -/
 theorem restrict_one [Fintype X] [Fintype Y] [Fintype Z] [DecidableEq X] [DecidableEq Y]
     [DecidableEq Z] (S : Tensor R X Y Z) : restrict 1 1 1 S = S := by
-  funext; simp [restrict, Matrix.one_apply, ite_mul, mul_ite]
+  funext
+  simp [restrict, Matrix.one_apply, ite_mul, mul_ite]
 
 /-- **Composition of restrictions**: the matrices multiply. -/
 theorem restrict_restrict [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X''] [Fintype Y'']
@@ -332,13 +336,15 @@ theorem restrict_restrict [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X''] [
 /-- A tensor is a restriction of itself. -/
 theorem IsRestriction.refl [Fintype X] [Fintype Y] [Fintype Z] (T : Tensor R X Y Z) :
     IsRestriction T T := by
-  classical exact ⟨1, 1, 1, restrict_one T⟩
+  classical
+  exact ⟨1, 1, 1, restrict_one T⟩
 
 /-- Restrictions compose. -/
 theorem IsRestriction.trans [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X''] [Fintype Y'']
     [Fintype Z''] {T : Tensor R X Y Z} {S : Tensor R X' Y' Z'} {U : Tensor R X'' Y'' Z''}
     (hT : IsRestriction T S) (hS : IsRestriction S U) : IsRestriction T U := by
-  obtain ⟨α, β, γ, rfl⟩ := hT; obtain ⟨α', β', γ', rfl⟩ := hS
+  obtain ⟨α, β, γ, rfl⟩ := hT
+  obtain ⟨α', β', γ', rfl⟩ := hS
   exact ⟨_, _, _, (restrict_restrict α β γ α' β' γ' U).symm⟩
 
 /-! ### Leg exchanges and reindexing of restrictions -/
@@ -358,7 +364,8 @@ the decoder and exchanges them (the transposition principle). -/
 theorem swap23_restrict [Fintype X'] [Fintype Y'] [Fintype Z'] (α : Matrix X' X R)
     (β : Matrix Y' Y R) (γ : Matrix Z Z' R) (S : Tensor R X' Y' Z') :
     swap23 (restrict α β γ S) = restrict α γᵀ βᵀ (swap23 S) := by
-  funext; simp only [swap23_apply, restrict, Matrix.transpose_apply]
+  funext
+  simp only [swap23_apply, restrict, Matrix.transpose_apply]
   exact Finset.sum_congr rfl fun _ _ => Finset.sum_comm.trans
     (Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring)
 
@@ -376,27 +383,32 @@ theorem swap13_restrict [Fintype X'] [Fintype Y'] [Fintype Z'] (α : Matrix X' X
 
 theorem IsRestriction.swap12 [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor R X Y Z}
     {S : Tensor R X' Y' Z'} (h : IsRestriction T S) : IsRestriction (swap12 T) (swap12 S) := by
-  obtain ⟨α, β, γ, rfl⟩ := h; exact ⟨β, α, γ, (swap12_restrict α β γ S).symm⟩
+  obtain ⟨α, β, γ, rfl⟩ := h
+  exact ⟨β, α, γ, (swap12_restrict α β γ S).symm⟩
 
 theorem IsRestriction.swap23 [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor R X Y Z}
     {S : Tensor R X' Y' Z'} (h : IsRestriction T S) : IsRestriction (swap23 T) (swap23 S) := by
-  obtain ⟨α, β, γ, rfl⟩ := h; exact ⟨α, γᵀ, βᵀ, (swap23_restrict α β γ S).symm⟩
+  obtain ⟨α, β, γ, rfl⟩ := h
+  exact ⟨α, γᵀ, βᵀ, (swap23_restrict α β γ S).symm⟩
 
 theorem IsRestriction.swap13 [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor R X Y Z}
     {S : Tensor R X' Y' Z'} (h : IsRestriction T S) : IsRestriction (swap13 T) (swap13 S) := by
-  obtain ⟨α, β, γ, rfl⟩ := h; exact ⟨γᵀ, β, αᵀ, (swap13_restrict α β γ S).symm⟩
+  obtain ⟨α, β, γ, rfl⟩ := h
+  exact ⟨γᵀ, β, αᵀ, (swap13_restrict α β γ S).symm⟩
 
 /-- Restriction along inclusion matrices is precomposition with the maps. -/
 theorem restrict_incl [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X']
     [DecidableEq Y'] [DecidableEq Z'] (f : X → X') (g : Y → Y') (h : Z → Z')
     (S : Tensor R X' Y' Z') :
     restrict (incl f) (incl g) (incl h)ᵀ S = fun x y z => S (f x) (g y) (h z) := by
-  funext; simp [restrict, ite_mul, mul_ite]
+  funext
+  simp [restrict, ite_mul, mul_ite]
 
 /-- A reindexed tensor is a restriction of the original, by permutation matrices. -/
 theorem isRestriction_reindex [Fintype X] [Fintype Y] [Fintype Z] (e₁ : X ≃ X') (e₂ : Y ≃ Y')
     (e₃ : Z ≃ Z') (T : Tensor R X Y Z) : IsRestriction (reindex e₁ e₂ e₃ T) T := by
-  classical exact ⟨incl e₁.symm, incl e₂.symm, (incl e₃.symm)ᵀ, restrict_incl _ _ _ T⟩
+  classical
+  exact ⟨incl e₁.symm, incl e₂.symm, (incl e₃.symm)ᵀ, restrict_incl _ _ _ T⟩
 
 /-- A tensor is a restriction of its reindexing. -/
 theorem isRestriction_of_reindex [Fintype X'] [Fintype Y'] [Fintype Z'] (e₁ : X ≃ X')
@@ -405,7 +417,8 @@ theorem isRestriction_of_reindex [Fintype X'] [Fintype Y'] [Fintype Z'] (e₁ : 
   classical
   refine ⟨incl e₁, incl e₂, (incl e₃)ᵀ, ?_⟩
   rw [restrict_incl]
-  funext; simp
+  funext
+  simp
 
 /-- Restriction transfers along reindexings of the source. -/
 theorem IsRestriction.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X'']
@@ -426,7 +439,8 @@ theorem reindex_restrict [Fintype X'] [Fintype Y'] [Fintype Z'] (α : Matrix X' 
 theorem IsRestriction.reindex_target [Fintype X'] [Fintype Y'] [Fintype Z'] {T : Tensor R X Y Z}
     {S : Tensor R X' Y' Z'} (e₁ : X ≃ X'') (e₂ : Y ≃ Y'') (e₃ : Z ≃ Z'') (h : IsRestriction T S) :
     IsRestriction (reindex e₁ e₂ e₃ T) S := by
-  obtain ⟨α, β, γ, rfl⟩ := h; exact ⟨_, _, _, (reindex_restrict α β γ S e₁ e₂ e₃).symm⟩
+  obtain ⟨α, β, γ, rfl⟩ := h
+  exact ⟨_, _, _, (reindex_restrict α β γ S e₁ e₂ e₃).symm⟩
 
 /-! ### Tensor products of restrictions -/
 
@@ -453,7 +467,8 @@ theorem IsRestriction.tprod [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X'']
     [Fintype Z''] {X₂ Y₂ Z₂ : Type*} {T : Tensor R X Y Z} {S : Tensor R X' Y' Z'}
     {T' : Tensor R X₂ Y₂ Z₂} {S' : Tensor R X'' Y'' Z''} (h : IsRestriction T S)
     (h' : IsRestriction T' S') : IsRestriction (tprod T T') (tprod S S') := by
-  obtain ⟨α, β, γ, rfl⟩ := h; obtain ⟨α', β', γ', rfl⟩ := h'
+  obtain ⟨α, β, γ, rfl⟩ := h
+  obtain ⟨α', β', γ', rfl⟩ := h'
   exact ⟨_, _, _, (restrict_tprod α β γ S α' β' γ' S').symm⟩
 
 /-- The Kronecker product of a family of matrices, on function index types. -/
@@ -530,7 +545,8 @@ theorem restrict_dsum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [F
     Fintype.sum_eq_single j (fun j' hj' => by simp [hj']),
     Fintype.sum_eq_single k (fun k' hk' => by simp [Ne.symm hk'])]
   by_cases h : i = j ∧ j = k
-  · obtain ⟨rfl, rfl⟩ := h; simp
+  · obtain ⟨rfl, rfl⟩ := h
+    simp
   · simp [h]
 
 theorem IsRestriction.dsum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [Fintype Y']
@@ -552,7 +568,8 @@ theorem restrict_slSum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [
   rw [Fintype.sum_eq_single j (fun j' hj' => by simp [hj']),
     Fintype.sum_eq_single k (fun k' hk' => by simp [Ne.symm hk'])]
   by_cases h : j = k
-  · subst h; simp
+  · subst h
+    simp
   · simp [h]
 
 /-- Deleting and reordering summands of a direct sum is a restriction, along an injection of the
@@ -563,7 +580,8 @@ theorem isRestriction_dsum_comp {ι κ : Type*} [Fintype ι] [DecidableEq ι] [D
   classical
   refine ⟨incl (Prod.map e id), incl (Prod.map e id), (incl (Prod.map e id))ᵀ, ?_⟩
   rw [restrict_incl]
-  ext ⟨a, x⟩ ⟨b, y⟩ ⟨c, z⟩; simp [he.eq_iff]
+  ext ⟨a, x⟩ ⟨b, y⟩ ⟨c, z⟩
+  simp [he.eq_iff]
 
 /-- Deleting and reordering summands of a shared-left sum is a restriction with the identity on
 the left leg. -/
@@ -572,12 +590,14 @@ theorem slSum_comp_eq_restrict {ι κ : Type*} [Fintype ι] [DecidableEq ι] [De
     (G : ι → Tensor R X Y Z) (e : κ → ι) (he : Function.Injective e) :
     restrict 1 (incl (Prod.map e id)) (incl (Prod.map e id))ᵀ (slSum G) = slSum (G ∘ e) := by
   rw [← incl_id, restrict_incl]
-  ext x ⟨b, y⟩ ⟨c, z⟩; simp [he.eq_iff]
+  ext x ⟨b, y⟩ ⟨c, z⟩
+  simp [he.eq_iff]
 
 theorem isRestriction_slSum_comp {ι κ : Type*} [Fintype ι] [DecidableEq ι] [DecidableEq κ]
     [Fintype X] [Fintype Y] [Fintype Z] (G : ι → Tensor R X Y Z) (e : κ → ι)
     (he : Function.Injective e) : IsRestriction (slSum (G ∘ e)) (slSum G) := by
-  classical exact ⟨_, _, _, slSum_comp_eq_restrict G e he⟩
+  classical
+  exact ⟨_, _, _, slSum_comp_eq_restrict G e he⟩
 
 /-- The tensor product of two shared-left sums is a shared-left sum over pairs of summands. -/
 theorem tprod_slSum {ι κ : Type*} [DecidableEq ι] [DecidableEq κ] (G : ι → Tensor R X Y Z)
@@ -610,14 +630,16 @@ The isomorphisms of [Pass][Pass2026], Lemma 2.10, as equalities up to reindexing
 theorem tprod_comm (T : Tensor R X Y Z) (T' : Tensor R X' Y' Z') :
     tprod T T' =
       reindex (Equiv.prodComm X' X) (Equiv.prodComm Y' Y) (Equiv.prodComm Z' Z) (tprod T' T) := by
-  funext; simp [mul_comm]
+  funext
+  simp [mul_comm]
 
 /-- The tensor product is associative up to reindexing. -/
 theorem tprod_assoc (T : Tensor R X Y Z) (T' : Tensor R X' Y' Z') (T'' : Tensor R X'' Y'' Z'') :
     tprod (tprod T T') T'' =
       reindex (Equiv.prodAssoc X X' X'').symm (Equiv.prodAssoc Y Y' Y'').symm
         (Equiv.prodAssoc Z Z' Z'').symm (tprod T (tprod T' T'')) := by
-  funext; simp [mul_assoc]
+  funext
+  simp [mul_assoc]
 
 /-- Reindexing the second factor of a tensor product. -/
 theorem tprod_reindex_right (T : Tensor R X Y Z) (e₁ : X' ≃ X'') (e₂ : Y' ≃ Y'') (e₃ : Z' ≃ Z'')
@@ -625,7 +647,8 @@ theorem tprod_reindex_right (T : Tensor R X Y Z) (e₁ : X' ≃ X'') (e₂ : Y' 
     tprod T (reindex e₁ e₂ e₃ T') =
       reindex (Equiv.prodCongr (Equiv.refl X) e₁) (Equiv.prodCongr (Equiv.refl Y) e₂)
         (Equiv.prodCongr (Equiv.refl Z) e₃) (tprod T T') := by
-  funext; simp
+  funext
+  simp
 
 /-- Regrouping three tensor products of pairs into a tensor product of two triples. -/
 theorem tprod_tprod_tprod_comm {X₂ Y₂ Z₂ X₃ Y₃ Z₃ X₄ Y₄ Z₄ : Type*} (A : Tensor R X Y Z)
@@ -705,7 +728,8 @@ theorem isRestriction_dsum_const [Fintype X] [Fintype Y] [Fintype Z] {ι : Type*
   classical
   refine ⟨incl (i, ·), incl (i, ·), (incl (i, ·))ᵀ, ?_⟩
   rw [restrict_incl]
-  funext; simp
+  funext
+  simp
 
 /-- Fewer copies of `T` are a restriction of more copies. -/
 theorem isRestriction_dsum_const_of_card_le [Fintype X] [Fintype Y] [Fintype Z] {ι κ : Type*}
@@ -752,7 +776,8 @@ theorem isRestriction_unit_of_le {r r' : ℕ} (h : r ≤ r') :
     IsRestriction (unit r : Tensor R _ _ _) (unit r') := by
   refine ⟨incl (Fin.castLE h), incl (Fin.castLE h), (incl (Fin.castLE h))ᵀ, ?_⟩
   rw [restrict_incl]
-  funext; simp [Fin.ext_iff]
+  funext
+  simp [Fin.ext_iff]
 
 theorem Rank.mono {T : Tensor R X Y Z} {r r' : ℕ} (h : Rank r T) (hr : r ≤ r') : Rank r' T :=
   h.trans (isRestriction_unit_of_le hr)
@@ -768,19 +793,22 @@ theorem Rank.dsum {T : Tensor R X Y Z} {r : ℕ} (n : ℕ) (h : Rank r T) :
 
 theorem Rank.swap12 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap12 T) := by
   have hu : Tensor.swap12 (unit r : Tensor R _ _ _) = unit r := by
-    funext; simp only [swap12_apply, unit_apply]
+    funext
+    simp only [swap12_apply, unit_apply]
     grind
   simpa only [Rank, hu] using IsRestriction.swap12 h
 
 theorem Rank.swap23 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap23 T) := by
   have hu : Tensor.swap23 (unit r : Tensor R _ _ _) = unit r := by
-    funext; simp only [swap23_apply, unit_apply]
+    funext
+    simp only [swap23_apply, unit_apply]
     grind
   simpa only [Rank, hu] using IsRestriction.swap23 h
 
 theorem Rank.swap13 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap13 T) := by
   have hu : Tensor.swap13 (unit r : Tensor R _ _ _) = unit r := by
-    funext; simp only [swap13_apply, unit_apply]
+    funext
+    simp only [swap13_apply, unit_apply]
     grind
   simpa only [Rank, hu] using IsRestriction.swap13 h
 
@@ -873,7 +901,8 @@ theorem isRestriction_mm_tprod_swaps (k : ℕ) :
   refine ⟨incl fun a => ((0, 0), ((0, a.1), (0, a.2))),
     incl fun b => ((0, b.2), ((0, 0), (0, b.1))), (incl fun c => ((0, c.2), ((0, c.1), (0, 0))))ᵀ,
     ?_⟩
-  rw [restrict_incl]; ext ⟨a₁, a₂⟩ ⟨b₁, b₂⟩ ⟨c₁, c₂⟩
+  rw [restrict_incl]
+  ext ⟨a₁, a₂⟩ ⟨b₁, b₂⟩ ⟨c₁, c₂⟩
   simp only [tprod_apply, swap12_apply, swap13_apply, mm_apply, true_and, ite_zero_mul_ite_zero,
     mul_one]
   grind
@@ -902,7 +931,8 @@ theorem isRestriction_mm_of_le {n n' : ℕ} (h : n ≤ n') :
     incl (Prod.map (Fin.castLE h) (Fin.castLE h)), (incl (Prod.map (Fin.castLE h) (Fin.castLE h)))ᵀ,
     ?_⟩
   rw [restrict_incl]
-  ext ⟨_, _⟩ ⟨_, _⟩ ⟨_, _⟩; simp [Fin.castLE_inj]
+  ext ⟨_, _⟩ ⟨_, _⟩ ⟨_, _⟩
+  simp [Fin.castLE_inj]
 
 /-- Tensor powers of matrix multiplication are matrix multiplication of the power. -/
 theorem isRestriction_mm_pow_tpow (v m : ℕ) :
@@ -923,7 +953,8 @@ theorem mm_one_one_one :
     (mm 1 1 1 : Tensor R _ _ _) =
       reindex (Equiv.prodUnique (Fin 1) (Fin 1)).symm (Equiv.prodUnique (Fin 1) (Fin 1)).symm
         (Equiv.prodUnique (Fin 1) (Fin 1)).symm (unit 1) := by
-  ext; simp [Fin.fin_one_eq_zero]
+  ext
+  simp [Fin.fin_one_eq_zero]
 
 /-- The shared-left sum of `n` copies of `T` is `T` tensored with `mm 1 1 n`. -/
 theorem slSum_const (n : ℕ) (T : Tensor R X Y Z) :
@@ -935,7 +966,8 @@ theorem slSum_const (n : ℕ) (T : Tensor R X Y Z) :
         ((Equiv.prodCongr (Equiv.refl Z) (Equiv.uniqueProd (Fin n) (Fin 1))).trans
           (Equiv.prodComm Z (Fin n)))
         (tprod T (mm 1 1 n)) := by
-  ext x ⟨i, y⟩ ⟨j, z⟩; simp [mul_ite]
+  ext x ⟨i, y⟩ ⟨j, z⟩
+  simp [mul_ite]
 
 end Semiring
 

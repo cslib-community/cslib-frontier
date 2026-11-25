@@ -364,7 +364,8 @@ private theorem clone_propRank_seat_lt_of_resRank_lt {r : Fin m} {h₁ h₂ : Fi
     dsimp only [resRank] at hlt
     have hstep := I.length_take_flatMap_add_quota_le (I.resPref r) hlt hi₁
     rw [List.getElem_idxOf hi₁] at hstep
-    have := j₁.isLt; omega
+    have := j₁.isLt
+    omega
   · have h1 : I.cloneInstance.propRank r (some (I.seat h₁ j₁)) < I.cloneInstance.propRank r none :=
       (I.cloneInstance.propRank_some_lt_none_iff r _).2 (by
         rw [mem_clone_propPref_iff, seat_symm_fst, seat_symm_snd_val]; exact ⟨hh₁, j₁.isLt⟩)
@@ -391,7 +392,8 @@ private theorem card_residents_projectClone (μ : PartialMatching m (n * I.maxQu
     ((I.projectClone μ).residents h).card =
       ((PartialMatching.matchedReceivers μ).filter
         (fun s => (finProdFinEquiv.symm s).fst = h)).card := by
-  let S := (PartialMatching.matchedReceivers μ).filter (fun s => (finProdFinEquiv.symm s).fst = h)
+  let S := (PartialMatching.matchedReceivers μ).filter
+    (fun s => (finProdFinEquiv.symm s).fst = h)
   have himg : S = ((I.projectClone μ).residents h).attach.image
       (fun r => (μ r.val).get (I.isSome_of_mem_residents_projectClone r.property)) := by
     ext s
@@ -533,7 +535,8 @@ private theorem liftCloneFun_some {M : ManyToOneMatching m n} (hfeas : I.IsFeasi
       some (I.seat h ⟨I.hospPos M h r,
         Nat.lt_of_lt_of_le (I.hospPos_lt_card (ManyToOneMatching.mem_residents.2 hMr))
           (hfeas h)⟩) := by
-  unfold liftCloneFun; split
+  unfold liftCloneFun
+  split
   · rename_i hnone
     rw [hMr] at hnone
     nomatch hnone
@@ -627,7 +630,8 @@ private theorem isStable_liftClone {M : ManyToOneMatching m n} (hM : I.IsStable 
     rw [hsym, I.clone_recvRank_seat_some, I.clone_recvRank_seat_some] at hr_lt
     have := I.hospPos_strictMono (ManyToOneMatching.mem_residents.2 hMr_same) hr_lt
     omega
-  · have hres_lt : I.resRank r (some h) < I.resRank r (M.hospital r) := by
+  · -- `M.hospital r ≠ some h`: show `I.resRank r (some h) < I.resRank r (M.hospital r)`.
+    have hres_lt : I.resRank r (some h) < I.resRank r (M.hospital r) := by
       cases hMr : M.hospital r with
       | none => exact (I.resRank_some_lt_none_iff r h).2 hh_res
       | some h' =>

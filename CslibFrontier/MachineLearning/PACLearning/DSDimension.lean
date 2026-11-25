@@ -275,10 +275,12 @@ theorem ncard_restriction_le_sum_choose_graphDim [Fintype β] {C : ConceptClass 
     Nat.cast_le.mp (hW.card_le_evcDim.trans ((graphDim_eq_evcDim_conceptGraph C).symm.le.trans hd))
   calc ((· ∘ x) '' C).ncard
       = (encode '' ((· ∘ x) '' C)).ncard := (Set.ncard_image_of_injective _ hinj).symm
-    _ ≤ (restriction (conceptGraph C) pts).ncard := Set.ncard_le_ncard hsub (Set.toFinite _)
+    _ ≤ (restriction (conceptGraph C) pts).ncard :=
+        Set.ncard_le_ncard hsub (Set.toFinite _)
     _ ≤ growthFunction (conceptGraph C) (n * Fintype.card β) :=
         ncard_restriction_le_growthFunction (conceptGraph C) pts
-    _ ≤ ∑ i ∈ range (d + 1), (n * Fintype.card β).choose i := growthFunction_le_sum_choose hevc _
+    _ ≤ ∑ i ∈ range (d + 1), (n * Fintype.card β).choose i :=
+        growthFunction_le_sum_choose hevc _
 
 /-! ### Pseudo-cubes and the Daniely–Shalev-Shwartz (DS) dimension -/
 
@@ -491,7 +493,8 @@ theorem NatarajanShatters.dsShatters {C : ConceptClass α β} {W : Finset α}
   · rcases mem_image.mp hg with ⟨B, hBW, rfl⟩
     let B' : Finset α := if i.1 ∈ B then B.erase i.1 else insert i.1 B
     have hB'W : B' ∈ W.powerset := mem_powerset.mpr <| by
-      dsimp only [B']; split_ifs
+      dsimp only [B']
+      split_ifs
       · exact (erase_subset _ _).trans (mem_powerset.mp hBW)
       · exact insert_subset i.2 (mem_powerset.mp hBW)
     refine ⟨cubeMap B', mem_image_of_mem _ hB'W, ?_, fun j hj => ?_⟩
@@ -619,7 +622,8 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
   have hmul3 : 2 ^ (2 * s) * 3 ^ (2 * s) ≤ 3 ^ d * 4 ^ (2 * s) * k ^ (2 * d) := by
     calc 2 ^ (2 * s) * 3 ^ (2 * s)
         ≤ (∑ i ∈ range (d + 1), (2 * s).choose i) * 3 ^ (2 * s) * k ^ (2 * d) := by
-          have := Nat.mul_le_mul_right (3 ^ (2 * s)) (hsum.trans hnatar); linarith
+          have := Nat.mul_le_mul_right (3 ^ (2 * s)) (hsum.trans hnatar)
+          linarith
       _ ≤ 3 ^ d * 4 ^ (2 * s) * k ^ (2 * d) :=
           Nat.mul_le_mul_right _ (Cslib.sum_range_choose_mul_pow_le 3 (2 * s) d)
   have h9le : 9 ^ s ≤ 4 ^ s * (3 ^ d * k ^ (2 * d)) := by
@@ -630,7 +634,8 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
     rw [h4, h9] at hmul3; linarith
   have hcoeff_lt : 3 ^ d * k ^ (2 * d) < 2 ^ s := by
     have h3lt : 3 ^ d < 2 ^ (2 * d) := by
-      rw [pow_mul]; exact Nat.pow_lt_pow_left (by decide) hdpos.ne'
+      rw [pow_mul]
+      exact Nat.pow_lt_pow_left (by decide) hdpos.ne'
     have hkle : k ^ (2 * d) ≤ 2 ^ ((Nat.log 2 k + 1) * (2 * d)) :=
       (Nat.pow_le_pow_left (Nat.lt_pow_succ_log_self (by decide : 1 < 2) k).le _).trans_eq
         (pow_mul ..).symm
@@ -744,9 +749,11 @@ theorem dsDim_hexagonClass : dsDim hexagonClass = 2 := by
       fun _ hj => Function.update_of_ne hj b f⟩
     · rcases i with ⟨u, _⟩; fin_cases u
       · change Function.update f x₀ b x₀ ≠ Function.update f x₀ b x₁
-        rw [Function.update_self, Function.update_of_ne (by decide : x₁ ≠ x₀)]; exact hb1
+        rw [Function.update_self, Function.update_of_ne (by decide : x₁ ≠ x₀)]
+        exact hb1
       · change Function.update f x₁ b x₀ ≠ Function.update f x₁ b x₁
-        rw [Function.update_self, Function.update_of_ne (by decide : x₀ ≠ x₁)]; exact hb0.symm
+        rw [Function.update_self, Function.update_of_ne (by decide : x₀ ≠ x₁)]
+        exact hb0.symm
     · rcases i with ⟨u, _⟩; fin_cases u
       · exact hb0
       · exact hb1

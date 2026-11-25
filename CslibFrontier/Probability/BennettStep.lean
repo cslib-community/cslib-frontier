@@ -144,7 +144,8 @@ theorem exp_sub_one_sub_le_mul_sq {b u : ℝ} (hb : 0 < b) (hu : u ≤ b) :
       (fun x hx => (hd x hx).continuousAt.continuousWithinAt)
       (fun x hx => (hd x (by rwa [interior_Ioi] at hx)).differentiableAt.differentiableWithinAt)
       (fun x hx => by
-        rw [interior_Ioi] at hx; rw [(hd x hx).deriv]
+        rw [interior_Ioi] at hx
+        rw [(hd x hx).deriv]
         exact div_nonneg (sub_two_mul_exp_add_add_two_nonneg hx.le) (pow_nonneg hx.le 3))
       hu0 hb hu
     rw [div_le_div_iff₀ (by positivity) (by positivity)] at hle
@@ -273,7 +274,8 @@ theorem exp_bernstein_le_of_sqrt_add {v b δ : ℝ} (hv : 0 ≤ v) (hb : 0 ≤ b
     nlinarith [Real.sq_sqrt (show 0 ≤ 2 * v * L by positivity),
       show 0 ≤ b * L * Real.sqrt (2 * v * L) by positivity])
   refine ⟨hε_pos, (Real.exp_le_exp.mpr hdiv).trans_eq ?_⟩
-  dsimp only [L]; rw [one_div, Real.log_inv, neg_neg, Real.exp_log hδ]
+  dsimp only [L]
+  rw [one_div, Real.log_inv, neg_neg, Real.exp_log hδ]
 
 end Cslib.Probability
 
@@ -379,7 +381,8 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
           (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left (hd'_le x) hs)) ENNReal.toReal_nonneg)
         ((summable_toReal q).mul_right (Real.exp (s * b)))
     set c := (Real.exp (s * b) - 1 - s * b) / b ^ 2
-    have hc_nn : 0 ≤ c := div_nonneg (by linarith [Real.add_one_le_exp (s * b)]) (by positivity)
+    have hc_nn : 0 ≤ c := div_nonneg
+      (by linarith [Real.add_one_le_exp (s * b)]) (by positivity)
     have hsd1 : Summable fun x => (q x).toReal * d' x := hmul1.symm ▸ hd1
     have hsd2 : Summable fun x => (q x).toReal * d' x ^ 2 := hmul2.symm ▸ hd2
     have hpt (x : α) : (q x).toReal * Real.exp (s * d' x) ≤
@@ -404,7 +407,8 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
       rw [ENNReal.ofReal_tsum_of_nonneg
         (fun _ => mul_nonneg ENNReal.toReal_nonneg (Real.exp_pos _).le) hsum_exp]
       refine tsum_congr fun x => ?_
-      dsimp only [d']; split_ifs with hx
+      dsimp only [d']
+      split_ifs with hx
       · rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (PMF.apply_ne_top q x)]
       · rw [(q.apply_eq_zero_iff x).mpr hx, ENNReal.toReal_zero, zero_mul, zero_mul,
           ENNReal.ofReal_zero]]

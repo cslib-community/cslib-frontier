@@ -342,7 +342,8 @@ theorem exists_coupling_glauberColoringOn (hq : G.maxDegree < q) {U : Finset V}
           ((if x w ≠ y w then 1 else 0 : ℕ) : ℝ) = 1 + ((if c.1 ≠ c.2 then 1 else 0 : ℕ) : ℝ) :=
         mod_cast (hxy ▸ hammingDist_update_update x y w c.1 c.2)
       push_cast at h'; linarith
-    simp only [hupd]; rw [sum_affine (γ w) _ 1, one_mul]
+    simp only [hupd]
+    rw [sum_affine (γ w) _ 1, one_mul]
     rw [show ∑ c, ((γ w) c).toReal * (if c.1 ≠ c.2 then (1 : ℝ) else 0) =
       ((γ w).toOuterMeasure {c | c.1 ≠ c.2}).toReal by
         rw [toOuterMeasure_apply_toReal]
@@ -364,7 +365,8 @@ theorem exists_coupling_glauberColoringOn (hq : G.maxDegree < q) {U : Finset V}
   refine (Finset.sum_le_sum fun w _ =>
     mul_le_mul_of_nonneg_left (hw w) ENNReal.toReal_nonneg).trans ?_
   have hunif (w : V) : ((uniformOfFinset U hU) w).toReal = if w ∈ U then (U.card : ℝ)⁻¹ else 0 := by
-    rw [uniformOfFinset_apply]; split_ifs <;> simp
+    rw [uniformOfFinset_apply]
+    split_ifs <;> simp
   simp only [hunif, ite_mul, zero_mul]
   rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter, ← Finset.mul_sum,
     Finset.sum_add_distrib, Finset.sum_sub_distrib, h1, Finset.sum_const, nsmul_eq_mul, mul_one]

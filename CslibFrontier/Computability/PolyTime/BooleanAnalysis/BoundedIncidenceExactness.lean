@@ -153,7 +153,8 @@ private theorem length_lookupReplacementRow_le {n' D_cap Q r A₀ R : ℕ}
     obtain ⟨e, _, he⟩ := List.mem_map.mp (show _ ∈ List.map _ _ from List.getElem_mem hlt)
     simpa only [← he, CopyPlacement.pullbackReplacementRow] using
       (isTableShape_tabulateTable n' R _).1.le
-  · rw [List.getD_eq_default _ [] (Nat.not_lt.mp hlt)]; simp
+  · rw [List.getD_eq_default _ [] (Nat.not_lt.mp hlt)]
+    simp
 
 private theorem toJetTable_evalEquationParityFactorJet_eq {n' J ℓ k' : ℕ} (dDen node : ℤ)
     {rowsCoeffs : List (List (List ℤ))} (hrows_len : ∀ r_tbl ∈ rowsCoeffs, r_tbl.length ≤ n')
@@ -277,7 +278,8 @@ private theorem formalEqParityFactor_congr_fiber {n' D_cap Q r A₀ R k' ℓ : �
       else 0
     formalEqParityFactor dDen k' ℓ rows ((t.1 : ℤ) + 1) (localBitsEquiv hVG x) 𝓜 =
       formalEqParityFactor dDen k' ℓ rows ((t.1 : ℤ) + 1) (localBitsEquiv hVG x') 𝓜 := by
-  intro scope rows; subst hfg
+  intro scope rows
+  subst hfg
   let x₁ := localBitsEquiv hVG x; let x₂ := localBitsEquiv hVG x'
   have hmulVec : (varMeasurementMatrix Q r A₀ R ℚ D.place
         (BalancedSchedules.scopeVarOf scope)).mulVec (fun i => bitVal ℚ (x₁ i)) =
@@ -737,7 +739,8 @@ private theorem toJetTable_measurementFold_eq {n' Q r A₀ R J ℓ k' : ℕ} {τ
     fun y hy g => (hy g).choose_spec).symm.trans ?_
   rw [← sum_piFinset_checkRestrictedGroup_eq hVG indE]
   refine Finset.sum_congr rfl fun u _ => ?_
-  dsimp only [factor]; rw [← map_prod]
+  dsimp only [factor]
+  rw [← map_prod]
   exact congrArg (evalJetHom n' J ℓ y_U)
     (Finset.prod_fiberwise_of_maps_to (fun f _ => Finset.mem_univ _) _)
 
@@ -787,7 +790,8 @@ private theorem toJetTable_subsetPairFold_eq {n' Q r A₀ R q ℓ k' : ℕ} {τ 
       CommonCountingAccum.toJetTable J ℓ (subsetPairStepBody (item, (subCtx, acc))).2 =
         mobBody (item, CommonCountingAccum.toJetTable J ℓ acc) := by
     refine ⟨rfl, ?_⟩
-    unfold subsetPairStepBody; dsimp only [subCtx, mobBody]
+    unfold subsetPairStepBody
+    dsimp only [subCtx, mobBody]
     rw [CommonCountingAccum.toJetTable_addJet]
     have hm : CommonCountingAccum.toJetTable J ℓ
         (MeasurementFold.run measurementStepBody (r * m_rows, r ^ (2 * Q))
@@ -804,7 +808,8 @@ private theorem toJetTable_subsetPairFold_eq {n' Q r A₀ R q ℓ k' : ℕ} {τ 
       (CommonCountingAccum.toJetTable J ℓ) (fun T item => mobBody (item, T)) subCtx hstep,
     CommonCountingAccum.toJetTable_zeroJet, ← SubsetPairFold.run_eq_foldl_map mobBody n' q 0,
     SubsetPairFold.run_mobius_eq_sum_restricted_subsets]
-  apply JetTable.ext; intro j u_col
+  apply JetTable.ext
+  intro j u_col
   let p_formal (x : Fin n' → Bool) : MvPolynomial (Fin n') ℤ :=
     (((∏ f : Fin eqs'.length, formalEqParityFactor dDen k' ℓ (eqDesignRows D f) node x
       (P_eq f)).coeff u_col.1).coeff j.1)
@@ -818,7 +823,8 @@ private theorem toJetTable_subsetPairFold_eq {n' Q r A₀ R q ℓ k' : ℕ} {τ 
     simp only [JetTable.sum_apply]
     refine Finset.sum_congr rfl fun E _ => Finset.sum_congr rfl fun U _ => ?_
     rw [show (-1 : JetTable J ℓ ℤ) ^ (#E - #U) = (((-1 : ℤ) ^ (#E - #U) : ℤ) : JetTable J ℓ ℤ) by
-        simp, ← zsmul_eq_mul, JetTable.coe_zsmul, smul_eq_mul]
+        simp,
+      ← zsmul_eq_mul, JetTable.coe_zsmul, smul_eq_mul]
     simp only [G, JetTable.sum_apply, evalJetHom, RingHom.comp_apply, JetTable.ofPolyVPolyZ_apply,
       Polynomial.coe_mapRingHom, Polynomial.coeff_map, p_formal]
   have hp_deg (x : Fin n' → Bool) : (p_formal x).totalDegree ≤ q :=

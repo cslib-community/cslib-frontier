@@ -423,7 +423,9 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
       rw [← ht, List.filter_append, List.map_append]
       exact List.prefix_append _ _
     simp only [hval, ← htail, List.map_append, List.sum_append, le_add_iff_nonneg_right]
-    exact List.sum_nonneg fun _ hr => by obtain ⟨_, _, rfl⟩ := List.mem_map.mp hr; positivity
+    exact List.sum_nonneg fun _ hr => by
+      obtain ⟨_, _, rfl⟩ := List.mem_map.mp hr
+      positivity
   have htend : ∀ b, Tendsto (fun n => (num b n : ℝ) / (den b n : ℝ)) atTop
       (𝓝 (∑' p : {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ flt b y = true},
         (2 : ℝ)⁻¹ ^ p.1.length)) := by

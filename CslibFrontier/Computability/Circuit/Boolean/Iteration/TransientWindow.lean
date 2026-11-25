@@ -146,11 +146,13 @@ private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitStrin
     · simp only [testHi, testLo, eqh, Bool.false_eq_true, ite_false, Bool.and_eq_true,
         Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
       rw [le_split k hk (v x) (c j)]
-      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (hi x = C → _)); tauto
+      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (hi x = C → _))
+      tauto
     · simp only [testHi, testLo, eqh, ite_true, Bool.and_eq_true, Bool.or_eq_true,
         Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
       rw [le_split k hk (c j) (v x)]
-      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (C = hi x → _)); tauto
+      change (_ ∧ (¬hi x = C ∨ _)) ↔ (_ ∧ (C = hi x → _))
+      tauto
   refine ((hlo.union hhi).trans (Synthesis.family (s := src) _ _ row)).mono
     Set.Subset.rfl Set.Subset.rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
@@ -411,7 +413,8 @@ theorem transient_window_circuit {n : ℕ} (c : Circuit signature n n) (H : Fins
     exact Or.inl ⟨Fin.natAdd n i, rfl⟩
   have hheight : wordWires htWord ⊆ src := by
     rintro _ ⟨i, rfl⟩
-    simp only [htWord, BitString.getLsbD_equivBitVec]; exact Or.inr (Or.inr (Or.inr ⟨i, rfl⟩))
+    simp only [htWord, BitString.getLsbD_equivBitVec]
+    exact Or.inr (Or.inr (Or.inr ⟨i, rfl⟩))
   have hsub := Synthesis.word_sub (s := src) htWord (fun z => (time z).setWidth n)
     (fun i => hheight ⟨i, rfl⟩) (fun i => wordWires_setWidth_subset htimes hz ⟨i, rfl⟩)
   have hflag := Synthesis.word_ult (s := src)

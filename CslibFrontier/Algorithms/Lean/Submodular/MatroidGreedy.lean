@@ -181,7 +181,8 @@ variable {α : Type} {β : Type} [DecidableEq α] [LinearOrder β]
       pure (submodularMatroidGreedyStep f indep u S) := by
   simp only [submodularMatroidGreedyStepM, submodularMatroidGreedyStep, filterIndepM_pure,
     pure_bind]
-  rw [← feasibleCandidates]; cases feasibleCandidates indep u S <;> simp [scanCandidatesM_pure]
+  rw [← feasibleCandidates]
+  cases feasibleCandidates indep u S <;> simp [scanCandidatesM_pure]
 
 @[simp] theorem submodularMatroidGreedyLoopM_pure [LawfulMonad m]
     (f : Finset α → β) (indep : Finset α → Bool) (u : List α) (k : ℕ) (S : Finset α) :
@@ -192,7 +193,9 @@ variable {α : Type} {β : Type} [DecidableEq α] [LinearOrder β]
   | succ k ih =>
     simp only [submodularMatroidGreedyLoopM, submodularMatroidGreedyLoop,
       submodularMatroidGreedyStepM_pure, pure_bind]
-    cases submodularMatroidGreedyStep f indep u S with | none => rfl | some S' => exact ih S'
+    cases submodularMatroidGreedyStep f indep u S with
+    | none => rfl
+    | some S' => exact ih S'
 
 @[simp] theorem submodularMatroidGreedyM_pure [LawfulMonad m]
     (f : Finset α → β) (indep : Finset α → Bool) (xs : List α) :
@@ -284,7 +287,8 @@ theorem exists_of_submodularMatroidGreedyStep_eq_some {f : Finset α → β} {in
   unfold submodularMatroidGreedyStep at h
   rcases hc : feasibleCandidates indep u S with _ | ⟨c₀, cs⟩
   · simp only [hc, reduceCtorEq] at h
-  · simp only [hc, Option.some.injEq] at h; subst h
+  · simp only [hc, Option.some.injEq] at h
+    subst h
     refine ⟨_, scanCandidates_fst_mem f S c₀ _ cs, rfl, fun x hx => ?_⟩
     rw [← scanCandidates_snd_eq f S rfl cs]
     exact (List.mem_cons.mp hx).elim (fun e => e ▸ le_scanCandidates_snd f S x _ cs)
@@ -497,7 +501,8 @@ private theorem sum_le_sum_range_card_div {O : Finset ι} {σ : ι → ℕ} {c :
       rcases Finset.mem_insert.mp ho with rfl | ho
       · omega
       · exact (hmax o ho).trans (by omega), Finset.card_insert_of_notMem has] at h1
-    have := Nat.mul_div_le s.card p; omega
+    have := Nat.mul_div_le s.card p
+    omega
 
 omit [PartialOrder β] [IsOrderedAddMonoid β] in
 /-- Block decomposition `∑ j < p * N, d (j / p) = p • ∑ s < N, d s`. -/

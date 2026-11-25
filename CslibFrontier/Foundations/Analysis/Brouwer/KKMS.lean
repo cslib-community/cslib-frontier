@@ -91,7 +91,8 @@ private theorem exists_strictSep_of_not_balanced {A : Type*} [Fintype A] [Decida
     have hcol := hyM S
     simp only [Pi.zero_apply, Matrix.vecMul, dotProduct, M, hS, true_and, mul_ite, mul_one,
       mul_zero, ← Finset.sum_filter, Finset.filter_univ_mem] at hcol
-    simp only [y', Finset.sum_neg_distrib, neg_nonpos]; exact hcol
+    simp only [y', Finset.sum_neg_distrib, neg_nonpos]
+    exact hcol
   let δ : ℝ := (∑ i, y' i) / (2 * (Fintype.card A : ℝ))
   have hcardA : (0 : ℝ) < Fintype.card A := Nat.cast_pos.2 Fintype.card_pos
   have hδ : 0 < δ := by positivity
@@ -159,11 +160,14 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
   let wt : Δ → (A → ℝ) → ℝ := fun k z =>
     if _ : (U k.1)ᶜ.Nonempty then Metric.infDist z (U k.1)ᶜ else 1
   have hwt_cont (k : Δ) : Continuous (wt k) := by
-    dsimp only [wt]; split_ifs <;> [exact Metric.continuous_infDist_pt _; exact continuous_const]
+    dsimp only [wt]
+    split_ifs <;> [exact Metric.continuous_infDist_pt _; exact continuous_const]
   have hwt_nonneg (k : Δ) (z : A → ℝ) : 0 ≤ wt k z := by
-    dsimp only [wt]; split_ifs <;> [exact Metric.infDist_nonneg; exact zero_le_one]
+    dsimp only [wt]
+    split_ifs <;> [exact Metric.infDist_nonneg; exact zero_le_one]
   have hwt_pos_iff (k : Δ) (z : A → ℝ) : 0 < wt k z ↔ z ∈ U k.1 := by
-    dsimp only [wt]; split_ifs with hne
+    dsimp only [wt]
+    split_ifs with hne
     · simpa only [Set.notMem_compl_iff] using
         ((hU_open k.1).isClosed_compl.notMem_iff_infDist_pos hne).symm
     · exact ⟨fun _ => Set.notMem_compl_iff.1 (Set.not_nonempty_iff_eq_empty.1 hne ▸
@@ -216,7 +220,8 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
   have hfz : step z = z := congrFun hfix ()
   let μ : ℝ := ∑ j, dir z j * z j
   have hgain_eq (i : A) : gain z i = z i * ∑ j, gain z j := by
-    have hi := congrFun hfz i; dsimp only [step, denom] at hi
+    have hi := congrFun hfz i
+    dsimp only [step, denom] at hi
     rw [div_eq_iff (hdenom_pos z).ne'] at hi; linarith
   have hgt_gain (i : A) (hgi : 0 < gain z i) : μ < dir z i := by
     by_contra! hle; linarith [max_eq_left (sub_nonpos.2 hle) ▸ hgi]
@@ -236,7 +241,8 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
         · simp [← hi])
         ⟨i₀, Finset.mem_univ i₀, mul_lt_mul_of_pos_left
           (hgt_gain i₀ (by rw [hgain_eq i₀]; exact mul_pos hi₀ hpos_sum)) hi₀⟩
-    rw [← Finset.sum_mul, hzΔ.2, one_mul, hswap_μ] at hlt; exact lt_irrefl _ hlt
+    rw [← Finset.sum_mul, hzΔ.2, one_mul, hswap_μ] at hlt
+    exact lt_irrefl _ hlt
   have hdir_le (i : A) : dir z i ≤ μ := by
     have hgi : gain z i = 0 := by rw [hgain_eq i, hsum_gain_zero, mul_zero]
     linarith [le_max_right (0 : ℝ) (dir z i - μ), hgi]
@@ -249,7 +255,8 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
     have hlt : ∑ j, z j * dir z j < ∑ j, z j * μ :=
       Finset.sum_lt_sum (fun j _ => mul_le_mul_of_nonneg_left (hdir_le j) (hzΔ.1 j))
         ⟨i, Finset.mem_univ i, mul_lt_mul_of_pos_left (lt_of_le_of_ne (hdir_le i) hne_i) hi⟩
-    rw [← Finset.sum_mul, hzΔ.2, one_mul, hswap_μ] at hlt; exact lt_irrefl _ hlt
+    rw [← Finset.sum_mul, hzΔ.2, one_mul, hswap_μ] at hlt
+    exact lt_irrefl _ hlt
   let T : Finset A := Finset.univ.filter fun i => 0 < z i
   obtain ⟨i₀, hi₀⟩ := hex_pos
   obtain ⟨S, hST, hSne, hzS⟩ := hcover T ⟨i₀, Finset.mem_filter.2 ⟨Finset.mem_univ _, hi₀⟩⟩ z
@@ -274,7 +281,8 @@ theorem exists_mem_iInter_of_kkmCover {A : Type*} [Fintype A] [Nonempty A]
   classical
   let G : Finset A → Set (A → ℝ) := fun S => if h : ∃ i : A, S = {i} then F h.choose else ∅
   have hG_single (i : A) : G {i} = F i := by
-    dsimp only [G]; split_ifs with hex
+    dsimp only [G]
+    split_ifs with hex
     · rw [Finset.singleton_injective hex.choose_spec.symm]
     · exact (hex ⟨i, rfl⟩).elim
   obtain ⟨q, hq, w, hw0, _, hw_bal, hqG⟩ := exists_balanced_inter_of_kkmCover G
@@ -290,7 +298,8 @@ theorem exists_mem_iInter_of_kkmCover {A : Type*} [Fintype A] [Nonempty A]
     · intro S hS hSne
       by_contra hnw
       have hqS := hqG S (lt_of_le_of_ne (hw0 S) (Ne.symm hnw))
-      dsimp only [G] at hqS; split_ifs at hqS with hex
+      dsimp only [G] at hqS
+      split_ifs at hqS with hex
       · obtain ⟨j, rfl⟩ := hex
         exact hSne (congrArg singleton (Finset.mem_singleton.1 (Finset.mem_filter.1 hS).2).symm)
       · exact hqS

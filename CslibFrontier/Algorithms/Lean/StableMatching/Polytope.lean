@@ -93,7 +93,8 @@ theorem matchingMatrix_injective {n : ℕ} : Function.Injective (matchingMatrix 
 
 private theorem matchingMatrix_nonneg {n : ℕ} (μ : Matching n) (p r : Fin n) :
     0 ≤ matchingMatrix μ p r := by
-  unfold matchingMatrix; split_ifs <;> norm_num
+  unfold matchingMatrix
+  split_ifs <;> norm_num
 
 namespace Instance
 
@@ -172,7 +173,8 @@ theorem matchingMatrix_mem_stablePolytope_iff (μ : Matching n) :
       have hr_nn : 0 ≤ I.recvBetterMass (matchingMatrix μ) r p :=
         Finset.sum_nonneg fun p' _ => matchingMatrix_nonneg μ p' r
       by_cases hpr : μ p = r
-      · have h1 : matchingMatrix μ p r = 1 := ite_eq_left hpr; linarith
+      · have h1 : matchingMatrix μ p r = 1 := ite_eq_left hpr
+        linarith
       · by_cases hp : I.PropPrefers p (μ p) r
         · have hp1 : 1 ≤ I.propBetterMass (matchingMatrix μ) p r :=
             (show (1 : ℝ) = matchingMatrix μ p (μ p) by simp [matchingMatrix]).trans_le <|
@@ -212,11 +214,14 @@ private theorem sum_mul_strictLower_eq {α : Type*} [Fintype α]
       ∑ a : α, y a * (∑ b with rk b < rk a, y b) :=
     Finset.sum_congr rfl fun a _ => by rw [← Finset.sum_filter, Finset.mul_sum]
   have hL2 : (∑ a : α, ∑ b : α, if rk a < rk b then y b * y a else 0) =
-      ∑ a : α, y a * (∑ b with rk b < rk a, y b) := by rw [Finset.sum_comm]; exact hL
+      ∑ a : α, y a * (∑ b with rk b < rk a, y b) := by
+        rw [Finset.sum_comm]
+        exact hL
   have hD : (∑ a : α, ∑ b : α, if a = b then y a ^ 2 else 0) = ∑ a : α, y a ^ 2 :=
     Finset.sum_congr rfl fun a _ => by simp
   have hsq : (∑ a : α, y a) ^ 2 = ∑ a : α, ∑ b : α, y a * y b := by
-    rw [sq, Finset.sum_mul]; exact Finset.sum_congr rfl fun a _ => Finset.mul_sum _ _ _
+    rw [sq, Finset.sum_mul]
+    exact Finset.sum_congr rfl fun a _ => Finset.mul_sum _ _ _
   rw [hsq, Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => hpt a b]
   simp only [Finset.sum_add_distrib, hL, hL2, hD]; ring
 
@@ -245,7 +250,8 @@ theorem eq_one_of_mem_stablePolytope_of_pos {x : Fin n → Fin n → ℝ} (hx : 
     rw [Finset.sum_comm (f := fun p₀ r₀ => x p₀ r₀ * I.recvBetterMass x r₀ p₀),
       Finset.sum_comm (f := fun p₀ r₀ => x p₀ r₀ ^ 2)]
     exact h
-  have hsum_ones : ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ = (n : ℝ) := by simp [hrow]
+  have hsum_ones : ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ = (n : ℝ) := by
+    simp [hrow]
   have hzero_slack :
       ∑ p₀ : Fin n, ∑ r₀ : Fin n,
         x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) = 0 := by
@@ -421,13 +427,15 @@ theorem stablePolytope_eq_convexHull :
           fun r' _ _ => hx_nn p r').trans_eq (hx_row p)
     have hB_card_ge : 2 ≤ B.card :=
       (by norm_num : ({0, 1} : Finset ℝ).card = 2) ▸ Finset.card_le_card (by
-        intro y hy; simp only [Finset.mem_insert, Finset.mem_singleton] at hy
+        intro y hy
+        simp only [Finset.mem_insert, Finset.mem_singleton] at hy
         rcases hy with rfl | rfl <;> assumption)
     let m : ℕ := B.card - 1
     have hB_card : B.card = m + 1 := by omega
     let e : Fin (m + 1) ↪o ℝ := B.orderEmbOfFin hB_card
     have hmem_e {y : ℝ} (hy : y ∈ B) : y ∈ Set.range e := by
-      rw [Finset.range_orderEmbOfFin]; exact hy
+      rw [Finset.range_orderEmbOfFin]
+      exact hy
     have he0 : e ⟨0, Nat.succ_pos m⟩ = 0 := by
       rw [Finset.orderEmbOfFin_zero hB_card (Nat.succ_pos m)]
       exact le_antisymm (Finset.min'_le B 0 h0B) (hB_bounds _ (Finset.min'_mem B _)).1
@@ -545,7 +553,8 @@ theorem extremePoints_stablePolytope :
   ext p r
   have hval := congrFun (congrFun hseg p) r
   simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, matchingMatrix] at hval ⊢
-  have hx₁_nn := hx₁.1 p r; have hx₂_nn := hx₂.1 p r
+  have hx₁_nn := hx₁.1 p r
+  have hx₂_nn := hx₂.1 p r
   have hx₁_le := I.entry_le_one_of_mem_stablePolytope hx₁ p r
   have hx₂_le := I.entry_le_one_of_mem_stablePolytope hx₂ p r
   split_ifs at hval ⊢ <;> nlinarith

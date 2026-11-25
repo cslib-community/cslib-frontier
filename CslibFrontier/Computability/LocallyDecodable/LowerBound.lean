@@ -232,13 +232,15 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
       (∏ e ∈ E, if ∀ j ∈ e, s j = true then (0 : ℝ) else 1) =
         ∏ e ∈ E, (1 - (p : ℝ) ^ e.card) := by
   induction E using Finset.induction_on with
-  | empty => simp only [Finset.prod_empty, mul_one, Probability.PMF.sum_toReal]
+  | empty =>
+    simp only [Finset.prod_empty, mul_one, Probability.PMF.sum_toReal]
   | insert e₀ E he₀ ih =>
     have hpdE : (E : Set (Finset P)).PairwiseDisjoint id :=
       hE.subset (Finset.coe_subset.mpr (Finset.subset_insert e₀ E))
     have hdisj : ∀ e ∈ E, Disjoint e₀ e := fun e he =>
       hE (Finset.mem_coe.mpr (Finset.mem_insert_self e₀ E))
-        (Finset.mem_coe.mpr (Finset.mem_insert_of_mem he)) (fun h => he₀ (h ▸ he))
+        (Finset.mem_coe.mpr (Finset.mem_insert_of_mem he))
+        (fun h => he₀ (h ▸ he))
     let equiv : (P → Bool) ≃ (∀ _ : {j // j ∈ e₀}, Bool) × (∀ _ : {j // j ∉ e₀}, Bool) :=
       Equiv.piEquivPiSubtypeProd (fun j : P => j ∈ e₀) (fun _ => Bool)
     let w1 (u : {j // j ∈ e₀} → Bool) : ℝ := ∏ j : {j // j ∈ e₀}, (PMF.coin p (u j)).toReal
@@ -257,7 +259,8 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
       ∏ e ∈ E, if ∀ j ∈ e, equiv.symm (fun _ => false, v) j = true then (0 : ℝ) else 1
     have hf1_eq (u : {j // j ∈ e₀} → Bool) (v : {j // j ∉ e₀} → Bool) :
         (if ∀ j ∈ e₀, equiv.symm (u, v) j = true then (0 : ℝ) else 1) = f1 u := by
-      simp only [f1]; congr 1
+      simp only [f1]
+      congr 1
       exact propext ⟨fun h j => by simpa [equiv, Equiv.piEquivPiSubtypeProd, j.2] using h j.1 j.2,
         fun h j hj => by simpa [equiv, Equiv.piEquivPiSubtypeProd, hj] using h ⟨j, hj⟩⟩
     have hf2_eq (u : {j // j ∈ e₀} → Bool) (v : {j // j ∉ e₀} → Bool) :
@@ -274,7 +277,8 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
       have hterm (u : {j // j ∈ e₀} → Bool) :
           w1 u * f1 u = w1 u - (if u = uT then w1 uT else 0) := by
         by_cases hu : u = uT
-        · subst hu; simp [f1, uT]
+        · subst hu
+          simp [f1, uT]
         · simp only [f1, hu, show ¬ ∀ j, u j = true from fun h => hu (funext h),
             ↓reduceIte, mul_one, sub_zero]
       simp_rw [hterm]
@@ -285,13 +289,15 @@ private theorem bernoulli_miss_all_eq_prod [Fintype P] [DecidableEq P] (p : I)
       simp_rw [hw_mul, hf2_eq]
       rw [← one_mul (∑ v, w2 v * f2 v), ← hw1_sum, Finset.sum_mul]
       exact Finset.sum_congr rfl fun _ _ => by
-        rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun _ _ => by ring
+        rw [Finset.mul_sum]
+        exact Finset.sum_congr rfl fun _ _ => by ring
     rw [Finset.prod_insert he₀, ← hfactor1, ← hfactor2, ← Equiv.sum_comp equiv.symm,
       Fintype.sum_prod_type]
     simp_rw [Finset.prod_insert he₀, hw_mul, hf1_eq, hf2_eq]
     rw [Finset.sum_mul]
     exact Finset.sum_congr rfl fun _ _ => by
-      rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun _ _ => by ring
+      rw [Finset.mul_sum]
+      exact Finset.sum_congr rfl fun _ _ => by ring
 
 /-- Under independent `Bernoulli(p)` coordinate sampling on `P`, the probability that at least one
 edge of a `q`-bounded decoding matching `M` is fully contained in the sampled set is at least
@@ -390,7 +396,8 @@ theorem DecodingMatching.pow_le_pow [Fintype ι] [DecidableEq ι] [Fintype P] [N
   have hL0 : 0 ≤ L := Real.logb_nonneg one_lt_two (by exact_mod_cast Fintype.card_pos (α := Γ))
   have hnq : n ^ q = n * n ^ (q - 1) := by rw [← pow_succ', Nat.sub_add_cancel hq]
   rcases lt_or_ge (α * n) 1 with hsmall | hlarge
-  · have hfull := card_recovered_mul_le hη.le M (Finset.univ : Finset P)
+  · -- Small regime `α n < 1`: every matching is nonempty, so evaluate at `S = Finset.univ`.
+    have hfull := card_recovered_mul_le hη.le M (Finset.univ : Finset P)
     have hfilter : (Finset.univ.filter fun i : ι => ∃ e ∈ (M i).edges, e ⊆ Finset.univ) =
         Finset.univ := by
       ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.subset_univ,
@@ -449,7 +456,8 @@ theorem DecodingMatching.pow_le_pow [Fintype ι] [DecidableEq ι] [Fintype P] [N
       exact (by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul] :
         k * (1 / 2) = ∑ _i : ι, (1 / 2 : ℝ)).trans_le (Finset.sum_le_sum fun i _ => hbit i)
     have hlin : k * H ≤ (2 * L) * ((p : ℝ) * n) := by
-      have := mul_le_mul_of_nonneg_right hrec_lower hH0; linarith
+      have := mul_le_mul_of_nonneg_right hrec_lower hH0
+      linarith
     have hpow := pow_le_pow_left₀ (mul_nonneg (Nat.cast_nonneg _) hH0) hlin q
     calc α * (k * H) ^ q ≤ α * ((2 * L) * ((p : ℝ) * n)) ^ q :=
           mul_le_mul_of_nonneg_left hpow hα.le

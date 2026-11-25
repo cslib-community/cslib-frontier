@@ -387,19 +387,22 @@ private theorem sum_range_six_mul_of_periodic {g : ℕ → ℝ} (hg : ∀ t, g (
 
 private theorem ex42Play_binary (t : ℕ) (i : Fin 3) :
     ex42Play t i = 0 ∨ ex42Play t i = 1 := by
-  unfold ex42Play; have := Nat.mod_lt t (by decide : 0 < 6)
+  unfold ex42Play
+  have := Nat.mod_lt t (by decide : 0 < 6)
   interval_cases t % 6 <;> fin_cases i <;> simp
 
 private theorem ex42Play_nonneg (t : ℕ) (i : Fin 3) : 0 ≤ ex42Play t i := by
   rcases ex42Play_binary t i with h0 | h1 <;> linarith
 
 private theorem ex42Play_sum (t : ℕ) : ∑ i : Fin 3, ex42Play t i = 1 := by
-  unfold ex42Play; have := Nat.mod_lt t (by decide : 0 < 6)
+  unfold ex42Play
+  have := Nat.mod_lt t (by decide : 0 < 6)
   interval_cases t % 6 <;> norm_num [Fin.sum_univ_three]
 
 private theorem ex42Loss_binary (t : ℕ) (i : Fin 3) :
     ex42Loss t i = 0 ∨ ex42Loss t i = 1 := by
-  unfold ex42Loss; have := Nat.mod_lt t (by decide : 0 < 6)
+  unfold ex42Loss
+  have := Nat.mod_lt t (by decide : 0 < 6)
   interval_cases t % 6 <;> fin_cases i <;> simp
 
 private theorem ex42Loss_nonneg (t : ℕ) (i : Fin 3) : 0 ≤ ex42Loss t i := by

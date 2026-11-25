@@ -142,7 +142,8 @@ theorem resample_congr {c : Clause (Fin n)} {x y : ℕ → Bool} {o : ℕ}
     resample c x o σ = resample c y o σ := by
   funext v
   by_cases hv : v ∈ vbl c
-  · simp only [resample, hv, ite_true]; exact h _ (List.idxOf_lt_length_of_mem hv)
+  · simp only [resample, hv, ite_true]
+    exact h _ (List.idxOf_lt_length_of_mem hv)
   · rw [resample_of_not_mem hv, resample_of_not_mem hv]
 
 /-! ### The machine -/

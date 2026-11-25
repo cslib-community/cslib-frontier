@@ -128,7 +128,8 @@ private theorem abs_scale_sup_sub_le {α : Type*} {c optS optF ε : ℝ} (hc : 0
     (hf_le : ∀ x, fScore x ≤ optF) (hs_le : ∀ x, sScore x ≤ optS)
     (hunif : ∀ x, |c * sScore x - fScore x| ≤ ε) :
     |c * optS - optF| ≤ ε := by
-  obtain ⟨xStar, rfl⟩ := hStar; obtain ⟨xHat, rfl⟩ := hHat
+  obtain ⟨xStar, rfl⟩ := hStar
+  obtain ⟨xHat, rfl⟩ := hHat
   exact abs_le.mpr
     ⟨by linarith [(abs_le.mp (hunif xStar)).1, mul_le_mul_of_nonneg_left (hs_le xStar) hc],
      by linarith [(abs_le.mp (hunif xHat)).2, hf_le xHat]⟩

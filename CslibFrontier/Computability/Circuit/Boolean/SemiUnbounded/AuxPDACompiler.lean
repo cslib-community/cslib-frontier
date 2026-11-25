@@ -122,7 +122,8 @@ private lemma realTree_cast {V : Type*} {stay : V → V → Prop}
     {pushPop : V → V → V → V → Prop} {u v : V} (u' v' : V) (hu : u = u') (hv : v = v')
     (T : RealTree stay pushPop u v) :
     ∃ T' : RealTree stay pushPop u' v', T'.size = T.size := by
-  subst hu hv; exact ⟨T, rfl⟩
+  subst hu hv
+  exact ⟨T, rfl⟩
 
 /-- Every bounded realizability tree lifts to an `AuxPDA.Realizable` witness. -/
 theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
@@ -164,13 +165,15 @@ private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym S
         hpLast.symm ▸ surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack⟩
     | push γ =>
       rw [hop, StackOp.apply?_push, Option.some.injEq] at hstack
-      subst hstack; simp [hpLast] at hlenEq
+      subst hstack
+      simp [hpLast] at hlenEq
     | pop =>
       cases hst : p.head.stack with
       | nil => simp [hop, hst] at hstack
       | cons _ _ =>
         rw [hop, hst, StackOp.apply?_pop_cons, Option.some.injEq] at hstack
-        subst hstack; simp [hpLast, hst] at hlenEq
+        subst hstack
+        simp [hpLast, hst] at hlenEq
 
 private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSym State} (d : ℕ) :
     ∀ (p : M.RunPath input), p.length = d → SameHeightRun p →
@@ -225,7 +228,8 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
         obtain ⟨Tmid, hszMid⟩ := ih d' (by omega) pmid hmidLen hmidSame hfitsMid
         obtain ⟨-, hpop⟩ := hpopFn (hmidSame.last_stack_eq.trans hmidHeadStack)
         refine ⟨.pushPop ⟨γ, ?_, ?_⟩ Tmid, ?_⟩
-        · unfold BoundedPushStep; simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hpush
+        · unfold BoundedPushStep
+          simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hpush
         · unfold BoundedPopStep
           rw [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
           exact hpop
@@ -507,7 +511,8 @@ theorem LogCFL.exists_normalForm_circuit_family_certified {α : Type} {enc : α 
           (time input) (spaceFactor * (depthFactor + 1) * (Nat.log2 (N a) + 1))) := by
   classical
   rcases hA with ⟨k, StackSym, State, hfinStack, hfinState, M, cs, t, hpolyT, hdec⟩
-  cases nonempty_fintype StackSym; cases nonempty_fintype State
+  cases nonempty_fintype StackSym
+  cases nonempty_fintype State
   let eStack := Fintype.equivFin StackSym
   let eState := Fintype.equivFin State
   obtain ⟨At, Dt, htLe⟩ := hpolyT.exists_le

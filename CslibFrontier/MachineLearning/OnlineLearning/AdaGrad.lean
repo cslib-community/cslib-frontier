@@ -177,16 +177,20 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
   set x := adaGradNorm proj grad γ ε x₀
   set S := adaGradNormSqSum proj grad γ ε x₀
   have hSn : 0 ≤ S t := by
-    change 0 ≤ adaGradNormSqSum _ _ _ _ _ t; rw [adaGradNormSqSum_eq]
+    change 0 ≤ adaGradNormSqSum _ _ _ _ _ t
+    rw [adaGradNormSqSum_eq]
     exact add_nonneg hε (sum_nonneg fun _ _ => sq_nonneg _)
   have hS1_nn : 0 ≤ S (t + 1) := by
-    change 0 ≤ S t + ‖grad t (x t)‖ ^ 2; exact add_nonneg hSn (sq_nonneg _)
+    change 0 ≤ S t + ‖grad t (x t)‖ ^ 2
+    exact add_nonneg hSn (sq_nonneg _)
   rcases hS1_nn.eq_or_lt with hzero | hpos
   · have hg : grad t (x t) = 0 := norm_eq_zero.mp (sq_eq_zero_iff.mp (by
       have : S t + ‖grad t (x t)‖ ^ 2 = 0 := hzero.symm; linarith [sq_nonneg ‖grad t (x t)‖]))
     simp [hg, ← hzero]
-  · set r := √(S (t + 1)); have hr : 0 < r := sqrt_pos.mpr hpos
-    set η := γ / r; have hη : 0 < η := div_pos hγ hr
+  · set r := √(S (t + 1))
+    have hr : 0 < r := sqrt_pos.mpr hpos
+    set η := γ / r
+    have hη : 0 < η := div_pos hγ hr
     have hproj : ‖x (t + 1) - u‖ ^ 2 ≤ ‖x t - η • grad t (x t) - u‖ ^ 2 := by
       rw [show x (t + 1) = proj (x t - η • grad t (x t)) from adaGradNorm_succ _ _ _ _ _ t]
       exact pow_le_pow_left₀ (norm_nonneg _) (hP.norm_sub_le _ u hu) 2

@@ -109,15 +109,19 @@ private theorem prop_identity_blocks (K : ℕ) (x : R) (sa : Word μ) (sd : Word
     by_cases h1 : sa.row i < K
     · simp [h1]
     · by_cases h2 : sa.row i = sc.col j
-      · rw [ite_eq_right h1, ite_eq_left h2, sub_zero]; exact hdvd _ h1
+      · rw [ite_eq_right h1, ite_eq_left h2, sub_zero]
+        exact hdvd _ h1
       · simp [h1, h2]
-  · simp only [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₁₂, ite_mul,
-      one_mul, zero_mul]
+  · simp only
+      [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₁₂, ite_mul, one_mul,
+      zero_mul]
     rw [sum_ite_val K (sa.row i)
       (fun r => x ^ (2 * r + 1) * ((x ^ 2 - 1) * meixnerB (x ^ 2) r (sb.col j)))]
     by_cases h1 : sa.row i < K
-    · rw [ite_eq_left h1]; exact ⟨0, by ring⟩
-    · rw [ite_eq_right h1, sub_zero]; exact ((hdvd _ h1).mul_right _).mul_left _
+    · rw [ite_eq_left h1]
+      exact ⟨0, by ring⟩
+    · rw [ite_eq_right h1, sub_zero]
+      exact ((hdvd _ h1).mul_right _).mul_left _
   · simp only [facA, facB, blU, of_apply, Sum.elim_inl, Sum.elim_inr, fromBlocks_apply₂₁]
     have e : ∀ r : Fin K, meixnerB (x ^ 2) r (sd.row i) *
         (x ^ (2 * (r : ℕ) + 1) * if (r : ℕ) = sc.col j then 1 else 0) =
@@ -129,8 +133,10 @@ private theorem prop_identity_blocks (K : ℕ) (x : R) (sa : Word μ) (sd : Word
     rw [Finset.sum_congr rfl fun r _ => e r,
       sum_ite_val K (sc.col j) (fun r => meixnerB (x ^ 2) r (sd.row i) * x ^ (2 * r + 1))]
     by_cases h1 : sc.col j < K
-    · rw [ite_eq_left h1]; exact ⟨0, by ring⟩
-    · rw [ite_eq_right h1, sub_zero]; exact (hdvd _ h1).mul_right _
+    · rw [ite_eq_left h1]
+      exact ⟨0, by ring⟩
+    · rw [ite_eq_right h1, sub_zero]
+      exact (hdvd _ h1).mul_right _
   · simp only [facA, facB, blU, of_apply, Sum.elim_inr, fromBlocks_apply₂₂]
     obtain ⟨w, hw⟩ := pow_dvd_meixnerB_orthogonality (x ^ 2) K (sd.row i) (sb.col j)
     refine ⟨x * w, ?_⟩
@@ -325,8 +331,9 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
       exact ⟨fun ⟨⟨a, b⟩, c, d⟩ => ⟨⟨a, d.symm⟩, b, c.symm⟩,
         fun ⟨⟨a, d⟩, b, c⟩ => ⟨⟨a, b⟩, c.symm, d.symm⟩⟩
     simp only [this]
-    by_cases a : sa.row = sc.col <;> by_cases b : sd.row = sb.col <;>
-      by_cases c : sa.col = sc.row <;> by_cases d : sd.col = sb.row <;> simp [a, b, c, d]
+    by_cases a : sa.row = sc.col <;> by_cases b : sd.row = sb.col <;> by_cases c : sa.col =
+        sc.row <;>
+      by_cases d : sd.col = sb.row <;> simp [a, b, c, d]
   rw [psi, hind]
   push_cast
   linear_combination (-(matM (1 : ℤ) sa sb sc sd).det) * hs - ((Equiv.Perm.sign e : ℤˣ) : ℤ) * h1
@@ -574,7 +581,8 @@ private theorem prop_identity_reverse (sa : Word μ) (sb : Word ν) (sc : Word �
   apply hι
   rw [map_mul, map_mul, map_pow, map_pow, ← key]
   change ι P.reverse * x ^ _ = _ * x ^ _
-  have : (x⁻¹) ^ P.natDegree * x ^ P.natDegree = 1 := by rw [← mul_pow, inv_mul_cancel₀ hx, one_pow]
+  have : (x⁻¹) ^ P.natDegree * x ^ P.natDegree = 1 := by
+    rw [← mul_pow, inv_mul_cancel₀ hx, one_pow]
   linear_combination (-(ι P.reverse * x ^ (2 * (e₁ + e₂)))) * this
 
 /-- Proof of Proposition B.2, reflection: `deg Ψ ≤ Θ`, and the coefficient of `X^N` at

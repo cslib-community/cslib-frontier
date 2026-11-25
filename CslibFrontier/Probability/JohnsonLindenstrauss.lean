@@ -194,13 +194,16 @@ private theorem dens_le_pow_div_exp {k : ℕ} {s : Finset (Fin k → ι → Bool
   have hsub : s ⊆ ({b | exp c ≤ f b} : Finset _) :=
     fun b hb => mem_filter.2 ⟨mem_univ _, exp_le_exp.2 (hs b hb)⟩
   have hfac : 𝔼 b, f b = (𝔼 x : ι → Bool, exp (r x)) ^ k := by
-    simp only [f, exp_sum]; exact expect_prod_row fun x => exp (r x)
+    simp only [f, exp_sum]
+    exact expect_prod_row fun x => exp (r x)
   calc (dens s : ℝ)
       ≤ dens ({b | exp c ≤ f b} : Finset _) := by exact_mod_cast dens_le_dens hsub
     _ ≤ (𝔼 b, f b) / exp c := by
         rw [le_div_iff₀ (exp_pos _), mul_comm]
         exact Fintype.mul_dens_filter_le_expect (fun _ => (exp_pos _).le) (exp c)
-    _ ≤ M ^ k / exp c := by rw [hfac]; gcongr
+    _ ≤ M ^ k / exp c := by
+      rw [hfac]
+      gcongr
 
 /-- **Upper tail**: for `k` independent Rademacher sums `Y_j = ∑ i, a i signVal (b j i)` and
 `0 ≤ ε`, `Pr[k (1 + ε) ∑ a² < ∑ j, Y_j²] ≤ exp (-(k / 2) (ε² / 2 - ε³ / 3))`. -/
@@ -234,7 +237,9 @@ theorem dens_mul_lt_sum_sq_sum_mul_signVal_le (a : ι → ℝ) (k : ℕ) {ε : �
     _ = (√(1 + ε) * exp (-(ε / 2))) ^ k := by
         rw [h2, h1, Real.sqrt_inv, inv_inv, exp_nat_mul, mul_pow, div_eq_mul_inv, ← inv_pow,
           ← exp_neg]
-    _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k := by gcongr; exact sqrt_one_add_mul_exp_neg_le hε
+    _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k := by
+      gcongr
+      exact sqrt_one_add_mul_exp_neg_le hε
     _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
       rw [← exp_nat_mul]
       congr 1
@@ -414,7 +419,8 @@ theorem one_sub_le_dens_forall_norm_signProjection_sq_mem_Icc {n : ℕ}
       (h : |‖signProjection b (p i - p j)‖ ^ 2 - ‖p i - p j‖ ^ 2| ≤ ε * ‖p i - p j‖ ^ 2) :
       ‖signProjection b (p i - p j)‖ ^ 2 ∈
         Set.Icc ((1 - ε) * ‖p i - p j‖ ^ 2) ((1 + ε) * ‖p i - p j‖ ^ 2) := by
-    rw [abs_le] at h; exact ⟨by linarith, by linarith⟩
+    rw [abs_le] at h
+    exact ⟨by linarith, by linarith⟩
   have hsub : univ \ B ⊆ G := by
     intro b hb
     simp only [B, D, mem_sdiff, mem_univ, true_and, mem_biUnion, mem_Ioi, mem_filter, not_exists,
@@ -495,7 +501,8 @@ theorem exists_signProjection_forall_norm_sq_mem_Icc {n : ℕ} (p : Fin n → Eu
     have h1 : (n : ℝ) * n * exp (-(2 * log n)) = 1 := by
       rw [show (n : ℝ) * n = exp (log n + log n) by rw [exp_add, exp_log hn'], ← exp_add,
         ← exp_zero]
-      congr 1; ring
+      congr 1
+      ring
     have := (mul_le_mul_of_nonneg_left he (mul_nonneg hn'.le (by linarith))).trans_lt
       (mul_lt_mul_of_pos_right (mul_lt_mul_of_pos_left (by linarith : (n : ℝ) - 1 < n) hn')
         (exp_pos _))

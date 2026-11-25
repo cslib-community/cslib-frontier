@@ -358,7 +358,8 @@ private def slotVisit {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVa
 
 private theorem slotVisit_ne_nil {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     (ℓ : Fin (chainSlots p v)) : slotVisit _hp b v ℓ ≠ [] := by
-  unfold slotVisit; split_ifs <;> simp
+  unfold slotVisit
+  split_ifs <;> simp
 
 private def varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
     List (CorrDigraphV p) :=
@@ -370,11 +371,14 @@ private def varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar 
       (((List.finRange (chainSlots p v)).map Fin.rev).flatMap (slotVisit hp b v))
 
 private theorem varBlock_ne_nil {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
-    varBlock hp b v ≠ [] := by unfold varBlock; split_ifs <;> simp
+    varBlock hp b v ≠ [] := by
+      unfold varBlock
+      split_ifs <;> simp
 
 private theorem head_varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
     (varBlock hp b v).head (varBlock_ne_nil hp b v) = .gate v := by
-  unfold varBlock; split_ifs <;> simp
+  unfold varBlock
+  split_ifs <;> simp
 
 private theorem List.consecutivePairs_slotVisit_mem {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p))
     (v : CorrVar p) (ℓ : Fin (chainSlots p v)) {x y : CorrDigraphV p}
@@ -407,13 +411,15 @@ private theorem head_slotVisit {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v
     (ℓ : Fin (chainSlots p v)) :
     (slotVisit _hp b v ℓ).head (slotVisit_ne_nil _hp b v ℓ) =
       if assignVarVal b v = false then ch(v, 3 * ℓ.1) else ch(v, 3 * ℓ.1 + 2) := by
-  unfold slotVisit; split_ifs <;> simp
+  unfold slotVisit
+  split_ifs <;> simp
 
 private theorem getLast_slotVisit {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     (ℓ : Fin (chainSlots p v)) :
     (slotVisit _hp b v ℓ).getLast (slotVisit_ne_nil _hp b v ℓ) =
       if assignVarVal b v = false then ch(v, 3 * ℓ.1 + 2) else ch(v, 3 * ℓ.1) := by
-  unfold slotVisit; split_ifs <;> simp
+  unfold slotVisit
+  split_ifs <;> simp
 
 private theorem getLast_varBlock {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p) :
     (varBlock hp b v).getLast (varBlock_ne_nil hp b v) =
@@ -501,7 +507,10 @@ private theorem slotVisit_disjoint {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)
   rw [mem_slotVisit_iff] at h₁ h₂
   rcases h₁ with (rfl | rfl | rfl) | ⟨⟨e₁, c₁⟩, rfl, hq₁⟩ <;>
     rcases h₂ with (h | h | h) | ⟨⟨e₂, c₂⟩, h, hq₂⟩ <;>
-    first | exact hne (Fin.ext (by have := chain_inj h; omega)) | cases h
+    first
+    | exact hne (Fin.ext (by have := chain_inj h; omega))
+    | cases h
+  -- The case left is a clause owned by both slots.
   exact hne (eq_of_heq (Sigma.mk.inj (hq₁.symm.trans hq₂)).2)
 
 private theorem mem_varBlock_iff {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)

@@ -149,7 +149,8 @@ theorem interpretation_andreevFormWeight (a : BitString b → ℤ) (β : Fin b �
         (fun i => w (id i)) =
       decide (θ ≤ ∑ c, a c * (andreevTable b m w c).toNat +
         ∑ j, β j * andreevBlockCount b m w j) := by
-  unfold interpretation; rw [← sum_andreevFormWeight_mul (a := a) (β := β) w]
+  unfold interpretation
+  rw [← sum_andreevFormWeight_mul (a := a) (β := β) w]
   exact decide_eq_decide.mpr (by rw [← @Int.cast_le ℝ]; push_cast; rfl)
 
 /-! ### Staircases -/
@@ -381,15 +382,18 @@ theorem sum_topWeight_ridge (x : BitString b → Bool) (s : Fin b → ℕ) (hs :
   refine sum_congr rfl fun S _ => ?_
   set u := 2 * andreevSharpW b m x S + ∑ i ∈ S, s i
   have hlen : (u + 1) / 2 ≤ andreevSharpRidgeLen b m S := by
-    rw [andreevSharpRidgeLen]; split_ifs with hS
-    · subst hS; simp [u, andreevSharpW, parityOn]
+    rw [andreevSharpRidgeLen]
+    split_ifs with hS
+    · subst hS
+      simp [u, andreevSharpW, parityOn]
     · have := two_mul_andreevSharpW_le (m := m) x hS
       have : ∑ i ∈ S, s i ≤ #S * m := (sum_le_sum fun i _ => hs i).trans (by simp)
       have : (2 * andreevSharpAmp m + m) * #S = 2 * andreevSharpAmp m * #S + #S * m := by ring
       omega
   rw [show ((2 * andreevSharpW b m x S : ℤ) + ((∑ i ∈ S, s i : ℕ) : ℤ)) = (u : ℤ) from by
       push_cast [u]; ring, ← sum_ridge_steps (andreevSharpKappa b m S) hlen]
-  push_cast; rw [← sum_neg_distrib]
+  push_cast
+  rw [← sum_neg_distrib]
   refine sum_congr rfl fun j _ => ?_
   simp only [andreevSharpTopWeight, andreevSharpGate, andreevSharpThreshold, andreevSharpForm_ridge]
   push_cast [u]; ring
@@ -666,7 +670,8 @@ section Count
 private theorem two_mul_ridgeLen_add_half (b m : ℕ) (S : Finset (Fin b)) :
     2 * (andreevSharpRidgeLen b m S + #S * m / 2) =
       (if S = ∅ then 0 else 2 ^ b) + 2 * (andreevSharpAmp m + m) * #S := by
-  rw [andreevSharpRidgeLen]; split_ifs with hS
+  rw [andreevSharpRidgeLen]
+  split_ifs with hS
   · subst hS; simp
   · obtain ⟨i, -⟩ := nonempty_iff_ne_empty.mpr hS
     rw [show 2 ^ b = 2 * 2 ^ (b - 1) by rw [← pow_succ', Nat.sub_add_cancel i.pos],
@@ -791,12 +796,15 @@ private theorem one_le_of_ne_zero {c : BitString b} (h : c ≠ 0) : 1 ≤ b := b
 /-- Twice a table multiplier is at most `n`: `2 μ_c ≤ 2 ^ b + b m`. -/
 theorem two_mul_andreevSharpMult_le (c : BitString b) :
     2 * andreevSharpMult b m c ≤ 2 ^ b + b * m := by
-  unfold andreevSharpMult; split_ifs with h0 hs
+  unfold andreevSharpMult
+  split_ifs with h0 hs
   · simp
   · have hb := one_le_of_ne_zero h0
     have := Nat.one_lt_two_pow (n := b) (by omega)
-    have := (two_mul_andreevSharpAmp_le m).trans (Nat.le_mul_of_pos_left m hb); omega
-  · have := Nat.one_lt_two_pow (n := b) (by have := one_le_of_ne_zero h0; omega); omega
+    have := (two_mul_andreevSharpAmp_le m).trans (Nat.le_mul_of_pos_left m hb)
+    omega
+  · have := Nat.one_lt_two_pow (n := b) (by have := one_le_of_ne_zero h0; omega)
+    omega
 
 /-- Every table coefficient of a bottom gate has absolute value at most `2 n`, with
 `n = 2 ^ b + b m`. -/
@@ -813,7 +821,8 @@ theorem abs_andreevSharpTable_le (idx : AndreevSharpIndex b m) (c : BitString b)
     · rw [abs_zero]; positivity
   have hn : (0 : ℤ) ≤ 2 ^ b + b * m := by positivity
   rcases idx with ⟨S, j⟩ | θ | ⟨i, ℓ⟩ | ⟨i, ℓ⟩ | j | ⟨S, j⟩
-  · simp only [andreevSharpTable]; rw [abs_of_nonneg (by positivity)]
+  · simp only [andreevSharpTable]
+    rw [abs_of_nonneg (by positivity)]
     exact (mul_le_of_le_one_right (by positivity)
       (by exact_mod_cast Bool.toNat_le _)).trans (by linarith)
   · simp only [andreevSharpTable]
@@ -821,7 +830,9 @@ theorem abs_andreevSharpTable_le (idx : AndreevSharpIndex b m) (c : BitString b)
     linarith
   · simp only [andreevSharpTable, Pi.zero_apply, abs_zero]; positivity
   · exact hB_ite fun _ => Fin.pos i
-  · exact hB_ite fun _ => Nat.pos_of_ne_zero fun hb => by have := j.isLt; simp [hb] at this
+  · exact hB_ite fun _ => Nat.pos_of_ne_zero fun hb => by
+      have := j.isLt
+      simp [hb] at this
   · exact hB_ite fun _ => Nat.pos_of_ne_zero fun hb => by
       subst hb; have := j.isLt; simp [Finset.eq_empty_of_isEmpty S] at this
 
@@ -838,7 +849,8 @@ theorem abs_andreevSharpThreshold_le (idx : AndreevSharpIndex b m) :
     rw [abs_of_nonneg h.1]; exact_mod_cast h.2
   rcases idx with ⟨S, j⟩ | θ | ⟨i, ℓ⟩ | ⟨i, ℓ⟩ | j | ⟨S, j⟩ <;>
     simp only [andreevSharpThreshold, andreevSharpBig] <;> refine ⟨by positivity, ?_⟩ <;> norm_cast
-  · have hj := j.isLt; unfold andreevSharpRidgeLen at hj
+  · have hj := j.isLt
+    unfold andreevSharpRidgeLen at hj
     have hS : #S ≤ b := (card_le_univ S).trans_eq (Fintype.card_fin b)
     have : (2 * andreevSharpAmp m + m) * #S ≤ 2 * (b * m) :=
       (Nat.mul_le_mul (by omega : 2 * andreevSharpAmp m + m ≤ 2 * m) hS).trans_eq (by ring)
@@ -895,7 +907,8 @@ private theorem le_n_of_one_le {b : ℕ} (hb : 1 ≤ b) (m : ℕ) : (m : ℤ) �
 private theorem abs_andreevSharpTopWeight_ridge_le (S : Finset (Fin b))
     (j : Fin (andreevSharpRidgeLen b m S)) :
     |andreevSharpTopWeight b m (.inl ⟨S, j⟩)| ≤ 16 * (2 ^ b + b * m : ℤ) := by
-  have hj := j.isLt; unfold andreevSharpRidgeLen at hj
+  have hj := j.isLt
+  unfold andreevSharpRidgeLen at hj
   split_ifs at hj; · omega
   have hJ : 2 * (j : ℤ) + 1 ≤ 2 ^ b + (2 * andreevSharpAmp m + m) * #S := by
     exact_mod_cast (by omega : 2 * j.1 + 1 ≤ 2 ^ b + (2 * andreevSharpAmp m + m) * #S)
@@ -995,7 +1008,9 @@ private theorem abs_andreevSharpTopInput_cases (i : Fin (2 ^ b + b * m)) :
       exact (mul_le_mul_of_nonneg_left (by linarith : (2 : ℤ) ≤ n + 1)
         (by positivity : (0 : ℤ) ≤ 2 * n)).trans' (by linarith)
   · left
-    have hb : 1 ≤ b := Nat.pos_of_ne_zero fun hb => by have hk := k.isLt; simp [hb] at hk
+    have hb : 1 ≤ b := Nat.pos_of_ne_zero fun hb => by
+      have hk := k.isLt
+      simp [hb] at hk
     have : 2 * (andreevSharpAmp m : ℤ) ≤ m := by exact_mod_cast two_mul_andreevSharpAmp_le m
     simp only [andreevSharpTopBlock, abs_of_nonneg (by positivity :
       (0 : ℤ) ≤ 2 * andreevSharpAmp m * 2 ^ b)]

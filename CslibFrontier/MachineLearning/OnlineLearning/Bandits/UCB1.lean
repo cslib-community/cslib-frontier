@@ -184,7 +184,8 @@ theorem ucb1Policy_isMeasurable [Nonempty ι] : (ucb1Policy (ι := ι)).IsMeasur
     pullCount_ofFn _ j
   have hunpulled_const : ∀ vals : Fin t → ℝ,
       unpulledArms (H vals) = unpulledArms (H 0) := fun vals => by
-    ext j; simp [unpulledArms, hpull_const]
+    ext j
+    simp [unpulledArms, hpull_const]
   by_cases hun : (unpulledArms (H 0)).Nonempty
   · have hconst : ∀ vals : Fin t → ℝ,
         ucb1Policy.choose (H vals) = (unpulledArms (H 0)).min' hun := fun vals => by
@@ -257,7 +258,8 @@ private theorem card_pulled_ge_min [Nonempty ι] {T : ℕ} (X : ι × Fin T → 
     · set a := ucb1Choose hist
       have ha_zero : pullCount hist a = 0 := by
         have ha_mem : a ∈ unpulledArms hist := by
-          simp only [a, ucb1Choose, hun, ↓reduceDIte]; exact min'_mem _ hun
+          simp only [a, ucb1Choose, hun, ↓reduceDIte]
+          exact min'_mem _ hun
         exact (mem_filter.mp ha_mem).2
       have ha_not : a ∉ S := by simp [S, ha_zero]
       have ha_in : a ∈ S' := by
@@ -432,7 +434,8 @@ private theorem pullCount_ucb1_le_add_sum [Nonempty ι] {T ℓ : ℕ} (hℓ : 1 
           then 1 else 0 := by
   have hcount : ∀ n, pullCount (runStochastic ucb1Policy X n) i =
       ((range n).filter fun t => ucb1Policy.choose (runStochastic ucb1Policy X t) = i).card := by
-    intro n; induction n with
+    intro n
+    induction n with
     | zero => simp
     | succ n ih =>
       rw [runStochastic_succ, pullCount_append, pullCount_singleton, range_add_one, filter_insert,
@@ -465,7 +468,8 @@ private theorem pullCount_ucb1_le_add_sum [Nonempty ι] {T ℓ : ℕ} (hℓ : 1 
     calc S₁.card = (S₁.image fun t => pullCount (runStochastic ucb1Policy X t) i).card :=
           (card_image_of_injOn hinj).symm
       _ ≤ (range ℓ).card := card_le_card fun u hu => by
-          obtain ⟨t, ht, rfl⟩ := mem_image.mp hu; exact mem_range.mpr (mem_filter.mp ht).2
+          obtain ⟨t, ht, rfl⟩ := mem_image.mp hu
+          exact mem_range.mpr (mem_filter.mp ht).2
       _ = ℓ := card_range ℓ
   have hcard₂ : S₂.card ≤ ∑ t ∈ Ico (Fintype.card ι) T,
       if ucb1Policy.choose (runStochastic ucb1Policy X t) = i ∧
@@ -655,7 +659,8 @@ theorem ucb1_stochasticRegret_le_sharp [Nonempty ι] (B : StochasticBandit ι) {
   · simp only [hpos, ↓reduceIte]
     have hmul := mul_le_mul_of_nonneg_left (ucb1_expectedPulls_le_add_two B hT hpos) hpos.le
     have hsimp : B.gap i * (8 * log T / B.gap i ^ 2 + 2) = 8 * log T / B.gap i + 2 * B.gap i := by
-      have := hpos.ne'; field_simp
+      have := hpos.ne'
+      field_simp
     linarith
   · simp [le_antisymm (le_of_not_gt hpos) (B.gap_nonneg i)]
 
@@ -668,7 +673,8 @@ theorem ucb1_stochasticRegret_le [Nonempty ι] (B : StochasticBandit ι) {T : �
       (∑ i ∈ univ.filter (fun i => 0 < B.gap i), 8 * log T / B.gap i) +
         (1 + π ^ 2 / 3) * ∑ i : ι, B.gap i := by
   refine (ucb1_stochasticRegret_le_sharp B hT).trans ?_
-  have hpi : (2 : ℝ) ≤ 1 + π ^ 2 / 3 := by nlinarith [Real.pi_gt_three]
+  have hpi : (2 : ℝ) ≤ 1 + π ^ 2 / 3 := by
+    nlinarith [Real.pi_gt_three]
   have hsum_nonneg : 0 ≤ ∑ i : ι, B.gap i := sum_nonneg fun i _ => B.gap_nonneg i
   gcongr
 
@@ -691,7 +697,8 @@ theorem ucb1_stochasticRegret_le_sqrt_add [Nonempty ι] (B : StochasticBandit ι
         have hmul := mul_le_mul_of_nonneg_left (ucb1_expectedPulls_le_add_two B hT hpos)
           (sq_nonneg (B.gap i))
         have : B.gap i ^ 2 * (8 * log T / B.gap i ^ 2 + 2) = 8 * log T + 2 * B.gap i ^ 2 := by
-          have := (pow_pos hpos 2).ne'; field_simp
+          have := (pow_pos hpos 2).ne'
+          field_simp
         linarith
       calc (B.gap i * B.expectedPulls ucb1Policy T i) ^ 2
           = B.expectedPulls ucb1Policy T i * (B.gap i ^ 2 * B.expectedPulls ucb1Policy T i) := by
@@ -723,7 +730,9 @@ theorem ucb1_stochasticRegret_le_sqrt [Nonempty ι] (B : StochasticBandit ι) {T
   calc √((Fintype.card ι : ℝ) * T * (8 * log T + 2))
       ≤ √((Fintype.card ι : ℝ) * T * (12 * log T)) :=
         sqrt_le_sqrt (mul_le_mul_of_nonneg_left (by linarith) (by positivity))
-    _ = √((2 : ℝ) ^ 2 * (3 * (Fintype.card ι : ℝ) * T * log T)) := by congr 1; ring
+    _ = √((2 : ℝ) ^ 2 * (3 * (Fintype.card ι : ℝ) * T * log T)) := by
+      congr 1
+      ring
     _ = 2 * √(3 * (Fintype.card ι : ℝ) * T * log T) := by
         rw [sqrt_mul (sq_nonneg 2), sqrt_sq zero_le_two]
 

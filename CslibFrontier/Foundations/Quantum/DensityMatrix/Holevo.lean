@@ -456,12 +456,14 @@ theorem vonNeumannEntropy_partialTrace_pureState_eq (ψ : EuclideanSpace ℂ (ι
   let V₁ : Matrix (ι ⊕ κ) ι ℂ := Matrix.of fun p i => if p = Sum.inl i then 1 else 0
   let V₂ : Matrix (ι ⊕ κ) κ ℂ := Matrix.of fun p k => if p = Sum.inr k then 1 else 0
   have hV₁ : V₁ᴴ * V₁ = 1 := by
-    ext i j; rw [Matrix.mul_apply, Fintype.sum_sum_type]
+    ext i j
+    rw [Matrix.mul_apply, Fintype.sum_sum_type]
     by_cases h : i = j
     · subst h; simp [V₁, conjTranspose_apply]
     · simp [V₁, conjTranspose_apply, h, eq_comm]
   have hV₂ : V₂ᴴ * V₂ = 1 := by
-    ext k l; rw [Matrix.mul_apply, Fintype.sum_sum_type]
+    ext k l
+    rw [Matrix.mul_apply, Fintype.sum_sum_type]
     by_cases h : k = l
     · subst h; simp [V₂, conjTranspose_apply]
     · simp [V₂, conjTranspose_apply, h, eq_comm]
@@ -506,12 +508,15 @@ private theorem vonNeumannEntropy_le_vonNeumannEntropy_diag {ρ : Matrix ι ι �
   have hK : ∑ i : ι, (K i)ᴴ * K i = 1 := by
     simp only [K, conjTranspose_single, star_one, single_mul_single_same, mul_one, sum_single_one]
   let π : Matrix ι ι ℂ := (Fintype.card ι : ℂ)⁻¹ • 1
-  have hπ_real : π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) := by ext i j; simp [π]
+  have hπ_real : π = (Fintype.card ι : ℝ)⁻¹ • (1 : Matrix ι ι ℂ) := by
+    ext i j
+    simp [π]
   have hπ_psd : π.PosSemidef := hπ_real ▸ PosSemidef.one.smul (inv_nonneg.mpr (Nat.cast_nonneg _))
   let Δρ := diagonal fun i => ((ρ i i).re : ℂ)
   have hΔρ : ∑ i : ι, K i * ρ * (K i)ᴴ = Δρ := by
     rw [sum_single_conj_eq_diagonal]
-    congr 1; funext j
+    congr 1
+    funext j
     have hh := congrFun (congrFun hρ.posSemidef.isHermitian.eq j) j
     have hdiag_im : (ρ j j).im = 0 := by
       simpa only [conjTranspose_apply, Complex.star_def, Complex.ext_iff, Complex.conj_im,
@@ -529,7 +534,9 @@ private theorem vonNeumannEntropy_le_vonNeumannEntropy_diag {ρ : Matrix ι ι �
     simpa only [Δρ, trace_diagonal, Complex.re_sum, Complex.ofReal_re, diag_apply] using ht
   have hpos : (0 : ℝ) < (Fintype.card ι : ℝ)⁻¹ :=
     inv_pos.mpr (Nat.cast_pos.mpr Fintype.card_pos)
-  have hsupp (A : Matrix ι ι ℂ) : SupportLE A 1 := fun v hv => by rw [one_mulVec] at hv; simp [hv]
+  have hsupp (A : Matrix ι ι ℂ) : SupportLE A 1 := fun v hv => by
+    rw [one_mulVec] at hv
+    simp [hv]
   have hcfc1 : cfc Real.log (1 : Matrix ι ι ℂ) = 0 := by
     rw [show (1 : Matrix ι ι ℂ) = diagonal fun _ : ι => ((1 : ℝ) : ℂ) by ext i j; simp,
       cfc_diagonal_real Real.log]
@@ -626,9 +633,11 @@ theorem vonNeumannEntropy_subadditivity {ρ : Matrix (ι × κ) (ι × κ) ℂ}
     have h1 : partialTraceLeft σ = Wᴴ * partialTraceLeft ρ * W := by
       let f := reindexAlgEquiv ℂ ℂ (Equiv.prodComm ι κ)
       have hf_kr (A : Matrix ι ι ℂ) (B : Matrix κ κ ℂ) : f (A ⊗ₖ B) = B ⊗ₖ A := by
-        ext ⟨_, _⟩ ⟨_, _⟩; exact mul_comm _ _
+        ext ⟨_, _⟩ ⟨_, _⟩
+        exact mul_comm _ _
       have hfσ : f σ = (Wᴴ ⊗ₖ Uᴴ) * f ρ * (Wᴴ ⊗ₖ Uᴴ)ᴴ := by
-        dsimp only [σ]; rw [map_mul, map_mul, show f (Uᴴ ⊗ₖ Wᴴ)ᴴ = (f (Uᴴ ⊗ₖ Wᴴ))ᴴ from rfl, hf_kr]
+        dsimp only [σ]
+        rw [map_mul, map_mul, show f (Uᴴ ⊗ₖ Wᴴ)ᴴ = (f (Uᴴ ⊗ₖ Wᴴ))ᴴ from rfl, hf_kr]
       rw [← partialTraceRight_reindex_prodComm σ]
       change partialTraceRight (f σ) = _
       rw [hfσ, partialTraceRight_kronecker_conj_unitary Wᴴ hU_mem (f ρ),

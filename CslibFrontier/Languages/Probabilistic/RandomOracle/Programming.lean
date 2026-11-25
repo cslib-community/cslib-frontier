@@ -126,7 +126,8 @@ theorem map_comp_apply_le_of_injective {α β Query : Type*} {μ : PMF α}
   · obtain ⟨b, rfl⟩ := hq
     rw [show emb ⁻¹' {emb b} = {b} by ext; exact hemb.eq_iff, PMF.toOuterMeasure_apply_singleton]
     exact hμ b
-  · rw [show emb ⁻¹' {q} = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun b hb => hq ⟨b, hb⟩]; simp
+  · rw [show emb ⁻¹' {q} = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun b hb => hq ⟨b, hb⟩]
+    simp
 
 end MinEntropyLookup
 
@@ -433,7 +434,8 @@ private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Que
       {x | FlagBad x.2} ≤
       (Sum.elim (fun _ : Req => 1) (fun _ : Query => 0) q * st.1.1.length : ℕ) * δ := by
   obtain ⟨⟨cache, log⟩, b⟩ := st
-  have hb := Bool.eq_false_iff.mpr hst; subst hb
+  have hb := Bool.eq_false_iff.mpr hst
+  subst hb
   simp only [flaggedLazyProgramHandler, withBadFlag_false]
   cases q with
   | inl req =>
@@ -449,17 +451,20 @@ private theorem step_bad_flaggedLazyProgramHandler_le [BEq Query] [LawfulBEq Que
               {ts : Coins req | (cache.lookup (point req ts)).isSome}.indicator 1 ts := by
             refine tsum_le_tsum fun ts => mul_le_mul_of_nonneg_left ?_ zero_le
             by_cases hts : (cache.lookup (point req ts)).isSome = true
-            · rw [Set.indicator_of_mem (show ts ∈ {ts : Coins req |
-                (cache.lookup (point req ts)).isSome} from hts), Pi.one_apply]
+            · rw [Set.indicator_of_mem
+                (show ts ∈ {ts : Coins req | (cache.lookup (point req ts)).isSome} from hts),
+                Pi.one_apply]
               exact PMF.toOuterMeasure_le_one _ _
             · rw [Set.indicator_of_notMem (show ts ∉ {ts : Coins req |
                 (cache.lookup (point req ts)).isSome} from hts)]
               dsimp only [inner]
-              rw [PMF.toOuterMeasure_map_apply]; simp [FlagBad, hts]
+              rw [PMF.toOuterMeasure_map_apply]
+              simp [FlagBad, hts]
         _ = (samplePre req).toOuterMeasure {ts | (cache.lookup (point req ts)).isSome} :=
             (PMF.toOuterMeasure_eq_tsum_mul_indicator _ _).symm
         _ ≤ cache.length * δ := toOuterMeasure_lookup_isSome_le_aux (hminEnt req h) cache
-    · rw [PMF.toOuterMeasure_map_apply]; simp [FlagBad]
+    · rw [PMF.toOuterMeasure_map_apply]
+      simp [FlagBad]
   | inr q =>
     simp only [Sum.elim_inr, zero_mul, Nat.cast_zero, lazyProgramStep, PMF.toOuterMeasure_map_apply]
     simp [FlagBad]
@@ -762,7 +767,8 @@ private theorem nodup_fst_step_memoize {Query Digest : Type} [BEq Query] [Lawful
     (c'.map Prod.fst).Nodup := by
   rcases (mem_support_memoize_iff _ _ _ _).mp hstep with ⟨-, hnext⟩ | ⟨hlookup, -, hnext⟩
   · dsimp only at hnext; rwa [hnext]
-  · dsimp only at hnext; rw [hnext, List.map_cons, List.nodup_cons]
+  · dsimp only at hnext
+    rw [hnext, List.map_cons, List.nodup_cons]
     refine ⟨fun hkey => ?_, hc⟩
     obtain ⟨e, he, heq⟩ := List.mem_map.mp hkey
     have hs := List.lookup_isSome_iff.mpr ⟨e, he, beq_iff_eq.mpr heq.symm⟩

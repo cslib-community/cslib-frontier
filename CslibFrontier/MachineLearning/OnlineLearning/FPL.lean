@@ -203,7 +203,8 @@ private theorem sum_volume_inter_fplLeader_toReal (v : α → ι → ℝ) (c₀ 
       Disjoint (T ∩ {u | fplLeader v (c₀ + u) = a}) (T ∩ {u | fplLeader v (c₀ + u) = b}) :=
     fun _ _ hab => Set.disjoint_left.mpr fun _ h1 h2 => hab (h1.2.symm.trans h2.2)
   have hunion : (⋃ a ∈ (univ : Finset α), T ∩ {u | fplLeader v (c₀ + u) = a}) = T := by
-    ext u; simp only [Set.mem_iUnion, Set.mem_inter_iff, Set.mem_ofPred_eq]
+    ext u
+    simp only [Set.mem_iUnion, Set.mem_inter_iff, Set.mem_ofPred_eq]
     exact ⟨fun ⟨_, _, hu, _⟩ => hu, fun hu => ⟨fplLeader v (c₀ + u), mem_univ _, hu, rfl⟩⟩
   rw [← ENNReal.toReal_sum fun a _ => ne_top_of_le_ne_top hTf (measure_mono Set.inter_subset_left),
     ← measure_biUnion_finset (fun _ _ _ _ hab => hdisj hab)
@@ -252,15 +253,19 @@ private theorem volume_Icc_diff_shift_le (δ : ι → ℝ) :
     · simp only [hδi, ↓reduceIte]
       refine ⟨hu01.1, fun j => ?_⟩
       by_cases hji : j = i
-      · subst hji; simp only [↓reduceIte, abs_of_nonneg hδi]
+      · subst hji
+        simp only [↓reduceIte, abs_of_nonneg hδi]
         by_contra! h; exact hi ⟨h.le, by linarith⟩
-      · simp only [hji, ↓reduceIte]; exact hu01.2 j
+      · simp only [hji, ↓reduceIte]
+        exact hu01.2 j
     · simp only [hδi, ↓reduceIte]
       refine ⟨fun j => ?_, hu01.2⟩
       by_cases hji : j = i
-      · subst hji; simp only [↓reduceIte, abs_of_neg (lt_of_not_ge hδi)]
+      · subst hji
+        simp only [↓reduceIte, abs_of_neg (lt_of_not_ge hδi)]
         by_contra! h; exact hi ⟨by linarith, by linarith⟩
-      · simp only [hji, ↓reduceIte]; exact hu01.1 j
+      · simp only [hji, ↓reduceIte]
+        exact hu01.1 j
   have hslab_vol (i : ι) : volume (slab i) = ENNReal.ofReal |δ i| := by
     dsimp only [slab]
     by_cases hδi : 0 ≤ δ i
@@ -332,7 +337,8 @@ theorem fpl_stability_step (v : α → ι → ℝ) {ε R : ℝ} (hε : 0 ≤ ε)
     have hv : volume S' = 1 := by
       simp only [S', Real.volume_Icc_pi, Pi.add_apply, Pi.one_apply, add_sub_cancel_right,
         ENNReal.ofReal_one, prod_const_one]
-    rw [hv]; exact ENNReal.one_ne_top
+    rw [hv]
+    exact ENNReal.one_ne_top
   have hdiff_le (a : α) :
       fplProb v ε ℓ t a - fplProb v ε ℓ (t + 1) a ≤ (volume ((S \ S') ∩ A a)).toReal := by
     rw [hprob_succ a]
@@ -500,7 +506,8 @@ theorem fpl_regret_le_sqrt (v : α → ι → ℝ) {D R A : ℝ} (hD_pos : 0 < D
   have hM : 0 < M := by have : (0 : ℝ) < T := Nat.cast_pos.mpr hT; positivity
   refine (fpl_regret_le v (sqrt_pos.mpr (div_pos hD_pos hM))
     hR_pos.le hD hspan hl1 a_star).trans_eq ?_
-  rw [add_assoc]; congr 1
+  rw [add_assoc]
+  congr 1
   change D / √(D / M) + √(D / M) * M = 2 * √(D * M)
   rw [add_comm]
   exact (Experts.sqrt_div_mul_add_div_sqrt_div hD_pos hM).trans (by rw [mul_comm M D])
@@ -548,7 +555,9 @@ theorem fpl_experts_regret_le_sqrt {ℓ : ℕ → ι → ℝ} {T : ℕ} (hT : 0 
     simp only [single_dotProduct, one_mul]; linarith [(hℓ t ht b).1, (hℓ t ht a).2]
   have hl1 (t : ℕ) (ht : t < T) : ∑ i : ι, |ℓ t i| ≤ Fintype.card ι := by
     calc ∑ i : ι, |ℓ t i| ≤ ∑ _i : ι, (1 : ℝ) :=
-          sum_le_sum fun i _ => by rw [abs_of_nonneg (hℓ t ht i).1]; exact (hℓ t ht i).2
+          sum_le_sum fun i _ => by
+            rw [abs_of_nonneg (hℓ t ht i).1]
+            exact (hℓ t ht i).2
       _ = Fintype.card ι := by simp only [sum_const, card_univ, nsmul_eq_mul, mul_one]
   simpa only [one_mul, single_dotProduct, fplExpertsProb] using
     fpl_regret_le_sqrt (fun a : ι => Pi.single a (1 : ℝ)) zero_lt_one zero_lt_one

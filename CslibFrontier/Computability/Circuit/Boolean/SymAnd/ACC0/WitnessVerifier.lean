@@ -872,7 +872,9 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
   have hrw_lt : (r_w : ℝ)⁻¹ < ε :=
     (inv_lt_comm₀ (by positivity) hε).mpr <| by
       have : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
-      have : 1 / ε < 2 / ε := by gcongr; norm_num
+      have : 1 / ε < 2 / ε := by
+        gcongr
+        norm_num
       dsimp only [r_w]
       push_cast
       linarith [one_div ε]
@@ -1096,7 +1098,8 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
       have hTsat_nat : T_sat (padCert (x, w)) ≤ satEnv n := mod_cast
         (by
           have hmul := mul_le_mul_of_nonneg_left hpowR (Nat.cast_nonneg (α := ℝ) M_sat)
-          dsimp only [satEnv]; push_cast
+          dsimp only [satEnv]
+          push_cast
           linarith [show (0 : ℝ) ≤ (2 : ℝ) ^ (n + c * Nat.log 2 (n + 2) + c) by positivity] :
           (T_sat (padCert (x, w)) : ℝ) ≤ (satEnv n : ℝ))
       have hCge : B_fin ≤ C_total := by dsimp only [C_total]; omega

@@ -154,7 +154,8 @@ private theorem expectedCost_maskHandler (y : P → Γ) (j : P) (q' : ℕ ⊕ P)
     change expectedCost (wordOracle y) (readCost j) (maskAnswer H z j') = _
     rw [readCost_inr, maskAnswer]
     by_cases hj' : j' ∈ H <;> by_cases hj : j ∈ H
-    · simp only [hj', hj, ↓reduceIte]; exact expectedCost_pure _ _ _
+    · simp only [hj', hj, ↓reduceIte]
+      exact expectedCost_pure _ _ _
     · simp only [hj', hj, ↓reduceIte, expectedCost_pure]
       exact (ite_eq_right fun h : j' = j => hj (h ▸ hj')).symm
     · simp only [hj', hj, ↓reduceIte]

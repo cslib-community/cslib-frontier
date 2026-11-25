@@ -431,7 +431,9 @@ private theorem mlCappedList_subset_mono (ek : Code × ℕ) {m n : ℕ} (hmn : m
     simp only [mlCappedList, mlCappedStep]
     cases mlCand ek _ with
     | none => exact ih hw
-    | some _ => dsimp only; split_ifs <;> [exact List.mem_cons_of_mem _ (ih hw); exact ih hw]
+    | some _ =>
+      dsimp only
+      split_ifs <;> [exact List.mem_cons_of_mem _ (ih hw); exact ih hw]
 
 private theorem mlCappedList_spec (ek : Code × ℕ) (n : ℕ) :
     prefixUnionCount (mlCappedList ek n) * 2 ^ ek.2 ≤
@@ -1079,8 +1081,10 @@ private theorem prefixDisjoint_cons_cons {a : Bool} {s t : List Bool}
 private theorem prefixDisjoint_not_cons (b : Bool) (s t : List Bool) :
     PrefixDisjoint (b :: s) ((!b) :: t) := by
   refine ⟨fun hp => ?_, fun hp => ?_⟩
-  · have h := (List.cons_prefix_cons.mp hp).1; cases b <;> cases h
-  · have h := (List.cons_prefix_cons.mp hp).1; cases b <;> cases h
+  · have h := (List.cons_prefix_cons.mp hp).1
+    cases b <;> cases h
+  · have h := (List.cons_prefix_cons.mp hp).1
+    cases b <;> cases h
 
 private theorem carveTail_spec (s : List Bool) :
     (∀ t ∈ carveTail s, PrefixDisjoint s t) ∧ (carveTail s).Pairwise PrefixDisjoint := by
@@ -1118,7 +1122,8 @@ private theorem mem_carveTail_cylinder_iff (s w : List Bool) (y : ℕ → Bool) 
     (∃ t ∈ carveTail s, y ∈ prefixCylinderList (w ++ t)) ↔
       y ∈ prefixCylinderList w ∧ y ∉ prefixCylinderList (w ++ s) := by
   induction s generalizing w with
-  | nil => simp [carveTail]
+  | nil =>
+    simp [carveTail]
   | cons b rest ih =>
     have hrw : w ++ (b :: rest) = (w ++ [b]) ++ rest := (List.append_assoc w [b] rest).symm
     constructor
@@ -1130,7 +1135,8 @@ private theorem mem_carveTail_cylinder_iff (s w : List Bool) (y : ℕ → Bool) 
         rw [hrw] at hyu
         have hywb := (mem_prefixCylinderList_append_singleton.mp
           (prefixCylinderList_subset_of_isPrefix (List.prefix_append _ _) hyu)).2
-        rw [hyt.2] at hywb; cases b <;> cases hywb
+        rw [hyt.2] at hywb
+        cases b <;> cases hywb
       · rw [show w ++ b :: t' = (w ++ [b]) ++ t' from (List.append_assoc w [b] t').symm] at hyt
         obtain ⟨hywb, hnot⟩ := (ih (w ++ [b])).mp ⟨t', ht', hyt⟩
         exact ⟨prefixCylinderList_subset_of_isPrefix (List.prefix_append _ _) hywb, by rwa [hrw]⟩
@@ -1209,7 +1215,8 @@ private theorem carveOutSeen_spec (w : List Bool) (seen : List (List Bool)) :
       ⋃ v ∈ carveOutSeen w seen, prefixCylinderList v =
         prefixCylinderList w \ ⋃ u ∈ seen, prefixCylinderList u := by
   induction seen with
-  | nil => simp [carveOutSeen]
+  | nil =>
+    simp [carveOutSeen]
   | cons u rest ih =>
     rcases ih with ⟨hprop, hpair, hunion⟩
     simp only [carveOutSeen]
@@ -1329,7 +1336,8 @@ private theorem mlDisjList_covers (e : Code) (k : ℕ) {w : List Bool}
   · obtain ⟨u, hu, hxu⟩ := Set.mem_iUnion₂.mp hseen
     exact ⟨u, Or.inl hu, hxu⟩
   · have hdiff : x ∈ ⋃ v ∈ carveOutSeen w (mlDisjList e k j), prefixCylinderList v := by
-      rw [(carveOutSeen_spec w (mlDisjList e k j)).2.2]; exact ⟨hx, hseen⟩
+      rw [(carveOutSeen_spec w (mlDisjList e k j)).2.2]
+      exact ⟨hx, hseen⟩
     obtain ⟨v, hv, hxv⟩ := Set.mem_iUnion₂.mp hdiff
     exact ⟨v, Or.inr hv, hxv⟩
 
@@ -1560,7 +1568,8 @@ private theorem devCount_eq_count (w : List Bool) : devCount w = w.count true :=
   | cons b rest ih =>
     simp only [devCount, List.foldr_cons, List.count_cons]
     change (bif b then devCount rest + 1 else devCount rest) = _
-    rw [ih]; cases b <;> simp
+    rw [ih]
+    cases b <;> simp
 
 private theorem primrec_devCount : Primrec devCount := by
   have hh : Primrec₂ fun (_ : List Bool) (bc : Bool × ℕ) =>
@@ -1631,7 +1640,8 @@ private theorem mem_deviation_filter {k n : ℕ} (hk : 0 < k) {w : List Bool}
     · have h1 := real_le_mul_sub_of_nat hw_pos hle
       push_cast at h1
       have h2 : (w.length : ℝ) - 2 * (devCount w : ℝ) ≤ |2 * (devCount w : ℝ) - w.length| := by
-        rw [← neg_sub]; exact neg_le_abs _
+        rw [← neg_sub]
+        exact neg_le_abs _
       exact h1.trans (mul_le_mul_of_nonneg_left h2 hk_pos.le)
   have hhalf : |2 * (devCount w : ℝ) - w.length| = 2 * |(devCount w : ℝ) - (w.length : ℝ) / 2| := by
     rw [show 2 * (devCount w : ℝ) - w.length = 2 * ((devCount w : ℝ) - (w.length : ℝ) / 2) by ring,

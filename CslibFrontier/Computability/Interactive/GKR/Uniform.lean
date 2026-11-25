@@ -1289,7 +1289,8 @@ theorem isLogSpaceUniform_powerSumCircuit :
   intro a
   simp only [gateAt, PowerSumParams.layerClauses]
   by_cases h0 : i = 0
-  · subst h0; simp [hmUnmasked]
+  · subst h0
+    simp [hmUnmasked]
   · by_cases hsq : i ≤ P.sqDepth <;> simp [h0, hsq, hmUnmasked]
 
 /-- Modular wiring-MLE evaluator for `powerSumCircuit`. -/

@@ -109,9 +109,11 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
       set p := minimalPeriod f a₀
       have hp_pos : 0 < p := minimalPeriod_pos_of_mem_periodicPts ((I.mem_cycleAgents hRne).1 ha₀)
       have hfix_back : ∀ m ≤ p, ν (f^[p - m] a₀) = f^[p - m] a₀ := by
-        intro m; induction m with
+        intro m
+        induction m with
         | zero =>
-          intro _; rw [Nat.sub_zero, iterate_minimalPeriod]
+          intro _
+          rw [Nat.sub_zero, iterate_minimalPeriod]
           exact (hadich a₀ ha₀).resolve_right hne₀
         | succ m ihm =>
           intro hmp
@@ -123,7 +125,8 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
             topChoice_iterate_ne_self_of_ne ha₀ hf_ne₀ (p - (m + 1))
               (ν.injective (htop.trans hν_fb.symm)).symm
       have hO_fix : ∀ b ∈ O, ν b = b ∧ f b ≠ b := by
-        rintro b hb; obtain ⟨t, -, rfl⟩ := Finset.mem_image.1 hb
+        rintro b hb
+        obtain ⟨t, -, rfl⟩ := Finset.mem_image.1 hb
         refine ⟨?_, topChoice_iterate_ne_self_of_ne ha₀ hf_ne₀ t⟩
         change ν (f^[t] a₀) = f^[t] a₀
         rw [← Function.iterate_mod_minimalPeriod_eq (f := f) (x := a₀) (n := t)]
@@ -159,10 +162,12 @@ private theorem swap_le_iff_of_lt {r k₁ r₀ s : Fin n}
     (hrk : r < k₁) (hkr : k₁ < r₀) :
     Equiv.swap k₁ r₀ s ≤ r ↔ s ≤ r := by
   by_cases hsk : s = k₁
-  · subst hsk; rw [Equiv.swap_apply_left]
+  · subst hsk
+    rw [Equiv.swap_apply_left]
     exact iff_of_false (not_le.mpr (hrk.trans hkr)) (not_le.mpr hrk)
   · by_cases hsr : s = r₀
-    · subst hsr; rw [Equiv.swap_apply_right]
+    · subst hsr
+      rw [Equiv.swap_apply_right]
       exact iff_of_false (not_le.mpr hrk) (not_le.mpr (hrk.trans hkr))
     · rw [Equiv.swap_apply_of_ne_of_ne hsk hsr]
 
@@ -201,11 +206,13 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
     let π : Equiv.Perm (Fin n) := (Equiv.swap k₁ r₀).trans (I.pref i)
     set I' := I.updatePref i π
     have hI'_rank (h : Fin n) : I'.rank i h = Equiv.swap k₁ r₀ (I.rank i h) := by
-      rw [I.updatePref_rank_self]; simp [π, Instance.rank]
+      rw [I.updatePref_rank_self]
+      simp [π, Instance.rank]
     have hI'_ii : I'.rank i i = k₁ := by
       rw [hI'_rank, show I.rank i i = r₀ from rfl, Equiv.swap_apply_right]
     have hI'_ttc_rank : I'.rank i (I.ttc i) = r := by
-      rw [hI'_rank]; exact Instance.swap_eq_self_of_le hrk hkr le_rfl
+      rw [hI'_rank]
+      exact Instance.swap_eq_self_of_le hrk hkr le_rfl
     have hI'_strictCore : I'.InStrictCore I.ttc := by
       rintro S ⟨ν, hS, hle, j₀, hj₀, hlt⟩
       refine I.inStrictCore_ttc S ⟨ν, hS, fun j hj => ?_, j₀, hj₀, ?_⟩
@@ -226,7 +233,8 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
       rw [← hm]
       refine Finset.sum_lt_sum (fun j _ => ?_) ⟨i, Finset.mem_univ i, hI'_ii ▸ hkr⟩
       by_cases hji : j = i
-      · subst hji; exact hI'_ii ▸ hkr.le
+      · subst hji
+        exact hI'_ii ▸ hkr.le
       · rw [I.updatePref_rank_of_ne π hji]
     have hMI' : M I' = I.ttc := (ih _ hsum_lt I' rfl).trans hI'_strictCore.eq_ttc.symm
     have hsp_fwd : I.rank i (M I i) ≤ r := by
@@ -237,7 +245,8 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
         Instance.swap_eq_self_of_le hrk hkr hsp_fwd] at h1
       exact h1
     exact Or.inr (le_antisymm hsp_fwd hsp_bwd).le
-  · have hir_i : (I.rank i (M I i)).val ≤ r₀.val := hIR I i
+  · -- No house lies strictly between `I.ttc i` and `i`, so `hIR` suffices directly.
+    have hir_i : (I.rank i (M I i)).val ≤ r₀.val := hIR I i
     by_cases heq : (I.rank i (M I i)).val = r₀.val
     · exact Or.inl (I.rank_injective i (Fin.ext heq))
     · exact Or.inr (show (I.rank i (M I i)).val ≤ r.val by omega)
@@ -375,9 +384,12 @@ private theorem eq_sdSteps_of_rank_le {k : ℕ} {R : Finset (Fin n)} (hk_le : k 
     have hk : k < n := by omega
     let a : Fin n := ⟨n - 1 - k, by omega⟩
     have hh : I.topChoice R a ∈ R := I.topChoice_mem (Finset.card_pos.1 (by omega)) a
-    have ha_ge : n - (k + 1) ≤ a.val := by change n - (k + 1) ≤ n - 1 - k; omega
+    have ha_ge : n - (k + 1) ≤ a.val := by
+      change n - (k + 1) ≤ n - 1 - k
+      omega
     have ha_eq : ν a = I.topChoice R a := by
-      have h1 := hle a ha_ge; rw [I.sdSteps_succ_of_eq hk R] at h1
+      have h1 := hle a ha_ge
+      rw [I.sdSteps_succ_of_eq hk R] at h1
       exact I.rank_injective a (le_antisymm h1 (I.rank_topChoice_le (hR a ha_ge) a))
     by_cases hia : i = a
     · rw [hia, I.sdSteps_succ_of_eq hk R, ha_eq]

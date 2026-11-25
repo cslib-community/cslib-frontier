@@ -62,7 +62,9 @@ theorem Clause.eval_filter_ne_neg (σ : V → Bool) {c : Clause V} {v : V} {b : 
   constructor
   · rintro ⟨⟨u, p⟩, hl, hσ⟩
     obtain ⟨hlc, hne⟩ := List.mem_filter.mp hl
-    have huv : u ≠ v := by rintro rfl; cases p <;> cases b <;> simp_all
+    have huv : u ≠ v := by
+      rintro rfl
+      cases p <;> cases b <;> simp_all
     exact ⟨(u, p), hlc, by simpa [Function.update, huv] using hσ⟩
   · rintro ⟨⟨u, p⟩, hlc, hσ⟩
     have huv : u ≠ v := by
@@ -180,7 +182,8 @@ theorem occurrences_restrict_le (φ : CNF V) (v u : V) (b : Bool) :
 theorem satisfiable_restrict_iff (φ : CNF V) (v : V) (b : Bool) :
     (φ.restrict v b).Satisfiable ↔ ∃ σ : V → Bool, σ v = b ∧ φ.eval σ = true := by
   refine ⟨fun ⟨σ, hσ⟩ => ⟨Function.update σ v b, Function.update_self v b σ, by simpa using hσ⟩, ?_⟩
-  rintro ⟨σ, hσv, hσ⟩; exact ⟨σ, (eval_restrict_of_eq hσv).trans hσ⟩
+  rintro ⟨σ, hσv, hσ⟩
+  exact ⟨σ, (eval_restrict_of_eq hσv).trans hσ⟩
 
 /-- Binary branching characterization of CNF satisfiability. -/
 theorem satisfiable_iff_restrict (φ : CNF V) (v : V) :
@@ -203,7 +206,8 @@ private theorem eval_restrict_eq_eval_extendAt (φ : CNF V) (declared : Finset V
     (φ.restrict v b).eval (fun u => if h : u ∈ declared.erase v then σ ⟨u, h⟩ else false) =
       φ.eval (fun u => if h : u ∈ declared then extendAt declared v b σ ⟨u, h⟩ else false) := by
   rw [eval_restrict]
-  congr 1; funext u
+  congr 1
+  funext u
   by_cases huv : u = v <;> by_cases hu : u ∈ declared <;>
     simp [Function.update, extendAt, huv, hv, hu, Finset.mem_erase]
 
@@ -412,7 +416,8 @@ theorem modelCountOn_eq_restrict_of_forall {φ : CNF V} {declared : Finset V} {v
     rw [modelCountOn, Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
     intro σ hσ
     have hbv := hforce _ (eval_restrict φ v (!b) _ ▸ (Finset.mem_filter.mp hσ).2)
-    rw [Function.update_self] at hbv; cases b <;> simp at hbv
+    rw [Function.update_self] at hbv
+    cases b <;> simp at hbv
   rw [modelCountOn_eq_add_restrict φ declared hv]
   cases b <;> simp_all
 
@@ -422,7 +427,8 @@ theorem modelCountOn_restrict_of_notMem (φ : CNF V) (declared : Finset V) {v : 
     (hv : v ∉ declared) :
     (φ.restrict v false).modelCountOn declared = φ.modelCountOn declared := by
   simp only [modelCountOn]
-  congr 1; ext σ
+  congr 1
+  ext σ
   have hupd : Function.update (fun u => if h : u ∈ declared then σ ⟨u, h⟩ else false) v false =
       fun u => if h : u ∈ declared then σ ⟨u, h⟩ else false :=
     Function.update_eq_self_iff.mpr (by simp [hv])

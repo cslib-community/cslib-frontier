@@ -824,7 +824,9 @@ private theorem exists_prefixTableNew_of_produces {p : List Bool} {z : ℕ}
   let m₀ := Nat.find hex
   have hm₀ : (p, z) ∈ universalPrefixTable m₀ := Nat.find_spec hex
   obtain ⟨i, hi⟩ : ∃ i, m₀ = i + 1 :=
-    Nat.exists_eq_succ_of_ne_zero fun h0 => by rw [h0] at hm₀; cases hm₀
+    Nat.exists_eq_succ_of_ne_zero fun h0 => by
+      rw [h0] at hm₀
+      cases hm₀
   have hnot : (p, z) ∉ universalPrefixTable i := Nat.find_min hex (by omega)
   obtain ⟨j, hj, hfj⟩ := Nat.mem_distinctValues.mp (hi ▸ hm₀)
   rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
@@ -993,7 +995,9 @@ private theorem symReq_sum_le_one (c₁ xk n : ℕ) :
   change ∑ i ∈ Finset.range n, f i ≤ 1
   have hsum_I : ∑ i ∈ Finset.range n, f i = ∑ i ∈ I, f i := by
     rw [Finset.sum_filter]
-    exact Finset.sum_congr rfl fun i _ => by dsimp only [f]; cases symReq c₁ xk i <;> simp
+    exact Finset.sum_congr rfl fun i _ => by
+      dsimp only [f]
+      cases symReq c₁ xk i <;> simp
   rw [hsum_I]
   rcases I.eq_empty_or_nonempty with hI | hne
   · simp [hI]

@@ -301,7 +301,8 @@ private theorem lem_means_estimate (hN : CrossingLength N) (hh : IsHomogeneous N
     have h3 : N Z ^ 2 ≤ (M * N c + 2 * R * κ) ^ 2 :=
       pow_le_pow_left₀ (hN.nonneg Z) (by linarith [(abs_le.1 hZ).2]) 2
     have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * κ ^ 2 := by
-      rw [sq κ]; exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
+      rw [sq κ]
+      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
     have h6 : (R : ℝ) * R * κ ^ 2 ≤ M * R * κ ^ 2 :=
       mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hR' hR0) (sq_nonneg _)
     rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ (by positivity)]

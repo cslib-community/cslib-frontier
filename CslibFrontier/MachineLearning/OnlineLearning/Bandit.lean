@@ -202,7 +202,8 @@ noncomputable def blockFullInfo (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ
 
 private theorem blockIdx_lt {σ B m : ℕ} (hσ : σ < B) (r : Fin m) : σ * m + r.val < B * m :=
   calc σ * m + r.val < (σ + 1) * m := by
-        rw [Nat.add_mul, one_mul]; exact Nat.add_lt_add_left r.isLt _
+        rw [Nat.add_mul, one_mul]
+        exact Nat.add_lt_add_left r.isLt _
     _ ≤ B * m := Nat.mul_le_mul_right m hσ
 
 private theorem blockIdx_lt_of_lt_div {σ t m : ℕ} (hσ : σ < t / m) (r : Fin m) :
@@ -219,7 +220,8 @@ private theorem blockAvgLoss_history_mem_Icc {m t : ℕ} {ℓ : ℕ → ι → �
     (hℓ : ∀ s < t / m * m, ∀ i, ℓ s i ∈ Set.Icc (0 : ℝ) 1) :
     ∀ σ < t / m, ∀ i, blockAvgLoss m ℓ σ i ∈ Set.Icc (0 : ℝ) 1 := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · intro σ hσ; simp at hσ
+  · intro σ hσ
+    simp at hσ
   · exact fun σ hσ i => blockAvgLoss_mem_Icc hm fun r => hℓ _ (blockIdx_lt hσ r) i
 
 /-- If `H` is an online algorithm then `blockFullInfo H m` is an online algorithm. -/
@@ -502,7 +504,8 @@ theorem mabPlay_nonneg [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype Ω]
   by_cases hτ : t / m < K
   · simp only [hτ, ↓reduceDIte]
     by_cases h : ∃ i : ι, sched.time (ω ⟨t / m, hτ⟩) i = ⟨t % m, Nat.mod_lt t hm⟩
-    · simp only [h, ↓reduceDIte]; split_ifs <;> norm_num
+    · simp only [h, ↓reduceDIte]
+      split_ifs <;> norm_num
     · simp only [h, ↓reduceDIte]
       exact hH.nonneg
         (exploredLoss_mem_Icc_of_obs sched ω fun _ hσ i => hℓ _ (blockIdx_lt_of_lt_div hσ _) i) j
@@ -856,7 +859,8 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
         change x < (K : ℝ) + 1 at hlt
         linarith
     have hB_cube : B ^ 3 = (T : ℝ) ^ 2 * N := by
-      dsimp only [B]; rw [mul_pow, rpow_two_thirds_cube hTpos.le, rpow_one_third_cube hNpos.le]
+      dsimp only [B]
+      rw [mul_pow, rpow_two_thirds_cube hTpos.le, rpow_one_third_cube hNpos.le]
     have hNx_eq_B : (N : ℝ) * x = B := by
       refine (pow_left_inj₀ (by positivity) hB_nn (by decide : 3 ≠ 0)).mp ?_
       rw [mul_pow, rpow_two_thirds_cube (by positivity), hB_cube]
@@ -888,9 +892,11 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
       have hcore : (m : ℝ) * √((K : ℝ) * log N) ≤ √2 * √(log N) * B := by
         calc (m : ℝ) * √((K : ℝ) * log N)
             ≤ ((T : ℝ) / K) * (√(K : ℝ) * √(log N)) := by
-              rw [← sqrt_mul hKr_pos.le]; gcongr
+              rw [← sqrt_mul hKr_pos.le]
+              gcongr
           _ = (T : ℝ) * √(log N) * (1 / √(K : ℝ)) := by
-              field_simp [hsqrtK.ne']; rw [sq_sqrt hKr_pos.le]
+              field_simp [hsqrtK.ne']
+              rw [sq_sqrt hKr_pos.le]
           _ ≤ (T : ℝ) * √(log N) * (√2 / √x) := by gcongr
           _ = √2 * √(log N) * B := by rw [← hT_div_eq]; ring
       have hc_mul := mul_le_mul_of_nonneg_left hcore hC

@@ -115,7 +115,8 @@ private theorem meanSq_le (hw : IsPrice K w) {r : ℕ} (hr : r ≤ μ) :
 private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
     w a (a + W) ^ 2 ≤ (Fintype.card (Mt μ) : ℝ) ^ 2 * meanSq w W.rank := by
   have hc : (0 : ℝ) < Fintype.card (Mt μ) := by exact_mod_cast Fintype.card_pos
-  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := by exact_mod_cast card_pos.2 ⟨W, by simp⟩
+  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := by
+    exact_mod_cast card_pos.2 ⟨W, by simp⟩
   have h1 : w a (a + W) ^ 2 ≤ #{V : Mt μ | V.rank = W.rank} *
       rankMean (fun V => w a (a + V)) W.rank := by
     rw [rankMean, mul_div_cancel₀ _ hn.ne']
@@ -158,7 +159,8 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
     refine ⟨⟨hw', fun a b => Real.le_sqrt_of_sq_le ?_⟩, hc⟩
     have hr := (rank_le_card_width (a + b)).trans (Fintype.card_fin μ).le
     refine (add_cancel_left a b ▸ sq_le_meanSq w' a (a + b)).trans ?_
-    gcongr; exact (meanSq_le hw' hr).trans (by rw [hc, mul_one]; exact_mod_cast hr)
+    gcongr
+    exact (meanSq_le hw' hr).trans (by rw [hc, mul_one]; exact_mod_cast hr)
   obtain ⟨M, hMμ, hM⟩ : ∃ M : ℝ, M < μ ∧ ∀ w ∈ S, meanSq w μ ≤ M := by
     rcases S.eq_empty_or_nonempty with h0 | hne
     · exact ⟨0, by positivity, by simp [h0]⟩
@@ -173,7 +175,8 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
     push_cast [hr] at h2
     linarith
   refine hK ⟨μ, √(max 1 M), hμ, Real.one_le_sqrt.2 (le_max_left _ _), ?_, fun w hw => ?_⟩
-  · rw [Real.sq_sqrt (le_max_of_le_left zero_le_one)]; exact max_lt (by exact_mod_cast hμ) hMμ
+  · rw [Real.sq_sqrt (le_max_of_le_left zero_le_one)]
+    exact max_lt (by exact_mod_cast hμ) hMμ
   rw [distAtRank, distAtRank, ← Real.sqrt_mul (le_max_of_le_left zero_le_one)]
   refine Real.sqrt_le_sqrt ?_
   rcases (meanSq_nonneg w 1).eq_or_lt with h0 | h1
@@ -337,7 +340,8 @@ private theorem exists_transversal (hμ : 3 ≤ μ) {V W : Mt μ} (hV : V.rank =
     (hW : W.rank = 1) : ∃ Z : Mt μ, Z.rank = 1 ∧ Transversal ![V, Z] ∧ Transversal ![W, Z] := by
   have hc := Submodule.finrank_add_le_finrank_add_finrank (colSpace V) (colSpace W)
   have hr := Submodule.finrank_add_le_finrank_add_finrank (rowSpace V) (rowSpace W)
-  rw [finrank_colSpace, finrank_colSpace] at hc; rw [finrank_rowSpace, finrank_rowSpace] at hr
+  rw [finrank_colSpace, finrank_colSpace] at hc
+  rw [finrank_rowSpace, finrank_rowSpace] at hr
   obtain ⟨u, hu⟩ := exists_notMem (A := colSpace V ⊔ colSpace W) (by omega)
   obtain ⟨x, hx⟩ := exists_notMem (A := rowSpace V ⊔ rowSpace W) (by omega)
   have hu0 : u ≠ 0 := fun e => hu (e ▸ zero_mem _)
@@ -356,7 +360,8 @@ private theorem Extremal.lambda (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ)
     connect_rank_one' (Φ := BB w a _) (fun _ _ h => hx.additive h a) (by omega) t t' hU hU'
   obtain ⟨Z, hZ, t1, t2⟩ := exists_transversal hμ h1 h3
   rw [con h1 h2 hZ hV t1, BB_comm, con hZ h1 h3 (transversal_symm t1) (transversal_symm t2),
-    BB_comm, con h3 hZ h4 t2 hW]
+    BB_comm,
+    con h3 hZ h4 t2 hW]
 
 /-! ### Step 6: `λ = 0` -/
 
@@ -407,14 +412,16 @@ private theorem Extremal.nn_X (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ) (
       induction T using Finset.induction_on with
       | empty => simp [BB, nn, X_empty, hx.price.self]
       | insert j T hj ihT =>
-        intro hiT; rw [mem_insert, not_or] at hiT
+        intro hiT
+        rw [mem_insert, not_or] at hiT
         rw [insert_eq, X_union p q (disjoint_singleton_left.2 hj),
           hx.additive ((transversal_iff _).2 ⟨p, q, ![{i}, {j}, T], by
             simp [Fin.forall_fin_succ, hiT.1, Ne.symm hiT.1, hiT.2, hj],
             by simp [Fin.forall_fin_succ]⟩), ihT hiT.2,
           hx.BB_eq_zero hμ a (transversal_X₂ (disjoint_singleton.2 hiT.1)) (by simp [rank_X])
             (by simp [rank_X]), add_zero]
-    have h1 := hB S hi; unfold BB at h1
+    have h1 := hB S hi
+    unfold BB at h1
     rw [sum_insert hi, insert_eq, X_union p q (disjoint_singleton_left.2 hi), ← ih]; linarith
 
 /-- "`n_a` has one value on all matrices of rank one", by the exchange with `W = 0`. -/
@@ -436,7 +443,8 @@ private theorem Extremal.nn_eq_one (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt 
     rw [hx.nn_eq hμ _ hV hZ', hx.nn_eq hμ _ hV hZ', hx.opposite (transversal_symm t)]
   have all (b : Mt μ) : nn w b V = nn w a V := by
     obtain ⟨p, q, S, hS⟩ := exists_X (a + b)
-    rw [← add_cancel_left a b, hS]; clear hS
+    rw [← add_cancel_left a b, hS]
+    clear hS
     induction S using Finset.induction_on with
     | empty => rw [X_empty, add_zero]
     | insert j S hj ih =>

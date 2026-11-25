@@ -160,19 +160,22 @@ private def signalWire (w₀ : Compiler.Signal (liveCircuit p special)) : Wire n
 private theorem wiresIn_insert_signal (w₀ : Compiler.Signal (liveCircuit p special))
     (P : Set (Compiler.Vertex (liveCircuit p special))) :
     wiresIn (insert (.signal w₀) P) = insert (signalWire w₀) (wiresIn P) := by
-  ext w; simp only [wiresIn, signalWire, mem_ofPred_eq, mem_insert_iff]
+  ext w
+  simp only [wiresIn, signalWire, mem_ofPred_eq, mem_insert_iff]
   exact ⟨fun ⟨hw, h⟩ => h.imp (congrArg Subtype.val ∘ Compiler.Vertex.signal.inj) (⟨hw, ·⟩),
     by rintro (rfl | ⟨hw, h⟩); exacts [⟨w₀.2, .inl rfl⟩, ⟨hw, .inr h⟩]⟩
 
 private theorem wiresIn_insert_junction (j : Compiler.Junction (liveCircuit p special))
     (P : Set (Compiler.Vertex (liveCircuit p special))) :
     wiresIn (insert (.junction j) P) = wiresIn P := by
-  ext w; simp [wiresIn]
+  ext w
+  simp [wiresIn]
 
 private theorem wiresIn_insert_output (o : Fin (Nat.card {w // Live p special w}))
     (P : Set (Compiler.Vertex (liveCircuit p special))) :
     wiresIn (insert (.output o) P) = wiresIn P := by
-  ext w; simp [wiresIn]
+  ext w
+  simp [wiresIn]
 
 private theorem notMem_wiresIn_of_signal_notMem {w₀ : Compiler.Signal (liveCircuit p special)}
     {P : Set (Compiler.Vertex (liveCircuit p special))} (h : .signal w₀ ∉ P) :

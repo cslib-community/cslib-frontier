@@ -97,7 +97,8 @@ private lemma copyCappedCore_runFrom_walk
         (by rw [List.length_append]; omega)]
       simp [List.getElem_append_right]
     have hwork0 : (tapeOfList (List.replicate N true) (m : ℤ)) = some true := by
-      rw [tapeOfList_ofNat, List.getElem?_eq_getElem (by simp [hltN])]; simp
+      rw [tapeOfList_ofNat, List.getElem?_eq_getElem (by simp [hltN])]
+      simp
     have htr : copyCappedCore.tr () cur.inputSymbol cur.workTapeSymbols =
         ⟨1, ![(none, 1), (some (some raw[m]), 1)], none, some ()⟩ := by
       rw [copyCappedCore, tr_ofTr, hinp, show cur.workTapeSymbols 0 = some true from hwork0]
@@ -238,7 +239,8 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
         (some rewindBothTM.q₀))
       ((u₀.length + min N raw.length + 2) + (min N raw.length + 2)) =
       cfg₄.mapState (Option.map .inr) := by
-    rw [hmap₃₄]; exact runFrom_seq hrun₃ rfl hrun₄ rfl
+    rw [hmap₃₄]
+    exact runFrom_seq hrun₃ rfl hrun₄ rfl
   have hstart : wordsCfgAt (u₀ ++ raw) p₀
       (some appendPrefixTM.q₀) ![List.replicate N true, u₀] out =
       (cfg₀.mapState (handOver copyCappedCore.q₀)).mapState (handOver rewindBothTM.q₀) :=
@@ -291,7 +293,8 @@ private lemma onWords_onSlice {k K : ℕ} {Symbol State : Type*}
       (t + output.length + 6)
       (s + 2 * input.length + 2 * output.length + 3 * k + 18 + (K - (k + 1 + 2))) := by
   refine ((h.onWords mark).extendTapes e).imp ?_ ?_ le_rfl le_rfl
-  · rintro _ _ rfl; funext j
+  · rintro _ _ rfl
+    funext j
     by_cases hj : j = Fin.natAdd (k + 1) 0
     · subst hj; simp [hin]
     · simp [hj, hclean j hj]
@@ -301,7 +304,8 @@ private lemma onWords_onSlice {k K : ℕ} {Symbol State : Type*}
     · obtain ⟨j, rfl⟩ := hl
       have hvj := congrFun hv j
       by_cases hj : j = (Fin.last k).castAdd 2
-      · subst hj; simpa [e.injective.eq_iff] using hvj
+      · subst hj
+        simpa [e.injective.eq_iff] using hvj
       · rw [Function.update_of_ne (fun h => hj (e.injective h))]
         by_cases hj2 : j = Fin.natAdd (k + 1) 0
         · subst hj2
@@ -335,7 +339,8 @@ private lemma inputFromWord_onSlice {k K : ℕ} {Symbol State : Type*}
     · obtain ⟨j, rfl⟩ := hl
       have hvj := congrFun hv j
       by_cases hj : j = Fin.natAdd k 0
-      · subst hj; simpa [hin] using hvj
+      · subst hj
+        simpa [hin] using hvj
       · simpa [hj, hclean j hj] using hvj
     · exact hx l hl
 
@@ -349,7 +354,8 @@ private lemma embed_wordsCfgAt {k k' : ℕ} {Symbol State : Type*} {input : List
   · rcases hl : partialInv e l with _ | j
     · simp [embed, hl, wordsCfgAt, hx l fun ⟨j, hj⟩ => by simp [← hj] at hl]
     · simp [embed, wordsCfgAt, ← partialInv_eq_some e hl, h]
-  · simp only [embed]; cases partialInv e l <;> rfl
+  · simp only [embed]
+    cases partialInv e l <;> rfl
 
 /-- Lift a `TransformsTapesAt` specification onto the slice selected by `e`. -/
 private theorem transformsTapesAt_extendTapes {k k' : ℕ} {Symbol State : Type*}
@@ -401,10 +407,14 @@ private def embUIdx (kU j : ℕ) : ℕ :=
   else 3 + kU
 
 private lemma embUIdx_lt (kU kC kV j : ℕ) :
-    embUIdx kU j < 3 + (kU + 1) + (kC + 1) + (kV + 1) := by unfold embUIdx; split_ifs <;> omega
+    embUIdx kU j < 3 + (kU + 1) + (kC + 1) + (kV + 1) := by
+      unfold embUIdx
+      split_ifs <;> omega
 
 private lemma embUIdx_inj (kU : ℕ) {a b : ℕ} (ha : a < kU + 1 + 2) (hb : b < kU + 1 + 2)
-    (h : embUIdx kU a = embUIdx kU b) : a = b := by unfold embUIdx at h; split_ifs at h <;> omega
+    (h : embUIdx kU a = embUIdx kU b) : a = b := by
+      unfold embUIdx at h
+      split_ifs at h <;> omega
 
 private def embCIdx (kU kC j : ℕ) : ℕ :=
   if j < kC then 3 + (kU + 1) + j
@@ -413,11 +423,14 @@ private def embCIdx (kU kC j : ℕ) : ℕ :=
   else 3 + (kU + 1) + kC
 
 private lemma embCIdx_lt (kU kC kV j : ℕ) :
-    embCIdx kU kC j < 3 + (kU + 1) + (kC + 1) + (kV + 1) := by unfold embCIdx; split_ifs <;> omega
+    embCIdx kU kC j < 3 + (kU + 1) + (kC + 1) + (kV + 1) := by
+      unfold embCIdx
+      split_ifs <;> omega
 
 private lemma embCIdx_inj (kU kC : ℕ) {a b : ℕ} (ha : a < kC + 1 + 2) (hb : b < kC + 1 + 2)
     (h : embCIdx kU kC a = embCIdx kU kC b) : a = b := by
-  unfold embCIdx at h; split_ifs at h <;> omega
+  unfold embCIdx at h
+  split_ifs at h <;> omega
 
 private def embVIdx (kU kC kV j : ℕ) : ℕ :=
   if j < kV then 3 + (kU + 1) + (kC + 1) + j
@@ -426,11 +439,13 @@ private def embVIdx (kU kC kV j : ℕ) : ℕ :=
 
 private lemma embVIdx_lt (kU kC kV j : ℕ) :
     embVIdx kU kC kV j < 3 + (kU + 1) + (kC + 1) + (kV + 1) := by
-  unfold embVIdx; split_ifs <;> omega
+  unfold embVIdx
+  split_ifs <;> omega
 
 private lemma embVIdx_inj (kU kC kV : ℕ) {a b : ℕ} (ha : a < kV + 2) (hb : b < kV + 2)
     (h : embVIdx kU kC kV a = embVIdx kU kC kV b) : a = b := by
-  unfold embVIdx at h; split_ifs at h <;> omega
+  unfold embVIdx at h
+  split_ifs at h <;> omega
 
 private def embU (kU kC kV : ℕ) :
     Fin (kU + 1 + 2) ↪ Fin (3 + (kU + 1) + (kC + 1) + (kV + 1)) where
@@ -455,36 +470,49 @@ private def embV (kU kC kV : ℕ) :
   inj' a b h := Fin.ext (embVIdx_inj kU kC kV a.isLt b.isLt (congrArg Fin.val h))
 
 private lemma embU_input (kU kC kV : ℕ) :
-    embU kU kC kV (Fin.natAdd (kU + 1) 0) = ⟨0, by omega⟩ := by ext; simp [embU, embUIdx]
+    embU kU kC kV (Fin.natAdd (kU + 1) 0) = ⟨0, by omega⟩ := by
+      ext
+      simp [embU, embUIdx]
 
 private lemma embU_output (kU kC kV : ℕ) :
-    embU kU kC kV ((Fin.last kU).castAdd 2) = ⟨1, by omega⟩ := by ext; simp [embU, embUIdx]
+    embU kU kC kV ((Fin.last kU).castAdd 2) = ⟨1, by omega⟩ := by
+      ext
+      simp [embU, embUIdx]
 
 private lemma embC_input (kU kC kV : ℕ) :
-    embC kU kC kV (Fin.natAdd (kC + 1) 0) = ⟨1, by omega⟩ := by ext; simp [embC, embCIdx]
+    embC kU kC kV (Fin.natAdd (kC + 1) 0) = ⟨1, by omega⟩ := by
+      ext
+      simp [embC, embCIdx]
 
 private lemma embC_output (kU kC kV : ℕ) :
-    embC kU kC kV ((Fin.last kC).castAdd 2) = ⟨2, by omega⟩ := by ext; simp [embC, embCIdx]
+    embC kU kC kV ((Fin.last kC).castAdd 2) = ⟨2, by omega⟩ := by
+      ext
+      simp [embC, embCIdx]
 
 private lemma embV_input (kU kC kV : ℕ) :
-    embV kU kC kV (Fin.natAdd kV 0) = ⟨0, by omega⟩ := by ext; simp [embV, embVIdx]
+    embV kU kC kV (Fin.natAdd kV 0) = ⟨0, by omega⟩ := by
+      ext
+      simp [embV, embVIdx]
 
 private lemma embU_val_ne_zero (kU kC kV : ℕ) (j : Fin (kU + 1 + 2))
     (hj : j ≠ Fin.natAdd (kU + 1) 0) :
     (embU kU kC kV j).val ≠ 0 := by
-  change embUIdx kU j.val ≠ 0; unfold embUIdx
+  change embUIdx kU j.val ≠ 0
+  unfold embUIdx
   split_ifs with h0 h1 h2 <;> first | omega | exact absurd (Fin.ext (by simp [h2])) hj
 
 private lemma embC_val_ge_two (kU kC kV : ℕ) (j : Fin (kC + 1 + 2))
     (hj : j ≠ Fin.natAdd (kC + 1) 0) :
     2 ≤ (embC kU kC kV j).val := by
-  change 2 ≤ embCIdx kU kC j.val; unfold embCIdx
+  change 2 ≤ embCIdx kU kC j.val
+  unfold embCIdx
   split_ifs with h0 h1 h2 <;> first | omega | exact absurd (Fin.ext (by simp [h2])) hj
 
 private lemma embV_val_ge_three (kU kC kV : ℕ) (j : Fin (kV + 2))
     (hj : j ≠ Fin.natAdd kV 0) :
     3 ≤ (embV kU kC kV j).val := by
-  change 3 ≤ embVIdx kU kC kV j.val; unfold embVIdx
+  change 3 ≤ embVIdx kU kC kV j.val
+  unfold embVIdx
   split_ifs with h0 h1 <;> first | omega | exact absurd (Fin.ext (by simp [h1])) hj
 
 end Helpers
@@ -651,7 +679,8 @@ theorem computableInTimeAndSpace_boundedPrefix
           simp [ws₄, ws₃, ws₂, ws₁, ws₀, Function.update_of_ne hneV, Function.update_of_ne hneCap,
             Function.update_of_ne hneU])
         (by
-          rw [embV_input]; change ws₄ tV = encPair encA encBits (a, raw.take N)
+          rw [embV_input]
+          change ws₄ tV = encPair encA encBits (a, raw.take N)
           simp [ws₄, encPair_apply, encBits_apply, u])
       simpa [encPair_apply, encBits_apply, u] using
         (hslice.words (fun _ => rfl) fun _ _ _ h => h).freezeInput inp p₂

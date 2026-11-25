@@ -71,11 +71,14 @@ private lemma eq_of_rec {f g : ℤ → ℤ} (h0 : f 0 = g 0) (h1 : f 1 = g 1)
   induction n using Int.induction_on with
   | zero => exact ⟨h0, by rwa [zero_add]⟩
   | succ i ih =>
-    have a := hf ((i : ℤ) + 1); have b := hg ((i : ℤ) + 1)
-    rw [add_sub_cancel_right] at a b; exact ⟨ih.2, by omega⟩
+    have a := hf ((i : ℤ) + 1)
+    have b := hg ((i : ℤ) + 1)
+    rw [add_sub_cancel_right] at a b
+    exact ⟨ih.2, by omega⟩
   | pred i ih =>
     rw [sub_add_cancel]
-    have a := hf (-(i : ℤ)); have b := hg (-(i : ℤ))
+    have a := hf (-(i : ℤ))
+    have b := hg (-(i : ℤ))
     exact ⟨by omega, ih.1⟩
 
 /-- An integer quadratic `n² + S n + q` with `q` odd that is nonnegative on `ℤ` has `S² ≤ 4 q`.
@@ -84,7 +87,8 @@ For `S = 2 k` evaluate at `-k`; for `S = 2 k + 1` evaluate at `-(k + 1)`, which 
 private lemma sq_le_of_forall_nonneg {q S : ℤ} (hq : Odd q)
     (h : ∀ n : ℤ, 0 ≤ n ^ 2 + S * n + q) : S ^ 2 ≤ 4 * q := by
   obtain ⟨k, rfl | rfl⟩ := Int.even_or_odd' S
-  · have := h (-k); nlinarith
+  · have := h (-k)
+    nlinarith
   · have := h (-(k + 1))
     have hlt : k * (k + 1) < q := lt_of_le_of_ne (by nlinarith) fun he ↦
       Int.not_even_iff_odd.2 hq (he ▸ Int.even_mul_succ_self k)
@@ -101,7 +105,8 @@ nonsingularity of `Y² = g(X)` at `(c, 0)`. -/
 lemma derivative_cubicPoly_eval_ne_zero (hΔ : (ofCubic α β γ).Δ ≠ 0) {c : k}
     (hc : (cubicPoly α β γ).IsRoot c) : (derivative (cubicPoly α β γ)).eval c ≠ 0 := by
   have heq : (ofCubic α β γ).toAffine.Equation c 0 := by
-    rw [Affine.equation_iff]; have := eval_cubicPoly α β γ c ▸ hc.eq_zero
+    rw [Affine.equation_iff]
+    have := eval_cubicPoly α β γ c ▸ hc.eq_zero
     simp only [ofCubic_a₁, ofCubic_a₂, ofCubic_a₃, ofCubic_a₄, ofCubic_a₆]
     linear_combination -this
   have hns := (Affine.nonsingular_iff _ _).1
@@ -242,7 +247,8 @@ private lemma natDegree_d1Num (hF : ringChar F ≠ 2) :
       3 * (Fintype.card F / 2 + 1) := natDegree_pow_le.trans (by rw [natDegree_cubicPoly, mul_comm])
   have hc := natDegree_cubicPoly α β γ
   have hsub {f g : F[X]} {n : ℕ} (hf : f.natDegree ≤ n) (hg : g.natDegree ≤ n) :
-      (f - g).natDegree ≤ n := by simpa only [max_self] using natDegree_sub_le_of_le hf hg
+      (f - g).natDegree ≤ n := by
+    simpa only [max_self] using natDegree_sub_le_of_le hf hg
   refine lt_of_le_of_lt (b := 2 * Fintype.card F) ?_ (by omega)
   repeat' first
     | with_reducible apply hsub
@@ -375,7 +381,8 @@ private lemma d1Gcd_dvd_d1Num (hF : ringChar F ≠ 2) : d1Gcd α β γ ∣ d1Num
   · rw [he, show 2 - 1 = 1 from rfl, pow_one]
     exact dvd_sub (dvd_mul_of_dvd_left (dvd_iff_isRoot.2 h0) _)
       (dvd_mul_of_dvd_right (dvd_pow hQ two_ne_zero) _)
-  · rw [he, pow_zero]; exact one_dvd _
+  · rw [he, pow_zero]
+    exact one_dvd _
   · rw [he]
     have hD : X - C c ∣ cubicPoly α β γ ^ (Fintype.card F / 2) + 1 := by
       rw [dvd_iff_isRoot, IsRoot.def, eval_add, eval_pow, hm, eval_one, neg_add_cancel]
@@ -390,7 +397,8 @@ private lemma isCoprime_d1Den (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β γ).
   refine IsCoprime.prod_right fun c _ ↦ ?_
   have hQ := X_sub_C_dvd_X_pow_card_sub_X c
   rcases Nat.eq_zero_or_pos (d1Exp α β γ c) with h0e | hpos
-  · rw [h0e, pow_zero]; exact isCoprime_one_right
+  · rw [h0e, pow_zero]
+    exact isCoprime_one_right
   refine IsCoprime.pow_right ((irreducible_X_sub_C c).coprime_iff_not_dvd.2 fun hdvd ↦ ?_).symm
   have hN : X - C c ∣ d1Num α β γ := hM ▸ dvd_mul_of_dvd_right hdvd _
   rcases d1Exp_cases (α := α) (β := β) (γ := γ) hF c with ⟨h0, he⟩ | ⟨h0, h1, _⟩ | ⟨_, he⟩
@@ -464,7 +472,8 @@ theorem cubicCharSum_sq_le {F : Type*} [Field F] [Fintype F] [DecidableEq F]
     cubicCharSum α β γ ^ 2 ≤ 4 * (Fintype.card F : ℤ) :=
   Manin.sq_le_of_forall_nonneg
     (by exact_mod_cast Nat.odd_iff.2 (FiniteField.odd_card_of_char_ne_two hF)) fun n ↦ by
-      rw [← Manin.d_P₁_sub_zsmul_P₀ hF hΔ n]; exact Nat.cast_nonneg _
+      rw [← Manin.d_P₁_sub_zsmul_P₀ hF hΔ n]
+      exact Nat.cast_nonneg _
 
 /-- **Hasse's bound**: an elliptic curve `E` over a finite field `F` of odd characteristic with
 `q` elements has `(#E(F) - (q + 1))² ≤ 4 q`. -/
@@ -494,7 +503,8 @@ theorem hasse_bound_zmod {p : ℕ} [Fact p.Prime] (W : WeierstrassCurve (ZMod p)
   rcases eq_or_ne p 2 with rfl | hp
   · obtain ⟨h1, h5⟩ := natCard_point_zmod_two W
     have : 1 ≤ Real.sqrt 2 := Real.one_le_sqrt.2 (by norm_num)
-    simp only [Nat.cast_ofNat]; exact ⟨by cast_linarith [h5, h1], by cast_linarith⟩
+    simp only [Nat.cast_ofNat]
+    exact ⟨by cast_linarith [h5, h1], by cast_linarith⟩
   · obtain ⟨h1, h2⟩ := abs_le.1
       (ZMod.card p ▸ abs_natCard_point_sub_le (ZMod.ringChar_zmod_n p ▸ hp) W)
     exact ⟨by linarith, by linarith⟩
