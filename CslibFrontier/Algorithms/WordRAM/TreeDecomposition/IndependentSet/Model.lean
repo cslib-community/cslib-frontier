@@ -62,28 +62,28 @@ private theorem memBag_map_inj {V : Type*} [DecidableEq V] {f : V → ℕ}
     memBag (f x) (L.map f) = memBag x L := by
   induction L with
   | nil => rfl
-  | cons u L ih => simp only [List.map_cons, memBag, ih, hf.eq_iff]
+  | cons _ _ ih => simp only [List.map_cons, memBag, ih, hf.eq_iff]
 
 private theorem selMemMask_map_inj {V : Type*} [DecidableEq V] {f : V → ℕ}
     (hf : Function.Injective f) (x : V) (L : List V) (m : ℕ) :
     selMemMask (f x) (L.map f) m = selMemMask x L m := by
   induction L generalizing m with
   | nil => rfl
-  | cons u L ih => simp only [List.map_cons, selMemMask, ih, hf.eq_iff]
+  | cons _ _ ih => simp only [List.map_cons, selMemMask, ih, hf.eq_iff]
 
 private theorem keyMask_map_inj {V : Type*} [DecidableEq V] {f : V → ℕ}
     (hf : Function.Injective f) (LB LP : List V) (t : ℕ) :
     keyMask (LB.map f) (LP.map f) t = keyMask LB LP t := by
   induction LP with
   | nil => rfl
-  | cons u LP ih => simp only [List.map_cons, keyMask, ih, selMemMask_map_inj hf]
+  | cons _ _ ih => simp only [List.map_cons, keyMask, ih, selMemMask_map_inj hf]
 
 private theorem restrictMask_map_inj {V : Type*} [DecidableEq V] {f : V → ℕ}
     (hf : Function.Injective f) (LB LP : List V) (s : ℕ) :
     restrictMask (LB.map f) (LP.map f) s = restrictMask LB LP s := by
   induction LP generalizing s with
   | nil => rfl
-  | cons u LP ih => simp only [List.map_cons, restrictMask, ih, memBag_map_inj hf]
+  | cons _ _ ih => simp only [List.map_cons, restrictMask, ih, memBag_map_inj hf]
 
 private theorem forgetWeight_map_inj {V : Type*} [DecidableEq V] {f : V → ℕ}
     (hf : Function.Injective f) {wtNat : ℕ → ℕ} {w : V → ℕ}
@@ -92,8 +92,8 @@ private theorem forgetWeight_map_inj {V : Type*} [DecidableEq V] {f : V → ℕ}
   induction LB generalizing t with
   | nil => rfl
   | cons u LB ih =>
-    simp only [List.map_cons, forgetWeight, memBag_map_inj hf,
-      hw u List.mem_cons_self, ih (fun v hv => hw v (List.mem_cons_of_mem u hv))]
+    simp only [List.map_cons, forgetWeight, memBag_map_inj hf, hw u List.mem_cons_self,
+      ih fun v hv => hw v (List.mem_cons_of_mem u hv)]
 
 private theorem noAdjInst_map {V : Type*} {G : SimpleGraph V}
     [DecidableRel G.Adj] {f : V → ℕ} {adj : ℕ → ℕ → Bool}
@@ -101,7 +101,7 @@ private theorem noAdjInst_map {V : Type*} {G : SimpleGraph V}
     noAdjInst adj (f x) (L.map f) m = noAdjMask G x L m := by
   induction L generalizing m with
   | nil => rfl
-  | cons u L ih => simp [noAdjInst, noAdjMask, ih, hadj]
+  | cons _ _ ih => simp only [List.map_cons, noAdjInst, noAdjMask, ih, hadj]
 
 private theorem indepInst_map {V : Type*} {G : SimpleGraph V}
     [DecidableRel G.Adj] {f : V → ℕ} {adj : ℕ → ℕ → Bool}
@@ -109,7 +109,7 @@ private theorem indepInst_map {V : Type*} {G : SimpleGraph V}
     indepInst adj (L.map f) m = indepMask G L m := by
   induction L generalizing m with
   | nil => rfl
-  | cons u L ih => simp [indepInst, indepMask, ih, noAdjInst_map hadj]
+  | cons _ _ ih => simp only [List.map_cons, indepInst, indepMask, ih, noAdjInst_map hadj]
 
 private theorem childPassInst_map {V : Type*} [DecidableEq V] {G : SimpleGraph V}
     [DecidableRel G.Adj] {f : V → ℕ} (hf : Function.Injective f)
@@ -120,16 +120,16 @@ private theorem childPassInst_map {V : Type*} [DecidableEq V] {G : SimpleGraph V
       childPass G w LB LP tbl init c := by
   induction c with
   | zero => rfl
-  | succ c ih =>
+  | succ _ ih =>
     simp only [childPassInst, childPass, ih, indepInst_map hadj, keyMask_map_inj hf,
-      forgetWeight_map_inj hf LP LB (fun u _ => hw u)]
+      forgetWeight_map_inj hf LP LB fun u _ => hw u]
 
 private theorem parentPass_map_inj {V : Type*} [DecidableEq V] {f : V → ℕ}
     (hf : Function.Injective f) (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
     parentPass (LB.map f) (LP.map f) old best c = parentPass LB LP old best c := by
   induction c with
   | zero => rfl
-  | succ c ih => simp [parentPass, ih, restrictMask_map_inj hf]
+  | succ _ ih => simp only [parentPass, ih, restrictMask_map_inj hf]
 
 private theorem rootPassInst_map {V : Type*} [DecidableEq V] {G : SimpleGraph V}
     [DecidableRel G.Adj] {f : V → ℕ} (hf : Function.Injective f)
@@ -152,20 +152,17 @@ theorem MWISInstance.result_ofRooted_eq_mwisFPT {V : Type*} {G : SimpleGraph V}
     (MWISInstance.ofRooted e R w L).result = mwisFPT R w L := by
   let inst := MWISInstance.ofRooted e R w L
   let f : V → ℕ := fun v => (e v).val
-  have hf : Function.Injective f := fun a b h => e.injective (Fin.ext h)
-  have hw : ∀ x, inst.wt (f x) = w x := fun x => by
+  have hf : Function.Injective f := fun _ _ h => e.injective (Fin.ext h)
+  have hw (x : V) : inst.wt (f x) = w x := by
     dsimp only [inst, MWISInstance.wt, MWISInstance.ofRooted, f]
     rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn, dite_eq_left (e x).isLt,
       Option.getD_some, Fin.eta, Equiv.symm_apply_apply]
-  have hadj : ∀ x u, inst.adj (f x) (f u) = decide (G.Adj x u) := fun x u => by
+  have hadj (x u : V) : inst.adj (f x) (f u) = decide (G.Adj x u) := by
     dsimp only [inst, MWISInstance.adj, MWISInstance.ofRooted, f]
     have hm : 0 < m := Nat.zero_lt_of_lt (e x).isLt
-    have hlt : (e x).val * m + (e u).val < m * m := by
-      have hx := (e x).isLt
-      have hu := (e u).isLt
-      calc (e x).val * m + (e u).val < (e x).val * m + m := Nat.add_lt_add_left hu _
-        _ = ((e x).val + 1) * m := by rw [Nat.succ_mul]
-        _ ≤ m * m := Nat.mul_le_mul_right m hx
+    have hlt : (e x).val * m + (e u).val < m * m :=
+      (Nat.add_lt_add_left (e u).isLt _).trans_le
+        (Nat.succ_mul (e x).val m ▸ Nat.mul_le_mul_right m (e x).isLt)
     rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn, dite_eq_left hlt, Option.getD_some]
     have hdiv : ((e x).val * m + (e u).val) / m = (e x).val := by
       rw [Nat.mul_comm, Nat.mul_add_div hm, Nat.div_eq_of_lt (e u).isLt, Nat.add_zero]
@@ -173,33 +170,26 @@ theorem MWISInstance.result_ofRooted_eq_mwisFPT {V : Type*} {G : SimpleGraph V}
       rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt (e u).isLt]
     simp only [hdiv, hmod, Fin.eta, Equiv.symm_apply_apply]
     by_cases h : G.Adj x u <;> simp [h]
-  have hpar : ∀ i : Fin (n + 1), (inst.parFin i).val = (R.parent i).val := fun i => by
+  have hpar_eq (i : Fin (n + 1)) : inst.parFin i = R.parent i := Fin.ext <| by
     by_cases hi : 1 ≤ i.val
     · simp only [MWISInstance.parFin, hi, ↓reduceDIte, inst, MWISInstance.ofRooted,
         Fin.getElem_fin, List.getElem_ofFn, Fin.eta]
-    · simp only [MWISInstance.parFin, hi, ↓reduceDIte]
-      have hi0 : i = 0 := Fin.ext (by rw [Fin.val_zero]; omega)
-      rw [hi0, R.parent_zero, Fin.val_zero]
-  have hpar_eq : ∀ i : Fin (n + 1), inst.parFin i = R.parent i :=
-    fun i => Fin.ext (hpar i)
-  have hbag : ∀ i : Fin (n + 1), inst.bagAt i = (L i).map f := fun i => by
+    · obtain rfl : i = 0 := Fin.ext (by rw [Fin.val_zero]; omega)
+      simp [MWISInstance.parFin, R.parent_zero]
+  have hbag (i : Fin (n + 1)) : inst.bagAt i = (L i).map f := by
     simp only [MWISInstance.bagAt, inst, MWISInstance.ofRooted, List.getElem_ofFn, Fin.eta, f]
-  have htbl : ∀ t,
+  have htbl (t : ℕ) :
       tablesInst inst.adj inst.wt n inst.parFin inst.bagAt t = tablesFPT R w L t := by
-    intro t
     induction t with
     | zero => exact tablesInst_zero inst.adj inst.wt n inst.parFin inst.bagAt
     | succ t ih =>
       refine (tablesInst_succ inst.adj inst.wt n inst.parFin inst.bagAt t).trans ?_
-      dsimp only
-      rw [ih]
-      simp only [tablesFPT, processNode, hpar_eq, hbag, List.length_map,
+      simp only [ih, tablesFPT, processNode, hpar_eq, hbag, List.length_map,
         childPassInst_map hf hadj hw, parentPass_map_inj hf]
   change rootPassInst inst.adj inst.wt (inst.bagAt (0 : Fin (n + 1)))
       (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[(0 : Fin (n + 1))]
       (2 ^ (inst.bagAt (0 : Fin (n + 1))).length) = mwisFPT R w L
-  rw [htbl n, hbag (0 : Fin (n + 1)), List.length_map, rootPassInst_map hf hadj hw]
-  rfl
+  rw [htbl n, hbag (0 : Fin (n + 1)), List.length_map, rootPassInst_map hf hadj hw]; rfl
 
 /-- When `IsBagOrder R L`, `(MWISInstance.ofRooted e R w L).result = mwisValue R w`. -/
 theorem MWISInstance.result_ofRooted {V : Type*} {G : SimpleGraph V}

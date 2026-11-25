@@ -68,21 +68,17 @@ noncomputable def median (v : ι → ℝ) : ℝ :=
 theorem median_le {v : ι → ℝ} {b : ℝ} (hb : Fintype.card ι < 2 * #{j | v j ≤ b}) :
     median v ≤ b := by
   classical
-  have hne : ({j | v j ≤ b} : Finset ι).Nonempty := by
-    rw [← Finset.card_pos]
-    omega
-  obtain ⟨i₀, hi₀, hmax⟩ := exists_max_image ({j | v j ≤ b} : Finset ι) v hne
-  have hi₀b : v i₀ ≤ b := (mem_filter.1 hi₀).2
-  have hsub : ({j | v j ≤ b} : Finset ι) ⊆ ({j | v j ≤ v i₀} : Finset ι) := fun j hj =>
-    mem_filter.2 ⟨mem_univ _, hmax j hj⟩
+  obtain ⟨i₀, hi₀, hmax⟩ := exists_max_image ({j | v j ≤ b} : Finset ι) v
+    (card_pos.1 (by omega))
   have hcand : Fintype.card ι ≤ 2 * #{j | v j ≤ v i₀} := by
-    have := card_le_card hsub
+    have := card_le_card (s := {j | v j ≤ b}) (t := {j | v j ≤ v i₀})
+      fun j hj => mem_filter.2 ⟨mem_univ _, hmax j hj⟩
     omega
-  have hmem : i₀ ∈ (univ.filter fun i => Fintype.card ι ≤ 2 * #{j | v j ≤ v i}) :=
+  have hmem : i₀ ∈ univ.filter fun i => Fintype.card ι ≤ 2 * #{j | v j ≤ v i} :=
     mem_filter.2 ⟨mem_univ _, hcand⟩
   unfold median
   split_ifs with h
-  · exact (inf'_le _ (by convert hmem)).trans hi₀b
+  · exact (inf'_le _ (by convert hmem)).trans (mem_filter.1 hi₀).2
   · exact absurd ⟨i₀, by convert hmem⟩ h
 
 /-- If more than half of the family lies weakly above `a`, so does the median. -/
@@ -91,45 +87,34 @@ theorem le_median {v : ι → ℝ} {a : ℝ} (ha : Fintype.card ι < 2 * #{j | a
   classical
   unfold median
   split_ifs with h
-  · refine le_inf' _ _ fun i hi => ?_
+  · refine le_inf' _ _ fun i hi => le_of_not_gt fun hlt => ?_
     have hi := (mem_filter.1 hi).2
-    by_contra hlt
-    rw [not_le] at hlt
     have hdisj : Disjoint ({j | v j ≤ v i} : Finset ι) ({j | a ≤ v j} : Finset ι) :=
-      disjoint_filter.2 fun j _ (h1 : v j ≤ v i) (h2 : a ≤ v j) =>
-        absurd (h1.trans_lt hlt) (not_lt.2 h2)
+      disjoint_filter.2 fun _ _ h1 h2 => not_lt_of_ge h2 (h1.trans_lt hlt)
     have := card_union_of_disjoint hdisj ▸ card_le_univ (({j | v j ≤ v i} : Finset ι) ∪ _)
     omega
-  · exfalso
-    have hne : ({j | a ≤ v j} : Finset ι).Nonempty := by
-      rw [← Finset.card_pos]
-      omega
-    obtain ⟨i₀, -, hmax⟩ := exists_max_image univ v ⟨hne.choose, mem_univ _⟩
-    refine h ⟨i₀, mem_filter.2 ⟨mem_univ _, ?_⟩⟩
-    rw [filter_true_of_mem fun j _ => hmax j (mem_univ _), card_univ]
-    omega
+  · obtain ⟨j₀, -⟩ : ({j | a ≤ v j} : Finset ι).Nonempty := card_pos.1 (by omega)
+    obtain ⟨i₀, -, hmax⟩ := exists_max_image univ v ⟨j₀, mem_univ _⟩
+    refine absurd ⟨i₀, mem_filter.2 ⟨mem_univ _, ?_⟩⟩ h
+    rw [filter_true_of_mem fun j _ => hmax j (mem_univ _), card_univ]; omega
 
 /-- **The median of a majority**: if more than half of the family lies within `t` of `μ`, so does
 the median. -/
 theorem abs_median_sub_le {v : ι → ℝ} {μ t : ℝ}
     (hv : Fintype.card ι < 2 * #{j | |v j - μ| ≤ t}) : |median v - μ| ≤ t := by
   classical
-  have hlo : ({j | |v j - μ| ≤ t} : Finset ι) ⊆ ({j | μ - t ≤ v j} : Finset ι) := fun j hj => by
-    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢
-    linarith [hj.1]
-  have hhi : ({j | |v j - μ| ≤ t} : Finset ι) ⊆ ({j | v j ≤ μ + t} : Finset ι) := fun j hj => by
-    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢
-    linarith [hj.2]
-  have h1 := le_median (v := v) (a := μ - t) (hv.trans_le (by have := card_le_card hlo; omega))
-  have h2 := median_le (v := v) (b := μ + t) (hv.trans_le (by have := card_le_card hhi; omega))
+  have hlo := card_le_card (s := {j | |v j - μ| ≤ t}) (t := {j | μ - t ≤ v j}) fun j hj => by
+    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢; linarith
+  have hhi := card_le_card (s := {j | |v j - μ| ≤ t}) (t := {j | v j ≤ μ + t}) fun j hj => by
+    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢; linarith
   rw [abs_le]
-  constructor <;> linarith
+  exact ⟨by linarith [le_median (v := v) (a := μ - t) (by omega)],
+    by linarith [median_le (v := v) (b := μ + t) (by omega)]⟩
 
 /-- The median of a nonempty constant family is the constant. -/
 @[simp] theorem median_const [Nonempty ι] (c : ℝ) : median (fun _ : ι => c) = c := by
   have := Fintype.card_pos (α := ι)
   refine le_antisymm (median_le ?_) (le_median ?_) <;>
-  · simp only [le_refl, Finset.filter_true, card_univ]
-    omega
+    (simp only [le_refl, Finset.filter_true, card_univ]; omega)
 
 end Cslib

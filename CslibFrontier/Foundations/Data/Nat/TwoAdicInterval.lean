@@ -40,17 +40,11 @@ namespace Nat
 private theorem mod_pow_succ_of_multiplicity_two {x k : ℕ} (hx : x ≠ 0)
     (hk : multiplicity 2 x = k) : x % 2 ^ (k + 1) = 2 ^ k := by
   obtain ⟨y, hy⟩ := (pow_dvd_iff_le_multiplicity (by decide : (2 : ℕ) ≠ 1) hx).2 hk.ge
-  have hyodd : ¬2 ∣ y := by
-    intro h
-    have hdvd : (2 : ℕ) ^ (k + 1) ∣ x := by
-      rw [hy, pow_succ]
-      exact Nat.mul_dvd_mul_left _ h
-    have hbad := (pow_dvd_iff_le_multiplicity (by decide : (2 : ℕ) ≠ 1) hx).1 hdvd
-    omega
+  have hyodd : ¬2 ∣ y := fun h => absurd
+    ((pow_dvd_iff_le_multiplicity (by decide : (2 : ℕ) ≠ 1) hx).1
+      (hy ▸ pow_succ 2 k ▸ Nat.mul_dvd_mul_left _ h)) (by omega)
   have hyrem : y % 2 = 1 := by
-    have hne := Nat.dvd_iff_mod_eq_zero.not.mp hyodd
-    have hlt := Nat.mod_lt y (by decide : 0 < 2)
-    omega
+    have := Nat.dvd_iff_mod_eq_zero.not.mp hyodd; omega
   rw [hy, pow_succ, Nat.mul_mod_mul_left, hyrem, Nat.mul_one]
 
 /-- A positive interval with multiplicity at most `m` contains at most
@@ -60,49 +54,38 @@ theorem card_filter_Icc_multiplicity_two_le {a b m k : ℕ} (ha : 0 < a) (hk : k
     ((Finset.Icc a b).filter fun x => multiplicity 2 x = k).card ≤ 2 ^ (m - k) := by
   let D := (2 : ℕ) ^ (m + 1)
   let E := (2 : ℕ) ^ (k + 1)
-  have hD : 0 < D := pow_pos (by decide) _
-  have hE : 0 < E := pow_pos (by decide) _
+  have hD : 0 < D := by positivity
+  have hE : 0 < E := by positivity
   have hfactor : D = E * 2 ^ (m - k) := by
-    dsimp [D, E]
-    rw [← pow_add]
-    congr 1
-    omega
+    dsimp [D, E]; rw [← pow_add]
+    congr 1; omega
   have hbound : b < D * (a / D + 1) := by
     by_contra! hb
     have hleft := Nat.lt_mul_div_succ a hD
-    have hx : D * (a / D + 1) ∈ Finset.Icc a b := Finset.mem_Icc.mpr ⟨hleft.le, hb⟩
-    have hmul := hm _ hx
-    have hdiv : D ∣ D * (a / D + 1) := dvd_mul_right _ _
-    have hbad := (pow_dvd_iff_le_multiplicity (by decide : (2 : ℕ) ≠ 1)
-      (Nat.ne_of_gt (ha.trans hleft))).1 hdiv
+    have hmul := hm _ (Finset.mem_Icc.mpr ⟨hleft.le, hb⟩)
+    have hbad := (pow_dvd_iff_le_multiplicity (by decide : (2 : ℕ) ≠ 1) (ha.trans hleft).ne').1
+      (dvd_mul_right D (a / D + 1))
     omega
   have hblock (x : ℕ) (hx : x ∈ Finset.Icc a b) : x / D = a / D := by
     obtain ⟨hl, hr⟩ := Finset.mem_Icc.mp hx
-    have hlow : a / D ≤ x / D := Nat.div_le_div_right hl
-    have hhigh : x / D < a / D + 1 :=
-      (Nat.div_lt_iff_lt_mul hD).2 (by rw [Nat.mul_comm]; exact hr.trans_lt hbound)
+    have := Nat.div_le_div_right (c := D) hl
+    have := (Nat.div_lt_iff_lt_mul hD).2 ((hr.trans_lt hbound).trans_eq (Nat.mul_comm _ _))
     omega
-  have hdvd : E ∣ D := ⟨_, hfactor⟩
   rw [← Finset.card_range (2 ^ (m - k))]
-  refine Finset.card_le_card_of_injOn (fun x => x % D / E) ?_ ?_
-  · intro x _
-    apply Finset.mem_range.mpr
-    apply (Nat.div_lt_iff_lt_mul hE).2
-    rw [Nat.mul_comm, ← hfactor]
-    exact Nat.mod_lt x hD
-  · intro x hx y hy hxy
-    obtain ⟨hxI, hxk⟩ := Finset.mem_filter.mp hx
-    obtain ⟨hyI, hyk⟩ := Finset.mem_filter.mp hy
-    have hpos (z : ℕ) (hz : z ∈ Finset.Icc a b) : z ≠ 0 :=
-      Nat.ne_of_gt (ha.trans_le (Finset.mem_Icc.mp hz).1)
-    have hrem : x % D % E = y % D % E := by
-      rw [Nat.mod_mod_of_dvd x hdvd, Nat.mod_mod_of_dvd y hdvd]
-      exact (mod_pow_succ_of_multiplicity_two (hpos x hxI) hxk).trans
-        (mod_pow_succ_of_multiplicity_two (hpos y hyI) hyk).symm
-    change x % D / E = y % D / E at hxy
-    have hmod : x % D = y % D := by
-      rw [← Nat.mod_add_div (x % D) E, ← Nat.mod_add_div (y % D) E, hrem, hxy]
-    rw [← Nat.mod_add_div x D, ← Nat.mod_add_div y D, hmod, hblock x hxI, hblock y hyI]
+  refine Finset.card_le_card_of_injOn (fun x => x % D / E)
+    (fun x _ => Finset.mem_range.mpr ((Nat.div_lt_iff_lt_mul hE).2
+      ((Nat.mod_lt x hD).trans_eq (hfactor.trans (Nat.mul_comm _ _)))))
+    fun x hx y hy hxy => ?_
+  obtain ⟨hxI, hxk⟩ := Finset.mem_filter.mp hx
+  obtain ⟨hyI, hyk⟩ := Finset.mem_filter.mp hy
+  have hrem : x % D % E = y % D % E := by
+    rw [Nat.mod_mod_of_dvd x ⟨_, hfactor⟩, Nat.mod_mod_of_dvd y ⟨_, hfactor⟩,
+      mod_pow_succ_of_multiplicity_two (ha.trans_le (Finset.mem_Icc.mp hxI).1).ne' hxk,
+      mod_pow_succ_of_multiplicity_two (ha.trans_le (Finset.mem_Icc.mp hyI).1).ne' hyk]
+  have hmod : x % D = y % D := by
+    rw [← Nat.mod_add_div (x % D) E, ← Nat.mod_add_div (y % D) E, hrem]
+    exact congrArg (y % D % E + E * ·) hxy
+  rw [← Nat.mod_add_div x D, ← Nat.mod_add_div y D, hmod, hblock x hxI, hblock y hyI]
 
 /-- The highest multiplicity of two in a nonempty interval of positive naturals
 occurs exactly once. -/
@@ -110,14 +93,11 @@ theorem existsUnique_max_multiplicity_two_Icc {a b : ℕ} (ha : 0 < a) (hab : a 
     ∃! x, x ∈ Finset.Icc a b ∧ ∀ y ∈ Finset.Icc a b, multiplicity 2 y ≤ multiplicity 2 x := by
   obtain ⟨x, hx, hmax⟩ := Finset.exists_max_image (Finset.Icc a b) (multiplicity 2)
     ⟨a, Finset.mem_Icc.mpr ⟨le_rfl, hab⟩⟩
-  refine ⟨x, ⟨hx, hmax⟩, ?_⟩
-  rintro y ⟨hy, hymax⟩
-  have hcard : ((Finset.Icc a b).filter
-      fun z => multiplicity 2 z = multiplicity 2 x).card ≤ 1 := by
+  have hcard : ((Finset.Icc a b).filter fun z => multiplicity 2 z = multiplicity 2 x).card ≤ 1 := by
     simpa using card_filter_Icc_multiplicity_two_le ha le_rfl hmax
-  exact Finset.card_le_one_iff.mp hcard
+  exact ⟨x, ⟨hx, hmax⟩, fun y ⟨hy, hymax⟩ => Finset.card_le_one_iff.mp hcard
     (Finset.mem_filter.mpr ⟨hy, (hmax y hy).antisymm (hymax x hx)⟩)
-    (Finset.mem_filter.mpr ⟨hx, rfl⟩)
+    (Finset.mem_filter.mpr ⟨hx, rfl⟩)⟩
 
 open Finset in
 /-- The nonmaximal layers together contribute at most half the maximal power of six.
@@ -129,20 +109,14 @@ theorem two_mul_sum_six_pow_multiplicity_erase_le {a b j : ℕ} (ha : 0 < a)
   let m := multiplicity 2 j
   have hm : ((Icc a b).filter fun i => multiplicity 2 i = m).card ≤ 1 := by
     simpa using card_filter_Icc_multiplicity_two_le ha le_rfl hmax
-  have hlt : ∀ i ∈ ((Icc a b).erase j).val, multiplicity 2 i < m := by
-    intro i hi
-    obtain ⟨hne, hi⟩ := mem_erase.mp (show i ∈ (Icc a b).erase j from hi)
-    refine (hmax i hi).lt_of_ne fun h => hne ?_
-    exact card_le_one_iff.mp hm (mem_filter.mpr ⟨hi, h⟩) (mem_filter.mpr ⟨hj, rfl⟩)
-  have hcard : ∀ k < m, ((((Icc a b).erase j).val).filter fun i => multiplicity 2 i = k).card ≤
-      2 ^ (m - k) := by
-    intro k hk
-    change (((Icc a b).erase j).filter fun i => multiplicity 2 i = k).card ≤ 2 ^ (m - k)
-    refine (card_le_card fun i hi => ?_).trans
+  refine Cslib.MinIsolation.BaseSix.two_mul_sum_six_pow_multiset_le
+    ((Icc a b).erase j).val (multiplicity 2) (fun i hi => ?_) (fun k hk => ?_)
+  · obtain ⟨hne, hi⟩ := mem_erase.mp (mem_def.mpr hi)
+    exact (hmax i hi).lt_of_ne fun h =>
+      hne (card_le_one_iff.mp hm (mem_filter.mpr ⟨hi, h⟩) (mem_filter.mpr ⟨hj, rfl⟩))
+  · refine (card_le_card (s := ((Icc a b).erase j).filter fun i => multiplicity 2 i = k)
+      fun i hi => mem_filter.mpr
+        ⟨mem_of_mem_erase (mem_filter.mp hi).1, (mem_filter.mp hi).2⟩).trans
       (card_filter_Icc_multiplicity_two_le ha hk.le hmax)
-    obtain ⟨hi, he⟩ := mem_filter.mp hi
-    exact mem_filter.mpr ⟨mem_of_mem_erase hi, he⟩
-  exact Cslib.MinIsolation.BaseSix.two_mul_sum_six_pow_multiset_le
-    ((Icc a b).erase j).val (multiplicity 2) hlt hcard
 
 end Nat

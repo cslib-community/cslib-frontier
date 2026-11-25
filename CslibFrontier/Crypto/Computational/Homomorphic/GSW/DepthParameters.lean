@@ -72,27 +72,23 @@ def modulus (security : ℕ) : ℕ := 2 ^ width security
 /-- The logarithmic size is uniformly bounded away from zero. -/
 theorem two_le_logSize (security : ℕ) : 2 ≤ logSize security := by
   have := Nat.clog_pos Nat.one_lt_two (by omega : 1 < security + 2)
-  unfold logSize
-  omega
+  unfold logSize; omega
 
 /-- A simple linear majorant for the logarithmic size. -/
 theorem logSize_le (security : ℕ) : logSize security ≤ security + 2 := by
   have hpow : security + 2 ≤ 2 ^ (security + 1) := Nat.lt_two_pow_self
   have := Nat.clog_le_of_le_pow hpow
-  unfold logSize
-  omega
+  unfold logSize; omega
 
 /-- Every parameter has a nonempty modular word. -/
 theorem width_pos (security : ℕ) : 0 < width security := by
   have := two_le_logSize security
-  unfold width
-  positivity
+  unfold width; positivity
 
 /-- The depth budget is positive for every security parameter. -/
 theorem depthBudget_pos (security : ℕ) : 0 < depthBudget security := by
   have := two_le_logSize security
-  unfold depthBudget
-  positivity
+  unfold depthBudget; positivity
 
 /-- The number of samples has exactly the required entropy surplus. -/
 theorem entropy_margin (security : ℕ) : rows security + 2 * security ≤ samples security := le_rfl
@@ -102,19 +98,14 @@ theorem width_le (security : ℕ) : width security ≤ 16384 * (security + 2) ^ 
   Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (logSize_le security) 2)
 
 /-- The ciphertext dimension has an explicit cubic majorant. -/
-theorem rows_le (security : ℕ) : rows security ≤ 16384 * (security + 2) ^ 3 := by
-  calc
-    rows security ≤ (security + 2) * (16384 * (security + 2) ^ 2) :=
-      Nat.mul_le_mul_left _ (width_le security)
-    _ = _ := by ring
+theorem rows_le (security : ℕ) : rows security ≤ 16384 * (security + 2) ^ 3 :=
+  (Nat.mul_le_mul_left _ (width_le security)).trans_eq (by unfold Parameters.dimension; ring)
 
 /-- The public sample count has an explicit cubic majorant. -/
 theorem samples_le (security : ℕ) : samples security ≤ 16386 * (security + 2) ^ 3 := by
-  have h := rows_le security
-  have hpow : security + 2 ≤ (security + 2) ^ 3 := by
-    simpa using Nat.pow_le_pow_right (by omega : 1 ≤ security + 2) (by decide : 1 ≤ 3)
-  unfold samples
-  nlinarith
+  have := rows_le security
+  have : security + 2 ≤ (security + 2) ^ 3 := Nat.le_self_pow (by decide) _
+  unfold samples; nlinarith
 
 /-- The logarithmic budget also has a linear majorant. -/
 theorem depthBudget_le (security : ℕ) : depthBudget security ≤ 512 * (security + 2) :=
@@ -125,52 +116,39 @@ private theorem sizes_le_pow (security : ℕ) :
       samples security ≤ 2 ^ (11 * logSize security) ∧ noise security ≤ 2 ^ logSize security := by
   let t := logSize security
   have ht : 2 ≤ t := two_le_logSize security
-  have hn : security + 2 ≤ 2 ^ t :=
-    (Nat.le_pow_clog Nat.one_lt_two _).trans
-      (Nat.pow_le_pow_right (by decide) (by dsimp [t, logSize]; omega))
-  have hlog : t ≤ 2 ^ t := (Nat.lt_two_pow_self (n := t)).le
+  have hn : security + 2 ≤ 2 ^ t := (Nat.le_pow_clog Nat.one_lt_two _).trans
+    (Nat.pow_le_pow_right (by decide) (Nat.le_add_left _ 1))
   have hrows : rows security ≤ 2 ^ (14 + 3 * t) := by
-    calc
-      rows security ≤ 2 ^ t * (16384 * (2 ^ t) ^ 2) :=
-        Nat.mul_le_mul hn (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hlog 2))
-      _ = _ := by rw [pow_add, Nat.mul_comm 3 t, pow_mul]; ring
+    refine (Nat.mul_le_mul hn (Nat.mul_le_mul_left _
+      (Nat.pow_le_pow_left (Nat.lt_two_pow_self (n := t)).le 2))).trans_eq ?_
+    rw [pow_add, Nat.mul_comm 3 t, pow_mul]; ring
   have hsmall : 2 * security ≤ rows security := by
-    have hw : 2 ≤ width security := by unfold width; change 2 ≤ 16384 * t ^ 2; nlinarith
-    unfold rows dimension
-    nlinarith
+    have : 2 ≤ width security := by dsimp [width, t]; nlinarith
+    unfold rows Parameters.dimension; nlinarith
   have hnext : 2 * 2 ^ (14 + 3 * t) ≤ 2 ^ (11 * t) := by
-    calc
-      _ = 2 ^ (15 + 3 * t) := by
-        rw [show 15 + 3 * t = (14 + 3 * t) + 1 by omega, pow_succ]
-        omega
-      _ ≤ _ := Nat.pow_le_pow_right (by decide) (by omega)
-  have hpos : 0 < 2 ^ (14 + 3 * t) := by positivity
-  refine ⟨(by omega : rows security + 1 ≤ 2 * 2 ^ (14 + 3 * t)).trans hnext, ?_, ?_⟩
-  · exact (by unfold samples; omega : samples security ≤ 2 * 2 ^ (14 + 3 * t)).trans hnext
-  · change security + 1 ≤ 2 ^ t
-    omega
+    simpa only [← pow_succ'] using
+      Nat.pow_le_pow_right (by decide : 1 ≤ 2) (by omega : 14 + 3 * t + 1 ≤ 11 * t)
+  have : 0 < 2 ^ (14 + 3 * t) := by positivity
+  exact ⟨(by omega : rows security + 1 ≤ _).trans hnext,
+    (by unfold samples; omega : samples security ≤ _).trans hnext,
+    show security + 1 ≤ 2 ^ t by omega⟩
 
 /-- The complete declared NAND depth remains strictly inside the original decoding margin. -/
 theorem noise_margin (security : ℕ) :
     4 * samples security * noise security * (rows security + 1) ^ depthBudget security <
       modulus security := by
-  let t := logSize security
-  have ht : 2 ≤ t := two_le_logSize security
   obtain ⟨hrows, hsamples, hnoise⟩ := sizes_le_pow security
-  calc
-    _ ≤ 4 * 2 ^ (11 * t) * 2 ^ t * (2 ^ (11 * t)) ^ (512 * t) :=
-      Nat.mul_le_mul (Nat.mul_le_mul (Nat.mul_le_mul_left _ hsamples) hnoise)
-        (Nat.pow_le_pow_left hrows _)
-    _ = 2 ^ (5632 * t ^ 2 + 12 * t + 2) := by
-      calc
-        _ = 2 ^ (2 + 11 * t + t + (11 * t) * (512 * t)) := by
-          rw [← pow_mul, pow_add, pow_add, pow_add]
-          norm_num
-        _ = _ := by congr 1; ring
-    _ < modulus security := by
-      apply Nat.pow_lt_pow_right (by decide)
-      change 5632 * t ^ 2 + 12 * t + 2 < 16384 * t ^ 2
-      nlinarith
+  unfold depthBudget modulus width
+  set t := logSize security
+  have ht : 2 ≤ t := two_le_logSize security
+  refine (Nat.mul_le_mul (Nat.mul_le_mul (Nat.mul_le_mul_left _ hsamples) hnoise)
+    (Nat.pow_le_pow_left hrows _)).trans_lt ?_
+  have hexp : 4 * 2 ^ (11 * t) * 2 ^ t * (2 ^ (11 * t)) ^ (512 * t) =
+      2 ^ (5632 * t ^ 2 + 12 * t + 2) := by
+    rw [show (4 : ℕ) = 2 ^ 2 by decide, ← pow_mul, ← pow_add, ← pow_add, ← pow_add]
+    congr 1; ring
+  rw [hexp]
+  exact Nat.pow_lt_pow_right (by decide) (by nlinarith)
 
 /-- Every smaller depth also satisfies the full noise margin. -/
 theorem noise_margin_of_le {security depth : ℕ} (hdepth : depth ≤ depthBudget security) :
@@ -193,8 +171,7 @@ theorem nand_margin (security : ℕ) :
 /-- The logarithmic size is uniformly computable with unary input and output. -/
 @[fun_prop]
 theorem computableInPolyTime_logSize :
-    ComputableInPolyTime logSize encUnary encUnary := by
-  fun_prop [logSize]
+    ComputableInPolyTime logSize encUnary encUnary := by fun_prop [logSize]
 
 /-- Compute the unary digit width, including its quadratic dependence on the logarithm. -/
 @[fun_prop]
@@ -228,17 +205,15 @@ theorem polynomiallyBounded_parameters :
       PolynomiallyBounded rows ∧ PolynomiallyBounded samples ∧ PolynomiallyBounded depthBudget :=
   ⟨Parameters.computableInPolyTime_dimension.polynomiallyBounded,
     Parameters.computableInPolyTime_noise.polynomiallyBounded,
-    DepthParameters.computableInPolyTime_width.polynomiallyBounded,
-    DepthParameters.computableInPolyTime_rows.polynomiallyBounded,
-    DepthParameters.computableInPolyTime_samples.polynomiallyBounded,
+    computableInPolyTime_width.polynomiallyBounded, computableInPolyTime_rows.polynomiallyBounded,
+    computableInPolyTime_samples.polynomiallyBounded,
     computableInPolyTime_depthBudget.polynomiallyBounded⟩
 
 /-- The actual shared-public-matrix error bound is negligible for this new family. -/
 theorem negligible_statistical_error :
     Negligible (fun security => (rows security : ℝ≥0) *
       NNReal.sqrt ((2 : ℝ≥0) ^ rows security / 2 ^ samples security)) :=
-  negligible_mul_sqrt_pow_two_div_pow_two
-    DepthParameters.computableInPolyTime_rows.polynomiallyBounded
+  negligible_mul_sqrt_pow_two_div_pow_two computableInPolyTime_rows.polynomiallyBounded
     (Filter.Eventually.of_forall entropy_margin)
 
 end Cslib.Crypto.Homomorphic.GSW.DepthParameters

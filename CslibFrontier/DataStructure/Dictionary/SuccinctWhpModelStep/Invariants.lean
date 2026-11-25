@@ -217,91 +217,60 @@ scans the next `16` slots). -/
 theorem ValidFastState.toCore {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U} (hv : ValidFastState c U V n_max θ fs dict) :
     CoreFastInv c U V n_max θ fs dict :=
-  { hth := hv.hth, curEp_or := hv.curEp_or, epochClock_lt := hv.epochClock_lt,
-    rebStage_le := hv.rebStage_le, rebCollision_zero := hv.rebCollision_zero,
-    qv_global := hv.qv_global, bktCount_le := hv.bktCount_le,
-    bktCount_ge_zero := hv.bktCount_ge_zero, locState_active := hv.locState_active,
-    locState_inactive := hv.locState_inactive, active_item := hv.active_item,
-    quot_inj := hv.quot_inj, dict_map := hv.dict_map, poolFreeTop_le := hv.poolFreeTop_le,
-    backPtr_valid := hv.backPtr_valid, freeStack_lt := hv.freeStack_lt,
-    backPtr_inj := hv.backPtr_inj, freeStack_inj := hv.freeStack_inj,
-    back_free_disj := hv.back_free_disj, pool_conservation := hv.pool_conservation,
-    roles_valid := hv.roles_valid, bktSalt_lt := hv.bktSalt_lt,
-    live_fp_inj := hv.live_fp_inj, live_valid := hv.live_valid,
-    rKey_buf_inj := hv.rKey_buf_inj, bufCur_valid := hv.bufCur_valid,
-    bufOld_valid := hv.bufOld_valid }
+  let ⟨f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
+    f20, f21, f22, f23, f24, _, f25, f26, f27, _⟩ := hv
+  ⟨f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
+    f20, f21, f22, f23, f24, f25, f26, f27⟩
 
 theorem CoreFastInv.toValidFastState {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {dict : State U} (hc : CoreFastInv c U V n_max θ fs dict)
     (hom : ∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs b)
     (hst : ValidEpochStage c U n_max θ fs) :
     ValidFastState c U V n_max θ fs dict :=
-  { hth := hc.hth, curEp_or := hc.curEp_or, epochClock_lt := hc.epochClock_lt,
-    rebStage_le := hc.rebStage_le, rebCollision_zero := hc.rebCollision_zero,
-    qv_global := hc.qv_global, bktCount_le := hc.bktCount_le,
-    bktCount_ge_zero := hc.bktCount_ge_zero, locState_active := hc.locState_active,
-    locState_inactive := hc.locState_inactive, active_item := hc.active_item,
-    quot_inj := hc.quot_inj, dict_map := hc.dict_map, poolFreeTop_le := hc.poolFreeTop_le,
-    backPtr_valid := hc.backPtr_valid, freeStack_lt := hc.freeStack_lt,
-    backPtr_inj := hc.backPtr_inj, freeStack_inj := hc.freeStack_inj,
-    back_free_disj := hc.back_free_disj, pool_conservation := hc.pool_conservation,
-    roles_valid := hc.roles_valid, bktSalt_lt := hc.bktSalt_lt,
-    live_fp_inj := hc.live_fp_inj, live_valid := hc.live_valid,
-    overmars_valid := hom, rKey_buf_inj := hc.rKey_buf_inj,
-    bufCur_valid := hc.bufCur_valid, bufOld_valid := hc.bufOld_valid,
-    stage_valid := hst }
+  let ⟨f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
+    f20, f21, f22, f23, f24, f25, f26, f27⟩ := hc
+  ⟨f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19,
+    f20, f21, f22, f23, f24, hom, f25, f26, f27, hst⟩
 
 theorem OvermarsBucketInv.toPre {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} {b : ℕ} (h : OvermarsBucketInv c U n_max θ fs b) :
     PreOvermarsBucketInv c U n_max θ fs b := by
   rcases h with ⟨h0, hlt⟩ | ⟨h1, h16, hcur, hlin, hins, omMap, hv, hrel⟩
   · exact Or.inl ⟨h0, hlt.le⟩
-  · refine Or.inr ⟨h1, h16, hcur.le, by omega, by omega, omMap, hv, ?_⟩
-    rwa [Nat.min_eq_right hcur.le]
+  · exact Or.inr ⟨h1, h16, hcur.le, by omega, by omega, omMap, hv,
+      by rwa [Nat.min_eq_right hcur.le]⟩
 
 theorem ValidEpochStage.toPreTick {c U n_max : ℕ} {θ : SeedWhp c U n_max} {fs : FastState}
     (h : ValidEpochStage c U n_max θ fs) : ValidEpochStagePreTick c U n_max θ fs := by
   dsimp only [ValidEpochStage, ValidEpochStagePreTick] at h ⊢
-  split_ifs at h ⊢ with h0 h1 h2 h3
-  · exact h
-  · exact h
-  · rcases h with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hs⟩
-    refine ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun hlt => ?_⟩
-    obtain ⟨hcur, hinj, hmap⟩ := hs hlt
-    refine ⟨?_, hinj, hmap⟩
-    rcases hcur with ⟨hc0, hi0⟩ | ⟨h16, hc_lt, hins⟩
-    · exact Or.inl ⟨hc0, hi0⟩
-    · exact Or.inr ⟨h16, hc_lt.le, by omega⟩
-  · exact h
+  split_ifs at h ⊢ with h0 h1 h2 h3 <;> try exact h
+  rcases h with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hs⟩
+  refine ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun hlt => ?_⟩
+  obtain ⟨⟨hc0, hi0⟩ | ⟨h16, hc_lt, hins⟩, hinj, hmap⟩ := hs hlt
+  · exact ⟨Or.inl ⟨hc0, hi0⟩, hinj, hmap⟩
+  · exact ⟨Or.inr ⟨h16, hc_lt.le, by omega⟩, hinj, hmap⟩
 
 theorem fpAt_lt {c U n_max : ℕ} (θ : SeedWhp c U n_max) (fs : FastState)
     (salt b loc : ℕ) : fs.fpAt c U n_max θ salt b loc < 2 ^ fpBitsWhp n_max := by
   dsimp only [FastState.fpAt]
   split_ifs with hs hu
   · exact fpHash_lt c U n_max θ.2 ⟨salt, hs⟩ ⟨_, hu⟩
-  · exact Nat.two_pow_pos _
-  · exact Nat.two_pow_pos _
+  all_goals exact Nat.two_pow_pos _
 
 theorem keyValAt_eq_of_fields {c U n_max : ℕ} {θ₁ : BktSeed c U n_max} {fs₁ fs₂ : FastState}
     (hq : fs₁.quotArr = fs₂.quotArr) (hbp : fs₁.backPtr = fs₂.backPtr) :
     fs₁.keyValAt c U n_max θ₁ = fs₂.keyValAt c U n_max θ₁ := by
-  funext b loc
-  dsimp only [FastState.keyValAt, FastState.physSlot]
-  rw [hq, hbp]
+  funext b loc; simp [FastState.keyValAt, FastState.physSlot, hq, hbp]
 
 theorem fpAt_eq_of_fields {c U n_max : ℕ} {θ : SeedWhp c U n_max} {fs₁ fs₂ : FastState}
     (hq : fs₁.quotArr = fs₂.quotArr) (hbp : fs₁.backPtr = fs₂.backPtr) (salt b : ℕ) :
     fs₁.fpAt c U n_max θ salt b = fs₂.fpAt c U n_max θ salt b := by
-  funext loc
-  dsimp only [FastState.fpAt]
-  rw [keyValAt_eq_of_fields hq hbp]
+  funext loc; simp [FastState.fpAt, keyValAt_eq_of_fields hq hbp]
 
 theorem rKeyAt_eq_of_fields {c U n_max : ℕ} {θ : SeedWhp c U n_max} {fs₁ fs₂ : FastState}
     (hq : fs₁.quotArr = fs₂.quotArr) (hbp : fs₁.backPtr = fs₂.backPtr) :
     fs₁.rKeyAt c U n_max θ = fs₂.rKeyAt c U n_max θ := by
-  funext b loc
-  dsimp only [FastState.rKeyAt]
-  rw [keyValAt_eq_of_fields hq hbp]
+  funext b loc; simp [FastState.rKeyAt, keyValAt_eq_of_fields hq hbp]
 
 theorem OvermarsBucketInv.of_eq_on {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs' : FastState} {b : ℕ}
@@ -318,13 +287,11 @@ theorem OvermarsBucketInv.of_eq_on {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     (hoi : fs'.overmarsInsCount b = fs.overmarsInsCount b)
     (hsl : fs'.slices (fs'.overmarsSliceIdx b) = fs.slices (fs.overmarsSliceIdx b)) :
     OvermarsBucketInv c U n_max θ fs' b := by
-  have hold : fs'.oldEp = fs.oldEp := by dsimp only [FastState.oldEp]; rw [hep]
+  have hold : fs'.oldEp = fs.oldEp := by simp [FastState.oldEp, hep]
   rcases h with ⟨h0, hlt⟩ | ⟨h1, h16, hcur, hlin, hins, omMap, hv, hrel⟩
   · exact Or.inl ⟨hoa.trans h0, hlic.symm ▸ hlt⟩
-  · refine Or.inr ⟨hoa.trans h1, hoc.symm ▸ h16, by omega, by omega, by omega,
-      omMap, ?_, ?_⟩
-    · rw [hoi, hsl]; exact hv
-    · rw [hfp, hst, hold, hdn, hls, hoc]; exact hrel
+  · exact Or.inr ⟨hoa.trans h1, hoc.symm ▸ h16, by omega, by omega, by omega,
+      omMap, by rwa [hoi, hsl], by rwa [hfp, hst, hold, hdn, hls, hoc]⟩
 
 theorem OvermarsBucketInv.of_eq_lt {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs' : FastState} {b : ℕ}
@@ -343,15 +310,14 @@ theorem OvermarsBucketInv.of_eq_lt {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     (hoi : fs'.overmarsInsCount b = fs.overmarsInsCount b)
     (hsl : fs'.slices (fs'.overmarsSliceIdx b) = fs.slices (fs.overmarsSliceIdx b)) :
     OvermarsBucketInv c U n_max θ fs' b := by
-  have hold : fs'.oldEp = fs.oldEp := by dsimp only [FastState.oldEp]; rw [hep]
+  have hold : fs'.oldEp = fs.oldEp := by simp [FastState.oldEp, hep]
   rcases h with ⟨h0, hlt⟩ | ⟨h1, h16, hcur, hlin, hins, omMap, hv, hrel⟩
   · exact Or.inl ⟨hoa.trans h0, hlic.symm ▸ hlt⟩
   · refine Or.inr ⟨hoa.trans h1, hoc.symm ▸ h16, by omega, by omega, by omega,
-      omMap, ?_, ?_⟩
-    · rw [hoi, hsl]; exact hv
-    · rw [hsalt, hst, hold, hdn, hoc]
-      exact hrel.congr (fun loc hlt => hfp loc (hlt.trans hcur))
-        (fun loc hlt => by rw [hls loc (hlt.trans hcur)])
+      omMap, by rwa [hoi, hsl], ?_⟩
+    rw [hsalt, hst, hold, hdn, hoc]
+    exact hrel.congr (fun loc hlt => hfp loc (hlt.trans hcur))
+      fun loc hlt => by rw [hls loc (hlt.trans hcur)]
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 

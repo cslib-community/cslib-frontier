@@ -137,9 +137,8 @@ theorem moveCost_self (s : Fin k → α) : moveCost M s s = 0 :=
 
 theorem moveCost_triangle (s t u : Fin k → α) :
     moveCost M s u ≤ moveCost M s t + moveCost M t u := by
-  unfold moveCost
-  rw [← Finset.sum_add_distrib]
-  exact Finset.sum_le_sum fun i _ => M.dist_triangle _ _ _
+  unfold moveCost; rw [← Finset.sum_add_distrib]
+  exact Finset.sum_le_sum fun _ _ => M.dist_triangle _ _ _
 
 /-- Relabeling both configurations by the same permutation does not change the movement. -/
 theorem moveCost_comp_perm (s s' : Fin k → α) (π : Equiv.Perm (Fin k)) :
@@ -149,24 +148,19 @@ theorem moveCost_comp_perm (s s' : Fin k → α) (π : Equiv.Perm (Fin k)) :
 /-- Moving one server costs its distance. -/
 theorem moveCost_update (s : Fin k → α) (a : Fin k) (x : α) :
     moveCost M s (Function.update s a x) = M.dist (s a) x := by
-  unfold moveCost
-  rw [Fintype.sum_eq_single a fun i hi => by rw [Function.update_of_ne hi, M.dist_self],
+  rw [moveCost, Fintype.sum_eq_single a fun _ hi => by rw [Function.update_of_ne hi, M.dist_self],
     Function.update_self]
 
 /-- Moving two distinct servers costs the sum of their distances. -/
 theorem moveCost_update_update (s : Fin k → α) {a b : Fin k} (hab : a ≠ b) (x y : α) :
     moveCost M s (Function.update (Function.update s a x) b y) =
       M.dist (s a) x + M.dist (s b) y := by
-  unfold moveCost
-  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a)]
-  have hb : b ∈ Finset.univ.erase a := Finset.mem_erase.2 ⟨Ne.symm hab, Finset.mem_univ b⟩
-  rw [← Finset.add_sum_erase _ _ hb]
-  have hrest : ∑ i ∈ (Finset.univ.erase a).erase b,
-      M.dist (s i) (Function.update (Function.update s a x) b y i) = 0 :=
+  have hb : b ∈ Finset.univ.erase a := Finset.mem_erase.2 ⟨hab.symm, Finset.mem_univ b⟩
+  rw [moveCost, ← Finset.add_sum_erase _ _ (Finset.mem_univ a), ← Finset.add_sum_erase _ _ hb,
     Finset.sum_eq_zero fun i hi => by
       rw [Function.update_of_ne (Finset.ne_of_mem_erase hi),
-        Function.update_of_ne (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hi)), M.dist_self]
-  rw [hrest, Function.update_of_ne hab, Function.update_self, Function.update_self, Nat.add_zero]
+        Function.update_of_ne (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hi)), M.dist_self],
+    Function.update_of_ne hab, Function.update_self, Function.update_self, Nat.add_zero]
 
 /-! ### The problem -/
 
@@ -201,9 +195,8 @@ theorem matchCost_le (s t : Fin k → α) (σ : Equiv.Perm (Fin k)) :
   Finset.inf'_le _ (Finset.mem_univ σ)
 
 theorem exists_matchCost_eq (s t : Fin k → α) :
-    ∃ σ, matchCost M s t = matchCostAlong M s t σ := by
-  obtain ⟨σ, _, h⟩ := Finset.exists_mem_eq_inf' Finset.univ_nonempty (matchCostAlong M s t)
-  exact ⟨σ, by rw [matchCost, h]⟩
+    ∃ σ, matchCost M s t = matchCostAlong M s t σ :=
+  (Finset.exists_mem_eq_inf' Finset.univ_nonempty (matchCostAlong M s t)).imp fun _ h => h.2
 
 theorem matchCost_le_moveCost (s t : Fin k → α) : matchCost M s t ≤ moveCost M s t :=
   matchCost_le M s t (Equiv.refl _)
@@ -218,25 +211,19 @@ theorem matchCost_le_add_moveCost (s t t' : Fin k → α) :
   obtain ⟨σ, hσ⟩ := exists_matchCost_eq M s t
   rw [hσ]
   refine (matchCost_le M s t' σ).trans ?_
-  unfold matchCostAlong moveCost
-  rw [← Equiv.sum_comp σ (fun i => M.dist (t i) (t' i)), ← Finset.sum_add_distrib]
-  exact Finset.sum_le_sum fun i _ => M.dist_triangle _ _ _
+  rw [matchCostAlong, matchCostAlong, moveCost, ← Equiv.sum_comp σ fun i => M.dist (t i) (t' i),
+    ← Finset.sum_add_distrib]
+  exact Finset.sum_le_sum fun _ _ => M.dist_triangle _ _ _
 
 /-- Relabeling the first configuration does not change the matching distance. -/
 theorem matchCost_comp_perm (s t : Fin k → α) (π : Equiv.Perm (Fin k)) :
     matchCost M (s ∘ π) t = matchCost M s t := by
-  apply le_antisymm
-  · obtain ⟨σ, hσ⟩ := exists_matchCost_eq M s t
-    rw [hσ]
-    refine (matchCost_le M (s ∘ π) t (π.trans σ)).trans (le_of_eq ?_)
-    unfold matchCostAlong
-    exact Equiv.sum_comp π (fun i => M.dist (s i) (t (σ i)))
-  · obtain ⟨σ, hσ⟩ := exists_matchCost_eq M (s ∘ π) t
-    rw [hσ]
-    refine (matchCost_le M s t (π.symm.trans σ)).trans (le_of_eq ?_)
-    unfold matchCostAlong
-    rw [← Equiv.sum_comp π]
-    simp only [Function.comp_apply, Equiv.trans_apply, Equiv.symm_apply_apply]
+  have hle (s : Fin k → α) (π : Equiv.Perm (Fin k)) : matchCost M (s ∘ π) t ≤ matchCost M s t := by
+    obtain ⟨σ, hσ⟩ := exists_matchCost_eq M s t
+    exact hσ ▸ (matchCost_le M (s ∘ π) t (π.trans σ)).trans_eq
+      (Equiv.sum_comp π fun i => M.dist (s i) (t (σ i)))
+  refine le_antisymm (hle s π) ?_
+  simpa only [Function.comp_def, Equiv.apply_symm_apply] using hle (s ∘ π) π.symm
 
 /-- Summed distance over ordered pairs of servers; each unordered pair is counted twice. -/
 @[expose]
@@ -245,21 +232,19 @@ def pairSum (s : Fin k → α) : Nat :=
 
 theorem pairSum_comp_perm (s : Fin k → α) (π : Equiv.Perm (Fin k)) :
     pairSum M (s ∘ π) = pairSum M s := by
-  unfold pairSum
-  simp only [Function.comp_apply]
-  rw [Equiv.sum_comp π (fun i => ∑ j, M.dist (s i) (s (π j)))]
-  exact Finset.sum_congr rfl fun i _ => Equiv.sum_comp π (fun j => M.dist (s i) (s j))
+  unfold pairSum; simp only [Function.comp_apply]
+  exact (Equiv.sum_comp π fun i => ∑ j, M.dist (s i) (s (π j))).trans
+    (Finset.sum_congr rfl fun i _ => Equiv.sum_comp π fun j => M.dist (s i) (s j))
 
 /-- Sums of two functions agreeing off `{a, b}` compare as their values on `{a, b}`. -/
 private theorem sum_le_sum_of_eq_off_pair {f g : Fin k → Nat} {a b : Fin k} (hab : a ≠ b)
     (hfg : ∀ i, i ≠ a → i ≠ b → f i = g i) (h : f a + f b ≤ g a + g b) :
     ∑ i, f i ≤ ∑ i, g i := by
-  have hb : b ∈ Finset.univ.erase a := Finset.mem_erase.2 ⟨Ne.symm hab, Finset.mem_univ b⟩
+  have hb : b ∈ Finset.univ.erase a := Finset.mem_erase.2 ⟨hab.symm, Finset.mem_univ b⟩
   rw [← Finset.add_sum_erase _ f (Finset.mem_univ a),
     ← Finset.add_sum_erase _ g (Finset.mem_univ a), ← Finset.add_sum_erase _ f hb,
     ← Finset.add_sum_erase _ g hb]
-  have hrest : ∑ i ∈ (Finset.univ.erase a).erase b, f i =
-      ∑ i ∈ (Finset.univ.erase a).erase b, g i :=
+  have : ∑ i ∈ (Finset.univ.erase a).erase b, f i = ∑ i ∈ (Finset.univ.erase a).erase b, g i :=
     Finset.sum_congr rfl fun i hi =>
       hfg i (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hi)) (Finset.ne_of_mem_erase hi)
   omega
@@ -270,16 +255,13 @@ theorem matchCostAlong_swap_le (s t : Fin k → α) (σ : Equiv.Perm (Fin k)) {a
     (hbtw : M.dist (t (σ a)) (s a) = M.dist (t (σ a)) (s b) + M.dist (s b) (s a)) :
     matchCostAlong M s t (σ * Equiv.swap a b) ≤ matchCostAlong M s t σ := by
   by_cases hab : a = b
-  · rw [hab, Equiv.swap_self, Equiv.Perm.mul_def, Equiv.refl_trans]
-  unfold matchCostAlong
-  refine sum_le_sum_of_eq_off_pair hab (fun i ha hb => ?_) ?_
-  · rw [Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne ha hb]
-  · simp only [Equiv.Perm.mul_apply, Equiv.swap_apply_left, Equiv.swap_apply_right]
-    have h1 := M.dist_triangle (s a) (s b) (t (σ b))
-    have h2 := M.dist_comm (s b) (t (σ a))
-    have h3 := M.dist_comm (s a) (t (σ a))
-    have h4 := M.dist_comm (s b) (s a)
-    omega
+  · simp [hab, Equiv.Perm.mul_def]
+  refine sum_le_sum_of_eq_off_pair hab
+    (fun _ ha hb => by rw [Equiv.Perm.mul_apply, Equiv.swap_apply_of_ne_of_ne ha hb]) ?_
+  simp only [Equiv.Perm.mul_apply, Equiv.swap_apply_left, Equiv.swap_apply_right]
+  have := M.dist_triangle (s a) (s b) (t (σ b))
+  rw [M.dist_comm (t (σ a)) (s b), M.dist_comm (t (σ a)) (s a), M.dist_comm (s b) (s a)] at hbtw
+  omega
 
 /-- Moving one server changes a fixed matching's cost by at most the distance moved. -/
 theorem matchCostAlong_update_le (s t : Fin k → α) (σ : Equiv.Perm (Fin k)) (i : Fin k) (y : α) :
@@ -287,8 +269,8 @@ theorem matchCostAlong_update_le (s t : Fin k → α) (σ : Equiv.Perm (Fin k)) 
   unfold matchCostAlong
   rw [Finset.sum_apply_update_of_mem (Finset.mem_univ i) (fun j a => M.dist a (t (σ j))),
     ← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-  have htri := M.dist_triangle y (s i) (t (σ i))
-  have hc := M.dist_comm y (s i)
+  have := M.dist_triangle y (s i) (t (σ i))
+  have := M.dist_comm y (s i)
   omega
 
 /-- Moving one server along a geodesic toward its partner lowers the cost by the distance moved. -/

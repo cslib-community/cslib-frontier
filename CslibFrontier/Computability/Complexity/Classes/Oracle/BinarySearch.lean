@@ -55,20 +55,15 @@ theorem fst_iterate_step {F N : ℕ} (hF : F < 2 ^ N) : ((step F)^[N] (0, N)).1 
     | zero => exact ⟨0, rfl, Nat.zero_le _, by simpa using hF⟩
     | succ t ih =>
       obtain ⟨lo, hlo, hle, hlt⟩ := ih (by omega)
-      rw [Function.iterate_succ_apply', hlo]
       obtain ⟨j, hj⟩ : ∃ j, N - t = j + 1 := ⟨N - t - 1, by omega⟩
-      have hj' : N - (t + 1) = j := by omega
       rw [hj, pow_succ] at hlt
-      unfold step
-      simp only [hj, Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel, hj']
-      split_ifs with h
-      · exact ⟨_, rfl, h, by omega⟩
-      · exact ⟨_, rfl, hle, by omega⟩
+      rw [Function.iterate_succ_apply', hlo, step]
+      simp only [hj, Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel,
+        show N - (t + 1) = j by omega]
+      split_ifs with h <;> exact ⟨_, rfl, by omega, by omega⟩
   obtain ⟨lo, hlo, hle, hlt⟩ := key N le_rfl
-  rw [hlo]
   simp only [Nat.sub_self, pow_zero] at hlt
-  dsimp only
-  omega
+  simpa only [hlo] using (by omega : lo = F)
 
 /-! ### Binary search with an oracle -/
 
@@ -90,8 +85,7 @@ private theorem interpret_searchQuery (u : List Bool) (s : ℕ × ℕ) :
         (fun reply => (if reply == [true] then s.1 + 2 ^ (s.2 - 1) else s.1, s.2 - 1)) <$>
           (List.take 1 <$> ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
             ((), encPair encBits encNat (u, s.1 + 2 ^ (s.2 - 1)))) := by
-  unfold searchQuery
-  split <;> simp [OracleComp.interpret_map, OracleComp.interpret_query]
+  unfold searchQuery; split <;> simp [OracleComp.interpret_map, OracleComp.interpret_query]
 
 open Classical in
 /-- Against an oracle containing the code of `(u, k)` exactly when `k ≤ F`, a round of the search
@@ -106,13 +100,8 @@ private theorem interpret_id_searchQuery {F : ℕ} {A : Set (List Bool)} {u : Li
   · change (fun reply : List Bool =>
       (if reply == [true] then s.1 + 2 ^ (s.2 - 1) else s.1, s.2 - 1))
         (List.take 1 (languageOracle A ((), encPair encBits encNat (u, s.1 + 2 ^ (s.2 - 1))))) = _
-    rw [languageOracle_apply]
-    by_cases hm : encPair encBits encNat (u, s.1 + 2 ^ (s.2 - 1)) ∈ A
-    · simp only [decide_eq_true hm, (hA _).1 hm, ↓reduceIte, List.take_succ_cons, List.take_zero,
-        beq_self_eq_true]
-    · have hle : ¬ s.1 + 2 ^ (s.2 - 1) ≤ F := fun h => hm ((hA _).2 h)
-      simp only [decide_eq_false hm, hle, ↓reduceIte, List.take_succ_cons, List.take_zero]
-      rfl
+    rw [languageOracle_apply, hA]
+    by_cases hm : s.1 + 2 ^ (s.2 - 1) ≤ F <;> simp [hm]
 
 open Classical in
 /-- **Binary search finds the number.** Against an oracle containing the code of `(u, k)` exactly
@@ -120,13 +109,11 @@ when `k ≤ F`, the search in `N` rounds returns `F < 2 ^ N`. -/
 theorem interpret_id_search {F N : ℕ} {A : Set (List Bool)} {u : List Bool}
     (hA : ∀ k, encPair encBits encNat (u, k) ∈ A ↔ k ≤ F) (hF : F < 2 ^ N) :
     OracleComp.interpret (m := Id) (languageOracle A) (search u N) = F := by
-  unfold search
-  rw [OracleComp.interpret_map]
+  rw [search, OracleComp.interpret_map]
   change (OracleComp.interpret (m := Id) (languageOracle A)
     (OracleComp.iterate N (searchQuery u) (0, N))).1 = F
-  rw [OracleComp.interpret_id_iterate]
-  simp only [interpret_id_searchQuery hA]
-  exact fst_iterate_step hF
+  simpa only [OracleComp.interpret_id_iterate, interpret_id_searchQuery hA] using
+    fst_iterate_step hF
 
 /-- **Binary search is strict oracle PPT**: `N` rounds, with `N` computed in unary, each building
 one request and reading one reply bit, on states of a binary number below `2 ^ N` and a unary
@@ -137,50 +124,37 @@ theorem isOraclePPTOn_search {input : α ↪ List Bool} {u : α → List Bool} {
     IsOraclePPTOn input encNat
       (fun a => OracleComp.interpret ProbOracleComp.query (search (u a) (N a))) := by
   simp only [search, OracleComp.interpret_map, OracleComp.interpret_iterate]
-  have hinit : ComputableInPolyTime (fun a => ((0 : ℕ), N a)) input
-      (encPair encNat encUnary) :=
-    (ComputableInPolyTime.const 0).prod hN
   have hstep₀ : IsOraclePPTOn (encPair encBits (encPair encNat encUnary))
-      (encPair encNat encUnary) (fun pair : List Bool × (ℕ × ℕ) =>
-        OracleComp.interpret ProbOracleComp.query (searchQuery pair.1 pair.2)) := by
+      (encPair encNat encUnary) fun pair =>
+        OracleComp.interpret ProbOracleComp.query (searchQuery pair.1 pair.2) := by
     simp only [interpret_searchQuery]
-    refine IsOraclePPTOn.ite (by fun_prop)
-      (ComputableInPolyTime.snd encBits (encPair encNat encUnary)).isOraclePPTOn ?_
-    exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
-      (by fun_prop)
-  have hstep : IsOraclePPTOn (encPair input (encPair encNat encUnary)) (encPair encNat encUnary)
-      (fun pair : α × (ℕ × ℕ) =>
-        OracleComp.interpret ProbOracleComp.query (searchQuery (u pair.1) pair.2)) :=
-    hstep₀.preprocess (prepare := fun pair : α × (ℕ × ℕ) => (u pair.1, pair.2))
-      ((hu.comp (ComputableInPolyTime.fst input (encPair encNat encUnary))).prod
-        (ComputableInPolyTime.snd input (encPair encNat encUnary)))
+    exact .ite (by fun_prop)
+      (ComputableInPolyTime.snd encBits (encPair encNat encUnary)).isOraclePPTOn
+      (.map_with (.query_take () (by fun_prop) (by fun_prop)) (by fun_prop))
   have hpreserve (a : α) (i : ℕ) (s : ℕ × ℕ) (hi : i < N a)
       (hinv : s.2 = N a - i ∧ s.1 + 2 ^ s.2 ≤ 2 ^ N a) (next : ℕ × ℕ)
       (hnext : next ∈ OracleComp.support
         (OracleComp.interpret ProbOracleComp.query (searchQuery (u a) s))) :
       next.2 = N a - (i + 1) ∧ next.1 + 2 ^ next.2 ≤ 2 ^ N a := by
     obtain ⟨hs, hlo⟩ := hinv
-    have hs0 : s.2 ≠ 0 := by omega
-    rw [interpret_searchQuery] at hnext
-    simp only [hs0, ↓reduceIte, Functor.map_map] at hnext
+    rw [interpret_searchQuery, ite_eq_right (by omega), Functor.map_map] at hnext
     obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
     obtain ⟨j, hj⟩ : ∃ j, s.2 = j + 1 := ⟨s.2 - 1, by omega⟩
     rw [hj, pow_succ] at hlo
-    refine ⟨by simp only; omega, ?_⟩
     simp only [hj, Nat.add_sub_cancel]
     split_ifs <;> omega
   have hbound (a : α) (i : ℕ) (s : ℕ × ℕ) (_ : i ≤ N a)
       (hinv : s.2 = N a - i ∧ s.1 + 2 ^ s.2 ≤ 2 ^ N a) :
       (encPair encNat encUnary s).length ≤ 3 * N a + 1 := by
-    obtain ⟨hs, hlo⟩ := hinv
-    have hsize : s.1.size ≤ N a := Nat.size_le.2 (by
-      have := Nat.one_le_two_pow (n := s.2)
-      omega)
-    rw [← Nat.size_eq_bits_len] at hsize
+    have hsize : (Nat.bits s.1).length ≤ N a := by
+      rw [Nat.size_eq_bits_len]
+      exact Nat.size_le.2 ((Nat.lt_add_of_pos_right (Nat.two_pow_pos _)).trans_le hinv.2)
     enc_len [encNat_apply]
   exact (IsOraclePPTOn.iterateWith_spec
     (step := fun a s => OracleComp.interpret ProbOracleComp.query (searchQuery (u a) s))
-    hN hinit hstep (fun a i s => s.2 = N a - i ∧ s.1 + 2 ^ s.2 ≤ 2 ^ N a)
+    hN ((ComputableInPolyTime.const 0).prod hN)
+    (hstep₀.preprocess (prepare := fun pair : α × (ℕ × ℕ) => (u pair.1, pair.2)) (by fun_prop))
+    (fun a i s => s.2 = N a - i ∧ s.1 + 2 ^ s.2 ≤ 2 ^ N a)
     (fun a => ⟨by simp, by simp⟩) hpreserve
     (size := fun a => 3 * N a + 1) (by growth_poly) hbound).1.map
     (ComputableInPolyTime.fst encNat encUnary)
