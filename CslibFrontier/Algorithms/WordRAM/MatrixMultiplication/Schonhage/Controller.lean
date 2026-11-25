@@ -139,8 +139,7 @@ theorem progress_zero (side : Bool) (L : ℕ) (arr : ℕ → ℤ) (x y : Data 32
     hy.stage, hy.prefixes, ?_, hy.src, hy.dst, ?_, ?_⟩
   · simpa only [Nat.sub_zero] using hy.stride
   · intro p hp r hr
-    have hp0 : p = 0 := by simpa only [pow_zero] using Nat.eq_zero_of_le_zero (by omega : p ≤ 0)
-    subst p
+    obtain rfl : p = 0 := Nat.lt_one_iff.mp hp
     rw [hy.mem, value_zero]
     simpa only [source, Nat.sub_zero, Nat.zero_mul, Nat.add_zero] using hinput r hr
   · intro a _
@@ -165,8 +164,7 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
   have hjk' : j + 1 + k = L := by omega
   have hstride : 7 ^ (L - j) = 7 * n := by rw [hk, pow_succ']
   have hN : 10 * P * n ≤ 10 ^ L := by
-    have h := stageSize_le (j + 1) k
-    simpa only [hjk', pow_succ', P, n] using h
+    simpa only [hjk', pow_succ', P, n] using stageSize_le (j + 1) k
   have hcoeff : ∀ t < 10, ∀ s < 7, |table (coefficients side) t s| ≤ 1 := fun t _ s _ => by
     unfold table coefficients
     cases side
@@ -207,8 +205,8 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
     haddr.of_le (by unfold addressBound; nlinarith only [hbound.1, hbound.2, hN, hcap])
   have hseparate : source L j + 7 * P * n ≤ destination L j ∨
       destination L j + 10 * P * n ≤ source L j := by
-    have h := buffers_separated (k := L - j) (by omega : j + (L - j) = L) hN
-    simpa only [hstride, P, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm] using h
+    simpa only [hstride, P, Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm] using
+      buffers_separated (k := L - j) (by omega : j + (L - j) = L) hN
   obtain ⟨y, he, hm, hf, hsrc, hdst, hstr, hp, hstage, hreg⟩ := exec_stageBody hw side x
     P n (source L j) (destination L j) j (outputBase L) (scratchBase L) hP hn hx.src hx.dst
     hx.stage (by simpa only [hstride] using hx.stride) hx.prefixes hx.fixed.2.2.2.2.2.1
