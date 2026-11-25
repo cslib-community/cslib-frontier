@@ -91,80 +91,56 @@ private theorem log_one_add_le_cubic {t : ℝ} (ht : -1 < t) :
   have hderiv : ∀ x : ℝ, -1 < x → HasDerivAt g (x ^ 3 / (1 + x)) x := by
     intro x hx
     have hpos : 0 < 1 + x := by linarith
-    have h1 : HasDerivAt (fun y : ℝ => y - y ^ 2 / 2 + y ^ 3 / 3) (1 - x + x ^ 2) x := by
-      have hd1 : HasDerivAt (fun y : ℝ => y) 1 x := hasDerivAt_id x
-      have hd2 : HasDerivAt (fun y : ℝ => y ^ 2 / 2) (2 * x ^ (2 - 1) / 2) x :=
-        (hasDerivAt_pow 2 x).div_const 2
-      have hd3 : HasDerivAt (fun y : ℝ => y ^ 3 / 3) (3 * x ^ (3 - 1) / 3) x :=
-        (hasDerivAt_pow 3 x).div_const 3
-      convert (hd1.sub hd2).add hd3 using 1
-      ring
-    have h2 : HasDerivAt (fun y : ℝ => Real.log (1 + y)) (1 + x)⁻¹ x := by
-      have hlin : HasDerivAt (fun y : ℝ => 1 + y) (0 + 1) x :=
-        (hasDerivAt_const x (1 : ℝ)).add (hasDerivAt_id x)
-      convert hlin.log hpos.ne' using 1
-      ring
-    convert h1.sub h2 using 1
-    have hne : 1 + x ≠ 0 := hpos.ne'
-    field_simp [hne]
-    ring
+    have h1 : HasDerivAt (fun y : ℝ => y - y ^ 2 / 2 + y ^ 3 / 3) (1 - x + x ^ 2) x :=
+      (((hasDerivAt_id x).sub ((hasDerivAt_pow 2 x).div_const 2)).add
+        ((hasDerivAt_pow 3 x).div_const 3)).congr_deriv (by ring)
+    have h2 : HasDerivAt (fun y : ℝ => Real.log (1 + y)) (1 + x)⁻¹ x :=
+      (((hasDerivAt_const x (1 : ℝ)).add (hasDerivAt_id x)).log hpos.ne').congr_deriv (by simp)
+    exact (h1.sub h2).congr_deriv (by field_simp [hpos.ne']; ring)
   have hg0 : g 0 = 0 := by simp [g]
   suffices h0 : g 0 ≤ g t by
     rw [hg0] at h0
     dsimp only [g] at h0
     linarith
   rcases le_or_gt 0 t with hnonneg | hneg
-  · have hmono : MonotoneOn g (Ici 0) := by
-      refine monotoneOn_of_hasDerivWithinAt_nonneg (f' := fun x : ℝ => x ^ 3 / (1 + x))
-        (convex_Ici 0) ?_ ?_ ?_
-      · intro x hx
-        exact (hderiv x (by linarith [mem_Ici.mp hx])).continuousAt.continuousWithinAt
-      · intro x hx
-        have hx' : 0 < x := by simpa [interior_Ici] using hx
-        exact (hderiv x (by linarith)).hasDerivWithinAt
-      · intro x hx
-        have hx' : 0 < x := by simpa [interior_Ici] using hx
-        exact div_nonneg (by positivity) (by linarith)
-    exact hmono (by simp) hnonneg hnonneg
-  · have hanti : AntitoneOn g (Icc t 0) := by
-      refine antitoneOn_of_hasDerivWithinAt_nonpos (f' := fun x : ℝ => x ^ 3 / (1 + x))
-        (convex_Icc t 0) ?_ ?_ ?_
-      · intro x hx
-        exact (hderiv x (by linarith [hx.1])).continuousAt.continuousWithinAt
-      · intro x hx
-        have hx' : x ∈ Ioo t 0 := by simpa [interior_Icc] using hx
-        exact (hderiv x (by linarith [hx'.1])).hasDerivWithinAt
-      · intro x hx
-        have hx' : x ∈ Ioo t 0 := by simpa [interior_Icc] using hx
-        have hx3 : x ^ 3 ≤ 0 := by nlinarith [hx'.2, sq_nonneg x]
-        exact div_nonpos_of_nonpos_of_nonneg hx3 (by linarith [hx'.1])
-    exact hanti ⟨le_rfl, hneg.le⟩ ⟨hneg.le, le_rfl⟩ hneg.le
+  · refine monotoneOn_of_hasDerivWithinAt_nonneg (f' := fun x : ℝ => x ^ 3 / (1 + x))
+      (convex_Ici 0)
+      (fun x hx => (hderiv x (by linarith [mem_Ici.mp hx])).continuousAt.continuousWithinAt)
+      (fun x hx => ?_) (fun x hx => ?_) (by simp) hnonneg hnonneg
+    · rw [interior_Ici] at hx
+      exact (hderiv x (by linarith [mem_Ioi.mp hx])).hasDerivWithinAt
+    · rw [interior_Ici, mem_Ioi] at hx
+      exact div_nonneg (by positivity) (by linarith)
+  · refine antitoneOn_of_hasDerivWithinAt_nonpos (f' := fun x : ℝ => x ^ 3 / (1 + x))
+      (convex_Icc t 0)
+      (fun x hx => (hderiv x (by linarith [hx.1])).continuousAt.continuousWithinAt)
+      (fun x hx => ?_) (fun x hx => ?_) ⟨le_rfl, hneg.le⟩ ⟨hneg.le, le_rfl⟩ hneg.le
+    · rw [interior_Icc] at hx
+      exact (hderiv x (by linarith [hx.1])).hasDerivWithinAt
+    · rw [interior_Icc] at hx
+      exact div_nonpos_of_nonpos_of_nonneg (by nlinarith [hx.2, sq_nonneg x])
+        (by linarith [hx.1])
 
 private theorem log_five_div_four_le : Real.log (5 / 4) ≤ 22324 / 100000 := by
   have hsplit : Real.log (5 / 4) = Real.log (1 + 1 / 8) + Real.log (1 + 1 / 9) := by
     rw [← Real.log_mul (by norm_num) (by norm_num)]
     norm_num
-  have h8 := log_one_add_le_cubic (t := 1 / 8) (by norm_num)
-  have h9 := log_one_add_le_cubic (t := 1 / 9) (by norm_num)
-  linarith
+  linarith [log_one_add_le_cubic (t := 1 / 8) (by norm_num),
+    log_one_add_le_cubic (t := 1 / 9) (by norm_num)]
 
 private theorem log_three_div_two_le : Real.log (3 / 2) ≤ 40561 / 100000 := by
   have hsplit : Real.log (3 / 2) =
       Real.log (5 / 4) + Real.log (1 + 1 / 10) + Real.log (1 + 1 / 11) := by
     rw [← Real.log_mul (by norm_num) (by norm_num), ← Real.log_mul (by norm_num) (by norm_num)]
     norm_num
-  have h54 := log_five_div_four_le
-  have h10 := log_one_add_le_cubic (t := 1 / 10) (by norm_num)
-  have h11 := log_one_add_le_cubic (t := 1 / 11) (by norm_num)
-  linarith
+  linarith [log_five_div_four_le, log_one_add_le_cubic (t := 1 / 10) (by norm_num),
+    log_one_add_le_cubic (t := 1 / 11) (by norm_num)]
 
 private theorem log_thirteen_div_eight_le : Real.log (13 / 8) ≤ 48567 / 100000 := by
   have hsplit : Real.log (13 / 8) = Real.log (3 / 2) + Real.log (1 + 1 / 12) := by
     rw [← Real.log_mul (by norm_num) (by norm_num)]
     norm_num
-  have h32 := log_three_div_two_le
-  have h12 := log_one_add_le_cubic (t := 1 / 12) (by norm_num)
-  linarith
+  linarith [log_three_div_two_le, log_one_add_le_cubic (t := 1 / 12) (by norm_num)]
 
 /-- Helper converting a natural-log upper bound into a base-2 log upper bound whenever RHS ≥ 0. -/
 private theorem logb_two_le_of_log_le {x B U : ℝ} (hB : 0 ≤ B)
@@ -217,11 +193,8 @@ private theorem step_one_child {p : ℝ} (hp1 : 1 / 2 ≤ p) (hp2 : p ≤ 4 / 5)
     Real.logb 2 (1 + p) + treePot (1 / (1 + p)) - treePot p ≤ 1 - 53 / 200 := by
   obtain ⟨u, v, hu, hv, hp_eq, hv_eq⟩ := exists_barycentric_coords hp1 hp2
   set t : ℝ := (8 * p - 5) / 13
-  have hlog : Real.log (1 + p) ≤ 48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
-    log_one_add_le_thirteen_eighths hp1
   set B : ℝ := (1 - 53 / 200) + treePot p - treePot (1 / (1 + p))
   suffices hle : Real.logb 2 (1 + p) ≤ B by dsimp only [B] at hle; linarith
-  have hop_pos : 0 < (1 + p) ^ 2 := by positivity
   have hpoly : 0 ≤ (1 + p) ^ 2 * ((69313 / 100000 : ℝ) * B -
       (48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3))) := by
     have hid : (1 + p) ^ 2 * ((69313 / 100000 : ℝ) * B -
@@ -240,29 +213,22 @@ private theorem step_one_child {p : ℝ} (hp1 : 1 / 2 ≤ p) (hp2 : p ≤ 4 / 5)
     rw [hid]
     positivity
   have hrat : 48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) ≤ (69313 / 100000 : ℝ) * B := by
-    have := nonneg_of_mul_nonneg_right hpoly hop_pos
-    linarith
+    linarith [nonneg_of_mul_nonneg_right hpoly (by positivity : 0 < (1 + p) ^ 2)]
   have hU_pos : 0 ≤ 48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) := by
-    have ht_lo : -1 / 13 ≤ t := by dsimp only [t]; linarith
-    have ht_hi : t ≤ 7 / 65 := by dsimp only [t]; linarith
-    nlinarith [sq_nonneg t]
-  have hB_nonneg : 0 ≤ B := by linarith
-  exact logb_two_le_of_log_le hB_nonneg hlog hrat
+    dsimp only [t]; nlinarith [sq_nonneg t]
+  exact logb_two_le_of_log_le (by linarith) (log_one_add_le_thirteen_eighths hp1) hrat
 
 /-- Two-variable AM-GM lower bound `2 * treePot (√(p₁ * p₂)) ≤ treePot p₁ + treePot p₂`. -/
 private theorem two_mul_treePot_sqrt_le {p₁ p₂ : ℝ} (h1 : 0 ≤ p₁) (h2 : 0 ≤ p₂) :
     2 * treePot (Real.sqrt (p₁ * p₂)) ≤ treePot p₁ + treePot p₂ := by
   set s₁ := Real.sqrt p₁
   set s₂ := Real.sqrt p₂
-  have hs1 : s₁ ^ 2 = p₁ := Real.sq_sqrt h1
-  have hs2 : s₂ ^ 2 = p₂ := Real.sq_sqrt h2
-  have hmul : Real.sqrt (p₁ * p₂) = s₁ * s₂ := Real.sqrt_mul h1 p₂
   have hid : treePot p₁ + treePot p₂ - 2 * treePot (s₁ * s₂) =
       (1 / 10 : ℝ) * (s₁ - s₂) ^ 2 + (3 / 10 : ℝ) * (p₁ - p₂) ^ 2 := by
     unfold treePot
-    rw [← hs1, ← hs2]
+    rw [← Real.sq_sqrt h1, ← Real.sq_sqrt h2]
     ring
-  rw [hmul]
+  rw [Real.sqrt_mul h1 p₂]
   have hpos : 0 ≤ (1 / 10 : ℝ) * (s₁ - s₂) ^ 2 + (3 / 10 : ℝ) * (p₁ - p₂) ^ 2 := by positivity
   linarith
 
@@ -280,11 +246,8 @@ private theorem step_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1h
     linarith
   obtain ⟨u, v, hu, hv, hq_eq, hv_eq⟩ := exists_barycentric_coords hq_lo hq_hi
   set t : ℝ := (2 * q ^ 2 - 1) / 3
-  have hlog : Real.log (1 + q ^ 2) ≤ 40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
-    log_one_add_sq_le_three_halves
   set B : ℝ := (1 - 2 * (53 / 200)) + 2 * treePot q - treePot (1 / (1 + q ^ 2))
   suffices hle : Real.logb 2 (1 + q ^ 2) ≤ B by dsimp only [B] at hle; linarith
-  have hop_pos : 0 < (1 + q ^ 2) ^ 2 := by positivity
   have hpoly : 0 ≤ (1 + q ^ 2) ^ 2 * ((69313 / 100000 : ℝ) * B -
       (40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3))) := by
     have hid : (1 + q ^ 2) ^ 2 * ((69313 / 100000 : ℝ) * B -
@@ -308,21 +271,16 @@ private theorem step_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1h
     rw [hid]
     positivity
   have hrat : 40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) ≤ (69313 / 100000 : ℝ) * B := by
-    have := nonneg_of_mul_nonneg_right hpoly hop_pos
-    linarith
+    linarith [nonneg_of_mul_nonneg_right hpoly (by positivity : 0 < (1 + q ^ 2) ^ 2)]
   have hU_pos : 0 ≤ 40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) := by
-    have ht_lo : -1 / 6 ≤ t := by dsimp only [t]; nlinarith
-    have ht_hi : t ≤ 7 / 75 := by dsimp only [t]; nlinarith
-    nlinarith [sq_nonneg t]
-  exact logb_two_le_of_log_le (by linarith) hlog hrat
+    dsimp only [t]; nlinarith [sq_nonneg t]
+  exact logb_two_le_of_log_le (by linarith) log_one_add_sq_le_three_halves hrat
 
 /-- `1`-child active-root bound on `[1 / 2, 4 / 5]`. -/
 private theorem root_one_child {p : ℝ} (hp1 : 1 / 2 ≤ p) (hp2 : p ≤ 4 / 5) :
     Real.logb 2 (1 + p) - treePot p ≤ 1 - 53 / 200 - 33 / 1000 := by
   obtain ⟨u, v, hu, hv, hp_eq, hv_eq⟩ := exists_barycentric_coords hp1 hp2
   set t : ℝ := (8 * p - 5) / 13
-  have hlog : Real.log (1 + p) ≤ 48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
-    log_one_add_le_thirteen_eighths hp1
   set B : ℝ := (1 - 53 / 200 - 33 / 1000) + treePot p
   suffices hle : Real.logb 2 (1 + p) ≤ B by dsimp only [B] at hle; linarith
   have hrat : 48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) ≤ (69313 / 100000 : ℝ) * B := by
@@ -337,8 +295,8 @@ private theorem root_one_child {p : ℝ} (hp1 : 1 / 2 ≤ p) (hp2 : p ≤ 4 / 5)
     have hpos : 0 ≤ (69313 / 100000 : ℝ) * B - (48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3)) := by
       rw [hid]; positivity
     linarith
-  have hB_pos : 0 ≤ B := by dsimp only [B, treePot]; nlinarith
-  exact logb_two_le_of_log_le hB_pos hlog hrat
+  exact logb_two_le_of_log_le (by dsimp only [B, treePot]; nlinarith)
+    (log_one_add_le_thirteen_eighths hp1) hrat
 
 /-- `2`-child active-root bound on `[1 / 2, 4 / 5]²`. -/
 private theorem root_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1hi : p₁ ≤ 4 / 5)
@@ -352,8 +310,6 @@ private theorem root_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1h
     linarith
   obtain ⟨u, v, hu, hv, hq_eq, hv_eq⟩ := exists_barycentric_coords hq_lo hq_hi
   set t : ℝ := (2 * q ^ 2 - 1) / 3
-  have hlog : Real.log (1 + q ^ 2) ≤ 40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
-    log_one_add_sq_le_three_halves
   set B : ℝ := (1 - 2 * (53 / 200) - 33 / 1000) + 2 * treePot q
   suffices hle : Real.logb 2 (1 + q ^ 2) ≤ B by dsimp only [B] at hle; linarith
   have hrat : 40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) ≤ (69313 / 100000 : ℝ) * B := by
@@ -371,8 +327,8 @@ private theorem root_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1h
     have hpos : 0 ≤ (69313 / 100000 : ℝ) * B - (40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3)) := by
       rw [hid]; positivity
     linarith
-  have hB_pos : 0 ≤ B := by dsimp only [B, treePot]; nlinarith
-  exact logb_two_le_of_log_le hB_pos hlog hrat
+  exact logb_two_le_of_log_le (by dsimp only [B, treePot]; nlinarith)
+    log_one_add_sq_le_three_halves hrat
 
 /-- `3`-child active-root bound on `[1 / 2, 4 / 5]³` via `q = exp((log p₁ + log p₂ + log p₃)/3)`. -/
 private theorem root_three_children {p₁ p₂ p₃ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1hi : p₁ ≤ 4 / 5)
@@ -403,22 +359,16 @@ private theorem root_three_children {p₁ p₂ p₃ : ℝ} (h1lo : 1 / 2 ≤ p�
     calc (x₁ * x₂ * x₃) ^ 3 = x₁ ^ 3 * x₂ ^ 3 * x₃ ^ 3 := by ring
       _ = p₁ * p₂ * p₃ := by rw [hx1, hx2, hx3]
   have hq_lo : 1 / 2 ≤ q := by
-    by_contra hlt
-    have hlt' : q < 1 / 2 := not_le.mp hlt
-    have hcb : q ^ 3 < (1 / 2 : ℝ) ^ 3 := pow_lt_pow_left₀ hlt' hq_pos.le (by decide)
-    have hprod : (1 / 2 : ℝ) ^ 3 ≤ p₁ * p₂ * p₃ := by
-      have : (1 / 2 : ℝ) * (1 / 2) ≤ p₁ * p₂ := mul_le_mul h1lo h2lo (by norm_num) (by linarith)
-      have := mul_le_mul this h3lo (by norm_num) (by positivity)
-      linarith
+    by_contra! hlt
+    have hcb : q ^ 3 < (1 / 2 : ℝ) ^ 3 := pow_lt_pow_left₀ hlt hq_pos.le (by decide)
+    have hprod := mul_le_mul (mul_le_mul h1lo h2lo (by norm_num) (by linarith)) h3lo
+      (by norm_num) (by positivity)
     linarith
   have hq_hi : q ≤ 4 / 5 := by
-    by_contra hgt
-    have hgt' : 4 / 5 < q := not_le.mp hgt
-    have hcb : (4 / 5 : ℝ) ^ 3 < q ^ 3 := pow_lt_pow_left₀ hgt' (by norm_num) (by decide)
-    have hprod : p₁ * p₂ * p₃ ≤ (4 / 5 : ℝ) ^ 3 := by
-      have : p₁ * p₂ ≤ (4 / 5 : ℝ) * (4 / 5) := mul_le_mul h1hi h2hi (by linarith) (by norm_num)
-      have := mul_le_mul this h3hi (by positivity) (by norm_num)
-      linarith
+    by_contra! hgt
+    have hcb : (4 / 5 : ℝ) ^ 3 < q ^ 3 := pow_lt_pow_left₀ hgt (by norm_num) (by decide)
+    have hprod := mul_le_mul (mul_le_mul h1hi h2hi (by linarith) (by norm_num)) h3hi
+      (by positivity) (by norm_num)
     linarith
   have hamgm : 3 * treePot q ≤ treePot p₁ + treePot p₂ + treePot p₃ := by
     have hid : treePot p₁ + treePot p₂ + treePot p₃ - 3 * treePot q =
@@ -608,8 +558,7 @@ private theorem reaches_comparable {arc : V → V → Prop} {rk : V → ℕ}
       · exact Or.inr hvz
       · rcases hvz.cases_tail with rfl | ⟨w₂, hvw₂, hw₂z⟩
         · exact Or.inl huz
-        · have hw : w₁ = w₂ := hin z hw₁z hw₂z
-          subst hw
+        · cases hin z hw₁z hw₂z
           exact ih (rk w₁) (hzn ▸ hrank hw₁z) w₁ rfl huw₁ hvw₂
   exact hmain (rk z) z rfl hu hv
 
@@ -623,13 +572,11 @@ private theorem subtree_disjoint_children {arc : V → V → Prop} {rk : V → �
   rcases reaches_comparable hrank hin hz1 hz2 with h12 | h21
   · rcases h12.cases_tail with heq | ⟨w, hvw, hwv₂⟩
     · exact hne heq.symm
-    · have hwu : w = u := hin v₂ hwv₂ hv₂
-      subst hwu
+    · cases hin v₂ hwv₂ hv₂
       exact absurd (rk_le_of_reflTransGen hrank hvw) (not_le_of_gt (hrank hv₁))
   · rcases h21.cases_tail with heq | ⟨w, hvw, hwv₁⟩
     · exact hne heq
-    · have hwu : w = u := hin v₁ hwv₁ hv₁
-      subst hwu
+    · cases hin v₁ hwv₁ hv₁
       exact absurd (rk_le_of_reflTransGen hrank hvw) (not_le_of_gt (hrank hv₂))
 
 private theorem subtree_disjoint_roots {arc : V → V → Prop} {rk : V → ℕ}
@@ -819,10 +766,8 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
           obtain ⟨v, hv, hxv⟩ := Finset.mem_biUnion.mp (hJ.1 hxJ)
           exact hu_no_edge_grand u v hv x hxv hadj.symm
         · exact hJ.2 x hxJ y hyJ hadj
-  have hi_zero_pos : ∀ u : V, 0 < i_zero u := by
-    intro u
-    refine Finset.card_pos.mpr ⟨∅, ?_⟩
-    simp [indepPowerset]
+  have hi_zero_pos : ∀ u : V, 0 < i_zero u := fun _ =>
+    Finset.card_pos.mpr ⟨∅, by simp [indepPowerset]⟩
   have hi_tot_pos : ∀ u : V, 0 < i_tot u := fun u => by
     rw [hi_tot_eq u]
     exact Nat.add_pos_left (hi_zero_pos u) _
@@ -945,19 +890,13 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
         have hprod_pos : 0 < 1 + p_rat v₁ * p_rat v₂ := by nlinarith
         refine ⟨⟨?_, ?_⟩, ?_⟩
         · rw [hp, le_div_iff₀ hprod_pos]
-          have : p_rat v₁ * p_rat v₂ ≤ (4 / 5) * (4 / 5) :=
-            mul_le_mul hp1_hi hp2_hi (by linarith) (by norm_num)
-          linarith
+          nlinarith
         · rw [hp, div_le_iff₀ hprod_pos]
-          have : (1 / 2 : ℝ) * (1 / 2) ≤ p_rat v₁ * p_rat v₂ :=
-            mul_le_mul hp1_lo hp2_lo (by norm_num) (by linarith)
-          linarith
+          nlinarith
         · have hstep := step_two_children hp1_lo hp1_hi hp2_lo hp2_hi
-          rw [hlog_itot u, hcard_r, hedges_r, hp, hv_eq, Finset.sum_pair hne, Finset.sum_pair hne,
-            Finset.sum_pair hne, Finset.prod_pair hne]
-          have hcard2 : (({v₁, v₂} : Finset V).card : ℝ) = 2 := by
-            rw [Finset.card_pair hne]; norm_num
-          rw [hcard2]
+          rw [hlog_itot u, hcard_r, hedges_r, hp, hv_eq, Finset.sum_pair hne,
+            Finset.sum_pair hne, Finset.sum_pair hne, Finset.prod_pair hne, Finset.card_pair hne]
+          push_cast
           linarith
   -- Now evaluate at every root `r ∈ roots` (`¬∃ u, arc u r`, `(kids r).card ≤ 3`):
   let roots : Finset V := Finset.univ.filter fun r => ¬∃ u, arc u r
@@ -1007,10 +946,9 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
       have hne : (kids r).Nonempty := ⟨v₁, hv₁_mem⟩
       simp only [hne, ↓reduceIte]
       rw [hlog_itot r, hcard_r, hedges_r, hv_eq, Finset.sum_pair hne12,
-        Finset.sum_pair hne12, Finset.sum_pair hne12, Finset.prod_pair hne12]
-      have hcard2 : (({v₁, v₂} : Finset V).card : ℝ) = 2 := by
-        rw [Finset.card_pair hne12]; norm_num
-      rw [hcard2]
+        Finset.sum_pair hne12, Finset.sum_pair hne12, Finset.prod_pair hne12,
+        Finset.card_pair hne12]
+      push_cast
       linarith
     · obtain ⟨v₁, v₂, v₃, hne12, hne13, hne23, hv_eq⟩ := Finset.card_eq_three.mp h3
       have hv₁_mem : v₁ ∈ kids r := hv_eq ▸ Finset.mem_insert_self v₁ {v₂, v₃}
@@ -1029,10 +967,9 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
       rw [hlog_itot r, hcard_r, hedges_r, hv_eq, Finset.sum_insert hnot1,
         Finset.sum_pair hne23, Finset.sum_insert hnot1, Finset.sum_pair hne23,
         Finset.sum_insert hnot1, Finset.sum_pair hne23, Finset.prod_insert hnot1,
-        Finset.prod_pair hne23]
-      have hcard3 : (({v₁, v₂, v₃} : Finset V).card : ℝ) = 3 := by
-        rw [Finset.card_insert_of_notMem hnot1, Finset.card_pair hne23]; norm_num
-      rw [hcard3, ← mul_assoc]
+        Finset.prod_pair hne23, Finset.card_insert_of_notMem hnot1, Finset.card_pair hne23,
+        ← mul_assoc]
+      push_cast
       linarith
   -- Finally, `Finset.univ = roots.biUnion sub` with pairwise disjointness and zero cross-edges:
   have hroots_disj : (roots : Set V).PairwiseDisjoint sub := by
@@ -1058,14 +995,12 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
     rw [hindep_prod, Nat.cast_prod]
     exact hlog_prod roots
   have hsum_V : (Fintype.card V : ℝ) = ∑ r ∈ roots, ((sub r).card : ℝ) := by
-    have : Fintype.card V = ∑ r ∈ roots, (sub r).card := by
-      rw [← Finset.card_univ, huniv_eq, Finset.card_biUnion hroots_disj]
-    exact_mod_cast this
+    rw [← Nat.cast_sum, ← Finset.card_univ, huniv_eq, Finset.card_biUnion hroots_disj]
   have hsum_E : (∑ w : V, ((kids w).card : ℝ)) = ∑ r ∈ roots, (edges_sub r : ℝ) := by
-    have : (∑ w : V, (kids w).card) = ∑ r ∈ roots, edges_sub r := by
-      conv_lhs => rw [huniv_eq]
-      rw [Finset.sum_biUnion hroots_disj]
-    exact_mod_cast this
+    rw [← Nat.cast_sum, ← Nat.cast_sum]
+    congr 1
+    conv_lhs => rw [huniv_eq]
+    rw [Finset.sum_biUnion hroots_disj]
   have hsum_R : ((Finset.univ.filter fun r => (¬∃ u, arc u r) ∧ ∃ v, arc r v).card : ℝ) =
       ∑ r ∈ roots, (if (kids r).Nonempty then (1 : ℝ) else 0) := by
     rw [Finset.sum_boole]
@@ -1080,11 +1015,7 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
     _ = (∑ r ∈ roots, ((sub r).card : ℝ)) -
           (53 / 200 : ℝ) * (∑ r ∈ roots, (edges_sub r : ℝ)) -
           (33 / 1000 : ℝ) * ∑ r ∈ roots, (if (kids r).Nonempty then (1 : ℝ) else 0) := by
-        have hite : ∀ r : V, (if (kids r).Nonempty then (33 / 1000 : ℝ) else 0) =
-            (33 / 1000 : ℝ) * (if (kids r).Nonempty then (1 : ℝ) else 0) := fun r => by
-          split_ifs <;> ring
-        simp_rw [hite]
-        rw [Finset.sum_sub_distrib, Finset.sum_sub_distrib, ← Finset.mul_sum, ← Finset.mul_sum]
+        simp only [Finset.sum_sub_distrib, Finset.mul_sum, mul_ite, mul_one, mul_zero]
 
 end TreeDP
 
@@ -1206,40 +1137,28 @@ theorem logb_indepSetCount_fromRel_le_capped [Finite V] {B : Digraph V} (hB : B.
       have h1 : 1 ≤ {v | B.Adj r v}.ncard :=
         (ncard_pos (toFinite _)).mpr ⟨v, hrv⟩
       omega
-    rw [← hchosen_card r] at hpos
-    obtain ⟨v', hv'⟩ := Finset.card_pos.mp hpos
-    exact ⟨v', hv'⟩
-  have hG_le : SimpleGraph.fromRel arc' ≤ SimpleGraph.fromRel B.Adj := by
-    intro u w hadj
-    rw [fromRel_adj] at hadj ⊢
-    refine ⟨hadj.1, ?_⟩
-    rcases hadj.2 with h1 | h2
-    · exact Or.inl (harc'_imp h1)
-    · exact Or.inr (harc'_imp h2)
-  have hindep_le : (SimpleGraph.fromRel B.Adj).indepSetCount ≤
-      (SimpleGraph.fromRel arc').indepSetCount := indepSetCount_anti hG_le
-  have hpos_G : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) := by
-    have hne : ({s : Set V | (SimpleGraph.fromRel B.Adj).IsIndepSet s}).Nonempty :=
-      ⟨∅, by simp⟩
-    exact Nat.cast_pos.mpr ((ncard_pos (toFinite _)).mpr hne)
+    exact Finset.card_pos.mp (hchosen_card r ▸ hpos)
+  have hG_le : SimpleGraph.fromRel arc' ≤ SimpleGraph.fromRel B.Adj := fun _ _ h =>
+    let ⟨hne, hadj⟩ := (fromRel_adj ..).mp h
+    (fromRel_adj ..).mpr ⟨hne, hadj.imp (harc'_imp ·) (harc'_imp ·)⟩
   have hlog_mono : Real.logb 2 ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) ≤
       Real.logb 2 ((SimpleGraph.fromRel arc').indepSetCount : ℝ) :=
-    Real.logb_le_logb_of_le (by norm_num) hpos_G (by exact_mod_cast hindep_le)
+    Real.logb_le_logb_of_le (by norm_num)
+      (Nat.cast_pos.mpr (SimpleGraph.fromRel B.Adj).indepSetCount_pos)
+      (by exact_mod_cast indepSetCount_anti hG_le)
   have hcore := logb_indepSetCount_fromRel_le_core hrank' hin' hout_int' hout_root'
-  have hV : (Fintype.card V : ℝ) = (Nat.card V : ℝ) := by
-    rw [Nat.card_eq_fintype_card]
   have hE : (∑ w : V, ((Finset.univ.filter (arc' w ·)).card : ℝ)) =
       (arborescenceCappedEdges B : ℝ) := by
     simp_rw [hkids', hchosen_card]
     dsimp only [cap]
     rw [arborescenceCappedEdges, finsum_eq_sum_of_fintype, Nat.cast_sum]
-    refine Finset.sum_congr rfl fun w _ => ?_
-    split_ifs <;> rfl
+    exact Finset.sum_congr rfl fun _ _ => by split_ifs <;> rfl
   have hR : ((arborescenceActiveRoots B).ncard : ℝ) ≤
       ((Finset.univ.filter fun r => (¬∃ u, arc' u r) ∧ ∃ v, arc' r v).card : ℝ) := by
     rw [← ncard_coe_finset]
     exact_mod_cast ncard_le_ncard hroots_sub (toFinite _)
-  rw [hV, hE] at hcore
+  rw [Nat.card_eq_fintype_card]
+  rw [hE] at hcore
   linarith
 
 /-- **Bounded-out-degree out-forest independent-set bound.** When internal vertices have out-degree
@@ -1262,10 +1181,8 @@ theorem indepSetCount_fromRel_le_rpow [Finite V] {B : Digraph V} (hB : B.IsBranc
       (2 : ℝ) ^ ((Nat.card V : ℝ) -
         (53 / 200 : ℝ) * ((SimpleGraph.fromRel B.Adj).edgeSet.ncard : ℝ) -
         (33 / 1000 : ℝ) * ((arborescenceActiveRoots B).ncard : ℝ)) := by
-  have hpos : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) := by
-    have hne : ({s : Set V | (SimpleGraph.fromRel B.Adj).IsIndepSet s}).Nonempty :=
-      ⟨∅, by simp⟩
-    exact Nat.cast_pos.mpr ((ncard_pos (toFinite _)).mpr hne)
+  have hpos : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) :=
+    Nat.cast_pos.mpr (SimpleGraph.fromRel B.Adj).indepSetCount_pos
   rw [← Real.rpow_logb (by norm_num : (0 : ℝ) < 2) (by norm_num : (2 : ℝ) ≠ 1) hpos]
   exact Real.rpow_le_rpow_of_exponent_le (by norm_num)
     (logb_indepSetCount_fromRel_le hB hout_int hout_root)

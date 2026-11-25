@@ -152,14 +152,14 @@ theorem next_inSpace (d : Desc) :
       fun p => (QueryMachine.encStateRead encState p).length :=
     (hacc.append (budget_comp_linear he hin) fun _ => rfl).weaken (.add (.refl _) (.refl _))
   have hrun := encState_mk_budget hreg hpre happ (budget_comp_linear hn hin)
-    (budget_const false (.refl _))
-  have hstop := encState_mk_budget hreg hpre hacc hcfg (budget_const true (.refl _))
+    (budget_const false)
+  have hstop := encState_mk_budget hreg hpre hacc hcfg (budget_const true)
   have htail := budget_comp_linear
     (of_inO (.of_linear (ListEncoding.tail encBool)) :
       ComputableInSpace List.tail encBits encBits fun w => (encBits w).length) hacc
   have hrestart := encState_mk_budget htail
-    (budget_comp_linear (ComputableInSpace.frame encBits) htail) (budget_const [] (.refl _))
-    (budget_const (init d) (.refl _)) (budget_const false (.refl _))
+    (budget_comp_linear (ComputableInSpace.frame encBits) htail) (budget_const [])
+    (budget_const (init d)) (budget_const false)
   have hempty := budget_comp_linear
     (of_inO (ComputableInDegree.isEmpty (enc₁ := encBool) (enc := encBits)).inO_one) hacc
   exact (budget_ite (budget_comp_linear hh hcfg) (budget_ite hempty hstop hrestart) hrun).of_enc_eq
@@ -408,10 +408,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {enc
         Nat.mul_le_mul_left c (Nat.succ_le_succ (hT a j (by omega)))
       omega
   -- the first halt of the body in each round, on its virtual input
-  have hτ : ∀ a j, ∃ τ, tm.HaltsAt (tm.initCfg (vinput (encR (r a j)) (encA a))) τ := fun a j =>
-    let ⟨τ, _, h⟩ := exists_haltsAt_of_runsInTime (htm (r a j, a)).2.1
-    ⟨τ, h⟩
-  choose τ hτ using hτ
+  choose τ _ hτ using fun a j => exists_haltsAt_of_runsInTime (htm (r a j, a)).2.1
   have hrun (a : α) (j t : ℕ) (ht : t < τ a j) :
       ((VirtualWord.Native.machine (desc eS eBit tm)).run (vinput (encR (r a j)) (encA a))
         t).state.isNone = false :=
@@ -433,7 +430,7 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {enc
     (hinit.of_enc_eq fun _ => rfl).mono_le fun a => Nat.le_add_right _ _
   have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
       ComputableInSpace (fun _ : α => b) encA encB fun a => S a + B a :=
-    (ComputableInSpace.constZero b).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const b
   have hstart := encState_mk_budget hreg
     (ComputableInSpace.budget_comp_linear (ComputableInSpace.frame encBits) hreg)
     (hconst encBits [])
@@ -514,19 +511,18 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith_of_invariant {α ρ
       intro r hr
       cases hs : step (r, a) with
       | none =>
-        exact ⟨0, hs, fun j hj => absurd hj (Nat.not_lt_zero _), fun j hj => by
-          obtain rfl : j = 0 := Nat.le_zero.mp hj
-          exact ⟨m, hr⟩⟩
+        exact ⟨0, hs, fun j hj => absurd hj (Nat.not_lt_zero _),
+          fun j hj => ⟨m, (Nat.le_zero.mp hj).symm ▸ hr⟩⟩
       | some r' =>
         obtain ⟨m', hm', hr'⟩ := hround a m r r' hr hs
         obtain ⟨N, hN, hlt, hinv⟩ := ih m' hm' r' hr'
         have hG : G a r = r' := by simp only [G, hs, Option.getD_some]
-        refine ⟨N + 1, by rwa [Function.iterate_succ_apply, hG], fun j hj => ?_, fun j hj => ?_⟩
-        · rcases j with _ | j
+        refine ⟨N + 1, by rwa [Function.iterate_succ_apply, hG], ?_, ?_⟩
+        · rintro (_ | j) hj
           · simp only [Function.iterate_zero, id_eq, hs, Option.isSome_some]
           · rw [Function.iterate_succ_apply, hG]
             exact hlt j (by omega)
-        · rcases j with _ | j
+        · rintro (_ | j) hj
           · exact ⟨m, hr⟩
           · rw [Function.iterate_succ_apply, hG]
             exact hinv j (by omega)

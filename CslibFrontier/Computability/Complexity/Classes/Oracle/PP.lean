@@ -112,9 +112,7 @@ variable {enc : α ↪ List Bool} {L : Set α}
 /-- **`P ⊆ P^PP`**: a polynomial-time decider makes no query. -/
 theorem P_subset_PWithPPOracle : P enc ⊆ PWithPPOracle enc := by
   rintro L ⟨g, hg, hL⟩
-  have hempty : (∅ : Set α) ∈ PP enc :=
-    BPP_subset_PP (P_subset_BPP empty_mem_P)
-  exact ⟨α, enc, ∅, hempty, .of_polyTime hg fun _ _ => hL⟩
+  exact ⟨α, enc, ∅, BPP_subset_PP (P_subset_BPP empty_mem_P), .of_polyTime hg fun _ _ => hL⟩
 
 /-- **`PP ⊆ P^PP`**: the program asks the oracle about its instance, with one query. -/
 theorem PP_subset_PWithPPOracle : PP enc ⊆ PWithPPOracle enc := by
@@ -176,24 +174,20 @@ private theorem interpret_id_bitQuery {β : Type} {encβ : β ↪ List Bool} {f 
     (hA : ∀ x : β × ℕ, encPair encβ encNat x ∈ A ↔ x.2 ≤ f x.1) (b : β) (i : ℕ) :
     OracleComp.interpret (m := Id) (languageOracle A) (bitQuery r ((), encPair encβ encNat (b, i)))
       = [(f b).testBit i] := by
-  set N := r.eval (encPair encβ encNat (b, i)).length + 1 with hN
-  have hfN : f b < 2 ^ N := by
-    refine (hr b).trans_lt (Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_of_le ?_))
-    exact Polynomial.eval_mono _ (by simp only [length_encPair]; omega)
+  set N := r.eval (encPair encβ encNat (b, i)).length + 1
+  have hfN : f b < 2 ^ N := (hr b).trans_lt <| Nat.pow_lt_pow_right one_lt_two <|
+    Nat.lt_succ_of_le (Polynomial.eval_mono _ (by simp only [length_encPair]; omega))
   unfold bitQuery
   rw [OracleComp.interpret_map]
   change [(OracleComp.interpret (m := Id) (languageOracle A)
     (search (unframe (encPair encβ encNat (b, i))) N)).testBit
       (min (ofBits (dropFrame (encPair encβ encNat (b, i)))) N)] = _
-  have hd : ofBits (dropFrame (encPair encβ encNat (b, i))) = i := by
-    rw [dropFrame_encPair]
-    exact Decoder.nat.decode_enc i
-  rw [unframe_encPair, hd, interpret_id_search (F := f b) (fun k => hA (b, k)) hfN]
-  congr 1
+  rw [unframe_encPair, dropFrame_encPair, show ofBits (encNat i) = i from Decoder.nat.decode_enc i,
+    interpret_id_search (F := f b) (fun k => hA (b, k)) hfN]
   rcases le_total i N with hi | hi
   · rw [Nat.min_eq_left hi]
   · rw [Nat.min_eq_right hi, Nat.testBit_eq_false_of_lt hfN,
-      Nat.testBit_eq_false_of_lt (hfN.trans_le (Nat.pow_le_pow_right (by norm_num) hi))]
+      Nat.testBit_eq_false_of_lt (hfN.trans_le (Nat.pow_le_pow_right (by decide) hi))]
 
 end BinarySearch
 
@@ -241,23 +235,17 @@ theorem PWithSharpPOracle_subset_PWithPPOracle : PWithSharpPOracle enc ⊆ PWith
       simp only [A', Set.mem_ofPred_eq, interpret_id_bitQuery hr (fun x => hA x) b i]
       exact ⟨fun h => (List.cons.inj h).1, fun h => by rw [h]⟩
     have hhandler : (fun q => OracleComp.interpret (m := Id) (languageOracle A) (bitQuery r q)) =
-        languageOracle A' := by
-      funext q
-      have hsingle : ∀ w, ∃ bit, OracleComp.interpret (m := Id) (languageOracle A)
-          (bitQuery r ((), w)) = [bit] := fun w => by
-        unfold bitQuery
-        rw [OracleComp.interpret_map]
+        languageOracle A' := funext fun q => by
+      obtain ⟨bit, hbit⟩ : ∃ bit, OracleComp.interpret (m := Id) (languageOracle A)
+          (bitQuery r ((), q.2)) = [bit] := by
+        simp only [bitQuery, OracleComp.interpret_map]
         exact ⟨_, rfl⟩
-      obtain ⟨bit, hbit⟩ := hsingle q.2
       rw [languageOracle_apply, show q = ((), q.2) from rfl, hbit]
       by_cases hq : q.2 ∈ A'
-      · have hq' : [bit] = [true] := hbit.symm.trans hq
-        rw [decide_eq_true hq, (List.cons.inj hq').1]
-      · have hq' : [bit] ≠ [true] := fun h => hq (hbit.trans h)
-        rw [decide_eq_false hq]
-        cases bit
-        · rfl
-        · exact absurd rfl hq'
+      · rw [decide_eq_true hq, (List.cons.inj (hbit.symm.trans hq)).1]
+      · cases bit
+        · rw [decide_eq_false hq]
+        · exact absurd (hbit.trans rfl) hq
     dsimp only
     rw [hL A' hA' a, OracleComp.interpret_interpret, hhandler]
 

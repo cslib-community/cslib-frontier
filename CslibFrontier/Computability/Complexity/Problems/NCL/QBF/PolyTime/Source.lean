@@ -66,9 +66,7 @@ private theorem clauseMask_eq_zipIdx (vs : List ℕ) (c : Clause ℕ) :
     simp only [clauseMask, List.zipIdx_cons', List.flatMap_cons,
       List.idxOf_cons_self, decide_true, Bool.true_and, List.cons_append,
       List.nil_append, ih, List.flatMap_map]
-    congr 2
-    apply List.flatMap_congr
-    rintro ⟨w, i⟩ _
+    refine congrArg (_ :: _ :: ·) (List.flatMap_congr fun ⟨w, i⟩ _ => ?_)
     by_cases h : w = v
     · subst w
       simp [List.idxOf_cons_self, List.mem_filter]
@@ -92,18 +90,17 @@ theorem computableInPolyTime_clauseMask {α : Type} {input : α ↪ List Bool}
       (fun p : α × (ℕ × ℕ) => (c p.1).contains (p.2.1, b))
       (encPair input (encPair encNat encUnary)) encBool := by
     have he : ComputableInPolyTime (fun p : ℕ × (ℕ × Bool) => (p.1, b) == p.2)
-        (encPair encNat (encPair encNat encBool)) encBool := by
-      have h₁ := ComputableInPolyTime.snd encNat (encPair encNat encBool)
-      have h₂ : ComputableInPolyTime (fun p : ℕ × (ℕ × Bool) => (p.1, b))
-          (encPair encNat (encPair encNat encBool)) (encPair encNat encBool) := by fun_prop
-      exact ComputableInPolyTime.beq h₂ h₁
+        (encPair encNat (encPair encNat encBool)) encBool :=
+      ComputableInPolyTime.beq
+        (show ComputableInPolyTime (fun p : ℕ × (ℕ × Bool) => (p.1, b))
+          (encPair encNat (encPair encNat encBool)) (encPair encNat encBool) by fun_prop)
+        (ComputableInPolyTime.snd encNat (encPair encNat encBool))
     simpa only [List.contains_eq_any_beq, Function.comp_def] using
-      (ComputableInPolyTime.anyWithEncoding he hw (hc.comp hp))
-  have hpos := hfirst.bool_and' (hb true)
-  have hneg := hfirst.bool_and' (hb false)
-  have hbits := hpos.cons' (hneg.cons' (ComputableInPolyTime.const []))
+      ComputableInPolyTime.anyWithEncoding he hw (hc.comp hp)
   simpa only [clauseMask_eq_zipIdx, Function.comp_def] using
-    ComputableInPolyTime.flatMapWithInput hz hbits
+    ComputableInPolyTime.flatMapWithInput hz
+      ((hfirst.bool_and' (hb true)).cons'
+        ((hfirst.bool_and' (hb false)).cons' (ComputableInPolyTime.const [])))
 
 private theorem quantifiers_eq_flatMap (ps : List (ℕ × ℕ)) :
     quantifiers ps = ps.flatMap (fun _ => [Quantifier.ex, Quantifier.all]) := by
@@ -116,10 +113,10 @@ private theorem quantifiers_eq_flatMap (ps : List (ℕ × ℕ)) :
 theorem computableInPolyTime_quantifiers :
     ComputableInPolyTime (fun ps : List (ℕ × ℕ) => quantifiers ps)
       (encList (encPair encNat encNat)) (encList encQuantifier) := by
-  have h : ComputableInPolyTime
-      (fun ps : List (ℕ × ℕ) => ps.flatMap (fun _ => [Quantifier.ex, Quantifier.all]))
-      (encList (encPair encNat encNat)) (encList encQuantifier) := by fun_prop
-  simpa only [← quantifiers_eq_flatMap] using h
+  simpa only [← quantifiers_eq_flatMap] using
+    (show ComputableInPolyTime
+      (fun ps : List (ℕ × ℕ) => ps.flatMap fun _ => [Quantifier.ex, Quantifier.all])
+      (encList (encPair encNat encNat)) (encList encQuantifier) by fun_prop)
 
 /-- Compile all source clauses to literal masks in polynomial time. -/
 @[fun_prop]
@@ -130,16 +127,12 @@ theorem computableInPolyTime_masks :
       encPrenexCNF (encList encNat) := by
     unfold roundVars
     fun_prop
-  have hc : ComputableInPolyTime (fun x : PrenexCNF => x.matrix) encPrenexCNF
-      (encList (encList (encPair encNat encBool))) := by
-    fun_prop
-  have hm : ComputableInPolyTime (fun p : PrenexCNF × Clause ℕ =>
-      clauseMask (roundVars p.1.rounds).reverse p.2)
-      (encPair encPrenexCNF clauseEncoding) (encList encBool) :=
-    computableInPolyTime_clauseMask
+  exact ComputableInPolyTime.mapWithInput
+    (show ComputableInPolyTime (fun x : PrenexCNF => x.matrix) encPrenexCNF
+      (encList clauseEncoding) by fun_prop)
+    (computableInPolyTime_clauseMask
       (hv.comp (ComputableInPolyTime.fst encPrenexCNF clauseEncoding))
-      (ComputableInPolyTime.snd encPrenexCNF clauseEncoding)
-  exact ComputableInPolyTime.mapWithInput hc hm
+      (ComputableInPolyTime.snd encPrenexCNF clauseEncoding))
 
 /-- Normalization, prefix generation, and shadowing-aware masks form a polynomial-time frontend. -/
 @[fun_prop]

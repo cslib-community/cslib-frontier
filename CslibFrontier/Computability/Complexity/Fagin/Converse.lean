@@ -112,25 +112,19 @@ theorem realize_npPowerSentence {a : EncodedStructure} (ha : v.WellFormed a) {B 
         (CookLevin.tableau tm (frame (encStructure a)) L (B - 1)).Satisfiable := by
   let _ := v.powerStructure a B
   rw [npPowerSentence, ESO.Sentence.realize_project]
-  constructor
-  · rintro ⟨I_in, h⟩
-    let _ := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in
+  refine ⟨fun ⟨I_in, h⟩ => ?_, fun hsat => ?_⟩
+  · let _ := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in
     obtain ⟨hlay, htab⟩ := (ESO.Sentence.realize_inf (M := Fin B)).1 h
     obtain ⟨huLen, huBit⟩ := (v.realize_layoutESOSentence ha (by omega) I_in).1 hlay
     exact (v.realize_tableauESOSentence tm a B I_in hB huLen huBit).1 htab
-  · intro hsat
-    let I_in : ∀ b : Bool, Set (Fin ((fun _ : Bool => 1) b) → Fin B) := fun b =>
+  · let I_in : ∀ b : Bool, Set (Fin ((fun _ : Bool => 1) b) → Fin B) := fun b =>
       if b then {x | (x 0 : ℕ) = (frame (encStructure a)).length}
       else {x | (frame (encStructure a))[(x 0 : ℕ)]? = some true}
     let _ := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in
-    have huLen : ∀ z : Fin B, ![z] ∈ I_in true ↔ (z : ℕ) = (frame (encStructure a)).length :=
-      fun _ => Iff.rfl
-    have huBit : ∀ p : Fin B, (p : ℕ) < (frame (encStructure a)).length →
-        (![p] ∈ I_in false ↔ (frame (encStructure a))[(p : ℕ)]? = some true) :=
-      fun _ _ => Iff.rfl
-    have hlay := (v.realize_layoutESOSentence ha (by omega) I_in).2 ⟨huLen, huBit⟩
-    have htab := (v.realize_tableauESOSentence tm a B I_in hB huLen huBit).2 hsat
-    exact ⟨I_in, (ESO.Sentence.realize_inf (M := Fin B)).2 ⟨hlay, htab⟩⟩
+    exact ⟨I_in, (ESO.Sentence.realize_inf (M := Fin B)).2
+      ⟨(v.realize_layoutESOSentence ha (by omega) I_in).2 ⟨fun _ => Iff.rfl, fun _ _ => Iff.rfl⟩,
+        (v.realize_tableauESOSentence tm a B I_in hB (fun _ => Iff.rfl)
+          (fun _ _ => Iff.rfl)).2 hsat⟩⟩
 
 /-- An NP language of encoded structures has a single ESO definition on canonical power
 structures of sufficiently large fixed dimension. Only well-formed inputs of size at least two
@@ -151,9 +145,8 @@ theorem exists_powerSentence_of_mem_NP {K : Set EncodedStructure} (hNP : K ∈ N
   have hB := hpow a ha h2
   rw [v.realize_npPowerSentence tm ha (by rw [length_frame]; omega),
     hV.exists_strictVerifier_eq_true_iff]
-  constructor
-  · rintro ⟨w, hw⟩
-    have hlen_pair : (encPair encStructure encBits (a, w)).length =
+  refine ⟨fun ⟨w, hw⟩ => ?_, fun ⟨L, _, hsat⟩ => ?_⟩
+  · have hlen_pair : (encPair encStructure encBits (a, w)).length =
         2 * (encStructure a).length + 1 + p.eval (encStructure a).length := by
       rw [encPair_apply, List.length_append, encBits_apply, length_frame,
         length_eq_of_strictVerifier_eq_true hw]
@@ -162,8 +155,7 @@ theorem exists_powerSentence_of_mem_NP {K : Set EncodedStructure} (hNP : K ∈ N
     simp only [encPair_apply, encBits_apply, hw, encBool_apply] at hhalt hout
     exact ⟨w.length, by rw [length_frame, length_eq_of_strictVerifier_eq_true hw]; omega,
       CookLevin.tableau_satisfiable_iff.2 ⟨w, rfl, hhalt, hout⟩⟩
-  · rintro ⟨L, -, hsat⟩
-    obtain ⟨w, -, hhalt, hout⟩ := CookLevin.tableau_satisfiable_iff.1 hsat
+  · obtain ⟨w, -, hhalt, hout⟩ := CookLevin.tableau_satisfiable_iff.1 hsat
     have hcomp := (htm (a, w)).1
     rw [encPair_apply, encBits_apply] at hcomp
     rw [hcomp.output_eq_of_halted hhalt, encBool_apply, List.singleton_inj] at hout

@@ -80,11 +80,7 @@ private lemma palindrome_append_replicate_append_reverse {u : List Symbol} {c : 
     (u ++ List.replicate r c ++ w.reverse).Palindrome ↔ w = u := by
   rw [List.Palindrome.iff_reverse_eq]
   simp only [List.reverse_append, List.reverse_reverse, List.reverse_replicate, List.append_assoc]
-  constructor
-  · intro h
-    exact (List.append_inj h hw).1
-  · rintro rfl
-    rfl
+  exact ⟨fun h => (List.append_inj h hw).1, fun h => h ▸ rfl⟩
 
 variable (tm) in
 /-- `tm` decides palindromes over the letters `a, b` within time `T`: on every word over
@@ -225,10 +221,8 @@ theorem palindrome_lower_bound {ι : Bool → Symbol} {yes : Symbol} {T : ℕ �
   have h4 : n + 2 ≤ 2 * (r + 1) := by omega
   have h5 : n ≤ 4 * m + 3 := by omega
   have h6 : 8 ≤ n := by omega
-  have F1 := Nat.mul_le_mul_right (4 * m) h4
-  have F2 := Nat.mul_le_mul_left (n + 2) h5
-  have F3 := Nat.mul_le_mul_right (n + 6) h6
-  nlinarith [F1, F2, F3, h3]
+  nlinarith [h3, Nat.mul_le_mul_right (4 * m) h4, Nat.mul_le_mul_left (n + 2) h5,
+    Nat.mul_le_mul_right (n + 6) h6]
 
 /-- No single-tape machine decides the palindromes over `Bool` in linear time, even answering
 under the head. -/

@@ -182,17 +182,13 @@ namespace Dimacs
 /-- A decimal digit is not whitespace. -/
 theorem isWhitespace_eq_false_of_isDigit {c : Char} (h : c.isDigit = true) :
     c.isWhitespace = false := by
-  cases hw : c.isWhitespace
-  · rfl
-  · simp only [Char.isWhitespace, Bool.or_eq_true, decide_eq_true_eq] at hw
-    rcases hw with ((rfl | rfl) | rfl) | rfl <;> revert h <;> decide
+  simp only [Char.isWhitespace, Bool.or_eq_false_iff, decide_eq_false_iff_not]
+  refine ⟨⟨⟨?_, ?_⟩, ?_⟩, ?_⟩ <;> rintro rfl <;> exact absurd h (by decide)
 
 /-- The characters of a literal are not whitespace. -/
 theorem isWhitespace_of_mem_litChars {l : Literal ℕ} {c : Char} (h : c ∈ litChars l) :
-    c.isWhitespace = false := by
-  rcases Int.mem_toDecimal h with rfl | h
-  · decide
-  · exact isWhitespace_eq_false_of_isDigit h
+    c.isWhitespace = false :=
+  (Int.mem_toDecimal h).elim (fun h => h ▸ by decide) isWhitespace_eq_false_of_isDigit
 
 /-- A run of characters other than whitespace joins the word in progress. -/
 theorem words_append {w rest cur : List Char} (hw : ∀ c ∈ w, c.isWhitespace = false) :
@@ -200,10 +196,7 @@ theorem words_append {w rest cur : List Char} (hw : ∀ c ∈ w, c.isWhitespace 
   induction w generalizing cur with
   | nil => rfl
   | cons c w ih =>
-    rw [List.cons_append, words]
-    simp only [hw c List.mem_cons_self, Bool.false_eq_true, ↓reduceIte,
-      ih fun d hd => hw d (List.mem_cons_of_mem _ hd)]
-    simp
+    simp [words, hw c List.mem_cons_self, ih fun d hd => hw d (List.mem_cons_of_mem _ hd)]
 
 /-- The words of words each followed by a space. -/
 theorem words_flatMap_space {ws : List (List Char)} (rest : List Char)
@@ -215,21 +208,18 @@ theorem words_flatMap_space {ws : List (List Char)} (rest : List Char)
     obtain ⟨hne, hc⟩ := hw w List.mem_cons_self
     rw [List.flatMap_cons, List.append_assoc, List.append_assoc, words_append hc,
       List.singleton_append, words]
-    simp only [show (' ' : Char).isWhitespace = true by decide, ↓reduceIte, List.append_nil,
+    simp [flushWord, hne, show (' ' : Char).isWhitespace = true by decide,
       ih fun w' hw' => hw w' (List.mem_cons_of_mem _ hw')]
-    simp [flushWord, hne]
 
 /-- A nonempty run of characters other than whitespace is one word. -/
 theorem words_of_forall {w : List Char} (hne : w ≠ []) (hw : ∀ c ∈ w, c.isWhitespace = false) :
     words w [] = [w] := by
-  rw [← List.append_nil w, words_append hw, List.append_nil, List.append_nil, words, flushWord]
-  simp [hne]
+  simpa [words, flushWord, hne] using words_append (rest := []) (cur := []) hw
 
 /-- A decimal digit is not the character `c` of `cs`, for the characters that the reader
 treats specially. -/
-theorem ne_of_isDigit {d c : Char} (hd : d.isDigit = true) (hc : c.isDigit = false) : d ≠ c := by
-  rintro rfl
-  simp_all
+theorem ne_of_isDigit {d c : Char} (hd : d.isDigit = true) (hc : c.isDigit = false) : d ≠ c :=
+  fun h => by simp_all
 
 /-- Decimal digits without separators pass the separator check. -/
 theorem isNatChars_of_isDigit {cs : List Char} (h : ∀ c ∈ cs, c.isDigit = true) :
@@ -237,45 +227,39 @@ theorem isNatChars_of_isDigit {cs : List Char} (h : ∀ c ∈ cs, c.isDigit = tr
   induction cs with
   | nil => rfl
   | cons c cs ih =>
-    have hc : (c == '_') = false := beq_eq_false_iff_ne.2 (ne_of_isDigit (h c List.mem_cons_self)
-      (by decide))
-    simp only [isNatChars, hc, h c List.mem_cons_self, Bool.true_and, Bool.false_eq_true,
-      ↓reduceIte, ih fun d hd => h d (List.mem_cons_of_mem _ hd)]
+    simp [isNatChars,
+      beq_eq_false_iff_ne.2 (ne_of_isDigit (h c List.mem_cons_self) (c := '_') (by decide)),
+      h c List.mem_cons_self, ih fun d hd => h d (List.mem_cons_of_mem _ hd)]
 
 /-- **Reading the digits of a number.** -/
 @[simp] theorem natOfChars?_toDecimal (n : ℕ) : natOfChars? (Nat.toDecimal n) = some n := by
   have hd := fun c (hc : c ∈ Nat.toDecimal n) => Nat.isDigit_of_mem_toDecimal hc
   obtain ⟨d, ds, h, hd₀⟩ := Nat.exists_toDecimal_eq_cons n
   have hsep : isNatChars false (Nat.toDecimal n) = true := by
-    have hu : (d == '_') = false :=
-      beq_eq_false_iff_ne.2 (ne_of_isDigit hd₀ (c := '_') (by decide))
     rw [h, isNatChars]
-    simp only [hu, Bool.false_eq_true, ↓reduceIte, hd₀, Bool.true_and]
-    exact isNatChars_of_isDigit fun c hc => hd c (h ▸ List.mem_cons_of_mem _ hc)
+    simp [beq_eq_false_iff_ne.2 (ne_of_isDigit hd₀ (c := '_') (by decide)), hd₀,
+      isNatChars_of_isDigit fun c hc => hd c (h ▸ List.mem_cons_of_mem _ hc)]
   have hf : (Nat.toDecimal n).filter (· != '_') = Nat.toDecimal n :=
     List.filter_eq_self.2 fun c hc => by simpa using ne_of_isDigit (hd c hc) (c := '_') (by decide)
-  simp only [natOfChars?, hsep, ↓reduceIte, hf, Nat.ofDecimal?_toDecimal]
+  simp [natOfChars?, hsep, hf]
 
 /-- A word not starting with `-` is read as a natural number. -/
 theorem intOfChars?_of_ne {c : Char} {cs : List Char} (h : c ≠ '-') :
     intOfChars? (c :: cs) = (natOfChars? (c :: cs)).map fun n : ℕ => (n : ℤ) := by
   unfold intOfChars?
   split
-  · rename_i heq
-    exact absurd (List.cons.inj heq).1 h
+  · exact absurd (List.cons.inj ‹_›).1 h
   · rfl
 
 /-- **Reading the digits of an integer.** -/
 @[simp] theorem intOfChars?_toDecimal (a : ℤ) : intOfChars? a.toDecimal = some a := by
   unfold Int.toDecimal
   split
-  · rename_i h
-    simp only [intOfChars?, natOfChars?_toDecimal, Option.map_some, Option.some.injEq]
+  · simp [intOfChars?]
     omega
-  · rename_i h
-    obtain ⟨d, ds, hds, hd⟩ := Nat.exists_toDecimal_eq_cons a.natAbs
-    rw [hds, intOfChars?_of_ne (ne_of_isDigit hd (by decide)), ← hds, natOfChars?_toDecimal]
-    simp only [Option.map_some, Option.some.injEq]
+  · obtain ⟨d, ds, hds, hd⟩ := Nat.exists_toDecimal_eq_cons a.natAbs
+    rw [hds, intOfChars?_of_ne (ne_of_isDigit hd (by decide)), ← hds]
+    simp
     omega
 
 /-- **Reading a literal**: the integer of its word names it. -/
@@ -287,8 +271,7 @@ theorem ofDIMACS_intOfChars?_litChars (l : Literal ℕ) :
 theorem readLits_litChars {nvars : ℕ} {l : Literal ℕ} (hl : l.1 < nvars)
     (toks : List (List Char)) (cls : Array (Clause ℕ)) (cur : Array (Literal ℕ)) :
     readLits nvars (litChars l :: toks) cls cur = readLits nvars toks cls (cur.push l) := by
-  obtain ⟨i, hi, hl'⟩ := ofDIMACS_intOfChars?_litChars l
-  simp only [readLits, hi, hl', show ¬ nvars ≤ l.1 by omega, ↓reduceIte]
+  simp [readLits, litChars, Literal.ofDIMACS_toDIMACS, show ¬ nvars ≤ l.1 by omega]
 
 /-- **Reading a clause line.** -/
 theorem readLits_clause {nvars : ℕ} {cl : Clause ℕ} (hcl : ∀ l ∈ cl, l.1 < nvars)
@@ -298,9 +281,8 @@ theorem readLits_clause {nvars : ℕ} {cl : Clause ℕ} (hcl : ∀ l ∈ cl, l.1
   induction cl generalizing cur with
   | nil => simp [readLits, show intOfChars? ['0'] = some 0 by decide, Literal.ofDIMACS]
   | cons l cl ih =>
-    rw [List.map_cons, List.cons_append, readLits_litChars (hcl l List.mem_cons_self),
-      ih (fun l' hl' => hcl l' (List.mem_cons_of_mem _ hl'))]
-    simp
+    simp [readLits_litChars (hcl l List.mem_cons_self),
+      ih fun l' hl' => hcl l' (List.mem_cons_of_mem _ hl')]
 
 /-- The word of a literal is not empty. -/
 theorem litChars_ne_nil (l : Literal ℕ) : litChars l ≠ [] := Int.toDecimal_ne_nil _
@@ -308,12 +290,11 @@ theorem litChars_ne_nil (l : Literal ℕ) : litChars l ≠ [] := Int.toDecimal_n
 /-- The words of a clause line. -/
 theorem words_clause (cl : Clause ℕ) :
     words (cl.flatMap (litChars · ++ [' ']) ++ ['0']) [] = cl.map litChars ++ [['0']] := by
-  rw [show cl.flatMap (litChars · ++ [' ']) = (cl.map litChars).flatMap (· ++ [' ']) by
-    simp [List.flatMap_map]]
-  rw [words_flatMap_space _ fun w hw => ?_]
+  rw [← List.flatMap_map litChars (· ++ [' ']), words_flatMap_space]
   · rfl
-  · obtain ⟨l, -, rfl⟩ := List.mem_map.1 hw
-    exact ⟨litChars_ne_nil l, fun c hc => isWhitespace_of_mem_litChars hc⟩
+  · rintro _ hw
+    obtain ⟨l, -, rfl⟩ := List.mem_map.1 hw
+    exact ⟨litChars_ne_nil l, fun _ => isWhitespace_of_mem_litChars⟩
 
 /-- The first word of a clause line starts with a digit or `-`. -/
 theorem exists_words_clause_eq_cons (cl : Clause ℕ) :
@@ -336,12 +317,9 @@ theorem splitOn_newline {a : List Char} (b : List Char) (h : ∀ c ∈ a, c ≠ 
 /-- A clause line has no newline before its end. -/
 theorem ne_newline_of_mem_clause {cl : Clause ℕ} {c : Char}
     (h : c ∈ cl.flatMap (litChars · ++ [' ']) ++ ['0']) : c ≠ '\n' := by
-  simp only [List.mem_append, List.mem_flatMap, List.mem_singleton] at h
-  rcases h with ⟨l, -, hc | rfl⟩ | rfl
-  · rintro rfl
-    exact absurd (isWhitespace_of_mem_litChars hc) (by decide)
-  · decide
-  · decide
+  rintro rfl
+  obtain ⟨l, -, hc⟩ : ∃ l ∈ cl, '\n' ∈ litChars l := by simpa using h
+  exact absurd (isWhitespace_of_mem_litChars hc) (by decide)
 
 /-- **Reading the clause lines.** -/
 theorem readLines_clauses {V C : ℕ} (φ : CNF ℕ) (hφ : ∀ v ∈ CNF.vars φ, v < V)
@@ -354,20 +332,18 @@ theorem readLines_clauses {V C : ℕ} (φ : CNF ℕ) (hφ : ∀ v ∈ CNF.vars �
     have hcl : ∀ l ∈ cl, l.1 < V := fun l hl =>
       hφ l.1 (List.mem_map.2 ⟨l, List.mem_flatten.2 ⟨cl, List.mem_cons_self, hl⟩, rfl⟩)
     have hφ' : ∀ v ∈ CNF.vars φ, v < V := fun v hv => hφ v (by
-      simp only [CNF.vars, List.flatten_cons, List.map_append, List.mem_append] at hv ⊢
+      simp only [CNF.vars, List.flatten_cons, List.map_append, List.mem_append]
       exact .inr hv)
     obtain ⟨tok, toks, htoks, hhead⟩ := exists_words_clause_eq_cons cl
-    have hc : ∀ c, c.isDigit = false → c ≠ '-' → tok.head? ≠ some c := fun c hc hc' h => by
-      rcases hhead c h with rfl | h' <;> simp_all
+    have hc : ∀ c, c.isDigit = false → c ≠ '-' → tok.head? ≠ some c := fun c _ _ h => by
+      rcases hhead c h with rfl | _ <;> simp_all
     have hsplit : clauseChars cl ++ φ.flatMap clauseChars =
         (cl.flatMap (litChars · ++ [' ']) ++ ['0']) ++ '\n' :: φ.flatMap clauseChars := by
       simp [clauseChars]
-    rw [List.flatMap_cons, hsplit, splitOn_newline _ fun c hc => ne_newline_of_mem_clause hc,
+    rw [List.flatMap_cons, hsplit, splitOn_newline _ fun _ hc => ne_newline_of_mem_clause hc,
       List.map_cons, readLines, String.toList_ofList, words_clause, htoks]
-    simp only [hc 'c' (by decide) (by decide), hc '%' (by decide) (by decide),
-      hc 'p' (by decide) (by decide), ↓reduceIte, ← htoks, readLits_clause hcl,
-      List.nil_append, ih hφ']
-    simp
+    simp [hc 'c' (by decide) (by decide), hc '%' (by decide) (by decide),
+      hc 'p' (by decide) (by decide), ← htoks, readLits_clause hcl, ih hφ']
 
 end Dimacs
 
@@ -378,49 +354,36 @@ theorem CNF.lt_dimacsVars {φ : CNF ℕ} {v : ℕ} (h : v ∈ φ.vars) : v < φ.
   induction l with
   | nil => simp at h
   | cons w ws ih =>
-    rw [List.foldr_cons]
     rcases List.mem_cons.1 h with rfl | h
-    · omega
-    · exact lt_of_lt_of_le (ih h) (le_max_right _ _)
+    · exact Nat.lt_of_lt_of_le (Nat.lt_succ_self _) (le_max_left _ _)
+    · exact (ih h).trans_le (le_max_right _ _)
 
 open Dimacs in
 /-- **Reading what is written gives the formula back**, for every formula. -/
 theorem CNF.ofDIMACS_toDIMACS (φ : CNF ℕ) : CNF.ofDIMACS φ.toDIMACS = .ok φ := by
-  have hw : ∀ w ∈ [['p'], ['c', 'n', 'f'], Nat.toDecimal φ.dimacsVars],
-      w ≠ [] ∧ ∀ c ∈ w, c.isWhitespace = false := by
-    simp only [List.mem_cons, List.not_mem_nil, or_false]
-    rintro w (rfl | rfl | rfl)
-    · exact ⟨by simp, fun c hc => by
-        simp only [List.mem_cons, List.not_mem_nil, or_false] at hc; subst hc; decide⟩
-    · exact ⟨by simp, fun c hc => by
-        simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
-        rcases hc with rfl | rfl | rfl <;> decide⟩
-    · exact ⟨Nat.toDecimal_ne_nil _,
-        fun c hc => isWhitespace_eq_false_of_isDigit (Nat.isDigit_of_mem_toDecimal hc)⟩
-  have hC : ∀ c ∈ Nat.toDecimal φ.length, c.isWhitespace = false :=
-    fun c hc => isWhitespace_eq_false_of_isDigit (Nat.isDigit_of_mem_toDecimal hc)
-  have hH : headerChars φ.dimacsVars φ.length =
-      [['p'], ['c', 'n', 'f'], Nat.toDecimal φ.dimacsVars].flatMap (· ++ [' ']) ++
-        Nat.toDecimal φ.length ++ ['\n'] := by
-    simp [headerChars]
-  have hwords : words ([['p'], ['c', 'n', 'f'], Nat.toDecimal φ.dimacsVars].flatMap (· ++ [' ']) ++
-      Nat.toDecimal φ.length) [] =
+  have hdec (n : ℕ) : ∀ c ∈ Nat.toDecimal n, c.isWhitespace = false :=
+    fun _ hc => isWhitespace_eq_false_of_isDigit (Nat.isDigit_of_mem_toDecimal hc)
+  have hnl : ∀ c ∈ ['p', ' ', 'c', 'n', 'f', ' '] ++ Nat.toDecimal φ.dimacsVars ++
+      ' ' :: Nat.toDecimal φ.length, c ≠ '\n' := by
+    rintro c hc rfl
+    rcases (by simpa using hc : '\n' ∈ Nat.toDecimal φ.dimacsVars ∨ '\n' ∈ Nat.toDecimal φ.length)
+      with h | h <;> exact absurd (Nat.isDigit_of_mem_toDecimal h) (by decide)
+  have hwords : words (['p', ' ', 'c', 'n', 'f', ' '] ++ Nat.toDecimal φ.dimacsVars ++
+      ' ' :: Nat.toDecimal φ.length) [] =
       [['p'], ['c', 'n', 'f'], Nat.toDecimal φ.dimacsVars, Nat.toDecimal φ.length] := by
-    rw [words_flatMap_space _ hw, words_of_forall (Nat.toDecimal_ne_nil _) hC]
-    rfl
-  have hnl : ∀ c ∈ [['p'], ['c', 'n', 'f'], Nat.toDecimal φ.dimacsVars].flatMap (· ++ [' ']) ++
-      Nat.toDecimal φ.length, c ≠ '\n' := by
-    intro c hc h
-    subst h
-    simp only [List.mem_append, List.mem_flatMap, List.mem_cons, List.not_mem_nil, or_false] at hc
-    rcases hc with ⟨w, (rfl | rfl | rfl), hc | hc⟩ | hc <;> first
-      | exact absurd hc (by decide)
-      | exact absurd (isWhitespace_eq_false_of_isDigit (Nat.isDigit_of_mem_toDecimal hc))
-          (by decide)
-  rw [CNF.ofDIMACS, CNF.toDIMACS, String.toList_split_char, String.toList_ofList, hH,
-    List.append_assoc, List.singleton_append, splitOn_newline _ hnl, List.map_cons, readLines,
-    String.toList_ofList, hwords]
-  simp [header?, readLines_clauses φ (fun v hv => CNF.lt_dimacsVars hv), bind, Except.bind, pure,
+    simp only [List.cons_append, List.nil_append, words,
+      show ('p' : Char).isWhitespace = false by decide,
+      show ('c' : Char).isWhitespace = false by decide,
+      show ('n' : Char).isWhitespace = false by decide,
+      show ('f' : Char).isWhitespace = false by decide,
+      show (' ' : Char).isWhitespace = true by decide, ↓reduceIte, flushWord]
+    rw [words_append (hdec _), words]
+    simp [flushWord, Nat.toDecimal_ne_nil, show (' ' : Char).isWhitespace = true by decide,
+      words_of_forall (Nat.toDecimal_ne_nil _) (hdec _)]
+  rw [CNF.ofDIMACS, CNF.toDIMACS, String.toList_split_char, String.toList_ofList, headerChars,
+    List.append_assoc _ ['\n'], List.singleton_append, splitOn_newline _ hnl, List.map_cons,
+    readLines, String.toList_ofList, hwords]
+  simp [header?, readLines_clauses φ fun _ => CNF.lt_dimacsVars, bind, Except.bind, pure,
     Except.pure]
 
 

@@ -15,11 +15,15 @@ public import CslibFrontier.Foundations.Data.BitString.List
 Splitting a bit list of length `count * width` into `count` rows of width `width` via
 `Cslib.BitString.listRows` and concatenating the rows recovers the original list, and replacing a
 row via `Cslib.BitString.replaceRow` with a `width`-bit word produces a `count * width`-bit list.
+Reading `count` rows of width `width` uses only the first `count * width` bits of the word.
 
 ## Main results
 
+* `Cslib.BitString.listRows_take`: `listRows count width (word.take (count * width)) =
+  listRows count width word`.
 * `Cslib.BitString.flatten_listRows_of_length`: `(listRows count width w).flatten = w` when
   `w.length = count * width`.
+* `Cslib.BitString.listRows_append_aligned`: split a concatenation at a row boundary.
 * `Cslib.BitString.prefix_of_flatten_prefix`: a prefix between flattened positive-width rows
   gives a prefix between their row lists.
 * `Cslib.BitString.length_replaceRow`: `(replaceRow width count j x word).length = count * width`
@@ -30,6 +34,11 @@ public section
 
 namespace Cslib.BitString
 
+/-- Reading `count` rows of width `width` does not see bits beyond the first `count * width`. -/
+theorem listRows_take (count width : ℕ) (word : List Bool) :
+    listRows count width (word.take (count * width)) = listRows count width word := by
+  rw [listRows_eq_ofFn, ofList_take, ← listRows_eq_ofFn]
+
 /-- Splitting a list of length `count * width` into `count` rows of width `width` and flattening
 the rows recovers the original list. -/
 theorem flatten_listRows_of_length {count width : ℕ} {w : List Bool}
@@ -38,6 +47,25 @@ theorem flatten_listRows_of_length {count width : ℕ} {w : List Bool}
   have heq : w = List.ofFn (ofList (count * width) w) := (ofFn_ofList hw).symm
   conv_lhs => rw [heq, listRows_ofFn, ← ofFn_blocksEquiv_symm]
   simp [blocksEquiv_symm_block, ← heq]
+
+/-- Splitting a concatenation of aligned bit lists into rows splits each list separately. -/
+theorem listRows_append_aligned {width : ℕ} (hwidth : 0 < width) {left right : List Bool}
+    (hleft : width ∣ left.length) (hright : width ∣ right.length) :
+    listRows ((left ++ right).length / width) width (left ++ right) =
+      listRows (left.length / width) width left ++ listRows (right.length / width) width right := by
+  have hcount : (left ++ right).length / width =
+      left.length / width + right.length / width := by
+    calc
+      _ = ((left.length / width + right.length / width) * width) / width := by
+        rw [List.length_append, Nat.add_mul, Nat.div_mul_cancel hleft, Nat.div_mul_cancel hright]
+      _ = _ := Nat.mul_div_cancel _ hwidth
+  rw [hcount]
+  have hrows := listRows_flatten
+    (listRows (left.length / width) width left ++ listRows (right.length / width) width right)
+    (fun row hrow => (List.mem_append.mp hrow).elim length_of_mem_listRows length_of_mem_listRows)
+  simpa only [List.length_append, length_listRows, List.flatten_append,
+    flatten_listRows_of_length (Nat.div_mul_cancel hleft).symm,
+    flatten_listRows_of_length (Nat.div_mul_cancel hright).symm] using hrows
 
 /-- For lists of rows of the same positive width, flattening reflects the prefix relation. -/
 theorem prefix_of_flatten_prefix {width : ℕ} (hwidth : 0 < width)

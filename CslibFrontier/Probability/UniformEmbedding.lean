@@ -98,13 +98,9 @@ theorem isStationary_permTupleKernel {T α : Type*} [Fintype T] [Fintype α]
     [Nonempty (T ↪ α)] (ρ : PMF (Equiv.Perm α)) :
     (MarkovChain.mk (permTupleKernel (T := T) ρ)).IsStationary
       (PMF.uniformOfFintype (T ↪ α)) := by
-  have hmap (x : T ↪ α) :
-      (ρ.map fun π => (Equiv.refl T).embeddingCongr π x) =
-        ρ.bind (fun π => PMF.pure ((Equiv.refl T).embeddingCongr π x)) :=
-    (PMF.bind_pure_comp _ ρ).symm
   change (PMF.uniformOfFintype (T ↪ α)).bind
     (fun x => ρ.map fun π => (Equiv.refl T).embeddingCongr π x) = _
-  simp_rw [hmap]
+  simp_rw [← PMF.bind_pure_comp, Function.comp_def]
   rw [PMF.bind_comm]
   have hinner (π : Equiv.Perm α) :
       (PMF.uniformOfFintype (T ↪ α)).bind
@@ -154,13 +150,7 @@ private theorem permTupleKernel_composePermDist_eq_prod_ofFn {T α : Type*} :
     simp only [permTupleKernel_eq, composePermDist_zero, PMF.pure_map, List.ofFn_zero,
       List.prod_nil, MarkovChain.one_apply, Equiv.embeddingCongr_refl, Equiv.refl_apply]
   | t + 1, ρs => by
-    have hsnoc :
-        (List.ofFn fun i : Fin (t + 1) => MarkovChain.mk (permTupleKernel (T := T) (ρs i))) =
-          (List.ofFn fun i : Fin t =>
-              MarkovChain.mk (permTupleKernel (T := T) (ρs i.castSucc))) ++
-            [MarkovChain.mk (permTupleKernel (T := T) (ρs (Fin.last t)))] := by
-      rw [List.ofFn_succ', List.concat_eq_append]
-    rw [hsnoc, List.prod_append, List.prod_singleton,
+    rw [List.ofFn_succ', List.concat_eq_append, List.prod_append, List.prod_singleton,
       ← permTupleKernel_composePermDist_eq_prod_ofFn t (fun i => ρs i.castSucc)]
     ext1 x
     exact permTupleKernel_composePermDist_succ t ρs x
@@ -177,10 +167,8 @@ theorem dist_permTupleKernel_composePermDist_le {T α : Type*}
     (x : T ↪ α) :
     dist (permTupleKernel (composePermDist t ρs) x) (PMF.uniformOfFintype (T ↪ α)) ≤
       (1 / 2 : ℝ) * (2 * δ) ^ t := by
-  have heq := congrArg (fun M : MarkovChain (T ↪ α) => M x)
-    (permTupleKernel_composePermDist_eq_prod_ofFn t ρs)
-  dsimp only at heq
-  rw [heq]
+  rw [show permTupleKernel (composePermDist t ρs) x = _ from congrArg
+    (fun M : MarkovChain (T ↪ α) => M x) (permTupleKernel_composePermDist_eq_prod_ofFn t ρs)]
   exact MarkovChain.dist_prod_ofFn_le ht
     (fun i => MarkovChain.mk (permTupleKernel (ρs i)))
     (fun i => isStationary_permTupleKernel (ρs i)) hδ x
@@ -195,11 +183,9 @@ theorem prob_uniformOfFintype_embedding_mem_range {ι α : Type*} [Fintype ι] [
   classical
   let r (e : ι ↪ α) (y : α) := y ∈ Set.range e
   have above (e : ι ↪ α) : univ.bipartiteAbove r e = univ.map e := by
-    ext y
-    simp [r, Set.mem_range]
+    ext y; simp [r, Set.mem_range]
   have below (y : α) : (univ.bipartiteBelow r y).card = (univ.bipartiteBelow r x).card := by
-    refine card_equiv ((Equiv.refl ι).embeddingCongr (Equiv.swap y x)) ?_
-    intro e
+    refine card_equiv ((Equiv.refl ι).embeddingCongr (Equiv.swap y x)) fun e => ?_
     simp only [mem_bipartiteBelow, mem_univ, true_and, r, Set.mem_range]
     change (∃ i, e i = y) ↔ ∃ i, (Equiv.swap y x) (e i) = x
     simp only [← Equiv.eq_symm_apply, Equiv.symm_swap, Equiv.swap_apply_right]
@@ -238,19 +224,10 @@ theorem prob_uniformOfFintype_embedding_forall_mem_le {T α : Type*}
       _ ≤ Fintype.card (T ↪ Q) := Fintype.card_le_of_injective toSub toSub.injective
       _ = (#Q).descFactorial (Fintype.card T) := by rw [Fintype.card_embedding_eq, Fintype.card_coe]
   change ((PMF.uniformOfFintype (T ↪ α)).toOuterMeasure E).toReal ≤ _
-  rw [toOuterMeasure_uniformOfFintype_toReal]
-  have hcard_emb : Fintype.card (T ↪ α) = (Fintype.card α).descFactorial (Fintype.card T) :=
-    Fintype.card_embedding_eq
-  have hdesc_pos : 0 < (Fintype.card α).descFactorial (Fintype.card T) :=
-    hcard_emb ▸ Fintype.card_pos
-  have hα_pos : (0 : ℝ) < (Fintype.card α : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-  rw [hcard_emb, div_pow, div_le_div_iff₀ (Nat.cast_pos.mpr hdesc_pos) (pow_pos hα_pos _)]
-  have hnat :
-      #(univ.filter (· ∈ E)) * Fintype.card α ^ Fintype.card T ≤
-        (#Q) ^ Fintype.card T * (Fintype.card α).descFactorial (Fintype.card T) :=
-    (Nat.mul_le_mul_right _ hcard_good).trans
-      (Nat.descFactorial_mul_pow_le (card_le_univ Q) (Fintype.card T))
-  exact_mod_cast hnat
+  rw [toOuterMeasure_uniformOfFintype_toReal, Fintype.card_embedding_eq, div_pow,
+    div_le_div_iff₀ (Nat.cast_pos.mpr (Nat.descFactorial_pos.2 hT)) (by positivity)]
+  exact_mod_cast (Nat.mul_le_mul_right _ hcard_good).trans
+    (Nat.descFactorial_mul_pow_le (card_le_univ Q) (Fintype.card T))
 
 /-- **Per-coordinate without-replacement upper bound**: for any per-coordinate target sets
 `Q : T → Finset α` and `2 * |T| ^ 2 ≤ |α|`, a uniform injection `e ← PMF.uniformOfFintype (T ↪ α)`
@@ -276,21 +253,10 @@ theorem prob_uniformOfFintype_embedding_forall_mem_perKey_le {T α : Type*}
       _ = ∏ i : T, #(Q i) := by simp [Fintype.card_pi]
   change ((PMF.uniformOfFintype (T ↪ α)).toOuterMeasure E).toReal ≤ _
   rw [toOuterMeasure_uniformOfFintype_toReal, Finset.prod_div_distrib, Finset.prod_const,
-    Finset.card_univ, ← mul_div_assoc]
-  have hcard_emb : Fintype.card (T ↪ α) = (Fintype.card α).descFactorial (Fintype.card T) :=
-    Fintype.card_embedding_eq
-  have hdesc_pos : 0 < (Fintype.card α).descFactorial (Fintype.card T) :=
-    hcard_emb ▸ Fintype.card_pos
-  have hα_pos : (0 : ℝ) < (Fintype.card α : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-  rw [hcard_emb, div_le_div_iff₀ (Nat.cast_pos.mpr hdesc_pos) (pow_pos hα_pos _)]
-  have hnat :
-      #(univ.filter (· ∈ E)) * Fintype.card α ^ Fintype.card T ≤
-        (2 * ∏ i : T, #(Q i)) * (Fintype.card α).descFactorial (Fintype.card T) := by
-    calc #(univ.filter (· ∈ E)) * Fintype.card α ^ Fintype.card T
-        ≤ (∏ i : T, #(Q i)) * (2 * (Fintype.card α).descFactorial (Fintype.card T)) :=
-          Nat.mul_le_mul hcard_good (Nat.pow_le_two_mul_descFactorial hcard2)
-      _ = (2 * ∏ i : T, #(Q i)) * (Fintype.card α).descFactorial (Fintype.card T) := by ring
-  exact_mod_cast hnat
+    Finset.card_univ, ← mul_div_assoc, Fintype.card_embedding_eq,
+    div_le_div_iff₀ (Nat.cast_pos.mpr (Nat.descFactorial_pos.2 hT)) (by positivity)]
+  exact_mod_cast (Nat.mul_le_mul hcard_good (Nat.pow_le_two_mul_descFactorial hcard2)).trans_eq
+    (by ring)
 
 private theorem ratio_not_injective_fun_le (T α : Type*) [Fintype T] [DecidableEq T]
     [Fintype α] [Nonempty α]
@@ -319,20 +285,14 @@ private theorem ratio_not_injective_fun_le (T α : Type*) [Fintype T] [Decidable
   set bad := #(univ.filter fun f : T → α => ¬ Function.Injective f)
   have hA_pos : (0 : ℝ) < (A : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
   rcases Nat.eq_zero_or_pos r with hr0 | hr
-  · have hbad0 : bad = 0 := by
-      have h1 := hpart
-      rw [hr0, pow_zero, Nat.descFactorial_zero] at h1
-      omega
-    simp [hbad0, hr0]
+  · rw [hr0, pow_zero, Nat.descFactorial_zero] at hpart
+    simp [show bad = 0 by omega, hr0]
   · rw [Nat.cast_pow, div_le_div_iff₀ (pow_pos hA_pos r) (by positivity)]
     have htop := Nat.two_mul_pow_le_two_mul_descFactorial_add A r
     have hnat : bad * (2 * A) ≤ r * (r - 1) * A ^ r := by
-      have h2bad : 2 * bad ≤ r * (r - 1) * A ^ (r - 1) := by omega
-      calc bad * (2 * A)
-          = (2 * bad) * A := by ring
-        _ ≤ (r * (r - 1) * A ^ (r - 1)) * A := Nat.mul_le_mul_right A h2bad
-        _ = r * (r - 1) * (A ^ (r - 1) * A) := by ring
-        _ = r * (r - 1) * A ^ r := by rw [← pow_succ, Nat.sub_add_cancel hr]
+      calc bad * (2 * A) = (2 * bad) * A := by ring
+        _ ≤ r * (r - 1) * A ^ (r - 1) * A := Nat.mul_le_mul_right A (by omega)
+        _ = r * (r - 1) * A ^ r := by rw [mul_assoc, ← pow_succ, Nat.sub_add_cancel hr]
     exact_mod_cast hnat
 
 /-- Birthday collision bound for a uniform random function `f ← PMF.uniformOfFintype (T → α)`. -/
@@ -342,14 +302,8 @@ theorem prob_not_injective_uniform_le (T α : Type*) [Fintype T] [DecidableEq T]
       {f : T → α | ¬ Function.Injective f}).toReal ≤
       ((Fintype.card T * (Fintype.card T - 1) : ℕ) : ℝ) / (2 * (Fintype.card α : ℝ)) := by
   classical
-  let E : Set (T → α) := {f | ¬ Function.Injective f}
-  change ((PMF.uniformOfFintype (T → α)).toOuterMeasure E).toReal ≤ _
-  rw [toOuterMeasure_uniformOfFintype_toReal]
-  have hfilt : univ.filter (· ∈ E) =
-      univ.filter (fun f : T → α => ¬ Function.Injective f) :=
-    filter_congr fun _ _ => Iff.rfl
-  rw [hfilt]
-  exact ratio_not_injective_fun_le T α
+  simpa only [toOuterMeasure_uniformOfFintype_toReal, Set.mem_ofPred_eq] using
+    ratio_not_injective_fun_le T α
 
 /-- Statistical distance between a uniform random injection `T ↪ α` (coerced to `T → α`) and a
 uniform random function `T → α` is at most `|T| * (|T| - 1) / (2 * |α|)`. -/
@@ -381,10 +335,8 @@ theorem dist_uniform_embedding_to_fun {T α : Type*} [Fintype T] [DecidableEq T]
   rw [hmap_eq, hunif_eq, dist_uniformOfFinset_of_card_le hInj_ne univ_nonempty (card_le_univ _),
     card_univ]
   have hsub : #(univ \ InjSet) ≤ #(univ.filter fun f : T → α => ¬ Function.Injective f) := by
-    refine card_le_card fun f hf => ?_
-    rw [mem_sdiff] at hf
-    rw [mem_filter]
-    exact ⟨mem_univ f, fun hfinj => hf.2 (mem_image.mpr ⟨⟨f, hfinj⟩, mem_univ _, rfl⟩)⟩
+    exact card_le_card fun f hf => mem_filter.2
+      ⟨mem_univ f, fun hfinj => (mem_sdiff.1 hf).2 (mem_image.mpr ⟨⟨f, hfinj⟩, mem_univ _, rfl⟩)⟩
   exact (div_le_div_of_nonneg_right (Nat.cast_le.mpr hsub) (Nat.cast_nonneg _)).trans
     (ratio_not_injective_fun_le T α)
 

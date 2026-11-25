@@ -122,28 +122,19 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
   have deliver : ExecWithin (B := .standard) W
       (.op (.copy CallableFixedPrime.Reg.prime (selectorBank PrimeSelection.Reg.best))) r q 1 :=
     ExecWithin.copy
-  have qkeep (j : Fin 640) (hj : 143 ≤ j.val)
-      (hdj : j ≠ CallableFixedPrime.Reg.dimension) (hgj : j ≠ CallableFixedPrime.Reg.groups)
-      (hpj : j ≠ CallableFixedPrime.Reg.prime) : q.regs j = x.regs j := by
-    exact (Function.update_of_ne hpj _ _).trans ((rr j hj).trans (sr j hj hdj hgj))
+  have qkeep (j : Fin 640) (hj : 143 ≤ j.val := by decide)
+      (hdj : j ≠ CallableFixedPrime.Reg.dimension := by decide)
+      (hgj : j ≠ CallableFixedPrime.Reg.groups := by decide)
+      (hpj : j ≠ CallableFixedPrime.Reg.prime := by decide) : q.regs j = x.regs j :=
+    (Function.update_of_ne hpj _ _).trans ((rr j hj).trans (sr j hj hdj hgj))
   have qn : q.regs CallableFixedPrime.Reg.n = n := by regs_frame
-  have qd : q.regs CallableFixedPrime.Reg.dimension = D (ParameterChoice.level n) :=
-    (Function.update_of_ne (by decide : CallableFixedPrime.Reg.dimension ≠
-      CallableFixedPrime.Reg.prime) p r.regs).trans
-      (by regs_frame)
-  have qg : q.regs CallableFixedPrime.Reg.groups = ParameterChoice.groups n :=
-    (Function.update_of_ne (by decide : CallableFixedPrime.Reg.groups ≠
-      CallableFixedPrime.Reg.prime) p r.regs).trans
-      (by regs_frame)
+  have qd : q.regs CallableFixedPrime.Reg.dimension = D (ParameterChoice.level n) := by regs_frame
+  have qg : q.regs CallableFixedPrime.Reg.groups = ParameterChoice.groups n := by regs_frame
   have qb : q.regs CallableFixedPrime.Reg.base = b := by regs_frame
-  have qa : q.regs CallableFixedPrime.Reg.ab = x.regs CallableFixedPrime.Reg.ab :=
-    qkeep _ (by decide) (by decide) (by decide) (by decide)
-  have qB : q.regs CallableFixedPrime.Reg.bc = x.regs CallableFixedPrime.Reg.bc :=
-    qkeep _ (by decide) (by decide) (by decide) (by decide)
-  have qc : q.regs CallableFixedPrime.Reg.ac = x.regs CallableFixedPrime.Reg.ac :=
-    qkeep _ (by decide) (by decide) (by decide) (by decide)
-  have same (u : ℕ) (hu : u < b) : q.mem u = x.mem u :=
-    (rframe u (Or.inl hu)).trans (congrFun sm u)
+  have qa : q.regs CallableFixedPrime.Reg.ab = x.regs CallableFixedPrime.Reg.ab := qkeep _
+  have qB : q.regs CallableFixedPrime.Reg.bc = x.regs CallableFixedPrime.Reg.bc := qkeep _
+  have qc : q.regs CallableFixedPrime.Reg.ac = x.regs CallableFixedPrime.Reg.ac := qkeep _
+  have same (u : ℕ) (hu : u < b) : q.mem u = x.mem u := (rframe u (Or.inl hu)).trans (congrFun sm u)
   have hm := window_le (n := n) (d := D (ParameterChoice.level n))
     (g := ParameterChoice.groups n) (T := CallableFixedPrime.rawTotal n values) hcap
   obtain ⟨a, hout, y, hy, yf, ys, yiff, yw, yframe, yr⟩ :=
@@ -160,29 +151,16 @@ theorem exec_fast {w W n F b : ℕ} (values : List ℤ)
   refine ⟨p, a, hprime, hout, y, ?_, yf, yiff, ys, ?_, ?_⟩
   · exact (hs.seq (hr.seq hsolve)).mono (le_of_eq (by ring))
   · intro u hu
-    have hsmall : u < b ∨ b + CallableFixedPrime.windowSize n (D (ParameterChoice.level n))
-        (ParameterChoice.groups n) p (CallableFixedPrime.rawTotal n values) ≤ u := by
-      rcases hu with hu | hu
-      · exact Or.inl hu
-      · exact Or.inr ((Nat.add_le_add_left hm b).trans ((le_max_right _ _).trans hu))
-    have hcounter : u < b ∨ CountPrime.memoryEnd n (Nat.sqrt (D (ParameterChoice.level n)))
-        (Nat.clog 2 n) b ≤ u := hu.elim Or.inl (fun h => Or.inr ((le_max_left _ _).trans h))
-    exact (yframe u hsmall).trans ((rframe u hcounter).trans (congrFun sm u))
+    refine (yframe u ?_).trans ((rframe u ?_).trans (congrFun sm u))
+    · exact hu.imp_right fun h => (Nat.add_le_add_left hm b).trans ((le_max_right _ _).trans h)
+    · exact hu.imp_right (le_max_left _ _).trans
   · intro j hj
-    have hj' : (143 ≤ j.val ∧ j.val < 160) ∨ j.val = 600 ∨
-        (604 ≤ j.val ∧ j.val ≤ 607) := by
-      rcases hj with h | h | h
-      · exact Or.inl h
-      · exact Or.inr (Or.inl (congrArg Fin.val h))
-      · exact Or.inr (Or.inr h)
-    have h143 : 143 ≤ j.val := by rcases hj' with h | h | h <;> omega
-    have hne (i : Fin 640) (hi : 601 ≤ i.val ∧ i.val ≤ 603) : j ≠ i := by
-      intro heq
-      have hh := congrArg Fin.val heq
-      rcases hj' with h | h | h <;> omega
-    have hframe : j.val < 160 ∨ (600 ≤ j.val ∧ j.val < 608) := by
-      rcases hj' with h | h | h <;> omega
-    exact (yr j hframe).trans (qkeep j h143 (hne _ (by decide))
+    have hj' : (143 ≤ j.val ∧ j.val < 160) ∨ j.val = 600 ∨ (604 ≤ j.val ∧ j.val ≤ 607) :=
+      hj.imp_right (Or.imp_left (congrArg Fin.val))
+    have hne (i : Fin 640) (hi : 601 ≤ i.val ∧ i.val ≤ 603) : j ≠ i := fun heq => by
+      have := congrArg Fin.val heq
+      omega
+    exact (yr j (by omega)).trans (qkeep j (by omega) (hne _ (by decide))
       (hne _ (by decide)) (hne _ (by decide)))
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

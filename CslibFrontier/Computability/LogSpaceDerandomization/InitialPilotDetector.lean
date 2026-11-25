@@ -81,7 +81,7 @@ theorem environmentDetector_row_moment
   unfold rowNormPow
   congr 1
   rw [← univ_product_univ, expect_product]
-  simp only [Fintype.expect_const]
+  simp only [PilotRowRecipe.sourceCoord, PilotRowRecipe.terminalCoord, Fintype.expect_const]
   apply Fintype.expect_equiv (terminalSplit r.terminal.role).symm
   intro p
   simp [hr.1, stageSource, splitTerminal, terminalSplit, coordinate,
@@ -182,24 +182,14 @@ theorem initialTrueDetector_eq_canonical
   let r := initialDetectorRequest HP R ks kt ss st
   have he := stage_columnDetector_eq_canonical HP D id r
     (initialDetectorRequest_admissible HP R ks kt ss st) hD C
-  change columnDetector (stageSource D id r
-      (initialDetectorRequest_admissible HP R ks kt ss st)) (splitTerminal D id r)
-      HP.ϕ HP.ρ HP.J HP.K (rate kt) C =
-    columnDetector (canonicalChannel id (rate kt)) (canonicalChannel id (rate kt))
-      HP.ϕ HP.ρ HP.J HP.K (rate kt) C at he
   funext y
-  change min 1 (max 0 (columnDetector
-    (stageSource D id r (initialDetectorRequest_admissible HP R ks kt ss st))
-    (splitTerminal D id r) HP.ϕ HP.ρ HP.J HP.K (rate kt) C y)) = _
-  rw [he]
-  have h0 := columnDetector_nonneg (X := canonicalChannel id (rate kt))
-    (Y := canonicalChannel id (rate kt)) (ϕ := HP.ϕ) (ρ := HP.ρ)
-    (J := HP.J) (K := HP.K) (f := rate kt) (G := C) (y := y)
-  have h1 := columnDetector_le_one (X := canonicalChannel id (rate kt))
-    (Y := canonicalChannel id (rate kt)) (ϕ := HP.ϕ) (ρ := HP.ρ)
-    (J := HP.J) (K := HP.K) (f := rate kt) (G := C) (y := y)
-    HP.ϕ_nonneg HP.ϕ_le_one HP.ρ_le_one
-  rw [max_eq_right h0, min_eq_right h1]
+  change min 1 (max 0 (columnDetector (stageSource D id r _) (splitTerminal D id r)
+    HP.ϕ HP.ρ HP.J HP.K (rate kt) C y)) = _
+  rw [show columnDetector (stageSource D id r _) (splitTerminal D id r)
+    HP.ϕ HP.ρ HP.J HP.K (rate kt) C = _ from he]
+  rw [max_eq_right columnDetector_nonneg,
+    min_eq_right (columnDetector_le_one HP.ϕ_nonneg HP.ϕ_le_one HP.ρ_le_one)]
+  rfl
 
 /-- A true score ignores the source spectators. The direct environment evaluation
 therefore recovers the original detector exactly, without an invariance assumption
@@ -232,6 +222,16 @@ theorem environmentDetector_true
   exact congrArg (PilotRowRecipe.sourceDetector HP.toHierarchyParams
     (stageSource D id r (initialDetectorRequest_admissible HP R ks kt ss st))
     (splitTerminal D id r)) he
+
+private theorem rowNormPow_congr_decidable {Ω V : Type*} [Fintype Ω] [Fintype V]
+    {p : ℕ} {N u : ℝ} {X Y : Ω → V → Prop}
+    {dX₁ dX₂ : ∀ σ x, Decidable (X σ x)} {dY₁ dY₂ : ∀ σ y, Decidable (Y σ y)}
+    (Z : Ω → V → V → ℝ) :
+    @rowNormPow Ω V _ _ p N u X Y dX₁ dY₁ Z = @rowNormPow Ω V _ _ p N u X Y dX₂ dY₂ Z := by
+  unfold rowNormPow
+  congr 1
+  refine expect_congr rfl fun σ _ => sum_congr (by ext x; simp) fun _ _ =>
+    sum_congr (by ext y; simp) fun _ _ => rfl
 
 set_option backward.isDefEq.respectTransparency false in
 /-- The dense input budget is allocated before either completed child is called.
@@ -295,21 +295,9 @@ theorem initialPilotDetector_allocated
       (fun σ x => frameRetains P 4 (side P kt) (σ R.source) (CopyPadding.identifier D ss x))
       (fun σ y => frameRetains P 4 (side P kt) (σ R.terminal) (CopyPadding.identifier D st y))
       (fun σ x y => A σ x y - B σ x y) ≤ ε ^ 4 := by
-    convert hs using 1; dsimp only [rowNormPow, A, B, Yt, X, Y]; congr 3
-    funext σ
-    apply sum_congr (by ext x; simp only [mem_filter, mem_univ, true_and])
-    intro x hx
-    apply sum_congr (by ext y; simp only [mem_filter, mem_univ, true_and])
-    intro y hy
-    rfl
-  convert he.trans (mul_le_mul_of_nonneg_left hs' (by positivity)) using 1;
-      dsimp only [rowNormPow, initialPilotDetector, A, r, initialDetectorRequest, X, Y, Yt];
-      congr 3 with σ : 1
-  apply sum_congr (by ext x; simp only [mem_filter, mem_univ, true_and])
-  intro x hx
-  apply sum_congr (by ext y; simp only [mem_filter, mem_univ, true_and])
-  intro y hy
-  rfl
+    rwa [rowNormPow_congr_decidable (dX₂ := _) (dY₂ := _)]
+  refine le_trans ?_ (he.trans (mul_le_mul_of_nonneg_left hs' (by positivity)))
+  exact (rowNormPow_congr_decidable (dX₂ := _) (dY₂ := _) _).le
 
 
 set_option backward.isDefEq.respectTransparency false in

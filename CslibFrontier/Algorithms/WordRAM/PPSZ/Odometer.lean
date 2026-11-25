@@ -63,10 +63,10 @@ theorem succIn_getElem {l : List ℕ} (hl : l.Nodup) {i : ℕ} (hi : i < l.lengt
   | cons b l ih =>
     rcases i with _ | i
     · simp [succIn, List.head?_eq_getElem?]
-    · have hi' : i < l.length := by simp at hi; omega
-      have hne : l[i] ≠ b := fun h => (List.nodup_cons.mp hl).1 (h ▸ List.getElem_mem _)
+    · have hne : l[i]'(by simpa using hi) ≠ b :=
+        fun h => (List.nodup_cons.mp hl).1 (h ▸ List.getElem_mem _)
       simp only [List.getElem_cons_succ, succIn, hne, ↓reduceIte]
-      exact ih (List.nodup_cons.mp hl).2 hi'
+      exact ih (List.nodup_cons.mp hl).2 (by simpa using hi)
 
 /-- The list `xs` lists sections of `L` in odometer order: the odometer leads from each entry to
 the next one, and from the last entry nowhere. -/
@@ -76,16 +76,13 @@ def Enumerates (L : List (List ℕ)) (xs : List (List ℕ)) : Prop :=
 /-- The first step of an enumeration. -/
 theorem Enumerates.head {L : List (List ℕ)} {t : List ℕ} {xs : List (List ℕ)}
     (h : Enumerates L (t :: xs)) : nextSection L t = xs.head? := by
-  have := h 0 (by simp)
-  simpa only [List.getElem_cons_zero, Nat.zero_add, List.getElem?_cons_succ,
-    List.head?_eq_getElem?] using this
+  rw [List.head?_eq_getElem?]
+  exact h 0 (Nat.zero_lt_succ _)
 
 /-- The rest of an enumeration. -/
 theorem Enumerates.tail {L : List (List ℕ)} {t : List ℕ} {xs : List (List ℕ)}
     (h : Enumerates L (t :: xs)) : Enumerates L xs :=
-  fun i hi => by
-    have := h (i + 1) (by simpa using hi)
-    simpa only [List.getElem_cons_succ, List.getElem?_cons_succ] using this
+  fun i hi => h (i + 1) (Nat.succ_lt_succ hi)
 
 /-- One more list in front: each section of the rest is extended by every entry of `l`. -/
 private theorem enumerates_flatMap {l : List ℕ} (hl : l.Nodup) (hne : l ≠ [])
@@ -93,11 +90,8 @@ private theorem enumerates_flatMap {l : List ℕ} (hl : l.Nodup) (hne : l ≠ []
     ∀ S : List (List ℕ), Enumerates L S →
       Enumerates (l :: L) (S.flatMap fun t => l.map (· :: t))
   | [], _ => fun i hi => by simp at hi
-  | t :: S, h => by
+  | t :: S, h => fun i hi => by
     have ih := enumerates_flatMap hl hne S h.tail
-    have hhead := h.head
-    have hm : 0 < l.length := List.length_pos_iff.mpr hne
-    intro i hi
     simp only [List.flatMap_cons] at hi ⊢
     by_cases hil : i < l.length
     · rw [List.getElem_append_left (by simpa using hil)]
@@ -105,22 +99,18 @@ private theorem enumerates_flatMap {l : List ℕ} (hl : l.Nodup) (hne : l ≠ []
       by_cases hi1 : i + 1 < l.length
       · rw [List.getElem?_append_left (by simpa using hi1)]
         simp [nextSection, succIn_getElem hl hil, List.getElem?_eq_getElem hi1]
-      · have hi1' : i + 1 = l.length := by omega
-        rw [List.getElem?_append_right (by simp; omega)]
-        simp only [List.length_map, hi1', Nat.sub_self]
-        have hs : succIn l l[i] = none := by
-          rw [succIn_getElem hl hil, List.getElem?_eq_none (by omega)]
-        simp only [nextSection, hs, hhead]
+      · rw [List.getElem?_append_right (by simp; omega)]
+        simp only [List.length_map, show i + 1 - l.length = 0 by omega, nextSection,
+          succIn_getElem hl hil, List.getElem?_eq_none (by omega : l.length ≤ i + 1), h.head]
         rcases S with _ | ⟨t', S⟩
         · simp
         · obtain ⟨a, l', rfl⟩ := List.exists_cons_of_ne_nil hne
           simp
-    · have hil' : l.length ≤ i := by omega
-      rw [List.getElem_append_right (by simpa using hil'),
-        List.getElem?_append_right (by simp; omega)]
-      have hi' : i - (l.map (· :: t)).length < (S.flatMap fun t => l.map (· :: t)).length := by
-        simp only [List.length_append, List.length_map] at hi ⊢; omega
-      rw [ih _ hi']
+    · have hi' : i - (l.map (· :: t)).length < (S.flatMap fun t => l.map (· :: t)).length := by
+        simp only [List.length_append, List.length_map] at hi ⊢
+        omega
+      rw [List.getElem_append_right (by simp; omega),
+        List.getElem?_append_right (by simp; omega), ih _ hi']
       congr 1
       simp only [List.length_map]
       omega
@@ -131,16 +121,13 @@ last one nowhere. -/
 theorem nextSection_sections : ∀ {L : List (List ℕ)}, (∀ l ∈ L, l.Nodup) →
     Enumerates L L.sections
   | [], _ => fun i hi => by
-    simp only [List.sections, List.length_singleton, Nat.lt_one_iff] at hi
-    subst hi
+    obtain rfl : i = 0 := by simpa [List.sections] using hi
     simp [nextSection]
   | l :: L, hL => by
     by_cases hne : l = []
     · subst hne
       intro i hi
-      simp only [List.sections, List.map_nil, List.length_nil,
-        List.flatMap_eq_nil_iff.mpr (fun _ _ => rfl)] at hi
-      simp at hi
+      simp [List.sections, List.flatMap_eq_nil_iff.mpr fun _ _ => rfl] at hi
     · exact enumerates_flatMap (hL l (by simp)) hne _
         (nextSection_sections fun l' h => hL l' (by simp [h]))
 

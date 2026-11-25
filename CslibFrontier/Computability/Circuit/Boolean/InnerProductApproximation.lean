@@ -62,8 +62,7 @@ namespace Boolean
 
 private theorem isAffine_add_pair : IsAffine (fun x : Fin 2 → Bool => x 0 + x 1) := by
   intro x y z
-  simp only [Pi.add_apply]
-  ring
+  simp only [Pi.add_apply]; ring
 
 private theorem not_isAffine_mul_pair : ¬ IsAffine (fun x : Fin 2 → Bool => x 0 * x 1) := by
   intro h
@@ -93,31 +92,26 @@ private theorem exists_circuit_innerProduct_sum {n : ℕ} (S : Finset (Fin n)) :
       ∀ x, c.eval fullInterpretation x 0 = ∑ i ∈ S, fstBits x i * sndBits x i := by
   induction S using Finset.induction_on with
   | empty =>
-    refine ⟨Circuit.oneGate (.con false) Fin.elim0, ?_, ?_⟩
-    · exact (Circuit.cost_program_oneGate (σ := fullSignature 2 Bool)
-        (.con false) Fin.elim0 _).trans (nonlinearCost_full_con false)
-    · intro x
-      change false = ∑ i ∈ (∅ : Finset (Fin n)), fstBits x i * sndBits x i
-      simp only [sum_empty, Bool.zero_eq_false]
+    refine ⟨Circuit.oneGate (.con false) Fin.elim0, (Circuit.cost_program_oneGate
+      (σ := fullSignature 2 Bool) (.con false) Fin.elim0 _).trans (nonlinearCost_full_con false),
+      fun x => ?_⟩
+    change false = ∑ i ∈ (∅ : Finset (Fin n)), fstBits x i * sndBits x i
+    simp only [sum_empty, Bool.zero_eq_false]
   | @insert i S hi ih =>
     obtain ⟨c, hcost, hc⟩ := ih
     let pair : Circuit (fullSignature 2 Bool) (n + n) 1 :=
       Circuit.oneGate (.fn fun x => x 0 * x 1) ![Fin.castAdd n i, Fin.natAdd n i]
     let add : Circuit (fullSignature 2 Bool) 2 1 :=
       Circuit.oneGate (.fn fun x => x 0 + x 1) id
-    have hpair : pair.program.cost (nonlinearCost fullInterpretation) = 1 :=
-      (Circuit.cost_program_oneGate (σ := fullSignature 2 Bool)
-        (.fn fun x => x 0 * x 1) ![Fin.castAdd n i, Fin.natAdd n i] _).trans
-        nonlinearCost_full_mul
-    have hadd : add.program.cost (nonlinearCost fullInterpretation) = 0 :=
-      (Circuit.cost_program_oneGate (σ := fullSignature 2 Bool)
-        (.fn fun x => x 0 + x 1) id _).trans nonlinearCost_full_add
-    refine ⟨add.comp (pair.append c), ?_, ?_⟩
-    · rw [Circuit.cost_program_comp, Circuit.cost_program_append, hpair, hadd, hcost,
+    refine ⟨add.comp (pair.append c), ?_, fun x => ?_⟩
+    · have hpair : pair.program.cost (nonlinearCost fullInterpretation) = 1 :=
+        (Circuit.cost_program_oneGate _ _ _).trans nonlinearCost_full_mul
+      have hadd : add.program.cost (nonlinearCost fullInterpretation) = 0 :=
+        (Circuit.cost_program_oneGate _ _ _).trans nonlinearCost_full_add
+      rw [Circuit.cost_program_comp, Circuit.cost_program_append, hpair, hadd, hcost,
         card_insert_of_notMem hi]
       omega
-    · intro x
-      rw [Circuit.eval_comp, Circuit.eval_append]
+    · rw [Circuit.eval_comp, Circuit.eval_append]
       change fstBits x i * sndBits x i + c.eval fullInterpretation x 0 = _
       rw [hc, sum_insert hi]
 
@@ -134,7 +128,7 @@ theorem isGreatest_innerProduct_correlation {n m : ℕ} (hm : m ≤ n) :
         c.program.cost (nonlinearCost fullInterpretation) ≤ m ∧
         (𝔼 x, signVal (fstBits x ⬝ᵥ sndBits x) * signVal (c.eval fullInterpretation x 0)) = ρ}
       ((2 : ℝ) ^ m / 2 ^ n) := by
-  constructor
+  refine ⟨?_, ?_⟩
   · obtain ⟨S, -, hS⟩ := exists_subset_card_eq (s := (univ : Finset (Fin n))) (by simpa using hm)
     obtain ⟨c, hcost, hc⟩ := exists_circuit_innerProduct_sum S
     refine ⟨c, hcost.trans_le hS.le, ?_⟩

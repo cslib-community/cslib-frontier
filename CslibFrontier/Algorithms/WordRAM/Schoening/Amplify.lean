@@ -121,14 +121,12 @@ theorem repeatTrial_false_toReal (φ : CNF (Fin n)) (R : ℕ) :
     simp only [PMF.toOuterMeasure_apply_singleton] at h
     have hsum : ∑ σ, ((trial φ) σ).toReal * (if φ.eval σ = true then 0 else 1) =
         1 - succeedProb φ (trial φ) := by
-      have hfail := Probability.PMF.toOuterMeasure_toReal_add_compl (trial φ)
-        {σ | φ.eval σ = true}
       have hcongr : ∑ σ, ((trial φ) σ).toReal * (if φ.eval σ = true then 0 else 1) =
           ((trial φ).toOuterMeasure {σ | φ.eval σ = true}ᶜ).toReal := by
         rw [Probability.PMF.toOuterMeasure_apply_toReal]
         exact Finset.sum_congr rfl fun σ _ => by by_cases hσ : φ.eval σ = true <;> simp [hσ]
       rw [hcongr, succeedProb]
-      linarith
+      linarith [Probability.PMF.toOuterMeasure_toReal_add_compl (trial φ) {σ | φ.eval σ = true}]
     rw [repeatTrial, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
       h, pow_succ]
     calc ∑ σ, ((trial φ) σ).toReal *
@@ -136,10 +134,7 @@ theorem repeatTrial_false_toReal (φ : CNF (Fin n)) (R : ℕ) :
         = ∑ σ, ((trial φ) σ).toReal * (if φ.eval σ = true then 0 else 1) *
             (1 - succeedProb φ (trial φ)) ^ R := by
           refine Finset.sum_congr rfl fun σ _ => ?_
-          by_cases hσ : φ.eval σ = true
-          · simp only [hσ, ↓reduceIte, PMF.pure_apply, Bool.false_eq_true, ENNReal.toReal_zero,
-              mul_zero, zero_mul]
-          · simp only [hσ, Bool.false_eq_true, ↓reduceIte, ih, mul_one]
+          by_cases hσ : φ.eval σ = true <;> simp [hσ, ih]
       _ = (1 - succeedProb φ (trial φ)) ^ R * (1 - succeedProb φ (trial φ)) := by
           rw [← Finset.sum_mul, hsum, mul_comm]
 
@@ -234,57 +229,43 @@ theorem ampTime_le {k : ℕ} (hk : 3 ≤ k) (n c L : ℕ) :
     (ampTime k n c L : ℝ) ≤
       900 * ((n + k + L + 1 : ℕ) : ℝ) ^ 3 * (2 * ((k : ℝ) - 1) / k) ^ n * (c + 1) := by
   set r := (2 * ((k : ℝ) - 1) / k) ^ n with hr
-  obtain ⟨N, hN⟩ : ∃ N, n + k + L + 1 = N := ⟨_, rfl⟩
-  rw [hN]
+  set N := n + k + L + 1
   have hk3 : (3 : ℝ) ≤ k := by exact_mod_cast hk
   have hr1 : 1 ≤ r := one_le_pow₀ (by rw [le_div_iff₀ (by linarith)]; linarith)
   have hR := schoeningTrials_le hk n c
   rw [← hr] at hR
   -- the setup
   have hS : setupTime k n c + 9 * counterLen k n c + 45 ≤ 305 * N ^ 3 * (c + 1) := by
-    obtain ⟨m, hm⟩ : ∃ m, n + k = m := ⟨_, rfl⟩
-    have hℓ : counterLen k n c ≤ 6 * m ^ 2 + c := hm ▸ counterLen_le k n c
+    have hℓ := counterLen_le k n c
+    have hmℓ := Nat.mul_le_mul_left (n + k) hℓ
     have h1 : setupTime k n c + 9 * counterLen k n c + 45 ≤
-        (m + 1) * (30 * counterLen k n c + 95) := by
-      simp only [setupTime, hm]; ring_nf; omega
-    have h2 : (m + 1) * (30 * counterLen k n c + 95) ≤ (m + 1) * (180 * m ^ 2 + 30 * c + 95) :=
-      Nat.mul_le_mul_left _ (by omega)
-    have h3 : (m + 1) * (180 * m ^ 2 + 30 * c + 95) ≤ 305 * (m + 1) ^ 3 * (c + 1) := by
-      ring_nf; omega
-    have h4 : (m + 1) ^ 3 ≤ N ^ 3 := Nat.pow_le_pow_left (by omega) 3
-    have h5 := Nat.mul_le_mul_right (c + 1) (Nat.mul_le_mul_left 305 h4)
-    omega
+        305 * (n + k + 1) ^ 3 * (c + 1) := by
+      simp only [setupTime]
+      ring_nf at hℓ hmℓ ⊢
+      omega
+    exact h1.trans (Nat.mul_le_mul_right _
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 3)))
   -- the trials
   have hP : 9 * n + 4 ≤ 9 * (n + 1) ∧ 36 * n * L + 66 * n + 12 * L + 43 ≤ 66 * (n + 1) * (L + 1) :=
     ⟨by omega, by ring_nf; omega⟩
-  have hPN : 9 * (n + 1) * (66 * (n + 1) * (L + 1)) ≤ 594 * N ^ 3 := by
-    have h1 : n + 1 ≤ N := by omega
-    have h2 : L + 1 ≤ N := by omega
-    have h3 : (n + 1) * (n + 1) * (L + 1) ≤ N * N * N :=
-      Nat.mul_le_mul (Nat.mul_le_mul h1 h1) h2
+  have hPN : 9 * (n + 1) * (66 * (n + 1) * (L + 1)) ≤ 594 * N ^ 3 :=
     calc 9 * (n + 1) * (66 * (n + 1) * (L + 1)) = 594 * ((n + 1) * (n + 1) * (L + 1)) := by ring
-      _ ≤ 594 * (N * N * N) := Nat.mul_le_mul_left _ h3
+      _ ≤ 594 * (N * N * N) := Nat.mul_le_mul_left _ (by gcongr <;> omega)
       _ = 594 * N ^ 3 := by ring
   have hPr : ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) ≤ 66 * (n + 1) * (L + 1) := by
     exact_mod_cast hP.2
   have hPN' : (9 * n + 4 : ℝ) * (66 * (n + 1) * (L + 1)) ≤ 594 * (N : ℝ) ^ 3 := by
-    have : ((9 * n + 4) * (66 * (n + 1) * (L + 1)) : ℕ) ≤ 594 * N ^ 3 :=
-      (Nat.mul_le_mul_right _ hP.1).trans hPN
-    exact_mod_cast this
+    exact_mod_cast (Nat.mul_le_mul_right _ hP.1).trans hPN
   have hSr : ((setupTime k n c + 9 * counterLen k n c + 45 : ℕ) : ℝ) ≤
       305 * (N : ℝ) ^ 3 * (c + 1) := by
     exact_mod_cast hS
-  have hexp : (ampTime k n c L : ℝ) =
-      (schoeningTrials k n c : ℝ) * ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) +
-        ((setupTime k n c + 9 * counterLen k n c + 45 : ℕ) : ℝ) := by
-    simp only [ampTime]; push_cast; ring
   have hT : (schoeningTrials k n c : ℝ) * ((36 * n * L + 66 * n + 12 * L + 43 : ℕ) : ℝ) ≤
       (9 * n + 4) * r * c * (66 * (n + 1) * (L + 1)) := by gcongr
-  have hN0 : (0 : ℝ) ≤ (N : ℝ) ^ 3 := by positivity
-  have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  rw [hexp]
-  nlinarith [mul_le_mul_of_nonneg_right hPN' (mul_nonneg (by linarith : (0 : ℝ) ≤ r) hc0),
-    mul_le_mul_of_nonneg_left hr1 (mul_nonneg hN0 (by linarith : (0 : ℝ) ≤ c + 1))]
+  simp only [ampTime]
+  push_cast at hT hSr ⊢
+  nlinarith [mul_le_mul_of_nonneg_right hPN'
+      (mul_nonneg (by linarith : (0 : ℝ) ≤ r) (Nat.cast_nonneg c)),
+    mul_le_mul_of_nonneg_left hr1 (by positivity : (0 : ℝ) ≤ (N : ℝ) ^ 3 * (c + 1))]
 
 /-! ### The setup -/
 
@@ -687,9 +668,8 @@ private theorem ampLoop_law {φ : CNF (Fin n)} {C A w : ℕ} (hw : Fits w (A + 3
             ⟨hy.self, hyb, by rw [hyl, length_decDigits], hdy, decDigits_digit_le hx.binary, hyf,
               hyo⟩ hv₁ (by rw [length_decDigits]; exact hfit)
     have hsteps := decSteps_add_count_le ds
-    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
-    · simp only [Nat.add_mul, Nat.one_mul]; omega
+    refine (h.congr_law rfl).mono (fun _ h => h) ?_ ?_ <;>
+      · simp only [Nat.add_mul, Nat.one_mul]; omega
 
 /-! ### The algorithm -/
 
@@ -781,16 +761,9 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 3 ≤ k) {φ : CNF (Fin n)} 
     positivity
   have hinv : (3 * n + 1 : ℝ) * (2 * ((k : ℝ) - 1) / k) ^ n *
       ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) = P₀⁻¹ := by
-    rw [hP₀]
-    have hk0 : (k : ℝ) ≠ 0 := by linarith
-    have hk10 : (k : ℝ) - 1 ≠ 0 := by linarith
-    have h1 : (2 * ((k : ℝ) - 1) / k) * ((k : ℝ) / (2 * ((k : ℝ) - 1))) = 1 := by field_simp
-    have h2 : ((k : ℝ) / ((k : ℝ) - 1)) * (((k : ℝ) - 1) / k) = 1 := by field_simp
-    field_simp
-    calc _ = ((2 * ((k : ℝ) - 1) / k) * ((k : ℝ) / (2 * ((k : ℝ) - 1)))) ^ n *
-          (((k : ℝ) / ((k : ℝ) - 1)) * (((k : ℝ) - 1) / k)) ^ (k - 3) := by
-          rw [mul_pow, mul_pow]; ring
-      _ = 1 := by rw [h1, h2, one_pow, one_pow, one_mul]
+    rw [hP₀, inv_div, div_eq_mul_inv (3 * (n : ℝ) + 1), mul_inv, ← inv_pow, ← inv_pow,
+      inv_div, inv_div]
+    ring
   have hp1 : succeedProb φ (trial φ) ≤ 1 := by
     rw [succeedProb]
     exact Probability.PMF.toOuterMeasure_toReal_le_one _ _

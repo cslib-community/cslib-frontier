@@ -89,22 +89,17 @@ theorem packed_side_eventually_le_rpow (κ : ℕ) {ε : ℝ} (hε : 0 < ε) :
     change t ^ 2 ≤ 4 * (3 * A + 1) ^ 2 * (n + 2) * _ at hs
     exact hs.trans (hm.trans_eq (by ring))
   have hsR := (Nat.cast_le (α := ℝ)).mpr hs'
-  have hmul := mul_le_mul_of_nonneg_left hlog (show (0 : ℝ) ≤ n by positivity)
-  have hexp : (n : ℝ) * (n : ℝ) ^ (2 * ε) = (n : ℝ) ^ (1 + 2 * ε) := by
-    rw [Real.rpow_add (by positivity), Real.rpow_one]
-  have hsq : (t : ℝ) ^ 2 ≤ (n : ℝ) ^ (1 + 2 * ε) := by
+  have hsq : (t : ℝ) ^ 2 ≤ ((n : ℝ) ^ (1 / 2 + ε : ℝ)) ^ 2 := by
+    have hmul := mul_le_mul_of_nonneg_left hlog (Nat.cast_nonneg n)
     push_cast at hsR hmul
-    rw [hexp] at hmul
-    nlinarith only [hsR, hmul]
-  have hroot : ((n : ℝ) ^ (1 / 2 + ε : ℝ)) ^ 2 =
-      (n : ℝ) ^ (1 + 2 * ε) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]
-    congr 1
-    ring
-  have ht0 : (0 : ℝ) ≤ t := by positivity
-  have hr0 : (0 : ℝ) ≤ (n : ℝ) ^ (1 / 2 + ε : ℝ) := Real.rpow_nonneg (by positivity) _
-  change (t : ℝ) ≤ _
-  nlinarith only [hsq, hroot, ht0, hr0]
+    refine (by nlinarith only [hsR, hmul] : (t : ℝ) ^ 2 ≤ n * (n : ℝ) ^ (2 * ε)).trans_eq ?_
+    trans (n : ℝ) ^ (1 + 2 * ε)
+    · rw [Real.rpow_add (by positivity), Real.rpow_one]
+    · symm
+      rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]
+      congr 1
+      ring
+  exact (sq_le_sq₀ (Nat.cast_nonneg t) (by positivity)).mp hsq
 
 /-- The actual native emitted-node allowance has the same degree-seven logarithmic estimate
 as the finite instance count. The shared finite lemma avoids a duplicate counting proof. -/
@@ -128,12 +123,9 @@ theorem callerTime_add_twelve_le (N T : ℕ) :
     Host.callerTime N T + 12 ≤
       2 * Host.sideLength N * T + 355 * Host.sideLength N ^ 3 := by
   have ht : 1 ≤ Host.sideLength N := by dsimp only [Host.sideLength]; omega
-  have hp : Host.sideLength N ≤ Host.sideLength N ^ 3 :=
-    Nat.le_self_pow (by decide) _
-  have hp1 : 1 ≤ Host.sideLength N ^ 3 := Nat.one_le_pow _ _ ht
-  unfold Host.callerTime
   have hs : Nat.sqrt N ≤ Host.sideLength N := by dsimp only [Host.sideLength]; omega
-  nlinarith only [hs, hp, hp1]
+  unfold Host.callerTime
+  nlinarith [Nat.le_self_pow (by decide : 3 ≠ 0) (Host.sideLength N), Nat.one_le_pow 3 _ ht]
 
 /-- Uniform polynomial-weight time bounds transfer to the actual packed side and magnitude. -/
 theorem exists_packed_calleeTime_bound {r : ℕ} (c : Host.Callee r) {e : ℝ}
@@ -161,22 +153,16 @@ theorem preprocessing_eventually_le_rpow (κ : ℕ) {a : ℝ} (ha : 3 / 2 < a) :
   have ht1 : 1 ≤ t := by dsimp only [t, Host.sideLength]; omega
   have hnt : n < t ^ 2 := input_lt_packed_side_sq n _
   have hsqrt : Nat.sqrt (n + 2) + 1 ≤ 3 * t := by
-    have h : n + 2 < (t + 2) ^ 2 := by nlinarith
-    have h' := Nat.sqrt_lt'.mpr h
-    omega
+    have := Nat.sqrt_lt'.mpr (by nlinarith : n + 2 < (t + 2) ^ 2); omega
   have hp := ChanHe.Preprocessing.cost_bound κ n
   have hp' : ChanHe.Preprocessing.cost κ n ≤
       K * n * t * (Nat.log 2 (n + 2) + 1) ^ 13 := by
     calc
       _ ≤ ChanHe.Preprocessing.costCoefficient κ * (2 * n) * (3 * t) *
-          (Nat.log 2 (n + 2) + 1) ^ 13 := by
-            apply hp.trans
-            gcongr
-            omega
+          (Nat.log 2 (n + 2) + 1) ^ 13 := hp.trans (by gcongr; omega)
       _ = (6 * ChanHe.Preprocessing.costCoefficient κ) * n * t *
           (Nat.log 2 (n + 2) + 1) ^ 13 := by ring
-      _ ≤ K * n * t * (Nat.log 2 (n + 2) + 1) ^ 13 :=
-        by gcongr; exact Nat.le_succ _
+      _ ≤ K * n * t * (Nat.log 2 (n + 2) + 1) ^ 13 := by gcongr; exact Nat.le_succ _
   have hpR := (Nat.cast_le (α := ℝ)).mpr hp'
   have hm := mul_le_mul_of_nonneg_left hlog (show (0 : ℝ) ≤ (n : ℝ) * t by positivity)
   have hp'' : (ChanHe.Preprocessing.cost κ n : ℝ) ≤
@@ -187,15 +173,11 @@ theorem preprocessing_eventually_le_rpow (κ : ℕ) {a : ℝ} (ha : 3 / 2 < a) :
     exact hsmall.trans (by gcongr)
   calc
     _ ≤ (n : ℝ) * (n : ℝ) ^ (1 / 2 + ε : ℝ) * (n : ℝ) ^ ε := hp''
-    _ = (n : ℝ) ^ (3 / 2 + 2 * ε : ℝ) := by
-      calc
-        _ = (n : ℝ) ^ (1 + (1 / 2 + ε) + ε : ℝ) := by
-          rw [Real.rpow_add (by positivity) (1 + (1 / 2 + ε) : ℝ) ε,
-            Real.rpow_add (by positivity) (1 : ℝ) (1 / 2 + ε : ℝ), Real.rpow_one]
-        _ = _ := by congr 1; ring
+    _ = (n : ℝ) ^ (1 + (1 / 2 + ε) + ε : ℝ) := by
+      rw [Real.rpow_add (by positivity) (1 + (1 / 2 + ε) : ℝ) ε,
+        Real.rpow_add (by positivity) (1 : ℝ) (1 / 2 + ε : ℝ), Real.rpow_one]
     _ ≤ _ := Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast (by omega : 1 ≤ n))
       (by dsimp only [ε]; linarith)
-
 
 /-- A uniform ET saving δ gives the actual charged ordinary host every exponent above 2-δ/2. -/
 theorem exists_cost_bound {r : ℕ} (c : Host.Callee r) {δ a : ℝ}
@@ -225,17 +207,15 @@ theorem exists_cost_bound {r : ℕ} (c : Host.Callee r) {δ a : ℝ}
     let t := Host.sideLength (instanceLength κ n)
     let T := c.time t (2 * (n + 2) ^ E + 1)
     have ht1 : (1 : ℝ) ≤ t := by
-      have h : 1 ≤ t := by dsimp only [t, Host.sideLength]; omega
-      exact_mod_cast h
+      exact_mod_cast (show 1 ≤ t by dsimp only [t, Host.sideLength]; omega)
     have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast (by omega : 1 ≤ n)
     have ht0 : (0 : ℝ) < t := by linarith
     change (t : ℝ) ≤ (n : ℝ) ^ (1 / 2 + ε : ℝ) at ht
     have hb : (T : ℝ) ≤ C * (t : ℝ) ^ (3 - δ) := htime n hnN
     have hpow : (t : ℝ) ^ (4 - δ) =
         (t : ℝ) * (t : ℝ) ^ (3 - δ) := by
-      have h : (4 - δ) = 1 + (3 - δ) := by ring
-      rw [h, Real.rpow_add ht0, Real.rpow_one]
-    have hT : 2 * (t : ℝ) * T ≤ 2 * C * (t : ℝ) ^ (4 - δ) := by
+      rw [show 4 - δ = 1 + (3 - δ) by ring, Real.rpow_add ht0, Real.rpow_one]
+    have hT : 2 * (t : ℝ) * T ≤ 2 * C * (t : ℝ) ^ (4 - δ) :=
       calc
         _ ≤ 2 * (t : ℝ) * (C * (t : ℝ) ^ (3 - δ)) := by gcongr
         _ = _ := by rw [hpow]; ring
@@ -243,21 +223,18 @@ theorem exists_cost_bound {r : ℕ} (c : Host.Callee r) {δ a : ℝ}
       rw [← Real.rpow_natCast]
       exact Real.rpow_le_rpow_of_exponent_le ht1 (by norm_num; linarith)
     have hc : ((Host.callerTime (instanceLength κ n) T + 12 : ℕ) : ℝ) ≤
-        2 * (t : ℝ) * T + 355 * (t : ℝ) ^ 3 := by
-      exact_mod_cast callerTime_add_twelve_le (instanceLength κ n) T
+        2 * (t : ℝ) * T + 355 * (t : ℝ) ^ 3 := mod_cast callerTime_add_twelve_le _ T
     have hcall : (Host.callerTime (instanceLength κ n) T + 12 : ℕ) ≤
         (2 * C + 355) * (t : ℝ) ^ (4 - δ) := by
       nlinarith only [hc, hT, hcube]
-    have hscale : (n : ℝ) ^ ε * (t : ℝ) ^ (4 - δ) ≤
-        (n : ℝ) ^ a := by
+    have hscale : (n : ℝ) ^ ε * (t : ℝ) ^ (4 - δ) ≤ (n : ℝ) ^ a :=
       calc
-        _ ≤ (n : ℝ) ^ ε * ((n : ℝ) ^ (1 / 2 + ε : ℝ)) ^ (4 - δ) := by
-          gcongr
+        _ ≤ (n : ℝ) ^ ε * ((n : ℝ) ^ (1 / 2 + ε : ℝ)) ^ (4 - δ) := by gcongr
         _ = (n : ℝ) ^ (ε + (1 / 2 + ε) * (4 - δ) : ℝ) := by
           rw [← Real.rpow_mul (by positivity), ← Real.rpow_add (by positivity)]
         _ ≤ _ := Real.rpow_le_rpow_of_exponent_le hn1 hscaleExp
     have hprod : (instanceBound κ n : ℝ) * (Host.callerTime (instanceLength κ n) T + 12 : ℕ) ≤
-        (2 * C + 355) * (n : ℝ) ^ a := by
+        (2 * C + 355) * (n : ℝ) ^ a :=
       calc
         _ ≤ (n : ℝ) ^ ε * ((2 * C + 355) * (t : ℝ) ^ (4 - δ)) := by gcongr
         _ = (2 * C + 355) * ((n : ℝ) ^ ε * (t : ℝ) ^ (4 - δ)) := by ring

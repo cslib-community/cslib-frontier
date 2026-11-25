@@ -143,29 +143,23 @@ theorem polyTimeReducible_GapThreeSAT_GapExactThreeSAT (hs : 1 / 2 ≤ s) (hs1 :
     PromiseProblem.PolyTimeReducible encCNF encCNF (GapThreeSAT s) (GapExactThreeSAT s) := by
   refine ⟨reduce, computableInPolyTime_reduce, fun φ hφ => ?_, fun φ hφ => ?_⟩
   · rw [yes_GapThreeSAT] at hφ
-    rw [yes_GapExactThreeSAT]
     have hne : φ.any List.isEmpty = false := by
       rw [Bool.eq_false_iff, ne_eq, List.any_eq_true]
       rintro ⟨c, hc, hce⟩
       obtain ⟨σ, hσ⟩ := hφ.2
-      have := (CNF.eval_eq_true_iff σ φ).1 hσ c hc
-      rw [List.isEmpty_iff.1 hce, Clause.eval_nil] at this
-      exact Bool.false_ne_true this
-    rw [reduce, hne]
-    exact (mem_ExactThreeSAT_toExactThreeSAT_iff φ).2 hφ
-  · rw [mem_no_GapExactThreeSAT hs1]
-    rw [mem_no_GapThreeSAT hs1] at hφ
-    unfold reduce
+      simpa [List.isEmpty_iff.1 hce] using (CNF.eval_eq_true_iff σ φ).1 hσ c hc
+    simpa [yes_GapExactThreeSAT, reduce, hne] using
+      (mem_ExactThreeSAT_toExactThreeSAT_iff φ).2 hφ
+  · rw [mem_no_GapThreeSAT hs1] at hφ
+    rw [mem_no_GapExactThreeSAT hs1, reduce]
     split_ifs with he
-    · refine ⟨fun c hc => ?_, ?_⟩
-      · simp only [contradiction, List.mem_cons, List.not_mem_nil, or_false] at hc
-        rcases hc with rfl | rfl <;> rfl
-      · rw [unsatVal_contradiction]
-        linarith
-    · refine ⟨fun c hc => ?_, by rw [unsatVal_toExactThreeSAT]; exact hφ.2⟩
+    · refine ⟨by simp [contradiction], ?_⟩
+      rw [unsatVal_contradiction]
+      linarith
+    · refine ⟨fun c hc => ?_, hφ.2.trans_eq (unsatVal_toExactThreeSAT φ).symm⟩
       obtain ⟨d, hd, rfl⟩ := List.mem_map.1 hc
-      refine ExactThreeSAT.length_padClause (fun h0 => he ?_) (hφ.1 d hd)
-      exact List.any_eq_true.2 ⟨d, hd, by simp [h0]⟩
+      exact ExactThreeSAT.length_padClause
+        (fun h0 => he (List.any_eq_true.2 ⟨d, hd, by simp [h0]⟩)) (hφ.1 d hd)
 
 /-- **MAX-E3SAT is NP-hard to approximate** [AroraLundMotwaniSudanSzegedy1998]: distinguishing
 satisfiable formulas with exactly three, not necessarily distinct, literals per clause from those in

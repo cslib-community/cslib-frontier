@@ -70,22 +70,18 @@ theorem isOraclePPT_cpaToCCAAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary)
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsOraclePPT encBool (cpaToCCAAdversary ctBound adversary) := by
-  let EIn := encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)
-  have hhandler : IsOraclePPTOn EIn encBits
+  have hhandler : IsOraclePPTOn
+      (encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)) encBits
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         cpaToCCAHandler (ctBound p.1.1) p.2) := by
-    dsimp only [EIn]
     ppt [cpaToCCAHandler]
-  have hres : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1)
-      (encPair (encPair encUnary encBits) encBits) encUnary :=
-    hctBound.comp (ComputableInPolyTime.fst _ _ |>.comp (ComputableInPolyTime.fst _ _))
   refine hadversary.interpret_preprocess_open'
     (prepare := fun p : ℕ × List Bool => (p.1, ([] : List Bool)))
-    (resources := fun p _ => ctBound p.1)
-    (by fun_prop) hhandler hres fun p req reply hreply => ?_
+    (resources := fun p _ => ctBound p.1) (by fun_prop) hhandler
+    (hctBound.comp ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)))
+    fun _ _ _ hreply => ?_
   unfold cpaToCCAHandler at hreply
-  obtain ⟨raw, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+  obtain ⟨_, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
   exact List.length_take_le _ _
 
 private theorem map_runWith_cpaToCCAHandler (E : SymmetricCipher) (ctBound : ℕ → ℕ) (bit : Bool)
@@ -102,13 +98,10 @@ private theorem map_runWith_cpaToCCAHandler (E : SymmetricCipher) (ctBound : ℕ
   by_cases hlen : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
   · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
       PMF.pure_map, Prod.map_apply]
-    apply PMF.bind_congr_on_support
-    intro ct hct
-    have hmb : (if bit then dropFrame request.2 else unframe request.2).length = n := by
-      simp only [Bool.and_eq_true, beq_iff_eq] at hlen
-      cases bit <;> simp [hlen]
-    rw [List.take_of_length_le (hctBound _ hmb ct hct)]
-    rfl
+    refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
+    simp only [Bool.and_eq_true, beq_iff_eq] at hlen
+    simp only [Function.comp_apply,
+      List.take_of_length_le (hctBound _ (by cases bit <;> simp [hlen]) ct hct)]
   · simp only [hlen, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_map,
       Prod.map_apply, List.take_nil]
 
@@ -134,8 +127,8 @@ theorem eval_ccaGame_cpaToCCAAdversary (E : SymmetricCipher) (ctBound : ℕ → 
     (step := map_runWith_cpaToCCAHandler E ctBound bit n k (hctBound k k_mem))
     (adversary n []) []
   rw [ProbOracleComp.runWith_memoryless] at hsim
-  have hsim' := congrArg (PMF.map Prod.fst) hsim
-  simpa only [pmf_norm, PMF.map, Function.comp_def, PMF.bind_pure] using hsim'
+  simpa only [pmf_norm, PMF.map, Function.comp_def, PMF.bind_pure] using
+    congrArg (PMF.map Prod.fst) hsim
 
 /-- Adaptive chosen-ciphertext security implies adaptive chosen-plaintext security. -/
 theorem INDCCA.indcpa {E : SymmetricCipher} (h : E.INDCCA) : E.INDCPA := by
@@ -144,8 +137,7 @@ theorem INDCCA.indcpa {E : SymmetricCipher} (h : E.INDCCA) : E.INDCPA := by
   have hcca := h (cpaToCCAAdversary ctBound adversary)
     (isOraclePPT_cpaToCCAAdversary hctBoundPoly hadversary)
   dsimp only at hcca ⊢
-  simpa only [eval_ccaGame_cpaToCCAAdversary E ctBound adversary false _ (hctBound _),
-    eval_ccaGame_cpaToCCAAdversary E ctBound adversary true _ (hctBound _)] using hcca
+  simpa only [eval_ccaGame_cpaToCCAAdversary E ctBound adversary _ _ (hctBound _)] using hcca
 
 end SymmetricCipher
 

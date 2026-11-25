@@ -89,9 +89,8 @@ theorem wellFormed [Fintype V] [Fintype E]
     (es : List E) (hn : es.Nodup) (hc : ∀ e, e ∈ es) : (D.graph es).WellFormed := by
   classical
   refine ⟨D.weight, ?_⟩
-  rw [portMultiset_eq, ← List.sum_toFinset _ hn]
   have he : es.toFinset = Finset.univ := Finset.ext fun e => by simp [hc e]
-  rw [he]
+  rw [portMultiset_eq, ← List.sum_toFinset _ hn, he]
 
 /-- Distinct endpoints and a nonrepeating enumeration exclude repeated edges at a vertex. -/
 theorem loopFree (es : List E) (hn : es.Nodup)
@@ -108,11 +107,8 @@ theorem loopFree (es : List E) (hn : es.Nodup)
       by_cases hfalse : D.endpoint e false = v <;>
         by_cases htrue : D.endpoint e true = v
       · exact (he e (hfalse.trans htrue.symm)).elim
-      · simp [hfalse, htrue]
-      · simp [hfalse, htrue]
-      · simp [hfalse, htrue]
-  rw [hp]
-  exact hn.filter _
+      all_goals simp [hfalse, htrue]
+  exact hp ▸ hn.filter _
 
 end EndpointGraph
 end Cslib.Complexity.NCL

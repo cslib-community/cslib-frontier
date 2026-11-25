@@ -102,12 +102,7 @@ private theorem expect_localDistance_le :
       4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
   refine le_trans (expect_le_expect fun a _ => expect_le_expect fun b _ => ?_)
     (expect_roundDistance_le basis S)
-  let q := PauliConsistencyQuestion.ofChecked basis a b
-  let A := ((S.alice q).map q.checkedBit).observable
-  let B (c : ι → Bool) :=
-    let r := PauliConsistencyQuestion.ofChecked basis a c
-    ((S.bob r).map r.checkedBit).observable
-  exact S.state.norm_sub_expect_sq_le univ univ_nonempty A B
+  exact S.state.norm_sub_expect_sq_le univ univ_nonempty _ _
 
 /-- The mean squared distance between the two averaged observables is at most four times the
 same-basis game's rejection probability. -/
@@ -117,11 +112,7 @@ theorem expect_norm_sub_sq_le_of_pauliSameBasisTest :
         PauliConsistencyQuestion.averagedObservable S.bob basis a) ^ 2) ≤
       4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
   refine le_trans (expect_le_expect fun a _ => ?_) (expect_localDistance_le basis S)
-  let A (b : ι → Bool) :=
-    let q := PauliConsistencyQuestion.ofChecked basis a b
-    ((S.alice q).map q.checkedBit).observable
-  let B := PauliConsistencyQuestion.averagedObservable S.bob basis a
-  exact S.state.norm_expect_sub_sq_le univ univ_nonempty A B
+  exact S.state.norm_expect_sub_sq_le univ univ_nonempty _ _
 
 open BitString
 
@@ -156,8 +147,7 @@ theorem oddExpect_norm_sub_sq_le_of_pauliConsistency [Nonempty ι]
         4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
       cases basis
       · exact hlocal
-      · rw [expect_comm]
-        exact hlocal
+      · rwa [expect_comm]
     have havg' : (𝔼 x, 𝔼 z, S.state.norm (Aavg x z - Bavg x z) ^ 2) ≤
         4 * (1 - (pauliSameBasisTest ι basis).commutingWinProb S) := by
       cases basis
@@ -177,8 +167,7 @@ theorem oddExpect_norm_sub_sq_le_of_pauliConsistency [Nonempty ι]
     rw [oddExpect_def]
     refine expect_le_expect fun x _ => expect_le_expect fun z _ => ?_
     split_ifs
-    · exact le_rfl
-    · exact sq_nonneg _
+    exacts [le_rfl, sq_nonneg _]
   have he : oddExpect e ≤ ((oddPairs ι).dens : ℝ) *
       (4 * (1 - (pauliSpecialQuestionTest ι basis).commutingWinProb T)) := by
     rw [oddExpect_eq_dens_smul]

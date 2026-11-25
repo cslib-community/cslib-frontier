@@ -1020,37 +1020,24 @@ theorem PolyTimeManyOneMitotic.polyTimeManyOneAutoreducible (h : PolyTimeManyOne
   classical
   obtain ⟨candidate, good, hcand, hgood, hne, hmem, hnotMem⟩ := h.exists_candidate
   by_cases hUniv : ∀ a, a ∈ A
-  · refine ⟨candidate, ⟨hcand, fun a => ?_⟩, fun a => by simp [hUniv (candidate a), hUniv a]⟩
-    have hg : good a = true := by
-      by_contra hbad
-      exact (hnotMem a hbad) (hUniv a)
-    exact hne a hg
-  · obtain ⟨n₀, hn₀⟩ : ∃ n, n ∉ A := by
-      by_contra hc
-      apply hUniv
-      intro a
-      by_contra ha
-      exact hc ⟨a, ha⟩
+  · exact ⟨candidate,
+      ⟨hcand, fun a => hne a (Classical.not_not.mp fun hbad => hnotMem a hbad (hUniv a))⟩,
+      fun a => by simp [hUniv (candidate a), hUniv a]⟩
+  · obtain ⟨n₀, hn₀⟩ := not_forall.mp hUniv
     obtain ⟨n₁, hn₁, hnne⟩ := hCompl n₀ hn₀
-    have hfall := computableInPolyTime_alt encA n₀ n₁
     let f : α → α := fun a => if good a then candidate a else (if a = n₀ then n₁ else n₀)
-    have hf : ComputableInPolyTime f encA encA := ComputableInPolyTime.ite hgood hcand hfall
-    refine ⟨f, ⟨hf, fun a => ?_⟩, fun a => ?_⟩
+    refine ⟨f, ⟨ComputableInPolyTime.ite hgood hcand (computableInPolyTime_alt encA n₀ n₁),
+      fun a => ?_⟩, fun a => ?_⟩
     · dsimp only [f]
-      by_cases hg : good a = true
-      · simp only [hg, ↓reduceIte]
-        exact hne a hg
-      · simp only [hg, Bool.false_eq_true, ↓reduceIte]
-        split_ifs with ha
-        · intro heq; subst ha; exact hnne heq
-        · intro heq; exact ha heq.symm
+      split_ifs with hg ha
+      · exact hne a hg
+      · exact ha ▸ hnne
+      · exact Ne.symm ha
     · dsimp only [f]
-      by_cases hg : good a = true
-      · simp only [hg, ↓reduceIte]
-        exact hmem a hg
-      · simp only [hg, Bool.false_eq_true, ↓reduceIte]
-        have haA := hnotMem a hg
-        split_ifs with ha <;> simp [haA, hn₀, hn₁]
+      split_ifs with hg
+      · exact hmem a hg
+      · exact iff_of_false (hnotMem a hg) hn₁
+      · exact iff_of_false (hnotMem a hg) hn₀
 
 /-- **A polynomial-time many-one mitotic set is many-one autoreducible if and only if its
 complement is not a singleton** [Ambos-Spies 1984][AmbosSpies1984]. -/

@@ -156,10 +156,7 @@ private theorem scanSteps_fst_lt [DecidableEq P] {α : Type*} (E : Execution P) 
     rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hik) with hik' | rfl
     · rw [E.scanSteps_succ_of_lt init next hlt]
       simp only [scanStepAux]
-      have hlen : i < (E.scanSteps init next k).1.length := by
-        rw [E.length_scanSteps init next hlt.le]
-        exact hik'
-      rw [List.getElem?_append_left hlen]
+      rw [List.getElem?_append_left (by rw [E.length_scanSteps init next hlt.le]; exact hik')]
       exact ih hik' hlt.le
     · rfl
 
@@ -227,10 +224,7 @@ private theorem scanSteps_snd_mono [DecidableEq P] {α : Type*} [Preorder α] (E
     (hk₂ : k₂ ≤ E.steps.length) (q : P) :
     (E.scanSteps init next k₁).2 q ≤ (E.scanSteps init next k₂).2 q := by
   induction k₂ with
-  | zero =>
-    have : k₁ = 0 := Nat.eq_zero_of_le_zero hk₁₂
-    subst this
-    exact le_rfl
+  | zero => obtain rfl := Nat.eq_zero_of_le_zero hk₁₂; exact le_rfl
   | succ k ih =>
     rcases Nat.lt_or_eq_of_le hk₁₂ with hlt | rfl
     · have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk₂
@@ -264,17 +258,14 @@ private theorem scanSteps_snd_provenance [DecidableEq P] {α : Type*} (E : Execu
     have hk_lt : k < E.steps.length := Nat.lt_of_succ_le hk
     let ek : E.Event := ⟨⟨k, hk_lt⟩⟩
     by_cases hq : q = ek.actor
-    · right
-      refine ⟨ek, Nat.lt_succ_self k, hq.symm, ?_⟩
+    · refine .inr ⟨ek, Nat.lt_succ_self k, hq.symm, ?_⟩
       rw [hq]
       exact E.scanSteps_snd_succ_self defaultVal init next ek
     · rw [E.scanSteps_succ_of_lt init next hk_lt]
       simp only [scanStepAux]
-      have hq' : q ≠ (E.steps[k]).actor := hq
-      rw [Function.update_of_ne hq']
-      rcases ih hk_lt.le with hinit | ⟨x, hxk, hact, heq⟩
-      · exact .inl hinit
-      · exact .inr ⟨x, Nat.lt_succ_of_lt hxk, hact, heq⟩
+      rw [Function.update_of_ne (show q ≠ (E.steps[k]).actor from hq)]
+      exact (ih hk_lt.le).imp_right fun ⟨x, hxk, hact, heq⟩ =>
+        ⟨x, Nat.lt_succ_of_lt hxk, hact, heq⟩
 
 /-! ### Lamport scalar clocks ([Lamport1978]) -/
 
@@ -296,8 +287,8 @@ theorem lamportClock_pos [DecidableEq P] (E : Execution P) (e : E.Event) :
 private theorem causalStep_imp_lamportClock_lt [DecidableEq P] {E : Execution P}
     {e₁ e₂ : E.Event} (h : E.CausalStep e₁ e₂) :
     E.lamportClock e₁ < E.lamportClock e₂ := by
-  have hstep : ∀ (p : P) (c : ℕ) (m : Option ℕ), c ≤ lamportNext p c m := by
-    intro _ c m; simp only [lamportNext]; omega
+  have hstep : ∀ (p : P) (c : ℕ) (m : Option ℕ), c ≤ lamportNext p c m := fun _ _ _ => by
+    simp only [lamportNext]; omega
   rcases h with ⟨hact, hlt⟩ | hmsg
   · have hle : E.lamportClock e₁ ≤
         (E.scanSteps (fun _ => 0) lamportNext e₂.idx.val).2 e₁.actor :=
@@ -306,13 +297,9 @@ private theorem causalStep_imp_lamportClock_lt [DecidableEq P] {E : Execution P}
     conv_rhs => rw [lamportClock, E.evalScan_step_eq 0 (fun _ => 0) lamportNext e₂]
     simp only [lamportNext]
     omega
-  · have hrecv : e₂.step = .recv e₂.actor e₁.idx.val := hmsg
-    have hm := E.evalScan_of_recv 0 (fun _ => 0) lamportNext hrecv
-    change E.lamportClock e₂ =
-      lamportNext e₂.actor _ (some (E.lamportClock e₁)) at hm
-    rw [hm]
+  · conv_rhs => rw [lamportClock, E.evalScan_of_recv 0 (fun _ => 0) lamportNext hmsg]
     simp only [lamportNext, Option.getD_some]
-    omega
+    exact lt_of_le_of_lt (le_max_right _ _) (Nat.lt_succ_self _)
 
 /-- **Strict causal monotonicity of Lamport clocks** ([Lamport1978]):
 `e₁ ≺ e₂ → E.lamportClock e₁ < E.lamportClock e₂`. -/
@@ -389,21 +376,18 @@ causally well-formed execution on `P` admitting *no* order-embedding into any `L
 theorem not_exists_1d_characterization {P : Type u} [Fintype P] (hP : 2 ≤ Fintype.card P) :
     ∃ E : Execution P, ∀ {α : Type v} [LinearOrder α] (f : E.Event → α),
       ¬ ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ := by
-  have hnt : Nontrivial P := Fintype.one_lt_card_iff_nontrivial.mp (by omega)
-  obtain ⟨p₀, p₁, hpne⟩ := hnt
+  obtain ⟨p₀, p₁, hpne⟩ := Fintype.one_lt_card_iff_nontrivial.mp (by omega : 1 < Fintype.card P)
   let E : Execution P := Execution.ofInternal [p₀, p₁]
   refine ⟨E, fun {α} _ f hf => ?_⟩
   let e₀ : E.Event := ⟨⟨0, Nat.zero_lt_succ 1⟩⟩
   let e₁ : E.Event := ⟨⟨1, Nat.lt_succ_self 1⟩⟩
-  have hact₀ : e₀.actor = p₀ := rfl
-  have hact₁ : e₁.actor = p₁ := rfl
   rcases le_total (f e₀) (f e₁) with hle | hge
   · rcases Execution.ofInternal_happensBeforeLe_iff.mp ((hf e₀ e₁).mpr hle) with heq | ⟨hact, _⟩
     · exact Nat.zero_ne_one (congrArg (fun e => e.idx.val) heq)
-    · exact hpne (hact₀ ▸ hact₁ ▸ hact)
+    · exact hpne hact
   · rcases Execution.ofInternal_happensBeforeLe_iff.mp ((hf e₁ e₀).mpr hge) with heq | ⟨hact, _⟩
     · exact Nat.one_ne_zero (congrArg (fun e => e.idx.val) heq)
-    · exact hpne (hact₀ ▸ hact₁ ▸ hact.symm)
+    · exact hpne hact.symm
 
 namespace Execution
 
@@ -465,20 +449,11 @@ private theorem causalStep_imp_vc_le [DecidableEq P] {E : Execution P} {e₁ e�
     rw [hact] at hle
     conv_rhs => rw [vc, E.evalScan_step_eq 0 (fun _ => 0) vcNext e₂]
     exact hle.trans (le_vcNext _ _ _)
-  · have hrecv : e₂.step = .recv e₂.actor e₁.idx.val := hmsg
-    have hm := E.evalScan_of_recv 0 (fun _ => 0) vcNext hrecv
-    change E.vc e₂ = vcNext e₂.actor _ (some (E.vc e₁)) at hm
-    rw [hm]
+  · conv_rhs => rw [vc, E.evalScan_of_recv 0 (fun _ => 0) vcNext hmsg]
     intro q
-    simp only [vcNext, Option.getD_some]
     by_cases hq : q = e₂.actor
-    · subst hq
-      rw [Function.update_self]
-      simp only [Pi.sup_apply]
-      omega
-    · rw [Function.update_of_ne hq]
-      simp only [Pi.sup_apply]
-      omega
+    · simp only [hq, vc, vcNext, Option.getD_some, Function.update_self, Pi.sup_apply]; omega
+    · simp only [vc, vcNext, Option.getD_some, Function.update_of_ne hq, Pi.sup_apply]; omega
 
 /-- Vector clocks are monotone with respect to `HappensBeforeLe`. -/
 theorem vc_mono [DecidableEq P] (E : Execution P) : Monotone E.vc := by
@@ -529,11 +504,10 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
             (some (E.vc eSend)) p at hm
         simp only [vcNext, Function.update_of_ne hp, Option.getD_some, Pi.sup_apply] at hm
         rcases max_choice
-            ((E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p) (E.vc eSend p) with hmax | hmax
-        · rw [hm, hmax]
-          exact hloc_prov
-        · rw [hm, hmax]
-          have hmsg : E.HappensBefore eSend ej :=
+            ((E.scanSteps (fun _ => 0) vcNext j).2 ej.actor p) (E.vc eSend p) with hmax | hmax <;>
+          rw [hm, hmax]
+        · exact hloc_prov
+        · have hmsg : E.HappensBefore eSend ej :=
             E.messageOrder_happensBefore (E.messageOrder_of_recv hrecv)
           rcases ih eSend.idx.val hlt eSend.idx.isLt p with hz0 | ⟨x, hxact, hxs, hxeq⟩
           · exact .inl hz0
@@ -543,20 +517,14 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
 `e₁ ≼ e₂` iff `e₁`'s own process coordinate in `vc e₁` is at most that in `vc e₂`. -/
 theorem happensBeforeLe_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event} :
     E.HappensBeforeLe e₁ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor := by
-  constructor
-  · intro hle
-    exact E.vc_mono hle e₁.actor
-  · intro hcoord
-    have hpos : 0 < E.vc e₁ e₁.actor := E.vc_actor_pos e₁
-    rcases E.vc_eq_zero_or_exists_le e₂ e₁.actor with h0 | ⟨x, hxact, hxe₂, hxeq⟩
-    · omega
-    · have hle_idx : e₁.idx ≤ x.idx := by
-        by_contra hnot
-        have hlt : x.idx < e₁.idx := Nat.lt_of_not_ge hnot
-        have hvc_lt := E.vc_actor_strictMono_of_sameActor hxact hlt
-        rw [hxact] at hvc_lt
-        omega
-      exact (E.programOrder_happensBeforeLe hxact.symm hle_idx).trans hxe₂
+  refine ⟨fun hle => E.vc_mono hle e₁.actor, fun hcoord => ?_⟩
+  have hpos : 0 < E.vc e₁ e₁.actor := E.vc_actor_pos e₁
+  rcases E.vc_eq_zero_or_exists_le e₂ e₁.actor with h0 | ⟨x, hxact, hxe₂, hxeq⟩
+  · omega
+  · refine (E.programOrder_happensBeforeLe hxact.symm (le_of_not_gt fun hlt => ?_)).trans hxe₂
+    have hvc_lt := E.vc_actor_strictMono_of_sameActor hxact hlt
+    rw [hxact] at hvc_lt
+    omega
 
 /-- **Single-coordinate comparison of given timestamps (`≺`)** ([Mattern1989], §8, Theorem 11):
 for distinct events `e₁ ≠ e₂`, `e₁ ≺ e₂` iff `E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor`. -/
@@ -573,10 +541,8 @@ theorem happensBeforeLe_iff_vc_le [DecidableEq P] {E : Execution P} {e₁ e₂ :
   ⟨fun h => E.vc_mono h, fun h => happensBeforeLe_iff_coord_le.mpr (h e₁.actor)⟩
 
 /-- Vector timestamps uniquely identify events (`Function.Injective E.vc`). -/
-theorem vc_injective [DecidableEq P] (E : Execution P) : Function.Injective E.vc := by
-  intro e₁ e₂ heq
-  exact le_antisymm
-    (happensBeforeLe_iff_vc_le.mpr heq.le)
+theorem vc_injective [DecidableEq P] (E : Execution P) : Function.Injective E.vc :=
+  fun _ _ heq => le_antisymm (happensBeforeLe_iff_vc_le.mpr heq.le)
     (happensBeforeLe_iff_vc_le.mpr heq.ge)
 
 /-- **Vector-clock strict order-isomorphism (`≺`)** ([Mattern1989], §8, Theorem 10):
@@ -616,23 +582,16 @@ theorem isConsistentCut_cutOfFrontier_iff [DecidableEq P] {E : Execution P}
   · intro hcut p q
     rcases E.vc_eq_zero_or_exists_le (frontier q) p with h0 | ⟨x, hxact, hxfq, hxeq⟩
     · omega
-    · have hfq_mem : frontier q ∈ E.cutOfFrontier frontier := by
-        rw [mem_cutOfFrontier, hact q]
-      have hx_mem : x ∈ E.cutOfFrontier frontier := hcut.mem_of_happensBeforeLe hxfq hfq_mem
+    · have hx_mem := hcut.mem_of_happensBeforeLe hxfq (by rw [mem_cutOfFrontier, hact q])
       rw [mem_cutOfFrontier, hxact] at hx_mem
-      have hxfp : E.HappensBeforeLe x (frontier p) :=
-        E.programOrder_happensBeforeLe (hxact.trans (hact p).symm) hx_mem
       rw [← hxeq]
-      exact E.vc_mono hxfp p
+      exact E.vc_mono (E.programOrder_happensBeforeLe (hxact.trans (hact p).symm) hx_mem) p
   · intro hmax e₁ e₂ hhb he₂
     rw [mem_cutOfFrontier] at he₂ ⊢
-    have he₂_fq : E.HappensBeforeLe e₂ (frontier e₂.actor) :=
-      E.programOrder_happensBeforeLe (hact e₂.actor).symm he₂
     have he₁_fq : E.HappensBeforeLe e₁ (frontier e₂.actor) :=
-      hhb.happensBeforeLe.trans he₂_fq
-    have hcoord : E.vc e₁ e₁.actor ≤ E.vc (frontier e₁.actor) e₁.actor :=
-      (E.vc_mono he₁_fq e₁.actor).trans (hmax e₁.actor e₂.actor)
-    exact E.happensBeforeLe_idx_le (happensBeforeLe_iff_coord_le.mpr hcoord)
+      hhb.happensBeforeLe.trans (E.programOrder_happensBeforeLe (hact e₂.actor).symm he₂)
+    exact E.happensBeforeLe_idx_le (happensBeforeLe_iff_coord_le.mpr
+      ((E.vc_mono he₁_fq e₁.actor).trans (hmax e₁.actor e₂.actor)))
 
 end Execution
 

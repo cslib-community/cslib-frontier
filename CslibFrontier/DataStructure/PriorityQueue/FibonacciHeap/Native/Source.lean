@@ -218,8 +218,7 @@ theorem link_scatter_succ_eq_step {n : ℕ} (L : Record.Layout (Cell.ok n)) (w f
       | some u' => DataStructure.link (L.methods w) (scatter fuel u' a.2)) := by
   rw [scatter_succ]
   simp only [DataStructure.link, PFunctor.FreeM.liftM_bind]
-  congr 1 with a : 1
-  rcases a with ⟨next, md'⟩
+  congr 1 with ⟨next, md'⟩ : 1
   cases next <;> rfl
 
 /-- Consolidation has the same finite while form with a pending root and an unchanged
@@ -243,13 +242,10 @@ theorem link_scatter_eq_boundedWhile {n : ℕ} (L : Record.Layout (Cell.ok n))
       Matrix.cons_val_one]
     erw [ite_eq_left (by decide : (1 : ℕ) ≠ 0)]
     simp only [bind_assoc]
-    congr 1 with next : 1
-    rcases next with ⟨next, md'⟩
+    congr 1 with ⟨next, md'⟩ : 1
     cases next with
     | none =>
-      rw [Realization.boundedWhile_of_not _ _ () fuel (none, md') (by
-        change ¬(0 : ℕ) ≠ 0
-        decide)]
+      rw [Realization.boundedWhile_of_not _ _ () fuel (none, md') (fun h => h rfl)]
       rfl
     | some u' => exact ih u' md'
 
@@ -270,8 +266,7 @@ theorem gather_iterations_le_memoryCost {n : ℕ} (L : Record.Layout (Cell.ok n)
     have hs : 1 ≤ Realization.memoryCost (DataStructure.link (L.methods w) (gatherStep d)) s := by
       simp only [gatherStep, DataStructure.link, PFunctor.FreeM.liftM_bind]
       simp only [← PFunctor.FreeM.bind_eq_bind, Realization.memoryCost_bind]
-      change 1 ≤ 1 + _
-      omega
+      exact Nat.le_add_right 1 _
     dsimp only [DataStructure.link] at ht hs
     omega
 
@@ -295,10 +290,8 @@ theorem scatterList_iterations_le_memoryCost {n : ℕ} (L : Record.Layout (Cell.
         (DataStructure.link (L.methods w) (scatterListStep fuel prep (x, md))) s := by
       simp only [scatterListStep, DataStructure.link, PFunctor.FreeM.liftM_bind]
       simp only [← PFunctor.FreeM.bind_eq_bind, Realization.memoryCost_bind]
-      change 1 ≤ 1 + _
-      omega
-    dsimp only [a, DataStructure.link] at ht
-    dsimp only [DataStructure.link] at hs
+      exact Nat.le_add_right 1 _
+    dsimp only [a, DataStructure.link] at ht hs
     omega
 
 end Cslib.DataStructure.PriorityQueue.FibonacciHeap.Native

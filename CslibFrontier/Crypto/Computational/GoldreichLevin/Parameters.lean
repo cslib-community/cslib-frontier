@@ -64,8 +64,8 @@ theorem maskCount_pos (n precision : ℕ) : 0 < maskCount n precision := by
 /-- The subset masks meet the recovery theorem's required count. -/
 theorem subsetCount_maskCount_ge (n precision : ℕ) :
     2 * n * precision ^ 2 ≤ 2 ^ maskCount n precision - 1 := by
-  have h := Nat.lt_pow_succ_log_self Nat.one_lt_two (2 * n * precision ^ 2 + 1)
-  change 2 * n * precision ^ 2 + 1 < 2 ^ maskCount n precision at h
+  have h : 2 * n * precision ^ 2 + 1 < 2 ^ maskCount n precision :=
+    Nat.lt_pow_succ_log_self Nat.one_lt_two (2 * n * precision ^ 2 + 1)
   lia
 
 /-- Rounding the mask count up costs at most a factor of two in the number of guesses. -/
@@ -74,9 +74,7 @@ theorem guessCount_maskCount_le (n precision : ℕ) :
   have h := Nat.pow_log_le_self 2 (x := 2 * n * precision ^ 2 + 1) (by lia)
   unfold maskCount
   rw [pow_succ]
-  calc
-    _ ≤ (2 * n * precision ^ 2 + 1) * 2 := Nat.mul_le_mul_right 2 h
-    _ = _ := by ring
+  lia
 
 /-- A simple polynomial upper bound also controls the base-mask count. -/
 theorem maskCount_le (n precision : ℕ) : maskCount n precision ≤ 2 * n * precision ^ 2 + 1 := by
@@ -88,15 +86,12 @@ theorem maskCount_le (n precision : ℕ) : maskCount n precision ≤ 2 * n * pre
 theorem maskCount_sufficient (n precision : ℕ) (hp : 0 < precision) :
     (n : ℝ) ≤ 2 * ((1 / (precision : ℝ)) / 2) ^ 2 *
       (2 ^ maskCount n precision - 1 : ℕ) := by
-  have h := subsetCount_maskCount_ge n precision
-  have hreal : 2 * (n : ℝ) * (precision : ℝ) ^ 2 ≤
-      (2 ^ maskCount n precision - 1 : ℕ) := by exact_mod_cast h
+  have hreal : 2 * (n : ℝ) * (precision : ℝ) ^ 2 ≤ (2 ^ maskCount n precision - 1 : ℕ) := by
+    exact_mod_cast subsetCount_maskCount_ge n precision
   have hpReal : (0 : ℝ) < precision := by exact_mod_cast hp
-  have heq : 2 * ((1 / (precision : ℝ)) / 2) ^ 2 *
-      (2 ^ maskCount n precision - 1 : ℕ) =
-      (2 ^ maskCount n precision - 1 : ℕ) / (2 * (precision : ℝ) ^ 2) := by
-    field_simp
-  rw [heq, le_div_iff₀ (by positivity)]
+  rw [show 2 * ((1 / (precision : ℝ)) / 2) ^ 2 * (2 ^ maskCount n precision - 1 : ℕ) =
+      (2 ^ maskCount n precision - 1 : ℕ) / (2 * (precision : ℝ) ^ 2) by field_simp,
+    le_div_iff₀ (by positivity)]
   nlinarith
 
 /-- Signed parity correlation is bounded by decoder success and its chosen accuracy.
@@ -109,13 +104,11 @@ theorem correlation_le_invertFixed {n : ℕ} {Image : Type*} [BEq Image] [Lawful
         (fun z => f z == f x)) true).toReal := by
   have hpReal : (0 : ℝ) < precision := by exact_mod_cast hp
   by_cases h : 1 / 2 + (1 / (precision : ℝ)) / 2 ≤ agreement predictor x
-  · have hsuccess := invertFixed_success_ge_half f predictor x _
-      (by positivity : 0 < (1 / (precision : ℝ)) / 2) (maskCount_pos n precision) h
-      (maskCount_sufficient n precision hp)
-    linarith [agreement_le_one predictor x, one_div_pos.mpr hpReal]
-  · have hsuccess : 0 ≤ (((invertFixed f predictor (maskCount n precision) (f x)).map
-        (fun z => f z == f x)) true).toReal := ENNReal.toReal_nonneg
-    linarith
+  · linarith [invertFixed_success_ge_half f predictor x _ (by positivity)
+      (maskCount_pos n precision) h (maskCount_sufficient n precision hp),
+      agreement_le_one predictor x, one_div_pos.mpr hpReal]
+  · linarith [ENNReal.toReal_nonneg (a :=
+      ((invertFixed f predictor (maskCount n precision) (f x)).map (fun z => f z == f x)) true)]
 
 /-- The same inverter bounds all prediction biases, with an additive error of `1 / precision`.
 When the actual bias exceeds that error, the recovery bound applies to the actual bias itself. -/
@@ -130,21 +123,15 @@ theorem invertSigned_advantage_le {n : ℕ} {Image : Type*} [BEq Image] [LawfulB
           (invertSigned f predictor coins (maskCount n precision)) true).toReal := by
   let bias := |(parityPredictionExperiment f predictor coins true).toReal - 1 / 2|
   have hpReal : (0 : ℝ) < precision := by exact_mod_cast hp
-  have hsuccess : 0 ≤ (inversionExperiment (PMF.uniformOfFintype (BitString n)) f
-      (invertSigned f predictor coins (maskCount n precision)) true).toReal :=
-    ENNReal.toReal_nonneg
+  change bias ≤ _
   by_cases h : 1 / (precision : ℝ) ≤ bias
   · have hb : 0 < bias := lt_of_lt_of_le (by positivity) h
-    have hsize : (n : ℝ) ≤
-        2 * (bias / 2) ^ 2 * (2 ^ maskCount n precision - 1 : ℕ) := by
-      apply (maskCount_sufficient n precision hp).trans
-      gcongr
-    have hi := invertSigned_success_ge f predictor coins bias hb
-      (maskCount_pos n precision) le_rfl hsize
-    change bias ≤ _
+    have hi := invertSigned_success_ge f predictor coins bias hb (maskCount_pos n precision)
+      le_rfl ((maskCount_sufficient n precision hp).trans (by gcongr))
     linarith [one_div_pos.mpr hpReal]
-  · change bias ≤ _
-    linarith
+  · linarith [ENNReal.toReal_nonneg (a := inversionExperiment
+      (PMF.uniformOfFintype (BitString n)) f
+      (invertSigned f predictor coins (maskCount n precision)) true)]
 
 /-- A fixed degree selects an inverse-polynomial accuracy for every input length. -/
 def precision (degree n : ℕ) : ℕ := (n + 1) ^ degree
@@ -159,7 +146,7 @@ theorem guessCount_polynomial (degree : ℕ) :
   have hbound : PolynomiallyBounded (fun n => 4 * n * precision degree n ^ 2 + 2) := by
     unfold precision
     fun_prop
-  exact hbound.mono_of_le (fun n => guessCount_maskCount_le n _)
+  exact hbound.mono_of_le fun n => guessCount_maskCount_le n _
 
 /-- The logarithmic mask count is polynomially bounded at each fixed precision degree. -/
 theorem maskCount_polynomial (degree : ℕ) :

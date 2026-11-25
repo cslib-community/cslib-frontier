@@ -667,116 +667,6 @@ private def borderChunk (chunk : ℕ) : Bool :=
   (List.range 8).all fun offset =>
     borderCheck ⟨(8 * chunk + offset) % 376, Nat.mod_lt _ (by decide)⟩
 
-private theorem border_0 : borderChunk 0 = true := by decide +kernel
-private theorem border_1 : borderChunk 1 = true := by decide +kernel
-private theorem border_2 : borderChunk 2 = true := by decide +kernel
-private theorem border_3 : borderChunk 3 = true := by decide +kernel
-private theorem border_4 : borderChunk 4 = true := by decide +kernel
-private theorem border_5 : borderChunk 5 = true := by decide +kernel
-private theorem border_6 : borderChunk 6 = true := by decide +kernel
-private theorem border_7 : borderChunk 7 = true := by decide +kernel
-private theorem border_8 : borderChunk 8 = true := by decide +kernel
-private theorem border_9 : borderChunk 9 = true := by decide +kernel
-private theorem border_10 : borderChunk 10 = true := by decide +kernel
-private theorem border_11 : borderChunk 11 = true := by decide +kernel
-private theorem border_12 : borderChunk 12 = true := by decide +kernel
-private theorem border_13 : borderChunk 13 = true := by decide +kernel
-private theorem border_14 : borderChunk 14 = true := by decide +kernel
-private theorem border_15 : borderChunk 15 = true := by decide +kernel
-private theorem border_16 : borderChunk 16 = true := by decide +kernel
-private theorem border_17 : borderChunk 17 = true := by decide +kernel
-private theorem border_18 : borderChunk 18 = true := by decide +kernel
-private theorem border_19 : borderChunk 19 = true := by decide +kernel
-private theorem border_20 : borderChunk 20 = true := by decide +kernel
-private theorem border_21 : borderChunk 21 = true := by decide +kernel
-private theorem border_22 : borderChunk 22 = true := by decide +kernel
-private theorem border_23 : borderChunk 23 = true := by decide +kernel
-private theorem border_24 : borderChunk 24 = true := by decide +kernel
-private theorem border_25 : borderChunk 25 = true := by decide +kernel
-private theorem border_26 : borderChunk 26 = true := by decide +kernel
-private theorem border_27 : borderChunk 27 = true := by decide +kernel
-private theorem border_28 : borderChunk 28 = true := by decide +kernel
-private theorem border_29 : borderChunk 29 = true := by decide +kernel
-private theorem border_30 : borderChunk 30 = true := by decide +kernel
-private theorem border_31 : borderChunk 31 = true := by decide +kernel
-private theorem border_32 : borderChunk 32 = true := by decide +kernel
-private theorem border_33 : borderChunk 33 = true := by decide +kernel
-private theorem border_34 : borderChunk 34 = true := by decide +kernel
-private theorem border_35 : borderChunk 35 = true := by decide +kernel
-private theorem border_36 : borderChunk 36 = true := by decide +kernel
-private theorem border_37 : borderChunk 37 = true := by decide +kernel
-private theorem border_38 : borderChunk 38 = true := by decide +kernel
-private theorem border_39 : borderChunk 39 = true := by decide +kernel
-private theorem border_40 : borderChunk 40 = true := by decide +kernel
-private theorem border_41 : borderChunk 41 = true := by decide +kernel
-private theorem border_42 : borderChunk 42 = true := by decide +kernel
-private theorem border_43 : borderChunk 43 = true := by decide +kernel
-private theorem border_44 : borderChunk 44 = true := by decide +kernel
-private theorem border_45 : borderChunk 45 = true := by decide +kernel
-private theorem border_46 : borderChunk 46 = true := by decide +kernel
-
-private theorem border_chunks (chunk : Fin 47) : borderChunk chunk.val = true := by
-  fin_cases chunk
-  · exact border_0
-  · exact border_1
-  · exact border_2
-  · exact border_3
-  · exact border_4
-  · exact border_5
-  · exact border_6
-  · exact border_7
-  · exact border_8
-  · exact border_9
-  · exact border_10
-  · exact border_11
-  · exact border_12
-  · exact border_13
-  · exact border_14
-  · exact border_15
-  · exact border_16
-  · exact border_17
-  · exact border_18
-  · exact border_19
-  · exact border_20
-  · exact border_21
-  · exact border_22
-  · exact border_23
-  · exact border_24
-  · exact border_25
-  · exact border_26
-  · exact border_27
-  · exact border_28
-  · exact border_29
-  · exact border_30
-  · exact border_31
-  · exact border_32
-  · exact border_33
-  · exact border_34
-  · exact border_35
-  · exact border_36
-  · exact border_37
-  · exact border_38
-  · exact border_39
-  · exact border_40
-  · exact border_41
-  · exact border_42
-  · exact border_43
-  · exact border_44
-  · exact border_45
-  · exact border_46
-
-private theorem border_index_checked (index : Fin 376) : borderCheck index = true := by
-  let chunk : Fin 47 := ⟨index.val / 8, by omega⟩
-  have checked := List.all_eq_true.mp (border_chunks chunk) (index.val % 8)
-    (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
-  have reconstructed :
-      (⟨(8 * chunk.val + index.val % 8) % 376, Nat.mod_lt _ (by decide)⟩ : Fin 376) =
-        index := by
-    apply Fin.ext
-    dsimp only [chunk]
-    omega
-  simpa only [reconstructed] using checked
-
 private theorem borderTable_size : borderTable.size = 376 := by decide +kernel
 
 private def borderStates : List BorderState :=
@@ -788,10 +678,18 @@ def BorderState.Admissible (state : BorderState) : Prop := state ∈ borderState
 private theorem borderStateAt_mem (index : Fin 376) : (borderStateAt index).Admissible :=
   List.mem_ofFn.mpr ⟨index.cast borderTable_size.symm, rfl⟩
 
-private theorem exists_borderStateAt {state : BorderState} (h : state.Admissible) :
-    ∃ index : Fin 376, borderStateAt index = state := by
-  obtain ⟨index, rfl⟩ := List.mem_ofFn.mp h
-  exact ⟨index.cast borderTable_size, rfl⟩
+private theorem border_0 : (List.range 8).all (fun i => borderChunk (0 + i)) = true := by
+  decide +kernel
+private theorem border_1 : (List.range 8).all (fun i => borderChunk (8 + i)) = true := by
+  decide +kernel
+private theorem border_2 : (List.range 8).all (fun i => borderChunk (16 + i)) = true := by
+  decide +kernel
+private theorem border_3 : (List.range 8).all (fun i => borderChunk (24 + i)) = true := by
+  decide +kernel
+private theorem border_4 : (List.range 8).all (fun i => borderChunk (32 + i)) = true := by
+  decide +kernel
+private theorem border_5 : (List.range 7).all (fun i => borderChunk (40 + i)) = true := by
+  decide +kernel
 
 private theorem border_checked {state : BorderState} (h : state.Admissible) :
     (∀ x y : Fin 2,
@@ -804,18 +702,39 @@ private theorem border_checked {state : BorderState} (h : state.Admissible) :
       (childX = 0 ∧ childY = 0 ∧ state.node.parent = 4 ∧
         state.xParity = 1 ∧ state.yParity = 1) ∨
       (childX = 2 ∧ childY = 2 ∧ state.xParity = 0 ∧ state.yParity = 0)) := by
-  obtain ⟨index, rfl⟩ := exists_borderStateAt h
-  have checked := of_decide_eq_true (border_index_checked index)
-  refine ⟨checked.1, ?_, checked.2.2⟩
-  intro childX childY
-  rw [checked.2.1 childX childY]
-  exact borderStateAt_mem _
+  obtain ⟨rawIndex, rfl⟩ := List.mem_ofFn.mp h
+  let index : Fin 376 := rawIndex.cast borderTable_size
+  have hchunk : borderChunk (index.val / 8) = true := by
+    set c := index.val / 8
+    have hc : c < 47 := by omega
+    by_cases h1 : c < 8
+    · simpa using List.all_eq_true.mp border_0 c (List.mem_range.mpr h1)
+    · by_cases h2 : c < 16
+      · simpa [Nat.add_sub_of_le (not_lt.mp h1)] using
+          List.all_eq_true.mp border_1 (c - 8) (List.mem_range.mpr (by omega))
+      · by_cases h3 : c < 24
+        · simpa [Nat.add_sub_of_le (not_lt.mp h2)] using
+            List.all_eq_true.mp border_2 (c - 16) (List.mem_range.mpr (by omega))
+        · by_cases h4 : c < 32
+          · simpa [Nat.add_sub_of_le (not_lt.mp h3)] using
+              List.all_eq_true.mp border_3 (c - 24) (List.mem_range.mpr (by omega))
+          · by_cases h5 : c < 40
+            · simpa [Nat.add_sub_of_le (not_lt.mp h4)] using
+                List.all_eq_true.mp border_4 (c - 32) (List.mem_range.mpr (by omega))
+            · simpa [Nat.add_sub_of_le (not_lt.mp h5)] using
+                List.all_eq_true.mp border_5 (c - 40) (List.mem_range.mpr (by omega))
+  have hidx : borderCheck index = true := by
+    have hlt : index.val < 376 := index.isLt
+    have hmem := List.all_eq_true.mp hchunk (index.val % 8)
+      (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
+    rwa [show (⟨(8 * (index.val / 8) + index.val % 8) % 376, Nat.mod_lt _ (by decide)⟩ :
+      Fin 376) = index from Fin.ext (by dsimp only; omega)] at hmem
+  have checked := of_decide_eq_true hidx
+  exact ⟨checked.1, fun x y => checked.2.1 x y ▸ borderStateAt_mem _, checked.2.2⟩
 
 /-- The persistent outer-border seed belongs to the concrete halo invariant. -/
-theorem BorderState.seed_admissible : BorderState.seed.Admissible := by
-  have seed : BorderState.seed = borderStateAt 375 := by decide +kernel
-  rw [seed]
-  exact borderStateAt_mem _
+theorem BorderState.seed_admissible : BorderState.seed.Admissible :=
+  (by decide +kernel : BorderState.seed = borderStateAt 375) ▸ borderStateAt_mem 375
 
 /-- Every certified halo observation is the actual selected shade boundary at that quarter. -/
 theorem BorderState.observations {state : BorderState} (h : state.Admissible) (x y : Fin 2) :

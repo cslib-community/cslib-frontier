@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
 public import CslibFrontier.Foundations.Data.BitString.List.Operations
 public import CslibFrontier.Languages.Probabilistic.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PMFSwap
@@ -341,8 +342,8 @@ theorem eval_demKeyGame_restrict {Msg : Type} (valid : ℕ → List Bool → Msg
     (adversary : AdversaryOf Msg) (bit : Bool) (n : ℕ) :
     ProbComp.eval (demKeyGame keyLen encryptSym (adversary.restrict valid) bit n) =
       ProbComp.eval (demKeyGameOn valid keyLen encryptSym adversary bit n) := by
-  simp only [demKeyGame, demKeyGameOn, AdversaryOf.restrict, ↓reduceIte, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, apply_ite ProbComp.eval]
+  simp only [demKeyGame, demKeyGameOn, AdversaryOf.restrict, ↓reduceIte, apply_ite ProbComp.eval,
+    pmf_norm]
   congr 1 with k : 1
   congr 1 with choice : 1
   cases valid n [] choice.1.1 choice.1.2 <;>
@@ -780,9 +781,8 @@ theorem eval_game_hybridEncrypt (decaps : ℕ → List Bool → List Bool → Op
   cases bit <;>
     simp only [game, gameOn, PKE.cpaExperiment, KEM.hybrid, wordKEM, wordCipher,
       AdversaryOf.toHybridTwoStage, AdversaryOf.toTwoStage, hybridEncrypt, ↓reduceIte,
-      Bool.false_eq_true, eval_lrExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbComp.eval_map, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
-      Prod.fst_swap, Prod.snd_swap, MessagePair.select_false, MessagePair.select_true]
+      Bool.false_eq_true, eval_lrExperiment, Prod.fst_swap, Prod.snd_swap, MessagePair.select_false,
+      MessagePair.select_true, pmf_norm]
 
 /-- The real KEM experiment of a word-level distinguisher is the typed KEM experiment with the
 encapsulated key, for any typed distinguisher with the same output distribution on the framed
@@ -797,8 +797,7 @@ theorem eval_kemRealGame_eq_cpaExperiment
     ProbComp.eval (kemRealGame keyGen encaps distinguisher n) =
       ProbComp.eval ((wordKEM keyGen encaps decaps n).cpaExperiment sampleKey D false) := by
   simp only [kemRealGame, kemRealGameWith, KEM.cpaExperiment, wordKEM, Bool.false_eq_true,
-    ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_map, PMF.bind_map,
-    PMF.pure_bind, Function.comp_def, Prod.fst_swap, Prod.snd_swap, hD]
+    ↓reduceIte, Prod.fst_swap, Prod.snd_swap, hD, pmf_norm]
 
 /-- The ideal KEM experiment of a word-level distinguisher is the typed KEM experiment with a
 uniform `keyLen n`-bit key, for any typed distinguisher with the same output distribution on the
@@ -813,8 +812,7 @@ theorem eval_kemIdealGame_eq_cpaExperiment (keyLen : ℕ → ℕ)
       ProbComp.eval ((wordKEM keyGen encaps decaps n).cpaExperiment
         (BitString.sampleList (keyLen n)) D true) := by
   simp only [kemIdealGame, kemIdealGameWith, kemRealGameWith, KEM.cpaExperiment, wordKEM,
-    ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def,
-    Prod.fst_swap, hD]
+    ↓reduceIte, Prod.fst_swap, hD, pmf_norm]
 
 /-- On a framed challenge, `hybridToKEMDistinguisher` is the typed distinguisher
 `KEM.hybridDistinguisher` of `wordCipher` and `adversary.toHybridTwoStage n`. -/
@@ -829,9 +827,7 @@ theorem eval_hybridToKEMDistinguisher_encKEMChallenge
     simp only [hybridToKEMDistinguisher, KEM.hybridDistinguisher, wordCipher,
       AdversaryOf.toHybridTwoStage, AdversaryOf.toTwoStage, encPair_apply, encBits_apply,
       unframe_frame_append, dropFrame_frame_append, ↓reduceIte, Bool.false_eq_true,
-      eval_lrExperiment, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_map, PMF.bind_map,
-      PMF.bind_bind, PMF.pure_bind, Function.comp_def, MessagePair.select_false,
-      MessagePair.select_true]
+      eval_lrExperiment, MessagePair.select_false, MessagePair.select_true, pmf_norm]
 
 /-- On a framed challenge, `hybridToKEMHiddenBitDistinguisher` has the output distribution of the
 typed distinguisher `KEM.hybridHiddenBitDistinguisher` of `wordCipher` and
@@ -846,9 +842,7 @@ theorem eval_hybridToKEMHiddenBitDistinguisher_encKEMChallenge
   simp only [hybridToKEMHiddenBitDistinguisher, KEM.hybridHiddenBitDistinguisher,
     KEM.hybridDistinguisher, wordCipher, AdversaryOf.toHybridTwoStage, AdversaryOf.toTwoStage,
     encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append, ↓reduceIte,
-    eval_lrExperiment, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_map,
-    ProbComp.eval_uniform, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
-    MessagePair.select, Bool.cond_eq_ite]
+    eval_lrExperiment, ProbComp.eval_uniform, MessagePair.select, Bool.cond_eq_ite, pmf_norm]
   pmf_swap
 
 /-- The one-time experiment of `hybridToDEMAdversary` is the typed one-time experiment of the
@@ -868,9 +862,8 @@ theorem eval_demKeyGame_eq_oneTimeExperiment (keyLen : ℕ → ℕ)
       KEM.hybridCipherAdversary, wordKEM, wordCipher, AdversaryOf.toHybridTwoStage,
       AdversaryOf.toTwoStage, ChoiceOut.msgs, ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state,
       encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append, ↓reduceIte,
-      Bool.false_eq_true, eval_lrExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
-      ProbComp.eval_map, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
-      Prod.fst_swap, MessagePair.select_false, MessagePair.select_true]
+      Bool.false_eq_true, eval_lrExperiment, Prod.fst_swap, MessagePair.select_false,
+      MessagePair.select_true, pmf_norm]
 
 end WordHybrid
 
@@ -1005,11 +998,9 @@ theorem eval_demKeyGame_hybridToDEMAdversary_restrict {Msg : Type} (keyLen : ℕ
         (hybridToDEMAdversary keyGen encaps (adversary.restrict valid)) bit n) =
       ProbComp.eval (demKeyGameOn valid keyLen encryptSym
         (hybridToDEMAdversary keyGen encaps (adversary.restrict valid)) bit n) := by
-  simp only [demKeyGame, demKeyGameOn, hybridToDEMAdversary, AdversaryOf.restrict,
-    ChoiceOut.msgs, ChoiceOut.msg₀, ChoiceOut.msg₁, ↓reduceIte,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-    apply_ite ProbComp.eval, encPair_apply, encBits_apply, unframe_frame_append,
-    dropFrame_frame_append]
+  simp only [demKeyGame, demKeyGameOn, hybridToDEMAdversary, AdversaryOf.restrict, ChoiceOut.msgs,
+    ChoiceOut.msg₀, ChoiceOut.msg₁, ↓reduceIte, apply_ite ProbComp.eval, encPair_apply,
+    encBits_apply, unframe_frame_append, dropFrame_frame_append, pmf_norm]
   congr 1 with k : 1
   congr 1 with keys : 1
   congr 1 with choice : 1
@@ -1097,11 +1088,9 @@ theorem eval_demGame_otpEncrypt_false_eq_true {n : ℕ} (hn : 1 ≤ n) (adversar
     ProbComp.eval (demGame otpEncrypt adversary false n) =
       ProbComp.eval (demGame otpEncrypt adversary true n) := by
   obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' hn
-  simp only [demGame, demGameOn, demKeyGameOn, otpEncrypt,
-    ChoiceOut.msgs, ChoiceOut.msg₀, ChoiceOut.msg₁,
-    ProbComp.eval_bind, ProbComp.eval_pure,
-    BitString.eval_sampleList, BitString.uniformList_succ, PMF.bind_bind, PMF.bind_map,
-    Function.comp_def, PMF.pure_bind, List.headD_cons, Bool.false_eq_true, ↓reduceIte]
+  simp only [demGame, demGameOn, demKeyGameOn, otpEncrypt, ChoiceOut.msgs, ChoiceOut.msg₀,
+    ChoiceOut.msg₁, BitString.eval_sampleList, BitString.uniformList_succ, List.headD_cons,
+    Bool.false_eq_true, ↓reduceIte, pmf_norm]
   rw [PMF.bind_comm]
   conv_rhs => rw [PMF.bind_comm]
   congr 1 with tail : 1

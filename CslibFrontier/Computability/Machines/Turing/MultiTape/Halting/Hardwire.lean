@@ -240,10 +240,7 @@ theorem move_vmove_vtape (hxs : ∀ a ∈ xs, a ≠ marker) (hv : v ≤ xs.lengt
   cases v with
   | zero =>
     rw [read_vtape_zero]
-    rcases m with _ | _ | _
-    · rfl
-    · rfl
-    · exact vtape_move_pos (Nat.zero_le _)
+    rcases m with _ | _ | _ <;> [rfl; rfl; exact vtape_move_pos (Nat.zero_le _)]
   | succ v =>
     rw [read_vtape_succ]
     rcases Nat.lt_or_ge v xs.length with h | h
@@ -252,17 +249,10 @@ theorem move_vmove_vtape (hxs : ∀ a ∈ xs, a ≠ marker) (hv : v ≤ xs.lengt
       have hne : xs[v] ≠ marker := hxs _ (List.getElem_mem h)
       have hv : vmove (some xs[v]) m = m := by simp [vmove, hne]
       rw [hs, hv]
-      rcases m with _ | _ | _
-      · rfl
-      · exact vtape_move_neg h.le
-      · exact vtape_move_pos h
-    · have hs : inputSymbol xs (v + 1) = none := by
-        simp [inputSymbol, List.drop_of_length_le h]
+      rcases m with _ | _ | _ <;> [rfl; exact vtape_move_neg h.le; exact vtape_move_pos h]
+    · have hs : inputSymbol xs (v + 1) = none := by simp [inputSymbol, List.drop_of_length_le h]
       rw [hs]
-      rcases m with _ | _ | _
-      · rfl
-      · exact vtape_move_neg (by omega)
-      · rfl
+      rcases m with _ | _ | _ <;> [rfl; exact vtape_move_neg (by omega); rfl]
 
 end VTape
 
@@ -748,13 +738,10 @@ theorem iterate_prepare :
       (redirectCfg (fun q => 2 * q + 1) (x.length + 1) 0 [] ((p ++ x).map eBit) [] []
         (init d), []) := by
   have hw : (some marker :: (p ++ x.take x.length).map (some ∘ eBit)) =
-      vcells ((p ++ x).map eBit) := by
-    simp [vcells, List.map_map]
+      vcells ((p ++ x).map eBit) := by simp [vcells, List.map_map]
   have he : ((⟨4, none, none :: List.replicate d.tapes none⟩, ⟨.zero, [], none, some 2⟩) :
-      Key × Act) ∈ prep d p := by
-    simp [prep, copyEntries]
-  have hs : inputSymbol (x.map eBit) (x.length + 1) = none := by
-    simp [inputSymbol]
+      Key × Act) ∈ prep d p := by simp [prep, copyEntries]
+  have hs : inputSymbol (x.map eBit) (x.length + 1) = none := by simp [inputSymbol]
   have hend := stepOut_of_mem_prep d p x (c := ⟨some 4, x.length + 1,
     wtape (vcells ((p ++ x).map eBit)) :: List.replicate d.tapes Tape.blank⟩) rfl he
       (by simp [SCfg.key, hs]) []

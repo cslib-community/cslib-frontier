@@ -346,15 +346,17 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
       sub_mul, mul_sub, mul_sub, map_sub, map_sub, map_sub, Complex.sub_re,
       Complex.sub_re, Complex.sub_re]
     ring
-  have hc : (0 : ℝ) < 2 ^ Fintype.card ι := by positivity
-  have hcard : (Fintype.card (ι → Bool) : ℝ) = 2 ^ Fintype.card ι := by
-    rw [Fintype.card_fun, Fintype.card_bool]; push_cast; rfl
-  have hT₁ : (φ (∑ u, F u * (F u * F u))).re =
-      ((2 : ℝ) ^ Fintype.card ι)⁻¹ * ∑ a, (φ (A a * χ a)).re := by
-    rw [← Complex.re_sum, ← map_sum, ← re_apply_real_smul, smul_sum_mul_walshSum]
-  have hT₂ : (φ (∑ u, F u * (F u * F u))).re =
-      ((2 : ℝ) ^ Fintype.card ι)⁻¹ * ∑ a, (φ (χ a * A a)).re := by
-    rw [← Complex.re_sum, ← map_sum, ← re_apply_real_smul, smul_sum_walshSum_mul]
+  have hexpect (f : (ι → Bool) → R) :
+      (𝔼 a, (φ (f a)).re) = (φ ((((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, f a)).re := by
+    rw [re_apply_real_smul, map_sum, Complex.re_sum, Fintype.expect_eq_sum_div_card,
+      Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat, div_eq_inv_mul]
+  have hAavg : (𝔼 a, (φ (A a * A a)).re) ≤ 1 := by
+    rw [hexpect, ← sum_fourierCoeff_mul_self_eq]
+    exact φ.re_apply_le_one hTotal
+  have hT₁ : (𝔼 a, (φ (A a * χ a)).re) = 𝔼 a, 𝔼 b, (φ (A a * A b * A (a + b))).re := by
+    rw [hexpect, smul_sum_mul_walshSum, re_apply_sum_fourierCoeff_cube]
+  have hT₂ : (𝔼 a, (φ (χ a * A a)).re) = 𝔼 a, 𝔼 b, (φ (A a * A b * A (a + b))).re := by
+    rw [hexpect, smul_sum_walshSum_mul, ← re_apply_sum_fourierCoeff_cube]
     simp only [B, F, mul_assoc]
   have hP : 𝔼 a, φ.norm (χ a) ^ 2 ≤ 1 := by
     rw [expect_norm_walshSum_sq]
@@ -366,26 +368,8 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
       _ ≤ 1 := by
         rw [← Complex.re_sum, ← map_sum]
         exact φ.re_apply_le_one hTotal
-  have hT := re_apply_sum_fourierCoeff_cube φ (A := A)
-  have hAavg : (∑ a, (φ (A a * A a)).re) ≤ (2 : ℝ) ^ Fintype.card ι := by
-    have h := φ.re_apply_le_one hTotal
-    rw [sum_fourierCoeff_mul_self_eq, re_apply_real_smul, map_sum, Complex.re_sum,
-      ← div_eq_inv_mul, div_le_iff₀ hc, one_mul] at h
-    exact h
-  simp only [Fintype.expect_eq_sum_div_card, hcard] at hP hδ hT ⊢
-  simp only [hN, sum_add_distrib, sum_sub_distrib]
-  rw [hT₁] at hT
-  have hT' : ∑ a, (φ (χ a * A a)).re = ∑ a, (φ (A a * χ a)).re := by
-    have := hT₁.symm.trans hT₂
-    field_simp at this
-    linarith
-  rw [hT']
-  rw [div_le_iff₀ hc] at hP ⊢
-  have : (2 : ℝ) ^ Fintype.card ι * (1 - δ) ≤ ∑ a, (φ (A a * χ a)).re := by
-    rw [← hT] at hδ
-    field_simp at hδ
-    linarith
-  linarith only [hAavg, hP, this]
+  simp only [hN, expect_add_distrib, expect_sub_distrib, hT₁, hT₂]
+  linarith only [hAavg, hP, hδ]
 
 /-- The characters of the Fourier measurement of involutions are close to the observables
 when their triple correlations are near one. -/

@@ -75,43 +75,35 @@ theorem length_select_le (U β β' v mode : ℕ) (rs : List (ℕ × ℕ)) :
 /-- Native label arithmetic, including the absence of subtraction underflow. -/
 theorem label_encode {U : ℕ} {z : ℤ} (hz : |z| ≤ (U : ℤ)) :
     label U (Signed.encode z) = Cslib.Algorithms.ThreeSum.lab (2 * U) z := by
-  have hn : z.natAbs ≤ U := by
-    exact_mod_cast (show (z.natAbs : ℤ) ≤ (U : ℤ) by simpa only [Int.natCast_natAbs] using hz)
+  obtain ⟨_, _⟩ := abs_le.mp hz
   by_cases hneg : z < 0
-  · have habs : z = -(z.natAbs : ℤ) := by
-      rw [Int.ofNat_natAbs_of_nonpos (by omega : z ≤ 0)]
-      omega
+  · have := Int.ofNat_natAbs_of_nonpos hneg.le
     simp only [label, Signed.encode_mod_two, hneg, ↓reduceIte, one_ne_zero,
       Signed.encode_div_two, Cslib.Algorithms.ThreeSum.lab]
     omega
-  · have habs := Int.eq_natAbs_of_nonneg (by omega : 0 ≤ z)
+  · have := Int.eq_natAbs_of_nonneg (not_lt.mp hneg)
     simp only [label, Signed.encode_mod_two, hneg, ↓reduceIte,
       Signed.encode_div_two, Cslib.Algorithms.ThreeSum.lab]
     omega
 
 /-- The transient unsigned double is corrected by its low sign bit. -/
 theorem twice_encode (z : ℤ) : twice (Signed.encode z) = Signed.encode (2 * z) := by
-  have hs : (2 * z < 0) ↔ z < 0 := by omega
   rw [twice, Signed.encode_mod_two]
-  simp only [Signed.encode, Int.natAbs_mul, show (2 : ℤ).natAbs = 2 from rfl, hs]
+  simp only [Signed.encode, Int.natAbs_mul, show (2 : ℤ).natAbs = 2 from rfl,
+    show (2 * z < 0) ↔ z < 0 by omega]
   split_ifs <;> omega
 
 /-- Label arithmetic and the transient double stay within a common explicit bound. -/
 theorem key_bounds {U : ℕ} {z : ℤ} (hz : |z| ≤ (U : ℤ)) :
     Signed.encode z ≤ 2 * U + 1 ∧ label U (Signed.encode z) ≤ 3 * U ∧
       Signed.encode z / 2 ≤ 2 * U ∧ 2 * Signed.encode z ≤ 4 * U + 2 := by
-  have hn : z.natAbs ≤ U := by
-    exact_mod_cast (show (z.natAbs : ℤ) ≤ (U : ℤ) by simpa only [Int.natCast_natAbs] using hz)
+  obtain ⟨_, _⟩ := abs_le.mp hz
   simp only [label, Signed.encode]
   split_ifs <;> omega
 
 /-- The unsigned transformation is injective, even before restricting to canonical keys. -/
-theorem twice_injective : Function.Injective twice := by
-  intro a b h
-  have ha := Nat.mod_lt a (by decide : 0 < 2)
-  have hb := Nat.mod_lt b (by decide : 0 < 2)
-  dsimp only [twice] at h
-  omega
+theorem twice_injective : Function.Injective twice := fun a b h => by
+  dsimp only [twice] at h; omega
 
 /-- Every output value transformation preserves injectivity. -/
 theorem value_injective (mode : ℕ) : Function.Injective (value mode) := by
@@ -161,7 +153,7 @@ theorem select_decoded {input : List ℤ} {rs : List (ℕ × ℕ)}
   simp only [List.mem_toFinset, List.mem_map, select, List.mem_filter, Finset.mem_image,
     Finset.mem_filter, mem_runs hkeys hcounts]
   constructor
-  · rintro ⟨u, ⟨p, ⟨⟨a, ha, rfl⟩, hkeep⟩, rfl⟩, rfl⟩
+  · rintro ⟨_, ⟨_, ⟨⟨a, ha, rfl⟩, hkeep⟩, rfl⟩, rfl⟩
     exact ⟨a, ⟨ha, hkeep⟩, rfl⟩
   · rintro ⟨a, ⟨ha, hkeep⟩, rfl⟩
     exact ⟨_, ⟨_, ⟨⟨a, ha, rfl⟩, hkeep⟩, rfl⟩, rfl⟩
@@ -226,19 +218,13 @@ theorem select_zero {input : List ℤ} {rs : List (ℕ × ℕ)}
   simp only [keep, flag, decide_eq_true_eq, encode_eq_zero, value, Nat.reduceEqDiff,
     ↓reduceIte, Signed.decode_encode, Finset.image_id', Cslib.Algorithms.ThreeSum.zeroSet,
     count_positions]
-  by_cases hc : 3 ≤ input.count 0
-  · have hm : (0 : ℤ) ∈ input := List.count_pos_iff.mp (by omega)
-    ext z
-    simp only [hc, ↓reduceIte, Finset.mem_filter, List.mem_toFinset, Finset.mem_singleton]
-    constructor
-    · exact fun h => h.2.1
-    · rintro rfl
-      exact ⟨hm, rfl, hc⟩
-  · ext z
-    simp only [hc, ↓reduceIte, Finset.mem_filter, List.mem_toFinset, Finset.notMem_empty,
-      iff_false, not_and]
-    intro _ hz
-    subst z
+  by_cases hc : 3 ≤ input.count 0 <;> ext z <;>
+    simp only [hc, ↓reduceIte, Finset.mem_filter, List.mem_toFinset, Finset.mem_singleton,
+      Finset.notMem_empty, iff_false, not_and]
+  · refine ⟨fun h => h.2.1, ?_⟩
+    rintro rfl
+    exact ⟨List.count_pos_iff.mp (by omega), rfl, hc⟩
+  · rintro _ rfl
     exact hc
 
 /-- The A scan represents the exact existing bit split. -/
@@ -251,10 +237,9 @@ theorem select_A {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
         (Finset.univ.image (fun i : Fin input.length => input[i])) := by
   rw [select_decoded hkeys hcounts, input_values]
   simp only [value, Nat.reduceEqDiff, ↓reduceIte, Signed.decode_encode, Finset.image_id']
-  apply Finset.filter_congr
-  intro z hz
-  simp only [List.mem_toFinset] at hz
-  simp only [keep, flag, decide_eq_true_eq, label_encode (hvalues z hz), digit_eq]
+  refine Finset.filter_congr fun z hz => ?_
+  simp only [keep, flag, decide_eq_true_eq, label_encode (hvalues z (List.mem_toFinset.mp hz)),
+    digit_eq]
 
 /-- Both B scans represent the exact existing two-bit split, including `β=β'`. -/
 theorem select_B {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
@@ -265,18 +250,16 @@ theorem select_B {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
       Cslib.Algorithms.ThreeSum.splitB (2 * U) β β' v w
         (Finset.univ.image (fun i : Fin input.length => input[i])) := by
   rw [select_decoded hkeys hcounts, input_values]
-  cases w
-  all_goals simp only [Bool.false_eq_true, ↓reduceIte, value, Nat.reduceEqDiff,
-    Signed.decode_encode, Finset.image_id']
-  all_goals apply Finset.filter_congr
-  all_goals intro z hz
-  all_goals simp only [List.mem_toFinset] at hz
-  all_goals simp only [keep, flag, decide_eq_true_eq, label_encode (hvalues z hz)]
-  all_goals simp only [ne_eq, digit_eq _ _ v]
-  all_goals cases v <;> cases (Cslib.Algorithms.ThreeSum.lab (2 * U) z).testBit β <;>
-    simp only [Bool.false_eq_true, Bool.true_eq_false, not_false_eq_true, not_true_eq_false,
-      true_and, false_and, Bool.not_true, Bool.not_false]
-  all_goals first | exact digit_eq _ _ false | exact digit_eq _ _ true
+  cases w <;> simp only [Bool.false_eq_true, ↓reduceIte, value, Nat.reduceEqDiff,
+    Signed.decode_encode, Finset.image_id'] <;>
+    refine Finset.filter_congr fun z hz => ?_
+  all_goals
+    simp only [keep, flag, decide_eq_true_eq, label_encode (hvalues z (List.mem_toFinset.mp hz)),
+      ne_eq, digit_eq _ _ v]
+    cases v <;> cases (Cslib.Algorithms.ThreeSum.lab (2 * U) z).testBit β <;>
+      simp only [Bool.false_eq_true, Bool.true_eq_false, not_false_eq_true, not_true_eq_false,
+        true_and, false_and, Bool.not_true, Bool.not_false]
+    all_goals first | exact digit_eq _ _ false | exact digit_eq _ _ true
 
 end Math
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend

@@ -269,13 +269,8 @@ private theorem localNextCell?_cellAt_or_halt {M : OneMachine S Q} {c : Config S
   rcases hstep : M.step c.state (c.tape c.head) with ⟨write, state', move⟩
   by_cases hcenter : pos = c.head
   · subst pos
-    cases hhead : c.head with
-    | zero =>
-        cases move <;>
-          simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?, Move.apply]
-    | succ pred =>
-        cases move <;>
-          simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?, Move.apply]
+    cases hhead : c.head <;> cases move <;>
+      simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID, localNextCell?, Move.apply]
   · by_cases hleft : c.head = pos + 1
     · cases hpos : pos with
       | zero =>
@@ -956,8 +951,8 @@ private theorem positive_row_decode
     (time position : ℕ) :
     ∃ history, history ∈ machineHistoryTiles M ∧
       toWangTile 0 0 normalRowTag normalRowTag history =
-        plane position (time + 1) := by
-  exact normal_of_vMatches M input
+        plane position (time + 1) :=
+  normal_of_vMatches M input
     (valid position time).1 (valid position (time + 1)).1
     ((valid position time).2.2)
 
@@ -997,8 +992,7 @@ private theorem row_one_decoded
     DecodedHistoryRow M input plane 1 := by
   choose row hrow using fun position => positive_row_decode valid 0 position
   refine ⟨row, ⟨fun position => (hrow position).1,
-    fun position => (hrow position).2, ?_⟩⟩
-  intro position
+    fun position => (hrow position).2, fun position => ?_⟩⟩
   have hbottom := seeded_tiling_row_zero_eq valid seeded position
   have hvertical : VMatches
       (initialTile M input position)
@@ -1043,9 +1037,8 @@ private theorem nextCenter_eq_historyTile_nextCenter_of_prev_cells
     (hprevRight : tile.prevRight = (historyTile M input time position).prevRight) :
     tile.nextCenter = (historyTile M input time position).nextCenter := by
   have hlocal := localNextCell?_of_mem_machineHistoryTiles tileMem
-  rw [hprevLeft, hprevCenter, hprevRight] at hlocal
-  have hrun := historyTile_local_of_state_ne_halt hstate hnext position
-  rw [hrun] at hlocal
+  rw [hprevLeft, hprevCenter, hprevRight,
+    historyTile_local_of_state_ne_halt hstate hnext position] at hlocal
   exact Option.some.inj hlocal.symm
 
 /-- Local transition validity and horizontal matching determine all three
@@ -1098,8 +1091,7 @@ private theorem next_row_decoded
   choose upper hupper using fun position =>
     positive_row_decode valid (time + 1) position
   refine ⟨upper, ⟨fun position => (hupper position).1,
-    fun position => (hupper position).2, ?_⟩⟩
-  intro position
+    fun position => (hupper position).2, fun position => ?_⟩⟩
   have hvertical : VMatches
       (toWangTile 0 0 normalRowTag normalRowTag (lower position))
       (toWangTile 0 0 normalRowTag normalRowTag (upper position)) := by

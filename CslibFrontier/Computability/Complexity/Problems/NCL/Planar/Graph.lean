@@ -73,29 +73,22 @@ theorem incidenceGraph_endpoints (g : AndOrGraph) :
     ∀ v ∈ g.incidenceGraph.incidenceVertices, v ∈ g.incidenceGraph.vertices := by
   intro v hv
   by_cases hn : 0 < g.vertices.length
-  · change v ∈ List.range g.vertices.length
-    apply List.mem_range.mpr
-    simp only [Cslib.Complexity.Graph.incidenceVertices, incidenceGraph,
+  · simp only [Cslib.Complexity.Graph.incidenceVertices, incidenceGraph,
       List.mem_flatMap, List.mem_map, List.mem_cons, List.not_mem_nil, or_false] at hv
     obtain ⟨_, ⟨e, _, rfl⟩, rfl | rfl⟩ := hv
-    · exact portVertex_lt g hn e false
-    · exact portVertex_lt g hn e true
-  · have hz : g.vertices = [] := List.length_eq_zero_iff.mp (by omega)
-    simp [incidenceGraph, Cslib.Complexity.Graph.incidenceVertices, hz] at hv
+    · exact List.mem_range.mpr (portVertex_lt g hn e false)
+    · exact List.mem_range.mpr (portVertex_lt g hn e true)
+  · simp [incidenceGraph, Cslib.Complexity.Graph.incidenceVertices,
+      List.length_eq_zero_iff.mp (by omega : g.vertices.length = 0)] at hv
 
 private theorem raw_hasPort_iff (g : AndOrGraph) (hb : g.Bounded)
     (v : Fin g.vertices.length) (e : Fin g.edgeCount) (d : Bool) :
     (∃ w, (⟨⟨e.val, d⟩, w⟩ : WeightedPort ℕ) ∈ (g.vertices.get v).ports) ↔
       GridDrawing.HasPort g.graph v e d := by
-  have h := GridDrawing.hasPort_map_iff g.graph Fin.val v e.val d
-  rw [g.graph_map_val hb] at h
+  have h := g.graph_map_val hb ▸ GridDrawing.hasPort_map_iff g.graph Fin.val v e.val d
   change GridDrawing.HasPort (fun i : Fin g.vertices.length => g.vertices.get i) v e.val d ↔ _
   rw [h]
-  constructor
-  · rintro ⟨f, hf, he⟩
-    exact Fin.ext he ▸ hf
-  · intro hp
-    exact ⟨e, hp, rfl⟩
+  exact ⟨fun ⟨_, hf, he⟩ => Fin.ext he ▸ hf, fun hp => ⟨e, hp, rfl⟩⟩
 
 private theorem portVertex_eq_of_drawing (g : AndOrGraph) (hb : g.Bounded)
     (D : GridDrawing.Closed g.graph) (e : Fin g.edgeCount) (d : Bool) :
@@ -103,56 +96,41 @@ private theorem portVertex_eq_of_drawing (g : AndOrGraph) (hb : g.Bounded)
   let v := if d then D.target e else D.source e
   have hp : GridDrawing.HasPort g.graph v e d := by
     cases d
-    · exact D.source_port e
-    · exact D.target_port e
-  have hv : (g.vertices.get v, v.val) ∈ g.vertices.zipIdx := by
-    simp only [List.mk_mem_zipIdx_iff_getElem?, List.getElem?_eq_getElem v.isLt]
-    rfl
+    exacts [D.source_port e, D.target_port e]
+  obtain ⟨w, hw⟩ := (raw_hasPort_iff g hb v e d).mpr hp
   have hex : (g.vertices.zipIdx.find? fun v =>
-      v.1.ports.any fun p => decide (p.port = ⟨e.val, d⟩)).isSome := by
-    apply List.find?_isSome.mpr
-    refine ⟨_, hv, ?_⟩
-    obtain ⟨w, hw⟩ := (raw_hasPort_iff g hb v e d).mpr hp
-    exact List.any_eq_true.mpr ⟨_, hw, by simp⟩
+      v.1.ports.any fun p => decide (p.port = ⟨e.val, d⟩)).isSome :=
+    List.find?_isSome.mpr ⟨(g.vertices.get v, v.val),
+      by simp [List.mk_mem_zipIdx_iff_getElem?, v.isLt],
+      List.any_eq_true.mpr ⟨_, hw, by simp⟩⟩
   cases hf : g.vertices.zipIdx.find? (fun v =>
       v.1.ports.any fun p => decide (p.port = ⟨e.val, d⟩)) with
-  | none => simp only [hf, Option.isSome_none, Bool.false_eq_true] at hex
+  | none => simp [hf] at hex
   | some u =>
-    have hu := List.mem_of_find?_eq_some hf
-    obtain ⟨hu', huget⟩ := List.mem_zipIdx' hu
+    obtain ⟨hu', huget⟩ := List.mem_zipIdx' (List.mem_of_find?_eq_some hf)
     have hup := List.find?_some hf
-    obtain ⟨p, hpu, hpe⟩ := List.any_eq_true.mp hup
-    have hport : p.port = ⟨e.val, d⟩ := of_decide_eq_true hpe
-    have hr : GridDrawing.HasPort g.graph ⟨u.2, hu'⟩ e d := by
-      apply (raw_hasPort_iff g hb _ e d).mp
-      refine ⟨p.weight, ?_⟩
-      have hpeq : p = ⟨⟨e.val, d⟩, p.weight⟩ :=
-        congrArg (fun q => (⟨q, p.weight⟩ : WeightedPort ℕ)) hport
-      rw [← hpeq]
-      change p ∈ g.vertices[u.2].ports
-      rw [← huget]
-      exact hpu
+    obtain ⟨⟨_, weight⟩, hpu, hpe⟩ := List.any_eq_true.mp hup
+    obtain rfl : _ = (⟨e.val, d⟩ : Port ℕ) := of_decide_eq_true hpe
+    have hr : GridDrawing.HasPort g.graph ⟨u.2, hu'⟩ e d :=
+      (raw_hasPort_iff g hb _ e d).mp ⟨weight, by simpa [← huget] using hpu⟩
     have heq : (⟨u.2, hu'⟩ : Fin g.vertices.length) = v := by
       cases d
-      · exact (D.source_eq _ _ hr).symm
-      · exact (D.target_eq _ _ hr).symm
+      exacts [(D.source_eq _ _ hr).symm, (D.target_eq _ _ hr).symm]
     simpa only [portVertex, hf, Option.map_some, Option.getD_some] using congrArg Fin.val heq
 
 /-- The graph extracted from valid ports is the graph of any complete incidence drawing. -/
 private theorem incidenceGraph_eq_drawing (g : AndOrGraph) (hg : g.Valid)
     (D : GridDrawing.Closed g.graph) : g.incidenceGraph = D.incidenceGraph := by
-  have hc := portCount_eq_two_mul g hg.1 hg.2.2
-  have hm : g.edgeCount ≤ (g.vertices.flatMap Vertex.ports).length := by omega
-  apply Cslib.Complexity.Graph.ext
-  · rfl
-  · simp only [incidenceGraph, ite_eq_left hm, List.take_range, Nat.min_eq_left hm]
-    rw [← List.map_coe_finRange_eq_range]
-    simp only [List.map_map]
-    rw [← List.ofFn_eq_map]
-    congr 1
-    funext e
-    simp only [Function.comp_apply, portVertex_eq_of_drawing g hg.1 D e false,
-      portVertex_eq_of_drawing g hg.1 D e true, Bool.false_eq_true, ↓reduceIte]
+  have hm : g.edgeCount ≤ (g.vertices.flatMap Vertex.ports).length := by
+    have := portCount_eq_two_mul g hg.1 hg.2.2
+    omega
+  refine Cslib.Complexity.Graph.ext rfl ?_
+  simp only [incidenceGraph, ite_eq_left hm, List.take_range, Nat.min_eq_left hm]
+  rw [← List.map_coe_finRange_eq_range, List.map_map, ← List.ofFn_eq_map]
+  congr 1
+  funext e
+  simp only [Function.comp_apply, portVertex_eq_of_drawing g hg.1 D e false,
+    portVertex_eq_of_drawing g hg.1 D e true, Bool.false_eq_true, ↓reduceIte]
 
 end AndOrGraph
 

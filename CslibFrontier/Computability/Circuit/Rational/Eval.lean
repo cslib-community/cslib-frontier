@@ -61,10 +61,7 @@ theorem Eval.unique {c : ℚ →+* R} {X : Fin n → R} {h : Formula n} {a b : R
   | inv f ih =>
     obtain ⟨a', ha', -, hva⟩ := eval_inv_iff.mp ha
     obtain ⟨b', hb', hbw, -⟩ := eval_inv_iff.mp hb
-    obtain rfl := ih ha' hb'
-    calc
-      a = a * (a' * b) := by rw [hbw, mul_one]
-      _ = b := by rw [← mul_assoc, hva, one_mul]
+    rw [← mul_one a, ← hbw, ← ih ha' hb', ← mul_assoc, hva, one_mul]
 
 /-- A ring homomorphism maps a value of a formula to a value at the mapped substitution. -/
 theorem Eval.map {c : ℚ →+* R} {X : Fin n → R} {h : Formula n} {a : R}
@@ -87,9 +84,8 @@ theorem Eval.map {c : ℚ →+* R} {X : Fin n → R} {h : Formula n} {a : R}
 evaluation relative to `algebraMap ℚ _`. -/
 theorem Eval.map_algebraMap [Algebra ℚ S] {c : ℚ →+* R} {X : Fin n → R} {h : Formula n}
     {a : R} (ha : h.Eval c X a) (f : R →+* S) :
-    h.Eval (algebraMap ℚ S) (fun i => f (X i)) (f a) := by
-  have hh := ha.map f
-  rwa [RingHom.ext_rat (f.comp c) (algebraMap ℚ S)] at hh
+    h.Eval (algebraMap ℚ S) (fun i => f (X i)) (f a) :=
+  RingHom.ext_rat (f.comp c) (algebraMap ℚ S) ▸ ha.map f
 
 /-- Defined evaluations lift through a homomorphism reflecting units. In particular this handles
 every inverse occurrence before considering the root. -/
@@ -101,12 +97,12 @@ theorem Eval.lift (f : R →+* S) (hf : ∀ x, IsUnit (f x) → IsUnit x)
   | var i => exact ⟨X i, .var i, (eval_var_iff.mp ha).symm⟩
   | const q => exact ⟨c q, .const q, (eval_const_iff.mp ha).symm⟩
   | add g k ihg ihk =>
-    obtain ⟨a₁, a₂, ha₁, ha₂, rfl⟩ := eval_add_iff.mp ha
+    obtain ⟨_, _, ha₁, ha₂, rfl⟩ := eval_add_iff.mp ha
     obtain ⟨b₁, hb₁, rfl⟩ := ihg ha₁
     obtain ⟨b₂, hb₂, rfl⟩ := ihk ha₂
     exact ⟨b₁ + b₂, .add hb₁ hb₂, map_add f b₁ b₂⟩
   | mul g k ihg ihk =>
-    obtain ⟨a₁, a₂, ha₁, ha₂, rfl⟩ := eval_mul_iff.mp ha
+    obtain ⟨_, _, ha₁, ha₂, rfl⟩ := eval_mul_iff.mp ha
     obtain ⟨b₁, hb₁, rfl⟩ := ihg ha₁
     obtain ⟨b₂, hb₂, rfl⟩ := ihk ha₂
     exact ⟨b₁ * b₂, .mul hb₁ hb₂, map_mul f b₁ b₂⟩
@@ -115,7 +111,7 @@ theorem Eval.lift (f : R →+* S) (hf : ∀ x, IsUnit (f x) → IsUnit x)
     obtain ⟨b', hb', rfl⟩ := ih hb
     obtain ⟨u, hu⟩ := hf b' ⟨⟨f b', a, hba, hab⟩, rfl⟩
     have heval : (Formula.inv g).Eval c X (↑u⁻¹ : R) :=
-      .inv hb' (by rw [← hu]; exact u.mul_inv) (by rw [← hu]; exact u.inv_mul)
+      .inv hb' (hu ▸ u.mul_inv) (hu ▸ u.inv_mul)
     exact ⟨_, heval, (heval.map f).unique ha⟩
 
 /-- Mapping a defined nonzero value out of a division ring makes it a unit. This is used after the
@@ -123,17 +119,9 @@ partial-specialization domain proof, not instead of it. -/
 theorem Eval.unit_of_division_lift {D : Type*} [DivisionRing D] [Nontrivial R]
     (f : D →+* R) {c : ℚ →+* D} {X : Fin n → D} {h : Formula n} {a : R}
     (ha : h.Eval (f.comp c) (fun i => f (X i)) a) (ha0 : a ≠ 0) : IsUnit a := by
-  have hf : ∀ x, IsUnit (f x) → IsUnit x := by
-    intro x hx
-    apply isUnit_iff_ne_zero.mpr
-    intro hzero
-    exact hx.ne_zero (by rw [hzero, map_zero])
-  obtain ⟨b, hb, heq⟩ := ha.lift f hf
-  have hb0 : b ≠ 0 := by
-    intro h
-    apply ha0
-    rw [← heq, h, map_zero]
-  exact heq ▸ (isUnit_iff_ne_zero.mpr hb0).map f
+  obtain ⟨b, _, heq⟩ := ha.lift f fun x hx =>
+    isUnit_iff_ne_zero.mpr fun h0 => hx.ne_zero (by simp [h0])
+  exact heq ▸ (isUnit_iff_ne_zero.mpr fun h0 => ha0 (by simp [← heq, h0])).map f
 
 end Formula
 

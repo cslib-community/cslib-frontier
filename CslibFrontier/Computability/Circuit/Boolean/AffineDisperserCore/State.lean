@@ -255,15 +255,10 @@ theorem Valid.locus_congr {f : BooleanFunction n} (hS : S.Valid f) {val val' : �
 theorem Valid.card_sdiff_image {f : BooleanFunction n} (hS : S.Valid f) (rep : cfg.Pair → ℕ)
     (hrep : ∀ pr ∈ S.pairs, cfg.Contains pr (rep pr)) :
     (S.params \ S.pairs.image rep).card = S.a := by
-  have hsub : S.pairs.image rep ⊆ S.params := by
-    intro i hi
-    obtain ⟨pr, hpr, rfl⟩ := Finset.mem_image.1 hi
-    rcases hrep pr hpr with h | h <;> rw [← h]
-    · exact (hS.pair_mem pr hpr).1
-    · exact (hS.pair_mem pr hpr).2.1
-  have hinj : Set.InjOn rep S.pairs := by
-    intro pr hpr pr' hpr' heq
-    by_contra hne
+  have hsub : S.pairs.image rep ⊆ S.params := Finset.image_subset_iff.2 fun pr hpr =>
+    (hrep pr hpr).elim (fun h => h ▸ (hS.pair_mem pr hpr).1)
+      fun h => h ▸ (hS.pair_mem pr hpr).2.1
+  have hinj : Set.InjOn rep S.pairs := fun pr hpr pr' hpr' heq => by_contra fun hne => by
     have := hS.pairs_disjoint pr hpr pr' hpr' hne
     rcases hrep pr hpr with h | h <;> rcases hrep pr' hpr' with h' | h' <;>
       rw [← h, ← h'] at heq <;> tauto
@@ -505,16 +500,12 @@ theorem Valid.isPartner_unique {S : State cfg n} (hS : S.Valid f) {w r r' : ℕ}
     (h : S.IsPartner w r) (h' : S.IsPartner w r') : r = r' := by
   obtain ⟨pr, hpr, hr⟩ := h
   obtain ⟨pr', hpr', hr'⟩ := h'
-  have := hS.pair_unique (w := w) hpr hpr'
-    (by rcases hr with h | h; exacts [Or.inl h.1, Or.inr h.1])
-    (by rcases hr' with h | h; exacts [Or.inl h.1, Or.inr h.1])
-  subst this
+  obtain rfl := hS.pair_unique (w := w) hpr hpr'
+    (hr.elim (Or.inl ·.1) (Or.inr ·.1)) (hr'.elim (Or.inl ·.1) (Or.inr ·.1))
   have h12 := (hS.pair_mem pr hpr).2.2
-  rcases hr with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rcases hr' with ⟨h1', h2'⟩ | ⟨h1', h2'⟩
-  · exact h2.symm.trans h2'
-  · exact absurd (h1.trans h1'.symm) h12
-  · exact absurd (h1'.trans h1.symm) h12
-  · exact h2.symm.trans h2'
+  rcases hr with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rcases hr' with ⟨h1', h2'⟩ | ⟨h1', h2'⟩ <;>
+    first | exact h2.symm.trans h2' | exact absurd (h1.trans h1'.symm) h12
+          | exact absurd (h1'.trans h1.symm) h12
 
 /-- Two parameters sharing the same partner are equal. -/
 theorem Valid.isPartner_unique_right {S : State cfg n} (hS : S.Valid f) {u p r : ℕ}
@@ -543,14 +534,11 @@ theorem Valid.paired_filter_iff {S : State cfg n} (hS : S.Valid f) {F : Finset �
   · rintro ⟨pr, hpr, hu⟩
     obtain ⟨hpr, hF⟩ := Finset.mem_filter.1 hpr
     refine ⟨⟨pr, hpr, hu⟩, fun x hx ⟨pr', hpr', hux⟩ => hF ?_⟩
-    have := hS.pair_unique hpr hpr' hu (by rcases hux with h | h; exacts [Or.inl h.1, Or.inr h.1])
-    subst this
-    rcases hux with ⟨-, h⟩ | ⟨-, h⟩
-    · exact Or.inr (h ▸ hx)
-    · exact Or.inl (h ▸ hx)
+    obtain rfl := hS.pair_unique hpr hpr' hu (hux.elim (Or.inl ·.1) (Or.inr ·.1))
+    exact hux.elim (fun h => Or.inr (h.2 ▸ hx)) fun h => Or.inl (h.2 ▸ hx)
   · rintro ⟨⟨pr, hpr, hu⟩, hpart⟩
-    refine ⟨pr, Finset.mem_filter.2 ⟨hpr, ?_⟩, hu⟩
-    rintro (h | h) <;> rcases hu with hu | hu
+    refine ⟨pr, Finset.mem_filter.2 ⟨hpr, fun h => ?_⟩, hu⟩
+    rcases h with h | h <;> rcases hu with hu | hu
     · exact huF (hu ▸ h)
     · exact hpart _ h ⟨pr, hpr, Or.inr ⟨hu, rfl⟩⟩
     · exact hpart _ h ⟨pr, hpr, Or.inl ⟨hu, rfl⟩⟩
@@ -558,44 +546,42 @@ theorem Valid.paired_filter_iff {S : State cfg n} (hS : S.Valid f) {F : Finset �
 
 /-- The parameters of a valid state are at least as many as its pairs. -/
 theorem Valid.q_le_m {S : State cfg n} (hS : S.Valid f) : S.q ≤ S.m := by
-  have hsub : S.pairs.image cfg.fst ⊆ S.params := fun i hi => by
-    obtain ⟨pr, hpr, rfl⟩ := Finset.mem_image.1 hi
-    exact (hS.pair_mem pr hpr).1
+  have hsub : S.pairs.image cfg.fst ⊆ S.params := Finset.image_subset_iff.2 fun pr hpr =>
+    (hS.pair_mem pr hpr).1
   have hinj : Set.InjOn cfg.fst (S.pairs : Set cfg.Pair) := fun pr hpr pr' hpr' h =>
     hS.pair_unique hpr hpr' (Or.inl rfl) (Or.inl h.symm)
-  have := Finset.card_le_card hsub
-  rwa [Finset.card_image_of_injOn hinj] at this
+  rw [State.q, State.m, ← Finset.card_image_of_injOn hinj]
+  exact Finset.card_le_card hsub
 
 /-- At most `|F|` pairs meet a set `F` of parameters. -/
 theorem Valid.card_pairsMeeting_le {S : State cfg n} (hS : S.Valid f) (F : Finset ℕ) :
     (S.pairsMeeting F).card ≤ F.card := by
   classical
   refine Finset.card_le_card_of_injOn (fun pr => if cfg.fst pr ∈ F then cfg.fst pr else cfg.snd pr)
-    (fun pr hpr => ?_) (fun pr hpr pr' hpr' h => ?_)
-  · obtain ⟨-, h⟩ := Finset.mem_filter.1 hpr
-    by_cases h1 : cfg.fst pr ∈ F
-    · simp only [ite_eq_left h1]; exact h1
-    · simp only [ite_eq_right h1]; exact h.resolve_left h1
-  · obtain ⟨hpr, -⟩ := Finset.mem_filter.1 hpr
-    obtain ⟨hpr', -⟩ := Finset.mem_filter.1 hpr'
-    simp only at h
-    refine hS.pair_unique hpr hpr' (w := if cfg.fst pr ∈ F then cfg.fst pr else cfg.snd pr)
-      (by split_ifs <;> simp [Config.Contains]) ?_
-    rw [h]
-    split_ifs <;> simp [Config.Contains]
+    (fun pr hpr => by
+      obtain ⟨-, h⟩ := Finset.mem_filter.1 hpr
+      dsimp only
+      split_ifs with h1
+      exacts [h1, h.resolve_left h1])
+    fun pr hpr pr' hpr' h => hS.pair_unique (Finset.mem_filter.1 hpr).1 (Finset.mem_filter.1 hpr').1
+      (w := if cfg.fst pr ∈ F then cfg.fst pr else cfg.snd pr)
+      (by split_ifs <;> simp [Config.Contains])
+      (by
+        dsimp only at h
+        rw [h]
+        split_ifs <;> simp [Config.Contains])
 
 /-- The number of pairs meeting `{w}` is `1` if `w` is paired and `0` otherwise. -/
 theorem Valid.card_pairsMeeting_singleton {S : State cfg n} (hS : S.Valid f) (w : ℕ) :
     (S.pairsMeeting {w}).card = if S.Paired w then 1 else 0 := by
   split_ifs with hw
   · obtain ⟨pr, hpr, hprw⟩ := hw
-    rw [Finset.card_eq_one]
-    refine ⟨pr, Finset.eq_singleton_iff_unique_mem.2 ⟨Finset.mem_filter.2 ⟨hpr, by simpa⟩,
-      fun pr' hpr' => ?_⟩⟩
+    refine Finset.card_eq_one.2 ⟨pr, Finset.eq_singleton_iff_unique_mem.2
+      ⟨Finset.mem_filter.2 ⟨hpr, by simpa⟩, fun pr' hpr' => ?_⟩⟩
     obtain ⟨hpr', h⟩ := Finset.mem_filter.1 hpr'
     exact hS.pair_unique hpr' hpr (by simpa [Config.Contains] using h) hprw
-  · refine Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun pr hpr h => hw ?_)
-    exact ⟨pr, hpr, by simpa [Config.Contains, eq_comm] using h⟩
+  · exact Finset.card_eq_zero.2 (Finset.filter_eq_empty_iff.2 fun pr hpr h =>
+      hw ⟨pr, hpr, by simpa [Config.Contains, eq_comm] using h⟩)
 
 /-- Adding to `F` a parameter that is not the partner of a member of `F` adds its pair, if
 any. -/
@@ -609,26 +595,26 @@ theorem Valid.card_pairsMeeting_insert {S : State cfg n} (hS : S.Valid f) {F : F
     simp only [pairsMeeting, Finset.mem_union, Finset.mem_filter, Finset.mem_insert,
       Finset.mem_singleton]
     tauto
-  · rw [Finset.disjoint_left]
-    intro pr h₁ h₂
+  · refine Finset.disjoint_left.2 fun pr h₁ h₂ => ?_
     obtain ⟨hpr, h₁⟩ := Finset.mem_filter.1 h₁
     obtain ⟨-, h₂⟩ := Finset.mem_filter.1 h₂
     simp only [Finset.mem_singleton] at h₂
-    rcases h₂ with h₂ | h₂ <;> rcases h₁ with h₁ | h₁
-    · exact hx (h₂ ▸ h₁)
-    · exact hpart _ h₁ ⟨pr, hpr, Or.inl ⟨h₂, rfl⟩⟩
-    · exact hpart _ h₁ ⟨pr, hpr, Or.inr ⟨h₂, rfl⟩⟩
-    · exact hx (h₂ ▸ h₁)
+    rcases h₂ with rfl | rfl <;> rcases h₁ with h₁ | h₁
+    · exact hx h₁
+    · exact hpart _ h₁ ⟨pr, hpr, Or.inl ⟨rfl, rfl⟩⟩
+    · exact hpart _ h₁ ⟨pr, hpr, Or.inr ⟨rfl, rfl⟩⟩
+    · exact hx h₁
 
 /-- A parameter of degree at most `1` containing `H` among its children has `{H}` as its set of
 children. -/
 theorem children_eq_singleton {S : State cfg n} {x : ℕ} {H : ℕ ⊕ ℕ}
     (hle : S.deg x ≤ 1) (hH : H ∈ S.children x) : S.children x = {H} := by
   have hpos : 0 < (S.children x).card := Finset.card_pos.2 ⟨H, hH⟩
-  have hcard : (S.children x).card = 1 := by unfold SemiCircuit.deg at hle; omega
+  have hcard : (S.children x).card = 1 := by
+    rw [SemiCircuit.deg] at hle
+    omega
   obtain ⟨M, hM⟩ := Finset.card_eq_one.1 hcard
-  have h1 := Finset.mem_singleton.1 (hM ▸ hH)
-  rwa [← h1] at hM
+  exact Finset.mem_singleton.1 (hM ▸ hH) ▸ hM
 
 end State
 

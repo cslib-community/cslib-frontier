@@ -146,13 +146,9 @@ theorem enumList_listMaskCount_budget {n precision L : ℕ} (hn : n ≤ L) (hp :
     calc
       n * precision ^ 4 ≤ L * L ^ 4 := Nat.mul_le_mul hn hpow4
       _ = L ^ 5 := by ring
-  have hguess : 2 ^ listMaskCount n precision ≤ 16 * L ^ 5 + 2 := by
-    have h := guessCount_listMaskCount_le n precision
-    linarith
-  have hmask : 2 * listMaskCount n precision + 1 ≤ 16 * L ^ 5 + 3 := by
-    have h := listMaskCount_le n precision
-    linarith
-  exact Nat.mul_le_mul hguess hmask
+  exact Nat.mul_le_mul
+    (by linarith [guessCount_listMaskCount_le n precision])
+    (by linarith [listMaskCount_le n precision])
 
 /-- Enumerating all `2 ^ listMaskCount p.1 p.2` parity guesses is polynomial-time jointly in
 `p : ℕ × ℕ` under `(encPair encUnary encUnary)`. -/
@@ -162,13 +158,9 @@ theorem polyTime_enumList_listMaskCount_pair :
       (encPair encUnary encUnary) (encList encBits) := by
   refine ComputableInPolyTime.bitsEnumList (by fun_prop)
     (size := fun L => (16 * L ^ 5 + 2) * (16 * L ^ 5 + 3)) (by fun_prop) ?_
-  intro p
-  have hn : p.1 ≤ (encPair encUnary encUnary p).length := by
-    simp [encPair_apply, encUnary_apply]
-    omega
-  have hp : p.2 ≤ (encPair encUnary encUnary p).length := by
-    simp [encPair_apply, encUnary_apply]
-  exact enumList_listMaskCount_budget hn hp
+  refine fun p => enumList_listMaskCount_budget ?_ ?_
+  · simp [encPair_apply, encUnary_apply]; omega
+  · simp [encPair_apply, encUnary_apply]
 
 private theorem comp_prod_eq {α β γ δ : Type*} (f : β → γ → δ) (g : α → β) (h : α → γ) :
     ((fun p : β × γ => f p.1 p.2) ∘ fun a => (g a, h a)) = fun a => f (g a) (h a) :=
@@ -212,14 +204,8 @@ theorem polyTime_dedupWords {α : Type} {input : α ↪ List Bool}
     (hwords : ComputableInPolyTime words input (encList encBits)) :
     ComputableInPolyTime (fun a => dedupWords (words a)) input (encList encBits) := by
   unfold dedupWords
-  exact ComputableInPolyTime.eraseDupsByWithInput hwords (by
-    have h1 : ComputableInPolyTime (fun p : (α × List Bool) × List Bool => p.1.2)
-        (encPair (encPair input encBits) encBits) encBits :=
-      (ComputableInPolyTime.fst _ _).snd'
-    have h2 : ComputableInPolyTime (fun p : (α × List Bool) × List Bool => p.2)
-        (encPair (encPair input encBits) encBits) encBits :=
-      ComputableInPolyTime.snd _ _
-    exact ComputableInPolyTime.decide_eq' h1 h2)
+  exact ComputableInPolyTime.eraseDupsByWithInput hwords
+    (.decide_eq' (ComputableInPolyTime.fst _ _).snd' (ComputableInPolyTime.snd _ _))
 
 /-- `dedupWords` preserves list membership. -/
 @[simp]
@@ -299,12 +285,8 @@ theorem mem_wordListDecode_ofFn_iff (predictor : List Bool → Bool) {n precisio
     List.ofFn x ∈ wordListDecode predictor n precision masks ↔
       x ∈ candidates (fun query => predictor (List.ofFn query))
         (block (ofList (listMaskCount n precision * n) masks)) := by
-  rw [← List.mem_toFinset, toFinset_wordListDecode, Finset.mem_image]
-  constructor
-  · rintro ⟨y, hy, heq⟩
-    rwa [ ← List.ofFn_inj.mp heq]
-  · intro hx
-    exact ⟨x, hx, rfl⟩
+  simp only [← List.mem_toFinset, toFinset_wordListDecode, Finset.mem_image, List.ofFn_inj,
+    exists_eq_right]
 
 /-- Every word in `wordListDecode predictor n precision masks` is `List.ofFn x` for some
 `x ∈ candidates`. -/
@@ -405,16 +387,9 @@ theorem polyTime_wordEmpiricalHits {α : Type} {input : α ↪ List Bool}
       (fun a => wordEmpiricalHits (predictor a) (sampleRows a) (candidate a))
       input encUnary := by
   unfold wordEmpiricalHits
-  refine ComputableInPolyTime.countPWithInput hsampleRows ?_
-  have hpred : ComputableInPolyTime (fun p : α × List Bool => predictor p.1 p.2)
-      (encPair input encBits) encBool := hpredictor
-  have hcand : ComputableInPolyTime (fun p : α × List Bool => candidate p.1)
-      (encPair input encBits) encBits := hcandidate.comp (ComputableInPolyTime.fst _ _)
-  have hrow : ComputableInPolyTime (fun p : α × List Bool => p.2)
-      (encPair input encBits) encBits := ComputableInPolyTime.snd _ _
-  have hdot : ComputableInPolyTime (fun p : α × List Bool => listDot (candidate p.1) p.2)
-      (encPair input encBits) encBool := ComputableInPolyTime.bitsListDot hcand hrow
-  exact hpred.beq hdot
+  exact ComputableInPolyTime.countPWithInput hsampleRows
+    (hpredictor.beq (.bitsListDot
+      (hcandidate.comp (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _)))
 
 /-- On `List.ofFn` sample rows and `List.ofFn x`, `wordEmpiricalHits` agrees with
 `empiricalHits`. -/
@@ -456,29 +431,15 @@ theorem polyTime_wordPruneCandidates {α : Type} {input : α ↪ List Bool}
       (fun a => wordPruneCandidates (predictor a) (num a) (den a) (sampleRows a) (candidates a))
       input (encList encBits) := by
   unfold wordPruneCandidates
-  apply polyTime_dedupWords
-  refine ComputableInPolyTime.filterWithInput hcandidates ?_
-  have h1 : ComputableInPolyTime (fun p : α × List Bool => p.1)
-      (encPair input encBits) input := ComputableInPolyTime.fst _ _
-  have h2 : ComputableInPolyTime (fun p : α × List Bool => p.2)
-      (encPair input encBits) encBits := ComputableInPolyTime.snd _ _
-  have hpred' : ComputableInPolyTime (fun q : (α × List Bool) × List Bool => predictor q.1.1 q.2)
-      (encPair (encPair input encBits) encBits) encBool :=
-    hpredictor.comp ((h1.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _))
-  have hsr' : ComputableInPolyTime (fun p : α × List Bool => sampleRows p.1)
-      (encPair input encBits) (encList encBits) := hsampleRows.comp h1
-  have hhits : ComputableInPolyTime
-      (fun p : α × List Bool => wordEmpiricalHits (predictor p.1) (sampleRows p.1) p.2)
-      (encPair input encBits) encUnary :=
-    polyTime_wordEmpiricalHits hpred' hsr' h2
-  have hlen : ComputableInPolyTime (fun p : α × List Bool => (sampleRows p.1).length)
-      (encPair input encBits) encUnary :=
-    (ComputableInPolyTime.length_list encBits).comp hsr'
-  have hnum' : ComputableInPolyTime (fun p : α × List Bool => num p.1)
-      (encPair input encBits) encUnary := hnum.comp h1
-  have hden' : ComputableInPolyTime (fun p : α × List Bool => den p.1)
-      (encPair input encBits) encUnary := hden.comp h1
-  exact ComputableInPolyTime.unary_le' (hlen.unary_mul' hnum') (hden'.unary_mul' hhits)
+  refine polyTime_dedupWords (ComputableInPolyTime.filterWithInput hcandidates ?_)
+  have h1 := ComputableInPolyTime.fst input encBits
+  have hsr := hsampleRows.comp h1
+  have hhits := polyTime_wordEmpiricalHits (input := encPair input encBits)
+    (predictor := fun p => predictor p.1)
+    (hpredictor.comp ((h1.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)))
+    hsr (ComputableInPolyTime.snd _ _)
+  exact .unary_le' (((ComputableInPolyTime.length_list encBits).comp hsr).unary_mul' (hnum.comp h1))
+    ((hden.comp h1).unary_mul' hhits)
 
 /-- Two-stage pruned polynomial-time Goldreich–Levin word list decoder: generate candidate words
 from `masks` using `listMaskCount dimension precision` masks, then prune them on
@@ -529,14 +490,13 @@ theorem toFinset_wordListDecodePruned (predictor : List Bool → Bool) (dimensio
   rw [toFinset_dedupWords, List.toFinset_filter, toFinset_wordListDecode, listRows_eq_ofFn]
   ext w
   simp only [Finset.mem_filter, Finset.mem_image, List.length_ofFn, mem_prunedCandidates]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨⟨x, hx, rfl⟩, hpass⟩
-    rw [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] at hpass
-    exact ⟨x, ⟨hx, hpass⟩, rfl⟩
+    exact ⟨x, ⟨hx,
+      by simpa only [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] using hpass⟩, rfl⟩
   · rintro ⟨x, ⟨hx, hpass⟩, rfl⟩
-    refine ⟨⟨x, hx, rfl⟩, ?_⟩
-    rw [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq]
-    exact hpass
+    exact ⟨⟨x, hx, rfl⟩,
+      by simpa only [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] using hpass⟩
 
 /-- For `x : BitString n`, `List.ofFn x` belongs to `wordListDecodePruned` if and only if `x`
 belongs to `prunedCandidates`. -/
@@ -548,12 +508,8 @@ theorem mem_wordListDecodePruned_ofFn_iff (predictor : List Bool → Bool) {n pr
         (2 * precision + 3) (4 * precision)
         (block (ofList (listMaskCount n precision * n) masks))
         (block (ofList (pruneSampleCount n precision * n) samples)) := by
-  rw [← List.mem_toFinset, toFinset_wordListDecodePruned, Finset.mem_image]
-  constructor
-  · rintro ⟨y, hy, heq⟩
-    rwa [← List.ofFn_inj.mp heq]
-  · intro hx
-    exact ⟨x, hx, rfl⟩
+  simp only [← List.mem_toFinset, toFinset_wordListDecodePruned, Finset.mem_image, List.ofFn_inj,
+    exists_eq_right]
 
 /-- The length of `wordListDecodePruned` equals the cardinality of `prunedCandidates`. -/
 theorem length_wordListDecodePruned_eq_card (predictor : List Bool → Bool)
@@ -641,27 +597,13 @@ theorem polyTime_candidateQueries {α : Type} {input : α ↪ List Bool}
       input (encList encBits) := by
   unfold candidateQueries
   refine ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.bitsSingles.comp hdimension) ?_
-  have h1 : ComputableInPolyTime (fun p : α × List Bool => p.1)
-      (encPair input encBits) input := ComputableInPolyTime.fst _ _
+  have h1 := ComputableInPolyTime.fst input encBits
   refine ComputableInPolyTime.mapWithInput (hselectors.comp h1) ?_
-  have hp : ComputableInPolyTime (fun q : (α × List Bool) × List Bool => q.1)
-      (encPair (encPair input encBits) encBits) (encPair input encBits) :=
-    ComputableInPolyTime.fst _ _
-  have ha : ComputableInPolyTime (fun q : (α × List Bool) × List Bool => q.1.1)
-      (encPair (encPair input encBits) encBits) input := h1.comp hp
-  have hcoord : ComputableInPolyTime (fun q : (α × List Bool) × List Bool => q.1.2)
-      (encPair (encPair input encBits) encBits) encBits :=
-    (ComputableInPolyTime.snd _ _).comp hp
-  have hsel : ComputableInPolyTime (fun q : (α × List Bool) × List Bool => q.2)
-      (encPair (encPair input encBits) encBits) encBits :=
-    ComputableInPolyTime.snd _ _
-  have hxor : ComputableInPolyTime
-      (fun q : (α × List Bool) × List Bool =>
-        listXorSelected (dimension q.1.1) q.2 (rows q.1.1))
-      (encPair (encPair input encBits) encBits) encBits :=
-    ComputableInPolyTime.bitsXorSelected.comp
-      ((hdimension.comp ha).prod (hsel.prod (hrows.comp ha)))
-  exact (ComputableInPolyTime.bitsZipWith Bool.xor).comp (hcoord.prod hxor)
+  have hp := ComputableInPolyTime.fst (encPair input encBits) encBits
+  have ha := h1.comp hp
+  exact (ComputableInPolyTime.bitsZipWith Bool.xor).comp
+    (hp.snd'.prod (ComputableInPolyTime.bitsXorSelected.comp
+      ((hdimension.comp ha).prod ((ComputableInPolyTime.snd _ _).prod (hrows.comp ha)))))
 
 /-- All oracle queries made by `wordListDecode` on `(dimension, precision)` and mask tape
 `masks`. -/
@@ -723,17 +665,9 @@ theorem polyTime_lookupReply {α : Type} {input : α ↪ List Bool}
     ComputableInPolyTime (fun a => lookupReply (queries a) (replies a) (query a))
       input encBool := by
   unfold lookupReply
-  have hbeq : (List.instBEq : BEq (List Bool)) = instBEqOfDecidableEq := by
-    cases h1 : (List.instBEq : BEq (List Bool))
-    cases h2 : (instBEqOfDecidableEq : BEq (List Bool))
-    congr
-    funext a b
-    have ha : @BEq.beq (List Bool) List.instBEq a b = decide (a = b) :=
-      Bool.eq_iff_iff.mpr (by simp)
-    have hb : @BEq.beq (List Bool) instBEqOfDecidableEq a b = decide (a = b) := rfl
-    rw [h1] at ha
-    rw [h2] at hb
-    exact ha.trans hb.symm
+  have hbeq : (List.instBEq : BEq (List Bool)) = instBEqOfDecidableEq :=
+    congrArg BEq.mk <| funext fun a => funext fun b =>
+      Bool.eq_iff_iff.mpr ((beq_iff_eq (a := a) (b := b)).trans decide_eq_true_iff.symm)
   have hidx : ComputableInPolyTime (fun a => (queries a).idxOf (query a)) input encUnary := by
     rw [hbeq, ← comp_prod_eq (fun qs q => @List.idxOf (List Bool) instBEqOfDecidableEq q qs)
       queries query]
@@ -777,26 +711,15 @@ theorem wordCandidates_congr {predictor₁ predictor₂ : List Bool → Bool} (d
   List.map_congr_left fun guess _ =>
     wordCandidate_congr dimension rows (guesses.filter (fun word => word.any id)) guess hagree
 
-private theorem nonzeroSelectors_eq (count : ℕ) :
-    nonzeroSelectors count = (enumList count).filter (fun word => word.any id) :=
-  rfl
-
 /-- `wordListDecode` depends on `predictor` only at queries in `listDecodeQueries`. -/
 theorem wordListDecode_congr {predictor₁ predictor₂ : List Bool → Bool} (dimension precision : ℕ)
     (masks : List Bool)
     (hagree : ∀ q ∈ listDecodeQueries dimension precision masks, predictor₁ q = predictor₂ q) :
     wordListDecode predictor₁ dimension precision masks =
-      wordListDecode predictor₂ dimension precision masks := by
-  have hagree' :
-      ∀ q ∈ candidateQueries dimension
-        (listRows (listMaskCount dimension precision) dimension masks)
-        ((enumList (listMaskCount dimension precision)).filter (fun word => word.any id)),
-        predictor₁ q = predictor₂ q := by
-    rw [← nonzeroSelectors_eq]
-    exact hagree
-  exact congrArg dedupWords (wordCandidates_congr dimension
+      wordListDecode predictor₂ dimension precision masks :=
+  congrArg dedupWords (wordCandidates_congr dimension
     (listRows (listMaskCount dimension precision) dimension masks)
-    (enumList (listMaskCount dimension precision)) hagree')
+    (enumList (listMaskCount dimension precision)) hagree)
 
 /-- `wordEmpiricalHits` depends on `predictor` only at queries in `sampleRows`. -/
 theorem wordEmpiricalHits_congr {predictor₁ predictor₂ : List Bool → Bool}
@@ -816,15 +739,12 @@ theorem wordListDecodePruned_congr {predictor₁ predictor₂ : List Bool → Bo
     wordListDecodePruned predictor₁ dimension precision masks samples =
       wordListDecodePruned predictor₂ dimension precision masks samples := by
   unfold wordListDecodePruned wordPruneCandidates
-  have h1 : ∀ q ∈ listDecodeQueries dimension precision masks, predictor₁ q = predictor₂ q :=
-    fun q hq => hagree q (List.mem_append_left _ hq)
-  have h2 : ∀ q ∈ listRows (pruneSampleCount dimension precision) dimension samples,
-      predictor₁ q = predictor₂ q :=
-    fun q hq => hagree q (List.mem_append_right _ hq)
-  rw [wordListDecode_congr dimension precision masks h1]
+  rw [wordListDecode_congr dimension precision masks fun q hq =>
+    hagree q (List.mem_append_left _ hq)]
   congr 1
   refine List.filter_congr fun candidate _ => ?_
-  rw [wordEmpiricalHits_congr _ candidate h2]
+  rw [wordEmpiricalHits_congr _ candidate fun q hq =>
+    hagree q (List.mem_append_right _ hq)]
 
 /-- Running `wordListDecode` with `lookupReply queries (queries.map predictor)` where
 `queries = listDecodeQueries dimension precision masks` equals `wordListDecode predictor`. -/
@@ -860,15 +780,8 @@ theorem isOraclePPTOn_queryBatchStep :
     IsOraclePPTOn (encPair (encList encBits) encBits) encBits
       (fun pair => queryBatchStep pair.1 pair.2) := by
   unfold queryBatchStep
-  refine (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with ?_
-  have hrep : ComputableInPolyTime (fun p : (List (List Bool) × List Bool) × List Bool => p.1.2)
-      (encPair (encPair (encList encBits) encBits) encBits) encBits :=
-    (ComputableInPolyTime.fst _ _).snd'
-  have hbit : ComputableInPolyTime
-      (fun p : (List (List Bool) × List Bool) × List Bool => [p.2.getD 0 false])
-      (encPair (encPair (encList encBits) encBits) encBits) encBits := by
-    polytime
-  exact ComputableInPolyTime.bitsAppend hrep hbit
+  exact (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.fst _ _).snd' (by polytime))
 
 /-- Query every word in `queries` in order on channel `()`, returning the list of first reply
 bits. -/

@@ -74,8 +74,7 @@ theorem left_entry (A : Args) (R : ℕ → ℕ) (a : Fin A.n) (v : Fin A.length)
     omega
   simp only [entry, Bool.false_eq_true, ↓reduceIte, Nat.mul_add_div_of_lt _ hm,
     Nat.mul_add_mod_of_lt hm, Nat.mul_add_mod_of_lt label.isLt, Nat.mul_add_div_of_lt _ label.isLt,
-    v.isLt, hR]
-  simp only [left_label label.isLt]
+    v.isLt, hR, left_label label.isLt]
 
 /-- The right matrix uses the negated B–C weight and the transposed residue lookup. -/
 theorem right_entry (A : Args) (R : ℕ → ℕ) (b : Fin A.n) (v : Fin A.length)
@@ -84,8 +83,8 @@ theorem right_entry (A : Args) (R : ℕ → ℕ) (b : Fin A.n) (v : Fin A.length
     entry true A R ((v.val * A.p + label.val) * A.n + b.val) =
       if (label.val : ℤ) ≡ -w [ZMOD (A.p : ℤ)] then 1 else 0 := by
   simp only [entry, ↓reduceIte, Nat.mul_add_div_of_lt _ b.isLt, Nat.mul_add_mod_of_lt b.isLt,
-    Nat.mul_add_mod_of_lt label.isLt, Nat.mul_add_div_of_lt _ label.isLt, v.isLt, hR]
-  simp only [right_label label.isLt]
+    Nat.mul_add_mod_of_lt label.isLt, Nat.mul_add_div_of_lt _ label.isLt, v.isLt, hR,
+    right_label label.isLt]
 
 /-- A padded middle column is zero even if its input residue would otherwise match. -/
 theorem left_padding (A : Args) (R : ℕ → ℕ) (a : Fin A.n) (middle : Fin A.D)
@@ -113,12 +112,8 @@ theorem left_lopInstance (A : Args) (R : ℕ → ℕ)
     entry false A R (a.val * A.D + (v.val * A.p + label.val)) = 1 ↔
       (lopInstance wAB wBC wAC A.D g A.p ⟨rho, chunk, k⟩).adjA
         a (⟨c, hpiece⟩, label) := by
-  have hload : R (a.val * A.n + A.first + v.val) = (wAC a c).natMod A.p := by
-    rw [Nat.add_assoc, hvertex]
-    exact hR a c
-  rw [left_entry A R a v label hpad (wAC a c) hload, hrho]
-  simp only [lopInstance]
-  split_ifs <;> simp_all
+  rw [left_entry A R a v label hpad (wAC a c) (by rw [Nat.add_assoc, hvertex, hR]), hrho]
+  simp [lopInstance]
 
 /-- Active right cells are precisely the adjacency of the same finite lopsided instance;
 the stored right matrix uses its original B–C row and local middle vertex. -/
@@ -130,11 +125,7 @@ theorem right_lopInstance (A : Args) (R : ℕ → ℕ)
     entry true A R ((v.val * A.p + label.val) * A.n + b.val) = 1 ↔
       (lopInstance wAB wBC wAC A.D g A.p ⟨rho, chunk, k⟩).adjB
         (⟨c, hpiece⟩, label) b := by
-  have hload : R (b.val * A.n + A.first + v.val) = (wBC b c).natMod A.p := by
-    rw [Nat.add_assoc, hvertex]
-    exact hR b c
-  rw [right_entry A R b v label (wBC b c) hload]
-  simp only [lopInstance]
-  split_ifs <;> simp_all
+  rw [right_entry A R b v label (wBC b c) (by rw [Nat.add_assoc, hvertex, hR])]
+  simp [lopInstance]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.MatrixSpec

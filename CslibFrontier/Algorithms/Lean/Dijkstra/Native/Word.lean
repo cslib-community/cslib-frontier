@@ -103,22 +103,15 @@ private theorem link_relaxEdge {n K V w : ℕ}
   unfold relaxEdge
   refine (PFunctor.FreeM.liftM_bind M (edge u i) _).trans ?_
   rw [he]
-  congr 1 with vc : 1
-  rcases vc with ⟨v, c⟩
+  congr 1 with ⟨v, c⟩ : 1
   refine (PFunctor.FreeM.liftM_bind M (getDist v) _).trans ?_
   rw [hg]
-  congr 1 with old : 1
-  cases old with
-  | none =>
-    exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans
-      (by rw [hs, hp])
-  | some old =>
-    by_cases h : du + c < old
-    · simp only [ite_eq_left h]
-      exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans
-        (by rw [hs, hp])
-    · simp only [ite_eq_right h]
-      rfl
+  congr 1 with (_ | old) : 1
+  · exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans (by rw [hs, hp])
+  · dsimp only
+    split_ifs
+    · exact (PFunctor.FreeM.liftM_bind M (setDist v (du + c)) _).trans (by rw [hs, hp])
+    · rfl
 
 /-- The natural-argument relaxation is the complete original linked program. -/
 theorem relaxWord_eq {n K V w : ℕ}
@@ -177,16 +170,9 @@ theorem scanWord_eq {n K V w : ℕ}
   simp only [bind_assoc, pure_bind]
   congr 1 with a : 1
   congr 1 with b : 1
-  have hb : (fun x : ℕ × ℕ => do
-      relaxWord ins dec T A n u du x.2; pure (x.2 + 1)) =
-      (fun x : ℕ × ℕ => do
-        link (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-          (AdjacencyList.Memory.ops A))) (relaxEdge (K := K) (V := V) u du x.2)
-        pure (x.2 + 1)) := by
-    funext x
-    exact congrArg (fun p => p >>= fun _ => pure (x.2 + 1))
-      (relaxWord_eq pq ins dec hins hdec T A u du x.2)
-  rw [hb]
+  congr 2
+  funext x
+  exact congrArg (· >>= fun _ => pure (x.2 + 1)) (relaxWord_eq pq ins dec hins hdec T A u du x.2)
 
 /-- Extract once; an empty or invalid observed entry sets the remaining rounds to zero. -/
 def loopStepWord (extract : Memory.Prog (Option (ℕ × ℕ)))
@@ -243,6 +229,18 @@ theorem loopStepWord_eq {n K V w : ℕ}
         scanView_eq]
     · simp only [ite_eq_right hu, dite_eq_right hu]
 
+private theorem erasure_implies_entry {n : ℕ} {extract : Memory.Prog (Option (ℕ × ℕ))}
+    {p : Memory.Prog (Option (Fin n × ℕ))}
+    (hex : extract = p.map (Option.map fun q => (q.1.val, q.2))) :
+    extract.map (fun a => a.bind fun q => BinaryHeap.Memory.entry n q.1 q.2) = p := by
+  rw [hex, ← PFunctor.FreeM.bind_pure_comp, ← PFunctor.FreeM.bind_pure_comp]
+  simp only [PFunctor.FreeM.bind_eq_bind, bind_assoc, pure_bind, Function.comp_apply]
+  refine (congrArg (p >>= ·) ?_).trans (bind_pure p)
+  funext e
+  cases e with
+  | none => rfl
+  | some q => simp [BinaryHeap.Memory.entry, q.1.isLt]
+
 /-- Exact erasure of the original typed extraction transports the complete word-level round.
 The checked runtime handle branch succeeds on every typed source reply; no decoder is assumed. -/
 theorem loopStepWord_eq_of_erasure {n K V w : ℕ}
@@ -255,19 +253,8 @@ theorem loopStepWord_eq_of_erasure {n K V w : ℕ}
     (T : Block) (A : AdjacencyList.Memory.Layout) (x : Unit × ℕ) :
     loopStepWord extract ins dec T A n x =
       loopStep (K := K) (V := V) (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-        (AdjacencyList.Memory.ops A))) x := by
-  rw [hex]
-  unfold loopStepWord loopStep
-  rw [← PFunctor.FreeM.bind_pure_comp]
-  simp only [PFunctor.FreeM.bind_eq_bind, bind_assoc, pure_bind, Function.comp_apply]
-  congr 1 with e : 1
-  change Option (Fin n × ℕ) at e
-  cases e with
-  | none => rfl
-  | some e =>
-    rcases e with ⟨u, du⟩
-    simp only [Option.map_some, ite_eq_left u.isLt]
-    rw [scanWord_eq pq ins dec hins hdec (K := K) (V := V) T A u du, scanView_eq]
+        (AdjacencyList.Memory.ops A))) x :=
+  loopStepWord_eq pq extract ins dec hins hdec (erasure_implies_entry hex) T A x
 
 /-- The original round cutoff with a genuine empty-queue exit. -/
 def loopWord (extract : Memory.Prog (Option (ℕ × ℕ)))
@@ -292,11 +279,7 @@ theorem loopWord_eq {n K V w : ℕ}
         (AdjacencyList.Memory.ops A))) (loop (K := K) (V := V) k) := by
   rw [← loopView_eq]
   unfold loopWord loopView
-  have hb : loopStepWord extract ins dec T A n =
-      loopStep (K := K) (V := V) (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-        (AdjacencyList.Memory.ops A))) :=
-    funext (loopStepWord_eq pq extract ins dec hins hdec hex T A)
-  rw [hb]
+  rw [funext (loopStepWord_eq pq extract ins dec hins hdec hex T A)]
 
 /-- Exact typed-result erasure preserves the full early-exit loop and its query history. -/
 theorem loopWord_eq_of_erasure {n K V w : ℕ}
@@ -309,14 +292,8 @@ theorem loopWord_eq_of_erasure {n K V w : ℕ}
     (T : Block) (A : AdjacencyList.Memory.Layout) (k : ℕ) :
     loopWord extract ins dec T A n k =
       link (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-        (AdjacencyList.Memory.ops A))) (loop (K := K) (V := V) k) := by
-  rw [← loopView_eq]
-  unfold loopWord loopView
-  have hb : loopStepWord extract ins dec T A n =
-      loopStep (K := K) (V := V) (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-        (AdjacencyList.Memory.ops A))) :=
-    funext (loopStepWord_eq_of_erasure pq extract ins dec hins hdec hex T A)
-  rw [hb]
+        (AdjacencyList.Memory.ops A))) (loop (K := K) (V := V) k) :=
+  loopWord_eq pq extract ins dec hins hdec (erasure_implies_entry hex) T A k
 
 /-- Install the source distance, stage the zero key, and execute the original main loop. -/
 def clientWord (extract : Memory.Prog (Option (ℕ × ℕ)))
@@ -357,13 +334,8 @@ theorem clientWord_eq_of_erasure {n K V w : ℕ}
     (T : Block) (A : AdjacencyList.Memory.Layout) (src : Fin n) :
     clientWord extract ins dec T A n src =
       link (Methods.prod pq (Methods.prod (Dictionary.Memory.ops T)
-        (AdjacencyList.Memory.ops A))) (dijkstra (K := K) (V := V) src) := by
-  rw [← clientView_eq]
-  unfold clientWord clientView
-  simp only [pure_bind]
-  rw [hins src 0, loopWord_eq_of_erasure pq extract ins dec hins hdec hex T A n,
-    ← loopView_eq]
-  rfl
+        (AdjacencyList.Memory.ops A))) (dijkstra (K := K) (V := V) src) :=
+  clientWord_eq pq extract ins dec hins hdec (erasure_implies_entry hex) T A src
 
 /-- Read the graph header, allocate the original distance table and supplied queue,
 then run Dijkstra. -/

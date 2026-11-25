@@ -81,9 +81,7 @@ private theorem pairwise_eraseRepsLoop {a : ℕ} {as acc : List ℕ}
     (hacc : (a :: acc).Pairwise (· > ·)) (has : (a :: as).Pairwise (· ≤ ·)) :
     (List.eraseRepsBy.loop (· == ·) a as acc).Pairwise (· < ·) := by
   induction as generalizing a acc with
-  | nil =>
-    rw [List.eraseRepsBy.loop, List.pairwise_reverse]
-    exact hacc
+  | nil => rwa [List.eraseRepsBy.loop, List.pairwise_reverse]
   | cons a' as ih =>
     unfold List.eraseRepsBy.loop
     obtain ⟨hle, has'⟩ := List.pairwise_cons.1 has
@@ -97,15 +95,13 @@ private theorem pairwise_eraseRepsLoop {a : ℕ} {as acc : List ℕ}
       refine ih (List.pairwise_cons.2 ⟨fun b hb => ?_, hacc⟩) has'
       rcases List.mem_cons.1 hb with rfl | hb
       · exact hlt
-      · exact lt_trans ((List.pairwise_cons.1 hacc).1 b hb) hlt
+      · exact ((List.pairwise_cons.1 hacc).1 b hb).trans hlt
 
 /-- Erasing repeats keeps the elements. -/
 private theorem mem_eraseReps {x : ℕ} {l : List ℕ} : x ∈ l.eraseReps ↔ x ∈ l := by
   cases l with
   | nil => rfl
-  | cons a as =>
-    rw [List.eraseReps, List.eraseRepsBy, mem_eraseRepsLoop, List.mem_cons]
-    simp only [List.not_mem_nil, false_or]
+  | cons a as => simp [List.eraseReps, List.eraseRepsBy, mem_eraseRepsLoop]
 
 /-- Erasing repeats from a sorted list leaves an increasing one. -/
 private theorem pairwise_eraseReps {l : List ℕ} (h : l.Pairwise (· ≤ ·)) :
@@ -165,8 +161,7 @@ theorem satisfiable_of_answerFor_code {o : Options} {φ : CNF ℕ} (h : (answerF
     φ.Satisfiable := by
   unfold answerFor at h
   split at h
-  · rename_i σ st hs
-    exact ⟨σ, solveCompactWith_sat (congrArg Prod.fst hs)⟩
+  · exact ⟨_, solveCompactWith_sat (congrArg Prod.fst ‹_›)⟩
   · simp at h
 
 /-- **The certificate given is accepted by the LRAT checker.** -/
@@ -176,9 +171,8 @@ theorem checkLRAT_of_answerFor_cert {o : Options} {φ : CNF ℕ}
   unfold answerFor at h
   split at h
   · cases h
-  · rename_i cert' st hs
-    cases h
-    exact solveCompactWith_unsat (congrArg Prod.fst hs)
+  · cases h
+    exact solveCompactWith_unsat (congrArg Prod.fst ‹_›)
 
 /-- **The answer for a DIMACS formula**, read by `Cslib.Logic.PL.CNF.ofDIMACS`; an error if the
 text is not a DIMACS formula. -/

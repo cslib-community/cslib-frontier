@@ -99,21 +99,15 @@ private theorem card_hammingEdges_le_of_forall {i : Fin n} (hA : ∀ a ∈ A, a 
   · rintro ⟨a, b⟩ he ⟨a', b'⟩ he' (rfl : a = a')
     obtain ⟨ha, hb, h⟩ := mem_hammingEdges.1 he
     obtain ⟨-, hb', h'⟩ := mem_hammingEdges.1 he'
-    refine Prod.ext rfl (funext fun j => ?_)
-    change b j = b' j
-    by_cases hj : j = i
-    · subst hj
-      rw [hB b hb, hB b' hb']
-    · exact (key ha hb h j hj).symm.trans (key ha hb' h' j hj)
+    exact Prod.ext rfl <| funext fun j =>
+      if hj : j = i then by dsimp only; rw [hj, hB b hb, hB b' hb']
+      else (key ha hb h j hj).symm.trans (key ha hb' h' j hj)
   · rintro ⟨a, b⟩ he ⟨a', b'⟩ he' (rfl : b = b')
     obtain ⟨ha, hb, h⟩ := mem_hammingEdges.1 he
     obtain ⟨ha', -, h'⟩ := mem_hammingEdges.1 he'
-    refine Prod.ext (funext fun j => ?_) rfl
-    change a j = a' j
-    by_cases hj : j = i
-    · subst hj
-      rw [hA a ha, hA a' ha']
-    · exact (key ha hb h j hj).trans (key ha' hb h' j hj).symm
+    exact Prod.ext (funext fun j =>
+      if hj : j = i then by dsimp only; rw [hj, hA a ha, hA a' ha']
+      else (key ha hb h j hj).trans (key ha' hb h' j hj).symm) rfl
 
 /-- The Cauchy–Schwarz step: the Khrapchenko measure is subadditive. -/
 private theorem sq_add_le_mul {e₁ e₂ L₁ L₂ a b₁ b₂ : ℕ} (h₁ : e₁ ^ 2 ≤ L₁ * a * b₁)
@@ -130,15 +124,6 @@ private theorem sq_add_le_mul {e₁ e₂ L₁ L₂ a b₁ b₂ : ℕ} (h₁ : e�
   calc (e₁ + e₂) ^ 2 = e₁ ^ 2 + 2 * (e₁ * e₂) + e₂ ^ 2 := by ring
     _ ≤ L₁ * a * b₁ + (L₁ * a * b₂ + L₂ * a * b₁) + L₂ * a * b₂ := by gcongr
     _ = (L₁ + L₂) * a * (b₁ + b₂) := by ring
-
-private theorem sum_and (f : Fin (signature.Arity Op.and) → ℕ) : ∑ j, f j = f 0 + f 1 :=
-  Fin.sum_univ_two f
-
-private theorem sum_or (f : Fin (signature.Arity Op.or) → ℕ) : ∑ j, f j = f 0 + f 1 :=
-  Fin.sum_univ_two f
-
-private theorem sum_not (f : Fin (signature.Arity Op.not) → ℕ) : ∑ j, f j = f 0 :=
-  Fin.sum_univ_one f
 
 /-- **Khrapchenko's bound.** A De Morgan formula that is true on `A` and false on `B` has leaf
 size at least `|E(A, B)| ^ 2 / (|A| |B|)`, where `E(A, B)` are the pairs at Hamming distance
@@ -161,7 +146,7 @@ theorem Formula.sq_card_hammingEdges_le (F : Formula signature n)
     | not =>
       have := ih 0 (A := B) (B := A) (fun b hb => by simpa [interpretation] using hB b hb)
         fun a ha => by simpa [interpretation] using hA a ha
-      rw [card_hammingEdges_comm, Formula.leafSize_gate, sum_not]
+      rw [card_hammingEdges_comm, Formula.leafSize_gate, Fin.sum_univ_one]
       exact this.trans_eq (mul_right_comm _ _ _)
     | and =>
       have hA' : ∀ a ∈ A, (args 0).eval interpretation a = true ∧
@@ -176,7 +161,7 @@ theorem Formula.sq_card_hammingEdges_le (F : Formula signature n)
       rw [← card_hammingEdges_filter_add_card_hammingEdges_filter_not
         (fun b => (args 0).eval interpretation b = false),
         ← card_filter_add_card_filter_not (s := B)
-        (fun b => (args 0).eval interpretation b = false), Formula.leafSize_gate, sum_and]
+        (fun b => (args 0).eval interpretation b = false), Formula.leafSize_gate, Fin.sum_univ_two]
       exact sq_add_le_mul h₁ h₂
     | or =>
       have hB' : ∀ b ∈ B, (args 0).eval interpretation b = false ∧
@@ -193,7 +178,7 @@ theorem Formula.sq_card_hammingEdges_le (F : Formula signature n)
       rw [← card_hammingEdges_filter_add_card_hammingEdges_filter_not
         (fun a => (args 0).eval interpretation a = true),
         ← card_filter_add_card_filter_not (s := A)
-        (fun a => (args 0).eval interpretation a = true), Formula.leafSize_gate, sum_or]
+        (fun a => (args 0).eval interpretation a = true), Formula.leafSize_gate, Fin.sum_univ_two]
       exact (sq_add_le_mul (h₁.trans_eq (mul_right_comm _ _ _))
         (h₂.trans_eq (mul_right_comm _ _ _))).trans_eq (mul_right_comm _ _ _)
 
@@ -207,23 +192,20 @@ theorem Formula.mul_le_leafSize (F : Formula signature n) {s₀ s₁ : ℕ}
     s₀ * s₁ ≤ F.leafSize := by
   rcases B.eq_empty_or_nonempty with rfl | hBne
   · obtain ⟨a, ha⟩ := hAne
-    have := h₁ a ha
-    simp only [filter_empty, card_empty, Nat.le_zero] at this
-    simp [this]
-  have e₁ : #A • s₁ ≤ #(hammingEdges A B) := by
-    rw [card_hammingEdges_eq_sum_card_filter]
-    exact card_nsmul_le_sum _ _ _ h₁
-  have e₀ : #B • s₀ ≤ #(hammingEdges A B) := by
-    rw [card_hammingEdges_comm, card_hammingEdges_eq_sum_card_filter]
-    exact card_nsmul_le_sum _ _ _ h₀
-  rw [smul_eq_mul] at e₁ e₀
-  have := F.sq_card_hammingEdges_le hA hB
+    have h0 : s₁ = 0 := by simpa using h₁ a ha
+    simp [h0]
+  have e₁ : #A * s₁ ≤ #(hammingEdges A B) := by
+    simpa only [smul_eq_mul, card_hammingEdges_eq_sum_card_filter] using
+      card_nsmul_le_sum A _ s₁ h₁
+  have e₀ : #B * s₀ ≤ #(hammingEdges A B) := by
+    rw [card_hammingEdges_comm, card_hammingEdges_eq_sum_card_filter, ← smul_eq_mul]
+    exact card_nsmul_le_sum B _ s₀ h₀
   have hpos : 0 < #A * #B := Nat.mul_pos (card_pos.2 hAne) (card_pos.2 hBne)
   refine Nat.le_of_mul_le_mul_right ?_ hpos
   calc s₀ * s₁ * (#A * #B) = (#B * s₀) * (#A * s₁) := by ring
     _ ≤ #(hammingEdges A B) * #(hammingEdges A B) := Nat.mul_le_mul e₀ e₁
     _ = #(hammingEdges A B) ^ 2 := (sq _).symm
-    _ ≤ F.leafSize * #A * #B := this
+    _ ≤ F.leafSize * #A * #B := F.sq_card_hammingEdges_le hA hB
     _ = F.leafSize * (#A * #B) := by ring
 
 namespace Boolean
@@ -256,10 +238,8 @@ private theorem le_card_neighbors_weight_succ {k : ℕ} {b : BitString n}
     n - k ≤ #{a ∈ BitString.weightLayer n (k + 1) | hammingDist b a = 1} := by
   have hb' : BitString.weight b = k := BitString.mem_weightLayer.1 hb
   have hz : #(univ.filter fun j => ¬b j = true) = n - k := by
-    have := BitString.weight_not b
-    simp only [Fintype.card_fin, hb'] at this
-    rw [← this, BitString.weight]
-    simp
+    rw [← hb']
+    simpa [BitString.weight] using BitString.weight_not b
   calc n - k = #(univ.filter fun j => ¬b j = true) := hz.symm
     _ ≤ _ := card_le_card_of_injOn (fun i => update b i true) (fun i hi => by
         have hbi : b i = false := by simpa using (mem_filter.1 hi).2
@@ -322,23 +302,17 @@ theorem sq_le_leafSize_of_computes_parity {F : Formula signature n}
     (hF : F.Computes interpretation (parity n)) : n ^ 2 ≤ F.leafSize := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  have hne : (univ.filter fun b : BitString n => parity n b = true).Nonempty := by
-    by_contra h
-    refine not_isConst_parityOn (s := (univ : Finset (Fin n))) ⟨⟨0, hn⟩, mem_univ _⟩ false
-      fun x y => ?_
-    have hx : parity n x = false := Bool.not_eq_true _ ▸ fun h' => h ⟨x, by simpa using h'⟩
-    have hy : parity n y = false := Bool.not_eq_true _ ▸ fun h' => h ⟨y, by simpa using h'⟩
-    simp only [Bool.false_xor]
-    exact hx.trans hy.symm
+  have hne : (univ.filter fun b : BitString n => parity n b = true).Nonempty :=
+    ⟨update (fun _ => false) ⟨0, hn⟩ true, mem_filter.2 ⟨mem_univ _, by
+      rw [parity, show (true : Bool) = !(fun _ : Fin n => false) ⟨0, hn⟩ from rfl,
+        parityOn_update_not (mem_univ _), parityOn_eq_sum]
+      simp [show (false : Bool) = 0 from rfl]⟩⟩
   rw [sq]
-  refine F.mul_le_leafSize (A := univ.filter fun b => parity n b = true)
+  exact F.mul_le_leafSize (A := univ.filter fun b => parity n b = true)
     (B := univ.filter fun b => parity n b = false)
     (fun a ha => (hF a).trans (mem_filter.1 ha).2) (fun b hb => (hF b).trans (mem_filter.1 hb).2)
-    hne (fun a ha => le_card_neighbors_parity a ?_) fun b hb => le_card_neighbors_parity b ?_
-  · rw [(mem_filter.1 ha).2]
-    decide
-  · rw [(mem_filter.1 hb).2]
-    decide
+    hne (fun a ha => le_card_neighbors_parity a (by simp [(mem_filter.1 ha).2]))
+    fun b hb => le_card_neighbors_parity b (by simp [(mem_filter.1 hb).2])
 
 /-- A De Morgan formula computing the parity of `n` bits has depth at least `2 log₂ n`, counting
 negations. -/
@@ -368,11 +342,9 @@ theorem parityOn_consecutive_add (o a b : ℕ) (x : BitString n) :
     ext i
     simp only [mem_filter, mem_univ, true_and, mem_union]
     omega
-  rw [hsplit, parityOn_union]
-  rw [disjoint_left]
-  intro i hi hi'
-  simp only [mem_filter, mem_univ, true_and] at hi hi'
-  omega
+  rw [hsplit, parityOn_union (disjoint_left.2 fun i hi hi' => by
+    simp only [mem_filter, mem_univ, true_and] at hi hi'
+    omega)]
 
 /-- The parity of the single bit `o` is that bit. -/
 theorem parityOn_consecutive_one (o : ℕ) (h : o < n) (x : BitString n) :

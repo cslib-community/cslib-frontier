@@ -39,10 +39,8 @@ theorem mul_div_lt_of_lt {M d u : ℕ} (hM : 0 < M) (hd : 0 < d) (hu : u < M) :
 
 private theorem mul_div_eq_iff {M d k u : ℕ} (hM : 0 < M) (hd : 0 < d) :
     u * d / M = k ↔ (k * M) ⌈/⌉ d ≤ u ∧ u < ((k + 1) * M) ⌈/⌉ d := by
-  have hlo := ceilDiv_le_iff_le_mul (b := k * M) (c := u) hd
-  have hhi := ceilDiv_le_iff_le_mul (b := (k + 1) * M) (c := u) hd
-  rw [hlo, ← not_le, hhi, not_le, Nat.mul_comm d u]
-  rw [← Nat.le_div_iff_mul_le hM, ← Nat.div_lt_iff_lt_mul hM]
+  rw [ceilDiv_le_iff_le_mul hd, ← not_le, ceilDiv_le_iff_le_mul hd, not_le, Nat.mul_comm d u,
+    ← Nat.le_div_iff_mul_le hM, ← Nat.div_lt_iff_lt_mul hM]
   omega
 
 /-- The fibre of `u ↦ u * d / M` over `k < d` is the interval between consecutive scaled
@@ -50,40 +48,29 @@ ceiling divisions. -/
 theorem card_mul_div_fiber {M d : ℕ} (hM : 0 < M) (hd : 0 < d) (k : Fin d) :
     Nat.card {u : Fin M // u.val * d / M = k.val} =
       (((k.val + 1) * M) ⌈/⌉ d) - ((k.val * M) ⌈/⌉ d) := by
-  have hupper : ((k.val + 1) * M) ⌈/⌉ d ≤ M := by
-    rw [ceilDiv_le_iff_le_mul hd]
-    exact Nat.mul_le_mul_right M k.isLt
-  rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
+  have hupper : ((k.val + 1) * M) ⌈/⌉ d ≤ M :=
+    (ceilDiv_le_iff_le_mul hd).mpr (Nat.mul_le_mul_right M k.isLt)
+  rw [Nat.card_eq_fintype_card, Fintype.card_subtype, ← Finset.card_map (f := Fin.valEmbedding)]
   have hfiber : (Finset.univ.filter (fun u : Fin M => u.val * d / M = k.val)).map
       Fin.valEmbedding = Finset.Ico ((k.val * M) ⌈/⌉ d) (((k.val + 1) * M) ⌈/⌉ d) := by
     ext u
     simp only [Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and,
       Fin.valEmbedding_apply, Finset.mem_Ico]
-    constructor
-    · rintro ⟨v, hv, rfl⟩
-      exact (mul_div_eq_iff hM hd).mp hv
-    · intro hu
-      exact ⟨⟨u, hu.2.trans_le hupper⟩, (mul_div_eq_iff hM hd).mpr hu, rfl⟩
-  rw [← Finset.card_map (f := Fin.valEmbedding), hfiber, Nat.card_Ico]
+    exact ⟨fun ⟨_, hv, h⟩ => h ▸ (mul_div_eq_iff hM hd).mp hv,
+      fun hu => ⟨⟨u, hu.2.trans_le hupper⟩, (mul_div_eq_iff hM hd).mpr hu, rfl⟩⟩
+  rw [hfiber, Nat.card_Ico]
 
 /-- Every multiply-high fibre has either the floor-size count or at most one more input. -/
 theorem card_mul_div_fiber_bounds {M d : ℕ} (hM : 0 < M) (hd : 0 < d) (k : Fin d) :
     M / d ≤ Nat.card {u : Fin M // u.val * d / M = k.val} ∧
       Nat.card {u : Fin M // u.val * d / M = k.val} ≤ M / d + 1 := by
-  rw [card_mul_div_fiber hM hd k]
+  rw [card_mul_div_fiber hM hd k, Nat.ceilDiv_eq_add_pred_div, Nat.ceilDiv_eq_add_pred_div]
   let A := k.val * M + (d - 1)
-  have hlo : (k.val * M) ⌈/⌉ d = A / d := by
-    rw [Nat.ceilDiv_eq_add_pred_div]
-    congr 1
-    dsimp only [A]
-    omega
-  have hhi : ((k.val + 1) * M) ⌈/⌉ d = (A + M) / d := by
-    rw [Nat.ceilDiv_eq_add_pred_div]
-    congr 1
-    dsimp only [A]
+  have h0 : k.val * M + d - 1 = A := by omega
+  have h1 : (k.val + 1) * M + d - 1 = A + M := by
     rw [Nat.add_mul, Nat.one_mul]
     omega
-  rw [hlo, hhi, Nat.add_div hd]
+  rw [h0, h1, Nat.add_div hd]
   split_ifs <;> simp [Nat.add_assoc]
 
 end Nat

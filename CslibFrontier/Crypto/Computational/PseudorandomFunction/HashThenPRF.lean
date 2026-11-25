@@ -145,10 +145,9 @@ theorem isOraclePPT_hashThenPRFWordReduction {keyLen outLen : ℕ → ℕ}
         split_ifs at hreply
         · obtain ⟨raw, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
           exact List.length_take_le _ raw
-        · have : reply = [] := by
+        · obtain rfl : reply = [] := by
             simpa only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
               using hreply
-          subst reply
           exact Nat.zero_le _)
   have hsample := (hkeyLen.comp (ComputableInPolyTime.fst encUnary encBits)).sampleList
   exact (hsample.isOraclePPTOn.bind_with hrun).isOraclePPT
@@ -265,18 +264,14 @@ theorem nodup_valid_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ →
       (sampleReply := BitString.sampleList (outLen n)) (query := request.2) (cache := s)
       (result := (reply, next)) hnext with
     hsame | ⟨hv, hfresh, hcons⟩
-  · change next = s at hsame
-    rw [hsame]
-    exact hs
+  · exact (id hsame : next = s) ▸ hs
   · change next = (request.2, reply) :: s at hcons
     dsimp only [invariant] at hs ⊢
     rw [hcons, List.map_cons, List.nodup_cons]
-    refine ⟨⟨?_, hs.1⟩, ?_⟩
-    · intro hmem
-      obtain ⟨entry, he, heq⟩ := List.mem_map.mp hmem
+    refine ⟨⟨fun hmem => ?_, hs.1⟩, fun msg hmem => ?_⟩
+    · obtain ⟨entry, he, heq⟩ := List.mem_map.mp hmem
       exact (bne_iff_ne.mp (List.lookup_eq_none_iff.mp hfresh entry he)) heq.symm
-    · intro msg hmem
-      rcases List.mem_cons.mp hmem with rfl | hmem
+    · rcases List.mem_cons.mp hmem with rfl | hmem
       · exact hv
       · exact hs.2 msg hmem
 
@@ -415,11 +410,8 @@ theorem advantage_prfIdealGame_hashThenPRFWordReduction_le {keyLen inLen outLen 
       rw [hashThenPRFWordIdealQueries, ProbComp.eval_map, PMF.mem_support_map_iff]
       exact ⟨x, hx, rfl⟩
     have hv := (nodup_valid_of_mem_support_hashThenPRFWordIdealQueries hkeys).2
-    constructor
-    · rintro ⟨m, hm, m', hm', hne, _, _, heq⟩
-      exact ⟨m, hm, m', hm', hne, heq⟩
-    · rintro ⟨m, hm, m', hm', hne, heq⟩
-      exact ⟨m, hm, m', hm', hne, hv m hm, hv m' hm', heq⟩
+    exact ⟨fun ⟨m, hm, m', hm', hne, _, _, heq⟩ => ⟨m, hm, m', hm', hne, heq⟩,
+      fun ⟨m, hm, m', hm', hne, heq⟩ => ⟨m, hm, m', hm', hne, hv m hm, hv m' hm', heq⟩⟩
   rw [Game.advantage_comm, ← Game.closeTo_iff_coe_advantage_le, hprob,
     eval_prfIdealGame_hashThenPRFWordReduction keyLen inLen outLen valid H hH]
   change CloseTo (law.map Prod.fst) _ _
@@ -480,9 +472,8 @@ theorem advantage_hashThenPRFWord_le_add_collision {keyLen inLen outLen : ℕ �
   refine (advantage_hashThenPRFWord_le_add_multiQuery valid H F hH hF A n).trans ?_
   refine add_le_add le_rfl (UHF.succProbability_multiQueryGame_le_collisionPairReduction
     (fun k => pure k) (fun k _ => valid k) (hashThenPRFWordHash keyLen inLen H) []
-    (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n ?_)
-  intro _ _ _ hms
-  exact length_le_of_mem_support_hashThenPRFWordIdealQueries hQ hms
+    (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n
+    fun _ _ _ hms => length_le_of_mem_support_hashThenPRFWordIdealQueries hQ hms)
 
 /-- Theorem 7.7 of [BonehShoup2023], v0.6, §7.3, printed pp. 262–265, for product keys and
 uniform strict oracle-PPT tests. The components provide efficient hash evaluation, domain

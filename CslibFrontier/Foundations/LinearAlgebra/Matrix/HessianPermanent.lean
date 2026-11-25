@@ -164,16 +164,13 @@ private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι :
       exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
   have hinj : Function.Injective H.mulVec := by
     intro u w huw
-    have h0 : H.mulVec (u - w) = 0 := by rw [Matrix.mulVec_sub, huw, sub_self]
     have hX := sandwich_eq_zero hJJ hJDJ hDD hN hp hps
       (X := Matrix.of fun r c => (u - w) (r, c)) (by
         ext r c
-        rw [← hmul, h0]
+        rw [← hmul, Matrix.mulVec_sub, huw, sub_self]
         rfl)
     funext ⟨r, c⟩
-    have := congrFun (congrFun hX r) c
-    simp only [Matrix.of_apply, Pi.sub_apply, Matrix.zero_apply] at this
-    exact sub_eq_zero.1 this
+    exact sub_eq_zero.1 (congrFun (congrFun hX r) c)
   rw [Matrix.rank_of_isUnit _ (Matrix.mulVec_injective_iff_isUnit.1 hinj), Fintype.card_prod]
 
 /-- The Mignon–Ressayre point: the all-ones matrix with `1 - card ι` at `(o, o)`. -/
@@ -182,8 +179,7 @@ def mignonRessayrePoint (o : ι) : ι × ι → K := fun p =>
 
 theorem mignonRessayrePoint_apply (o : ι) (p : ι × ι) :
     mignonRessayrePoint (K := K) o p = if p = (o, o) then 1 - (Fintype.card ι : K) else 1 := by
-  unfold mignonRessayrePoint
-  rfl
+  rw [mignonRessayrePoint]
 
 private theorem prod_mignonRessayrePoint (o : ι) (σ : Perm ι) (S : Finset ι) :
     ∏ i ∈ S, mignonRessayrePoint (K := K) o (σ i, i) =
@@ -191,12 +187,10 @@ private theorem prod_mignonRessayrePoint (o : ι) (σ : Perm ι) (S : Finset ι)
   simp only [mignonRessayrePoint_apply]
   split_ifs with h
   · rw [Finset.prod_eq_single_of_mem o h.1 fun i _ hi =>
-      ite_eq_right fun he => hi (congrArg Prod.snd he)]
-    rw [ite_eq_left (by rw [h.2])]
-  · refine Finset.prod_eq_one fun i hi => ite_eq_right fun he => h ?_
-    have hi' : i = o := congrArg Prod.snd he
-    subst hi'
-    exact ⟨hi, congrArg Prod.fst he⟩
+      ite_eq_right fun he => hi (congrArg Prod.snd he), ite_eq_left (by rw [h.2])]
+  · refine Finset.prod_eq_one fun i hi => ite_eq_right fun he => ?_
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj he
+    exact h ⟨hi, h1⟩
 
 /-- The generic permanent vanishes at the Mignon–Ressayre point. -/
 theorem eval_permanent_mignonRessayrePoint (o : ι) :
@@ -301,38 +295,25 @@ theorem rank_hessian_permanent_mignonRessayrePoint (o : ι)
     (hfact : ((Fintype.card ι - 1).factorial : K) ≠ 0) (hN : 2 ≤ Fintype.card ι) :
     (hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent).rank =
       Fintype.card ι * Fintype.card ι := by
-  have hH : hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent =
-      Matrix.of fun a b : ι × ι => ((Fintype.card ι - 2).factorial : K) *
-          ((if a.1 = b.1 then 0 else 1) * (if b.2 = a.2 then 0 else 1)) +
-        (-(Fintype.card ι : K) * ((Fintype.card ι - 3).factorial : K)) *
-          ((if a.1 = b.1 ∨ a.1 = o ∨ b.1 = o then 0 else 1) *
-            (if b.2 = a.2 ∨ b.2 = o ∨ a.2 = o then 0 else 1)) := by
-    ext a b
-    exact hessian_permanent_mignonRessayrePoint o a b
-  rw [hH]
+  rw [show hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent = Matrix.of _
+    from Matrix.ext (hessian_permanent_mignonRessayrePoint o)]
   obtain ⟨k, hk⟩ : ∃ k, Fintype.card ι = k + 2 := ⟨_, (Nat.sub_add_cancel hN).symm⟩
   have h2 : ∀ j, k = j + 1 → (2 : K) ≠ 0 := fun j hj h2 => hfact (by
     obtain ⟨c, hc⟩ := Nat.dvd_factorial two_pos (show 2 ≤ Fintype.card ι - 1 by omega)
     rw [hc, Nat.cast_mul, Nat.cast_two, h2, zero_mul])
   rw [hk, show k + 2 - 1 = k + 1 from rfl, Nat.factorial_succ, Nat.cast_mul] at hfact
   obtain ⟨hk1, hkf⟩ := mul_ne_zero_iff.1 hfact
-  refine rank_of_ite_sandwich o ?_ ?_ ?_
-  · rw [hk]
-    push_cast at hk1 ⊢
-    convert hk1 using 1
-    ring
-  · rw [hk]
-    exact hkf
-  · rw [hk]
-    rcases k with _ | j
+  refine rank_of_ite_sandwich o ?_ ?_ ?_ <;> rw [hk]
+  · convert hk1 using 1
+    push_cast; ring
+  · exact hkf
+  · rcases k with _ | j
     · norm_num
     · rw [show j + 1 + 2 - 2 = j + 1 from rfl, show j + 1 + 2 - 3 = j from rfl,
         Nat.factorial_succ]
       rw [Nat.factorial_succ, Nat.cast_mul] at hkf
-      have hj : (j.factorial : K) ≠ 0 := right_ne_zero_of_mul hkf
-      convert mul_ne_zero (neg_ne_zero.2 (h2 j rfl)) hj using 1
-      push_cast
-      ring
+      convert mul_ne_zero (neg_ne_zero.2 (h2 j rfl)) (right_ne_zero_of_mul hkf) using 1
+      push_cast; ring
 
 /-- **Mignon–Ressayre inequality**: if the generic `N × N` permanent is the determinant of a
 `κ × κ` matrix of affine polynomials, then `N ^ 2 ≤ 2 · card κ`, provided `(N - 1)! ≠ 0` in `K`
@@ -343,25 +324,20 @@ theorem card_mul_card_le_two_mul_card_of_permanent_eq_det {κ : Type*} [Fintype 
     (hperm : (mvPolynomialX ι ι K).permanent = A.det) :
     Fintype.card ι * Fintype.card ι ≤ 2 * Fintype.card κ := by
   rcases Nat.lt_or_ge (Fintype.card ι) 2 with hN | hN
-  · rcases Nat.lt_or_ge (Fintype.card ι) 1 with h0 | h1
-    · have : Fintype.card ι = 0 := by omega
-      simp [this]
-    · have hN1 : Fintype.card ι = 1 := by omega
-      rw [hN1]
-      by_contra hκ
-      have hκ0 : Fintype.card κ = 0 := by omega
-      have : IsEmpty κ := Fintype.card_eq_zero_iff.1 hκ0
-      obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
-      have h0 := congrArg (eval (0 : ι × ι → K)) hperm
-      rw [Matrix.det_isEmpty, map_one, Matrix.permanent] at h0
-      simp only [map_sum, map_prod, mvPolynomialX_apply, eval_X, Pi.zero_apply] at h0
-      rw [Finset.sum_eq_zero fun σ _ => Finset.prod_eq_zero (mem_univ o) rfl] at h0
-      exact zero_ne_one h0
+  · obtain h0 | h1 : Fintype.card ι = 0 ∨ Fintype.card ι = 1 := by omega
+    · simp [h0]
+    rw [h1]
+    by_contra hκ
+    have : IsEmpty κ := Fintype.card_eq_zero_iff.1 (by omega)
+    obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
+    have h0 := congrArg (eval (0 : ι × ι → K)) hperm
+    rw [Matrix.det_isEmpty, map_one, Matrix.permanent] at h0
+    simp only [map_sum, map_prod, mvPolynomialX_apply, eval_X, Pi.zero_apply] at h0
+    rw [Finset.sum_eq_zero fun σ _ => Finset.prod_eq_zero (mem_univ o) rfl] at h0
+    exact zero_ne_one h0
   · obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
-    have hx : eval (mignonRessayrePoint (K := K) o) A.det = 0 := by
-      rw [← hperm]
-      exact eval_permanent_mignonRessayrePoint o
-    have := rank_hessian_det_le A hA hx
+    have := rank_hessian_det_le A hA
+      (hperm ▸ eval_permanent_mignonRessayrePoint o : eval _ A.det = 0)
     rwa [← hperm, rank_hessian_permanent_mignonRessayrePoint o hfact hN] at this
 
 end Matrix

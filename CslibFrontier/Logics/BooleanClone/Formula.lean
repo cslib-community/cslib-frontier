@@ -62,13 +62,11 @@ theorem generated_iff_exists_formula (G : (n : ℕ) → Set ((Fin n → Bool) �
     | projection i => exact ⟨.input i, fun _ => rfl⟩
     | @comp m n hm hn f g hf hg ihf ihg =>
       obtain ⟨F, hF⟩ := ihf
-      let args (i) := Classical.choose (ihg i)
-      have hargs (i) := Classical.choose_spec (ihg i)
+      choose args hargs using ihg
       refine ⟨F.bind args, fun a => ?_⟩
       rw [Formula.eval_bind]
-      convert hF (fun i => g i a) using 1
-      congr 1
-      exact funext (fun i => hargs i a)
+      convert hF (fun i => g i a) using 2
+      exact funext fun i => hargs i a
   · rintro ⟨hn, F, hF⟩
     have hgen : Generated G (F.eval (interpretation G)) := by
       clear hF
@@ -97,11 +95,8 @@ theorem exists_circuit_of_postCriterion {G : (n : ℕ) → Set ((Fin n → Bool)
 one output: there is no wire to supply the first gate or to select as an output. -/
 theorem not_nonempty_circuit_zero (G : (n : ℕ) → Set ((Fin n → Bool) → Bool)) :
     ¬ Nonempty (Circuit (signature G) 0 1) := by
-  have emptyWire : Wire 0 0 → False := by
-    intro w
-    cases w with
-    | input i => exact Fin.elim0 i
-    | gate i => exact Fin.elim0 i
+  have emptyWire : Wire 0 0 → False
+    | .input i | .gate i => i.elim0
   have hsize {k : ℕ} (p : Program (signature G) 0 k) : k = 0 := by
     induction p with
     | empty => rfl
@@ -109,9 +104,9 @@ theorem not_nonempty_circuit_zero (G : (n : ℕ) → Set ((Fin n → Bool) → B
       subst k
       exact False.elim (emptyWire (line.wires ⟨0, line.op.2.property.1⟩))
   rintro ⟨c⟩
-  have hw := c.outputs 0
+  have hw : Nonempty (Wire 0 c.size) := ⟨c.outputs 0⟩
   rw [hsize c.program] at hw
-  exact emptyWire hw
+  exact hw.elim emptyWire
 
 /-- The positive-arity generator signature never satisfies the circuit notion that also
 requires zero-input functions, even when it is functionally complete at positive arities. -/

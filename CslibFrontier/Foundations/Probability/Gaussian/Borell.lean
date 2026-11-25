@@ -242,8 +242,8 @@ theorem twoSetBorellInequality_iff {ρ : ℝ} :
 theorem twoFunctionBorellInequality_of_isEmpty [IsEmpty ι] (ρ : ℝ) :
     TwoFunctionBorellInequality ρ ι := by
   intro f g _ _ _ _
-  have hf : f = fun _ => f default := funext fun z => congrArg f (Subsingleton.elim _ _)
-  have hg : g = fun _ => g default := funext fun z => congrArg g (Subsingleton.elim _ _)
+  have hf : f = fun _ => f default := funext fun _ => congrArg f (Subsingleton.elim _ _)
+  have hg : g = fun _ => g default := funext fun _ => congrArg g (Subsingleton.elim _ _)
   rw [hf, hg]
   simp only [integral_const, probReal_univ, one_smul, le_rfl]
 
@@ -370,18 +370,12 @@ theorem TwoFunctionBorellInequality.gaussianNoiseStability_le_of_ae {ρ : ℝ} (
     fun_prop
   have hfg : f =ᵐ[Measure.pi fun _ : ι => gaussianReal 0 1] g := by
     filter_upwards [hf.ae_eq_mk, hf01] with z hz h01
-    change f z = max 0 (min 1 (hf.mk f z))
-    rw [← hz, min_eq_right h01.2, max_eq_right h01.1]
+    simpa only [g, ← hz, min_eq_right h01.2] using (max_eq_right h01.1).symm
   have h1 := (measurePreserving_fst_correlatedGaussianPi ι ρ).quasiMeasurePreserving.ae_eq_comp hfg
   have h2 := (measurePreserving_snd_correlatedGaussianPi ι (abs_le.2 ⟨by linarith, hρ1⟩)
     ).quasiMeasurePreserving.ae_eq_comp hfg
-  have hstab : gaussianNoiseStability ρ f = gaussianNoiseStability ρ g := by
-    rw [gaussianNoiseStability, gaussianNoiseStability]
-    refine integral_congr_ae ?_
-    filter_upwards [h1, h2] with p hp1 hp2
-    change f p.1 = g p.1 at hp1
-    change f p.2 = g p.2 at hp2
-    rw [hp1, hp2]
+  have hstab : gaussianNoiseStability ρ f = gaussianNoiseStability ρ g :=
+    integral_congr_ae (h1.mul h2)
   rw [hstab, integral_congr_ae hfg]
   exact h.gaussianNoiseStability_le hρ0 hρ1 hg
     fun z => ⟨le_max_left _ _, max_le zero_le_one (min_le_left _ _)⟩

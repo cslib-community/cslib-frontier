@@ -98,6 +98,11 @@ variable {I J : Type*} [Fintype I] [Fintype J]
 noncomputable def averageProb (p : ℕ → I → ℝ) (T : ℕ) (i : I) : ℝ :=
   (∑ t ∈ range T, p t i) / T
 
+omit [Fintype I] in
+@[simp] theorem averageProb_apply (p : ℕ → I → ℝ) (T : ℕ) (i : I) :
+    averageProb p T i = (∑ t ∈ range T, p t i) / T := by
+  rw [averageProb]
+
 /-- The empirical distribution of the first `T` entries of the sequence `col`. -/
 noncomputable def empirical [DecidableEq J] (col : ℕ → J) (T : ℕ) (j : J) : ℝ :=
   (#{t ∈ range T | col t = j} : ℝ) / T
@@ -145,9 +150,7 @@ theorem empirical_nonneg [DecidableEq J] (col : ℕ → J) (T : ℕ) (j : J) :
 /-- The empirical distribution of `T > 0` entries is a distribution. -/
 theorem sum_empirical [DecidableEq J] (col : ℕ → J) {T : ℕ} (hT : 0 < T) :
     ∑ j, empirical col T j = 1 := by
-  have := sum_empirical_mul col T fun _ => 1
-  simp only [mul_one, sum_const, card_range, nsmul_eq_mul] at this
-  rw [this, div_self (by exact_mod_cast hT.ne')]
+  simpa [hT.ne'] using sum_empirical_mul col T fun _ => 1
 
 /-- A best response of the column player to the row distribution `p`: a column maximizing the
 expected loss `∑ i, p i * M i j` of the row player. -/
@@ -270,17 +273,14 @@ theorem mw_bestResponse_approx_optimal [DecidableEq J] (hM : ∀ i j, M i j ∈ 
     {v : ℝ} (hv : IsMinimaxValue M v) :
     (∀ j, ∑ k, averageProb (prob (mwFactor (ε / 2)) (fun s i => M i (col s))) T k * M k j ≤
       v + ε) ∧ ∀ i, v - ε ≤ ∑ l, empirical col T l * M i l := by
-  have hφ : ∀ t, ∀ s < t, ∀ k, 0 < mwFactor (ε / 2) (M k (col s)) := fun t s _ k => by
+  have hφ (t : ℕ) : ∀ s < t, ∀ k, 0 < mwFactor (ε / 2) (M k (col s)) := fun s _ k => by
     rw [mwFactor_apply]; nlinarith [(hM k (col s)).2]
-  have hne : Nonempty I := by
-    obtain ⟨⟨q, -⟩, -⟩ := hv
-    exact q.nonempty
-  constructor
-  · intro j
-    obtain ⟨i, hi⟩ := hv.exists_ge (empirical_nonneg col T) (sum_empirical col hT0)
+  have ⟨⟨q, _⟩, _⟩ := hv
+  have := q.nonempty
+  refine ⟨fun j => ?_, fun i => ?_⟩
+  · obtain ⟨i, hi⟩ := hv.exists_ge (empirical_nonneg col T) (sum_empirical col hT0)
     linarith [sum_averageProb_mul_le_sum_empirical_mul_add hM hε hε' hT0 hT hbr i j]
-  · intro i
-    obtain ⟨j, hj⟩ := hv.exists_le (averageProb_nonneg fun t _ => prob_nonneg (hφ t))
+  · obtain ⟨j, hj⟩ := hv.exists_le (averageProb_nonneg fun t _ => prob_nonneg (hφ t))
       (sum_averageProb hT0 fun t _ => sum_prob (hφ t))
     linarith [sum_averageProb_mul_le_sum_empirical_mul_add hM hε hε' hT0 hT hbr i j]
 
@@ -325,11 +325,8 @@ theorem bestResponsePlay_approx_optimal [DecidableEq J] [Nonempty J] {M : I → 
   intro T
   have hlog : 0 < log (Fintype.card I) := log_pos (by exact_mod_cast hn)
   have hceil := Nat.le_ceil (4 * log (Fintype.card I) / ε ^ 2)
-  have hT0 : 0 < T := Nat.ceil_pos.mpr (by positivity)
-  have hT : 4 * log (Fintype.card I) ≤ ε ^ 2 * T := by
-    rw [div_le_iff₀ (by positivity)] at hceil
-    linarith
-  exact mw_bestResponse_approx_optimal hM hε hε' hT0 hT
-    (fun t _ j => bestResponsePlay_spec M (ε / 2) t j) hv
+  rw [div_le_iff₀ (by positivity)] at hceil
+  exact mw_bestResponse_approx_optimal hM hε hε' (Nat.ceil_pos.mpr (by positivity))
+    (by linarith) (fun t _ => bestResponsePlay_spec M (ε / 2) t) hv
 
 end Cslib.MachineLearning.OnlineLearning.Experts
