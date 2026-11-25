@@ -91,26 +91,10 @@ theorem exists_program_state {p : Memory.Prog Unit} (c : ListInstance → ℕ)
   obtain ⟨y, steps, hrun, hhalt, hstate, _, htime⟩ :=
     he w () G.encode (fun i => Fin.elim0 i) (Nat.zero_le _) hfront
       (G.inputFits_encode hfit) ⟨G, rfl, hfit⟩ hv
-  have hs : (Memory.spec w).clientState (Memory.State.init G.encode) (do p; pure 0) =
-      (Memory.spec w).clientState (Memory.State.init G.encode) p := by
-    simp only [client_simps]
-  have hm : memoryCost (do p; pure 0) (Memory.State.init G.encode) =
-      memoryCost p (Memory.State.init G.encode) := by
-    simp only [client_simps, Nat.add_zero]
-  change memoryState frontier y = (Memory.spec w).clientState (Memory.State.init G.encode)
-    (do p; pure 0) at hstate
-  rw [hs] at hstate
-  change steps + 1 ≤ C * (memoryCost (do p; pure 0)
-    (Memory.State.init G.encode) + 0 + 1) + 1 at htime
-  rw [hm] at htime
-  have hr : (Memory.spec w).clientResult (Memory.State.init G.encode) (do p; pure 0) = 0 := by
-    simp only [client_simps]
-  rw [hr] at hhalt
+  simp only [client_simps, Nat.add_zero] at hstate htime hhalt
   rw [← memoryCost_eq_totalCost w] at hcost
-  refine ⟨y, steps, hrun, hhalt, hstate, ?_, ?_⟩
-  · nlinarith [Nat.mul_le_mul_left C hcost]
-  · intro v
-    have hm := congrArg (fun s : Memory.State => s.mem (G.outAddr v)) hstate
-    exact hm.trans (hdist v)
+  refine ⟨y, steps, hrun, hhalt, hstate, ?_, fun v =>
+    (congrArg (fun s : Memory.State => s.mem (G.outAddr v)) hstate).trans (hdist v)⟩
+  nlinarith [Nat.mul_le_mul_left C hcost]
 
 end Cslib.Algorithms.Lean.Dijkstra.Native
