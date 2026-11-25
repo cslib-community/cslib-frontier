@@ -4,6 +4,8 @@ Part of the [roadmap](../ROADMAP.md), which explains what an entry is and when o
 
 ### Coverage catalogue
 
+The [Complexity Zoo audit](complexity-zoo/README.md) pins the source pages and records verified Lean matches. [#6741](https://github.com/cslib-community/cslib-frontier/issues/6741) tracks the remaining catalogue.
+
 Build an auditable coverage index of the [Complexity Zoo](https://complexityzoo.net/Complexity_Zoo) and canonical problems and theorems ECCC papers need, verified against primary sources and linked to canonical definitions.
 Each entry records source, aliases, model, conventions (uniformity, advice, oracle access, error gaps, resources, reduction type), Lean declarations, missing prerequisites and level, from definition to verified theorem.
 Containments, separations, closure properties, complete problems and reductions are tracked separately across decision, function, search, counting, promise, distributional and parameterized problems.
