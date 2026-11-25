@@ -110,7 +110,8 @@ theorem exists_good_shift_and_factor
   set H : F[X][X] := S.leadingCoeff * Δ
   have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 fun h => by simp [s, h] at hS_deg) hΔ_ne
   obtain ⟨x₀, _, hHx₀_ne⟩ := exists_eval_C_ne_zero (T := T_R) hH_ne (hH_degX.trans_lt <|
-    (show 2 * s * D ≤ 2 * R.natDegree * (D + B_Z) by gcongr; omega).trans_lt (by omega))
+    (Nat.mul_le_mul (Nat.mul_le_mul_left 2 hs_le_dR) (Nat.le_add_right D B_Z)).trans_lt
+      ((Nat.le_add_right _ _).trans_lt hTR_card))
   have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
   have hΔ_x₀_ne : Δ.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
   let φx₀ : F[X][X] →+* F[X] := Polynomial.evalRingHom (C x₀)
@@ -192,14 +193,15 @@ theorem exists_good_shift_and_factor
       mem_filter.2 ⟨hz, P, hP_deg, hS_eval0, hv0, hγ_eval_ne, hW_P⟩⟩
   set B_step := W_tot * D_Y * (4 * D * B_Z + r * D_Y)
   have hsum_G : ∑ _G ∈ gs.toFinset, B_step < ∑ G ∈ gs.toFinset, #(T_ofG G) := by
-    have h1 : 2 * s * B_Z ≤ 2 * R.natDegree * (D + B_Z) := by gcongr; omega
-    have h2 : s * B_step ≤ W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y) :=
-      calc s * B_step = W_tot * s * D_Y * (4 * D * B_Z + r * D_Y) := by ring
-        _ ≤ _ := by gcongr
-    have h3 := Nat.mul_le_mul_right B_step hgs_card
+    have h1 : 2 * s * B_Z ≤ 2 * R.natDegree * (D + B_Z) :=
+      Nat.mul_le_mul (Nat.mul_le_mul_left 2 hs_le_dR) (Nat.le_add_left B_Z D)
+    have h2 : s * B_step ≤ W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y) := by
+      rw [show s * B_step = W_tot * s * D_Y * (4 * D * B_Z + r * D_Y) by dsimp [B_step]; ring]
+      exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hs_le_dR))
+    have h3 : ∑ _G ∈ gs.toFinset, B_step ≤ s * B_step := by
+      rw [Finset.sum_const, smul_eq_mul]; exact Nat.mul_le_mul_right B_step hgs_card
     have h4 : #T'_R ≤ ∑ G ∈ gs.toFinset, #(T_ofG G) :=
       (card_le_card hcover').trans Finset.card_biUnion_le
-    rw [Finset.sum_const, smul_eq_mul]
     omega
   obtain ⟨Fstar, hF_fin, hF_card⟩ := Finset.exists_lt_of_sum_lt hsum_G
   have hF_mem := Multiset.mem_toFinset.1 hF_fin
