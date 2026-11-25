@@ -341,13 +341,10 @@ theorem eventually_tableArity (c : ℕ) :
   have hn2 : n ≤ 2 ^ t := Nat.le_pow_clog one_lt_two n
   have h2n : 2 ^ t ≤ 2 * n := Nat.pow_clog_le_mul one_lt_two (by omega)
   have ht : t ≤ 2 * n := Nat.lt_two_pow_self.le.trans h2n
-  refine ⟨by omega, ?_, ?_, ?_⟩
-  · rw [tableArity]
-    nlinarith
-  · rw [tableArity]
-    nlinarith
-  · rw [tableArity]
-    have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := by
+  refine ⟨by omega, ?_, ?_, ?_⟩ <;> rw [tableArity]
+  · nlinarith
+  · nlinarith
+  · have h3 : (3 * n + 2) ^ c ≤ 5 ^ c * n ^ c := by
       rw [← mul_pow]
       exact Nat.pow_le_pow_left (by omega) c
     have h1 : 1 ≤ n ^ c := Nat.one_le_pow c n (by omega)
