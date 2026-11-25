@@ -224,18 +224,11 @@ theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
               rw [← hsub_map K_rem hKr, ← hsub_map K' hK', ← hσ_sub_map, Finset.map_map,
                 Finset.map_map]
               congr 1; ext x : 1; exact Equiv.Perm.ofSubtype_apply_coe σ_sub x
-            refine Finset.card_bij (fun π_sub _ => π_sub.trans σ_sub) (fun π_sub hπ => ?_)
-              (fun _ _ _ _ h => Equiv.Perm.ext fun x => σ_sub.injective (Equiv.Perm.ext_iff.mp h x))
-              (fun π' hπ' => ⟨π'.trans σ_sub.symm, ?_, by
-                ext x; simp only [Equiv.trans_apply, Equiv.apply_symm_apply]⟩)
-            · rw [Finset.mem_filter] at hπ ⊢
-              refine ⟨Finset.mem_univ _, ?_⟩
-              rw [ofSubtype_trans, ← Finset.map_map, hπ.2, hσ_map]
-            · rw [Finset.mem_filter] at hπ' ⊢
-              refine ⟨Finset.mem_univ _, ?_⟩
-              apply Finset.map_injective (Equiv.Perm.ofSubtype σ_sub).toEmbedding
-              rw [Finset.map_map, ← ofSubtype_trans, Equiv.trans_assoc, Equiv.symm_trans_self,
-                Equiv.trans_refl, hπ'.2, hσ_map]
+            refine Finset.card_equiv (Equiv.mulLeft σ_sub) fun π_sub => ?_
+            simp only [stab, Finset.mem_filter, Finset.mem_univ, true_and, Equiv.coe_mulLeft]
+            rw [show σ_sub * π_sub = π_sub.trans σ_sub from rfl, ofSubtype_trans, ← Finset.map_map,
+              ← hσ_map]
+            exact Finset.map_inj.symm
           have hdisj : ((S_comp.powersetCard (n - m) : Set (Finset (Fin U)))).PairwiseDisjoint
               stab := fun K₁ _ K₂ _ hne => Finset.disjoint_left.mpr fun π_sub h₁ h₂ =>
             hne ((Finset.mem_filter.mp h₁).2.symm.trans (Finset.mem_filter.mp h₂).2)
