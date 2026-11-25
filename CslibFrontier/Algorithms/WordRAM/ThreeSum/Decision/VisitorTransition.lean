@@ -66,8 +66,7 @@ theorem live_transition {r κ n w : ℕ} {target : List Node} {a : Arena}
     Nat.le_add_right_of_le (Math.work_pos e.fuel)
   have hbudget : p.regs (preprocessingRegisters r heap) + allocationSize a.n a.m a.N ≤
       a.ceiling := by
-    have hb := h.heapBudget
-    have hm := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hwork
+    have := h.heapBudget; have := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hwork
     rw [ph]; omega
   obtain ⟨q, v, hq, hv, ⟨em⟩, hvb, hva, hvr, hvm, hvf⟩ :=
     construct_consume c e p hw ha hresources hready hc hl
@@ -132,20 +131,16 @@ theorem live_transition {r κ n w : ℕ} {target : List Node} {a : Arena}
   have hbody := body_live c.code hp hl hc.2.2.2.2.2.2.2.2.2.1 hf hn hvisit
   have retainedStored (d : Entry) (hd : d ∈ e :: es) : d.Stored q.mem :=
     (oldStored d hd).of_prefix (oldEnds d hd) em.local_prefix
-  have newStored : ∀ d ∈ s.pending, d.Stored q.mem := fun d hd => by
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_stored (retainedStored e (by simp)) d hd
-    · exact retainedStored d (List.mem_cons_of_mem e hd)
-  have newAround : ∀ d ∈ s.pending, d.Around a.stack (a.floor - a.stack) := fun d hd => by
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_around (h.around e (by simp))
-        (by simp only [T, Data.comap_regs] at *; omega) d hd
-    · exact h.around d (List.mem_cons_of_mem e hd)
+  have newStored : ∀ d ∈ s.pending, d.Stored q.mem := fun d hd =>
+    (List.mem_append.mp hd).elim (em.children_stored (retainedStored e (by simp)) d)
+      fun hd => retainedStored d (List.mem_cons_of_mem e hd)
+  have newAround : ∀ d ∈ s.pending, d.Around a.stack (a.floor - a.stack) := fun d hd =>
+    (List.mem_append.mp hd).elim (em.children_around (h.around e (by simp))
+      (by simp only [T, Data.comap_regs] at *; omega) d) fun hd => h.around d (.tail e hd)
   have newEnds : ∀ d ∈ s.pending, ∀ j,
-      d.source j + (d.data j).length ≤ u.regs (preprocessingRegisters r heap) := fun d hd j => by
-    rcases List.mem_append.mp hd with hd | hd
-    · exact release_children_ends em hvr hl (oldEnds e (by simp)) d hd j
-    · exact (oldEnds d (List.mem_cons_of_mem e hd) j).trans (release_heap_mono em hvr)
+      d.source j + (d.data j).length ≤ u.regs (preprocessingRegisters r heap) := fun d hd j =>
+    (List.mem_append.mp hd).elim (release_children_ends em hvr hl (oldEnds e (by simp)) d · j)
+      fun hd => (oldEnds d (.tail e hd) j).trans (release_heap_mono em hvr)
   have yh : y.regs (preprocessingRegisters r heap) =
       u.regs (preprocessingRegisters r heap) := yreg _ (by decide) (by decide)
   have bodyFrontier : y.regs (preprocessingRegisters r heap) =
@@ -158,10 +153,8 @@ theorem live_transition {r κ n w : ℕ} {target : List Node} {a : Arena}
     refine (release_heap_le em hvr).trans ?_
     have heh := em.heap_eq; simp only [Data.comap_regs] at heh
     rw [hvr, heh]
-    apply allocation_le
-    · exact fun j => (hl.2.2 j).trans_le ((h.valid e (by simp)).length_le j)
-    · exact hc.2.2.2.1.le
-    · simpa only [hc.1] using em.upper
+    exact allocation_le _ _ _ _ _ (fun j => (hl.2.2 j).trans_le ((h.valid e (by simp)).length_le j))
+      hc.2.2.2.1.le (by simpa only [hc.1] using em.upper)
   have hremaining : (Cursor.mk (e :: es) ns).remaining a =
       e.task.node (Nat.primesLE a.m) a.Λ :: s.remaining a := by
     have he := Math.output_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
@@ -185,10 +178,8 @@ theorem live_transition {r κ n w : ℕ} {target : List Node} {a : Arena}
       simpa only [s, u, release_childWords, words, em.children_words hl, List.flatMap_append,
         List.append_assoc] using hystack
     depth := depth
-    valid := fun d hd => by
-      rcases List.mem_append.mp hd with hd | hd
-      · exact em.children_valid (h.valid e (by simp)) d hd
-      · exact h.valid d (List.mem_cons_of_mem e hd)
+    valid := fun d hd => (List.mem_append.mp hd).elim (em.children_valid (h.valid e (by simp)) d)
+      fun hd => h.valid d (.tail e hd)
     stored := fun d hd =>
       ((newStored d hd).of_prefix (fun j =>
         (newEnds d hd j).trans ((release_heap_le em hvr).trans_eq (hvr heap))) hvf).of_arena_frame
@@ -197,11 +188,9 @@ theorem live_transition {r κ n w : ℕ} {target : List Node} {a : Arena}
     ends := fun d hd j => yh.symm ▸ newEnds d hd j
     floor := yh.symm ▸ hfloor.trans (release_heap_mono em hvr)
     heapBudget := by
-      have hb := h.heapBudget
-      have hd := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hdec
+      have := h.heapBudget; have hd := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hdec
       rw [Nat.add_mul, Nat.one_mul] at hd
-      rw [yh]; rw [ph] at heapAllocation
-      simp only [T, Data.comap_regs] at *; omega
+      rw [yh]; rw [ph] at heapAllocation; omega
     packedLength := (hyr ChanHe.Preprocessing.packedLength (Or.inr (by decide))).trans
       ((ur _ (by decide)).trans ((hvr _).trans
         ((em.registers ChanHe.Preprocessing.packedLength (by decide) (by decide)
