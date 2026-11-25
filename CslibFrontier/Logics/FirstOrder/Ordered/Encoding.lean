@@ -124,10 +124,8 @@ private theorem realize_frameBit {α : Type*}
     have hbound : (base.realize env).val + 2 * j < B := by rcases he with h | ⟨_, h⟩ <;> omega
     let u : Fin 3 → Fin B :=
       ![⟨j, by omega⟩, ⟨2 * j, by omega⟩, ⟨(base.realize env).val + 2 * j, hbound⟩]
-    refine ⟨u, (hdom (u 0)).mpr hj, rfl, rfl, ?_⟩
-    rcases he with he | ⟨hw, he⟩
-    · exact Or.inl he
-    · exact Or.inr ⟨(hbit (u 0) hj).mpr hw, he.symm⟩
+    exact ⟨u, (hdom (u 0)).mpr hj, rfl, rfl,
+      he.imp id fun ⟨hw, he⟩ => ⟨(hbit (u 0) hj).mpr hw, he.symm⟩⟩
 
 end Semantics
 
@@ -163,22 +161,18 @@ private theorem frame_true_iff (w : List Bool) (p : ℕ) :
   · intro h
     have hp := (List.getElem?_eq_some_iff.mp h).choose
     rw [length_frame] at hp
-    have hne : p ≠ 2 * w.length := by
-      intro he
-      rw [he, getElem?_frame_two_mul_length] at h
-      contradiction
+    have hne : p ≠ 2 * w.length := fun he => by
+      rw [he, getElem?_frame_two_mul_length] at h; contradiction
     have hj : p / 2 < w.length := by omega
     refine ⟨p / 2, hj, ?_⟩
     rcases Nat.mod_two_eq_zero_or_one p with hm | hm
     · exact Or.inl (by omega)
     · have he : p = 2 * (p / 2) + 1 := by omega
-      have hb : (frame w)[2 * (p / 2) + 1]? = some true := by rw [← he]; exact h
-      rw [getElem?_frame_two_mul_add_one hj] at hb
-      exact Or.inr ⟨hb, he⟩
+      rw [he, getElem?_frame_two_mul_add_one hj] at h
+      exact Or.inr ⟨h, he⟩
   · rintro ⟨j, hj, he | ⟨hb, he⟩⟩
     · rw [he, getElem?_frame_two_mul hj]
-    · rw [he, getElem?_frame_two_mul_add_one hj]
-      exact hb
+    · rw [he, getElem?_frame_two_mul_add_one hj, hb]
 
 private theorem shifted_frame_true_iff (w : List Bool) (base p : ℕ) :
     base ≤ p ∧ (frame w)[p - base]? = some true ↔
@@ -187,11 +181,9 @@ private theorem shifted_frame_true_iff (w : List Bool) (base p : ℕ) :
   rw [frame_true_iff]
   constructor
   · rintro ⟨hp, j, hj, he | ⟨hb, he⟩⟩
-    · exact ⟨j, hj, Or.inl (by omega)⟩
-    · exact ⟨j, hj, Or.inr ⟨hb, by omega⟩⟩
+    exacts [⟨j, hj, Or.inl (by omega)⟩, ⟨j, hj, Or.inr ⟨hb, by omega⟩⟩]
   · rintro ⟨j, hj, he | ⟨hb, he⟩⟩
-    · exact ⟨by omega, j, hj, Or.inl (by omega)⟩
-    · exact ⟨by omega, j, hj, Or.inr ⟨hb, by omega⟩⟩
+    exacts [⟨by omega, j, hj, Or.inl (by omega)⟩, ⟨by omega, j, hj, Or.inr ⟨hb, by omega⟩⟩]
 
 private theorem append_true_iff (u w : List Bool) (p : ℕ) :
     (u ++ w)[p]? = some true ↔
@@ -231,9 +223,7 @@ private theorem realize_prefixEnd {a : EncodedStructure} (ha : v.WellFormed a)
         List.length_append, length_frame, Nat.add_assoc] using hs
     have hlen : (v.table a (v.symbol i)).length < B := by omega
     have hdom (j : Fin B) : (v.tableDomain i).Realize ![j] ↔
-        j.val < (v.table a (v.symbol i)).length := by
-      rw [ha.length_table]
-      exact Iff.rfl
+        j.val < (v.table a (v.symbol i)).length := by rw [ha.length_table]; exact Iff.rfl
     fo_simp [prefixEnd, dite_eq_left hm']
     constructor
     · rintro ⟨u, hu, hf⟩
@@ -294,9 +284,7 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
     let i : Fin v.count := ⟨m, hm'⟩
     have hp := v.prefix_length_lt ha hB (Nat.le_of_lt hm')
     have hdom (j : Fin B) : (v.tableDomain i).Realize ![j] ↔
-        j.val < (v.table a (v.symbol i)).length := by
-      rw [ha.length_table]
-      exact Iff.rfl
+        j.val < (v.table a (v.symbol i)).length := by rw [ha.length_table]; exact Iff.rfl
     have hbit (j : Fin B) (hj : j.val < (v.table a (v.symbol i)).length) :
         (v.tableBit i).Realize ![j] ↔ (v.table a (v.symbol i))[j.val]? = some true := by
       change (j.val < a.1 ^ (v.symbol i).1 ∧
@@ -304,8 +292,7 @@ private theorem realize_prefixBit {a : EncodedStructure} (ha : v.WellFormed a)
       rw [← WellFormed.length_table v ha (v.symbol i)]
       simp [hj]
     fo_simp [prefixBit, dite_eq_left hm']
-    rw [show m + 1 = i.val + 1 from rfl,
-      encStructurePrefix_succ, append_true_iff]
+    rw [show m + 1 = i.val + 1 from rfl, encStructurePrefix_succ, append_true_iff]
     apply or_congr (ih (Nat.le_of_lt hm') pos env)
     constructor
     · rintro ⟨u, hu, hf⟩

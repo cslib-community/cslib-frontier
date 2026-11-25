@@ -189,10 +189,9 @@ theorem tendsto_infinitaryProb_zero_of_finset (μ : ∀ n, PMF (L.Structure (Fin
     Tendsto (fun n => infinitaryProb (μ n) φ) atTop (nhds 0) := by
   have hnot_fv : φ.not.freeVars = ∅ := by
     simp only [FiniteVariable.InfinitaryGenFormula.freeVars_not, hφ]
-  have hnot_M₀ : RealizeInfinitary (M := M₀) φ.not := (realizeInfinitary_not hφ).2 hM₀
-  have h1 := tendsto_infinitaryProb_one_of_finset μ T₀ hT₀ hbf hnot_fv hnot_M₀
-  have hsub := h1.const_sub 1
-  simp only [sub_self] at hsub
+  have hsub := (tendsto_infinitaryProb_one_of_finset μ T₀ hT₀ hbf hnot_fv
+    ((realizeInfinitary_not hφ).2 hM₀)).const_sub 1
+  rw [sub_self] at hsub
   refine hsub.congr' ?_
   filter_upwards [eventually_ge_atTop 1] with n hn
   have : Nonempty (Fin n) := ⟨⟨0, hn⟩⟩
@@ -246,14 +245,10 @@ private theorem exists_distinct_pebble_enum {M N : Type*} [L.Structure M] [L.Str
         x (pos j hj hne) = b j ∧ y (pos j hj hne) = a j := by
   classical
   let S' : Finset (Fin k) := Finset.univ.filter fun j => j ∈ S ∧ j ≠ i
-  have hS'_sub : S' ⊆ Finset.univ.erase i := fun j hj => by
-    simp only [S', Finset.mem_filter, Finset.mem_univ, true_and] at hj
-    exact Finset.mem_erase.2 ⟨hj.2, Finset.mem_univ j⟩
-  have hS'_lt : S'.card < k :=
-    calc S'.card ≤ (Finset.univ.erase i).card := Finset.card_le_card hS'_sub
-      _ < (Finset.univ : Finset (Fin k)).card :=
-          Finset.card_erase_lt_of_mem (Finset.mem_univ i)
-      _ = k := Finset.card_fin k
+  have hS'_sub : S' ⊆ Finset.univ.erase i := fun j hj =>
+    Finset.mem_erase.2 ⟨(Finset.mem_filter.1 hj).2.2, Finset.mem_univ j⟩
+  have hS'_lt : S'.card < k := (Finset.card_le_card hS'_sub).trans_lt <|
+    (Finset.card_erase_lt_of_mem (Finset.mem_univ i)).trans_eq (Finset.card_fin k)
   let B : Finset N := S'.image b
   let m : ℕ := B.card
   have hm : m < k := Finset.card_image_le.trans_lt hS'_lt
@@ -327,30 +322,25 @@ private theorem forth_partialIsoOn_of_satisfies_extensionAxiom_lt {V W : Type*}
       (satisfies_extensionAxiom_iff H m s).1 (hH m hm s) x hx
     have hd_fresh : ∀ j ∈ S, j ≠ i → d ≠ b j :=
       fun j hj hne hdb => hd_ne (pos j hj hne) (hdb.trans (hpos j hj hne).1.symm)
-    have hj_adj : ∀ j ∈ S, j ≠ i → (G.Adj c (a j) ↔ H.Adj d (b j)) := by
-      intro j hj hne
-      have hadj := hd_adj (pos j hj hne)
-      simp only [s, decide_eq_true_iff, (hpos j hj hne).1, (hpos j hj hne).2] at hadj
-      exact hadj.symm
+    have hj_adj (j) (hj : j ∈ S) (hne : j ≠ i) : G.Adj c (a j) ↔ H.Adj d (b j) := by
+      simpa only [s, decide_eq_true_iff, (hpos j hj hne).1, (hpos j hj hne).2, Iff.comm] using
+        hd_adj (pos j hj hne)
     refine ⟨d, (partialIsoOn_graph_iff (G := G) (H := H)).2 ?_⟩
     intro r hr q hq
     refine ⟨h.update_eq_iff_of_fresh hmem hd_fresh hr hq, ?_⟩
     by_cases hri : r = i <;> by_cases hqi : q = i
-    · subst hri; subst hqi
+    · subst hri hqi
       simp only [Function.update_self, SimpleGraph.irrefl]
     · subst hri
-      have hqS : q ∈ S := (Set.mem_insert_iff.1 hq).resolve_left hqi
       simp only [Function.update_self, Function.update_of_ne hqi]
-      exact hj_adj q hqS hqi
+      exact hj_adj q (Set.mem_of_mem_insert_of_ne hq hqi) hqi
     · subst hqi
-      have hrS : r ∈ S := (Set.mem_insert_iff.1 hr).resolve_left hri
       simp only [Function.update_self, Function.update_of_ne hri]
-      exact ⟨fun hadj => ((hj_adj r hrS hri).1 hadj.symm).symm,
-        fun hadj => ((hj_adj r hrS hri).2 hadj.symm).symm⟩
-    · have hrS : r ∈ S := (Set.mem_insert_iff.1 hr).resolve_left hri
-      have hqS : q ∈ S := (Set.mem_insert_iff.1 hq).resolve_left hqi
-      simp only [Function.update_of_ne hri, Function.update_of_ne hqi]
-      exact (((partialIsoOn_graph_iff (G := G) (H := H)).1 h) r hrS q hqS).2
+      exact (G.adj_comm _ _).trans <|
+        (hj_adj r (Set.mem_of_mem_insert_of_ne hr hri) hri).trans (H.adj_comm _ _)
+    · simp only [Function.update_of_ne hri, Function.update_of_ne hqi]
+      exact (((partialIsoOn_graph_iff (G := G) (H := H)).1 h) r
+        (Set.mem_of_mem_insert_of_ne hr hri) q (Set.mem_of_mem_insert_of_ne hq hqi)).2
 
 /-- **`< k`-extension axioms yield a `k`-pebble back-and-forth invariant on simple graphs**
 ([KolaitisVardi1992]). If both `G` and `H` satisfy all `< k`-extension axioms, then
@@ -617,17 +607,12 @@ private theorem forth_partialIsoOn_of_hasExtension_lt {M N : Type*} [L.Structure
     refine ⟨d, ⟨fun r hr q hq => h.update_eq_iff_of_fresh hmem hd_fresh hr hq,
       fun {l} R f hf => ?_⟩⟩
     by_cases hall : ∀ q, f q ≠ i
-    · have hfS : ∀ q, f q ∈ S := fun q => (Set.mem_insert_iff.1 (hf q)).resolve_left (hall q)
-      have ha_eq : Function.update a i c ∘ f = a ∘ f :=
-        funext fun q => by simp only [Function.comp_apply, Function.update_of_ne (hall q)]
-      have hb_eq : Function.update b i d ∘ f = b ∘ f :=
-        funext fun q => by simp only [Function.comp_apply, Function.update_of_ne (hall q)]
-      rw [ha_eq, hb_eq]
-      exact h.relMap_iff R f hfS
+    · rw [Function.update_comp_eq_of_forall_ne _ _ hall,
+        Function.update_comp_eq_of_forall_ne _ _ hall]
+      exact h.relMap_iff R f fun q => Set.mem_of_mem_insert_of_ne (hf q) (hall q)
     · push Not at hall
       obtain ⟨q₀, hq₀⟩ := hall
-      have hfS : ∀ q, f q ≠ i → f q ∈ S :=
-        fun q hne => (Set.mem_insert_iff.1 (hf q)).resolve_left hne
+      have hfS : ∀ q, f q ≠ i → f q ∈ S := fun q => Set.mem_of_mem_insert_of_ne (hf q)
       let τ : Fin l → Fin (m + 1) := fun q =>
         if hq : f q = i then 0 else (pos (f q) (hfS q hq) hq).succ
       have hτ0 : (0 : Fin (m + 1)) ∈ Set.range τ := ⟨q₀, by simp only [τ, hq₀, ↓reduceDIte]⟩
@@ -635,21 +620,15 @@ private theorem forth_partialIsoOn_of_hasExtension_lt {M N : Type*} [L.Structure
       have ha_eq : Function.update a i c ∘ f = (Fin.cons c y : Fin (m + 1) → M) ∘ τ := by
         funext q
         by_cases hq : f q = i
-        · simp only [Function.comp_apply, τ, hq, ↓reduceDIte, Function.update_self,
-            Fin.cons_zero]
-        · simp only [Function.comp_apply, τ, hq, ↓reduceDIte, Function.update_of_ne hq,
-            Fin.cons_succ, (hpos (f q) (hfS q hq) hq).2]
+        · simp [τ, hq]
+        · simp [τ, hq, (hpos (f q) (hfS q hq) hq).2]
       have hb_eq : Function.update b i d ∘ f = (Fin.cons d x : Fin (m + 1) → N) ∘ τ := by
         funext q
         by_cases hq : f q = i
-        · simp only [Function.comp_apply, τ, hq, ↓reduceDIte, Function.update_self,
-            Fin.cons_zero]
-        · simp only [Function.comp_apply, τ, hq, ↓reduceDIte, Function.update_of_ne hq,
-            Fin.cons_succ, (hpos (f q) (hfS q hq) hq).1]
+        · simp [τ, hq]
+        · simp [τ, hq, (hpos (f q) (hfS q hq) hq).1]
       rw [ha_eq, hb_eq]
-      have hrel := hd_rel atom
-      simp only [p, atom, decide_eq_true_iff] at hrel
-      exact hrel.symm
+      exact Iff.symm <| by simpa only [p, atom, decide_eq_true_iff] using hd_rel atom
 
 /-- **`< k`-extension axioms yield a `k`-pebble back-and-forth invariant over any language**
 ([KolaitisVardi1992]). If both `M` and `N` satisfy `HasExtension` for all arities `m < k`, then

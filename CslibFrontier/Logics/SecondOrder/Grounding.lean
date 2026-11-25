@@ -299,6 +299,30 @@ private theorem clauseSat_of_singletons {c : Φ.groundInterpretation.Model M} {t
     · exact .inr ⟨_, List.mem_singleton.2 rfl, formula_realize_top, _, hy₁,
         fun j i hj => by cases Option.some.inj hj; rfl, ha⟩
 
+/-- A clause with one positive literal guarded by `φ` and one negative literal guarded by `∼φ`,
+for the same variable and both copying coordinates of the clause, says that the variable holds
+exactly when `φ` does. -/
+private theorem clauseSat_guarded {c : Φ.groundInterpretation.Model M} {t : Φ.GroundTag}
+    {g : t.Coord → c.1.Coord} {φ : L.Formula c.1.Coord}
+    (h : ∀ b, Φ.groundTemplates c.1 b = [⟨t, if b then φ else ∼φ, fun j => some (g j)⟩])
+    {hy : (Φ.groundInterpretation.domain t).Realize fun j => c.2.1 (g j)} :
+    ClauseSatisfied A c ↔ (A ⟨t, fun j => c.2.1 (g j), hy⟩ ↔ φ.Realize c.2.1) := by
+  rw [clauseSat_iff, h, h]
+  constructor
+  · rintro (⟨τ, hτ, hg, y, hy, hc, ha⟩ | ⟨τ, hτ, hg, y, hy, hc, ha⟩)
+    · obtain rfl := List.mem_singleton.1 hτ
+      obtain rfl : y = fun j => c.2.1 (g j) := funext fun j => hc j _ rfl
+      exact iff_of_true ha hg
+    · obtain rfl := List.mem_singleton.1 hτ
+      obtain rfl : y = fun j => c.2.1 (g j) := funext fun j => hc j _ rfl
+      exact iff_of_false ha hg
+  · intro h
+    by_cases he : φ.Realize c.2.1
+    · exact .inl ⟨_, List.mem_singleton.2 rfl, he, _, hy,
+        fun j i hj => by cases Option.some.inj hj; rfl, h.2 he⟩
+    · exact .inr ⟨_, List.mem_singleton.2 rfl, he, _, hy,
+        fun j i hj => by cases Option.some.inj hj; rfl, mt h.1 he⟩
+
 private theorem clauseSat_var (s : Φ.Subformula) (a : Fin s.1.1 → M) (ha) :
     ClauseSatisfied A ⟨.var s, a, ha⟩ :=
   (clauseSat_of_singletons A (c := ⟨.var s, a, ha⟩) (hy₀ := ha) (hy₁ := ha) rfl rfl).2 id
@@ -339,46 +363,20 @@ private theorem clauseSat_falsum (hs : ⟨k, .falsum⟩ ∈ subformulas Φ.matri
 private theorem clauseSat_equal {t₁ t₂ : (L.sum (varLanguage Φ.arity)).Term (Empty ⊕ Fin k)}
     (hs : ⟨k, .equal t₁ t₂⟩ ∈ subformulas Φ.matrix) (hx) :
     ClauseSatisfied A ⟨.clause ⟨⟨k, .equal t₁ t₂⟩, hs⟩ 0, x, hx⟩ ↔
-      (A (atom ⟨⟨k, .equal t₁ t₂⟩, hs⟩ (Fin.init x)) ↔ x (termCoord t₁) = x (termCoord t₂)) := by
-  refine (clauseSat_iff A _).trans ?_
-  constructor
-  · rintro (⟨τ, hτ, hg, y, hy, hc, ha⟩ | ⟨τ, hτ, hg, y, hy, hc, ha⟩)
-    · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = Fin.init x := funext fun j => hc j _ rfl
-      exact iff_of_true ha ((realize_varEq _ _ _).1 hg)
-    · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = Fin.init x := funext fun j => hc j _ rfl
-      exact iff_of_false ha fun h => hg ((realize_varEq _ _ _).2 h)
-  · intro h
-    by_cases he : x (termCoord t₁) = x (termCoord t₂)
-    · exact .inl ⟨_, List.mem_singleton.2 rfl, (realize_varEq _ _ _).2 he, Fin.init x,
-        formula_realize_top, fun j i hj => by cases Option.some.inj hj; rfl, h.2 he⟩
-    · exact .inr ⟨_, List.mem_singleton.2 rfl,
-        fun h => he ((realize_varEq _ _ _).1 h), Fin.init x,
-        formula_realize_top, fun j i hj => by cases Option.some.inj hj; rfl, mt h.1 he⟩
+      (A (atom ⟨⟨k, .equal t₁ t₂⟩, hs⟩ (Fin.init x)) ↔ x (termCoord t₁) = x (termCoord t₂)) :=
+  (clauseSat_guarded A (c := ⟨.clause ⟨⟨k, .equal t₁ t₂⟩, hs⟩ 0, x, hx⟩) (t := .var _)
+    (g := Fin.castSucc) (hy := formula_realize_top) fun b => by cases b <;> rfl).trans
+    (iff_congr Iff.rfl (realize_varEq _ _ _))
 
 private theorem clauseSat_relInl {l : ℕ} {R : L.Relations l}
     {ts : Fin l → (L.sum (varLanguage Φ.arity)).Term (Empty ⊕ Fin k)}
     (hs : ⟨k, .rel (.inl R) ts⟩ ∈ subformulas Φ.matrix) (hx) :
     ClauseSatisfied A ⟨.clause ⟨⟨k, .rel (.inl R) ts⟩, hs⟩ 0, x, hx⟩ ↔
       (A (atom ⟨⟨k, .rel (.inl R) ts⟩, hs⟩ (Fin.init x)) ↔
-        RelMap R fun j => x (termCoord (ts j))) := by
-  refine (clauseSat_iff A _).trans ?_
-  constructor
-  · rintro (⟨τ, hτ, hg, y, hy, hc, ha⟩ | ⟨τ, hτ, hg, y, hy, hc, ha⟩)
-    · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = Fin.init x := funext fun j => hc j _ rfl
-      exact iff_of_true ha (Formula.realize_rel.1 hg)
-    · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = Fin.init x := funext fun j => hc j _ rfl
-      exact iff_of_false ha fun h => hg (Formula.realize_rel.2 h)
-  · intro h
-    by_cases he : RelMap R fun j => x (termCoord (ts j))
-    · exact .inl ⟨_, List.mem_singleton.2 rfl, Formula.realize_rel.2 he, Fin.init x,
-        formula_realize_top, fun j i hj => by cases Option.some.inj hj; rfl, h.2 he⟩
-    · exact .inr ⟨_, List.mem_singleton.2 rfl,
-        fun h => he (Formula.realize_rel.1 h), Fin.init x,
-        formula_realize_top, fun j i hj => by cases Option.some.inj hj; rfl, mt h.1 he⟩
+        RelMap R fun j => x (termCoord (ts j))) :=
+  (clauseSat_guarded A (c := ⟨.clause ⟨⟨k, .rel (.inl R) ts⟩, hs⟩ 0, x, hx⟩) (t := .var _)
+    (g := Fin.castSucc) (hy := formula_realize_top) fun b => by cases b <;> rfl).trans
+    (iff_congr Iff.rfl Formula.realize_rel)
 
 /-- The arguments of an atom of a relation variable, read from the coordinates of a clause. -/
 private def relArgs {l : ℕ} (r : (varLanguage Φ.arity).Relations l)
@@ -609,46 +607,38 @@ private theorem satisfies_canonicalAssignment (R : ∀ i, Set (Fin (Φ.arity i) 
     change Fin (k + 1) → M at x
     cases ψ with
     | falsum =>
-      fin_cases i
-      · exact (clauseSat_falsum _ x hs hx).2 id
-      · exact absurd hx (not_realize_domain_clause hs _ x)
-      · exact absurd hx (not_realize_domain_clause hs _ x)
+      fin_cases i <;> try exact absurd hx (not_realize_domain_clause hs _ x)
+      exact (clauseSat_falsum _ x hs hx).2 id
     | equal t₁ t₂ =>
-      fin_cases i
-      · refine (clauseSat_equal _ x hs hx).2 ?_
-        change t₁.realize _ = t₂.realize _ ↔ _
-        rw [term_realize, term_realize]
-      · exact absurd hx (not_realize_domain_clause hs _ x)
-      · exact absurd hx (not_realize_domain_clause hs _ x)
+      fin_cases i <;> try exact absurd hx (not_realize_domain_clause hs _ x)
+      refine (clauseSat_equal _ x hs hx).2 ?_
+      change t₁.realize _ = t₂.realize _ ↔ _
+      rw [term_realize, term_realize]
     | rel R ts =>
       rcases R with R | r
-      · fin_cases i
-        · refine (clauseSat_relInl _ x hs hx).2 ?_
-          change (RelMap R fun i => (ts i).realize _) ↔ _
-          simp only [term_realize]
-        · exact absurd hx (not_realize_domain_clause hs _ x)
-        · exact absurd hx (not_realize_domain_clause hs _ x)
+      · fin_cases i <;> try exact absurd hx (not_realize_domain_clause hs _ x)
+        refine (clauseSat_relInl _ x hs hx).2 ?_
+        change (RelMap R fun i => (ts i).realize _) ↔ _
+        simp only [term_realize]
       · have hiff : canonicalAssignment R (atom ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ (Fin.init x)) ↔
             canonicalAssignment R (relAtom r.1 (relArgs x r ts)) := by
           change (fun j => (ts (Fin.cast r.2 j)).realize _) ∈ R r.1 ↔ _
           simp only [term_realize]
           rfl
-        fin_cases i
+        fin_cases i <;> try exact absurd hx (not_realize_domain_clause hs _ x)
         · exact (clauseSat_relInr₀ _ x hs hx).2 hiff.1
         · exact (clauseSat_relInr₁ _ x hs hx).2 hiff.2
-        · exact absurd hx (not_realize_domain_clause hs _ x)
     | imp ψ χ =>
       fin_cases i
       · exact (clauseSat_imp₀ _ x hs hx).2 fun h h₁ => h h₁
       · refine (clauseSat_imp₁ _ x hs hx).2 (or_iff_not_imp_right.2 fun h h' => (h h').elim)
       · exact (clauseSat_imp₂ _ x hs hx).2 fun h _ => h
     | all ψ =>
-      fin_cases i
+      fin_cases i <;> try exact absurd hx (not_realize_domain_clause hs _ x)
       · refine (clauseSat_all₀ _ x hs hx).2 fun h => ?_
         have := h (x (Fin.last k))
         rwa [Fin.snoc_init_self] at this
       · exact (clauseSat_all₁ _ x hs hx).2 fun h => h
-      · exact absurd hx (not_realize_domain_clause hs _ x)
 
 /-- **The grounding is correct**: the grounding of `Φ` in a nonempty structure `M` is satisfiable
 exactly when `Φ` holds in `M`. -/

@@ -124,18 +124,10 @@ theorem arguments_fit (ha : Fits w (b + 2 * 2 ^ h)) {s : List ℕ} (o : Operatio
     obtain ⟨hi, hv⟩ := ho
     have hi' : Fits w i := ha.of_le (by omega)
     have hd : Fits w δ := hv.of_le (by omega)
-    simp only [program]
-    split
-    · exact fits_zero w
-    · split <;> assumption
+    simp only [program]; split_ifs <;> first | exact fits_zero w | assumption
   | sum i =>
-    have hi' : Fits w i := ha.of_le (by exact le_trans ho (by omega))
-    simp only [program]
-    split
-    · exact h1
-    · split
-      · exact fits_zero w
-      · exact hi'
+    have hi' : Fits w i := ha.of_le (le_trans ho (by omega))
+    simp only [program]; split_ifs <;> first | exact fits_zero w | assumption
 
 /-- Every operation uses the same dispatcher, restores the list representation and returns
 the specified result within `13 (h + 1) + 11` structured instructions. All memory outside the
@@ -162,9 +154,8 @@ theorem dispatch_spec (ha : Fits w (b + 2 * 2 ^ h)) {s : List ℕ} (o : Operatio
   cases o with
   | add i δ =>
     obtain ⟨hi, hv⟩ := ho
-    have htag : x'.regs tag = 0 := by simp +decide [x', program, DynamicProgram.prepare]
-    have hpos : x'.regs position = i := by simp +decide [x', program, DynamicProgram.prepare]
-    have hdel : x'.regs delta = δ := by simp +decide [x', program, DynamicProgram.prepare]
+    obtain ⟨htag, hpos, hdel⟩ : x'.regs tag = 0 ∧ x'.regs position = i ∧ x'.regs delta = δ := by
+      simp +decide [x', program, DynamicProgram.prepare]
     wram_exec *
     wram_call (updateLoop_spec (b := b) (i := i) (δ := δ) t
       (by constructor <;> regs_frame) hi
@@ -176,20 +167,18 @@ theorem dispatch_spec (ha : Fits w (b + 2 * 2 ^ h)) {s : List ℕ} (o : Operatio
     · simpa [spec, ht] using Tree.leaves_add t i δ hi
     · simpa [x', Data.set_mem, DynamicProgram.prepare] using hyframe
   | sum i =>
-    have htag : x'.regs tag = 1 := by simp +decide [x', program, DynamicProgram.prepare]
-    have hpos : x'.regs position = i := by simp +decide [x', program, DynamicProgram.prepare]
-    have hdel : x'.regs delta = 0 := by simp +decide [x', program, DynamicProgram.prepare]
+    obtain ⟨htag, hpos, hdel⟩ : x'.regs tag = 1 ∧ x'.regs position = i ∧ x'.regs delta = 0 := by
+      simp +decide [x', program, DynamicProgram.prepare]
     wram_exec *
     wram_call (queryLoop_spec (b := b) (i := i) (δ := 0) (a := 0) t
       (by constructor <;> regs_frame) ho (by wram_simp)
       (by simpa [x', Data.set_mem, DynamicProgram.prepare] using hrep) ha
       (by simpa [hrep.root] using hx.bounded.2 b)) with y ⟨hya, hym⟩
     intro hyb
-    refine ⟨by omega, ?_, ⟨hyb, by regs_frame, by regs_frame, t, ht, ?_⟩, ?_⟩
+    refine ⟨by omega, ?_, ⟨hyb, by regs_frame, by regs_frame, t, ht, ?_⟩,
+      fun a _ => by simp [x', hym, Data.set_mem, DynamicProgram.prepare]⟩
     · simpa [spec, t.prefixSum_eq_sum_take, ht] using hya
     · simpa [x', hym, Data.set_mem, DynamicProgram.prepare] using hrep
-    · intro a _
-      simp [x', hym, Data.set_mem, DynamicProgram.prepare]
 
 /-- Semantic correctness and totality of the fixed bounded-word implementation. -/
 def certificate (ha : Fits w (b + 2 * 2 ^ h)) : DynamicCertificate (program h w) w :=
@@ -252,16 +241,10 @@ theorem rep_zeroData (ha : Fits w (b + 2 * 2 ^ h)) :
     Rep h b w (Tree.zero h).leaves (zeroData h b) := by
   have hb : Fits w b := ha.of_le (by omega)
   have hn : Fits w (2 ^ h) := ha.of_le (by omega)
-  refine ⟨⟨?_, fun _ => fits_zero w⟩, ?_, ?_, Tree.zero h, rfl, Tree.rep_zero h b⟩
-  · intro j
-    simp only [zeroData]
-    split
-    · exact hb
-    · split
-      · exact hn
-      · exact fits_zero w
-  · simp +decide [zeroData]
-  · simp +decide [zeroData]
+  refine ⟨⟨fun j => ?_, fun _ => fits_zero w⟩, by simp +decide [zeroData],
+    by simp +decide [zeroData], Tree.zero h, rfl, Tree.rep_zero h b⟩
+  simp only [zeroData]
+  split_ifs <;> first | exact hb | exact hn | exact fits_zero w
 
 end Cslib.DataStructure.PrefixSums.WordRAM
 

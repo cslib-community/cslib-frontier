@@ -74,6 +74,16 @@ attribute [local simp] clientResult_pure_whp clientState_pure_whp
     let eres ← bufEnsureLoopGenProg ((rt, (zero_v, rKey)), brCTab rt)
     bufInsertLeafRtProg ((rt, eres.1), b_loc)
 
+/-- Child pointers and leaf items of a valid trie stay below their allocation counters. -/
+private theorem validBufTrie_shape {cTab bChar : ℕ} {tr : BufTrie}
+    {mapFn : ℕ → Option (ℕ × ℕ)} (hv : ValidBufTrie cTab bChar tr mapFn) :
+    (∀ v ch, tr.trieChild v ch < tr.nodeAlloc) ∧
+      ∀ w' < tr.nodeAlloc, tr.nodeLeafItem w' ≤ tr.itemAlloc :=
+  ⟨fun v ch => (eq_or_ne (tr.trieChild v ch) 0).elim (fun h => h ▸ hv.bounds.1)
+      (hv.bounds.2.2.1 v ch),
+    fun w' hw' => (eq_or_ne (tr.nodeLeafItem w') 0).elim (fun h => h ▸ Nat.zero_le _)
+      (hv.bounds.2.2.2 w' hw')⟩
+
 theorem bufInsertGenProg_spec {c U V w n_max base ep rKey b loc : ℕ}
     {tr : BufTrie} {mapFn : ℕ → Option (ℕ × ℕ)} {s : Memory.State}
     (henv : WhpLargeEnv c U V w n_max w base) (hep : ep = 0 ∨ ep = 1)
@@ -91,16 +101,7 @@ theorem bufInsertGenProg_spec {c U V w n_max base ep rKey b loc : ℕ}
     BufTrieMemRep base c U V w n_max ep tr' s'.mem ∧
     BufEpFrame base c U V w n_max ep s.mem s'.mem := by
   have hth := henv.2.2.2.1
-  have hchild_lt : ∀ v ch, tr.trieChild v ch < tr.nodeAlloc := by
-    intro v ch
-    by_cases hnz : tr.trieChild v ch = 0
-    · rw [hnz]; exact hv.bounds.1
-    · exact hv.bounds.2.2.1 v ch hnz
-  have hli_ia : ∀ w' < tr.nodeAlloc, tr.nodeLeafItem w' ≤ tr.itemAlloc := by
-    intro w' hw'
-    by_cases hnz : tr.nodeLeafItem w' = 0
-    · rw [hnz]; exact Nat.zero_le _
-    · exact hv.bounds.2.2.2 w' hw' hnz
+  obtain ⟨hchild_lt, hli_ia⟩ := validBufTrie_shape hv
   obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
   set rt := mkBufRt c U V w n_max base ep
@@ -155,16 +156,7 @@ theorem realizes_bufInsertGen :
     have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
-    have hchild_lt : ∀ v ch, tr.trieChild v ch < tr.nodeAlloc := by
-      intro v ch
-      by_cases hnz : tr.trieChild v ch = 0
-      · rw [hnz]; exact hv.bounds.1
-      · exact hv.bounds.2.2.1 v ch hnz
-    have hli_ia : ∀ w' < tr.nodeAlloc, tr.nodeLeafItem w' ≤ tr.itemAlloc := by
-      intro w' hw'
-      by_cases hnz : tr.nodeLeafItem w' = 0
-      · rw [hnz]; exact Nat.zero_le _
-      · exact hv.bounds.2.2.2 w' hw' hnz
+    obtain ⟨hchild_lt, hli_ia⟩ := validBufTrie_shape hv
     obtain ⟨hrt_st, hrt_res, _, _⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
     obtain ⟨hsafe, _, hres1, _, _, hrep1, _, hlf_lt1, hia_eq1, hli_le1⟩ :=

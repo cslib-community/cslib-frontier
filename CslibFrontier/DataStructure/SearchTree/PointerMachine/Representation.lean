@@ -70,9 +70,7 @@ theorem mem_addresses_iff (t : BinaryTree (Label M extra)) (a : ℕ) :
     simp only [Finset.mem_insert, Finset.mem_union, il, ir]
     constructor
     · rintro (h | ⟨p, u, hp, ha⟩ | ⟨p, u, hp, ha⟩)
-      · exact ⟨.one, label, rfl, h.symm⟩
-      · exact ⟨.bit0 p, u, hp, ha⟩
-      · exact ⟨.bit1 p, u, hp, ha⟩
+      exacts [⟨.one, label, rfl, h.symm⟩, ⟨.bit0 p, u, hp, ha⟩, ⟨.bit1 p, u, hp, ha⟩]
     · rintro ⟨p, u, hp, ha⟩
       cases p with
       | one =>
@@ -91,25 +89,16 @@ theorem AddressesDistinct.node_iff (label : Label M extra)
       Disjoint (addresses l) (addresses r) := by
   constructor
   · intro h
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · intro p q u v hp hq eq
-      exact PosNum.bit0.inj (h (.bit0 p) (.bit0 q) u v hp hq eq)
-    · intro p q u v hp hq eq
-      exact PosNum.bit1.inj (h (.bit1 p) (.bit1 q) u v hp hq eq)
-    · intro mem
-      obtain ⟨p, u, hp, eq⟩ := (mem_addresses_iff l label.address).mp mem
-      have bad := h (.bit0 p) .one u label hp rfl eq
-      cases bad
-    · intro mem
-      obtain ⟨p, u, hp, eq⟩ := (mem_addresses_iff r label.address).mp mem
-      have bad := h (.bit1 p) .one u label hp rfl eq
-      cases bad
-    · apply Finset.disjoint_left.mpr
-      intro a hl hr
-      obtain ⟨p, u, hp, eu⟩ := (mem_addresses_iff l a).mp hl
+    refine ⟨fun p q u v hp hq eq => PosNum.bit0.inj (h (.bit0 p) (.bit0 q) u v hp hq eq),
+      fun p q u v hp hq eq => PosNum.bit1.inj (h (.bit1 p) (.bit1 q) u v hp hq eq),
+      fun mem => ?_, fun mem => ?_, Finset.disjoint_left.mpr fun a hl hr => ?_⟩
+    · obtain ⟨p, u, hp, eq⟩ := (mem_addresses_iff l label.address).mp mem
+      cases h (.bit0 p) .one u label hp rfl eq
+    · obtain ⟨p, u, hp, eq⟩ := (mem_addresses_iff r label.address).mp mem
+      cases h (.bit1 p) .one u label hp rfl eq
+    · obtain ⟨p, u, hp, eu⟩ := (mem_addresses_iff l a).mp hl
       obtain ⟨q, v, hq, ev⟩ := (mem_addresses_iff r a).mp hr
-      have bad := h (.bit0 p) (.bit1 q) u v hp hq (eu.trans ev.symm)
-      cases bad
+      cases h (.bit0 p) (.bit1 q) u v hp hq (eu.trans ev.symm)
   · rintro ⟨hl, hr, nl, nr, dis⟩ p q u v hp hq eq
     cases p with
     | one =>

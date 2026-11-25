@@ -87,30 +87,26 @@ private theorem loop (t : BinaryTree (Label M extra)) (x : State M (layout extra
     refine Program.WP.loopUntil_iter (by simp [pm_simps, cursor, nil, root]) ?_
     by_cases less : x.data 0 < a.data 0
     · pm_exec [seekStep, read, record, compare, less]
-      refine (il _ (.left a r :: cs) (by exact rep.2.1) ?_ ?_ ?_ ?_).mono ?_
-      · simp
-      · simp [cursor, root, contextParent]
-      · simpa [SearchPath] using And.intro less path
-      · simp [nil]
+      refine (il _ (.left a r :: cs) (by exact rep.2.1) (by simp)
+        (by simp [cursor, root, contextParent])
+        (by simpa [SearchPath] using And.intro less path) (by simp [nil])).mono ?_
       rintro y n ⟨time, ds, f, sought, found⟩
-      refine ⟨?_, ds, f, by simpa [plug] using sought, ?_⟩
-      · simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte] at time ⊢
-        simp at time
-        omega
-      · simpa [keys, BinaryTree.map, contains, less] using found
+      refine ⟨?_, ds, f, by simpa [plug] using sought,
+        by simpa [keys, BinaryTree.map, contains, less] using found⟩
+      simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte] at time ⊢
+      simp at time
+      omega
     · by_cases greater : a.data 0 < x.data 0
       · pm_exec [seekStep, read, record, compare, less, greater]
-        refine (ir _ (.right l a :: cs) (by exact rep.2.2) ?_ ?_ ?_ ?_).mono ?_
-        · simp
-        · simp [cursor, root, contextParent]
-        · simpa [SearchPath] using And.intro greater path
-        · simp [nil]
+        refine (ir _ (.right l a :: cs) (by exact rep.2.2) (by simp)
+          (by simp [cursor, root, contextParent])
+          (by simpa [SearchPath] using And.intro greater path) (by simp [nil])).mono ?_
         rintro y n ⟨time, ds, f, sought, found⟩
-        refine ⟨?_, ds, f, by simpa [plug] using sought, ?_⟩
-        · simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte] at time ⊢
-          simp at time
-          omega
-        · simpa [keys, BinaryTree.map, contains, less, greater] using found
+        refine ⟨?_, ds, f, by simpa [plug] using sought,
+          by simpa [keys, BinaryTree.map, contains, less, greater] using found⟩
+        simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte] at time ⊢
+        simp at time
+        omega
       · pm_exec [seekStep, read, record, compare, less, greater]
         refine Program.WP.loopUntil_exit (by simp [pm_simps])
           ⟨?_, cs, .node a l r, ⟨by simp [cursor], by simp [parent], rfl, path,

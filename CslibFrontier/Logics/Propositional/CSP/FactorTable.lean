@@ -239,16 +239,7 @@ theorem contractionOn_eq_card_pow_mul_of_subset [Semiring R] [DecidableEq V] (d 
           (factors.map fun f =>
             f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).1 else 0).prod := by
         rw [Fintype.sum_prod_type_right]
-    _ = (Fintype.card ((T \ S : Finset V) → Fin d) : R) *
-          ∑ σ₁ : S → Fin d,
-            (factors.map fun f =>
-              f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).1 else 0).prod := by
-        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-    _ = ((d : R) ^ (T \ S).card) *
-          ∑ σ₁ : S → Fin d,
-            (factors.map fun f =>
-              f.evalAt d fun v => if h : v ∈ S then (σ₁ ⟨v, h⟩).1 else 0).prod := by
-        simp [Nat.cast_pow]
+    _ = _ := by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]; simp [Nat.cast_pow]
 
 /-- Disconnected lists of factor tables multiply over a commutative semiring. -/
 theorem contractionOn_append_of_disjoint [CommSemiring R] [DecidableEq V] (d : ℕ)
@@ -274,25 +265,18 @@ theorem contractionOn_append_of_disjoint [CommSemiring R] [DecidableEq V] (d : �
             f.evalAt d fun v => if h : v ∈ d₂ then (p.2 ⟨v, h⟩).1 else 0).prod := by
         refine Finset.sum_congr rfl fun p _ => ?_
         rw [List.map_append, List.prod_append]
-        congr 1
-        · refine prod_map_evalAt_congr fun f hf v hv => ?_
-          have hv₁ : v ∈ d₁ := h₁ (List.mem_toFinset.mpr (List.mem_flatMap.mpr ⟨f, hf, hv⟩))
-          have hvu : v ∈ d₁ ∪ d₂ := Finset.mem_union_left d₂ hv₁
-          have hleft := congrArg Fin.val
+        have hmem {fs : List (FactorTable R V)} {f v} (hf : f ∈ fs) (hv : v ∈ f.scope) :
+            v ∈ vars fs := List.mem_toFinset.mpr (List.mem_flatMap.mpr ⟨f, hf, hv⟩)
+        congr 1 <;> refine prod_map_evalAt_congr fun f hf v hv => ?_
+        · have hv₁ := h₁ (hmem hf hv)
+          have hvu := Finset.mem_union_left d₂ hv₁
+          simpa [eSplit, hv₁, hvu] using congrArg Fin.val
             (Equiv.piFinsetUnion_left (fun _ => Fin d) hdisj (f := p.1) (g := p.2) hv₁ hvu)
-          simpa [eSplit, hv₁, hvu] using hleft
-        · refine prod_map_evalAt_congr fun f hf v hv => ?_
-          have hv₂ : v ∈ d₂ := h₂ (List.mem_toFinset.mpr (List.mem_flatMap.mpr ⟨f, hf, hv⟩))
-          have hvu : v ∈ d₁ ∪ d₂ := Finset.mem_union_right d₁ hv₂
-          have hright := congrArg Fin.val
+        · have hv₂ := h₂ (hmem hf hv)
+          have hvu := Finset.mem_union_right d₁ hv₂
+          simpa [eSplit, hv₂, hvu] using congrArg Fin.val
             (Equiv.piFinsetUnion_right (fun _ => Fin d) hdisj (f := p.1) (g := p.2) hv₂ hvu)
-          simpa [eSplit, hv₂, hvu] using hright
-    _ = (∑ σ₁ : d₁ → Fin d,
-          (fs₁.map fun f => f.evalAt d fun v => if h : v ∈ d₁ then (σ₁ ⟨v, h⟩).1 else 0).prod) *
-          (∑ σ₂ : d₂ → Fin d,
-          (fs₂.map fun f =>
-            f.evalAt d fun v => if h : v ∈ d₂ then (σ₂ ⟨v, h⟩).1 else 0).prod) := by
-        rw [Fintype.sum_prod_type, Finset.sum_mul_sum]
+    _ = _ := by rw [Fintype.sum_prod_type, Finset.sum_mul_sum]
 
 /-- Disconnected factor tables multiply over `contraction`. -/
 theorem contraction_append_of_disjoint [CommSemiring R] [DecidableEq V] (d : ℕ)
@@ -386,16 +370,14 @@ preserving arbitrary repeated variables and empty scopes. -/
 theorem evalAt_ofConstraint [Zero R] [Inhabited D] (d : ℕ) (e : D ≃ Fin d)
     (wt : Rel → List D → R) (c : Constraint Rel V) (σ : V → D) :
     (ofConstraint d e wt c).evalAt d (fun v => (e (σ v)).1) = wt c.rel (c.scope.map σ) := by
-  have hlt : ∀ x ∈ c.scope.map (fun v => (e (σ v)).1), x < d := by
-    intro x hx
-    rcases List.mem_map.mp hx with ⟨v, _, rfl⟩
+  have hlt : ∀ x ∈ c.scope.map (fun v => (e (σ v)).1), x < d := fun x hx => by
+    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hx
     exact (e (σ v)).2
   have hidx : Nat.ofDigits d (c.scope.map fun v => (e (σ v)).1) < d ^ c.scope.length := by
     simpa [List.length_map] using ofDigits_lt_pow_length _ hlt
   have hdec : lsbDecode d c.scope.length (Nat.ofDigits d (c.scope.map fun v => (e (σ v)).1)) =
       c.scope.map fun v => (e (σ v)).1 := by
-    have := lsbDecode_ofDigits (c.scope.map fun v => (e (σ v)).1) hlt
-    simpa [List.length_map] using this
+    simpa [List.length_map] using lsbDecode_ofDigits _ hlt
   rw [evalAt, ofConstraint, Array.getD]
   dsimp only
   split_ifs with hsz
@@ -430,16 +412,9 @@ theorem contractionOn_ofCSP [Semiring R] [DecidableEq V] [Fintype D] [Inhabited 
   rw [CSP.weight]
   congr 1
   refine List.map_congr_left fun c hc => ?_
-  have hcvar : ∀ v ∈ c.scope, v ∈ declared := fun v hv =>
-    hvars (List.mem_toFinset.mpr (List.mem_flatMap.mpr ⟨c, hc, hv⟩))
-  have hcongr : (ofConstraint d e wt c).evalAt d
-      (fun v => if h : v ∈ declared then (σ ⟨v, h⟩).1 else 0) =
-      (ofConstraint d e wt c).evalAt d
-      (fun v => (e (if h : v ∈ declared then e.symm (σ ⟨v, h⟩) else default)).1) := by
-    refine evalAt_congr fun v hv => ?_
-    have hvd : v ∈ declared := hcvar v hv
-    simp [hvd]
-  rw [hcongr, evalAt_ofConstraint]
+  rw [← evalAt_ofConstraint d e wt c]
+  refine evalAt_congr fun v hv => ?_
+  simp [hvars (List.mem_toFinset.mpr (List.mem_flatMap.mpr ⟨c, hc, hv⟩))]
 
 /-- Contracting `ofCSP` over its occurring variables equals `F.partitionFunction wt`. -/
 theorem contraction_ofCSP [Semiring R] [DecidableEq V] [Fintype D] [Inhabited D]
@@ -516,10 +491,7 @@ theorem contractionOn_ofExplicitTensorNetwork [CommSemiring R]
     simp only [hi, hir, dite_true]
     have hassign : (eAssign σ ⟨i, hi⟩).toNat = (σ ⟨i, hir⟩).1 := by
       change (finTwoEquiv (σ ⟨i, hir⟩)).toNat = (σ ⟨i, hir⟩).1
-      rcases σ ⟨i, hir⟩ with ⟨_ | _ | k, hk⟩
-      · rfl
-      · rfl
-      · omega
+      rcases σ ⟨i, hir⟩ with ⟨_ | _ | k, hk⟩ <;> first | rfl | omega
     exact hassign.symm
   · have hir : i ∉ Finset.range net.numEdges := by simpa [Finset.mem_range] using hi
     simp [hi, hir]
@@ -534,17 +506,7 @@ theorem contraction_toExplicitTensorNetwork [CommSemiring R] (m : ℕ)
   rw [h]
   congr 1
   simp only [ofExplicitTensorNetwork, toExplicitTensorNetwork, List.map_map]
-  have hmap : ∀ fs : List (FactorTable R ℕ), fs.map
-      ((fun v => ({ scope := v.1, entries := v.2.toArray } : FactorTable R ℕ)) ∘
-        fun f => (f.scope, f.entries.toList)) = fs := by
-    intro fs
-    induction fs with
-    | nil => rfl
-    | cons f fs ih =>
-        cases f
-        simp only [List.map_cons, Function.comp_def, Array.toArray_toList]
-        exact congrArg (_ :: ·) ih
-  exact hmap factors
+  exact (List.map_congr_left fun _ _ => rfl).trans (List.map_id _)
 
 /-- Contracting a `DescribedNetwork T` whose vertex evaluator `eval` agrees with table lookup
 matches `FactorTable.contractionOn 2`. -/
@@ -567,17 +529,10 @@ theorem contractionOn_ofDescribedNetwork {T : Type*} [CommSemiring R]
       vertices := net.vertices.map fun v =>
         (v.1, (Array.ofFn fun i : Fin (2 ^ v.1.length) =>
           eval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0))).toList) }
-  have h1 : contractionOn 2
-      (net.vertices.map fun v =>
-        ({ scope := v.1
-           entries := Array.ofFn fun i : Fin (2 ^ v.1.length) =>
-             eval v.2 ((lsbDecode 2 v.1.length i.1).map fun k => decide (k ≠ 0)) } :
-          FactorTable R ℕ))
-      (Finset.range net.numEdges) =
-      contractionOn 2 (ofExplicitTensorNetwork netExp) (Finset.range netExp.numEdges) := by
-    congr 1
+  trans contractionOn 2 (ofExplicitTensorNetwork netExp) (Finset.range netExp.numEdges)
+  · congr 1
     simp [netExp, ofExplicitTensorNetwork, List.map_map]
-  rw [h1, contractionOn_ofExplicitTensorNetwork, ExplicitTensorNetwork.contraction,
+  rw [contractionOn_ofExplicitTensorNetwork, ExplicitTensorNetwork.contraction,
     DescribedNetwork.contraction]
   refine Finset.sum_congr rfl fun x _ => ?_
   simp only [netExp, List.map_map]
@@ -588,8 +543,7 @@ theorem contractionOn_ofDescribedNetwork {T : Type*} [CommSemiring R]
     refine List.map_congr_left fun i _ => ?_
     by_cases hi : i < net.numEdges
     · simp [netExp, hi]
-    · have hge : (List.ofFn x).length ≤ i := by simpa using Nat.le_of_not_lt hi
-      simp [netExp, hi, List.getD]
+    · simp [netExp, hi, List.getD]
   dsimp only [Function.comp_def]
   rw [hword, ExplicitTensorNetwork.entry,
     heval v hv _ (by simp [DescribedNetwork.wordBits]), ← list_toArray_getD]

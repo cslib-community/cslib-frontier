@@ -64,8 +64,8 @@ theorem Supported.cutAt (h : T.Supported) (cs : Finset (Copy F)) (a : Arc F) :
     (T.cutAt cs a).Supported := by
   intro e he
   obtain ⟨he, hc | hea⟩ := mem_filter.mp he
-  · exact ⟨(h e he).1, mem_insert_of_mem (mem_inter.mpr ⟨(h e he).2, hc⟩)⟩
-  · exact ⟨(h e he).1, hea ▸ mem_insert_self _ _⟩
+  exacts [⟨(h e he).1, mem_insert_of_mem (mem_inter.mpr ⟨(h e he).2, hc⟩)⟩,
+    ⟨(h e he).1, hea ▸ mem_insert_self _ _⟩]
 
 omit [DecidableEq V] in
 /-- Cutting deletes actual arcs and copies only. -/
@@ -74,8 +74,7 @@ theorem cutAt_subgraph (T : DAG F) (cs : Finset (Copy F)) {a : Arc F}
   refine ⟨Subset.rfl, ?_, fun _ he => (mem_filter.mp he).1⟩
   intro c hc
   rcases mem_insert.mp hc with rfl | hc
-  · exact (hs a ha).2
-  · exact (mem_inter.mp hc).1
+  exacts [(hs a ha).2, (mem_inter.mp hc).1]
 
 omit [DecidableEq V] in
 /-- Every copy of the cut has its old pair, except the selected boundary copy, which has
@@ -87,18 +86,13 @@ theorem PairedCopies.cutAt {cs : Finset (Copy F)} {a : Arc F}
         ∃ b ∈ (T.cutAt cs a).arcs, ∃ d ∈ (T.cutAt cs a).arcs,
           b.incoming = true ∧ b.copy = c ∧ d.copy = c ∧ b ≠ d ∧
             ∀ e ∈ (T.cutAt cs a).arcs, e.copy = c → e = b ∨ e = d := by
-  constructor
-  · intro e he hec
-    rcases (mem_filter.mp he).2 with hecs | hea
-    · exact (hc (hec ▸ hecs)).elim
-    · exact hea
-  · intro c hcm hca
-    have hcs := (mem_inter.mp ((mem_insert.mp hcm).resolve_left hca)).2
-    have hct := (mem_inter.mp ((mem_insert.mp hcm).resolve_left hca)).1
-    obtain ⟨b, hb, d, hd, hbi, hbc, hdc, hbd, hall⟩ := hp c hct
-    exact ⟨b, mem_filter.mpr ⟨hb, Or.inl (hbc ▸ hcs)⟩,
-      d, mem_filter.mpr ⟨hd, Or.inl (hdc ▸ hcs)⟩, hbi, hbc, hdc, hbd,
-      fun e he hec => hall e (mem_filter.mp he).1 hec⟩
+  refine ⟨fun e he hec => (mem_filter.mp he).2.resolve_left fun hecs => hc (hec ▸ hecs),
+    fun c hcm hca => ?_⟩
+  obtain ⟨hct, hcs⟩ := mem_inter.mp ((mem_insert.mp hcm).resolve_left hca)
+  obtain ⟨b, hb, d, hd, hbi, hbc, hdc, hbd, hall⟩ := hp c hct
+  exact ⟨b, mem_filter.mpr ⟨hb, Or.inl (hbc ▸ hcs)⟩,
+    d, mem_filter.mpr ⟨hd, Or.inl (hdc ▸ hcs)⟩, hbi, hbc, hdc, hbd,
+    fun e he hec => hall e (mem_filter.mp he).1 hec⟩
 
 omit [DecidableEq V] in
 /-- Cutting at the end of a paired subgraph retains its precise original arcs and the one
@@ -110,12 +104,10 @@ theorem cutAt_arcs {S : DAG F} (hT : T.PairedCopies) (hS : S.PairedCopies)
   constructor
   · intro he
     obtain ⟨het, hc | rfl⟩ := mem_filter.mp he
-    · exact mem_insert_of_mem (hT.full_copy hS hst het hc)
-    · exact mem_insert_self _ _
+    exacts [mem_insert_of_mem (hT.full_copy hS hst het hc), mem_insert_self _ _]
   · intro he
     rcases mem_insert.mp he with rfl | he
-    · exact mem_filter.mpr ⟨ha, Or.inr rfl⟩
-    · exact mem_filter.mpr ⟨hst.2.2 he, Or.inl (hs e he).2⟩
+    exacts [mem_filter.mpr ⟨ha, Or.inr rfl⟩, mem_filter.mpr ⟨hst.2.2 he, Or.inl (hs e he).2⟩]
 
 /-- Attach one actual original port at an already supported copied constraint. -/
 @[expose] def attachPort (T : DAG F) (a : Arc F) : DAG F where
@@ -135,30 +127,21 @@ theorem IsFDAG.attachPort (h : T.IsFDAG sem f) (a : Arc F)
       a.occurrence.1 = b.occurrence.1 → a.time < b.time →
         ¬ ValidLabeling sem (pairFlip f a.occurrence b.occurrence)) :
     (T.attachPort a).IsFDAG sem f := by
-  have hvar : ∀ b ∈ T.arcs, b.occurrence.var ≠ a.occurrence.var := by
-    intro b hb he
-    exact hx (he ▸ (h.supported b hb).1)
+  have hvar : ∀ b ∈ T.arcs, b.occurrence.var ≠ a.occurrence.var :=
+    fun b hb he => hx (he ▸ (h.supported b hb).1)
   refine ⟨h.valid, ?_, ?_, ?_, ⟨h.ordered.1, ?_⟩, ?_, ?_⟩
   · intro b hb
     rcases mem_insert.mp hb with rfl | hb
-    · exact ⟨mem_insert_self _ _, hc⟩
-    · exact ⟨mem_insert_of_mem (h.supported b hb).1, (h.supported b hb).2⟩
+    exacts [⟨mem_insert_self _ _, hc⟩,
+      ⟨mem_insert_of_mem (h.supported b hb).1, (h.supported b hb).2⟩]
   · intro b hb c hc he
-    rcases mem_insert.mp hb with hba | hb0 <;> rcases mem_insert.mp hc with hca | hc0
-    · exact hba.trans hca.symm
-    · subst b
-      exact ((hvar c hc0) (congrArg Occurrence.var he).symm).elim
-    · subst c
-      exact ((hvar b hb0) (congrArg Occurrence.var he)).elim
-    · exact h.unique b hb0 c hc0 he
+    rcases mem_insert.mp hb with rfl | hb0 <;> rcases mem_insert.mp hc with rfl | hc0
+    exacts [rfl, ((hvar c hc0) (congrArg Occurrence.var he).symm).elim,
+      ((hvar b hb0) (congrArg Occurrence.var he)).elim, h.unique b hb0 c hc0 he]
   · intro b hb c hc hbi hci he
-    rcases mem_insert.mp hb with hba | hb0 <;> rcases mem_insert.mp hc with hca | hc0
-    · exact hba.trans hca.symm
-    · subst b
-      exact ((hvar c hc0) he.symm).elim
-    · subst c
-      exact ((hvar b hb0) he).elim
-    · exact h.indegree b hb0 c hc0 hbi hci he
+    rcases mem_insert.mp hb with rfl | hb0 <;> rcases mem_insert.mp hc with rfl | hc0
+    exacts [rfl, ((hvar c hc0) he.symm).elim, ((hvar b hb0) he).elim,
+      h.indegree b hb0 c hc0 hbi hci he]
   · obtain ⟨oldRank, hr⟩ := h.ordered.2
     let top := T.nodes.sup oldRank
     let rank (n : Node F) :=
@@ -174,35 +157,23 @@ theorem IsFDAG.attachPort (h : T.IsFDAG sem f) (a : Arc F)
     rcases hxy with ⟨b, hb, rfl, rfl⟩ | ⟨c, hc, d, hd, hcd, rfl, rfl⟩
     · rcases mem_insert.mp hb with hba | hb0
       · subst b
-        cases he : a.incoming with
-        | false => simp [rank, Arc.source, Arc.target, he]; omega
-        | true => simp [rank, Arc.source, Arc.target, he]
+        cases he : a.incoming <;> simp [rank, Arc.source, Arc.target, he]
+        omega
       · have hh := hr _ _ (Or.inl ⟨b, hb0, rfl, rfl⟩)
         simpa only [rank, ite_eq_right (hends b hb0).1, ite_eq_right (hends b hb0).2] using
           Nat.add_lt_add_right hh 1
     · have hh := hr _ _ (Or.inr ⟨c, hc, d, hd, hcd, rfl, rfl⟩)
       simpa only [rank, Sum.inr_ne_inl, ↓reduceIte] using Nat.add_lt_add_right hh 1
   · intro b hb c hc hbi he
-    rcases mem_insert.mp hb with hba | hb0 <;> rcases mem_insert.mp hc with hca | hc0
-    · subst b
-      subst c
-      simpa only [pairFlip_self] using h.valid
-    · subst b
-      exact hp c hc0 he
-    · subst c
-      rw [pairFlip_comm]
-      exact hp b hb0 he.symm
+    rcases mem_insert.mp hb with rfl | hb0 <;> rcases mem_insert.mp hc with rfl | hc0
+    · simpa only [pairFlip_self] using h.valid
+    · exact hp c hc0 he
+    · rw [pairFlip_comm]; exact hp b hb0 he.symm
     · exact h.feasible b hb0 c hc0 hbi he
   · intro b hb c hc hbi he ht
-    rcases mem_insert.mp hb with hba | hb0 <;> rcases mem_insert.mp hc with hca | hc0
-    · subst b
-      subst c
-      omega
-    · subst b
-      exact hafter hbi c hc0 he ht
-    · subst c
-      exact hbefore b hb0 hbi he ht
-    · exact h.noShortcut b hb0 c hc0 hbi he ht
+    rcases mem_insert.mp hb with rfl | hb0 <;> rcases mem_insert.mp hc with rfl | hc0
+    exacts [absurd ht (lt_irrefl _), hafter hbi c hc0 he ht, hbefore b hb0 hbi he ht,
+      h.noShortcut b hb0 c hc0 hbi he ht]
 
 /-- Complete a cut blossom arm by one external port. The missing copy receives precisely
 the boundary port and its external mate; all other retained copies keep their original pair.
@@ -227,18 +198,12 @@ theorem IsFDAG.valid_complete_cut (h : T.IsFDAG sem f) (hp : T.PairedCopies)
   have hparts := hp.cutAt hc
   have has : a ∈ S.arcs := mem_filter.mpr ⟨ha, Or.inr rfl⟩
   have hbs : b.copy ∈ S.copies := hbc ▸ mem_insert_self _ _
-  have hab : a ≠ b := by
-    intro he
-    exact hx ((congrArg (fun e : Arc F => e.occurrence.var) he) ▸ (h.supported a ha).1)
-  have hnew : (S.attachPort b).IsFDAG sem f := hS.attachPort b hx hbs (by
-    intro e he hec
-    have hea := hparts.1 e he (hec.symm.trans hbc)
-    subst e
-    exact hv) (fun e he hei hex het =>
-      hbefore e (mem_filter.mp he).1 hei hex het) (by
-        intro hbi e he hex het
-        have hai : a.incoming = false := by simpa [b] using hbi
-        exact hafter hai e (mem_filter.mp he).1 hex het)
+  have hab : a ≠ b := fun he =>
+    hx ((congrArg (fun e : Arc F => e.occurrence.var) he) ▸ (h.supported a ha).1)
+  have hnew : (S.attachPort b).IsFDAG sem f := hS.attachPort b hx hbs
+    (fun e he hec => hparts.1 e he (hec.symm.trans hbc) ▸ hv)
+    (fun e he hei hex het => hbefore e (mem_filter.mp he).1 hei hex het)
+    fun hbi e he hex het => hafter (by simpa [b] using hbi) e (mem_filter.mp he).1 hex het
   apply hnew.valid_flip_of_pairedCopies hM
   intro c hcm
   by_cases hec : c = a.copy
@@ -246,8 +211,7 @@ theorem IsFDAG.valid_complete_cut (h : T.IsFDAG sem f) (hp : T.PairedCopies)
     have hpair : ∀ e ∈ (S.attachPort b).arcs, e.copy = a.copy → e = a ∨ e = b := by
       intro e he hec
       rcases mem_insert.mp he with rfl | he
-      · exact Or.inr rfl
-      · exact Or.inl (hparts.1 e he hec)
+      exacts [Or.inr rfl, Or.inl (hparts.1 e he hec)]
     cases hai : a.incoming with
     | false =>
       exact ⟨b, mem_insert_self _ _, a, mem_insert_of_mem has, by simp [b, hai],
@@ -259,7 +223,6 @@ theorem IsFDAG.valid_complete_cut (h : T.IsFDAG sem f) (hp : T.PairedCopies)
     refine ⟨d, mem_insert_of_mem hd, e, mem_insert_of_mem he, hdi, hdc, hec0, hde, ?_⟩
     intro q hq hqc
     rcases mem_insert.mp hq with rfl | hq
-    · exact (hec (hqc.symm.trans hbc)).elim
-    · exact hall q hq hqc
+    exacts [(hec (hqc.symm.trans hbc)).elim, hall q hq hqc]
 
 end Cslib.Logic.PL.CSP.DAG

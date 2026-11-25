@@ -115,27 +115,20 @@ theorem mem_of_extensions_of_and [Finite V] {R : Set (V → Bool)}
       obtain ⟨b, hb, hba, hbs⟩ := ih
       cases hai : a i with
       | true =>
-        refine ⟨b, hb, hba, ?_⟩
-        intro j hj
+        refine ⟨b, hb, hba, fun j hj => ?_⟩
         rcases Finset.mem_insert.mp hj with rfl | hj
-        · exact (hba j hai).trans hai.symm
-        · exact hbs j hj
+        exacts [(hba j hai).trans hai.symm, hbs j hj]
       | false =>
         obtain ⟨c, hc, hci, hca⟩ := hext i hai
-        refine ⟨fun j => b j && c j, hclosed b hb c hc, ?_, ?_⟩
-        · intro j hj
-          simp [hba j hj, hca j hj]
-        · intro j hj
-          rcases Finset.mem_insert.mp hj with rfl | hj
-          · simp [hci, hai]
-          · change (b j && c j) = a j
-            rw [hbs j hj]
-            cases haj : a j with
-            | false => simp
-            | true => simp [hca j haj]
+        refine ⟨fun j => b j && c j, hclosed b hb c hc, fun j hj => by simp [hba j hj, hca j hj],
+          fun j hj => ?_⟩
+        rcases Finset.mem_insert.mp hj with rfl | hj
+        · simp [hci, hai]
+        · change (b j && c j) = a j
+          rw [hbs j hj]
+          cases haj : a j <;> simp [hca j, haj]
   obtain ⟨b, hb, _, hba⟩ := extend Finset.univ
-  have : b = a := funext fun i => hba i (Finset.mem_univ i)
-  rwa [this] at hb
+  exact funext (fun i => hba i (Finset.mem_univ i)) ▸ hb
 
 /-- A tuple outside a finite AND-closed relation is separated by a Horn clause over the same
 variables. -/
@@ -149,11 +142,9 @@ theorem exists_separating_clause_of_and [Finite V] {R : Set (V → Bool)}
   have hns (b : V → Bool) : ns.eval b = true ↔ ∃ i, a i = true ∧ b i = false := by
     simp [ns, Clause.eval_eq_true_iff]
   have hnsHorn : ns.IsHorn := by simp [Clause.IsHorn, ns, List.filter_map]
-  have hnsa : ns.eval a = false := by
-    cases h : ns.eval a
-    · rfl
-    · obtain ⟨i, hi, hi'⟩ := (hns a).mp h
-      simp_all
+  have hnsa : ns.eval a = false := Bool.eq_false_iff.2 fun h => by
+    obtain ⟨i, hi, hi'⟩ := (hns a).mp h
+    simp_all
   by_cases hne : ∃ b ∈ R, ∀ i, a i = true → b i = true
   · have hn : ¬ ∀ i, a i = false → ∃ b ∈ R, b i = false ∧
         ∀ j, a j = true → b j = true := fun h => ha (mem_of_extensions_of_and hR a hne h)
@@ -163,21 +154,14 @@ theorem exists_separating_clause_of_and [Finite V] {R : Set (V → Bool)}
     · simp [Clause.IsHorn, ns, List.filter_map]
     · intro b hb
       by_cases hba : ∀ j, a j = true → b j = true
-      · have hbi : b i = true := by
-          cases h : b i
-          · obtain ⟨j, haj, hbj⟩ := hi b hb h
-            exact (hbj (hba j haj)).elim
-          · rfl
+      · have hbi : b i = true := (Bool.eq_false_or_eq_true _).resolve_right fun h =>
+          let ⟨j, haj, hbj⟩ := hi b hb h; hbj (hba j haj)
         simp [hbi]
-      · have : ∃ j, a j = true ∧ b j = false := by
-          push Not at hba
-          obtain ⟨j, haj, hbj⟩ := hba
-          exact ⟨j, haj, by simpa using hbj⟩
-        simp [((hns b).mpr this)]
+      · push Not at hba
+        obtain ⟨j, haj, hbj⟩ := hba
+        simp [(hns b).mpr ⟨j, haj, by simpa using hbj⟩]
     · simp [hai, hnsa]
-  · refine ⟨ns, hnsHorn, ?_, hnsa⟩
-    intro b hb
-    apply (hns b).mpr
+  · refine ⟨ns, hnsHorn, fun b hb => (hns b).mpr ?_, hnsa⟩
     have hn : ¬ ∀ i, a i = true → b i = true := fun h => hne ⟨b, hb, h⟩
     push Not at hn
     obtain ⟨i, hai, hbi⟩ := hn
@@ -195,9 +179,8 @@ theorem isPolymorphism_and_iff_exists_hornCNF [Finite V] (R : Set (V → Bool)) 
     let tuples : List (V → Bool) := Finset.univ.toList
     let bad := tuples.filter fun a => a ∉ R
     have sep : ∀ a ∈ bad, ∃ c : Clause V, c.IsHorn ∧
-        (∀ b ∈ R, c.eval b = true) ∧ c.eval a = false := by
-      intro a ha
-      exact exists_separating_clause_of_and hR (of_decide_eq_true (List.mem_filter.mp ha).2)
+        (∀ b ∈ R, c.eval b = true) ∧ c.eval a = false := fun a ha =>
+      exists_separating_clause_of_and hR (of_decide_eq_true (List.mem_filter.mp ha).2)
     choose cs hcs using fun a : {a // a ∈ bad} => sep a.1 a.2
     let φ : CNF V := bad.attach.map cs
     refine ⟨φ, ?_, fun a => ⟨?_, ?_⟩⟩
@@ -208,16 +191,12 @@ theorem isPolymorphism_and_iff_exists_hornCNF [Finite V] (R : Set (V → Bool)) 
       exact (CNF.eval_eq_true_iff _ _).mpr fun c hc => by
         obtain ⟨b, _, rfl⟩ := List.mem_map.mp hc
         exact (hcs b).2.1 a ha
-    · intro ha
-      by_contra hn
+    · refine fun ha => by_contra fun hn => ?_
       have hbad : a ∈ bad := by simp [bad, tuples, hn]
       have hm : cs ⟨a, hbad⟩ ∈ φ := List.mem_map.mpr ⟨⟨a, hbad⟩, by simp, rfl⟩
-      have ht := (CNF.eval_eq_true_iff _ _).mp ha _ hm
-      rw [(hcs ⟨a, hbad⟩).2.2] at ht
-      contradiction
+      simpa [(hcs ⟨a, hbad⟩).2.2] using (CNF.eval_eq_true_iff _ _).mp ha _ hm
   · rintro ⟨φ, hφ, heq⟩
-    have : R = {a | φ.eval a = true} := Set.ext heq
-    rw [this]
+    rw [show R = {a | φ.eval a = true} from Set.ext heq]
     exact CNF.isPolymorphism_and hφ
 
 /-- Complement the polarity of every literal, without changing variables or occurrences. -/
@@ -265,11 +244,7 @@ theorem CNF.isDualHorn_iff (φ : CNF V) : φ.IsDualHorn ↔ ∀ c ∈ φ, c.IsDu
 
 /-- Complementing all variables preserves satisfiability. -/
 @[simp] theorem CNF.satisfiable_flip (φ : CNF V) : φ.flip.Satisfiable ↔ φ.Satisfiable := by
-  constructor
-  · rintro ⟨a, ha⟩
-    exact ⟨fun i => !a i, by simpa using ha⟩
-  · rintro ⟨a, ha⟩
-    exact ⟨fun i => !a i, by simpa using ha⟩
+  constructor <;> exact fun ⟨a, ha⟩ => ⟨fun i => !a i, by simpa using ha⟩
 
 /-- Coordinatewise OR preservation becomes AND preservation under complementation. -/
 theorem isPolymorphism_or_iff_and_complement (R : Set (V → Bool)) :
@@ -279,9 +254,8 @@ theorem isPolymorphism_or_iff_and_complement (R : Set (V → Bool)) :
   rw [isPolymorphism_and_iff]
   constructor
   · intro h x hx y hy
-    have ht : ∀ j : Fin 2, (if j = 0 then (fun i => !x i) else (fun i => !y i)) ∈ R := by
-      intro j
-      fin_cases j <;> assumption
+    have ht : ∀ j : Fin 2, (if j = 0 then (fun i => !x i) else (fun i => !y i)) ∈ R :=
+      fun j => by fin_cases j <;> assumption
     simpa [Bool.not_and] using h _ ht
   · intro h a ha
     have hx : (fun i => !(a 0 i)) ∈ {a | (fun i => !a i) ∈ R} := by simpa using ha 0
@@ -302,9 +276,8 @@ theorem isPolymorphism_or_iff_exists_dualHornCNF [Finite V] (R : Set (V → Bool
   rw [isPolymorphism_or_iff_and_complement, isPolymorphism_and_iff_exists_hornCNF]
   constructor
   · rintro ⟨φ, hφ, heq⟩
-    refine ⟨φ.flip, by simpa [CNF.IsDualHorn] using hφ, ?_⟩
-    intro a
-    simpa using heq (fun i => !a i)
+    exact ⟨φ.flip, by simpa [CNF.IsDualHorn] using hφ,
+      fun a => by simpa using heq (fun i => !a i)⟩
   · rintro ⟨φ, hφ, heq⟩
     exact ⟨φ.flip, hφ, fun a => by simpa using heq (fun i => !a i)⟩
 

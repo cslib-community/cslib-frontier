@@ -97,10 +97,8 @@ private theorem loop (t : BinaryTree (Label M extra))
         rec.data = label.data ∧ rec.data 0 = x.data 0) := by
   induction t generalizing x parent with
   | nil =>
-    refine ⟨none, x.data 1, 1, by simp [keys], .single ?_, rfl, ?_⟩
-    · simp [step, search, pc, cursor, root, nil, Instr.next, Instr.effect, next,
-        State.setPtr]
-    · intro a ha; cases ha
+    refine ⟨none, x.data 1, 1, by simp [keys], .single ?_, rfl, nofun⟩
+    simp [step, search, pc, cursor, root, nil, Instr.next, Instr.effect, next, State.setPtr]
   | node a l r il ir =>
     have read : x.deref 0 = some (record (root l) (root r) parent a) := by
       simpa [State.deref, cursor, root] using rep.1
@@ -110,41 +108,34 @@ private theorem loop (t : BinaryTree (Label M extra))
       obtain ⟨p, v, n, bound, run, found, key⟩ := il y (some a.address) rep.2.1
         (by simp [y, next, State.setPtr]) rfl (by simp [y, next, State.setPtr, nil])
       have first := left_steps lt compare x _ pc nil addr read less
-      refine ⟨p, v, 5 + n, ?_, ?_, ?_, ?_⟩
-      · simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte]
-        have b : n ≤ 6 * searchVisits (x.data 0) (keys l) + 1 := by
-          simpa [y, next] using bound
-        change 5 + n ≤ 6 * (1 + searchVisits (x.data 0) (keys l)) + 1
-        omega
-      · simpa [record, y, next, State.setPtr, Function.update_idem] using first.trans run
-      · simpa [keys, BinaryTree.map, contains, less, y, next] using found
-      · intro b hb
-        obtain ⟨path, label, rec, hp, ha, hr, hd, hk⟩ := key b hb
-        exact ⟨.bit0 path, label, rec, hp, ha, hr, hd, hk⟩
+      refine ⟨p, v, 5 + n, ?_,
+        by simpa [record, y, next, State.setPtr, Function.update_idem] using first.trans run,
+        by simpa [keys, BinaryTree.map, contains, less, y, next] using found,
+        fun b hb => (key b hb).elim fun path h => ⟨.bit0 path, h⟩⟩
+      have b : n ≤ 6 * searchVisits (x.data 0) (keys l) + 1 := by simpa [y, next] using bound
+      simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte]
+      change 5 + n ≤ 6 * (1 + searchVisits (x.data 0) (keys l)) + 1
+      omega
     · by_cases greater : a.data 0 < x.data 0
       · let y := next x (root r) (a.data 0) 1
         obtain ⟨p, v, n, bound, run, found, key⟩ := ir y (some a.address) rep.2.2
           (by simp [y, next, State.setPtr]) rfl (by simp [y, next, State.setPtr, nil])
         have first := right_steps lt compare x _ pc nil addr read less greater
-        refine ⟨p, v, 6 + n, ?_, ?_, ?_, ?_⟩
-        · simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte]
-          have b : n ≤ 6 * searchVisits (x.data 0) (keys r) + 1 := by
-            simpa [y, next] using bound
-          change 6 + n ≤ 6 * (1 + searchVisits (x.data 0) (keys r)) + 1
-          omega
-        · simpa [record, y, next, State.setPtr, Function.update_idem] using first.trans run
-        · simpa [keys, BinaryTree.map, contains, less, greater, y, next] using found
-        · intro b hb
-          obtain ⟨path, label, rec, hp, ha, hr, hd, hk⟩ := key b hb
-          exact ⟨.bit1 path, label, rec, hp, ha, hr, hd, hk⟩
+        refine ⟨p, v, 6 + n, ?_,
+          by simpa [record, y, next, State.setPtr, Function.update_idem] using first.trans run,
+          by simpa [keys, BinaryTree.map, contains, less, greater, y, next] using found,
+          fun b hb => (key b hb).elim fun path h => ⟨.bit1 path, h⟩⟩
+        have b : n ≤ 6 * searchVisits (x.data 0) (keys r) + 1 := by simpa [y, next] using bound
+        simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte]
+        change 6 + n ≤ 6 * (1 + searchVisits (x.data 0) (keys r)) + 1
+        omega
       · have equal : x.data 0 = a.data 0 := le_antisymm (le_of_not_gt greater) (le_of_not_gt less)
-        refine ⟨some a.address, a.data 0, 4, ?_, ?_, ?_, ?_⟩
-        · simp [keys, BinaryTree.map, searchVisits, less, greater]
-        · simpa [cursor, root, record] using found_steps lt compare x _ pc nil addr read equal
-        · simp [keys, BinaryTree.map, contains, less, greater]
-        · intro b hb
-          cases Option.some.inj hb
-          exact ⟨.one, a, _, rfl, rfl, rep.1, rfl, equal.symm⟩
+        refine ⟨some a.address, a.data 0, 4,
+          by simp [keys, BinaryTree.map, searchVisits, less, greater],
+          by simpa [cursor, root, record] using found_steps lt compare x _ pc nil addr read equal,
+          by simp [keys, BinaryTree.map, contains, less, greater], ?_⟩
+        rintro b ⟨⟩
+        exact ⟨.one, a, _, rfl, rfl, rep.1, rfl, equal.symm⟩
 
 /-- Search returns a matching node or null and preserves the heap and every register
 outside its declared cursor, null and temporary registers. -/

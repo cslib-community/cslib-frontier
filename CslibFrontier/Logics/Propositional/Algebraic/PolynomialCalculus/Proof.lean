@@ -88,13 +88,9 @@ empty list. -/
 
 /-- A PC proof has degree at most `d` exactly when every line has total degree at most `d`. -/
 theorem degree_le_iff {ls : List (MvPolynomial V R)} {d : ℕ} :
-    degree ls ≤ d ↔ ∀ p ∈ ls, p.totalDegree ≤ d := by
-  constructor
-  · intro h p hp
-    exact (List.le_max_of_le (List.mem_map.mpr ⟨p, hp, rfl⟩) le_rfl).trans h
-  · intro h
-    apply List.max_le_of_forall_le
-    simpa only [List.forall_mem_map] using h
+    degree ls ≤ d ↔ ∀ p ∈ ls, p.totalDegree ≤ d :=
+  ⟨fun h p hp => (List.le_max_of_le (List.mem_map.mpr ⟨p, hp, rfl⟩) le_rfl).trans h,
+    fun h => List.max_le_of_forall_le _ _ (List.forall_mem_map.2 h)⟩
 
 /-! ### Proofs -/
 
@@ -189,23 +185,19 @@ theorem exists_isProof_monomial_mul {F : List (MvPolynomial V R)}
               Finsupp.single v 1 + (Finsupp.single v n + m) by
                 rw [Finsupp.single_add]; abel,
             monomial_single_add, pow_one, mul_assoc]
-        have hcard : (X v * q).support.card ≤ f.support.card := by
-          rw [← heq]
-          exact card_support_monomial_mul_le _ _ _
-        refine ⟨X v * q :: ls, hls.mulVar v hmem, ?_, ?_, ?_⟩
-        · rw [heq]; exact List.mem_cons_self
+        have hcard : (X v * q).support.card ≤ f.support.card :=
+          heq ▸ card_support_monomial_mul_le _ _ _
+        refine ⟨X v * q :: ls, hls.mulVar v hmem, heq ▸ List.mem_cons_self, ?_, ?_⟩
         · simp only [size_cons, map_add, Finsupp.degree_single, Nat.add_mul, Nat.one_mul]
             at hs ⊢
           omega
-        · rw [degree_cons, max_le_iff]
-          constructor
-          · rw [← heq]
-            have hmono : (monomial (Finsupp.single v (n + 1) + m) (1 : R)).totalDegree ≤
-                (Finsupp.single v (n + 1) + m).degree := totalDegree_monomial_le _ _
-            exact (totalDegree_mul _ _).trans
-              ((Nat.add_le_add_right hmono _).trans_eq (Nat.add_comm _ _))
-          · simp only [map_add, Finsupp.degree_single] at hd ⊢
-            omega
+        · rw [degree_cons, max_le_iff, ← heq]
+          have hmono : (monomial (Finsupp.single v (n + 1) + m) (1 : R)).totalDegree ≤
+              (Finsupp.single v (n + 1) + m).degree := totalDegree_monomial_le _ _
+          refine ⟨(totalDegree_mul _ _).trans
+            ((Nat.add_le_add_right hmono _).trans_eq (Nat.add_comm _ _)), ?_⟩
+          simp only [map_add, Finsupp.degree_single] at hd ⊢
+          omega
     exact hm k
 
 /-- Derive the nonzero sum `∑ i ∈ t, C (a i) * p i` in one PC proof of degree at most `d`
@@ -221,11 +213,10 @@ theorem exists_isProof_sum {ι : Type*} {F : List (MvPolynomial V R)}
       size ls ≤ (∑ i ∈ t, w i) ^ 2 + ∑ i ∈ t, c i ∧ degree ls ≤ d := by
   classical
   have hscale (i : ι) : (C (a i) * p i).support.card ≤ (p i).support.card := by
-    rw [C_mul']
-    exact Finset.card_le_card support_smul
+    rw [C_mul']; exact Finset.card_le_card support_smul
   have hsum (u : Finset ι) (hu : ∀ i ∈ u, (p i).support.card ≤ w i) :
-      (∑ i ∈ u, C (a i) * p i).support.card ≤ ∑ i ∈ u, w i := by
-    exact (Finset.card_le_card support_sum).trans
+      (∑ i ∈ u, C (a i) * p i).support.card ≤ ∑ i ∈ u, w i :=
+    (Finset.card_le_card support_sum).trans
       (Finset.card_biUnion_le.trans
         (Finset.sum_le_sum fun i hi => (hscale i).trans (hu i hi)))
   induction t using Finset.induction with
@@ -256,14 +247,11 @@ theorem exists_isProof_sum {ι : Type*} {F : List (MvPolynomial V R)}
         w i + ∑ j ∈ t, w j := by
       simpa only [Finset.sum_insert hit] using hsum (insert i t) hw
     by_cases hzero : ∑ j ∈ t, C (a j) * p j = 0
-    · refine ⟨C (a i) * p i :: ls, ?_, ?_, ?_, ?_⟩
-      · simpa using hls.linear (a i) 0 hmem hmem
-      · simp [hzero]
-      · simp only [size_cons]
-        have hc : (C (a i) * p i).support.card ≤ w i :=
-          (hscale i).trans (hw i (Finset.mem_insert_self i t))
-        omega
-      · exact max_le hdpi hd
+    · have hc := (hscale i).trans (hw i (Finset.mem_insert_self i t))
+      refine ⟨C (a i) * p i :: ls, by simpa using hls.linear (a i) 0 hmem hmem, by simp [hzero],
+        ?_, max_le hdpi hd⟩
+      simp only [size_cons]
+      omega
     · obtain ⟨ls', hls', hmem', hs', hd'⟩ := ih hwt hpt hzero
       refine ⟨(C (a i) * p i + ∑ j ∈ t, C (a j) * p j) :: (ls ++ ls'), ?_,
         List.mem_cons_self, ?_, ?_⟩
@@ -272,11 +260,9 @@ theorem exists_isProof_sum {ι : Type*} {F : List (MvPolynomial V R)}
       · rw [size_cons, size_append]
         omega
       · rw [degree_cons, max_le_iff]
-        constructor
-        · exact (totalDegree_add _ _).trans
-            (max_le hdpi (degree_le_iff.mp hd' _ hmem'))
-        · exact degree_le_iff.mpr (List.forall_mem_append.mpr
-            ⟨degree_le_iff.mp hd, degree_le_iff.mp hd'⟩)
+        exact ⟨(totalDegree_add _ _).trans (max_le hdpi (degree_le_iff.mp hd' _ hmem')),
+          degree_le_iff.mpr (List.forall_mem_append.mpr
+            ⟨degree_le_iff.mp hd, degree_le_iff.mp hd'⟩)⟩
 
 /-- `F` has a Polynomial Calculus refutation of size at most `s`. -/
 @[expose] def RefutableInSize (F : List (MvPolynomial V R)) (s : ℕ) : Prop :=

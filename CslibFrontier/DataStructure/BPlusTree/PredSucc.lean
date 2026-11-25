@@ -201,8 +201,7 @@ private theorem pred?_eq_of (ht : 2 ≤ t) (k : α) :
   | .node first ((s, c) :: rest), hp, hs, ho => by
     have hf : Occupied t first := ho first (by simp)
     have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
+    have hs' := List.isSortedAssoc_append_iff.1 (toList_node_cons ▸ hs)
     rw [pred?_node_cons, toList_node_cons, SortedAssoc.pred?_append]
     by_cases hk : s ≤ k
     · simp only [hk, ↓reduceIte]
@@ -211,9 +210,7 @@ private theorem pred?_eq_of (ht : 2 ≤ t) (k : α) :
       rw [hf.max?_eq ht, SortedAssoc.pred?_def (l := first.toList),
         List.filter_eq_self.2 fun p hp' => by simpa using hlt p hp']
       congr 1
-      exact pred?_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-        simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-        exact Or.inr hd)
+      exact pred?_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (.tail _ hd)
     · simp only [hk, ↓reduceIte]
       rw [SortedAssoc.pred?_eq_none_iff.2 fun q hq =>
         (lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)).le,
@@ -237,17 +234,14 @@ private theorem succ?_eq_of (ht : 2 ≤ t) (k : α) :
   | .node first ((s, c) :: rest), hp, hs, ho => by
     have hf : Occupied t first := ho first (by simp)
     have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
+    have hs' := List.isSortedAssoc_append_iff.1 (toList_node_cons ▸ hs)
     rw [succ?_node_cons, toList_node_cons, SortedAssoc.succ?_append]
     by_cases hk : s ≤ k
     · simp only [hk, ↓reduceIte]
       rw [SortedAssoc.succ?_eq_none_iff.2 fun p hp' =>
         (lt_of_lt_of_le (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') hk).le,
         Option.none_or]
-      exact succ?_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-        simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-        exact Or.inr hd)
+      exact succ?_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (.tail _ hd)
     · simp only [hk, ↓reduceIte]
       have hgt : ∀ q ∈ (BPlusTree.node c rest).toList, k < q.1 := fun q hq =>
         lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)
