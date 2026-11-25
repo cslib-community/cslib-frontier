@@ -210,17 +210,21 @@ the input: `F x n = Φₑ^{p ⊕ x}(n)`. -/
 theorem exists_code_continuous :
     ∃ e : Code, ∀ F : (ℕ → ℕ) → ℕ → ℕ, Continuous F → ∃ p : ℕ → ℕ, ∀ (x : ℕ → ℕ) n,
       eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) e n = Part.some (F x n) := by
-  obtain ⟨e, he⟩ := hasUniformCode_search
-  refine ⟨e, fun F hF => ⟨fun m => nbhd F m.unpair.1 (ofNat (List ℕ) m.unpair.2), fun x n => ?_⟩⟩
-  rw [he (_, x)]
-  simp only [Nat.unpair_pair, ofNat_encode]
-  obtain ⟨k, hk⟩ := continuous_iff_forall_exists_cylinder.1 hF x n
-  have hnz := nbhd_ne_zero hk
-  have hdom : (Nat.rfind fun k => Part.some (decide (1 - nbhd F n (prefixOf x k) = 0))).Dom :=
-    Nat.rfind_dom.2 ⟨k, Part.mem_some_iff.2 (decide_eq_true (by omega)).symm, fun _ => trivial⟩
-  have hspec := of_decide_eq_true (Part.mem_some_iff.1 (Nat.rfind_spec (Part.get_mem hdom))).symm
-  rw [← Part.some_get hdom, Part.map_some, nbhd_eq (by omega)]
-  simp
+  obtain ⟨e, he⟩ := exists_code_isAssociate
+  exact ⟨e, fun F hF => ⟨_, he F _ (isAssociate_nbhd hF)⟩⟩
+
+/-- **The use principle for a joined input.** A convergent computation relative to `p ⊕ x`
+converges to the same value relative to `p ⊕ y` for every `y` in some cylinder around `x`. -/
+theorem exists_cylinder_of_mem_eval_join {p x : ℕ → ℕ} {c : Code} {n v : ℕ}
+    (h : v ∈ eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) c n) :
+    ∃ N, ∀ y ∈ cylinder x N, v ∈ eval ((p : ℕ →. ℕ) ⊕ (y : ℕ →. ℕ)) c n := by
+  rw [Partrec.join_coe] at h
+  obtain ⟨N, hN⟩ := exists_use h
+  refine ⟨N, fun y hy => ?_⟩
+  rw [Partrec.join_coe]
+  refine hN _ fun i hi => ?_
+  have hdiv : i.div2 < N := lt_of_le_of_lt (by simp [Nat.div2_val, Nat.div_le_self]) hi
+  cases i.bodd <;> simp [mem_cylinder_iff.1 hy _ hdiv]
 
 /-- **Computable maps are continuous.** A total map on Baire space that one code computes
 relative to the join of a fixed oracle `p` with the input is continuous. -/
