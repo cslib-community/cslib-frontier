@@ -789,9 +789,7 @@ private theorem dpRelax_inv [AddCommGroup W] [LinearOrder W]
     (harcs : ∀ a ∈ arcs, 0 < f.resCap a) (k : ℕ) :
     DpInv M f k (dpRelax M arcs k) := by
   induction k with
-  | zero =>
-    intro v
-    exact ⟨⟨v, by simp [dpRelax, Flow.IsResWalk]⟩, rfl, le_rfl⟩
+  | zero => exact fun v => ⟨⟨v, by simp [dpRelax, Flow.IsResWalk]⟩, rfl, le_rfl⟩
   | succ k ih =>
     rw [dpRelax, Function.iterate_succ_apply']
     exact dpStep_preserves harcs ih
@@ -1293,16 +1291,14 @@ feasible flows on `N` with the same `value` as `f`. -/
     by_cases hst : N.s = N.t
     · have hg0 : val = 0 := hg.symm.trans (g.value_eq_zero_of_s_eq_t hst)
       subst hg0
-      by_cases hvs : v = N.s
-      · subst hvs; simpa [Network.Flow.value] using hg
+      obtain rfl | hvs := eq_or_ne v N.s
+      · simpa [Network.Flow.value] using hg
       · simp [hst, g.netOut_eq_zero hvs (hst ▸ hvs)]
-    · by_cases hvs : v = N.s
-      · subst hvs
-        simp only [hst, ↓reduceIte, sub_zero]
+    · obtain rfl | hvs := eq_or_ne v N.s
+      · simp only [hst, ↓reduceIte, sub_zero]
         exact hg
-      · by_cases hvt : v = N.t
-        · subst hvt
-          have htot : ∑ x : V, g.netOut x = 0 := by
+      · obtain rfl | hvt := eq_or_ne v N.t
+        · have htot : ∑ x : V, g.netOut x = 0 := by
             simp only [Network.Flow.netOut, Finset.sum_sub_distrib]
             exact sub_eq_zero.mpr Finset.sum_comm
           have hrest := Fintype.sum_eq_add N.s N.t hst fun x hx => g.netOut_eq_zero hx.1 hx.2
