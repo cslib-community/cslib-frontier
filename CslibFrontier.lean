@@ -1473,6 +1473,9 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.Tas
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.WordCode
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Capacity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Counts
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EndUnits
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.EverHeld
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Given
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Holders
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Laws
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Moves
@@ -3928,6 +3931,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.TraceExponent
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.TranslatedCoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.TranslatedPoint
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Complexity.Reduction.Autoreducibility
 public import CslibFrontier.Computability.Complexity.Reduction.BoundedOracle
@@ -6476,6 +6480,7 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordSeedExtractio
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChallenge
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReduction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingLaw
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
@@ -6787,12 +6792,14 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.ACTMQ
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.IssuerBridge
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.PolyTime
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTarget
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTargetPolyTime
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.Interactive
 public import CslibFrontier.Crypto.Protocols.BCS.ROM

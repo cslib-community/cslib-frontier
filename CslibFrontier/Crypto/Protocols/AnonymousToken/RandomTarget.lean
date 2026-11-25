@@ -30,10 +30,12 @@ redemption run yields an accepting one-more run, giving a success bound with coe
 The target sampler remains explicit. In the ideal UOV instance it is an independent uniform
 vector, and optional preimages retain the real failure probability of the supplied finite signer.
 
-This is an original finite extracted single-issuer composition step. It does not realize the
-public slot labels by a random oracle, extract witnesses from redemption proofs, hide an issuer,
-or certify polynomial runtime. The complete multi-issuer VOLE-IHAT proof and those extraction
-and random-oracle obligations remain issue #7068.
+This is an original finite extracted single-issuer composition step; uniform polynomial-time
+certification (`reduceRedemptionsWord`) is provided in
+`CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTargetPolyTime`. It does not realize the
+public slot labels by a random oracle, extract witnesses from redemption proofs, or hide an
+issuer. The complete multi-issuer VOLE-IHAT proof and those extraction and random-oracle
+obligations remain issue #7068.
 
 ## Main definitions
 

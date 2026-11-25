@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCa
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
@@ -449,5 +450,17 @@ example : ∃ word : List Bool, word.length = coordinateFingerprintWitnessWidth 
     fin_cases i <;> unfold CoordinateFingerprint.Bounded <;> decide
   obtain ⟨word, hw, hd⟩ := exists_coordinateFingerprintWitness f hf
   exact ⟨word, hw, hd 0, hd 1⟩
+
+-- Both the raw witness word and the binary address are evaluator inputs.
+example :
+    let F : MvPolynomial (Fin 1) ℤ := X 0
+    let C : Controlled (fun _ : List Bool => F) encBits 0 :=
+      Controlled.coordinate (.const 1) (fun _ => 0) (.const 0)
+    let labels := C.wordCoordinateFingerprintLabels (d := fun _ => 1) Decoder.bits
+      (fun _ => by decide) (fun _ => by decide) (fun _ => (totalDegree_X_le 0).trans (by decide))
+      (.const 1) id ComputableInPolyTime.id'
+    labels.evaluate ∈ CountingFunction 20 (encEvaluation (encPair encBits encNat)) encNat := by
+  intro F C labels
+  exact labels.evaluate_mem
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

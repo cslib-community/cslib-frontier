@@ -472,6 +472,30 @@ class AggregatorTests(unittest.TestCase):
                                      selection == source == "success" and lean == expected)
 
 
+class HandoffOrderingTests(unittest.TestCase):
+    """Every unit-replacing build handoff precedes remote-cache top-up, and exact hits skip it."""
+
+    def test_all_handoffs_precede_remote_cache_and_exact_hits_skip_redundant_top_up(self):
+        steps = job_steps(WORKFLOW.read_text(), "lean-checks")
+        names = [step.get("name") for step in steps]
+        remote_idx = names.index("Restore build outputs from the remote cache")
+        for handoff_name in (
+            "Restore nearest ancestor merge-group build outputs",
+            "Restore PR base merge-group build outputs",
+            "Restore validated merge-group build outputs",
+        ):
+            with self.subTest(handoff=handoff_name):
+                self.assertLess(names.index(handoff_name), remote_idx)
+        pr_step = steps[names.index("Restore PR base merge-group build outputs")]
+        main_step = steps[names.index("Restore validated merge-group build outputs")]
+        remote_step = steps[remote_idx]
+        self.assertEqual(pr_step.get("id"), "pr-handoff")
+        self.assertEqual(main_step.get("id"), "main-handoff")
+        self.assertIn("steps.pr-handoff.outputs.restored != 'true'", remote_step["if"])
+        self.assertIn("steps.main-handoff.outputs.restored != 'true'", remote_step["if"])
+        self.assertNotIn("steps.ancestor-handoff", remote_step["if"])
+
+
 TIDY = "          python3 -B scripts/check_tidy_surface.py\n"
 REGISTRY = ('      - name: "Result registry references"\n'
             "        run: python3 -B scripts/results_registry.py --compiled\n")
