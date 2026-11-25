@@ -263,54 +263,39 @@ theorem existsUnique_centerParent (N : Neighborhood) :
     ∃! p : Index,
       childBlock p 0 0 = N.cell 1 1 ∧ childBlock p 1 0 = N.cell 2 1 ∧
       childBlock p 0 1 = N.cell 1 2 ∧ childBlock p 1 1 = N.cell 2 2 := by
-  let x1 := N.cell 1 1
-  let x2 := N.cell 2 1
-  let u1 := N.cell 1 2
-  let u2 := N.cell 2 2
-  have hh11 : (tile (components x1)).right = (tile (components x2)).left := N.horizontal 1 1
-  have hv11 : (tile (components x1)).top = (tile (components u1)).bottom := N.vertical 1 1
-  have hh12 : (tile (components u1)).right = (tile (components u2)).left := N.horizontal 1 2
-  have hv21 : (tile (components x2)).top = (tile (components u2)).bottom := N.vertical 2 1
-  have hv10 : (tile (components (N.cell 1 0))).top = (tile (components x1)).bottom := N.vertical 1 0
-  have hv20 : (tile (components (N.cell 2 0))).top = (tile (components x2)).bottom := N.vertical 2 0
-  have hh10 : (tile (components (N.cell 1 0))).right = (tile (components (N.cell 2 0))).left :=
-    N.horizontal 1 0
-  have hh01 : (tile (components (N.cell 0 1))).right = (tile (components x1)).left :=
-    N.horizontal 0 1
-  have hh02 : (tile (components (N.cell 0 2))).right = (tile (components u1)).left :=
-    N.horizontal 0 2
-  have hv01 : (tile (components (N.cell 0 1))).top = (tile (components (N.cell 0 2))).bottom :=
-    N.vertical 0 1
-  have hx2 : x2 ∈ leftTiles (tile (components x1)).right := by
-    rw [hh11]; exact (edgeCert_at x2).1
-  have hu1 : u1 ∈ bottomTiles (tile (components x1)).top := by
-    rw [hv11]; exact (edgeCert_at u1).2.2.1
-  have hu2 : u2 ∈ leftTiles (tile (components u1)).right := by
-    rw [hh12]; exact (edgeCert_at u2).1
-  have hu2b : u2 ∈ bottomTiles (tile (components x2)).top := by
-    rw [hv21]; exact (edgeCert_at u2).2.2.1
-  have hsouth : hasSouth2 (tile (components x1)).bottom (tile (components x2)).bottom = true := by
+  have hleft (i : Fin 3) (j : Fin 4) :
+      N.cell i.succ j ∈ leftTiles (tile (components (N.cell i.castSucc j))).right := by
+    rw [N.horizontal i j]; exact (edgeCert_at _).1
+  have hright (i : Fin 3) (j : Fin 4) :
+      N.cell i.castSucc j ∈ rightTiles (tile (components (N.cell i.succ j))).left := by
+    rw [← N.horizontal i j]; exact (edgeCert_at _).2.1
+  have hbot (i : Fin 4) (j : Fin 3) :
+      N.cell i j.succ ∈ bottomTiles (tile (components (N.cell i j.castSucc))).top := by
+    rw [N.vertical i j]; exact (edgeCert_at _).2.2.1
+  have htop (i : Fin 4) (j : Fin 3) :
+      N.cell i j.castSucc ∈ topTiles (tile (components (N.cell i j.succ))).bottom := by
+    rw [← N.vertical i j]; exact (edgeCert_at _).2.2.2.1
+  have hsouth : hasSouth2 (tile (components (N.cell 1 1))).bottom
+      (tile (components (N.cell 2 1))).bottom = true := by
     simp only [hasSouth2, List.any_eq_true, List.contains_iff_mem]
-    exact ⟨N.cell 1 0, hv10 ▸ (edgeCert_at (N.cell 1 0)).2.2.2.1,
-      N.cell 2 0, hv20 ▸ (edgeCert_at (N.cell 2 0)).2.2.2.1,
-      hh10.symm ▸ (edgeCert_at (N.cell 2 0)).1⟩
-  have hwest : hasWest2 (tile (components x1)).left (tile (components u1)).left = true := by
+    exact ⟨N.cell 1 0, htop 1 0, N.cell 2 0, htop 2 0, hleft 1 0⟩
+  have hwest : hasWest2 (tile (components (N.cell 1 1))).left
+      (tile (components (N.cell 1 2))).left = true := by
     simp only [hasWest2, List.any_eq_true, List.contains_iff_mem]
-    exact ⟨N.cell 0 1, hh01 ▸ (edgeCert_at (N.cell 0 1)).2.1,
-      N.cell 0 2, hh02 ▸ (edgeCert_at (N.cell 0 2)).2.1,
-      hv01.symm ▸ (edgeCert_at (N.cell 0 2)).2.2.1⟩
-  have h1 := List.all_eq_true.mp check2x2_ok x1 (List.mem_finRange x1)
+    exact ⟨N.cell 0 1, hright 0 1, N.cell 0 2, hright 0 2, hbot 0 1⟩
+  have h1 := List.all_eq_true.mp check2x2_ok (N.cell 1 1) (List.mem_finRange _)
   dsimp only at h1
   rw [N.phase] at h1
-  have h2 := List.all_eq_true.mp h1 u1 hu1
-  have h3 := List.all_eq_true.mp h2 (x2, tile (components x2)) (List.mem_map_of_mem hx2)
-  have h4 := List.all_eq_true.mp h3 u2 hu2
-  have hmem : (bottomTiles (tile (components x2)).top).contains u2 = true :=
-    List.contains_iff_mem.mpr hu2b
+  have h2 := List.all_eq_true.mp h1 (N.cell 1 2) (hbot 1 1)
+  have h3 := List.all_eq_true.mp h2 (N.cell 2 1, tile (components (N.cell 2 1)))
+    (List.mem_map_of_mem (hleft 1 1))
+  have h4 := List.all_eq_true.mp h3 (N.cell 2 2) (hleft 1 2)
+  have hmem : (bottomTiles (tile (components (N.cell 2 1))).top).contains (N.cell 2 2) = true :=
+    List.contains_iff_mem.mpr (hbot 2 1)
   simp only [hmem, ↓reduceIte, hsouth, hwest, Bool.and_self, Bool.not_true, Bool.or_false,
     Bool.and_eq_true, beq_iff_eq] at h4
   obtain ⟨⟨⟨hc00, hc10⟩, hc01⟩, hc11⟩ := h4
-  refine ⟨parentOf x1 u2, ⟨hc00, hc10, hc01, hc11⟩, ?_⟩
+  refine ⟨parentOf (N.cell 1 1) (N.cell 2 2), ⟨hc00, hc10, hc01, hc11⟩, ?_⟩
   rintro q ⟨hq00, _, _, hq11⟩
   rw [← (edgeCert_at q).2.2.2.2, hq00, hq11]
 
