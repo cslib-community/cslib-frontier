@@ -83,35 +83,16 @@ theorem computeTargetCapProg_spec {w U V N_old n_hdr n_init_hdr hdrBase n : ℕ}
     (Memory.spec 0).clientResult s (computeTargetCapProg (hdrBase, n)) = targetCap U n ∧
     memoryCost (computeTargetCapProg (hdrBase, n)) s ≤ 1 := by
   have hu_eq : s.mem hdrBase + 1 = U := by have := hhdr.pos_U; rw [hhdr.hdr_U]; omega
-  have hpre : ComputeTargetCapPre w (hdrBase, n) s :=
-    ⟨hfr, hu_eq.symm ▸ hhdr.fits_U, hu_eq.symm ▸ hnU, hfit1⟩
-  refine ⟨hpre, ?_, ?_, ?_, ?_⟩
-  · dsimp only [computeTargetCapProg]; simp only [pure_bind]
-    split_ifs with hn0
-    · trivial
-    · rw [validHistory_bind']; refine ⟨⟨hfr, trivial⟩, ?_⟩
-      simp only [prog_clientResult_read, StateTransitionSpec.clientState, prog_runClient_state_read]
-      by_cases hlt : s.mem hdrBase + 1 - n < n <;> simp only [hlt, ↓reduceIte] <;> trivial
-  · dsimp only [computeTargetCapProg]; simp only [pure_bind]
-    split_ifs with hn0
-    · rfl
-    · rw [StateTransitionSpec.clientState_bind, prog_clientResult_read]
-      have hs0 : (Memory.spec 0).clientState s (Memory.read hdrBase) = s := rfl
-      rw [hs0]
-      split_ifs <;> rfl
-  · dsimp only [computeTargetCapProg, targetCap]; simp only [pure_bind]
-    split_ifs with hn0
-    · rfl
-    · simp only [prog_clientResult_bind, prog_clientResult_read, StateTransitionSpec.clientState,
-        prog_runClient_state_read, hu_eq]
-      split_ifs with hlt <;> simp only [prog_clientResult_pure]
-      · exact (Nat.min_eq_right (by omega)).symm
-      · rw [Nat.min_eq_left (by omega)]; omega
-  · dsimp only [computeTargetCapProg]; simp only [pure_bind]
-    split_ifs with hn0
-    · exact Nat.zero_le 1
-    · simp only [Realization.memoryCost_bind', prog_memoryCost_read,
-        StateTransitionSpec.clientState, prog_runClient_state_read]
-      split_ifs <;> exact le_rfl
+  refine ⟨⟨hfr, hu_eq.symm ▸ hhdr.fits_U, hu_eq.symm ▸ hnU, hfit1⟩, ?_⟩
+  dsimp only [computeTargetCapProg, targetCap]; simp only [pure_bind]
+  split_ifs with hn0
+  · exact ⟨trivial, rfl, rfl, Nat.zero_le 1⟩
+  have hs0 : (Memory.spec 0).clientState s (Memory.read hdrBase) = s := rfl
+  rw [validHistory_bind', StateTransitionSpec.clientState_bind, prog_clientResult_bind,
+    Realization.memoryCost_bind', prog_clientResult_read, prog_memoryCost_read, hs0, hu_eq]
+  split_ifs with hlt
+  · exact ⟨⟨⟨hfr, trivial⟩, trivial⟩, rfl, (Nat.min_eq_right (by omega : U ≤ 2 * n)).symm, le_rfl⟩
+  · exact ⟨⟨⟨hfr, trivial⟩, trivial⟩, rfl,
+      show n + n = min (2 * n) U by rw [Nat.min_eq_left (by omega)]; omega, le_rfl⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
