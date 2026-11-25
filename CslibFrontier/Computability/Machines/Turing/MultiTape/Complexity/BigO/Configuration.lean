@@ -88,8 +88,7 @@ private theorem stackTape_cons_pair (enc : Symbol ↪ List Bool) :
     (not' ((ComputableInDegree.listIsEmpty (encOption enc)).inO_one.comp_linear hcells))
   have hlist := hcond.ite (cons'.comp_linear (hsymbol.prod hcells)) (const [])
   refine (hlist.of_enc_eq fun p => ?_).mono 4 (fun p => ?_) fun p => ?_
-  · rw [encStackTape_apply, StackTape.cons_toList]
-    rfl
+  · rw [encStackTape_apply, StackTape.cons_toList]; rfl
   all_goals split_ifs <;> omega
 
 /-- Prepend a computed cell to a computed stack, retaining its omission of trailing blanks. -/
@@ -158,11 +157,10 @@ theorem biTape_step (enc : Symbol ↪ List Bool) (action : Option (Option Symbol
   rcases action with ⟨write, move⟩
   have hwritten : ComputableInO (fun tape : BiTape Symbol => write.elim tape tape.write)
       (encBiTape enc) (encBiTape enc)
-      (fun tape => (encBiTape enc tape).length) (fun tape => (encBiTape enc tape).length) := by
-    cases write with
-    | none => exact id'
-    | some symbol =>
-      exact (biTape_mk (const symbol) (biTape_left enc) (biTape_right enc)).mono 3
+      (fun tape => (encBiTape enc tape).length) (fun tape => (encBiTape enc tape).length) :=
+    match write with
+    | none => id'
+    | some s => (biTape_mk (const s) (biTape_left enc) (biTape_right enc)).mono 3
         (fun _ => by omega) fun _ => by omega
   cases move with
   | zero => exact hwritten
@@ -256,38 +254,29 @@ theorem finiteCfg_moveInputPos (move : SignType) : ComputableInO
     (fun cfg => (encFiniteCfg cfg).length) := by
   cases move with
   | neg =>
-    refine ((unaryPred'.comp_linear finiteCfg_inputPos).of_enc_eq fun cfg => ?_).mono 1
-      (fun cfg => by nlinarith) fun cfg => by omega
-    apply congrArg encUnary
-    have h := val_moveInputPos_eq cfg.inputPos .neg
-    have hp := cfg.inputPos.isLt
-    simp only [SignType.cast, Function.comp_def] at h ⊢
-    lia
+    refine ((unaryPred'.comp_linear finiteCfg_inputPos).of_enc_eq fun cfg =>
+      congrArg encUnary ?_).mono 1 (fun _ => by nlinarith) fun _ => by omega
+    have h := val_moveInputPos_eq cfg.inputPos .neg; have := cfg.inputPos.isLt
+    simp only [SignType.cast, Function.comp_def] at h ⊢; lia
   | zero =>
-    refine (finiteCfg_inputPos.of_enc_eq fun cfg => ?_).mono 1
-      (fun cfg => by nlinarith) fun cfg => by omega
-    apply congrArg encUnary
+    refine (finiteCfg_inputPos.of_enc_eq fun cfg => congrArg encUnary ?_).mono 1
+      (fun _ => by nlinarith) fun _ => by omega
     have h := val_moveInputPos_eq cfg.inputPos .zero
-    simp only [SignType.cast] at h ⊢
-    lia
+    simp only [SignType.cast] at h ⊢; lia
   | pos =>
     have hle := unaryLe.comp ((finiteCfg_inputPos (k := k) (State := State)).prod
       (bitsLengthUnary' finiteCfg_input))
     refine ((hle.ite (unarySucc'.comp_linear finiteCfg_inputPos) finiteCfg_inputPos).of_enc_eq
-      fun cfg => ?_).mono 9 (fun cfg => ?_) fun cfg => ?_
-    · apply congrArg encUnary
-      have h := val_moveInputPos_eq cfg.inputPos .pos
-      have hp := cfg.inputPos.isLt
+      fun cfg => congrArg encUnary ?_).mono 9 (fun cfg => ?_) fun cfg => ?_
+    · have h := val_moveInputPos_eq cfg.inputPos .pos; have := cfg.inputPos.isLt
       simp only [SignType.cast, Function.comp_def] at h ⊢
       split_ifs with hc <;> simp only [decide_eq_true_eq] at hc <;> omega
     all_goals
       have hfields := length_fields_le cfg
       have hpair : (encPair encUnary encUnary (cfg.inputPos.val, cfg.input.length)).length ≤
           3 * (encFiniteCfg cfg).length + 1 := by
-        simp only [length_encPair, encUnary_apply, List.length_replicate]
-        omega
-      simp only [Function.comp_def] at *
-      split_ifs <;> nlinarith
+        simp only [length_encPair, encUnary_apply, List.length_replicate]; omega
+      simp only [Function.comp_def] at *; split_ifs <;> nlinarith
 
 /-- Execute fixed native actions on all work tapes, in linear time and space. -/
 theorem finiteCfg_stepWorkTapes (action : Fin k → Option (Option Bool) × SignType) :
@@ -297,10 +286,10 @@ theorem finiteCfg_stepWorkTapes (action : Fin k → Option (Option Bool) × Sign
       (fun cfg => (encFiniteCfg cfg).length) :=
   (pi fun tape => (biTape_step encBool (action tape)).comp_linear
     ((pi_apply _ tape).comp_linear finiteCfg_workTapes)).mono (k + 1)
-    (fun _ => by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-                 nlinarith)
-    fun _ => by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-                nlinarith
+    (fun _ => by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]; nlinarith)
+    fun _ => by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]; nlinarith
 
 /-- Execute a fixed native action on a configuration, within quadratic time and linear space. -/
 theorem finiteCfg_step (action : Action k Bool State) :
@@ -358,9 +347,7 @@ theorem finiteCfg_inputSymbol : ComputableInO (FiniteCfg.inputSymbol (k := k) (S
     ((ComputableInDegree.head?_one (enc := encBool)).inO_one.comp_linear hcells)
   refine (((ComputableInDegree.of_finite (encIn := encOption encBool)
     (encMid := encFinEnum (Option Bool)) id).inO_one.comp_linear hsymbol).of_enc_eq
-    fun cfg => congrArg _ ?_).mono 3 (fun cfg => ?_) fun cfg => ?_
-  · rw [inputSymbol_eq]
-    rfl
+    fun cfg => congrArg _ (inputSymbol_eq cfg)).mono 3 (fun cfg => ?_) fun cfg => ?_
   all_goals split_ifs <;> omega
 
 /-- Observe all work heads of a configuration as one finite value, in linear time and space. -/
@@ -371,10 +358,10 @@ theorem finiteCfg_workTapeSymbols : ComputableInO
   ((ComputableInDegree.of_finite id).inO_one.comp_linear
     (pi fun tape => (biTape_head encBool).comp_linear
       ((pi_apply _ tape).comp_linear finiteCfg_workTapes))).mono (k + 1)
-    (fun _ => by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-                 nlinarith)
-    fun _ => by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-                nlinarith
+    (fun _ => by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]; nlinarith)
+    fun _ => by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]; nlinarith
 
 /-- **The finite key of a view**: its control, input symbol and work symbols, which select its
 transitions, in linear time and space. -/
