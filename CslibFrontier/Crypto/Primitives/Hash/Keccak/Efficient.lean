@@ -152,36 +152,20 @@ private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
       (encSpongeView layout) := by
     let encStep := encPair (encSpongeView layout)
       (encBitString (64 * layout.rateLanes))
-    have hstate : ComputableInPolyTime
-        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1)
-        encStep (encSpongeView layout) :=
-      fst (encSpongeView layout) (encBitString (64 * layout.rateLanes))
-    have hrate : ComputableInPolyTime
-        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1.1)
-        encStep (encBitString (64 * layout.rateLanes)) :=
-      (fst (encBitString (64 * layout.rateLanes))
-        (encBitString (64 * layout.capacityLanes))).comp hstate
-    have hcapacity : ComputableInPolyTime
-        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1.2)
-        encStep (encBitString (64 * layout.capacityLanes)) :=
-      (snd (encBitString (64 * layout.rateLanes))
-        (encBitString (64 * layout.capacityLanes))).comp hstate
-    have hblock : ComputableInPolyTime
-        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.2)
-        encStep (encBitString (64 * layout.rateLanes)) :=
-      snd (encSpongeView layout) (encBitString (64 * layout.rateLanes))
+    have hstate := fst (encSpongeView layout) (encBitString (64 * layout.rateLanes))
     have hrateList : ComputableInPolyTime
         (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => List.ofFn p.1.1)
-        encStep encBits := hrate.of_enc_eq fun _ => rfl
+        encStep encBits := hstate.fst'.of_enc_eq fun _ => rfl
     have hblockList : ComputableInPolyTime
         (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => List.ofFn p.2)
-        encStep encBits := hblock.of_enc_eq fun _ => rfl
+        encStep encBits :=
+      (snd (encSpongeView layout) (encBitString (64 * layout.rateLanes))).of_enc_eq fun _ => rfl
     have hsumList := bitsZipWithInput Bool.xor hrateList hblockList
     have hsum : ComputableInPolyTime
         (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1.1 + p.2)
         encStep (encBitString (64 * layout.rateLanes)) :=
       hsumList.of_enc_eq fun p => Cslib.BitString.ofFn_add p.1.1 p.2
-    exact hsum.prod hcapacity
+    exact hsum.prod hstate.snd'
   have hstep : ComputableInPolyTime
       (fun p : SpongeView layout × BitString (64 * layout.rateLanes) =>
         Sponge.absorbStep (keccakP1600Rounds24View layout) p.1 p.2)
