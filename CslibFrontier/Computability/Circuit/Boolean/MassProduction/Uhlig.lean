@@ -222,13 +222,9 @@ theorem mul_complexity_directProduct_le {P X n d p m : ℕ}
   set L := (X + 1) * 2 ^ m / (X * m) with hLdef
   have hXm : 0 < X * m := Nat.mul_pos hX0 hm
   have hL' : ∀ g : BooleanFunction m, complexity interpretation (directProduct g 1) ≤ L :=
-    fun g => complexity_directProduct_one_le.trans <| (Nat.le_div_iff_mul_le hXm).mpr <| by
-      calc complexity interpretation (single g) * (X * m) =
-            X * m * complexity interpretation (single g) := by ring
-        _ ≤ (X + 1) * 2 ^ m := hL g
-  have hLspec : X * m * L ≤ (X + 1) * 2 ^ m := by
-    rw [mul_comm]
-    exact Nat.div_mul_le_self _ _
+    fun g => complexity_directProduct_one_le.trans <| (Nat.le_div_iff_mul_le hXm).mpr <|
+      (mul_comm _ _).trans_le (hL g)
+  have hLspec : X * m * L ≤ (X + 1) * 2 ^ m := (mul_comm _ _).trans_le (Nat.div_mul_le_self _ _)
   -- `d` layers.
   set H := layerOverhead p n with hHdef
   have hH' : ∀ e < d, layerOverhead p (e * p + m) ≤ H := fun e he =>
