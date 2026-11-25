@@ -12,7 +12,6 @@ public import CslibFrontier.Logics.Propositional.CNF.ExactOne.ModelCount
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Algebra.Order.Ring.Nat
 import Mathlib.Data.List.Sigma
-import Mathlib.Tactic.IntervalCases
 import Mathlib.Algebra.BigOperators.Ring.List
 
 /-!
@@ -392,19 +391,22 @@ theorem positive_formula (φ : CNF V) :
   · obtain ⟨⟨b, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
     exact positive_complementBlock i j b c hc l hl
 
+private theorem width_complementBlock (i j : ℕ) (l : Literal V) :
+    ∀ c ∈ complementBlock i j l, c.length = 3 := by
+  unfold complementBlock
+  split
+  · simp
+  · exact width_complementClauses _ _ _ _ _ _
+
 /-- The inherited clause retains its width and every complement clause has width three. -/
 theorem width_clauseClauses {k : ℕ} (hk : 3 ≤ k) (i : ℕ) (c : Clause V)
     (hc : c.length ≤ k) : ∀ a ∈ clauseClauses i c, a.length ≤ k := by
   intro a ha
   rcases List.mem_append.mp ha with ha | ha
   · obtain rfl := List.mem_singleton.mp ha
-    simpa [Nat.mul_comm] using hc
+    simpa using hc
   · obtain ⟨⟨l, j⟩, _, ha⟩ := List.mem_flatMap.mp ha
-    change a ∈ complementBlock i j l at ha
-    unfold complementBlock at ha
-    split at ha
-    · simp at ha
-    · exact (width_complementClauses _ _ _ _ _ _ a ha).le.trans hk
+    exact (width_complementBlock i j l a ha).le.trans hk
 
 /-- Exact-three input clauses yield exact-three positive clauses. -/
 theorem exactWidth_formula {φ : CNF V} (hw : ∀ c ∈ φ, c.length = 3) :
@@ -413,13 +415,9 @@ theorem exactWidth_formula {φ : CNF V} (hw : ∀ c ∈ φ, c.length = 3) :
   obtain ⟨⟨a, i⟩, ha, hc⟩ := List.mem_flatMap.mp hc
   rcases List.mem_append.mp hc with hc | hc
   · obtain rfl := List.mem_singleton.mp hc
-    simpa [Nat.mul_comm] using hw a (List.fst_mem_of_mem_zipIdx ha)
+    simpa using hw a (List.fst_mem_of_mem_zipIdx ha)
   · obtain ⟨⟨l, j⟩, _, hc⟩ := List.mem_flatMap.mp hc
-    change c ∈ complementBlock i j l at hc
-    unfold complementBlock at hc
-    split at hc
-    · simp at hc
-    · exact width_complementClauses _ _ _ _ _ _ _ hc
+    exact width_complementBlock i j l c hc
 
 /-- Variable occurrences contributed by one transformed source literal, including its private
 complement gadget when needed. -/
@@ -513,74 +511,58 @@ degree at most three at each auxiliary. -/
 theorem count_aux_occurrenceVariables [DecidableEq V] (i j a b k : ℕ) (l : Literal V) :
     (occurrenceVariables i j l).count (auxiliary a b k) ≤
       if a = i ∧ b = j then 3 else 0 := by
-  by_cases hi : a = i
-  · subst a
-    by_cases hj : b = j
-    · subst b
-      by_cases hk : k < 5
-      · interval_cases k <;> cases hb : l.2 <;>
+  cases hb : l.2
+  · by_cases hi : a = i
+    · subst a
+      by_cases hj : b = j
+      · subst b
+        rcases k with _ | _ | _ | _ | _ | k <;>
           simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
             forceFalseClauses, auxiliary, CNF.vars, hb]
-      · have h0 : 0 ≠ k := by omega
-        have h1 : 1 ≠ k := by omega
-        have h2 : 2 ≠ k := by omega
-        have h3 : 3 ≠ k := by omega
-        have h4 : 4 ≠ k := by omega
-        cases hb : l.2 <;>
-          simp [occurrenceVariables, positiveLiteral, complementBlock,
-            complementClauses, forceFalseClauses, auxiliary, CNF.vars, hb,
-            h0, h1, h2, h3, h4]
-    · cases hb : l.2 <;>
-        simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
+      · simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
           forceFalseClauses, auxiliary, CNF.vars, hb, hj, Ne.symm hj]
-  · cases hb : l.2 <;>
-      simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
+    · simp [occurrenceVariables, positiveLiteral, complementBlock, complementClauses,
         forceFalseClauses, auxiliary, CNF.vars, hb, hi, Ne.symm hi]
+  · simp [occurrenceVariables, positiveLiteral, complementBlock, auxiliary, CNF.vars, hb]
 
 /-- Original variable occurrence counts are unchanged in each compiled clause block. -/
 theorem count_inl_clause [DecidableEq V] (i : ℕ) (c : Clause V) (v : V) :
     (clauseClauses i c).vars.count (Sum.inl v) = (CNF.vars [c]).count v := by
   rw [count_vars_clauseClauses]
   simp only [count_inl_occurrenceVariables]
-  have h : (c.zipIdx.flatMap fun a => [a.1.1]).count v =
-      (c.zipIdx.map fun a => [a.1.1].count v).sum := by
-    rw [List.count_flatMap]
+  have h : (c.zipIdx.map fun a => [a.1.1].count v).sum = (c.zipIdx.map fun a => a.1.1).count v := by
+    rw [← List.flatMap_singleton' (c.zipIdx.map fun a => a.1.1), List.count_flatMap, List.map_map]
     rfl
-  rw [← h]
-  have he : c.zipIdx.flatMap (fun a => [a.1.1]) = c.zipIdx.map (fun a => a.1.1) := by
-    induction c.zipIdx with
-    | nil => rfl
-    | cons a as ih => simp [ih]
-  rw [he]
+  rw [h]
   simp only [CNF.vars, List.flatten_cons, List.flatten_nil, List.append_nil]
   simpa only [List.map_map, Function.comp_def] using
     congrArg (fun ls : List (Literal V) => (ls.map Prod.fst).count v)
       (List.zipIdx_map_fst 0 c)
+
+private theorem sum_map_zipIdx_ite_le {α : Type*} (l : List α) (i k : ℕ) :
+    (l.zipIdx.map fun x => if i = x.2 then k else 0).sum ≤ k := by
+  have he : (l.zipIdx.map fun x => if i = x.2 then k else 0).sum =
+      (l.zipIdx.map Prod.snd).count i * k := by
+    calc
+      _ = ((l.zipIdx.map Prod.snd).map fun b => if i = b then k else 0).sum := by
+        rw [List.map_map]; rfl
+      _ = _ := by
+        rw [List.sum_map_eq_nsmul_single i _ (fun _ h _ => by simp [Ne.symm h])]
+        simp
+  rw [he]
+  have hcount := List.nodup_iff_count_le_one.mp (List.nodup_zipIdx_map_snd l) i
+  exact (Nat.mul_le_mul_right k hcount).trans (Nat.one_mul k).le
 
 /-- An auxiliary contributes at most three occurrences in a clause block, and no occurrences
 outside its own source clause index. -/
 theorem count_aux_clause [DecidableEq V] (i a j k : ℕ) (c : Clause V) :
     (clauseClauses i c).vars.count (auxiliary a j k) ≤ if a = i then 3 else 0 := by
   rw [count_vars_clauseClauses]
-  calc
-    _ ≤ (c.zipIdx.map fun l => if a = i ∧ j = l.2 then 3 else 0).sum :=
-      List.sum_le_sum fun l _ => count_aux_occurrenceVariables i l.2 a j k l.1
-    _ ≤ if a = i then 3 else 0 := by
-      by_cases hi : a = i
-      · simp only [hi, true_and, ite_true]
-        have he : (c.zipIdx.map fun l => if j = l.2 then 3 else 0).sum =
-            (c.zipIdx.map Prod.snd).count j * 3 := by
-          calc
-            _ = ((c.zipIdx.map Prod.snd).map fun b => if j = b then 3 else 0).sum := by
-              rw [List.map_map]
-              rfl
-            _ = _ := by
-              rw [List.sum_map_eq_nsmul_single j _ (fun _ h _ => by simp [Ne.symm h])]
-              simp
-        rw [he]
-        have hcount := List.nodup_iff_count_le_one.mp (List.nodup_zipIdx_map_snd c) j
-        omega
-      · simp [hi]
+  refine (List.sum_le_sum fun l _ => count_aux_occurrenceVariables i l.2 a j k l.1).trans ?_
+  by_cases hi : a = i
+  · simp only [hi, true_and, ite_true]
+    exact sum_map_zipIdx_ite_le c j 3
+  · simp [hi]
 
 /-- Taking variable occurrences commutes with concatenating clause replacements. -/
 theorem vars_formula (φ : CNF V) :
@@ -592,11 +574,7 @@ theorem vars_formula (φ : CNF V) :
 theorem count_inl_formula [DecidableEq V] (φ : CNF V) (v : V) :
     (formula φ).vars.count (Sum.inl v) = φ.vars.count v := by
   rw [vars_formula, List.count_flatMap]
-  have hlocal (c : Clause V × ℕ) :
-      (clauseClauses c.2 c.1).vars.count (Sum.inl v) = (CNF.vars [c.1]).count v :=
-    count_inl_clause c.2 c.1 v
-  simp only [Function.comp_def]
-  rw [List.map_congr_left (fun c _ => hlocal c)]
+  simp only [Function.comp_def, count_inl_clause]
   simp only [CNF.vars, List.flatten_cons, List.flatten_nil, List.append_nil,
     List.map_flatten, List.count_flatten, List.map_map, Function.comp_def]
   simpa only [List.map_map, Function.comp_def] using
@@ -607,20 +585,8 @@ theorem count_inl_formula [DecidableEq V] (φ : CNF V) (v : V) :
 theorem count_aux_formula [DecidableEq V] (φ : CNF V) (i j k : ℕ) :
     (formula φ).vars.count (auxiliary i j k) ≤ 3 := by
   rw [vars_formula, List.count_flatMap]
-  calc
-    _ ≤ (φ.zipIdx.map fun c => if i = c.2 then 3 else 0).sum :=
-      List.sum_le_sum fun c _ => count_aux_clause _ _ _ _ _
-    _ = (φ.zipIdx.map Prod.snd).count i * 3 := by
-      calc
-        _ = ((φ.zipIdx.map Prod.snd).map fun b => if i = b then 3 else 0).sum := by
-          rw [List.map_map]
-          rfl
-        _ = _ := by
-          rw [List.sum_map_eq_nsmul_single i _ (fun _ h _ => by simp [Ne.symm h])]
-          simp
-    _ ≤ 3 := by
-      have hcount := List.nodup_iff_count_le_one.mp (List.nodup_zipIdx_map_snd φ) i
-      omega
+  exact (List.sum_le_sum fun c _ => count_aux_clause _ _ _ _ _).trans
+    (sum_map_zipIdx_ite_le φ i 3)
 
 /-- The positive compiler preserves the three-occurrence restriction. -/
 theorem count_vars_formula_le [DecidableEq V] (φ : CNF V)
