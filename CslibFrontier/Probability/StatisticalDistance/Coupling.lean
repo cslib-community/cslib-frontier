@@ -82,9 +82,7 @@ theorem dist_bind_of_good [Finite α] [Fintype β]
         · simp only [Set.mem_compl_iff, ha, not_true_eq_false, ↓reduceIte, zero_add]
           exact mul_le_mul_of_nonneg_left (hgood a ha) ENNReal.toReal_nonneg
         · simp only [Set.mem_compl_iff, ha, not_false_eq_true, ↓reduceIte]
-          have hle1 := mul_le_mul_of_nonneg_left (dist_le_one (f a) q)
-            (ENNReal.toReal_nonneg (a := p a))
-          linarith [mul_nonneg (ENNReal.toReal_nonneg (a := p a)) hb]
+          nlinarith [dist_le_one (f a) q, (ENNReal.toReal_nonneg : 0 ≤ (p a).toReal)]
     _ = (p.toOuterMeasure goodᶜ).toReal + b := by
         rw [Finset.sum_add_distrib, ← Finset.sum_mul, sum_toReal, one_mul,
           toOuterMeasure_apply_toReal]
@@ -125,9 +123,7 @@ theorem exists_coupling_toOuterMeasure_eq_tsum_tsub (μ ν : PMF α) :
   have he_zero (h : δ = 0) (a : α) : e a = 0 := (tsum_eq_zero_iff.mp h) a
   have hf_zero (h : δ = 0) (a : α) : f a = 0 := (tsum_eq_zero_iff.mp (hδf.trans h)) a
   have hef (a : α) : e a * f a = 0 := by
-    rcases le_total (μ a) (ν a) with h | h
-    · simp [e, tsub_eq_zero_of_le h]
-    · simp [f, tsub_eq_zero_of_le h]
+    rcases le_total (μ a) (ν a) with h | h <;> simp [e, f, tsub_eq_zero_of_le h]
   let w : α × α → ℝ≥0∞ := fun p =>
     (if p.1 = p.2 then m p.1 else 0) + e p.1 * f p.2 * δ⁻¹
   have hrow (a : α) : ∑' b, w (a, b) = μ a := by
@@ -138,10 +134,7 @@ theorem exists_coupling_toOuterMeasure_eq_tsum_tsub (μ ν : PMF α) :
     simp only [w, tsum_add, tsum_ite_eq, ENNReal.tsum_mul_right]
     change m b + (δ * f b) * δ⁻¹ = ν b
     rw [mul_comm δ, hcancel _ fun h => hf_zero h b, add_comm, ← hνsplit]
-  have htotal : ∑' p, w p = 1 := by
-    rw [tsum_prod']
-    simp only [hrow]
-    exact μ.tsum_coe
+  have htotal : ∑' p, w p = 1 := by rw [tsum_prod', tsum_congr hrow, μ.tsum_coe]
   let ω : PMF (α × α) := ⟨w, CompleteLattice.summable.hasSum_iff.mpr htotal⟩
   refine ⟨ω, ?_, ?_, ?_⟩
   · ext a
@@ -159,9 +152,7 @@ theorem exists_coupling_toOuterMeasure_eq_tsum_tsub (μ ν : PMF α) :
       · rw [Set.indicator_of_mem hp]
         change w p = _
         simp only [w, hp, ite_false, zero_add]
-    rw [PMF.toOuterMeasure_apply]
-    simp only [hind]
-    rw [tsum_prod']
+    rw [PMF.toOuterMeasure_apply, tsum_congr hind, tsum_prod']
     simp only [ENNReal.tsum_mul_right, ENNReal.tsum_mul_left, hδf]
     exact hcancel δ id
 
@@ -173,11 +164,8 @@ theorem toOuterMeasure_le {μ ν : PMF α} {ε : ℝ≥0∞} (h : CoupledWithin 
     μ.toOuterMeasure S ≤ ν.toOuterMeasure S + ε := by
   obtain ⟨ω, rfl, rfl, hω⟩ := h
   rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
-  have hsub : Prod.fst ⁻¹' S ⊆ Prod.snd ⁻¹' S ∪ {p : α × α | p.1 ≠ p.2} := by
-    intro p hp
-    by_cases heq : p.1 = p.2
-    · exact Or.inl (show p.2 ∈ S from heq ▸ hp)
-    · exact Or.inr heq
+  have hsub : Prod.fst ⁻¹' S ⊆ Prod.snd ⁻¹' S ∪ {p : α × α | p.1 ≠ p.2} := fun p hp =>
+    (em (p.1 = p.2)).imp (fun heq : p.1 = p.2 => show p.2 ∈ S from heq ▸ hp) id
   exact (measure_mono hsub).trans ((measure_union_le _ _).trans (add_le_add le_rfl hω))
 
 /-- A coupling with disagreement probability at most `ε` witnesses all-events statistical
@@ -223,23 +211,17 @@ theorem symm {μ ν : PMF α} {ε : ℝ≥0∞} (h : CoupledWithin μ ν ε) :
 
 /-- Monotonicity of `CoupledWithin` in the error bound `ε`. -/
 theorem mono {μ ν : PMF α} {ε₁ ε₂ : ℝ≥0∞} (h : CoupledWithin μ ν ε₁) (hε : ε₁ ≤ ε₂) :
-    CoupledWithin μ ν ε₂ := by
-  obtain ⟨ω, h₁, h₂, hω⟩ := h
-  exact ⟨ω, h₁, h₂, hω.trans hε⟩
+    CoupledWithin μ ν ε₂ :=
+  Exists.imp (fun _ ⟨h₁, h₂, hω⟩ => ⟨h₁, h₂, hω.trans hε⟩) h
 
 /-- `CoupledWithin μ ν 0` holds if and only if `μ = ν`. -/
 @[simp]
 theorem zero_iff {μ ν : PMF α} : CoupledWithin μ ν 0 ↔ μ = ν := by
-  constructor
-  · rintro ⟨ω, rfl, rfl, hω⟩
-    have hzero : ω.toOuterMeasure {p : α × α | p.1 ≠ p.2} = 0 := nonpos_iff_eq_zero.mp hω
-    have hdisj : Disjoint ω.support {p : α × α | p.1 ≠ p.2} :=
-      (PMF.toOuterMeasure_apply_eq_zero_iff ω _).mp hzero
-    refine map_congr_on_support ω Prod.fst Prod.snd fun p hp => ?_
-    by_contra hne
-    exact Set.disjoint_left.mp hdisj hp hne
-  · rintro rfl
-    exact refl μ
+  refine ⟨?_, fun h => h ▸ refl μ⟩
+  rintro ⟨ω, rfl, rfl, hω⟩
+  have hdisj := (PMF.toOuterMeasure_apply_eq_zero_iff ω _).mp (nonpos_iff_eq_zero.mp hω)
+  exact map_congr_on_support ω Prod.fst Prod.snd fun p hp =>
+    of_not_not (Set.disjoint_left.mp hdisj hp)
 
 /-- Deterministic postprocessing preserves `CoupledWithin` with the same error bound. -/
 theorem map {μ ν : PMF α} {ε : ℝ≥0∞} (h : CoupledWithin μ ν ε) (f : α → β) :
@@ -291,11 +273,8 @@ the probability that they differ. -/
 theorem dist_map_map_le {α : Type*} {β : Type*} [Fintype β] (p : PMF α) (f g : α → β) :
     dist (p.map f) (p.map g) ≤ (p.toOuterMeasure {a | f a ≠ g a}).toReal := by
   have h : CoupledWithin (p.map f) (p.map g) (p.toOuterMeasure {a | f a ≠ g a}) := by
-    refine ⟨p.map (fun a => (f a, g a)), ?_, ?_, ?_⟩
-    · simp only [PMF.map_comp, Function.comp_def]
-    · simp only [PMF.map_comp, Function.comp_def]
-    · rw [PMF.toOuterMeasure_map_apply]
-      exact le_rfl
+    refine ⟨p.map (fun a => (f a, g a)), ?_, ?_, (PMF.toOuterMeasure_map_apply _ _ _).le⟩ <;>
+      simp only [PMF.map_comp, Function.comp_def]
   exact h.dist_le (toOuterMeasure_ne_top _ _)
 
 end Cslib.Probability.PMF
