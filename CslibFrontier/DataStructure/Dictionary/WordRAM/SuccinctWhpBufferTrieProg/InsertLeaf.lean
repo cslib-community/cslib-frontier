@@ -113,7 +113,7 @@ private theorem bufWriteItemTripleRtProg_spec {c U V w n_max base ep id leaf b l
   have hth := henv.2.2.2.1
   have hw := henv.2.1
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
-  have hi_seg := (rt_seg_le c U V w n_max base ep hep).2.2.2.2
+  have hi_seg := (rt_seg_le c U V w n_max base ep hep).items_le
   obtain ⟨_, _, htl_lt, _, _, hmt_lt, _, _⟩ := large_bounds_lt_n_max hth
   have hM_le := henv.numBuckets_le_n_max
   have hlf_g : leaf < 2 ^ globalPtrBits n_max := lt_two_pow_globalPtrBits_of_le_n_max (by omega)
@@ -209,7 +209,7 @@ private theorem realizes_bufInsertFreshRt :
     have h6mt : 6 * maxTrieNodesWhp c n_max ≤ n_max :=
       (Nat.le_mul_of_pos_right _ hg_pos).trans htm_le
     have hia32 : brHdrIA (mkBufRt c U V w n_max base ep) < 32 :=
-      (rt_disj_le c U V w n_max base ep hep).2.1
+      (rt_disj_le c U V w n_max base ep hep).hdrIA_lt
     simp only [hcs_r, hcr_r, hcs_w, hcs_wp] at *
     first
     | exact henv.fits_const (by decide)
@@ -368,21 +368,10 @@ theorem bufInsertLeafRtProg_spec {c U V w n_max base ep leaf b loc : ℕ}
   have hw := henv.2.1
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   set rt := mkBufRt c U V w n_max base ep
-  obtain ⟨_, hia_lt_sp, _, hm_seg, hi_seg⟩ :
-      base + brHdrNA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brHdrIA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffItems rt + packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max := rt_seg_le c U V w n_max base ep hep
-  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ :
-      brHdrNA rt < 32 ∧ brHdrIA rt < 32 ∧ brHdrNA rt ≠ brHdrIA rt ∧ 32 ≤ brOffChild rt ∧
-      brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffMeta rt ∧
-      brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffItems rt := rt_disj_le c U V w n_max base ep hep
+  obtain ⟨_, hia_lt_sp, _, hm_seg, hi_seg⟩ : BufRtSegLe c U V w n_max base rt :=
+      rt_seg_le c U V w n_max base ep hep
+  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ : BufRtDisj c w n_max rt :=
+      rt_disj_le c U V w n_max base ep hep
   obtain ⟨hM_ge, _, htl_lt, _, _, _, hq_lt, _⟩ := large_bounds_lt_n_max hth
   have hM_le := henv.numBuckets_le_n_max
   have hna_max := hrep.1
@@ -507,12 +496,8 @@ theorem bufInsertLeafRtProg_spec {c U V w n_max base ep leaf b loc : ℕ}
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w s1.mem
             (u * 2 ^ bCharWhp n_max + c') := by
       intro u hu c' hc'
-      have hidx_c : u * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc u * 2 ^ bCharWhp n_max + c'
-            < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hc' _
-          _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
+      have hidx_c : u * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hu hc'
       have h_dc : readPacked (base + brOffChild rt) (globalPtrBits n_max) w sd.mem
           (u * 2 ^ bCharWhp n_max + c') =
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w sc.mem
@@ -662,12 +647,8 @@ theorem bufInsertLeafRtProg_spec {c U V w n_max base ep leaf b loc : ℕ}
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w s1.mem
             (u * 2 ^ bCharWhp n_max + c') := by
       intro u hu c' hc'
-      have hidx_c : u * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc u * 2 ^ bCharWhp n_max + c'
-            < u * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hc' _
-          _ = (u + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hu
+      have hidx_c : u * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hu hc'
       exact (readPacked_writePacked_disjoint hw hidx_c hiL (Or.inl (by omega))).trans
         ((readPacked_writePacked_disjoint hw hidx_c hiB (Or.inl (by omega))).trans
           (readPacked_writePacked_disjoint hw hidx_c hidx3 (Or.inl (by omega))))

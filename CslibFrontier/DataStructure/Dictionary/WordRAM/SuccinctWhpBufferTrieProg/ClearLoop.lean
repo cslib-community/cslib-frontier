@@ -90,12 +90,8 @@ private theorem realizes_bufClearEdgeRt :
     have htc_n : trieChildEntriesWhp c n_max ≤ n_max :=
       (Nat.le_mul_of_pos_right _ hg_pos).trans htc_le
     have hidx_lt : ch < 2 ^ bCharWhp n_max →
-        par * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := fun hch => by
-      unfold trieChildEntriesWhp
-      calc par * 2 ^ bCharWhp n_max + ch
-          < par * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch _
-        _ = (par + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hpar
+        par * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := fun hch =>
+      mul_add_lt_mul_bound hpar hch
     first
     | exact henv.fits_of_le_n_max ((hidx_lt (by omega)).le.trans htc_n)
     | exact rt_child_safe henv hep (hidx_lt (by omega))
@@ -300,7 +296,7 @@ private theorem realizes_bufClearOneRt :
     have hw_eq := henv.2.2.1
     subst hw_eq
     have hna32 : brHdrNA (mkBufRt c U V w n_max base ep) < 32 :=
-      (rt_disj_le c U V w n_max base ep hep).1
+      (rt_disj_le c U V w n_max base ep hep).hdrNA_lt
     have hmem_na : s.mem (base + brHdrNA (mkBufRt c U V w n_max base ep)) = tr.nodeAlloc := by
       have hn := hrep.2.2.1; rcases hep with rfl | rfl <;> exact hn
     simp only [hcs_r, hcr_r] at *
@@ -341,21 +337,10 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
   have hw := henv.2.1
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   set rt := mkBufRt c U V w n_max base ep
-  obtain ⟨hna_lt_sp, hia_lt_sp, hc_seg, hm_seg, _⟩ :
-      base + brHdrNA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brHdrIA rt < base + largeSpaceWhp c U V w n_max ∧
-      base + brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max ∧
-      base + brOffItems rt + packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w ≤
-        base + largeSpaceWhp c U V w n_max := rt_seg_le c U V w n_max base ep hep
-  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ :
-      brHdrNA rt < 32 ∧ brHdrIA rt < 32 ∧ brHdrNA rt ≠ brHdrIA rt ∧ 32 ≤ brOffChild rt ∧
-      brOffChild rt + packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffMeta rt ∧
-      brOffMeta rt + packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w ≤
-        brOffItems rt := rt_disj_le c U V w n_max base ep hep
+  obtain ⟨hna_lt_sp, hia_lt_sp, hc_seg, hm_seg, _⟩ : BufRtSegLe c U V w n_max base rt :=
+      rt_seg_le c U V w n_max base ep hep
+  obtain ⟨hna32, hia32, hna_ne_ia, h32_c, hc_le_m, hm_le_i⟩ : BufRtDisj c w n_max rt :=
+      rt_disj_le c U V w n_max base ep hep
   have hmt_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.1
   have h0_g : 0 < 2 ^ globalPtrBits n_max := Nat.two_pow_pos _
   have h0_fit : Fits w 0 := Nat.two_pow_pos w
@@ -406,12 +391,8 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
       by_cases hch_lt : ch < 2 ^ bCharWhp n_max
       · have hch_br : ch < brPowBChar rt := hch_lt
         set idxE := par * 2 ^ bCharWhp n_max + ch
-        have hidxE : idxE < trieChildEntriesWhp c n_max := by
-          unfold trieChildEntriesWhp
-          calc par * 2 ^ bCharWhp n_max + ch
-              < par * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
-            _ = (par + 1) * 2 ^ bCharWhp n_max := by ring
-            _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hpar_max
+        have hidxE : idxE < trieChildEntriesWhp c n_max :=
+          mul_add_lt_mul_bound hpar_max hch_lt
         have hse_eq : se =
             { mem := writePacked (base + brOffChild rt) (globalPtrBits n_max) w s.mem idxE 0,
               frontier := s.frontier } := by
@@ -530,12 +511,8 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
           (v * 2 ^ bCharWhp n_max + c') =
           Function.update tr.trieChild par (Function.update (tr.trieChild par) ch 0) v c' := by
       intro v hv c' hc'
-      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc v * 2 ^ bCharWhp n_max + c'
-            < v * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hc' _
-          _ = (v + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hv
+      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hv hc'
       dsimp only [m3, m2, m1]
       rw [readPacked_update_outside hw hvc_lt (Or.inl (by omega)),
         readPacked_update_outside hw hvc_lt (Or.inl (by omega)),
@@ -617,12 +594,8 @@ private theorem bufClearOneRtProg_spec {c U V w n_max base ep : ℕ}
           readPacked (base + brOffChild rt) (globalPtrBits n_max) w s.mem
             (v * 2 ^ bCharWhp n_max + c') := by
       intro v hv c' hc'
-      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max := by
-        unfold trieChildEntriesWhp
-        calc v * 2 ^ bCharWhp n_max + c'
-            < v * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hc' _
-          _ = (v + 1) * 2 ^ bCharWhp n_max := by ring
-          _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hv
+      have hvc_lt : v * 2 ^ bCharWhp n_max + c' < trieChildEntriesWhp c n_max :=
+        mul_add_lt_mul_bound hv hc'
       dsimp only [m3, m2, m1]
       exact (readPacked_update_outside hw hvc_lt (Or.inl (by omega))).trans
         ((readPacked_update_outside hw hvc_lt (Or.inl (by omega))).trans

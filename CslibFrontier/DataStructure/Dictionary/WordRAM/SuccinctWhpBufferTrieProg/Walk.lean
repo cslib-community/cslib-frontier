@@ -10,7 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Rt
-import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Helpers
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Helpers
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -26,6 +27,7 @@ Internal traversal loop shared privately by `EverPresent`, `Lookup`, and `Delete
 
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.realizes_bufWalkLoopGen`
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.bufWalkLoop_spec`
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.bufWalkLoop_root_bind_spec`
 -/
 
 public section
@@ -99,16 +101,8 @@ private theorem realizes_bufWalkStep :
     have hch_lt : r_cur &&& (2 ^ bCharWhp n_max - 1) < 2 ^ bCharWhp n_max := by
       rw [Nat.and_two_pow_sub_one_eq_mod]
       exact Nat.mod_lt _ (Nat.two_pow_pos _)
-    have hprod_le : cur * 2 ^ bCharWhp n_max ≤ trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      exact Nat.mul_le_mul_right _ hcur.le
     have hidx_lt : cur * 2 ^ bCharWhp n_max + (r_cur &&& (2 ^ bCharWhp n_max - 1)) <
-        trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      calc cur * 2 ^ bCharWhp n_max + (r_cur &&& (2 ^ bCharWhp n_max - 1))
-          < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
-        _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur
+        trieChildEntriesWhp c n_max := mul_add_lt_mul_bound hcur hch_lt
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_of_le_n_max (hidx_lt.le.trans htc_n)
@@ -152,129 +146,133 @@ theorem bufWalkLoop_spec {c U V w n_max base ep : ℕ} {tr : BufTrie} {s : Memor
           ∃ r_leaf,
             (Memory.spec 0).clientResult s prog = (1, (leaf, r_leaf)) ∧
             leaf < tr.nodeAlloc) := by
-  intro rt rem
+  intro rt rem alive cur r_cur hcur
   have hw := henv.2.1
   have hna_max : tr.nodeAlloc ≤ maxTrieNodesWhp c n_max := hrep.1
-  have hc_seg := (rt_seg_le c U V w n_max base ep hep).2.2.1
+  have hc_seg := (rt_seg_le c U V w n_max base ep hep).child_le
   have hrep_ch : ∀ u < maxTrieNodesWhp c n_max, ∀ ch < 2 ^ bCharWhp n_max,
       readPacked (base + brOffChild rt) (globalPtrBits n_max) w s.mem
         (u * 2 ^ bCharWhp n_max + ch) = tr.trieChild u ch := by
     have h := hrep.2.2.2.2.1
     rcases hep with rfl | rfl <;> exact h
-  induction rem with
-  | zero =>
-    intro alive cur r_cur _
-    refine ⟨trivial, rfl, Nat.mul_zero 2 ▸ rfl, validProg_pure _,
-      fun ha => ha, fun ha => ?_⟩
-    dsimp only [bufWalk, bufWalkLoopGenProg, iterate]
-    rw [StateTransitionSpec.clientResult_pure]
-    exact ⟨r_cur, ha ▸ rfl, ‹cur < tr.nodeAlloc›⟩
-  | succ rem ih =>
-    intro alive cur r_cur hcur
-    have hcur_max : cur < maxTrieNodesWhp c n_max := hcur.trans_le hna_max
-    have hpre : BufWalkStepPre w (rt, (alive, (cur, r_cur))) s :=
-      ⟨⟨c, U, V, w, n_max, base, ep, henv, hep, rfl⟩, hcur_max⟩
-    set ch := r_cur % 2 ^ bCharWhp n_max with hch_def
-    have hch_eq : r_cur &&& brMaskBChar rt = ch := by
-      dsimp only [rt, mkBufRt, brMaskBChar, ch]
-      exact Nat.and_two_pow_sub_one_eq_mod r_cur (bCharWhp n_max)
+  -- After `k` steps the state is `s`, and a live walk has `rem - k` characters left of the
+  -- outcome it started with.
+  let inv : ℕ → ℕ × (ℕ × ℕ) → Memory.State → Prop := fun k a t =>
+    t = s ∧ a.2.1 < tr.nodeAlloc ∧ (alive = 0 → a.1 = 0) ∧
+      (alive = 1 → a.1 = 0 ∧ bufWalk (bCharWhp n_max) tr.trieChild r_cur rem 0 cur = none ∨
+        a.1 = 1 ∧ bufWalk (bCharWhp n_max) tr.trieChild r_cur rem 0 cur =
+          bufWalk (bCharWhp n_max) tr.trieChild a.2.2 (rem - k) 0 a.2.1)
+  have hstep : ∀ k < rem, ∀ a t, inv k a t →
+      BufWalkStepPre w (rt, a) t ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) t (bufWalkStepProg (rt, a)) ∧
+      inv (k + 1) ((Memory.spec 0).clientResult t (bufWalkStepProg (rt, a)))
+        ((Memory.spec 0).clientState t (bufWalkStepProg (rt, a))) := by
+    rintro k hk ⟨al, cu, rc⟩ t ⟨rfl, hcu, h0, h1⟩
+    dsimp only at hcu h0 h1
+    have hcu_max : cu < maxTrieNodesWhp c n_max := hcu.trans_le hna_max
+    set ch := rc % 2 ^ bCharWhp n_max with hch_def
     have hch_lt : ch < 2 ^ bCharWhp n_max := Nat.mod_lt _ (Nat.two_pow_pos _)
-    set idx := cur * 2 ^ bCharWhp n_max + ch
-    have hidx_lt : idx < trieChildEntriesWhp c n_max := by
-      unfold trieChildEntriesWhp
-      calc cur * 2 ^ bCharWhp n_max + ch
-          < cur * 2 ^ bCharWhp n_max + 2 ^ bCharWhp n_max := Nat.add_lt_add_left hch_lt _
-        _ = (cur + 1) * 2 ^ bCharWhp n_max := by ring
-        _ ≤ maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max := Nat.mul_le_mul_right _ hcur_max
-    set r_nxt := r_cur / 2 ^ bCharWhp n_max with hr_def
-    have hr_eq : r_cur >>> brBChar rt = r_nxt := by
-      dsimp only [rt, mkBufRt, brBChar, r_nxt]
-      exact Nat.shiftRight_eq_div_pow r_cur (bCharWhp n_max)
-    set stepP := bufWalkStepProg (rt, (alive, (cur, r_cur)))
-    have hidx_rt : cur * brPowBChar rt + (r_cur &&& brMaskBChar rt) = idx := by
-      rw [hch_eq]; rfl
-    have hstep_st : (Memory.spec 0).clientState s stepP = s := by
-      dsimp only [stepP, bufWalkStepProg]
+    have hidx : cu * brPowBChar rt + (rc &&& brMaskBChar rt) = cu * 2 ^ bCharWhp n_max + ch := by
+      rw [show rc &&& brMaskBChar rt = ch from Nat.and_two_pow_sub_one_eq_mod rc _]; rfl
+    have hr : rc >>> brBChar rt = rc / 2 ^ bCharWhp n_max := Nat.shiftRight_eq_div_pow _ _
+    have hnxt : readPacked (brBase rt + brOffChild rt) (brGBits rt) (brW rt) t.mem
+        (cu * brPowBChar rt + (rc &&& brMaskBChar rt)) = tr.trieChild cu ch := by
+      rw [hidx]; exact hrep_ch cu hcu_max ch hch_lt
+    have hst : (Memory.spec 0).clientState t (bufWalkStepProg (rt, (al, (cu, rc)))) = t := by
+      dsimp only [bufWalkStepProg]
       simp only [pure_bind]
       rw [clientState_bind, clientState_readPackedGen]
       split_ifs <;> rfl
-    have hstep_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s stepP := by
-      dsimp only [stepP, bufWalkStepProg]
+    have hres : (Memory.spec 0).clientResult t (bufWalkStepProg (rt, (al, (cu, rc)))) =
+        if al = 0 ∨ tr.trieChild cu ch = 0 then (0, (0, rc / 2 ^ bCharWhp n_max))
+        else (1, (tr.trieChild cu ch, rc / 2 ^ bCharWhp n_max)) := by
+      dsimp only [bufWalkStepProg]
       simp only [pure_bind]
-      refine validProg_bind (validProg_readPacked hw (hidx_rt.symm ▸ hidx_lt) hc_seg) ?_
+      rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen, hnxt, hr]
+      by_cases ha0 : al = 0 <;> by_cases hn0 : tr.trieChild cu ch = 0 <;> simp [ha0, hn0]
+    refine ⟨⟨⟨c, U, V, w, n_max, base, ep, henv, hep, rfl⟩, hcu_max⟩, ?_, ?_⟩
+    · dsimp only [bufWalkStepProg]
+      simp only [pure_bind]
+      refine validProg_bind (validProg_readPacked hw
+        (hidx.symm ▸ mul_add_lt_mul_bound hcu_max hch_lt) hc_seg) ?_
       rw [clientState_readPackedGen]
       split_ifs <;> exact validProg_pure _
-    have hnxt_eq : readPacked (brBase rt + brOffChild rt) (brGBits rt) (brW rt) s.mem
-        (cur * brPowBChar rt + (r_cur &&& brMaskBChar rt)) = tr.trieChild cur ch := by
-      rw [hch_eq]
-      exact hrep_ch cur hcur_max ch hch_lt
-    set stepRes :=
-      if alive = 0 then (0, (0, r_nxt))
-      else if tr.trieChild cur ch = 0 then (0, (0, r_nxt))
-      else (1, (tr.trieChild cur ch, r_nxt))
-    have hstep_res : (Memory.spec 0).clientResult s stepP = stepRes := by
-      dsimp only [stepP, bufWalkStepProg, stepRes]
-      simp only [pure_bind]
-      rw [clientResult_bind, clientState_readPackedGen,
-        clientResult_readPackedGen, hnxt_eq, hr_eq]
-      by_cases ha0 : alive = 0
-      · simp [ha0]
-      · by_cases hn0 : tr.trieChild cur ch = 0 <;> simp [ha0, hn0]
-    have hcur_nxt : stepRes.2.1 < tr.nodeAlloc := by
-      dsimp only [stepRes]
-      split_ifs with ha0 hn0
+    rw [hst, hres]
+    refine ⟨rfl, ?_, fun ha => by simp [h0 ha], fun ha => ?_⟩
+    · split_ifs with hn0
       · exact halloc
-      · exact halloc
-      · exact hchild cur ch hn0
-    obtain ⟨hsafe_r, hst_r, hmc_r, hvp_r, ha0_r, ha1_r⟩ :=
-      ih stepRes.1 stepRes.2.1 stepRes.2.2 hcur_nxt
-    have hst_all : (Memory.spec 0).clientState s
-        (bufWalkLoopGenProg ((rt, (alive, (cur, r_cur))), rem + 1)) = s := by
-      change (Memory.spec 0).clientState s
-        (stepP >>= fun s' => iterate bufWalkStepProg rt rem s') = s
-      rw [clientState_bind, hstep_st, hstep_res]
-      exact hst_r
-    have hres_all : (Memory.spec 0).clientResult s
-        (bufWalkLoopGenProg ((rt, (alive, (cur, r_cur))), rem + 1)) =
-        (Memory.spec 0).clientResult s (bufWalkLoopGenProg ((rt, stepRes), rem)) := by
-      change (Memory.spec 0).clientResult s
-        (stepP >>= fun s' => iterate bufWalkStepProg rt rem s') = _
-      rw [clientResult_bind, hstep_st, hstep_res]
-      rfl
-    refine ⟨⟨hpre, ?_⟩, hst_all, ?_, ?_, ?_, ?_⟩
-    · rw [clientState_width, hstep_st, clientResult_width, hstep_res]
-      exact hsafe_r
-    · change memoryCost (stepP >>= fun s' => iterate bufWalkStepProg rt rem s') s = 2 * (rem + 1)
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      change memoryCost stepP s +
-        memoryCost (bufWalkLoopGenProg
-          ((rt, (Memory.spec 0).clientResult s stepP), rem))
-          ((Memory.spec 0).clientState s stepP) = 2 * (rem + 1)
-      rw [hstep_st, hstep_res, memoryCost_bufWalkStepProg, hmc_r]
-      ring
-    · change ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (stepP >>= fun s' => iterate bufWalkStepProg rt rem s')
-      refine validProg_bind hstep_vp ?_
-      change ValidProg w (base + largeSpaceWhp c U V w n_max)
-        ((Memory.spec 0).clientState s stepP)
-        (bufWalkLoopGenProg ((rt, (Memory.spec 0).clientResult s stepP), rem))
-      rw [hstep_st, hstep_res]
-      exact hvp_r
-    · intro ha0
-      rw [hres_all]
-      exact ha0_r (by dsimp [stepRes]; simp [ha0])
-    · intro ha1
-      rw [hres_all]
-      dsimp only [bufWalk]
-      rw [laneGet_zero_eq_mod, ← hch_def]
-      by_cases hn0 : tr.trieChild cur ch = 0
-      · rw [ite_eq_left hn0]
-        exact ha0_r (by dsimp [stepRes]; simp [ha1, hn0])
-      · rw [ite_eq_right hn0, bufWalk_add_off, ← hr_def]
-        have hsr : stepRes = (1, (tr.trieChild cur ch, r_nxt)) := by
-          dsimp [stepRes]; simp [ha1, hn0]
-        rw [hsr] at ha1_r ⊢
-        exact ha1_r rfl
+      · exact hchild cu ch (not_or.1 hn0).2
+    rcases h1 ha with ⟨ha0, hw0⟩ | ⟨ha1, hwk⟩
+    · exact .inl ⟨by simp [ha0], hw0⟩
+    rw [hwk, show rem - k = rem - (k + 1) + 1 by omega]
+    dsimp only [bufWalk]
+    rw [laneGet_zero_eq_mod, ← hch_def, bufWalk_add_off]
+    by_cases hn0 : tr.trieChild cu ch = 0 <;> simp [ha1, hn0]
+  obtain ⟨hsafe, hvp, hst, hlt, h0, h1⟩ := validProg_iterate_of_inv inv hstep
+    (a := (alive, (cur, r_cur))) ⟨rfl, hcur, id, fun ha => .inr ⟨ha, rfl⟩⟩
+  refine ⟨hsafe, hst, memoryCost_iterate_eq_of _ 2 rt (fun a => memoryCost_bufWalkStepProg (rt, a))
+    rem _ s, hvp, h0, fun ha => ?_⟩
+  rcases h1 ha with ⟨hr0, hw0⟩ | ⟨hr1, hwk⟩
+  · rw [hw0]; exact hr0
+  · rw [hwk, Nat.sub_self]
+    exact ⟨_, Prod.ext hr1 rfl, hlt⟩
+
+/-- The shape shared by `bufEverPresentGenProg`, `bufLookupGenProg` and `bufDeleteGenProg`: walk
+`rKey` from the root of a valid trie, then return `dflt` if the walk falls off the trie and run
+`leafProg` on the leaf reached otherwise. The composite costs the `2 * cTabWhp c` of the walk
+plus the cost of the branch taken, and only the leaf branch touches memory. -/
+theorem bufWalkLoop_root_bind_spec {α : Type} (dflt : α) (leafProg : BufRt × ℕ → Memory.Prog α)
+    {c U V w n_max base ep rKey : ℕ} {tr : BufTrie} {mapFn : ℕ → Option (ℕ × ℕ)}
+    {s : Memory.State} (henv : WhpLargeEnv c U V w n_max w base) (hep : ep = 0 ∨ ep = 1)
+    (hrep : BufTrieMemRep base c U V w n_max ep tr s.mem)
+    (hv : ValidBufTrie (cTabWhp c) (bCharWhp n_max) tr mapFn) :
+    let rt := mkBufRt c U V w n_max base ep
+    let prog := mkBufRtGenProg ((mkWhpCoreParams c U V w n_max, base), ep) >>= fun rt =>
+      bufWalkLoopGenProg ((rt, (1, (0, rKey))), brCTab rt) >>= fun (alive, leafRest) =>
+        if alive = 0 then pure dflt else leafProg (rt, leafRest.1)
+    (bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 = none →
+      (Memory.spec 0).clientState s prog = s ∧ (Memory.spec 0).clientResult s prog = dflt ∧
+      memoryCost prog s = 2 * cTabWhp c ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog) ∧
+    ∀ leaf, bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 = some leaf →
+      leaf < tr.nodeAlloc ∧
+      (Memory.spec 0).clientState s prog = (Memory.spec 0).clientState s (leafProg (rt, leaf)) ∧
+      (Memory.spec 0).clientResult s prog =
+        (Memory.spec 0).clientResult s (leafProg (rt, leaf)) ∧
+      memoryCost prog s = 2 * cTabWhp c + memoryCost (leafProg (rt, leaf)) s ∧
+      (ValidProg w (base + largeSpaceWhp c U V w n_max) s (leafProg (rt, leaf)) →
+        ValidProg w (base + largeSpaceWhp c U V w n_max) s prog) := by
+  intro rt prog
+  obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
+    (w := w) (n_max := n_max) (base := base) (ep := ep) henv.2.2.2.1 s
+  obtain ⟨-, hw_st, hw_mc, hw_vp, -, hw1⟩ :=
+    bufWalkLoop_spec henv hep hrep hv.bounds.1 hv.bounds.2.2.1 (cTabWhp c) 1 0 rKey hv.bounds.1
+  set wres := (Memory.spec 0).clientResult s (bufWalkLoopGenProg ((rt, (1, (0, rKey))), cTabWhp c))
+  have hbr : brCTab rt = cTabWhp c := rfl
+  -- `prog` reduces to the branch on the walk's result, at the unchanged state.
+  set q := if wres.1 = 0 then pure dflt else leafProg (rt, wres.2.1)
+  have hst : (Memory.spec 0).clientState s prog = (Memory.spec 0).clientState s q := by
+    dsimp only [prog]; rw [clientState_bind, hrt_st, hrt_res, hbr, clientState_bind, hw_st]
+  have hres : (Memory.spec 0).clientResult s prog = (Memory.spec 0).clientResult s q := by
+    dsimp only [prog]; rw [clientResult_bind, hrt_st, hrt_res, hbr, clientResult_bind, hw_st]
+  have hmc : memoryCost prog s = 2 * cTabWhp c + memoryCost q s := by
+    dsimp only [prog]; simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+    rw [hrt_st, hrt_res, hrt_mc, hbr, hw_st, hw_mc, Nat.zero_add]
+  have hvp (h : ValidProg w (base + largeSpaceWhp c U V w n_max) s q) :
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
+    dsimp only [prog]
+    refine validProg_bind hrt_vp ?_
+    rw [hrt_st, hrt_res, hbr]
+    exact validProg_bind hw_vp (by rw [hw_st]; exact h)
+  refine ⟨fun hwk => ?_, fun leaf hwk => ?_⟩ <;> rw [hwk] at hw1
+  · have hq : q = pure dflt := ite_eq_left (hw1 rfl)
+    rw [hq] at hst hres hmc hvp
+    exact ⟨hst, hres, hmc.trans (Nat.add_zero _), hvp (validProg_pure _)⟩
+  · obtain ⟨_, hw_eq, hlf_lt⟩ := hw1 rfl
+    have hq : q = leafProg (rt, leaf) :=
+      (ite_eq_right (by rw [hw_eq]; exact one_ne_zero)).trans (by rw [hw_eq])
+    rw [hq] at hst hres hmc hvp
+    exact ⟨hlf_lt, hst, hres, hmc, hvp⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

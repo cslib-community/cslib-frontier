@@ -169,7 +169,7 @@ private theorem realizes_bufCheckSlotInBoundsRt :
     have h6q : 6 * qEpochWhp n_max + 6 ≤ n_max :=
       (Nat.le_mul_of_pos_right _ hg_pos).trans hq6_le
     have hna32 : brHdrNA (mkBufRt c U V w n_max base ep) < 32 :=
-      (rt_disj_le c U V w n_max base ep hep).1
+      (rt_disj_le c U V w n_max base ep hep).hdrNA_lt
     simp only [hcs_p, hcs_r, hcr_r] at *
     first
     | exact henv.fits_hdr_addr hna32
@@ -386,7 +386,7 @@ theorem realizes_bufCheckSlotGen :
     obtain ⟨hrt_st, hrt_res, _, _⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
     have hia32 : brHdrIA (mkBufRt c U V w n_max base ep) < 32 :=
-      (rt_disj_le c U V w n_max base ep hep).2.1
+      (rt_disj_le c U V w n_max base ep hep).hdrIA_lt
     have hmem_na : s.mem (base + brHdrNA (mkBufRt c U V w n_max base ep)) = tr.nodeAlloc := by
       have hn := hrep.2.2.1; rcases hep with rfl | rfl <;> exact hn
     have hmem_ia : s.mem (base + brHdrIA (mkBufRt c U V w n_max base ep)) = tr.itemAlloc := by
