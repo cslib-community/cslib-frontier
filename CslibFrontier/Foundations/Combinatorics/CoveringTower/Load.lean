@@ -154,17 +154,10 @@ theorem sum_be_sq (hj : j ≤ J) : ∑ c, (T.be i n c : ℝ) ^ 2 ≤
       if T.ty e = i then 2 * (n e : ℝ) ^ 2 else 0 := by
     intro e
     by_cases ht : T.ty e = i
-    · rw [ite_eq_left ht]
-      have h3 : ∀ c, (if T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c) then (n e : ℝ) ^ 2 else 0) =
-          (if T.e0 e = c then (n e : ℝ) ^ 2 else 0) + if T.e1 e = c then (n e : ℝ) ^ 2 else 0 := by
-        intro c
-        have hne := T.e_ne e
-        by_cases h0 : T.e0 e = c
-        · have h1 : ¬ T.e1 e = c := fun hh => hne (h0.trans hh.symm)
-          simp [ht, h0, h1]
-        · by_cases h1 : T.e1 e = c <;> simp [ht, h0, h1]
-      rw [Finset.sum_congr rfl fun c _ => h3 c, Finset.sum_add_distrib]
-      simp
+    · rw [ite_eq_left ht, ← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul,
+        show (univ.filter fun c => T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c)) = {T.e0 e, T.e1 e} by
+          ext c; simp [ht, eq_comm], Finset.card_pair (T.e_ne e)]
+      push_cast
       ring
     · rw [ite_eq_right ht]
       exact Finset.sum_eq_zero fun c _ => ite_eq_right fun hh => ht hh.1
@@ -227,9 +220,7 @@ theorem sum_end_sq (hj : j < J) :
     intro ω
     rw [Finset.sum_comm]
     refine Finset.sum_congr rfl fun c _ => ?_
-    by_cases hω : T.πV (T.vx i c) = ω
-    · simp [hω]
-    · simp [hω]
+    by_cases hω : T.πV (T.vx i c) = ω <;> simp [hω]
   rw [Finset.sum_congr rfl fun ω _ => e2 ω, Finset.sum_comm]
   refine Finset.sum_congr rfl fun c _ => ?_
   simp
@@ -281,9 +272,7 @@ theorem NN2_nonneg (hb : 0 < b) (m : Sym2 T.Fl → ℕ) : 0 ≤ T.NN2 m := by
   refine mul_nonneg ?_ (Finset.sum_nonneg fun q _ => ?_)
   · have : (0 : ℝ) ≤ b - 1 := by linarith
     positivity
-  · split_ifs
-    · exact le_rfl
-    · exact sq_nonneg _
+  · split_ifs <;> positivity
 
 /-- The norms of the loads of end segments. -/
 theorem end_norm {j : ℕ} (hj : j < J) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fin h} {n : T.Ed j → ℕ} :
@@ -311,8 +300,7 @@ theorem end_norm {j : ℕ} (hj : j < J) (hb : 0 < b) (hbD : b ≤ 2 * D) {i : Fi
         ∑ q : Sym2 T.Fl, (T.nEnd i n ω q : ℝ) ^ 2 := by
       refine Finset.sum_le_sum fun q _ => ?_
       split_ifs
-      · exact sq_nonneg _
-      · exact le_rfl
+      exacts [sq_nonneg _, le_rfl]
     have h3 : (0 : ℝ) ≤ ∑ q : Sym2 T.Fl,
         (T.nEnd i n ω q : ℝ) ^ 2 := Finset.sum_nonneg fun q _ => sq_nonneg _
     have h4 : (b : ℝ) * (b - 1) / 2 ≤ (b : ℝ) ^ 2 / 2 := by linarith

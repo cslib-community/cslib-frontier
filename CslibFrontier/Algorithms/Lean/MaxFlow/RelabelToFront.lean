@@ -384,11 +384,6 @@ private theorem push_preserves_admissible_backward {σ : PushRelabel.State N} {u
     · rw [σ.flow.resCap_push_of_ne h1 h2] at hadm
       exact hadm.1
 
-private theorem numRelabels_relabel_cons (σ : PushRelabel.State N) (u : V) (os : List (Op V)) :
-    σ.numRelabels (.relabel u :: os) = (σ.apply (.relabel u)).numRelabels os + 1 := by
-  rw [State.numRelabels_cons, ite_eq_left (show (Op.relabel u : Op V).IsRelabel from trivial),
-    Nat.add_comm]
-
 private theorem numRelabels_push_cons (σ : PushRelabel.State N) (u v : V) (os : List (Op V)) :
     σ.numRelabels (.push u v :: os) = (σ.apply (.push u v)).numRelabels os := by
   rw [State.numRelabels_cons, ite_eq_right (show ¬ (Op.push u v : Op V).IsRelabel from id),
@@ -577,7 +572,8 @@ private theorem dischargeLoop_spec {adj : V → List V} (hadj : IsAdjacency N ad
       obtain ⟨ihInv, ihRun, ihPr, ihAct, ihNs, ihRel, ihNe, ihH, ihAdv, -, ihBk, -, ihIn, ihRes⟩ :=
         ih
       rw [Function.update_self] at ihAdv
-      rw [numRelabels_relabel_cons]
+      rw [State.numRelabels_cons, ite_eq_left (show (Op.relabel u : Op V).IsRelabel from trivial),
+        Nat.add_comm]
       refine ⟨ihInv, ⟨hr, ihRun⟩, ihPr, ihAct, ?_, ⟨fun _ => by omega, fun _ => rfl⟩,
         fun x hx => ⟨(ihNe x hx).1.trans (Function.update_of_ne hx _ _),
           (ihNe x hx).2.trans (relabel_height_of_ne _ hx)⟩, by omega, ?_, nofun, nofun, nofun,
