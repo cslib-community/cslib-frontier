@@ -424,7 +424,8 @@ private theorem computableInPolyTime_step1Wires {α : Type} {input : α ↪ List
         (fun q : Bool × (Fin (m - 1) → Bool) => ProbComp.completeShares m q.1 q.2 i)
         (encPair encBool (encPi encBool)) encBool :=
       of_finite _
-    exact mapToBitsWithInput (range.comp hN) (hcomp.comp (hbit.prod hrow))
+    have hbody := hcomp.comp (hbit.prod hrow)
+    exact mapToBitsWithInput (range.comp hN) hbody
   simpa only [step1Wires, List.flatten_eq_flatMap, List.flatMap_map, id_eq] using
     bitsFlatten (mapConst (List.finRange m) fun s _ => hsender s)
 
@@ -465,7 +466,8 @@ private theorem isOraclePPTOn_realPairCall (m : ℕ) (p : OrderedPair m) :
       (encPair encBool encBits) (encPair encBool encBool) :=
     (fst encBool encBits).prod
       (comp' (headD (encA := encBool) (encL := encBits) false) (snd encBool encBits))
-  exact hc₀.bind (hq.map_with (f := fun c₀ raw => (c₀, raw.headD false)) hpost)
+  have hsecond := hq.map_with (f := fun c₀ raw => (c₀, raw.headD false)) hpost
+  exact hc₀.bind hsecond
 
 /-- Sequential execution of `realPairCall m p x` along `L : List (OrderedPair m)`. -/
 private noncomputable def realPairsCalls (m : ℕ) (x : Fin m → Bool × Bool) :
