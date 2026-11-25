@@ -132,9 +132,7 @@ theorem init_replay (a : α) :
       (by simpa only [List.nil_append] using hr) hlen
   · rintro ⟨rest, rfl, hrest⟩
     rw [Native.replayChoices_append, hprefix']
-    change (Native.replayChoices R.I R.P R.F R.C _ rest).map _ = _
-    rw [hrest]
-    rfl
+    simp [hrest, Option.bind]
 
 /-- The finalizer has a halted occurrence replay with no choices. Every halted replay
 from this boundary consumes no genuine choices and emits the abstract verdict. -/
@@ -167,8 +165,7 @@ theorem finish_replay (a : α) (s : σ)
     cases (q i.castSucc).state <;> simp)
   rw [hhead] at hdet
   refine ⟨⟨List.replicate q'.length 0, q'.last, hdet, ?_⟩, ?_⟩
-  · rw [hlast]
-    rfl
+  · rw [hlast]; rfl
   intro indices bits final hr hhalt
   obtain ⟨p, hphead, hplast, hplen⟩ := R.exists_native_path_of_replay hr
   have hlong : q.length ≤ indices.length := by
@@ -258,8 +255,8 @@ theorem pass_replay (a : α) (s : σ)
       rw [Native.replayChoices_choose _ _ _ _ _ rfl, withState_wordsCfg, ← hphead,
         Native.replayChoices_nil, Option.map_some]
     have hnonempty : indices ≠ [] := by
-      intro hempty
-      simp [hempty, Native.replayChoices_nil] at hr
+      rintro rfl
+      simp [Native.replayChoices_nil] at hr
     obtain ⟨tail, hindices, htail⟩ := Native.exists_suffix_of_replayChoices R.I R.P R.F R.C
       hchoose (show _ = some ([b] ++ bits, final) from hr)
       (List.length_pos_iff.mpr hnonempty)
