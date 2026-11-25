@@ -66,9 +66,7 @@ theorem isLittleO_log_affine {α β : ℝ} (hα : 0 ≤ α) (hβ : 1 ≤ β) :
     rw [← Real.log_mul (by positivity) (by positivity)]
     exact Real.log_le_log (by positivity) (by nlinarith)
   have hlogn : Real.log n ≤ δ / 2 * n := (le_abs_self _).trans hn
-  have hC : Real.log (α + β) ≤ δ / 2 * n := by
-    have := (div_le_iff₀ hδ).mp hnC'
-    linarith
+  have hC : Real.log (α + β) ≤ δ / 2 * n := by linarith [(div_le_iff₀ hδ).mp hnC']
   linarith
 
 /-- Changing from base `q ≥ 2` to the natural logarithm costs at most the factor
@@ -128,9 +126,7 @@ theorem eventually_lt_of_demand {A : ℝ} (hA : 0 < A) {κ : ℝ} (hκ : 0 ≤ �
   have hεn : 0 ≤ ε * n := by positivity
   have hsA : s ≤ (1 + 1 / A) * n := by nlinarith
   have hv' : v ≤ κ * (2 + 1 / A) * n + κ := by
-    have : κ * (n + s + 1) ≤ κ * ((2 + 1 / A) * n + 1) :=
-      mul_le_mul_of_nonneg_left (by nlinarith) hκ
-    linarith
+    linarith [mul_le_mul_of_nonneg_left (show n + s + 1 ≤ (2 + 1 / A) * n + 1 by nlinarith) hκ]
   -- The logarithmic term of the demand.
   have hL : κ * Real.log (v + 1) ≤ δ * n := by
     have hlog1 : Real.log (v + 1) ≤ Real.log (κ * (2 + 1 / A) * n + (κ + 1)) :=
@@ -149,8 +145,7 @@ theorem eventually_lt_of_demand {A : ℝ} (hA : 0 < A) {κ : ℝ} (hκ : 0 ≤ �
   have hC : |C| + η * κ ≤ δ * n := by
     have h := (Nat.le_ceil ((|C| + η * κ) / δ)).trans (show (⌈(|C| + η * κ) / δ⌉₊ : ℝ) ≤ n by
       exact_mod_cast hnC)
-    have := (div_le_iff₀ hδ).mp h
-    linarith
+    linarith [(div_le_iff₀ hδ).mp h]
   -- Combine demand and supply.
   have hsupply' : (A + η) * (s - n) ≤ n + η / A * n - A * ε * n := by
     have h1 := mul_le_mul_of_nonneg_left (show s - n ≤ (1 / A - ε) * n by linarith)
