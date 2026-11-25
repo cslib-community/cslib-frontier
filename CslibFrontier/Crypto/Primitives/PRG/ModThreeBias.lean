@@ -236,13 +236,12 @@ theorem abs_three_mul_card_modThreeWords_sub_le (n : ℕ) :
   have h := three_mul_sum_chi n ∅
   simp only [chi_empty, sum_const, card_empty, pow_zero, one_mul, Nat.sub_zero, nsmul_eq_mul,
     mul_one] at h
-  have hc : ((3 * (#(modThreeWords n) : ℝ) - 2 ^ n : ℝ) : ℂ) =
-      (1 + cubeRoot) ^ n + (1 + cubeRoot ^ 2) ^ n := by
-    push_cast
-    rw [h, one_add_one_eq_two]
-    ring
-  rw [← Real.norm_eq_abs, ← Complex.norm_real, hc]
-  refine (norm_add_le _ _).trans (le_of_eq ?_)
+  rw [← Real.norm_eq_abs, ← Complex.norm_real,
+    show ((3 * (#(modThreeWords n) : ℝ) - 2 ^ n : ℝ) : ℂ) =
+      (1 + cubeRoot) ^ n + (1 + cubeRoot ^ 2) ^ n by
+        push_cast; rw [h, one_add_one_eq_two]
+        ring]
+  refine (norm_add_le _ _).trans_eq ?_
   rw [norm_pow, norm_pow, norm_one_add_cubeRoot, norm_one_add_cubeRoot_sq, one_pow]
   norm_num
 
@@ -259,17 +258,13 @@ theorem abs_bias_modThreeGenerator_mul_le (n : ℕ) {S : Finset (Fin n)} (hS : S
     rw [Generator.outputDist, bias_uniformOfFintype_map, Fintype.expect_eq_sum_div_card,
       Fintype.card_coe, div_mul_cancel₀ _ hA.ne']
     exact sum_coe_sort A (chi ℝ S)
-  have hcast : ((3 * ∑ x ∈ A, chi ℝ S x : ℝ) : ℂ) = 3 * ∑ x ∈ A, chi ℂ S x := by
-    push_cast [chi]
-    rfl
   have hsum := norm_three_mul_sum_chi_le n hS
-  rw [← hcast, Complex.norm_real, Real.norm_eq_abs, abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 3),
-    ← hbias, abs_mul, abs_of_pos hA] at hsum
-  have hcard := (abs_le.mp (abs_three_mul_card_modThreeWords_sub_le n)).1
-  calc |bias (modThreeGenerator n).outputDist S| * (2 ^ n - 2)
-      ≤ |bias (modThreeGenerator n).outputDist S| * (3 * #A) :=
-        mul_le_mul_of_nonneg_left (by linarith) (abs_nonneg _)
-    _ ≤ 2 * √3 ^ #S := by linarith
+  rw [← show ((3 * ∑ x ∈ A, chi ℝ S x : ℝ) : ℂ) = 3 * ∑ x ∈ A, chi ℂ S x by push_cast [chi]; rfl,
+    Complex.norm_real, Real.norm_eq_abs, abs_mul, abs_of_pos (by norm_num : (0 : ℝ) < 3), ← hbias,
+    abs_mul, abs_of_pos hA] at hsum
+  exact (mul_le_mul_of_nonneg_left
+    (by linarith [(abs_le.mp (abs_three_mul_card_modThreeWords_sub_le n)).1] : (2 : ℝ) ^ n - 2 ≤
+      3 * #A) (abs_nonneg _)).trans (by linarith)
 
 /-- `√3 / 2 < 1`: the bias bound `4 (√3 / 2) ^ n` decays exponentially. -/
 theorem sqrt_three_div_two_lt_one : √3 / 2 < 1 := by
@@ -285,17 +280,14 @@ theorem isSmallBias_modThreeGenerator (n : ℕ) :
   · refine (abs_bias_le_one _ _).trans ?_
     interval_cases n
     · norm_num
-    · rw [pow_one]
-      linarith
-  · have hk : #S ≤ n := by simpa using card_le_univ S
-    have h4 : (2 : ℝ) ^ 2 ≤ 2 ^ n := pow_le_pow_right₀ (by norm_num) hn
-    have hpow : √3 ^ #S ≤ √3 ^ n := pow_le_pow_right₀ h3 hk
-    have h := abs_bias_modThreeGenerator_mul_le n hS
-    have hb := abs_nonneg (bias (modThreeGenerator n).outputDist S)
+    · rw [pow_one]; linarith
+  · have h4 : (2 : ℝ) ^ 2 ≤ 2 ^ n := pow_le_pow_right₀ (by norm_num) hn
+    have hpow : √3 ^ #S ≤ √3 ^ n := pow_le_pow_right₀ h3 (by simpa using card_le_univ S)
     have hmul : |bias (modThreeGenerator n).outputDist S| * 2 ^ n ≤
-        |bias (modThreeGenerator n).outputDist S| * (2 * (2 ^ n - 2)) := by gcongr; linarith
+        |bias (modThreeGenerator n).outputDist S| * (2 * (2 ^ n - 2)) :=
+      mul_le_mul_of_nonneg_left (by linarith) (abs_nonneg _)
     rw [div_pow, mul_div_assoc', le_div_iff₀ (by positivity)]
-    linarith
+    linarith [abs_bias_modThreeGenerator_mul_le n hS]
 
 /-! ### The distinguisher -/
 
@@ -310,25 +302,23 @@ theorem two_div_three_sub_le_advantage_modThreeTest (n : ℕ) :
     2 / 3 - 2 / (3 * 2 ^ n) ≤ (modThreeGenerator n).advantage (modThreeTest n) := by
   have htest : modThreeTest n = fun y => PMF.pure (decide (weight y % 3 = 0)) := rfl
   have hreal : ((modThreeGenerator n).realExperiment (modThreeTest n) true).toReal = 1 := by
-    rw [htest, Generator.toReal_realExperiment_pure]
-    have : ({z | decide (weight (modThreeGenerator n z) % 3 = 0) = true} :
-        Finset (modThreeWords n)) = univ :=
-      eq_univ_of_forall fun z => by simp [mem_modThreeWords.1 z.2]
-    rw [this, dens_univ, NNRat.cast_one]
+    rw [htest, Generator.toReal_realExperiment_pure,
+      show ({z | decide (weight (modThreeGenerator n z) % 3 = 0) = true} :
+        Finset (modThreeWords n)) = univ from
+          eq_univ_of_forall fun z => by simp [mem_modThreeWords.1 z.2],
+      dens_univ, NNRat.cast_one]
   have hideal : (Generator.idealExperiment (modThreeTest n) true).toReal =
       #(modThreeWords n) / 2 ^ n := by
     rw [htest, Generator.toReal_idealExperiment_pure, nnratCast_dens]
     simp [modThreeWords]
   rw [Generator.advantage, hreal, hideal]
   refine le_trans ?_ (le_abs_self _)
-  have hcard := (abs_le.mp (abs_three_mul_card_modThreeWords_sub_le n)).2
+  have hnn : 0 ≤ (2 ^ n + 2 - 3 * (#(modThreeWords n) : ℝ)) / (3 * 2 ^ n) :=
+    div_nonneg (by linarith [(abs_le.mp (abs_three_mul_card_modThreeWords_sub_le n)).2])
+      (by positivity)
   have hkey : (1 - (#(modThreeWords n) : ℝ) / 2 ^ n) - (2 / 3 - 2 / (3 * 2 ^ n)) =
       (2 ^ n + 2 - 3 * #(modThreeWords n)) / (3 * 2 ^ n) := by
-    field_simp
-    ring
-  have : 0 ≤ (1 - (#(modThreeWords n) : ℝ) / 2 ^ n) - (2 / 3 - 2 / (3 * 2 ^ n)) := by
-    rw [hkey]
-    exact div_nonneg (by linarith) (by positivity)
+    field_simp; ring
   linarith
 
 /-- **The mod-3 distribution is not `(2, 0.666)`-pseudorandom** for `n ≥ 10`: a read-once
@@ -338,16 +328,11 @@ theorem not_secure_modThreeGenerator {n : ℕ} (hn : 10 ≤ n) :
     ¬ (modThreeGenerator n).Secure (IsReadOnceTest (2 ^ 2)) (666 / 1000) := by
   intro h
   have h1 := h _ (isReadOnceTest_modThreeTest n)
-  have h2 := two_div_three_sub_le_advantage_modThreeTest n
+  rw [show ((666 / 1000 : ℝ≥0) : ℝ) = 666 / 1000 by rw [NNReal.coe_div]; norm_num] at h1
   have h3 : (2 : ℝ) / (3 * 2 ^ n) ≤ 2 / (3 * 2 ^ 10) :=
-    div_le_div_of_nonneg_left (by norm_num) (by positivity)
-      (by gcongr; norm_num)
-  have h4 : ((666 / 1000 : ℝ≥0) : ℝ) = 666 / 1000 := by
-    rw [NNReal.coe_div]
-    norm_num
-  rw [h4] at h1
+    div_le_div_of_nonneg_left (by norm_num) (by positivity) (by gcongr; norm_num)
   norm_num at h3
-  linarith
+  linarith [two_div_three_sub_le_advantage_modThreeTest n]
 
 /-- **Small bias does not imply space-bounded pseudorandomness** ([Goldreich, Exercise
 8.39][Goldreich2007DraftR4]): for some `c < 1`, the uniform distributions on the words of weight

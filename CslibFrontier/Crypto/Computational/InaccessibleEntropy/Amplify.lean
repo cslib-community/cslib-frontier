@@ -193,21 +193,15 @@ attribute [local fun_prop] AdversaryInaccessibleEntropyFamily.polyTime_inLen
 
 @[fun_prop]
 theorem computableInPolyTime_ampSlack (F : AdversaryInaccessibleEntropyFamily) :
-    ComputableInPolyTime (ampSlack F) encUnary encUnary := by
-  unfold ampSlack
-  fun_prop
+    ComputableInPolyTime (ampSlack F) encUnary encUnary := by unfold ampSlack; fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampReps (F : AdversaryInaccessibleEntropyFamily) :
-    ComputableInPolyTime (ampReps F) encUnary encUnary := by
-  unfold ampReps
-  fun_prop
+    ComputableInPolyTime (ampReps F) encUnary encUnary := by unfold ampReps; fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampGridCount (F : AdversaryInaccessibleEntropyFamily) :
-    ComputableInPolyTime (ampGridCount F) encUnary encUnary := by
-  unfold ampGridCount
-  fun_prop
+    ComputableInPolyTime (ampGridCount F) encUnary encUnary := by unfold ampGridCount; fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampShrinkLen :
@@ -255,16 +249,13 @@ private theorem le_ampRepInLen (F : AdversaryInaccessibleEntropyFamily) (n : ℕ
   · exact le_rfl
   · have := Nat.pos_of_ne_zero h0
     have := F.denom_pos n
-    have := le_ampSlack F n
-    exact (by omega : n + 2 ≤ ampSlack F n).trans
+    exact (by have := le_ampSlack F n; omega : n + 2 ≤ ampSlack F n).trans
       ((Nat.le_mul_of_pos_left _ (by positivity)).trans (Nat.le_mul_of_pos_right _ (by positivity)))
 
 private theorem add_ampShrinkLen_le_inputHashInLen (F : AdversaryInaccessibleEntropyFamily)
     (n : ℕ) : n + 1 + ampShrinkLen n ≤ inputHashInLen (ampRepInLen F n) := by
-  have := le_ampRepInLen F n
-  have := ampShrinkLen_le n
   unfold inputHashInLen
-  nlinarith
+  nlinarith [le_ampRepInLen F n, ampShrinkLen_le n]
 
 /-! ### Main grid theorem: STEPS 1–3 of Theorem 5.1 -/
 
@@ -288,38 +279,36 @@ private theorem ampGoodIdx_lt_ampGridCount (F : AdversaryInaccessibleEntropyFami
     have hk_le : PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString (F.inLen n))).map
         fun z => (wordToFinMap (F.inLen n) (F.outLen n) (F.evalWord n) z, z)) ≤ F.inLen n :=
       (PMF.conditionalEntropy_le_log_card _).trans_eq (by simp [Real.logb_pow])
-    have hD_pos : (0 : ℝ) < F.denom n := by exact_mod_cast F.denom_pos n
-    have ha_le : accessibleSetExpectation (accSet n) ≤ F.inLen n := by
-      linarith [div_pos zero_lt_one hD_pos]
-    have hΔ_pos : (0 : ℝ) < ampSlack F n := by
-      exact_mod_cast lt_of_lt_of_le (by omega) (le_ampSlack F n)
+    have hD_pos : (0 : ℝ) < F.denom n := Nat.cast_pos.2 (F.denom_pos n)
+    have hΔ_pos : (0 : ℝ) < ampSlack F n :=
+      Nat.cast_pos.2 (lt_of_lt_of_le (by omega) (le_ampSlack F n))
     have hfl : Nat.floor (((ampReps F n : ℝ) * accessibleSetExpectation (accSet n)) /
         (ampSlack F n : ℝ)) ≤ 6 * F.denom n * F.inLen n := by
       refine Nat.floor_le_of_le ?_
       simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
       rw [mul_assoc, mul_comm (ampSlack F n : ℝ), ← mul_assoc, mul_div_cancel_right₀ _ hΔ_pos.ne']
-      gcongr
-    have := F.denom_pos n
+      exact mul_le_mul_of_nonneg_left (by linarith [div_pos zero_lt_one hD_pos]) (by positivity)
     unfold ampGridCount
-    nlinarith
+    nlinarith [F.denom_pos n]
 
 private theorem amp_hoeffding_exponent_le (F : AdversaryInaccessibleEntropyFamily) {n : ℕ}
     (hw₀_pos : 1 ≤ F.inLen n) :
     -2 * (ampSlack F n : ℝ) ^ 2 / ((ampReps F n : ℝ) * (F.inLen n : ℝ) ^ 2) ≤ -(n : ℝ) := by
   have hD : (1 : ℝ) ≤ F.denom n := by exact_mod_cast F.denom_pos n
   have hw : (1 : ℝ) ≤ F.inLen n := by exact_mod_cast hw₀_pos
-  have hΔ : (0 : ℝ) < ampSlack F n := by exact_mod_cast lt_of_lt_of_le (by omega) (le_ampSlack F n)
+  have hΔ : (0 : ℝ) < ampSlack F n := Nat.cast_pos.2 (lt_of_lt_of_le (by omega) (le_ampSlack F n))
   have ht : (ampReps F n : ℝ) = 6 * (F.denom n : ℝ) * (ampSlack F n : ℝ) := by
     simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
   rw [div_le_iff₀ (by rw [ht]; positivity)]
-  have hΔ_eq : (ampSlack F n : ℝ) =
-      3 * ((n : ℝ) + 2) * (F.denom n : ℝ) * ((F.inLen n : ℝ) + 1) ^ 2 := by
-    unfold ampSlack; push_cast; ring
-  have hkey : (n : ℝ) * ((ampReps F n : ℝ) * (F.inLen n : ℝ) ^ 2) ≤ 2 * (ampSlack F n : ℝ) ^ 2 :=
+  have hkey :=
     calc (n : ℝ) * ((ampReps F n : ℝ) * (F.inLen n : ℝ) ^ 2)
       _ ≤ ((n : ℝ) + 2) * ((6 * (F.denom n : ℝ) * (ampSlack F n : ℝ)) *
-          ((F.inLen n : ℝ) + 1) ^ 2) := by rw [← ht]; gcongr <;> nlinarith
-      _ = 2 * (ampSlack F n : ℝ) ^ 2 := by rw [hΔ_eq]; ring
+          ((F.inLen n : ℝ) + 1) ^ 2) := by
+            rw [← ht]
+            gcongr <;> nlinarith
+      _ = 2 * (ampSlack F n : ℝ) ^ 2 := by
+            unfold ampSlack
+            push_cast; ring
   linarith
 
 private theorem amp_randomCollisionGame_succProbability_le
@@ -477,8 +466,7 @@ STEPS 1–3 (pp. 30–31)**: every uniform `OneWay` function yields a uniform po
 `ShrinkingCollisionGrid` with `G.shrinkLen n = Nat.log 2 n + 1`. -/
 theorem OneWay.exists_shrinkingCollisionGrid_log {f : List Bool → List Bool} (hf : OneWay f) :
     ∃ G : ShrinkingCollisionGrid, ∀ n, G.shrinkLen n = Nat.log 2 n + 1 :=
-  let ⟨F⟩ := hf.exists_inaccessibleEntropyFamily
-  F.exists_shrinkingCollisionGrid_log
+  let ⟨F⟩ := hf.exists_inaccessibleEntropyFamily; F.exists_shrinkingCollisionGrid_log
 
 /-- `Nonempty ShrinkingCollisionGrid` (`1 ≤ shrinkLen n`) corollary of
 `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid_log`, forgetting the explicit
@@ -486,8 +474,7 @@ theorem OneWay.exists_shrinkingCollisionGrid_log {f : List Bool → List Bool} (
 theorem AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid
     (F : AdversaryInaccessibleEntropyFamily) :
     Nonempty ShrinkingCollisionGrid :=
-  let ⟨G, _⟩ := F.exists_shrinkingCollisionGrid_log
-  ⟨G⟩
+  let ⟨G, _⟩ := F.exists_shrinkingCollisionGrid_log; ⟨G⟩
 
 /-- `Nonempty ShrinkingCollisionGrid` (`1 ≤ shrinkLen n`) specialization of
 `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid` to a fixed
@@ -501,7 +488,6 @@ theorem InaccessibleEntropyFamily.exists_shrinkingCollisionGrid (F : Inaccessibl
 equation. -/
 theorem OneWay.exists_shrinkingCollisionGrid {f : List Bool → List Bool} (hf : OneWay f) :
     Nonempty ShrinkingCollisionGrid :=
-  let ⟨G, _⟩ := hf.exists_shrinkingCollisionGrid_log
-  ⟨G⟩
+  let ⟨G, _⟩ := hf.exists_shrinkingCollisionGrid_log; ⟨G⟩
 
 end Cslib.Crypto

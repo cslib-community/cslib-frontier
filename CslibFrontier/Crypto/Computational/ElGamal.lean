@@ -1097,15 +1097,13 @@ theorem secureKDF_iff_encoded (setup : ℕ → PMF F.Desc) (H : F.Desc × List B
           (F.kdfRealGame setup H (fun n d u v key => W n (d, F.encode d u, F.encode d v, key)) n)
           (F.kdfIdealGame setup msgLen
             (fun n d u v key => W n (d, F.encode d u, F.encode d v, key)) n) := by
-  constructor
-  · intro h W hW
-    exact h _ (hW.preprocess (prepare := fun x : F.KDFInput => (x.secParam, x.groupParameters,
-      F.encode _ x.leftPublic, F.encode _ x.rightPublic, x.key)) (by fun_prop))
-  · intro h D hD
-    obtain ⟨W, hW, hWD⟩ := hD.exists_bool_factor F.encKDFInput_apply
-    obtain rfl : D = fun n d u v key => W (n, d, F.encode d u, F.encode d v, key) :=
-      funext₂ fun n d => funext₃ fun u v key => hWD ⟨⟨n, d, u, v⟩, key⟩
-    exact h (fun n t => W (n, t)) hW
+  refine ⟨fun h W hW => h _ (hW.preprocess (prepare := fun x : F.KDFInput =>
+    (x.secParam, x.groupParameters, F.encode _ x.leftPublic, F.encode _ x.rightPublic, x.key))
+    (by fun_prop)), fun h D hD => ?_⟩
+  obtain ⟨W, hW, hWD⟩ := hD.exists_bool_factor F.encKDFInput_apply
+  obtain rfl : D = fun n d u v key => W (n, d, F.encode d u, F.encode d v, key) :=
+    funext₂ fun n d => funext₃ fun u v key => hWD ⟨⟨n, d, u, v⟩, key⟩
+  exact h (fun n t => W (n, t)) hW
 
 /-- Run a key-derivation distinguisher as a DDH distinguisher: derive the candidate key
 `H (d, encode w)` from the candidate shared element `w`. -/
@@ -1190,9 +1188,10 @@ theorem kdfIdealGame_hashedElGamalToKDFDistinguisher_false_eq_true (setup : ℕ 
       F.kdfIdealGame setup msgLen (F.hashedElGamalToKDFDistinguisher adversary true) n := by
   simp only [kdfIdealGame, hashedElGamalToKDFDistinguisher, ProbComp.eval_bind,
     PMF.monad_bind_eq_bind, Bool.false_eq_true, ↓reduceIte]
-  congr 1; funext d; congr 1; funext α; congr 1; funext β
+  congr 1 with d : 1; congr 1 with α : 1
+  congr 1 with β : 1
   simp_rw [PMF.bind_comm (Cslib.BitString.uniformList (msgLen n))]
-  congr 1; funext choice
+  congr 1 with choice : 1
   let f pad := ProbComp.eval (adversary.guess n choice.2
     (encPair encBits encBits (F.encode d (β • F.generator d), pad)))
   have hpad (m : List Bool) :
