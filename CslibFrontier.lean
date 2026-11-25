@@ -6618,6 +6618,7 @@ public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTarget
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTargetPolyTime
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.Interactive
 public import CslibFrontier.Crypto.Protocols.BCS.ROM
