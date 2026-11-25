@@ -10604,6 +10604,7 @@ public import CslibFrontier.MachineLearning.OnlineLearning.Calibration
 public import CslibFrontier.Probability.KWiseIndependent.ReducedLimbs
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Opening.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.ApproximateCount
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.ToLRAT
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.RestorationOrder
 public import CslibFrontier.Algorithms.ThreeSum.ArrayPacking
 public import CslibFrontier.Probability.PairwiseIndependentHash.FrameSubstitution
