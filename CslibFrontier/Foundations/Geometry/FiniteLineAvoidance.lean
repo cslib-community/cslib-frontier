@@ -30,6 +30,7 @@ of distinct final points containing a moved point is noncollinear.
 `Cslib.NoTripleLineContact` says that three distinct supporting lines can meet only at
 one of their defining points when at least one line has a moved endpoint. The perturbation
 also ensures this property for the final configuration.
+`segment_inter_subsingleton_of_affineSpan_ne` bounds intersections on distinct supports.
 -/
 
 public section
@@ -128,14 +129,14 @@ only at one of their endpoints if at least one line uses a moved point. -/
     ∃ i, z = a i ∨ z = b i
 
 /-- The closed segment lies on the affine line through its endpoints. -/
-theorem segment_subset_affineSpan_pair (a b : ℂ) :
+private theorem segment_subset_affineSpan_pair (a b : ℂ) :
     segment ℝ a b ⊆ ↑(affineSpan ℝ ({a, b} : Set ℂ)) := by
   rw [segment_eq_image_lineMap]
   rintro _ ⟨t, _, rfl⟩
   exact AffineMap.lineMap_mem_affineSpan_pair t _ _
 
 /-- Distinct affine spans of point pairs in the plane intersect in at most one point. -/
-theorem affineSpan_pair_inter_subsingleton {a b c d : ℂ}
+private theorem affineSpan_pair_inter_subsingleton {a b c d : ℂ}
     (hne : affineSpan ℝ ({a, b} : Set ℂ) ≠ affineSpan ℝ ({c, d} : Set ℂ)) :
     ((↑(affineSpan ℝ ({a, b} : Set ℂ)) : Set ℂ) ∩
       ↑(affineSpan ℝ ({c, d} : Set ℂ))).Subsingleton := by

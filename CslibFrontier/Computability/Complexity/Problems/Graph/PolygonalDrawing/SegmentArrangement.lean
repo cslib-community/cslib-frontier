@@ -21,6 +21,7 @@ occurrence. Consecutive bends may coincide only as the shared endpoints allowed 
 the route parameter, and the two original ends of a loop remain distinct.
 `HasRegularContacts.segment_ends_at_bend` identifies both segment occurrences at
 an internal bend of a regular drawing with simple routes, even when the drawing has crossings.
+`segment_end_at_vertex_of_contacts` identifies graph darts from the vertex contact condition.
 -/
 
 public section

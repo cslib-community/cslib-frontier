@@ -25,7 +25,9 @@ are permitted. There is no degree bound or supplied topological, face-color or g
 
 The original finite PL proof also applies to a regular drawing with simple routes and
 even crossings between every distinct pair of edges. This gives the all-pairs-even
-case, with the literal clockwise rotation preserved. A topological-source comparison,
+case, with the literal clockwise rotation preserved. The listed points in a regular
+drawing are injective along each route, so this case covers loopless multigraphs.
+A topological-source comparison,
 taming of arbitrary topological arcs, the independently-even case, recognition and
 the planar CSP dichotomy remain open.
 
