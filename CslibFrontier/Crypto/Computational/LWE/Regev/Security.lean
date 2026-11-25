@@ -136,17 +136,15 @@ theorem encryptEntry_eq (n m w : ℕ) (publicWord : List Bool) (message : Bool)
   rw [List.map_range_eq_ofFn, List.sum_ofFn, ← ZMod.val_natCast]
   congr 1
   rw [Nat.cast_add, Nat.cast_sum, encryptWithCoins, Pi.add_apply]
-  congr 1
+  refine congrArg₂ (· + ·) ?_ ?_
   · simp only [Matrix.vecMul, dotProduct, coinVector]
-    apply Finset.sum_congr rfl
-    intro r _
+    refine Finset.sum_congr rfl fun r _ => ?_
     rw [Cslib.Matrix.ofBinary_apply]
     cases coins.getD r.val false <;> simp
   · by_cases hj : j = 0
     · subst hj
       simp [LWE.encodeBit]
-    · have hv : j.val ≠ 0 := fun h => hj (Fin.ext h)
-      simp [hj, hv]
+    · simp [hj]
 
 /-- The word encryption is the typed encryption of the decoded public matrix and coins. -/
 theorem encryptWithCoinsSerialized_eq (n m w : ℕ) (publicWord : List Bool) (message : Bool)
@@ -261,26 +259,21 @@ theorem computableInPolyTime_encryptEntry
   have hterm : ComputableInPolyTime
       (fun p : α × ℕ => if (coins p.1).getD p.2 false
         then Cslib.Matrix.binaryEntry (n p.1 + 1) (w p.1) (publicWord p.1) p.2 (j p.1) else 0)
-      (encPair input encUnary) encNat := by
-    apply ((bitsGetD false).comp
-      ((hcoins.comp (fst input encUnary)).prod (snd input encUnary))).ite'
-    · exact matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
-        (snd input encUnary) (by fun_prop)
-    · exact const 0
+      (encPair input encUnary) encNat :=
+    ((bitsGetD false).comp ((hcoins.comp (fst input encUnary)).prod (snd input encUnary))).ite'
+      (matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
+        (snd input encUnary) (by fun_prop)) (const 0)
   have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
     (mapWithInput
       (f := fun a r => if (coins a).getD r false
         then Cslib.Matrix.binaryEntry (n a + 1) (w a) (publicWord a) r (j a) else 0)
       (range.comp hm) hterm)
-  have hboolUnary : ComputableInPolyTime Bool.toNat encBool encUnary := of_finite Bool.toNat
-  have hhalf : ComputableInPolyTime (fun a => w a - 1) input encUnary := by fun_prop
-  have hmessageTerm : ComputableInPolyTime
+  have hmsg : ComputableInPolyTime
       (fun a => if j a = 0 then (message a).toNat * 2 ^ (w a - 1) else 0) input encNat := by
     simpa only [Function.comp_apply, beq_iff_eq] using (beq hj (const 0)).ite'
-      (binary_mul' (unary_to_binary.comp (hboolUnary.comp hmessage))
-        (binary_pow' (const 2) hhalf)) (const 0)
-  exact binary_mod.comp
-    ((binary_add.comp (hsum.prod hmessageTerm)).prod (binary_pow' (const 2) hw))
+      (binary_mul' (unary_to_binary.comp ((of_finite Bool.toNat).comp hmessage))
+        (binary_pow' (const 2) (by fun_prop))) (const 0)
+  exact binary_mod.comp ((binary_add.comp (hsum.prod hmsg)).prod (binary_pow' (const 2) hw))
 
 /-- The word encryption is polynomial-time on arbitrary public words and coins, charging the
 complete ciphertext output. -/
@@ -505,15 +498,14 @@ theorem eval_lorRunSerialized_toBinary (n m w : ℕ → ℕ) (adversary : Encryp
     simp only [Encryption.lorStepOn, ↓reduceIte, lorRun, typedLoRAdversary,
       bind_assoc, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_map,
       PMF.pure_bind, Function.comp_def, eval_encryptSerialized_toBinary]
-    congr 1 with choice : 1
-    have hsel :
-        (⟨Encryption.ChoiceOut.msg₀ choice, Encryption.ChoiceOut.msg₁ choice⟩ :
-          MessagePair Bool).select bit =
-        (if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice) := by
+    refine congrArg (PMF.bind _ ·) (funext fun choice => ?_)
+    have hsel : (⟨Encryption.ChoiceOut.msg₀ choice, Encryption.ChoiceOut.msg₁ choice⟩ :
+        MessagePair Bool).select bit =
+      (if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice) := by
       cases bit <;> rfl
     rw [hsel]
-    congr 1 with c : 1
-    exact ih (Encryption.ChoiceOut.state choice, serializeCiphertext c :: loopState.2)
+    exact congrArg (PMF.bind _ ·) (funext fun c =>
+      ih (Encryption.ChoiceOut.state choice, serializeCiphertext c :: loopState.2))
 
 /-- On canonical public-matrix words, `lorDistinguisherSerialized` has the exact distribution of
 typed `Regev.lorDistinguisher`. -/

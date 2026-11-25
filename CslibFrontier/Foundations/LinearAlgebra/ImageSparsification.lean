@@ -80,32 +80,28 @@ rows in `W`. This is the concrete finite-function version of `U ⊗ Kᴮ + Kᴬ 
 /-- With zero column and row spaces, the slice space consists only of the zero matrix. -/
 @[simp] theorem sliceSpace_bot_bot :
     sliceSpace (⊥ : Submodule K (A → K)) (⊥ : Submodule K (B → K)) = ⊥ := by
-  apply le_antisymm
-  · rintro m ⟨l, r, hl, hr, heq⟩
-    change m = 0
-    funext a b
-    change m a b = 0
-    have hlzero : l a b = 0 := congrFun ((Submodule.mem_bot K).mp (hl b)) a
-    have hrzero : r a b = 0 := congrFun ((Submodule.mem_bot K).mp (hr a)) b
-    rw [heq, hlzero, hrzero, zero_add]
-  · exact bot_le
+  refine le_antisymm ?_ bot_le
+  rintro m ⟨l, r, hl, hr, heq⟩
+  rw [Submodule.mem_bot]
+  funext a b
+  rw [heq, congrFun ((Submodule.mem_bot K).mp (hl b)) a,
+    congrFun ((Submodule.mem_bot K).mp (hr a)) b]
+  exact zero_add 0
 
 /-- A separable matrix belongs to the slice space when its left factor belongs to `U`. -/
 theorem mul_mem_sliceSpace_left {U : Submodule K (A → K)} (W : Submodule K (B → K))
     {u : A → K} (hu : u ∈ U) (r : B → K) :
-    (fun a b ↦ u a * r b) ∈ sliceSpace U W := by
-  refine ⟨fun a b ↦ u a * r b, 0, ?_, fun _ ↦ W.zero_mem, fun _ _ ↦ (add_zero _).symm⟩
-  intro b
-  simpa only [Pi.smul_def, smul_eq_mul, mul_comm] using U.smul_mem (r b) hu
+    (fun a b ↦ u a * r b) ∈ sliceSpace U W :=
+  ⟨fun a b ↦ u a * r b, 0,
+    fun b ↦ by simpa only [Pi.smul_def, smul_eq_mul, mul_comm] using U.smul_mem (r b) hu,
+    fun _ ↦ W.zero_mem, fun _ _ ↦ (add_zero _).symm⟩
 
 /-- A separable matrix belongs to the slice space when its right factor belongs to `W`. -/
 theorem mul_mem_sliceSpace_right (U : Submodule K (A → K)) {W : Submodule K (B → K)}
     (l : A → K) {w : B → K} (hw : w ∈ W) :
-    (fun a b ↦ l a * w b) ∈ sliceSpace U W := by
-  refine ⟨0, fun a b ↦ l a * w b, fun _ ↦ U.zero_mem, ?_,
+    (fun a b ↦ l a * w b) ∈ sliceSpace U W :=
+  ⟨0, fun a b ↦ l a * w b, fun _ ↦ U.zero_mem, fun a ↦ W.smul_mem (l a) hw,
     fun _ _ ↦ (zero_add _).symm⟩
-  intro a
-  exact W.smul_mem (l a) hw
 
 /-- Pulling back every function in `V` along `π` gives a matrix in `sliceSpace U W`. -/
 @[expose] def HasSliceDecomposition (π : A → B → X) (U : Submodule K (A → K))
@@ -146,17 +142,13 @@ private theorem exists_evaluation_set [Finite A] (U : Submodule K (A → K)) :
   let : Fintype A := Fintype.ofFinite A
   obtain ⟨ι, f, hf, hspan, hind⟩ := exists_linearIndependent' K (evaluation U)
   let : Fintype ι := Fintype.ofInjective f hf
-  refine ⟨univ.image f, ?_, ?_⟩
-  · have hcard : Fintype.card ι ≤ finrank K U := by
-      simpa only [Subspace.dual_finrank_eq] using hind.fintype_card_le_finrank
-    exact (Finset.card_image_le.trans (by simpa only [card_univ] using hcard))
-  · intro a
-    have ha : evaluation U a ∈ Submodule.span K (Set.range (evaluation U ∘ f)) := by
-      rw [hspan]
-      exact Submodule.subset_span ⟨a, rfl⟩
+  refine ⟨univ.image f, Finset.card_image_le.trans ?_, fun a ↦ ?_⟩
+  · simpa only [card_univ, Subspace.dual_finrank_eq] using hind.fintype_card_le_finrank
+  · have ha : evaluation U a ∈ Submodule.span K (Set.range (evaluation U ∘ f)) :=
+      hspan ▸ Submodule.subset_span ⟨a, rfl⟩
     refine Submodule.span_mono ?_ ha
     rintro _ ⟨i, rfl⟩
-    exact ⟨f i, mem_image.mpr ⟨i, mem_univ i, rfl⟩, rfl⟩
+    exact ⟨f i, mem_image_of_mem f (mem_univ i), rfl⟩
 
 private theorem eq_zero_of_mem_sliceSpace {U : Submodule K (A → K)}
     {W : Submodule K (B → K)} {s : Finset A} {t : Finset B}
@@ -168,26 +160,21 @@ private theorem eq_zero_of_mem_sliceSpace {U : Submodule K (A → K)}
   obtain ⟨l, r, hl, hr, heq⟩ := hm
   let F : Module.Dual K U →ₗ[K] (B → K) :=
     LinearMap.pi fun b ↦ Module.Dual.eval K U ⟨fun a ↦ l a b, hl b⟩
-  have hselected : ∀ a ∈ s, l a ∈ W := by
-    intro a ha
-    have hlr : l a = -r a := by
-      funext b
-      exact eq_neg_of_add_eq_zero_left ((heq a b).symm.trans (hrows a ha b))
+  have hspan : Submodule.span K (evaluation U '' (s : Set A)) ≤ W.comap F := by
+    refine Submodule.span_le.mpr ?_
+    rintro _ ⟨a, ha, rfl⟩
+    change l a ∈ W
+    have hlr : l a = -r a :=
+      funext fun b ↦ eq_neg_of_add_eq_zero_left ((heq a b).symm.trans (hrows a ha b))
     rw [hlr]
     exact W.neg_mem (hr a)
-  have hspan : Submodule.span K (evaluation U '' (s : Set A)) ≤ W.comap F := by
-    apply Submodule.span_le.mpr
-    rintro _ ⟨a, ha, rfl⟩
-    exact hselected a ha
   have hrowmem (a : A) : m a ∈ W := by
-    have hlmem : l a ∈ W := hspan (hs a)
-    have hrow : m a = l a + r a := funext (heq a)
-    rw [hrow]
-    exact W.add_mem hlmem (hr a)
+    rw [funext (heq a)]
+    exact W.add_mem (hspan (hs a)) (hr a)
   funext a b
   let G : Module.Dual K W →ₗ[K] K := Module.Dual.eval K W ⟨m a, hrowmem a⟩
   have hspan' : Submodule.span K (evaluation W '' (t : Set B)) ≤ LinearMap.ker G := by
-    apply Submodule.span_le.mpr
+    refine Submodule.span_le.mpr ?_
     rintro _ ⟨b', hb', rfl⟩
     exact hcols b' hb' a
   exact hspan' (ht b)
@@ -209,37 +196,25 @@ theorem exists_image_cover_with_exceptions [Finite A] [Finite B] [Fintype X]
   let e := univ.filter fun x ↦ (∃ a b, π a b = x) ∧
     ¬(∃ a ∈ s, ∃ b, π a b = x) ∧ ¬(∃ b ∈ t, ∃ a, π a b = x)
   have hdisjoint : Disjoint V (Pi.spanSubset K (e : Set X)) := by
-    apply Submodule.disjoint_def.mpr
-    intro v hv he
+    refine Submodule.disjoint_def.mpr fun v hv he ↦ ?_
     have hout : ∀ x ∉ e, v x = 0 := Pi.mem_spanSubset_iff.mp he
-    have hpull : (fun a b ↦ v (π a b)) = 0 := by
-      apply eq_zero_of_mem_sliceSpace hs ht (h v hv)
-      · intro a ha b
-        apply hout
-        intro hx
-        exact (mem_filter.mp hx).2.2.1 ⟨a, ha, b, rfl⟩
-      · intro b hb a
-        apply hout
-        intro hx
-        exact (mem_filter.mp hx).2.2.2 ⟨b, hb, a, rfl⟩
+    have hpull : (fun a b ↦ v (π a b)) = 0 :=
+      eq_zero_of_mem_sliceSpace hs ht (h v hv)
+        (fun a ha b ↦ hout _ fun hx ↦ (mem_filter.mp hx).2.2.1 ⟨a, ha, b, rfl⟩)
+        (fun b hb a ↦ hout _ fun hx ↦ (mem_filter.mp hx).2.2.2 ⟨b, hb, a, rfl⟩)
     funext x
     by_cases hx : x ∈ e
     · obtain ⟨a, b, rfl⟩ := (mem_filter.mp hx).2.1
       exact congrFun (congrFun hpull a) b
     · exact hout x hx
-  have hecard : e.card ≤ Fintype.card X - finrank K V := by
-    have hdim := Submodule.finrank_add_finrank_le_of_disjoint hdisjoint
-    rw [Pi.dim_spanSubset, Set.ncard_coe_finset, Module.finrank_fintype_fun_eq_card] at hdim
-    omega
-  refine ⟨s, t, e, hscard, htcard, hecard, ?_, ?_⟩
-  · intro x hx
-    exact (mem_filter.mp hx).2.1
-  · intro a b
-    by_cases hleft : ∃ a' ∈ s, ∃ b', π a' b' = π a b
-    · exact Or.inr (Or.inl hleft)
-    by_cases hright : ∃ b' ∈ t, ∃ a', π a' b' = π a b
-    · exact Or.inr (Or.inr hright)
-    exact Or.inl (mem_filter.mpr ⟨mem_univ _, ⟨a, b, rfl⟩, hleft, hright⟩)
+  have hdim := Submodule.finrank_add_finrank_le_of_disjoint hdisjoint
+  rw [Pi.dim_spanSubset, Set.ncard_coe_finset, Module.finrank_fintype_fun_eq_card] at hdim
+  refine ⟨s, t, e, hscard, htcard, by omega, fun x hx ↦ (mem_filter.mp hx).2.1, fun a b ↦ ?_⟩
+  by_cases hleft : ∃ a' ∈ s, ∃ b', π a' b' = π a b
+  · exact Or.inr (Or.inl hleft)
+  by_cases hright : ∃ b' ∈ t, ∃ a', π a' b' = π a b
+  · exact Or.inr (Or.inr hright)
+  exact Or.inl (mem_filter.mpr ⟨mem_univ _, ⟨a, b, rfl⟩, hleft, hright⟩)
 
 /-- **Image sparsification.** If the output function space pulls back into a two-sided slice
 space, the image is covered by rows and columns with total budget
@@ -257,22 +232,18 @@ theorem exists_image_cover [Finite A] [Finite B] [Fintype X]
   classical
   obtain ⟨s, t, e, hscard, htcard, hecard, heimage, hcover⟩ :=
     exists_image_cover_with_exceptions h
-  have hex : ∀ x : e, ∃ a b, π a b = x := fun x ↦ heimage x x.property
-  choose a b hab using hex
-  refine ⟨s ∪ univ.image a, t, ?_, ?_⟩
+  choose a b hab using fun x : e ↦ heimage x x.property
+  refine ⟨s ∪ univ.image a, t, ?_, fun a₀ b₀ ↦ ?_⟩
   · have hcard : (s ∪ univ.image a).card ≤ s.card + e.card := by
       calc
         (s ∪ univ.image a).card ≤ s.card + (univ.image a).card := card_union_le _ _
         _ ≤ s.card + e.card := Nat.add_le_add_left (by
           simpa only [card_univ, Fintype.card_coe] using card_image_le (f := a) (s := univ)) _
     omega
-  · intro a₀ b₀
-    rcases hcover a₀ b₀ with he | hleft | hright
-    · exact Or.inl ⟨a ⟨π a₀ b₀, he⟩,
-        mem_union_right _ (mem_image.mpr ⟨⟨π a₀ b₀, he⟩, mem_univ _, rfl⟩),
+  · rcases hcover a₀ b₀ with he | ⟨a', ha', b', hab'⟩ | hright
+    · exact Or.inl ⟨a ⟨π a₀ b₀, he⟩, mem_union_right _ (mem_image_of_mem a (mem_univ _)),
         b ⟨π a₀ b₀, he⟩, hab ⟨π a₀ b₀, he⟩⟩
-    · obtain ⟨a', ha', b', hab'⟩ := hleft
-      exact Or.inl ⟨a', mem_union_left _ ha', b', hab'⟩
+    · exact Or.inl ⟨a', mem_union_left _ ha', b', hab'⟩
     · exact Or.inr hright
 
 end Cslib.ImageSparsification

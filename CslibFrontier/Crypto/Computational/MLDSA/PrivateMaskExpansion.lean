@@ -8,15 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.AdaptiveKeySeed
+-- Reads private `Test`, `hit`, `changed`, `gap`, and `gap_bind_le`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 import CslibFrontier.Probability.PMF.UniformExtend
 import CslibFrontier.Tactic.PMFSwap
 
@@ -288,9 +281,7 @@ private theorem verify_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
       H.h256.readBytes keys.publicKey 64 := by
     apply raw
     obtain ⟨rho, sk, _, enc, _, _⟩ := privateKey_of_keyGen hk
-    rw [Keccak.length_bytesToBitsLE, enc]
-    simp only [encodePublic, List.length_append]
-    rw [FixedBytes.length_toList, length_packCoeffs]
+    rw [Keccak.length_bytesToBitsLE, enc, length_encodePublic, FixedBytes.length_toList]
     cases s <;> decide
   refine verify_eq_of_reads (G := maskStreams base ha t T₁ T₂ rows) (H := H) s keys.publicKey
     rfl raw (by decide) (nonce_commitment_ne s) ?_ f
@@ -384,18 +375,16 @@ private theorem maskScore_eq {a b n : ℕ} (C : QuantumSigningForger) (s : Level
       have run := OracleComp.IsCostBounded.run_interpret_sampleListWhen_congr isSigningCall
         (hn keys.publicKey) (0 : FixedBytes 64) (0 : ExpansionRow (maskPolyBytes s)) fs gs (by
           rintro (k | cmd | ask) h
-          · simp only [fs, gs, rowCommand, signingCommand, OracleComp.sumHandler]
-          · simp only [fs, gs, rowCommand, signingCommand, OracleComp.sumHandler]
-          · contradiction) (List.ofFn t) tape (by simp) (by
+          iterate 2 simp only [fs, gs, rowCommand, signingCommand, OracleComp.sumHandler]
+          contradiction) (List.ofFn t) tape (by simp) (by
             apply List.forall₂_of_length_eq_of_get (by simp [tape])
             rintro j h₁ h₂ (coin | cmd | ask) on
-            · contradiction
-            · contradiction
-            · simp only [tape, List.get_ofFn, Fin.cast_mk, fs, gs, rowCommand, signingCommand,
-                OracleComp.sumHandler]
-              rw [show ∀ i, G.signWithRow s keys.secretKey ask (fun _ => t i) =
-                H.signWithExpansionRow s keys.secretKey ask (slotRow hb rows i)
-                from fun i => sign_maskStreams base ha s hb t T₁ T₂ rows hk miss i ask])
+            iterate 2 contradiction
+            simp only [tape, List.get_ofFn, Fin.cast_mk, fs, gs, rowCommand, signingCommand,
+              OracleComp.sumHandler]
+            rw [show ∀ i, G.signWithRow s keys.secretKey ask (fun _ => t i) =
+              H.signWithExpansionRow s keys.secretKey ask (slotRow hb rows i)
+              from fun i => sign_maskStreams base ha s hb t T₁ T₂ rows hk miss i ask])
         C.initial
       have transcripts : C.seedTapeTranscript G s keys (List.ofFn t) =
           C.expansionTranscript G H s keys tape := by
@@ -653,10 +642,8 @@ private theorem freshExpansionGame_eq_setup (C : QuantumSigningForger) (s : Leve
         C.expansionScore H H s seed (List.ofFn (slotRow hb rows)) := by
   simp only [freshExpansionGame, expansionSetup, PMF.monad_bind_eq_bind, ← sample_streams,
     PMF.bind_bind, PMF.bind_map, Function.comp_def]
-  apply congrArg (PMF.bind (PMF.uniformOfFintype (Table a b)) ·)
-  funext T₁
-  apply congrArg (PMF.bind (PMF.uniformOfFintype (Table a b)) ·)
-  funext T₂
+  refine congrArg (PMF.bind (PMF.uniformOfFintype (Table a b)) ·) (funext fun T₁ =>
+    congrArg (PMF.bind (PMF.uniformOfFintype (Table a b)) ·) (funext fun T₂ => ?_))
   symm
   pmf_swap with seed
   simp only [expansionScore, scoreTranscript, withTrialSetup]
@@ -716,14 +703,8 @@ theorem privateMaskSeedGame_le_freshExpansionGame (C : QuantumSigningForger) (s 
   have sq : gap middle ideal ≤ loss ^ 2 := by
     rw [show ideal = _ from C.freshExpansionGame_eq_setup (a := a) s base hb hn]
     simp only [middle, expansionSetup, PMF.monad_bind_eq_bind]
-    apply gap_bind_const
-    intro T₁
-    apply gap_bind_const
-    intro T₂
-    apply gap_bind_const
-    intro rows
-    apply gap_bind_const
-    intro seed
+    refine gap_bind_const _ _ _ fun T₁ => gap_bind_const _ _ _ fun T₂ =>
+      gap_bind_const _ _ _ fun rows => gap_bind_const _ _ _ fun seed => ?_
     apply (expansionScore_gap_le C s base ha hb hm T₁ T₂ rows seed).trans_eq
     let rate : ℝ := n / 2 ^ 512
     change 4 * m * m * rate = (2 * m * √rate) ^ 2

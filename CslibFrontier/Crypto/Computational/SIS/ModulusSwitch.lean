@@ -50,12 +50,8 @@ private theorem innerPoly_scale_left {k n : ℕ} (c : ℚ)
     (a b : Fin k → Fin n → ℚ) (i : Fin n) :
     innerPoly (fun j l => c * a j l) b i = c * innerPoly a b i := by
   simp only [innerPoly, Finset.sum_apply, negacyclicMul, Matrix.mulVec, dotProduct,
-    Finset.mul_sum]
-  apply Finset.sum_congr rfl
-  intro j _
-  apply Finset.sum_congr rfl
-  intro l _
-  simp only [rotMatrix, Matrix.of_apply]
+    Finset.mul_sum, rotMatrix, Matrix.of_apply]
+  refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun l _ => ?_
   split_ifs <;> ring
 
 private theorem abs_innerPoly_le_half_sum {k n : ℕ}
@@ -64,21 +60,17 @@ private theorem abs_innerPoly_le_half_sum {k n : ℕ}
   calc
     |innerPoly a b i| = |∑ j, ∑ l, rotMatrix (a j) i l * b j l| := by
       simp only [innerPoly, Finset.sum_apply, negacyclicMul, Matrix.mulVec, dotProduct]
-    _ ≤ ∑ j, |∑ l, rotMatrix (a j) i l * b j l| :=
-      Finset.abs_sum_le_sum_abs _ _
     _ ≤ ∑ j, ∑ l, |rotMatrix (a j) i l * b j l| :=
-      Finset.sum_le_sum fun j _ => Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ j, ∑ l, (1 / 2 : ℚ) * |b j l| := by
-      apply Finset.sum_le_sum
-      intro j _
-      apply Finset.sum_le_sum
-      intro l _
-      rw [abs_mul]
-      apply mul_le_mul_of_nonneg_right _ (abs_nonneg _)
-      simp only [rotMatrix, Matrix.of_apply]
-      split_ifs
-      · exact ha j _
-      · simpa only [abs_neg] using ha j _
+      (Finset.abs_sum_le_sum_abs _ _).trans
+        (Finset.sum_le_sum fun j _ => Finset.abs_sum_le_sum_abs _ _)
+    _ ≤ ∑ j, ∑ l, (1 / 2 : ℚ) * |b j l| :=
+      Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun l _ => by
+        rw [abs_mul]
+        refine mul_le_mul_of_nonneg_right ?_ (abs_nonneg _)
+        simp only [rotMatrix, Matrix.of_apply]
+        split_ifs
+        · exact ha j _
+        · simpa only [abs_neg] using ha j _
     _ = (∑ j, ∑ l, |b j l|) / 2 := by
       simp only [← Finset.mul_sum]
       ring
@@ -106,10 +98,8 @@ theorem exists_moduleLWEModulusSwitch_phase_of_lifts {k n q p : ℕ}
   let ur : Fin k → Fin n → ℤ := fun j i => round (c * u j i)
   let vr : Fin n → ℤ := fun i => round (c * v i)
   let e' : Fin n → ℤ := fun i => vr i - innerPoly ur s i - p * w i
-  let a : Fin k → Fin n → ℚ := fun j i => (u j i : ℚ)
   let b : Fin k → Fin n → ℚ := fun j i => (s j i : ℚ)
-  let ar : Fin k → Fin n → ℚ := fun j i => (ur j i : ℚ)
-  let δ : Fin k → Fin n → ℚ := ar - fun j i => c * a j i
+  let δ : Fin k → Fin n → ℚ := (fun j i => (ur j i : ℚ)) - fun j i => c * u j i
   have hcast (x : Fin k → Fin n → ℤ) (i : Fin n) :
       ((innerPoly x s i : ℤ) : ℚ) = innerPoly (fun j l => (x j l : ℚ)) b i :=
     congrFun (map_innerPoly (Int.castRingHom ℚ) x s) i
@@ -118,17 +108,14 @@ theorem exists_moduleLWEModulusSwitch_phase_of_lifts {k n q p : ℕ}
     have hi := congrArg (fun x : ℤ => (x : ℚ)) (congrFun hphase i)
     simp only [Pi.sub_apply, Int.cast_sub, Int.cast_add, Int.cast_mul, Int.cast_natCast] at hi
     rw [hcast] at hi
-    have hq' : (q : ℚ) ≠ 0 := by exact_mod_cast hq.ne'
-    have hc : c * q = (p : ℚ) := div_mul_cancel₀ _ hq'
+    have hc : c * q = (p : ℚ) := div_mul_cancel₀ _ (by exact_mod_cast hq.ne')
     dsimp only [e', δ]
     rw [innerPoly_sub_left]
     simp only [Pi.sub_apply, Int.cast_sub, Int.cast_mul, Int.cast_natCast]
     rw [hcast, innerPoly_scale_left]
-    dsimp only [a, ar] at *
     linear_combination c * hi + (w i : ℚ) * hc
-  have hδ : ∀ j l, |δ j l| ≤ 1 / 2 := by
-    intro j l
-    dsimp only [δ, ar, ur, a, Pi.sub_apply]
+  have hδ (j : Fin k) (l : Fin n) : |δ j l| ≤ 1 / 2 := by
+    dsimp only [δ, ur, Pi.sub_apply]
     rw [abs_sub_comm]
     exact abs_sub_round _
   have hnear (i : Fin n) : |(e' i : ℚ) - c * e i| ≤
@@ -137,23 +124,19 @@ theorem exists_moduleLWEModulusSwitch_phase_of_lifts {k n q p : ℕ}
     calc
       |(vr i : ℚ) - c * v i - innerPoly δ b i| ≤
           |(vr i : ℚ) - c * v i| + |innerPoly δ b i| := abs_sub _ _
-      _ ≤ 1 / 2 + (∑ j, ∑ l, |(s j l : ℚ)|) / 2 := by
-        apply add_le_add
-        · rw [abs_sub_comm]
-          exact abs_sub_round _
-        · exact abs_innerPoly_le_half_sum δ b hδ i
+      _ ≤ 1 / 2 + (∑ j, ∑ l, |(s j l : ℚ)|) / 2 :=
+        add_le_add (abs_sub_comm (vr i : ℚ) (c * v i) ▸ abs_sub_round _)
+          (abs_innerPoly_le_half_sum δ b hδ i)
       _ = _ := by ring
-  refine ⟨e', ?_, hnear, ?_⟩
-  · funext i
-    have hs := congrFun (map_innerPoly (Int.castRingHom (ZMod p)) ur s) i
+  refine ⟨e', funext fun i => ?_, hnear, fun i => ?_⟩
+  · have hs := congrFun (map_innerPoly (Int.castRingHom (ZMod p)) ur s) i
     simp only [moduleLWEModulusSwitch, ← hu, ← hv, ZMod.modulusSwitch_intCast hq.ne',
       Pi.sub_apply]
     dsimp only [e', vr, ur, c] at hs ⊢
     simp only [Int.cast_sub, Int.cast_mul, Int.cast_natCast, ZMod.natCast_self, zero_mul,
       sub_zero]
     exact congrArg (fun x : ZMod p => (round ((p : ℚ) / q * v i) : ℤ) - x) hs.symm
-  · intro i
-    have hc : 0 ≤ c := div_nonneg (by positivity) (by positivity)
+  · have hc : 0 ≤ c := div_nonneg (by positivity) (by positivity)
     calc
       |(e' i : ℚ)| = |((e' i : ℚ) - c * e i) + c * e i| := by ring_nf
       _ ≤ |(e' i : ℚ) - c * e i| + |c * e i| := abs_add_le _ _
@@ -180,27 +163,21 @@ theorem exists_moduleLWEModulusSwitch_phase_of_intCast {k n q p : ℕ}
         (1 + ∑ j, ∑ l, |(s j l : ℚ)|) / 2) := by
   let u : Fin k → Fin n → ℤ := fun j i => (ct.1 j i).valMinAbs
   let v : Fin n → ℤ := fun i => (ct.2 i).valMinAbs
-  have hu : (fun j i => (u j i : ZMod q)) = ct.1 := by
-    funext j i
-    exact ZMod.coe_valMinAbs _
-  have hv : (fun i => (v i : ZMod q)) = ct.2 := by
-    funext i
-    exact ZMod.coe_valMinAbs _
+  have hu : (fun j i => (u j i : ZMod q)) = ct.1 :=
+    funext fun _ => funext fun _ => ZMod.coe_valMinAbs _
+  have hv : (fun i => (v i : ZMod q)) = ct.2 := funext fun _ => ZMod.coe_valMinAbs _
   have hdvd (i : Fin n) : (q : ℤ) ∣ v i - innerPoly u s i - e i := by
-    apply (ZMod.intCast_zmod_eq_zero_iff_dvd _ q).mp
-    have hm := congrFun (map_innerPoly (Int.castRingHom (ZMod q)) u s) i
-    change ((innerPoly u s i : ℤ) : ZMod q) =
-      innerPoly (fun j l => (u j l : ZMod q)) (fun j l => (s j l : ZMod q)) i at hm
+    refine (ZMod.intCast_zmod_eq_zero_iff_dvd _ q).mp ?_
+    have hm : ((innerPoly u s i : ℤ) : ZMod q) =
+        innerPoly (fun j l => (u j l : ZMod q)) (fun j l => (s j l : ZMod q)) i :=
+      congrFun (map_innerPoly (Int.castRingHom (ZMod q)) u s) i
     rw [hu] at hm
     rw [Int.cast_sub, Int.cast_sub, hm, congrFun hv i]
     exact sub_eq_zero.mpr (congrFun he i).symm
   choose w hw using hdvd
-  have hphase : v - innerPoly u s = fun i => e i + q * w i := by
-    funext i
-    have hi := hw i
-    dsimp only [Pi.sub_apply]
-    linarith
-  exact exists_moduleLWEModulusSwitch_phase_of_lifts hq hp ct u s v e w hu hv hphase
+  refine exists_moduleLWEModulusSwitch_phase_of_lifts hq hp ct u s v e w hu hv (funext fun i => ?_)
+  have hi := hw i
+  dsimp only [Pi.sub_apply]; linarith
 
 /-- The actual switched ciphertext phase is close to the scaled canonical original phase.
 Integer carries exist automatically; no no-wrap assumption is needed. The secret at the new
@@ -218,8 +195,7 @@ theorem exists_moduleLWEModulusSwitch_phase {k n q p : ℕ}
       (∀ i, |(e' i : ℚ)| ≤ (p : ℚ) / q *
           |(((ct.2 - innerPoly ct.1 (fun j l => (s j l : ZMod q))) i).valMinAbs : ℚ)| +
         (1 + ∑ j, ∑ l, |(s j l : ℚ)|) / 2) := by
-  apply exists_moduleLWEModulusSwitch_phase_of_intCast hq hp ct s
-  funext i
-  exact ZMod.coe_valMinAbs _
+  exact exists_moduleLWEModulusSwitch_phase_of_intCast hq hp ct s _
+    (funext fun _ => ZMod.coe_valMinAbs _)
 
 end Cslib.Crypto

@@ -42,32 +42,23 @@ private def targetWord (x : Instance q) : Fin x.source.length → Fin q :=
   fun i => x.target.getD i.val ⟨0, hq⟩
 
 private theorem ofFn_targetWord (x : Instance q) (h : x.source.length = x.target.length) :
-    List.ofFn (targetWord hq x) = x.target := by
-  apply List.ext_getElem
-  · exact List.length_ofFn.trans h
-  · intro i hi hj
-    simp only [List.getElem_ofFn, targetWord]
-    exact List.getD_eq_getElem _ _ hj
+    List.ofFn (targetWord hq x) = x.target :=
+  List.ext_getElem (List.length_ofFn.trans h) fun _ _ hj => by
+    simpa only [List.getElem_ofFn, targetWord] using List.getD_eq_getElem _ _ hj
 
 omit [DecidableRel H.Adj] in
 private theorem language_iff (x : Instance q) : x ∈ language H ↔
     x.source.length = x.target.length ∧ Legal H x.source.get ∧
       Reachable H x.source.get (targetWord hq x) := by
-  constructor
-  · rintro ⟨t, ht, hs, hr⟩
-    have hlen : x.source.length = x.target.length := List.length_ofFn.symm.trans
-      (congrArg List.length ht)
-    have heq : t = targetWord hq x := List.ofFn_inj.mp (ht.trans (ofFn_targetWord hq x hlen).symm)
-    exact ⟨hlen, hs, heq ▸ hr⟩
-  · rintro ⟨hlen, hs, hr⟩
-    exact ⟨targetWord hq x, ofFn_targetWord hq x hlen, hs, hr⟩
+  refine ⟨fun ⟨t, ht, hs, hr⟩ => ?_, fun ⟨hlen, hs, hr⟩ =>
+    ⟨targetWord hq x, ofFn_targetWord hq x hlen, hs, hr⟩⟩
+  have hlen := List.length_ofFn.symm.trans (congrArg List.length ht)
+  exact ⟨hlen, hs, List.ofFn_inj.mp (ht.trans (ofFn_targetWord hq x hlen).symm) ▸ hr⟩
 
 private def rejected : PlaneWordAndOrNCL.Instance := ⟨[], [], [true]⟩
 
-private theorem rejected_not_mem : rejected ∉ PlaneWordAndOrNCL := by
-  intro h
-  have hlen := h.2.2.2.2.1
-  change 1 = 0 at hlen
+private theorem rejected_not_mem : rejected ∉ PlaneWordAndOrNCL := fun h => by
+  have : 1 = 0 := h.2.2.2.2.1
   omega
 
 /-- Compile the shared two-list H-word instance into the actual standard planar NCL instance. -/
@@ -110,10 +101,7 @@ theorem reduce_mem_iff (x : Instance q) : reduce H hq x ∈ PlaneWordAndOrNCL �
 /-- The actual H-word to plane-word instance map is polynomial-time in the shared encodings. -/
 theorem computableInPolyTime_reduce : ComputableInPolyTime (reduce H hq) (encInstance q)
     encPlaneWordAndOrNCL := by
-  have hs := encInstance_source_polyTime q
-    (ComputableInPolyTime.id' (encIn := encInstance q))
-  have ht := encInstance_target_polyTime q
-    (ComputableInPolyTime.id' (encIn := encInstance q))
+  open scoped Instance in
   have htest : ComputableInPolyTime (fun x : Instance q =>
       decide (x.source.length = x.target.length)) (encInstance q) encBool := by fun_prop
   have hcompile : ComputableInPolyTime (fun x : Instance q =>
@@ -121,9 +109,8 @@ theorem computableInPolyTime_reduce : ComputableInPolyTime (reduce H hq) (encIns
       encPlaneWordAndOrNCL := by
     simpa only [Function.comp_def] using Planar.Embedding.PolyTime.computableInPolyTime_compile.comp
       (Metadata.computableInPolyTime_toInput H hq)
-  have h := ComputableInPolyTime.ite_decide htest hcompile (ComputableInPolyTime.const rejected)
-  apply h.of_enc_eq
-  intro x
+  refine (ComputableInPolyTime.ite_decide htest hcompile
+    (ComputableInPolyTime.const rejected)).of_enc_eq fun x => ?_
   by_cases hlen : x.source.length = x.target.length
   · simp only [reduce, hlen, ite_true, Metadata.compile_toInput]
     rfl

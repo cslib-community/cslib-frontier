@@ -157,14 +157,9 @@ private theorem sampleBitsLoop_law {w base n : ℕ}
     have hnd := hdistinct
     simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, not_or,
       List.nodup_nil, and_true] at hdistinct
-    rcases hdistinct with
-      ⟨⟨hone_b, hone_n, hone_c, hone_v, hone_a⟩,
-       ⟨hb_n, hb_c, hb_v, hb_a⟩,
-       ⟨hn_c, hn_v, hn_a⟩,
-       ⟨hc_v, hc_a⟩,
-       ⟨hv_a, _⟩⟩
-    obtain ⟨j, hj⟩ : ∃ j, x.regs cnt = j := ⟨_, rfl⟩
-    rw [hj] at hd hbits ⊢
+    obtain ⟨⟨-, -, hone_c, hone_v, hone_a⟩, ⟨-, hb_c, hb_v, hb_a⟩, ⟨hn_c, hn_v, hn_a⟩,
+      ⟨hc_v, hc_a⟩, hv_a, -⟩ := hdistinct
+    generalize hj : x.regs cnt = j at hd hbits ⊢
     have hjn : j < n := by omega
     have hc : (Cond.lt cnt nReg).Holds x := by simp [Cond.holds_lt, hn, hj]; omega
     have : Fits w (base + j) := hw_end.of_le (by omega)
@@ -203,8 +198,7 @@ private theorem sampleBitsLoop_law {w base n : ℕ}
           rw [hYc] at hi
           simp only [Y, Data.set_mem, Data.write_mem, Function.update_apply]
           split_ifs
-          · exact hb
-          · exact hbits i (by omega))
+          exacts [hb, hbits i (by omega)])
       rw [hYc] at h
       unfold sampleBitsLoop at h
       exact h.mono (fun z ⟨hzb, hzm, hzr⟩ =>
@@ -216,9 +210,8 @@ private theorem sampleBitsLoop_law {w base n : ℕ}
     refine (hlaw.congr_law ?_).mono (fun _ h => h) (by omega) (by omega)
     rw [ho, PMF.bind_map]
     have hYa (b : ℕ) : bitsAt (Y b).mem base n =
-        Function.update (bitsAt x.mem base n) ⟨j, hjn⟩ (decide (b = 1)) := by
-      simp only [Y, Data.set_mem, Data.write_mem]
-      exact bitsAt_update_self x.mem base ⟨j, hjn⟩ b
+        Function.update (bitsAt x.mem base n) ⟨j, hjn⟩ (decide (b = 1)) :=
+      bitsAt_update_self x.mem base ⟨j, hjn⟩ b
     let G : (Fin n → Bool) → (Fin n → Bool) := fun τ i =>
       if i.val < j then bitsAt x.mem base n i else τ i
     have hcomp (b : Bool) : (fun τ : Fin n → Bool => fun i : Fin n =>
@@ -226,11 +219,7 @@ private theorem sampleBitsLoop_law {w base n : ℕ}
         G ∘ fun τ => Function.update τ ⟨j, hjn⟩ b := by
       funext τ i
       simp only [G, Function.comp_apply, Function.update_apply, Fin.ext_iff]
-      by_cases h1 : i.val < j
-      · simp [h1, show i.val < j + 1 by omega, show i.val ≠ j by omega]
-      · by_cases h2 : i.val = j
-        · simp [h2]
-        · simp [h1, h2, show ¬i.val < j + 1 by omega]
+      split_ifs <;> first | rfl | omega
     calc (PMF.uniformOfFintype (Fin (1 + 1))).bind
           ((fun σ' => (PMF.uniformOfFintype (Fin n → Bool)).map fun τ i =>
             if i.val < j + 1 then σ' i else τ i) ∘ fun b => bitsAt (Y b.val).mem base n)
@@ -268,13 +257,10 @@ theorem sampleBits_law {w base n : ℕ}
       (PMF.uniformOfFintype (Fin n → Bool)) := by
   have hd' := hdistinct
   simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, not_or] at hd'
-  have hone_c : one ≠ cnt := hd'.1.2.2.1
-  have hb_c : baseReg ≠ cnt := hd'.2.1.2.1
-  have hn_c : nReg ≠ cnt := hd'.2.2.1.1
   have h := sampleBitsLoop_law hdistinct hw1 hw_end n (x.set cnt 0)
-    (by simp [Data.set_regs, Function.update_of_ne hone_c, ho])
-    (by simp [Data.set_regs, Function.update_of_ne hb_c, hbReg])
-    (by simp [Data.set_regs, Function.update_of_ne hn_c, hn])
+    (by simp [Data.set_regs, Function.update_of_ne hd'.1.2.2.1, ho])
+    (by simp [Data.set_regs, Function.update_of_ne hd'.2.1.2.1, hbReg])
+    (by simp [Data.set_regs, Function.update_of_ne hd'.2.2.1.1, hn])
     (by simp) (by simp)
   simp only [Data.set_regs, Function.update_self, Nat.not_lt_zero, ↓reduceIte] at h
   rw [show (fun τ : Fin n → Bool => fun i => τ i) = id from rfl, PMF.map_id] at h

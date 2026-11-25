@@ -55,10 +55,9 @@ theorem SigmaSAT_mem_SigmaP (i : ℕ) : SigmaSAT i ∈ SigmaP i encQBF := by
 /-- Universal-first bounded quantified SAT is in its native hierarchy level, including zero. -/
 theorem PiSAT_mem_PiP (i : ℕ) : PiSAT i ∈ PiP i encQBF := by
   apply inter_mem_PiP
-  · apply PiP_mono (Nat.zero_le i)
+  · refine PiP_mono (Nat.zero_le i) ?_
     change {φ | PrenexQBF.startsCorrectly false φ = true} ∈ PiP 0 encQBF
-    rw [PiP_zero]
-    exact ⟨PrenexQBF.startsCorrectly false, PrenexQBF.startsCorrectly_polyTime false,
+    exact PiP_zero ▸ ⟨PrenexQBF.startsCorrectly false, PrenexQBF.startsCorrectly_polyTime false,
       fun _ => Iff.rfl⟩
   · exact PolyTimeReducible.mem_PiP
       ⟨PrenexQBF.parse false i, PrenexQBF.parse_polyTime false i, fun _ => Iff.rfl⟩
@@ -70,17 +69,12 @@ theorem SigmaSAT_sigmaPHard {i : ℕ} (hi : 1 ≤ i) : SigmaPHard i encQBF (Sigm
   obtain ⟨f, hf, hspec⟩ := exists_tableauReduction hi hA
   refine ⟨fun a => (f a).formula true,
     PrenexQBF.formula_polyTime hf true i (fun a => (hspec a).1.1), fun a => ?_⟩
-  have hne : (f a).blocks ≠ [] := by
-    intro heq
-    have := (hspec a).1.1
-    simp only [heq, List.length_nil] at this
-    omega
+  have hne : (f a).blocks ≠ [] := List.ne_nil_of_length_pos ((hspec a).1.1.symm ▸ hi)
+  have hp : PrenexQBF.parse true i ((f a).formula true) = f a :=
+    (hspec a).1.1 ▸ PrenexQBF.parse_formula true (f a) (hspec a).1.2.1 (hspec a).2.1
   change a ∈ A ↔ PrenexQBF.startsCorrectly true ((f a).formula true) = true ∧
     PrenexQBF.parse true i ((f a).formula true) ∈ PrenexQBF.SigmaSAT i
-  rw [and_iff_right (PrenexQBF.startsCorrectly_formula (f a) true hne (hspec a).2.1)]
-  have hp := PrenexQBF.parse_formula true (f a) (hspec a).1.2.1 (hspec a).2.1
-  rw [(hspec a).1.1] at hp
-  rw [hp]
+  rw [and_iff_right (PrenexQBF.startsCorrectly_formula (f a) true hne (hspec a).2.1), hp]
   exact (hspec a).2.2.trans (and_iff_right (hspec a).1).symm
 
 /-- Every `Πᵢᵖ` problem, with any instance encoding, reduces to `ΠᵢSAT` for `i ≥ 1`. -/
@@ -90,32 +84,26 @@ theorem PiSAT_piPHard {i : ℕ} (hi : 1 ≤ i) : PiPHard i encQBF (PiSAT i) := b
   let g (a : α) : PrenexQBF := ⟨(f a).blocks, (f a).matrix.not⟩
   have hg : ComputableInPolyTime g enc encPrenexQBF := by
     unfold g
-    have hn := TQBF.computableInPolyTime_not (encPrenexQBF_matrix_polyTime hf)
+    have := TQBF.computableInPolyTime_not (encPrenexQBF_matrix_polyTime hf)
     fun_prop
   have hwell (a : α) : (g a).WellFormed i :=
     ⟨(hspec a).1.1, QBF.quantifierFree_not.mpr (hspec a).1.2.1, (hspec a).1.2.2⟩
   refine ⟨fun a => (g a).formula false,
     PrenexQBF.formula_polyTime hg false i (fun a => (hwell a).1), fun a => ?_⟩
-  have hne : (g a).blocks ≠ [] := by
-    intro heq
-    have := (hwell a).1
-    simp only [heq, List.length_nil] at this
-    omega
+  have hne : (g a).blocks ≠ [] := List.ne_nil_of_length_pos ((hwell a).1.symm ▸ hi)
+  have hp : PrenexQBF.parse false i ((g a).formula false) = g a :=
+    (hwell a).1 ▸ PrenexQBF.parse_formula false (g a) (hwell a).2.1 (hspec a).2.1
   change a ∈ A ↔ PrenexQBF.startsCorrectly false ((g a).formula false) = true ∧
     PrenexQBF.parse false i ((g a).formula false) ∈ PrenexQBF.PiSAT i
-  rw [and_iff_right (PrenexQBF.startsCorrectly_formula (g a) false hne (hspec a).2.1)]
-  have hp := PrenexQBF.parse_formula false (g a) (hwell a).2.1 (hspec a).2.1
-  rw [(hwell a).1] at hp
-  rw [hp]
+  rw [and_iff_right (PrenexQBF.startsCorrectly_formula (g a) false hne (hspec a).2.1), hp]
   change a ∈ A ↔ (g a).WellFormed i ∧ ((g a).formula false).eval (fun _ => false) = true
   rw [and_iff_right (hwell a)]
-  have hd := QBF.eval_blocks_dual true (f a).blocks (f a).matrix (fun _ => false)
-  change ((g a).formula false).eval (fun _ => false) =
-    !((f a).formula true).eval (fun _ => false) at hd
+  have hd : ((g a).formula false).eval (fun _ => false) =
+      !((f a).formula true).eval (fun _ => false) :=
+    QBF.eval_blocks_dual true (f a).blocks (f a).matrix (fun _ => false)
   rw [hd]
-  have heq := (hspec a).2.2
   simpa only [Set.mem_compl_iff, Bool.not_eq_true', ← Bool.not_eq_true, not_not] using
-    not_congr heq
+    not_congr (hspec a).2.2
 
 /-- **`ΣᵢSAT` is `Σᵢᵖ`-complete for every positive level**, under polynomial-time many-one
 reductions, with the existing `QBF ℕ` syntax and `encQBF` encoding.

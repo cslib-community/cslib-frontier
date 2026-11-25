@@ -68,9 +68,7 @@ private theorem binaryWord_pad {small large value : ℕ} (hwidth : small ≤ lar
     (hvalue : value < 2 ^ small) :
     binaryWord large value =
       List.replicate (large - small) false ++ binaryWord small value := by
-  have hbits : value.bits.length ≤ small := by
-    rw [Nat.size_eq_bits_len]
-    exact Nat.size_le.2 hvalue
+  have hbits : value.bits.length ≤ small := Nat.size_eq_bits_len value ▸ Nat.size_le.2 hvalue
   simp only [binaryWord, ← List.append_assoc, ← List.replicate_add]
   congr 2
   omega
@@ -203,21 +201,14 @@ def toBits (a : Address) : List Bool :=
 /-- The canonical address as exactly 32 big-endian bytes. -/
 def toBytes (a : Address) : FixedBytes 32 := bitsToFixedBytesBE 32 a.toBits
 
-private theorem addressWordBits_injective : Function.Injective addressWordBits := by
-  intro x y h
-  apply Fin.ext
-  simpa using congrArg binaryValue h
+private theorem addressWordBits_injective : Function.Injective addressWordBits :=
+  fun _ _ h => Fin.ext (by simpa using congrArg binaryValue h)
 
-private theorem treeAddressBits_injective : Function.Injective treeAddressBits := by
-  intro x y h
-  apply Fin.ext
-  simpa using congrArg binaryValue h
+private theorem treeAddressBits_injective : Function.Injective treeAddressBits :=
+  fun _ _ h => Fin.ext (by simpa using congrArg binaryValue h)
 
-private theorem typeBits_injective : Function.Injective typeBits := by
-  intro x y h
-  apply AddressType.toNat_injective
-  have hword := addressWordBits_injective h
-  exact congrArg Fin.val hword
+private theorem typeBits_injective : Function.Injective typeBits :=
+  fun _ _ h => AddressType.toNat_injective (congrArg Fin.val (addressWordBits_injective h))
 
 /-- The canonical 32-byte address encoding is injective. -/
 theorem toBits_injective : Function.Injective toBits := by
@@ -233,9 +224,7 @@ theorem toBits_injective : Function.Injective toBits := by
     (addressWordBits_injective h6) (addressWordBits_injective h7)
 
 /-- The canonical 32-byte encoding is injective for arbitrary addresses. -/
-theorem toBytes_injective : Function.Injective toBytes := by
-  intro a b h
-  apply toBits_injective
+theorem toBytes_injective : Function.Injective toBytes := fun a b h => toBits_injective <| by
   rw [← bytesToBitsBE_bitsToFixedBytesBE 32 a.toBits (by simp),
     ← bytesToBitsBE_bitsToFixedBytesBE 32 b.toBits (by simp)]
   exact congrArg (fun bytes : FixedBytes 32 => bytesToBitsBE bytes.toList) h
@@ -296,32 +285,22 @@ theorem toCompressedBits_injective_of_fits {a b : Address}
   obtain ⟨h, h5⟩ := List.append_inj' h (by simp)
   obtain ⟨h, htype⟩ := List.append_inj' h (by simp)
   obtain ⟨hlayer, htree⟩ := List.append_inj' h (by simp)
-  have hlayer' : a.layerAddress.val = b.layerAddress.val := by
-    have hvalue := congrArg binaryValue hlayer
-    rw [binaryValue_drop24_addressWordBits_of_lt ha.1,
-      binaryValue_drop24_addressWordBits_of_lt hb.1] at hvalue
-    exact hvalue
-  have htree' : a.treeAddress.val = b.treeAddress.val := by
-    have hvalue := congrArg binaryValue htree
-    rw [binaryValue_drop32_treeAddressBits_of_lt ha.2,
-      binaryValue_drop32_treeAddressBits_of_lt hb.2] at hvalue
-    exact hvalue
-  have htype' : a.addressType = b.addressType := by
-    apply AddressType.toNat_injective
-    have hvalue := congrArg binaryValue htype
-    rw [binaryValue_drop24_typeBits, binaryValue_drop24_typeBits] at hvalue
-    exact hvalue
-  exact ext (Fin.ext hlayer') (Fin.ext htree') htype' (addressWordBits_injective h5)
-    (addressWordBits_injective h6) (addressWordBits_injective h7)
+  refine ext (Fin.ext ?_) (Fin.ext ?_) (AddressType.toNat_injective ?_)
+    (addressWordBits_injective h5) (addressWordBits_injective h6) (addressWordBits_injective h7)
+  · simpa [binaryValue_drop24_addressWordBits_of_lt ha.1,
+      binaryValue_drop24_addressWordBits_of_lt hb.1] using congrArg binaryValue hlayer
+  · simpa [binaryValue_drop32_treeAddressBits_of_lt ha.2,
+      binaryValue_drop32_treeAddressBits_of_lt hb.2] using congrArg binaryValue htree
+  · simpa [binaryValue_drop24_typeBits] using congrArg binaryValue htype
 
 /-- The compressed 22-byte encoding is injective when neither shortened field overflows. -/
 theorem toCompressedBytes_injective_of_fits {a b : Address}
     (ha : a.FitsCompressed) (hb : b.FitsCompressed)
-    (h : a.toCompressedBytes = b.toCompressedBytes) : a = b := by
-  apply toCompressedBits_injective_of_fits ha hb
-  rw [← bytesToBitsBE_bitsToFixedBytesBE 22 a.toCompressedBits (by simp),
-    ← bytesToBitsBE_bitsToFixedBytesBE 22 b.toCompressedBits (by simp)]
-  exact congrArg (fun bytes : FixedBytes 22 => bytesToBitsBE bytes.toList) h
+    (h : a.toCompressedBytes = b.toCompressedBytes) : a = b :=
+  toCompressedBits_injective_of_fits ha hb <| by
+    rw [← bytesToBitsBE_bitsToFixedBytesBE 22 a.toCompressedBits (by simp),
+      ← bytesToBitsBE_bitsToFixedBytesBE 22 b.toCompressedBits (by simp)]
+    exact congrArg (fun bytes : FixedBytes 22 => bytesToBitsBE bytes.toList) h
 
 /-- Set the layer address, preserving every other word. -/
 def setLayerAddress (a : Address) (layer : AddressWord) : Address :=

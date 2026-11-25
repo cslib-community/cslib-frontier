@@ -73,10 +73,7 @@ private theorem exists_preimages {f : α → β} {P : List α} :
   | b :: l, h => by
     obtain ⟨a, ha, rfl⟩ := List.mem_map.mp (h b List.mem_cons_self)
     obtain ⟨l', hl', rfl⟩ := exists_preimages fun b hb => h b (List.mem_cons_of_mem _ hb)
-    refine ⟨a :: l', fun x hx => ?_, rfl⟩
-    rcases List.mem_cons.mp hx with rfl | hx
-    · exact ha
-    · exact hl' x hx
+    exact ⟨a :: l', List.forall_mem_cons.mpr ⟨ha, hl'⟩, rfl⟩
 
 /-- A substitution that is injective on words preserves PCP solvability, in both directions. -/
 theorem solvable_map_subst_iff {c : α → List β}
@@ -85,13 +82,12 @@ theorem solvable_map_subst_iff {c : α → List β}
   constructor
   · rintro ⟨es, hne, hmem, heq⟩
     obtain ⟨ds, hds, rfl⟩ := exists_preimages hmem
-    refine ⟨ds, fun h => hne (by rw [h, List.map_nil]), hds, hc ?_⟩
+    refine ⟨ds, fun h => hne (by simp [h]), hds, hc ?_⟩
     simpa only [tops_map_subst, bottoms_map_subst] using heq
   · rintro ⟨ds, hne, hmem, heq⟩
-    refine ⟨ds.map (Domino.subst c), fun h => hne (List.map_eq_nil_iff.mp h),
-      fun e he => ?_, by rw [tops_map_subst, bottoms_map_subst, heq]⟩
-    obtain ⟨d, hd, rfl⟩ := List.mem_map.mp he
-    exact List.mem_map_of_mem (hmem d hd)
+    exact ⟨ds.map (Domino.subst c), fun h => hne (List.map_eq_nil_iff.mp h),
+      List.forall_mem_map.mpr fun d hd => List.mem_map_of_mem (hmem d hd),
+      by rw [tops_map_subst, bottoms_map_subst, heq]⟩
 
 /-- A substitution that is injective on words preserves MPCP solvability, in both directions. -/
 theorem MInstance.solvable_subst_iff {c : α → List β}
@@ -104,11 +100,10 @@ theorem MInstance.solvable_subst_iff {c : α → List β}
     simpa only [MInstance.subst, Domino.subst, tops_map_subst, bottoms_map_subst,
       List.flatMap_append] using heq
   · rintro ⟨ds, hmem, heq⟩
-    refine ⟨ds.map (Domino.subst c), fun e he => ?_, ?_⟩
-    · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp he
-      exact List.mem_map_of_mem (hmem d hd)
-    · simp only [MInstance.subst, Domino.subst, tops_map_subst, bottoms_map_subst,
-        ← List.flatMap_append, heq]
+    refine ⟨ds.map (Domino.subst c),
+      List.forall_mem_map.mpr fun d hd => List.mem_map_of_mem (hmem d hd), ?_⟩
+    simp only [MInstance.subst, Domino.subst, tops_map_subst, bottoms_map_subst,
+      ← List.flatMap_append, heq]
 
 /-! ### A binary code -/
 
@@ -118,11 +113,10 @@ def boolCode [Encodable α] (a : α) : List Bool := List.unaryCode (Encodable.en
 theorem flatMap_boolCode_injective [Encodable α] :
     Function.Injective fun w : List α => w.flatMap boolCode := by
   intro u v h
-  have h' : (u.map Encodable.encode).flatMap List.unaryCode =
-      (v.map Encodable.encode).flatMap List.unaryCode := by
-    rw [List.flatMap_map, List.flatMap_map]
-    exact h
-  exact List.map_injective_iff.mpr Encodable.encode_injective (List.flatMap_unaryCode_injective h')
+  refine List.map_injective_iff.mpr Encodable.encode_injective (List.flatMap_unaryCode_injective ?_)
+  dsimp only at h ⊢
+  rw [List.flatMap_map, List.flatMap_map]
+  exact h
 
 theorem primrec_boolCode [Primcodable α] : Primrec (boolCode : α → List Bool) :=
   List.primrec_unaryCode.comp Primrec.encode

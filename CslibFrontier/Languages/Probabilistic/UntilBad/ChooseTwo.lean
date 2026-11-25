@@ -88,13 +88,9 @@ theorem toOuterMeasure_bad_choose_two_cost_le {ι σ α : Type} {spec : ι → T
         (a + cost₁ q) * size s + (a + cost₁ q) * k₂ + (a + cost₁ q).choose 2 := by
       have hk₂_split : a * cost₂ q + a * (k₂ - cost₂ q) = a * k₂ := by
         rw [← Nat.mul_add, Nat.add_sub_of_le hc₂]
-      have hk₂_mono : a * k₂ ≤ (a + cost₁ q) * k₂ := Nat.mul_le_mul_right k₂ (Nat.le_add_right _ _)
-      have hexp : cost₁ q * size s + (cost₁ q).choose 2 + M =
-          (a + cost₁ q) * size s + (a * cost₂ q + a * (k₂ - cost₂ q)) +
-            (a.choose 2 + a * cost₁ q + (cost₁ q).choose 2) := by
-        dsimp only [M]
-        rw [Nat.add_mul, Nat.mul_add, Nat.mul_add]
-        omega
+      have := Nat.mul_le_mul_right k₂ (Nat.le_add_right a (cost₁ q))
+      dsimp only [M]
+      rw [Nat.add_mul, Nat.mul_add, Nat.mul_add]
       omega
     calc _ ≤ (handler q s).toOuterMeasure {x | bad x.2} + K :=
           Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun y hmem hy =>

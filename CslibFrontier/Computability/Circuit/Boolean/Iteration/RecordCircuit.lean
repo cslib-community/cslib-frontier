@@ -218,11 +218,11 @@ theorem synthesis_sorted (s : Set (BooleanFunction n)) (d : ℕ)
     (hr : recordsWires records ⊆ s) :
     Synthesis interpretation s (recordsWires fun x => sorted d (records x))
       (18 * d ^ 2 * 2 ^ d * (width n w + 1)) := by
-  have h := Synthesis.circuit (I := interpretation) (s := s)
+  refine (Synthesis.circuit (I := interpretation) (s := s)
     (bitonicSortCircuit (keyBits (n := n) (w := w)) d true) (fun bit x => pack (records x) bit)
-    fun bit => hr (wireSet_subset_recordsWires records _ ⟨_, rfl⟩)
-  apply h.mono Set.Subset.rfl ?_ (size_sortCircuit_le d)
-  intro fn hfn
+    fun _ => hr (wireSet_subset_recordsWires records _ ⟨_, rfl⟩)).mono
+    Set.Subset.rfl ?_ (size_sortCircuit_le d)
+  rintro _ hfn
   obtain ⟨j, bit, rfl⟩ := Set.mem_iUnion.mp hfn
   exact ⟨finProdFinEquiv (j, bit), by simp [sorted, BitString.block]⟩
 

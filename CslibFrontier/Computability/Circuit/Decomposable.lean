@@ -263,22 +263,17 @@ a context. -/
 theorem SmallSides.one_lt {P : DecomposableDAG ι U N} (h : P.SmallSides K)
     (hne : P.accepted.Nonempty) : 1 < K := by
   obtain ⟨x, hx⟩ := hne
-  rcases h P.root with hr | hr
-  · obtain ⟨hfin, hlt⟩ := encard_lt_coe_iff_finite_ncard_lt.mp hr
-    have := (ncard_pos hfin).mpr ⟨_, hx⟩
+  rcases h P.root with hr | hr <;> obtain ⟨hfin, hlt⟩ := encard_lt_coe_iff_finite_ncard_lt.mp hr
+  · have := (ncard_pos hfin).mpr ⟨_, hx⟩
     omega
-  · obtain ⟨hfin, hlt⟩ := encard_lt_coe_iff_finite_ncard_lt.mp hr
-    have := (ncard_pos hfin).mpr ⟨_, x, .root hx, rfl⟩
+  · have := (ncard_pos hfin).mpr ⟨_, x, .root hx, rfl⟩
     omega
 
 /-- A node accepting at least `K` assignments has fewer than `K` contexts under `SmallSides K`. -/
 private theorem ncard_contexts_le (hS : P.SmallSides K) {v : N}
-    (hv : K ≤ (P.values v).ncard) : (P.contexts v).ncard ≤ K - 1 := by
-  rcases hS v with h | h
-  · have := (encard_lt_coe_iff_finite_ncard_lt.mp h).2
-    omega
-  · have := (encard_lt_coe_iff_finite_ncard_lt.mp h).2
-    omega
+    (hv : K ≤ (P.values v).ncard) : (P.contexts v).ncard ≤ K - 1 :=
+  (hS v).elim (fun h => absurd (encard_lt_coe_iff_finite_ncard_lt.mp h).2 (not_lt.mpr hv))
+    fun h => Nat.le_sub_one_of_lt (encard_lt_coe_iff_finite_ncard_lt.mp h).2
 
 /-! ### Threshold counting -/
 
@@ -333,17 +328,12 @@ private theorem finite_values_of_disjoint_occurs (hfin : P.accepted.Finite) {v c
     e.symm.injective.comp (Prod.mk_left_injective c₀)
   refine (hfin.subset ?_).of_finite_image hinj.injOn
   rintro _ ⟨a, ha, rfl⟩
-  have h1 : (P.scope c).domRestrict (e.symm (a, c₀)) = a := by
-    change (e (e.symm (a, c₀))).1 = a
-    rw [e.apply_symm_apply]
-  have h2 : (P.scope c)ᶜ.domRestrict (e.symm (a, c₀)) = c₀ := by
-    change (e (e.symm (a, c₀))).2 = c₀
-    rw [e.apply_symm_apply]
-  have hcompl : EqOn (e.symm (a, c₀)) x₀ (P.scope c)ᶜ :=
-    domRestrict_eq_domRestrict_iff.mp h2
+  have h1 : (P.scope c).domRestrict (e.symm (a, c₀)) = a :=
+    congrArg Prod.fst (e.apply_symm_apply (a, c₀))
+  have hcompl : EqOn (e.symm (a, c₀)) x₀ (P.scope c)ᶜ := fun i hi =>
+    congrFun (congrArg Prod.snd (e.apply_symm_apply (a, c₀))) ⟨i, hi⟩
   have hw : (P.scope w).domRestrict (e.symm (a, c₀)) ∈ P.values w := by
-    rwa [show (P.scope w).domRestrict (e.symm (a, c₀)) = (P.scope w).domRestrict x₀ from
-      domRestrict_eq_domRestrict_iff.mpr fun i hi => hcompl (hdisj.notMem_of_mem_right hi)]
+    rwa [domRestrict_eq_domRestrict_iff.mpr fun i hi => hcompl (hdisj.notMem_of_mem_right hi)]
   exact hx₀.mem_accepted (hacc _ (by rwa [h1]) hw) fun i hi => hcompl fun hic => hi (hsub hic)
 
 /-- **The descent stops.** If the accepted set has at least `K > 1` elements, the descent from

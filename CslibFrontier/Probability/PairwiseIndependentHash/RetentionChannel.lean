@@ -95,7 +95,7 @@ private theorem card_filter_val_lt (hL : L ≤ P) : #{a : ZMod P | a.val < L} = 
   have himage : ({a : ZMod P | a.val < L} : Finset (ZMod P)).image ZMod.val = range L := by
     ext k
     simp only [mem_image, mem_filter, mem_univ, true_and, mem_range]
-    refine ⟨fun ⟨a, ha, hak⟩ ↦ hak ▸ ha, fun hk ↦ ⟨k, ?_, ?_⟩⟩ <;>
+    refine ⟨fun ⟨a, ha, hak⟩ => hak ▸ ha, fun hk => ⟨k, ?_, ?_⟩⟩ <;>
       rw [ZMod.val_cast_of_lt (by omega)]
     exact hk
   calc #({a : ZMod P | a.val < L} : Finset (ZMod P))
@@ -206,21 +206,13 @@ theorem affineRetains_rates {a : ℝ} (hPa : 1 ≤ P * a) (ha : a ≤ 1) :
             ℝ) ≤ 4 / (#A * ((L : ℝ) / P) ^ H) := by
   intro L
   have hP : (0 : ℝ) < P := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne P)
-  have ha0 : 0 < a := by
-    by_contra h
-    have := mul_nonpos_of_nonneg_of_nonpos hP.le (not_lt.1 h)
-    linarith
-  have hLlo : (P : ℝ) * a ≤ L := Nat.le_ceil _
-  have hLhi : (L : ℝ) ≤ 2 * (P * a) := by
-    have := Nat.ceil_lt_add_one (by positivity : (0 : ℝ) ≤ P * a)
-    linarith
+  have ha0 : 0 < a := pos_of_mul_pos_right (by linarith : 0 < (P : ℝ) * a) hP.le
   have hLP : L ≤ P := Nat.ceil_le.2 (by nlinarith)
   have hlo : a ≤ (L : ℝ) / P := by
-    rw [le_div_iff₀ hP]
-    linarith
-  have hhi : (L : ℝ) / P ≤ 2 * a := by
-    rw [div_le_iff₀ hP]
-    linarith
+    rw [le_div_iff₀ hP, mul_comm]
+    exact Nat.le_ceil _
+  have hceil := Nat.ceil_lt_add_one (by positivity : (0 : ℝ) ≤ P * a)
+  have hhi : (L : ℝ) / P ≤ 2 * a := (div_le_iff₀ hP).2 (by linarith)
   have hrate_hi : ((L : ℝ) / P) ^ H ≤ 2 ^ H * a ^ H := by
     rw [← mul_pow]
     exact pow_le_pow_left₀ (by positivity) hhi H

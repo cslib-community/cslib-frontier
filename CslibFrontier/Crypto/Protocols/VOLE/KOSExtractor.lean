@@ -480,15 +480,8 @@ private theorem kosAffineDefect_index_perm_eq_or_neg (responses : List (F × V))
   · exact Or.inl rfl
   · exact Or.inr (kosAffineDefect_swap₁₂ _ _ _)
   · exact Or.inr (kosAffineDefect_swap₀₁ _ _ _)
-  · left
-    simp only [kosAffineDefect]
-    module
-  · left
-    simp only [kosAffineDefect]
-    module
-  · right
-    simp only [kosAffineDefect]
-    module
+  all_goals simp only [kosAffineDefect]
+  exacts [Or.inl (by module), Or.inl (by module), Or.inr (by module)]
 
 private noncomputable def chooseTriple {α : Type*} [DecidableEq α] {T : Finset α}
     (hcard : T.card = 3) : α × α × α :=
@@ -571,12 +564,7 @@ theorem toOuterMeasure_hasKOSBadTriple_le
     rcases hperm with heq | hneg
     · exact ⟨heq ▸ hdef, heq ▸ hzero⟩
     · refine ⟨fun hr => hdef (by rw [hneg, hr, neg_zero]), ?_⟩
-      have hmap :
-          H s (kosAffineDefect (responses.get i₀) (responses.get i₁) (responses.get i₂)) =
-            -H s (kosAffineDefect (responses.get u.1)
-              (responses.get u.2.1) (responses.get u.2.2)) := by
-        rw [hneg, map_neg]
-      exact neg_eq_zero.mp (hmap.symm.trans hzero)
+      rwa [hneg, map_neg, neg_eq_zero] at hzero
   have hterm (T : {T // T ∈ triples}) (_ : T ∈ triples.attach) :
       seed.toOuterMeasure (badSet T) ≤ ε := by
     by_cases hr : repDefect T = 0

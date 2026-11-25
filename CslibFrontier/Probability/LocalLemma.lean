@@ -132,19 +132,16 @@ private theorem measureReal_inter_iInter_compl_le
     exact filter_union_filter_not_eq _ s
   have hchain := prod_mul_le_measureReal_union hA x (fun j => (hx j).2)
     (disjoint_filter_filter_not s s _).symm fun s' _ hs' hcard j hj =>
-      ih s' (Finset.ssubset_iff_subset_ne.2 ⟨hunion ▸ hs', fun h => by
-        rw [h, hunion] at hcard
-        exact lt_irrefl _ hcard⟩) j hj
+      ih s' (Finset.ssubset_iff_subset_ne.2 ⟨hunion ▸ hs', fun h => hcard.ne (by rw [h, hunion])⟩)
+        j hj
   rw [hunion] at hchain
-  have hmono : A i ∩ ⋂ j ∈ s, (A j)ᶜ ⊆ A i ∩ ⋂ j ∈ s₂, (A j)ᶜ := by
-    refine Set.inter_subset_inter_right _ fun ω hω => ?_
-    simp only [Set.mem_iInter] at hω ⊢
-    exact fun j hj => hω j (mem_filter.1 hj).1
   have hprod : ∏ j ∈ Γ i, (1 - x j) ≤ ∏ j ∈ s₁, (1 - x j) :=
     prod_le_prod_of_subset_of_le_one₀ (fun _ hj => (mem_filter.1 hj).2)
       (fun j _ => sub_nonneg.2 (hx j).2) fun j _ _ => sub_le_self _ (hx j).1
   calc μ.real (A i ∩ ⋂ j ∈ s, (A j)ᶜ)
-      ≤ μ.real (A i ∩ ⋂ j ∈ s₂, (A j)ᶜ) := measureReal_mono hmono
+      ≤ μ.real (A i ∩ ⋂ j ∈ s₂, (A j)ᶜ) :=
+        measureReal_mono (Set.inter_subset_inter_right _
+          (Set.biInter_subset_biInter_left (filter_subset _ _)))
     _ ≤ μ.real (A i) * μ.real (⋂ j ∈ s₂, (A j)ᶜ) :=
         hΓ i s₂ (fun h => hi (mem_filter.1 h).1)
           (disjoint_left.2 fun _ hj => (mem_filter.1 hj).2)
@@ -172,13 +169,15 @@ theorem prod_one_sub_le_measureReal_iInter_compl [Fintype ι]
   simpa only [notMem_empty, Set.iInter_of_empty, Set.iInter_univ, probReal_univ,
     mul_one, empty_union, mem_univ, Set.iInter_true] using h
 
+private theorem one_sub_one_div_add_one (d : ℕ) :
+    1 - 1 / ((d : ℝ) + 1) = d / (d + 1) := by
+  field_simp
+  ring
+
 /-- `(d / (d + 1)) ^ d ≥ 1 / e`. -/
 private theorem exp_one_inv_le_div_pow (d : ℕ) :
     (Real.exp 1)⁻¹ ≤ ((d : ℝ) / (d + 1)) ^ d := by
-  have hsub : 1 - ((d : ℝ) + 1)⁻¹ = d / (d + 1) := by
-    field_simp
-    ring
-  rw [← Real.exp_neg, ← hsub]
+  rw [← Real.exp_neg, ← one_sub_one_div_add_one d, one_div]
   exact Real.exp_neg_one_le_one_sub_inv_pow le_rfl
 
 /-- The symmetric Local Lemma inequality `e * q * (d + 1) ≤ 1` implies the asymmetric weight bound
@@ -186,22 +185,15 @@ private theorem exp_one_inv_le_div_pow (d : ℕ) :
 theorem le_inv_add_one_mul_one_sub_pow {d k : ℕ} {q : ℝ} (hk : k ≤ d)
     (hlll : Real.exp 1 * q * (d + 1) ≤ 1) :
     q ≤ (1 / ((d : ℝ) + 1)) * (1 - 1 / ((d : ℝ) + 1)) ^ k := by
-  have hd1 : (0 : ℝ) < d + 1 := by positivity
-  have hsub : 1 - 1 / ((d : ℝ) + 1) = d / (d + 1) := by
-    field_simp
-    ring
-  have hratio : (0 : ℝ) ≤ d / (d + 1) := by positivity
-  have hratio₁ : (d : ℝ) / (d + 1) ≤ 1 := (div_le_one hd1).2 (by linarith)
-  rw [hsub]
+  have hratio₁ : (d : ℝ) / (d + 1) ≤ 1 := (div_le_one (by positivity)).2 (by linarith)
+  rw [one_sub_one_div_add_one]
   calc q ≤ 1 / ((d + 1) * Real.exp 1) := by
         rw [le_div_iff₀ (by positivity)]
-        calc q * ((d + 1) * Real.exp 1) = Real.exp 1 * q * (d + 1) := by ring
-          _ ≤ 1 := hlll
+        linarith
     _ = 1 / (d + 1) * (Real.exp 1)⁻¹ := by rw [one_div, one_div, mul_inv]
-    _ ≤ 1 / (d + 1) * ((d : ℝ) / (d + 1)) ^ d :=
-        mul_le_mul_of_nonneg_left (exp_one_inv_le_div_pow d) (by positivity)
+    _ ≤ 1 / (d + 1) * ((d : ℝ) / (d + 1)) ^ d := by gcongr; exact exp_one_inv_le_div_pow d
     _ ≤ 1 / (d + 1) * ((d : ℝ) / (d + 1)) ^ k :=
-        mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one hratio hratio₁ hk) (by positivity)
+        mul_le_mul_of_nonneg_left (pow_le_pow_of_le_one (by positivity) hratio₁ hk) (by positivity)
 
 /-- **The symmetric Lovász Local Lemma, quantitative form**: if each of `n` measurable events has
 probability at most `q`, each `A i` is lopsidedly independent of the events outside `Γ i ∪ {i}`,
@@ -215,12 +207,11 @@ theorem pow_le_measureReal_iInter_compl [Fintype ι]
     (hlll : Real.exp 1 * q * (d + 1) ≤ 1) :
     ((d : ℝ) / (d + 1)) ^ Fintype.card ι ≤ μ.real (⋂ i, (A i)ᶜ) := by
   have hd1 : (0 : ℝ) < d + 1 := by positivity
-  have hsub : 1 - 1 / ((d : ℝ) + 1) = d / (d + 1) := by field_simp; ring
   have h := prod_one_sub_le_measureReal_iInter_compl hA Γ hΓ (fun _ => 1 / ((d : ℝ) + 1))
     (fun _ => ⟨by positivity, (div_le_one hd1).2 (by linarith [d.cast_nonneg (α := ℝ)])⟩)
     fun i => by
       simpa only [prod_const] using (hq i).trans (le_inv_add_one_mul_one_sub_pow (hd i) hlll)
-  simpa only [hsub, prod_const, card_univ] using h
+  simpa only [one_sub_one_div_add_one, prod_const, card_univ] using h
 
 /-- **The symmetric Lovász Local Lemma** [Alon and Spencer, Corollary 5.1.2][AlonSpencer2016],
 [ErdosLovasz1975]: if each of finitely many measurable events has probability at most `q`, each
@@ -237,11 +228,9 @@ theorem measureReal_iInter_compl_pos [Finite ι]
   rcases Nat.eq_zero_or_pos d with rfl | hd0
   · -- Without dependencies, take `x i = μ (A i) ≤ q ≤ 1 / e < 1`.
     have hq1 : q < 1 := by
-      have he := Real.add_one_le_exp 1
       rw [Nat.cast_zero, zero_add, mul_one] at hlll
-      by_contra h
-      push Not at h
-      nlinarith
+      have he : 1 < Real.exp 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
+      exact lt_of_mul_lt_mul_left (hlll.trans_lt (by rwa [mul_one])) (Real.exp_pos 1).le
     have hΓ0 (i : ι) : Γ i = ∅ := card_eq_zero.1 (Nat.le_zero.1 (hd i))
     refine lt_of_lt_of_le ?_ (prod_one_sub_le_measureReal_iInter_compl hA Γ hΓ
       (fun i => μ.real (A i)) (fun i => ⟨measureReal_nonneg, measureReal_le_one⟩)
@@ -280,6 +269,22 @@ private theorem pi_inter_iInter_compl_eq {ι : Type*} (p : ∀ v, PMF (α v))
     exact propext (forall₂_congr fun j hj => by rw [hmem j hj])
   rw [toOuterMeasure_pi_inter_eq_mul p (disjoint_coe.2 hdisj) (hA i) hrest, ENNReal.toReal_mul]
 
+private theorem pi_toMeasure_real_eq [∀ v, MeasurableSpace (α v)]
+    [∀ v, MeasurableSingletonClass (α v)] (p : ∀ v, PMF (α v)) (E : Set (∀ v, α v)) :
+    (pi p).toMeasure.real E = ((pi p).toOuterMeasure E).toReal := by
+  rw [measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
+    ((Set.to_countable _).measurableSet)]
+
+private theorem pi_toMeasure_real_inter_iInter_compl_le {ι : Type*} [∀ v, MeasurableSpace (α v)]
+    [∀ v, MeasurableSingletonClass (α v)] (p : ∀ v, PMF (α v)) (A : ι → Set (∀ v, α v))
+    (vbl : ι → Finset V) (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V))
+    (Γ : ι → Finset ι) (hΓ : ∀ i j, j ≠ i → ¬Disjoint (vbl i) (vbl j) → j ∈ Γ i)
+    (i : ι) (s : Finset ι) (hi : i ∉ s) (hs : Disjoint s (Γ i)) :
+    (pi p).toMeasure.real (A i ∩ ⋂ j ∈ s, (A j)ᶜ) ≤
+      (pi p).toMeasure.real (A i) * (pi p).toMeasure.real (⋂ j ∈ s, (A j)ᶜ) := by
+  simp only [pi_toMeasure_real_eq]
+  exact (pi_inter_iInter_compl_eq p A vbl hA Γ hΓ hi hs).le
+
 /-- **The Lovász Local Lemma for independent coordinates**, asymmetric form: let each event `A i`
 of an independent product depend only on the coordinates in `vbl i`, and let `Γ i` contain every
 other index whose event shares a coordinate with `A i`. If `x i ∈ [0, 1]` and
@@ -292,17 +297,11 @@ theorem prod_one_sub_le_pi_iInter_compl {ι : Type*} [Fintype ι] (p : ∀ v, PM
     (hAx : ∀ i, ((pi p).toOuterMeasure (A i)).toReal ≤ x i * ∏ j ∈ Γ i, (1 - x j)) :
     ∏ i, (1 - x i) ≤ ((pi p).toOuterMeasure (⋂ i, (A i)ᶜ)).toReal := by
   let (v : V) : MeasurableSpace (α v) := ⊤
-  have hreal (E : Set (∀ v, α v)) :
-      (pi p).toMeasure.real E = ((pi p).toOuterMeasure E).toReal := by
-    rw [measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
-      ((Set.to_countable _).measurableSet)]
-  have h := prod_one_sub_le_measureReal_iInter_compl (μ := (pi p).toMeasure)
-    (fun i => (Set.to_countable (A i)).measurableSet) Γ
-    (fun i s hi hs => by
-      simp only [hreal]
-      exact (pi_inter_iInter_compl_eq p A vbl hA Γ hΓ hi hs).le)
-    x hx fun i => by simpa only [hreal] using hAx i
-  simpa only [hreal] using h
+  simpa only [pi_toMeasure_real_eq] using
+    prod_one_sub_le_measureReal_iInter_compl (μ := (pi p).toMeasure)
+      (fun i => (Set.to_countable (A i)).measurableSet) Γ
+      (pi_toMeasure_real_inter_iInter_compl_le p A vbl hA Γ hΓ)
+      x hx fun i => by simpa only [pi_toMeasure_real_eq] using hAx i
 
 /-- **The symmetric Lovász Local Lemma for independent coordinates**: let each event `A i` of an
 independent product depend only on the coordinates in `vbl i`, let each event share coordinates
@@ -316,19 +315,13 @@ theorem pi_iInter_compl_pos {ι : Type*} [Fintype ι] [DecidableEq ι] [Decidabl
     (hlll : Real.exp 1 * q * (d + 1) ≤ 1) :
     0 < ((pi p).toOuterMeasure (⋂ i, (A i)ᶜ)).toReal := by
   let (v : V) : MeasurableSpace (α v) := ⊤
-  have hreal (E : Set (∀ v, α v)) :
-      (pi p).toMeasure.real E = ((pi p).toOuterMeasure E).toReal := by
-    rw [measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
-      ((Set.to_countable _).measurableSet)]
   let Γ (i : ι) : Finset ι := {j | j ≠ i ∧ ¬Disjoint (vbl i) (vbl j)}
-  have h := measureReal_iInter_compl_pos (μ := (pi p).toMeasure)
-    (fun i => (Set.to_countable (A i)).measurableSet) Γ
-    (fun i s hi hs => by
-      simp only [hreal]
-      exact (pi_inter_iInter_compl_eq p A vbl hA Γ
-        (fun i j hji hij => by simp [Γ, hji, hij]) hi hs).le)
-    hd (fun i => by simpa only [hreal] using hq i) hlll
-  simpa only [hreal] using h
+  simpa only [pi_toMeasure_real_eq] using
+    measureReal_iInter_compl_pos (μ := (pi p).toMeasure)
+      (fun i => (Set.to_countable (A i)).measurableSet) Γ
+      (pi_toMeasure_real_inter_iInter_compl_le p A vbl hA Γ fun i j hji hij => by
+        simp [Γ, hji, hij])
+      hd (fun i => by simpa only [pi_toMeasure_real_eq] using hq i) hlll
 
 end Product
 

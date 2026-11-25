@@ -896,9 +896,9 @@ private theorem paramEdge_inSpace : ComputableInSpace
   have hvalV := budget_comp_linear (of_inO ComputableInO.bitsToNat) hv
   have hin : (fun q : EdgeParams × List Bool × List Bool =>
       (encPair encEdgeParams (encPair encBits encBits) q).length) ≼ _ := .refl _
-  have he := edgeWithSymbol_budget ntm hB hn hvalU hvalV hsym hin
-  have ho := overflow_budget ntm hB hn hvalU hsym hin
-  have hb := bad_budget (k := k) (State := State) hB hn hvalU hin
+  have he := edgeWithSymbol_budget ntm hB hn hvalU hvalV hsym
+  have ho := overflow_budget ntm hB hn hvalU hsym
+  have hb := bad_budget (k := k) (State := State) hB hn hvalU
   have hall := budget_comp_linear
     (of_inO (.of_linear (.of_transducer (encIn := encBits) (encMid := encBool)
       (f := fun l : List Bool => l.all id) Savitch.allT fun l => by
@@ -927,14 +927,14 @@ private theorem roundStep_inSpace :
 budget. -/
 private theorem initRound_budget {mode : α → Bool} {B n : α → ℕ}
     (hmode : ComputableInSpace mode enc encBool S) (hB : ComputableInSpace B enc encNat S)
-    (hn : ComputableInSpace n enc encNat S) (hin : (fun a => (enc a).length) ≼ S) :
+    (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => initRound ntm (mode a) (B a) (n a)) enc
       (encRound encEdgeParams) S := by
-  have hN := vertexBound_budget (k := k) hB hin
+  have hN := vertexBound_budget (k := k) hB
   have hW₀ := budget_comp_linear natSizeUnary hN
   have hW : ComputableInSpace (fun a => vertexWidth k (B a)) enc encUnary S :=
     hW₀.of_enc_eq fun _ => rfl
-  have hstart := startID_budget ntm hB hin
+  have hstart := startID_budget ntm hB
   have hpow₀ : ComputableInSpace (fun W : ℕ => 2 ^ W) encUnary encNat
       fun W => (encUnary W).length := by
     simpa only [encUnary_apply, List.length_replicate] using
@@ -949,17 +949,16 @@ private theorem initRound_budget {mode : α → Bool} {B n : α → ℕ}
   have hcall := budget_optionSome (budget_prod hW (budget_prod hsrc hsink))
   have hstate : ComputableInSpace (fun a => (initRound ntm (mode a) (B a) (n a)).2) enc encState
       S :=
-    (budget_prod (budget_const (encB := encList encFrame) [] hin)
-      (budget_prod hcall (budget_const (encB := encBool) false hin))).of_enc_eq fun _ => rfl
+    (budget_prod (budget_const (encB := encList encFrame) [])
+      (budget_prod hcall (budget_const (encB := encBool) false))).of_enc_eq fun _ => rfl
   have hparams := encEdgeParams_mk_budget hmode hB hn
-    (budget_const (encB := encOption encBool) none hin)
+    (budget_const (encB := encOption encBool) none)
   exact (budget_prod (budget_prod hparams hW) hstate).of_enc_eq fun _ => rfl
 
 /-- The first radix, within a budget. -/
-private theorem startRadix_budget {n : α → ℕ} (hn : ComputableInSpace n enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+private theorem startRadix_budget {n : α → ℕ} (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => startRadix State (n a)) enc encNat S :=
-  budget_natMul (budget_natAdd hn (budget_const 2 hin)) (budget_const _ hin)
+  budget_natMul (budget_natAdd hn (budget_const 2)) (budget_const _)
 
 attribute [local fun_prop] initRound_budget startRadix_budget
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.Cheeger
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Regular multigraphs of permutations
@@ -134,8 +135,7 @@ theorem le_edgeExpansion_ofPerms [Nontrivial V] {c : ℝ}
   refine (ofPerms σ).le_edgeExpansion_iff.2 fun S hS ↦ ?_
   rw [card_interedges_compl_ofPerms]
   have := h S hS
-  push_cast at this ⊢
-  linarith
+  cast_linarith
 
 omit [DecidableEq V] in
 /-- **The Dirichlet form of a permutation multigraph**: the correlation of `f` with its walk is
@@ -151,8 +151,7 @@ theorem expect_mul_walk_ofPerms [Nonempty K] (f : V → ℝ) :
       Fintype.card_bool]
     simp only [Fintype.sum_bool, neighbor_ofPerms_true, neighbor_ofPerms_false,
       add_comm (f ((σ _).symm v))]
-    push_cast
-    ring
+    push_cast; ring
   have hsymm (k : K) : ∑ v, f v * f ((σ k).symm v) = ∑ v, f v * f (σ k v) := by
     rw [← Equiv.sum_comp (σ k)]
     simp [mul_comm]
@@ -174,8 +173,7 @@ theorem expect_mul_walk_ofPerms [Nonempty K] (f : V → ℝ) :
     _ = _ := by
         simp only [Fintype.expect_eq_sum_div_card, ← sum_div, hcross, sum_sub_distrib, sum_const,
           card_univ, nsmul_eq_mul, ← mul_sum]
-        field_simp
-        ring
+        field_simp; ring
 
 omit [DecidableEq V] in
 /-- **A Poincaré inequality bounds the second eigenvalue** of a permutation multigraph on at least
@@ -192,8 +190,7 @@ theorem secondEigenvalue_ofPerms_le [Nonempty K] [Nontrivial V] {c : ℝ}
       = (𝔼 v, f v ^ 2) - (∑ k, 𝔼 v, (f (σ k v) - f v) ^ 2) / (2 * Fintype.card K) :=
         expect_mul_walk_ofPerms σ f
     _ ≤ (𝔼 v, f v ^ 2) - c * (𝔼 v, f v ^ 2) / (2 * Fintype.card K) := by
-        have := div_le_div_of_nonneg_right (h f hf) hK.le
-        linarith
+        linarith [div_le_div_of_nonneg_right (h f hf) hK.le]
     _ = (1 - c / (2 * Fintype.card K)) * 𝔼 v, f v ^ 2 := by ring
 
 end Cslib.RotationMap

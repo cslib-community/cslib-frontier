@@ -316,27 +316,12 @@ private theorem computableInPolyTime_cbcWordBody_param
     ComputableInPolyTime.bitsRowsWithInput
       (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hwidth)
       hwidth hmsg
-  have hc : ComputableInPolyTime
-      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        (encFamily p.1.1.1 p.1.1.2.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.2.1)
-      EFold encBits :=
-    ComputableInPolyTime.bitsTakeWithInput
-      (hpoly.comp
-        ((show ComputableInPolyTime (fun p => p.1.1.1) EFold encUnary by
-            dsimp only [EFold, EPar, EState]; fun_prop).prod
-          ((show ComputableInPolyTime (fun p => p.1.1.2.2) EFold encBits by
-              dsimp only [EFold, EPar, EState]; fun_prop).prod
-            (ComputableInPolyTime.bitsZipWithInput xor
-              (by dsimp only [EFold, EPar, EState]; fun_prop)
-              (by dsimp only [EFold, EPar, EState]; fun_prop)))))
-      (by dsimp only [EFold, EPar, EState]; fun_prop)
   have hstep : ComputableInPolyTime
       (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         let c := (encFamily p.1.1.1 p.1.1.2.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.2.1
         (c, p.1.2.2 ++ c))
-      EFold EState :=
-    hc.prod (ComputableInPolyTime.bitsAppend
-      (by dsimp only [EFold, EPar, EState]; fun_prop) hc)
+      EFold EState := by
+    polytime
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
     (par := fun a => (par a, width a, k a))
@@ -376,28 +361,12 @@ private theorem computableInPolyTime_cbcWordDecBody_param
     ComputableInPolyTime.bitsRowsWithInput
       (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hbody) hwidth)
       hwidth hbody
-  have hplain : ComputableInPolyTime
-      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        List.zipWith xor p.1.2.1 ((decFamily p.1.1.1 p.1.1.2.2 p.2).take p.1.1.2.1))
-      EFold encBits :=
-    ComputableInPolyTime.bitsZipWithInput xor
-      (by dsimp only [EFold, EPar, EState]; fun_prop)
-      (ComputableInPolyTime.bitsTakeWithInput
-        (hpoly.comp
-          ((show ComputableInPolyTime (fun p => p.1.1.1) EFold encUnary by
-              dsimp only [EFold, EPar, EState]; fun_prop).prod
-            ((show ComputableInPolyTime (fun p => p.1.1.2.2) EFold encBits by
-                dsimp only [EFold, EPar, EState]; fun_prop).prod
-              (by dsimp only [EFold, EPar, EState]; fun_prop))))
-        (by dsimp only [EFold, EPar, EState]; fun_prop))
   have hstep : ComputableInPolyTime
       (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         (p.2, p.1.2.2 ++
           List.zipWith xor p.1.2.1 ((decFamily p.1.1.1 p.1.1.2.2 p.2).take p.1.1.2.1)))
-      EFold EState :=
-    (show ComputableInPolyTime (fun p => p.2) EFold encBits by
-      dsimp only [EFold, EPar, EState]; fun_prop).prod
-      (ComputableInPolyTime.bitsAppend (by dsimp only [EFold, EPar, EState]; fun_prop) hplain)
+      EFold EState := by
+    polytime
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
     (par := fun a => (par a, width a, k a))
@@ -637,8 +606,8 @@ private theorem cbcChainWords_randomFunction_map_ofFn {n : ℕ} (f : BitString n
 private theorem cbcWordBody_randomFunction_ofFn {n : ℕ} (f : BitString n → BitString n)
     (iv : BitString n) (m : List Bool) :
     cbcWordBody (fun _ x => randomFunctionOracle n f x) n [] (List.ofFn iv) m =
-      (cbcEncryptBlocks f iv (BitString.padBlocks n m.length m)).flatMap List.ofFn := by
-  rw [cbcWordBody_eq_flatten_cbcChainWords, BitString.listRows_eq_map_ofFn_padBlocks,
+      (cbcEncryptBlocks f iv (BitString.toBlocks n m)).flatMap List.ofFn := by
+  rw [cbcWordBody_eq_flatten_cbcChainWords, BitString.listRows_eq_map_ofFn_toBlocks,
     cbcChainWords_randomFunction_map_ofFn, ← List.flatMap_def]
 
 /-- Running `cbcToPrfDistinguisher` against a fixed table `f` agrees in distribution with running
@@ -681,7 +650,7 @@ private theorem eval_run_cbcToPrfDistinguisher_table (adversary : OracleDistingu
   by_cases hvalid : blockPairValid n (unframe request.2) (dropFrame request.2) = true
   · have hℓ : (unframe request.2).length / n ≤ L :=
       (Nat.div_le_self _ _).trans ((length_unframe_le _).trans hrequest)
-    have hsel := blockModeSelect_padBlocks bit hvalid hℓ
+    have hsel := blockModeSelect_toBlocks bit hvalid hℓ
     simp only [hvalid, ↓reduceIte, cbcWordEncrypt, ivModeEncrypt, ProbOracleComp.run_map,
       ProbOracleComp.run_query, blockModeOracle, hsel, ProbComp.eval_bind, ProbComp.eval_map,
       ProbComp.eval_pure, ProbComp.eval_uniform, BitString.eval_sampleList, BitString.uniformList,

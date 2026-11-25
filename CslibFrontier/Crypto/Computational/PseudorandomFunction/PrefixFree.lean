@@ -88,6 +88,66 @@ theorem wordQueryRunDist_query_bind {α : Type} (oracle : List Bool → List Boo
         (fun (a, log) => (a, word :: log)) :=
   rfl
 
+/-- Forgetting the query log gives the ordinary run against the deterministic oracle. -/
+theorem map_fst_wordQueryRunDist {α : Type} (oracle : List Bool → List Bool)
+    (program : WordOracleComp Unit α) :
+    (wordQueryRunDist oracle program).map Prod.fst =
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        (fun req => PMF.pure (oracle req.2))) program := by
+  induction program with
+  | pure a => simp [wordQueryRunDist, OracleComp.interpret, PFunctor.FreeM.liftM]
+  | liftBind op cont ih =>
+    cases op with
+    | inl k => simp only [wordQueryRunDist, PMF.map_bind, ih]; rfl
+    | inr req =>
+      simp only [wordQueryRunDist, PMF.map_comp, Function.comp_def, ih]
+      exact (PMF.pure_bind _ fun reply => OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (oracle q.2)))
+        (cont reply)).symm
+
+/-- The probability of a particular output and query log depends only on how the oracle answers
+the queries in that log, even when further queries depend on earlier replies. -/
+theorem wordQueryRunDist_apply_eq_of_agree {α : Type} {oracle oracle' : List Bool → List Bool}
+    (program : WordOracleComp Unit α) (result : α × List (List Bool))
+    (hagree : ∀ query ∈ result.2, oracle query = oracle' query) :
+    wordQueryRunDist oracle program result = wordQueryRunDist oracle' program result := by
+  classical
+  induction program generalizing result with
+  | pure a => rfl
+  | liftBind op cont ih =>
+    cases op with
+    | inl k =>
+      simp only [wordQueryRunDist, PMF.bind_apply]
+      exact tsum_congr fun coin =>
+        congrArg ((ProbComp.unifOracle k coin) * ·) (ih coin result hagree)
+    | inr req =>
+      simp only [wordQueryRunDist, PMF.map_apply]
+      apply tsum_congr
+      rintro ⟨answer, log⟩
+      by_cases heq : result = (answer, req.2 :: log)
+      · subst result
+        simp only [↓reduceIte]
+        rw [hagree req.2 (List.mem_cons_self ..)]
+        exact ih (oracle' req.2) (answer, log) (fun q hq =>
+          hagree q (List.mem_cons_of_mem _ hq))
+      · simp [heq]
+
+/-- Querying a fixed list of words records exactly that list. Against a deterministic oracle,
+processing the replies and then returning a value is also deterministic. -/
+theorem wordQueryRunDist_mapM_query_pure {α β : Type} (oracle : List Bool → List Bool)
+    (queries : List (List Bool)) (read : List Bool → β) (finish : List β → α) :
+    wordQueryRunDist oracle (do
+      let replies ← queries.mapM fun word => read <$> ProbOracleComp.query ((), word)
+      return finish replies) =
+    PMF.pure (finish (queries.map (read ∘ oracle)), queries) := by
+  induction queries generalizing finish with
+  | nil => simp only [List.mapM_nil, pure_bind, List.map_nil, wordQueryRunDist_pure]
+  | cons query queries ih =>
+    have htail := ih (fun replies => finish (read (oracle query) :: replies))
+    simp only [map_eq_bind_pure_comp, Function.comp_def] at htail
+    simp only [List.mapM_cons, map_eq_bind_pure_comp, bind_assoc, pure_bind,
+      Function.comp_def, wordQueryRunDist_query_bind, htail, PMF.pure_map, List.map_cons]
+
 /-- `IsPrefixFreeOn valid outLen program` holds when, against every deterministic word oracle that
 maps valid words to `outLen`-bit replies and invalid words to `[]`, every supported query log of
 `program` satisfies `WordPrefixFree valid`. This is the domain-relative prefix condition from

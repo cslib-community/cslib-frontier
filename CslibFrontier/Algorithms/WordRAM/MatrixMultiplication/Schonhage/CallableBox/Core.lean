@@ -75,11 +75,9 @@ theorem exec_core {W b m t N : ℕ}
   have hi' : (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.Bounded
       (sourceWidth N qs.length) := by
     simpa only [htwo, State.init] using (Data.Bounded.init (r := 160) hi)
-  have hrow : x.mem (b + 3) = N := by
-    rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega)]
-    simp [State.init, Data.init, BoxProduct.input, QueriedProduct.input]
-  have hcount : x.mem (b + 4) = qs.length := by
-    rw [hinput 4 (by unfold QueriedProduct.inputEnd; omega)]
+  obtain ⟨hrow, hcount⟩ : x.mem (b + 3) = N ∧ x.mem (b + 4) = qs.length := by
+    rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega),
+      hinput 4 (by unfold QueriedProduct.inputEnd; omega)]
     simp [State.init, Data.init, BoxProduct.input, QueriedProduct.input]
   obtain ⟨s, hs, smem, smatch, sbound⟩ := exec_setup x hb hrow hcount hfit
   let v := MemoryWindow.view (sourceWidth N qs.length) b s
@@ -96,9 +94,8 @@ theorem exec_core {W b m t N : ℕ}
   have hp' : ExecWithin (sourceWidth N qs.length) (BoxProduct.program true) v p
       (BoxProduct.timeBound (21 * m) m t qs) := by
     simpa only [htwo] using hp
-  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) := hfit.of_le (by
-    change b + windowSize N qs.length ≤ _
-    omega)
+  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) :=
+    hfit.of_le (by change b + windowSize N qs.length ≤ _; omega)
   obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin hp'
     (BoxProduct.not_readsWidth true) sbound smatch (setup_fits hfit).1 hwindow
   have hI : Fits W (QueriedProduct.inputEnd m N qs.length + 1) := by
@@ -119,12 +116,9 @@ theorem exec_core {W b m t N : ℕ}
   wram_exec [yI, hI]
   wram_simp [yQ, yO]
   refine ⟨by unfold coreTime; omega, ymatch.base_eq, ymatch.modulus_eq,
-    fun i => (ymatch.mem _).trans (pv i), ?_,
+    fun i => (ymatch.mem _).trans (pv i), fun a ha => ?_,
     fun a ha => (yframe a ha).trans (congrFun smem a)⟩
-  intro a ha
   change y.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-  rw [ymatch.mem, pf a (by omega)]
-  change s.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-  rw [smem, hinput a ha, Nat.mod_eq_of_lt (hi'.2 a)]
+  rw [ymatch.mem, pf a (by omega), vinput a ha, hinput a ha]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBoxProduct

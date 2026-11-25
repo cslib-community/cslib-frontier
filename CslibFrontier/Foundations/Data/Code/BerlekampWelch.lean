@@ -120,12 +120,8 @@ theorem IsSolution.degree_divByMonic_lt {E Q : F[X]} (h : IsSolution α w e k E 
   rcases eq_or_ne (Q /ₘ E) 0 with h0 | h0
   · rw [h0, degree_zero]
     exact WithBot.bot_lt_coe _
-  have hQ : Q ≠ 0 := by
-    rintro rfl
-    exact h0 (zero_divByMonic E)
-  have hlt := (natDegree_lt_iff_degree_lt hQ).2 h.degree_lt
-  have hle : E.natDegree ≤ Q.natDegree :=
-    natDegree_le_natDegree (not_lt.1 ((divByMonic_eq_zero_iff h.monic).not.1 h0))
+  have hlt := (natDegree_lt_iff_degree_lt fun hQ => h0 (hQ ▸ zero_divByMonic E)).2 h.degree_lt
+  have hle := natDegree_le_natDegree (not_lt.1 ((divByMonic_eq_zero_iff h.monic).not.1 h0))
   rw [degree_eq_natDegree h0, natDegree_divByMonic _ h.monic, Nat.cast_lt]
   rw [h.natDegree_eq] at hle ⊢
   omega
@@ -210,10 +206,9 @@ theorem exists_isSolution_mul_of_berlekampWelch_eq_some (h : berlekampWelch α e
   unfold berlekampWelch at h
   split_ifs at h with hEQ hcheck
   obtain ⟨⟨r, hr⟩, -⟩ := hcheck
-  have hp : hEQ.choose.2 /ₘ hEQ.choose.1 = r := by
-    rw [hr, mul_divByMonic_cancel_left _ hEQ.choose_spec.monic]
   refine ⟨hEQ.choose.1, ?_⟩
-  rw [← Option.some_injective _ h, hp, mul_comm, ← hr]
+  rw [← Option.some_injective _ h, hr, mul_divByMonic_cancel_left _ hEQ.choose_spec.monic,
+    mul_comm, ← hr]
   exact hEQ.choose_spec
 
 /-- **Soundness of the Berlekamp–Welch decoder.** Whatever the received word, an output of the
@@ -230,9 +225,8 @@ theorem hammingDist_le_of_berlekampWelch_eq_some (h : berlekampWelch α e k w = 
     hammingDist (fun i => p.eval (α i)) w ≤ e := by
   classical
   unfold berlekampWelch at h
-  split_ifs at h with hEQ hcheck
-  rw [← Option.some_injective _ h]
-  exact hcheck.2
+  split_ifs at h with _ hcheck
+  exact Option.some_injective _ h ▸ hcheck.2
 
 /-- **Failure detection.** If the values of no polynomial of degree less than `k` are within
 distance `e` of the received word `w`, the Berlekamp–Welch decoder returns `none`. -/
@@ -252,12 +246,12 @@ theorem berlekampWelch_eq_some (hα : Function.Injective α) (hn : 2 * e + k ≤
     (hp : p.degree < k) (he : hammingDist (fun i => p.eval (α i)) w ≤ e) :
     berlekampWelch α e k w = some p := by
   classical
-  obtain ⟨E, Q, hEQ⟩ := exists_isSolution hp he
-  have h : ∃ EQ : F[X] × F[X], IsSolution α w e k EQ.1 EQ.2 := ⟨(E, Q), hEQ⟩
+  have h : ∃ EQ : F[X] × F[X], IsSolution α w e k EQ.1 EQ.2 :=
+    let ⟨E, Q, hEQ⟩ := exists_isSolution hp he
+    ⟨(E, Q), hEQ⟩
   have hdiv := h.choose_spec.divByMonic_eq hα hn hp he
-  have hdvd : h.choose.1 ∣ h.choose.2 :=
-    ⟨p, by rw [h.choose_spec.eq_mul hα hn hp he, mul_comm]⟩
-  rw [berlekampWelch, dite_eq_left h, ite_eq_left ⟨hdvd, by rwa [hdiv]⟩, hdiv]
+  rw [berlekampWelch, dite_eq_left h,
+    ite_eq_left ⟨⟨p, by rw [h.choose_spec.eq_mul hα hn hp he, mul_comm]⟩, by rwa [hdiv]⟩, hdiv]
 
 /-- **The outputs of the Berlekamp–Welch decoder** when `2 e + k ≤ n`: with distinct points, the
 decoder returns `p` exactly when `p` has degree less than `k` and its values are within distance

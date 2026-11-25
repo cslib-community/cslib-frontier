@@ -46,7 +46,8 @@ polynomial-time:
 * `Cslib.Complexity.ThreeSAT.language_npRelation`: the language of the relation is `ThreeSAT`.
 * `Cslib.Complexity.isWitness_toThreeSATWitness`, `Cslib.Complexity.isWitness_ofThreeSATWitness`:
   the witness maps send witnesses to witnesses.
-* `Cslib.Complexity.computableInPolyTime_toThreeSATWitness`,
+* `Cslib.Complexity.computableInPolyTime_to3CNFAssignment`,
+  `Cslib.Complexity.computableInPolyTime_toThreeSATWitness`,
   `Cslib.Complexity.computableInPolyTime_ofThreeSATWitness`: they are polynomial-time.
 
 ## References
@@ -128,10 +129,12 @@ private theorem to3CNFAssignment_eq_elim (φ : CNF ℕ) (σ : ℕ → Bool) (s :
 
 /-- Evaluating the extended assignment of the certificate assignment is polynomial-time, with
 auxiliary variables numbered in unary. -/
-private theorem computableInPolyTime_to3CNFAssignment :
+theorem computableInPolyTime_to3CNFAssignment :
     ComputableInPolyTime
       (fun p : (CNF ℕ × List Bool) × (ℕ ⊕ (ℕ × ℕ)) =>
-        p.1.1.to3CNFAssignment (SAT.assignment p.1.1 p.1.2) p.2)
+        let (state, v) := p
+        let (φ, w) := state
+        φ.to3CNFAssignment (SAT.assignment φ w) v)
       (encPair (encPair encCNF encBits) (encSum encNat (encPair encUnary encUnary))) encBool := by
   simp only [to3CNFAssignment_eq_elim]
   refine ComputableInPolyTime.sumElimWithInput (.snd _ _) (by fun_prop [SAT.assignment]) ?_

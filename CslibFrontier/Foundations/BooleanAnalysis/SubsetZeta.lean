@@ -108,20 +108,15 @@ theorem yatesTransform_apply (c : R) {l : List ι} (hl : l.Nodup) (f : Finset ι
     have hU : ∀ U ∈ (S ∩ l.toFinset).powerset, i ∉ U := fun U hU hiU =>
       hl.1 (List.mem_toFinset.mp (mem_inter.mp (mem_powerset.mp hU hiU)).2)
     by_cases hi : i ∈ S
-    · have hins : S ∩ (i :: l).toFinset = insert i (S ∩ l.toFinset) := by
-        rw [List.toFinset_cons, inter_insert_of_mem hi]
-      have hni : i ∉ S ∩ l.toFinset := fun h =>
+    · have hni : i ∉ S ∩ l.toFinset := fun h =>
         hl.1 (List.mem_toFinset.mp (mem_inter.mp h).2)
-      rw [hins, sum_powerset_insert hni, ← sum_add_distrib]
+      rw [List.toFinset_cons, inter_insert_of_mem hi, sum_powerset_insert hni, ← sum_add_distrib]
       refine sum_congr rfl fun U hUm => ?_
       rw [yatesPass, ite_eq_left (mem_sdiff.mpr ⟨hi, hU U hUm⟩), smul_add,
         card_insert_of_notMem (hU U hUm), pow_succ, mul_smul, sdiff_insert]
-    · have hins : S ∩ (i :: l).toFinset = S ∩ l.toFinset := by
-        rw [List.toFinset_cons, inter_insert_of_notMem hi]
-      rw [hins]
+    · rw [List.toFinset_cons, inter_insert_of_notMem hi]
       refine sum_congr rfl fun U _ => ?_
-      have : i ∉ S \ U := fun h => hi (mem_sdiff.mp h).1
-      rw [yatesPass, ite_eq_right this]
+      rw [yatesPass, ite_eq_right fun h => hi (mem_sdiff.mp h).1]
 
 /-- Once every coordinate of `S` has been processed, the value at `S` is
 `∑_{T ⊆ S} c ^ #(S \ T) • f T`. -/
@@ -129,17 +124,11 @@ theorem yatesTransform_apply_of_subset (c : R) {l : List ι} (hl : l.Nodup) (f :
     {S : Finset ι} (hS : S ⊆ l.toFinset) :
     yatesTransform c l f S = ∑ T ∈ S.powerset, c ^ #(S \ T) • f T := by
   rw [yatesTransform_apply c hl, inter_eq_left.mpr hS]
-  refine sum_nbij' (S \ ·) (S \ ·) ?_ ?_ ?_ ?_ ?_
-  · intro U _
-    exact mem_powerset.mpr sdiff_subset
-  · intro T _
-    exact mem_powerset.mpr sdiff_subset
-  · intro U hU
-    exact Finset.sdiff_sdiff_eq_self (mem_powerset.mp hU)
-  · intro T hT
-    exact Finset.sdiff_sdiff_eq_self (mem_powerset.mp hT)
-  · intro U hU
-    rw [Finset.sdiff_sdiff_eq_self (mem_powerset.mp hU)]
+  refine sum_nbij' (S \ ·) (S \ ·) (fun _ _ => mem_powerset.mpr sdiff_subset)
+    (fun _ _ => mem_powerset.mpr sdiff_subset)
+    (fun _ hU => Finset.sdiff_sdiff_eq_self (mem_powerset.mp hU))
+    (fun _ hT => Finset.sdiff_sdiff_eq_self (mem_powerset.mp hT)) fun _ hU => ?_
+  rw [Finset.sdiff_sdiff_eq_self (mem_powerset.mp hU)]
 
 end Zeta
 

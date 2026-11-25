@@ -65,8 +65,7 @@ theorem auxiliary_stability_constants (HP : FourthRootHierarchyParams 16 1 16 32
       |polynomialAuxCutoff4 HP.θ v q - polynomialAuxCutoff4 HP.θ v' q'| ≤
         LI * (|v - v'| + |q - q'|) := by
   obtain ⟨L, hL, hroot⟩ := exists_abs_polynomialAuxCutoff4_root_sub_le HP.θ
-  refine ⟨4 * L, by positivity, ?_⟩
-  intro v q v' q'
+  refine ⟨4 * L, by positivity, fun v q v' q' => ?_⟩
   have h := abs_sub_le_mul_abs_rpow_inv_sub (s := 4) (by decide)
     (polynomialAuxCutoff4_nonneg HP.θ v q) (polynomialAuxCutoff4_nonneg HP.θ v' q')
     (polynomialAuxCutoff4_le_one HP.θ v q) (polynomialAuxCutoff4_le_one HP.θ v' q')
@@ -92,8 +91,7 @@ theorem incoming_root_stability_constants (HP : FourthRootHierarchyParams 16 1 1
         (4⁻¹ : ℝ)| ≤ Lτ * (LI * (Ec + Er) / f) := by
   obtain ⟨LI, hLI, hI⟩ := HP.auxiliary_stability_constants
   obtain ⟨Lτ, hτ⟩ := HP.incomingCutoff_root
-  refine ⟨LI, Lτ, hLI, Lτ.coe_nonneg, ?_⟩
-  intro V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr
+  refine ⟨LI, Lτ, hLI, Lτ.coe_nonneg, fun V Kc hKc f hf A B S T y Ec Er hEc hEr hc hr => ?_⟩
   exact incomingGate_stability hLI Lτ.coe_nonneg hI
     (fun a b => by simpa only [Real.dist_eq] using hτ.dist_le_mul a b)
     (NormalizedRow.rank_pos HP) hKc hf A B S T y hEc hEr hc hr
@@ -150,8 +148,7 @@ theorem correction_preparation_row_moment
     HP.correction_preparation_stability_constants
   let L := Lh + Lρ + 2 * Lτ * LI
   have hL : 0 ≤ L := by dsimp only [L]; positivity
-  refine ⟨L, hL, ?_⟩
-  intro Ω V instΩ instV X Y instX instY Kc hKc f hf A B N u hNu
+  refine ⟨L, hL, fun Ω V instΩ instV X Y instX instY Kc hKc f hf A B N u hNu => ?_⟩
   classical
   let E := fun σ => kthLargest 1 {z | X σ z} (fun z =>
     kthLargest 1 {w | Y σ w} (fun w => |A σ z w - B σ z w|))
@@ -186,8 +183,8 @@ private lemma root_product_dist {a a' b b' c B : ℝ}
     (ha' : a' ∈ Set.Icc 0 B) (hb : b ∈ Set.Icc 0 1)
     (hc : c ∈ Set.Icc 0 1) :
     |a * b * c - a' * b' * c| ≤ |a - a'| + B * |b - b'| := by
-  have he : a * b * c - a' * b' * c = ((a-a')*b + a'*(b-b'))*c := by ring
-  rw [he, abs_mul, abs_of_nonneg hc.1]
+  rw [show a * b * c - a' * b' * c = ((a-a')*b + a'*(b-b'))*c by ring, abs_mul,
+    abs_of_nonneg hc.1]
   apply (mul_le_of_le_one_right (abs_nonneg _) hc.2).trans
   apply (abs_add_le _ _).trans
   rw [abs_mul, abs_mul, abs_of_nonneg hb.1, abs_of_nonneg ha'.1]
@@ -249,8 +246,7 @@ theorem normalized_raw_normalizer_root_stability
       abs_kthLargest_div_sub_div_le (NormalizedRow.rank_pos HP) hf T (A x) (B x)
     have hd := hdist (A x y / f) mA qA (B x y / f) mB qB
     rw [← sub_div, abs_div, abs_of_pos hf] at hd
-    have hd' := hd.trans (mul_le_mul_of_nonneg_left
-      (add_le_add le_rfl hq) hC)
+    have hd' := hd.trans (mul_le_mul_of_nonneg_left (add_le_add le_rfl hq) hC)
     rw [CorrectionRowRecipe.normalized_factorization HP _ _ _ _ _ _ _ _ _ _ _ _ _ hy,
       CorrectionRowRecipe.normalized_factorization HP _ _ _ _ _ _ _ _ _ _ _ _ _ hy]
     change |(OA * IA * HP.γ (maximum y)) ^ (4⁻¹ : ℝ) -
@@ -301,11 +297,8 @@ theorem normalized_raw_prep_root_stability
   refine ⟨C, LI, Lτ, hC, hLI, hLτ, ?_⟩
   intro V Γ Ζ instV instΓ instΖ Xs Z Zt instXs instZ instZt Kc hKc f hf
     A B prep prep' maximum σ x y Ec Er hEc hEr hc hr
-  have hb := h V Γ Ζ Xs Z Zt Kc hKc f hf A B prep prep' maximum σ x y
-    Ec Er hEc hEr hc hr
-  have hm := CorrectionRowRecipe.normalizer_stability Xs Zt prep prep' x y
-  exact hb.trans (add_le_add (mul_le_mul_of_nonneg_left
-    (add_le_add (add_le_add le_rfl hm) le_rfl) hC) le_rfl)
+  exact (h V Γ Ζ Xs Z Zt Kc hKc f hf A B prep prep' maximum σ x y Ec Er hEc hEr hc hr).trans
+    (by gcongr; exact CorrectionRowRecipe.normalizer_stability Xs Zt prep prep' x y)
 
 end Matrix.FourthRootHierarchyParams
 
@@ -423,10 +416,7 @@ private lemma error_sum_bound {C B LI Lτ Lγ f d q e m z : ℝ}
     C * (d / f + m + q / f) + B * (Lτ * (LI * (e + e) / f)) + B * Lγ * z ≤
       (2 * (C + B * Lτ * LI) / f) * e + C * m + (B * Lγ) * z := by
   calc
-    _ ≤ C * (e / f + m + e / f) + B * (Lτ * (LI * (e + e) / f)) + B * Lγ * z :=
-      add_le_add (add_le_add (mul_le_mul_of_nonneg_left
-        (add_le_add (add_le_add (div_le_div_of_nonneg_right hd hf.le) le_rfl)
-          (div_le_div_of_nonneg_right hq hf.le)) hC) le_rfl) le_rfl
+    _ ≤ C * (e / f + m + e / f) + B * (Lτ * (LI * (e + e) / f)) + B * Lγ * z := by gcongr
     _ = _ := by ring
 
 private lemma source_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
@@ -437,8 +427,7 @@ private lemma source_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
         ⟨r.source.role, hr.1⟩) (ident z)} : Finset V) =
       ({z | r.source.retains (channels D) σ (ident z)} : Finset V) := by
   ext z
-  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains,
-    channels]
+  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains, channels]
 
 private lemma terminal_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
     (r : HierarchyTask.Request k (Fin J) (ZMod P)) (σ : Environment P J) :
@@ -447,8 +436,7 @@ private lemma terminal_rank_set {k : ℕ} (D : ZMod P) (ident : V → ZMod P)
       (ident z)} : Finset V) =
       ({z | r.terminal.retains (channels D) σ (ident z)} : Finset V) := by
   ext z
-  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains,
-    channels]
+  simp [Equiv.piSplitAt_apply, coordinate, CorrectionRowTask.Channel.retains, channels]
 
 private lemma children_root_zero {k : ℕ}
     (D : ZMod P) (ident : V → ZMod P) (r : HierarchyTask.Request k (Fin J) (ZMod P))

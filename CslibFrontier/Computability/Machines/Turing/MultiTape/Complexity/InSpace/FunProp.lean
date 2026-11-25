@@ -18,8 +18,9 @@ existing arithmetic, list, option and conditional certificates. Composition uses
 whose workspace is linear in its own encoded argument; the caller's certificate pays for that
 argument. No rule infers a bound on the states of an iteration.
 
-Constants and the identity require the input encoding length to fit the requested budget.
-That side condition is explicit, including when the budget is not the input length.
+A constant fits every budget. The identity requires the input encoding length to fit the
+requested budget; that side condition is explicit, including when the budget is not the input
+length.
 -/
 
 public section

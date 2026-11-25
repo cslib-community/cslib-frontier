@@ -357,10 +357,7 @@ theorem isDeterministicAttack_rows [DecidableEq ρ] (hcorrect : P.IsCorrect)
         Function.update (fun s => P.answer s (fun i' => x (j, i')) (q s)) s₀
           (!(P.answer s₀ (fun i' => x (j, i')) (q s₀))) := by
       funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [rowsFlipAttack, answer_rows]
-      · simp [hs, answer_rows]
+      by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, answer_rows]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_rows, hproj, hxor', sum_update_bool,
       ← hxor' i r (fun s => P.answer s (fun i' => x (j, i')) (q s)),
@@ -376,10 +373,7 @@ theorem isDeterministicAttack_rows [DecidableEq ρ] (hcorrect : P.IsCorrect)
           (P.rowsFlipAttack x s₀ j₀ (q s₀)) s j) =
         fun s => P.answer s (fun i' => x (j, i')) (q s) := by
       funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [rowsFlipAttack, hj, answer_rows]
-      · simp [hs, answer_rows]
+      by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, hj, answer_rows]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_rows, hproj]
     exact hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq
@@ -437,10 +431,8 @@ theorem isDeterministicAttack_toBlock_toBitScheme [DecidableEq κ] (hcorrect : P
         Function.update (fun s => P.answer s (fun i' => x (i', b)) (q s)) s₀
           (!(P.answer s₀ (fun i' => x (i', b)) (q s₀))) := by
       funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock]
-      · simp [hs, answer_toBitScheme, answer_toBlock]
+      by_cases hs : s = s₀ <;>
+        simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj, hxor', sum_update_bool,
       ← hxor' i r (fun s => P.answer s (fun i' => x (i', b)) (q s)),
@@ -456,10 +448,8 @@ theorem isDeterministicAttack_toBlock_toBitScheme [DecidableEq κ] (hcorrect : P
           (P.toBlockBitFlipAttack x s₀ b₀ (q s₀)) s b) =
         fun s => P.answer s (fun i' => x (i', b)) (q s) := by
       funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock, hb]
-      · simp [hs, answer_toBitScheme, answer_toBlock]
+      by_cases hs : s = s₀ <;>
+        simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock, hb]
     dsimp only [selectiveFailureModel]
     rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj]
     exact hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq
@@ -548,10 +538,7 @@ private theorem readAnswer_update_coverFlipAttack_of_ne (x : (D → ι) → Bool
       K.readAnswer i (K.cover w) (fun s => (K.scheme ι).answer s x (q s)) := by
   have hcov_ne : K.cover w ≠ (s₀, some r₀) := fun h => hne (K.cover_injective (h.trans hw₀.symm))
   rcases hcov : K.cover w with ⟨s, _ | r⟩
-  · by_cases hs : s = s₀
-    · subst hs
-      simp [readAnswer, coverFlipAttack]
-    · simp [readAnswer, hs]
+  · by_cases hs : s = s₀ <;> simp [hs, readAnswer, coverFlipAttack]
   · by_cases hs : s = s₀
     · subst hs
       have hr : r ≠ r₀ := fun hr => hcov_ne (by rw [hcov, hr])
@@ -585,6 +572,19 @@ theorem isDeterministicAttack_scheme (x : (D → ι) → Bool) {w₀ : D → Boo
     (hw₀ : K.cover w₀ = (s₀, some r₀)) (k₀ : ι) :
     (K.scheme ι).IsDeterministicAttack x s₀ (K.coverFlipAttack x s₀ r₀ k₀)
       (fun i => decide (i (K.dir s₀ r₀) = k₀)) := by
+  have hsum (i : D → ι) (r : Unit) (q : S → D → ι → Bool) :
+      (K.scheme ι).reconstruct i r
+        (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
+          (K.coverFlipAttack x s₀ r₀ k₀ (q s₀))) =
+        (K.scheme ι).reconstruct i r (fun s => (K.scheme ι).answer s x (q s)) +
+          decide (i (K.dir s₀ r₀) = k₀) := by
+    rw [K.reconstruct_scheme, K.reconstruct_scheme,
+      ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
+      ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
+      K.readAnswer_update_coverFlipAttack_self x s₀ r₀ k₀ i q hw₀,
+      Finset.sum_congr rfl fun w hw =>
+        K.readAnswer_update_coverFlipAttack_of_ne x s₀ r₀ k₀ i q hw₀ (Finset.ne_of_mem_erase hw)]
+    abel
   refine ((K.scheme ι).selectiveFailureModel x).isDeterministicAttack_of_slot
     (fun i => (K.scheme ι).query i)
     (fun i rq => (K.scheme ι).reconstruct i rq.1
@@ -592,50 +592,14 @@ theorem isDeterministicAttack_scheme (x : (D → ι) → Bool) {w₀ : D → Boo
         (K.coverFlipAttack x s₀ r₀ k₀ (rq.2 s₀))))
     (fun i => i (K.dir s₀ r₀)) k₀ (s₀, K.coverFlipAttack x s₀ r₀ k₀) (fun _ => rfl) ?_ ?_
   · intro i ⟨r, q⟩ hrq hik
-    have hsum :
-        (K.scheme ι).reconstruct i r
-          (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
-            (K.coverFlipAttack x s₀ r₀ k₀ (q s₀))) =
-          (K.scheme ι).reconstruct i r (fun s => (K.scheme ι).answer s x (q s)) +
-            decide (i (K.dir s₀ r₀) = k₀) := by
-      rw [K.reconstruct_scheme, K.reconstruct_scheme,
-        ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
-        ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
-        K.readAnswer_update_coverFlipAttack_self x s₀ r₀ k₀ i q hw₀]
-      have hrest :
-          (∑ w ∈ Finset.univ.erase w₀,
-            K.readAnswer i (K.cover w)
-              (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
-                (K.coverFlipAttack x s₀ r₀ k₀ (q s₀)))) =
-          ∑ w ∈ Finset.univ.erase w₀,
-            K.readAnswer i (K.cover w) (fun s => (K.scheme ι).answer s x (q s)) :=
-        Finset.sum_congr rfl fun w hw =>
-          K.readAnswer_update_coverFlipAttack_of_ne x s₀ r₀ k₀ i q hw₀ (Finset.ne_of_mem_erase hw)
-      rw [hrest]
-      abel
     dsimp only [Scheme.selectiveFailureModel]
     rw [hsum, K.isCorrect_scheme.reconstruct_eq x i hrq, decide_eq_true hik]
     generalize x i = b
     cases b <;> decide
   · intro i ⟨r, q⟩ hrq hik
     dsimp only [Scheme.selectiveFailureModel]
-    rw [K.reconstruct_scheme]
-    have hcongr :
-        (∑ w : D → Bool,
-          K.readAnswer i (K.cover w)
-            (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
-              (K.coverFlipAttack x s₀ r₀ k₀ (q s₀)))) =
-        ∑ w : D → Bool,
-          K.readAnswer i (K.cover w) (fun s => (K.scheme ι).answer s x (q s)) := by
-      refine Finset.sum_congr rfl fun w _ => ?_
-      by_cases hw : w = w₀
-      · subst hw
-        rw [K.readAnswer_update_coverFlipAttack_self x s₀ r₀ k₀ i q hw₀,
-          decide_eq_false hik]
-        exact add_zero _
-      · exact K.readAnswer_update_coverFlipAttack_of_ne x s₀ r₀ k₀ i q hw₀ hw
-    rw [hcongr, ← K.reconstruct_scheme]
-    exact K.isCorrect_scheme.reconstruct_eq x i hrq
+    rw [hsum, decide_eq_false hik]
+    exact (add_zero _).trans (K.isCorrect_scheme.reconstruct_eq x i hrq)
 
 /-- Flipping entry `(r₀, k₀)` in `K.scheme ι` distinguishes any cube query `i₀` with
 `i₀ (K.dir s₀ r₀) = k₀` from any `i₁` with `i₁ (K.dir s₀ r₀) ≠ k₀` with advantage `1`. -/
@@ -728,10 +692,7 @@ theorem reconstruct_update_lagrangeShiftAttack (x : ι → Bool) (s₀ : S) (Δ 
       (fun s => P.answer s x (q s)) +
         Pi.single s₀ (Δ * (Shamir.Polynomial.lagrangeWeightAtZero params.point s₀)⁻¹) := by
     funext s
-    by_cases hs : s = s₀
-    · subst hs
-      simp [lagrangeShiftAttack]
-    · simp [hs]
+    by_cases hs : s = s₀ <;> simp [hs, lagrangeShiftAttack]
   have hw_ne : Shamir.Polynomial.lagrangeWeightAtZero params.point s₀ ≠ 0 :=
     Shamir.Polynomial.lagrangeWeightAtZero_ne_zero params.point_injective params.point_nonzero s₀
   rw [hupd, Shamir.Polynomial.reconstruct_add, hP.reconstruct_answer_eq x i r q hrq,

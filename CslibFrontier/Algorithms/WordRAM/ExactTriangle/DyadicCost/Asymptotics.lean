@@ -58,10 +58,7 @@ private theorem logCoefficient_pos {κ : ℝ} (hκ : 1 ≤ κ) : 0 < logCoeffici
 private theorem coefficient_le_log_cube {n : ℕ} {κ : ℝ} (hn : 1 ≤ n) (hκ : 1 ≤ κ) :
     costCoefficient κ n ≤ logCoefficient κ * ((Nat.log 2 n : ℝ) + 1) ^ 3 := by
   let L : ℝ := (Nat.log 2 n : ℝ) + 1
-  have hL : 1 ≤ L := by
-    dsimp only [L]
-    have h := Nat.cast_nonneg (α := ℝ) (Nat.log 2 n)
-    linarith only [h]
+  have hL : 1 ≤ L := le_add_of_nonneg_left (Nat.cast_nonneg _)
   have hLcube : L ≤ L ^ 3 := le_self_pow₀ hL (by decide)
   have hunit : 1 ≤ L ^ 3 := one_le_pow₀ hL
   have hn0 : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
@@ -74,19 +71,13 @@ private theorem coefficient_le_log_cube {n : ℕ} {κ : ℝ} (hn : 1 ≤ n) (hκ
       (mul_one L))).trans hLcube
   have hlevel : (level n : ℝ) ≤ Nat.log 2 n := by exact_mod_cast level_le_log n
   have hleft : ((21 * level n + 1 : ℕ) : ℝ) ≤ 21 * L := by
-    push_cast
-    dsimp only [L]
-    linarith only [hlevel]
+    push_cast; dsimp only [L]; linarith only [hlevel]
   have hright : ((level n + 1 : ℕ) : ℝ) ≤ L := by
-    push_cast
-    dsimp only [L]
-    linarith only [hlevel]
+    push_cast; dsimp only [L]; linarith only [hlevel]
   have hdepth : ((21 * level n + 1 : ℕ) : ℝ) ^ 2 * ((level n + 1 : ℕ) : ℝ) ≤
-      441 * L ^ 3 := by
-    calc
-      _ ≤ (21 * L) ^ 2 * L :=
-        mul_le_mul (pow_le_pow_left₀ (by positivity) hleft 2) hright (by positivity) (by positivity)
-      _ = _ := by ring
+      441 * L ^ 3 :=
+    (mul_le_mul (pow_le_pow_left₀ (by positivity) hleft 2) hright (by positivity)
+      (by positivity)).trans_eq (by ring)
   have hprod := mul_le_mul_of_nonneg_left hdepth (by norm_num : (0 : ℝ) ≤ 125829120)
   have hconst := mul_le_mul_of_nonneg_left hunit (by norm_num : (0 : ℝ) ≤ 238169)
   have hlinear : 16 * (Nat.log 2 n : ℝ) ≤ 16 * L ^ 3 := by

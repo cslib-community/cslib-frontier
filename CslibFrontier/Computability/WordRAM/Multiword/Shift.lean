@@ -150,9 +150,8 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
       change ((z.set d 0).regs d + radix w * value (radix w) (z.set d 0) ds) * _ + _ = _
       wram_simp [hyv]
       simp only [value, List.map_nil, Nat.ofDigits_nil] at hzv ⊢
-      have hv0 : Nat.ofDigits (radix w) (List.map z.regs ds) * 2 ^ x.regs total = 0 := by omega
-      have hc0 : z.regs carry = 0 := by omega
-      rw [mul_assoc, hv0, mul_zero, hc0, zero_add]
+      obtain ⟨hz1, hzc0⟩ := Nat.add_eq_zero_iff.mp hzv
+      rw [mul_assoc, hz1, mul_zero, hzc0, zero_add]
     | cons a as =>
       have hdis' : List.Disjoint ds as := List.disjoint_left.mpr fun i hi hj =>
         List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (List.mem_cons_of_mem a hj)
@@ -348,12 +347,8 @@ theorem shiftRight_eq_zero {w s : ℕ} (hw : 2 ≤ w) (x : Data (r + 4))
     (as : List (Fin (r + 4))) (ha : Bounded (radix w) x as)
     (hs : (w / 2) * as.length ≤ s) : value (radix w) x as >>> s = 0 := by
   have hv : value (radix w) x as < radix w ^ as.length := by
-    unfold value
-    have hd : ∀ d ∈ as.map x.regs, d < radix w := by
-      intro d hd
-      obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hd
-      exact ha i hi
-    simpa only [List.length_map] using Nat.ofDigits_lt_base_pow_length (one_lt_radix hw) hd
+    simpa only [value, List.length_map] using
+      Nat.ofDigits_lt_base_pow_length (one_lt_radix hw) (List.forall_mem_map.mpr ha)
   rw [radix, ← pow_mul] at hv
   rw [Nat.shiftRight_eq_div_pow]
   exact Nat.div_eq_of_lt (hv.trans_le (Nat.pow_le_pow_right (by decide) hs))

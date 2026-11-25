@@ -3134,8 +3134,10 @@ For hash functions built from a fixed permutation or block cipher, import
 [`Hash/Sponge.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Sponge.lean) and
 [`Hash/BlockCipherCompression.lean`](../../CslibFrontier/Crypto/Primitives/Hash/BlockCipherCompression.lean)
 (Katz–Lindell 3rd ed., §7.3.1 and §7.3.3). The sponge module writes the state as a pair
-`(rate, capacity)` with an arbitrary output map and defines `absorb`, `squeeze`, `pad`, `toBlocks`
-and `hash` (Construction 7.6). `badEvent_of_hash_eq` is the deterministic core of Claim 7.8 for
+`(rate, capacity)` with an arbitrary output map and defines `absorb`, `squeeze` and `hash`
+(Construction 7.6); the padding `BitString.pad10star` and the block cutting `BitString.toBlocks`
+are in [`BitString/Pad10Star.lean`](../../CslibFrontier/Foundations/Data/BitString/Pad10Star.lean)
+and [`BitString/PadBlocks.lean`](../../CslibFrontier/Foundations/Data/BitString/PadBlocks.lean). `badEvent_of_hash_eq` is the deterministic core of Claim 7.8 for
 forward permutation queries: a collision between distinct messages triggers `ImageCollision` for
 the output map (E1), `ZeroCapacity` (E2) or `ImageCollision` for `Prod.snd` (E3) among the
 evaluated inputs. `hash_eq_of_capacity_eq` extends any capacity collision to a hash collision, and

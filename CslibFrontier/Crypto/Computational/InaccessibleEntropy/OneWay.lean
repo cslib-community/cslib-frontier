@@ -26,6 +26,7 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Inaccessible average max-entropy from any one-way function
@@ -557,16 +558,10 @@ private theorem uniformList_rompelBaseInLen_eq (n m : ℕ) :
         (PMF.uniformOfFintype (BitString (rompelTruncWidth n))).bind fun rBits =>
           (PMF.uniformOfFintype ((Fin n → BitString m) × BitString n)).map fun s =>
             (RompelBaseInput.mk x s.1 s.2 rBits).packWord := by
-  let eSwap : (BitString n × BitString (rompelTruncWidth n) ×
-      ((Fin n → BitString m) × BitString n)) ≃ RompelBaseInput n m :=
-    ⟨fun t => ⟨t.1, t.2.2.1, t.2.2.2, t.2.1⟩,
-     fun z => (z.preimage, z.truncBits, (z.hashRows, z.hashShift)),
-     fun ⟨_, _, ⟨_, _⟩⟩ => rfl, fun ⟨_, _, _, _⟩ => rfl⟩
-  rw [Cslib.BitString.uniformList,
-    ← PMF.uniformOfFintype_map_equiv (eSwap.trans (rompelBaseInputEquiv n m)),
-    ← PMF.uniformOfFintype_prod (BitString n)]
-  simp only [← PMF.uniformOfFintype_prod (BitString (rompelTruncWidth n)), PMF.map_bind,
-    PMF.map_comp, Function.comp_def, Equiv.trans_apply, ofFn_rompelBaseInputEquiv]
+  rw [Cslib.BitString.uniformList]
+  relabel_uniform ((Equiv.prodCongr (Equiv.refl (BitString n)) (Equiv.prodComm _ _)).trans
+    ((rompelTupleEquiv n m).trans (rompelBaseInputEquiv n m))) with t
+  simp only [Equiv.trans_apply, Equiv.prodCongr_apply, ofFn_rompelBaseInputEquiv]
   rfl
 
 private abbrev rompelEscPred (c : ℕ) (g : List Bool → List Bool) (outLen : ℕ → ℕ) (n : ℕ)
@@ -734,12 +729,9 @@ private theorem rompelBase_heavy_image_mass_ge {n m r : ℕ} (c : ℕ) (hr_le : 
   have hpow : (2 : ℝ) ^ n = (2 : ℝ) ^ (n - r) * (2 : ℝ) ^ r := by
     rw [← pow_add, Nat.sub_add_cancel hr_le]
   rw [PMF.uniformOfFintype_map_apply, hcard_sub, ENNReal.toReal_div, ENNReal.toReal_natCast,
-    ENNReal.toReal_natCast, Cslib.BitString.card, Nat.cast_pow, Nat.cast_ofNat, hpow]
-  have hpos : (0 : ℝ) < (2 : ℝ) ^ (n - r) := by positivity
-  rw [show (4 * (n + 1 : ℝ) ^ c) *
-      ((#(fiberSet gFin y) : ℝ) / ((2 : ℝ) ^ (n - r) * (2 : ℝ) ^ r)) * (2 : ℝ) ^ r =
-      (4 * (n + 1 : ℝ) ^ c * (#(fiberSet gFin y) : ℝ)) / (2 : ℝ) ^ (n - r) by field_simp]
-  exact (one_le_div hpos).mpr hy_heavy
+    ENNReal.toReal_natCast, Cslib.BitString.card, Nat.cast_pow, Nat.cast_ofNat, hpow,
+    mul_div_assoc', div_mul_eq_mul_div, one_le_div (by positivity)]
+  exact mul_le_mul_of_nonneg_right hy_heavy (by positivity)
 
 /-- **`[HHRVW2020]`, Section 4.2, Claim 4.6 (pp. 21–22)**: for any fixed-output-length function `g`
 (`(g w).length = outLen n` on `n`-bit inputs), any polynomial light-image threshold exponent `c`,
@@ -909,12 +901,7 @@ private theorem rompelBase_sum_otherColl_le {n m r : ℕ} (hr : r ≤ n)
     simp only [card_eq_sum_ones, sum_filter]
     rw [sum_comm]
     exact sum_congr rfl fun _ _ => by simp only [ite_and]; split_ifs <;> simp
-  have hexchange_r : (∑ s ∈ univ.filter (fun s : S => H s (gFin xStar) = H s (gFin x)),
-        (#(otherDom.filter fun x' => H s (gFin x') = H s (gFin x)) : ℝ)) =
-      ∑ x' ∈ otherDom, (#(univ.filter fun s : S =>
-        H s (gFin xStar) = H s (gFin x) ∧ H s (gFin x') = H s (gFin x)) : ℝ) := by
-    exact_mod_cast hexchange
-  rw [hexchange_r]
+  rw [← Nat.cast_sum, hexchange, Nat.cast_sum]
   have htriple (x' : BitString n) (hx' : x' ∈ otherDom) :=
     let ⟨h₁₃, h₂₃⟩ := (mem_filter.mp hx').2
     card_prefixProj_triple_eq n m r hr hne h₁₃.symm h₂₃.symm
@@ -986,12 +973,9 @@ theorem rompelBase_heavy_sibling_prob_ge {n m : ℕ} (gFin : BitString n → Bit
     have hsub : collInputs s ⊆
         (fiberSet gFin (gFin x) ∪ fiberSet gFin (gFin xStar)) ∪ otherColl s := by
       intro x' hx'
-      by_cases h₁ : gFin x' = gFin x
-      · exact mem_union_left _ (mem_union_left _ ((mem_fiberSet _ _ _).mpr h₁))
-      · by_cases h₂ : gFin x' = gFin xStar
-        · exact mem_union_left _ (mem_union_right _ ((mem_fiberSet _ _ _).mpr h₂))
-        · exact mem_union_right _
-            (mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, h₁, h₂⟩, (mem_filter.mp hx').2⟩)
+      simp only [collInputs, otherColl, mem_union, mem_fiberSet, mem_filter, mem_univ,
+        true_and] at hx' ⊢
+      tauto
     have := (card_le_card hsub).trans ((card_union_le _ _).trans
       (Nat.add_le_add_right (card_union_le _ _) _))
     have := (mem_filter.mp hs).2
@@ -1213,11 +1197,8 @@ private theorem rompelBase_goodLightPairs_frac_ge {n m : ℕ} (c : ℕ)
   have hcover : 2 ^ n * 2 ^ n ≤ #eqPairs + #badNeqPairs + #lightNeqPairs := by
     have huniv : (univ : Finset (BitString n × BitString n)) ⊆
         eqPairs ∪ badNeqPairs ∪ lightNeqPairs := fun p _ => by
-      by_cases heq : gFin p.1 = gFin p.2
-      · exact mem_union_left _ (mem_union_left _ (mem_filter.mpr ⟨mem_univ _, heq⟩))
-      · by_cases hboth : p.1 ∈ lightDom ∧ p.2 ∈ lightDom
-        · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ _, heq, hboth⟩)
-        · exact mem_union_left _ (mem_union_right _ (mem_filter.mpr ⟨mem_univ _, heq, hboth⟩))
+      simp only [eqPairs, badNeqPairs, lightNeqPairs, mem_union, mem_filter, mem_univ, true_and]
+      tauto
     have h1 := (card_le_card huniv).trans ((card_union_le _ _).trans
       (Nat.add_le_add_right (card_union_le _ _) _))
     simpa only [card_univ, Fintype.card_prod, Cslib.BitString.card] using h1
@@ -1245,11 +1226,10 @@ private theorem rompelBase_goodLightPairs_frac_ge {n m : ℕ} (c : ℕ)
         exact (sum_le_sum fun x hx => by
             simpa only [lightDom, mem_compl, mem_filter, mem_univ, true_and, not_lt] using hx).trans
           ((sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _).trans hcard_eq.symm.le)
-      have hsub : badNeqPairs ⊆ lightDomᶜ ×ˢ univ ∪ univ ×ˢ lightDomᶜ := fun ⟨x₁, x₂⟩ hp => by
-        by_cases hx₁ : x₁ ∈ lightDom
-        · exact mem_union_right _ (mem_product.mpr ⟨mem_univ _,
-            mem_compl.mpr fun hx₂ => (mem_filter.mp hp).2.2 ⟨hx₁, hx₂⟩⟩)
-        · exact mem_union_left _ (mem_product.mpr ⟨mem_compl.mpr hx₁, mem_univ _⟩)
+      have hsub : badNeqPairs ⊆ lightDomᶜ ×ˢ univ ∪ univ ×ˢ lightDomᶜ := fun p hp => by
+        simp only [badNeqPairs, mem_filter, mem_univ, true_and] at hp
+        simp only [mem_union, mem_product, mem_compl, mem_univ, true_and, and_true]
+        tauto
       have hbad_nat : #badNeqPairs ≤ 2 * 2 ^ t * #eqPairs := by
         have h1 := (card_le_card hsub).trans (card_union_le _ _)
         simp only [card_product, card_univ, Cslib.BitString.card, Nat.mul_comm (2 ^ n)] at h1

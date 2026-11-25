@@ -105,9 +105,8 @@ theorem expect_prod_sign [DecidableEq X] (hh : IsKWiseIndependentHash k h)
 theorem expect_sign_mul_sign (hh : IsKWiseIndependentHash 2 h) (hε₀ : 𝔼 y, ε y = 0) {x x' : X}
     (hx : x ≠ x') : 𝔼 i, ε (h i x) * ε (h i x') = 0 := by
   classical
-  have := hh.expect_prod (T := {x, x'}) card_le_two fun _ y => ε y
-  simp only [prod_pair hx, hε₀, zero_mul] at this
-  exact this
+  simpa only [prod_pair hx, hε₀, zero_mul] using
+    hh.expect_prod (T := {x, x'}) card_le_two fun _ y => ε y
 
 /-- The product of the signs at two pairs of distinct points has average one if the pairs agree
 up to order, and zero otherwise. -/
@@ -122,14 +121,22 @@ theorem expect_sign_mul_sign_mul_sign_mul_sign [DecidableEq X] (hh : IsKWiseInde
   simp only [mul_assoc] at h4 ⊢
   rw [h4]
   congr 1
-  simp only [Fin.forall_fin_succ, Fin.isValue, IsEmpty.forall_iff, and_true, Finset.card_filter,
-    Fin.sum_univ_four, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
-    Matrix.cons_val_three, Matrix.head_cons, Matrix.tail_cons, Matrix.cons_val_succ]
   apply propext
-  by_cases hca : c = a <;> by_cases hda : d = a <;> by_cases hcb : c = b <;>
-    by_cases hdb : d = b <;>
-    simp only [hca, hda, hcb, hdb, hab, hab.symm, hcd, hcd.symm, ite_true, ite_false,
-      Nat.even_iff] <;> (try split_ifs) <;> simp_all
+  have hcount (x : X) : #{j' : Fin 4 | (![a, b, c, d] : Fin 4 → X) j' = x} =
+      (if a = x then 1 else 0) + (if b = x then 1 else 0) +
+        (if c = x then 1 else 0) + (if d = x then 1 else 0) := by
+    rw [Finset.card_filter, Fin.sum_univ_four]
+    rfl
+  constructor
+  · intro h
+    have ha : Even #{j' : Fin 4 | (![a, b, c, d] : Fin 4 → X) j' = a} := h 0
+    have hb : Even #{j' : Fin 4 | (![a, b, c, d] : Fin 4 → X) j' = b} := h 1
+    simp only [hcount, ite_true, hab, hab.symm, ite_false, add_zero, zero_add, Nat.even_iff]
+      at ha hb
+    grind
+  · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩) j
+    · rw [hcount]; rcases j with ⟨_ | _ | _ | _ | _, hj⟩ <;> first | omega | simp [hcd, hcd.symm]
+    · rw [hcount]; rcases j with ⟨_ | _ | _ | _ | _, hj⟩ <;> first | omega | simp [hab, hab.symm]
 
 /-- **The tug-of-war estimator is unbiased** [AlonMatiasSzegedy1999, Theorem 2.2]: for a pairwise
 independent family of signs `ε (h i x)` with mean zero and square one,
@@ -205,8 +212,7 @@ theorem expect_sq_sum_mul_sign_sub_sq (hh : IsKWiseIndependentHash 4 h) (hε : �
   have hpair : ∀ p ∈ S.offDiag, f p.1 ^ 2 * f p.2 ^ 2 + f p.1 * f p.1 * (f p.2 * f p.2) =
       2 * (f p.1 ^ 2 * f p.2 ^ 2) := fun p _ => by ring
   rw [sum_congr rfl hpair, ← mul_sum, sq_sum_eq_sum_sq_add_sum_offDiag S fun x => f x ^ 2]
-  have h4 : ∀ x ∈ S, (f x ^ 2) ^ 2 = f x ^ 4 := fun x _ => by ring
-  rw [sum_congr rfl h4]
+  simp only [← pow_mul]
   ring
 
 /-- **The fourth moment of the tug-of-war sum** [AlonMatiasSzegedy1999, Theorem 2.2]: for a

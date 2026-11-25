@@ -8,11 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
+-- Reads private `representativeBad`, `rowCommand`, and `run_eq_rows`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import CslibFrontier.Probability.PMF.DensityBounds
 import CslibFrontier.Tactic.PMFSwap
 
@@ -266,23 +263,20 @@ private theorem fixedQueryGame_le (C : QuantumSigningForger) (s : Level) (base :
           fun _ => PMF.pure true) true
         rw [PMF.bind_const, PMF.pure_apply_self])
     · rw [actualAddress_eq hp bad hn j]
-      apply PMF.map_true_mono
-      exact fun addr _ diff => decide_eq_true (Or.inr (seed_hedge_of_differs hp diff))
+      exact PMF.map_true_mono _ fun addr _ diff =>
+        decide_eq_true (Or.inr (seed_hedge_of_differs hp diff))
   have ref : C.fixedQueryGame s base seed ha hb rows j true ≤
       (tapes.bind fun t => (base.uniformPrefixes a b).bind fun H => report H t) true := by
-    apply PMF.bind_apply_mono_on_support tapes
-    intro t _
+    refine PMF.bind_apply_mono_on_support tapes _ fun t _ => ?_
     rw [← base.background_sampleSigningMaskSeeds s seed t ha hb rows, PMF.bind_map]
     exact PMF.bind_apply_mono_on_support (draw t) true (compare t)
-  apply ref.trans
+  refine ref.trans ?_
   rw [PMF.bind_comm]
-  apply PMF.bind_apply_le_mul_bind_apply
-  intro H
+  refine PMF.bind_apply_le_mul_bind_apply _ fun H => ?_
   change (tapes.bind fun t => (C.rowAddress s (H.keyGen s seed) rows H j).bind fun addr =>
     PMF.pure (decide (covers H t ∨ atQuery H addr t))) true ≤ _
   rw [PMF.bind_comm]
-  apply PMF.bind_apply_le_mul_bind_apply
-  intro addr
+  refine PMF.bind_apply_le_mul_bind_apply _ fun addr => ?_
   let R := ENNReal.ofReal ((n : ℝ) / 2 ^ 256)
   have single (v : FixedBytes 32) :
       (tapes.map (fun t : Fin n ↪ FixedBytes 32 => decide (v ∈ Set.range t))) true ≤ R := by
@@ -297,9 +291,7 @@ private theorem fixedQueryGame_le (C : QuantumSigningForger) (s : Level) (base :
     have publicBound : (tapes.map (fun t => decide (covers H t))) true ≤ R := by
       by_cases existsTarget : ∃ r : FixedBytes 32, hash H = some (key H ++ r.toList)
       · obtain ⟨r, eq⟩ := existsTarget
-        apply le_trans _ (single r)
-        apply PMF.map_true_mono
-        intro t _ h
+        refine le_trans (PMF.map_true_mono _ fun t _ h => ?_) (single r)
         obtain ⟨i, hi⟩ := of_decide_eq_true h
         exact decide_eq_true ⟨i, List.ofFn_inj.mp
           (List.append_cancel_left (Option.some.inj (hi.symm.trans eq)))⟩
@@ -309,9 +301,8 @@ private theorem fixedQueryGame_le (C : QuantumSigningForger) (s : Level) (base :
         rw [PMF.bind_const]
         simp
     have queryBound : (tapes.map (fun t => decide (atQuery H addr t))) true ≤ R := by
-      apply le_trans _ (single (targetHedge (C := C) (key H) addr))
-      apply PMF.map_true_mono
-      exact fun t _ h => decide_eq_true (of_decide_eq_true h).2
+      exact le_trans (PMF.map_true_mono _ fun t _ h => decide_eq_true (of_decide_eq_true h).2)
+        (single (targetHedge (C := C) (key H) addr))
     apply (PMF.map_true_le_add tapes (E := fun t => decide (covers H t ∨ atQuery H addr t))
       (A := fun t => decide (covers H t))
       (B := fun t => decide (atQuery H addr t)) fun t _ h =>

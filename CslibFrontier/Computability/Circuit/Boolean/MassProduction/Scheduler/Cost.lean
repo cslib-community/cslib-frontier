@@ -155,17 +155,13 @@ private theorem stage3_le {D L b s p r : ℕ} (hk : arity p ≤ 2 ^ D)
       exact Nat.mul_le_mul hk hs.le
     have := Nat.clog_le_of_le_pow this
     lia
-  have hsts : 4 * sortTraceSize d ≤ 4 * (W ^ 2 * arity d) := by
-    rw [four_mul_sortTraceSize, ← arity_eq_two_pow]
-    have h1 : d * (d + 1) ≤ W ^ 2 := by
-      rw [pow_two]
-      exact Nat.mul_le_mul (by lia) hd1
-    calc d * (d + 1) * arity d ≤ W ^ 2 * arity d := Nat.mul_le_mul_right _ h1
-      _ ≤ 4 * (W ^ 2 * arity d) := by lia
-  have hsts' : sortTraceSize d ≤ W ^ 2 * arity d := by lia
-  have hW3 : W ≤ W ^ 3 := by
-    calc W = W ^ 1 := (pow_one W).symm
-      _ ≤ W ^ 3 := Nat.pow_le_pow_right hW1 (by decide)
+  have hsts' : sortTraceSize d ≤ W ^ 2 * arity d := by
+    have h4 := four_mul_sortTraceSize d
+    rw [← arity_eq_two_pow] at h4
+    have : d * (d + 1) * arity d ≤ W ^ 2 * arity d :=
+      Nat.mul_le_mul_right _ (by rw [pow_two]; exact Nat.mul_le_mul (by lia) hd1)
+    lia
+  have hW3 : W ≤ W ^ 3 := Nat.le_self_pow (by norm_num) W
   have e1 : sortTraceSize d * (6 * (L + 1) + 6 * (L + 1) + 8) ≤ 12 * W ^ 3 * arity d :=
     calc sortTraceSize d * (6 * (L + 1) + 6 * (L + 1) + 8) ≤ (W ^ 2 * arity d) * (12 * W) :=
           Nat.mul_le_mul hsts' (by lia)
@@ -173,10 +169,8 @@ private theorem stage3_le {D L b s p r : ℕ} (hk : arity p ≤ 2 ^ D)
   have e2 : (arity d - 1) * (6 * (L + 1) + 1) ≤ 6 * W ^ 3 * arity d :=
     calc (arity d - 1) * (6 * (L + 1) + 1) ≤ arity d * (6 * W ^ 3) := by gcongr <;> omega
       _ = 6 * W ^ 3 * arity d := by ring
-  have e3 : 4 * arity d ≤ 4 * W ^ 3 * arity d := by
-    have : 1 ≤ W ^ 3 := Nat.one_le_pow _ _ (by lia)
-    calc 4 * arity d = 4 * 1 * arity d := by ring
-      _ ≤ 4 * W ^ 3 * arity d := Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ this)
+  have e3 : 4 * arity d ≤ 4 * W ^ 3 * arity d :=
+    Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_right 4 (Nat.pow_pos hW1))
   have hsize : (duplicateFlagsCircuit (id : Fin (L + 1) → Fin (L + 1)) d).size + 2 ≤
       22 * W ^ 3 * arity d := by
     rw [size_duplicateFlagsCircuit]

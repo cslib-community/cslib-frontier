@@ -281,19 +281,17 @@ theorem isPPTOn_commitmentHidingGame {commit : List Bool → Bool → List Bool 
       (fun ⟨n, aux, bit⟩ => commitmentHidingGame commit receiver aux bit n) := by
   let E0 := encPair encUnary (encPair encBits encBool)
   let EChoice := encPair (encPair encBits (encPair encBool encBool)) encBits
-  let E1 := encPair E0 EChoice
   let hn0 := ComputableInPolyTime.fst encUnary (encPair encBits encBool)
-  let hrest0 := ComputableInPolyTime.snd encUnary (encPair encBits encBool)
-  let hp2 := ComputableInPolyTime.fst E1 encBits
+  let hp2 := ComputableInPolyTime.fst (encPair E0 EChoice) encBits
   let h0_2 := hp2.fst'
-  let hchoice2 := hp2.snd'
-  let hseed2 := ComputableInPolyTime.snd E1 encBits
-  have harg := h0_2.fst'.prod (hchoice2.snd'.prod
-    (hcommit.comp' (hchoice2.fst'.fst'.prod
-      ((h0_2.snd'.snd'.ite hchoice2.fst'.snd'.snd' hchoice2.fst'.snd'.fst').prod hseed2))))
-  exact (IsPPTOn.preprocess hR.choose (hn0.prod hrest0.fst')).bind_with
+  let hch := hp2.snd'
+  exact (IsPPTOn.preprocess hR.choose
+      (hn0.prod (ComputableInPolyTime.snd encUnary (encPair encBits encBool)).fst')).bind_with
     ((hn0.comp' (ComputableInPolyTime.fst E0 EChoice)).sampleList.bind_with
-      (IsPPTOn.preprocess hR.guess harg))
+      (IsPPTOn.preprocess hR.guess (h0_2.fst'.prod (hch.snd'.prod
+        (hcommit.comp' (hch.fst'.fst'.prod
+          ((h0_2.snd'.snd'.ite hch.fst'.snd'.snd' hch.fst'.snd'.fst').prod
+            (ComputableInPolyTime.snd (encPair E0 EChoice) encBits))))))))
 
 /-- For any fixed challenge selector `bit`, the commitment-hiding experiment is a strict PPT
 indexed family on `(n, aux)`. -/
@@ -531,13 +529,11 @@ theorem distinguishingGame_uniformList_naorReceiverDistinguisher (m : ℕ)
         (BitString.uniformList m).bind fun c =>
           ProbComp.eval (receiver.guess n choice.2 c) := by
   rw [distinguishingGame_eq_bind]
-  unfold naorReceiverDistinguisher
-  simp only [ProbComp.eval_bind, PMF.monad_bind_eq_bind]
+  simp only [naorReceiverDistinguisher, ProbComp.eval_bind, PMF.monad_bind_eq_bind]
   pmf_swap with choice
-  have h := congrArg
+  simpa only [PMF.bind_map, Function.comp_def] using congrArg
     (fun p : PMF (List Bool) => p.bind fun c => ProbComp.eval (receiver.guess n choice.2 c))
     (uniformList_map_naorCommit_id m choice.1.1 (if bit then choice.1.2.2 else choice.1.2.1))
-  simpa only [PMF.bind_map, Function.comp_def] using h
 
 /-- Under a truly uniform `m`-bit pad, the `false` and `true` commitment-hiding experiments are
 identically distributed for every stateful receiver `receiver`. -/
@@ -625,13 +621,11 @@ theorem naorBinding_iff_bitString (generator : List Bool → List Bool) (n : ℕ
     NaorBinding generator n r ↔
       ∀ s₀ s₁ : BitString n,
         naorCommit generator r false (List.ofFn s₀) ≠
-          naorCommit generator r true (List.ofFn s₁) := by
-  constructor
-  · intro h s₀ s₁
-    exact h (List.ofFn s₀) (List.ofFn s₁) (List.length_ofFn) (List.length_ofFn)
-  · intro h s₀ s₁ hs₀ hs₁
-    rw [← BitString.ofFn_ofList hs₀, ← BitString.ofFn_ofList hs₁]
-    exact h _ _
+          naorCommit generator r true (List.ofFn s₁) :=
+  ⟨fun h s₀ s₁ => h (List.ofFn s₀) (List.ofFn s₁) List.length_ofFn List.length_ofFn,
+    fun h s₀ s₁ hs₀ hs₁ => by
+      rw [← BitString.ofFn_ofList hs₀, ← BitString.ofFn_ofList hs₁]
+      exact h _ _⟩
 
 instance decidablePredNaorBinding (generator : List Bool → List Bool) (n : ℕ) :
     DecidablePred (NaorBinding generator n) :=
@@ -644,10 +638,7 @@ theorem NaorBinding.eq_of_naorCommit_eq {generator : List Bool → List Bool} {n
     (hs₀ : s₀.length = n) (hs₁ : s₁.length = n)
     (heq : naorCommit generator r b₀ s₀ = naorCommit generator r b₁ s₁) : b₀ = b₁ := by
   cases b₀ <;> cases b₁
-  · rfl
-  · exact False.elim (hbind s₀ s₁ hs₀ hs₁ heq)
-  · exact False.elim (hbind s₁ s₀ hs₁ hs₀ heq.symm)
-  · rfl
+  exacts [rfl, (hbind s₀ s₁ hs₀ hs₁ heq).elim, (hbind s₁ s₀ hs₁ hs₀ heq.symm).elim, rfl]
 
 /-- The bad receiver string determined by a pair of seeds `(s₀, s₁)`. -/
 def naorBadShift (generator : List Bool → List Bool) (m n : ℕ)
@@ -665,18 +656,13 @@ theorem mem_image_naorBadShift_of_not_naorBinding {generator : List Bool → Lis
   rw [naorBinding_iff_bitString] at hnot
   push Not at hnot
   obtain ⟨s₀, s₁, heq⟩ := hnot
-  rw [Finset.mem_image]
-  refine ⟨(s₀, s₁), Finset.mem_univ _, ?_⟩
-  have hlen₁ : (generator (List.ofFn s₁)).length = length n := by
+  refine Finset.mem_image.mpr ⟨(s₀, s₁), Finset.mem_univ _, ?_⟩
+  have hgen₁ : (generator (List.ofFn s₁)).length = length n := by
     simpa only [List.length_ofFn] using hlen (List.ofFn s₁)
   have hbit := congrArg (BitString.ofList (length n)) heq
-  rw [naorCommit_false, naorCommit_true, hlen₁, BitString.ofList_listXor_pair] at hbit
-  let y₀ := BitString.ofList (length n) (generator (List.ofFn s₀))
-  let y₁ := BitString.ofList (length n) (generator (List.ofFn s₁))
-  let r' := BitString.ofList (length n) r
-  change y₀ = y₁ + r' at hbit
-  change y₀ + y₁ = r'
-  rw [hbit, add_right_comm, BitString.add_self, zero_add]
+  rw [naorCommit_false, naorCommit_true, hgen₁, BitString.ofList_listXor_pair] at hbit
+  change _ = _ + _ at hbit
+  rw [naorBadShift, hbit, add_right_comm, BitString.add_self, zero_add]
 
 private theorem card_not_naorBinding_le_image {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
@@ -750,18 +736,17 @@ theorem naorBindingProb_lt_of_three_mul {generator : List Bool → List Bool} {l
     (hlen : ∀ s, (generator s).length = length s.length) {n : ℕ} (hn : 0 < n)
     (hstretch : 3 * n ≤ length n) : naorBindingProb generator length n < (1 / 2 : ℝ≥0∞) ^ n := by
   have hlt : (Finset.univ.image (naorBadShift generator (length n) n)).card <
-      (Finset.univ : Finset (BitString n × BitString n)).card := by
-    refine lt_of_le_of_ne Finset.card_image_le fun heq => ?_
-    let x : BitString n := fun _ => false
-    let y : BitString n := fun _ => true
-    have h := Finset.card_image_iff.mp heq (Finset.mem_univ (x, x)) (Finset.mem_univ (y, y))
-      (by simp [naorBadShift])
-    exact Bool.false_ne_true (congrArg (fun p : BitString n × BitString n => p.1 ⟨0, hn⟩) h)
-  have hcount := (card_not_naorBinding_le_image hlen n).trans_lt hlt
+      (Finset.univ : Finset (BitString n × BitString n)).card :=
+    lt_of_le_of_ne Finset.card_image_le fun heq => Bool.false_ne_true <|
+      congrArg (fun p : BitString n × BitString n => p.1 ⟨0, hn⟩) <|
+        Finset.card_image_iff.mp heq (Finset.mem_univ (fun _ => false, fun _ => false))
+          (Finset.mem_univ (fun _ => true, fun _ => true)) (by simp [naorBadShift])
   rw [naorBindingProb_eq_card_div]
-  refine lt_of_lt_of_le ?_ (two_pow_div_two_pow_le (a := 2 * n) (b := length n) (by lia))
-  apply (ENNReal.div_lt_div_iff_left (by positivity) (by finiteness)).2
-  exact_mod_cast (show _ < 2 ^ (2 * n) by simpa [← pow_add, two_mul] using hcount)
+  refine ((ENNReal.div_lt_div_iff_left (by positivity)
+      (by finiteness)).2 ?_).trans_le
+    (two_pow_div_two_pow_le (a := 2 * n) (b := length n) (by lia))
+  exact_mod_cast (show _ < 2 ^ (2 * n) by
+    simpa [← pow_add, two_mul] using (card_not_naorBinding_le_image hlen n).trans_lt hlt)
 
 /-- When `3 * n + 1 ≤ length n`, the binding failure probability is at most `(1 / 2) ^ (n + 1)`. -/
 theorem naorBindingProb_le_of_three_mul_add_one {generator : List Bool → List Bool}
@@ -850,15 +835,9 @@ theorem getD_naorMaskBits (openFlags bits : List Bool) (i : ℕ) :
   induction bits generalizing openFlags i with
   | nil => simp only [naorMaskBits, List.getD_nil, Bool.and_false]
   | cons b bits ih =>
-    cases i with
-    | zero => cases openFlags <;> simp only [naorMaskBits, List.headD_nil, List.headD_cons,
-        List.getD_cons_zero, List.getD_nil]
-    | succ i =>
-      cases openFlags with
-      | nil =>
-        simpa only [naorMaskBits, List.tail_nil, List.getD_cons_succ, List.getD_nil] using ih [] i
-      | cons flag flags =>
-        simpa only [naorMaskBits, List.tail_cons, List.getD_cons_succ] using ih flags i
+    cases i <;> cases openFlags <;>
+      simp only [naorMaskBits, List.tail_nil, List.tail_cons, List.headD_nil, List.headD_cons,
+        List.getD_cons_zero, List.getD_cons_succ, List.getD_nil, Bool.false_and, ih]
 
 /-- A list of length `n` whose entries, read with `getD`, are `g i` is `(List.range n).map g`. -/
 private theorem eq_map_range_of_getD {α : Type} {l : List α} {d : α} {n : ℕ} {g : ℕ → α}
@@ -971,16 +950,15 @@ theorem eval_replicate_map_naorCommitSplit (m : ℕ) (generator : List Bool → 
   | cons b bits ih =>
     simp only [pmf_norm, List.length_cons, OracleComp.replicate_succ, BitString.eval_sampleList,
       naorCommitSplit, naorMaskBits, List.headD_cons, List.tail_cons]
-    have htail := ih openFlags.tail seeds.tail
-    simp only [ProbComp.eval_map] at htail
     have hstep (f : List Bool → List Bool) (g : List (List Bool) → List (List Bool)) :
         (BitString.uniformList m).bind (fun u =>
           (ProbComp.eval (OracleComp.replicate bits.length (BitString.sampleList m))).map
             (fun rest => f u :: g rest)) =
         ((BitString.uniformList m).map f).bind (fun head =>
           ((ProbComp.eval (OracleComp.replicate bits.length (BitString.sampleList m))).map g).map
-            (head :: ·)) := by
-      simp only [pmf_norm]
+            (head :: ·)) := by simp only [pmf_norm]
+    have htail := ih openFlags.tail seeds.tail
+    simp only [ProbComp.eval_map] at htail
     rw [hstep, uniformList_map_naorCommitAt, htail, ← hstep]
 
 /-- `naorMaskBits` distributes over list append when the first segments have equal length. -/
@@ -989,16 +967,11 @@ theorem naorMaskBits_append {flags₁ flags₂ bits₁ bits₂ : List Bool}
     naorMaskBits (flags₁ ++ flags₂) (bits₁ ++ bits₂) =
       naorMaskBits flags₁ bits₁ ++ naorMaskBits flags₂ bits₂ := by
   induction bits₁ generalizing flags₁ with
-  | nil =>
-    cases flags₁ with
-    | nil => rfl
-    | cons _ _ => simp only [List.length_cons, List.length_nil, Nat.succ_ne_zero] at h
+  | nil => cases flags₁ <;> simp_all [naorMaskBits]
   | cons b bits₁ ih =>
     cases flags₁ with
-    | nil => simp only [List.length_nil, List.length_cons, Nat.zero_ne_add_one] at h
-    | cons f flags₁ =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at h
-      simp only [List.cons_append, naorMaskBits, List.headD_cons, List.tail_cons, ih h]
+    | nil => simp at h
+    | cons f flags₁ => simp [naorMaskBits, ih (Nat.succ.inj h)]
 
 /-- `naorCommitSplit` distributes over list append when the first segments have equal length. -/
 theorem naorCommitSplit_append (generator : List Bool → List Bool) (r : List Bool)
@@ -1010,23 +983,15 @@ theorem naorCommitSplit_append (generator : List Bool → List Bool) (r : List B
       naorCommitSplit generator r flags₁ bits₁ seeds₁ pads₁ ++
         naorCommitSplit generator r flags₂ bits₂ seeds₂ pads₂ := by
   induction bits₁ generalizing flags₁ seeds₁ pads₁ with
-  | nil =>
-    cases flags₁ <;> cases seeds₁ <;> cases pads₁ <;>
-      simp only [List.length_nil, List.length_cons, Nat.succ_ne_zero] at hflags hseeds hpads
-    rfl
+  | nil => cases flags₁ <;> cases seeds₁ <;> cases pads₁ <;> simp_all [naorCommitSplit]
   | cons b bits₁ ih =>
-    cases flags₁ with
-    | nil => simp only [List.length_nil, List.length_cons, Nat.zero_ne_add_one] at hflags
-    | cons f flags₁ =>
-      cases seeds₁ with
-      | nil => simp only [List.length_nil, List.length_cons, Nat.zero_ne_add_one] at hseeds
-      | cons s seeds₁ =>
-        cases pads₁ with
-        | nil => simp only [List.length_nil, List.length_cons, Nat.zero_ne_add_one] at hpads
-        | cons p pads₁ =>
-          simp only [List.length_cons, Nat.add_right_cancel_iff] at hflags hseeds hpads
-          simp only [List.cons_append, naorCommitSplit, List.headD_cons, List.tail_cons,
-            ih hflags hseeds hpads]
+    rcases flags₁ with _ | ⟨f, flags₁⟩
+    · simp at hflags
+    rcases seeds₁ with _ | ⟨s, seeds₁⟩
+    · simp at hseeds
+    rcases pads₁ with _ | ⟨p, pads₁⟩
+    · simp at hpads
+    simp [naorCommitSplit, ih (Nat.succ.inj hflags) (Nat.succ.inj hseeds) (Nat.succ.inj hpads)]
 
 /-- Select seeds of width `s` at opened coordinates and pad unopened coordinates with `s` false
 bits. -/
@@ -1145,8 +1110,7 @@ theorem eval_replicate_naorSelectPads (s : ℕ) (generator : List Bool → List 
           naorSelectSeeds s openFlags bits seeds)) <$>
       OracleComp.replicate bits.length (BitString.sampleList s)) := by
   induction bits generalizing openFlags with
-  | nil => simp only [List.length_nil, OracleComp.replicate_zero, pure_bind, ProbComp.eval_pure,
-      naorSelectPads, naorSelectSeeds, map_pure]
+  | nil => simp [OracleComp.replicate_zero, naorSelectPads, naorSelectSeeds]
   | cons b bits ih =>
     simp only [pmf_norm, List.length_cons, OracleComp.replicate_succ, BitString.eval_sampleList,
       naorSelectPads, naorSelectSeeds, List.replicate_succ, List.headD_cons, List.tail_cons,
@@ -1157,22 +1121,20 @@ theorem eval_replicate_naorSelectPads (s : ℕ) (generator : List Bool → List 
     set D_p := ProbComp.eval
       (OracleComp.replicate bits.length (generator <$> BitString.sampleList s))
     have hstep (u v : List Bool) :
-        D_s.bind (fun rest_s => D_p.bind (fun rest_p => PMF.pure
+        D_s.bind (fun rest_s => D_p.bind fun rest_p => PMF.pure
           ((if openFlags.headD false then generator u else v) ::
             naorSelectPads generator openFlags.tail bits rest_s rest_p,
             (if openFlags.headD false then BitString.listRow s 0 u else List.replicate s false) ::
-            naorSelectSeeds s openFlags.tail bits rest_s))) =
-        D_s.map (fun rest_s =>
+            naorSelectSeeds s openFlags.tail bits rest_s)) =
+        D_s.map fun rest_s =>
           ((if openFlags.headD false then generator u else v) ::
             naorSelectPads generator (List.replicate bits.length true) bits rest_s [],
             (if openFlags.headD false then BitString.listRow s 0 u else List.replicate s false) ::
-            naorSelectSeeds s openFlags.tail bits rest_s)) := by
-      have hcongr := congrArg (PMF.map (fun q : List (List Bool) × List (List Bool) =>
+            naorSelectSeeds s openFlags.tail bits rest_s) := by
+      simpa only [pmf_norm, D_s, D_p] using congrArg (PMF.map fun q : List (List Bool) × _ =>
         ((if openFlags.headD false then generator u else v) :: q.1,
           (if openFlags.headD false then BitString.listRow s 0 u else List.replicate s false) ::
-            q.2))) htail
-      simpa only [pmf_norm, D_s, D_p]
-        using hcongr
+            q.2)) htail
     simp_rw [PMF.bind_comm D_s (BitString.uniformList s), hstep]
     cases openFlags.headD false <;>
       simp only [Bool.false_eq_true, ↓reduceIte, PMF.bind_const, D_s]

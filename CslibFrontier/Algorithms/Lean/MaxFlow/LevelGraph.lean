@@ -272,10 +272,8 @@ theorem resDist_lt_resDist_augmentLevel (f : N.Flow) (g : (f.levelNet f.resDist)
     induction h with
     | zero =>
       intro _
-      refine ⟨[N.s], List.nodup_singleton _, rfl, rfl, ?_, by simp⟩
-      intro x hx
-      rw [List.mem_singleton.mp hx]
-      simp
+      exact ⟨[N.s], List.nodup_singleton _, rfl, rfl,
+        fun x hx => by simp [List.mem_singleton.mp hx], by simp⟩
     | @succ u w k hu hpos ih =>
       intro hw
       have hu_le : f.resDist u ≤ k := le_trans (f.resDist_le_resDist_augmentLevel g u)
@@ -286,37 +284,22 @@ theorem resDist_lt_resDist_augmentLevel (f : N.Flow) (g : (f.levelNet f.resDist)
         obtain ⟨p, hnd, hs, hlast, hle, harcs⟩ := ih hu_eq
         have hcap_pos : 0 < (f.levelNet f.resDist).cap u w :=
           (f.levelNet_cap_pos_iff f.resDist u w).mpr ⟨by omega, hf⟩
-        have hrev : (f.levelNet f.resDist).cap w u = 0 :=
-          f.levelNet_cap_eq_zero_of_pos f.resDist hcap_pos
-        have hgwu : g w u = 0 := Nat.eq_zero_of_le_zero (hrev ▸ g.le_cap w u)
+        have hgwu : g w u = 0 := Nat.eq_zero_of_le_zero
+          (f.levelNet_cap_eq_zero_of_pos f.resDist hcap_pos ▸ g.le_cap w u)
         have hunsat : g u w < (f.levelNet f.resDist).cap u w := by
           have hres := f.resCap_augmentLevel g u w
           have hcap_eq : (f.levelNet f.resDist).cap u w = f.resCap u w := by
-            rw [levelNet_cap]
-            split_ifs <;> omega
-          rw [hgwu] at hres
+            rw [levelNet_cap]; split_ifs <;> omega
           omega
-        have hp_ne : p ≠ [] := by
-          rintro rfl
-          simp at hs
-        have hw_notin : w ∉ p := fun hmem => by
-          have := hle w hmem
-          omega
-        refine ⟨p ++ [w], ?_, ?_, by simp, ?_, ?_⟩
-        · refine List.nodup_append.mpr ⟨hnd, List.nodup_singleton w, ?_⟩
-          intro a ha b hb hab
-          rw [List.mem_singleton.mp hb] at hab
-          exact hw_notin (hab ▸ ha)
-        · rw [List.head?_append_of_ne_nil p hp_ne]
-          exact hs
-        · intro x hx
-          rcases List.mem_append.mp hx with hx | hx
-          · have := hle x hx
-            omega
-          · rw [List.mem_singleton.mp hx]
-            omega
-        · intro e he
-          rw [pathArcs_append_singleton hp_ne hlast, List.mem_append, List.mem_singleton] at he
+        have hp_ne : p ≠ [] := by rintro rfl; simp at hs
+        have hw_notin : w ∉ p := fun hmem => by have := hle w hmem; omega
+        refine ⟨p ++ [w], List.nodup_append.mpr ⟨hnd, List.nodup_singleton w,
+            fun a ha _ hb hab => hw_notin (List.mem_singleton.mp hb ▸ hab ▸ ha)⟩,
+          by rwa [List.head?_append_of_ne_nil p hp_ne], by simp, fun x hx => ?_, fun e he => ?_⟩
+        · rcases List.mem_append.mp hx with hx | hx
+          · exact (hle x hx).trans (Nat.le_succ _)
+          · rw [List.mem_singleton.mp hx]; omega
+        · rw [pathArcs_append_singleton hp_ne hlast, List.mem_append, List.mem_singleton] at he
           rcases he with he | rfl
           · exact harcs e he
           · exact ⟨hcap_pos, hunsat⟩
@@ -403,14 +386,8 @@ theorem mem_resBall_iff (f : N.Flow) (k : ℕ) (v : V) :
     v ∈ f.resBall k ↔ ∃ m ≤ k, f.HasResWalkOfLen v m := by
   induction k generalizing v with
   | zero =>
-    rw [resBall, Finset.mem_singleton]
-    simp only [Nat.le_zero, exists_eq_left]
-    constructor
-    · rintro rfl
-      exact .zero
-    · intro h
-      cases h
-      rfl
+    simp only [resBall, Finset.mem_singleton, Nat.le_zero, exists_eq_left]
+    exact ⟨by rintro rfl; exact .zero, fun h => by cases h; rfl⟩
   | succ k ih =>
     simp only [resBall, Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and, ih]
     constructor
@@ -420,8 +397,7 @@ theorem mem_resBall_iff (f : N.Flow) (k : ℕ) (v : V) :
     · rintro ⟨m, hm, hw⟩
       rcases Nat.lt_or_ge m (k + 1) with hlt | hge
       · exact .inl ⟨m, by omega, hw⟩
-      · have hm' : m = k + 1 := by omega
-        subst hm'
+      · obtain rfl : m = k + 1 := by omega
         cases hw with
         | succ hu hpos => exact .inr ⟨_, ⟨k, le_rfl, hu⟩, hpos⟩
 
@@ -446,14 +422,10 @@ theorem bfsDist_eq_resDist (f : N.Flow) (v : V) : f.bfsDist v = f.resDist v := b
     simp only [Finset.mem_filter, Finset.mem_range]
     constructor
     · rintro ⟨hk, hnot⟩
-      rw [f.mem_resBall_iff_resDist_le hk] at hnot
-      omega
+      rw [f.mem_resBall_iff_resDist_le hk] at hnot; omega
     · intro hk
-      have hle := f.resDist_le_card v
-      have hk' : k < Fintype.card V := by omega
-      refine ⟨hk', ?_⟩
-      rw [f.mem_resBall_iff_resDist_le hk']
-      omega
+      have hk' : k < Fintype.card V := lt_of_lt_of_le hk (f.resDist_le_card v)
+      exact ⟨hk', by rw [f.mem_resBall_iff_resDist_le hk']; omega⟩
   rw [bfsDist, hfilter, Finset.card_range]
 
 end Flow

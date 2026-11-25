@@ -114,28 +114,16 @@ theorem isCuckooHashPair_le_two {Θ : Type*} (μ : PMF Θ) {U m n_max MaxLoop : 
       _ = ((1 : ℕ) : ℝ≥0∞) := by
           simp only [mul_one, PMF.tsum_coe, Nat.cast_one]
   rehash_prob_le_half S hcard := by
-    have hgood : ∀ θ : Θ, GoodForSet (h₁ θ) (h₂ θ) MaxLoop S := by
-      intro θ ks hnodup hsub
-      have hlen : ks.length ≤ 2 := by
-        have h1 : ks.toFinset ⊆ S := fun x hx => hsub x (List.mem_toFinset.mp hx)
-        have h2 : ks.toFinset.card ≤ S.card := Finset.card_le_card h1
+    have hempty : {θ : Θ | ¬ GoodForSet (h₁ θ) (h₂ θ) MaxLoop S} = ∅ :=
+      Set.eq_empty_iff_forall_notMem.mpr fun θ hθ => hθ fun ks hnodup hsub => by
+        have h2 : ks.toFinset.card ≤ S.card :=
+          Finset.card_le_card fun x hx => hsub x (List.mem_toFinset.mp hx)
         rw [List.card_toFinset, List.dedup_eq_self.mpr hnodup] at h2
-        omega
-      exact pureReplay_isSome_of_length_le_two _ _ hloop hlen
-    have hempty : {θ : Θ | ¬ GoodForSet (h₁ θ) (h₂ θ) MaxLoop S} = ∅ := by
-      ext θ; simp [hgood θ]
+        exact pureReplay_isSome_of_length_le_two _ _ hloop (by omega)
     rw [hempty]
     simp
   step_rehash_prob_le ks u _ hlen _ := by
     have hlen' : (ks ++ [u]).length ≤ 2 := by simp; omega
-    have hsome : ∀ θ : Θ, (pureReplay (h₁ θ) (h₂ θ) MaxLoop (ks ++ [u])).isSome :=
-      fun θ => pureReplay_isSome_of_length_le_two _ _ hloop hlen'
-    have hempty :
-        {θ : Θ | (pureReplay (h₁ θ) (h₂ θ) MaxLoop ks).isSome ∧
-          (pureReplay (h₁ θ) (h₂ θ) MaxLoop (ks ++ [u])).isNone} = ∅ := by
-      ext θ
-      simp [Option.isNone_iff_eq_none, Option.ne_none_iff_isSome.mpr (hsome θ)]
-    rw [hempty]
-    simp
+    simp [Option.ne_none_iff_isSome.mpr (pureReplay_isSome_of_length_le_two _ _ hloop hlen')]
 
 end Cslib.DataStructure.Dictionary.CuckooHashing

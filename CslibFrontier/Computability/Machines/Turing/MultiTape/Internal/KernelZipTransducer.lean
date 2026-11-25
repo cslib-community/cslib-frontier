@@ -363,8 +363,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     have hx : inputAt (frame u ++ v) (2 * u.length + 2 + v.length) = none := by
       unfold inputAt
       split_ifs
-      · rfl
-      · exact List.getElem?_eq_none (by omega)
+      exacts [rfl, List.getElem?_eq_none (by omega)]
     have hy : tapeOfList u ((min r u.length : ℕ) : ℤ) = none := by
       rw [tapeOfList_ofNat, List.getElem?_eq_none (by omega)]
     have s₁ : τ.toTM.step (cfgAt (frame u ++ v) (some (.zip q none))
@@ -381,8 +380,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     rw [List.take_one, ← List.head?_tail, List.take_of_length_le (τ.length_final_le q)] at hfin
     rcases hb : (τ.final q).tail.head? with _ | b
     · rw [hb, Option.toList_none, List.append_nil] at hfin
-      rw [hb, Option.map_none] at s₁
-      rw [hfin] at s₁
+      rw [hb, Option.map_none, hfin] at s₁
       exact (Seg.single (cfgAt_mem_cells (by omega) (by omega)) s₁
         (cfgAt_mem_cells (by omega) (by omega))).mono (by omega)
     · rw [hb, Option.map_some] at s₁
@@ -411,18 +409,13 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
         using getElem?_frame_append_boundary u v (min r v.length)
     have hy : tapeOfList u ((min r u.length : ℕ) : ℤ) = (u.drop r).head? := by
       rw [tapeOfList_ofNat, getElem?_min_length]
+    have hsome (l : List Bool) : (l.drop r).head?.isSome = decide (r < l.length) := by
+      rw [List.head?_drop]
+      by_cases h : r < l.length <;> simp [h]
     set x := (v.drop r).head? with hxdef
     set y := (u.drop r).head? with hydef
-    have hxs : x.isSome = decide (r < v.length) := by
-      rw [hxdef, List.head?_drop]
-      rcases Nat.lt_or_ge r v.length with h | h
-      · simp [h]
-      · simp [Nat.not_lt.mpr h]
-    have hys : y.isSome = decide (r < u.length) := by
-      rw [hydef, List.head?_drop]
-      rcases Nat.lt_or_ge r u.length with h | h
-      · simp [h]
-      · simp [Nat.not_lt.mpr h]
+    have hxs : x.isSome = decide (r < v.length) := hsome v
+    have hys : y.isSome = decide (r < u.length) := hsome u
     have hmove : moveInputPosNat (frame u ++ v).length (2 * u.length + 2 + min r v.length)
         (if x.isSome then 1 else 0) = 2 * u.length + 2 + min (r + 1) v.length := by
       rw [hxs]
@@ -436,12 +429,7 @@ private lemma seg_zip (q : Q) {r : ℕ} (hr : r ≤ max u.length v.length) (o : 
     have hhead : ((min r u.length : ℕ) : ℤ) + ((if y.isSome then 1 else 0 : SignType) : ℤ) =
         ((min (r + 1) u.length : ℕ) : ℤ) := by
       rw [hys]
-      rcases Nat.lt_or_ge r u.length with h | h
-      · simp only [decide_eq_true h, ↓reduceIte, SignType.coe_one]
-        omega
-      · simp only [decide_eq_false (Nat.not_lt.mpr h), Bool.false_eq_true, ↓reduceIte,
-          SignType.coe_zero]
-        omega
+      by_cases h : r < u.length <;> simp [h] <;> omega
     have s₁ : τ.toTM.step (cfgAt (frame u ++ v) (some (.zip q none))
         (2 * u.length + 2 + min r v.length) (tapeOfList u) (min r u.length : ℕ) o) =
         cfgAt (frame u ++ v) (some (.zip (τ.step q (y, x)).1 (τ.step q (y, x)).2.tail.head?))

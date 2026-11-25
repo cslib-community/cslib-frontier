@@ -11,7 +11,6 @@ public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204ResponseBinding
 public import CslibFrontier.Languages.Probabilistic.Oracle.EvalPure
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.QueryCount
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Languages.Probabilistic.Norm
@@ -329,13 +328,7 @@ theorem signingQueries_bounded {R : Type} (s : Level) (sk : PrivateKey s) (A : P
     intro _
     exact .liftBind _ _ 0 fun _ => .pure _ _
   rw [show s.params.ℓ + 2 = s.params.ℓ + (1 + (1 + 0)) by ring]
-  apply masks.bind
-  intro _
-  apply OracleComp.IsCostBounded.liftBind
-  intro _
-  apply OracleComp.IsCostBounded.liftBind
-  intro _
-  exact .pure _ _
+  exact masks.bind fun _ => .liftBind _ _ _ fun _ => .liftBind _ _ _ fun _ => .pure _ _
 
 /-- Two prelude reads for the representative and hedging seed, followed by at most 814 trials. -/
 theorem Xofs.signInternalReads_bounded {R : Type} (H : Xofs) (s : Level) (key : List Byte)
@@ -906,8 +899,7 @@ private theorem refreshFirstSign_bind {α : Type} {H : Xofs} {s : Level} {seed :
           ((H.h256.read key (seen key) ++ List.ofFn fresh).take 221) := by
         apply congrArg (sampleInBallBytes s)
         have h := H.h256.read_fill_window seen updated key (n := 221) (Nat.le_add_left ..)
-        rw [show updated key = fresh from Function.update_self ..] at h
-        exact h
+        rwa [show updated key = fresh from Function.update_self ..] at h
       apply congrArg (post updated)
       symm
       change K.sign s keys.secretKey q.message q.context rnd = afterAttempt K st

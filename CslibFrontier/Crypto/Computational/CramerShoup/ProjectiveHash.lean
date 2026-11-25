@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.DiscreteLog
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Tactic.Ring
 
@@ -227,14 +228,9 @@ def projHashEquiv (d : F.Desc) {α β γ : ZMod (F.order d)} (hγ : γ ≠ α * 
     (q.1 - α * τ, τ)
   left_inv p := by
     have hne : γ - α * β ≠ 0 := sub_ne_zero.mpr hγ
-    ext
-    · dsimp only
-      have hsub : β * p.1 + γ * p.2 - β * (p.1 + α * p.2) = (γ - α * β) * p.2 := by ring
-      rw [hsub, inv_mul_cancel_left₀ hne]
-      ring
-    · dsimp only
-      have hsub : β * p.1 + γ * p.2 - β * (p.1 + α * p.2) = (γ - α * β) * p.2 := by ring
-      rw [hsub, inv_mul_cancel_left₀ hne]
+    have hsub : β * p.1 + γ * p.2 - β * (p.1 + α * p.2) = (γ - α * β) * p.2 := by ring
+    ext <;> dsimp only <;> rw [hsub, inv_mul_cancel_left₀ hne]
+    ring
   right_inv q := by
     have hne : γ - α * β ≠ 0 := sub_ne_zero.mpr hγ
     ext
@@ -299,10 +295,7 @@ theorem uniform_projHash_fiber {α_out : Type*} (d : F.Desc) {α β γ : ZMod (F
       f (projHash F d (δ - α * τ) τ (β • F.generator d) (γ • F.generator d))) =
       (PMF.uniformOfFintype (ZMod (F.order d))).bind fun ζ => f (ζ • F.generator d) := by
   simp only [projHash_fiber_eq]
-  change (PMF.uniformOfFintype (ZMod (F.order d))).bind
-      ((fun ζ => f (ζ • F.generator d)) ∘ projHashFiberEquiv F d hγ δ) =
-    (PMF.uniformOfFintype (ZMod (F.order d))).bind (fun ζ => f (ζ • F.generator d))
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform (projHashFiberEquiv F d hγ δ)
 
 /-- **One-time group mask via `projHash` on a non-DH triple**: fixing `δ = σ + α * τ`, for any
 message `m : F.Carrier d` and any non-DH triple `γ ≠ α * β`, masking `m` by
@@ -530,21 +523,14 @@ theorem uniform_projHash2_fiber_any_le (d : F.Desc)
     obtain ⟨β', γ', ρ', z'⟩ := q
     have hq_head : γ' ≠ α * β' ∧ ρ' ≠ ρ := hq _ List.mem_cons_self
     have hsingle : (μ.map (hit (β', γ', ρ', z'))) true = (F.order d : ℝ≥0∞)⁻¹ := by
-      have heq :
-          (μ.map (hit (β', γ', ρ', z'))) true =
-            (μ.map (fun τ₂ =>
-              projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ'
-                (β' • F.generator d) (γ' • F.generator d))) z' := by
-        rw [PMF.map_apply, PMF.map_apply]
-        refine tsum_congr fun τ₂ => ?_
-        dsimp only [hit]
-        split_ifs with h₁ h₂ h₂
-        · rfl
-        · exfalso; exact h₂ (decide_eq_true_iff.mp h₁.symm).symm
-        · exfalso; exact h₁ (decide_eq_true h₂.symm).symm
-        · rfl
-      rw [heq]
-      exact uniform_projHash2_fiber_apply F d hq_head.1 hq_head.2 δ₁ δ₂ ξ z'
+      rw [← uniform_projHash2_fiber_apply F d hq_head.1 hq_head.2 δ₁ δ₂ ξ z',
+        PMF.map_apply, PMF.map_apply]
+      refine tsum_congr fun τ₂ => ?_
+      dsimp only [μ, hit]
+      by_cases h : projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ'
+          (β' • F.generator d) (γ' • F.generator d) = z'
+      · simp [h]
+      · simp only [h, decide_false, Bool.true_eq_false, ↓reduceIte, ite_eq_right (Ne.symm h)]
     refine hor.trans ?_
     rw [hsingle, List.length_cons, Nat.cast_add, Nat.cast_one, ENNReal.add_div, one_div, add_comm]
     exact add_le_add_left (ih hq_tail) _
@@ -601,38 +587,29 @@ def projHash2Equiv (d : F.Desc) {α β γ β' γ' ρ ρ' : ZMod (F.order d)}
     have hne : γ - α * β ≠ 0 := sub_ne_zero.mpr hγ
     have hne' : γ' - α * β' ≠ 0 := sub_ne_zero.mpr hγ'
     have hneρ : ρ' - ρ ≠ 0 := sub_ne_zero.mpr hρ
+    dsimp only
+    set ξ := (γ - α * β)⁻¹ * (z - β * (δ₁ + ρ * δ₂))
+    set ξ' := (γ' - α * β')⁻¹ * (z' - β' * (δ₁ + ρ' * δ₂))
+    set τ₂ := (ρ' - ρ)⁻¹ * (ξ' - ξ)
     ext
-    · dsimp only; ring
-    · dsimp only; ring
-    · dsimp only
-      set ξ := (γ - α * β)⁻¹ * (z - β * (δ₁ + ρ * δ₂))
-      set ξ' := (γ' - α * β')⁻¹ * (z' - β' * (δ₁ + ρ' * δ₂))
-      set τ₂ := (ρ' - ρ)⁻¹ * (ξ' - ξ)
-      have hlin :
-          β * (δ₁ - α * (ξ - ρ * τ₂) + ρ * (δ₂ - α * τ₂)) +
-            γ * (ξ - ρ * τ₂ + ρ * τ₂) =
-          β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ := by ring
+    · ring
+    · ring
+    · have hlin :
+          β * (δ₁ - α * (ξ - ρ * τ₂) + ρ * (δ₂ - α * τ₂)) + γ * (ξ - ρ * τ₂ + ρ * τ₂) =
+            β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ := by ring
       rw [hlin]
       dsimp only [ξ]
       rw [mul_inv_cancel_left₀ hne]
       ring
-    · dsimp only
-      set ξ := (γ - α * β)⁻¹ * (z - β * (δ₁ + ρ * δ₂))
-      set ξ' := (γ' - α * β')⁻¹ * (z' - β' * (δ₁ + ρ' * δ₂))
-      have hτ :
-          ξ - ρ * ((ρ' - ρ)⁻¹ * (ξ' - ξ)) + ρ' * ((ρ' - ρ)⁻¹ * (ξ' - ξ)) = ξ' := by
-        have hlin :
-            ξ - ρ * ((ρ' - ρ)⁻¹ * (ξ' - ξ)) + ρ' * ((ρ' - ρ)⁻¹ * (ξ' - ξ)) =
-            ξ + (ρ' - ρ) * ((ρ' - ρ)⁻¹ * (ξ' - ξ)) := by ring
-        rw [hlin, mul_inv_cancel_left₀ hneρ]
+    · have hτ : ξ - ρ * τ₂ + ρ' * τ₂ = ξ' := by
+        have hlin : ξ - ρ * τ₂ + ρ' * τ₂ = ξ + (ρ' - ρ) * τ₂ := by ring
+        rw [hlin]
+        dsimp only [τ₂]
+        rw [mul_inv_cancel_left₀ hneρ]
         ring
       have hlin :
-          β' * (δ₁ - α * (ξ - ρ * ((ρ' - ρ)⁻¹ * (ξ' - ξ))) +
-              ρ' * (δ₂ - α * ((ρ' - ρ)⁻¹ * (ξ' - ξ)))) +
-            γ' * (ξ - ρ * ((ρ' - ρ)⁻¹ * (ξ' - ξ)) + ρ' * ((ρ' - ρ)⁻¹ * (ξ' - ξ))) =
-          β' * (δ₁ + ρ' * δ₂) +
-            (γ' - α * β') * (ξ - ρ * ((ρ' - ρ)⁻¹ * (ξ' - ξ)) + ρ' * ((ρ' - ρ)⁻¹ * (ξ' - ξ))) := by
-        ring
+          β' * (δ₁ - α * (ξ - ρ * τ₂) + ρ' * (δ₂ - α * τ₂)) + γ' * (ξ - ρ * τ₂ + ρ' * τ₂) =
+            β' * (δ₁ + ρ' * δ₂) + (γ' - α * β') * (ξ - ρ * τ₂ + ρ' * τ₂) := by ring
       rw [hlin, hτ]
       dsimp only [ξ']
       rw [mul_inv_cancel_left₀ hne']
@@ -722,10 +699,8 @@ theorem projHash_fiber_eq_of_isDHTriple (d : F.Desc) {α δ τ : ZMod (F.order d
     {v w : F.Carrier d} (hL : IsDHTriple F d (α • F.generator d) v w) :
     projHash F d (δ - α * τ) τ v w = projHash F d δ 0 v w := by
   obtain ⟨β, rfl, rfl⟩ := hL
-  rw [projHash_smul_generator, projHash_smul_generator, projHashAux_fiber_eq]
-  have h0 : projHashAux F d δ 0 (α • F.generator d) = δ • F.generator d := by
-    simp only [projHashAux_generator_smul, mul_zero, add_zero]
-  rw [h0]
+  simp only [projHash_smul_generator, projHashAux_generator_smul, sub_add_cancel,
+    mul_zero, add_zero]
 
 /-- For every `(v, w) ∈ L_u` with `u = α • g`, `projHash2` on the `(δ₁, δ₂)`-fiber
 `((δ₁ - α * τ₁, τ₁), (δ₂ - α * τ₂, τ₂))` agrees with `projHash2` at `(δ₁, 0, δ₂, 0)`
@@ -736,11 +711,7 @@ theorem projHash2_fiber_eq_of_isDHTriple (d : F.Desc)
     projHash2 F d (δ₁ - α * τ₁) τ₁ (δ₂ - α * τ₂) τ₂ ρ v w =
       projHash2 F d δ₁ 0 δ₂ 0 ρ v w := by
   obtain ⟨β, rfl, rfl⟩ := hL
-  rw [projHash2_smul_generator, projHash2_smul_generator, projHash2Aux_fiber_eq]
-  have h0 :
-      projHash2Aux F d δ₁ 0 δ₂ 0 (α • F.generator d) =
-        (δ₁ • F.generator d, δ₂ • F.generator d) := by
-    simp only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero]
-  rw [h0]
+  simp only [projHash2_smul_generator, projHash2Aux, projHashAux_generator_smul,
+    sub_add_cancel, mul_zero, add_zero]
 
 end Cslib.Crypto.ProjectiveHash

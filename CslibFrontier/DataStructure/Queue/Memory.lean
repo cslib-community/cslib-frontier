@@ -147,16 +147,17 @@ theorem validHistory_transferTrace {front back : List ℕ} (hlen : front.length 
 
 /-- The two-stack queue over a pair of bounded stacks: the stacks represent `front ++ rear⁻¹`. -/
 def refinement (w C : ℕ) : Refinement (Queue.WordRAM.spec w C) (boundedStacks w C) :=
-  Refinement.ofFn (methods (α := ℕ)) (fun s => Inv w C (Queue.WordRAM.contents s))
-    Queue.WordRAM.contents
+  Refinement.ofFn (methods (α := ℕ))
+    (fun s => Inv w C (Queue.WordRAM.Stacks.contents ⟨s.1, s.2⟩))
+    (fun s => Queue.WordRAM.Stacks.contents ⟨s.1, s.2⟩)
     (by
       rintro ⟨front, back⟩ o hs hv
       have hlen := hs.length_le
-      simp only [Queue.WordRAM.contents, List.length_append, List.length_reverse] at hlen
+      simp only [Queue.WordRAM.Stacks.contents, List.length_append, List.length_reverse] at hlen
       cases o with
       | enqueue n =>
         obtain ⟨hq, hfit⟩ := hv
-        simp only [Queue.WordRAM.contents, List.length_append, List.length_reverse] at hq
+        simp only [Queue.WordRAM.Stacks.contents, List.length_append, List.length_reverse] at hq
         refine ⟨⟨?_, hfit⟩, trivial⟩
         change back.length < C
         omega
@@ -169,14 +170,15 @@ def refinement (w C : ℕ) : Refinement (Queue.WordRAM.spec w C) (boundedStacks 
           refine ⟨trivial, trivial, ?_⟩
           rw [StateTransitionSpec.validHistory_append]
           refine ⟨validHistory_transferTrace (by simpa using hlen) fun x hx =>
-            hs.fits x (by simp [Queue.WordRAM.contents, hx]), trivial, trivial⟩)
+            hs.fits x (by simp [Queue.WordRAM.Stacks.contents, hx]), trivial, trivial⟩)
     (by
       rintro ⟨front, back⟩ o hs hv
       have h := stepFn_methods front back o
       rw [clientState_boundedStacks, clientResult_boundedStacks]
       refine ⟨h, ?_⟩
       have hstep := hs.step hv
-      rw [show Queue.WordRAM.contents (front, back) = front ++ back.reverse from rfl, h] at hstep
+      rw [show Queue.WordRAM.Stacks.contents ⟨front, back⟩ = front ++ back.reverse from rfl, h]
+        at hstep
       exact hstep)
 
 /-- Each queue operation costs at most three stack calls, amortized, with two credits per rear

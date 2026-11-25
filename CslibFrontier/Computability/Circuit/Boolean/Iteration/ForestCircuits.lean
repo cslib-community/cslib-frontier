@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.ForestQuerySynthesis
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.NavigationSynthesis
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -61,17 +62,12 @@ theorem forest_dictionary_cost_le (n s v M Q L : ℕ) (hL : 0 < L) (hLN : L ≤ 
   let N := 2 ^ n
   have hN : 1 ≤ N := Nat.one_le_two_pow
   have hMN : M ≤ 2 * N := hM.trans (Nat.mul_le_mul_left _ (Nat.div_le_self _ _))
-  have hd : Nat.clog 2 (M + Q + 1) ≤ n + 3 := by
-    apply Nat.clog_le_of_le_pow
-    have hpow : 2 ^ (n + 3) = 8 * N := by
-      dsimp [N]
-      rw [pow_add]
-      ring
+  have hd : Nat.clog 2 (M + Q + 1) ≤ n + 3 := Nat.clog_le_of_le_pow <| by
+    have : 2 ^ (n + 3) = 8 * N := by rw [pow_add]; ring
     omega
-  have hw : (Nat.clog 2 (M + Q + 1) + n + (1 + v) + 3) ^ 3 ≤ 1728 * (n + 1) ^ 3 := by
-    have h1 : Nat.clog 2 (M + Q + 1) + n + (1 + v) + 3 ≤ 12 * (n + 1) := by omega
+  have hw : (Nat.clog 2 (M + Q + 1) + n + (1 + v) + 3) ^ 3 ≤ 1728 * (n + 1) ^ 3 :=
     calc (Nat.clog 2 (M + Q + 1) + n + (1 + v) + 3) ^ 3
-        ≤ (12 * (n + 1)) ^ 3 := Nat.pow_le_pow_left h1 3
+        ≤ (12 * (n + 1)) ^ 3 := Nat.pow_le_pow_left (by omega) 3
       _ = 1728 * (n + 1) ^ 3 := by ring
   have hr : M + Q + 1 ≤ 3 * (L + 2 ^ n / L + 1) := by lia
   have hb : (n + 1) ^ 3 * (L + 2 ^ n / L + 1) ≤ powerBudget n s (2 ^ n) L := Nat.le_add_left _ _
@@ -91,14 +87,11 @@ theorem transientForestCost_le (n s d M E L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^
   have he := forest_dictionary_cost_le n s (n + (n + 1 + (n + 1)) + (n + 3)) E (2 * L + 1) L
     hL hLN (by omega) hE (by omega)
   have hn1 : n + 1 ≤ (n + 1) ^ 3 := Nat.le_self_pow (by decide) _
-  have hp : (2 * L + 1) * (41 * n + 41) + (24 * n + 50) + 2 ≤
-      200 * ((n + 1) ^ 3 * (L + 2 ^ n / L + 1)) := by
-    have h1 : (2 * L + 1) * (41 * n + 41) ≤
-        (3 * (L + 2 ^ n / L + 1)) * (41 * (n + 1) ^ 3) :=
-      Nat.mul_le_mul (by omega) (by nlinarith)
-    have h2 : 24 * n + 50 + 2 ≤ 52 * ((n + 1) ^ 3 * (L + 2 ^ n / L + 1)) := by
-      have hL1 : 1 ≤ L + 2 ^ n / L + 1 := by omega
-      nlinarith
+  have h1 : (2 * L + 1) * (41 * n + 41) ≤
+      (3 * (L + 2 ^ n / L + 1)) * (41 * (n + 1) ^ 3) :=
+    Nat.mul_le_mul (by omega) (by nlinarith)
+  have h2 : 24 * n + 50 + 2 ≤ 52 * ((n + 1) ^ 3 * (L + 2 ^ n / L + 1)) := by
+    have : 1 ≤ L + 2 ^ n / L + 1 := by omega
     nlinarith
   have hb : (n + 1) ^ 3 * (L + 2 ^ n / L + 1) ≤ powerBudget n s (2 ^ n) L := Nat.le_add_left _ _
   have hs : L * s ≤ powerBudget n s (2 ^ n) L := Nat.le_add_right _ _
@@ -125,12 +118,8 @@ depth, label and transient circuits, is at most `1000 * powerBudget`. -/
 theorem navigationOverhead_le (n s M L : ℕ) :
     2 + 50 * (n + 4) ^ 2 + (49 * n + 138) ≤ 1000 * powerBudget n s M L := by
   have hb := cube_le_powerBudget n s M L
-  have hfour : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 3 := by
-    have h1 : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 2 := by
-      have := Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2
-      nlinarith
-    have h2 : (n + 1) ^ 2 ≤ (n + 1) ^ 3 := Nat.pow_le_pow_right (by omega) (by decide)
-    nlinarith
+  have h1 := Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2
+  have h2 : (n + 1) ^ 2 ≤ (n + 1) ^ 3 := Nat.pow_le_pow_right (by omega) (by decide)
   have hn1 : n + 1 ≤ (n + 1) ^ 3 := Nat.le_self_pow (by decide) _
   nlinarith
 
@@ -147,20 +136,14 @@ theorem forest_reachability_circuit (c : Circuit signature n n) (L : ℕ)
   obtain ⟨depth, hd, hds⟩ := checkpoint_depth_circuit c L hL hLN
   obtain ⟨label, hl, hls⟩ := cycle_label_circuit c L hL hLN
   obtain ⟨transient, htr, htrs⟩ := forest_transient_circuit c L hL hLN
-  have hnav := synthesis_navigation_given_flag f depth hd label hl transient htr
-  have hflag : Synthesis interpretation (inputs (n + n))
-      {fun z => navigationBits f (inputLeft z) (inputRight z) 0}
-      (2 + 2 * depth.size + 2 * label.size + transient.size +
-        50 * (n + 4) ^ 2 + (49 * n + 138)) := by
-    refine hnav.mono Set.Subset.rfl ?_ le_rfl
-    rintro _ rfl
-    exact ⟨0, rfl⟩
-  obtain ⟨out, hout, hsize⟩ := hflag.exists_circuit
-  refine ⟨out, fun z => ?_, hsize.trans ?_⟩
-  · rw [hout z]
-    exact navigationBits_flag f (inputLeft z) (inputRight z)
-  · have h := navigationOverhead_le n c.size (2 ^ n) L
-    omega
+  obtain ⟨out, hout, hsize⟩ :=
+    ((synthesis_navigation_given_flag f depth hd label hl transient htr).mono
+      (t' := {fun z => navigationBits f (inputLeft z) (inputRight z) 0})
+      Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, rfl⟩) le_rfl).exists_circuit
+  refine ⟨out, fun z => ?_,
+    hsize.trans (by have := navigationOverhead_le n c.size (2 ^ n) L; omega)⟩
+  rw [hout z]
+  exact navigationBits_flag f (inputLeft z) (inputRight z)
 
 /-- **Square-root reachability.** Optimizing the checkpoint parameter `L` gives a circuit of size at
 most `9000000 * optimizedBudget n c.size (2 ^ n)` deciding reachability for all state pairs. -/
@@ -172,8 +155,6 @@ theorem forest_reachability_optimized (c : Circuit signature n n) :
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := forest_reachability_circuit c L hL hLN
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 4500000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  cast_linarith [hs]
 
 end Cslib.Circuits.Boolean.Iteration

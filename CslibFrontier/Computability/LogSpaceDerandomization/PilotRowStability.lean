@@ -82,16 +82,12 @@ theorem sourceDetector_stability (A B : ι → κ → Matrix V V ℝ) (y : V) :
       𝔼 s, 𝔼 t ∈ {t | Y t y},
         kthLargest 1 {x | X s x} (fun x => |A s t x y - B s t x y|) := by
   have hclip (a b : ℝ) : |min 1 (max 0 a) - min 1 (max 0 b)| ≤ |a - b| := by grind
-  apply (hclip _ _).trans
+  refine (hclip _ _).trans ?_
   rw [← expect_sub_distrib]
-  apply (abs_expect_le _ _).trans
-  apply expect_le_expect
-  intro s _
+  refine (abs_expect_le _ _).trans (expect_le_expect fun s _ => ?_)
   rw [← expect_sub_distrib]
-  apply (abs_expect_le _ _).trans
-  apply expect_le_expect
-  intro t _
-  exact abs_kthLargest_sub_le_kthLargest_one P.J_pos _ (fun x => A s t x y) (fun x => B s t x y)
+  exact (abs_expect_le _ _).trans (expect_le_expect fun t _ =>
+    abs_kthLargest_sub_le_kthLargest_one P.J_pos _ (fun x => A s t x y) (fun x => B s t x y))
 
 /-- Conditional Jensen and finite maximum payment for the actual detector, including
 empty source types, empty terminal conditioning and padded source ranks. -/
@@ -100,8 +96,7 @@ theorem sourceDetector_moment (A B : ι → κ → Matrix V V ℝ) (y : V) :
       𝔼 s, 𝔼 t ∈ {t | Y t y}, ∑ x ∈ ({x | X s x} : Finset V),
         |A s t x y - B s t x y| ^ 4 := by
   let E := fun s t => kthLargest 1 {x | X s x} (fun x => |A s t x y - B s t x y|)
-  have he (s : ι) (t : κ) : 0 ≤ E s t := kthLargest_nonneg
-  have hm (s : ι) : 0 ≤ 𝔼 t ∈ {t | Y t y}, E s t := expect_nonneg fun t _ => he s t
+  have hm (s : ι) : 0 ≤ 𝔼 t ∈ {t | Y t y}, E s t := expect_nonneg fun _ _ => kthLargest_nonneg
   calc
     _ ≤ (𝔼 s, 𝔼 t ∈ {t | Y t y}, E s t) ^ 4 :=
       pow_le_pow_left₀ (abs_nonneg _) (sourceDetector_stability P X Y A B y) 4
@@ -135,18 +130,16 @@ omit [Fintype V] in
 theorem maximum_stability (a b a' b' : V → ℝ) (y : V) :
     |maximum a b y - maximum a' b' y| ≤ max (|a y - a' y|) (|b y - b' y|) := by
   have h0 : 0 ≤ max (|a y - a' y|) (|b y - b' y|) := (abs_nonneg _).trans (le_max_left _ _)
-  apply (abs_min_sub_min_le_max _ _ _ _).trans
-  apply max_le
-  · simpa only [sub_self, abs_zero] using h0
-  · apply (abs_max_sub_max_le_max _ _ _ _).trans
-    exact max_le (by simpa only [sub_self, abs_zero] using h0)
-      (abs_max_sub_max_le_max _ _ _ _)
+  exact (abs_min_sub_min_le_max _ _ _ _).trans
+    (max_le (by simpa only [sub_self, abs_zero] using h0)
+      ((abs_max_sub_max_le_max _ _ _ _).trans
+        (max_le (by simpa only [sub_self, abs_zero] using h0) (abs_max_sub_max_le_max _ _ _ _))))
 
 omit [Fintype V] in
 /-- No final-maximum certificate is needed: the fourth moment pays the two supplied children. -/
 theorem maximum_moment (a b a' b' : V → ℝ) (y : V) :
     |maximum a b y - maximum a' b' y| ^ 4 ≤ |a y - a' y| ^ 4 + |b y - b' y| ^ 4 := by
-  apply (pow_le_pow_left₀ (abs_nonneg _) (maximum_stability a b a' b' y) 4).trans
+  refine (pow_le_pow_left₀ (abs_nonneg _) (maximum_stability a b a' b' y) 4).trans ?_
   rcases le_total (|a y - a' y|) (|b y - b' y|) with h | h
   · rw [max_eq_right h]
     exact le_add_of_nonneg_left (by positivity)
@@ -164,9 +157,7 @@ theorem maximum_row_moment {Ω : Type*} [Fintype Ω]
       rowNormPow 4 N u Xs Z (fun σ _ y => b σ y - b' σ y) := by
   unfold rowNormPow
   rw [← mul_add, ← expect_add_distrib]
-  apply mul_le_mul_of_nonneg_left _ (inv_nonneg.mpr hNu)
-  apply expect_le_expect
-  intro σ _
+  refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.mpr hNu)
   simp only [← sum_add_distrib]
   exact sum_le_sum fun x _ => sum_le_sum fun y _ => maximum_moment _ _ _ _ y
 
@@ -182,10 +173,9 @@ theorem score_row_moment {Ω : Type*} [Fintype Ω]
       score P Z f (B σ) σ x y) ≤
     Fintype.card V * ((Lϕ + Lρ) / f) ^ 4 *
       rowNormPow 4 N u Xs Z (fun σ x y => A σ x y - B σ x y) := by
-  apply rowNormPow_le_fullRank_max hNu (fun σ x y => A σ x y - B σ x y) _
-    (div_nonneg (add_nonneg hLϕ hLρ) hf.le)
-  intro σ x y _ hy
-  apply (score_stability P Z hρ hLρ hϕ hlρ hK hf (A σ) (B σ) σ x y).trans
+  refine rowNormPow_le_fullRank_max hNu (fun σ x y => A σ x y - B σ x y) _
+    (div_nonneg (add_nonneg hLϕ hLρ) hf.le) fun σ x y _ hy =>
+      (score_stability P Z hρ hLρ hϕ hlρ hK hf (A σ) (B σ) σ x y).trans ?_
   have he := abs_le_kthLargest_one {w | Z σ w} (fun w => A σ x w - B σ x w) y
     (mem_filter.mpr ⟨mem_univ _, hy⟩)
   calc

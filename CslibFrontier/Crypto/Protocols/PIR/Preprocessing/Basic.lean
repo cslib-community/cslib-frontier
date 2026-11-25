@@ -406,9 +406,7 @@ theorem isPerfectlyPrivateWith_of_invariant {P : Scheme ι H R Q A} {S : Type} (
       dsimp only [runProjectedSteps]
       simp only [realAdaptiveFrom, ProbComp.eval_bind]
       rw [← hcompat adv h st, PMF.bind_map]
-      congr 1
-      funext p
-      exact ih p.1 p.2
+      exact congrArg _ (funext fun p => ih p.1 p.2)
   have hideal : ∀ (m : ℕ) (st : St),
       inv.bind (fun s => runProjectedSteps (stepS adv) m s st) =
         ProbComp.eval (idealAdaptiveView sim adv m st) := by
@@ -423,17 +421,10 @@ theorem isPerfectlyPrivateWith_of_invariant {P : Scheme ι H R Q A} {S : Type} (
       dsimp only [runProjectedSteps]
       simp only [idealAdaptiveView, ProbComp.eval_bind]
       rw [hstep adv st (runProjectedSteps (stepS adv) m)]
-      congr 1
-      funext st'
-      exact ih st'
+      exact congrArg _ (funext ih)
   simp only [realAdaptiveView, ProbComp.eval_bind, hrunS]
-  have hbind : ((ProbComp.eval (P.preprocess x)).bind
-      fun h => runProjectedSteps (stepS adv) k (proj h) st₀) =
-      ((ProbComp.eval (P.preprocess x)).map proj).bind
-        (fun s => runProjectedSteps (stepS adv) k s st₀) := by
-    rw [PMF.bind_map]
-    rfl
-  rw [hbind, hinit x, hideal k st₀]
+  rw [← hideal k st₀, ← hinit x, PMF.bind_map]
+  rfl
 
 /-- Iterates a projected non-adaptive query step `stepQ : S → ι → PMF (S × Q)` over a query list
 `is : List ι`. -/
@@ -492,13 +483,8 @@ theorem eval_queryTranscript_eq_of_invariant {P : Scheme ι H R Q A} {S : Type} 
       rw [← PMF.map_bind, ih]
       rfl
   simp only [queryTranscript, ProbComp.eval_bind, hrunQ]
-  have hbind : ((ProbComp.eval (P.preprocess x)).bind
-      fun h => runProjectedTranscript stepQ (proj h) is) =
-      ((ProbComp.eval (P.preprocess x)).map proj).bind
-        (fun s => runProjectedTranscript stepQ s is) := by
-    rw [PMF.bind_map]
-    rfl
-  rw [hbind, hinit, hideal is]
+  rw [← hideal is, ← hinit, PMF.bind_map]
+  rfl
 
 end Scheme
 
