@@ -218,7 +218,9 @@ private theorem flipBlocks_spec (q : V) :
           obtain ⟨c, hc⟩ := hne.2.1
           simpa [mem_singleton.mp (h ▸ mem_insert_of_mem hc)] using hc)
         simp only [flipBlocks, mem_singleton, ↓reduceIte]
-        refine ⟨?_, ?_, by rw [unionBlocks_cons, unionBlocks_cons, unionBlocks_cons, insert_eq, union_assoc], ?_, hfix (by simp) hqB, fun p hpq => ?_⟩
+        refine ⟨?_, ?_, by
+          rw [unionBlocks_cons, unionBlocks_cons, unionBlocks_cons, insert_eq, union_assoc], ?_,
+          hfix (by simp) hqB, fun p hpq => ?_⟩
         · simpa using hne.2.2
         · simp only [List.pairwise_cons]
           exact ⟨fun D hD => disjoint_insert_left.mpr
