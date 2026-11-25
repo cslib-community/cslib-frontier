@@ -129,6 +129,7 @@ theorem exists_coveredBy_pow_of_forall_le [Nonempty I] {B : Type} [Fintype B] [D
     rw [F.congr (antisymmRel_one_mul _), F.congr (antisymmRel_one_mul _)] at h2
     obtain ⟨x, hx⟩ := hC
     have h3 : 1 ≤ F C := F.one_le hx
-    nlinarith
+    exact not_lt_of_ge (hβ.trans h2)
+      ((mul_lt_mul_of_pos_right hη1 (by linarith)).trans_eq (one_mul _))
 
 end Cslib.PartyTensor
