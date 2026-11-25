@@ -192,8 +192,7 @@ private theorem eval_treeIdealGame_eq_lazyCoin (S : IndexedSignatureScheme) (T :
     simp only [treeIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform]
     refine PMF.bind_congr_on_support _ _ _ fun table _ => ?_
     have hc : ∀ x L, (randomCoinOracle M table (encPair encBits encUnary (x, L))).length ≤ L := by
-      intro x L; simp only [randomCoinOracle, coinRequestDecoder.decode_enc]
-      exact List.length_take_le _ _
+      simp only [randomCoinOracle, coinRequestDecoder.decode_enc, List.length_take_le, implies_true]
     have hcoins : coinsOf (randomCoinOracle M table) = tableCoins M table := by
       funext _ x L; simp only [coinsOf, randomCoinOracle, coinRequestDecoder.decode_enc, tableCoins]
     rw [← hcoins, ← evalDet_simulateTreeGame hc adversary n [], ← eval_interpret_eq_evalDet,
@@ -516,8 +515,7 @@ private theorem jointSignAt_internal_spec (S : IndexedSignatureScheme) (T : S.Se
       (hsgBudget kp hkp_supp bit.toNat (Bool.toNat_le bit) kc.1 (Or.inr ⟨kc, hkc_supp, rfl⟩))
       hinv (fun _ h => h) (Nat.lt_of_succ_lt hnode_lt) (Bool.toNat_le bit) hes
       (fun _ => by omega) fun b hb _ => ⟨kp, kc, hkp, ?_, rfl, rfl⟩
-    have hbeq : b = bit := (Bool.ofNat_toNat b).symm.trans (hb ▸ Bool.ofNat_toNat bit)
-    exact hbeq ▸ hkc
+    exact ((Bool.ofNat_toNat b).symm.trans (hb ▸ Bool.ofNat_toNat bit) : b = bit) ▸ hkc
 
 private theorem jointCertify_spec (S : IndexedSignatureScheme) (T : S.Seeded) (depth : ℕ → ℕ)
     {M n : ℕ} (hdepth_pos : 1 ≤ depth n) (hwidth : 2 * depth n + 4 ≤ M)
