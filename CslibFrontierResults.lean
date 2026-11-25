@@ -19,6 +19,7 @@ import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.ODonnellStableInfluenceBound
+import CslibFrontierResults.Entries.LupanovFormula
 import CslibFrontierResults.Entries.SinglePeaked
 import CslibFrontierResults.Entries.ODonnellSpectralConcentration
 import CslibFrontierResults.Entries.HalfBlockPRPCCA

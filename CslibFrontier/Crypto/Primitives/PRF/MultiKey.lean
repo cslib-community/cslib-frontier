@@ -131,25 +131,20 @@ makes at most one query, and private samples make none. -/
 theorem isQueryBounded_multiKeyReduction [Fintype Key] [Nonempty Key] [DecidableEq D] [Fintype R]
     [Nonempty R] (F : Key → D → R) (j : ℕ) {A : MultiKeyAdversary t D R} {Q : ℕ}
     (hQ : A.IsQueryBounded Q) : (multiKeyReduction F j A).IsQueryBounded Q := by
-  have hbody (keys : Fin t → Key) :
-      (Prod.fst <$> (OracleComp.interpret
-        (OracleComp.sumHandler (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-          (multiKeyHandler F j keys)) A).run []).IsQueryBounded Q := by
-    rw [ProbOracleComp.IsQueryBounded, OracleComp.isCostBounded_map_iff]
-    refine OracleComp.IsCostBounded.run_interpret (fun q cache => ?_) hQ []
-    rcases q with k | ⟨i, x⟩
-    · simpa [OracleComp.sumHandler, StateT.run, StateT.lift] using
-        (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : D => R) (ProbComp.unifFin k)).bind
-          fun a => OracleComp.IsCostBounded.pure (a, cache) 0
-    · simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, multiKeyHandler]
-      split_ifs
-      · exact (ProbOracleComp.IsQueryBounded.sample _).mono (Nat.zero_le 1)
-      · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-          (ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => R) x)
-      · exact OracleComp.IsCostBounded.pure _ 1
-  simpa [multiKeyReduction] using
-    (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : D => R)
-      (ProbComp.uniform (Fin t → Key))).bind hbody
+  simpa [multiKeyReduction] using (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : D => R)
+    (ProbComp.uniform (Fin t → Key))).bind fun keys => by
+      rw [OracleComp.isCostBounded_map_iff]
+      refine OracleComp.IsCostBounded.run_interpret (fun q cache => ?_) hQ []
+      rcases q with k | ⟨i, x⟩
+      · simpa [OracleComp.sumHandler, StateT.run, StateT.lift] using
+          (ProbOracleComp.IsQueryBounded.sample (spec := fun _ : D => R) (ProbComp.unifFin k)).bind
+            fun a => OracleComp.IsCostBounded.pure (a, cache) 0
+      · simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, multiKeyHandler]
+        split_ifs
+        · exact (ProbOracleComp.IsQueryBounded.sample _).mono (Nat.zero_le 1)
+        · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+            (ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => R) x)
+        · exact OracleComp.IsCostBounded.pure _ 1
 
 /-! ### Correctness of the hybrid reductions -/
 
@@ -242,24 +237,19 @@ private theorem run_semanticHandler (F : Key → D → R) (j : ℕ) (keys : Fin 
   rw [ProbOracleComp.runWith_simulate] at h
   have hlazy : (fun q => ProbOracleComp.runWith
       (memoize fun _ : Fin t × D => PMF.uniformOfFintype R) (adapter q)) =
-      semanticHandler F j keys ext := by
-    funext ⟨i, x⟩ cache
-    simp only [adapter, semanticHandler]
-    split_ifs
+      semanticHandler F j keys ext := funext fun ⟨i, x⟩ => funext fun cache => by
+    simp only [adapter, semanticHandler]; split_ifs
     · simp only [ProbOracleComp.runWith_query]
     all_goals simp [ProbOracleComp.runWith, OracleComp.runWith]
   have heager (table : Fin t × D → R) :
       (fun q => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
           (fun q' => PMF.pure (table q'))) (adapter q)) =
-        fun request => PMF.pure (eagerOracle F j keys ext (Function.curry table) request) := by
-    funext ⟨i, x⟩
-    simp only [adapter, eagerOracle]
-    split_ifs <;> simp [Function.curry]
+        fun request => PMF.pure (eagerOracle F j keys ext (Function.curry table) request) :=
+    funext fun ⟨i, x⟩ => by simp only [adapter, eagerOracle]; split_ifs <;> simp [Function.curry]
   simp only [ProbOracleComp.interpret_simulate, hlazy, heager, PMF.pi_uniformOfFintype,
     Probability.PMF.monad_bind_eq_bind] at h
   rw [← ProbOracleComp.runWith_eq_run_interpret, ← h,
-    ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]
-  rfl
+    ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]; rfl
 
 /-- **The law of a hybrid reduction against a fixed function**: against a deterministic external
 oracle `ext`, the `j`-th reduction draws its `t` keys and `t` uniform tables, and runs `A` with
@@ -274,8 +264,7 @@ theorem interpret_multiKeyReduction_eq_bind (F : Key → D → R) (j : ℕ)
           OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun (i, x) =>
             PMF.pure (if i.val < j then tables i x else if i.val = j then ext x
               else F (keys i) x)) A := by
-  simp only [interpret_multiKeyReduction, run_semanticHandler]
-  rfl
+  simp only [interpret_multiKeyReduction, run_semanticHandler]; rfl
 
 /-- Against the real PRF experiment, the `j`-th reduction is the `j`-th hybrid. -/
 private theorem eval_realExperiment_multiKeyReduction (F : Key → D → R) {j : ℕ} (hj : j < t)
@@ -285,16 +274,12 @@ private theorem eval_realExperiment_multiKeyReduction (F : Key → D → R) {j :
   simp only [interpret_multiKeyReduction, run_semanticHandler, hybrid]
   rw [PMF.bind_uniformOfFintype_update ⟨j, hj⟩]
   congr 1 with value : 1; congr 1 with keys : 1; congr 1 with tables : 1
-  congr 2 with request : 1
-  obtain ⟨i, x⟩ := request
+  congr 2 with ⟨i, x⟩ : 1
   simp only [eagerOracle, hybridOracle]
   split_ifs with hlt heq
   · rfl
-  · have hi : i = ⟨j, hj⟩ := Fin.ext heq
-    subst hi
-    rw [Function.update_self]
-  · have hi : i ≠ ⟨j, hj⟩ := fun h => heq (congrArg Fin.val h)
-    rw [Function.update_of_ne hi]
+  · rw [show i = ⟨j, hj⟩ from Fin.ext heq, Function.update_self]
+  · rw [Function.update_of_ne fun h => heq (congrArg Fin.val h)]
 
 /-- Against the ideal PRF experiment, the `j`-th reduction is the `(j + 1)`-st hybrid. -/
 private theorem eval_idealExperiment_multiKeyReduction (F : Key → D → R) {j : ℕ} (hj : j < t)
@@ -303,26 +288,15 @@ private theorem eval_idealExperiment_multiKeyReduction (F : Key → D → R) {j 
   rw [eval_idealExperiment]
   simp only [interpret_multiKeyReduction, run_semanticHandler, hybrid]
   conv_rhs =>
-    arg 2
-    ext keys
+    arg 2; ext keys
     rw [PMF.bind_uniformOfFintype_update ⟨j, hj⟩]
   conv_rhs => rw [PMF.bind_comm]
   congr 1 with table : 1; congr 1 with keys : 1; congr 1 with tables : 1
-  congr 2 with request : 1
-  obtain ⟨i, x⟩ := request
+  congr 2 with ⟨i, x⟩ : 1
   simp only [eagerOracle, hybridOracle]
-  by_cases hlt : i.val < j
-  · have hi : i ≠ ⟨j, hj⟩ := fun h => by
-      subst h
-      exact Nat.lt_irrefl j hlt
-    have hlt' : i.val < j + 1 := by omega
-    simp only [hlt, hlt', ↓reduceIte, Function.update_of_ne hi]
-  · by_cases heq : i.val = j
-    · have hi : i = ⟨j, hj⟩ := Fin.ext heq
-      subst hi
-      simp only [lt_irrefl, lt_add_one, ↓reduceIte, Function.update_self]
-    · have hlt' : ¬i.val < j + 1 := by omega
-      simp only [hlt, heq, hlt', ↓reduceIte]
+  split_ifs with h1 h2 h3 <;> try first | rfl | omega
+  · rw [Function.update_of_ne (by rintro rfl; exact Nat.lt_irrefl j h1)]
+  · rw [show i = ⟨j, hj⟩ from Fin.ext h3, Function.update_self]
 
 /-- Hybrid bound, a step toward [BonehShoup2023], Exercise 4.26, not the cited result: the
 multi-key advantage of `A` is at most the sum of the PRF advantages of the `t` hybrid reductions
@@ -332,11 +306,10 @@ modeled. The asymptotic word-level statement, for a constant number of keys, is
 theorem multiKeyAdvantage_le_sum (F : Key → D → R) (A : MultiKeyAdversary t D R) :
     multiKeyAdvantage F A ≤ ∑ j ∈ Finset.range t, advantage F (multiKeyReduction F j A) := by
   rw [multiKeyAdvantage, eval_multiKeyRealExperiment F A, eval_multiKeyIdealExperiment F A]
-  refine (Game.advantage_hybrid_le_sum (fun j => hybrid F j A) t).trans
-    (Finset.sum_le_sum fun j hj => le_of_eq ?_)
-  have hj : j < t := Finset.mem_range.mp hj
-  rw [advantage, eval_realExperiment_multiKeyReduction F hj,
-    eval_idealExperiment_multiKeyReduction F hj]
+  exact (Game.advantage_hybrid_le_sum (fun j => hybrid F j A) t).trans <| Finset.sum_le_sum fun j
+    hj => le_of_eq <| by
+      rw [advantage, eval_realExperiment_multiKeyReduction F (Finset.mem_range.mp hj),
+        eval_idealExperiment_multiKeyReduction F (Finset.mem_range.mp hj)]
 
 end Correctness
 

@@ -157,16 +157,13 @@ theorem val_zUnit (k : KeyDesc) : k.zUnit.val.val = k.z := by
 theorem zUnit_mem_positiveNonresidues (k : KeyDesc) :
     k.zUnit ∈ positiveNonresidues k.p k.q := by
   obtain ⟨u, hu, huz⟩ := k.exists_posNonresidue
-  have heq : k.zUnit = u := by
-    ext
-    rw [zUnit, ZMod.coe_unitOfCoprime, ← huz, ZMod.natCast_zmod_val]
-  simpa only [heq] using hu
+  have heq : k.zUnit = u := Units.ext (by
+    rw [zUnit, ZMod.coe_unitOfCoprime, ← huz, ZMod.natCast_zmod_val])
+  exact heq ▸ hu
 
 /-- `k.zUnit` is not a square in `(ZMod k.modulus)ˣ`. -/
-theorem not_isSquare_zUnit (k : KeyDesc) : ¬ IsSquare k.zUnit := by
-  have hmem := k.zUnit_mem_positiveNonresidues
-  simp only [positiveNonresidues, Finset.mem_filter] at hmem
-  exact hmem.2.1
+theorem not_isSquare_zUnit (k : KeyDesc) : ¬ IsSquare k.zUnit :=
+  (Finset.mem_filter.mp k.zUnit_mem_positiveNonresidues).2.1
 
 /-- Deterministic Blum-integer Goldwasser–Micali key description ([KatzLindell2020],
 Exercise 15.12): for a Blum modulus `N = p * q` (`p ≡ q ≡ 3 (mod 4)`), `N - 1` represents `-1` in
@@ -215,12 +212,9 @@ theorem ciphertext_eq_unit_val {N z r : ℕ} [NeZero N] (hz : z.Coprime N) (hr :
     (m : Bool) :
     ciphertext N z m r =
       ((if m then ZMod.unitOfCoprime z hz else 1) * (ZMod.unitOfCoprime r hr) ^ 2).val.val := by
-  have hcast : ((ciphertext N z m r : ℕ) : ZMod N) =
-      ((if m then ZMod.unitOfCoprime z hz else 1) * (ZMod.unitOfCoprime r hr) ^ 2).val := by
-    rw [natCast_ciphertext (NeZero.ne N), Units.val_mul, Units.val_pow_eq_pow_val,
-      ZMod.coe_unitOfCoprime]
-    cases m <;> simp [ZMod.coe_unitOfCoprime]
-  rw [← ZMod.val_natCast_of_lt (a := ciphertext N z m r) (Nat.mod_lt _ (NeZero.pos N)), hcast]
+  rw [← ZMod.val_natCast_of_lt (a := ciphertext N z m r) (Nat.mod_lt _ (NeZero.pos N)),
+    natCast_ciphertext (NeZero.ne N), Units.val_mul, Units.val_pow_eq_pow_val]
+  congr 1; cases m <;> simp [ZMod.coe_unitOfCoprime]
 
 private theorem powMod_half_eq_one_iff_isSquare (P : ℕ) [Fact P.Prime] (hP : 2 < P)
     (c : ℕ) (v : (ZMod P)ˣ) (hcv : (c : ZMod P) = v.val) :
@@ -328,24 +322,21 @@ theorem computableInPolyTime_ciphertext {α : Type} {input : α ↪ List Bool}
     (hN : ComputableInPolyTime N input encNat) (hz : ComputableInPolyTime z input encNat)
     (hm : ComputableInPolyTime m input encBool) (hr : ComputableInPolyTime r input encNat) :
     ComputableInPolyTime (fun a => ciphertext (N a) (z a) (m a) (r a)) input encNat := by
-  have hfactor := hm.ite hz (.const 1)
-  have hpow := computableInPolyTime_powMod hN hr (.const 2)
   unfold ciphertext
-  exact .binary_mod' (.binary_mul' hfactor hpow) hN
+  exact .binary_mod' (.binary_mul' (hm.ite hz (.const 1))
+    (computableInPolyTime_powMod hN hr (.const 2))) hN
 
 /-- `isQuadResidueNat` is computable in polynomial time. -/
 theorem computableInPolyTime_isQuadResidueNat {α : Type} {input : α ↪ List Bool}
     {p q c : α → ℕ} (hp : ComputableInPolyTime p input encNat)
     (hq : ComputableInPolyTime q input encNat) (hc : ComputableInPolyTime c input encNat) :
     ComputableInPolyTime (fun a => isQuadResidueNat (p a) (q a) (c a)) input encBool := by
-  have hexpP : ComputableInPolyTime (fun a => (p a - 1) / 2) input encNat :=
-    .binary_div' (.binary_sub' hp (.const 1)) (.const 2)
-  have hexpQ : ComputableInPolyTime (fun a => (q a - 1) / 2) input encNat :=
-    .binary_div' (.binary_sub' hq (.const 1)) (.const 2)
   unfold isQuadResidueNat
   exact ComputableInPolyTime.bool_and.comp
-    (((computableInPolyTime_powMod hp hc hexpP).beq (.const 1)).prod
-      ((computableInPolyTime_powMod hq hc hexpQ).beq (.const 1)))
+    (((computableInPolyTime_powMod hp hc
+        (.binary_div' (.binary_sub' hp (.const 1)) (.const 2))).beq (.const 1)).prod
+      ((computableInPolyTime_powMod hq hc
+        (.binary_div' (.binary_sub' hq (.const 1)) (.const 2))).beq (.const 1)))
 
 /-- `decryptNat` is computable in polynomial time. -/
 theorem computableInPolyTime_decryptNat {α : Type} {input : α ↪ List Bool}
@@ -380,11 +371,10 @@ theorem isPPTOn_encrypt :
   have hwidth := (ComputableInPolyTime.fst encUnary (encPair encBits encBool)).unary_add'
     ((ComputableInPolyTime.encoding_length encNat).comp hN)
   have hp1 := ComputableInPolyTime.fst E encNat
-  have hN' := hN.comp' hp1
   exact (isPPTOn_sampleModNat hwidth hN).bind_with
-    (computableInPolyTime_ciphertext hN' (hz.comp' hp1)
+    (computableInPolyTime_ciphertext (hN.comp' hp1) (hz.comp' hp1)
       ((ComputableInPolyTime.snd encUnary (encPair encBits encBool)).snd'.comp' hp1)
-      (computableInPolyTime_unitOrOne hN'
+      (computableInPolyTime_unitOrOne (hN.comp' hp1)
         (ComputableInPolyTime.snd E encNat))).encoding_comp.isPPTOn
 
 /-- `decrypt` is computable in polynomial time. -/
@@ -402,15 +392,13 @@ theorem computableInPolyTime_decrypt :
 theorem computableInPolyTime_mulCiphertexts :
     ComputableInPolyTime (fun ⟨pk, ct₁, ct₂⟩ => mulCiphertexts pk ct₁ ct₂)
       (encPair encBits (encPair encBits encBits)) encBits := by
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair encBits (encPair encBits encBits))
-  have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'.fst'
-  have hy := ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'
-  have hN := ComputableInPolyTime.bitsToNat.comp
-    (ComputableInPolyTime.unframe.comp hp.fst')
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits (encPair encBits encBits))
   simpa only [mulCiphertexts, mulCiphertextsNat, encNat_apply, Function.comp_def] using
     (ComputableInPolyTime.binary_mod'
-      (ComputableInPolyTime.binary_mul' hx hy) hN).encoding_comp
+      (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.bitsToNat.comp hp.snd'.fst')
+        (ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'))
+      (ComputableInPolyTime.bitsToNat.comp
+        (ComputableInPolyTime.unframe.comp hp.fst'))).encoding_comp
 
 /-! ### Support-level correctness and XOR homomorphism -/
 
@@ -434,9 +422,7 @@ theorem exists_of_mem_support_encrypt {n N z : ℕ} {pk : List Bool}
     (hct : ct ∈ (ProbComp.eval (encrypt n pk m)).support) :
     ∃ r : ℕ, r.Coprime N ∧ ct = encNat (ciphertext N z m r) := by
   supp_cases hct [encrypt] with ⟨r, _, hct_eq⟩
-  have hN : ofBits (unframe pk) = N := by rw [hpk, unframe_encPair, ofBits_encNat]
-  have hz : ofBits (dropFrame pk) = z := by rw [hpk, dropFrame_encPair, ofBits_encNat]
-  rw [hN, hz] at hct_eq
+  rw [hpk, unframe_encPair, dropFrame_encPair, ofBits_encNat, ofBits_encNat] at hct_eq
   exact ⟨unitOrOne N r, coprime_unitOrOne N r, hct_eq⟩
 
 /-- Perfect correctness for the key pair `(⟨N, z⟩, ⟨p, q⟩)` of a valid `KeyDesc`. -/
@@ -786,10 +772,7 @@ theorem decrypt_encrypt_blumKeyGen {gen : ℕ → ProbComp ModulusDesc} {n : ℕ
   let k := KeyDesc.ofBlum d (hblum d hd)
   have hpk : blumPublicKey (d.p * d.q) = encPair encNat encNat (k.modulus, k.z) := by
     rw [blumPublicKey]; rfl
-  have hsk : encPair encNat encNat (d.p, d.q) = encPair encNat encNat (k.p, k.q) := by rfl
-  dsimp only at hct ⊢
-  rw [hpk] at hct
-  rw [hsk]
+  dsimp only at hct ⊢; rw [hpk] at hct
   exact k.decrypt_encrypt m hct
 
 /-- **Blum QR reduction distinguisher.** On a quadratic residuosity challenge `input = (N, y)`, run
@@ -813,49 +796,38 @@ theorem isPPTOn_blumQRDistinguisher {adversary : Encryption.Adversary} (hA : adv
   let E₁ := encPair E (encChoiceOut encBool)
   let E₂ := encPair E₁ encBits
   have hn := ComputableInPolyTime.fst encUnary (encPair encNat encNat)
-  have hN := (ComputableInPolyTime.snd encUnary (encPair encNat encNat)).fst'
-  have hy := (ComputableInPolyTime.snd encUnary (encPair encNat encNat)).snd'
-  have hpk := computableInPolyTime_blumPublicKey.comp hN
-  -- Message selection on `(1ⁿ, blumPublicKey N)`.
-  have hchoose : IsPPTOn E (encChoiceOut encBool)
-      (fun x : ℕ × ℕ × ℕ => adversary.choose x.1 (blumPublicKey x.2.1)) :=
-    hA.choose.on.preprocess (hn.prod hpk)
-  -- Honest encryption of `m₀`.
+  have hsd := ComputableInPolyTime.snd encUnary (encPair encNat encNat)
+  have hpk := computableInPolyTime_blumPublicKey.comp hsd.fst'
   have hx := ComputableInPolyTime.fst E (encChoiceOut encBool)
   have hc := ComputableInPolyTime.snd E (encChoiceOut encBool)
-  have hencrypt : IsPPTOn E₁ encBits (fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
-      encrypt p.1.1 (blumPublicKey p.1.2.1) (ChoiceOut.msg₀ p.2)) :=
-    isPPTOn_encrypt.preprocess
-      (prepare := fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
-        (p.1.1, blumPublicKey p.1.2.1, ChoiceOut.msg₀ p.2))
-      ((hn.comp hx).prod ((hpk.comp hx).prod hc.fst'.fst'))
-  -- Guessing on the multiplied ciphertext.
   have hp := ComputableInPolyTime.fst E₁ encBits
-  have hchoice := hc.comp hp
-  have hpk' := (hpk.comp hx).comp hp
   have hw : ComputableInPolyTime
       (fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
         encNat (if ChoiceOut.msg₀ q.1.2 ^^ ChoiceOut.msg₁ q.1.2 then q.1.1.2.2 else 1))
       E₂ encBits :=
-    (ComputableInPolyTime.ite' (by fun_prop) ((hy.comp hx).comp hp) (.const 1)).encoding_comp
+    (ComputableInPolyTime.ite' (by fun_prop) ((hsd.snd'.comp hx).comp hp) (.const 1)).encoding_comp
   have hmul : ComputableInPolyTime
       (fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
         mulCiphertexts (blumPublicKey q.1.1.2.1) q.2
           (encNat (if ChoiceOut.msg₀ q.1.2 ^^ ChoiceOut.msg₁ q.1.2 then q.1.1.2.2 else 1)))
       E₂ encBits := by
     simpa only [Function.comp_def] using computableInPolyTime_mulCiphertexts.comp
-      (hpk'.prod ((ComputableInPolyTime.snd E₁ encBits).prod hw))
-  have hprepare : ComputableInPolyTime
-      (fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
-        (q.1.1.1, ChoiceOut.state q.1.2, mulCiphertexts (blumPublicKey q.1.1.2.1) q.2
-          (encNat (if ChoiceOut.msg₀ q.1.2 ^^ ChoiceOut.msg₁ q.1.2 then q.1.1.2.2 else 1))))
-      E₂ Encryption.encGuessInput :=
-    ((hn.comp hx).comp hp).prod (hchoice.snd'.prod hmul)
+      (((hpk.comp hx).comp hp).prod ((ComputableInPolyTime.snd E₁ encBits).prod hw))
+  have hencrypt : IsPPTOn E₁ encBits (fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
+      encrypt p.1.1 (blumPublicKey p.1.2.1) (ChoiceOut.msg₀ p.2)) :=
+    isPPTOn_encrypt.preprocess
+      (prepare := fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool =>
+        (p.1.1, blumPublicKey p.1.2.1, ChoiceOut.msg₀ p.2))
+      ((hn.comp hx).prod ((hpk.comp hx).prod hc.fst'.fst'))
   have hguess : IsPPTOn E₂ encBool (fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
       adversary.guess q.1.1.1 (ChoiceOut.state q.1.2)
         (mulCiphertexts (blumPublicKey q.1.1.2.1) q.2
           (encNat (if ChoiceOut.msg₀ q.1.2 ^^ ChoiceOut.msg₁ q.1.2 then q.1.1.2.2 else 1)))) :=
-    hA.guess.preprocess hprepare
+    hA.guess.preprocess
+      (prepare := fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
+        (q.1.1.1, ChoiceOut.state q.1.2, mulCiphertexts (blumPublicKey q.1.1.2.1) q.2
+          (encNat (if ChoiceOut.msg₀ q.1.2 ^^ ChoiceOut.msg₁ q.1.2 then q.1.1.2.2 else 1))))
+      (((hn.comp hx).comp hp).prod ((hc.comp hp).snd'.prod hmul))
   have hlast : IsPPTOn E₁ encBool (fun p : (ℕ × ℕ × ℕ) × ChoiceOut Bool => do
       let ct ← encrypt p.1.1 (blumPublicKey p.1.2.1) (ChoiceOut.msg₀ p.2)
       adversary.guess p.1.1 (ChoiceOut.state p.2)
@@ -863,7 +835,8 @@ theorem isPPTOn_blumQRDistinguisher {adversary : Encryption.Adversary} (hA : adv
           (encNat (if ChoiceOut.msg₀ p.2 ^^ ChoiceOut.msg₁ p.2 then p.1.2.2 else 1)))) :=
     hencrypt.bind_with hguess
   unfold blumQRDistinguisher
-  exact hchoose.bind_with hlast
+  exact (hA.choose.on.preprocess
+    (prepare := fun x : ℕ × ℕ × ℕ => (x.1, blumPublicKey x.2.1)) (hn.prod hpk)).bind_with hlast
 
 /-- **Quantitative IND-CPA bound for Blum-modulus Goldwasser–Micali.** When `gen n` draws Blum
 moduli with `n`-bit primes, every adversary's IND-CPA advantage against `(blumKeyGen gen, encrypt)`
@@ -923,33 +896,31 @@ theorem advantage_blumGame_le_qr {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
       (qrRealGame (fun n => ProbComp.eval (gen n)) (blumQRDistinguisher adversary) n)
       (ideal false) ≤ 5 / 2 ^ n := by
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd => ?_
-    have h := Game.advantage_bind_le_nnreal (PMF.uniformOfFintype (quadResidueSet d.p d.q))
-      (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.1.val.val)))
-      (fun _ => idealBody d false) fun y => by
-        obtain ⟨s, hs⟩ := (Finset.mem_filter.mp y.2).2
-        exact hbody d hd false y.1 s (by simp only [hs, Bool.false_eq_true, ↓reduceIte, one_mul,
-          pow_two])
-    rwa [PMF.bind_const] at h
+    simpa only [PMF.bind_const, PMF.monad_bind_eq_bind] using
+      Game.advantage_bind_le_nnreal (PMF.uniformOfFintype (quadResidueSet d.p d.q))
+        (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.1.val.val)))
+        (fun _ => idealBody d false) fun y => by
+          obtain ⟨s, hs⟩ := (Finset.mem_filter.mp y.2).2
+          exact hbody d hd false y.1 s
+            (by simp only [hs, Bool.false_eq_true, ↓reduceIte, one_mul, pow_two])
   have hideal : Game.advantage
       (qrIdealGame (fun n => ProbComp.eval (gen n)) (blumQRDistinguisher adversary) n)
       (ideal true) ≤ 5 / 2 ^ n := by
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd => ?_
-    have h := Game.advantage_bind_le_nnreal (PMF.uniformOfFintype (positiveNonresidues d.p d.q))
-      (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.1.val.val)))
-      (fun _ => idealBody d true) fun y => by
-        -- `QNR_N^{+1}` is the coset of `QR_N` containing `-1`.
-        obtain ⟨s, hs⟩ := isSquare_mul_of_mem_positiveNonresidues d.p d.q d.ne_pq d.two_lt_p
-          d.two_lt_q (neg_one_mem_positiveNonresidues d.p d.q (hblum d hd)) y.2
-        refine hbody d hd true y.1 s ?_
-        simp only [↓reduceIte, pow_two]
-        rw [← hs, ← mul_assoc, neg_one_mul, neg_neg, one_mul]
-    rwa [PMF.bind_const] at h
-  have h0 := (Game.advantage_triangle _ (ideal false) _).trans
-    (add_le_add (hgame false) ((Game.advantage_comm _ _).le.trans hreal))
-  have h1 := (Game.advantage_triangle _ (ideal true) _).trans
-    (add_le_add (hgame true) ((Game.advantage_comm _ _).le.trans hideal))
-  refine (Game.advantage_four_hop_le h0 h1).trans_eq ?_
-  ring
+    simpa only [PMF.bind_const, PMF.monad_bind_eq_bind] using
+      Game.advantage_bind_le_nnreal (PMF.uniformOfFintype (positiveNonresidues d.p d.q))
+        (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.1.val.val)))
+        (fun _ => idealBody d true) fun y => by
+          -- `QNR_N^{+1}` is the coset of `QR_N` containing `-1`.
+          obtain ⟨s, hs⟩ := isSquare_mul_of_mem_positiveNonresidues d.p d.q d.ne_pq d.two_lt_p
+            d.two_lt_q (neg_one_mem_positiveNonresidues d.p d.q (hblum d hd)) y.2
+          refine hbody d hd true y.1 s ?_
+          simp only [↓reduceIte, pow_two]; rw [← hs, ← mul_assoc, neg_one_mul, neg_neg, one_mul]
+  exact (Game.advantage_four_hop_le
+    ((Game.advantage_triangle _ (ideal false) _).trans
+      (add_le_add (hgame false) ((Game.advantage_comm _ _).le.trans hreal)))
+    ((Game.advantage_triangle _ (ideal true) _).trans
+      (add_le_add (hgame true) ((Game.advantage_comm _ _).le.trans hideal)))).trans_eq (by ring)
 
 /-- **IND-CPA security of Blum-modulus Goldwasser–Micali from quadratic residuosity.** Let `gen`
 draw Blum moduli `N = p * q` (`p ≡ q ≡ 3 (mod 4)`) with `n`-bit primes. If quadratic residuosity
@@ -1132,11 +1103,10 @@ theorem idealEncryptBits_eq_of_isSquare_of_length_eq (N : ℕ) [NeZero N] {y : (
     cases m₁ with
     | nil => simp at hlen
     | cons b₁ bs₁ =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at hlen
-      have hih := ih hlen
+      have hih := ih (Nat.succ.inj hlen)
       dsimp only [idealEncryptBits] at hih ⊢
-      simp only [List.mapM_cons, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-      rw [idealEncrypt_of_isSquare N hy b₀, idealEncrypt_of_isSquare N hy b₁]
+      simp only [List.mapM_cons, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+        idealEncrypt_of_isSquare N hy]
       exact congrArg (PMF.bind _) (funext fun _ => by rw [hih])
 
 /-- Statistical distance between `encryptBits` and `idealEncryptBits` is at most
@@ -1156,13 +1126,12 @@ theorem advantage_encryptBits_idealEncryptBits_le (d : ModulusDesc) (n : ℕ)
       Game.advantage_self, le_refl]
   | cons b bs ih =>
     simp only [encryptBits, idealEncryptBits, List.mapM_cons, pmf_norm]
-    let pk := encPair encNat encNat (d.p * d.q, y.val.val)
     let mid : Game := (idealEncrypt (d.p * d.q) y b).bind fun ct =>
-      (ProbComp.eval (encryptBits n pk bs)).bind fun cts => k (ct :: cts)
-    have hhead := advantage_encrypt_idealEncrypt_le d n hsize y b
-      (fun ct => (ProbComp.eval (encryptBits n pk bs)).bind fun cts => k (ct :: cts))
-    refine (Game.advantage_triangle _ mid _).trans ((add_le_add hhead
-      (Game.advantage_bind_le_nnreal _ _ _ fun ct => ih fun cts => k (ct :: cts))).trans_eq ?_)
+      (ProbComp.eval (encryptBits n (encPair encNat encNat (d.p * d.q, y.val.val)) bs)).bind
+        fun cts => k (ct :: cts)
+    refine (Game.advantage_triangle _ mid _).trans
+      ((add_le_add (advantage_encrypt_idealEncrypt_le d n hsize y b _)
+        (Game.advantage_bind_le_nnreal _ _ _ fun ct => ih fun cts => k (ct :: cts))).trans_eq ?_)
     simp only [List.length_cons, Nat.cast_add, Nat.cast_one]; ring
 
 /-- Chosen-message experiment for `encryptWord` under a given public-key `PMF` law and
@@ -1276,19 +1245,12 @@ def jacobiAttackAdversary : Encryption.Adversary where
 
 /-- `jacobiAttackAdversary` is a certified uniform strict-PPT `Encryption.Adversary`. -/
 theorem jacobiAttackAdversary_isPPT : jacobiAttackAdversary.IsPPT where
-  choose := by
-    change IsPPT (encChoiceOut encBool) (fun _ pk => pure ((false, true), unframe pk))
-    exact ((ComputableInPolyTime.const (encIn := encPair encUnary encBits) (false, true)).prod
-      (ComputableInPolyTime.unframe.comp'
-        (ComputableInPolyTime.snd encUnary encBits))).isPPTOn
+  choose := ((ComputableInPolyTime.const (encIn := encPair encUnary encBits) (false, true)).prod
+    (ComputableInPolyTime.unframe.comp' (ComputableInPolyTime.snd encUnary encBits))).isPPTOn
   guess := by
-    change IsPPTOn encGuessInput encBool
-      (fun ⟨_, state, ct⟩ => pure (decide (jacobiSym (ofBits ct : ℤ) (ofBits state) = -1)))
-    have hN := ComputableInPolyTime.bitsToNat.comp'
-      (ComputableInPolyTime.snd encUnary (encPair encBits encBits)).fst'
-    have hc := ComputableInPolyTime.bitsToNat.comp'
-      (ComputableInPolyTime.snd encUnary (encPair encBits encBits)).snd'
-    exact ((ComputableInPolyTime.binary_jacobiSym' hc hN).decide_eq'
+    have hs := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
+    exact ((ComputableInPolyTime.binary_jacobiSym' (ComputableInPolyTime.bitsToNat.comp' hs.snd')
+      (ComputableInPolyTime.bitsToNat.comp' hs.fst')).decide_eq'
       (ComputableInPolyTime.const (-1 : ℤ))).isPPTOn
 
 /-- **Necessity of `z ∈ QNR_N^{+1}`** ([KatzLindell2020], Section 15.4.4): if `z ∈ jacobiNegSet p q`
@@ -1332,7 +1294,6 @@ theorem advantage_jacobiAttackAdversary_eq_one (d : ModulusDesc)
       cases bit <;> simp only [↓reduceIte, Bool.false_eq_true] <;> rw [hjac_ct] <;> decide
     simp only [hstep, PMF.bind_const]
   rw [hgame false, hgame true]
-  apply NNReal.coe_injective
-  simp [Game.succProbability]
+  exact NNReal.coe_injective (by simp [Game.succProbability])
 
 end Cslib.Crypto.GoldwasserMicali

@@ -96,10 +96,9 @@ theorem stationaryState_row_sub (j : ℕ) (y : ι) (ν : Fin 2) :
   simp only [stationaryState, add_sub_cancel_left]
 
 private theorem six_sum_prefix_dyadicFloor_le (hη : 0 ≤ η) {m j : ℕ} (hj : j ≤ m) :
-    6 * ∑ i ∈ range j, dyadicFloor η m i ≤ η / 100 := by
-  have hsum : ∑ i ∈ range j, dyadicFloor η m i ≤ ∑ i ∈ range m, dyadicFloor η m i :=
-    sum_le_sum_of_subset_of_nonneg (range_mono hj) (fun _ _ _ => by positivity)
-  exact (mul_le_mul_of_nonneg_left hsum (by norm_num)).trans
+    6 * ∑ i ∈ range j, dyadicFloor η m i ≤ η / 100 :=
+  (mul_le_mul_of_nonneg_left
+    (sum_le_sum_of_subset_of_nonneg (range_mono hj) fun _ _ _ => by positivity) (by norm_num)).trans
     (six_sum_range_dyadicFloor_le_scale hη m)
 
 /-- The constructed reference differs from truth by at most `η / 100` before overflow.
@@ -119,14 +118,10 @@ theorem stationaryState_bounds_dyadic (hη : 0 ≤ η) (m j : ℕ) (hj : j ≤ m
     (hfirst : ∀ y ∈ s, 0 ≤ truth y 0) (hsecond : ∀ y ∈ s, |truth y 1| ≤ η / 2) :
     (∀ y ∈ s, -η ≤ (stationaryState s n K (dyadicFloor η m) Δ a truth j).row y 0) ∧
       ∀ y ∈ s, |(stationaryState s n K (dyadicFloor η m) Δ a truth j).row y 1| ≤ η := by
-  constructor
-  · intro y hy
-    have h := (abs_le.mp (abs_stationaryState_row_sub_le_dyadic (truth := truth)
-      hη m j hj hno y 0)).1
-    linarith [hfirst y hy]
-  · intro y hy
-    have h := abs_le.mp (abs_stationaryState_row_sub_le_dyadic (truth := truth)
-      hη m j hj hno y 1)
+  refine ⟨fun y hy => ?_, fun y hy => ?_⟩
+  · linarith [(abs_le.mp (abs_stationaryState_row_sub_le_dyadic (truth := truth)
+      hη m j hj hno y 0)).1, hfirst y hy]
+  · have h := abs_le.mp (abs_stationaryState_row_sub_le_dyadic (truth := truth) hη m j hj hno y 1)
     have ht := abs_le.mp (hsecond y hy)
     exact abs_le.mpr ⟨by linarith, by linarith⟩
 
@@ -136,10 +131,9 @@ theorem stationaryState_defaultValue_le_dyadic (hη : 0 ≤ η)
     (ha : 0 ≤ a.defaultValue) (haη : a.defaultValue ≤ η / 2) (m j : ℕ) (hj : j ≤ m)
     (hno : ∀ i < j, stepThreshold s n K (dyadicFloor η m) Δ a i ≤ dyadicFloor η m i) :
     (stationaryState s n K (dyadicFloor η m) Δ a truth j).defaultValue ≤ η := by
-  have h := le_of_abs_le (abs_iterate_defaultValue_sub_le_of_no_overflow ha j hno)
-  have hsum := six_sum_prefix_dyadicFloor_le hη hj
-  change (iterate s n K (dyadicFloor η m) Δ a j).defaultValue ≤ η
-  linarith
+  dsimp only [stationaryState]
+  linarith [le_of_abs_le (abs_iterate_defaultValue_sub_le_of_no_overflow ha j hno),
+    six_sum_prefix_dyadicFloor_le hη hj]
 
 /-- The stationary reference constructed from actual preloss preserves its output through
 any initial segment of the remaining schedule. Only earlier groups must avoid overflow. -/
@@ -158,15 +152,11 @@ theorem stationaryContinuation_output_eq_dyadic {K : ℕ} {H : ℝ → ℝ → �
     H (c.row y 0) (c.row y 1) (firstRank s K c.defaultValue c.row) =
       H (b.row y 0) (b.row y 1) (firstRank s K b.defaultValue b.row) := by
   have hη : 0 ≤ η := by linarith [(abs_nonneg _).trans (hsecond y hy)]
-  have hj : j ≤ m := (Nat.le_add_right j r).trans hr
-  have hb := stationaryState_bounds_dyadic hη m j hj hno hfirst hsecond
-  apply reference_iterate_output_eq hη hK hb.1 hb.2 hηg hge hentry hgate hflat r
-  · intro i hi
-    exact hn (j + i) (Nat.le_add_right _ _) (by omega)
-  · intro i _
-    have h := dyadicFloor_le_scale_div hη m (j + i)
-    linarith
-  · exact hy
+  have hb := stationaryState_bounds_dyadic hη m j ((Nat.le_add_right j r).trans hr)
+    hno hfirst hsecond
+  exact reference_iterate_output_eq hη hK hb.1 hb.2 hηg hge hentry hgate hflat r
+    (fun i hi => hn (j + i) (Nat.le_add_right _ _) (by omega))
+    (fun i _ => by linarith [dyadicFloor_le_scale_div hη m (j + i)]) y hy
 
 /-! ## Weighted discrepancy from the true output -/
 
@@ -180,33 +170,26 @@ theorem abs_stationaryState_row_sub_le_weighted_dyadic (hη : 0 < η) (m j : ℕ
         dyadicFloor η m i *
           clippedError (truth y 0) (truth y 1) (uncompressedRow Δ a.row (i + 1) y) := by
   rw [stationaryState_row_sub]
-  apply abs_iterate_sub_uncompressed_le_weighted (by linarith : 0 < η / 2) hd j hno
-  · intro i _
-    have h := dyadicFloor_le_scale_div hη.le m i
-    linarith
-  · intro i hi
-    have hsum := six_sum_range_dyadicFloor_le hη.le (hi.trans_le hj)
-    have hfloor := dyadicFloor_nonneg hη.le m i
-    linarith
+  exact abs_iterate_sub_uncompressed_le_weighted (by linarith : 0 < η / 2) hd j hno
+    (fun i _ => by linarith [dyadicFloor_le_scale_div hη.le m i])
+    (fun i hi => by linarith [six_sum_range_dyadicFloor_le hη.le (hi.trans_le hj),
+      dyadicFloor_nonneg hη.le m i]) y ν
 
 private theorem max_rank_le_add_of_clipped {K : ℕ} {f g : ι → ℝ} {δ : ℝ}
     (hK : 0 < K) (hη : 0 ≤ η) (hδ : 0 ≤ δ)
     (h : ∀ y ∈ s, max η (f y) ≤ max η (g y) + δ) :
     max η (kthLargest K s f) ≤ max η (kthLargest K s g) + δ := by
   have ht : 0 ≤ max η (kthLargest K s g) := hη.trans (le_max_left _ _)
-  refine max_le (by linarith [le_max_left η (kthLargest K s g)]) ?_
-  by_contra hrank
-  have hc := (lt_kthLargest_iff hK (add_nonneg ht hδ)).mp (lt_of_not_ge hrank)
-  have hsub : ({y ∈ s | max η (kthLargest K s g) + δ < f y} : Finset ι) ⊆
-      {y ∈ s | max η (kthLargest K s g) < g y} := by
-    intro y hy
+  refine max_le (by linarith [le_max_left η (kthLargest K s g)]) (le_of_not_gt fun hrank => ?_)
+  have hc := (lt_kthLargest_iff hK (add_nonneg ht hδ)).mp hrank
+  have hsub : {y ∈ s | max η (kthLargest K s g) + δ < f y} ⊆
+      {y ∈ s | max η (kthLargest K s g) < g y} := fun y hy => by
     obtain ⟨hys, hy⟩ := mem_filter.mp hy
-    refine mem_filter.mpr ⟨hys, ?_⟩
-    have hmax : max η (kthLargest K s g) < max η (g y) := by
-      linarith [h y hys, le_max_right η (f y)]
-    exact (lt_max_iff.mp hmax).resolve_left (not_lt_of_ge (le_max_left _ _))
-  have hg := (lt_kthLargest_iff hK ht).mpr (hc.trans (card_le_card hsub))
-  exact (not_lt_of_ge (le_max_right _ _)) hg
+    exact mem_filter.mpr ⟨hys,
+      (lt_max_iff.mp (by linarith [h y hys, le_max_right η (f y)])).resolve_left
+        (not_lt_of_ge (le_max_left _ _))⟩
+  exact not_lt_of_ge (le_max_right _ _)
+    ((lt_kthLargest_iff hK ht).mpr (hc.trans (card_le_card hsub)))
 
 private theorem abs_clipped_firstRank_sub_le {K : ℕ} {z z' δ : ℝ}
     {w w' : ι → Fin 2 → ℝ} (hK : 0 < K) (hη : 0 ≤ η) (hδ : 0 ≤ δ)
@@ -214,12 +197,10 @@ private theorem abs_clipped_firstRank_sub_le {K : ℕ} {z z' δ : ℝ}
     (h : ∀ y ∈ s, |max η (w y 0) - max η (w' y 0)| ≤ δ) :
     |max η (firstRank s K z w) - max η (firstRank s K z' w')| ≤ δ := by
   simp only [firstRank, ← max_assoc, max_eq_left hz, max_eq_left hz']
-  rw [abs_sub_le_iff]
-  constructor
-  · exact sub_le_iff_le_add'.mpr (max_rank_le_add_of_clipped hK hη hδ fun y hy =>
-      sub_le_iff_le_add'.mp (le_of_abs_le (h y hy)))
-  · exact sub_le_iff_le_add'.mpr (max_rank_le_add_of_clipped hK hη hδ fun y hy =>
-      sub_le_iff_le_add'.mp (le_of_abs_le ((abs_sub_comm _ _).trans_le (h y hy))))
+  exact abs_sub_le_iff.mpr ⟨sub_le_iff_le_add'.mpr (max_rank_le_add_of_clipped hK hη hδ fun y hy =>
+      sub_le_iff_le_add'.mp (le_of_abs_le (h y hy))),
+    sub_le_iff_le_add'.mpr (max_rank_le_add_of_clipped hK hη hδ fun y hy =>
+      sub_le_iff_le_add'.mp (le_of_abs_le ((abs_sub_comm _ _).trans_le (h y hy))))⟩
 
 private theorem output_eq_lowerClipped {H : ℝ → ℝ → ℝ → ℝ} (hη : 0 ≤ η)
     (hentry : ∀ x v q, x ≤ η → H x v q = 0)
@@ -264,22 +245,19 @@ theorem abs_stationaryState_root_sub_le_weighted_dyadic {K : ℕ}
     |H (b.row y 0) (b.row y 1) (firstRank s K b.defaultValue b.row) ^ p -
         H (truth y 0) (truth y 1) (firstRank s K 0 truth) ^ p| ≤
       3 * C * ((12 * (1 + η / 2) / (η / 2)) * ∑ i ∈ range j, dyadicFloor η m i * ε i) := by
-  let b := stationaryState s n (fun _ => K) (dyadicFloor η m) Δ a truth j
+  intro b
   let B := (12 * (1 + η / 2) / (η / 2)) * ∑ i ∈ range j, dyadicFloor η m i * ε i
-  change |H (b.row y 0) (b.row y 1) (firstRank s K b.defaultValue b.row) ^ p -
-    H (truth y 0) (truth y 1) (firstRank s K 0 truth) ^ p| ≤ 3 * C * B
   have hcoef : 0 ≤ 12 * (1 + η / 2) / (η / 2) := by positivity
   have hB : 0 ≤ B := mul_nonneg hcoef (sum_nonneg fun i hi =>
     mul_nonneg (by positivity) (hε i (mem_range.mp hi)))
-  have huniform (y : ι) (ν : Fin 2) : |b.row y ν - truth y ν| ≤ η / 100 :=
-    abs_stationaryState_row_sub_le_dyadic hη.le m j hj hno y ν
   have hweighted (y : ι) (hy : y ∈ s) (hd : η / 2 ≤ truth y 0) (ν : Fin 2) :
-      |b.row y ν - truth y ν| ≤ B := by
-    refine (abs_stationaryState_row_sub_le_weighted_dyadic hη m j hj hno y hd ν).trans ?_
-    exact mul_le_mul_of_nonneg_left (sum_le_sum fun i hi =>
-      mul_le_mul_of_nonneg_left (herr i (mem_range.mp hi) y hy hd) (by positivity)) hcoef
+      |b.row y ν - truth y ν| ≤ B :=
+    (abs_stationaryState_row_sub_le_weighted_dyadic hη m j hj hno y hd ν).trans <|
+      mul_le_mul_of_nonneg_left (sum_le_sum fun i hi =>
+        mul_le_mul_of_nonneg_left (herr i (mem_range.mp hi) y hy hd) (by positivity)) hcoef
   have hlow (y : ι) (hy : truth y 0 < η / 2) : b.row y 0 ≤ η ∧ truth y 0 ≤ η := by
-    have h := le_of_abs_le (huniform y 0)
+    have := le_of_abs_le
+      (abs_stationaryState_row_sub_le_dyadic (truth := truth) hη.le m j hj hno y 0)
     constructor <;> linarith
   have hclipped (y : ι) (hy : y ∈ s) : |max η (b.row y 0) - max η (truth y 0)| ≤ B := by
     by_cases hd : η / 2 ≤ truth y 0
@@ -287,19 +265,15 @@ theorem abs_stationaryState_root_sub_le_weighted_dyadic {K : ℕ}
         (max_le (by simpa using hB) (hweighted y hy hd 0))
     · have hl := hlow y (not_le.mp hd)
       simpa only [max_eq_left hl.1, max_eq_left hl.2, sub_self, abs_zero] using hB
-  have hrank : |max η (firstRank s K b.defaultValue b.row) -
-      max η (firstRank s K 0 truth)| ≤ B :=
-    abs_clipped_firstRank_sub_le hK hη.le hB
-      (stationaryState_defaultValue_le_dyadic hη.le ha haη m j hj hno) hη.le hclipped
   by_cases hd : η / 2 ≤ truth y 0
   · rw [output_eq_lowerClipped hη.le hentry hflat _ _ _ firstRank_nonneg,
       output_eq_lowerClipped hη.le hentry hflat _ _ _ firstRank_nonneg]
-    calc _ ≤ C * (|max η (b.row y 0) - max η (truth y 0)| + |b.row y 1 - truth y 1| +
-          |max η (firstRank s K b.defaultValue b.row) - max η (firstRank s K 0 truth)|) :=
-        hroot _ _ _ _ _ _ (le_max_left _ _) (le_max_left _ _) (le_max_left _ _) (le_max_left _ _)
-      _ ≤ C * (B + B + B) := mul_le_mul_of_nonneg_left
-        (add_le_add (add_le_add (hclipped y hy) (hweighted y hy hd 1)) hrank) hC
-      _ = 3 * C * B := by ring
+    refine (hroot _ _ _ _ _ _ (le_max_left _ _) (le_max_left _ _) (le_max_left _ _)
+      (le_max_left _ _)).trans <| (mul_le_mul_of_nonneg_left (add_le_add
+        (add_le_add (hclipped y hy) (hweighted y hy hd 1))
+        (abs_clipped_firstRank_sub_le hK hη.le hB
+          (stationaryState_defaultValue_le_dyadic hη.le ha haη m j hj hno) hη.le hclipped))
+        hC).trans_eq (by ring)
   · have hl := hlow y (not_le.mp hd)
     rw [hentry _ _ _ hl.1, hentry _ _ _ hl.2, sub_self, abs_zero]
     positivity

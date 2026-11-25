@@ -81,24 +81,19 @@ theorem R3_of_le (hr : r ≤ 1 / 2) : R3 r = (r / (1 - r)) ^ 2 := by
     norm_num
 
 /-- `R3 r = 1` for `r ≥ 1 / 2`. -/
-theorem R3_of_ge (hr : 1 / 2 ≤ r) : R3 r = 1 := by
-  unfold R3
-  split_ifs with h
-  · exact absurd h (not_lt.2 hr)
-  · rfl
+theorem R3_of_ge (hr : 1 / 2 ≤ r) : R3 r = 1 :=
+  ite_eq_right fun h => absurd h (not_lt.2 hr)
 
 /-- `R3` is nonnegative. -/
 theorem R3_nonneg (r : ℝ) : 0 ≤ R3 r := by
   unfold R3
-  split_ifs
-  · positivity
-  · exact zero_le_one
+  split_ifs <;> positivity
 
 /-- For `0 ≤ r < 1 / 2`, `R3 r < 1`. -/
 theorem R3_lt_one (hr0 : 0 ≤ r) (hr : r < 1 / 2) : R3 r < 1 := by
   rw [R3_of_le hr.le]
-  have h : r / (1 - r) < 1 := (div_lt_one (by linarith)).2 (by linarith)
-  exact pow_lt_one₀ (div_nonneg hr0 (by linarith)) h two_ne_zero
+  exact pow_lt_one₀ (div_nonneg hr0 (by linarith)) ((div_lt_one (by linarith)).2 (by linarith))
+    two_ne_zero
 
 /-- `R3 r` is a fixed point of the recursion step. -/
 theorem R3_eq (r : ℝ) : (r + (1 - r) * R3 r) ^ 2 = R3 r := by
@@ -123,21 +118,17 @@ theorem R3_le_of_eq (hr : r ∈ Set.Icc (0 : ℝ) 1) {x : ℝ} (hx : (r + (1 - r
   rw [hx, sub_self, eq_comm, mul_eq_zero] at h
   rcases lt_or_ge r (1 / 2) with hr2 | hr2
   · rcases h with h | h
-    · have : 0 < (1 - r) ^ 2 := by
-        have : 0 < 1 - r := by linarith
-        positivity
-      rw [R3_of_le hr2.le, div_pow, div_le_iff₀ this]
+    · rw [R3_of_le hr2.le, div_pow, div_le_iff₀ (sq_pos_of_pos (by linarith))]
       linarith
-    · linarith [R3_lt_one hr.1 hr2, sub_eq_zero.1 h]
+    · linarith [R3_lt_one hr.1 hr2]
   · rw [R3_of_ge hr2]
     rcases h with h | h
-    · have h1 : (1 - r) ^ 2 * (1 - x) = 1 - 2 * r := by linear_combination -h
-      by_contra hlt
+    · by_contra hlt
+      have h1 : (1 - r) ^ 2 * (1 - x) = 1 - 2 * r := by linear_combination -h
       have : 0 ≤ (1 - r) ^ 2 * (1 - x) := mul_nonneg (sq_nonneg _) (by linarith)
-      have hr' : r = 1 / 2 := by linarith
-      rw [hr'] at h1
+      rw [show r = 1 / 2 by linarith] at h1
       linarith
-    · linarith [sub_eq_zero.1 h]
+    · linarith
 
 /-- `Q 3 d r ≤ R3 r` on `[0, 1]`: the recursion step is monotone on `[0, ∞)` and fixes `R3 r`. -/
 theorem Q_three_le_R3 {d : ℕ} (hr : r ∈ Set.Icc (0 : ℝ) 1) : Q 3 d r ≤ R3 r := by
@@ -159,52 +150,45 @@ p. 354][PaturiPudlakSaksZane2005]: for `r ∈ [0, 1]` the sequence increases and
 to `R3 r`. -/
 theorem tendsto_Q_three (hr : r ∈ Set.Icc (0 : ℝ) 1) :
     Tendsto (fun d => Q 3 d r) atTop (𝓝 (R3 r)) := by
-  have hbdd : BddAbove (Set.range fun d => Q 3 d r) := ⟨1, by
-    rintro _ ⟨d, rfl⟩
-    exact Q_le_one hr⟩
-  have hT := tendsto_atTop_ciSup (monotone_Q hr) hbdd
-  have hfix : (r + (1 - r) * ⨆ d, Q 3 d r) ^ 2 = ⨆ d, Q 3 d r := by
-    refine tendsto_nhds_unique ?_ (hT.comp (tendsto_add_atTop_nat 1))
-    exact ((hT.const_mul (1 - r)).const_add r).pow 2
+  have hT := tendsto_atTop_ciSup (monotone_Q (k := 3) hr)
+    ⟨1, Set.forall_mem_range.2 fun _ => Q_le_one hr⟩
+  have hfix : (r + (1 - r) * ⨆ d, Q 3 d r) ^ 2 = ⨆ d, Q 3 d r :=
+    tendsto_nhds_unique (((hT.const_mul (1 - r)).const_add r).pow 2)
+      (hT.comp (tendsto_add_atTop_nat 1))
   rwa [← eq_R3_of_eq hr hfix (ciSup_le fun _ => Q_three_le_R3 hr)]
 
 /-! ### The integral of the limit -/
 
 /-- `x ↦ (x / (1 - x)) ^ 2` is continuous on `[0, 1 / 2]`. -/
 private theorem continuousOn_div_one_sub_sq :
-    ContinuousOn (fun x : ℝ => (x / (1 - x)) ^ 2) (Set.uIcc 0 (1 / 2)) := by
-  refine (continuousOn_id.div (by fun_prop) fun x hx => ?_).pow 2
-  rw [Set.uIcc_of_le (by norm_num)] at hx
-  linarith [hx.2]
+    ContinuousOn (fun x : ℝ => (x / (1 - x)) ^ 2) (Set.uIcc 0 (1 / 2)) :=
+  (continuousOn_id.div (by fun_prop) fun _ hx =>
+    by linarith [(Set.uIcc_of_le (by norm_num : (0 : ℝ) ≤ 1 / 2) ▸ hx).2]).pow 2
 
 /-- **The integral of the limit** [Paturi, Pudlák, Saks, Zane, p. 354][PaturiPudlakSaksZane2005]:
 `∫₀¹ R3 r dr = 2 - 2 log 2`, since `1 / (1 - r) + 2 log (1 - r) + r` is an antiderivative of
 `(r / (1 - r)) ^ 2`. -/
 theorem integral_R3 : ∫ r in (0 : ℝ)..1, R3 r = 2 - 2 * Real.log 2 := by
   have hI : Set.uIcc (0 : ℝ) (1 / 2) = Set.Icc 0 (1 / 2) := Set.uIcc_of_le (by norm_num)
-  have hJ : Set.uIcc (1 / 2 : ℝ) 1 = Set.Icc (1 / 2) 1 := Set.uIcc_of_le (by norm_num)
-  have h1 : Set.EqOn R3 (fun x => (x / (1 - x)) ^ 2) (Set.uIcc 0 (1 / 2)) := fun x hx =>
-    R3_of_le (hI ▸ hx).2
-  have h2 : Set.EqOn R3 (fun _ => 1) (Set.uIcc (1 / 2) 1) := fun x hx => R3_of_ge (hJ ▸ hx).1
-  have hF : ∀ x ∈ Set.uIcc (0 : ℝ) (1 / 2),
+  have h1 : Set.EqOn R3 (fun x => (x / (1 - x)) ^ 2) (Set.uIcc 0 (1 / 2)) :=
+    fun _ hx => R3_of_le (hI ▸ hx).2
+  have h2 : Set.EqOn R3 (fun _ => 1) (Set.uIcc (1 / 2) 1) :=
+    fun _ hx => R3_of_ge (Set.uIcc_of_le (by norm_num : (1 / 2 : ℝ) ≤ 1) ▸ hx).1
+  have hF (x : ℝ) (hx : x ∈ Set.uIcc (0 : ℝ) (1 / 2)) :
       HasDerivAt (fun y => (1 - y)⁻¹ + 2 * Real.log (1 - y) + y) ((x / (1 - x)) ^ 2) x := by
-    intro x hx
     have hx1 : 1 - x ≠ 0 := by linarith [(hI ▸ hx).2]
-    have hd : HasDerivAt (fun y : ℝ => 1 - y) (-1) x := by
-      simpa using (hasDerivAt_id x).const_sub 1
+    have hd : HasDerivAt (fun y : ℝ => 1 - y) (-1) x := by simpa using (hasDerivAt_id x).const_sub 1
     refine (((hd.inv hx1).add ((hd.log hx1).const_mul 2)).add (hasDerivAt_id' x)).congr_deriv ?_
     field_simp
     ring
   rw [← intervalIntegral.integral_add_adjacent_intervals
-      ((continuousOn_div_one_sub_sq.congr h1).intervalIntegrable)
-      ((continuousOn_const.congr h2).intervalIntegrable),
+      (continuousOn_div_one_sub_sq.congr h1).intervalIntegrable
+      (continuousOn_const.congr h2).intervalIntegrable,
     intervalIntegral.integral_congr h1, intervalIntegral.integral_congr h2,
     intervalIntegral.integral_eq_sub_of_hasDerivAt hF
-      continuousOn_div_one_sub_sq.intervalIntegrable]
-  have hlog : Real.log (1 - 1 / 2) = -Real.log 2 := by
-    rw [← Real.log_inv]
-    norm_num
-  rw [hlog, intervalIntegral.integral_const, smul_eq_mul, sub_zero, Real.log_one]
+      continuousOn_div_one_sub_sq.intervalIntegrable,
+    show Real.log (1 - 1 / 2) = -Real.log 2 by rw [← Real.log_inv]; norm_num,
+    intervalIntegral.integral_const, smul_eq_mul, sub_zero, Real.log_one]
   ring
 
 /-! ### The limit of `qbar 3` and unique 3-SAT -/
@@ -213,16 +197,15 @@ theorem integral_R3 : ∫ r in (0 : ℝ)..1, R3 r = 2 - 2 * Real.log 2 := by
 `integral_R3` [Paturi, Pudlák, Saks, Zane, Lemma 8 and p. 354][PaturiPudlakSaksZane2005]. -/
 theorem tendsto_qbar_three : Tendsto (qbar 3) atTop (𝓝 (2 - 2 * Real.log 2)) := by
   rw [← integral_R3]
-  have hmem : ∀ x ∈ Set.uIoc (0 : ℝ) 1, x ∈ Set.Icc (0 : ℝ) 1 := fun x hx => by
-    rw [Set.uIoc_of_le zero_le_one] at hx
-    exact Set.Ioc_subset_Icc_self hx
+  have hmem (x : ℝ) (hx : x ∈ Set.uIoc (0 : ℝ) 1) : x ∈ Set.Icc (0 : ℝ) 1 :=
+    Set.Ioc_subset_Icc_self (Set.uIoc_of_le (zero_le_one : (0 : ℝ) ≤ 1) ▸ hx)
   refine intervalIntegral.tendsto_integral_filter_of_dominated_convergence (fun _ => 1)
     (Eventually.of_forall fun d => (continuous_Q 3 d).aestronglyMeasurable)
-    (Eventually.of_forall fun d => MeasureTheory.ae_of_all _ fun x hx => ?_)
+    (Eventually.of_forall fun _ => MeasureTheory.ae_of_all _ fun x hx => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (Q_nonneg (hmem x hx))]
+      exact Q_le_one (hmem x hx))
     intervalIntegrable_const
     (MeasureTheory.ae_of_all _ fun x hx => tendsto_Q_three (hmem x hx))
-  rw [Real.norm_eq_abs, abs_of_nonneg (Q_nonneg (hmem x hx))]
-  exact Q_le_one (hmem x hx)
 
 /-- `qbar 3 d ≤ 2 - 2 log 2` for every depth `d`. -/
 theorem qbar_three_le (d : ℕ) : qbar 3 d ≤ 2 - 2 * Real.log 2 :=

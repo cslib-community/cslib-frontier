@@ -127,8 +127,7 @@ theorem eq_iff_sub_mem (h : HasExactPeriod f r) (x x' : ZMod N) :
 
 /-- A function with exact period `r` takes exactly `r` values. -/
 theorem card_image [DecidableEq S] (h : HasExactPeriod f r) : #(univ.image f) = r := by
-  have hfib : ∀ s ∈ univ.image f, #{x ∈ univ | f x = s} = N / r := by
-    intro s hs
+  have hfib (s) (hs : s ∈ univ.image f) : #{x ∈ univ | f x = s} = N / r := by
     obtain ⟨x₀, -, rfl⟩ := mem_image.mp hs
     rw [← card_filter_dvd_val h.dvd]
     refine card_equiv (Equiv.subRight x₀) fun x => ?_
@@ -136,8 +135,7 @@ theorem card_image [DecidableEq S] (h : HasExactPeriod f r) : #(univ.image f) = 
     rw [eq_comm, h.eq_iff_sub_mem, mem_zmultiples_iff_dvd_val h.dvd]
   have hsum := card_eq_sum_card_image f (univ : Finset (ZMod N))
   rw [sum_congr rfl hfib, sum_const, smul_eq_mul, card_univ, ZMod.card] at hsum
-  have hpos : 0 < N / r :=
-    Nat.div_pos (Nat.le_of_dvd (Nat.pos_of_ne_zero (NeZero.ne N)) h.dvd) h.pos
+  have hpos := Nat.div_pos (Nat.le_of_dvd (Nat.pos_of_ne_zero (NeZero.ne N)) h.dvd) h.pos
   rw [Nat.eq_div_of_mul_eq_left hpos.ne' hsum.symm, Nat.div_div_self h.dvd (NeZero.ne N)]
 
 end HasExactPeriod
@@ -266,16 +264,16 @@ theorem HasExactPeriod.periodState_apply {f : ZMod N → S} {r : ℕ} (h : HasEx
     (x₀ y : ZMod N) :
     (periodState f).ofLp (y, f x₀) =
       if N / r ∣ y.val then (r : ℂ)⁻¹ * stdAddChar (x₀ * y) else 0 := by
-  -- The sum over the coset `x₀ + ⟨r⟩` is `ω^{x₀ y}` times the sum over `⟨r⟩`.
   have key : ∑ x : ZMod N, (if f x = f x₀ then stdAddChar (x * y) else 0) =
       stdAddChar (x₀ * y) * ∑ h : ZMod N, (if r ∣ h.val then stdAddChar (h * y) else 0) := by
     rw [mul_sum]
     refine Fintype.sum_equiv (Equiv.subRight x₀) _ _ fun x => ?_
-    have hiff : r ∣ (x - x₀).val ↔ f x = f x₀ := by
-      rw [← mem_zmultiples_iff_dvd_val h.dvd, ← h.eq_iff_sub_mem, eq_comm]
+    have hiff : f x = f x₀ ↔ r ∣ (x - x₀).val := by
+      rw [eq_comm, h.eq_iff_sub_mem, mem_zmultiples_iff_dvd_val h.dvd]
     rw [Equiv.subRight_apply, if_congr hiff rfl rfl]
     split_ifs
-    · rw [← AddChar.map_add_eq_mul]; ring_nf
+    · rw [← AddChar.map_add_eq_mul]
+      ring_nf
     · rw [mul_zero]
   rw [Cslib.Quantum.periodState_apply, key, sum_dvd_val_stdAddChar_mul h.dvd]
   split_ifs
@@ -308,13 +306,11 @@ private theorem HasExactPeriod.sum_norm_periodState_apply_sq {f : ZMod N → S} 
     ∑ s : S, ‖(periodState f).ofLp (y, s)‖ ^ 2 = if N / r ∣ y.val then (r : ℝ)⁻¹ else 0 := by
   rw [← sum_subset (subset_univ (univ.image f)) fun s _ hs => by
     rw [periodState_apply_of_forall_ne (fun x hx => hs (mem_image.mpr ⟨x, mem_univ _, hx⟩)),
-      norm_zero, sq, mul_zero]]
-  have hc : ∀ s ∈ univ.image f, ‖(periodState f).ofLp (y, s)‖ ^ 2 =
-      if N / r ∣ y.val then ((r : ℝ) ^ 2)⁻¹ else 0 := by
-    intro s hs
-    obtain ⟨x₀, -, rfl⟩ := mem_image.mp hs
-    exact h.norm_periodState_apply_sq x₀ y
-  rw [sum_congr rfl hc, sum_const, h.card_image, nsmul_eq_mul]
+      norm_zero, sq, mul_zero],
+    sum_congr rfl (g := fun _ => if N / r ∣ y.val then ((r : ℝ) ^ 2)⁻¹ else 0) fun s hs => by
+      obtain ⟨x₀, -, rfl⟩ := mem_image.mp hs
+      exact h.norm_periodState_apply_sq x₀ y,
+    sum_const, h.card_image, nsmul_eq_mul]
   have hr : (r : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr h.pos.ne'
   split_ifs
   · field_simp
@@ -358,13 +354,10 @@ theorem HasExactPeriod.measure_period_circuit {f : ZMod N → S} {r : ℕ} (h : 
           LinearIsometryEquiv.norm_map, norm_ket])).map Prod.fst =
       Cslib.Probability.PMF.uniformOfFinset {y : ZMod N | N / r ∣ y.val}
         (filter_dvd_val_nonempty _) := by
-  have hψ : unitaryEquiv (onFirst (qft N))
-      (unitaryEquiv U (unitaryEquiv (onFirst (qft N)) (ket ((0 : ZMod N), s₀)))) =
-      periodState f := by
-    rw [unitaryEquiv_oracle_qft_ket_zero U s₀ hU]
-    rfl
   rw [← h.periodFindingOutcome_eq, periodFindingOutcome]
   congr 2
+  rw [unitaryEquiv_oracle_qft_ket_zero U s₀ hU]
+  rfl
 
 /-- **Classical recovery** ([Shor][Shor1997], §5; [de Wolf][deWolf2019], §5.3): the reduced
 denominator `N / gcd(N, y)` of `y / N` is the period `r` with probability exactly `φ(r) / r`. -/
@@ -374,20 +367,15 @@ theorem HasExactPeriod.periodFindingOutcome_recover {f : ZMod N → S} {r : ℕ}
       (Nat.totient r : ENNReal) * (r : ENNReal)⁻¹ := by
   classical
   rw [h.periodFindingOutcome_eq, Cslib.Probability.PMF.toOuterMeasure_uniformOfFinset,
-    card_filter_dvd_val (Nat.div_dvd_of_dvd h.dvd), Nat.div_div_self h.dvd (NeZero.ne N)]
-  congr 2
-  -- A residue `y` with `N / gcd(N, y) = r` is a multiple of `N / r = gcd(N, y)`.
-  have hsub : ∀ y : ZMod N, N / Nat.gcd N y.val = r → N / r ∣ y.val := by
-    intro y hy
-    rw [← hy, Nat.div_div_self (Nat.gcd_dvd_left N y.val) (NeZero.ne N)]
-    exact Nat.gcd_dvd_right N y.val
-  -- These are the `φ(r)` residues of additive order `r`.
-  rw [filter_filter, ← IsAddCyclic.card_addOrderOf_eq_totient (α := ZMod N)
-    (by rw [ZMod.card]; exact h.dvd)]
-  congr 1
+    card_filter_dvd_val (Nat.div_dvd_of_dvd h.dvd), Nat.div_div_self h.dvd (NeZero.ne N),
+    filter_filter, ← IsAddCyclic.card_addOrderOf_eq_totient (α := ZMod N)
+      (by rw [ZMod.card]; exact h.dvd)]
+  congr 3
   ext y
   simp only [mem_filter, mem_univ, true_and, Set.mem_ofPred_eq, addOrderOf_eq_div_gcd_val]
-  exact ⟨fun h' => h'.2, fun h' => ⟨hsub y h', h'⟩⟩
+  exact ⟨And.right, fun hy => ⟨by
+    rw [← hy, Nat.div_div_self (Nat.gcd_dvd_left N y.val) (NeZero.ne N)]
+    exact Nat.gcd_dvd_right N y.val, hy⟩⟩
 
 /-- The recovery of `Cslib.Quantum.HasExactPeriod.periodFindingOutcome_recover` succeeds with
 probability at least `1 / (log₂ r + 1)`, by the elementary bound `r ≤ φ(r) (log₂ r + 1)`

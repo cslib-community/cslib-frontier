@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.Nat.Bits
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Languages.Probabilistic.Concentration
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Event
@@ -209,6 +210,37 @@ variable {F} in
       encBits :=
   .of_enc_eq (F.computableInPolyTime_smul.comp (hd.prod (hk.prod hx))) fun a => by
     simp [F.smul_encode]
+
+variable {F} in
+/-- The encoded negation of a computed element, computed as `(q - 1) • x` for the group order
+`q`. -/
+@[fun_prop] theorem computableInPolyTime_encode_neg {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {x : (a : α) → F.Carrier (d a)} (hd : ComputableInPolyTime d enc F.encDesc)
+    (hx : ComputableInPolyTime (fun a => F.encode (d a) (x a)) enc encBits) :
+    ComputableInPolyTime (fun a => F.encode (d a) (-x a)) enc encBits :=
+  .of_enc_eq (computableInPolyTime_encode_natCast_smul hd
+      ((F.computableInPolyTime_order.comp hd).binary_sub' (.const 1)) hx) fun a => by
+    rw [Function.comp_apply, ZMod.natCast_self_sub_one, neg_one_smul]
+
+variable {F} in
+/-- The encoded difference of computed elements. -/
+@[fun_prop] theorem computableInPolyTime_encode_sub {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {x y : (a : α) → F.Carrier (d a)} (hd : ComputableInPolyTime d enc F.encDesc)
+    (hx : ComputableInPolyTime (fun a => F.encode (d a) (x a)) enc encBits)
+    (hy : ComputableInPolyTime (fun a => F.encode (d a) (y a)) enc encBits) :
+    ComputableInPolyTime (fun a => F.encode (d a) (x a - y a)) enc encBits := by
+  simpa only [sub_eq_add_neg] using
+    computableInPolyTime_encode_add hd hx (computableInPolyTime_encode_neg hd hy)
+
+variable {F} in
+/-- The encoding of a computed choice between computed elements. -/
+@[fun_prop] theorem computableInPolyTime_encode_cond {α : Type} {enc : α ↪ List Bool}
+    {d : α → F.Desc} {c : α → Bool} {x y : (a : α) → F.Carrier (d a)}
+    (hc : ComputableInPolyTime c enc encBool)
+    (hx : ComputableInPolyTime (fun a => F.encode (d a) (x a)) enc encBits)
+    (hy : ComputableInPolyTime (fun a => F.encode (d a) (y a)) enc encBits) :
+    ComputableInPolyTime (fun a => F.encode (d a) (cond (c a) (x a) (y a))) enc encBits :=
+  .of_enc_eq (ComputableInPolyTime.ite' hc hx hy) fun a => by cases c a <;> simp
 
 /-! ### Computational Diffie–Hellman (CDH) -/
 

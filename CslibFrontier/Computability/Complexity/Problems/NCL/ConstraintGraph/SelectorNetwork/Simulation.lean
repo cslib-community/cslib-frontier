@@ -51,21 +51,16 @@ structure SourceLegal (s : C → Bool) : Prop where
 
 /-- The shared constraints express exactly nonempty compatible selections. -/
 theorem legal_source_iff (s : C → Bool) : N.sourceGraph.Legal s ↔ N.SourceLegal s := by
-  have hrow (u : U) : (N.sourceGraph (.inl u)).Sat s ↔
-      ∃ c, N.row c = u ∧ s c = true := by
+  have hrow (u : U) : (N.sourceGraph (.inl u)).Sat s ↔ ∃ c, N.row c = u ∧ s c = true := by
     simp [sourceGraph, Vertex.sat_clause_iff, Port.In, N.characters_complete]
   have hrel (r : R) : (N.sourceGraph (.inr r)).Sat s ↔
-      N.required r = true → s (N.endpoint r false) = false ∨
-        s (N.endpoint r true) = false := by
+      N.required r = true → s (N.endpoint r false) = false ∨ s (N.endpoint r true) = false := by
     cases hr : N.required r <;> cases hl : s (N.endpoint r false) <;>
       cases hh : s (N.endpoint r true) <;>
       simp [sourceGraph, Vertex.Sat, Vertex.inflow, Port.In, hr, hl, hh]
-  constructor
-  · exact fun hs => ⟨fun u => (hrow u).mp (hs (.inl u)), fun r => (hrel r).mp (hs (.inr r))⟩
-  · intro hs v
-    rcases v with u | r
-    · exact (hrow u).mpr (hs.nonempty u)
-    · exact (hrel r).mpr (hs.relation r)
+  exact ⟨fun hs => ⟨fun u => (hrow u).mp (hs (.inl u)), fun r => (hrel r).mp (hs (.inr r))⟩,
+    fun hs => Sum.rec (fun u => (hrow u).mpr (hs.nonempty u))
+      fun r => (hrel r).mpr (hs.relation r)⟩
 
 variable [DecidableEq C] [DecidableEq R]
 
@@ -78,26 +73,18 @@ variable [DecidableEq C] [DecidableEq R]
 theorem legal_project {s : Edge C R → Bool} (hs : N.graph.Legal s) :
     N.sourceGraph.Legal (s ∘ Sum.inl) := by
   have ht := (legal_iff N s).mp hs
-  apply (legal_source_iff N _).mpr
-  refine ⟨ht.nonempty, ?_⟩
-  intro r hr
-  rcases ht.relation r hr with h | h
-  · left
-    apply Bool.eq_false_iff.mpr
-    intro hc
-    exact Bool.noConfusion ((ht.forced r false hc).symm.trans h)
-  · right
-    apply Bool.eq_false_iff.mpr
-    intro hc
-    exact Bool.noConfusion ((ht.forced r true hc).symm.trans h)
+  refine (legal_source_iff N _).mpr ⟨ht.nonempty, fun r hr => ?_⟩
+  exact (ht.relation r hr).imp
+    (fun h => Bool.eq_false_iff.mpr fun hc =>
+      Bool.noConfusion ((ht.forced r false hc).symm.trans h))
+    (fun h => Bool.eq_false_iff.mpr fun hc =>
+      Bool.noConfusion ((ht.forced r true hc).symm.trans h))
 
 /-- Canonical physical orientations have exactly the source legality conditions. -/
-theorem legal_encode_iff (s : C → Bool) : N.graph.Legal (N.encode s) ↔ N.sourceGraph.Legal s := by
-  constructor
-  · exact fun hs => legal_project N hs
-  · intro hs
+theorem legal_encode_iff (s : C → Bool) : N.graph.Legal (N.encode s) ↔ N.sourceGraph.Legal s :=
+  ⟨legal_project N, fun hs =>
     have hsrc := (legal_source_iff N s).mp hs
-    exact (legal_iff N _).mpr ⟨hsrc.nonempty, fun _ _ h => h, hsrc.relation⟩
+    (legal_iff N _).mpr ⟨hsrc.nonempty, fun _ _ h => h, hsrc.relation⟩⟩
 
 private def clear (a : C → Bool) (s : Edge C R → Bool) : List (R × Bool) → Edge C R → Bool
   | [] => s
@@ -118,34 +105,25 @@ private theorem clear_branch (a : C → Bool) (s : Edge C R → Bool) (es : List
   | nil => rfl
   | cons f es ih =>
     simp only [clear, ih, List.mem_cons]
-    by_cases hef : e = f
-    · subst e
-      simp
-    · simp [hef]
+    by_cases hef : e = f <;> simp [hef]
 
 private theorem legal_clear_one (a : C → Bool) {s : Edge C R → Bool} (hs : N.graph.Legal s)
     (hsel : ∀ c, s (.inl c) = a c) (e : R × Bool) :
     N.graph.Legal (Function.update s (.inr e) (a (N.endpoint e.1 e.2))) := by
   have hsrc := (legal_iff N s).mp hs
-  apply (legal_iff N _).mpr
-  constructor
-  · simpa only [Function.update_of_ne Sum.inl_ne_inr] using hsrc.nonempty
-  · intro r b hc
-    by_cases he : (r, b) = e
-    · subst e
-      simpa only [Function.update_self] using (hsel (N.endpoint r b)).symm.trans
+  refine (legal_iff N _).mpr
+    ⟨by simpa only [Function.update_of_ne Sum.inl_ne_inr] using hsrc.nonempty,
+      fun r b hc => ?_, fun r hr => ?_⟩
+  · rcases eq_or_ne (r, b) e with rfl | he
+    · simpa only [Function.update_self] using (hsel (N.endpoint r b)).symm.trans
         (by simpa only [Function.update_of_ne Sum.inl_ne_inr] using hc)
     · rw [Function.update_of_ne (Sum.inr_injective.ne he)]
       exact hsrc.forced r b (by simpa only [Function.update_of_ne Sum.inl_ne_inr] using hc)
-  · intro r hr
-    have lower (b : Bool) (hb : s (.inr (r, b)) = false) :
+  · have lower (b : Bool) (hb : s (.inr (r, b)) = false) :
         Function.update s (.inr e) (a (N.endpoint e.1 e.2)) (.inr (r, b)) = false := by
-      by_cases he : (r, b) = e
-      · subst e
-        rw [Function.update_self]
-        apply Bool.eq_false_iff.mpr
-        intro ha
-        exact Bool.noConfusion ((hsrc.forced r b ((hsel _).trans ha)).symm.trans hb)
+      rcases eq_or_ne (r, b) e with rfl | he
+      · rw [Function.update_self, Bool.eq_false_iff]
+        exact fun ha => Bool.noConfusion ((hsrc.forced r b ((hsel _).trans ha)).symm.trans hb)
       · simpa only [Function.update_of_ne (Sum.inr_injective.ne he)] using hb
     exact (hsrc.relation r hr).imp (lower false) (lower true)
 
@@ -157,27 +135,23 @@ private theorem clear_path (a : C → Bool) (es : List (R × Bool))
   | cons e es ih =>
     let t := Function.update s (.inr e) (a (N.endpoint e.1 e.2))
     have ht : N.graph.Legal t := legal_clear_one N a hs hsel e
-    have hst : N.graph.Reachable s t := by
-      by_cases he : s (.inr e) = a (N.endpoint e.1 e.2)
-      · have hts : t = s := by simpa only [t, ← he] using Function.update_eq_self (.inr e) s
-        exact hts.symm ▸ Relation.ReflTransGen.refl
-      · have hv : a (N.endpoint e.1 e.2) = !s (.inr e) := by
-          cases hsbit : s (.inr e) <;> cases hab : a (N.endpoint e.1 e.2) <;> simp_all
-        exact .single ⟨hs, ht, .inr e, by simp only [t, reverse, hv]⟩
-    exact hst.trans (ih ht (fun c => by simp [t, hsel]))
+    refine (?_ : N.graph.Reachable s t).trans (ih ht fun c => by simp [t, hsel])
+    by_cases he : s (.inr e) = a (N.endpoint e.1 e.2)
+    · exact (show t = s by simpa only [t, ← he] using Function.update_eq_self (.inr e) s).symm ▸
+        .refl
+    · exact .single ⟨hs, ht, .inr e, by
+        cases hsbit : s (.inr e) <;> cases hab : a (N.endpoint e.1 e.2) <;>
+          simp_all [t, reverse]⟩
 
 /-- Clearing surplus unit-edge supply connects every legal orientation to its canonical fiber. -/
 theorem reachable_encode_project {s : Edge C R → Bool} (hs : N.graph.Legal s) :
     N.graph.Reachable s (N.encode (s ∘ Sum.inl)) := by
-  have hp := clear_path N (s ∘ Sum.inl) N.branches hs (fun _ => rfl)
-  have heq : clear N (s ∘ Sum.inl) s N.branches = N.encode (s ∘ Sum.inl) := by
-    funext e
-    rcases e with c | ⟨r, b⟩
-    · exact clear_selector N _ _ _ c
-    · rw [clear_branch]
-      have hm : (r, b) ∈ N.branches := by cases b <;> simp [branches, N.relations_complete r]
-      simp [hm, encode]
-  exact heq ▸ hp
+  refine (show clear N (s ∘ Sum.inl) s N.branches = N.encode (s ∘ Sum.inl) from funext ?_) ▸
+    clear_path N (s ∘ Sum.inl) N.branches hs fun _ => rfl
+  rintro (c | ⟨r, b⟩)
+  · exact clear_selector N _ _ _ c
+  · have hm : (r, b) ∈ N.branches := by cases b <;> simp [branches, N.relations_complete r]
+    simp [clear_branch, hm, encode]
 
 private def prepare (s t : C → Bool) : Edge C R → Bool
   | .inl c => s c
@@ -186,33 +160,23 @@ private def prepare (s t : C → Bool) : Edge C R → Bool
 private theorem legal_prepare {s t : C → Bool} (hs : N.sourceGraph.Legal s)
     (ht : N.sourceGraph.Legal t) (hle : ∀ c, s c ≤ t c) : N.graph.Legal (prepare N s t) := by
   have hsrc := (legal_source_iff N s).mp hs
-  have htgt := (legal_source_iff N t).mp ht
-  apply (legal_iff N _).mpr
-  refine ⟨hsrc.nonempty, ?_, htgt.relation⟩
-  intro r b hc
-  exact Bool.eq_true_of_true_le (hc ▸ hle (N.endpoint r b))
+  exact (legal_iff N _).mpr ⟨hsrc.nonempty,
+    fun r b hc => Bool.eq_true_of_true_le (hc ▸ hle (N.endpoint r b)),
+    ((legal_source_iff N t).mp ht).relation⟩
 
 private theorem lift_add (s : C → Bool) (c : C) (hs : N.sourceGraph.Legal s)
     (ht : N.sourceGraph.Legal (reverse s c)) (hc : s c = false) :
     N.graph.Reachable (N.encode s) (N.encode (reverse s c)) := by
-  have hle (d : C) : s d ≤ reverse s c d := by
-    by_cases hd : d = c
-    · subst d
-      simp [hc]
+  have hp := legal_prepare N hs ht fun d => by
+    rcases eq_or_ne d c with rfl | hd
+    · simp [hc]
     · rw [reverse_of_ne s hd]
-  have hp := legal_prepare N hs ht hle
-  have hpath := reachable_encode_project N hp
-  change N.graph.Reachable (prepare N s (reverse s c)) (N.encode s) at hpath
-  have hrev : reverse (prepare N s (reverse s c)) (.inl c) = N.encode (reverse s c) := by
-    funext e
-    rcases e with d | e
-    · by_cases hd : d = c
-      · subst d
-        simp [reverse, prepare, encode]
-      · simp [reverse, prepare, encode, hd]
-    · rw [reverse_of_ne _ Sum.inr_ne_inl]
-      rfl
-  exact hpath.symm.tail ⟨hp, (legal_encode_iff N _).mpr ht, .inl c, hrev.symm⟩
+  have hpath : N.graph.Reachable (prepare N s (reverse s c)) (N.encode s) :=
+    reachable_encode_project N hp
+  refine hpath.symm.tail ⟨hp, (legal_encode_iff N _).mpr ht, .inl c, (funext ?_).symm⟩
+  rintro (d | e)
+  · by_cases hd : d = c <;> simp [reverse, prepare, encode, hd]
+  · exact reverse_of_ne _ Sum.inr_ne_inl
 
 private theorem lift_step {s t : C → Bool} (hm : N.sourceGraph.Step s t) :
     N.graph.Reachable (N.encode s) (N.encode t) := by
@@ -220,11 +184,8 @@ private theorem lift_step {s t : C → Bool} (hm : N.sourceGraph.Step s t) :
   cases hc : s c with
   | false => exact lift_add N s c hs ht hc
   | true =>
-    have hc' : reverse s c c = false := by simp [hc]
-    have hs' : N.sourceGraph.Legal (reverse (reverse s c) c) := by
-      simpa only [reverse_reverse] using hs
-    have hp := lift_add N (reverse s c) c ht hs' hc'
-    simpa only [reverse_reverse] using hp.symm
+    simpa only [reverse_reverse] using (lift_add N (reverse s c) c ht
+      (by simpa only [reverse_reverse] using hs) (by simp [hc])).symm
 
 /-- Independent relation ports implement the shared selector clauses with exact reachability. -/
 def simulation : ConstraintGraph.Simulation N.sourceGraph N.graph where
