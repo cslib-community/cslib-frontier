@@ -558,34 +558,24 @@ theorem toCostSharingGame_isSubadditive [DecidableEq A] [Fintype F] [Nonempty F]
     (I : FacilityLocationInstance A F) : I.toCostSharingGame.IsSubadditive := by
   classical
   intro S₁ S₂ hdisj
-  by_cases h₁ : S₁.Nonempty
-  · by_cases h₂ : S₂.Nonempty
-    · obtain ⟨F₁, hF₁, heq₁⟩ := I.toCostSharingGame_cost_of_nonempty h₁
-      obtain ⟨F₂, hF₂, heq₂⟩ := I.toCostSharingGame_cost_of_nonempty h₂
-      have hU : (F₁ ∪ F₂).Nonempty := hF₁.mono Finset.subset_union_left
-      refine (I.toCostSharingGame_cost_le_planCost (S₁ ∪ S₂) (F₁ ∪ F₂) hU).trans ?_
-      rw [heq₁, heq₂, planCost, planCost, planCost, Finset.sum_union hdisj]
-      have hopen : ∑ i ∈ F₁ ∪ F₂, I.openCost i ≤
-          (∑ i ∈ F₁, I.openCost i) + ∑ i ∈ F₂, I.openCost i := by
-        have := Finset.sum_union_inter (s₁ := F₁) (s₂ := F₂) (f := I.openCost)
-        have hnn : 0 ≤ ∑ i ∈ F₁ ∩ F₂, I.openCost i :=
-          Finset.sum_nonneg fun i _ => I.openCost_nonneg i
-        linarith
-      have hconn₁ : ∑ j ∈ S₁, (F₁ ∪ F₂).inf' hU (fun i => I.connCost i j) ≤
-          ∑ j ∈ S₁, F₁.inf' hF₁ (fun i => I.connCost i j) :=
-        Finset.sum_le_sum fun j _ =>
-          (Finset.le_inf'_iff hF₁ _).2 fun i hi =>
-            Finset.inf'_le _ (Finset.subset_union_left hi)
-      have hconn₂ : ∑ j ∈ S₂, (F₁ ∪ F₂).inf' hU (fun i => I.connCost i j) ≤
-          ∑ j ∈ S₂, F₂.inf' hF₂ (fun i => I.connCost i j) :=
-        Finset.sum_le_sum fun j _ =>
-          (Finset.le_inf'_iff hF₂ _).2 fun i hi =>
-            Finset.inf'_le _ (Finset.subset_union_right hi)
-      linarith
-    · rw [Finset.not_nonempty_iff_eq_empty.1 h₂]
-      simp
-  · rw [Finset.not_nonempty_iff_eq_empty.1 h₁]
-    simp
+  rcases S₁.eq_empty_or_nonempty with rfl | h₁
+  · simp
+  rcases S₂.eq_empty_or_nonempty with rfl | h₂
+  · simp
+  obtain ⟨F₁, hF₁, heq₁⟩ := I.toCostSharingGame_cost_of_nonempty h₁
+  obtain ⟨F₂, hF₂, heq₂⟩ := I.toCostSharingGame_cost_of_nonempty h₂
+  have hU : (F₁ ∪ F₂).Nonempty := hF₁.mono Finset.subset_union_left
+  refine (I.toCostSharingGame_cost_le_planCost (S₁ ∪ S₂) (F₁ ∪ F₂) hU).trans ?_
+  rw [heq₁, heq₂, planCost, planCost, planCost, Finset.sum_union hdisj]
+  have hopen := Finset.sum_union_inter (s₁ := F₁) (s₂ := F₂) (f := I.openCost)
+  have hnn : 0 ≤ ∑ i ∈ F₁ ∩ F₂, I.openCost i := Finset.sum_nonneg fun i _ => I.openCost_nonneg i
+  have hconn₁ : ∑ j ∈ S₁, (F₁ ∪ F₂).inf' hU (fun i => I.connCost i j) ≤
+      ∑ j ∈ S₁, F₁.inf' hF₁ (fun i => I.connCost i j) :=
+    Finset.sum_le_sum fun j _ => Finset.inf'_mono _ Finset.subset_union_left hF₁
+  have hconn₂ : ∑ j ∈ S₂, (F₁ ∪ F₂).inf' hU (fun i => I.connCost i j) ≤
+      ∑ j ∈ S₂, F₂.inf' hF₂ (fun i => I.connCost i j) :=
+    Finset.sum_le_sum fun j _ => Finset.inf'_mono _ Finset.subset_union_right hF₂
+  linarith
 
 /-- Feasibility for the standard facility location dual LP `(15.4)` ([JainMahdian2007], p. 390):
 `α_j, β_{ij} ≥ 0`, `β_{ij} ≥ α_j - d_{ij}`, and `∑_{j ∈ A} β_{ij} ≤ f_i`. -/
@@ -604,39 +594,25 @@ theorem IsDualFeasible.isCoreFeasible [Fintype A] [Fintype F] [Nonempty F]
   classical
   obtain ⟨_, hβ, hdiff, hopen⟩ := h
   intro S
-  by_cases hS : S.Nonempty
-  · refine I.le_toCostSharingGame_cost_of_nonempty hS fun F' hF' => ?_
-    have hex : ∀ j : A, ∃ i ∈ F', F'.inf' hF' (fun k => I.connCost k j) = I.connCost i j :=
-      fun j => Finset.exists_mem_eq_inf' hF' (fun k => I.connCost k j)
-    choose assign hassign_mem hassign_eq using hex
-    have hpart : ∑ j ∈ S, α j = ∑ i ∈ F', ∑ j ∈ S.filter (fun j => assign j = i), α j :=
-      (Finset.sum_fiberwise_of_maps_to (fun j _ => hassign_mem j) α).symm
-    have hpart_conn :
-        ∑ j ∈ S, F'.inf' hF' (fun k => I.connCost k j) =
-          ∑ i ∈ F', ∑ j ∈ S.filter (fun j => assign j = i), I.connCost i j := by
-      calc
-        ∑ j ∈ S, F'.inf' hF' (fun k => I.connCost k j)
-          = ∑ j ∈ S, I.connCost (assign j) j := Finset.sum_congr rfl fun j _ => hassign_eq j
-        _ = ∑ i ∈ F', ∑ j ∈ S.filter (fun j => assign j = i), I.connCost (assign j) j :=
-            (Finset.sum_fiberwise_of_maps_to (fun j _ => hassign_mem j)
-              (fun j => I.connCost (assign j) j)).symm
-        _ = ∑ i ∈ F', ∑ j ∈ S.filter (fun j => assign j = i), I.connCost i j := by
-            refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j hj => ?_
-            rw [(Finset.mem_filter.1 hj).2]
-    rw [planCost, hpart, hpart_conn, ← Finset.sum_add_distrib]
-    refine Finset.sum_le_sum fun i _ => ?_
-    set R := S.filter (fun j => assign j = i)
-    have hRβ : ∑ j ∈ R, (α j - I.connCost i j) ≤ I.openCost i :=
-      calc
-        ∑ j ∈ R, (α j - I.connCost i j) ≤ ∑ j ∈ R, β i j :=
-          Finset.sum_le_sum fun j _ => hdiff i j
-        _ ≤ ∑ j : A, β i j :=
-          Finset.sum_le_univ_sum_of_nonneg fun j => hβ i j
-        _ ≤ I.openCost i := hopen i
-    rw [Finset.sum_sub_distrib] at hRβ
-    linarith
-  · rw [Finset.not_nonempty_iff_eq_empty.1 hS]
-    simp
+  rcases S.eq_empty_or_nonempty with rfl | hS
+  · simp
+  refine I.le_toCostSharingGame_cost_of_nonempty hS fun F' hF' => ?_
+  choose assign hassign_mem hassign_eq using
+    fun j => Finset.exists_mem_eq_inf' hF' (fun k => I.connCost k j)
+  -- Agent `j`'s surplus over its connection cost is covered by `β (assign j) j`.
+  have hsurplus : ∑ j ∈ S, (α j - I.connCost (assign j) j) ≤ ∑ i ∈ F', I.openCost i :=
+    calc
+      ∑ j ∈ S, (α j - I.connCost (assign j) j) ≤ ∑ j ∈ S, β (assign j) j :=
+        Finset.sum_le_sum fun j _ => hdiff _ j
+      _ = ∑ i ∈ F', ∑ j ∈ S with assign j = i, β (assign j) j :=
+        (Finset.sum_fiberwise_of_maps_to (fun j _ => hassign_mem j) _).symm
+      _ ≤ ∑ i ∈ F', I.openCost i := Finset.sum_le_sum fun i _ => by
+        refine (Finset.sum_congr rfl fun j hj => ?_).trans_le
+          ((Finset.sum_le_univ_sum_of_nonneg fun j => hβ i j).trans (hopen i))
+        rw [(Finset.mem_filter.1 hj).2]
+  rw [Finset.sum_sub_distrib] at hsurplus
+  rw [planCost, Finset.sum_congr rfl fun j _ => hassign_eq j]
+  linarith
 
 /-! ## Canonical examples: Examples 15.2 & 15.4 and empty-core facility location -/
 
@@ -683,13 +659,7 @@ theorem example15_2_connCost :
 
 private theorem fin2_nonempty_subsets (F' : Finset (Fin 2)) (hF' : F'.Nonempty) :
     F' = {0} ∨ F' = {1} ∨ F' = {0, 1} := by
-  have h01 : ∀ x : Fin 2, x = 0 ∨ x = 1 := fun x => by fin_cases x <;> simp
-  by_cases h0 : (0 : Fin 2) ∈ F' <;> by_cases h1 : (1 : Fin 2) ∈ F'
-  · right; right; ext x; rcases h01 x with rfl | rfl <;> simp [h0, h1]
-  · left; ext x; rcases h01 x with rfl | rfl <;> simp [h0, h1]
-  · right; left; ext x; rcases h01 x with rfl | rfl <;> simp [h0, h1]
-  · obtain ⟨x, hx⟩ := hF'
-    rcases h01 x with rfl | rfl <;> contradiction
+  revert F'; decide
 
 private theorem example15_2_planCost_eval (S : Finset (Fin 3)) :
     example15_2.planCost S {0} (by simp) = 2 + ∑ j ∈ S, example15_2.connCost 0 j ∧
@@ -705,6 +675,22 @@ private theorem example15_2_planCost_eval (S : Finset (Fin 3)) :
     rw [Finset.inf'_insert (H := Finset.singleton_nonempty 1), Finset.inf'_singleton]
   linarith
 
+/-- In `example15_2`, `c(S)` is the cheapest of the plans opening `{0}`, `{1}` or `{0, 1}`. -/
+private theorem example15_2_cost_eq {S : Finset (Fin 3)} (hS : S.Nonempty) :
+    example15_2.toCostSharingGame.cost S =
+      min (min (2 + ∑ j ∈ S, example15_2.connCost 0 j) (2 + ∑ j ∈ S, example15_2.connCost 1 j))
+        (4 + ∑ j ∈ S, min (example15_2.connCost 0 j) (example15_2.connCost 1 j)) := by
+  obtain ⟨p0, p1, p01⟩ := example15_2_planCost_eval S
+  refine le_antisymm (le_min (le_min ?_ ?_) ?_)
+    (example15_2.le_toCostSharingGame_cost_of_nonempty hS fun F' hF' => ?_)
+  · exact (example15_2.toCostSharingGame_cost_le_planCost S {0} (by simp)).trans_eq p0
+  · exact (example15_2.toCostSharingGame_cost_le_planCost S {1} (by simp)).trans_eq p1
+  · exact (example15_2.toCostSharingGame_cost_le_planCost S {0, 1} (by simp)).trans_eq p01
+  · rcases fin2_nonempty_subsets F' hF' with rfl | rfl | rfl
+    · exact ((min_le_left _ _).trans (min_le_left _ _)).trans_eq p0.symm
+    · exact ((min_le_left _ _).trans (min_le_right _ _)).trans_eq p1.symm
+    · exact (min_le_right _ _).trans_eq p01.symm
+
 /-- Exact coalition cost table of **Example 15.2** ([JainMahdian2007], p. 387):
 `c({a}) = 4`, `c({b}) = 3`, `c({c}) = 3`, `c({a, b}) = 6`, `c({b, c}) = 4`, `c({a, c}) = 7`,
 `c({a, b, c}) = 8`. -/
@@ -717,90 +703,13 @@ theorem example15_2_cost :
     example15_2.toCostSharingGame.cost {0, 2} = 7 ∧
     example15_2.toCostSharingGame.cost Finset.univ = 8 := by
   obtain ⟨hc00, hc01, hc02, hc10, hc11, hc12⟩ := example15_2_connCost
-  have eval_set : ∀ (S : Finset (Fin 3)) (hS : S.Nonempty) (v : ℝ),
-      2 + (∑ j ∈ S, example15_2.connCost 0 j) ≥ v →
-      2 + (∑ j ∈ S, example15_2.connCost 1 j) ≥ v →
-      4 + (∑ j ∈ S, min (example15_2.connCost 0 j) (example15_2.connCost 1 j)) ≥ v →
-      (2 + (∑ j ∈ S, example15_2.connCost 0 j) = v ∨
-       2 + (∑ j ∈ S, example15_2.connCost 1 j) = v ∨
-       4 + (∑ j ∈ S, min (example15_2.connCost 0 j) (example15_2.connCost 1 j)) = v) →
-      example15_2.toCostSharingGame.cost S = v := by
-    intro S hS v h0 h1 h01 hatt
-    obtain ⟨p0, p1, p01⟩ := example15_2_planCost_eval S
-    refine le_antisymm ?_ (example15_2.le_toCostSharingGame_cost_of_nonempty hS fun F' hF' => ?_)
-    · rcases hatt with e | e | e
-      · exact (example15_2.toCostSharingGame_cost_le_planCost S {0} (by simp)).trans_eq
-          (p0.trans e)
-      · exact (example15_2.toCostSharingGame_cost_le_planCost S {1} (by simp)).trans_eq
-          (p1.trans e)
-      · exact (example15_2.toCostSharingGame_cost_le_planCost S {0, 1} (by simp)).trans_eq
-          (p01.trans e)
-    · rcases fin2_nonempty_subsets F' hF' with rfl | rfl | rfl
-      · linarith
-      · linarith
-      · linarith
-  have eval_pair : ∀ (a b : Fin 3) (hab : a ≠ b) (v : ℝ),
-      2 + (example15_2.connCost 0 a + example15_2.connCost 0 b) ≥ v →
-      2 + (example15_2.connCost 1 a + example15_2.connCost 1 b) ≥ v →
-      4 + (min (example15_2.connCost 0 a) (example15_2.connCost 1 a) +
-           min (example15_2.connCost 0 b) (example15_2.connCost 1 b)) ≥ v →
-      (2 + (example15_2.connCost 0 a + example15_2.connCost 0 b) = v ∨
-       2 + (example15_2.connCost 1 a + example15_2.connCost 1 b) = v ∨
-       4 + (min (example15_2.connCost 0 a) (example15_2.connCost 1 a) +
-            min (example15_2.connCost 0 b) (example15_2.connCost 1 b)) = v) →
-      example15_2.toCostSharingGame.cost {a, b} = v := fun a b hab v h0 h1 h01 hatt =>
-    eval_set {a, b} (by simp) v
-      (by rw [Finset.sum_pair hab]; exact h0)
-      (by rw [Finset.sum_pair hab]; exact h1)
-      (by rw [Finset.sum_pair hab]; exact h01)
-      (by simp only [Finset.sum_pair hab]; exact hatt)
-  have huniv : (Finset.univ : Finset (Fin 3)) = {0, 1, 2} := by decide
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact eval_set {0} (by simp) 4 (by norm_num [hc00]) (by norm_num [hc10])
-      (by norm_num [hc00, hc10]) (.inl (by norm_num [hc00]))
-  · exact eval_set {1} (by simp) 3 (by norm_num [hc01]) (by norm_num [hc11])
-      (by norm_num [hc01, hc11]) (.inr (.inl (by norm_num [hc11])))
-  · exact eval_set {2} (by simp) 3 (by norm_num [hc02]) (by norm_num [hc12])
-      (by norm_num [hc02, hc12]) (.inr (.inl (by norm_num [hc12])))
-  · exact eval_pair 0 1 (by decide) 6 (by norm_num [hc00, hc01]) (by norm_num [hc10, hc11])
-      (by norm_num [hc00, hc01, hc10, hc11]) (.inl (by norm_num [hc00, hc01]))
-  · exact eval_pair 1 2 (by decide) 4 (by norm_num [hc01, hc02]) (by norm_num [hc11, hc12])
-      (by norm_num [hc01, hc02, hc11, hc12]) (.inr (.inl (by norm_num [hc11, hc12])))
-  · exact eval_pair 0 2 (by decide) 7 (by norm_num [hc00, hc02]) (by norm_num [hc10, hc12])
-      (by norm_num [hc00, hc02, hc10, hc12]) (.inr (.inr (by norm_num [hc00, hc02, hc10, hc12])))
-  · rw [huniv]
-    have hsum3 : ∀ f : Fin 3 → ℝ,
-        ∑ j ∈ ({0, 1, 2} : Finset (Fin 3)), f j = f 0 + f 1 + f 2 := by
-      intro f
-      rw [Finset.sum_insert (by decide), Finset.sum_pair (by decide)]
-      ring
-    exact eval_set {0, 1, 2} (by simp) 8
-      (by rw [hsum3]; norm_num [hc00, hc01, hc02])
-      (by rw [hsum3]; norm_num [hc10, hc11, hc12])
-      (by rw [hsum3]; norm_num [hc00, hc01, hc02, hc10, hc11, hc12])
-      (.inr (.inr (by rw [hsum3]; norm_num [hc00, hc01, hc02, hc10, hc11, hc12])))
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> rw [example15_2_cost_eq (by simp)] <;>
+    norm_num [Fin.sum_univ_three, hc00, hc01, hc02, hc10, hc11, hc12, min_def]
 
 private theorem fin3_subsets (S : Finset (Fin 3)) :
     S = ∅ ∨ S = {0} ∨ S = {1} ∨ S = {2} ∨ S = {0, 1} ∨ S = {1, 2} ∨ S = {0, 2} ∨
       S = {0, 1, 2} := by
-  have h012 : ∀ x : Fin 3, x = 0 ∨ x = 1 ∨ x = 2 := fun x => by fin_cases x <;> simp
-  by_cases h0 : (0 : Fin 3) ∈ S <;> by_cases h1 : (1 : Fin 3) ∈ S <;> by_cases h2 : (2 : Fin 3) ∈ S
-  · right; right; right; right; right; right; right
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
-  · right; right; right; right; left
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
-  · right; right; right; right; right; right; left
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
-  · right; left
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
-  · right; right; right; right; right; left
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
-  · right; right; left
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
-  · right; right; right; left
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
-  · left
-    ext x; rcases h012 x with rfl | rfl | rfl <;> simp [h0, h1, h2]
+  revert S; decide
 
 private theorem example15_2_inCore_of_bounds {α : Fin 3 → ℝ}
     (hsum : α 0 + α 1 + α 2 = 8) (hα0 : α 0 ≤ 4) (hα1 : α 1 ≤ 3) (hα2 : α 2 ≤ 3)
@@ -868,7 +777,9 @@ private noncomputable local instance k33MinusMatchingMetric :
   dist_comm x y := by
     fin_cases x <;> fin_cases y <;> simp [k33MinusMatchingDist]
   dist_triangle x y z := by
-    fin_cases x <;> fin_cases y <;> fin_cases z <;> simp [k33MinusMatchingDist] <;> norm_num
+    rcases x with a | a <;> rcases y with b | b <;> rcases z with c | c <;>
+      simp only [k33MinusMatchingDist, Sum.inl.injEq, Sum.inr.injEq, reduceCtorEq] <;>
+      split_ifs <;> subst_vars <;> norm_num at *
 
 /-- Genuine 6-vertex (`3` agents, `3` facilities) **metric facility location instance** on the
 shortest-path metric of `K_{3,3} \ M` with opening costs `3`: every pair `{j, k}` costs `5`, the
@@ -905,45 +816,29 @@ private theorem emptyCoreMetricFL_pair_and_univ_cost :
     emptyCoreMetricFL.toCostSharingGame.cost {0, 2} ≤ 5 ∧
     emptyCoreMetricFL.toCostSharingGame.cost Finset.univ = 8 := by
   have hopen : ∀ i : Fin 3, emptyCoreMetricFL.openCost i = 3 := fun _ => rfl
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · refine (emptyCoreMetricFL.toCostSharingGame_cost_le_planCost {0, 1} {2} (by simp)).trans ?_
-    rw [planCost, Finset.sum_singleton, hopen, Finset.sum_pair (by decide)]
+  have hpair : ∀ a b c : Fin 3, a ≠ b ∧ c ≠ a ∧ c ≠ b →
+      emptyCoreMetricFL.toCostSharingGame.cost {a, b} ≤ 5 := fun a b c ⟨hab, hca, hcb⟩ => by
+    refine (emptyCoreMetricFL.toCostSharingGame_cost_le_planCost {a, b} {c} (by simp)).trans ?_
+    rw [planCost, Finset.sum_singleton, hopen, Finset.sum_pair hab]
+    simp only [Finset.inf'_singleton, emptyCoreMetricFL_connCost, hca, hcb, ↓reduceIte]
+    norm_num
+  refine ⟨hpair 0 1 2 (by decide), hpair 1 2 0 (by decide), hpair 0 2 1 (by decide), ?_⟩
+  refine le_antisymm ?_
+    (emptyCoreMetricFL.le_toCostSharingGame_cost_of_nonempty Finset.univ_nonempty fun F' hF' => ?_)
+  · refine (emptyCoreMetricFL.toCostSharingGame_cost_le_planCost Finset.univ {0}
+      (by simp)).trans ?_
+    rw [planCost, Finset.sum_singleton, hopen, Fin.sum_univ_three]
     simp only [Finset.inf'_singleton, emptyCoreMetricFL_connCost]
     norm_num
-  · refine (emptyCoreMetricFL.toCostSharingGame_cost_le_planCost {1, 2} {0} (by simp)).trans ?_
-    rw [planCost, Finset.sum_singleton, hopen, Finset.sum_pair (by decide)]
-    simp only [Finset.inf'_singleton, emptyCoreMetricFL_connCost]
-    norm_num
-  · refine (emptyCoreMetricFL.toCostSharingGame_cost_le_planCost {0, 2} {1} (by simp)).trans ?_
-    rw [planCost, Finset.sum_singleton, hopen, Finset.sum_pair (by decide)]
-    simp only [Finset.inf'_singleton, emptyCoreMetricFL_connCost]
-    norm_num
-  · refine le_antisymm ?_
-      (emptyCoreMetricFL.le_toCostSharingGame_cost_of_nonempty Finset.univ_nonempty fun F' hF' =>
-        ?_)
-    · refine (emptyCoreMetricFL.toCostSharingGame_cost_le_planCost Finset.univ {0}
-        (by simp)).trans ?_
-      rw [planCost, Finset.sum_singleton, hopen, Fin.sum_univ_three]
-      simp only [Finset.inf'_singleton, emptyCoreMetricFL_connCost]
-      norm_num
-    · rw [planCost, Fin.sum_univ_three]
-      have hopen_sum : ∑ i ∈ F', emptyCoreMetricFL.openCost i = 3 * (F'.card : ℝ) := by
-        simp [hopen, nsmul_eq_mul, mul_comm]
-      rw [hopen_sum]
-      rcases fin3_subsets F' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-      · simp at hF'
-      · simp [emptyCoreMetricFL_connCost]; norm_num
-      · simp [emptyCoreMetricFL_connCost]; norm_num
-      · simp [emptyCoreMetricFL_connCost]; norm_num
-      · simp [Finset.inf'_insert (H := Finset.singleton_nonempty _),
-          emptyCoreMetricFL_connCost]; norm_num
-      · simp [Finset.inf'_insert (H := Finset.singleton_nonempty _),
-          emptyCoreMetricFL_connCost]; norm_num
-      · simp [Finset.inf'_insert (H := Finset.singleton_nonempty _),
-          emptyCoreMetricFL_connCost]; norm_num
-      · simp [Finset.inf'_insert (H := Finset.insert_nonempty _ _),
-          Finset.inf'_insert (H := Finset.singleton_nonempty _),
-          emptyCoreMetricFL_connCost]; norm_num
+  · rw [planCost, Fin.sum_univ_three]
+    have hopen_sum : ∑ i ∈ F', emptyCoreMetricFL.openCost i = 3 * (F'.card : ℝ) := by
+      simp [hopen, nsmul_eq_mul, mul_comm]
+    rw [hopen_sum]
+    rcases fin3_subsets F' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    · simp at hF'
+    all_goals simp [Finset.inf'_insert (H := Finset.insert_nonempty _ _),
+      Finset.inf'_insert (H := Finset.singleton_nonempty _), emptyCoreMetricFL_connCost]
+    all_goals norm_num
 
 private theorem emptyCoreMetricFL_weighted_sum_le :
     ∑ S : Finset (Fin 3), pairBalancedWeights S * emptyCoreMetricFL.toCostSharingGame.cost S ≤
@@ -954,15 +849,7 @@ private theorem emptyCoreMetricFL_weighted_sum_le :
   rw [huniv_sets]
   repeat rw [Finset.sum_insert (by decide)]
   rw [Finset.sum_singleton]
-  have hp0 : pairBalancedWeights ∅ = 0 := by norm_num [pairBalancedWeights]
-  have hp1 : pairBalancedWeights {0} = 0 := by norm_num [pairBalancedWeights]
-  have hp2 : pairBalancedWeights {1} = 0 := by norm_num [pairBalancedWeights]
-  have hp3 : pairBalancedWeights {2} = 0 := by norm_num [pairBalancedWeights]
-  have hp4 : pairBalancedWeights {0, 1} = 1 / 2 := by norm_num [pairBalancedWeights]
-  have hp5 : pairBalancedWeights {1, 2} = 1 / 2 := by norm_num [pairBalancedWeights]
-  have hp6 : pairBalancedWeights {0, 2} = 1 / 2 := by norm_num [pairBalancedWeights]
-  have hp7 : pairBalancedWeights Finset.univ = 0 := by norm_num [pairBalancedWeights]
-  rw [hp0, hp1, hp2, hp3, hp4, hp5, hp6, hp7]
+  norm_num [pairBalancedWeights]
   linarith
 
 /-- Grand-coalition cost `c(univ) = 8` for the 6-vertex metric facility location game
@@ -1023,22 +910,9 @@ theorem emptyCoreBipartiteFL_cost_univ :
   · rw [planCost, Fin.sum_univ_three]
     rcases fin3_subsets F' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     · simp at hF'
-    · simp [emptyCoreBipartiteFL]; norm_num
-    · simp [emptyCoreBipartiteFL]; norm_num
-    · simp [emptyCoreBipartiteFL]; norm_num
-    · rw [Finset.sum_pair (by decide)]
-      simp [Finset.inf'_insert (H := Finset.singleton_nonempty _),
-        emptyCoreBipartiteFL]; norm_num
-    · rw [Finset.sum_pair (by decide)]
-      simp [Finset.inf'_insert (H := Finset.singleton_nonempty _),
-        emptyCoreBipartiteFL]; norm_num
-    · rw [Finset.sum_pair (by decide)]
-      simp [Finset.inf'_insert (H := Finset.singleton_nonempty _),
-        emptyCoreBipartiteFL]; norm_num
-    · rw [Finset.sum_insert (by decide), Finset.sum_pair (by decide)]
-      simp [Finset.inf'_insert (H := Finset.insert_nonempty _ _),
-        Finset.inf'_insert (H := Finset.singleton_nonempty _),
-        emptyCoreBipartiteFL]; norm_num
+    all_goals simp [Finset.sum_insert, Finset.inf'_insert (H := Finset.insert_nonempty _ _),
+      Finset.inf'_insert (H := Finset.singleton_nonempty _), emptyCoreBipartiteFL]
+    all_goals norm_num
 
 /-- For every `γ > 15 / 16` (`7.5 / 8`), the `γ`-core of `emptyCoreBipartiteFL` is empty
 ([JainMahdian2007], p. 389). -/
