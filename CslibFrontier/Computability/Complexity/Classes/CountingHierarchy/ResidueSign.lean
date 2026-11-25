@@ -71,10 +71,8 @@ theorem residueWindowNumerator_eq_crt (Y L B k : ℕ) (residue : ℕ → ℕ) :
         (fun p : ↥(Nat.primesLE Y \ Nat.primesLE L) => (p.val : ℤ)) B
         (fun p => (primeWindowCoefficient Y L p.val k (residue p.val) : ℤ)) := by
   classical
-  have hs : Nat.primesLE Y \ Nat.primesLE L ⊆ Finset.range (Y + 1) := by
-    intro p hp
-    exact Finset.mem_range.mpr
-      (Nat.lt_succ_of_le (Nat.mem_primesLE_sdiff_primesLE_iff.mp hp).2.2)
+  have hs : Nat.primesLE Y \ Nat.primesLE L ⊆ Finset.range (Y + 1) := fun p hp =>
+    Finset.mem_range.mpr (Nat.lt_succ_of_le (Nat.mem_primesLE_sdiff_primesLE_iff.mp hp).2.2)
   unfold residueWindowNumerator
   simp only [primeWindowTest_eq_true_iff]
   rw [dyadicRangeSum_restrict_eq _ _ _ _ hs]
@@ -102,12 +100,12 @@ theorem residueWindowNumerator_mem (D : Decoder enc) {Y L B : α → ℕ}
   have hL'' := hL'.comp (ComputableInPolyTime.fst (encPair enc encNat) encNat)
   have hr := preprocess (input := encPair (encPair enc encNat) encNat) hresidue
     (g := fun x : (α × ℕ) × ℕ => (x.1.1, x.2)) (by fun_prop)
-  have hk : ComputableInPolyTime (fun x : (α × ℕ) × ℕ => x.1.2)
-      (encPair (encPair enc encNat) encNat) encNat := by fun_prop
   have hc := primeWindowCoefficient_mem (Decoder.pair (Decoder.pair D Decoder.nat) Decoder.nat)
-    hY'' hL'' (ComputableInPolyTime.snd _ _) hk hr
-  have hwindow := primeWindowTest_mem hY'' hL'' (ComputableInPolyTime.snd _ _)
-  have hnum := ite (mono (by omega : 1 ≤ max a 5) hwindow) hc
+    hY'' hL'' (ComputableInPolyTime.snd _ _)
+    ((ComputableInPolyTime.snd enc encNat).comp
+      (ComputableInPolyTime.fst (encPair enc encNat) encNat)) hr
+  have hnum := ite (mono (by omega : 1 ≤ max a 5)
+    (primeWindowTest_mem hY'' hL'' (ComputableInPolyTime.snd _ _))) hc
     (of_polyTime (ComputableInPolyTime.const 0))
   exact dyadicRangeSum_mem (Decoder.pair D Decoder.nat) hnum
     (of_polyTime (ComputableInPolyTime.snd _ _)) hB'
@@ -174,37 +172,26 @@ theorem primeWindowSign_eq_sign (R : IntegerResidueAccess X) (L : α → ℕ) (w
       Cslib.crtCircleApprox (Cslib.PrimeWindowSign.modulus m Lw) B (c k) :=
     residueWindowNumerator_eq_crt Y Lw B k _
   have hbound : |X w| ≤ (2 : ℤ) ^ m := by
-    have hb : ((X w).natAbs : ℤ) ≤ ((2 ^ m : ℕ) : ℤ) := by
-      exact_mod_cast R.magnitude_le w
-    simpa only [Int.natCast_natAbs, Nat.cast_pow, Nat.cast_ofNat] using hb
+    simpa only [Int.natCast_natAbs, Nat.cast_pow, Nat.cast_ofNat] using
+      Int.ofNat_le.mpr (R.magnitude_le w)
   change dyadicFirstFlagSign 8 B (K + 1) N = (X w).sign
   by_cases hzero : X w = 0
-  · rw [hzero, Int.sign_zero]
-    apply (dyadicFirstFlagSign_eq_zero_iff (by decide : 0 < 8) N).mpr
+  · rw [hzero, Int.sign_zero, dyadicFirstFlagSign_eq_zero_iff (by decide : 0 < 8) N]
     have hnone (k : ℕ) : ¬ Cslib.CircleFlag (1 / 8) ((N k : ℚ) / (2 : ℚ) ^ B) := by
       rw [happrox]
       apply Cslib.PrimeWindowSign.not_flag_zero_of_coefficients m Lw
-      intro p
-      simpa only [hzero, mul_zero] using hc k p
-    constructor <;> rintro ⟨k, _, hfirst, _⟩ <;> exact hnone k hfirst.1
+      exact fun p => by simpa only [hzero, mul_zero] using hc k p
+    exact ⟨fun ⟨k, _, hf, _⟩ => hnone k hf.1, fun ⟨k, _, hf, _⟩ => hnone k hf.1⟩
   · obtain ⟨k, hk, hfirst, hpos, hneg⟩ :=
       Cslib.PrimeWindowSign.firstCircleFlag_sign_of_coefficients m Lw c (X w)
-        hbound hzero (fun k _ p => hc k p)
-    have hf : Cslib.FirstCircleFlag (1 / 8)
-        (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k := by
+        hbound hzero fun k _ p => hc k p
+    have hf : Cslib.FirstCircleFlag (1 / 8) (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k := by
       simpa only [Cslib.FirstCircleFlag, happrox] using hfirst
-    have hk' : k < K + 1 := Nat.lt_succ_of_le hk
     rcases lt_or_gt_of_ne hzero with hn | hp
-    · rw [Int.sign_eq_neg_one_of_neg hn]
-      apply (dyadicFirstFlagSign_eq_neg_one_iff (by decide : 0 < 8) N).mpr
-      refine ⟨k, hk', hf, ?_⟩
-      rw [happrox]
-      exact hneg.mp hn
-    · rw [Int.sign_eq_one_of_pos hp]
-      apply (dyadicFirstFlagSign_eq_one_iff (by decide : 0 < 8) N).mpr
-      refine ⟨k, hk', hf, ?_⟩
-      rw [happrox]
-      exact hpos.mp hp
+    · rw [Int.sign_eq_neg_one_of_neg hn, dyadicFirstFlagSign_eq_neg_one_iff (by decide : 0 < 8) N]
+      exact ⟨k, Nat.lt_succ_of_le hk, hf, happrox k ▸ hneg.mp hn⟩
+    · rw [Int.sign_eq_one_of_pos hp, dyadicFirstFlagSign_eq_one_iff (by decide : 0 < 8) N]
+      exact ⟨k, Nat.lt_succ_of_le hk, hf, happrox k ▸ hpos.mp hp⟩
 
 /-- Sign from modular residues, with the manuscript's F_(max(a,5)+3) bound.
 The bound exponent and excluded cutoff are polynomial-time binary values and may be
@@ -215,11 +202,9 @@ theorem sign_mem_CountingFunction {enc : α ↪ List Bool} {a : ℕ}
     {L : α → ℕ} (hL : ComputableInPolyTime L enc encNat)
     (hcover : ∀ w p, p ∈ Cslib.PrimeWindowSign.primes (R.magnitudeExponent w) (L w) →
       R.admissible w p) :
-    (fun w => (X w).sign) ∈ CountingFunction (max a 5 + 3) enc encIntBin := by
-  have h := primeWindowSign_mem_CountingFunction D R hR hL
-  have heq : R.primeWindowSign L = (fun w => (X w).sign) :=
-    funext fun w => primeWindowSign_eq_sign R L w (hcover w)
-  exact heq ▸ h
+    (fun w => (X w).sign) ∈ CountingFunction (max a 5 + 3) enc encIntBin :=
+  (funext fun w => primeWindowSign_eq_sign R L w (hcover w)) ▸
+    primeWindowSign_mem_CountingFunction D R hR hL
 
 end IntegerResidueAccess
 end Cslib.Complexity

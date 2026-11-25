@@ -88,13 +88,11 @@ private theorem subsetTest_ofFn_iff (acc : List Bool → Bool) {K k Z : ℕ} (hk
       SubsetBlockPred acc hk (BitString.blocksEquiv v) := by
   -- the test on blocks
   have hrows : BitString.listRows K Z (List.ofFn v) =
-      List.ofFn fun j => List.ofFn (BitString.blocksEquiv v j) := by
-    rw [BitString.listRows_eq_ofFn, BitString.ofList_ofFn]
-    rfl
+      List.ofFn fun j => List.ofFn (BitString.blocksEquiv v j) :=
+    (BitString.listRows_eq_ofFn K Z _).trans (by rw [BitString.ofList_ofFn]; rfl)
   have hrow (i : ℕ) (hi : i < K) :
-      BitString.listRow Z i (List.ofFn v) = List.ofFn (BitString.blocksEquiv v ⟨i, hi⟩) := by
-    rw [BitString.listRow_eq_ofFn (count := K) Z ⟨i, hi⟩, BitString.ofList_ofFn]
-    rfl
+      BitString.listRow Z i (List.ofFn v) = List.ofFn (BitString.blocksEquiv v ⟨i, hi⟩) :=
+    (BitString.listRow_eq_ofFn (count := K) Z ⟨i, hi⟩ _).trans (by rw [BitString.ofList_ofFn]; rfl)
   simp only [subsetTest, Bool.and_eq_true, hrows, SubsetBlockPred]
   refine and_congr ?_ ?_
   · simp only [List.all_eq_true, Prod.forall]
@@ -106,14 +104,14 @@ private theorem subsetTest_ofFn_iff (acc : List Bool → Bool) {K k Z : ℕ} (hk
       exact (not_any_ofFn_eq_true_iff _).1 hj
     · rw [List.mem_zipIdx_iff_getElem?, List.getElem?_ofFn] at hw
       simp only at hw
-      split at hw
-      · rename_i hjK
-        rw [← Option.some.inj hw]
-        split
-        · exact (h ⟨j, hjK⟩).1 (by simpa)
-        · rename_i hjk
-          exact (not_any_ofFn_eq_true_iff _).2 ((h ⟨j, hjK⟩).2 (Nat.le_of_not_lt hjk))
-      · exact absurd hw (by simp)
+      obtain ⟨hjK, rfl⟩ : ∃ hjK : j < K, List.ofFn (BitString.blocksEquiv v ⟨j, hjK⟩) = w := by
+        split at hw
+        · exact ⟨‹_›, Option.some.inj hw⟩
+        · nomatch hw
+      split
+      · exact (h ⟨j, hjK⟩).1 ‹_›
+      · rename_i hjk
+        exact (not_any_ofFn_eq_true_iff _).2 ((h ⟨j, hjK⟩).2 (Nat.le_of_not_lt hjk))
   · simp only [List.all_eq_true, List.mem_range]
     refine ⟨fun h i hi => ?_, fun h i hi => ?_⟩
     · have := h i (by omega)
@@ -130,19 +128,18 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
   set P := SubsetBlockPred acc (Z := Z) hk with hP
   rw [show (univ.filter fun zs : Fin (K * Z) → Bool => subsetTest acc K Z k (List.ofFn zs) = true)
       = univ.filter fun zs => P (BitString.blocksEquiv zs) by
-    simp only [subsetTest_ofFn_iff _ hk, hP]]
-  rw [show (univ.filter fun zs : Fin (K * Z) → Bool => P (BitString.blocksEquiv zs)).card =
+        simp only [subsetTest_ofFn_iff _ hk, hP],
+    show (univ.filter fun zs : Fin (K * Z) → Bool => P (BitString.blocksEquiv zs)).card =
       (univ.filter P).card from card_equiv BitString.blocksEquiv
-        (fun v => by simp only [mem_filter, mem_univ, true_and])]
+        (fun _ => by simp only [mem_filter, mem_univ, true_and])]
   -- restricting to the first `k` blocks
   have hrestrict : (univ.filter P).card = (univ.filter fun g : Fin k → Lex (Fin Z → Bool) =>
       StrictMono g ∧ ∀ i, g i ∈ A.map toLex.toEmbedding).card := by
     refine card_bij (fun t _ i => toLex (t (Fin.castLE hk i))) ?_ ?_ ?_
     · intro t ht
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred] at ht ⊢
-      refine ⟨strictMono_of_lt_succ fun i hi => ht.2 i hi, fun i => ?_⟩
-      rw [mem_map]
-      exact ⟨_, by rw [hA, mem_filter]; exact ⟨mem_univ _, (ht.1 _).1 i.2⟩, rfl⟩
+      exact ⟨strictMono_of_lt_succ fun i hi => ht.2 i hi, fun i =>
+        mem_map.2 ⟨_, mem_filter.2 ⟨mem_univ _, (ht.1 _).1 i.2⟩, rfl⟩⟩
     · intro t ht t' ht' h
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred] at ht ht'
       funext j
@@ -155,12 +152,12 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
         funext fun i => by simp [i.2]⟩
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred]
       refine ⟨fun j => ⟨fun hj => ?_, fun hj => by simp [show ¬(j : ℕ) < k by omega]⟩,
-        fun i hi => ?_⟩
-      · obtain ⟨z, hz, hzg⟩ := mem_map.1 (hg.2 ⟨j, hj⟩)
-        simp only [hj, ↓reduceDIte, ← hzg]
-        simpa [hA] using hz
-      · simp only [show i < k by omega, hi, dite_true]
-        exact hg.1 (Fin.mk_lt_mk.2 (Nat.lt_succ_self i))
+        fun i hi => by
+          simp only [show i < k by omega, hi, dite_true]
+          exact hg.1 (Fin.mk_lt_mk.2 (Nat.lt_succ_self i))⟩
+      obtain ⟨z, hz, hzg⟩ := mem_map.1 (hg.2 ⟨j, hj⟩)
+      simp only [hj, ↓reduceDIte, ← hzg]
+      exact (mem_filter.1 hz).2
   rw [hrestrict, card_filter_strictMono, card_map]
 
 variable {α : Type} {enc : α ↪ List Bool}
@@ -177,8 +174,7 @@ theorem choose_mem {f g : α → ℕ} (hf : f ∈ SharpP enc)
   have hZ : ComputableInPolyTime Z enc encUnary := by dsimp [Z]; fun_prop
   have hW : ComputableInPolyTime
       (fun x : α × List Bool => subsetTest (fun w => V (x.1, w)) (g x.1) (Z x.1) (g x.1) x.2)
-      (encPair enc encBits) encBool := by
-    fun_prop
+      (encPair enc encBits) encBool := by fun_prop
   convert mem_SharpP_of_polyTime_length hW (ComputableInPolyTime.unary_mul.comp (hg.prod hZ))
     using 1
   ext a

@@ -56,9 +56,8 @@ private theorem literalCode_polyTime {α : Type} {enc : α ↪ List Bool}
     ComputableInPolyTime (fun a => literalCode (n a) (l a)) enc encCode := by
   have hv := hl.fst'
   have hs := hl.snd'
-  have hop : ComputableInPolyTime (fun b : Bool => Op.const (!b)) encBool encOp :=
-    .of_finite _
-  have htag := hop.comp hs
+  have htag := (ComputableInPolyTime.of_finite (encOut := encOp)
+    fun b : Bool => Op.const (!b)).comp hs
   unfold literalCode
   fun_prop
 
@@ -67,10 +66,8 @@ private def clauseCode (n : ℕ) (c : Clause ℕ) : List (Op × List ℕ) × Lis
 
 private theorem clauseCode_eq (n : ℕ) (c : Clause ℕ) :
     clauseCode n c = (clauseCircuit n c).code := by
-  have he : c.map (literalCode n) = (c.map (literalCircuit n)).map Circuit.code := by
-    simp only [List.map_map, Function.comp_def]
-    exact List.map_congr_left (fun l _ => literalCode_eq n l)
-  rw [clauseCode, he]
+  rw [clauseCode, show c.map (literalCode n) = (c.map (literalCircuit n)).map Circuit.code by
+    simp [Function.comp_def, literalCode_eq]]
   exact balancedCode_eq_code clauseJoin (Circuit.oneGate (.const false) Fin.elim0)
     (c.map (literalCircuit n))
 
@@ -91,10 +88,7 @@ private theorem clauseCode_polyTime :
 private theorem scoreCircuit_code (F : Instance) :
     (scoreCircuit F).code = appendCodes F.1 (F.2.map (clauseCode F.1)) := by
   rw [scoreCircuit, ← appendCodes_code]
-  congr 1
-  apply List.ext_getElem (by simp)
-  intro i hi hj
-  simp [clauseCode_eq]
+  exact congrArg _ (List.ext_getElem (by simp) fun _ _ _ => by simp [clauseCode_eq])
 
 /-- The complete code of the clause-value circuit is generated in native polynomial time. -/
 theorem computableInPolyTime_scoreCircuit :
@@ -103,14 +97,13 @@ theorem computableInPolyTime_scoreCircuit :
     fst encUnary encCNF
   have hc : ComputableInPolyTime (fun F : Instance => F.2) encInstance encCNF :=
     snd encUnary encCNF
-  have hb : ComputableInPolyTime
-      (fun p : Instance × Clause ℕ => clauseCode p.1.1 p.2)
+  have hb : ComputableInPolyTime (fun p : Instance × Clause ℕ => clauseCode p.1.1 p.2)
       (encPair encInstance clauseEncoding) encCode :=
     clauseCode_polyTime.comp
       ((hn.comp (fst encInstance clauseEncoding)).prod (snd encInstance clauseEncoding))
-  have h := computableInPolyTime_appendCodes (unary_to_binary.comp hn)
-    (mapWithInput (f := fun F c => clauseCode F.1 c) hc hb)
-  simpa only [scoreCircuit_code, Function.comp_def] using h
+  simpa only [scoreCircuit_code, Function.comp_def] using
+    computableInPolyTime_appendCodes (unary_to_binary.comp hn)
+      (mapWithInput (f := fun F c => clauseCode F.1 c) hc hb)
 
 /-- Native compilation of a threshold query to the complete typed circuit encoding. -/
 theorem computableInPolyTime_thresholdCircuit :
@@ -121,18 +114,14 @@ theorem computableInPolyTime_thresholdCircuit :
   have hF : ComputableInPolyTime (fun p : Query => p.1) encQuery encInstance :=
     fst encInstance encUnary
   have hn := hF.fst'
-  have hm := (length_list clauseEncoding).comp hF.snd'
   have hq : ComputableInPolyTime (fun p : Query => p.2) encQuery encUnary :=
     snd encInstance encUnary
   have hcode := computableInPolyTime_compCode (unary_to_binary.comp hn)
-    (computableInPolyTime_linearThresholdCircuit.comp (hm.prod hq))
+    (computableInPolyTime_linearThresholdCircuit.comp
+      (((length_list clauseEncoding).comp hF.snd').prod hq))
     (computableInPolyTime_scoreCircuit.comp hF)
-  have h := hn.prod hcode
-  apply h.of_enc_eq
-  intro p
-  rw [Boolean.encCircuit_apply]
-  congr 1
-  simp only [Function.comp_apply, compCode_code, thresholdCircuit]
+  refine (hn.prod hcode).of_enc_eq fun p => ?_
+  simp [Boolean.encCircuit_apply, compCode_code, thresholdCircuit]
 
 private def compiledFormula (p : Query) : CNF ℕ :=
   Compiler.toCNF (thresholdCircuit p.1 p.2) interpretation (fun _ b => b)
@@ -146,13 +135,10 @@ private theorem compiledFormula_polyTime :
     (fun (_ : Fin 1) b => b)).comp computableInPolyTime_thresholdCircuit
 
 private theorem countShift_polyTime :
-    ComputableInPolyTime countShift encQuery encUnary := by
-  have h := (CircuitCounting.computableInPolyTime_freeShift (σ := Boolean.signature)
-    Boolean.encOp interpretation (fun (_ : Fin 1) b => b)).comp
-      computableInPolyTime_thresholdCircuit
-  apply h.of_enc_eq
-  intro p
-  rfl
+    ComputableInPolyTime countShift encQuery encUnary :=
+  ((CircuitCounting.computableInPolyTime_freeShift (σ := Boolean.signature) Boolean.encOp
+    interpretation (fun (_ : Fin 1) b => b)).comp computableInPolyTime_thresholdCircuit).of_enc_eq
+    fun _ => rfl
 
 private theorem thresholdCircuit_fanIn (p : Query) :
     (thresholdCircuit p.1 p.2).FanInAtMost 2 :=
@@ -168,11 +154,9 @@ private theorem compiledFormula_density (p : Query) :
   Compiler.length_toCNF_le_numVars interpretation (fun _ b => b) (thresholdCircuit_fanIn p)
 
 private theorem compiledFormula_vars (p : Query) :
-    (compiledFormula p).numVars ≤ 957 * workSize p.1 + 957 := by
-  apply (Compiler.numVars_toCNF_le interpretation (fun _ b => b)
-    (thresholdCircuit_fanIn p)).trans
-  have hs := size_thresholdCircuit_le p.1 p.2
-  omega
+    (compiledFormula p).numVars ≤ 957 * workSize p.1 + 957 :=
+  (Compiler.numVars_toCNF_le interpretation (fun _ b => b) (thresholdCircuit_fanIn p)).trans
+    (by have := size_thresholdCircuit_le p.1 p.2; omega)
 
 /-- One native machine computes the exact threshold count in the contraction rate, with an
 explicit structural parameter and polynomial space. Its constants are independent of clause
@@ -189,10 +173,8 @@ theorem exists_thresholdCounter :
       compiledFormula_polyTime countShift_polyTime (fun p => workSize p.1)
       compiledFormula_width compiledFormula_density compiledFormula_vars
   refine ⟨count, A, e, b, fun p => ?_, hinO⟩
-  rw [hspec]
-  change 2 ^ Compiler.freeShift (thresholdCircuit p.1 p.2) interpretation (fun _ b => b) *
-    (Compiler.toCNF (thresholdCircuit p.1 p.2) interpretation (fun _ b => b)).modelCount = _
-  rw [← Compiler.acceptCount_eq_two_pow_freeShift_mul_modelCount,
+  rw [hspec, countShift, compiledFormula,
+    ← Compiler.acceptCount_eq_two_pow_freeShift_mul_modelCount,
     ← Circuit.satCount_eq_acceptCount, satCount_thresholdCircuit]
 
 end Cslib.Complexity.MaxSAT

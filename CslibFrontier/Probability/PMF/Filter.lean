@@ -59,8 +59,7 @@ private theorem filter_apply_eq (p : PMF α) (s : Set α) (h : ∃ a ∈ s, a �
 private theorem toOuterMeasure_ne_zero (p : PMF α) (s : Set α) (h : ∃ a ∈ s, a ∈ p.support) :
     p.toOuterMeasure s ≠ 0 := by
   obtain ⟨a, ha, hp⟩ := h
-  rw [Ne, PMF.toOuterMeasure_apply_eq_zero_iff, Set.not_disjoint_iff]
-  exact ⟨a, hp, ha⟩
+  exact mt (PMF.toOuterMeasure_apply_eq_zero_iff p s).mp (Set.not_disjoint_iff.mpr ⟨a, hp, ha⟩)
 
 /-- The conditioned masses restricted to `t` are the masses on `s ∩ t`, divided by `Pr[s]`. -/
 private theorem indicator_filter_apply (p : PMF α) (s t : Set α) (h : ∃ a ∈ s, a ∈ p.support)
@@ -69,7 +68,7 @@ private theorem indicator_filter_apply (p : PMF α) (s t : Set α) (h : ∃ a �
   rw [Set.inter_comm, ← Set.indicator_indicator]
   by_cases ha : a ∈ t
   · rw [Set.indicator_of_mem ha, Set.indicator_of_mem ha, filter_apply_eq]
-  · rw [Set.indicator_of_notMem ha, Set.indicator_of_notMem ha, zero_mul]
+  · simp [ha]
 
 /-- Conditioning on an event that contains the support changes nothing. -/
 theorem filter_eq_self_of_support_subset (p : PMF α) (s : Set α) (h : ∃ a ∈ s, a ∈ p.support)
@@ -77,9 +76,8 @@ theorem filter_eq_self_of_support_subset (p : PMF α) (s : Set α) (h : ∃ a �
   ext a
   rw [filter_apply_eq, (PMF.toOuterMeasure_apply_eq_one_iff p s).mpr hs, inv_one, mul_one]
   by_cases ha : a ∈ s
-  · rw [Set.indicator_of_mem ha]
-  · rw [Set.indicator_of_notMem ha]
-    exact ((PMF.apply_eq_zero_iff p a).mpr fun hp => ha (hs hp)).symm
+  · exact Set.indicator_of_mem ha p
+  · exact (Set.indicator_of_notMem ha p).trans ((PMF.apply_eq_zero_iff p a).mpr (ha ∘ @hs a)).symm
 
 /-- The probability of `t` given `s`, times the probability of `s`, is the probability of
 `s ∩ t`. -/
@@ -118,16 +116,14 @@ theorem filter_map (p : PMF α) (f : α → β) (s : Set β) (h : ∃ b ∈ s, b
   by_cases hb : b ∈ s
   · rw [Set.indicator_of_mem hb, PMF.map_apply, ← ENNReal.tsum_mul_right]
     refine tsum_congr fun a => ?_
-    by_cases hab : b = f a
-    · have ha : a ∈ f ⁻¹' s := by rw [Set.mem_preimage, ← hab]; exact hb
-      rw [ite_eq_left hab, ite_eq_left hab, Set.indicator_of_mem ha]
-    · rw [ite_eq_right hab, ite_eq_right hab, zero_mul]
+    rcases eq_or_ne b (f a) with rfl | hab
+    · simp [hb]
+    · simp [hab]
   · rw [Set.indicator_of_notMem hb, zero_mul]
     refine (tsum_eq_zero_iff.mpr fun a => ?_).symm
-    by_cases hab : b = f a
-    · have ha : a ∉ f ⁻¹' s := by rw [Set.mem_preimage, ← hab]; exact hb
-      rw [ite_eq_left hab, Set.indicator_of_notMem ha, zero_mul]
-    · rw [ite_eq_right hab]
+    rcases eq_or_ne b (f a) with rfl | hab
+    · simp [hb]
+    · simp [hab]
 
 /-- Drawing `a` from `μ` and then `b` from `K a`, and conditioning on an event about `a`, is
 drawing `a` from `μ` conditioned on that event and then `b` from `K a`. -/
@@ -142,8 +138,7 @@ theorem filter_bind_pair (μ : PMF α) (K : α → PMF β) (s : Set α)
   by_cases ha : a ∈ s
   · rw [Set.indicator_of_mem (show (a, b) ∈ Prod.fst ⁻¹' s from ha), Set.indicator_of_mem ha,
       bind_map_prodMk_apply, mul_right_comm]
-  · rw [Set.indicator_of_notMem (show (a, b) ∉ Prod.fst ⁻¹' s from ha),
-      Set.indicator_of_notMem ha, zero_mul, zero_mul]
+  · simp [ha]
 
 /-- Under independent draws, a rectangle has the product of the probabilities of its sides. -/
 theorem toOuterMeasure_bind_pair_prod (μ : PMF α) (ν : PMF β) (s : Set α) (t : Set β) :
@@ -155,8 +150,7 @@ theorem toOuterMeasure_bind_pair_prod (μ : PMF α) (ν : PMF β) (s : Set α) (
   rw [PMF.toOuterMeasure_map_apply]
   by_cases ha : a ∈ s
   · rw [Set.mk_preimage_prod_right ha, Set.indicator_of_mem ha]
-  · rw [Set.mk_preimage_prod_right_eq_empty ha, Set.indicator_of_notMem ha,
-      MeasureTheory.measure_empty, mul_zero, zero_mul]
+  · simp [Set.mk_preimage_prod_right_eq_empty ha, ha]
 
 /-- Under independent draws, conditioning on a rectangle `s ×ˢ t` conditions the first draw on
 `s` and the second on `t`, and keeps them independent. -/
@@ -171,13 +165,10 @@ theorem filter_bind_pair_prod (μ : PMF α) (ν : PMF β) (s : Set α) (t : Set 
     ENNReal.mul_inv (Or.inl (toOuterMeasure_ne_zero μ s hs)) (Or.inl (toOuterMeasure_ne_top μ s))]
   by_cases ha : a ∈ s
   · by_cases hb : b ∈ t
-    · rw [Set.indicator_of_mem (Set.mk_mem_prod ha hb), Set.indicator_of_mem ha,
-        Set.indicator_of_mem hb, bind_map_prodMk_apply]
+    · simp only [Set.mk_mem_prod ha hb, ha, hb, Set.indicator_of_mem, bind_map_prodMk_apply]
       ring
-    · rw [Set.indicator_of_notMem (fun hab => hb (Set.mem_prod.mp hab).2),
-        Set.indicator_of_notMem hb, zero_mul, zero_mul, mul_zero]
-  · rw [Set.indicator_of_notMem (fun hab => ha (Set.mem_prod.mp hab).1),
-      Set.indicator_of_notMem ha, zero_mul, zero_mul, zero_mul]
+    · simp [ha, hb]
+  · simp [ha]
 
 /-- **Conditioning on an independent coordinate.** Under independent draws, conditioning on
 `s ×ˢ t` gives the second draw the law of `ν` conditioned on `t`: the condition `s` on the first
@@ -186,15 +177,11 @@ theorem map_snd_filter_bind_pair_prod (μ : PMF α) (ν : PMF β) (s : Set α) (
     (h : ∃ z ∈ s ×ˢ t, z ∈ (μ.bind fun a => ν.map (a, ·)).support)
     (ht : ∃ b ∈ t, b ∈ ν.support) :
     ((μ.bind fun a => ν.map (a, ·)).filter (s ×ˢ t) h).map Prod.snd = ν.filter t ht := by
-  have hs : ∃ a ∈ s, a ∈ μ.support := by
-    obtain ⟨⟨a, b⟩, hab, hJ⟩ := h
-    refine ⟨a, (Set.mem_prod.mp hab).1, ?_⟩
-    have := (PMF.mem_support_iff _ _).mp hJ
-    rw [bind_map_prodMk_apply] at this
-    exact (PMF.mem_support_iff _ _).mpr (left_ne_zero_of_mul this)
-  have hk : ∀ a : α, ((ν.filter t ht).map (a, ·)).map Prod.snd = ν.filter t ht := fun a =>
-    (PMF.map_comp _ _ _).trans (PMF.map_id _)
-  rw [filter_bind_pair_prod μ ν s t h hs ht, PMF.map_bind]
-  simp only [hk, PMF.bind_const]
+  obtain ⟨⟨a, b⟩, hab, hJ⟩ := h
+  have hs : ∃ a ∈ s, a ∈ μ.support := ⟨a, hab.1, (PMF.mem_support_iff _ _).mpr
+    (left_ne_zero_of_mul (by rwa [← bind_map_prodMk_apply _ _ (a, b), ← PMF.mem_support_iff]))⟩
+  rw [filter_bind_pair_prod μ ν s t ⟨(a, b), hab, hJ⟩ hs ht, PMF.map_bind]
+  simp only [PMF.map_comp, Function.comp_def, PMF.bind_const]
+  exact PMF.map_id _
 
 end Cslib.Probability.PMF
