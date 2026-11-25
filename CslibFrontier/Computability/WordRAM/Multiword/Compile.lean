@@ -77,17 +77,9 @@ theorem exec_emit {w : ℕ} (hw : 2 ≤ w) (d : Fin n) (op : Operation n)
     have hda : d ≠ a := by omega
     have hdb : d ≠ b := by omega
     cases f with
-    | and =>
-      obtain ⟨y, he, hy, hm⟩ := Bank.exec_boolean hw (Or.inl rfl) a b d hda hdb x hx
-      exact ⟨y, he.within.mono (by decide), hy, hm⟩
-    | or =>
-      obtain ⟨y, he, hy, hm⟩ := Bank.exec_boolean hw (Or.inr (Or.inl rfl))
-        a b d hda hdb x hx
-      exact ⟨y, he.within.mono (by decide), hy, hm⟩
-    | xor =>
-      obtain ⟨y, he, hy, hm⟩ := Bank.exec_boolean hw (Or.inr (Or.inr rfl))
-        a b d hda hdb x hx
-      exact ⟨y, he.within.mono (by decide), hy, hm⟩
+    | and | or | xor =>
+      exact (Bank.exec_boolean hw (by simp [Bitwise.Supported]) a b d hda hdb x hx).imp
+        fun y ⟨he, hy, hm⟩ => ⟨he.within.mono (by decide), hy, hm⟩
     | mul =>
       obtain ⟨y, he, hy, hm⟩ := Bank.exec_multiply hw a b d x hx hadm.1
       exact ⟨y, he.within.mono (by decide), hy, hm⟩
@@ -97,22 +89,9 @@ theorem exec_emit {w : ℕ} (hw : 2 ≤ w) (d : Fin n) (op : Operation n)
     | shiftRight =>
       obtain ⟨y, he, hy, hm⟩ := Bank.exec_shift hw a b d hda x hx hadm.2
       exact ⟨y, he.mono (by decide), hy, hm⟩
-    | add =>
-      obtain ⟨y, he, hy, hm⟩ := Bank.exec_scalar hw .add a b d x hx
-        hadm.2.1 hadm.2.2.1 hadm.2.2.2
-      exact ⟨y, he.within.mono (by decide), hy, hm⟩
-    | div =>
-      obtain ⟨y, he, hy, hm⟩ := Bank.exec_scalar hw .div a b d x hx
-        hadm.2.1 hadm.2.2.1 hadm.2.2.2
-      exact ⟨y, he.within.mono (by decide), hy, hm⟩
-    | mod =>
-      obtain ⟨y, he, hy, hm⟩ := Bank.exec_scalar hw .mod a b d x hx
-        hadm.2.1 hadm.2.2.1 hadm.2.2.2
-      exact ⟨y, he.within.mono (by decide), hy, hm⟩
-    | shiftLeft =>
-      obtain ⟨y, he, hy, hm⟩ := Bank.exec_scalar hw .shiftLeft a b d x hx
-        hadm.2.1 hadm.2.2.1 hadm.2.2.2
-      exact ⟨y, he.within.mono (by decide), hy, hm⟩
+    | add | div | mod | shiftLeft =>
+      exact (Bank.exec_scalar hw _ a b d x hx hadm.2.1 hadm.2.2.1 hadm.2.2.2).imp
+        fun y ⟨he, hy, hm⟩ => ⟨he.within.mono (by decide), hy, hm⟩
 
 end Cslib.WordRAM.Multiword.Circuit
 
