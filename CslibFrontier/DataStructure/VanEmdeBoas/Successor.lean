@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.VanEmdeBoas.Basic
-import Mathlib.Tactic.Linarith
 
 /-!
 # Correctness of strict van Emde Boas successor
@@ -40,9 +39,7 @@ namespace Cslib.DataStructure.VanEmdeBoas.Tree
 
 private theorem maximum_any_iff {d x : ℕ} {t : Tree d} :
     t.maximum.any (x < ·) = true ↔ ∃ m M, t.bounds = some (m, M) ∧ x < M := by
-  cases hb : t.bounds with
-  | none => simp [maximum, hb]
-  | some b => obtain ⟨m, M⟩ := b; simp [maximum, hb]
+  rcases hb : t.bounds with _ | ⟨m, M⟩ <;> simp [maximum, hb]
 
 private theorem succ_of_lt_min {d m M x : ℕ} {t : Tree d} (ht : t.Valid)
     (hb : t.bounds = some (m, M)) (hm : x < m) :
