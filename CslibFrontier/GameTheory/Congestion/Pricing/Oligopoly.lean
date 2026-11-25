@@ -353,8 +353,7 @@ theorem IsOligopolyEquilibrium.isSocialOptimum_of_forall_mul_eq_zero {d R : ℝ}
         linarith [mul_pos hpi hxj, hzero j]
     -- Show ∃ j₀, 0 < x j₀:
     have hex_pos : ∃ j₀, 0 < x j₀ := by
-      by_contra hall
-      push Not at hall
+      by_contra! hall
       have hx_all0 : ∀ k, x k = 0 := fun k => le_antisymm (hall k) (hoe.2.1.1.1 k)
       have hsum0 : ∑ k, x k < d := by simp [hx_all0, hd_pos]
       obtain ⟨i₀⟩ := hne
@@ -364,14 +363,9 @@ theorem IsOligopolyEquilibrium.isSocialOptimum_of_forall_mul_eq_zero {d R : ℝ}
         Finset.sum_eq_zero fun k _ => hzero k
       linarith
     obtain ⟨j₀, hxj₀⟩ := hex_pos
-    have hpj₀ : p j₀ = 0 := by
-      rcases mul_eq_zero.mp (hzero j₀) with hp0 | hx0
-      · exact hp0
-      · linarith
-    have hsum_d : ∑ k, x k = d := by
-      refine hoe.2.1.2.2.2 ⟨j₀, ?_⟩
-      rw [hlat_zero j₀, hpj₀, add_zero]
-      exact hR_pos
+    have hpj₀ : p j₀ = 0 := (mul_eq_zero.mp (hzero j₀)).resolve_right hxj₀.ne'
+    have hsum_d : ∑ k, x k = d :=
+      hoe.2.1.2.2.2 ⟨j₀, by rw [hlat_zero j₀, hpj₀, add_zero]; exact hR_pos⟩
     have hx_surp : socialSurplus R latency x = R * d := by
       simp only [socialSurplus, hlat_zero, sub_zero, ← Finset.mul_sum, hsum_d]
     rw [hx_surp]
@@ -2571,13 +2565,10 @@ theorem IsElasticOligopolyEquilibrium.isElasticSocialOptimum_of_forall_mul_eq_ze
       · rw [(hl.latency_eq_zero_iff_deriv_eq_zero j hxj_pos).mp (hlat_z j), mul_zero]
     -- Show ∃ j₀, 0 < x j₀ (else x = 0, p ≥ uDeriv 0 > 0, and undercutting to uDeriv 0 / 2 profits):
     have hex_pos : ∃ j₀, 0 < x j₀ := by
-      by_contra hall
-      push Not at hall
+      by_contra! hall
       have hx0 : ∀ k, x k = 0 := fun k => le_antisymm (hall k) (hoe.2.1.1 k)
       have hp_ge : ∀ k, uDeriv 0 ≤ p k := fun k => by
-        have h1 := hoe.2.1.2.2 k
-        simp only [hx0, Finset.sum_const_zero, hl.zero_at_zero k, zero_add] at h1
-        exact h1
+        simpa only [hx0, Finset.sum_const_zero, hl.zero_at_zero k, zero_add] using hoe.2.1.2.2 k
       obtain ⟨i₀⟩ := hne
       let p' : ℝ := uDeriv 0 / 2
       have hp'0 : ∀ k, 0 ≤ Function.update p i₀ p' k := fun k => by
@@ -2586,25 +2577,15 @@ theorem IsElasticOligopolyEquilibrium.isElasticSocialOptimum_of_forall_mul_eq_ze
         · simp only [Function.update_of_ne hki]; exact hoe.1 k
       obtain ⟨x', hw'⟩ := exists_isElasticPricedWardrop_of_socialOptimum hu hl hopt _ hp'0
       have hxi₀_pos : 0 < x' i₀ := by
-        by_contra hle0
-        have hxi₀0 : x' i₀ = 0 := le_antisymm (not_lt.mp hle0) (hw'.1 i₀)
+        by_contra! hle0
+        have hxi₀0 : x' i₀ = 0 := le_antisymm hle0 (hw'.1 i₀)
         have hud_le : uDeriv (∑ k, x' k) ≤ uDeriv 0 / 2 := by
-          have h1 := hw'.2.2 i₀
-          simp only [hxi₀0, hl.zero_at_zero i₀, Function.update_self, p', zero_add] at h1
-          exact h1
-        have hsum_pos : 0 < ∑ k, x' k := by
-          by_contra hsum0
-          have hs0 : ∑ k, x' k = 0 :=
-            le_antisymm (not_lt.mp hsum0) (Finset.sum_nonneg fun k _ => hw'.1 k)
-          rw [hs0] at hud_le
+          simpa only [hxi₀0, hl.zero_at_zero i₀, Function.update_self, p', zero_add] using
+            hw'.2.2 i₀
+        obtain ⟨q, hxq⟩ : ∃ q, 0 < x' q := by
+          by_contra! hall'
+          rw [Finset.sum_eq_zero fun q _ => le_antisymm (hall' q) (hw'.1 q)] at hud_le
           linarith
-        have hex_q : ∃ q, 0 < x' q := by
-          by_contra hall'
-          push Not at hall'
-          have h0' : ∀ q, x' q = 0 := fun q => le_antisymm (hall' q) (hw'.1 q)
-          simp only [h0', Finset.sum_const_zero] at hsum_pos
-          exact lt_irrefl 0 hsum_pos
-        obtain ⟨q, hxq⟩ := hex_q
         have hqi₀ : q ≠ i₀ := fun heq => by subst heq; linarith
         have hq_eff := hw'.2.1 q hxq
         simp only [Function.update_of_ne hqi₀] at hq_eff
@@ -2614,14 +2595,8 @@ theorem IsElasticOligopolyEquilibrium.isElasticSocialOptimum_of_forall_mul_eq_ze
       rw [hzero i₀] at hbest
       linarith [mul_pos hp'_pos hxi₀_pos]
     obtain ⟨j₀, hxj₀⟩ := hex_pos
-    have hpj₀ : p j₀ = 0 := by
-      rcases mul_eq_zero.mp (hzero j₀) with hp0 | hx0
-      · exact hp0
-      · linarith
-    have hud_zero : uDeriv (∑ k, x k) = 0 := by
-      have heff := hoe.2.1.2.1 j₀ hxj₀
-      rw [hlat_z j₀, hpj₀, add_zero] at heff
-      exact heff.symm
+    have hpj₀ : p j₀ = 0 := (mul_eq_zero.mp (hzero j₀)).resolve_right hxj₀.ne'
+    have hud_zero : uDeriv (∑ k, x k) = 0 := by linarith [hoe.2.1.2.1 j₀ hxj₀, hlat_z j₀]
     exact isElasticSocialOptimum_of_kkt hu hl hoe.2.1.1
       (fun i => by rw [hud_zero, hlat_z i, hmul_z i, add_zero])
       (fun i _ => by rw [hud_zero, hlat_z i, hmul_z i, add_zero])
