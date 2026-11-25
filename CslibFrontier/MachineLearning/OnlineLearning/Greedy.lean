@@ -191,36 +191,19 @@ private theorem greedyPotential_step [Nonempty ι] {ℓ : ℕ → ι → ℝ} {t
   have hΔm_nn : 0 ≤ Δm := sub_nonneg.mpr (minCumLoss_mono_succ fun i => (hℓ i).1)
   have hterm_x : max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s x) -
       max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s x) = Δm - ℓ t x := by
-    have h0 : 0 ≤ 1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s x := by
-      rw [sum_range_succ, hx_eq]
-      linarith [(hℓ x).2]
-    rw [max_eq_right h0, hx_eq, add_sub_cancel_right, max_eq_right zero_le_one, sum_range_succ,
-      hx_eq]
-    ring
-  have hterm_other : ∀ i, max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s i) -
-      max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i) ≤ Δm := fun i => by
+    rw [max_eq_right (by rw [sum_range_succ, hx_eq]; linarith [(hℓ x).2]), hx_eq,
+      add_sub_cancel_right, max_eq_right zero_le_one, sum_range_succ, hx_eq]; ring
+  have hterm_other (i : ι) : max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s i) -
+      max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i) ≤ Δm := by
     rw [sum_range_succ]
-    have hli := (hℓ i).1
-    have h1 : max 0 (1 + minCumLoss ℓ (t + 1) - ((∑ s ∈ range t, ℓ s i) + ℓ t i)) ≤
-        max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i) + Δm := by
-      apply max_le
-      · linarith [le_max_left 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i)]
-      · linarith [le_max_right 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i)]
-    linarith
-  have hdiff : greedyPotential ℓ (t + 1) - greedyPotential ℓ t =
-      ∑ i, (max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s i) -
-        max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i)) := by
-    simp only [greedyPotential, sum_sub_distrib]
-  rw [add_sub_assoc, hdiff, ← add_sum_erase _ _ (mem_univ x), hterm_x]
-  have herase : ∑ i ∈ univ.erase x,
-      (max 0 (1 + minCumLoss ℓ (t + 1) - ∑ s ∈ range (t + 1), ℓ s i) -
-        max 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i)) ≤ ((Fintype.card ι : ℝ) - 1) * Δm := by
-    calc ∑ i ∈ univ.erase x, _ ≤ ∑ _i ∈ univ.erase x, Δm :=
-          sum_le_sum fun i _ => hterm_other i
-      _ = ((univ.erase x).card : ℝ) * Δm := by rw [sum_const, nsmul_eq_mul]
-      _ = ((Fintype.card ι : ℝ) - 1) * Δm := by
-          have hc : 1 ≤ Fintype.card ι := Fintype.card_pos
-          rw [card_erase_of_mem (mem_univ x), card_univ, Nat.cast_sub hc, Nat.cast_one]
+    refine sub_le_iff_le_add'.mpr (max_le ?_ ?_)
+    · linarith [le_max_left 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i)]
+    · linarith [le_max_right 0 (1 + minCumLoss ℓ t - ∑ s ∈ range t, ℓ s i), (hℓ i).1]
+  unfold greedyPotential
+  rw [add_sub_assoc, ← sum_sub_distrib, ← add_sum_erase _ _ (mem_univ x), hterm_x]
+  have herase := (sum_le_sum fun i (_ : i ∈ univ.erase x) => hterm_other i).trans_eq
+    (by rw [sum_const, nsmul_eq_mul, card_erase_of_mem (mem_univ x), card_univ,
+          Nat.cast_sub (Fintype.card_pos : 1 ≤ Fintype.card ι), Nat.cast_one])
   linarith
 
 /-- **Greedy external-regret bound** [BlumMansour2007AGT, Theorem 4.2, p. 83]: for any tie-breaking
@@ -277,14 +260,7 @@ theorem sum_randGreedyProb [Nonempty ι] (ℓ : ℕ → ι → ℝ) (t : ℕ) :
     ∑ i, randGreedyProb ℓ t i = 1 := by
   classical
   have hpos : (0 : ℝ) < (leaders ℓ t).card := Nat.cast_pos.mpr (leaders_nonempty ℓ t).card_pos
-  have hdec : (∑ i, randGreedyProb ℓ t i) =
-      ∑ i, if i ∈ leaders ℓ t then (1 : ℝ) / (leaders ℓ t).card else 0 :=
-    sum_congr rfl fun i _ => by
-      by_cases hi : i ∈ leaders ℓ t
-      · simp only [hi, ↓reduceIte, randGreedyProb_of_mem hi]
-      · simp only [hi, ↓reduceIte, randGreedyProb_of_notMem hi]
-  rw [hdec]
-  simp only [← sum_filter, filter_mem_eq_inter, univ_inter, sum_const, nsmul_eq_mul]
+  simp only [randGreedyProb, ← sum_filter, filter_mem_eq_inter, univ_inter, sum_const, nsmul_eq_mul]
   field_simp
 
 theorem randGreedyProb_congr {ℓ ℓ' : ℕ → ι → ℝ} {t : ℕ} (h : ∀ s < t, ℓ s = ℓ' s) :
@@ -342,101 +318,55 @@ theorem randGreedy_loss_le_harmonic [Nonempty ι] {ℓ : ℕ → ι → ℝ} {T 
     have hS_ne : S.Nonempty := leaders_nonempty ℓ t
     have hS_pos : (0 : ℝ) < S.card := Nat.cast_pos.mpr hS_ne.card_pos
     have hstep_loss : ∑ i, randGreedyProb ℓ t i * ℓ t i = ((S.card : ℝ) - A.card) / S.card := by
-      have hexp : ∑ i, randGreedyProb ℓ t i * ℓ t i = (∑ i ∈ S, ℓ t i) / S.card := by
-        have hdec : ∑ i, randGreedyProb ℓ t i * ℓ t i =
-            ∑ i, (if i ∈ S then (1 : ℝ) / S.card else 0) * ℓ t i :=
-          sum_congr rfl fun i _ => by
-            by_cases hi : i ∈ S
-            · simp only [hi, ↓reduceIte, randGreedyProb_of_mem hi, S]
-            · simp only [hi, ↓reduceIte, randGreedyProb_of_notMem hi, S]
-        rw [hdec]
-        simp only [ite_mul, zero_mul, ← sum_filter, filter_mem_eq_inter, univ_inter,
-          one_div, inv_mul_eq_div, ← sum_div]
-      rw [hexp]
+      simp only [randGreedyProb, S, ite_mul, zero_mul, ← sum_filter, filter_mem_eq_inter,
+        univ_inter, one_div, inv_mul_eq_div, ← sum_div]
       congr 1
       have hpart := sum_filter_add_sum_filter_not S (fun i => ℓ t i = 0) (fun _ => (1 : ℝ))
       simp only [sum_const, nsmul_eq_mul, mul_one] at hpart
-      have hsum1 : ∑ i ∈ S, ℓ t i = (S.filter fun i => ¬ ℓ t i = 0).card := by
-        calc ∑ i ∈ S, ℓ t i = ∑ i ∈ S, if ¬ ℓ t i = 0 then (1 : ℝ) else 0 :=
-              sum_congr rfl fun i _ => by
-                rcases hℓ_t i with h0 | h1
-                · simp only [h0, not_true_eq_false, ↓reduceIte]
-                · simp only [h1, one_ne_zero, not_false_eq_true, ↓reduceIte]
-          _ = (S.filter fun i => ¬ ℓ t i = 0).card := by
-              rw [← sum_filter]
-              simp only [sum_const, nsmul_eq_mul, mul_one]
-      rw [hsum1]
-      linarith
+      rw [sum_congr rfl fun i (_ : i ∈ S) => show ℓ t i = if ¬ ℓ t i = 0 then (1 : ℝ) else 0 by
+        rcases hℓ_t i with h | h <;> simp [h], ← sum_filter]
+      simp only [sum_const, nsmul_eq_mul, mul_one, A]; linarith
     rw [sum_range_succ, hstep_loss]
+    have hℓ_nn (i : ι) : 0 ≤ ℓ t i := by rcases hℓ_t i with h | h <;> linarith
     by_cases hA : A.Nonempty
     · obtain ⟨i₀, hi₀⟩ := hA
-      have hi₀S : i₀ ∈ S := (mem_filter.mp hi₀).1
-      have hi₀0 : ℓ t i₀ = 0 := (mem_filter.mp hi₀).2
-      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t := by
-        apply le_antisymm
-        · calc minCumLoss ℓ (t + 1) ≤ ∑ s ∈ range (t + 1), ℓ s i₀ := minCumLoss_le ℓ (t + 1) i₀
-            _ = minCumLoss ℓ t := by rw [sum_range_succ, mem_leaders.mp hi₀S, hi₀0, add_zero]
-        · exact minCumLoss_mono_succ fun i => by rcases hℓ_t i with h | h <;> linarith
+      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t := le_antisymm
+        ((minCumLoss_le ℓ (t + 1) i₀).trans_eq (by
+          rw [sum_range_succ, mem_leaders.mp (mem_filter.mp hi₀).1, (mem_filter.mp hi₀).2,
+            add_zero]))
+        (minCumLoss_mono_succ hℓ_nn)
       have hS'_eq : S' = A := by
-        ext i
-        simp only [S', mem_leaders, hm_eq, A, mem_filter, S, sum_range_succ]
-        constructor
-        · intro hi
-          by_cases hmem : i ∈ leaders ℓ t
-          · rw [mem_leaders.mp hmem] at hi
-            exact ⟨mem_leaders.mp hmem, by linarith⟩
-          · have hge := add_one_le_sum_of_notMem_leaders hℓ_prev hmem
-            have hnn : 0 ≤ ℓ t i := by rcases hℓ_t i with h | h <;> linarith
-            linarith
-        · rintro ⟨hi1, hi2⟩
-          linarith
-      have hcard_le : S'.card ≤ S.card := by
-        rw [hS'_eq]
-        exact card_filter_le _ _
-      have hharm : ((S.card : ℝ) - S'.card) / S.card ≤
-          (harmonic S.card : ℝ) - harmonic S'.card := by
+        ext i; simp only [S', mem_leaders, hm_eq, A, mem_filter, S, sum_range_succ]
+        refine ⟨fun hi => ?_, fun ⟨hi1, hi2⟩ => by linarith⟩
+        by_cases hmem : i ∈ leaders ℓ t
+        · exact ⟨mem_leaders.mp hmem, by linarith [mem_leaders.mp hmem]⟩
+        · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i]
+      have hharm :
+          ((S.card : ℝ) - S'.card) / S.card ≤ (harmonic S.card : ℝ) - harmonic S'.card := by
         have hq : ((((S.card : ℚ) - S'.card) / S.card : ℚ) : ℝ) ≤
             ((harmonic S.card - harmonic S'.card : ℚ) : ℝ) := by
-          exact_mod_cast sub_div_le_harmonic_sub hcard_le
-        push_cast at hq
-        exact hq
-      rw [hm_eq, ← hS'_eq]
-      linarith
-    · rw [not_nonempty_iff_eq_empty] at hA
-      have hA_card : A.card = 0 := by rw [hA, card_empty]
-      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t + 1 := by
-        apply le_antisymm
-        · obtain ⟨i₀, hi₀⟩ := hS_ne
-          have h1 : ℓ t i₀ = 1 := by
-            rcases hℓ_t i₀ with h0 | h1
-            · exfalso
-              have : i₀ ∈ A := mem_filter.mpr ⟨hi₀, h0⟩
-              rw [hA] at this
-              exact notMem_empty _ this
-            · exact h1
-          calc minCumLoss ℓ (t + 1) ≤ ∑ s ∈ range (t + 1), ℓ s i₀ := minCumLoss_le ℓ (t + 1) i₀
-            _ = minCumLoss ℓ t + 1 := by rw [sum_range_succ, mem_leaders.mp hi₀, h1]
-        · rw [le_minCumLoss_iff]
-          intro i
+          exact_mod_cast sub_div_le_harmonic_sub (show S'.card ≤ S.card from
+            hS'_eq ▸ card_filter_le S _)
+        push_cast at hq; exact hq
+      rw [hm_eq, ← hS'_eq]; linarith
+    · have hA1 (i : ι) (hi : i ∈ S) : ℓ t i = 1 :=
+        (hℓ_t i).resolve_left fun h0 => hA ⟨i, mem_filter.mpr ⟨hi, h0⟩⟩
+      rw [not_nonempty_iff_eq_empty.mp hA, card_empty, Nat.cast_zero, sub_zero,
+        div_self hS_pos.ne']
+      obtain ⟨i₀, hi₀⟩ := hS_ne
+      have hm_eq : minCumLoss ℓ (t + 1) = minCumLoss ℓ t + 1 := le_antisymm
+        ((minCumLoss_le ℓ (t + 1) i₀).trans_eq
+          (by rw [sum_range_succ, mem_leaders.mp hi₀, hA1 i₀ hi₀]))
+        (le_minCumLoss_iff.mpr fun i => by
           rw [sum_range_succ]
           by_cases hmem : i ∈ S
-          · have h1 : ℓ t i = 1 := by
-              rcases hℓ_t i with h0 | h1
-              · exfalso
-                have : i ∈ A := mem_filter.mpr ⟨hmem, h0⟩
-                rw [hA] at this
-                exact notMem_empty _ this
-              · exact h1
-            rw [mem_leaders.mp hmem, h1]
-          · have hge := add_one_le_sum_of_notMem_leaders hℓ_prev hmem
-            have hnn : 0 ≤ ℓ t i := by rcases hℓ_t i with h | h <;> linarith
-            linarith
-      have h1_le_HS : (1 : ℝ) ≤ harmonic S.card := by
-        exact_mod_cast one_le_harmonic hS_ne.card_pos.ne'
-      have hHS'_le : (harmonic S'.card : ℝ) ≤ harmonic (Fintype.card ι) := by
-        exact_mod_cast harmonic_mono (card_le_univ S')
-      rw [hA_card, Nat.cast_zero, sub_zero, div_self hS_pos.ne', hm_eq, mul_add, mul_one]
-      linarith
+          · rw [mem_leaders.mp hmem, hA1 i hmem]
+          · linarith [add_one_le_sum_of_notMem_leaders hℓ_prev hmem, hℓ_nn i])
+      rw [hm_eq, mul_add, mul_one]
+      linarith [show (1 : ℝ) ≤ harmonic S.card by
+          exact_mod_cast one_le_harmonic (card_pos.mpr ⟨i₀, hi₀⟩).ne',
+        show (harmonic S'.card : ℝ) ≤ harmonic (Fintype.card ι) by
+          exact_mod_cast harmonic_mono (card_le_univ S')]
 
 /-- **Logarithmic bound for Randomized Greedy** [BlumMansour2007AGT, Theorem 4.4, p. 84]: on
 `{0, 1}` loss sequences, `L_RG^T ≤ ln N + (1 + ln N) * L_min^T`. -/
