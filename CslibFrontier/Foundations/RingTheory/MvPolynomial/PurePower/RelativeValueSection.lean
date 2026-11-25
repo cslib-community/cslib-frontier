@@ -16,10 +16,11 @@ import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 # Nonvanishing of the relative critical-value section
 
 Fixing the parameters leaves a bivariate polynomial in the penalty and the critical value.
-It is monic of degree `ell ^ n` in the critical value. Substituting the critical value to
-the power `ell ^ n + 1` for the penalty preserves the coefficient at degree `ell ^ n`.
-Over an infinite integral domain, in particular over the reals, this gives a nonzero
-univariate polynomial for every parameter choice.
+It is monic in the critical value, with degree `ell ^ n` over a nontrivial ring. Substituting
+the critical value to the power `ell ^ n + 1` for the penalty preserves the coefficient
+at degree `ell ^ n`.
+The coefficient identity holds over every commutative ring, so the univariate polynomial
+is nonzero for every parameter choice over a nontrivial ring.
 
 Adapted from `RelativeCriticalMinimum`, `MonicPowerSubstitution`, and
 `RelativeSectionNonvanishing` in lean-canny at `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
@@ -109,9 +110,8 @@ private theorem specializedRelativeValueSection_eq_eval [IsDomain T] [Infinite T
     Polynomial.Bivariate.aevalAeval_swap, Polynomial.coe_aevalAeval_eq_evalEval,
     ← Polynomial.map_evalRingHom_eval, relativeValueBivariate_map]
 
-/-- The degree-`ell ^ n` coefficient is one in every parameter fiber. It comes from the
-monic critical-value term. Terms involving a positive penalty power have larger degree. -/
-theorem coeff_specializedRelativeValueSection [IsDomain T] [Infinite T] (hell : 1 ≤ ell)
+private theorem coeff_specializedRelativeValueSection_of_infinite [IsDomain T] [Infinite T]
+    (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) :
     (specializedRelativeValueSection hell F hF x).coeff (ell ^ n) = 1 := by
   let G := rename finSumFinEquiv.symm F
@@ -131,8 +131,22 @@ theorem coeff_specializedRelativeValueSection [IsDomain T] [Infinite T] (hell : 
         Polynomial.Bivariate.coeff_eval_X_pow _ hradix (ell ^ n) 0 (Nat.lt_succ_self _)
     _ = 1 := by rw [← hdeg, hmonic.coeff_natDegree, AddMonoidAlgebra.coeff_one_zero]
 
+/-- The degree-`ell ^ n` coefficient is one in every parameter fiber. It comes from the
+monic critical-value term. Terms involving a positive penalty power have larger degree. -/
+theorem coeff_specializedRelativeValueSection (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) :
+    (specializedRelativeValueSection hell F hF x).coeff (ell ^ n) = 1 := by
+  -- Keep the parameters as indeterminates to obtain the identity before specialization.
+  have h := coeff_specializedRelativeValueSection_of_infinite hell F hF
+    (X : Fin m → MvPolynomial (Fin m) ℤ)
+  have hcast : Int.castRingHom (MvPolynomial (Fin m) ℤ) =
+      algebraMap ℤ (MvPolynomial (Fin m) ℤ) := Subsingleton.elim _ _
+  simp only [specializedRelativeValueSection, Polynomial.coeff_map] at h ⊢
+  rw [hcast, ← aeval_eq_eval₂Hom, aeval_X_left_apply] at h
+  rw [h, map_one]
+
 /-- Fixing any parameter point leaves a nonzero critical-value section. -/
-theorem specializedRelativeValueSection_ne_zero [IsDomain T] [Infinite T] (hell : 1 ≤ ell)
+theorem specializedRelativeValueSection_ne_zero [Nontrivial T] (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) :
     specializedRelativeValueSection hell F hF x ≠ 0 := by
   intro hz

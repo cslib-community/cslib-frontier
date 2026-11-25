@@ -750,8 +750,8 @@ example (P : MvPolynomial (Fin (1 + 1)) ℤ)
   intro Q
   exact Q.evaluate_mem
 
--- The degree-two coefficient survives even where the parameter-dependent source vanishes.
-example (x : ℝ) :
+-- The degree-two coefficient survives specialization to a finite field, including at zero.
+example (x : ZMod 7) :
     let F : MvPolynomial (Fin (1 + 1)) ℤ := X 1 ^ 2
     let hF : F.totalDegree ≤ 2 := (totalDegree_pow _ _).trans (by simp)
     let Q := specializedRelativeValueSection (ell := 2) (n := 1) (m := 1) (by decide)
