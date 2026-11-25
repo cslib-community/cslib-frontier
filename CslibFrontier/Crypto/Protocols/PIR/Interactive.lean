@@ -184,23 +184,16 @@ theorem mem_support_coins_iff {i : ι} {cd : C × D} :
         cd.2 ∈ (ProbComp.eval P.serverCoins).support := by
   simp only [coins, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
     PMF.mem_support_pure_iff]
-  constructor
-  · rintro ⟨c, hc, d, hd, rfl⟩
-    exact ⟨hc, hd⟩
-  · rintro ⟨hc, hd⟩
-    exact ⟨cd.1, hc, cd.2, hd, rfl⟩
+  exact ⟨fun ⟨_, hc, _, hd, rfl⟩ => ⟨hc, hd⟩, fun ⟨hc, hd⟩ => ⟨cd.1, hc, cd.2, hd, rfl⟩⟩
 
 theorem mem_support_transcript_iff {x : ι → β} {i : ι} {t : Fin P.protocol.leafCount} :
     t ∈ (ProbComp.eval (P.transcript x i)).support ↔
       ∃ c ∈ (ProbComp.eval (P.userCoins i)).support, ∃ d ∈ (ProbComp.eval P.serverCoins).support,
         P.protocol.leaf (x, d) (i, c) = t := by
   rw [transcript, ProbComp.eval_map, PMF.mem_support_map_iff]
-  constructor
-  · rintro ⟨cd, hcd, rfl⟩
-    obtain ⟨hc, hd⟩ := P.mem_support_coins_iff.mp hcd
-    exact ⟨cd.1, hc, cd.2, hd, rfl⟩
-  · rintro ⟨c, hc, d, hd, rfl⟩
-    exact ⟨(c, d), P.mem_support_coins_iff.mpr ⟨hc, hd⟩, rfl⟩
+  exact ⟨fun ⟨cd, hcd, h⟩ => ⟨cd.1, (P.mem_support_coins_iff.mp hcd).1,
+    cd.2, (P.mem_support_coins_iff.mp hcd).2, h⟩,
+    fun ⟨c, hc, d, hd, h⟩ => ⟨(c, d), P.mem_support_coins_iff.mpr ⟨hc, hd⟩, h⟩⟩
 
 /-- Perfect correctness holds exactly when the user outputs the right entry on all coins that can be
 drawn. -/
@@ -209,11 +202,8 @@ theorem isCorrect_iff : P.IsCorrect ↔ ∀ x i, ∀ c ∈ (ProbComp.eval (P.use
       P.protocol.leafOutput (P.protocol.leaf (x, d) (i, c)) (i, c) = x i := by
   refine forall_congr' fun x => forall_congr' fun i => ?_
   rw [run, ProbComp.eval_map, Probability.PMF.map_eq_pure_iff]
-  constructor
-  · intro h c hc d hd
-    exact h (c, d) (P.mem_support_coins_iff.mpr ⟨hc, hd⟩)
-  · intro h cd hcd
-    exact h cd.1 (P.mem_support_coins_iff.mp hcd).1 cd.2 (P.mem_support_coins_iff.mp hcd).2
+  exact ⟨fun h c hc d hd => h (c, d) (P.mem_support_coins_iff.mpr ⟨hc, hd⟩), fun h cd hcd =>
+    h cd.1 (P.mem_support_coins_iff.mp hcd).1 cd.2 (P.mem_support_coins_iff.mp hcd).2⟩
 
 theorem isPrivate_iff : P.IsPrivate ↔
     ∀ x i i', ProbComp.eval (P.transcript x i) = ProbComp.eval (P.transcript x i') := by
@@ -242,16 +232,12 @@ theorem injective_leaf (hcorrect : P.IsCorrect) (hprivate : P.IsPrivate) {i : ι
   intro x y hxy
   by_contra hne
   obtain ⟨j, hj⟩ := Function.ne_iff.mp hne
-  -- The leaf `t` is possible for `(x, i)` and `(y, i)`, so by privacy for `(x, j)` and `(y, j)`.
-  set t := P.protocol.leaf (x, d) (i, c) with ht
-  have hpossible (z : ι → β) (hz : P.protocol.leaf (z, d) (i, c) = t) :
-      t ∈ (ProbComp.eval (P.transcript z j)).support := by
-    rw [hprivate z j i]
-    exact P.mem_support_transcript_iff.mpr ⟨c, hc, d, hd, hz⟩
-  obtain ⟨c₁, hc₁, d₁, hd₁, h₁⟩ := P.mem_support_transcript_iff.mp (hpossible x rfl)
-  obtain ⟨c₂, hc₂, d₂, hd₂, h₂⟩ := P.mem_support_transcript_iff.mp (hpossible y hxy.symm)
-  -- By the rectangle property, `t` is also reached on `(y, d₂)` with the user's view `(j, c₁)`.
-  have h₃ : P.protocol.leaf (y, d₂) (j, c₁) = t :=
+  have hpos (z : ι → β) (hz : P.protocol.leaf (z, d) (i, c) = P.protocol.leaf (x, d) (i, c)) :
+      P.protocol.leaf (x, d) (i, c) ∈ (ProbComp.eval (P.transcript z j)).support :=
+    hprivate z j i ▸ P.mem_support_transcript_iff.mpr ⟨c, hc, d, hd, hz⟩
+  obtain ⟨c₁, hc₁, d₁, hd₁, h₁⟩ := P.mem_support_transcript_iff.mp (hpos x rfl)
+  obtain ⟨c₂, _, d₂, hd₂, h₂⟩ := P.mem_support_transcript_iff.mp (hpos y hxy.symm)
+  have h₃ : P.protocol.leaf (y, d₂) (j, c₁) = P.protocol.leaf (x, d) (i, c) :=
     Protocol.leaf_eq_iff.mpr ⟨(Protocol.leaf_eq_iff.mp h₂).1, (Protocol.leaf_eq_iff.mp h₁).2⟩
   have hx := hcorrect.leafOutput_eq x hc₁ hd₁
   have hy := hcorrect.leafOutput_eq y hc₁ hd₂
@@ -266,10 +252,9 @@ theorem card_pow_card_le_ncard_transcripts [Fintype ι] [Fintype β] (hcorrect :
   classical
   obtain ⟨c, hc⟩ := (ProbComp.eval (P.userCoins i)).support_nonempty
   obtain ⟨d, hd⟩ := (ProbComp.eval P.serverCoins).support_nonempty
-  have hsub : Set.range (fun x : ι → β => P.protocol.leaf (x, d) (i, c)) ⊆ P.transcripts i := by
-    rintro _ ⟨x, rfl⟩
-    exact Set.mem_iUnion.mpr ⟨x, P.mem_support_transcript_iff.mpr ⟨c, hc, d, hd, rfl⟩⟩
-  have h := Set.ncard_le_ncard hsub
+  have h := Set.ncard_le_ncard (s := Set.range fun x : ι → β => P.protocol.leaf (x, d) (i, c))
+    (t := P.transcripts i) fun _ ⟨x, hx⟩ =>
+      Set.mem_iUnion.mpr ⟨x, P.mem_support_transcript_iff.mpr ⟨c, hc, d, hd, hx⟩⟩
   rwa [Set.ncard_range_of_injective (injective_leaf hcorrect hprivate hc hd),
     Nat.card_eq_fintype_card, Fintype.card_fun] at h
 
@@ -349,13 +334,11 @@ worst case over all branches of the protocol tree) exists exactly when `n ≤ c`
 [CGKS, Section 5.1][ChorGoldreichKushilevitzSudan1998]. -/
 theorem exists_iff (n c : ℕ) :
     (∃ (C D : Type) (P : InteractiveScheme (Fin n) C D),
-      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n ≤ c := by
-  constructor
-  · rintro ⟨C, D, P, hcorrect, hprivate, hc⟩
-    exact ((Fintype.card_fin n).symm.trans_le (card_le_depth hcorrect hprivate)).trans hc
-  · intro h
-    exact ⟨Unit, Unit, download n, isCorrect_download n, isPrivate_download n,
-      (depth_download n).trans_le h⟩
+      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n ≤ c :=
+  ⟨fun ⟨_, _, _, hcorrect, hprivate, hc⟩ =>
+    ((Fintype.card_fin n).symm.trans_le (card_le_depth hcorrect hprivate)).trans hc,
+    fun h => ⟨Unit, Unit, download n, isCorrect_download n, isPrivate_download n,
+      (depth_download n).trans_le h⟩⟩
 
 /-- Trivial interactive block download: the server sends all `n · ℓ` bits of the `n` blocks, and the
 user outputs block `i`. -/
@@ -388,15 +371,12 @@ correct and perfectly private interactive block scheme of protocol depth at most
 `n · ℓ ≤ c` [CGKS, Sections 4 and 5.1][ChorGoldreichKushilevitzSudan1998]. -/
 theorem exists_block_iff (n ℓ c : ℕ) :
     (∃ (C D : Type) (P : InteractiveScheme (Fin n) C D (BitString ℓ)),
-      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n * ℓ ≤ c := by
-  constructor
-  · rintro ⟨C, D, P, hcorrect, hprivate, hc⟩
-    have hle : n * ℓ ≤ P.protocol.depth := by
-      simpa only [Fintype.card_fin] using card_mul_le_depth hcorrect hprivate
-    exact hle.trans hc
-  · intro h
-    exact ⟨Unit, Unit, blockDownload n ℓ, isCorrect_blockDownload n ℓ,
-      isPrivate_blockDownload n ℓ, (depth_blockDownload n ℓ).trans_le h⟩
+      P.IsCorrect ∧ P.IsPrivate ∧ P.protocol.depth ≤ c) ↔ n * ℓ ≤ c :=
+  ⟨fun ⟨_, _, P, hcorrect, hprivate, hc⟩ =>
+    (show n * ℓ ≤ P.protocol.depth by
+      simpa only [Fintype.card_fin] using card_mul_le_depth hcorrect hprivate).trans hc,
+    fun h => ⟨Unit, Unit, blockDownload n ℓ, isCorrect_blockDownload n ℓ,
+      isPrivate_blockDownload n ℓ, (depth_blockDownload n ℓ).trans_le h⟩⟩
 
 end InteractiveScheme
 

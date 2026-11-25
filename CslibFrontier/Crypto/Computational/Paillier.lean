@@ -117,22 +117,17 @@ theorem decryptNat_eq {N c m r : ℕ} (hN : 1 < N) (hcop : N.Coprime N.totient)
     (hr : r.Coprime N) (hc : (c : ZMod (N ^ 2)) = (1 + N) ^ m * (r : ZMod (N ^ 2)) ^ N) :
     decryptNat N N.totient c = m % N := by
   have hN0 : N ≠ 0 := by lia
-  have hN2 : N ^ 2 ≠ 0 := pow_ne_zero 2 hN0
-  -- Raising `c` to the power `φ(N)` leaves `1 + (m * φ(N) mod N) * N`.
-  have hpow : c ^ N.totient % N ^ 2 = 1 + m * N.totient % N * N := by
-    rw [← ZMod.val_one_add_natCast_mul hN, ← one_add_pow_mul_pow_pow_totient m hr, ← hc,
-      ← Nat.cast_pow, ZMod.val_natCast]
-  -- `φ(N) ^ (φ(N) - 1)` inverts `φ(N)` modulo `N`, by Euler's theorem.
   have heuler : (N.totient : ZMod N) ^ N.totient = 1 := by
-    have := congrArg Units.val (ZMod.pow_totient (ZMod.unitOfCoprime N.totient hcop.symm))
-    simpa only [Units.val_pow_eq_pow_val, ZMod.coe_unitOfCoprime, Units.val_one] using this
-  have hpos : 0 < N.totient := Nat.totient_pos.mpr (by lia)
-  rw [decryptNat, powMod_of_ne_zero hN2, powMod_of_ne_zero hN0, hpow, Nat.add_sub_cancel_left,
-    Nat.mul_div_cancel _ (by lia), ← ZMod.natCast_eq_natCast_iff']
+    simpa only [Units.val_pow_eq_pow_val, ZMod.coe_unitOfCoprime, Units.val_one] using
+      congrArg Units.val (ZMod.pow_totient (ZMod.unitOfCoprime N.totient hcop.symm))
+  rw [decryptNat, powMod_of_ne_zero (pow_ne_zero 2 hN0), powMod_of_ne_zero hN0,
+    show c ^ N.totient % N ^ 2 = 1 + m * N.totient % N * N by
+      rw [← ZMod.val_one_add_natCast_mul hN, ← one_add_pow_mul_pow_pow_totient m hr, ← hc,
+        ← Nat.cast_pow, ZMod.val_natCast],
+    Nat.add_sub_cancel_left, Nat.mul_div_cancel _ (show 0 < N by lia),
+    ← ZMod.natCast_eq_natCast_iff']
   simp only [Nat.cast_mul, ZMod.natCast_mod, Nat.cast_pow]
-  calc (m : ZMod N) * N.totient * (N.totient : ZMod N) ^ (N.totient - 1)
-      = m * (N.totient : ZMod N) ^ (N.totient - 1 + 1) := by rw [pow_succ]; ring
-    _ = m := by rw [Nat.sub_add_cancel hpos, heuler, mul_one]
+  rw [mul_assoc, ← pow_succ', Nat.sub_add_cancel (Nat.totient_pos.mpr (by lia)), heuler, mul_one]
 
 /-! ### The scheme on binary words -/
 
@@ -173,27 +168,22 @@ theorem computableInPolyTime_ciphertext {α : Type} {input : α ↪ List Bool} {
     (hN : ComputableInPolyTime N input encNat) (hm : ComputableInPolyTime m input encNat)
     (hr : ComputableInPolyTime r input encNat) :
     ComputableInPolyTime (fun a => ciphertext (N a) (m a) (r a)) input encNat := by
-  have hN2 := computableInPolyTime_sq hN
-  have h₁ := computableInPolyTime_powMod hN2
-    (ComputableInPolyTime.binary_add' (ComputableInPolyTime.const 1) hN) hm
-  have h₂ := computableInPolyTime_powMod hN2 hr hN
   unfold ciphertext
-  exact ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' h₁ h₂) hN2
+  have hN2 := computableInPolyTime_sq hN
+  exact .binary_mod' (.binary_mul'
+    (computableInPolyTime_powMod hN2 (.binary_add' (.const 1) hN) hm)
+    (computableInPolyTime_powMod hN2 hr hN)) hN2
 
 /-- `decryptNat` is computable in polynomial time. -/
 theorem computableInPolyTime_decryptNat {α : Type} {input : α ↪ List Bool} {N t c : α → ℕ}
     (hN : ComputableInPolyTime N input encNat) (ht : ComputableInPolyTime t input encNat)
     (hc : ComputableInPolyTime c input encNat) :
     ComputableInPolyTime (fun a => decryptNat (N a) (t a) (c a)) input encNat := by
-  have h₁ := computableInPolyTime_powMod (computableInPolyTime_sq hN) hc ht
-  have h₂ := computableInPolyTime_powMod hN ht
-    (ComputableInPolyTime.binary_sub' ht (ComputableInPolyTime.const 1))
   unfold decryptNat
-  exact ComputableInPolyTime.binary_mod'
-    (ComputableInPolyTime.binary_mul'
-      (ComputableInPolyTime.binary_div'
-        (ComputableInPolyTime.binary_sub' h₁ (ComputableInPolyTime.const 1))
-        hN) h₂) hN
+  exact .binary_mod' (.binary_mul'
+    (.binary_div' (.binary_sub' (computableInPolyTime_powMod (computableInPolyTime_sq hN) hc ht)
+      (.const 1)) hN)
+    (computableInPolyTime_powMod hN ht (.binary_sub' ht (.const 1)))) hN
 
 /-- Forgetting validity does not change the encoding of a description. -/
 private theorem computableInPolyTime_val :
@@ -204,15 +194,11 @@ private theorem computableInPolyTime_val :
 theorem isPPTOn_keyGen {gen : ℕ → ProbComp Desc} (hgen : IsPPTOn encUnary encDesc gen) :
     IsPPTOn encUnary (encPair encBits encBits) (keyGen gen) := by
   unfold keyGen
-  have hd := computableInPolyTime_val.comp (ComputableInPolyTime.snd encUnary encDesc)
-  have hp := hd.fst'
-  have hq := hd.snd'
+  have hd := computableInPolyTime_val.comp (.snd encUnary encDesc)
   have hN : ComputableInPolyTime (fun x : ℕ × Desc => x.2.modulus) (encPair encUnary encDesc)
-      encNat := ComputableInPolyTime.binary_mul' hp hq
+      encNat := .binary_mul' hd.fst' hd.snd'
   have ht : ComputableInPolyTime (fun x : ℕ × Desc => x.2.totient) (encPair encUnary encDesc)
-      encNat := ComputableInPolyTime.binary_mul'
-        (ComputableInPolyTime.binary_sub' hp (ComputableInPolyTime.const 1))
-        (ComputableInPolyTime.binary_sub' hq (ComputableInPolyTime.const 1))
+      encNat := .binary_mul' (.binary_sub' hd.fst' (.const 1)) (.binary_sub' hd.snd' (.const 1))
   exact hgen.bind_with (hN.encoding_comp.prod (hN.prod ht).encoding_comp).isPPTOn
 
 /-- `encrypt` is uniformly strict PPT. -/
@@ -271,8 +257,7 @@ theorem exists_of_mem_support_keyGen {gen : ℕ → ProbComp Desc} {n : ℕ}
     ∃ d : Desc, keys = (encNat d.modulus, encPair encNat encNat (d.modulus, d.totient)) := by
   simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
     PMF.support_pure, Set.mem_singleton_iff] at hkeys
-  obtain ⟨d, _, rfl⟩ := hkeys
-  exact ⟨d, rfl⟩
+  exact let ⟨d, _, h⟩ := hkeys; ⟨d, h⟩
 
 /-- Ciphertexts in the support of `encrypt n (encNat N) m` are `ciphertext N m r'` for some
 `r'` coprime to `N`. -/
@@ -281,8 +266,7 @@ theorem exists_of_mem_support_encrypt {n N m : ℕ} {ct : List Bool}
     ∃ r : ℕ, r.Coprime N ∧ ct = encNat (ciphertext N m r) := by
   simp only [encrypt, ofBits_encNat, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.support_pure, Set.mem_singleton_iff] at hct
-  obtain ⟨r, _, rfl⟩ := hct
-  exact ⟨unitOrOne N r, coprime_unitOrOne N r, rfl⟩
+  exact let ⟨r, _, h⟩ := hct; ⟨unitOrOne N r, coprime_unitOrOne N r, h⟩
 
 /-- Decrypting with a secret key `⟨N, φ(N)⟩` of a valid description. -/
 private theorem decrypt_encPair (d : Desc) (c : ℕ) :
@@ -298,8 +282,8 @@ theorem decrypt_encrypt {gen : ℕ → ProbComp Desc} {n : ℕ} {keys : List Boo
     (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support) {m : ℕ} (hm : m < ofBits keys.1)
     {ct : List Bool} (hct : ct ∈ (ProbComp.eval (encrypt n keys.1 m)).support) :
     decrypt keys.2 ct = encNat m := by
-  obtain ⟨d, hkeys_eq⟩ := exists_of_mem_support_keyGen hkeys
-  simp only [hkeys_eq, ofBits_encNat] at hm hct ⊢
+  obtain ⟨d, hk⟩ := exists_of_mem_support_keyGen hkeys
+  simp only [hk, ofBits_encNat] at hm hct ⊢
   obtain ⟨r, hr, hct_eq⟩ := exists_of_mem_support_encrypt hct
   rw [hct_eq, decrypt_encPair, decryptNat_eq d.one_lt_modulus d.coprime_totient hr
     (natCast_ciphertext (NeZero.ne _) m r), Nat.mod_eq_of_lt hm]
@@ -323,20 +307,16 @@ theorem decrypt_addCiphertexts {gen : ℕ → ProbComp Desc} {n : ℕ} {keys : L
     (hct₁ : ct₁ ∈ (ProbComp.eval (encrypt n keys.1 m₁)).support)
     (hct₂ : ct₂ ∈ (ProbComp.eval (encrypt n keys.1 m₂)).support) :
     decrypt keys.2 (addCiphertexts keys.1 ct₁ ct₂) = encNat ((m₁ + m₂) % ofBits keys.1) := by
-  obtain ⟨d, hkeys_eq⟩ := exists_of_mem_support_keyGen hkeys
-  simp only [hkeys_eq] at hct₁ hct₂ ⊢
+  obtain ⟨d, hk⟩ := exists_of_mem_support_keyGen hkeys
+  simp only [hk, ofBits_encNat] at hct₁ hct₂ ⊢
   obtain ⟨r₁, hr₁, hct₁_eq⟩ := exists_of_mem_support_encrypt hct₁
   obtain ⟨r₂, hr₂, hct₂_eq⟩ := exists_of_mem_support_encrypt hct₂
-  rw [hct₁_eq, hct₂_eq]
   have hN : d.modulus ≠ 0 := NeZero.ne _
-  have hc : ((ciphertext d.modulus m₁ r₁ * ciphertext d.modulus m₂ r₂ % d.modulus ^ 2 : ℕ) :
-      ZMod (d.modulus ^ 2)) = (1 + d.modulus) ^ (m₁ + m₂) *
-        ((r₁ * r₂ : ℕ) : ZMod (d.modulus ^ 2)) ^ d.modulus := by
-    rw [ZMod.natCast_mod, Nat.cast_mul, natCast_ciphertext hN, natCast_ciphertext hN]
-    push_cast
-    ring
-  simp only [addCiphertexts, ofBits_encNat]
-  rw [decrypt_encPair, decryptNat_eq d.one_lt_modulus d.coprime_totient
-    (Nat.Coprime.mul_left hr₁ hr₂) hc]
+  simp only [hct₁_eq, hct₂_eq, addCiphertexts, ofBits_encNat]
+  rw [decrypt_encPair, decryptNat_eq (m := m₁ + m₂) d.one_lt_modulus d.coprime_totient
+    (Nat.Coprime.mul_left hr₁ hr₂)]
+  rw [ZMod.natCast_mod, Nat.cast_mul, natCast_ciphertext hN, natCast_ciphertext hN]
+  push_cast
+  ring
 
 end Cslib.Crypto.Paillier

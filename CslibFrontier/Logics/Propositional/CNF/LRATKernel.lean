@@ -141,36 +141,28 @@ private theorem get_succ (t : ClauseTrie) (n : ℕ) :
 private theorem get_setAux (x : Option (Clause ℕ)) :
     ∀ (fuel : ℕ) (t : ClauseTrie) (n m : ℕ), n ≤ fuel →
       (setAux x fuel t n).get m = if m = n then x else t.get m := by
-  -- storing under `0` replaces the root
   have h0 (fuel : ℕ) (t : ClauseTrie) (m : ℕ) :
       (setAux x fuel t 0).get m = if m = 0 then x else t.get m := by
-    have hs : setAux x fuel t 0 = node x t.zero t.one := by
-      cases fuel <;> cases t <;> rfl
-    rw [hs]
+    rw [show setAux x fuel t 0 = node x t.zero t.one by cases fuel <;> cases t <;> rfl]
     rcases m with _ | m
     · rfl
     · simp only [get, get_succ t m, Nat.add_one_ne_zero, ↓reduceIte]
   intro fuel
   induction fuel with
   | zero =>
-    intro t n m hn
-    obtain rfl : n = 0 := by omega
-    exact h0 0 t m
+    rintro t _ m hn
+    exact Nat.le_zero.mp hn ▸ h0 0 t m
   | succ fuel ih =>
-    intro t n m hn
-    rcases n with _ | n
+    rintro t (_ | n) m hn
     · exact h0 _ t m
-    have hs : setAux x (fuel + 1) t (n + 1) =
+    rw [show setAux x (fuel + 1) t (n + 1) =
         if n % 2 = 0 then node t.val (setAux x fuel t.zero (n / 2)) t.one
-        else node t.val t.zero (setAux x fuel t.one (n / 2)) := by
-      cases t <;> rfl
-    have hf : n / 2 ≤ fuel := by omega
-    rw [hs]
+        else node t.val t.zero (setAux x fuel t.one (n / 2)) by cases t <;> rfl]
     rcases m with _ | m
     · simp only [Nat.zero_ne_add_one, ↓reduceIte, get_zero]
       split_ifs <;> rfl
     · rw [get_succ t m]
-      split_ifs <;> simp only [get, ih _ _ _ hf] <;> split_ifs <;>
+      split_ifs <;> simp only [get, ih _ (n / 2) _ (by omega)] <;> split_ifs <;>
         first | rfl | (exfalso; omega)
 
 /-- **Reading a trie after storing `x` under `n`.** -/
@@ -265,8 +257,7 @@ private theorem residualMask_eq {mask : ℕ} {t : List (Literal ℕ)}
     residualMask c mask = c.residual t := by
   unfold residualMask Clause.residual
   congr 2
-  funext l
-  simp [h]
+  funext l; simp [h]
 
 /-- Unit propagation along hints, as `Cslib.Logic.PL.CNF.propagateHints`, reading the hinted
 clauses from a trie and keeping the trail in a bitmask. -/
@@ -294,12 +285,11 @@ private theorem propagateKernel_eq (db : ClauseTrie) (hs : List ℕ) :
     | some c =>
       dsimp only
       cases c.residual t with
-      | empty => rfl
+      | empty | other => rfl
       | unit l =>
         refine ih fun l' => ?_
         rw [testBit_or_litCode, hmask]
-        by_cases h : l' = l <;> simp [h]
-      | other => rfl
+        by_cases hl : l' = l <;> simp [hl]
 
 /-- The checker on a clause database. -/
 def checkLRATKernelAux : ClauseTrie → List LRAT.IntAction → Bool
@@ -328,24 +318,18 @@ private theorem checkLRATKernelAux_eq {db : ClauseTrie} {L : List (ℕ × Clause
   induction cert generalizing db L with
   | nil => rfl
   | cons a cert ih =>
-    have hp (t : List (Literal ℕ)) (hs : List ℕ) :
-        propagateWith db.get t hs = propagateHints L t hs := by
-      rw [show db.get = fun n => L.lookup n from funext hdb]
-      rfl
+    have hp : propagateWith db.get = propagateHints L := by rw [funext hdb]; rfl
     cases a with
-    | addEmpty id hints =>
+    | addEmpty _ _ =>
       simp only [checkLRATKernelAux, checkLRATAux, ← hp]
       exact propagateKernel_eq db _ (by simp)
-    | addRup id c hints =>
+    | addRup _ _ _ =>
       simp only [checkLRATKernelAux, checkLRATAux, ← hp,
         propagateKernel_eq db _ (testBit_litMask _)]
-      congr 1
-      exact ih fun n => by rw [ClauseTrie.get_insert, hdb, List.lookup_cons_eq_ite]
+      exact congrArg _ (ih fun n => by rw [ClauseTrie.get_insert, hdb, List.lookup_cons_eq_ite])
     | addRat => rfl
-    | del ids =>
-      simp only [checkLRATKernelAux, checkLRATAux]
-      exact ih fun n => by
-        rw [ClauseTrie.get_eraseAll, hdb, List.lookup_filter_not_contains]
+    | del _ =>
+      exact ih fun n => by rw [ClauseTrie.get_eraseAll, hdb, List.lookup_filter_not_contains]
 
 /-- **The kernel checker agrees with the reference checker** on every formula and certificate. -/
 theorem checkLRATKernel_eq_checkLRAT (φ : CNF ℕ) (cert : Array LRAT.IntAction) :

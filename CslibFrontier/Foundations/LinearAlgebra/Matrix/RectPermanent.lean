@@ -88,28 +88,21 @@ theorem sum_sign_filter_apply_eq [Fintype m] [DecidableEq m] [DecidableEq n] (f 
   split_ifs with hf
   · rw [sum_eq_single_of_mem 1 (by simp)]
     · simp
-    · intro π hπ hne
-      exact absurd (Perm.ext fun r => hf ((mem_filter.1 hπ).2 r)) hne
+    · exact fun π hπ hne => absurd (Perm.ext fun r => hf ((mem_filter.1 hπ).2 r)) hne
   · obtain ⟨r, r', hrr', hne⟩ : ∃ r r', f r = f r' ∧ r ≠ r' := by
       simpa [Function.Injective] using hf
-    have hswap : ∀ x, f (swap r r' x) = f x := by
-      intro x
-      rcases eq_or_ne x r with rfl | h₁
-      · simp [hrr']
-      rcases eq_or_ne x r' with rfl | h₂
-      · simp [hrr']
-      rw [swap_apply_of_ne_of_ne h₁ h₂]
-    refine sum_involution (fun π _ => π * swap r r') ?_ ?_ ?_ ?_
-    · intro π _
-      simp [sign_mul, sign_swap hne]
-    · intro π _ _ h
-      exact hne (swap_eq_one_iff.1 (mul_eq_left.1 h))
-    · intro π hπ
-      simp only [mem_filter, mem_univ, true_and] at hπ ⊢
-      intro x
-      rw [mul_apply, hπ, hswap]
-    · intro π _
-      simp [mul_assoc]
+    refine sum_involution (fun π _ => π * swap r r')
+      (fun _ _ => by simp [sign_mul, sign_swap hne])
+      (fun _ _ _ h => hne (swap_eq_one_iff.1 (mul_eq_left.1 h))) (fun π hπ => ?_)
+      (fun _ _ => by simp [mul_assoc])
+    simp only [mem_filter, mem_univ, true_and] at hπ ⊢
+    intro x
+    rw [mul_apply, hπ]
+    rcases eq_or_ne x r with rfl | h₁
+    · simp [hrr']
+    rcases eq_or_ne x r' with rfl | h₂
+    · simp [hrr']
+    exact congrArg f (swap_apply_of_ne_of_ne h₁ h₂)
 
 /-- A function that is invariant under `π` is constant on the orbits of `π`. -/
 theorem apply_eq_of_sameCycle [Finite m] {π : Perm m} {f : m → n} (hf : ∀ r, f (π r) = f r)
@@ -153,18 +146,12 @@ variable [DecidableEq m] [DecidableEq n]
 /-- A filtered sum over embeddings is the sum over the injective functions. -/
 private theorem sum_embedding_filter_eq (g : (m → n) → R) (p : (m → n) → Prop) [DecidablePred p] :
     ∑ σ ∈ univ.filter (fun σ : m ↪ n => p σ), g σ =
-      ∑ f : m → n with Function.Injective f ∧ p f, g f := by
-  refine sum_bij (fun σ _ => ⇑σ) ?_ ?_ ?_ ?_
-  · intro σ hσ
-    simp only [mem_filter, mem_univ, true_and] at hσ ⊢
-    exact ⟨σ.injective, hσ⟩
-  · intro σ _ τ _ h
-    exact DFunLike.coe_injective h
-  · intro f hf
-    simp only [mem_filter, mem_univ, true_and] at hf
-    exact ⟨⟨f, hf.1⟩, by simpa using hf.2, rfl⟩
-  · intro σ _
-    rfl
+      ∑ f : m → n with Function.Injective f ∧ p f, g f :=
+  sum_bij (fun σ _ => ⇑σ)
+    (fun σ hσ => by simpa using ⟨σ.injective, (mem_filter.1 hσ).2⟩)
+    (fun _ _ _ _ h => DFunLike.coe_injective h)
+    (fun f hf => ⟨⟨f, (mem_filter.1 hf).2.1⟩, by simpa using (mem_filter.1 hf).2.2, rfl⟩)
+    fun _ _ => rfl
 
 /-- The rectangular permanent as a sum over injective functions. -/
 theorem rectPerm_eq_sum_injective (b : Matrix m n R) :
@@ -210,28 +197,18 @@ theorem prod_quotient_sameCycle_sum_eq (π : Perm m) (T : Finset n) (b : Matrix 
     ∏ q : Quotient (SameCycle.setoid π), ∑ j ∈ T, ∏ r with Quotient.mk _ r = q, b r j =
       ∑ f ∈ piFinset (fun _ : m => T) with ∀ r, f (π r) = f r, ∏ r, b r (f r) := by
   rw [prod_univ_sum]
-  have key (x : Quotient (SameCycle.setoid π) → n) :
-      ∏ q, ∏ r with Quotient.mk _ r = q, b r (x q) = ∏ r, b r (x (Quotient.mk _ r)) := by
+  refine sum_bij (fun x _ => x ∘ Quotient.mk _) (fun x hx => ?_)
+    (fun _ _ _ _ h => Quotient.mk_surjective.injective_comp_right h) (fun f hf => ?_)
+    fun x _ => ?_
+  · simp only [mem_filter, mem_piFinset, Function.comp_apply] at hx ⊢
+    exact ⟨fun _ => hx _, fun r => congrArg x (Quotient.sound (SameCycle.refl π r).apply_left)⟩
+  · simp only [mem_filter, mem_piFinset] at hf
+    refine ⟨Quotient.lift f fun _ _ => apply_eq_of_sameCycle hf.2, ?_, rfl⟩
+    exact mem_piFinset.2 fun q => Quotient.inductionOn q hf.1
+  · dsimp only [Function.comp_apply]
     rw [← prod_fiberwise univ (Quotient.mk (SameCycle.setoid π))
-      (fun r => b r (x (Quotient.mk _ r)))]
-    refine prod_congr rfl fun q _ => prod_congr rfl fun r hr => ?_
-    rw [(mem_filter.1 hr).2]
-  simp_rw [key]
-  refine sum_bij (fun x _ => x ∘ Quotient.mk _) ?_ ?_ ?_ ?_
-  · intro x hx
-    simp only [mem_filter, mem_piFinset, Function.comp_apply] at hx ⊢
-    exact ⟨fun r => hx _, fun r => congrArg x (Quotient.sound (SameCycle.refl π r).apply_left)⟩
-  · intro x _ y _ h
-    exact Quotient.mk_surjective.injective_comp_right h
-  · intro f hf
-    simp only [mem_filter, mem_piFinset] at hf
-    refine ⟨Quotient.lift f fun x y h => apply_eq_of_sameCycle hf.2 h, ?_, rfl⟩
-    simp only [mem_piFinset]
-    intro q
-    induction q using Quotient.ind
-    exact hf.1 _
-  · intro x _
-    rfl
+      fun r => b r (x (Quotient.mk _ r))]
+    exact prod_congr rfl fun _ _ => prod_congr rfl fun _ hr => by rw [(mem_filter.1 hr).2]
 
 end CommSemiring
 
@@ -275,24 +252,19 @@ theorem rectPermSurj_eq_sum_sign_prod_sameCycle (Z : Finset n) (b : Matrix m n R
       ∑ f ∈ piFinset (fun _ : m => Yᶜ) with Function.Injective f, ∏ r, b r (f r) =
         ∑ f : m → n with Function.Injective f, if ∀ r, f r ∉ Y then ∏ r, b r (f r) else 0 := by
     rw [show piFinset (fun _ : m => Yᶜ) = univ.filter (fun f : m → n => ∀ r, f r ∉ Y) by
-        ext; simp,
-      filter_filter, sum_filter, sum_filter]
-    refine sum_congr rfl fun f _ => ?_
-    by_cases hi : Function.Injective f <;> by_cases hY : ∀ r, f r ∉ Y <;> simp [hi, hY]
+      ext; simp, filter_filter, sum_filter, sum_filter]
+    exact sum_congr rfl fun f _ => by
+      by_cases hi : Function.Injective f <;> by_cases hY : ∀ r, f r ∉ Y <;> simp [hi, hY]
   have h2 (f : m → n) :
       ∑ Y ∈ Z.powerset with ∀ r, f r ∉ Y, (-1 : R) ^ #Y = if Z ⊆ univ.image f then 1 else 0 := by
-    have hY : {Y ∈ Z.powerset | ∀ r, f r ∉ Y} = (Z \ univ.image f).powerset := by
+    have := congrArg (Int.cast : ℤ → R) (sum_powerset_neg_one_pow_card (x := Z \ univ.image f))
+    push_cast at this
+    rw [show {Y ∈ Z.powerset | ∀ r, f r ∉ Y} = (Z \ univ.image f).powerset by
       ext Y
       simp only [mem_filter, mem_powerset, subset_sdiff, disjoint_left, mem_image, mem_univ,
         true_and]
-      constructor
-      · rintro ⟨hZ, hf⟩
-        exact ⟨hZ, fun j hj ⟨r, hr⟩ => hf r (hr ▸ hj)⟩
-      · rintro ⟨hZ, hf⟩
-        exact ⟨hZ, fun r hr => hf hr ⟨r, rfl⟩⟩
-    have := congrArg (Int.cast : ℤ → R) (sum_powerset_neg_one_pow_card (x := Z \ univ.image f))
-    push_cast at this
-    rw [hY, this]
+      exact ⟨fun ⟨hZ, hf⟩ => ⟨hZ, fun _ hj ⟨r, hr⟩ => hf r (hr ▸ hj)⟩,
+        fun ⟨hZ, hf⟩ => ⟨hZ, fun r hr => hf hr ⟨r, rfl⟩⟩⟩, this]
     exact if_congr sdiff_eq_empty_iff_subset rfl rfl
   simp_rw [smul_sum, ← mul_smul_comm]
   rw [sum_comm]

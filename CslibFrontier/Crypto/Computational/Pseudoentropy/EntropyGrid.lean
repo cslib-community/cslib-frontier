@@ -164,21 +164,18 @@ attribute [program_certificate]
 
 /-- No candidate asks for zero soft-mask mass. -/
 theorem numerator_pos (bound index : ℕ) : 0 < numerator bound index := by
-  unfold numerator
-  lia
+  unfold numerator; lia
 
 /-- The integer unit is positive even at security parameter zero. -/
 theorem scale_pos (n sourceBits bound : ℕ) : 0 < scale n sourceBits bound := by
-  unfold scale ExtractionSchedule.slack
-  positivity
+  unfold scale ExtractionSchedule.slack; positivity
 
 /-- The repetition count is exactly two units per grid step. -/
 theorem count_eq (n sourceBits bound : ℕ) :
     ExtractionSchedule.count n sourceBits (dyadicSize bound - 1) =
       2 * scale n sourceBits bound * dyadicSize bound := by
-  have h := dyadicSize_pos bound
   unfold ExtractionSchedule.count scale ExtractionSchedule.slack
-  rw [Nat.sub_add_cancel (by lia : 1 ≤ dyadicSize bound)]
+  rw [Nat.sub_add_cancel (dyadicSize_pos bound)]
   ring
 
 /-- All candidates expand, whether or not their entropy guesses are accurate. -/
@@ -186,14 +183,12 @@ theorem expands (n sourceBits bound index : ℕ) :
     ExtractionSchedule.count n sourceBits (dyadicSize bound - 1) * sourceBits <
       observationBits n sourceBits bound index + labelBits n sourceBits bound index +
         remainingBits n sourceBits bound index := by
-  have hround (total first second : ℕ) :
-      2 * total < (2 * first - 1) + (2 * second + 7) +
-        (2 * (total - (first + second + 2)) - 1) := by lia
-  have h := Nat.mul_lt_mul_of_pos_left
-    (hround (dyadicSize bound * sourceBits) (index / dyadicSize bound)
-      (index % dyadicSize bound)) (scale_pos n sourceBits bound)
+  have hround (total first second : ℕ) : 2 * total <
+      (2 * first - 1) + (2 * second + 7) + (2 * (total - (first + second + 2)) - 1) := by lia
   simpa only [count_eq, observationBits, labelBits, remainingBits, ← Nat.mul_add, Nat.mul_assoc,
-    Nat.mul_left_comm] using h
+    Nat.mul_left_comm] using Nat.mul_lt_mul_of_pos_left
+    (hround (dyadicSize bound * sourceBits) (index / dyadicSize bound) (index % dyadicSize bound))
+    (scale_pos n sourceBits bound)
 
 /-- The label budget holds exactly for every candidate, independent of entropy assumptions. -/
 theorem label_budget (n sourceBits bound index : ℕ) :
@@ -201,11 +196,9 @@ theorem label_budget (n sourceBits bound index : ℕ) :
       ExtractionSchedule.count n sourceBits (dyadicSize bound - 1) *
         ((numerator bound index : ℝ) / dyadicSize bound) := by
   have hD : (dyadicSize bound : ℝ) ≠ 0 := by exact_mod_cast (dyadicSize_pos bound).ne'
-  rw [count_eq]
-  unfold labelBits numerator
+  rw [count_eq, labelBits, numerator]
   push_cast
-  field_simp
-  ring
+  field_simp; ring
 
 /-- The entropy assumptions required of a useful entry. Indexing and expansion are separate
 from security: inaccurate entries are still total expanding programs. -/
@@ -231,13 +224,12 @@ private theorem rounded_budget (unit guess : ℕ) {entropy : ℝ}
     (hguess : (guess : ℝ) ≤ entropy) :
     unit * (2 * guess - 1) = 0 ∨
       ((unit * (2 * guess - 1) : ℕ) : ℝ) + unit ≤ 2 * unit * entropy := by
-  by_cases hzero : guess = 0
-  · simp only [hzero, Nat.mul_zero, Nat.zero_sub, true_or]
-  · right
-    rw [Nat.cast_mul, Nat.cast_sub (by lia : 1 ≤ 2 * guess), Nat.cast_mul, Nat.cast_ofNat,
-      Nat.cast_one]
-    have h := mul_le_mul_of_nonneg_left hguess (Nat.cast_nonneg unit)
-    linarith
+  rcases eq_or_ne guess 0 with rfl | hzero
+  · exact .inl (by simp)
+  · refine .inr ?_
+    rw [Nat.cast_mul, Nat.cast_sub (by lia : 1 ≤ 2 * guess)]
+    push_cast
+    linarith [mul_le_mul_of_nonneg_left hguess (Nat.cast_nonneg unit)]
 
 /-- Rounding both true entropies down supplies a valid candidate. Four grid steps of
 pseudoentropy suffice; no algorithm for computing either entropy is assumed. -/
@@ -247,52 +239,44 @@ theorem exists_valid (n sourceBits bound : ℕ) {observationEntropy labelEntropy
     (hgap : 4 / (dyadicSize bound : ℝ) ≤ gap)
     (hone : labelEntropy + gap ≤ 1) :
     ∃ index, Valid n sourceBits bound index observationEntropy labelEntropy gap := by
-  let D := dyadicSize bound
+  set D := dyadicSize bound with hD_def
   let first := ⌊(D : ℝ) * observationEntropy⌋₊
   let second := ⌊(D : ℝ) * labelEntropy⌋₊
-  have hD : 0 < D := dyadicSize_pos bound
-  have hDr : (0 : ℝ) < D := by exact_mod_cast hD
+  have hDr : (0 : ℝ) < D := by exact_mod_cast dyadicSize_pos bound
   have hfirst : (first : ℝ) ≤ D * observationEntropy := Nat.floor_le (by positivity)
   have hsecond : (second : ℝ) ≤ D * labelEntropy := Nat.floor_le (by positivity)
-  have hfirst_lt : D * observationEntropy < (first : ℝ) + 1 := Nat.lt_floor_add_one _
-  have hsecond_lt : D * labelEntropy < (second : ℝ) + 1 := Nat.lt_floor_add_one _
+  have hgap' : (4 : ℝ) ≤ gap * D := (div_le_iff₀ hDr).mp hgap
   have hfirst_le : first ≤ D * sourceBits := by
     exact_mod_cast hfirst.trans (mul_le_mul_of_nonneg_left
-      (show observationEntropy ≤ (sourceBits : ℝ) by linarith) hDr.le)
-  have hgap' : (4 : ℝ) ≤ gap * D := (div_le_iff₀ hDr).mp hgap
+      (show observationEntropy ≤ sourceBits by linarith) hDr.le)
   have hsecond_le : second + 4 ≤ D := by
     have h : (D : ℝ) * labelEntropy + gap * D ≤ D := by
       simpa only [add_mul, mul_comm (D : ℝ), one_mul] using
         mul_le_mul_of_nonneg_right hone hDr.le
     exact_mod_cast (show (second : ℝ) + 4 ≤ D by linarith only [hsecond, hgap', h])
-  have hsecond_mod : second < D := by lia
-  have hquot : (first * D + second) / D = first := Nat.mul_add_div_of_lt first hsecond_mod
-  have hrem : (first * D + second) % D = second := Nat.mul_add_mod_of_lt hsecond_mod
-  refine ⟨first * D + second, ?_⟩
-  constructor
-  · simpa only [size, Nat.add_mul, Nat.one_mul] using
-      Nat.add_lt_add_of_le_of_lt (Nat.mul_le_mul_right D hfirst_le) hsecond_mod
-  · simpa only [numerator, ← show D = dyadicSize bound from rfl, hrem] using hsecond_le
-  · simp only [numerator, ← show D = dyadicSize bound from rfl, hrem, Nat.cast_add,
-      Nat.cast_ofNat]
+  have hquot : (first * D + second) / D = first := Nat.mul_add_div_of_lt first (by lia)
+  have hrem : (first * D + second) % D = second := Nat.mul_add_mod_of_lt (by lia)
+  refine ⟨first * D + second, ?_, ?_, ?_, ?_, ?_⟩
+  · simpa only [size, ← hD_def, Nat.add_mul, Nat.one_mul] using
+      Nat.add_lt_add_of_le_of_lt (Nat.mul_le_mul_right D hfirst_le) (by lia : second < D)
+  · simpa only [numerator, ← hD_def, hrem] using hsecond_le
+  · simp only [numerator, ← hD_def, hrem, Nat.cast_add, Nat.cast_ofNat]
     rw [div_le_iff₀ hDr, add_mul, mul_comm labelEntropy]
     exact add_le_add hsecond hgap'
   · rw [count_eq]
-    simp only [observationBits, ← show D = dyadicSize bound from rfl, hquot]
-    simpa only [Nat.cast_mul, Nat.cast_ofNat, mul_assoc] using
+    simpa only [observationBits, ← hD_def, hquot, Nat.cast_mul, Nat.cast_ofNat, mul_assoc] using
       rounded_budget (scale n sourceBits bound) first hfirst
   · rw [count_eq]
-    simp only [remainingBits, ← show D = dyadicSize bound from rfl, hquot, hrem]
+    have hfirst_lt : (D : ℝ) * observationEntropy < first + 1 := Nat.lt_floor_add_one _
+    have hsecond_lt : (D : ℝ) * labelEntropy < second + 1 := Nat.lt_floor_add_one _
     have hremaining : ((D * sourceBits - (first + second + 2) : ℕ) : ℝ) ≤
         D * (sourceBits - observationEntropy - labelEntropy) := by
       by_cases hsmall : first + second + 2 ≤ D * sourceBits
-      · rw [Nat.cast_sub hsmall, mul_sub, mul_sub]
-        push_cast
+      · rw [Nat.cast_sub hsmall, mul_sub, mul_sub]; push_cast
         linarith only [hfirst_lt, hsecond_lt]
-      · rw [Nat.sub_eq_zero_of_le (by lia)]
-        push_cast
-        exact mul_nonneg hDr.le (by linarith)
-    simpa only [Nat.cast_mul, Nat.cast_ofNat, mul_assoc] using
-      rounded_budget (scale n sourceBits bound) _ hremaining
+      · rw [Nat.sub_eq_zero_of_le (by lia)]; push_cast
+        exact mul_nonneg hDr.le (by linarith only [htotal, hobservation, hlabel])
+    simpa only [remainingBits, ← hD_def, hquot, hrem, Nat.cast_mul, Nat.cast_ofNat, mul_assoc]
+      using rounded_budget (scale n sourceBits bound) _ hremaining
 
 end Cslib.Crypto.Pseudoentropy.EntropyGrid
