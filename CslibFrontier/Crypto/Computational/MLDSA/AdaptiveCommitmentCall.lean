@@ -324,7 +324,8 @@ private theorem maskList_eq_row (s : Level) :
       (law : (PMF.uniformOfFintype (Row s)).map schedule =
         PMF.iid (signingMaskLaw s.params (by cases s <;> decide)) n) :
       maskList s n = (PMF.uniformOfFintype (Row s)).map (fun r => List.ofFn (schedule r)) := by
-    rw [maskList, ← law, PMF.map_comp]; rfl
+    rw [maskList, ← law, PMF.map_comp]
+    rfl
   exact lists 814 (rowMasks s) (iid_maskFromRow s)
 
 private theorem all_reads_sign (C : QuantumSigningForger) (s : Level) (H : Xofs)
@@ -349,12 +350,10 @@ private theorem all_reads_sign (C : QuantumSigningForger) (s : Level) (H : Xofs)
   have read (ys : List (Mask s)) (r : Row s) :
       C.resumeRetries s H A next sk D 0 (.signing q k) (scanned s G A sk ys (.signing q k))
         l (r :: rest) d = conclude (draw ys) := by
-    by_cases large : 255 < q.context.length
-    · simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries,
-        conclude, List.tail_cons]
-    · simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries,
-        conclude, List.tail_cons]
-      cases ys.findSome? (fun y => terminalReply (G.attemptWithMask s sk A m y)) <;> rfl
+    by_cases large : 255 < q.context.length <;>
+      simp only [scanned, preparedPrefix, draw, large, ↓reduceIte, resumeRetries, conclude,
+        List.tail_cons]
+    cases ys.findSome? (fun y => terminalReply (G.attemptWithMask s sk A m y)) <;> rfl
   have native (r : Row s) : G.signWithExpansionRow s keys.secretKey q r =
       draw (List.ofFn (rowMasks s r)) := by
     by_cases large : 255 < q.context.length
@@ -380,12 +379,11 @@ private theorem read_window_eq (C : QuantumSigningForger) (s : Level) (H : Xofs)
     U.bind fun rows => C.expansionContinuation s G A keys (C.program keys.publicKey)
       C.initialDevice [] (List.ofFn rows) := by
   intro U G
-  let left (t : List (Row s)) := (maskList s 814).bind fun ys =>
-    C.callWindow s H A keys sk (C.nativeAfter s H A keys) i t ys 0 D
-  let right (t : List (Row s)) := C.expansionContinuation s G A keys (C.program keys.publicKey)
-    C.initialDevice [] t
-  apply uniform_tape_eq s i left right
-  intro pre rows len
+  refine uniform_tape_eq s i
+    (fun t => (maskList s 814).bind fun ys =>
+      C.callWindow s H A keys sk (C.nativeAfter s H A keys) i t ys 0 D)
+    (C.expansionContinuation s G A keys (C.program keys.publicKey) C.initialDevice [])
+    fun pre rows len => ?_
   let go (ys : List (Mask s)) (x : Boundary C) (d : C.Device) (l : List Forgery)
       (t : List (Row s)) := C.resumeRetries s H A (C.nativeAfter s H A keys) sk D 0 x
         (scanned s G A sk ys x) l t d
@@ -393,10 +391,8 @@ private theorem read_window_eq (C : QuantumSigningForger) (s : Level) (H : Xofs)
       C.prefixRun s G keys (C.program keys.publicKey) i C.initialDevice [] (pre ++ r :: rows)
         (go ys)) = _
   rw [← len]
-  apply C.prefixRun_eq s G keys A (maskList s 814) go
-  · intros; rfl
-  · intro q k d l rest
-    exact C.all_reads_sign s H keys sk A key mat (C.nativeAfter s H A keys) D q k d l rest
+  exact C.prefixRun_eq s G keys A (maskList s 814) go (fun _ _ _ _ _ => rfl)
+    (C.all_reads_sign s H keys sk A key mat (C.nativeAfter s H A keys) D) _ _ _ _ _
 
 private noncomputable def chosenCall (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (keys : KeyPair) (i : ℕ) (D : Register s) (keep : Bool)
@@ -441,14 +437,12 @@ private theorem cut_cost_after {C : QuantumSigningForger} {cost : Request C → 
         true_and] at reached
       obtain ⟨b, hb⟩ := reached
       exact ih b (sub b) left hb
-    rcases cmd with coin | op | ask
+    rcases cmd with _ | _ | ask
     · exact earlier i rfl
     · exact earlier i rfl
     · cases i with
       | zero =>
-        have eq : Boundary.signing q next = Boundary.signing ask k :=
-          Set.mem_singleton_iff.mp reached
-        cases eq
+        cases Set.mem_singleton_iff.mp reached
         exact sub r
       | succ i => exact earlier i rfl
 

@@ -182,12 +182,9 @@ theorem lagrangeWeightAtZero_ne_zero {ι : Type*} [Fintype ι] {x : ι → F}
 weight at `0`. -/
 theorem reconstruct_single {ι : Type*} [Fintype ι] [DecidableEq ι] (x : ι → F) (i : ι) (c : F) :
     reconstruct x (Pi.single i c) = c * lagrangeWeightAtZero x i := by
-  rw [reconstruct_eq_sum_lagrangeWeightAtZero, Finset.sum_eq_single i]
-  · simp
-  · intro j _ hji
-    simp [hji]
-  · intro hi
-    exact (hi (Finset.mem_univ i)).elim
+  rw [reconstruct_eq_sum_lagrangeWeightAtZero,
+    Finset.sum_eq_single i (fun _ _ hji => by simp [hji]) (fun hi => (hi (Finset.mem_univ i)).elim)]
+  simp
 
 /-- Reconstructing the zero share vector returns `0`. -/
 @[simp] theorem reconstruct_zero {ι : Type*} [Fintype ι] (x : ι → F) :
@@ -223,11 +220,9 @@ recovers `secretValue`. -/
     (params : Params F Party) (coeffs : Randomness params) (secretValue : F) :
     reconstruct params.point (fun i => share params coeffs secretValue i) =
       secretValue := by
-  refine reconstruct_sharingPolynomial_eq_secret params.point_injective ?_
-  refine lt_of_lt_of_le
-    (degree_sharingPolynomial_tailPolynomial_lt_succ
-      secretValue params.threshold coeffs) ?_
-  exact_mod_cast Nat.succ_le_of_lt params.threshold_lt_card
+  exact reconstruct_sharingPolynomial_eq_secret params.point_injective <|
+    (degree_sharingPolynomial_tailPolynomial_lt_succ secretValue params.threshold coeffs).trans_le
+      (mod_cast Nat.succ_le_of_lt params.threshold_lt_card)
 
 end Polynomial
 
@@ -449,11 +444,9 @@ theorem reconstruct_mul_share_eq_mul (params : Params F Party)
     Polynomial.reconstruct params.point (fun i => share params r₁ a i * share params r₂ b i) =
       a * b := by
   simp_rw [← eval_sharingPolynomial_mul params r₁ r₂ a b]
-  refine Polynomial.reconstruct_sharingPolynomial_eq_secret params.point_injective ?_
-  refine lt_of_lt_of_le
-    (Polynomial.degree_sharingPolynomial_tailPolynomial_lt_succ
-      (a * b) (2 * params.threshold) (mulTailCoeffs a r₁ b r₂)) ?_
-  exact_mod_cast Nat.succ_le_of_lt h2t
+  exact Polynomial.reconstruct_sharingPolynomial_eq_secret params.point_injective <|
+    (Polynomial.degree_sharingPolynomial_tailPolynomial_lt_succ _ _ _).trans_le
+      (mod_cast Nat.succ_le_of_lt h2t)
 
 /-! ### 4. Lagrange share interpolation and unauthorized-coalition marginal uniformity -/
 
@@ -477,25 +470,16 @@ theorem interpTailPolynomial_eval (params : Params F Party) (I : Finset Party)
       (σ i - y) / params.point i := by
   classical
   simpa [interpTailPolynomial] using
-    (_root_.Lagrange.eval_interpolate_at_node
-      (s := I.attach)
-      (v := fun j : I => params.point j)
-      (r := fun j : I => (σ j - y) / params.point j)
-      (points_injOn_attach params I)
-      (Finset.mem_attach I i))
+    _root_.Lagrange.eval_interpolate_at_node _ (points_injOn_attach params I)
+      (Finset.mem_attach I i)
 
 theorem interpTailPolynomial_degree_lt (params : Params F Party) (I : Finset Party)
     (hI : I.card ≤ params.threshold) (y : F) (σ : I → F) :
     (interpTailPolynomial params I y σ).degree < params.threshold := by
   classical
-  refine lt_of_lt_of_le
-    (_root_.Lagrange.degree_interpolate_lt
-      (s := I.attach)
-      (v := fun i : I => params.point i)
-      (r := fun i : I => (σ i - y) / params.point i)
-      (points_injOn_attach params I))
-    ?_
-  simp [hI]
+  rw [interpTailPolynomial]
+  exact (_root_.Lagrange.degree_interpolate_lt _ (points_injOn_attach params I)).trans_le
+    (by simp [hI])
 
 /-- Coefficient vector in `Randomness params` interpolating target shares `σ : I → F` on an
 unauthorized coalition `I` (`I.card ≤ params.threshold`) for secret `y : F`. -/
@@ -536,10 +520,7 @@ surjective. -/
 theorem shareZeroRestrictHom_surjective (params : Params F Party) (I : Finset Party)
     (hI : I.card ≤ params.threshold) :
     Function.Surjective (shareZeroRestrictHom params I) := by
-  intro σ
-  refine ⟨interpCoeffs params I hI 0 σ, ?_⟩
-  ext i
-  exact share_interpCoeffs params I hI 0 σ i
+  exact fun σ => ⟨interpCoeffs params I hI 0 σ, funext (share_interpCoeffs params I hI 0 σ)⟩
 
 /-- **Unauthorized-Coalition Marginal Uniformity** ([Shamir1979]; [AsharovLindell2017],
 Section 3.2, Claim 3.2): for any coalition `I` with `I.card ≤ params.threshold` and any secret
@@ -554,9 +535,7 @@ theorem uniformOfFintype_map_restrict_share [Fintype F] [DecidableEq Party]
       (fun coeffs (i : I) => share params coeffs secret i) =
         (Equiv.addLeft (fun _ : I => secret)) ∘ shareZeroRestrictHom params I := by
     ext coeffs i
-    have hadd := share_add params 0 coeffs secret 0 i
-    rw [zero_add, add_zero, share_zero_randomness] at hadd
-    exact hadd
+    simpa [shareZeroRestrictHom] using share_add params 0 coeffs secret 0 i
   rw [hshift, ← PMF.map_comp,
     Cslib.Probability.PMF.uniformOfFintype_map_addHom (shareZeroRestrictHom params I)
       (shareZeroRestrictHom_surjective params I hI),

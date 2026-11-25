@@ -373,7 +373,7 @@ theorem computableInPolyTime_andExtractWord
   have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
     hI ▸ hf₁
   unfold andExtractWord Encoding.andProof encExtractorWordInput
-  exact by fun_prop
+  fun_prop
 
 /-- `andExtractWord` realizes `andExtract` on `enc₀.andProof enc₁` when `f₀` and `f₁` realize
 `extract₀` and `extract₁` and share the same challenge encoding. -/
@@ -927,15 +927,8 @@ theorem isPPT_parallelSimulator
         (encList (encPair encBits encBits)) (encPair encBits encBits))
   · simp only [parallelSimulator, parallelSimulateWord, Encoding.parallelRepetition,
       encFinFn_apply, frames_encList, List.ofFn_eq_map, List.map_map, List.mapM_map,
-      Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin]
-    have hcoord :
-        (PMF.piFin fun j => ProbComp.eval (prog (i, enc.statement i y, enc.challenge i (c j)))) =
-          (PMF.piFin fun j => ProbComp.eval (sim i y (c j))).map
-            fun tz j => (enc.commitment i (tz j).1, enc.response i (tz j).2) := by
-      simp only [← hword, PMF.piFin_map]
-      rfl
-    rw [hcoord]
-    simp only [PMF.map_comp]
+      Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin,
+      ← hword, PMF.piFin_map, PMF.map_comp]
     refine congrArg (PMF.map · _) (funext fun tz => ?_)
     simp [Function.comp_def, Prod.map_apply, encList_eq_encList_bits_map, List.ofFn_eq_map,
       List.map_map]
