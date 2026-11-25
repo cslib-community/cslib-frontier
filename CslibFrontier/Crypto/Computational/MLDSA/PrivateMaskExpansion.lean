@@ -393,11 +393,10 @@ private theorem maskScore_eq {a b n : ℕ} (C : QuantumSigningForger) (s : Level
           using congrArg (PMF.map fun x => (x.1, x.2.2)) run
       dsimp only
       rw [transcripts]
-      apply congrArg (fun k => PMF.map k _)
-      funext ⟨f, log⟩
-      exact congrArg (fun v : Option Bool => (v.getD false && !log.contains f) &&
-        !log.any (fun g => g.signature.take (digestBytes s) == f.signature.take (digestBytes s)))
-        (verify_maskStreams base ha s t T₁ T₂ rows hk miss f)
+      exact congrArg (PMF.map · _) (funext fun ⟨f, log⟩ =>
+        congrArg (fun v : Option Bool => (v.getD false && !log.contains f) &&
+          !log.any (fun g => g.signature.take (digestBytes s) == f.signature.take (digestBytes s)))
+          (verify_maskStreams base ha s t T₁ T₂ rows hk miss f))
 
 private theorem prob_maskSeed_mem {n : ℕ} [Nonempty (Fin n ↪ FixedBytes 64)] (x : FixedBytes 64) :
     ((PMF.uniformOfFintype (Fin n ↪ FixedBytes 64)).toOuterMeasure
@@ -417,21 +416,20 @@ private theorem setup_advantage_le {a b n : ℕ} [Nonempty (Fin n ↪ FixedBytes
       (tapes.bind fun t => C.expansionScore (G t) H s seed
         (List.ofFn (slotRow hb rows))) : ℝ) ≤ 2 * n / 2 ^ 512 := by
   intro tapes H G
+  let hit (x : FixedBytes 64) := {t : Fin n ↪ FixedBytes 64 | x ∈ Set.range t}
   let short := prefixSeed (Keccak.bytesToBitsLE (secretSeed H s seed))
   let tr := trSeed H (H.keyGen s seed)
-  let shortHit := {t : Fin n ↪ FixedBytes 64 | short ∈ Set.range t}
-  let trHit := {t : Fin n ↪ FixedBytes 64 | tr ∈ Set.range t}
-  have close := Interactive.CloseTo.bind_of_eq_on tapes _ _ (shortHit ∪ trHit)
-    (fun t _ h => maskScore_eq C s base ha hb hn t T₁ T₂ rows seed
-      ⟨fun hs => h (Or.inl hs), fun ht => h (Or.inr ht)⟩)
-  have adv := ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _)
-    (Game.closeTo_iff_coe_advantage_le.mp close)
+  have close := Interactive.CloseTo.bind_of_eq_on tapes _ _ (hit short ∪ hit tr)
+    fun t _ h => maskScore_eq C s base ha hb hn t T₁ T₂ rows seed
+      ⟨fun hs => h (Or.inl hs), fun ht => h (Or.inr ht)⟩
   have union := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr
     ⟨PMF.toOuterMeasure_ne_top _ _, PMF.toOuterMeasure_ne_top _ _⟩)
-    (MeasureTheory.measure_union_le (μ := tapes.toOuterMeasure) shortHit trHit)
+    (MeasureTheory.measure_union_le (μ := tapes.toOuterMeasure) (hit short) (hit tr))
   rw [ENNReal.toReal_add (PMF.toOuterMeasure_ne_top _ _) (PMF.toOuterMeasure_ne_top _ _),
     prob_maskSeed_mem short, prob_maskSeed_mem tr] at union
-  exact adv.trans (union.trans_eq (by rw [← add_div, two_mul]))
+  exact (ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _)
+    (Game.closeTo_iff_coe_advantage_le.mp close)).trans
+    (union.trans_eq (by rw [← add_div, two_mul]))
 
 private noncomputable def addressSeed (C : QuantumSigningForger) (a : Option (Address C)) :
     FixedBytes 64 :=
@@ -470,16 +468,14 @@ private theorem fixedHit_le {a b n : ℕ} [Nonempty (Fin n ↪ FixedBytes 64)]
   classical
   intro tapes H
   let f := fun t => addr.any (changed C (maskStreams base ha t T₁ T₂ rows) H)
-  have eq (t) : f t = decide (f t = true) := by cases f t <;> rfl
-  change (tapes.bind (fun t => PMF.pure (f t))) true ≤ _
-  conv_lhs => arg 1; arg 2; ext t; rw [eq t]
-  rw [PMF.bind_pure_decide_apply_true]
-  apply (tapes.toOuterMeasure.mono (show {t | f t = true} ⊆
-    {t | addressSeed C addr ∈ Set.range t} from fun t ht =>
-      changed_implies_seed C base ha t T₁ T₂ rows addr ht)).trans
-  exact (ENNReal.le_ofReal_iff_toReal_le
-    (PMF.toOuterMeasure_ne_top tapes {t | addressSeed C addr ∈ Set.range t})
-    (by positivity)).mpr (prob_maskSeed_mem (addressSeed C addr)).le
+  have eq : (tapes.bind fun t => PMF.pure (f t)) =
+      tapes.bind fun t => PMF.pure (decide (f t = true)) :=
+    congrArg (tapes.bind ·) (funext fun t => by cases f t <;> rfl)
+  rw [eq, PMF.bind_pure_decide_apply_true]
+  exact (tapes.toOuterMeasure.mono fun t ht =>
+    changed_implies_seed C base ha t T₁ T₂ rows addr ht).trans
+    ((ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).mpr
+      (prob_maskSeed_mem (addressSeed C addr)).le)
 
 private theorem expansionScore_gap_le {a b n m : ℕ} [Nonempty (Fin n ↪ FixedBytes 64)]
     (C : QuantumSigningForger) (s : Level) (base : Xofs) (ha : 528 ≤ a) (hb : maskPolyBytes s ≤ b)
@@ -580,14 +576,12 @@ private theorem dist_privateMaskSeedGame_maskExpansionGame (C : QuantumSigningFo
   have eq : C.maskExpansionGame s base (b := b) ha hsize =
       ((PMF.uniformOfFintype (Fin n ↪ FixedBytes 64)).map DFunLike.coe).bind run := by
     simp only [maskExpansionGame, PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def]
-    congr 1
-    funext t
-    exact uniform_maskStreams base ha t (fun H => C.maskTapeScore H s (List.ofFn t))
+    exact congrArg (PMF.bind _ ·) (funext fun t =>
+      uniform_maskStreams base ha t fun H => C.maskTapeScore H s (List.ofFn t))
   rw [C.privateMaskSeedGame_eq_tape s base a b hn, eq, dist_comm]
-  have hcard : Fintype.card (Fin n) ≤ Fintype.card (FixedBytes 64) := by
-    simpa only [Fintype.card_fin, card_maskSeed] using hsize
-  have h := (PMF.dist_bind_le _ _ run).trans (dist_uniform_embedding_to_fun hcard)
-  simpa only [Fintype.card_fin, card_maskSeed, Nat.cast_pow, Nat.cast_ofNat, ← pow_succ'] using h
+  simpa only [Fintype.card_fin, card_maskSeed, Nat.cast_pow, Nat.cast_ofNat, ← pow_succ'] using
+    (PMF.dist_bind_le _ _ run).trans
+      (dist_uniform_embedding_to_fun (by simpa only [Fintype.card_fin, card_maskSeed] using hsize))
 
 private noncomputable def freshExpansionTranscript (C : QuantumSigningForger) (s : Level)
     (H : Xofs) (keys : KeyPair) : PMF (Forgery × List Forgery) :=
@@ -618,11 +612,11 @@ private theorem uniform_expansionTranscript (C : QuantumSigningForger) (s : Leve
   have law := C.uniform_signingTapeTranscript H keys.publicKey
     (fun row q => H.signWithExpansionRow s keys.secretKey q row) hn
   let restrict := (Function.Embedding.refl (MaskInput n)).prodMap (Fin.castLEEmb hb)
-  have proj := PMF.uniformOfFintype_pi_map_comp_embedding (α := Byte) restrict
   have project (r : MaskInput n × Fin b → Byte) :
       slotRows (fun v => r (restrict v)) = slotRow hb r := rfl
-  have push := PMF.uniformOfFintype_map_equiv (slotRows (n := n) (b := maskPolyBytes s))
-  rw [← push, ← proj, PMF.map_comp, PMF.bind_map] at law
+  rw [← PMF.uniformOfFintype_map_equiv (slotRows (n := n) (b := maskPolyBytes s)),
+    ← PMF.uniformOfFintype_pi_map_comp_embedding (α := Byte) restrict,
+    PMF.map_comp, PMF.bind_map] at law
   simpa only [expansionTranscript, freshExpansionTranscript, Function.comp_def, project] using law
 
 private noncomputable def expansionSetup {α : Type} {a b n : ℕ}

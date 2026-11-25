@@ -150,24 +150,14 @@ variable [NeZero b]
 theorem decodeLetter_letterEquiv (l : BlockLetter k State b) :
     decodeLetter e b (letterEquiv e l) = l := by
   rcases l with c | w
-  · have hval : (letterEquiv e (.inl c) : ℕ) = controlEquiv e c := by
-      simp [letterEquiv]
-    have hlt : (letterEquiv e (.inl c) : ℕ) < controlCount k s b := by
-      rw [hval]
-      exact (controlEquiv e c).isLt
-    rw [decodeLetter, dite_eq_left hlt]
-    congr 1
-    rw [Equiv.symm_apply_eq]
+  · have hval : (letterEquiv e (.inl c) : ℕ) = controlEquiv e c := by simp [letterEquiv]
+    rw [decodeLetter, dite_eq_left (hval ▸ (controlEquiv e c).isLt), Sum.inl.injEq,
+      Equiv.symm_apply_eq]
     exact Fin.ext hval.symm
   · have hval : (letterEquiv e (.inr w : BlockLetter k State b) : ℕ) =
-        controlCount k s b + contentsEquiv b w := by
-      simp [letterEquiv, controlCount]
-    rw [decodeLetter, dite_eq_right (by omega)]
-    congr 1
-    rw [Equiv.symm_apply_eq]
-    ext
-    simp only [hval, Nat.add_sub_cancel_left]
-    exact Nat.mod_eq_of_lt (contentsEquiv b w).isLt
+        controlCount k s b + contentsEquiv b w := by simp [letterEquiv, controlCount]
+    rw [decodeLetter, dite_eq_right (by omega), Sum.inr.injEq, Equiv.symm_apply_eq]
+    exact Fin.ext (by simp [hval, Nat.mod_eq_of_lt (contentsEquiv b w).isLt])
 
 /-- Below `letterCount`, the letter of a number is the numbered letter. -/
 theorem decodeLetter_of_lt {n : ℕ} (hn : n < letterCount k s b) :
@@ -670,11 +660,9 @@ theorem explicitBlockNetwork_eq_explicitNetworkNum (σ : ℕ) :
     refine List.map_congr_left fun v _ => ?_
     simp only [Function.comp_apply]
     rw [map_val_explicitPorts, explicitTable_eq_explicitTableNum, Equiv.apply_symm_apply]
-  cases h : machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e with
-  | mk n vs =>
-    have hn := numEdges_explicitBlockNetwork machine input b (scheduleOfNat k q σ) e
-    rw [h] at hv hn
-    rw [explicitNetworkNum, ← hv, ← hn]
+  refine Eq.trans (b := ⟨(machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e).numEdges,
+      (machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e).vertices⟩) rfl ?_
+  rw [explicitNetworkNum, numEdges_explicitBlockNetwork, hv]
 
 end Tables
 
@@ -694,10 +682,9 @@ theorem explicitSrcNum_lt {m σ j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
     · nlinarith
     · rcases Nat.eq_zero_or_pos k with rfl | hk
       · omega
-      · have : (j / m - q) / (k * 3) < q := by
-          rw [Nat.div_lt_iff_lt_mul (by omega)]
-          have : q * (3 * k + 1) = q + q * (k * 3) := by ring
-          omega
+      · have hmul : q * (3 * k + 1) = q + q * (k * 3) := by ring
+        have := (Nat.div_lt_iff_lt_mul (by omega : 0 < k * 3)).mpr
+          (by omega : j / m - q < q * (k * 3))
         nlinarith
   · have hn : (j - q * (3 * k + 1) * m) / m < q * (3 * k + 1) :=
       (Nat.div_lt_iff_lt_mul hm).mpr (by omega)
@@ -710,8 +697,7 @@ theorem explicitSrcNum_lt {m σ j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
         with
       | none => simp only [Option.getD_none]; nlinarith
       | some i' =>
-        have hmem := List.mem_of_find?_eq_some hf
-        rw [List.mem_range] at hmem
+        have hmem := List.mem_range.mp (List.mem_of_find?_eq_some hf)
         simp only [Option.getD_some]
         nlinarith
 

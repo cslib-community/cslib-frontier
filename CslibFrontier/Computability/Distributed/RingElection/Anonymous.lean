@@ -183,33 +183,18 @@ private theorem isLeader_run_forall_of_exists (n : ℕ) [NeZero n] (r : ℕ)
 theorem electsUniqueLeader_iff_existsUnique (n : ℕ) [NeZero n] (r : ℕ) :
     P.ElectsUniqueLeader n r ↔ ∃! i : Fin n, P.isLeader (P.run n r i) = true := by
   rw [ElectsUniqueLeader, Finset.card_eq_one]
-  constructor
-  · rintro ⟨a, ha⟩
-    refine ⟨a, ?_, fun b hb => ?_⟩
-    · have hmem : a ∈ P.leaders n r := ha ▸ Finset.mem_singleton_self a
-      exact (Finset.mem_filter.mp hmem).2
-    · have hmem : b ∈ P.leaders n r := Finset.mem_filter.mpr ⟨Finset.mem_univ b, hb⟩
-      exact Finset.mem_singleton.mp (ha ▸ hmem)
-  · rintro ⟨a, ha, huniq⟩
-    refine ⟨a, Finset.ext fun b => ?_⟩
-    simp only [leaders, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-    exact ⟨fun hb => huniq b hb, fun hb => hb ▸ ha⟩
+  simp only [Finset.eq_singleton_iff_unique_mem, leaders, Finset.mem_filter, Finset.mem_univ,
+    true_and, ExistsUnique]
 
 /-- After any round `r`, the number of leaders in an anonymous `n`-ring is either `0` or `n`. -/
 theorem leaders_card_eq_zero_or_self (n : ℕ) [NeZero n] (r : ℕ) :
     (P.leaders n r).card = 0 ∨ (P.leaders n r).card = n := by
   by_cases hex : ∃ i : Fin n, P.isLeader (P.run n r i) = true
-  · right
-    have hall := P.isLeader_run_forall_of_exists n r hex
-    have huniv : P.leaders n r = Finset.univ := by
-      ext i
-      simp only [leaders, Finset.mem_filter, Finset.mem_univ, true_and]
-      exact iff_of_true (hall i) trivial
-    rw [huniv, Finset.card_univ, Fintype.card_fin]
-  · left
-    rw [Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
-    intro i hi
-    exact hex ⟨i, (Finset.mem_filter.mp hi).2⟩
+  · refine Or.inr (Eq.trans (congrArg Finset.card (Finset.eq_univ_iff_forall.mpr fun i => ?_))
+      (Fintype.card_fin n))
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ i, P.isLeader_run_forall_of_exists n r hex i⟩
+  · exact Or.inl (Finset.card_eq_zero.mpr (Finset.eq_empty_iff_forall_notMem.mpr fun i hi =>
+      hex ⟨i, (Finset.mem_filter.mp hi).2⟩))
 
 /-- A synchronous-round symmetry step on anonymous oriented rings `Fin n` (a step towards
 [Angluin][Angluin1980b], not the general processor-network covering endpoint): for `2 ≤ n`, no
@@ -738,13 +723,10 @@ private theorem exec_counterWave_eq_dual {n : ℕ} [NeZero n] (cfg : AnonAsyncCo
       P.exec c (xs.map fun i => ⟨.counter, -i⟩) =
         reflectConfig (P.dual.exec (reflectConfig c) (xs.map (AnonEvent.mk .clockwise))) from
     this (List.finRange n) cfg
-  intro xs
-  induction xs with
-  | nil =>
-    intro c
-    exact (reflectConfig_involutive c).symm
+  intro xs c
+  induction xs generalizing c with
+  | nil => exact (reflectConfig_involutive c).symm
   | cons i is ih =>
-    intro c
     simp only [List.map_cons, exec_cons]
     have hstep := P.step_counter_eq_dual (-i) c
     rw [neg_neg] at hstep

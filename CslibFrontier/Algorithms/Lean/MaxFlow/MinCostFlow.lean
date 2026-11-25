@@ -318,9 +318,7 @@ private theorem sum_ite_mem_src [DecidableEq V] {arcs : List (ResArc V)} (hnodup
   have hpt : ∀ a : ResArc V, (if a.src = x then (1 : ℤ) else 0) =
       ∑ w : V, ((if a = ⟨x, w, true⟩ then 1 else 0) + (if a = ⟨x, w, false⟩ then 1 else 0)) := by
     rintro ⟨s, d, b⟩
-    rcases eq_or_ne s x with rfl | hs
-    · cases b <;> simp
-    · cases b <;> simp [hs]
+    rcases eq_or_ne s x with rfl | hs <;> cases b <;> simp [*]
   simp only [← List.sum_toFinset _ hnodup, hpt]
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun w _ => ?_
@@ -332,15 +330,8 @@ private theorem sum_ite_mem_dst [DecidableEq V] {arcs : List (ResArc V)} (hnodup
       (if ⟨w, x, false⟩ ∈ arcs then (1 : ℤ) else 0))) =
       (arcs.map fun a : ResArc V => if a.dst = x then (1 : ℤ) else 0).sum := by
   let flip : ResArc V → ResArc V := fun a => ⟨a.dst, a.src, a.isFwd⟩
-  have hflip : Function.Injective flip := by
-    rintro ⟨s₁, d₁, b₁⟩ ⟨s₂, d₂, b₂⟩ h
-    cases h
-    rfl
-  have hmem : ∀ w b, (⟨w, x, b⟩ : ResArc V) ∈ arcs ↔ ⟨x, w, b⟩ ∈ arcs.map flip := by
-    intro w b
-    exact ⟨fun hm => List.mem_map.mpr ⟨⟨w, x, b⟩, hm, rfl⟩,
-      fun hm => by obtain ⟨⟨s, d, b'⟩, hm', heq⟩ := List.mem_map.mp hm; cases heq; exact hm'⟩
-  simp only [hmem _ true, hmem _ false]
+  have hflip : Function.Injective flip := Function.Involutive.injective fun ⟨_, _, _⟩ => rfl
+  simp only [← List.mem_map_of_injective hflip (a := ⟨_, x, _⟩)]
   rw [sum_ite_mem_src (hnodup.map hflip) x, List.map_map]
   rfl
 
@@ -356,13 +347,10 @@ private theorem Flow.cancelCycleFun_coe [DecidableEq V] (f : M.Flow) {arcs : Lis
       (f u v : ℤ) + (if ⟨u, v, true⟩ ∈ arcs then (δ : ℤ) else 0) -
         (if ⟨v, u, false⟩ ∈ arcs then (δ : ℤ) else 0) := by
   unfold Flow.cancelCycleFun
-  split_ifs
-  · have hres : δ ≤ f u v := hδ ⟨v, u, false⟩ ‹_›
-    omega
-  · omega
-  · have hres : δ ≤ f u v := hδ ⟨v, u, false⟩ ‹_›
-    omega
-  · omega
+  by_cases h2 : (⟨v, u, false⟩ : ResArc V) ∈ arcs
+  · have : δ ≤ f u v := hδ ⟨v, u, false⟩ h2
+    split_ifs <;> omega
+  · by_cases h1 : (⟨u, v, true⟩ : ResArc V) ∈ arcs <;> simp [h1, h2]
 
 private theorem list_map_sum_sub {α : Type*} (f g : α → ℤ) :
     ∀ l : List α, (l.map f).sum - (l.map g).sum = (l.map fun a => f a - g a).sum
@@ -458,10 +446,8 @@ theorem Flow.totalCost_cancelCycle [DecidableEq V] [AddCommGroup W] (f : M.Flow)
 theorem Flow.totalCost_cancelCycle_lt [DecidableEq V] [AddCommGroup W] [LinearOrder W]
     [IsOrderedAddMonoid W] (f : M.Flow) {arcs : List (ResArc V)} (hc : f.IsResCycle arcs)
     {δ : ℕ} (hδ_pos : 0 < δ) (hδ : ∀ a ∈ arcs, δ ≤ f.resCap a) (hneg : M.walkCost arcs < 0) :
-    (f.cancelCycle arcs hc δ hδ).totalCost < f.totalCost := by
-  have heq := f.totalCost_cancelCycle hc hδ
-  have hsmul : δ • M.walkCost arcs < 0 := Right.nsmul_neg hδ_pos hneg
-  exact sub_lt_zero.mp (heq ▸ hsmul)
+    (f.cancelCycle arcs hc δ hδ).totalCost < f.totalCost :=
+  sub_lt_zero.mp (f.totalCost_cancelCycle hc hδ ▸ Right.nsmul_neg hδ_pos hneg)
 
 end CycleOps
 
@@ -474,12 +460,9 @@ variable {V : Type*} {W : Type*} [Fintype V] {M : CostNetwork V W}
 private theorem sum_balance_smul_potential [AddCommGroup W] (f : M.Flow) (π : V → W) :
     (∑ u : V, ∑ v : V, f u v • (π u - π v)) = ∑ u : V, M.balance u • π u := by
   simp only [← natCast_zsmul, smul_sub, Finset.sum_sub_distrib]
-  have hswap : (∑ u : V, ∑ v : V, (f u v : ℤ) • π v) = ∑ u : V, ∑ v : V, (f v u : ℤ) • π u :=
-    Finset.sum_comm
-  rw [hswap, ← Finset.sum_sub_distrib]
+  rw [Finset.sum_comm (f := fun u v => (f u v : ℤ) • π v), ← Finset.sum_sub_distrib]
   refine Finset.sum_congr rfl fun u _ => ?_
-  rw [← Finset.sum_smul, ← Finset.sum_smul, sub_eq_add_neg, ← neg_zsmul, ← add_zsmul,
-    ← sub_eq_add_neg, f.balance_eq u]
+  rw [← Finset.sum_smul, ← Finset.sum_smul, ← sub_smul, f.balance_eq u]
 
 /-- **Complementary slackness implies minimum cost** ([Klein1967], [Schrijver2003], Chapter 12,
 locator not re-verified against primary PDF): any feasible flow admitting potentials `π` with
@@ -497,14 +480,10 @@ theorem isMinCost_of_compSlackness [AddCommGroup W] [PartialOrder W] [IsOrderedA
   have hsum : (∑ u : V, ∑ v : V, f u v • (M.cost u v + π u - π v)) ≤
       ∑ u : V, ∑ v : V, g u v • (M.cost u v + π u - π v) :=
     Finset.sum_le_sum fun u _ => Finset.sum_le_sum fun v _ => hpt u v
-  have hdecomp : ∀ h : M.Flow,
+  have hdecomp (h : M.Flow) :
       (∑ u : V, ∑ v : V, h u v • (M.cost u v + π u - π v)) =
         h.totalCost + ∑ u : V, M.balance u • π u := by
-    intro h
-    have ha : ∀ u v : V, h u v • (M.cost u v + π u - π v) =
-        h u v • M.cost u v + h u v • (π u - π v) := fun u v => by
-      rw [add_sub_assoc, nsmul_add]
-    simp only [ha, Finset.sum_add_distrib, sum_balance_smul_potential]
+    simp only [add_sub_assoc, nsmul_add, Finset.sum_add_distrib, sum_balance_smul_potential]
     rfl
   rw [hdecomp f, hdecomp g] at hsum
   exact le_of_add_le_add_right hsum
@@ -717,21 +696,7 @@ private theorem mem_allResArcs {M : CostNetwork V W} {vs : List V} {f : M.Flow}
     {a : ResArc V} :
     a ∈ allResArcs M vs f ↔ a.src ∈ vs ∧ a.dst ∈ vs ∧ 0 < f.resCap a := by
   rcases a with ⟨u, v, b⟩
-  simp only [allResArcs, List.mem_flatMap, List.mem_append, List.mem_ite_nil_right,
-    List.mem_singleton, CostNetwork.Flow.resCap, ResArc.mk.injEq]
-  cases b
-  · constructor
-    · rintro ⟨x, hx, y, hy, ⟨_, _, _, hb⟩ | ⟨hpos, rfl, rfl, _⟩⟩
-      · cases hb
-      · exact ⟨hx, hy, hpos⟩
-    · rintro ⟨hu, hv, hpos⟩
-      exact ⟨u, hu, v, hv, Or.inr ⟨hpos, rfl, rfl, rfl⟩⟩
-  · constructor
-    · rintro ⟨x, hx, y, hy, ⟨hlt, rfl, rfl, _⟩ | ⟨_, _, _, hb⟩⟩
-      · exact ⟨hx, hy, Nat.sub_pos_of_lt hlt⟩
-      · cases hb
-    · rintro ⟨hu, hv, hpos⟩
-      exact ⟨u, hu, v, hv, Or.inl ⟨Nat.lt_of_sub_pos hpos, rfl, rfl, rfl⟩⟩
+  cases b <;> simp [allResArcs, Flow.resCap, tsub_pos_iff_lt]
 
 private theorem foldl_inv {α β : Type*} {P : β → Prop} {f : β → α → β} :
     ∀ (l : List α) {init : β}, P init → (∀ b, P b → ∀ a ∈ l, P (f b a)) →
@@ -1167,21 +1132,18 @@ private theorem totalCost_bound_aux {M : CostNetwork V ℤ} {vs : List V} (hvs :
       -((M.cap u v * (M.cost u v).natAbs : ℕ) : ℤ) ≤ f u v • M.cost u v ∧
         f u v • M.cost u v ≤ ((M.cap u v * (M.cost u v).natAbs : ℕ) : ℤ) := by
     intro u v
-    have hle := f.le_cap u v
-    let k : ℕ := (M.cost u v).natAbs
-    have hmul : f u v * k ≤ M.cap u v * k := Nat.mul_le_mul_right k hle
-    have hmul_z : (f u v : ℤ) * (k : ℤ) ≤ (M.cap u v : ℤ) * (k : ℤ) := by exact_mod_cast hmul
-    have hk0 : (0 : ℤ) ≤ (f u v : ℤ) * (k : ℤ) :=
+    set k := (M.cost u v).natAbs
+    have hmul : (f u v : ℤ) * k ≤ (M.cap u v : ℤ) * k := by
+      exact_mod_cast Nat.mul_le_mul_right k (f.le_cap u v)
+    have h0 : (0 : ℤ) ≤ (f u v : ℤ) * k :=
       Int.mul_nonneg (Int.natCast_nonneg _) (Int.natCast_nonneg _)
-    have hcap0 : (0 : ℤ) ≤ (M.cap u v : ℤ) * (k : ℤ) :=
-      Int.mul_nonneg (Int.natCast_nonneg _) (Int.natCast_nonneg _)
-    change -((M.cap u v : ℤ) * (k : ℤ)) ≤ (f u v : ℤ) * M.cost u v ∧
-      (f u v : ℤ) * M.cost u v ≤ (M.cap u v : ℤ) * (k : ℤ)
+    change -((M.cap u v : ℤ) * k) ≤ (f u v : ℤ) * M.cost u v ∧
+      (f u v : ℤ) * M.cost u v ≤ (M.cap u v : ℤ) * k
     rcases Int.natAbs_eq (M.cost u v) with hc | hc
-    · change M.cost u v = (k : ℤ) at hc
+    · change M.cost u v = k at hc
       rw [hc]
-      exact ⟨by omega, hmul_z⟩
-    · change M.cost u v = -(k : ℤ) at hc
+      exact ⟨by omega, hmul⟩
+    · change M.cost u v = -k at hc
       rw [hc, mul_neg]
       exact ⟨by omega, by omega⟩
   have hL :
@@ -1238,15 +1200,9 @@ theorem cycleCancelInt_correct [DecidableEq V] {M : CostNetwork V ℤ} {vs : Lis
     (fun {_ c₁ f₂ c₂ _ _} hlt hc₂ hle => by subst hc₂; push_cast at hle ⊢; omega)
     (f₀.totalCost + (absCostBound M vs : ℤ)).toNat f₀ 0 le_rfl
   have hout_lo := (totalCost_bound_aux hvs (cycleCancelInt M vs f₀).flow).1
-  change (cycleCancelInt M vs f₀).flow.IsMinCost ∧
-      M.CompSlackness (cycleCancelInt M vs f₀).flow (cycleCancelInt M vs f₀).potential ∧
-      (cycleCancelInt M vs f₀).flow.totalCost + ((cycleCancelInt M vs f₀).cancellations : ℤ) ≤
-        f₀.totalCost ∧
-      (cycleCancelInt M vs f₀).cancellations ≤ 2 * absCostBound M vs
   dsimp only [cycleCancelInt] at hout_lo hmin hcs hdec ⊢
   simp only [Nat.cast_zero, add_zero] at hdec
-  refine ⟨hmin, hcs, hdec, ?_⟩
-  omega
+  exact ⟨hmin, hcs, hdec, by omega⟩
 
 end CycleCanceling
 

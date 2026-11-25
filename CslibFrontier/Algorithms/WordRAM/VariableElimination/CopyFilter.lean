@@ -248,12 +248,9 @@ theorem filterNe_spec {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory
       simp only [List.length_cons] at hsrcG hdstF
       obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hys
       have hsrc_lt : src < t.frontier := by omega
-      have hiter_eq : iterate filterNeStep args.target (v :: rest).length ⟨src, dst, cnt⟩ =
-          (filterNeStep (args.target, ⟨src, dst, cnt⟩) >>=
-            iterate filterNeStep args.target rest.length) := rfl
       obtain ⟨hres, hst⟩ := filterNeStep_eval args.target ⟨src, dst, cnt⟩ t
       dsimp only at hres hst ⊢
-      rw [hiter_eq, validHistory_bind', StateTransitionSpec.clientResult_bind,
+      rw [List.length_cons, iterate, validHistory_bind', StateTransitionSpec.clientResult_bind,
         StateTransitionSpec.clientState_bind, hres, hst, hhead]
       by_cases hvx : v = args.target
       · obtain ⟨hval_r, hfr_r, hpres_r, hcnt_r, hholds_r⟩ :=
@@ -326,20 +323,10 @@ theorem copyWords_frame (args : CopyArgs) (t : Memory.State) :
   | zero => intro src dst u; exact ⟨rfl, fun _ _ => rfl⟩
   | succ n ih =>
     intro src dst u
-    change ((Memory.spec 0).clientState u
-      (copyWordsStep ((), ⟨src, dst⟩) >>= iterate copyWordsStep () n)).frontier = u.frontier ∧
-      ∀ a < dst, ((Memory.spec 0).clientState u
-        (copyWordsStep ((), ⟨src, dst⟩) >>= iterate copyWordsStep () n)).mem a = u.mem a
-    rw [StateTransitionSpec.clientState_bind]
-    have hstep_st : (Memory.spec 0).clientState u (copyWordsStep ((), ⟨src, dst⟩)) =
-        ⟨Function.update u.mem dst (u.mem src), u.frontier⟩ := rfl
-    have hstep_res : (Memory.spec 0).clientResult u (copyWordsStep ((), ⟨src, dst⟩)) =
-        ⟨src + 1, dst + 1⟩ := rfl
-    rw [hstep_st, hstep_res]
+    simp only [iterate]
     obtain ⟨hfr_i, hmem_i⟩ := ih (src + 1) (dst + 1)
       ⟨Function.update u.mem dst (u.mem src), u.frontier⟩
-    refine ⟨hfr_i, fun a ha => ?_⟩
-    rw [hmem_i a (by omega)]
-    exact Function.update_of_ne (by omega) _ u.mem
+    exact ⟨hfr_i, fun a ha =>
+      (hmem_i a (by omega)).trans (Function.update_of_ne (by omega) _ u.mem)⟩
 
 end Cslib.Algorithms.WordRAM.VariableElimination

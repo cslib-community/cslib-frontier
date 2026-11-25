@@ -220,12 +220,10 @@ private theorem mteFaithfulOracle_step_lazyProgramHandler (M : MACScheme) (n m :
         (fun (a, s') => (a, (⟨s'.1, s'.2⟩ : MteState))) =
       mteFaithfulOracle M n m km request ⟨s.1, s.2⟩ := by
   rcases s with ⟨cache, history⟩
-  unfold mteFaithfulOracle RandomOracle.lazyProgramHandler
-  by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
+  cases hlen : request.2.length == n <;>
+    simp [mteFaithfulOracle, RandomOracle.lazyProgramHandler, hlen, mteCoins, mteFinish,
       Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.map, Function.comp_def, PMF.pure_bind]
-  · simp [hlen]
+      PMF.map, Function.comp_def]
 
 /-- Game 1 represents the programming channel of `RandomOracle.overwriteProgramHandler`. -/
 private theorem mteForgetfulOracle_step_overwriteProgramHandler (M : MACScheme) (n m : ℕ)
@@ -238,12 +236,10 @@ private theorem mteForgetfulOracle_step_overwriteProgramHandler (M : MACScheme) 
         (fun (a, s') => (a, (⟨s'.1, s'.2⟩ : MteState))) =
       mteForgetfulOracle M n m km request ⟨s.1, s.2⟩ := by
   rcases s with ⟨cache, history⟩
-  unfold mteForgetfulOracle RandomOracle.overwriteProgramHandler
-  by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
+  cases hlen : request.2.length == n <;>
+    simp [mteForgetfulOracle, RandomOracle.overwriteProgramHandler, hlen, mteCoins, mteFinish,
       Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.map, Function.comp_def, PMF.pure_bind]
-  · simp [hlen]
+      PMF.map, Function.comp_def]
 
 /-- Replacing the lazily sampled random function by a fresh pad for every query raises the
 probability that a final check accepts by at most `Q.choose 2 / 2 ^ m`: an instance of
@@ -362,25 +358,24 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
   refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
   dsimp only [macThenEncrypt, prfCipher]
   rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-  by_cases hfresh : (!out.2.contains out.1) = true
-  · by_cases hlenCt : (out.1.length == 2 * ptLen n) = true
-    · have htakeLen : (out.1.take (ptLen n)).length = ptLen n := by
-        rw [List.length_take, beq_iff_eq.mp hlenCt]; omega
-      have hpadLen : (family ke (out.1.take (ptLen n))).length = ptLen n := by
-        rw [hlen _ _ (by rw [htakeLen, hkeLen]), hkeLen]
-      simp only [runWith_norm, pmf_norm, prfOracle, htakeLen, ↓reduceIte,
-        List.take_of_length_le hpadLen.le, hfresh, hlenCt, Bool.true_and, Option.elim,
-        mtePlaintextValid, hmsgLen]
-      congr 1
-      split_ifs with h
-      · rw [h]; rfl
-      · rw [Bool.not_eq_true] at h; rw [h]; rfl
-    · have hlenCt' : (out.1.length == 2 * ptLen n) = false := (Bool.not_eq_true _).mp hlenCt
-      simp only [hlenCt', Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh,
-        Bool.true_and, Option.elim, Option.isSome_none]
-  · have hfresh' : (!out.2.contains out.1) = false := (Bool.not_eq_true _).mp hfresh
-    simp only [Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh',
-      Bool.false_and]
+  by_cases hcond : (!out.2.contains out.1 && out.1.length == 2 * ptLen n) = true
+  · obtain ⟨hfresh, hlenCt⟩ := Bool.and_eq_true_iff.mp hcond
+    have htakeLen : (out.1.take (ptLen n)).length = ptLen n := by
+      rw [List.length_take, beq_iff_eq.mp hlenCt]; omega
+    have hpadLen : (family ke (out.1.take (ptLen n))).length = ptLen n := by
+      rw [hlen _ _ (by rw [htakeLen, hkeLen]), hkeLen]
+    simp only [runWith_norm, pmf_norm, prfOracle, htakeLen, ↓reduceIte,
+      List.take_of_length_le hpadLen.le, hfresh, hlenCt, Bool.true_and, Option.elim,
+      mtePlaintextValid, hmsgLen]
+    congr 1
+    split_ifs with h
+    · exact h
+    · exact (Bool.not_eq_true _).mp h
+  · simp only [hcond, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
+    rcases Bool.and_eq_false_iff.mp (Bool.eq_false_iff.mpr hcond) with hfresh | hlenCt
+    · simp only [hfresh, Bool.false_and]
+    · simp only [hlenCt, Bool.false_eq_true, ↓reduceIte, Option.elim,
+        Option.isSome_none, Bool.and_false]
 
 /-- The ideal PRF game of `mteCIToPrfDistinguisher` is the ciphertext-integrity game over a lazily
 sampled random function. -/

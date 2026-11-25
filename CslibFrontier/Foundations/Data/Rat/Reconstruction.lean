@@ -252,9 +252,7 @@ private theorem initial_stepInv {M : ℕ} (hM : 0 < M) (u : ℤ) :
       r1_nonneg := Int.emod_nonneg u hMz.ne'
       r1_lt := Int.emod_lt_of_pos u hMz
       mod0 := by simp [Int.ModEq]
-      mod1 := by
-        show u % (M : ℤ) ≡ 1 * u [ZMOD M]
-        rw [one_mul, Int.ModEq, Int.emod_emod]
+      mod1 := by simpa only [one_mul, Int.ModEq] using Int.emod_emod u M
       t_sign := by simp
       t1_ne := one_ne_zero
       bezout := ⟨1, rfl, by ring⟩ }
@@ -397,16 +395,14 @@ theorem reconstructPi_of_eq {k : ℕ} {m : Fin k → ℕ} (hcop : Pairwise (Nat.
   have : NeZero M := ⟨by have : 0 < M := Nat.zero_lt_of_lt hM; omega⟩
   let uZ : ZMod M := (ZMod.prodEquivPi m hcop).symm res
   have hcopM : Nat.Coprime q.den M := Nat.Coprime.prod_right fun i _ => hcop_den i
-  have hcast : (q.num : ZMod M) = uZ * (q.den : ZMod M) := by
+  have hcast : (q.num : ZMod M) = (uZ.val : ℤ) * (q.den : ZMod M) := by
+    rw [Int.cast_natCast, ZMod.natCast_zmod_val]
     apply (ZMod.prodEquivPi m hcop).injective
     ext i
     rw [map_mul, map_intCast, map_natCast, RingEquiv.apply_symm_apply]
     exact hres i
-  have hmod : q.num ≡ (uZ.val : ℤ) * (q.den : ℤ) [ZMOD M] := by
-    rw [← ZMod.intCast_eq_intCast_iff]
-    rw [← ZMod.natCast_zmod_val uZ] at hcast
-    exact_mod_cast hcast
-  exact reconstruct_of_eq hN hD hM hcopM hmod
+  exact reconstruct_of_eq hN hD hM hcopM
+    ((ZMod.intCast_eq_intCast_iff _ _ M).mp (by simpa using hcast))
 
 end CRTReconstruction
 

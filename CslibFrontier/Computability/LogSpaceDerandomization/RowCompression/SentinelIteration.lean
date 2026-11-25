@@ -143,19 +143,11 @@ theorem iterate_sentinelState_of_sum_abs_lt (m : ℕ) (hmarked : marked ⊆ s)
         (0 < j → firstRank s K original.defaultValue original.row =
           firstRank s K modified.defaultValue modified.row ∧
             firstRank s K modified.defaultValue modified.row ≤ R) := by
-  let Δ' := fun i => sentinelFirst marked 0 (Δ i)
-  let b := sentinelState marked L a
-  let A := iterate s n (fun _ => K) ρ Δ a
-  let B := iterate s n (fun _ => K) ρ Δ' b
-  change (∀ i < m, firstRank s K (B i).defaultValue
-      (inputRow s n (fun _ => K) ρ Δ' b i) ≤ R) →
-    (∀ i < m, stepThreshold s n (fun _ => K) ρ Δ' b i ≤ R) →
-    ∀ j ≤ m, B j = sentinelState marked L (A j) ∧
-      (∀ y ∈ marked, (A j).row y = uncompressedRow Δ a.row j y) ∧
-      (0 < j → firstRank s K (A j).defaultValue (A j).row =
-        firstRank s K (B j).defaultValue (B j).row ∧
-          firstRank s K (B j).defaultValue (B j).row ≤ R)
-  intro hq hu j
+  intro Δ' b hq hu
+  set A := iterate s n (fun _ => K) ρ Δ a
+  set B := iterate s n (fun _ => K) ρ Δ' b with hB
+  dsimp only
+  intro j
   induction j with
   | zero =>
     exact fun _ => ⟨rfl, fun y _ => by simp only [uncompressedRow_zero, A, iterate_zero],
@@ -172,16 +164,10 @@ theorem iterate_sentinelState_of_sum_abs_lt (m : ℕ) (hmarked : marked ⊆ s)
       exact (sentinelFirst_add marked L (A j).row (Δ j)).symm
     have hq' : firstRank s K (A j).defaultValue
         (sentinelFirst marked L (inputRow s n (fun _ => K) ρ Δ a j)) ≤ R := by
-      have h := hq j hjm
-      rw [hinput, heq] at h
-      exact h
+      simpa only [hinput, heq, sentinelState] using hq j hjm
     have hu' : threshold s (n j) (ρ j) (A j).defaultValue
         (sentinelFirst marked L (inputRow s n (fun _ => K) ρ Δ a j)) ≤ R := by
-      have h := hu j hjm
-      change threshold s (n j) (ρ j) (B j).defaultValue
-        (inputRow s n (fun _ => K) ρ Δ' b j) ≤ R at h
-      rw [hinput, heq] at h
-      exact h
+      simpa only [stepThreshold, ← hB, hinput, heq, sentinelState] using hu j hjm
     have hrawInput (y : ι) (hy : y ∈ marked) :
         inputRow s n (fun _ => K) ρ Δ a j y = uncompressedRow Δ a.row (j + 1) y := by
       funext ν

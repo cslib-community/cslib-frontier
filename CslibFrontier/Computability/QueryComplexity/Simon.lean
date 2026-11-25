@@ -230,12 +230,7 @@ private theorem simonFixFun_involutive (s : Fin n → Bool) (A : Finset (Fin n �
   classical
   intro x
   by_cases h : (x ∈ A ∧ simonRep s x ≠ x) ∨ (x + s ∈ A ∧ simonRep s (x + s) ≠ x + s)
-  · have h' : (x + s ∈ A ∧ simonRep s (x + s) ≠ x + s) ∨
-        (x + s + s ∈ A ∧ simonRep s (x + s + s) ≠ x + s + s) := by
-      rw [BitString.add_cancel_right]
-      tauto
-    have h'' : (x + s ∈ A ∧ simonRep s (x + s) ≠ x + s) ∨ (x ∈ A ∧ simonRep s x ≠ x) := h.symm
-    simp only [simonFixFun, h, h'', ite_true, BitString.add_cancel_right]
+  · simp only [simonFixFun, h, h.symm, ite_true, BitString.add_cancel_right]
   · simp only [simonFixFun, h, ite_false]
 
 /-- The permutation `simonFixFun s A`. -/
@@ -635,8 +630,8 @@ theorem simon_search_ne_zero_two_pow_le_sq (μ : RandomizedDecisionTree (Fin N) 
       have hinj := (simonPromise_zero_iff _).mp hX
       refine (RandomizedDecisionTree.errorProb_mapTree_eq_zero φ μ F X fun t => ?_).trans_le
         (by norm_num)
-      rw [heval, hF X 0 hX]
-      simp only [ne_eq, not_true_eq_false, decide_false, decide_eq_false_iff_not, not_and]
+      simp only [heval, hF X 0 hX, ne_eq, not_true_eq_false, decide_false,
+        decide_eq_false_iff_not, not_and]
       exact fun h0 he => h0 (hinj he).symm
     · exact (RandomizedDecisionTree.errorProb_mapTree_le φ μ S F X fun t ht => by
         rw [heval, ht]).trans (hμ X s hX hs)

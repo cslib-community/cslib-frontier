@@ -173,11 +173,9 @@ theorem gate_eq_of_forall_mem_interval {K : Set (MetricGraph W)} {y p : MetricGr
   unfold gate
   rw [dite_eq_left hex]
   obtain ⟨hq, hqz⟩ := hex.choose_spec
-  have e1 := mem_interval_iff.mp (hqz p hp)
-  have e2 := mem_interval_iff.mp (h _ hq)
-  have hd : Dist.dist hex.choose p = 0 := by
-    linarith [_root_.dist_comm p hex.choose]
-  exact _root_.dist_eq_zero.mp hd
+  exact _root_.dist_eq_zero.mp (by
+    linarith [mem_interval_iff.mp (hqz p hp), mem_interval_iff.mp (h _ hq),
+      _root_.dist_comm p hex.choose])
 
 /-- Points of `K` are their own gates. -/
 theorem gate_eq_self {K : Set (MetricGraph W)} {y : MetricGraph W} (hy : y ∈ K) : gate K y = y :=
@@ -193,12 +191,9 @@ theorem IsConvex.exists_gate (hT : W.graph.IsTree) {K : Set (MetricGraph W)} (hK
   refine ⟨p, hpK, fun z hz => ?_⟩
   by_contra hnot
   let m := treeMedian hT y p z
-  have hmK : m ∈ K := hK hpK hz (treeMedian_mem_yz hT y p z)
-  have hmp : m ≠ p := fun heq => hnot (heq ▸ (interval_comm z y ▸ treeMedian_mem_zx hT y p z))
-  have hle : Dist.dist y p ≤ Dist.dist y m := hp_min hmK
-  have h1 := mem_interval_iff.mp (treeMedian_mem_xy hT y p z)
-  have hpos : 0 < Dist.dist m p := _root_.dist_pos.mpr hmp
-  linarith
+  have hmp : m ≠ p := fun heq => hnot (heq ▸ interval_comm z y ▸ treeMedian_mem_zx hT y p z)
+  have hle : Dist.dist y p ≤ Dist.dist y m := hp_min (hK hpK hz (treeMedian_mem_yz hT y p z))
+  linarith [hle, mem_interval_iff.mp (treeMedian_mem_xy hT y p z), _root_.dist_pos.mpr hmp]
 
 theorem IsConvex.gate_mem (hT : W.graph.IsTree) {K : Set (MetricGraph W)} (hK : IsConvex K)
     (hKc : IsClosed K) (hKn : K.Nonempty) (y : MetricGraph W) : gate K y ∈ K := by
@@ -242,13 +237,11 @@ theorem subtree_nonempty {S : Finset V} (hS : S.Nonempty) : (subtree W S).Nonemp
   let ⟨u, hu⟩ := hS
   ⟨vertex u, vertex_mem_subtree W hu⟩
 
-theorem isClosed_subtree (W : WeightedGraph V) (S : Finset V) : IsClosed (subtree W S) := by
-  have heq : subtree W S = ⋃ u ∈ S, ⋃ v ∈ S, interval (vertex u) (vertex v) := by
-    ext z
-    simp [subtree]
-  rw [heq]
-  exact isClosed_biUnion_finset fun u _ => isClosed_biUnion_finset fun v _ =>
-    isClosed_interval (vertex u) (vertex v)
+theorem isClosed_subtree (W : WeightedGraph V) (S : Finset V) : IsClosed (subtree W S) :=
+  (Set.ext fun _ => by simp [subtree] : subtree W S = ⋃ u ∈ S, ⋃ v ∈ S,
+      interval (vertex u) (vertex v)) ▸
+    isClosed_biUnion_finset fun u _ => isClosed_biUnion_finset fun v _ =>
+      isClosed_interval (vertex u) (vertex v)
 
 theorem isConvex_subtree (hT : W.graph.IsTree) (S : Finset V) : IsConvex (subtree W S) := by
   rintro a b ⟨u₁, hu₁, v₁, hv₁, ha⟩ ⟨u₂, hu₂, v₂, hv₂, hb⟩ z hz
@@ -290,16 +283,15 @@ private lemma exists_cut_dart_of_notMem (hT : W.graph.IsTree) {S : Finset V}
       ∀ u ∈ S, edgeProj hT d (vertex u) = 0 := by
   obtain ⟨u₀, hu₀⟩ := hS.nonempty
   obtain ⟨q, hq⟩ := (W.connected v u₀).exists_isPath
-  have hstep : ∀ {a b : V} (p : W.graph.Walk a b), a ∉ S → b ∈ S →
+  have hstep {a b : V} (p : W.graph.Walk a b) : a ∉ S → b ∈ S →
       ∃ d : W.graph.Dart, d.snd ∉ S ∧ d.fst ∈ S ∧
         (W.graph.deleteEdges {d.edge}).Reachable a d.snd := by
-    intro a b p
     induction p with
-    | nil => intro ha hb; exact absurd hb ha
+    | nil => exact fun ha hb => absurd hb ha
     | @cons x y z hadj q' ih =>
       intro hx hz
       by_cases hy : y ∈ S
-      · refine ⟨⟨(y, x), hadj.symm⟩, hx, hy, .refl x⟩
+      · exact ⟨⟨(y, x), hadj.symm⟩, hx, hy, .refl x⟩
       · obtain ⟨d, hd_snd, hd_fst, hreach⟩ := ih hy hz
         have hadj' : (W.graph.deleteEdges {d.edge}).Adj x y := ⟨hadj, fun he => by
           rcases Sym2.eq_iff.mp (Set.mem_singleton_iff.mp he.1) with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
@@ -315,13 +307,9 @@ private lemma exists_cut_dart_of_notMem (hT : W.graph.IsTree) {S : Finset V}
     rw [edgeProj_vertex_eq_zero_iff]
     by_contra hnot
     obtain ⟨p, hp⟩ := (W.connected d.fst u).exists_isPath
-    have hsplit : d.snd ∈ p.support := by
-      by_contra hsnd
-      refine hnot ⟨(p.toDeleteEdges {d.edge} fun e he hmem => hsnd ?_).reverse⟩
-      rw [Set.mem_singleton_iff] at hmem
-      subst hmem
-      exact p.snd_mem_support_of_mem_edges he
-    exact hd_snd (hS.mem_of_mem_support hd_fst hu hp hsplit)
+    refine hd_snd (hS.mem_of_mem_support hd_fst hu hp (by_contra fun hsnd => hnot ?_))
+    exact ⟨(p.toDeleteEdges {d.edge} fun e he hmem =>
+      hsnd (p.snd_mem_support_of_mem_edges (Set.mem_singleton_iff.mp hmem ▸ he))).reverse⟩
 
 theorem vertex_mem_subtree_iff (hT : W.graph.IsTree) {S : Finset V}
     (hS : IsSubtreeVertexSet W S) (v : V) :
@@ -381,31 +369,26 @@ theorem IsSubtreeVertexSet.exists_subtree_eq_interval (hT : W.graph.IsTree) {S :
       ∀ {u'}, u' ∈ S → u' ∉ q.support → ¬ W.graph.Adj u' a' := by
     intro a' b' q hq hqL hb' u' hu'S hu'q hadj
     have hq' : (Walk.cons hadj q).IsPath := Walk.IsPath.cons hq hu'q
-    have hbd : (Walk.cons hadj q).length + 1 ≤ S.card := by
+    have hbd : L + 2 ≤ S.card := by
       have hsub : (Walk.cons hadj q).support.toFinset ⊆ S := fun w hw =>
         hS.mem_of_mem_support hu'S hb' hq' (List.mem_toFinset.mp hw)
       have hc := Finset.card_le_card hsub
-      rwa [List.toFinset_card_of_nodup hq'.support_nodup, Walk.length_support] at hc
-    have hlen' : (Walk.cons hadj q).length = L + 1 := by simp [hqL]
-    have hL1_mem : L + 1 ∈ lengths := Finset.mem_filter.mpr
-      ⟨Finset.mem_range.mpr (by omega), u', hu'S, b', hb', _, hq', hlen'⟩
-    have hle := Finset.le_max' lengths (L + 1) hL1_mem
-    omega
+      rwa [List.toFinset_card_of_nodup hq'.support_nodup, Walk.length_support, Walk.length_cons,
+        hqL] at hc
+    exact absurd (Finset.le_max' lengths (L + 1) (Finset.mem_filter.mpr
+      ⟨Finset.mem_range.mpr (by omega), u', hu'S, b', hb', _, hq', by simp [hqL]⟩)) (by omega)
   have hall_mem : ∀ u ∈ S, u ∈ p.support := by
     intro u hu
     obtain ⟨q, hq⟩ := (W.connected u a).exists_isPath
-    have hstep : ∀ {x y : V} (r : W.graph.Walk x y), r.IsPath → x ∈ S → y ∈ p.support →
+    have hstep {x y : V} (r : W.graph.Walk x y) : r.IsPath → x ∈ S → y ∈ p.support →
         x ∉ p.support → ∃ u' ∈ S, ∃ v' ∈ p.support, u' ∉ p.support ∧ W.graph.Adj u' v' := by
-      intro x y r
       induction r with
-      | nil => intro _ _ hy hx; exact absurd hy hx
+      | nil => exact fun _ _ hy hx => absurd hy hx
       | @cons x₁ z₁ w₁ hadj r' ih =>
         intro hr hx₁ hw₁ hnx₁
-        have hz₁_S : z₁ ∈ S :=
-          hS.mem_of_mem_support hx₁ (hp_in_S w₁ hw₁) hr (by simp)
         by_cases hz₁ : z₁ ∈ p.support
         · exact ⟨x₁, hx₁, z₁, hz₁, hnx₁, hadj⟩
-        · exact ih hr.of_cons hz₁_S hw₁ hz₁
+        · exact ih hr.of_cons (hS.mem_of_mem_support hx₁ (hp_in_S w₁ hw₁) hr (by simp)) hw₁ hz₁
     by_contra hu_not
     obtain ⟨u', hu'S, v', hv'p, hu'not, hadj⟩ :=
       hstep q hq hu (Walk.start_mem_support p) hu_not

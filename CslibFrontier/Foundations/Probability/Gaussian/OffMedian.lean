@@ -105,22 +105,17 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
       inter_eq_left.mpr (Icc_subset_Icc ha hb), setIntegral_const, smul_eq_mul, mul_one,
       Real.volume_real_Icc_of_le hab]
   have hint_g : ∫ φ in (-π)..π, g φ = 2 * c := by
-    have hcongr : ∫ φ in (-π)..π, g φ =
-        ∫ φ in (-π)..π, (Icc (-c) c).indicator (fun _ => (1 : ℝ)) φ :=
-      intervalIntegral.integral_congr (by
-        rw [uIcc_of_le (by linarith [pi_pos])]
-        exact hg_Icc)
-    rw [hcongr, hint_Icc (by linarith) (by linarith) hcπ]
+    rw [intervalIntegral.integral_congr (uIcc_of_le (a := -π) (b := π) (by linarith [pi_pos]) ▸
+      hg_Icc), hint_Icc (by linarith) (by linarith) hcπ]
     ring
   have hint_g_shift : ∫ φ in (-π)..π, g (φ - θ) = 2 * c := by
     rw [intervalIntegral.integral_comp_sub_right, ← hint_g]
     simpa only [show -π - θ + 2 * π = π - θ by ring, show -π + 2 * π = π by ring] using
       hg_per.intervalIntegral_add_eq (-π - θ) (-π)
   let cross : ℝ → ℝ := fun φ => if ¬(cos c ≤ cos φ ↔ cos c ≤ cos (φ - θ)) then 1 else 0
-  have hcross_eq : ∀ φ, cross φ = g φ + g (φ - θ) - 2 * (g φ * g (φ - θ)) := by
-    intro φ
-    simp only [cross, g]
-    by_cases h1 : cos c ≤ cos φ <;> by_cases h2 : cos c ≤ cos (φ - θ) <;> simp [h1, h2]
+  have hcross_eq (φ : ℝ) : cross φ = g φ + g (φ - θ) - 2 * (g φ * g (φ - θ)) := by
+    by_cases h1 : cos c ≤ cos φ <;> by_cases h2 : cos c ≤ cos (φ - θ) <;>
+      simp [cross, g, h1, h2]
     norm_num
   have hprod_ii : IntervalIntegrable (fun φ => g φ * g (φ - θ)) volume (-π) π :=
     hint_bdd _ (hg_meas.mul (hg_meas.comp (measurable_id.sub_const θ)))
@@ -187,15 +182,11 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
       exp (-t ^ 2 / 2) * (InnerProductGeometry.angle u v / π) := by
   classical
   set ρ := ⟪u, v⟫
-  have hρ_abs : |ρ| ≤ 1 := by
-    simpa [ρ, hu, hv] using abs_real_inner_le_norm u v
-  have hρ_bounds := abs_le.mp hρ_abs
+  have hρ_bounds := abs_le.mp (show |ρ| ≤ 1 by simpa [ρ, hu, hv] using abs_real_inner_le_norm u v)
   set θ := arccos ρ
   have hθ0 : 0 ≤ θ := arccos_nonneg ρ
   have hθπ : θ ≤ π := arccos_le_pi ρ
-  have hangle : InnerProductGeometry.angle u v = θ :=
-    InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv
-  rw [hangle]
+  rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv]
   have hcosθ : cos θ = ρ := cos_arccos hρ_bounds.1 hρ_bounds.2
   have hsinθ : sin θ = √(1 - ρ ^ 2) := sin_arccos ρ
   let S : Set (ℝ × ℝ) := {p | t ∈ Ι p.1 p.2}
@@ -277,28 +268,20 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
     refine mul_le_mul_of_nonneg_left ?_ (hrad_nonneg r hr0.le)
     rcases lt_or_gt_of_ne hne with hlt | hgt
     · rw [indicator_of_notMem (not_lt.mpr hlt.le)]
-      have hzero : ∀ φ, A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) = 0 := by
-        intro φ
-        refine indicator_of_notMem ?_ _
-        simp only [A, mem_ofPred_eq]
-        rw [hrot]
-        exact not_mem_uIoc_of_lt_abs hr0 hlt
+      have hzero (φ : ℝ) : A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) = 0 := by
+        refine indicator_of_notMem
+          (fun hA => not_mem_uIoc_of_lt_abs (φ := φ) (ψ := φ - θ) hr0 hlt ?_) _
+        simpa only [A, mem_ofPred_eq, hrot] using hA
       simp [angInt, hzero]
     · rw [indicator_of_mem hgt]
       set c := arccos (t / r)
-      have htr_abs : |t / r| < 1 := by
-        rw [abs_div, abs_of_pos hr0, div_lt_one hr0]
-        exact hgt
-      have hcos_c : cos c = t / r :=
-        cos_arccos (abs_lt.mp htr_abs).1.le (abs_lt.mp htr_abs).2.le
-      have hpt : ∀ φ, A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) =
+      have htr := abs_lt.mp (show |t / r| < 1 by rwa [abs_div, abs_of_pos hr0, div_lt_one hr0])
+      have hcos_c : cos c = t / r := cos_arccos htr.1.le htr.2.le
+      have hpt (φ : ℝ) : A.indicator (fun _ => (1 : ℝ)) (r * cos φ, r * sin φ) =
           if ¬(cos c ≤ cos φ ↔ cos c ≤ cos (φ - θ)) then 1 else 0 := by
-        intro φ
-        have hiff1 : ∀ ψ, t ≤ r * cos ψ ↔ cos c ≤ cos ψ := fun ψ => by
+        have hiff1 (ψ : ℝ) : t ≤ r * cos ψ ↔ cos c ≤ cos ψ := by
           rw [hcos_c, div_le_iff₀ hr0, mul_comm]
-        have hiff2 : ∀ ψ, r * cos ψ < t ↔ ¬cos c ≤ cos ψ := fun ψ => by
-          rw [← not_le, hiff1]
-        simp only [indicator_apply, A, mem_ofPred_eq, hrot, mem_uIoc, hiff1, hiff2]
+        simp only [indicator_apply, A, mem_ofPred_eq, hrot, mem_uIoc, ← not_le, hiff1]
         by_cases h1 : cos c ≤ cos φ <;> by_cases h2 : cos c ≤ cos (φ - θ) <;> simp [h1, h2]
       dsimp [angInt]
       simp_rw [hpt]

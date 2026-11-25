@@ -86,18 +86,14 @@ theorem schnorrRelatedNonceExtractWord_schnorrSignCoins (F : PrimeOrderGroupFami
   have hnil : (ofBits ([] : List Bool) : ZMod (F.order d)) = 0 := Nat.cast_zero
   have hc' : (ofBits ([] : List Bool) : ZMod (F.order d)) *
       (ofBits ([] : List Bool) : ZMod (F.order d)) ≠ (ofBits roOut : ZMod (F.order d)) := by
-    rw [hnil, zero_mul]
-    exact hc.symm
-  rw [F.schnorrRelatedNonceExtractWord_eq_encScalar d [] (F.encScalar d r) [] [] roOut
-    ((F.schnorrSignCoins (d, F.encScalar d α, msg, F.encScalar d r, roOut)).2) hc',
+    simpa [hnil] using hc.symm
+  rw [F.schnorrRelatedNonceExtractWord_eq_encScalar d [] (F.encScalar d r) [] [] roOut _ hc',
     F.schnorrSignCoins_encScalar]
   refine congrArg (F.encScalar d) ?_
   simp only [encScalar, Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits,
     ZMod.natCast_zmod_val, relatedNonceExtract, hnil, mul_zero, zero_add, zero_sub, inv_neg]
-  have hring : -(ofBits roOut : ZMod (F.order d))⁻¹ *
-      (r - (r + (ofBits roOut : ZMod (F.order d)) * α)) =
-      (ofBits roOut : ZMod (F.order d))⁻¹ * (ofBits roOut : ZMod (F.order d)) * α := by ring
-  rw [hring, inv_mul_cancel₀ hc, one_mul]
+  field_simp
+  ring
 
 /-- One-query word-level ROM adversary taking `(d, m, msg, sig, rBits)` and recovering the
 secret-key word from `sig` and the leaked reduced randomness word `rBits`. -/
@@ -126,25 +122,16 @@ theorem isOraclePPTOn_schnorrLeakedNonceWordAdversary (F : PrimeOrderGroupFamily
   have hdec : ComputableInPolyTime
       (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool =>
         (Decoder.bits.pair Decoder.bits).decode x.2.2.2.1)
-      E (encPair encBits encBits) := by
-    exact (Decoder.bits.pair Decoder.bits).computableInPolyTime.comp (by fun_prop)
-  have hfst : ComputableInPolyTime (fun p : List Bool × List Bool => p.1)
-      (encPair encBits encBits) encBits :=
-    ComputableInPolyTime.fst encBits encBits
-  have hmsg : ComputableInPolyTime
-      (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool => x.2.2.1) E encBits := by
-    fun_prop
+      E (encPair encBits encBits) :=
+    (Decoder.bits.pair Decoder.bits).computableInPolyTime.comp (by fun_prop)
   have hreq : ComputableInPolyTime
       (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool =>
         encPair encBits encBits
           (x.2.2.1, ((Decoder.bits.pair Decoder.bits).decode x.2.2.2.1).1))
       E encBits :=
-    (hmsg.prod (hfst.comp hdec)).encoding_comp
-  have hm : ComputableInPolyTime
-      (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool => x.2.1) E encUnary := by
-    fun_prop
-  have hqry := IsOraclePPTOn.query_take () hreq hm
-  refine hqry.map_with ?_
+    ((by fun_prop : ComputableInPolyTime _ E encBits).prod
+      ((ComputableInPolyTime.fst encBits encBits).comp hdec)).encoding_comp
+  refine (IsOraclePPTOn.query_take () hreq (by fun_prop)).map_with ?_
   have harg : ComputableInPolyTime
       (fun p : (F.Desc × ℕ × List Bool × List Bool × List Bool) × List Bool =>
         (p.1.1, ([] : List Bool), p.1.2.2.2.2, ([] : List Bool), ([] : List Bool), p.2,
@@ -247,10 +234,8 @@ theorem one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame
       lt_of_lt_of_le (by simpa only [List.length_ofFn] using ofBits_lt_two_pow (List.ofFn c)) hm
     have hmod : (ofBits (List.ofFn c) : ZMod (F.order d)) ≠ 0 := fun hz =>
       hne (Nat.eq_zero_of_dvd_of_lt ((CharP.cast_eq_zero_iff _ (F.order d) _).mp hz) hlt)
-    have hok :=
-      F.schnorrRelatedNonceExtractWord_schnorrSignCoins d α rZ msg (List.ofFn c) hmod
     simp only [fail, Bool.not_eq_true', decide_eq_false_iff_not] at hc
-    exact hc hok
+    exact hc (F.schnorrRelatedNonceExtractWord_schnorrSignCoins d α rZ msg (List.ofFn c) hmod)
   have hsub : {c : BitString m | fail c = true}.Subsingleton := by
     intro c₀ hc₀ c₁ hc₁
     have heq : ofBits (List.ofFn c₀) = ofBits (List.ofFn c₁) :=
@@ -258,10 +243,7 @@ theorem one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame
     rw [ofBits_ofFn, ofBits_ofFn] at heq
     exact (BitString.equivFin m).injective (Fin.ext heq)
   have hfail := Cslib.Probability.PMF.uniformOfFintype_bind_pure_apply_true_le hsub
-  have hcard : (Fintype.card (BitString m) : ℝ≥0∞) = (2 ^ m : ℝ≥0∞) := by
-    simp only [BitString, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow,
-      Nat.cast_ofNat]
-  rw [hcard] at hfail
+  simp only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] at hfail
   have hfalse :
       g false = ((PMF.uniformOfFintype (BitString m)).bind fun c => PMF.pure (fail c)) true := by
     simp only [g, fail, PMF.bind_apply, PMF.pure_apply]

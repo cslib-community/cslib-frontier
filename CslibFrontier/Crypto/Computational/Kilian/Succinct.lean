@@ -130,16 +130,13 @@ theorem kilianResponseBits_kilianRespond_le (hlen : ∀ k x, (H k x).length = k.
   simp only [Function.comp_apply, kilianOpen, List.map_map]
   refine (List.sum_le_length_nsmul _ (1 + kilianDepth V x * k.length) fun m hm => ?_).trans ?_
   · obtain ⟨a, -, rfl⟩ := List.mem_map.mp hm
-    have hpath : (merklePath H k (kilianLeaves (kilianTable V x table))
-        (kilianPosition V x a)).length = kilianDepth V x := by
-      simp [length_merklePath, kilianLeaves, kilianDepth]
     have hsum := List.sum_le_length_nsmul
       ((merklePath H k (kilianLeaves (kilianTable V x table)) (kilianPosition V x a)).map
         List.length) k.length fun m hm => by
           obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hm
           exact length_le_of_mem_merklePath hlen hs
-    simp only [List.length_map, hpath, smul_eq_mul] at hsum
-    simpa only [Function.comp_apply, kilianOpeningBits] using Nat.add_le_add_left hsum 1
+    simp only [List.length_map, length_merklePath, kilianLeaves, smul_eq_mul] at hsum
+    simpa [kilianOpeningBits, kilianLeaves, kilianDepth] using Nat.add_le_add_left hsum 1
   · simp only [List.length_map, smul_eq_mul]
     exact Nat.mul_le_mul_right _ (hq ρ (hρs ρ hρ))
 
@@ -271,16 +268,13 @@ theorem computableInTimeAndSpace_kilianVerify_honest_le {enc : α ↪ List Bool}
   let inBound : ℕ → ℕ := fun u =>
     4 * u + 6 * u + 6 + 2 * (u * (2 * (c * (u + 1)) + 1)) +
       u * (2 * (q * (2 * (3 + (c * (u + 1) + Nat.clog 2 q) * (2 * u + 1)) + 1)) + 1)
-  have hin_pb : PolynomiallyBounded inBound := by
-    dsimp only [inBound]
-    fun_prop
   obtain ⟨kTM, State, hfin, tm, t, s, tHonest, sHonest, ht_pb, hs_pb, htH, hsH, htm', hbound⟩ :=
     computableInTimeAndSpace_kilianVerify_of_bound hH hlen hV hcoins
       (fun v => ∃ n table, v.key.length = n ∧ v.challenges.length = n ∧
         (∀ ρ ∈ v.challenges, ρ.length = V.coins v.stmt) ∧
         v.root = kilianCommit H V v.key v.stmt table ∧
         v.response = kilianRespond H V v.key v.stmt table v.challenges)
-      (fun v => v.key.length + (enc v.stmt).length) inBound hin_pb
+      (fun v => v.key.length + (enc v.stmt).length) inBound (by fun_prop)
       fun ⟨⟨k, stmt, root⟩, challenges, response⟩ ⟨n, table, hk, hn, hρs, hroot, hresp⟩ => by
         dsimp only at hk hn hρs hroot hresp ⊢
         subst hroot hresp
@@ -289,10 +283,8 @@ theorem computableInTimeAndSpace_kilianVerify_honest_le {enc : α ↪ List Bool}
             ((Nat.log_le_self 2 _).trans (Nat.le_add_left _ _))))
         rw [hk]
         refine (length_kilianVerifierInput_honest_le hlen hk hn hρs (hq stmt)).trans ?_
-        have hn_le : n ≤ n + (enc stmt).length := Nat.le_add_right _ _
-        have hx_le : (enc stmt).length ≤ n + (enc stmt).length := Nat.le_add_left _ _
         dsimp only [inBound]
-        gcongr
+        gcongr <;> omega
   refine ⟨kTM, State, hfin, tm, t, s, tHonest, sHonest, ht_pb, hs_pb, htH, hsH, htm',
     fun n key x table ρs hk hn hρs => ?_⟩
   simpa [hk] using hbound

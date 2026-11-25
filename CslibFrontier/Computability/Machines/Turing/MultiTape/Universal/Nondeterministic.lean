@@ -113,11 +113,9 @@ public theorem exists_nStep_of_step {input : List Symbol} {c c' : Cfg k Symbol S
   obtain ⟨happ, hshape⟩ := toCfg_apply hs hstate out (a.map eS eY)
   have hout' : ((a.apply c).map eS eY).output = out ++ (a.map eS eY).output.toList := by
     simp [hout, Action.apply, Option.toList_map]
-  refine ⟨_, ⟨eS q, hstate, _, (mem_descN eS eY ntm).mpr ⟨q, _, _, a, ha, rfl⟩, ?_, ?_⟩,
-    hshape, ?_⟩
+  refine ⟨_, ⟨eS q, hstate, _, (mem_descN eS eY ntm).mpr ⟨q, _, _, a, ha, rfl⟩, ?_,
+    congrArg (Prod.mk _) hout'⟩, hshape, ?_⟩
   · rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map]
-    rfl
-  · rw [hout']
     rfl
   · rw [hout']
     exact happ.trans (by rw [hsc, Action.apply_map])
@@ -225,16 +223,14 @@ lemma exists_reflTransGen_fits_aux {input : List Symbol} (π : ntm.RunPath input
     obtain ⟨s, hreach, hshape, hs, ⟨j, hinv⟩, hcov⟩ :=
       ih hπ ((MultiTapeNTM.RunPath.space_le_of_subset hsub).trans hS)
     have hvis (i : Fin k) : MultiTapeNTM.RunPath.visitedByTapeHead π i ⊆
-        MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i := by
-      rw [MultiTapeNTM.RunPath.visitedByTapeHead_snoc]
-      exact Finset.subset_insert _ _
+        MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i :=
+      MultiTapeNTM.RunPath.visitedByTapeHead_snoc .. ▸ Finset.subset_insert _ _
     have hlast (i : Fin k) :
         π.last.workTapePos i ∈ MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i :=
       hvis i ((MultiTapeNTM.RunPath.mem_visitedByTapeHead π).mpr ⟨π.last, π.last_mem, rfl⟩)
     have hnew (i : Fin k) :
-        c.workTapePos i ∈ MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i := by
-      rw [MultiTapeNTM.RunPath.visitedByTapeHead_snoc]
-      exact Finset.mem_insert_self _ _
+        c.workTapePos i ∈ MultiTapeNTM.RunPath.visitedByTapeHead (π.snoc c hc) i :=
+      MultiTapeNTM.RunPath.visitedByTapeHead_snoc .. ▸ Finset.mem_insert_self _ _
     change ntm.Step π.last c at hc
     simp only [RelSeries.last_snoc]
     by_cases hhalt : π.last.Halted
@@ -250,9 +246,8 @@ lemma exists_reflTransGen_fits_aux {input : List Symbol} (π : ntm.RunPath input
       obtain ⟨ta, hta⟩ := Act.apply_tape e.2 (input.map eY) s i
       have hhead := workTapePos_toCfg eS eY hs' i
       rw [hs'eq, hta] at hhead ⊢
-      refine ((hcov i).mono (Finset.coe_subset.mpr (hvis i))).apply ?_ ta (hhead ▸ hnew i)
-      rw [workTapePos_toCfg eS eY hs i]
-      exact hlast i
+      exact ((hcov i).mono (Finset.coe_subset.mpr (hvis i))).apply
+        (workTapePos_toCfg eS eY hs i ▸ hlast i) ta (hhead ▸ hnew i)
     have hfits := length_eCfg_le_of_toCfg eS eY ntm (π := π.snoc c hc)
       (by rw [RelSeries.head_snoc]; exact hπ) hshape' (by rw [RelSeries.last_snoc]; exact hs')
       (hs'eq ▸ hinv.apply he) hcov'

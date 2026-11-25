@@ -139,24 +139,20 @@ theorem timeBound_le_dyadicTime {n F p : ℕ} (hf : 0 < blocks n) (values : List
 
 private theorem setupLog_le_log {n F κ : ℕ} (hF : F ≤ (n + 2) ^ κ) :
     setupLog n F ≤ (κ + 7) * Nat.clog 2 (n + 2) := by
-  let B := n + 2
-  have hb : 2 ≤ B := by dsimp only [B]; omega
-  have hb1 : 1 ≤ B := by omega
-  have hnB : n ≤ B := by dsimp only [B]; omega
-  have hn2 : n * n ≤ B ^ 2 := (Nat.mul_le_mul hnB hnB).trans_eq (by ring)
-  have hunit : 1 ≤ B ^ κ := Nat.one_le_pow _ _ hb1
-  have hcoef : 2 * F + 1 ≤ 3 * B ^ κ := by change F ≤ B ^ κ at hF; omega
-  have hterm : 3 * (n * n) * (2 * F + 1) ≤ 9 * B ^ (κ + 2) :=
-    (Nat.mul_le_mul (Nat.mul_le_mul_left 3 hn2) hcoef).trans_eq (by rw [pow_add]; ring)
-  have hB : B ≤ B ^ (κ + 2) := Nat.le_self_pow (by omega) _
-  have hlinear : 4 * n + 4 ≤ 8 * B ^ (κ + 2) := by nlinarith only [hnB, hb1, hB]
-  have hsum : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ 17 * B ^ (κ + 2) := by omega
-  have h17 : 17 ≤ B ^ 5 := (by decide : 17 ≤ (2 : ℕ) ^ 5).trans (Nat.pow_le_pow_left hb 5)
-  have hpoly : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ B ^ (κ + 7) :=
-    hsum.trans ((Nat.mul_le_mul_right _ h17).trans_eq (by rw [← pow_add]; congr 1; omega))
+  have h2 : 2 ≤ n + 2 := by omega
+  have h1 : 1 ≤ (n + 2) ^ κ := Nat.one_le_pow _ _ (by omega)
+  have hn2 : n * n ≤ (n + 2) ^ 2 := by nlinarith
+  have hnB : n ≤ (n + 2) ^ 2 := by nlinarith
+  have hAB : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ 17 * ((n + 2) ^ κ * (n + 2) ^ 2) := by
+    nlinarith
+  have h5 : 17 ≤ (n + 2) ^ 5 := Nat.le_trans (by decide) (Nat.pow_le_pow_left h2 5)
+  have hexp : κ + 7 = κ + 2 + 5 := by omega
+  have hpoly : 4 * n + 3 * (n * n) * (2 * F + 1) + 4 ≤ (n + 2) ^ (κ + 7) := by
+    rw [hexp, pow_add, pow_add]
+    exact hAB.trans ((Nat.mul_le_mul_right _ h5).trans_eq (mul_comm _ _))
   have h := hpoly.trans (Nat.pow_le_pow_left
-    (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) B) (κ + 7))
-  rw [← pow_mul, Nat.mul_comm (Nat.clog 2 B) (κ + 7)] at h
+    (Nat.le_pow_clog (by decide : 1 < (2 : ℕ)) (n + 2)) (κ + 7))
+  rw [← pow_mul, Nat.mul_comm (Nat.clog 2 (n + 2)) (κ + 7)] at h
   exact Nat.clog_le_of_le_pow h
 
 private theorem weightExponent_le {n F κ : ℕ} (hn : 2 ≤ n) (hF : F ≤ (n + 2) ^ κ) :
@@ -215,15 +211,11 @@ theorem exists_dyadicTime_subcubic_bound {κ : ℕ} (hκ : 1 ≤ κ) :
           rw [mul_assoc, mul_left_comm ((n : ℝ) ^ (2 / 1197 - 33 / 20000 : ℝ)) 16,
             ← mul_assoc, ← Real.rpow_add (by exact_mod_cast (by omega : 0 < n))]
           norm_num
-    have hlog := setupLog_le_log hF
-    have hclog : Nat.clog 2 (n + 2) ≤ n + 2 :=
-      Nat.clog_le_of_le_pow (show n + 2 ≤ 2 ^ (n + 2) from Nat.lt_two_pow_self.le)
-    have hn2' : n + 2 ≤ 2 * (n * n) := by nlinarith
-    have hsetup := hlog.trans (Nat.mul_le_mul_left (κ + 7) (hclog.trans hn2'))
+    have hclog : Nat.clog 2 (n + 2) ≤ 2 * (n * n) :=
+      (Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le).trans (by nlinarith)
+    have hsetup := (setupLog_le_log hF).trans (Nat.mul_le_mul_left (κ + 7) hclog)
     have hsmallNat : 24 * (n * n) + 24669 * setupLog n F + 514 ≤
-        (49338 * (κ + 7) + 538) * (n * n) := by
-      have hunit : 1 ≤ n * n := by nlinarith
-      nlinarith only [hsetup, hunit]
+        (49338 * (κ + 7) + 538) * (n * n) := by nlinarith
     have hsmallR := (Nat.cast_le (α := ℝ)).mpr hsmallNat
     have hpow : (n : ℝ) ^ 2 ≤ (n : ℝ) ^ (3 - 33 / 20000 : ℝ) := by
       rw [← Real.rpow_natCast]

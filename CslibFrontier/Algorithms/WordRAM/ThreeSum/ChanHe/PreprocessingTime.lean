@@ -58,21 +58,14 @@ private theorem parameter_scale_bounds (κ n : ℕ) :
   let L := Nat.log 2 B + 1
   let S := Nat.sqrt B + 1
   have hB : 2 ≤ B := by dsimp only [B]; omega
-  have hL : 1 ≤ L := by dsimp only [L]; omega
-  have hS : 1 ≤ S := by dsimp only [S]; omega
   constructor
   · have hm := Cslib.Algorithms.ThreeSum.ChanHe.mPar_shifted_pow_le n κ
-    have hu : 1 ≤ S * L ^ 2 := by
-      have hp : 0 < S * L ^ 2 := by positivity
-      omega
+    have hu : 1 ≤ S * L ^ 2 := Nat.pos_of_ne_zero (by dsimp only [S, L]; positivity)
     calc _ ≤ ((5 * κ + 16) * (10 * κ + 40)) * S * L ^ 2 + S * L ^ 2 :=
         Nat.add_le_add hm hu
       _ = paramFactor κ * S * L ^ 2 := by dsimp only [paramFactor]; ring
-  · have hs := Nat.sqrt_le B
-    have ht := Nat.sqrt_le_self B
-    change S ^ 2 ≤ 4 * B
-    dsimp only [S]
-    nlinarith only [hs, ht, hB]
+  · change (Nat.sqrt B + 1) ^ 2 ≤ 4 * B
+    nlinarith [Nat.sqrt_le B, Nat.sqrt_le_self B]
 
 /-- The complete root cost at the actual magnitude-derived candidate window. -/
 theorem root_cost_bound (κ n : ℕ) :

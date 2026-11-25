@@ -141,19 +141,13 @@ theorem shortenStep_sqNormProd_le {S : Fin n → E} {i : Fin n} {t u : E}
     (hu_dist : ‖u - t‖ ≤ (1 / 4 : ℝ) * ‖S‖) :
     sqNormProd (Function.update S i u) ≤ (13 / 16 : ℝ) ^ 2 * sqNormProd S := by
   have hu : ‖u‖ ^ 2 ≤ (13 / 16 : ℝ) ^ 2 * ‖S i‖ ^ 2 := by
-    have h1 := shortenStep_norm_le ht_hi hu_dist
-    rw [← hi] at h1
-    rw [← mul_pow]
-    exact pow_le_pow_left₀ (norm_nonneg u) h1 2
+    rw [← mul_pow, hi]
+    exact pow_le_pow_left₀ (norm_nonneg u) (shortenStep_norm_le ht_hi hu_dist) 2
   unfold sqNormProd
   rw [← Finset.mul_prod_erase _ _ (Finset.mem_univ i),
-      ← Finset.mul_prod_erase _ _ (Finset.mem_univ i),
-      Function.update_self]
-  have hrest :
-      ∏ j ∈ Finset.univ.erase i, ‖Function.update S i u j‖ ^ 2 =
-        ∏ j ∈ Finset.univ.erase i, ‖S j‖ ^ 2 :=
-    Finset.prod_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-  rw [hrest, ← mul_assoc]
+    ← Finset.mul_prod_erase _ _ (Finset.mem_univ i), Function.update_self,
+    Finset.prod_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)],
+    ← mul_assoc]
   exact mul_le_mul_of_nonneg_right hu (Finset.prod_nonneg fun _ _ => sq_nonneg _)
 
 /-- Dichotomy: a full-rank family `S` in `L` either already solves `GIVP^φ_{8γ}` or forms a valid
@@ -165,10 +159,7 @@ theorem isSolution_givp_or_isValidInstance_incGDD [NormedSpace ℝ E]
     GIVP.IsSolution φ (8 * γ) L S ∨ IncGDD.IsValidInstance φ γ L S (‖S‖ / 8) := by
   by_cases h : γ * φ L < ‖S‖ / 8
   · exact Or.inr ⟨hS_li, hS_mem, h⟩
-  · left
-    refine ⟨hS_li, hS_mem, fun j => ?_⟩
-    have hle : ‖S‖ ≤ 8 * γ * φ L := by linarith
-    exact (norm_le_pi_norm S j).trans hle
+  · exact Or.inl ⟨hS_li, hS_mem, fun j => (norm_le_pi_norm S j).trans (by linarith)⟩
 
 end NormedGeometry
 
@@ -195,14 +186,9 @@ theorem shortenStep_linearIndependent {S : Fin n → E} (hS : LinearIndependent 
     let w : E := ∑ j ∈ Finset.univ.erase i, (-(c j / c i)) • S j
     have hu_eq : u = w := by
       have hsplit : c i • u + ∑ j ∈ Finset.univ.erase i, c j • S j = 0 := by
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)] at hc
-        simpa only [Function.update_self, Function.update_of_ne] using
-          (by
-            rw [← hc]
-            congr 1
-            · simp
-            · refine Finset.sum_congr rfl fun j hj => ?_
-              rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)])
+        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self] at hc
+        rwa [Finset.sum_congr rfl fun j hj => by
+          rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]] at hc
       have hcu : c i • u = -(∑ j ∈ Finset.univ.erase i, c j • S j) :=
         eq_neg_of_add_eq_zero_left hsplit
       calc u = (c i)⁻¹ • (c i • u) := (inv_smul_smul₀ hne u).symm
@@ -258,9 +244,7 @@ proved via `Cslib.Algorithms.LatticeReduction.one_le_gramPrefixDet`. -/
 theorem one_le_sqNormProd {S : Fin n → E} (hS : LinearIndependent ℝ S)
     (hGram : HasIntegralGram S) : 1 ≤ sqNormProd S := by
   have hdet : 1 ≤ gramPrefixDet S n := one_le_gramPrefixDet hS hGram le_rfl
-  have hfilter : Finset.univ.filter (fun j : Fin n => (j : ℕ) < n) = Finset.univ :=
-    Finset.filter_true_of_mem fun j _ => j.isLt
-  rw [gramPrefixDet, hfilter] at hdet
+  rw [gramPrefixDet, Finset.filter_true_of_mem fun j _ => j.isLt] at hdet
   exact hdet.trans <| Finset.prod_le_prod₀ (fun _ _ => sq_nonneg _) fun j _ =>
     pow_le_pow_left₀ (norm_nonneg _) (norm_gramSchmidt_le ℝ S j) 2
 
@@ -684,12 +668,10 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
     have ⟨hi, horth, hlo, hhi⟩ := hTarget S hli hmem
     cases hcall : oracles r S (stepTarget S).2 (‖S‖ / 8) with
     | none =>
-      have hnone := shortenLoopFrom_succ_none L stepTarget oracles r fuel S hcall
       dsimp only
-      rw [hnone]
-      refine ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, ?_, ?_⟩⟩
-      · rfl
-      · simp [shortenLoopFrom, hcall]
+      rw [shortenLoopFrom_succ_none L stepTarget oracles r fuel S hcall]
+      exact ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, rfl, by
+        simp [shortenLoopFrom, hcall]⟩⟩
     | some u =>
       by_cases hvalid : u ∈ L ∧ ‖u - (stepTarget S).2‖ ≤ (1 / 4 : ℝ) * ‖S‖
       · have hpos := shortenLoopFrom_succ_some_pos L stepTarget oracles r fuel S hcall hvalid
@@ -718,12 +700,10 @@ private theorem shortenLoopFrom_invariant (L : Submodule ℤ E)
                   sqNormProd (Function.update S (stepTarget S).1 u) := hpot_o
             _ ≤ ((13 / 16 : ℝ) ^ 2) ^ fuel * ((13 / 16 : ℝ) ^ 2 * sqNormProd S) := by gcongr
             _ = ((13 / 16 : ℝ) ^ 2) ^ (fuel + 1) * sqNormProd S := by rw [pow_succ]; ring
-      · have hneg := shortenLoopFrom_succ_some_neg L stepTarget oracles r fuel S hcall hvalid
-        dsimp only
-        rw [hneg]
-        refine ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, rfl, ?_⟩⟩
-        simp only [add_zero, shortenLoopFrom, hcall]
-        exact hvalid
+      · dsimp only
+        rw [shortenLoopFrom_succ_some_neg L stepTarget oracles r fuel S hcall hvalid]
+        exact ⟨hli, hmem, le_rfl, Or.inl ⟨0, Nat.zero_lt_succ fuel, rfl, by
+          simpa only [add_zero, shortenLoopFrom, hcall] using hvalid⟩⟩
 
 /-- Finite round-by-round soundness of the MR07 Lemma 5.10 shortening loop: starting from a
 full-rank family `S₀` in a lattice `L` with integral inner products (`∀ x ∈ L, ∀ y ∈ L,
@@ -757,34 +737,22 @@ theorem shortenLoop_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : ℝ)
     set K := shortenRoundBound (finrank ℤ L) B
     obtain ⟨hli_o, hmem_o, hnorm_o, hor⟩ :=
       shortenLoopFrom_invariant L stepTarget oracles hTarget K 0 S₀ hS₀_li hS₀_mem
-    have hhalt_exists :
-        ∃ k < K,
-          let Sk := shortenLoop L stepTarget oracles k S₀
-          shortenLoop L stepTarget oracles K S₀ = Sk ∧
-          match oracles k Sk (stepTarget Sk).2 (‖Sk‖ / 8) with
-          | some u => ¬ (u ∈ L ∧ ‖u - (stepTarget Sk).2‖ ≤ (1 / 4 : ℝ) * ‖Sk‖)
-          | none => True := by
-      rcases hor with ⟨k, hk, heq, hhalt⟩ | hpot_o
-      · exact ⟨k, hk, heq, by simpa only [zero_add] using hhalt⟩
-      · exfalso
-        have hGram_o : HasIntegralGram (shortenLoop L stepTarget oracles K S₀) :=
-          fun i j => hL_gram _ (hmem_o i) _ (hmem_o j)
-        have h1 : (1 : ℝ) ≤ sqNormProd (shortenLoop L stepTarget oracles K S₀) :=
-          one_le_sqNormProd hli_o hGram_o
-        have hlt1 := pow_shortenRoundBound_mul_lt_one (B := B) hnpos
-        have hleB := mul_le_mul_of_nonneg_left (sqNormProd_le_pow hB)
-          (by positivity : (0 : ℝ) ≤ ((13 / 16 : ℝ) ^ 2) ^ K)
-        linarith
-    obtain ⟨k, hk, heq, hhalt⟩ := hhalt_exists
     refine ⟨?_, hnorm_o⟩
-    rcases isSolution_givp_or_isValidInstance_incGDD φ γ L
-        (shortenLoop L stepTarget oracles K S₀) hli_o hmem_o with hsol | hval
-    · exact hsol
-    · exfalso
-      rw [heq] at hval
-      obtain ⟨u, hcall, hsol⟩ := hOracle k hk hval
-      rw [hcall] at hhalt
-      exact hhalt ⟨hsol.mem, by linarith [hsol.dist_le]⟩
+    rcases hor with ⟨k, hk, heq, hhalt⟩ | hpot_o
+    · simp only [zero_add] at hhalt
+      rcases isSolution_givp_or_isValidInstance_incGDD φ γ L
+          (shortenLoop L stepTarget oracles K S₀) hli_o hmem_o with hsol | hval
+      · exact hsol
+      · rw [shortenLoop, heq] at hval
+        obtain ⟨u, hcall, hsol⟩ := hOracle k hk hval
+        rw [hcall] at hhalt
+        exact False.elim (hhalt ⟨hsol.mem, by linarith [hsol.dist_le]⟩)
+    · have h1 : (1 : ℝ) ≤ sqNormProd (shortenLoop L stepTarget oracles K S₀) :=
+        one_le_sqNormProd hli_o fun i j => hL_gram _ (hmem_o i) _ (hmem_o j)
+      have hlt1 := pow_shortenRoundBound_mul_lt_one (B := B) hnpos
+      have hleB := mul_le_mul_of_nonneg_left (sqNormProd_le_pow hB)
+        (by positivity : (0 : ℝ) ≤ ((13 / 16 : ℝ) ^ 2) ^ K)
+      linarith
 
 /-- Unconditional guarded shortening step for fixed-iteration loops (`IsPPTOn.iterateWith_spec`):
 replaces `S i` by `u` when `u ∈ L`, `‖u‖ < ‖S i‖`, and `Function.update S i u` is linearly

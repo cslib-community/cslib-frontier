@@ -472,28 +472,6 @@ private theorem advantage_realGame_receiver_ddhRealGame_le (setup : ℕ → PMF 
     ddhOTReceiverToDDHExact, ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     PMF.bind_bind, PMF.pure_bind, PMF.map_bind, PMF.pure_map, Prod.map, id, restrict_singleton]
   refine Game.advantage_bind_le_nnreal _ _ _ fun d => ?_
-  have hswap (c : InputChoice F.ddhOTProbFamily n d) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun b =>
-          ProbComp.eval (ddhOTReductionOf (C₀ := DDHOTSenderBitCoins) (F.generator d) (F.order d)
-            (F.sampleExpBits n d)
-            (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
-            c.inputs (Z.guess n d c.state)
-            (a • F.generator d) (b • F.generator d) ((a * b) • F.generator d))) =
-      ((ProbComp.eval (sampleDDHOTSenderCoins (F.order d))).bind fun c₀ =>
-        (ProbComp.eval (F.sampleExpBits n d)).bind fun bBits =>
-          ProbComp.eval (Z.guess n d c.state
-            (singletonView (ddhOTReceiverViewWith (c.inputs 1) bBits (c₀.exponent • F.generator d)
-              (ddhOTSenderReplyUnchecked (F.generator d) (c.inputs 0) c₀
-                (ddhOTReceiverMsg (F.generator d) (c.inputs 1)
-                  (BitString.binaryValue bBits : ZMod (F.order d))
-                  (c₀.exponent • F.generator d)))),
-              otOutputs c.inputs))) := by
-    simpa only [eval_ddhRealExperiment, PMF.monad_bind_eq_bind] using
-      (real_receiver_eq_ddhRealExperiment_of (C₀ := DDHOTSenderBitCoins) (F.generator d)
-        (F.order d) (F.sampleExpBits n d)
-        (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
-        c.inputs (Z.guess n d c.state)).symm
   have hrhs :
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
         (PMF.uniformOfFintype (ZMod (F.order d))).bind fun b =>
@@ -513,7 +491,7 @@ private theorem advantage_realGame_receiver_ddhRealGame_le (setup : ℕ → PMF 
                   (ddhOTReceiverMsg (F.generator d) (c.inputs 1)
                     (BitString.binaryValue bBits : ZMod (F.order d))
                     (c₀.exponent • F.generator d)))),
-                otOutputs c.inputs))) := by
+                otOutputs c.inputs))) :=
     calc _ = (ProbComp.eval (Z.choose n d)).bind fun c =>
           (PMF.uniformOfFintype (ZMod (F.order d))).bind fun a =>
             (PMF.uniformOfFintype (ZMod (F.order d))).bind fun b =>
@@ -522,7 +500,12 @@ private theorem advantage_realGame_receiver_ddhRealGame_le (setup : ℕ → PMF 
                 (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
                 c.inputs (Z.guess n d c.state)
                 (a • F.generator d) (b • F.generator d) ((a * b) • F.generator d)) := by pmf_swap
-      _ = _ := congrArg (PMF.bind _) (funext hswap)
+      _ = _ := congrArg (PMF.bind _) (funext fun c => by
+        simpa only [eval_ddhRealExperiment, PMF.monad_bind_eq_bind] using
+          (real_receiver_eq_ddhRealExperiment_of (C₀ := DDHOTSenderBitCoins) (F.generator d)
+            (F.order d) (F.sampleExpBits n d)
+            (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d)))
+            c.inputs (Z.guess n d c.state)).symm)
   rw [hrhs]
   refine Game.advantage_bind_le_nnreal _ _ _ fun c => ?_
   exact F.advantage_bind_sampleDDHOTSenderBitCoins_le n d fun c₀ =>

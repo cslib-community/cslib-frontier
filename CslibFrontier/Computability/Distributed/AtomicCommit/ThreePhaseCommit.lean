@@ -761,9 +761,7 @@ private theorem crashFree_castVotes (c : P) (al : Finset P) :
             localState := fun p =>
               if p ∈ R then (if votes p = .yes then .uncertain else .aborted) else st p } :=
   crashFree_sweep (pred := (· = .init)) (fun _ => rfl) fun q st hq_al hq_init => by
-    have hg : q ∈ al ∧ ThreePCPhase.collectingVotes = .collectingVotes ∧ st q = .init :=
-      ⟨hq_al, rfl, hq_init⟩
-    rw [threePCStep?, ite_eq_left hg]
+    rw [threePCStep?, ite_eq_left ⟨hq_al, rfl, hq_init⟩]
 
 /-- Complete an active `.committing` phase (under `ThreePCInvariant`) into unanimous `.committed`
 across `s.alive`. -/
@@ -777,9 +775,7 @@ private theorem crashFree_finish_from_committing {s : ThreePCState P}
   obtain ⟨_, _, halive_c⟩ := hinv.phase_committing hph
   refine crashFree_sweep_alive_to (actOf := .stepCommit) (pred := (· = .preCommitted)) hph
     (fun _ => rfl) (fun q st hq_al hq_pre => ?_) (fun p hpal hnpre => ?_)
-  · have hg : s.coord ∈ s.alive ∧ q ∈ s.alive ∧ ThreePCPhase.committing = .committing ∧
-        st q = .preCommitted := ⟨hc, hq_al, rfl, hq_pre⟩
-    rw [threePCStep?, ite_eq_left hg]
+  · rw [threePCStep?, ite_eq_left ⟨hc, hq_al, rfl, hq_pre⟩]
   · have hcomm_p := halive_c p hpal
     cases hstp : s.localState p <;>
       simp [hstp, ThreePCLocalState.isCommittable] at hcomm_p hnpre ⊢
@@ -797,9 +793,7 @@ private theorem crashFree_finish_from_aborting {s : ThreePCState P}
   refine crashFree_sweep_alive_to (actOf := .stepAbort)
     (pred := fun st => st = .init ∨ st = .uncertain) hph (fun _ => rfl)
     (fun q st hq_al hq_iu => ?_) (fun p hpal hniu => ?_)
-  · have hg : s.coord ∈ s.alive ∧ q ∈ s.alive ∧ ThreePCPhase.aborting = .aborting ∧
-        (st q = .init ∨ st q = .uncertain) := ⟨hc, hq_al, rfl, hq_iu⟩
-    rw [threePCStep?, ite_eq_left hg]
+  · rw [threePCStep?, ite_eq_left ⟨hc, hq_al, rfl, hq_iu⟩]
   · have hnc := halive_nc p hpal
     cases hstp : s.localState p <;> simp [hstp, ThreePCLocalState.isCommittable] at hnc hniu ⊢
 
@@ -815,42 +809,33 @@ private theorem crashFree_finish_from_preCommitting {s : ThreePCState P}
         localState := fun p => if p ∈ s.alive then .committed else s.localState p } := by
   obtain ⟨hyes_ni, hnab⟩ := hinv.phase_preCommitting hph
   let R₁ := s.alive.filter (fun p => s.localState p = .uncertain)
-  have hsub₁ : R₁ ⊆ s.alive := Finset.filter_subset _ _
   have hs_eq : s = { s with phase := .preCommitting } := by cases s; simp_all
   have hcf₁ := crashFree_sweep (votes := votes) (actOf := .stepPreCommit)
     (pred := (· = .uncertain)) (target := fun _ => .preCommitted) (fun _ => rfl)
-    (fun q st hq_al hq_unc => by
-      have hg : s.coord ∈ s.alive ∧ q ∈ s.alive ∧ ThreePCPhase.preCommitting = .preCommitting ∧
-          st q = .uncertain := ⟨hc, hq_al, rfl, hq_unc⟩
-      rw [threePCStep?, ite_eq_left hg])
-    R₁ hsub₁ s.localState (fun _ hr => (Finset.mem_filter.mp hr).2)
+    (fun q st hq_al hq_unc => by rw [threePCStep?, ite_eq_left ⟨hc, hq_al, rfl, hq_unc⟩])
+    R₁ (Finset.filter_subset _ _) s.localState (fun _ hr => (Finset.mem_filter.mp hr).2)
   rw [← hs_eq] at hcf₁
   let st₁ : P → ThreePCLocalState := fun p => if p ∈ R₁ then .preCommitted else s.localState p
   let s₁ : ThreePCState P :=
     { coord := s.coord, phase := .preCommitting, alive := s.alive, localState := st₁ }
   have hinv₁ : ThreePCInvariant votes s₁ := hcf₁.invariant hinv
-  have halive_comm₁ : ∀ q ∈ s.alive, (st₁ q).isCommittable = true := by
-    intro q hq
+  have halive_comm₁ : ∀ q ∈ s.alive, (st₁ q).isCommittable = true := fun q hq => by
     have h₁ := (hyes_ni q).2
     have h₂ := hnab q
     cases hstq : s.localState q <;>
       simp [st₁, R₁, hstq, hq, ThreePCLocalState.isCommittable] at h₁ h₂ ⊢
-  have hc_nab₁ : st₁ s.coord ≠ .aborted := (hinv₁.phase_preCommitting rfl).2 s.coord
   let s₂ : ThreePCState P :=
     { coord := s.coord
       phase := .committing
       alive := s.alive
       localState := Function.update st₁ s.coord .committed }
   have hstep_fin : threePCStep? votes s₁ .finishPreCommit = some s₂ := by
-    have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .preCommitting ∧ s₁.localState s₁.coord ≠ .aborted ∧
-        ∀ q ∈ s₁.alive, (s₁.localState q).isCommittable = true :=
-      ⟨hc, rfl, hc_nab₁, halive_comm₁⟩
-    rw [threePCStep?, ite_eq_left hg]
+    rw [threePCStep?,
+      ite_eq_left ⟨hc, rfl, (hinv₁.phase_preCommitting rfl).2 s.coord, halive_comm₁⟩]
   have hinv₂ : ThreePCInvariant votes s₂ := threePCInvariant_step hinv₁ hstep_fin
   have hcf₂ := crashFree_finish_from_committing hinv₂ hc rfl
   have hfinal_eq : (fun p => if p ∈ s.alive then .committed else s₂.localState p) =
-      (fun p => if p ∈ s.alive then .committed else s.localState p) := by
-    funext p
+      (fun p => if p ∈ s.alive then .committed else s.localState p) := funext fun p => by
     by_cases hpal : p ∈ s.alive
     · simp [hpal]
     · simp [hpal, s₂, st₁, R₁, (ne_of_mem_of_not_mem hc hpal).symm]
@@ -869,8 +854,7 @@ theorem threePC_failureFree_commit_globalPhase (coord₀ : P) (hyes : ∀ p, vot
     (Finset.subset_univ _) (fun _ => .init) (fun _ _ => rfl)
   have hloc₁ : (fun p : P => if p ∈ (Finset.univ : Finset P) then
       (if votes p = .yes then ThreePCLocalState.uncertain else .aborted) else .init) =
-      (fun _ => .uncertain) := by
-    funext p; simp [hyes p]
+      (fun _ => .uncertain) := funext fun p => by simp [hyes p]
   rw [hloc₁] at hcf₁
   let s₁ : ThreePCState P :=
     { coord := coord₀, phase := .collectingVotes, alive := Finset.univ,
@@ -879,10 +863,7 @@ theorem threePC_failureFree_commit_globalPhase (coord₀ : P) (hyes : ∀ p, vot
     { coord := coord₀, phase := .preCommitting, alive := Finset.univ,
       localState := Function.update (fun _ => .uncertain) coord₀ .preCommitted }
   have hstep_pre : threePCStep? votes s₁ .startPreCommit = some s₂ := by
-    have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .collectingVotes ∧ s₁.alive = Finset.univ ∧
-        ∀ q ∈ s₁.alive, s₁.localState q = .uncertain :=
-      ⟨Finset.mem_univ coord₀, rfl, rfl, fun _ _ => rfl⟩
-    rw [threePCStep?, ite_eq_left hg]
+    rw [threePCStep?, ite_eq_left ⟨Finset.mem_univ coord₀, rfl, rfl, fun _ _ => rfl⟩]
   have hinv₂ := threePCInvariant_step (hcf₁.invariant (threePCInvariant_start coord₀)) hstep_pre
   have hcf₂ := crashFree_finish_from_preCommitting hinv₂ (Finset.mem_univ coord₀) rfl
   obtain ⟨tr, hcf, hmtr⟩ := hcf₁.trans (CrashFreeMTr.step rfl hstep_pre hcf₂)
@@ -904,8 +885,7 @@ theorem threePCTerminate_mTr_globalPhase {s : ThreePCState P}
   let sB : ThreePCState P :=
     { s with coord := b, phase := backupPhase s.alive s.localState }
   have hstep_el : threePCStep? votes s (.electBackup b) = some sB := by
-    have hg : s.coord ∉ s.alive ∧ b ∈ s.alive := ⟨hcrashed, hb⟩
-    rw [threePCStep?, ite_eq_left hg]
+    rw [threePCStep?, ite_eq_left ⟨hcrashed, hb⟩]
   have hreachB : ThreePCReachable coord₀ votes sB :=
     threePC_canReach_trans hreach ⟨[.electBackup b], LTS.MTr.single _ hstep_el⟩
   have hinvB := threePCInvariant_of_reachable hreachB
@@ -984,10 +964,7 @@ theorem threePC_nonblocking_termination_globalPhase {s : ThreePCState P}
           { coord := s.coord, phase := .preCommitting, alive := s.alive,
             localState := Function.update st₁ s.coord .preCommitted }
         have hstep_pre : threePCStep? votes s₁ .startPreCommit = some s₂ := by
-          have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .collectingVotes ∧ s₁.alive = Finset.univ ∧
-              ∀ q ∈ s₁.alive, s₁.localState q = .uncertain :=
-            ⟨hc, rfl, hall_ok.1, hall_ok.2⟩
-          rw [threePCStep?, ite_eq_left hg]
+          rw [threePCStep?, ite_eq_left ⟨hc, rfl, hall_ok.1, hall_ok.2⟩]
         exact threePC_termination_of_crashFree hreach (hcf₀.trans (CrashFreeMTr.step rfl hstep_pre
           (crashFree_finish_from_preCommitting (threePCInvariant_step hinv₁ hstep_pre) hc rfl)))
           rfl .commit fun p hp => by simp [ThreePCState.decision, s₂, hp]
@@ -1007,11 +984,7 @@ theorem threePC_nonblocking_termination_globalPhase {s : ThreePCState P}
         have hstep_ab : threePCStep? votes s₁ .primaryAbort = some s₂ := by
           have hc_nc : ¬(st₁ s.coord).isCommittable = true := by
             rw [hinv₁.phase_collecting rfl s.coord]; decide
-          have hg : s₁.coord ∈ s₁.alive ∧ s₁.phase = .collectingVotes ∧
-              ¬(s₁.localState s₁.coord).isCommittable ∧
-              (s₁.alive ≠ Finset.univ ∨ ∃ q, s₁.localState q = .aborted) :=
-            ⟨hc, rfl, hc_nc, hab_guard⟩
-          rw [threePCStep?, ite_eq_left hg]
+          rw [threePCStep?, ite_eq_left ⟨hc, rfl, hc_nc, hab_guard⟩]
         exact threePC_termination_of_crashFree hreach (hcf₀.trans (CrashFreeMTr.step rfl hstep_ab
           (crashFree_finish_from_aborting (threePCInvariant_step hinv₁ hstep_ab) hc rfl)))
           rfl .abort fun p hp => by simp [ThreePCState.decision, s₂, hp]

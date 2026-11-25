@@ -246,61 +246,46 @@ private theorem hgArgmin_foldl (s : HgState n) (l : List (Fin n)) :
       refine ⟨fun hb j hj => ?_, fun k hk => ?_⟩
       · rcases List.mem_append.mp hj with hj | hj
         · exact h.1 hb j hj
-        · rw [List.mem_singleton.mp hj]
-          exact hx
+        · exact List.mem_singleton.mp hj ▸ hx
       · obtain ⟨hk1, hk2⟩ := h.2 k hk
         refine ⟨hk1, fun j hj hju => ?_⟩
         rcases List.mem_append.mp hj with hj | hj
         · exact hk2 j hj hju
-        · rw [List.mem_singleton.mp hj] at hju
-          rw [hx] at hju
-          exact absurd hju Bool.noConfusion
+        · exact absurd ((List.mem_singleton.mp hj ▸ hju).symm.trans hx) Bool.noConfusion
     · rw [ite_eq_right hx]
       have hx' : vget s.used x = false := Bool.eq_false_iff.mpr hx
       cases b with
       | none =>
-        refine ⟨fun hb => (nomatch hb), fun k hk => ?_⟩
-        have hkx : x = k := Option.some.inj hk
-        subst hkx
+        refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
+        cases hk
         refine ⟨hx', fun j hj hju => ?_⟩
         rcases List.mem_append.mp hj with hj | hj
-        · rw [h.1 rfl j hj] at hju
-          exact absurd hju Bool.noConfusion
+        · exact absurd (hju.symm.trans (h.1 rfl j hj)) Bool.noConfusion
         · rw [List.mem_singleton.mp hj]
       | some k₀ =>
         obtain ⟨hk1, hk2⟩ := h.2 k₀ rfl
-        refine ⟨fun hb => ?_, fun k hk => ?_⟩
-        · dsimp only at hb
-          split_ifs at hb
-        · dsimp only at hk
-          split_ifs at hk with hlt
-          · have hkx : x = k := Option.some.inj hk
-            subst hkx
-            refine ⟨hx', fun j hj hju => ?_⟩
-            rcases List.mem_append.mp hj with hj | hj
-            · exact hlt.le.trans (hk2 j hj hju)
-            · rw [List.mem_singleton.mp hj]
-          · have hkx : k₀ = k := Option.some.inj hk
-            subst hkx
-            refine ⟨hk1, fun j hj hju => ?_⟩
-            rcases List.mem_append.mp hj with hj | hj
-            · exact hk2 j hj hju
-            · rw [List.mem_singleton.mp hj]
-              exact not_lt.mp hlt
+        dsimp only
+        split_ifs with hlt
+        · refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
+          cases hk
+          refine ⟨hx', fun j hj hju => ?_⟩
+          rcases List.mem_append.mp hj with hj | hj
+          · exact hlt.le.trans (hk2 j hj hju)
+          · rw [List.mem_singleton.mp hj]
+        · refine ⟨(fun hb => nomatch hb), fun k hk => ?_⟩
+          cases hk
+          refine ⟨hk1, fun j hj hju => ?_⟩
+          rcases List.mem_append.mp hj with hj | hj
+          · exact hk2 j hj hju
+          · exact List.mem_singleton.mp hj ▸ not_lt.mp hlt
 
 theorem hgArgmin_none {s : HgState n} (h : hgArgmin s = none) :
-    ∀ j, vget s.used j = true := by
-  have := hgArgmin_foldl s (List.finRange n) [] none (hgArgminOK_nil s)
-  rw [hgArgmin] at h
-  rw [h] at this
-  exact fun j => this.1 rfl j (by simp)
+    ∀ j, vget s.used j = true :=
+  fun j => (hgArgmin_foldl s (List.finRange n) [] none (hgArgminOK_nil s)).1 h j (by simp)
 
 theorem hgArgmin_some {s : HgState n} {k : Fin n} (h : hgArgmin s = some k) :
     vget s.used k = false ∧ ∀ j, vget s.used j = false → vget s.minv k ≤ vget s.minv j := by
-  have := hgArgmin_foldl s (List.finRange n) [] none (hgArgminOK_nil s)
-  rw [hgArgmin] at h
-  rw [h] at this
-  obtain ⟨h1, h2⟩ := this.2 k rfl
+  obtain ⟨h1, h2⟩ := (hgArgmin_foldl s (List.finRange n) [] none (hgArgminOK_nil s)).2 k h
   exact ⟨h1, fun j hj => h2 j (by simp) hj⟩
 
 /-! #### Field lemmas -/
@@ -448,13 +433,10 @@ theorem HgInv.tree_iff_used (h : HgInv c r y z mate used tree minv path) {i j : 
 
 theorem HgInv.minv_nonneg (h : HgInv c r y z mate used tree minv path) {j : Fin n}
     (hj : vget used j = false) : 0 ≤ vget minv j := by
-  have hp := h.path_ok j
-  obtain ⟨e, l, hq⟩ := List.exists_cons_of_ne_nil hp.ne_nil
-  have he : e ∈ (vget path j).head? := by simp [hq]
-  obtain ⟨_, h2⟩ := hp.head e he
+  obtain ⟨e, l, hq⟩ := List.exists_cons_of_ne_nil (h.path_ok j).ne_nil
+  obtain ⟨_, h2⟩ := (h.path_ok j).head e (by simp [hq])
   rw [hj, ite_eq_right Bool.false_ne_true] at h2
-  rw [← h2]
-  exact h.feas _ _
+  exact h2 ▸ h.feas _ _
 
 private theorem HgPath.mem_cases {used tree : Vector Bool n} {minv : Vector ℤ n} {j : Fin n}
     {q : List (Fin n × Fin n)} (hp : HgPath c y z mate used tree minv r j q) {e : Fin n × Fin n}
@@ -739,16 +721,13 @@ theorem card_lt_of_root_free {mate : Vector (Option (Fin n)) n}
 theorem exists_free_col_of_root_free {mate : Vector (Option (Fin n)) n}
     (hM : IsMatching (fun _ => true) (mateMatching mate)) {r : Fin n}
     (hr : ∀ j, vget mate j ≠ some r) : ∃ j : Fin n, vget mate j = none := by
-  by_contra h
-  have hall : ∀ j : Fin n, vget mate j ≠ none := fun j hj => h ⟨j, hj⟩
-  have hlt := card_lt_of_root_free hM hr
-  rw [← card_matchedRight hM] at hlt
-  have huniv : matchedRight (mateMatching mate) = Finset.univ := by
-    refine Finset.eq_univ_of_forall fun j => ?_
-    obtain ⟨i, hi⟩ := Option.ne_none_iff_exists'.mp (hall j)
-    exact mem_matchedRight.mpr ⟨i, mem_mateMatching.mpr hi⟩
-  rw [huniv, Finset.card_univ, Fintype.card_fin] at hlt
-  exact Nat.lt_irrefl n hlt
+  by_contra! hall
+  have hlt := card_matchedRight hM ▸ card_lt_of_root_free hM hr
+  have huniv : matchedRight (mateMatching mate) = Finset.univ :=
+    Finset.eq_univ_of_forall fun j =>
+      let ⟨i, hi⟩ := Option.ne_none_iff_exists'.mp (hall j)
+      mem_matchedRight.mpr ⟨i, mem_mateMatching.mpr hi⟩
+  simp [huniv] at hlt
 
 /-! #### The loop, the phase and the rows -/
 
@@ -979,16 +958,12 @@ theorem hgStepInv_extend {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n 
     simp [hgExtend, hgRelax_path]
   refine ⟨hE, h.y_bounds, h.z_bounds, h.free_z_zero, fun j => ?_, fun j => ?_,
     fun j hbr => ?_, fun j j' hm' => ?_⟩
-  · simp only [hgExtend, hgRelax_minv]
+  · let _ := hc
+    simp only [hgExtend, hgRelax_minv]
     have hmb := h.minv_bounds j
     split_ifs
     · exact hmb
-    · have hf := h.feas i₀ j
-      have hy := (h.y_bounds i₀).1
-      have hzb := (h.z_bounds j).1
-      have hcw := (hc i₀ j).2
-      have hred_le : hgRed c s.y s.z i₀ j ≤ 2 * (W : ℤ) := by unfold hgRed; omega
-      exact ⟨le_min hmb.1 hf, (min_le_left _ _).trans hmb.2⟩
+    · exact ⟨le_min hmb.1 (h.feas i₀ j), (min_le_left _ _).trans hmb.2⟩
   · simp only [hgExtend, hgRelax_path]
     split_ifs
     · rfl
@@ -1035,25 +1010,19 @@ theorem HgStepInv.path_eq_singleton {W : ℕ} {r : Fin n} {s : HgState n}
     (hfree : ∀ j', vget s.mate j' ≠ some (bestRow j)) :
     vget s.path j = [(bestRow j, j)] := by
   obtain ⟨e, l, hql⟩ := List.exists_cons_of_ne_nil (h.path_ok j).ne_nil
-  have hhead : e = (bestRow j, j) := by simpa [hql] using h.head_eq j
-  have htree : vget s.tree (bestRow j) = true :=
-    (h.path_ok j).tree (bestRow j, j) (List.mem_of_mem_head? (h.head_eq j))
-  have hbr : bestRow j = r := by
-    rcases (h.tree_iff (bestRow j)).mp htree with hbr | ⟨j', _, hm⟩
-    exacts [hbr, absurd hm (hfree j')]
-  have htl := h.tail_root j hbr
-  rw [hql, List.tail_cons] at htl
-  rw [hql, hhead, htl]
+  obtain rfl : e = (bestRow j, j) := by simpa [hql] using h.head_eq j
+  have htree := (h.path_ok j).tree _ (List.mem_of_mem_head? (h.head_eq j))
+  have hbr : bestRow j = r :=
+    ((h.tree_iff _).mp htree).elim id fun ⟨j', _, hm⟩ => absurd hm (hfree j')
+  simpa [hql] using congrArg ((bestRow j, j) :: ·) (h.tail_root j hbr)
 
 theorem HgStepInv.path_eq_cons {W : ℕ} {r : Fin n} {s : HgState n}
     {bestRow : Fin n → Fin n} (h : HgStepInv c W r s bestRow) {j j' : Fin n}
     (hm : vget s.mate j' = some (bestRow j)) :
     vget s.path j = (bestRow j, j) :: vget s.path j' := by
   obtain ⟨e, l, hql⟩ := List.exists_cons_of_ne_nil (h.path_ok j).ne_nil
-  have hhead : e = (bestRow j, j) := by simpa [hql] using h.head_eq j
-  have htl := h.tail_mate j j' hm
-  rw [hql, List.tail_cons] at htl
-  rw [hql, hhead, htl]
+  obtain rfl : e = (bestRow j, j) := by simpa [hql] using h.head_eq j
+  simpa [hql] using congrArg ((bestRow j, j) :: ·) (h.tail_mate j j' hm)
 
 theorem HgStepInv.length_path_le {W : ℕ} {r : Fin n} {s : HgState n}
     {bestRow : Fin n → Fin n} (h : HgStepInv c W r s bestRow) (j : Fin n) :
@@ -1220,8 +1189,7 @@ private theorem hgDual_shiftHgState (S : ℤ) (s : HgState n) (δ : ℤ) :
   ext i hi
   simp only [vget, Vector.getElem_ofFn, Vector.getElem_map]
   by_cases ht : s.tree[i] = true
-  · simp [ht]
-    omega
+  · simp [ht]; omega
   · simp [ht]
 
 private theorem hgExtend_shiftHgState (c : Fin n × Fin n → ℤ) (S : ℤ) (s : HgState n)
@@ -1282,18 +1250,19 @@ theorem hungarian_add_const (c : Fin n × Fin n → ℤ) (S : ℤ) :
       (Vector.ofFn (hgRowMin c)).map (· + S) := by
     ext i hi
     simp [hgRowMin_add_const]
-  have hstart : hgStartState (Vector.ofFn (hgRowMin fun e => c e + S))
-      (Vector.replicate n 0) (Vector.replicate n none) =
-      shiftHgState S (hgStartState (Vector.ofFn (hgRowMin c))
-        (Vector.replicate n 0) (Vector.replicate n none)) := by
-    simp [hgStartState, shiftHgState, hy]
   have hrows : hgRows (fun e => c e + S) (List.finRange n)
       (hgStartState (Vector.ofFn (hgRowMin fun e => c e + S))
         (Vector.replicate n 0) (Vector.replicate n none)) =
       shiftHgState S (hgRows c (List.finRange n)
         (hgStartState (Vector.ofFn (hgRowMin c))
           (Vector.replicate n 0) (Vector.replicate n none))) := by
-    rw [hstart, hgRows_add_const]
+    have hstart : hgStartState (Vector.ofFn (hgRowMin fun e => c e + S))
+        (Vector.replicate n 0) (Vector.replicate n none) =
+        shiftHgState S (hgStartState (Vector.ofFn (hgRowMin c))
+          (Vector.replicate n 0) (Vector.replicate n none)) := by
+      simp [hgStartState, shiftHgState, hy]
+    rw [hstart]
+    exact hgRows_add_const c S (List.finRange n) _
   refine ⟨?_, fun u => ?_, fun v => ?_⟩
   · simp only [hungarian, hrows, shiftHgState]
   · simp only [hungarian, hrows, shiftHgState, vget, Vector.getElem_map]

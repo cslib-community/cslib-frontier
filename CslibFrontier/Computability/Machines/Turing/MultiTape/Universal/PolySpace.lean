@@ -400,15 +400,11 @@ theorem visited_eq_Icc_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
     simp [visited, headAt_zero]
   | succ j ih =>
     obtain ⟨hvis, hlo, hhi⟩ := ih
-    have hlen_tapes : (run d x (j + 1)).workTapes.length = d.tapes :=
-      length_run_workTapes d x (j + 1)
-    have hlen_bounds : (boundsAt d x j).length = d.tapes := length_boundsAt d x j
-    have hi_tapes : i < (run d x (j + 1)).workTapes.length := hlen_tapes ▸ hi
-    have hi_bounds : i < (boundsAt d x j).length := hlen_bounds ▸ hi
     have hget : (boundsAt d x (j + 1)).getD i (0, 0) =
         (max ((boundsAt d x j).getD i (0, 0)).1 (-(headAt d x (j + 1) i)).toNat,
           max ((boundsAt d x j).getD i (0, 0)).2 (headAt d x (j + 1) i).toNat) := by
-      rw [boundsAt_succ, getD_updateBounds _ _ hi_tapes hi_bounds, headAt]
+      rw [boundsAt_succ, getD_updateBounds _ _ ((length_run_workTapes d x (j + 1)).symm ▸ hi)
+        ((length_boundsAt d x j).symm ▸ hi), headAt]
     obtain ⟨a, ha⟩ := step_tape d x (run d x j) i
     have hstep : headAt d x (j + 1) i = headAt d x j i - 1 ∨
         headAt d x (j + 1) i = headAt d x j i ∨
@@ -433,10 +429,9 @@ theorem card_visited_eq_boundsAt (j : ℕ) {i : ℕ} (hi : i < d.tapes) :
 
 /-- **`boundsSpace (boundsAt d x j)` equals `simSpace d x j`.** -/
 theorem boundsSpace_boundsAt (j : ℕ) : boundsSpace (boundsAt d x j) = simSpace d x j := by
-  rw [boundsSpace_eq_sum_map, sum_map_eq_sum_range (0, 0),
-    length_boundsAt, simSpace]
-  refine Finset.sum_congr rfl fun i hi => ?_
-  exact (card_visited_eq_boundsAt d x j (Finset.mem_range.mp hi)).symm
+  rw [boundsSpace_eq_sum_map, sum_map_eq_sum_range (0, 0), length_boundsAt, simSpace]
+  exact Finset.sum_congr rfl fun i hi =>
+    (card_visited_eq_boundsAt d x j (Finset.mem_range.mp hi)).symm
 
 /-- At step `0`, `simSpace d x 0 = d.tapes`. -/
 theorem simSpace_zero : simSpace d x 0 = d.tapes := by
@@ -764,20 +759,16 @@ theorem computableInPolySpace_spaceBoundedUniversal :
       (ComputableInPolySpace.of_polyTime computableInPolyTime_spaceLoopStep)
       (PolyBounded.of_forall_le 1200 2 fun _ => le_rfl)
       (fun i k _ => length_eSpaceLoopState_iterate_le i k)
-  have hisNone : ComputableInPolyTime (fun o : Option ℕ => o.isNone) eSym encBool := by
-    have hisSome : ComputableInPolyTime (fun o : Option ℕ => o.isSome) eSym encBool :=
-      ComputableInPolyTime.optionIsSome .id'
-    refine (ComputableInPolyTime.bool_not.comp hisSome).of_enc_eq fun o => ?_
-    cases o <;> rfl
-  have hid : ComputableInPolyTime (fun st : SpaceLoopState => st)
-      eSpaceLoopState eSpaceLoopState := .id'
+  have hisNone : ComputableInPolyTime (fun o : Option ℕ => o.isNone) eSym encBool :=
+    (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.optionIsSome .id')).of_enc_eq
+      fun o => by cases o <;> rfl
   have hfinish : ComputableInPolyTime
       (fun st : SpaceLoopState => (st.output, st.withinSpace && st.cfg.state.isNone))
       eSpaceLoopState eOut :=
-    (eSpaceLoopState_output_polyTime hid).prod
+    (eSpaceLoopState_output_polyTime .id').prod
       (ComputableInPolyTime.bool_and.comp
-        ((eSpaceLoopState_withinSpace_polyTime hid).prod
-          (hisNone.comp (eCfg_state_polyTime (eSpaceLoopState_cfg_polyTime hid)))))
+        ((eSpaceLoopState_withinSpace_polyTime .id').prod
+          (hisNone.comp (eCfg_state_polyTime (eSpaceLoopState_cfg_polyTime .id')))))
   exact (ComputableInPolySpace.of_polyTime hfinish).comp hiter
 
 end Turing.MultiTapeTM.Universal

@@ -265,10 +265,8 @@ theorem componentAt_double_add (grid : Nat → Nat → Index)
     (x y dx dy : Nat) (hdx : dx < 2) (hdy : dy < 2) :
     componentAt grid (2 * x + dx) (2 * y + dy) =
       indexThick (grid x y) := by
-  unfold componentAt
-  have hx : (2 * x + dx) / 2 = x := by omega
-  have hy : (2 * y + dy) / 2 = y := by omega
-  rw [hx, hy]
+  simp only [componentAt, show (2 * x + dx) / 2 = x by omega,
+    show (2 * y + dy) / 2 = y by omega]
 
 /-- The inward south quarter has its north-facing bit set. -/
 theorem quadrantAt_quarterSouth_yBit (x south : Nat) :
@@ -606,13 +604,9 @@ theorem value_isSome_eq_portPresent_of_allowed
       ⟨grid (port.x / 2) (port.y / 2), quadrantAt port.x port.y⟩
       (shadeGrid port.x port.y) = true) :
     (value shadeGrid port).isSome = portPresent grid port := by
-  rcases port with ⟨x, y, side⟩
-  have rules := allowedFor_iff.mp allowed
-  cases side
-  · exact rules.west_present
-  · exact rules.east_present
-  · exact rules.south_present
-  · exact rules.north_present
+  rcases port with ⟨x, y, _ | _ | _ | _⟩
+  exacts [(allowedFor_iff.mp allowed).west_present, (allowedFor_iff.mp allowed).east_present,
+    (allowedFor_iff.mp allowed).south_present, (allowedFor_iff.mp allowed).north_present]
 
 /-- Allowed shade states have exactly the red-graph incidence. -/
 theorem value_isSome_eq_portPresent
@@ -747,10 +741,8 @@ namespace ValidPortLabeling
 private theorem ne_of_related_true
     {first second : Option Shade}
     (related : Related true first second) : first ≠ second := by
-  rcases related with ⟨shade, rfl, rfl⟩
-  intro equal
-  simp only [Option.some.injEq] at equal
-  cases shade <;> contradiction
+  rintro rfl
+  rcases related with ⟨_ | _, rfl, h⟩ <;> cases h
 
 /-- Port incidence and parity-link consistency are exactly the local shade
 tile and edge-matching rules. -/
@@ -894,13 +886,12 @@ def coarsen (fine : Nat → Nat → ShadeState) (x y : Nat) : ShadeState :=
 /-- Coarsening a valid twice-substituted assignment preserves all shade rules and matches. -/
 theorem ValidShadeGrid.coarsen {grid : Nat → Nat → Index} {fine : Nat → Nat → ShadeState}
     (hfine : ValidShadeGrid (iterateRefine 2 grid) fine) :
-    ValidShadeGrid grid (coarsen fine) := by
-  let labeling : ValidPortLabeling grid :=
+    ValidShadeGrid grid (coarsen fine) :=
+  ValidPortLabeling.validShadeGrid
     { label := fun port => value fine (refinedPort port)
       present := fun port =>
         (value_isSome_eq_portPresent hfine _).trans (refinedPort_present grid port)
       related := fun link => (Link.refine link).sound hfine }
-  exact labeling.validShadeGrid
 
 private theorem coarse_value {grid : Nat → Nat → Index}
     {fine : Nat → Nat → ShadeState}

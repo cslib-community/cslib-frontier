@@ -170,17 +170,16 @@ theorem exists_mem_interleavedLinear_hammingDist_le_iff {κ ι R M : Type*} [Fin
   classical
   constructor
   · rintro ⟨V, hV, hdist⟩
-    refine ⟨Finset.univ.filter fun i => W i = V i, ?_, fun r i => V i r, hV, fun i hi r => ?_⟩
-    · have htot := card_filter_eq_add_hammingDist W V
-      omega
-    · exact congrFun (Finset.mem_filter.1 hi).2 r
+    refine ⟨Finset.univ.filter fun i => W i = V i, ?_, fun r i => V i r, hV,
+      fun i hi r => congrFun (Finset.mem_filter.1 hi).2 r⟩
+    have := card_filter_eq_add_hammingDist W V
+    omega
   · rintro ⟨D', hD', v, hv, hag⟩
     let V : ι → κ → M := fun i r => v r i
     refine ⟨V, hv, ?_⟩
-    have hsub : D' ⊆ Finset.univ.filter fun i => W i = V i := fun i hi =>
-      Finset.mem_filter.2 ⟨Finset.mem_univ i, funext (hag i hi)⟩
-    have htot := card_filter_eq_add_hammingDist W V
-    have hcard := Finset.card_le_card hsub
+    have hcard : D'.card ≤ (Finset.univ.filter fun i => W i = V i).card :=
+      Finset.card_le_card fun i hi => Finset.mem_filter.2 ⟨Finset.mem_univ i, funext (hag i hi)⟩
+    have := card_filter_eq_add_hammingDist W V
     omega
 
 end InterleavedLinear
@@ -273,12 +272,10 @@ theorem exists_correlatedAgreement_of_three_mul_lt_minDist {F ι : Type*} [Field
     simp only [smul_eq_mul, mul_one, Finset.card_filter] at h1 h2
     exact h1.trans (Finset.sum_comm.trans_le h2)
   have hB_le_e : B.card ≤ e := by
-    by_contra hgt
-    have hpos : 1 ≤ B.card - e := by omega
-    have hmul : (e + 2) * (B.card - e) ≤ S.card * (B.card - e) :=
-      Nat.mul_le_mul_right _ (by omega)
-    have he_le : e ≤ e * (B.card - e) := Nat.le_mul_of_pos_right e hpos
-    have hexp : (e + 2) * (B.card - e) = e * (B.card - e) + 2 * (B.card - e) := by ring
+    by_contra! hgt
+    have hmul := Nat.mul_le_mul_right (B.card - e) (show e + 2 ≤ S.card by omega)
+    have he_le := Nat.le_mul_of_pos_right e (show 0 < B.card - e by omega)
+    rw [Nat.succ_mul, Nat.succ_mul] at hmul
     omega
   refine ⟨Bᶜ, by rw [Finset.card_compl]; omega, v₀, hv₀, v₁, hv₁, fun i hi => ?_⟩
   simp only [B, Finset.mem_compl, Finset.mem_filter, Finset.mem_univ, true_and, not_or, ne_eq,
@@ -332,9 +329,8 @@ private lemma exists_correlatedAgreement_affine_of_three_mul_lt_minDist
       (fun _ => Fintype.one_lt_card) 0 (fun r i => W i r) T hT fun z hz => by
         obtain ⟨c, hc, hd⟩ := hclose z hz
         have heq : (0 : ι → F) + ∑ r : Fin m, z r • (fun i => W i r) =
-            fun i => ∑ r : Fin m, z r • W i r := by
-          funext i
-          simp only [Pi.add_apply, Pi.zero_apply, zero_add, Finset.sum_apply, Pi.smul_apply]
+            fun i => ∑ r : Fin m, z r • W i r :=
+          funext fun i => by simp [Finset.sum_apply]
         have := hagree (fun i => ∑ r : Fin m, z r • W i r) c
         refine ⟨c, hc, ?_⟩
         rw [heq]
@@ -453,18 +449,14 @@ theorem exists_unique_mem_interleavedLinear_reedSolomon
         {z | ∃ c ∈ reedSolomon α k, hammingDist (fun i => ∑ r : Fin m, z r • W i r) c ≤ e}) :
     ∃! V : ι → Fin m → F,
       V ∈ interleavedLinear (Fin m) (reedSolomon α k) ∧ hammingDist W V ≤ e := by
-  have hex : ∃ V ∈ interleavedLinear (Fin m) (reedSolomon α k), hammingDist W V ≤ e := by
-    by_contra hfar
-    push Not at hfar
+  obtain ⟨V, hV, hdist⟩ :
+      ∃ V ∈ interleavedLinear (Fin m) (reedSolomon α k), hammingDist W V ≤ e := by
+    by_contra! hfar
     exact hprob.not_ge (toOuterMeasure_sum_smul_reedSolomon_close_le hα hunique hfar)
-  obtain ⟨V, hV, hdist⟩ := hex
-  refine ⟨V, ⟨hV, hdist⟩, fun V' ⟨hV', hdist'⟩ => ?_⟩
-  funext i r
-  have hr : (fun j => V' j r) = (fun j => V j r) :=
-    eq_of_hammingDist_le_reedSolomon (f := fun j => W j r) hα hunique (hV' r) (hV r)
-      ((hammingDist_comp_le_hammingDist fun _ (v : Fin m → F) => v r).trans hdist')
-      ((hammingDist_comp_le_hammingDist fun _ (v : Fin m → F) => v r).trans hdist)
-  exact congrFun hr i
+  refine ⟨V, ⟨hV, hdist⟩, fun V' ⟨hV', hdist'⟩ => funext fun i => funext fun r => ?_⟩
+  exact congrFun (eq_of_hammingDist_le_reedSolomon (f := fun j => W j r) hα hunique (hV' r) (hV r)
+    ((hammingDist_comp_le_hammingDist fun _ (v : Fin m → F) => v r).trans hdist')
+    ((hammingDist_comp_le_hammingDist fun _ (v : Fin m → F) => v r).trans hdist)) i
 
 end ReedSolomonUnique
 

@@ -96,9 +96,7 @@ theorem selectFrom_support {α : Type} (values : List α) (trials : ℕ)
   obtain ⟨i, _, rfl⟩ := hchosen
   cases hvalue : values[i]? with
   | none => simp
-  | some value =>
-    right
-    exact List.mem_of_getElem? hvalue
+  | some _ => exact Or.inr (List.mem_of_getElem? hvalue)
 
 /-- Empirical selection preserves the support of its candidate sampler, apart from the fixed
 fallback. In particular, bounds on descriptions survive every statistical failure. -/
@@ -185,14 +183,10 @@ theorem selectBest_error_le (count trials : ℕ) (hcount : 0 < count)
       exact Probability.PMF.toOuterMeasure_toReal_mono _ fun successes hbad =>
         by_contra fun h => hbad (hstate.update successes (lt_of_not_ge h).le))
   rw [OracleComp.selectBest, eval_map, PMF.toOuterMeasure_map_apply]
-  refine le_trans ?_ hrun
-  apply Probability.PMF.toOuterMeasure_toReal_mono
+  refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_) hrun
   rintro ⟨next, best, count⟩ hbad ⟨_, _, hchosen, hall⟩
   obtain ⟨hindex, hselected⟩ := hchosen hcount
-  refine hbad ⟨hindex, fun i hi => ?_⟩
-  have := hall i hi
-  dsimp only [rate] at *
-  linarith
+  exact hbad ⟨hindex, fun i hi => by linarith [hall i hi]⟩
 
 /-- A polynomial trial budget selects within twice the requested inverse tolerance of the best
 candidate, with one exponentially small failure term per candidate. -/
@@ -225,11 +219,9 @@ theorem selectBest_test_error_le (count confidence inverseTolerance : ℕ)
     {false} (error := (eval (test i) false).toReal + 2 / inverseTolerance)
     (by positivity) (by
       intro chosen _ hgood
-      have hchosen := Probability.PMF.toReal_true_add_toReal_false (eval (test chosen))
-      have hi' := Probability.PMF.toReal_true_add_toReal_false (eval (test i))
       simp only [PMF.toOuterMeasure_apply_singleton]
-      have := hgood.2 i hi
-      linarith)
+      linarith [Probability.PMF.toReal_true_add_toReal_false (eval (test chosen)),
+        Probability.PMF.toReal_true_add_toReal_false (eval (test i)), hgood.2 i hi])
   simp only [Set.compl_ofPred, PMF.toOuterMeasure_apply_singleton] at hfailure
   rw [eval_bind]
   linarith
@@ -284,12 +276,10 @@ theorem sampleBest_error_pow {α : Type} (source : ProbComp α) (test : α → P
       have h := selectFrom_error_pow values (by lia) confidence inverseTolerance htolerance
         test fallback
       rw [hlength] at h
-      refine le_trans ?_ h
-      apply Probability.PMF.toOuterMeasure_toReal_mono
+      refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_) h
       intro chosen hbad hchosen
       obtain ⟨value, hmem, hvalue⟩ := hgood
-      have := hchosen.2 value hmem
-      exact hbad (by linarith))
+      exact hbad (by linarith [hchosen.2 value hmem]))
   simp only [Set.compl_ofPred] at hselect
   change ((eval (OracleComp.sampleBest count _ source test fallback)).toOuterMeasure _).toReal ≤ _
   rw [OracleComp.sampleBest, eval_bind]

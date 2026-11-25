@@ -380,14 +380,11 @@ private theorem stepOnce_spec (i : P) (r : ℕ) (m : P → List (SignedChain P V
   dsimp only
   set elig : SignedChain P V → Bool := fun c => decide (dolevStrongEligible dealer i r s c)
   split_ifs with h
-  · have hj₀ : ((Finset.univ : Finset P).filter fun j => (m j).any elig).min' h ∈
-        (Finset.univ : Finset P).filter fun j => (m j).any elig := Finset.min'_mem _ h
-    have hj₀_any := (Finset.mem_filter.1 hj₀).2
+  · have hj₀_any := (Finset.mem_filter.1 (Finset.min'_mem _ h)).2
     obtain ⟨c_wit, hc_wit, helig_wit⟩ := List.any_eq_true.1 hj₀_any
-    have hfind_some := List.find?_isSome.2 ⟨c_wit, hc_wit, helig_wit⟩
-    obtain ⟨c, hc_eq⟩ := Option.isSome_iff_exists.1 hfind_some
-    have helig : elig c = true := List.find?_some hc_eq
-    refine Or.inr ⟨_, c, List.mem_of_find?_eq_some hc_eq, of_decide_eq_true helig, ?_⟩
+    obtain ⟨c, hc_eq⟩ := Option.isSome_iff_exists.1 (List.find?_isSome.2 ⟨c_wit, hc_wit, helig_wit⟩)
+    refine Or.inr ⟨_, c, List.mem_of_find?_eq_some hc_eq,
+      of_decide_eq_true (List.find?_some hc_eq : elig c = true), ?_⟩
     rw [hc_eq]
   · refine Or.inl ⟨rfl, fun j c hcm hcond => ?_⟩
     apply h
@@ -479,11 +476,9 @@ private theorem mem_round_toRelay {i : P} {r : ℕ} {s : DolevStrongState P V}
     rcases mem_stepOnce_toRelay dealer hc' with hc1 | h2
     · rcases mem_stepOnce_toRelay dealer hc1 with hc0 | ⟨hv1, h1⟩
       · cases hc0
-      · have hsub : ∀ v ∈ s1.extracted,
-            v ∈ (dolevStrongStepOnce dealer i r m s1).extracted := by
-          rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
-            · rw [heq]; intro v hv; simp [hv]
-        exact ⟨hsub _ hv1, h1⟩
+      · refine ⟨?_, h1⟩
+        rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
+          simp [heq, s1, hv1]
     · exact h2
   · simp [hrt] at hc'
 
@@ -502,10 +497,9 @@ private theorem mem_round_extracted {i : P} {r : ℕ} {s : DolevStrongState P V}
   · rcases mem_stepOnce_extracted dealer hv1 with hv0 |
       ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, hrel1⟩
     · exact absurd hv0 hnew
-    · have hsub_rel : ∀ c ∈ s1.toRelay, c ∈ (dolevStrongStepOnce dealer i r m s1).toRelay := by
-        rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
-          · rw [heq]; intro c hc; simp [hc]
-      exact ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => by simp [hrt, hsub_rel _ hrel1]⟩
+    · refine ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => ?_⟩
+      rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
+        simp [hrt, heq, s1, hrel1]
   · exact ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => by simp [hrt, hrel2]⟩
 
 /-- Reception progress: if some sender `src` delivers a chain `c` with
@@ -838,22 +832,12 @@ private theorem decideExtracted_eq_of_mutual {l₁ l₂ : List V}
     decideExtracted l₁ v₀ = decideExtracted l₂ v₀ := by
   match l₁, l₂ with
   | [], [] | [], _ :: _ :: _ | _ :: _ :: _, [] | _ :: _ :: _, _ :: _ :: _ => rfl
-  | [], [w] =>
-    rcases h₂₁ w List.mem_cons_self with hw | hlen
-    · cases hw
-    · simp at hlen
-  | [v], [] =>
-    rcases h₁₂ v List.mem_cons_self with hv | hlen
-    · cases hv
-    · simp at hlen
+  | [], [w] => exact False.elim (by simpa using h₂₁ w List.mem_cons_self)
+  | [v], [] => exact False.elim (by simpa using h₁₂ v List.mem_cons_self)
   | [v], [w] =>
-    rcases h₁₂ v List.mem_cons_self with hv | hlen
-    · simp only [List.mem_singleton] at hv
-      subst hv
-      rfl
-    · simp at hlen
-  | [v], w₁ :: w₂ :: rest => exact False.elim (not_two_mem_singleton hlen₂ hnd₂ h₂₁)
-  | v₁ :: v₂ :: rest, [w] => exact False.elim (not_two_mem_singleton hlen₁ hnd₁ h₁₂)
+    exact congrArg (fun x => decideExtracted [x] v₀) (by simpa using h₁₂ v List.mem_cons_self)
+  | [v], _ :: _ :: _ => exact False.elim (not_two_mem_singleton hlen₂ hnd₂ h₂₁)
+  | _ :: _ :: _, [w] => exact False.elim (not_two_mem_singleton hlen₁ hnd₁ h₁₂)
 
 private theorem validity_dolevStrong_at_succ {F : Finset P} (hd : dealer ∉ F)
     {adv : ℕ → P → P → List (SignedChain P V)} {input : V}

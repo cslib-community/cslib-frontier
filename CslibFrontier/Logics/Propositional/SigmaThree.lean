@@ -97,12 +97,7 @@ theorem exists_isSigmaThree {k : ℕ} (hk : 1 ≤ k) (f : BitString N → Bool) 
     obtain ⟨i, -, rfl⟩ := List.mem_map.mp hc
     simpa using hk
   · rw [Bool.eq_iff_iff, List.any_eq_true]
-    simp only [List.mem_map, mem_toList, mem_filter, mem_univ, true_and]
-    constructor
-    · intro hy
-      exact ⟨CNF.minterm y, ⟨y, hy, rfl⟩, (CNF.eval_minterm_eq_true_iff y y).mpr rfl⟩
-    · rintro ⟨F, ⟨x, hx, rfl⟩, hFy⟩
-      rwa [(CNF.eval_minterm_eq_true_iff x y).mp hFy]
+    simp [CNF.eval_minterm_eq_true_iff]
 
 /-- For `k ≥ 1`, there exists a `Σ₃^k` formula for `f` attaining `sigmaThreeSize k f`. -/
 theorem exists_isSigmaThree_length_eq_sigmaThreeSize {k : ℕ} (hk : 1 ≤ k)
@@ -262,13 +257,9 @@ theorem eventually_two_rpow_le_piThreeSize {f : (n : ℕ) → BitString n → Bo
       =o[atTop] (fun n => (n : ℝ)))
     {k : ℕ} (hk : 1 ≤ k) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n : ℕ in atTop, (2 : ℝ) ^ ((1 / (k : ℝ) - ε) * n) ≤ piThreeSize k (f n) := by
-  have hset (n : ℕ) : {x : BitString n | (!f n x) = true} = {x | f n x = false} := by
-    ext x
-    simp
-  have hfin (n : ℕ) : (#{x : BitString n | (!f n x) = true} : ℕ) = #{x | f n x = false} := by
-    simp
-  have h := eventually_two_rpow_le_sigmaThreeSize (f := fun n x => !f n x) hD
-    (by simpa only [hset] using hfree) (by simpa only [hfin] using hdense) hk hε
-  simpa only [piThreeSize_eq_sigmaThreeSize_not] using h
+  simpa only [piThreeSize_eq_sigmaThreeSize_not] using
+    eventually_two_rpow_le_sigmaThreeSize (f := fun n x => !f n x) hD
+      (by simpa only [Bool.not_eq_true'] using hfree)
+      (by simpa only [Bool.not_eq_true'] using hdense) hk hε
 
 end Cslib.Logic.PL

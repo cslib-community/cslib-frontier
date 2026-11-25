@@ -283,12 +283,8 @@ theorem WeakOneWay.exists_fixedOutputLength {f : List Bool → List Bool} (hf : 
   have hbound : ComputableInPolyTime bound encUnary encUnary := by
     unfold bound
     fun_prop
-  have hlen : ComputableInPolyTime (fun n => 2 * bound n + 1) encUnary encUnary := by
-    fun_prop
-  refine ⟨OneWayNormalization.normalize f bound, fun n => 2 * bound n + 1,
-    hf.normalize bound hbound, ?_, hlen⟩
-  intro input
-  exact BitString.length_padWord (hsize input)
+  exact ⟨OneWayNormalization.normalize f bound, fun n => 2 * bound n + 1,
+    hf.normalize bound hbound, fun input => BitString.length_padWord (hsize input), by fun_prop⟩
 
 /-! ### Schedule reindexing for parameter-indexed one-way families
 (Library variant of the padding trick in
@@ -468,18 +464,13 @@ theorem exists_familyInverter_inversion_le {m : ℕ → ℕ} {core : ℕ → Lis
       (BitString.uniformList (m n)).bind (fun x₀ =>
         (ProbComp.eval (adversary M (wrappedImage n (core n x₀)))).map fun candidate =>
           reindex m core candidate == wrappedImage n (core n x₀)) := by
-    have h1 : ProbComp.eval (inversionGame (reindex m core) adversary M) =
-        ((BitString.uniformList M).map (List.take (m n))).bind (fun x₀ =>
-          (ProbComp.eval (adversary M (wrappedImage n (core n x₀)))).map fun candidate =>
-            reindex m core candidate == wrappedImage n (core n x₀)) := by
-      rw [PMF.bind_map]
-      simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, BitString.eval_sampleList,
-        ProbComp.eval_pure, PMF.map]
-      apply PMF.bind_congr_on_support
-      intro input hinput
-      have hlen : input.length = M := BitString.length_of_mem_support_uniformList hinput
-      simp [Function.comp_def, reindex, hlen, n]
-    rwa [BitString.uniformList_take hfits] at h1
+    rw [← BitString.uniformList_take hfits, PMF.bind_map]
+    simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, BitString.eval_sampleList,
+      ProbComp.eval_pure, PMF.map]
+    apply PMF.bind_congr_on_support
+    intro input hinput
+    have hlen : input.length = M := BitString.length_of_mem_support_uniformList hinput
+    simp [Function.comp_def, reindex, hlen, n]
   have hrhs : ProbComp.eval (familyInversionGame m core (familyInverter m core c d evaluate) n) =
       (BitString.uniformList (m n)).bind (fun x₀ =>
         (BitString.uniformList (coinBudget m c d n (core n x₀))).map fun coins =>
@@ -535,15 +526,9 @@ theorem weakOneWay {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
       (Game.succProbability (ProbComp.eval (familyInversionGame m core familyAdv
         (GeneratorReindex.parameter m M))) : ℝ) := by
     exact_mod_cast hred hM0
-  have h2 : (1 : ℝ) - 1 / ((q.eval (GeneratorReindex.parameter m M) : ℕ) : ℝ) ≤
-      1 - 1 / ((q.eval M : ℕ) : ℝ) := by
-    have hparam_le : q.eval (GeneratorReindex.parameter m M) ≤ q.eval M :=
-      Polynomial.eval_mono q (GeneratorReindex.parameter_le m M)
-    have hdiv : 1 / ((q.eval M : ℕ) : ℝ) ≤
-        1 / ((q.eval (GeneratorReindex.parameter m M) : ℕ) : ℝ) :=
-      one_div_le_one_div_of_le (Nat.cast_pos.mpr (hq _)) (Nat.cast_le.mpr hparam_le)
-    linarith
-  exact (h1.trans hM).trans h2
+  have hdiv := one_div_le_one_div_of_le ((Nat.cast_pos (α := ℝ)).mpr (hq _))
+    ((Nat.cast_le (α := ℝ)).mpr (Polynomial.eval_mono q (GeneratorReindex.parameter_le m M)))
+  linarith
 
 /-- **Strong one-wayness under schedule reindexing
 (library generalization of the padding trick in

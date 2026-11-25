@@ -152,11 +152,9 @@ theorem distToSet_eq_zero_of_mem {S : Set E} (hc : IsComplete S) (hS : Convex �
   le_antisymm ((distToSet_le_norm_sub hc hS hx x).trans_eq (by simp)) (distToSet_nonneg S x)
 
 theorem distToSet_pos_of_not_mem {S : Set E} (hne : S.Nonempty) (hc : IsComplete S)
-    (hS : Convex ℝ S) {x : E} (hx : x ∉ S) : 0 < distToSet S x := by
-  refine lt_of_le_of_ne (distToSet_nonneg S x) (Ne.symm fun h => ?_)
-  have h0 : x - metricProjection S x = 0 := norm_eq_zero.mp h
-  have heq : x = metricProjection S x := sub_eq_zero.mp h0
-  exact hx (heq ▸ metricProjection_mem hne hc hS x)
+    (hS : Convex ℝ S) {x : E} (hx : x ∉ S) : 0 < distToSet S x :=
+  (distToSet_nonneg S x).lt_of_ne' fun h =>
+    hx ((sub_eq_zero.mp (norm_eq_zero.mp h)) ▸ metricProjection_mem hne hc hS x)
 
 /-- Rescaling a difference by a positive factor `c`: `‖X - c • Y‖ = c * ‖c⁻¹ • X - Y‖`. -/
 private theorem norm_sub_smul_eq_mul {c : ℝ} (hc : 0 < c) (X Y : E) :
@@ -282,14 +280,11 @@ theorem blackwell_cone_dist_sq_le_sum {S : Set E} (hc : IsComplete S) (hS : Conv
     have hs_mem : s ∈ S := metricProjection_mem ⟨0, hzero⟩ hc hS X
     have hmin : distToSet S (X + v k) ^ 2 ≤ ‖(X + v k) - s‖ ^ 2 :=
       pow_le_pow_left₀ (distToSet_nonneg S _) (distToSet_le_norm_sub hc hS hs_mem (X + v k)) 2
-    have hexp : ‖(X + v k) - s‖ ^ 2 = ‖X - s‖ ^ 2 + 2 * ⟪X - s, v k⟫ + ‖v k‖ ^ 2 := by
-      have : X + v k - s = (X - s) + v k := by abel
-      rw [this, norm_add_sq_real]
-    have hinner : ⟪X - s, v k⟫ ≤ 0 := hstep k (Nat.lt_succ_self k)
+    have hexp : ‖(X + v k) - s‖ ^ 2 = distToSet S X ^ 2 + 2 * ⟪X - s, v k⟫ + ‖v k‖ ^ 2 := by
+      rw [show X + v k - s = (X - s) + v k by abel, norm_add_sq_real]
+      rfl
     rw [sum_range_succ, sum_range_succ (fun t => ‖v t‖ ^ 2)]
-    change distToSet S (X + v k) ^ 2 ≤ (∑ t ∈ range k, ‖v t‖ ^ 2) + ‖v k‖ ^ 2
-    have hdistX : ‖X - s‖ ^ 2 = distToSet S X ^ 2 := rfl
-    linarith
+    linarith [hstep k (Nat.lt_succ_self k)]
 
 /-- Square-root form of `blackwell_cone_dist_sq_le_sum` (`distToSet S (∑ t < T, v t) ≤ R * √T`). -/
 theorem blackwell_cone_dist_le {S : Set E} (hc : IsComplete S) (hS : Convex ℝ S)
@@ -348,20 +343,13 @@ is forceable by some mixed row strategy `p ∈ Δ(I)` against all pure column ac
 /-- The closed simplex `{p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1}` is compact. -/
 private theorem isCompact_probSimplex :
     IsCompact {p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1} := by
-  have hsub : {p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1} ⊆
-      Set.pi Set.univ fun _ : I => Set.Icc (0 : ℝ) 1 := by
-    intro p ⟨hp0, hp1⟩ i _
-    refine ⟨hp0 i, ?_⟩
-    have hi : p i ≤ ∑ k, p k := Finset.single_le_sum (fun k _ => hp0 k) (mem_univ i)
-    linarith
-  have hclosed : IsClosed {p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1} := by
-    have h1 : IsClosed {p : I → ℝ | ∀ i, 0 ≤ p i} := by
-      simpa only [Set.ofPred_forall] using
-        isClosed_iInter fun i => isClosed_le continuous_const (continuous_apply i)
-    have h2 : IsClosed {p : I → ℝ | ∑ i, p i = 1} :=
-      isClosed_eq (by fun_prop) continuous_const
-    exact h1.inter h2
-  exact (isCompact_univ_pi fun _ => isCompact_Icc).of_isClosed_subset hclosed hsub
+  refine (isCompact_univ_pi fun _ => isCompact_Icc (a := (0 : ℝ)) (b := 1)).of_isClosed_subset
+    ?_ fun p ⟨hp0, hp1⟩ i _ =>
+      ⟨hp0 i, hp1 ▸ Finset.single_le_sum (fun k _ => hp0 k) (mem_univ i)⟩
+  have h1 : IsClosed {p : I → ℝ | ∀ i, 0 ≤ p i} := by
+    simpa only [Set.ofPred_forall] using
+      isClosed_iInter fun i => isClosed_le continuous_const (continuous_apply i)
+  exact h1.inter (isClosed_eq (by fun_prop) continuous_const)
 
 /-- The attainable payoff set `C_q = {m(p, q) | p ∈ Δ(I)}` is nonempty, convex, and compact. -/
 private theorem attainable_compact_convex [Nonempty I] (m : I → J → E) (q : J → ℝ) :
@@ -387,11 +375,9 @@ private theorem attainable_compact_convex [Nonempty I] (m : I → J → E) (q : 
   refine ⟨hsim_ne.image _, ?_, isCompact_probSimplex.image hcont⟩
   rintro _ ⟨p, hp, rfl⟩ _ ⟨p', hp', rfl⟩ a b ha hb hab
   refine ⟨a • p + b • p', hsim_cvx hp hp' ha hb hab, ?_⟩
-  simp only [bilinearPayoff, Pi.add_apply, Pi.smul_apply, smul_eq_mul, smul_sum, smul_smul]
-  rw [← sum_add_distrib]
-  refine sum_congr rfl fun i _ => ?_
-  rw [← sum_add_distrib]
-  refine sum_congr rfl fun j _ => ?_
+  simp only [bilinearPayoff, Pi.add_apply, Pi.smul_apply, smul_eq_mul, smul_sum, smul_smul,
+    ← sum_add_distrib]
+  refine sum_congr rfl fun i _ => sum_congr rfl fun j _ => ?_
   rw [add_mul, add_smul, mul_assoc, mul_assoc]
 
 /-- Separating-hyperplane lemma: if `C` is nonempty, compact, convex and `S` is nonempty, complete,
@@ -443,9 +429,7 @@ theorem halfspace_of_response [Nonempty I] {m : I → J → E} {S : Set E}
   let M : I → J → ℝ := fun i j => ⟪w, m i j⟫
   have hcol : ∀ q : Convexity.StdSimplex ℝ J, ∃ i : I, ∑ j, q.weights j * M i j ≤ c := by
     intro q
-    have hq0 : ∀ j, 0 ≤ q.weights j := fun j => q.nonneg j
-    have hq1 : ∑ j, q.weights j = 1 := by simp
-    obtain ⟨p, hp0, hp1, hpS⟩ := hresp q.weights hq0 hq1
+    obtain ⟨p, hp0, hp1, hpS⟩ := hresp q.weights q.nonneg (by simp)
     have hle : ∑ i, p i * ∑ j, q.weights j * M i j ≤ c := by
       have hlin : ⟪w, bilinearPayoff m p q.weights⟫ =
           ∑ i, p i * ∑ j, q.weights j * M i j := by
@@ -459,12 +443,8 @@ theorem halfspace_of_response [Nonempty I] {m : I → J → E} {S : Set E}
     calc _ = ∑ i, p i * ∑ j, q.weights j * M i₀ j := by rw [← sum_mul, hp1, one_mul]
       _ ≤ _ := sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (hi₀ i (mem_univ i)) (hp0 i)
   obtain ⟨p, hp⟩ := Convexity.StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le M hcol
-  refine ⟨p.weights, fun i => p.nonneg i, ?_, fun j => ?_⟩
-  · simp
-  · have hlin : ⟪w, expectedPayoff m p.weights j⟫ = ∑ i, p.weights i * M i j := by
-      simp only [expectedPayoff, inner_sum, real_inner_smul_right, M]
-    rw [hlin]
-    exact hp j
+  refine ⟨p.weights, p.nonneg, by simp, fun j => ?_⟩
+  simpa only [expectedPayoff, inner_sum, real_inner_smul_right, M] using hp j
 
 /-- **Blackwell's characterization theorem for convex sets** [Blackwell1956]: for a nonempty
 complete convex set `S` in a real inner product space `E`, `SatisfiesResponseCondition m S` holds
