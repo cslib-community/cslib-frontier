@@ -75,12 +75,11 @@ namespace Cslib
 /-- `2 ^ (-2 w) ≤ 1 - w` for `0 ≤ w ≤ 1 / 2`: Bernoulli's inequality `(1 + x) ^ p ≤ 1 + p x` for
 `p ∈ [0, 1]`, at `x = -1 / 2` and `p = 2 w` (equivalently, convexity of `p ↦ (1 / 2) ^ p`). -/
 private theorem two_rpow_neg_le_one_sub {w : ℝ} (hw0 : 0 ≤ w) (hw1 : w ≤ 1 / 2) :
-    (2 : ℝ) ^ (-(2 * w)) ≤ 1 - w := by
-  have h := rpow_one_add_le_one_add_mul_self (s := -1 / 2) (by norm_num) (p := 2 * w)
-    (by linarith) (by linarith)
+    (2 : ℝ) ^ (-(2 * w)) ≤ 1 - w :=
   calc (2 : ℝ) ^ (-(2 * w)) = (1 + -1 / 2) ^ (2 * w) := by
         rw [Real.rpow_neg (by norm_num), ← Real.inv_rpow (by norm_num)]; norm_num
-    _ ≤ 1 + 2 * w * (-1 / 2) := h
+    _ ≤ 1 + 2 * w * (-1 / 2) :=
+        rpow_one_add_le_one_add_mul_self (by norm_num) (by linarith) (by linarith)
     _ = 1 - w := by ring
 
 /-- **The numerical core of [Lokam2009], Lemma 2.4.** Let `N` positions be available and
@@ -90,55 +89,34 @@ and `r N ^ (r + 1) < n (N - s) ^ (r + 1)`: with `w = log₂ (n / r) / (2 (r + 1)
 private theorem lt_and_mul_pow_lt {n r N s : ℕ} (hn : n ≤ r * 2 ^ (r + 1))
     (hs : (s : ℝ) < N / (2 * (r + 1)) * Real.logb 2 (n / r)) :
     s < N ∧ (r : ℝ) * N ^ (r + 1) < n * (N - s) ^ (r + 1) := by
-  set L := Real.logb 2 (n / r) with hLdef
-  set w := L / (2 * (r + 1)) with hwdef
+  set L := Real.logb 2 (n / r)
+  set w := L / (2 * (r + 1))
   have hr1 : (0 : ℝ) < 2 * (r + 1) := by positivity
-  have hsw : (s : ℝ) < N * w := by
-    calc (s : ℝ) < N / (2 * (r + 1)) * L := hs
-      _ = N * w := by rw [hwdef]; ring
-  have hs0 : (0 : ℝ) ≤ s := Nat.cast_nonneg _
-  have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg _
-  -- The bound is positive, so `r ≥ 1`, `n > r` and `0 < w ≤ 1 / 2`.
-  have hw : 0 < w := by
-    by_contra hw
-    have : (N : ℝ) * w ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hN0 (not_lt.1 hw)
-    linarith
-  have hL : 0 < L := by
-    rw [hwdef] at hw
-    exact (div_pos_iff_of_pos_right hr1).1 hw
+  have hsw : (s : ℝ) < N * w := hs.trans_eq (by dsimp only [w]; ring)
+  have hw : 0 < w := by_contra fun hw => by
+    linarith [Nat.cast_nonneg (α := ℝ) s,
+      mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg (α := ℝ) N) (not_lt.1 hw)]
+  have hL : 0 < L := (div_pos_iff_of_pos_right hr1).1 hw
   rcases Nat.eq_zero_or_pos r with rfl | hr
-  · simp [hLdef] at hL
-  have hrpos : (0 : ℝ) < r := by exact_mod_cast hr
-  have hnr : (0 : ℝ) < n / r := by
-    refine lt_of_le_of_ne (by positivity) fun h => ?_
-    rw [hLdef, ← h, Real.logb_zero] at hL
-    exact lt_irrefl _ hL
+  · simp [L] at hL
+  have hrpos : (0 : ℝ) < r := Nat.cast_pos.mpr hr
+  have hnr : (0 : ℝ) < n / r := lt_of_le_of_ne (by positivity) fun h =>
+    lt_irrefl (0 : ℝ) (by dsimp only [L] at hL; rwa [← h, Real.logb_zero] at hL)
   have hnpos : (0 : ℝ) < n := (div_pos_iff_of_pos_right hrpos).1 hnr
   have hLle : L ≤ r + 1 := by
-    rw [hLdef, Real.logb_le_iff_le_rpow (by norm_num) hnr, div_le_iff₀ hrpos]
-    have : (n : ℝ) ≤ r * 2 ^ (r + 1) := by exact_mod_cast hn
-    calc (n : ℝ) ≤ r * 2 ^ (r + 1) := this
-      _ = (2 : ℝ) ^ ((r : ℝ) + 1) * r := by
-        rw [mul_comm, ← Real.rpow_natCast]; push_cast; ring_nf
-  have hw1 : w ≤ 1 / 2 := by
-    rw [hwdef, div_le_iff₀ hr1]
-    linarith
-  -- `N - s > N (1 - w)` and `(1 - w) ^ (r + 1) ≥ 2 ^ (-L) = r / n`.
-  have hgap : (N : ℝ) * (1 - w) < N - s := by
-    have : (N : ℝ) * (1 - w) = N - N * w := by ring
-    linarith
-  have hrn : (r : ℝ) / n ≤ (1 - w) ^ (r + 1) := by
-    have h2L : (2 : ℝ) ^ (-L) = r / n := by
-      rw [Real.rpow_neg (by norm_num), hLdef, Real.rpow_logb (by norm_num) (by norm_num) hnr,
-        inv_div]
-    calc (r : ℝ) / n = 2 ^ (-L) := h2L.symm
-      _ = ((2 : ℝ) ^ (-(2 * w))) ^ (r + 1) := by
-        rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num), hwdef]
-        congr 1
-        push_cast
-        field_simp
-      _ ≤ (1 - w) ^ (r + 1) :=
-        pow_le_pow_left₀ (Real.rpow_nonneg (by norm_num) _) (two_rpow_neg_le_one_sub hw.le hw1) _
+    rw [Real.logb_le_iff_le_rpow (by norm_num) hnr, div_le_iff₀ hrpos]
+    exact (by exact_mod_cast hn : (n : ℝ) ≤ r * 2 ^ (r + 1)).trans_eq
+      (by rw [mul_comm, ← Real.rpow_natCast]; push_cast; rfl)
+  have hw1 : w ≤ 1 / 2 := (div_le_iff₀ hr1).2 (by linarith)
+  have hgap : (N : ℝ) * (1 - w) < N - s := by nlinarith
+  have hrn : (r : ℝ) / n ≤ (1 - w) ^ (r + 1) := calc
+    (r : ℝ) / n = 2 ^ (-L) := by
+      rw [Real.rpow_neg (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hnr, inv_div]
+    _ = ((2 : ℝ) ^ (-(2 * w))) ^ (r + 1) := by
+      rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]; congr 1; dsimp only [w]
+      push_cast; field_simp
+    _ ≤ (1 - w) ^ (r + 1) :=
+      pow_le_pow_left₀ (Real.rpow_nonneg (by norm_num) _) (two_rpow_neg_le_one_sub hw.le hw1) _
   refine ⟨by exact_mod_cast (show (s : ℝ) < N by nlinarith), ?_⟩
   calc (r : ℝ) * N ^ (r + 1) = n * (r / n * N ^ (r + 1)) := by field_simp
     _ ≤ n * ((1 - w) ^ (r + 1) * N ^ (r + 1)) := by gcongr
@@ -159,33 +137,23 @@ theorem exists_disjoint_product_of_card_lt (S : Finset (α × β)) {r : ℕ}
       Real.logb 2 (Fintype.card β / r)) :
     ∃ I : Finset α, ∃ J : Finset β, #I = r + 1 ∧ #J = r + 1 ∧ Disjoint (I ×ˢ J) S := by
   classical
-  -- For `r ≥ m` the bound is `0`.
-  have hrm : r < Fintype.card α := by
-    by_contra h
+  have hrm : r < Fintype.card α := by_contra fun h => by
     rw [Nat.sub_eq_zero_of_le (not_lt.1 h), Nat.cast_zero, mul_zero, zero_div, zero_mul] at hS
-    exact absurd hS (not_lt.2 (Nat.cast_nonneg _))
+    exact not_lt.2 (Nat.cast_nonneg _) hS
   by_contra hne
   simp only [not_exists, not_and] at hne
-  -- The unmarked positions contain no `(r + 1) × (r + 1)` rectangle.
   have hK := kovari_sos_turan (univ \ S) (s := r + 1) fun I J hI hJ hsub =>
     hne I J hI hJ (disjoint_left.2 fun p hp hpS => (mem_sdiff.1 (hsub hp)).2 hpS)
   rw [card_univ_sdiff, Fintype.card_prod, Nat.add_sub_cancel,
     show Fintype.card α + 1 - (r + 1) = Fintype.card α - r by omega] at hK
   generalize Fintype.card α = m at hrm hK hS
   generalize Fintype.card β = n at hn hK hS
-  -- With `N = (m - r) n` markable positions, Kővári–Sós–Turán gives
-  -- `n (N - |S|) ^ (r + 1) ≤ r N ^ (r + 1)`, which the numerical core contradicts.
-  have hmn : m * n = (m - r) * n + r * n := by
-    rw [← add_mul, Nat.sub_add_cancel hrm.le]
+  have hmn : m * n = (m - r) * n + r * n := by rw [← add_mul, Nat.sub_add_cancel hrm.le]
   rw [show m * n - #S - r * n = (m - r) * n - #S by omega, mul_comm n (m - r)] at hK
-  rw [mul_comm (n : ℝ) _] at hS
-  generalize hN : (m - r) * n = N at hK hS
-  have hNcast : ((m - r : ℕ) : ℝ) * n = N := by exact_mod_cast hN
-  rw [hNcast] at hS
+  rw [mul_comm (n : ℝ) _, ← Nat.cast_mul] at hS
   obtain ⟨hSN, hlt⟩ := lt_and_mul_pow_lt hn hS
-  have hK' : (n : ℝ) * (N - #S) ^ (r + 1) ≤ r * N ^ (r + 1) := by
-    rw [← Nat.cast_sub hSN.le]
-    exact_mod_cast hK
+  have hK' : (n : ℝ) * (((m - r) * n : ℕ) - #S) ^ (r + 1) ≤ r * ((m - r) * n : ℕ) ^ (r + 1) := by
+    rw [← Nat.cast_sub hSN.le]; exact_mod_cast hK
   linarith
 
 end Cslib
@@ -208,31 +176,23 @@ theorem IsTotallyRegular.le_rigidity {A : Matrix m n K} (hA : A.IsTotallyRegular
   classical
   by_contra hlt
   obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
-  set S := univ.filter fun p : m × n => A p.1 p.2 ≠ B p.1 p.2 with hSdef
+  set S := univ.filter fun p : m × n => A p.1 p.2 ≠ B p.1 p.2
   have hS : (#S : ℝ) < Fintype.card n * (Fintype.card m - r : ℕ) / (2 * (r + 1)) *
       Real.logb 2 (Fintype.card n / r) := by
-    rw [hSdef, ← diffCount_eq_card_filter, hAB]
-    exact not_le.1 hlt
+    rw [← diffCount_eq_card_filter, hAB]; exact not_le.1 hlt
   obtain ⟨I, J, hI, hJ, hdisj⟩ := Cslib.exists_disjoint_product_of_card_lt S hn hS
-  -- `A` and `B` agree on `I × J`.
-  have hagree : ∀ i ∈ I, ∀ j ∈ J, A i j = B i j := fun i hi j hj => by
-    by_contra hne
-    have hmem : (i, j) ∈ I ×ˢ J := mem_product.2 ⟨hi, hj⟩
-    exact disjoint_left.1 hdisj hmem (by simpa [hSdef] using hne)
   let f : Fin (r + 1) → m := (↑) ∘ (I.equivFinOfCardEq hI).symm
   let g : Fin (r + 1) → n := (↑) ∘ (J.equivFinOfCardEq hJ).symm
-  have hf : f.Injective := Subtype.val_injective.comp (Equiv.injective _)
-  have hg : g.Injective := Subtype.val_injective.comp (Equiv.injective _)
-  have hsub : A.submatrix f g = B.submatrix f g := by
-    ext a b
-    exact hagree _ (Subtype.prop _) _ (Subtype.prop _)
-  -- The common `(r + 1) × (r + 1)` submatrix is nonsingular, so `rank B ≥ r + 1`.
-  have hdet : (B.submatrix f g).det ≠ 0 := hsub ▸ hA (r + 1) f g hf hg
+  have hsub : A.submatrix f g = B.submatrix f g := Matrix.ext fun a b => by_contra fun hne =>
+    disjoint_left.1 hdisj (mk_mem_product ((I.equivFinOfCardEq hI).symm a).2
+      ((J.equivFinOfCardEq hJ).symm b).2) (by simpa [S, f, g] using hne)
+  have hdet : (B.submatrix f g).det ≠ 0 := hsub ▸ hA (r + 1) f g
+    (Subtype.val_injective.comp (Equiv.injective _))
+    (Subtype.val_injective.comp (Equiv.injective _))
   have hrank : (B.submatrix f g).rank = r + 1 := by
     rw [rank_of_isUnit _ ((isUnit_iff_isUnit_det _).2 (isUnit_iff_ne_zero.2 hdet)),
       Fintype.card_fin]
-  have := (rank_submatrix_le B f g).trans hB
-  omega
+  have := (rank_submatrix_le B f g).trans hB; omega
 
 /-- **Rigidity of totally regular matrices** ([Lokam2009], Theorem 2.5). An `n × n` totally
 regular matrix needs at least `n ^ 2 / (4 (r + 1)) · log₂ (n / r)` changes to bring its rank down
@@ -242,33 +202,20 @@ theorem IsTotallyRegular.le_rigidity_of_le_two_pow {A : Matrix n n K} (hA : A.Is
     {r : ℕ} (hn : Fintype.card n ≤ 2 ^ r) (hr : 2 * r ≤ Fintype.card n) :
     (Fintype.card n ^ 2 / (4 * (r + 1)) * Real.logb 2 (Fintype.card n / r) : ℝ) ≤
       A.rigidity r := by
-  set N := Fintype.card n with hN
+  set N := Fintype.card n
   rcases Nat.eq_zero_or_pos r with rfl | hr0
   · simp
-  have hrN : r < N := by
-    have : 1 ≤ 2 ^ r := Nat.one_le_two_pow
-    rcases Nat.eq_zero_or_pos N with h | h
-    · omega
-    · omega
-  refine le_trans ?_ (hA.le_rigidity (hn.trans ?_))
-  · -- `N / 2 ≤ N - r` and `log₂ (N / r) ≥ 1`.
-    have hrpos : (0 : ℝ) < r := by exact_mod_cast hr0
-    have hL : 0 ≤ Real.logb 2 (N / r) := by
-      refine Real.logb_nonneg (by norm_num) ?_
-      rw [le_div_iff₀ hrpos, one_mul]
-      exact_mod_cast hrN.le
-    have hNr : (N : ℝ) / 2 ≤ (N - r : ℕ) := by
-      rw [Nat.cast_sub hrN.le, div_le_iff₀ (by norm_num)]
-      cast_linarith [hr]
-    calc (N : ℝ) ^ 2 / (4 * (r + 1)) * Real.logb 2 (N / r)
-        = N * (N / 2) / (2 * (r + 1)) * Real.logb 2 (N / r) := by
-          rw [show (4 : ℝ) * (r + 1) = 2 * (2 * (r + 1)) by ring, ← div_div]; ring
-      _ ≤ N * (N - r : ℕ) / (2 * (r + 1)) * Real.logb 2 (N / r) := by gcongr
-  · calc 2 ^ r = 1 * 2 ^ r := (one_mul _).symm
-      _ ≤ r * 2 ^ (r + 1) := by
-        gcongr
-        · omega
-        · omega
+  have hrN : r < N := by have := Nat.one_le_two_pow (n := r); omega
+  refine le_trans ?_ (hA.le_rigidity (hn.trans <| (one_mul _).symm.trans_le <|
+    Nat.mul_le_mul hr0 (Nat.pow_le_pow_right (by norm_num) (by omega))))
+  have hL : 0 ≤ Real.logb 2 (N / r) := Real.logb_nonneg (by norm_num) <|
+    (le_div_iff₀ (Nat.cast_pos.mpr hr0)).2 (by exact_mod_cast (one_mul r).symm ▸ hrN.le)
+  have hNr : (N : ℝ) / 2 ≤ (N - r : ℕ) := by
+    rw [Nat.cast_sub hrN.le, div_le_iff₀ (by norm_num)]; cast_linarith [hr]
+  calc (N : ℝ) ^ 2 / (4 * (r + 1)) * Real.logb 2 (N / r)
+      = N * (N / 2) / (2 * (r + 1)) * Real.logb 2 (N / r) := by
+        rw [show (4 : ℝ) * (r + 1) = 2 * (2 * (r + 1)) by ring, ← div_div]; ring
+    _ ≤ N * (N - r : ℕ) / (2 * (r + 1)) * Real.logb 2 (N / r) := by gcongr
 
 variable {F : Type*} [Field F]
 
