@@ -144,6 +144,18 @@ private theorem eventually_lt_mul_innerSize_of_multiarySize {r : ℕ} {c_lo k : 
   exact (hn σ I Acc c hfan hS).trans_le
     (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) hk)
 
+omit [Finite U] [Nontrivial U] in
+private theorem eventually_lt_mul_multiarySize_of_le {r : ℕ} {c₁ c₂ ε k : ℝ} (hc : c₂ ≤ c₁)
+    (h : ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
+        (c₁ - ε) * n < k * c.multiarySize) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
+        (c₂ - ε) * n < k * c.multiarySize := by
+  filter_upwards [h] with n hn σ I Acc c hfan hdec
+  exact (mul_le_mul_of_nonneg_right (sub_le_sub_right hc ε) (Nat.cast_nonneg n)).trans_lt
+    (hn σ I Acc c hfan hdec)
+
 /-- **The frontier lower bound for fan-in at most three, charging only multiary gates.** Under the
 hypotheses of `eventually_degreeCoefficient_lt_mul_multiarySize`, every circuit of fan-in at most
 three deciding `S_n` has `s` multiary gates with `2 s > (7/2 - ε) n`. -/
@@ -238,9 +250,7 @@ theorem eventually_weightedFive_lt_three_mul_multiarySize
         (1 + 3 * π / (5 * arccos (4 / 5)) - ε) * n < 3 * c.multiarySize := by
   have h := eventually_lt_mul_multiarySize.{u, v} (r := 4) (by norm_num)
     WeightedKernel.fiveCoefficient_pos layoutBound_five_weighted hSK hε
-  rw [WeightedKernel.one_add_inv_fiveCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c hfan hdec
-  simpa only [Nat.cast_ofNat, show (4 : ℝ) - 1 = 3 by norm_num] using hn σ I Acc c hfan hdec
+  rwa [WeightedKernel.one_add_inv_fiveCoefficient, show ((4 : ℕ) : ℝ) - 1 = 3 by norm_num] at h
 
 /-- **Upgraded fan-in-four frontier lower bound (`3 s > (1 + 3π / (5 arccos (4 / 5)) - ε) n`).** -/
 theorem eventually_weightedFive_lt_three_mul_innerSize
@@ -257,12 +267,9 @@ theorem eventually_3929_div_1000_lt_three_mul_multiarySize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 4 → c.Decides I Acc (S n) →
-        (3929 / 1000 - ε) * n < 3 * c.multiarySize := by
-  filter_upwards [eventually_weightedFive_lt_three_mul_multiarySize.{u, v} hSK hε] with
-    n hn σ I Acc c hfan hdec
-  refine lt_of_le_of_lt ?_ (hn σ I Acc c hfan hdec)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [WeightedKernel.fiveCircuitCoefficient_ge_3929]) (Nat.cast_nonneg n)
+        (3929 / 1000 - ε) * n < 3 * c.multiarySize :=
+  eventually_lt_mul_multiarySize_of_le WeightedKernel.fiveCircuitCoefficient_ge_3929
+    (eventually_weightedFive_lt_three_mul_multiarySize.{u, v} hSK hε)
 
 /-- **Rational fan-in-four frontier lower bound (`3 s > (3.929 - ε) n`).** -/
 theorem eventually_3929_div_1000_lt_three_mul_innerSize
@@ -281,9 +288,7 @@ theorem eventually_weightedFive_lt_three_mul_innerSize_of_nondeterministicDecide
         (1 + 3 * π / (5 * arccos (4 / 5)) - ε) * n < 3 * c.innerSize := by
   have h := eventually_lt_mul_innerSize_of_nondeterministicDecides.{u, v} (r := 4) (by norm_num)
     WeightedKernel.fiveCoefficient_pos layoutBound_five_weighted hSK hε
-  rw [WeightedKernel.one_add_inv_fiveCoefficient] at h
-  filter_upwards [h] with n hn k σ I Acc c hfan hdec
-  simpa only [Nat.cast_ofNat, show (4 : ℝ) - 1 = 3 by norm_num] using hn k σ I Acc c hfan hdec
+  rwa [WeightedKernel.one_add_inv_fiveCoefficient, show ((4 : ℕ) : ℝ) - 1 = 3 by norm_num] at h
 
 /-- **Upgraded fan-in-five frontier lower bound (`4 s > (1 + 2π / (3 arccos (√5 / 3)) - ε) n`),
 charging only multiary gates.** -/
@@ -294,9 +299,7 @@ theorem eventually_weightedSix_lt_four_mul_multiarySize
         (1 + 2 * π / (3 * arccos (√5 / 3)) - ε) * n < 4 * c.multiarySize := by
   have h := eventually_lt_mul_multiarySize.{u, v} (r := 5) (by norm_num)
     WeightedKernel.sixCoefficient_pos layoutBound_six_weighted hSK hε
-  rw [WeightedKernel.one_add_inv_sixCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c hfan hdec
-  simpa only [Nat.cast_ofNat, show (5 : ℝ) - 1 = 4 by norm_num] using hn σ I Acc c hfan hdec
+  rwa [WeightedKernel.one_add_inv_sixCoefficient, show ((5 : ℕ) : ℝ) - 1 = 4 by norm_num] at h
 
 /-- **Upgraded fan-in-five frontier lower bound (`4 s > (1 + 2π / (3 arccos (√5 / 3)) - ε) n`).** -/
 theorem eventually_weightedSix_lt_four_mul_innerSize
@@ -313,12 +316,9 @@ theorem eventually_387_div_100_lt_four_mul_multiarySize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 5 → c.Decides I Acc (S n) →
-        (387 / 100 - ε) * n < 4 * c.multiarySize := by
-  filter_upwards [eventually_weightedSix_lt_four_mul_multiarySize.{u, v} hSK hε] with
-    n hn σ I Acc c hfan hdec
-  refine lt_of_le_of_lt ?_ (hn σ I Acc c hfan hdec)
-  exact mul_le_mul_of_nonneg_right
-    (by linarith [WeightedKernel.sixCircuitCoefficient_ge_387]) (Nat.cast_nonneg n)
+        (387 / 100 - ε) * n < 4 * c.multiarySize :=
+  eventually_lt_mul_multiarySize_of_le WeightedKernel.sixCircuitCoefficient_ge_387
+    (eventually_weightedSix_lt_four_mul_multiarySize.{u, v} hSK hε)
 
 /-- **Rational fan-in-five frontier lower bound (`4 s > (3.87 - ε) n`).** -/
 theorem eventually_387_div_100_lt_four_mul_innerSize
@@ -337,9 +337,7 @@ theorem eventually_weightedSix_lt_four_mul_innerSize_of_nondeterministicDecides
         (1 + 2 * π / (3 * arccos (√5 / 3)) - ε) * n < 4 * c.innerSize := by
   have h := eventually_lt_mul_innerSize_of_nondeterministicDecides.{u, v} (r := 5) (by norm_num)
     WeightedKernel.sixCoefficient_pos layoutBound_six_weighted hSK hε
-  rw [WeightedKernel.one_add_inv_sixCoefficient] at h
-  filter_upwards [h] with n hn k σ I Acc c hfan hdec
-  simpa only [Nat.cast_ofNat, show (5 : ℝ) - 1 = 4 by norm_num] using hn k σ I Acc c hfan hdec
+  rwa [WeightedKernel.one_add_inv_sixCoefficient, show ((5 : ℕ) : ℝ) - 1 = 4 by norm_num] at h
 
 end WorstCaseAndNondet
 
@@ -392,9 +390,7 @@ theorem eventually_weightedFive_lt_three_mul_innerSize_of_isTotallyRegular {ε :
           (1 + 3 * π / (5 * arccos (4 / 5)) - ε) * N < 3 * c.innerSize := by
   have h := eventually_lt_mul_innerSize_of_isTotallyRegular.{u, v} (r := 4) (by norm_num)
     WeightedKernel.fiveCoefficient_pos layoutBound_five_weighted hε
-  rw [WeightedKernel.one_add_inv_fiveCoefficient] at h
-  filter_upwards [h] with N hN F _ σ I M c hM hfan hc hcap
-  simpa only [Nat.cast_ofNat, show (4 : ℝ) - 1 = 3 by norm_num] using hN F σ I M c hM hfan hc hcap
+  rwa [WeightedKernel.one_add_inv_fiveCoefficient, show ((4 : ℕ) : ℝ) - 1 = 3 by norm_num] at h
 
 /-- **Upgraded fan-in-five lower bound (`4 s > (1 + 2π / (3 arccos (√5 / 3)) - ε) N`) for totally
 regular linear maps.** -/
@@ -405,8 +401,6 @@ theorem eventually_weightedSix_lt_four_mul_innerSize_of_isTotallyRegular {ε : �
           (1 + 2 * π / (3 * arccos (√5 / 3)) - ε) * N < 4 * c.innerSize := by
   have h := eventually_lt_mul_innerSize_of_isTotallyRegular.{u, v} (r := 5) (by norm_num)
     WeightedKernel.sixCoefficient_pos layoutBound_six_weighted hε
-  rw [WeightedKernel.one_add_inv_sixCoefficient] at h
-  filter_upwards [h] with N hN F _ σ I M c hM hfan hc hcap
-  simpa only [Nat.cast_ofNat, show (5 : ℝ) - 1 = 4 by norm_num] using hN F σ I M c hM hfan hc hcap
+  rwa [WeightedKernel.one_add_inv_sixCoefficient, show ((5 : ℕ) : ℝ) - 1 = 4 by norm_num] at h
 
 end Cslib.Circuits.Frontier
