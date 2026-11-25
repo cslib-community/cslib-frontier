@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.Expander.Basic
-import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # A lower bound on the spectral expansion
@@ -133,9 +132,7 @@ private theorem sum_edgeCount_div_sub_sq_le_spectralExpansion_sq_mul (G : Rotati
   rw [Fintype.expect_eq_sum_div_card, Fintype.expect_eq_sum_div_card, hf_sq] at h
   simp only [hwalk] at h
   rw [← hN, div_le_iff₀ hNpos] at h
-  calc ∑ v, ((G.edgeCount v u : ℝ) / d - 1 / N) ^ 2
-      ≤ G.spectralExpansion ^ 2 * ((1 - 1 / N) / N) * N := h
-    _ = G.spectralExpansion ^ 2 * (1 - 1 / N) := by field_simp
+  exact h.trans_eq (by field_simp)
 
 /-- **Trace bound.** A `D`-regular multigraph on `N ≥ 2` vertices has
 `(N - D) / (D (N - 1)) ≤ λ(G) ^ 2`. -/
@@ -175,8 +172,7 @@ theorem div_le_sq_spectralExpansion (G : RotationMap V D) (hV : 2 ≤ Fintype.ca
           sum_le_sum fun u _ => G.sum_edgeCount_div_sub_sq_le_spectralExpansion_sq_mul hV u
       _ = N * (lam ^ 2 * (1 - 1 / N)) := by simp only [sum_const, card_univ, nsmul_eq_mul, hN]
       _ = lam ^ 2 * (N - 1) := by field_simp
-  have hN1 : 0 < N - 1 := by linarith
-  rw [div_le_iff₀ (by positivity)]
+  rw [div_le_iff₀ (mul_pos hdpos (by linarith))]
   rw [div_le_iff₀ hdpos] at htot
   linarith
 
@@ -193,22 +189,26 @@ expansion. -/
 theorem spectralExpansion_pos (G : RotationMap V D) (hDV : Fintype.card D < Fintype.card V) :
     0 < G.spectralExpansion := by
   have hD : 1 ≤ Fintype.card D := Fintype.card_pos
-  have hV : 2 ≤ Fintype.card V := by omega
-  refine (Real.sqrt_pos.2 ?_).trans_le (G.sqrt_le_spectralExpansion hV)
   have h1 : (Fintype.card D : ℝ) < Fintype.card V := by exact_mod_cast hDV
   have h2 : (1 : ℝ) ≤ Fintype.card D := by exact_mod_cast hD
-  apply div_pos <;> nlinarith
+  refine (Real.sqrt_pos.2 (div_pos (by linarith) (mul_pos (by linarith) (by linarith)))).trans_le
+    (G.sqrt_le_spectralExpansion (by omega))
 
 /-- A `D`-regular multigraph on at least `2 D` vertices has `1 / √(2 D) ≤ λ(G)`. -/
 theorem one_div_sqrt_two_mul_le_spectralExpansion (G : RotationMap V D)
     (hDV : 2 * Fintype.card D ≤ Fintype.card V) :
     1 / Real.sqrt (2 * Fintype.card D) ≤ G.spectralExpansion := by
   have hD : 1 ≤ Fintype.card D := Fintype.card_pos
+  have hd : (1 : ℝ) ≤ Fintype.card D := by exact_mod_cast hD
+  have hdv : 2 * (Fintype.card D : ℝ) ≤ Fintype.card V := by exact_mod_cast hDV
   refine le_trans ?_ (G.sqrt_le_spectralExpansion (by omega))
   rw [one_div, ← Real.sqrt_inv]
   apply Real.sqrt_le_sqrt
-  rw [inv_eq_one_div, div_le_div_iff₀ (by positivity) (by cast_nlinarith [hD, hDV])]
-  cast_nlinarith
+  rw [inv_eq_one_div, div_le_div_iff₀ (by positivity) (mul_pos (by linarith) (by linarith))]
+  calc (1 : ℝ) * (Fintype.card D * (Fintype.card V - 1))
+      = Fintype.card D * (Fintype.card V - 1) := one_mul _
+    _ ≤ Fintype.card D * (2 * (Fintype.card V - Fintype.card D)) := by gcongr; linarith
+    _ = (Fintype.card V - Fintype.card D) * (2 * Fintype.card D) := by ring
 
 end RotationMap
 
