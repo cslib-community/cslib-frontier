@@ -69,17 +69,15 @@ collision between sums under `2 * bound` forces an exact `bound`-credit wraparou
 * `IssueAgreement`, `SpendReply`, `AgreedTicket`, `DraftIssueRequest`, `DraftSpendRequest`,
   `DraftQuery`, `draftReply`, `IssuerState`: draft-style queries, named replies, and stateful
   issuer bookkeeping, without adversary-chosen `T` or `x'`.
-* `draftIssuerOracle`, `DraftAdversary`, `ExtractedDraftConservationExecution`,
-  `runExtractedDraftConservation`, `extractedDraftConservationAccept`,
-  `extractedDraftConservationExperiment`: draft-style stateful issuer oracle and extracted
-  conservation game with range and policy rejections.
+* `draftIssuerOracle` (with client transition laws `run_draftIssuerOracle_agreeIssue`,
+  `run_draftIssuerOracle_issue`, `run_draftIssuerOracle_spend`), `DraftAdversary`,
+  `ExtractedDraftConservationExecution`, `runExtractedDraftConservation`,
+  `extractedDraftConservationAccept`, `extractedDraftConservationExperiment`: draft-style
+  stateful issuer oracle and extracted conservation game with range and policy rejections.
 * `bridgeAdversary`: explicit simulation reduction to `Conservation.ExtractedAdversary`.
 
 ## Main results
 
-* `run_draftIssuerOracle_agreeIssue`, `run_draftIssuerOracle_issue`,
-  `run_draftIssuerOracle_spend`: query-by-query transition laws for `draftIssuerOracle` exposed to
-  ordinary-import callers.
 * `bridgeAdversary_queryBound`: `bridgeAdversary` preserves query budgets (`≤ q`).
 * `eval_extractedDraftConservationExperiment_eq`: exact zero-loss distribution equality between
   `extractedDraftConservationExperiment` and `Conservation.extractedConservationExperiment` on
