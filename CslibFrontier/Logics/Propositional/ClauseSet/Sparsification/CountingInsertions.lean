@@ -163,19 +163,14 @@ theorem countingInsertionCount_eq_present_add_deleted {θ : ℕ → ℕ} (hθ : 
       simp only [D, S, mem_filter, mem_sdiff]
       tauto
     rw [hI, hD, card_sdiff_add_card, card_sdiff_add_card, union_comm]
-  suffices ∀ n, n ≤ N → (∑ m ∈ range n, (I m).card) =
-      (S n).card + ∑ m ∈ range n, (D m).card from this N le_rfl
-  intro n
-  induction n with
-  | zero =>
-    have hS0 : S 0 = ∅ := filter_eq_empty_iff.mpr fun C hC h => h.1 hC
-    simp [hS0]
-  | succ n ih =>
-    intro hn
-    have hprev := ih (by omega)
-    have hstep := hinc n (by omega)
-    rw [sum_range_succ, sum_range_succ]
-    omega
+  have hS0 : S 0 = ∅ := filter_eq_empty_iff.mpr fun C hC h => h.1 hC
+  have htel : (∑ m ∈ range N, (S (m + 1)).card) = (∑ m ∈ range N, (S m).card) + (S N).card := by
+    simpa only [hS0, card_empty, add_zero] using
+      (sum_range_succ' (fun m => (S m).card) N).symm.trans (sum_range_succ _ _)
+  have hsum := sum_congr (s₁ := range N) rfl fun m hm => hinc m (mem_range.mp hm)
+  simp only [sum_add_distrib, htel] at hsum
+  change (∑ m ∈ range N, (I m).card) = (S N).card + ∑ m ∈ range N, (D m).card
+  exact Nat.add_right_cancel (hsum.trans (by ac_rfl))
 
 /-- Summing the actual one-step deletion charges gives the deletion term of (A.3).
 This part requires both `Choice` priorities and reducedness, but not nontautology. -/
@@ -269,14 +264,14 @@ theorem countingInsertionCount_le_pow {M : ℕ} (hM : 2 ≤ M)
 /-- The closed insertion bound also holds for any declared-variable budget above the finite
 support's cardinality. No inhabitance or positivity of that budget is required. -/
 theorem countingInsertionCount_le_pow_of_card_le {M : ℕ} (hM : 2 ≤ M)
-    (N : ℕ) (ψ : ℕ → ClauseSet V) (c : ℕ → ℕ) (H : ℕ → Finset (Literal V)) (b : ℕ → Bool)
-    (hstep : ∀ i < N, ψ (i + 1) = countingChild (ψ i) (c i) (H i) (b i))
-    (hchoice : ∀ i < N, Choice (fun r => M ^ r) (ψ i) (c i) (H i)) (hred : Reduced (ψ 0))
-    (hnt : ∀ C ∈ ψ 0, ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C)
-    (declared : Finset V) (hsupport : ∀ C ∈ ψ 0, ∀ l ∈ C, l.1 ∈ declared)
-    {n : ℕ} (hn : declared.card ≤ n) {j : ℕ} (hj : 1 ≤ j) :
-    countingInsertionCount N ψ c H b j ≤ 4 * (3 * M) ^ (j - 1) * n :=
-  (countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt declared hsupport hj).trans
-    (Nat.mul_le_mul_left _ hn)
+  (N : ℕ) (ψ : ℕ → ClauseSet V) (c : ℕ → ℕ) (H : ℕ → Finset (Literal V)) (b : ℕ → Bool)
+  (hstep : ∀ i < N, ψ (i + 1) = countingChild (ψ i) (c i) (H i) (b i))
+  (hchoice : ∀ i < N, Choice (fun r => M ^ r) (ψ i) (c i) (H i)) (hred : Reduced (ψ 0))
+  (hnt : ∀ C ∈ ψ 0, ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C)
+  (declared : Finset V) (hsupport : ∀ C ∈ ψ 0, ∀ l ∈ C, l.1 ∈ declared)
+  {n : ℕ} (hn : declared.card ≤ n) {j : ℕ} (hj : 1 ≤ j) :
+  countingInsertionCount N ψ c H b j ≤ 4 * (3 * M) ^ (j - 1) * n :=
+(countingInsertionCount_le_pow hM N ψ c H b hstep hchoice hred hnt declared hsupport hj).trans
+  (Nat.mul_le_mul_left _ hn)
 
 end Cslib.Logic.PL.ClauseSet.Sparsification
