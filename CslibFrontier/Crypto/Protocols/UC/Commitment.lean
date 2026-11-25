@@ -1124,8 +1124,7 @@ theorem exec_fcom_corruptReceiverEnv_eq (scheme : PlainCommitmentScheme CommitMs
   simp only [Machine.closeProgram_map, bind_map_left]
   refine bind_congr fun x => ?_
   rcases x with ⟨⟨r₁, st₁⟩, recDel₁⟩
-  rcases r₁ with _ | ⟨c | _ | _⟩ <;> try rfl
-  rcases c with _ | c <;> try rfl
+  rcases r₁ with _ | ⟨(_ | c) | _ | _⟩ <;> try rfl
   simp only [execReplyInr, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.closeProgram_bind, map_bind]
   rw [handle_execMachine_fcom_openCom]
@@ -1134,8 +1133,7 @@ theorem exec_fcom_corruptReceiverEnv_eq (scheme : PlainCommitmentScheme CommitMs
   simp only [Machine.closeProgram_map, bind_map_left]
   refine bind_congr fun y => ?_
   rcases y with ⟨⟨r₂, st₂⟩, sP⟩
-  rcases r₂ with _ | ⟨_ | o | _⟩ <;> try rfl
-  rcases o with _ | o <;> try rfl
+  rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try rfl
   simp only [execReplyInr, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_sample,
     Machine.closeProgram_map, Machine.closeProgram_sample, Functor.map_map]
   rfl
@@ -1156,8 +1154,7 @@ theorem exec_real_corruptCommitterEnv_eq [DecidableEq CommitMsg] [DecidableEq Op
     pure_bind, bind_map_left, map_bind]
   refine bind_congr fun x => ?_
   rcases x with ⟨⟨r₁, st₁⟩, recDel₁⟩
-  rcases r₁ with _ | ⟨c | _ | _⟩ <;> try rfl
-  rcases c with _ | c <;> try rfl
+  rcases r₁ with _ | ⟨(_ | c) | _ | _⟩ <;> try rfl
   simp only [bind_pure_comp, Machine.runFrom_map, Machine.runFrom_query,
     Machine.closeProgram_map]
   rw [handle_plainRouter_deliverCommit_zero]
@@ -1170,8 +1167,7 @@ theorem exec_real_corruptCommitterEnv_eq [DecidableEq CommitMsg] [DecidableEq Op
     Machine.closeProgram_bind, Machine.closeProgram_sample,
     bind_map_left, map_bind]
   refine bind_congr fun r₂ => ?_
-  rcases r₂ with _ | ⟨_ | o | _⟩ <;> try rfl
-  rcases o with _ | o <;> try rfl
+  rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try rfl
   simp only [Machine.runFrom_bind, Machine.runFrom_query,
     Machine.closeProgram_bind, map_bind]
   rw [handle_plainRouter_deliverOpen_zero]
@@ -1286,8 +1282,7 @@ private theorem eval_corruptCommitterSuffix_locked_not
     Machine.closeProgram_bind, Machine.closeProgram_sample,
     bind_map_left, map_bind, ProbComp.eval_bind]
   refine (bind_congr (g := fun _ => PMF.pure false) fun r₂ => ?_).trans (PMF.bind_const _ _)
-  rcases r₂ with _ | ⟨_ | o | _⟩ <;> try rfl
-  rcases o with _ | o <;> try rfl
+  rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try rfl
   simp only [bind_pure_comp, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.runFrom_map, Machine.closeProgram_bind, Machine.closeProgram_map,
     map_bind, Functor.map_map]

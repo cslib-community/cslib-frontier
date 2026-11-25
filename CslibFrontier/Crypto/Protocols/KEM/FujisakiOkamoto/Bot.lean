@@ -458,7 +458,7 @@ theorem closeTo_cachedCoupledBotGame_eagerCoupledBotGame
     CloseTo (ProbComp.eval (S.cachedCoupledBotGame A b)) (S.eagerCoupledBotGame A b)
       (qD * ENNReal.ofReal ((2 : ℝ) ^ (-γ))) := by
   set ε := (qD : ℝ≥0∞) * ENNReal.ofReal ((2 : ℝ) ^ (-γ))
-  have hconst {α : Type} (μ : PMF α) : ∑' a, μ a * ε = ε := by
+  have hconst {α : Type} (μ : PMF α) : ∑' a, μ a * ε ≤ ε := by
     rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
   have hL : ProbComp.eval (S.cachedCoupledBotGame A b) =
       (ProbComp.eval S.pke.keyGen).bind fun keys =>
@@ -534,14 +534,10 @@ theorem closeTo_cachedCoupledBotGame_eagerCoupledBotGame
     unfold keyTable
     pmf_swap
   rw [hL, hR]
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun keys hkeys => ?_).mono
-    (le_of_eq (hconst _))
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun mStar _ => ?_).mono
-    (le_of_eq (hconst _))
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun rStar _ => ?_).mono
-    (le_of_eq (hconst _))
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun kRand _ => ?_).mono
-    (le_of_eq (hconst _))
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun keys hkeys => ?_).mono (hconst _)
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun mStar _ => ?_).mono (hconst _)
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun rStar _ => ?_).mono (hconst _)
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun kRand _ => ?_).mono (hconst _)
   set cStar := S.pke.encDet keys.1 mStar rStar
   have hd : OracleComp.IsCostBounded ROQuery.dCost
       (OracleComp.query (spec := ROResp (M := M) (CT := CT) R K)
@@ -680,25 +676,16 @@ theorem advantage_eagerIndCcaBotGame_simBotGame_le [Fintype M] [Nonempty M] [Fin
       ((qG + qH + 1 : ℕ) : ℝ) * δ + qD * (2 : ℝ) ^ (-γ) := by
   have hclose := (S.closeTo_cachedCoupledBotGame_eagerCoupledBotGame A hq hγ b).symm
   rw [eagerCoupledBotGame_eq_eagerIndCcaBotGame] at hclose
-  have hadv₁ : (Game.advantage (S.eagerIndCcaBotGame A b)
-      (ProbComp.eval (S.cachedCoupledBotGame A b)) : ℝ≥0∞) ≤
-      (qD : ℝ≥0∞) * ENNReal.ofReal ((2 : ℝ) ^ (-γ)) :=
-    Game.closeTo_iff_coe_advantage_le.mp hclose
-  have htop : ((qD : ℝ≥0∞) * ENNReal.ofReal ((2 : ℝ) ^ (-γ))) ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top
-  have h₁ : (Game.advantage (S.eagerIndCcaBotGame A b)
-      (ProbComp.eval (S.cachedCoupledBotGame A b)) : ℝ) ≤ qD * (2 : ℝ) ^ (-γ) := by
-    have hr := ENNReal.toReal_mono htop hadv₁
-    rwa [ENNReal.coe_toReal, ENNReal.toReal_mul, ENNReal.toReal_natCast,
-      ENNReal.toReal_ofReal (Real.rpow_nonneg (by norm_num) _)] at hr
+  have h₁ := ENNReal.toReal_mono
+    (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top)
+    (Game.closeTo_iff_coe_advantage_le.mp hclose)
+  rw [ENNReal.coe_toReal, ENNReal.toReal_mul, ENNReal.toReal_natCast,
+    ENNReal.toReal_ofReal (Real.rpow_nonneg (by norm_num) _)] at h₁
   have h₂ := S.advantage_cachedCoupledBotGame_simBotGame_le A hq.1 hδ b
-  calc (Game.advantage (S.eagerIndCcaBotGame A b) (ProbComp.eval (S.simBotGame A b)) : ℝ)
-      ≤ Game.advantage (S.eagerIndCcaBotGame A b) (ProbComp.eval (S.cachedCoupledBotGame A b)) +
-          Game.advantage (ProbComp.eval (S.cachedCoupledBotGame A b))
-            (ProbComp.eval (S.simBotGame A b)) := by
-        exact_mod_cast Game.advantage_triangle _ _ _
-    _ ≤ qD * (2 : ℝ) ^ (-γ) + ((qG + qH + 1 : ℕ) : ℝ) * δ := add_le_add h₁ h₂
-    _ = ((qG + qH + 1 : ℕ) : ℝ) * δ + qD * (2 : ℝ) ^ (-γ) := add_comm _ _
+  have h₃ := NNReal.coe_le_coe.mpr (Game.advantage_triangle (S.eagerIndCcaBotGame A b)
+    (ProbComp.eval (S.cachedCoupledBotGame A b)) (ProbComp.eval (S.simBotGame A b)))
+  rw [NNReal.coe_add] at h₃
+  linarith
 
 /-- The concrete ROM IND-CCA bound for `FO^⊥ = U^⊥ ∘ T` over one fixed scheme, the step at each
 parameter of `WordPKE.INDCPA.romINDCCABot`; it is not the bound of

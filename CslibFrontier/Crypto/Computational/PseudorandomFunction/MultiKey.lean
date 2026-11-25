@@ -21,6 +21,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Several independent keys of a pseudorandom function
@@ -251,17 +252,13 @@ theorem isOraclePPT_prfMultiReduction (hfamily : PseudorandomFunction family) (t
         exact (BitString.length_of_mem_support_uniformList hvalue).le) result hresult
     exact ⟨by simpa only [encBits_apply] using hcache',
       by simp only [encBits_apply] at hreply; omega, by omega⟩
-  · simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
-      at hresult
-    subst hresult
+  · supp_cases hresult
     exact ⟨hcache, by simp, by dsimp only; omega⟩
   · simp only [OracleComp.mem_supportWith_map_iff] at hresult
     obtain ⟨reply, ⟨raw, _, rfl⟩, rfl⟩ := hresult
     have := List.length_take_le caller.1.1 raw
     exact ⟨hcache, by dsimp only; omega, by dsimp only; omega⟩
-  · simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
-      at hresult
-    subst hresult
+  · supp_cases hresult
     have := List.length_take_le caller.1.1
       (prfOracle family caller.1.1 (keyBlock caller.1.1 i caller.2) query)
     exact ⟨hcache, by dsimp only; omega, by dsimp only; omega⟩
@@ -375,9 +372,7 @@ private theorem run_semanticHandler (family : List Bool → List Bool → List B
         change memoize (fun _ => BitString.uniformList n)
           (i, List.ofFn (BitString.ofList n query)) cache = _
         rw [BitString.ofFn_ofList hlength]
-      · rfl
-      · rfl
-      · rfl
+      all_goals rfl
   -- the eager side reads the curried table
   have heager (table : Fin t × BitString n → BitString n) :
       (fun q => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle

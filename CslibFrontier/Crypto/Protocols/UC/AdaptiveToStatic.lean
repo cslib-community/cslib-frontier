@@ -616,11 +616,10 @@ private theorem static_advantage_le_of_adaptive_clampStatic
       let C ← queryStatus
       pure ((b == target) && decide (C = A.initial κ))
     have hZ_post (target : Bool) : (Z_post target).PolyBounded (pZ + 1) := fun κ' z' => by
-      refine (OracleComp.IsCostBounded.bind (hZ κ' z') fun _ =>
+      exact (OracleComp.IsCostBounded.bind (hZ κ' z') fun _ =>
         OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query (cost := fun _ => 1) _)
-          fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-      simp only [Polynomial.eval_add, Polynomial.eval_one]
-      omega
+          fun _ => OracleComp.IsCostBounded.pure _ 0).mono
+        (by simp only [Polynomial.eval_add, Polynomial.eval_one]; omega)
     have hbound (target : Bool) :
         ((adaptiveExec .adaptive P A.clampStatic Z κ z).eval target).toReal -
           ((adaptiveExec .adaptive Q S.clampStatic Z κ z).eval target).toReal ≤ (ν κ : ℝ) := by
@@ -652,10 +651,9 @@ private theorem static_advantage_le_of_adaptive_clampStatic
       let C ← queryStatus
       pure (decide (C = A.initial κ))
     have hZ_status : Z_status.PolyBounded (pZ + 1) := fun κ' z' => by
-      refine (OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query (cost := fun _ => 1) _)
-        fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-      simp only [Polynomial.eval_add, Polynomial.eval_one]
-      omega
+      exact (OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query (cost := fun _ => 1) _)
+        fun _ => OracleComp.IsCostBounded.pure _ 0).mono
+        (by simp only [Polynomial.eval_add, Polynomial.eval_one]; omega)
     have hadv_st := hadv Z_status hZ_status κ z
     have hP_st : (adaptiveExec .adaptive P A.clampStatic Z_status κ z).eval = PMF.pure true := by
       simpa only [AdaptiveAdversary.clampStatic, decide_true] using

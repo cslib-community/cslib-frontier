@@ -450,14 +450,10 @@ theorem zeroWords_eq (k : ℕ) (f : XorAndCircuit) (coins : List Bool) {s : ℕ}
     rw [hl, hr, ← congrFun hW (.gate g)]
     simp only [evalStep, garbleTable, Slot.gate, Bool.false_eq_true, ↓reduceIte]
     cases hG : f.circuit.G ⟨s, hsq⟩ true true
-    · have hop' : op (toCircuit f) g = .xor := by
-        rw [hop]
-        simp [opOf, hG]
+    · have hop' : op (toCircuit f) g = .xor := by simp [hop, opOf, hG]
       rw [dite_eq_right (by rw [hop']; decide)]
       simp only [zeroGate, Bool.false_eq_true, ↓reduceIte, labelBits_add]
-    · have hop' : op (toCircuit f) g = .and := by
-        rw [hop]
-        simp [opOf, hG]
+    · have hop' : op (toCircuit f) g = .and := by simp [hop, opOf, hG]
       rw [dite_eq_left hop']
       simp only [zeroGate, ↓reduceIte]
       rw [labelBits_andEval hash k s (ofFn_slotTweak _ k g hop' false)

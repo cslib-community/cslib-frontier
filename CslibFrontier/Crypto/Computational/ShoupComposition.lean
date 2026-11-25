@@ -481,8 +481,7 @@ private theorem computableInPolyTime_shoupAdvance {γ : Type} {encIn : γ ↪ Li
       dsimp only [iterF, shoupIterStep, par]
       exact ⟨by omega, hstep_len a _ (length_shoupStepInput _ _ _ _ _ _)⟩)
     (size := fun a => 2 * (lo a + hi a + b a) + 4)
-    (ComputableInPolyTime.polyBounded (show ComputableInPolyTime
-      (fun a => 2 * (lo a + hi a + b a) + 4) encIn encUnary from by fun_prop))
+    (ComputableInPolyTime.polyBounded (by fun_prop))
     (fun a i acc hi_lt ⟨hacc1, hacc2⟩ => by
       simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate, hacc2]
       omega)
@@ -637,11 +636,9 @@ theorem length_shoupPackMasks (b s t iStar : ℕ) (step : List Bool → List Boo
     rw [Function.iterate_succ_apply]
     apply ih
     dsimp only [shoupPackStep]
-    by_cases htrig : (decide (acc.rem - 1 = 0) || shoupIsLastOcc iStar (acc.rem - 1)) = true
-    · simp only [htrig, ↓reduceIte]
-      exact BitString.length_replaceRow (BitString.length_listXor _ _) _
-    · simp only [Bool.eq_false_iff.mpr htrig, Bool.false_eq_true, ↓reduceIte]
-      exact h
+    split <;> dsimp only
+    · exact BitString.length_replaceRow (BitString.length_listXor _ _) _
+    · exact h
 
 private theorem padicValNat_two_lt_maskCount {a t : ℕ} (h : a ≤ t) :
     padicValNat 2 a < shoupMaskCount t :=
@@ -903,8 +900,7 @@ private theorem shoupPackMasks_spec (b s t iStar : ℕ) (step : List Bool → Li
       [shoupAdvance b s step masks x lo (p - 1) (shoupSegStart b s step x T0 lo),
        BitString.listRow b j T] := by
     have h := hsegs lo p ⟨Nat.zero_le _, hlo_lt, hp_info.2.1, hlo_c, hp_last, hbtw⟩
-    rw [hv_p, hT0 j (Nat.lt_succ_of_le (hj.trans (Nat.log_mono_right hit)))] at h
-    exact h
+    rwa [hv_p, hT0 j (Nat.lt_succ_of_le (hj.trans (Nat.log_mono_right hit)))] at h
   have hlen_st : (shoupAdvance b s step masks x lo (p - 1)
       (shoupSegStart b s step x T0 lo)).length = b :=
     hst' ▸ length_shoupState b s step hstep masks x (p - 1)
@@ -973,8 +969,7 @@ private theorem shoupUnpack_shoupPack {b s t iStar : ℕ}
     change BitString.listRow b j (shoupUnpackMasks b s t iStar step x masks) = _ at hrow
     rw [hrow]
     split_ifs with hle
-    · rw [decide_eq_true_eq] at hle
-      rw [hlo_m j hle, BitString.listXor_pair_comm b (BitString.listXor b _),
+    · rw [hlo_m j (of_decide_eq_true hle), BitString.listXor_pair_comm b (BitString.listXor b _),
         BitString.listXor_pair_self_left_of_length _ (BitString.length_listRow _ _ _)]
     · exact hhi_m j (Nat.lt_of_not_ge (fun h => hle (decide_eq_true h))) hj
   rw [← BitString.flatten_listRows_of_length (length_shoupUnpackMasks b s t iStar step x masks),
@@ -1080,14 +1075,12 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
     have h_ite := ComputableInPolyTime.ite' hcond
       (encShoupPackAcc_mk_polyTime hrem hrem hnextS hrep)
       (encShoupPackAcc_mk_polyTime hrem hown hactS hmsk)
-    exact (show _ = (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => iterF q.1 q.2) from
-      funext fun _ => rfl) ▸ h_ite
+    exact h_ite
   have hT0 : ComputableInPolyTime T0 encIn encBits :=
     ComputableInPolyTime.bitsRowWithInput
       (computableInPolyTime_shoupMasksLen hb ht) (.const 0) hT
-  have hpar : ComputableInPolyTime (fun a : γ => (a, iStar a, x a, T0 a)) encIn encPar :=
-    (by fun_prop : ComputableInPolyTime (fun a : γ => a) encIn encIn).prod
-      (hi.prod (hx.prod hT0))
+  have hpar : ComputableInPolyTime (fun a : γ => (a, iStar a, x a, T0 a)) encIn encPar := by
+    fun_prop
   obtain ⟨heff, _⟩ := ComputableInPolyTime.iterateWith_spec hpar hi
     (encShoupPackAcc_mk_polyTime hi hi
       (ComputableInPolyTime.bitsRowWithInput hb
@@ -1105,14 +1098,11 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
       · simp only [htrig, Bool.false_eq_true, ↓reduceIte]
         exact ⟨by omega, h2, h3, h4⟩)
     (size := fun a => 8 * (iStar a + b a + shoupMasksLen (b a) (t a)) + 20)
-    (ComputableInPolyTime.polyBounded (show ComputableInPolyTime
-      (fun a => 8 * (iStar a + b a + shoupMasksLen (b a) (t a)) + 20) encIn encUnary from
-      by fun_prop))
+    (ComputableInPolyTime.polyBounded (by fun_prop))
     fun a _ acc _ ⟨h1, h2, h3, h4⟩ => by
       simp only [encShoupPackAcc_apply, length_encPair, encUnary_apply, encBits_apply,
         List.length_replicate, h3, h4]; omega
-  exact (show _ = (fun a => shoupPackMasks (b a) (s a) (t a) (iStar a) (step a) (x a) (T a)) from
-    funext fun _ => rfl) ▸ encShoupPackAcc_masks_polyTime heff
+  exact encShoupPackAcc_masks_polyTime heff
 
 /-! ### Standalone Shoup composition (`[Shoup2000]`, `[HHRVW2020]` Lemma 5.7) -/
 
@@ -1421,19 +1411,12 @@ theorem isPPT_shoupComposeAdversary
     hh.comp (by fun_prop : ComputableInPolyTime
       (fun q : (ℕ × List Bool × List Bool) × List Bool × List Bool => (q.1.1, q.2))
       (encPair encP (encPair encBits encBits)) encP)
-  have hres := isPPTOn_shoupComposeFindWith (encIn := encP)
+  exact isPPTOn_shoupComposeFindWith (encIn := encP)
     (baseKeyLen := fun p : ℕ × List Bool × List Bool => baseKeyLen p.1)
     (outLen := fun p => outLen p.1) (s := fun p => s p.1) (t := fun p => t p.1) (n := fun p => p.1)
     (savedState := fun p => p.2.1) (k := fun p => p.2.2)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     hstep_key (fun p => h_len p.1) (by fun_prop) (by fun_prop) ha.find
-  have heq : (fun p : ℕ × List Bool × List Bool =>
-      shoupComposeFindWith (baseKeyLen p.1) (outLen p.1) (s p.1) (t p.1) (h p.1) adversary
-        p.1 p.2.1 p.2.2) =
-      (fun ⟨n, st, k⟩ =>
-        shoupComposeFindWith (baseKeyLen n) (outLen n) (s n) (t n) (h n) adversary n st k) := by
-    funext ⟨_, _, _⟩; rfl
-  exact heq ▸ hres
 
 private noncomputable def shoupTargetDist (baseKeyLen outLen t : ℕ → ℕ)
     (adversary : TargetCollisionFinder) (n : ℕ) :

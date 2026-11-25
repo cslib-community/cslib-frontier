@@ -194,8 +194,8 @@ private theorem isPrefixFreeOn_prefixFreeCollisionReduction {width outLen : ℕ 
   obtain ⟨guess, _, hguessRun⟩ := hres
   split at hguessRun
   next hg =>
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hg
-    obtain ⟨⟨hvalidLeft, hvalidRight⟩, hne⟩ := hg
+    obtain ⟨⟨hvalidLeft, hvalidRight⟩, hne⟩ :=
+      (Bool.and_eq_true_iff.mp hg).imp Bool.and_eq_true_iff.mp of_decide_eq_true
     obtain ⟨hpositive, hl⟩ := haligned n guess.first hvalidLeft
     obtain ⟨_, hr⟩ := haligned n guess.second hvalidRight
     have hsep := PRF.separatingWordBlock_prefix_incomparable hpositive hl hr hne
@@ -205,11 +205,8 @@ private theorem isPrefixFreeOn_prefixFreeCollisionReduction {width outLen : ℕ 
     subst result
     intro x hx _ y hy _ hxy
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hx hy
-    rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
-    · exact (hxy rfl).elim
-    · exact hsep.1
-    · exact hsep.2
-    · exact (hxy rfl).elim
+    rcases hx with rfl | rfl <;> rcases hy with rfl | rfl <;>
+      first | exact (hxy rfl).elim | exact hsep.1 | exact hsep.2
   next _ =>
     simp only [wordQueryRunDist_pure, PMF.mem_support_pure_iff] at hguessRun
     subst result
@@ -312,9 +309,8 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
   intro guess _
   by_cases hg :
       (valid n guess.first && valid n guess.second && decide (guess.first ≠ guess.second)) = true
-  · have hg' := hg
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hg'
-    obtain ⟨⟨hl, hr⟩, hne⟩ := hg'
+  · obtain ⟨⟨hl, hr⟩, hne⟩ := (Bool.and_eq_true_iff.mp hg).imp Bool.and_eq_true_iff.mp
+      of_decide_eq_true
     let block := PRF.separatingWordBlock (width n) guess.first guess.second
     let left := guess.first ++ block
     let right := guess.second ++ block
