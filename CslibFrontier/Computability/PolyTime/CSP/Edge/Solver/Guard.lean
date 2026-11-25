@@ -76,6 +76,16 @@ private theorem flip_ofFn {n : ℕ} (x : Fin n → Bool) (i j : Fin n) :
     have hk' : k < n := by simpa using hl
     simp [EdgeAugmenting.flip, BitString.flipOn_apply, Fin.ext_iff]
 
+private theorem ofFn_getD_eq {n : ℕ} {row : List Bool} (hl : row.length = n) :
+    List.ofFn (fun i : Fin n => row.getD i.val false) = row := by
+  subst hl
+  exact List.ext_getElem (by simp) fun _ _ _ => by simp
+
+private theorem mem_zipIdx_ofFn {n : ℕ} (x : Fin n → Bool) (i : Fin n) :
+    (x i, i.val) ∈ (List.ofFn x).zipIdx := by
+  have hi : i.val < ((List.ofFn x).zipIdx).length := by simp
+  simpa using List.getElem_mem hi
+
 /-- The stored-row tests establish the actual nonempty even delta-matroid relation on the
 scope's ordered positions. There is no assumed exchange or parity certificate. -/
 theorem checkConstraint_sound (c : Constraint Table ℕ) (h : checkConstraint c = true) :
@@ -87,24 +97,14 @@ theorem checkConstraint_sound (c : Constraint Table ℕ) (h : checkConstraint c 
       List.ofFn x ∈ c.rel.rows := (Table.sem_eq_true.mp hx).2
   refine ⟨⟨?_, ?_⟩, ?_⟩
   · obtain ⟨row, hr⟩ := List.exists_mem_of_ne_nil _ hn
-    have hl : row.length = c.scope.length := (Table.wellFormed_eq_true.mp hw row hr).trans ha
-    let x : Fin c.scope.length → Bool := fun j => row.getD j.val false
-    have he : List.ofFn x = row := by
-      apply List.ext_getElem
-      · simpa using hl.symm
-      · intro j hj hk
-        simp [x, hk]
-    refine ⟨x, ?_⟩
-    change c.rel.sem (List.ofFn x) = true
-    rw [he]
+    refine ⟨fun j => row.getD j.val false, ?_⟩
+    change c.rel.sem (List.ofFn _) = true
+    rw [ofFn_getD_eq ((Table.wellFormed_eq_true.mp hw row hr).trans ha)]
     exact Table.sem_eq_true.mpr ⟨hw, hr⟩
   · intro x y hx hy i hi
     have hh := hp _ (hrow x hx) _ (hrow y hy)
     simp only [checkPair, Bool.and_eq_true, List.all_eq_true] at hh
-    have hm : (x i, i.val) ∈ (List.ofFn x).zipIdx := by
-      have hi' : i.val < ((List.ofFn x).zipIdx).length := by simp
-      simpa using (List.getElem_mem hi')
-    have hex := hh.2 _ hm
+    have hex := hh.2 _ (mem_zipIdx_ofFn x i)
     simp only [List.getD_ofFn, Bool.or_eq_true, beq_iff_eq, hi,
       false_or, List.any_eq_true, Bool.and_eq_true, bne_iff_ne] at hex
     obtain ⟨⟨b, j⟩, hj, hdiff, hvalid⟩ := hex
@@ -136,10 +136,14 @@ theorem checkConstraint_complete (c : Constraint Table ℕ)
     simpa only [List.length_ofFn] using hl.symm
   have hn : c.rel.rows ≠ [] := List.ne_nil_of_mem (Table.sem_eq_true.mp hz).2
   have he (row : List Bool) (hr : row ∈ c.rel.rows) :
-      List.ofFn (fun i : Fin c.scope.length => row.getD i.val false) = row := by
-    have hl := (Table.wellFormed_eq_true.mp hw row hr).trans ha
-    rw [← List.map_range_eq_ofFn c.scope.length (fun j => row.getD j false)]
-    simpa only [hl] using List.map_getD_range row false
+      List.ofFn (fun i : Fin c.scope.length => row.getD i.val false) = row :=
+    ofFn_getD_eq ((Table.wellFormed_eq_true.mp hw row hr).trans ha)
+  have hmem (row : List Bool) (hr : row ∈ c.rel.rows) :
+      (fun i : Fin c.scope.length => row.getD i.val false) ∈
+        {x : Fin c.scope.length → Bool | c.rel.sem (List.ofFn x) = true} := by
+    change c.rel.sem (List.ofFn _) = true
+    rw [he row hr]
+    exact Table.sem_eq_true.mpr ⟨hw, hr⟩
   simp only [checkConstraint, Bool.and_eq_true, decide_eq_true_eq,
     Bool.not_eq_true', List.isEmpty_eq_false_iff, List.all_eq_true]
   refine ⟨⟨⟨hw, ha⟩, hn⟩, ?_⟩
@@ -148,14 +152,8 @@ theorem checkConstraint_complete (c : Constraint Table ℕ)
   let y : Fin c.scope.length → Bool := fun i => other.getD i.val false
   have hx : List.ofFn x = row := he row hrow
   have hy : List.ofFn y = other := he other hother
-  have hxm : x ∈ {x : Fin c.scope.length → Bool | c.rel.sem (List.ofFn x) = true} := by
-    change c.rel.sem (List.ofFn x) = true
-    rw [hx]
-    exact Table.sem_eq_true.mpr ⟨hw, hrow⟩
-  have hym : y ∈ {x : Fin c.scope.length → Bool | c.rel.sem (List.ofFn x) = true} := by
-    change c.rel.sem (List.ofFn y) = true
-    rw [hy]
-    exact Table.sem_eq_true.mpr ⟨hw, hother⟩
+  have hxm := hmem row hrow
+  have hym := hmem other hother
   simp only [checkPair, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true]
   refine ⟨?_, ?_⟩
   · rw [← hx, ← hy, wordParity_ofFn, wordParity_ofFn]
@@ -175,10 +173,7 @@ theorem checkConstraint_complete (c : Constraint Table ℕ)
     · simp [hab]
     · have hdiff : x k ≠ y k := by simpa only [← hai] using hab
       obtain ⟨j, hj, hv⟩ := hR.isDeltaMatroid.exchange hxm hym hdiff
-      have hm : (x j, j.val) ∈ row.zipIdx := by
-        rw [← hx]
-        have hj' : j.val < ((List.ofFn x).zipIdx).length := by simp
-        simpa using List.getElem_mem hj'
+      have hm : (x j, j.val) ∈ row.zipIdx := hx ▸ mem_zipIdx_ofFn x j
       have hvalid : c.rel.sem (EdgeAugmenting.flip row [i, j.val]) = true := by
         rw [← hx]
         change c.rel.sem (EdgeAugmenting.flip (List.ofFn x) [k.val, j.val]) = true
