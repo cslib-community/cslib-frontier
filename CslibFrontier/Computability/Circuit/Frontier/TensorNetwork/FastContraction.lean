@@ -494,14 +494,10 @@ theorem val_table_runLoop (h : active x = true) (vals : State → List ℕ) {j :
   -- The row of the `j`-th node is its block.
   have hnodup : (nodes x).Nodup := (List.nodup_range).filter _
   have hmem : (nodes x)[j] ∈ nodes x := List.getElem_mem hj
-  have hlt : (nodes x)[j] < 2 ^ (slots x + 1) := by
-    have := hmem
-    simp only [nodes, List.mem_filter, List.mem_range] at this
-    exact this.1
+  have hlt : (nodes x)[j] < 2 ^ (slots x + 1) := List.mem_range.1 (List.mem_filter.1 hmem).1
   have hidx : (nodes x).idxOf (nodes x)[j] = j := hnodup.idxOf_getElem j hj
   have hqlen : qs.length = (nodes x).length * numPoints x := by
-    have := congrArg List.length hqs
-    simpa [List.length_flatMap, List.sum_replicate] using this
+    simpa [List.length_flatMap, List.sum_replicate] using congrArg List.length hqs
   have hpos : j * numPoints x + i < qs.length := by rw [hqlen]; nlinarith only [hj, hi]
   have hrow : ((table x qs).getD ((nodes x)[j]) []).getD i [] = qs[j * numPoints x + i] := by
     have htab : (table x qs).getD ((nodes x)[j]) [] =
