@@ -84,14 +84,11 @@ theorem pi_sum_conditionalSurprisal_le (joint : ∀ i, PMF (α i × β i))
       Real.exp (-2 * ε ^ 2 / (Fintype.card ι * bound ^ 2)) := by
   let (i : ι) := Fintype.ofFinite (α i)
   let (i : ι) := Fintype.ofFinite (β i)
-  have hscore (i : ι) (pair : α i × β i) (hpair : pair ∈ (joint i).support) :
-      surprisal (conditionalSnd (joint i) pair.1) pair.2 ∈ Set.Icc 0 bound := by
-    refine ⟨surprisal_nonneg _ _, surprisal_le_of_mass_ge _ _ ?_⟩
-    exact (hmass i pair hpair).trans
-      (by ennreal_to_real using apply_le_conditionalSnd (joint i) pair.1 pair.2)
   simpa only [← conditionalEntropy_eq_sum_surprisal] using
-    pi_sum_le_mean_sub joint
-      (fun i pair => surprisal (conditionalSnd (joint i) pair.1) pair.2) hbound hscore hε
+    pi_sum_le_mean_sub joint (fun i pair => surprisal (conditionalSnd (joint i) pair.1) pair.2)
+      hbound (fun i pair hpair => ⟨surprisal_nonneg _ _, surprisal_le_of_mass_ge _ _
+        ((hmass i pair hpair).trans
+          (by ennreal_to_real using apply_le_conditionalSnd (joint i) pair.1 pair.2))⟩) hε
 
 /-- Except with exponentially small probability, the conditional mass of an independent tuple
 is at most `2 ^ (-(sum of conditional entropies - ε))`. All observations are revealed together;
@@ -108,20 +105,18 @@ theorem pi_conditional_mass_gt (joint : ∀ i, PMF (α i × β i))
       Real.exp (-2 * ε ^ 2 / (Fintype.card ι * bound ^ 2)) := by
   dsimp only
   rw [PMF.toOuterMeasure_map_apply]
-  refine le_trans (ENNReal.toReal_mono (toOuterMeasure_ne_top _ _)
-    ((pi joint).toOuterMeasure_mono ?_))
+  refine (ENNReal.toReal_mono (toOuterMeasure_ne_top _ _)
+    ((pi joint).toOuterMeasure_mono fun outcome ⟨hlarge, houtcome⟩ => ?_)).trans
     (pi_sum_conditionalSurprisal_le joint hbound hmass hε)
-  rintro outcome ⟨hlarge, houtcome⟩
-  have hobserved : (fun i => (outcome i).1) ∈
-      (pi (fun i => (joint i).map Prod.fst)).support := by
+  have hobserved : (fun i => (outcome i).1) ∈ (pi fun i => (joint i).map Prod.fst).support := by
     rw [pi_map]
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨outcome, houtcome, rfl⟩
   simp only [Set.mem_preimage, Set.mem_ofPred_eq,
     conditionalSnd_pi_joint joint _ hobserved] at hlarge
   have hconditional : (fun i => (outcome i).2) ∈
-      (pi (fun i => conditionalSnd (joint i) (outcome i).1)).support :=
+      (pi fun i => conditionalSnd (joint i) (outcome i).1).support :=
     ne_of_gt (by ennreal_to_real; exact (Real.rpow_pos_of_pos (by norm_num) _).trans hlarge)
-  have h := (surprisal_le_iff_mass_ge _ _ hconditional).mpr hlarge.le
-  simpa only [Set.mem_ofPred_eq, surprisal_pi _ _ hconditional] using h
+  simpa only [Set.mem_ofPred_eq, surprisal_pi _ _ hconditional] using
+    (surprisal_le_iff_mass_ge _ _ hconditional).mpr hlarge.le
 
 end Cslib.Probability.PMF

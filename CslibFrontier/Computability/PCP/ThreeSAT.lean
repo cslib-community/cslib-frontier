@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.PCP.ConstraintGraph
 public import CslibFrontier.Logics.Propositional.CNF
 public import Mathlib.Data.Fintype.Prod
 import CslibFrontier.Logics.Propositional.CNF.UnsatVal
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # From 3-SAT to constraint graphs
@@ -218,8 +219,7 @@ theorem unsatVal_ofCNF_le (h3 : ∀ c ∈ φ, c.length ≤ 3) (τ : V → Bool) 
   have h1 : (#((ofCNF φ).unsatEdges (cnfLabelling φ τ)) : ℝ) ≤ 3 * φ.countUnsat τ := by
     exact_mod_cast card_unsatEdges_cnfLabelling_le φ h3 τ
   have := mul_le_mul_of_nonneg_right h1 (Nat.cast_nonneg (α := ℝ) φ.length)
-  push_cast
-  linarith
+  cast_linarith
 
 end ConstraintGraph
 

@@ -256,8 +256,7 @@ theorem ecomplexityFun_le_of_spaceLE {p m b : ℕ} (hp : 0 < p) (hA : A.SpaceLE 
         | zero => rw [start_zero]; rfl
         | succ j ih =>
           rw [start_succ A _ _ _ _ _ _ (by omega : j < n), A.mem_passes_succ]
-          refine ⟨_, ih (by omega), A.mem_pass_append.2 ⟨_, hx ⟨j, by omega⟩, ?_⟩⟩
-          exact hy ⟨j, by omega⟩
+          exact ⟨_, ih (by omega), A.mem_pass_append.2 ⟨_, hx ⟨j, by omega⟩, hy ⟨j, by omega⟩⟩⟩
       refine (hf x y).2 ⟨A.output q, ⟨q, A.mem_passes_succ.2 ⟨_, key n le_rfl,
         A.mem_pass_append.2 ⟨_, hx (Fin.last n), hq⟩⟩, rfl⟩, hqz⟩
     · -- Completeness: the boundary states of an accepting computation form a guess.

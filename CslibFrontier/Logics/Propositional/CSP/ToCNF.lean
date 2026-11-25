@@ -72,14 +72,12 @@ theorem length_forbidClause (vs : List V) (w : List Bool) :
 /-- `forbidClause vs w` has at most `vs.length` literals. -/
 theorem length_forbidClause_le (vs : List V) (w : List Bool) :
     (forbidClause vs w).length ≤ vs.length := by
-  rw [length_forbidClause]
-  exact Nat.min_le_left _ _
+  simp [forbidClause]
 
 /-- Every variable in `forbidClause vs w` belongs to `vs`. -/
 theorem mem_vars_forbidClause {vs : List V} {w : List Bool} {l : Literal V}
     (hl : l ∈ forbidClause vs w) : l.1 ∈ vs := by
-  simp only [forbidClause, List.mem_map] at hl
-  rcases hl with ⟨⟨v, b⟩, hmem, rfl⟩
+  rcases List.mem_map.mp hl with ⟨⟨v, b⟩, hmem, rfl⟩
   exact (List.of_mem_zip hmem).1
 
 /-- Relabeling `forbidClause vs w` maps `f` over the scope `vs`. -/
@@ -90,9 +88,7 @@ theorem relabel_forbidClause (f : V → W) (vs : List V) (w : List Bool) :
   | cons v vs ih =>
     cases w with
     | nil => rfl
-    | cons b w =>
-      simp only [forbidClause_cons, List.map_cons, Clause.relabel]
-      exact congrArg _ (ih w)
+    | cons b w => exact congrArg ((f v, !b) :: ·) (ih w)
 
 /-- `forbidClause vs w` evaluates to `false` under `σ` if and only if `vs.map σ = w` (even when
 `vs` contains repeated variables). -/
@@ -100,18 +96,13 @@ theorem eval_forbidClause (vs : List V) {w : List Bool} (hw : w.length = vs.leng
     (σ : V → Bool) :
     (forbidClause vs w).eval σ = !(vs.map σ == w) := by
   induction vs generalizing w with
-  | nil =>
-    cases w with
-    | nil => rfl
-    | cons _ _ => simp at hw
+  | nil => cases w <;> first | rfl | simp at hw
   | cons v vs ih =>
     cases w with
     | nil => simp at hw
     | cons b w =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at hw
-      rw [forbidClause_cons, Clause.eval, List.any_cons, ← Clause.eval, ih hw]
-      simp only [Literal.eval, List.map_cons]
-      cases σ v <;> cases b <;> simp
+      rw [forbidClause_cons, Clause.eval, List.any_cons, ← Clause.eval, ih (Nat.succ.inj hw)]
+      cases σ v <;> cases b <;> simp [Literal.eval]
 
 /-- Compile a Boolean constraint `c = ⟨R, vs⟩` to a CNF formula by emitting `forbidClause vs w` for
 every forbidden local assignment `w ∈ BitString.enumList vs.length` with `sem R w = false`. -/
@@ -132,8 +123,7 @@ theorem toCNFBounded_eq_toCNF {k : ℕ} {sem : Rel → List Bool → Bool} {c : 
 theorem length_clause_mem_toCNF {sem : Rel → List Bool → Bool} {c : Constraint Rel V}
     {cl : Clause V} (hcl : cl ∈ toCNF sem c) :
     cl.length ≤ c.scope.length := by
-  simp only [toCNF, List.mem_map] at hcl
-  rcases hcl with ⟨w, _, rfl⟩
+  rcases List.mem_map.mp hcl with ⟨w, _, rfl⟩
   exact length_forbidClause_le c.scope w
 
 /-- Every clause in `c.toCNFBounded k sem` has length at most `k`. -/
@@ -143,7 +133,7 @@ theorem length_clause_mem_toCNFBounded {k : ℕ} {sem : Rel → List Bool → Bo
   unfold toCNFBounded at hcl
   split_ifs at hcl with hc
   · exact (length_clause_mem_toCNF hcl).trans hc
-  · simp at hcl
+  · cases hcl
 
 /-- `c.toCNF sem` contains at most `2 ^ c.scope.length` clauses. -/
 theorem length_toCNF_le (sem : Rel → List Bool → Bool) (c : Constraint Rel V) :
@@ -154,10 +144,8 @@ theorem length_toCNF_le (sem : Rel → List Bool → Bool) (c : Constraint Rel V
 /-- Every variable occurring in `c.toCNF sem` belongs to the constraint scope `c.scope`. -/
 theorem mem_vars_toCNF {sem : Rel → List Bool → Bool} {c : Constraint Rel V} {v : V}
     (hv : v ∈ (toCNF sem c).vars) : v ∈ c.scope := by
-  simp only [CNF.vars, List.mem_map, List.mem_flatten] at hv
-  rcases hv with ⟨l, ⟨cl, hcl, hl⟩, rfl⟩
-  simp only [toCNF, List.mem_map] at hcl
-  rcases hcl with ⟨w, _, rfl⟩
+  simp only [CNF.vars, toCNF, List.mem_map, List.mem_flatten] at hv
+  rcases hv with ⟨l, ⟨_, ⟨w, _, rfl⟩, hl⟩, rfl⟩
   exact mem_vars_forbidClause hl
 
 /-- Every variable occurring in `c.toCNFBounded k sem` belongs to the constraint scope `c.scope`. -/
@@ -179,9 +167,7 @@ theorem relabel_toCNFBounded (k : ℕ) (sem : Rel → List Bool → Bool) (f : V
     (c : Constraint Rel V) :
     (toCNFBounded k sem c).relabel f = toCNFBounded k sem (relabel f c) := by
   simp only [toCNFBounded, relabel, List.length_map]
-  split_ifs
-  · exact relabel_toCNF sem f c
-  · rfl
+  split_ifs <;> first | exact relabel_toCNF sem f c | rfl
 
 /-- The forbidden-assignment CNF compilation of a constraint has the exact same truth value under
 every assignment `σ : V → Bool` as the constraint itself. -/
@@ -193,16 +179,12 @@ theorem eval_toCNF (sem : Rel → List Bool → Bool) (c : Constraint Rel V) (σ
   constructor
   · intro h
     by_contra hfalse
-    simp only [eval, Bool.not_eq_true] at hfalse
-    have hw : (c.scope.map σ).length = c.scope.length := List.length_map _
-    have hcl := h (forbidClause c.scope (c.scope.map σ)) ⟨c.scope.map σ, ⟨hw, hfalse⟩, rfl⟩
-    rw [eval_forbidClause c.scope hw σ] at hcl
-    simp at hcl
-  · rintro h cl ⟨w, ⟨hw, hsem⟩, rfl⟩
+    have hcl := h _ ⟨c.scope.map σ, ⟨List.length_map _, Bool.eq_false_iff.mpr hfalse⟩, rfl⟩
+    simp [eval_forbidClause c.scope (List.length_map σ) σ] at hcl
+  · rintro h _ ⟨w, ⟨hw, hsem⟩, rfl⟩
     rw [eval_forbidClause c.scope hw σ, Bool.not_eq_true', beq_eq_false_iff_ne]
-    intro heq
-    rw [eval, heq, hsem] at h
-    exact Bool.false_ne_true h
+    rintro heq
+    exact absurd h (by simp [eval, heq, hsem])
 
 end Constraint
 
@@ -261,34 +243,28 @@ theorem mem_vars_toCNF {sem : Rel → List Bool → Bool} {F : CSP Rel V} {v : V
     (hv : v ∈ (F.toCNF sem).vars) : v ∈ F.vars := by
   simp only [toCNF, CNF.vars, List.mem_map, List.mem_flatten, List.mem_flatMap] at hv
   rcases hv with ⟨l, ⟨cl, ⟨c, hc, hcl⟩, hl⟩, rfl⟩
-  rw [vars, List.mem_flatMap]
-  refine ⟨c, hc, Constraint.mem_vars_toCNF (sem := sem) ?_⟩
-  simp only [CNF.vars, List.mem_map, List.mem_flatten]
-  exact ⟨l, ⟨cl, hcl, hl⟩, rfl⟩
+  refine List.mem_flatMap.mpr ⟨c, hc, Constraint.mem_vars_toCNF (sem := sem) ?_⟩
+  exact List.mem_map.mpr ⟨l, List.mem_flatten.mpr ⟨cl, hcl, hl⟩, rfl⟩
 
 /-- Every variable occurring in `F.toCNFBounded k sem` occurs in `F.vars`. -/
 theorem mem_vars_toCNFBounded {k : ℕ} {sem : Rel → List Bool → Bool} {F : CSP Rel V} {v : V}
     (hv : v ∈ (F.toCNFBounded k sem).vars) : v ∈ F.vars := by
   simp only [toCNFBounded, CNF.vars, List.mem_map, List.mem_flatten, List.mem_flatMap] at hv
   rcases hv with ⟨l, ⟨cl, ⟨c, hc, hcl⟩, hl⟩, rfl⟩
-  rw [vars, List.mem_flatMap]
-  refine ⟨c, hc, Constraint.mem_vars_toCNFBounded (k := k) (sem := sem) ?_⟩
-  simp only [CNF.vars, List.mem_map, List.mem_flatten]
-  exact ⟨l, ⟨cl, hcl, hl⟩, rfl⟩
+  refine List.mem_flatMap.mpr ⟨c, hc, Constraint.mem_vars_toCNFBounded (k := k) (sem := sem) ?_⟩
+  exact List.mem_map.mpr ⟨l, List.mem_flatten.mpr ⟨cl, hcl, hl⟩, rfl⟩
 
 /-- Relabeling commutes with `CSP.toCNF`. -/
 theorem relabel_toCNF (sem : Rel → List Bool → Bool) (f : V → W) (F : CSP Rel V) :
     (F.toCNF sem).relabel f = (F.relabel f).toCNF sem := by
   simp only [toCNF, relabel, CNF.relabel, List.map_flatMap, List.flatMap_map]
-  refine List.flatMap_congr fun c _ => ?_
-  exact Constraint.relabel_toCNF sem f c
+  exact List.flatMap_congr fun c _ => Constraint.relabel_toCNF sem f c
 
 /-- Relabeling commutes with `CSP.toCNFBounded`. -/
 theorem relabel_toCNFBounded (k : ℕ) (sem : Rel → List Bool → Bool) (f : V → W) (F : CSP Rel V) :
     (F.toCNFBounded k sem).relabel f = (F.relabel f).toCNFBounded k sem := by
   simp only [toCNFBounded, relabel, CNF.relabel, List.map_flatMap, List.flatMap_map]
-  refine List.flatMap_congr fun c _ => ?_
-  exact Constraint.relabel_toCNFBounded k sem f c
+  exact List.flatMap_congr fun c _ => Constraint.relabel_toCNFBounded k sem f c
 
 /-- The compiled CNF formula `F.toCNF sem` evaluates identically to `F` under every assignment. -/
 @[simp]
@@ -324,9 +300,8 @@ theorem validDeclaredInput_toCNFBounded {k N : ℕ} (sem : Rel → List Bool →
     CNF.validDeclaredInput k N (F.toCNFBounded k sem) = true := by
   obtain ⟨_, hsub⟩ := validDeclaredCSP_eq_true_iff.mp hv
   refine CNF.validDeclaredInput_eq_true_iff.mpr
-    ⟨fun cl hcl => length_clause_mem_toCNFBounded hcl, ?_⟩
-  intro v hv'
-  exact hsub (List.mem_toFinset.mpr (mem_vars_toCNFBounded (List.mem_toFinset.mp hv')))
+    ⟨fun _ hcl => length_clause_mem_toCNFBounded hcl, fun _ hv' =>
+      hsub (List.mem_toFinset.mpr (mem_vars_toCNFBounded (List.mem_toFinset.mp hv')))⟩
 
 end CSP
 

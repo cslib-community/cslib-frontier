@@ -98,10 +98,9 @@ theorem mem_edgeCut_of_ends_eq {S : Finset V} {e : E} {a b : V} (h : ends e = s(
 /-- **Edge cuts turn symmetric differences into symmetric differences**: an edge leaves `S ∆ T`
 exactly when it leaves one of `S` and `T` but not both. -/
 theorem edgeCut_symmDiff [DecidableEq E] (S T : Finset V) :
-    edgeCut ends (symmDiff S T) = symmDiff (edgeCut ends S) (edgeCut ends T) := by
-  apply Finset.coe_injective
-  rw [Finset.coe_symmDiff, coe_edgeCut_eq_toGraph_edgeCut, coe_edgeCut_eq_toGraph_edgeCut,
-    coe_edgeCut_eq_toGraph_edgeCut, Finset.coe_symmDiff, Graph.edgeCut_symmDiff]
+    edgeCut ends (symmDiff S T) = symmDiff (edgeCut ends S) (edgeCut ends T) :=
+  Finset.coe_injective <| by
+    simp only [Finset.coe_symmDiff, coe_edgeCut_eq_toGraph_edgeCut, Graph.edgeCut_symmDiff]
 
 /-- No edge leaves the empty set. -/
 @[simp] theorem edgeCut_empty : edgeCut ends (∅ : Finset V) = ∅ := by
@@ -111,8 +110,7 @@ theorem edgeCut_symmDiff [DecidableEq E] (S T : Finset V) :
 /-- The edges leaving a single vertex are the edges at it other than self-loops. -/
 theorem edgeCut_singleton (v : V) : edgeCut ends {v} = incidence ends v := by
   ext e
-  obtain ⟨a, b, hab⟩ : ∃ a b, ends e = s(a, b) :=
-    Sym2.ind (f := fun z => ∃ a b, z = s(a, b)) (fun a b => ⟨a, b, rfl⟩) (ends e)
+  rcases Sym2.ind (f := fun z => ∃ a b, z = s(a, b)) (⟨·, ·, rfl⟩) (ends e) with ⟨a, b, hab⟩
   rw [mem_edgeCut_of_ends_eq hab, mem_incidence_of_ends_eq hab, mem_singleton, mem_singleton]
   by_cases ha : a = v <;> by_cases hb : b = v <;> subst_vars <;> simp_all [eq_comm]
 
@@ -123,9 +121,7 @@ them**. -/
 theorem eq_empty_or_eq_univ_of_edgeCut_eq_empty (hG : (toSimpleGraph ends).Connected)
     {S : Finset V} (hS : edgeCut ends S = ∅) : S = ∅ ∨ S = univ := by
   by_contra! h
-  obtain ⟨e, he⟩ := ((connected_toSimpleGraph_iff ends).1 hG).2 S h.1 h.2
-  rw [hS] at he
-  exact notMem_empty e he
+  exact absurd (hS ▸ ((connected_toSimpleGraph_iff ends).1 hG).2 S h.1 h.2) (by simp)
 
 /-- **The expansion dichotomy.** A set of at most two thirds of the vertices that fewer than
 `e(G)` edges leave has fewer than a third of the vertices. -/
@@ -133,7 +129,7 @@ theorem three_mul_card_lt_of_card_edgeCut_lt {S : Finset V}
     (hS : #(edgeCut ends S) < minBalancedCut ends) (h₂ : 3 * #S ≤ 2 * Fintype.card V) :
     3 * #S < Fintype.card V := by
   by_contra! h₁
-  exact absurd (minBalancedCut_le_card_edgeCut ends h₁ h₂) (not_le.2 hS)
+  exact hS.not_ge (minBalancedCut_le_card_edgeCut ends h₁ h₂)
 
 end Combinatorial
 
@@ -164,19 +160,13 @@ theorem incidenceMatrix_eq_endpointIncidence {V E : Type*} [DecidableEq V] (ends
   by_cases huv : u e = v e
   · rw [huv, CharTwo.add_self_eq_zero]
     simp
-  · by_cases ha : a = u e
-    · subst ha
-      simp [huv]
-    · by_cases hb : a = v e
-      · subst hb
-        simp [huv, Ne.symm huv]
-      · simp [ha, hb]
+  · by_cases ha : a = u e <;> by_cases hb : a = v e <;> subst_vars <;> simp_all [eq_comm]
 
 /-- Row `v` of `incidenceMatrix ends` is the `𝔽₂` indicator vector of `incidence ends v`. -/
 theorem incidenceMatrix_row {V E : Type*} [Fintype E] [DecidableEq V] [DecidableEq E]
     (ends : E → Sym2 V) (v : V) :
     incidenceMatrix ends v = fun e => if e ∈ incidence ends v then 1 else 0 := by
-  ext e
+  ext
   simp [incidenceMatrix]
 
 /-- Applying `(incidenceMatrix ends)ᵀ` to the `𝔽₂` indicator of `S : Finset V` yields the `𝔽₂`
@@ -185,15 +175,13 @@ theorem incidenceMatrix_transpose_mulVec_indicator {V E : Type*} [Fintype V] [Fi
     [DecidableEq V] [DecidableEq E] (ends : E → Sym2 V) (S : Finset V) :
     (incidenceMatrix ends).transpose.mulVec (fun v => if v ∈ S then 1 else 0) =
       fun e => if e ∈ edgeCut ends S then 1 else 0 := by
-  have hends : ∀ e, ends e = s((Quot.out (ends e)).1, (Quot.out (ends e)).2) :=
-    fun e => (Quot.out_eq (ends e)).symm
-  rw [incidenceMatrix_eq_endpointIncidence ends hends]
+  have hends (e : E) : ends e = s((Quot.out (ends e)).1, (Quot.out (ends e)).2) :=
+    (Quot.out_eq (ends e)).symm
   ext e
-  rw [Matrix.endpointIncidence_transpose_mulVec]
+  rw [incidenceMatrix_eq_endpointIncidence ends hends, Matrix.endpointIncidence_transpose_mulVec]
   simp only [mem_edgeCut_of_ends_eq (hends e)]
   by_cases h1 : (Quot.out (ends e)).1 ∈ S <;> by_cases h2 : (Quot.out (ends e)).2 ∈ S <;>
-    simp only [h1, h2, ↓reduceIte, not_true_eq_false, not_false_eq_true, iff_false, iff_true,
-      add_zero, zero_add, CharTwo.add_self_eq_zero]
+    simp [h1, h2, CharTwo.add_self_eq_zero]
 
 /-- The **`𝔽₂` cut space** of `ends : E → Sym2 V`: the subspace
 `LinearMap.range (incidenceMatrix ends)ᵀ.mulVecLin` of `E → ZMod 2`. -/
@@ -205,10 +193,7 @@ private theorem zmod_two_eq_indicator {V : Type*} [Fintype V] [DecidableEq V] (s
     s = fun v => if v ∈ univ.filter (fun x => s x = 1) then 1 else 0 := by
   ext v
   simp only [mem_filter, mem_univ, true_and]
-  rcases (by decide : ∀ z : ZMod 2, z = 0 ∨ z = 1) (s v) with h0 | h1
-  · rw [h0]
-    rfl
-  · simp [h1]
+  rcases (by decide : ∀ z : ZMod 2, z = 0 ∨ z = 1) (s v) with h | h <;> simp [h]
 
 /-- A vector in `E → ZMod 2` belongs to `cutSpace ends` if and only if it is the indicator vector of
 `edgeCut ends S` for some vertex set `S : Finset V`. -/
@@ -264,26 +249,21 @@ theorem finrank_cutSpace_add_one {V E : Type*} [Fintype V] [Finite E] [Decidable
     {ends : E → Sym2 V} (hG : (toSimpleGraph ends).Connected) :
     Module.finrank (ZMod 2) (cutSpace ends) + 1 = Fintype.card V := by
   cases nonempty_fintype E
-  let u : E → V := fun e => (Quot.out (ends e)).1
-  let v : E → V := fun e => (Quot.out (ends e)).2
-  have hends : ∀ e, ends e = s(u e, v e) := fun e => (Quot.out_eq (ends e)).symm
+  have hends (e : E) : ends e = s((Quot.out (ends e)).1, (Quot.out (ends e)).2) :=
+    (Quot.out_eq (ends e)).symm
   obtain ⟨root⟩ := hG.nonempty
-  have hconn : ∀ s : V → ZMod 2, (∀ e, s (u e) = s (v e)) → ∀ a b, s a = s b := by
-    intro s hs a b
-    let S : Finset V := univ.filter fun x => s x = 1
-    have hempty : edgeCut ends S = ∅ := by
-      ext e
-      simp only [notMem_empty, iff_false]
-      rw [mem_edgeCut_of_ends_eq (hends e)]
-      simp only [S, mem_filter, mem_univ, true_and, hs e]
-      tauto
-    have hval : ∀ x, s x = if x ∈ S then 1 else 0 := fun x => congrFun (zmod_two_eq_indicator s) x
-    rcases eq_empty_or_eq_univ_of_edgeCut_eq_empty hG hempty with hS | hS
-    · simp [hval a, hval b, hS]
-    · simp [hval a, hval b, hS]
-  have hrank := Matrix.rank_endpointIncidence_add_one u v root hconn
-  rw [← incidenceMatrix_eq_endpointIncidence ends hends, ← rank_transpose] at hrank
-  exact hrank
+  have hrank := Matrix.rank_endpointIncidence_add_one
+    (fun e => (Quot.out (ends e)).1) (fun e => (Quot.out (ends e)).2) root fun s hs a b => by
+      let S : Finset V := univ.filter fun x => s x = 1
+      have hempty : edgeCut ends S = ∅ := by
+        ext e
+        simp only [notMem_empty, iff_false, mem_edgeCut_of_ends_eq (hends e), S, mem_filter,
+          mem_univ, true_and, hs e]
+        tauto
+      have hval (x : V) : s x = if x ∈ S then 1 else 0 := congrFun (zmod_two_eq_indicator s) x
+      rcases eq_empty_or_eq_univ_of_edgeCut_eq_empty hG hempty with hS | hS <;>
+        simp [hval a, hval b, hS]
+  rwa [← incidenceMatrix_eq_endpointIncidence ends hends, ← rank_transpose] at hrank
 
 /-- The orthogonal complement of `cutSpace ends` under `dotProduct` is the cycle (even-degree)
 space `LinearMap.ker (incidenceMatrix ends).mulVecLin`. -/

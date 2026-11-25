@@ -79,18 +79,11 @@ theorem trialRun_true_iff (n k : ℕ) :
 
 theorem isPrime_eq (n : ℕ) : isPrime n = decide n.Prime := by
   apply Bool.eq_iff_iff.mpr
-  simp only [isPrime, Bool.and_eq_true, decide_eq_true_eq, trialRun_true_iff]
-  rw [Nat.prime_def_lt']
-  constructor
-  · rintro ⟨hn, h⟩
-    refine ⟨hn, fun m hm hmn hdvd => ?_⟩
-    have hproper : 2 + (m - 2) < n := by omega
-    have hi : m - 2 < n := by omega
-    have heq : 2 + (m - 2) = m := by omega
-    exact h (m - 2) hi hproper (by simpa only [heq] using Nat.mod_eq_zero_of_dvd hdvd)
-  · rintro ⟨hn, h⟩
-    refine ⟨hn, fun i hi hip hmod => ?_⟩
-    exact h (2 + i) (by omega) hip (Nat.dvd_of_mod_eq_zero hmod)
+  simp only [isPrime, Bool.and_eq_true, decide_eq_true_eq, trialRun_true_iff, Nat.prime_def_lt']
+  refine ⟨fun ⟨hn, h⟩ => ⟨hn, fun m hm hmn hdvd => ?_⟩,
+    fun ⟨hn, h⟩ => ⟨hn, fun i _ hip hmod => h (2 + i) (by omega) hip (Nat.dvd_of_mod_eq_zero hmod)⟩⟩
+  exact h (m - 2) (by omega) (by omega)
+    (by simpa only [Nat.add_sub_cancel' hm] using Nat.mod_eq_zero_of_dvd hdvd)
 
 private theorem trialStep_inSpace :
     ComputableInSpace trialStep encTrialState encTrialState
@@ -102,7 +95,7 @@ private theorem trialStep_inSpace :
   have hlt := budget_natLt hd hn
   have hmod := budget_natMod hn hd
   have hnz := budget_finite (encC := encBool) not (budget_natIsZero hmod)
-  have hpass := budget_ite hlt hnz (budget_const true (.refl _))
+  have hpass := budget_ite hlt hnz (budget_const true)
   have hacc := budget_boolAnd hgood hpass
   refine (budget_prod hn (budget_prod (budget_natSucc hd) hacc)).of_enc_eq ?_
   intro q
@@ -114,8 +107,8 @@ theorem isPrime_inSpace :
   have hid : ComputableInSpace (fun n : ℕ => n) encNat encNat
       (fun n => (encNat n).length) := of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)
   have hinit := budget_prod hid
-    (budget_prod (budget_const (encB := encNat) 2 (.refl _))
-      (budget_const (encB := encBool) true (.refl _)))
+    (budget_prod (budget_const (encB := encNat) 2)
+      (budget_const (encB := encBool) true))
   have hstates (n k : ℕ) (hk : k ≤ n) :
       (encTrialState (trialStep^[k] (n, 2, true))).length ≤ 16 * ((encNat n).length + 1) := by
     change (encTrialState (trialRun n k)).length ≤ _
@@ -130,13 +123,10 @@ theorem isPrime_inSpace :
   have hlo : ComputableInSpace (fun n : ℕ => decide (2 ≤ n)) encNat encBool
       (fun n => (encNat n).length) :=
     (budget_finite (encC := encBool) not
-      (budget_natLt hid (budget_const (encB := encNat) 2 (.refl _)))).of_enc_eq
-      fun n => by
-        by_cases hn : n < 2
-        · have htwo : ¬2 ≤ n := by omega
-          simp [hn, htwo]
-        · have htwo : 2 ≤ n := by omega
-          simp [hn, htwo]
+      (budget_natLt hid (budget_const (encB := encNat) 2))).of_enc_eq fun _ => by
+        congr 1
+        rw [← decide_not, decide_eq_decide]
+        omega
   exact (budget_boolAnd hlo htrial).of_enc_eq fun _ => rfl
 
 /-- Search a bounded number of candidates, without materializing their list. -/
@@ -177,7 +167,7 @@ theorem boundedFirstPrime_inSpace :
     ComputableInSpace (fun q : ℕ × ℕ => boundedFirstPrime q.1 q.2)
       (encPair encNat encNat) encNat (fun q => (encPair encNat encNat q).length) := by
   have htest := budget_comp_linear isPrime_inSpace (snd encUnit encNat)
-  have hargs := budget_prod (budget_const (encB := encUnit) () (.refl _))
+  have hargs := budget_prod (budget_const (encB := encUnit) ())
     (budget_prod (fst encNat encNat) (budget_natSucc (snd encNat encNat)))
   have hrun := budget_comp_linear (ComputableInSpace.findCode htest) hargs
   exact (budget_optionGetD 0 hrun).of_enc_eq fun _ => rfl

@@ -113,12 +113,10 @@ private theorem mem_of_exhaustiveAccepts (D : Decoder enc) (hVL : IsVerifier enc
     {π : List Bool} (h : exhaustiveAccepts D p V π = true) : verifierInstance D π ∈ L := by
   simp only [exhaustiveAccepts, Bool.and_eq_true, decide_eq_true_eq,
     List.all_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true] at h
-  obtain ⟨hle, hall⟩ := h
   by_contra hnot
   obtain ⟨w, hw, hVw⟩ := (hVL _).1 hnot
-  rw [min_eq_left hle] at hall
-  have := hall w (BitString.mem_enumList.2 (by rw [hw]; rfl))
-  simp [hVw] at this
+  exact Bool.false_ne_true ((h.2 w
+    (by rw [min_eq_left h.1, BitString.mem_enumList, hw]; rfl)).symm.trans hVw)
 
 /-- A framed member followed by `2 ^ m` padding bits passes the check. -/
 private theorem exhaustiveAccepts_frame_append_replicate (D : Decoder enc)
@@ -132,9 +130,8 @@ private theorem exhaustiveAccepts_frame_append_replicate (D : Decoder enc)
     Nat.le_log_of_pow_le (by decide) (by simp)
   simp only [exhaustiveAccepts, certLength, hi, Bool.and_eq_true, decide_eq_true_eq,
     List.all_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true]
-  refine ⟨hm, fun w hw => ?_⟩
+  refine ⟨hm, fun w hw => by_contra fun hVw => ?_⟩
   rw [min_eq_left hm, BitString.mem_enumList] at hw
-  by_contra hVw
   exact (hVL a).2 ⟨w, hw, by simpa using hVw⟩ ha
 
 /-- The **exhaustive proof system** of a verifier `V` for the complement of `L`, with a default
@@ -174,18 +171,15 @@ theorem exhaustive_frame_append_replicate (D : Decoder enc)
 theorem exhaustive_eq_of_notMem (D : Decoder enc)
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) (hVL : IsVerifier enc p V Lᶜ)
     {a₀ : α} (ha₀ : a₀ ∈ L) {π : List Bool} (h : verifierInstance D π ∉ L) :
-    exhaustive D hV hVL ha₀ π = a₀ := by
-  change (if _ then _ else _) = a₀
-  split_ifs with hacc
-  · exact absurd (mem_of_exhaustiveAccepts D hVL hacc) h
-  · rfl
+    exhaustive D hV hVL ha₀ π = a₀ :=
+  ite_eq_right fun hacc => h (mem_of_exhaustiveAccepts D hVL hacc)
 
 /-- **Every nonempty `coNP` set with a decodable encoding has a proof system**: the exhaustive
 proof system of a verifier for its complement. -/
 theorem nonempty_of_mem_coNP (D : Decoder enc) (hL : L ∈ coNP enc) (hne : L.Nonempty) :
-    Nonempty (ProofSystem enc L) := by
-  obtain ⟨p, V, hV, hVL⟩ := hL
-  exact ⟨exhaustive D hV hVL hne.some_mem⟩
+    Nonempty (ProofSystem enc L) :=
+  let ⟨_, _, hV, hVL⟩ := hL
+  ⟨exhaustive D hV hVL hne.some_mem⟩
 
 /-- **One proof system decides `coNP ⊆ NP`**: a nonempty `coNP`-complete set with a decodable
 encoding has a proof system that is polynomially bounded exactly when `coNP ⊆ NP`, for problems
@@ -200,8 +194,8 @@ theorem exists_polynomiallyBounded_iff_coNP_subset_NP {β : Type} {encB : β ↪
   by_cases h : ∀ {γ : Type} (encC : γ ↪ List Bool), coNP encC ⊆ NP encC
   · obtain ⟨M, hM⟩ := hCR.1 h
     exact ⟨M, iff_of_true hM h⟩
-  · obtain ⟨M⟩ := nonempty_of_mem_coNP D hB.1 hne
-    exact ⟨M, iff_of_false (fun hM => h (hCR.2 ⟨M, hM⟩)) h⟩
+  · exact let ⟨M⟩ := nonempty_of_mem_coNP D hB.1 hne
+      ⟨M, iff_of_false (fun hM => h (hCR.2 ⟨M, hM⟩)) h⟩
 
 /-- **A fixed proof system is polynomially bounded exactly when `NP = coNP`**
 ([Goldreich, Theorem B.13][Goldreich2007DraftR6], after [CookReckhow1979]): there is a proof

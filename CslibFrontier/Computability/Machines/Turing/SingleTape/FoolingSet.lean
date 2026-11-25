@@ -91,25 +91,22 @@ theorem crossing_foolingSet_bound (L : ℕ) :
     (middle.length + 1) * (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L ≤
       S.card * T n := by
   classical
-  let cs : ℕ → X × Y → List (Option tm.State) := fun i p =>
-    (tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι)).crossings ((m + i : ℕ) : ℤ) (T n)
-  have hinj (i : ℕ) (hi : i ≤ middle.length) : Set.InjOn (cs i) (S : Set (X × Y)) := by
-    intro p hp q hq hc
-    apply crossings_injOn_of_isFoolingSet hdec hS leftWord middle rightWord hA hprefix hi hp hq
-    simpa only [cs, hlength p hp, hlength q hq] using hc
+  let cs (i : ℕ) (p : X × Y) : List (Option tm.State) :=
+    (tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι)).crossings
+      ((m + i : ℕ) : ℤ) (T n)
+  have hinj (i : ℕ) (hi : i ≤ middle.length) : Set.InjOn (cs i) (S : Set (X × Y)) :=
+    fun p hp q hq hc => crossings_injOn_of_isFoolingSet hdec hS leftWord middle rightWord hA
+      hprefix hi hp hq (by simpa only [cs, hlength p hp, hlength q hq] using hc)
   let K := (Finset.range (middle.length + 1)).image fun i : ℕ => ((m + i : ℕ) : ℤ)
-  have hcard : K.card = middle.length + 1 := by
-    dsimp only [K]
-    rw [Finset.card_image_of_injective _ (fun i j h => by omega), Finset.card_range]
-  have h := AbsCfg.card_mul_le_sum_time
-    (fun p : X × Y => tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι))
-    (fun _ => T n) S K
-    (b := (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L) ?_
-  · simpa only [hcard, Finset.sum_const, smul_eq_mul, Nat.mul_assoc] using h
-  · intro k hk
-    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hk
-    exact Finset.card_sub_pow_mul_le_sum_length
-      (hinj i (by simpa only [Finset.mem_range, Nat.lt_succ_iff] using hi)) L
+  have hcard : K.card = middle.length + 1 :=
+    (Finset.card_image_of_injective _ fun _ _ h => by omega).trans (Finset.card_range _)
+  simpa only [hcard, Finset.sum_const, smul_eq_mul, Nat.mul_assoc] using
+    AbsCfg.card_mul_le_sum_time
+      (fun p : X × Y => tm.absInit ((leftWord p.1 ++ middle ++ rightWord p.2).map ι))
+      (fun _ => T n) S K (b := (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L)
+      fun k hk => let ⟨i, hi, heq⟩ := Finset.mem_image.mp hk
+        heq ▸ Finset.card_sub_pow_mul_le_sum_length
+          (hinj i (by simpa only [Finset.mem_range, Nat.lt_succ_iff] using hi)) L
 
 /-- If the short crossing sequences can cover at most half the fooling set, the machine spends
 at least `L / 2` steps per boundary of the common middle word, averaged over the hard inputs. -/
@@ -118,12 +115,10 @@ theorem crossing_foolingSet_half_bound (L : ℕ)
     (middle.length + 1) * L ≤ 2 * T n := by
   have h := crossing_foolingSet_bound hdec hS leftWord middle rightWord hA hprefix hlength L
   have hpow : 0 < (Fintype.card (Option tm.State) + 1) ^ L := pow_pos (Nat.succ_pos _) _
-  have hpos : 0 < S.card := by omega
-  have h2 : S.card ≤ 2 * (S.card - (Fintype.card (Option tm.State) + 1) ^ L) := by omega
-  refine Nat.le_of_mul_le_mul_left ?_ hpos
+  refine Nat.le_of_mul_le_mul_left ?_ (by omega : 0 < S.card)
   calc S.card * ((middle.length + 1) * L)
       ≤ 2 * (S.card - (Fintype.card (Option tm.State) + 1) ^ L) *
-          ((middle.length + 1) * L) := Nat.mul_le_mul_right _ h2
+          ((middle.length + 1) * L) := Nat.mul_le_mul_right _ (by omega)
     _ = 2 * ((middle.length + 1) * (S.card - (Fintype.card (Option tm.State) + 1) ^ L) * L) :=
       by ring
     _ ≤ 2 * (S.card * T n) := Nat.mul_le_mul_left _ h
@@ -136,22 +131,10 @@ theorem crossing_foolingSet_bit_bound (bits : ℕ)
     (hbits : 2 * Nat.clog 2 (Fintype.card tm.State + 2) ≤ bits) (hcard : 2 ^ bits ≤ S.card) :
     (middle.length + 1) * bits ≤ 4 * Nat.clog 2 (Fintype.card tm.State + 2) * T n := by
   let d := Nat.clog 2 (Fintype.card tm.State + 2)
-  let L := (bits - 1) / d
-  have hd : 0 < d := Nat.clog_pos one_lt_two (by omega)
-  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
-    rw [Fintype.card_option]
-    exact Nat.le_pow_clog one_lt_two _
-  have hdiv : d * L + (bits - 1) % d = bits - 1 := Nat.div_add_mod (bits - 1) d
-  have hmod := Nat.mod_lt (bits - 1) hd
-  have hbits' : 2 * d ≤ bits := hbits
-  have hL : 2 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by
-    calc 2 * (Fintype.card (Option tm.State) + 1) ^ L
-        ≤ 2 * (2 ^ d) ^ L := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hpow L)
-      _ = 2 ^ (d * L + 1) := by rw [← pow_mul]; ring
-      _ ≤ 2 ^ bits := Nat.pow_le_pow_right (by norm_num) (by omega)
+  obtain ⟨L, hL0, hbitsL⟩ := tm.exists_crossing_length_of_bits (r := 1) le_rfl (by omega)
+  have hL : 2 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by simpa using hL0
   have h := crossing_foolingSet_half_bound hdec hS leftWord middle rightWord hA hprefix hlength L
     (hL.trans hcard)
-  have hbitsL : bits ≤ 2 * (d * L) := by omega
   calc (middle.length + 1) * bits ≤ (middle.length + 1) * (2 * (d * L)) :=
       Nat.mul_le_mul_left _ hbitsL
     _ = 2 * d * ((middle.length + 1) * L) := by ring

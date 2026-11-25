@@ -141,6 +141,14 @@ theorem searchBucket_exists_iff {U V w₀ n_max h_space base b q_target m : ℕ}
     · exact Or.inl ⟨j, (hinv.hchain_mem b hb m hm_lt j).mpr ⟨hj_lt, hj_cap, hq ▸ hm_eq.symm⟩, hq⟩
     · exact Or.inr ⟨j, hj_ge, hj_lt, hq⟩
 
+/-- Found flag (`1` if present, `0` if absent) in a `searchBucketProg` result
+`((found, j_found), phys)`. -/
+abbrev searchResFound (res : (ℕ × ℕ) × ℕ) : ℕ := res.1.1
+
+/-- Bucket-local slot index `j_found` in a `searchBucketProg` result
+`((found, j_found), phys)`. -/
+abbrev searchResIdx (res : (ℕ × ℕ) × ℕ) : ℕ := res.1.2
+
 /-- Specification of `searchBucketProg` under `BucketStateInv` when `m = mOf q_target`. -/
 theorem searchBucketProg_bucket_spec {U V w₀ n_max h_space w base b q_target m : ℕ}
     {mOf : ℕ → ℕ} {L : ℕ → ℕ → List ℕ} {B : ℕ → ℕ → Option ℕ} {s : Memory.State}
@@ -157,18 +165,19 @@ theorem searchBucketProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
     (let res := (Memory.spec 0).clientResult s prog
      if ∃ j < bCount n_max gm b,
          quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b j) = q_target then
-       res.1.1 = 1 ∧
-       res.1.2 < bCount n_max gm b ∧
-       quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b res.1.2) = q_target ∧
-       res.2 = slotOf n_max gm b res.1.2
+       searchResFound res = 1 ∧
+       searchResIdx res < bCount n_max gm b ∧
+       quotAt base U w₀ n_max h_space s.mem (slotOf n_max gm b (searchResIdx res)) = q_target ∧
+       res.2 = slotOf n_max gm b (searchResIdx res)
      else
-       res.1.1 = 0) := by
+       searchResFound res = 0) := by
   intro gm d prog
   have ⟨hst, hcost, hres⟩ := searchBucketProg_spec henv hb hm_lt hinv.hslot
     (hinv.hchains.1 b hb m hm_lt) (fun j hj => ((hinv.hchain_mem b hb m hm_lt j).mp hj).1) (d := d)
   refine ⟨hst, hcost, ?_⟩
   have hiff := searchBucket_exists_iff hinv hb hm_eq hm_lt
-  dsimp only [d, gm, prog] at hres hiff ⊢
+  dsimp only [d, gm, prog, ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfSearchFound,
+    ovfSearchIdx] at hres hiff ⊢
   split_ifs with hex
   · rw [ite_eq_left (hiff.mpr hex)] at hres
     exact ⟨hres.1, hres.2.1, hres.2.2.2.1, hres.2.2.2.2⟩
@@ -193,7 +202,7 @@ theorem queryBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target m : 
   have ⟨hst, hcost, hres⟩ := queryBodyProg_spec henv hb hm_lt hinv.hslot
     (hinv.hchains.1 b hb m hm_lt) (fun j hj => ((hinv.hchain_mem b hb m hm_lt j).mp hj).1) (d := d)
   refine ⟨hst, hcost, ?_⟩
-  dsimp only [d, gm, prog] at hres ⊢
+  dsimp only [d, gm, prog, ovfQueryBase, ovfQueryBucket, ovfQueryQuot] at hres ⊢
   split_ifs at hres with hex
   · rcases hres with ⟨j, hj_lt, rfl, hres_eq⟩
     exact hres_eq.trans (hinv.hmap_some b hb j hj_lt).symm
@@ -203,18 +212,49 @@ theorem queryBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target m : 
 
 /-! ## Section 2: `insertBodyProg` via `realize` -/
 
+/-- Base address `d.1.1.1` of a bucket-level dictionary call `(((base, b), x), y)`. -/
+abbrev bucketCallBase {α β : Type} (d : ((ℕ × ℕ) × α) × β) : ℕ := d.1.1.1
+
+/-- Bucket index `d.1.1.2` of a bucket-level dictionary call `(((base, b), x), y)`. -/
+abbrev bucketCallBucket {α β : Type} (d : ((ℕ × ℕ) × α) × β) : ℕ := d.1.1.2
+
+/-- Base-and-bucket pair `(base, b)` of a bucket-level dictionary call `(((base, b), x), y)`. -/
+abbrev bucketCallPair {α β : Type} (d : ((ℕ × ℕ) × α) × β) : ℕ × ℕ := d.1.1
+
+/-- Base address `d.1.1.1.1` of a nested bucket-level call `((((base, b), x), y), z)`. -/
+abbrev nestedCallBase {α β γ : Type} (d : (((ℕ × ℕ) × α) × β) × γ) : ℕ := d.1.1.1.1
+
+/-- Bucket index `d.1.1.1.2` of a nested bucket-level call `((((base, b), x), y), z)`. -/
+abbrev nestedCallBucket {α β γ : Type} (d : (((ℕ × ℕ) × α) × β) × γ) : ℕ := d.1.1.1.2
+
+/-- Base-and-bucket pair `(base, b)` of a nested bucket-level call `((((base, b), x), y), z)`. -/
+abbrev nestedCallPair {α β γ : Type} (d : (((ℕ × ℕ) × α) × β) × γ) : ℕ × ℕ := d.1.1.1
+
+/-- Target quotient `q_target` in an insertion input `((((base, b), q_target), v_new), m)`. -/
+abbrev insertArgQuot (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : ℕ := d.1.1.2
+
+/-- Query prefix `((base, b), q_target)` in an insertion input
+`((((base, b), q_target), v_new), m)`. -/
+abbrev insertArgQuery (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : (ℕ × ℕ) × ℕ := d.1.1
+
+/-- Inserted value `v_new` in an insertion input `((((base, b), q_target), v_new), m)`. -/
+abbrev insertArgVal (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : ℕ := d.1.2
+
+/-- Micro-bucket index `m` in an insertion input `((((base, b), q_target), v_new), m)`. -/
+abbrev insertArgMicro (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) : ℕ := d.2
+
 /-- Parameter-free helper `Memory.Prog` appending a new `(q_target, v_new)` entry to bucket `b` and
 prepending its logical index `j_new = bCount b` to micro-chain `(b, m)` when `totalSlots < n_max`.
 Input `d = (dp, ((((base, b), q_target), v_new), m))`. -/
 @[expose]
 def insertNewGenProg
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
-  let tot ← readTotalSlotsGenProg (d.1, d.2.1.1.1.1)
+  let tot ← readTotalSlotsGenProg (d.1, nestedCallBase d.2)
   let cap ← pure (dpNMax d.1)
   if tot < cap then do
-    let j_new ← readBucketCountGenProg (d.1, d.2.1.1.1)
-    pushBackSlotGenProg (((d.1, d.2.1.1.1), d.2.1.1.2), d.2.1.2)
-    prependIfIndexedGenProg ((d.1, (d.2.1.1.1, d.2.2)), j_new)
+    let j_new ← readBucketCountGenProg (d.1, nestedCallPair d.2)
+    pushBackSlotGenProg (((d.1, nestedCallPair d.2), insertArgQuot d.2), insertArgVal d.2)
+    prependIfIndexedGenProg ((d.1, (nestedCallPair d.2, insertArgMicro d.2)), j_new)
   else
     pure ()
 
@@ -237,28 +277,29 @@ theorem insertNewGenProg_mk (U V w n_max h_space : ℕ)
 @[expose]
 def InsertNewPre (U V w₀ n_max h_space w : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) (s : Memory.State) : Prop :=
-  DictEnvGen w (mkDictParams U V w₀ n_max h_space) d.1.1.1.1 ∧
-  d.1.1.1.2 < numBuckets n_max ∧
-  d.2 < numMicroPerBucket n_max ∧
-  d.1.1.2 < 2 ^ quotientBits U n_max ∧
-  d.1.2 < 2 ^ valBits V ∧
-  SlotStoreInv n_max (gmAt d.1.1.1.1 U V w₀ n_max h_space s.mem) ∧
-  lmHead n_max (lmAt d.1.1.1.1 U V w₀ n_max h_space s.mem) d.1.1.1.2 d.2 ≤ effBucketCap n_max
+  DictEnvGen w (mkDictParams U V w₀ n_max h_space) (nestedCallBase d) ∧
+  nestedCallBucket d < numBuckets n_max ∧
+  insertArgMicro d < numMicroPerBucket n_max ∧
+  insertArgQuot d < 2 ^ quotientBits U n_max ∧
+  insertArgVal d < 2 ^ valBits V ∧
+  SlotStoreInv n_max (gmAt (nestedCallBase d) U V w₀ n_max h_space s.mem) ∧
+  lmHead n_max (lmAt (nestedCallBase d) U V w₀ n_max h_space s.mem)
+    (nestedCallBucket d) (insertArgMicro d) ≤ effBucketCap n_max
 
 /-- Parameter-free precondition for `insertNewGenProg` in `Realizes`. -/
 @[expose]
 def InsertNewGenPre (w : ℕ)
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  DictEnvGen w d.1 d.2.1.1.1.1 ∧
-  d.2.1.1.1.2 < numBuckets (dpNMax d.1) ∧
-  d.2.2 < numMicroPerBucket (dpNMax d.1) ∧
-  d.2.1.1.2 < 2 ^ quotientBits (dpU d.1) (dpNMax d.1) ∧
-  d.2.1.2 < 2 ^ valBits (dpV d.1) ∧
+  DictEnvGen w d.1 (nestedCallBase d.2) ∧
+  nestedCallBucket d.2 < numBuckets (dpNMax d.1) ∧
+  insertArgMicro d.2 < numMicroPerBucket (dpNMax d.1) ∧
+  insertArgQuot d.2 < 2 ^ quotientBits (dpU d.1) (dpNMax d.1) ∧
+  insertArgVal d.2 < 2 ^ valBits (dpV d.1) ∧
   SlotStoreInv (dpNMax d.1)
-    (gmAt d.2.1.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem) ∧
+    (gmAt (nestedCallBase d.2) (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem) ∧
   lmHead (dpNMax d.1)
-    (lmAt d.2.1.1.1.1 (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
-    d.2.1.1.1.2 d.2.2 ≤ effBucketCap (dpNMax d.1)
+    (lmAt (nestedCallBase d.2) (dpU d.1) (dpV d.1) (dpW d.1) (dpNMax d.1) (dpHSpace d.1) s.mem)
+    (nestedCallBucket d.2) (insertArgMicro d.2) ≤ effBucketCap (dpNMax d.1)
 
 @[simp]
 theorem insertNewGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -274,7 +315,9 @@ theorem realizes_insertNewGen :
       (fun _ _ => 0) := by
   realizeDictWith [insertNewGenPre_mk, InsertNewPre, readTotalSlotsGenProg_mk,
     pushBackSlotGenPre_mk, PushBackSlotPre, pushBackSlotGenProg_mk,
-    prependIfIndexedGenPre_mk, PrependIfIndexedPre, prependIfIndexedGenProg_mk] using
+    prependIfIndexedGenPre_mk, PrependIfIndexedPre, prependIfIndexedGenProg_mk,
+    nestedCallBase, nestedCallBucket, nestedCallPair, insertArgQuot, insertArgVal,
+    insertArgMicro] using
     [realizes_readTotalSlotsGen, realizes_readBucketCountGen, realizes_pushBackSlotGen,
       realizes_prependIfIndexedGen]
   · exact h.1
@@ -297,10 +340,10 @@ theorem realizes_insertNewGen :
 @[expose]
 def insertBodyGenProg
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) : Memory.Prog Unit := do
-  let res ← searchBucketGenProg (d.1, (d.2.1.1, d.2.2))
+  let res ← searchBucketGenProg (d.1, (insertArgQuery d.2, insertArgMicro d.2))
   let z1 ← pure 1
-  if res.1.1 = z1 then
-    writeValGenProg (d.1, ((d.2.1.1.1.1, res.2), d.2.1.2))
+  if searchResFound res = z1 then
+    writeValGenProg (d.1, ((nestedCallBase d.2, res.2), insertArgVal d.2))
   else
     insertNewGenProg d
 
@@ -323,17 +366,17 @@ theorem insertBodyGenProg_mk (U V w n_max h_space : ℕ)
 @[expose]
 def InsertBodyPre (U V w₀ n_max h_space w : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) (s : Memory.State) : Prop :=
-  SearchMicroChainPre U V w₀ n_max h_space w (d.1.1, d.2) s ∧
-  d.1.1.2 < 2 ^ quotientBits U n_max ∧
-  d.1.2 < 2 ^ valBits V
+  SearchMicroChainPre U V w₀ n_max h_space w (insertArgQuery d, insertArgMicro d) s ∧
+  insertArgQuot d < 2 ^ quotientBits U n_max ∧
+  insertArgVal d < 2 ^ valBits V
 
 /-- Parameter-free precondition for `insertBodyGenProg` in `Realizes`. -/
 @[expose]
 def InsertBodyGenPre (w : ℕ)
     (d : DictParams × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) : Prop :=
-  SearchMicroChainGenPre w (d.1, (d.2.1.1, d.2.2)) s ∧
-  d.2.1.1.2 < 2 ^ quotientBits (dpU d.1) (dpNMax d.1) ∧
-  d.2.1.2 < 2 ^ valBits (dpV d.1)
+  SearchMicroChainGenPre w (d.1, (insertArgQuery d.2, insertArgMicro d.2)) s ∧
+  insertArgQuot d.2 < 2 ^ quotientBits (dpU d.1) (dpNMax d.1) ∧
+  insertArgVal d.2 < 2 ^ valBits (dpV d.1)
 
 @[simp]
 theorem insertBodyGenPre_mk (U V w₀ n_max h_space w : ℕ)
@@ -353,7 +396,9 @@ theorem realizes_insertBodyGen :
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1.1
     simpDictParamsWith [insertBodyGenPre_mk, InsertBodyPre,
       searchMicroChainGenPre_mk, SearchMicroChainPre, searchBucketGenProg_mk,
-      insertNewGenPre_mk, InsertNewPre, insertNewGenProg_mk]
+      insertNewGenPre_mk, InsertNewPre, insertNewGenProg_mk,
+      nestedCallBase, insertArgQuery, insertArgQuot, insertArgVal, insertArgMicro,
+      searchResFound]
   )
   · exact h.1
   · exact fits_const_of_dictEnv h.1.1 (by decide)
@@ -361,7 +406,7 @@ theorem realizes_insertBodyGen :
   · obtain ⟨L, hchain, hc_lt⟩ := h.1.2.2.2.2
     have hspec := (searchBucketProg_spec (d := (d.1.1, d.2))
       h.1.1 h.1.2.1 h.1.2.2.1 h.1.2.2.2.1 hchain hc_lt).2.2
-    dsimp only at hspec
+    dsimp only [ovfSearchFound, ovfSearchIdx] at hspec
     split_ifs at hspec with hex
     · rw [hspec.2.2.2.2]
       exact (slotOf_lt_and_injective h.1.2.2.2.1).1 d.1.1.1.2 h.1.2.1 _ hspec.2.1
@@ -569,6 +614,7 @@ private theorem insertNewProg_bucket_spec
       26 + memoryCost (pushBackSlotProg U V w₀ n_max h_space (((base, b), q_target), v_new)) s := by
     simp only [d, insertNewProg, insertNewGenProg, readTotalSlotsGenProg_mk, p_nMax_mk,
       readBucketCountGenProg_mk, pushBackSlotGenProg_mk, prependIfIndexedGenProg_mk,
+      nestedCallBase, nestedCallPair, insertArgQuot, insertArgVal, insertArgMicro,
       pure_bind, ← PFunctor.FreeM.bind_eq_bind]
     rw [memoryCost_bind, clientState_readTotalSlotsProg, clientResult_readTotalSlotsProg,
       ite_eq_left htot, memoryCost_bind, clientState_readBucketCountProg,
@@ -641,8 +687,8 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
       rfl, by omega⟩
   · rw [ite_eq_right hex] at hres
     have hnot_some : ¬(B b q_target).isSome := mt (hinv.hmap_dom b hb q_target).mp hex
-    have hne1 : ((Memory.spec 0).clientResult s
-        (searchBucketProg U V w₀ n_max h_space (((base, b), q_target), m))).1.1 ≠ 1 := by omega
+    have hne1 : searchResFound ((Memory.spec 0).clientResult s
+        (searchBucketProg U V w₀ n_max h_space (((base, b), q_target), m))) ≠ 1 := by omega
     have hnew := insertNewProg_bucket_spec hw hinv hb hm_eq hm_lt hq_lt hv_lt
       (hcap.resolve_left hnot_some) hex
     rw [ite_eq_right hne1, ite_eq_right hnot_some]

@@ -113,14 +113,10 @@ theorem markedCount_clear_one {n : ℕ} {st st' : RawState n} {u : Fin n}
   have hmem : u ∈ markedSet st := by
     simp only [markedSet, Finset.mem_filter, Finset.mem_univ, true_and]
     exact ⟨hin, hm⟩
-  have heq : markedSet st' = (markedSet st).erase u := by
-    ext x
-    by_cases hxu : x = u
-    · subst hxu
-      simp only [markedSet, Finset.mem_filter, Finset.mem_univ, true_and, hu, ne_eq,
-        not_true_eq_false, and_false, Finset.mem_erase, false_and]
-    · simp only [Finset.mem_erase, ne_eq, hxu, not_false_eq_true, true_and, markedSet,
-        Finset.mem_filter, Finset.mem_univ, hother x hxu]
+  have heq : markedSet st' = (markedSet st).erase u := Finset.ext fun x => by
+    simp only [markedSet, Finset.mem_erase, Finset.mem_filter, Finset.mem_univ, true_and]
+    exact ⟨fun hx => ⟨fun e => hx.2 (e ▸ hu), (hother x fun e => hx.2 (e ▸ hu)).mp hx⟩,
+      fun ⟨hne, hx⟩ => (hother x hne).mpr hx⟩
   unfold markedCount
   rw [heq, Finset.card_erase_add_one hmem]
 
@@ -132,14 +128,11 @@ theorem markedCount_set_one {n : ℕ} {st st' : RawState n} {u : Fin n}
   have hnotmem : u ∉ markedSet st := by
     simp only [markedSet, Finset.mem_filter, Finset.mem_univ, hm0, ne_eq,
       not_true_eq_false, and_false, not_false_eq_true]
-  have heq : markedSet st' = insert u (markedSet st) := by
-    ext x
-    by_cases hxu : x = u
-    · subst hxu
-      simp only [markedSet, Finset.mem_filter, Finset.mem_univ, true_and, hin, ne_eq, hm1,
-        not_false_eq_true, and_self, Finset.mem_insert, true_or]
-    · simp only [Finset.mem_insert, hxu, false_or, markedSet, Finset.mem_filter, Finset.mem_univ,
-        true_and, hother x hxu]
+  have heq : markedSet st' = insert u (markedSet st) := Finset.ext fun x => by
+    simp only [markedSet, Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and]
+    rcases eq_or_ne x u with rfl | hxu
+    · exact iff_of_true ⟨hin, hm1⟩ (Or.inl rfl)
+    · exact (hother x hxu).trans (or_iff_right hxu).symm
   unfold markedCount
   rw [heq, Finset.card_insert_of_notMem hnotmem]
 
@@ -360,11 +353,7 @@ theorem ValidSubtree.frame {n : ℕ} {st st' : RawState n} {pending pending' : O
       have hmem : cs[i] ∈ cs := List.getElem_mem hi
       have hcn := hnode (cs[i]).root (List.mem_cons_of_mem u (hc_root_desc cs[i] hmem))
       have hd := hdesc (cs[i]).root (hc_root_desc cs[i] hmem)
-      have hiff := hd.2.2.2
-      have hite : (if some (cs[i]).root = pending' then 1 else 0) =
-          (if some (cs[i]).root = pending then 1 else 0) := by
-        simp only [hiff]
-      rw [hcn.2.2.1, hcn.2.1, hite]
+      rw [hcn.2.2.1, hcn.2.1, if_congr hd.2.2.2 rfl rfl]
       exact hrank i hi
     · intro c hc
       exact ih c hc
@@ -421,13 +410,9 @@ theorem deg_add_one_le_fib (d : ℕ) : d + 1 ≤ Nat.fib (d + 2) := by
   | succ m ih =>
     rcases m with _ | m
     · decide
-    · have hstep : m + 1 + 1 + 2 = (m + 2) + 2 := by omega
-      have hfib : Nat.fib ((m + 2) + 2) = Nat.fib (m + 2) + Nat.fib ((m + 2) + 1) :=
-        Nat.fib_add_two
+    · rw [Nat.add_right_comm m 1 2] at ih
+      rw [show m + 1 + 1 + 2 = (m + 2) + 2 from rfl, Nat.fib_add_two]
       have hpos : 0 < Nat.fib (m + 2) := Nat.fib_pos.mpr (by omega)
-      have h1 : m + 1 + 2 = (m + 2) + 1 := by omega
-      rw [h1] at ih
-      rw [hstep, hfib]
       omega
 
 private theorem fib_range_le_forestNodes {n : ℕ} :
@@ -495,11 +480,9 @@ theorem ValidRoot.singleton {n : ℕ} {st : RawState n} {v : Fin n}
     (hin : st.inHeap v ≠ 0) (hpar : st.par v = 0) (hchild : st.child v = 0)
     (hdeg : st.deg v = 0) (hmark : st.mark v = 0) :
     ValidRoot st none (.node v []) := by
-  refine ⟨⟨hin, by omega, hdeg, Or.inl ⟨rfl, hchild⟩, ?_, ?_, ?_, ?_⟩, hpar, hmark⟩
-  · intro _ h; exact absurd h List.not_mem_nil
-  · intro _ h; exact absurd h List.not_mem_nil
-  · intro i hi; simp at hi
-  · intro _ h; exact absurd h List.not_mem_nil
+  exact ⟨ValidSubtree.mk hin (by omega) hdeg (Or.inl ⟨rfl, hchild⟩)
+    (fun _ h => nomatch h) (fun _ h => nomatch h)
+    (fun _ h => nomatch h) (fun _ h => nomatch h), hpar, hmark⟩
 
 theorem link_nodes_eq {n : ℕ} (u : Fin n) (cs₁ : List (FHTree n)) (T₂ : FHTree n) :
     (FHTree.node u (cs₁ ++ [T₂])).nodes = (FHTree.node u cs₁).nodes ++ T₂.nodes := by

@@ -166,8 +166,7 @@ private theorem length_circuitGates (φ : CNF ℕ) :
     (circuitGates φ).length = 3 * (circuitSteps φ).length + 3 := by
   rw [circuitGates, List.length_append, List.length_flatMap]
   simp only [length_circuitBlock, List.map_const', List.sum_replicate, List.length_zipIdx,
-    smul_eq_mul]
-  simp only [List.length_cons, List.length_nil]
+    smul_eq_mul, List.length_cons, List.length_nil]
   omega
 
 private theorem isCodeFrom_circuitBlock {n k i : ℕ} (b e : Bool) (hi : e = false → i < n) :
@@ -210,13 +209,11 @@ private theorem mem_vars_of_mem_circuitSteps {φ : CNF ℕ} {s : Literal ℕ × 
 theorem isSome_ofCode_circuitCode (φ : CNF ℕ) :
     (Circuit.ofCode φ.vars.length 1 (circuitCode φ) : Option (Circuit signature _ 1)).isSome := by
   rw [Circuit.isSome_ofCode_iff]
-  refine ⟨?_, rfl, ?_⟩
-  · rw [circuitCode, circuitGates, Program.isCodeFrom_append]
-    refine ⟨by simp [Program.IsCodeFrom], ?_⟩
-    simpa using isCodeFrom_circuitBlocks φ (circuitSteps φ) 0 fun s hs =>
-      mem_vars_of_mem_circuitSteps hs
-  · simp only [circuitCode, length_circuitGates, List.mem_singleton, forall_eq]
-    omega
+  refine ⟨(Program.isCodeFrom_append _ _ _).2 ⟨by simp [Program.IsCodeFrom],
+    by simpa using isCodeFrom_circuitBlocks φ (circuitSteps φ) 0 fun s hs =>
+      mem_vars_of_mem_circuitSteps hs⟩, rfl, ?_⟩
+  simp only [circuitCode, length_circuitGates, List.mem_singleton, forall_eq]
+  omega
 
 /-- **The circuit of a formula**: one input for each literal occurrence, and the gates of
 `circuitCode`. -/
@@ -264,19 +261,21 @@ private theorem evalCode_flatMap (φ : CNF ℕ) (x : List Bool) (hx : x.length =
     simpa using h₂
   | cons t steps ih =>
     obtain ⟨⟨v, b⟩, e⟩ := t
-    have hsteps' := fun t ht => hsteps t (List.mem_cons_of_mem _ ht)
     have hv : e = false → φ.vars.idxOf v < φ.vars.length := fun he =>
       List.idxOf_lt_length_iff.2 (hsteps _ (List.mem_cons_self ..) he)
     rw [List.zipIdx_cons, List.flatMap_cons, evalCode_append, List.foldl_cons, List.length_cons,
       evalCode_circuitBlock V (φ.vars.length + 3 * k) (φ.vars.idxOf v) b e hV
         fun he => by have := hv he; omega,
       show k + (steps.length + 1) = k + 1 + steps.length by ring]
-    have hread : e = false → V.getD (φ.vars.idxOf v) false = assignment φ x v := fun he => by
-      have h := hv he
+    have hread (he : e = false) : V.getD (φ.vars.idxOf v) false = assignment φ x v := by
+      have := hv he
       rw [assignment, List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega),
         hx'.getElem]
-    refine ih hsteps' (k + 1) _ _ ?_ (hx'.trans (List.prefix_append _ _)) ?_ ?_
-    · cases e <;> simp [hV] <;> omega
+    refine ih (fun t ht => hsteps t (List.mem_cons_of_mem _ ht)) (k + 1) _ _ ?_
+      (hx'.trans (List.prefix_append _ _)) ?_ ?_
+    · cases e
+      · simp [hV]; omega
+      · simp [hV]; omega
     · rw [show φ.vars.length + 3 * (k + 1) + 1 = V.length + 1 by omega,
         List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h₁]
       cases e
@@ -312,37 +311,28 @@ theorem eval_toCircuit (φ : CNF ℕ) (x : BitString (toCircuit φ).1) :
   have hcode := code_toCircuit φ
   have hout : ((toCircuit φ).2.outputs 0).toNat =
       φ.vars.length + 3 * (circuitSteps φ).length + 2 := by
-    have := congrArg (fun c => c.2.headD 0) hcode
-    simpa [Circuit.code, circuitCode] using this
+    simpa [Circuit.code, circuitCode] using congrArg (fun c => c.2.headD 0) hcode
   rw [hout, show (toCircuit φ).2.code.1 = circuitGates φ by rw [hcode]; rfl, evalOutput,
-    circuitGates, evalCode_append]
-  have hinit : evalCode interpretation false (List.ofFn x)
+    circuitGates, evalCode_append, show evalCode interpretation false (List.ofFn x)
       [(Op.const false, []), (Op.const false, []), (Op.const true, [])] =
-      List.ofFn x ++ [false, false, true] := by
-    simp [evalCode, evalCodeStep, interpretation]
-  rw [hinit]
+      List.ofFn x ++ [false, false, true] by simp [evalCode, evalCodeStep, interpretation]]
   have hn : (List.ofFn x).length = φ.vars.length := List.length_ofFn
-  have := evalCode_flatMap φ (List.ofFn x) hn (circuitSteps φ)
+  simpa [foldl_circuitState] using evalCode_flatMap φ (List.ofFn x) hn (circuitSteps φ)
     (fun t ht => mem_vars_of_mem_circuitSteps ht) 0 (List.ofFn x ++ [false, false, true])
     (false, true) (by simp only [List.length_append, hn]; rfl) (List.prefix_append _ _)
     (by rw [← hn, List.getD_append_right _ _ _ _ (by omega)]; simp)
     (by rw [← hn, List.getD_append_right _ _ _ _ (by omega)]; simp)
-  rw [foldl_circuitState, Bool.true_and] at this
-  simpa using this
 
 /-- The circuit of a formula is satisfiable exactly when the formula is. -/
 theorem toCircuit_mem_CircuitSAT_iff (φ : CNF ℕ) : toCircuit φ ∈ CircuitSAT ↔ φ ∈ SAT := by
   rw [mem_CircuitSAT, mem_SAT]
-  constructor
-  · rintro ⟨x, hx⟩
-    exact ⟨_, (eval_toCircuit φ x).symm.trans hx⟩
-  · rintro ⟨τ, hτ⟩
-    refine ⟨fun i => τ (φ.vars[i.val]'i.isLt), ?_⟩
-    rw [eval_toCircuit, CNF.eval_congr fun v hv => ?_]
-    · exact hτ
-    · have hlt : φ.vars.idxOf v < φ.vars.length := List.idxOf_lt_length_iff.2 hv
-      rw [assignment]
-      exact (List.getD_ofFn_of_lt _ hlt _).trans (congrArg τ (List.getElem_idxOf hlt))
+  refine ⟨fun ⟨x, hx⟩ => ⟨_, (eval_toCircuit φ x).symm.trans hx⟩, fun ⟨τ, hτ⟩ =>
+    ⟨fun i => τ (φ.vars[i.val]'i.isLt), ?_⟩⟩
+  rw [eval_toCircuit, CNF.eval_congr fun v hv => ?_]
+  · exact hτ
+  · have hlt := List.idxOf_lt_length_iff.2 hv
+    rw [assignment]
+    exact (List.getD_ofFn_of_lt _ hlt _).trans (congrArg τ (List.getElem_idxOf hlt))
 
 /-! ### The reduction is polynomial-time -/
 
@@ -407,17 +397,14 @@ private theorem computableInPolyTime_circuitGates :
 to the binary encoding `encCircuit 1` of circuits. -/
 theorem computableInPolyTime_toCircuit :
     ComputableInPolyTime toCircuit encCNF (encCircuit 1) := by
-  have hg := computableInPolyTime_circuitGates
   have hvars := SAT.computableInPolyTime_vars
   have hn : ComputableInPolyTime (fun φ : CNF ℕ => φ.vars.length) encCNF encUnary := by
     fun_prop
   have hout : ComputableInPolyTime
       (fun φ : CNF ℕ => φ.vars.length + 3 * (circuitSteps φ).length + 2) encCNF encNat :=
     unary_to_binary.comp (by fun_prop)
-  have h : ComputableInPolyTime (fun φ : CNF ℕ => (φ.vars.length, circuitCode φ)) encCNF
-      (encPair encUnary encCode) :=
-    hn.prod (hg.prod (cons' hout (const [])))
-  exact h.of_enc_eq fun φ => by rw [encCircuit_apply, code_toCircuit]; rfl
+  exact (hn.prod (computableInPolyTime_circuitGates.prod (cons' hout (const [])))).of_enc_eq
+    fun φ => by rw [encCircuit_apply, code_toCircuit]; rfl
 
 /-- **`SAT` reduces to `CircuitSAT`** in polynomial time. -/
 theorem polyTimeReducible_CircuitSAT : PolyTimeReducible encCNF (encCircuit 1) SAT CircuitSAT :=

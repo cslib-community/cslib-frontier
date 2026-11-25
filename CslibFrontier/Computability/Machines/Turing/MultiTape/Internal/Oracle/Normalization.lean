@@ -86,9 +86,7 @@ theorem IsTidyOraclePPTOn.finiteStep [Fintype Operation] [Finite Control]
       simp only [branch, MultiTapeMachine.finiteStep, hstate, bind_map_left]
       congr 1 with bit : 1
       cases machine.tr control cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols cfg.answerSymbols
-          bit with
-      | step action symbol move => rfl
-      | query channel next => rfl
+        bit <;> rfl
   refine (IsTidyOraclePPTOn.finite_cases (tagEncoding := encFinite (Option Control))
     (tag := fun pair : ℕ × FiniteConfig k Bool Control Operation => pair.2.tapes.state)
     (branch := branch) (by fun_prop) fun control => ?_).congr
@@ -156,22 +154,19 @@ theorem IsTidyOraclePPTOn.runOracle_of_clock [Finite Operation] [Finite Control]
     (fun word => FiniteConfig.spaceBound_init _ _ _)
     (by
       intro word i cfg _ hcfg next hnext
-      cases hstate : cfg.tapes.state with
-      | none =>
+      cases hstate : cfg.tapes.state <;>
         simp only [step, MultiTapeMachine.finiteStep, hstate] at hnext
-        exact (OracleComp.eq_of_mem_supportWith_pure hnext) ▸
+      · exact (OracleComp.eq_of_mem_supportWith_pure hnext) ▸
           hcfg.mono le_rfl (Nat.le_succ i) le_rfl
-      | some control =>
-        simp only [step, MultiTapeMachine.finiteStep, hstate] at hnext
-        obtain ⟨action, _, hnext⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
-        cases action with
-        | step action symbol move =>
-          exact (OracleComp.eq_of_mem_supportWith_pure hnext) ▸ hcfg.step action symbol move
-        | query channel control =>
-          obtain ⟨answer, hanswer, hnext⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
-          obtain ⟨reply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hanswer
-          exact (OracleComp.eq_of_mem_supportWith_pure hnext) ▸
-            hcfg.receive channel control _ (List.length_take_le _ _))
+      obtain ⟨action, _, hnext⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
+      cases action with
+      | step action symbol move =>
+        exact (OracleComp.eq_of_mem_supportWith_pure hnext) ▸ hcfg.step action symbol move
+      | query channel control =>
+        obtain ⟨answer, hanswer, hnext⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
+        obtain ⟨reply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hanswer
+        exact (OracleComp.eq_of_mem_supportWith_pure hnext) ▸
+          hcfg.receive channel control _ (List.length_take_le _ _))
     (size := fun word => cf * (word.length + clock word + clock word + 1))
     ((PolyBounded.const cf).mul
       (((PolyBounded.self.add hclockPoly).add hclockPoly).add (.const 1)))

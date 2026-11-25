@@ -183,16 +183,9 @@ theorem act_eq_succ_iff {n e : ℕ} :
     have he₀ : Eligible k n := eligible_iff.mpr ⟨List.mem_of_find?_eq_some h, hp⟩
     have hmin' : ∀ e' < k, ¬ Eligible e' n := fun e' he' hel => by
       have := hmin e' he'
-      rw [List.getElem_range, (eligible_iff.mp hel).2] at this
-      exact absurd this (by decide)
-    constructor
-    · rintro rfl
-      exact ⟨he₀, hmin'⟩
-    · rintro ⟨he, hmin''⟩
-      rcases lt_trichotomy k e with hlt | rfl | hgt
-      · exact absurd he₀ (hmin'' k hlt)
-      · rfl
-      · exact absurd he (hmin' e hgt)
+      simp [List.getElem_range, (eligible_iff.mp hel).2] at this
+    refine ⟨fun h => h ▸ ⟨he₀, hmin'⟩, fun ⟨he, hmin''⟩ => ?_⟩
+    exact le_antisymm (not_lt.mp (hmin' e · he)) (not_lt.mp (hmin'' k · he₀))
 
 /-- **No requirement acts exactly when none is eligible.** -/
 theorem act_eq_zero_iff {n : ℕ} : act n = 0 ↔ ∀ e, ¬ Eligible e n := by
@@ -222,12 +215,11 @@ theorem exists_act_eq_succ {e : ℕ} (h : ∀ N, ∃ n ≥ N, accepts e n = true
   simp only [not_exists] at hne
   -- the stages where a smaller requirement acts
   have hfin : {n | ∃ e' < e, act n = e' + 1}.Finite := by
-    have : {n | ∃ e' < e, act n = e' + 1} = ⋃ e' ∈ Finset.range e, {n | act n = e' + 1} := by
-      ext n
-      simp
-    rw [this]
-    exact Set.Finite.biUnion (Finset.finite_toSet _) fun e' _ =>
-      Set.Subsingleton.finite fun m hm n hn => eq_of_act_eq_succ hm hn
+    refine ((Finset.finite_toSet (Finset.range e)).biUnion fun e' _ =>
+      Set.Subsingleton.finite (s := {n | act n = e' + 1})
+        fun m hm n hn => eq_of_act_eq_succ hm hn).subset ?_
+    rintro n ⟨e', he', hact⟩
+    exact Set.mem_biUnion (Finset.mem_coe.mpr (Finset.mem_range.mpr he')) hact
   obtain ⟨N₀, hN₀⟩ := hfin.bddAbove
   obtain ⟨n, hn, hacc⟩ := h (N₀ + e + 1)
   have hel : Eligible e n := ⟨by omega, fun m _ => hne m, hacc⟩
@@ -316,11 +308,10 @@ theorem exists_act_mem {B : Set (List Bool)} (hB : B ∈ P encBits) (hinf : B.In
     Option.isNone_iff_eq_none.mp hst
   obtain ⟨hhalt', hout'⟩ := hrun (word n)
   have heq : tm.runFrom (tm.initCfg (word n)) n =
-      tm.runFrom (tm.initCfg (word n)) (t (word n).length) := by
-    rcases le_total n (t (word n).length) with hle | hle
-    · exact (MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt).symm
-    · simp only [Cfg.Halted] at hhalt'
-      exact MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt'
+      tm.runFrom (tm.initCfg (word n)) (t (word n).length) :=
+    (le_total n (t (word n).length)).elim
+      (fun hle => (MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt).symm)
+      (fun hle => MultiTapeTM.runFrom_eq_of_halt tm _ hle hhalt')
   rw [heq, hout', List.map_singleton, List.singleton_inj] at hout
   exact (hf _).mpr (eBit.injective hout)
 
@@ -330,11 +321,8 @@ theorem isBiImmune_language : IsBiImmune (P encBits) language := by
   intro B hB hinf
   obtain ⟨i, n, hn, hact⟩ := exists_act_mem hB hinf (r := 0) (by omega)
   obtain ⟨i', n', hn', hact'⟩ := exists_act_mem hB hinf (r := 1) (by omega)
-  refine ⟨⟨word n, hn, ?_⟩, ⟨word n', hn', ?_⟩⟩
-  · rw [word_mem_language_iff, hact]
-    omega
-  · rw [word_mem_language_iff, hact']
-    omega
+  exact ⟨⟨word n, hn, by rw [word_mem_language_iff, hact]; omega⟩,
+    ⟨word n', hn', by rw [word_mem_language_iff, hact']; omega⟩⟩
 
 /-- **`E` contains a `P`-bi-immune problem** [Balcázar and Schöning][BalcazarSchoening1985]. -/
 theorem exists_mem_E_isBiImmune_P : ∃ A ∈ E encBits, IsBiImmune (P encBits) A :=

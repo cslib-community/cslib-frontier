@@ -85,10 +85,7 @@ to itself, `1` between adjacent vertices and `2` between distinct nonadjacent ve
 variable {G}
 
 theorem domDist_symm (u v : V) : domDist (α := α) G u v = domDist G v u := by
-  unfold domDist
-  by_cases h : u = v
-  · simp only [h]
-  · simp only [h, Ne.symm h, ↓reduceIte, G.adj_comm]
+  simp only [domDist, @eq_comm _ u v, G.adj_comm]
 
 end Semiring
 
@@ -117,16 +114,10 @@ variable [Fintype V] [Nonempty V] {S : Finset V}
 the graph. -/
 theorem radius_domDist_le_one_iff :
     radius (domDist (α := α) G) S ≤ (1 : α) ↔ G.IsDominatingSet S := by
-  rw [radius_le_coe_iff, SimpleGraph.isDominatingSet_iff]
-  refine forall_congr' fun v => ?_
-  simp only [domDist_le_one_iff, Finset.mem_coe]
-  constructor
-  · rintro ⟨c, hc, rfl | h⟩
-    · exact Or.inl hc
-    · exact Or.inr ⟨c, hc, h⟩
-  · rintro (h | ⟨c, hc, h⟩)
-    · exact ⟨v, h, Or.inl rfl⟩
-    · exact ⟨c, hc, Or.inr h⟩
+  simp only [radius_le_coe_iff, SimpleGraph.isDominatingSet_iff, domDist_le_one_iff, Finset.mem_coe]
+  exact forall_congr' fun v =>
+    ⟨fun ⟨c, hc, h⟩ => h.elim (fun e => .inl (e ▸ hc)) fun ha => .inr ⟨c, hc, ha⟩,
+     fun h => h.elim (fun hv => ⟨v, hv, .inl rfl⟩) fun ⟨c, hc, ha⟩ => ⟨c, hc, .inr ha⟩⟩
 
 /-- Distances in the `{1, 2}` distance are integers, so radius less than `2` means radius at most
 `1`: domination again. -/
@@ -155,15 +146,11 @@ theorem optRadius_domDist_le_one_iff {k : ℕ} :
 theorem optRadius_domDist_eq_two {k : ℕ} (hk : 0 < k)
     (h : ¬ ∃ S : Finset V, S.card ≤ k ∧ G.IsDominatingSet S) :
     optRadius (domDist (α := α) G) k = (2 : α) := by
-  refine le_antisymm ?_ ?_
-  · obtain ⟨c⟩ := ‹Nonempty V›
-    refine optRadius_le_iff.2 ⟨{c}, ?_, radius_domDist_le_two (Finset.singleton_nonempty c)⟩
-    rw [Finset.card_singleton]
-    exact hk
-  · rw [le_optRadius_iff]
-    intro S hS
-    by_contra hlt
-    exact h ⟨S, hS, radius_domDist_lt_two_iff.1 (not_le.1 hlt)⟩
+  refine le_antisymm ?_ (le_optRadius_iff.2 fun S hS => not_lt.1 fun hlt =>
+    h ⟨S, hS, radius_domDist_lt_two_iff.1 hlt⟩)
+  obtain ⟨c⟩ := ‹Nonempty V›
+  exact optRadius_le_iff.2
+    ⟨{c}, by simpa using Nat.succ_le_of_lt hk, radius_domDist_le_two (Finset.singleton_nonempty c)⟩
 
 /-- **The gap behind the hardness of k-center** ([WilliamsonShmoys2011], Theorem 2.4;
 [HsuNemhauser1979]): if a graph has a dominating set of at most `k` vertices, then every set `S`

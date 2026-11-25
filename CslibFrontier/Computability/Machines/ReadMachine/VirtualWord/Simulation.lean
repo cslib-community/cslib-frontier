@@ -229,7 +229,7 @@ theorem symbol_inSpace (enc : σ ↪ List Bool)
   have ha := budget_comp_linear answer_inSpace
     (budget_prod (encData_mk_budget (encData_cut_budget hd) (encData_suffix_budget hd) hquery) hb)
   simpa only [symbol, decide_eq_true_eq] using budget_ite (budget_natLt hquery hwidth)
-    (budget_finite (encC := encOption encBool) some ha) (budget_const none (.refl _))
+    (budget_finite (encC := encOption encBool) some ha) (budget_const none)
 
 /-- Native certificates for every simulator component; all outer continuations are arbitrary.
 Only ordinary native outer component certificates are premises, never substitution certificates. -/
@@ -267,7 +267,7 @@ theorem components_inSpace (enc : σ ↪ List Bool)
   have hnext := budget_ite hready
     (encState_mk_budget enc hrt (budget_comp_linear hn harg))
     (encState_mk_budget enc (budget_comp_linear Runtime.next_inSpace (budget_prod hrt hb)) hout)
-  have hemit := budget_ite hready (budget_comp_linear he harg) (budget_const [] (.refl _))
+  have hemit := budget_ite hready (budget_comp_linear he harg) (budget_const [])
   have hfinish := budget_comp_linear hf ho
   exact ⟨hquery, hnext, hemit,
     budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
@@ -281,23 +281,15 @@ theorem first_halt (p : Runtime.Input) (hc : p.data.cut ≤ p.original.length) (
       (2 * (encData p.data).length + 2 + T)) = true ∧
     ∀ t < 2 * (encData p.data).length + 2 + T,
       (machine M).halted ((machine M).run (Runtime.encInput p) t) = false := by
-  constructor
+  refine ⟨?_, fun t ht => ?_⟩
   · rw [run_loaded M p hc]
-    change true && M.halted (M.run (word p.original p.data.cut p.data.suffix) T) = true
-    rw [hh]
-    rfl
-  · intro t ht
-    by_cases hi : t < 2 * (encData p.data).length + 2
+    exact hh
+  · by_cases hi : t < 2 * (encData p.data).length + 2
     · rw [run_initializing M p (by omega)]
-      change (Runtime.machine.halted (Runtime.machine.run (Runtime.encInput p) t) &&
-        M.halted M.init) = false
-      rw [(Runtime.first_halt p).2 t hi]
-      rfl
-    · rw [show t = 2 * (encData p.data).length + 2 +
-        (t - (2 * (encData p.data).length + 2)) by omega, run_loaded M p hc]
-      change (true && M.halted (M.run (word p.original p.data.cut p.data.suffix) _)) = false
-      rw [hpre _ (by omega)]
-      rfl
+      simp only [machine, (Runtime.first_halt p).2 t hi, Bool.false_and]
+    · obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le (not_lt.mp hi)
+      rw [run_loaded M p hc]
+      exact hpre k (by omega)
 
 /-- The simulator's output is precisely the outer output, including all emissions and finish. -/
 theorem output (p : Runtime.Input) (hc : p.data.cut ≤ p.original.length) (T : ℕ) :
@@ -310,8 +302,8 @@ theorem output (p : Runtime.Input) (hc : p.data.cut ≤ p.original.length) (T : 
         (machine M).read (Runtime.encInput p) ((machine M).run (Runtime.encInput p) i))) = [] := by
     intro i hi
     rw [run_initializing M p (by omega)]
-    have hr := (Runtime.first_halt p).2 i hi
-    simp only [machine, hr, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+    simp only [machine, (Runtime.first_halt p).2 i hi, Bool.false_and, Bool.false_eq_true,
+      ↓reduceIte]
   unfold QueryMachine.output
   rw [List.range_add, List.map_append, List.flatten_append]
   have hz : ((List.range H).map fun i => if (machine M).halted
@@ -326,16 +318,10 @@ theorem output (p : Runtime.Input) (hc : p.data.cut ≤ p.original.length) (T : 
   rw [hz, List.flatten_replicate_nil, List.nil_append, List.map_map]
   congr 1
   · congr 1
-    apply List.map_congr_left
-    intro i _
+    refine List.map_congr_left fun i _ => ?_
     dsimp only [Function.comp_def]
-    rw [run_loaded M p hc]
-    have hr : Runtime.machine.halted (Evaluator.loaded p) = true := rfl
-    have hh : (machine M).halted ⟨Evaluator.loaded p,
-        M.run (word p.original p.data.cut p.data.suffix) i⟩ =
-        M.halted (M.run (word p.original p.data.cut p.data.suffix) i) := by
-      simp only [machine, hr, Bool.true_and]
-    rw [hh, emit_loaded M p hc]
+    rw [run_loaded M p hc, emit_loaded M p hc]
+    rfl
   · rw [run_loaded M p hc]
     rfl
 
@@ -397,16 +383,14 @@ theorem computableInSpace (enc : σ ↪ List Bool)
     ∃ time c, ComputableInTimeAndSpace f encInput encOut time
       (fun p => c * (B p + (encData p.val.data).length + Nat.log2 (encInput p).length + 1)) := by
   obtain ⟨hq', hn', he', hh', hf'⟩ := components_inSpace M enc hq hn he hh hf
-  refine (machine M).computableInSpace (encS := encState enc) (enc := encInput)
+  exact (machine M).computableInSpace (encS := encState enc) (enc := encInput)
     (encOut := encOut) (f := f) hq' hn' he' hh' hf'
     (fun p => 2 * (encData p.val.data).length + 2 + T p)
     (fun p => (first_halt M p.val p.property (T p) (hhalt p) (hpre p)).1)
     (fun p => (first_halt M p.val p.property (T p) (hhalt p) (hpre p)).2)
     (fun p => (hout p).trans (output M p.val p.property (T p)).symm)
     (fun p => B p + (encData p.val.data).length + Nat.log2 (encInput p).length + 1)
-    (fun p => by omega) ?_
-  refine ⟨33, fun p t ht => ?_⟩
-  have h := length_run_le M enc p (T p) (B p) (hB p) ht
-  omega
+    (fun p => by omega)
+    ⟨33, fun p t ht => by have := length_run_le M enc p (T p) (B p) (hB p) ht; omega⟩
 
 end Turing.VirtualWord.Simulation

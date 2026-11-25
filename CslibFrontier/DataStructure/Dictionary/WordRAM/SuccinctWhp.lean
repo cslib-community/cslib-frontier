@@ -183,6 +183,10 @@ private theorem sReg_ne {i j : Fin 132} (h : i ≠ j) : sReg i ≠ sReg j :=
     Function.update f (sReg j) v (sReg i) = if i = j then v else f (sReg i) := by
   simp only [Function.update_apply, sReg_inj]
 
+private theorem set_regs_sReg_ne (x : Data rWhp) {i j : Fin 132} (h : i ≠ j) (v : ℕ) :
+    (x.set (sReg j) v).regs (sReg i) = x.regs (sReg i) := by
+  rw [Data.set_regs, Function.update_of_ne (sReg_ne h)]
+
 /-- Embedding `Fin 12 → Fin rWhp` (`0..11`) for `BitPackedDoubleTabulation.resampleCode`. -/
 private noncomputable def resampleReg : Fin 12 → Fin rWhp :=
   Fin.castLE (by dsimp only [rWhp]; omega)
@@ -710,21 +714,17 @@ private theorem exec_loadVecUpTo {w m : ℕ} {reg : Fin m → Fin rWhp} {vals : 
       y.mem = x.mem ∧
       (∀ j : Fin m, j.val ≤ k → y.regs (reg j) = vals j) ∧
       (∀ r : Fin rWhp, r.val < 32 → y.regs r = x.regs r) := by
+  have hne : ∀ (r : Fin rWhp) (n : ℕ) (hn : n < m), r.val ≠ 32 + n → r ≠ reg ⟨n, hn⟩ :=
+    fun r n hn h heq => h (by subst heq; exact hreg _)
   induction k with
   | zero =>
     let y := x.set (reg ⟨0, hk⟩) (vals ⟨0, hk⟩)
     have hex : ExecWithin (B := .exact) w (.op (.const (reg ⟨0, hk⟩) (vals ⟨0, hk⟩))) x y 1 :=
       ExecWithin.const (hfits ⟨0, hk⟩)
     refine ⟨y, hex, hex.bounded hx_bdd, rfl, fun j hj => ?_, fun r hr => ?_⟩
-    · have hj0 : j = ⟨0, hk⟩ := Fin.ext (by dsimp; omega)
-      subst hj0
+    · obtain rfl : j = ⟨0, hk⟩ := Fin.ext (Nat.le_zero.mp hj)
       simp [y, Data.set_regs]
-    · have hne : r ≠ reg ⟨0, hk⟩ := by
-        intro heq
-        have hv := congrArg Fin.val heq
-        rw [hreg ⟨0, hk⟩] at hv
-        dsimp at hv; omega
-      rw [Data.set_regs, Function.update_of_ne hne]
+    · rw [Data.set_regs, Function.update_of_ne (hne r 0 hk (by omega))]
   | succ k ih =>
     obtain ⟨y₀, hex₀, hy₀_bdd, hmem₀, hparam₀, hlow₀⟩ := ih (by omega)
     let y := y₀.set (reg ⟨k + 1, hk⟩) (vals ⟨k + 1, hk⟩)
@@ -733,22 +733,11 @@ private theorem exec_loadVecUpTo {w m : ℕ} {reg : Fin m → Fin rWhp} {vals : 
       ExecWithin.const (hfits ⟨k + 1, hk⟩)
     refine ⟨y, hex₀.seq hex₁, hex₁.bounded hy₀_bdd, hmem₀, fun j hj => ?_, fun r hr => ?_⟩
     · by_cases hjk : j.val = k + 1
-      · have hjeq : j = ⟨k + 1, hk⟩ := Fin.ext hjk
-        subst hjeq
+      · obtain rfl : j = ⟨k + 1, hk⟩ := Fin.ext hjk
         simp [y, Data.set_regs]
-      · have hne : reg j ≠ reg ⟨k + 1, hk⟩ := by
-          intro heq
-          have hv := congrArg Fin.val heq
-          rw [hreg j, hreg ⟨k + 1, hk⟩] at hv
-          dsimp at hv; omega
-        rw [Data.set_regs, Function.update_of_ne hne]
+      · rw [Data.set_regs, Function.update_of_ne (hne _ _ hk (by rw [hreg]; omega))]
         exact hparam₀ j (by omega)
-    · have hne : r ≠ reg ⟨k + 1, hk⟩ := by
-        intro heq
-        have hv := congrArg Fin.val heq
-        rw [hreg ⟨k + 1, hk⟩] at hv
-        dsimp at hv; omega
-      rw [Data.set_regs, Function.update_of_ne hne]
+    · rw [Data.set_regs, Function.update_of_ne (hne r _ hk (by omega))]
       exact hlow₀ r hr
 
 private theorem span_exec_whp {c U V w n_max base : ℕ}
@@ -771,9 +760,8 @@ private theorem span_exec_whp {c U V w n_max base : ℕ}
       (.op (.exactBin .add frontierReg frontierReg curReg)) s₂ s₃ 1 := by
     apply ExecWithin.op
     rw [Op.eval_exactBin]
-    have hfr₂ : s₂.regs frontierReg = base := by
-      unfold s₂ s₁ frontierReg; unfold frontierReg at hfr
-      simp only [Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr]
+    have hfr₂ : s₂.regs frontierReg = base :=
+      (set_regs_sReg_ne _ (by decide) _).trans ((set_regs_sReg_ne _ (by decide) _).trans hfr)
     have hcur₂ : s₂.regs curReg = whpSpace c U V w n_max := by
       simp only [s₂, Data.set_regs, update_sReg, ↓reduceIte]
     rw [hfr₂, hcur₂]
@@ -798,13 +786,75 @@ private theorem exec_setResampleBaseCode {w base off : ℕ}
     rw [← hx_set]
     apply Exec.op
     rw [Op.eval_exactBin]
-    have hb₁ : x₁.regs baseReg = base := by
-      simp only [x₁, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hbase]
+    have hb₁ : x₁.regs baseReg = base := (set_regs_sReg_ne _ (by decide) _).trans hbase
     have h0₁ : x₁.regs (sReg 0) = off := by
       simp only [x₁, Data.set_regs, update_sReg, ↓reduceIte]
     rw [hb₁, h0₁]
     exact Data.put_of_fits hfit
   exact e₁.seq e₂
+
+/-- One seed-resampling stage of `initLargeCode`: point `sReg 0` at `base + off`, then resample
+the double-tabulation seed stored there. -/
+private noncomputable def resampleStage (w w₀ base off c_tab d b_char M : ℕ) (y : Data rWhp) :
+    ProbComp (Data rWhp × ℕ) :=
+  (fun z : Data 12 × ℕ => (z.1.extend resampleReg (y.set (sReg 0) (base + off)), 2 + z.2)) <$>
+    BitPackedDoubleTabulation.resampleComp (base + off) w w₀ c_tab d b_char M
+      ((y.set (sReg 0) (base + off)).comap resampleReg)
+
+private theorem resampleStage_regs0 (y : Data rWhp) (a : ℕ) :
+    ((y.set (sReg 0) a).comap resampleReg).regs 0 = a := by
+  change (y.set (sReg 0) a).regs (sReg 0) = a
+  simp [Data.set_regs]
+
+private theorem resampleStage_execRand {w w₀ base off c_tab d b_char M : ℕ} (hw : 0 < w)
+    (hw₀ : w₀ ≤ w)
+    (hfit : Fits w ((base + off) + BitPackedDoubleTabulation.space w c_tab d b_char M))
+    {y : Data rWhp} (hbase : y.regs baseReg = base) :
+    ExecRand w (.seq (setResampleBaseCode off)
+        ((BitPackedDoubleTabulation.resampleCode w w₀ c_tab d b_char M).rename resampleReg)) y
+      (resampleStage w w₀ base off c_tab d b_char M y) := by
+  have hr := (BitPackedDoubleTabulation.resampleCode_execRand hw hw₀
+    (resampleStage_regs0 y (base + off)) hfit).rename resampleReg_injective
+  simpa only [resampleStage, map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def]
+    using (exec_setResampleBaseCode (hfit.of_le (Nat.le_add_right _ _)) hbase).seqRand hr
+
+private theorem isQueryBounded_resampleStage {w w₀ base off c_tab d b_char M : ℕ}
+    (y : Data rWhp) :
+    (resampleStage w w₀ base off c_tab d b_char M y).IsQueryBounded
+      (1 + (BitPackedDoubleTabulation.topWords w c_tab d b_char +
+        BitPackedDoubleTabulation.botWords w d b_char M)) := by
+  rw [resampleStage, ← bind_pure_comp]
+  simpa only [Nat.add_zero] using
+    (BitPackedDoubleTabulation.isQueryBounded_resampleComp _ _ _ _ _ _ _ _).bind
+      fun _ => .pure _ 0
+
+/-- Pathwise postcondition of `resampleStage`: it keeps `Bounded w`, `baseReg` and `frontierReg`,
+writes a seed representation into `[base + off, base + off + space)`, leaves other memory alone,
+and takes `2 + resampleSteps` instructions. -/
+private theorem mem_support_resampleStage {w w₀ base off c_tab d b_char M : ℕ} (hw : 0 < w)
+    (hw₀ : w₀ ≤ w)
+    (hfit : Fits w ((base + off) + BitPackedDoubleTabulation.space w c_tab d b_char M))
+    {y : Data rWhp} (hy : y.Bounded w) {z : Data rWhp × ℕ}
+    (hz : z ∈ (resampleStage w w₀ base off c_tab d b_char M y).support) :
+    z.1.Bounded w ∧ z.1.regs baseReg = y.regs baseReg ∧
+      z.1.regs frontierReg = y.regs frontierReg ∧
+      BitPackedDoubleTabulation.SeedRep (base + off) w w₀ c_tab d b_char M
+        (BitPackedDoubleTabulation.extractSeed (base + off) w w₀ c_tab d b_char M z.1.mem)
+        z.1.mem ∧
+      (∀ a, (a < base + off ∨ base + off + BitPackedDoubleTabulation.space w c_tab d b_char M ≤ a) →
+        z.1.mem a = y.mem a) ∧
+      z.2 = 2 + BitPackedDoubleTabulation.resampleSteps w c_tab d b_char M := by
+  have hya := hy.set (i := sReg 0) (hfit.of_le (Nat.le_add_right _ _))
+  rw [resampleStage, ← bind_pure_comp] at hz
+  obtain ⟨u, hu, hp⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
+  cases OracleComp.eq_of_mem_supportWith_pure hp
+  obtain ⟨_, hsr, _, hmem, hu_bdd, hst⟩ := BitPackedDoubleTabulation.mem_support_resampleComp hw
+    hw₀ (resampleStage_regs0 y (base + off)) hfit (hya.comap resampleReg) hu
+  have hregs (i : Fin 132) (hi : 12 ≤ i.val) (h0 : i ≠ 0) :
+      (u.1.extend resampleReg (y.set (sReg 0) (base + off))).regs (sReg i) = y.regs (sReg i) := by
+    rw [Data.extend_regs_of_notMem _ _ (notMem_range_resampleReg hi), set_regs_sReg_ne _ h0]
+  exact ⟨hu_bdd.extend resampleReg_injective hya, hregs 16 (by decide) (by decide),
+    hregs 17 (by decide) (by decide), hsr, hmem, by rw [hst]⟩
 
 private theorem exec_initFastTail {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
     (henv : WhpLargeEnv c U V w n_max w base)
@@ -956,13 +1006,10 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       change whpInitPure c n_max = _
       exact ite_eq_left hsm
     have hx₁'_bdd : x₁'.Bounded w := hx₁.set (Nat.two_pow_pos w)
-    have hx₁'_base : x₁'.regs baseReg = base := by
-      simp only [x₁', Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hbase]
-    have hx₁'_fr : x₁'.regs frontierReg = base + whpSpace c U V w n_max := by
-      unfold x₁' frontierReg; unfold frontierReg at hfr
-      simp only [Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr]
-    refine ⟨hx₁'_fr, ⟨hx₁'_bdd, hx₁'_base, hx₁'_fr, ?_, whpRunPure_spec hnU θ trivial, rfl,
-      trivial⟩, Modifies.refl _ _⟩
+    have hx₁'_fr : x₁'.regs frontierReg = base + whpSpace c U V w n_max :=
+      (set_regs_sReg_ne _ (by decide) _).trans hfr
+    refine ⟨hx₁'_fr, ⟨hx₁'_bdd, (set_regs_sReg_ne _ (by decide) _).trans hbase, hx₁'_fr, ?_,
+      whpRunPure_spec hnU θ trivial, rfl, trivial⟩, Modifies.refl _ _⟩
     rw [hinit_eq]
     exact ⟨hsm, hsm_rep⟩
   · have hth : whpThreshold c ≤ n_max := Nat.le_of_not_lt hsm
@@ -988,33 +1035,10 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
           (fpBitsWhp n_max)) := by
       refine hfit.of_le ?_
       rw [hsp]; dsimp only [largeSpaceWhp, offHashFp, offHashBkt, bktHashWords]; omega
-    have hfit_bkt_addr : Fits w (base + offHashBkt) := hfit_bkt_end.of_le (Nat.le_add_right _ _)
-    have hfit_fp_addr : Fits w (base + offHashFp c w n_max) :=
-      hfit_fp_end.of_le (Nat.le_add_right _ _)
-    let xa₁ := x₁.set (sReg 0) (base + offHashBkt)
-    have hea₁ : Exec w (setResampleBaseCode offHashBkt) x₁ xa₁ 2 :=
-      exec_setResampleBaseCode hfit_bkt_addr hbase
-    have hxa₁_bdd : xa₁.Bounded w := hea₁.bounded hx₁
-    have hxa₁_0 : (xa₁.comap resampleReg).regs 0 = base + offHashBkt := by
-      change xa₁.regs (sReg 0) = _; simp [xa₁, Data.set_regs]
-    let comp₁ := BitPackedDoubleTabulation.resampleComp (base + offHashBkt) w (w0Whp U)
-      (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) (xa₁.comap resampleReg)
-    let m₁ : ProbComp (Data rWhp × ℕ) :=
-      (fun z : Data 12 × ℕ => (z.1.extend resampleReg xa₁, 2 + z.2)) <$> comp₁
-    have hex₁ : ExecRand w (.seq (setResampleBaseCode offHashBkt) (resampleBktCode c U w n_max))
-        x₁ m₁ := by
-      have hr₁ := (BitPackedDoubleTabulation.resampleCode_execRand hw hw0_le hxa₁_0
-        hfit_bkt_end).rename resampleReg_injective
-      simpa only [m₁, comp₁, resampleBktCode, map_eq_bind_pure_comp, bind_assoc, pure_bind,
-        Function.comp_def] using hea₁.seqRand hr₁
-    let comp₂_of (y₁ : Data rWhp) : ProbComp (Data 12 × ℕ) :=
-      BitPackedDoubleTabulation.resampleComp (base + offHashFp c w n_max) w (w0Whp U)
-        (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (fpBitsWhp n_max)
-        ((y₁.set (sReg 0) (base + offHashFp c w n_max)).comap resampleReg)
-    let m₂_of (y₁ : Data rWhp) : ProbComp (Data rWhp × ℕ) :=
-      (fun z : Data 12 × ℕ =>
-        (z.1.extend resampleReg (y₁.set (sReg 0) (base + offHashFp c w n_max)), 2 + z.2)) <$>
-        comp₂_of y₁
+    let m₁ := resampleStage w (w0Whp U) base offHashBkt (cTabWhp c) (dTabWhp c) (bCharWhp n_max)
+      (bWhp n_max) x₁
+    let m₂_of := resampleStage w (w0Whp U) base (offHashFp c w n_max) (cTabWhp c) (dTabWhp c)
+      (bCharWhp n_max) (fpBitsWhp n_max)
     let m₁₂ : ProbComp (Data rWhp × ℕ) := do
       let z₁ ← m₁
       let z₂ ← m₂_of z₁.1
@@ -1030,43 +1054,25 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
         (.seq
           (.seq (setResampleBaseCode offHashBkt) (resampleBktCode c U w n_max))
           (.seq (setResampleBaseCode (offHashFp c w n_max)) (resampleFpCode c U w n_max)))
-        x₁ m₁₂ := by
-      refine ExecRand.seq hex₁ (m₂ := m₂_of) fun z₁ hz₁ => ?_
-      dsimp only [m₁] at hz₁
-      rw [← bind_pure_comp] at hz₁
-      obtain ⟨u₁, hu₁, hp₁⟩ := OracleComp.mem_supportWith_bind_iff.mp hz₁
-      cases OracleComp.eq_of_mem_supportWith_pure hp₁
-      have hy₁_base : (u₁.1.extend resampleReg xa₁).regs baseReg = base := by
-        rw [Data.extend_regs_of_notMem _ _ (notMem_range_resampleReg (by decide))]
-        simp only [xa₁, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hbase]
-      have hea₂ : Exec w (setResampleBaseCode (offHashFp c w n_max))
-          (u₁.1.extend resampleReg xa₁)
-          ((u₁.1.extend resampleReg xa₁).set (sReg 0) (base + offHashFp c w n_max)) 2 :=
-        exec_setResampleBaseCode hfit_fp_addr hy₁_base
-      have hya₂_0 :
-          (((u₁.1.extend resampleReg xa₁).set (sReg 0) (base + offHashFp c w n_max)).comap
-            resampleReg).regs 0 = base + offHashFp c w n_max := by
-        change ((u₁.1.extend resampleReg xa₁).set (sReg 0)
-          (base + offHashFp c w n_max)).regs (sReg 0) = _
-        simp [Data.set_regs]
-      have hr₂ := (BitPackedDoubleTabulation.resampleCode_execRand hw hw0_le hya₂_0
-        hfit_fp_end).rename resampleReg_injective
-      simpa only [m₂_of, comp₂_of, resampleFpCode, map_eq_bind_pure_comp, bind_assoc, pure_bind,
-        Function.comp_def] using hea₂.seqRand hr₂
+        x₁ m₁₂ :=
+      (resampleStage_execRand hw hw0_le hfit_bkt_end hbase).seq (m₂ := m₂_of) fun _ hz₁ =>
+        resampleStage_execRand hw hw0_le hfit_fp_end
+          ((mem_support_resampleStage hw hw0_le hfit_bkt_end hx₁ hz₁).2.1.trans hbase)
     have hz_in : ∀ a, base ≤ a → a < base + largeSpaceWhp c U V w n_max → x₁.mem a = 0 := by
       intro a ha1 ha2
       refine hz a ?_
       simp only [Block.mem_footprint, Block.Owns, hsp]
       exact ⟨ha1, ha2⟩
+    let hasInv (y₂ : Data rWhp) : Prop :=
+      y₂.Bounded w ∧
+      y₂.regs baseReg = base ∧
+      y₂.regs frontierReg = base + whpSpace c U V w n_max ∧
+      SeedWhpMemRep base c U w n_max (extPair y₂) y₂.mem ∧
+      (∀ a, base ≤ a → a < base + 32 → y₂.mem a = 0) ∧
+      (∀ a, base + offQuotWhp c w n_max ≤ a →
+        a < base + largeSpaceWhp c U V w n_max → y₂.mem a = 0)
     have hy₂_pair : ∀ z₁ ∈ m₁.support, ∀ z₂ ∈ (m₂_of z₁.1).support,
-        extPair z₂.1 = (ext₁ z₁.1.mem, ext₂ z₂.1.mem) ∧
-        z₂.1.Bounded w ∧
-        z₂.1.regs baseReg = base ∧
-        z₂.1.regs frontierReg = base + whpSpace c U V w n_max ∧
-        SeedWhpMemRep base c U w n_max (extPair z₂.1) z₂.1.mem ∧
-        (∀ a, base ≤ a → a < base + 32 → z₂.1.mem a = 0) ∧
-        (∀ a, base + offQuotWhp c w n_max ≤ a →
-          a < base + largeSpaceWhp c U V w n_max → z₂.1.mem a = 0) ∧
+        extPair z₂.1 = (ext₁ z₁.1.mem, ext₂ z₂.1.mem) ∧ hasInv z₂.1 ∧
         (∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → z₂.1.mem a = x₁.mem a) ∧
         z₁.2 + z₂.2 =
           2 + BitPackedDoubleTabulation.resampleSteps w (cTabWhp c) (dTabWhp c)
@@ -1074,42 +1080,10 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
           2 + BitPackedDoubleTabulation.resampleSteps w (cTabWhp c) (dTabWhp c)
                 (bCharWhp n_max) (fpBitsWhp n_max) := by
       intro z₁ hz₁ z₂ hz₂
-      dsimp only [m₁] at hz₁
-      rw [← bind_pure_comp] at hz₁
-      obtain ⟨u₁, hu₁, hp₁⟩ := OracleComp.mem_supportWith_bind_iff.mp hz₁
-      cases OracleComp.eq_of_mem_supportWith_pure hp₁
-      obtain ⟨_, hsr₁, _, hfr₁_mem, hu₁_bdd, hst₁⟩ :=
-        BitPackedDoubleTabulation.mem_support_resampleComp hw hw0_le hxa₁_0 hfit_bkt_end
-          (hxa₁_bdd.comap resampleReg) hu₁
-      let y₁ := u₁.1.extend resampleReg xa₁
-      have hy₁_bdd : y₁.Bounded w := hu₁_bdd.extend resampleReg_injective hxa₁_bdd
-      have hy₁_base : y₁.regs baseReg = base := by
-        rw [Data.extend_regs_of_notMem _ _ (notMem_range_resampleReg (by decide))]
-        simp only [xa₁, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hbase]
-      have hy₁_fr : y₁.regs frontierReg = base + whpSpace c U V w n_max := by
-        rw [Data.extend_regs_of_notMem _ _ (notMem_range_resampleReg (by decide))]
-        unfold xa₁ frontierReg; unfold frontierReg at hfr
-        simp only [Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hfr]
-      let ya₂ := y₁.set (sReg 0) (base + offHashFp c w n_max)
-      have hya₂_bdd : ya₂.Bounded w := hy₁_bdd.set hfit_fp_addr
-      have hya₂_0 : (ya₂.comap resampleReg).regs 0 = base + offHashFp c w n_max := by
-        change ya₂.regs (sReg 0) = _; simp [ya₂, Data.set_regs]
-      dsimp only [m₂_of] at hz₂
-      rw [← bind_pure_comp] at hz₂
-      obtain ⟨u₂, hu₂, hp₂⟩ := OracleComp.mem_supportWith_bind_iff.mp hz₂
-      cases OracleComp.eq_of_mem_supportWith_pure hp₂
-      obtain ⟨_, hsr₂, _, hfr₂_mem, hu₂_bdd, hst₂⟩ :=
-        BitPackedDoubleTabulation.mem_support_resampleComp hw hw0_le hya₂_0 hfit_fp_end
-          (hya₂_bdd.comap resampleReg) hu₂
-      let y₂ := u₂.1.extend resampleReg ya₂
-      have hy₂_bdd : y₂.Bounded w := hu₂_bdd.extend resampleReg_injective hya₂_bdd
-      have hy₂_base : y₂.regs baseReg = base := by
-        rw [Data.extend_regs_of_notMem _ _ (notMem_range_resampleReg (by decide))]
-        simp only [ya₂, Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hy₁_base]
-      have hy₂_fr : y₂.regs frontierReg = base + whpSpace c U V w n_max := by
-        rw [Data.extend_regs_of_notMem _ _ (notMem_range_resampleReg (by decide))]
-        unfold ya₂ frontierReg; unfold frontierReg at hy₁_fr
-        simp only [Data.set_regs, update_sReg, Fin.reduceEq, ↓reduceIte, hy₁_fr]
+      obtain ⟨hb₁, hbase₁, hfr₁, hsr₁, hmem₁, hst₁⟩ :=
+        mem_support_resampleStage hw hw0_le hfit_bkt_end hx₁ hz₁
+      obtain ⟨hb₂, hbase₂, hfr₂, hsr₂, hmem₂, hst₂⟩ :=
+        mem_support_resampleStage hw hw0_le hfit_fp_end hb₁ hz₂
       have hl_hb : offHashBkt = 32 := rfl
       have hl_hf : offHashFp c w n_max =
           offHashBkt + BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c)
@@ -1120,45 +1094,18 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       have hq_le_sp : offQuotWhp c w n_max ≤ largeSpaceWhp c U V w n_max := by
         dsimp only [largeSpaceWhp, offQuotWhp, offHashFp, offHashBkt, bktHashWords, fpHashWords]
         omega
-      have hsr₁_u₂ : BitPackedDoubleTabulation.SeedRep (base + offHashBkt) w (w0Whp U)
-          (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) (ext₁ u₁.1.mem) u₂.1.mem :=
-        BitPackedDoubleTabulation.seedRep_congr_mem hw hsr₁
-          (fun a _ ha2 => hfr₂_mem a (Or.inl (by omega)))
-      have hext₁_eq : ext₁ u₂.1.mem = ext₁ u₁.1.mem :=
-        BitPackedDoubleTabulation.extractSeed_eq_of_seedRep hsr₁_u₂
-      have hseed_y₂ : SeedWhpMemRep base c U w n_max (extPair y₂) y₂.mem := by
-        refine ⟨?_, hsr₂⟩
-        change BitPackedDoubleTabulation.SeedRep (base + offHashBkt) w (w0Whp U)
-          (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) (ext₁ u₂.1.mem) u₂.1.mem
-        rw [hext₁_eq]
-        exact hsr₁_u₂
-      refine ⟨Prod.ext hext₁_eq rfl, hy₂_bdd, hy₂_base, hy₂_fr, hseed_y₂,
-        fun a ha1 ha2 => ?_, fun a ha1 ha2 => ?_, fun a ha_out => ?_, ?_⟩
-      · change u₂.1.mem a = 0
-        rw [hfr₂_mem a (Or.inl (by omega))]
-        change u₁.1.mem a = 0
-        rw [hfr₁_mem a (Or.inl (by omega))]
+      have hsr₁₂ := BitPackedDoubleTabulation.seedRep_congr_mem hw hsr₁
+        (fun a _ ha2 => hmem₂ a (Or.inl (by omega)))
+      have hext₁ := BitPackedDoubleTabulation.extractSeed_eq_of_seedRep hsr₁₂
+      rw [← hext₁] at hsr₁₂
+      refine ⟨Prod.ext hext₁ rfl, ⟨hb₂, hbase₂.trans (hbase₁.trans hbase),
+        hfr₂.trans (hfr₁.trans hfr), ⟨hsr₁₂, hsr₂⟩, fun a ha1 ha2 => ?_, fun a ha1 ha2 => ?_⟩,
+        fun a ha => ?_, by omega⟩
+      · rw [hmem₂ a (Or.inl (by omega)), hmem₁ a (Or.inl (by omega))]
         exact hz_in a ha1 (by omega)
-      · change u₂.1.mem a = 0
-        rw [hfr₂_mem a (Or.inr (by omega))]
-        change u₁.1.mem a = 0
-        rw [hfr₁_mem a (Or.inr (by omega))]
+      · rw [hmem₂ a (Or.inr (by omega)), hmem₁ a (Or.inr (by omega))]
         exact hz_in a (by omega) ha2
-      · change u₂.1.mem a = x₁.mem a
-        rcases ha_out with ha_lt | ha_ge
-        · rw [hfr₂_mem a (Or.inl (by omega))]
-          exact hfr₁_mem a (Or.inl (by omega))
-        · rw [hfr₂_mem a (Or.inr (by omega))]
-          exact hfr₁_mem a (Or.inr (by omega))
-      · rw [hst₁, hst₂]; omega
-    let hasInv (y₂ : Data rWhp) : Prop :=
-      y₂.Bounded w ∧
-      y₂.regs baseReg = base ∧
-      y₂.regs frontierReg = base + whpSpace c U V w n_max ∧
-      SeedWhpMemRep base c U w n_max (extPair y₂) y₂.mem ∧
-      (∀ a, base ≤ a → a < base + 32 → y₂.mem a = 0) ∧
-      (∀ a, base + offQuotWhp c w n_max ≤ a →
-        a < base + largeSpaceWhp c U V w n_max → y₂.mem a = 0)
+      · rw [hmem₂ a (by omega), hmem₁ a (by omega)]
     have hm₁₂_supp : ∀ z₁₂ ∈ m₁₂.support,
         hasInv z₁₂.1 ∧
         (∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → z₁₂.1.mem a = x₁.mem a) ∧
@@ -1172,8 +1119,7 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       obtain ⟨z₁, hz₁, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz₁₂
       obtain ⟨z₂, hz₂, hp⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
       cases OracleComp.eq_of_mem_supportWith_pure hp
-      obtain ⟨_, hbdd, hb, hf, hsd, hzh, hzb, hzo, hst⟩ := hy₂_pair z₁ hz₁ z₂ hz₂
-      exact ⟨⟨hbdd, hb, hf, hsd, hzh, hzb⟩, hzo, hst⟩
+      exact (hy₂_pair z₁ hz₁ z₂ hz₂).2
     let tailEx (y₂ : Data rWhp) (hi : hasInv y₂) :=
       exec_initFastTail henv hi.1 hi.2.1 hi.2.2.1 hi.2.2.2.1 hi.2.2.2.2.1 hi.2.2.2.2.2
     let detOut (y₂ : Data rWhp) : Data rWhp × ℕ :=
@@ -1199,35 +1145,9 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
     have hqb : OracleComp.IsQueryBounded m₀ (initSetupRandCalls c w n_max) := by
       unfold initSetupRandCalls
       rw [ite_eq_right hsm]
-      have hqb_pure : ∀ x : Data rWhp × ℕ, (pure x : ProbComp (Data rWhp × ℕ)).IsQueryBounded 0 :=
-        fun _ => .pure _ 0
-      have hqb₁ : m₁.IsQueryBounded
-          (1 + (BitPackedDoubleTabulation.topWords w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) +
-                BitPackedDoubleTabulation.botWords w (dTabWhp c) (bCharWhp n_max)
-                  (bWhp n_max))) := by
-        dsimp only [m₁]
-        rw [← bind_pure_comp]
-        simpa only [Nat.add_zero] using
-          (BitPackedDoubleTabulation.isQueryBounded_resampleComp _ _ _ _ _ _ _ _).bind
-            fun _ => hqb_pure _
-      have hqb₂ : ∀ y₁, (m₂_of y₁).IsQueryBounded
-          (1 + (BitPackedDoubleTabulation.topWords w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) +
-                BitPackedDoubleTabulation.botWords w (dTabWhp c) (bCharWhp n_max)
-                  (fpBitsWhp n_max))) := by
-        intro y₁
-        dsimp only [m₂_of]
-        rw [← bind_pure_comp]
-        simpa only [Nat.add_zero] using
-          (BitPackedDoubleTabulation.isQueryBounded_resampleComp _ _ _ _ _ _ _ _).bind
-            fun _ => hqb_pure _
-      have hqb₁₂ : m₁₂.IsQueryBounded
-          ((1 + (BitPackedDoubleTabulation.topWords w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) +
-                 BitPackedDoubleTabulation.botWords w (dTabWhp c) (bCharWhp n_max) (bWhp n_max))) +
-           (1 + (BitPackedDoubleTabulation.topWords w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) +
-                 BitPackedDoubleTabulation.botWords w (dTabWhp c) (bCharWhp n_max)
-                   (fpBitsWhp n_max)))) := by
-        refine hqb₁.bind fun z₁ => ?_
-        simpa only [Nat.add_zero] using (hqb₂ z₁.1).bind fun _ => hqb_pure _
+      have hqb₁₂ : m₁₂.IsQueryBounded _ :=
+        (isQueryBounded_resampleStage _).bind fun _ =>
+          (isQueryBounded_resampleStage _).bind fun _ => .pure _ 0
       have hqb_tail : ∀ z₁₂ : Data rWhp × ℕ,
           (do let z_t ← m_tail z₁₂.1; pure (z_t.1, z₁₂.2 + z_t.2)).IsQueryBounded 0 := by
         intro z₁₂
@@ -1290,28 +1210,15 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
           rw [hcongr]
           have hm₂_unif : (m₂_of z₁.1).eval.map (fun z₂ : Data rWhp × ℕ => ext₂ z₂.1.mem) =
               PMF.uniformOfFintype (FpSeed c U n_max) := by
-            dsimp only [m₂_of]
+            dsimp only [m₂_of, resampleStage]
             rw [ProbComp.eval_map, PMF.map_comp]
             exact BitPackedDoubleTabulation.map_extractSeed_eval_resampleComp hw hbc_le hfp_le _
           rw [← hm₂_unif, PMF.map_comp]
           rfl
-        have hbind_eq :
-            m₁.eval.bind (fun z₁ =>
-              ((do let z₂ ← m₂_of z₁.1; pure (z₂.1, z₁.2 + z₂.2)).eval).map
-                (fun z₁₂ : Data rWhp × ℕ => extPair z₁₂.1)) =
-            m₁.eval.bind (fun z₁ =>
-              (PMF.uniformOfFintype (FpSeed c U n_max)).map
-                (fun θ₂ => (ext₁ z₁.1.mem, θ₂))) := by
-          ext p
-          rw [PMF.bind_apply, PMF.bind_apply]
-          refine tsum_congr fun z₁ => ?_
-          by_cases hz₁ : z₁ ∈ m₁.eval.support
-          · rw [hinner z₁ hz₁]
-          · rw [(PMF.apply_eq_zero_iff _ _).mpr hz₁, zero_mul, zero_mul]
-        rw [hbind_eq]
+        rw [Cslib.Probability.PMF.bind_congr_on_support _ _ _ hinner]
         have hm₁_unif : m₁.eval.map (fun z₁ : Data rWhp × ℕ => ext₁ z₁.1.mem) =
             PMF.uniformOfFintype (BktSeed c U n_max) := by
-          dsimp only [m₁]
+          dsimp only [m₁, resampleStage]
           rw [ProbComp.eval_map, PMF.map_comp]
           exact BitPackedDoubleTabulation.map_extractSeed_eval_resampleComp hw hbc_le hb_le _
         have hprod :
@@ -1459,22 +1366,10 @@ private theorem exec_opCode {c U V w n_max base : ℕ}
   have hdec : decode o y.regs = some ((Dynamic.spec U V n_max).stepFn s_abs o).2 := by
     cases o with
     | query u =>
-      dsimp only [decode]
       have hres_q : (whpStepPure c U n_max θ (whpRunPure c U n_max θ ops) (.query u)).2 =
           s_abs u := hres_opt
-      have h0 : WordEncoding.encode (α := ℕ × ℕ)
-          (encodeOptRes (whpStepPure c U n_max θ (whpRunPure c U n_max θ ops) (.query u)).2) 0 =
-          (encodeOptRes (whpStepPure c U n_max θ (whpRunPure c U n_max θ ops) (.query u)).2).1 :=
-        rfl
-      have h1 : WordEncoding.encode (α := ℕ × ℕ)
-          (encodeOptRes (whpStepPure c U n_max θ (whpRunPure c U n_max θ ops) (.query u)).2) 1 =
-          (encodeOptRes (whpStepPure c U n_max θ (whpRunPure c U n_max θ ops) (.query u)).2).2 :=
-        rfl
-      rw [h0, hres_q] at hout0
-      rw [h1, hres_q] at hout1
-      rw [hout0, hout1]
-      change (if (encodeOptRes (s_abs u)).1 = 0 then some none
-        else some (some (encodeOptRes (s_abs u)).2)) = some (s_abs u)
+      dsimp only [decode]
+      rw [hout0, hout1, hres_q]
       cases s_abs u <;> rfl
     | insert _ _ => rfl
     | delete _ => rfl

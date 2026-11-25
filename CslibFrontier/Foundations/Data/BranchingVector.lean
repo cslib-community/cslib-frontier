@@ -112,12 +112,9 @@ theorem charSum_sublist {s₁ s₂ : List ℕ} (hsub : List.Sublist s₁ s₂) {
   induction hsub with
   | slnil => exact le_rfl
   | cons d _ ih =>
-    rw [charSum_cons]
-    have hd : 0 ≤ r ^ (-(d : ℝ)) := by
-      rw [rpow_neg_natCast_eq_inv_pow hr]
-      positivity
-    linarith
-  | cons_cons d _ ih =>
+    rw [charSum_cons, rpow_neg_natCast_eq_inv_pow hr]
+    linarith [pow_nonneg (inv_nonneg.mpr hr) d]
+  | cons_cons _ _ ih =>
     rw [charSum_cons, charSum_cons]
     linarith
 
@@ -129,15 +126,12 @@ theorem charSum_filter_le (p : ℕ → Bool) (steps : List ℕ) {r : ℝ} (hr : 
 /-- `charSum steps` is antitone on `(0, ∞)`. -/
 theorem charSum_antitone (steps : List ℕ) {r₁ r₂ : ℝ} (hr₁ : 0 < r₁) (hle : r₁ ≤ r₂) :
     charSum steps r₂ ≤ charSum steps r₁ := by
-  have hr₂ : 0 < r₂ := hr₁.trans_le hle
-  rw [charSum_eq_sum_inv_pow steps hr₂.le, charSum_eq_sum_inv_pow steps hr₁.le]
+  rw [charSum_eq_sum_inv_pow steps (hr₁.trans_le hle).le, charSum_eq_sum_inv_pow steps hr₁.le]
   induction steps with
-  | nil => simp only [List.map_nil, List.sum_nil, le_refl]
-  | cons d rest ih =>
+  | nil => simp
+  | cons d _ ih =>
     simp only [List.map_cons, List.sum_cons]
-    have hinv : r₂⁻¹ ≤ r₁⁻¹ := inv_anti₀ hr₁ hle
-    have hpow : (r₂⁻¹) ^ d ≤ (r₁⁻¹) ^ d := pow_le_pow_left₀ (by positivity) hinv d
-    linarith
+    linarith [pow_le_pow_left₀ (inv_nonneg.mpr (hr₁.trans_le hle).le) (inv_anti₀ hr₁ hle) d]
 
 /-! ### Generic branching-vector recurrence -/
 
@@ -172,15 +166,11 @@ private theorem sum_pow_sub_eq {steps : List ℕ} {r : ℝ} (hr : 0 < r) (n : �
     (hle : ∀ d ∈ steps, d ≤ n) :
     (steps.map fun d : ℕ => r ^ (n - d)).sum = r ^ n * charSum steps r := by
   rw [charSum_eq_sum_inv_pow steps hr.le, ← List.sum_map_mul_left]
-  congr 1
-  refine List.map_congr_left fun d hd => ?_
-  have hd_le : d ≤ n := hle d hd
-  have hr_ne : r ≠ 0 := hr.ne'
-  calc
-    r ^ (n - d) = r ^ (n - d) * (r ^ d * (r⁻¹) ^ d) := by
-      rw [← mul_pow, mul_inv_cancel₀ hr_ne, one_pow, mul_one]
-    _ = (r ^ (n - d) * r ^ d) * (r⁻¹) ^ d := by ring
-    _ = r ^ n * (r⁻¹) ^ d := by rw [← pow_add, Nat.sub_add_cancel hd_le]
+  refine congrArg List.sum (List.map_congr_left fun d hd => ?_)
+  calc r ^ (n - d)
+      = r ^ (n - d) * (r ^ d * (r⁻¹) ^ d) := by
+        rw [← mul_pow, mul_inv_cancel₀ hr.ne', one_pow, mul_one]
+    _ = r ^ n * (r⁻¹) ^ d := by rw [← mul_assoc, ← pow_add, Nat.sub_add_cancel (hle d hd)]
 
 /-- **Generic branching-vector theorem.** If `1 ≤ r` satisfies `charSum steps r ≤ 1`, then every
 `BranchingRecurrence T steps C` satisfies `T n ≤ C * r ^ n` for all `n`. -/
@@ -191,20 +181,17 @@ theorem le_mul_pow {T : ℕ → ℝ} {steps : List ℕ} {C : ℝ}
   have hr_pos : 0 < r := by positivity
   induction n using Nat.strong_induction_on with
   | ind n ih =>
-    refine (hrec.step_le n (fun m => C * r ^ m) ih).trans ?_
-    rw [max_le_iff]
-    constructor
-    · exact (mul_one C).symm.trans_le <| mul_le_mul_of_nonneg_left (one_le_pow₀ hr) hrec.base_nonneg
-    · rw [List.sum_map_mul_left,
-        sum_pow_sub_eq hr_pos n (fun d hd => of_decide_eq_true (List.mem_filter.mp hd).2)]
-      have hfilt : charSum (steps.filter (· ≤ n)) r ≤ 1 :=
+    refine (hrec.step_le n (fun m => C * r ^ m) ih).trans (max_le ?_ ?_)
+    · simpa only [mul_one] using mul_le_mul_of_nonneg_left (one_le_pow₀ hr) hrec.base_nonneg
+    · have hfilt : charSum (steps.filter (· ≤ n)) r ≤ 1 :=
         (charSum_filter_le (· ≤ n) steps hr_pos.le).trans hchar
-      have hCr : 0 ≤ C * r ^ n := mul_nonneg hrec.base_nonneg (by positivity)
-      calc
-        C * (r ^ n * charSum (steps.filter (· ≤ n)) r)
-            = (C * r ^ n) * charSum (steps.filter (· ≤ n)) r := by ring
-        _ ≤ (C * r ^ n) * 1 := mul_le_mul_of_nonneg_left hfilt hCr
-        _ = C * r ^ n := mul_one _
+      calc ((steps.filter (· ≤ n)).map fun d => C * r ^ (n - d)).sum
+          = C * r ^ n * charSum (steps.filter (· ≤ n)) r := by
+            rw [List.sum_map_mul_left,
+              sum_pow_sub_eq hr_pos n fun d hd => of_decide_eq_true (List.mem_filter.mp hd).2,
+              ← mul_assoc]
+        _ ≤ C * r ^ n :=
+            mul_le_of_le_one_right (mul_nonneg hrec.base_nonneg (by positivity)) hfilt
 
 /-- Unit-base specialization `T n ≤ r ^ n` when `C = 1`. -/
 theorem le_pow {T : ℕ → ℝ} {steps : List ℕ}
@@ -425,22 +412,18 @@ private theorem sum_children_pow_le {r : ℝ} (hr : 1 ≤ r) {m : ℕ}
     (children.map f).sum ≤ r ^ m * charSum steps' r := by
   have hr0 : 0 < r := by positivity
   induction hrel with
-  | nil =>
-    simp only [List.map_nil, List.sum_nil, charSum_nil, mul_zero, le_refl]
-  | @cons child d cs ds hcd hrest ih =>
-    have hc_le : f child ≤ r ^ T.measure child := hf child List.mem_cons_self
-    have hpow_le : r ^ T.measure child ≤ r ^ (m - d) := pow_le_pow_right₀ hr (by omega)
-    have hd_le : d ≤ m := by omega
+  | nil => simp
+  | @cons child d cs ds hcd _ ih =>
+    have hpow : f child ≤ r ^ (m - d) :=
+      (hf child List.mem_cons_self).trans (pow_le_pow_right₀ hr (by omega))
     have hterm : r ^ (m - d) = r ^ m * r ^ (-(d : ℝ)) := by
       rw [rpow_neg_natCast_eq_inv_pow hr0.le]
-      calc
-        r ^ (m - d) = r ^ (m - d) * (r ^ d * (r⁻¹) ^ d) := by
-          rw [← mul_pow, mul_inv_cancel₀ hr0.ne', one_pow, mul_one]
-        _ = (r ^ (m - d) * r ^ d) * (r⁻¹) ^ d := by ring
-        _ = r ^ m * (r⁻¹) ^ d := by rw [← pow_add, Nat.sub_add_cancel hd_le]
-    have hrest_le := ih fun c hc => hf c (List.mem_cons_of_mem _ hc)
+      calc r ^ (m - d)
+          = r ^ (m - d) * (r ^ d * (r⁻¹) ^ d) := by
+            rw [← mul_pow, mul_inv_cancel₀ hr0.ne', one_pow, mul_one]
+        _ = r ^ m * (r⁻¹) ^ d := by rw [← mul_assoc, ← pow_add, Nat.sub_add_cancel (by omega)]
     rw [List.map_cons, List.sum_cons, charSum_cons, mul_add]
-    linarith [hc_le.trans hpow_le]
+    linarith [ih fun c hc => hf c (List.mem_cons_of_mem _ hc)]
 
 /-- **Search-tree leaf bound.** If `1 ≤ r` and `charSum T.steps r ≤ 1`, then the search tree rooted
 at `s` has at most `r ^ T.measure s` leaves. -/
@@ -449,12 +432,10 @@ theorem leafCount_le_pow {r : ℝ} (hr : 1 ≤ r) (hchar : charSum T.steps r ≤
   cases hleaf : T.isLeaf s
   · rw [T.leafCount_of_not_isLeaf hleaf, Nat.cast_list_sum, List.map_map]
     obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
-    have hsum := T.sum_children_pow_le hr hrel (f := fun c => (T.leafCount c : ℝ)) fun c hc =>
-      have := T.measure_child_lt hleaf hc
-      leafCount_le_pow hr hchar c
-    have hchar' : charSum steps' r ≤ 1 :=
-      (charSum_sublist hsub (by linarith)).trans hchar
-    exact hsum.trans (mul_le_of_le_one_right (by positivity) hchar')
+    refine (T.sum_children_pow_le hr hrel fun c hc => ?_).trans
+      (mul_le_of_le_one_right (by positivity) ((charSum_sublist hsub (by linarith)).trans hchar))
+    have := T.measure_child_lt hleaf hc
+    exact leafCount_le_pow hr hchar c
   · rw [T.leafCount_of_isLeaf hleaf, Nat.cast_one]
     exact one_le_pow₀ hr
 termination_by T.measure s
@@ -469,43 +450,28 @@ theorem nodeCount_le_mul_pow {r : ℝ} (hr : 1 ≤ r) (hchar : charSum T.steps r
   cases hleaf : T.isLeaf s
   · rw [T.nodeCount_of_not_isLeaf hleaf, Nat.cast_add, Nat.cast_one, Nat.cast_list_sum,
       List.map_map]
-    rcases hcs : T.children s with _ | ⟨c₀, cs⟩
-    · simp only [List.map_nil, List.sum_nil, add_zero]
-      have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
-      nlinarith
-    · obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
-      have hrel' : List.Forall₂ (fun child d => T.measure child + d ≤ m) (c₀ :: cs) steps' :=
-        hm ▸ hcs ▸ hrel
-      have hchild_bound : ∀ c ∈ (c₀ :: cs),
-          ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount) c ≤ (m : ℝ) * r ^ T.measure c := by
-        intro c hc
-        have hc_mem : c ∈ T.children s := by rwa [hcs]
-        have hlt : T.measure c < m := hm ▸ T.measure_child_lt hleaf hc_mem
-        have hle_m : (T.measure c + 1 : ℝ) ≤ m := by exact_mod_cast hlt
-        exact (nodeCount_le_mul_pow hr hchar c).trans
-          (mul_le_mul_of_nonneg_right hle_m (by positivity))
-      have hsum1 : ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤
-          ((c₀ :: cs).map fun c => (m : ℝ) * r ^ T.measure c).sum :=
-        List.sum_le_sum hchild_bound
-      have hfactor := List.sum_map_mul_left (c₀ :: cs) (fun c => r ^ T.measure c) (m : ℝ)
-      have hsum2 := T.sum_children_pow_le hr hrel' (f := fun c => r ^ T.measure c)
-        fun _ _ => le_rfl
-      have hchar' : charSum steps' r ≤ 1 :=
-        (charSum_sublist hsub (by linarith)).trans hchar
-      have hmr : 0 ≤ (m : ℝ) * r ^ m := by positivity
-      have htot : ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤ (m : ℝ) * r ^ m := by
-        calc
-          ((c₀ :: cs).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum
-              ≤ (m : ℝ) * ((c₀ :: cs).map fun c => r ^ T.measure c).sum := hfactor ▸ hsum1
-          _ ≤ (m : ℝ) * (r ^ m * charSum steps' r) :=
-              mul_le_mul_of_nonneg_left hsum2 (Nat.cast_nonneg m)
-          _ = ((m : ℝ) * r ^ m) * charSum steps' r := by ring
-          _ ≤ ((m : ℝ) * r ^ m) * 1 := mul_le_mul_of_nonneg_left hchar' hmr
-          _ = (m : ℝ) * r ^ m := mul_one _
-      nlinarith
+    obtain ⟨steps', hsub, hrel⟩ := T.children_steps s hleaf
+    have hsum1 : ((T.children s).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤
+        (m : ℝ) * ((T.children s).map fun c => r ^ T.measure c).sum := by
+      rw [← List.sum_map_mul_left]
+      refine List.sum_le_sum fun c hc => ?_
+      have hlt : T.measure c < m := hm ▸ T.measure_child_lt hleaf hc
+      have hle_m : (T.measure c + 1 : ℝ) ≤ m := by exact_mod_cast hlt
+      exact (nodeCount_le_mul_pow hr hchar c).trans
+        (mul_le_mul_of_nonneg_right hle_m (by positivity))
+    have hsum2 := T.sum_children_pow_le hr (hm ▸ hrel) (f := fun c => r ^ T.measure c)
+      fun _ _ => le_rfl
+    have hchar' : charSum steps' r ≤ 1 := (charSum_sublist hsub (by linarith)).trans hchar
+    have htot : ((T.children s).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum ≤ (m : ℝ) * r ^ m :=
+      calc ((T.children s).map ((Nat.cast : ℕ → ℝ) ∘ T.nodeCount)).sum
+          ≤ (m : ℝ) * ((T.children s).map fun c => r ^ T.measure c).sum := hsum1
+        _ ≤ (m : ℝ) * (r ^ m * charSum steps' r) :=
+            mul_le_mul_of_nonneg_left hsum2 (Nat.cast_nonneg m)
+        _ = (m : ℝ) * r ^ m * charSum steps' r := (mul_assoc _ _ _).symm
+        _ ≤ (m : ℝ) * r ^ m := mul_le_of_le_one_right (by positivity) hchar'
+    linarith
   · rw [T.nodeCount_of_isLeaf hleaf, Nat.cast_one]
-    have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
-    nlinarith
+    nlinarith [Nat.cast_nonneg (α := ℝ) m]
 termination_by T.measure s
 
 /-- **Separating per-node overhead.** If `nodeWork u ≤ W` at every state reachable from `s`, then
@@ -575,8 +541,7 @@ theorem charSum_fibonacci : charSum [1, 2] goldenBranchFactor = 1 := by
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero, pow_one]
   have hsq : goldenBranchFactor ^ 2 = goldenBranchFactor + 1 := by
     unfold goldenBranchFactor
-    have h5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
-    nlinarith
+    nlinarith [Real.sq_sqrt (by norm_num : (0 : ℝ) ≤ 5)]
   field_simp [hg_pos.ne']
   linarith
 
@@ -611,23 +576,22 @@ theorem one_lt_prefixBranchFactor {k : ℕ} (hk : 1 ≤ k) : 1 < prefixBranchFac
 /-- `prefixBranchFactor k < 2` for every `k`. -/
 theorem prefixBranchFactor_lt_two (k : ℕ) : prefixBranchFactor k < 2 := by
   unfold prefixBranchFactor
-  have hpos : (0 : ℝ) < (1 / 2 : ℝ) ^ k := by positivity
-  linarith
+  linarith [show (0 : ℝ) < (1 / 2 : ℝ) ^ k by positivity]
 
 private theorem geom_inv_sum_mul_sub_one (r : ℝ) (hr : r ≠ 0) (k : ℕ) :
     (r - 1) * ((List.range' 1 k).map fun d : ℕ => (r⁻¹) ^ d).sum = 1 - (r⁻¹) ^ k := by
   induction k with
-  | zero => simp only [List.range'_zero, List.map_nil, List.sum_nil, mul_zero, pow_zero, sub_self]
+  | zero => simp
   | succ k ih =>
     rw [List.range'_1_concat, List.map_append, List.sum_append, List.map_singleton,
       List.sum_singleton, Nat.add_comm 1 k, mul_add, ih]
-    have h1 : (r - 1) * (r⁻¹) ^ (k + 1) = (r⁻¹) ^ k - (r⁻¹) ^ (k + 1) := by
-      calc
-        (r - 1) * (r⁻¹) ^ (k + 1) = r * ((r⁻¹) ^ k * r⁻¹) - (r⁻¹) ^ (k + 1) := by
-          rw [pow_succ, sub_mul, one_mul, ← pow_succ]
-        _ = (r * r⁻¹) * (r⁻¹) ^ k - (r⁻¹) ^ (k + 1) := by ring
-        _ = (r⁻¹) ^ k - (r⁻¹) ^ (k + 1) := by rw [mul_inv_cancel₀ hr, one_mul]
-    linarith
+    calc 1 - (r⁻¹) ^ k + (r - 1) * (r⁻¹) ^ (k + 1)
+        = 1 - (r⁻¹) ^ k + (r * r⁻¹ * (r⁻¹) ^ k - (r⁻¹) ^ (k + 1)) := by
+          rw [pow_succ (r⁻¹) k]
+          ring
+      _ = 1 - (r⁻¹) ^ (k + 1) := by
+          rw [mul_inv_cancel₀ hr]
+          ring
 
 /-- **Closed-form `k`-clause branching bound.** For every `k ≥ 1`,
 `charSum (prefixSteps k) (prefixBranchFactor k) ≤ 1`. -/
@@ -635,19 +599,12 @@ theorem charSum_prefixSteps_le_one {k : ℕ} (hk : 1 ≤ k) :
     charSum (prefixSteps k) (prefixBranchFactor k) ≤ 1 := by
   set r := prefixBranchFactor k
   have hr1 : 1 < r := one_lt_prefixBranchFactor hk
-  have hr2 : r < 2 := prefixBranchFactor_lt_two k
   have hr0 : 0 < r := by linarith
   rw [charSum_eq_sum_inv_pow (prefixSteps k) hr0.le, prefixSteps]
   have hgeom := geom_inv_sum_mul_sub_one r hr0.ne' k
-  have hinv_gt : (1 / 2 : ℝ) ≤ r⁻¹ := by
-    rw [one_div]
-    exact inv_anti₀ hr0 hr2.le
-  have hpow_gt : (1 / 2 : ℝ) ^ k ≤ (r⁻¹) ^ k :=
-    pow_le_pow_left₀ (by norm_num) hinv_gt k
-  have hsub : 1 - (r⁻¹) ^ k ≤ r - 1 := by
-    have hr_def : r = 2 - (1 / 2 : ℝ) ^ k := rfl
-    linarith
-  have hr_sub_pos : 0 < r - 1 := by linarith
+  have hpow : (1 / 2 : ℝ) ^ k ≤ (r⁻¹) ^ k := pow_le_pow_left₀ (by norm_num)
+    (one_div (2 : ℝ) ▸ inv_anti₀ hr0 (prefixBranchFactor_lt_two k).le) k
+  have hr_def : r = 2 - (1 / 2 : ℝ) ^ k := rfl
   nlinarith
 
 end Cslib.BranchingVector

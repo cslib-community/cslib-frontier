@@ -111,25 +111,20 @@ in the support gives the weight of the choice. -/
 theorem sum_ite_forall_eq_incidenceWeight (S : κ → Finset ι) :
     (∑ x : ι → Bool, if ∀ i, ∀ v ∈ S i, x v = true then (1 : R) else 0) =
       incidenceWeight S := by
-  have hprod : ∀ x : ι → Bool, (if ∀ i, ∀ v ∈ S i, x v = true then (1 : R) else 0) =
+  have hprod (x : ι → Bool) : (if ∀ i, ∀ v ∈ S i, x v = true then (1 : R) else 0) =
       ∏ v, if (∃ i, v ∈ S i) → x v = true then 1 else 0 := by
-    intro x
     rw [Fintype.prod_boole]
-    refine if_congr ⟨fun h v hv => ?_, fun h i v hv => h v ⟨i, hv⟩⟩ rfl rfl
-    obtain ⟨i, hi⟩ := hv
-    exact h i v hi
+    exact if_congr ⟨fun h v ⟨i, hi⟩ => h i v hi, fun h i v hv => h v ⟨i, hv⟩⟩ rfl rfl
   simp_rw [hprod]
   calc (∑ x : ι → Bool, ∏ v, if (∃ i, v ∈ S i) → x v = true then (1 : R) else 0)
       = ∏ v, ∑ b : Bool, if (∃ i, v ∈ S i) → b = true then (1 : R) else 0 :=
         (Fintype.prod_sum fun v (b : Bool) =>
           if (∃ i, v ∈ S i) → b = true then (1 : R) else 0).symm
-    _ = incidenceWeight S := by
-        refine prod_congr rfl fun v _ => ?_
+    _ = incidenceWeight S := prod_congr rfl fun v _ => by
         rw [Fintype.sum_bool]
         by_cases hv : ∃ i, v ∈ S i
         · simp only [hv, forall_const, Bool.false_eq_true, ↓reduceIte, add_zero]
-        · simp only [hv, IsEmpty.forall_iff, ↓reduceIte]
-          exact one_add_one_eq_two
+        · simp only [hv, IsEmpty.forall_iff, ↓reduceIte, one_add_one_eq_two]
 
 end Defs
 

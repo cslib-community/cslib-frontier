@@ -106,16 +106,14 @@ theorem relation_not_iff (s : SignPattern) (a : Fin 4 → Bool) :
 /-- Every signed reference-lifted clause has a satisfying tuple. -/
 theorem relation_nonempty (s : SignPattern) : (CSP.booleanRelation arity sem s).Nonempty := by
   obtain ⟨p, q, r⟩ := s
-  refine ⟨![false, p, q, r], ?_⟩
-  change sem ⟨p, q, r⟩ (List.ofFn ![false, p, q, r]) = true
-  simp [sem, List.ofFn_succ]
+  exact ⟨![false, p, q, r], show sem ⟨p, q, r⟩ (List.ofFn ![false, p, q, r]) = true by
+    simp [sem, List.ofFn_succ]⟩
 
 /-- Any two distinct positions are distinguished by some satisfying tuple of the relation. -/
 theorem separates_coordinates : ∀ (s : SignPattern) (i j : Fin 4), i ≠ j →
-    ∃ a : Fin 4 → Bool, a ∈ CSP.booleanRelation arity sem s ∧ a i ≠ a j := by
-  change ∀ (s : SignPattern) (i j : Fin 4), i ≠ j →
-    ∃ a : Fin 4 → Bool, sem s (List.ofFn a) = true ∧ a i ≠ a j
-  decide
+    ∃ a : Fin 4 → Bool, a ∈ CSP.booleanRelation arity sem s ∧ a i ≠ a j :=
+  show ∀ (s : SignPattern) (i j : Fin 4), i ≠ j →
+    ∃ a : Fin 4 → Bool, sem s (List.ofFn a) = true ∧ a i ≠ a j by decide
 
 end SelfDualThreeSAT
 
@@ -143,12 +141,11 @@ is nonempty, so the singleton malformed reject instance satisfies the same bound
 theorem length_ofExactThreeSAT_le (φ : CNF ℕ) :
     (ofExactThreeSAT φ).length ≤ φ.length := by
   unfold ofExactThreeSAT
-  split
+  split_ifs with hvalid
   · simp
-  · rename_i hvalid
-    cases φ with
+  · cases φ with
     | nil => exact (hvalid rfl).elim
-    | cons c φ => simp
+    | cons _ _ => simp
 
 private theorem eval_constraint {c : Clause ℕ} (hc : c.length = 3) (τ : ℕ → Bool) :
     (constraint c).eval sem τ = c.eval (fun v => τ (v + 1) ^^ τ 0) := by
@@ -178,21 +175,14 @@ private theorem eval_map {φ : CNF ℕ} (hφ : ∀ c ∈ φ, c.length = 3) (τ :
 theorem ofExactThreeSAT_mem_iff (φ : CNF ℕ) :
     ofExactThreeSAT φ ∈ SelfDualThreeSAT ↔ φ ∈ ExactThreeSAT := by
   by_cases hφ : ∀ c ∈ φ, c.length = 3
-  · have hvalid : valid φ = true := by simpa [valid] using hφ
-    change (ofExactThreeSAT φ).WellFormed arity ∧ (ofExactThreeSAT φ).Satisfiable sem ↔
+  · change (ofExactThreeSAT φ).WellFormed arity ∧ (ofExactThreeSAT φ).Satisfiable sem ↔
       (∀ c ∈ φ, c.length = 3) ∧ φ.Satisfiable
-    rw [ofExactThreeSAT, ite_eq_left hvalid]
-    constructor
-    · rintro ⟨_, τ, hτ⟩
-      exact ⟨hφ, _, (eval_map hφ τ).symm.trans hτ⟩
-    · rintro ⟨_, σ, hσ⟩
-      refine ⟨wellFormed_map hφ, (fun n => match n with | 0 => false | v + 1 => σ v), ?_⟩
-      rw [eval_map hφ]
-      simpa only [Bool.xor_false] using hσ
-  · have hvalid : valid φ = false := by
-      cases h : valid φ
-      · rfl
-      · exact (hφ (by simpa [valid] using h)).elim
+    rw [ofExactThreeSAT, ite_eq_left (by simpa [valid] using hφ)]
+    refine ⟨fun ⟨_, τ, hτ⟩ => ⟨hφ, _, (eval_map hφ τ).symm.trans hτ⟩, fun ⟨_, σ, hσ⟩ =>
+      ⟨wellFormed_map hφ, fun | 0 => false | v + 1 => σ v, ?_⟩⟩
+    rw [eval_map hφ]
+    simpa only [Bool.xor_false] using hσ
+  · have hvalid : valid φ = false := Bool.eq_false_iff.mpr fun h => hφ (by simpa [valid] using h)
     simp [ofExactThreeSAT, hvalid, SelfDualThreeSAT, CSPSAT.mem_iff, CSP.WellFormed,
       arity, ExactThreeSAT, hφ]
 

@@ -248,9 +248,8 @@ theorem realizes_readLocStateGen :
       ReadLocStatePre
       (fun _ _ => 0) := by
   unfold readLocStateGenProg
-  have hlo := realizes_locStateOffset
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_locStateOffset]
   all_goals (
     rcases d with ⟨⟨⟨base, offLoc⟩, totalLoc, w_in⟩, b, loc⟩
     dsimp only [ReadLocStatePre] at h
@@ -414,9 +413,8 @@ theorem realizes_writeLocStateGen :
       WriteLocStatePre
       (fun _ _ => 0) := by
   unfold writeLocStateGenProg
-  have hlo := realizes_locStateOffset
   have hcs_r : ∀ a s', (Memory.spec 0).clientState s' (Memory.read a) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_locStateOffset]
   all_goals (
     rcases d with ⟨⟨⟨⟨base, offLoc⟩, totalLoc, w_in⟩, b, loc⟩, val⟩
     dsimp only [WriteLocStatePre, ReadLocStatePre] at h
@@ -754,9 +752,8 @@ private theorem realizes_scanBucketStep :
       ScanBucketStepPre
       (fun _ _ => 0) := by
   unfold scanBucketStepProg
-  have hrp := realizes_readPackedGen
   have hcs : ∀ x s', (Memory.spec 0).clientState s' (readPackedGenProg x) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨base, offArr⟩, gBits, w_in⟩, stride, target⟩, k, acc⟩
     clear hwords hmem
@@ -1056,10 +1053,8 @@ private theorem realizes_permEvalActDest :
       PermEvalPre
       (fun _ _ => 0) := by
   unfold permEvalActDestProg
-  have hrp := realizes_readPackedGen
-  have hsbl := realizes_scanBucketLoop
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen, realizes_scanBucketLoop]
   all_goals (
     rcases d with ⟨⟨prt, mode⟩, x⟩
     clear hwords hmem
@@ -1300,9 +1295,7 @@ private theorem realizes_permInitActStep :
       PermEvalPre
       (fun _ _ => 0) := by
   unfold permInitActStepProg
-  have hpe := realizes_permEvalActDest
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_permEvalActDest, realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨prt, mode⟩, i⟩
     clear hwords hmem
@@ -1398,11 +1391,8 @@ private theorem realizes_permInnerStep :
       PermInnerStepPre
       (fun _ _ => 0) := by
   unfold permInnerStepProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  have hpe := realizes_permEvalActDest
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen, realizes_permEvalActDest]
   all_goals (
     rcases d with ⟨⟨prt, mode⟩, ⟨running, curDest⟩, curQ, curV⟩
     clear hwords hmem
@@ -1586,12 +1576,9 @@ private theorem realizes_permOuterStep :
       PermEvalPre
       (fun _ _ => 0) := by
   unfold permOuterStepProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  have hpe := realizes_permEvalActDest
-  have hil := realizes_permInnerLoop
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen, realizes_permEvalActDest,
+      realizes_permInnerLoop]
   all_goals (
     rcases d with ⟨⟨prt, mode⟩, idx⟩
     clear hwords hmem
@@ -1716,9 +1703,7 @@ theorem realizes_permuteByTarget :
       (fun w d _ => PermRtEnvGen w d.1)
       (fun _ _ => 0) := by
   unfold permuteByTargetProg
-  have hia := realizes_permInitActLoop
-  have hol := realizes_permOuterLoop
-  realize
+  realize [realizes_permInitActLoop, realizes_permOuterLoop]
   all_goals (
     rcases d with ⟨prt, mode⟩
     clear hwords hmem
@@ -2436,10 +2421,8 @@ private theorem realizes_fbPrefixStep :
       FbPrefixStepPre
       (fun _ _ => 0) := by
   unfold fbPrefixStepProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
   have hcs : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' := fun _ _ => rfl
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen]
   all_goals (
     rcases d with ⟨prt, b, acc⟩
     clear hwords hmem
@@ -2520,11 +2503,8 @@ theorem realizes_fastToCsrGen :
       (fun w d _ => WhpLargeEnvGen w d.1 d.2)
       (fun _ _ => 0) := by
   unfold fastToCsrGenProg
-  have hprt := realizes_mkPermRtGen
-  have hwp := realizes_writePackedGen
-  have hfbl := realizes_fbPrefixLoop
-  have hpbt := realizes_permuteByTarget
-  realize
+  realize [realizes_mkPermRtGen, realizes_writePackedGen, realizes_fbPrefixLoop,
+      realizes_permuteByTarget]
   all_goals (
     rcases d with ⟨cp, base⟩
     clear hwords hmem

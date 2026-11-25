@@ -45,12 +45,11 @@ theorem isMatching_matchingOfPositions {S : Finset ℕ}
   have hne : u.val ≠ w.val := fun h => G.induced.ne_of_adj hw.1 (Subtype.ext h)
   obtain ⟨_, i, hi, he⟩ := hw
   obtain ⟨_, j, hj, he'⟩ := hw'
-  have hinc : incident (G.edgeList.getD i (0, 0)) u = true := by
-    rcases he with h | h <;> rw [h] <;> simp [incident]
-  have hinc' : incident (G.edgeList.getD j (0, 0)) u = true := by
-    rcases he' with h | h <;> rw [h] <;> simp [incident]
-  have hij := huniq u u.2 i hi j hj hinc hinc'
-  subst j
+  have hinc {k v : ℕ}
+      (hk : G.edgeList.getD k (0, 0) = (u.val, v) ∨ G.edgeList.getD k (0, 0) = (v, u.val)) :
+      incident (G.edgeList.getD k (0, 0)) u = true := by
+    rcases hk with h | h <;> rw [h] <;> simp [incident]
+  obtain rfl := huniq u u.2 i hi j hj (hinc he) (hinc he')
   apply Subtype.ext
   rcases he with h | h <;> rcases he' with h' | h' <;> rw [h] at h' <;>
     simp only [Prod.mk.injEq] at h' <;> omega
@@ -62,12 +61,8 @@ theorem positions_matchingOfPositions {S : Finset ℕ}
   ext i
   constructor
   · intro hi
-    obtain ⟨hi, hu, hw, _, j, hj, he⟩ := mem_positions.mp hi
-    have hij : j = i := eq_of_getD_edgeList (hS j hj) hi (by
-      rcases he with he | he
-      · exact Or.inl he
-      · exact Or.inr he)
-    exact hij ▸ hj
+    obtain ⟨hi, _, _, _, j, hj, he⟩ := mem_positions.mp hi
+    exact eq_of_getD_edgeList (hS j hj) hi he ▸ hj
   · intro hi
     obtain ⟨hG, hne, ha, hb⟩ := of_mem_edgeList (getD_edgeList_mem (hS i hi))
     refine mem_positions.mpr ⟨hS i hi, ha, hb, ?_, i, hi, Or.inl rfl⟩

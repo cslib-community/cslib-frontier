@@ -66,10 +66,9 @@ private theorem polygonalDrawing_eval_mem_support {G : Graph} {d : OrthogonalDra
     (i : Fin (hd.polygonalDrawing.route e).segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     Complex.equivRealProdCLM ((hd.polygonalDrawing.route e).eval i t) ∈
       support (d.2.getD e []) := by
-  have hlen : 2 ≤ (sourceRoute G d e).reverse.length := by
-    simpa only [List.length_reverse] using sourceRoute_length_ge_two hd e.isLt
   rw [← support_sourceRoute G d e, ← support_reverse (sourceRoute G d e)]
-  exact eval_toPolygonalRoute_mem_support _ hlen i ht
+  exact eval_toPolygonalRoute_mem_support _
+    (by simpa only [List.length_reverse] using sourceRoute_length_ge_two hd e.isLt) i ht
 
 private theorem polygonalDrawing_vertex_contact {G : Graph} {d : OrthogonalDrawing}
     (hd : IsPlanarOrthogonalDrawing G d) (e : Fin G.edges.length)
@@ -86,23 +85,18 @@ private theorem polygonalDrawing_vertex_contact {G : Graph} {d : OrthogonalDrawi
     Complex.equivRealProdCLM (complexPoint (drawingPosition G d v)) at he'
   rw [equivRealProd_complexPoint] at he'
   rw [he'] at hs
+  have hv_of (b : Bool) (hb : Dart.vertex (e, b) = v) :
+      ∃ b, (hd.polygonalDrawing.route e).AtEnd i t b ∧ Dart.vertex (e, b) = v :=
+    ⟨b, (eval_toPolygonalRoute_eq_endpoint_iff hsimple hlen i t ht b).mp
+      (he.trans ((hd.polygonalDrawing.endpoint_eq e b).trans
+        (congrArg hd.polygonalDrawing.vertex hb)).symm), hb⟩
   obtain hfirst | hsecond := hd.avoidsVertices e e.isLt v hv hs
-  · have hv' : Dart.vertex (e, false) = v := by
-      unfold Dart.vertex edgeEndpoint
-      rw [List.getD_eq_getElem _ _ e.isLt]
-      exact hfirst.symm
-    refine ⟨false, ?_, hv'⟩
-    apply (eval_toPolygonalRoute_eq_endpoint_iff hsimple hlen i t ht false).mp
-    exact he.trans ((hd.polygonalDrawing.endpoint_eq e false).trans
-      (congrArg hd.polygonalDrawing.vertex hv')).symm
-  · have hv' : Dart.vertex (e, true) = v := by
-      unfold Dart.vertex edgeEndpoint
-      rw [List.getD_eq_getElem _ _ e.isLt]
-      exact hsecond.symm
-    refine ⟨true, ?_, hv'⟩
-    apply (eval_toPolygonalRoute_eq_endpoint_iff hsimple hlen i t ht true).mp
-    exact he.trans ((hd.polygonalDrawing.endpoint_eq e true).trans
-      (congrArg hd.polygonalDrawing.vertex hv')).symm
+  · refine hv_of false ?_
+    unfold Dart.vertex edgeEndpoint
+    simp [hfirst]
+  · refine hv_of true ?_
+    unfold Dart.vertex edgeEndpoint
+    simp [hsecond]
 
 /-- Full real-support orthogonal drawing validity implies the actual polygonal embedding
 contract, with no supplied rotation or topological comparison premise. -/

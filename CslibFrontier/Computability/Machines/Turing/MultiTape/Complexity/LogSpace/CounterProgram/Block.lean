@@ -70,14 +70,8 @@ theorem codeAt_of_eq {l l' : ℕ} {c : List Instr} (h : P.CodeAt l c) (hl : l = 
 
 private theorem forall_mem_cons_toNat {c : Bool} {regs : List ℕ} (hB : 1 ≤ B)
     (h : ∀ r ∈ regs, r ≤ B) :
-    ∀ r ∈ c.toNat :: regs, r ≤ B := by
-  intro r hr
-  simp only [List.mem_cons] at hr
-  rcases hr with rfl | hr
-  · cases c
-    · exact Nat.zero_le B
-    · exact hB
-  · exact h r hr
+    ∀ r ∈ c.toNat :: regs, r ≤ B :=
+  List.forall_mem_cons.2 ⟨by cases c <;> simp [hB], h⟩
 
 theorem _root_.Turing.CounterProgram.Reaches.sassign {B c l i next : ℕ} {e : Expr}
     {regs : List ℕ} {s' : Config} (hl : P.instr l = (Instr.assign i e next).shift) (hc : c ≤ B)
@@ -85,12 +79,7 @@ theorem _root_.Turing.CounterProgram.Reaches.sassign {B c l i next : ℕ} {e : E
     (h : P.Reaches w (P.Oblivious B) (next, c :: regs.set i (e.eval regs)) s') :
     P.Reaches w (P.Oblivious B) (l, c :: regs) s' :=
   Reaches.oassign hl (by omega) (Expr.readsChoice_shift e)
-    (fun r hr => by
-      simp only [List.mem_cons] at hr
-      rcases hr with rfl | hr
-      · exact hc
-      · exact hB r hr)
-    (by simpa using h)
+    (List.forall_mem_cons.2 ⟨hc, hB⟩) (by simpa using h)
 
 theorem _root_.Turing.CounterProgram.Reaches.slt {B c l yes no : ℕ} {x y : Expr}
     {regs : List ℕ} {s' : Config} (hl : P.instr l = (Instr.lt x y yes no).shift) (hc : c ≤ B)
@@ -99,12 +88,7 @@ theorem _root_.Turing.CounterProgram.Reaches.slt {B c l yes no : ℕ} {x y : Exp
       (if x.eval regs < y.eval regs then yes else no, c :: regs) s') :
     P.Reaches w (P.Oblivious B) (l, c :: regs) s' :=
   Reaches.olt hl (Expr.readsChoice_shift x) (Expr.readsChoice_shift y)
-    (fun r hr => by
-      simp only [List.mem_cons] at hr
-      rcases hr with rfl | hr
-      · exact hc
-      · exact hB r hr)
-    (by simpa using h)
+    (List.forall_mem_cons.2 ⟨hc, hB⟩) (by simpa using h)
 
 namespace Sound
 
@@ -130,13 +114,9 @@ theorem halt (hB : 1 ≤ B) (hl : (P.instr l).halts = true)
 /-- Oblivious deterministic code, above the choice. -/
 theorem of_oblivious (hB : 1 ≤ B) {l' : ℕ} {regs' : List ℕ}
     (hr' : P.Reaches w (P.Oblivious B) (l, 0 :: regs) (l', 0 :: regs'))
-    (h : Sound P w B Post l' regs' T G) : Sound P w B Post l regs T G := by
-  intro c
-  have := allBranches_of_oblivious (Post := Post) hB hr'
-    (Q := fun s => P.AllBranches w B Post
-      (fun s => ∃ (c' : Bool) (regs' : List ℕ), s = (T, c'.toNat :: regs') ∧ G regs') s)
-    (fun c' => h c') c
-  exact this.bind fun _ h => h
+    (h : Sound P w B Post l' regs' T G) : Sound P w B Post l regs T G := fun c =>
+  (allBranches_of_oblivious (Post := Post) hB hr'
+    (Q := P.AllBranches w B Post _) h c).bind fun _ h => h
 
 /-- Deterministic code placed by `padded`, shifted above the choice. -/
 theorem of_reaches (hB : 1 ≤ B) {b : ℕ} {code : List Instr}
@@ -149,15 +129,12 @@ theorem of_reaches (hB : 1 ≤ B) {b : ℕ} {code : List Instr}
 theorem choice (hB : 1 ≤ B) {yes no : ℕ}
     (hl : P.instr l = .lt (.reg 0) (.const 1) yes no) (hregs : ∀ r ∈ regs, r ≤ B)
     (hyes : Sound P w B Post yes regs T G) (hno : Sound P w B Post no regs T G) :
-    Sound P w B Post l regs T G := by
-  intro c
-  have hh : P.halted (l, c.toNat :: regs) = false := by simp [halted, hl, Instr.halts]
-  refine .step hh (forall_mem_cons_toNat hB hregs) fun c' => ?_
+    Sound P w B Post l regs T G := fun c => by
+  refine .step (by simp [halted, hl, Instr.halts]) (forall_mem_cons_toNat hB hregs) fun c' => ?_
   rw [P.step_lt w hl]
   cases c <;> simp only [Expr.eval_reg, Expr.eval_const, List.getD_cons_zero, Bool.toNat_false,
     Bool.toNat_true, Nat.lt_irrefl, zero_lt_one, ↓reduceIte, withChoice, List.set_cons_zero]
-  · exact hyes c'
-  · exact hno c'
+  exacts [hyes c', hno c']
 
 end Sound
 
@@ -205,22 +182,16 @@ theorem choice {B : ℕ} {l' : ℕ} {regs' : List ℕ}
     (hne : l ≠ l') {yes no : ℕ} (hl : P.instr l' = .lt (.reg 0) (.const 1) yes no)
     (h : Complete P w yes regs' T G ∨ Complete P w no regs' T G) :
     Complete P w l regs T G := by
-  have hh : ∀ c : Bool, P.halted (l', c.toNat :: regs') = false := fun c => by
-    simp [halted, hl, Instr.halts]
-  have hstep : ∀ c c' : Bool, Branches (P := P) (w := w) (l', c.toNat :: regs')
-      (cond c no yes, c'.toNat :: regs') := fun c c' => by
-    have := Branches.single (P := P) (w := w) (hh c) c'
-    rw [P.step_lt w hl] at this
-    cases c <;> simpa [withChoice] using this
-  rcases h with ⟨regs₂, hG, h₂⟩ | ⟨regs₂, hG, h₂⟩
-  · refine ⟨regs₂, hG, fun c => ?_⟩
-    obtain ⟨c₂, hc₂⟩ := h₂ false
-    have := branches_of_oblivious hr' c false fun h => absurd (congrArg Prod.fst h) hne
-    exact ⟨c₂, (this.trans (hstep false false)).trans hc₂⟩
-  · refine ⟨regs₂, hG, fun c => ?_⟩
-    obtain ⟨c₂, hc₂⟩ := h₂ true
-    have := branches_of_oblivious hr' c true fun h => absurd (congrArg Prod.fst h) hne
-    exact ⟨c₂, (this.trans (hstep true true)).trans hc₂⟩
+  have step (b : Bool) : Complete P w (cond b no yes) regs' T G → Complete P w l regs T G := by
+    rintro ⟨regs₂, hG, h₂⟩
+    refine ⟨regs₂, hG, fun c => ?_⟩
+    obtain ⟨c₂, hc₂⟩ := h₂ b
+    have h1 := branches_of_oblivious hr' c b fun e => absurd (congrArg Prod.fst e) hne
+    have h2 := Branches.single (P := P) (w := w)
+      (by simp [halted, hl, Instr.halts] : P.halted (l', b.toNat :: regs') = false) b
+    rw [P.step_lt w hl] at h2
+    exact ⟨c₂, (h1.trans (by cases b <;> simpa [withChoice] using h2)).trans hc₂⟩
+  exact h.elim (step false) (step true)
 
 end Complete
 
@@ -251,8 +222,9 @@ theorem Sound.guess (hB : 1 ≤ B) {b x E R : ℕ} {N : Expr} (hP : P.CodeAt b (
     (hNB : N.eval regs ≤ B) (hregs : ∀ r ∈ regs, r ≤ B) :
     Sound P w B Post b regs E (fun regs' => ∃ m < N.eval regs, regs' = regs.set x m) := by
   obtain ⟨h0, h1, h2, h3⟩ := guessCode_instr hP
-  have hset : ∀ m ≤ N.eval regs, ∀ r ∈ regs.set x m, r ≤ B := fun m hm =>
+  have hset m (hm : m ≤ N.eval regs) : ∀ r ∈ regs.set x m, r ≤ B :=
     List.forall_mem_set_of_forall_mem hregs (hm.trans hNB)
+  have hlt m : (Expr.reg x).eval (regs.set x m) = m := by rw [Expr.eval_reg, List.getD_set_self hx]
   have key : ∀ e m, N.eval regs - m = e → m ≤ N.eval regs →
       Sound P w B Post (b + 1) (regs.set x m) E
         (fun regs' => ∃ m < N.eval regs, regs' = regs.set x m) := by
@@ -260,26 +232,20 @@ theorem Sound.guess (hB : 1 ≤ B) {b x E R : ℕ} {N : Expr} (hP : P.CodeAt b (
     induction e with
     | zero =>
       intro m he hm
-      refine Sound.of_oblivious hB (Reaches.slt h1 (Nat.zero_le B) (hset m hm) (Reaches.refl _)) ?_
-      have : ¬ (Expr.reg x).eval (regs.set x m) < N.eval (regs.set x m) := by
-        rw [Expr.eval_reg, List.getD_set_self hx, hN]; omega
-      simp only [this, ↓reduceIte]
-      exact Sound.halt hB hR (fun c => hPost _ rfl) (hset m hm)
+      refine Sound.of_oblivious hB (Reaches.slt h1 (Nat.zero_le B) (hset m hm) (.refl _)) ?_
+      simp only [hlt, hN, show ¬ m < N.eval regs by omega, ↓reduceIte]
+      exact Sound.halt hB hR (fun _ => hPost _ rfl) (hset m hm)
     | succ e ih =>
       intro m he hm
       have hmN : m < N.eval regs := by omega
-      refine Sound.of_oblivious hB (Reaches.slt h1 (Nat.zero_le B) (hset m hm) (Reaches.refl _)) ?_
-      have : (Expr.reg x).eval (regs.set x m) < N.eval (regs.set x m) := by
-        rw [Expr.eval_reg, List.getD_set_self hx, hN]; exact hmN
-      simp only [this, ↓reduceIte]
-      refine Sound.choice hB h2 (hset m hm) (Sound.exit ⟨m, hmN, rfl⟩) ?_
-      refine Sound.of_oblivious hB
-        (Reaches.sassign h3 (Nat.zero_le B) (hset m hm) (Reaches.refl _)) ?_
-      simp only [Expr.eval_add, Expr.eval_reg, Expr.eval_const, List.getD_set_self hx,
-        List.set_set]
+      refine Sound.of_oblivious hB (Reaches.slt h1 (Nat.zero_le B) (hset m hm) (.refl _)) ?_
+      simp only [hlt, hN, hmN, ↓reduceIte]
+      refine Sound.choice hB h2 (hset m hm) (.exit ⟨m, hmN, rfl⟩)
+        (Sound.of_oblivious hB (Reaches.sassign h3 (Nat.zero_le B) (hset m hm) (.refl _)) ?_)
+      simp only [Expr.eval_add, hlt, Expr.eval_const, List.set_set]
       exact ih (m + 1) (by omega) (by omega)
-  refine Sound.of_oblivious hB (Reaches.sassign h0 (Nat.zero_le B) hregs (Reaches.refl _)) ?_
-  exact key _ 0 rfl (Nat.zero_le _)
+  exact Sound.of_oblivious hB (Reaches.sassign h0 (Nat.zero_le B) hregs (.refl _))
+    (key _ 0 rfl (Nat.zero_le _))
 
 /-- Some branch of a guess reaches `E` with any value below `N`. -/
 theorem Complete.guess {b x E R : ℕ} {N : Expr} (hP : P.CodeAt b (guessCode b x N E R))
@@ -288,8 +254,9 @@ theorem Complete.guess {b x E R : ℕ} {N : Expr} (hP : P.CodeAt b (guessCode b 
     (hNB : N.eval regs ≤ B) (hregs : ∀ r ∈ regs, r ≤ B) {m : ℕ} (hm : m < N.eval regs) :
     Complete P w b regs E (· = regs.set x m) := by
   obtain ⟨h0, h1, h2, h3⟩ := guessCode_instr hP
-  have hset : ∀ j ≤ N.eval regs, ∀ r ∈ regs.set x j, r ≤ B := fun j hj =>
+  have hset j (hj : j ≤ N.eval regs) : ∀ r ∈ regs.set x j, r ≤ B :=
     List.forall_mem_set_of_forall_mem hregs (hj.trans hNB)
+  have hlt j : (Expr.reg x).eval (regs.set x j) = j := by rw [Expr.eval_reg, List.getD_set_self hx]
   have key : ∀ e j, m - j = e → j ≤ m →
       Complete P w (b + 1) (regs.set x j) E (· = regs.set x m) := by
     intro e
@@ -297,25 +264,27 @@ theorem Complete.guess {b x E R : ℕ} {N : Expr} (hP : P.CodeAt b (guessCode b 
     | zero =>
       intro j he hj
       obtain rfl : j = m := by omega
-      have : (Expr.reg x).eval (regs.set x j) < N.eval (regs.set x j) := by
-        rw [Expr.eval_reg, List.getD_set_self hx, hN]; exact hm
-      refine Complete.choice (B := B) (Reaches.slt h1 (Nat.zero_le B) (hset j hm.le)
-        (by simp only [this, ↓reduceIte]; exact Reaches.refl _)) (by omega) h2
-        (Or.inl (Complete.refl rfl))
+      refine Complete.choice (B := B) (Reaches.slt h1 (Nat.zero_le B) (hset j hm.le) ?_)
+        (by omega) h2 (.inl (.refl rfl))
+      simp only [hlt, hN, hm, ↓reduceIte]
+      exact .refl _
     | succ e ih =>
       intro j he hj
-      have : (Expr.reg x).eval (regs.set x j) < N.eval (regs.set x j) := by
-        rw [Expr.eval_reg, List.getD_set_self hx, hN]; omega
-      refine Complete.choice (B := B) (Reaches.slt h1 (Nat.zero_le B) (hset j (by omega))
-        (by simp only [this, ↓reduceIte]; exact Reaches.refl _)) (by omega) h2 (Or.inr ?_)
+      have hjN : j < N.eval regs := by omega
+      have hstep : P.Reaches w (P.Oblivious B)
+          (if (Expr.reg x).eval (regs.set x j) < N.eval (regs.set x j) then b + 2 else R,
+            0 :: regs.set x j)
+          (b + 2, 0 :: regs.set x j) := by
+        simp only [hlt, hN, hjN, ↓reduceIte]
+        exact .refl _
+      refine Complete.choice (B := B) (Reaches.slt h1 (Nat.zero_le B) (hset j hjN.le) hstep)
+        (by omega) h2 (.inr ?_)
       refine Complete.of_oblivious (B := B)
-        (Reaches.sassign h3 (Nat.zero_le B) (hset j (by omega)) (Reaches.refl _)) ?_
-      simp only [Expr.eval_add, Expr.eval_reg, Expr.eval_const, List.getD_set_self hx,
-        List.set_set]
+        (Reaches.sassign h3 (Nat.zero_le B) (hset j hjN.le) (.refl _)) ?_
+      simp only [Expr.eval_add, hlt, Expr.eval_const, List.set_set]
       exact ih (j + 1) (by omega) (by omega)
-  refine Complete.of_oblivious (B := B)
-    (Reaches.sassign h0 (Nat.zero_le B) hregs (Reaches.refl _)) ?_
-  exact key _ 0 rfl (Nat.zero_le _)
+  exact Complete.of_oblivious (B := B) (Reaches.sassign h0 (Nat.zero_le B) hregs (.refl _))
+    (key _ 0 rfl (Nat.zero_le _))
 
 end Block
 
