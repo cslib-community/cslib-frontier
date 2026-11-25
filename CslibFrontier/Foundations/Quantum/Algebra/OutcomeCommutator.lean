@@ -91,11 +91,8 @@ private theorem mixedDefect_eq (φ : AlgState A)
   have hx : star (p * q) * (p * q) = q * p * q := by
     rw [star_mul, hp, hq, mul_assoc, ← mul_assoc p p, show p * p = p from hP _, ← mul_assoc]
   have hy : star (q * r) * (q * r) = q * r := by
-    rw [star_mul, hq, hr, hs.eq]
-    calc
-      _ = q * (r * q) * r := by simp only [mul_assoc]
-      _ = q * q * (r * r) := by rw [hs.eq]; simp only [mul_assoc]
-      _ = _ := by rw [show q * q = q from hQ _, show r * r = r from hR _]
+    rw [star_mul, hq, hr, mul_assoc, ← mul_assoc q q, show q * q = q from hQ _, ← mul_assoc,
+      hs.eq, mul_assoc, show r * r = r from hR _]
   change φ.norm (p * q - q * r) ^ 2 = _
   have he := norm_sub_sq (𝕜 := ℂ) (φ.toPreGNS (p * q)) (φ.toPreGNS (q * r))
   rw [← map_sub, φ.inner_toPreGNS] at he
