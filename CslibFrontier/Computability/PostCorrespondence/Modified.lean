@@ -219,8 +219,7 @@ private theorem complete_of_marked (I : MInstance α) :
       List.length_cons, List.length_nil] at this
     omega
   | d :: ρ, T, B, hρ, h => by
-    have hd := hρ d List.mem_cons_self
-    have hρ' : ∀ d ∈ ρ, d ∈ toPCP I := fun e he => hρ e (List.mem_cons_of_mem d he)
+    obtain ⟨hd, hρ'⟩ := List.forall_mem_cons.1 hρ
     simp only [toPCP, List.mem_cons, List.mem_map, List.mem_filter] at hd
     rcases hd with rfl | rfl | ⟨e, ⟨he, -⟩, rfl⟩
     · -- the start domino again: impossible, by the parity of the prefix
@@ -247,11 +246,7 @@ private theorem complete_of_marked (I : MInstance α) :
       simp only [tops_cons, bottoms_cons, markPiece] at h
       obtain ⟨ds, hds, heq⟩ := complete_of_marked I ρ (T ++ e.top) (B ++ e.bottom) hρ' (by
         rw [starBefore_append, List.append_assoc, h, key])
-      refine ⟨e :: ds, ?_, by simpa using heq⟩
-      intro d hd
-      rcases List.mem_cons.mp hd with rfl | hd
-      · exact he
-      · exact hds d hd
+      exact ⟨e :: ds, List.forall_mem_cons.2 ⟨he, hds⟩, by simpa using heq⟩
 
 /-- The heads of the concatenation of words whose heads satisfy `p`. -/
 private theorem head?_flatMap {β : Type*} {p : α → Prop} {f : β → List α} :
@@ -285,12 +280,10 @@ theorem solvable_toPCP_iff (I : MInstance α) : Solvable (toPCP I) ↔ I.Solvabl
         · exact absurd rfl (hρ₁ _ hd)
         · simp [stopPiece]
         · exact ⟨start_notMem_starBefore _, start_notMem_starAfter _⟩
-      have ht : start ∉ tops ρ₁ := by
-        simp only [tops, List.mem_flatMap, not_exists, not_and]
-        exact fun d hd => (hnot d hd).1
-      have hb : start ∉ bottoms ρ₁ := by
-        simp only [bottoms, List.mem_flatMap, not_exists, not_and]
-        exact fun d hd => (hnot d hd).2
+      have ht : start ∉ tops ρ₁ := fun h =>
+        (List.mem_flatMap.1 h).elim fun d ⟨hd, h'⟩ => (hnot d hd).1 h'
+      have hb : start ∉ bottoms ρ₁ := fun h =>
+        (List.mem_flatMap.1 h).elim fun d ⟨hd, h'⟩ => (hnot d hd).2 h'
       simp only [tops_append, tops_cons, startPiece, bottoms_append, bottoms_cons,
         List.cons_append] at heq
       obtain ⟨-, heq⟩ := (List.append_cons_inj_of_notMem_prefix ht hb).mp heq
