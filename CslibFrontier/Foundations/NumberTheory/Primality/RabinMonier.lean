@@ -137,9 +137,7 @@ private theorem four_le_index_of_coprime {A B n m : ℕ} (hn : A * B = n) (hA : 
 private theorem exists_not_mem_of_sq_dvd {A n m p : ℕ} (hp : p.Prime) (hp2 : p ≠ 2)
     (hpA : p ^ 2 ∣ A) (hAn : A ∣ n) (h1 : 1 < n) (hm : 2 * m ∣ n - 1) :
     ∃ w : (ZMod A)ˣ, w ∉ powEqOneOrNegOne A m := by
-  have hA0 : A ≠ 0 := by
-    rintro rfl
-    exact absurd (Nat.eq_zero_of_zero_dvd hAn) (by omega)
+  have hA0 : A ≠ 0 := ne_zero_of_dvd_ne_zero (by omega) hAn
   obtain ⟨c, hc1, hcn⟩ := exists_unit_pow_of_sq_dvd hp hp2 hA0 hpA
   refine ⟨c, fun hc => ?_⟩
   rcases mem_powEqOneOrNegOne.1 hc with hc | hc
@@ -280,11 +278,10 @@ theorem four_mul_card_powEqOneOrNegOne_le {n m : ℕ} [NeZero n] (hodd : Odd n) 
     have hp4 : 4 ≤ p ^ (e - 1) := by
       have hp3 : 3 ≤ p := by have := hp.two_le; omega
       rcases Nat.lt_or_ge e 3 with he3 | he3
-      · have he2' : e = 2 := by omega
-        rw [he2', show 2 - 1 = 1 from rfl, pow_one]
-        by_contra! h
-        have : p = 3 := by omega
-        exact h9 (by rw [← hn_eq, he2', this]; rfl)
+      · obtain rfl : e = 2 := by omega
+        have : p ≠ 3 := by rintro rfl; exact h9 (by rw [← hn_eq]; rfl)
+        rw [Nat.add_one_sub_one, pow_one]
+        omega
       · calc 4 ≤ 3 ^ 2 := by norm_num
           _ ≤ p ^ 2 := Nat.pow_le_pow_left hp3 2
           _ ≤ p ^ (e - 1) := Nat.pow_le_pow_right hp.pos (by omega)
