@@ -194,10 +194,7 @@ private theorem supportScanCode_prefix (bits offset count i : ℕ) (hi : i ≤ c
 theorem supportScanCode_eq_code (bits offset count : ℕ) :
     supportScanCode bits offset count = (supportScanCircuit bits offset count).code := by
   have h := supportScanCode_prefix bits offset count count (Nat.le_refl count)
-  rw [List.take_range, Nat.min_self] at h
-  have hoff : offset + count - count = offset := by omega
-  rw [hoff] at h
-  exact h
+  rwa [List.take_range, Nat.min_self, Nat.add_sub_cancel] at h
 
 private abbrev ResolveParameters := ℕ × (ℕ × ℕ)
 
