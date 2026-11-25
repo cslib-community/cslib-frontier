@@ -46,9 +46,8 @@ import Mathlib.Data.Finset.Card
 This module formalizes QuickSilver / VOLE-IT-MAC polynomial constraint checks of arbitrary degree
 `d ≥ 1` over a finite field or commutative ring, full honest-receiver view zero-knowledge via
 `(d - 1)` VOLE masks, soundness over arbitrary challenge embeddings (including single-shot FAEST
-grinding subsets and scalar batching), generalized `VOLEHash` / `ZKHash` parameter-error bounds
-covering VOLE-ACT's degree-9 spend circuit, and the ACT V1 domain-separated random linear
-combination (`l = H(chal2 || domain)`) check in the random oracle model.
+grinding subsets and unmasked scalar-power batching), and the ACT V1 domain-separated random
+linear combination (`l = H(chal2 || domain)`) check in the random oracle model.
 
 For a multivariate constraint `F_poly` of total degree at most `d` evaluated on VOLE-authenticated
 wires `ρ_i(X) = v_i + w_i * X`, homogenizing every monomial of total degree `deg ≤ d` by
@@ -56,7 +55,11 @@ wires `ρ_i(X) = v_i + w_i * X`, homogenizing every monomial of total degree `de
 whose degree-`d` coefficient is `MvPolynomial.eval w F_poly`. Adding `(d - 1)` fresh VOLE
 mask correlations `(u_m, v_m, q_m)` blinds the lower `d` coefficients via the telescoping
 QuickSilver mask coefficients `qsMaskCoeff` so the entire honest receiver view is perfectly
-simulatable for all `d ≥ 1` over arbitrary finite commutative rings.
+simulatable for all `d ≥ 1` over arbitrary finite commutative rings. Completeness and
+honest-receiver zero-knowledge are proved for this masked interactive protocol (`qsMaskedCheck`);
+malicious-prover soundness (`d / |C|` and scalar-batched `t / |F| + d / |C|`) is proved separately
+for unmasked univariate checks `qsCheck` and powers of a single scalar challenge `chi`
+(`toOuterMeasure_qsHomogScalarBatch_le`), not via independent weights `r : ι → F`.
 
 For any fixed polynomial `P` of degree at most `d` with nonzero degree-`d` coefficient and any
 challenge embedding `ι : C ↪ F`, univariate Schwartz–Zippel bounds the acceptance probability over
@@ -65,33 +68,43 @@ single-shot bounds `d / 2 ^ λ` (raw uniform `λ`-bit challenge with rejection) 
 `d / 2 ^ (λ - w_grind)` (uniform over accepted challenges); these single-shot bounds do not model
 Fiat–Shamir grinding amplification or state-restoration soundness.
 
-For VOLE-ACT's Spending relation (`m_uov = 45` equations `P(s) = Tag(Com(...), x)` from
-[VOLEACT2026], Parameters / Table `vole-act-kp800-parameters` and Spending V1–V4) as realized
-in the `cloudflareresearch/vole-mole` reference implementation (`d_zk = 9`, `ℓ' = 6784`,
-`C' = 12283`, and `"rata\x00l0"` RLC), domain-separating trailing byte `0x30` (disjoint from
-FAEST's trailing separator bytes) splits a single random oracle into independent uniform
-tables, giving non-adaptive and adaptive `q`-query ROM averaging bounds
-`q * δ_K + 1 / |F| + (1 - 1 / |F|) * ε_zk` and genuine Round-2+3 composition through the
-folded polynomial `foldedConstraint`.
+For VOLE-ACT's Spending relation (`m_uov = 45` in [VOLEACT2026], Instantiations /
+VOLE-ACT-KP800 Table `vole-act-kp800-parameters`) as realized in `vole-mole` ([VoleMole2026],
+commit `87af6871f`: `d_zk = 9`, `ℓ' = 6784`, `C' = 12283`, and `"rata\x00l0"` RLC), suffixing the
+trailing domain byte `0x30` onto fixed-length byte messages `ByteMsg n := Fin n → Fin 256`
+separates ACT's RLC table from every trailing FAEST/vole-mole separator byte in
+`faestTrailingDomainBytes`, splitting a single uniform finite random oracle
+`H_all : ByteMsg (n + 1) → Fin m → F` into independent uniform tables. This gives non-adaptive,
+adaptive `q`-query, and single-RO FAEST domain-separated averaging bounds
+`q * δ_K + 1 / |F| + (1 - 1 / |F|) * ε_zk` for a conditional single-shot Round-2+3 interactive
+step given `ε_zk`, together with the conditional Round-2+3 QuickSilver step
+`toOuterMeasure_actV1_qs_of_zkBinding_le` and its unconditional specialization
+`toOuterMeasure_actV1_foldedQS_le` on `foldedConstraint`. Note that FAEST v3.0 Lemmas 4.6
+(`ℓ' ≤ 2^12`), 4.7 (`C' ≤ 2^13`), and 10.40 (`d_zk ∈ {7, 14}`) are stated under hypotheses that
+exclude ACT's `d_zk = 9`, `ℓ' = 6784`, `C' = 12283`; concrete `VOLEHash` / `ZKHash` constructions
+and Fiat–Shamir multi-round soundness are not formalized here.
 
 ## Source correspondence and gaps
 
-* [YangSarkarWengWang2021], Sections 3.1 (printed pp. 6–7) and 4.2 (printed pp. 12–14): QuickSilver
-  IT-MAC polynomial arithmetic and soundness argument (generalized here beyond `d = 2`).
-* [BaumBMRS2023], Appendix B.1: sketches generalization of sVOLE checks to arbitrary degree `d`,
-  without stating a formal soundness theorem.
-* [BaumEtAl2023FAEST], Section 2.3.2 (printed pp. 12–13): affine masking and batched VOLE checks.
-* [BaumEtAl2026FAEST], Section 5.4 (Figure 5.6 / Proposition 5.2), Section 5.5 (Figure 5.7),
-  Lemmas 4.6–4.7, and Lemma 10.40: QuickSilver `(d_zk - 1)` masking, secondary universal-hash
-  terms in Lemmas 4.6–4.7, `Conversion`, `Challenge`, and RBR soundness (stated in Lemma 10.40
-  under `d_zk ∈ {7, 14}`, `ℓ' ≤ 2 ^ 12`, `C' ≤ 2 ^ 13`). Concrete FAEST `VOLEHash` / `ZKHash` /
-  BAVC / signature reductions remain tracked in #4987.
-* [VOLEACT2026], Parameters (`m_uov = 45` in Table `vole-act-kp800-parameters`) and Spending
-  (checks V1–V4, explicitly leaving constraint expansion open as a TODO); the segmented Keccak
-  Spend parameters (`d_zk = 9`, `ℓ' = 6784`, `C' = 12283`) and `"rata\x00l0"` RLC follow the
-  `cloudflareresearch/vole-mole` reference implementation (`src/act/spend.hpp`,
-  `src/keccak/segmented.hpp`, `src/uov/circuit.hpp`). VOLEitH ROM extraction and end-to-end
-  ACT protocol security remain tracked in #7068.
+* [YangSarkarWengWang2021], Sections 3.1 and 4.2: QuickSilver IT-MAC polynomial arithmetic and
+  arbitrary-degree polynomial soundness framework.
+* [BaumBMRS2023Eprint], Appendix B.1 (printed p. 46; full version of [BaumBMRS2023]): sketches
+  generalization of sVOLE checks to arbitrary degree `d` via `(d - 1)` masks.
+* [BaumEtAl2023FAEST], Section 2.3.2: affine masking and scalar-power batched VOLE checks.
+* [BaumEtAl2026FAEST], Section 2.2 ("Adding Zero-Knowledge", `ZK.OWFProve` Figure 7.19), Section 3
+  (`H_0`..`H_5` domain separation bytes), Section 5.4 (Figure 5.6 / Proposition 5.2), and
+  Section 5.5 (Figure 5.7): QuickSilver `(d_zk - 1)` telescoping masking, `Conversion`,
+  `Challenge` grinding structure, and (cf. Lemmas 4.6–4.7 and Lemma 10.40, stated under
+  `d_zk ∈ {7, 14}`, `ℓ' ≤ 2 ^ 12`, `C' ≤ 2 ^ 13`) FAEST v3 parameter regimes. Concrete FAEST
+  `VOLEHash` / `ZKHash` / BAVC / signature reductions remain tracked in #4987.
+* [VOLEACT2026], Instantiations / VOLE-ACT-KP800 (`m_uov = 45` in Table `vole-act-kp800-parameters`,
+  leaving constraint expansion as TODO) and Spending (checks V1–V4).
+* [VoleMole2026], commit `87af6871f49d29f9613ee893485c50566ca7d620`: segmented Keccak Spend
+  parameters (`d_zk = 9`, `ℓ' = 6784`, `C' = 12283` in `src/keccak/segmented.hpp` and
+  `src/act/spend.hpp`), `"rata\x00l0"` RLC (`ACT_SPEND_COMBINE_DST` in `src/dst.hpp:44`, invoked
+  in `src/act/spend.hpp:383` and `src/uov/circuit.hpp:58`), and `H_2^4` (`12`) in
+  `src/voleith.hpp:126`. VOLEitH ROM extraction and end-to-end ACT protocol security remain tracked
+  in #7068.
 
 ## Main definitions
 
@@ -104,7 +117,8 @@ folded polynomial `foldedConstraint`.
   `qsMaskedCheckSimulate`: ideal-world masked degree-`d` QuickSilver protocol and simulator.
 * `Cslib.Crypto.Protocols.VOLE.grindingAcceptedEquiv`: bijection for `FAEST.Challenge` zero suffix.
 * `Cslib.Crypto.Protocols.VOLE.foldedConstraint`, `foldedResidual`, `actRLCDomainByte`,
-  `actSpendCombineDst`, `appendDomainByte`: ACT V1 random linear combination and domain separation.
+  `actSpendCombineDst`, `ByteMsg`, `FaestTaggedMsg`, `appendDomainByteFin`,
+  `appendFaestDomainByteFin`, `appendDomainByte`: ACT V1 RLC and domain separation.
 
 ## Main results
 
@@ -118,26 +132,27 @@ folded polynomial `foldedConstraint`.
 * `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_qsCheck_le_of_embedding`,
   `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_qsHomogScalarBatch_le`,
   `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_qsCheck_grinding_accepted_le`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_qsCheck_grinding_raw_le`: exact `d / |C|` soundness,
-  `(t / |F| + d / |C|)` scalar-batch bound, and single-shot FAEST grinding soundness.
-* `Cslib.Crypto.Protocols.VOLE.voleHashError_le_of_pow_le`,
-  `Cslib.Crypto.Protocols.VOLE.zkHashError_le_of_pow_le`: general parameter bounds covering ACT's
-  `d_zk = 9`, `ℓ' = 6784`, `C' = 12283`.
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_qsCheck_grinding_raw_le`: at-most `d / |C|` soundness,
+  `(t / |F| + d / |C|)` scalar-power batch bound, and single-shot FAEST grinding soundness.
 * `Cslib.Crypto.Protocols.VOLE.uniform_split_of_disjoint_range`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1RLC_le`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1RLC_adaptive_le`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_qs_sound_le`: domain-separated ROM splitting,
-  non-adaptive & adaptive ACT V1 RLC soundness, and Round-2+3 QuickSilver composition.
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1RLC_of_zkError_le`,
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1RLC_adaptive_of_zkError_le`,
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_domainSeparated_adaptive_le`,
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_faestDomainSeparated_adaptive_le`,
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_qs_of_zkBinding_le`,
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_actV1_foldedQS_le`: domain-separated single-RO
+  splitting, non-adaptive & adaptive ACT V1 RLC soundness, and Round-2+3 QuickSilver composition.
 
 ## References
 
 * [K. Yang, P. Sarkar, C. Weng, X. Wang, *QuickSilver: Efficient and Affordable Zero-Knowledge
   Proofs for Circuits and Polynomials over Any Field*][YangSarkarWengWang2021]
 * [C. Baum et al., *Publicly Verifiable Zero-Knowledge and Post-Quantum Signatures from
-  VOLE-in-the-Head*][BaumBMRS2023]
+  VOLE-in-the-Head* (full version, ePrint 2023/996)][BaumBMRS2023Eprint]
 * [C. Baum et al., *FAEST: Algorithm Specifications*, version 1.0][BaumEtAl2023FAEST]
 * [C. Baum et al., *FAEST v3: Algorithm Specifications*, version 3.0][BaumEtAl2026FAEST]
 * [T. Zhang, C. Patton, S. Schlesinger, *VOLE-ACT*][VOLEACT2026]
+* [C. Patton, T. Zhang, *vole-mole* (commit `87af6871f`)][VoleMole2026]
 -/
 
 public section
@@ -347,8 +362,8 @@ theorem qsHomogVerifierValue_complete {n : ℕ} {d : ℕ} {F_poly : MvPolynomial
   rw [qsHomogVerifierValue_eq_eval hdeg w c hc, hzero, zero_mul, zero_add]
 
 /-- QuickSilver telescoping mask coefficients from `(d - 1)` extra VOLE mask pairs `(u, v)`
-([BaumEtAl2026FAEST], `(d_zk - 1)`-mask QuickSilver construction): `p_0 = v_0`,
-`p_j = v_j + u_{j-1}`, `p_{d-1} = u_{d-2}`. -/
+([BaumEtAl2026FAEST], Section 2.2 "Adding Zero-Knowledge" and `ZK.OWFProve` Figure 7.19):
+`p_0 = v_0`, `p_j = v_j + u_{j-1}`, `p_{d-1} = u_{d-2}`. -/
 @[expose] def qsMaskCoeff (d : ℕ) (u v : Fin (d - 1) → R) (j : Fin d) : R :=
   (if hj : j.val < d - 1 then v ⟨j.val, hj⟩ else 0) +
     (if hj0 : 0 < j.val then u ⟨j.val - 1, by omega⟩ else 0)
@@ -414,6 +429,7 @@ private theorem mvTotalDegree_X_le {n : ℕ} (i : Fin n) :
 @[expose] noncomputable def mulGatePoly {n : ℕ} (a b c : Fin n) : MvPolynomial (Fin n) R :=
   MvPolynomial.X a * MvPolynomial.X b - MvPolynomial.X c
 
+/-- A multiplication gate polynomial has total degree at most `2`. -/
 theorem totalDegree_mulGatePoly_le {n : ℕ} (a b c : Fin n) :
     (mulGatePoly (R := R) a b c).totalDegree ≤ 2 := by
   rw [mulGatePoly, sub_eq_add_neg]
@@ -547,6 +563,16 @@ private theorem qsHomogVerifierValue_C_mul_X {n : ℕ} (d : ℕ)
       Finsupp.sum_single_index rfl, prod_pow_finsupp_single]
     ring
 
+private theorem X_mul_X_eq_monomial {n : ℕ} (a b : Fin n) :
+    (MvPolynomial.X a * MvPolynomial.X b : MvPolynomial (Fin n) R) =
+      MvPolynomial.monomial (Finsupp.single a 1 + Finsupp.single b 1) 1 := by
+  rw [MvPolynomial.X, MvPolynomial.X, MvPolynomial.monomial_mul_monomial, one_mul]
+
+private theorem sum_single_add_single {n : ℕ} (a b : Fin n) :
+    (Finsupp.single a 1 + Finsupp.single b 1 : Fin n →₀ ℕ).sum (fun _ e => e) = 2 := by
+  rw [Finsupp.sum_add_index' (fun _ => rfl) (fun _ _ _ => rfl),
+    Finsupp.sum_single_index rfl, Finsupp.sum_single_index rfl]
+
 private theorem qsHomogVerifierValue_X_mul_X {n : ℕ} (d : ℕ)
     (a b : Fin n) (delta : R) (q' : Fin n → R) :
     qsHomogVerifierValue d (MvPolynomial.X a * MvPolynomial.X b) delta q' =
@@ -555,17 +581,9 @@ private theorem qsHomogVerifierValue_X_mul_X {n : ℕ} (d : ℕ)
   by_cases h1 : (1 : R) = 0
   · have hzero : ∀ x : R, x = 0 := fun x => by rw [← one_mul x, h1, zero_mul]
     rw [hzero (qsHomogVerifierValue _ _ _ _), hzero (_ * _ * _)]
-  · let hm : Fin n →₀ ℕ := Finsupp.single a 1 + Finsupp.single b 1
-    have hmul : (MvPolynomial.X a * MvPolynomial.X b : MvPolynomial (Fin n) R) =
-        MvPolynomial.monomial hm 1 := by
-      rw [MvPolynomial.X, MvPolynomial.X, MvPolynomial.monomial_mul_monomial, one_mul]
-    rw [hmul, qsHomogVerifierValue, MvPolynomial.support_monomial, ite_eq_right h1,
-      Finset.sum_singleton, MvPolynomial.coeff_monomial, ite_eq_left rfl]
-    have hsum : hm.sum (fun _ e => e) = 2 := by
-      dsimp only [hm]
-      rw [Finsupp.sum_add_index' (fun _ => rfl) (fun _ _ _ => rfl),
-        Finsupp.sum_single_index rfl, Finsupp.sum_single_index rfl]
-    rw [hsum, prod_pow_finsupp_pair q' a b, one_mul]
+  · rw [X_mul_X_eq_monomial, qsHomogVerifierValue, MvPolynomial.support_monomial, ite_eq_right h1,
+      Finset.sum_singleton, MvPolynomial.coeff_monomial, ite_eq_left rfl,
+      sum_single_add_single, prod_pow_finsupp_pair q' a b, one_mul]
     ring
 
 /-- At `d = 2`, `qsHomogVerifierValue` on `mulGatePoly a b c` reproduces the degree-2 multiplication
@@ -585,17 +603,10 @@ theorem qsHomogPoly_mulGatePoly {n : ℕ} (a b c : Fin n) (w v : Fin n → R) :
         Polynomial.C (voleMulCrossTerm (w a) (v a) (w b) (v b) (v c)) * Polynomial.X +
         Polynomial.C (voleMulConstTerm (v a) (v b)) := by
   classical
-  let hm : Fin n →₀ ℕ := Finsupp.single a 1 + Finsupp.single b 1
-  have hmul : (MvPolynomial.X a * MvPolynomial.X b : MvPolynomial (Fin n) R) =
-      MvPolynomial.monomial hm 1 := by
-    rw [MvPolynomial.X, MvPolynomial.X, MvPolynomial.monomial_mul_monomial, one_mul]
-  have hsum2 : hm.sum (fun _ e => e) = 2 := by
-    dsimp only [hm]
-    rw [Finsupp.sum_add_index' (fun _ => rfl) (fun _ _ _ => rfl),
-      Finsupp.sum_single_index rfl, Finsupp.sum_single_index rfl]
-  rw [mulGatePoly, qsHomogPoly_sub, hmul, qsHomogPoly_monomial, hsum2,
-    prod_pow_finsupp_pair (qsWirePoly w v) a b, MvPolynomial.X, qsHomogPoly_monomial,
-    Finsupp.sum_single_index rfl, prod_pow_finsupp_single (qsWirePoly w v) c]
+  rw [mulGatePoly, qsHomogPoly_sub, X_mul_X_eq_monomial, qsHomogPoly_monomial,
+    sum_single_add_single, prod_pow_finsupp_pair (qsWirePoly w v) a b, MvPolynomial.X,
+    qsHomogPoly_monomial, Finsupp.sum_single_index rfl,
+    prod_pow_finsupp_single (qsWirePoly w v) c]
   simp only [Nat.sub_self, pow_zero, map_one, one_mul, mul_one,
     show 2 - 1 = 1 by rfl, pow_one, qsWirePoly, voleMulCrossTerm, voleMulConstTerm, map_sub,
     map_add, map_mul]
@@ -633,6 +644,7 @@ multiplication gates of a `VOLE.Circuit`. -/
     mulGatePoly (circuitMulInput C_circ g 0) (circuitMulInput C_circ g 1)
       (circuitMulOutput C_circ g)
 
+/-- Every linear row or multiplication gate polynomial of a circuit has total degree at most `2`. -/
 theorem totalDegree_circuitConstraintPoly_le {p k m : ℕ}
     (C_circ : Circuit (arithSignature R) (p + k) m) (x : Fin p → R) (y : Fin m → R)
     (idx : (Fin p ⊕ Fin C_circ.size ⊕ Fin m) ⊕ CircuitMulGate C_circ) :
@@ -686,31 +698,35 @@ theorem exists_witness_of_eval_circuitConstraintPoly_eq_zero {p k m : ℕ}
 @[expose] def boolToChar2 (b : Bool) : R :=
   if b then 1 else 0
 
+/-- Boolean XOR embeds as ring addition in `boolToChar2` when `CharP R 2`. -/
 theorem boolToChar2_xor [CharP R 2] (a b : Bool) :
     boolToChar2 (R := R) (a != b) = boolToChar2 a + boolToChar2 b := by
   cases a <;> cases b <;> simp [boolToChar2]
   have h2 : (2 : R) = 0 := (CharP.cast_eq_zero_iff R 2 2).mpr (dvd_refl 2)
   simpa only [one_add_one_eq_two] using h2.symm
 
+/-- Boolean AND embeds as ring multiplication in `boolToChar2`. -/
 theorem boolToChar2_and (a b : Bool) :
     boolToChar2 (R := R) (a && b) = boolToChar2 a * boolToChar2 b := by
   cases a <;> cases b <;> simp [boolToChar2]
 
-/-- Lift `FAEST.Conversion.conversionCorrelation` across all `d` levels into a `VOLECorrelation`
-over a commutative ring `R` using basis weights `beta`. -/
-@[expose] def faestConversionVOLE {d outputLength : ℕ}
-    (rows : Fin (2 ^ d) → BitString outputLength) (delta : Fin (2 ^ d)) (beta : Fin d → R) :
+/-- Lift `FAEST.Conversion.conversionCorrelation` across all `depth` levels into a
+`VOLECorrelation` over a commutative ring `R` using basis weights `beta`. -/
+@[expose] def faestConversionVOLE {depth outputLength : ℕ}
+    (rows : Fin (2 ^ depth) → BitString outputLength) (delta : Fin (2 ^ depth))
+    (beta : Fin depth → R) :
     VOLECorrelation R outputLength where
-  u i := boolToChar2 ((convertExpandedRows d rows).u i)
-  v i := ∑ j : Fin d, boolToChar2 ((convertExpandedRows d rows).columns j i) * beta j
-  delta := ∑ j : Fin d, boolToChar2 ((BitString.equivFin d).symm delta j) * beta j
-  w i := ∑ j : Fin d,
-    boolToChar2 ((convertExpandedRows d (verifierRows rows delta)).columns j i) * beta j
+  u i := boolToChar2 ((convertExpandedRows depth rows).u i)
+  v i := ∑ j : Fin depth, boolToChar2 ((convertExpandedRows depth rows).columns j i) * beta j
+  delta := ∑ j : Fin depth, boolToChar2 ((BitString.equivFin depth).symm delta j) * beta j
+  w i := ∑ j : Fin depth,
+    boolToChar2 ((convertExpandedRows depth (verifierRows rows delta)).columns j i) * beta j
 
 /-- Embedding `FAEST.Conversion` via `faestConversionVOLE` into a characteristic-2 ring `R`
 produces a valid extension-field `VOLECorrelation`. -/
-theorem faestConversionVOLE_valid [CharP R 2] {d outputLength : ℕ}
-    (rows : Fin (2 ^ d) → BitString outputLength) (delta : Fin (2 ^ d)) (beta : Fin d → R) :
+theorem faestConversionVOLE_valid [CharP R 2] {depth outputLength : ℕ}
+    (rows : Fin (2 ^ depth) → BitString outputLength) (delta : Fin (2 ^ depth))
+    (beta : Fin depth → R) :
     (faestConversionVOLE rows delta beta).Valid := by
   intro i
   simp only [faestConversionVOLE, Finset.mul_sum, ← Finset.sum_add_distrib]
@@ -731,12 +747,12 @@ theorem faestConversionVOLE_valid [CharP R 2] {d outputLength : ℕ}
   simp only [conversionCorrelation, add_mul, mul_assoc]
 
 /-- The `u` coordinates produced by `faestConversionVOLE` lie in `{0, 1}`. -/
-theorem faestConversionVOLE_u_binary {d outputLength : ℕ}
-    (rows : Fin (2 ^ d) → BitString outputLength) (delta : Fin (2 ^ d)) (beta : Fin d → R)
-    (i : Fin outputLength) :
+theorem faestConversionVOLE_u_binary {depth outputLength : ℕ}
+    (rows : Fin (2 ^ depth) → BitString outputLength) (delta : Fin (2 ^ depth))
+    (beta : Fin depth → R) (i : Fin outputLength) :
     (faestConversionVOLE rows delta beta).u i = 0 ∨
       (faestConversionVOLE rows delta beta).u i = 1 := by
-  cases h : (convertExpandedRows d rows).u i <;> simp [faestConversionVOLE, boolToChar2, h]
+  cases h : (convertExpandedRows depth rows).u i <;> simp [faestConversionVOLE, boolToChar2, h]
 
 end Bridges
 
@@ -862,7 +878,7 @@ private theorem qsMaskedCheck_output (d : ℕ) (constraints : ι → MvPolynomia
 
 /-- Assemble the full `Fin d` reply from its constant coefficient and `d - 1` higher coefficients
 when `1 ≤ d`. -/
-@[expose] def consReply (d : ℕ) (c0 : F) (hi : Fin (d - 1) → F) : Fin d → F :=
+private def consReply (d : ℕ) (c0 : F) (hi : Fin (d - 1) → F) : Fin d → F :=
   fun j => if hj : j.val = 0 then c0 else hi ⟨j.val - 1, by omega⟩
 
 omit [Fintype F] [DecidableEq F] [DecidableEq ι] in
@@ -878,7 +894,7 @@ private theorem qsPolySum_consReply {d : ℕ} (hd : 1 ≤ d) (c0 : F) (hi : Fin 
 
 /-- Witness-free simulator for the complete honest receiver share and public transcript, for every
 constraint degree `d ≥ 1`. -/
-@[expose] noncomputable def qsMaskedCheckSimulate (d : ℕ)
+noncomputable def qsMaskedCheckSimulate (d : ℕ)
     (constraints : ι → MvPolynomial (Fin n) F) :
     ProbComp ((F × (Fin (n + (d - 1)) → F)) × Transcript (qsMaskedCheckSpec F ι n d)) := do
   let delta ← ProbComp.uniform F
@@ -1103,15 +1119,6 @@ theorem qsMaskedCheckView_eq_simulate {d : ℕ} (hd : 1 ≤ d)
   pmf_swap with delta r
   exact qsMaskedView_fixed hd constraints hdeg w delta r hzero
 
-/-- Zero-error statistical closeness between the real honest receiver view and simulation. -/
-theorem qsMaskedCheckView_closeTo_simulate {d : ℕ} (hd : 1 ≤ d)
-    (constraints : ι → MvPolynomial (Fin n) F) (hdeg : ∀ i, (constraints i).totalDegree ≤ d)
-    (w : Fin n → F) (hzero : ∀ i, MvPolynomial.eval w (constraints i) = 0) :
-    CloseTo (qsMaskedCheckView d constraints w)
-      (ProbComp.eval (qsMaskedCheckSimulate d constraints)) 0 := by
-  rw [qsMaskedCheckView_eq_simulate hd constraints hdeg w hzero]
-  exact CloseTo.refl _
-
 end MaskedZK
 
 /-! ### Soundness over Challenge Embeddings, Scalar Batching, and FAEST Grinding -/
@@ -1194,38 +1201,12 @@ theorem toOuterMeasure_qsCheck_le_of_embedding {C : Type} [Fintype C] [Nonempty 
   gcongr
   exact_mod_cast card_filter_qsCheck_le ι hdeg hne a
 
-/-- Full-field specialization (`ι = Function.Embedding.refl F`) giving exact error `d / |F|`. -/
+/-- Full-field specialization (`ι = Function.Embedding.refl F`) giving error at most `d / |F|`. -/
 theorem toOuterMeasure_qsCheck_le [Fintype F] {d : ℕ} {P : Polynomial F}
     (hdeg : P.natDegree ≤ d) (hne : P.coeff d ≠ 0) (a : Fin d → F) :
     (PMF.uniformOfFintype F).toOuterMeasure {delta | P.eval delta = qsPolySum d a delta} ≤
       (d : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) :=
   toOuterMeasure_qsCheck_le_of_embedding (Function.Embedding.refl F) hdeg hne a
-
-/-- Randomized sender generalization: `s ← sender` fixes a polynomial `P s` and reply `a s`
-before `c ← uniformOfFintype C` is drawn. -/
-theorem toOuterMeasure_qsCheck_bind_le [DecidableEq F] {S C : Type} [Fintype C] [Nonempty C]
-    (sender : PMF S) {d : ℕ} (ι : C ↪ F) (P : S → Polynomial F) (a : S → Fin d → F) :
-    (do
-      let s ← sender
-      let c ← PMF.uniformOfFintype C
-      return decide ((P s).natDegree ≤ d ∧ (P s).coeff d ≠ 0 ∧
-        (P s).eval (ι c) = qsPolySum d (a s) (ι c))).toOuterMeasure {true} ≤
-      (d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞) := by
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  rw [PMF.toOuterMeasure_bind_apply]
-  refine PMF.tsum_mul_le_of_forall_le sender fun s => ?_
-  by_cases hs : (P s).natDegree ≤ d ∧ (P s).coeff d ≠ 0
-  · change ((PMF.uniformOfFintype C).map fun c =>
-        decide ((P s).natDegree ≤ d ∧ (P s).coeff d ≠ 0 ∧
-          (P s).eval (ι c) = qsPolySum d (a s) (ι c))).toOuterMeasure {true} ≤ _
-    rw [PMF.toOuterMeasure_map_apply]
-    refine (MeasureTheory.measure_mono ?_).trans
-      (toOuterMeasure_qsCheck_le_of_embedding ι hs.1 hs.2 (a s))
-    intro c hc
-    exact (of_decide_eq_true hc).2.2
-  · have hfalse : ∀ c : C, ¬ ((P s).natDegree ≤ d ∧ (P s).coeff d ≠ 0 ∧
-        (P s).eval (ι c) = qsPolySum d (a s) (ι c)) := fun c h => hs ⟨h.1, h.2.1⟩
-    simp [hfalse]
 
 /-- Scalar-batched arbitrary-degree QuickSilver soundness: given `t` degree-`≤ d` multivariate
 constraints `constraints`, scalar challenge `chi ← uniformOfFintype F`, adaptive reply
@@ -1334,7 +1315,8 @@ theorem toOuterMeasure_qsHomogScalarBatch_le [Fintype F] [DecidableEq F] {C : Ty
     ext j
     simp [j.isLt]
 
-@[expose] instance instNonemptyGrindingAccepted (p : ChallengeParams) :
+/-- The subset of grinding-accepted `λ`-bit FAEST challenges is nonempty (witnessed by `0`). -/
+instance instNonemptyGrindingAccepted (p : ChallengeParams) :
     Nonempty {c : BitString p.securityBits // grindingAccepted p c = true} :=
   ⟨(grindingAcceptedEquiv p).symm (fun _ => false)⟩
 
@@ -1361,8 +1343,8 @@ theorem toOuterMeasure_qsCheck_grinding_accepted_le (p : ChallengeParams) {d : �
 
 /-- Single-shot soundness over raw uniform `λ`-bit FAEST challenges (including the trailing
 `w_grind` zero-bit check): acceptance has probability at most `d / 2 ^ λ` ([BaumEtAl2026FAEST],
-Section 5.5, Figure 5.7; Lemma 10.40). This models single-shot verifier rejection, not
-Fiat–Shamir grinding amplification. -/
+Section 5.5, Figure 5.7; cf. Lemma 10.40 for RBR soundness under FAEST parameters). This models
+single-shot verifier rejection, not Fiat–Shamir grinding amplification. -/
 theorem toOuterMeasure_qsCheck_grinding_raw_le (p : ChallengeParams) {d : ℕ}
     (ι : BitString p.nonGrindingBits ↪ F) {P : Polynomial F} (hdeg : P.natDegree ≤ d)
     (hne : P.coeff d ≠ 0) (a : Fin d → F) :
@@ -1418,99 +1400,44 @@ theorem toOuterMeasure_qsCheck_grinding_raw_le (p : ChallengeParams) {d : ℕ}
 
 end Soundness
 
-/-! ### Generalized `VOLEHash` / `ZKHash` Parameter Bounds and ACT Spend Constants -/
-
-section Parameters
-
-/-- Degree of `vole-mole`'s segmented-Keccak ACT Spend QuickSilver circuit (`d_zk = 9`,
-exceeding FAEST v3.0 Lemma 10.40's `{7, 14}` hypothesis; `cloudflareresearch/vole-mole`
-`src/act/spend.hpp`, `src/keccak/segmented.hpp`). -/
-@[expose] def actSpendDegree : ℕ := 9
-
-/-- Number of field components in ACT Spend's V1 tag equality `P(s) = Tag(c, x)` (`m_uov = 45`
-in [VOLEACT2026], Table `vole-act-kp800-parameters` and Spending V1). -/
-@[expose] def actSpendRLCCount : ℕ := 45
-
-private theorem pow_add64_div_le_of_mul_le (baseExp x num den : ℕ) (hden : 0 < den)
-    (hbound : x * den ≤ num * 2 ^ 64) :
-    (1 : ℝ≥0∞) / 2 ^ baseExp + (x : ℝ≥0∞) / 2 ^ (baseExp + 64) ≤
-      (1 + (num : ℝ≥0∞) / den) / 2 ^ baseExp := by
-  have h2_64_ne0 : ((2 : ℝ≥0∞) ^ 64) ≠ 0 := by norm_num
-  have h2_64_top : ((2 : ℝ≥0∞) ^ 64) ≠ ⊤ := by norm_num
-  have hden_ne0 : (den : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hden.ne'
-  have hden_top : (den : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hcast : (x : ℝ≥0∞) * (den : ℝ≥0∞) ≤ (num : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64 := by
-    exact_mod_cast hbound
-  have hfrac : (x : ℝ≥0∞) / (2 : ℝ≥0∞) ^ 64 ≤ (num : ℝ≥0∞) / (den : ℝ≥0∞) := by
-    rw [ENNReal.div_le_iff_le_mul (Or.inl h2_64_ne0) (Or.inl h2_64_top)]
-    calc (x : ℝ≥0∞)
-        = (x : ℝ≥0∞) * (den : ℝ≥0∞) * (den : ℝ≥0∞)⁻¹ := by
-          rw [mul_assoc, ENNReal.mul_inv_cancel hden_ne0 hden_top, mul_one]
-      _ ≤ ((num : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64) * (den : ℝ≥0∞)⁻¹ := by gcongr
-      _ = (num : ℝ≥0∞) / (den : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64 := by
-          simp only [div_eq_mul_inv]
-          ring
-  rw [ENNReal.add_div, div_eq_mul_inv (x : ℝ≥0∞), pow_add,
-    ENNReal.mul_inv (Or.inr h2_64_top) (Or.inl (ENNReal.pow_ne_top (by norm_num)))]
-  gcongr
-  rw [← mul_assoc, mul_right_comm]
-  simp only [div_eq_mul_inv] at hfrac ⊢
-  gcongr
-
-/-- Additive tail-bound helper for `VOLEHash` parameter arithmetic (related to the tail term
-used in [BaumEtAl2026FAEST], Lemma 4.6; full `VOLEHash` RBR soundness remains in #4987):
-if `(ℓ' - 1) ^ 5 * den ≤ num * 2 ^ 64` for `den > 0`, then
-`2 ^ (-4λ) + (ℓ' - 1) ^ 5 / 2 ^ (4λ + 64) ≤ (1 + num / den) / 2 ^ (4λ)`. -/
-theorem voleHashError_le_of_pow_le (lam ell' num den : ℕ) (hden : 0 < den)
-    (hbound : (ell' - 1) ^ 5 * den ≤ num * 2 ^ 64) :
-    (1 : ℝ≥0∞) / 2 ^ (4 * lam) + ((ell' - 1 : ℕ) : ℝ≥0∞) ^ 5 / 2 ^ (4 * lam + 64) ≤
-      (1 + (num : ℝ≥0∞) / den) / 2 ^ (4 * lam) := by
-  simpa only [Nat.cast_pow] using
-    pow_add64_div_le_of_mul_le (4 * lam) ((ell' - 1) ^ 5) num den hden hbound
-
-/-- Additive tail-bound helper for `ZKHash` parameter arithmetic (related to the tail term used in
-[BaumEtAl2026FAEST], Lemma 4.7; full `ZKHash` universal-hash proof remains in #4987):
-if `(C') ^ 2 * den ≤ num * 2 ^ 64` for `den > 0`, then
-`2 ^ (-λ) + (C') ^ 2 / 2 ^ (λ + 64) ≤ (1 + num / den) / 2 ^ λ`. -/
-theorem zkHashError_le_of_pow_le (lam c' num den : ℕ) (hden : 0 < den)
-    (hbound : c' ^ 2 * den ≤ num * 2 ^ 64) :
-    (1 : ℝ≥0∞) / 2 ^ lam + (c' : ℝ≥0∞) ^ 2 / 2 ^ (lam + 64) ≤
-      (1 + (num : ℝ≥0∞) / den) / 2 ^ lam := by
-  simpa only [Nat.cast_pow] using
-    pow_add64_div_le_of_mul_le lam (c' ^ 2) num den hden hbound
-
-end Parameters
-
 /-! ### ACT V1 Domain-Separated Random Linear Combination and Round-2+3 Composition -/
 
 section ACTV1RLC
 
 /-- Trailing byte `'0' = 0x30` of `vole-mole`'s ACT Spend RLC domain separator `"rata\x00l0"`
-(`cloudflareresearch/vole-mole` `src/act/spend.hpp`, `ACT_SPEND_COMBINE_DST`). -/
-@[expose] def actRLCDomainByte : UInt8 := 0x30
+([VoleMole2026], `src/dst.hpp:44`,
+`ACT_SPEND_COMBINE_DST = make_dst("rata", act::VERSION, 'l', '0')`, appended after `chal2` in
+`src/act/spend.hpp:383` and `src/uov/circuit.hpp:58`). -/
+@[expose] def actRLCDomainByte : Fin 256 := 0x30
 
-/-- Full 7-byte domain separation tag `"rata\x00l0"` used for `ACT_SPEND_COMBINE_DST` in
-`cloudflareresearch/vole-mole` (`src/act/spend.hpp`, implementing [VOLEACT2026] Spending V1). -/
-@[expose] def actSpendCombineDst : List UInt8 := [0x72, 0x61, 0x74, 0x61, 0x00, 0x6c, 0x30]
+/-- Full 7-byte domain separation tag `"rata\x00l0"` defining `ACT_SPEND_COMBINE_DST` in
+[VoleMole2026] (`src/dst.hpp:44`; used in `src/act/spend.hpp:383` for [VOLEACT2026] Spending V1).
+-/
+@[expose] def actSpendCombineDst : List (Fin 256) := [0x72, 0x61, 0x74, 0x61, 0x00, 0x6c, 0x30]
 
-/-- Trailing domain-separator bytes reserved by FAEST v3 / `vole-mole` (`0` for PRG/SHAKE leaves,
-`1` for `H1`, `3..5` for `H3..H5`, `8..11` for `H_2^0..H_2^3`, `12` for `H_2^4`). -/
-@[expose] def faestTrailingDomainBytes : Finset UInt8 := {0, 1, 3, 4, 5, 8, 9, 10, 11, 12}
+/-- Trailing domain-separator bytes reserved by FAEST v3 ([BaumEtAl2026FAEST], Section 3:
+`0` for `H_0` BAVC commitment key derivation, `1` for `H_1`, `3..5` for `H_3..H_5`,
+`8..11` for `H_2^0..H_2^3`) together with `12` (`H_2^4` in [VoleMole2026], `src/voleith.hpp:126`).
+-/
+@[expose] def faestTrailingDomainBytes : Finset (Fin 256) := {0, 1, 3, 4, 5, 8, 9, 10, 11, 12}
 
+/-- ACT's RLC trailing domain byte `0x30` does not collide with any FAEST v3 / `vole-mole` byte. -/
 theorem actRLCDomainByte_notMem_faest : actRLCDomainByte ∉ faestTrailingDomainBytes := by
   decide
 
+/-- The final byte of `actSpendCombineDst` (`"rata\x00l0"`) is `actRLCDomainByte` (`0x30`). -/
 theorem actSpendCombineDst_getLast? : actSpendCombineDst.getLast? = some actRLCDomainByte := by
   decide
 
-/-- Suffixing a fixed domain-separator byte injects arbitrary-length byte messages into
-`List UInt8`. -/
-@[expose] def appendDomainByte (b : UInt8) : List UInt8 ↪ List UInt8 where
+/-- Suffixing a fixed domain-separator byte injects variable-length wire messages into
+`List (Fin 256)`. -/
+@[expose] def appendDomainByte (b : Fin 256) : List (Fin 256) ↪ List (Fin 256) where
   toFun msg := msg ++ [b]
   inj' _ _ h := List.append_cancel_right h
 
-/-- Distinct trailing domain-separator bytes have disjoint ranges on arbitrary messages. -/
-theorem disjoint_range_appendDomainByte {b₁ b₂ : UInt8} (hne : b₁ ≠ b₂) :
+/-- Distinct trailing domain-separator bytes have disjoint ranges on arbitrary `List (Fin 256)`
+messages. -/
+theorem disjoint_range_appendDomainByte {b₁ b₂ : Fin 256} (hne : b₁ ≠ b₂) :
     Disjoint (Set.range (appendDomainByte b₁)) (Set.range (appendDomainByte b₂)) := by
   rw [Set.disjoint_left]
   rintro _ ⟨m₁, rfl⟩ ⟨m₂, heq⟩
@@ -1520,6 +1447,66 @@ theorem disjoint_range_appendDomainByte {b₁ b₂ : UInt8} (hne : b₁ ≠ b₂
     List.getLast?_append_of_ne_nil _ (List.cons_ne_nil _ _),
     List.getLast?_singleton, List.getLast?_singleton, Option.some.injEq] at hlast
   exact hne hlast.symm
+
+/-- Fixed-length `n`-byte message (`Fin n → Fin 256`), forming a finite key domain for uniform
+random oracle tables. -/
+abbrev ByteMsg (n : ℕ) : Type := Fin n → Fin 256
+
+/-- Fixed-length `n`-byte message paired with a trailing FAEST / `vole-mole` domain byte in
+`faestTrailingDomainBytes`. -/
+abbrev FaestTaggedMsg (n : ℕ) : Type :=
+  ByteMsg n × {b : Fin 256 // b ∈ faestTrailingDomainBytes}
+
+/-- Append trailing domain-separator byte `b` to a fixed-length message `msg : ByteMsg n`,
+producing an `(n + 1)`-byte message in `ByteMsg (n + 1)`. -/
+@[expose] def appendDomainByteFin {n : ℕ} (b : Fin 256) : ByteMsg n ↪ ByteMsg (n + 1) where
+  toFun msg := Fin.snoc (α := fun _ => Fin 256) msg b
+  inj' m₁ m₂ h := by
+    funext i
+    have hi := congrFun h (Fin.castSucc i)
+    simpa only [Fin.snoc_castSucc] using hi
+
+/-- Embed a FAEST / `vole-mole` tagged message `(msg, b)` into `ByteMsg (n + 1)` by appending its
+trailing separator byte `b.1`. -/
+@[expose] def appendFaestDomainByteFin {n : ℕ} : FaestTaggedMsg n ↪ ByteMsg (n + 1) where
+  toFun p := Fin.snoc (α := fun _ => Fin 256) p.1 p.2.1
+  inj' p₁ p₂ h := by
+    rcases p₁ with ⟨m₁, b₁, hb₁⟩
+    rcases p₂ with ⟨m₂, b₂, hb₂⟩
+    refine Prod.ext (funext fun i => ?_) (Subtype.ext ?_)
+    · have hi := congrFun h (Fin.castSucc i)
+      change Fin.snoc (α := fun _ => Fin 256) m₁ b₁ (Fin.castSucc i) =
+        Fin.snoc (α := fun _ => Fin 256) m₂ b₂ (Fin.castSucc i) at hi
+      simpa only [Fin.snoc_castSucc] using hi
+    · have hlast := congrFun h (Fin.last n)
+      change Fin.snoc (α := fun _ => Fin 256) m₁ b₁ (Fin.last n) =
+        Fin.snoc (α := fun _ => Fin 256) m₂ b₂ (Fin.last n) at hlast
+      simpa only [Fin.snoc_last] using hlast
+
+private theorem last_eq_of_snoc_eq {n : ℕ} {b₁ b₂ : Fin 256} {m₁ m₂ : ByteMsg n}
+    (h : Fin.snoc (α := fun _ => Fin 256) m₁ b₁ = Fin.snoc (α := fun _ => Fin 256) m₂ b₂) :
+    b₁ = b₂ := by
+  have hlast := congrFun h (Fin.last n)
+  simpa only [Fin.snoc_last] using hlast
+
+/-- Distinct trailing domain-separator bytes have disjoint ranges on fixed-length `ByteMsg n`
+domains. -/
+theorem disjoint_range_appendDomainByteFin {n : ℕ} {b₁ b₂ : Fin 256} (hne : b₁ ≠ b₂) :
+    Disjoint (Set.range (appendDomainByteFin (n := n) b₁))
+      (Set.range (appendDomainByteFin (n := n) b₂)) := by
+  rw [Set.disjoint_left]
+  rintro _ ⟨m₁, rfl⟩ ⟨m₂, heq⟩
+  exact hne (last_eq_of_snoc_eq heq).symm
+
+/-- ACT's trailing byte `actRLCDomainByte` separates `ByteMsg n` queries from all FAEST /
+`vole-mole` tagged queries in `FaestTaggedMsg n` inside the shared finite domain `ByteMsg (n + 1)`.
+-/
+theorem disjoint_range_actRLC_faestDomainByteFin (n : ℕ) :
+    Disjoint (Set.range (appendDomainByteFin (n := n) actRLCDomainByte))
+      (Set.range (appendFaestDomainByteFin (n := n))) := by
+  rw [Set.disjoint_left]
+  rintro _ ⟨m₁, rfl⟩ ⟨⟨m₂, b⟩, heq⟩
+  exact actRLCDomainByte_notMem_faest (last_eq_of_snoc_eq heq ▸ b.2)
 
 /-- Restricting a single uniform random oracle table `H : K_all → V` along embeddings `ι₁, ι₂` with
 disjoint ranges produces two independent uniform random oracle tables. -/
@@ -1631,87 +1618,6 @@ private theorem distK_actV1_inner_le [DecidableEq F] {m : ℕ}
         rw [hcancel]
         gcongr
 
-/-- **Non-adaptive ACT V1 RLC soundness (`l = H(chal2)` ROM averaging bound)**: for fixed false
-equations `∃ j, lhs j ≠ rhs j` and any key-dependent predicate `ZKAccepts k l` failing with
-probability at most `ε_zk` whenever the folded residual is nonzero, the joint probability over
-uniform challenge `k : K` and independent random oracle `H : K → Fin m → F` that either the RLC
-cancels or `ZKAccepts k (H k)` holds is at most `1 / |F| + (1 - 1 / |F|) * ε_zk`. -/
-theorem toOuterMeasure_actV1RLC_le [Fintype K] [Nonempty K] [DecidableEq K] [DecidableEq F]
-    {m : ℕ} (lhs rhs : Fin m → F) (hfalse : ∃ j, lhs j ≠ rhs j)
-    (ZKAccepts : K → (Fin m → F) → Prop) [∀ k l, Decidable (ZKAccepts k l)] {ε_zk : ℝ≥0∞}
-    (hzk : ∀ l : Fin m → F, foldedResidual lhs rhs l ≠ 0 →
-      (PMF.uniformOfFintype K).toOuterMeasure {k | ZKAccepts k l} ≤ ε_zk) :
-    (do
-      let H ← PMF.uniformOfFintype (K → Fin m → F)
-      let k ← PMF.uniformOfFintype K
-      return decide (foldedResidual lhs rhs (H k) = 0 ∨ ZKAccepts k (H k))).toOuterMeasure
-        {true} ≤
-      (Fintype.card F : ℝ≥0∞)⁻¹ + (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ε_zk := by
-  have hres : ∃ j, (lhs - rhs) j ≠ 0 := by
-    obtain ⟨j, hj⟩ := hfalse
-    exact ⟨j, sub_ne_zero.mpr hj⟩
-  have hsub : ∀ l, foldedResidual lhs rhs l = foldedResidual (lhs - rhs) 0 l := fun l => by
-    simp [foldedResidual]
-  have hswap : (do
-      let H ← PMF.uniformOfFintype (K → Fin m → F)
-      let k ← PMF.uniformOfFintype K
-      return decide (foldedResidual lhs rhs (H k) = 0 ∨ ZKAccepts k (H k))) =
-      (do
-        let l ← PMF.uniformOfFintype (Fin m → F)
-        let k ← PMF.uniformOfFintype K
-        return decide (foldedResidual (lhs - rhs) 0 l = 0 ∨ ZKAccepts k l)) := by
-    classical
-    simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-    rw [PMF.bind_comm]
-    symm
-    rw [PMF.bind_comm]
-    symm
-    congr 1 with k : 1
-    have heval : (PMF.uniformOfFintype (K → Fin m → F)).map (fun H : K → Fin m → F => H k) =
-        PMF.uniformOfFintype (Fin m → F) := by
-      let ek : Unit ↪ K := ⟨fun _ => k, fun _ _ _ => rfl⟩
-      calc (PMF.uniformOfFintype (K → Fin m → F)).map (fun H : K → Fin m → F => H k)
-          = ((PMF.uniformOfFintype (K → Fin m → F)).map (fun H i => H (ek i))).map
-              (Equiv.funUnique Unit (Fin m → F)) := by
-            rw [PMF.map_comp]
-            rfl
-        _ = (PMF.uniformOfFintype (Unit → Fin m → F)).map
-              (Equiv.funUnique Unit (Fin m → F)) := by
-            rw [PMF.uniformOfFintype_pi_map_comp_embedding ek]
-        _ = PMF.uniformOfFintype (Fin m → F) :=
-            PMF.uniformOfFintype_map_equiv (Equiv.funUnique Unit (Fin m → F))
-    calc (PMF.uniformOfFintype (K → Fin m → F)).bind (fun H =>
-          PMF.pure (decide (foldedResidual lhs rhs (H k) = 0 ∨ ZKAccepts k (H k))))
-        = ((PMF.uniformOfFintype (K → Fin m → F)).map (fun H => H k)).bind fun l =>
-            PMF.pure (decide (foldedResidual (lhs - rhs) 0 l = 0 ∨ ZKAccepts k l)) := by
-          rw [PMF.bind_map]
-          simp only [Function.comp_def, hsub]
-      _ = (PMF.uniformOfFintype (Fin m → F)).bind fun l =>
-            PMF.pure (decide (foldedResidual (lhs - rhs) 0 l = 0 ∨ ZKAccepts k l)) := by
-          rw [heval]
-  rw [hswap]
-  exact distK_actV1_inner_le (PMF.uniformOfFintype K) (lhs - rhs) hres ZKAccepts fun l hl => by
-    rw [← hsub] at hl
-    exact hzk l hl
-
-/-- Universal-hash specialization of `toOuterMeasure_actV1RLC_le`: composing `ZKHash` with a
-non-canceling RLC reduces collision risk to `1 / |F| + (1 - 1 / |F|) * ε_zk`. -/
-theorem toOuterMeasure_actV1RLC_universal_le [Fintype K] [Nonempty K] [DecidableEq K]
-    [DecidableEq F] {X Y : Type} [DecidableEq Y] {m : ℕ} (lhs rhs : Fin m → F)
-    (hfalse : ∃ j, lhs j ≠ rhs j) (hash : K → X → Y) {ε_zk : ℝ≥0∞}
-    (huniv : IsUniversalHash (PMF.uniformOfFintype K) hash ε_zk)
-    (Z : (Fin m → F) → X) (zeroIn : X)
-    (hnonzero : ∀ l : Fin m → F, foldedResidual lhs rhs l ≠ 0 → Z l ≠ zeroIn) :
-    (do
-      let H ← PMF.uniformOfFintype (K → Fin m → F)
-      let k ← PMF.uniformOfFintype K
-      return decide
-        (foldedResidual lhs rhs (H k) = 0 ∨ hash k (Z (H k)) = hash k zeroIn)).toOuterMeasure
-        {true} ≤
-      (Fintype.card F : ℝ≥0∞)⁻¹ + (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ε_zk :=
-  toOuterMeasure_actV1RLC_le lhs rhs hfalse (fun k l => hash k (Z l) = hash k zeroIn)
-    fun l hl => huniv (Z l) zeroIn (hnonzero l hl)
-
 private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
     [Fintype K] [DecidableEq K] [Fintype V] [Nonempty V] {q : ℕ}
     (M : ProbOracleComp (fun _ : K => V) S) (hbound : ProbOracleComp.IsQueryBounded M q)
@@ -1812,11 +1718,111 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
           rw [hswap2]
           exact hbody s
 
-/-- **Adaptive ACT V1 RLC soundness (`q`-query ROM)**: even after adaptively querying the RLC
-oracle `H : K → Fin m → F` up to `q` times before outputting `res s` and Round-2 check predicate
-`ZKAccepts s`, drawing `k ← distK` (with point mass bound `∀ k₀, distK k₀ ≤ δ_K`) yields false-claim
-acceptance probability at most `q * δ_K + (1 / |F| + (1 - 1 / |F|) * ε_zk)`. -/
-theorem toOuterMeasure_actV1RLC_adaptive_le [Fintype K] [DecidableEq K] [DecidableEq F]
+private theorem toOuterMeasure_domainSeparated_query_le_add_swapped
+    {K_all K₁ K₂ V : Type} [Fintype K_all] [DecidableEq K_all] [Fintype V] [Nonempty V]
+    {q : ℕ} (ι₁ : K₁ ↪ K_all) (ι₂ : K₂ ↪ K_all)
+    (hdisj : Disjoint (Set.range ι₁) (Set.range ι₂))
+    (M : ProbOracleComp ((fun _ : K₁ => V) ⊕ₒ (fun _ : K₂ => V)) S)
+    (hbound : OracleComp.IsCostBounded
+      (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) M q)
+    (distK : PMF K₁) {δ_K : ℝ≥0∞} (hdist : ∀ k₀, distK k₀ ≤ δ_K)
+    (body : S → K₁ → V → PMF Bool) {ε : ℝ≥0∞}
+    (hbody : ∀ s : S,
+      ((PMF.uniformOfFintype V).bind fun v =>
+        distK.bind fun k => body s k v).toOuterMeasure {true} ≤ ε) :
+    (do
+      let H ← PMF.uniformOfFintype (K_all → V)
+      let s ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle
+          (OracleComp.sumHandler (fun k₁ => PMF.pure (H (ι₁ k₁)))
+            (fun k₂ => PMF.pure (H (ι₂ k₂))))) M
+      let k ← distK
+      body s k (H (ι₁ k))).toOuterMeasure {true} ≤ (q : ℝ≥0∞) * δ_K + ε := by
+  classical
+  have : Finite K₁ := Finite.of_injective ι₁ ι₁.injective
+  have : Finite K₂ := Finite.of_injective ι₂ ι₂.injective
+  let : Fintype K₁ := Fintype.ofFinite K₁
+  let : Fintype K₂ := Fintype.ofFinite K₂
+  let split : (K_all → V) → (K₁ → V) × (K₂ → V) :=
+    fun H => (fun k₁ => H (ι₁ k₁), fun k₂ => H (ι₂ k₂))
+  let post : (K₁ → V) × (K₂ → V) → PMF Bool := fun H₁₂ => do
+    let s ← OracleComp.interpret
+      (OracleComp.sumHandler ProbComp.unifOracle
+        (OracleComp.sumHandler (fun k₁ => PMF.pure (H₁₂.1 k₁))
+          (fun k₂ => PMF.pure (H₁₂.2 k₂)))) M
+    let k ← distK
+    body s k (H₁₂.1 k)
+  have hfactor :
+      (do
+        let H ← PMF.uniformOfFintype (K_all → V)
+        let s ← OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle
+            (OracleComp.sumHandler (fun k₁ => PMF.pure (H (ι₁ k₁)))
+              (fun k₂ => PMF.pure (H (ι₂ k₂))))) M
+        let k ← distK
+        body s k (H (ι₁ k))) =
+      ((PMF.uniformOfFintype (K₂ → V)).bind fun H₂ =>
+        (PMF.uniformOfFintype (K₁ → V)).bind fun H₁ => post (H₁, H₂)) := by
+    calc (PMF.uniformOfFintype (K_all → V)).bind (fun H => post (split H))
+        = ((PMF.uniformOfFintype (K_all → V)).map split).bind post := by rw [PMF.bind_map]; rfl
+      _ = ((PMF.uniformOfFintype (K₁ → V)).bind fun H₁ =>
+            (PMF.uniformOfFintype (K₂ → V)).map fun H₂ => (H₁, H₂)).bind post := by
+          rw [uniform_split_of_disjoint_range ι₁ ι₂ hdisj]
+      _ = (PMF.uniformOfFintype (K₁ → V)).bind fun H₁ =>
+            (PMF.uniformOfFintype (K₂ → V)).bind fun H₂ => post (H₁, H₂) := by
+          simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
+      _ = _ := PMF.bind_comm _ _ _
+  rw [hfactor, PMF.toOuterMeasure_bind_apply]
+  refine PMF.tsum_mul_le_of_forall_le _ fun H₂ => ?_
+  let M' : ProbOracleComp (fun _ : K₁ => V) S :=
+    OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun u : ℕ => OracleComp.query (spec := probOracleSpec (fun _ : K₁ => V)) (Sum.inl u))
+        (OracleComp.sumHandler (fun k₁ => ProbOracleComp.query k₁) (fun k₂ => pure (H₂ k₂))))
+      M
+  have hbound' : ProbOracleComp.IsQueryBounded M' q := by
+    refine OracleComp.IsCostBounded.interpret (fun q' => ?_) hbound
+    rcases q' with u | (k₁ | k₂)
+    · simpa [OracleComp.sumHandler] using
+        OracleComp.IsCostBounded.query (spec := probOracleSpec (fun _ : K₁ => V))
+          (cost := Sum.elim (fun _ => 0) (fun _ => 1)) (Sum.inl u)
+    · simpa [OracleComp.sumHandler] using
+        ProbOracleComp.IsQueryBounded.query (spec := fun _ : K₁ => V) k₁
+    · simpa [OracleComp.sumHandler] using
+        OracleComp.IsCostBounded.pure (cost := Sum.elim (fun _ => 0) (fun _ => 1)) (H₂ k₂) 0
+  have hinterp : ∀ H₁ : K₁ → V, post (H₁, H₂) =
+      (do
+        let s ← OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle (fun k₁ => PMF.pure (H₁ k₁))) M'
+        let k ← distK
+        body s k (H₁ k)) := by
+    intro H₁
+    dsimp only [post]
+    congr 1
+    dsimp only [M']
+    rw [OracleComp.interpret_interpret]
+    congr 1 with q'
+    rcases q' with u | (k₁ | k₂) <;>
+      simp [OracleComp.sumHandler, ProbOracleComp.query]
+  have hfun : (fun H₁ : K₁ → V => post (H₁, H₂)) = fun H₁ =>
+      (do
+        let s ← OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle (fun k₁ => PMF.pure (H₁ k₁))) M'
+        let k ← distK
+        body s k (H₁ k)) := funext hinterp
+  change ((PMF.uniformOfFintype (K₁ → V)).bind fun H₁ => post (H₁, H₂)).toOuterMeasure
+      {true} ≤ _
+  rw [hfun]
+  exact toOuterMeasure_answer_query_le_add_swapped M' hbound' distK hdist body hbody
+
+/-- **Adaptive ACT V1 RLC soundness (`q`-query ROM, conditional single-shot Round-2+3 step)**:
+even after adaptively querying the RLC oracle `H : K → Fin m → F` up to `q` times before
+outputting `res s` and predicate `ZKAccepts s`, drawing `k ← distK` (with point-mass bound
+`∀ k₀, distK k₀ ≤ δ_K`) yields false-claim acceptance probability at most
+`q * δ_K + (1 / |F| + (1 - 1 / |F|) * ε_zk)` whenever `hzk` bounds `ZKAccepts` when the folded
+residual is nonzero. This models a single-shot interactive Round-2+3 step given `hzk`, not
+Fiat–Shamir soundness. -/
+theorem toOuterMeasure_actV1RLC_adaptive_of_zkError_le [Fintype K] [DecidableEq K] [DecidableEq F]
     {m q : ℕ}
     (M : ProbOracleComp (fun _ : K => Fin m → F) S) (hbound : ProbOracleComp.IsQueryBounded M q)
     (distK : PMF K) {δ_K : ℝ≥0∞} (hdist : ∀ k₀, distK k₀ ≤ δ_K)
@@ -1843,14 +1849,112 @@ theorem toOuterMeasure_actV1RLC_adaptive_le [Fintype K] [DecidableEq K] [Decidab
   · simp only [hs, false_and, decide_false, PMF.bind_const, PMF.toOuterMeasure_pure_apply,
       Set.mem_singleton_iff, Bool.false_eq_true, ↓reduceIte, zero_le]
 
-/-- **Composed ACT V1 Round-2 + Round-3 adaptive QuickSilver soundness**: an adaptive `q`-query
-adversary `M` chooses degree-`≤ d` constraint polynomials `P s : Fin m → Polynomial F`, Round 2
-folds them via `foldedConstraint (P s) (H k)` and checks `ZKAccepts s k (H k)` alongside a Round-2
-polynomial `Q s k (H k)`, and Round 3 checks `(Q s k (H k)).eval (ι c) = qsPolySum d (a s k (H k))
-(ι c)` against a uniform challenge `c : C` embedded via `ι : C ↪ F`. Any false instance passes with
-probability at most `q * δ_K + (1 / |F| + (1 - 1 / |F|) * (ε_zk + d / |C|))`. -/
-theorem toOuterMeasure_actV1_qs_sound_le {C : Type} [Fintype K] [DecidableEq K] [DecidableEq F]
-    [Fintype C] [Nonempty C] {m q d : ℕ} (ι : C ↪ F)
+/-- **Non-adaptive ACT V1 RLC soundness (`l = H(chal2)` ROM averaging bound)**: conditional
+`q = 0` specialization of `toOuterMeasure_actV1RLC_adaptive_of_zkError_le` for fixed false
+equations `∃ j, lhs j ≠ rhs j` and uniform challenge `k : K`. -/
+theorem toOuterMeasure_actV1RLC_of_zkError_le [Fintype K] [Nonempty K] [DecidableEq K]
+    [DecidableEq F] {m : ℕ} (lhs rhs : Fin m → F) (hfalse : ∃ j, lhs j ≠ rhs j)
+    (ZKAccepts : K → (Fin m → F) → Prop) [∀ k l, Decidable (ZKAccepts k l)] {ε_zk : ℝ≥0∞}
+    (hzk : ∀ l : Fin m → F, foldedResidual lhs rhs l ≠ 0 →
+      (PMF.uniformOfFintype K).toOuterMeasure {k | ZKAccepts k l} ≤ ε_zk) :
+    (do
+      let H ← PMF.uniformOfFintype (K → Fin m → F)
+      let k ← PMF.uniformOfFintype K
+      return decide (foldedResidual lhs rhs (H k) = 0 ∨ ZKAccepts k (H k))).toOuterMeasure
+        {true} ≤
+      (Fintype.card F : ℝ≥0∞)⁻¹ + (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ε_zk := by
+  have hsub : ∀ l, foldedResidual lhs rhs l = foldedResidual (lhs - rhs) 0 l := fun l => by
+    simp [foldedResidual]
+  have hres : ∃ j, (lhs - rhs) j ≠ 0 := by
+    obtain ⟨j, hj⟩ := hfalse
+    exact ⟨j, sub_ne_zero.mpr hj⟩
+  have hbound := toOuterMeasure_actV1RLC_adaptive_of_zkError_le (K := K) (S := Unit)
+    (pure ()) (OracleComp.IsCostBounded.pure () 0) (PMF.uniformOfFintype K) (δ_K := 1)
+    (fun k₀ => PMF.coe_le_one _ k₀) (fun _ => lhs - rhs) (fun _ => ZKAccepts)
+    (fun _ l hl => hzk l (by rwa [hsub]))
+  simpa only [Nat.cast_zero, zero_mul, zero_add, OracleComp.interpret_pure, pure_bind,
+    hres, true_and, hsub] using hbound
+
+/-- **Domain-separated single-RO adaptive ACT V1 RLC soundness**: against a single finite uniform
+random oracle `H : K_all → Fin m → F` accessed through disjoint embeddings `ι₁ : K₁ ↪ K_all` (the
+ACT RLC slice, queried at most `q` times) and `ι₂ : K₂ ↪ K_all` (other protocol slices, queried
+arbitrarily many times), any adversary `M` satisfies the same `q * δ_K + 1 / |F| + (1 - 1 / |F|) *
+ε_zk` conditional Round-2+3 bound. -/
+theorem toOuterMeasure_actV1_domainSeparated_adaptive_le {K_all K₁ K₂ : Type}
+    [Fintype K_all] [DecidableEq K_all] [DecidableEq F] {m q : ℕ}
+    (ι₁ : K₁ ↪ K_all) (ι₂ : K₂ ↪ K_all) (hdisj : Disjoint (Set.range ι₁) (Set.range ι₂))
+    (M : ProbOracleComp ((fun _ : K₁ => Fin m → F) ⊕ₒ (fun _ : K₂ => Fin m → F)) S)
+    (hbound : OracleComp.IsCostBounded
+      (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) M q)
+    (distK : PMF K₁) {δ_K : ℝ≥0∞} (hdist : ∀ k₀, distK k₀ ≤ δ_K)
+    (res : S → Fin m → F) (ZKAccepts : S → K₁ → (Fin m → F) → Prop)
+    [∀ s k l, Decidable (ZKAccepts s k l)] {ε_zk : ℝ≥0∞}
+    (hzk : ∀ s : S, ∀ l : Fin m → F, foldedResidual (res s) 0 l ≠ 0 →
+      distK.toOuterMeasure {k | ZKAccepts s k l} ≤ ε_zk) :
+    (do
+      let H ← PMF.uniformOfFintype (K_all → Fin m → F)
+      let s ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle
+          (OracleComp.sumHandler (fun k₁ => PMF.pure (H (ι₁ k₁)))
+            (fun k₂ => PMF.pure (H (ι₂ k₂))))) M
+      let k ← distK
+      return decide ((∃ j, res s j ≠ 0) ∧
+        (foldedResidual (res s) 0 (H (ι₁ k)) = 0 ∨ ZKAccepts s k (H (ι₁ k))))).toOuterMeasure
+        {true} ≤
+      (q : ℝ≥0∞) * δ_K +
+        ((Fintype.card F : ℝ≥0∞)⁻¹ + (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ε_zk) := by
+  classical
+  refine toOuterMeasure_domainSeparated_query_le_add_swapped ι₁ ι₂ hdisj M hbound distK hdist
+    (fun s k l => PMF.pure (decide ((∃ j, res s j ≠ 0) ∧
+      (foldedResidual (res s) 0 l = 0 ∨ ZKAccepts s k l)))) fun s => ?_
+  by_cases hs : ∃ j, res s j ≠ 0
+  · simp only [hs, true_and]
+    exact distK_actV1_inner_le distK (res s) hs (ZKAccepts s) (hzk s)
+  · simp only [hs, false_and, decide_false, PMF.bind_const, PMF.toOuterMeasure_pure_apply,
+      Set.mem_singleton_iff, Bool.false_eq_true, ↓reduceIte, zero_le]
+
+/-- **FAEST / `vole-mole` byte-domain-separated single-RO adaptive ACT V1 RLC soundness**:
+concrete specialization of `toOuterMeasure_actV1_domainSeparated_adaptive_le` to a single shared
+random oracle `H : ByteMsg (n + 1) → Fin m → F`, where `M` may make at most `q` queries with
+ACT's trailing byte `actRLCDomainByte` (`0x30`) and arbitrarily many queries with any FAEST /
+`vole-mole` trailing domain byte in `faestTrailingDomainBytes`. -/
+theorem toOuterMeasure_actV1_faestDomainSeparated_adaptive_le [DecidableEq F] {n m q : ℕ}
+    (M : ProbOracleComp
+      ((fun _ : ByteMsg n => Fin m → F) ⊕ₒ (fun _ : FaestTaggedMsg n => Fin m → F)) S)
+    (hbound : OracleComp.IsCostBounded
+      (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0))) M q)
+    (distK : PMF (ByteMsg n)) {δ_K : ℝ≥0∞} (hdist : ∀ k₀, distK k₀ ≤ δ_K)
+    (res : S → Fin m → F) (ZKAccepts : S → ByteMsg n → (Fin m → F) → Prop)
+    [∀ s k l, Decidable (ZKAccepts s k l)] {ε_zk : ℝ≥0∞}
+    (hzk : ∀ s : S, ∀ l : Fin m → F, foldedResidual (res s) 0 l ≠ 0 →
+      distK.toOuterMeasure {k | ZKAccepts s k l} ≤ ε_zk) :
+    (do
+      let H ← PMF.uniformOfFintype (ByteMsg (n + 1) → Fin m → F)
+      let s ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle
+          (OracleComp.sumHandler
+            (fun msg => PMF.pure (H (appendDomainByteFin actRLCDomainByte msg)))
+            (fun p => PMF.pure (H (appendFaestDomainByteFin p))))) M
+      let k ← distK
+      return decide ((∃ j, res s j ≠ 0) ∧
+        (foldedResidual (res s) 0 (H (appendDomainByteFin actRLCDomainByte k)) = 0 ∨
+          ZKAccepts s k (H (appendDomainByteFin actRLCDomainByte k))))).toOuterMeasure {true} ≤
+      (q : ℝ≥0∞) * δ_K +
+        ((Fintype.card F : ℝ≥0∞)⁻¹ + (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ε_zk) :=
+  toOuterMeasure_actV1_domainSeparated_adaptive_le
+    (appendDomainByteFin actRLCDomainByte) appendFaestDomainByteFin
+    (disjoint_range_actRLC_faestDomainByteFin n) M hbound distK hdist res ZKAccepts hzk
+
+/-- **Conditional Round-2 + Round-3 interactive QuickSilver step**: given an adaptive `q`-query
+adversary `M` outputting degree-`≤ d` constraint polynomials `P s : Fin m → Polynomial F`, and an
+auxiliary Round-2 polynomial `Q s k l` of degree `≤ d` and acceptance predicate `ZKAccepts s k l`
+whose cheating event `ZKAccepts s k l ∧ (Q s k l).coeff d = 0` has `distK`-probability at most
+`ε_zk` whenever `(foldedConstraint (P s) l).coeff d ≠ 0`, joint Round-2+3 verification succeeds
+with probability at most `q * δ_K + (1 / |F| + (1 - 1 / |F|) * (ε_zk + d / |C|))`. This models a
+single-shot interactive step conditional on `hzk` and `hdegQ`; it does not verify how Round 2 binds
+`Q` to `P` and `l`, nor does it model Fiat–Shamir soundness. -/
+theorem toOuterMeasure_actV1_qs_of_zkBinding_le {C : Type} [Fintype K] [DecidableEq K]
+    [DecidableEq F] [Fintype C] [Nonempty C] {m q d : ℕ} (ι : C ↪ F)
     (M : ProbOracleComp (fun _ : K => Fin m → F) S) (hbound : ProbOracleComp.IsQueryBounded M q)
     (distK : PMF K) {δ_K : ℝ≥0∞} (hdist : ∀ k₀, distK k₀ ≤ δ_K)
     (P : S → Fin m → Polynomial F)
@@ -1950,6 +2054,36 @@ theorem toOuterMeasure_actV1_qs_sound_le {C : Type} [Fintype K] [DecidableEq K] 
           rw [hcancel]
           gcongr
   · simp [hs]
+
+/-- **Unconditional folded-polynomial ACT V1 Round-2 + Round-3 QuickSilver soundness**:
+instantiating Round 2's check directly with `Q := foldedConstraint (P s) l` eliminates `ZKAccepts`
+and `ε_zk = 0`, bounding false-instance acceptance against an adaptive `q`-query adversary `M` by
+`q * δ_K + (1 / |F| + (1 - 1 / |F|) * (d / |C|))`. Like `toOuterMeasure_actV1_qs_of_zkBinding_le`,
+this models a single-shot interactive Round-2+3 step, not Fiat–Shamir soundness. -/
+theorem toOuterMeasure_actV1_foldedQS_le {C : Type} [Fintype K] [DecidableEq K]
+    [DecidableEq F] [Fintype C] [Nonempty C] {m q d : ℕ} (ι : C ↪ F)
+    (M : ProbOracleComp (fun _ : K => Fin m → F) S) (hbound : ProbOracleComp.IsQueryBounded M q)
+    (distK : PMF K) {δ_K : ℝ≥0∞} (hdist : ∀ k₀, distK k₀ ≤ δ_K)
+    (P : S → Fin m → Polynomial F) (hdegP : ∀ s j, (P s j).natDegree ≤ d)
+    (a : S → K → (Fin m → F) → Fin d → F) :
+    (do
+      let H ← PMF.uniformOfFintype (K → Fin m → F)
+      let s ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k))) M
+      let k ← distK
+      let l := H k
+      let c ← PMF.uniformOfFintype C
+      return decide ((∃ j, (P s j).coeff d ≠ 0) ∧
+        (foldedConstraint (P s) l).eval (ι c) = qsPolySum d (a s k l) (ι c))).toOuterMeasure
+        {true} ≤
+      (q : ℝ≥0∞) * δ_K + ((Fintype.card F : ℝ≥0∞)⁻¹ +
+        (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * ((d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞))) := by
+  have h := toOuterMeasure_actV1_qs_of_zkBinding_le ι M hbound distK hdist P
+    (fun s _ l => foldedConstraint (P s) l) (fun s _ l => natDegree_foldedConstraint_le (hdegP s) l)
+    a (fun _ _ _ => True) (ε_zk := 0)
+    (fun s l hl => by
+      simp only [true_and, hl, Set.ofPred_false, MeasureTheory.measure_empty, zero_le])
+  simpa only [true_and, zero_add] using h
 
 end RLCSoundness
 

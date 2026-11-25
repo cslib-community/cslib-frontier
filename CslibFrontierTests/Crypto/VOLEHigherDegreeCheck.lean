@@ -25,8 +25,10 @@ Exercises `CslibFrontier.Crypto.Protocols.VOLE.HigherDegreeCheck` across:
 - Scalar-batched soundness (`t / |F| + d / |C|`) and single-shot FAEST grinding subsets.
 - ACT Spend numeric bounds (`9 ∉ {7, 14}`, `(6784 - 1) ^ 5 < 2 ^ 64`, `12283 ^ 2 * 2 ^ 36 < 2 ^ 64`)
   and `FAEST.Conversion` VOLE lifting into characteristic-2 rings.
-- ACT V1 RLC (`actSpendRLCCount = 45`) non-adaptive, adaptive, and Round-2+3 composed soundness,
-  paired with negative witnesses when domain separation is omitted or the challenge field is small.
+- ACT V1 RLC (`actSpendRLCCount = 45`) non-adaptive, adaptive, single-RO FAEST domain-separated,
+  folded Round-2+3, and conditional Round-2+3 soundness, paired with negative witnesses for omitted
+  domain separation (shared/colliding bytes), predictable challenges (`q * δ_K = 1`), and small
+  challenge fields (`ZMod 2`).
 -/
 
 namespace CslibFrontierTests.Crypto.VOLEHigherDegreeCheck
@@ -39,6 +41,52 @@ private instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 11) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 13) := ⟨by decide⟩
 private instance : Fact (Nat.Prime 17) := ⟨by decide⟩
+
+/-- Degree of `vole-mole`'s segmented-Keccak ACT Spend QuickSilver circuit (`d_zk = 9`). -/
+private abbrev actSpendDegree : ℕ := 9
+
+/-- Number of field components in ACT Spend's V1 RLC (`m_uov = 45`). -/
+private abbrev actSpendRLCCount : ℕ := 45
+
+private theorem pow_add64_div_le_of_mul_le (baseExp x num den : ℕ) (hden : 0 < den)
+    (hbound : x * den ≤ num * 2 ^ 64) :
+    (1 : ℝ≥0∞) / 2 ^ baseExp + (x : ℝ≥0∞) / 2 ^ (baseExp + 64) ≤
+      (1 + (num : ℝ≥0∞) / den) / 2 ^ baseExp := by
+  have h2_64_ne0 : ((2 : ℝ≥0∞) ^ 64) ≠ 0 := by norm_num
+  have h2_64_top : ((2 : ℝ≥0∞) ^ 64) ≠ ⊤ := by norm_num
+  have hden_ne0 : (den : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hden.ne'
+  have hden_top : (den : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
+  have hcast : (x : ℝ≥0∞) * (den : ℝ≥0∞) ≤ (num : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64 := by
+    exact_mod_cast hbound
+  have hfrac : (x : ℝ≥0∞) / (2 : ℝ≥0∞) ^ 64 ≤ (num : ℝ≥0∞) / (den : ℝ≥0∞) := by
+    rw [ENNReal.div_le_iff_le_mul (Or.inl h2_64_ne0) (Or.inl h2_64_top)]
+    calc (x : ℝ≥0∞)
+        = (x : ℝ≥0∞) * (den : ℝ≥0∞) * (den : ℝ≥0∞)⁻¹ := by
+          rw [mul_assoc, ENNReal.mul_inv_cancel hden_ne0 hden_top, mul_one]
+      _ ≤ ((num : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64) * (den : ℝ≥0∞)⁻¹ := by gcongr
+      _ = (num : ℝ≥0∞) / (den : ℝ≥0∞) * (2 : ℝ≥0∞) ^ 64 := by
+          simp only [div_eq_mul_inv]
+          ring
+  rw [ENNReal.add_div, div_eq_mul_inv (x : ℝ≥0∞), pow_add,
+    ENNReal.mul_inv (Or.inr h2_64_top) (Or.inl (ENNReal.pow_ne_top (by norm_num)))]
+  gcongr
+  rw [← mul_assoc, mul_right_comm]
+  simp only [div_eq_mul_inv] at hfrac ⊢
+  gcongr
+
+private theorem voleHashError_le_of_pow_le (lam ell' num den : ℕ) (hden : 0 < den)
+    (hbound : (ell' - 1) ^ 5 * den ≤ num * 2 ^ 64) :
+    (1 : ℝ≥0∞) / 2 ^ (4 * lam) + ((ell' - 1 : ℕ) : ℝ≥0∞) ^ 5 / 2 ^ (4 * lam + 64) ≤
+      (1 + (num : ℝ≥0∞) / den) / 2 ^ (4 * lam) := by
+  simpa only [Nat.cast_pow] using
+    pow_add64_div_le_of_mul_le (4 * lam) ((ell' - 1) ^ 5) num den hden hbound
+
+private theorem zkHashError_le_of_pow_le (lam c' num den : ℕ) (hden : 0 < den)
+    (hbound : c' ^ 2 * den ≤ num * 2 ^ 64) :
+    (1 : ℝ≥0∞) / 2 ^ lam + (c' : ℝ≥0∞) ^ 2 / 2 ^ (lam + 64) ≤
+      (1 + (num : ℝ≥0∞) / den) / 2 ^ lam := by
+  simpa only [Nat.cast_pow] using
+    pow_add64_div_le_of_mul_le lam (c' ^ 2) num den hden hbound
 
 /-- Degree-`9` (`actSpendDegree`) polynomial constraint `w 0 ^ 9 - w 1 = 0` over any `CommRing`. -/
 private noncomputable def spendPoly {R : Type} [CommRing R] : MvPolynomial (Fin 2) R :=
@@ -458,10 +506,6 @@ private def toyGrindParams : ChallengeParams where
   repetitions_pos := by decide
   repetitions_le := by decide
 
-private instance : Nonempty
-    {c : BitString toyGrindParams.securityBits // grindingAccepted toyGrindParams c = true} :=
-  instNonemptyGrindingAccepted toyGrindParams
-
 example (a : Fin actSpendDegree → BinaryField 4) :
     (PMF.uniformOfFintype
         {c : BitString toyGrindParams.securityBits //
@@ -575,27 +619,34 @@ example {R : Type} [CommRing R] [CharP R 2] (beta : Fin 2 → R) :
 -- ACT Spend uses degree 9 ∉ {7, 14}, exceeding FAEST v3.0 Lemma 10.40's {7, 14} hypothesis.
 example : actSpendDegree ∉ ({7, 14} : Finset ℕ) := by decide
 
--- Concrete ACT Spend `VOLEHash` (`ℓ' = 6784`, `(6784 - 1) ^ 5 < 2 ^ 64`) and `ZKHash`
--- (`C' = 12283`, `12283 ^ 2 * 2 ^ 36 < 2 ^ 64`) arithmetic checks.
-example : (6784 - 1) ^ 5 < 2 ^ 64 ∧ 12283 ^ 2 * 2 ^ 36 < 2 ^ 64 := by decide
+-- Concrete ACT Spend `VOLEHash` (`ℓ' = 6784`, `(6784 - 1) ^ 5 * 5 ≤ 4 * 2 ^ 64`) and `ZKHash`
+-- (`C' = 12283`, `12283 ^ 2 * 16 ≤ 9 * 2 ^ 64`) parameter-arithmetic checks.
+example : (6784 - 1) ^ 5 * 5 ≤ 4 * 2 ^ 64 ∧ 12283 ^ 2 * 16 ≤ 9 * 2 ^ 64 := by decide
 
 example :
     (1 : ℝ≥0∞) / 2 ^ (4 * 128) + ((6784 - 1 : ℕ) : ℝ≥0∞) ^ 5 / 2 ^ (4 * 128 + 64) ≤
-      (1 + (1 : ℝ≥0∞) / 1) / 2 ^ (4 * 128) :=
-  voleHashError_le_of_pow_le 128 6784 1 1 (by decide) (by decide)
+      (1 + (4 : ℝ≥0∞) / 5) / 2 ^ (4 * 128) :=
+  voleHashError_le_of_pow_le 128 6784 4 5 (by decide) (by decide)
 
 example :
     (1 : ℝ≥0∞) / 2 ^ 128 + (12283 : ℝ≥0∞) ^ 2 / 2 ^ (128 + 64) ≤
-      (1 + (1 : ℝ≥0∞) / (2 ^ 36 : ℕ)) / 2 ^ 128 :=
-  zkHashError_le_of_pow_le 128 12283 1 (2 ^ 36) (by decide) (by decide)
+      (1 + (9 : ℝ≥0∞) / 16) / 2 ^ 128 :=
+  zkHashError_le_of_pow_le 128 12283 9 16 (by decide) (by decide)
 
 example :
     actRLCDomainByte ∉ faestTrailingDomainBytes ∧
       actSpendCombineDst.getLast? = some actRLCDomainByte ∧
-      ∀ b ∈ faestTrailingDomainBytes,
-        Disjoint (Set.range (appendDomainByte actRLCDomainByte)) (Set.range (appendDomainByte b)) :=
+      (∀ b ∈ faestTrailingDomainBytes,
+        Disjoint (Set.range (appendDomainByte actRLCDomainByte)) (Set.range (appendDomainByte b))) ∧
+      (∀ b ∈ faestTrailingDomainBytes,
+        Disjoint (Set.range (appendDomainByteFin (n := 4) actRLCDomainByte))
+          (Set.range (appendDomainByteFin (n := 4) b))) ∧
+      Disjoint (Set.range (appendDomainByteFin (n := 4) actRLCDomainByte))
+        (Set.range (appendFaestDomainByteFin (n := 4))) :=
   ⟨actRLCDomainByte_notMem_faest, actSpendCombineDst_getLast?,
-    fun _ hb => disjoint_range_appendDomainByte fun h => actRLCDomainByte_notMem_faest (h ▸ hb)⟩
+    fun _ hb => disjoint_range_appendDomainByte fun h => actRLCDomainByte_notMem_faest (h ▸ hb),
+    fun _ hb => disjoint_range_appendDomainByteFin fun h => actRLCDomainByte_notMem_faest (h ▸ hb),
+    disjoint_range_actRLC_faestDomainByteFin 4⟩
 
 example :
     (PMF.uniformOfFintype (Fin 4 → Bool)).map
@@ -621,66 +672,254 @@ example :
   rw [hval] at h2
   omega
 
-/-! ### ACT V1 RLC (`m = 45`), Round-2+3 Composition, and Negative Boundaries -/
+/-! ### ACT V1 RLC (`m = 45`), Single-RO Domain Separation, Round-2+3, and Negative Boundaries -/
 
-example (lhs rhs : Fin actSpendRLCCount → ZMod 11) (hfalse : ∃ j, lhs j ≠ rhs j)
-    (ZKAccepts : Bool → (Fin actSpendRLCCount → ZMod 11) → Prop)
-    [∀ k l, Decidable (ZKAccepts k l)] {ε_zk : ℝ≥0∞}
-    (hzk : ∀ l, foldedResidual lhs rhs l ≠ 0 →
-      (PMF.uniformOfFintype Bool).toOuterMeasure {k | ZKAccepts k l} ≤ ε_zk) :
+-- Concrete non-adaptive ACT V1 RLC (`m = 45`) over `ZMod 11`, `K = Bool`, `ε_zk = 1 / 2`,
+-- yielding strict soundness bound `1 / 11 + (1 - 1 / 11) * (1 / 2) = 6 / 11 < 1`.
+example :
+    let lhs : Fin actSpendRLCCount → ZMod 11 := fun j => if j = 0 then 1 else 0
+    let rhs : Fin actSpendRLCCount → ZMod 11 := 0
     (do
       let H ← PMF.uniformOfFintype (Bool → Fin actSpendRLCCount → ZMod 11)
       let k ← PMF.uniformOfFintype Bool
-      return decide (foldedResidual lhs rhs (H k) = 0 ∨ ZKAccepts k (H k))).toOuterMeasure
-        {true} ≤
-      (11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * ε_zk := by
-  simpa only [ZMod.card, Nat.cast_ofNat] using
-    toOuterMeasure_actV1RLC_le lhs rhs hfalse ZKAccepts hzk
+      return decide (foldedResidual lhs rhs (H k) = 0 ∨ k = true)).toOuterMeasure {true} ≤
+      (11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * (1 / (2 : ℝ≥0∞)) := by
+  have hbound := toOuterMeasure_actV1RLC_of_zkError_le (K := Bool)
+    (fun j : Fin actSpendRLCCount => if j = 0 then (1 : ZMod 11) else 0) 0
+    ⟨0, by simp⟩ (fun k _ => k = true) (ε_zk := 1 / (2 : ℝ≥0∞)) (fun _ _ => by
+      have hset : {k : Bool | k = true} = {true} := by
+        ext k
+        simp
+      rw [hset, PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply, Fintype.card_bool]
+      norm_num [one_div])
+  simpa only [ZMod.card, Nat.cast_ofNat] using hbound
 
-example (P : Fin actSpendRLCCount → Polynomial (ZMod 17))
-    (Q : Unit → Fin 64 → (Fin actSpendRLCCount → ZMod 17) → Polynomial (ZMod 17))
-    (hdegQ : ∀ s k l, (Q s k l).natDegree ≤ actSpendDegree)
-    (a : Unit → Fin 64 → (Fin actSpendRLCCount → ZMod 17) → Fin actSpendDegree → ZMod 17)
-    (M : ProbOracleComp (fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 17) Unit)
-    (hbound : ProbOracleComp.IsQueryBounded M 1) :
+-- Concrete adaptive 1-query ACT V1 RLC (`m = 45`) over `ZMod 11` and `Fin 64` (`ε_zk = 1 / 64`).
+private noncomputable def rlcQuery0Adversary :
+    ProbOracleComp (fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 11)
+      (Fin actSpendRLCCount → ZMod 11) := do
+  let _ ← ProbOracleComp.query 0
+  return fun j => if j = 0 then 1 else 0
+
+example :
+    (do
+      let H ← PMF.uniformOfFintype (Fin 64 → Fin actSpendRLCCount → ZMod 11)
+      let s ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k)))
+        rlcQuery0Adversary
+      let k ← PMF.uniformOfFintype (Fin 64)
+      return decide ((∃ j, s j ≠ 0) ∧
+        (foldedResidual s 0 (H k) = 0 ∨ k = 0))).toOuterMeasure {true} ≤
+      1 * (1 / (64 : ℝ≥0∞)) + ((11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * (1 / (64 : ℝ≥0∞))) := by
+  have hq : ProbOracleComp.IsQueryBounded rlcQuery0Adversary 1 := by
+    unfold rlcQuery0Adversary
+    simpa only [Nat.add_zero] using
+      (ProbOracleComp.IsQueryBounded.query
+        (spec := fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 11) 0).bind fun _ =>
+        OracleComp.IsCostBounded.pure _ 0
+  have hdist : ∀ k₀ : Fin 64, PMF.uniformOfFintype (Fin 64) k₀ ≤ 1 / (64 : ℝ≥0∞) := fun _ => by
+    simp [PMF.uniformOfFintype_apply, one_div]
+  have h := toOuterMeasure_actV1RLC_adaptive_of_zkError_le rlcQuery0Adversary hq
+    (PMF.uniformOfFintype (Fin 64)) hdist id (fun _ k _ => k = 0) (ε_zk := 1 / (64 : ℝ≥0∞))
+    (fun _ _ _ => by
+      rw [show {k : Fin 64 | k = 0} = {0} from rfl, PMF.toOuterMeasure_apply_singleton,
+        PMF.uniformOfFintype_apply, Fintype.card_fin, one_div]
+      norm_num)
+  simpa only [id_eq, ZMod.card, Nat.cast_ofNat, Nat.cast_one] using h
+
+-- Concrete single-RO FAEST / `vole-mole` domain-separated adversary querying both `H_0` (`b = 0`)
+-- and `ACT_SPEND_COMBINE_DST` trailing byte `0x30` against `H : ByteMsg 2 → Fin 2 → ZMod 11`.
+private noncomputable def singleROMixedAdversary :
+    ProbOracleComp
+      ((fun _ : ByteMsg 1 => Fin 2 → ZMod 11) ⊕ₒ (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 11))
+      (Fin 2 → ZMod 11) := do
+  let h0 ← ProbOracleComp.query (.inr ((fun _ => 0), ⟨0, by decide⟩))
+  let act ← ProbOracleComp.query (.inl (fun _ => 0))
+  return ![1, h0 0 + act 0]
+
+example :
+    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+        singleROMixedAdversary 1 ∧
+      (do
+        let H ← PMF.uniformOfFintype (ByteMsg 2 → Fin 2 → ZMod 11)
+        let s ← OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle
+            (OracleComp.sumHandler
+              (fun msg => PMF.pure (H (appendDomainByteFin actRLCDomainByte msg)))
+              (fun p => PMF.pure (H (appendFaestDomainByteFin p))))) singleROMixedAdversary
+        let k ← PMF.uniformOfFintype (ByteMsg 1)
+        return decide ((∃ j, s j ≠ 0) ∧
+          (foldedResidual s 0 (H (appendDomainByteFin actRLCDomainByte k)) = 0 ∨
+            k = fun _ => 0))).toOuterMeasure {true} ≤
+      1 * (1 / (256 : ℝ≥0∞)) + ((11 : ℝ≥0∞)⁻¹ + (1 - (11 : ℝ≥0∞)⁻¹) * (1 / (256 : ℝ≥0∞))) := by
+  have hq : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+      singleROMixedAdversary 1 := by
+    unfold singleROMixedAdversary
+    have hfaest := ProbOracleComp.isCostBounded_query
+      (spec := (fun _ : ByteMsg 1 => Fin 2 → ZMod 11) ⊕ₒ
+        (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 11))
+      (Sum.elim (fun _ => 1) (fun _ => 0)) (.inr ((fun _ => 0), ⟨0, by decide⟩))
+    have hact := ProbOracleComp.isCostBounded_query
+      (spec := (fun _ : ByteMsg 1 => Fin 2 → ZMod 11) ⊕ₒ
+        (fun _ : FaestTaggedMsg 1 => Fin 2 → ZMod 11))
+      (Sum.elim (fun _ => 1) (fun _ => 0)) (.inl (fun _ => 0))
+    simpa only [Sum.elim_inr, Sum.elim_inl, Nat.zero_add, Nat.add_zero] using
+      hfaest.bind fun _ => hact.bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  refine ⟨hq, ?_⟩
+  have hdist : ∀ k₀ : ByteMsg 1, PMF.uniformOfFintype (ByteMsg 1) k₀ ≤ 1 / (256 : ℝ≥0∞) := by
+    intro _
+    simp [PMF.uniformOfFintype_apply, one_div]
+  have h := toOuterMeasure_actV1_faestDomainSeparated_adaptive_le singleROMixedAdversary hq
+    (PMF.uniformOfFintype (ByteMsg 1)) hdist id (fun _ k _ => k = fun _ => 0)
+    (ε_zk := 1 / (256 : ℝ≥0∞)) (fun _ _ _ => by
+      rw [show {k : ByteMsg 1 | k = fun _ => 0} = {fun _ => 0} from rfl,
+        PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply, Fintype.card_fun,
+        Fintype.card_fin 1, pow_one, one_div]
+      norm_num)
+  simpa only [id_eq, ZMod.card, Nat.cast_ofNat, Nat.cast_one] using h
+
+-- Concrete degree-9 folded QuickSilver polynomial family (`P j = X^9 - 1` at `j = 0`, `0` else)
+-- exercising `natDegree_foldedConstraint_le`, unconditional `toOuterMeasure_actV1_foldedQS_le`,
+-- and `toOuterMeasure_actV1_qs_of_zkBinding_le` (linking `Q` genuinely to `foldedConstraint`).
+private noncomputable def spendRLCPolys : Fin actSpendRLCCount → Polynomial (ZMod 17) :=
+  fun j => if j = 0 then Polynomial.X ^ actSpendDegree - 1 else 0
+
+private theorem natDegree_spendRLCPolys (j : Fin actSpendRLCCount) :
+    (spendRLCPolys j).natDegree ≤ actSpendDegree := by
+  unfold spendRLCPolys
+  split_ifs
+  · exact (Polynomial.natDegree_sub_le _ _).trans (max_le (Polynomial.natDegree_X_pow_le _)
+      (by simp))
+  · simp
+
+private theorem qsPolySum_zero {R : Type} [CommRing R] (d : ℕ) (x : R) :
+    qsPolySum d 0 x = 0 := by
+  simp [qsPolySum]
+
+private theorem foldedConstraint_spendRLCPolys_coeff9 (l : Fin actSpendRLCCount → ZMod 17) :
+    (foldedConstraint spendRLCPolys l).coeff actSpendDegree = l 0 := by
+  rw [coeff_foldedConstraint, Finset.sum_eq_single 0]
+  · simp [spendRLCPolys, actSpendDegree, Polynomial.coeff_one]
+  · intro j _ hj
+    simp [spendRLCPolys, hj]
+  · simp
+
+example (l : Fin actSpendRLCCount → ZMod 17) :
+    (foldedConstraint spendRLCPolys l).natDegree ≤ actSpendDegree ∧
+      (foldedConstraint spendRLCPolys l).coeff actSpendDegree = l 0 :=
+  ⟨natDegree_foldedConstraint_le natDegree_spendRLCPolys l,
+    foldedConstraint_spendRLCPolys_coeff9 l⟩
+
+private noncomputable def qsQuery0Adversary :
+    ProbOracleComp (fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 17) Unit := do
+  let _ ← ProbOracleComp.query 0
+  return ()
+
+private theorem isQueryBounded_qsQuery0 :
+    ProbOracleComp.IsQueryBounded qsQuery0Adversary 1 := by
+  unfold qsQuery0Adversary
+  simpa only [Nat.add_zero] using
+    (ProbOracleComp.IsQueryBounded.query
+      (spec := fun _ : Fin 64 => Fin actSpendRLCCount → ZMod 17) 0).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+
+example :
     (do
       let H ← PMF.uniformOfFintype (Fin 64 → Fin actSpendRLCCount → ZMod 17)
-      let s ← OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k))) M
+      let _ ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k)))
+        qsQuery0Adversary
       let k ← PMF.uniformOfFintype (Fin 64)
       let l := H k
       let c ← PMF.uniformOfFintype (ZMod 17)
-      return decide ((∃ j, (P j).coeff actSpendDegree ≠ 0) ∧
-        ((Q s k l).coeff actSpendDegree ≠ 0 ∨ k = 0) ∧
-        (Q s k l).eval c = qsPolySum actSpendDegree (a s k l) c)).toOuterMeasure {true} ≤
+      return decide ((∃ j, (spendRLCPolys j).coeff actSpendDegree ≠ 0) ∧
+        (foldedConstraint spendRLCPolys l).eval c = 0)).toOuterMeasure {true} ≤
       1 * (1 / (64 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ +
-        (1 - (17 : ℝ≥0∞)⁻¹) * (1 / (64 : ℝ≥0∞) + 9 / (17 : ℝ≥0∞))) := by
+        (1 - (17 : ℝ≥0∞)⁻¹) * (9 / (17 : ℝ≥0∞))) := by
   have hdist : ∀ k₀ : Fin 64, PMF.uniformOfFintype (Fin 64) k₀ ≤ 1 / (64 : ℝ≥0∞) := fun _ => by
     simp [PMF.uniformOfFintype_apply, one_div]
-  have h := toOuterMeasure_actV1_qs_sound_le (Function.Embedding.refl (ZMod 17))
-    M hbound (PMF.uniformOfFintype (Fin 64)) hdist (fun _ => P) Q hdegQ a
-    (fun s k l => (Q s k l).coeff actSpendDegree ≠ 0 ∨ k = 0) (ε_zk := 1 / (64 : ℝ≥0∞))
-    (fun s l _ => by
-      have hsub : {k : Fin 64 | ((Q s k l).coeff actSpendDegree ≠ 0 ∨ k = 0) ∧
-          (Q s k l).coeff actSpendDegree = 0} ⊆ {0} := fun k hk =>
-        hk.1.resolve_left (not_not.mpr hk.2)
+  have h := toOuterMeasure_actV1_foldedQS_le (Function.Embedding.refl (ZMod 17))
+    qsQuery0Adversary isQueryBounded_qsQuery0 (PMF.uniformOfFintype (Fin 64)) hdist
+    (fun _ => spendRLCPolys) (fun _ => natDegree_spendRLCPolys) (fun _ _ _ => 0)
+  simp only [Function.Embedding.refl_apply, qsPolySum_zero] at h
+  have hrhs : (1 : ℝ≥0∞) * (1 / (64 : ℝ≥0∞)) + ((Fintype.card (ZMod 17) : ℝ≥0∞)⁻¹ +
+      (1 - (Fintype.card (ZMod 17) : ℝ≥0∞)⁻¹) *
+        ((actSpendDegree : ℝ≥0∞) / (Fintype.card (ZMod 17) : ℝ≥0∞))) =
+      1 * (1 / (64 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ + (1 - (17 : ℝ≥0∞)⁻¹) * (9 / (17 : ℝ≥0∞))) := by
+    rw [ZMod.card, show actSpendDegree = 9 from rfl]
+    norm_num
+  simpa only [Nat.cast_one] using h.trans_eq hrhs
+
+private noncomputable def spendRLCQ :
+    Unit → Fin 64 → (Fin actSpendRLCCount → ZMod 17) → Polynomial (ZMod 17) :=
+  fun _ k l => if k = 0 then 0 else foldedConstraint spendRLCPolys l
+
+private theorem spendRLCQ_ne_zero (k : Fin 64) (hk : k ≠ 0)
+    (l : Fin actSpendRLCCount → ZMod 17) :
+    spendRLCQ () k l = foldedConstraint spendRLCPolys l := by
+  dsimp only [spendRLCQ]
+  rw [ite_eq_right_iff.mpr fun h0 => (hk h0).elim]
+
+example :
+    (do
+      let H ← PMF.uniformOfFintype (Fin 64 → Fin actSpendRLCCount → ZMod 17)
+      let s ← OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun k => PMF.pure (H k)))
+        qsQuery0Adversary
+      let k ← PMF.uniformOfFintype (Fin 64)
+      let l := H k
+      let c ← PMF.uniformOfFintype (ZMod 17)
+      return decide ((∃ j, (spendRLCPolys j).coeff actSpendDegree ≠ 0) ∧ True ∧
+        (spendRLCQ s k l).eval c = 0)).toOuterMeasure {true} ≤
+      1 * (1 / (64 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ +
+        (1 - (17 : ℝ≥0∞)⁻¹) * (1 / (64 : ℝ≥0∞) + 9 / (17 : ℝ≥0∞))) := by
+  have hdegQ : ∀ s k l, (spendRLCQ s k l).natDegree ≤ actSpendDegree := fun _ k l => by
+    dsimp only [spendRLCQ]
+    split_ifs
+    · simp
+    · exact natDegree_foldedConstraint_le natDegree_spendRLCPolys l
+  have hdist : ∀ k₀ : Fin 64, PMF.uniformOfFintype (Fin 64) k₀ ≤ 1 / (64 : ℝ≥0∞) := fun _ => by
+    simp [PMF.uniformOfFintype_apply, one_div]
+  have h := toOuterMeasure_actV1_qs_of_zkBinding_le (Function.Embedding.refl (ZMod 17))
+    qsQuery0Adversary isQueryBounded_qsQuery0 (PMF.uniformOfFintype (Fin 64)) hdist
+    (fun _ => spendRLCPolys) spendRLCQ hdegQ (fun _ _ _ => 0) (fun _ _ _ => True)
+    (ε_zk := 1 / (64 : ℝ≥0∞)) (fun s l hl => by
+      cases s
+      have hsub : {k : Fin 64 | True ∧ (spendRLCQ () k l).coeff actSpendDegree = 0} ⊆ {0} := by
+        intro k hk
+        by_contra hne
+        have hne' : k ≠ 0 := Set.mem_singleton_iff.not.mp hne
+        have hmem := (Set.mem_ofPred_eq.mp hk).2
+        rw [spendRLCQ_ne_zero k hne' l, foldedConstraint_spendRLCPolys_coeff9] at hmem
+        rw [coeff_foldedConstraint] at hl
+        rw [Finset.sum_eq_single 0] at hl
+        · have hl' : l 0 * (spendRLCPolys 0).coeff actSpendDegree ≠ 0 := hl
+          have hc9 : (spendRLCPolys 0).coeff actSpendDegree = 1 := by
+            simp [spendRLCPolys, actSpendDegree, Polynomial.coeff_one]
+          rw [hc9, mul_one] at hl'
+          exact hl' hmem
+        · intro j _ hj
+          simp [spendRLCPolys, hj]
+        · exact fun h0 => absurd (Finset.mem_univ 0) h0
       refine (MeasureTheory.measure_mono hsub).trans_eq ?_
       rw [PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply, Fintype.card_fin,
         one_div]
       norm_num)
-  conv at h =>
-    lhs
-    simp only [Function.Embedding.refl_apply]
-  conv at h =>
-    rhs
+  simp only [Function.Embedding.refl_apply, qsPolySum_zero] at h
+  have hrhs : (1 : ℝ≥0∞) * (1 / (64 : ℝ≥0∞)) + ((Fintype.card (ZMod 17) : ℝ≥0∞)⁻¹ +
+      (1 - (Fintype.card (ZMod 17) : ℝ≥0∞)⁻¹) *
+        (1 / (64 : ℝ≥0∞) + (actSpendDegree : ℝ≥0∞) / (Fintype.card (ZMod 17) : ℝ≥0∞))) =
+      1 * (1 / (64 : ℝ≥0∞)) + ((17 : ℝ≥0∞)⁻¹ +
+        (1 - (17 : ℝ≥0∞)⁻¹) * (1 / (64 : ℝ≥0∞) + 9 / (17 : ℝ≥0∞))) := by
     rw [ZMod.card, show actSpendDegree = 9 from rfl]
-    simp only [Nat.cast_ofNat]
-  exact h
+    norm_num
+  simpa only [Nat.cast_one] using h.trans_eq hrhs
 
--- Negative test 3 (omitting domain separation): if two views read the SAME random oracle `H`
--- instead of disjoint domain-separated slices, `uniform_split_of_disjoint_range` fails, and a
--- 1-query adversary reading `l = H chal2` before outputting `res` cancels `foldedResidual = 0`
--- on 100% of runs.
+-- Negative test 3a (omitting domain separation):
+-- (1) Reading the SAME random oracle `H` does not yield an independent pair `(H₁, H₂)`.
+-- (2) If the FAEST side uses the SAME trailing byte `0` as ACT (`b₁ = b₂ = 0`), a single query
+--     through the other slice (`cost = 0` on ACT's budget) leaks `l = H_all (snoc k 0)` and
+--     cancels `foldedResidual = 0` on 100% of runs.
 example :
     (PMF.uniformOfFintype (Bool → Bool)).map (fun H => (H, H)) ≠
       (PMF.uniformOfFintype (Bool → Bool)).bind fun H₁ =>
@@ -704,6 +943,79 @@ example :
   rw [heq] at h1
   exact h2 h1
 
+private noncomputable def collidingByteAdversary :
+    ProbOracleComp
+      ((fun _ : ByteMsg 0 => Fin 2 → ZMod 11) ⊕ₒ (fun _ : ByteMsg 0 => Fin 2 → ZMod 11))
+      (Fin 2 → ZMod 11) := do
+  let l ← ProbOracleComp.query (.inr Fin.elim0)
+  return if l = 0 then ![1, 0] else ![l 1, -l 0]
+
+example :
+    OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+        collidingByteAdversary 0 ∧
+      (do
+        let H ← PMF.uniformOfFintype (ByteMsg 1 → Fin 2 → ZMod 11)
+        let res ← OracleComp.interpret
+          (OracleComp.sumHandler ProbComp.unifOracle
+            (OracleComp.sumHandler (fun msg => PMF.pure (H (appendDomainByteFin 0 msg)))
+              (fun msg => PMF.pure (H (appendDomainByteFin 0 msg))))) collidingByteAdversary
+        let k ← PMF.uniformOfFintype (ByteMsg 0)
+        return decide ((∃ j, res j ≠ 0) ∧
+          foldedResidual res 0 (H (appendDomainByteFin 0 k)) = 0)).toOuterMeasure {true} = 1 := by
+  constructor
+  · unfold collidingByteAdversary
+    have hfaest := ProbOracleComp.isCostBounded_query
+      (spec := (fun _ : ByteMsg 0 => Fin 2 → ZMod 11) ⊕ₒ (fun _ : ByteMsg 0 => Fin 2 → ZMod 11))
+      (Sum.elim (fun _ => 1) (fun _ => 0)) (.inr (Fin.elim0 : ByteMsg 0))
+    simpa only [Sum.elim_inr, Nat.zero_add] using
+      hfaest.bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  · have htrue : ∀ l : Fin 2 → ZMod 11,
+        (∃ j : Fin 2, (if l = 0 then ![1, 0] else ![l 1, -l 0]) j ≠ 0) ∧
+        foldedResidual (if l = 0 then ![1, 0] else ![l 1, -l 0]) 0 l = 0 := by
+      intro l
+      by_cases h0 : l = 0
+      · simp [h0, foldedResidual]
+      · constructor
+        · by_contra hzero
+          push Not at hzero
+          have hj0 := hzero 0
+          have hj1 := hzero 1
+          simp only [h0, ↓reduceIte, Matrix.cons_val_zero, Matrix.cons_val_one,
+            neg_eq_zero] at hj0 hj1
+          apply h0
+          ext j
+          fin_cases j <;> simp [hj1, hj0]
+        · simp only [h0, ↓reduceIte, foldedResidual, Fin.sum_univ_two, Pi.zero_apply, sub_zero,
+            Matrix.cons_val_zero, Matrix.cons_val_one]
+          ring
+    have heval :
+        (do
+          let H ← PMF.uniformOfFintype (ByteMsg 1 → Fin 2 → ZMod 11)
+          let res ← OracleComp.interpret
+            (OracleComp.sumHandler ProbComp.unifOracle
+              (OracleComp.sumHandler (fun msg => PMF.pure (H (appendDomainByteFin 0 msg)))
+                (fun msg => PMF.pure (H (appendDomainByteFin 0 msg))))) collidingByteAdversary
+          let k ← PMF.uniformOfFintype (ByteMsg 0)
+          return decide ((∃ j, res j ≠ 0) ∧
+            foldedResidual res 0 (H (appendDomainByteFin 0 k)) = 0)) = PMF.pure true := by
+      simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, collidingByteAdversary,
+        OracleComp.interpret_bind, ProbOracleComp.interpret_query, OracleComp.sumHandler,
+        OracleComp.interpret_pure, PMF.pure_bind]
+      trans ((PMF.uniformOfFintype (ByteMsg 1 → Fin 2 → ZMod 11)).bind fun _ => PMF.pure true)
+      · congr 1 with H : 1
+        trans ((PMF.uniformOfFintype (ByteMsg 0)).bind fun _ => PMF.pure true)
+        · congr 1 with k : 1
+          have hk : k = Fin.elim0 := Subsingleton.elim k Fin.elim0
+          rw [hk]
+          exact congrArg PMF.pure (decide_eq_true (htrue (H (appendDomainByteFin 0 Fin.elim0))))
+        · simp [PMF.bind_const]
+      · simp [PMF.bind_const]
+    rw [heval]
+    simp
+
+-- Negative test 3b (`q * δ_K` tightness for predictable challenge `K = Unit`):
+-- querying `H ()` (`1` query, `δ_K = 1`) before committing forces `foldedResidual = 0` with
+-- probability `1`, matching the `1 * 1` term of `toOuterMeasure_actV1RLC_adaptive_of_zkError_le`.
 private noncomputable def adaptiveCancelAdversary :
     ProbOracleComp (fun _ : Unit => Fin 2 → ZMod 11) (Fin 2 → ZMod 11) := do
   let l ← ProbOracleComp.query ()
@@ -770,19 +1082,24 @@ example :
     simp
 
 -- Negative test 4 (small challenge field in ACT V1 RLC): over `ZMod 2`, random linear combination
--- cancellation probability is `1 / 2` instead of exponentially small, making the Round-2+3 bound
--- on `ZMod 2` vacuous (`≥ 1`).
+-- cancellation probability is `1 / 2`, while at degree `actSpendDegree = 9` the `d / |F|` term is
+-- `9 / 2 ≥ 1`, making the Round-2+3 bound vacuous (`≥ 1`).
 example :
     (PMF.uniformOfFintype (Fin 2 → ZMod 2)).toOuterMeasure
-        {l | foldedResidual ![1, 0] ![0, 0] l = 0} = 1 / (2 : ℝ≥0∞) := by
-  rw [PMF.toOuterMeasure_uniformOfFintype, Fintype.card_fun, ZMod.card, Fintype.card_fin]
-  have hcard : ({l | l ∈ {l : Fin 2 → ZMod 2 | foldedResidual ![1, 0] ![0, 0] l = 0}} :
-      Finset (Fin 2 → ZMod 2)).card = 2 := by
-    decide
-  rw [hcard, show ((2 ^ 2 : ℕ) : ℝ≥0∞) = 2 * 2 by norm_num,
-    ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)),
-    ← mul_assoc]
-  simp only [Nat.cast_ofNat]
-  rw [ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul, one_div]
+        {l | foldedResidual ![1, 0] ![0, 0] l = 0} = 1 / (2 : ℝ≥0∞) ∧
+      1 ≤ (actSpendDegree : ℝ≥0∞) / (Fintype.card (ZMod 2) : ℝ≥0∞) := by
+  constructor
+  · rw [PMF.toOuterMeasure_uniformOfFintype, Fintype.card_fun, ZMod.card, Fintype.card_fin]
+    have hcard : ({l | l ∈ {l : Fin 2 → ZMod 2 | foldedResidual ![1, 0] ![0, 0] l = 0}} :
+        Finset (Fin 2 → ZMod 2)).card = 2 := by
+      decide
+    rw [hcard, show ((2 ^ 2 : ℕ) : ℝ≥0∞) = 2 * 2 by norm_num,
+      ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)),
+      ← mul_assoc]
+    simp only [Nat.cast_ofNat]
+    rw [ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul, one_div]
+  · rw [ZMod.card, actSpendDegree, ENNReal.le_div_iff_mul_le (Or.inl (by norm_num))
+      (Or.inl (by norm_num))]
+    norm_num
 
 end CslibFrontierTests.Crypto.VOLEHigherDegreeCheck
