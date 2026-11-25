@@ -132,29 +132,12 @@ theorem isSymmetric_toSymmCostGame_iff {G : BimatrixGame M M} :
     simp only [Equiv.swap_apply_left, Equiv.swap_apply_right, Bool.cond_true, Bool.cond_false,
       neg_inj, transpose_apply] at hij ⊢
     exact hij.symm
-  · intro hG π s b
-    by_cases hπ : π false = false
-    · have hπt : π true = true := by
-        rcases Bool.dichotomy (π true) with ht | ht
-        · exact absurd (π.injective (ht.trans hπ.symm)) (by decide)
-        · exact ht
-      have hs : s ∘ π = s := by
-        funext c
-        cases c <;> simp only [Function.comp_apply, hπ, hπt]
-      rw [hs]
-      cases b <;> simp only [hπ, hπt]
-    · have hπf : π false = true := Bool.eq_true_of_not_eq_false hπ
-      have hπt : π true = false := by
-        rcases Bool.dichotomy (π true) with ht | ht
-        · exact ht
-        · exact absurd (π.injective (ht.trans hπf.symm)) (by decide)
-      cases b
-      · rw [hπf]
-        dsimp only [toSymmCostGame, Function.comp_apply]
-        rw [hπf, hπt, hG, transpose_apply]
-      · rw [hπt]
-        dsimp only [toSymmCostGame, Function.comp_apply]
-        rw [hπf, hπt, hG, transpose_apply]
+  · intro (hG : G.B = G.Aᵀ) π s b
+    cases b <;> cases hf : π false <;> cases ht : π true <;>
+      first
+      | exact absurd (π.injective (hf.trans ht.symm)) (by decide)
+      | simp only [toSymmCostGame_cost_false, toSymmCostGame_cost_true, Function.comp_apply, hf,
+          ht, hG, transpose_apply]
 
 section FintypeSymmetric
 
