@@ -187,8 +187,7 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
     have hheight : ∀ {l r : Bracketing (Fin n)}, (Bracketing.node l r).height ≤ h + 1 →
         l.height ≤ h ∧ r.height ≤ h := fun {l r} hh => by
       rw [Bracketing.height] at hh
-      exact ⟨(le_max_left _ _).trans (Nat.le_of_succ_le_succ hh),
-        (le_max_right _ _).trans (Nat.le_of_succ_le_succ hh)⟩
+      exact max_le_iff.1 (Nat.le_of_succ_le_succ hh)
     have hPmem : ∀ x ∈ P, ∃ l r, Bracketing.node l r ∈ t.subtrees ∧ l.height ≤ h ∧
         r.height ≤ h ∧ x ∈ (S l + S r).offDiag := fun x hx => by
       rw [hPdef, levelPairs, mem_biUnion] at hx
@@ -214,17 +213,15 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
           have hr := hScard r (Bracketing.mem_subtrees_of_node hs.1).2 (hheight hs.2).2
           have hadd : (S l + S r).card ≤ w ^ 2 * w ^ 2 :=
             (card_add_le).trans (Nat.mul_le_mul hl hr)
-          calc (S l + S r).offDiag.card ≤ (S l + S r).card * (S l + S r).card := by
-                rw [offDiag_card]
-                exact Nat.sub_le _ _
+          calc (S l + S r).offDiag.card ≤ (S l + S r).card * (S l + S r).card :=
+                (offDiag_card _).trans_le (Nat.sub_le _ _)
             _ ≤ (w ^ 2 * w ^ 2) * (w ^ 2 * w ^ 2) := Nat.mul_le_mul hadd hadd
             _ = (w ^ 2) ^ 4 := by ring
       · rw [smul_eq_mul]
         refine Nat.mul_le_mul_right _ ((card_filter_le _ _).trans
           ((List.toFinset_card_le _).trans ?_))
         have h1 := t.length_subtrees
-        have h2 : t.leaves.length ≤ n := by
-          simpa using ht.length_le_card
+        have h2 : t.leaves.length ≤ n := by simpa using ht.length_le_card
         omega
     obtain ⟨a', ha'p, hsep⟩ := exists_modWeight_separating hδ P hP hPcard
     set c' := levelWeight (n := n) p B (a' :: a) with hc'
