@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Foundations.Data.List.IsChain
 
 /-!
 # k-Path is `NP`-complete
@@ -362,27 +363,6 @@ private theorem card_pendantCopy :
     Finset.card_insert_of_notMem h0, Finset.card_insert_of_notMem h1,
     Finset.card_image_of_injOn hinj, Graph.length_distinctVertices]
 
-/-- In a chain without repetitions of a symmetric relation, a vertex all of whose neighbors equal
-`c` is the first or the last vertex. -/
-private theorem head_or_last_of_forall_adj {R : ℕ → ℕ → Prop} {q : List ℕ} {z c : ℕ}
-    (hnd : q.Nodup) (hch : q.IsChain R) (hz : z ∈ q) (hR : ∀ {w}, R w z ∨ R z w → w = c) :
-    q.head? = some z ∨ q.getLast? = some z := by
-  obtain ⟨l₁, l₂, rfl⟩ := List.append_of_mem hz
-  rcases List.eq_nil_or_concat l₁ with rfl | ⟨l₁, u, rfl⟩
-  · exact Or.inl rfl
-  rcases l₂ with _ | ⟨w, l₂⟩
-  · right
-    simp
-  exfalso
-  rw [List.concat_eq_append, List.append_assoc, List.cons_append, List.nil_append] at hnd hch
-  have hu : u = c := hR (Or.inl (List.isChain_iff_forall_rel_of_append_cons_cons.1 hch
-    (l₁ := l₁) (l₂ := w :: l₂) rfl))
-  have hw : w = c := hR (Or.inr (List.isChain_iff_forall_rel_of_append_cons_cons.1 hch
-    (l₁ := l₁ ++ [u]) (l₂ := l₂) (by simp only [List.append_assoc, List.cons_append,
-      List.nil_append])))
-  have hu' := (List.nodup_cons.1 (List.nodup_append.1 hnd).2.1).1
-  exact hu' (hu.trans hw.symm ▸ List.mem_cons_of_mem _ List.mem_cons_self)
-
 /-- A path of a copy from `Nat.pair i 0` to `Nat.pair i 1` through the copies of all declared
 vertices gives a Hamiltonian path of `G` from `s` to `t`. -/
 private theorem mem_HamPath_of_path {q : List ℕ} (hnd : q.Nodup)
@@ -462,10 +442,10 @@ private theorem mem_HamPath_of_mem_LongPath
     exact hw
   have hcov : ∀ v ∈ G.vertices, copyLabel G i v ∈ q := fun v hv =>
     hmem _ (mem_pendantCopy_fst.2 (Or.inr (Or.inr ⟨v, hv, rfl⟩)))
-  have hend0 := head_or_last_of_forall_adj hnd hch (hmem _ pair_zero_mem_pendantCopy)
-    (fun hw => eq_of_adj_pair_zero (hw.elim (fun h => h.symm) id))
-  have hend1 := head_or_last_of_forall_adj hnd hch (hmem _ pair_one_mem_pendantCopy)
-    (fun hw => eq_of_adj_pair_one (hw.elim (fun h => h.symm) id))
+  have hend0 := hch.head?_eq_or_getLast?_eq_of_rel_eq hnd (hmem _ pair_zero_mem_pendantCopy)
+    fun _ hw => eq_of_adj_pair_zero (hw.elim id fun h => h.symm)
+  have hend1 := hch.head?_eq_or_getLast?_eq_of_rel_eq hnd (hmem _ pair_one_mem_pendantCopy)
+    fun _ hw => eq_of_adj_pair_one (hw.elim id fun h => h.symm)
   have hab := pair_zero_ne_pair_one i i
   rcases hend0 with h0 | h0 <;> rcases hend1 with h1 | h1
   · exact absurd (Option.some_injective _ (h0.symm.trans h1)) hab

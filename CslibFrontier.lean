@@ -8517,6 +8517,7 @@ public import CslibFrontier.Foundations.Data.List.GetD
 public import CslibFrontier.Foundations.Data.List.IdxOf
 public import CslibFrontier.Foundations.Data.List.IdxOfIdentification
 public import CslibFrontier.Foundations.Data.List.IdxOfInjective
+public import CslibFrontier.Foundations.Data.List.IsChain
 public import CslibFrontier.Foundations.Data.List.IsSortedLT
 public import CslibFrontier.Foundations.Data.List.KeyedFlatMap
 public import CslibFrontier.Foundations.Data.List.Last
