@@ -613,7 +613,8 @@ theorem nodeCount_le_encodeE1_length (t : PrefixTrie α) :
     nodeCount t ≤ (encodeE1 t).length := by
   induction t with
   | empty | leaf _ => exact Nat.le_add_right 1 1
-  | branch l r ihl ihr => simp only [encodeE1, nodeCount, List.length_cons, List.length_append]; omega
+  | branch l r ihl ihr =>
+    simp only [encodeE1, nodeCount, List.length_cons, List.length_append]; omega
 
 private theorem decodeHelper_encode (t : PrefixTrie α) (fuel : ℕ)
     (hfuel : nodeCount t ≤ fuel) (rest1 : List Bool) (rest2 : List α) :
