@@ -206,7 +206,7 @@ theorem engineCertificate_le (cc : NativeCertificate core (encCore encT) (encLis
   obtain ⟨pD, hpD, mD, bD⟩ := exists_mono_poly_cert (coreInput_polyTime (encT := encT))
   obtain ⟨pR, hpR, mR, bR⟩ := exists_mono_poly_cert (engineRecover_polyTime (encT := encT))
   -- The overhead, as a polynomial in `X = n + Yb`.
-  let Sh : ℕ → ℕ := fun X => 7 * (X + 1) ^ 3
+  let Sh : ℕ → ℕ := fun X => 2 * (X + 1) ^ 2 + 2 * X + 2 + (X + 1) ^ 2 * (2 * X + 1)
   let U : ℕ → ℕ := fun X => pN X + X + pI X + 3 * Sh X + 3 * ((X + 1) ^ 2 + 1) ^ 2 +
     pA (Sh X) + pC (Sh X) + pD (Sh X) + pB (2 * Sh X + 1 + X) + pR (Sh X)
   have hU : PolyBounded id U := by growth_poly
@@ -223,15 +223,7 @@ theorem engineCertificate_le (cc : NativeCertificate core (encCore encT) (encLis
     have : L * L ≤ X * X := Nat.mul_le_mul (by omega) (by omega)
     linarith
   let S := 2 * N + 2 * L + 2 + N * (2 * Yb + 1)
-  have hSSh : S ≤ Sh X := by
-    have h1 : N * (2 * Yb + 1) ≤ (X + 1) ^ 2 * (2 * X + 2) := Nat.mul_le_mul hNX (by omega)
-    have h2 : (X + 1) ^ 2 ≤ (X + 1) ^ 3 := Nat.pow_le_pow_right (by omega) (by omega)
-    have h3 : X + 1 ≤ (X + 1) ^ 3 := by
-      calc X + 1 = (X + 1) ^ 1 := (pow_one _).symm
-        _ ≤ (X + 1) ^ 3 := Nat.pow_le_pow_right (by omega) (by omega)
-    have h4 : (X + 1) ^ 2 * (2 * X + 2) = 2 * (X + 1) ^ 3 := by ring
-    simp only [Sh, S]
-    omega
+  have hSSh : S ≤ Sh X := by simp only [S, Sh]; gcongr <;> omega
   have hstate (j : ℕ) (hj : j ≤ N) :
       (encEngineState encT (IndexFold.run (engineStep core) j (y, []))).length ≤ S := by
     have h := length_run_engineStep_le (encT := encT) core y (j := j) (Yb := Yb)
@@ -249,54 +241,40 @@ theorem engineCertificate_le (cc : NativeCertificate core (encCore encT) (encLis
     have hY := (hcore j hj).2.2
     rw [run_engineStep] at hs ⊢
     enc_len at hs ⊢
-  have hround_time (j : ℕ) (hj : j ≤ N) :
+  set P4 := pA (Sh X) + pC (Sh X) + pD (Sh X) + pB (2 * Sh X + 1 + X)
+  have hround (j : ℕ) (hj : j ≤ N) :
       (IndexFold.roundCertificate (engineStepCertificate core cc)).time
-          (IndexFold.run (engineStep core) j (y, [])) ≤
-        S + (N + 1) ^ 2 + pA (Sh X) + pC (Sh X) + pD (Sh X) + pB (2 * Sh X + 1 + X) + R := by
+          (IndexFold.run (engineStep core) j (y, [])) ≤ S + (N + 1) ^ 2 + P4 + R ∧
+        (IndexFold.roundCertificate (engineStepCertificate core cc)).space
+          (IndexFold.run (engineStep core) j (y, [])) ≤ S + (N + 1) + P4 + Q := by
     have hs := hstate j hj
-    have hsn := hsnoc j hj
+    have hB := mB ((hsnoc j hj).trans (by omega : 2 * S + 1 + Yb ≤ 2 * Sh X + 1 + X))
+    have hA := mA (hs.trans hSSh)
+    have hC := mC (hs.trans hSSh)
+    have hD := mD (hs.trans hSSh)
     simp only [IndexFold.roundCertificate, engineStepCertificate, NativeCertificate.comp_time,
-      NativeCertificate.prod_time]
-    have h1 := (bA (IndexFold.run (engineStep core) j (y, []))).1.trans (mA (hs.trans hSSh))
-    have h2 := (bC (IndexFold.run (engineStep core) j (y, []))).1.trans (mC (hs.trans hSSh))
-    have h3 := (bD (IndexFold.run (engineStep core) j (y, []))).1.trans (mD (hs.trans hSSh))
-    have h4 := (bB _).1.trans (mB (hsn.trans (by omega : 2 * S + 1 + Yb ≤ 2 * Sh X + 1 + X)))
-    have hidx : (encNat (IndexFold.run (engineStep core) j (y, [])).1).length + 1 ≤ N + 1 := by
-      rw [IndexFold.run_index]
-      exact Nat.add_le_add_right ((length_encNat_mono hj).trans (length_encNat_le_self N)) 1
-    have hsq := Nat.pow_le_pow_left hidx 2
-    have hR := (hcore j hj).1
-    rw [run_engineStep] at h1 h2 h3 h4 hs hsq ⊢
-    simp only [Function.comp_apply, encEngineState] at h1 h2 h3 h4 hs hsq ⊢
-    omega
-  have hround_space (j : ℕ) (hj : j ≤ N) :
-      (IndexFold.roundCertificate (engineStepCertificate core cc)).space
-          (IndexFold.run (engineStep core) j (y, [])) ≤
-        S + (N + 1) + pA (Sh X) + pC (Sh X) + pD (Sh X) + pB (2 * Sh X + 1 + X) + Q := by
-    have hs := hstate j hj
-    have hsn := hsnoc j hj
-    simp only [IndexFold.roundCertificate, engineStepCertificate, NativeCertificate.comp_space,
-      NativeCertificate.prod_space]
-    have h1 := (bA (IndexFold.run (engineStep core) j (y, []))).2.trans (mA (hs.trans hSSh))
-    have h2 := (bC (IndexFold.run (engineStep core) j (y, []))).2.trans (mC (hs.trans hSSh))
-    have h3 := (bD (IndexFold.run (engineStep core) j (y, []))).2.trans (mD (hs.trans hSSh))
-    have h4 := (bB _).2.trans (mB (hsn.trans (by omega : 2 * S + 1 + Yb ≤ 2 * Sh X + 1 + X)))
+      NativeCertificate.prod_time, NativeCertificate.comp_space, NativeCertificate.prod_space]
+    have h1 := (bA (IndexFold.run (engineStep core) j (y, []))).imp (·.trans hA) (·.trans hA)
+    have h2 := (bC (IndexFold.run (engineStep core) j (y, []))).imp (·.trans hC) (·.trans hC)
+    have h3 := (bD (IndexFold.run (engineStep core) j (y, []))).imp (·.trans hD) (·.trans hD)
+    have h4 := (bB _).imp (·.trans hB) (·.trans hB)
     have hidx : (encNat (IndexFold.run (engineStep core) j (y, [])).1).length ≤ N := by
       rw [IndexFold.run_index]
       exact (length_encNat_mono hj).trans (length_encNat_le_self N)
-    have hQ := (hcore j hj).2.1
-    rw [run_engineStep] at h1 h2 h3 h4 hs hidx ⊢
-    simp only [Function.comp_apply, encEngineState] at h1 h2 h3 h4 hs hidx ⊢
-    omega
+    have hsq := Nat.pow_le_pow_left (Nat.add_le_add_right hidx 1) 2
+    obtain ⟨hR, hQ, -⟩ := hcore j hj
+    rw [run_engineStep] at h1 h2 h3 h4 hs hidx hsq ⊢
+    simp only [Function.comp_apply, encEngineState] at h1 h2 h3 h4 hs hidx hsq ⊢
+    constructor <;> omega
   -- The trajectory maxima.
   have hmaxT : NativeCertificate.maxRoundTime
       (IndexFold.roundCertificate (engineStepCertificate core cc)) N (0, y, []) ≤
-        S + (N + 1) ^ 2 + pA (Sh X) + pC (Sh X) + pD (Sh X) + pB (2 * Sh X + 1 + X) + R :=
-    NativeCertificate.maxRoundTime_le _ _ _ fun j hj => hround_time j hj
+        S + (N + 1) ^ 2 + P4 + R :=
+    NativeCertificate.maxRoundTime_le _ _ _ fun j hj => (hround j hj).1
   have hmaxS : NativeCertificate.maxRoundSpace
       (IndexFold.roundCertificate (engineStepCertificate core cc)) N (0, y, []) ≤
-        S + (N + 1) + pA (Sh X) + pC (Sh X) + pD (Sh X) + pB (2 * Sh X + 1 + X) + Q :=
-    NativeCertificate.maxRoundSpace_le _ _ _ fun j hj => hround_space j hj
+        S + (N + 1) + P4 + Q :=
+    NativeCertificate.maxRoundSpace_le _ _ _ fun j hj => (hround j hj).2
   have hmaxL : NativeCertificate.maxStateLength (encEngineState encT)
       (IndexFold.step (engineStep core)) N (0, y, []) ≤ S :=
     NativeCertificate.maxStateLength_le _ _ _ _ fun j hj => hstate j hj
@@ -307,10 +285,9 @@ theorem engineCertificate_le (cc : NativeCertificate core (encCore encT) (encLis
   have hNs := (bN y).2.trans (mN hLX)
   have hIt := (bI y).1.trans (mI hLX)
   have hIs := (bI y).2.trans (mI hLX)
-  have hRt := (bR (IndexFold.run (engineStep core) N (y, []))).1.trans
-    (mR ((hstate N le_rfl).trans hSSh))
-  have hRs := (bR (IndexFold.run (engineStep core) N (y, []))).2.trans
-    (mR ((hstate N le_rfl).trans hSSh))
+  have hRm := mR ((hstate N le_rfl).trans hSSh)
+  have hRt := (bR (IndexFold.run (engineStep core) N (y, []))).1.trans hRm
+  have hRs := (bR (IndexFold.run (engineStep core) N (y, []))).2.trans hRm
   have hNlen : (encNat N).length ≤ N := length_encNat_le_self N
   have hsq : ((encNat N).length + 1) ^ 2 ≤ (N + 1) ^ 2 := Nat.pow_le_pow_left (by omega) 2
   have hNsq : (N + 1) ^ 2 ≤ ((X + 1) ^ 2 + 1) ^ 2 := Nat.pow_le_pow_left (by omega) 2
@@ -320,23 +297,14 @@ theorem engineCertificate_le (cc : NativeCertificate core (encCore encT) (encLis
       IndexFold.certificate, NativeCertificate.iterate_time]
     simp only [NativeCertificate.prod_time, NativeCertificate.const_time, Function.comp_apply]
     rw [← hN, ← hL]
-    set P4 := pA (Sh X) + pC (Sh X) + pD (Sh X) + pB (2 * Sh X + 1 + X)
     set A := pN X + X + pI X + pR (Sh X)
     have hA : A ≤ (N + 1) * A := Nat.le_mul_of_pos_left _ (by omega)
-    have hB := Nat.mul_le_mul_left (N + 1) (show
-      NativeCertificate.maxRoundTime (IndexFold.roundCertificate (engineStepCertificate core cc))
-          N (0, y, []) +
-        NativeCertificate.maxStateLength (encEngineState encT)
-          (IndexFold.step (engineStep core)) N (0, y, []) +
-          ((encNat N).length + 1) ^ 2 ≤ 2 * S + 2 * (N + 1) ^ 2 + P4 + R by
-            dsimp only [encEngineState]; omega)
-    dsimp only [encEngineState] at hB
-    have hsum : (N + 1) * A + (N + 1) * (2 * S + 2 * (N + 1) ^ 2 + P4 + R) =
-        (N + 1) * (A + 2 * S + 2 * (N + 1) ^ 2 + P4 + R) := by ring
+    have hB := Nat.mul_le_mul_left (N + 1) (Nat.add_le_add (Nat.add_le_add hmaxT hmaxL) hsq)
     have hC := Nat.mul_le_mul_left (N + 1)
-      (show A + 2 * S + 2 * (N + 1) ^ 2 + P4 + R ≤ K * (X + 1) ^ K + R by
+      (show A + (S + (N + 1) ^ 2 + P4 + R + S + (N + 1) ^ 2) ≤ K * (X + 1) ^ K + R by
         simp only [U] at hUX
         omega)
+    rw [Nat.mul_add] at hC
     omega
   · rw [engineCertificate, NativeCertificate.congr_space, NativeCertificate.comp_space,
       IndexFold.certificate, NativeCertificate.iterate_space]
@@ -408,6 +376,18 @@ private theorem length_vertex_le {T' : Type} (encT' : T' ↪ List Bool) (G : Des
     (List.mem_map_of_mem (f := fun a => (encPair (encList encNat) encT' a).length) hv)
   have h2 := sum_length_le_length_encList (encPair (encList encNat) encT') G.vertices
   rw [length_encDescribed]
+  omega
+
+/-- `a + X (b + c E) ≤ T X (E + 1)` when `a + b ≤ T`, `c ≤ T` and `1 ≤ X`: the time of a set-up
+step `a` followed by `X` rounds of cost `b + c E`. -/
+private theorem add_mul_le_mul_mul {X E a b c T : ℕ} (hX : 1 ≤ X) (hab : a + b ≤ T)
+    (hc : c ≤ T) : a + X * (b + c * E) ≤ T * X * (E + 1) := by
+  have h1 : a ≤ X * a := Nat.le_mul_of_pos_left a hX
+  have h2 : X * (a + b) ≤ X * T := Nat.mul_le_mul_left _ hab
+  have h3 : X * (c * E) ≤ X * (T * E) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hc)
+  have e : T * X * (E + 1) = X * (T * E) + X * T := by ring
+  rw [e, Nat.mul_add]
+  rw [Nat.mul_add] at h2
   omega
 
 /-- **Time and space of direct summation over a specialized network.** There is `K` such that,
@@ -522,23 +502,12 @@ theorem directCoreCertificate_le (entry : T → List Bool → List ℕ)
   refine ⟨?_, ?_⟩
   · simp only [directCoreCertificate, NativeCertificate.congr, NativeCertificate.comp_time,
       Function.comp_apply]
-    -- `pS Z + X (Z + 2) (B + 2 (E + U)) ≤ X (E + 1) T`.
-    have hsplit : pS Z + X * (Z + 2) * (Bf Z + 2 * (E + Uf Z)) ≤ X * (Tf Z * (E + 1)) := by
-      have e : X * (Z + 2) * (Bf Z + 2 * (E + Uf Z)) =
-          X * ((Z + 2) * (Bf Z + 2 * Uf Z)) + X * ((Z + 2) * 2 * E) := by ring
-      have e2 : X * (Tf Z * (E + 1)) = X * (Tf Z * E) + X * Tf Z := by ring
-      have h3 : pS Z + X * ((Z + 2) * (Bf Z + 2 * Uf Z)) ≤ X * Tf Z := by
-        have := Nat.le_mul_of_pos_left (pS Z) hX1
-        have e3 : X * Tf Z = X * pS Z + X * ((Z + 2) * (Bf Z + 2 * Uf Z)) + X * ((Z + 2) * 2) :=
-          by simp only [Tf]; ring
-        omega
-      have hT2 : (Z + 2) * 2 ≤ Tf Z := by simp only [Tf]; omega
-      have h4 : X * ((Z + 2) * 2 * E) ≤ X * (Tf Z * E) := by gcongr
-      omega
-    have hfin : X * (Tf Z * (E + 1)) ≤ K * (Z + 1) ^ K * X * (E + 1) := by
-      calc X * (Tf Z * (E + 1)) ≤ X * (K * (Z + 1) ^ K * (E + 1)) :=
-            Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
-        _ = K * (Z + 1) ^ K * X * (E + 1) := by ring
+    -- `pS Z + X (Z + 2) (B + 2 (E + U)) ≤ T X (E + 1)`.
+    have e : X * (Z + 2) * (Bf Z + 2 * (E + Uf Z)) =
+        X * ((Z + 2) * (Bf Z + 2 * Uf Z) + (Z + 2) * 2 * E) := by ring
+    have hTf : Tf Z ≤ K * (Z + 1) ^ K := by omega
+    have := add_mul_le_mul_mul (b := (Z + 2) * (Bf Z + 2 * Uf Z)) (c := (Z + 2) * 2) (E := E) hX1
+      ((Nat.le_add_right _ _).trans hTf) ((Nat.le_add_left _ _).trans hTf)
     have hpS : (NativeCertificate.ofPolyTime hcR).time (P, fl, r, G') ≤ pS Z := hRt
     omega
   · simp only [directCoreCertificate, NativeCertificate.congr, NativeCertificate.comp_space,
@@ -571,7 +540,8 @@ theorem truncDirectCertificate_le (entry : T → List Bool → List ℕ)
   let Yf : ℕ → ℕ := fun W => cY * (W + 1) ^ dY
   let Rf : ℕ → ℕ := fun W => KA * (9 * (Yf W + 1) ^ 2 + W + 1) ^ KA
   let Engf : ℕ → ℕ := fun W => K₁ * (Yf W + cD * (Rf W + 1) + 1) ^ K₁
-  let Tf : ℕ → ℕ := fun W => pM W + (Yf W * Yf W + 2) * (Engf W + Rf W)
+  let Tf : ℕ → ℕ := fun W =>
+    pM W + (Yf W * Yf W + 2) * Engf W + (Yf W * Yf W + 2) * Rf W
   let Sf : ℕ → ℕ := fun W => pM W + (Engf W + Rf W)
   have hTSp : PolyBounded id fun W => Tf W + Sf W := by growth_poly
   obtain ⟨K, hK⟩ := hTSp.exists_le_succ_pow
@@ -614,20 +584,11 @@ theorem truncDirectCertificate_le (entry : T → List Bool → List ℕ)
   refine ⟨?_, ?_⟩
   · simp only [truncDirectCertificate, NativeCertificate.congr, NativeCertificate.comp_time]
     have hTe' := hTe.trans (Nat.mul_le_mul hNy (Nat.add_le_add_right hEng _))
-    have hsum : pM W + (Yf W * Yf W + 2) * (Engf W + Rf W * X * (E + 1)) ≤
-        X * (E + 1) * Tf W := by
-      have hXE : 1 ≤ X * (E + 1) := Nat.one_le_iff_ne_zero.mpr (by positivity)
-      have h2 : pM W + (Yf W * Yf W + 2) * Engf W ≤
-          X * (E + 1) * (pM W + (Yf W * Yf W + 2) * Engf W) := Nat.le_mul_of_pos_left _ hXE
-      have e1 : (Yf W * Yf W + 2) * (Engf W + Rf W * X * (E + 1)) =
-          (Yf W * Yf W + 2) * Engf W + X * (E + 1) * ((Yf W * Yf W + 2) * Rf W) := by ring
-      have e2 : X * (E + 1) * Tf W = X * (E + 1) * (pM W + (Yf W * Yf W + 2) * Engf W) +
-          X * (E + 1) * ((Yf W * Yf W + 2) * Rf W) := by simp only [Tf]; ring
-      omega
-    have hfin : X * (E + 1) * Tf W ≤ K * (W + 1) ^ K * X * (E + 1) := by
-      calc X * (E + 1) * Tf W ≤ X * (E + 1) * (K * (W + 1) ^ K) :=
-            Nat.mul_le_mul_left _ (by omega)
-        _ = K * (W + 1) ^ K * X * (E + 1) := by ring
+    have e : (Yf W * Yf W + 2) * (Engf W + Rf W * X * (E + 1)) = (Yf W * Yf W + 2) * Engf W +
+        X * ((Yf W * Yf W + 2) * Rf W + (Yf W * Yf W + 2) * Rf W * E) := by ring
+    have hTf : Tf W ≤ K * (W + 1) ^ K := by omega
+    have := add_mul_le_mul_mul (b := (Yf W * Yf W + 2) * Rf W) (E := E) hX1 hTf
+      ((Nat.le_add_left _ _).trans hTf)
     change (NativeCertificate.ofPolyTime modulusChoice_polyTime).time (P, ℓ, r, G) +
       (engineCertificate _ (directCoreCertificate entry ce)).time (fl, P, ℓ, r, G) ≤ _
     omega
