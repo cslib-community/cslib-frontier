@@ -174,11 +174,15 @@ private def gadgetBlock {n : ℕ} : CorrGadgetV n → Fin n ⊕ CorrPairIdx n
   | .vertex i _ => Sum.inl i
   | .edge e _ _ => Sum.inr e
 
-private theorem adj_of_gadgetBlock_eq {n : ℕ} {u v : CorrGadgetV n} (hne : u ≠ v)
-    (heq : gadgetBlock u = gadgetBlock v) : (corrGadgetGraph n).Adj u v := by
+private theorem injOn_gadgetBlock {n : ℕ} {S : Finset (CorrGadgetV n)}
+    (hS : (corrGadgetGraph n).IsIndepSet (S : Set (CorrGadgetV n))) :
+    Set.InjOn gadgetBlock (S : Set (CorrGadgetV n)) := by
+  intro u hu v hv heq
+  by_contra hne
+  refine hS hu hv hne ?_
   cases u <;> cases v <;> simp only [gadgetBlock, Sum.inl.injEq, Sum.inr.injEq, reduceCtorEq] at heq
   · subst heq
-    refine ⟨rfl, fun h => hne (by rw [h])⟩
+    exact ⟨rfl, fun h => hne (by rw [h])⟩
   · subst heq
     refine ⟨rfl, ?_⟩
     by_contra! h
@@ -187,11 +191,8 @@ private theorem adj_of_gadgetBlock_eq {n : ℕ} {u v : CorrGadgetV n} (hne : u �
 private theorem card_le_of_isIndepSet_corrGadgetGraph {n : ℕ} {S : Finset (CorrGadgetV n)}
     (hS : (corrGadgetGraph n).IsIndepSet (S : Set (CorrGadgetV n))) :
     S.card ≤ n + Fintype.card (CorrPairIdx n) := by
-  have hinj : Set.InjOn gadgetBlock (S : Set (CorrGadgetV n)) := fun u hu v hv heq => by
-    by_contra hne
-    exact hS hu hv hne (adj_of_gadgetBlock_eq hne heq)
   calc
-    S.card = (S.image gadgetBlock).card := (Finset.card_image_of_injOn hinj).symm
+    S.card = (S.image gadgetBlock).card := (Finset.card_image_of_injOn (injOn_gadgetBlock hS)).symm
     _ ≤ Fintype.card (Fin n ⊕ CorrPairIdx n) := Finset.card_le_univ _
     _ = n + Fintype.card (CorrPairIdx n) := by rw [Fintype.card_sum, Fintype.card_fin]
 
@@ -285,71 +286,38 @@ private theorem stabToCorrLinear_tight {K : Type*} [Semiring K]
     (hS : (corrGadgetGraph n).IsIndepSet (S : Set (CorrGadgetV n)))
     (hcard : S.card = n + Fintype.card (CorrPairIdx n)) :
     ∃ b : Finset (Fin n), stabToCorrLinear K n (stabVertex K S) = corrVertex K b := by
-  have hinj : Set.InjOn gadgetBlock (S : Set (CorrGadgetV n)) := fun u hu v hv heq => by
-    by_contra hne
-    exact hS hu hv hne (adj_of_gadgetBlock_eq hne heq)
   have him : S.image gadgetBlock = Finset.univ := by
     refine Finset.eq_univ_of_card _ ?_
-    rw [Finset.card_image_of_injOn hinj, hcard, Fintype.card_sum, Fintype.card_fin]
+    rw [Finset.card_image_of_injOn (injOn_gadgetBlock hS), hcard, Fintype.card_sum,
+      Fintype.card_fin]
+  have hblock x : ∃ u ∈ S, gadgetBlock u = x := Finset.mem_image.1 (him ▸ Finset.mem_univ x)
   let b : Finset (Fin n) := Finset.univ.filter fun i => CorrGadgetV.vertex i true ∈ S
-  refine ⟨b, ?_⟩
-  have hv_mem : ∀ i : Fin n, ∃ val : Bool, CorrGadgetV.vertex i val ∈ S := fun i => by
-    have hi : Sum.inl i ∈ S.image gadgetBlock := him ▸ Finset.mem_univ _
-    rw [Finset.mem_image] at hi
-    obtain ⟨u, hu, hu_eq⟩ := hi
-    cases u with
-    | vertex i' val =>
-        simp only [gadgetBlock, Sum.inl.injEq] at hu_eq
-        subst hu_eq
-        exact ⟨val, hu⟩
-    | edge e c₁ c₂ => cases hu_eq
-  have hv_true : ∀ i : Fin n, CorrGadgetV.vertex i (decide (i ∈ b)) ∈ S := fun i => by
+  have hv (i : Fin n) : CorrGadgetV.vertex i (decide (i ∈ b)) ∈ S := by
+    obtain ⟨⟨_, val⟩ | _, hu, h⟩ := hblock (.inl i) <;> cases h
     by_cases hi : i ∈ b
-    · simp only [hi, decide_true]
+    · rw [decide_eq_true hi]
       exact (Finset.mem_filter.1 hi).2
-    · simp only [hi, decide_false]
-      obtain ⟨val, hval⟩ := hv_mem i
+    · rw [decide_eq_false hi]
       cases val
-      · exact hval
-      · exfalso
-        exact hi (Finset.mem_filter.2 ⟨Finset.mem_univ _, hval⟩)
-  have he_mem : ∀ e : CorrPairIdx n,
-      CorrGadgetV.edge e true true ∈ S ↔ e.fst ∈ b ∧ e.snd ∈ b := fun e => by
-    have he : Sum.inr e ∈ S.image gadgetBlock := him ▸ Finset.mem_univ _
-    rw [Finset.mem_image] at he
-    obtain ⟨u, hu, hu_eq⟩ := he
-    cases u with
-    | vertex i val => cases hu_eq
-    | edge e' c₁ c₂ =>
-        simp only [gadgetBlock, Sum.inr.injEq] at hu_eq
-        subst hu_eq
-        have hc₁ : c₁ = decide (e'.fst ∈ b) := by
-          by_contra hne
-          exact hS (hv_true e'.fst) hu (by intro h; cases h)
-            (Or.inl ⟨rfl, fun h => hne h.symm⟩)
-        have hc₂ : c₂ = decide (e'.snd ∈ b) := by
-          by_contra hne
-          exact hS (hv_true e'.snd) hu (by intro h; cases h)
-            (Or.inr ⟨rfl, fun h => hne h.symm⟩)
-        constructor
-        · intro htrue
-          have huq := hinj hu htrue rfl
-          cases huq
-          exact ⟨of_decide_eq_true hc₁.symm, of_decide_eq_true hc₂.symm⟩
-        · rintro ⟨h1, h2⟩
-          have hc₁' : c₁ = true := hc₁.trans (decide_eq_true h1)
-          have hc₂' : c₂ = true := hc₂.trans (decide_eq_true h2)
-          rwa [hc₁', hc₂'] at hu
-  ext ⟨i, j⟩
-  simp only [stabToCorrLinear, LinearMap.coe_mk, AddHom.coe_mk, stabVertex, corrVertex]
-  by_cases hij : i = j
-  · subst hij
-    simp only [↓reduceDIte, and_self, b, Finset.mem_filter, Finset.mem_univ, true_and]
-  · simp only [hij, ↓reduceDIte]
-    by_cases hlt : i < j
-    · simp only [hlt, ↓reduceDIte, he_mem ⟨i, j, hlt⟩]
-    · simp only [hlt, ↓reduceDIte, he_mem ⟨j, i, (lt_or_gt_of_ne hij).resolve_left hlt⟩,
-        and_comm]
+      · exact hu
+      · exact (hi (Finset.mem_filter.2 ⟨Finset.mem_univ _, hu⟩)).elim
+  -- `S` contains the maximum stable set `liftCorrIndep b`, so the two coincide.
+  have hsub : liftCorrIndep b ⊆ S := by
+    intro u hu
+    simp only [liftCorrIndep, Finset.mem_union, Finset.mem_image, Finset.mem_univ, true_and] at hu
+    obtain ⟨i, rfl⟩ | ⟨e, rfl⟩ := hu
+    · exact hv i
+    obtain ⟨_ | ⟨_, c₁, c₂⟩, hu, h⟩ := hblock (.inr e) <;> cases h
+    have hc₁ : decide (e.fst ∈ b) = c₁ := by
+      by_contra hne
+      exact hS (hv e.fst) hu (by intro h; cases h) (Or.inl ⟨rfl, hne⟩)
+    have hc₂ : decide (e.snd ∈ b) = c₂ := by
+      by_contra hne
+      exact hS (hv e.snd) hu (by intro h; cases h) (Or.inr ⟨rfl, hne⟩)
+    rwa [hc₁, hc₂]
+  refine ⟨b, ?_⟩
+  rw [← Finset.eq_of_subset_of_card_le hsub (by rw [hcard, card_liftCorrIndep]),
+    stabToCorrLinear_lift]
 
 /-- `CORR(n)` is the linear projection of a face of `STAB(corrGadgetGraph n)`
 [FioriniMassarPokuttaTiwaryDeWolf2015, Lemmas 8–9]. -/
@@ -367,9 +335,8 @@ theorem extensionComplexity_corrPolytope_le_corrGadgetGraph
     rw [hdot]
     dsimp only [δ]
     exact_mod_cast card_le_of_isIndepSet_corrGadgetGraph S.2
-  have htight_iff :
-      ∀ S : {S : Finset (CorrGadgetV n) // (corrGadgetGraph n).IsIndepSet (S : Set _)},
-      c ⬝ᵥ stabVertex K S.1 = δ ↔ S.1.card = n + Fintype.card (CorrPairIdx n) := fun S => by
+  have htight_iff (S : Finset (CorrGadgetV n)) :
+      c ⬝ᵥ stabVertex K S = δ ↔ S.card = n + Fintype.card (CorrPairIdx n) := by
     rw [hdot]
     exact Nat.cast_inj
   let face := stabPolytope K (corrGadgetGraph n) ∩ {x | c ⬝ᵥ x = δ}
@@ -385,21 +352,13 @@ theorem extensionComplexity_corrPolytope_le_corrGadgetGraph
     simp only [Set.mem_image, Set.mem_ofPred_eq, Set.mem_range, Subtype.exists]
     constructor
     · rintro ⟨_, ⟨S, hS, hSc, rfl⟩, rfl⟩
-      rw [htight_iff ⟨S, hS⟩] at hSc
-      obtain ⟨b, hb⟩ := stabToCorrLinear_tight (K := K) hS hSc
-      exact ⟨b, hb.symm⟩
+      exact (stabToCorrLinear_tight (K := K) hS ((htight_iff S).1 hSc)).imp fun _ => Eq.symm
     · rintro ⟨b, rfl⟩
-      refine ⟨stabVertex K (liftCorrIndep b),
-        ⟨liftCorrIndep b, isIndepSet_liftCorrIndep b, ?_, rfl⟩,
-        stabToCorrLinear_lift b⟩
-      rw [htight_iff ⟨liftCorrIndep b, isIndepSet_liftCorrIndep b⟩]
-      exact card_liftCorrIndep b
-  calc
-    extensionComplexity (corrPolytope K (Fin n))
-        = extensionComplexity (stabToCorrLinear K n '' face) := by rw [him]
-    _ ≤ extensionComplexity face := extensionComplexity_image_linearMap_le face _
-    _ ≤ extensionComplexity (stabPolytope K (corrGadgetGraph n)) :=
-      extensionComplexity_inter_dotProduct_eq_le _ c δ
+      exact ⟨stabVertex K (liftCorrIndep b), ⟨liftCorrIndep b, isIndepSet_liftCorrIndep b,
+        (htight_iff _).2 (card_liftCorrIndep b), rfl⟩, stabToCorrLinear_lift b⟩
+  rw [← him]
+  exact (extensionComplexity_image_linearMap_le face _).trans
+    (extensionComplexity_inter_dotProduct_eq_le _ c δ)
 
 end Gadget
 
@@ -459,13 +418,8 @@ private theorem extensionComplexity_corrGadgetGraph_le_stabHardGraph
         intro u hu v hv huv hadj
         simp only [stabHardGraph, hm, ↓reduceDIte] at hadj
         obtain ⟨a, b, rfl, rfl, hab⟩ := hadj
-        simp only [Finset.coe_map, Set.mem_image, Finset.mem_coe] at hu hv
-        obtain ⟨a', ha', hae⟩ := hu
-        obtain ⟨b', hb', hbe⟩ := hv
-        have haa' : a' = a := emb.injective hae
-        have hbb' : b' = b := emb.injective hbe
-        subst haa' hbb'
-        exact hT ha' hb' (fun heq => huv (congrArg emb heq)) hab
+        exact hT ((Finset.mem_map' emb).1 hu) ((Finset.mem_map' emb).1 hv)
+          (fun heq => huv (congrArg emb heq)) hab
       refine ⟨stabVertex K (T.map emb), ⟨T.map emb, hT', rfl⟩, ?_⟩
       ext a
       simp only [proj, LinearMap.funLeft_apply, stabVertex, Finset.mem_map,
