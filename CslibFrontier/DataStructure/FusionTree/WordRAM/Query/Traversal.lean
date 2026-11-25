@@ -91,11 +91,8 @@ private theorem exec_loop_height (h : ℕ) {w q p : ℕ} {t : Tree} {x : Data re
         | cons k ks =>
           cases ks with
           | nil =>
-            by_cases hlt : q < k
-            · simpa [y, u, hh.2.1, hh.2.2, FusionTree.Tree.predecessor,
-                FusionTree.Tree.listPredecessor, hlt, Nat.not_le.mpr hlt] using hy.2.2.2.2.2
-            · simpa [y, u, hh.2.1, hh.2.2, FusionTree.Tree.predecessor,
-                FusionTree.Tree.listPredecessor, hlt, Nat.le_of_not_gt hlt] using hy.2.2.2.2.2
+            by_cases hlt : q < k <;> simpa [y, u, hh.2.1, hh.2.2, FusionTree.Tree.predecessor,
+              FusionTree.Tree.listPredecessor, hlt, ← Nat.not_lt] using hy.2.2.2.2.2
           | cons _ _ => simp [FusionTree.Tree.Valid] at ht
       have hd : Done q ((FusionTree.Tree.leaf xs).predecessor q) x.mem y :=
         ⟨hy.1, hy.2.1, hy.2.2.1, hy.2.2.2.1, hy.2.2.2.2.1, hans⟩
@@ -110,13 +107,13 @@ private theorem exec_loop_height (h : ℕ) {w q p : ℕ} {t : Tree} {x : Data re
       let r := upperRank (childMinima cs) q
       have hroute : FusionTree.Tree.selectChild q cs = (if r = 0 then none else cs[r - 1]?) :=
         FusionTree.Tree.selectChild_eq_rank q cs (childMinima_strictMono ht hs)
+      have htest : (Cond.eq rank zero).Holds v ↔ r = 0 := by
+        simp only [Cond.holds_eq, hvr, hv.zero_eq]; rfl
       by_cases hr0 : r = 0
-      · have htest : (Cond.eq rank zero).Holds v := by
-          simp only [Cond.holds_eq, hvr, hv.zero_eq]; exact hr0
-        let y := v.set active 0
+      · let y := v.set active 0
         have hb : ExecWithin w (body w) x y 201005 :=
           hload.within.seq (ExecWithin.branch_neg (pos := leaf) htag
-            (hev.seq (ExecWithin.branch_pos (neg := follow) htest
+            (hev.seq (ExecWithin.branch_pos (neg := follow) (htest.mpr hr0)
               (ExecWithin.const (fits_zero w)))))
         have hpred : (FusionTree.Tree.node m cs).predecessor q = none := by
           rw [FusionTree.Tree.predecessor, hroute, ite_eq_left hr0]
@@ -131,11 +128,9 @@ private theorem exec_loop_height (h : ℕ) {w q p : ℕ} {t : Tree} {x : Data re
         have hpentry : Fits w (p + 19 + 2 * (r - 1)) :=
           ha.of_le (by simp only [span, headerWords]; omega)
         let z := followResult v p r
-        have htest : ¬(Cond.eq rank zero).Holds v := by
-          simp only [Cond.holds_eq, hvr, hv.zero_eq]; exact hr0
         have hb : ExecWithin w (body w) x z 201011 :=
           hload.within.seq (ExecWithin.branch_neg (pos := leaf) htag
-            (hev.seq (ExecWithin.branch_neg (pos := .op (.const active 0)) htest
+            (hev.seq (ExecWithin.branch_neg (pos := .op (.const active 0)) (mt htest.mp hr0)
               (exec_follow hv hvr hpentry).within)))
         have hptr : v.mem (p + 19 + 2 * (r - 1)) = childAddress p cs i := by
           rw [hvm, show p + 19 + 2 * (r - 1) = p + 18 + (2 * (r - 1) + 1) by omega]
