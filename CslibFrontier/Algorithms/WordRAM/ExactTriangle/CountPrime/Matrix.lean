@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.MatrixCell
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.StrideOmega
 
 /-!
 # Complete native padded monomial matrix construction
@@ -102,46 +103,26 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
         cellKey transpose n p N source x.mem (y.regs Reg.index) := by
       unfold cellKey
       split
-      · rename_i hguard
-        have hm₁ := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hguard.1)
-        have hm₂ := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hguard.2)
-        rw [Nat.succ_mul] at hm₁ hm₂
-        apply memory
-        cases transpose <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> omega
+      · apply memory
+        cases transpose <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> stride_omega
       · rfl
-    refine ⟨z, he, ⟨?_, by rw [zi]; omega, ?_, ?_⟩, by rw [zi]; omega⟩
-    · intro r hnr
-      exact (zr r hnr).trans (hr r hnr)
+    refine ⟨z, he, ⟨fun r hnr => (zr r hnr).trans (hr r hnr), by rw [zi]; omega, ?_, ?_⟩,
+      by rw [zi]; omega⟩
     · intro j hj r hrp
       rw [zi] at hj
       by_cases hjnew : j = y.regs Reg.index
       · subst j
-        have hv := newValues r hrp
-        change z.mem (destination + cellPosition N (y.regs Reg.index) * p + r) =
-          (if r = cellKey transpose n p N source y.mem (y.regs Reg.index) then 2 else 0) at hv
-        simpa only [keyFrame] using hv
-      · have hprior : j < y.regs Reg.index := by omega
-        have hne : cellPosition N j ≠ cellPosition N (y.regs Reg.index) :=
+        rw [← keyFrame]
+        exact newValues r hrp
+      · have hne : cellPosition N j ≠
+            Nat.Morton.index (y.regs Reg.index / 2 ^ k) (y.regs Reg.index % 2 ^ k) :=
           fun h => hjnew (cellPosition_injective N h)
-        have sep : destination + cellPosition N j * p + r <
-            destination + cellPosition N (y.regs Reg.index) * p ∨
-            destination + cellPosition N (y.regs Reg.index) * p + p ≤
-              destination + cellPosition N j * p + r := by
-          rcases lt_or_gt_of_ne hne with hlt' | hgt'
-          · have hm := Nat.mul_le_mul_right p (Nat.succ_le_of_lt hlt')
-            rw [Nat.succ_mul] at hm
-            omega
-          · have hm := Nat.mul_le_mul_right p (Nat.succ_le_of_lt hgt')
-            rw [Nat.succ_mul] at hm
-            omega
-        rw [cellFrame _ sep]
-        exact values j hprior r hrp
+        rw [cellFrame _ (by stride_omega)]
+        exact values j (by omega) r hrp
     · intro d hd
-      have hm := Nat.mul_le_mul_right p (Nat.succ_le_of_lt (cellPosition_lt hlt))
-      rw [Nat.succ_mul] at hm
-      change cellPosition N (y.regs Reg.index) * p + p ≤ 4 ^ k * p at hm
-      rw [cellFrame _ (by change d < destination + cellPosition N (y.regs Reg.index) * p ∨
-        destination + cellPosition N (y.regs Reg.index) * p + p ≤ d; omega)]
+      have hm : Nat.Morton.index (y.regs Reg.index / 2 ^ k) (y.regs Reg.index % 2 ^ k) < 4 ^ k :=
+        cellPosition_lt hlt
+      rw [cellFrame _ (by stride_omega)]
       exact memory d hd
   refine WP.exists_execWithin ?_
   unfold matrix
