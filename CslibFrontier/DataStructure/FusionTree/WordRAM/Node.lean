@@ -161,8 +161,7 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
   obtain ⟨hlfit, hhfit⟩ := boundary_fits hq hdw
   by_cases hbit : q.testBit d = false
   · have htest : (Cond.eq (boundaryBank 9) zero).Holds v := by
-      simp only [Cond.holds_eq, hb, hvzero]
-      exact (bit_eq_zero_iff q d).mpr hbit
+      simpa only [Cond.holds_eq, hb, hvzero, bit_eq_zero_iff] using hbit
     obtain ⟨y, hey, hy, hry, hym⟩ := exec_secondQuery p true (boundaryBank 8)
       (by omega) hn hs hk hnB hlarge v hrv hhfit hh
     refine ⟨y, heu.seq (hev.within.seq
@@ -170,16 +169,14 @@ private theorem exec_correction {w n q a : ℕ} {keys : Fin n → ℕ} (p : Node
         (by decide : 122 ≤ 123))), ?_, hry, hym.trans (hfv.1.trans hum)⟩
     have hb0 : q.testBit (highestDiff w (keys j) q) = false := hbit
     simpa [sketchCut, boundaryRank, hb0] using hy
-  · have hbit' : q.testBit d = true := by cases he : q.testBit d <;> simp_all
-    have htest : ¬(Cond.eq (boundaryBank 9) zero).Holds v := by
-      simp only [Cond.holds_eq, hb, hvzero]
-      exact fun h => hbit ((bit_eq_zero_iff q d).mp h)
+  · have htest : ¬(Cond.eq (boundaryBank 9) zero).Holds v := by
+      simpa only [Cond.holds_eq, hb, hvzero, bit_eq_zero_iff] using hbit
     obtain ⟨y, hey, hy, hry, hym⟩ := exec_secondQuery p false (boundaryBank 7)
       (by omega) hn hs hk hnB hlarge v hrv hlfit hl
     refine ⟨y, heu.seq (hev.within.seq
       (ExecWithin.branch_neg (pos := secondQuery true (boundaryBank 8)) htest hey.within)),
       ?_, hry, hym.trans (hfv.1.trans hum)⟩
-    have hb1 : q.testBit (highestDiff w (keys j) q) = true := hbit'
+    have hb1 : q.testBit (highestDiff w (keys j) q) = true := Bool.eq_true_of_ne_false hbit
     simpa [sketchCut, boundaryRank, hb1, sketchRank] using hy
 
 /-- Every bounded query receives its true inclusive full-key rank. The physical program

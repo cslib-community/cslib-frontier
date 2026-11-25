@@ -99,10 +99,8 @@ theorem runs_stripRand {B : Basis} {r w : ℕ} {p : Program B r}
   induction h with
   | refl => exact .refl _
   | tail _ _ _ _ hstep ih =>
-    refine .tail _ _ _ _ ih ?_
-    unfold Next at hstep ⊢
-    rw [step_stripRand_of_ne_fault (by rw [hstep]; exact nofun)]
-    exact hstep
+    unfold Next at hstep
+    exact .tail _ _ _ _ ih ((step_stripRand_of_ne_fault (by rw [hstep]; exact nofun)).trans hstep)
 
 private abbrev registers (k l n : ℕ) : ℕ := 1 + (k + (l + n + 1))
 
@@ -121,12 +119,7 @@ private theorem standardPlacement (k l n : ℕ) :
     (∀ i j, standardInput (l := l) (n := n) i ≠ standardScratch (k := k) j) ∧
     (∀ j, standardScratch (k := k) (l := l) (n := n) j ≠ standardFrontier) ∧
     (∀ i, standardInput (k := k) (l := l) (n := n) i ≠ standardFrontier) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · fin_index [standardInput]
-  · fin_index [standardScratch]
-  · fin_index [standardInput, standardScratch]
-  · fin_index [standardScratch, standardFrontier]
-  · fin_index [standardInput, standardFrontier]
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> fin_index [standardInput, standardScratch, standardFrontier]
 
 namespace Realizes
 
@@ -170,9 +163,7 @@ theorem exists_standard_init_program_state_from_words
   intro w d words hlayout hk hw hin hsafe hv
   obtain ⟨x, ex, hx, hm, hwords, _⟩ := inputPrefix_exec frontier (tmp (Fin.last (l + n)))
     src words hsrc (hf _) (fun j => hd j _) hs hk hw hin
-  have harg : x.regs ∘ src = input d := by
-    funext j
-    exact (hwords j).trans (hlayout j)
+  have harg : x.regs ∘ src = input d := funext fun j => (hwords j).trans (hlayout j)
   obtain ⟨y, ey, hmem, hout, _⟩ := (he frontier src tmp htmp hd hf hs).2 w d x hx harg
     (hm.symm ▸ hsafe) (hm.symm ▸ hv)
   rw [hm] at ey hmem hout
@@ -182,10 +173,8 @@ theorem exists_standard_init_program_state_from_words
   · simpa only [Nat.zero_add, State.init, code] using hr
   · rw [← hout i]
     exact step_halt (by simp [prog, Code.program])
-  · have hpos : 1 ≤ memoryCost (p d) (Memory.State.init words) +
-        work d (Memory.State.init words) + 1 := by omega
-    have hover := Nat.mul_le_mul_left (2 * k + 5) hpos
-    simp only [Nat.mul_one] at hover
+  · have := Nat.mul_le_mul_left (2 * k + 5) (Nat.le_add_left 1
+      (memoryCost (p d) (Memory.State.init words) + work d (Memory.State.init words)))
     rw [Nat.add_mul]
     omega
 
@@ -287,9 +276,7 @@ theorem exists_standard_basis_init_program_state_from_words
   intro w d words hlayout hk hw hin hsafe hv
   obtain ⟨x, ex, hx, hm, hwords, _⟩ := inputPrefix_exec frontier (tmp (Fin.last (l + n)))
     src words hsrc (hf _) (fun j => hd j _) hs hk hw hin
-  have harg : x.regs ∘ src = input d := by
-    funext j
-    exact (hwords j).trans (hlayout j)
+  have harg : x.regs ∘ src = input d := funext fun j => (hwords j).trans (hlayout j)
   obtain ⟨y, ey, hmem, hout, _⟩ := (he frontier src tmp htmp hd hf hs).2 w d x hx harg
     (hm.symm ▸ hsafe) (hm.symm ▸ hv)
   rw [hm] at ey hmem hout
@@ -300,10 +287,8 @@ theorem exists_standard_basis_init_program_state_from_words
   · simpa only [Nat.zero_add, State.init, codeStd, code] using hr
   · rw [← hout i]
     exact step_halt (by simp [prog, Code.program])
-  · have hpos : 1 ≤ memoryCost (p d) (Memory.State.init words) +
-        work d (Memory.State.init words) + 1 := by omega
-    have hover := Nat.mul_le_mul_left (2 * k + 5) hpos
-    simp only [Nat.mul_one] at hover
+  · have := Nat.mul_le_mul_left (2 * k + 5) (Nat.le_add_left 1
+      (memoryCost (p d) (Memory.State.init words) + work d (Memory.State.init words)))
     rw [Nat.add_mul]
     omega
 

@@ -83,6 +83,17 @@ theorem trans {F G : Finset ℕ} {m m' m'' : ℕ → ℕ}
   have ha' := Finset.notMem_union.mp ha
   exact (h' a ha'.2).trans (h a ha'.1)
 
+/-- Writes within a footprint are within every larger footprint. -/
+theorem mono {F G : Finset ℕ} {m m' : ℕ → ℕ} (h : Modifies F m m') (hFG : F ⊆ G) :
+    Modifies G m m' :=
+  fun a ha => h a (mt (@hFG a) ha)
+
+/-- Sequential writes within two footprints contained in `H` stay within `H`. -/
+theorem trans_subset {F G H : Finset ℕ} {m m' m'' : ℕ → ℕ}
+    (h : Modifies F m m') (h' : Modifies G m' m'') (hF : F ⊆ H) (hG : G ⊆ H) :
+    Modifies H m m'' :=
+  (h.trans h').mono (Finset.union_subset hF hG)
+
 /-- A single write modifies at most its destination. -/
 theorem update (m : ℕ → ℕ) (a v : ℕ) : Modifies {a} m (Function.update m a v) := by
   intro b hb

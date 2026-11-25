@@ -302,6 +302,13 @@ private theorem whileInv_step (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ 
   · rw [hzf _ (fun _ => htmp _), huf _ hif (fun _ => htmp _)]
     exact hyframe i hif htmp
 
+private theorem regs_frontier_le {α : Type} {frontier : Fin r} {y z : Data r} {s : Memory.State}
+    {p : Memory.Prog α} (hy : memoryState frontier y = s)
+    (hz : memoryState frontier z = (Memory.spec 0).clientState s p) :
+    y.regs frontier ≤ z.regs frontier :=
+  (congrArg Memory.State.frontier hy).trans_le <|
+    (Memory.frontier_le_clientState (w := 0) _ _).trans_eq (congrArg Memory.State.frontier hz).symm
+
 namespace Realizes
 
 /-- Judgment-parametric bounded while realization over `Realizes.With`. -/
@@ -373,9 +380,7 @@ theorem With.whileBounded {B : Basis}
     simp only [clientResult_width] at huo
     obtain ⟨z, hz, hzm, hzs, hzf⟩ := hcopy frontier
       (fun i : Fin l => bt (Fin.castAdd (n + 1) i)) st idle hst houtdis (fun _ => hf _) w u
-    have hfr_uz : u.regs frontier ≤ z.regs frontier :=
-      Nat.le_of_eq (hzf frontier (fun _ => hf _)).symm
-    have hstep_exec := hseq hfr_uz hu hz
+    have hstep_exec := hseq (hzf frontier fun _ => hf _).symm.le hu hz
     exact ⟨z, hstep_exec, whileInv_step input output hd hf hs hI
       (hbounded hstep_exec hI.bounded) hum huo huf hzm hzs hzf⟩
   have aux : ∀ fuel q y, I q y → whileSafe guard body safe w d fuel q.1 q.2 →
@@ -405,15 +410,8 @@ theorem With.whileBounded {B : Basis}
         rw [clientResult_width w, clientState_width w] at ht
         obtain ⟨u, hu, hIu⟩ := step q y hI hdom.1 hb
         obtain ⟨z, hz, hIz⟩ := ih (iterationStep body d q) u hIu hdom.2 ht
-        have hu_le : u.regs frontier ≤ z.regs frontier := by
-          have hu_fr := congrArg Memory.State.frontier hIu.memory
-          have hz_fr := congrArg Memory.State.frontier hIz.memory
-          change u.regs frontier = (iterationStep body d q).2.frontier at hu_fr
-          change z.regs frontier = ((Memory.spec 0).clientState (iterationStep body d q).2
-            (boundedWhile guard body d fuel (iterationStep body d q).1)).frontier at hz_fr
-          rw [hu_fr, hz_fr]
-          exact Memory.frontier_le_clientState (w := 0) _ _
-        refine ⟨z, hmono ?_ (hloop_iter ((hcond q y hI).mpr hg) hu_le hu hz), ?_⟩
+        refine ⟨z, hmono ?_ (hloop_iter ((hcond q y hI).mpr hg)
+          (regs_frontier_le hIu.memory hIz.memory) hu hz), ?_⟩
         · rw [while_charge_succ guard body work d fuel q.1 q.2 hg]
           dsimp only [iterationStep] at hz ⊢
           nlinarith
@@ -432,17 +430,8 @@ theorem With.whileBounded {B : Basis}
     whileInv_entry input output hd hf hin (hbounded ha hx) ham has haf
   obtain ⟨y, hy, _, hym, _, hys, hyf⟩ := aux (cutoff (d, a₀)) (a₀, memoryState frontier x) a
     hIa hsafe hv
-  have ha_le : a.regs frontier ≤ y.regs frontier := by
-    have ha_fr := congrArg Memory.State.frontier hIa.memory
-    have hy_fr := congrArg Memory.State.frontier hym
-    change a.regs frontier = (memoryState frontier x).frontier at ha_fr
-    change y.regs frontier = ((Memory.spec 0).clientState (memoryState frontier x)
-      (boundedWhile guard body d (cutoff (d, a₀)) a₀)).frontier at hy_fr
-    rw [ha_fr, hy_fr]
-    exact Memory.frontier_le_clientState (w := 0) _ _
-  refine ⟨y, hmono (by nlinarith) (hseq ha_le ha hy), ?_, ?_, hyf⟩
-  · rw [clientState_width w]
-    exact hym
+  refine ⟨y, hmono (by nlinarith) (hseq (regs_frontier_le hIa.memory hym) ha hy), ?_, ?_, hyf⟩
+  · rwa [clientState_width w]
   · intro i
     rw [clientResult_width w]
     exact hys i

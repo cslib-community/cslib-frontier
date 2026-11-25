@@ -53,12 +53,12 @@ private def packed (m s : ℕ) : ℕ := if m = 0 then 0 else 2 * m + s
 
 private theorem encode_signedValue {m s : ℕ} (hs : s ≤ 1) :
     Cslib.WordRAM.Signed.encode (signedValue m s) = packed m s := by
-  by_cases hz : m = 0
-  · simp [signedValue, packed, Cslib.WordRAM.Signed.encode, hz]
-  · by_cases hs0 : s = 0
-    · simp [signedValue, packed, Cslib.WordRAM.Signed.encode, hs0, hz]
-    · have hs1 : s = 1 := by omega
-      simp [signedValue, packed, Cslib.WordRAM.Signed.encode, hs1, hz, show 0 < m by omega]
+  unfold signedValue packed Cslib.WordRAM.Signed.encode
+  split_ifs <;> omega
+
+private theorem pure_packed (m s : ℕ) :
+    (if m = 0 then (pure 0 : Memory.Prog ℕ) else pure (2 * m + s)) = pure (packed m s) := by
+  unfold packed; split_ifs <;> rfl
 
 private theorem signedValue_encode (z : ℤ) :
     signedValue z.natAbs (if z < 0 then 1 else 0) = z := by
@@ -120,15 +120,8 @@ theorem clientResult_signedNegProg (s : Memory.State) (z : ℤ) :
   set m := z.natAbs
   set sg := if z < 0 then 1 else 0
   have hsg : sg ≤ 1 := by dsimp [sg]; split_ifs <;> omega
-  have h1sg : 1 - sg ≤ 1 := by omega
-  have henc : Cslib.WordRAM.Signed.encode z = packed m sg := by
-    conv_lhs => rw [hz]
-    exact encode_signedValue hsg
-  have hneg : -z = signedValue m (1 - sg) := by
-    rw [hz]
-    dsimp only [signedValue]
-    split_ifs <;> omega
-  rw [henc, hneg, encode_signedValue h1sg]
+  rw [hz, encode_signedValue hsg, show -signedValue m sg = signedValue m (1 - sg) by
+    dsimp only [signedValue]; split_ifs <;> omega, encode_signedValue (by omega : 1 - sg ≤ 1)]
   unfold signedNegProg packed
   split_ifs <;> simp only [client_simps] <;> omega
 
@@ -166,36 +159,17 @@ theorem clientResult_signedAddProg (s : Memory.State) (a b : ℤ) :
   have hb := (signedValue_encode b).symm
   unfold signedAddProg
   dsimp only
-  simp only [Cslib.WordRAM.Signed.encode_div_two, Cslib.WordRAM.Signed.encode_mod_two]
+  simp only [Cslib.WordRAM.Signed.encode_div_two, Cslib.WordRAM.Signed.encode_mod_two,
+    pure_packed]
   set m₁ := a.natAbs
   set s₁ := if a < 0 then 1 else 0
   set m₂ := b.natAbs
   set s₂ := if b < 0 then 1 else 0
   have hs₁ : s₁ ≤ 1 := by dsimp [s₁]; split_ifs <;> omega
   have hs₂ : s₂ ≤ 1 := by dsimp [s₂]; split_ifs <;> omega
-  by_cases hs : s₁ = s₂
-  · simp only [hs, ↓reduceIte]
-    rw [show (if m₁ + m₂ = 0 then (pure 0 : Memory.Prog ℕ) else pure (2 * (m₁ + m₂) + s₂)) =
-      pure (packed (m₁ + m₂) s₂) by unfold packed; split_ifs <;> rfl]
-    simp only [client_simps, ← encode_signedValue hs₂]
-    congr 1
-    simp only [ha, hb, hs, signedValue]
-    split_ifs <;> omega
-  · by_cases hlt : m₁ < m₂
-    · simp only [hs, hlt, ↓reduceIte]
-      rw [show (if m₂ - m₁ = 0 then (pure 0 : Memory.Prog ℕ) else pure (2 * (m₂ - m₁) + s₂)) =
-        pure (packed (m₂ - m₁) s₂) by unfold packed; split_ifs <;> rfl]
-      simp only [client_simps, ← encode_signedValue hs₂]
-      congr 1
-      simp only [ha, hb, signedValue]
-      split_ifs <;> omega
-    · simp only [hs, hlt, ↓reduceIte]
-      rw [show (if m₁ - m₂ = 0 then (pure 0 : Memory.Prog ℕ) else pure (2 * (m₁ - m₂) + s₁)) =
-        pure (packed (m₁ - m₂) s₁) by unfold packed; split_ifs <;> rfl]
-      simp only [client_simps, ← encode_signedValue hs₁]
-      congr 1
-      simp only [ha, hb, signedValue]
-      split_ifs <;> omega
+  split_ifs <;>
+    simp only [client_simps, ← encode_signedValue hs₁, ← encode_signedValue hs₂, ha, hb] <;>
+    congr 1 <;> simp only [signedValue] <;> split_ifs <;> omega
 
 theorem signedAddProg_realizes :
     Realizes .exact signedAddProg (appendWords wordWords wordWords) wordWords
@@ -211,40 +185,26 @@ theorem clientState_signedSubProg {w : ℕ}
   unfold signedSubProg
   rw [StateTransitionSpec.clientState_bind, clientState_signedNegProg, clientState_signedAddProg]
 
+theorem clientResult_signedSubProg (s : Memory.State) (a b : ℤ) :
+    (Memory.spec 0).clientResult s
+        (signedSubProg (Cslib.WordRAM.Signed.encode a, Cslib.WordRAM.Signed.encode b)) =
+      Cslib.WordRAM.Signed.encode (a - b) := by
+  unfold signedSubProg
+  rw [StateTransitionSpec.clientResult_bind, clientState_signedNegProg,
+    clientResult_signedNegProg, clientResult_signedAddProg]
+  rfl
+
 theorem runClient_signedSubProg (w : ℕ) (s : Memory.State) (a b : ℤ) :
     (Memory.spec w).runClient s
         (signedSubProg (Cslib.WordRAM.Signed.encode a, Cslib.WordRAM.Signed.encode b)) =
       (Cslib.WordRAM.Signed.encode (a - b), s, []) := by
-  have hr : (Memory.spec w).clientResult s
-      (signedSubProg (Cslib.WordRAM.Signed.encode a, Cslib.WordRAM.Signed.encode b)) =
-      Cslib.WordRAM.Signed.encode (a - b) := by
-    rw [clientResult_width w]
-    unfold signedSubProg
-    rw [StateTransitionSpec.clientResult_bind, clientState_signedNegProg,
-      clientResult_signedNegProg, clientResult_signedAddProg, sub_eq_add_neg]
-  have hs := clientState_signedSubProg (w := w) s
-    (Cslib.WordRAM.Signed.encode a, Cslib.WordRAM.Signed.encode b)
-  have hh : (Memory.spec w).clientHistory s
-      (signedSubProg (Cslib.WordRAM.Signed.encode a, Cslib.WordRAM.Signed.encode b)) = [] := by
-    unfold signedSubProg
-    rw [StateTransitionSpec.clientHistory_bind]
-    have h1 : (Memory.spec w).clientHistory s (signedNegProg (Cslib.WordRAM.Signed.encode b)) =
-        [] := by
-      unfold signedNegProg; split_ifs <;> rfl
-    have h2 : ∀ x t, (Memory.spec w).clientHistory t
-        (signedAddProg (Cslib.WordRAM.Signed.encode a, x)) = [] := by
-      intro x t; unfold signedAddProg; dsimp only; split_ifs <;> rfl
-    rw [h1, h2]; rfl
-  rcases hrc : (Memory.spec w).runClient s
-      (signedSubProg (Cslib.WordRAM.Signed.encode a, Cslib.WordRAM.Signed.encode b)) with
-    ⟨r, s', hist⟩
-  have h1 : r = Cslib.WordRAM.Signed.encode (a - b) := by
-    simpa [StateTransitionSpec.clientResult, hrc] using hr
-  have h2 : s' = s := by
-    simpa [StateTransitionSpec.clientState, hrc] using hs
-  have h3 : hist = [] := by
-    simpa [StateTransitionSpec.clientHistory, hrc] using hh
-  rw [h1, h2, h3]
+  refine Prod.ext ((clientResult_width w _ s).trans (clientResult_signedSubProg s a b))
+    (Prod.ext (clientState_signedSubProg s _) ?_)
+  change (Memory.spec w).clientHistory s _ = []
+  unfold signedSubProg signedAddProg
+  rw [StateTransitionSpec.clientHistory_bind, show (Memory.spec w).clientHistory s
+    (signedNegProg (Cslib.WordRAM.Signed.encode b)) = [] by unfold signedNegProg; split_ifs <;> rfl]
+  dsimp only; split_ifs <;> rfl
 
 theorem validHistory_signedSubProg (w : ℕ) (s : Memory.State) (d : ℕ × ℕ) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (signedSubProg d)) := by
@@ -258,15 +218,6 @@ theorem validHistory_signedSubProg (w : ℕ) (s : Memory.State) (d : ℕ × ℕ)
   unfold signedSubProg
   rw [memoryCost_bind', memoryCost_signedNegProg, clientState_signedNegProg,
     memoryCost_signedAddProg]
-
-theorem clientResult_signedSubProg (s : Memory.State) (a b : ℤ) :
-    (Memory.spec 0).clientResult s
-        (signedSubProg (Cslib.WordRAM.Signed.encode a, Cslib.WordRAM.Signed.encode b)) =
-      Cslib.WordRAM.Signed.encode (a - b) := by
-  unfold signedSubProg
-  rw [StateTransitionSpec.clientResult_bind, clientState_signedNegProg,
-    clientResult_signedNegProg, clientResult_signedAddProg]
-  rfl
 
 theorem signedSubProg_realizes :
     Realizes .exact signedSubProg (appendWords wordWords wordWords) wordWords

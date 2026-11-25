@@ -228,11 +228,7 @@ theorem Code.evalFast_toData (w fuel : ℕ) (c : Code B r) (x : FastData r) :
       rfl
   | branch c pos neg ihp ihn =>
     simp only [evalFast, eval, Cond.holdsFast_eq, decide_eq_true_eq]
-    split
-    · rw [← ihp, Option.map_map, Option.map_map]
-      rfl
-    · rw [← ihn, Option.map_map, Option.map_map]
-      rfl
+    split <;> simp only [← ihp, ← ihn, Option.map_map] <;> rfl
   | loop c body ih =>
     exact evalLoopFast_toData c (fun y => ih y) fuel x
   | rand dst src => rfl
@@ -292,40 +288,27 @@ private theorem Program.runFastLoop_map_eq_run (w : ℕ) (p : Program B r) (fuel
       cases instr with
       | op o =>
         have hop := Op.evalFast_toData w o x
-        cases ho : o.evalFast w x with
-        | none =>
-          rw [ho] at hop
-          simp [step, hp, ho, ← hop]
-        | some x' =>
-          rw [ho] at hop
-          simp only [step, hp, ho, ← hop, Option.map_some, ih]
-          cases run w p fuel ⟨pc + 1, x'.toData⟩ with
-          | none => rfl
-          | some vn =>
-            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-            omega
+        cases ho : o.evalFast w x <;> rw [ho] at hop
+        · simp [step, hp, ho, ← hop]
+        · simp only [step, hp, ho, ← hop, Option.map_some, ih]
+          cases run w p fuel ⟨pc + 1, _⟩ <;> simp only [Option.map_none, Option.map_some,
+            Option.some.injEq, Prod.mk.injEq, true_and]
+          omega
       | jump t =>
         simp only [step, hp, ih]
-        cases run w p fuel ⟨t, x.toData⟩ with
-        | none => rfl
-        | some vn =>
-          simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-          omega
+        cases run w p fuel ⟨t, x.toData⟩ <;> simp only [Option.map_none, Option.map_some,
+          Option.some.injEq, Prod.mk.injEq, true_and]
+        omega
       | branch c t =>
         simp only [step, hp, Cond.holdsFast_eq, ih]
-        by_cases hc : c.Holds x.toData
-        · simp only [hc, decide_true, ↓reduceIte]
-          cases run w p fuel ⟨t, x.toData⟩ with
-          | none => rfl
-          | some vn =>
-            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-            omega
-        · simp only [hc, decide_false, Bool.false_eq_true, ↓reduceIte]
-          cases run w p fuel ⟨pc + 1, x.toData⟩ with
-          | none => rfl
-          | some vn =>
-            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-            omega
+        by_cases hc : c.Holds x.toData <;>
+          simp only [hc, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte]
+        · cases run w p fuel ⟨t, x.toData⟩ <;> simp only [Option.map_none, Option.map_some,
+            Option.some.injEq, Prod.mk.injEq, true_and]
+          omega
+        · cases run w p fuel ⟨pc + 1, x.toData⟩ <;> simp only [Option.map_none, Option.map_some,
+            Option.some.injEq, Prod.mk.injEq, true_and]
+          omega
       | halt i =>
         simp only [step, hp, Option.map_some, FastData.toData, Option.some.injEq, Prod.mk.injEq,
           true_and]

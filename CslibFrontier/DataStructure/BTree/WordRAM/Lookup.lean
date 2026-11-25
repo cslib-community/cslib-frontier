@@ -148,18 +148,9 @@ private theorem lookupDescendOrStop_spec {w base capNodes t u slot : ℕ} {x : D
       dsimp only [y, childAt]
       wram_exec [hz, ho, hdeg, hsrc, hslot_reg, hsub2, hlf_eq, hlf0, hadd4,
         hf_au1, hf_au, hf_t1, hf_t2, hf_t3, hf_t4, hf_cs]
-    refine ⟨y, he, rfl,
-      by dsimp only [y]; wram_simp; exact hz,
-      by dsimp only [y]; wram_simp; exact ho,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp; exact hdeg,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp,
-      ?_⟩
-    simp only [hlf0, ↓reduceIte]
-    exact ⟨rfl, by dsimp only [y]; wram_simp⟩
+    refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+      by simp only [hlf0, ↓reduceIte]; exact ⟨rfl, by dsimp only [y]; wram_simp⟩⟩ <;>
+      dsimp only [y] <;> wram_simp <;> assumption
   · let y : Data 20 :=
       (((x.set rTmp1 (nodeAddr base t u + 2 - 1)).set rTmp1 (nodeAddr base t u)).set rTmp2
         (leafFlag base t x.mem u)).set rActive 0
@@ -167,18 +158,8 @@ private theorem lookupDescendOrStop_spec {w base capNodes t u slot : ℕ} {x : D
       unfold lookupDescendOrStop
       dsimp only [y]
       wram_exec [hz, ho, hsrc, hsub2, hlf_eq, hlf0, hf_au1, hf_au, hf0]
-    refine ⟨y, he, rfl,
-      by dsimp only [y]; wram_simp; exact hz,
-      by dsimp only [y]; wram_simp; exact ho,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp; exact hdeg,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp,
-      by dsimp only [y]; wram_simp,
-      ?_⟩
-    simp only [hlf0, ↓reduceIte]
-    rfl
+    refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, by simp only [hlf0, ↓reduceIte]; rfl⟩ <;>
+      dsimp only [y] <;> wram_simp <;> assumption
 
 private theorem lookupBranch_spec {w base capNodes t u k m slot : ℕ} {x : Data 20}
     (ht : 2 ≤ t) (hu_cap : u < capNodes) (hm_le : m ≤ 2 * t - 1) (hslot : slot ≤ m)
@@ -226,16 +207,10 @@ private theorem lookupBranch_spec {w base capNodes t u k m slot : ℕ} {x : Data
         dsimp only [y]
         wram_exec [ho, hdeg, hkey, hnk, hsrc, hslot_reg, hlt_m, hks_eq, heq_k, hv_arith, hvs_eq,
           hf_ks, hf1, hf0, hf_v1, hf_v2, hf_v3, hf_vs]
-      refine ⟨y, he, rfl,
-        by dsimp only [y]; wram_simp; exact hz,
-        by dsimp only [y]; wram_simp; exact ho,
-        by dsimp only [y]; wram_simp,
-        by dsimp only [y]; wram_simp; exact hdeg,
-        by dsimp only [y]; wram_simp,
-        by dsimp only [y]; wram_simp; exact hkey,
-        ?_⟩
-      simp only [hlt_m, heq_k, and_self, ↓reduceIte]
-      exact ⟨by dsimp only [y]; wram_simp, by dsimp only [y]; wram_simp, rfl⟩
+      refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      on_goal 7 => simp only [hlt_m, heq_k, and_self, ↓reduceIte]; refine ⟨?_, ?_, rfl⟩
+      all_goals dsimp only [y]; wram_simp
+      all_goals assumption
     · let x' := (x.set rTmp1 (nodeAddr base t u + 2 + slot)).set rTmp2 (keyAt base t x.mem u slot)
       obtain ⟨y, hdesc, hmem_y, hz_y, ho_y, hb_y, hd_y, hst_y, hk_y, hfnd_y, hval_y, hbr⟩ :=
         lookupDescendOrStop_spec (x := x') ht hu_cap (by omega) hfit hz ho hdeg hsrc hslot_reg
@@ -303,6 +278,17 @@ private theorem lookupStep_spec {w base capNodes t u k : ℕ} {x : Data 20}
   exact ⟨y, hfull, hfull.bounded hbdd, hmem₃.trans hmem₂, hz₃, ho₃, hb₃.trans hb₂_reg, hd₃,
     hst₃.trans hst₂, hk₃, hbr₃⟩
 
+/-- A lookup step that clears `rActive` ends the descent loop after one iteration. -/
+private theorem lookupLoop_of_stop {w t l : ℕ} {x y : Data 20}
+    (hstep : ExecWithin w lookupStep x y (16 * t + 19))
+    (hz : x.regs rZero = 0) (hact : x.regs rActive = 1)
+    (hz_y : y.regs rZero = 0) (hact_y : y.regs rActive = 0) :
+    ExecWithin w lookupLoop x y ((16 * t + 21) * (l + 1) + 2) := by
+  have := Nat.le_mul_of_pos_right (16 * t + 21) (by omega : 0 < l + 1)
+  exact (hstep.loop_iter (by simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one])
+    (ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y, hact_y, Nat.lt_irrefl,
+      not_false_eq_true]))).mono (by omega)
+
 private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
     (ht : 2 ≤ t) (hbdd : x.Bounded w) (hfit : Fits w (base + arenaWords t capNodes))
     (hv : ValidNode l base t x.mem u) (hs : SortedNode l base t x.mem u)
@@ -327,31 +313,23 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
     set m := numKeys base t x.mem u
     set slot := slotCount base t x.mem u k m
     have hsc := slotCount_spec (k := k) (fun _ _ => hs.keys_strict) m le_rfl
-    have hcond_in : (Cond.lt rZero rActive).Holds x := by
-      simp only [Cond.holds_lt, hz, hact, Nat.zero_lt_one]
     by_cases hhit : slot < m ∧ keyAt base t x.mem u slot = k
     · simp only [hhit] at hbr
       obtain ⟨hfnd_y, hval_y, hact_y⟩ := hbr
-      have hexit : ExecWithin w lookupLoop y y 2 :=
-        ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y, hact_y, Nat.lt_irrefl,
-          not_false_eq_true])
       have hlk := lookup_readTree_eq_some hs hhit.1 hhit.2
-      refine ⟨y, (hstep.loop_iter hcond_in hexit).mono (by omega), hmem_y, hb_y, hd_y, ?_, ?_⟩
+      refine ⟨y, lookupLoop_of_stop hstep hz hact hz_y hact_y, hmem_y, hb_y, hd_y, ?_, ?_⟩
       · rw [hlk, hfnd_y]; rfl
       · rw [hlk, hval_y]; rfl
     · have hlf_ne : leafFlag base t x.mem u ≠ 0 := by simp [hv.leafFlag_eq]
       simp only [hhit, hlf_ne, ↓reduceIte] at hbr
       obtain ⟨hact_y, hfnd_y, hval_y⟩ := hbr
-      have hexit : ExecWithin w lookupLoop y y 2 :=
-        ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz_y, hact_y, Nat.lt_irrefl,
-          not_false_eq_true])
       have hgt_all := keyAt_gt_of_slotCount_not_hit (fun _ _ => hs.keys_strict) hhit
       have hne_all : ∀ i < m, keyAt base t x.mem u i ≠ k := fun i hi => by
         rcases lt_or_ge i slot with hlt | hge
         · exact (hsc.2.1 i hlt).ne
         · exact (hgt_all i hge hi).ne'
       have hlk := lookup_readTree_leaf_none hs hne_all
-      refine ⟨y, (hstep.loop_iter hcond_in hexit).mono (by omega), hmem_y, hb_y, hd_y, ?_, ?_⟩
+      refine ⟨y, lookupLoop_of_stop hstep hz hact hz_y hact_y, hmem_y, hb_y, hd_y, ?_, ?_⟩
       · rw [hlk, hfnd_y, hfound0]; rfl
       · rw [hlk, hval_y, hval0]; rfl
   | succ l ih =>
@@ -369,11 +347,8 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
     by_cases hhit : slot < m ∧ keyAt base t x.mem u slot = k
     · simp only [hhit] at hbr
       obtain ⟨hfnd₁, hval₁, hact₁⟩ := hbr
-      have hexit : ExecWithin w lookupLoop x₁ x₁ 2 :=
-        ExecWithin.loop_exit (by simp only [Cond.holds_lt, hz₁, hact₁, Nat.lt_irrefl,
-          not_false_eq_true])
       have hlk := lookup_readTree_eq_some hs hhit.1 hhit.2
-      refine ⟨x₁, (hstep.loop_iter hcond_in hexit).mono (by omega), hmem₁, hb₁_reg, hd₁, ?_, ?_⟩
+      refine ⟨x₁, lookupLoop_of_stop hstep hz hact hz₁ hact₁, hmem₁, hb₁_reg, hd₁, ?_, ?_⟩
       · rw [hlk, hfnd₁]; rfl
       · rw [hlk, hval₁]; rfl
     · simp only [hhit, hv.leafFlag_eq, Nat.succ_ne_zero, ↓reduceIte] at hbr

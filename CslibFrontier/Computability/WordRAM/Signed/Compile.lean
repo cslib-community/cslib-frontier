@@ -135,76 +135,34 @@ private theorem next_simulation {w base : ℕ} {p : GenericRAM.Program model r}
     ∃ y k, k ≤ 32 ∧ WordRAM.Runs (w + 2) q ⟨entry base s.pc, x⟩
       ⟨entry base t.pc, y⟩ k ∧ Represents w t.data y := by
   unfold GenericRAM.Next GenericRAM.step at hn
-  split at hn
-  next hpc =>
-    cases hi : p[s.pc]? with
-    | none => simp [hi] at hn
-    | some i =>
-      have hc := hcode s.pc i hi
-      simp only [hi] at hn
-      cases i with
-      | op o =>
-        cases he : o.eval w s.data with
-        | none => simp [he] at hn
-        | some d =>
-          have ht : (⟨s.pc + 1, d⟩ : GenericRAM.State model r) = t :=
-            continue_eq (w := w) (by simpa only [he] using hn)
-          subst t
-          obtain ⟨y, ⟨k, hk, hex⟩, hyr⟩ := exec_compileOp o hx he
-          have hr : WordRAM.Runs (w + 2) q ⟨entry base s.pc, x⟩
-              ⟨entry base s.pc + (compileOp o).size, y⟩ k := hex.runs hc.append_left
-          have hj : WordRAM.Next (w + 2) q ⟨entry base s.pc + (compileOp o).size, y⟩
-              ⟨entry base (s.pc + 1), y⟩ := by
-            exact WordRAM.step_jump (by simpa using hc.append_right.head)
-          exact ⟨y, k + 1, by omega, hr.tail _ _ _ _ hj, hyr⟩
-      | jump target =>
-        have ht : (⟨target, s.data⟩ : GenericRAM.State model r) = t := continue_eq (w := w) hn
-        subst t
-        exact ⟨x, 1, by decide, .single (WordRAM.step_jump hc.head), hx⟩
-      | branch c target =>
-        cases htest : c.eval w s.data with
-        | none => simp [htest] at hn
-        | some b =>
-          have ht : (⟨if b then target else s.pc + 1, s.data⟩ : GenericRAM.State model r) = t :=
-            continue_eq (w := w) (by simpa only [htest] using hn)
-          subst t
-          obtain ⟨y, ⟨k, hk, hex⟩, hyr, hyo, hyrep⟩ := exec_compileCond c hx htest
-          have hr : WordRAM.Runs (w + 2) q ⟨entry base s.pc, x⟩
-              ⟨entry base s.pc + (compileCond c).size, y⟩ k := hex.runs hc.append_left
-          have hb : q[entry base s.pc + (compileCond c).size]? =
-              some (.branch (.eq result two) (entry base target)) := by
-            simpa using hc.append_right.head
-          have hj : q[entry base s.pc + (compileCond c).size + 1]? =
-              some (.jump (entry base (s.pc + 1))) := by
-            simpa only [WordRAM.Code.length_assemble] using hc.append_right.cons_tail.head
-          cases b with
-          | false =>
-            have hcond : ¬(WordRAM.Cond.eq result two).Holds y := by
-              simp [WordRAM.Cond.holds_eq, hyr, hyo]
-            have hfirst : WordRAM.Next (w + 2) q
-                ⟨entry base s.pc + (compileCond c).size, y⟩
-                ⟨entry base s.pc + (compileCond c).size + 1, y⟩ := by
-              simpa only [WordRAM.Next, hcond, ite_false] using WordRAM.step_branch (w := w + 2)
-                (s := ⟨entry base s.pc + (compileCond c).size, y⟩) hb
-            have hlast : WordRAM.Next (w + 2) q
-                ⟨entry base s.pc + (compileCond c).size + 1, y⟩
-                ⟨entry base (s.pc + 1), y⟩ := WordRAM.step_jump hj
-            exact ⟨y, k + 1 + 1, by omega, (hr.tail _ _ _ _ hfirst).tail _ _ _ _ hlast, hyrep⟩
-          | true =>
-            have hcond : (WordRAM.Cond.eq result two).Holds y := by
-              simp [WordRAM.Cond.holds_eq, hyr, hyo]
-            have hlast : WordRAM.Next (w + 2) q
-                ⟨entry base s.pc + (compileCond c).size, y⟩
-                ⟨entry base target, y⟩ := by
-              simpa only [WordRAM.Next, hcond, ite_true] using WordRAM.step_branch (w := w + 2)
-                (s := ⟨entry base s.pc + (compileCond c).size, y⟩) hb
-            exact ⟨y, k + 1, by omega, hr.tail _ _ _ _ hlast, hyrep⟩
-      | halt i =>
-        change (if model.validMove w (s.data.regs i) then
-          GenericRAM.Outcome.halt (s.data.regs i) else .fault) =
-            (GenericRAM.Outcome.next t : GenericRAM.Outcome model r) at hn
-        split at hn <;> cases hn
-  next hpc => cases hn
+  split_ifs at hn
+  split at hn <;> (try split at hn) <;> (try simp only [reduceCtorEq] at hn) <;>
+    obtain rfl := continue_eq hn
+  · rename_i o hi _ _ he
+    have hc := hcode s.pc _ hi
+    obtain ⟨y, ⟨k, hk, hex⟩, hyr⟩ := exec_compileOp o hx he
+    exact ⟨y, k + 1, by omega, (hex.runs hc.append_left).tail _ _ _ _
+      (WordRAM.step_jump (by simpa using hc.append_right.head)), hyr⟩
+  · rename_i hi
+    exact ⟨x, 1, by decide, .single (WordRAM.step_jump (hcode s.pc _ hi).head), hx⟩
+  · rename_i c target hi _ b htest
+    have hc := hcode s.pc _ hi
+    obtain ⟨y, ⟨k, hk, hex⟩, hyr, hyo, hyrep⟩ := exec_compileCond c hx htest
+    have hr := hex.runs hc.append_left
+    have hb : q[entry base s.pc + (compileCond c).size]? =
+        some (.branch (.eq result two) (entry base target)) := by
+      simpa using hc.append_right.head
+    have hs := WordRAM.step_branch (w := w + 2) (s := ⟨_, y⟩) hb
+    simp only [WordRAM.Cond.holds_eq, hyr, hyo] at hs
+    cases b with
+    | false =>
+      have hlast : WordRAM.Next (w + 2) q ⟨entry base s.pc + (compileCond c).size + 1, y⟩
+          ⟨entry base (s.pc + 1), y⟩ := WordRAM.step_jump (by
+        simpa only [WordRAM.Code.length_assemble] using hc.append_right.cons_tail.head)
+      exact ⟨y, k + 1 + 1, by omega,
+        (hr.tail _ _ _ _ (by simpa [WordRAM.Next] using hs)).tail _ _ _ _ hlast, hyrep⟩
+    | true =>
+      exact ⟨y, k + 1, by omega, hr.tail _ _ _ _ (by simpa [WordRAM.Next] using hs), hyrep⟩
 
 private theorem runs_simulation {w base n : ℕ} {p : GenericRAM.Program model r}
     {q : WordRAM.Program .standard (r + 9)} {s t : GenericRAM.State model r}
@@ -232,39 +190,12 @@ private theorem halt_simulation {w base : ℕ} {p : GenericRAM.Program model r}
     (hx : Represents w s.data x) (he : GenericRAM.step w p s = .halt v) :
     WordRAM.step (w + 2) q ⟨entry base s.pc, x⟩ = .halt (encode v) := by
   unfold GenericRAM.step at he
-  split at he
-  next hpc =>
-    cases hi : p[s.pc]? with
-    | none => simp [hi] at he
-    | some i =>
-      have hc := hcode s.pc i hi
-      simp only [hi] at he
-      cases i with
-      | op o =>
-        cases ho : o.eval w s.data with
-        | none => simp [ho] at he
-        | some d =>
-          exact False.elim (continue_ne_halt (w := w) ⟨s.pc + 1, d⟩ v
-            (by simpa only [ho] using he))
-      | jump target =>
-        exact False.elim (continue_ne_halt (w := w) ⟨target, s.data⟩ v he)
-      | branch c target =>
-        cases ho : c.eval w s.data with
-        | none => simp [ho] at he
-        | some b =>
-          exact False.elim (continue_ne_halt (w := w)
-            ⟨if b then target else s.pc + 1, s.data⟩ v (by simpa only [ho] using he))
-      | halt i =>
-        change (if model.validMove w (s.data.regs i) then
-          GenericRAM.Outcome.halt (s.data.regs i) else .fault) =
-            (GenericRAM.Outcome.halt v : GenericRAM.Outcome model r) at he
-        have hv : s.data.regs i = v := by
-          split at he
-          · exact GenericRAM.Outcome.halt.inj he
-          · cases he
-        simpa only [hx.regs, hv] using WordRAM.step_halt (w := w + 2)
-          (s := ⟨entry base s.pc, x⟩) hc.head
-  next hpc => cases he
+  split_ifs at he
+  split at he <;> (try split at he) <;> (try simp only [reduceCtorEq, continue_ne_halt] at he)
+  rename_i hi _
+  cases he
+  simpa only [hx.regs] using
+    WordRAM.step_halt (w := w + 2) (s := ⟨entry base s.pc, x⟩) (hcode s.pc _ hi).head
 
 /-- The compiler places every live instruction prefix at its relocated address. -/
 theorem contains_compileFrom (pre : WordRAM.Program .standard (r + 9))
