@@ -6623,6 +6623,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BitBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.CoeffNormBound
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ConjugateProduct
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparation
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DerivativeFingerprint
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.FingerprintIntegerRootLabel
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.Isolation
