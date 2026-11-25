@@ -390,18 +390,15 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   classical
   intro hB
   -- invariants
-  have hfeas : ∀ k ≤ n, (E k).Feasible := by
-    intro k hk
+  have hfeas : ∀ k ≤ n, (E k).Feasible := fun k hk => by
     induction k with
     | zero => exact hE0
     | succ k ih => exact (hE k (by omega)).feasible (ih (by omega))
-  have hequiv : ∀ k, i ≤ k → k ≤ n → (E i).Equivalent (E k) := by
-    intro k hik hkn
+  have hequiv : ∀ k, i ≤ k → k ≤ n → (E i).Equivalent (E k) := fun k hik hkn => by
     induction k, hik using Nat.le_induction with
     | base => exact .refl _
     | succ k hik ih => exact (ih (by omega)).trans (hE k (by omega)).equivalent
-  have hmono : ∀ k l, k ≤ l → l ≤ n → (E k).objConst ≤ (E l).objConst := by
-    intro k l hkl hln
+  have hmono : ∀ k l, k ≤ l → l ≤ n → (E k).objConst ≤ (E l).objConst := fun k l hkl hln => by
     induction l, hkl using Nat.le_induction with
     | base => exact le_rfl
     | succ l hkl ih => exact (ih (by omega)).trans ((hE l (by omega)).objConst_le
@@ -433,14 +430,12 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   set F : Finset ι := Finset.univ.filter fun v =>
     ∃ k ∈ Finset.Icc i j, ∃ l ∈ Finset.Icc i j, v ∈ (E k).basis ∧ v ∉ (E l).basis with hF
   have hFmem : ∀ v, v ∈ F ↔ ∃ k, i ≤ k ∧ k ≤ j ∧ ∃ l, i ≤ l ∧ l ≤ j ∧
-      v ∈ (E k).basis ∧ v ∉ (E l).basis := by
-    intro v
+      v ∈ (E k).basis ∧ v ∉ (E l).basis := fun v => by
     simp only [hF, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_Icc, and_assoc]
   have hFne : F.Nonempty := by
     obtain ⟨r, s, hEk, ⟨hs, -⟩, -⟩ := (hE i (by omega)).exists_pivot
-    refine ⟨s, (hFmem s).2 ⟨i + 1, by omega, by omega, i, le_rfl, hij.le, ?_, hs⟩⟩
-    rw [hEk, mem_pivot_basis]
-    exact .inl rfl
+    exact ⟨s, (hFmem s).2 ⟨i + 1, by omega, by omega, i, le_rfl, hij.le,
+      by rw [hEk, mem_pivot_basis]; exact .inl rfl, hs⟩⟩
   obtain ⟨t, htF, hleT⟩ : ∃ t ∈ F, ∀ v ∈ F, v ≤ t :=
     ⟨F.max' hFne, F.max'_mem hFne, fun v hv => F.le_max' v hv⟩
   -- find a step `p` where `t` leaves and a step `q` where `t` enters
@@ -491,8 +486,7 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   rw [hvalq, hconst p hip hpj.le, hconst q hiq hqj.le] at hvalpq
   have hsum : ∑ v ∈ (E q).basisᶜ, (0 : K) <
       ∑ v ∈ (E q).basisᶜ, (E q).objCoeff v * (E p).ray s v := by
-    rw [Finset.sum_const_zero]
-    linarith
+    rw [Finset.sum_const_zero]; linarith
   obtain ⟨v, hv, hpos⟩ := Finset.exists_lt_of_sum_lt hsum
   have hvq : v ∉ (E q).basis := Finset.mem_compl.1 hv
   by_cases hvs : v = s
@@ -505,17 +499,14 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   rw [(E p).ray_of_mem hvp hs] at hpos
   have hvF : v ∈ F := (hFmem v).2 ⟨p, hip, hpj.le, q, hiq, hqj.le, hvp, hvq⟩
   have hvr : v ≠ t := by
-    rintro rfl
-    exact hpos.not_ge (mul_nonpos_of_nonneg_of_nonpos hcq.le har.le)
+    rintro rfl; exact hpos.not_ge (mul_nonpos_of_nonneg_of_nonpos hcq.le har.le)
   have hvlt : v < t := lt_of_le_of_ne (hleT v hvF) hvr
   have hcv : (E q).objCoeff v ≤ 0 := not_lt.1 fun h => (hminq v hvq h).not_gt hvlt
   have hav : (E p).coeff v s < 0 :=
     ((mul_pos_iff.1 hpos).resolve_left fun h => hcv.not_gt h.1).2
   -- `v` is basic at value `0` in `E p`, so it ties with `t` in the ratio test
   have hv0 : (E p).ratio s v = 0 := by
-    have : (E p).rhs v = 0 := by
-      rw [← (E p).basicSolution_of_mem hvp, hbs, (E q).basicSolution_of_notMem hvq]
-    rw [ratio, this, zero_div]
+    rw [ratio, ← (E p).basicSolution_of_mem hvp, hbs, (E q).basicSolution_of_notMem hvq, zero_div]
   have hr0 : (E p).ratio s t = 0 :=
     le_antisymm (hv0 ▸ hmin v hvp hav) ((E p).ratio_nonneg (hfeas p (by omega)) hr har)
   exact absurd (htie v hvp hav (hv0.trans hr0.symm)) (not_le.2 hvlt)
