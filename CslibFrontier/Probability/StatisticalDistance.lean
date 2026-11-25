@@ -54,26 +54,19 @@ theorem dist_filter [Fintype α] (p : PMF α) (event : Set α)
     (hevent : ∃ a ∈ event, a ∈ p.support) :
     dist p (p.filter event hevent) = (p.toOuterMeasure eventᶜ).toReal := by
   classical
-  have hpositive := (toOuterMeasure_toReal_pos_iff p event).mpr hevent
-  have hprobability : (p.toOuterMeasure event).toReal ≤ 1 :=
-    toOuterMeasure_toReal_le_one p event
-  have habsolute (a : α) : |(p a).toReal - ((p.filter event hevent) a).toReal| =
+  have hpos := (toOuterMeasure_toReal_pos_iff p event).mpr hevent
+  have habs (a : α) : |(p a).toReal - ((p.filter event hevent) a).toReal| =
       ((p.filter event hevent) a).toReal - (p a).toReal +
         2 * (if a ∈ eventᶜ then (p a).toReal else 0) := by
     by_cases ha : a ∈ event
     · have hle : (p a).toReal ≤ ((p.filter event hevent) a).toReal := by
-        rw [filter_apply_toReal, ite_eq_left ha]
-        exact (le_div_iff₀ hpositive).mpr
-          (mul_le_of_le_one_right ENNReal.toReal_nonneg hprobability)
-      rw [abs_of_nonpos (sub_nonpos.mpr hle)]
-      simp [ha, neg_sub]
+        rw [filter_apply_toReal, ite_eq_left ha, le_div_iff₀ hpos]
+        exact mul_le_of_le_one_right ENNReal.toReal_nonneg (toOuterMeasure_toReal_le_one p event)
+      rw [abs_of_nonpos (sub_nonpos.mpr hle)]; simp [ha, neg_sub]
     · simp only [filter_apply_toReal, ha, ite_false, Set.mem_compl_iff, not_false_eq_true, ite_true,
-        sub_zero, abs_of_nonneg ENNReal.toReal_nonneg]
-      ring
-  rw [dist_eq, toOuterMeasure_apply_toReal]
-  simp_rw [habsolute]
-  simp only [Finset.sum_add_distrib, Finset.sum_sub_distrib, sum_toReal, sub_self, zero_add,
-    ← Finset.mul_sum]
+        sub_zero, abs_of_nonneg ENNReal.toReal_nonneg]; ring
+  simp only [dist_eq, toOuterMeasure_apply_toReal, habs, Finset.sum_add_distrib,
+    Finset.sum_sub_distrib, sum_toReal, sub_self, zero_add, ← Finset.mul_sum]
   ring_nf
 
 /-- With a shared revealed input, distance is the average distance of the conditional outputs. -/
@@ -91,13 +84,11 @@ theorem dist_bind_pair_sq_le [Fintype α] [Fintype β] (p : PMF α) (f g : α �
         (p.bind (fun a => (g a).map (a, ·))) ^ 2 ≤
       ∑ a, (p a).toReal * dist (f a) (g a) ^ 2 := by
   rw [dist_bind_pair]
-  have h := Finset.sum_sq_le_sum_mul_sum_of_sq_le_mul Finset.univ
+  simpa only [sum_toReal, one_mul] using Finset.sum_sq_le_sum_mul_sum_of_sq_le_mul Finset.univ
     (r := fun a => (p a).toReal * dist (f a) (g a))
     (f := fun a => (p a).toReal) (g := fun a => (p a).toReal * dist (f a) (g a) ^ 2)
     (fun _ _ => ENNReal.toReal_nonneg)
-    (fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _))
-    (fun _ _ => by ring_nf; rfl)
-  simpa only [sum_toReal, one_mul] using h
+    (fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _)) fun _ _ => by ring_nf; rfl
 
 /-- Changing the distribution changes a bounded real-valued score by at most twice its
 absolute bound times statistical distance. Signed prediction scores may use `bound = 1`. -/
@@ -105,65 +96,44 @@ theorem abs_sum_mul_sub_le [Fintype α] (p q : PMF α) (score : α → ℝ)
     {bound : ℝ} (hscore : ∀ a, |score a| ≤ bound) :
     |(∑ a, (p a).toReal * score a) - ∑ a, (q a).toReal * score a| ≤
       2 * bound * dist p q := by
-  rw [← Finset.sum_sub_distrib]
-  simp only [← sub_mul]
-  calc
-    _ ≤ ∑ a, |((p a).toReal - (q a).toReal) * score a| := Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ a, |(p a).toReal - (q a).toReal| * bound := by
-      apply Finset.sum_le_sum
-      intro a _
-      rw [abs_mul]
-      exact mul_le_mul_of_nonneg_left (hscore a) (abs_nonneg _)
-    _ = _ := by rw [← Finset.sum_mul, dist_eq]; ring
+  rw [← Finset.sum_sub_distrib]; simp only [← sub_mul]
+  refine (Finset.abs_sum_le_sum_abs _ _).trans
+    ((Finset.sum_le_sum (g := fun a => |(p a).toReal - (q a).toReal| * bound)
+      fun a _ => ?_).trans_eq ?_)
+  · rw [abs_mul]; exact mul_le_mul_of_nonneg_left (hscore a) (abs_nonneg _)
+  · rw [← Finset.sum_mul, dist_eq]; ring
 
 /-- Convexity of statistical distance in the first argument: the distance of a mixture `p.bind f`
 from `q` is at most the `p`-weighted average distance of `f a` from `q`. -/
 theorem dist_bind_left_le [Fintype α] [Fintype β] (p : PMF α) (f : α → PMF β) (q : PMF β) :
     dist (p.bind f) q ≤ ∑ a, (p a).toReal * dist (f a) q := by
-  have h1 : (p.bind fun a => (f a).map (a, ·)).map Prod.snd = p.bind f := by
+  have hmap (g : α → PMF β) : (p.bind fun a => (g a).map (a, ·)).map Prod.snd = p.bind g := by
     rw [PMF.map_bind]
-    refine congrArg (p.bind ·) (funext fun a => ?_)
-    exact (PMF.map_comp _ _ _).trans (PMF.map_id _)
-  have h2 : (p.bind fun a => q.map (a, ·)).map Prod.snd = q := by
-    rw [PMF.map_bind]
-    have hq : (fun a : α => (q.map (a, ·)).map Prod.snd) = fun _ => q :=
-      funext fun a => (PMF.map_comp _ _ _).trans (PMF.map_id _)
-    rw [hq, PMF.bind_const]
-  calc
-    dist (p.bind f) q
-      = dist ((p.bind fun a => (f a).map (a, ·)).map Prod.snd)
-          ((p.bind fun a => q.map (a, ·)).map Prod.snd) := by rw [h1, h2]
-    _ ≤ dist (p.bind fun a => (f a).map (a, ·)) (p.bind fun a => q.map (a, ·)) :=
-      dist_map_le _ _ Prod.snd
-    _ = ∑ a, (p a).toReal * dist (f a) q := dist_bind_pair p f fun _ => q
+    exact congrArg (p.bind ·) (funext fun a => (PMF.map_comp _ _ _).trans (PMF.map_id _))
+  simpa only [hmap, PMF.bind_const, dist_bind_pair] using
+    dist_map_le (p.bind fun a => (f a).map (a, ·)) (p.bind fun a => q.map (a, ·)) Prod.snd
 
 /-- If every component `f a` in the support of `p` is within `δ` of `q`, so is `p.bind f`. -/
 theorem dist_bind_left_le_of_le [Finite α] [Fintype β] (p : PMF α) (f : α → PMF β) (q : PMF β)
     {δ : ℝ} (h : ∀ a ∈ p.support, dist (f a) q ≤ δ) :
     dist (p.bind f) q ≤ δ := by
   cases nonempty_fintype α
-  calc
-    dist (p.bind f) q ≤ ∑ a, (p a).toReal * dist (f a) q := dist_bind_left_le p f q
-    _ ≤ ∑ a, (p a).toReal * δ := by
-      refine Finset.sum_le_sum fun a _ => ?_
-      by_cases ha : a ∈ p.support
-      · exact mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
-      · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero, zero_mul, zero_mul]
-    _ = δ := by rw [← Finset.sum_mul, sum_toReal, one_mul]
+  refine (dist_bind_left_le p f q).trans
+    ((Finset.sum_le_sum (g := fun a => (p a).toReal * δ) fun a _ => ?_).trans_eq ?_)
+  · by_cases ha : a ∈ p.support
+    · exact mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
+    · simp [(p.apply_eq_zero_iff a).mpr ha]
+  · rw [← Finset.sum_mul, sum_toReal, one_mul]
 
 /-- Statistical distance on `Bool` from the uniform distribution is the bias `|p(true) - 1 / 2|`. -/
 theorem dist_uniformOfFintype_bool (p : PMF Bool) :
     dist p (uniformOfFintype Bool) = |(p true).toReal - 1 / 2| := by
   have hsum : (p true).toReal + (p false).toReal = 1 := by
-    have h := p.tsum_coe
-    rw [tsum_fintype, Fintype.sum_bool] at h
-    have h' := congrArg ENNReal.toReal h
-    rwa [ENNReal.toReal_add (p.apply_ne_top _) (p.apply_ne_top _), ENNReal.toReal_one] at h'
+    simpa [Fintype.sum_bool] using sum_toReal p
   rw [dist_eq, Fintype.sum_bool]
   simp only [uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat, ENNReal.toReal_inv,
     ENNReal.toReal_ofNat]
-  have hfalse : |(p false).toReal - 2⁻¹| = |(p true).toReal - 2⁻¹| := by
-    rw [show (p false).toReal - 2⁻¹ = -((p true).toReal - 2⁻¹) by linarith, abs_neg]
+  rw [show (p false).toReal - 2⁻¹ = -((p true).toReal - 2⁻¹) by linarith, abs_neg]
   linarith
 
 /-- Statistical distance is the probability gap on the event where `p` exceeds `q`. -/
@@ -171,21 +141,17 @@ theorem dist_eq_sum_filter_lt [Fintype α] (p q : PMF α) :
     dist p q = ∑ a ∈ Finset.univ.filter (fun a => (q a).toReal < (p a).toReal),
       ((p a).toReal - (q a).toReal) := by
   rw [dist_eq, Finset.sum_filter]
-  have hsum : ∑ a, ((p a).toReal - (q a).toReal) = 0 := by
-    rw [Finset.sum_sub_distrib, sum_toReal, sum_toReal, sub_self]
   have habs (a : α) : |(p a).toReal - (q a).toReal| =
       2 * (if (q a).toReal < (p a).toReal then (p a).toReal - (q a).toReal else 0) -
         ((p a).toReal - (q a).toReal) := by
     split_ifs with h
     · rw [abs_of_pos (sub_pos.mpr h)]; ring
     · rw [abs_of_nonpos (sub_nonpos.mpr (not_lt.mp h))]; ring
-  simp only [habs, Finset.sum_sub_distrib, hsum, ← Finset.mul_sum]
-  ring
+  simp only [habs, Finset.sum_sub_distrib, sum_toReal, sub_self, ← Finset.mul_sum]; ring
 
 private theorem sum_min_add_sum_max [Fintype α] (p q : PMF α) :
     ∑ a, min (p a).toReal (q a).toReal + ∑ a, max (p a).toReal (q a).toReal = 2 := by
-  rw [← Finset.sum_add_distrib]
-  simp only [min_add_max, Finset.sum_add_distrib, sum_toReal]
+  rw [← Finset.sum_add_distrib]; simp only [min_add_max, Finset.sum_add_distrib, sum_toReal]
   norm_num
 
 /-- The overlap `∑ a, min (p a) (q a)` of two distributions is `1 - dist p q`. -/
@@ -193,9 +159,7 @@ theorem sum_min_toReal [Fintype α] (p q : PMF α) :
     ∑ a, min (p a).toReal (q a).toReal = 1 - dist p q := by
   have hsub : ∑ a, max (p a).toReal (q a).toReal - ∑ a, min (p a).toReal (q a).toReal =
       2 * dist p q := by
-    rw [← Finset.sum_sub_distrib, dist_eq]
-    simp only [max_sub_min_eq_abs']
-    ring
+    rw [← Finset.sum_sub_distrib, dist_eq]; simp only [max_sub_min_eq_abs']; ring
   linarith [sum_min_add_sum_max p q]
 
 /-- The pointwise maximum of two distributions has total mass `1 + dist p q`. -/
