@@ -127,22 +127,17 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         exact validHistory_read_bind (by omega)
           (validHistory_write_bind (by rw [ho_k]; have := ik.isLt; omega)
             (hfit_ws.of_le (by omega)) (validHistory_pure w _ _))
-      have hmc : memoryCost (scatterStep (ws, k)) s ≤ 2 := by
-        unfold scatterStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_write_bind_le fun _ _ => Nat.le_refl 0
+      have hmc : memoryCost (scatterStep (ws, k)) s ≤ 2 :=
+        memoryCost_read_bind_le fun _ _ => memoryCost_write_bind_le fun _ _ => le_rfl
       have hst_eq : (Memory.spec 0).clientState s (scatterStep (ws, k)) =
           ⟨Function.update s.mem (ws.outBase + 1 + ik.val) k, s.frontier⟩ := by
-        unfold scatterStep
-        rw [clientState_bind_read]
+        rw [scatterStep, clientState_bind_read]
         dsimp only
         rw [ho_k, clientState_bind_write, clientState_pure]
       have hres_eq : (Memory.spec 0).clientResult s (scatterStep (ws, k)) = k + 1 := by
-        unfold scatterStep
-        rw [clientResult_bind_read, clientResult_bind_write, clientResult_pure]
+        rw [scatterStep, clientResult_bind_read, clientResult_bind_write, clientResult_pure]
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
-        dsimp only
         exact Function.update_of_ne (by have := ik.isLt; omega) _ _
       · rw [hst_eq, hres_eq]
         dsimp only
@@ -169,8 +164,7 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
   · rw [memoryCost_bind', memoryCost_write, clientState_write, memoryCost_bind', memoryCost_pure]
     dsimp only [s₁] at hmc_it
     omega
-  · rw [clientState_bind_write, clientState_bind, clientState_pure]
-    exact hfr_it
+  · rwa [clientState_bind_write, clientState_bind, clientState_pure]
   · rw [clientResult_bind_write, clientResult_bind, clientResult_pure]
   · rw [clientState_bind_write, clientState_bind, clientState_pure]
     have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)

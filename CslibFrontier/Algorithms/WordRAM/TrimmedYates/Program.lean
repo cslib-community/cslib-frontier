@@ -115,16 +115,21 @@ theorem exec_solveFromTries {w d s baseFree rootF rootG qPtr W : ℕ}
     refine (he_pre.seq hloop_q).mono ?_
     rw [hs₆_qi, Nat.sub_zero]
     exact Eq.trans_le (by omega) (solve_total_time_le (lowCount_pos d s) hH_pos1)
-  refine ⟨y, htot, ?_, ?_, ?_⟩
-  · rw [hy_out]
-    refine List.ext_getElem (by simp [hy_ob]) fun j hj1 _ => ?_
-    rw [getElem_outputList]
-    have hj_cs : j < Cs.length := by simpa [hy_ob] using hj1
-    simpa using hy_ans j hj_cs hj_cs
-  · rw [hy_out]
-    exact hf_qw.of_le (by omega)
-  · intro a ha
-    exact (hy_pre a (by omega)).trans (hpre_below_bf a ha)
+  refine ⟨y, htot, ?_, hy_out ▸ hf_qw.of_le (by omega),
+    fun a ha => (hy_pre a (by omega)).trans (hpre_below_bf a ha)⟩
+  rw [hy_out]
+  refine List.ext_getElem (by simp [hy_ob]) fun j hj1 _ => ?_
+  have hj_cs : j < Cs.length := by simpa [hy_ob] using hj1
+  simpa [getElem_outputList] using hy_ans j hj_cs hj_cs
+
+private lemma max_highPeak_and_solveSpace_le {d s m baseFree : ℕ} {Cs : List (Finset (Fin d))}
+    (hCs : ∀ C ∈ Cs, #C = m) (hs : s ≤ m) :
+    max 1 (highPeak s Cs) ≤ highCount m s ∧
+      solveSpace baseFree d s Cs.length (highPeak s Cs) ≤
+        solveSpace baseFree d s Cs.length (highCount m s) := by
+  have hmax : max 1 (highPeak s Cs) ≤ highCount m s :=
+    max_le (highCount_pos hs) (highPeak_le_of_forall_card_eq s m hCs)
+  exact ⟨hmax, Nat.add_le_add_left (Nat.mul_le_mul_left _ (by omega)) _⟩
 
 /-- **Ranked subset-convolution bound from pre-built input tries** ([ChanItakuraMaYu2026],
 Theorem 2.2 core): when `f` is supported on sets of size `t₁`, `g` on sets of size `t₂`, and every
@@ -154,17 +159,10 @@ theorem exec_solveFromTries_subsetConvolution {w d s t₁ t₂ baseFree rootF ro
       outputList y.mem (y.regs Reg.outPtr) = (Cs.map (subsetConvolution f g)).map Signed.encode ∧
       Fits w (y.regs Reg.outPtr + Cs.length) ∧
       (∀ a < baseFree, y.mem a = x.mem a) := by
-  have hpk_le : highPeak s Cs ≤ highCount (t₁ + t₂) s :=
-    highPeak_le_of_forall_card_eq s (t₁ + t₂) hCs_card
-  have hhc_pos : 1 ≤ highCount (t₁ + t₂) s := highCount_pos hs_le
-  have hmax_le : max 1 (highPeak s Cs) ≤ highCount (t₁ + t₂) s := max_le hhc_pos hpk_le
-  have hsp' : Fits w (solveSpace baseFree d s Cs.length (highPeak s Cs)) :=
-    hfit_space.of_le (by
-      dsimp only [solveSpace]
-      exact Nat.add_le_add_left (Nat.mul_le_mul_left _ (by omega)) _)
+  obtain ⟨hmax_le, hsp_le⟩ := max_highPeak_and_solveSpace_le (baseFree := baseFree) hCs_card hs_le
   obtain ⟨y, he, hlist, hfit_out, hframe⟩ :=
     exec_solveFromTries x hd hs_reg hfree hbf_pos htF_reg htG_reg hqptr hqcnt
-      hq_below hq_mem htrieF htrieG hf_eq hg_eq hf_le hg_le hsp' hfit_val
+      hq_below hq_mem htrieF htrieG hf_eq hg_eq hf_le hg_le (hfit_space.of_le hsp_le) hfit_val
   refine ⟨y, he.mono (Nat.mul_le_mul_left _ (Nat.add_le_add_left
       (Nat.mul_le_mul_left _ hmax_le) _)), ?_, hfit_out, hframe⟩
   rw [hlist]
@@ -240,25 +238,16 @@ theorem executesList_program (inst : Instance) {t₁ t₂ w : ℕ}
       n ≤ 250 * (inst.d + 1) ^ 2 *
         (inst.numEntries + lowCount inst.d inst.s +
           inst.queries.length * highCount (t₁ + t₂) inst.s) := by
-  have hpk_le : highPeak inst.s inst.queries ≤ highCount (t₁ + t₂) inst.s :=
-    highPeak_le_of_forall_card_eq inst.s (t₁ + t₂) hqueries
-  have hhc_pos : 1 ≤ highCount (t₁ + t₂) inst.s := highCount_pos hs
-  have hmax_le : max 1 (highPeak inst.s inst.queries) ≤ highCount (t₁ + t₂) inst.s :=
-    max_le hhc_pos hpk_le
-  have hw : inst.FitsWidth w :=
-    ⟨hfit_space.of_le (by
-      dsimp only [Instance.spaceBound, solveSpace]
-      exact Nat.add_le_add_left (Nat.mul_le_mul_left _ (by omega)) _), hfit_val⟩
+  obtain ⟨hmax_le, hsp_le⟩ := max_highPeak_and_solveSpace_le
+    (baseFree := 10 + 2 * (inst.d + 1) * inst.numEntries + inst.queries.length) hqueries hs
+  have hw : inst.FitsWidth w := ⟨hfit_space.of_le hsp_le, hfit_val⟩
   obtain ⟨n, hex, hn⟩ := computesListInTime_program inst w hw hw.inputFits
   dsimp only at hex hn
-  have heq_conv : inst.queries.map (coveringProduct inst.leftFn inst.rightFn) =
-      inst.queries.map (subsetConvolution inst.leftFn inst.rightFn) :=
-    List.map_congr_left fun C hC =>
-      coveringProduct_eq_subsetConvolution (evalEntries_ranked hleft) (evalEntries_ranked hright)
-        (hqueries C hC)
+  have heq_conv : inst.queries.map (coveringProduct inst.leftFn inst.rightFn) = _ :=
+    List.map_congr_left fun C hC => coveringProduct_eq_subsetConvolution
+      (evalEntries_ranked hleft) (evalEntries_ranked hright) (hqueries C hC)
   rw [heq_conv] at hex
-  refine ⟨n, hex, hn.trans ?_⟩
-  dsimp only [Instance.timeBound]
-  exact Nat.mul_le_mul_left _ (Nat.add_le_add_left (Nat.mul_le_mul_left _ hmax_le) _)
+  exact ⟨n, hex, hn.trans
+    (Nat.mul_le_mul_left _ (Nat.add_le_add_left (Nat.mul_le_mul_left _ hmax_le) _))⟩
 
 end Cslib.Algorithms.WordRAM.TrimmedYates

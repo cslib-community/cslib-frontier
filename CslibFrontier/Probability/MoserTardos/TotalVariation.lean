@@ -142,19 +142,13 @@ theorem measurableSet_output_preimage [Finite V] (o : Option (∀ v, α v)) :
       congrArg (· ∈ s) (dependsOn_run_current (vbl := vbl) (r := r) n h)
   cases o with
   | none =>
-    have h : output vbl r ⁻¹' {none} = ⋂ n, {T | (run (historyRule vbl r) T n,
-        current vbl T (run (historyRule vbl r) T n)) ∈ {x | r x.1 x.2 ≠ none}} := by
-      ext
-      simp [output_eq_none_iff, historyRule]
-    rw [h]
-    exact MeasurableSet.iInter fun n => hstep n _
+    convert (MeasurableSet.iInter fun n => hstep n {x | r x.1 x.2 ≠ none}) using 1
+    ext
+    simp [output_eq_none_iff, historyRule]
   | some a =>
-    have h : output vbl r ⁻¹' {some a} = ⋃ n, {T | (run (historyRule vbl r) T n,
-        current vbl T (run (historyRule vbl r) T n)) ∈ {x | r x.1 x.2 = none ∧ x.2 = a}} := by
-      ext
-      simp [output_eq_some_iff, historyRule]
-    rw [h]
-    exact MeasurableSet.iUnion fun n => hstep n _
+    convert (MeasurableSet.iUnion fun n => hstep n {x | r x.1 x.2 = none ∧ x.2 = a}) using 1
+    ext
+    simp [output_eq_some_iff, historyRule]
 
 omit [∀ v, MeasurableSpace (α v)] [∀ v, Countable (α v)] [∀ v, MeasurableSingletonClass (α v)] in
 /-- Two coupled runs that do not diverge have the same output. -/
@@ -263,12 +257,10 @@ theorem dist_outputLaw_le (P Q : ∀ v, PMF (α v)) (κ : ∀ v, Measure (α v �
     (fun o => ?_) (fun o => ?_)).trans
     (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono fun _ hT =>
       Classical.byContradiction fun hd => hT (output_eq_of_not_diverge hd)))
-  · rw [outputLaw_apply, hP, Measure.map_apply measurable_fstTable
+  · rw [outputLaw_apply, hP, Set.preimage_comp, Measure.map_apply measurable_fstTable
       (measurableSet_output_preimage o)]
-    rfl
-  · rw [outputLaw_apply, hQ, Measure.map_apply measurable_sndTable
+  · rw [outputLaw_apply, hQ, Set.preimage_comp, Measure.map_apply measurable_sndTable
       (measurableSet_output_preimage o)]
-    rfl
 
 /-- **Total-variation stability of Moser–Tardos (original).** Let `r` be a non-anticipating rule
 that only selects occurring events. Suppose every event has at most `d` neighbours in `Γ` and

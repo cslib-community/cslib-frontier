@@ -42,19 +42,13 @@ theorem rank_instruction_lt (hi : Invariant N edge bad source s)
     rank N width (instruction N width source s (answer edge bad s) choice) < rank N width s := by
   have hA : 0 < candidateCost N width := by unfold candidateCost; omega
   have hT : N * candidateCost N width + 4 < targetCost N width + 2 := by
-    simp only [targetCost, Nat.add_mul, Nat.one_mul]
-    omega
+    simp only [targetCost, Nat.add_mul, Nat.one_mul]; omega
   have hR : N * targetCost N width + 2 < roundCost N width + 1 := by
-    simp only [roundCost, Nat.add_mul, Nat.one_mul]
-    omega
+    simp only [roundCost, Nat.add_mul, Nat.one_mul]; omega
   have hRT : targetCost N width < roundCost N width := by
-    have hm := Nat.le_mul_of_pos_left (targetCost N width) (show 0 < N + 1 by omega)
-    unfold roundCost
-    omega
+    simp only [roundCost, Nat.add_mul, Nat.one_mul]; omega
   have hAT : candidateCost N width < targetCost N width := by
-    have hm := Nat.le_mul_of_pos_left (candidateCost N width) (show 0 < N + 1 by omega)
-    unfold targetCost
-    omega
+    simp only [targetCost, Nat.add_mul, Nat.one_mul]; omega
   cases hp : s.phase with
   | round =>
     simp only [Invariant, hp, RoundCorrect] at hi
@@ -65,9 +59,8 @@ theorem rank_instruction_lt (hi : Invariant N edge bad source s)
       rw [mul_eq_pred_mul_add (Nat.sub_pos_of_lt hk)]
       omega
     · have he : N - s.round = 1 := by omega
-      simp only [rank, hp, ↓reduceIte, he, Nat.one_mul]
-      have hNA : N * candidateCost N width + 4 < roundCost N width + 1 := by omega
-      simpa only [Nat.sub_zero, Nat.zero_add] using hNA
+      simp only [rank, hp, ↓reduceIte, he, Nat.one_mul, Nat.sub_zero, Nat.zero_add]
+      omega
   | target =>
     simp only [Invariant, hp] at hi
     obtain ⟨_, hf, hk, hv, _⟩ := hi
@@ -128,9 +121,8 @@ theorem rank_instruction_lt (hi : Invariant N edge bad source s)
       omega
     · simp only [rank, hp, accept]
       omega
-    · simp only [Invariant, hp, ScanContext] at hi
-      have hf' : s.finalScan = false := Bool.eq_false_iff.mpr hf
-      simp only [hf', Bool.false_eq_true, ↓reduceIte] at hi
+    · have hf' : s.finalScan = false := Bool.eq_false_iff.mpr hf
+      simp only [Invariant, hp, ScanContext, hf', Bool.false_eq_true, ↓reduceIte] at hi
       simp only [rank, hp, hf', Bool.false_eq_true, ↓reduceIte]
       rw [sub_add_one N s.target]
       omega

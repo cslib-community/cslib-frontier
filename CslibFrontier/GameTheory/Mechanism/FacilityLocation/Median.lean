@@ -215,22 +215,18 @@ theorem not_isStrategyProof_meanMechanism [DecidableEq ι] (hcard : 2 ≤ Fintyp
   obtain ⟨i₀⟩ : Nonempty ι := Fintype.card_pos_iff.1 hpos
   let x : ι → ℝ := fun j => if j = i₀ then 0 else 1
   let z : ℝ := 1 - (Fintype.card ι : ℝ)
-  have hones : ∑ _j ∈ Finset.univ.erase i₀, (1 : ℝ) = (Fintype.card ι : ℝ) - 1 := by
-    rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ i₀),
-      Finset.card_univ, nsmul_eq_mul, mul_one, Nat.cast_sub hpos, Nat.cast_one]
   have hsum : ∑ j ∈ Finset.univ.erase i₀, x j = (Fintype.card ι : ℝ) - 1 := by
-    rw [Finset.sum_congr rfl (fun j hj =>
-      show x j = 1 by simp only [x, Finset.ne_of_mem_erase hj, ite_false]), hones]
-  have hx0 : x i₀ = 0 := by simp only [x, ite_true]
+    rw [Finset.sum_congr rfl fun j hj => ite_eq_right (Finset.ne_of_mem_erase hj), Finset.sum_const,
+      Finset.card_erase_of_mem (Finset.mem_univ i₀), Finset.card_univ, nsmul_eq_mul, mul_one,
+      Nat.cast_sub hpos, Nat.cast_one]
+  have hx0 : x i₀ = 0 := ite_eq_left rfl
   have hmean_x : mean x = ((Fintype.card ι : ℝ) - 1) / Fintype.card ι := by
     rw [mean_def, ← Finset.add_sum_erase _ _ (Finset.mem_univ i₀), hx0, zero_add, hsum]
   have hmean_upd : mean (Function.update x i₀ z) = 0 := by
-    rw [mean_def, ← Finset.add_sum_erase _ _ (Finset.mem_univ i₀), Function.update_self]
-    have hupd : ∑ j ∈ Finset.univ.erase i₀, Function.update x i₀ z j =
-        ∑ j ∈ Finset.univ.erase i₀, x j :=
-      Finset.sum_congr rfl fun j hj => Function.update_of_ne (Finset.ne_of_mem_erase hj) z x
-    rw [hupd, hsum]
-    simp only [z]
+    rw [mean_def, ← Finset.add_sum_erase _ _ (Finset.mem_univ i₀), Function.update_self,
+      Finset.sum_congr rfl fun j hj => Function.update_of_ne (Finset.ne_of_mem_erase hj) z x,
+      hsum]
+    dsimp only [z]
     ring_nf
   have hle := hsp x i₀ z
   rw [hx0, hmean_x, hmean_upd] at hle

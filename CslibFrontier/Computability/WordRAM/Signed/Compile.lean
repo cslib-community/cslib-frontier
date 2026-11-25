@@ -87,18 +87,14 @@ private theorem size_compileCond (c : GenericRAM.Cond model r) : (compileCond c)
 /-- Every live prefix fits in its fixed-size block. -/
 theorem length_rawBlock_le (base pc : ℕ) (i : GenericRAM.Instr model r) :
     (rawBlock base pc i).length ≤ 64 := by
-  cases i with
-  | op o =>
-    simp only [rawBlock, List.length_append, WordRAM.Code.length_assemble,
-      List.length_cons, List.length_nil]
-    have := size_compileOp o
+  cases i <;> simp only [rawBlock, List.length_append, WordRAM.Code.length_assemble,
+    List.length_cons, List.length_nil]
+  · have := size_compileOp ‹_›
     omega
-  | branch c t =>
-    simp only [rawBlock, List.length_append, WordRAM.Code.length_assemble,
-      List.length_cons, List.length_nil]
-    have := size_compileCond c
+  · omega
+  · have := size_compileCond ‹_›
     omega
-  | _ => simp [rawBlock]
+  · omega
 
 /-- Every source instruction occupies exactly sixty-four target slots. -/
 @[simp]
@@ -230,9 +226,9 @@ theorem executes_compile {w n : ℕ} {p : GenericRAM.Program model r}
     ∃ k ≤ 32 * n, WordRAM.Executes (w + 2) (pre ++ compileFrom pre.length 0 p)
       ⟨entry pre.length s.pc, x⟩ (encode v) k := by
   obtain ⟨t, m, hsteps, hhalt, rfl⟩ := hr
-  have hc := fun pc i hi => contains_compileFrom (p := p) (pc := pc) (i := i) pre hi
-  obtain ⟨y, k, hk, hrun, hyr⟩ := runs_simulation hc hx hsteps
-  have ht := halt_simulation hc hyr hhalt
-  exact ⟨k + 1, by omega, WordRAM.Executes.of_runs hrun (WordRAM.Executes.halt ht)⟩
+  obtain ⟨y, k, hk, hrun, hyr⟩ :=
+    runs_simulation (fun _ _ hi => contains_compileFrom pre hi) hx hsteps
+  exact ⟨k + 1, by omega, .of_runs hrun
+    (.halt (halt_simulation (fun _ _ hi => contains_compileFrom pre hi) hyr hhalt))⟩
 
 end Cslib.GenericRAM.Signed.ToWordRAM
