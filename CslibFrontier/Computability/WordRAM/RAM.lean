@@ -108,12 +108,9 @@ theorem Instr.mapOp_additiveHomStandard_isAdditive (i : Instr .additive r) :
   cases i with
   | op o =>
     cases o with
-    | alu f d args =>
-      rcases f with ⟨f, hf⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
-      rcases hf with rfl | rfl
-      · exact Or.inl rfl
-      · exact Or.inr rfl
+    | alu f _ _ =>
+      rcases f with ⟨_, hf⟩; simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
+      rcases hf with rfl | rfl; exacts [Or.inl rfl, Or.inr rfl]
     | _ => trivial
   | _ => trivial
 
@@ -265,22 +262,18 @@ private def Reaches (p : RAM.Program) (s t : RAM.State) (T : ℕ) : Prop :=
   ∃ n, RAM.run p n s = t ∧ RAM.time RAM.logCost p n s ≤ T
 
 private theorem Reaches.step {p : RAM.Program} {s : RAM.State} {i : RAM.Instr}
-    (hi : p[s.pc]? = some i) : Reaches p s (i.exec s) (RAM.logCost i s.regs) := by
-  refine ⟨1, ?_, ?_⟩
-  · rw [RAM.run_succ, RAM.run_zero, RAM.step_of_getElem? hi]
-  · rw [RAM.time_succ, RAM.time_zero, Nat.add_zero, RAM.stepCost_of_getElem? hi]
+    (hi : p[s.pc]? = some i) : Reaches p s (i.exec s) (RAM.logCost i s.regs) :=
+  ⟨1, by rw [RAM.run_succ, RAM.run_zero, RAM.step_of_getElem? hi],
+    by rw [RAM.time_succ, RAM.time_zero, Nat.add_zero, RAM.stepCost_of_getElem? hi]⟩
 
 private theorem Reaches.trans {p : RAM.Program} {s t u : RAM.State} {T U : ℕ}
-    (h : Reaches p s t T) (h' : Reaches p t u U) : Reaches p s u (T + U) := by
-  obtain ⟨m, hm, ht⟩ := h
-  obtain ⟨n, hn, hu⟩ := h'
-  exact ⟨m + n, by rw [RAM.run_add, hm, hn], by
-    rw [RAM.time_add, hm]; exact Nat.add_le_add ht hu⟩
+    (h : Reaches p s t T) (h' : Reaches p t u U) : Reaches p s u (T + U) :=
+  let ⟨m, hm, ht⟩ := h; let ⟨n, hn, hu⟩ := h'
+  ⟨m + n, by rw [RAM.run_add, hm, hn], by rw [RAM.time_add, hm]; exact Nat.add_le_add ht hu⟩
 
 private theorem Reaches.mono {p : RAM.Program} {s t : RAM.State} {T U : ℕ}
-    (h : Reaches p s t T) (hTU : T ≤ U) : Reaches p s t U := by
-  obtain ⟨n, hn, ht⟩ := h
-  exact ⟨n, hn, ht.trans hTU⟩
+    (h : Reaches p s t T) (hTU : T ≤ U) : Reaches p s t U :=
+  let ⟨n, hn, ht⟩ := h; ⟨n, hn, ht.trans hTU⟩
 
 private theorem reaches_jump {p : RAM.Program} {pc target : ℕ} {σ : URM.Regs}
     (hi : p[pc]? = some (.jpos (one r) target)) (hσ : σ.read (one r) = 1) :
@@ -398,16 +391,12 @@ private theorem reaches_sub_jpos {q : RAM.Program} {pc jumpTarget : ℕ} {i j : 
   have hfirst : Reaches q ⟨pc, σ⟩ ⟨pc + 1, τ⟩
       (RAM.bitLength (x.regs j) + RAM.bitLength (x.regs i)) := by
     simpa [RAM.Instr.exec, RAM.logCost, hσ.regs, τ] using Reaches.step (s := ⟨pc, σ⟩) hsub
-  have hsecond := Reaches.step (s := ⟨pc + 1, τ⟩) hjpos
-  by_cases hij : x.regs i < x.regs j
-  · have hsecond' : Reaches q ⟨pc + 1, τ⟩ ⟨jumpTarget, τ⟩
-        (RAM.bitLength (x.regs j - x.regs i)) := by
-      simpa [RAM.Instr.exec, RAM.logCost, τ, Nat.sub_pos_iff_lt, hij] using hsecond
-    simpa only [ite_eq_left hij] using hfirst.trans hsecond'
-  · have hsecond' : Reaches q ⟨pc + 1, τ⟩ ⟨pc + 2, τ⟩
-        (RAM.bitLength (x.regs j - x.regs i)) := by
-      simpa [RAM.Instr.exec, RAM.logCost, τ, Nat.sub_pos_iff_lt, hij, Nat.add_assoc] using hsecond
-    simpa only [ite_eq_right hij] using hfirst.trans hsecond'
+  have hsecond : Reaches q ⟨pc + 1, τ⟩ ⟨if x.regs i < x.regs j then jumpTarget else pc + 2, τ⟩
+      (RAM.bitLength (x.regs j - x.regs i)) := by
+    by_cases hij : x.regs i < x.regs j <;>
+      simpa [RAM.Instr.exec, RAM.logCost, τ, Nat.sub_pos_iff_lt, hij, Nat.add_assoc] using
+        Reaches.step (s := ⟨pc + 1, τ⟩) hjpos
+  exact hfirst.trans hsecond
 
 private theorem branch_simulation {q : RAM.Program} {base length pc target w : ℕ}
     {c : Cond r} {x : Data r} {σ : URM.Regs}
@@ -549,11 +538,8 @@ theorem executes_compile {p : Program .standard r} (hp : p.IsAdditive) (pre : RA
       have hv : t.data.regs i = v := by simpa [WordRAM.step, hi] using ht
       obtain ⟨υ, hhalt, hυ⟩ := halt_simulation (hc t.pc (.halt i) hi) hτ (hr.bounded hs)
       obtain ⟨k, hk, hcost⟩ := hrun.trans hhalt
-      refine ⟨k, ?_, ?_, ?_⟩
-      · rw [hk]
-        simp [RAM.State.isHalted, entry]
-      · rw [hk, hυ, hv]
-      · simpa only [Nat.add_mul, Nat.one_mul] using hcost
+      exact ⟨k, by rw [hk]; simp [RAM.State.isHalted, entry], by rw [hk, hυ, hv],
+        by simpa only [Nat.add_mul, Nat.one_mul] using hcost⟩
     | op o =>
       simp only [WordRAM.step, hi] at ht
       split at ht <;> cases ht

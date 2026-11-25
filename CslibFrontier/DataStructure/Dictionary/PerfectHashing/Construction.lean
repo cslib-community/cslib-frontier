@@ -262,9 +262,7 @@ theorem bucketOf_map {r : ℕ} (f : X → Fin (r + 1)) (keys : List X) (j : Fin 
   | nil => rfl
   | cons x xs ih =>
     simp only [bucketOf, List.map_cons, List.zip_cons_cons, List.filter_cons] at ih ⊢
-    by_cases hx : f x = j
-    · simp [hx, ih]
-    · simp [hx, ih]
+    by_cases hx : f x = j <;> simp [hx, ih]
 
 theorem bucketOf_sublist {r : ℕ} (keys : List X) (vs : List (Fin (r + 1))) (j : Fin (r + 1)) :
     (bucketOf keys vs j).Sublist keys := by
@@ -288,12 +286,9 @@ theorem sum_length_bucketOf_le {r : ℕ} (keys : List X) (vs : List (Fin (r + 1)
     cases vs with
     | nil => simp [bucketOf]
     | cons v vs =>
-      have hstep : ∀ j, (bucketOf (x :: xs) (v :: vs) j).length =
+      have hstep (j : Fin (r + 1)) : (bucketOf (x :: xs) (v :: vs) j).length =
           (bucketOf xs vs j).length + if v = j then 1 else 0 := by
-        intro j
-        by_cases hv : v = j
-        · simp [bucketOf, hv]
-        · simp [bucketOf, hv]
+        by_cases hv : v = j <;> simp [bucketOf, hv]
       simp only [hstep, sum_add_distrib, sum_ite_eq, mem_univ, ↓reduceIte, List.length_cons]
       exact Nat.add_le_add_right (ih vs) 1
 
@@ -371,14 +366,10 @@ theorem valid_of_mem_support_build {fuel : ℕ} {keys : List X} (hkeys : keys.No
     have hsecj : ∀ j, ((sec j).get (hs j)).range = (bucketOf keys t.values j).length ^ 2 - 1 ∧
         Set.InjOn ((sec j).get (hs j)).apply {x | x ∈ bucketOf keys t.values j} := fun j =>
       mem_supportWith_buildSecondary (by rw [Option.some_get]; exact hsec j)
-    refine ⟨rfl, ?_, fun j hj => ?_, fun j x hx y hy hxy => ?_⟩
-    · simp only [hcard]
-      exact hgood
+    refine ⟨rfl, by simp only [hcard]; exact hgood, fun j hj => ?_, fun j x hx y hy hxy => ?_⟩
     · rw [hcard] at hj ⊢
-      have hpos : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
-      dsimp only
-      rw [(hsecj j).1]
-      omega
+      have : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
+      dsimp only; rw [(hsecj j).1]; omega
     · rw [Finset.mem_coe, mem_bucket_iff_mem_bucketOf hvs] at hx hy
       exact (hsecj j).2 hx hy hxy
 
@@ -491,9 +482,7 @@ theorem evalWith_build_none_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.hash r)
       ≤ 2⁻¹ ^ fuel + ((keys.length - 1 + 1 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by
         gcongr
         exact evalWith_retry_none_le _ _ _ (toOuterMeasure_not_topGood_le hF hkeys) fuel
-    _ = ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by
-        push_cast
-        ring
+    _ = ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by push_cast; ring
 
 /-- The block of a bucket costs at most twice one attempt in expectation, whatever the fuel. -/
 theorem expectedCost_buildSecondary_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.hash r))
@@ -531,9 +520,7 @@ theorem expectedCost_build_draw_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
           refine (expectedCost_retry_le_two_mul _ _ _ _
             (toOuterMeasure_not_topGood_le hF hkeys) fuel).trans ?_
           simp
-      _ = 2 * ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) := by
-          push_cast
-          ring
+      _ = 2 * ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) := by push_cast; ring
 
 /-- **Expected hash evaluations.** The construction for a duplicate-free list of `n` keys makes at
 most `4 n` hash evaluations in expectation, whatever the fuel: two expected attempts of `n`
@@ -552,9 +539,7 @@ theorem expectedCost_build_eval_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
             ((bucketOf_sublist keys t.values j).nodup hkeys)).trans ?_
           simp
       _ ≤ 2 * keys.length := by
-          rw [← mul_sum]
-          gcongr
-          exact_mod_cast sum_length_bucketOf_le keys t.values
+          rw [← mul_sum]; gcongr; exact_mod_cast sum_length_bucketOf_le keys t.values
   · calc expectedCost (answer F) evalCost
           (retry (TopGood keys) (trial F (keys.length - 1) keys) fuel) + 2 * (keys.length : ℝ≥0∞)
         ≤ 2 * keys.length + 2 * (keys.length : ℝ≥0∞) := by
