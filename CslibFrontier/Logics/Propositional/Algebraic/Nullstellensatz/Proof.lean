@@ -89,15 +89,13 @@ theorem degree_le_iff {F : List (MvPolynomial V R)} {P : Fin F.length → MvPoly
     {d : ℕ} :
     degree F P ≤ d ↔ ∀ i, P i ≠ 0 → (F.get i).totalDegree + (P i).totalDegree ≤ d := by
   simp only [degree, Finset.sup_le_iff, Finset.mem_univ, forall_const]
-  constructor
-  · intro h i hi
-    obtain ⟨m, hm, hdeg⟩ :=
-      (P i).support.exists_mem_eq_sup (MvPolynomial.support_nonempty.mpr hi) Finsupp.degree
-    have htot : (P i).totalDegree = m.degree := hdeg
-    exact htot ▸ h i m hm
-  · intro h i m hm
-    exact (Nat.add_le_add_left (MvPolynomial.le_totalDegree hm) _).trans
-      (h i (MvPolynomial.support_nonempty.mp ⟨m, hm⟩))
+  refine ⟨fun h i hi => ?_, fun h i m hm =>
+    (Nat.add_le_add_left (MvPolynomial.le_totalDegree hm) _).trans
+      (h i (MvPolynomial.support_nonempty.mp ⟨m, hm⟩))⟩
+  obtain ⟨m, hm, hdeg⟩ :=
+    (P i).support.exists_mem_eq_sup (MvPolynomial.support_nonempty.mpr hi) Finsupp.degree
+  have htot : (P i).totalDegree = m.degree := hdeg
+  exact htot ▸ h i m hm
 
 /-! ### Proofs -/
 
@@ -154,24 +152,20 @@ theorem exists_degree_le_mul_size {F : List (MvPolynomial V R)}
   classical
   let T : Finset ℕ := Finset.univ.biUnion fun i =>
     if F.get i = 0 then ∅ else (P i).support.image Finsupp.degree
-  have hcard : T.card ≤ size F P := by
-    refine Finset.card_biUnion_le.trans ?_
-    apply Finset.sum_le_sum
-    intro i _
-    by_cases hi : F.get i = 0
-    · simp only [hi, ite_true, Finset.card_empty, MvPolynomial.support_zero, zero_mul, le_refl]
-    · simp only [hi, ite_false]
-      have hpos : 1 ≤ (F.get i).support.card :=
-        Finset.card_pos.mpr (MvPolynomial.support_nonempty.mpr hi)
-      exact Finset.card_image_le.trans
-        (by simpa using Nat.mul_le_mul_right (P i).support.card hpos)
+  have hcard : T.card ≤ size F P :=
+    Finset.card_biUnion_le.trans <| Finset.sum_le_sum fun i _ => by
+      by_cases hi : F.get i = 0
+      · simp only [hi, ite_true, Finset.card_empty, MvPolynomial.support_zero, zero_mul, le_refl]
+      · simp only [hi, ite_false]
+        exact Finset.card_image_le.trans (by
+          simpa using Nat.mul_le_mul_right (P i).support.card
+            (Finset.card_pos.mpr (MvPolynomial.support_nonempty.mpr hi)))
   obtain ⟨D, hD, hgap⟩ := T.exists_gap_le_mul_card d₀
   have hD' : D ≤ d₀ * size F P := hD.trans (Nat.mul_le_mul_left d₀ hcard)
   have hgap' (i : Fin F.length) (hi : F.get i ≠ 0) (m) (hm : m ∈ (P i).support) :
-      m.degree + (F.get i).totalDegree ≤ D ∨ D < m.degree := by
-    have hmT : m.degree ∈ T := Finset.mem_biUnion.mpr
-      ⟨i, Finset.mem_univ _, by simp only [hi, ite_false]; exact Finset.mem_image_of_mem _ hm⟩
-    exact (hgap _ hmT).imp_left
+      m.degree + (F.get i).totalDegree ≤ D ∨ D < m.degree :=
+    (hgap _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _, by
+      simpa only [hi, ite_false] using Finset.mem_image_of_mem _ hm⟩)).imp_left
       ((Nat.add_le_add_left (hd₀ _ (List.get_mem ..)) _).trans ·)
   let Q : Fin F.length → MvPolynomial V R := fun i =>
     if F.get i = 0 then 0 else MvPolynomial.truncateTotalDegree D (P i)
@@ -179,27 +173,24 @@ theorem exists_degree_le_mul_size {F : List (MvPolynomial V R)}
       m ∈ (Q i).support ↔ F.get i ≠ 0 ∧ m ∈ (P i).support ∧ m.degree ≤ D := by
     simp only [Q, List.get_eq_getElem]
     split_ifs with hi <;> simp [hi, MvPolynomial.support_truncateTotalDegree]
-  refine ⟨Q, ?_, ?_, ?_⟩
+  refine ⟨Q, ?_, Finset.sum_le_sum fun i _ => Nat.mul_le_mul_left _
+    (Finset.card_le_card fun m hm => ((hQmem i m).mp hm).2.1), ?_⟩
   · change (∑ i, F.get i * Q i) = 1
     calc
       (∑ i, F.get i * Q i) =
-          ∑ i, MvPolynomial.truncateTotalDegree D (F.get i * P i) := by
-        apply Finset.sum_congr rfl
-        intro i _
-        by_cases hi : F.get i = 0
-        · simp only [Q, hi, ite_true, zero_mul, MvPolynomial.truncateTotalDegree_zero]
-        · simpa only [Q, hi, ite_false] using
-            (MvPolynomial.truncateTotalDegree_mul_of_gap D (F.get i) (P i) (hgap' i hi)).symm
+          ∑ i, MvPolynomial.truncateTotalDegree D (F.get i * P i) :=
+        Finset.sum_congr rfl fun i _ => by
+          by_cases hi : F.get i = 0
+          · simp only [Q, hi, ite_true, zero_mul, MvPolynomial.truncateTotalDegree_zero]
+          · simpa only [Q, hi, ite_false] using
+              (MvPolynomial.truncateTotalDegree_mul_of_gap D (F.get i) (P i) (hgap' i hi)).symm
       _ = MvPolynomial.truncateTotalDegree D (∑ i, F.get i * P i) :=
         (MvPolynomial.truncateTotalDegree_sum D Finset.univ _).symm
       _ = 1 := by rw [show (∑ i, F.get i * P i) = 1 from hP]; simp
-  · exact Finset.sum_le_sum fun i _ => Nat.mul_le_mul_left _
-      (Finset.card_le_card fun m hm => ((hQmem i m).mp hm).2.1)
   · simp only [degree, Finset.sup_le_iff, Finset.mem_univ, forall_const]
     intro i m hm
     obtain ⟨hi, hm, hdeg⟩ := (hQmem i m).mp hm
-    have hlow := (hgap' i hi m hm).resolve_right (Nat.not_lt_of_ge hdeg)
-    exact (Nat.add_comm _ _ ▸ hlow).trans hD'
+    exact (Nat.add_comm _ _ ▸ (hgap' i hi m hm).resolve_right (Nat.not_lt_of_ge hdeg)).trans hD'
 
 end IsProof
 

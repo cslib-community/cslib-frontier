@@ -119,8 +119,7 @@ theorem complexity_trialGuess_le (D : Design ℓ n a m) (f : BooleanFunction n)
     (fun j x => generator D f (D.extend t.pos x t.seed) (Fin.castLE t.pos.isLt.le j))
     (Nat.le_add_left 1 _) fun j => ?_
   refine (complexity_le_of_dependsOn (dependsOn_generator_extend D f _ _ t.seed)).trans ?_
-  have := D.card_overlap_le <|
-    Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt)
+  have := D.card_overlap_le (Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt))
   gcongr
 
 /-- **The guess of every trial, reading its queries from input wires.** If the trial `t` makes at
@@ -157,16 +156,13 @@ theorem complexity_trialGuess_answers_le (D : Design ℓ n a m) (test : BooleanF
     complexity_nextBitGuess_le test t.pos t.bit t.pad bit (Nat.le_add_left 1 _) fun j => ?_,
     fun f z hz x => ?_⟩
   · refine (complexity_select_le (O j) (sel j)).trans ?_
-    have := D.card_overlap_le <|
-      Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt)
+    have := D.card_overlap_le (Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt))
     gcongr
   · simp only [trialGuess]
     congr 1
     funext j
     have hpt : pt j (ext j fun i => x i) = pt j x :=
-      D.dependsOn_restrict_extend t.pos _ t.seed fun k hk => by
-        simp only [ext]
-        exact dite_eq_left (Finset.mem_coe.1 hk)
+      D.dependsOn_restrict_extend t.pos _ t.seed fun k hk => dite_eq_left (Finset.mem_coe.1 hk)
     simp only [Fin.take_apply, generator_apply, bit, Fin.append_right, Fin.append_left]
     rw [hz _ (hlt j _)]
     simp only [sel, List.getElem_idxOf, hpt]

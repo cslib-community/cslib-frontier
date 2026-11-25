@@ -126,11 +126,9 @@ theorem continuous_tsum_translate (f : C(E, F)) {b : ℝ}
     (hb : (Module.finrank ℤ L : ℝ) < b)
     (hf : f =O[cocompact E] (fun x ↦ ‖x‖ ^ (-b))) :
     Continuous (fun x : E ↦ ∑' z : L, f (x + z)) := by
-  have hs := summable_translate L f hb hf
   have heq : (fun x : E ↦ ∑' z : L, f (x + z)) =
-      ⇑(∑' z : L, f.comp (ContinuousMap.addRight (z : E))) := by
-    funext x
-    exact ContinuousMap.tsum_apply hs x
+      ⇑(∑' z : L, f.comp (ContinuousMap.addRight (z : E))) :=
+    funext (ContinuousMap.tsum_apply (summable_translate L f hb hf))
   rw [heq]
   exact ContinuousMap.continuous _
 
@@ -142,9 +140,8 @@ theorem continuous_automorphize (f : C(E, F)) {b : ℝ}
   apply isQuotientMap_quotient_mk'.continuous_iff.mpr
   change Continuous (fun x : E ↦ ∑' z : L.toAddSubgroup.op, f (z +ᵥ x))
   have heq : (fun x : E ↦ ∑' z : L.toAddSubgroup.op, f (z +ᵥ x)) =
-      (fun x : E ↦ ∑' z : L, f (x + z)) := by
-    funext x
-    exact (L.toAddSubgroup.equivOp.tsum_eq (fun z ↦ f (z +ᵥ x))).symm
+      fun x : E ↦ ∑' z : L, f (x + z) :=
+    funext fun x ↦ (L.toAddSubgroup.equivOp.tsum_eq fun z ↦ f (z +ᵥ x)).symm
   rw [heq]
   exact continuous_tsum_translate L f hb hf
 

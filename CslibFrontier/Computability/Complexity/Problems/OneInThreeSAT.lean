@@ -71,16 +71,14 @@ theorem computableInPolyTime_clause_count :
       (fun p : (CNF ℕ × List Bool) × Clause ℕ =>
         p.2.countP (Literal.eval (SAT.assignment p.1.1 p.1.2)))
       (encPair (encPair encCNF encBits) (encClause encNat)) encUnary := by
-  apply ComputableInPolyTime.countPWithInput (encA := encPair encNat encBool)
-  · fun_prop
-  · have hinput : ComputableInPolyTime
-        (fun p : ((CNF ℕ × List Bool) × Clause ℕ) × Literal ℕ => (p.1.1, p.2))
-        (encPair (encPair (encPair encCNF encBits) (encClause encNat))
-          (encPair encNat encBool))
-        (encPair (encPair encCNF encBits) (encPair encNat encBool)) := by fun_prop
-    exact SAT.computableInPolyTime_literal.comp
-      (encIn := encPair (encPair (encPair encCNF encBits) (encClause encNat))
-        (encPair encNat encBool)) hinput
+  refine ComputableInPolyTime.countPWithInput (encA := encPair encNat encBool) (by fun_prop) ?_
+  have hinput : ComputableInPolyTime
+      (fun p : ((CNF ℕ × List Bool) × Clause ℕ) × Literal ℕ => (p.1.1, p.2))
+      (encPair (encPair (encPair encCNF encBits) (encClause encNat)) (encPair encNat encBool))
+      (encPair (encPair encCNF encBits) (encPair encNat encBool)) := by fun_prop
+  exact SAT.computableInPolyTime_literal.comp
+    (encIn := encPair (encPair (encPair encCNF encBits) (encClause encNat))
+      (encPair encNat encBool)) hinput
 
 /-- An exact-one clause is verified in polynomial time. -/
 @[fun_prop]
@@ -122,9 +120,8 @@ def exactClauseCheck (c : Clause ℕ) : Bool :=
 /-- The exact-clause check requires three pairwise distinct variables. -/
 theorem exactClauseCheck_iff (c : Clause ℕ) :
     exactClauseCheck c = true ↔ c.length = 3 ∧ (c.map Prod.fst).Nodup := by
-  rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, _ | ⟨e, t⟩⟩⟩⟩
-  all_goals simp [exactClauseCheck, List.getD, List.nodup_cons, and_assoc, and_left_comm,
-    and_comm]
+  rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, _ | ⟨e, t⟩⟩⟩⟩ <;>
+    simp [exactClauseCheck, List.getD, List.nodup_cons, and_assoc, and_left_comm, and_comm]
 
 /-- Positivity is decidable in native polynomial time. -/
 @[fun_prop]
@@ -139,16 +136,12 @@ theorem computableInPolyTime_exactClauseCheck :
     ComputableInPolyTime exactClauseCheck (encClause encNat) encBool := by
   have hvars : ComputableInPolyTime (fun c : Clause ℕ => c.map Prod.fst)
       (encList (encPair encNat encBool)) (encList encNat) := by fun_prop
-  have hread (i : ℕ) : ComputableInPolyTime
-      (fun c : Clause ℕ => (c.map Prod.fst).getD i 0)
+  have hread (i : ℕ) : ComputableInPolyTime (fun c : Clause ℕ => (c.map Prod.fst).getD i 0)
       (encList (encPair encNat encBool)) encNat :=
     (ComputableInPolyTime.listGetD (encA := encNat) (encL := encList encNat) 0).comp
       (hvars.prod (.const i))
-  have hlen : ComputableInPolyTime (fun c : Clause ℕ => c.length == 3)
-      (encList (encPair encNat encBool)) encBool :=
-    ComputableInPolyTime.beq
-      (ComputableInPolyTime.length_list (encPair encNat encBool))
-      (.const 3)
+  have hlen := ComputableInPolyTime.beq
+    (ComputableInPolyTime.length_list (encPair encNat encBool)) (.const 3)
   have h01 := (hread 0).beq (hread 1)
   have h02 := (hread 0).beq (hread 2)
   have h12 := (hread 1).beq (hread 2)

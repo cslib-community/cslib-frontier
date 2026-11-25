@@ -70,8 +70,7 @@ private theorem tensorReal {A : Diagram Gate a b} {B : Diagram Gate c d} {x y z 
 private theorem padRight {D : Diagram Gate a b} (r : List Color)
     (h : Layout recorded D (fun _ => false) k p) :
     Layout recorded (D.tensor (.id r)) (fun _ => false) k p := by
-  simpa only [List.append_nil] using
-    (Layout.tensor (s := fun _ => false) h (.id r _ _))
+  simpa only [List.append_nil] using Layout.tensor (s := fun _ => false) h (.id r _ _)
 
 private theorem padLeft (l : List Color) {D : Diagram Gate a b}
     (h : Layout recorded D (fun _ => false) (k + l.length) p) :
@@ -108,10 +107,9 @@ private theorem conjoin (r : List Color) (n k : ℕ) (ms : List (List Bool)) :
   induction ms with
   | nil => exact .id _ _ _
   | cons m ms ih =>
-    have hj := padLeft (k := k) (Network.bundle n) (padRight r
-      (Layout.cell (recorded := recorded) .conj (k + (Network.bundle n).length)))
-    simp only [Network.bundle, List.length_replicate] at hj
-    exact .comp (.comp (clause (.blue :: r) n m k) hj) ih
+    refine .comp (.comp (clause (.blue :: r) n m k) ?_) ih
+    simpa only [Network.bundle, List.length_replicate] using! padLeft (k := k) (Network.bundle n)
+      (padRight r (Layout.cell (recorded := recorded) .conj (k + (Network.bundle n).length)))
 
 private theorem network (r : List Color) (n k : ℕ) (ms : List (List Bool)) :
     Layout recorded (Network.network r n ms) (fun _ => false) k (Emit.network k n ms) := by
@@ -157,16 +155,17 @@ theorem terminalBase (k p : ℕ) (ms : List (List Bool)) :
     Layout recorded (Matrix.terminalBase p ms) (Initial.terminalBase p ms).orient k
       (Emit.terminal k p ms) := by
   let ctrl := Realization.id (I := Gate.interp) [.blue, .blue] [true, false] rfl
-  let net := Realization.zeros (I := Gate.interp) _ (Network.legal_network_zero [] (2 * p) ms)
-  let move := Realization.zeros (I := Gate.interp) _
-    (Initial.legal_moveLeft_zero (Network.bundle (2 * p)) .blue [])
-  let cap := Realization.zeros (I := Gate.interp) _ (Initial.legal_caps_zero [] p)
-  have h := compReal (compReal
-    (tensorReal (u := ctrl) (v := net) (.id _ _ k) (network [] (2 * p) (k + 2) ms))
-    (tensorReal (u := ctrl) (v := move) (.id _ _ k) (moveLeft [] (2 * p) (k + 2))))
-    (tensorReal (u := Initial.returnInitial) (v := cap) (.cell .returnGate k)
-      (caps (recorded := recorded) [] p k))
-  simpa only [Emit.terminal, List.nil_append, List.append_assoc] using! h
+  simpa only [Emit.terminal, List.nil_append, List.append_assoc] using! compReal (compReal
+    (tensorReal (u := ctrl)
+      (v := Realization.zeros (I := Gate.interp) _ (Network.legal_network_zero [] (2 * p) ms))
+      (.id _ _ k) (network [] (2 * p) (k + 2) ms))
+    (tensorReal (u := ctrl)
+      (v := Realization.zeros (I := Gate.interp) _
+        (Initial.legal_moveLeft_zero (Network.bundle (2 * p)) .blue []))
+      (.id _ _ k) (moveLeft [] (2 * p) (k + 2))))
+    (tensorReal (u := Initial.returnInitial)
+      (v := Realization.zeros (I := Gate.interp) _ (Initial.legal_caps_zero [] p))
+      (.cell .returnGate k) (caps (recorded := recorded) [] p k))
 
 private theorem terminal (p : ℕ) (qs : List Quantifier) (ms : List (List Bool)) :
     Layout recorded (Matrix.terminal p qs ms) (Initial.terminal p qs ms).orient 0
@@ -186,8 +185,7 @@ theorem circuit (recorded : Bool) (qs : List Quantifier) (ms : List (List Bool))
     Layout recorded (OutputLatch.diagram.comp (Matrix.body qs ms))
       ((OutputLatch.canonical recorded true false).comp (Initial.body qs ms)).orient 0
       (Emit.circuit qs ms) := by
-  unfold Emit.circuit
-  rw [List.append_assoc]
+  rw [Emit.circuit, List.append_assoc]
   exact compReal (.cell .output 0) (body qs ms)
 
 end Layout

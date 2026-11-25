@@ -93,10 +93,8 @@ theorem eulerLiars_eq_top {p : ℕ} [Fact p.Prime] (hp : p ≠ 2) : eulerLiars p
   intro a _
   rw [mem_eulerLiars, ← jacobiSym.legendreSym.to_jacobiSym, legendreSym.eq_pow, Int.cast_natCast,
     natCast_zmod_val]
-  congr 1
-  have := (Fact.out : p.Prime).odd_of_ne_two hp
-  obtain ⟨k, hk⟩ := this
-  omega
+  obtain ⟨k, hk⟩ := (Fact.out : p.Prime).odd_of_ne_two hp
+  exact congrArg _ (by omega)
 
 /-- **Euler liars of a composite**: modulo an odd composite `n`, some unit is not an Euler liar.
 If `p ^ 2 ∣ n` for an odd prime `p`, the unit `1 + n / p` has no power `-1` and its powers equal to
@@ -112,25 +110,25 @@ theorem eulerLiars_ne_top {n : ℕ} [NeZero n] (hodd : Odd n) (h1 : 1 < n) (hn :
       (a : ZMod n) ^ ((n - 1) / 2) = -1 := fun a => by
     rw [hall a]
     rcases jacobiSym.eq_one_or_neg_one (a := ((a : ZMod n).val : ℤ)) (b := n)
-      (by rw [Int.gcd_natCast_natCast]; exact val_coe_unit_coprime a) with h | h <;>
+      (Int.gcd_natCast_natCast _ _ ▸ val_coe_unit_coprime a) with h | h <;>
       simp only [h, Int.cast_one, Int.cast_neg, true_or, or_true]
   rcases Nat.exists_sq_dvd_or_eq_mul_coprime hodd h1 hn with ⟨p, hp, hp2, hpn⟩ |
     ⟨p, q, rfl, hp, hp2, hpq, hqodd, hq1⟩
   · obtain ⟨c, hc1, hcn⟩ := exists_unit_pow_of_sq_dvd hp hp2 (NeZero.ne n) hpn
     rcases hpm c with h | h
-    · have hdvd : p ∣ n - 1 := by
-        obtain ⟨k, hk⟩ := hodd
-        have := hc1 _ h
+    · obtain ⟨k, hk⟩ := hodd
+      have hdvd : p ∣ n - 1 := by
         rw [show n - 1 = 2 * ((n - 1) / 2) by omega]
-        exact Dvd.dvd.mul_left this 2
-      have hpn' : p ∣ n := (Dvd.intro_left _ rfl : p ∣ p ^ 2).trans hpn
-      exact hp.not_dvd_one (Nat.sub_sub_self h1.le ▸ Nat.dvd_sub hpn' hdvd)
+        exact (hc1 _ h).mul_left 2
+      exact hp.not_dvd_one
+        (Nat.sub_sub_self h1.le ▸ Nat.dvd_sub ((Dvd.intro_left _ rfl : p ∣ p ^ 2).trans hpn) hdvd)
     · exact hcn _ h
   · have : Fact p.Prime := ⟨hp⟩
     have : NeZero q := ⟨by omega⟩
-    obtain ⟨g, hg⟩ := quadraticChar_exists_neg_one (F := ZMod p)
-      (by rw [ringChar_zmod_n]; exact hp2)
-    have hg0 : g ≠ 0 := by rintro rfl; simp at hg
+    obtain ⟨g, hg⟩ := quadraticChar_exists_neg_one (F := ZMod p) (by rwa [ringChar_zmod_n])
+    have hg0 : g ≠ 0 := by
+      rintro rfl
+      simp at hg
     obtain ⟨c, hcp, hcq⟩ := exists_unit_castHom_eq hpq (Units.mk0 g hg0) 1
     have hJ : J(((c : ZMod (p * q)).val : ℤ) | p * q) = -1 := by
       rw [jacobiSym.mul_right, ← jacobiSym_val_castHom (dvd_mul_right p q),
@@ -138,9 +136,7 @@ theorem eulerLiars_ne_top {n : ℕ} [NeZero n] (hodd : Odd n) (h1 : 1 < n) (hn :
         Int.natCast_mod, Nat.cast_one, ← jacobiSym.mod_left, jacobiSym.one_left, mul_one,
         Units.val_mk0, ← jacobiSym.legendreSym.to_jacobiSym, legendreSym, Int.cast_natCast,
         natCast_zmod_val, hg]
-    have h := hall c
-    rw [hJ] at h
-    have h' := congrArg (castHom (dvd_mul_left q p) (ZMod q)) h
+    have h' := congrArg (castHom (dvd_mul_left q p) (ZMod q)) ((hall c).trans (congrArg _ hJ))
     rw [map_pow, hcq, Units.val_one, one_pow, Int.cast_neg, Int.cast_one, map_neg, map_one] at h'
     exact neg_one_ne_one_of_odd hqodd hq1 h'.symm
 

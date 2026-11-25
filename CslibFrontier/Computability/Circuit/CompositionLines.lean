@@ -54,8 +54,7 @@ theorem lines_append_castAdd (q : Program σ k g₂) (j : Fin g₁) :
   induction q with
   | empty =>
     change p.lines j = _
-    generalize p.lines j = l
-    obtain ⟨op, wires⟩ := l
+    rcases p.lines j with ⟨op, wires⟩
     simp only [Line.mapWires, Line.mk.injEq, heq_eq_eq, true_and]
     funext a
     simp only [Function.comp_apply]
@@ -63,8 +62,7 @@ theorem lines_append_castAdd (q : Program σ k g₂) (j : Fin g₁) :
   | @gate g₂ q line ih =>
     refine (Program.lines_gate_castSucc (p.append feed q) _ (Fin.castAdd g₂ j)).trans ?_
     rw [ih]
-    generalize p.lines j = l
-    obtain ⟨op, wires⟩ := l
+    rcases p.lines j with ⟨op, wires⟩
     simp only [Line.mapWires, Line.mk.injEq, heq_eq_eq, true_and]
     funext a
     simp only [Function.comp_apply, Wire.Renaming.castSucc_apply]
@@ -106,18 +104,13 @@ theorem exists_lines_pi {m : ℕ} (cs : Fin m → Circuit σ n 1) (k : Fin (pi c
   | succ m ih =>
     revert k
     rw [pi]
-    intro k
-    induction k using Fin.addCases with
-    | left k =>
-      obtain ⟨j, k', f, hi, hg, hk⟩ := ih (fun i => cs i.castSucc) k
-      refine ⟨j.castSucc, k', Wire.castAdd _ ∘ f, fun i => congrArg (Wire.castAdd _) (hi i),
-        fun g => ?_, ?_⟩
-      · obtain ⟨g', hg'⟩ := hg g
-        exact ⟨Fin.castAdd _ g', congrArg (Wire.castAdd _) hg'⟩
-      · exact (Program.lines_append_castAdd _ _ _ k).trans (by rw [hk]; rfl)
-    | right k =>
-      exact ⟨Fin.last m, k, Program.appendedWire Wire.input, fun i => rfl,
-        fun g => ⟨_, rfl⟩, Program.lines_append_natAdd _ _ _ k⟩
+    refine Fin.addCases (fun k => ?_) fun k =>
+      ⟨Fin.last m, k, Program.appendedWire Wire.input, fun _ => rfl, fun _ => ⟨_, rfl⟩,
+        Program.lines_append_natAdd _ _ _ k⟩
+    obtain ⟨j, k', f, hi, hg, hk⟩ := ih (fun i => cs i.castSucc) k
+    exact ⟨j.castSucc, k', Wire.castAdd _ ∘ f, fun i => congrArg (Wire.castAdd _) (hi i),
+      fun g => (hg g).elim fun g' hg' => ⟨Fin.castAdd _ g', congrArg (Wire.castAdd _) hg'⟩,
+      (Program.lines_append_castAdd _ _ _ k).trans (by rw [hk]; rfl)⟩
 
 /-- If every circuit `cs j` outputs a gate, then every output of `pi cs` is a gate. -/
 theorem outputs_pi_eq_gate {m : ℕ} (cs : Fin m → Circuit σ n 1)
@@ -131,14 +124,12 @@ theorem outputs_pi_eq_gate {m : ℕ} (cs : Fin m → Circuit σ n 1)
       obtain ⟨g, hg⟩ := h (Fin.last m)
       refine ⟨Fin.natAdd _ g, ?_⟩
       change ((pi fun i => cs i.castSucc).append (cs (Fin.last m))).outputs (Fin.natAdd m 0) = _
-      rw [outputs_append_natAdd, hg]
-      rfl
+      rw [outputs_append_natAdd, hg]; rfl
     | cast j =>
       obtain ⟨g, hg⟩ := ih (fun i => cs i.castSucc) (fun i => h i.castSucc) j
       refine ⟨Fin.castAdd _ g, ?_⟩
       change ((pi fun i => cs i.castSucc).append (cs (Fin.last m))).outputs (Fin.castAdd 1 j) = _
-      rw [outputs_append_castAdd, hg]
-      rfl
+      rw [outputs_append_castAdd, hg]; rfl
 
 end Circuit
 

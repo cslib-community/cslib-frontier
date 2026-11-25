@@ -77,17 +77,13 @@ theorem lookupOr_of_eq {keys : Fin M → BitString k} (values : Fin M → BitStr
   funext bit
   apply Bool.eq_iff_iff.mpr
   simp only [lookupOr, decide_eq_true_eq]
-  constructor
-  · rintro ⟨i, hi, hv⟩
-    rwa [hkeys (hi.trans h.symm)] at hv
-  · exact fun hv => ⟨j, h, hv⟩
+  exact ⟨fun ⟨i, hi, hv⟩ => hkeys (hi.trans h.symm) ▸ hv, fun hv => ⟨j, h, hv⟩⟩
 
 /-- When `key` is absent from `keys`, `lookupOr` returns the all-false bit string. -/
 theorem lookupOr_of_forall_ne {keys : Fin M → BitString k} (values : Fin M → BitString v)
     {key : BitString k} (h : ∀ j, keys j ≠ key) : lookupOr keys values key = fun _ => false := by
   funext bit
-  simp only [lookupOr, decide_eq_false_iff_not, not_exists, not_and]
-  exact fun j hj => absurd hj (h j)
+  simp [lookupOr, h]
 
 /-- **Shared lookup.** Answering `Q` available queries against one hardwired table of `M` keys
 costs one `batchOrCircuit`: at most `48 * (Q + M + 1) * (⌈log₂ (Q + M)⌉ + 1) ^ 2 * (k + v + 1)`
@@ -97,13 +93,11 @@ theorem synthesis_lookupOr {Q : ℕ} (s : Set (BooleanFunction a)) (keys : Fin M
     (hq : ∀ q bit, (fun x => queries x q bit) ∈ s) :
     Synthesis interpretation s (⋃ q, wires fun x => lookupOr keys values (queries x q))
       (48 * (Q + M + 1) * (Nat.clog 2 (Q + M) + 1) ^ 2 * (k + v + 1)) := by
-  let c := batchOrCircuit (input := Q * k) (fun j i => Sum.inr (keys j i))
-    (fun j bit => Sum.inr (values j bit)) (fun q i => Sum.inl (finProdFinEquiv (q, i)))
-  have h := Synthesis.circuit (I := interpretation) (s := s) c
+  refine (Synthesis.circuit (I := interpretation) (s := s)
+    (batchOrCircuit (input := Q * k) (fun j i => Sum.inr (keys j i))
+      (fun j bit => Sum.inr (values j bit)) (fun q i => Sum.inl (finProdFinEquiv (q, i))))
     (fun i x => queries x (finProdFinEquiv.symm i).1 (finProdFinEquiv.symm i).2)
-    fun i => hq _ _
-  refine h.mono Set.Subset.rfl ?_ (size_batchOrCircuit_le _ _ _)
-  intro g hg
+    fun _ => hq _ _).mono Set.Subset.rfl (fun g hg => ?_) (size_batchOrCircuit_le _ _ _)
   obtain ⟨q, bit, rfl⟩ := Set.mem_iUnion.mp hg
   refine ⟨finProdFinEquiv (q, bit), funext fun x => Bool.eq_iff_iff.mpr ?_⟩
   let y : BitString (Q * k) := fun i => queries x (finProdFinEquiv.symm i).1
@@ -197,12 +191,11 @@ theorem synthesis_finishHit (c : Circuit signature n n) (s : Set (BooleanFunctio
   have hsel := synthesis_chooseRecord s flags (fun x j => hitRecord (w := w) j.val (payloads x j))
     (fun _ _ => false) hf (fun j bit => ?_) fun _ => hc false
   · let src := s ∪ wires chosen
-    have hi : ∀ bit : Fin w, (fun x => (hitIndex (chosen x)).getLsbD bit.val) ∈ src := by
-      intro bit
+    have hi : ∀ bit : Fin w, (fun x => (hitIndex (chosen x)).getLsbD bit.val) ∈ src := fun bit => by
       simp only [hitIndex, BitString.getLsbD_equivBitVec]
       exact Or.inr ⟨_, rfl⟩
     have hpay : wires (fun x => hitPayload (chosen x)) ⊆ src := by
-      rintro _ ⟨bit, rfl⟩
+      rintro _ ⟨_, rfl⟩
       exact Or.inr ⟨_, rfl⟩
     have hh := synthesis_hitValue src c K (fun x => hitIndex (chosen x))
       (fun x => hitPayload (chosen x)) hi hpay fun b => Or.inl (hc b)

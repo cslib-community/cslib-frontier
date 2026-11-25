@@ -55,45 +55,40 @@ theorem commitmentGuessProbability_le_kernel [NeZero P.q]
     rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
     rfl
   rw [hker]
-  apply iSup_le
-  intro w
+  refine iSup_le fun w => ?_
   let same := univ.filter fun y : Mask P => w = highBitsVec P (moduleSISMap A y)
   let lowBox := Fintype.piFinset fun _ : Fin P.ℓ => Fintype.piFinset fun _ : Fin P.n =>
     Icc (-(P.γ₂ : ℤ)) (P.γ₂ : ℤ)
   let rebuild (v : Fin P.ℓ → Fin P.n → ℤ) : Mask P := fun i j =>
     ((w (Fin.castLE hdim i) j * (2 * P.γ₂ : ℕ) + v i j : ℤ) : ZMod P.q)
-  have maps (y) (hy : y ∈ same) : f y ∈ lowBox.image rebuild := by
-    have hw := (mem_filter.mp hy).2
-    let lows := fun (i : Fin P.ℓ) (j : Fin P.n) => lowBits P.q P.γ₂ (f y i j)
-    refine mem_image.mpr ⟨lows, ?_, ?_⟩
-    · exact Fintype.mem_piFinset.mpr fun i => Fintype.mem_piFinset.mpr fun j =>
-        mem_Icc.mpr (abs_le.mp (abs_lowBits_le h₂ _))
-    · funext i j
-      dsimp only [rebuild, lows]
-      rw [hw]
-      exact intCast_highBits_mul_add_lowBits (γ₂ := P.γ₂) (f y i j)
+  have maps (y) (hy : y ∈ same) : f y ∈ lowBox.image rebuild :=
+    mem_image.mpr ⟨fun i j => lowBits P.q P.γ₂ (f y i j),
+      Fintype.mem_piFinset.mpr fun _ => Fintype.mem_piFinset.mpr fun _ =>
+        mem_Icc.mpr (abs_le.mp (abs_lowBits_le h₂ _)),
+      by
+        funext i j
+        dsimp only [rebuild]
+        rw [(mem_filter.mp hy).2]
+        exact intCast_highBits_mul_add_lowBits (γ₂ := P.γ₂) (f y i j)⟩
   have fibers (v : Mask P) : (same.filter fun y => f y = v).card ≤ kernel.card := by
-    by_cases h : (same.filter fun y => f y = v).Nonempty
-    · obtain ⟨z, hz⟩ := h
-      calc
+    rcases (same.filter fun y => f y = v).eq_empty_or_nonempty with h | ⟨z, hz⟩
+    · simp [h]
+    · calc
         _ ≤ (univ.filter fun y : Mask P => f y = v).card :=
           card_le_card (filter_subset_filter _ (subset_univ _))
         _ = kernel.card := AddMonoidHom.card_fiber_eq_of_mem_range f
           ⟨z, (mem_filter.mp hz).2⟩ ⟨0, map_zero f⟩
-    · simp [not_nonempty_iff_eq_empty.mp h]
   have hbox : lowBox.card = (2 * P.γ₂ + 1) ^ (P.ℓ * P.n) := by
     have hi : ((P.γ₂ : ℤ) + 1 - -(P.γ₂ : ℤ)).toNat = 2 * P.γ₂ + 1 := by lia
     simp only [lowBox, Fintype.card_piFinset, Int.card_Icc, hi, prod_const, card_univ,
       Fintype.card_fin, ← pow_mul, Nat.mul_comm P.n P.ℓ]
-  have hcount := card_le_mul_card_image_of_maps_to maps kernel.card (fun v _ => fibers v)
-  have hcount' := hcount.trans (Nat.mul_le_mul_left _ (card_image_le (s := lowBox) (f := rebuild)))
+  have hcount' := (card_le_mul_card_image_of_maps_to maps kernel.card fun v _ => fibers v).trans
+    (Nat.mul_le_mul_left _ (card_image_le (s := lowBox) (f := rebuild)))
   rw [hbox] at hcount'
   calc
     _ = ∑ y ∈ same, signingMaskLaw P hγ y := by
       simp only [PMF.map_apply, tsum_fintype, same, sum_filter]
-      apply sum_congr rfl
-      intro y _
-      split_ifs <;> rfl
+      exact sum_congr rfl fun _ _ => by split_ifs <;> rfl
     _ ≤ ∑ _y ∈ same, ((2 * P.γ₁ : ℕ) ^ (P.ℓ * P.n) : ℝ≥0∞)⁻¹ :=
       sum_le_sum fun y _ => signingMaskLaw_apply_le P hγ hq y
     _ = (same.card : ℝ≥0∞) / ((2 * P.γ₁ : ℕ) ^ (P.ℓ * P.n) : ℝ≥0∞) := by
@@ -124,21 +119,20 @@ theorem commitmentGuessProbability_le_kernel_div_pow (s : Level) (A : PublicMatr
       (commitmentKernelSize s A : ℝ) / 2 ^ s.commitmentBoxBits := by
   let P := s.params
   have hγ : 0 < P.γ₁ := by cases s <;> decide
+  have h₂ : 0 < P.γ₂ := by cases s <;> decide
+  have hq : 2 * P.γ₁ < P.q := by cases s <;> decide
   have hdim : P.ℓ ≤ P.k := by cases s <;> decide
-  have h := commitmentGuessProbability_le_kernel P hγ (by cases s <;> decide)
-    (by cases s <;> decide) hdim A
+  have h := commitmentGuessProbability_le_kernel P hγ h₂ hq hdim A
   change _ ≤ (commitmentKernelSize s A : ℝ≥0∞) * _ / _ at h
   have hf := ENNReal.toReal_mono (by finiteness) h
   simp only [ENNReal.toReal_div, ENNReal.toReal_mul, ENNReal.toReal_pow,
-    ENNReal.toReal_natCast] at hf
+    ENNReal.toReal_natCast, mul_div_assoc] at hf
   have rounded : (2 * P.γ₂ + 1) ^ (P.ℓ * P.n) * 2 ^ s.commitmentBoxBits ≤
       (2 * P.γ₁) ^ (P.ℓ * P.n) := by cases s <;> decide +kernel
   have ratio : ((2 * P.γ₂ + 1 : ℕ) : ℝ) ^ (P.ℓ * P.n) / ((2 * P.γ₁ : ℕ) : ℝ) ^ (P.ℓ * P.n) ≤
       1 / (2 : ℝ) ^ s.commitmentBoxBits := by
-    apply (div_le_div_iff₀ (by positivity) (by positivity)).2
-    rw [one_mul]
+    rw [div_le_div_iff₀ (by positivity) (by positivity), one_mul]
     exact_mod_cast rounded
-  rw [mul_div_assoc] at hf
   exact hf.trans (by simpa only [← mul_div_assoc, mul_one] using
     mul_le_mul_of_nonneg_left ratio (Nat.cast_nonneg (commitmentKernelSize s A)))
 

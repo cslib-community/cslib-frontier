@@ -55,10 +55,10 @@ The classifier uses natural arithmetic only; no represented integer or CRT data 
 private theorem flag_iff {d B n : ℕ} (hd : 0 < d) :
     CircleFlag (1 / (d : ℚ)) ((n : ℚ) / (2 : ℚ) ^ B) ↔
       2 ^ B ≤ d * n ∧ d * n ≤ (d - 1) * 2 ^ B := by
-  have hdq : (0 : ℚ) < d := by exact_mod_cast hd
+  have hdq : (0 : ℚ) < d := mod_cast hd
   have hp : (0 : ℚ) < 2 ^ B := by positivity
   have hmargin : (1 : ℚ) - 1 / d = ((d - 1 : ℕ) : ℚ) / d := by
-    rw [Nat.cast_sub (by omega : 1 ≤ d), Nat.cast_one]
+    rw [Nat.cast_sub hd, Nat.cast_one]
     field_simp
   rw [CircleFlag, hmargin, div_le_div_iff₀ hdq hp, div_le_div_iff₀ hp hdq]
   simp only [one_mul, mul_comm (n : ℚ) (d : ℚ)]
@@ -83,14 +83,11 @@ private theorem first_test_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ → ℕ) (tes
     ∃ k < r, FirstCircleFlag (1 / (d : ℚ)) (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k ∧
       test k = true := by
   simp only [decide_eq_true_eq, Bool.eq_false_iff]
-  constructor
-  · rintro ⟨k, hk, he, ht, hprev⟩
-    refine ⟨k, hk, ⟨(flag_iff hd).mpr he, ?_⟩, ht⟩
-    intro j hj hf
-    exact hprev j hj (by simpa only [decide_eq_true_eq] using (flag_iff hd).mp hf)
-  · rintro ⟨k, hk, ⟨hf, hprev⟩, ht⟩
-    exact ⟨k, hk, (flag_iff hd).mp hf, ht,
-      fun j hj he => hprev j hj ((flag_iff hd).mpr (of_decide_eq_true he))⟩
+  exact exists_congr fun k => and_congr_right fun _ =>
+    ⟨fun ⟨he, ht, hprev⟩ => ⟨⟨(flag_iff hd).mpr he, fun j hj hf =>
+        hprev j hj (decide_eq_true ((flag_iff hd).mp hf))⟩, ht⟩,
+     fun ⟨⟨hf, hprev⟩, ht⟩ => ⟨(flag_iff hd).mp hf, ht, fun j hj he =>
+        hprev j hj ((flag_iff hd).mpr (of_decide_eq_true he))⟩⟩
 
 /-- Output one means that a first circle flag below the endpoint lies below one half. -/
 theorem dyadicFirstFlagSign_eq_one_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ → ℕ) :
@@ -106,18 +103,15 @@ theorem dyadicFirstFlagSign_eq_neg_one_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ �
     dyadicFirstFlagSign d B r N = -1 ↔
       ∃ k < r, FirstCircleFlag (1 / (d : ℚ)) (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k ∧
         1 / 2 < (N k : ℚ) / (2 : ℚ) ^ B := by
-  rw [dyadicFirstFlagSign, firstEventSign_eq_neg_one_iff]
-  rw [first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
+  rw [dyadicFirstFlagSign, firstEventSign_eq_neg_one_iff,
+    first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
     first_test_iff hd N (fun k => decide (2 ^ B < 2 * N k))]
   simp only [decide_eq_true_eq, ← left_iff, ← right_iff]
-  constructor
-  · exact And.right
-  · intro hright
-    refine ⟨?_, hright⟩
-    rintro ⟨j, _, hj, hleft⟩
-    obtain ⟨k, _, hk, hright⟩ := hright
-    obtain rfl := hj.unique hk
-    linarith
+  refine ⟨And.right, fun hright => ⟨?_, hright⟩⟩
+  rintro ⟨j, _, hj, hleft⟩
+  obtain ⟨k, _, hk, hright⟩ := hright
+  cases hj.unique hk
+  linarith
 
 /-- Output zero means that neither strict side occurs at a first flag.
 In particular, a first value exactly one half gives zero. -/
@@ -127,8 +121,8 @@ theorem dyadicFirstFlagSign_eq_zero_iff {d B r : ℕ} (hd : 0 < d) (N : ℕ → 
         (N k : ℚ) / (2 : ℚ) ^ B < 1 / 2) ∧
       ¬ ∃ k < r, FirstCircleFlag (1 / (d : ℚ)) (fun j => (N j : ℚ) / (2 : ℚ) ^ B) k ∧
         1 / 2 < (N k : ℚ) / (2 : ℚ) ^ B := by
-  rw [dyadicFirstFlagSign, firstEventSign_eq_zero_iff]
-  rw [first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
+  rw [dyadicFirstFlagSign, firstEventSign_eq_zero_iff,
+    first_test_iff hd N (fun k => decide (2 * N k < 2 ^ B)),
     first_test_iff hd N (fun k => decide (2 ^ B < 2 * N k))]
   simp only [decide_eq_true_eq, ← left_iff, ← right_iff]
 
@@ -155,30 +149,24 @@ theorem dyadicFirstFlagSign_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (hr : ComputableInPolyTime r enc encNat) :
     (fun x => dyadicFirstFlagSign (d x) (B x) (r x) (fun k => N (x, k))) ∈
       CountingFunction (a + 2) enc encIntBin := by
-  have hd' : ComputableInPolyTime (fun p : α × ℕ => d p.1)
-      (encPair enc encNat) encNat := hd.comp (ComputableInPolyTime.fst _ _)
-  have hs : ComputableInPolyTime (fun p : α × ℕ => 2 ^ B p.1)
-      (encPair enc encNat) encNat :=
+  have hs : ComputableInPolyTime (fun p : α × ℕ => 2 ^ B p.1) (encPair enc encNat) encNat :=
     (ComputableInPolyTime.binary_two_pow.comp hB).comp (ComputableInPolyTime.fst _ _)
   have hu : ComputableInPolyTime (fun p : α × ℕ => (d p.1 - 1) * 2 ^ B p.1)
       (encPair enc encNat) encNat := by fun_prop
-  have hmul := nat_mul (of_polyTime hd') hN
-  have hlo := map (prod (of_polyTime hs) hmul) ComputableInPolyTime.binary_le
-  have hhi := map (prod hmul (of_polyTime hu)) ComputableInPolyTime.binary_le
-  have hevent := map (output := encBool) (prod hlo hhi)
+  have hmul := nat_mul (of_polyTime (hd.comp (ComputableInPolyTime.fst _ _))) hN
+  have hevent := map (output := encBool)
+    (prod (map (prod (of_polyTime hs) hmul) ComputableInPolyTime.binary_le)
+      (map (prod hmul (of_polyTime hu)) ComputableInPolyTime.binary_le))
     (ComputableInPolyTime.of_finite (fun p : Bool × Bool => p.1 && p.2))
   have htwice := nat_mul (of_polyTime (ComputableInPolyTime.const 2)) hN
-  have hleft := nat_lt htwice (of_polyTime hs)
-  have hright := nat_lt (of_polyTime hs) htwice
-  have h := firstEventSign_mem_CountingFunction D hevent hleft hright hr
-  convert h using 1
+  convert firstEventSign_mem_CountingFunction D hevent
+    (nat_lt htwice (of_polyTime hs)) (nat_lt (of_polyTime hs) htwice) hr using 1
   funext x
   simp only [dyadicFirstFlagSign, Bool.decide_and]
   exact firstEventSign_freeze
     (fun p : α × ℕ => decide (2 ^ B p.1 ≤ d p.1 * N p) &&
       decide (d p.1 * N p ≤ (d p.1 - 1) * 2 ^ B p.1))
-    (fun p => decide (2 * N p < 2 ^ B p.1))
-    (fun p => decide (2 ^ B p.1 < 2 * N p)) r x
+    (fun p => decide (2 * N p < 2 ^ B p.1)) (fun p => decide (2 ^ B p.1 < 2 * N p)) r x
 
 end CountingFunction
 end Cslib.Complexity

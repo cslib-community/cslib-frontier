@@ -147,11 +147,8 @@ theorem mem_bitPolyBlock {i : BitString ℓ} {p : Fin (n * q)} :
     p ∈ bitPolyBlock r num i ↔
       (finProdFinEquiv.symm p).2 = num (bitPoly i (r (finProdFinEquiv.symm p).1)) := by
   simp only [bitPolyBlock, mem_map, mem_univ, true_and, Function.Embedding.coeFn_mk]
-  constructor
-  · rintro ⟨j, rfl⟩
-    simp
-  · intro h
-    exact ⟨_, by rw [← h, Prod.mk.eta, Equiv.apply_symm_apply]⟩
+  exact ⟨fun ⟨j, hj⟩ => by simp [← hj],
+    fun h => ⟨_, by rw [← h, Prod.mk.eta, Equiv.apply_symm_apply]⟩⟩
 
 /-- Each block has one cell in each of the `n` rows. -/
 @[simp]
@@ -166,14 +163,13 @@ theorem card_bitPolyBlock_inter_le (hr : Function.Injective r) {i i' : BitString
     (h : i ≠ i') : #(bitPolyBlock r num i ∩ bitPolyBlock r num i') ≤ ℓ - 1 := by
   classical
   have := Fintype.ofEquiv _ num.symm
-  refine le_trans ?_ (card_polynomialBlock_inter_le (F := F) (bitCoeff_injective.ne h))
-  refine card_le_card_of_injOn
+  refine (card_le_card_of_injOn
     (fun p => (r (finProdFinEquiv.symm p).1, num.symm (finProdFinEquiv.symm p).2))
-    (fun p hp => ?_) (fun p hp p' hp' hpp' => ?_)
-  · rw [coe_inter, Set.mem_inter_iff, mem_coe, mem_coe, mem_bitPolyBlock, mem_bitPolyBlock] at hp
-    rw [coe_inter, Set.mem_inter_iff, mem_coe, mem_coe, mem_polynomialBlock, mem_polynomialBlock]
-    dsimp only
-    rw [← bitPoly_eq_sum_mul, ← bitPoly_eq_sum_mul, hp.1, Equiv.symm_apply_apply]
+    (fun p hp => ?_) fun p _ p' _ hpp' => ?_).trans
+    (card_polynomialBlock_inter_le (F := F) (bitCoeff_injective.ne h))
+  · simp only [coe_inter, Set.mem_inter_iff, mem_coe, mem_bitPolyBlock, mem_polynomialBlock,
+      ← bitPoly_eq_sum_mul] at hp ⊢
+    rw [hp.1, Equiv.symm_apply_apply]
     exact ⟨rfl, num.injective (hp.1.symm.trans hp.2)⟩
   · simp only [Prod.mk.injEq, EmbeddingLike.apply_eq_iff_eq] at hpp'
     exact finProdFinEquiv.symm.injective (Prod.ext (hr hpp'.1) hpp'.2)
@@ -207,13 +203,10 @@ theorem Design.restrict_bitPolynomial {α : Type*} (i : Fin (2 ^ ℓ)) (z : Fin 
       z (finProdFinEquiv (j, num (bitPoly ((BitString.equivFin ℓ).symm i) (r j)))) := by
   set f : Fin n → Fin (n * q) :=
     fun j => finProdFinEquiv (j, num (bitPoly ((BitString.equivFin ℓ).symm i) (r j)))
-  have hmono : StrictMono f := by
-    intro j j' hjj'
+  have hmono : StrictMono f := fun j j' hjj' => by
     simp only [f, Fin.lt_def, finProdFinEquiv_apply_val]
-    have hq := (num (bitPoly ((BitString.equivFin ℓ).symm i) (r j))).isLt
-    have hjj : q * (j : ℕ) + q ≤ q * j' := by
-      rw [← Nat.mul_succ]
-      exact Nat.mul_le_mul_left q hjj'
+    have := (num (bitPoly ((BitString.equivFin ℓ).symm i) (r j))).isLt
+    have : q * (j : ℕ) + q ≤ q * j' := Nat.mul_succ q j ▸ Nat.mul_le_mul_left q hjj'
     omega
   have hmem (j : Fin n) : f j ∈ (Design.bitPolynomial ℓ r num).block i := by
     rw [Design.block_bitPolynomial, bitPolyBlock, mem_map]

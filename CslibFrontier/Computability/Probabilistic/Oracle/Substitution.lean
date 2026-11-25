@@ -101,7 +101,6 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded
           (program (prepare a))).run (initial a)) := by
   obtain ⟨resourceCoeff, resourceDegree, hbound⟩ := hresources.exists_le
   let allowance := fun size => resourceCoeff * (2 * size + 2) ^ resourceDegree
-  have hallowance : PolynomiallyBounded allowance := by unfold allowance; fun_prop
   have hbound' (a : Caller) (query : List Bool) :
       resources a query ≤ allowance ((input a).length + query.length) := by
     have h := hbound (a, query)
@@ -112,20 +111,21 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded
   let _ := hfiniteOp
   let _ := hfinite
   have hword : ComputableInPolyTime (fun a => source (prepare a)) input encBits :=
-    hprepare.of_enc_eq (fun _ => rfl)
+    hprepare.of_enc_eq fun _ => rfl
   have hcount : ComputableInPolyTime
-      (fun a => c * ((source (prepare a)).length + 1) ^ d) input encUnary := by
-    have hclock : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary := by
-      fun_prop
-    exact hclock.comp (ComputableInPolyTime.length_bits.comp hword)
-  have hrun := OpenOracleSimulation.isOraclePPTOn_run machine
-    hword hcount hhandler hinitial
-    invariant hinit hallowance (fun a request state hstate result hresult => by
-      obtain ⟨hstate', hreply, hgrowth⟩ := hpreserve a request state hstate result hresult
-      exact ⟨hstate', hreply.trans (hbound' a request.2),
-        hgrowth.trans (Nat.add_le_add_left (hbound' a request.2) _)⟩)
-  apply IsOraclePPTOn.iff_encoded.mpr
-  refine (IsOraclePPTOn.iff_encoded.mp hrun).congr fun a External' oracle e => ?_
+      (fun a => c * ((source (prepare a)).length + 1) ^ d) input encUnary :=
+    (by fun_prop : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary).comp
+      (ComputableInPolyTime.length_bits.comp hword)
+  have hall : PolynomiallyBounded allowance := by
+    unfold allowance
+    fun_prop
+  have hrun := OpenOracleSimulation.isOraclePPTOn_run machine hword hcount hhandler hinitial
+    invariant hinit hall fun a request state hstate result hresult =>
+      let ⟨hstate', hreply, hgrowth⟩ := hpreserve a request state hstate result hresult
+      ⟨hstate', hreply.trans (hbound' a request.2),
+        hgrowth.trans (Nat.add_le_add_left (hbound' a request.2) _)⟩
+  refine IsOraclePPTOn.iff_encoded.mpr
+    ((IsOraclePPTOn.iff_encoded.mp hrun).congr fun a External' oracle e => ?_)
   have hout : encPair output stateEncoding <$> (OracleComp.interpret
       (OracleComp.sumHandler
         (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))) (handler a))
@@ -134,8 +134,7 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded
         (OracleComp.sumHandler
           (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))) (handler a))
           (output <$> program (prepare a))).run (initial a) := by
-    rw [OracleComp.interpret_map, StateT.run_map, Functor.map_map]
-    rfl
+    rw [OracleComp.interpret_map, StateT.run_map, Functor.map_map]; rfl
   rw [hout, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
     ProbOracleComp.runWith_run_interpret, ProbOracleComp.runWith_run_interpret, hrealize]
 
@@ -203,19 +202,16 @@ theorem IsOraclePPTOn.interpret_preprocess_open'
   have hlift : IsOraclePPTOn EIn (encPair encBits (encFinEnum Unit))
       (fun p : Caller × ((Operation × List Bool) × Unit) =>
         (fun reply => (reply, p.2.2)) <$> handler p.1 p.2.1) :=
-    (hhandler.preprocess (input := EIn)
-      (prepare := fun p : Caller × ((Operation × List Bool) × Unit) => (p.1, p.2.1))
+    (hhandler.preprocess (input := EIn) (prepare := fun p => (p.1, p.2.1))
       (by dsimp only [EIn]; fun_prop)).map_with
         (f := fun p reply => (reply, p.2.2)) (by dsimp only [EIn]; fun_prop)
-  have hrun := hprogram.run_interpret_preprocess_open
+  convert (hprogram.run_interpret_preprocess_open
     (handler := fun a request (state : Unit) => (fun reply => (reply, state)) <$> handler a request)
-    hprepare hlift
-    (ComputableInPolyTime.const ()) (fun _ _ => True) (fun _ => trivial) hresources
-    (fun a request state _ result hresult => by
+    hprepare hlift (ComputableInPolyTime.const ()) (fun _ _ => True) (fun _ => trivial) hresources
+    fun a request _ _ _ hresult => by
       obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
-      exact ⟨trivial, hbound a request reply hreply, Nat.le_add_right _ _⟩)
-  have h := hrun.map (ComputableInPolyTime.fst output (encFinEnum Unit))
-  convert h using 1
+      exact ⟨trivial, hbound a request reply hreply, Nat.le_add_right _ _⟩).map
+    (ComputableInPolyTime.fst output (encFinEnum Unit)) using 1
   funext a
   rw [OracleComp.run_interpret_sumHandler_readOnly]
   simp
@@ -233,16 +229,14 @@ theorem IsOraclePPTOn.interpret_bitQueries
     IsOraclePPTOn input output (fun a => OracleComp.interpret ProbOracleComp.query
       (OracleComp.interpret (fun q : Unit × List Bool =>
         List.take 1 <$> OracleComp.query ((), request q.2)) (program a))) := by
-  have h := hprogram.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+  convert hprogram.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun _ q => List.take 1 <$> ProbOracleComp.query
       (spec := fun _ : Unit × List Bool => List Bool) ((), request q.2))
     (prepare := id) (resources := fun _ _ => 1) ComputableInPolyTime.id'
-    (IsOraclePPTOn.query_take () (hrequest.comp' (by fun_prop))
-      (by fun_prop))
-    (ComputableInPolyTime.const 1) fun _ _ _ hreply => by
-      obtain ⟨r, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
-      exact List.length_take_le _ _
-  convert h using 2 with a
+    (IsOraclePPTOn.query_take () (hrequest.comp' (by fun_prop)) (by fun_prop))
+    (ComputableInPolyTime.const 1) (fun _ _ _ hreply => by
+      obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+      exact List.length_take_le _ _) using 2 with a
   simp only [id, OracleComp.interpret_interpret, OracleComp.interpret_map,
     OracleComp.interpret_query, ProbOracleComp.interpret_query]
 

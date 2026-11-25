@@ -127,9 +127,7 @@ theorem walk_tensor :
 constant on every copy. -/
 theorem walk_loops_tensor_comp_fst [Nonempty D'] (φ : V → ℝ) :
     ((loops V Unit).tensor H).walk (fun p ↦ φ p.1) = fun p ↦ φ p.1 :=
-  funext fun p ↦ by
-    rw [walk_loops_tensor_apply]
-    exact congrFun (H.walk_const (φ p.1)) p.2
+  funext fun p ↦ (walk_loops_tensor_apply H _ p).trans (congrFun (H.walk_const (φ p.1)) p.2)
 
 /-- The walk operator on the copies of `H` acts on the part of average zero over every copy. -/
 theorem walk_loops_tensor_add [Nonempty D'] (φ : V → ℝ) (g : V × V' → ℝ) :
@@ -145,9 +143,8 @@ theorem expect_walk_loops_tensor_sq_le [Fintype V] [Fintype V'] {f : V × V' →
     (hf : ∀ v, 𝔼 v', f (v, v') = 0) :
     𝔼 p, ((loops V Unit).tensor H).walk f p ^ 2 ≤ H.spectralExpansion ^ 2 * 𝔼 p, f p ^ 2 := by
   rw [Fintype.expect_prod_type, Fintype.expect_prod_type, mul_expect]
-  refine expect_le_expect fun v _ ↦ ?_
-  simp only [walk_loops_tensor_apply]
-  exact H.expect_walk_sq_le_spectralExpansion_sq_mul (hf v)
+  exact expect_le_expect fun v _ ↦ by
+    simpa only [walk_loops_tensor_apply] using H.expect_walk_sq_le_spectralExpansion_sq_mul (hf v)
 
 /-- The walk operator on the copies of `H` keeps average zero over every copy. -/
 theorem expect_walk_loops_tensor_eq_zero [Fintype V'] [Nonempty D'] {f : V × V' → ℝ}
@@ -171,13 +168,9 @@ variable [Fintype V] [Fintype V']
 [Reingold, Vadhan and Wigderson, Proposition 2.4][ReingoldVadhanWigderson2002]. -/
 theorem spectralExpansion_tensor_le :
     (G.tensor H).spectralExpansion ≤ max G.spectralExpansion H.spectralExpansion := by
-  have hG := le_max_left G.spectralExpansion H.spectralExpansion
-  have hH := le_max_right G.spectralExpansion H.spectralExpansion
-  have hG0 := G.spectralExpansion_nonneg
-  refine spectralExpansion_le (hG0.trans hG) fun f hf ↦ ?_
+  refine spectralExpansion_le (G.spectralExpansion_nonneg.trans (le_max_left _ _)) fun f hf ↦ ?_
   rcases isEmpty_or_nonempty D' with hD' | hD'
-  · have : (G.tensor H).walk f = 0 := funext fun p ↦ by simp [walk_tensor_apply]
-    rw [this]
+  · rw [show (G.tensor H).walk f = 0 from funext fun p ↦ by simp [walk_tensor_apply]]
     simpa using mul_nonneg (sq_nonneg _) (expect_nonneg fun p _ ↦ sq_nonneg (f p))
   rcases isEmpty_or_nonempty V' with hV' | hV'
   · simp
@@ -193,13 +186,14 @@ theorem spectralExpansion_tensor_le :
   rw [hW, expect_add_sq_of_expect_fiber_eq_zero _
       (G.expect_walk_tensor_loops_eq_zero (H.expect_walk_loops_tensor_eq_zero hf₂)),
     expect_comp_fst (fun v ↦ G.walk f₁ v ^ 2), hff]
+  have hG := le_max_left G.spectralExpansion H.spectralExpansion
+  have hH := le_max_right G.spectralExpansion H.spectralExpansion
   calc
     _ ≤ G.spectralExpansion ^ 2 * 𝔼 v, f₁ v ^ 2 +
-          H.spectralExpansion ^ 2 * 𝔼 p, f₂ p ^ 2 := by
-      gcongr
-      · exact expect_walk_sq_le_spectralExpansion_sq_mul hf₁
-      · exact ((G.tensor (loops V' Unit)).expect_walk_sq_le _).trans
-          (H.expect_walk_loops_tensor_sq_le hf₂)
+          H.spectralExpansion ^ 2 * 𝔼 p, f₂ p ^ 2 :=
+      add_le_add (expect_walk_sq_le_spectralExpansion_sq_mul hf₁)
+        (((G.tensor (loops V' Unit)).expect_walk_sq_le _).trans
+          (H.expect_walk_loops_tensor_sq_le hf₂))
     _ ≤ max G.spectralExpansion H.spectralExpansion ^ 2 * 𝔼 v, f₁ v ^ 2 +
           max G.spectralExpansion H.spectralExpansion ^ 2 * 𝔼 p, f₂ p ^ 2 := by
       have h₁ : 0 ≤ 𝔼 v, f₁ v ^ 2 := expect_nonneg fun v _ ↦ sq_nonneg (f₁ v)

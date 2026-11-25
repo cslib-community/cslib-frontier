@@ -86,25 +86,21 @@ theorem validate_eq_true_iff (I : FixedRotationInput) : validate I = true ↔ Va
   constructor
   · rintro ⟨⟨⟨hd, he⟩, hw⟩, ho⟩
     refine ⟨hd, he, hw, fun v word hv => ?_⟩
-    have hlt : v < I.orders.length := by
-      by_contra h
-      rw [List.getD_eq_default _ _ (by omega)] at hv
-      contradiction
+    have hlt : v < I.orders.length := Nat.lt_of_not_ge fun h => by
+      rw [List.getD_eq_default _ _ h] at hv
+      cases hv
     have hx : (some word, v) ∈ I.orders.zipIdx := by
-      apply List.mem_zipIdx_iff_getElem?.mpr
-      rw [← hv, List.getD_eq_getElem _ _ hlt]
+      rw [List.mem_zipIdx_iff_getElem?, ← hv, List.getD_eq_getElem _ _ hlt]
       simp
     exact enumeratesBool_eq_true_iff.mp (ho _ hx)
   · rintro ⟨hd, he, hw, ho⟩
     refine ⟨⟨⟨hd, he⟩, hw⟩, fun entry hentry => ?_⟩
-    have hget := List.mem_zipIdx_iff_getElem?.mp hentry
-    obtain ⟨hlt, hval⟩ := List.getElem?_eq_some_iff.mp hget
+    obtain ⟨hlt, hval⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hentry)
     have hread : I.orders.getD entry.2 none = entry.1 := by
       rw [List.getD_eq_getElem _ _ hlt, hval]
     cases hx : entry.1 with
     | none => rfl
-    | some word =>
-      exact enumeratesBool_eq_true_iff.mpr (ho entry.2 word (hread.trans hx))
+    | some word => exact enumeratesBool_eq_true_iff.mpr (ho entry.2 word (hread.trans hx))
 
 /-- Next position in a complete cyclic word, with a total zero fallback. -/
 @[expose] def nextInWord (word : List ℕ) (i : ℕ) : ℕ :=
@@ -130,10 +126,8 @@ block's last entry is not required to return to its first entry. -/
 
 /-- A singleton block has no internal successor equation. -/
 theorem consecutive_singleton {G : Graph} (r : RotationSystem G) (d : ℕ) :
-    Consecutive r [d] := by
-  intro i hi
-  simp only [List.length_singleton] at hi
-  omega
+    Consecutive r [d] :=
+  fun _ hi => absurd hi (by simp)
 
 /-- Fiber membership retains both the binary width and the exact endpoint. -/
 theorem mem_fiber {G : Graph} {v d : ℕ} :

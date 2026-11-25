@@ -67,8 +67,7 @@ theorem abs_stateRootError_le_one (θ : ℝ) (S : Finset ι) (K : ℕ)
     (kind.eval_le_one θ (b.row y 0) (firstRank S K b.defaultValue b.row))
     (by norm_num : (0 : ℝ) ≤ 4⁻¹)
   unfold stateRootError
-  apply abs_sub_le_iff.mpr
-  constructor <;> linarith
+  exact abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
 
 open Classical in
 /-- The discrepancy is supported on the union of the two output supports. -/
@@ -79,21 +78,17 @@ theorem card_filter_stateRootError_ne_zero_le {θ : ℝ} (hθ : 0 < θ) (S : Fin
   let A := {y ∈ S | kind.eval θ (a.row y 0) (firstRank S K a.defaultValue a.row) ≠ 0}
   let B := {y ∈ S | kind.eval θ (b.row y 0) (firstRank S K b.defaultValue b.row) ≠ 0}
   let D := {y ∈ S | kind.stateRootError θ S K a b y ≠ 0}
-  have hsub : D ⊆ A ∪ B := by
-    intro y hy
+  have hsub : D ⊆ A ∪ B := fun y hy => by
     obtain ⟨hyS, hy⟩ := mem_filter.mp hy
     by_cases ha : kind.eval θ (a.row y 0) (firstRank S K a.defaultValue a.row) = 0
-    · apply mem_union_right
-      refine mem_filter.mpr ⟨hyS, fun hb => hy ?_⟩
-      simp [stateRootError, ha, hb]
+    · exact mem_union_right _
+        (mem_filter.mpr ⟨hyS, fun hb => hy (by simp [stateRootError, ha, hb])⟩)
     · exact mem_union_left _ (mem_filter.mpr ⟨hyS, ha⟩)
   change #D ≤ 2 * K
-  have hcard : #D ≤ 2 * K := by
-    have hA : #A < K := kind.card_filter_eval_ne_zero_lt hθ hK
-    have hB : #B < K := kind.card_filter_eval_ne_zero_lt hθ hK
-    have h := (card_le_card hsub).trans (card_union_le A B)
-    omega
-  exact hcard
+  have hA : #A < K := kind.card_filter_eval_ne_zero_lt hθ hK
+  have hB : #B < K := kind.card_filter_eval_ne_zero_lt hθ hK
+  have h := (card_le_card hsub).trans (card_union_le A B)
+  omega
 
 /-- A row-dependent pointwise envelope costs only the union support, not the ambient width. -/
 theorem sum_stateRootError_pow_four_le_of_bound {θ : ℝ} (hθ : 0 < θ) (S : Finset ι)
@@ -106,13 +101,11 @@ theorem sum_stateRootError_pow_four_le_of_bound {θ : ℝ} (hθ : 0 < θ) (S : F
   rw [← sum_filter_of_ne (p := fun y => kind.stateRootError θ S K a b y ≠ 0)
     fun y _ h hy => h (by rw [hy, abs_zero, zero_pow (by decide)])]
   calc
-    _ ≤ ∑ _y ∈ D, B ^ 4 := by
-      refine sum_le_sum fun y hy => ?_
-      exact pow_le_pow_left₀ (abs_nonneg _) (hB y (mem_filter.mp hy).1) 4
+    _ ≤ ∑ _y ∈ D, B ^ 4 :=
+      sum_le_sum fun y hy => pow_le_pow_left₀ (abs_nonneg _) (hB y (mem_filter.mp hy).1) 4
     _ = (#D : ℝ) * B ^ 4 := by simp
-    _ ≤ 2 * (K : ℝ) * B ^ 4 := by
-      apply mul_le_mul_of_nonneg_right _ (by positivity)
-      exact_mod_cast hcard
+    _ ≤ 2 * (K : ℝ) * B ^ 4 :=
+      mul_le_mul_of_nonneg_right (mod_cast hcard) (by positivity)
 
 /-- The fourth-power sum is bounded independently of the ambient width and entry magnitudes. -/
 theorem sum_stateRootError_pow_four_le {θ : ℝ} (hθ : 0 < θ) (S : Finset ι) {K : ℕ}
