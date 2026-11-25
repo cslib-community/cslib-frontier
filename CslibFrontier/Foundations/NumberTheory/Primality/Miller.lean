@@ -49,9 +49,9 @@ public section
 
 namespace ZMod
 
-/-- A proper subgroup of the units modulo `n ≠ 0` lies in the kernel of some nonprincipal
+/-- A proper subgroup of the units modulo `n` lies in the kernel of some nonprincipal
 complex Dirichlet character modulo `n`. -/
-private theorem exists_dirichletCharacter_ne_one_forall_mem {n : ℕ} [NeZero n]
+private theorem exists_dirichletCharacter_ne_one_forall_mem {n : ℕ}
     {H : Subgroup (ZMod n)ˣ} (hH : H ≠ ⊤) :
     ∃ χ : DirichletCharacter ℂ n, χ ≠ 1 ∧ ∀ u ∈ H, χ u = 1 := by
   obtain ⟨g, hg⟩ : ∃ g, g ∉ H := by
