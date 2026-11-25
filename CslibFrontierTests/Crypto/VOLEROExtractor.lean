@@ -4,35 +4,47 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger, Karn Seth
 -/
 
+module
+
 import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 import CslibFrontier.Crypto.Protocols.FAEST.Conversion
 import CslibFrontier.Crypto.Protocols.VOLE.ROExtractor
+import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
+import CslibFrontier.Probability.PMF.Support
 import Mathlib.Tactic.NormNum
 
 /-!
 # Clients and separation tests for straight-line VOLEitH ROM extraction
 
-Exercises `CslibFrontier.Crypto.Protocols.VOLE.ROExtractor` across:
+Exercises `CslibFrontier.Crypto.Protocols.VOLE.ROExtractor` via an ordinary `module` import across:
 - Honest completeness (`voleithHonestGame_eq_pure_true`), FAEST VOLE correlation extraction
   (`extractRowsFromTrace_conversionCorrelation_valid`), verifier RO query bounds
-  (`isCostBounded_leaf_voleithVerifyROM`, `isCostBounded_fs_voleithVerifyROM`), and concrete
+  (`isCostBounded_leaf_voleithVerifyROM`, `isCostBounded_fs_voleithVerifyROM`), concrete
   single-proof / adaptive multi-verify knowledge soundness (`voleithKnowledgeSoundness_bound`,
-  `voleithMultiVerifyROM_sound_bound`) on a degree-1 linear VOLE check with `ε_rel = 1 / 2 ^ 3`.
+  `voleithMultiVerifyROM_sound_bound`) on a degree-1 linear VOLE check with `ε_rel = 1 / 2 ^ 3`, and
+  a numeric sanity check on `voleithKSBound` at `d = 11`, `comLen = 256`.
 - End-to-end straight-line ROM bridges for `AnonymousToken.Basic`
   (`extractedForgerOfROM_isQueryBounded`, `unextractedTokenExperiment_succProbability_le_extracted`,
-  `unextractedTokenExperiment_succProbability_le`) and `AnonymousToken.Conservation`
+  `unextractedTokenExperiment_succProbability_le`) including a concrete probability-`1` forging
+  client (`toyROMTokenForgingAdversary`), and `AnonymousToken.Conservation`
   (`extractedAdversaryOfROM_isQueryBounded`,
   `unextractedConservationExperiment_succProbability_le_extracted`,
-  `unextractedConservationExperiment_succProbability_le_prod_mk`) with verified `< 1` concrete
-  `ksBound` evaluations and ACT-scale `(d = 11, comLen = 256)` numeric bounds.
-- Negative / separation tests modeling PRG-based leaf commitments (`leaf_hash::aes_ctr`,
-  BaumEtAl2026FAESTer): `prgLeafProver_leafCost_zero`, `prgLeafGame_leafTrace_eq_nil`,
-  `prgLeafGame_eq_pure_true`, `toOuterMeasure_prgLeaf_queryLog_fails_eq_one`,
-  `exists_witness_prgLeaf_queryLog_fails_eq_one` on the sound `d = 3` VOLE relation, and
-  `exists_valid_prgLeaf_extract_fails_all` on an explicit colliding-commitment PRG separating
-  `false ≠ true` against **every** unbounded extractor `ext : LeafTrace → Proof → Option Bool`.
+  `unextractedConservationExperiment_succProbability_le_prod_mk`) exercising `.issue`, `.spend`,
+  nullifier replay rejection, and a concrete probability-`1` overspending adversary under a
+  colliding commitment (`toyROMConsOverspendAdversary`), all with verified `< 1` `voleithKSBound`
+  evaluations.
+- Non-degenerate `d = 3` (`2 ^ 3 = 8` leaves) negative / separation tests modeling PRG-based leaf
+  commitments (`leaf_hash::aes_ctr`, BaumEtAl2026FAESTer): `prgLeafProver_leafCost_zero`,
+  `prgLeafGame_leafTrace_eq_nil`, `prgLeafGame_eq_pure_true`, `extractWitnessFromTrace_nil`,
+  `toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one`,
+  `exists_valid_prgLeaf_queryLog_fails_Rel_eq_one`, `prgLeaf_preimage_extractor_fails` against an
+  arbitrary preimage extractor, and `exists_valid_prgLeaf_proofOnly_extract_fails_ge` against an
+  unbounded proof-only extractor (bound `≥ 1 / 8`).
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.VOLEROExtractor
 
@@ -127,13 +139,13 @@ private theorem toyCheckRel_sound_error {d rowLen : ℕ} [NeZero rowLen]
     _ = (((1 : ℝ≥0) / (2 ^ d : ℝ≥0) : ℝ≥0) : ℝ≥0∞) := by
           simp [PMF.uniformOfFintype_apply, Fintype.card_fin]
 
-private theorem ksBound_lt_one_of {d comLen Q_leaf Q_FS k num e : ℕ} {ε_rel : ℝ≥0}
+private theorem voleithKSBound_lt_one_of {d comLen Q_leaf Q_FS k num e : ℕ} {ε_rel : ℝ≥0}
     (hk : Q_leaf * (Q_leaf + 2 ^ d * Q_FS) ≤ 2 ^ k) (hcomp : k + 2 ≤ comLen)
     (h2 : Q_FS * num * 4 < 3 * 2 ^ e) (hε : ε_rel = (num : ℝ≥0) / (2 ^ e : ℝ≥0)) :
-    (ksBound d comLen Q_leaf Q_FS ε_rel : ℝ≥0∞) < 1 := by
+    (voleithKSBound d comLen Q_leaf Q_FS ε_rel : ℝ≥0∞) < 1 := by
   rw [ENNReal.coe_lt_one_iff]
   subst hε
-  unfold ksBound
+  unfold voleithKSBound
   have hc : 2 ≤ comLen := by omega
   have h1 : Q_leaf * (Q_leaf + 2 ^ d * Q_FS) ≤ 2 ^ (comLen - 2) :=
     hk.trans (Nat.pow_le_pow_right (by decide) (by omega))
@@ -209,7 +221,7 @@ example (stmt : Bool) (prf : VOLEITHProof 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → B
       id id toyCheckRel stmt prf
 
 /-- Concrete single-proof knowledge soundness for `toyCheckRel` (`d = 3`, `comLen = 128`,
-`ε_rel = 1 / 8`, prover budgets `Q_leaf = 8`, `Q_FS = 1`): `ksBound < 1`. -/
+`ε_rel = 1 / 8`, prover budgets `Q_leaf = 8`, `Q_FS = 1`): `voleithKSBound < 1`. -/
 example
     (P : ProbOracleComp (VOLEITHROSpec 3 2 128 2 Bool (Fin (2 ^ 3)) ℕ (Fin 3 → Bool)
         (Fin (2 ^ 3)))
@@ -220,12 +232,12 @@ example
       1 := by
   refine (voleithKnowledgeSoundness_bound (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
     id id id toyRel toyCheckRel (toyCheckRel_sound_error id fun _ => rfl) P hleaf hfs).trans_lt ?_
-  exact ksBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 8 + (2 ^ 3 - 1)) (Q_FS := 1 + 1)
-    (k := 10) (num := 1) (e := 3) (ε_rel := (1 : ℝ≥0) / (2 ^ 3 : ℝ≥0))
+  exact voleithKSBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 8 + (2 ^ 3 - 1))
+    (Q_FS := 1 + 1) (k := 10) (num := 1) (e := 3) (ε_rel := (1 : ℝ≥0) / (2 ^ 3 : ℝ≥0))
     (by decide) (by decide) (by decide) (by simp)
 
 /-- Concrete adaptive multi-verify knowledge soundness (`m = 2`, `Q_leaf = 8`, `Q_FS = 1`):
-`ksBound < 1`. -/
+`voleithKSBound < 1`. -/
 example
     (A : ProbOracleComp
       (VOLEITHMultiVerifySpec 3 2 128 2 Bool (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) (Fin (2 ^ 3))) Unit)
@@ -240,39 +252,25 @@ example
   refine (voleithMultiVerifyROM_sound_bound (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
     id id id toyRel toyCheckRel (toyCheckRel_sound_error id fun _ => rfl)
     A hm hleaf hfs).trans_lt ?_
-  exact ksBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 8 + 2 * (2 ^ 3 - 1)) (Q_FS := 1 + 2)
-    (k := 12) (num := 1) (e := 3) (ε_rel := (1 : ℝ≥0) / (2 ^ 3 : ℝ≥0))
+  exact voleithKSBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 8 + 2 * (2 ^ 3 - 1))
+    (Q_FS := 1 + 2) (k := 12) (num := 1) (e := 3) (ε_rel := (1 : ℝ≥0) / (2 ^ 3 : ℝ≥0))
     (by decide) (by decide) (by decide) (by simp)
 
-/-- ACT Spend parameters (`d = 11`, `comLen = 256`, `m = 1`, `Q_leaf = 2^12`, `Q_FS = 2^6`,
-`ε_rel = 9 / 2^128`) keep straight-line extraction error `ksBound < 1`. -/
+/-- Numeric sanity check on `voleithKSBound` at `d = 11`, `comLen = 256` (illustrative arithmetic
+evaluation, not an ACT parameter tuple or concrete `VOLEITHSoundnessError` instance). -/
 example :
-    (ksBound 11 256 (2 ^ 12 + 1 * (2 ^ 11 - 1)) (2 ^ 6 + 1)
+    (voleithKSBound 11 256 (2 ^ 12 + 1 * (2 ^ 11 - 1)) (2 ^ 6 + 1)
       ((9 : ℝ≥0) / (2 ^ 128 : ℝ≥0)) : ℝ≥0∞) < 1 := by
   have hk : (2 ^ 12 + 1 * (2 ^ 11 - 1)) * ((2 ^ 12 + 1 * (2 ^ 11 - 1)) + 2 ^ 11 * (2 ^ 6 + 1)) ≤
       2 ^ 30 := by decide
   have h2 : (2 ^ 6 + 1) * 9 * 4 < 3 * 2 ^ 128 :=
     (by decide : (2 ^ 6 + 1) * 9 * 4 < 3 * 2 ^ 11).trans_le
       (Nat.mul_le_mul_left 3 (Nat.pow_le_pow_right (by decide) (by decide : 11 ≤ 128)))
-  exact ksBound_lt_one_of (d := 11) (comLen := 256) (Q_leaf := 2 ^ 12 + 1 * (2 ^ 11 - 1))
+  exact voleithKSBound_lt_one_of (d := 11) (comLen := 256) (Q_leaf := 2 ^ 12 + 1 * (2 ^ 11 - 1))
     (Q_FS := 2 ^ 6 + 1) (k := 30) (num := 9) (e := 128)
     (ε_rel := (9 : ℝ≥0) / (2 ^ 128 : ℝ≥0)) hk (by decide) h2 (by simp only [Nat.cast_ofNat])
 
 /-! ## 2. Bridges to `AnonymousToken.Basic` and `AnonymousToken.Conservation` -/
-
-private theorem isCostBounded_honestCommitLeaves {d sdLen comLen rowLen : ℕ} {Seed IV : Type}
-    (expand : BitString sdLen → BitString rowLen) (iv : IV) (keys : Fin (2 ^ d) → Seed) :
-    ∀ (k : ℕ) (hk : k ≤ 2 ^ d),
-      IsCostBounded (fun _ : LeafQuery d Seed IV => 1)
-        (honestCommitLeaves (comLen := comLen) expand iv keys k hk) k
-  | 0, _ => OracleComp.IsCostBounded.pure _ 0
-  | k + 1, hk => by
-    unfold honestCommitLeaves
-    refine (isCostBounded_honestCommitLeaves expand iv keys k (Nat.le_of_lt hk)).bind
-      fun _ => ?_
-    rw [show (1 : ℕ) = 1 + 0 from rfl]
-    exact (OracleComp.IsCostBounded.query (spec := VOLEITHLeafSpec d sdLen comLen Seed IV)
-      ⟨keys ⟨k, hk⟩, iv, ⟨k, hk⟩⟩).bind fun _ => OracleComp.IsCostBounded.pure _ 0
 
 /-- Deterministic toy signature scheme certifying `Bool` targets by equality. -/
 private def toySig : Signature.Scheme Unit Unit Bool Bool where
@@ -280,9 +278,9 @@ private def toySig : Signature.Scheme Unit Unit Bool Bool where
   sign _ t := pure t
   verify _ t sig := decide (t = sig)
 
-private def tokTarget (_ : Unit) (o : BitString 2) : Bool := o 0
+private def tokTarget (_ : Bool) (o : BitString 2) : Bool := o 0
 
-private def tokCheckRel {d : ℕ} (stmt : Unit × Bool) :
+private def tokCheckRel {d : ℕ} (stmt : Bool × Bool) :
     (Fin d → BitString 2) → BitString 2 → (Fin d → Bool) → Fin (2 ^ d) → Bool :=
   toyCheckRel stmt.2
 
@@ -299,42 +297,26 @@ private theorem tokCheckRel_sound_error {d : ℕ} :
 queries, and `1` `H_FS` query. -/
 private def toyROMTokenAdversary :
     Unit → ProbOracleComp
-      (ROMTokenSpec Unit Bool 3 2 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) (Fin (2 ^ 3)) Bool)
-      (Token Unit (BitString 2) Bool) := fun _ => do
-  let iv : ℕ := 1
-  let keys : Fin (2 ^ 3) → Fin (2 ^ 3) := fun _ => 0
-  let (rows, coms) ← OracleComp.liftRight (spec₁ := unifSpec)
+      (ROMTokenSpec Bool Bool 3 2 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) (Fin (2 ^ 3)) Bool)
+      (Token Bool (BitString 2) Bool) := fun _ => do
+  let prf ← OracleComp.liftRight (spec₁ := unifSpec)
     (OracleComp.liftRight
-      (spec₁ := ROMTokenSignSpec Unit Bool 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) Bool)
-      (OracleComp.liftLeft
-        (spec₂ := VOLEITHFSSpec 3 128 2 (Unit × Bool) ℕ (Fin 3 → Bool) (Fin (2 ^ 3)))
-        (honestCommitLeaves (id : BitString 2 → BitString 2) iv keys (2 ^ 3) le_rfl)))
-  let conv := FAEST.convertExpandedRows 3 rows
-  let dCorr : BitString 2 := (fun _ => true) + conv.u
-  let preMsg : Fin 3 → Bool := toyMkPreMsg conv.columns conv.u dCorr
-  let delta ← OracleComp.liftRight (spec₁ := unifSpec)
-    (OracleComp.liftRight
-      (spec₁ := ROMTokenSignSpec Unit Bool 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) Bool)
-      (OracleComp.liftRight (spec₁ := VOLEITHLeafSpec 3 2 128 (Fin (2 ^ 3)) ℕ)
-        (OracleComp.query ⟨((), true), iv, coms, dCorr, preMsg⟩)))
-  let prf : VOLEITHProof 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) :=
-    ⟨iv, coms, dCorr, preMsg, fun idx => if idx = delta then 0 else keys idx⟩
+      (spec₁ := ROMTokenSignSpec Bool Bool 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) Bool)
+      (voleithProveLeafFS (id : BitString 2 → BitString 2) id id toyMkPreMsg
+        0 (1 : ℕ) (fun _ => 0) (false, true) (fun _ => true)))
   let _ ← OracleComp.liftRight (spec₁ := unifSpec)
     (OracleComp.liftLeft
-      (spec₂ := VOLEITHROSpec 3 2 128 2 (Unit × Bool) (Fin (2 ^ 3)) ℕ (Fin 3 → Bool)
+      (spec₂ := VOLEITHROSpec 3 2 128 2 (Bool × Bool) (Fin (2 ^ 3)) ℕ (Fin 3 → Bool)
         (Fin (2 ^ 3)))
-      (OracleComp.query (⟨(), true, prf⟩ : ROMTokenRequest Unit Bool 3 128 2 (Fin (2 ^ 3)) ℕ
+      (OracleComp.query (⟨false, true, prf⟩ : ROMTokenRequest Bool Bool 3 128 2 (Fin (2 ^ 3)) ℕ
         (Fin 3 → Bool))))
-  return ⟨⟨(), fun _ => true⟩, true⟩
+  return ⟨⟨false, fun _ => true⟩, true⟩
 
 private theorem toyROMTokenAdversary_req_bound (pk : Unit) :
     IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
       (toyROMTokenAdversary pk) 1 := by
   unfold toyROMTokenAdversary
-  change IsCostBounded _ _ (0 + (0 + (1 + 0)))
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
-    (fun _ => le_rfl)).bind fun _ => ?_
+  change IsCostBounded _ _ (0 + (1 + 0))
   refine (IsCostBounded.liftRight
     (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
     (fun _ => le_rfl)).bind fun _ => ?_
@@ -348,20 +330,13 @@ private theorem toyROMTokenAdversary_leaf_bound (pk : Unit) :
     IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithLeafCost))
       (toyROMTokenAdversary pk) 8 := by
   unfold toyROMTokenAdversary
-  rw [show (8 : ℕ) = 2 ^ 3 + (0 + 0) from by norm_num]
+  change IsCostBounded _ _ (2 ^ 3 + (0 + 0))
   refine (IsCostBounded.liftRight
     (IsCostBounded.liftRight
-      ((isCostBounded_honestCommitLeaves (d := 3) (sdLen := 2) (comLen := 128) id 1
-        (fun _ => 0) (2 ^ 3) le_rfl).liftLeft fun _ => le_rfl)
+      (isCostBounded_leaf_voleithProveLeafFS id id id toyMkPreMsg 0 (1 : ℕ) (fun _ => 0)
+        (false, true) (fun _ => true))
       fun _ => le_rfl)
     fun _ => le_rfl).bind fun _ => ?_
-  rw [show (0 + 0 : ℕ) = 0 + (0 + 0) from rfl]
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight
-      (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
-      fun _ => le_rfl)
-    fun _ => le_rfl).bind fun _ => ?_
-  rw [show (0 + 0 : ℕ) = 0 + 0 from rfl]
   exact (IsCostBounded.liftRight
     (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
     fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
@@ -370,19 +345,13 @@ private theorem toyROMTokenAdversary_fs_bound (pk : Unit) :
     IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost))
       (toyROMTokenAdversary pk) 1 := by
   unfold toyROMTokenAdversary
-  rw [show (1 : ℕ) = 0 + (1 + 0) from rfl]
+  change IsCostBounded _ _ (1 + (0 + 0))
   refine (IsCostBounded.liftRight
     (IsCostBounded.liftRight
-      (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+      (isCostBounded_fs_voleithProveLeafFS id id id toyMkPreMsg 0 (1 : ℕ) (fun _ => 0)
+        (false, true) (fun _ => true))
       fun _ => le_rfl)
     fun _ => le_rfl).bind fun _ => ?_
-  rw [show (1 + 0 : ℕ) = 1 + (0 + 0) from rfl]
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight
-      (IsCostBounded.liftRight (IsCostBounded.query _) fun _ => le_rfl)
-      fun _ => le_rfl)
-    fun _ => le_rfl).bind fun _ => ?_
-  rw [show (0 + 0 : ℕ) = 0 + 0 from rfl]
   exact (IsCostBounded.liftRight
     (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
     fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
@@ -395,7 +364,7 @@ example (pk : Unit) :
     toyROMTokenAdversary_req_bound pk
 
 /-- Concrete `AnonymousToken.Basic` ROM-to-extracted and end-to-end EUF-CMA + binding +
-straight-line extraction reductions with `ksBound < 1`. -/
+straight-line extraction reductions with `voleithKSBound < 1`. -/
 example :
     (romUnextractedTokenExperiment id id tokCheckRel toySig tokTarget
         toyROMTokenAdversary).succProbability ≤
@@ -403,28 +372,164 @@ example :
           (extractedForgerOfROM id id id tokCheckRel toyROMTokenAdversary))).succProbability +
         (bindingExperiment toySig tokTarget
           (extractedForgerOfROM id id id tokCheckRel toyROMTokenAdversary)).succProbability +
-        ksBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) ∧
-    (ksBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) : ℝ≥0∞) < 1 := by
+        voleithKSBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) ∧
+    (voleithKSBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) : ℝ≥0∞) <
+      1 := by
   refine ⟨unextractedTokenExperiment_succProbability_le id id id toySig tokTarget tokCheckRel
     tokCheckRel_sound_error toyROMTokenAdversary toyROMTokenAdversary_req_bound
     toyROMTokenAdversary_leaf_bound toyROMTokenAdversary_fs_bound, ?_⟩
-  have hk : (8 + 1 * (2 ^ 3 - 1)) * ((8 + 1 * (2 ^ 3 - 1)) + 2 ^ 3 * (1 + 1)) ≤ 2 ^ 10 := by
-    decide
-  have hcomp : 10 + 2 ≤ 128 := by decide
-  have h2 : (1 + 1) * 1 * 4 < 3 * 2 ^ 3 := by decide
-  exact ksBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 8 + 1 * (2 ^ 3 - 1))
+  exact voleithKSBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 8 + 1 * (2 ^ 3 - 1))
     (Q_FS := 1 + 1) (k := 10) (num := 1) (e := 3) (ε_rel := (1 : ℝ≥0) / (2 ^ 3 : ℝ≥0))
-    hk hcomp h2 (by simp)
+    (by decide) (by decide) (by decide) (by simp)
 
 example :
     (romUnextractedTokenExperiment id id tokCheckRel toySig tokTarget
         toyROMTokenAdversary).succProbability ≤
       (extractedExperiment toySig tokTarget
         (extractedForgerOfROM id id id tokCheckRel toyROMTokenAdversary)).succProbability +
-        ksBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) :=
+        voleithKSBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) :=
   unextractedTokenExperiment_succProbability_le_extracted id id id toySig tokTarget tokCheckRel
     tokCheckRel_sound_error toyROMTokenAdversary toyROMTokenAdversary_req_bound
     toyROMTokenAdversary_leaf_bound toyROMTokenAdversary_fs_bound
+
+/-- Positive-probability (`= 1`) forging adversary on `AnonymousToken.Basic`: obtains a valid
+signature on `false` via VOLEitH proof verification on `message = false`, then outputs a valid
+forged token on `message = true` exploiting the target collision `tokTarget true 0 = false`. -/
+private def toyROMTokenForgingAdversary :
+    Unit → ProbOracleComp
+      (ROMTokenSpec Bool Bool 3 2 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) (Fin (2 ^ 3)) Bool)
+      (Token Bool (BitString 2) Bool) := fun _ => do
+  let prf ← OracleComp.liftRight (spec₁ := unifSpec)
+    (OracleComp.liftRight
+      (spec₁ := ROMTokenSignSpec Bool Bool 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) Bool)
+      (voleithProveLeafFS (id : BitString 2 → BitString 2) id id toyMkPreMsg
+        0 (1 : ℕ) (fun _ => 0) (false, false) (fun _ => false)))
+  let msig ← OracleComp.liftRight (spec₁ := unifSpec)
+    (OracleComp.liftLeft
+      (spec₂ := VOLEITHROSpec 3 2 128 2 (Bool × Bool) (Fin (2 ^ 3)) ℕ (Fin 3 → Bool)
+        (Fin (2 ^ 3)))
+      (OracleComp.query (⟨false, false, prf⟩ : ROMTokenRequest Bool Bool 3 128 2 (Fin (2 ^ 3)) ℕ
+        (Fin 3 → Bool))))
+  return ⟨⟨true, fun _ => false⟩, msig.getD true⟩
+
+private theorem toyROMTokenForgingAdversary_req_bound (pk : Unit) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+      (toyROMTokenForgingAdversary pk) 1 := by
+  unfold toyROMTokenForgingAdversary
+  change IsCostBounded _ _ (0 + (1 + 0))
+  refine (IsCostBounded.liftRight
+    (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
+    (fun _ => le_rfl)).bind fun _ => ?_
+  exact (IsCostBounded.liftRight
+    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+    (IsCostBounded.liftLeft (cost₁ := fun _ => 1) (cost := Sum.elim (fun _ => 1) (fun _ => 0))
+      (IsCostBounded.query _) fun _ => le_rfl)
+    fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+
+private theorem toyROMTokenForgingAdversary_leaf_bound (pk : Unit) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithLeafCost))
+      (toyROMTokenForgingAdversary pk) 8 := by
+  unfold toyROMTokenForgingAdversary
+  change IsCostBounded _ _ (2 ^ 3 + (0 + 0))
+  refine (IsCostBounded.liftRight
+    (IsCostBounded.liftRight
+      (isCostBounded_leaf_voleithProveLeafFS id id id toyMkPreMsg 0 (1 : ℕ) (fun _ => 0)
+        (false, false) (fun _ => false))
+      fun _ => le_rfl)
+    fun _ => le_rfl).bind fun _ => ?_
+  exact (IsCostBounded.liftRight
+    (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+    fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+
+private theorem toyROMTokenForgingAdversary_fs_bound (pk : Unit) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost))
+      (toyROMTokenForgingAdversary pk) 1 := by
+  unfold toyROMTokenForgingAdversary
+  change IsCostBounded _ _ (1 + (0 + 0))
+  refine (IsCostBounded.liftRight
+    (IsCostBounded.liftRight
+      (isCostBounded_fs_voleithProveLeafFS id id id toyMkPreMsg 0 (1 : ℕ) (fun _ => 0)
+        (false, false) (fun _ => false))
+      fun _ => le_rfl)
+    fun _ => le_rfl).bind fun _ => ?_
+  exact (IsCostBounded.liftRight
+    (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+    fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+
+private theorem toyROMTokenForgingAdversary_succ :
+    (romUnextractedTokenExperiment id id tokCheckRel toySig tokTarget
+      toyROMTokenForgingAdversary).succProbability = 1 := by
+  have heval :
+      ProbComp.eval (romUnextractedTokenExperiment id id tokCheckRel toySig tokTarget
+        toyROMTokenForgingAdversary) = PMF.pure true := by
+    simp only [romUnextractedTokenExperiment, runROMUnextractedToken,
+      ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
+      ProbOracleComp.eval_runState,
+      show ProbComp.eval toySig.keyGen = PMF.pure ((), ()) from by simp [toySig]]
+    have hev :
+        (fun q st => ProbComp.eval (verifyGatedHandlerProg (d := 3) (sdLen := 2) (comLen := 128)
+            (rowLen := 2) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+            (Chal := Fin (2 ^ 3)) id id ROMTokenRequest.stmt ROMTokenRequest.proof tokCheckRel
+            none (romTokenAcceptReal toySig ((), ())) q st)) =
+          verifyGatedHandler (comLen := 128) (Seed := Fin (2 ^ 3)) (IV := ℕ)
+            id id ROMTokenRequest.stmt ROMTokenRequest.proof tokCheckRel none
+            (fun _ => romTokenAcceptReal toySig ((), ())) :=
+      funext fun q => funext fun st =>
+        verifyGatedHandlerProg_eval id id ROMTokenRequest.stmt ROMTokenRequest.proof tokCheckRel
+          none (romTokenAcceptReal toySig ((), ())) q st
+    rw [hev, PMF.map_eq_pure_iff]
+    rintro run hmem
+    rw [PMF.mem_support_bind_iff] at hmem
+    obtain ⟨⟨tok_out, roEnd, msgsEnd⟩, hmem, hmk⟩ := hmem
+    rw [PMF.mem_support_pure_iff] at hmk
+    subst hmk
+    unfold toyROMTokenForgingAdversary at hmem
+    rw [ProbOracleComp.runWith_bind, PMF.mem_support_bind_iff] at hmem
+    obtain ⟨⟨prf, roSt₁, msgs₁⟩, hprove_mem, hrest⟩ := hmem
+    rw [runWith_verifyGatedHandler_liftRight, PMF.mem_support_map_iff] at hprove_mem
+    obtain ⟨⟨prf', roSt₁'⟩, hprove', hpair⟩ := hprove_mem
+    simp only [Prod.mk.injEq] at hpair
+    obtain ⟨rfl, rfl, rfl⟩ := hpair
+    obtain ⟨hver, _, _⟩ := voleithProveLeafFS_verify_of_fresh (id : BitString 2 → BitString 2)
+      id id toyMkPreMsg tokCheckRel 0 (1 : ℕ) (fun _ => 0) (false, false) (fun _ => false)
+      (fun pCols u delta => toyCheckRel_complete false _ rfl pCols u delta)
+      ([], []) (by simp) (by simp) hprove'
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith,
+      OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
+      OracleComp.liftLeft_query, OracleComp.run_interpret_query] at hrest
+    simp only [verifyGatedHandler, ROMTokenRequest.stmt] at hrest
+    rw [hver] at hrest
+    simp only [PMF.pure_bind, ↓reduceIte, romTokenAcceptReal, toySig,
+      ProbComp.eval_freeMMap, ProbComp.eval_pure, PMF.pure_map,
+      ProbOracleComp.runWith_pure] at hrest
+    change _ ∈ (PMF.pure _).support at hrest
+    rw [PMF.mem_support_pure_iff, Prod.mk.injEq] at hrest
+    obtain ⟨rfl, rfl, rfl⟩ := hrest
+    dsimp only
+    decide
+  simp [Experiment.succProbability, Game.succProbability, heval]
+
+/-- Non-vacuous probability-`1` reduction check on `AnonymousToken.Basic`: `1 ≤ eufCma + binding +
+voleithKSBound` with `voleithKSBound < 1`. -/
+example :
+    1 ≤
+      (toySig.eufCmaExperiment (targetForger tokTarget
+          (extractedForgerOfROM id id id tokCheckRel
+            toyROMTokenForgingAdversary))).succProbability +
+        (bindingExperiment toySig tokTarget
+          (extractedForgerOfROM id id id tokCheckRel toyROMTokenForgingAdversary)).succProbability +
+        voleithKSBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) ∧
+    (voleithKSBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) : ℝ≥0∞) <
+      1 := by
+  refine ⟨?_, ?_⟩
+  · simpa only [toyROMTokenForgingAdversary_succ] using
+      unextractedTokenExperiment_succProbability_le id id id toySig tokTarget tokCheckRel
+        tokCheckRel_sound_error toyROMTokenForgingAdversary
+        toyROMTokenForgingAdversary_req_bound toyROMTokenForgingAdversary_leaf_bound
+        toyROMTokenForgingAdversary_fs_bound
+  · exact voleithKSBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 8 + 1 * (2 ^ 3 - 1))
+      (Q_FS := 1 + 1) (k := 10) (num := 1) (e := 3) (ε_rel := (1 : ℝ≥0) / (2 ^ 3 : ℝ≥0))
+      (by decide) (by decide) (by decide) (by simp)
 
 /-- Generic VOLE-MAC check compiler turning any decidable `Rel` into a `1 / 2 ^ d`-sound
 check predicate over `FAEST.convertExpandedRows`. -/
@@ -504,6 +609,23 @@ private theorem macCheckRel_sound_error {d rowLen : ℕ} {Stmt Wit : Type}
       _ = (((1 : ℝ≥0) / (2 ^ d : ℝ≥0) : ℝ≥0) : ℝ≥0∞) := by
             simp [PMF.uniformOfFintype_apply, Fintype.card_fin]
 
+private theorem xor_add_self {n : ℕ} (w u : BitString n) : w + u + u = w := by
+  funext k
+  simp only [Pi.add_apply, Bool.add_eq_xor]
+  cases w k <;> cases u k <;> decide
+
+private theorem macCheckRel_complete {d rowLen : ℕ} {Stmt Wit : Type}
+    (decWit : BitString rowLen → Wit) (Rel : Stmt → Wit → Bool)
+    (stmt : Stmt) (w : BitString rowLen) (hw : Rel stmt (decWit w) = true)
+    (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Fin (2 ^ d)) :
+    macCheckRel decWit Rel stmt
+      (fun j => pCols j + fun k => (BitString.equivFin d).symm delta j * u k)
+      (w + u) (pCols, w + u + u) delta = true := by
+  simp only [macCheckRel, xor_add_self, hw, Bool.true_and, decide_eq_true_eq]
+  intro j k
+  simpa [Pi.add_apply, Bool.add_eq_xor, Bool.mul_eq_and] using
+    xor_mac_bit_eq (pCols j k) ((BitString.equivFin d).symm delta j) (u k) (w k)
+
 private def consTestComNat (nf ctx : Bool) (amt : ℕ) (_op : Bool) : Bool × Bool × ℕ :=
   (nf, ctx, amt)
 
@@ -519,52 +641,65 @@ private def consTestSig :
   sign _ m := pure m
   verify _ m sig := decide (m = sig)
 
-private def consDecWit (x : BitString 2) :
+/-- Witness decoder supporting both `.issue` (`x 0 = false`) and `.spend` (`x 0 = true`). -/
+private def consDualDecWit (x : BitString 2) :
     ROMConservationWitness Bool Bool ((Bool × Bool × ℕ) × ℕ) :=
-  .issue ⟨x 0, x 1⟩
+  if x 0 then
+    .spend ⟨5, false, 0, ((false, false, if x 1 then 5 else 0), 0), true, 0, false⟩
+  else
+    .issue ⟨x 1, false⟩
+
+private def consIssueQ5 : ROMConservationQuery Bool Bool (Bool × Bool × ℕ) :=
+  .issue ⟨false, 5, (false, false, 5)⟩
+
+private def consSpendQ5 : ROMConservationQuery Bool Bool (Bool × Bool × ℕ) :=
+  .spend ⟨false, false, 5, 0, (true, false, 0)⟩
+
+/-- Direct `.issue`, `.spend`, nullifier-replay rejection, and non-overspending check on
+`consDualDecWit` and `romAcceptQuery`. -/
+example :
+    romConservationRel consTestComNat Prod.mk consTestSig ⟨(), consIssueQ5⟩
+        (consDualDecWit fun _ => false) = true ∧
+    romConservationRel consTestComNat Prod.mk consTestSig ⟨(), consSpendQ5⟩
+        (consDualDecWit fun _ => true) = true ∧
+    romAcceptQuery [consIssueQ5] consSpendQ5 = true ∧
+    romAcceptQuery [consIssueQ5, consSpendQ5] consSpendQ5 = false ∧
+    romIssuedAmount [consIssueQ5, consSpendQ5] false = 5 ∧
+    romSpentDebit [consIssueQ5, consSpendQ5] false = 5 := by
+  decide
+
+private def consMkPreMsg (pCols : Fin 3 → BitString 2) (u dCorr : BitString 2) :
+    macPreMsg 3 2 :=
+  (pCols, dCorr + u)
+
+private def consIssueQ1 : ROMConservationQuery Bool Bool (Bool × Bool × ℕ) :=
+  .issue ⟨false, 1, (false, false, 1)⟩
+
+private def consIssueStmt1 : ROMConservationStmt Unit Bool Bool (Bool × Bool × ℕ) :=
+  ⟨(), consIssueQ1⟩
 
 private noncomputable def toyROMConsAdversary :
     Unit → ProbOracleComp (ROMConservationSpec Bool Bool (Bool × Bool × ℕ) 3 2 128 2 Unit
       (Fin (2 ^ 3)) ℕ (macPreMsg 3 2) (Fin (2 ^ 3)) ((Bool × Bool × ℕ) × ℕ)) Bool := fun _ => do
-  let q : ROMConservationQuery Bool Bool (Bool × Bool × ℕ) :=
-    .issue ⟨false, 1, (false, false, 1)⟩
-  let iv : ℕ := 1
-  let keys : Fin (2 ^ 3) → Fin (2 ^ 3) := fun _ => 0
-  let (rows, coms) ← OracleComp.liftRight (spec₁ := unifSpec)
+  let prf ← OracleComp.liftRight (spec₁ := unifSpec)
     (OracleComp.liftRight
       (spec₁ := ROMConservationIssuerSpec Bool Bool (Bool × Bool × ℕ) 3 128 2 (Fin (2 ^ 3)) ℕ
         (macPreMsg 3 2) ((Bool × Bool × ℕ) × ℕ))
-      (OracleComp.liftLeft
-        (spec₂ := VOLEITHFSSpec 3 128 2 (ROMConservationStmt Unit Bool Bool (Bool × Bool × ℕ))
-          ℕ (macPreMsg 3 2) (Fin (2 ^ 3)))
-        (honestCommitLeaves (id : BitString 2 → BitString 2) iv keys (2 ^ 3) le_rfl)))
-  let conv := FAEST.convertExpandedRows 3 rows
-  let dCorr : BitString 2 := (fun _ => false) + conv.u
-  let preMsg : macPreMsg 3 2 := (conv.columns, dCorr + conv.u)
-  let delta ← OracleComp.liftRight (spec₁ := unifSpec)
-    (OracleComp.liftRight
-      (spec₁ := ROMConservationIssuerSpec Bool Bool (Bool × Bool × ℕ) 3 128 2 (Fin (2 ^ 3)) ℕ
-        (macPreMsg 3 2) ((Bool × Bool × ℕ) × ℕ))
-      (OracleComp.liftRight (spec₁ := VOLEITHLeafSpec 3 2 128 (Fin (2 ^ 3)) ℕ)
-        (OracleComp.query ⟨⟨(), q⟩, iv, coms, dCorr, preMsg⟩)))
-  let prf : VOLEITHProof 3 128 2 (Fin (2 ^ 3)) ℕ (macPreMsg 3 2) :=
-    ⟨iv, coms, dCorr, preMsg, fun idx => if idx = delta then 0 else keys idx⟩
+      (voleithProveLeafFS (id : BitString 2 → BitString 2) id id consMkPreMsg 0 (1 : ℕ)
+        (fun _ => 0) consIssueStmt1 (fun _ => false)))
   let _ ← OracleComp.liftRight (spec₁ := unifSpec)
     (OracleComp.liftLeft
       (spec₂ := VOLEITHROSpec 3 2 128 2
         (ROMConservationStmt Unit Bool Bool (Bool × Bool × ℕ)) (Fin (2 ^ 3)) ℕ (macPreMsg 3 2)
         (Fin (2 ^ 3)))
-      (OracleComp.query ⟨q, prf⟩))
+      (OracleComp.query ⟨consIssueQ1, prf⟩))
   return false
 
 private theorem toyROMConsAdversary_req_bound (pk : Unit) :
     IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
       (toyROMConsAdversary pk) 1 := by
   unfold toyROMConsAdversary
-  change IsCostBounded _ _ (0 + (0 + (1 + 0)))
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
-    (fun _ => le_rfl)).bind fun _ => ?_
+  change IsCostBounded _ _ (0 + (1 + 0))
   refine (IsCostBounded.liftRight
     (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
     (fun _ => le_rfl)).bind fun _ => ?_
@@ -578,197 +713,569 @@ private theorem toyROMConsAdversary_leaf_bound (pk : Unit) :
     IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithLeafCost))
       (toyROMConsAdversary pk) 8 := by
   unfold toyROMConsAdversary
-  rw [show (8 : ℕ) = 2 ^ 3 + (0 + 0) from by norm_num]
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight
-      ((isCostBounded_honestCommitLeaves (d := 3) (sdLen := 2) (comLen := 128) id 1
-        (fun _ => 0) (2 ^ 3) le_rfl).liftLeft fun _ => le_rfl)
-      fun _ => le_rfl)
-    fun _ => le_rfl).bind fun _ => ?_
-  rw [show (0 + 0 : ℕ) = 0 + (0 + 0) from rfl]
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight
-      (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
-      fun _ => le_rfl)
-    fun _ => le_rfl).bind fun _ => ?_
-  rw [show (0 + 0 : ℕ) = 0 + 0 from rfl]
-  exact (IsCostBounded.liftRight
-    (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
-    fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+  change IsCostBounded _ _ (2 ^ 3 + (0 + 0))
+  refine IsCostBounded.bind ?_ fun _ => ?_
+  · exact IsCostBounded.liftRight
+      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithLeafCost))
+      (IsCostBounded.liftRight (cost := Sum.elim (fun _ => 0) voleithLeafCost)
+        (isCostBounded_leaf_voleithProveLeafFS (id : BitString 2 → BitString 2) id id
+          consMkPreMsg 0 (1 : ℕ) (fun _ => 0) consIssueStmt1 (fun _ => false))
+        fun _ => le_rfl)
+      fun _ => le_rfl
+  · exact (IsCostBounded.liftRight
+      (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+      fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
 
 private theorem toyROMConsAdversary_fs_bound (pk : Unit) :
     IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost))
       (toyROMConsAdversary pk) 1 := by
   unfold toyROMConsAdversary
-  rw [show (1 : ℕ) = 0 + (1 + 0) from rfl]
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight
+  change IsCostBounded _ _ (1 + (0 + 0))
+  refine IsCostBounded.bind ?_ fun _ => ?_
+  · exact IsCostBounded.liftRight
+      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost))
+      (IsCostBounded.liftRight (cost := Sum.elim (fun _ => 0) voleithFSCost)
+        (isCostBounded_fs_voleithProveLeafFS (id : BitString 2 → BitString 2) id id
+          consMkPreMsg 0 (1 : ℕ) (fun _ => 0) consIssueStmt1 (fun _ => false))
+        fun _ => le_rfl)
+      fun _ => le_rfl
+  · exact (IsCostBounded.liftRight
       (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
-      fun _ => le_rfl)
-    fun _ => le_rfl).bind fun _ => ?_
-  rw [show (1 + 0 : ℕ) = 1 + (0 + 0) from rfl]
-  refine (IsCostBounded.liftRight
-    (IsCostBounded.liftRight
-      (IsCostBounded.liftRight (IsCostBounded.query _) fun _ => le_rfl)
-      fun _ => le_rfl)
-    fun _ => le_rfl).bind fun _ => ?_
-  rw [show (0 + 0 : ℕ) = 0 + 0 from rfl]
-  exact (IsCostBounded.liftRight
-    (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
-    fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+      fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
 
 /-- Extracted conservation adversary preserves the `1`-query bound. -/
 example (pk : Unit) :
     (extractedAdversaryOfROM (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
-      id consDecWit id
-      (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+      id consDualDecWit id
+      (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
       toyROMConsAdversary pk).IsQueryBounded 1 :=
-  extractedAdversaryOfROM_isQueryBounded id consDecWit id
-    (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+  extractedAdversaryOfROM_isQueryBounded id consDualDecWit id
+    (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
     toyROMConsAdversary toyROMConsAdversary_req_bound pk
 
 /-- Concrete `AnonymousToken.Conservation` ROM-to-extracted and end-to-end EUF-CMA + commitment
 binding + straight-line extraction reductions using `consTestComScheme`. -/
 example :
     (romUnextractedConservationExperiment id id Prod.mk
-        (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+        (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
         consTestSig toyROMConsAdversary).succProbability ≤
       (Conservation.extractedConservationExperiment consTestComNat Prod.mk consTestSig
-        (extractedAdversaryOfROM id consDecWit id
-          (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+        (extractedAdversaryOfROM id consDualDecWit id
+          (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
           toyROMConsAdversary)).succProbability +
-        ksBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) :=
-  unextractedConservationExperiment_succProbability_le_extracted id consDecWit id consTestComNat
+        voleithKSBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) :=
+  unextractedConservationExperiment_succProbability_le_extracted id consDualDecWit id consTestComNat
     Prod.mk consTestSig
-    (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
-    (macCheckRel_sound_error consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+    (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
+    (macCheckRel_sound_error consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
     toyROMConsAdversary toyROMConsAdversary_req_bound toyROMConsAdversary_leaf_bound
     toyROMConsAdversary_fs_bound
 
 example :
     (romUnextractedConservationExperiment id id Prod.mk
-        (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+        (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
         consTestSig toyROMConsAdversary).succProbability ≤
       (consTestSig.eufCmaExperiment (targetForger (Credit.target consTestComNat Prod.mk)
           (Conservation.noteForger consTestComNat Prod.mk consTestSig
-            (extractedAdversaryOfROM id consDecWit id
-              (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+            (extractedAdversaryOfROM id consDualDecWit id
+              (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
               toyROMConsAdversary)))).succProbability +
         (consTestComScheme.bindingExperiment
           (Conservation.commitmentBindingReduction consTestComNat consTestSig
-            (extractedAdversaryOfROM id consDecWit id
-              (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+            (extractedAdversaryOfROM id consDualDecWit id
+              (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
               toyROMConsAdversary))).succProbability +
-        ksBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) :=
-  unextractedConservationExperiment_succProbability_le_prod_mk id consDecWit id consTestComNat
+        voleithKSBound 3 128 (8 + 1 * (2 ^ 3 - 1)) (1 + 1) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) :=
+  unextractedConservationExperiment_succProbability_le_prod_mk id consDualDecWit id consTestComNat
     consTestComScheme (fun _ _ _ _ _ _ => rfl) consTestSig
-    (macCheckRel consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
-    (macCheckRel_sound_error consDecWit (conservationRel consTestComNat Prod.mk consTestSig))
+    (macCheckRel consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
+    (macCheckRel_sound_error consDualDecWit (romConservationRel consTestComNat Prod.mk consTestSig))
     toyROMConsAdversary toyROMConsAdversary_req_bound toyROMConsAdversary_leaf_bound
     toyROMConsAdversary_fs_bound
 
-/-! ## 3. Negative / separation tests for PRG leaf commitments (`leaf_hash::aes_ctr`) -/
+/-- Colliding commitment ignoring balance amounts (`(nf, ctx, 0)`), enabling overspending in the
+unextracted ROM game when `issue 1` and `spend 5` share `(false, false, 0)`. -/
+private def consCollidingCom (nf ctx : Bool) (_amt : ℕ) (_op : Bool) : Bool × Bool × ℕ :=
+  (nf, ctx, 0)
 
-private def prgLeafColliding (s : Bool) (_ : Unit) (_ : Fin (2 ^ 0)) : LeafOutput 1 1 :=
-  ⟨fun _ => s, 0⟩
+private def consCollidingComScheme :
+    Crypto.Commitment.Scheme Unit (Bool × Bool × ℕ) (Bool × Bool × ℕ) Bool where
+  keyGen := pure ()
+  commit _ := fun ⟨nf, ctx, t⟩ => pure (consCollidingCom nf ctx t false, false)
+  verify _ := fun ⟨nf, ctx, t⟩ c o => decide (consCollidingCom nf ctx t o = c)
 
-/-- On a colliding PRG (`com = 0` for seeds `false` and `true` at `d = 0`), local prover makes
-zero `H_leaf` queries, accepts with probability `1`, and defeats **every** query-log extractor AND
-**every** unbounded proof extractor `ext : LeafTrace → VOLEITHProof → Option Bool` with
-probability `1`. -/
-example :
-    IsCostBounded
-      (Sum.elim (fun _ => 0) (voleithLeafCost (d := 0) (Seed := Bool) (IV := Unit)
-        (comLen := 1) (rowLen := 1) (Stmt := Unit) (PreMsg := Unit)))
-      (prgLeafProver (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1) (Chal := Unit)
-        id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-        false () (fun _ => false) () false) 0 :=
-  prgLeafProver_leafCost_zero id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-    false () (fun _ => false) () false
+private def consCollidingIssueQ : ROMConservationQuery Bool Bool (Bool × Bool × ℕ) :=
+  .issue ⟨false, 1, (false, false, 0)⟩
 
-example {b : Bool} {st : VOLEITHTraceState 0 1 1 1 Unit Bool Unit Unit Unit}
-    (hmem : (b, st) ∈ (ProbOracleComp.runWith
-      (voleithMemoize (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1)
-        (Stmt := Unit) (Seed := Bool) (IV := Unit) (PreMsg := Unit) (Chal := Unit))
-      (prgLeafGame (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1) (Chal := Unit)
-        id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-        (fun _ _ _ _ _ => true) false () (fun _ => false) () false) ([], [])).support) :
-    st.1 = [] :=
-  prgLeafGame_leafTrace_eq_nil id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-    (fun _ _ _ _ _ => true) false () (fun _ => false) () false (fun _ _ _ => rfl) hmem
+private def consCollidingSpendQ : ROMConservationQuery Bool Bool (Bool × Bool × ℕ) :=
+  .spend ⟨false, false, 5, 0, (true, false, 0)⟩
 
-example :
-    ((ProbOracleComp.runWith
-      (voleithMemoize (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1)
-        (Stmt := Unit) (Seed := Bool) (IV := Unit) (PreMsg := Unit) (Chal := Unit))
-      (prgLeafGame (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1) (Chal := Unit)
-        id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-        (fun _ _ _ _ _ => true) false () (fun _ => false) () false)
-      ([], [])).map Prod.fst) = PMF.pure true :=
-  prgLeafGame_eq_pure_true id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-    (fun _ _ _ _ _ => true) false () (fun _ => false) () false (fun _ _ _ => rfl)
+private def consCollidingIssueStmt : ROMConservationStmt Unit Bool Bool (Bool × Bool × ℕ) :=
+  ⟨(), consCollidingIssueQ⟩
 
-example (extLog : LeafTrace 0 1 1 Bool Unit → Option Bool) (hne : extLog [] ≠ some false) :
-    ((ProbOracleComp.runWith
-      (voleithMemoize (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1)
-        (Stmt := Unit) (Seed := Bool) (IV := Unit) (PreMsg := Unit) (Chal := Unit))
-      (prgLeafGame (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1) (Chal := Unit)
-        id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-        (fun _ _ _ _ _ => true) false () (fun _ => false) () false)
-      ([], [])).map fun (b, st) => decide (b = true ∧ extLog st.1 ≠ some false)).toOuterMeasure
-        {true} = 1 :=
-  toOuterMeasure_prgLeaf_queryLog_fails_eq_one id prgLeafColliding (fun w _ => w) (fun _ => 0)
-    (fun _ _ _ => ()) (fun _ _ _ _ _ => true) false () (fun _ => false) () false
-    (fun _ _ _ => rfl) extLog hne
+private def consCollidingSpendStmt : ROMConservationStmt Unit Bool Bool (Bool × Bool × ℕ) :=
+  ⟨(), consCollidingSpendQ⟩
 
-example (ext : LeafTrace 0 1 1 Bool Unit → VOLEITHProof 0 1 1 Bool Unit Unit → Option Bool) :
-    ∃ w : Bool, ∃ keys : Fin (2 ^ 0) → Bool,
-      ((ProbOracleComp.runWith
-        (voleithMemoize (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1)
-          (Stmt := Unit) (Seed := Bool) (IV := Unit) (PreMsg := Unit) (Chal := Unit))
-        (do
-          let prf ← prgLeafProver (d := 0) (sdLen := 1) (comLen := 1) (rowLen := 1)
-            (Stmt := Unit) (Seed := Bool) (IV := Unit) (PreMsg := Unit) (Chal := Unit)
-            id prgLeafColliding (fun w _ => w) (fun _ => 0) (fun _ _ _ => ())
-            false () keys () w
-          let ok ← prgLeafVerify id prgLeafColliding (fun _ => 0) (fun _ _ _ _ _ => true) () prf
-          return (ok, prf)) ([], [])).map fun ((ok, prf), st) =>
-            decide (ok = true ∧ ext st.1 prf ≠ some w)).toOuterMeasure {true} = 1 := by
-  refine exists_valid_prgLeaf_extract_fails_all (id : BitString 1 → BitString 1) prgLeafColliding
-    (fun w _ => w) (fun _ => 0) (fun _ _ _ => ()) (fun _ _ _ _ _ => true)
-    false () (fun _ => false) (fun _ => true) () false true (by decide)
-    (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ => rfl) ?_ rfl () ?_ ext
-  · ext i
-    simp only [FAEST.convertExpandedRows, prgLeafColliding, id_eq, Pi.add_apply]
+/-- Positive-probability (`= 1`) unextracted ROM conservation adversary: issues `amount = 1` at
+`iv = 1`, verifies the issued certificate `((false, false, 0), 0)`, and spends `debit = 5` at
+`iv = 2` against `consCollidingCom` (`1 + 0 < 5`). -/
+private noncomputable def toyROMConsOverspendAdversary :
+    Unit → ProbOracleComp (ROMConservationSpec Bool Bool (Bool × Bool × ℕ) 3 2 128 2 Unit
+      (Fin (2 ^ 3)) ℕ (macPreMsg 3 2) (Fin (2 ^ 3)) ((Bool × Bool × ℕ) × ℕ)) Bool := fun _ => do
+  let prf₁ ← OracleComp.liftRight (spec₁ := unifSpec)
+    (OracleComp.liftRight
+      (spec₁ := ROMConservationIssuerSpec Bool Bool (Bool × Bool × ℕ) 3 128 2 (Fin (2 ^ 3)) ℕ
+        (macPreMsg 3 2) ((Bool × Bool × ℕ) × ℕ))
+      (voleithProveLeafFS (id : BitString 2 → BitString 2) id id consMkPreMsg 0 (1 : ℕ)
+        (fun _ => 0) consCollidingIssueStmt (fun _ => false)))
+  let msig₁ ← OracleComp.liftRight (spec₁ := unifSpec)
+    (OracleComp.liftLeft
+      (spec₂ := VOLEITHROSpec 3 2 128 2
+        (ROMConservationStmt Unit Bool Bool (Bool × Bool × ℕ)) (Fin (2 ^ 3)) ℕ (macPreMsg 3 2)
+        (Fin (2 ^ 3)))
+      (OracleComp.query ⟨consCollidingIssueQ, prf₁⟩))
+  if msig₁ == some ((false, false, 0), 0) then
+    let prf₂ ← OracleComp.liftRight (spec₁ := unifSpec)
+      (OracleComp.liftRight
+        (spec₁ := ROMConservationIssuerSpec Bool Bool (Bool × Bool × ℕ) 3 128 2 (Fin (2 ^ 3)) ℕ
+          (macPreMsg 3 2) ((Bool × Bool × ℕ) × ℕ))
+        (voleithProveLeafFS (id : BitString 2 → BitString 2) id id consMkPreMsg 0 (2 : ℕ)
+          (fun _ => 0) consCollidingSpendStmt (fun j => decide (j = 0))))
+    let _ ← OracleComp.liftRight (spec₁ := unifSpec)
+      (OracleComp.liftLeft
+        (spec₂ := VOLEITHROSpec 3 2 128 2
+          (ROMConservationStmt Unit Bool Bool (Bool × Bool × ℕ)) (Fin (2 ^ 3)) ℕ (macPreMsg 3 2)
+          (Fin (2 ^ 3)))
+        (OracleComp.query ⟨consCollidingSpendQ, prf₂⟩))
+    return false
+  else
+    return false
+
+private theorem toyROMConsOverspendAdversary_req_bound (pk : Unit) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+      (toyROMConsOverspendAdversary pk) 2 := by
+  unfold toyROMConsOverspendAdversary
+  change IsCostBounded _ _ (0 + (1 + 1))
+  refine (IsCostBounded.liftRight
+    (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
+    (fun _ => le_rfl)).bind fun _ => ?_
+  refine (IsCostBounded.liftRight
+    (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+    (IsCostBounded.liftLeft (cost₁ := fun _ => 1) (cost := Sum.elim (fun _ => 1) (fun _ => 0))
+      (IsCostBounded.query _) fun _ => le_rfl)
+    fun _ => le_rfl).bind fun msig₁ => ?_
+  by_cases h : msig₁ == some ((false, false, 0), 0)
+  · simp only [h, ↓reduceIte]
+    change IsCostBounded _ _ (0 + (1 + 0))
+    refine (IsCostBounded.liftRight
+      (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl) _)
+      (fun _ => le_rfl)).bind fun _ => ?_
+    exact (IsCostBounded.liftRight
+      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+      (IsCostBounded.liftLeft (cost₁ := fun _ => 1) (cost := Sum.elim (fun _ => 1) (fun _ => 0))
+        (IsCostBounded.query _) fun _ => le_rfl)
+      fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+  · simp only [h, Bool.false_eq_true, ↓reduceIte]
+    exact OracleComp.IsCostBounded.mono (IsCostBounded.pure _ 0) (Nat.zero_le 1)
+
+private theorem toyROMConsOverspendAdversary_leaf_bound (pk : Unit) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithLeafCost))
+      (toyROMConsOverspendAdversary pk) 16 := by
+  unfold toyROMConsOverspendAdversary
+  change IsCostBounded _ _ (2 ^ 3 + (0 + 8))
+  refine IsCostBounded.bind ?_ fun _ => ?_
+  · exact IsCostBounded.liftRight
+      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithLeafCost))
+      (IsCostBounded.liftRight (cost := Sum.elim (fun _ => 0) voleithLeafCost)
+        (isCostBounded_leaf_voleithProveLeafFS (id : BitString 2 → BitString 2) id id
+          consMkPreMsg 0 (1 : ℕ) (fun _ => 0) consCollidingIssueStmt (fun _ => false))
+        fun _ => le_rfl)
+      fun _ => le_rfl
+  · refine (IsCostBounded.liftRight
+      (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+      fun _ => le_rfl).bind fun msig₁ => ?_
+    by_cases h : msig₁ == some ((false, false, 0), 0)
+    · simp only [h, ↓reduceIte]
+      change IsCostBounded _ _ (2 ^ 3 + (0 + 0))
+      refine IsCostBounded.bind ?_ fun _ => ?_
+      · exact IsCostBounded.liftRight
+          (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithLeafCost))
+          (IsCostBounded.liftRight (cost := Sum.elim (fun _ => 0) voleithLeafCost)
+            (isCostBounded_leaf_voleithProveLeafFS (id : BitString 2 → BitString 2) id id
+              consMkPreMsg 0 (2 : ℕ) (fun _ => 0) consCollidingSpendStmt
+              (fun j => decide (j = 0)))
+            fun _ => le_rfl)
+          fun _ => le_rfl
+      · exact (IsCostBounded.liftRight
+          (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+          fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+    · simp only [h, Bool.false_eq_true, ↓reduceIte]
+      exact OracleComp.IsCostBounded.mono (IsCostBounded.pure _ 0) (Nat.zero_le 8)
+
+private theorem toyROMConsOverspendAdversary_fs_bound (pk : Unit) :
+    IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost))
+      (toyROMConsOverspendAdversary pk) 2 := by
+  unfold toyROMConsOverspendAdversary
+  change IsCostBounded _ _ (1 + (0 + 1))
+  refine IsCostBounded.bind ?_ fun _ => ?_
+  · exact IsCostBounded.liftRight
+      (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost))
+      (IsCostBounded.liftRight (cost := Sum.elim (fun _ => 0) voleithFSCost)
+        (isCostBounded_fs_voleithProveLeafFS (id : BitString 2 → BitString 2) id id
+          consMkPreMsg 0 (1 : ℕ) (fun _ => 0) consCollidingIssueStmt (fun _ => false))
+        fun _ => le_rfl)
+      fun _ => le_rfl
+  · refine (IsCostBounded.liftRight
+      (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+      fun _ => le_rfl).bind fun msig₁ => ?_
+    by_cases h : msig₁ == some ((false, false, 0), 0)
+    · simp only [h, ↓reduceIte]
+      change IsCostBounded _ _ (1 + (0 + 0))
+      refine IsCostBounded.bind ?_ fun _ => ?_
+      · exact IsCostBounded.liftRight
+          (cost := Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) voleithFSCost))
+          (IsCostBounded.liftRight (cost := Sum.elim (fun _ => 0) voleithFSCost)
+            (isCostBounded_fs_voleithProveLeafFS (id : BitString 2 → BitString 2) id id
+              consMkPreMsg 0 (2 : ℕ) (fun _ => 0) consCollidingSpendStmt
+              (fun j => decide (j = 0)))
+            fun _ => le_rfl)
+          fun _ => le_rfl
+      · exact (IsCostBounded.liftRight
+          (IsCostBounded.liftLeft_of_cost_inl_eq_zero (fun _ => rfl) _)
+          fun _ => le_rfl).bind fun _ => IsCostBounded.pure _ 0
+    · simp only [h, Bool.false_eq_true, ↓reduceIte]
+      exact OracleComp.IsCostBounded.mono (IsCostBounded.pure _ 0) (Nat.zero_le 1)
+
+private theorem toyROMConsOverspendAdversary_succ :
+    (romUnextractedConservationExperiment id id Prod.mk
+      (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+      consTestSig toyROMConsOverspendAdversary).succProbability = 1 := by
+  have heval :
+      ProbComp.eval (romUnextractedConservationExperiment id id Prod.mk
+        (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+        consTestSig toyROMConsOverspendAdversary) = PMF.pure true := by
+    simp only [romUnextractedConservationExperiment, runROMUnextractedConservation,
+      ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind,
+      ProbOracleComp.eval_runState,
+      show ProbComp.eval consTestSig.keyGen = PMF.pure ((), ()) from by simp [consTestSig]]
+    have hev :
+        (fun q st => ProbComp.eval (verifyGatedHandlerProg (d := 3) (sdLen := 2) (comLen := 128)
+            (rowLen := 2) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := macPreMsg 3 2)
+            (Chal := Fin (2 ^ 3)) id id (fun req => ⟨(), req.query⟩) ROMConservationRequest.proof
+            (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+            none (romConsAcceptReal Prod.mk consTestSig ((), ())) q st)) =
+          verifyGatedHandler (comLen := 128) (Seed := Fin (2 ^ 3)) (IV := ℕ)
+            id id (fun req => ⟨(), req.query⟩) ROMConservationRequest.proof
+            (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+            none (fun _ => romConsAcceptReal Prod.mk consTestSig ((), ())) :=
+      funext fun q => funext fun st =>
+        verifyGatedHandlerProg_eval id id (fun req => ⟨(), req.query⟩) ROMConservationRequest.proof
+          (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+          none (romConsAcceptReal Prod.mk consTestSig ((), ())) q st
+    rw [hev, PMF.map_eq_pure_iff]
+    rintro run hmem
+    rw [PMF.mem_support_bind_iff] at hmem
+    obtain ⟨⟨ctx_out, roEnd, accEnd⟩, hmem, hmk⟩ := hmem
+    rw [PMF.mem_support_pure_iff] at hmk
+    subst hmk
+    unfold toyROMConsOverspendAdversary at hmem
+    rw [ProbOracleComp.runWith_bind, PMF.mem_support_bind_iff] at hmem
+    obtain ⟨⟨prf₁, roSt₁, acc₁⟩, hprove₁_mem, hrest₁⟩ := hmem
+    rw [runWith_verifyGatedHandler_liftRight, PMF.mem_support_map_iff] at hprove₁_mem
+    obtain ⟨⟨prf₁', roSt₁'⟩, hprove₁', hpair₁⟩ := hprove₁_mem
+    simp only [Prod.mk.injEq] at hpair₁
+    obtain ⟨rfl, rfl, rfl⟩ := hpair₁
+    obtain ⟨hver₁, hiv₁_leaf, hiv₁_fs⟩ := voleithProveLeafFS_verify_of_fresh
+      (id : BitString 2 → BitString 2) id id consMkPreMsg
+      (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+      0 (1 : ℕ) (fun _ => 0) ⟨(), consCollidingIssueQ⟩ (fun _ => false)
+      (fun pCols u delta => by
+        simpa [consMkPreMsg, id_eq] using
+          macCheckRel_complete consDualDecWit
+            (romConservationRel consCollidingCom Prod.mk consTestSig)
+            ⟨(), consCollidingIssueQ⟩ (fun _ => false) (by decide) pCols u delta)
+      ([], []) (by simp) (by simp) hprove₁'
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith,
+      OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
+      OracleComp.liftLeft_query, OracleComp.run_interpret_query] at hrest₁
+    simp only [verifyGatedHandler] at hrest₁
+    rw [hver₁] at hrest₁
+    simp only [PMF.pure_bind, ↓reduceIte, romConsAcceptReal, romAcceptQuery, consTestSig,
+      ROMConservationQuery.signedMessage, consCollidingIssueQ, ProbComp.eval_freeMMap,
+      ProbComp.eval_pure, PMF.pure_map, List.nil_append] at hrest₁
+    rw [show (some ((false, false, 0), 0) == some ((false, false, 0), 0)) = true from by decide]
+      at hrest₁
+    simp only [↓reduceIte] at hrest₁
+    rw [ProbOracleComp.runWith_bind, PMF.mem_support_bind_iff] at hrest₁
+    obtain ⟨⟨prf₂, roSt₂, acc₂⟩, hprove₂_mem, hrest₂⟩ := hrest₁
+    rw [runWith_verifyGatedHandler_liftRight, PMF.mem_support_map_iff] at hprove₂_mem
+    obtain ⟨⟨prf₂', roSt₂'⟩, hprove₂', hpair₂⟩ := hprove₂_mem
+    simp only [Prod.mk.injEq] at hpair₂
+    obtain ⟨rfl, rfl, rfl⟩ := hpair₂
+    have hiv₂_leaf : ∀ e ∈ roSt₁'.1, e.1.iv ≠ (2 : ℕ) := fun e he => by
+      rcases hiv₁_leaf e he with h | h <;> simp_all
+    have hiv₂_fs : ∀ e ∈ roSt₁'.2, e.1.iv ≠ (2 : ℕ) := fun e he => by
+      rcases hiv₁_fs e he with h | h <;> simp_all
+    obtain ⟨hver₂, _, _⟩ := voleithProveLeafFS_verify_of_fresh
+      (id : BitString 2 → BitString 2) id id consMkPreMsg
+      (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+      0 (2 : ℕ) (fun _ => 0) ⟨(), consCollidingSpendQ⟩ (fun j => decide (j = 0))
+      (fun pCols u delta => by
+        simpa [consMkPreMsg, id_eq] using
+          macCheckRel_complete consDualDecWit
+            (romConservationRel consCollidingCom Prod.mk consTestSig)
+            ⟨(), consCollidingSpendQ⟩ (fun j => decide (j = 0)) (by decide) pCols u delta)
+      roSt₁' hiv₂_leaf hiv₂_fs hprove₂'
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith,
+      OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
+      OracleComp.liftLeft_query, OracleComp.run_interpret_query] at hrest₂
+    simp only [verifyGatedHandler] at hrest₂
+    simp only [consTestSig] at hver₂
+    rw [hver₂] at hrest₂
+    have hacc2 : romAcceptQuery [consCollidingIssueQ] consCollidingSpendQ = true := by decide
+    simp only [consCollidingIssueQ] at hacc2
+    simp only [PMF.pure_bind, ↓reduceIte, romConsAcceptReal, hacc2,
+      ProbComp.eval_freeMMap, ProbComp.eval_pure, PMF.pure_map,
+      ProbOracleComp.runWith_pure] at hrest₂
+    change _ ∈ (PMF.pure _).support at hrest₂
+    rw [PMF.mem_support_pure_iff, Prod.mk.injEq] at hrest₂
+    obtain ⟨rfl, rfl, rfl⟩ := hrest₂
+    dsimp only
     decide
-  · intro ()
-    constructor <;> ext idx <;> simp [Fin.eq_zero idx]
+  simp [Experiment.succProbability, Game.succProbability, heval]
 
-/-- Query-log separation holds even on our non-trivial `1 / 8`-sound `d = 3` VOLE protocol
-(`toyCheckRel`): valid witnesses `w₀ = 0` and `w₁ = (fun _ => 1)` both satisfy `toyCheckRel`
-with `prgLeaf` using zero `H_leaf` queries, so every `extLog` fails on one of them with
-probability `1`. -/
+/-- Non-vacuous probability-`1` overspending bound on `AnonymousToken.Conservation` under the
+colliding commitment `consCollidingCom`: `1 ≤ eufCma + binding + voleithKSBound` with
+`voleithKSBound < 1`. -/
+example :
+    1 ≤
+      (consTestSig.eufCmaExperiment (targetForger (Credit.target consCollidingCom Prod.mk)
+          (Conservation.noteForger consCollidingCom Prod.mk consTestSig
+            (extractedAdversaryOfROM id consDualDecWit id
+              (macCheckRel consDualDecWit
+                (romConservationRel consCollidingCom Prod.mk consTestSig))
+              toyROMConsOverspendAdversary)))).succProbability +
+        (consCollidingComScheme.bindingExperiment
+          (Conservation.commitmentBindingReduction consCollidingCom consTestSig
+            (extractedAdversaryOfROM id consDualDecWit id
+              (macCheckRel consDualDecWit
+                (romConservationRel consCollidingCom Prod.mk consTestSig))
+              toyROMConsOverspendAdversary))).succProbability +
+        voleithKSBound 3 128 (16 + 2 * (2 ^ 3 - 1)) (2 + 2) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) ∧
+    (voleithKSBound 3 128 (16 + 2 * (2 ^ 3 - 1)) (2 + 2) ((1 : ℝ≥0) / (2 ^ 3 : ℝ≥0)) :
+        ℝ≥0∞) < 1 := by
+  refine ⟨?_, ?_⟩
+  · simpa only [toyROMConsOverspendAdversary_succ] using
+      unextractedConservationExperiment_succProbability_le_prod_mk id consDualDecWit id
+        consCollidingCom consCollidingComScheme (fun _ _ _ _ _ _ => rfl) consTestSig
+        (macCheckRel consDualDecWit (romConservationRel consCollidingCom Prod.mk consTestSig))
+        (macCheckRel_sound_error consDualDecWit
+          (romConservationRel consCollidingCom Prod.mk consTestSig))
+        toyROMConsOverspendAdversary toyROMConsOverspendAdversary_req_bound
+        toyROMConsOverspendAdversary_leaf_bound toyROMConsOverspendAdversary_fs_bound
+  · exact voleithKSBound_lt_one_of (d := 3) (comLen := 128) (Q_leaf := 16 + 2 * (2 ^ 3 - 1))
+      (Q_FS := 2 + 2) (k := 12) (num := 1) (e := 3) (ε_rel := (1 : ℝ≥0) / (2 ^ 3 : ℝ≥0))
+      (by decide) (by decide) (by decide) (by simp)
+
+/-! ## 3. Non-degenerate `d = 3` separations for PRG leaf commitments (`leaf_hash::aes_ctr`) -/
+
+private theorem xor_add_cancel {n : ℕ} (a b : BitString n) : a + (b + a) + b = 0 := by
+  funext k
+  simp only [Pi.add_apply, Bool.add_eq_xor, Pi.zero_apply]
+  change xor (xor (a k) (xor (b k) (a k))) (b k) = false
+  cases a k <;> cases b k <;> decide
+
+private theorem convertExpandedRows_add {rowLen : ℕ} :
+    ∀ {d : ℕ} (f g : Fin (2 ^ d) → BitString rowLen),
+      (FAEST.convertExpandedRows d (f + g)).u =
+        (FAEST.convertExpandedRows d f).u + (FAEST.convertExpandedRows d g).u
+  | 0, _, _ => rfl
+  | d + 1, f, g => by
+    have hp : FAEST.pairRows (f + g) = FAEST.pairRows f + FAEST.pairRows g := by
+      funext i
+      simp only [FAEST.pairRows, Pi.add_apply]
+      abel
+    simpa [FAEST.convertExpandedRows, hp] using
+      convertExpandedRows_add (FAEST.pairRows f) (FAEST.pairRows g)
+
+/-- Colliding deterministic `d = 3` leaf PRG (`com = 0` regardless of seed, while parity of seed
+determines the expanded row). -/
 private def prgLeafD3 (s : Fin (2 ^ 3)) (_ : ℕ) (_ : Fin (2 ^ 3)) : LeafOutput 2 128 :=
   ⟨fun _ => decide (s.val % 2 = 1), 0⟩
 
+/-- Honest `d = 3` PRG prover makes zero `H_leaf` queries, leaves `st.1 = []`, and passes
+`prgLeafVerify` with probability `1`. -/
+example :
+    IsCostBounded
+      (Sum.elim (fun _ => 0) (voleithLeafCost (d := 3) (Seed := Fin (2 ^ 3)) (IV := ℕ)
+        (comLen := 128) (rowLen := 2) (Stmt := Bool) (PreMsg := Fin 3 → Bool)))
+      (prgLeafProver (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2) (Chal := Fin (2 ^ 3))
+        id prgLeafD3 id id toyMkPreMsg 0 7 (fun _ => 0) true (fun _ => true)) 0 :=
+  prgLeafProver_leafCost_zero id prgLeafD3 id id toyMkPreMsg 0 7 (fun _ => 0) true (fun _ => true)
+
+example {b : Bool} {st : VOLEITHTraceState 3 2 128 2 Bool (Fin (2 ^ 3)) ℕ (Fin 3 → Bool)
+    (Fin (2 ^ 3))}
+    (hmem : (b, st) ∈ (ProbOracleComp.runWith
+      (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+        (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+        (Chal := Fin (2 ^ 3)))
+      (prgLeafGame (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2) (Chal := Fin (2 ^ 3))
+        id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true (fun _ => true))
+      ([], [])).support) :
+    st.1 = [] :=
+  prgLeafGame_leafTrace_eq_nil id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true
+    (fun _ => true) (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta) hmem
+
+example :
+    ((ProbOracleComp.runWith
+      (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+        (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+        (Chal := Fin (2 ^ 3)))
+      (prgLeafGame (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2) (Chal := Fin (2 ^ 3))
+        id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true (fun _ => true))
+      ([], [])).map Prod.fst) = PMF.pure true :=
+  prgLeafGame_eq_pure_true id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true
+    (fun _ => true) (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta)
+
+/-- On an empty `H_leaf` trace, `extractWitnessFromTrace` recovers only `decWit prf.dCorr` (and
+when the PRG `u` happens to be `0`, fails when `extLog [] = none` on `toyRel true`). -/
+example (prf : VOLEITHProof 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool)) :
+    extractWitnessFromTrace (id : BitString 2 → BitString 2) (id : BitString 2 → BitString 2)
+      ([] : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ) prf = prf.dCorr :=
+  extractWitnessFromTrace_nil id id prf
+
+example (extLog : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ → Option (BitString 2))
+    (hfail : (extLog []).elim false (toyRel true) = false) :
+    ((ProbOracleComp.runWith
+      (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+        (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+        (Chal := Fin (2 ^ 3)))
+      (prgLeafGame (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2) (Chal := Fin (2 ^ 3))
+        id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true (fun _ => true))
+      ([], [])).map fun (b, st) =>
+        decide (b = true ∧ (extLog st.1).elim false (toyRel true) = false)).toOuterMeasure
+          {true} = 1 :=
+  toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one id prgLeafD3 id id toyMkPreMsg toyRel
+    toyCheckRel 0 7 (fun _ => 0) true (fun _ => true)
+    (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta) extLog hfail
+
+/-- **Disjoint-statement query-log separation (`d = 3`, `1 / 8`-sound `toyCheckRel`)**: **every**
+query-log extractor `extLog` fails `toyRel` with probability `1` on at least one of the valid
+pairs `(false, 0)` or `(true, fun _ => true)`. -/
 example (extLog : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ → Option (BitString 2)) :
-    ∃ w : BitString 2,
+    ∃ stmt : Bool, ∃ w : BitString 2, toyRel stmt w = true ∧
       ((ProbOracleComp.runWith
         (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
           (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
           (Chal := Fin (2 ^ 3)))
         (prgLeafGame (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2) (Chal := Fin (2 ^ 3))
-          id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true w)
-        ([], [])).map fun (b, st) => decide (b = true ∧ extLog st.1 ≠ some w)).toOuterMeasure
-          {true} = 1 :=
-  exists_witness_prgLeaf_queryLog_fails_eq_one id prgLeafD3 id id toyMkPreMsg toyCheckRel
-    0 7 (fun _ => 0) true (fun j => if j = 0 then true else false) (fun _ => true)
-    (by
-      intro heq
-      have h := congrFun heq 1
-      simp at h)
-    (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta)
+          id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) stmt w)
+        ([], [])).map fun (b, st) =>
+          decide (b = true ∧ (extLog st.1).elim false (toyRel stmt) = false)).toOuterMeasure
+            {true} = 1 := by
+  refine exists_valid_prgLeaf_queryLog_fails_Rel_eq_one id prgLeafD3 id id toyMkPreMsg toyRel
+    toyCheckRel 0 7 (fun _ => 0) false true (0 : BitString 2) (fun _ => true)
+    (by decide) (by decide) ?_
+    (fun pCols u delta => toyCheckRel_complete false _ rfl pCols u delta)
     (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta)
     extLog
+  intro w' ⟨h0, h1⟩
+  simp only [toyRel, decide_eq_true_eq] at h0 h1
+  exact absurd (h0.symm.trans h1) (by decide)
+
+/-- **Preimage-table separation at `d = 3`**: for **every** preimage extractor `extPre`,
+choosing leaf `0` with opposite parity from `extPre (fun _ => 0) 7 0` yields a valid accepting
+proof (`ok = true`) whose preimage-extracted witness fails `toyRel true` with probability `1`. -/
+example (extPre : (Fin (2 ^ 3) → BitString 128) → ℕ → Fin (2 ^ 3) → Fin (2 ^ 3)) :
+    let keys : Fin (2 ^ 3) → Fin (2 ^ 3) := fun idx =>
+      if idx = 0 then (if (extPre (fun _ => 0) 7 0).val % 2 = 0 then 1 else 0)
+      else extPre (fun _ => 0) 7 idx
+    toyRel true (fun _ => true) = true ∧
+      ((ProbOracleComp.runWith
+        (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+          (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+          (Chal := Fin (2 ^ 3)))
+        (do
+          let prf ← prgLeafProver (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+            (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+            (Chal := Fin (2 ^ 3)) id prgLeafD3 id id toyMkPreMsg 0 7 keys true (fun _ => true)
+          let ok ← prgLeafVerify id prgLeafD3 id toyCheckRel true prf
+          return (ok, prf)) ([], [])).map fun ((ok, prf), _) =>
+            let wExt := (id : BitString 2 → BitString 2) (prf.dCorr +
+              (FAEST.convertExpandedRows 3
+                (fun idx => (id : BitString 2 → BitString 2)
+                  (prgLeafD3 (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
+            decide (ok = true ∧ toyRel true wExt = false)).toOuterMeasure {true} = 1 := by
+  intro keys
+  refine prgLeaf_preimage_extractor_fails id prgLeafD3 id id id toyMkPreMsg toyRel toyCheckRel
+    extPre 0 7 keys true (fun _ => true) (by decide)
+    (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta) ?_
+  have hrow_eq :
+      (fun idx => (prgLeafD3 (keys idx) 7 idx).seedOut) =
+      (fun idx => (prgLeafD3 (extPre (fun _ => 0) 7 idx) 7 idx).seedOut) +
+        fun idx => if idx = 0 then (fun _ => true) else (0 : BitString 2) := by
+    funext idx k
+    simp only [keys, prgLeafD3, Pi.add_apply, Bool.add_eq_xor]
+    by_cases h0 : idx = 0
+    · subst h0
+      simp only [↓reduceIte]
+      split_ifs with hmod
+      · rw [show decide ((1 : Fin (2 ^ 3)).val % 2 = 1) = true from by decide]
+        rw [decide_eq_false_iff_not.mpr (by omega)]
+        decide
+      · have hlt : (extPre (fun _ => 0) 7 0).val % 2 < 2 := Nat.mod_lt _ (by decide)
+        rw [show decide ((0 : Fin (2 ^ 3)).val % 2 = 1) = false from by decide]
+        rw [decide_eq_true (by omega)]
+        decide
+    · simp only [h0, ↓reduceIte]
+      cases decide ((extPre (fun _ => 0) 7 idx).val % 2 = 1) <;> rfl
+  have hbasis :
+      (FAEST.convertExpandedRows 3
+        (fun idx : Fin (2 ^ 3) => if idx = 0 then (fun _ : Fin 2 => true) else 0)).u =
+        fun _ => true := by
+    decide
+  have hcoms : (fun j => (prgLeafD3 (keys j) 7 j).com) = fun _ => 0 := rfl
+  simp only [id_eq]
+  rw [hcoms, hrow_eq, convertExpandedRows_add, hbasis, xor_add_cancel]
+  decide
+
+/-- **Proof-only separation at `d = 3`**: hiding leaf `deltaStar = 0`, `(false, 0, fun _ => 0)`
+and `(true, fun _ => true, fun idx => if idx = 0 then 1 else 0)` emit the exact same proof at
+`deltaStar = 0`, so **every** proof-only extractor `ext : LeafTrace → VOLEITHProof → Option Wit`
+fails `toyRel` with probability at least `1 / 8`. -/
+example (ext : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ →
+    VOLEITHProof 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool) → Option (BitString 2)) :
+    ∃ stmt : Bool, ∃ w : BitString 2, ∃ keys : Fin (2 ^ 3) → Fin (2 ^ 3),
+      toyRel stmt w = true ∧
+      (((Fintype.card (Fin (2 ^ 3)) : ℝ≥0∞)⁻¹) ≤
+        ((ProbOracleComp.runWith
+          (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+            (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+            (Chal := Fin (2 ^ 3)))
+          (do
+            let prf ← prgLeafProver (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+              (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+              (Chal := Fin (2 ^ 3)) id prgLeafD3 id id toyMkPreMsg 0 7 keys stmt w
+            let ok ← prgLeafVerify id prgLeafD3 id toyCheckRel stmt prf
+            return (ok, prf)) ([], [])).map fun ((ok, prf), st) =>
+              decide (ok = true ∧ (ext st.1 prf).elim false (toyRel stmt) = false)).toOuterMeasure
+            {true}) := by
+  refine exists_valid_prgLeaf_proofOnly_extract_fails_ge id prgLeafD3 id id toyMkPreMsg toyRel
+    toyCheckRel 0 7 (fun _ => 0) (fun idx => if idx = 0 then 1 else 0)
+    false true (0 : BitString 2) (fun _ => true) (by decide) (by decide) ?_
+    (fun pCols u delta => toyCheckRel_complete false _ rfl pCols u delta)
+    (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta)
+    0 ?_ ext
+  · intro w' ⟨h0, h1⟩
+    simp only [toyRel, decide_eq_true_eq] at h0 h1
+    exact absurd (h0.symm.trans h1) (by decide)
+  · apply prgLeafProofOfDelta_eq_of
+    · intro idx; rfl
+    · decide
+    · decide
+    · intro idx hne
+      by_cases h : idx = 0
+      · exact absurd h hne
+      · simp [h]
 
 end CslibFrontierTests.Crypto.VOLEROExtractor
