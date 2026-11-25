@@ -40,8 +40,9 @@ stability, minimality, controllability, observability or diagonalizability assum
 
 ## Impulse response and direct feedthrough
 
-The *response kernel* is `h t = C * exp (t • A) * B` (`LTISystem.responseKernel`); its time-zero
-value is `h 0 = C * B`. Every solution has output (`LTISystem.IsSolutionOn.output_eq`)
+The *response kernel* is `h t = C * exp (t • A) * B` (`LTISystem.responseKernel`, with defining
+equation `LTISystem.responseKernel_eq`); its time-zero value is `h 0 = C * B`. Every solution has
+output (`LTISystem.IsSolutionOn.output_eq`, `LTISystem.IsSolutionOn.output_eq_Ici`)
 `y t = C *ᵥ (exp (t • A) *ᵥ x 0) + D *ᵥ u t + ∫ s in 0..t, h (t - s) *ᵥ u s`
 for `t ≥ 0`: the zero-input response from the initial state, plus the zero-state input/output
 response `D u + h ∗ u`. This is derived from the state equation, not from a transfer function.
@@ -61,7 +62,9 @@ state-space realization of the proposal, without computing a matrix exponential:
 `X` satisfies `X 0 = B` and `X' = A * X` columnwise on `[0, ∞)`, then `h t = C * X t` for `t ≥ 0`
 (`LTISystem.responseKernel_eq_of_hasDerivWithinAt`, from
 `Matrix.exp_smul_mul_eq_of_hasDerivWithinAt`). The obligations are an initial value and ordinary
-derivatives, discharged with Mathlib's calculus API. A user imports this module only.
+derivatives, discharged with Mathlib's calculus API. This module is the only import needed from
+the ODE layer; a client also imports the Mathlib `HasDerivAt` rules (for `Real.exp`, `Real.sin`,
+products, ...) that its closed form uses.
 
 ## Realizations of other models
 
@@ -86,8 +89,8 @@ input does not produce a system of this form.
   a solution on `[0, T]`, resp. `[0, ∞)`.
 * `LTISystem.IsSolutionOn.eq_Icc`, `LTISystem.IsSolutionOn.eq_Ici`: every solution is the
   variation-of-constants curve of its initial state.
-* `LTISystem.IsSolutionOn.output_eq`: the output formula with initial state, feedthrough and
-  convolution terms.
+* `LTISystem.IsSolutionOn.output_eq`, `LTISystem.IsSolutionOn.output_eq_Ici`: the output formula
+  with initial state, feedthrough and convolution terms, on `[0, T]`, resp. `[0, ∞)`.
 * `LTISystem.IsSolutionOn.output_eq_integral_indicator`: for `D = 0` and zero initial state, the
   output is the convolution over `ℝ` of the causal kernel with the causal input.
 * `LTISystem.responseKernel_mulVec_eq`: the response of the unforced system from the state
@@ -129,10 +132,14 @@ variable {n m p : Type*} [Fintype n] [DecidableEq n] (S : LTISystem n m p)
 impulse response, and the whole impulse response when `D = 0`. -/
 noncomputable def responseKernel (t : ℝ) : Matrix p m ℝ := S.C * exp (t • S.A) * S.B
 
+/-- The defining equation of the response kernel, for every `t : ℝ`. -/
+theorem responseKernel_eq (t : ℝ) : S.responseKernel t = S.C * exp (t • S.A) * S.B := by
+  rfl
+
 /-- The time-zero value of the response kernel is `C * B`. -/
 @[simp]
 theorem responseKernel_zero : S.responseKernel 0 = S.C * S.B := by
-  simp [responseKernel]
+  simp [responseKernel_eq]
 
 variable {S}
 
@@ -144,7 +151,7 @@ theorem responseKernel_eq_of_hasDerivWithinAt {X : ℝ → Matrix n m ℝ}
     (hX : ∀ j, ∀ t ∈ Ici (0 : ℝ),
       HasDerivWithinAt (fun τ => (X τ)ᵀ j) (S.A *ᵥ (X t)ᵀ j) (Ici 0) t)
     (hX₀ : X 0 = S.B) {t : ℝ} (ht : 0 ≤ t) : S.responseKernel t = S.C * X t := by
-  rw [responseKernel, Matrix.mul_assoc, ← hX₀, exp_smul_mul_eq_of_hasDerivWithinAt hX ht]
+  rw [responseKernel_eq, Matrix.mul_assoc, ← hX₀, exp_smul_mul_eq_of_hasDerivWithinAt hX ht]
 
 /-- **Similar realizations have the same response kernel.** The change of state coordinates
 `x ↦ T x` by an invertible `T` maps `(A, B, C, D)` to `(T A T⁻¹, T B, C T⁻¹, D)` and preserves the
@@ -153,7 +160,7 @@ theorem responseKernel_similar {T : Matrix n n ℝ} (hT : IsUnit T) (t : ℝ) :
     ({ A := T * S.A * T⁻¹, B := T * S.B, C := S.C * T⁻¹, D := S.D } :
       LTISystem n m p).responseKernel t = S.responseKernel t := by
   have hdet := (Matrix.isUnit_iff_isUnit_det T).1 hT
-  simp only [responseKernel]
+  simp only [responseKernel_eq]
   rw [show t • (T * S.A * T⁻¹) = T * (t • S.A) * T⁻¹ by
     rw [Matrix.mul_smul, Matrix.smul_mul], Matrix.exp_conj T _ hT]
   simp only [Matrix.mul_assoc, Matrix.nonsing_inv_mul_cancel_left _ _ hdet]
@@ -290,8 +297,17 @@ theorem IsSolutionOn.output_eq {T : ℝ} (hx : S.IsSolutionOn u x (Icc 0 T))
   have hL := (LinearMap.toContinuousLinearMap (Matrix.toLin' S.C)).intervalIntegral_comp_comm hint
   simp only [LinearMap.coe_toContinuousLinearMap', Matrix.toLin'_apply, Function.comp_apply,
     id] at hL
-  simp only [responseKernel, ← mulVec_mulVec]
+  simp only [responseKernel_eq, ← mulVec_mulVec]
   exact hL.symm
+
+/-- **Output formula on `[0, ∞)`.** For an input continuous on `[0, ∞)`, every solution on
+`[0, ∞)` has output
+`y t = C *ᵥ (exp (t • A) *ᵥ x 0) + D *ᵥ u t + ∫ s in 0..t, h (t - s) *ᵥ u s` for `t ≥ 0`. -/
+theorem IsSolutionOn.output_eq_Ici (hx : S.IsSolutionOn u x (Ici 0))
+    (hu : ContinuousOn u (Ici 0)) {t : ℝ} (ht : 0 ≤ t) :
+    S.C *ᵥ x t + S.D *ᵥ u t = S.C *ᵥ (exp (t • S.A) *ᵥ x 0) + S.D *ᵥ u t +
+      ∫ s in 0..t, S.responseKernel (t - s) *ᵥ u s :=
+  (hx.mono Icc_subset_Ici_self).output_eq (T := t) (hu.mono Icc_subset_Ici_self) ⟨ht, le_rfl⟩
 
 /-- **The impulse-response theorem for `D = 0`.** With no direct feedthrough and zero initial
 state, the output of every solution on `[0, ∞)` driven by an input continuous on `[0, ∞)` is the
@@ -301,8 +317,7 @@ theorem IsSolutionOn.output_eq_integral_indicator (hx : S.IsSolutionOn u x (Ici 
     (hu : ContinuousOn u (Ici 0)) (hx₀ : x 0 = 0) (hD : S.D = 0) {t : ℝ} (ht : 0 ≤ t) :
     S.C *ᵥ x t + S.D *ᵥ u t =
       ∫ s, (Ici 0).indicator S.responseKernel (t - s) *ᵥ (Ici 0).indicator u s := by
-  rw [(hx.mono Icc_subset_Ici_self).output_eq (T := t) (hu.mono Icc_subset_Ici_self)
-    ⟨ht, le_rfl⟩, hx₀, hD, mulVec_zero, mulVec_zero, zero_mulVec, add_zero, zero_add]
+  rw [hx.output_eq_Ici hu ht, hx₀, hD, mulVec_zero, mulVec_zero, zero_mulVec, add_zero, zero_add]
   have h : (fun s => (Ici 0).indicator S.responseKernel (t - s) *ᵥ (Ici 0).indicator u s) =
       (Icc 0 t).indicator fun s => S.responseKernel (t - s) *ᵥ u s := by
     funext s
@@ -321,7 +336,7 @@ theorem responseKernel_mulVec_eq (hx : S.IsSolutionOn 0 x (Ici 0)) {v : m → �
     (hx₀ : x 0 = S.B *ᵥ v) {t : ℝ} (ht : 0 ≤ t) : S.responseKernel t *ᵥ v = S.C *ᵥ x t := by
   have hx' : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt x (S.A *ᵥ x t) (Ici 0) t := fun t ht => by
     simpa using hx t ht
-  rw [eq_exp_smul_mulVec_of_hasDerivWithinAt hx' ht, hx₀, responseKernel]
+  rw [eq_exp_smul_mulVec_of_hasDerivWithinAt hx' ht, hx₀, responseKernel_eq]
   simp only [mulVec_mulVec, Matrix.mul_assoc]
 
 end LTISystem
