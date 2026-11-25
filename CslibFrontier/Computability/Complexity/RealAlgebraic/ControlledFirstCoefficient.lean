@@ -72,8 +72,8 @@ noncomputable def firstVariableCoefficient (C : Controlled P enc a) (E : Decoder
   cutoff w := max (C.cutoff w) (max (C.degreeBound w) (k w)) + 1
   cutoff_computable := binary_add'
     (binary_max' C.cutoff_computable (binary_max' C.degree_computable hk)) (.const 1)
-  evaluate := fun q => coefficientResidue q.2.1 (k q.1)
-    (fun t => C.evaluate (q.1, q.2.1, t :: q.2.2))
+  evaluate := fun (w, p, z) => coefficientResidue p (k w)
+    (fun t => C.evaluate (w, p, t :: z))
   evaluate_mem := firstVariableCoefficient_mem C E k hk
   evaluate_eq w p z hp hcut := by
     let : Fact p.Prime := ⟨hp⟩
