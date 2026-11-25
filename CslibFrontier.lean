@@ -6943,6 +6943,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.BranchReplay
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.NoAcc
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Compression
+public import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeFiberSeparation
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.PackedCount
 public import CslibFrontier.Computability.Circuit.Boolean.AltFormula
 public import CslibFrontier.Foundations.Combinatorics.Bregman

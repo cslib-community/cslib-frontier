@@ -78,6 +78,14 @@ noncomputable def specializedRelativeValueSection (hell : 1 ≤ ell)
   (finSuccEquiv ℤ m (finiteRelativeValueSection hell F hF)).map
     (eval₂Hom (Int.castRingHom T) x)
 
+/-- Each coefficient of the specialized section is the evaluation of its parameter polynomial. -/
+theorem coeff_specializedRelativeValueSection_eq_eval₂ (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (i : ℕ) :
+    (specializedRelativeValueSection hell F hF x).coeff i =
+      eval₂ (Int.castRingHom T) x
+        ((finSuccEquiv ℤ m (finiteRelativeValueSection hell F hF)).coeff i) :=
+  Polynomial.coeff_map _ _
+
 /-- The univariate fiber evaluates to the fixed-power section at the supplied critical value. -/
 theorem eval_specializedRelativeValueSection (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin (n + m)) ℤ) (hF : F.totalDegree ≤ ell) (x : Fin m → T) (y : T) :
