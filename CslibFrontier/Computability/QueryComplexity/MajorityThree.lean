@@ -88,65 +88,48 @@ private theorem hardCost_node_fixed (i : Fin 3) (left right : DecisionTree (Fin 
     (ρ : Restriction) (b : Bool) (hρ : ρ i = some b) :
     hardCost (.node i left right) ρ =
       (if b then hardCost right ρ else hardCost left ρ) + hardMass ρ := by
-  have hsum : hardCost (.node i left right) ρ =
-      hardCost (if b then right else left) ρ + hardMass ρ := by
-    calc
-      _ = ∑ x ∈ hardInputs.filter ρ.Agrees, ((if b then right else left).cost x + 1) := by
-        apply Finset.sum_congr rfl
-        intro x hx
-        have hxi := (Finset.mem_filter.mp hx).2 i b hρ
-        cases b <;> simp [DecisionTree.cost_node, hxi]
-      _ = _ := by simp [hardCost, hardMass, Finset.sum_add_distrib]
-  cases b <;> exact hsum
+  cases b <;>
+    simpa [hardCost, hardMass, Finset.sum_add_distrib] using
+      Finset.sum_congr rfl fun x hx => by
+        simp [(Finset.mem_filter.mp hx).2 i _ hρ]
 
 private theorem hardCost_node_free (i : Fin 3) (left right : DecisionTree (Fin 3) Bool)
     (ρ : Restriction) (hi : ρ i = none) :
     hardCost (.node i left right) ρ = hardMass ρ +
       hardCost left (Function.update ρ i (some false)) +
       hardCost right (Function.update ρ i (some true)) := by
-  have hmass : hardMass ρ = ∑ x ∈ hardInputs.filter ρ.Agrees, (1 : ℕ) := by
-    simp [hardMass]
-  rw [hmass]
+  rw [show hardMass ρ = ∑ _ ∈ hardInputs.filter ρ.Agrees, (1 : ℕ) by simp [hardMass]]
   simp only [hardCost, Finset.sum_filter, ← Finset.sum_add_distrib]
-  apply Finset.sum_congr rfl
-  intro x _
+  refine Finset.sum_congr rfl fun x _ => ?_
   simp only [PartialAssignment.agrees_update_iff_of_eq_none hi false x,
     PartialAssignment.agrees_update_iff_of_eq_none hi true x]
-  by_cases hx : ρ.Agrees x
-  · cases hxi : x i <;> simp [hx, hxi, DecisionTree.cost_node, Nat.add_comm]
-  · simp [hx]
+  by_cases hx : ρ.Agrees x <;> cases hxi : x i <;>
+    simp [hx, hxi, DecisionTree.cost_node, Nat.add_comm]
 
 private theorem potential_le_hardCost (t : DecisionTree (Fin 3) Bool) :
     ∀ ρ, (∀ x, ρ.Agrees x → t.eval x = majority 3 x) →
       potential ρ ≤ hardCost t ρ := by
   induction t with
   | leaf b =>
-    intro ρ hc
-    rw [potential_leaf ρ b (fun x hx => (hc x hx).symm)]
-    exact Nat.zero_le _
+    exact fun ρ hc => by
+      rw [potential_leaf ρ b fun x hx => (hc x hx).symm]
+      exact Nat.zero_le _
   | node i left right ihl ihr =>
     intro ρ hc
     cases hρ : ρ i with
     | some b =>
       rw [hardCost_node_fixed i left right ρ b hρ]
-      cases b with
-      | false =>
-        have hleft := ihl ρ fun x hx => by
-          have hxi := hx i false hρ
-          simpa only [DecisionTree.eval_node, hxi, Bool.cond_false] using hc x hx
-        exact hleft.trans (Nat.le_add_right _ _)
-      | true =>
-        have hright := ihr ρ fun x hx => by
-          have hxi := hx i true hρ
-          simpa only [DecisionTree.eval_node, hxi, Bool.cond_true] using hc x hx
-        exact hright.trans (Nat.le_add_right _ _)
+      cases b
+      · exact (ihl ρ fun x hx => by
+          simpa [DecisionTree.eval_node, hx i false hρ] using hc x hx).trans (Nat.le_add_right _ _)
+      · exact (ihr ρ fun x hx => by
+          simpa [DecisionTree.eval_node, hx i true hρ] using hc x hx).trans (Nat.le_add_right _ _)
     | none =>
-      have hchild (b : Bool) (x : (Fin 3 → Bool))
+      have hchild (b : Bool) (x : Fin 3 → Bool)
           (hx : PartialAssignment.Agrees (Function.update ρ i (some b)) x) :
           (if b then right else left).eval x = majority 3 x := by
         obtain ⟨hbase, hxi⟩ := (PartialAssignment.agrees_update_iff_of_eq_none hρ b x).mp hx
-        cases b <;> simpa only [DecisionTree.eval_node, hxi, Bool.cond_false,
-          Bool.cond_true, Bool.false_eq_true, ↓reduceIte] using hc x hbase
+        cases b <;> simpa [DecisionTree.eval_node, hxi] using hc x hbase
       have hl := ihl (Function.update ρ i (some false)) (hchild false)
       have hr := ihr (Function.update ρ i (some true)) (hchild true)
       rw [hardCost_node_free i left right ρ hρ]
@@ -204,18 +187,14 @@ theorem weights_hardDistribution (x : Fin 3 → Bool) :
 
 private theorem hardDistribution_cost (t : DecisionTree (Fin 3) Bool) :
     t.distributionalCost hardDistribution = (∑ x ∈ hardInputs, (t.cost x : ℝ)) / 6 := by
-  rw [DecisionTree.distributionalCost_eq_sum,
-    Finsupp.sum_fintype _ _ fun _ => zero_mul _]
-  change (∑ x : (Fin 3 → Bool), (if x ∈ hardInputs then (1 / 6 : ℝ) else 0) * (t.cost x : ℝ)) = _
-  simp only [ite_mul, zero_mul, one_div]
-  rw [← Finset.sum_filter]
-  simp [div_eq_inv_mul, Finset.mul_sum]
+  rw [DecisionTree.distributionalCost_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _]
+  change (∑ x : Fin 3 → Bool, (if x ∈ hardInputs then (1 / 6 : ℝ) else 0) * t.cost x) = _
+  simp [ite_mul, div_eq_inv_mul, Finset.mul_sum]
 
 theorem hardDistribution_lower (t : DecisionTree (Fin 3) Bool)
     (ht : t.Computes (majority 3)) : (8 : ℝ) / 3 ≤ t.distributionalCost hardDistribution := by
   rw [hardDistribution_cost, ← Nat.cast_sum]
-  have h : (16 : ℝ) ≤ (∑ x ∈ hardInputs, t.cost x : ℕ) := by
-    exact_mod_cast hardCost_lower t ht
+  have h : (16 : ℝ) ≤ (∑ x ∈ hardInputs, t.cost x : ℕ) := by exact_mod_cast hardCost_lower t ht
   linarith
 
 theorem algorithm_expectedCost (x : (Fin 3 → Bool)) :
@@ -229,13 +208,11 @@ end MajorityThree
 /-- Three-bit majority has zero-error expected query complexity exactly `8 / 3`. -/
 theorem zeroErrorComplexity_majority_three :
     zeroErrorComplexity (majority 3) = 8 / 3 := by
-  refine le_antisymm (zeroErrorComplexity_le MajorityThree.algorithm_computes ?_) ?_
-  · intro x
-    rw [MajorityThree.algorithm_expectedCost]
+  refine le_antisymm (zeroErrorComplexity_le MajorityThree.algorithm_computes fun x => ?_)
+    (le_zeroErrorComplexity fun μ c hμ hc => ?_)
+  · rw [MajorityThree.algorithm_expectedCost]
     split_ifs <;> norm_num
-  · apply le_zeroErrorComplexity
-    intro μ c hμ hc
-    obtain ⟨t, ht, hcost⟩ := hμ.exists_distributionalCost_le MajorityThree.hardDistribution hc
+  · obtain ⟨t, ht, hcost⟩ := hμ.exists_distributionalCost_le MajorityThree.hardDistribution hc
     exact (MajorityThree.hardDistribution_lower t ht).trans hcost
 
 end Cslib.QueryComplexity

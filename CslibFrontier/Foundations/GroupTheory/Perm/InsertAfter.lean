@@ -52,28 +52,22 @@ theorem insertAfter_other (f : Perm α) (h a : α) (ha : a ≠ h) :
 
 private theorem sameCycle_collapse_step (f : Perm α) (h : α) (x : Option α) :
     f.SameCycle (collapse h x) (collapse h (insertAfter f h x)) := by
-  cases x with
-  | none => simpa only [collapse, insertAfter_none, Option.elim'_none, Option.elim'_some,
-      id_eq] using (Perm.sameCycle_apply_right.mpr (Perm.SameCycle.rfl : f.SameCycle h h))
-  | some a =>
-    by_cases ha : a = h
-    · subst a
-      simp only [insertAfter_at, collapse, Option.elim'_some, Option.elim'_none, id_eq]
-      exact .rfl
-    · simpa only [insertAfter_other f h a ha, collapse, Option.elim'_some, id_eq] using
-        (Perm.sameCycle_apply_right.mpr (Perm.SameCycle.rfl : f.SameCycle a a))
+  rcases x with _ | a
+  · exact Perm.sameCycle_apply_right.mpr .rfl
+  · by_cases ha : a = h
+    · subst ha
+      simpa [collapse] using (Perm.SameCycle.rfl : f.SameCycle a a)
+    · simpa [insertAfter_other f h a ha, collapse] using
+        Perm.sameCycle_apply_right.mpr (.rfl : f.SameCycle a a)
 
 private theorem sameCycle_some_step (f : Perm α) (h a : α) :
     (insertAfter f h).SameCycle (some a) (some (f a)) := by
   by_cases ha : a = h
-  · subst a
-    have h₁ : (insertAfter f h).SameCycle (some h) none := by
-      rw [← insertAfter_at f h]
-      exact Perm.sameCycle_apply_right.mpr .rfl
-    have h₂ : (insertAfter f h).SameCycle none (some (f h)) := by
-      rw [← insertAfter_none f h]
-      exact Perm.sameCycle_apply_right.mpr .rfl
-    exact h₁.trans h₂
+  · subst ha
+    exact (show (insertAfter f a).SameCycle (some a) none by
+        rw [← insertAfter_at f a]
+        exact Perm.sameCycle_apply_right.mpr .rfl).trans
+      (by rw [← insertAfter_none f a]; exact Perm.sameCycle_apply_right.mpr .rfl)
   · rw [← insertAfter_other f h a ha]
     exact Perm.sameCycle_apply_right.mpr .rfl
 
@@ -81,36 +75,30 @@ private theorem sameCycle_some_step (f : Perm α) (h a : α) :
 This includes singleton cycles and makes no distinct-vertex assumption. -/
 theorem sameCycle_iff [Finite α] (f : Perm α) (h : α) (x y : Option α) :
     (insertAfter f h).SameCycle x y ↔ f.SameCycle (collapse h x) (collapse h y) := by
-  constructor
-  · intro hxy
-    obtain ⟨k, hk⟩ := hxy.exists_nat_pow_eq
-    have hi (n : ℕ) : f.SameCycle (collapse h x)
-        (collapse h ((insertAfter f h)^[n] x)) := by
-      induction n with
+  refine ⟨fun hxy => ?_, fun hxy => ?_⟩
+  · obtain ⟨k, rfl⟩ := hxy.exists_nat_pow_eq
+    clear hxy
+    rw [← Perm.iterate_eq_pow]
+    induction k with
+    | zero => exact .rfl
+    | succ n ih =>
+      rw [Function.iterate_succ_apply']
+      exact ih.trans (sameCycle_collapse_step f h _)
+  · have lift {a b : α} (hab : f.SameCycle a b) :
+        (insertAfter f h).SameCycle (some a) (some b) := by
+      obtain ⟨k, rfl⟩ := hab.exists_nat_pow_eq
+      clear hab
+      rw [← Perm.iterate_eq_pow]
+      induction k with
       | zero => exact .rfl
       | succ n ih =>
         rw [Function.iterate_succ_apply']
-        exact ih.trans (sameCycle_collapse_step f h _)
-    simpa only [Perm.iterate_eq_pow, hk] using hi k
-  · intro hxy
-    have lift {a b : α} (hab : f.SameCycle a b) :
-        (insertAfter f h).SameCycle (some a) (some b) := by
-      obtain ⟨k, hk⟩ := hab.exists_nat_pow_eq
-      have hi (n : ℕ) : (insertAfter f h).SameCycle (some a) (some (f^[n] a)) := by
-        induction n with
-        | zero => exact .rfl
-        | succ n ih =>
-          rw [Function.iterate_succ_apply']
-          exact ih.trans (sameCycle_some_step f h _)
-      simpa only [Perm.iterate_eq_pow, hk] using hi k
-    have link (z : Option α) :
-        (insertAfter f h).SameCycle z (some (collapse h z)) := by
-      cases z with
-      | none =>
-        change (insertAfter f h).SameCycle none (some h)
-        rw [← insertAfter_at f h]
+        exact ih.trans (sameCycle_some_step f h _)
+    have link (z : Option α) : (insertAfter f h).SameCycle z (some (collapse h z)) := by
+      rcases z with _ | a
+      · rw [collapse, Option.elim'_none, ← insertAfter_at f h]
         exact Perm.sameCycle_apply_left.mpr .rfl
-      | some a => exact .rfl
+      · exact .rfl
     exact (link x).trans ((lift hxy).trans (link y).symm)
 
 /-- Every cycle, including a fixed point, survives insertion exactly once. -/
@@ -141,29 +129,21 @@ literal permutation, including its orientation. `removeNone` is Mathlib's deleti
 theorem insertAfter_removeNone (f : Perm (Option α)) (h : α)
     (hh : f (some h) = none) : insertAfter (removeNone f) h = f := by
   apply Equiv.ext
-  intro x
-  cases x with
-  | none =>
-    rw [insertAfter_none]
-    exact removeNone_none f hh
-  | some a =>
-    by_cases ha : a = h
-    · subst a
+  rintro (_ | a)
+  · exact (insertAfter_none _ _).trans (removeNone_none f hh)
+  · by_cases ha : a = h
+    · subst ha
       exact (insertAfter_at _ _).trans hh.symm
     · rw [insertAfter_other _ _ _ ha]
-      have hn : f (some a) ≠ none := by
-        intro he
-        exact ha (Option.some.inj (f.injective (he.trans hh.symm)))
-      obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.mp hn
+      obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.mp fun he =>
+        ha (Option.some.inj (f.injective (he.trans hh.symm)))
       exact removeNone_some f ⟨b, hb⟩
 
 /-- A nonfixed optional point can be reinserted after its old predecessor. -/
 private theorem exists_insertAfter_removeNone (f : Perm (Option α)) (hn : f none ≠ none) :
     ∃ h, insertAfter (removeNone f) h = f := by
-  have hp : f.symm none ≠ none := fun he => hn ((f.symm_apply_eq.mp he).symm)
-  obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.mp hp
-  refine ⟨h, insertAfter_removeNone f h ?_⟩
-  rw [← hh, f.apply_symm_apply]
+  obtain ⟨h, hh⟩ := Option.ne_none_iff_exists'.mp fun he => hn (f.symm_apply_eq.mp he).symm
+  exact ⟨h, insertAfter_removeNone f h (by rw [← hh, f.apply_symm_apply])⟩
 
 omit [DecidableEq α] in
 /-- Removing a dart from a cycle of length at least two preserves all remaining orbit
@@ -174,8 +154,7 @@ theorem sameCycle_removeNone_iff [Finite α] (f : Perm (Option α))
   classical
   obtain ⟨h, hf⟩ := exists_insertAfter_removeNone f hn
   conv_rhs => rw [← hf]
-  rw [sameCycle_iff]
-  rfl
+  exact (sameCycle_iff _ h (some a) (some b)).symm
 
 omit [DecidableEq α] in
 /-- Deleting a non-singleton dart preserves the total number of faces or vertex cycles. -/
@@ -191,11 +170,9 @@ theorem card_orbits_removeNone [Finite α] (f : Perm (Option α)) (hn : f none �
 theorem insertAfter_twice {α : Type} [DecidableEq α] (f : Perm α) (h k : α) :
     insertAfter (insertAfter f h) (some k) = f.optionCongr.optionCongr *
       swap (some (some h)) (some none) * swap (some (some k)) none := by
-  have hm : (f.optionCongr * swap (some h) none).optionCongr =
-      f.optionCongr.optionCongr * (swap (some h) none).optionCongr := by
-    apply Equiv.ext
-    rintro (_ | z) <;> rfl
   dsimp only [insertAfter]
-  rw [hm, Equiv.optionCongr_swap]
+  rw [show (f.optionCongr * swap (some h) none).optionCongr =
+      f.optionCongr.optionCongr * (swap (some h) none).optionCongr from
+    Equiv.ext fun | none | some _ => rfl, Equiv.optionCongr_swap]
 
 end Equiv.Perm.Insertion

@@ -103,13 +103,12 @@ theorem pow_mul_sum_filter_card_le_le_noiseStability {ρ : ℝ} (hρ : 0 ≤ ρ)
 theorem sum_filter_card_le_fourierCoeff_indicator_sq_le_three_pow (A : Set (ι → Bool)) (k : ℕ) :
     ∑ S with #S ≤ k, fourierCoeff (A.indicator 1) S ^ 2 ≤
       3 ^ k * (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ (3 / 2 : ℝ) := by
-  have h := (pow_mul_sum_filter_card_le_le_noiseStability (by norm_num) (by norm_num) k
-    (A.indicator 1)).trans (noiseStability_one_third_indicator_le A)
-  calc ∑ S with #S ≤ k, fourierCoeff (A.indicator 1) S ^ 2
-      = 3 ^ k * ((1 / 3 : ℝ) ^ k * ∑ S with #S ≤ k, fourierCoeff (A.indicator 1) S ^ 2) := by
-        rw [← mul_assoc, ← mul_pow]
-        norm_num
-    _ ≤ _ := by gcongr
+  have h := (pow_mul_sum_filter_card_le_le_noiseStability (ρ := 1 / 3) (by norm_num)
+    (by norm_num) k (A.indicator 1)).trans (noiseStability_one_third_indicator_le A)
+  refine (?_ : _ = 3 ^ k * ((1 / 3 : ℝ) ^ k * _)).trans_le
+    (mul_le_mul_of_nonneg_left h (by positivity))
+  rw [← mul_assoc, ← mul_pow]
+  norm_num
 
 /-- **The Level-`k` Inequalities**: a set `A` of volume `α` has
 `W^{≤k}[1_A] ≤ (2e / k · ln (1 / α)) ^ k α ^ 2` for `1 ≤ k ≤ 2 ln (1 / α)`
@@ -127,37 +126,25 @@ theorem sum_filter_card_le_fourierCoeff_indicator_sq_le_log_pow {k : ℕ} (hk : 
   set L := log α⁻¹
   have hkr : (0 : ℝ) < k := by exact_mod_cast hk
   have hL : 0 < L := by linarith
-  have hα₀ : 0 < α := by
-    refine (expect_nonneg fun x _ => Set.indicator_nonneg (fun _ _ => zero_le_one) x).lt_of_ne' ?_
-    intro h
-    have hL₀ : L = 0 := by simp only [L, show α = 0 from h, inv_zero, log_zero]
-    exact hL.ne' hL₀
-  have hα₁ : α < 1 := by
-    refine (log_neg_iff hα₀).1 ?_
-    have : L = -log α := by simp only [L, log_inv]
-    linarith
+  have hα₀ : 0 < α := (expect_nonneg fun x _ =>
+    Set.indicator_nonneg (fun _ _ => zero_le_one) x).lt_of_ne' fun h =>
+      hL.ne' (by simp [L, show α = 0 from h])
+  have hα₁ : α < 1 := (log_neg_iff hα₀).1 (by simp only [L, log_inv] at hL; linarith)
   set ρ := (k : ℝ) / (2 * L)
   have hρ₀ : 0 < ρ := by positivity
-  have hρ₁ : ρ ≤ 1 := by rw [div_le_one (by positivity)]; exact hkα
-  -- `ρ ^ k W^{≤k} ≤ Stab_ρ ≤ α ^ (2 / (1 + ρ)) ≤ α ^ (2 (1 - ρ)) = α ^ 2 e ^ k`
+  have hρ₁ : ρ ≤ 1 := (div_le_one (by positivity)).2 hkα
   have hW := (pow_mul_sum_filter_card_le_le_noiseStability hρ₀.le hρ₁ k
     (A.indicator 1)).trans (noiseStability_indicator_le hρ₀.le hρ₁ A)
-  have hexp : α ^ (2 / (1 + ρ)) ≤ α ^ (2 * (1 - ρ)) := by
-    refine rpow_le_rpow_of_exponent_ge hα₀ hα₁.le ?_
-    rw [le_div_iff₀ (by linarith)]
-    nlinarith
-  have hαk : α ^ (2 * (1 - ρ)) = α ^ 2 * exp k := by
+  have hexp : α ^ (2 / (1 + ρ)) ≤ α ^ 2 * exp k := by
+    refine (rpow_le_rpow_of_exponent_ge (z := 2 * (1 - ρ)) hα₀ hα₁.le
+      ((le_div_iff₀ (by linarith)).2 (by nlinarith))).trans_eq ?_
     rw [show 2 * (1 - ρ) = (2 : ℝ) + -(2 * ρ) by ring, rpow_add hα₀, rpow_two,
       rpow_def_of_pos hα₀]
     congr 2
-    have : log α = -L := by simp only [L, log_inv, neg_neg]
-    rw [this]
+    rw [show log α = -L by simp [L]]
     simp only [ρ]
     field_simp
-  have hfinal : ∑ S with #S ≤ k, fourierCoeff (A.indicator 1) S ^ 2 ≤ α ^ 2 * exp k / ρ ^ k := by
-    rw [le_div_iff₀ (pow_pos hρ₀ k), mul_comm]
-    exact hW.trans (hexp.trans hαk.le)
-  refine hfinal.trans_eq ?_
+  refine ((le_div_iff₀ (pow_pos hρ₀ k)).2 ((mul_comm _ _).trans_le (hW.trans hexp))).trans_eq ?_
   rw [show 2 * exp 1 / k * L = exp 1 / ρ by simp only [ρ]; field_simp, div_pow (exp 1) ρ k,
     ← exp_nat_mul, mul_one]
   ring
@@ -171,21 +158,19 @@ theorem levelWeight_one_indicator_le_rpow {ρ : ℝ} (hρ : 0 < ρ) (hρ' : ρ �
     levelWeight 1 (A.indicator 1) ≤
       ((𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ (2 / (1 + ρ)) -
         (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ 2) / ρ := by
-  -- the degree-zero and degree-one terms of the level-weight sum
   have hW : (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ 2 + ρ * levelWeight 1 (A.indicator 1) ≤
       noiseStability ρ (A.indicator 1) := by
     rcases (Fintype.card ι).eq_zero_or_pos with hι | hι
     · rw [levelWeight_eq_zero_of_card_lt (by omega), mul_zero, add_zero]
       exact sq_expect_le_noiseStability hρ.le _
-    · have h := add_le_sum (s := range (Fintype.card ι + 1))
-        (f := fun k => ρ ^ k * levelWeight k (A.indicator 1))
-        (fun k _ => mul_nonneg (pow_nonneg hρ.le k) (levelWeight_nonneg k _))
-        (mem_range.2 (by omega)) (mem_range.2 (by omega)) zero_ne_one
-      simpa only [pow_zero, one_mul, pow_one, levelWeight_zero,
-        ← noiseStability_eq_sum_levelWeight] using h
-  have hS := noiseStability_indicator_le hρ.le hρ' A
+    · simpa only [pow_zero, one_mul, pow_one, levelWeight_zero,
+        ← noiseStability_eq_sum_levelWeight] using
+        add_le_sum (s := range (Fintype.card ι + 1))
+          (f := fun k => ρ ^ k * levelWeight k (A.indicator 1))
+          (fun k _ => mul_nonneg (pow_nonneg hρ.le k) (levelWeight_nonneg k _))
+          (mem_range.2 (by omega)) (mem_range.2 (by omega)) zero_ne_one
   rw [le_div_iff₀ hρ, mul_comm]
-  linarith
+  linarith [noiseStability_indicator_le hρ.le hρ' A]
 
 /-- **The sharp Level-1 Inequality**: a set `A` of volume `α` has `W¹[1_A] ≤ 2 α ^ 2 ln (1 / α)`
 [O'Donnell, Exercise 9.18(b), Section 9.7, p. 273][ODonnell2014], the `{0, 1}`-valued case of
@@ -202,18 +187,13 @@ theorem levelWeight_one_indicator_le (A : Set (ι → Bool)) :
   rcases (expect_nonneg fun x _ => Set.indicator_nonneg (fun _ _ => zero_le_one) x :
     (0 : ℝ) ≤ α).eq_or_lt with hα | hα
   · have h := levelWeight_one_indicator_le_rpow zero_lt_one le_rfl A
-    have hα' : 𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x = 0 := hα.symm
-    rw [hα'] at h
+    rw [show 𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x = 0 from hα.symm] at h
     rw [show α = 0 from hα.symm]
     simpa using h
-  -- the derivative of `ρ ↦ α ^ (2 / (1 + ρ))` at `0`
+  have hg : HasDerivAt (fun ρ : ℝ => 2 / (1 + ρ)) (-2) 0 := by
+    simpa [div_eq_mul_inv] using
+      (((hasDerivAt_id (0 : ℝ)).const_add 1).inv (by norm_num)).const_mul 2
   have hd : HasDerivAt (fun ρ : ℝ => α ^ (2 / (1 + ρ))) (2 * α ^ 2 * log α⁻¹) 0 := by
-    have hg : HasDerivAt (fun ρ : ℝ => 2 / (1 + ρ)) (-2) 0 := by
-      have := ((hasDerivAt_id (0 : ℝ)).const_add 1).inv (by norm_num)
-      convert this.const_mul 2 using 1
-      · funext ρ
-        simp [div_eq_mul_inv]
-      · simp
     convert hg.const_rpow hα using 1
     rw [log_inv]
     norm_num
@@ -222,7 +202,6 @@ theorem levelWeight_one_indicator_le (A : Set (ι → Bool)) :
   simp only [zero_add, add_zero, smul_eq_mul, div_one, rpow_two] at hlim
   refine ge_of_tendsto hlim ?_
   filter_upwards [Ioc_mem_nhdsGT zero_lt_one] with ρ hρ
-  rw [← div_eq_inv_mul]
-  exact levelWeight_one_indicator_le_rpow hρ.1 hρ.2 A
+  simpa only [div_eq_inv_mul] using levelWeight_one_indicator_le_rpow hρ.1 hρ.2 A
 
 end Cslib.BitString

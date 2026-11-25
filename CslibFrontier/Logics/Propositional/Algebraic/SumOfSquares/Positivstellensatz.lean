@@ -118,10 +118,9 @@ theorem degree_def (t : Summand σ R) :
 /-- The formal degree of a summand bounds the total degree of its polynomial. -/
 theorem totalDegree_toPoly_le (t : Summand σ R) : t.toPoly.totalDegree ≤ t.degree := by
   rw [toPoly, degree]
-  refine (totalDegree_mul _ _).trans (add_le_add ?_ (totalDegree_finsetProd _ _))
-  refine (totalDegree_mul _ _).trans ?_
-  rw [totalDegree_C, zero_add]
-  exact totalDegree_pow _ _
+  exact (totalDegree_mul _ _).trans (add_le_add
+    ((totalDegree_mul _ _).trans (by rw [totalDegree_C, zero_add]; exact totalDegree_pow _ _))
+    (totalDegree_finsetProd _ _))
 
 /-- Over a domain, the formal degree of a summand with nonzero weight, base and factors is the total
 degree of its polynomial. -/
@@ -201,13 +200,12 @@ theorem RefutableInDegree.of_sum {I E : Set (MvPolynomial σ R)} {d : ℕ} {ι �
     (hg : ∀ i, g i ∈ E) (hgd : ∀ i, (h i * g i).totalDegree ≤ d)
     (ht : ∀ k, ↑(t k).factors ⊆ I) (hw : ∀ k, 0 ≤ (t k).weight) (hd : ∀ k, (t k).degree ≤ d)
     (heq : ∑ i, h i * g i + ∑ k, (t k).toPoly = -1) : RefutableInDegree I E d := by
-  refine ⟨⟨Finset.univ.toList.map fun i => (h i, g i), Finset.univ.toList.map t, ?_, ?_, ?_, ?_,
-    ?_, ?_⟩⟩
-  · rw [List.map_map, List.map_map, ← heq]
-    simp only [Function.comp_def, Finset.sum_map_toList]
-  all_goals simp only [List.mem_map, Finset.mem_toList, Finset.mem_univ, true_and]
-  all_goals rintro _ ⟨i, rfl⟩
-  exacts [hg i, hgd i, ht i, hw i, hd i]
+  refine ⟨⟨Finset.univ.toList.map fun i => (h i, g i), Finset.univ.toList.map t, ?_,
+    List.forall_mem_map.2 fun i _ => hg i, List.forall_mem_map.2 fun i _ => hgd i,
+    List.forall_mem_map.2 fun k _ => ht k, List.forall_mem_map.2 fun k _ => hw k,
+    List.forall_mem_map.2 fun k _ => hd k⟩⟩
+  rw [List.map_map, List.map_map, ← heq]
+  simp only [Function.comp_def, Finset.sum_map_toList]
 
 /-- A **pseudo-expectation of degree `d`** for the constraints `f ≥ 0`, `f ∈ I`, and `g = 0`,
 `g ∈ E`: a linear map `Ẽ` from polynomials to `R` with `Ẽ 1 = 1`, `Ẽ (s ^ 2 ∏_{f ∈ S} f) ≥ 0`
@@ -251,23 +249,19 @@ noncomputable def ofEval [IsOrderedRing R] (x : σ → R) (hI : ∀ f ∈ I, 0 �
 pseudo-expectation of degree `d` exists, there is no Positivstellensatz refutation of degree at
 most `d`. -/
 theorem not_refutableInDegree [IsStrictOrderedRing R] (P : PseudoExpectation I E d) :
-    ¬ RefutableInDegree I E d := by
-  rintro ⟨r⟩
+    ¬ RefutableInDegree I E d := fun ⟨r⟩ => by
   have h := congrArg P.toLinearMap r.eq
   rw [map_add, map_list_sum, map_list_sum, List.map_map, List.map_map, map_neg, P.map_one] at h
-  have h1 : (r.eqTerms.map (P.toLinearMap ∘ fun p => p.1 * p.2)).sum = 0 :=
-    List.sum_eq_zero fun x hx => by
-      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hx
-      exact P.map_mul_eq_zero _ (r.eqTerm_mem p hp) _ (r.totalDegree_eqTerm_le p hp)
-  have h2 : 0 ≤ (r.summands.map (P.toLinearMap ∘ Summand.toPoly)).sum :=
-    List.sum_nonneg fun x hx => by
-      obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hx
-      rw [Function.comp_apply, Summand.toPoly, mul_assoc, C_mul', map_smul, smul_eq_mul]
+  dsimp only [Function.comp_def] at h
+  rw [List.sum_eq_zero (List.forall_mem_map.2 fun p hp =>
+      P.map_mul_eq_zero _ (r.eqTerm_mem p hp) _ (r.totalDegree_eqTerm_le p hp)),
+    zero_add] at h
+  have h2 : 0 ≤ (r.summands.map fun t => P.toLinearMap t.toPoly).sum :=
+    List.sum_nonneg <| List.forall_mem_map.2 fun t ht => by
+      rw [Summand.toPoly, mul_assoc, C_mul', map_smul, smul_eq_mul]
       exact mul_nonneg (r.weight_nonneg t ht)
         (P.map_sq_mul_prod_nonneg _ _ (r.factors_subset t ht) (r.degree_le t ht))
-  rw [h1, zero_add] at h
-  have h3 : (0 : R) < 1 := zero_lt_one
-  linarith
+  linarith [zero_lt_one (α := R)]
 
 end PseudoExpectation
 
@@ -289,22 +283,14 @@ theorem _root_.Cslib.Logic.PL.SOS.RefutableInDegree.psatz {F : List (MvPolynomia
     RefutableInDegree I {g | g ∈ F} d := by
   obtain ⟨r⟩ := SOS.refutableInDegree_iff.1 h
   refine ⟨⟨(List.finRange F.length).map fun i => (r.mult i, F.get i),
-    r.squares.map fun p => ⟨∅, p.1, p.2⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
-  · rw [List.map_map, List.map_map, ← r.eq, Fin.sum_univ_def]
-    simp [Function.comp_def, Summand.toPoly]
-  · simp
-  · simp only [List.mem_map, List.mem_finRange, true_and]
-    rintro _ ⟨i, rfl⟩
-    exact r.totalDegree_mul_le i
-  · simp only [List.mem_map]
-    rintro _ ⟨p, -, rfl⟩
-    simp
-  · simp only [List.mem_map]
-    rintro _ ⟨p, hp, rfl⟩
-    exact r.weight_nonneg p hp
-  · simp only [List.mem_map]
-    rintro _ ⟨p, hp, rfl⟩
-    simpa [Summand.degree] using r.two_mul_totalDegree_le p hp
+    r.squares.map fun p => ⟨∅, p.1, p.2⟩, ?_, by simp,
+    List.forall_mem_map.2 fun i _ => r.totalDegree_mul_le i,
+    List.forall_mem_map.2 fun _ _ => by simp,
+    List.forall_mem_map.2 fun p hp => r.weight_nonneg p hp,
+    List.forall_mem_map.2 fun p hp => by
+      simpa [Summand.degree] using r.two_mul_totalDegree_le p hp⟩⟩
+  rw [List.map_map, List.map_map, ← r.eq, Fin.sum_univ_def]
+  simp [Function.comp_def, Summand.toPoly]
 
 /-- Without inequality constraints, Positivstellensatz refutations of the equations `F` are
 sum-of-squares refutations. -/
@@ -313,18 +299,15 @@ theorem refutableInDegree_empty_iff {F : List (MvPolynomial σ R)} {d : ℕ} :
   refine ⟨fun ⟨r⟩ => ?_, SOS.RefutableInDegree.psatz ∅⟩
   have hfac (t) (ht : t ∈ r.summands) : t.factors = ∅ :=
     Finset.coe_eq_empty.1 (Set.subset_empty_iff.1 (r.factors_subset t ht))
-  refine SOS.RefutableInDegree.of_list r.eqTerms (fun p hp => ⟨r.eqTerm_mem p hp,
-    r.totalDegree_eqTerm_le p hp⟩) (r.summands.map fun t => (t.weight, t.base)) ?_ ?_ ?_
-  · simp only [List.mem_map]
-    rintro _ ⟨t, ht, rfl⟩
-    exact r.weight_nonneg t ht
-  · simp only [List.mem_map]
-    rintro _ ⟨t, ht, rfl⟩
-    simpa [Summand.degree, hfac t ht] using r.degree_le t ht
-  · rw [← r.eq, List.map_map]
-    congr 1
-    refine congrArg List.sum (List.map_congr_left fun t ht => ?_)
-    simp [Summand.toPoly, hfac t ht]
+  refine SOS.RefutableInDegree.of_list r.eqTerms
+    (fun p hp => ⟨r.eqTerm_mem p hp, r.totalDegree_eqTerm_le p hp⟩)
+    (r.summands.map fun t => (t.weight, t.base))
+    (List.forall_mem_map.2 fun t ht => r.weight_nonneg t ht)
+    (List.forall_mem_map.2 fun t ht => by simpa [Summand.degree, hfac t ht] using r.degree_le t ht)
+    ?_
+  rw [← r.eq, List.map_map]
+  exact congrArg (_ + ·) (congrArg List.sum (List.map_congr_left fun t ht => by
+    simp [Summand.toPoly, hfac t ht]))
 
 /-- A pseudo-expectation for the equations `F` is a pseudo-expectation for the same equations and
 no inequality constraints. -/

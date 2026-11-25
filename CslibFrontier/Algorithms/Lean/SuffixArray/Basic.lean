@@ -111,12 +111,10 @@ theorem drop_lt_drop (h : IsSuffixArray w sa) {r r' : ℕ} (hr : r < r') (hr' : 
 /-- Rank order is suffix order. -/
 theorem lt_iff_drop_lt (h : IsSuffixArray w sa) {r r' : ℕ} (hr : r < sa.length)
     (hr' : r' < sa.length) : r < r' ↔ w.drop sa[r] < w.drop sa[r'] := by
-  refine ⟨fun hlt => h.drop_lt_drop hlt hr', fun hlt => ?_⟩
-  by_contra hge
-  rcases Nat.lt_or_eq_of_le (Nat.le_of_not_lt hge) with hgt | heq
+  refine ⟨fun hlt => h.drop_lt_drop hlt hr', fun hlt => not_le.mp fun hge => ?_⟩
+  rcases hge.eq_or_lt with rfl | hgt
+  · exact lt_irrefl _ hlt
   · exact lt_asymm hlt (h.drop_lt_drop hgt hr)
-  · subst heq
-    exact lt_irrefl _ hlt
 
 /-- Suffix arrays are unique. -/
 theorem unique {sa' : List ℕ} (h : IsSuffixArray w sa) (h' : IsSuffixArray w sa') : sa = sa' :=
@@ -139,8 +137,7 @@ def suffixArray (w : List α) : List ℕ :=
 
 omit [LinearOrder α] in
 private theorem drop_ne_drop {i j : ℕ} (hi : i < w.length) (hj : j < w.length) (hij : i ≠ j) :
-    w.drop i ≠ w.drop j := by
-  intro heq
+    w.drop i ≠ w.drop j := fun heq => by
   have := congrArg List.length heq
   simp only [List.length_drop] at this
   omega
@@ -149,20 +146,14 @@ private theorem drop_ne_drop {i j : ℕ} (hi : i < w.length) (hj : j < w.length)
 theorem isSuffixArray_suffixArray (w : List α) : IsSuffixArray w (suffixArray w) := by
   have hperm : (suffixArray w).Perm (List.range w.length) := List.mergeSort_perm _ _
   refine ⟨hperm, ?_⟩
-  have hle : (suffixArray w).Pairwise fun i j => decide (w.drop i ≤ w.drop j) :=
-    List.pairwise_mergeSort
-      (fun a b c hab hbc => by
-        simp only [decide_eq_true_eq] at hab hbc ⊢
-        exact le_trans hab hbc)
-      (fun a b => by
-        simp only [Bool.or_eq_true, decide_eq_true_eq]
-        exact le_total _ _)
-      _
-  have hnd : (suffixArray w).Nodup := hperm.nodup_iff.mpr List.nodup_range
-  refine (hle.and hnd).imp_of_mem fun {i j} hi hj ⟨hij, hne⟩ => ?_
-  simp only [decide_eq_true_eq] at hij
+  have hle := List.pairwise_mergeSort (l := List.range w.length)
+    (le := fun i j => decide (w.drop i ≤ w.drop j))
+    (fun _ _ _ hab hbc => decide_eq_true (le_trans (of_decide_eq_true hab) (of_decide_eq_true hbc)))
+    (fun a b => by simp [le_total (w.drop a) (w.drop b)])
+  refine (hle.and (hperm.nodup_iff.mpr List.nodup_range)).imp_of_mem fun {i j} hi hj ⟨hij, hne⟩ =>
+    lt_of_le_of_ne (of_decide_eq_true hij) ?_
   rw [hperm.mem_iff, List.mem_range] at hi hj
-  exact lt_of_le_of_ne hij (drop_ne_drop hi hj hne)
+  exact drop_ne_drop hi hj hne
 
 /-- A list is a suffix array of `w` iff it is `suffixArray w`. -/
 theorem isSuffixArray_iff_eq_suffixArray : IsSuffixArray w sa ↔ sa = suffixArray w :=
@@ -184,17 +175,13 @@ def lcpArray (w : List α) : List ℕ → List ℕ
 
 @[simp] theorem length_lcpArray (w : List α) (sa : List ℕ) :
     (lcpArray w sa).length = sa.length := by
-  cases sa with
-  | nil => rfl
-  | cons i sa =>
-    simp only [lcpArray, List.length_cons, List.length_zipWith]
-    omega
+  cases sa <;> simp [lcpArray]
 
 theorem getElem_lcpArray_zero (w : List α) (sa : List ℕ) (h : 0 < (lcpArray w sa).length) :
     (lcpArray w sa)[0] = 0 := by
   cases sa with
-  | nil => simp only [length_lcpArray, List.length_nil, lt_self_iff_false] at h
-  | cons i sa => rfl
+  | nil => simp at h
+  | cons _ _ => rfl
 
 theorem getElem_lcpArray_of_pos (w : List α) (sa : List ℕ) {r : ℕ}
     (hr : r < (lcpArray w sa).length) (hr0 : 0 < r) :
@@ -221,24 +208,20 @@ theorem IsSuffixArray.getElem_lcpArray_sub_one_le (h : IsSuffixArray w sa) {r r'
     (lcpArray w sa)[r]'(by simpa only [length_lcpArray] using hr) - 1 ≤
       (lcpArray w sa)[r']'(by simpa only [length_lcpArray] using hr') := by
   rcases Nat.eq_zero_or_pos r with rfl | hr0
-  · rw [getElem_lcpArray_zero]; omega
+  · simp [getElem_lcpArray_zero]
   rw [getElem_lcpArray_of_pos w sa _ hr0]
   set i := sa[r]
   set j := sa[r - 1]'(by omega)
   set L := List.lcpLen (w.drop j) (w.drop i) with hL
-  have hshift : L - 1 ≤ List.lcpLen (w.drop (j + 1)) (w.drop (i + 1)) := by
-    have := List.lcpLen_sub_one_le_lcpLen_tail (w.drop j) (w.drop i)
-    simpa only [List.tail_drop] using this
   rcases Nat.lt_or_ge L 2 with hL2 | hL2
   · omega
-  -- Both suffixes have length at least `L ≥ 2`, so `j + 1 < |w|`.
   have hjn : j + 1 < w.length := by
     have := List.lcpLen_le_length_left (w.drop j) (w.drop i)
     simp only [List.length_drop] at this
     omega
   obtain ⟨q, hq, hqj⟩ := h.exists_getElem_eq hjn
-  -- The heads agree, so the order of the tails is that of the suffixes.
-  have hji : w.drop (j + 1) < w.drop (i + 1) := by
+  have hqr' : q < r' := by
+    rw [h.lt_iff_drop_lt hq hr', hqj, ← hsucc]
     have hlt : w.drop j < w.drop i := h.drop_lt_drop (by omega) hr
     have hjw : j < w.length := by omega
     have hiw : i < w.length := h.getElem_lt hr
@@ -247,21 +230,17 @@ theorem IsSuffixArray.getElem_lcpArray_sub_one_le (h : IsSuffixArray w sa) {r r'
       by_contra hne
       simp only [List.lcpLen_cons_cons, hne, ↓reduceIte] at hL
       omega
-    rw [heq] at hlt
-    exact List.lex_cons_iff.mp hlt
-  have hqr' : q < r' := by
-    rw [h.lt_iff_drop_lt hq hr', hqj, ← hsucc]
-    exact hji
+    exact List.lex_cons_iff.mp (heq ▸ hlt)
   rw [getElem_lcpArray_of_pos w sa _ (by omega)]
-  have hle1 : w.drop sa[r' - 1] ≥ w.drop sa[q] := by
-    rcases Nat.lt_or_eq_of_le (Nat.le_sub_one_of_lt hqr') with hlt | heq
-    · exact le_of_lt (h.drop_lt_drop hlt (by omega))
+  have hle1 : w.drop sa[q] ≤ w.drop sa[r' - 1] := by
+    rcases (Nat.le_sub_one_of_lt hqr').lt_or_eq with hlt | heq
+    · exact (h.drop_lt_drop hlt (by omega)).le
     · simp only [heq, le_refl]
-  have hle2 : w.drop sa[r' - 1] ≤ w.drop sa[r'] :=
-    le_of_lt (h.drop_lt_drop (by omega) hr')
-  have := List.lcpLen_le_lcpLen_of_le_of_le_right hle1 hle2
-  rw [hqj] at this
-  rw [hsucc] at hshift
+  have hmono := List.lcpLen_le_lcpLen_of_le_of_le_right hle1
+    (h.drop_lt_drop (by omega) hr').le
+  have hshift := List.lcpLen_sub_one_le_lcpLen_tail (w.drop j) (w.drop i)
+  simp only [List.tail_drop, hsucc] at hshift
+  rw [hqj] at hmono
   omega
 
 end Height

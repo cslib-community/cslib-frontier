@@ -73,7 +73,7 @@ theorem exists_complexity_le_of_boundedError (S : Set (Fin n → Bool))
         (12 * n + 12) * (complexity interpretation (single F) + 2) +
           (2 + (12 * n + 12) * (2 * (12 * n + 12 + 2))) := by
   classical
-  set R := 6 * n + 6 with hR
+  set R := 6 * n + 6
   obtain ⟨ω, hω⟩ := Cslib.exists_forall_lt_card_filter_mem (X := S) (n := n)
     ((Fintype.card_subtype_le _).trans (by simp))
     (fun x => univ.filter fun r => F (Fin.append x.1 r) = g x.1)
@@ -82,23 +82,17 @@ theorem exists_complexity_le_of_boundedError (S : Set (Fin n → Bool))
     (complexity_le_of_eq_threshold F _ ω fun _ => rfl).trans_eq
       (by rw [show 2 * R = 12 * n + 12 by omega])⟩
   have hc := hω ⟨x, hx⟩
-  simp only at hc
+  simp only [mem_filter, mem_univ, true_and] at hc
   change threshold _ _ (fun i => F (Fin.append x (ω i))) = g x
   rw [threshold_apply, BitString.weight, Bool.eq_iff_iff, decide_eq_true_iff]
   cases hgx : g x
-  · have e : (univ.filter fun i => F (Fin.append x (ω i)) = true) =
-        univ \ univ.filter fun i => ω i ∈ univ.filter fun r => F (Fin.append x r) = g x := by
-      ext i
-      simp [hgx]
-    rw [e, card_univ_sdiff, Fintype.card_fin]
+  · rw [hgx] at hc
+    rw [show (univ.filter fun i => F (Fin.append x (ω i)) = true) =
+        univ \ univ.filter fun i => F (Fin.append x (ω i)) = false by ext; simp,
+      card_univ_sdiff, Fintype.card_fin]
     simp only [Bool.false_eq_true, iff_false, not_le]
     omega
-  · have e : (univ.filter fun i => F (Fin.append x (ω i)) = true) =
-        univ.filter fun i => ω i ∈ univ.filter fun r => F (Fin.append x r) = g x := by
-      ext i
-      simp [hgx]
-    rw [e]
-    simpa using hc
+  · simpa [hgx] using hc
 
 /-- **Adleman's theorem**, for one input length. If, for every `x`, at least two thirds of the
 random strings `r` have `F (x ++ r) = g x`, then `g` has circuits of size
@@ -129,28 +123,22 @@ theorem exists_complexity_le_of_oneSidedError (S : Set (Fin n → Bool))
     if g x.1 = true then univ.filter fun r => F (Fin.append x.1 r) = true else univ
   obtain ⟨ω, hω⟩ := Cslib.exists_forall_exists_apply_mem (X := S) (n := n)
     ((Fintype.card_subtype_le _).trans (by simp)) good fun x => by
-      rw [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
       by_cases hx : g x.1 = true
-      · simpa [good, hx] using h₁ x.1 x.2 hx
-      · rw [show good x = univ from ite_eq_right hx, card_univ, Fintype.card_fun,
-          Fintype.card_bool, Fintype.card_fin]
+      · simpa [good, hx, Fintype.card_fun] using h₁ x.1 x.2 hx
+      · simp only [good, ite_eq_right hx, card_univ, Fintype.card_fun, Fintype.card_bool,
+          Fintype.card_fin]
         omega
   refine ⟨fun x => threshold (n + 1) 1 fun i => F (Fin.append x (ω i)), fun x hx => ?_,
     complexity_le_of_eq_threshold F _ ω fun _ => rfl⟩
   change threshold _ _ (fun i => F (Fin.append x (ω i))) = g x
   rw [threshold_apply, BitString.weight, Bool.eq_iff_iff, decide_eq_true_iff,
-    Nat.one_le_iff_ne_zero, Ne,
-    card_eq_zero, filter_eq_empty_iff]
+    Nat.one_le_iff_ne_zero, Ne, card_eq_zero, filter_eq_empty_iff]
   push Not
-  constructor
-  · rintro ⟨i, -, hi⟩
-    by_contra hgx
-    rw [h₂ x hx (by simpa using hgx) (ω i)] at hi
-    exact Bool.noConfusion hi
-  · intro hgx
-    obtain ⟨i, hi⟩ := hω ⟨x, hx⟩
-    simp only [good, hgx, ite_true, mem_filter, mem_univ, true_and] at hi
-    exact ⟨i, mem_univ _, hi⟩
+  refine ⟨fun ⟨i, _, hi⟩ => ?_, fun hgx => ?_⟩
+  · by_contra hgx
+    exact Bool.noConfusion (h₂ x hx (by simpa using hgx) (ω i) ▸ hi)
+  · obtain ⟨i, hi⟩ := hω ⟨x, hx⟩
+    exact ⟨i, mem_univ _, by simpa [good, hgx] using hi⟩
 
 /-- **Adleman's theorem for one-sided error**, for one input length. If, for every `x` with
 `g x = true`, at least half of the random strings `r` have `F (x ++ r) = true`, and for every `x`
@@ -176,13 +164,11 @@ theorem PPoly.exists_of_boundedError {p : ℕ → ℕ} (F : ∀ n, BooleanFuncti
       3 * (univ.filter fun r : Fin (p n) → Bool => F n (Fin.append x r) = g n x).card) :
     ∃ L ∈ PPoly, ∀ n, ∀ x ∈ S n, L.slice n x = g n x := by
   choose g' hg' hc using fun n => exists_complexity_le_of_boundedError (S n) (F n) (g n) (h n)
-  refine ⟨Language.ofSlices g', ?_, fun n x hx => by rw [Language.slice_ofSlices, hg' n x hx]⟩
-  set q := fun n => complexity interpretation (single (F n)) with hq
-  have : PolynomiallyBounded q := hF
-  refine PolynomiallyBounded.mono_of_le
-    (g := fun n => (12 * n + 12) * (q n + 2) + (2 + (12 * n + 12) * (2 * (12 * n + 12 + 2))))
-    (by fun_prop) fun n => ?_
-  simpa only [Language.slice_ofSlices] using hc n
+  refine ⟨Language.ofSlices g', PolynomiallyBounded.mono_of_le
+    (g := fun n => (12 * n + 12) * (complexity interpretation (single (F n)) + 2) +
+      (2 + (12 * n + 12) * (2 * (12 * n + 12 + 2))))
+    (by have := hF; fun_prop) (fun n => by simpa only [Language.slice_ofSlices] using hc n),
+    fun n x hx => by rw [Language.slice_ofSlices, hg' n x hx]⟩
 
 /-- **Adleman's theorem.** If `F n` is a family of functions of `n + p n` variables with circuits
 of polynomial size, and for every input `x` of every length `n` at least two thirds of the random
@@ -193,11 +179,11 @@ theorem PPoly.of_boundedError {A : Language Bool} {p : ℕ → ℕ}
     (h : ∀ n x, 2 * 2 ^ p n ≤
       3 * (univ.filter fun r : Fin (p n) → Bool => F n (Fin.append x r) = A.slice n x).card) :
     A ∈ PPoly := by
-  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_boundedError F hF (fun _ => Set.univ) (fun n => A.slice n)
+  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_boundedError F hF (fun _ => Set.univ) A.slice
     fun n x _ => h n x
-  have e : ∀ n, A.slice n = L.slice n := fun n => funext fun x => (hLA n x trivial).symm
   rw [mem_PPoly] at hL ⊢
-  simpa only [e] using hL
+  simpa only [show ∀ n, A.slice n = L.slice n from
+    fun n => funext fun x => (hLA n x trivial).symm] using hL
 
 /-- **Adleman's theorem for one-sided error**, on sets of inputs. -/
 theorem PPoly.exists_of_oneSidedError {p : ℕ → ℕ} (F : ∀ n, BooleanFunction (n + p n))
@@ -209,13 +195,11 @@ theorem PPoly.exists_of_oneSidedError {p : ℕ → ℕ} (F : ∀ n, BooleanFunct
     ∃ L ∈ PPoly, ∀ n, ∀ x ∈ S n, L.slice n x = g n x := by
   choose g' hg' hc using fun n =>
     exists_complexity_le_of_oneSidedError (S n) (F n) (g n) (h₁ n) (h₂ n)
-  refine ⟨Language.ofSlices g', ?_, fun n x hx => by rw [Language.slice_ofSlices, hg' n x hx]⟩
-  set q := fun n => complexity interpretation (single (F n)) with hq
-  have : PolynomiallyBounded q := hF
-  refine PolynomiallyBounded.mono_of_le
-    (g := fun n => (n + 1) * (q n + 2) + (2 + (n + 1) * (2 * (n + 1 + 2))))
-    (by fun_prop) fun n => ?_
-  simpa only [Language.slice_ofSlices] using hc n
+  refine ⟨Language.ofSlices g', PolynomiallyBounded.mono_of_le
+    (g := fun n => (n + 1) * (complexity interpretation (single (F n)) + 2) +
+      (2 + (n + 1) * (2 * (n + 1 + 2))))
+    (by have := hF; fun_prop) (fun n => by simpa only [Language.slice_ofSlices] using hc n),
+    fun n x hx => by rw [Language.slice_ofSlices, hg' n x hx]⟩
 
 /-- **Adleman's theorem for one-sided error.** If `F n` is a family of functions of `n + p n`
 variables with circuits of polynomial size, every input `x ∈ A` has `F n (x ++ r) = true` for at
@@ -227,10 +211,10 @@ theorem PPoly.of_oneSidedError {A : Language Bool} {p : ℕ → ℕ}
       2 ^ p n ≤ 2 * (univ.filter fun r : Fin (p n) → Bool => F n (Fin.append x r) = true).card)
     (h₂ : ∀ n x, A.slice n x = false → ∀ r, F n (Fin.append x r) = false) :
     A ∈ PPoly := by
-  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_oneSidedError F hF (fun _ => Set.univ)
-    (fun n => A.slice n) (fun n x _ => h₁ n x) fun n x _ => h₂ n x
-  have e : ∀ n, A.slice n = L.slice n := fun n => funext fun x => (hLA n x trivial).symm
+  obtain ⟨L, hL, hLA⟩ := PPoly.exists_of_oneSidedError F hF (fun _ => Set.univ) A.slice
+    (fun n x _ => h₁ n x) fun n x _ => h₂ n x
   rw [mem_PPoly] at hL ⊢
-  simpa only [e] using hL
+  simpa only [show ∀ n, A.slice n = L.slice n from
+    fun n => funext fun x => (hLA n x trivial).symm] using hL
 
 end Cslib.Circuits.Boolean

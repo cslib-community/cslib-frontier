@@ -112,21 +112,15 @@ theorem relMatrix_apply (f : MvPolynomial σ K) (r : BlockChoice blk A) (c : Blo
 
 /-- The relative-rank matrix of `0` is `0`. -/
 @[simp]
-theorem relMatrix_zero : relMatrix blk A B (0 : MvPolynomial σ K) = 0 := by
-  ext
-  simp
+theorem relMatrix_zero : relMatrix blk A B (0 : MvPolynomial σ K) = 0 := by ext; simp
 
 /-- The relative-rank matrix is additive in the polynomial. -/
 theorem relMatrix_add (f g : MvPolynomial σ K) :
-    relMatrix blk A B (f + g) = relMatrix blk A B f + relMatrix blk A B g := by
-  ext
-  simp
+    relMatrix blk A B (f + g) = relMatrix blk A B f + relMatrix blk A B g := by ext; simp
 
 /-- The relative-rank matrix commutes with scaling. -/
 theorem relMatrix_smul (c : K) (f : MvPolynomial σ K) :
-    relMatrix blk A B (c • f) = c • relMatrix blk A B f := by
-  ext
-  simp
+    relMatrix blk A B (c • f) = c • relMatrix blk A B f := by ext; simp
 
 /-- The relative-rank matrix of a product of set-multilinear polynomials on disjoint blocks is a
 submatrix of the Kronecker product of the factors' matrices. -/
@@ -213,20 +207,18 @@ product of the dimensions. This is the natural-number form of the bound `relrk_w
 display defining `relrk_w` in [LimayeSrinivasanTavenas2021, §2.1, p. 6]. -/
 theorem rank_relMatrix_sq_le (f : MvPolynomial σ K) :
     (relMatrix blk A B f).rank ^ 2 ≤
-      Fintype.card (BlockChoice blk A) * Fintype.card (BlockChoice blk B) := by
-  rw [sq]
-  exact Nat.mul_le_mul (Matrix.rank_le_card_height _) (Matrix.rank_le_card_width _)
+      Fintype.card (BlockChoice blk A) * Fintype.card (BlockChoice blk B) :=
+  sq (relMatrix blk A B f).rank ▸
+    Nat.mul_le_mul (Matrix.rank_le_card_height _) (Matrix.rank_le_card_width _)
 
 /-- A nonnegative quantity at most `R` is at most `√(R / C)` after dividing by `√(R * C)`. -/
 private theorem div_sqrt_mul_le {x R C : ℝ} (hR : 0 ≤ R) (hC : 0 ≤ C) (hx : x ≤ R) :
     x / √(R * C) ≤ √(R / C) := by
-  calc x / √(R * C) ≤ R / √(R * C) := div_le_div_of_nonneg_right hx (Real.sqrt_nonneg _)
-    _ = (√R * √R) / (√R * √C) := by rw [Real.mul_self_sqrt hR, Real.sqrt_mul hR]
-    _ = √(R / C) := by
-        rw [Real.sqrt_div' _ hC]
-        rcases eq_or_ne (√R) 0 with h | h
-        · simp [h]
-        · exact mul_div_mul_left _ _ h
+  refine (div_le_div_of_nonneg_right hx (Real.sqrt_nonneg _)).trans_eq ?_
+  rw [Real.sqrt_mul hR, Real.sqrt_div' _ hC]
+  rcases eq_or_ne √R 0 with h | h
+  · simp [show R = 0 by rw [← Real.mul_self_sqrt hR, h, zero_mul]]
+  · rw [← mul_div_mul_left √R √C h, Real.mul_self_sqrt hR]
 
 /-- **Imbalance** ([LimayeSrinivasanTavenas2021, Claim 7(1), p. 6]): the relative rank is at most
 the square root of the number of rows divided by the number of columns. Together with
@@ -259,9 +251,8 @@ theorem relRank_le_one (f : MvPolynomial σ K) : relRank blk A B f ≤ 1 := by
 /-- **Subadditivity of rank** for relative-rank matrices. -/
 theorem rank_relMatrix_add_le (f g : MvPolynomial σ K) :
     (relMatrix blk A B (f + g)).rank ≤
-      (relMatrix blk A B f).rank + (relMatrix blk A B g).rank := by
-  rw [relMatrix_add]
-  exact Matrix.rank_add_le _ _
+      (relMatrix blk A B f).rank + (relMatrix blk A B g).rank :=
+  relMatrix_add blk A B f g ▸ Matrix.rank_add_le _ _
 
 /-- **Subadditivity** ([LimayeSrinivasanTavenas2021, Claim 7(2), p. 7]). -/
 theorem relRank_add_le (f g : MvPolynomial σ K) :
@@ -279,10 +270,9 @@ theorem relRank_smul_le (c : K) (f : MvPolynomial σ K) :
 
 /-- Scaling by a nonzero constant does not change the relative rank. -/
 theorem relRank_smul {c : K} (hc : c ≠ 0) (f : MvPolynomial σ K) :
-    relRank blk A B (c • f) = relRank blk A B f := by
-  refine (relRank_smul_le blk A B c f).antisymm ?_
-  calc relRank blk A B f = relRank blk A B (c⁻¹ • c • f) := by rw [inv_smul_smul₀ hc]
-    _ ≤ relRank blk A B (c • f) := relRank_smul_le blk A B _ _
+    relRank blk A B (c • f) = relRank blk A B f :=
+  (relRank_smul_le blk A B c f).antisymm
+    (by simpa [inv_smul_smul₀ hc] using relRank_smul_le blk A B c⁻¹ (c • f))
 
 /-- Negation does not change the relative rank. -/
 @[simp]
@@ -311,17 +301,17 @@ theorem relRank_mul_le {S T : Finset (Fin d)} {f g : MvPolynomial σ K}
     (hA : A ⊆ S ∪ T) (hB : B ⊆ S ∪ T) :
     relRank blk A B (f * g) ≤
       relRank blk (A ∩ S) (B ∩ S) f * relRank blk (A ∩ T) (B ∩ T) g := by
-  have hden : ((Fintype.card (BlockChoice blk A) * Fintype.card (BlockChoice blk B) : ℕ) : ℝ) =
-      ((Fintype.card (BlockChoice blk (A ∩ S)) * Fintype.card (BlockChoice blk (B ∩ S)) : ℕ) :
-        ℝ) *
+  rw [relRank, relRank, relRank, div_mul_div_comm, ← Real.sqrt_mul (Nat.cast_nonneg _)]
+  refine (?_ : _ = (relMatrix blk A B (f * g)).rank /
+    √(((Fintype.card (BlockChoice blk (A ∩ S)) * Fintype.card (BlockChoice blk (B ∩ S)) : ℕ) : ℝ) *
       ((Fintype.card (BlockChoice blk (A ∩ T)) * Fintype.card (BlockChoice blk (B ∩ T)) : ℕ) :
-        ℝ) := by
-    rw [card_blockChoice_inter_mul blk hST hA, card_blockChoice_inter_mul blk hST hB]
-    push_cast
-    ring
-  rw [relRank, relRank, relRank, div_mul_div_comm, ← Real.sqrt_mul (Nat.cast_nonneg _), ← hden]
-  exact div_le_div_of_nonneg_right (by exact_mod_cast rank_relMatrix_mul_le hf hg hST hA hB)
-    (Real.sqrt_nonneg _)
+        ℝ))).trans_le
+      (div_le_div_of_nonneg_right (by exact_mod_cast rank_relMatrix_mul_le hf hg hST hA hB)
+        (Real.sqrt_nonneg _))
+  congr 2
+  rw [card_blockChoice_inter_mul blk hST hA, card_blockChoice_inter_mul blk hST hB]
+  push_cast
+  ring
 
 /-- **Multiplicativity, as an inequality** ([LimayeSrinivasanTavenas2021, Claim 7(3), p. 7]): if
 the factors `f i` of a finite product are set-multilinear on pairwise disjoint sets `T i` of blocks,
@@ -335,29 +325,20 @@ theorem relRank_prod_le {ι : Type*} (s : Finset ι) {f : ι → MvPolynomial σ
     relRank blk A B (∏ i ∈ s, f i) ≤ ∏ i ∈ s, relRank blk (A ∩ T i) (B ∩ T i) (f i) := by
   classical
   induction s using Finset.induction_on generalizing A B with
-  | empty =>
-    rw [Finset.prod_empty, Finset.prod_empty]
-    exact relRank_le_one blk A B 1
+  | empty => simpa using relRank_le_one blk A B 1
   | insert a s ha ih =>
-    have hT' : (s : Set ι).PairwiseDisjoint T :=
-      hT.subset (Finset.coe_subset.2 (Finset.subset_insert a s))
-    have hf' : ∀ i ∈ s, IsSetMultilinear blk (T i) (f i) :=
-      fun i hi => hf i (Finset.mem_insert_of_mem hi)
-    have hdisj : Disjoint (T a) (s.biUnion T) := by
-      refine (Finset.disjoint_biUnion_right _ _ _).2 fun i hi => hT
-        (Finset.mem_coe.2 (Finset.mem_insert_self a s))
-        (Finset.mem_coe.2 (Finset.mem_insert_of_mem hi)) ?_
-      rintro rfl
-      exact ha hi
+    have hT' := hT.subset (Finset.coe_subset.2 (Finset.subset_insert a s))
+    have hf' (i) (hi : i ∈ s) := hf i (Finset.mem_insert_of_mem hi)
+    have hdisj : Disjoint (T a) (s.biUnion T) := (Finset.disjoint_biUnion_right _ _ _).2
+      fun i hi => hT (Finset.mem_insert_self a s) (Finset.mem_insert_of_mem hi)
+        (by rintro rfl; exact ha hi)
     rw [Finset.biUnion_insert] at hA hB
     rw [Finset.prod_insert ha, Finset.prod_insert ha]
     refine (relRank_mul_le (hf a (Finset.mem_insert_self a s)) (IsSetMultilinear.prod s hT' hf')
-      hdisj hA hB).trans (mul_le_mul_of_nonneg_left ?_ (relRank_nonneg _ _ _ _))
-    refine (ih hT' hf' Finset.inter_subset_right Finset.inter_subset_right).trans_eq
-      (Finset.prod_congr rfl fun i hi => ?_)
-    have hsub : T i ⊆ s.biUnion T := Finset.subset_biUnion_of_mem T hi
-    rw [Finset.inter_assoc, Finset.inter_eq_right.2 hsub, Finset.inter_assoc,
-      Finset.inter_eq_right.2 hsub]
+      hdisj hA hB).trans (mul_le_mul_of_nonneg_left
+        ((ih hT' hf' Finset.inter_subset_right Finset.inter_subset_right).trans_eq
+          (Finset.prod_congr rfl fun i hi => ?_)) (relRank_nonneg _ _ _ _))
+    simp only [Finset.inter_assoc, Finset.inter_eq_right.2 (Finset.subset_biUnion_of_mem T hi)]
 
 /-- **The relative rank is invariant under renaming the variables along their blocks**
 (original). -/

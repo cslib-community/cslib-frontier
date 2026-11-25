@@ -114,13 +114,12 @@ theorem coeff_pairedWordPoly [DecidableEq X] (σ : (Fin m → X) → (Fin m → 
       if σ a = b then 1 else 0 := by
   rw [pairedWordPoly, map_sum, Finset.sum_eq_single a]
   · rw [coeff_lift_ι]
-    by_cases h : σ a = b
+    split_ifs with h
     · simp [h]
-    · rw [Finsupp.single_eq_of_ne' fun h' => h (FreeMonoid.ofFn_mul_ofFn_injective h').2,
-        ite_eq_right_iff.mpr fun h' => absurd h' h]
-  · intro u _ hu
-    rw [coeff_lift_ι,
-      Finsupp.single_eq_of_ne' fun h' => hu (FreeMonoid.ofFn_mul_ofFn_injective h').1]
+    · exact Finsupp.single_eq_of_ne' fun h' => h (FreeMonoid.ofFn_mul_ofFn_injective h').2
+  · exact fun u _ hu => by
+      rw [coeff_lift_ι]
+      exact Finsupp.single_eq_of_ne' fun h' => hu (FreeMonoid.ofFn_mul_ofFn_injective h').1
   · simp
 
 /-- `∑_u u · σ(u)` is homogeneous of degree `2m`. -/
@@ -131,12 +130,10 @@ theorem isHomogeneous_pairedWordPoly (σ : (Fin m → X) → (Fin m → X)) :
 
 /-- Over a nonempty alphabet, `∑_u u · σ(u)` is nonzero. -/
 theorem pairedWordPoly_ne_zero [Nontrivial K] [Nonempty X] (σ : (Fin m → X) → (Fin m → X)) :
-    pairedWordPoly (K := K) σ ≠ 0 := by
+    pairedWordPoly (K := K) σ ≠ 0 := fun h => by
   classical
-  intro h
-  have := coeff_pairedWordPoly (K := K) σ (fun _ => Classical.arbitrary X)
+  simpa [h] using coeff_pairedWordPoly (K := K) σ (fun _ => Classical.arbitrary X)
     (σ fun _ => Classical.arbitrary X)
-  simp [h] at this
 
 /-- The coefficient of `a b` in `Pal_{2m}` is `1` if `b` is the reverse of `a` and `0`
 otherwise. -/
@@ -175,8 +172,7 @@ theorem nisanMatrix_pairedWordPoly [DecidableEq X] (σ : (Fin m → X) → (Fin 
     nisanMatrix m m (pairedWordPoly (K := K) σ) =
       (1 : Matrix (Fin m → X) (Fin m → X) K).submatrix σ id := by
   ext a b
-  rw [nisanMatrix_apply, coeff_pairedWordPoly, Matrix.submatrix_apply, Matrix.one_apply]
-  rfl
+  simp [nisanMatrix_apply, coeff_pairedWordPoly, Matrix.one_apply]
 
 /-- The empty palindrome is `1`. -/
 theorem palindrome_zero : palindrome K X 0 = 1 := by
@@ -205,10 +201,8 @@ variable {K : Type*} [Field K] {X : Type*} [Fintype X] {m : ℕ}
 theorem rank_nisanMatrix_pairedWordPoly (σ : (Fin m → X) ≃ (Fin m → X)) :
     (nisanMatrix m m (pairedWordPoly (K := K) σ)).rank = Fintype.card X ^ m := by
   classical
-  rw [nisanMatrix_pairedWordPoly]
-  have h := Matrix.rank_submatrix (1 : Matrix (Fin m → X) (Fin m → X) K) σ (Equiv.refl _)
-  rw [Equiv.coe_refl] at h
-  rw [h, Matrix.rank_one, Fintype.card_fun, Fintype.card_fin]
+  rw [nisanMatrix_pairedWordPoly, ← Equiv.coe_refl]
+  rw [Matrix.rank_submatrix, Matrix.rank_one, Fintype.card_fun, Fintype.card_fin]
 
 omit [Fintype X] in
 private theorem involutive_comp_rev :
@@ -232,16 +226,14 @@ theorem rank_nisanMatrix_doubled :
 `Pal_{2m}` has at least `|X| ^ m` vertices. -/
 theorem NoncommABP.pow_le_width_of_polynomial_eq_palindrome (A : NoncommABP K X (m + m))
     (hA : A.polynomial = palindrome K X m) : Fintype.card X ^ m ≤ A.width m := by
-  have h := A.rank_nisanMatrix_le_width m m rfl
-  rwa [hA, rank_nisanMatrix_palindrome] at h
+  simpa [hA, rank_nisanMatrix_palindrome] using A.rank_nisanMatrix_le_width m m rfl
 
 /-- **Lower bound for the double** ([Saptharishi2026Survey], Theorem 11.4, by Nisan's rank method
 [Nisan1991NonCommutative]). The middle layer of a homogeneous layered ABP computing `Doub_{2m}`
 has at least `|X| ^ m` vertices. -/
 theorem NoncommABP.pow_le_width_of_polynomial_eq_doubled (A : NoncommABP K X (m + m))
     (hA : A.polynomial = doubled K X m) : Fintype.card X ^ m ≤ A.width m := by
-  have h := A.rank_nisanMatrix_le_width m m rfl
-  rwa [hA, rank_nisanMatrix_doubled] at h
+  simpa [hA, rank_nisanMatrix_doubled] using A.rank_nisanMatrix_le_width m m rfl
 
 end Rank
 
@@ -275,8 +267,7 @@ private theorem size_palStepFormula (n : ℕ) {k : ℕ} (sel : Fin k → Fin n) 
   induction k with
   | zero => simp [palStepFormula]
   | succ k ih =>
-    rw [palStepFormula, Formula.size_gate₂, Formula.size_gate₂, Formula.size_gate₂, ih]
-    simp only [Formula.size_input]
+    simp only [palStepFormula, Formula.size_gate₂, Formula.size_input, ih]
     omega
 
 variable (K) in
@@ -305,8 +296,7 @@ theorem eval_palCircuit {R : Type*} [Semiring R] [Algebra K R] (n m : ℕ) (x : 
   | succ m ih =>
     rw [palCircuit, Circuit.eval_comp, Formula.eval_toCircuit, eval_palStepFormula _ (map_zero _),
       palindrome_succ, map_sum]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    simp [ih, Fin.append_left, Fin.append_right]
+    exact Finset.sum_congr rfl fun i _ => by simp [ih, Fin.append_left, Fin.append_right]
 
 /-- The palindrome circuit computes `Pal_{2m}` as a non-commutative polynomial. -/
 theorem noncommPolynomial_palCircuit (n m : ℕ) :
@@ -325,11 +315,9 @@ theorem palindrome_separation {K : Type*} [Field K] (n m : ℕ) :
     (∃ c : Circuit (arithSignature K) n 1, c.size = (3 * n + 1) * m + 1 ∧
         c.noncommPolynomial 0 = palindrome K (Fin n) m) ∧
       ∀ A : NoncommABP K (Fin n) (m + m), A.polynomial = palindrome K (Fin n) m →
-        n ^ m ≤ A.size := by
-  refine ⟨⟨palCircuit K n m, size_palCircuit n m, noncommPolynomial_palCircuit n m⟩,
-    fun A hA => ?_⟩
-  have h := A.pow_le_width_of_polynomial_eq_palindrome hA
-  rw [Fintype.card_fin] at h
-  exact h.trans (A.width_le_size (Nat.le_add_right m m))
+        n ^ m ≤ A.size :=
+  ⟨⟨palCircuit K n m, size_palCircuit n m, noncommPolynomial_palCircuit n m⟩, fun A hA => by
+    simpa [Fintype.card_fin] using (A.pow_le_width_of_polynomial_eq_palindrome hA).trans
+      (A.width_le_size (Nat.le_add_right m m))⟩
 
 end Cslib.Circuits.Arithmetic
