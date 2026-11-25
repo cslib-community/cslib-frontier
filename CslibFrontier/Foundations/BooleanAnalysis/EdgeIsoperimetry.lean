@@ -148,7 +148,8 @@ private theorem edges_le (g : (ι → Bool) → Bool) : edges g ≤ size g * Rea
   have hedges : edges (g ∘ E) = edges g :=
     Fintype.sum_equiv E _ _ fun y => Fintype.sum_equiv e.symm _ _ fun j => by
       simp only [comp_apply, hE, update_comp_equiv, e.apply_symm_apply]
-  simpa only [hsize, hedges] using edges_le_fin _ (g ∘ E)
+  rw [← hsize, ← hedges]
+  exact edges_le_fin _ _
 
 /-- **Sets of the cube span few edges**: summing over the points `x` of a set `A` of the Hamming
 cube the number of neighbours of `x` in `A` gives at most `|A| log₂ |A|`. -/
@@ -171,7 +172,8 @@ theorem two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence (f : (ι → Bool
   set n := Fintype.card ι
   have h2 : (0 : ℝ) < 2 ^ n := by positivity
   have hdist : (hammingDist f (fun _ => b) : ℝ) = size g := by
-    simp only [size, sum_boole]; simp [g, hammingDist]
+    simp only [size, sum_boole]
+    simp [g, hammingDist]
   -- The total influence counts the edges leaving `{g = true}`, from both sides.
   have hflip (x : ι → Bool) (i : ι) : (if f (update x i !x i) = f x then (0 : ℝ) else 1) =
       (if g x = true then 1 else 0) + (if g (update x i !x i) = true then 1 else 0) -

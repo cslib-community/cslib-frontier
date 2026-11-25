@@ -72,16 +72,25 @@ side of one half. This also rules out a flag for a zero target. -/
 theorem CircleClose.sign_of_flag {ε t b w q : ℚ} (h : CircleClose ε w q)
     (hf : CircleFlag t w) (hε : ε < t) (hb : b + ε ≤ 1 / 2) (hq : |q| < b) :
     (0 < q ↔ w < 1 / 2) ∧ (q < 0 ↔ 1 / 2 < w) := by
+  have hnzero : q ≠ 0 := by
+    intro hzero
+    subst q
+    exact h.not_flag_zero hε hf
   obtain ⟨z, hz⟩ := h
-  have hz' := abs_lt.mp hz; have hq' := abs_lt.mp hq
-  rcases lt_trichotomy 0 q with hpos | rfl | hneg
-  · obtain rfl := eq_zero_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
+  have hz' := abs_lt.mp hz
+  have hq' := abs_lt.mp hq
+  obtain hpos | hzero | hneg := lt_trichotomy 0 q
+  · have hzz : z = 0 := eq_zero_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
+    subst z
     norm_num at hz'
-    exact ⟨iff_of_true hpos (by linarith), iff_of_false (by linarith) (by linarith)⟩
-  · exact (CircleClose.not_flag_zero ⟨z, hz⟩ hε hf).elim
-  · obtain rfl := eq_one_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
+    have hw : w < 1 / 2 := by linarith
+    exact ⟨iff_of_true hpos hw, iff_of_false (by linarith) (by linarith)⟩
+  · exact False.elim (hnzero hzero.symm)
+  · have hzz : z = 1 := eq_one_of_cast_lt z (by linarith [hf.1]) (by linarith [hf.2])
+    subst z
     norm_num at hz'
-    exact ⟨iff_of_false (by linarith) (by linarith), iff_of_true hneg (by linarith)⟩
+    have hw : 1 / 2 < w := by linarith
+    exact ⟨iff_of_false (by linarith) (by linarith), iff_of_true hneg hw⟩
 
 /-- A target whose magnitude is between `a` and `b` must be flagged, provided the
 rounding error fits between that window and the endpoints. -/
@@ -89,14 +98,17 @@ theorem CircleClose.flag_of_magnitude {ε t a b w q : ℚ} (h : CircleClose ε w
     (hw : 0 ≤ w ∧ w < 1) (hlo : t + ε ≤ a) (hhi : b + ε ≤ 1 - t)
     (ht : 0 < t) (hqlo : a ≤ |q|) (hqhi : |q| < b) : CircleFlag t w := by
   obtain ⟨z, hz⟩ := h
-  have hz' := abs_lt.mp hz; have hq' := abs_lt.mp hqhi
-  have := (abs_nonneg _).trans_lt hz
-  rcases le_total 0 q with hpos | hneg
+  have hz' := abs_lt.mp hz
+  have hq' := abs_lt.mp hqhi
+  have hεpos : 0 < ε := lt_of_le_of_lt (abs_nonneg _) hz
+  obtain hpos | hneg := le_total 0 q
   · rw [abs_of_nonneg hpos] at hqlo
-    obtain rfl := eq_zero_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
+    have hzz : z = 0 := eq_zero_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
+    subst z
     constructor <;> norm_num at hz' <;> linarith
   · rw [abs_of_nonpos hneg] at hqlo
-    obtain rfl := eq_one_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
+    have hzz : z = 1 := eq_one_of_cast_lt z (by linarith [hw.1]) (by linarith [hw.2])
+    subst z
     constructor <;> norm_num at hz' <;> linarith
 
 /-- At the first doubling reaching magnitude `a`, the magnitude is still below `2a`.
@@ -106,7 +118,9 @@ theorem exists_first_doubling_magnitude {q a : ℚ} {K : ℕ}
     ∃ k ≤ K, a ≤ |(2 : ℚ) ^ k * q| ∧
       ∀ j ≤ k, |(2 : ℚ) ^ j * q| < 2 * a := by
   induction K with
-  | zero => norm_num at hend; linarith
+  | zero =>
+    norm_num at hend
+    linarith
   | succ K ih =>
     by_cases hK : a ≤ |(2 : ℚ) ^ K * q|
     · obtain ⟨k, hk, ha, hlt⟩ := ih hK

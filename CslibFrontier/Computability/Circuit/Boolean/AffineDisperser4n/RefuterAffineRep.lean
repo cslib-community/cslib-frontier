@@ -58,8 +58,9 @@ private abbrev auxSystem (S : State n) (a : ℕ) (val : ℕ → Bool) : System :
 
 private theorem width_auxSystem (S : State n) (a : ℕ) (val : ℕ → Bool) :
     Width (varBound S) (auxSystem S a val) := by
-  simp only [Width, auxSystem, List.mem_append, List.mem_map, List.mem_singleton]
-  rintro _ ((⟨_, _, rfl⟩ | ⟨_, _, rfl⟩) | rfl) <;> simp [toDenseRow]
+  intro e he
+  simp only [List.mem_append, List.mem_map, List.mem_singleton] at he
+  rcases he with (⟨_, _, rfl⟩ | ⟨_, _, rfl⟩) | rfl <;> simp [toDenseRow]
 
 private theorem dot_toDenseRow_varBound {S : State n} {T : Finset ℕ} (hT : T ⊆ S.params ∪ S.aux)
     (c : Bool) (v : ℕ → Bool) :
@@ -71,13 +72,20 @@ private theorem holds_auxSystem_iff {S : State n} (hwf : S.WellFormed) {a : ℕ}
     (ha : a ∈ S.params ∪ S.aux) (val v : ℕ → Bool) :
     Holds (auxSystem S a val) ((List.range (varBound S)).map v) ↔
       S.EqnsHold v ∧ (∀ p ∈ S.params, v p = val p) ∧ v a = false := by
+  have hp : ∀ p ∈ S.params, ({p} : Finset ℕ) ⊆ S.params ∪ S.aux := fun p hp =>
+    Finset.singleton_subset_iff.2 (Finset.mem_union_left _ hp)
   simp only [Holds, List.forall_mem_append, List.forall_mem_map, Finset.mem_sort,
-    List.forall_mem_singleton, and_assoc]
-  refine and_congr (forall₂_congr fun e he => ?_) (and_congr (forall₂_congr fun p hp => ?_) ?_)
-  · rw [dot_toDenseRow_varBound (hwf.terms_subset e he)]; rfl
-  · rw [dot_toDenseRow_varBound (Finset.singleton_subset_iff.2 (Finset.mem_union_left _ hp)),
-      Finset.sum_singleton]; rfl
-  · rw [dot_toDenseRow_varBound (Finset.singleton_subset_iff.2 ha), Finset.sum_singleton]; rfl
+    List.forall_mem_singleton]
+  rw [and_assoc]
+  refine and_congr ?_ (and_congr ?_ ?_)
+  · refine forall₂_congr fun e he => ?_
+    rw [dot_toDenseRow_varBound (hwf.terms_subset e he)]
+    rfl
+  · refine forall₂_congr fun p hp' => ?_
+    rw [dot_toDenseRow_varBound (hp p hp'), Finset.sum_singleton]
+    rfl
+  · rw [dot_toDenseRow_varBound (Finset.singleton_subset_iff.2 ha), Finset.sum_singleton]
+    rfl
 
 private theorem satisfiable_auxSystem_iff {S : State n} (hwf : S.WellFormed) {a : ℕ}
     (ha : a ∈ S.params ∪ S.aux) (val : ℕ → Bool) :
@@ -115,28 +123,42 @@ theorem evaluateAux_eq_of_affineIn {S : State n} (hwf : S.WellFormed) {a : ℕ} 
     evaluateAux S a val = c + ∑ j ∈ T, val j := by
   obtain ⟨w, hw, hweq⟩ := hwf.solvable val
   rw [evaluateAux_eq hwf ha hw hweq, h.2 w hweq]
-  exact congrArg (c + ·) (Finset.sum_congr rfl fun j hj => hw j (h.1 hj))
+  congr 1
+  exact Finset.sum_congr rfl fun j hj => hw j (h.1 hj)
 
 /-- `findAffineRep S Q` is the affine representation of the auxiliary variable `Q` in the
 parameters. -/
 theorem findAffineRep_spec {S : State n} (hwf : S.WellFormed) {Q : ℕ} (hQ : Q ∈ S.aux) :
     S.AffineIn Q (findAffineRep S Q).1 (findAffineRep S Q).2 := by
   obtain ⟨c, T, h⟩ := hwf.exists_affineIn hQ
-  have h0 : evaluateAux S Q (fun _ => false) = c :=
-    (evaluateAux_eq_of_affineIn hwf hQ h _).trans
-      ((congrArg (c + ·) Finset.sum_const_zero).trans (add_zero c))
+  have h0 : evaluateAux S Q (fun _ => false) = c := by
+    rw [evaluateAux_eq_of_affineIn hwf hQ h]
+    change c + ∑ _j ∈ T, (0 : Bool) = c
+    rw [Finset.sum_const_zero, add_zero]
+  have hc : (findAffineRep S Q).1 = c := h0
   have hT : (findAffineRep S Q).2 = T := by
+    change S.params.filter (fun y => evaluateAux S Q (fun j => j == y) !=
+      evaluateAux S Q (fun _ => false)) = T
     ext y
-    simp only [findAffineRep, Finset.mem_filter, h0, evaluateAux_eq_of_affineIn hwf hQ h]
+    rw [Finset.mem_filter, h0, evaluateAux_eq_of_affineIn hwf hQ h]
     have hsum : ∑ j ∈ T, (j == y) = if y ∈ T then 1 else 0 := by
       rw [← Finset.sum_ite_eq' T y fun _ => (1 : Bool)]
-      exact Finset.sum_congr rfl fun j _ => by
-        by_cases hj : j = y <;> simp [hj, beq_false_of_ne] <;> rfl
+      refine Finset.sum_congr rfl fun j _ => ?_
+      by_cases hj : j = y
+      · subst hj
+        rw [beq_self_eq_true, ite_eq_left rfl]
+        rfl
+      · rw [beq_false_of_ne hj, ite_eq_right hj]
+        rfl
     rw [hsum]
     by_cases hy : y ∈ T
-    · simp only [hy, ite_true, iff_true]; exact ⟨h.1 hy, by cases c <;> rfl⟩
-    · simp only [hy, ite_false, iff_false, not_and]; exact fun _ => by cases c <;> decide
-  change S.AffineIn Q (evaluateAux S Q fun _ => false) (findAffineRep S Q).2
-  rwa [h0, hT]
+    · simp only [hy, ite_true, iff_true]
+      refine ⟨h.1 hy, ?_⟩
+      cases c <;> rfl
+    · simp only [hy, ite_false, iff_false, not_and]
+      intro _
+      cases c <;> decide
+  rw [hc, hT]
+  exact h
 
 end Cslib.Circuits.Boolean.AffineDisperser4n

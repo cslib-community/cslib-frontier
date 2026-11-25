@@ -141,7 +141,8 @@ def wireLength (r : Route) : ℕ := (r.consecutivePairs.map fun e => length e.1 
 theorem length_le_box {a b : Point} {w h : ℕ}
     (ha : 0 ≤ a.1 ∧ a.1 ≤ w ∧ 0 ≤ a.2 ∧ a.2 ≤ h)
     (hb : 0 ≤ b.1 ∧ b.1 ≤ w ∧ 0 ≤ b.2 ∧ b.2 ≤ h) : length a b ≤ w + h := by
-  unfold length; omega
+  unfold length
+  omega
 
 /-- Bounding all listed points bounds the total wire length by the number of segments times
 the sum of the rectangle sides. -/
@@ -192,13 +193,21 @@ theorem support_bounds_of_points {r : Route} {x₀ x₁ y₀ y₁ : ℤ}
 theorem mem_horizontal {a b y : ℝ} {p : ℝ × ℝ} :
     p ∈ _root_.segment ℝ (a, y) (b, y) ↔ p.2 = y ∧ p.1 ∈ Set.uIcc a b := by
   rw [← Prod.image_mk_segment_left, segment_eq_uIcc]
-  exact ⟨by rintro ⟨x, hx, rfl⟩; exact ⟨rfl, hx⟩, fun ⟨hy, hx⟩ => ⟨p.1, hx, Prod.ext rfl hy.symm⟩⟩
+  constructor
+  · rintro ⟨x, hx, rfl⟩
+    exact ⟨rfl, hx⟩
+  · rintro ⟨hy, hx⟩
+    exact ⟨p.1, hx, Prod.ext rfl hy.symm⟩
 
 /-- Vertical real segment membership is a one-dimensional interval test. -/
 theorem mem_vertical {x a b : ℝ} {p : ℝ × ℝ} :
     p ∈ _root_.segment ℝ (x, a) (x, b) ↔ p.1 = x ∧ p.2 ∈ Set.uIcc a b := by
   rw [← Prod.image_mk_segment_right, segment_eq_uIcc]
-  exact ⟨by rintro ⟨y, hy, rfl⟩; exact ⟨rfl, hy⟩, fun ⟨hx, hy⟩ => ⟨p.2, hy, Prod.ext hx.symm rfl⟩⟩
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    exact ⟨rfl, hy⟩
+  · rintro ⟨hx, hy⟩
+    exact ⟨p.2, hy, Prod.ext hx.symm rfl⟩
 
 /-- Integer points on an axis-aligned segment can be checked using integer inequalities. -/
 theorem realPoint_mem_segment_iff {a b p : Point} (h : a.1 = b.1 ∨ a.2 = b.2) :

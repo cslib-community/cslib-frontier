@@ -66,14 +66,16 @@ private theorem card_pairs {n : ℕ} (s : Finset (Fin n)) : #(pairs s) = (#s).ch
 
 private theorem forall_pairs_of_isClique {n : ℕ} {x : Sym2 (Fin n) → Bool} {s : Finset (Fin n)}
     (h : (ofMarks x).IsClique (s : Set (Fin n))) : ∀ e ∈ pairs s, x e = true := by
-  intro e he; rw [pairs, mem_image] at he
+  intro e he
+  rw [pairs, mem_image] at he
   obtain ⟨⟨u, v⟩, huv, rfl⟩ := he
   obtain ⟨hu, hv, hne⟩ := mem_offDiag.1 huv
   exact ((fromEdgeSet_adj _).1 (h hu hv hne)).1
 
 private theorem forall_pairs_of_isIndepSet {n : ℕ} {x : Sym2 (Fin n) → Bool} {s : Finset (Fin n)}
     (h : (ofMarks x).IsIndepSet (s : Set (Fin n))) : ∀ e ∈ pairs s, x e = false := by
-  intro e he; rw [pairs, mem_image] at he
+  intro e he
+  rw [pairs, mem_image] at he
   obtain ⟨⟨u, v⟩, huv, rfl⟩ := he
   obtain ⟨hu, hv, hne⟩ := mem_offDiag.1 huv
   have hna := h hu hv hne
@@ -146,23 +148,34 @@ private theorem four_mul_two_pow_lt_factorial_sq : ∀ {k : ℕ}, 3 ≤ k → 4 
 theorem two_mul_choose_lt_of_sq_le {n k : ℕ} (hk : 3 ≤ k) (hn : n ^ 2 ≤ 2 ^ k) :
     2 * n.choose k < 2 ^ k.choose 2 := by
   have hkk : k * k = 2 * k.choose 2 + k := by
+    rw [Nat.choose_two_right]
+    have h2 : 2 ∣ k * (k - 1) := (Nat.even_mul_pred_self k).two_dvd
     rcases k with _ | k
     · omega
-    · rw [Nat.choose_two_right, Nat.mul_div_cancel' (Nat.even_mul_pred_self (k + 1)).two_dvd]
-      simp only [Nat.add_sub_cancel]; ring
+    · rw [Nat.mul_div_cancel' h2]
+      simp only [Nat.add_sub_cancel]
+      ring
   rcases Nat.eq_zero_or_pos (n.choose k) with h0 | hpos
   · rw [h0]; exact pow_pos (by norm_num) _
-  refine lt_of_pow_lt_pow_left₀ 2 (Nat.zero_le _) ?_
-  refine lt_of_mul_lt_mul_right (a := 2 ^ k) ?_ (Nat.zero_le _)
-  rw [← pow_mul, mul_comm (k.choose 2) 2, ← pow_add, ← hkk]
-  calc (2 * n.choose k) ^ 2 * 2 ^ k
-      = 4 * 2 ^ k * n.choose k ^ 2 := by ring
-    _ < k.factorial ^ 2 * n.choose k ^ 2 :=
-        Nat.mul_lt_mul_of_pos_right (four_mul_two_pow_lt_factorial_sq hk) (pow_pos hpos _)
-    _ = n.descFactorial k ^ 2 := by rw [Nat.descFactorial_eq_factorial_mul_choose]; ring
-    _ ≤ (n ^ k) ^ 2 := Nat.pow_le_pow_left (Nat.descFactorial_le_pow _ _) _
-    _ ≤ (2 ^ k) ^ k := by rw [← pow_mul, mul_comm k 2, pow_mul]; exact Nat.pow_le_pow_left hn _
-    _ = 2 ^ (k * k) := (pow_mul ..).symm
+  have hsq : (k.factorial * n.choose k) ^ 2 ≤ 2 ^ (k * k) := by
+    rw [← Nat.descFactorial_eq_factorial_mul_choose]
+    calc (n.descFactorial k) ^ 2 ≤ (n ^ k) ^ 2 :=
+          Nat.pow_le_pow_left (Nat.descFactorial_le_pow _ _) _
+      _ = (n ^ 2) ^ k := by ring
+      _ ≤ (2 ^ k) ^ k := Nat.pow_le_pow_left hn _
+      _ = 2 ^ (k * k) := by ring
+  have hfac := four_mul_two_pow_lt_factorial_sq hk
+  have hmain : (2 * n.choose k) ^ 2 * 2 ^ k < 2 ^ (k * k) := by
+    calc (2 * n.choose k) ^ 2 * 2 ^ k = 4 * 2 ^ k * n.choose k ^ 2 := by ring
+      _ < k.factorial ^ 2 * n.choose k ^ 2 :=
+          Nat.mul_lt_mul_of_pos_right hfac (pow_pos hpos _)
+      _ = (k.factorial * n.choose k) ^ 2 := by ring
+      _ ≤ 2 ^ (k * k) := hsq
+  rw [hkk, pow_add] at hmain
+  have hlt : (2 * n.choose k) ^ 2 < (2 ^ k.choose 2) ^ 2 := by
+    rw [← pow_mul, mul_comm (k.choose 2) 2]
+    exact lt_of_mul_lt_mul_right hmain (Nat.zero_le _)
+  exact lt_of_pow_lt_pow_left₀ 2 (Nat.zero_le _) hlt
 
 /-- **Erdős 1947**: if `k ≥ 3` and `n ≤ 2 ^ (k / 2)`, that is `n ^ 2 ≤ 2 ^ k`, then some graph on
 `n` vertices has neither a `k`-clique nor a `k`-independent set, so `n < R(k, k)`
@@ -172,9 +185,11 @@ theorem lt_ramseyNumber_of_sq_le {n k : ℕ} (hk : 3 ≤ k) (hn : n ^ 2 ≤ 2 ^ 
   lt_ramseyNumber_of_two_mul_choose_lt (two_mul_choose_lt_of_sq_le hk hn)
 
 /-- Erdős's bound in integer form: `2 ^ k < R(k, k) ^ 2` for `k ≥ 3`. -/
-theorem two_pow_lt_ramseyNumber_sq {k : ℕ} (hk : 3 ≤ k) : 2 ^ k < ramseyNumber k k ^ 2 :=
-  (Nat.lt_succ_sqrt' (2 ^ k)).trans_le
-    (Nat.pow_le_pow_left (lt_ramseyNumber_of_sq_le hk (Nat.sqrt_le' _)) _)
+theorem two_pow_lt_ramseyNumber_sq {k : ℕ} (hk : 3 ≤ k) : 2 ^ k < ramseyNumber k k ^ 2 := by
+  have h1 := lt_ramseyNumber_of_sq_le hk (Nat.sqrt_le' (2 ^ k))
+  have h2 := Nat.lt_succ_sqrt' (2 ^ k)
+  calc 2 ^ k < (Nat.sqrt (2 ^ k) + 1) ^ 2 := h2
+    _ ≤ ramseyNumber k k ^ 2 := Nat.pow_le_pow_left h1 _
 
 /-- **Erdős 1947**: `2 ^ (k / 2) < R(k, k)` for every `k ≥ 3` [Erdos1947]
 [AlonSpencer2016, Proposition 1.1.1]. -/

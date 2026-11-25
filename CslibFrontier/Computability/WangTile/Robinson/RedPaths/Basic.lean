@@ -137,8 +137,9 @@ theorem subdivideTileAt_horizontal_iff (left right : WangTile) (q r : Quadrant) 
       | .southwest, .southeast | .northwest, .northeast => left = right
       | .southeast, .southwest | .northeast, .northwest => left.right = right.left
       | _, _ => False := by
-  cases q <;> cases r <;> simp [subdivideTileAt, verticalEdgeColor, internalVerticalColor,
-    Nat.pair_eq_pair]
+  cases q <;> cases r <;>
+    simp [subdivideTileAt, verticalEdgeColor, internalVerticalColor,
+      Nat.pair_eq_pair]
 
 /-- The vertical counterpart of quarter-edge matching. -/
 theorem subdivideTileAt_vertical_iff (lower upper : WangTile) (q r : Quadrant) :
@@ -147,8 +148,9 @@ theorem subdivideTileAt_vertical_iff (lower upper : WangTile) (q r : Quadrant) :
       | .southwest, .northwest | .southeast, .northeast => lower = upper
       | .northwest, .southwest | .northeast, .southeast => lower.top = upper.bottom
       | _, _ => False := by
-  cases q <;> cases r <;> simp [subdivideTileAt, horizontalEdgeColor, internalHorizontalColor,
-    Nat.pair_eq_pair]
+  cases q <;> cases r <;>
+    simp [subdivideTileAt, horizontalEdgeColor, internalHorizontalColor,
+      Nat.pair_eq_pair]
 
 @[expose] public section
 /-- A quarter of one indexed tile of the corrected Robinson alphabet. -/
@@ -234,12 +236,14 @@ end
 /-- The horizontal bit of a quarter is the parity of its horizontal coordinate. -/
 @[simp] theorem quadrantAt_xBit (x y : Nat) :
     (quadrantAt x y).xBit = (x % 2 == 1) := by
-  unfold quadrantAt; cases x % 2 == 1 <;> cases y % 2 == 1 <;> rfl
+  unfold quadrantAt
+  cases x % 2 == 1 <;> cases y % 2 == 1 <;> rfl
 
 /-- The vertical bit of a quarter is the parity of its vertical coordinate. -/
 @[simp] theorem quadrantAt_yBit (x y : Nat) :
     (quadrantAt x y).yBit = (y % 2 == 1) := by
-  unfold quadrantAt; cases x % 2 == 1 <;> cases y % 2 == 1 <;> rfl
+  unfold quadrantAt
+  cases x % 2 == 1 <;> cases y % 2 == 1 <;> rfl
 
 /-- Thick component at quarter coordinates, grouped by pairs in each direction. -/
 @[expose] def componentAt (grid : Nat → Nat → Index) (x y : Nat) : Thick :=
@@ -381,10 +385,12 @@ theorem fixed_cycle (parent : Index) :
       containsLine (indexThick (g 1 2)) .r0 = true ∧
       containsLine (indexThick (g 3 2)) .r2 = true := by decide
   obtain ⟨sw, se, nw, ne, s, n, w, e⟩ := checked parent
-  have hz {z : ℕ} (_ : 1 < z) (_ : z < 3) : z = 2 := by omega
-  exact ⟨by decide, by decide, sw, se, nw, ne,
-    fun _ h1 h2 => hz h1 h2 ▸ s, fun _ h1 h2 => hz h1 h2 ▸ n,
-    fun _ h1 h2 => hz h1 h2 ▸ w, fun _ h1 h2 => hz h1 h2 ▸ e⟩
+  refine ⟨by decide, by decide, sw, se, nw, ne, ?_, ?_, ?_, ?_⟩
+  all_goals
+    intro z hz₁ hz₂
+    have : z = 2 := by omega
+    subst z
+    assumption
 
 /-- Every further substitution preserves the board and scales its coordinates by two. -/
 theorem CycleOn.iterateRefine {grid : Nat → Nat → Index} {w e s n : Nat}

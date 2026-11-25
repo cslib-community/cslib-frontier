@@ -98,7 +98,8 @@ theorem weightedCost_bind (t : DecisionTree ι β) (k : β → DecisionTree ι �
       t.weightedCost w x + (k (t.eval x)).weightedCost w x := by
   induction t with
   | leaf => simp
-  | node i _ _ ihl ihr => cases h : x i <;> simp [h, ihl, ihr, Nat.add_right_comm]
+  | node i left right ihl ihr =>
+    cases h : x i <;> simp [h, ihl, ihr, Nat.add_right_comm]
 
 /-- A uniform bound on continuation costs adds to the first tree's structural cost. -/
 theorem weightedDepth_bind_le (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
@@ -106,7 +107,9 @@ theorem weightedDepth_bind_le (t : DecisionTree ι β) (k : β → DecisionTree 
     (t.bind k).weightedDepth w ≤ t.weightedDepth w + d := by
   induction t with
   | leaf b => simpa only [leaf_bind, weightedDepth_leaf, Nat.zero_add] using hk b
-  | node i left right ihl ihr => simp [node_bind, weightedDepth_node]; omega
+  | node i left right ihl ihr =>
+    simp only [node_bind, weightedDepth_node]
+    omega
 
 /-- A uniform bound on continuation depths adds to the first tree's depth. -/
 theorem depth_bind_le (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
@@ -137,7 +140,9 @@ theorem depth_seqFin_le {k d : ℕ} (t : Fin k → DecisionTree ι β) (ht : ∀
   | succ k ih =>
     refine (depth_bind_le _ _ fun b => (depth_bind_le _ _ fun _ => (depth_leaf _).le).trans
       (ih _ fun j => ht j.succ)).trans ?_
-    have := ht 0; rw [Nat.succ_mul]; omega
+    have := ht 0
+    rw [Nat.succ_mul]
+    omega
 
 /-- Replace a query of `i` by the Boolean subroutine `s i`, then follow its answer.
 Every occurrence is replaced independently; answers are not memoized. -/
@@ -167,9 +172,10 @@ theorem substitute_bind (t : DecisionTree ι β) (k : β → DecisionTree ι γ)
     (t.bind k).substitute s = (t.substitute s).bind (fun b => (k b).substitute s) := by
   induction t with
   | leaf => rfl
-  | node i _ _ ihl ihr =>
+  | node i left right ihl ihr =>
     simp only [node_bind, substitute_node, bind_assoc]
-    exact congrArg _ (funext fun | false => ihl | true => ihr)
+    congr 1 with b : 1
+    cases b <;> simp [ihl, ihr]
 
 /-- Nested query substitutions associate, so subroutines may be compiled in stages. -/
 theorem substitute_assoc (t : DecisionTree ι β) (s : ι → DecisionTree κ Bool)
@@ -177,9 +183,10 @@ theorem substitute_assoc (t : DecisionTree ι β) (s : ι → DecisionTree κ Bo
     (t.substitute s).substitute r = t.substitute (fun i => (s i).substitute r) := by
   induction t with
   | leaf => rfl
-  | node i _ _ ihl ihr =>
+  | node i left right ihl ihr =>
     rw [substitute_node, substitute_bind, substitute_node]
-    exact congrArg _ (funext fun | false => ihl | true => ihr)
+    congr 1 with b : 1
+    cases b <;> simp [ihl, ihr]
 
 /-- Query substitution evaluates the outer tree on the answers supplied by the inner trees. -/
 @[simp] theorem eval_substitute (t : DecisionTree ι β) (s : ι → DecisionTree κ Bool)
@@ -194,8 +201,11 @@ theorem substitute_assoc (t : DecisionTree ι β) (s : ι → DecisionTree κ Bo
 theorem Computes.substitute {t : DecisionTree ι β} {f : (ι → Bool) → β}
     (ht : t.Computes f) {s : ι → DecisionTree κ Bool} {g : ι → (κ → Bool) → Bool}
     (hs : ∀ i, (s i).Computes (g i)) :
-    (t.substitute s).Computes (fun x => f (fun i => g i x)) :=
-  fun x => (eval_substitute t s x).trans <| (ht _).trans <| congrArg f (funext fun i => hs i x)
+    (t.substitute s).Computes (fun x => f (fun i => g i x)) := by
+  intro x
+  rw [eval_substitute, ht]
+  congr 1 with i : 1
+  exact hs i x
 
 /-- Exact cost of substitution: charge each outer query the cost of its subroutine on the
 current input. Overlapping variables and repeated queries are both permitted. -/

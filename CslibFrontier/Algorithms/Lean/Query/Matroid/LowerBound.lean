@@ -90,14 +90,19 @@ theorem IndepQuery.card_queriedSets_le_countQueries [DecidableEq α] {γ : Type}
     (oracle : {ι : Type} → IndepQuery α ι → ι) (p : FreeM (IndepQuery α) γ) :
     (IndepQuery.queriedSets oracle p).card ≤ p.countQueries oracle := by
   induction p with
-  | pure => simp
-  | lift_bind op cont ih =>
+  | pure a => simp
+  | @lift_bind ρ op cont ih =>
     cases op with
     | indep S =>
-      change (IndepQuery.queriedSets oracle (FreeM.lift (.indep S) >>= cont)).card ≤
+      change (insert S (IndepQuery.queriedSets oracle (cont (oracle (.indep S))))).card ≤
         (FreeM.lift (.indep S) >>= cont).countQueries oracle
-      rw [IndepQuery.queriedSets_liftBind, FreeM.countQueries_liftBind, Nat.add_comm]
-      exact (Finset.card_insert_le _ _).trans (Nat.add_le_add_right (ih _) 1)
+      rw [FreeM.countQueries_liftBind]
+      calc (insert S (IndepQuery.queriedSets oracle (cont (oracle (.indep S))))).card
+          ≤ (IndepQuery.queriedSets oracle (cont (oracle (.indep S)))).card + 1 :=
+            Finset.card_insert_le _ _
+        _ ≤ (cont (oracle (.indep S))).countQueries oracle + 1 :=
+            Nat.add_le_add_right (ih (oracle (.indep S))) 1
+        _ = 1 + (cont (oracle (.indep S))).countQueries oracle := Nat.add_comm _ 1
 
 /-- If `oracle₁` and `oracle₂` agree on every set queried along `oracle₁`'s path, then `p`
 evaluates to the exact same result under both oracles. -/
@@ -129,8 +134,9 @@ ground set `E : Set α`. -/
   IndepQuery.oracleOf fun S => decide (S ⊆ {e})
 
 theorem IndepQuery.implementsMatroid_loopyOracle [DecidableEq α] (E : Set α) :
-    IndepQuery.ImplementsMatroid (IndepQuery.loopyOracle (α := α)) (Matroid.loopyOn E) :=
-  fun S => by simp [IndepQuery.loopyOracle]
+    IndepQuery.ImplementsMatroid (IndepQuery.loopyOracle (α := α)) (Matroid.loopyOn E) := by
+  intro S
+  simp [IndepQuery.loopyOracle]
 
 theorem IndepQuery.implementsMatroid_singletonOracle [DecidableEq α] {e : α} {E : Set α}
     (he : e ∈ E) :
@@ -179,9 +185,11 @@ theorem IsMatroidBasisAlg.toIsMaxCardIndepAlg [DecidableEq α]
     IsMaxCardIndepAlg alg where
   indep xs M oracle horacle := (halg.isBasis' xs M oracle horacle).indep
   card_max xs M oracle horacle I hI hIsub := by
-    by_contra! hlt
-    obtain ⟨e, heI, heB, hind⟩ := (halg.isBasis' xs M oracle horacle).indep.augment_finset hI hlt
-    exact (halg.isBasis' xs M oracle horacle).insert_not_indep ⟨hIsub heI, heB⟩ hind
+    have hB := halg.isBasis' xs M oracle horacle
+    by_contra hlt
+    push Not at hlt
+    obtain ⟨e, heI, heB, hind⟩ := hB.indep.augment_finset hI hlt
+    exact hB.insert_not_indep ⟨hIsub heI, heB⟩ hind
 
 /-- `matroidGreedySelect` is a correct `IsMatroidBasisAlg`. -/
 theorem matroidGreedySelect_isMatroidBasisAlg [DecidableEq α] :
@@ -219,7 +227,8 @@ theorem IsMaxCardIndepAlg.singleton_mem_queriedSets [DecidableEq α]
   have he_impl := IndepQuery.implementsMatroid_singletonOracle heE
   have h1_ind : (Matroid.uniqueBaseOn ({e} : Set α) {x | x ∈ xs}).Indep
       (({e} : Finset α) : Set α) := by
-    rw [Matroid.uniqueBaseOn_indep_iff (Set.singleton_subset_iff.mpr heE)]; simp
+    rw [Matroid.uniqueBaseOn_indep_iff (Set.singleton_subset_iff.mpr heE)]
+    simp
   have he_card : 1 ≤ ((alg xs).eval (IndepQuery.singletonOracle e)).card := by
     simpa using halg.card_max xs _ _ he_impl {e} h1_ind (by simp [heE])
   by_contra hnot_mem
@@ -237,11 +246,18 @@ theorem IsMaxCardIndepAlg.card_toFinset_le_countQueries [DecidableEq α]
     xs.toFinset.card ≤ (alg xs).countQueries IndepQuery.loopyOracle := by
   have hsub : xs.toFinset.image (fun e : α => ({e} : Finset α)) ⊆
       IndepQuery.queriedSets IndepQuery.loopyOracle (alg xs) := by
-    rintro _ hS
+    intro S hS
     obtain ⟨e, he, rfl⟩ := Finset.mem_image.mp hS
     exact halg.singleton_mem_queriedSets (List.mem_toFinset.mp he)
-  rw [← Finset.card_image_of_injective xs.toFinset fun _ _ h => Finset.singleton_injective h]
-  exact (Finset.card_le_card hsub).trans (IndepQuery.card_queriedSets_le_countQueries _ _)
+  have hinj : Function.Injective (fun e : α => ({e} : Finset α)) := fun _ _ h =>
+    Finset.singleton_injective h
+  calc xs.toFinset.card
+      = (xs.toFinset.image (fun e : α => ({e} : Finset α))).card :=
+        (Finset.card_image_of_injective _ hinj).symm
+    _ ≤ (IndepQuery.queriedSets IndepQuery.loopyOracle (alg xs)).card :=
+        Finset.card_le_card hsub
+    _ ≤ (alg xs).countQueries IndepQuery.loopyOracle :=
+        IndepQuery.card_queriedSets_le_countQueries _ _
 
 /-- On any duplicate-free list `xs`, `alg xs` makes at least `xs.length` independence queries
 against `IndepQuery.loopyOracle`. -/

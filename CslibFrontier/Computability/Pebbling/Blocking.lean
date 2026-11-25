@@ -127,7 +127,8 @@ theorem forcesPebbles_three {R : Set V} {x y z : V} (hy : G.Adj y x) (hz : G.Adj
   refine ⟨s + 1, by omega, by omega, {x, y, z}, ?_, by simp [Set.insert_subset_iff, hxR, hyR, hzR],
     (Finset.card_eq_three.2 ⟨x, y, z, fun h => hxs (h ▸ hpred y hy),
       fun h => hxs (h ▸ hpred z hz), hyz, rfl⟩).symm.le⟩
-  rw [hD]; simp [Finset.insert_subset_iff, hpred y hy, hpred z hz]
+  rw [hD]
+  simp [Finset.insert_subset_iff, hpred y hy, hpred z hz]
 
 /-- The inductive step of the path-blocking argument for a vertex `x` whose predecessors are
 exactly `y` and `z`. If blocking all paths to `y` puts a pebble on `Rx \ Rz` and blocking all paths

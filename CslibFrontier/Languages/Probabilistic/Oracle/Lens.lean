@@ -235,11 +235,13 @@ theorem length_get_of_mem_support_zoom_memoize {S Key Value : Type} [BEq Key]
   | some value =>
     rw [l.zoom_memoize_of_some compute key s value h, PMF.monad_pure_eq_pure,
       PMF.mem_support_pure_iff] at hout
-    exact hout ▸ Nat.le_succ _
+    subst hout
+    exact Nat.le_succ _
   | none =>
     rw [l.zoom_memoize_of_none compute key s h, PMF.monad_map_eq_map,
       PMF.mem_support_map_iff] at hout
-    obtain ⟨_, -, rfl⟩ := hout; simp
+    obtain ⟨value, -, rfl⟩ := hout
+    simp
 
 end ZoomMemoize
 
@@ -265,16 +267,19 @@ indicator `flag.get s'` via `||`. -/
 @[simp] theorem latch_of_false (flag : StateLens S Bool)
     (step : (q : ι) → S → PMF (spec q × S)) (q : ι) {s : S} (hs : flag.get s = false) :
     flag.latch step q s = step q s := by
-  have hid : (fun x : spec q × S => (x.1, flag.set x.2 (false || flag.get x.2))) = _root_.id :=
-    funext fun ⟨_, _⟩ => by simp
-  simp only [latch, hs, hid, PMF.map_id, show flag.set s false = s by rw [← hs, flag.set_get]]
+  have hs_set : flag.set s false = s := by rw [← hs, flag.set_get]
+  have hid : (fun x : spec q × S => (x.1, flag.set x.2 (false || flag.get x.2))) = _root_.id := by
+    funext ⟨a, s'⟩
+    simp
+  simp only [latch, hs, hs_set, hid, PMF.map_id]
 
 /-- `flag.Bad` is absorbing for every handler built with `flag.latch`. -/
 theorem absorb_latch (flag : StateLens S Bool) (step : (q : ι) → S → PMF (spec q × S)) :
     ∀ q s, flag.Bad s → ∀ x ∈ (flag.latch step q s).support, flag.Bad x.2 := by
   intro q s hs x hx
   simp only [latch, hs, Bool.true_or, PMF.mem_support_map_iff] at hx
-  obtain ⟨_, -, rfl⟩ := hx; simp [Bad]
+  obtain ⟨_, -, rfl⟩ := hx
+  simp [Bad]
 
 /-- Two `flag.latch` handlers satisfy `OracleComp.IdenticalUntilBad` whenever their underlying
 step kernels assign equal mass to unflagged transitions from unflagged states. -/
@@ -284,7 +289,8 @@ theorem identicalUntilBad_latch (flag : StateLens S Bool)
       step₁ q s (a, s') = step₂ q s (a, s')) :
     OracleComp.IdenticalUntilBad (flag.latch step₁) (flag.latch step₂) flag.Bad where
   agree q s hs a s' hs' := by
-    have hbs := Bool.eq_false_iff.mpr hs; have hbs' := Bool.eq_false_iff.mpr hs'
+    have hbs := Bool.eq_false_iff.mpr hs
+    have hbs' := Bool.eq_false_iff.mpr hs'
     rw [flag.latch_of_false step₁ q hbs, flag.latch_of_false step₂ q hbs]
     exact hagree q s hbs a s' hbs'
   absorb_first := flag.absorb_latch step₁
@@ -309,12 +315,15 @@ theorem runWith_latch_map (flag : StateLens S Bool)
       unflagged q (proj s))
     (program : ProbOracleComp qspec α) (s : S) :
     (ProbOracleComp.runWith (flag.latch step) program s).map (Prod.map _root_.id proj) =
-      ProbOracleComp.runWith unflagged program (proj s) :=
-  ProbOracleComp.runWith_map_state (flag.latch step) unflagged proj (fun q st => by
-    rw [show (flag.latch step q st).map (fun (a, s') => (a, proj s')) =
-      (step q (flag.set st false)).map (Prod.map _root_.id proj) by
-        simp only [latch, PMF.map_comp]; congr 1 with ⟨_, _⟩ : 1; simp [hproj],
-      hstep q (flag.set st false) (flag.get_set st false), hproj st false]) program s
+      ProbOracleComp.runWith unflagged program (proj s) := by
+  refine ProbOracleComp.runWith_map_state (flag.latch step) unflagged proj (fun q st => ?_)
+    program s
+  have hmap : (flag.latch step q st).map (fun (a, s') => (a, proj s')) =
+      (step q (flag.set st false)).map (Prod.map _root_.id proj) := by
+    simp only [latch, PMF.map_comp]
+    congr 1 with ⟨a, s'⟩ : 1
+    simp [hproj]
+  rw [hmap, hstep q (flag.set st false) (flag.get_set st false), hproj st false]
 
 /-- Linear bad-event union bound for `ProbOracleComp.runWith (flag.latch step)`, stated directly in
 terms of unflagged `step` transitions (`flag.get s = false`). -/

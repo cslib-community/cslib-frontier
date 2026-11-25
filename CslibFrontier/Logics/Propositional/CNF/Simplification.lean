@@ -64,9 +64,10 @@ scales `ψ.modelCount` by `2 ^ (φ.numVars - ψ.numVars)`. -/
 theorem CNF.modelCount_eq_two_pow_mul_of_eval_eq [DecidableEq V] {φ ψ : CNF V}
     (hvars : ψ.vars.toFinset ⊆ φ.vars.toFinset)
     (h : ∀ σ : V → Bool, ψ.eval σ = φ.eval σ) :
-    φ.modelCount = 2 ^ (φ.numVars - ψ.numVars) * ψ.modelCount :=
-  (CNF.modelCountOn_vars φ).symm.trans <| (CNF.modelCountOn_eq_of_eval_eq h _).symm.trans
-    (CNF.modelCountOn_eq_mul_modelCount ψ _ hvars)
+    φ.modelCount = 2 ^ (φ.numVars - ψ.numVars) * ψ.modelCount := by
+  rw [← CNF.modelCountOn_vars φ, ← CNF.modelCountOn_eq_of_eval_eq h φ.vars.toFinset,
+    CNF.modelCountOn_eq_mul_modelCount ψ φ.vars.toFinset hvars]
+  rfl
 
 /-- If every literal of `c` belongs to `d`, any assignment satisfying `c` satisfies `d`. -/
 theorem Clause.eval_eq_true_of_subset [DecidableEq V] {c d : Clause V}
@@ -136,13 +137,14 @@ theorem nodup_of_mem_countingNormalize {φ : CNF V} {C : Clause V}
 /-- Literal deduplication preserves clause evaluation. -/
 @[simp] theorem eval_dedup (C : Clause V) (σ : V → Bool) :
     Clause.eval σ (dedup C) = C.eval σ := by
-  rw [Bool.eq_iff_iff]; simp only [Clause.eval_eq_true_iff, mem_dedup]
+  rw [Bool.eq_iff_iff]
+  simp only [Clause.eval_eq_true_iff, mem_dedup]
 
 /-- Literal deduplication across all clauses preserves formula evaluation. -/
 @[simp] theorem eval_map_dedup (φ : CNF V) (σ : V → Bool) :
     CNF.eval σ (φ.map dedup) = φ.eval σ := by
-  rw [Bool.eq_iff_iff]; simp only [CNF.eval_eq_true_iff, List.mem_map, forall_exists_index,
-    and_imp, forall_apply_eq_imp_iff₂, eval_dedup]
+  rw [Bool.eq_iff_iff, CNF.eval_eq_true_iff, CNF.eval_eq_true_iff]
+  simp only [List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂, eval_dedup]
 
 /-- Clause deduplication preserves formula evaluation. -/
 @[simp] theorem eval_dedupClauses (φ : CNF V) (σ : V → Bool) :
@@ -210,13 +212,15 @@ theorem satisfiable_countingNormalize_iff (φ : CNF V) :
 
 private theorem vars_toFinset_sublist {ψ φ : CNF V} (hsub : ψ <+ φ) :
     ψ.vars.toFinset ⊆ φ.vars.toFinset := by
-  intro v; simp only [List.mem_toFinset, CNF.mem_vars]
+  intro v
+  simp only [List.mem_toFinset, CNF.mem_vars]
   exact fun ⟨c, hc, b, hb⟩ => ⟨c, hsub.subset hc, b, hb⟩
 
 /-- Literal deduplication preserves the occurring variable set. -/
 @[simp] theorem vars_toFinset_map_dedup (φ : CNF V) :
     (CNF.vars (φ.map dedup)).toFinset = φ.vars.toFinset := by
-  ext v; simp [CNF.mem_vars, mem_dedup]
+  ext v
+  simp [CNF.mem_vars, mem_dedup]
 
 /-- Clause deduplication preserves the occurring variable set. -/
 @[simp] theorem vars_toFinset_dedupClauses (φ : CNF V) :

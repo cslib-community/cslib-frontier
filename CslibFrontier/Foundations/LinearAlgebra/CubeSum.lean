@@ -74,8 +74,13 @@ private theorem prod_elim_algebraMap (ℓ : P → Option κ) [Fintype P] (c : κ
     | some v => simp [h p v hp]
   · push Not at h
     obtain ⟨p, v, hp, hv⟩ := h
-    have h0 : c v = 0 := by generalize c v = x at hv ⊢; fin_cases x <;> [rfl; exact absurd rfl hv]
-    exact Finset.prod_eq_zero (Finset.mem_univ p) (by simp [hp, h0])
+    refine Finset.prod_eq_zero (Finset.mem_univ p) ?_
+    have : c v = 0 := by
+      generalize c v = x at hv ⊢
+      fin_cases x
+      · rfl
+      · exact absurd rfl hv
+    simp [hp, this]
 
 omit [DecidableEq κ] in
 /-- The number of Boolean points that are `1` on every variable used by `ℓ` is even unless `ℓ`
@@ -120,8 +125,10 @@ theorem sum_cube_prod_affine [DecidableEq P] (a : P → R) (b : P → κ → R) 
     ∑ c : κ → ZMod 2, ∏ p, (a p + ∑ v, c v • b p v) =
       ∑ ℓ ∈ Finset.univ.filter (fun ℓ : P → Option κ => ∀ v, ∃ p, ℓ p = some v),
         ∏ p, (ℓ p).elim (a p) (b p) := by
-  have hsplit (c : κ → ZMod 2) (p : P) : a p + ∑ v, c v • b p v =
-      ∑ o : Option κ, o.elim (a p) (fun v => c v • b p v) := by rw [Fintype.sum_option]; rfl
+  have hsplit : ∀ c : κ → ZMod 2, ∀ p, a p + ∑ v, c v • b p v =
+      ∑ o : Option κ, o.elim (a p) (fun v => c v • b p v) := fun c p => by
+    rw [Fintype.sum_option]
+    rfl
   simp_rw [hsplit, Fintype.prod_sum, elim_smul_eq_mul, Finset.prod_mul_distrib]
   rw [Finset.sum_comm, Finset.sum_filter]
   refine Finset.sum_congr rfl fun ℓ _ => ?_
@@ -150,19 +157,26 @@ theorem sum_cube_prod_affine_eq_permanent (a : κ → R) (b : κ → κ → R) :
       Finset.univ.image fun π : Equiv.Perm κ => fun p => some (π p) := by
     ext ℓ
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_image]
-    refine ⟨fun hcov => ?_, ?_⟩
-    · choose sec hsec using hcov
-      have hbij : Function.Bijective sec := Finite.injective_iff_bijective.1 fun v v' h =>
-        Option.some_injective _ ((hsec v).symm.trans ((congrArg ℓ h).trans (hsec v')))
+    constructor
+    · intro hcov
+      choose sec hsec using hcov
+      have hinj : Function.Injective sec := fun v v' h => by
+        have := (hsec v).symm.trans ((congrArg ℓ h).trans (hsec v'))
+        exact Option.some_injective _ this
+      have hbij : Function.Bijective sec := Finite.injective_iff_bijective.1 hinj
       refine ⟨(Equiv.ofBijective sec hbij).symm, funext fun p => ?_⟩
       obtain ⟨v, rfl⟩ := hbij.2 p
-      simp [hsec v]
+      rw [hsec v]
+      congr 1
+      exact (Equiv.ofBijective sec hbij).symm_apply_apply v
     · rintro ⟨π, rfl⟩ v
       exact ⟨π.symm v, by simp⟩
   rw [himage, Finset.sum_image fun π _ π' _ h => Equiv.ext fun p =>
-    Option.some_injective _ (congrFun h p), Matrix.permanent,
-    ← Equiv.sum_comp (Equiv.inv (Equiv.Perm κ))]
-  exact Finset.sum_congr rfl fun π _ => by rw [← Equiv.prod_comp π]; simp
+    Option.some_injective _ (congrFun h p)]
+  rw [Matrix.permanent, ← Equiv.sum_comp (Equiv.inv (Equiv.Perm κ))]
+  refine Finset.sum_congr rfl fun π _ => ?_
+  rw [← Equiv.prod_comp π]
+  simp
 
 /-- Expanding a product of `(f i - c * g i)` over Boolean choices pulls out `(-c)` to the number of
 true bits. -/
@@ -172,12 +186,16 @@ theorem prod_sub_mul_eq_sum {R : Type*} [CommRing R] {n : ℕ} (f g : Fin n → 
   have h (w : Fin n → Bool) :
       (∏ i, if w i then -(c * g i) else f i) =
         (-c) ^ (List.ofFn w).countP id * ∏ i, if w i then g i else f i := by
-    rw [show (∏ i, if w i then -(c * g i) else f i) =
-      ∏ i, (if w i then -c else 1) * (if w i then g i else f i) from
-        Finset.prod_congr rfl fun i _ => by cases w i <;> simp,
-      Finset.prod_mul_distrib, Finset.prod_ite]
-    simp only [Finset.prod_const, one_pow, mul_one, List.countP_ofFn, id_eq]
-  simp_rw [← h, ← Fintype.prod_sum (fun (i : Fin n) (b : Bool) => if b then -(c * g i) else f i)]
+    calc
+      _ = ∏ i, (if w i then -c else 1) * (if w i then g i else f i) := by
+        apply Finset.prod_congr rfl
+        intro i _
+        cases w i <;> simp
+      _ = _ := by
+        rw [Finset.prod_mul_distrib, Finset.prod_ite]
+        simp only [Finset.prod_const, one_pow, mul_one, List.countP_ofFn, id_eq]
+  simp_rw [← h]
+  rw [← Fintype.prod_sum (fun (i : Fin n) (b : Bool) => if b then -(c * g i) else f i)]
   simp [sub_eq_add_neg, add_comm]
 
 /-- Expanding a product of differences over Boolean choices: each term selects `g i` where `w i` is

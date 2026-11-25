@@ -93,20 +93,27 @@ theorem complexity_sumset_le_of_cover (A B A₀ B₀ : Finset (BitString n))
   classical
   let family : BitString n ⊕ BitString n → BooleanFunction n :=
     Sum.elim (fun _ x => decide (x ∈ B)) (fun _ x => decide (x ∈ A))
-  have heq : (fun x => decide (∃ i ∈ A₀.disjSum B₀, family i (x + Sum.elim id id i) = true)) =
-      fun x => decide (x ∈ A + B) := funext fun x => by
-    rw [Bool.eq_iff_iff]
-    simp only [decide_eq_true_iff, hcover, mem_union, Sum.exists,
-      inl_mem_disjSum, inr_mem_disjSum, family, Sum.elim_inl, Sum.elim_inr, id_eq, mem_add]
-    exact ⟨fun
-      | .inl ⟨a, ha, hb⟩ =>
-        .inl ⟨a, ha, x + a, hb, by rw [add_left_comm, BitString.add_self, add_zero]⟩
-      | .inr ⟨b, hb, ha⟩ => .inr ⟨x + b, ha, b, hb, by simp⟩, fun
-      | .inl ⟨a, ha, b, hb, hab⟩ =>
-        .inl ⟨a, ha, by subst hab; rwa [add_right_comm, BitString.add_self, zero_add]⟩
-      | .inr ⟨a, ha, b, hb, hab⟩ => .inr ⟨b, hb, by subst hab; simpa using ha⟩⟩
-  simpa only [heq, sum_disjSum, family, Sum.elim_inl, Sum.elim_inr, sum_const, smul_eq_mul,
-    Nat.add_assoc] using complexity_exists_translate_le (A₀.disjSum B₀) family (Sum.elim id id)
+  let shift : BitString n ⊕ BitString n → BitString n := Sum.elim id id
+  have heq : (fun x => decide (∃ i ∈ A₀.disjSum B₀, family i (x + shift i) = true)) =
+      fun x => decide (x ∈ A + B) := by
+    funext x
+    rw [Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff, hcover, mem_union]
+    simp only [Sum.exists, inl_mem_disjSum, inr_mem_disjSum, family, shift, Sum.elim_inl,
+      Sum.elim_inr, id_eq, decide_eq_true_iff]
+    constructor
+    · rintro (⟨a, ha, hb⟩ | ⟨b, hb, ha⟩)
+      · exact Or.inl (mem_add.2
+          ⟨a, ha, x + a, hb, by rw [add_left_comm, BitString.add_self, add_zero]⟩)
+      · exact Or.inr (mem_add.2 ⟨x + b, ha, b, hb, by simp⟩)
+    · rintro (hx | hx)
+      · obtain ⟨a, ha, b, hb, rfl⟩ := mem_add.1 hx
+        exact Or.inl ⟨a, ha, by rwa [add_right_comm, BitString.add_self, zero_add]⟩
+      · obtain ⟨a, ha, b, hb, rfl⟩ := mem_add.1 hx
+        exact Or.inr ⟨b, hb, by simpa using ha⟩
+  have h := complexity_exists_translate_le (A₀.disjSum B₀) family shift
+  rw [heq, sum_disjSum] at h
+  simpa only [family, Sum.elim_inl, Sum.elim_inr, sum_const, smul_eq_mul, Nat.add_assoc]
+    using h
 
 /-- **Nontrivial exact convolution circuits.** For arbitrary Boolean functions `f` and `g`,
 their existential XOR convolution has a De Morgan circuit within the binomial-sum bound.
@@ -120,12 +127,21 @@ theorem complexity_orConvolution_le (f g : BooleanFunction n) :
   classical
   let A := univ.filter fun x : BitString n => f x = true
   let B := univ.filter fun x : BitString n => g x = true
-  have hf : (fun x => decide (x ∈ A)) = f := funext fun x => by simp [A]
-  have hg : (fun x => decide (x ∈ B)) = g := funext fun x => by simp [B]
-  have hfg : (fun x => decide (x ∈ A + B)) = BitString.orConvolution f g := funext fun x => by
+  have hf : (fun x => decide (x ∈ A)) = f := by
+    funext x
+    simp [A]
+  have hg : (fun x => decide (x ∈ B)) = g := by
+    funext x
+    simp [B]
+  have hfg : (fun x => decide (x ∈ A + B)) = BitString.orConvolution f g := by
+    funext x
     rw [Bool.eq_iff_iff, decide_eq_true_iff, BitString.orConvolution_eq_true_iff_exists_add]
     simp only [mem_add, A, B, mem_filter, mem_univ, true_and]
-    exact ⟨fun ⟨a, ha, b, hb, h⟩ => ⟨a, b, ha, hb, h⟩, fun ⟨a, b, ha, hb, h⟩ => ⟨a, ha, b, hb, h⟩⟩
+    constructor
+    · rintro ⟨a, ha, b, hb, hab⟩
+      exact ⟨a, b, ha, hb, hab⟩
+    · rintro ⟨a, b, ha, hb, hab⟩
+      exact ⟨a, ha, b, hb, hab⟩
   obtain ⟨A₀, B₀, -, -, hcover, hcard⟩ := BitString.exists_add_cover A B
   have h := complexity_sumset_le_of_cover A B A₀ B₀ hcover
   rw [hfg, hf, hg] at h
@@ -135,10 +151,15 @@ theorem complexity_orConvolution_le (f g : BooleanFunction n) :
     (le_max_right (complexity interpretation (single f)) (complexity interpretation (single g))) 1)
   have hright := Nat.mul_le_mul_left B₀.card (Nat.add_le_add_right
     (le_max_left (complexity interpretation (single f)) (complexity interpretation (single g))) 1)
-  refine h.trans ((?_ : _ ≤ n + (A₀.card + B₀.card) *
-      (max (complexity interpretation (single f)) (complexity interpretation (single g)) + 1) + 1
-    ).trans (by gcongr))
-  rw [add_mul]; omega
+  calc
+    _ ≤ n + A₀.card * (complexity interpretation (single g) + 1) +
+        B₀.card * (complexity interpretation (single f) + 1) + 1 := h
+    _ ≤ n + (A₀.card + B₀.card) *
+        (max (complexity interpretation (single f)) (complexity interpretation (single g)) + 1) +
+        1 := by
+      rw [add_mul]
+      omega
+    _ ≤ _ := by gcongr
 
 /-- There is an actual fan-in-two circuit computing existential convolution within the
 binomial-sum bound. All gates, including constants and input negations, are counted. -/
@@ -163,13 +184,19 @@ theorem complexity_orConvolution_sub_pow_three_mul_four_pow_le (f g : BooleanFun
       3 * (∑ j ∈ range (n / 3 + 1), n.choose j) *
         (max (complexity interpretation (single f))
           (complexity interpretation (single g)) + 1) := by
-    have := complexity_orConvolution_le f g; omega
+    have h := complexity_orConvolution_le f g
+    omega
   have hcount : (∑ j ∈ range (n / 3 + 1), n.choose j) ^ 3 * 4 ^ n ≤ 27 ^ n := by
+    have h := card_filter_card_le_third_pow_three_mul_four_pow_le (univ : Finset (Fin n))
     simpa only [card_univ, Fintype.card_fin, powerset_univ,
-      Finset.card_filter_card_le_eq_sum_choose] using
-      card_filter_card_le_third_pow_three_mul_four_pow_le (univ : Finset (Fin n))
-  refine (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hsize 3)).trans ?_
-  rw [mul_right_comm (3 : ℕ), mul_pow, mul_assoc, mul_comm]
-  exact Nat.mul_le_mul_right _ hcount
+      Finset.card_filter_card_le_eq_sum_choose] using h
+  calc
+    _ ≤ (3 * (∑ j ∈ range (n / 3 + 1), n.choose j) *
+        (max (complexity interpretation (single f)) (complexity interpretation (single g)) + 1)) ^
+          3 * 4 ^ n := Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hsize 3)
+    _ = ((∑ j ∈ range (n / 3 + 1), n.choose j) ^ 3 * 4 ^ n) *
+        (3 * (max (complexity interpretation (single f))
+          (complexity interpretation (single g)) + 1)) ^ 3 := by ring
+    _ ≤ _ := Nat.mul_le_mul_right _ hcount
 
 end Cslib.Circuits.Boolean

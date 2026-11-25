@@ -172,6 +172,7 @@ theorem not_falsifies_of_isProof (S : DuplicatorStrategy φ (w + 1)) {ls : List 
           by_cases hl' : l = (v, b)
           · exact hl' ▸ ⟨Finset.mem_insert_self _ _, by simp [hb]⟩
           · exact ⟨Finset.mem_insert_of_mem (hfR l (hmem l hl hl')).1, (hfR l (hmem l hl hl')).2⟩
+      -- the extension falsifies the premise whose literal on `v` it makes false
       cases hτv : τ v
       · exact hstep h₁ true hτv fun l hl hl' => Clause.mem_resolvent.2 (.inl ⟨hl, hl'⟩)
       · exact hstep h₂ false hτv fun l hl hl' => Clause.mem_resolvent.2 (.inr ⟨hl, hl'⟩)

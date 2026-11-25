@@ -126,7 +126,8 @@ private theorem cikkAC0Size_lt (e n s r : ℕ) :
   have hg : 1 ≤ g := Nat.one_le_two_pow
   set M := 2 ^ (e + 10) * (3 * e + 42)
   have hk : cikkK e g ≤ M * g := (cikkK_le e g).trans <| by
-    rw [mul_assoc]; exact Nat.mul_le_mul_left _ (by nlinarith)
+    rw [mul_assoc]
+    exact Nat.mul_le_mul_left _ (by nlinarith)
   have hM : 1 ≤ (M * g) ^ 2 := Nat.one_le_pow _ _ (Nat.mul_pos (by positivity) hg)
   have hMg : cikkK e g ≤ (M * g) ^ 2 := hk.trans (Nat.le_self_pow two_ne_zero _)
   have h2 : (cikkK e g * n + cikkK e g) ^ 2 ≤ (M * g * (n + 1)) ^ 2 :=
@@ -151,10 +152,12 @@ private theorem two_mul_le_two_pow (D B : ℕ) :
   have hB : B < 2 * 2 ^ Nat.log 2 B := by
     simpa [pow_succ, mul_comm] using Nat.lt_pow_succ_log_self (by norm_num) B
   have hD : D < 2 ^ D := Nat.lt_two_pow_self
-  rw [show 2 ^ (2 * D + 7) = 2 ^ D * 2 ^ D * 128 by
-    rw [show 2 * D + 7 = D + D + 7 by ring, pow_add, pow_add]; norm_num,
-    pow_add, pow_add, pow_mul']
-  generalize Nat.log 2 B = b at hb hB ⊢; generalize 2 ^ b = t at hb hB ⊢
+  have e1 : 2 ^ (2 * D + 7) = 2 ^ D * 2 ^ D * 128 := by
+    rw [show 2 * D + 7 = D + D + 7 by ring, pow_add, pow_add]
+    norm_num
+  rw [e1, pow_add, pow_add, pow_mul']
+  generalize Nat.log 2 B = b at hb hB ⊢
+  generalize 2 ^ b = t at hb hB ⊢
   generalize 2 ^ D = u at hD ⊢
   have ht : 0 < t := by omega
   have hu : 0 < u := by omega
@@ -179,29 +182,42 @@ private theorem two_mul_le_two_pow (D B : ℕ) :
 private theorem rankLength_log_add_two_le {D B S : ℕ} (hD : 7 ≤ D) (hS0 : S ≠ 0)
     (hS : S < 2 ^ (2 * (2 * D * (Nat.log 2 B + 5 * D + 25)) + B)) :
     rankLength D (Nat.log 2 S + 1) + 2 ≤ 2 ^ (2 * D * (Nat.log 2 B + 5 * D + 25)) := by
-  set q := Nat.log 2 B + 5 * D + 25
-  set Z := 2 * (2 * D * q) + B
-  have hx : Nat.log 2 S + 1 ≤ Z := Nat.log_lt_of_lt_pow hS0 hS
-  have h1 : rankLength D (Nat.log 2 S + 1) + 1 ≤ 401 * (2 ^ (2 * D + 7) * Z) ^ (2 * D) := by
-    rw [mul_pow, ← pow_mul, mul_comm (2 * D + 7), ← mul_assoc]
-    exact (rankLength_add_one_le (Nat.le_add_left 1 _)).trans (by gcongr)
-  set Y := 2 ^ (2 * D + 7) * Z
-  have hYp : 1 ≤ Y ^ (2 * D) := Nat.one_le_pow _ _ (Nat.mul_pos (by positivity) (by omega))
+  have hx : Nat.log 2 S + 1 ≤ 2 * (2 * D * (Nat.log 2 B + 5 * D + 25)) + B :=
+    Nat.log_lt_of_lt_pow hS0 hS
+  have hx1 : 1 ≤ Nat.log 2 S + 1 := Nat.le_add_left 1 _
+  have hlen := rankLength_add_one_le (d := D) hx1
+  have hkey := two_mul_le_two_pow D B
+  generalize Nat.log 2 B + 5 * D + 25 = q at hx hkey ⊢
+  generalize Nat.log 2 S + 1 = x at hx hx1 hlen ⊢
+  have hZ : 1 ≤ 2 * (2 * D * q) + B := by omega
+  generalize 2 * (2 * D * q) + B = Z at hx hkey hZ
+  have e : (2 ^ (2 * D + 7) * Z) ^ (2 * D) = 2 ^ (2 * D * (2 * D + 7)) * Z ^ (2 * D) := by
+    rw [mul_pow, ← pow_mul, mul_comm (2 * D + 7)]
+  have h1 : rankLength D x + 1 ≤ 401 * (2 ^ (2 * D + 7) * Z) ^ (2 * D) := by
+    calc rankLength D x + 1 ≤ 401 * 2 ^ (2 * D * (2 * D + 7)) * x ^ (2 * D) := hlen
+      _ ≤ 401 * 2 ^ (2 * D * (2 * D + 7)) * Z ^ (2 * D) := by gcongr
+      _ = 401 * (2 ^ (2 * D + 7) * Z) ^ (2 * D) := by rw [e, mul_assoc 401]
+  have hY : 0 < 2 ^ (2 * D + 7) * Z := Nat.mul_pos (by positivity) hZ
+  generalize 2 ^ (2 * D + 7) * Z = Y at h1 hkey hY
+  have hYp : 1 ≤ Y ^ (2 * D) := Nat.one_le_pow _ _ hY
   have h2 : 402 * Y ^ (2 * D) ≤ (2 * Y) ^ (2 * D) := by
-    rw [Nat.mul_pow 2 Y]
-    exact Nat.mul_le_mul_right _ ((by norm_num : 402 ≤ 2 ^ 14).trans
-      (Nat.pow_le_pow_right (by norm_num : 0 < 2) (by omega)))
+    rw [mul_pow]
+    exact Nat.mul_le_mul_right _
+      (le_trans (by norm_num) (Nat.pow_le_pow_right (by norm_num) (by omega : 14 ≤ 2 * D)))
   have h3 : (2 * Y) ^ (2 * D) ≤ 2 ^ (2 * D * q) := by
-    simpa only [pow_mul 2 q (2 * D), mul_comm (2 * D) q] using
-      Nat.pow_le_pow_left (two_mul_le_two_pow D B) (2 * D)
+    rw [mul_comm (2 * D) q, pow_mul 2 q (2 * D)]
+    exact Nat.pow_le_pow_left hkey _
   omega
 
 /-- **The fixed point of the parameters**: `ℓ(g) + 2 ≤ g` for `g = cikkAC0Gap d e n s` and
 `ℓ(g) = cikkAC0Len d e n s g`. This is the condition under which the rank test's density
 `1 / 2` covers the learner's density hypothesis `2^{2^ℓ} 2^{ℓ+1} ≤ 2^g · #{accepted}`. -/
 theorem cikkAC0Len_add_two_le_cikkAC0Gap (d e n s : ℕ) :
-    cikkAC0Len d e n s (cikkAC0Gap d e n s) + 2 ≤ cikkAC0Gap d e n s :=
-  rankLength_log_add_two_le (by omega) (by unfold cikkAC0Size; omega) (cikkAC0Size_lt e n s _)
+    cikkAC0Len d e n s (cikkAC0Gap d e n s) + 2 ≤ cikkAC0Gap d e n s := by
+  unfold cikkAC0Len cikkAC0Gap cikkAC0Exp
+  refine rankLength_log_add_two_le (by omega) ?_ (cikkAC0Size_lt e n s _)
+  unfold cikkAC0Size
+  omega
 
 /-- **`g` is polylogarithmic**: with `D = d + 7`, `M = 2^{e+10} (3e + 42)` and
 `B = ⌊log₂ (M² (s + 6 (n + 1)² + 3))⌋ + 1`, `cikkAC0Gap d e n s ≤ 2^{2D(5D+25)} B^{2D}`. For fixed
@@ -211,12 +227,14 @@ theorem cikkAC0Gap_le (d e n s : ℕ) :
       (Nat.log 2 ((2 ^ (e + 10) * (3 * e + 42)) ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) + 1) ^
         (2 * (d + 7)) := by
   unfold cikkAC0Gap cikkAC0Exp cikkAC0Bits
-  have hB := Nat.pow_log_le_self 2 (Nat.add_one_ne_zero
-    (Nat.log 2 ((2 ^ (e + 10) * (3 * e + 42)) ^ 2 * (s + 6 * (n + 1) ^ 2 + 3))))
+  have hB1 : 1 ≤ Nat.log 2 ((2 ^ (e + 10) * (3 * e + 42)) ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) + 1 :=
+    Nat.le_add_left 1 _
   generalize Nat.log 2 ((2 ^ (e + 10) * (3 * e + 42)) ^ 2 * (s + 6 * (n + 1) ^ 2 + 3)) + 1 = B
-    at hB ⊢
+    at hB1 ⊢
+  have hB : 2 ^ Nat.log 2 B ≤ B := Nat.pow_log_le_self 2 (by omega)
   generalize d + 7 = D
-  exact (by ring : 2 ^ (2 * D * (Nat.log 2 B + 5 * D + 25)) =
-    2 ^ (2 * D * (5 * D + 25)) * (2 ^ Nat.log 2 B) ^ (2 * D)).le.trans (by gcongr)
+  calc 2 ^ (2 * D * (Nat.log 2 B + 5 * D + 25))
+      = 2 ^ (2 * D * (5 * D + 25)) * (2 ^ Nat.log 2 B) ^ (2 * D) := by ring
+    _ ≤ 2 ^ (2 * D * (5 * D + 25)) * B ^ (2 * D) := by gcongr
 
 end Cslib.Circuits.Boolean.Razborov

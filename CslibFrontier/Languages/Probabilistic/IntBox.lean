@@ -163,7 +163,9 @@ theorem uniformOfFintype_zmod_map_boxShift (B : ℕ) :
         hr <| ZMod.val_injective _ (by simp only [boxShift, hu] at hrz ⊢; omega)
   · rw [ite_eq_right hz]
     exact tsum_eq_zero_iff.mpr fun r => ite_eq_right fun h => hz <| Finset.mem_Icc.mpr <| by
-      have := ZMod.val_lt r; simp only [boxShift] at h; omega
+      have := ZMod.val_lt r
+      simp only [boxShift] at h
+      omega
 
 /-- `sampleIntBox B width` factors through `ZMod (2 * B + 1)` via `boxShift B ∘ ZMod.val`. -/
 theorem eval_sampleIntBox_eq_map_zmod (B width : ℕ) :

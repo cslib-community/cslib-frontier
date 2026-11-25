@@ -67,8 +67,12 @@ instance (f : OccurrenceLabeling F Bool) (v : V) : Decidable (Inconsistent f v) 
 theorem defects_eq_empty_iff (f : OccurrenceLabeling F Bool) :
     defects f = ∅ ↔ ConsistentLabeling f := by
   simp only [eq_empty_iff_forall_notMem, mem_defects, Inconsistent, ConsistentLabeling]
-  exact ⟨fun h o p hp => by_contra fun hn => h o.var ⟨o, p, rfl, hp.symm, hn⟩,
-    fun h _ ⟨o, p, ho, hp, hn⟩ => hn (h o p (ho.trans hp.symm))⟩
+  constructor
+  · intro h o p hp
+    by_contra hn
+    exact h o.var ⟨o, p, rfl, hp.symm, hn⟩
+  · intro h v ⟨o, p, ho, hp, hn⟩
+    exact hn (h o p (ho.trans hp.symm))
 
 /-- Valid occurrence labels with no defects are exactly models of the original CSP. -/
 theorem satisfiable_iff_exists_zero_defects (sem : Rel → List Bool → Bool) :
@@ -139,23 +143,28 @@ theorem defects_flipOn_pair (h : EdgeInstance F) (f : OccurrenceLabeling F Bool)
     defects (flipOn {o, p} f) = defects f ∆ {o.var, p.var} := by
   rw [flipOn_insert (by simpa using hne), h.defects_flipOn_singleton,
     h.defects_flipOn_singleton, symmDiff_assoc]
-  congr 1; ext v
+  congr 1
+  ext v
   have := h.var_ne_of_constraint_eq hc hne
-  simp only [mem_symmDiff, mem_singleton, mem_insert]; aesop
+  simp only [mem_symmDiff, mem_singleton, mem_insert]
+  aesop
 
 private theorem card_toggle_mod_two (s : Finset V) (v : V) :
     (s ∆ {v}).card % 2 = (s.card + 1) % 2 := by
   by_cases hv : v ∈ s
-  · have := card_erase_add_one hv; rw [symmDiff_singleton_eq, ite_eq_left hv]; omega
+  · have := card_erase_add_one hv
+    rw [symmDiff_singleton_eq, ite_eq_left hv]
+    omega
   · rw [symmDiff_singleton_eq, ite_eq_right hv, card_insert_of_notMem hv]
 
 /-- Two-coordinate exchanges preserve the number of defects modulo two. -/
 theorem card_defects_flipOn_pair_mod_two (h : EdgeInstance F) (f : OccurrenceLabeling F Bool)
     {o p : Occurrence F} (hne : o ≠ p) :
     (defects (flipOn {o, p} f)).card % 2 = (defects f).card % 2 := by
-  rw [flipOn_insert (by simpa using hne), h.defects_flipOn_singleton, h.defects_flipOn_singleton]
-  have := card_toggle_mod_two (defects f) p.var
-  have := card_toggle_mod_two (defects f ∆ {p.var}) o.var
+  rw [flipOn_insert (by simpa using hne), h.defects_flipOn_singleton,
+    h.defects_flipOn_singleton]
+  have ha := card_toggle_mod_two (defects f) p.var
+  have hb := card_toggle_mod_two (defects f ∆ {p.var}) o.var
   omega
 
 /-- Repairing a defect by a two-coordinate move cannot increase the defect count. -/
@@ -199,8 +208,10 @@ theorem exists_valid_exchange {sem : Rel → List Bool → Bool}
     ∃ p : Occurrence F, o.1 = p.1 ∧ o ≠ p ∧ f p ≠ g p ∧
       ValidLabeling sem (flipOn {o, p} f) := by
   obtain ⟨j, hj, hd, hv⟩ := (hM o.1).exchange (hf o.1) (hg o.1) ho
-  exact ⟨⟨o.1, j⟩, rfl, fun he => hj (by cases o; cases he; rfl), hd,
-    validLabeling_flipOn_pair hf o.1 o.2 j hv⟩
+  refine ⟨⟨o.1, j⟩, rfl, ?_, hd, ?_⟩
+  · intro he
+    exact hj (by cases o; cases he; rfl)
+  · exact validLabeling_flipOn_pair hf o.1 o.2 j hv
 
 /-- Observation 30 of [KazdaKolmogorovRolinek2018], printed p. 14: valid labelings have
 congruent defect counts modulo two. Local common parities need not be zero. -/
@@ -208,11 +219,12 @@ theorem card_defects_mod_two_eq (h : EdgeInstance F) {sem : Rel → List Bool �
     (hM : EvenConstraints sem F) {f g : OccurrenceLabeling F Bool}
     (hf : ValidLabeling sem f) (hg : ValidLabeling sem g) :
     (defects f).card % 2 = (defects g).card % 2 := by
-  obtain rfl | he := eq_or_ne f g
-  · rfl
+  by_cases he : f = g
+  · subst g
+    rfl
   · obtain ⟨o, ho⟩ := Function.ne_iff.mp he
-    obtain ⟨p, _, hne, hp, hv⟩ := exists_valid_exchange hM hf hg o ho
-    have := hammingDist_flipOn_pair_add_two hne ho hp
+    obtain ⟨p, hc, hne, hp, hv⟩ := exists_valid_exchange hM hf hg o ho
+    have hd := hammingDist_flipOn_pair_add_two hne ho hp
     exact (h.card_defects_flipOn_pair_mod_two f hne).symm.trans
       (h.card_defects_mod_two_eq hM hv hg)
 termination_by hammingDist f g

@@ -50,27 +50,35 @@ private theorem resource_self (I : State Rel) : resource I I :=
 
 private theorem resource_step (I J : State Rel) (keys : List ℕ) (h : resource I J) :
     resource I (closeFirstMetadataRun J keys) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
   have hc := components_closeFirstMetadataRun J keys
-  have hp : (closeFirstMetadataRun J keys).ports.length ≤ J.ports.length :=
-    hc.2.2.2.trans_le (Nat.sub_le _ _)
-  refine ⟨hc.1.trans h1, hc.2.1.trans h2, hc.2.2.1.trans h3, hp.trans h4,
-    fun _ hz => h5 (names_closeFirstMetadataRun_subset J keys hz), ?_⟩
-  by_cases hl : keys.length = J.ports.length
+  have hn := names_closeFirstMetadataRun_subset J keys
+  have hp : (closeFirstMetadataRun J keys).ports.length≤J.ports.length := by
+    rw [hc.2.2.2]
+    exact Nat.sub_le _ _
+  refine ⟨hc.1.trans h.1,hc.2.1.trans h.2.1,hc.2.2.1.trans h.2.2.1,
+    hp.trans h.2.2.2.1,fun _ hz => h.2.2.2.2.1 (hn hz),?_⟩
+  by_cases hl : keys.length=J.ports.length
   · cases keys with
-    | nil => simpa only [closeFirstMetadataRun_eq_self J [] (Or.inr rfl)] using h6
+    | nil => simpa only [closeFirstMetadataRun_eq_self J [] (Or.inr rfl)] using h.2.2.2.2.2
     | cons a ks =>
       have hf := fields_closeFirstMetadataRun J a ks hl
-      have hp' : (closeFirstMetadataRun J (a :: ks)).ports.length =
-          J.ports.length - (List.takeWhile (fun b => decide (b = a)) (a :: ks)).length := by
-        rw [(components_closeFirstMetadataRun J (a :: ks)).2.2.2]
-        simp only [ite_eq_left hl, List.headD_cons]
+      right
+      have hp : (closeFirstMetadataRun J (a::ks)).ports.length = J.ports.length-
+          (List.takeWhile (fun b => decide (b=a)) (a::ks)).length := by
+        rw [(components_closeFirstMetadataRun J (a::ks)).2.2.2]
+        simp only [ite_eq_left hl,List.headD_cons]
         rfl
-      have hr : (List.takeWhile (fun b => decide (b = a)) (a :: ks)).length ≤ J.ports.length :=
+      have hr : (List.takeWhile (fun b => decide (b=a)) (a::ks)).length ≤ J.ports.length :=
         (List.takeWhile_sublist _).length_le.trans_eq hl
-      have hx := hf.2.2.1
-      exact Or.inr ⟨by omega, fun v hv => by have := hf.2.2.2 v hv; omega⟩
-  · simpa only [closeFirstMetadataRun_eq_self J keys (Or.inl hl)] using h6
+      constructor
+      · have hx := hf.2.2.1
+        rw [h.2.1] at hx
+        omega
+      · intro v hv
+        have hx := hf.2.2.2 v hv
+        rw [h.2.1] at hx
+        omega
+  · simpa only [closeFirstMetadataRun_eq_self J keys (Or.inl hl)] using h.2.2.2.2.2
 
 private def sizeParameter (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ) : ℕ :=
   (encStateMetadata encRel p).length+p.1.body.occurrences.length+1

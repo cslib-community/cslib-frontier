@@ -126,7 +126,8 @@ theorem evalRat_map {β : Type} [Fintype α] [DecidableEq α] [DecidableEq β]
     (f : α → β) (M : ProbComp α) (b : β) :
     evalRat (f <$> M) b = ∑ a : α, if b = f a then evalRat M a else 0 := by
   rw [← bind_pure_comp, evalRat_bind]
-  exact Finset.sum_congr rfl fun a _ => by by_cases h : b = f a <;> simp [h]
+  refine Finset.sum_congr rfl fun a _ => ?_
+  by_cases h : b = f a <;> simp [h]
 
 /-- Flip a biased coin with clamped rational acceptance probability `min (max p 0) 1` using one
 uniform draw from `Fin q.den`. -/

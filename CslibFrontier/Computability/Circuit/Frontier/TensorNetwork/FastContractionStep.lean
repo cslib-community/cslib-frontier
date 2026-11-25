@@ -109,8 +109,12 @@ theorem level_eq {k : ℕ} (hk : k < 2 ^ (slots x + 1)) :
 theorem sum_taperMult_le (a u h : ℕ) :
     ∑ t ∈ recoveryNodes a, taperMult u h t ≤ 2 ^ (a + 1) * (h * u) := by
   rw [sum_recoveryNodes]
-  refine (sum_le_sum (g := fun _ => h * u) fun k _ => ?_).trans_eq (by simp)
-  split_ifs <;> [exact Nat.zero_le _; exact Nat.mul_le_mul_left _ (Nat.sub_le _ _)]
+  calc ∑ k ∈ range (2 ^ (a + 1)), (if k = 2 ^ a then 0 else taperMult u h (node a k))
+      ≤ ∑ _k ∈ range (2 ^ (a + 1)), h * u := sum_le_sum fun k _ => by
+        split_ifs
+        · exact Nat.zero_le _
+        · exact Nat.mul_le_mul_left _ (Nat.sub_le _ _)
+    _ = 2 ^ (a + 1) * (h * u) := by rw [sum_const, card_range, smul_eq_mul]
 
 /-- **The interpolation points of an active call have lifts with unit differences**: they are the
 binary digits of `0, …, n - 1` with `n ≤ 2 ^ e`
@@ -119,51 +123,69 @@ theorem pairwise_isUnit_points (hirr : Irreducible ((monicOf x.fl).map (Int.cast
     (ha : active x = true) :
     Pairwise fun i j : Fin (points x).length =>
       IsUnit (liftO hirr ((points x).getD i []) - liftO hirr ((points x).getD j [])) := by
-  simp only [active, decide_eq_true_eq] at ha
-  exact pairwise_isUnit_liftO_sub_digits hirr ha.2.2.2.2.2.1
+  have hn : numPoints x ≤ 2 ^ x.fl.length := by
+    simp only [active, decide_eq_true_eq] at ha
+    exact ha.2.2.2.2.2.1
+  exact pairwise_isUnit_liftO_sub_digits hirr hn
 
 /-- **The step of an active call is correct**, for the native child builder and well-formed
 calls. -/
 theorem stepCorrect_nativeMk (ev : T → List Bool → List ℕ) :
     StepCorrect ev (nativeMk (T := T)) WF := by
-  intro x ⟨hirr, hD⟩ ha vals hvals
-  obtain ⟨-, hu, huM, hua, -⟩ := by simpa only [active, decide_eq_true_eq] using ha
+  intro x hx ha vals hvals
+  obtain ⟨hirr, hD⟩ := hx
+  have ha' := ha
+  simp only [active, decide_eq_true_eq] at ha'
+  obtain ⟨-, hu, huM, hua, -, -, -⟩ := ha'
   have hlen : (points x).length = numPoints x := by simp [points]
   have hr := DescribedNetwork.rows_le_of_isRowsFirstBipartite hD (one_le_edges_of_active ha)
   refine NativeCall.val_recover_eq_contraction hirr hD ev hu huM hua (le_taperStep_mul hu)
     (taperStep_mul_le _ _ _) (pow_slots_le_edges_of_active ha) ?_ (points x)
-    (pairwise_isUnit_points hirr ha) (hlen ▸ Nat.lt_succ_self _) _ ?_
-  · refine (Nat.mul_le_mul_left _ (sum_taperMult_le (slots x) (levels x) (step x))).trans ?_
-    have e : (slots x + 1) * (2 ^ (slots x + 1) * (step x * levels x)) =
-        (slots x + 1) * 2 ^ (slots x + 1) * step x * levels x := by ring
-    rw [e]; unfold shift; omega
+    (pairwise_isUnit_points hirr ha)
+    (by rw [hlen]; exact Nat.lt_succ_self _) _ ?_
+  · calc (slots x + 1) * ∑ t ∈ recoveryNodes (slots x), taperMult (levels x) (step x) t
+        ≤ (slots x + 1) * (2 ^ (slots x + 1) * (step x * levels x)) :=
+          Nat.mul_le_mul_left _ (sum_taperMult_le _ _ _)
+      _ ≤ shift x := by
+          have e : (slots x + 1) * (2 ^ (slots x + 1) * (step x * levels x)) =
+              (slots x + 1) * 2 ^ (slots x + 1) * step x * levels x := by ring
+          unfold shift; omega
   · intro k hk hkL hq i hi
     rw [hlen] at hi
     have hkmem : k ∈ nodes x := by
-      simpa only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq] using ⟨hk, hkL, hq⟩
+      simp only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq]
+      exact ⟨hk, hkL, hq⟩
     obtain ⟨j, hj, hjk⟩ := List.getElem_of_mem hkmem
     have hgetD : (nodes x).getD j 0 = k := by rw [List.getD_eq_getElem _ _ hj, hjk]
     have hlev := level_eq (x := x) hk
     have hprec : nodePrec x j = nodePrecision x.prec (step x) (slots x) x.edges
-        (padicValInt 2 (node (slots x) k)) := by rw [nodePrec, hgetD, hlev]
+        (padicValInt 2 (node (slots x) k)) := by
+      rw [nodePrec, hgetD, hlev]
     have hw : weights x j = modeWeights (nativeParentPacking x.rows (slots x) x.net).2.1
         (2 ^ (padicValInt 2 (node (slots x) k) + 1))
         (nodePrecision x.prec (step x) (slots x) x.edges (padicValInt 2 (node (slots x) k))) := by
       rw [weights, packing_eq hr, hgetD, hlev, hprec]
     have hstore := val_table_runLoop ha vals hj hi
     rw [hjk, hw, hprec] at hstore
-    refine hstore.trans (congrArg List.sum (List.map_congr_left fun β hβ =>
-      congrArg List.prod (List.map_congr_left fun g hg => ?_)))
+    refine hstore.trans ?_
+    refine congrArg List.sum (List.map_congr_left fun β hβ => ?_)
+    refine congrArg List.prod (List.map_congr_left fun g hg => ?_)
+    have hβ' : β ∈ BudgetTuples.budgetTuples (weights x j) (nodePrec x j) := by
+      rw [hw, hprec]; exact hβ
     have hmem : (j, i, β, g) ∈ children x :=
-      mem_children.mpr ⟨hj, hi, by rwa [hw, hprec], List.mem_range.mp hg⟩
-    have key {v P} (hv : level x k = v) (hP : nodePrec x j = P) :
+      mem_children.mpr ⟨hj, by omega, hβ', List.mem_range.mp hg⟩
+    have key : ∀ v P, level x k = v → nodePrec x j = P →
         val P x.fl (vals (j, i, β, g)) =
           (nativeChild x.fl (slots x) v P (node (slots x) k) ((points x).getD i []) x.rows x.net
             (nativeParentPacking x.rows (slots x) x.net) β g).contraction
             fun d bs => val P x.fl (d.entry ev bs) := by
-      subst hv hP; have h := hvals _ hmem
-      rw [nativeMk_eq ⟨hirr, hD⟩ ha hmem] at h; dsimp only at h; rwa [hgetD] at h
-    exact key hlev hprec
+      rintro v P rfl rfl
+      have h := hvals _ hmem
+      rw [nativeMk_eq ⟨hirr, hD⟩ ha hmem] at h
+      simp only at h
+      rw [hgetD] at h
+      exact h
+    exact key _ _ hlev hprec
 
 /-- The nodes of positive multiplicity, as grid indices. -/
 theorem mem_nodes {k : ℕ} : k ∈ nodes x ↔
@@ -173,7 +195,8 @@ theorem mem_nodes {k : ℕ} : k ∈ nodes x ↔
 /-- A child of the cursor lies at a node, a point and a group in range. -/
 theorem lt_of_mem_children {c : State} (hc : c ∈ children x) :
     c.1 < (nodes x).length ∧ c.2.1 < numPoints x ∧ c.2.2.2 < 64 :=
-  let ⟨hj, hi, _, hg⟩ := mem_children.mp hc; ⟨hj, hi, hg⟩
+  let ⟨hj, hi, _, hg⟩ := mem_children.mp hc
+  ⟨hj, hi, hg⟩
 
 /-- **Well-formedness passes to the native children**: they keep the modulus, and they are
 rows-first (`NativeChild.isRowsFirstBipartite_nativeChild`). -/

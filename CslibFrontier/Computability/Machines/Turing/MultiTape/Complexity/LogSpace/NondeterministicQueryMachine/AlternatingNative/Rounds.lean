@@ -51,11 +51,12 @@ private theorem next_altMachine_mapState (b : Bool) {input : List Bool}
     (altMachine I P F C).next b (c.mapState (Option.map (·, g))) =
       (((table I P F C).withCoin b).toTM.step c).mapState
         (Option.map (·, trackGuess st g b)) := by
-  rw [altMachine, MultiTapeATM.next_ofTMs,
-    MultiTapeTM.step_of_state (show (c.mapState (Option.map (·, g))).state = some (st, g) by
-      simp [Cfg.mapState, h]),
+  have hs : (c.mapState (Option.map (·, g))).state = some (st, g) := by
+    simp [Cfg.mapState, h]
+  rw [altMachine, MultiTapeATM.next_ofTMs, MultiTapeTM.step_of_state hs,
     MultiTapeTM.step_of_state h, tr_withCoin]
-  simp only [guessTM, MultiTapeTM.tr_ofTr]; rfl
+  simp only [guessTM, MultiTapeTM.tr_ofTr]
+  rfl
 
 private theorem next_init (b : Bool) {input : List Bool} (g : Option Bool)
     (c : Cfg k Bool SI input) (h : c.state ≠ none) :
@@ -63,7 +64,8 @@ private theorem next_init (b : Bool) {input : List Bool} (g : Option Bool)
       ((I.step c).mapState initState).mapState (Option.map (·, g)) := by
   obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp h
   rw [next_altMachine_mapState I P F C b (c.mapState initState) (st := .init q)
-    (by simp [Cfg.mapState, initState, hq]), step_init I P F C b c h]; rfl
+    (by simp [Cfg.mapState, initState, hq]), step_init I P F C b c h]
+  rfl
 
 private theorem next_pass (b' b : Bool) {input : List Bool} (g : Option Bool)
     (c : Cfg k Bool (SP b) input) (h : c.state ≠ none) :
@@ -71,7 +73,8 @@ private theorem next_pass (b' b : Bool) {input : List Bool} (g : Option Bool)
       (((P b).step c).mapState (passState b)).mapState (Option.map (·, g)) := by
   obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp h
   rw [next_altMachine_mapState I P F C b' (c.mapState (passState b)) (st := .pass b q)
-    (by simp [Cfg.mapState, passState, hq]), step_pass I P F C b' b c h]; rfl
+    (by simp [Cfg.mapState, passState, hq]), step_pass I P F C b' b c h]
+  rfl
 
 private theorem next_finish (b : Bool) {input : List Bool} (g : Option Bool)
     (c : Cfg k Bool SF input) (h : c.state ≠ none) :
@@ -79,7 +82,8 @@ private theorem next_finish (b : Bool) {input : List Bool} (g : Option Bool)
       ((F.step c).mapState finishState).mapState (Option.map (·, g)) := by
   obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp h
   rw [next_altMachine_mapState I P F C b (c.mapState finishState) (st := .finish q)
-    (by simp [Cfg.mapState, finishState, hq]), step_finish I P F C b c h]; rfl
+    (by simp [Cfg.mapState, finishState, hq]), step_finish I P F C b c h]
+  rfl
 
 end Native
 
@@ -98,10 +102,13 @@ private theorem acceptsWithin_check (a : α) (s : σ) (g : Option Bool) (n : ℕ
       R.boundaryCfg a s g := by
     refine (Native.next_altMachine_mapState R.I R.P R.F R.C b
       (wordsCfg (enc a) (some .check) (R.boundary s (!M.halted s)) []) rfl g).trans ?_
-    rw [Native.step_check_words, R.boundary_flag, boundaryCfg]; cases M.halted s <;> rfl
+    rw [Native.step_check_words, R.boundary_flag, boundaryCfg]
+    cases M.halted s <;> rfl
   cases n with
   | zero => exact iff_of_false (MultiTapeATM.not_acceptsWithin_zero _ rfl) (by simp)
-  | succ n => rw [MultiTapeATM.acceptsWithin_succ_of_next_eq hnext]; simp
+  | succ n =>
+    rw [MultiTapeATM.acceptsWithin_succ_of_next_eq hnext]
+    simp
 
 /-- A pass from the boundary of `s`, followed by its continuation check, leads to the boundary of
 the successor of `s` under the choice of the pass. -/
@@ -132,8 +139,10 @@ private theorem exists_init (a : α) :
       (c.mapState Native.initState).mapState (Option.map (·, (none : Option Bool))))
     (fun b c hc => Native.next_init R.I R.P R.F R.C b none c hc)
     (fun c _ => by simp [Cfg.mapState, Native.initState]) hrun rfl
-  rw [show R.atm.toPTM.toNTM.initCfg (enc a) =
-    wordsCfg (enc a) (some (.init R.I.q₀, none)) (fun _ => []) [] from Cfg.init_eq_wordsCfg _ _]
+  have hinit : R.atm.toPTM.toNTM.initCfg (enc a) =
+      wordsCfg (enc a) (some (.init R.I.q₀, none)) (fun _ => []) [] :=
+    Cfg.init_eq_wordsCfg _ _
+  rw [hinit]
   exact ⟨τ + 1, MultiTapeATM.acceptsWithin_iff_of_phase_trans hτ (R.acceptsWithin_check a _ none)⟩
 
 /-- **Acceptance from the first round boundary.** The alternating native machine accepts exactly
@@ -159,11 +168,14 @@ theorem exists_acceptsWithin_boundaryCfg_of_halted (a : α) (s : σ)
     (fun c hc => by
       obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp hc
       simp [Cfg.mapState, Native.finishState, hq]) hrun rfl
+  have hb : R.boundaryCfg a s g =
+      wordsCfg (enc a) (some (.finish R.F.q₀, g)) (R.boundary s false) [] := by
+    simp [boundaryCfg, hh]
   refine ⟨τ, fun n => ?_⟩
-  rw [show R.boundaryCfg a s g = wordsCfg (enc a) (some (.finish R.F.q₀, g)) (R.boundary s false)
-    [] by simp [boundaryCfg, hh]]
-  exact (hτ n).trans (and_congr_right fun _ => by
-    rw [MultiTapeATM.acceptsWithin_of_halted _ rfl]; simp)
+  rw [hb]
+  refine (hτ n).trans (and_congr_right fun _ => ?_)
+  rw [MultiTapeATM.acceptsWithin_of_halted _ (by rfl)]
+  simp
 
 /-- **The boundary of a live state.** The boundary of a reachable live state accepts within
 `n + 1` moves exactly when, for both moves `b` (recorded guess `true`: a universal state) or for

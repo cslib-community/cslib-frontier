@@ -61,9 +61,11 @@ theorem lett_rel {e body : Fm} {x : Tree} {le : List (Run A)} (he : Ev θ e x le
   refine ⟨_, Ev.lett he fun s hs => ?_,
       List.rel_flatMap (forall₂_mem hR) fun s b ⟨hs, hb, hsb⟩ => ?_⟩
   · obtain ⟨b, hb, hsb⟩ := hR.exists_mem_of_mem hs
-    exact (h s hs b hb hsb).choose_spec.1.hl
+    obtain ⟨l2, h2, -⟩ := h s hs b hb hsb
+    exact h2.hl
   · obtain ⟨l2, h2, h3⟩ := h s hs b hb hsb
-    rwa [h2.evl, List.forall₂_map_left_iff]
+    rw [h2.evl, List.forall₂_map_left_iff]
+    exact h3
 
 end Rel
 
@@ -174,10 +176,15 @@ theorem rec_ev {b a x s : Fm} {y g z : Tree} {f' x' : Tree} {t t' : Bt} {kb ka k
         (hs : Dt θ s y t.enc ks)
     {l : List (Run A)} (h : Ev θ IF (env g z t) l) :
     Ev θ (rec' b a x s) y (l.map (Run.delay (2 * kb + ka + kx + ks + 6))) := by
-  refine Eq.mp (congrArg (Ev θ _ _) ?_)
-    (Ev.run_det (Dt.hd hb) (.cons (.hd hb) (.cons ha (.cons hx hs))) (l := l)
-      (by change Ev θ (Fm.ofTree IF.code) _ l; rwa [Fm.ofTree_code]))
-  exact List.map_congr_left fun r _ => by simp only [Run.delay, Run.mk.injEq, and_true]; omega
+  have := Ev.run_det (Dt.hd hb) (.cons (.hd hb) (.cons ha (.cons hx hs))) (l := l) (by
+    change Ev θ (Fm.ofTree IF.code) _ l
+    rw [Fm.ofTree_code]
+    exact h)
+  refine Eq.mp ?_ this
+  congr 1
+  refine List.map_congr_left fun r _ => ?_
+  simp only [Run.delay, Run.mk.injEq, and_true]
+  omega
 
 /-- A simulated run: a run of the formula, together with the budgets left after its bill. -/
 structure SimRun (A : Type) where

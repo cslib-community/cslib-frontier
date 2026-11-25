@@ -34,10 +34,12 @@ theorem incomingCutoff_le_one (r : ℝ) : P.incomingCutoff r ≤ 1 :=
   sub_le_self _ (polynomialSwitch4_nonneg _ _ _)
 
 theorem incomingCutoff_one {r : ℝ} (hr : r ≤ P.τ₀) : P.incomingCutoff r = 1 := by
-  rw [incomingCutoff, polynomialSwitch4_of_le (by rw [P.τ₀_eq, P.τ₁_eq]; norm_num) hr, sub_zero]
+  rw [incomingCutoff, polynomialSwitch4_of_le (by rw [P.τ₀_eq, P.τ₁_eq]; norm_num) hr,
+    sub_zero]
 
 theorem incomingCutoff_zero {r : ℝ} (hr : P.τ₁ ≤ r) : P.incomingCutoff r = 0 := by
-  rw [incomingCutoff, polynomialSwitch4_of_ge (by rw [P.τ₀_eq, P.τ₁_eq]; norm_num) hr, sub_self]
+  rw [incomingCutoff, polynomialSwitch4_of_ge (by rw [P.τ₀_eq, P.τ₁_eq]; norm_num) hr,
+    sub_self]
 
 /-- Nonzero exact cutoff forces an entry strictly above the true threshold. -/
 theorem theta_lt_of_Q_ne_zero {v : ℝ} (hv : P.Q v ≠ 0) : P.θ < v :=
@@ -51,7 +53,8 @@ theorem rank_lt_of_rho_ne_zero {r : ℝ} (hr : P.ρ r ≠ 0) : r < P.θ / 300 :=
 /-- Discharges the incoming support premise using the actual core row gate, not a surrogate. -/
 theorem aux_full_on_Q_rho {v r : ℝ} (hv : P.Q v ≠ 0) (hr : P.ρ r ≠ 0) :
     polynomialAuxCutoff4 P.θ v r = 1 :=
-  polynomialAuxCutoff4_eq_one P.θ_pos (by linarith [P.theta_lt_of_Q_ne_zero hv, P.θ_pos])
+  polynomialAuxCutoff4_eq_one P.θ_pos
+    (by linarith [P.theta_lt_of_Q_ne_zero hv, P.θ_pos])
     (by linarith [P.rank_lt_of_rho_ne_zero hr, P.θ_pos])
 
 theorem prep_full_on_Q {v : ℝ} (hv : P.Q v ≠ 0) :
@@ -99,7 +102,9 @@ theorem aux_zero_on_detector {v r : ℝ} (hv : v ≤ P.δ₁) :
     polynomialAuxCutoff4 P.θ v r = 0 :=
   polynomialAuxCutoff4_eq_zero_of_entry_le P.θ_pos (by linarith [P.δ₁_lt, P.θ_pos])
 
-private theorem τ₁_le_one : P.τ₁ ≤ 1 := by rw [P.τ₁_eq]; norm_num
+private theorem τ₁_le_one : P.τ₁ ≤ 1 := by
+  rw [P.τ₁_eq]
+  norm_num
 
 /-- The incoming column cap `⌈4 (1 + 32 R)⌉₊` of the correction and pilot samplers is positive,
 since `4 J ≤ R` (`R_rank`). -/
@@ -235,8 +240,10 @@ theorem selectedPilot_preparation (input : Matrix V V ℝ) :
         (polynomialPrepCutoff4 P.θ) P.ρ P.K ⌈4 * (1 + 32 * P.R)⌉₊ f X Y input := by
   unfold HierarchyParams.PilotSampling.preparationRecipe
   simp only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_I,
-    HierarchyParams.PilotSampling.ofChannels_τ, HierarchyParams.PilotSampling.ofChannels_h,
-    HierarchyParams.PilotSampling.ofChannels_ρ, HierarchyParams.PilotSampling.ofChannels_K,
+    HierarchyParams.PilotSampling.ofChannels_τ,
+    HierarchyParams.PilotSampling.ofChannels_h,
+    HierarchyParams.PilotSampling.ofChannels_ρ,
+    HierarchyParams.PilotSampling.ofChannels_K,
     HierarchyParams.PilotSampling.ofChannels_Kc]
 
 /-- Normalization uses precisely the selected cutoffs and actual bounded atom. -/
@@ -248,8 +255,10 @@ theorem selectedPilot_normalized (input : Matrix V V ℝ) (prep : ι × κ → M
         input prep maximum := by
   unfold HierarchyParams.PilotSampling.normalizedRecipe
   simp only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_I,
-    HierarchyParams.PilotSampling.ofChannels_τ, HierarchyParams.PilotSampling.ofChannels_ρ,
-    HierarchyParams.PilotSampling.ofChannels_K, HierarchyParams.PilotSampling.ofChannels_Kc]
+    HierarchyParams.PilotSampling.ofChannels_τ,
+    HierarchyParams.PilotSampling.ofChannels_ρ,
+    HierarchyParams.PilotSampling.ofChannels_K,
+    HierarchyParams.PilotSampling.ofChannels_Kc]
 
 /-- The correction client discharges incoming-cap hypotheses on arbitrary children. -/
 theorem correction_col_support

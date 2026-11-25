@@ -139,31 +139,39 @@ theorem exists_dist_le_of_forall_dist_le {f : (Fin n → ℝ) → Fin n → ℝ}
     ∃ p : Fin n → ℕ, (∀ i, p i ≤ N) ∧
       dist (f fun i => (p i : ℝ) / N) (fun i => (p i : ℝ) / N) ≤ η + 1 / N := by
   obtain ⟨s, hs, hpan⟩ := (isHypergridSperner_coloring hf hN).exists_isPanchromatic
+  have hle : ∀ k i, s.vertex k i ≤ N := fun k i => vertex_le hs k i
+  have hmem : ∀ k, gridPoint N (s.vertex k) ∈ Icc (0 : Fin n → ℝ) 1 :=
+    fun k => gridPoint_mem_Icc (hle k)
   have hNr : (0 : ℝ) < N := by exact_mod_cast hN
-  have hclose (k l i) : |gridPoint N (s.vertex k) i - gridPoint N (s.vertex l) i| ≤ 1 / N := by
+  have hclose : ∀ k l i, |gridPoint N (s.vertex k) i - gridPoint N (s.vertex l) i| ≤ 1 / N := by
+    intro k l i
     have h1 : (s.base i : ℝ) ≤ s.vertex k i := by exact_mod_cast base_le_vertex s k i
     have h2 : (s.vertex k i : ℝ) ≤ s.base i + 1 := by exact_mod_cast vertex_le_base_add_one s k i
     have h3 : (s.base i : ℝ) ≤ s.vertex l i := by exact_mod_cast base_le_vertex s l i
     have h4 : (s.vertex l i : ℝ) ≤ s.base i + 1 := by exact_mod_cast vertex_le_base_add_one s l i
-    rw [gridPoint_apply, gridPoint_apply, div_sub_div_same, abs_div, abs_of_pos hNr,
-      div_le_div_iff_of_pos_right hNr, abs_le]
+    unfold gridPoint
+    rw [div_sub_div_same, abs_div, abs_of_pos hNr, div_le_div_iff_of_pos_right hNr, abs_le]
     constructor <;> linarith
-  have hfη (k l) : dist (f (gridPoint N (s.vertex k))) (f (gridPoint N (s.vertex l))) ≤ η :=
-    hη _ (gridPoint_mem_Icc (vertex_le hs k)) _ (gridPoint_mem_Icc (vertex_le hs l))
-      ((dist_pi_le_iff (by positivity)).mpr fun i => Real.dist_eq .. ▸ hclose k l i)
+  have hdist : ∀ k l, dist (gridPoint N (s.vertex k)) (gridPoint N (s.vertex l)) ≤ 1 / N :=
+    fun k l => (dist_pi_le_iff (by positivity)).mpr fun i => by
+      rw [Real.dist_eq]; exact hclose k l i
+  have hfη : ∀ k l, dist (f (gridPoint N (s.vertex k))) (f (gridPoint N (s.vertex l))) ≤ η :=
+    fun k l => hη _ (hmem k) _ (hmem l) (hdist k l)
+  have hη0 : 0 ≤ η := dist_nonneg.trans (hfη 0 0)
   obtain ⟨a, ha⟩ := hpan 0
-  refine ⟨s.vertex 0, vertex_le hs 0, ?_⟩
-  change dist (f (gridPoint N (s.vertex 0))) (gridPoint N (s.vertex 0)) ≤ η + 1 / N
-  refine (dist_pi_le_iff (add_nonneg (dist_nonneg.trans (hfη 0 0)) (by positivity))).mpr fun k => ?_
+  refine ⟨s.vertex 0, hle 0, (dist_pi_le_iff (add_nonneg hη0 (by positivity))).mpr fun k => ?_⟩
   obtain ⟨b, hb⟩ := hpan k.succ
-  have h0a : |f (gridPoint N (s.vertex 0)) k - f (gridPoint N (s.vertex a)) k| ≤ η :=
-    Real.dist_eq .. ▸ (dist_le_pi_dist _ _ k).trans (hfη 0 a)
-  have h0b : |f (gridPoint N (s.vertex 0)) k - f (gridPoint N (s.vertex b)) k| ≤ η :=
-    Real.dist_eq .. ▸ (dist_le_pi_dist _ _ k).trans (hfη 0 b)
-  rw [Real.dist_eq, abs_le]
-  constructor <;> linarith [le_of_coloring_eq_zero ha k, le_of_coloring_eq_succ hb,
-    (abs_le.mp h0a).1, (abs_le.mp h0a).2, (abs_le.mp h0b).1, (abs_le.mp h0b).2,
-    (abs_le.mp (hclose 0 a k)).1, (abs_le.mp (hclose 0 b k)).2]
+  have hfa := le_of_coloring_eq_zero ha k
+  have hfb := le_of_coloring_eq_succ hb
+  have h0a := (dist_le_pi_dist _ _ k).trans (hfη 0 a)
+  have h0b := (dist_le_pi_dist _ _ k).trans (hfη 0 b)
+  have c0a := hclose 0 a k
+  have c0b := hclose 0 b k
+  rw [Real.dist_eq, abs_le] at h0a h0b
+  rw [abs_le] at c0a c0b
+  change |f (gridPoint N (s.vertex 0)) k - gridPoint N (s.vertex 0) k| ≤ η + 1 / N
+  rw [abs_le]
+  constructor <;> linarith
 
 /-- **Weak approximate fixed points of Lipschitz maps.** If `f` maps the cube `[0, 1] ^ n` into
 itself and is `K`-Lipschitz on it for the sup metric, then for every `N > 0` some grid point

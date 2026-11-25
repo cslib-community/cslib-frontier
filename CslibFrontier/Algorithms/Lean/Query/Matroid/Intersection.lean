@@ -178,7 +178,8 @@ theorem countQueries_exchTablesM_of_nodup [DecidableEq α]
       2 * (V.length - I.card) * (1 + I.card) := by
   have hin : (V.filter (· ∈ I)).length = I.card := by
     rw [← List.toFinset_card_of_nodup (hV.filter _), List.toFinset_filter]
-    congr 1; ext x
+    congr 1
+    ext x
     simpa using fun h => List.mem_toFinset.mp (hIV h)
   have hsplit := List.length_eq_length_filter_add (l := V) fun x => decide (x ∈ I)
   have hout : (V.filter (· ∉ I)).length = V.length - I.card := by
@@ -197,14 +198,18 @@ private theorem countQueries_maxCommonIndepLoopM_le [DecidableEq α]
     have hphase : (exchTablesM ask₁ ask₂ V I).countQueries oracle ≤
         2 * V.length * (1 + V.length) := by
       rw [countQueries_exchTablesM]
-      have := (List.filter_sublist (p := fun x => decide (x ∉ I)) (l := V)).length_le
-      have := (List.filter_sublist (p := fun x => decide (x ∈ I)) (l := V)).length_le
+      have h₁ := (List.filter_sublist (p := fun x => decide (x ∉ I)) (l := V)).length_le
+      have h₂ := (List.filter_sublist (p := fun x => decide (x ∈ I)) (l := V)).length_le
       gcongr
-    rw [Nat.succ_mul]
     simp only [maxCommonIndepLoopM, FreeM.countQueries_bind]
     split
-    · next p _ => have := ih (I ∆ p.toFinset); omega
-    · simp only [FreeM.countQueries_pure]; omega
+    · next p _ =>
+      have := ih (I ∆ p.toFinset)
+      rw [Nat.succ_mul]
+      omega
+    · simp only [FreeM.countQueries_pure]
+      rw [Nat.succ_mul]
+      omega
 
 /-- **Oracle-independent query bound**: on lists of length at most `n`, `matroidIntersection`
 makes at most `2n(n + 1)²` independence queries, whatever the oracles answer. -/
@@ -237,7 +242,9 @@ private theorem countQueries_maxCommonIndepLoopM_eq [DecidableEq α] {M₁ M₂ 
         V fuel' I' := Id.pure_injective <| by
     simpa using (FreeM.isMonadHom_pure_eval oracle).map_maxCommonIndepLoopM ask₁ ask₂ V fuel' I'
   induction fuel with
-  | zero => intro _ _ _ h; omega
+  | zero =>
+    intro _ _ _ h
+    omega
   | succ fuel ih =>
     intro I hIV hI hfuel
     simp only [heval] at ih ⊢
@@ -282,9 +289,13 @@ theorem countQueries_matroidIntersection_le [DecidableEq α] {M₁ M₂ : Matroi
       2 * es.toFinset.card * (((matroidIntersection es).eval oracle).1.card + 1) ^ 2 := by
   rw [countQueries_matroidIntersection h₁ h₂]
   set ν := ((matroidIntersection es).eval oracle).1.card
-  refine (Finset.sum_le_sum (g := fun _ => 2 * es.toFinset.card * (ν + 1)) fun r hr => ?_).trans_eq
-    (by rw [Finset.sum_const, Finset.card_range, smul_eq_mul]; ring)
-  have := Finset.mem_range.mp hr
-  exact Nat.mul_le_mul (by omega) (by omega)
+  calc ∑ r ∈ Finset.range (ν + 1), 2 * (es.toFinset.card - r) * (1 + r)
+      ≤ ∑ _r ∈ Finset.range (ν + 1), 2 * es.toFinset.card * (ν + 1) := by
+        refine Finset.sum_le_sum fun r hr => ?_
+        have hr : r < ν + 1 := Finset.mem_range.mp hr
+        exact Nat.mul_le_mul (by omega) (by omega)
+    _ = 2 * es.toFinset.card * (ν + 1) ^ 2 := by
+        rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
+        ring
 
 end Cslib.Query

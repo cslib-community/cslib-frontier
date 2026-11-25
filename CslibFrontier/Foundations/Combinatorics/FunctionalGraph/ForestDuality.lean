@@ -70,7 +70,8 @@ theorem iter_add (a c : ℕ) (u : α) : iter σ (a + c) u = (iter σ a u).bind (
   | zero => cases iter σ a u <;> rfl
   | succ c ih =>
     change (iter σ (a + c) u).bind σ = (iter σ a u).bind fun x => (iter σ c x).bind σ
-    rw [ih]; cases iter σ a u <;> rfl
+    rw [ih]
+    cases iter σ a u <;> rfl
 
 private theorem iter_add_of_eq {a : ℕ} {u w : α} (h : iter σ a u = some w) (c : ℕ) :
     iter σ (a + c) u = iter σ c w := by
@@ -147,17 +148,24 @@ belongs to `q` or `w` lies strictly before `v`. -/
 private theorem shared_vertex {q W : FPath α} {u v w : α} (hqw : q.End (σ := σ) w)
     (hWv : W.End (σ := σ) v) (hqu : q.Mem (σ := σ) u) (hWu : W.Mem (σ := σ) u) :
     q.Mem (σ := σ) v ∨ Before σ w v := by
-  obtain ⟨a, ha, hau⟩ := hqu; obtain ⟨b, hb, hbu⟩ := hWu
-  obtain ⟨hq0, hqe⟩ := hqw; obtain ⟨hW0, hWe⟩ := hWv
+  obtain ⟨a, ha, hau⟩ := hqu
+  obtain ⟨b, hb, hbu⟩ := hWu
+  obtain ⟨hq0, hqe⟩ := hqw
+  obtain ⟨hW0, hWe⟩ := hWv
   have hv : iter σ (W.len - 1 - b) u = some v := by
-    rwa [← iter_add_of_eq σ hbu, show b + (W.len - 1 - b) = W.len - 1 by omega]
+    rw [← iter_add_of_eq σ hbu, show b + (W.len - 1 - b) = W.len - 1 by omega]
+    exact hWe
   have hw : iter σ (q.len - 1 - a) u = some w := by
-    rwa [← iter_add_of_eq σ hau, show a + (q.len - 1 - a) = q.len - 1 by omega]
-  exact (le_or_gt (W.len - 1 - b) (q.len - 1 - a)).imp
-    (fun _ => ⟨a + (W.len - 1 - b), by omega, (iter_add_of_eq σ hau _).trans hv⟩)
-    fun _ => ⟨W.len - 1 - b - (q.len - 1 - a), by omega, by
-      rwa [← iter_add_of_eq σ hw,
-        show q.len - 1 - a + (W.len - 1 - b - (q.len - 1 - a)) = W.len - 1 - b by omega]⟩
+    rw [← iter_add_of_eq σ hau, show a + (q.len - 1 - a) = q.len - 1 by omega]
+    exact hqe
+  by_cases hle : W.len - 1 - b ≤ q.len - 1 - a
+  · left
+    exact ⟨a + (W.len - 1 - b), by omega, by rw [iter_add_of_eq σ hau]; exact hv⟩
+  · right
+    refine ⟨W.len - 1 - b - (q.len - 1 - a), by omega, ?_⟩
+    rw [← iter_add_of_eq σ hw, show q.len - 1 - a + (W.len - 1 - b - (q.len - 1 - a)) =
+      W.len - 1 - b by omega]
+    exact hv
 
 /-- **Strong duality.** On every finite vertex subset `S`, there exist a hitting set `H ⊆ S` and a
 disjoint packing `P` of required paths in `S` with equal cardinality. -/

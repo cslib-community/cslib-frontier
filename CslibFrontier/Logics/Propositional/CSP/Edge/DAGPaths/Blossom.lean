@@ -75,9 +75,12 @@ theorem blossomDAG_supported [DecidableEq V] (w : Walk F) (times : List ℕ) (pi
 theorem blossomArcs_time_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
     {pivot : ℕ} {a : Arc F} (ha : a ∈ blossomArcs ss ts pivot) : a.time ∈ ts := by
   fun_induction blossomArcs ss ts pivot with
-  | case3 _ _ _ _ _ _ ih =>
-    rcases by simpa only [List.mem_cons] using ha with rfl | rfl | ha
-    exacts [List.mem_cons_self, List.mem_cons_self, List.mem_cons_of_mem _ (ih ha)]
+  | case3 o p ss t ts pivot ih => -- (o, p) :: ss, t :: ts
+    simp only [List.mem_cons] at ha
+    rcases ha with rfl | rfl | ha
+    · exact List.mem_cons_self
+    · exact List.mem_cons_self
+    · exact List.mem_cons_of_mem _ (ih ha)
   | _ => simp at ha -- no steps or no timestamps
 
 /-- Every copied constraint in the cycle graph retains its supplied timestamp. -/
@@ -94,13 +97,21 @@ theorem blossomArcs_append_after (ss : List (Occurrence F × Occurrence F)) (ts 
       blossomArcs ss ts pivot ++ [⟨s.1, t, false⟩, ⟨s.2, t, true⟩] := by
   induction ss generalizing ts pivot with
   | nil =>
-    rcases ts with _ | _; · cases Nat.eq_zero_of_le_zero hp; rfl
-    cases hl
+    cases ts with
+    | nil =>
+      have he : pivot = 0 := by simpa using hp
+      subst pivot
+      rfl
+    | cons a ts => simp at hl
   | cons p ss ih =>
-    rcases ts with _ | ⟨u, ts⟩; · cases hl
-    rcases p with ⟨a, b⟩
-    simp only [List.cons_append, blossomArcs,
-      ih ts (pivot - 1) (Nat.succ.inj hl) (Nat.sub_le_of_le_add hp)]
+    cases ts with
+    | nil => simp at hl
+    | cons u ts =>
+      rcases p with ⟨a, b⟩
+      have hl' : ts.length = ss.length := by simpa using hl
+      have hp' : pivot - 1 ≤ ss.length := by simp only [List.length_cons] at hp; omega
+      simp only [List.cons_append, blossomArcs]
+      rw [ih ts (pivot - 1) hl' hp']
 
 /-- A computed cycle graph is a subgraph whenever its base and all its actual arcs are
 supported by the ambient graph. Copied-node support is inherited from those arcs. -/
@@ -108,10 +119,15 @@ theorem blossomDAG_subgraph_of_arcs [DecidableEq V] (w : Walk F) (times : List �
     {T : DAG F} (hbase : w.start ∈ T.vars) (hs : T.Supported)
     (ha : ∀ a ∈ blossomArcs w.steps times pivot, a ∈ T.arcs) :
     (blossomDAG w times pivot).Subgraph T := by
-  refine ⟨fun v hv => (Finset.mem_insert.mp hv).elim (· ▸ hbase) fun hv => ?_, fun c hc => ?_,
-    fun a ham => ha a (List.mem_toFinset.mp ham)⟩
-  · obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hv); exact (hs a (ha a ham)).1
-  · obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hc); exact (hs a (ha a ham)).2
+  refine ⟨?_, ?_, fun a ham => ha a (List.mem_toFinset.mp ham)⟩
+  · intro v hv
+    rcases Finset.mem_insert.mp hv with rfl | hv
+    · exact hbase
+    · obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hv)
+      exact (hs a (ha a ham)).1
+  · intro c hc
+    obtain ⟨a, ham, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hc)
+    exact (hs a (ha a ham)).2
 
 private theorem blossomArcs_reverse_zero
     (time : Occurrence F → ℕ) (ss : List (Occurrence F × Occurrence F)) {e : Arc F}
@@ -123,11 +139,14 @@ private theorem blossomArcs_reverse_zero
     rcases s with ⟨a, b⟩
     simp only [List.reverse_append, List.reverse_singleton, List.map_append,
       List.map_singleton, List.singleton_append] at he
-    change e ∈ outArc time (a, b) :: inArc time (a, b) :: _ at he
-    rcases by simpa only [List.mem_cons] using he with rfl | rfl | he
+    change e ∈ outArc time (a, b) :: inArc time (a, b) ::
+      blossomArcs (ss.reverse.map Prod.swap) ((ss.map fun s => time s.1).reverse) 0 at he
+    simp only [List.mem_cons] at he
+    rcases he with rfl | rfl | he
     · exact ⟨(a, b), List.mem_append_right _ (List.mem_singleton_self _), Or.inr rfl⟩
     · exact ⟨(a, b), List.mem_append_right _ (List.mem_singleton_self _), Or.inl rfl⟩
-    · exact let ⟨s, hs, he⟩ := ih he; ⟨s, List.mem_append_left _ hs, he⟩
+    · obtain ⟨s, hs, he⟩ := ih he
+      exact ⟨s, List.mem_append_left _ hs, he⟩
 
 /-- Every cycle arc comes from one of its two directed arms or the terminal incoming pair. -/
 theorem blossomArcs_meeting_mem (timeW timeZ : Occurrence F → ℕ)

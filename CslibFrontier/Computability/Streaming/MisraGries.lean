@@ -115,28 +115,42 @@ private theorem inv_step {c S : Multiset α} (h : Inv k c S) (a : α) :
   obtain ⟨hle, hcard, D, hD, hcount⟩ := h
   unfold step
   split_ifs with ha
-  · refine ⟨Multiset.cons_le_cons a hle, ?_, D, by simp only [Multiset.card_cons]; omega,
-      fun x => by have := hcount x; simp only [Multiset.count_cons]; split_ifs <;> omega⟩
-    rw [Multiset.toFinset_cons]
-    exact ha.elim (fun h => by rwa [Finset.insert_eq_of_mem (Multiset.mem_toFinset.2 h)])
-      (Finset.card_insert_le _ _).trans
+  · refine ⟨Multiset.cons_le_cons a hle, ?_, D, ?_, fun x => ?_⟩
+    · rw [Multiset.toFinset_cons]
+      rcases ha with ha | ha
+      · rwa [Finset.insert_eq_of_mem (Multiset.mem_toFinset.2 ha)]
+      · exact (Finset.card_insert_le _ _).trans ha
+    · simp only [Multiset.card_cons]
+      omega
+    · simp only [Multiset.count_cons]
+      have := hcount x
+      split_ifs <;> omega
   · push Not at ha
     obtain ⟨hac, hk⟩ := ha
-    have hdedup : Multiset.card c.dedup = k :=
-      Multiset.card_toFinset c ▸ le_antisymm hcard hk
-    have hdedup_le := Multiset.card_le_card (Multiset.dedup_le c)
-    refine ⟨tsub_le_self.trans (hle.trans (Multiset.le_cons_self S a)),
-      (Finset.card_le_card (Multiset.toFinset_subset.2
-        (Multiset.subset_of_le tsub_le_self))).trans hcard, D + 1, ?_, fun x => ?_⟩
-    · rw [Multiset.card_sub (Multiset.dedup_le c), Multiset.card_cons, mul_add, mul_one]; omega
+    have hk' : c.toFinset.card = k := le_antisymm hcard hk
+    have hdedup : Multiset.card c.dedup = k := by
+      rw [← hk', Multiset.card_toFinset]
+    have hdedup_le : Multiset.card c.dedup ≤ Multiset.card c :=
+      Multiset.card_le_card (Multiset.dedup_le c)
+    refine ⟨tsub_le_self.trans (hle.trans (Multiset.le_cons_self S a)), ?_, D + 1, ?_,
+      fun x => ?_⟩
+    · exact (Finset.card_le_card (Multiset.toFinset_subset.2
+        (Multiset.subset_of_le tsub_le_self))).trans hcard
+    · rw [Multiset.card_sub (Multiset.dedup_le c), Multiset.card_cons, mul_add, mul_one]
+      omega
     · rw [Multiset.count_cons, Multiset.count_sub, Multiset.count_dedup]
       have := hcount x
-      by_cases hxc : x ∈ c
-      · have := Multiset.count_pos.2 hxc
-        have hxa : x ≠ a := fun h => hac (h ▸ hxc)
-        simp only [hxa, hxc, ↓reduceIte]; omega
-      · have := Multiset.count_eq_zero.2 hxc
-        split_ifs <;> omega
+      by_cases hx : x = a
+      · subst hx
+        rw [Multiset.count_eq_zero_of_notMem hac] at this ⊢
+        simp only [↓reduceIte, hac]
+        omega
+      · have hpos : x ∈ c → 1 ≤ c.count x := fun h => Multiset.count_pos.2 h
+        simp only [hx, ↓reduceIte]
+        split_ifs with hxc
+        · have := hpos hxc
+          omega
+        · omega
 
 private theorem inv_state (s : List α) : Inv k ((misraGries k).state s) (s : Multiset α) := by
   induction s using List.reverseRecOn with
@@ -156,7 +170,8 @@ theorem card_toFinset_state_le (s : List α) : ((misraGries k).state s).toFinset
 
 /-- The Misra–Gries estimate never exceeds the frequency. -/
 theorem run_le_count (s : List α) (a : α) : (misraGries k).run s a ≤ s.count a := by
-  rw [← Multiset.coe_count]; exact Multiset.le_iff_count.1 (state_le s) a
+  rw [← Multiset.coe_count]
+  exact Multiset.le_iff_count.1 (state_le s) a
 
 /-- **The Misra–Gries error bound** [Chakrabarti2025, Theorem 1.3.1 and Exercise 1-1]: after a
 stream of `m` items, the estimate `f̂_a` of the frequency `f_a` of `a` satisfies
@@ -165,10 +180,14 @@ theorem mul_count_sub_run_add_card_le (s : List α) (a : α) :
     (k + 1) * (s.count a - (misraGries k).run s a) +
       Multiset.card ((misraGries k).state s) ≤ s.length := by
   obtain ⟨D, hD, hcount⟩ := (inv_state (k := k) s).decrements
-  have h : s.count a - (misraGries k).run s a ≤ D := by
-    have := hcount a; rw [Multiset.coe_count] at this; exact Nat.sub_le_iff_le_add'.2 this
-  rw [Multiset.coe_card] at hD
-  exact (Nat.add_le_add_right (Nat.mul_le_mul_left _ h) _).trans hD
+  have h := hcount a
+  rw [Multiset.coe_count, Multiset.coe_card] at *
+  have : s.count a - (misraGries k).run s a ≤ D := by
+    change s.count a - ((misraGries k).state s).count a ≤ D
+    omega
+  calc (k + 1) * (s.count a - (misraGries k).run s a) + Multiset.card ((misraGries k).state s)
+      ≤ (k + 1) * D + Multiset.card ((misraGries k).state s) := by gcongr
+    _ ≤ s.length := hD
 
 /-- **The Misra–Gries error bound** [Chakrabarti2025, Theorem 1.3.1]: after a stream of `m` items
 the estimate of the frequency `f_a` of `a` lies in `[f_a - m / (k + 1), f_a]`. -/
@@ -207,20 +226,25 @@ private def ofSlots {m : ℕ} (g : Fin k → Option (α × Fin (m + 1))) : Multi
 private theorem exists_ofSlots_eq {m : ℕ} :
     ∀ {k : ℕ} (c : Multiset α), c.toFinset.card ≤ k → (∀ x, c.count x ≤ m) →
       ∃ g : Fin k → Option (α × Fin (m + 1)), ofSlots g = c
-  | 0, c, hc, _ => ⟨Fin.elim0, by
-      simp [ofSlots,
-        Multiset.toFinset_eq_empty.1 (Finset.card_eq_zero.1 (Nat.eq_zero_of_le_zero hc))]⟩
+  | 0, c, hc, _ => by
+    refine ⟨Fin.elim0, ?_⟩
+    rw [Nat.le_zero, Finset.card_eq_zero, Multiset.toFinset_eq_empty] at hc
+    simp [ofSlots, hc]
   | k + 1, c, hc, hm => by
     rcases Multiset.empty_or_exists_mem c with rfl | ⟨a, ha⟩
     · exact ⟨fun _ => none, by simp [ofSlots]⟩
     have hc' : (c.filter (· ≠ a)).toFinset.card ≤ k := by
-      rw [Multiset.toFinset_filter, Finset.filter_ne',
-        Finset.card_erase_of_mem (Multiset.mem_toFinset.2 ha)]; omega
+      rw [Multiset.toFinset_filter, Finset.filter_ne']
+      rw [Finset.card_erase_of_mem (Multiset.mem_toFinset.2 ha)]
+      omega
     obtain ⟨g, hg⟩ := exists_ofSlots_eq (c.filter (· ≠ a)) hc' fun x =>
       (Multiset.count_le_of_le x (Multiset.filter_le _ c)).trans (hm x)
     refine ⟨Fin.cons (some (a, ⟨c.count a, Nat.lt_succ_of_le (hm a)⟩)) g, ?_⟩
-    simpa only [ofSlots, Fin.sum_univ_succ, Fin.cons_zero, Fin.cons_succ, Option.elim_some,
-      ← hg, Multiset.filter_eq'] using Multiset.filter_add_not (· = a) c
+    rw [ofSlots, Fin.sum_univ_succ]
+    simp only [Fin.cons_zero, Fin.cons_succ, Option.elim_some]
+    change Multiset.replicate (c.count a) a + ofSlots g = c
+    rw [hg, ← Multiset.filter_eq' c a]
+    exact Multiset.filter_add_not (· = a) c
 
 /-- **The memory of the Misra–Gries summary** [Chakrabarti2025, Theorem 1.3.1]: over a universe
 of `n` items, the summary with `k` counters uses at most `b` bits of memory on streams of at most

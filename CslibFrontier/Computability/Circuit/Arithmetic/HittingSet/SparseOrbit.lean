@@ -100,28 +100,33 @@ private theorem exists_forall_sum_mul_pow_add_ne_zero {A : Matrix (Fin n) (Fin n
     (hA : IsUnit A.det) (b : Fin n → F) :
     ∃ k ∈ range (n ^ 2 + 1), ∀ i, ∑ j, A i j * (k : F) ^ ((j : ℕ) + 1) + b i ≠ 0 := by
   classical
-  let q : Fin n → F[X] := fun i =>
-    ∑ j, Polynomial.C (A i j) * Polynomial.X ^ ((j : ℕ) + 1) + Polynomial.C (b i)
+  set q : Fin n → F[X] := fun i =>
+    ∑ j, Polynomial.C (A i j) * Polynomial.X ^ ((j : ℕ) + 1) + Polynomial.C (b i) with hq
+  have heval (i : Fin n) (x : F) : (q i).eval x = ∑ j, A i j * x ^ ((j : ℕ) + 1) + b i := by
+    simp [hq, Polynomial.eval_finsetSum]
   have hne (i : Fin n) : q i ≠ 0 := fun h0 =>
-    hA.ne_zero <| Matrix.det_eq_zero_of_row_eq_zero i fun j => by
-      simpa [q, Polynomial.coeff_C, Polynomial.coeff_X_pow, Fin.val_inj] using
-        congrArg (·.coeff ((j : ℕ) + 1)) h0
+    hA.ne_zero (Matrix.det_eq_zero_of_row_eq_zero i fun j => by
+      have h := congrArg (fun p : F[X] => p.coeff ((j : ℕ) + 1)) h0
+      simpa [hq, Polynomial.coeff_C, Polynomial.coeff_X_pow, Fin.val_inj] using h)
   have hdeg (i : Fin n) : (q i).natDegree ≤ n :=
-    (Polynomial.natDegree_add_le _ _).trans <| max_le
+    (Polynomial.natDegree_add_le _ _).trans (max_le
       (Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ =>
-        (Polynomial.natDegree_C_mul_X_pow_le _ _).trans j.2) (by simp)
+        (Polynomial.natDegree_C_mul_X_pow_le _ _).trans j.2)
+      ((Polynomial.natDegree_C _).trans_le (Nat.zero_le _)))
   by_contra hall
   refine prod_ne_zero_iff.2 (fun i _ => hne i)
     (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' (∏ i, q i)
-      ((range (n ^ 2 + 1)).image Nat.cast) ?_ ?_)
+      ((range (n ^ 2 + 1)).image fun k : ℕ => (k : F)) ?_ ?_)
   · intro x hx
     obtain ⟨k, hk, rfl⟩ := mem_image.1 hx
-    obtain ⟨i, hi⟩ := not_forall_not.1 fun h => hall ⟨k, hk, h⟩
+    obtain ⟨i, hi⟩ : ∃ i, ∑ j, A i j * (k : F) ^ ((j : ℕ) + 1) + b i = 0 :=
+      not_forall_not.1 fun h => hall ⟨k, hk, h⟩
     rw [Polynomial.eval_prod]
-    exact prod_eq_zero (mem_univ i) (by simp [q, Polynomial.eval_finsetSum, hi])
+    exact prod_eq_zero (mem_univ i) (by rw [heval, hi])
   · rw [card_image_of_injective _ Nat.cast_injective, card_range]
-    exact Nat.lt_succ_of_le <| (Polynomial.natDegree_prod_le _ _).trans <|
-      (sum_le_sum fun i _ => hdeg i).trans_eq (by simp [sq])
+    refine Nat.lt_succ_of_le ((Polynomial.natDegree_prod_le _ _).trans ?_)
+    calc ∑ i, (q i).natDegree ≤ ∑ _i : Fin n, n := sum_le_sum fun i _ => hdeg i
+      _ = n ^ 2 := by simp [sq]
 
 /-- For a nonzero polynomial `p` with at most `s` monomials, an invertible matrix `A` and a
 parameter `β` at which all coordinates of `A (β, β ^ 2, …, β ^ n) + b` are nonzero, the
@@ -133,51 +138,59 @@ private theorem aeval_sparseOrbitCurve_ne_zero {p : MvPolynomial (Fin n) F}
     aeval (sparseOrbitCurve F n (n * s ^ 2 + s) β)
       (aeval (fun i => ∑ j, C (A i j) * X j + C (b i)) p) ≠ 0 := by
   classical
-  set B := n * s ^ 2 + s
-  set u : Fin n → F := fun i => ∑ j, A i j * β ^ ((j : ℕ) + 1) + b i
+  set B := n * s ^ 2 + s with hB
+  set u : Fin n → F := fun i => ∑ j, A i j * β ^ ((j : ℕ) + 1) + b i with hudef
   set g : MvPolynomial (Fin n) F := shift u p with hg
-  set z : Fin n → F[X] := fun i => ∑ j, Polynomial.C (A i j) * logCurve F n B j
+  set z : Fin n → F[X] := fun i => ∑ j, Polynomial.C (A i j) * logCurve F n B j with hz
   -- the restriction to the curve is `g (t ^ B • A G (t))`
   have hP : aeval (sparseOrbitCurve F n B β) (aeval (fun i => ∑ j, C (A i j) * X j + C (b i)) p) =
       aeval (fun i => Polynomial.X ^ B * z i) g := by
     rw [hg, shift, comp_aeval_apply, comp_aeval_apply]
-    refine congrArg (aeval · p) (funext fun i => ?_)
+    refine congrArg (fun L => aeval L p) (funext fun i => ?_)
     simp only [map_add, map_sum, map_mul, aeval_C, aeval_X, Polynomial.algebraMap_eq,
-      sparseOrbitCurve, z, u, mul_add, sum_add_distrib, mul_sum]
+      sparseOrbitCurve, hz, hudef, mul_add, sum_add_distrib, mul_sum]
     rw [add_right_comm, add_comm]
-    exact congrArg₂ (· + ·) (sum_congr rfl fun _ _ => by ring) rfl
+    refine congrArg₂ (· + ·) (sum_congr rfl fun j _ => by ring) rfl
   -- the lowest homogeneous component `h` of `g`
   have hg0 : g ≠ 0 := fun h0 =>
     hp (shift_injective (algebraMap F F).injective u (h0.trans (map_zero _).symm))
   have hex : ∃ m, homogeneousComponent m g ≠ 0 :=
-    not_forall.1 fun h => hg0 (eq_zero_of_homogeneousComponent_eq_zero h)
-  set m := Nat.find hex
+    not_forall_not.1 fun h => hg0 (eq_zero_of_homogeneousComponent_eq_zero fun j =>
+      not_not.1 (h j))
+  set m := Nat.find hex with hmdef
   have hm : ∀ j < m, homogeneousComponent j g = 0 := fun j hj => not_not.1 (Nat.find_min hex hj)
   set h := homogeneousComponent m g with hh
+  have hh0 : h ≠ 0 := Nat.find_spec hex
   -- `h (A G (t))` is not divisible by `t ^ B`
-  obtain ⟨_, hrank⟩ := finrank_iteratedPDerivSpan_homogeneousComponent_shift_le hu hm
+  obtain ⟨hfin, hrank⟩ := finrank_iteratedPDerivSpan_homogeneousComponent_shift_le hu hm
   have hQ : ¬ Polynomial.X ^ B ∣ aeval z h := by
-    rw [show aeval z h = aeval (logCurve F n B) (linearSubst A h) by
+    have hz' : aeval z h = aeval (logCurve F n B) (linearSubst A h) := by
       rw [linearSubst, comp_aeval_apply]
-      exact congrArg (aeval · h) (funext fun i => by simp [z])]
+      refine congrArg (fun L => aeval L h) (funext fun i => ?_)
+      simp only [hz, map_sum, map_mul, aeval_C, aeval_X, Polynomial.algebraMap_eq]
+    rw [hz']
     exact not_X_pow_dvd_aeval_logCurve
       (V := (iteratedPDerivSpan h).map (linearSubst A).toLinearMap)
-      (fun i q hq => pderiv_mem_map_linearSubst A (fun i _ => pderiv_mem_iteratedPDerivSpan i) i hq)
+      (fun i q hq => pderiv_mem_map_linearSubst A
+        (fun i q hq => pderiv_mem_iteratedPDerivSpan i hq) i hq)
       ((Submodule.finrank_map_le _ _).trans (hrank.trans hs))
       (Submodule.mem_map_of_mem (self_mem_iteratedPDerivSpan h))
-      fun h0 => Nat.find_spec hex (linearSubst_injective hA (h0.trans (map_zero _).symm))
+      fun h0 => hh0 (linearSubst_injective hA (h0.trans (map_zero _).symm))
   -- the rest of `g` contributes a multiple of `t ^ (B (m + 1))`
-  have h1 : ∀ j < m + 1, homogeneousComponent j (g - h) = 0 := fun j hj => by
-    rw [map_sub, hh, homogeneousComponent_of_mem (homogeneousComponent_mem m g)]
-    split_ifs with hjm
-    · simp [hjm]
-    · simp [hm j (by omega)]
+  have hrest : Polynomial.X ^ (B * m + B) ∣ aeval (fun i => Polynomial.X ^ B * z i) (g - h) := by
+    have h1 : ∀ j < m + 1, homogeneousComponent j (g - h) = 0 := fun j hj => by
+      rw [map_sub, hh, homogeneousComponent_of_mem (homogeneousComponent_mem m g)]
+      split_ifs with hjm
+      · rw [hjm, sub_self]
+      · rw [hm j (by omega), sub_zero]
+    have h2 := pow_dvd_aeval_mul_left h1 (Polynomial.X ^ B) z
+    rwa [← pow_mul, Nat.mul_succ] at h2
   intro h0
   rw [hP, ← add_sub_cancel h g, map_add,
     aeval_mul_left_of_isHomogeneous (homogeneousComponent_isHomogeneous m g), ← pow_mul] at h0
   refine hQ ((mul_dvd_mul_iff_left (pow_ne_zero (B * m) Polynomial.X_ne_zero)).1 ?_)
-  rw [← pow_add, eq_neg_of_add_eq_zero_left h0, dvd_neg, ← Nat.mul_succ, pow_mul]
-  exact pow_dvd_aeval_mul_left h1 (Polynomial.X ^ B) z
+  rw [← pow_add, eq_neg_of_add_eq_zero_left h0]
+  exact (dvd_neg.2 hrest)
 
 /-- **Theorem 1.2 of the source.** The set `sparseOrbitHittingSet F n s d` is a hitting set for
 the polynomials `p (A x + b)` of degree at most `d`, where `p` has at most `s` monomials and `A`
@@ -189,18 +202,24 @@ theorem isHittingSet_sparseOrbitHittingSet (s d : ℕ) :
           f = aeval (fun i => ∑ j, C (A i j) * X j + C (b i)) p} := by
   rintro f ⟨hd, p, A, b, hs, hA, rfl⟩ hf0
   classical
+  set B := n * s ^ 2 + s with hB
   obtain ⟨k, hk, hu⟩ := exists_forall_sum_mul_pow_add_ne_zero hA b
+  have hne := aeval_sparseOrbitCurve_ne_zero hs hA
+    (fun h0 => hf0 (by rw [h0, map_zero])) hu
+  have hdeg : (aeval (sparseOrbitCurve F n B (k : F))
+      (aeval (fun i => ∑ j, C (A i j) * X j + C (b i)) p)).natDegree < 2 * d * B + 1 := by
+    refine Nat.lt_succ_of_le ((natDegree_aeval_le_mul
+      (natDegree_sparseOrbitCurve_le B (k : F)) _).trans ?_)
+    calc _ ≤ d * (2 * B) := Nat.mul_le_mul_right _ hd
+      _ = 2 * d * B := by ring
   by_contra hall
-  refine aeval_sparseOrbitCurve_ne_zero hs hA (fun h0 => hf0 (by rw [h0, map_zero])) hu
-    (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _
-      ((range (2 * d * (n * s ^ 2 + s) + 1)).image Nat.cast) ?_ ?_)
+  refine hne (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _
+    ((range (2 * d * B + 1)).image fun l : ℕ => (l : F)) ?_ ?_)
   · intro x hx
     obtain ⟨l, hl, rfl⟩ := mem_image.1 hx
     rw [eval_polynomial_aeval]
-    exact not_not.1 fun h => hall ⟨_, mem_image.2 ⟨(k, l), mem_product.2 ⟨hk, hl⟩, rfl⟩, h⟩
-  · rw [card_image_of_injective _ Nat.cast_injective, card_range]
-    exact Nat.lt_succ_of_le <|
-      (natDegree_aeval_le_mul (natDegree_sparseOrbitCurve_le _ _) _).trans <|
-        (Nat.mul_le_mul_right _ hd).trans_eq (by ring)
+    exact not_not.1 fun h =>
+      hall ⟨_, mem_image.2 ⟨(k, l), mem_product.2 ⟨hk, hl⟩, rfl⟩, h⟩
+  · rwa [card_image_of_injective _ Nat.cast_injective, card_range]
 
 end Cslib.Circuits.Arithmetic

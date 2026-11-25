@@ -75,7 +75,11 @@ theorem distinctValues_prefix (f : ℕ → Option β) {m n : ℕ} (h : m ≤ n) 
     rw [distinctValues]
     cases f n with
     | none => exact ih
-    | some b => dsimp only; split_ifs <;> [exact ih; exact ih.trans (List.prefix_append _ _)]
+    | some b =>
+      dsimp only
+      split_ifs
+      · exact ih
+      · exact ih.trans (List.prefix_append _ _)
 
 /-- The distinct values up to `n` are the values `f j = some b` with `j < n`. -/
 theorem mem_distinctValues {f : ℕ → Option β} {n : ℕ} {b : β} :
@@ -87,7 +91,10 @@ theorem mem_distinctValues {f : ℕ → Option β} {n : ℕ} {b : β} :
       rw [distinctValues]
       cases f n with
       | none => simp
-      | some c => dsimp only; split_ifs with hc <;> simp [eq_comm]; grind
+      | some c =>
+        dsimp only
+        split_ifs with hc <;> simp [eq_comm]
+        grind
     rw [hstep, ih]
     exact ⟨fun | .inl ⟨j, hj, h⟩ => ⟨j, by omega, h⟩ | .inr h => ⟨n, by omega, h⟩,
       fun ⟨j, hj, h⟩ => match Nat.lt_succ_iff_lt_or_eq.mp hj with
@@ -185,7 +192,10 @@ theorem Primrec.distinctValues {f : α → ℕ → Option β} (hf : Primrec₂ f
       (hf.comp₂ Primrec₂.left (Primrec.fst.comp₂ Primrec₂.right)))).of_eq fun a n => ?_
   induction n with
   | zero => rfl
-  | succ n ih => dsimp only; rw [Nat.distinctValues, ← ih]; cases f a n <;> rfl
+  | succ n ih =>
+    dsimp only
+    rw [Nat.distinctValues, ← ih]
+    cases f a n <;> rfl
 
 /-- The `i`-th distinct value of a sequence depending primitive recursively on a parameter is
 partial recursive in the parameter and `i`. -/

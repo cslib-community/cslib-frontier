@@ -117,20 +117,25 @@ theorem marginLoss_of_ge {ρ u : ℝ} (hρ : 0 < ρ) (hu : ρ ≤ u) : marginLos
 /-- On `[0, ρ]` (`ρ > 0`), the `ρ`-margin loss is the linear ramp `1 - u / ρ`. -/
 theorem marginLoss_of_mem_Icc {ρ u : ℝ} (hρ : 0 < ρ) (hu : u ∈ Set.Icc 0 ρ) :
     marginLoss ρ u = 1 - u / ρ := by
-  have := div_nonneg hu.1 hρ.le; have := (div_le_one hρ).2 hu.2
+  have := div_nonneg hu.1 hρ.le
+  have := (div_le_one hρ).2 hu.2
   rw [marginLoss_def, max_eq_right (by linarith), min_eq_right (by linarith)]
 
 /-- **Zero-one domination** [MohriRostamizadehTalwalkar2018, Section 5.4]: for `ρ > 0`, the
 `ρ`-margin loss dominates the nonpositive-margin indicator `𝟙[u ≤ 0]`. -/
 theorem boole_le_marginLoss {ρ : ℝ} (hρ : 0 < ρ) (u : ℝ) :
     (if u ≤ 0 then (1 : ℝ) else 0) ≤ marginLoss ρ u := by
-  split_ifs with hu; exacts [(marginLoss_of_nonpos hρ hu).ge, marginLoss_nonneg ρ u]
+  split_ifs with hu
+  · rw [marginLoss_of_nonpos hρ hu]
+  · exact marginLoss_nonneg ρ u
 
 /-- **Margin-violation upper bound** [MohriRostamizadehTalwalkar2018, (5.37)]: for `ρ > 0`, the
 `ρ`-margin loss is bounded above by the indicator `𝟙[u ≤ ρ]`. -/
 theorem marginLoss_le_boole {ρ : ℝ} (hρ : 0 < ρ) (u : ℝ) :
     marginLoss ρ u ≤ if u ≤ ρ then 1 else 0 := by
-  split_ifs with hu; exacts [marginLoss_le_one ρ u, (marginLoss_of_ge hρ (le_of_not_ge hu)).le]
+  split_ifs with hu
+  · exact marginLoss_le_one ρ u
+  · rw [marginLoss_of_ge hρ (le_of_not_ge hu)]
 
 /-- For `ρ ≥ 0`, `marginLoss ρ` is `(1 / ρ)`-Lipschitz
 [MohriRostamizadehTalwalkar2018, Section 5.4]. -/
@@ -150,8 +155,9 @@ theorem lipschitzWith_marginLoss_nnreal (ρ : ℝ≥0) :
 
 private theorem lipschitzWith_marginLoss_signVal_mul {ρ : ℝ} (hρ : 0 ≤ ρ) (y : Bool) :
     LipschitzWith (1 / ρ).toNNReal (fun u : ℝ => marginLoss ρ (signVal y * u)) := by
-  have hsign : LipschitzWith 1 (fun u : ℝ => signVal y * u) := LipschitzWith.of_dist_le_mul
-    fun u v => by rw [Real.dist_eq, Real.dist_eq, ← mul_sub, abs_mul, abs_signVal, NNReal.coe_one]
+  have hsign : LipschitzWith 1 (fun u : ℝ => signVal y * u) := by
+    refine LipschitzWith.of_dist_le_mul fun u v => ?_
+    rw [Real.dist_eq, Real.dist_eq, ← mul_sub, abs_mul, abs_signVal, NNReal.coe_one]
   have h := (lipschitzWith_marginLoss hρ).comp hsign
   rwa [mul_one] at h
 
@@ -176,7 +182,8 @@ theorem empiricalMarginLoss_nonneg (ρ : ℝ) (h : α → ℝ) {m : ℕ} (S : Fi
 
 theorem empiricalMarginLoss_le_one (ρ : ℝ) (h : α → ℝ) {m : ℕ} (S : Fin m → α × Bool) :
     empiricalMarginLoss ρ h S ≤ 1 := by
-  rcases Nat.eq_zero_or_pos m with rfl | hm; · simp [empiricalMarginLoss]
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · simp [empiricalMarginLoss]
   have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
   exact Finset.expect_le Finset.univ_nonempty fun _ _ => marginLoss_le_one _ _
 
@@ -267,7 +274,8 @@ theorem rademacherComplexity_marginLossClass_le [Fintype α] (D : PMF (α × Boo
 
 private theorem two_mul_le_two_div_mul {ρ x y : ℝ} (h : x ≤ (1 / ρ) * y) :
     2 * x ≤ 2 / ρ * y := by
-  rw [div_eq_mul_one_div, mul_assoc]; exact mul_le_mul_of_nonneg_left h zero_le_two
+  rw [div_eq_mul_one_div, mul_assoc]
+  exact mul_le_mul_of_nonneg_left h zero_le_two
 
 /-- Population `ρ`-margin risk generalization bound via `R_m(H)`. -/
 theorem rademacherComplexity_marginRisk_bound [Fintype α] (D : PMF (α × Bool)) {m : ℕ}
@@ -355,12 +363,19 @@ theorem margin_bound_of_finset [Finite α] (D : PMF (α × Bool)) {m : ℕ} (hm 
         2 * B / ρ * √(2 * Real.log H.card / m) + √(Real.log (1 / δ) / (2 * m)) <
           (D.toOuterMeasure {p | signVal p.2 * h p.1 ≤ 0}).toReal}).toReal ≤ δ := by
   have := Fintype.ofFinite α
+  have hR : rademacherComplexity (D.map Prod.fst) (H : Set (α → ℝ)) m ≤
+      B * √(2 * Real.log H.card / m) :=
+    rademacherComplexity_le_of_finset (D.map Prod.fst) hB hH m
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
     (rademacherComplexity_margin_bound D hm (H := (H : Set (α → ℝ))) hH hρ hδ)
   rintro S ⟨h, hh, hlt⟩
-  have hmul := mul_le_mul_of_nonneg_left
-    (rademacherComplexity_le_of_finset (D.map Prod.fst) hB hH m) (div_nonneg zero_le_two hρ.le)
-  exact ⟨h, hh, by linarith [show 2 / ρ * (B * √(2 * Real.log H.card / m)) =
-    2 * B / ρ * √(2 * Real.log H.card / m) by ring]⟩
+  refine ⟨h, hh, ?_⟩
+  have hmul : 2 / ρ * rademacherComplexity (D.map Prod.fst) (H : Set (α → ℝ)) m ≤
+      2 * B / ρ * √(2 * Real.log H.card / m) := by
+    have hpos : 0 ≤ 2 / ρ := div_nonneg zero_le_two hρ.le
+    calc 2 / ρ * rademacherComplexity (D.map Prod.fst) (H : Set (α → ℝ)) m
+        ≤ 2 / ρ * (B * √(2 * Real.log H.card / m)) := mul_le_mul_of_nonneg_left hR hpos
+      _ = 2 * B / ρ * √(2 * Real.log H.card / m) := by ring
+  linarith
 
 end Cslib.MachineLearning

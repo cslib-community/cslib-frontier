@@ -125,10 +125,21 @@ theorem sum_averageProb {p : ℕ → I → ℝ} {T : ℕ} (hT : 0 < T) (hp : ∀
 sequence. -/
 theorem sum_empirical_mul [DecidableEq J] (col : ℕ → J) (T : ℕ) (f : J → ℝ) :
     ∑ j, empirical col T j * f j = (∑ t ∈ range T, f (col t)) / T := by
-  simp only [empirical, div_mul_eq_mul_div, ← sum_div, card_filter, Nat.cast_sum,
-    apply_ite Nat.cast, Nat.cast_one, Nat.cast_zero, sum_mul, ite_mul, one_mul, zero_mul]
-  rw [sum_comm]
-  simp only [sum_ite_eq, mem_univ, ↓reduceIte]
+  simp only [empirical, div_mul_eq_mul_div, ← sum_div]
+  congr 1
+  calc ∑ j, (#{t ∈ range T | col t = j} : ℝ) * f j
+      = ∑ j, ∑ t ∈ range T, if col t = j then f j else 0 := by
+        refine sum_congr rfl fun j _ => ?_
+        rw [← sum_boole, sum_mul]
+        refine sum_congr rfl fun t _ => ?_
+        split_ifs
+        · exact one_mul _
+        · exact zero_mul _
+    _ = ∑ t ∈ range T, f (col t) := by
+        rw [sum_comm]
+        refine sum_congr rfl fun t _ => ?_
+        rw [sum_ite_eq]
+        simp only [mem_univ, ite_true]
 
 omit [Fintype J] in
 /-- The empirical distribution is nonnegative. -/
@@ -163,10 +174,11 @@ theorem bestResponsePlay_spec [Nonempty J] (M : I → J → ℝ) (η : ℝ) (t :
     ∑ i, prob (mwFactor η) (fun s i => M i (bestResponsePlay M η s)) t i * M i j ≤
       ∑ i, prob (mwFactor η) (fun s i => M i (bestResponsePlay M η s)) t i *
         M i (bestResponsePlay M η t) := by
+  have h := congrFun (adaptiveLoss_eq (mwFactor η) (fun _ p i => M i (bestResponse M p)) t)
   have hrow : ∀ i, M i (bestResponsePlay M η t) =
-      M i (bestResponse M (prob (mwFactor η) (fun s i => M i (bestResponsePlay M η s)) t)) :=
-    congrFun (adaptiveLoss_eq (mwFactor η) (fun _ p i => M i (bestResponse M p)) t)
-  simpa only [hrow] using le_bestResponse M _ j
+      M i (bestResponse M (prob (mwFactor η) (fun s i => M i (bestResponsePlay M η s)) t)) := h
+  simp only [hrow]
+  exact le_bestResponse M _ j
 
 section Game
 
@@ -180,14 +192,17 @@ private theorem game_regret (hM : ∀ i j, M i j ∈ Set.Icc (0 : ℝ) 1) (hε :
     ∑ t ∈ range T, ∑ k, prob (mwFactor (ε / 2)) (fun s i => M i (col s)) t k * M k (col t) ≤
       ∑ t ∈ range T, M i (col t) + ε * T := by
   have hη : 0 < ε / 2 := by linarith
-  have habs (s : ℕ) (k : I) : |M k (col s)| ≤ 1 := by
-    rw [abs_of_nonneg (hM k (col s)).1]; exact (hM k (col s)).2
   have h := mw_regret_le (ℓ := fun s i => M i (col s)) (T := T) hη (by linarith)
-    (fun s _ k => habs s k) i
-  have hsum : ∑ t ∈ range T, |M i (col t)| ≤ T := by
-    simpa using sum_le_sum fun t (_ : t ∈ range T) => habs t i
-  have hlog : log (Fintype.card I) / (ε / 2) ≤ ε * T / 2 := (div_le_iff₀ hη).mpr (by nlinarith)
-  nlinarith [mul_le_mul_of_nonneg_left hsum hη.le]
+    (fun s _ k => by rw [abs_le]; constructor <;> linarith [(hM k (col s)).1, (hM k (col s)).2]) i
+  have habs : ∑ t ∈ range T, |M i (col t)| ≤ T := by
+    calc ∑ t ∈ range T, |M i (col t)| ≤ ∑ t ∈ range T, (1 : ℝ) :=
+          sum_le_sum fun t _ => by
+            rw [abs_le]; constructor <;> linarith [(hM i (col t)).1, (hM i (col t)).2]
+      _ = T := by simp only [sum_const, card_range, nsmul_eq_mul, mul_one]
+  have hlog : log (Fintype.card I) / (ε / 2) ≤ ε * T / 2 := by
+    rw [div_le_iff₀ hη]
+    nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left habs hη.le]
 
 /-- **The approximate minimax inequality**: for a loss matrix with entries in `[0, 1]`,
 `0 < ε ≤ 1` and `T > 0` rounds with `ε ^ 2 T ≥ 4 ln n`, if every column `col t` best responds to
@@ -202,11 +217,16 @@ theorem sum_averageProb_mul_le_sum_empirical_mul_add [DecidableEq J]
     ∑ k, averageProb (prob (mwFactor (ε / 2)) (fun s i => M i (col s))) T k * M k j ≤
       ∑ l, empirical col T l * M i l + ε := by
   have hT' : (0 : ℝ) < T := by exact_mod_cast hT0
-  simp only [averageProb, sum_empirical_mul, div_mul_eq_mul_div, ← sum_div, sum_mul,
-    div_add' _ _ _ hT'.ne', div_le_div_iff_of_pos_right hT']
-  rw [sum_comm]
-  exact (sum_le_sum fun t ht => hbr t (mem_range.mp ht) j).trans
-    (game_regret (col := col) hM hε hε' hT i)
+  set p := prob (mwFactor (ε / 2)) (fun s i => M i (col s)) with hpdef
+  have hreg := game_regret (col := col) hM hε hε' hT i
+  rw [sum_empirical_mul]
+  have hlhs : ∑ k, averageProb p T k * M k j = (∑ t ∈ range T, ∑ k, p t k * M k j) / T := by
+    simp only [averageProb, div_mul_eq_mul_div, ← sum_div, sum_mul]
+    rw [sum_comm]
+  rw [hlhs, div_add' _ _ _ hT'.ne', div_le_div_iff_of_pos_right hT']
+  calc ∑ t ∈ range T, ∑ k, p t k * M k j ≤ ∑ t ∈ range T, ∑ k, p t k * M k (col t) :=
+        sum_le_sum fun t ht => hbr t (mem_range.mp ht) j
+    _ ≤ _ := hreg
 
 /-- **Multiplicative weights against best responses approximates the value**
 [AroraHazanKale2012, (3.5)]: under the hypotheses of
@@ -221,16 +241,24 @@ theorem averagePayoff_mem_Icc (hM : ∀ i j, M i j ∈ Set.Icc (0 : ℝ) 1) (hε
       Set.Icc v (v + ε) := by
   classical
   have hT' : (0 : ℝ) < T := by exact_mod_cast hT0
-  have hφ (t : ℕ) : ∀ s < t, ∀ k, 0 < mwFactor (ε / 2) (M k (col s)) := fun s _ k => by
+  have hφ : ∀ t, ∀ s < t, ∀ k, 0 < mwFactor (ε / 2) (M k (col s)) := fun t s _ k => by
     rw [mwFactor_apply]; nlinarith [(hM k (col s)).2]
-  have ⟨⟨q, _⟩, _⟩ := hv; have := q.nonempty
-  refine ⟨(le_div_iff₀ hT').mpr ?_, (div_le_iff₀ hT').mpr ?_⟩
-  · simpa [mul_comm] using sum_le_sum fun t ht =>
-      let ⟨j, hj⟩ := hv.exists_le (prob_nonneg (hφ t)) (sum_prob (hφ t))
-      hj.trans (hbr t (mem_range.mp ht) j)
+  have hne : Nonempty I := by
+    obtain ⟨⟨q, -⟩, -⟩ := hv
+    exact q.nonempty
+  constructor
+  · rw [le_div_iff₀ hT']
+    calc v * T = ∑ t ∈ range T, v := by
+          rw [sum_const, card_range, nsmul_eq_mul, mul_comm]
+      _ ≤ _ := sum_le_sum fun t ht => by
+          obtain ⟨j, hj⟩ := hv.exists_le (prob_nonneg (hφ t)) (sum_prob (hφ t))
+          exact hj.trans (hbr t (mem_range.mp ht) j)
   · obtain ⟨i, hi⟩ := hv.exists_ge (empirical_nonneg col T) (sum_empirical col hT0)
-    rw [sum_empirical_mul, div_le_iff₀ hT'] at hi
-    linarith [game_regret (col := col) hM hε hε' hT i]
+    rw [sum_empirical_mul] at hi
+    have hreg := game_regret (col := col) hM hε hε' hT i
+    rw [div_le_iff₀ hT']
+    rw [div_le_iff₀ hT'] at hi
+    nlinarith
 
 /-- **Multiplicative weights solves zero-sum games** [AroraHazanKale2012, Theorem 3.1],
 [FreundSchapire1999]: under the hypotheses of `sum_averageProb_mul_le_sum_empirical_mul_add`,
@@ -247,7 +275,8 @@ theorem mw_bestResponse_approx_optimal [DecidableEq J] (hM : ∀ i j, M i j ∈ 
       v + ε) ∧ ∀ i, v - ε ≤ ∑ l, empirical col T l * M i l := by
   have hφ (t : ℕ) : ∀ s < t, ∀ k, 0 < mwFactor (ε / 2) (M k (col s)) := fun s _ k => by
     rw [mwFactor_apply]; nlinarith [(hM k (col s)).2]
-  have ⟨⟨q, _⟩, _⟩ := hv; have := q.nonempty
+  have ⟨⟨q, _⟩, _⟩ := hv
+  have := q.nonempty
   refine ⟨fun j => ?_, fun i => ?_⟩
   · obtain ⟨i, hi⟩ := hv.exists_ge (empirical_nonneg col T) (sum_empirical col hT0)
     linarith [sum_averageProb_mul_le_sum_empirical_mul_add hM hε hε' hT0 hT hbr i j]
@@ -268,10 +297,15 @@ theorem sum_averageProb_mul_le_add_of_forall_exists_sum_le
     {c : ℝ} (h : ∀ q : StdSimplex ℝ J, ∃ i, ∑ j, q.weights j * M i j ≤ c) (j : J) :
     ∑ k, averageProb (prob (mwFactor (ε / 2)) (fun s i => M i (col s))) T k * M k j ≤ c + ε := by
   classical
-  obtain ⟨i, hi⟩ := h ⟨Finsupp.equivFunOnFinite.symm (empirical col T), empirical_nonneg col T,
-    by rw [Finsupp.sum_fintype _ _ (by simp)]; exact sum_empirical col hT0⟩
-  linarith [show ∑ l, empirical col T l * M i l ≤ c from hi,
-    sum_averageProb_mul_le_sum_empirical_mul_add hM hε hε' hT0 hT hbr i j]
+  let q : StdSimplex ℝ J :=
+    { weights := Finsupp.equivFunOnFinite.symm (empirical col T)
+      nonneg := empirical_nonneg col T
+      total := by
+        rw [Finsupp.sum_fintype _ _ (by simp)]
+        exact sum_empirical col hT0 }
+  obtain ⟨i, hi⟩ := h q
+  have hi' : ∑ l, empirical col T l * M i l ≤ c := hi
+  linarith [sum_averageProb_mul_le_sum_empirical_mul_add hM hε hε' hT0 hT hbr i j]
 
 end Game
 

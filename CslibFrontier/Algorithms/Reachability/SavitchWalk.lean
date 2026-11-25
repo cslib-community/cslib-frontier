@@ -94,7 +94,8 @@ none, the counter wraps around to the word of zeros. -/
 /-- A round of the search keeps the width. -/
 @[simp] theorem length_searchStep (test : List Bool → Bool) (m : List Bool) :
     (searchStep test m).length = m.length := by
-  simp only [searchStep]; split_ifs <;> simp
+  simp only [searchStep]
+  split_ifs <;> simp
 
 /-- Rounds of the search keep the width. -/
 @[simp] theorem length_iterate_searchStep (test : List Bool → Bool) (k : ℕ) (m : List Bool) :
@@ -148,7 +149,8 @@ theorem search_congr {test test' : List Bool → Bool} {w : ℕ}
     (h : ∀ m : List Bool, m.length = w → test m = test' m) : search test w = search test' w := by
   suffices ∀ k, (searchStep test)^[k] (List.replicate w false) =
       (searchStep test')^[k] (List.replicate w false) from this (2 ^ w)
-  intro k; induction k with
+  intro k
+  induction k with
   | zero => rfl
   | succ k ih =>
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ih, searchStep, searchStep,
@@ -159,7 +161,8 @@ around after `2 ^ w` rounds. -/
 theorem search_of_forall {test : List Bool → Bool} {w : ℕ}
     (h : ∀ m : List Bool, m.length = w → test m = false) :
     search test w = List.replicate w false := by
-  rw [search, iterate_searchStep_eq_increment fun _ _ => h _ (by simp), iterate_increment_two_pow]
+  rw [search, iterate_searchStep_eq_increment fun j _ => h _ (by simp),
+    iterate_increment_two_pow]
 
 /-! ### The midpoint of a call -/
 
@@ -175,7 +178,8 @@ zeros when there is no such word, and when `u` or `v` does not have width `w`. -
 /-- The midpoint has width `w`. -/
 @[simp] theorem length_midpoint (edge : List Bool → List Bool → Bool) (w i : ℕ)
     (u v : List Bool) : (midpoint edge w i u v).length = w := by
-  simp only [midpoint]; split_ifs <;> simp
+  simp only [midpoint]
+  split_ifs <;> simp
 
 /-- **The midpoint splits a call**: if `v` is reachable from `u` at level `i + 1`, the midpoint is
 reachable from `u`, and reaches `v`, at level `i`. -/
@@ -192,7 +196,8 @@ theorem reach_midpoint {edge : List Bool → List Bool → Bool} {w i : ℕ} {u 
 theorem midpoint_of_reach_eq_false {edge : List Bool → List Bool → Bool} {w i : ℕ}
     {u v : List Bool} (h : reach edge w (i + 1) u v = false) :
     midpoint edge w i u v = List.replicate w false := by
-  rw [midpoint]; split_ifs
+  rw [midpoint]
+  split_ifs
   · exact search_of_forall fun m hm => by simp_all [reach]
   · rfl
 
@@ -249,10 +254,12 @@ theorem iterate_step_frame (edge : List Bool → List Bool → Bool) (w d : ℕ)
   induction d generalizing cur t rest with
   | zero => rfl
   | succ d ih =>
-    have := Nat.one_le_two_pow (n := d + 1)
-    rw [show 2 ^ (d + 1 + 1) - 1 = 2 ^ (d + 1) - 1 + (2 ^ (d + 1) - 1) + 1 by
-      rw [pow_succ 2 (d + 1)]; omega, Function.iterate_add_apply, Function.iterate_add_apply,
-      Function.iterate_one, step_succ, ih, ih]
+    have h : 2 ^ (d + 1 + 1) - 1 = 2 ^ (d + 1) - 1 + (2 ^ (d + 1) - 1) + 1 := by
+      have := Nat.one_le_two_pow (n := d + 1)
+      rw [pow_succ 2 (d + 1)]
+      omega
+    rw [h, Function.iterate_add_apply, Function.iterate_add_apply, Function.iterate_one,
+      step_succ, ih, ih]
 
 /-- **A stack is cleared in `stackSteps stack` steps**, whatever the edges: the walk then stands
 on the last target, or where it started when the stack is empty. -/
@@ -262,8 +269,9 @@ theorem iterate_step_stack (edge : List Bool → List Bool → Bool) (w : ℕ) (
   induction stack generalizing cur with
   | nil => rfl
   | cons e stack ih =>
-    cases e; rw [stackSteps, Nat.add_comm, Function.iterate_add_apply, iterate_step_frame, ih,
-      List.map_cons, List.getLastD_cons]
+    obtain ⟨t, ℓ⟩ := e
+    rw [stackSteps, Nat.add_comm (2 ^ (ℓ + 1) - 1), Function.iterate_add_apply,
+      iterate_step_frame, ih, List.map_cons, List.getLastD_cons]
 
 /-- **The run from `u` to a target `v` at level `d`** arrives at `v` with an empty stack after
 `2 ^ (d + 1) - 1` steps, whatever the edges. -/
@@ -292,7 +300,9 @@ theorem width_iterate (edge : List Bool → List Bool → Bool) {w : ℕ} {s : S
     (n : ℕ) : Width w ((step edge w)^[n] s) := by
   induction n with
   | zero => exact h
-  | succ _ ih => rw [Function.iterate_succ_apply']; exact width_step edge ih
+  | succ _ ih =>
+    rw [Function.iterate_succ_apply']
+    exact width_step edge ih
 
 /-- **The levels of a stack within depth `d`**: a target with `n` targets below it is at level at
 most `d - n`. -/
@@ -314,8 +324,10 @@ theorem LevelsLE.length_le {d : ℕ} :
 theorem LevelsLE.le_of_mem {d : ℕ} :
     ∀ {stack : List (List Bool × ℕ)}, LevelsLE d stack → ∀ e ∈ stack, e.2 ≤ d
   | [], _, _, he => by simp at he
-  | (_, _) :: _, h, _, he =>
-    (List.mem_cons.mp he).elim (by rintro rfl; exact le_of_add_le_left h.1) (h.2.le_of_mem _)
+  | (_, _) :: _, h, e, he => by
+    rcases List.mem_cons.mp he with rfl | he
+    · have := h.1; dsimp only; omega
+    · exact h.2.le_of_mem e he
 
 /-- A step keeps the levels within depth `d`. -/
 theorem levelsLE_step (edge : List Bool → List Bool → Bool) (w : ℕ) {d : ℕ} {s : State}
@@ -323,14 +335,17 @@ theorem levelsLE_step (edge : List Bool → List Bool → Bool) (w : ℕ) {d : �
   obtain ⟨cur, _ | ⟨⟨t, _ | i⟩, rest⟩⟩ := s
   · exact h
   · exact h.2
-  · exact ⟨by have := h.1; simp only [List.length_cons]; omega, by have := h.1; omega, h.2⟩
+  · obtain ⟨hl, hr⟩ := h
+    exact ⟨by simp only [List.length_cons]; omega, by omega, hr⟩
 
 /-- **Every state of a run keeps the levels within depth `d`.** -/
 theorem levelsLE_iterate (edge : List Bool → List Bool → Bool) (w : ℕ) {d : ℕ} {s : State}
     (h : LevelsLE d s.2) (n : ℕ) : LevelsLE d ((step edge w)^[n] s).2 := by
   induction n with
   | zero => exact h
-  | succ _ ih => rw [Function.iterate_succ_apply']; exact levelsLE_step edge w ih
+  | succ _ ih =>
+    rw [Function.iterate_succ_apply']
+    exact levelsLE_step edge w ih
 
 /-! ### A run between reachable vertices -/
 
@@ -361,7 +376,9 @@ theorem chain_iterate {s : State} (h : Chain edge w s.1 s.2) (n : ℕ) :
     Chain edge w ((step edge w)^[n] s).1 ((step edge w)^[n] s).2 := by
   induction n with
   | zero => exact h
-  | succ _ ih => rw [Function.iterate_succ_apply']; exact chain_step ih
+  | succ _ ih =>
+    rw [Function.iterate_succ_apply']
+    exact chain_step ih
 
 /-- **A step from a chain stays put or follows an edge.** -/
 theorem eq_or_edge_step {s : State} (h : Chain edge w s.1 s.2) :

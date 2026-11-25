@@ -295,15 +295,20 @@ mistake bound is `⊤`. -/
 the adversary chooses the instances, each labelled by `c`. -/
 theorem mistakeBound_eq_iSup_concept (A : OnlineLearner α β) (C : ConceptClass α β) :
     mistakeBound A C = ⨆ (c ∈ C) (xs : List α), (mistakes A (xs.map fun x => (x, c x)) : ℕ∞) := by
-  refine le_antisymm (mistakeBound_le_iff.mpr fun S hS => ?_)
-    (iSup₂_le fun c hc => iSup_le fun xs => mistakes_le_mistakeBound (realizable_map hc xs))
-  obtain ⟨c, hc, hcS⟩ := realizable_iff.mp hS
-  have hS' : (S.map Prod.fst).map (fun x => (x, c x)) = S := by
-    rw [List.map_map]
-    conv_rhs => rw [← List.map_id S]
-    exact List.map_congr_left fun p hp => Prod.ext rfl (hcS p hp)
-  exact hS' ▸ le_iSup₂_of_le c hc (le_iSup (fun xs : List α =>
-    (mistakes A (xs.map fun x => (x, c x)) : ℕ∞)) (S.map Prod.fst))
+  apply le_antisymm
+  · refine mistakeBound_le_iff.mpr fun S hS => ?_
+    obtain ⟨c, hc, hcS⟩ := realizable_iff.mp hS
+    have hS' : List.map (fun x => (x, c x)) (List.map Prod.fst S) = S := by
+      rw [List.map_map]
+      conv_rhs => rw [← List.map_id S]
+      refine List.map_congr_left fun p hp => ?_
+      simp [hcS p hp]
+    calc (mistakes A S : ℕ∞)
+        = mistakes A (List.map (fun x => (x, c x)) (List.map Prod.fst S)) := by rw [hS']
+      _ ≤ _ := le_iSup₂_of_le (f := fun c (_ : c ∈ C) => ⨆ xs : List α,
+          (mistakes A (xs.map fun x => (x, c x)) : ℕ∞)) c hc
+            (le_iSup (fun xs : List α => (mistakes A (xs.map fun x => (x, c x)) : ℕ∞)) _)
+  · exact iSup₂_le fun c hc => iSup_le fun xs => mistakes_le_mistakeBound (realizable_map hc xs)
 
 end MistakeBound
 
@@ -363,13 +368,20 @@ theorem mistakeBound_eq_iSup_adversary [DecidableEq β] (A : OnlineLearner α β
     (C : ConceptClass α β) :
     mistakeBound A C = ⨆ (B : Adversary α β) (t : ℕ) (_ : Realizable C (B.transcript A t)),
       (mistakes A (B.transcript A t) : ℕ∞) := by
-  refine le_antisymm (mistakeBound_le_iff.mpr fun S hS => ?_)
-    (iSup_le fun B => iSup_le fun t => iSup_le fun hB => mistakes_le_mistakeBound hB)
-  rcases S with _ | ⟨p₀, S'⟩
-  · simp
-  · have ht : (Adversary.ofList (p₀ :: S') p₀).transcript A (p₀ :: S').length = p₀ :: S' := by
-      rw [Adversary.transcript_ofList A (p₀ :: S') p₀ le_rfl, List.take_length]
-    exact le_iSup_of_le (Adversary.ofList (p₀ :: S') p₀)
-      (le_iSup₂_of_le (p₀ :: S').length (ht.symm ▸ hS) (by rw [ht]))
+  apply le_antisymm
+  · refine mistakeBound_le_iff.mpr fun S hS => ?_
+    rcases S with _ | ⟨p₀, S'⟩
+    · simp
+    · set B := Adversary.ofList (p₀ :: S') p₀
+      have ht : B.transcript A (p₀ :: S').length = p₀ :: S' := by
+        rw [Adversary.transcript_ofList A (p₀ :: S') p₀ le_rfl, List.take_length]
+      have hB : Realizable C (B.transcript A (p₀ :: S').length) := by rw [ht]; exact hS
+      calc (mistakes A (p₀ :: S') : ℕ∞) = mistakes A (B.transcript A (p₀ :: S').length) := by
+            rw [ht]
+        _ ≤ _ := le_iSup₂_of_le (f := fun (t : ℕ) (_ : Realizable C (B.transcript A t)) =>
+            (mistakes A (B.transcript A t) : ℕ∞)) _ hB le_rfl
+        _ ≤ _ := le_iSup (fun B : Adversary α β => ⨆ (t : ℕ)
+            (_ : Realizable C (B.transcript A t)), (mistakes A (B.transcript A t) : ℕ∞)) B
+  · exact iSup_le fun B => iSup_le fun t => iSup_le fun hB => mistakes_le_mistakeBound hB
 
 end Cslib.MachineLearning.OnlineLearning.MistakeBound

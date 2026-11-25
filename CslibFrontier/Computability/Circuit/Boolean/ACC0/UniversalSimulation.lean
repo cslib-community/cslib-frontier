@@ -148,19 +148,37 @@ theorem mem_circuitEvalLanguage_evalPrefix {n : ℕ} (C : Circuit signature n 1)
 matching the `O(T log T)` description length in [Williams2014], Lemma 5.1. -/
 theorem length_evalPrefix_le {n : ℕ} (C : Circuit signature n 1) :
     (evalPrefix C).length ≤ 124 * (C.size + 1) * (Nat.log 2 (n + C.size + 1) + 1) := by
-  set L := Nat.log 2 (n + C.size + 1) + 1
+  set L := Nat.log 2 (n + C.size + 1) + 1 with hLdef
+  have hL1 : 1 ≤ L := Nat.le_add_left 1 _
   have hwire (w : Wire n C.size) : (encNat w.toNat).length ≤ L := by
     rw [encNat_apply, Nat.size_eq_bits_len]
-    exact (Nat.size_le_size (Wire.toNat_lt w).le).trans
-      ((Nat.size_le_size (Nat.le_succ _)).trans
-        (Nat.size_le.2 (Nat.lt_pow_succ_log_self (by decide) _)))
-  have hgates := length_encList_encGate_le C hwire
-  have hout := hwire (C.outputs 0)
-  have hframe : (evalPrefix C).length ≤ 4 * (C.size * (23 + 8 * L)) + 3 + 2 * L := by
-    rw [evalPrefix, length_frame, length_encPair]
+    have hsz : w.toNat.size ≤ (n + C.size).size := Nat.size_le_size (Wire.toNat_lt w).le
+    have hlog : (n + C.size).size ≤ L := by
+      rw [hLdef]
+      exact (Nat.size_le_size (Nat.le_succ _)).trans (by
+        have hlt := Nat.lt_pow_succ_log_self (by decide : 1 < 2) (n + C.size + 1)
+        exact Nat.size_le.2 hlt)
+    exact hsz.trans hlog
+  have hgates : (encList encGate C.code.1).length ≤ C.size * (23 + 8 * L) :=
+    length_encList_encGate_le C hwire
+  have hout : (encNat (C.outputs 0).toNat).length ≤ L := hwire (C.outputs 0)
+  have hpair : (encPair (encList encGate) encNat (C.code.1, (C.outputs 0).toNat)).length ≤
+      2 * (C.size * (23 + 8 * L)) + 1 + L := by
+    rw [length_encPair]
     dsimp only
     omega
-  nlinarith [Nat.zero_le C.size, show 1 ≤ L from Nat.le_add_left 1 _]
+  have hframe : (evalPrefix C).length ≤ 4 * (C.size * (23 + 8 * L)) + 3 + 2 * L := by
+    rw [evalPrefix, length_frame]
+    omega
+  have h23 : 23 + 8 * L ≤ 31 * L := by omega
+  have hC1 : C.size * (23 + 8 * L) ≤ C.size * (31 * L) := Nat.mul_le_mul_left _ h23
+  have h4 : 4 * (C.size * (23 + 8 * L)) ≤ 124 * C.size * L := by
+    calc 4 * (C.size * (23 + 8 * L)) ≤ 4 * (C.size * (31 * L)) := Nat.mul_le_mul_left 4 hC1
+      _ = 124 * C.size * L := by ring
+  have h5 : 3 + 2 * L ≤ 124 * L := by omega
+  calc (evalPrefix C).length ≤ 4 * (C.size * (23 + 8 * L)) + (3 + 2 * L) := by omega
+    _ ≤ 124 * C.size * L + 124 * L := Nat.add_le_add h4 h5
+    _ = 124 * (C.size + 1) * L := by ring
 
 /-! ### Prefix hardwiring and Williams Lemma 5.1 -/
 
@@ -189,7 +207,8 @@ private theorem eval_hardwirePrefix {σ : Signature} {φ : Unbounded.signature.H
 private theorem size_hardwirePrefix {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
     (p : List Bool) (U : Circuit σ (p.length + n) 1) :
     (hardwirePrefix φ p U).size = U.size + 2 := by
-  simp [hardwirePrefix]; omega
+  simp [hardwirePrefix]
+  omega
 
 private theorem depth_hardwirePrefix_le {σ : Signature} (φ : Unbounded.signature.Hom σ) {n : ℕ}
     (p : List Bool) (U : Circuit σ (p.length + n) 1) :

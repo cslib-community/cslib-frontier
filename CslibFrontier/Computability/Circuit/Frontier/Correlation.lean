@@ -243,19 +243,25 @@ theorem isLittleO_hardDeficiency :
     (fun n : ℕ => ((2 * (2 * Nat.sqrt (n / 2) + 1) + 1 : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
   rw [isLittleO_iff]
   intro ε hε
-  filter_upwards [tendsto_natCast_atTop_atTop.eventually
-    (eventually_ge_atTop ((8 / ε) ^ 2 + 6 / ε))] with n hn
+  have hlarge : ∀ᶠ n : ℕ in atTop, (8 / ε) ^ 2 + 6 / ε ≤ (n : ℝ) :=
+    tendsto_natCast_atTop_atTop.eventually (eventually_ge_atTop _)
+  filter_upwards [hlarge] with n hn
   have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
+  have h8 : (0 : ℝ) ≤ 8 / ε := by positivity
+  have h6 : (0 : ℝ) ≤ 6 / ε := by positivity
   have hsqrt : (Nat.sqrt (n / 2) : ℝ) ≤ √n :=
     Real.nat_sqrt_le_real_sqrt.trans (Real.sqrt_le_sqrt (by exact_mod_cast Nat.div_le_self n 2))
-  have hroot : 8 / ε ≤ √n := Real.le_sqrt_of_sq_le (by linarith [(by positivity : 0 ≤ 6 / ε)])
+  have hss : √n * √n = n := Real.mul_self_sqrt hn0
+  have hroot : 8 / ε ≤ √n := Real.le_sqrt_of_sq_le (by nlinarith [sq_nonneg (8 / ε)])
+  have hs0 : 0 ≤ √n := Real.sqrt_nonneg _
   have h4 : 4 * √n ≤ ε / 2 * n := by
     have hm := mul_le_mul_of_nonneg_left hroot (by positivity : (0 : ℝ) ≤ ε / 2 * √n)
-    rwa [show ε / 2 * √n * (8 / ε) = 4 * √n by field_simp; ring, mul_assoc,
-      Real.mul_self_sqrt hn0] at hm
+    have e1 : ε / 2 * √n * (8 / ε) = 4 * √n := by field_simp; ring
+    have e2 : ε / 2 * √n * √n = ε / 2 * n := by rw [mul_assoc, hss]
+    linarith
   have h3 : 3 ≤ ε / 2 * n := by
     have : 6 / ε * ε = 6 := by field_simp
-    nlinarith [sq_nonneg (8 / ε)]
+    nlinarith
   simp only [Real.norm_eq_abs, Nat.abs_cast]
   push_cast
   linarith

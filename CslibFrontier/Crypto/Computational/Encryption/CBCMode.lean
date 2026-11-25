@@ -272,7 +272,8 @@ private theorem map_unit_runWith_freshStep_cbcQueryProgram (ℓ : ℕ) (b : Bool
     (ProbOracleComp.runWith freshStep (cbcQueryProgram ℓ b q) s).map (fun x => (x.1, ())) =
       (ProbComp.eval (blockModeIdealOracle ℓ q)).map (·, ()) := by
   rw [runWith_freshStep_cbcQueryProgram, eval_blockModeIdealOracle, PMF.map_comp,
-    length_blockModeSelect]; rfl
+    length_blockModeSelect]
+  rfl
 
 private theorem length_of_mem_support_cbcQueryProgram (ℓ : ℕ) (b : Bool) (q : BlockModeQuery n)
     (s : FlagState n) (x : (BitString n × List (BitString n)) × FlagState n)

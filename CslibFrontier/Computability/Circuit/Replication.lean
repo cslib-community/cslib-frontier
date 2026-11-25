@@ -103,17 +103,24 @@ theorem eval_parallelFamily_apply {k : ℕ} (cs : Fin k → Circuit σ n m) (I :
   | succ k ih =>
     simp only [circuit_simps, parallelFamily, eval_parallel]
     by_cases hj : j.val < k
-    · rw [show Fin.cast (Nat.succ_mul k m) (finProdFinEquiv (j, i)) =
-          Fin.castAdd m (finProdFinEquiv (⟨j.val, hj⟩, i)) from Fin.ext (by simp [finProdFinEquiv]),
-        Fin.append_left, ih]
-      rfl
-    · obtain rfl : j = Fin.last k := Fin.ext (by simp only [Fin.val_last]; lia)
+    · let j' : Fin k := ⟨j.val, hj⟩
+      rw [show Fin.cast (Nat.succ_mul k m) (finProdFinEquiv (j, i)) =
+        Fin.castAdd m (finProdFinEquiv (j', i)) by
+          apply Fin.ext
+          simp [finProdFinEquiv, j']]
+      rw [Fin.append_left, ih, show j'.castSucc = j from Fin.ext rfl]
+      congr 1
+    · have hj' : j = Fin.last k := Fin.ext (by simp only [Fin.val_last]; lia)
+      subst hj'
       rw [show Fin.cast (Nat.succ_mul k m) (finProdFinEquiv (Fin.last k, i)) =
-          Fin.natAdd (k * m) i from Fin.ext (by simp [finProdFinEquiv, Nat.mul_comm, Nat.add_comm]),
-        Fin.append_right]
-      exact congrArg (fun y => (cs (Fin.last k)).eval I y i)
-        (funext fun a => congrArg x <| Fin.ext <| by
-          simp [finProdFinEquiv, Nat.mul_comm, Nat.add_comm])
+        Fin.natAdd (k * m) i by
+          apply Fin.ext
+          simp [finProdFinEquiv, Nat.mul_comm, Nat.add_comm]]
+      rw [Fin.append_right]
+      congr 1 with a : 1
+      apply congrArg x
+      apply Fin.ext
+      simp [finProdFinEquiv, Nat.mul_comm, Nat.add_comm]
 
 /-- Running a family on disjoint blocks adds arbitrary weighted cost exactly. -/
 theorem cost_program_parallelFamily {k : ℕ} (cs : Fin k → Circuit σ n m) (cost : σ.Op → ℕ) :
@@ -213,10 +220,13 @@ theorem cost_program_takeDirectProductPrefix {small large : ℕ}
 theorem Computes.takeDirectProductPrefix {small large : ℕ} {c : Circuit σ (large * n) large}
     {I : Interpretation σ U} {f : (Fin n → U) → U}
     (hc : c.Computes I (directProduct f large)) (hsmall : 0 < small) (hle : small ≤ large) :
-    (c.takeDirectProductPrefix small hsmall hle).Computes I (directProduct f small) := fun x => by
+    (c.takeDirectProductPrefix small hsmall hle).Computes I (directProduct f small) := by
+  intro x
   simp only [circuit_simps, Circuit.takeDirectProductPrefix]
   rw [hc]
-  refine funext fun j => congrArg f <| funext fun i => ?_
+  funext j
+  apply congrArg f
+  funext i
   simp only [BitString.block, Function.comp_apply, Equiv.symm_apply_apply]
   simp
 
@@ -226,9 +236,10 @@ variable {I : Interpretation σ U} {cost : σ.Op → ℕ} {f : (Fin n → U) →
 
 /-- Zero copies have zero weighted complexity, even for a function with no circuit. -/
 @[simp] theorem ecomplexityFrom_directProduct_zero :
-    ecomplexityFrom I cost (directProduct f 0) id = 0 :=
-  nonpos_iff_eq_zero.mp <| ecomplexityFrom_le_of_computesFrom
-    (Circuit.wiring σ (Fin.elim0 : Fin 0 → Fin (0 * n))) fun _ => funext fun i => i.elim0
+    ecomplexityFrom I cost (directProduct f 0) id = 0 := by
+  apply nonpos_iff_eq_zero.mp
+  exact ecomplexityFrom_le_of_computesFrom
+    (Circuit.wiring σ (Fin.elim0 : Fin 0 → Fin (0 * n))) (fun _ => funext fun i => i.elim0)
 
 /-- Independently replicating a scalar implementation gives the naive weighted upper bound.
 The statement includes zero copies and functions of infinite complexity. -/
@@ -287,6 +298,9 @@ theorem complexity_directProduct_one_le [I.IsComplete] :
   obtain ⟨c, hc, hsize⟩ := exists_computes_size_eq_complexity (I := I) (f := single f)
   refine (complexity_le_of_computes (c.comp (Circuit.wiring σ fun i => finProdFinEquiv (0, i)))
     fun x => ?_).trans_eq (by simp [hsize])
-  ext j; rw [Circuit.eval_comp, hc, Subsingleton.elim j 0]; rfl
+  rw [Circuit.eval_comp, hc]
+  funext j
+  rw [Subsingleton.elim j 0]
+  rfl
 
 end Cslib.Circuits

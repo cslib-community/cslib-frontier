@@ -154,7 +154,8 @@ private theorem toRegs_mapIdx_ite (p : ℕ) {d r : ℕ} (bank : List ℕ)
   funext t' i
   have hk : index r t' i < bank.length := hlen ▸ index_lt t' i
   by_cases ht : t' = t
-  · subst ht; simp [toRegs, hk, index_div, index_mod]
+  · subst ht
+    simp [toRegs, hk, index_div, index_mod]
   · simp [toRegs, hk, index_div, Fin.val_ne_of_ne ht, ht]
 
 /-- Scaling the flat bank is exactly scaling one existing typed register. -/
@@ -163,7 +164,8 @@ theorem toRegs_scaleBank {p d r : ℕ} [Fact p.Prime] (bank : List ℕ)
     toRegs p d r (scaleBank p r t a bank) =
       Ary.scale t (a : ZMod p) (toRegs p d r bank) := by
   rw [scaleBank, toRegs_mapIdx_ite p bank hlen t fun _ v => mulMod p a v]
-  ext t' i; by_cases ht : t' = t <;> simp [Ary.scale, toRegs, ht]
+  ext t' i
+  by_cases ht : t' = t <;> simp [Ary.scale, toRegs, ht]
 
 /-- Adding a returned leaf vector is the existing typed leaf update. -/
 theorem toRegs_addBank {p d r : ℕ} (bank values : List ℕ)
@@ -172,7 +174,8 @@ theorem toRegs_addBank {p d r : ℕ} (bank values : List ℕ)
       Function.update (toRegs p d r bank) t
         (toRegs p d r bank t + (c : ZMod p) • fun i : Fin r => (values.getD i 0 : ZMod p)) := by
   rw [addBank, toRegs_mapIdx_ite p bank hlen t fun j v => addMod p v (mulMod p c (values.getD j 0))]
-  ext t' i; by_cases ht : t' = t <;> simp [toRegs, ht]
+  ext t' i
+  by_cases ht : t' = t <;> simp [toRegs, ht]
 
 /-- Subtracting returned packed gate values is the existing typed gate update. -/
 theorem toRegs_subBank {p d r : ℕ} [NeZero p] (bank values : List ℕ)
@@ -182,7 +185,8 @@ theorem toRegs_subBank {p d r : ℕ} [NeZero p] (bank values : List ℕ)
         (fun i => toRegs p d r bank t i - (c : ZMod p) * (values.getD i 0 : ZMod p)) := by
   rw [subBank, toRegs_mapIdx_ite p bank hlen t fun j v =>
     addMod p v (negMod p (mulMod p c (values.getD j 0)))]
-  ext t' i; by_cases ht : t' = t <;> simp [toRegs, ht, sub_eq_add_neg]
+  ext t' i
+  by_cases ht : t' = t <;> simp [toRegs, ht, sub_eq_add_neg]
 
 /-- Recover the path from child indices; it is not duplicated in continuation frames. -/
 def path (stack : List Frame) : List ℕ := stack.reverse.map (fun fr => fr.child)
@@ -323,15 +327,17 @@ def toCfg (p d r : ℕ) (hd : 0 < d) (q : State) : Ary.Iter.Cfg (ZMod p) d r :=
 @[simp] theorem toFrame_ofFrame {p d : ℕ} [NeZero p] (hd : 0 < d)
     (fr : Ary.Iter.Frame (ZMod p) d) : toFrame hd (ofFrame fr) = fr := by
   cases fr with
-  | mk _ child _ _ target =>
-    simp only [toFrame, ofFrame, Frame.round, Frame.child, Frame.undo, Frame.coeff, Frame.target,
-      Nat.mod_eq_of_lt child.isLt, Nat.mod_eq_of_lt target.isLt, ZMod.natCast_zmod_val]
+  | mk round child undo coeff target =>
+    simp only [toFrame, ofFrame, Frame.round, Frame.child, Frame.undo, Frame.coeff,
+      Frame.target, Nat.mod_eq_of_lt child.isLt, Nat.mod_eq_of_lt target.isLt,
+      ZMod.natCast_zmod_val]
 
 @[simp] theorem toMode_ofMode {p d : ℕ} [NeZero p] (mode : Ary.Iter.Mode (ZMod p) d) :
     toMode p d (ofMode mode) = mode := by
   cases mode with
   | ret => rfl
-  | call _ t => simp only [toMode, ofMode, Nat.mod_eq_of_lt t.isLt, ZMod.natCast_zmod_val]
+  | call c t =>
+    simp only [toMode, ofMode, Nat.mod_eq_of_lt t.isLt, ZMod.natCast_zmod_val]
 
 /-- The raw representation faithfully exposes the existing controller's configurations. -/
 theorem toCfg_ofCfg {p d r : ℕ} [NeZero p] (hd : 0 < d)
@@ -350,7 +356,10 @@ theorem path_ofFrame {p d : ℕ} (st : List (Ary.Iter.Frame (ZMod p) d)) :
 theorem validBank_ofRegs {p d r : ℕ} (hp : 2 ≤ p)
     (S : Ary.State (ZMod p) d r) : validBank p d r (ofRegs S) = true := by
   simp only [validBank, hp, decide_true, length_ofRegs, Bool.true_and]
-  exact List.all_eq_true.mpr fun _ hv => by obtain ⟨_, rfl⟩ := List.mem_ofFn.mp hv; simp
+  apply List.all_eq_true.mpr
+  intro v hv
+  obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hv
+  simp
 
 /-- A returned leaf changes only its target bank and returns to its continuation. -/
 theorem step_call_leaf (p d r c t : ℕ) (values bank : List ℕ) (stack : List Frame)

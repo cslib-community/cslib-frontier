@@ -90,18 +90,21 @@ theorem exists_eq_comp_of_layer (p : G.Path a b) {k : ℕ}
     (ha : G.layer a ≤ k) (hb : k ≤ G.layer b) :
     ∃ (v : V) (q : G.Path a v) (r : G.Path v b), p = q.comp r ∧ G.layer v = k := by
   let _ := G.toQuiver
-  obtain ⟨v, q, r, h, hq⟩ :=
-    p.exists_eq_comp_of_le_length (by have := p.layer_end; omega : k - G.layer a ≤ p.length)
-  refine ⟨v, q, r, h, (layer_end q).trans ?_⟩
+  have hk : k - G.layer a ≤ p.length := by
+    have := p.layer_end
+    omega
+  obtain ⟨v, q, r, h, hq⟩ := p.exists_eq_comp_of_le_length hk
+  refine ⟨v, q, r, h, ?_⟩
   change length q = _ at hq
-  rw [hq, Nat.add_sub_of_le ha]
+  rw [layer_end q, hq, Nat.add_sub_of_le ha]
 
 /-- The vertex at position `i` lies `i` layers after the source. -/
 theorem layer_getElem_vertices (p : G.Path a b) (i : ℕ) (hi : i < p.vertices.length) :
     G.layer p.vertices[i] = G.layer a + i := by
   let _ := G.toQuiver
-  obtain ⟨_, q, _, _, hlen, hv⟩ := p.exists_eq_comp_and_length_eq_of_lt_length i hi
-  exact hv ▸ (layer_end q).trans (congrArg _ hlen)
+  obtain ⟨v, q, _, _, hlen, hv⟩ := p.exists_eq_comp_and_length_eq_of_lt_length i hi
+  change length q = i at hlen
+  rw [← hv, layer_end q, hlen]
 
 private theorem vertices_length (p : G.Path a b) : p.vertices.length = p.length + 1 :=
   @Quiver.Path.vertices_length V G.toQuiver a b p
@@ -111,7 +114,9 @@ theorem existsUnique_vertex (p : G.Path a b) {k : ℕ}
     (ha : G.layer a ≤ k) (hb : k ≤ G.layer b) :
     ∃! v, v ∈ p.vertices ∧ G.layer v = k := by
   have hi : k - G.layer a < p.vertices.length := by
-    rw [vertices_length]; have := p.layer_end; omega
+    rw [vertices_length]
+    have := p.layer_end
+    omega
   refine ⟨p.vertices[k - G.layer a], ⟨List.getElem_mem hi, ?_⟩, ?_⟩
   · rw [p.layer_getElem_vertices, Nat.add_sub_of_le ha]
   · rintro v ⟨hv, hlayer⟩
@@ -146,10 +151,13 @@ theorem eq_of_layer_le_succ (h : G.layer b ≤ G.layer a + 1) (p q : G.Path a b)
       change G.layer _ = G.layer a + (r.length + 1) at hlen
       have hz : r.length = 0 := by omega
       obtain rfl := r.eq_of_length_zero hz
-      simp [r.eq_nil_of_length_zero hz]
-  refine Quiver.Path.toList_injective a b ?_
-  rw [short p h, short q h,
-    show p.length = q.length by have := p.layer_end; have := q.layer_end; omega]
+      rw [r.eq_nil_of_length_zero hz]
+      simp
+  apply Quiver.Path.toList_injective a b
+  rw [short p h, short q h]
+  have hp := p.layer_end
+  have hq := q.layer_end
+  rw [show p.length = q.length by omega]
 
 /-- The vertices strictly between the endpoints, in path order. -/
 @[expose] def internalVertices (p : G.Path a b) : List V := p.vertices.dropLast.tail
@@ -175,17 +183,20 @@ theorem internalVertices_comp (p : G.Path a b) (q : G.Path b c)
     (hp : G.layer a < G.layer b) (hq : G.layer b < G.layer c) :
     (p.comp q).internalVertices = p.internalVertices ++ b :: q.internalVertices := by
   let _ := G.toQuiver
-  have hne {u v : V} (r : G.Path u v) (h : G.layer u < G.layer v) : r.vertices.dropLast ≠ [] :=
-    List.ne_nil_of_length_pos
-      (by have := r.layer_end; rw [List.length_dropLast, vertices_length]; omega)
-  have hhead : q.vertices.dropLast.head? = some b :=
-    (List.head?_append_of_ne_nil (l₂ := [c]) _ (hne q hq)).symm.trans
-      (by rw [q.dropLast_append_end_eq, q.vertices_head?])
+  have dropLast_ne_nil {u v : V} (r : G.Path u v) (h : G.layer u < G.layer v) :
+      r.vertices.dropLast ≠ [] := by
+    have hlen := r.layer_end
+    exact List.ne_nil_of_length_pos (by rw [List.length_dropLast, vertices_length]; omega)
+  have hhead : q.vertices.dropLast.head? = some b := by
+    calc
+      _ = (q.vertices.dropLast ++ [c]).head? :=
+        (List.head?_append_of_ne_nil _ (dropLast_ne_nil q hq)).symm
+      _ = some b := by rw [q.dropLast_append_end_eq, q.vertices_head?]
   have hcons : q.vertices.dropLast = b :: q.internalVertices :=
     (List.cons_head?_tail (by simp [hhead])).symm
   change (Quiver.Path.comp p q).vertices.dropLast.tail = _
   rw [Quiver.Path.vertices_comp, List.dropLast_append_of_ne_nil q.vertices_ne_nil,
-    List.tail_append_of_ne_nil (hne p hp), hcons]
+    List.tail_append_of_ne_nil (dropLast_ne_nil p hp), hcons]
   rfl
 
 /-- The sum of the weights of the internal vertices. -/
@@ -216,26 +227,33 @@ theorem internalWeight_eq_sum_layers {M : Type*} [AddCommMonoid M] (weight : V �
     p.internalWeight weight =
       ∑ k ∈ Finset.Icc (G.layer a + 1) (G.layer b - 1), weight (p.vertexAtLayer k) := by
   classical
-  have hnodup : p.internalVertices.Nodup := by
-    refine ((List.nodup_iff_injective_getElem.mpr fun i j h => Fin.ext ?_).sublist
-      (List.dropLast_sublist _)).tail
+  have hnodup : p.vertices.Nodup := by
+    apply List.nodup_iff_injective_getElem.mpr
+    intro i j h
+    apply Fin.ext
     have h' := congrArg G.layer h
     rw [p.layer_getElem_vertices, p.layer_getElem_vertices] at h'
     omega
-  rw [internalWeight, ← List.sum_toFinset weight hnodup]
-  refine Finset.sum_bij (fun v _ => G.layer v)
-    (fun v hv => by
-      have h := (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hv)).2
-      exact Finset.mem_Icc.mpr ⟨by omega, by omega⟩)
-    (fun u hu v hv heq => ?_) (fun k hk => ?_)
-    (fun v hv => by
-      rw [p.vertexAtLayer_eq (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hv)).1 rfl])
-  · exact (p.vertexAtLayer_eq (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hu)).1
-      heq).symm.trans
-      (p.vertexAtLayer_eq (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hv)).1 rfl)
-  · obtain ⟨hk₁, hk₂⟩ := Finset.mem_Icc.mp hk
-    obtain ⟨v, ⟨hv, heq⟩, _⟩ := p.existsUnique_vertex (by omega : G.layer a ≤ k) (by omega)
-    exact ⟨v, List.mem_toFinset.mpr (p.mem_internalVertices_iff.mpr ⟨hv, by omega, by omega⟩), heq⟩
+  have hnodupInternal : p.internalVertices.Nodup :=
+    (hnodup.sublist (List.dropLast_sublist p.vertices)).tail
+  rw [internalWeight, ← List.sum_toFinset weight hnodupInternal]
+  refine Finset.sum_bij (fun v _ => G.layer v) ?_ ?_ ?_ ?_
+  · intro v hv
+    have h := (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hv)).2
+    exact Finset.mem_Icc.mpr ⟨by omega, by omega⟩
+  · intro u hu v hv heq
+    have h₁ := (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hu)).1
+    have h₂ := (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hv)).1
+    exact (p.vertexAtLayer_eq h₁ heq).symm.trans (p.vertexAtLayer_eq h₂ rfl)
+  · intro k hk
+    obtain ⟨hk₁, hk₂⟩ := Finset.mem_Icc.mp hk
+    have hk₂' : k < G.layer b := by omega
+    obtain ⟨v, ⟨hv, heq⟩, _⟩ := p.existsUnique_vertex (by omega : G.layer a ≤ k) hk₂'.le
+    refine ⟨v, List.mem_toFinset.mpr (p.mem_internalVertices_iff.mpr ⟨hv, ?_, ?_⟩), heq⟩
+    · omega
+    · omega
+  · intro v hv
+    rw [p.vertexAtLayer_eq (p.mem_internalVertices_iff.mp (List.mem_toFinset.mp hv)).1 rfl]
 
 end Path
 end LayeredDigraph

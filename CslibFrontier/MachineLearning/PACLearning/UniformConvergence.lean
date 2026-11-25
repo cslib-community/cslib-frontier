@@ -128,12 +128,25 @@ theorem measure_pi_le_abs_empiricalMiscount_div_sub_error (D : Measure (α × β
     Measure.pi (fun _ : Fin m => D)
         {S | ε ≤ |(empiricalMiscount h S : ℝ) / m - (error D h).toReal|} ≤
       ENNReal.ofReal (2 * Real.exp (-2 * m * ε ^ 2)) := by
-  have hf : Measurable fun p : α × β => decide (h p.1 ≠ p.2) :=
-    measurable_to_countable' fun
-      | false => by convert hh.compl using 1; ext; simp
-      | true => by convert hh using 1; ext; simp
-  simpa only [empiricalMiscount, error, decide_eq_true_eq] using
-    measure_pi_le_abs_card_filter_div_sub_measure D hf m hε
+  set f : α × β → Bool := fun p => decide (h p.1 ≠ p.2)
+  have hf : Measurable f := by
+    refine measurable_to_countable' fun b => ?_
+    cases b
+    · have : f ⁻¹' {false} = {p : α × β | h p.1 ≠ p.2}ᶜ := by
+        ext p; simp [f]
+      rw [this]; exact hh.compl
+    · have : f ⁻¹' {true} = {p : α × β | h p.1 ≠ p.2} := by
+        ext p; simp [f]
+      rw [this]; exact hh
+  have hset : {p : α × β | f p = true} = {p : α × β | h p.1 ≠ p.2} := by
+    ext p
+    simp only [f, Set.mem_ofPred_eq, decide_eq_true_eq]
+  have hcount (S : LabeledSample α β m) :
+      empiricalMiscount h S = (Finset.univ.filter fun i => f (S i) = true).card := by
+    simp only [empiricalMiscount, f, decide_eq_true_eq]
+  have h := measure_pi_le_abs_card_filter_div_sub_measure D hf m hε
+  simp only [hset] at h
+  simpa only [hcount, error] using h
 
 /-- **Uniform convergence for a finite class** [ShalevShwartzBenDavid2014, Section 4.2]: `m` i.i.d.
 examples fail to be `ε`-representative for a finite class `H` with probability at most
@@ -143,13 +156,20 @@ theorem measure_pi_not_isRepresentative_le (D : Measure (α × β)) [IsProbabili
     (m : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
     Measure.pi (fun _ : Fin m => D) {S | ¬ IsRepresentative D (H : Set (α → β)) ε S} ≤
       H.card * ENNReal.ofReal (2 * Real.exp (-2 * m * ε ^ 2)) := by
-  refine (measure_mono (t := ⋃ h ∈ H,
-    {S | ε ≤ |(empiricalMiscount h S : ℝ) / m - (error D h).toReal|}) fun S hS => ?_).trans
-    ((measure_biUnion_finset_le _ _).trans ?_)
-  · simp only [IsRepresentative, Finset.mem_coe, not_forall, not_le, Set.mem_ofPred_eq] at hS
-    exact let ⟨h, hh, hlt⟩ := hS; Set.mem_biUnion hh hlt.le
-  · simpa only [Finset.sum_const, nsmul_eq_mul] using Finset.sum_le_sum fun h hh =>
-      measure_pi_le_abs_empiricalMiscount_div_sub_error D (hH h hh) m hε
+  have hsub : {S : LabeledSample α β m | ¬ IsRepresentative D (H : Set (α → β)) ε S} ⊆
+      ⋃ h ∈ H, {S | ε ≤ |(empiricalMiscount h S : ℝ) / m - (error D h).toReal|} := by
+    intro S hS
+    simp only [IsRepresentative, Finset.mem_coe, not_forall, not_le, Set.mem_ofPred_eq] at hS
+    obtain ⟨h, hh, hlt⟩ := hS
+    exact Set.mem_biUnion hh hlt.le
+  refine (measure_mono hsub).trans ((measure_biUnion_finset_le _ _).trans ?_)
+  calc ∑ h ∈ H, Measure.pi (fun _ : Fin m => D)
+        {S | ε ≤ |(empiricalMiscount h S : ℝ) / m - (error D h).toReal|}
+      ≤ ∑ _h ∈ H, ENNReal.ofReal (2 * Real.exp (-2 * m * ε ^ 2)) :=
+        Finset.sum_le_sum fun h hh =>
+          measure_pi_le_abs_empiricalMiscount_div_sub_error D (hH h hh) m hε
+    _ = H.card * ENNReal.ofReal (2 * Real.exp (-2 * m * ε ^ 2)) := by
+        rw [Finset.sum_const, nsmul_eq_mul]
 
 /-- **Uniform convergence for a finite class**, sample-size form: `m` i.i.d. examples fail to be
 `ε`-representative for a finite class `H` with probability at most `δ` once
@@ -163,12 +183,17 @@ theorem measure_pi_not_isRepresentative_le_of_log_le (D : Measure (α × β))
   refine (measure_pi_not_isRepresentative_le D hH m hε).trans ?_
   rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg _)]
   refine ENNReal.ofReal_le_ofReal ?_
-  rcases H.card.eq_zero_or_pos with h0 | hn
-  · simp [h0, hδ.le]
+  rcases Nat.eq_zero_or_pos H.card with h0 | hn
+  · rw [h0, Nat.cast_zero, zero_mul]
+    exact hδ.le
   have hn' : (0 : ℝ) < 2 * H.card := by positivity
   rw [Real.log_div hn'.ne' hδ.ne'] at hm
-  rw [← mul_assoc, mul_comm (H.card : ℝ) 2, ← Real.exp_log hn', ← Real.exp_add, ← Real.exp_log hδ]
-  exact Real.exp_le_exp.2 (by linarith)
+  calc (H.card : ℝ) * (2 * Real.exp (-2 * m * ε ^ 2)) =
+        Real.exp (Real.log (2 * H.card) + -(2 * m * ε ^ 2)) := by
+        rw [Real.exp_add, Real.exp_log hn', show -(2 * (m : ℝ) * ε ^ 2) = -2 * m * ε ^ 2 by ring]
+        ring
+    _ ≤ Real.exp (Real.log δ) := Real.exp_le_exp.2 (by linarith)
+    _ = δ := Real.exp_log hδ
 
 /-- **ERM on a representative sample** [ShalevShwartzBenDavid2014, Lemma 4.2]: on an
 `ε / 2`-representative sample for `C`, every empirical risk minimizer for `C` outputs a hypothesis
@@ -181,7 +206,8 @@ theorem IsRepresentative.error_le_optimalError_add {D : Measure (α × β)} [IsP
   simp only [optimalError, ENNReal.iInf_add, le_iInf_iff]
   intro h hh
   have hmis : (empiricalMiscount (A S) S : ℝ) / m ≤ (empiricalMiscount h S : ℝ) / m := by
-    gcongr; exact_mod_cast hmin h hh
+    gcongr
+    exact_mod_cast hmin h hh
   have hfin (g : α → β) : error D g ≠ ⊤ := measure_ne_top _ _
   rw [← ENNReal.ofReal_toReal (hfin (A S)), ← ENNReal.ofReal_toReal (hfin h),
     ← ENNReal.ofReal_add ENNReal.toReal_nonneg (by linarith [(abs_nonneg _).trans (hS h hh)])]

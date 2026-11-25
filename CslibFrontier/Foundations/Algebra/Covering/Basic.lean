@@ -121,13 +121,10 @@ private theorem exists_le_iInf_add {ι : Type*} [Nonempty ι] {P : ι → M → 
     · exact (hki t).trans (hi t ht)
 
 /-- A sum over `κ` of terms each within `δ / (#κ + 1)` of another is within `δ`. -/
-private theorem sum_le_add_of_forall_le {κ : Type} [Fintype κ] {f g : κ → ℝ} {δ : ℝ} (hδ : 0 < δ)
-    (h : ∀ k, f k ≤ g k + δ / (Fintype.card κ + 1)) : ∑ k, f k ≤ (∑ k, g k) + δ := by
-  have h1 : ∑ k, f k ≤ ∑ k, (g k + δ / (Fintype.card κ + 1)) := Finset.sum_le_sum fun k _ => h k
-  rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at h1
-  have h2 : (Fintype.card κ : ℝ) * (δ / (Fintype.card κ + 1)) ≤ δ := by
-    rw [mul_div_assoc', div_le_iff₀ (by positivity)]; linarith
-  linarith
+private theorem card_mul_div_le {κ : Type} [Fintype κ] {δ : ℝ} (hδ : 0 < δ) :
+    (Fintype.card κ : ℝ) * (δ / (Fintype.card κ + 1)) ≤ δ := by
+  rw [mul_div_assoc', div_le_iff₀ (by positivity)]
+  nlinarith
 
 /-- A directed infimum of functions `P i` is an upper functional if each of them is, where
 instead of `P i (s * t) ≤ P i s * P i t` it is enough that `P j (s * t) ≤ P i s * P i t` for some
@@ -143,30 +140,40 @@ theorem isUpperFunctional_iInf {ι : Type*} [Nonempty ι] {P : ι → M → ℝ}
     ⟨0, by rintro _ ⟨i, rfl⟩; exact nonneg i t⟩
   have hle : ∀ i t, ⨅ j, P j t ≤ P i t := fun i t => ciInf_le (bdd t) i
   have h0 : ∀ t, 0 ≤ ⨅ i, P i t := fun t => le_ciInf fun i => nonneg i t
-  refine ⟨h0, by simp [one], fun s t => le_of_forall_pos_le_add fun δ hδ => ?_,
-    @fun κ _ t b hb => le_of_forall_pos_le_add fun δ hδ => ?_⟩
-  · set A := ⨅ i, P i s; set B := ⨅ i, P i t
-    have hA0 := h0 s; have hB0 := h0 t
-    let ε := min 1 (δ / (A + B + 1))
-    have hε : 0 < ε := by positivity
+  refine ⟨h0, by simp [one], fun s t => ?_, @fun κ _ t b hb => ?_⟩
+  · refine le_of_forall_pos_le_add fun δ hδ => ?_
+    set A := ⨅ i, P i s
+    set B := ⨅ i, P i t
+    have hA0 : 0 ≤ A := h0 s
+    have hB0 : 0 ≤ B := h0 t
+    obtain ⟨ε, hε, hε1, hε2⟩ : ∃ ε : ℝ, 0 < ε ∧ ε ≤ 1 ∧ ε * (A + B + 1) ≤ δ := by
+      refine ⟨min 1 (δ / (A + B + 1)), by positivity, min_le_left _ _, ?_⟩
+      calc min 1 (δ / (A + B + 1)) * (A + B + 1) ≤ δ / (A + B + 1) * (A + B + 1) := by
+            gcongr; exact min_le_right _ _
+        _ = δ := by field_simp
     obtain ⟨i, hi⟩ := exists_le_iInf_add dir hε {s, t}
     obtain ⟨j, hj⟩ := mul_le i s t
-    have h1 : ε ≤ 1 := min_le_left _ _
-    have h2 : ε * (A + B + 1) ≤ δ := (le_div_iff₀ (by positivity)).mp (min_le_right _ _)
     have h3 : P i s * P i t ≤ (A + ε) * (B + ε) :=
       mul_le_mul (hi s (by simp)) (hi t (by simp)) (nonneg _ _) (by positivity)
-    nlinarith [hle j (s * t)]
-  · obtain ⟨i, hi⟩ := exists_le_iInf_add dir (ε := δ / (Fintype.card κ + 1))
+    have h4 := hle j (s * t)
+    nlinarith
+  · refine le_of_forall_pos_le_add fun δ hδ => ?_
+    obtain ⟨i, hi⟩ := exists_le_iInf_add dir (ε := δ / (Fintype.card κ + 1))
       (by positivity) (Finset.univ.image b)
-    exact ((hle i t).trans (le_sum i t b hb)).trans <|
-      sum_le_add_of_forall_le hδ fun k => hi _ (Finset.mem_image_of_mem _ (Finset.mem_univ _))
+    have h1 : ∑ k, P i (b k) ≤ ∑ k, ((⨅ i, P i (b k)) + δ / (Fintype.card κ + 1)) :=
+      Finset.sum_le_sum fun k _ => hi _ (Finset.mem_image_of_mem _ (Finset.mem_univ _))
+    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at h1
+    linarith [(hle i t).trans (le_sum i t b hb), card_mul_div_le (κ := κ) hδ]
 
 /-- A directed infimum respects a triple that each member respects. -/
 theorem respects_iInf {ι : Type*} [Nonempty ι] {P : ι → M → ℝ} (nonneg : ∀ i t, 0 ≤ P i t)
     {x y : M} {c : ℝ} (hc : 0 ≤ c) (h : ∀ i, Respects (P i) x y c) :
-    Respects (fun t => ⨅ i, P i t) x y c := fun t => by
+    Respects (fun t => ⨅ i, P i t) x y c := by
+  intro t
   rw [Real.mul_iInf_of_nonneg hc]
-  exact le_ciInf fun i => (ciInf_le ⟨0, by rintro _ ⟨j, rfl⟩; exact nonneg j _⟩ i).trans (h i t)
+  refine le_ciInf fun i => (ciInf_le ⟨0, ?_⟩ i).trans (h i t)
+  rintro _ ⟨i, rfl⟩
+  exact nonneg i _
 
 /-! ### Infima of certificate weights -/
 
@@ -175,12 +182,18 @@ numbers `≥ 0`. -/
 theorem le_sInf_mul_sInf {S T : Set ℝ} (hS : S.Nonempty) (hT : T.Nonempty)
     (hS0 : ∀ a ∈ S, 0 ≤ a) (hT0 : ∀ b ∈ T, 0 ≤ b) {x : ℝ} (h : ∀ a ∈ S, ∀ b ∈ T, x ≤ a * b) :
     x ≤ sInf S * sInf T := by
-  have key : ∀ {S : Set ℝ}, S.Nonempty → ∀ {b : ℝ}, 0 ≤ b → (∀ a ∈ S, x ≤ a * b) →
-      x ≤ sInf S * b := fun ⟨a₀, ha₀⟩ _ hb h =>
-    hb.eq_or_lt.elim (fun h0 => by simpa [← h0] using h a₀ ha₀) fun hb =>
-      (div_le_iff₀ hb).1 <| le_csInf ⟨a₀, ha₀⟩ fun a ha => (div_le_iff₀ hb).2 (h a ha)
-  simpa only [mul_comm] using key hT (Real.sInf_nonneg hS0) fun b hb => by
-    simpa only [mul_comm] using key hS (hT0 b hb) fun a ha => h a ha b hb
+  have key : ∀ {S : Set ℝ} (_ : S.Nonempty) {b : ℝ} (_ : 0 ≤ b), (∀ a ∈ S, x ≤ a * b) →
+      x ≤ sInf S * b := by
+    intro S hS b hb h
+    rcases hb.eq_or_lt with rfl | hb
+    · obtain ⟨a, ha⟩ := hS
+      simpa using h a ha
+    · rw [← div_le_iff₀ hb]
+      exact le_csInf hS fun a ha => (div_le_iff₀ hb).2 (h a ha)
+  rw [mul_comm]
+  refine key hT (Real.sInf_nonneg hS0) fun b hb => ?_
+  rw [mul_comm]
+  exact key hS (hT0 b hb) fun a ha => h a ha b hb
 
 /-- Let `S t` be sets of numbers `≥ 0`, the weights of the certificates for `t`. Their infimum is
 an upper functional if certificates can be multiplied and put together along covers, `1` has a
@@ -193,24 +206,31 @@ theorem isUpperFunctional_sInf {S : M → Set ℝ} (hne : ∀ t, (S t).Nonempty)
       (∀ k, w k ∈ S (b k)) → ∃ w' ∈ S t, w' ≤ ∑ k, w k) :
     IsUpperFunctional D fun t => sInf (S t) := by
   have bdd : ∀ t, BddBelow (S t) := fun t => ⟨0, fun _ hw => h0 t _ hw⟩
-  refine ⟨fun t => Real.sInf_nonneg (h0 t),
-    le_antisymm (csInf_le (bdd 1) h1) (le_csInf (hne 1) h1'),
-    fun s t => le_sInf_mul_sInf (hne s) (hne t) (h0 s) (h0 t) fun a ha b hb =>
-      csInf_le (bdd _) (hmul s t a ha b hb),
-    @fun κ _ t b hb => le_of_forall_pos_le_add fun δ hδ => ?_⟩
-  choose w hw hw' using fun k => exists_lt_of_csInf_lt (hne (b k))
-    (lt_add_of_pos_right _ (by positivity : 0 < δ / (Fintype.card κ + 1)))
-  obtain ⟨w', hw'S, hle⟩ := hsum t b hb w hw
-  exact (csInf_le (bdd t) hw'S).trans <|
-    hle.trans <| sum_le_add_of_forall_le hδ fun k => (hw' k).le
+  refine ⟨fun t => Real.sInf_nonneg (h0 t), ?_, fun s t => ?_, @fun κ _ t b hb => ?_⟩
+  · exact le_antisymm (csInf_le (bdd 1) h1) (le_csInf (hne 1) h1')
+  · exact le_sInf_mul_sInf (hne s) (hne t) (h0 s) (h0 t) fun a ha b hb =>
+      csInf_le (bdd _) (hmul s t a ha b hb)
+  · refine le_of_forall_pos_le_add fun δ hδ => ?_
+    have hε : 0 < δ / (Fintype.card κ + 1) := by positivity
+    choose w hw hw' using fun k => exists_lt_of_csInf_lt (hne (b k)) (lt_add_of_pos_right _ hε)
+    obtain ⟨w', hw'S, hle⟩ := hsum t b hb w hw
+    have h2 : ∑ k, w k ≤ ∑ k, (sInf (S (b k)) + δ / (Fintype.card κ + 1)) :=
+      Finset.sum_le_sum fun k _ => (hw' k).le
+    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at h2
+    linarith [csInf_le (bdd t) hw'S, card_mul_div_le (κ := κ) hδ]
 
 /-- The infimum of certificate weights respects a triple if certificates can be transported
 with the factor `c`. -/
 theorem respects_sInf {S : M → Set ℝ} (hne : ∀ t, (S t).Nonempty) (h0 : ∀ t, ∀ w ∈ S t, 0 ≤ w)
     {x y : M} {c : ℝ} (hc : 0 < c) (h : ∀ t, ∀ w ∈ S (t * y), c * w ∈ S (t * x)) :
-    Respects (fun t => sInf (S t)) x y c := fun t =>
-  (mul_comm _ _).trans_ge <| (div_le_iff₀ hc).1 <| le_csInf (hne _) fun a ha =>
-    (div_le_iff₀ hc).2 ((csInf_le ⟨0, fun _ hw => h0 _ _ hw⟩ (h t a ha)).trans_eq (mul_comm _ _))
+    Respects (fun t => sInf (S t)) x y c := by
+  intro t
+  have h2 : sInf (S (t * x)) / c ≤ sInf (S (t * y)) := by
+    refine le_csInf (hne _) fun a ha => ?_
+    rw [div_le_iff₀ hc]
+    exact (csInf_le ⟨0, fun _ hw => h0 _ _ hw⟩ (h t a ha)).trans (mul_comm _ _).le
+  rw [div_le_iff₀ hc] at h2
+  exact h2.trans (mul_comm _ _).le
 
 /-! ### Growth along powers -/
 
@@ -239,14 +259,15 @@ theorem one_le_of_map_pow_le (h : IsUpperFunctional D p) {t : M} {a C : ℝ}
 theorem mem_radiusSet_of_le (h : IsUpperFunctional D p) {t : M} {a b : ℝ} (ha : a ∈ radiusSet p t)
     (hab : a ≤ b) : b ∈ radiusSet p t := by
   obtain ⟨ha0, C, hC⟩ := ha
-  have := h.one_le_of_map_pow_le hC
-  exact ⟨ha0.trans_le hab, C, fun m => (hC m).trans (by gcongr)⟩
+  have hC1 := h.one_le_of_map_pow_le hC
+  refine ⟨ha0.trans_le hab, C, fun m => (hC m).trans ?_⟩
+  gcongr
 
 theorem add_mem_radiusSet (h : IsUpperFunctional D p) (t : M) {δ : ℝ} (hδ : 0 < δ) :
     p t + δ ∈ radiusSet p t :=
   ⟨by linarith [h.nonneg t], 1, fun m => by
-    simpa only [one_mul] using
-      (h.map_pow_le t m).trans (pow_le_pow_left₀ (h.nonneg t) (by linarith) m)⟩
+    rw [one_mul]
+    exact (h.map_pow_le t m).trans (pow_le_pow_left₀ (h.nonneg t) (by linarith) m)⟩
 
 theorem mem_radiusSet_of_sInf_lt (h : IsUpperFunctional D p) {t : M} {a : ℝ}
     (ha : sInf (radiusSet p t) < a) : a ∈ radiusSet p t := by
@@ -261,11 +282,13 @@ theorem map_prod_pow_le (h : IsUpperFunctional D p) (S : Finset M) (a C : M → 
   induction S using Finset.induction_on with
   | empty => simp [h.map_one]
   | insert y S hy ih =>
-    simp only [Finset.prod_insert hy]
+    rw [Finset.prod_insert hy, Finset.prod_insert hy, Finset.prod_insert hy]
     have hC0 : 0 ≤ C y * a y ^ e y :=
       mul_nonneg (zero_le_one.trans (h.one_le_of_map_pow_le (hC y))) (pow_nonneg (ha y).le _)
-    exact ((h.map_mul_le _ _).trans
-      (mul_le_mul (hC y (e y)) ih (h.nonneg _) hC0)).trans_eq (by ring)
+    calc p (y ^ e y * ∏ x ∈ S, x ^ e x)
+        ≤ C y * a y ^ e y * ((∏ x ∈ S, C x) * ∏ x ∈ S, a x ^ e x) :=
+          (h.map_mul_le _ _).trans (mul_le_mul (hC y (e y)) ih (h.nonneg _) hC0)
+      _ = _ := by ring
 
 end IsUpperFunctional
 

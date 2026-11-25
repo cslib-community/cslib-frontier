@@ -184,7 +184,8 @@ def unrouteSort : (d : ℕ) → (Fin (sortTraceSize d) → Bool) →
     dsimp only [sortTraceSize, arity] at flags x
     simp only [routeSort, unrouteSort, arity, sortTraceSize]
     erw [unrouteMerge_routeMerge]
-    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih, Fin.append_castAdd_natAdd]
+    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih]
+    exact Fin.append_castAdd_natAdd
 
 /-- Routing a reversed bitonic sort recovers the payload. -/
 @[simp] theorem routeSort_unrouteSort (d : ℕ) (flags : Fin (sortTraceSize d) → Bool)
@@ -305,9 +306,13 @@ theorem four_mul_sortTraceSize (d : ℕ) :
   induction d with
   | zero => rfl
   | succ d ih =>
-    rw [sortTraceSize, show 4 * (sortTraceSize d + sortTraceSize d + mergeTraceSize (d + 1)) =
-      2 * (4 * sortTraceSize d) + 2 * (2 * mergeTraceSize (d + 1)) by ring,
-      ih, two_mul_mergeTraceSize, pow_succ]
-    ring
+    calc
+      4 * sortTraceSize (d + 1) =
+          2 * (4 * sortTraceSize d) + 2 * (2 * mergeTraceSize (d + 1)) := by
+        rw [sortTraceSize]
+        ring
+      _ = (d + 1) * (d + 1 + 1) * 2 ^ (d + 1) := by
+        rw [ih, two_mul_mergeTraceSize, pow_succ]
+        ring
 
 end Cslib.BitonicSort

@@ -68,15 +68,17 @@ private theorem toOuterMeasure_bind_mono {β γ : Type} (p : PMF β) {f g : β �
   refine tsum_le_tsum fun b => ?_
   by_cases hb : b ∈ p.support
   · exact mul_le_mul_of_nonneg_left (h b hb) zero_le
-  · simp [(PMF.apply_eq_zero_iff p b).mpr hb]
+  · rw [(PMF.apply_eq_zero_iff p b).mpr hb, zero_mul, zero_mul]
 
 /-- **Shifted tails**: if a sequence of probabilities is bounded after a shift by `D` by another
 sequence, its sum exceeds the other sum by at most `D`. -/
 theorem tsum_le_add_of_shift {f g : ℕ → ℝ≥0∞} (D : ℕ) (hf : ∀ t, f t ≤ 1)
     (hshift : ∀ s, f (D + s) ≤ g s) : ∑' t, f t ≤ D + ∑' s, g s := by
   rw [← CompleteLattice.summable.sum_add_tsum_nat_add' (k := D) (f := f)]
-  exact add_le_add ((Finset.sum_le_sum fun t _ => hf t).trans_eq (by simp))
-    (tsum_le_tsum fun s => add_comm D s ▸ hshift s)
+  refine add_le_add ?_ (tsum_le_tsum fun s => (add_comm s D).symm ▸ hshift s)
+  calc ∑ t ∈ Finset.range D, f t ≤ ∑ _t ∈ Finset.range D, (1 : ℝ≥0∞) :=
+        Finset.sum_le_sum fun t _ => hf t
+    _ = D := by simp
 
 /-- A deterministic one-step mirror of fixed-coin steps gives a one-step mirror of distributions. -/
 theorem eval_runClosedConfigFrom_one_of_step {N : MultiTapePTM k Symbol State'}
@@ -105,9 +107,10 @@ theorem toOuterMeasure_compl_add_le_bind {N : MultiTapePTM k Symbol State'}
         ProbComp.eval (machine.runClosedConfigFrom rest (φ r))).toOuterMeasure goodᶜ := by
   induction fuel generalizing c with
   | zero =>
-    rw [Nat.zero_add, show N.runClosedConfigFrom 0 c = pure c by
-      unfold runClosedConfigFrom runConfigFrom; exact MultiTapeMachine.runConfigFrom_zero _ _ _ c,
-      ProbComp.eval_pure, PMF.pure_bind]
+    have h0 : N.runClosedConfigFrom 0 c = pure c := by
+      unfold runClosedConfigFrom runConfigFrom
+      exact MultiTapeMachine.runConfigFrom_zero _ _ _ c
+    rw [Nat.zero_add, h0, ProbComp.eval_pure, PMF.pure_bind]
   | succ fuel ih =>
     by_cases hc : c.tapes.state = none
     · rw [eval_runClosedConfigFrom_of_halted N _ c hc, PMF.pure_bind]
@@ -127,7 +130,9 @@ theorem eval_runClosedConfigFrom_seq_left_of_halted {S₀ S₁ : Type}
         Sequential.right := by
   rw [Sequential.left_halted second r hr, runClosedConfigFrom, runConfigFrom,
     Sequential.runConfigFrom_right first second (fun choices => choices <$> ProbComp.uniform Bool)
-      (fun _ _ => by rw [Functor.map_map]; rfl), ProbComp.eval_map]; rfl
+      (fun _ _ => by rw [Functor.map_map]; rfl),
+    ProbComp.eval_map]
+  rfl
 
 /-- **Tail of a sequenced run.** After `fuel + rest` steps, the sequenced machine misses `good` at
 most as often as the first phase run for `fuel` steps followed, if it has halted, by `rest` steps
@@ -148,7 +153,8 @@ theorem toOuterMeasure_compl_seq_le {S₀ S₁ : Type}
     (fun c hc => ?_) hgood fuel rest c).trans ?_
   · rw [runClosedConfigFrom, runConfigFrom, runClosedConfigFrom, runConfigFrom,
       Sequential.runConfigFrom_one first second (fun choices => choices <$> ProbComp.uniform Bool)
-        (fun _ _ => by rw [Functor.map_map]; rfl) _ c hc, ProbComp.eval_map]
+        (fun _ _ => by rw [Functor.map_map]; rfl) _ c hc,
+      ProbComp.eval_map]
   · rw [PMF.toOuterMeasure_bind_apply]
     refine tsum_le_tsum fun r => mul_le_mul_of_nonneg_left ?_ zero_le
     split_ifs with hr
@@ -181,21 +187,27 @@ theorem toOuterMeasure_compl_continuation_le
   let prep := MultiTapeTM.prepareInput (k₁ + k₀) mark
   let initial :=
     Sequential.start (ofDeterministic prep) (MultiTapeMachine.Composition.buffer k₁ cfg)
-  have hdet : prep.runFrom initial.tapes (cfg.tapes.output.length + 4) =
-      (MultiTapeMachine.Composition.ready mark k₁ cfg).tapes :=
-    MultiTapeMachine.Composition.runFrom_prepare mark k₁ cfg
+  have hdet := MultiTapeMachine.Composition.runFrom_prepare mark k₁ cfg
+  change prep.runFrom initial.tapes (cfg.tapes.output.length + 4) = _ at hdet
+  have hprep : prep.runFrom initial.tapes (L + 4) =
+      (MultiTapeMachine.Composition.ready mark k₁ cfg).tapes := by
+    rw [prep.runFrom_eq_of_halt initial.tapes (τ := cfg.tapes.output.length + 4) (by omega)
+      (by rw [hdet]; rfl), hdet]
   have hstate : ProbComp.eval ((ofDeterministic prep).runClosedConfigFrom (L + 4) initial) =
       PMF.pure (MultiTapeMachine.Composition.ready mark k₁ cfg) := by
-    rw [eval_runClosedConfigFrom_ofDeterministic, prep.runFrom_eq_of_halt initial.tapes
-      (τ := cfg.tapes.output.length + 4) (by omega) (by rw [hdet]; rfl), hdet]; rfl
-  refine (toOuterMeasure_compl_seq_le (ofDeterministic prep) (Composition.consumer second k₀)
-    hgood (L + 4) rest initial).trans ?_
+    rw [eval_runClosedConfigFrom_ofDeterministic, hprep]
+    rfl
+  change (ProbComp.eval (((ofDeterministic prep).seq
+    (Composition.consumer second k₀)).runClosedConfigFrom _
+      (Sequential.left (Composition.consumer second k₀) initial))).toOuterMeasure goodᶜ ≤ _
+  refine (toOuterMeasure_compl_seq_le _ _ hgood (L + 4) rest initial).trans ?_
   rw [hstate, tsum_eq_single (MultiTapeMachine.Composition.ready mark k₁ cfg)
-      fun r hr => by simp [hr]]
-  simp only [PMF.pure_apply, ↓reduceIte, one_mul,
-    show (MultiTapeMachine.Composition.ready mark k₁ cfg).tapes.state = none from rfl,
-    MultiTapeMachine.Composition.start_ready, Composition.runClosedConfigFrom_consumer,
-    ProbComp.eval_map, PMF.toOuterMeasure_map_apply]; rfl
+      fun r hr => by rw [PMF.pure_apply, ite_eq_right hr, zero_mul],
+    PMF.pure_apply, ite_eq_left rfl, one_mul,
+    ite_eq_left (show (MultiTapeMachine.Composition.ready mark k₁ cfg).tapes.state = none from rfl),
+    MultiTapeMachine.Composition.start_ready,
+    Composition.runClosedConfigFrom_consumer, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
+  rfl
 
 /-- **Tail of a composition.** After `fuel + (L + 4 + rest)` steps, the composed machine misses
 `good` at most as often as the first machine run for `fuel` steps followed, if it has halted with
@@ -213,19 +225,25 @@ theorem toOuterMeasure_compl_comp_le
             (second.initialConfig r.tapes.output))).toOuterMeasure
             (MultiTapeMachine.Composition.finalConfig mark r ⁻¹' goodᶜ)
         else 1 := by
-  refine (toOuterMeasure_compl_seq_le (Composition.source first k₁)
-    (Composition.continuation second k₀ mark) hgood fuel (L + 4 + rest)
-    ((Composition.source first k₁).initialConfig input)).trans ?_
+  change (ProbComp.eval (((Composition.source first k₁).seq
+    (Composition.continuation second k₀ mark)).runClosedConfigFrom _
+      (Sequential.left (Composition.continuation second k₀ mark)
+        ((Composition.source first k₁).initialConfig input)))).toOuterMeasure goodᶜ ≤ _
+  refine (toOuterMeasure_compl_seq_le _ _ hgood fuel (L + 4 + rest) _).trans ?_
   rw [Composition.runClosedConfigFrom_source, ProbComp.eval_map, PMF.tsum_map_mul]
   refine tsum_le_tsum fun r => mul_le_mul_of_nonneg_left ?_ zero_le
   have hstate : (MultiTapeMachine.Composition.buffer k₁ r).tapes.state = r.tapes.state := by
     rw [MultiTapeMachine.Composition.buffer_tapes]
   by_cases h : r.tapes.state = none ∧ r.tapes.output.length ≤ L
   · rw [ite_eq_left (hstate.trans h.1), ite_eq_left h, Set.preimage_compl]
-    exact toOuterMeasure_compl_continuation_le second mark (good := Sequential.right ⁻¹' good)
-      (fun c hc => by simpa [Sequential.right, Cfg.mapState] using hgood _ hc) r h.2 rest
+    exact toOuterMeasure_compl_continuation_le second mark
+      (good := Sequential.right ⁻¹' good) (fun c hc => by
+        have := hgood _ hc
+        simpa [Sequential.right, Cfg.mapState] using this) r h.2 rest
   · rw [ite_eq_right h]
-    split_ifs <;> [exact PMF.toOuterMeasure_le_one _ _; exact le_rfl]
+    split_ifs
+    · exact PMF.toOuterMeasure_le_one _ _
+    · exact le_rfl
 
 /-- **Tail of a composition with a halting first phase.** If the first machine halts within
 `fuel` steps, the composed machine after `fuel + (fuel + 4 + rest)` steps misses `good` at most as
@@ -271,11 +289,13 @@ theorem toOuterMeasure_compl_comp_le_of_good
   refine tsum_le_tsum fun r => ?_
   by_cases hr : r ∈ good₁
   · rw [Set.indicator_of_notMem (Set.notMem_compl_iff.mpr hr), ite_eq_left (hgood₁ r hr),
-      (PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr (Set.disjoint_left.mpr fun _ hf
-        (hb : MultiTapeMachine.Composition.finalConfig mark r _ ∉ good) =>
-          hb (hsecond r hr _ hf)), mul_zero]
+      (PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr (Set.disjoint_left.mpr fun final hfinal
+        (hbad : MultiTapeMachine.Composition.finalConfig mark r final ∉ good) =>
+          hbad (hsecond r hr final hfinal)), mul_zero]
   · rw [Set.indicator_of_mem (Set.mem_compl hr)]
-    split_ifs <;> [exact mul_le_of_le_one_right' (PMF.toOuterMeasure_le_one _ _); rw [mul_one]]
+    split_ifs
+    · exact mul_le_of_le_one_right' (PMF.toOuterMeasure_le_one _ _)
+    · rw [mul_one]
 
 end Comp
 

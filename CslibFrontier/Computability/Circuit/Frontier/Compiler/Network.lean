@@ -164,9 +164,11 @@ noncomputable def junctionEquiv : Junction c ≃ Consumer c :=
 
 /-- Every signal has a consumer. -/
 theorem fanout_pos (w : Signal c) : 0 < fanout c w := by
-  rcases w with ⟨_, o | ⟨a, hg⟩⟩
-  · exact Nat.card_pos_iff.mpr ⟨⟨⟨.inr o, rfl⟩⟩, inferInstance⟩
-  · exact Nat.card_pos_iff.mpr ⟨⟨⟨.inl ⟨⟨_, a⟩, hg⟩, rfl⟩⟩, inferInstance⟩
+  obtain ⟨w, hw⟩ := w
+  refine Nat.card_pos_iff.mpr ⟨?_, inferInstance⟩
+  cases hw with
+  | output o => exact ⟨⟨.inr o, rfl⟩⟩
+  | arg a hg => exact ⟨⟨.inl ⟨⟨_, a⟩, hg⟩, rfl⟩⟩
 
 /-! ### The graph -/
 
@@ -315,22 +317,27 @@ private theorem signal_of_src_eq_junction :
 /-- An edge entering the vertex of a signal delivers one of the argument slots of its gate. -/
 theorem exists_slot_of_tgt_eq_signal {e : Edge c} {w : Signal c} (h : tgt e = .signal w) :
     ∃ a : Slot c, Wire.gate a.1.1 = w.1 ∧ e = deliverEdge (.inl a) := by
-  cases e with
-  | feed => cases h
-  | deliver j =>
-    obtain ⟨a | _, rfl⟩ := (junctionEquiv c).symm.surjective j <;>
-      simp only [tgt, owner, Equiv.apply_symm_apply, Vertex.signal.injEq, reduceCtorEq] at h
-    exact ⟨a, congrArg Subtype.val h, rfl⟩
+  rcases e with j | j
+  · cases h
+  · change owner (junctionEquiv c j) = _ at h
+    obtain ⟨t, rfl⟩ := (junctionEquiv c).symm.surjective j
+    rw [Equiv.apply_symm_apply] at h
+    rcases t with a | o
+    · exact ⟨a, congrArg Subtype.val (Vertex.signal.inj h), rfl⟩
+    · cases h
 
 /-- An edge entering the vertex of an output delivers that output. -/
 theorem eq_outEdge_of_tgt_eq_output {e : Edge c} {o : Fin m} (h : tgt e = .output o) :
     e = outEdge c o := by
-  cases e with
-  | feed => cases h
-  | deliver j =>
-    obtain ⟨_ | o', rfl⟩ := (junctionEquiv c).symm.surjective j <;>
-      simp only [tgt, owner, Equiv.apply_symm_apply, Vertex.output.injEq, reduceCtorEq] at h
-    subst h; rfl
+  rcases e with j | j
+  · cases h
+  · change owner (junctionEquiv c j) = _ at h
+    obtain ⟨t, rfl⟩ := (junctionEquiv c).symm.surjective j
+    rw [Equiv.apply_symm_apply] at h
+    rcases t with a | o'
+    · cases h
+    · cases h
+      rfl
 
 /-! ### The network -/
 
@@ -415,10 +422,12 @@ theorem satisfies_trace {x : Fin n → U} (hx : ∀ o, c.eval I x o ∈ Acc o) :
   rintro (⟨_ | g, hw⟩ | j | o)
   · rfl
   · change c.program.trace I x (.gate g) = emit I ⟨.gate g, hw⟩ x _
-    rw [Program.trace_gate]; simp only [emit, argEdge, signal_deliverEdge, consumed]
+    rw [Program.trace_gate]
+    simp only [emit, argEdge, signal_deliverEdge, consumed]
   · exact fun e he => congrArg (c.program.trace I x ∘ Subtype.val) (signal_of_src_eq_junction he)
   · change c.program.trace I x (outEdge c o).signal.1 ∈ Acc o
-    rw [signal_deliverEdge]; exact hx o
+    rw [signal_deliverEdge]
+    exact hx o
 
 section Satisfying
 
@@ -442,12 +451,13 @@ private theorem eq_head (e : Edge c) : α e = α (head e.signal) := by
 /-- In a satisfying assignment, the first edge of every signal carries its value in the
 circuit. -/
 private theorem head_eq_trace :
-    ∀ (w : Wire n c.size) (hw : Reach c w), α (head ⟨w, hw⟩) = c.program.trace I x w :=
-  c.program.wire_induction (fun i hw => hα (.signal ⟨.input i, hw⟩)) fun g ih hw => by
-    have h : α (head ⟨.gate g, hw⟩) = I _ fun a => α (argEdge hw a) := hα (.signal ⟨.gate g, hw⟩)
-    rw [h, Program.trace_gate]
-    exact congrArg _ (funext fun a => (eq_head hα _).trans
-      (by rw [argEdge, signal_deliverEdge]; exact ih a _))
+    ∀ (w : Wire n c.size) (hw : Reach c w), α (head ⟨w, hw⟩) = c.program.trace I x w := by
+  refine c.program.wire_induction (fun i hw => hα (.signal ⟨.input i, hw⟩)) fun g ih hw => ?_
+  have h : α (head ⟨.gate g, hw⟩) = I _ fun a => α (argEdge hw a) := hα (.signal ⟨.gate g, hw⟩)
+  rw [h, Program.trace_gate]
+  refine congrArg _ (funext fun a => ?_)
+  rw [eq_head hα, argEdge, signal_deliverEdge]
+  exact ih a _
 
 /-- **Uniqueness.** A satisfying assignment puts on every edge the value of its signal in the
 circuit. -/
@@ -469,8 +479,9 @@ theorem satisfies_iff {x : Fin n → U} {α : Edge c → U} :
 
 /-- **Exactness.** The network accepts exactly the inputs on which every output `o` of the
 circuit lies in `Acc o`. -/
-theorem accepted_network : (network c I Acc).accepted = {x | ∀ o, c.eval I x o ∈ Acc o} :=
-  Set.ext fun _ => ⟨fun ⟨_, hα⟩ => (satisfies_iff.mp hα).1, fun hx => ⟨_, satisfies_trace hx⟩⟩
+theorem accepted_network : (network c I Acc).accepted = {x | ∀ o, c.eval I x o ∈ Acc o} := by
+  ext x
+  exact ⟨fun ⟨_, hα⟩ => (satisfies_iff.mp hα).1, fun hx => ⟨_, satisfies_trace hx⟩⟩
 
 /-- **Uniqueness.** An input has at most one satisfying assignment. -/
 theorem satisfies_unique {x : Fin n → U} {α β : Edge c → U}

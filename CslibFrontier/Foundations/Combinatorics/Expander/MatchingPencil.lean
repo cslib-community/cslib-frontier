@@ -78,13 +78,15 @@ theorem weightedMatching_mulVec (w : V → ℝ) (σ : Equiv.Perm V) (x : V → �
 theorem weightedMatching_isSymm (w : V → ℝ) (σ : Equiv.Perm V)
     (hσ : Function.Involutive σ) (hw : ∀ v, w (σ v) = w v) :
     (weightedMatching w σ).IsSymm := by
-  refine Matrix.IsSymm.ext fun i j => ?_
+  apply Matrix.IsSymm.ext
+  intro i j
   simp only [weightedMatching, diagonal_mul, Equiv.Perm.permMatrix,
     PEquiv.toMatrix_toPEquiv_apply, Pi.single_apply]
   by_cases h : σ i = j
-  · subst h; simp [hσ i, hw]
-  · have h' : i ≠ σ j := fun he => h (by rw [he, hσ])
-    simp [Ne.symm h, h']
+  · subst j
+    simp [hσ i, hw]
+  · have h' : σ j ≠ i := fun he => h (by rw [← he, hσ])
+    simp [Ne.symm h, Ne.symm h']
 
 /-- The matching sends the constant vector to the vector of vertex weights. -/
 @[simp]
@@ -99,15 +101,25 @@ theorem abs_dotProduct_weightedMatching_le (w : V → ℝ) (σ : Equiv.Perm V)
     |x ⬝ᵥ weightedMatching w σ *ᵥ x| ≤ x ⬝ᵥ diagonal w *ᵥ x := by
   have hsum : ∑ v, w v * x (σ v) ^ 2 = ∑ v, w v * x v ^ 2 := by
     simpa only [hwσ] using Equiv.sum_comp σ (fun v => w v * x v ^ 2)
-  simp only [dotProduct, weightedMatching_mulVec, mulVec_diagonal]
-  refine (Finset.abs_sum_le_sum_abs _ _).trans
-    ((sum_le_sum (g := fun v => (w v * x v ^ 2 + w v * x (σ v) ^ 2) / 2) fun v _ => ?_).trans_eq ?_)
-  · have hw := mul_nonneg (hw0 v) (sq_nonneg (|x v| - |x (σ v)|))
+  have hbound (v : V) :
+      |x v * (w v * x (σ v))| ≤ (w v * x v ^ 2 + w v * x (σ v) ^ 2) / 2 := by
+    have h := sq_nonneg (|x v| - |x (σ v)|)
+    have hw := mul_nonneg (hw0 v) h
     simp only [sub_sq, sq_abs] at hw
     rw [abs_mul, abs_mul, abs_of_nonneg (hw0 v)]
-    linarith
-  · rw [← sum_div, sum_add_distrib, hsum, add_self_div_two]
-    exact sum_congr rfl fun _ _ => by ring
+    nlinarith [hw]
+  calc
+    |x ⬝ᵥ weightedMatching w σ *ᵥ x|
+        = |∑ v, x v * (w v * x (σ v))| := by simp only [dotProduct, weightedMatching_mulVec]
+    _ ≤ ∑ v, |x v * (w v * x (σ v))| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ v, (w v * x v ^ 2 + w v * x (σ v) ^ 2) / 2 :=
+      sum_le_sum fun v _ => hbound v
+    _ = ∑ v, w v * x v ^ 2 := by rw [← sum_div, sum_add_distrib, hsum]; ring
+    _ = x ⬝ᵥ diagonal w *ᵥ x := by
+      simp only [dotProduct, mulVec_diagonal]
+      apply sum_congr rfl
+      intro v _
+      ring
 
 /-- The weighted norm lies between zero and the ordinary squared norm. -/
 theorem diagonal_form_bounds (w : V → ℝ) (hw0 : ∀ v, 0 ≤ w v) (hw1 : ∀ v, w v ≤ 1)
@@ -142,7 +154,8 @@ theorem pencil_lower_bound (B : Matrix V V ℝ) (w : V → ℝ) (σ : Equiv.Perm
   have hm := (abs_dotProduct_weightedMatching_le w σ hw0 hwσ x).trans hp1
   have hcp : -(x ⬝ᵥ x) ≤ c * (x ⬝ᵥ diagonal w *ᵥ x) :=
     neg_le_of_abs_le <| (abs_mul _ _).trans_le <| by
-      rw [abs_of_nonneg hp0]; simpa using mul_le_mul hc hp1 hp0 zero_le_one
+      rw [abs_of_nonneg hp0]
+      simpa using mul_le_mul hc hp1 hp0 zero_le_one
   have hsm : -(x ⬝ᵥ x) ≤ s * (x ⬝ᵥ weightedMatching w σ *ᵥ x) :=
     neg_le_of_abs_le <| (abs_mul _ _).trans_le <| by
       simpa using mul_le_mul hs hm (abs_nonneg _) zero_le_one

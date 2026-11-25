@@ -132,12 +132,15 @@ machine's load by unilaterally moving to another machine. -/
 theorem isPureNash_iff [DecidableEq ι] (A : ι → M) :
     U.toCostGame.IsPureNash A ↔
       ∀ i k, k ≠ A i → U.load A (A i) ≤ U.load A k + U.procTime i k := by
-  refine ⟨fun h i k hk => by
-    simpa only [toCostGame, Function.update_self, U.load_update_of_ne A i hk] using h i k,
-    fun h i k => ?_⟩
-  obtain rfl | hk := eq_or_ne k (A i)
-  · simp [toCostGame]
-  · simpa only [toCostGame, Function.update_self, U.load_update_of_ne A i hk] using h i k hk
+  constructor
+  · intro h i k hk
+    have hi := h i k
+    simpa only [toCostGame, Function.update_self, U.load_update_of_ne A i hk] using hi
+  · intro h i k
+    by_cases hk : k = A i
+    · subst hk
+      simp [toCostGame]
+    · simpa only [toCostGame, Function.update_self, U.load_update_of_ne A i hk] using h i k hk
 
 section Makespan
 
@@ -161,20 +164,24 @@ theorem makespan_le_iff (A : ι → M) {B : ℝ} : U.makespan A ≤ B ↔ ∀ j,
   simp [makespan]
 
 theorem makespan_nonneg (A : ι → M) : 0 ≤ U.makespan A :=
-  let ⟨j⟩ := ‹Nonempty M›; (U.load_nonneg A j).trans (U.load_le_makespan A j)
+  let ⟨j⟩ := ‹Nonempty M›
+  (U.load_nonneg A j).trans (U.load_le_makespan A j)
 
 theorem exists_load_eq_makespan (A : ι → M) : ∃ j : M, U.load A j = U.makespan A :=
-  let ⟨j, _, hj⟩ := exists_mem_eq_sup' (univ_nonempty (α := M)) (U.load A); ⟨j, hj.symm⟩
+  let ⟨j, _, hj⟩ := exists_mem_eq_sup' (univ_nonempty (α := M)) (U.load A)
+  ⟨j, hj.symm⟩
 
 theorem optMakespan_le [DecidableEq ι] (A : ι → M) : U.optMakespan ≤ U.makespan A :=
   inf'_le _ (mem_univ A)
 
 theorem exists_makespan_eq_optMakespan [DecidableEq ι] :
     ∃ A : ι → M, U.makespan A = U.optMakespan :=
-  let ⟨A, _, hA⟩ := exists_mem_eq_inf' (univ_nonempty (α := ι → M)) U.makespan; ⟨A, hA.symm⟩
+  let ⟨A, _, hA⟩ := exists_mem_eq_inf' (univ_nonempty (α := ι → M)) U.makespan
+  ⟨A, hA.symm⟩
 
 theorem optMakespan_nonneg [DecidableEq ι] : 0 ≤ U.optMakespan :=
-  let ⟨A, hA⟩ := U.exists_makespan_eq_optMakespan; hA ▸ U.makespan_nonneg A
+  let ⟨A, hA⟩ := U.exists_makespan_eq_optMakespan
+  hA ▸ U.makespan_nonneg A
 
 end Makespan
 
@@ -257,7 +264,9 @@ theorem sum_speed_mul_load [Fintype M] (A : ι → M) :
 /-- On identical machines, the machine loads sum to the total job weight. -/
 theorem IsIdentical.sum_load [Fintype M] {G : LoadBalancingGame ι M} (hId : G.IsIdentical)
     (A : ι → M) : ∑ j, G.load A j = ∑ i, G.weight i := by
-  simpa only [show ∀ j, G.speed j = 1 from hId, one_mul] using G.sum_speed_mul_load A
+  have h := G.sum_speed_mul_load A
+  simp_rw [hId _, one_mul] at h
+  exact h
 
 theorem load_update_of_ne [DecidableEq ι] (A : ι → M) (i : ι) {k : M} (hk : k ≠ A i) :
     G.load (Function.update A i k) k = G.load A k + G.weight i / G.speed k :=
@@ -335,14 +344,16 @@ theorem sum_weight_le_sum_speed_mul_makespan (A : ι → M) :
 /-- Volume lower bound against the optimum: `∑ i, weight i ≤ (∑ j, speed j) * optMakespan`. -/
 theorem sum_weight_le_sum_speed_mul_optMakespan [DecidableEq ι] :
     ∑ i, G.weight i ≤ (∑ j, G.speed j) * G.optMakespan :=
-  let ⟨A, hA⟩ := G.exists_makespan_eq_optMakespan; hA ▸ G.sum_weight_le_sum_speed_mul_makespan A
+  let ⟨A, hA⟩ := G.exists_makespan_eq_optMakespan
+  hA ▸ G.sum_weight_le_sum_speed_mul_makespan A
 
 /-- On identical machines, total job weight is at most `|M| * optMakespan`. -/
 theorem IsIdentical.sum_weight_le_card_mul_optMakespan [DecidableEq ι]
     {G : LoadBalancingGame ι M} (hId : G.IsIdentical) :
     ∑ i, G.weight i ≤ (Fintype.card M : ℝ) * G.optMakespan := by
-  simpa only [show ∀ j, G.speed j = 1 from hId, sum_const, card_univ, nsmul_eq_mul, mul_one] using
-    G.sum_weight_le_sum_speed_mul_optMakespan
+  have h := G.sum_weight_le_sum_speed_mul_optMakespan
+  simp_rw [hId _, sum_const, card_univ, nsmul_eq_mul, mul_one] at h
+  exact h
 
 /-- Single-job lower bound: `weight i / speed (A i) ≤ makespan A`. -/
 theorem weight_div_speed_le_makespan (A : ι → M) (i : ι) :
@@ -353,7 +364,10 @@ theorem weight_div_speed_le_makespan (A : ι → M) (i : ι) :
 theorem IsIdentical.weight_le_optMakespan [DecidableEq ι] {G : LoadBalancingGame ι M}
     (hId : G.IsIdentical) (i : ι) : G.weight i ≤ G.optMakespan := by
   obtain ⟨A, hA⟩ := G.exists_makespan_eq_optMakespan
-  simpa only [← hA, hId (A i), div_one] using G.weight_div_speed_le_makespan A i
+  rw [← hA]
+  have h := G.weight_div_speed_le_makespan A i
+  rw [hId (A i), div_one] at h
+  exact h
 
 /-- When `optMakespan = 0`, every job has weight `0`. -/
 theorem weight_eq_zero_of_optMakespan_eq_zero [DecidableEq ι] (hopt0 : G.optMakespan = 0)
@@ -392,21 +406,25 @@ theorem IsIdentical.load_eq_scheduling {G : LoadBalancingGame (Fin n) (Fin m)}
 theorem IsIdentical.makespan_eq_scheduling [NeZero m] {G : LoadBalancingGame (Fin n) (Fin m)}
     (hId : G.IsIdentical) (A : Fin n → Fin m) :
     G.makespan A = Cslib.Algorithms.Lean.Scheduling.makespan G.weight A := by
-  simp only [makespan, UnrelatedLoadBalancingGame.makespan_def,
-    Cslib.Algorithms.Lean.Scheduling.makespan_def,
-    show G.toUnrelated.load A = _ from funext (hId.load_eq_scheduling A)]
+  rw [makespan, UnrelatedLoadBalancingGame.makespan_def,
+    Cslib.Algorithms.Lean.Scheduling.makespan_def]
+  congr 1
+  funext j
+  exact hId.load_eq_scheduling A j
 
 /-- On identical machines, `LoadBalancingGame.optMakespan` agrees with
 `Cslib.Algorithms.Lean.Scheduling.optMakespan`. -/
 theorem IsIdentical.optMakespan_eq_scheduling [NeZero m] {G : LoadBalancingGame (Fin n) (Fin m)}
     (hId : G.IsIdentical) :
     G.optMakespan = Cslib.Algorithms.Lean.Scheduling.optMakespan m G.weight := by
-  obtain ⟨A, hA⟩ := Cslib.Algorithms.Lean.Scheduling.exists_makespan_eq_optMakespan (m := m)
-    G.weight
-  obtain ⟨B, hB⟩ := G.exists_makespan_eq_optMakespan
-  exact le_antisymm (by rw [← hA, ← hId.makespan_eq_scheduling A]; exact G.optMakespan_le A)
-    (by rw [← hB, hId.makespan_eq_scheduling B]
-        exact Cslib.Algorithms.Lean.Scheduling.optMakespan_le G.weight B)
+  refine le_antisymm ?_ ?_
+  · obtain ⟨A, hA⟩ := Cslib.Algorithms.Lean.Scheduling.exists_makespan_eq_optMakespan (m := m)
+      G.weight
+    rw [← hA, ← hId.makespan_eq_scheduling A]
+    exact G.optMakespan_le A
+  · obtain ⟨A, hA⟩ := G.exists_makespan_eq_optMakespan
+    rw [← hA, hId.makespan_eq_scheduling A]
+    exact Cslib.Algorithms.Lean.Scheduling.optMakespan_le G.weight A
 
 end SchedulingBridge
 

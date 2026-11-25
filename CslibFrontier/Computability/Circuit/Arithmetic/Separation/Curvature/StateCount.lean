@@ -54,7 +54,9 @@ theorem mem_interleave {k : ℕ} (I : Fin k → Finset ℕ) (r : Fin k) (i : ℕ
   exact Nat.eq_of_mul_eq_mul_left r.pos (Nat.add_right_cancel h) ▸ hi'
 
 theorem interleave_injective {k : ℕ} : Function.Injective (interleave k) := fun I I' h => by
-  funext r; ext i; rw [← mem_interleave I r i, h, mem_interleave]
+  funext r
+  ext i
+  rw [← mem_interleave I r i, h, mem_interleave]
 
 theorem sum_interleave {k : ℕ} (I : Fin k → Finset ℕ) (f : ℕ → ℕ) :
     ∑ n ∈ interleave k I, f n = ∑ r, ∑ i ∈ I r, f (k * i + r) := by
@@ -105,9 +107,15 @@ theorem lowStates_mono {E E' : ℕ} (h : E ≤ E') : lowStates E ⊆ lowStates E
 theorem lowStates_card_pos (E : ℕ) : 0 < (lowStates E).card :=
   Finset.card_pos.2 ⟨(∅, ∅), mem_lowStates.2 ⟨rfl, by simp [energy]⟩⟩
 
-theorem two_le_card_lowStates : 2 ≤ (lowStates 2).card :=
-  le_trans (by simp) <| card_le_card (s := {(∅, ∅), ({0}, {0})}) fun s hs => by
-    rcases mem_insert.1 hs with rfl | hs <;> simp_all [mem_lowStates, energy]
+theorem two_le_card_lowStates : 2 ≤ (lowStates 2).card := by
+  have : ({(∅, ∅), ({0}, {0})} : Finset (Finset ℕ × Finset ℕ)) ⊆ lowStates 2 := by
+    intro s hs
+    rw [mem_insert, mem_singleton] at hs
+    rw [mem_lowStates]
+    rcases hs with rfl | rfl <;> simp [energy]
+  refine le_trans ?_ (card_le_card this)
+  rw [card_insert_of_notMem, card_singleton]
+  simp
 
 /-- The sets of energy at most `E`. -/
 @[expose] def lowSets (E : ℕ) : Finset (Finset ℕ) := (range E).powerset.filter fun S => energy S ≤ E
@@ -132,7 +140,8 @@ theorem logLowStates_zero : logLowStates 0 = 0 := by
   ext ⟨s₁, s₂⟩
   simp only [mem_lowStates, mem_singleton, Prod.mk.injEq]
   refine ⟨fun ⟨_, h⟩ => ⟨hempty (by omega), hempty (by omega)⟩, ?_⟩
-  rintro ⟨rfl, rfl⟩; simp [energy]
+  rintro ⟨rfl, rfl⟩
+  simp [energy]
 
 theorem logLowStates_mono {E E' : ℕ} (h : E ≤ E') : logLowStates E ≤ logLowStates E' :=
   Real.log_le_log (by exact_mod_cast lowStates_card_pos E)

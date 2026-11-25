@@ -92,7 +92,8 @@ variable {R : Type*} [CommRing R]
 
 theorem transitionPolynomial4_expanded (t : R) :
     transitionPolynomial4 t = 35 * t ^ 4 - 84 * t ^ 5 + 70 * t ^ 6 - 20 * t ^ 7 := by
-  simp only [transitionPolynomial4]; ring
+  unfold transitionPolynomial4
+  ring
 
 @[simp] theorem transitionPolynomial4_zero : transitionPolynomial4 (0 : R) = 0 := by
   simp [transitionPolynomial4]
@@ -103,21 +104,25 @@ theorem transitionPolynomial4_expanded (t : R) :
 /-- Reflection interchanges the transition polynomial and its complement. -/
 theorem one_sub_transitionPolynomial4 (t : R) :
     1 - transitionPolynomial4 t = transitionPolynomial4 (1 - t) := by
-  simp only [transitionPolynomial4]; ring
+  unfold transitionPolynomial4
+  ring
 
 end Polynomial
 
 private theorem factor_pos {t : ℝ} (ht : t ≤ 1) :
     0 < 1 + 4 * (1 - t) + 10 * (1 - t) ^ 2 + 20 * (1 - t) ^ 3 := by
-  have : 0 ≤ 1 - t := sub_nonneg.mpr ht; positivity
+  have : 0 ≤ 1 - t := sub_nonneg.mpr ht
+  positivity
 
 /-- The derivative identifies the normalization of the integral `t^3 (1-t)^3`. -/
 theorem hasDerivAt_transitionPolynomial4 (t : ℝ) :
-    HasDerivAt transitionPolynomial4 (140 * t ^ 3 * (1 - t) ^ 3) t :=
-  (funext (transitionPolynomial4_expanded (R := ℝ))) ▸ by
-    convert (((hasDerivAt_pow 4 t).const_mul 35).sub
-      ((hasDerivAt_pow 5 t).const_mul 84) |>.add ((hasDerivAt_pow 6 t).const_mul 70)).sub
-        ((hasDerivAt_pow 7 t).const_mul 20) using 1; ring
+    HasDerivAt transitionPolynomial4 (140 * t ^ 3 * (1 - t) ^ 3) t := by
+  convert (((hasDerivAt_pow 4 t).const_mul 35).sub
+    ((hasDerivAt_pow 5 t).const_mul 84) |>.add ((hasDerivAt_pow 6 t).const_mul 70)).sub
+      ((hasDerivAt_pow 7 t).const_mul 20) using 1
+  · funext x
+    exact transitionPolynomial4_expanded x
+  · ring
 
 theorem monotoneOn_transitionPolynomial4 :
     MonotoneOn (transitionPolynomial4 : ℝ → ℝ) (Set.Icc 0 1) := by
@@ -146,7 +151,8 @@ theorem polynomialTransition4_of_nonpos {t : ℝ} (ht : t ≤ 0) : polynomialTra
     transitionPolynomial4_zero]
 
 theorem polynomialTransition4_of_one_le {t : ℝ} (ht : 1 ≤ t) : polynomialTransition4 t = 1 := by
-  rw [polynomialTransition4, min_eq_left ht, max_eq_right zero_le_one, transitionPolynomial4_one]
+  rw [polynomialTransition4, min_eq_left ht, max_eq_right zero_le_one]
+  exact transitionPolynomial4_one
 
 theorem polynomialTransition4_of_mem {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     polynomialTransition4 t = transitionPolynomial4 t := by
@@ -169,11 +175,15 @@ theorem one_sub_polynomialTransition4 (t : ℝ) :
     polynomialTransition4_of_mem ⟨by linarith, by linarith⟩, one_sub_transitionPolynomial4]
 
 theorem polynomialTransition4_eq_zero_iff {t : ℝ} : polynomialTransition4 t = 0 ↔ t ≤ 0 := by
-  refine ⟨fun h => not_lt.mp fun ht => ?_, polynomialTransition4_of_nonpos⟩
-  have hp : 0 < max 0 (min 1 t) := lt_max_of_lt_right (lt_min zero_lt_one ht)
+  refine ⟨fun h => ?_, polynomialTransition4_of_nonpos⟩
+  by_contra ht
+  have hp : 0 < max 0 (min 1 t) :=
+    (lt_min zero_lt_one (lt_of_not_ge ht)).trans_le (le_max_right _ _)
   have hf := factor_pos (clamp_mem t).2
-  exact (show 0 < polynomialTransition4 t by
-    unfold polynomialTransition4 transitionPolynomial4; positivity).ne' h
+  have : 0 < polynomialTransition4 t := by
+    unfold polynomialTransition4 transitionPolynomial4
+    positivity
+  exact this.ne' h
 
 theorem polynomialTransition4_eq_one_iff {t : ℝ} : polynomialTransition4 t = 1 ↔ 1 ≤ t := by
   rw [eq_comm, ← sub_eq_zero, one_sub_polynomialTransition4, polynomialTransition4_eq_zero_iff,
@@ -185,7 +195,8 @@ private theorem root_eq {t : ℝ} (ht : t ∈ Set.Icc 0 1) :
     transitionPolynomial4 t ^ (4⁻¹ : ℝ) =
       t * (1 + 4 * (1 - t) + 10 * (1 - t) ^ 2 + 20 * (1 - t) ^ 3) ^ (4⁻¹ : ℝ) := by
   rw [transitionPolynomial4, Real.mul_rpow (pow_nonneg ht.1 _) (factor_pos ht.2).le]
-  exact congrArg (· * _) (Real.pow_rpow_inv_natCast ht.1 (by norm_num))
+  congr 1
+  convert Real.pow_rpow_inv_natCast ht.1 (by norm_num : (4 : ℕ) ≠ 0) using 1
 
 /-- The fourth root is Lipschitz globally; the transition has fourth-order vanishing at zero. -/
 theorem exists_lipschitzWith_polynomialTransition4_root :

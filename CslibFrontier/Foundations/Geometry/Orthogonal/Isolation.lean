@@ -46,9 +46,14 @@ def nearGridPoint (c : Point) (p : ℝ × ℝ) : Prop :=
 
 private theorem int_between_of_near {a b c : ℤ} {x : ℝ}
     (ha : (a : ℝ) ≤ x) (hb : x ≤ (b : ℝ))
-    (hc : (c : ℝ) - 1 < x ∧ x < (c : ℝ) + 1) : a ≤ c ∧ c ≤ b :=
-  ⟨by by_contra h; cast_linarith [show c + 1 ≤ a by omega, hc.2],
-   by by_contra h; cast_linarith [show b ≤ c - 1 by omega, hc.1]⟩
+    (hc : (c : ℝ) - 1 < x ∧ x < (c : ℝ) + 1) : a ≤ c ∧ c ≤ b := by
+  constructor
+  · by_contra h
+    have h' : c + 1 ≤ a := by omega
+    cast_linarith [h', hc.2]
+  · by_contra h
+    have h' : b ≤ c - 1 := by omega
+    cast_linarith [h', hc.1]
 
 /-- Distinct grid points are not within the open box of radius `1` about one another. -/
 theorem eq_of_nearGridPoint {a c : Point} (h : nearGridPoint c (realPoint a)) : a = c := by
@@ -122,10 +127,14 @@ theorem not_near_head_tail {a b : Point} {r : Route}
 /-- Cutting the first segment at one of its grid points preserves proper axis alignment
 provided the new segment has not collapsed. -/
 theorem axisAligned_cut_first {a b c : Point} (hab : a.1 = b.1 ∨ a.2 = b.2)
-    (hc : realPoint c ∈ segment a b) (hcb : c ≠ b) : AxisAligned c b :=
-  ⟨by
-    have := (realPoint_mem_segment_iff hab).1 hc
-    rcases hab with h | h <;> [left; right] <;> omega, hcb⟩
+    (hc : realPoint c ∈ segment a b) (hcb : c ≠ b) : AxisAligned c b := by
+  have hb := (realPoint_mem_segment_iff hab).1 hc
+  refine ⟨?_, hcb⟩
+  rcases hab with hab | hab
+  · left
+    omega
+  · right
+    omega
 
 /-- Removing an initial portion of the first segment only shrinks a route's real support. -/
 theorem support_cut_first_subset {a b c : Point} {r : Route}

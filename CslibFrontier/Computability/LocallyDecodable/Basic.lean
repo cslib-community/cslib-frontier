@@ -106,11 +106,13 @@ noncomputable def expectedReads [DecidableEq P] (program : ProbOracleComp (fun _
   expectedCost (wordOracle y) (readCost j) program
 
 @[simp] theorem readCost_inl [DecidableEq P] (j : P) (n : ℕ) : readCost j (.inl n) = 0 := by
-  rw [readCost]; rfl
+  rw [readCost]
+  rfl
 
 @[simp] theorem readCost_inr [DecidableEq P] (j j' : P) :
     readCost j (.inr j') = if j' = j then 1 else 0 := by
-  rw [readCost]; rfl
+  rw [readCost]
+  rfl
 
 theorem decodeLaw_eq (program : ProbOracleComp (fun _ : P => Γ) α) (y : P → Γ) :
     decodeLaw program y = evalWith (wordOracle y) program := by
@@ -221,26 +223,30 @@ variable (y : P → Γ)
 
 @[simp] theorem decodeLaw_query (j : P) :
     decodeLaw (ProbOracleComp.query (spec := fun _ : P => Γ) j) y = PMF.pure (y j) := by
-  rw [decodeLaw_eq]; exact OracleComp.evalWith_query _ _
+  rw [decodeLaw_eq]
+  exact OracleComp.evalWith_query _ _
 
 /-- A private coin of `n` bits is uniform. A rewrite lemma, used with `rw`: `simp` does not match
 the call `OracleComp.query (.inl n)` at the index type of `probOracleSpec`. -/
 theorem decodeLaw_query_inl (n : ℕ) :
     decodeLaw (OracleComp.query (spec := probOracleSpec fun _ : P => Γ) (.inl n)) y =
       ProbComp.unifOracle n := by
-  rw [decodeLaw_eq]; exact evalWith_query _ _
+  rw [decodeLaw_eq]
+  exact evalWith_query _ _
 
 /-- A query of the position `j` is answered by `y j`. A rewrite lemma, used with `rw`, like
 `decodeLaw_query_inl`. -/
 theorem decodeLaw_query_inr (j : P) :
     decodeLaw (OracleComp.query (spec := probOracleSpec fun _ : P => Γ) (.inr j)) y =
       PMF.pure (y j) := by
-  rw [decodeLaw_eq]; exact evalWith_query _ _
+  rw [decodeLaw_eq]
+  exact evalWith_query _ _
 
 @[simp] theorem decodeLaw_sample (program : ProbComp α) :
     decodeLaw (sample (spec := fun _ : P => Γ) program) y = ProbComp.eval program := by
-  simp only [decodeLaw_eq, ProbOracleComp.sample, OracleComp.evalWith_substitute,
-    ProbComp.eval_eq_evalWith, OracleComp.evalWith_query]
+  rw [decodeLaw_eq, ProbOracleComp.sample, OracleComp.evalWith_substitute,
+    ProbComp.eval_eq_evalWith]
+  simp only [OracleComp.evalWith_query]
 
 /-- The probabilities of the two outputs of a decoder add up to one. -/
 theorem toReal_decodeLaw_add_not (program : ProbOracleComp (fun _ : P => Γ) Bool) (b : Bool) :
@@ -248,7 +254,9 @@ theorem toReal_decodeLaw_add_not (program : ProbOracleComp (fun _ : P => Γ) Boo
   have h := (decodeLaw program y).tsum_coe
   rw [tsum_fintype, Fintype.sum_bool] at h
   rw [← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
-  cases b <;> [rw [Bool.not_false, add_comm]; rw [Bool.not_true]] <;> simp [h]
+  cases b
+  · rw [Bool.not_false, add_comm, h, ENNReal.toReal_one]
+  · rw [Bool.not_true, h, ENNReal.toReal_one]
 
 end Law
 
@@ -259,20 +267,25 @@ section Reads
 variable [DecidableEq P]
 
 theorem sum_readCost [Fintype P] :
-    ∑ j, readCost (P := P) j = fun q => ((Sum.elim (fun _ => 0) (fun _ => 1) q : ℕ) : ℝ≥0∞) :=
-  funext fun | .inl _ => by simp [readCost] | .inr _ => by simp [readCost, Finset.sum_apply]
+    ∑ j, readCost (P := P) j = fun q => ((Sum.elim (fun _ => 0) (fun _ => 1) q : ℕ) : ℝ≥0∞) := by
+  funext q
+  cases q with
+  | inl n => simp [readCost]
+  | inr j' => simp [readCost, Finset.sum_apply]
 
 /-- A decoder making at most `q` queries reads at most `q` positions in expectation. -/
 theorem sum_expectedReads_le [Fintype P] {program : ProbOracleComp (fun _ : P => Γ) α} {q : ℕ}
     (hq : program.IsQueryBounded q) (y : P → Γ) : ∑ j, expectedReads program y j ≤ q := by
-  simp only [expectedReads_eq, ← expectedCost_sum, sum_readCost]
+  simp only [expectedReads_eq]
+  rw [← expectedCost_sum, sum_readCost]
   exact expectedCost_le_of_isCostBounded _ hq
 
 /-- A decoder making at most `q` queries reads each position at most `q` times in expectation. -/
 theorem expectedReads_le {program : ProbOracleComp (fun _ : P => Γ) α} {q : ℕ}
     (hq : program.IsQueryBounded q) (y : P → Γ) (j : P) : expectedReads program y j ≤ q := by
   refine (expectedCost_mono _ ?_ program).trans (expectedCost_le_of_isCostBounded (wordOracle y) hq)
-  rintro (_ | j'); · simp [readCost]
+  rintro (_ | j')
+  · simp [readCost]
   by_cases h : j' = j <;> simp [readCost, h]
 
 theorem expectedReads_ne_top {program : ProbOracleComp (fun _ : P => Γ) α} {q : ℕ}
@@ -322,22 +335,26 @@ theorem isQueryBounded_nonadaptive (coins : ProbComp R) (Q : R → Fin q → P)
   induction q with
   | zero =>
     rw [readAll, decodeLaw_pure]
-    exact congrArg PMF.pure (funext fun k => k.elim0)
-  | succ _ ih =>
+    congr 1 with k : 1
+    exact k.elim0
+  | succ q ih =>
     simp only [readAll, decodeLaw_bind, decodeLaw_query, PMF.pure_bind, ih, decodeLaw_pure]
-    exact congrArg PMF.pure (Fin.cons_self_tail (y ∘ Q))
+    congr 1
+    exact Fin.cons_self_tail (y ∘ Q)
 
 theorem decodeLaw_nonadaptive (coins : ProbComp R) (Q : R → Fin q → P)
     (output : R → (Fin q → Γ) → Bool) (y : P → Γ) :
     decodeLaw (nonadaptive coins Q output) y =
       (ProbComp.eval coins).map fun r => output r (y ∘ Q r) := by
   simp only [nonadaptive, decodeLaw_bind, decodeLaw_sample, decodeLaw_readAll, PMF.pure_bind,
-    decodeLaw_pure]; rfl
+    decodeLaw_pure]
+  rfl
 
 @[simp] theorem expectedReads_query [DecidableEq P] (j' : P) (y : P → Γ) (j : P) :
     expectedReads (ProbOracleComp.query (spec := fun _ : P => Γ) j') y j =
       if j' = j then 1 else 0 := by
-  rw [expectedReads_eq, ProbOracleComp.query, expectedCost_query]; rfl
+  rw [expectedReads_eq, ProbOracleComp.query, expectedCost_query]
+  rfl
 
 theorem expectedReads_bind [DecidableEq P] {β : Type}
     (program : ProbOracleComp (fun _ : P => Γ) α) (next : α → ProbOracleComp (fun _ : P => Γ) β)
@@ -356,20 +373,23 @@ theorem expectedReads_query_bind [DecidableEq P] (q' : ℕ ⊕ P)
     (y : P → Γ) (j : P) :
     expectedReads (OracleComp.query q' >>= cont) y j =
       readCost j q' + ∑' a, wordOracle y q' a * expectedReads (cont a) y j := by
-  rw [expectedReads_eq]; exact expectedCost_query_bind _ _ _ _
+  rw [expectedReads_eq]
+  exact expectedCost_query_bind _ _ _ _
 
 @[simp] theorem expectedReads_sample [DecidableEq P] (program : ProbComp α) (y : P → Γ) (j : P) :
     expectedReads (sample (spec := fun _ : P => Γ) program) y j = 0 := by
-  rw [expectedReads_eq, readCost]; exact expectedCost_sample _ _ _
+  rw [expectedReads_eq, readCost]
+  exact expectedCost_sample _ _ _
 
 theorem expectedReads_readAll [DecidableEq P] (Q : Fin q → P) (y : P → Γ) (j : P) :
     expectedReads (readAll Q) y j = ∑ k, if Q k = j then 1 else 0 := by
   induction q with
   | zero => simp [readAll]
-  | succ _ ih =>
+  | succ q ih =>
     simp only [readAll, expectedReads_bind, expectedReads_query, expectedReads_pure, add_zero,
-      mul_zero, tsum_zero, ih, decodeLaw_query, decodeLaw_readAll, ENNReal.tsum_mul_right,
-      PMF.tsum_coe, one_mul, Fin.sum_univ_succ]; rfl
+      mul_zero, tsum_zero, ih, decodeLaw_query, decodeLaw_readAll]
+    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, Fin.sum_univ_succ]
+    rfl
 
 theorem expectedReads_nonadaptive [DecidableEq P] (coins : ProbComp R) (Q : R → Fin q → P)
     (output : R → (Fin q → Γ) → Bool) (y : P → Γ) (j : P) :

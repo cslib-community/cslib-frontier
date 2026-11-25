@@ -63,7 +63,8 @@ variable {X : Type*}
 /-- Appending a letter to a tuple appends it to the word. -/
 theorem ofFn_snoc {k : ℕ} (u : Fin k → X) (x : X) :
     ofFn (Fin.snoc u x : Fin (k + 1) → X) = ofFn u * of x := by
-  rw [ofFn, List.ofFn_succ', List.concat_eq_append]; simp [ofFn]
+  rw [ofFn, List.ofFn_succ', List.concat_eq_append]
+  simp [ofFn]
 
 /-- Every word of length `k` is the word of a tuple. -/
 theorem exists_ofFn_eq {k : ℕ} (w : FreeMonoid X) (h : w.toList.length = k) :
@@ -78,13 +79,17 @@ theorem ofFn_cons {k : ℕ} (x : X) (u : Fin k → X) :
 /-- Reversing a tuple with a prepended letter appends the letter to the reversed word. -/
 theorem ofFn_cons_comp_rev {k : ℕ} (x : X) (u : Fin k → X) :
     ofFn ((Fin.cons x u : Fin (k + 1) → X) ∘ Fin.rev) = ofFn (u ∘ Fin.rev) * of x := by
-  rw [← ofFn_snoc]; congr 1 with i : 1
-  exact Fin.lastCases (by simp) (fun _ => by simp [Fin.rev_castSucc]) i
+  rw [← ofFn_snoc]
+  congr 1 with i : 1
+  refine Fin.lastCases ?_ (fun j => ?_) i
+  · simp
+  · simp [Fin.rev_castSucc]
 
 /-- A product of the words of a `k`-tuple and an `m`-tuple determines both tuples. -/
 theorem ofFn_mul_ofFn_injective {k m : ℕ} {a a' : Fin k → X} {b b' : Fin m → X}
     (h : ofFn a * ofFn b = ofFn a' * ofFn b') : a = a' ∧ b = b' := by
-  have h' := congrArg toList h; simp only [toList_mul, ofFn] at h'
+  have h' := congrArg toList h
+  simp only [toList_mul, ofFn] at h'
   obtain ⟨h1, h2⟩ := List.append_inj h' (by simp)
   exact ⟨List.ofFn_injective h1, List.ofFn_injective h2⟩
 
@@ -107,8 +112,10 @@ theorem ext_coeff {a b : FreeAlgebra R X} (h : ∀ w, coeff w a = coeff w b) : a
   (basisFreeMonoid R X).ext_elem h
 
 /-- A nonzero polynomial has a word with a nonzero coefficient. -/
-theorem exists_coeff_ne_zero {a : FreeAlgebra R X} (ha : a ≠ 0) : ∃ w, coeff w a ≠ 0 :=
-  not_forall.1 fun h => ha (ext_coeff fun w => (h w).trans (map_zero _).symm)
+theorem exists_coeff_ne_zero {a : FreeAlgebra R X} (ha : a ≠ 0) : ∃ w, coeff w a ≠ 0 := by
+  by_contra h
+  push Not at h
+  exact ha (ext_coeff fun w => by rw [h w, map_zero])
 
 /-- The basis vector of a word is its image under `ι`. -/
 theorem basisFreeMonoid_apply (w : FreeMonoid X) :
@@ -128,15 +135,17 @@ theorem coeff_ι (w : FreeMonoid X) (x : X) :
 /-- The coefficients of `1`. -/
 theorem coeff_one (w : FreeMonoid X) :
     coeff w (1 : FreeAlgebra R X) = Finsupp.single 1 (1 : R) w := by
-  simpa only [map_one] using coeff_lift_ι (R := R) w 1
+  have h := coeff_lift_ι (R := R) w 1
+  rwa [map_one] at h
 
 /-- The coefficients of a scalar. -/
 theorem coeff_algebraMap (w : FreeMonoid X) (r : R) :
     coeff w (algebraMap R (FreeAlgebra R X) r) = Finsupp.single 1 r w := by
   rw [Algebra.algebraMap_eq_smul_one, map_smul, coeff_one, smul_eq_mul]
-  rcases eq_or_ne w 1 with rfl | hw
-  · simp
-  · simp [hw.symm]
+  by_cases hw : w = 1
+  · subst hw
+    simp
+  · simp [Ne.symm hw]
 
 /-- The coefficient of a product: a sum over the splittings of the word. -/
 theorem coeff_mul (w : FreeMonoid X) (a b : FreeAlgebra R X) :
@@ -144,18 +153,28 @@ theorem coeff_mul (w : FreeMonoid X) (a b : FreeAlgebra R X) :
       coeff (FreeMonoid.ofList (w.toList.take i)) a *
         coeff (FreeMonoid.ofList (w.toList.drop i)) b := by
   classical
-  let split (i : ℕ) : FreeMonoid X × FreeMonoid X :=
+  let split : ℕ → FreeMonoid X × FreeMonoid X := fun i =>
     (FreeMonoid.ofList (w.toList.take i), FreeMonoid.ofList (w.toList.drop i))
-  have hinj : Set.InjOn split (Finset.range (w.toList.length + 1)) := fun i hi j hj hij => by
+  have hinj : Set.InjOn split (Finset.range (w.toList.length + 1)) := by
+    intro i hi j hj hij
     have h := congrArg (fun p => p.1.toList.length) hij
-    simp only [split, List.length_take, Finset.coe_range, Set.mem_Iio] at h hi hj; omega
+    simp only [split, List.length_take] at h
+    simp only [Finset.coe_range, Set.mem_Iio] at hi hj
+    omega
   rw [coeff_def, map_mul, MonoidAlgebra.coeff_mul_antidiag _ _ _
     ((Finset.range (w.toList.length + 1)).image split), Finset.sum_image hinj]
   · rfl
-  · rintro ⟨p, q⟩; simp only [Finset.mem_image, Finset.mem_range, Prod.mk.injEq, split]
-    exact ⟨by rintro ⟨i, -, rfl, rfl⟩; exact congrArg FreeMonoid.ofList (List.take_append_drop i _),
-      by rintro rfl; exact ⟨p.toList.length,
-        by rw [FreeMonoid.toList_mul, List.length_append]; omega, by simp, by simp⟩⟩
+  · rintro ⟨p, q⟩
+    simp only [Finset.mem_image, Finset.mem_range, Prod.mk.injEq, split]
+    constructor
+    · rintro ⟨i, -, rfl, rfl⟩
+      exact congrArg FreeMonoid.ofList (List.take_append_drop i w.toList)
+    · rintro rfl
+      refine ⟨p.toList.length, ?_, ?_, ?_⟩
+      · rw [FreeMonoid.toList_mul, List.length_append]
+        omega
+      · simp
+      · simp
 
 /-- `a` is homogeneous of degree `d`: every word with a nonzero coefficient has length `d`. -/
 @[expose] def IsHomogeneous (a : FreeAlgebra R X) (d : ℕ) : Prop :=
@@ -164,21 +183,29 @@ theorem coeff_mul (w : FreeMonoid X) (a b : FreeAlgebra R X) :
 /-- A homogeneous polynomial has no words of another length. -/
 theorem IsHomogeneous.coeff_eq_zero {a : FreeAlgebra R X} {d : ℕ} (h : a.IsHomogeneous d)
     {w : FreeMonoid X} (hw : w.toList.length ≠ d) : coeff w a = 0 := by
-  by_contra hne; exact hw (h w hne)
+  by_contra hne
+  exact hw (h w hne)
 
 /-- `0` is homogeneous of every degree. -/
-theorem IsHomogeneous.zero {d : ℕ} : (0 : FreeAlgebra R X).IsHomogeneous d :=
-  fun _ hw => by simp at hw
+theorem IsHomogeneous.zero {d : ℕ} : (0 : FreeAlgebra R X).IsHomogeneous d := by
+  intro w hw
+  simp at hw
 
 /-- Sums of homogeneous polynomials of degree `d` are homogeneous of degree `d`. -/
 theorem IsHomogeneous.add {a b : FreeAlgebra R X} {d : ℕ} (ha : a.IsHomogeneous d)
-    (hb : b.IsHomogeneous d) : (a + b).IsHomogeneous d := fun w hw => by
-  by_contra hne; exact hw (by rw [map_add, ha.coeff_eq_zero hne, hb.coeff_eq_zero hne, add_zero])
+    (hb : b.IsHomogeneous d) : (a + b).IsHomogeneous d := by
+  intro w hw
+  by_contra hne
+  rw [map_add, ha.coeff_eq_zero hne, hb.coeff_eq_zero hne, add_zero] at hw
+  exact hw rfl
 
 /-- Scalar multiples of homogeneous polynomials are homogeneous. -/
 theorem IsHomogeneous.smul {a : FreeAlgebra R X} {d : ℕ} (r : R) (ha : a.IsHomogeneous d) :
-    (r • a).IsHomogeneous d := fun w hw => by
-  by_contra hne; exact hw (by rw [map_smul, ha.coeff_eq_zero hne, smul_zero])
+    (r • a).IsHomogeneous d := by
+  intro w hw
+  by_contra hne
+  rw [map_smul, ha.coeff_eq_zero hne, smul_zero] at hw
+  exact hw rfl
 
 /-- Finite sums of homogeneous polynomials of degree `d` are homogeneous of degree `d`. -/
 theorem IsHomogeneous.sum {d : ℕ} {ι : Type*} (s : Finset ι) (f : ι → FreeAlgebra R X)
@@ -193,18 +220,21 @@ theorem IsHomogeneous.sum {d : ℕ} {ι : Type*} (s : Finset ι) (f : ι → Fre
 
 /-- `1` is homogeneous of degree `0`. -/
 theorem isHomogeneous_one : (1 : FreeAlgebra R X).IsHomogeneous 0 := fun w hw => by
-  by_contra hne; rw [coeff_one] at hw
+  by_contra hne
+  rw [coeff_one] at hw
   exact hw (Finsupp.single_eq_of_ne fun h => hne (by rw [h]; rfl))
 
 /-- A variable is homogeneous of degree `1`. -/
 theorem isHomogeneous_ι (x : X) : (ι R x).IsHomogeneous 1 := fun w hw => by
-  by_contra hne; rw [coeff_ι] at hw
+  by_contra hne
+  rw [coeff_ι] at hw
   exact hw (Finsupp.single_eq_of_ne fun h => hne (by rw [h]; rfl))
 
 /-- The monomial of a word `w` is homogeneous of degree `|w|`. -/
 theorem isHomogeneous_lift_ι (w : FreeMonoid X) :
     (FreeMonoid.lift (ι R) w : FreeAlgebra R X).IsHomogeneous w.toList.length := fun w' hw' => by
-  by_contra hne; rw [coeff_lift_ι] at hw'
+  by_contra hne
+  rw [coeff_lift_ι] at hw'
   exact hw' (Finsupp.single_eq_of_ne fun h => hne (by rw [h]))
 
 /-- Multiplicativity of coefficients against a homogeneous left factor. -/
@@ -216,8 +246,10 @@ theorem coeff_mul_mul_of_isHomogeneous {a : FreeAlgebra R X} (b : FreeAlgebra R 
   · intro i hmem hi
     rw [ha.coeff_eq_zero, zero_mul]
     simp only [Finset.mem_range, FreeMonoid.toList_mul, List.length_take,
-      List.length_append] at hmem hi ⊢; omega
-  · simp
+      List.length_append] at hmem hi ⊢
+    omega
+  · intro h
+    simp at h
 
 /-- Degrees add under multiplication. -/
 theorem IsHomogeneous.mul {a b : FreeAlgebra R X} {d e : ℕ} (ha : a.IsHomogeneous d)

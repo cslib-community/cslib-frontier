@@ -92,7 +92,8 @@ theorem mem_edgeCut_of_ends_eq {S : Finset V} {e : E} {a b : V} (h : ends e = s(
     e ∈ edgeCut ends S ↔ (a ∈ S ↔ b ∉ S) := by
   rw [← Finset.mem_coe, coe_edgeCut_eq_toGraph_edgeCut,
     (show (toGraph ends).IsLink e a b from h).mem_edgeCut_iff]
-  simp only [Finset.mem_coe]; tauto
+  simp only [Finset.mem_coe]
+  tauto
 
 /-- **Edge cuts turn symmetric differences into symmetric differences**: an edge leaves `S ∆ T`
 exactly when it leaves one of `S` and `T` but not both. -/
@@ -102,7 +103,9 @@ theorem edgeCut_symmDiff [DecidableEq E] (S T : Finset V) :
     simp only [Finset.coe_symmDiff, coe_edgeCut_eq_toGraph_edgeCut, Graph.edgeCut_symmDiff]
 
 /-- No edge leaves the empty set. -/
-@[simp] theorem edgeCut_empty : edgeCut ends (∅ : Finset V) = ∅ := by ext; simp [mem_edgeCut]
+@[simp] theorem edgeCut_empty : edgeCut ends (∅ : Finset V) = ∅ := by
+  ext e
+  simp [mem_edgeCut]
 
 /-- The edges leaving a single vertex are the edges at it other than self-loops. -/
 theorem edgeCut_singleton (v : V) : edgeCut ends {v} = incidence ends v := by
@@ -125,7 +128,8 @@ theorem eq_empty_or_eq_univ_of_edgeCut_eq_empty (hG : (toSimpleGraph ends).Conne
 theorem three_mul_card_lt_of_card_edgeCut_lt {S : Finset V}
     (hS : #(edgeCut ends S) < minBalancedCut ends) (h₂ : 3 * #S ≤ 2 * Fintype.card V) :
     3 * #S < Fintype.card V := by
-  by_contra! h₁; exact hS.not_ge (minBalancedCut_le_card_edgeCut ends h₁ h₂)
+  by_contra! h₁
+  exact hS.not_ge (minBalancedCut_le_card_edgeCut ends h₁ h₂)
 
 end Combinatorial
 
@@ -154,14 +158,16 @@ theorem incidenceMatrix_eq_endpointIncidence {V E : Type*} [DecidableEq V] (ends
   simp only [incidenceMatrix, of_apply, Matrix.endpointIncidence, h e, Sym2.mem_iff,
     Sym2.mk_isDiag_iff]
   by_cases huv : u e = v e
-  · rw [huv, CharTwo.add_self_eq_zero]; simp
+  · rw [huv, CharTwo.add_self_eq_zero]
+    simp
   · by_cases ha : a = u e <;> by_cases hb : a = v e <;> subst_vars <;> simp_all [eq_comm]
 
 /-- Row `v` of `incidenceMatrix ends` is the `𝔽₂` indicator vector of `incidence ends v`. -/
 theorem incidenceMatrix_row {V E : Type*} [Fintype E] [DecidableEq V] [DecidableEq E]
     (ends : E → Sym2 V) (v : V) :
     incidenceMatrix ends v = fun e => if e ∈ incidence ends v then 1 else 0 := by
-  ext; simp [incidenceMatrix]
+  ext
+  simp [incidenceMatrix]
 
 /-- Applying `(incidenceMatrix ends)ᵀ` to the `𝔽₂` indicator of `S : Finset V` yields the `𝔽₂`
 indicator of `edgeCut ends S`. -/
@@ -185,7 +191,8 @@ def cutSpace {V E : Type*} [Fintype V] [DecidableEq V] (ends : E → Sym2 V) :
 
 private theorem zmod_two_eq_indicator {V : Type*} [Fintype V] [DecidableEq V] (s : V → ZMod 2) :
     s = fun v => if v ∈ univ.filter (fun x => s x = 1) then 1 else 0 := by
-  ext v; simp only [mem_filter, mem_univ, true_and]
+  ext v
+  simp only [mem_filter, mem_univ, true_and]
   rcases (by decide : ∀ z : ZMod 2, z = 0 ∨ z = 1) (s v) with h | h <;> simp [h]
 
 /-- A vector in `E → ZMod 2` belongs to `cutSpace ends` if and only if it is the indicator vector of
@@ -206,17 +213,21 @@ theorem cutSpace_eq_span_incidence {V E : Type*} [Fintype V] [Fintype E] [Decida
     [DecidableEq E] (ends : E → Sym2 V) :
     cutSpace ends = Submodule.span (ZMod 2)
       (Set.range fun v : V => fun e : E => if e ∈ incidence ends v then (1 : ZMod 2) else 0) := by
-  refine le_antisymm ?_ (Submodule.span_le.mpr ?_)
+  apply le_antisymm
   · rintro _ ⟨s, rfl⟩
     have hsum : (incidenceMatrix ends).transpose.mulVecLin s =
         ∑ v : V, s v • incidenceMatrix ends v := by
       ext e
       simp only [mulVecLin_apply, mulVec, dotProduct, transpose_apply, Finset.sum_apply,
         Pi.smul_apply, smul_eq_mul, mul_comm (s _)]
-    exact hsum ▸ Submodule.sum_mem _ fun v _ =>
-      Submodule.smul_mem _ _ (Submodule.subset_span ⟨v, (incidenceMatrix_row ends v).symm⟩)
-  · rintro _ ⟨v, rfl⟩
-    exact mem_cutSpace_iff_exists_edgeCut.mpr ⟨{v}, by simp only [edgeCut_singleton]⟩
+    rw [hsum]
+    refine Submodule.sum_mem _ fun v _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨v, ?_⟩)
+    exact (incidenceMatrix_row ends v).symm
+  · refine Submodule.span_le.mpr ?_
+    rintro _ ⟨v, rfl⟩
+    refine mem_cutSpace_iff_exists_edgeCut.mpr ⟨{v}, ?_⟩
+    ext e
+    rw [edgeCut_singleton]
 
 /-- Under `BitString.submoduleZModIso`, the `Bool`-submodule corresponding to `cutSpace ends` is
 spanned by the Boolean vertex-incidence indicators `fun e => decide (e ∈ incidence ends v)`. -/
@@ -268,8 +279,9 @@ theorem finrank_ker_incidenceMatrix_add_card {V E : Type*} [Fintype V] [Fintype 
     Module.finrank (ZMod 2) (LinearMap.ker (incidenceMatrix ends).mulVecLin) + Fintype.card V =
       Fintype.card E + 1 := by
   have h1 := BitString.finrank_orthogonal_add_finrank (cutSpace ends)
+  rw [orthogonal_cutSpace] at h1
   have h2 := finrank_cutSpace_add_one hG
-  rw [orthogonal_cutSpace] at h1; omega
+  omega
 
 end LinearAlgebra
 

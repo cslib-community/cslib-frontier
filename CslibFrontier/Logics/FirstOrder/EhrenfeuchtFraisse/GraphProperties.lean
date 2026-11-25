@@ -99,12 +99,19 @@ theorem definedGraph_cycleArcFormula_adj_fin (x y : Fin m) :
 /-- On `Fin m`, `cycleArcFormula` defines Mathlib's cycle graph `SimpleGraph.cycleGraph m`. -/
 theorem definedGraph_cycleArcFormula_fin :
     definedGraph (Fin m) cycleArcFormula = SimpleGraph.cycleGraph m := by
-  ext x y; rw [definedGraph_cycleArcFormula_adj_fin, SimpleGraph.cycleGraph_adj']
-  have := x.2; have := y.2
+  ext x y
+  rw [definedGraph_cycleArcFormula_adj_fin, SimpleGraph.cycleGraph_adj']
+  have hx := x.2
+  have hy := y.2
   rcases lt_trichotomy x y with h | rfl | h
-  · rw [Fin.coe_sub_iff_lt.2 h, Fin.coe_sub_iff_le.2 h.le]; rw [Fin.lt_def] at h; omega
-  · rw [Fin.coe_sub_iff_le.2 le_rfl]; omega
-  · rw [Fin.coe_sub_iff_le.2 h.le, Fin.coe_sub_iff_lt.2 h]; rw [Fin.lt_def] at h; omega
+  · rw [Fin.coe_sub_iff_lt.2 h, Fin.coe_sub_iff_le.2 h.le]
+    rw [Fin.lt_def] at h
+    omega
+  · rw [Fin.coe_sub_iff_le.2 le_rfl]
+    omega
+  · rw [Fin.coe_sub_iff_le.2 h.le, Fin.coe_sub_iff_lt.2 h]
+    rw [Fin.lt_def] at h
+    omega
 
 /-- The cycle graph on `Fin m`, for `m ≥ 2`, is bipartite iff `m` is even. -/
 theorem definedGraph_cycleArcFormula_isBipartite_fin (hm : 2 ≤ m) :
@@ -130,7 +137,8 @@ theorem not_exists_sentence_isBipartite_of_le_card (t : ℕ) :
       let e := definedGraphIsoFin cycleArcFormula M
       change (definedGraph M cycleArcFormula).IsBipartite ↔ _
       rw [← definedGraph_cycleArcFormula_isBipartite_fin hM]
-      exact ⟨fun h => h.of_hom e.symm.toEmbedding.toHom, fun h => h.of_hom e.toEmbedding.toHom⟩) t
+      exact ⟨fun h => h.of_hom e.symm.toEmbedding.toHom, fun h => h.of_hom e.toEmbedding.toHom⟩)
+    t
 
 /-- **Bipartiteness (2-colorability) is not first-order definable** on finite graphs. -/
 theorem not_exists_sentence_isBipartite :
@@ -161,50 +169,69 @@ theorem definedGraph_stepTwoTopBotArcFormula_adj_fin (x y : Fin m) :
 private theorem isAcyclic_stepTwoTopBot_fin_of_even (hm : Even m) :
     (definedGraph (Fin m) stepTwoTopBotArcFormula).IsAcyclic := by
   obtain ⟨k, rfl⟩ := hm
-  let f (x : Fin (k + k)) : Fin (k + k) :=
-    ⟨if x.1 % 2 = 0 then k - 1 - x.1 / 2 else 2 * k - 1 - x.1 / 2,
-      by have := x.2; split <;> omega⟩
+  let f : Fin (k + k) → Fin (k + k) := fun x =>
+    ⟨if x.1 % 2 = 0 then k - 1 - x.1 / 2 else 2 * k - 1 - x.1 / 2, by
+      have := x.2; split <;> omega⟩
+  have hf : Function.Injective f := by
+    intro x y h
+    have h' := congrArg Fin.val h
+    simp only [f] at h'
+    ext
+    have := x.2
+    have := y.2
+    split at h' <;> split at h' <;> omega
   let F : definedGraph (Fin (k + k)) stepTwoTopBotArcFormula →g SimpleGraph.pathGraph (k + k) :=
     ⟨f, fun {x y} h => by
-      rw [definedGraph_stepTwoTopBotArcFormula_adj_fin] at h; rw [SimpleGraph.pathGraph_adj]
-      simp only [f]; have := x.2; have := y.2; split <;> split <;> omega⟩
-  refine (SimpleGraph.isAcyclic_pathGraph (k + k)).comap F fun x y (h : f x = f y) => ?_
-  have h' := congrArg Fin.val h; simp only [f] at h'; ext
-  have := x.2; have := y.2; split at h' <;> split at h' <;> omega
+      rw [definedGraph_stepTwoTopBotArcFormula_adj_fin] at h
+      rw [SimpleGraph.pathGraph_adj]
+      simp only [f]
+      have := x.2
+      have := y.2
+      split <;> split <;> omega⟩
+  exact (SimpleGraph.isAcyclic_pathGraph _).comap F hf
 
 private theorem not_isAcyclic_stepTwoTopBot_fin_of_odd (hm : Odd m) (h5 : 5 ≤ m) :
     ¬ (definedGraph (Fin m) stepTwoTopBotArcFormula).IsAcyclic := by
   obtain ⟨k, rfl⟩ := hm
-  rw [SimpleGraph.isAcyclic_iff_forall_adj_isBridge]; intro h
-  let v0 : Fin (2 * k + 1) := ⟨0, by omega⟩
-  let v2 : Fin (2 * k + 1) := ⟨2, by omega⟩
-  have h02 : (definedGraph (Fin (2 * k + 1)) stepTwoTopBotArcFormula).Adj v0 v2 :=
-    (definedGraph_stepTwoTopBotArcFormula_adj_fin _ _).2 ⟨by simp only [v0, v2]; omega, .inl rfl⟩
+  rw [SimpleGraph.isAcyclic_iff_forall_adj_isBridge]
+  intro h
+  have h02 : (definedGraph (Fin (2 * k + 1)) stepTwoTopBotArcFormula).Adj ⟨0, by omega⟩
+      ⟨2, by omega⟩ :=
+    (definedGraph_stepTwoTopBotArcFormula_adj_fin _ _).2 ⟨by simp only; omega, .inl rfl⟩
   apply SimpleGraph.isBridge_iff.1 (h h02)
-  let G := (definedGraph (Fin (2 * k + 1)) stepTwoTopBotArcFormula).deleteEdges {s(v0, v2)}
-  have reach (j : ℕ) (hj : 1 ≤ j) (hjk : j ≤ k) : G.Reachable v2 ⟨2 * j, by omega⟩ := by
+  have reach : ∀ j (hj : 1 ≤ j) (hjk : j ≤ k),
+      ((definedGraph (Fin (2 * k + 1)) stepTwoTopBotArcFormula).deleteEdges
+        {s(⟨0, by omega⟩, ⟨2, by omega⟩)}).Reachable ⟨2, by omega⟩ ⟨2 * j, by omega⟩ := by
+    intro j hj hjk
     induction j with
     | zero => omega
     | succ j ih =>
       rcases Nat.eq_zero_or_pos j with rfl | hj0
       · exact .rfl
       · refine (ih hj0 (by omega)).trans (SimpleGraph.Adj.reachable ?_)
-        refine SimpleGraph.deleteEdges_adj.2 ⟨(definedGraph_stepTwoTopBotArcFormula_adj_fin _ _).2
+        rw [SimpleGraph.deleteEdges_adj]
+        refine ⟨(definedGraph_stepTwoTopBotArcFormula_adj_fin _ _).2
           ⟨by simp only; omega, .inl (by simp only; omega)⟩, ?_⟩
-        simp only [v0, v2, Set.mem_singleton_iff, Sym2.eq_iff, Fin.ext_iff]; omega
-  refine (SimpleGraph.Adj.reachable (SimpleGraph.deleteEdges_adj.2
-    ⟨(definedGraph_stepTwoTopBotArcFormula_adj_fin _ _).2
-      ⟨by simp only [v0]; omega, .inr (.inr (.inr ⟨rfl, rfl⟩))⟩, ?_⟩)).trans
-    (reach k (by omega) le_rfl).symm
-  simp only [v0, v2, Set.mem_singleton_iff, Sym2.eq_iff, Fin.ext_iff]; omega
+        simp only [Set.mem_singleton_iff, Sym2.eq_iff, Fin.ext_iff]
+        omega
+  have r1 : ((definedGraph (Fin (2 * k + 1)) stepTwoTopBotArcFormula).deleteEdges
+      {s(⟨0, by omega⟩, ⟨2, by omega⟩)}).Reachable ⟨0, by omega⟩ ⟨2 * k, by omega⟩ := by
+    refine SimpleGraph.Adj.reachable ?_
+    rw [SimpleGraph.deleteEdges_adj]
+    refine ⟨(definedGraph_stepTwoTopBotArcFormula_adj_fin _ _).2
+      ⟨by simp only; omega, .inr (.inr (.inr ⟨rfl, rfl⟩))⟩, ?_⟩
+    simp only [Set.mem_singleton_iff, Sym2.eq_iff, Fin.ext_iff]
+    omega
+  exact r1.trans (reach k (by omega) le_rfl).symm
 
 /-- The step-two graph on `Fin m` closed by the edge `m - 1 — 0` is acyclic iff `m` is even, for
 `m ≥ 4`. -/
 theorem definedGraph_stepTwoTopBotArcFormula_isAcyclic_fin (hm : 4 ≤ m) :
-    (definedGraph (Fin m) stepTwoTopBotArcFormula).IsAcyclic ↔ Even m :=
-  ⟨fun h => Nat.not_odd_iff_even.1 fun hodd =>
-    not_isAcyclic_stepTwoTopBot_fin_of_odd hodd (by obtain ⟨k, rfl⟩ := hodd; omega) h,
-   isAcyclic_stepTwoTopBot_fin_of_even⟩
+    (definedGraph (Fin m) stepTwoTopBotArcFormula).IsAcyclic ↔ Even m := by
+  refine ⟨fun h => ?_, isAcyclic_stepTwoTopBot_fin_of_even⟩
+  by_contra hodd
+  rw [Nat.not_even_iff_odd] at hodd
+  exact not_isAcyclic_stepTwoTopBot_fin_of_odd hodd (by obtain ⟨k, rfl⟩ := hodd; omega) h
 
 end Fin
 

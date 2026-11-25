@@ -76,7 +76,9 @@ private theorem core_hasDerivAt {t : ℝ} (ht : 0 ≤ t) :
   convert (hasDerivAt_pow 4 t).div (((hasDerivAt_id t).const_add 1).pow 3)
     (pow_ne_zero _ hp.ne') using 1
   · rfl
-  · simp only [Pi.pow_apply, id_eq]; field_simp; ring
+  · simp only [Pi.pow_apply, id_eq]
+    field_simp
+    ring
 
 private theorem core_monotoneOn :
     MonotoneOn (fun t : ℝ => t ^ 4 / (1 + t) ^ 3) (Set.Ici 0) :=
@@ -94,7 +96,8 @@ private theorem core_lipschitzOnWith :
     nlinarith [sq_nonneg t]
 
 theorem rationalRamp4Unit_nonneg (t : ℝ) : 0 ≤ rationalRamp4Unit t := by
-  unfold rationalRamp4Unit; positivity
+  unfold rationalRamp4Unit
+  positivity
 
 theorem rationalRamp4Unit_le (t : ℝ) : rationalRamp4Unit t ≤ max 0 t := by
   have hu : 0 ≤ max 0 t := le_max_left _ _
@@ -114,19 +117,21 @@ theorem rationalRamp4Unit_of_nonpos {t : ℝ} (ht : t ≤ 0) : rationalRamp4Unit
 theorem monotone_rationalRamp4Unit : Monotone (rationalRamp4Unit : ℝ → ℝ) :=
   fun _ _ h => core_monotoneOn (le_max_left _ _) (le_max_left _ _) (max_le_max le_rfl h)
 
-theorem lipschitzWith_rationalRamp4Unit : LipschitzWith 1 (rationalRamp4Unit : ℝ → ℝ) :=
-  LipschitzWith.of_dist_le_mul fun x y => by
-    have h := core_lipschitzOnWith.dist_le_mul _ (le_max_left 0 x) _ (le_max_left 0 y)
-    simp only [NNReal.coe_one, one_mul] at h
-    exact h.trans ((LipschitzWith.id.const_max 0).dist_le_mul x y)
+theorem lipschitzWith_rationalRamp4Unit : LipschitzWith 1 (rationalRamp4Unit : ℝ → ℝ) := by
+  refine LipschitzWith.of_dist_le_mul fun x y => ?_
+  have h := core_lipschitzOnWith.dist_le_mul (max 0 x) (le_max_left _ _)
+    (max 0 y) (le_max_left _ _)
+  simp only [NNReal.coe_one, one_mul] at h
+  have hc := (LipschitzWith.id.const_max (0 : ℝ)).dist_le_mul x y
+  exact h.trans hc
 
 /-! ## Fourth roots -/
 
 private theorem core_root_eq {t : ℝ} (ht : 0 ≤ t) :
     (t ^ 4 / (1 + t) ^ 3) ^ (4⁻¹ : ℝ) = t * (1 + t) ^ (-(3 / 4 : ℝ)) := by
-  rw [Real.div_rpow (by positivity) (by positivity),
-    show (t ^ 4) ^ (4⁻¹ : ℝ) = t by
-      convert Real.pow_rpow_inv_natCast ht (by norm_num : (4 : ℕ) ≠ 0) using 1,
+  have hfour : (t ^ 4) ^ (4⁻¹ : ℝ) = t := by
+    convert Real.pow_rpow_inv_natCast ht (by norm_num : (4 : ℕ) ≠ 0) using 1
+  rw [Real.div_rpow (by positivity) (by positivity), hfour,
     ← Real.rpow_natCast_mul (by positivity), Real.rpow_neg (by positivity), div_eq_mul_inv]
   norm_num
 
@@ -134,12 +139,17 @@ private theorem root_hasDerivAt {t : ℝ} (ht : 0 ≤ t) :
     HasDerivAt (fun t : ℝ => t * (1 + t) ^ (-(3 / 4 : ℝ)))
       ((1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4)) t := by
   have hp : 0 < 1 + t := by positivity
+  have he : (1 + t) ^ (-(3 / 4 : ℝ)) = (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t) := by
+    rw [← Real.rpow_add_one hp.ne']
+    norm_num
   convert (hasDerivAt_id t).mul (((hasDerivAt_id t).const_add 1).rpow_const
-    (p := -(3 / 4 : ℝ)) (Or.inl hp.ne')) using 1
+    (p := -(3 / 4 : ℝ)) (Or.inl hp.ne'))
+    using 1
   · rfl
-  · simp only [id_eq, one_mul, show (1 + t) ^ (-(3 / 4 : ℝ)) =
-      (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t) by rw [← Real.rpow_add_one hp.ne']; norm_num]
-    norm_num; ring
+  · simp only [id_eq, one_mul]
+    rw [he]
+    norm_num
+    ring
 
 private theorem root_lipschitzOnWith :
     LipschitzOnWith 1 (fun t : ℝ => t * (1 + t) ^ (-(3 / 4 : ℝ))) (Set.Ici 0) :=
@@ -148,10 +158,13 @@ private theorem root_lipschitzOnWith :
     have hp : 0 < 1 + t := by positivity
     change |(1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4)| ≤ (1 : ℝ)
     rw [abs_of_nonneg (by positivity)]
-    refine (mul_le_mul_of_nonneg_left (show 1 + t / 4 ≤ 1 + t by linarith)
-      (Real.rpow_nonneg hp.le _)).trans ?_
-    rw [← Real.rpow_add_one hp.ne']
-    exact Real.rpow_le_one_of_one_le_of_nonpos (by linarith) (by norm_num)
+    calc (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t / 4)
+        ≤ (1 + t) ^ (-(7 / 4 : ℝ)) * (1 + t) :=
+          mul_le_mul_of_nonneg_left (by linarith) (Real.rpow_nonneg hp.le _)
+      _ = (1 + t) ^ (-(3 / 4 : ℝ)) := by
+          rw [← Real.rpow_add_one hp.ne']
+          norm_num
+      _ ≤ 1 := Real.rpow_le_one_of_one_le_of_nonpos (by linarith) (by norm_num)
 
 /-- The normalized ramp's fourth root has global Lipschitz constant one. -/
 theorem lipschitzWith_rationalRamp4Unit_root :
@@ -170,14 +183,18 @@ theorem rationalRamp4_nonneg (ha : 0 ≤ a) (θ t : ℝ) : 0 ≤ rationalRamp4 �
   mul_nonneg ha (rationalRamp4Unit_nonneg _)
 
 theorem rationalRamp4_le (ha : 0 < a) (θ t : ℝ) :
-    rationalRamp4 θ a t ≤ max (t - θ) 0 :=
-  (mul_le_mul_of_nonneg_left (rationalRamp4Unit_le _) ha.le).trans_eq <| by
-    rw [mul_max_of_nonneg _ _ ha.le, mul_zero]; simp [mul_div_cancel₀, ha.ne', max_comm]
+    rationalRamp4 θ a t ≤ max (t - θ) 0 := by
+  calc rationalRamp4 θ a t ≤ a * max 0 ((t - θ) / a) :=
+      mul_le_mul_of_nonneg_left (rationalRamp4Unit_le _) ha.le
+    _ = max (t - θ) 0 := by
+      rw [mul_max_of_nonneg _ _ ha.le, mul_zero]
+      simp [mul_div_cancel₀, ha.ne', max_comm]
 
 theorem le_rationalRamp4 (ha : 0 < a) (θ t : ℝ) :
-    t - (θ + 3 * a) ≤ rationalRamp4 θ a t :=
-  (show t - (θ + 3 * a) = a * ((t - θ) / a - 3) by field_simp; ring).trans_le
-    (mul_le_mul_of_nonneg_left (sub_three_le_rationalRamp4Unit _) ha.le)
+    t - (θ + 3 * a) ≤ rationalRamp4 θ a t := by
+  calc t - (θ + 3 * a) = a * ((t - θ) / a - 3) := by field_simp; ring
+    _ ≤ rationalRamp4 θ a t :=
+      mul_le_mul_of_nonneg_left (sub_three_le_rationalRamp4Unit _) ha.le
 
 theorem rationalRamp4_of_le (ha : 0 < a) (ht : t ≤ θ) : rationalRamp4 θ a t = 0 := by
   rw [rationalRamp4, rationalRamp4Unit_of_nonpos (div_nonpos_of_nonpos_of_nonneg

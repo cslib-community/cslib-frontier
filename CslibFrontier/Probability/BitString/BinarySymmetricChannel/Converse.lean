@@ -129,7 +129,9 @@ private theorem map_snd_uniformOfFintype_bind_bsc [DecidableEq ι] (p : I) :
   rw [PMF.bind_apply, tsum_fintype]
   simp only [Probability.PMF.uniformOfFintype_apply, ← Finset.mul_sum, bsc_apply]
   rw [Fintype.sum_equiv (Equiv.addRight y) (fun x => bscNoise p (x + y)) (bscNoise p) fun _ => rfl]
-  have h1 := (bscNoise (ι := ι) p).tsum_coe; rw [tsum_fintype] at h1; rw [h1, mul_one]
+  have h1 := (bscNoise (ι := ι) p).tsum_coe
+  rw [tsum_fintype] at h1
+  rw [h1, mul_one]
 
 /-- On a uniformly random input, `n` uses of `BSC_p` carry exactly `n (1 - h₂(p))` bits, so the
 bound `Cslib.BitString.mutualInfo_bind_bsc_le` is attained: `1 - h₂(p)` is the capacity of `BSC_p`
@@ -184,7 +186,8 @@ theorem one_sub_expect_decodingError_mul_logb_card_le [Fintype M] [Nonempty M] (
       Fintype.card ι * (1 - Real.binEntropy p / Real.log 2) + 1 := by
   set Pe := 𝔼 m, decodingError p E D m
   have hPe0 : 0 ≤ Pe := Finset.expect_nonneg fun _ _ => by
-    rw [decodingError_def]; exact ENNReal.toReal_nonneg
+    rw [decodingError_def]
+    exact ENNReal.toReal_nonneg
   have hh : Real.binEntropy Pe / Real.log 2 ≤ 1 :=
     (div_le_one (Real.log_pos one_lt_two)).mpr Real.binEntropy_le_log_two
   have hcard : (1 : ℝ) ≤ Fintype.card M := mod_cast Fintype.card_pos

@@ -61,9 +61,14 @@ private theorem two_pow_le_card_primes_small (n : ℕ) (hn : 1 < n) (h13 : n < 1
         2383, 2389, 2393, 2399, 2411, 2417, 2423, 2437, 2441, 2447, 2459, 2467, 2473]
   obtain ⟨hnd, hL, hlen⟩ : (L n).Nodup ∧ (∀ p ∈ L n, p.Prime ∧ 2 ^ (n - 1) ≤ p ∧ p < 2 ^ n) ∧
       2 ^ (n - 1) ≤ 3 * n * (L n).length := by
-    interval_cases n <;>
-      refine ⟨by decide, by dsimp only [L]; simp only [List.forall_mem_cons]; norm_num,
-        by dsimp only [L]; norm_num⟩
+    interval_cases n
+    all_goals
+      refine ⟨by decide, ?_, ?_⟩
+      · dsimp only [L]
+        simp only [List.forall_mem_cons]
+        norm_num
+      · dsimp only [L]
+        norm_num
   refine hlen.trans (Nat.mul_le_mul_left _ ?_)
   rw [← List.toFinset_card_of_nodup hnd]
   exact Finset.card_le_card fun x hx =>
@@ -88,44 +93,62 @@ private theorem three_mul_add_mul_sqrt_le_two_pow (n : ℕ) (hn : 13 ≤ n) :
     3 * (n - 1 + n * Nat.sqrt (2 ^ n)) ≤ 2 ^ (n - 1) := by
   rcases Nat.eq_or_lt_of_le hn with rfl | hn
   · have h := Nat.sqrt_lt'.mpr (show 2 ^ 13 < 91 ^ 2 by norm_num)
-    generalize Nat.sqrt (2 ^ 13) = s at h ⊢; norm_num; omega
-  · set s := Nat.sqrt (2 ^ n)
-    have hs : s ^ 2 ≤ 2 ^ n := Nat.sqrt_le' (2 ^ n)
-    have h2s : 2 * s ≤ 1 + s ^ 2 := by zify; nlinarith [sq_nonneg ((s : ℤ) - 1)]
+    generalize Nat.sqrt (2 ^ 13) = s at h ⊢
+    norm_num; omega
+  · have hs := Nat.sqrt_le' (2 ^ n)
+    generalize Nat.sqrt (2 ^ n) = s at hs ⊢
+    have hY : (2 ^ (n - 1)) ^ 2 = 2 ^ (2 * n - 2) := by
+      rw [← pow_mul]; congr 1; omega
+    have hL := nine_mul_sq_mul_le_two_pow n hn
+    have h2s : 2 * s ≤ 1 + s ^ 2 := by
+      zify; nlinarith [sq_nonneg ((s : ℤ) - 1)]
     have hX : (3 * n * (1 + s)) ^ 2 ≤ (2 ^ (n - 1)) ^ 2 := by
-      rw [← pow_mul, show (n - 1) * 2 = 2 * n - 2 by omega,
-        show (3 * n * (1 + s)) ^ 2 = 9 * n ^ 2 * (1 + 2 * s + s ^ 2) by ring]
-      exact (Nat.mul_le_mul_left _ (by omega)).trans (nine_mul_sq_mul_le_two_pow n hn)
-    have hX' : 3 * n * (1 + s) ≤ 2 ^ (n - 1) :=
-      le_of_not_gt fun hc => (Nat.pow_lt_pow_left hc two_ne_zero).not_ge hX
-    have : n - 1 ≤ n := Nat.sub_le n 1
-    nlinarith
+      rw [hY]
+      calc (3 * n * (1 + s)) ^ 2 = 9 * n ^ 2 * (1 + 2 * s + s ^ 2) := by ring
+        _ ≤ 9 * n ^ 2 * (2 + 2 * 2 ^ n) := Nat.mul_le_mul_left _ (by omega)
+        _ ≤ _ := hL
+    have hX' : 3 * n * (1 + s) ≤ 2 ^ (n - 1) := le_of_not_gt fun hc =>
+      absurd hX (not_le.mpr (Nat.pow_lt_pow_left hc two_ne_zero))
+    calc 3 * (n - 1 + n * s) ≤ 3 * n * (1 + s) := by
+          have : n - 1 ≤ n := Nat.sub_le n 1
+          nlinarith
+      _ ≤ _ := hX'
 
 /-- The density bound for `n ≥ 13`, from Erdős's bound on `C(2 m, m)` and
 `4 ^ m < m C(2 m, m)` for `m = 2 ^ (n - 1)`. -/
 private theorem two_pow_le_card_primes_large (n : ℕ) (hn : 13 ≤ n) :
     2 ^ (n - 1) ≤ 3 * n * ((Finset.Ico (2 ^ (n - 1)) (2 ^ n)).filter Nat.Prime).card := by
-  set m := 2 ^ (n - 1)
-  have h2m : 2 * m = 2 ^ n := by rw [← pow_succ']; congr 1; omega
-  have hm4 : 4 ≤ m := show 2 ^ 2 ≤ 2 ^ (n - 1) from Nat.pow_le_pow_right two_pos (by omega)
-  have hnum := h2m.symm ▸ three_mul_add_mul_sqrt_le_two_pow n hn
-  rw [← h2m]
-  set K := ((Finset.Ico m (2 * m)).filter Nat.Prime).card
-  by_contra! hlt
-  have H3 := Nat.centralBinom_le_pow_card_primes_Ico m (by omega)
-  set s := Nat.sqrt (2 * m)
-  have h3 : 3 * (n * K) < m := by rwa [← mul_assoc]
+  have hnum := three_mul_add_mul_sqrt_le_two_pow n hn
+  have h2m : 2 ^ n = 2 * 2 ^ (n - 1) := by
+    rw [← pow_succ']; congr 1; omega
+  have hm4 : 4 ≤ 2 ^ (n - 1) := by
+    calc 4 = 2 ^ 2 := rfl
+      _ ≤ _ := Nat.pow_le_pow_right (by norm_num) (by omega)
+  rw [h2m] at hnum ⊢
+  generalize hmdef : 2 ^ (n - 1) = m at hnum hm4 ⊢
+  generalize hK : ((Finset.Ico m (2 * m)).filter Nat.Prime).card = K
+  by_contra hlt; push Not at hlt
+  have H2 := Nat.four_pow_lt_mul_centralBinom m hm4
+  have H3 : m.centralBinom ≤ (2 * m) ^ Nat.sqrt (2 * m) * 4 ^ (2 * m / 3) * (2 * m) ^ K := by
+    rw [← hK]; exact Nat.centralBinom_le_pow_card_primes_Ico m (by omega)
+  generalize hs : Nat.sqrt (2 * m) = s at hnum H3
+  have e0 : 2 * m = 2 ^ n := by rw [← hmdef, h2m]
+  have e1 : (2 * m) ^ s = 2 ^ (n * s) := by rw [e0, pow_mul]
+  have e2 : (4 : ℕ) ^ (2 * m / 3) = 2 ^ (2 * (2 * m / 3)) := by rw [pow_mul]; norm_num
+  have e3 : (2 * m) ^ K = 2 ^ (n * K) := by rw [e0, pow_mul]
+  have e4 : (4 : ℕ) ^ m = 2 ^ (2 * m) := by rw [pow_mul]; norm_num
   have hE : (n - 1) + n * s + 2 * (2 * m / 3) + n * K ≤ 2 * m := by
-    generalize n * K = B at h3 ⊢; generalize n * s = A at hnum ⊢; omega
-  refine (Nat.four_pow_lt_mul_centralBinom m hm4).not_ge ?_
-  calc m * m.centralBinom ≤ m * ((2 * m) ^ s * 4 ^ (2 * m / 3) * (2 * m) ^ K) := by gcongr
-    _ = 2 ^ ((n - 1) + n * s + 2 * (2 * m / 3) + n * K) := by
-        rw [show (2 * m) ^ s = 2 ^ (n * s) by rw [h2m, pow_mul],
-          show 4 ^ (2 * m / 3) = 2 ^ (2 * (2 * m / 3)) by rw [pow_mul]; norm_num,
-          show (2 * m) ^ K = 2 ^ (n * K) by rw [h2m, pow_mul],
-          show m = 2 ^ (n - 1) from rfl, pow_add, pow_add, pow_add]; ring
-    _ ≤ 2 ^ (2 * m) := Nat.pow_le_pow_right two_pos hE
-    _ = 4 ^ m := by rw [pow_mul]; norm_num
+    have h3 : 3 * (n * K) < m := by rw [← mul_assoc]; exact hlt
+    generalize n * K = B at h3 ⊢
+    generalize n * s = A at hnum ⊢
+    omega
+  have : m * m.centralBinom ≤ 4 ^ m := by
+    calc m * m.centralBinom ≤ m * ((2 * m) ^ s * 4 ^ (2 * m / 3) * (2 * m) ^ K) := by gcongr
+      _ = 2 ^ ((n - 1) + n * s + 2 * (2 * m / 3) + n * K) := by
+          rw [e1, e2, e3, ← hmdef, pow_add, pow_add, pow_add]; ring
+      _ ≤ 2 ^ (2 * m) := Nat.pow_le_pow_right (by norm_num) hE
+      _ = 4 ^ m := e4.symm
+  exact absurd H2 (not_lt.mpr this)
 
 /-- **The density of the `n`-bit primes** ([KatzLindell2020], Theorem 9.32): for `1 < n`, at
 least a `1 / (3 n)` fraction of the numbers in `[2 ^ (n - 1), 2 ^ n)` are prime. -/

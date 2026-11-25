@@ -63,20 +63,27 @@ theorem emit_length_le (o : List (Letter S J Γ)) (z : Ch S J) :
   | nil => simp
   | cons a o ih =>
     rw [← List.singleton_append, emit_appendR, List.length_append, List.length_append]
-    rcases a with _ | ⟨z', γ⟩ <;> simp only [emit_none, emit_some, List.length_nil]
-    · omega
-    · split_ifs <;> simp only [List.length_singleton, List.length_nil] <;> omega
+    have hstep : (emit [a] z).length ≤ 1 := by
+      rcases a with _ | ⟨z', γ⟩
+      · simp
+      · rw [emit_some]
+        split_ifs <;> simp
+    simpa using Nat.add_le_add hstep ih
 
 /-- The letter emitted at a step sits at the position counted before that step. -/
 theorem emit_getElem (o : List (Letter S J Γ)) (z : Ch S J) (τ : ℕ) (γ : Γ)
     (h : o[τ]? = some (some (z, γ))) :
     (emit o z)[(emit (o.take τ) z).length]? = some γ := by
-  obtain ⟨hτ, hget⟩ := List.getElem?_eq_some_iff.1 h
-  conv_lhs => rw [← List.take_append_drop τ o, List.drop_eq_getElem_cons hτ, hget,
-    ← List.singleton_append]
+  have hτ : τ < o.length := (List.getElem?_eq_some_iff.1 h).1
+  have ho : o = o.take τ ++ ([some (z, γ)] ++ o.drop (τ + 1)) := by
+    conv_lhs => rw [← List.take_append_drop τ o, List.drop_eq_getElem_cons hτ]
+    rw [(List.getElem?_eq_some_iff.1 h).2]
+    rfl
+  conv_lhs => rw [ho]
   rw [emit_appendR, emit_appendR, emit_some, ite_eq_left rfl,
-    List.take_append_of_le_length (by simp only [List.length_take]; omega), List.take_take,
-    min_self, List.getElem?_append_right le_rfl, Nat.sub_self]; rfl
+    List.take_append_of_le_length (by simp; omega),
+    List.take_take, min_self, List.getElem?_append_right le_rfl, Nat.sub_self]
+  rfl
 
 /-- Every letter of a channel is emitted at some step. -/
 theorem exists_emit (o : List (Letter S J Γ)) (z : Ch S J) (p : ℕ)
@@ -87,17 +94,22 @@ theorem exists_emit (o : List (Letter S J Γ)) (z : Ch S J) (p : ℕ)
   | append_singleton o a ih =>
     by_cases h : p < (emit o z).length
     · obtain ⟨τ, γ, h1, h2, h3⟩ := ih h
-      exact ⟨τ, γ, by simp only [List.length_append]; omega,
-        by rw [List.getElem?_append_left h1, h2],
-        by rw [List.take_append_of_le_length h1.le, h3]⟩
+      refine ⟨τ, γ, by simp; omega, ?_, ?_⟩
+      · rw [List.getElem?_append_left h1, h2]
+      · rw [List.take_append_of_le_length h1.le, h3]
     · rw [emit_appendR, List.length_append] at hp
       rcases a with _ | ⟨z', γ⟩
-      · simp only [emit_none, List.length_nil] at hp; omega
-      · rw [emit_some] at hp; split_ifs at hp with hz
-        · subst hz; refine ⟨o.length, γ, by simp, by simp, ?_⟩
+      · simp at hp
+        omega
+      · rw [emit_some] at hp
+        split_ifs at hp with hz
+        · subst hz
+          refine ⟨o.length, γ, by simp, by simp, ?_⟩
           rw [List.take_append_of_le_length le_rfl, List.take_length]
-          simp only [List.length_singleton] at hp; omega
-        · simp only [List.length_nil] at hp; omega
+          simp at hp
+          omega
+        · simp at hp
+          omega
 
 end Emit
 
@@ -120,7 +132,10 @@ theorem length_wordOf (v : List (List Γ)) :
     (wordOf v).length = (v.map List.length).sum + v.length := by
   induction v with
   | nil => rfl
-  | cons l v ih => rw [wordOf_cons]; simp [ih]; omega
+  | cons l v ih =>
+    rw [wordOf_cons]
+    simp [ih]
+    omega
 
 variable {n : ℕ}
 
@@ -132,7 +147,10 @@ variable {n : ℕ}
 
 theorem base_succ (u : Fin n → List Γ) (k : Fin n) :
     base u (k + 1) = base u k + (u k).length + 1 := by
-  unfold base; rw [List.take_add_one, wordOf_append, List.length_append]; simp [wordOf]; omega
+  unfold base
+  rw [List.take_add_one, wordOf_append, List.length_append]
+  simp [wordOf]
+  omega
 
 private theorem ofFn_split (u : Fin n → List Γ) (k : Fin n) :
     List.ofFn u = (List.ofFn u).take k ++ u k :: (List.ofFn u).drop (k + 1) := by
@@ -143,13 +161,16 @@ theorem wordOf_getElem (u : Fin n → List Γ) (k : Fin n) (p : ℕ) :
     (wordOf (List.ofFn u))[base u k + p]? =
       ((u k).map some ++ none :: wordOf ((List.ofFn u).drop (k + 1)))[p]? := by
   conv_lhs => rw [ofFn_split u k]
-  rw [wordOf_append, wordOf_cons, List.getElem?_append_right (by simp [base])]; simp [base]
+  rw [wordOf_append, wordOf_cons, List.getElem?_append_right (by simp [base])]
+  simp [base]
 
 theorem base_add_lt (u : Fin n → List Γ) (k : Fin n) :
     base u k + (u k).length < (wordOf (List.ofFn u)).length := by
   conv_rhs => rw [ofFn_split u k]
   rw [wordOf_append, wordOf_cons, List.length_append, List.length_append,
-    List.length_cons, List.length_map]; unfold base; omega
+    List.length_cons, List.length_map]
+  unfold base
+  omega
 
 private theorem eq_of_prefix (l m : List Γ) (r : List (Option Γ))
     (h : ∀ p ≤ m.length, (l.map some ++ none :: r)[p]? = (m.map some ++ [none])[p]?) :
@@ -168,14 +189,22 @@ theorem eq_of_read (u v : Fin n → List Γ)
     (h : ∀ k : Fin n, ∀ p ≤ (v k).length,
       (wordOf (List.ofFn u))[base v k + p]? = ((v k).map some ++ [none])[p]?) :
     u = v := by
-  have key : ∀ m : ℕ, ∀ k : Fin n, k.1 = m → u k = v k := fun m => by
-    induction m using Nat.strong_induction_on with | _ m ih =>
-    rintro k rfl
-    have hb : base u k = base v k := congrArg (fun l => (wordOf l).length) <|
-      List.ext_getElem (by simp) fun i h1 _ => by
-        simp only [List.length_take, List.length_ofFn] at h1
-        simp only [List.getElem_take, List.getElem_ofFn]; exact ih i (by omega) _ rfl
-    exact eq_of_prefix (u k) (v k) _ fun p hp => by rw [← wordOf_getElem, hb, h k p hp]
+  have key : ∀ m : ℕ, ∀ k : Fin n, k.1 = m → u k = v k := by
+    intro m
+    induction m using Nat.strong_induction_on with
+    | _ m ih =>
+      rintro k rfl
+      have hb : base u k = base v k := by
+        unfold base
+        congr 2
+        apply List.ext_getElem
+        · simp
+        · intro i h1 _
+          simp only [List.getElem_take, List.getElem_ofFn]
+          simp only [List.length_take, List.length_ofFn] at h1
+          exact ih i (by omega) _ rfl
+      refine eq_of_prefix (u k) (v k) (wordOf ((List.ofFn u).drop (k + 1))) fun p hp => ?_
+      rw [← wordOf_getElem, hb, h k p hp]
   exact funext fun k => key k k rfl
 
 /-- The one-hot Boolean encoding of the separator-delimited input words. -/

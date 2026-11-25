@@ -151,12 +151,20 @@ private theorem natDegree_aeval_le (k : Fin n) (φ : Fin n → Polynomial F)
   conv_lhs => rw [P.as_sum, map_sum]
   refine Polynomial.natDegree_sum_le_of_forall_le _ _ fun m hm => ?_
   rw [MvPolynomial.aeval_monomial, Polynomial.algebraMap_eq]
-  refine ((Polynomial.natDegree_C_mul_le _ _).trans (Polynomial.natDegree_prod_le _ _)).trans
-    (le_trans (b := ∑ j ∈ m.support, if k = j then m j else 0) (Finset.sum_le_sum fun j _ => ?_)
-      (by rw [Finset.sum_ite_eq]; split_ifs <;> simp [MvPolynomial.monomial_le_degreeOf k hm]))
-  split_ifs with hj
-  · simpa only [← hj, mul_one] using Polynomial.natDegree_pow_le.trans (Nat.mul_le_mul_left _ hk)
-  · exact Polynomial.natDegree_pow_le.trans_eq (by rw [hφ j (Ne.symm hj), mul_zero])
+  refine (Polynomial.natDegree_C_mul_le _ _).trans ?_
+  refine (Polynomial.natDegree_prod_le _ _).trans ?_
+  refine le_trans ?_ (MvPolynomial.monomial_le_degreeOf k hm)
+  calc ∑ j ∈ m.support, ((φ j) ^ m j).natDegree
+      ≤ ∑ j ∈ m.support, if k = j then m j else 0 := by
+        refine Finset.sum_le_sum fun j _ => Polynomial.natDegree_pow_le.trans ?_
+        by_cases hj : k = j
+        · subst hj
+          simpa only [ite_true, mul_one] using Nat.mul_le_mul_left (m k) hk
+        · rw [hφ j (Ne.symm hj), mul_zero]
+          exact Nat.zero_le _
+    _ ≤ m k := by
+        rw [Finset.sum_ite_eq]
+        split_ifs <;> simp
 
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial has degree at most `d`. -/
@@ -278,20 +286,23 @@ omit [Fintype F] in
 /-- The final check is perfectly complete. -/
 theorem finalCheck_complete :
     (finalCheck P).Complete World.plain (rel P n) Accept 0 := by
-  intro x _ hxw
+  intro x w hxw
   rw [rel, partialSum_self] at hxw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [finalCheck, runStrategy, plainLaw_bind, plainLaw_pure, PMF.pure_bind]
-  exact le_of_eq ((PMF.toOuterMeasure_pure_apply _ _).trans
-    (ite_eq_right fun h => h ⟨ite_eq_left hxw, trivial⟩))
+  refine le_of_eq ((PMF.toOuterMeasure_pure_apply _ _).trans
+    (ite_eq_right fun h => h ⟨?_, trivial⟩))
+  exact ite_eq_left hxw
 
 omit [Fintype F] in
 /-- The final check is round-by-round sound without error. -/
 theorem finalCheck_rbrSound :
-    (finalCheck P).verifier.RbrSound (language (rel P n)) Set.univ () :=
-  ⟨fun x _ => MvPolynomial.eval x.challenges P = x.value,
-    fun _ hx h => hx ⟨(), (partialSum_self P _).trans h⟩,
-    fun _ hS ⟨_, _, hout⟩ => hS (by by_contra h; simp [Verifier.outputOn, finalCheck, h] at hout)⟩
+    (finalCheck P).verifier.RbrSound (language (rel P n)) Set.univ () := by
+  refine ⟨fun x _ => MvPolynomial.eval x.challenges P = x.value,
+    fun x hx h => hx ⟨(), by rw [rel, partialSum_self]; exact h⟩,
+    fun x hS ⟨x', _, hout⟩ => hS ?_⟩
+  by_contra h
+  simp [Verifier.outputOn, finalCheck, h] at hout
 
 /-! ### End-to-end theorems, by composition -/
 

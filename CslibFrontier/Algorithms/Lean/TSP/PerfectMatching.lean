@@ -129,22 +129,29 @@ theorem two_mul_sum_le_cycleCost {δ : α → α → ℕ} (htri : ∀ x y z, δ 
   have hrO : (q.filter (· ∈ O)).Perm O :=
     (List.perm_ext_iff_of_nodup (hrq.nodup hq) hO).2 fun x => by
       simp only [List.mem_filter, decide_eq_true_eq]
-      exact ⟨And.right, fun h => ⟨hOq x h, h⟩⟩
+      exact ⟨fun h => h.2, fun h => ⟨hOq x h, h⟩⟩
   have hlen : Even (q.filter (· ∈ O)).length := by
-    rw [hrO.length_eq, ← hM.length_eq, length_endpoints]; exact even_two_mul _
+    rw [hrO.length_eq, ← hM.length_eq, length_endpoints]
+    exact even_two_mul _
   refine le_trans ?_ (cycleCost_le_of_sublist δ htri hrq)
   generalize q.filter (· ∈ O) = r at hrO hlen
   cases r with
-  | nil => simpa [cycleCost] using hmin [] hrO
+  | nil =>
+    have := hmin [] hrO
+    simp only [List.map_nil, List.sum_nil, Nat.le_zero] at this
+    rw [this]
+    exact Nat.zero_le _
   | cons a L =>
     have hodd : Odd L.length := by
-      obtain ⟨k, hk⟩ := hlen; exact ⟨k - 1, by simp only [List.length_cons] at hk; omega⟩
-    have h1 := hmin _ (endpoints_pairUp hlen ▸ hrO)
+      rw [List.length_cons] at hlen
+      exact Nat.odd_iff.2 (by obtain ⟨k, hk⟩ := hlen; omega)
+    have h1 := hmin _ (by rw [endpoints_pairUp hlen]; exact hrO)
     have h2 := hmin (pairUp (L ++ [a])) (by
       rw [endpoints_pairUp (by simpa [Nat.even_add_one] using hodd)]
-      exact (List.perm_append_singleton a L).trans hrO)
+      exact List.perm_append_singleton a L |>.trans hrO)
     have hsplit := sum_pairUp_add_sum_pairUp δ a a L hodd
-    rw [cycleCost, show (a :: L).rotate 1 = L ++ [a] by simp [List.rotate_cons_succ]]
+    have hcyc : cycleCost δ (a :: L) = (List.zipWith δ (a :: L) (L ++ [a])).sum := by
+      rw [cycleCost, show (a :: L).rotate 1 = L ++ [a] by simp [List.rotate_cons_succ]]
     omega
 
 /-! ### Exhaustive search -/
@@ -197,7 +204,8 @@ private theorem exists_perm_cons_cons {δ : α → α → ℕ} (hsymm : ∀ x y,
     exact List.perm_middle.trans (List.perm_middle.cons _)
   have hw : ((M₁ ++ e :: M₂).map fun e => δ e.1 e.2).sum =
       δ e.1 e.2 + ((M₁ ++ M₂).map fun e => δ e.1 e.2).sum := by
-    simp only [List.map_append, List.map_cons, List.sum_append, List.sum_cons]; omega
+    simp only [List.map_append, List.map_cons, List.sum_append, List.sum_cons]
+    omega
   rcases hae with rfl | rfl
   · exact ⟨e.2, M₁ ++ M₂, hperm, hw⟩
   · exact ⟨e.1, M₁ ++ M₂, hperm.trans (List.Perm.swap _ _ _), by rw [hw, hsymm]⟩

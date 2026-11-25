@@ -100,7 +100,8 @@ theorem primrec₂_of_rec {σ : Type*} [Primcodable σ] (F : α → RawFormula �
     else IH[q.unpair.2]?.map fun s => l a ((q.unpair.1, ofNat q.unpair.2), s)
   have hq : Primrec fun p : (α × List σ) × ℕ => (p.2 / 4).unpair :=
     Primrec.unpair.comp (nat_div.comp snd (const 4))
-  have hq1 := fst.comp hq; have hq2 := snd.comp hq
+  have hq1 := fst.comp hq
+  have hq2 := snd.comp hq
   have hmod : Primrec fun p : (α × List σ) × ℕ => p.2 % 4 := nat_mod.comp snd (const 4)
   have ha : Primrec fun p : (α × List σ) × ℕ => p.1.1 := fst.comp fst
   have hIH : Primrec fun p : (α × List σ) × ℕ => p.1.2 := snd.comp fst
@@ -126,8 +127,10 @@ theorem primrec₂_of_rec {σ : Type*} [Primcodable σ] (F : α → RawFormula �
     rcases n with _ | m
     · simp [G, Hz, ofNat_zero]
     · simp only [G, List.length_map, List.length_range, G₁]
-      have h1 := unpair_fst_div_four_lt m; have h2 := unpair_snd_div_four_lt m
-      rw [ofNat_succ]; split_ifs <;> simp [He, Hr, Hi, Hl, h1, h2]
+      have h1 := unpair_fst_div_four_lt m
+      have h2 := unpair_snd_div_four_lt m
+      rw [ofNat_succ]
+      split_ifs <;> simp [He, Hr, Hi, Hl, h1, h2]
   exact (h.comp fst (Primrec.encode.comp snd)).of_eq fun _ => by
     simp only [encode_eq_toNat, ofNat_toNat]
 

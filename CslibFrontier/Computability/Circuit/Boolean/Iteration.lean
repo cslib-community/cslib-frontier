@@ -96,14 +96,17 @@ theorem Record.initial_wires_subset (s : Set (BooleanFunction n)) (f : BitString
     Record.recordsWires (fun x => Record.initial (R := R) (w := w) f T K cp x) ⊆ s := by
   intro fn hfn
   obtain ⟨j, bit, rfl⟩ := Set.mem_iUnion.mp hfn
-  dsimp only [Record.initial]; split_ifs with h1 h2
+  dsimp only [Record.initial]
+  split_ifs with h1 h2
   · exact hc _
   · induction bit using Fin.addCases with
     | left bit =>
       induction bit using Fin.cases with
       | zero => exact hc false
       | succ bit => simpa [Record.encode, Record.query] using hp (prefix_mem f h2 bit)
-    | right => simp only [Record.encode, Record.query, Fin.append_right]; exact hc _
+    | right =>
+      simp only [Record.encode, Record.query, Fin.append_right]
+      exact hc _
   · exact hc _
 
 /-- The output of the fixed-power circuit for exponent `T`, prefix length `K`, sorting depth `d`
@@ -122,27 +125,38 @@ theorem exists_fixedOutput (c : Circuit signature n n) (T K d : ℕ) (cp : Fin M
       out.size ≤ 2 + 5 * K * c.size + (18 * d ^ 2 + 30) * 2 ^ d * (Record.width n w + 1) +
         1000 * (K + 1) * (n + w + 1) ^ 2 := by
   let f := c.eval interpretation
-  let s := inputs n ∪ ({fun _ => false, fun _ => true} : Set (BooleanFunction n))
-  have hc (b : Bool) : (fun _ : BitString n => b) ∈ s := by cases b <;> simp [s]
+  let constants : Set (BooleanFunction n) := {fun _ => false, fun _ => true}
+  have hconst : Synthesis interpretation (inputs n) constants 2 :=
+    (Synthesis.const false).union (Synthesis.const true)
+  let s := inputs n ∪ constants
+  have hc (b : Bool) : (fun _ : BitString n => b) ∈ s := by cases b <;> simp [s, constants]
+  have hp : Synthesis interpretation s (prefixWires f K) (K * c.size) :=
+    Synthesis.orbit c id (fun bit => Or.inl ⟨bit, rfl⟩) K
   let records := fun x => Record.initial (R := BitonicSort.arity d) (w := w) f T K cp x
   let sorted := fun x => Record.sorted d (records x)
   let pair := fun x => Record.detect (sorted x)
   let s1 := s ∪ prefixWires f K
+  have hs := Record.synthesis_sorted s1 d records
+    (Record.initial_wires_subset s1 f T K cp (fun _ h => Or.inr h) fun b => Or.inl (hc b))
   let s2 := s1 ∪ Record.recordsWires sorted
+  have hd := Record.synthesis_detect s2 sorted
+    (fun j _ h => Or.inr (Record.wireSet_subset_recordsWires sorted j h))
+    fun b => Or.inl (Or.inl (hc b))
   let s3 := s2 ∪ Record.pairWires pair
-  have h := ((Synthesis.const false).union (Synthesis.const true)).trans <|
-    (Synthesis.orbit c id (fun bit => Or.inl ⟨bit, rfl⟩) K).trans <|
-    (Record.synthesis_sorted s1 d records (Record.initial_wires_subset s1 f T K cp
-      (fun _ h => Or.inr h) fun b => Or.inl (hc b))).trans <|
-    (Record.synthesis_detect s2 sorted
-      (fun j _ h => Or.inr (Record.wireSet_subset_recordsWires sorted j h))
-      fun b => Or.inl (Or.inl (hc b))).trans <|
-    synthesis_reconstruct s3 c T K (fun x => (pair x).1) (fun x => (pair x).2)
-      (fun _ h => Or.inr (Record.wireSet_fst_subset pair h))
-      (fun _ h => Or.inr (Record.wireSet_snd_subset pair h))
-      (fun _ h => Or.inl (Or.inl (Or.inr h))) fun b => Or.inl (Or.inl (Or.inl (hc b)))
-  exact (h.mono Set.Subset.rfl Set.Subset.rfl
-    (by rw [BitonicSort.arity_eq_two_pow]; ring_nf; exact le_rfl)).exists_circuit_outputs
+  have hout := synthesis_reconstruct s3 c T K (fun x => (pair x).1) (fun x => (pair x).2)
+    (fun _ h => Or.inr (Record.wireSet_fst_subset pair h))
+    (fun _ h => Or.inr (Record.wireSet_snd_subset pair h))
+    (fun _ h => Or.inl (Or.inl (Or.inr h))) fun b => Or.inl (Or.inl (Or.inl (hc b)))
+  have h := hconst.trans (hp.trans (hs.trans (hd.trans hout)))
+  have hfinal : Synthesis interpretation (inputs n)
+      (wires (fixedOutput (w := w) c T K d cp))
+      (2 + 5 * K * c.size + (18 * d ^ 2 + 30) * 2 ^ d * (Record.width n w + 1) +
+        1000 * (K + 1) * (n + w + 1) ^ 2) := by
+    apply h.mono Set.Subset.rfl Set.Subset.rfl
+    rw [BitonicSort.arity_eq_two_pow]
+    ring_nf
+    exact le_rfl
+  exact hfinal.exists_circuit_outputs
 
 /-- Arithmetic bound bounding the raw `exists_fixedOutput` gate count for prefix length `2 * L` and
 time width `n + 2` by `40000 * (L * s + (n + 1) ^ 3 * (L + M + 1))`. -/
@@ -151,12 +165,15 @@ theorem construction_cost (n s M L d : ℕ) (hL : 0 < L) (hd : d ≤ n + 2)
     2 + 5 * (2 * L) * s + (18 * d ^ 2 + 30) * 2 ^ d * (Record.width n (n + 2) + 1) +
       1000 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 ≤
       40000 * (L * s + (n + 1) ^ 3 * (L + M + 1)) := by
-  have h1 : 18 * d ^ 2 + 30 ≤ 102 * (n + 1) ^ 2 := by nlinarith [Nat.pow_le_pow_left hd 2]
+  have h1 : 18 * d ^ 2 + 30 ≤ 102 * (n + 1) ^ 2 := by
+    have hs : d ^ 2 ≤ (n + 2) ^ 2 := by gcongr
+    nlinarith
+  have h2 : Record.width n (n + 2) + 1 ≤ 5 * (n + 1) := by unfold Record.width; omega
   have hs : (18 * d ^ 2 + 30) * 2 ^ d * (Record.width n (n + 2) + 1) ≤
-      (102 * (n + 1) ^ 2) * (2 * (M + 2 * L + 1)) * (5 * (n + 1)) :=
-    Nat.mul_le_mul (Nat.mul_le_mul h1 hR) (by unfold Record.width; omega)
-  have hh : 1000 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 ≤ 1000 * (3 * L) * (9 * (n + 1) ^ 2) :=
-    Nat.mul_le_mul (by omega) (by nlinarith)
+      (102 * (n + 1) ^ 2) * (2 * (M + 2 * L + 1)) * (5 * (n + 1)) := by gcongr
+  have h3 : (n + (n + 2) + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 := by nlinarith
+  have hh : 1000 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 ≤
+      1000 * (3 * L) * (9 * (n + 1) ^ 2) := by gcongr; omega
   nlinarith [Nat.zero_le (L * n ^ 3), Nat.zero_le (M * n ^ 3),
     Nat.zero_le (M * n ^ 2), Nat.zero_le (L * n ^ 2), Nat.zero_le (L * s)]
 
@@ -199,20 +216,25 @@ theorem fixed_power_on (n : ℕ) (c : Circuit signature n n) (S : Finset (BitStr
       out.ComputesOn interpretation ↑S (c.eval interpretation)^[T] ∧
       out.size ≤ 40000 * powerBudget n c.size S.card L := by
   classical
+  let f := c.eval interpretation
   by_cases hT : T < 2 * L
   · refine ⟨c.iterate T, fun x _ => by rw [Circuit.eval_iterate], ?_⟩
-    rw [Circuit.size_iterate]; unfold powerBudget
-    nlinarith [Nat.mul_le_mul_right c.size hT.le,
-      Nat.zero_le ((n + 1) ^ 3 * (L + S.card / L + 1))]
-  obtain ⟨H, -, hcard, hcover⟩ := FunctionalGraph.exists_checkpoints (c.eval interpretation) S hS hL
+    rw [Circuit.size_iterate]
+    have ht : T * c.size ≤ 2 * L * c.size := Nat.mul_le_mul_right _ hT.le
+    unfold powerBudget
+    nlinarith [Nat.zero_le ((n + 1) ^ 3 * (L + S.card / L + 1))]
+  obtain ⟨H, hHS, hcard, hcover⟩ := FunctionalGraph.exists_checkpoints f S hS hL
   have hN : H.card ≤ 2 ^ n := by
-    simpa only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using Finset.card_le_univ H
+    simpa only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using
+      Finset.card_le_univ H
   obtain ⟨out, d, hout, hd, hR, hsize⟩ := exists_computesOn_iterate_of_cover (w := n + 2) c T
     (2 * L) S H (by omega) (by rw [Nat.pow_succ, Nat.pow_succ]; omega) fun x hx =>
       (hcover x hx).imp_left fun ⟨i, j, hij, hj, heq⟩ => ⟨i, j, hij, by omega, heq⟩
+  refine ⟨out, hout, ?_⟩
   have hc : H.card ≤ S.card / L := (Nat.le_div_iff_mul_le hL).mpr hcard
-  exact ⟨out, hout, hsize.trans ((construction_cost n c.size H.card L d hL hd hR).trans
-    (by unfold powerBudget; gcongr))⟩
+  apply hsize.trans ((construction_cost n c.size H.card L d hL hd hR).trans ?_)
+  unfold powerBudget
+  gcongr
 
 /-- The invariant-set fixed-power bound holds with universal constant `40000`. -/
 theorem fixedPowerOnBound : FixedPowerOnBound := ⟨40000, fixed_power_on⟩

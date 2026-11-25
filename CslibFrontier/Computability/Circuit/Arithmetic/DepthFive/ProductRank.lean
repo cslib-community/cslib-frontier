@@ -49,32 +49,48 @@ theorem Params.Good.multichoose_mul_le (hp : p.Good) {i j : ℕ} (hi : i ≤ p.k
       2 * p.D * p.α ^ ((i : ℝ) - p.ρ * j) := by
   obtain ⟨v', hv'⟩ := Nat.exists_eq_succ_of_ne_zero hp.v_pos.ne'
   have hv : (p.v : ℝ) = v' + 1 := by exact_mod_cast hv'
-  have := hp.a_pos; have := hp.b_pos; have := hp.u_pos; have hα := hp.α_pos
-  have hA : (p.v.multichoose (p.a - i) : ℝ) * (p.a + v') ^ i ≤ p.v.multichoose p.a * p.a ^ i := by
-    rw [hv']; exact_mod_cast Nat.multichoose_succ_sub_mul_pow_le v' (hi.trans hp.k_le_a)
-  have hB : (p.u.multichoose (p.b + j) : ℝ) * p.b ^ j ≤ p.u.multichoose p.b * (p.b + p.u) ^ j := by
+  have ha : (0 : ℝ) < p.a := by exact_mod_cast hp.a_pos
+  have hb : (0 : ℝ) < p.b := by exact_mod_cast hp.b_pos
+  have hu : (0 : ℝ) < p.u := by exact_mod_cast hp.u_pos
+  have hα := hp.α_pos
+  have hA : (p.v.multichoose (p.a - i) : ℝ) * (p.a + v') ^ i ≤
+      p.v.multichoose p.a * p.a ^ i := by
+    rw [hv']
+    exact_mod_cast Nat.multichoose_succ_sub_mul_pow_le v' (hi.trans hp.k_le_a)
+  have hB : (p.u.multichoose (p.b + j) : ℝ) * p.b ^ j ≤
+      p.u.multichoose p.b * (p.b + p.u) ^ j := by
     exact_mod_cast Nat.multichoose_add_mul_pow_le p.u p.b j
   have hi' : (i : ℝ) * 2 ≤ p.a + v' + 1 := by
-    exact_mod_cast (show i * 2 ≤ p.a + v' + 1 by have := hp.four_n_le_a; have := p.hkm; omega)
+    have h : i * 2 ≤ p.a := by have := hp.four_n_le_a; have := p.hkm; lia
+    have h' : ((i * 2 : ℕ) : ℝ) ≤ p.a := by exact_mod_cast h
+    push_cast at h'
+    linarith [v'.cast_nonneg (α := ℝ)]
   have hW : (p.a + v' + 1 : ℝ) ^ i ≤ 2 * (p.a + v') ^ i := by
     have h := one_add_mul_le_pow (a := -1 / (p.a + v' + 1 : ℝ))
       (by rw [le_div_iff₀ (by positivity)]; linarith) i
+    have h1 : 1 + -1 / (p.a + v' + 1 : ℝ) = (p.a + v') / (p.a + v' + 1) := by
+      field_simp; ring
     have h2 : -1 / 2 ≤ (i : ℝ) * (-1 / (p.a + v' + 1)) := by
       rw [mul_div_assoc', le_div_iff₀ (by positivity)]; linarith
-    rw [show 1 + -1 / (p.a + v' + 1 : ℝ) = (p.a + v') / (p.a + v' + 1) by field_simp; ring,
-      div_pow, le_div_iff₀ (by positivity)] at h
-    nlinarith [pow_pos (by positivity : (0 : ℝ) < p.a + v' + 1) i]
+    rw [h1, div_pow, le_div_iff₀ (by positivity)] at h
+    nlinarith [pow_pos (show (0 : ℝ) < p.a + v' + 1 by positivity) i]
   have hX : (p.v.multichoose (p.a - i) : ℝ) ≤ 2 * p.v.multichoose p.a * p.α ^ i := by
     rw [α, hv, div_pow, ← add_assoc, mul_div_assoc', le_div_iff₀ (by positivity)]
     nlinarith [mul_le_mul_of_nonneg_left hW (Nat.cast_nonneg (α := ℝ) (p.v.multichoose (p.a - i)))]
-  have hY : (p.u.multichoose (p.b + j) : ℝ) * (p.α ^ p.ρ) ^ j ≤ p.u.multichoose p.b := by
-    refine (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hp.α_rpow_le_β j)
-      (by positivity)).trans ?_
-    rwa [β, div_pow, mul_div_assoc', div_le_iff₀ (by positivity)]
+  have hY : (p.u.multichoose (p.b + j) : ℝ) * (p.α ^ p.ρ) ^ j ≤ p.u.multichoose p.b :=
+    calc (p.u.multichoose (p.b + j) : ℝ) * (p.α ^ p.ρ) ^ j
+        ≤ p.u.multichoose (p.b + j) * p.β ^ j :=
+          mul_le_mul_of_nonneg_left
+            (pow_le_pow_left₀ (Real.rpow_nonneg hα.le _) hp.α_rpow_le_β j) (Nat.cast_nonneg _)
+      _ = p.u.multichoose (p.b + j) * p.b ^ j / (p.b + p.u) ^ j := by
+          rw [β, div_pow, mul_div_assoc]
+      _ ≤ p.u.multichoose p.b := by rwa [div_le_iff₀ (by positivity)]
   rw [Real.rpow_sub hα, Real.rpow_natCast, Real.rpow_mul hα.le, Real.rpow_natCast,
-    mul_div_assoc', le_div_iff₀ (pow_pos (Real.rpow_pos_of_pos hα _) j), mul_assoc]
-  exact (mul_le_mul hX hY (by positivity) (by positivity)).trans_eq
-    (by simp only [D, Nat.cast_mul]; ring)
+    mul_div_assoc', le_div_iff₀ (pow_pos (Real.rpow_pos_of_pos hα _) j)]
+  calc (p.v.multichoose (p.a - i) : ℝ) * p.u.multichoose (p.b + j) * (p.α ^ p.ρ) ^ j
+      = p.v.multichoose (p.a - i) * (p.u.multichoose (p.b + j) * (p.α ^ p.ρ) ^ j) := by ring
+    _ ≤ 2 * p.v.multichoose p.a * p.α ^ i * p.u.multichoose p.b := by gcongr
+    _ = 2 * p.D * p.α ^ i := by simp only [D]; push_cast; ring
 
 variable {K σ ι : Type*} [Field K] [Fintype σ] {s : σ → Prop} [DecidablePred s] [Fintype ι]
 
@@ -91,7 +107,8 @@ private theorem rankMeasure_prod_component_le (hp : p.Good)
   have hPall := IsWeightedHomogeneous.prod univ P _ fun j _ => hP j
   by_cases h : ∑ j, (f j, e j - f j) = (p.k, p.m)
   swap
-  · rw [rankMeasure_eq_zero_of_ne hPall h, Nat.cast_zero]; positivity
+  · rw [rankMeasure_eq_zero_of_ne hPall h, Nat.cast_zero]
+    positivity
   have hk : ∑ j, f j = p.k := by simpa [Prod.fst_sum] using congrArg Prod.fst h
   let T := univ.filter fun j => p.lam * e j < f j
   have hPT : (∏ j ∈ T, P j).IsWeightedHomogeneous (bidegWeight s)
@@ -104,29 +121,41 @@ private theorem rankMeasure_prod_component_le (hp : p.Good)
       p.v.multichoose (p.a - ∑ j ∈ T, f j) * p.u.multichoose (p.b + ∑ j ∈ T, (e j - f j)) := by
     rw [h] at hPall
     rw [← prod_filter_mul_prod_filter_not univ (fun j => p.lam * e j < f j), mul_comm] at hPall ⊢
-    simpa only [hv, hu, finrank_bihomogeneous (R := K)] using
-      rankMeasure_mul_le hPall hPT (hI.trans hp.k_le_a)
-  have hn : (p.n : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hp.n_pos.ne'
-  have hm : (p.m : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hp.m_pos.ne'
+    rw [← hv, ← hu, ← finrank_bihomogeneous (R := K)]
+    exact rankMeasure_mul_le hPall hPT (hI.trans hp.k_le_a)
+  have hn : (p.n : ℝ) ≠ 0 := by exact_mod_cast hp.n_pos.ne'
+  have hm : (p.m : ℝ) ≠ 0 := by exact_mod_cast hp.m_pos.ne'
   have hρ : (1 + p.ρ) * p.lam = p.ρ := by
-    rw [ρ, lam, show (p.n : ℝ) = p.k + p.m by exact_mod_cast p.hkm.symm]; field_simp; ring
+    have : (p.n : ℝ) = p.k + p.m := by exact_mod_cast p.hkm.symm
+    rw [ρ, lam, this]
+    field_simp
+    ring
   have h0 : ∑ j, ((f j : ℝ) - p.lam * e j) = 0 := by
     rw [sum_sub_distrib, ← mul_sum, ← Nat.cast_sum, ← Nat.cast_sum, hk, he, lam,
       div_mul_cancel₀ _ hn, sub_self]
   have habs : ∑ j, |(f j : ℝ) - p.lam * e j| = 2 * ∑ j ∈ T, ((f j : ℝ) - p.lam * e j) := by
-    rw [← add_zero (∑ j, _), ← h0, ← sum_add_distrib, mul_sum, sum_filter]
-    refine sum_congr rfl fun j _ => ?_
-    split_ifs with hj
-    · rw [abs_of_pos (sub_pos.2 hj)]; ring
-    · rw [abs_of_nonpos (sub_nonpos.2 (not_lt.1 hj))]; ring
+    have h1 : ∀ j, |(f j : ℝ) - p.lam * e j| =
+        2 * (if p.lam * e j < f j then (f j : ℝ) - p.lam * e j else 0) -
+          ((f j : ℝ) - p.lam * e j) := by
+      intro j
+      split_ifs with hj
+      · rw [abs_of_pos (sub_pos.2 hj)]; ring
+      · rw [abs_of_nonpos (sub_nonpos.2 (not_lt.1 hj))]; ring
+    simp only [h1]
+    rw [sum_sub_distrib, h0, sub_zero, ← mul_sum, sum_filter]
   have hexp : ((∑ j ∈ T, f j : ℕ) : ℝ) - p.ρ * (∑ j ∈ T, (e j - f j) : ℕ) =
       (1 + p.ρ) / 2 * ∑ j, |(f j : ℝ) - p.lam * e j| := by
     rw [habs, Nat.cast_sum, Nat.cast_sum, mul_sum, mul_sum, mul_sum, ← sum_sub_distrib]
     refine sum_congr rfl fun j _ => ?_
-    rw [Nat.cast_sub (hf j)]; linear_combination (e j : ℝ) * hρ
-  refine ((Nat.cast_le.2 hrank).trans_eq (Nat.cast_mul _ _)).trans
-    ((hp.multichoose_mul_le hI).trans_eq ?_)
-  rw [← Real.rpow_sum_of_pos hq, q, ← Real.rpow_mul hp.α_pos.le, hexp]
+    rw [Nat.cast_sub (hf j)]
+    linear_combination (e j : ℝ) * hρ
+  calc (rankMeasure s (p.k, p.m) (p.a, p.b) (∏ j, P j) : ℝ)
+      ≤ p.v.multichoose (p.a - ∑ j ∈ T, f j) *
+          p.u.multichoose (p.b + ∑ j ∈ T, (e j - f j)) := by exact_mod_cast hrank
+    _ ≤ 2 * p.D * p.α ^ (((∑ j ∈ T, f j : ℕ) : ℝ) - p.ρ * (∑ j ∈ T, (e j - f j) : ℕ)) :=
+        hp.multichoose_mul_le hI
+    _ = 2 * p.D * ∏ j, p.q ^ |(f j : ℝ) - p.lam * e j| := by
+        rw [← Real.rpow_sum_of_pos hq, q, ← Real.rpow_mul hp.α_pos.le, hexp]
 
 /-- The rank measure of a product of homogeneous polynomials whose degrees add up to `n` is at
 most `2 D ∏ j, H (e j)`. -/

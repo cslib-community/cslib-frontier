@@ -64,8 +64,8 @@ theorem exists_abs_bias_eq_one_of_finrank_lt (G : σ → ι → Bool) (W : Submo
     (hdim : finrank Bool W < Fintype.card ι) :
     ∃ S : Finset ι, S.Nonempty ∧ |bias ((PMF.uniformOfFintype σ).map G) S| = 1 := by
   choose c hc using hW
-  have hw : ¬ LinearIndependent Bool (fun i : ι => (⟨_, hc i⟩ : W)) := fun h =>
-    hdim.not_ge h.fintype_card_le_finrank
+  let w : ι → W := fun i => ⟨_, hc i⟩
+  have hw : ¬ LinearIndependent Bool w := fun h => hdim.not_ge h.fintype_card_le_finrank
   obtain ⟨g, hg, i₀, hi₀⟩ := Fintype.not_linearIndependent_iff.1 hw
   refine ⟨({i | g i = true} : Finset ι), ⟨i₀, by simpa using Bool.eq_true_of_not_eq_false hi₀⟩, ?_⟩
   -- The parity of the output on `S` is the constant `∑_{i ∈ S} c i`.
@@ -73,11 +73,14 @@ theorem exists_abs_bias_eq_one_of_finrank_lt (G : σ → ι → Bool) (W : Submo
       parityOn ({i | g i = true} : Finset ι) (G s) = ∑ i with g i = true, c i := by
     have h := congrArg (fun v : W => (v : σ → Bool) s) hg
     simp only [Submodule.coe_sum, Submodule.coe_smul, Finset.sum_apply, Pi.smul_apply,
-      Pi.sub_apply, Function.const_apply, smul_eq_mul, Submodule.coe_zero, Pi.zero_apply] at h
+      Pi.sub_apply, Function.const_apply, smul_eq_mul, Submodule.coe_zero, Pi.zero_apply,
+      w] at h
     rw [parityOn_eq_sum, sum_filter, sum_filter, ← sub_eq_zero, ← sum_sub_distrib]
-    exact Eq.trans (sum_congr rfl fun i _ => by cases g i <;> cases G s i <;> cases c i <;> rfl) h
-  simp only [bias_uniformOfFintype_map, chi_eq_signVal_parityOn, hconst,
-    Finset.expect_const univ_nonempty]
+    refine Eq.trans (sum_congr rfl fun i _ => ?_) h
+    cases g i <;> cases G s i <;> cases c i <;> rfl
+  rw [bias_uniformOfFintype_map]
+  simp_rw [chi_eq_signVal_parityOn, hconst]
+  rw [Finset.expect_const univ_nonempty]
   cases ∑ i with g i = true, c i <;> simp [signVal]
 
 /-- An `ε`-biased sample space with `ε < 1` has its output bits outside every translate of a
@@ -113,11 +116,13 @@ theorem card_lt_card_of_isSmallBias {G : σ → ι → Bool} {ε : ℝ} (hε : �
   have h := (card_le_finrank_of_isSmallBias hε hG _ hW).trans
     ((finrank_span_finset_le_card (R := Bool) T).trans card_image_le)
   rw [card_erase_of_mem (mem_univ _), card_univ] at h
-  have := Fintype.card_pos (α := σ); omega
+  have := Fintype.card_pos (α := σ)
+  omega
 
 /-- On bits, a positive power is the identity. -/
 private theorem bool_pow_of_ne_zero (b : Bool) {n : ℕ} (hn : n ≠ 0) : b ^ n = b := by
-  cases b; exacts [zero_pow hn, one_pow n]
+  cases b
+  exacts [zero_pow hn, one_pow n]
 
 /-- **Limitations on small-bias generators** [Goldreich, Exercise 8.37][Goldreich2007DraftR4]: if
 `G : {0,1}^k → {0,1}^ℓ`, with a uniform seed, is `ε`-biased for some `ε < 1`, and each output bit
