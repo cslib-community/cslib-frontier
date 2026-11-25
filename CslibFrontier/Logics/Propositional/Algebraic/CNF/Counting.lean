@@ -104,8 +104,10 @@ theorem one_mem_sup_boolIdeal_of_ns {σ R : Type*} [CommRing R] [Fintype σ]
     (1 : MvPolynomial σ R) ∈ Ideal.span {p | p ∈ F} ⊔ boolIdeal σ R := by
   have hspan : Ideal.span {p | p ∈ F ++ boolAxioms σ R} =
       Ideal.span {p | p ∈ F} ⊔ boolIdeal σ R := by
-    rw [show {p | p ∈ F ++ boolAxioms σ R} = {p | p ∈ F} ∪ {p | p ∈ boolAxioms σ R} by ext; simp,
-      Ideal.span_union, span_boolAxioms_eq_boolIdeal]
+    have hset : {p | p ∈ F ++ boolAxioms σ R} = {p | p ∈ F} ∪ {p | p ∈ boolAxioms σ R} := by
+      ext p
+      simp
+    rw [hset, Ideal.span_union, span_boolAxioms_eq_boolIdeal]
   rw [← hspan, ← hP]
   exact Submodule.sum_mem _ fun i _ =>
     Ideal.mul_mem_right _ _ (Ideal.subset_span (List.get_mem _ i))
@@ -202,9 +204,11 @@ theorem CNF.totalDegree_satIndicatorPoly_le (φ : CNF V) :
 most `φ.length * w`. -/
 theorem CNF.totalDegree_satIndicatorPoly_le_mul {φ : CNF V} {w : ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ w) :
-    (φ.satIndicatorPoly R).totalDegree ≤ φ.length * w :=
-  (CNF.totalDegree_satIndicatorPoly_le φ).trans <|
-    (List.sum_le_sum fun c hc => hw c hc).trans_eq (by simp)
+    (φ.satIndicatorPoly R).totalDegree ≤ φ.length * w := by
+  refine (CNF.totalDegree_satIndicatorPoly_le φ).trans ?_
+  calc (φ.map List.length).sum
+      ≤ (φ.map fun _ => w).sum := List.sum_le_sum fun c hc => hw c hc
+    _ = φ.length * w := by simp
 
 end Indicators
 

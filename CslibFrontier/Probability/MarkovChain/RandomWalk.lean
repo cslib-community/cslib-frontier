@@ -211,7 +211,10 @@ theorem hittingTime_randomWalk_le_dist_mul (hG : G.Connected) (u v : V) :
 omit [DecidableEq V] in
 private theorem two_mul_card_edgeFinset_pos (hG : G ≠ ⊥) : 0 < 2 * #G.edgeFinset := by
   obtain ⟨u, v, huv⟩ : ∃ u v, G.Adj u v := by
-    by_contra! hall; exact hG (SimpleGraph.ext (by ext u v; simp [hall u v]))
+    by_contra! hall
+    refine hG (SimpleGraph.ext ?_)
+    ext u v
+    simp [hall u v]
   rw [← G.sum_degrees_eq_twice_card_edges]
   exact sum_pos' (fun _ _ => Nat.zero_le _) ⟨u, mem_univ u, huv.degree_pos_left⟩
 

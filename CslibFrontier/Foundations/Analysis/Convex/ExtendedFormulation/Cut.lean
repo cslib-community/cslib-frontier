@@ -84,7 +84,8 @@ private def corrToCutSym {α : Type*} (y : (α × α) → K) : Option α → Opt
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem corrToCutSym_symm {α : Type*} (y : (α × α) → K) (u v : Option α) :
     corrToCutSym y u v = corrToCutSym y v u := by
-  cases u <;> cases v <;> simp only [corrToCutSym]; abel
+  cases u <;> cases v <;> simp only [corrToCutSym]
+  abel
 
 private def corrToCutLinear (K : Type*) [Field K]
     (α : Type*) : ((α × α) → K) →ₗ[K] (↥(⊤ : SimpleGraph (Option α)).edgeSet → K) where
@@ -162,7 +163,8 @@ private theorem cutToCorrLinear_cutVertex_image {α : Type*} [DecidableEq α] (b
     corrVertex]
   by_cases hij : i = j <;> by_cases hi : i ∈ b <;> by_cases hj : j ∈ b <;>
     simp only [hij, hi, hj, ↓reduceDIte, ↓reduceIte, ne_eq, not_true_eq_false, and_self,
-      and_true, true_ne_false, false_ne_true] <;> norm_num
+      and_true, true_ne_false, false_ne_true] <;>
+    norm_num
 
 omit [LinearOrder K] [IsStrictOrderedRing K] in
 private theorem cutVertex_eq_image_some {α : Type*} [Finite α] [DecidableEq α]
@@ -171,9 +173,13 @@ private theorem cutVertex_eq_image_some {α : Type*} [Finite α] [DecidableEq α
   let : Fintype α := Fintype.ofFinite α
   let X' : Finset (Option α) := if none ∈ X then Finset.univ \ X else X
   have hX' : cutVertex K X' = cutVertex K X := by
-    dsimp only [X']; split_ifs <;> [exact cutVertex_compl X; rfl]
+    dsimp only [X']
+    split_ifs
+    · exact cutVertex_compl X
+    · rfl
   have hnone : none ∉ X' := by
-    dsimp only [X']; split_ifs with h
+    dsimp only [X']
+    split_ifs with h
     · simp only [Finset.mem_sdiff, Finset.mem_univ, true_and, h, not_true_eq_false,
         not_false_eq_true]
     · exact h
@@ -189,7 +195,8 @@ theorem extensionComplexity_cutPolytope_option_eq (α : Type*) [Fintype α] [Dec
   refine extensionComplexity_eq_of_linearMaps (corrToCutLinear K α) (cutToCorrLinear K α) ?_ ?_
   · rw [corrPolytope, LinearMap.image_convexHull, cutPolytope, ← Set.range_comp]
     refine congrArg (convexHull K) (Set.ext fun z => ⟨?_, ?_⟩)
-    · rintro ⟨b, rfl⟩; exact ⟨b.image some, (corrToCutLinear_corrVertex b).symm⟩
+    · rintro ⟨b, rfl⟩
+      exact ⟨b.image some, (corrToCutLinear_corrVertex b).symm⟩
     · rintro ⟨X, rfl⟩
       obtain ⟨b, hb⟩ := cutVertex_eq_image_some (K := K) X
       exact ⟨b, (corrToCutLinear_corrVertex b).trans hb.symm⟩
@@ -218,7 +225,8 @@ private theorem image_cutPolytope_funLeft {V W : Type*}
       cutPolytope K (V := V) := by
   rw [cutPolytope, LinearMap.image_convexHull, cutPolytope, ← Set.range_comp]
   refine congrArg (convexHull K) (Set.ext fun z => ⟨?_, ?_⟩)
-  · rintro ⟨Y, rfl⟩; exact ⟨Y.image e.symm, (cutVertex_funLeft e Y).symm⟩
+  · rintro ⟨Y, rfl⟩
+    exact ⟨Y.image e.symm, (cutVertex_funLeft e Y).symm⟩
   · rintro ⟨X, rfl⟩
     exact ⟨X.image e, by
       simp only [Function.comp_apply, cutVertex_funLeft, Finset.image_image, Equiv.symm_comp_self,
@@ -261,7 +269,9 @@ theorem three_pow_le_two_pow_mul_extensionComplexity_cutPolytope
   have : Nonempty {v : V // v ≠ v₀} := ⟨⟨v₁, hv.symm⟩⟩
   let e : V ≃ Option {v : V // v ≠ v₀} := (Equiv.optionSubtypeNe v₀).symm
   have hcard : Fintype.card {v : V // v ≠ v₀} = Fintype.card V - 1 := by
-    have := Fintype.card_congr e; rw [Fintype.card_option] at this; omega
+    have := Fintype.card_congr e
+    rw [Fintype.card_option] at this
+    omega
   rw [extensionComplexity_cutPolytope_congr e, ← hcard]
   exact three_pow_le_two_pow_mul_extensionComplexity_cutPolytope_option _
 

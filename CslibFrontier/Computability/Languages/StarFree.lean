@@ -114,12 +114,16 @@ theorem matchEpsilon_iff : ∀ e : StarFreeExpression α, e.matchEpsilon = true 
   | zero => by simp [matchEpsilon]
   | char a => by simp [matchEpsilon]
   | plus e f => by simp [matchEpsilon, Language.mem_add, matchEpsilon_iff e, matchEpsilon_iff f]
-  | compl e => by rw [matchEpsilon, Bool.not_eq_true', ← Bool.not_eq_true, matchEpsilon_iff e]; rfl
+  | compl e => by
+    rw [matchEpsilon, Bool.not_eq_true', ← Bool.not_eq_true, matchEpsilon_iff e]
+    rfl
   | comp e f => by
     simp only [matchEpsilon, Bool.and_eq_true, matches'_comp, Language.mem_mul, matchEpsilon_iff e,
       matchEpsilon_iff f]
-    exact ⟨fun ⟨he, hf⟩ => ⟨[], he, [], hf, rfl⟩, fun ⟨_, ha, _, hb, hab⟩ =>
-      let ⟨h1, h2⟩ := List.append_eq_nil_iff.1 hab; ⟨h1 ▸ ha, h2 ▸ hb⟩⟩
+    refine ⟨fun ⟨he, hf⟩ => ⟨[], he, [], hf, rfl⟩, ?_⟩
+    rintro ⟨_, ha, _, hb, hab⟩
+    obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.1 hab
+    exact ⟨ha, hb⟩
 
 /-- The language of a star-free expression is regular. -/
 theorem isRegular_matches' : ∀ e : StarFreeExpression α, e.matches'.IsRegular
@@ -184,14 +188,19 @@ theorem char (a : α) : IsStarFree ({[a]} : _root_.Language α) := ⟨.char a, r
 
 theorem add {L M : _root_.Language α} (hL : IsStarFree L) (hM : IsStarFree M) :
     IsStarFree (L + M) :=
-  let ⟨e, he⟩ := hL; let ⟨f, hf⟩ := hM; ⟨.plus e f, he ▸ hf ▸ rfl⟩
+  let ⟨e, he⟩ := hL
+  let ⟨f, hf⟩ := hM
+  ⟨.plus e f, by rw [StarFreeExpression.matches'_plus, he, hf]⟩
 
 theorem compl {L : _root_.Language α} (hL : IsStarFree L) : IsStarFree Lᶜ :=
-  let ⟨e, he⟩ := hL; ⟨.compl e, he ▸ rfl⟩
+  let ⟨e, he⟩ := hL
+  ⟨.compl e, by rw [StarFreeExpression.matches'_compl, he]⟩
 
 theorem mul {L M : _root_.Language α} (hL : IsStarFree L) (hM : IsStarFree M) :
     IsStarFree (L * M) :=
-  let ⟨e, he⟩ := hL; let ⟨f, hf⟩ := hM; ⟨.comp e f, he ▸ hf ▸ rfl⟩
+  let ⟨e, he⟩ := hL
+  let ⟨f, hf⟩ := hM
+  ⟨.comp e f, by rw [StarFreeExpression.matches'_comp, he, hf]⟩
 
 /-- All words form a star-free language, the complement of `∅`. -/
 theorem top : IsStarFree (⊤ : _root_.Language α) :=
@@ -213,7 +222,9 @@ theorem iSup {ι : Type*} [Finite ι] {L : ι → _root_.Language α} (hL : ∀ 
   classical
   cases nonempty_fintype ι
   rw [← Finset.sup_univ_eq_iSup]
-  exact Finset.univ.induction_on zero fun i _ _ ih => by rw [Finset.sup_insert]; exact (hL i).add ih
+  refine Finset.univ.induction_on zero fun i _ _ ih => ?_
+  rw [Finset.sup_insert]
+  exact (hL i).add ih
 
 /-- A finite intersection of star-free languages is star-free. -/
 theorem iInf {ι : Type*} [Finite ι] {L : ι → _root_.Language α} (hL : ∀ i, IsStarFree (L i)) :
@@ -223,20 +234,23 @@ theorem iInf {ι : Type*} [Finite ι] {L : ι → _root_.Language α} (hL : ∀ 
 
 /-- Star-free languages are regular. -/
 theorem isRegular {L : _root_.Language α} (h : IsStarFree L) : L.IsRegular :=
-  let ⟨e, he⟩ := h; he ▸ e.isRegular_matches'
+  let ⟨e, he⟩ := h
+  he ▸ e.isRegular_matches'
 
 /-- Over a finite alphabet, the words of length one form a star-free language, the finite union
 of the letters. -/
 theorem setOf_length_eq_one [Finite α] : IsStarFree {w : List α | w.length = 1} := by
   suffices (⨆ a : α, ({[a]} : _root_.Language α)) = {w | w.length = 1} from this ▸ iSup char
-  ext w; change w ∈ ⨆ a : α, ({[a]} : _root_.Language α) ↔ w.length = 1
+  ext w
+  change w ∈ ⨆ a : α, ({[a]} : _root_.Language α) ↔ w.length = 1
   simp [Language.mem_iSup, List.length_eq_one_iff]
 
 /-- Over a finite alphabet, `{ε}` is star-free: it is the complement of `⊤ · Σ`. -/
 theorem one [Finite α] : IsStarFree (1 : _root_.Language α) := by
   let S : _root_.Language α := {w | w.length = 1}
   suffices (⊤ * S)ᶜ = (1 : _root_.Language α) from this ▸ (top.mul setOf_length_eq_one).compl
-  ext w; rw [Language.mem_one]
+  ext w
+  rw [Language.mem_one]
   refine ⟨fun h => (List.eq_nil_or_concat w).resolve_right fun ⟨x, b, hw⟩ =>
     h (hw ▸ Language.mem_mul.2 ⟨x, trivial, [b], rfl, List.concat_eq_append.symm⟩), ?_⟩
   rintro rfl h
@@ -250,9 +264,11 @@ theorem singleton [Finite α] (w : List α) : IsStarFree ({w} : _root_.Language 
   | nil => exact one
   | cons a w ih =>
     suffices ({[a]} * {w} : _root_.Language α) = {a :: w} from this ▸ (char a).mul ih
-    ext u; rw [Language.mem_mul]
-    exact ⟨by rintro ⟨_, rfl : _ = [a], _, rfl : _ = w, rfl⟩; rfl,
-      fun hu : u = a :: w => ⟨[a], rfl, w, rfl, hu.symm⟩⟩
+    ext u
+    rw [Language.mem_mul]
+    refine ⟨?_, fun hu : u = a :: w => ⟨[a], rfl, w, rfl, hu.symm⟩⟩
+    rintro ⟨_, rfl : _ = [a], _, rfl : _ = w, rfl⟩
+    rfl
 
 /-- Over a finite alphabet, every finite language is star-free, as a finite union of one-word
 languages. -/
@@ -261,7 +277,8 @@ theorem of_finite [Finite α] {L : _root_.Language α} (hL : Set.Finite (L : Set
   have := hL.to_subtype
   suffices (⨆ v : {w // w ∈ L}, ({v.1} : _root_.Language α)) = L from
     this ▸ iSup fun v => singleton v.1
-  ext w; simp [Language.mem_iSup]
+  ext w
+  simp [Language.mem_iSup]
 
 end IsStarFree
 

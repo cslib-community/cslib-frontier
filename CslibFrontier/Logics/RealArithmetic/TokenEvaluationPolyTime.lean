@@ -121,15 +121,15 @@ theorem evalTokenStack_polyTime {γ : Type} {enc : γ ↪ List Bool}
   refine (foldlWith (encA := encTermToken) (step := step) id'
     ((listReverse encTermToken).comp ht) (.const (some [])) hstep hsize ?_).of_enc_eq fun a => ?_
   · intro a i hi
+    let suffix := ((tokens a).reverse.take i).reverse
     rw [List.foldl_eq_foldr_reverse]
-    change (stackEnc (evalTokenStack (modulus a) (point a)
-      (((tokens a).reverse.take i).reverse) [])).length ≤ _
-    cases h : evalTokenStack (modulus a) (point a) (((tokens a).reverse.take i).reverse) [] with
+    change (stackEnc (evalTokenStack (modulus a) (point a) suffix [])).length ≤ _
+    cases h : evalTokenStack (modulus a) (point a) suffix [] with
     | none => exact Nat.zero_le _
     | some residues =>
-      obtain ⟨hentries, hresidues⟩ := evalTokenStack_bounds (hpos a) (point a) _ (by simp) h
+      obtain ⟨hentries, hresidues⟩ := evalTokenStack_bounds (hpos a) (point a) suffix (by simp) h
       have hcount : residues.length ≤ (encList encTermToken (tokens a)).length :=
-        (by simpa using hentries : residues.length ≤ _).trans <|
+        (by simpa using hentries : residues.length ≤ suffix.length).trans <|
           ((List.length_reverse.trans_le (List.length_take_le _ _)).trans
             (by simpa [List.length_reverse] using hi)).trans
             (SizedListEncoding.length_le encTermToken (encL := encList encTermToken) (tokens a))
@@ -138,7 +138,8 @@ theorem evalTokenStack_polyTime {γ : Type} {enc : γ ↪ List Bool}
       exact Nat.add_le_add_right (hbits.trans (Nat.mul_le_mul_right _ hcount)) 1
   · change stackEnc (evalTokenStack (modulus a) (point a) (tokens a) []) =
       stackEnc ((tokens a).reverse.foldl (step a) (some []))
-    rw [List.foldl_reverse]; rfl
+    rw [List.foldl_reverse]
+    rfl
 
 /-- Evaluate a raw term word using natural-number variable ranks and zero-padded coordinates.
 Return a residue only if strict token decoding and stack evaluation leave a singleton stack. -/
@@ -160,14 +161,17 @@ private theorem exists_terms_of_evalTokenStack {n p : ℕ} (point : List ℕ)
       terms.flatMap (fun t => (encTerm_tokens n t).map TermToken.ofFin) = tokens ∧
       terms.map (evalResidue p point) = residues := by
   induction tokens generalizing residues with
-  | nil => cases h; exact ⟨[], rfl, rfl⟩
+  | nil =>
+    cases h
+    exact ⟨[], rfl, rfl⟩
   | cons token tokens ih =>
     obtain ⟨intermediate, htail, hstep⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨terms, htokens, rfl⟩ := ih (fun i hi => hrank i (List.mem_cons_of_mem _ hi)) htail
     rcases token with z | i | ⟨⟩ | ⟨⟩
-    · cases hstep; exact ⟨.const z :: terms, congrArg (_ :: ·) htokens, rfl⟩
-    · cases hstep; exact ⟨.var ⟨i, hrank i List.mem_cons_self⟩ :: terms,
-        congrArg (_ :: ·) htokens, rfl⟩
+    · cases hstep
+      exact ⟨.const z :: terms, congrArg (_ :: ·) htokens, rfl⟩
+    · cases hstep
+      exact ⟨.var ⟨i, hrank i List.mem_cons_self⟩ :: terms, congrArg (_ :: ·) htokens, rfl⟩
     · rcases terms with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> cases hstep
       exact ⟨.add l r :: rest, by
         simpa [encTerm_tokens, TermToken.ofFin, List.append_assoc] using
