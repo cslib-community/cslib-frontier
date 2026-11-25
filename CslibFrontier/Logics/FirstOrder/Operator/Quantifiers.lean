@@ -45,37 +45,20 @@ variable {L : Language.{u, v}} {O : Type s} {shape : O → Shape}
   induction n generalizing α with
   | zero =>
     simp only [exs, realize_relabel]
-    constructor
-    · intro h
-      refine ⟨Fin.elim0, ?_⟩
-      convert h using 1
-      funext y
-      cases y with
-      | inl a => rfl
-      | inr i => exact i.elim0
-    · rintro ⟨xs, h⟩
-      convert h using 1
-      funext y
-      cases y with
-      | inl a => rfl
-      | inr i => exact i.elim0
+    have h (xs : Fin 0 → M) : v ∘ Sum.elim id Fin.elim0 = Sum.elim v xs :=
+      funext fun | .inl _ => rfl | .inr i => i.elim0
+    exact ⟨fun hx => ⟨Fin.elim0, h _ ▸ hx⟩, fun ⟨xs, hx⟩ => h xs ▸ hx⟩
   | succ n ih =>
     fo_simp [exs, ih]
-    constructor
-    · rintro ⟨x, xs, h⟩
-      refine ⟨Fin.cons x xs, ?_⟩
-      convert h using 1
-      funext y
-      cases y with
-      | inl a => rfl
-      | inr i => exact Fin.cases rfl (fun _ => rfl) i
-    · rintro ⟨xs, h⟩
-      refine ⟨xs 0, Fin.tail xs, ?_⟩
-      convert h using 1
-      funext y
-      cases y with
-      | inl a => rfl
-      | inr i => exact Fin.cases rfl (fun _ => rfl) i
+    have h (x : M) (xs : Fin n → M) :
+        (fun y => Sum.elim (fun o => o.elim x v) xs
+          (Sum.elim (fun a => Sum.inl (some a)) (Fin.cases (Sum.inl none) Sum.inr) y)) =
+          Sum.elim v (Fin.cons x xs) :=
+      funext fun | .inl _ => rfl | .inr i => Fin.cases rfl (fun _ => rfl) i
+    refine ⟨fun ⟨x, xs, hx⟩ => ⟨Fin.cons x xs, h x xs ▸ hx⟩, fun ⟨xs, hx⟩ => ?_⟩
+    refine ⟨xs 0, Fin.tail xs, ?_⟩
+    rw [h, Fin.cons_self_tail]
+    exact hx
 
 /-- Quantifying a tuple leaves the formation check unchanged. -/
 @[simp] theorem wellFormed_exs (policy : Policy shape) (n : ℕ)
