@@ -108,41 +108,30 @@ theorem negTriBlockExp_pow_le {n : ℕ} (hn : n ≠ 0) : (2 ^ negTriBlockExp n) 
   exact (Nat.pow_le_pow_right two_pos (Nat.div_mul_le_self _ _)).trans (Nat.pow_log_le_self 2 hn)
 
 theorem lt_eight_mul_negTriBlockExp_pow (n : ℕ) : n < 8 * (2 ^ negTriBlockExp n) ^ 3 := by
-  rw [← pow_mul, show (8 : ℕ) = 2 ^ 3 from rfl, ← pow_add]
-  refine (Nat.lt_pow_succ_log_self one_lt_two n).trans_le (Nat.pow_le_pow_right two_pos ?_)
-  rw [negTriBlockExp]
-  omega
+  rw [← pow_mul, show (8 : ℕ) = 2 ^ 3 from rfl, ← pow_add, negTriBlockExp]
+  exact (Nat.lt_pow_succ_log_self one_lt_two n).trans_le (Nat.pow_le_pow_right two_pos (by omega))
 
 /-- The number of calls of the finder: `t ^ 3 + (t 2 ^ L) ^ 2 ≤ 68 n ^ 2` for `n ≥ 1`. -/
 theorem negTriBlocks_calls_le {n : ℕ} (hn : n ≠ 0) :
     negTriBlocks n ^ 3 + (negTriBlocks n * 2 ^ negTriBlockExp n) ^ 2 ≤ 68 * n ^ 2 := by
   have h1 := negTriBlockExp_pow_le hn
   have h2 := lt_eight_mul_negTriBlockExp_pow n
-  have hs : 1 ≤ 2 ^ negTriBlockExp n := Nat.one_le_two_pow
   have hts : negTriBlocks n * 2 ^ negTriBlockExp n ≤ 2 * n := by
     have := Nat.div_mul_le_self n (2 ^ negTriBlockExp n)
     have : 2 ^ negTriBlockExp n ≤ (2 ^ negTriBlockExp n) ^ 3 := Nat.le_self_pow (by norm_num) _
     rw [negTriBlocks, add_mul, one_mul]
     omega
   generalize negTriBlocks n = t at hts ⊢
-  generalize 2 ^ negTriBlockExp n = s at h1 h2 hs hts ⊢
-  have hn' : 0 < n := Nat.pos_of_ne_zero hn
+  generalize 2 ^ negTriBlockExp n = s at h1 h2 hts ⊢
   have ht3 : t ^ 3 < 64 * n ^ 2 := by
-    have h3 : (t * s) ^ 3 ≤ (2 * n) ^ 3 := Nat.pow_le_pow_left hts 3
-    have h4 : t ^ 3 * n < t ^ 3 * (8 * s ^ 3) ∨ t = 0 := by
-      rcases Nat.eq_zero_or_pos t with ht | ht
-      · exact .inr ht
-      · exact .inl (Nat.mul_lt_mul_of_pos_left h2 (pow_pos ht _))
-    rcases h4 with h4 | rfl
-    · refine Nat.lt_of_mul_lt_mul_right (a := n) ?_
-      calc t ^ 3 * n < t ^ 3 * (8 * s ^ 3) := h4
-        _ = 8 * (t * s) ^ 3 := by ring
-        _ ≤ 8 * (2 * n) ^ 3 := Nat.mul_le_mul_left _ h3
-        _ = 64 * n ^ 2 * n := by ring
+    rcases Nat.eq_zero_or_pos t with rfl | ht
     · positivity
-  have hts2 : (t * s) ^ 2 ≤ 4 * n ^ 2 := by
-    calc (t * s) ^ 2 ≤ (2 * n) ^ 2 := Nat.pow_le_pow_left hts 2
-      _ = 4 * n ^ 2 := by ring
+    refine Nat.lt_of_mul_lt_mul_right (a := n) ?_
+    calc t ^ 3 * n < t ^ 3 * (8 * s ^ 3) := Nat.mul_lt_mul_of_pos_left h2 (pow_pos ht _)
+      _ = 8 * (t * s) ^ 3 := by ring
+      _ ≤ 8 * (2 * n) ^ 3 := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hts 3)
+      _ = 64 * n ^ 2 * n := by ring
+  have hts2 : (t * s) ^ 2 ≤ 4 * n ^ 2 := (Nat.pow_le_pow_left hts 2).trans_eq (by ring)
   omega
 
 /-! ### The reduction -/
@@ -206,9 +195,8 @@ theorem cost_minPlusViaNegTri_le {T : Type} [AddCommMonoid T] [PartialOrder T]
         (negTriBlocks n * 2 ^ negTriBlockExp n) ^ 2) • findNegTriCost τ (negTriBlockExp n)) := by
   refine cost_minPlusViaAPNT_le oracle weight W fun C => ?_
   rw [cost_padAPNT]
-  refine (cost_allPairsNegTri_le oracle weight (findNegTriCost_nonneg hτ _)
-    (cost_findNegTri_le oracle weight hτ hdet _) _ _ _).trans (le_of_eq ?_)
-  rw [Fintype.card_fin]
+  simpa only [Fintype.card_fin] using cost_allPairsNegTri_le oracle weight
+    (findNegTriCost_nonneg hτ _) (cost_findNegTri_le oracle weight hτ hdet _) _ _ _
 
 /-! ### The exponent -/
 
@@ -219,20 +207,18 @@ theorem findNegTriCost_rpow_le {c e : ℝ} (hc : 0 ≤ c) (he : 1 ≤ e) (L : �
     findNegTriCost (fun m : ℕ => c * (m : ℝ) ^ e) L ≤ 8 * c * ((2 ^ L : ℕ) : ℝ) ^ e := by
   have hx : (2 : ℝ) ≤ (2 : ℝ) ^ e := by
     simpa using Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) he
-  have hpow : ∀ l : ℕ, ((2 ^ l : ℕ) : ℝ) ^ e = ((2 : ℝ) ^ e) ^ l := fun l => by
+  have hpow (l : ℕ) : ((2 ^ l : ℕ) : ℝ) ^ e = ((2 : ℝ) ^ e) ^ l := by
     rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, ← Real.rpow_mul (by norm_num),
       mul_comm, Real.rpow_mul (by norm_num), Real.rpow_natCast]
   induction L with
   | zero =>
-    rw [findNegTriCost_zero, pow_zero, Nat.cast_one, Real.one_rpow, mul_one, mul_one]
+    simp only [findNegTriCost_zero, pow_zero, Nat.cast_one, Real.one_rpow, mul_one]
     linarith
   | succ L ih =>
     rw [findNegTriCost_succ, nsmul_eq_mul, hpow, hpow] at *
     rw [pow_succ]
-    have h0 : 0 ≤ ((2 : ℝ) ^ e) ^ L := pow_nonneg (by positivity) _
-    have h1 : 0 ≤ c * ((2 : ℝ) ^ e) ^ L := mul_nonneg hc h0
     push_cast
-    nlinarith
+    nlinarith [mul_nonneg hc (pow_nonneg (Real.rpow_nonneg zero_le_two e) L)]
 
 /-- **A truly subcubic detector gives a truly subcubic (min,+) product** (Vassilevska
 Williams–Williams, Theorem 4.2 with `T(n) = n ^ (3 - δ)`). If every call of `det m` costs at most
@@ -248,36 +234,25 @@ theorem cost_minPlusViaNegTri_le_rpow (oracle : {ι : Type} → Q ι → ι)
     (W : ℕ) {n : ℕ} (hn : n ≠ 0) (A B : Matrix (Fin n) (Fin n) (MinTropical (WithTop ℤ))) :
     (minPlusViaNegTri det W A B).cost oracle weight ≤
       544 * c * Nat.clog 2 (2 * W + 2) * (n : ℝ) ^ (3 - δ / 3) := by
-  have he : 1 ≤ 3 - δ := by linarith
-  have hτ : ∀ m : ℕ, 0 ≤ c * (m : ℝ) ^ (3 - δ) := fun m => mul_nonneg hc (by positivity)
+  have hτ (m : ℕ) : 0 ≤ c * (m : ℝ) ^ (3 - δ) := mul_nonneg hc (by positivity)
   refine (cost_minPlusViaNegTri_le oracle weight hτ hdet W A B).trans ?_
   set L := negTriBlockExp n
   set F := findNegTriCost (fun m : ℕ => c * (m : ℝ) ^ (3 - δ)) L
-  have hF0 : 0 ≤ F := findNegTriCost_nonneg hτ L
   have hF : F ≤ 8 * c * (n : ℝ) ^ ((3 - δ) / 3) := by
-    refine (findNegTriCost_rpow_le hc he L).trans (mul_le_mul_of_nonneg_left ?_ (by positivity))
-    have h3 : (((2 ^ L : ℕ) : ℝ) ^ 3) ≤ n := by exact_mod_cast negTriBlockExp_pow_le hn
-    calc ((2 ^ L : ℕ) : ℝ) ^ (3 - δ) = ((((2 ^ L : ℕ) : ℝ) ^ 3) ^ ((3 - δ) / 3)) := by
-          rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]
-          congr 1
-          push_cast
-          ring
-      _ ≤ (n : ℝ) ^ ((3 - δ) / 3) := Real.rpow_le_rpow (by positivity) h3 (by linarith)
+    refine (findNegTriCost_rpow_le hc (by linarith) L).trans
+      (mul_le_mul_of_nonneg_left ?_ (by positivity))
+    have h3 : ((2 ^ L : ℕ) : ℝ) ^ 3 ≤ n := by exact_mod_cast negTriBlockExp_pow_le hn
+    refine (le_of_eq ?_).trans (Real.rpow_le_rpow (by positivity) h3 (by linarith))
+    rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity)]
+    exact congrArg _ (by push_cast; ring)
   have hcalls : ((negTriBlocks n ^ 3 + (negTriBlocks n * 2 ^ L) ^ 2 : ℕ) : ℝ) ≤ 68 * (n : ℝ) ^ 2 :=
     by exact_mod_cast negTriBlocks_calls_le hn
   have hn' : (0 : ℝ) < n := by exact_mod_cast Nat.pos_of_ne_zero hn
-  have hexp : (n : ℝ) ^ (3 - δ / 3) = (n : ℝ) ^ 2 * (n : ℝ) ^ ((3 - δ) / 3) := by
-    rw [← Real.rpow_natCast, ← Real.rpow_add hn']
-    congr 1
-    push_cast
-    ring
-  rw [nsmul_eq_mul, nsmul_eq_mul, hexp]
-  have hk : (0 : ℝ) ≤ Nat.clog 2 (2 * W + 2) := Nat.cast_nonneg _
-  calc (Nat.clog 2 (2 * W + 2) : ℝ) * (((negTriBlocks n ^ 3 + (negTriBlocks n * 2 ^ L) ^ 2 : ℕ) :
-          ℝ) * F)
-      ≤ (Nat.clog 2 (2 * W + 2) : ℝ) * ((68 * (n : ℝ) ^ 2) * (8 * c * (n : ℝ) ^ ((3 - δ) / 3))) :=
-        mul_le_mul_of_nonneg_left (mul_le_mul hcalls hF hF0 (by positivity)) hk
-    _ = 544 * c * Nat.clog 2 (2 * W + 2) * ((n : ℝ) ^ 2 * (n : ℝ) ^ ((3 - δ) / 3)) := by ring
+  rw [nsmul_eq_mul, nsmul_eq_mul, show (n : ℝ) ^ (3 - δ / 3) =
+      (n : ℝ) ^ 2 * (n : ℝ) ^ ((3 - δ) / 3) by
+    rw [← Real.rpow_natCast, ← Real.rpow_add hn']; exact congrArg _ (by push_cast; ring)]
+  exact (mul_le_mul_of_nonneg_left (mul_le_mul hcalls hF
+    (findNegTriCost_nonneg hτ L) (by positivity)) (Nat.cast_nonneg _)).trans_eq (by ring)
 
 end Reduction
 

@@ -105,15 +105,15 @@ private theorem map_snd_strong (ext : Input → Seed → Output) (source : PMF I
 
 /-- **Strong extractors are extractors**: discarding the revealed seed cannot increase statistical
 distance. -/
-theorem IsStrongExtractor.isExtractor (h : IsStrongExtractor ext k ε) : IsExtractor ext k ε := by
-  intro source hsource
-  have huniform : (PMF.uniformOfFintype (Seed × Output)).map Prod.snd =
-      PMF.uniformOfFintype Output := by
-    rw [← uniformOfFintype_prod, PMF.map_bind]
-    simp only [PMF.map_comp, Function.comp_def]
-    exact PMF.bind_const _ _ |>.trans (PMF.map_id _)
-  rw [← map_snd_strong, ← huniform]
-  exact (dist_map_le _ _ Prod.snd).trans (h source hsource)
+theorem IsStrongExtractor.isExtractor (h : IsStrongExtractor ext k ε) : IsExtractor ext k ε :=
+  fun source hsource => by
+    have huniform : (PMF.uniformOfFintype (Seed × Output)).map Prod.snd =
+        PMF.uniformOfFintype Output := by
+      rw [← uniformOfFintype_prod, PMF.map_bind]
+      simp only [PMF.map_comp, Function.comp_def]
+      exact (PMF.bind_const _ _).trans (PMF.map_id _)
+    rw [← map_snd_strong, ← huniform]
+    exact (dist_map_le _ _ Prod.snd).trans (h source hsource)
 
 variable [Fintype Input]
 
@@ -122,24 +122,21 @@ output within `δ + ε` of uniform. -/
 theorem IsExtractor.dist_le_of_isSource (h : IsExtractor ext k ε) {source : PMF Input}
     {δ : ℝ≥0} (hsource : IsSource source k δ) :
     dist (source.bind fun x => (PMF.uniformOfFintype Seed).map fun s => ext x s)
-      (PMF.uniformOfFintype Output) ≤ δ + ε := by
-  obtain ⟨close, hclose, hdist⟩ := hsource
-  refine (dist_triangle _
-    (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => ext x s) _).trans
-    (add_le_add ?_ (h close hclose))
-  exact (dist_bind_le source close _).trans hdist
+      (PMF.uniformOfFintype Output) ≤ δ + ε :=
+  let ⟨close, hclose, hdist⟩ := hsource
+  (dist_triangle _ (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => ext x s) _).trans
+    (add_le_add ((dist_bind_le source close _).trans hdist) (h close hclose))
 
 /-- **Strong extraction from `(k, δ)`-sources.** A strong `(k, ε)`-extractor applied to a
 `(k, δ)`-source gives a seed and output within `δ + ε` of a uniform pair. -/
 theorem IsStrongExtractor.dist_le_of_isSource (h : IsStrongExtractor ext k ε)
     {source : PMF Input} {δ : ℝ≥0} (hsource : IsSource source k δ) :
     dist (source.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s))
-      (PMF.uniformOfFintype (Seed × Output)) ≤ δ + ε := by
-  obtain ⟨close, hclose, hdist⟩ := hsource
-  refine (dist_triangle _
-    (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s)) _).trans
-    (add_le_add ?_ (h close hclose))
-  exact (dist_bind_le source close _).trans hdist
+      (PMF.uniformOfFintype (Seed × Output)) ≤ δ + ε :=
+  let ⟨close, hclose, hdist⟩ := hsource
+  (dist_triangle _
+      (close.bind fun x => (PMF.uniformOfFintype Seed).map fun s => (s, ext x s)) _).trans
+    (add_le_add ((dist_bind_le source close _).trans hdist) (h close hclose))
 
 /-! ### Seedless extraction is impossible -/
 
@@ -149,7 +146,6 @@ theorem exists_minEntropy_map_eq_pure_bool [Nonempty Input] (f : Input → Bool)
       Real.logb 2 (Fintype.card Input) - 1 ≤ minEntropy source ∧
       source.map f = PMF.pure b := by
   classical
-  -- One of the two preimages of `f` contains at least half of the inputs.
   obtain ⟨b, hb⟩ : ∃ b : Bool,
       Fintype.card Input ≤ 2 * (Finset.univ.filter fun x => f x = b).card := by
     have hsplit := Finset.card_filter_add_card_filter_not
@@ -159,31 +155,24 @@ theorem exists_minEntropy_map_eq_pure_bool [Nonempty Input] (f : Input → Bool)
     · exact ⟨true, ht⟩
     · exact ⟨false, by omega⟩
   set T := Finset.univ.filter fun x => f x = b
-  have hT : T.Nonempty := by
-    rw [← Finset.card_pos]
-    have := Fintype.card_pos (α := Input)
-    omega
-  have hentropy : Real.logb 2 (Fintype.card Input) - 1 ≤ minEntropy (uniformOfFinset T hT) := by
-    rw [minEntropy_uniformOfFinset]
-    have hcard : (0 : ℝ) < Fintype.card Input := by exact_mod_cast Fintype.card_pos
-    have hle : (Fintype.card Input : ℝ) ≤ 2 * T.card := by exact_mod_cast hb
-    have hTpos : (0 : ℝ) < T.card := by exact_mod_cast hT.card_pos
-    have hlog : Real.logb 2 (Fintype.card Input) ≤ Real.logb 2 (2 * T.card) :=
-      Real.logb_le_logb_of_le (by norm_num) hcard hle
-    rw [Real.logb_mul (by norm_num) hTpos.ne', Real.logb_self_eq_one (by norm_num)] at hlog
+  have hT : T.Nonempty := Finset.card_pos.mp (by have := Fintype.card_pos (α := Input); omega)
+  refine ⟨uniformOfFinset T hT, b, ?_, ?_⟩
+  · rw [minEntropy_uniformOfFinset]
+    have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
+      (by exact_mod_cast Fintype.card_pos)
+      (by exact_mod_cast hb : (Fintype.card Input : ℝ) ≤ 2 * T.card)
+    rw [Real.logb_mul (by norm_num) (by exact_mod_cast hT.card_pos.ne'),
+      Real.logb_self_eq_one (by norm_num)] at hlog
     linarith
-  refine ⟨uniformOfFinset T hT, b, hentropy, ?_⟩
-  rw [PMF.map]
-  ext b'
-  rw [PMF.bind_apply]
-  calc
-    ∑' x, (uniformOfFinset T hT) x * PMF.pure (f x) b' =
-        ∑' x, (uniformOfFinset T hT) x * PMF.pure b b' := tsum_congr fun x => by
-      by_cases hx : x ∈ T
-      · rw [(Finset.mem_filter.mp hx).2]
-      · rw [(PMF.apply_eq_zero_iff _ x).mpr (by rwa [mem_support_uniformOfFinset_iff]),
-          zero_mul, zero_mul]
-    _ = PMF.pure b b' := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  · rw [PMF.map]
+    ext b'
+    rw [PMF.bind_apply]
+    refine (tsum_congr (g := fun x => (uniformOfFinset T hT) x * PMF.pure b b') fun x => ?_).trans
+      (by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul])
+    by_cases hx : x ∈ T
+    · rw [Function.comp_apply, (Finset.mem_filter.mp hx).2]
+    · rw [(PMF.apply_eq_zero_iff _ x).mpr (by rwa [mem_support_uniformOfFinset_iff]),
+        zero_mul, zero_mul]
 
 /-- **Seedless extraction fails.** With a seed carrying no randomness, no function to `Bool` is a
 `(log₂ |Input| - 1, ε)`-extractor for `ε < 1 / 2`: some output value `b` has at least half of the
@@ -198,15 +187,12 @@ theorem not_isExtractor_bool_of_subsingleton [Nonempty Input] [Subsingleton Seed
   obtain ⟨source, b, hentropy, hmap⟩ := exists_minEntropy_map_eq_pure_bool (fun x => ext x s₀)
   have hseed : PMF.uniformOfFintype Seed = PMF.pure s₀ := by
     ext s
-    have hcard : Fintype.card Seed = 1 :=
-      Fintype.card_eq_one_iff.mpr ⟨s₀, fun y => Subsingleton.elim y s₀⟩
     rw [Subsingleton.elim s s₀]
-    simp [hcard]
-  have hconst : (source.bind fun x =>
-      (PMF.uniformOfFintype Seed).map fun s => ext x s) = PMF.pure b := by
-    simpa only [hseed, PMF.map, PMF.pure_bind, Function.comp_def] using hmap
+    simp [Fintype.card_eq_one_iff.mpr ⟨s₀, fun y => Subsingleton.elim y s₀⟩]
   have hdist := h _ hentropy
-  rw [hconst, dist_uniformOfFintype_bool] at hdist
+  rw [show (source.bind fun x => (PMF.uniformOfFintype Seed).map fun s => ext x s) = PMF.pure b by
+      simpa only [hseed, PMF.map, PMF.pure_bind, Function.comp_def] using hmap,
+    dist_uniformOfFintype_bool] at hdist
   cases b <;> norm_num at hdist <;> linarith
 
 /-- Explicit seedless impossibility on bit strings: a source of real min-entropy at least
@@ -221,18 +207,16 @@ theorem exists_minEntropy_map_first_eq_pure {n m : ℕ} (_hn : 1 ≤ n) (hm : 1 
       1 / 2 ≤ dist (source.map f) (PMF.uniformOfFintype (BitString m)) := by
   obtain ⟨source, b, hentropy, hmap⟩ :=
     exists_minEntropy_map_eq_pure_bool (fun x => f x ⟨0, hm⟩)
-  have hcard : Real.logb 2 (Fintype.card (BitString n)) = n := by
-    simp [Real.logb_pow, Real.logb_self_eq_one]
-  rw [hcard] at hentropy
+  rw [show Real.logb 2 (Fintype.card (BitString n)) = n by
+    simp [Real.logb_pow, Real.logb_self_eq_one]] at hentropy
   have hfirst : (source.map f).map (fun y => y ⟨0, hm⟩) = PMF.pure b := by
     simpa only [PMF.map_comp, Function.comp_def] using hmap
   refine ⟨source, b, hentropy, hfirst, ?_⟩
-  have huniform : (PMF.uniformOfFintype (BitString m)).map (fun y => y ⟨0, hm⟩) =
-      PMF.uniformOfFintype Bool := by
-    rw [← pi_uniformOfFintype, pi_map_eval]
   have hdist := dist_map_le (source.map f) (PMF.uniformOfFintype (BitString m))
     (fun y => y ⟨0, hm⟩)
-  rw [hfirst, huniform, dist_uniformOfFintype_bool] at hdist
+  rw [hfirst, show (PMF.uniformOfFintype (BitString m)).map (fun y => y ⟨0, hm⟩) =
+      PMF.uniformOfFintype Bool by rw [← pi_uniformOfFintype, pi_map_eval],
+    dist_uniformOfFintype_bool] at hdist
   cases b <;> norm_num at hdist ⊢ <;> exact hdist
 
 /-- With a singleton seed, no positive-length bit-string map extracts at error below `1 / 2`
@@ -241,10 +225,10 @@ theorem not_isExtractor_bitString {n m : ℕ} (hn : 1 ≤ n) (hm : 1 ≤ m)
     (f : BitString n → BitString m) (hε : ε < 1 / 2) :
     ¬ IsExtractor (fun x (_ : Unit) => f x) ((n : ℝ) - 1) ε := by
   intro h
-  obtain ⟨source, b, hentropy, _, hdist⟩ := exists_minEntropy_map_first_eq_pure hn hm f
+  obtain ⟨source, _, hentropy, _, hdist⟩ := exists_minEntropy_map_first_eq_pure hn hm f
   have hupper := h source hentropy
-  have hunit : PMF.uniformOfFintype Unit = PMF.pure () := by ext u; simp
-  simp only [hunit, PMF.map, PMF.pure_bind, Function.comp_def] at hupper
+  rw [show PMF.uniformOfFintype Unit = PMF.pure () by ext; simp] at hupper
+  simp only [PMF.map, PMF.pure_bind, Function.comp_def] at hupper
   change dist (source.map f) _ ≤ ε at hupper
   linarith
 

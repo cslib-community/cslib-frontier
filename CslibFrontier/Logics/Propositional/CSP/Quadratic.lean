@@ -104,10 +104,8 @@ theorem mem_vars {e : QuadEquation V} {v : V} :
 /-- Satisfaction depends only on the variables of the equation. -/
 theorem holds_congr {e : QuadEquation V} {a b : V → Bool} (h : ∀ v ∈ e.vars, a v = b v) :
     e.Holds a ↔ e.Holds b := by
-  have hmap : (e.terms.map fun p => a p.1 * a p.2) = e.terms.map fun p => b p.1 * b p.2 :=
-    List.map_congr_left fun p hp => by
-      rw [h p.1 (mem_vars.2 ⟨p, hp, .inl rfl⟩), h p.2 (mem_vars.2 ⟨p, hp, .inr rfl⟩)]
-  rw [Holds, Holds, hmap]
+  rw [Holds, Holds, List.map_congr_left fun p hp => by
+    rw [h p.1 (mem_vars.2 ⟨p, hp, .inl rfl⟩), h p.2 (mem_vars.2 ⟨p, hp, .inr rfl⟩)]]
 
 /-- A relabelled equation holds exactly when the original holds under the composed
 assignment. -/
@@ -194,29 +192,23 @@ equations' defects. -/
 theorem holds_linearCombination_iff (F : QuadSystem V) (r : List Bool) (a : V → Bool) :
     (F.linearCombination r).Holds a ↔
       Even #{i : Fin F.length | ¬F[i].Holds a ∧ r.getD i false = true} := by
+  let : CharP Bool 2 := CharTwo.of_one_ne_zero_of_two_eq_zero (by decide) (by decide)
   have hlhs : ((F.linearCombination r).terms.map fun p => a p.1 * a p.2).sum =
       ∑ i : Fin F.length, if r.getD i false then (F[i].terms.map fun p => a p.1 * a p.2).sum
         else 0 := by
     rw [← sum_map_filter_zip (fun e : QuadEquation V => (e.terms.map fun p => a p.1 * a p.2).sum)]
     simp only [linearCombination, List.flatMap, List.map_flatten, List.sum_flatten, List.map_map]
     rfl
-  have hrhs : (F.linearCombination r).rhs =
-      ∑ i : Fin F.length, if r.getD i false then F[i].rhs else 0 := by
-    rw [← sum_map_filter_zip QuadEquation.rhs F r]
-    rfl
-  have hterm (i : Fin F.length) :
-      ((if r.getD i false then (F[i].terms.map fun p => a p.1 * a p.2).sum else 0) +
-        if r.getD i false then F[i].rhs else 0) =
-        if ¬F[i].Holds a ∧ r.getD i false = true then 1 else 0 := by
-    have key : ∀ b x y : Bool,
-        ((if b then x else 0) + if b then y else 0) = if ¬x = y ∧ b = true then 1 else 0 := by
-      decide
-    exact key _ _ _
-  have hiff : ∀ x y : Bool, x = y ↔ x + y = 0 := by decide
-  let : CharP Bool 2 := CharTwo.of_one_ne_zero_of_two_eq_zero (by decide) (by decide)
-  rw [QuadEquation.Holds, hlhs, hrhs, hiff, ← Finset.sum_add_distrib, Finset.sum_congr rfl
-    fun i _ => hterm i, Finset.sum_boole, CharTwo.natCast_eq_ite]
-  simp
+  rw [QuadEquation.Holds, hlhs, show (F.linearCombination r).rhs =
+      ∑ i : Fin F.length, if r.getD i false then F[i].rhs else 0 by
+      rw [← sum_map_filter_zip QuadEquation.rhs F r]; rfl,
+    (by decide : ∀ x y : Bool, x = y ↔ x + y = 0), ← Finset.sum_add_distrib,
+    Finset.sum_congr rfl fun (i : Fin F.length) _ =>
+      (by decide : ∀ b x y : Bool, ((if b then x else 0) + if b then y else 0) =
+        if ¬x = y ∧ b = true then 1 else 0) (r.getD i false)
+          ((F[i].terms.map fun p => a p.1 * a p.2).sum) F[i].rhs,
+    Finset.sum_boole, CharTwo.natCast_eq_ite]
+  simp [QuadEquation.Holds]
 
 end QuadSystem
 
@@ -281,15 +273,13 @@ private theorem chain_eq {σ : V → Bool} {c : Clause V} {z : ℕ → Bool} (h0
 /-- The equations of a clause force it to hold under the assignment of the formula variables. -/
 theorem eval_of_holds_clauseQuadSystem {i : ℕ} {c : Clause V} {a : V ⊕ ℕ × ℕ → Bool}
     (h : (clauseQuadSystem i c).Holds a) : Clause.eval (a ∘ Sum.inl) c = true := by
-  have hmem (e) (he : e ∈ c.zipIdx.map fun p => stepEq i p.2 p.1) : e.Holds a :=
-    h e (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ he))
   have hchain := chain_eq (σ := a ∘ Sum.inl) (z := fun t => a (auxVar i t))
-    ((holds_auxEq ..).1 (h _ List.mem_cons_self)) (fun t ht => (holds_stepEq ..).1 <|
-      hmem _ (List.mem_map.2 ⟨(c[t], t), List.mem_zipIdx_iff_getElem?.2 (by simp [ht]), rfl⟩))
+    ((holds_auxEq ..).1 (h _ List.mem_cons_self))
+    (fun t ht => (holds_stepEq ..).1 <| h _ <| List.mem_cons_of_mem _ <| List.mem_cons_of_mem _ <|
+      List.mem_map.2 ⟨(c[t], t), List.mem_zipIdx_iff_getElem?.2 (by simp [ht]), rfl⟩)
     c.length c.length.le_refl
-  have hend := (holds_auxEq ..).1 (h _ (List.mem_cons_of_mem _ List.mem_cons_self))
   rw [List.take_length] at hchain
-  simpa [hend] using hchain.symm
+  simpa [(holds_auxEq ..).1 (h _ (List.mem_cons_of_mem _ List.mem_cons_self))] using hchain.symm
 
 /-- If the auxiliary variables of a clause record its literal prefixes and the clause holds, then
 its equations hold. -/
@@ -301,28 +291,23 @@ theorem holds_clauseQuadSystem {i : ℕ} {c : Clause V} {a : V ⊕ ℕ × ℕ �
   rcases he with rfl | rfl | ⟨⟨l, t⟩, hp, rfl⟩
   · simp [haux, Clause.eval]
   · simp [haux, hc]
-  · have ht : c[t]? = some l := List.mem_zipIdx_iff_getElem?.1 hp
-    have hlt : t < c.length := (List.getElem?_eq_some_iff.1 ht).1
-    rw [holds_stepEq, haux, haux, List.take_add_one, ht]
+  · rw [holds_stepEq, haux, haux, List.take_add_one, List.mem_zipIdx_iff_getElem?.1 hp]
     simp [Clause.eval]
 
 /-- **A formula is satisfiable exactly when its quadratic system is.** -/
 theorem satisfiable_toQuadSystem (φ : CNF V) : (toQuadSystem φ).Satisfiable ↔ φ.Satisfiable := by
-  constructor
-  · rintro ⟨a, ha⟩
-    refine ⟨a ∘ Sum.inl, (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_⟩
-    obtain ⟨i, hi⟩ := List.mem_iff_getElem?.1 hc
+  refine ⟨fun ⟨a, ha⟩ => ⟨a ∘ Sum.inl, (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_⟩,
+    fun ⟨σ, hσ⟩ => ?_⟩
+  · obtain ⟨i, hi⟩ := List.mem_iff_getElem?.1 hc
     exact eval_of_holds_clauseQuadSystem fun e he => ha e <| List.mem_flatMap.2
       ⟨(c, i), List.mem_zipIdx_iff_getElem?.2 hi, he⟩
-  · rintro ⟨σ, hσ⟩
-    let a : V ⊕ ℕ × ℕ → Bool :=
+  · let a : V ⊕ ℕ × ℕ → Bool :=
       Sum.elim σ fun p => !Clause.eval σ ((φ.getD p.1 []).take p.2)
     refine ⟨a, fun e he => ?_⟩
     obtain ⟨⟨c, i⟩, hp, he⟩ := List.mem_flatMap.1 he
-    have hi : φ[i]? = some c := List.mem_zipIdx_iff_getElem?.1 hp
-    have hc : Clause.eval (a ∘ Sum.inl) c = true :=
-      (CNF.eval_eq_true_iff σ φ).1 hσ c (List.mem_of_getElem? hi)
-    exact holds_clauseQuadSystem (a := a) (fun t => by simp [a, hi]) hc e he
+    have hi := List.mem_zipIdx_iff_getElem?.1 hp
+    exact holds_clauseQuadSystem (a := a) (fun t => by simp [a, hi])
+      ((CNF.eval_eq_true_iff σ φ).1 hσ c (List.mem_of_getElem? hi)) e he
 
 end CNF
 
