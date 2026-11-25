@@ -11,8 +11,12 @@ public import CslibFrontier.Init
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Graph.Lad
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import Mathlib.Combinatorics.SimpleGraph.Copy
+import CslibFrontier.Foundations.Data.List.Append
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Logic.Equiv.Fin.Basic
+-- `import all`: `name_isoNames_isoVar` and `isoNames_covers` unfold the unexposed bodies of
+-- `Names.name`, `Names.nameChars`, `Names.next`, `isNameChar` and `isOPBName`.
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! # Subgraph isomorphism as a pseudo-Boolean satisfaction problem, end to end
 
@@ -30,8 +34,8 @@ notion, which also reflects adjacency; it is not the one CakePB encodes.
 
 **The encoding** (`Cslib.Logic.PL.VeriPB.Graph.isoConstraints`, CakePB's `encode`) of a pattern
 on `Fin p` and a target on `Fin t` has the variable `xₐᵤ = Cslib.Logic.PL.VeriPB.Graph.isoVar t a u`
-(`a` is mapped to `u`) for each pattern vertex `a` and target vertex `u`, which is `x(t·a + u + 1)`
-in OPB text, and in CakePB's order:
+(`a` is mapped to `u`) for each pattern vertex `a` and target vertex `u`, named `xa_u` in OPB text
+as by CakePB (`Cslib.Logic.PL.VeriPB.Graph.isoNames`), and in CakePB's order:
 * `∑ᵤ xₐᵤ ≥ 1` for each `a` (`has_mapping_al1`), then `∑ᵤ ~xₐᵤ ≥ t - 1`, that is `∑ᵤ xₐᵤ ≤ 1`, for
   each `a` (`has_mapping_am1`);
 * `∑ₐ ~xₐᵤ ≥ p - 1`, that is `∑ₐ xₐᵤ ≤ 1`, for each `u` (`one_one`);
@@ -54,11 +58,14 @@ it is the graph of a copy of `P` in `T`
 satisfiable exactly when `P ⊑ T` (`Cslib.Logic.PL.VeriPB.Graph.exists_holds_isoConstraints_iff`).
 
 **End to end** (CakePB's `full_encode_sem_concl`). The encoding is printed as OPB text
-(`Cslib.Logic.PL.VeriPB.Text.printOPB`), and the proof is checked against that text by
-`Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`; the round trip of the printer carries the conclusion
-back to the encoding built in Lean. No theorem relates this checker to CakePB's: that a proof
-accepted here is accepted by `cake_pb_iso`, with the variables renamed, was checked only on the
-translated fixtures of the tests, including the two with the empty at-most-one rows above.
+(`Cslib.Logic.PL.VeriPB.Text.printOPB`) with CakePB's variable names, and the proof is checked
+against that text by `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`; the round trip of the printer
+carries the conclusion back to the encoding built in Lean. The text differs from `cake_pb_iso`'s
+only in its constraint labels, which it does not print, and in the form of the at-most-one rows
+above, so the constraint numbers and the variable names of a kernel proof for CakePB's encoding
+are those of this one: a proof of the Glasgow Subgraph Solver, elaborated by VeriPB against
+`cake_pb_iso`'s text, is checked here unchanged. No theorem relates this checker to CakePB's;
+their agreement was checked on the fixtures of the tests.
 A conclusion `SAT` gives `true` and `UNSAT` gives `false`; other conclusions give nothing.
 * `Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIsoGraph`: if
   `Cslib.Logic.PL.VeriPB.Graph.checkSubgraphIsoGraph P T pbp = some b`, then `P ⊑ T ↔ b = true`.
@@ -82,6 +89,8 @@ checker are verified.
 
 * `Cslib.Logic.PL.VeriPB.Graph.isoVar`, `Cslib.Logic.PL.VeriPB.Graph.isoConstraints`: the
   variables and the constraints of the encoding.
+* `Cslib.Logic.PL.VeriPB.Graph.isoName`, `Cslib.Logic.PL.VeriPB.Graph.isoNames`: CakePB's names
+  `xa_u` of the variables.
 * `Cslib.Logic.PL.VeriPB.Graph.checkSubgraphIsoGraph`,
   `Cslib.Logic.PL.VeriPB.Graph.checkSubgraphIso`: the checkers, for graphs built in Lean and for
   LAD graphs.
@@ -90,6 +99,10 @@ checker are verified.
 
 * `Cslib.Logic.PL.VeriPB.Graph.forall_holds_isoConstraints_iff`,
   `Cslib.Logic.PL.VeriPB.Graph.exists_holds_isoConstraints_iff`: correctness of the encoding.
+* `Cslib.Logic.PL.VeriPB.Graph.name_isoNames_isoVar`: the variable `xₐᵤ` is named `xa_u`.
+* `Cslib.Logic.PL.VeriPB.Graph.isoNames_covers`: CakePB's names cover the encoding, the side
+  condition of the round-trip theorems of `Cslib.Logic.PL.VeriPB.Print`, for a client that
+  applies them to the printed encoding.
 * `Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIsoGraph`,
   `Cslib.Logic.PL.VeriPB.Graph.isContained_iff_of_checkSubgraphIso`: the end-to-end theorems.
 
@@ -110,8 +123,8 @@ variable {p t : ℕ}
 /-! ### The encoding -/
 
 /-- **The variable `xₐᵤ`** of the encoding, true when the pattern vertex `a` is mapped to the
-target vertex `u`, among targets on `Fin t`: the variable `t·a + u`, written `x(t·a + u + 1)` in
-OPB text. -/
+target vertex `u`, among targets on `Fin t`: the variable `t·a + u`, written `xa_u` in OPB text
+(`Cslib.Logic.PL.VeriPB.Graph.isoName`). -/
 @[expose] def isoVar (t : ℕ) (a : Fin p) (u : Fin t) : ℕ := t * a.val + u.val
 
 /-- **The subgraph isomorphism encoding** of a pattern `P` on `Fin p` and a target `T` on `Fin t`,
@@ -184,22 +197,17 @@ private theorem forall_holds_isoConstraints_iff_aux (P : SimpleGraph (Fin p)) [D
     List.forall_mem_flatMap, List.mem_filter, decide_eq_true_eq, true_and, Holds,
     lhs_finRange, forall_const, and_assoc]
   refine and_congr Iff.rfl (and_congr Iff.rfl (and_congr Iff.rfl ?_))
-  refine forall_congr' fun u => forall_congr' fun a => ?_
-  constructor
-  · intro h b hab hσ
-    have := h b hab
+  refine forall_congr' fun u => forall_congr' fun a => ⟨fun h b hab hσ => ?_, fun h b hab => ?_⟩
+  · have := h b hab
     simp only [lhs, List.map_cons, List.sum_cons, termVal, Literal.eval, hσ, one_mul] at this
     obtain ⟨v, hv, hσv⟩ := (one_le_lhs_iff _ _ σ).1 (by simpa [lhs] using this)
-    simp only [List.mem_filter, List.mem_finRange, decide_eq_true_eq, true_and] at hv
-    exact ⟨v, hv, hσv⟩
-  · intro h b hab
-    simp only [lhs, List.map_cons, List.sum_cons, termVal, Literal.eval, one_mul]
+    exact ⟨v, by simpa using hv, hσv⟩
+  · simp only [lhs, List.map_cons, List.sum_cons, termVal, Literal.eval, one_mul]
     cases hσ : σ (isoVar t a u)
     · simp
     · obtain ⟨v, hv, hσv⟩ := h b hab hσ
-      have := (one_le_lhs_iff (((List.finRange t).filter (T.Adj u ·))) (isoVar t b) σ).2
-        ⟨v, by simpa using hv, hσv⟩
-      simpa [lhs] using this
+      simpa [lhs] using (one_le_lhs_iff (((List.finRange t).filter (T.Adj u ·)))
+        (isoVar t b) σ).2 ⟨v, by simpa using hv, hσv⟩
 
 /-- **The solutions of the encoding are the copies of the pattern** (CakePB's `encode_correct`):
 an assignment satisfies the constraints of the encoding exactly when it is the graph of a copy
@@ -257,24 +265,112 @@ theorem exists_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
     (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] :
     (∃ σ : ℕ → Bool, ∀ c ∈ isoConstraints P T, c.Holds σ) ↔ P.IsContained T := by
   simp only [forall_holds_isoConstraints_iff]
-  constructor
-  · rintro ⟨_, f, _⟩
-    exact ⟨f⟩
-  · rintro ⟨f⟩
-    refine ⟨fun i => decide (∃ a u, isoVar t a u = i ∧ f a = u), f, fun a u => ?_⟩
-    refine decide_eq_decide.2 ⟨?_, fun h => ⟨a, u, rfl, h⟩⟩
-    rintro ⟨a', u', h, rfl⟩
-    obtain ⟨rfl, rfl⟩ := isoVar_inj h
-    rfl
+  refine ⟨fun ⟨_, f, _⟩ => ⟨f⟩, fun ⟨f⟩ =>
+    ⟨fun i => decide (∃ a u, isoVar t a u = i ∧ f a = u), f, fun a u =>
+      decide_eq_decide.2 ⟨fun ⟨_, _, h, hfu⟩ => ?_, fun h => ⟨a, u, rfl, h⟩⟩⟩⟩
+  obtain ⟨rfl, rfl⟩ := isoVar_inj h
+  exact hfu
+
+/-! ### CakePB's variable names -/
+
+/-- **CakePB's name `xa_u`** of the variable `xₐᵤ` (the pattern vertex `a` mapped to the target
+vertex `u`), as `cake_pb_iso` and the Glasgow Subgraph Solver write it. -/
+@[expose] def isoName (a u : ℕ) : String :=
+  String.ofList ('x' :: Nat.toDecimal a ++ '_' :: Nat.toDecimal u)
+
+/-- **CakePB's names of the variables of the encoding**, for a pattern on `Fin p` and a target on
+`Fin t`: the variable `xₐᵤ = t·a + u` (`Cslib.Logic.PL.VeriPB.Graph.isoVar`) is named `xa_u`
+(`Cslib.Logic.PL.VeriPB.Graph.isoName`). -/
+@[expose] def isoNames (p t : ℕ) : Names :=
+  ⟨(List.range (p * t)).map fun i => isoName (i / t) (i % t), 0⟩
+
+private theorem underscore_not_mem_toDecimal (n : ℕ) : '_' ∉ Nat.toDecimal n := fun h =>
+  absurd (Nat.isDigit_of_mem_toDecimal h) (by decide)
+
+private theorem isoName_inj {a u a' u' : ℕ} (h : isoName a u = isoName a' u') :
+    a = a' ∧ u = u' := by
+  have h := congrArg String.toList h
+  rw [isoName, isoName, String.toList_ofList, String.toList_ofList] at h
+  replace h := (List.cons.inj h).2
+  obtain ⟨ha, hu⟩ := (List.append_cons_inj_of_notMem_prefix (underscore_not_mem_toDecimal a)
+    (underscore_not_mem_toDecimal a')).1 h
+  exact ⟨by simpa using congrArg Nat.ofDecimal? ha, by simpa using congrArg Nat.ofDecimal? hu⟩
+
+private theorem isOPBName_isoName (a u : ℕ) : isOPBName (isoName a u) = true := by
+  obtain ⟨d, ds, hd, -⟩ := Nat.exists_toDecimal_eq_cons a
+  have hc (c) (hc : c ∈ Nat.toDecimal a ++ '_' :: Nat.toDecimal u) : isNameChar c = true := by
+    rcases List.mem_append.1 hc with hc | hc
+    · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
+    · rcases List.mem_cons.1 hc with rfl | hc
+      · decide
+      · simp [isNameChar, Char.isAlphanum, Nat.isDigit_of_mem_toDecimal hc]
+  rw [isOPBName, isoName, String.toList_ofList, hd, List.cons_append, List.cons_append]
+  simp only [Bool.and_eq_true, List.all_eq_true]
+  refine ⟨by decide, fun c hc' => hc c ?_⟩
+  rw [hd]
+  simpa using hc'
+
+private theorem isoVar_lt (a : Fin p) (u : Fin t) : isoVar t a u < p * t :=
+  val_finProdFinEquiv_eq_isoVar a u ▸ (finProdFinEquiv (a, u)).isLt
+
+private theorem lt_of_mem_varList_isoConstraints (P : SimpleGraph (Fin p)) [DecidableRel P.Adj]
+    (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] {v : ℕ}
+    (hv : v ∈ (⟨isoConstraints P T, none, none⟩ : Instance).varList) : v < p * t := by
+  simp only [Instance.varList, Option.map_none, Option.getD_none, List.append_nil,
+    List.mem_flatMap, List.mem_map] at hv
+  obtain ⟨c, hc, ⟨k, x, b⟩, hx, rfl⟩ := hv
+  simp only [isoConstraints, List.mem_append, List.mem_map, List.mem_flatMap, List.mem_filter,
+    List.mem_finRange, true_and] at hc
+  rcases hc with ((⟨a, rfl⟩ | ⟨a, rfl⟩) | ⟨u, rfl⟩) | ⟨u, a, b', -, rfl⟩ <;>
+    simp only [List.mem_cons, List.mem_map, List.mem_finRange, List.mem_filter, true_and,
+      Prod.mk.injEq] at hx
+  · obtain ⟨u, rfl, rfl, rfl⟩ := hx
+    exact isoVar_lt a u
+  · obtain ⟨u, rfl, rfl, rfl⟩ := hx
+    exact isoVar_lt a u
+  · obtain ⟨a, rfl, rfl, rfl⟩ := hx
+    exact isoVar_lt a u
+  · rcases hx with ⟨rfl, rfl, rfl⟩ | ⟨w, _, rfl, rfl, rfl⟩
+    · exact isoVar_lt a u
+    · exact isoVar_lt b' w
+
+/-- **CakePB's name of a variable**: the variable `xₐᵤ = t·a + u` is named `xa_u`. -/
+@[simp] theorem name_isoNames_isoVar (a : Fin p) (u : Fin t) :
+    (isoNames p t).name (isoVar t a u) = isoName a u := by
+  have hlt := isoVar_lt a u
+  have hd : isoVar t a u / t = a := by
+    rw [isoVar, Nat.mul_add_div (Fin.pos u), Nat.div_eq_of_lt u.isLt,
+      Nat.add_zero]
+  have hm : isoVar t a u % t = u := by
+    rw [isoVar, Nat.mul_add_mod, Nat.mod_eq_of_lt u.isLt]
+  simp [Names.name, Names.nameChars, isoNames, hlt, hd, hm]
+
+/-- **CakePB's names cover the encoding** (`Cslib.Logic.PL.VeriPB.Text.Names.Covers`): they are
+distinct OPB names, and every variable of the encoding is named, `xa_u`. -/
+theorem isoNames_covers (P : SimpleGraph (Fin p)) [DecidableRel P.Adj]
+    (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] :
+    (isoNames p t).Covers ⟨isoConstraints P T, none, none⟩ := by
+  have hopb : ∀ s ∈ (isoNames p t).others, isOPBName s = true := fun s hs => by
+    obtain ⟨i, -, rfl⟩ := List.mem_map.1 hs
+    exact isOPBName_isoName _ _
+  have hlt : ∀ v ∈ (⟨isoConstraints P T, none, none⟩ : Instance).varList,
+      v < (isoNames p t).next := fun v hv => by
+    simpa [Names.next, isoNames] using lt_of_mem_varList_isoConstraints P T hv
+  refine ⟨⟨?_, fun s hs => isName_of_isOPBName (hopb s hs), fun _ _ _ _ => Nat.zero_le _⟩,
+    hlt, fun v hv => Names.isOPBName_name hopb (hlt v hv)⟩
+  refine List.nodup_range.map_on fun i _ j _ hij => ?_
+  obtain ⟨hd, hm⟩ := isoName_inj hij
+  rw [← Nat.div_add_mod i t, ← Nat.div_add_mod j t, hd, hm]
 
 /-! ### End to end -/
 
 /-- **The subgraph isomorphism checker for graphs built in Lean**: check the proof `pbp` against
-the printed OPB text of the encoding of `P` and `T`, and read its conclusion: `true` for `SAT`,
-`false` for `UNSAT`, nothing for the others. -/
+the printed OPB text of the encoding of `P` and `T`, with CakePB's variable names `xa_u`
+(`Cslib.Logic.PL.VeriPB.Graph.isoNames`), and read its conclusion: `true` for `SAT`, `false` for
+`UNSAT`, nothing for the others. -/
 def checkSubgraphIsoGraph (P : SimpleGraph (Fin p)) [DecidableRel P.Adj]
     (T : SimpleGraph (Fin t)) [DecidableRel T.Adj] (pbp : String) : Option Bool :=
-  (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩) pbp).bind fun
+  (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩ (isoNames p t)) pbp).bind fun
     | (.sat _, _) => some true
     | (.unsat _, _) => some false
     | _ => none
@@ -294,18 +390,17 @@ theorem isContained_iff_of_checkSubgraphIsoGraph {P : SimpleGraph (Fin p)} [Deci
     (h : checkSubgraphIsoGraph P T pbp = some b) : P.IsContained T ↔ b = true := by
   obtain ⟨⟨concl, o⟩, hc, hb⟩ := Option.bind_eq_some_iff.1 h
   rw [← exists_holds_isoConstraints_iff]
-  have hc' : (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩) pbp).map (·.1) =
-      some concl := by
-    rw [hc]
-    rfl
+  have hc' : (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩ (isoNames p t)) pbp).map
+      (·.1) = some concl := by rw [hc]; rfl
   cases concl with
-  | sat asg =>
+  | sat _ =>
     cases hb
-    exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (stdNames_covers _) hc') rfl
-  | unsat q =>
+    exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (isoNames_covers P T) hc') rfl
+  | unsat _ =>
     cases hb
     exact iff_of_false
-      (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (stdNames_covers _) hc' σ hσ) (by simp)
+      (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (isoNames_covers P T) hc' σ hσ)
+      (by simp)
   | _ => cases hb
 
 /-- **Subgraph isomorphism for LAD graphs** (CakePB's `check_unsat_3_sem`, the pure functional

@@ -12,10 +12,7 @@ public import CslibFrontier.Algorithms.Lean.Matroid.PSystem
 public import CslibFrontier.Algorithms.Lean.Submodular.Greedy
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 import CslibFrontier.Foundations.Data.List.EraseDups
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Finset.Max
 import Mathlib.Combinatorics.Matroid.IndepAxioms
-import Mathlib.Data.Fintype.Fin
 
 /-!
 # Greedy Submodular Maximization over Matroids and `p`-Systems
@@ -185,9 +182,7 @@ variable {α : Type} {β : Type} [DecidableEq α] [LinearOrder β]
   simp only [submodularMatroidGreedyStepM, submodularMatroidGreedyStep, filterIndepM_pure,
     pure_bind]
   rw [← feasibleCandidates]
-  cases feasibleCandidates indep u S with
-  | nil => rfl
-  | cons c₀ cs => simp [scanCandidatesM_pure]
+  cases feasibleCandidates indep u S <;> simp [scanCandidatesM_pure]
 
 @[simp] theorem submodularMatroidGreedyLoopM_pure [LawfulMonad m]
     (f : Finset α → β) (indep : Finset α → Bool) (u : List α) (k : ℕ) (S : Finset α) :
@@ -232,11 +227,10 @@ theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyStepM
     φ (submodularMatroidGreedyStepM evalSet indepM u S) =
       submodularMatroidGreedyStepM (fun T => φ (evalSet T)) (fun T => φ (indepM T)) u S := by
   simp only [submodularMatroidGreedyStepM, hφ.map_bind, hφ.map_filterIndepM]
-  congr 1 with cands : 1
-  cases cands with
-  | nil => exact hφ.map_pure _
-  | cons c₀ cs =>
-    simp only [hφ.map_bind, hφ.map_scanCandidatesM, hφ.map_pure]
+  congr 1
+  ext (_ | ⟨c₀, cs⟩)
+  · exact hφ.map_pure _
+  simp only [hφ.map_bind, hφ.map_scanCandidatesM, hφ.map_pure]
 
 @[grind .]
 theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyLoopM
@@ -248,10 +242,10 @@ theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyLoopM
   | zero => exact hφ.map_pure _
   | succ k ih =>
     simp only [submodularMatroidGreedyLoopM, hφ.map_bind, hφ.map_submodularMatroidGreedyStepM]
-    congr 1 with o : 1
-    cases o with
-    | none => exact hφ.map_pure _
-    | some S' => exact ih S'
+    congr 1
+    ext (_ | S')
+    · exact hφ.map_pure _
+    exact ih S'
 
 @[grind .]
 theorem _root_.Cslib.IsMonadHom.map_submodularMatroidGreedyM
@@ -295,13 +289,10 @@ theorem exists_of_submodularMatroidGreedyStep_eq_some {f : Finset α → β} {in
   · simp only [hc, reduceCtorEq] at h
   · simp only [hc, Option.some.injEq] at h
     subst h
-    set r := scanCandidates f S c₀ (f (insert c₀ S)) cs
-    have hval : r.2 = f (insert r.1 S) := scanCandidates_snd_eq f S rfl cs
-    refine ⟨r.1, scanCandidates_fst_mem f S c₀ _ cs, rfl, fun x hx => ?_⟩
-    rw [← hval]
-    rcases List.mem_cons.mp hx with rfl | hx
-    · exact le_scanCandidates_snd f S x _ cs
-    · exact forall_le_scanCandidates_snd f S c₀ _ cs x hx
+    refine ⟨_, scanCandidates_fst_mem f S c₀ _ cs, rfl, fun x hx => ?_⟩
+    rw [← scanCandidates_snd_eq f S rfl cs]
+    exact (List.mem_cons.mp hx).elim (fun e => e ▸ le_scanCandidates_snd f S x _ cs)
+      (forall_le_scanCandidates_snd f S c₀ _ cs x)
 
 theorem submodularMatroidGreedyStep_eq_none_iff {f : Finset α → β} {indep : Finset α → Bool}
     {u : List α} {S : Finset α} :
@@ -350,9 +341,8 @@ theorem submodularMatroidGreedy_eq_chain (f : Finset α → β) (indep : Finset 
     (xs : List α) :
     submodularMatroidGreedy f indep xs =
       submodularMatroidGreedyChain f indep xs.eraseDups xs.eraseDups.length := by
-  have h := submodularMatroidGreedyLoop_chain f indep xs.eraseDups xs.eraseDups.length 0
-  rw [Nat.zero_add] at h
-  exact h
+  simpa only [submodularMatroidGreedy, submodularMatroidGreedyChain_zero, Nat.zero_add] using
+    submodularMatroidGreedyLoop_chain f indep xs.eraseDups xs.eraseDups.length 0
 
 /-- The greedy loop only adds elements. -/
 theorem subset_submodularMatroidGreedyLoop (f : Finset α → β) (indep : Finset α → Bool)
@@ -422,35 +412,27 @@ private theorem card_eq_or_feasibleCandidates_eq_nil (f : Finset α → β) (ind
     (submodularMatroidGreedyChain f indep u t).card = t ∨
       feasibleCandidates indep u (submodularMatroidGreedyChain f indep u t) = [] := by
   induction t with
-  | zero => exact Or.inl rfl
+  | zero => exact .inl rfl
   | succ t ih =>
     rcases h : submodularMatroidGreedyStep f indep u (submodularMatroidGreedyChain f indep u t)
       with _ | S'
-    · right
-      rw [submodularMatroidGreedyChain_succ, h, Option.getD_none]
-      exact submodularMatroidGreedyStep_eq_none_iff.mp h
-    · rcases ih with hcard | hnil
-      · left
-        obtain ⟨c, hc, hS', -⟩ := exists_of_submodularMatroidGreedyStep_eq_some h
-        rw [submodularMatroidGreedyChain_succ, h, Option.getD_some, hS',
-          Finset.card_insert_of_notMem (mem_feasibleCandidates.mp hc).2.1, hcard]
-      · cases h.symm.trans (submodularMatroidGreedyStep_eq_none_iff.mpr hnil)
+    · rw [submodularMatroidGreedyChain_succ, h, Option.getD_none]
+      exact .inr (submodularMatroidGreedyStep_eq_none_iff.mp h)
+    · refine ih.elim (fun hcard => .inl ?_) fun hnil =>
+        absurd (h.symm.trans (submodularMatroidGreedyStep_eq_none_iff.mpr hnil)) (by simp)
+      obtain ⟨c, hc, rfl, -⟩ := exists_of_submodularMatroidGreedyStep_eq_some h
+      rw [submodularMatroidGreedyChain_succ, h, Option.getD_some,
+        Finset.card_insert_of_notMem (mem_feasibleCandidates.mp hc).2.1, hcard]
 
 /-- After `u.toFinset.card` rounds no feasible candidate remains. -/
 theorem feasibleCandidates_submodularMatroidGreedyChain_card_eq_nil (f : Finset α → β)
     (indep : Finset α → Bool) (u : List α) :
     feasibleCandidates indep u (submodularMatroidGreedyChain f indep u u.toFinset.card) = [] := by
-  rcases card_eq_or_feasibleCandidates_eq_nil f indep u u.toFinset.card with hcard | hnil
-  · have hall : submodularMatroidGreedyChain f indep u u.toFinset.card = u.toFinset :=
-      Finset.eq_of_subset_of_card_le (submodularMatroidGreedyChain_subset_toFinset f indep u _)
-        hcard.ge
-    refine List.eq_nil_iff_forall_not_mem.mpr fun c hc => ?_
-    have hc' := mem_feasibleCandidates.mp hc
-    have hmem : c ∈ submodularMatroidGreedyChain f indep u u.toFinset.card := by
-      rw [hall]
-      exact List.mem_toFinset.mpr hc'.1
-    exact hc'.2.1 hmem
-  · exact hnil
+  refine (card_eq_or_feasibleCandidates_eq_nil f indep u u.toFinset.card).elim (fun hcard => ?_) id
+  have hall := Finset.eq_of_subset_of_card_le
+    (submodularMatroidGreedyChain_subset_toFinset f indep u _) hcard.ge
+  exact List.eq_nil_iff_forall_not_mem.mpr fun c hc => (mem_feasibleCandidates.mp hc).2.1
+    (hall.symm ▸ List.mem_toFinset.mpr (mem_feasibleCandidates.mp hc).1)
 
 /-- The greedy output is a subset of the ground list. -/
 theorem submodularMatroidGreedy_subset_toFinset (f : Finset α → β) (indep : Finset α → Bool)
@@ -482,17 +464,13 @@ theorem submodularMatroidGreedy_isBasis' {M : Matroid α} {indep : Finset α →
     (hM : ∀ S : Finset α, indep S = true ↔ M.Indep (S : Set α)) (f : Finset α → β)
     (xs : List α) :
     M.IsBasis' ((submodularMatroidGreedy f indep xs : Finset α) : Set α) {x | x ∈ xs} := by
-  have h0 : indep ∅ = true := (hM ∅).mpr (by simp)
-  refine ⟨⟨(hM _).mp (indep_submodularMatroidGreedy h0 xs), fun x hx =>
-    List.mem_toFinset.mp (submodularMatroidGreedy_subset_toFinset f indep xs hx)⟩, ?_⟩
-  intro J ⟨hJ_ind, hJ_sub⟩ hsub e heJ
-  by_contra heG
-  have hfalse := not_indep_insert_submodularMatroidGreedy f indep (hJ_sub heJ) heG
-  have hind : M.Indep ((insert e (submodularMatroidGreedy f indep xs) : Finset α) : Set α) := by
-    rw [Finset.coe_insert]
+  refine ⟨⟨(hM _).mp (indep_submodularMatroidGreedy ((hM ∅).mpr (by simp)) xs), fun x hx =>
+    List.mem_toFinset.mp (submodularMatroidGreedy_subset_toFinset f indep xs hx)⟩,
+    fun J ⟨hJ_ind, hJ_sub⟩ hsub e heJ => by_contra fun heG => ?_⟩
+  have hind : indep (insert e (submodularMatroidGreedy f indep xs)) = true := by
+    rw [hM, Finset.coe_insert]
     exact hJ_ind.subset (Set.insert_subset heJ hsub)
-  rw [← hM] at hind
-  simp [hind] at hfalse
+  simp [not_indep_insert_submodularMatroidGreedy f indep (hJ_sub heJ) heG] at hind
 
 end Chain
 
@@ -513,23 +491,18 @@ private theorem sum_le_sum_range_card_div {O : Finset ι} {σ : ι → ℕ} {c :
   induction O using Finset.induction_on_max_value σ with
   | empty => simp
   | insert a s has hmax ih =>
-    have hc' : ∀ o ∈ s, ∀ t < σ o, c o ≤ d t :=
-      fun o ho => hc o (Finset.mem_insert_of_mem ho)
-    have hcount' : ∀ t, (s.filter fun o => σ o ≤ t).card ≤ p * t := fun t =>
-      (Finset.card_le_card (Finset.filter_subset_filter _ (Finset.subset_insert a s))).trans
-        (hcount t)
     rw [Finset.sum_insert has, Finset.card_insert_of_notMem has, Finset.sum_range_succ,
       add_comm (c a)]
-    refine add_le_add (ih hc' hcount') (hc a (Finset.mem_insert_self a s) _ ?_)
+    refine add_le_add (ih (fun o ho => hc o (Finset.mem_insert_of_mem ho)) fun t =>
+      (Finset.card_le_card (Finset.filter_subset_filter _ (Finset.subset_insert a s))).trans
+        (hcount t)) (hc a (Finset.mem_insert_self a s) _ ?_)
     by_contra hge
-    have hall : (insert a s).filter (fun o => σ o ≤ s.card / p) = insert a s :=
-      Finset.filter_true_of_mem fun o ho => by
-        rcases Finset.mem_insert.mp ho with rfl | ho
-        · omega
-        · exact (hmax o ho).trans (by omega)
     have h1 := hcount (s.card / p)
-    rw [hall, Finset.card_insert_of_notMem has] at h1
-    have h2 := Nat.mul_div_le s.card p
+    rw [Finset.filter_true_of_mem fun o ho => by
+      rcases Finset.mem_insert.mp ho with rfl | ho
+      · omega
+      · exact (hmax o ho).trans (by omega), Finset.card_insert_of_notMem has] at h1
+    have := Nat.mul_div_le s.card p
     omega
 
 omit [PartialOrder β] [IsOrderedAddMonoid β] in
@@ -541,12 +514,10 @@ private theorem sum_range_mul_div (d : ℕ → β) (p N : ℕ) (hp : 0 < p) :
   | succ N ih =>
     rw [mul_add_one, Finset.sum_range_add, ih, Finset.sum_range_succ (fun s => d s), smul_add]
     congr 1
-    have hblock : ∀ j ∈ Finset.range p, d ((p * N + j) / p) = d N := by
-      intro j hj
-      congr 1
+    rw [Finset.sum_congr rfl fun j hj => congrArg d (by
       rw [Nat.mul_comm, Nat.add_comm, Nat.add_mul_div_right _ _ hp,
-        Nat.div_eq_of_lt (Finset.mem_range.mp hj), Nat.zero_add]
-    rw [Finset.sum_congr rfl hblock, Finset.sum_const, Finset.card_range]
+        Nat.div_eq_of_lt (Finset.mem_range.mp hj), Nat.zero_add]),
+      Finset.sum_const, Finset.card_range]
 
 /-- Charging with stages bounded by `N`: `∑ O c ≤ p • ∑ s < N, d s` for nonnegative `d`. -/
 private theorem sum_le_nsmul_sum_range {O : Finset ι} {σ : ι → ℕ} {c : ι → β} {d : ℕ → β}
@@ -554,16 +525,13 @@ private theorem sum_le_nsmul_sum_range {O : Finset ι} {σ : ι → ℕ} {c : ι
     (hc : ∀ o ∈ O, ∀ s < σ o, c o ≤ d s)
     (hcount : ∀ t, (O.filter fun o => σ o ≤ t).card ≤ p * t) :
     ∑ o ∈ O, c o ≤ p • ∑ s ∈ Finset.range N, d s := by
-  have hON : O.card ≤ p * N := by
-    have h := hcount N
-    rwa [Finset.filter_true_of_mem hσ] at h
+  have hON : O.card ≤ p * N := by simpa only [Finset.filter_true_of_mem hσ] using hcount N
   rcases Nat.eq_zero_or_pos p with rfl | hp
-  · have hO : O = ∅ := Finset.card_eq_zero.mp (by simpa using hON)
-    simp [hO]
-  calc ∑ o ∈ O, c o ≤ ∑ j ∈ Finset.range O.card, d (j / p) := sum_le_sum_range_card_div hc hcount
-    _ ≤ ∑ j ∈ Finset.range (p * N), d (j / p) :=
-      Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_mono hON) fun j _ _ => hd _
-    _ = p • ∑ s ∈ Finset.range N, d s := sum_range_mul_div d p N hp
+  · simp [Finset.card_eq_zero.mp (by simpa using hON)]
+  · calc ∑ o ∈ O, c o ≤ ∑ j ∈ Finset.range O.card, d (j / p) := sum_le_sum_range_card_div hc hcount
+      _ ≤ ∑ j ∈ Finset.range (p * N), d (j / p) :=
+        Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_mono hON) fun _ _ _ => hd _
+      _ = p • ∑ s ∈ Finset.range N, d s := sum_range_mul_div d p N hp
 
 end Charging
 
@@ -606,57 +574,42 @@ theorem sum_le_nsmul_sub_of_submodularMatroidGreedyChain {f : Finset α → β}
     ∑ o ∈ O, c o ≤
       p • (f (submodularMatroidGreedyChain f indep u u.toFinset.card) - f ∅) := by
   classical
-  set S := submodularMatroidGreedyChain f indep u with hS
+  set S := submodularMatroidGreedyChain f indep u
   set n := u.toFinset.card
   -- `P o t`: by round `t`, `o` has been selected or has become infeasible.
-  let P : α → ℕ → Prop := fun o t => o ∈ S t ∨ indep (insert o (S t)) = false
-  have hPn : ∀ o ∈ O, P o n := by
-    intro o ho
-    by_cases hoS : o ∈ S n
-    · exact Or.inl hoS
-    · right
-      by_contra hind
-      have hnil := feasibleCandidates_submodularMatroidGreedyChain_card_eq_nil f indep u
-      exact List.eq_nil_iff_forall_not_mem.mp hnil o (mem_feasibleCandidates.mpr
-        ⟨List.mem_toFinset.mp (hOu ho), hoS, by simpa using hind⟩)
-  have hPmono : ∀ o s t, s ≤ t → P o s → P o t := by
-    intro o s t hst hPs
-    have hsub : S s ⊆ S t := monotone_submodularMatroidGreedyChain f indep u hst
-    by_cases hot : o ∈ S t
-    · exact Or.inl hot
-    · right
-      rcases hPs with hos | hind
-      · exact absurd (hsub hos) hot
-      · by_contra hind'
-        have h' : indep (insert o (S t)) = true := by simpa using hind'
-        have := hsys.indep_of_subset h' (Finset.insert_subset_insert o hsub)
-        simp [hind] at this
+  let P (o : α) (t : ℕ) : Prop := o ∈ S t ∨ indep (insert o (S t)) = false
+  have hPn (o) (ho : o ∈ O) : P o n :=
+    or_iff_not_imp_left.mpr fun hoS => by_contra fun hind => List.eq_nil_iff_forall_not_mem.mp
+      (feasibleCandidates_submodularMatroidGreedyChain_card_eq_nil f indep u) o
+      (mem_feasibleCandidates.mpr ⟨List.mem_toFinset.mp (hOu ho), hoS, by simpa using hind⟩)
+  have hPmono {o s t} (hst : s ≤ t) (hPs : P o s) : P o t := by
+    have hsub := monotone_submodularMatroidGreedyChain f indep u hst
+    refine or_iff_not_imp_left.mpr fun hot =>
+      hPs.elim (fun hos => absurd (hsub hos) hot) fun hind => by_contra fun hind' => ?_
+    exact Bool.false_ne_true (hind.symm.trans
+      (hsys.indep_of_subset (Bool.eq_true_of_not_eq_false hind')
+        (Finset.insert_subset_insert o hsub)))
   -- `σ o`: the first round by which `o ∈ O` is selected or infeasible.
-  have hex : ∀ o, ∃ t, o ∈ O → P o t := fun o => ⟨n, hPn o⟩
-  let σ : α → ℕ := fun o => Nat.find (hex o)
-  have hσspec : ∀ o ∈ O, σ o ≤ n ∧ P o (σ o) ∧ ∀ s < σ o, ¬ P o s := fun o ho =>
-    ⟨Nat.find_min' (hex o) (hPn o), Nat.find_spec (hex o) ho,
-      fun s hs hPs => Nat.find_min (hex o) hs fun _ => hPs⟩
-  have hd : ∀ s, 0 ≤ f (S (s + 1)) - f (S s) := fun s =>
-    sub_nonneg.mpr (hmono (submodularMatroidGreedyChain_subset_succ f indep u s))
+  have hex (o) : ∃ t, o ∈ O → P o t := ⟨n, hPn o⟩
+  let σ (o : α) : ℕ := Nat.find (hex o)
   have key := sum_le_nsmul_sum_range (O := O) (σ := σ) (c := c) (p := p) (N := n)
-    (d := fun s => f (S (s + 1)) - f (S s)) hd (fun o ho => (hσspec o ho).1)
+    (d := fun s => f (S (s + 1)) - f (S s))
+    (fun s => sub_nonneg.mpr (hmono (submodularMatroidGreedyChain_subset_succ f indep u s)))
+    (fun o _ => Nat.find_min' (hex o) (hPn o))
     (fun o ho s hs => by
-      have hnot := (hσspec o ho).2.2 s hs
+      have hnot : ¬ P o s := fun hPs => Nat.find_min (hex o) hs fun _ => hPs
       simp only [P, not_or, Bool.not_eq_false] at hnot
-      exact hc o ho s (lt_of_lt_of_le hs (hσspec o ho).1) hnot.1 hnot.2)
-    (fun t => by
-      have hT : ((O.filter fun o => σ o ≤ t).card) ≤ p * (S t).card := by
-        refine hsys.card_le_mul_card_of_blocked (indep_submodularMatroidGreedyChain
-          hsys.indep_empty u t) (hsys.indep_of_subset hO (Finset.filter_subset _ O)) ?_
-        intro o ho hoS hind
+      exact hc o ho s (hs.trans_le (Nat.find_min' (hex o) (hPn o))) hnot.1 hnot.2)
+    fun t => (hsys.card_le_mul_card_of_blocked
+      (indep_submodularMatroidGreedyChain hsys.indep_empty u t)
+      (hsys.indep_of_subset hO (Finset.filter_subset _ O)) fun o ho hoS hind => by
         obtain ⟨hoO, hσt⟩ := Finset.mem_filter.mp ho
-        rcases hPmono o (σ o) t hσt (hσspec o hoO).2.1 with h | h
+        rcases hPmono hσt (Nat.find_spec (hex o) hoO) with h | h
         · exact hoS h
-        · simp [h] at hind
-      exact hT.trans (Nat.mul_le_mul_left p (card_submodularMatroidGreedyChain_le f indep u t)))
-  rw [Finset.sum_range_sub (fun s => f (S s))] at key
-  exact key
+        · exact Bool.false_ne_true (h.symm.trans hind)).trans
+      (Nat.mul_le_mul_left p (card_submodularMatroidGreedyChain_le f indep u t))
+  simpa only [Finset.sum_range_sub (fun s => f (S s)), S, submodularMatroidGreedyChain_zero]
+    using key
 
 /-- **Fisher–Nemhauser–Wolsey greedy bound** ([FisherNemhauserWolsey1978];
 [CalinescuChekuriPalVondrak2011], Appendix B). For a monotone submodular `f`, a `p`-system
@@ -670,25 +623,20 @@ theorem add_nsmul_le_succ_nsmul_submodularMatroidGreedy {f : Finset α → β}
   set u := xs.eraseDups
   have hn : u.length = u.toFinset.card := by
     simp only [u, List.length_eraseDups, List.toFinset_eraseDups]
-  have hG : submodularMatroidGreedy f indep xs =
-      submodularMatroidGreedyChain f indep u u.toFinset.card := by
-    rw [submodularMatroidGreedy_eq_chain, ← hn]
-  rw [hG]
+  rw [submodularMatroidGreedy_eq_chain, hn]
   set G := submodularMatroidGreedyChain f indep u u.toFinset.card
   have hOu : O \ G ⊆ u.toFinset := by
     simpa only [u, List.toFinset_eraseDups] using Finset.sdiff_subset.trans hOxs
-  have hcharge := sum_le_nsmul_sub_of_submodularMatroidGreedyChain (c := marginalGain f G) hmono
-    hsys (hsys.indep_of_subset hO Finset.sdiff_subset) hOu
-    (fun o ho t ht hoS hind => by
-      have hsub : submodularMatroidGreedyChain f indep u t ⊆ G :=
-        monotone_submodularMatroidGreedyChain f indep u ht.le
-      have hou : o ∈ u := List.mem_toFinset.mp (hOu ho)
-      calc marginalGain f G o
-          ≤ marginalGain f (submodularMatroidGreedyChain f indep u t) o :=
-            hf.marginalGain_le_of_monotone hmono o hsub
-        _ ≤ _ := sub_le_sub_right (le_submodularMatroidGreedyChain_succ hou hoS hind) _)
-  have hsum := hf.sub_le_sum_marginalGain_of_monotone hmono G O
-  have hmain : f O - f G ≤ p • (f G - f ∅) := hsum.trans hcharge
+  have hmain : f O - f G ≤ p • (f G - f ∅) :=
+    (hf.sub_le_sum_marginalGain_of_monotone hmono G O).trans
+      (sum_le_nsmul_sub_of_submodularMatroidGreedyChain hmono hsys
+        (hsys.indep_of_subset hO Finset.sdiff_subset) hOu fun o ho t ht hoS hind =>
+        calc marginalGain f G o
+            ≤ marginalGain f (submodularMatroidGreedyChain f indep u t) o :=
+              hf.marginalGain_le_of_monotone hmono o
+                (monotone_submodularMatroidGreedyChain f indep u ht.le)
+          _ ≤ _ := sub_le_sub_right (le_submodularMatroidGreedyChain_succ
+              (List.mem_toFinset.mp (hOu ho)) hoS hind) _)
   rw [nsmul_sub, sub_le_iff_le_add] at hmain
   calc f O + p • f ∅ ≤ p • f G - p • f ∅ + f G + p • f ∅ := add_le_add_left hmain _
     _ = (p + 1) • f G := by rw [succ_nsmul]; abel
@@ -790,18 +738,15 @@ theorem sum_le_nsmul_sum_submodularMatroidGreedy {β : Type*} [AddCommGroup β] 
   set u := xs.eraseDups
   have hn : u.length = u.toFinset.card := by
     simp only [u, List.length_eraseDups, List.toFinset_eraseDups]
-  have hG : submodularMatroidGreedy (modularSum w) indep xs =
-      submodularMatroidGreedyChain (modularSum w) indep u u.toFinset.card := by
-    rw [submodularMatroidGreedy_eq_chain, ← hn]
+  rw [submodularMatroidGreedy_eq_chain]
+  change ∑ x ∈ O, w x ≤ p • ∑ x ∈ submodularMatroidGreedyChain (modularSum w) indep u u.length, w x
+  rw [hn]
   have hOu : O ⊆ u.toFinset := by simpa only [u, List.toFinset_eraseDups] using hOxs
-  have h := sum_le_nsmul_sub_of_submodularMatroidGreedyChain (c := w) (monotone_modularSum hw)
-    hsys hO hOu (fun o ho t _ hoS hind => by
-      have hle := le_submodularMatroidGreedyChain_succ (List.mem_toFinset.mp (hOu ho)) hoS hind
-      rw [modularSum, Finset.sum_insert hoS] at hle
-      exact le_sub_iff_add_le.mpr hle)
-  rw [modularSum_empty, sub_zero] at h
-  rw [hG]
-  exact h
+  simpa only [modularSum, Finset.sum_empty, sub_zero] using
+    sum_le_nsmul_sub_of_submodularMatroidGreedyChain (c := w) (monotone_modularSum hw) hsys hO hOu
+      fun o ho t _ hoS hind => le_sub_iff_add_le.mpr (by
+        simpa only [modularSum, Finset.sum_insert hoS] using
+          le_submodularMatroidGreedyChain_succ (List.mem_toFinset.mp (hOu ho)) hoS hind)
 
 /-- **Greedy is optimal for nonnegative modular objectives on a matroid** (the `p = 1` case of
 `sum_le_nsmul_sum_submodularMatroidGreedy`): `∑ O w ≤ ∑ G w` for every independent

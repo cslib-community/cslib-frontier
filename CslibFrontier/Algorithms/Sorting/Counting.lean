@@ -48,25 +48,15 @@ def position (key : ℕ → ℕ) (n i : ℕ) : ℕ :=
 
 /-- Larger keys start no earlier. -/
 private theorem offset_mono (key : ℕ → ℕ) (n : ℕ) {b c : ℕ} (h : b ≤ c) :
-    Nat.count (fun k => key k < b) n ≤ Nat.count (fun k => key k < c) n := by
-  exact Nat.count_mono_left (fun _ _ hk => hk.trans_le h)
+    Nat.count (fun k => key k < b) n ≤ Nat.count (fun k => key k < c) n :=
+  Nat.count_mono_left fun _ _ hk => hk.trans_le h
 
 /-- One prefix-sum step appends exactly the current bucket's cardinality. -/
 theorem count_lt_succ (key : ℕ → ℕ) (n b : ℕ) :
     Nat.count (fun k => key k < b + 1) n =
       Nat.count (fun k => key k < b) n + Nat.count (fun k => key k = b) n := by
-  have he : ((range n).filter fun i => key i < b + 1) =
-      ((range n).filter fun i => key i < b) ∪ ((range n).filter fun i => key i = b) := by
-    ext i
-    simp only [mem_filter, mem_union, mem_range]
-    omega
-  simp only [Nat.count_eq_card_filter_range]
-  rw [he, card_union_of_disjoint]
-  exact disjoint_left.mpr (by
-    intro i hi hj
-    have := (mem_filter.mp hi).2
-    have := (mem_filter.mp hj).2
-    omega)
+  simp only [Nat.count_eq_card_filter_range, Nat.lt_succ_iff_lt_or_eq, filter_or]
+  exact card_union_of_disjoint (disjoint_filter.mpr fun _ _ => ne_of_lt)
 
 /-- The bucket counts below `T` sum to the number of positions whose key is below `T`. -/
 theorem sum_count_eq_count_lt (key : ℕ → ℕ) (n T : ℕ) :
@@ -132,18 +122,14 @@ theorem position_mem_iff (key : ℕ → ℕ) {n i : ℕ} (hi : i < n) (b : ℕ) 
     (Nat.count (fun k => key k < b) n ≤ position key n i ∧
       position key n i < Nat.count (fun k => key k < b + 1) n) ↔
       key i = b := by
-  constructor
-  · intro h
-    rcases lt_trichotomy (key i) b with hb | hb | hb
-    · have hp := (position_mem key hi).2.trans_le (offset_mono key n (Nat.succ_le_of_lt hb))
-      omega
-    · exact hb
-    · have hp := (offset_mono key n (Nat.succ_le_of_lt hb)).trans (position_mem key hi).1
-      change Nat.count (fun k => key k < b + 1) n ≤ position key n i at hp
-      omega
-  · intro h
-    subst b
-    exact position_mem key hi
+  refine ⟨fun h => ?_, fun h => h ▸ position_mem key hi⟩
+  rcases lt_trichotomy (key i) b with hb | rfl | hb
+  · have := (position_mem key hi).2.trans_le (offset_mono key n (Nat.succ_le_of_lt hb))
+    omega
+  · rfl
+  · have : Nat.count (fun k => key k < b + 1) n ≤ position key n i :=
+      (offset_mono key n (Nat.succ_le_of_lt hb)).trans (position_mem key hi).1
+    omega
 
 /-- A memory array satisfying the stable-scatter equations has precisely the original
 values selected by each bucket. No sorted list or permutation certificate is a premise. -/
@@ -152,22 +138,14 @@ theorem scatter_span_image {α : Type*} [DecidableEq α] (key : ℕ → ℕ) (n 
     (Ico (Nat.count (fun k => key k < b) n) (Nat.count (fun k => key k < b + 1) n)).image stored =
       ((range n).filter fun i => key i = b).image values := by
   ext v
+  simp only [mem_image, mem_Ico, mem_filter, mem_range]
   constructor
-  · intro hv
-    obtain ⟨j, hj, hv⟩ := mem_image.mp hv
-    have hjn : j < n := (mem_Ico.mp hj).2.trans_le (Nat.count_le _)
-    obtain ⟨i, hi⟩ := (position_bijective key n).surjective ⟨j, hjn⟩
-    have hpos : position key n i.val = j := congrArg (fun t : Fin n => t.val) hi
-    have hkey : key i.val = b := (position_mem_iff key i.isLt b).mp (by
-      rw [hpos]
-      exact mem_Ico.mp hj)
-    exact mem_image.mpr ⟨i.val, mem_filter.mpr ⟨mem_range.mpr i.isLt, hkey⟩,
-      (h i.val i.isLt).symm.trans (by simpa only [hpos] using hv)⟩
-  · intro hv
-    obtain ⟨i, hi, hv⟩ := mem_image.mp hv
-    obtain ⟨hin, hik⟩ := mem_filter.mp hi
-    have hlt := mem_range.mp hin
-    exact mem_image.mpr ⟨position key n i,
-      mem_Ico.mpr ((position_mem_iff key hlt b).mpr hik), (h i hlt).trans hv⟩
+  · rintro ⟨j, hj, rfl⟩
+    obtain ⟨i, hi⟩ := (position_bijective key n).surjective ⟨j, hj.2.trans_le (Nat.count_le _)⟩
+    have hpos : position key n i.val = j := congrArg Fin.val hi
+    exact ⟨i.val, ⟨i.isLt, (position_mem_iff key i.isLt b).mp (hpos ▸ hj)⟩,
+      (h i.val i.isLt).symm.trans (congrArg stored hpos)⟩
+  · rintro ⟨i, ⟨hlt, hik⟩, rfl⟩
+    exact ⟨position key n i, (position_mem_iff key hlt b).mpr hik, h i hlt⟩
 
 end Cslib.Algorithms.CountingSort

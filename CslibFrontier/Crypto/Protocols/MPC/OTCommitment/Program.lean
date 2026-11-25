@@ -185,17 +185,13 @@ theorem receiverClosedProgram_eq
       let out ← finish transcript final later observed pairs
       return (Phased.Observation.receipt, observed, transcript, final, later, out)) := by
   simp only [receiverClosedProgram, receiverIdealProgram, receiverPrefixProgram,
-    OracleComp.interpret_bind, OracleComp.interpret_pure,
-    ProbOracleComp.interpret_query, Phased.interpret_sample]
+    OracleComp.interpret_bind, OracleComp.interpret_pure, ProbOracleComp.interpret_query,
+    Phased.interpret_sample]
   simp only [StateT.run_bind, StateT.run_pure]
-  simp only [StateT.lift, StateT.run, Phased.handler, OracleComp.sumHandler,
-    Phased.advance, Phased.observe, bind_assoc, pure_bind, map_bind, map_pure]
-  apply congrArg (Bind.bind (receiverViewProgram choose receive k st))
-  apply funext
-  rintro ⟨transcript, final⟩
-  apply congrArg (Bind.bind (plan transcript final))
-  apply funext
-  rintro ⟨release, later⟩
+  simp only [StateT.lift, StateT.run, Phased.handler, OracleComp.sumHandler, Phased.advance,
+    Phased.observe, bind_assoc, pure_bind, map_bind, map_pure]
+  refine congrArg (_ >>= ·) (funext fun ⟨transcript, final⟩ =>
+    congrArg (_ >>= ·) (funext fun ⟨release, later⟩ => ?_))
   cases release <;> simp
 
 /-- Exact joint interpretation in the existing phased-world driver. Explicit lists retain all
@@ -220,12 +216,8 @@ theorem eval_receiverClosedProgram
   simp only [receiverIdeal, receiverPrefix, StateT.run_bind, StateT.run_pure]
   simp only [pmf_norm, StateT.lift, StateT.run, Phased.handler, OracleComp.sumHandler,
     Phased.advance, Phased.observe]
-  apply congrArg ((receiverRun (receiverOfPrograms choose receive) false k st).bind)
-  apply funext
-  rintro ⟨transcript, final⟩
-  apply congrArg ((ProbComp.eval (plan (List.ofFn transcript) final)).bind)
-  apply funext
-  rintro ⟨release, later⟩
+  refine congrArg (PMF.bind _) (funext fun ⟨transcript, final⟩ =>
+    congrArg (PMF.bind _) (funext fun ⟨release, later⟩ => ?_))
   cases release <;> simp only [Bool.false_eq_true, ↓reduceIte]
   all_goals
     change _ = PMF.map _ (StateT.run (m := PMF) _ _)
@@ -271,15 +263,11 @@ theorem receiverIdealProgram_schedule
   simp only [pmf_norm, receiverIdealProgram, receiverPrefixProgram, ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
     OracleComp.withTranscript, Phased.handler, OracleComp.sumHandler, Phased.advance,
-    Phased.observe] at h
-  simp only [PMF.mem_support_bind_iff] at h
+    Phased.observe, PMF.mem_support_bind_iff] at h
   obtain ⟨⟨transcript, final⟩, _, ⟨release, later⟩, _, h⟩ := h
   refine ⟨release, ?_⟩
-  cases release <;>
-    simp only [Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at h
-  all_goals obtain ⟨out, _, heq⟩ := h
-  all_goals cases heq
-  all_goals rfl
+  cases release <;> simp only [Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at h <;>
+    obtain ⟨_, _, ⟨⟩⟩ := h <;> rfl
 
 /-- The structural external-call budget is independent of all receiver callback runtimes and
 private draws. The four calls are commit, receipt poll, release-or-abort, and terminal poll. -/
@@ -292,23 +280,13 @@ theorem receiverIdealProgram_queryBound
     ProbOracleComp.IsQueryBounded
       (receiverIdealProgram choose receive b k st plan finish) 4 := by
   unfold receiverIdealProgram receiverPrefixProgram
-  apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 3)
-  intro _
-  apply OracleComp.IsCostBounded.bind (n := 1) (m := 2)
-  · apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 0)
-    intro _
-    apply (ProbOracleComp.IsQueryBounded.sample _).bind (m := 0)
-    intro _
-    exact .pure _ 0
-  · rintro ⟨_, transcript, final⟩
-    apply (ProbOracleComp.IsQueryBounded.sample _).bind (m := 2)
-    rintro ⟨release, later⟩
-    apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 1)
-    intro _
-    apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 0)
-    intro observed
-    apply (ProbOracleComp.IsQueryBounded.sample _).bind (m := 0)
-    intro _
-    exact .pure _ 0
+  exact (ProbOracleComp.IsQueryBounded.query _).bind (m := 3) fun _ =>
+    OracleComp.IsCostBounded.bind (n := 1) (m := 2)
+      ((ProbOracleComp.IsQueryBounded.query _).bind (m := 0) fun _ =>
+        (ProbOracleComp.IsQueryBounded.sample _).bind (m := 0) fun _ => .pure _ 0)
+      fun ⟨_, _, _⟩ => (ProbOracleComp.IsQueryBounded.sample _).bind (m := 2) fun ⟨_, _⟩ =>
+        (ProbOracleComp.IsQueryBounded.query _).bind (m := 1) fun _ =>
+          (ProbOracleComp.IsQueryBounded.query _).bind (m := 0) fun _ =>
+            (ProbOracleComp.IsQueryBounded.sample _).bind (m := 0) fun _ => .pure _ 0
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment

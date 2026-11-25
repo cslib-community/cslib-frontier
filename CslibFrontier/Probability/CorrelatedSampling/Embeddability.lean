@@ -350,6 +350,37 @@ theorem dist_filter_le_two_mul {Z : Type*} [Fintype Z] (p q : PMF Z) (E : Set Z)
 
 section RedrawnInput
 
+private theorem dist_withKernel_cond_le {A B : Type*} [Fintype A]
+    (J : PMF ((X × Y) × S)) (P₀ : PMF (X × Y)) (proj : X × Y → A) (rebuild : A → B → X × Y)
+    (hproj : ∀ a b, proj (rebuild a b) = a) (K : A → PMF B)
+    (hK : (P₀.map proj).bind (fun a => (K a).map (rebuild a)) = P₀) :
+    dist J (withKernel P₀ fun xy => conditionalSnd (J.map (Prod.map proj id)) (proj xy)) ≤
+      dist J ((J.map (Prod.map proj id)).bind fun (a, s) => (K a).map fun b =>
+        (rebuild a b, s)) +
+        dist ((J.map Prod.fst).map proj) (P₀.map proj) := by
+  set M := J.map (Prod.map proj id)
+  -- Both laws draw `a` and then `b` and `s` independently, from `K a` and `P_{S | A = a}`.
+  set Λ : A → PMF ((X × Y) × S) := fun a =>
+    (conditionalSnd M a).bind fun s => (K a).map fun b => (rebuild a b, s)
+  have hR : (M.bind fun (a, s) => (K a).map fun b => (rebuild a b, s)) =
+      (M.map Prod.fst).bind Λ := by
+    conv_lhs => rw [← bind_conditionalSnd M]
+    simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ]
+  have hT : withKernel P₀ (fun xy => conditionalSnd M (proj xy)) = (P₀.map proj).bind Λ := by
+    conv_lhs => rw [← hK]
+    simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, hproj, Λ]
+    pmf_swap
+  have hM : M.map Prod.fst = (J.map Prod.fst).map proj := by
+    simp only [M, PMF.map_comp]
+    rfl
+  rw [hR, hT]
+  calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
+        dist ((M.map Prod.fst).bind Λ) ((P₀.map proj).bind Λ) := dist_triangle _ _ _
+    _ ≤ _ := by
+      gcongr
+      rw [hM]
+      exact dist_bind_le _ _ _
+
 /-- **The triangle step of Holenstein's (6.13)–(6.15)** [Holenstein, proof of Lemma 6.4,
 (6.13)–(6.15)][Holenstein2009]. Let `K` draw `x` given `y` under `P₀`, so that `P₀ = P_Y K`. A
 joint law `J` of `((x, y), s)` is within `ε₁ + ε₂` of `P₀ P_{S | Y}`, the left side of the second
@@ -359,28 +390,8 @@ theorem dist_withKernel_condY_le (J : PMF ((X × Y) × S)) (P₀ : PMF (X × Y))
     (hK : (P₀.map Prod.snd).bind (fun y => (K y).map (·, y)) = P₀) :
     dist J (withKernel P₀ fun xy => condY J xy.2) ≤
       dist J ((J.map (Prod.map Prod.snd id)).bind fun (y, s) => (K y).map fun x => ((x, y), s)) +
-        dist ((J.map Prod.fst).map Prod.snd) (P₀.map Prod.snd) := by
-  set M := J.map (Prod.map Prod.snd id)
-  -- Both laws draw `y` and then `x` and `s` independently, from `K y` and `P_{S | Y = y}`.
-  set Λ : Y → PMF ((X × Y) × S) := fun y =>
-    (condY J y).bind fun s => (K y).map fun x => ((x, y), s)
-  have hR : (M.bind fun (y, s) => (K y).map fun x => ((x, y), s)) = (M.map Prod.fst).bind Λ := by
-    conv_lhs => rw [← bind_conditionalSnd M]
-    simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ, condY, M]
-  have hT : withKernel P₀ (fun xy => condY J xy.2) = (P₀.map Prod.snd).bind Λ := by
-    conv_lhs => rw [← hK]
-    simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ]
-    pmf_swap
-  have hM : M.map Prod.fst = (J.map Prod.fst).map Prod.snd := by
-    simp only [M, PMF.map_comp]
-    rfl
-  rw [hR, hT]
-  calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
-        dist ((M.map Prod.fst).bind Λ) ((P₀.map Prod.snd).bind Λ) := dist_triangle _ _ _
-    _ ≤ _ := by
-      gcongr
-      rw [hM]
-      exact dist_bind_le _ _ _
+        dist ((J.map Prod.fst).map Prod.snd) (P₀.map Prod.snd) :=
+  dist_withKernel_cond_le J P₀ Prod.snd (fun y x => (x, y)) (fun _ _ => rfl) K hK
 
 /-- **The triangle step of Holenstein's (6.16)** [Holenstein, proof of Lemma 6.4,
 (6.16)][Holenstein2009], the mirror image of `dist_withKernel_condY_le`. Let `K` draw `y` given
@@ -391,28 +402,8 @@ theorem dist_withKernel_condX_le (J : PMF ((X × Y) × S)) (P₀ : PMF (X × Y))
     (hK : (P₀.map Prod.fst).bind (fun x => (K x).map (x, ·)) = P₀) :
     dist J (withKernel P₀ fun xy => condX J xy.1) ≤
       dist J ((J.map (Prod.map Prod.fst id)).bind fun (x, s) => (K x).map fun y => ((x, y), s)) +
-        dist ((J.map Prod.fst).map Prod.fst) (P₀.map Prod.fst) := by
-  set M := J.map (Prod.map Prod.fst id)
-  -- Both laws draw `x` and then `y` and `s` independently, from `K x` and `P_{S | X = x}`.
-  set Λ : X → PMF ((X × Y) × S) := fun x =>
-    (condX J x).bind fun s => (K x).map fun y => ((x, y), s)
-  have hR : (M.bind fun (x, s) => (K x).map fun y => ((x, y), s)) = (M.map Prod.fst).bind Λ := by
-    conv_lhs => rw [← bind_conditionalSnd M]
-    simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ, condX, M]
-  have hT : withKernel P₀ (fun xy => condX J xy.1) = (P₀.map Prod.fst).bind Λ := by
-    conv_lhs => rw [← hK]
-    simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ]
-    pmf_swap
-  have hM : M.map Prod.fst = (J.map Prod.fst).map Prod.fst := by
-    simp only [M, PMF.map_comp]
-    rfl
-  rw [hR, hT]
-  calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
-        dist ((M.map Prod.fst).bind Λ) ((P₀.map Prod.fst).bind Λ) := dist_triangle _ _ _
-    _ ≤ _ := by
-      gcongr
-      rw [hM]
-      exact dist_bind_le _ _ _
+        dist ((J.map Prod.fst).map Prod.fst) (P₀.map Prod.fst) :=
+  dist_withKernel_cond_le J P₀ Prod.fst (fun x y => (x, y)) (fun _ _ => rfl) K hK
 
 end RedrawnInput
 

@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
 
 /-!
@@ -173,10 +174,7 @@ theorem isCodeFrom_overrideGates {n : ℕ} {gates : List (Op × List ℕ)}
   rw [hg]
   obtain ⟨h₁, h₂⟩ := h.getElem j hj'
   unfold overrideGate
-  split_ifs
-  · exact ⟨rfl, by simp⟩
-  · exact ⟨rfl, by simp⟩
-  · exact ⟨h₁, h₂⟩
+  split_ifs <;> first | exact ⟨h₁, h₂⟩ | exact ⟨rfl, by simp⟩
 
 theorem gateAt_add {n : ℕ} {gates : List (Op × List ℕ)} {j : ℕ} {g : Op × List ℕ}
     (hg : gates[j]? = some g) : gateAt n gates (n + j) = g := by
@@ -356,9 +354,8 @@ theorem length_smallDepths (d n : ℕ) (gates : List (Op × List ℕ)) :
 private theorem le_maxTwo {l : List ℕ} (hl : l.length ≤ 2) {v : ℕ} (hv : v ∈ l) : v ≤ maxTwo l := by
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hv
   unfold maxTwo
-  rcases (show i = 0 ∨ i = 1 by omega) with rfl | rfl
-  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi]
-  · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi]
+  rcases (show i = 0 ∨ i = 1 by omega) with rfl | rfl <;>
+    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi]
 
 private theorem maxTwo_le {l : List ℕ} {D : ℕ} (h : ∀ v ∈ l, v ≤ D) : maxTwo l ≤ D :=
   max_le (List.getD_le_of_forall_le h 0) (List.getD_le_of_forall_le h 1)
@@ -400,13 +397,8 @@ theorem exists_determining {d n : ℕ} {gates : List (Op × List ℕ)}
         refine ⟨?_, by omega⟩
         have hmin := min_le_iff.1 hw
         omega
-      have hex : ∀ c ∈ g.2, ∃ S : Finset ℕ, S.card ≤ 2 ^ (D - 1) ∧ (∀ s ∈ S, s < n) ∧
-          ∀ (x : List Bool) (ρ : List (Option Bool)), x.length = n → ρ.length = n →
-            (∀ s ∈ S, ρ.getD s none = some (x.getD s false)) →
-            (kleeneEval ρ gates).getD c none =
-              some ((evalCode interpretation false x gates).getD c false) :=
-        fun c hc => ih c (hchild c hc).2 (D := D - 1) (hchild c hc).1 (by omega)
-      choose! S hScard hSlt hSdet using hex
+      choose! S hScard hSlt hSdet using fun c (hc : c ∈ g.2) =>
+        ih c (hchild c hc).2 (D := D - 1) (hchild c hc).1 (by omega)
       have hD1 : 1 ≤ D := by
         rcases min_le_iff.1 hw with h' | h' <;> omega
       refine ⟨g.2.toFinset.biUnion S, ?_, ?_, fun x ρ hx hρ hagree => ?_⟩
@@ -417,9 +409,7 @@ theorem exists_determining {d n : ℕ} {gates : List (Op × List ℕ)}
           _ = g.2.toFinset.card * 2 ^ (D - 1) := by rw [Finset.sum_const, smul_eq_mul]
           _ ≤ 2 * 2 ^ (D - 1) :=
               Nat.mul_le_mul_right _ ((List.toFinset_card_le _).trans h2')
-          _ = 2 ^ D := by
-              obtain ⟨D', rfl⟩ := Nat.exists_eq_add_of_le hD1
-              rw [Nat.add_sub_cancel_left, Nat.add_comm 1 D', pow_succ']
+          _ = 2 ^ D := by rw [← pow_succ', Nat.sub_add_cancel hD1]
       · intro s hs
         obtain ⟨c, hc, hs⟩ := Finset.mem_biUnion.1 hs
         exact hSlt c (List.mem_toFinset.1 hc) s hs
@@ -462,28 +452,17 @@ theorem getD_smallDepths_le {d n : ℕ} {gates : List (Op × List ℕ)}
     have h2 : g.2.length ≤ 2 := by
       rw [hlen]
       unfold largeGateCost at hcost
-      split_ifs at hcost with h'
-      · omega
-      · omega
+      split_ifs at hcost <;> omega
     have hone := cost_le_getD_evalCode_depth 1 h hg
     simp only [Pi.one_apply] at hone
     simp only [getD_smallDepths_add h hg, smallDepthOp, List.length_map, h2, ↓reduceIte]
-    refine (min_le_right _ _).trans ?_
-    have hmax : maxTwo (g.2.map ((smallDepths d n gates).getD · (d + 1))) + 1 ≤
-        (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-          gates).getD (n + j) 0 := by
-      have : maxTwo (g.2.map ((smallDepths d n gates).getD · (d + 1))) ≤
-          (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-            gates).getD (n + j) 0 - 1 := by
-        refine maxTwo_le fun v hv => ?_
-        obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hv
-        have h1 := getD_evalCode_depth_le 1 h hg hc
-        have h0 := getD_evalCode_depth_le (largeGateCost signature) h hg hc
-        simp only [Pi.one_apply] at h1
-        have := ih c (by have := hlt c hc; omega) (by have := hlt c hc; omega) (by omega)
-        omega
-      omega
-    exact hmax
+    refine (min_le_right _ _).trans (Nat.add_le_of_le_sub hone (maxTwo_le fun v hv => ?_))
+    obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hv
+    have h1 := getD_evalCode_depth_le 1 h hg hc
+    have h0 := getD_evalCode_depth_le (largeGateCost signature) h hg hc
+    simp only [Pi.one_apply] at h1
+    have := ih c (by have := hlt c hc; omega) (by have := hlt c hc; omega) (by omega)
+    omega
 
 /-! ### Completeness -/
 
@@ -542,8 +521,7 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
     · refine ⟨[(w, (evalCode interpretation false x gates).getD w false)],
         by simpa using Nat.one_le_two_pow,
         fun c hc => ?_, fun e he => ?_, fun claims hsub _ => ?_⟩
-      · rw [List.mem_singleton] at hc
-        subst hc
+      · obtain rfl := List.mem_singleton.1 hc
         exact ⟨by omega, rfl⟩
       · simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, claimChecks, hwn,
           ↓reduceIte, List.mem_singleton] at he
@@ -553,12 +531,9 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
       · have hmem := hsub (List.mem_singleton_self _)
         rw [getD_kleeneEval_of_lt _ _ (by rw [hρ]; exact hwn), getD_claimInputs _ hwn,
           claimInput]
-        split_ifs with h₁ h₂
-        · exact Option.some_ne_none _
-        · exact Option.some_ne_none _
-        · cases hb : (evalCode interpretation false x gates).getD w false
-          · exact absurd (hb ▸ hmem) h₂
-          · exact absurd (hb ▸ hmem) h₁
+        split_ifs <;> try exact Option.some_ne_none _
+        cases hb : (evalCode interpretation false x gates).getD w false <;>
+          rw [hb] at hmem <;> contradiction
     obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hwn
     have hj : j < gates.length := by omega
     obtain ⟨g, hg⟩ : ∃ g, gates[j]? = some g := ⟨_, List.getElem?_eq_getElem hj⟩
@@ -585,14 +560,9 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
           have := hcw c hc; omega) (by omega)
         omega
       obtain ⟨b0, hb0⟩ : ∃ b0, claimable g = some b0 := by
-        obtain ⟨op, args⟩ := g
-        cases op with
-        | not =>
-          have h1 : args.length = 1 := hlen
-          have h2 : 2 < args.length := hlarge
-          omega
-        | and m => exact ⟨true, rfl⟩
-        | or m => exact ⟨false, rfl⟩
+        obtain ⟨_ | _ | _, args⟩ := g
+        · exact absurd (hlarge : 2 < args.length) (by rw [show args.length = 1 from hlen]; decide)
+        all_goals exact ⟨_, rfl⟩
       by_cases hvb : v.getD (n + j) false = b0
       · refine ⟨[(n + j, b0)], ?_, fun c hc => ?_, fun e he => ?_, fun claims hsub _ => ?_⟩
         · simpa only [List.length_singleton] using Nat.one_le_two_pow
@@ -603,19 +573,11 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
           exact hsd c hc
         · have hmem := hsub (List.mem_singleton_self _)
           rw [getD_kleeneEval_overrideGates h (hρ claims) claims hg]
-          cases b0
-          · rw [ite_eq_right (fun h => Bool.noConfusion (Option.some.inj (hb0.symm.trans h.1))),
-              ite_eq_left ⟨hb0, hmem⟩]
-            exact Option.some_ne_none _
-          · rw [ite_eq_left ⟨hb0, hmem⟩]; exact Option.some_ne_none _
-      · have hvb' : v.getD (n + j) false = !b0 := by
-          cases b0 <;> simpa using hvb
-        obtain ⟨c, hc, hvc⟩ : ∃ c ∈ g.2, v.getD c false = !b0 := by
-          by_contra hcon
-          simp only [not_exists, not_and] at hcon
+          cases b0 <;> simp [hb0, hmem]
+      · obtain ⟨c, hc, hvc⟩ : ∃ c ∈ g.2, v.getD c false = !b0 := by
+          by_contra! hcon
           exact hvb ((getD_evalCode_eq_iff_of_claimable h hx hg hb0).2 fun c hc => by
-            have := hcon c hc
-            cases b0 <;> simpa using this)
+            cases b0 <;> simpa using hcon c hc)
         obtain ⟨cl, hcl_len, hcl_corr, hcl_chk, hcl_fin⟩ := ih c (hcw c hc)
           (by have := hcw c hc; omega) (by have := hwdc c hc; omega)
           (by have := hdpc c hc; omega)
@@ -623,50 +585,21 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
         · exact hcl_len.trans (Nat.pow_le_pow_right (by decide) (by have := hdpc c hc; omega))
         have hκc := getD_kleeneEval_overrideGates_eq h hx hcorr (hcl_fin claims hsub hcorr)
         rw [getD_kleeneEval_overrideGates h (hρ claims) claims hg]
-        split_ifs
-        · exact Option.some_ne_none _
-        · exact Option.some_ne_none _
-        · rw [kleeneOp_of_claimable hb0 (List.mem_map.2 ⟨c, hc, hκc.trans (congrArg some hvc)⟩)]
-          exact Option.some_ne_none _
+        split_ifs <;> try exact Option.some_ne_none _
+        rw [kleeneOp_of_claimable hb0 (List.mem_map.2 ⟨c, hc, hκc.trans (congrArg some hvc)⟩)]
+        exact Option.some_ne_none _
     · rw [not_lt] at hlarge
-      have hex : ∀ c ∈ g.2, ∃ cl : List (ℕ × Bool),
-          cl.length ≤ 2 ^ (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-            gates).getD c 0 ∧
-          (∀ c ∈ cl, c.1 < n + gates.length ∧ v.getD c.1 false = c.2) ∧
-          (∀ e ∈ cl.flatMap (claimChecks n gates), (smallDepths d n gates).getD e.1 (d + 1) ≤ d) ∧
-          ∀ claims : List (ℕ × Bool), cl ⊆ claims →
-            (∀ c ∈ claims, v.getD c.1 false = c.2) →
-            (kleeneEval (claimInputs n claims) (overrideGates n claims gates)).getD c none ≠
-              none :=
-        fun c hc => ih c (hcw c hc) (by have := hcw c hc; omega)
-          (by have := hwdc c hc; omega) (by have := hdpc c hc; omega)
-      choose! CL hCL_len hCL_corr hCL_chk hCL_fin using hex
+      choose! CL hCL_len hCL_corr hCL_chk hCL_fin using fun c (hc : c ∈ g.2) =>
+        ih c (hcw c hc) (by have := hcw c hc; omega) (by have := hwdc c hc; omega)
+          (by have := hdpc c hc; omega)
       refine ⟨g.2.flatMap CL, ?_, ?_, ?_, fun claims hsub hcorr => ?_⟩
-      · rw [List.length_flatMap]
-        have hbound : ∀ c ∈ g.2, (CL c).length ≤
-            2 ^ ((evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-              gates).getD (n + j) 0 - 1) := fun c hc =>
-          (hCL_len c hc).trans (Nat.pow_le_pow_right (by decide) (by have := hdpc c hc; omega))
-        calc (g.2.map fun c => (CL c).length).sum
-            ≤ (g.2.map fun _ => 2 ^ (
-                (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-                  gates).getD (n + j) 0 - 1)).sum := List.sum_le_sum fun c hc => hbound c hc
-          _ = g.2.length * 2 ^ (
-                (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-                  gates).getD (n + j) 0 - 1) := by
-              rw [List.map_const', List.sum_replicate, smul_eq_mul]
-          _ ≤ 2 ^ (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-                gates).getD (n + j) 0 := by
-              rcases Nat.eq_zero_or_pos g.2.length with h0 | hpos
-              · rw [h0, Nat.zero_mul]
-                exact Nat.zero_le _
-              · obtain ⟨c, hc⟩ := List.exists_mem_of_length_pos hpos
-                have := hdpc c hc
-                obtain ⟨D', hD'⟩ := Nat.exists_eq_add_of_le (show 1 ≤
-                  (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-                    gates).getD (n + j) 0 by omega)
-                rw [hD', Nat.add_sub_cancel_left, Nat.add_comm 1 D', pow_succ']
-                exact Nat.mul_le_mul_right _ hlarge
+      · have hX := cost_le_getD_evalCode_depth 1 h hg
+        simp only [Pi.one_apply] at hX
+        rw [List.length_flatMap]
+        refine (List.sum_le_length_nsmul _ _ (List.forall_mem_map.2 fun c hc => (hCL_len c hc).trans
+          (Nat.pow_le_pow_right (by decide) (Nat.le_sub_one_of_lt (hdpc c hc))))).trans ?_
+        rw [List.length_map, smul_eq_mul]
+        exact (Nat.mul_le_mul_right _ hlarge).trans_eq (by rw [← pow_succ', Nat.sub_add_cancel hX])
       · intro c' hc'
         obtain ⟨c, hc, hc'⟩ := List.mem_flatMap.1 hc'
         exact hCL_corr c hc c' hc'
@@ -679,13 +612,11 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
           getD_kleeneEval_overrideGates_eq h hx hcorr (hCL_fin c hc claims
             (fun c' hc' => hsub (List.mem_flatMap.2 ⟨c, hc, hc'⟩)) hcorr)
         rw [getD_kleeneEval_overrideGates h (hρ claims) claims hg]
-        split_ifs
-        · exact Option.some_ne_none _
-        · exact Option.some_ne_none _
-        · have hmap : g.2.map (fun a => some (v.getD a false)) =
-              (g.2.map (v.getD · false)).map some := by rw [List.map_map]; rfl
-          rw [List.map_congr_left hkc, hmap]
-          exact kleeneOp_map_some_ne_none g.1 (by rw [List.length_map]; exact hlen)
+        split_ifs <;> try exact Option.some_ne_none _
+        have hmap : g.2.map (fun a => some (v.getD a false)) =
+            (g.2.map (v.getD · false)).map some := by rw [List.map_map]; rfl
+        rw [List.map_congr_left hkc, hmap]
+        exact kleeneOp_map_some_ne_none g.1 (by rw [List.length_map]; exact hlen)
 
 /-- Correct claims give correct checks. -/
 theorem checks_correct {n : ℕ} {gates : List (Op × List ℕ)}
@@ -754,35 +685,28 @@ private theorem claimInput_eq (claims : List (ℕ × Bool)) (i : ℕ) :
       else if decide ((i, false) ∈ claims) then some false else none := by
   simp only [claimInput, decide_eq_true_eq]
 
+@[local fun_prop]
 private theorem computableInPolyTime_claimInputs
     (hn : ComputableInPolyTime nf encIn encUnary)
     (hc : ComputableInPolyTime cf encIn (encList (encPair encUnary encBool))) :
     ComputableInPolyTime (fun a => claimInputs (nf a) (cf a)) encIn
       (encList (encOption encBool)) := by
-  unfold claimInputs
-  refine ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hn) ?_
+  refine ComputableInPolyTime.mapWithInput (by fun_prop) ?_
   simp only [claimInput_eq]
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn encUnary)
-  have hcl := hc.comp hp.fst'
-  have ht := ComputableInPolyTime.decide_mem hcl (hp.snd'.prod (ComputableInPolyTime.const true))
-  have hf := ComputableInPolyTime.decide_mem hcl (hp.snd'.prod (ComputableInPolyTime.const false))
-  exact ComputableInPolyTime.ite' ht (ComputableInPolyTime.const _)
-    (ComputableInPolyTime.ite' hf (ComputableInPolyTime.const _) (ComputableInPolyTime.const _))
+  polytime
 
 private theorem computableInPolyTime_opNat :
     ComputableInPolyTime (fun g : Op × List ℕ => g.1.toNat) (Circuit.encGate encOp) encUnary :=
-  (ComputableInPolyTime.id' (encIn := Circuit.encGate encOp)).fst'.of_enc_eq fun _ => rfl
+  (ComputableInPolyTime.fst _ _).of_enc_eq fun _ => rfl
 
+@[local fun_prop]
 private theorem computableInPolyTime_claimFlag {f : γ → Op × List ℕ} {b : γ → Bool}
     (hf : ComputableInPolyTime f encIn (Circuit.encGate encOp))
     (hb : ComputableInPolyTime b encIn encBool) :
     ComputableInPolyTime (fun a => claimFlag (f a).1 (b a)) encIn encBool := by
   have hop := computableInPolyTime_opNat.comp hf
   unfold claimFlag
-  have h0 := ComputableInPolyTime.unary_beq' hop (ComputableInPolyTime.const 0)
-  have h1 := ComputableInPolyTime.unary_beq' (ComputableInPolyTime.unary_mod.comp
-    (hop.prod (ComputableInPolyTime.const 2))) (ComputableInPolyTime.const 1)
-  fun_prop
+  polytime
 
 private theorem overrideGate_eq (n : ℕ) (claims : List (ℕ × Bool)) (g : Op × List ℕ) (j : ℕ) :
     overrideGate n claims g j =
@@ -791,6 +715,7 @@ private theorem overrideGate_eq (n : ℕ) (claims : List (ℕ × Bool)) (g : Op 
       else g := by
   simp only [overrideGate, claimFlag_eq g.1 _ g.2, Bool.and_eq_true, decide_eq_true_eq]
 
+@[local fun_prop]
 private theorem computableInPolyTime_overrideGates
     (hn : ComputableInPolyTime nf encIn encUnary)
     (hg : ComputableInPolyTime gf encIn (encList (Circuit.encGate encOp)))
@@ -798,20 +723,7 @@ private theorem computableInPolyTime_overrideGates
     ComputableInPolyTime (fun a => overrideGates (nf a) (cf a) (gf a)) encIn
       (encList (Circuit.encGate encOp)) := by
   simp only [overrideGates, overrideGate_eq]
-  refine ComputableInPolyTime.mapWithInput
-    (((ComputableInPolyTime.zipIdx _)).comp hg) ?_
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair encIn (encPair (Circuit.encGate encOp) encUnary))
-  have hcl := hc.comp hp.fst'
-  have hw := ComputableInPolyTime.unary_add' (hn.comp hp.fst') hp.snd'.snd'
-  have ht := ComputableInPolyTime.bool_and'
-    (computableInPolyTime_claimFlag hp.snd'.fst' (ComputableInPolyTime.const true))
-    (ComputableInPolyTime.decide_mem hcl (hw.prod (ComputableInPolyTime.const true)))
-  have hf := ComputableInPolyTime.bool_and'
-    (computableInPolyTime_claimFlag hp.snd'.fst' (ComputableInPolyTime.const false))
-    (ComputableInPolyTime.decide_mem hcl (hw.prod (ComputableInPolyTime.const false)))
-  exact ComputableInPolyTime.ite' ht (ComputableInPolyTime.const _)
-    (ComputableInPolyTime.ite' hf (ComputableInPolyTime.const _) hp.snd'.fst')
+  polytime
 
 private theorem claimChecks_eq (n : ℕ) (gates : List (Op × List ℕ)) (c : ℕ × Bool) :
     claimChecks n gates c = if decide (c.1 < n) then [c]
@@ -821,6 +733,7 @@ private theorem claimChecks_eq (n : ℕ) (gates : List (Op × List ℕ)) (c : �
 
 /-- **The checks of claims are polynomial-time**, for inputs, gates and claims computed in
 polynomial time. -/
+@[fun_prop]
 theorem computableInPolyTime_checks
     (hn : ComputableInPolyTime nf encIn encUnary)
     (hg : ComputableInPolyTime gf encIn (encList (Circuit.encGate encOp)))
@@ -828,28 +741,14 @@ theorem computableInPolyTime_checks
     ComputableInPolyTime (fun a => (cf a).flatMap (claimChecks (nf a) (gf a))) encIn
       (encList (encPair encNat encBool)) := by
   refine ComputableInPolyTime.flatMapWithInput hc ?_
-  simp only [claimChecks_eq]
-  have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encUnary encBool))
-  have hb := ComputableInPolyTime.unary_to_binary
   have hgate : ComputableInPolyTime (fun p : γ × (ℕ × Bool) => gateAt (nf p.1) (gf p.1) p.2.1)
-      (encPair encIn (encPair encUnary encBool)) (Circuit.encGate encOp) := by
-    unfold gateAt
-    exact ComputableInPolyTime.listGetDWithInput (hg.comp hp.fst')
-      (ComputableInPolyTime.unary_sub' hp.snd'.fst' (hn.comp hp.fst')) _
-  have hlt := ComputableInPolyTime.unary_lt' hp.snd'.fst' (hn.comp hp.fst')
-  have hself : ComputableInPolyTime (fun p : γ × (ℕ × Bool) => [p.2])
-      (encPair encIn (encPair encUnary encBool)) (encList (encPair encNat encBool)) :=
-    ComputableInPolyTime.cons' ((hb.comp hp.snd'.fst').prod hp.snd'.snd')
-      (ComputableInPolyTime.const [])
-  have hmap : ComputableInPolyTime
-      (fun p : γ × (ℕ × Bool) => (gateAt (nf p.1) (gf p.1) p.2.1).2.map (·, p.2.2))
-      (encPair encIn (encPair encUnary encBool)) (encList (encPair encNat encBool)) := by
-    refine ComputableInPolyTime.mapWithInput hgate.snd' ?_
-    have hq := ComputableInPolyTime.id'
-      (encIn := encPair (encPair encIn (encPair encUnary encBool)) encNat)
-    exact hq.snd'.prod hq.fst'.snd'.snd'
-  exact ComputableInPolyTime.ite' hlt hself (ComputableInPolyTime.ite'
-    (computableInPolyTime_claimFlag hgate hp.snd'.snd') hmap (ComputableInPolyTime.const []))
+      (encPair encIn (encPair encUnary encBool)) (Circuit.encGate encOp) :=
+    ComputableInPolyTime.listGetDWithInput (hg.comp (by fun_prop)) (by fun_prop) _
+  simp only [claimChecks_eq]
+  exact ComputableInPolyTime.ite' (by fun_prop)
+    (ComputableInPolyTime.cons'
+      ((ComputableInPolyTime.unary_to_binary.comp (by fun_prop)).prod (by fun_prop)) (.const []))
+    (by polytime)
 
 private theorem computableInPolyTime_smallDepthOp (d : ℕ) :
     ComputableInPolyTime (fun l : List ℕ => smallDepthOp d Op.not l) (encList encUnary)
@@ -871,17 +770,11 @@ private theorem computableInPolyTime_smallDepths (d : ℕ)
       (fun p : List ℕ × (Op × List ℕ) =>
         p.1 ++ [smallDepthOp d p.2.1 (p.2.2.map (p.1.getD · (d + 1)))])
       (encPair (encList encUnary) (Circuit.encGate encOp)) (encList encUnary) := by
-    have hp := ComputableInPolyTime.id' (encIn :=
-      encPair (encList encUnary) (Circuit.encGate encOp))
-    have hargs : ComputableInPolyTime
-        (fun p : List ℕ × (Op × List ℕ) => p.2.2.map (p.1.getD · (d + 1)))
-        (encPair (encList encUnary) (Circuit.encGate encOp)) (encList encUnary) := by
-      refine ComputableInPolyTime.mapWithInput hp.snd'.snd' ?_
-      have hq := ComputableInPolyTime.id' (encIn :=
-        encPair (encPair (encList encUnary) (Circuit.encGate encOp)) encNat)
-      exact ComputableInPolyTime.listGetD_binary (encA := encUnary) (d + 1) hq.fst'.fst' hq.snd'
-    exact ComputableInPolyTime.listAppend' hp.fst' (ComputableInPolyTime.cons'
-      ((computableInPolyTime_smallDepthOp d).comp hargs) (ComputableInPolyTime.const []))
+    refine ComputableInPolyTime.listAppend' (by fun_prop)
+      (ComputableInPolyTime.cons' ((computableInPolyTime_smallDepthOp d).comp
+        (ComputableInPolyTime.mapWithInput (by fun_prop) ?_)) (by fun_prop))
+    exact ComputableInPolyTime.listGetD_binary (encA := encUnary) (encL := encList encUnary)
+      (d + 1) (by fun_prop) (by fun_prop)
   unfold smallDepths
   exact ComputableInPolyTime.foldl_of_bounded_growth hg
     (ComputableInPolyTime.replicate hn (ComputableInPolyTime.const 0)) hstep
@@ -899,21 +792,16 @@ theorem computableInPolyTime_claimsValid (d : ℕ)
     (ho : ComputableInPolyTime of encIn encNat)
     (hc : ComputableInPolyTime cf encIn (encList (encPair encUnary encBool))) :
     ComputableInPolyTime (fun a => claimsValid d (nf a) (gf a) (of a) (cf a)) encIn encBool := by
-  have hk := computableInPolyTime_kleeneEval (computableInPolyTime_claimInputs hn hc)
-    (computableInPolyTime_overrideGates hn hg hc)
-  have hval := ComputableInPolyTime.listGetD_binary (encA := encOption encBool) none hk ho
-  have hfirst := ComputableInPolyTime.decide_eq' hval
-    (ComputableInPolyTime.const (some true) (encOut := encOption encBool))
-  have hsd := computableInPolyTime_smallDepths d hn hg
-  have hall : ComputableInPolyTime
-      (fun a => ((cf a).flatMap (claimChecks (nf a) (gf a))).all fun e =>
-        decide ((smallDepths d (nf a) (gf a)).getD e.1 (d + 1) ≤ d)) encIn encBool := by
-    refine ComputableInPolyTime.allWithInput (computableInPolyTime_checks hn hg hc) ?_
-    have hp := ComputableInPolyTime.id' (encIn := encPair encIn (encPair encNat encBool))
-    exact ComputableInPolyTime.unary_le'
-      (ComputableInPolyTime.listGetD_binary (encA := encUnary) (d + 1) (hsd.comp hp.fst')
-        hp.snd'.fst') (ComputableInPolyTime.const d)
-  exact ComputableInPolyTime.bool_and' hfirst hall
+  have hval := ComputableInPolyTime.listGetD_binary (encA := encOption encBool)
+    (encL := encList (encOption encBool)) none
+    (computableInPolyTime_kleeneEval (computableInPolyTime_claimInputs hn hc)
+      (computableInPolyTime_overrideGates hn hg hc)) ho
+  refine ComputableInPolyTime.bool_and' (by polytime)
+    (ComputableInPolyTime.allWithInput (computableInPolyTime_checks hn hg hc) ?_)
+  exact ComputableInPolyTime.unary_le'
+    (ComputableInPolyTime.listGetD_binary (encA := encUnary) (encL := encList encUnary) (d + 1)
+      ((computableInPolyTime_smallDepths d hn hg).comp (by fun_prop)) (by fun_prop))
+    (by fun_prop)
 
 end PolyTime
 

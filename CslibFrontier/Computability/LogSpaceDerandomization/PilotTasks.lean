@@ -90,22 +90,23 @@ theorem rank_lt_of_mem_children {parent child : PilotTask} (h : child ∈ parent
     child.rank < parent.rank := by
   cases parent with
   | base => simp [children] at h
-  | input i => simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-               rcases h with rfl | rfl <;> simp only [rank] <;> omega
-  | score i => simp only [children, List.mem_singleton] at h; subst child; simp [rank]
-  | detector i => simp only [children, List.mem_singleton] at h; subst child; simp [rank]
-  | maximum i =>
+  | input i =>
+    simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
+    rcases h with rfl | rfl
+    · simp only [rank]; omega
+    · simp only [rank]; omega
+  | score i | detector i =>
+    simp only [children, List.mem_singleton] at h
+    subst child
+    simp [rank]
+  | maximum i | correction i =>
     cases i with
     | zero => simp [children] at h
     | succ i =>
       simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-      rcases h with rfl | rfl <;> simp only [rank] <;> omega
-  | correction i =>
-    cases i with
-    | zero => simp [children] at h
-    | succ i =>
-      simp only [children, List.mem_cons, List.not_mem_nil, or_false] at h
-      rcases h with rfl | rfl <;> simp only [rank] <;> omega
+      rcases h with rfl | rfl
+      · simp only [rank]; omega
+      · simp only [rank]; omega
 
 /-- Iteration label, for bounding the number of ranks at a stage. -/
 @[expose] def iteration : PilotTask → ℕ
@@ -171,13 +172,12 @@ theorem input_request_cost_le {f u a A : ℝ} {i : ℕ} {r : Request}
           (Cslib.LogSpaceEstimation.lastBudget M d c h) r.task.rank r.endRate r.sourceRate) ≤
       (2 : ℝ) ^ (-Cslib.LogSpaceEstimation.precision (16 * c) A M (input i).rank a u - A +
         (d : ℝ) / (16 * c) + 1 / 16) * Cslib.LogSpaceEstimation.scaleMajorant h := by
-  have hrank := rank_lt_of_mem_inputRequests hr
   have hrates : r.endRate = f ∧ u ≤ r.sourceRate := by
     simp only [inputRequests, List.mem_cons, List.not_mem_nil, or_false] at hr
-    rcases hr with rfl | rfl | rfl <;> exact ⟨rfl, by first | exact le_rfl | exact huf⟩
-  apply Cslib.LogSpaceEstimation.scheduled_child_cost_le hA M d c (input i).rank r.task.rank
-    hc h hrank ha (hrates.1.symm ▸ hf) hu hrates.2
-  rwa [hrates.1]
+    rcases hr with rfl | rfl | rfl
+    all_goals exact ⟨rfl, by first | exact le_rfl | exact huf⟩
+  exact Cslib.LogSpaceEstimation.scheduled_child_cost_le hA M d c (input i).rank r.task.rank
+    hc h (rank_lt_of_mem_inputRequests hr) ha (hrates.1.symm ▸ hf) hu hrates.2 (by rwa [hrates.1])
 
 variable {q cπ Cπ Cpair Cvar : ℝ} (P : HierarchyParams q cπ Cπ Cpair Cvar)
   {V κ : Type u} {ι : Type*} [Fintype V] [Fintype ι] [Fintype κ]
@@ -217,13 +217,11 @@ theorem value_detector (i : ℕ) (y : V) : value P X Y f C (.detector i) y =
 theorem value_detector_eq_zero (hJ : Fintype.card V < P.J) (i : ℕ) :
     value P X Y f C (.detector i) = 0 := by
   have hrank (s : ι) (t : κ) (y : V) :
-      kthLargest P.J {x | X s x} (fun x => value P X Y f C (.score i) t x y) = 0 := by
-    apply le_antisymm _ kthLargest_nonneg
-    apply le_of_not_gt
-    intro hh
-    have hc := (lt_kthLargest_iff P.J_pos (le_refl (0 : ℝ))).mp hh
-    have hb := card_le_univ {x ∈ {x | X s x} | 0 < value P X Y f C (.score i) t x y}
-    omega
+      kthLargest P.J {x | X s x} (fun x => value P X Y f C (.score i) t x y) = 0 :=
+    le_antisymm (le_of_not_gt fun hh => by
+      have := (lt_kthLargest_iff P.J_pos (le_refl (0 : ℝ))).mp hh
+      have := card_le_univ {x ∈ {x | X s x} | 0 < value P X Y f C (.score i) t x y}
+      omega) kthLargest_nonneg
   ext y
   simp [value_detector, hrank]
 
@@ -246,13 +244,11 @@ theorem value_correction_succ (i : ℕ) (x y : V) :
         P.γ (value P X Y f C (.maximum (i + 1)) y) := by
   change pilotCorrection (P.cutoff f) P.γ
     (columnDetector X Y P.ϕ P.ρ P.J P.K f) C (i + 1) x y = _
-  rw [pilotCorrection_succ_apply, P.cutoff_apply]
-  rfl
+  rw [pilotCorrection_succ_apply, P.cutoff_apply]; rfl
 
 /-- The final vector is exactly the hierarchy's pilot multiplier input. -/
 theorem value_maximum_last : value P X Y f C (.maximum P.k) = P.pilot X Y f C := by
-  rw [P.pilot_eq]
-  rfl
+  rw [P.pilot_eq]; rfl
 
 /-- Input nonnegativity and row mass follow from the actual pilot, rather than task fields. -/
 theorem value_input_bounds (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)

@@ -61,13 +61,10 @@ theorem exec_patchInput {W b m I : ℕ} (x : Data 320)
         b I) (b + I) (m / 9) ∧
       y.regs Reg.base = b ∧
       ∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j := by
-  have hsucc : I - 1 + 1 = I := by omega
-  have hne : b ≠ b + 1 := by omega
   refine WP.exists_execWithin_preserves (fun j hj => patchInput_preserves j hj) ?_
   unfold patchInput
-  wram_exec [hb, hm, hlen, hsucc, hne]
-  intro hpres
-  refine ⟨?_, by wram_simp [hb], hpres⟩
+  wram_exec [hb, hm, hlen, show I - 1 + 1 = I by omega, show b ≠ b + 1 by omega]
+  refine fun hpres => ⟨?_, by wram_simp [hb], hpres⟩
   change Function.update (Function.update (Function.update x.mem (b + 1) (m * 21))
     b I) (b + I) (m / 9) = _
   rw [Nat.mul_comm m 21]
@@ -85,17 +82,14 @@ theorem patch_input_readback {b m n : ℕ}
         (State.init (BoxProduct.input true (21 * m) (m / 9) X Y qs) : State 160).data.mem a := by
   have hI : 5 ≤ QueriedProduct.inputEnd m n qs.length := by unfold QueriedProduct.inputEnd; omega
   by_cases he : a = QueriedProduct.inputEnd m n qs.length
-  · subst a
-    rw [Function.update_self, BoxProduct.input_threshold]
+  · rw [he, Function.update_self, BoxProduct.input_threshold]
   · rw [Function.update_of_ne (by omega)]
     by_cases h0 : a = 0
-    · subst a
-      simp only [Nat.add_zero, Function.update_self, State.init, Data.init_mem_zero,
+    · simp only [h0, Nat.add_zero, Function.update_self, State.init, Data.init_mem_zero,
         BoxProduct.input_length]
     · rw [Function.update_of_ne (by omega)]
       by_cases h1 : a = 1
-      · subst a
-        rw [Function.update_self]
+      · rw [h1, Function.update_self]
         rfl
       · rw [Function.update_of_ne (by omega), hin a (by omega)]
         exact (QueriedProduct.input_change_level true (19 * m) (21 * m) X Y qs a h1).trans

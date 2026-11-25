@@ -66,10 +66,7 @@ theorem length_internal_occurrences (hF : EdgeInstance F) (vs : List ℕ)
   have he : (F.vars.filter fun v => vs.contains v).toFinset = vs.toFinset := by
     ext v
     simp only [List.mem_toFinset, List.mem_filter, List.contains_iff_mem]
-    constructor
-    · exact And.right
-    · intro hm
-      exact ⟨List.mem_toFinset.mp (hv (List.mem_toFinset.mpr hm)), hm⟩
+    exact ⟨And.right, fun hm => ⟨List.mem_toFinset.mp (hv (List.mem_toFinset.mpr hm)), hm⟩⟩
   rw [← List.sum_toFinset_count_eq_length, he]
   have hc : ∀ v ∈ vs.toFinset, (F.vars.filter fun v => vs.contains v).count v = 2 := by
     intro v hmem
@@ -100,8 +97,8 @@ theorem length_touched_le_internal (hF : EdgeInstance F) (hw : w.IsWalk)
 theorem numVars_contract_le (hF : EdgeInstance F) (hw : w.IsWalk)
     (hc : w.finish = w.start) (f : OccurrenceLabeling F Bool) :
     (contract f (internal w)).numVars ≤ F.numVars := by
-  have hn := numVars_contract_add f (internal w) (internal_subset_vars w)
-  have hr := length_touched_le_internal hF hw hc
+  have := numVars_contract_add f (internal w) (internal_subset_vars w)
+  have := length_touched_le_internal hF hw hc
   omega
 
 /-- The actual finite contraction strictly decreases the recursion resource, including the
@@ -109,9 +106,9 @@ case where the variable count is unchanged. Every hypothesis comes from the actu
 theorem contractionMeasure_contract_lt (hF : EdgeInstance F) {f : OccurrenceLabeling F Bool}
     (hb : w.IsBlossom Table.sem f) :
     (contract f (internal w)).contractionMeasure < F.contractionMeasure := by
-  have hn := numVars_contract_le hF hb.1 hb.2.1 f
-  have hp := positiveCount_contract f (internal w) (touched_ne_nil w hb.2.2.1)
-  have hbnd := (edge_contract hF f (internal w)).positiveCount_le
+  have := numVars_contract_le hF hb.1 hb.2.1 f
+  have := positiveCount_contract f (internal w) (touched_ne_nil w hb.2.2.1)
+  have := (edge_contract hF f (internal w)).positiveCount_le
   unfold contractionMeasure
   omega
 

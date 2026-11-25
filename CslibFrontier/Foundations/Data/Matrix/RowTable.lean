@@ -95,10 +95,8 @@ theorem map_map (g : β → γ) (f : α → β) (T : RowTable α) :
 
 /-- `map` preserves `WellFormed`. -/
 theorem WellFormed.map {T : RowTable α} (hT : T.WellFormed) (f : α → β) :
-    (T.map f).WellFormed := by
-  refine ⟨by simp [hT.1], fun r hr => ?_⟩
-  obtain ⟨r₀, hr₀, rfl⟩ := List.mem_map.mp hr
-  simp [hT.2 r₀ hr₀]
+    (T.map f).WellFormed :=
+  ⟨by simp [hT.1], List.forall_mem_map.2 fun r₀ hr₀ => by simp [hT.2 r₀ hr₀]⟩
 
 /-- Construct the `m × n` `RowTable` whose `(i, j)` entry is `g i j` for `i < m` and `j < n`. -/
 @[expose] def tabulate (m n : ℕ) (g : ℕ → ℕ → α) : RowTable α :=
@@ -137,16 +135,14 @@ theorem wellFormed_tabulate (m n : ℕ) (g : ℕ → ℕ → α) : (tabulate m n
 /-- `ofMatrix A` is always `WellFormed`. -/
 theorem wellFormed_ofMatrix {m n : ℕ} (A : Matrix (Fin m) (Fin n) α) :
     (ofMatrix A).WellFormed := by
-  refine ⟨by simp [ofMatrix], fun r hr => ?_⟩
-  simp only [ofMatrix, List.mem_ofFn] at hr
-  obtain ⟨_, rfl⟩ := hr
+  refine ⟨by simp [ofMatrix], fun _ hr => ?_⟩
+  obtain ⟨_, rfl⟩ := List.mem_ofFn.1 hr
   simp
 
 /-- `map` commutes with `ofMatrix`. -/
 @[simp] theorem map_ofMatrix {m n : ℕ} (f : α → β) (A : Matrix (Fin m) (Fin n) α) :
-    (ofMatrix A).map f = ofMatrix (A.map f) := by
-  refine RowTable.ext rfl rfl ?_
-  simp [map, ofMatrix, Function.comp_def]
+    (ofMatrix A).map f = ofMatrix (A.map f) :=
+  RowTable.ext rfl rfl (by simp [map, ofMatrix, Function.comp_def])
 
 end Basic
 
@@ -182,9 +178,8 @@ theorem entry_tabulate (m n : ℕ) (g : ℕ → ℕ → α) (i j : ℕ) :
 
 /-- Matrix interpretation of `tabulate m n g`. -/
 @[simp] theorem toMatrix_tabulate (m n : ℕ) (g : ℕ → ℕ → α) :
-    (tabulate m n g).toMatrix = Matrix.of fun i j => g i.val j.val := by
-  ext i j
-  exact entry_tabulate_of_lt g i.isLt j.isLt
+    (tabulate m n g).toMatrix = Matrix.of fun i j => g i.val j.val :=
+  Matrix.ext fun i j => entry_tabulate_of_lt g i.isLt j.isLt
 
 /-- In-bounds entry lookup on `ofMatrix A`. -/
 @[simp] theorem entry_ofMatrix_of_lt {m n : ℕ} (A : Matrix (Fin m) (Fin n) α) {i j : ℕ}
@@ -194,19 +189,17 @@ theorem entry_tabulate (m n : ℕ) (g : ℕ → ℕ → α) (i j : ℕ) :
 
 /-- Converting `A : Matrix (Fin m) (Fin n) α` to `RowTable α` and back recovers `A`. -/
 @[simp] theorem toMatrix_ofMatrix {m n : ℕ} (A : Matrix (Fin m) (Fin n) α) :
-    (ofMatrix A).toMatrix = A := by
-  ext i j
-  exact entry_ofMatrix_of_lt A i.isLt j.isLt
+    (ofMatrix A).toMatrix = A :=
+  Matrix.ext fun i j => entry_ofMatrix_of_lt A i.isLt j.isLt
 
 /-- Out-of-bounds reads on a `WellFormed` table return `0`. -/
 theorem WellFormed.entry_eq_zero {T : RowTable α} (hT : T.WellFormed) {i j : ℕ}
     (h : ¬(i < T.numRows ∧ j < T.numCols)) : T.entry i j = 0 := by
   unfold entry
   rcases Nat.lt_or_ge i T.rows.length with hi | hi
-  · rw [List.getD_eq_getElem _ _ hi]
-    have hir : i < T.numRows := hT.1 ▸ hi
-    have hlen : T.rows[i].length = T.numCols := hT.2 _ (List.getElem_mem hi)
-    exact List.getD_eq_default _ _ (by omega)
+  · have := hT.1
+    have := hT.2 _ (List.getElem_mem hi)
+    rw [List.getD_eq_getElem _ _ hi, List.getD_eq_default _ _ (by omega)]
   · rw [List.getD_eq_default _ _ hi, List.getD_nil]
 
 /-- Every stored element of `T.rows` occurs as `T.entry i j` at valid row/column indices. -/
@@ -227,24 +220,20 @@ theorem entry_rel_of_mem {P : α → Prop} (h0 : P 0) {T : RowTable α}
     rcases Nat.lt_or_ge j T.rows[i].length with hj | hj
     · rw [List.getD_eq_getElem _ _ hj]
       exact h _ (List.getElem_mem hi) _ (List.getElem_mem hj)
-    · rw [List.getD_eq_default _ _ hj]
-      exact h0
-  · rw [List.getD_eq_default _ _ hi, List.getD_nil]
-    exact h0
+    · rwa [List.getD_eq_default _ _ hj]
+  · rwa [List.getD_eq_default _ _ hi, List.getD_nil]
 
 /-- Two `WellFormed` tables of equal dimensions are equal when their in-bounds entries agree. -/
 theorem eq_of_wellFormed_of_entry_eq {A B : RowTable α} (hA : A.WellFormed) (hB : B.WellFormed)
     (hr : A.numRows = B.numRows) (hc : A.numCols = B.numCols)
-    (h : ∀ i < A.numRows, ∀ j < A.numCols, A.entry i j = B.entry i j) : A = B := by
-  refine RowTable.ext hr hc ?_
-  refine List.ext_getElem (hA.1.trans (hr.trans hB.1.symm)) fun i hiA hiB => ?_
-  have hi : i < A.numRows := hA.1 ▸ hiA
-  have hlenA : A.rows[i].length = A.numCols := hA.2 _ (List.getElem_mem hiA)
-  have hlenB : B.rows[i].length = B.numCols := hB.2 _ (List.getElem_mem hiB)
-  refine List.ext_getElem (hlenA.trans (hc.trans hlenB.symm)) fun j hjA hjB => ?_
-  have hj : j < A.numCols := hlenA ▸ hjA
-  simpa only [entry, List.getD_eq_getElem _ _ hiA, List.getD_eq_getElem _ _ hiB,
-    List.getD_eq_getElem _ _ hjA, List.getD_eq_getElem _ _ hjB] using h i hi j hj
+    (h : ∀ i < A.numRows, ∀ j < A.numCols, A.entry i j = B.entry i j) : A = B :=
+  RowTable.ext hr hc <| List.ext_getElem (hA.1.trans (hr.trans hB.1.symm)) fun i hiA hiB =>
+    have hlenA := hA.2 _ (List.getElem_mem hiA)
+    List.ext_getElem (hlenA.trans (hc.trans (hB.2 _ (List.getElem_mem hiB)).symm))
+      fun j hjA hjB => by
+        simpa only [entry, List.getD_eq_getElem _ _ hiA, List.getD_eq_getElem _ _ hiB,
+          List.getD_eq_getElem _ _ hjA, List.getD_eq_getElem _ _ hjB] using
+          h i (hA.1 ▸ hiA) j (hlenA ▸ hjA)
 
 /-- Re-tabulating a `WellFormed` table from `entry` recovers it unchanged. -/
 theorem tabulate_entry {T : RowTable α} (hT : T.WellFormed) :
@@ -272,9 +261,8 @@ theorem ofMatrix_toMatrix {T : RowTable α} (hT : T.WellFormed) :
 
 /-- `toMatrix` commutes with `Matrix.map` for any zero-preserving `f`. -/
 @[simp] theorem toMatrix_map [Zero β] (f : α → β) (hf : f 0 = 0) (T : RowTable α) :
-    (T.map f).toMatrix = T.toMatrix.map f := by
-  ext i j
-  exact entry_map f hf T i.val j.val
+    (T.map f).toMatrix = T.toMatrix.map f :=
+  Matrix.ext fun i j => entry_map f hf T i.val j.val
 
 end Zero
 

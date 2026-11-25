@@ -32,7 +32,7 @@ namespace Cslib.Circuits.Arithmetic.Separation.Flag
 variable {ι : Type*} [Fintype ι] [DecidableEq ι] {G : Type*} [Group G]
 
 /-- The growth allowed by the contraction. -/
-noncomputable def grow (m : ℕ) (s : ℝ) (r : ℕ) : ℝ :=
+@[expose] noncomputable def grow (m : ℕ) (s : ℝ) (r : ℕ) : ℝ :=
   m * (Nat.log m r + 1) * s ^ Nat.log m r
 
 theorem grow_nonneg (m : ℕ) {s : ℝ} (hs : 1 ≤ s) (r : ℕ) : 0 ≤ grow m s r := by
@@ -43,8 +43,6 @@ theorem grow_mono (m : ℕ) {s : ℝ} (hs : 1 ≤ s) {r r' : ℕ} (h : r ≤ r')
     grow m s r ≤ grow m s r' := by
   unfold grow
   have hl : Nat.log m r ≤ Nat.log m r' := Nat.log_mono_right h
-  have hl' : (Nat.log m r : ℝ) ≤ Nat.log m r' := by exact_mod_cast hl
-  have hp : s ^ Nat.log m r ≤ s ^ Nat.log m r' := pow_le_pow_right₀ hs hl
   have : 0 ≤ s ^ Nat.log m r := by positivity
   gcongr
 
@@ -62,13 +60,9 @@ theorem good_of_contr (l : Len G) {m : ℕ} {s : ℝ} (hC : Contr l m s)
     Good (fun M => l (τ M)) m s where
   nonneg _ := apply_nonneg l _
   zero := by
-    have h := hτ 0 0
-    rw [add_zero] at h
-    have : τ 0 = 1 := by simpa using h
+    have : τ 0 = 1 := by simpa using hτ 0 0
     simp only [this, map_one_eq_zero l]
-  add M N := by
-    simp only [hτ]
-    exact map_mul_le_add l _ _
+  add M N := hτ M N ▸ map_mul_le_add l _ _
   digit _ e i := DM_digit l hC τ hτ e i
 
 variable {f : Matrix ι ι F2 → ℝ} {m : ℕ} {s : ℝ}

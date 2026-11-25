@@ -88,23 +88,14 @@ theorem exec_matrices {W n F ap bp cp b : ℕ} (x : Data 640)
       y.regs Reg.bc = bp ∧ y.regs Reg.ac = cp ∧ y.regs Reg.free = b := by
   let values := rowList A ++ (rowList B ++ rowList C)
   have hlen : values.length = 3 * (n * n) := by
-    simp only [values, List.length_append, rowList_length]
-    omega
+    simp only [values, List.length_append, rowList_length]; omega
   have bounded (M : Fin n → Fin n → ℤ) (hM : ∀ i j, |M i j| ≤ F) :
       ∀ z ∈ rowList M, z.natAbs ≤ F := by
     intro z hz
-    obtain ⟨q, hq⟩ := List.mem_ofFn.mp hz
-    subst z
-    have h := hM (finProdFinEquiv.symm q).1 (finProdFinEquiv.symm q).2
-    exact_mod_cast (show ((M (finProdFinEquiv.symm q).1 (finProdFinEquiv.symm q).2).natAbs : ℤ)
-      ≤ F by simpa only [Int.natCast_natAbs] using h)
-  have hv : ∀ z ∈ values, z.natAbs ≤ F := by
-    intro z hz
-    rcases List.mem_append.mp hz with h | h
-    · exact bounded A hA z h
-    · rcases List.mem_append.mp h with h | h
-      · exact bounded B hB z h
-      · exact bounded C hC z h
+    obtain ⟨q, rfl⟩ := List.mem_ofFn.mp hz
+    exact Int.ofNat_le.mp ((Int.abs_eq_natAbs _).symm.trans_le (hM _ _))
+  have hv : ∀ z ∈ values, z.natAbs ≤ F := fun z hz => (List.mem_append.mp hz).elim
+    (bounded A hA z) fun h => (List.mem_append.mp h).elim (bounded B hB z) (bounded C hC z)
   have getA (q : ℕ) (hq : q < n * n) : values.getD q 0 = (rowList A).getD q 0 :=
     rowList_append_getD_left A _ hq
   have getB (q : ℕ) (hq : q < n * n) :
@@ -114,20 +105,13 @@ theorem exec_matrices {W n F ap bp cp b : ℕ} (x : Data 640)
       values.getD (2 * (n * n) + q) 0 = (rowList C).getD q 0 := by
     dsimp only [values]
     rw [two_mul, Nat.add_assoc, rowList_append_getD_right, rowList_append_getD_right]
-  have pair (q : ℕ) (hq : q < n * n) :
-      pairIndex (finProdFinEquiv.symm (⟨q, hq⟩ : Fin (n * n))) = q := by
-    rw [pairIndex_eq_val_finProdFinEquiv, finProdFinEquiv.apply_symm_apply]
   have word (M : Fin n → Fin n → ℤ) (a : ℕ)
       (read : ∀ i j, x.mem (a + i.val * n + j.val) = Signed.encode (M i j))
       (q : ℕ) (hq : q < n * n) : x.mem (a + q) = Signed.encode ((rowList M).getD q 0) := by
-    rw [rowList_get M hq]
     have h := read (finProdFinEquiv.symm (⟨q, hq⟩ : Fin (n * n))).1
       (finProdFinEquiv.symm (⟨q, hq⟩ : Fin (n * n))).2
-    have h' : x.mem (a + pairIndex (finProdFinEquiv.symm (⟨q, hq⟩ : Fin (n * n)))) =
-        Signed.encode (M (finProdFinEquiv.symm (⟨q, hq⟩ : Fin (n * n))).1
-          (finProdFinEquiv.symm (⟨q, hq⟩ : Fin (n * n))).2) := by
-      simpa only [pairIndex, Nat.add_assoc] using h
-    simpa only [pair q hq] using h'
+    rwa [Nat.add_assoc, ← pairIndex, pairIndex_eq_val_finProdFinEquiv,
+      finProdFinEquiv.apply_symm_apply, ← rowList_get M hq] at h
   obtain ⟨p, mem, y, he, hf, hiff, hp, hz, frame, yn, yf, ya, yb, yc, yfree⟩ :=
     exec_at values hlen hv x xn xF xap xbp xcp xb hab hbc hac
       (fun q hq => by rw [getA q hq]; exact word A ap vab q hq)
@@ -137,9 +121,8 @@ theorem exec_matrices {W n F ap bp cp b : ℕ} (x : Data 640)
   have matrixA := getD_block_pair (fun q => q) getA
   have matrixB := getD_block_pair (n * n + ·) getB
   have matrixC := getD_block_pair (2 * (n * n) + ·) getC
-  refine ⟨values, p, mem, y, hlen, hv, congrFun₂ matrixA, congrFun₂ matrixB, congrFun₂ matrixC,
-    he, hf, ?_, ?_, hz, frame, yn, yf, ya, yb, yc, yfree⟩
-  · simpa only [matrixA, matrixB, matrixC] using hiff
-  · simpa only [matrixA, matrixB, matrixC] using hp
+  simp only [matrixA, matrixB, matrixC] at hiff hp
+  exact ⟨values, p, mem, y, hlen, hv, congrFun₂ matrixA, congrFun₂ matrixB, congrFun₂ matrixC,
+    he, hf, hiff, hp, hz, frame, yn, yf, ya, yb, yc, yfree⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ParameterSelecting

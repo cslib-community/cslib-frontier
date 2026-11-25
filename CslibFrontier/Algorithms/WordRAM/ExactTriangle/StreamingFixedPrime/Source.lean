@@ -82,7 +82,6 @@ theorem exec_source {w m n g p A : ℕ} (values : List ℤ)
     have hr := FixedPrime.record_admitted hW
     unfold RecordWitness.admissionWidth RecordProduct.admissionWidth at hr
     omega
-  have header (q : ℕ) (hq : q < 5 + 3 * (n * n)) : initial.mem q = canonical.mem q := hinput q hq
   obtain ⟨hmag, hbudget⟩ := PreparationInput.fits_at_width n (D m) g p A
   have hmod := hmag.of_natAbs_le (show (p : ℤ).natAbs ≤ A + p + 1 by
     simp only [Int.natAbs_natCast]; omega)
@@ -92,32 +91,26 @@ theorem exec_source {w m n g p A : ℕ} (values : List ℤ)
       (by omega : A ≤ A + p + 1))
   obtain ⟨a, _, hout, b, hb, bn, bD, bp, bB, bH, bK, bd, bo, bz, bt, bh, bs, b1, b3,
       bL, bR, bmem, bframe⟩ := Instances.exec_at_with_prefix n (D m) g p V a₀
-    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using header 1 (by omega))
-    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using header 2 (by omega))
-    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using header 3 (by omega))
-    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using header 4 (by omega))
-    (fun q hq => (header (5 + q) (by omega)).trans
+    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using hinput 1 (by omega))
+    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using hinput 2 (by omega))
+    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using hinput 3 (by omega))
+    (by simpa [a₀, canonical, PreparationInput.input, Data.init] using hinput 4 (by omega))
+    (fun q hq => (hinput (5 + q) (by omega)).trans
       (PreparationInput.input_word n (D m) g p values q))
     (by omega) hDn hg hp0 hmod hvalues hbudget
   have hb' : ExecWithin (w + 2) (Code.seq Instances.catalogue Instances.setup) a₀ b
       (Catalogue.cost n (D m) p + 26) :=
     ExecWithin.mono_width prefix_not_readsWidth hb
       (by simpa only [PreparationInput.width, Nat.add_assoc] using hw)
-  have haEnd := hout.inputEnd_le_heap
-  have haframe (q : ℕ) (hq : q < 5 + 3 * (n * n) ∨ a.regs Instances.heap ≤ q) :
-      a.mem q = initial.mem q :=
-    hout.2.2.2.2.2.2.2.2.2.2.2 q (by simpa only [hout.2.2.2.2.2.1] using hq)
   let reference : Data 64 := ⟨a.regs,
     fun q => if q < a.regs Instances.heap then a.mem q else canonical.mem q⟩
-  have reference_mem (q : ℕ) (hq : q < a.regs Instances.heap) : reference.mem q = a.mem q :=
-    ite_eq_left hq
   have reference_out : Instances.Output n (D m) g p V canonical reference :=
-    hout.transfer V rfl reference_mem fun q hq => by
+    hout.transfer V rfl (fun _ hq => ite_eq_left hq) fun q hq => by
       dsimp only [reference]
       split_ifs with hh
-      · have hin : q < 5 + 3 * (n * n) := by
-          change _ ∨ a.regs Instances.heap ≤ q at hq; omega
-        exact (haframe q (Or.inl hin)).trans (header q hin)
+      · have hin : q < 5 + 3 * (n * n) := hq.resolve_right (not_le.mpr hh)
+        exact (hout.2.2.2.2.2.2.2.2.2.2.2 q
+          (by simpa only [hout.2.2.2.2.2.1] using Or.inl hin)).trans (hinput q hin)
       · rfl
   have heap : reference.regs Instances.heap ≤ PreparationInput.wordBound n (D m) g p A := by
     have := hout.heap_le_budget V (by omega) hDn hg
@@ -140,10 +133,9 @@ theorem exec_source {w m n g p A : ℕ} (values : List ℤ)
         bt.trans (by rw [hout.2.2.2.2.1, ← bK, ← bH]), bs, b1, b3, bL, bR⟩ :
         Cursor n (D m) g p V b)
   have hmem : Set.EqOn x.mem reference.mem (Set.Iio (reference.regs Instances.output)) :=
-    fun q hq => by
-      have hq0 : q < a.regs Instances.output := hq
-      exact (bmem (by simpa only [bo, Set.mem_Iio] using hq0)).trans
-        (reference_mem q (by omega)).symm
+    fun q (hq : q < a.regs Instances.output) =>
+      (bmem (by simpa only [bo, Set.mem_Iio] using hq)).trans
+        (ite_eq_left (by omega : q < a.regs Instances.heap)).symm
   obtain ⟨y, hy, yf, ys, yiff, yw, frame, _⟩ := exec_traverse values hlen hD hg hp hN hv hW
     reference x reference_out cursor ((xr _).trans bz) (by rw [xr, xr]; exact bh) hmem heap
   have domination := streamingCharge_le_timeBound
@@ -151,18 +143,20 @@ theorem exec_source {w m n g p A : ℕ} (values : List ℤ)
       (Nat.ne_of_gt hp0) reference_out
   refine ⟨reference, reference_out, y, (hx.seq hy).mono (by dsimp only [V] at domination ⊢; omega),
     yf, ys, yiff, yw, fun q hq => ?_⟩
-  have hinputEnd : 5 + 3 * (n * n) ≤ a.regs Instances.output := by rw [hout.2.2.2.1]; omega
   have houtside : q < reference.regs Instances.output ∨
       reference.regs Instances.output + (6 + 2 * (n * D m)) +
         CallableProduct.windowSize n (n * n) ≤ q := by
     change q < a.regs Instances.output ∨ a.regs Instances.output + _ + _ ≤ q
     rcases hq with hh | hh
-    · exact Or.inl (hh.trans_le hinputEnd)
-    · exact Or.inr (by change a.regs Instances.heap + _ ≤ q at hh; omega)
+    · have := hout.2.2.2.1
+      exact Or.inl (by omega)
+    · change a.regs Instances.heap + _ ≤ q at hh
+      exact Or.inr (by omega)
   exact (frame q houtside).trans (bframe q (by
     rw [bo]
     rcases hq with hh | hh
     · exact Or.inl hh
-    · exact Or.inr (by change a.regs Instances.heap + _ ≤ q at hh; omega)))
+    · change a.regs Instances.heap + _ ≤ q at hh
+      exact Or.inr (by omega)))
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

@@ -393,8 +393,7 @@ theorem closeBack_spec {K : ℕ} {R : Finset (HoleList n State)}
   obtain ⟨hwn, hvrun⟩ := wnWitness_spec hv
   have hj' := List.mem_range.mp hj
   have hrl := hrs.length_eq
-  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs] at hrs
-  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs]
+  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs] at hrs ⊢
   have hlen : (rs.take j).length = (holes.take j).length := by
     simp only [List.length_take]
     omega
@@ -481,9 +480,7 @@ theorem isSome_holeWitness {K : ℕ} :
     rcases hν with hν | hν
     · -- A new hole.
       refine .inl ?_
-      split_ifs at hν with hK
-      swap
-      · simp at hν
+      split_ifs at hν with hK <;> [skip; simp at hν]
       obtain ⟨i, -, hν⟩ := Finset.mem_biUnion.mp hν
       obtain ⟨⟨s, t⟩, hss, rfl⟩ := Finset.mem_image.mp hν
       obtain ⟨-, hs⟩ := Finset.mem_filter.mp hss
@@ -519,11 +516,9 @@ theorem isSome_holeWitness {K : ℕ} :
         have hr' : (rpre ++ r :: rpost)[pre.length]? = some r := by rw [← hlen]; simp
         simp only [hh, hr']
         refine List.findSome?_isSome_iff.mpr ⟨(γ, s₃, ℓν, s', b), FinEnum.mem_toList _, ?_⟩
-        have ht : (pre ++ ⟨i, s₁, s₂⟩ :: post).take pre.length = pre := by simp
-        have hd : (pre ++ ⟨i, s₁, s₂⟩ :: post).drop (pre.length + 1) = post := by simp
-        have ht' : (rpre ++ r :: rpost).take pre.length = rpre := by rw [← hlen]; simp
-        have hd' : (rpre ++ r :: rpost).drop (pre.length + 1) = rpost := by rw [← hlen]; simp
-        simp only [ht, hd, ht', hd']
+        simp only [List.take_left, List.take_left' hlen,
+          show (pre ++ ⟨i, s₁, s₂⟩ :: post).drop (pre.length + 1) = post by simp,
+          show (rpre ++ r :: rpost).drop (pre.length + 1) = rpost by simp [← hlen]]
         split_ifs with hc
         · exact isSome_bind_map _ (ih (List.rel_append hrpre (.cons (.cons hr hγ) hrpost)))
             (isSome_wrWitness hwr)
@@ -535,11 +530,7 @@ theorem isSome_holeWitness {K : ℕ} :
         refine List.findSome?_isSome_iff.mpr ⟨pre.length, List.mem_range.mpr (by simp), ?_⟩
         refine List.findSome?_isSome_iff.mpr ⟨(i, s₂, γ, s₃, ℓν, s', b), FinEnum.mem_toList _,
           ?_⟩
-        have ht : (pre ++ post).take pre.length = pre := by simp
-        have hd : (pre ++ post).drop pre.length = post := by simp
-        have ht' : (rpre ++ rpost).take pre.length = rpre := by rw [← hlen]; simp
-        have hd' : (rpre ++ rpost).drop pre.length = rpost := by rw [← hlen]; simp
-        simp only [ht, hd, ht', hd']
+        simp only [List.take_left, List.drop_left, List.take_left' hlen, List.drop_left' hlen]
         split_ifs with hc
         · exact isSome_bind_map _ (ih (List.rel_append hrpre (.cons (.cons .nil hγ) hrpost)))
             (isSome_wrWitness hwr)

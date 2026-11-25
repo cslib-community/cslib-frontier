@@ -151,38 +151,21 @@ theorem uniformOfFintype_zmod_map_boxShift (B : ℕ) :
   ext z
   rw [PMF.map_apply, uniformBox1D, PMF.uniformOfFinset_apply]
   by_cases hz : z ∈ Finset.Icc (-(B : ℤ)) B
-  · rw [ite_eq_left hz]
-    obtain ⟨hlo, hhi⟩ := Finset.mem_Icc.mp hz
+  · obtain ⟨hlo, hhi⟩ := Finset.mem_Icc.mp hz
     let u : ℕ := (z + B).toNat
-    have hu_lt : u < 2 * B + 1 := by omega
-    have hu_eq : boxShift B u = z := by
-      simp only [boxShift, u]
-      omega
-    rw [tsum_eq_single (u : ZMod (2 * B + 1))]
-    · have hval : ((u : ZMod (2 * B + 1)).val) = u := by
-        rw [ZMod.val_natCast, Nat.mod_eq_of_lt hu_lt]
-      rw [hval, hu_eq, ite_eq_left rfl, PMF.uniformOfFintype_apply, ZMod.card, Int.card_Icc]
-      congr 2
-      omega
-    · intro r hr
-      rw [ite_eq_right]
-      intro hrz
-      apply hr
-      apply ZMod.val_injective
-      have hval : ((u : ZMod (2 * B + 1)).val) = u := by
-        rw [ZMod.val_natCast, Nat.mod_eq_of_lt hu_lt]
-      rw [hval]
-      simp only [boxShift] at hrz hu_eq
-      omega
+    have hu : (u : ZMod (2 * B + 1)).val = u :=
+      (ZMod.val_natCast (2 * B + 1) u).trans (Nat.mod_eq_of_lt (by omega))
+    rw [ite_eq_left hz, tsum_eq_single (u : ZMod (2 * B + 1))]
+    · rw [hu, ite_eq_left (by simp only [boxShift, u]; omega), PMF.uniformOfFintype_apply,
+        ZMod.card, Int.card_Icc]
+      exact congrArg (fun n : ℕ => (n : ℝ≥0∞)⁻¹) (by omega)
+    · exact fun r hr => ite_eq_right fun hrz =>
+        hr <| ZMod.val_injective _ (by simp only [boxShift, hu] at hrz ⊢; omega)
   · rw [ite_eq_right hz]
-    refine tsum_eq_zero_iff.mpr fun r => ?_
-    rw [ite_eq_right]
-    rintro rfl
-    apply hz
-    rw [Finset.mem_Icc]
-    have hlt := ZMod.val_lt r
-    simp only [boxShift]
-    omega
+    exact tsum_eq_zero_iff.mpr fun r => ite_eq_right fun h => hz <| Finset.mem_Icc.mpr <| by
+      have := ZMod.val_lt r
+      simp only [boxShift] at h
+      omega
 
 /-- `sampleIntBox B width` factors through `ZMod (2 * B + 1)` via `boxShift B ∘ ZMod.val`. -/
 theorem eval_sampleIntBox_eq_map_zmod (B width : ℕ) :
@@ -203,22 +186,15 @@ theorem iid_uniformBox1D (B m : ℕ) :
   ext z
   rw [iid_apply, PMF.uniformOfFinset_apply]
   by_cases hz : z ∈ intBox (Fin m) B
-  · rw [ite_eq_left hz, card_intBox, Fintype.card_fin]
-    have hcoord (i : Fin m) : uniformBox1D B (z i) = ((2 * B + 1 : ℕ) : ℝ≥0∞)⁻¹ := by
-      rw [uniformBox1D, PMF.uniformOfFinset_apply, ite_eq_left]
-      · congr 2
-        rw [Int.card_Icc]
-        omega
-      · have hzi := mem_intBox.mp hz i
-        exact Finset.mem_Icc.mpr (abs_le.mp hzi)
-    simp only [hcoord, Finset.prod_const, Finset.card_univ, Fintype.card_fin,
-      ← ENNReal.inv_pow, Nat.cast_pow]
-  · rw [ite_eq_right hz]
-    obtain ⟨i, hi⟩ : ∃ i, ¬ |z i| ≤ B := by
-      simpa only [mem_intBox, not_forall] using hz
-    refine Finset.prod_eq_zero (Finset.mem_univ i) ?_
-    rw [uniformBox1D, PMF.uniformOfFinset_apply, ite_eq_right]
-    rwa [Finset.mem_Icc, ← abs_le]
+  · have hcoord (i : Fin m) : uniformBox1D B (z i) = ((2 * B + 1 : ℕ) : ℝ≥0∞)⁻¹ := by
+      rw [uniformBox1D, PMF.uniformOfFinset_apply,
+        ite_eq_left (Finset.mem_Icc.mpr (abs_le.mp (mem_intBox.mp hz i))), Int.card_Icc]
+      exact congrArg (fun n : ℕ => (n : ℝ≥0∞)⁻¹) (by omega)
+    simp [hz, card_intBox, hcoord, ← ENNReal.inv_pow]
+  · obtain ⟨i, hi⟩ : ∃ i, ¬ |z i| ≤ B := by simpa only [mem_intBox, not_forall] using hz
+    rw [ite_eq_right hz]
+    exact Finset.prod_eq_zero (Finset.mem_univ i) (by
+      simp [uniformBox1D, PMF.uniformOfFinset_apply, Finset.mem_Icc, ← abs_le, hi])
 
 /-- View a list of integers as a vector in `Fin m → ℤ`, padding missing entries with `0`. -/
 def vecOfList (m : ℕ) (l : List ℤ) : Fin m → ℤ :=
@@ -250,15 +226,8 @@ theorem sampleIntBoxVecCoins_mem_intBox (B m width : ℕ) (coins : List Bool) :
     sampleIntBoxVecCoins B m width coins ∈ intBox (Fin m) B := by
   rw [mem_intBox]
   intro i
-  have hi : i.val < (sampleIntBoxListCoins B m width coins).length := by
-    simp [sampleIntBoxListCoins]
-  have hget : (sampleIntBoxListCoins B m width coins).getD i.val 0 =
-      sampleIntBoxCoins B (BitString.listRows m width coins)[i.val] := by
-    rw [List.getD_eq_getElem _ _ hi]
-    simp [sampleIntBoxListCoins]
-  change |(sampleIntBoxListCoins B m width coins).getD i.val 0| ≤ B
-  rw [hget]
-  exact abs_sampleIntBoxCoins_le B _
+  rw [sampleIntBoxVecCoins, vecOfList, List.getD_eq_getElem _ _ (by simp [sampleIntBoxListCoins])]
+  simpa [sampleIntBoxListCoins] using abs_sampleIntBoxCoins_le B _
 
 /-- Sample a list of `m` independent integers in `[-B, B]`, each using `width` fair bits. -/
 noncomputable def sampleIntBoxList (B m width : ℕ) : ProbComp (List ℤ) :=
@@ -289,10 +258,7 @@ theorem eval_sampleIntBoxVec_eq_iid (B m width : ℕ) :
     ProbComp.eval (sampleIntBoxVec B m width) =
       iid (ProbComp.eval (sampleIntBox B width)) m := by
   rw [sampleIntBoxVec, ProbComp.eval_map, sampleIntBoxList, ProbComp.eval_replicate_iid,
-    PMF.map_comp]
-  have hid : (vecOfList m ∘ (List.ofFn : (Fin m → ℤ) → List ℤ)) = id :=
-    funext vecOfList_ofFn
-  rw [hid, PMF.map_id]
+    PMF.map_comp, show (vecOfList m ∘ List.ofFn) = id from funext vecOfList_ofFn, PMF.map_id]
 
 /-- The list sampler is the vector sampler read as a list: `sampleIntBoxList B m width` has the
 law of `List.ofFn` applied to `sampleIntBoxVec B m width`. -/

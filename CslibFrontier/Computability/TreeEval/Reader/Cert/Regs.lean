@@ -126,11 +126,8 @@ theorem scale_inSpace {p a : α → ℕ} {R : α → Regs} {r : α → Fin 3}
       obtain ⟨c₂, hc₂⟩ := hlen
       refine ⟨2 * c₁ + c₂ + 2, fun x => listMax_le fun v hv => ?_⟩
       have h₁ := hc₁ x
-      have h₂ := hc₂ x
-      have hv' := length_le_encList_of_mem encNat hv
-      dsimp only at h₁ h₂ ⊢
-      rw [length_encPair] at ⊢
-      have : (encNat v).length ≤ c₂ * (Bs x + 1) := hv'.trans h₂
+      have h₂ := (length_le_encList_of_mem encNat hv).trans (hc₂ x)
+      simp only [length_encPair] at h₁ h₂ ⊢
       nlinarith
   exact set_inSpace hR hr hmap'
 
@@ -240,14 +237,14 @@ theorem mapEqOne_inSpace :
       (g := fun q : List Bool × ℕ => q.1 ++ [q.2 == 1]) (encD := encBits) fun q => by
         cases hq : q.2 == 1 <;> simp_all [encBits_apply, encBool_apply]
     exact h.weaken (.of_le fun _ => by omega)
-  have hlen (l : List ℕ) (i : ℕ) (hi : i ≤ l.length) :
+  have hf (m : List ℕ) (acc : List Bool) :
+      (m.foldl (fun acc v => acc ++ [v == 1]) acc) = acc ++ m.map (· == 1) := by
+    induction m generalizing acc with
+    | nil => simp
+    | cons v m ih => simp [ih]
+  have hlen (l : List ℕ) (i : ℕ) (_ : i ≤ l.length) :
       (encBits ((l.take i).foldl (fun acc v => acc ++ [v == 1]) [])).length ≤
         (encList encNat l).length := by
-    have hf (m : List ℕ) (acc : List Bool) :
-        (m.foldl (fun acc v => acc ++ [v == 1]) acc) = acc ++ m.map (· == 1) := by
-      induction m generalizing acc with
-      | nil => simp
-      | cons v m ih => simp [ih]
     rw [hf, encBits_apply, List.nil_append, List.length_map]
     have := List.length_take_le' i l
     have := length_le_length_encList encNat l
@@ -261,14 +258,10 @@ theorem mapEqOne_inSpace :
     (fun l i hi => by
       have h₁ := hlen l i hi.le
       have h₂ := length_le_encList_of_mem encNat (List.getElem_mem hi)
-      rw [length_encPair]; dsimp only; omega)
+      rw [length_encPair]
+      dsimp only; omega)
     (fun l i hi => hlen l i hi)
-  refine h.mono_le (fun l => by omega) |>.of_enc_eq fun l => ?_
-  have hf (m : List ℕ) (acc : List Bool) :
-      (m.foldl (fun acc v => acc ++ [v == 1]) acc) = acc ++ m.map (· == 1) := by
-    induction m generalizing acc with
-    | nil => simp
-    | cons v m ih => simp [ih]
+  refine h.mono_le (fun _ => by omega) |>.of_enc_eq fun l => ?_
   rw [hf, List.nil_append]
 
 end Reader

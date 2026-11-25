@@ -95,19 +95,14 @@ theorem expect_mul_div_clip_eq {S : Finset Ω} (hS : S.Nonempty) {γ : Ω → �
     (hγ0 : ∀ s ∈ S, 0 ≤ γ s) (hγ1 : ∀ s ∈ S, γ s ≤ 1) (hfail : 2 * (#{s ∈ S | γ s < 1} : ℝ) ≤ #S)
     (m : ℝ) : 𝔼 s ∈ S, m * γ s / max (1 / 2) (min 1 (𝔼 s ∈ S, γ s)) = m := by
   have hSr : (0 : ℝ) < #S := by exact_mod_cast hS.card_pos
-  have hγ : ∀ s ∈ S, 1 - (if γ s < 1 then 1 else 0) ≤ γ s := fun s hs => by
-    split_ifs with h
-    · rw [sub_self]; exact hγ0 s hs
-    · simpa using not_lt.mp h
   have hlo : 1 / 2 ≤ 𝔼 s ∈ S, γ s := by
     rw [expect_eq_sum_div_card, le_div_iff₀ hSr]
     calc 1 / 2 * (#S : ℝ) ≤ #S - #{s ∈ S | γ s < 1} := by linarith
       _ = ∑ s ∈ S, (1 - (if γ s < 1 then 1 else 0)) := by
           rw [sum_sub_distrib, sum_boole, sum_const, nsmul_eq_mul, mul_one]
-      _ ≤ ∑ s ∈ S, γ s := sum_le_sum hγ
-  have hhi : 𝔼 s ∈ S, γ s ≤ 1 := expect_le hS hγ1
+      _ ≤ ∑ s ∈ S, γ s := sum_le_sum fun s hs => by split_ifs with h <;> linarith [hγ0 s hs]
   have hpos : 0 < 𝔼 s ∈ S, γ s := lt_of_lt_of_le (by norm_num) hlo
-  rw [min_eq_right hhi, max_eq_right hlo]
+  rw [min_eq_right (expect_le hS hγ1), max_eq_right hlo]
   simp only [mul_div_assoc]
   rw [← mul_expect, ← expect_div, div_self hpos.ne', mul_one]
 
@@ -144,19 +139,14 @@ largest value would exceed `g` and close the gate. -/
 theorem card_filter_mul_rowGate_ne_zero_lt (T : Finset V) (x : V) (hK : 0 < K) {e g : ℝ}
     (he : 0 ≤ e) (hm : ∀ d, d ≤ e → m d = 0) (hg : g ≤ e) (hρ : ∀ r, g ≤ r → ρ r = 0) :
     #{y ∈ T | m (G x y / a) * rowGate ρ K a G T x ≠ 0} < K := by
-  by_contra hle
-  rw [not_lt] at hle
+  by_contra! hle
   have hsub : ({y ∈ T | m (G x y / a) * rowGate ρ K a G T x ≠ 0} : Finset V) ⊆
       {y ∈ T | e < G x y / a} := fun y hy => by
     rw [mem_filter] at hy ⊢
-    refine ⟨hy.1, not_le.mp fun h => hy.2 ?_⟩
-    rw [hm _ h, zero_mul]
-  have hrank : e < kthLargest K T (fun w => G x w / a) :=
-    (lt_kthLargest_iff hK he).mpr (hle.trans (card_le_card hsub))
-  have hgate : rowGate ρ K a G T x = 0 := hρ _ (hg.trans hrank.le)
-  have hne : ({y ∈ T | m (G x y / a) * rowGate ρ K a G T x ≠ 0} : Finset V).Nonempty :=
-    card_pos.mp (hK.trans_le hle)
-  obtain ⟨y, hy⟩ := hne
+    exact ⟨hy.1, not_le.mp fun h => hy.2 (by rw [hm _ h, zero_mul])⟩
+  have hgate : rowGate ρ K a G T x = 0 := hρ _ (hg.trans
+    ((lt_kthLargest_iff hK he).mpr (hle.trans (card_le_card hsub))).le)
+  obtain ⟨y, hy⟩ := card_pos.mp (hK.trans_le hle)
   rw [mem_filter, hgate, mul_zero] at hy
   exact hy.2 rfl
 
@@ -208,8 +198,7 @@ theorem card_filter_denseAtom_ne_zero_lt (hYt : ∀ s v, Yt s v → Y s v) (hK :
   rw [mem_filter] at hy ⊢
   rw [denseAtom] at hy
   split_ifs at hy with hy'
-  · refine ⟨by simpa using hYt s y hy', fun h0 => hy.2 ?_⟩
-    rw [h0, zero_div]
+  · exact ⟨by simpa using hYt s y hy', fun h0 => hy.2 (by rw [h0, zero_div])⟩
   · exact absurd rfl hy.2
 
 /-- **The dense atom identity** [OpenAI2026LogSpace, Lemma 5.1]. Let `h = 1` wherever `k ≠ 0`,
@@ -230,29 +219,19 @@ theorem expect_denseAtom {x y : V} (hS : ({s | Yt s y} : Finset κ).Nonempty)
     refine expect_eq_zero fun s _ => ?_
     rw [denseAtom, hk0]
     split_ifs <;> simp
-  have hh1 : h (G x y / a) = 1 := hkh _ hk0
-  have hD : 0 < 1 + c * M / η := by
-    have hM : 0 ≤ M := (sum_nonneg fun w _ => hG0 w).trans hGM
-    have : 0 ≤ c * M / η := by positivity
-    linarith
+  have hM : 0 ≤ M := (sum_nonneg fun w _ => hG0 w).trans hGM
+  have hD : 0 < 1 + c * M / η := add_pos_of_pos_of_nonneg one_pos (by positivity)
   have hKpos : 0 < K := by exact_mod_cast (show (0 : ℝ) < K by linarith)
   -- the gate fails on at most half of the conditioning draws
   have hfail : 2 * (#{s ∈ S | R s < 1} : ℝ) ≤ #S := by
-    have h : (#{s ∈ S | R s < 1} : ℝ) * K ≤ #S * (1 + c * M / η) :=
-      card_filter_rowGate_lt_one_mul_le S x ha hη hρη hG0 hGM hKpos hc fun w hwy => by
-        have hset : ({s ∈ S | Y s w} : Finset κ) = ({s | Yt s y ∧ Y s w} : Finset κ) := by
-          ext s; simp only [S, mem_filter, mem_univ, true_and]
-        rw [hset]
-        exact hpair w hwy
+    have h := card_filter_rowGate_lt_one_mul_le (Y := Y) S x ha hη hρη hG0 hGM hKpos hc
+      fun w hwy => by simpa only [S, filter_filter] using hpair w hwy
     nlinarith [Nat.cast_nonneg (α := ℝ) #{s ∈ S | R s < 1}]
   -- the normalizer is the mean gate, and the normalization principle applies
   have hq : atomNormalizer Y Yt h ρ K a G x y = 𝔼 s ∈ S, R s := by
-    simp only [atomNormalizer, atomPrep, hh1, one_mul, S, R]
-  have hterm : ∀ s ∈ S, denseAtom Y Yt k h ρ K a G s x y =
-      k (G x y / a) * R s / max (1 / 2) (min 1 (𝔼 s ∈ S, R s)) := fun s hs => by
-    have hs' : Yt s y := by simpa [S] using hs
-    simp only [denseAtom, hs', ↓reduceIte, hq, R]
-  rw [expect_congr rfl hterm]
+    simp only [atomNormalizer, atomPrep, hkh _ hk0, one_mul, S, R]
+  rw [expect_congr (g := fun s => k (G x y / a) * R s / max (1 / 2) (min 1 (𝔼 s ∈ S, R s))) rfl
+    fun s hs => by simp only [denseAtom, (mem_filter.mp hs).2, ↓reduceIte, hq, R]]
   exact expect_mul_div_clip_eq hS (fun _ _ => hρ0 _) (fun _ _ => hρ1 _) hfail _
 
 /-- **The dense atom identity for retention channels** [OpenAI2026LogSpace, Lemma 5.1], when the
@@ -267,28 +246,19 @@ theorem expect_denseAtom_of_retentionChannels {ι : Type*} [Fintype ι] {X : ι 
     (hρη : ∀ r, r ≤ η → ρ r = 1) (hG0 : ∀ w, 0 ≤ G x w) {M : ℝ} (hGM : ∑ w, G x w ≤ M)
     (hK : 2 * (1 + Cpair * M / η) ≤ K) :
     𝔼 s ∈ ({s | Y s y} : Finset κ), denseAtom Y Y k h ρ K a G s x y = k (G x y / a) := by
-  have hcard : ∀ T : Finset κ, ((dens T : ℚ≥0) : ℝ) = #T / Fintype.card κ := fun T => by
-    rw [dens_eq_card_div_card]; push_cast; rfl
+  have hcard (T : Finset κ) : ((dens T : ℚ≥0) : ℝ) = #T / Fintype.card κ := by
+    rw [dens_eq_card_div_card]
+    push_cast; rfl
   have hπ : 0 < π := (mul_pos hcπ ha).trans_le hch.lower
-  have hκ : (0 : ℝ) < Fintype.card κ := by
-    have h := hch.dens_Y y
-    rw [hcard] at h
-    rcases (Fintype.card κ).eq_zero_or_pos with h0 | h0
-    · rw [h0, Nat.cast_zero, div_zero] at h; linarith
-    · exact_mod_cast h0
-  have hS : ({s | Y s y} : Finset κ).Nonempty := by
-    rw [← card_pos]
-    by_contra h0
-    have h := hch.dens_Y y
-    rw [hcard, Nat.eq_zero_of_not_pos h0, Nat.cast_zero, zero_div] at h
-    linarith
+  have hy := hch.dens_Y y
+  rw [hcard] at hy
+  have hS : ({s | Y s y} : Finset κ).Nonempty := card_pos.mp <| Nat.pos_of_ne_zero fun h0 => by
+    rw [h0, Nat.cast_zero, zero_div] at hy; linarith
+  have hκ : (0 : ℝ) < Fintype.card κ := by exact_mod_cast Fintype.card_pos_iff.mpr ⟨hS.choose⟩
   refine expect_denseAtom hS hkh hρ0 hρ1 hη hρη ha hG0 hGM hCpair hK fun w hwy => ?_
   have hp := hch.pair w y hwy
   rw [hcard, hcard, ← mul_div_assoc, div_le_div_iff_of_pos_right hκ] at hp
-  have hset : ({s | Y s y ∧ Y s w} : Finset κ) = ({s | Y s w ∧ Y s y} : Finset κ) := by
-    ext s; simp only [mem_filter, mem_univ, true_and]; tauto
-  rw [hset]
-  exact hp
+  simpa only [and_comm] using hp
 
 end DenseAtom
 
@@ -304,8 +274,8 @@ theorem denseAtom_nonneg {H : Matrix V V ℝ}
     0 ≤ denseAtom Y Yt k h ρ K a H t z y := by
   rw [denseAtom]
   split_ifs
-  · refine div_nonneg (mul_nonneg (hk0 _) (hρ0 _)) ?_
-    exact le_trans (by norm_num : (0 : ℝ) ≤ 1 / 2) (le_max_left _ _)
+  · exact div_nonneg (mul_nonneg (hk0 _) (hρ0 _))
+      (le_trans (by norm_num : (0 : ℝ) ≤ 1 / 2) (le_max_left _ _))
   · exact le_rfl
 
 end Nonneg
@@ -359,21 +329,14 @@ theorem binWeight_succ_ne_zero (hχ0 : ∀ t, t ≤ 1 / 2 → χ t = 0) (hχ1 : 
     (hω : binWeight χ b (k + 1) w ≠ 0) : b (k + 1) / 2 < w ∧ w < b k := by
   rw [binWeight] at hω
   rcases lt_or_ge w 0 with hw | hw
-  · exfalso
-    have h1 : w / b (k + 1) ≤ 1 / 2 := (div_neg_of_neg_of_pos hw (hb _)).le.trans (by norm_num)
-    have h2 : w / b k ≤ 1 / 2 := (div_neg_of_neg_of_pos hw (hb _)).le.trans (by norm_num)
-    rw [hχ0 _ h1, hχ0 _ h2, sub_zero] at hω
-    exact hω rfl
+  · exact False.elim <| hω <| by
+      rw [hχ0 _ ((div_neg_of_neg_of_pos hw (hb _)).le.trans (by norm_num)),
+        hχ0 _ ((div_neg_of_neg_of_pos hw (hb _)).le.trans (by norm_num)), sub_zero]
   have hmono := div_le_div_scale hw hb hanti (k := k)
-  constructor
-  · by_contra h
-    have h1 : w / b (k + 1) ≤ 1 / 2 := by
-      rw [div_le_iff₀ (hb _)]; linarith
-    rw [hχ0 _ h1, hχ0 _ (hmono.trans h1), sub_zero] at hω
-    exact hω rfl
-  · by_contra h
-    have h1 : 1 ≤ w / b k := (one_le_div₀ (hb _)).mpr (not_lt.mp h)
-    rw [hχ1 _ h1, hχ1 _ (h1.trans hmono), sub_self] at hω
-    exact hω rfl
+  refine ⟨by_contra fun h => hω ?_, by_contra fun h => hω ?_⟩
+  · have h1 : w / b (k + 1) ≤ 1 / 2 := (div_le_iff₀ (hb _)).mpr (by linarith)
+    rw [hχ0 _ h1, hχ0 _ (hmono.trans h1), sub_zero]
+  · have h1 : 1 ≤ w / b k := (one_le_div₀ (hb _)).mpr (not_lt.mp h)
+    rw [hχ1 _ h1, hχ1 _ (h1.trans hmono), sub_self]
 
 end Cslib

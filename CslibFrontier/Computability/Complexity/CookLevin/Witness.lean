@@ -78,17 +78,14 @@ private theorem computableInPolyTime_read :
     ComputableInPolyTime (fun p : BiTape Bool × ℤ => p.1.read p.2)
       (encPair (encBiTape encBool) encIntUnary) (encOption encBool) := by
   simp only [read_eq_ite]
-  have hright := (stackTape_toList encBool).comp ((biTape_right encBool).comp
-    (fst (encBiTape encBool) encIntUnary))
-  have hleft := (stackTape_toList encBool).comp ((biTape_left encBool).comp
-    (fst (encBiTape encBool) encIntUnary))
-  have hhead := (biTape_head encBool).comp (fst (encBiTape encBool) encIntUnary)
+  have hf := fst (encBiTape encBool) encIntUnary
   have hd := snd (encBiTape encBool) encIntUnary
-  have hpos := int_pos.comp hd
-  have hneg := int_neg.comp hd
-  have hr := listGetDWithInput hright (unary_sub.comp ((int_toNat.comp hd).prod (const 1))) none
-  have hl := listGetDWithInput hleft (unary_sub.comp ((int_natAbs.comp hd).prod (const 1))) none
-  simpa [Function.comp_def] using hpos.ite hr (hneg.ite hl hhead)
+  have hr := listGetDWithInput ((stackTape_toList encBool).comp ((biTape_right encBool).comp hf))
+    (unary_sub.comp ((int_toNat.comp hd).prod (const 1))) none
+  have hl := listGetDWithInput ((stackTape_toList encBool).comp ((biTape_left encBool).comp hf))
+    (unary_sub.comp ((int_natAbs.comp hd).prod (const 1))) none
+  simpa [Function.comp_def] using
+    (int_pos.comp hd).ite hr ((int_neg.comp hd).ite hl ((biTape_head encBool).comp hf))
 
 /-- **The listed features are polynomial-time** in the unary window bound and the tracked
 storage. -/
@@ -157,16 +154,14 @@ theorem computableInPolyTime_trueVars (tm : MultiTapeTM k Bool State) :
     ComputableInPolyTime (fun x : (List Bool × List Bool) × ℕ => trueVars tm x.1.1 x.1.2 x.2)
       (encPair (encPair encBits encBits) encUnary) (encList encVar) := by
   unfold trueVars
-  have hfeatures := computableInPolyTime_featuresAt tm
   have hholds : ComputableInPolyTime
       (fun p : (((List Bool × List Bool) × ℕ) × ℕ) × Feature k State => Var.holds p.1.2 p.2)
       (encPair (encPair (encPair (encPair encBits encBits) encUnary) encUnary) encFeature)
       encVar :=
     computableInPolyTime_holds.comp (((snd _ _).comp (fst _ _)).prod (snd _ _))
-  have htimes := range.comp
-    (unary_add' (snd (encPair encBits encBits) encUnary) (const 1))
-  refine listAppend' (flatMapWithInput (encA := encUnary) (encB := encVar) htimes
-    (mapWithInput (encA := encFeature) (encB := encVar) hfeatures hholds)) ?_
-  exact computableInPolyTime_certificateVars
+  exact listAppend' (flatMapWithInput (encA := encUnary) (encB := encVar)
+    (range.comp (unary_add' (snd (encPair encBits encBits) encUnary) (const 1)))
+    (mapWithInput (encA := encFeature) (encB := encVar) (computableInPolyTime_featuresAt tm)
+      hholds)) computableInPolyTime_certificateVars
 
 end Cslib.Complexity.CookLevin

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Cut
 public import Mathlib.Analysis.Real.Sqrt
 import CslibFrontier.Computability.Circuit.Frontier.IncidenceComponents
 import CslibFrontier.Foundations.Combinatorics.HypergraphCut
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 
@@ -166,14 +167,8 @@ private theorem disjoint_deficit_lt (p : Program signature n g)
     have := card_le_card hV
     omega
   have hleft (j : Fin g) :
-      inputSupport p j ∩ U ⊆ ∅ ↔ Disjoint (inputSupport p j) U := by
-    constructor
-    · intro h
-      rw [disjoint_left]
-      intro i hi hiU
-      simpa using h (mem_inter.mpr ⟨hi, hiU⟩)
-    · intro h i hi
-      exact False.elim (disjoint_left.mp h (mem_inter.mp hi).1 (mem_inter.mp hi).2)
+      inputSupport p j ∩ U ⊆ ∅ ↔ Disjoint (inputSupport p j) U :=
+    subset_empty.trans disjoint_iff_inter_eq_empty.symm
   have hright (j : Fin g) :
       inputSupport p j ∩ Uᶜ ⊆ Uᶜ \ V ↔ Disjoint (inputSupport p j) V := by
     constructor
@@ -197,13 +192,8 @@ private theorem residual_disjoint_deficit_lt (p : Program signature n g)
       V.card < (univ.filter fun gate : inputGates p =>
         ¬ Disjoint (residualSupport p F gate.val) V).card + k := by
   classical
-  have himage : Disjoint (U.image Subtype.val) (V.image Subtype.val) := by
-    rw [disjoint_left]
-    intro i hiU hiV
-    obtain ⟨u, hu, rfl⟩ := mem_image.mp hiU
-    obtain ⟨v, hv, hvu⟩ := mem_image.mp hiV
-    have hvu' : v = u := Subtype.ext hvu
-    exact disjoint_left.mp hUV hu (hvu' ▸ hv)
+  have himage : Disjoint (U.image Subtype.val) (V.image Subtype.val) :=
+    (disjoint_image Subtype.val_injective).mpr hUV
   have htouch (W : Finset ↥Fᶜ) :
       (univ.filter fun j => ¬ Disjoint (inputSupport p j) (W.image Subtype.val)).card =
         (univ.filter fun gate : inputGates p =>
@@ -238,14 +228,11 @@ private theorem residual_deficit_lt (p : Program signature n g)
       ¬ Disjoint (residualSupport p F gate.val) U).card < k ∨
       (Uᶜ.card : ℝ) - (univ.filter fun gate : inputGates p =>
         ¬ Disjoint (residualSupport p F gate.val) Uᶜ).card < k := by
-  rcases residual_disjoint_deficit_lt p readout hreadout hf hK F U Uᶜ disjoint_compl_right
-    with h | h
+  refine (residual_disjoint_deficit_lt p readout hreadout hf hK F U Uᶜ disjoint_compl_right).imp
+    (fun h => ?_) (fun h => ?_) <;>
   · have h' := (Nat.cast_lt (α := ℝ)).mpr h
     push_cast at h'
-    exact Or.inl (by linarith)
-  · have h' := (Nat.cast_lt (α := ℝ)).mpr h
-    push_cast at h'
-    exact Or.inr (by linarith)
+    linarith
 
 /-- After fixing `F`, bounded incidence gives a support-sensitive lower bound. Only effective
 coefficients on original input coordinates are counted. -/
@@ -299,8 +286,7 @@ theorem le_inputGates_of_inputSupport_card_le (p : Program signature n g)
     rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity : (0 : ℝ) < T + 1)]
     have h' : ((T + 1 : ℕ) : ℝ) * F.card ≤ (d : ℝ) * (inputGates p).card :=
       by exact_mod_cast hF
-    push_cast at h'
-    nlinarith
+    cast_nlinarith
   nlinarith
 
 /-- The support-sensitive bound for a native single-output threshold circuit whose output

@@ -293,11 +293,8 @@ private theorem scatterBody_wp {n sz base w maxDeg curD : ℕ} {a : Data rFib}
       (by wram_simp [ha3_cd]) (by wram_simp)
       (by wram_simp [ofData_write_par, ofData_set_scratch, hst3]))
     with a5 t5 ⟨ht5, hb5, hbr5, hmod5, ha5_s4, ha5_cd, hlink5⟩
-  have hmod_34 : Modifies (Block.mk base (space n)).footprint a3.mem
-      ((((a3.set s1 (T₁.root.val + 1)).set s0 (base + n + T₂.root.val)).write
-        (base + n + T₂.root.val) (T₁.root.val + 1)).set s0 (base + 5 * n + T₁.root.val)).mem :=
-    Modifies.write_of_owns (show (Block.mk base (space n)).Owns (base + n + T₂.root.val) by
-      dsimp only [Block.Owns, space]; omega) _
+  have hown_w2 : (Block.mk base (space n)).Owns (base + n + T₂.root.val) := by
+    dsimp only [Block.Owns, space]; omega
   have hL := hlinked hlink5
   obtain ⟨hP_next, hback⟩ := hnext hL
   have hm_c1 : a5.mem (base + 8 * n + (curD + 1)) =
@@ -308,7 +305,8 @@ private theorem scatterBody_wp {n sz base w maxDeg curD : ℕ} {a : Data rFib}
   intro hb6 _
   refine ⟨by omega, .node T₁.root (T₁.children ++ [T₂]), slotTrees.eraseIdx idx, hb6,
     by wram_simp [BaseRegs.set_iff, hbr5],
-    modifies_block_trans hmod3 (modifies_block_trans hmod_34 hmod5), hlen_er,
+    modifies_block_trans hmod3 (modifies_block_trans (Modifies.write_of_owns hown_w2 _) hmod5),
+    hlen_er,
     hL.deg.trans (by rw [hcur_deg]), by wram_simp [ha5_s4, FHTree.root_node], by wram_simp,
     by wram_simp [ofData_set_scratch],
     by wram_simp [ofData_set_scratch]; exact hP_next,
@@ -585,8 +583,7 @@ private theorem childScatterBody_wp {n sz base w : ℕ} {z : Fin n}
       wram_bounded <;> exact hfit _ (by omega)) ?_) ?_
   · by_cases hmk_pos : 0 < st.mark T_u.root
     · have hnm_pos : 1 ≤ st.numMarked := h.numMarked ▸ Finset.card_pos.mpr
-        ⟨T_u.root, by simp only [markedSet, Finset.mem_filter, Finset.mem_univ, true_and]
-                      exact ⟨hu_in, by omega⟩⟩
+        ⟨T_u.root, by simp [markedSet, hu_in, hmk_pos.ne']⟩
       have hmk1 : st.mark T_u.root = 1 := by omega
       wram_exec [hfit, hbr.regs_zeroP, hbr.regs_oneP, hnm_reg, hmk_pos]
       intro hb_mid
@@ -833,14 +830,13 @@ private theorem extractChildrenCode_wp {n K_max w base : ℕ} {s : IndexedMinPQ.
     have hst_c0 : RawState.ofData n base
         (((x.set s0 (base + 2 * n + z.val)).set s1 (C₀.root.val + 1)).set iterCur C₀.root.val) =
         detachState st z := by wram_simp [ofData_set_scratch, hx_st]
-    wram_call (scatterListLoop_exec (w := w) true childScatterBody 74
-        (fun hb hbr h hrem hmd hic => childScatterBody_wp hb hbr h hrem hmd hic)
+    wram_call (scatterListLoop_exec (w := w) true childScatterBody 74 childScatterBody_wp
         (C₀ :: cs₀) _ [] 0 (by wram_bounded <;> exact hfit _ (by omega))
         (by wram_simp [BaseRegs.set_iff, hbr]) (hst_c0 ▸ hD.scatterChildren)
         (by wram_simp [hx_rem, hD.deg]) (by wram_simp [hx_md])
         (fun y hy => by cases hy; wram_simp))
       with x_A1 t_sc1 ⟨slotTrees_1, maxDeg_1, ht_sc1, hb_A1, hbr_A1, hmod_sc1, hmd_sc1, hc_sc1⟩
-    have := hx_out.1; have := hx_out.2.1; have := hx_out.2.2.1; have := hx_out.2.2.2
+    obtain ⟨_, _, _, _⟩ := hx_out
     exact fun _ =>
       ⟨slotTrees_1, maxDeg_1, by simp only [slotCredit, List.length_nil] at ht_sc1 ⊢; omega,
         hb_A1, hbr_A1, hmod_sc1,
@@ -890,8 +886,7 @@ private theorem extractFinishCode_wp {n K_max w base maxDeg_1 : ℕ} {s : Indexe
     subst hx_tr; wram_simp [ofData_set_scratch]
   obtain ⟨x_A2, t_A2, he_A2, slotTrees_2, maxDeg_2, ht_A2, hb_A2, hbr_A2, hmod_A2,
     hmd_A2, hc₂⟩ :=
-    scatterListLoop_exec false rootScatterBody 67
-      (fun hb hbr h hrem hmd hic => rootScatterBody_wp hb hbr h hrem hmd hic)
+    scatterListLoop_exec false rootScatterBody 67 rootScatterBody_wp
       E x_tr slotTrees_1 maxDeg_1 hb_tr
       (by subst hx_tr; wram_simp [BaseRegs.set_iff, hbr_A1])
       (hst_tr ▸ hD.scatterRoots hc₁) (by subst hx_tr; wram_simp)
@@ -956,8 +951,7 @@ theorem extractMinCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x
         (ofData_set_scratch x (by decide : 17 ≤ outFlag.val) 0).symm ▸ hraw⟩,
       Modifies.refl _ _, ?_⟩
     rw [potential_set_scratch x (by decide : 17 ≤ outFlag.val) 0]; omega
-  · rcases FibonacciHeap.minRoot_cases hraw with h0 | ⟨z, -, hmin_z, -⟩
-    · exact absurd h0 hm0
+  · obtain ⟨z, -, hmin_z, -⟩ := (FibonacciHeap.minRoot_cases hraw).resolve_left hm0
     obtain ⟨cs, E, hD⟩ := FibonacciHeap.FibRawInv.detach hraw hmin_z
     have hz_lt := z.isLt
     have hsz_pos : 1 ≤ st.sz := by

@@ -97,17 +97,9 @@ private theorem supportWordCode_eq_code {bits n count : ℕ} (i : Fin n) (j : Fi
         (List.ofFn fun k : Fin bits =>
           (Formula.literal (fun _ => i.val.testBit k.val)
             (finProdFinEquiv (j, k))).toCircuit)).code := by
-  rw [supportWordCode, List.map_range_eq_ofFn]
-  rw [show (List.ofFn fun k : Fin bits =>
-      supportLiteralCode (count * bits) (k.val + bits * j.val) (i.val.testBit k.val)) =
-      (List.ofFn fun k : Fin bits =>
-        (Formula.literal (fun _ => i.val.testBit k.val)
-          (finProdFinEquiv (j, k))).toCircuit).map Circuit.code by
-    rw [List.map_ofFn]
-    congr 1
-    funext k
-    exact supportLiteralCode_eq_code i j k]
-  exact balancedCode_eq_code _ _ _
+  rw [supportWordCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, List.map_ofFn]
+  exact congrArg (balancedCode _ _ _)
+    (congrArg List.ofFn (funext fun k => supportLiteralCode_eq_code i j k))
 
 private def supportValueCode (bits count value : ℕ) : Code :=
   balancedCode (count * bits)
@@ -125,19 +117,9 @@ private theorem supportValueCode_eq_code {bits n count : ℕ} (i : Fin n) :
             (List.ofFn fun k : Fin bits =>
               (Formula.literal (fun _ => i.val.testBit k.val)
                 (finProdFinEquiv (j, k))).toCircuit))).code := by
-  rw [supportValueCode, List.map_range_eq_ofFn]
-  rw [show (List.ofFn fun j : Fin count => supportWordCode bits count i.val j.val) =
-      (List.ofFn fun j : Fin count =>
-        Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-          (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-          (List.ofFn fun k : Fin bits =>
-            (Formula.literal (fun _ => i.val.testBit k.val)
-              (finProdFinEquiv (j, k))).toCircuit)).map Circuit.code by
-    rw [List.map_ofFn]
-    congr 1
-    funext j
-    exact supportWordCode_eq_code i j]
-  exact balancedCode_eq_code _ _ _
+  rw [supportValueCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, List.map_ofFn]
+  exact congrArg (balancedCode _ _ _)
+    (congrArg List.ofFn (funext fun j => supportWordCode_eq_code i j))
 
 /-- Emit the complete `n`-bit membership indicator of a corrected `count`-word array. -/
 @[expose] def supportIndicatorCode (bits n count : ℕ) : Code :=
@@ -150,32 +132,8 @@ theorem supportIndicatorCode_eq_code (bits n count : ℕ) :
     supportIndicatorCode bits n count = (supportIndicatorCircuit bits n count).code := by
   change appendCodes (count * bits)
     ((List.range n).map fun i => supportValueCode bits count i) = _
-  rw [List.map_range_eq_ofFn]
-  rw [show (List.ofFn fun i : Fin n => supportValueCode bits count i.val) =
-      (List.ofFn fun i : Fin n =>
-        Circuit.balanced (Circuit.oneGate (σ := signature) .or id)
-          (Circuit.oneGate (σ := signature) (.const false) Fin.elim0)
-          (List.ofFn fun j : Fin count =>
-            Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-              (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-              (List.ofFn fun k : Fin bits =>
-                (Formula.literal (fun _ => i.val.testBit k.val)
-                  (finProdFinEquiv (j, k))).toCircuit))).map Circuit.code by
-    rw [List.map_ofFn]
-    congr 1
-    funext i
-    exact supportValueCode_eq_code i]
-  rw [List.map_ofFn]
-  simpa only [Function.comp_def, supportIndicatorCircuit] using
-    (appendCodes_code (fun i : Fin n =>
-      Circuit.balanced (Circuit.oneGate (σ := signature) .or id)
-        (Circuit.oneGate (σ := signature) (.const false) Fin.elim0)
-        (List.ofFn fun j : Fin count =>
-          Circuit.balanced (Circuit.oneGate (σ := signature) .and id)
-            (Circuit.oneGate (σ := signature) (.const true) Fin.elim0)
-            (List.ofFn fun k : Fin bits =>
-              (Formula.literal (fun _ => i.val.testBit k.val)
-                (finProdFinEquiv (j, k))).toCircuit))))
+  rw [List.map_range_eq_ofFn, supportIndicatorCircuit, ← appendCodes_code]
+  exact congrArg (appendCodes _) (congrArg List.ofFn (funext fun i => supportValueCode_eq_code i))
 
 /-- Emit all multiply-high candidates on consecutive independent source-word blocks. -/
 @[expose] def supportCandidateCode (width bits n count : ℕ) : Code :=
@@ -336,13 +294,8 @@ private theorem supportCandidateFold_prefix (width bits n count i : ℕ)
       (parallelFamilyCodeStep (width, bits)) (0, ([], []))) =
         (i, (supportCandidateCircuit width bits n i).code) := by
   have hi' : i ≤ count := by simpa only [List.length_map, List.length_range] using hi
-  rw [← List.map_take, List.take_range, Nat.min_eq_left hi']
-  have hcodes :
-      (List.range i).map (fun j => candidateCode width bits n j) =
-        List.ofFn (fun j : Fin i => (candidateCircuit width bits n j.val).code) := by
-    rw [List.map_range_eq_ofFn]
-    simp only [candidateCode_eq_code]
-  rw [hcodes]
+  rw [← List.map_take, List.take_range, Nat.min_eq_left hi', List.map_range_eq_ofFn]
+  simp only [candidateCode_eq_code]
   exact foldl_parallelFamilyCodeStep_code _
 
 private def supportCandidateGateBound (width bits count : ℕ) : ℕ :=
@@ -437,12 +390,11 @@ schedules. -/
       enc encCode := by
   have hinput : ComputableInPolyTime (fun a => count a * width a) enc encNat :=
     unary_to_binary.comp (by fun_prop)
-  have hcandidate :=
-    computableInPolyTime_supportCandidateCircuit hwidth hbits hn hcount
-  have hscan := computableInPolyTime_supportScanCircuit hbits (const 0) hcount
-  have hindicator := computableInPolyTime_supportIndicatorCircuit hbits hn hcount
-  have hcode := computableInPolyTime_compCode hinput hindicator
-    (computableInPolyTime_compCode hinput hscan hcandidate)
-  simpa only [compCode_code, supportSamplerCircuit] using hcode
+  simpa only [compCode_code, supportSamplerCircuit] using
+    computableInPolyTime_compCode hinput
+      (computableInPolyTime_supportIndicatorCircuit hbits hn hcount)
+      (computableInPolyTime_compCode hinput
+        (computableInPolyTime_supportScanCircuit hbits (const 0) hcount)
+        (computableInPolyTime_supportCandidateCircuit hwidth hbits hn hcount))
 
 end Cslib.Crypto.HQC

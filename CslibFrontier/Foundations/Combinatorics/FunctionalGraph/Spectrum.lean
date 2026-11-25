@@ -196,21 +196,17 @@ theorem canonicalTime_apply (x : α) (hx : x ∉ periodicPts f) :
     canonicalTime f (f x) + 1 = canonicalTime f x := by
   have hc : canonicalCycle f (f x) = canonicalCycle f x := by
     simpa using canonicalCycle_iterate f x 1
-  have hpos : 0 < canonicalTime f x := by
-    rcases Nat.eq_zero_or_pos (canonicalTime f x) with h | h
-    · have hs := canonicalTime_spec f x
-      rw [h, iterate_zero_apply] at hs
-      exact absurd (hs ▸ canonicalCycle_periodic f x) hx
-    · exact h
-  have hle1 : canonicalTime f x ≤ canonicalTime f (f x) + 1 := by
-    have h : f^[canonicalTime f (f x) + 1] x = canonicalCycle f x := by
-      rw [iterate_succ_apply, canonicalTime_spec, hc]
-    exact Nat.find_min' (canonicalCycle_reachable f x) h
-  have hle2 : canonicalTime f (f x) ≤ canonicalTime f x - 1 := by
-    have h : f^[canonicalTime f x - 1] (f x) = canonicalCycle f (f x) := by
+  have hpos : 0 < canonicalTime f x := Nat.pos_of_ne_zero fun h => hx <| by
+    have hs := canonicalTime_spec f x
+    rw [h, iterate_zero_apply] at hs
+    exact hs ▸ canonicalCycle_periodic f x
+  have hle1 : canonicalTime f x ≤ canonicalTime f (f x) + 1 :=
+    Nat.find_min' (canonicalCycle_reachable f x)
+      (by rw [iterate_succ_apply, canonicalTime_spec, hc])
+  have hle2 : canonicalTime f (f x) ≤ canonicalTime f x - 1 :=
+    Nat.find_min' (canonicalCycle_reachable f (f x)) (by
       rw [hc, ← iterate_succ_apply, Nat.succ_eq_add_one, Nat.sub_add_cancel hpos]
-      exact canonicalTime_spec f x
-    exact Nat.find_min' (canonicalCycle_reachable f (f x)) h
+      exact canonicalTime_spec f x)
   omega
 
 /-- **(P2)** Past the transient depth, `f^[T] x` is the state `a` steps after the least cyclic

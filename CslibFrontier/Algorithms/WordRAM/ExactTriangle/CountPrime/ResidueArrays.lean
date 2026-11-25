@@ -66,21 +66,15 @@ theorem exec_residueArrays {w n p k scratch a b c : ℕ} (x : Data 128)
     (by decide) (by decide) z hp meta2.layout.cells_eq meta2.inputAC meta2.layout.residueAC_eq
     (encoded x2 meta2) hmod hz (fit _ (by unfold addressBudget; omega))
     (fit _ (by unfold addressBudget; omega)) (by omega)
-    (by
-      intro i hi
-      rw [frame2 _ (Or.inl (by omega)), frame1 _ (Or.inl (by omega))]
-      exact hinZ i hi)
+    (fun i hi => (frame2 _ (Or.inl (by omega))).trans
+      ((frame1 _ (Or.inl (by omega))).trans (hinZ i hi)))
   refine ⟨y, (run1.seq (run2.seq run3)).mono (by omega),
-    meta2.congr (fun j hj => regs3 j (by unfold MetadataRegister at hj; omega)), ?_, ?_, val3, ?_⟩
-  · intro i hi
-    rw [frame3 _ (Or.inl (by omega)), frame2 _ (Or.inl (by omega))]
-    exact val1 i hi
-  · intro i hi
-    rw [frame3 _ (Or.inl (by omega))]
-    exact val2 i hi
-  · intro d hd
-    rw [frame3 _ (hd.imp (fun h => by omega) (fun h => by omega)),
-      frame2 _ (hd.imp (fun h => by omega) (fun h => by omega)),
-      frame1 _ (hd.imp id (fun h => by omega))]
+    meta2.congr (fun j hj => regs3 j (by unfold MetadataRegister at hj; omega)),
+    fun i hi => (frame3 _ (Or.inl (by omega))).trans
+      ((frame2 _ (Or.inl (by omega))).trans (val1 i hi)),
+    fun i hi => (frame3 _ (Or.inl (by omega))).trans (val2 i hi), val3, fun d hd => ?_⟩
+  rw [frame3 _ (hd.imp (fun h => by omega) (fun h => by omega)),
+    frame2 _ (hd.imp (fun h => by omega) (fun h => by omega)),
+    frame1 _ (hd.imp id (fun h => by omega))]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

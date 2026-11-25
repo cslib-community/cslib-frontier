@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.Communication
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Foundations.Data.List.LengthCounting
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
@@ -94,17 +93,10 @@ theorem crossing_rectangle_sum_bound (time : X × Y → ℕ)
         obtain ⟨q, hq, rfl⟩ := Finset.mem_image.mp hy
         obtain ⟨hpS, hps, hpz⟩ := Finset.mem_filter.mp hp
         obtain ⟨hqS, hqs, hqz⟩ := Finset.mem_filter.mp hq
-        have hc : (cfg p).crossings ((m + i : ℕ) : ℤ)
-              (T (leftWord p.1 ++ middle ++ rightWord p.2).length) =
-            (cfg q).crossings ((m + i : ℕ) : ℤ)
-              (T (leftWord q.1 ++ middle ++ rightWord q.2).length) := by
-          rw [← hcs i p hpS, ← hcs i q hqS]
-          exact hps.trans hqs.symm
         exact (crossings_splice_verdict hdec leftWord middle rightWord hA hi
-          (hprefix p hpS) (hprefix q hqS) (hpz.trans hqz.symm) hc).trans hpz
-      calc F.card ≤ (U ×ˢ V).card := Finset.card_le_card fun p hp =>
-            Finset.mem_product.mpr ⟨Finset.mem_image_of_mem Prod.fst hp,
-              Finset.mem_image_of_mem Prod.snd hp⟩
+          (hprefix p hpS) (hprefix q hqS) (hpz.trans hqz.symm)
+          (by rw [← hcs i p hpS, ← hcs i q hqS, hps, hqs])).trans hpz
+      calc F.card ≤ (U ×ˢ V).card := Finset.card_le_card Finset.subset_product
         _ = U.card * V.card := Finset.card_product U V
         _ ≤ R := hrectangle U V z hmono
     let F := S.filter fun p => cs i p = s
@@ -118,13 +110,11 @@ theorem crossing_rectangle_sum_bound (time : X × Y → ℕ)
     dsimp only [K]
     rw [Finset.card_image_of_injective _ (fun i j h => by omega), Finset.card_range]
   have h := AbsCfg.card_mul_le_sum_time cfg time S K
-    (b := (S.card - 2 * R * (Fintype.card (Option tm.State) + 1) ^ L) * L) ?_
-  · simpa only [hcard, Nat.mul_assoc] using h
-  · intro k hk
-    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hk
-    apply Finset.card_sub_mul_pow_mul_le_sum_length (f := cs i)
-    intro s
-    simpa only using hfiber i (by simpa only [Finset.mem_range, Nat.lt_succ_iff] using hi) s
+    (b := (S.card - 2 * R * (Fintype.card (Option tm.State) + 1) ^ L) * L) fun k hk => by
+      obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hk
+      exact Finset.card_sub_mul_pow_mul_le_sum_length (f := cs i) (fun s =>
+        hfiber i (Nat.lt_succ_iff.mp (Finset.mem_range.mp hi)) s) L
+  simpa only [hcard, Nat.mul_assoc] using h
 
 /-- When the selected inputs all have length `n`, the rectangle argument gives a lower bound
 on the native worst-case time bound at `n`. The finite family need not itself be a rectangle. -/
@@ -156,38 +146,22 @@ theorem crossing_rectangle_bit_sum_bound [Fintype X] [Fintype Y]
       4 * Nat.clog 2 (Fintype.card tm.State + 2) * ∑ p, time p := by
   classical
   let d := Nat.clog 2 (Fintype.card tm.State + 2)
-  let L := (bits - 2) / d
+  obtain ⟨L, hL0, hbitsL⟩ := tm.exists_crossing_length_of_bits (r := 2) (by decide) hbits
+  have hsmall : 4 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by simpa using hL0
   let q := Fintype.card X * Fintype.card Y
   let short := 2 * R * (Fintype.card (Option tm.State) + 1) ^ L
-  have hd : 0 < d := Nat.clog_pos one_lt_two (by omega)
-  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
-    rw [Fintype.card_option]
-    exact Nat.le_pow_clog one_lt_two _
-  have hdiv : d * L + (bits - 2) % d = bits - 2 := Nat.div_add_mod (bits - 2) d
-  have hmod := Nat.mod_lt (bits - 2) hd
-  have hbits' : 2 * d + 2 ≤ bits := hbits
-  have hsmall : 4 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ bits := by
-    calc 4 * (Fintype.card (Option tm.State) + 1) ^ L
-        ≤ 4 * (2 ^ d) ^ L := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hpow L)
-      _ = 2 ^ (d * L + 2) := by rw [← pow_mul, pow_add]; ring
-      _ ≤ 2 ^ bits := Nat.pow_le_pow_right (by norm_num) (by omega)
   have hshort : 2 * short ≤ q := by
     calc 2 * short = (4 * (Fintype.card (Option tm.State) + 1) ^ L) * R := by ring
       _ ≤ 2 ^ bits * R := Nat.mul_le_mul_right R hsmall
       _ ≤ q := hcard
   have h := crossing_rectangle_sum_bound hdec leftWord middle rightWord hA
     (S := Finset.univ) (fun p _ => hprefix p.1) hrectangle time (fun p _ => htime p) L
-  have hbound : (middle.length + 1) * (q - short) * L ≤ ∑ p, time p := by
-    simpa only [Finset.card_univ, Fintype.card_prod] using h
-  have hhalf : q ≤ 2 * (q - short) := by omega
-  have htime : q * ((middle.length + 1) * L) ≤ 2 * ∑ p, time p := by
-    have hmul := Nat.mul_le_mul_right ((middle.length + 1) * L) hhalf
-    nlinarith only [hmul, hbound]
-  have hbitsL : bits ≤ 2 * (d * L) := by omega
-  have hmul := Nat.mul_le_mul_left (2 * d) htime
-  have hbitsmul := Nat.mul_le_mul_left (q * (middle.length + 1)) hbitsL
-  change q * ((middle.length + 1) * bits) ≤ 4 * d * ∑ p, time p
-  nlinarith only [hmul, hbitsmul]
+  calc q * ((middle.length + 1) * bits)
+      ≤ (2 * (q - short)) * ((middle.length + 1) * (2 * (d * L))) :=
+        Nat.mul_le_mul (by omega) (Nat.mul_le_mul_left _ hbitsL)
+    _ = 4 * d * ((middle.length + 1) * (q - short) * L) := by ring
+    _ ≤ 4 * d * ∑ p, time p :=
+        Nat.mul_le_mul_left _ (by simpa only [Finset.card_univ, Fintype.card_prod] using h)
 
 omit hprefix hrectangle in
 /-- If every monochromatic rectangle has at most a `2^(-bits)` fraction of the full input

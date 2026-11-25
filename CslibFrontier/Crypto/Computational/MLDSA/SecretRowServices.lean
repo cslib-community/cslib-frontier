@@ -8,17 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
+-- Reads private `queryWrites` and unexposed `publicPairQueryAddress` and `hitsExpansionInput`.
 import all CslibFrontier.Crypto.Computational.MLDSA.SecretRowPrediction
-import all CslibFrontier.Crypto.Computational.MLDSA.SharedSecretExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.RandomXof
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.KeySeedSearch
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import CslibFrontier.Probability.IID.FirstSome
 import Batteries.Data.Fin.Lemmas
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 
 /-!
 # Private expansion rows in the adaptive public-pair signing experiment
@@ -48,14 +41,12 @@ private theorem agree_at_setup {s : Level} {base : Xofs} {a b : ℕ} {ha : 528 �
   obtain ⟨out, _, rfl⟩ := (by
     simpa only [SecretExpansionViews.refreshKeySeed, PMF.mem_support_map_iff] using hH)
   have original := v.agree_of_mem hv
-  constructor
-  · cases share <;> first | rfl | exact original.1
-  · intro x key short i
-    simp only [Xofs.withKeySeedExpansion, byteAt_withPrefixes, key, ↓reduceIte, Option.bind_none,
-      Option.getD_none]
-    cases share
-    · rfl
-    · exact original.2 x i (Or.inr short)
+  refine ⟨by cases share <;> first | rfl | exact original.1, fun x key short i => ?_⟩
+  simp only [Xofs.withKeySeedExpansion, byteAt_withPrefixes, key, ↓reduceIte, Option.bind_none,
+    Option.getD_none]
+  cases share
+  · rfl
+  · exact original.2 x i (Or.inr short)
 
 private theorem RowAgreement.write {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) (x : List Bool) (out : List Byte) :
@@ -91,10 +82,7 @@ private theorem RowAgreement.rep {s : Level} {v : SecretExpansionViews s} {L R :
     (q : SigningQuery) :
     L.representativeFromTr tr (formatMessage q.message q.context) =
       R.representativeFromTr tr (formatMessage q.message q.context) := by
-  apply congrArg Keccak.bytesToBitsLE
-  apply read_eq_of_byteAt_eq
-  intro i _
-  apply h.2 _ _ _ i
+  refine congrArg Keccak.bytesToBitsLE (read_eq_of_byteAt_eq fun i _ => h.2 _ ?_ ?_ i)
   · intro same
     have bad := congrArg List.length same
     simp only [representativeInput, List.length_append, Keccak.length_bytesToBitsLE,
@@ -102,10 +90,8 @@ private theorem RowAgreement.rep {s : Level} {v : SecretExpansionViews s} {L R :
     lia
   · intro j same
     obtain ⟨t, rfl⟩ := FixedBytes.exists_toList size
-    have fit : s.params.ℓ + s.params.k ≤ 65536 := by cases s <;> decide
-    have hit := (representativeInput_eq_nonceInput_iff t v.secretSeed q.context q.message
-      (j.castLE fit)).mp same
-    exact safe (congrArg FixedBytes.toList hit.1)
+    exact safe (congrArg FixedBytes.toList ((representativeInput_eq_nonceInput_iff t v.secretSeed
+      q.context q.message (j.castLE (by cases s <;> decide))).mp same).1)
 
 private theorem RowAgreement.digest {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) (w : Fin s.params.k → Fin 256 → ℤ)
@@ -164,26 +150,17 @@ private theorem draw_eq_map {s : Level} {L R : Xofs} (pair : MLDSA.PublicKey s.p
       L.sampleInBall s d.toList = R.sampleInBall s d.toList) :
     publicDraw s pair R = (publicDraw s pair L).map (Option.map (carryTerminal same)) := by
   simp only [publicDraw, draw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind]
-  apply congrArg (PMF.bind _ ·)
-  funext d
+  refine congrArg (PMF.bind _ ·) (funext fun d => ?_)
   have eq := same d
-  split
-  next hr =>
-    split
-    next hl =>
-      simp only [PMF.map_bind, PMF.pure_map, Option.map_some]
-      rfl
-    next c hl => simp [hl, hr] at eq
-  next c hr =>
-    split
-    next hl => simp [hl, hr] at eq
-    next c' hl =>
-      have e : c' = c := Option.some.inj (hl.symm.trans (eq.trans hr))
-      subst c'
-      simp only [PMF.map_bind, PMF.pure_map]
-      apply congrArg (PMF.bind _ ·)
-      funext out
-      cases out <;> rfl
+  split <;> split
+  · simp only [PMF.map_bind, PMF.pure_map, Option.map_some]
+    rfl
+  · next hr _ hl => simp [hl, hr] at eq
+  · next _ hr hl => simp [hl, hr] at eq
+  · next c hr c' hl =>
+    obtain rfl : c' = c := Option.some.inj (hl.symm.trans (eq.trans hr))
+    simp only [PMF.map_bind, PMF.pure_map]
+    exact congrArg (PMF.bind _ ·) (funext fun | none => rfl | some _ => rfl)
 
 private theorem retries_eq_map {α β ι : Type} (p : PMF (Option α)) (f : α → β) (l : List ι) :
     (l.findSomeM? fun _ => p.map (Option.map f)) =
@@ -207,32 +184,27 @@ private theorem publicCall_congr {s : Level} {v : SecretExpansionViews s} {base�
       t₁.writes = t₂.writes → left r t₁ = right r t₂) :
     ((signingCall s tr (publicDraw s pair) q st₁).bind fun x => left x.1 x.2) =
       ((signingCall s tr (publicDraw s pair) q st₂).bind fun x => right x.1 x.2) := by
-  have same (d : FixedBytes (digestBytes s)) :=
-    h.challenge (FixedBytes.length_toList d)
   by_cases bad : 255 < q.context.length
   · simpa only [signingCall, bad, ↓reduceIte, PMF.monad_pure_eq_pure, PMF.pure_bind] using
       next none st₁ st₂ h log writes
   simp only [signingCall, bad, ↓reduceIte, PMF.monad_pure_eq_pure, PMF.monad_bind_eq_bind,
     PMF.bind_bind]
   generalize List.range 814 = tries
-  rw [draw_eq_map pair same, retries_eq_map, PMF.bind_map]
-  apply congrArg (PMF.bind (tries.findSomeM? fun _ => publicDraw s pair st₁.xofs) ·)
-  funext x
-  cases x with
-  | none =>
-    simpa only [Function.comp_def, Option.map_none, PMF.pure_bind] using
-      (next none st₁ st₂ h log writes)
-  | some t =>
-    simp only [Function.comp_def, Option.map_some, PMF.pure_bind]
-    apply next
-    · change RowAgreement v (st₁.xofs.writeCommitment _ _) (st₂.xofs.writeCommitment _ _)
-      rw [h.rep size safe q]
-      exact h.write _ _
-    · change q.logReply t.reply st₁.log = q.logReply t.reply st₂.log
-      rw [log]
-    · change st₁.writes ++ [_] = st₂.writes ++ [_]
-      rw [writes, h.rep size safe q]
-      rfl
+  rw [draw_eq_map pair fun d => h.challenge (FixedBytes.length_toList d), retries_eq_map,
+    PMF.bind_map]
+  refine congrArg (PMF.bind _ ·) (funext fun
+    | none => by
+        simpa only [Function.comp_def, Option.map_none, PMF.pure_bind] using
+          next none st₁ st₂ h log writes
+    | some t => ?_)
+  simp only [Function.comp_def, Option.map_some, PMF.pure_bind]
+  refine next _ _ _ ?_ (congrArg (q.logReply t.reply) log) ?_
+  · change RowAgreement v (st₁.xofs.writeCommitment _ _) (st₂.xofs.writeCommitment _ _)
+    rw [h.rep size safe q]
+    exact h.write _ _
+  · change st₁.writes ++ [_] = st₂.writes ++ [_]
+    rw [writes, h.rep size safe q]
+    rfl
 
 private noncomputable def scoreProgram (C : QuantumSigningForger) (s : Level) (base : Xofs)
     (rho : FixedBytes 32) (pair : MLDSA.PublicKey s.params) (tr : List Byte)
@@ -358,26 +330,20 @@ theorem secretRowDeviceGame_bounds (C : QuantumSigningForger) (s : Level) (base 
       C.secretRowDeviceGame s base ha hb false true ≤ C.independentExpandSGame s base a b true := by
   intro native
   obtain ⟨shared, detached⟩ := C.secretExpansionViews_games s base ha hb
-  let V := base.sampleSecretExpansionViews s ha hb
-  constructor
+  refine ⟨?_, ?_⟩
   · change ((base.uniformPrefixes a b).bind _) true ≤ _
     rw [shared]
-    refine le_trans ?_ (add_le_add_right (publicHashMatch_le s base ha hb) _)
-    apply PMF.bind_apply_le_add_on_support V true
-    intro v hv
-    cases safe : v.publicHashMatch with
-    | false =>
-      simpa [Function.comp_def, safe] using
+    refine (PMF.bind_apply_le_add_on_support _ true fun v hv => ?_).trans
+      (add_le_add_right (publicHashMatch_le s base ha hb) _)
+    cases safe : v.publicHashMatch
+    · simpa [Function.comp_def, safe] using
         (congrArg (fun g : Game => g true) (good_view hv true safe C)).le
-    | true =>
-      simpa [Function.comp_def, safe] using PMF.coe_le_one _ true
+    · simpa [Function.comp_def, safe] using PMF.coe_le_one _ true
   · rw [detached]
-    apply PMF.bind_apply_mono_on_support V true
-    intro v hv
-    cases safe : v.publicHashMatch with
-    | false =>
-      exact (congrArg (fun g : Game => g true) (good_view hv false safe C)).symm.le
-    | true => simp
+    refine PMF.bind_apply_mono_on_support _ true fun v hv => ?_
+    cases safe : v.publicHashMatch
+    · exact (congrArg (fun g : Game => g true) (good_view hv false safe C)).symm.le
+    · simp
 
 private def queryChanged (C : QuantumSigningForger) {s : Level} (device reference : Xofs)
     (observation : List (TerminalSigningWrite s) × Option (Address C)) : Bool :=

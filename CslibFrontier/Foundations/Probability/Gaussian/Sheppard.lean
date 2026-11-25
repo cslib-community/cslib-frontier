@@ -82,12 +82,9 @@ namespace ProbabilityTheory
 /-- The half-line integral `∫_{x > 0} x exp (-b x ^ 2) = 1 / (2b)`. -/
 private theorem integral_Ioi_mul_exp_neg_mul_sq {b : ℝ} (hb : 0 < b) :
     ∫ x in Ioi (0 : ℝ), x * exp (-b * x ^ 2) = (2 * b)⁻¹ := by
-  have h := integral_mul_cexp_neg_mul_sq (b := (b : ℂ)) (by simpa using hb)
-  have h' : ((∫ x in Ioi (0 : ℝ), x * exp (-b * x ^ 2) : ℝ) : ℂ) = ((2 * b)⁻¹ : ℝ) := by
+  exact_mod_cast (show ((∫ x in Ioi (0 : ℝ), x * exp (-b * x ^ 2) : ℝ) : ℂ) = ((2 * b)⁻¹ : ℝ) by
     rw [← integral_complex_ofReal]
-    push_cast
-    exact h
-  exact_mod_cast h'
+    simpa using integral_mul_cexp_neg_mul_sq (b := (b : ℂ)) (by simpa using hb))
 
 /-- The standard planar Gaussian density in polar coordinates is `exp (-r ^ 2 / 2) / (2π)`. -/
 private theorem gaussianPDFReal_mul_polar (r θ : ℝ) :
@@ -118,57 +115,45 @@ private theorem angle_set_eq {k : ℝ} (hk : 0 ≤ k) :
   have ha1 : a < π / 2 := arctan_lt_pi_div_two k
   have hmem : ∀ ψ ∈ Icc (0 : ℝ) π, |cos ψ| ≤ sin a ↔ π / 2 - a ≤ ψ ∧ ψ ≤ π / 2 + a := by
     intro ψ hψ
-    have h1 : π / 2 - a ∈ Icc (0 : ℝ) π := ⟨by linarith, by linarith⟩
-    have h2 : π / 2 + a ∈ Icc (0 : ℝ) π := ⟨by linarith, by linarith⟩
-    have e1 : -sin a = cos (π / 2 + a) := by rw [add_comm, cos_add_pi_div_two]
-    rw [abs_le, e1, ← cos_pi_div_two_sub, strictAntiOn_cos.le_iff_ge h2 hψ,
-      strictAntiOn_cos.le_iff_ge hψ h1, and_comm]
+    rw [abs_le, show -sin a = cos (π / 2 + a) by rw [add_comm, cos_add_pi_div_two],
+      ← cos_pi_div_two_sub, strictAntiOn_cos.le_iff_ge ⟨by linarith, by linarith⟩ hψ,
+      strictAntiOn_cos.le_iff_ge hψ ⟨by linarith, by linarith⟩, and_comm]
   ext θ
   simp only [mem_inter_iff, mem_ofPred_eq, mem_Ioo, mem_union, mem_Icc]
   rw [abs_cos_le_mul_abs_sin_iff hk, ← ha]
-  constructor
-  · rintro ⟨h, h1, h2⟩
-    rw [← cos_abs] at h
-    have := (hmem |θ| ⟨abs_nonneg _, abs_le.2 ⟨by linarith, by linarith⟩⟩).1 h
+  refine ⟨fun ⟨h, h1, h2⟩ => ?_, fun h => ?_⟩
+  · have := (hmem |θ| ⟨abs_nonneg _, abs_le.2 ⟨by linarith, by linarith⟩⟩).1 (by rwa [cos_abs])
     rcases abs_cases θ with ⟨he, _⟩ | ⟨he, _⟩ <;> rw [he] at this
-    · exact Or.inl this
-    · exact Or.inr ⟨by linarith, by linarith⟩
-  · intro h
-    have hθ : π / 2 - a ≤ |θ| ∧ |θ| ≤ π / 2 + a := by
+    exacts [Or.inl this, Or.inr ⟨by linarith, by linarith⟩]
+  · have hθ : π / 2 - a ≤ |θ| ∧ |θ| ≤ π / 2 + a := by
       rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩
       · rw [abs_of_nonneg (by linarith)]
         exact ⟨h1, h2⟩
       · rw [abs_of_neg (by linarith)]
         exact ⟨by linarith, by linarith⟩
     have hb := abs_lt.1 (show |θ| < π by linarith)
-    refine ⟨?_, by linarith, by linarith⟩
-    rw [← cos_abs]
-    exact (hmem |θ| ⟨abs_nonneg _, by linarith⟩).2 hθ
+    exact ⟨cos_abs θ ▸ (hmem |θ| ⟨abs_nonneg _, by linarith⟩).2 hθ, by linarith, by linarith⟩
 
 /-- The angles in `(-π, π)` with `|cos θ| ≤ k |sin θ|` have total length `4 arctan k`. -/
 private theorem volume_angle_set {k : ℝ} (hk : 0 ≤ k) :
     volume ({θ : ℝ | |cos θ| ≤ k * |sin θ|} ∩ Ioo (-π) π) = ENNReal.ofReal (4 * arctan k) := by
   have ha0 : 0 ≤ arctan k := arctan_nonneg.2 hk
   have ha1 : arctan k < π / 2 := arctan_lt_pi_div_two k
-  rw [angle_set_eq hk, measure_union _ measurableSet_Icc, Real.volume_Icc, Real.volume_Icc,
-    ← ENNReal.ofReal_add (by linarith) (by linarith)]
-  · congr 1
-    ring
-  · refine Set.disjoint_left.2 fun θ h1 h2 => ?_
-    linarith [h1.1, h2.2]
+  rw [angle_set_eq hk,
+    measure_union (Set.disjoint_left.2 fun _ h1 h2 => by linarith [h1.1, h2.2]) measurableSet_Icc,
+    Real.volume_Icc, Real.volume_Icc, ← ENNReal.ofReal_add (by linarith) (by linarith)]
+  exact congrArg ENNReal.ofReal (by ring)
 
 /-- The radial factor `r exp (-r ^ 2 / 2) / (2π)` of the planar Gaussian density integrates to
 `1 / (2π)`. -/
 private theorem lintegral_radial :
     ∫⁻ r in Ioi (0 : ℝ), ENNReal.ofReal ((2 * π)⁻¹ * (r * exp (-2⁻¹ * r ^ 2))) =
       ENNReal.ofReal (2 * π)⁻¹ := by
-  rw [← ofReal_integral_eq_lintegral_ofReal, integral_const_mul,
-    integral_Ioi_mul_exp_neg_mul_sq (by norm_num)]
-  · norm_num
-  · exact ((integrable_mul_exp_neg_mul_sq (by norm_num)).const_mul _).integrableOn
-  · refine (ae_restrict_iff' measurableSet_Ioi).2 (ae_of_all _ fun r hr => ?_)
-    have : 0 < r := hr
-    positivity
+  rw [← ofReal_integral_eq_lintegral_ofReal
+      ((integrable_mul_exp_neg_mul_sq (by norm_num)).const_mul _).integrableOn
+      ((ae_restrict_iff' measurableSet_Ioi).2 (ae_of_all _ fun r (hr : 0 < r) => by positivity)),
+    integral_const_mul, integral_Ioi_mul_exp_neg_mul_sq (by norm_num)]
+  norm_num
 
 /-- **The planar angle law.** For independent standard Gaussians `Z₁` and `Z₂`, the event
 `|Z₁| ≤ k |Z₂|` has probability `(2 / π) arctan k`. -/
@@ -214,9 +199,7 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs {k : ℝ} (hk : 0 ≤ k) :
 private theorem gaussianReal_map_sqrt_mul (s : ℝ≥0) :
     (gaussianReal 0 1).map (fun x => √(s : ℝ) * x) = gaussianReal 0 s := by
   rw [gaussianReal_map_const_mul, mul_zero]
-  congr 1
-  ext
-  simp
+  exact congrArg (gaussianReal 0) (Subtype.ext (by simp))
 
 /-- **The planar angle law for any variances.** For independent centered Gaussians `X` and `Y`
 of variances `s ≠ 0` and `r`, the event `|X| ≤ k |Y|` has probability
@@ -234,9 +217,8 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs_of_ne_zero {s r : ℝ≥0} (hs : 
         {p : ℝ × ℝ | |p.1| ≤ k * √(r : ℝ) / √(s : ℝ) * |p.2|} := by
     ext p
     simp only [mem_preimage, Prod.map_fst, Prod.map_snd, mem_ofPred_eq, abs_mul,
-      abs_of_nonneg (sqrt_nonneg _)]
-    rw [div_mul_eq_mul_div, le_div_iff₀ hs']
-    constructor <;> intro h <;> linarith
+      abs_of_nonneg (sqrt_nonneg _), div_mul_eq_mul_div, le_div_iff₀ hs']
+    exact ⟨fun h => by linarith, fun h => by linarith⟩
   rw [hpre, gaussianReal_prod_setOf_abs_le_mul_abs (by positivity)]
 
 /-! ### Sheppard's bound -/
@@ -254,19 +236,17 @@ private theorem gaussianReal_prod_setOf_abs_sub_le_abs_le (s : ℝ≥0) (ν : Me
     (c : ℝ) :
     ((gaussianReal 0 s).prod ν) {p : ℝ × ℝ | |p.1 - c| ≤ |p.2|} ≤
       ((gaussianReal 0 s).prod ν) {p : ℝ × ℝ | |p.1| ≤ |p.2|} := by
+  have e (a y : ℝ) :
+      (fun x => (x, y)) ⁻¹' {p : ℝ × ℝ | |p.1 - a| ≤ |p.2|} = Icc (a - |y|) (a + |y|) := by
+    ext x
+    simp only [mem_preimage, mem_ofPred_eq, mem_Icc, abs_le]
+    exact ⟨fun ⟨h1, h2⟩ => ⟨by linarith, by linarith⟩, fun ⟨h1, h2⟩ => ⟨by linarith, by linarith⟩⟩
   rw [Measure.prod_apply_symm (measurableSet_le (by fun_prop) (by fun_prop)),
     Measure.prod_apply_symm (measurableSet_le (by fun_prop) (by fun_prop))]
   refine lintegral_mono fun y => ?_
-  have e1 : (fun x => (x, y)) ⁻¹' {p : ℝ × ℝ | |p.1 - c| ≤ |p.2|} =
-      Icc (c - |y|) (c + |y|) := by
-    ext x
-    simp only [mem_preimage, mem_ofPred_eq, mem_Icc, abs_le]
-    constructor <;> rintro ⟨h1, h2⟩ <;> constructor <;> linarith
-  have e2 : (fun x => (x, y)) ⁻¹' {p : ℝ × ℝ | |p.1| ≤ |p.2|} = Icc (0 - |y|) (0 + |y|) := by
-    ext x
-    simp only [mem_preimage, mem_ofPred_eq, mem_Icc, zero_sub, zero_add]
-    exact abs_le
-  rw [e1, e2]
+  have h0 := e 0 y
+  simp only [sub_zero] at h0
+  rw [e c y, h0]
   exact gaussianReal_Icc_le 0 s c |y|
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
@@ -313,16 +293,13 @@ theorem measureReal_stdGaussian_mem_uIoc_le_angle {u v : E} (huv : ‖u‖ = ‖
     (stdGaussian E).real {x | t ∈ Ι ⟪u, x⟫ ⟪v, x⟫} ≤ InnerProductGeometry.angle u v / π := by
   by_cases hne : u + v = 0
   · by_cases hu : u = 0
-    · have hv : v = 0 := by rw [← norm_eq_zero, ← huv, hu, norm_zero]
+    · have hv : v = 0 := norm_eq_zero.1 (by rw [← huv, hu, norm_zero])
       simp only [hu, hv, inner_zero_left, uIoc_of_le le_rfl, Ioc_self, mem_empty_iff_false,
         ofPred_false, measureReal_empty]
       exact div_nonneg (InnerProductGeometry.angle_nonneg _ _) pi_pos.le
-    · rw [eq_neg_of_add_eq_zero_right hne, InnerProductGeometry.angle_self_neg_of_ne_zero hu,
-        div_self pi_ne_zero]
-      exact measureReal_le_one
+    · simp [eq_neg_of_add_eq_zero_right hne, InnerProductGeometry.angle_self_neg_of_ne_zero hu]
   · rw [InnerProductGeometry.angle_eq_two_mul_arctan huv hne]
-    refine (measureReal_stdGaussian_mem_uIoc_le_arctan huv hne t).trans_eq ?_
-    ring
+    exact (measureReal_stdGaussian_mem_uIoc_le_arctan huv hne t).trans_eq (by ring)
 
 /-- If `0` does not lie between `x` and `y ≠ 0`, it lies between `x` and `-y`. -/
 private theorem zero_mem_uIoc_neg_of_notMem {x y : ℝ} (h : (0 : ℝ) ∉ Ι x y) (hy : y ≠ 0) :

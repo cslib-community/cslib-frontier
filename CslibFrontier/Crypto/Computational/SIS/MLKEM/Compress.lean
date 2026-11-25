@@ -89,15 +89,7 @@ theorem roundDiv_spec {a b : ℕ} (hb : 0 < b) :
 theorem roundDiv_eq_of_le_of_lt {a b c : ℕ} (hle : 2 * b * c ≤ 2 * a + b)
     (hlt : 2 * a + b < 2 * b * c + 2 * b) : roundDiv a b = c := by
   unfold roundDiv
-  have hb : 0 < 2 * b := by
-    rcases Nat.eq_zero_or_pos b with rfl | hb
-    · omega
-    · omega
-  refine Nat.div_eq_of_lt_le ?_ ?_
-  · have e : c * (2 * b) = 2 * b * c := Nat.mul_comm _ _
-    omega
-  · have e : (c + 1) * (2 * b) = 2 * b * c + 2 * b := by ring
-    omega
+  exact Nat.div_eq_of_lt_le (by nlinarith) (by nlinarith)
 
 /-- **Compression inverts decompression** ([NIST, Section 4.2.1][NISTFIPS203]): whenever
 `2^d < q`, `Compress_d(Decompress_d(y)) = y` for every `d`-bit value `y`. -/
@@ -141,13 +133,9 @@ theorem natAbs_valMinAbs_decompress_compress_sub_le {q : ℕ} [NeZero q] (d : �
         ((-(t : ℤ) : ℤ) : ZMod q) = decompress q d (compress q d x) - x) by
     obtain ⟨t, ht, hz⟩ := h
     refine le_trans ?_ (hdiv t ht)
-    rcases hz with hz | hz
-    · refine le_trans (ZMod.natAbs_min_of_le_div_two q _ (t : ℤ) ?_
+    rcases hz with hz | hz <;>
+      exact le_trans (ZMod.natAbs_min_of_le_div_two q _ _ ((ZMod.coe_valMinAbs _).trans hz.symm)
         (ZMod.natAbs_valMinAbs_le _)) (by simp)
-      rw [ZMod.coe_valMinAbs, hz]
-    · refine le_trans (ZMod.natAbs_min_of_le_div_two q _ (-(t : ℤ)) ?_
-        (ZMod.natAbs_valMinAbs_le _)) (by simp)
-      rw [ZMod.coe_valMinAbs, hz]
   obtain ⟨h₁, h₂⟩ := roundDiv_spec (a := 2 ^ d * x.val) hq
   set c := roundDiv (2 ^ d * x.val) q with hc
   have hv1 : 2 ^ d * (x.val + 1) ≤ 2 ^ d * q := Nat.mul_le_mul_left _ hvq
@@ -158,9 +146,7 @@ theorem natAbs_valMinAbs_decompress_compress_sub_le {q : ℕ} [NeZero q] (d : �
   have hxv : (x.val : ZMod q) = x := ZMod.natCast_zmod_val x
   rcases Nat.lt_or_ge c (2 ^ d) with hlt | hge
   · -- No wrap-around: the compressed value is `c` itself.
-    have hcval : (compress q d x).val = c := by
-      change ((c : ℕ) : ZMod (2 ^ d)).val = c
-      exact ZMod.val_natCast_of_lt hlt
+    have hcval : (compress q d x).val = c := ZMod.val_natCast_of_lt hlt
     obtain ⟨h₃, h₄⟩ := roundDiv_spec (a := q * c) ha
     set x' := roundDiv (q * c) (2 ^ d) with hx'
     have hdec : decompress q d (compress q d x) = (x' : ZMod q) := by
@@ -183,12 +169,7 @@ theorem natAbs_valMinAbs_decompress_compress_sub_le {q : ℕ} [NeZero q] (d : �
       change ((c : ℕ) : ZMod (2 ^ d)).val = 0
       rw [hceq, ZMod.natCast_self, ZMod.val_zero]
     have hdec : decompress q d (compress q d x) = 0 := by
-      unfold decompress
-      rw [hcval, Nat.mul_zero]
-      have h0 : roundDiv 0 (2 ^ d) = 0 := by
-        unfold roundDiv
-        exact Nat.div_eq_of_lt (by omega)
-      rw [h0, Nat.cast_zero]
+      rw [decompress, hcval, Nat.mul_zero, roundDiv, Nat.div_eq_of_lt (by omega), Nat.cast_zero]
     refine ⟨q - x.val, ?_, Or.inl ?_⟩
     · have e : 2 * 2 ^ d * (q - x.val) + 2 * 2 ^ d * x.val = 2 * 2 ^ d * q := by
         rw [← Nat.mul_add, Nat.sub_add_cancel (by omega)]
@@ -236,23 +217,17 @@ theorem compress_one_decompress_one_add {q B : ℕ} (hB : 4 * B + 2 < q) (y : ZM
     rcases le_or_gt 0 w.valMinAbs with hz0 | hz0
     · rw [compress_one_of_intCast w _ hz0 (by omega) hwz, hmod]
       congr 1
-      have : roundDiv (2 * w.valMinAbs.toNat) q = 0 := by
-        apply roundDiv_eq_of_le_of_lt <;> omega
-      rw [this]
+      rw [roundDiv_eq_of_le_of_lt (c := 0) (by omega) (by omega)]
     · rw [compress_one_of_intCast w (w.valMinAbs + q) (by omega) (by omega)
         (by simp [hwz]), hmod]
       congr 1
-      have : roundDiv (2 * (w.valMinAbs + q).toNat) q = 2 := by
-        apply roundDiv_eq_of_le_of_lt <;> omega
-      rw [this]
+      rw [roundDiv_eq_of_le_of_lt (c := 2) (by omega) (by omega)]
   · -- Bit `1`: the coefficient is `(q + 1) / 2 + z`, without wrap-around.
     rw [Nat.mul_one, hyv, hmod]
     have hh : 2 * ((q + 1) / 2) ≤ q + 1 ∧ q ≤ 2 * ((q + 1) / 2) := by omega
     rw [compress_one_of_intCast _ (((q + 1) / 2 : ℕ) + w.valMinAbs) (by omega) (by omega)
       (by rw [Int.cast_add, Int.cast_natCast, hwz]), hmod]
     congr 1
-    have : roundDiv (2 * (((q + 1) / 2 : ℕ) + w.valMinAbs).toNat) q = 1 := by
-      apply roundDiv_eq_of_le_of_lt <;> omega
-    rw [this]
+    rw [roundDiv_eq_of_le_of_lt (c := 1) (by omega) (by omega)]
 
 end Cslib.Crypto.MLKEM

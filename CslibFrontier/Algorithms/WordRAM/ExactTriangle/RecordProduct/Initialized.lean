@@ -94,10 +94,8 @@ theorem InitializedFirstRecord.exec_consumer (ready : InitializedFirstRecord W m
 /-- A consumer preserving the low 65 registers retains the complete original producer bank. -/
 theorem InitializedFirstRecord.producer_frame (ready : InitializedFirstRecord W m n g p values)
     {y : Data 320} (hy : ∀ j : Fin 320, j.val < 65 → y.regs j = ready.state.regs j) :
-    ∀ j : Fin 64, y.regs (producerBank j) = ready.producer.regs j := by
-  intro j
-  rw [hy (producerBank j) (by change j.val < 65; omega)]
-  exact congrArg (fun d : Data 64 => d.regs j) ready.comap_eq
+    ∀ j : Fin 64, y.regs (producerBank j) = ready.producer.regs j := fun j =>
+  (hy _ (by change j.val < 65; omega)).trans (congrArg (fun d : Data 64 => d.regs j) ready.comap_eq)
 
 /-- Produce the first actual occupied record from original input alone. No layout, native run,
 selected index or intermediate physical-fit certificate is an input hypothesis. -/
@@ -108,9 +106,7 @@ theorem prepare_first_input {W m n g p A : ℕ} (values : List ℤ)
     InputFits W (PreparationInput.input n (D m) g p values) ∧
       Nonempty (InitializedFirstRecord W m n g p values) := by
   have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
-  have hw : PreparationInput.width n (D m) g p A ≤ W := by
-    unfold admissionWidth at hW
-    omega
+  have hw : PreparationInput.width n (D m) g p A ≤ W := by unfold admissionWidth at hW; omega
   obtain ⟨a, ha, houtput, hinput, -⟩ := PreparationInput.exec_input values hlen
     (by omega) hDn hg hp hv hw
   have ha' : ExecWithin W Instances.program (.init (PreparationInput.input n (D m) g p values)) a
@@ -135,23 +131,18 @@ theorem prepare_first_input {W m n g p A : ℕ} (values : List ℤ)
   have zmap : z.comap producerBank = a := by
     ext j
     · change Function.update x.regs Reg.ordinal 0 (producerBank j) = a.regs j
-      have hne : producerBank j ≠ Reg.ordinal := by
-        intro heq
-        have hh := congrArg Fin.val heq
-        change j.val = 64 at hh
-        omega
-      rw [Function.update_of_ne hne]
-      exact producerBank_injective.extend_apply _ _ j
+      have hne : producerBank j ≠ Reg.ordinal := fun heq =>
+        absurd (show j.val = 64 from congrArg Fin.val heq) (by omega)
+      exact (Function.update_of_ne hne _ _).trans (producerBank_injective.extend_apply _ _ j)
     · rfl
-  have hheap : z.regs 42 = a.regs Instances.heap :=
-    congrArg (fun d : Data 64 => d.regs Instances.heap) zmap
   have hQ : recordQueryCount n (D m) p (fun q => values.getD q 0) idx ≤ n ^ 2 := by
     unfold recordQueryCount
     rw [pow_two]
     exact (min_le_right _ _).trans ((Nat.sub_le _ _).trans (Nat.count_le _))
   have hfit := physical_fits (b := z.regs 42) (n := n) (D := D m) (g := g) (p := p) (A := A)
     (Q := recordQueryCount n (D m) p (fun q => values.getD q 0) idx)
-    (by rw [hheap]; exact (hwords.1 Instances.heap).le) hQ hW
+    ((congrArg (fun d : Data 64 => d.regs Instances.heap) zmap).trans_le
+      (hwords.1 Instances.heap).le) hQ hW
   refine ⟨hinput, ⟨{
     producer := a
     index := idx
@@ -164,9 +155,6 @@ theorem prepare_first_input {W m n g p A : ℕ} (values : List ℤ)
     output := by rw [zmap]; exact houtput
     selected := by simpa only [z, Data.set_regs, Function.update_self] using hord.symm
     fits := hfit }⟩⟩
-  have hpos : 1 ≤ preparationTime n (D m) g p values := by
-    dsimp only [preparationTime, Instances.timeBound]
-    omega
-  exact (hx.seq hz).mono (by omega)
+  exact (hx.seq hz).mono (by dsimp only [preparationTime, Instances.timeBound]; omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct

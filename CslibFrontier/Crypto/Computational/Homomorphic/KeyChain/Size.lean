@@ -93,25 +93,19 @@ theorem length_and_mem_of_mem_support_spliceEncryptedKeyLink {E : Scheme}
   have hf := length_and_mem_of_mem_support_encryptKeyLinks
     (fun k hk => hkeys k (by
       simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hk ⊢
-      rcases hk with h | h
-      · exact Or.inl h
-      · exact Or.inr (Or.inl h))) hfront
+      exact hk.imp_right Or.inl)) hfront
   have hm := length_and_mem_of_mem_support_spliceEncryptedBit
     (hkeys next (by simp)).2 hchallenge hmiddle
   have hb := length_and_mem_of_mem_support_encryptZeroKeyLinks
-    (fun k hk => hkeys k (by
-      simp only [List.mem_append, List.mem_cons] at hk ⊢
-      exact Or.inr (Or.inr hk))) hback
+    (fun k hk => hkeys k (List.mem_append_right _ (List.mem_cons_of_mem _ hk))) hback
   have hmiddleWidth : middle.length ≤ width := by
     have hp := (hkeys predecessor (by simp)).1
     rw [hm.1, List.length_drop]
     omega
   have hfLength : front.length = before.length := by simpa using hf.1
   have hbLength : back.length = after.length := by simpa using hb.1
-  refine ⟨by
-    simp only [List.length_append, List.length_cons, hfLength, hbLength]
-    omega, ?_⟩
-  intro link hlink
+  refine ⟨by simp only [List.length_append, List.length_cons, hfLength, hbLength]; omega,
+    fun link hlink => ?_⟩
   simp only [List.mem_append, List.mem_cons] at hlink
   rcases hlink with h | rfl | h
   · exact hf.2 _ h

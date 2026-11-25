@@ -38,18 +38,17 @@ private def highByte (x : F) (c : Byte) : Byte :=
 private theorem candidate_encode (x : F) (c : Byte) :
     nttCandidate (lowByte x) (midByte x) (highByte x c) = x.val := by
   have hx := x.val_lt
-  have hc : c.val < 256 := c.isLt
-  simp only [nttCandidate, lowByte, midByte, highByte, Fin.val_ofNat]
-  omega
+  have hc := c.isLt
+  simp only [nttCandidate, lowByte, midByte, highByte, Fin.val_ofNat]; omega
 
 private theorem encode_candidate (a b c : Byte) (x : F) (h : nttCandidate a b c < 8380417) :
     lowByte (nttCandidate a b c : F) = a ∧ midByte (nttCandidate a b c : F) = b ∧
       highByte (nttCandidate a b c : F) (highByte x c) = c := by
   have hv : (nttCandidate a b c : F).val = nttCandidate a b c := by
     rw [ZMod.val_natCast, Nat.mod_eq_of_lt h]
-  have ha : a.val < 256 := a.isLt
-  have hb : b.val < 256 := b.isLt
-  have hc : c.val < 256 := c.isLt
+  have ha := a.isLt
+  have hb := b.isLt
+  have hc := c.isLt
   have hx := x.val_lt
   simp only [lowByte, midByte, highByte, Fin.ext_iff, Fin.val_ofNat, hv]
   unfold nttCandidate at *
@@ -84,10 +83,7 @@ private theorem exchange_exchange (bytes : List Byte) (target : List F) :
     cases he : (exchange rest (v :: vs)).2 with
     | nil => simp [he] at hlen
     | cons w ws => simp [p, exchange, h, ← he, ih]
-  | case3 => simp [exchange]
-  | case4 => simp [exchange]
-  | case5 => simp [exchange]
-  | case6 => simp [exchange]
+  | case3 | case4 | case5 | case6 => simp [exchange]
 
 private theorem exchange_coefficients (bytes : List Byte) (target : List F) :
     let original := rejNTTCoefficients bytes
@@ -99,10 +95,7 @@ private theorem exchange_coefficients (bytes : List Byte) (target : List F) :
     simpa [p, rejNTTCoefficients, h, candidate_encode, ZMod.val_lt] using ih
   | case2 a b c rest v vs h p ih =>
     simpa [p, rejNTTCoefficients, h] using ih
-  | case3 => simp
-  | case4 => simp [rejNTTCoefficients]
-  | case5 => simp [rejNTTCoefficients]
-  | case6 => simp [rejNTTCoefficients]
+  | case3 | case4 | case5 | case6 => simp [rejNTTCoefficients]
 
 private def readFixed {α : Type*} {n : ℕ} (xs : List α) (h : xs.length = n) :
     Fin n → α := fun i => xs[i.val]'(h ▸ i.isLt)
@@ -151,20 +144,19 @@ theorem exchangeRejNTT_of_some {n : ℕ} {bytes : FixedBytes n} {u : Poly}
     let z := exchangeRejNTT n (bytes, v)
     rejNTTPoly (List.ofFn z.1) = some v ∧ z.2 = u := by
   have hu := (rejNTTPoly_eq_some_iff _ _).mp h
-  have hlen := congrArg List.length hu
-  simp only [List.length_take, List.length_ofFn] at hlen
-  have enough : 256 ≤ (rejNTTCoefficients (List.ofFn bytes)).length := by omega
+  have enough : 256 ≤ (rejNTTCoefficients (List.ofFn bytes)).length := by
+    have hlen := congrArg List.length hu
+    simp only [List.length_take, List.length_ofFn] at hlen; omega
   obtain ⟨ha, hb⟩ := exchange_coefficients (List.ofFn bytes) (List.ofFn v)
   have he := lists_exchangeFixed (bytes, v)
   change rejNTTPoly (List.ofFn (exchangeFixed (bytes, v)).1) = some v ∧
     (exchangeFixed (bytes, v)).2 = u
-  constructor
+  refine ⟨?_, List.ofFn_injective ?_⟩
   · rw [rejNTTPoly_eq_some_iff, he.1, ha]
     simp only [List.length_ofFn, List.take_of_length_le (List.length_ofFn.trans_le enough),
       List.take_append, List.take_of_length_le List.length_ofFn.le,
-      List.length_ofFn, Nat.sub_self, List.take_zero, List.append_nil]
-  · apply List.ofFn_injective
-    rw [he.2, hb, List.length_ofFn, hu,
+      Nat.sub_self, List.take_zero, List.append_nil]
+  · rw [he.2, hb, List.length_ofFn, hu,
       List.drop_of_length_le (List.length_ofFn.trans_le enough), List.append_nil]
 
 /-- The bounded sampler exhausts exactly the same prefixes after programming. -/
@@ -172,12 +164,10 @@ theorem exchangeRejNTT_of_none {n : ℕ} {bytes : FixedBytes n}
     (h : rejNTTPoly (List.ofFn bytes) = none) (v : Poly) :
     rejNTTPoly (List.ofFn (exchangeRejNTT n (bytes, v)).1) = none := by
   have hlt := (rejNTTPoly_eq_none_iff _).mp h
-  have he := lists_exchangeFixed (bytes, v)
-  have ha := (exchange_coefficients (List.ofFn bytes) (List.ofFn v)).1
   change rejNTTPoly (List.ofFn (exchangeFixed (bytes, v)).1) = none
-  rw [rejNTTPoly_eq_none_iff, he.1, ha]
-  simp only [List.length_append, List.length_take, List.length_drop, List.length_ofFn]
-  omega
+  rw [rejNTTPoly_eq_none_iff, (lists_exchangeFixed (bytes, v)).1,
+    (exchange_coefficients (List.ofFn bytes) (List.ofFn v)).1]
+  simp only [List.length_append, List.length_take, List.length_drop, List.length_ofFn]; omega
 
 /-- Joint law of the entire raw SHAKE128 prefix and the bounded Algorithm 30 answer.
 Drawing uniform bytes and an independent uniform polynomial, exchanging them and reporting the

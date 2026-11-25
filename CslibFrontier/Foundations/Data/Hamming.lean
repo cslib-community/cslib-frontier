@@ -111,15 +111,12 @@ theorem exists_hammingDist_le_and_hammingDist_le {x y : ∀ i, β i} {r s : ℕ}
 theorem hammingDist_eq_one_iff {x y : ∀ i, β i} :
     hammingDist x y = 1 ↔ ∃ i, x i ≠ y i ∧ ∀ j, j ≠ i → x j = y j := by
   rw [hammingDist, card_eq_one]
-  constructor
+  refine ⟨?_, fun ⟨i, hi, h⟩ => ⟨i, Finset.ext fun j => ?_⟩⟩
   · rintro ⟨i, hi⟩
     have hmem (j : ι) : x j ≠ y j ↔ j = i := by simpa using Finset.ext_iff.1 hi j
     exact ⟨i, (hmem i).2 rfl, fun j hj => not_not.1 fun h => hj ((hmem j).1 h)⟩
-  · rintro ⟨i, hi, h⟩
-    refine ⟨i, Finset.ext fun j => ?_⟩
-    by_cases hj : j = i
-    · subst hj
-      simpa using hi
+  · by_cases hj : j = i
+    · simpa [hj] using hi
     · simpa [hj] using h j hj
 
 /-- Changing one coordinate to a new value moves to Hamming distance one. -/
@@ -132,12 +129,10 @@ the `i`-th coordinate of the first to that of the second gives the second. -/
 theorem update_eq_of_hammingDist_le_one [DecidableEq ι] {x y : ∀ i, β i}
     (h : hammingDist x y ≤ 1) {i : ι} (hi : x i ≠ y i) : update x i (y i) = y := by
   funext j
-  by_cases hj : j = i
-  · subst hj
-    exact update_self _ _ _
+  rcases eq_or_ne j i with rfl | hj
+  · exact update_self _ _ _
   · rw [update_of_ne hj]
-    by_contra hne
-    exact hj (card_le_one.1 h j (by simpa using hne) i (by simpa using hi))
+    exact not_ne_iff.1 fun hne => hj (card_le_one.1 h j (by simpa using hne) i (by simpa using hi))
 
 /-- Two Boolean functions at Hamming distance at most one that differ at `i` differ only at `i`:
 the second is the first with its `i`-th bit flipped. -/
@@ -152,13 +147,10 @@ theorem hammingDist_update_update [DecidableEq ι] (x y : ∀ i, β i) (i : ι) 
       hammingDist x y + (if a ≠ b then 1 else 0) := by
   have h (u v : ∀ i, β i) : hammingDist u v =
       (if u i ≠ v i then 1 else 0) + ∑ j ∈ univ.erase i, if u j ≠ v j then 1 else 0 := by
-    rw [hammingDist, card_filter]
-    exact (add_sum_erase _ _ (mem_univ i)).symm
-  have hrest : ∑ j ∈ univ.erase i, (if update x i a j ≠ update y i b j then 1 else 0) =
-      ∑ j ∈ univ.erase i, if x j ≠ y j then 1 else 0 :=
+    rw [hammingDist, card_filter, ← add_sum_erase _ _ (mem_univ i)]
+  rw [h (update x i a) (update y i b), h x y, update_self, update_self,
     sum_congr rfl fun j hj => by
-      rw [update_of_ne (ne_of_mem_erase hj), update_of_ne (ne_of_mem_erase hj)]
-  rw [h (update x i a) (update y i b), h x y, hrest, update_self, update_self]
+      rw [update_of_ne (ne_of_mem_erase hj), update_of_ne (ne_of_mem_erase hj)]]
   ring
 
 /-- The pairs of `A × B` at Hamming distance one: the edges of the Hamming graph between `A` and

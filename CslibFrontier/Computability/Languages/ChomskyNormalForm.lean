@@ -152,15 +152,11 @@ theorem eq_initial_of_derives_nil {u : List (Symbol T G.NT)} (h : G.toCFG.Derive
 /-- A nonterminal derives `ε` exactly when it is the start symbol and the grammar has the rule
 `S → ε`. -/
 theorem derives_nil_iff {A : G.NT} :
-    G.toCFG.Derives [.nonterminal A] [] ↔ G.nilRule = true ∧ A = G.initial := by
-  constructor
-  · intro h
-    obtain ⟨hs, hn⟩ := eq_initial_of_derives_nil h _ List.mem_cons_self
-    exact ⟨hn, Symbol.nonterminal.inj hs⟩
-  · rintro ⟨hn, rfl⟩
-    exact ContextFreeGrammar.Produces.single
+    G.toCFG.Derives [.nonterminal A] [] ↔ G.nilRule = true ∧ A = G.initial :=
+  ⟨fun h => let ⟨hs, hn⟩ := eq_initial_of_derives_nil h _ List.mem_cons_self
+    ⟨hn, Symbol.nonterminal.inj hs⟩, fun ⟨hn, hA⟩ => hA ▸ ContextFreeGrammar.Produces.single
       (ContextFreeGrammar.produces_nonterminal_iff.mpr
-        ⟨⟨G.initial, []⟩, (G.mem_toCFG_rules).mpr (Or.inr ⟨hn, rfl⟩), rfl, rfl⟩)
+        ⟨⟨G.initial, []⟩, G.mem_toCFG_rules.mpr (Or.inr ⟨hn, rfl⟩), rfl, rfl⟩)⟩
 
 /-- The empty word is in the language exactly when the grammar has the rule `S → ε`. -/
 theorem mem_language_nil_iff : [] ∈ G.toCFG.language ↔ G.nilRule = true := by
@@ -180,24 +176,22 @@ theorem derives_iff_of_ne_nil {A : G.NT} {w : List T} (hw : w ≠ []) :
   constructor
   · rintro (h | ⟨r, hr, rfl, hd⟩)
     · obtain ⟨a, -, ha⟩ := List.map_eq_singleton_iff.mp h
-      exact absurd ha (by simp)
+      cases ha
     rcases (G.mem_toCFG_rules).mp hr with ⟨r', hr', rfl⟩ | ⟨-, rfl⟩
     · cases r' with
       | leaf A a =>
-        left
-        have hw' : w.map Symbol.terminal = [a].map (Symbol.terminal (N := G.NT)) :=
-          (ContextFreeGrammar.derives_map_terminal_iff (w := [a])).mp hd
-        exact ⟨a, List.map_injective_iff.mpr (fun _ _ h => Symbol.terminal.inj h) hw', hr'⟩
+        have hw' := (ContextFreeGrammar.derives_map_terminal_iff (w := [a])).mp hd
+        exact Or.inl ⟨a, List.map_injective_iff.mpr (fun _ _ => Symbol.terminal.inj) hw', hr'⟩
       | node A B C =>
-        right
-        have hd' : G.toCFG.Derives ([.nonterminal B] ++ [.nonterminal C]) (w.map .terminal) := hd
-        obtain ⟨x, y, hx, hy, hxy⟩ := hd'.append_split
+        obtain ⟨x, y, hx, hy, hxy⟩ :=
+          (show G.toCFG.Derives ([.nonterminal B] ++ [.nonterminal C]) _ from hd).append_split
         obtain ⟨u, v, rfl, rfl, rfl⟩ := List.map_eq_append_iff.mp hxy
-        have hnil : ∀ D, Symbol.nonterminal D ∈ (ChomskyNormalFormRule.node A B C).output →
-            G.toCFG.Derives [.nonterminal D] [] → False := fun D hD h => by
+        have hnil (D)
+            (hD : Symbol.nonterminal D ∈ (ChomskyNormalFormRule.node (T := T) A B C).output)
+            (h : G.toCFG.Derives [.nonterminal D] []) : False := by
           obtain ⟨hn, rfl⟩ := derives_nil_iff.mp h
           exact G.initial_notMem_output hn _ hr' hD
-        refine ⟨B, C, u, v, hr', ?_, ?_, rfl, hx, hy⟩
+        refine Or.inr ⟨B, C, u, v, hr', ?_, ?_, rfl, hx, hy⟩
         · rintro rfl
           exact hnil B (by simp [ChomskyNormalFormRule.output]) hx
         · rintro rfl
@@ -205,13 +199,8 @@ theorem derives_iff_of_ne_nil {A : G.NT} {w : List T} (hw : w ≠ []) :
     · have := (ContextFreeGrammar.derives_map_terminal_iff (g := G.toCFG) (w := [])).mp hd
       exact absurd (List.map_eq_nil_iff.mp this) hw
   · rintro (⟨a, rfl, ha⟩ | ⟨B, C, u, v, hr, -, -, rfl, hu, hv⟩)
-    · right
-      refine ⟨(ChomskyNormalFormRule.leaf A a).toContextFreeRule,
-        (G.mem_toCFG_rules).mpr (Or.inl ⟨_, ha, rfl⟩), rfl, ?_⟩
-      exact .refl _
-    · right
-      refine ⟨(ChomskyNormalFormRule.node A B C).toContextFreeRule,
-        (G.mem_toCFG_rules).mpr (Or.inl ⟨_, hr, rfl⟩), rfl, ?_⟩
+    · exact Or.inr ⟨_, G.mem_toCFG_rules.mpr (Or.inl ⟨_, ha, rfl⟩), rfl, .refl _⟩
+    · refine Or.inr ⟨_, G.mem_toCFG_rules.mpr (Or.inl ⟨_, hr, rfl⟩), rfl, ?_⟩
       rw [List.map_append]
       exact ContextFreeGrammar.Derives.append (u := [.nonterminal B]) (v := [.nonterminal C]) hu hv
 

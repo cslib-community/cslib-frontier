@@ -116,19 +116,14 @@ def IsCriticalTree (φ : CNF (Fin n)) (σ : Fin n → Bool) (h : ℕ)
 theorem exists_isCriticalTree {φ : CNF (Fin n)} {σ : Fin n → Bool} {h : ℕ}
     (hiso : IsIsolated φ σ h) : ∃ C, IsCriticalTree φ σ h C := by
   classical
-  have key : ∀ p : List (Fin n), p ≠ [] → p.length ≤ h →
-      ∃ c ∈ φ, c.eval (flipOn p.toFinset σ) = false := by
-    intro p hp hlen
-    have hne : p.toFinset.Nonempty := List.toFinset_nonempty_iff p |>.mpr hp
-    have hD := hiso _ hne ((List.toFinset_card_le p).trans hlen)
-    by_contra hall
-    push Not at hall
-    exact hD ((CNF.eval_eq_true_iff _ φ).mpr fun c hc => by simpa using hall c hc)
-  have key' : ∀ p : List (Fin n), ∃ c : Clause (Fin n), p ≠ [] → p.length ≤ h →
+  have key' (p : List (Fin n)) : ∃ c : Clause (Fin n), p ≠ [] → p.length ≤ h →
       c ∈ φ ∧ c.eval (flipOn p.toFinset σ) = false := by
-    intro p
     by_cases hp : p ≠ [] ∧ p.length ≤ h
-    · obtain ⟨c, hc, hce⟩ := key p hp.1 hp.2
+    · have hD := hiso _ ((List.toFinset_nonempty_iff p).mpr hp.1)
+        ((List.toFinset_card_le p).trans hp.2)
+      obtain ⟨c, hc, hce⟩ : ∃ c ∈ φ, c.eval (flipOn p.toFinset σ) = false := by
+        by_contra! hall
+        exact hD ((CNF.eval_eq_true_iff _ φ).mpr fun c hc => by simpa using hall c hc)
       exact ⟨c, fun _ _ => ⟨hc, hce⟩⟩
     · exact ⟨[], fun h₁ h₂ => absurd ⟨h₁, h₂⟩ hp⟩
   choose C hC using key'
@@ -175,17 +170,14 @@ theorem card_children_le {k h : ℕ} {φ : CNF (Fin n)} {σ : Fin n → Bool} {x
   obtain ⟨hmem, hflip⟩ := hC p hxp hph
   obtain ⟨l, hl, hls⟩ :=
     (Clause.eval_eq_true_iff σ _).mp ((CNF.eval_eq_true_iff σ φ).mp hσ _ hmem)
-  have hlp : l.1 ∈ p := by
-    by_contra hlp
-    have : (C p).eval (flipOn p.toFinset σ) = true :=
-      (Clause.eval_eq_true_iff _ _).mpr
-        ⟨l, hl, by rwa [flipOn_apply_of_notMem (by simpa using hlp)]⟩
+  have hlp : l.1 ∈ p := by_contra fun hlp => by
+    have : (C p).eval (flipOn p.toFinset σ) = true := (Clause.eval_eq_true_iff _ _).mpr
+      ⟨l, hl, by rwa [flipOn_apply_of_notMem (by simpa using hlp)]⟩
     simp [hflip] at this
-  have hlv : l.1 ∈ PPZ.vars (C p) := List.mem_toFinset.mpr (List.mem_map_of_mem hl)
-  have hsub : children C p ⊆ (PPZ.vars (C p)).erase l.1 := fun y hy =>
-    mem_erase.mpr ⟨fun e => notMem_of_mem_children hy (e ▸ hlp), (mem_children.mp hy).1⟩
-  calc (children C p).card ≤ ((PPZ.vars (C p)).erase l.1).card := card_le_card hsub
-    _ = (PPZ.vars (C p)).card - 1 := card_erase_of_mem hlv
+  calc (children C p).card ≤ ((PPZ.vars (C p)).erase l.1).card := card_le_card fun y hy =>
+        mem_erase.mpr ⟨fun e => notMem_of_mem_children hy (e ▸ hlp), (mem_children.mp hy).1⟩
+    _ = (PPZ.vars (C p)).card - 1 :=
+        card_erase_of_mem (List.mem_toFinset.mpr (List.mem_map_of_mem hl))
     _ ≤ k - 1 := Nat.sub_le_sub_right ((PPZ.card_vars_le _).trans (hlen _ hmem)) 1
 
 /-! ### Paths and cuts -/
@@ -199,13 +191,9 @@ def Descends (C : List (Fin n) → Clause (Fin n)) : ℕ → List (Fin n) → Li
 /-- **Labels on a path are distinct** [Scheder, Observation 3.1][Scheder2021]. -/
 theorem nodup_append_of_descends {C : List (Fin n) → Clause (Fin n)} :
     ∀ {d : ℕ} {p s : List (Fin n)}, p.Nodup → Descends C d p s → (s ++ p).Nodup
-  | 0, p, s, hp, hs => by
-    rw [show s = [] from hs]
-    exact hp
-  | d + 1, p, s, hp, hs => by
-    obtain ⟨y, hy, t, rfl, ht⟩ := hs
-    have := nodup_append_of_descends (List.nodup_cons.mpr ⟨notMem_of_mem_children hy, hp⟩) ht
-    simpa using this
+  | 0, _, _, hp, rfl => hp
+  | _ + 1, _, _, hp, ⟨_, hy, _, rfl, ht⟩ => by
+    simpa using nodup_append_of_descends (List.nodup_cons.mpr ⟨notMem_of_mem_children hy, hp⟩) ht
 
 /-- `Cut C A d p`: every downward path of `d` steps from the node `p` has a node other than `p`
 labelled by a variable of `A`. For the root `[x]` of the tree of `x` with `x ∉ A`, this says that
@@ -255,25 +243,23 @@ theorem cut_insert_of_mem {C : List (Fin n) → Clause (Fin n)} {A : Finset (Fin
 theorem cut_iff_forall_descends {C : List (Fin n) → Clause (Fin n)} {A : Finset (Fin n)} :
     ∀ {d : ℕ} {p : List (Fin n)},
       Cut C A d p ↔ ∀ s, Descends C d p s → ∃ y ∈ s, y ∈ A
-  | 0, p => by
+  | 0, _ => by
     simp only [cut_zero, false_iff, Descends, not_forall]
     exact ⟨[], rfl, by simp⟩
-  | d + 1, p => by
+  | _ + 1, p => by
     rw [cut_succ]
-    constructor
+    refine ⟨?_, fun h y hy => ?_⟩
     · rintro h s ⟨y, hy, t, rfl, ht⟩
       rcases h y hy with hyA | hcut
       · exact ⟨y, by simp, hyA⟩
       · obtain ⟨z, hz, hzA⟩ := cut_iff_forall_descends.mp hcut t ht
         exact ⟨z, List.mem_append_left _ hz, hzA⟩
-    · intro h y hy
-      by_cases hyA : y ∈ A
-      · exact Or.inl hyA
-      · refine Or.inr (cut_iff_forall_descends.mpr fun t ht => ?_)
+    · by_cases hyA : y ∈ A
+      · exact .inl hyA
+      · refine .inr (cut_iff_forall_descends.mpr fun t ht => ?_)
         obtain ⟨z, hz, hzA⟩ := h (t ++ [y]) ⟨y, hy, t, rfl, ht⟩
-        rcases List.mem_append.mp hz with hz | hz
-        · exact ⟨z, hz, hzA⟩
-        · exact absurd (List.mem_singleton.mp hz ▸ hzA) hyA
+        exact (List.mem_append.mp hz).elim (⟨z, ·, hzA⟩) fun hz =>
+          absurd (List.mem_singleton.mp hz ▸ hzA) hyA
 
 /-! ### The forcing lemma -/
 
@@ -335,30 +321,26 @@ theorem exists_mem_labels_eval_eq_false {φ : CNF (Fin n)} {σ γ : Fin n → Bo
   | 0, _, _, _, _, hcut => absurd hcut (cut_zero C A _)
   | d + 1, p, hxp, hph, hγ, hcut => by
     by_cases hall : ∀ y ∈ children C p, γ y = σ y
-    · refine ⟨C p, mem_labels_succ.mpr (Or.inl rfl), ?_⟩
-      have hflip := (hC p hxp (by omega)).2
-      have hagree : ∀ l ∈ C p, γ l.1 = flipOn p.toFinset σ l.1 := by
-        intro l hl
+    · refine ⟨C p, mem_labels_succ.mpr (.inl rfl), by_contra fun hne => ?_⟩
+      obtain ⟨l, hl, hls⟩ := (Clause.eval_eq_true_iff γ _).mp (by simpa using hne)
+      have hagree : γ l.1 = flipOn p.toFinset σ l.1 := by
         by_cases hlp : l.1 ∈ p
         · rw [flipOn_apply_of_mem (List.mem_toFinset.mpr hlp)]
           have h1 := hγ l.1 hlp
-          generalize γ l.1 = a at h1 ⊢
-          generalize σ l.1 = b at h1 ⊢
-          cases a <;> cases b <;> simp_all
+          cases ha : γ l.1
+          all_goals cases hb : σ l.1 <;> simp_all
         · rw [flipOn_apply_of_notMem (by simpa using hlp)]
           exact hall l.1 (mem_children.mpr ⟨List.mem_toFinset.mpr (List.mem_map_of_mem hl), hlp⟩)
-      by_contra hne
-      obtain ⟨l, hl, hls⟩ := (Clause.eval_eq_true_iff γ _).mp (by simpa using hne)
       have : (C p).eval (flipOn p.toFinset σ) = true :=
-        (Clause.eval_eq_true_iff _ _).mpr ⟨l, hl, (hagree l hl).symm.trans hls⟩
-      simp [hflip] at this
+        (Clause.eval_eq_true_iff _ _).mpr ⟨l, hl, hagree.symm.trans hls⟩
+      simp [(hC p hxp (by omega)).2] at this
     · push Not at hall
       obtain ⟨y, hy, hyγ⟩ := hall
-      have hyA : y ∉ A := fun hyA => hyγ (hA y hyA)
-      have hcut' := ((cut_succ C A d p).mp hcut y hy).resolve_left hyA
+      have hlen' : (y :: p).length + d ≤ h + 1 := by rw [List.length_cons]; omega
       obtain ⟨c, hc, hcγ⟩ := exists_mem_labels_eval_eq_false hC hA (List.mem_cons_of_mem y hxp)
-        (by rw [List.length_cons]; omega) (by simpa using ⟨hyγ, hγ⟩) hcut'
-      exact ⟨c, mem_labels_succ.mpr (Or.inr ⟨y, hy, hc⟩), hcγ⟩
+        hlen' (by simpa using ⟨hyγ, hγ⟩)
+        (((cut_succ C A d p).mp hcut y hy).resolve_left fun hyA => hyγ (hA y hyA))
+      exact ⟨c, mem_labels_succ.mpr (.inr ⟨y, hy, hc⟩), hcγ⟩
 
 /-- **The forcing lemma for a rooted tree** (original: a strengthening of
 [Scheder, Lemma 3.2][Scheder2021], whose proof uses only the number of clause-labelled nodes).
@@ -374,14 +356,11 @@ theorem IsCriticalTreeAt.wImplied_of_cut {k h w : ℕ} {φ : CNF (Fin n)} {σ : 
   have hx : x ∈ [x] := List.mem_singleton_self x
   have hxh : [x].length + h ≤ h + 1 := by simp [Nat.add_comm]
   refine ⟨(labels C h [x]).toList, fun c hc => mem_of_mem_labels hC hx hxh c (by simpa using hc),
-    by simpa using (card_labels_le hσ hC hlen hx hxh).trans hw, ?_⟩
-  intro γ hγ hψ
-  have hA : ∀ y ∈ A, γ y = σ y := fun y hy => hγ y (σ y) (by simp [PPZ.restrict, hy])
-  by_contra hne
-  obtain ⟨c, hc, hcγ⟩ :=
-    exists_mem_labels_eval_eq_false hC hA hx hxh (by simpa using hne) hcut
-  have := (CNF.eval_eq_true_iff γ _).mp hψ c (by simpa using hc)
-  simp [hcγ] at this
+    by simpa using (card_labels_le hσ hC hlen hx hxh).trans hw,
+    fun γ hγ hψ => by_contra fun hne => ?_⟩
+  obtain ⟨c, hc, hcγ⟩ := exists_mem_labels_eval_eq_false hC
+    (fun y hy => hγ y (σ y) (by simp [PPZ.restrict, hy])) hx hxh (by simpa using hne) hcut
+  simpa [hcγ] using (CNF.eval_eq_true_iff γ _).mp hψ c (by simpa using hc)
 
 /-- **The forcing lemma** (original: a strengthening of [Scheder, Lemma 3.2][Scheder2021], whose
 proof uses only the number of clause-labelled nodes). Let `σ` satisfy `φ`, whose clauses have at
@@ -414,12 +393,11 @@ theorem wImplied_of_forall_descends {k h w : ℕ} (hk : 3 ≤ k) {φ : CNF (Fin 
   · refine ⟨[], by simp, by simp, fun γ hγ _ => hγ x (σ x) (by simp [PPZ.restrict, hxA])⟩
   · refine wImplied_of_cut hσ hC hlen ?_ (cut_iff_forall_descends.mpr fun s hs => ?_)
     · calc ∑ i ∈ range h, (k - 1) ^ i ≤ (k - 1) ^ h :=
-            (Nat.geomSum_lt (by omega) fun i hi => mem_range.mp hi).le
+            (Nat.geomSum_lt (by omega) fun _ hi => mem_range.mp hi).le
         _ ≤ (k - 1) ^ (h + 1) := Nat.pow_le_pow_right (by omega) h.le_succ
         _ ≤ w := hw
     · obtain ⟨y, hy, hyA⟩ := hpath s hs
-      rcases List.mem_append.mp hy with hy | hy
-      · exact ⟨y, hy, hyA⟩
-      · exact absurd (List.mem_singleton.mp hy ▸ hyA) hxA
+      exact (List.mem_append.mp hy).elim (⟨y, ·, hyA⟩) fun hy =>
+        absurd (List.mem_singleton.mp hy ▸ hyA) hxA
 
 end Cslib.Complexity.PPSZ

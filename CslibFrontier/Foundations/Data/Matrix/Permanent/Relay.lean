@@ -84,16 +84,12 @@ theorem permanent_add_single {n : ℕ} (X : Matrix (Fin (n + 1)) (Fin (n + 1)) R
     (X + Matrix.of fun i j => if i = s ∧ j = t then c else 0).permanent =
       X.permanent + c * (X.submatrix s.succAbove t.succAbove).permanent := by
   rw [permanent_succ_row _ s, permanent_succ_row X s]
-  have hminor : ∀ j : Fin (n + 1),
+  have hminor (j : Fin (n + 1)) :
       ((X + Matrix.of fun i j => if i = s ∧ j = t then c else 0).submatrix s.succAbove
         j.succAbove) = X.submatrix s.succAbove j.succAbove := by
-    intro j
     ext i l
     simp [Fin.succAbove_ne]
-  have hentry : ∀ j, (X + Matrix.of fun i j => if i = s ∧ j = t then c else 0) s j =
-      X s j + if j = t then c else 0 := fun j => by simp
-  simp_rw [hminor, hentry, add_mul, Finset.sum_add_distrib, ite_mul, zero_mul,
-    Finset.sum_ite_eq', Finset.mem_univ, ite_true]
+  simp [hminor, add_mul, Finset.sum_add_distrib, ite_mul]
 
 /-- **Removing a relay vertex.** If the last vertex of `M` has a self-loop of weight `1`, its only
 other outgoing edge goes to `t` with weight `b`, and its only other incoming edge comes from `s`

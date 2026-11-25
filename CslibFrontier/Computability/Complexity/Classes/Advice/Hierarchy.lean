@@ -76,8 +76,8 @@ theorem PWithAdvice_ssubset_of_lt {lower upper : ℕ → ℕ}
     · exact List.length_replicate
   let lookup (p : List Bool × List Bool) : Bool :=
     p.1.getD (BitString.boundedBinaryValue p.1.length p.2) false
-  have hlookup : ComputableInPolyTime lookup (encPair encBits encBits) encBool := by
-    exact ComputableInPolyTime.bitsGetDWithInput (by fun_prop)
+  have hlookup : ComputableInPolyTime lookup (encPair encBits encBits) encBool :=
+    ComputableInPolyTime.bitsGetDWithInput (by fun_prop)
       (ComputableInPolyTime.bitsBoundedBinaryValueWithInput
         (ComputableInPolyTime.length_bits_comp (by fun_prop)) (by fun_prop)) false
   let L : Set (List Bool) := {x | lookup (advice x.length, x) = true}
@@ -86,26 +86,20 @@ theorem PWithAdvice_ssubset_of_lt {lower upper : ℕ → ℕ}
       ⟨lookup, hlookup, fun _ => Iff.rfl⟩, fun _ => Iff.rfl⟩
   have hnot : L ∉ PWithAdvice lower := by
     rintro ⟨otherAdvice, hother, A, hA, hLA⟩
-    rw [hpredicates] at hA
-    obtain ⟨j, hj⟩ := hA
+    obtain ⟨j, hj⟩ := hpredicates ▸ hA
     let a : Fin (lower (j + N)) → Bool := fun i =>
       (otherAdvice (j + N))[i.val]'(by rw [hother]; exact i.isLt)
-    have ha : List.ofFn a = otherAdvice (j + N) := by
-      apply List.ext_getElem (by simp [hother])
-      intro i hi hi'
-      simp [a]
-    apply hmissing j a
-    funext i
+    have ha : List.ofFn a = otherAdvice (j + N) :=
+      List.ext_getElem (by simp [hother]) fun _ _ _ => by simp [a]
+    refine hmissing j a (funext fun i => ?_)
     have hi : i.val < 2 ^ (j + N) := i.isLt.trans_le (hcap _ (by omega))
-    have hw := BitString.length_binaryWord hi
     have hadvice : advice (j + N) = List.ofFn (missing j) := by
       dsimp only [advice]
-      rw [dite_eq_left (show N ≤ j + N by omega), Nat.add_sub_cancel]
+      rw [dite_eq_left (by omega), Nat.add_sub_cancel]
     have heval : lookup (advice (j + N), BitString.binaryWord (j + N) i.val) =
-        decide ((otherAdvice (j + N), BitString.binaryWord (j + N) i.val) ∈ predicates j) := by
-      apply Bool.eq_iff_iff.mpr
-      simpa only [L, Set.mem_ofPred_eq, hw, ← hj, decide_eq_true_eq] using
-        hLA (BitString.binaryWord (j + N) i.val)
+        decide ((otherAdvice (j + N), BitString.binaryWord (j + N) i.val) ∈ predicates j) :=
+      Bool.eq_iff_iff.mpr (by simpa only [L, Set.mem_ofPred_eq, BitString.length_binaryWord hi,
+        ← hj, decide_eq_true_eq] using hLA (BitString.binaryWord (j + N) i.val))
     simpa [observations, ha, lookup, hadvice, BitString.boundedBinaryValue_eq,
       Nat.min_eq_right i.isLt.le] using heval.symm
   exact Set.ssubset_iff_subset_ne.mpr ⟨PWithAdvice_subset_of_lt hlt,

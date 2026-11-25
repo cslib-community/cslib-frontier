@@ -192,8 +192,7 @@ private theorem relocate_injective {s : Fin k → α} (hs : Function.Injective s
     (hr : ∀ i, s i ≠ r) : Function.Injective (relocate s q r) := by
   intro i j hij
   unfold relocate at hij
-  by_cases hi : s i = q <;> by_cases hj : s j = q <;>
-    simp only [hi, hj, ↓reduceIte] at hij
+  split_ifs at hij with hi hj hj
   · exact hs (hi.trans hj.symm)
   · exact absurd hij.symm (hr j)
   · exact absurd hij (hr i)
@@ -205,14 +204,12 @@ private theorem mem_range_relocate_iff {s : Fin k → α} {q r x : α} (hq : ∃
   unfold relocate
   constructor
   · rintro ⟨i, hi⟩
-    by_cases h : s i = q
-    · simp only [h, ↓reduceIte] at hi
-      exact Or.inl hi.symm
-    · simp only [h, ↓reduceIte] at hi
-      exact Or.inr ⟨hi ▸ h, i, hi⟩
+    split_ifs at hi with h
+    · exact Or.inl hi.symm
+    · exact Or.inr ⟨hi ▸ h, i, hi⟩
   · rintro (rfl | ⟨hxq, i, rfl⟩)
-    · exact ⟨i₀, by simp only [hi₀, ↓reduceIte]⟩
-    · exact ⟨i, by simp only [hxq, ↓reduceIte]⟩
+    · exact ⟨i₀, ite_eq_left hi₀⟩
+    · exact ⟨i, ite_eq_right hxq⟩
 
 /-- If `s` covers exactly `S \ {h}` with distinct servers, and the previous request `q` lies in
 `S \ {h}`, then the shadow schedule is valid on requests from `S` and costs `holeCost h q rs`. -/
@@ -233,17 +230,9 @@ theorem shadowStates_spec (S : Finset α) {rs : List α} (hrs : ∀ r ∈ rs, r 
       have hcov : ¬ ∃ i, s i = r := fun hc => ((hrange r).1 hc).2 rfl
       have hnot : ∀ i, s i ≠ r := fun i hi => hcov ⟨i, hi⟩
       have hinj := relocate_injective hs (q := q) hnot
-      have hrange' : ∀ x, (∃ i, relocate s q r i = x) ↔ x ∈ S ∧ x ≠ q := by
-        intro x
+      have hrange' : ∀ x, (∃ i, relocate s q r i = x) ↔ x ∈ S ∧ x ≠ q := fun x => by
         rw [mem_range_relocate_iff hq, hrange x]
-        constructor
-        · rintro (rfl | ⟨hxq, hxS, _⟩)
-          · exact ⟨hrS, Ne.symm hqh⟩
-          · exact ⟨hxS, hxq⟩
-        · rintro ⟨hxS, hxq⟩
-          by_cases hxr : x = r
-          · exact Or.inl hxr
-          · exact Or.inr ⟨hxq, hxS, hxr⟩
+        grind
       obtain ⟨hv, hc⟩ := ih hrs' hinj hrange' hrS (Ne.symm hqh)
       simp only [shadowStates, hcov, ↓reduceIte, holeCost]
       refine ⟨⟨(mem_range_relocate_iff hq).2 (Or.inl rfl), hv⟩, ?_⟩
@@ -285,22 +274,13 @@ theorem sum_holeCost (S : Finset α) {rs : List α} (hrs : ∀ r ∈ rs, r ∈ S
 
 private theorem card_insert_image {s₀ : Fin k → α} (hs₀ : Function.Injective s₀) {z : α}
     (hz : ∀ i, s₀ i ≠ z) : (insert z (Finset.univ.image s₀)).card = k + 1 := by
-  have hzim : z ∉ Finset.univ.image s₀ := fun h => by
-    obtain ⟨i, _, hi⟩ := Finset.mem_image.1 h
-    exact hz i hi
-  rw [Finset.card_insert_of_notMem hzim, Finset.card_image_of_injective _ hs₀,
+  rw [Finset.card_insert_of_notMem (by simpa using hz), Finset.card_image_of_injective _ hs₀,
     Finset.card_univ, Fintype.card_fin]
 
 private theorem range_iff_insert_image {s₀ : Fin k → α} {z : α} (hz : ∀ i, s₀ i ≠ z) (x : α) :
     (∃ i, s₀ i = x) ↔ x ∈ insert z (Finset.univ.image s₀) ∧ x ≠ z := by
-  constructor
-  · rintro ⟨i, rfl⟩
-    exact ⟨Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_univ i)), hz i⟩
-  · rintro ⟨hxS, hxz⟩
-    rcases Finset.mem_insert.1 hxS with h | h
-    · exact absurd h hxz
-    · obtain ⟨i, _, hi⟩ := Finset.mem_image.1 h
-      exact ⟨i, hi⟩
+  simp only [Finset.mem_insert, Finset.mem_image, Finset.mem_univ, true_and]
+  grind
 
 /-- Averaging over the `k` shadow schedules: if the first request is the extra point `z` and all
 later requests lie in the `(k + 1)`-point set, some valid offline schedule costs at most a `1 / k`
@@ -323,10 +303,7 @@ theorem exists_shadow_le {s₀ : Fin k → α} (hs₀ : Function.Injective s₀)
       fun i => by simp only [holeCost, ↓reduceIte]
     simp only [hh, Finset.sum_add_distrib]
     congr 1
-    have herase : S.erase z = Finset.univ.image s₀ := by
-      refine Finset.erase_insert fun h => ?_
-      obtain ⟨i, _, hi⟩ := Finset.mem_image.1 h
-      exact hz i hi
+    have herase : S.erase z = Finset.univ.image s₀ := Finset.erase_insert (by simpa using hz)
     rw [← sum_holeCost M S hrest hzS, herase, Finset.sum_image fun i _ j _ h => hs₀ h]
   obtain ⟨i, _, hi⟩ := Finset.exists_min_image Finset.univ
     (fun i => holeCost M z (s₀ i) (z :: rest)) ⟨⟨0, hk⟩, Finset.mem_univ _⟩
@@ -392,33 +369,25 @@ private theorem lazy_uncovered_step {S : Finset α} (hS : S.card = k + 1) (x₀ 
     have hinj : Function.Injective c' := by
       rw [hc']
       intro i₁ i₂ hi
-      by_cases h₁ : i₁ = j <;> by_cases h₂ : i₂ = j
+      simp only [Function.update_apply] at hi
+      split_ifs at hi with h₁ h₂ h₂
       · rw [h₁, h₂]
-      · rw [h₁, Function.update_self, Function.update_of_ne h₂] at hi
-        exact absurd hi.symm (hrc i₂)
-      · rw [h₂, Function.update_self, Function.update_of_ne h₁] at hi
-        exact absurd hi (hrc i₁)
-      · rw [Function.update_of_ne h₁, Function.update_of_ne h₂] at hi
-        exact hc hi
-    have hc'S : ∀ i, c' i ∈ S := by
-      intro i
-      rw [hc']
-      by_cases hi : i = j
-      · rw [hi, Function.update_self]; exact hrS
-      · rw [Function.update_of_ne hi]; exact hcS i
+      · exact absurd hi.symm (hrc i₂)
+      · exact absurd hi (hrc i₁)
+      · exact hc hi
+    have hc'S : ∀ i, c' i ∈ S := fun i => by
+      rw [hc', Function.update_apply]
+      split_ifs
+      exacts [hrS, hcS i]
     obtain ⟨hr'S, hr'c⟩ := uncovered_spec hS x₀ c'
     have hcj : uncovered S x₀ c' = c j := by
       refine uncovered_unique hS hinj hc'S hr'S (hcS j) hr'c fun i hi => ?_
-      rw [hc'] at hi
-      by_cases hij : i = j
-      · rw [hij, Function.update_self] at hi
-        exact hrc j hi.symm
-      · rw [Function.update_of_ne hij] at hi
-        exact hij (hc hi)
+      rw [hc', Function.update_apply] at hi
+      split_ifs at hi with hij
+      exacts [hrc j hi.symm, hij (hc hi)]
     refine ⟨hinj, hc'S, ?_, ?_⟩
     · rw [hcj, hc', moveCost_update, M.dist_comm]
-    · rw [hcj]
-      exact fun h => hrc j h.symm
+    · exact hcj ▸ fun h => hrc j h.symm
 
 /-- Against the uncovered-point adversary, the lazy simulation pays the request path length, and
 at least `1` per request. -/
@@ -503,21 +472,17 @@ theorem exists_ratio_violation {s₀ : Fin k → α} (hs₀ : Function.Injective
   refine ⟨reqs, off, hv, ?_⟩
   set O := (problem M k).scheduleCost s₀ reqs off
   set C := A.cost s₀ reqs
-  have hpath : pathLen M z reqs.tail ≤ C := by omega
   have hn : n + 1 ≤ C := by omega
   have hO : k * O ≤ I + C := by omega
   have hqO : k * q * O ≤ q * I + q * C := by
-    calc k * q * O = q * (k * O) := by rw [Nat.mul_comm k q, Nat.mul_assoc]
-      _ ≤ q * (I + C) := Nat.mul_le_mul_left q hO
-      _ = q * I + q * C := Nat.mul_add q I C
+    rw [Nat.mul_comm k q, Nat.mul_assoc, ← Nat.mul_add]
+    exact Nat.mul_le_mul_left q hO
   have hpO : (p + 1) * O ≤ k * q * O := Nat.mul_le_mul_right O hpq
   by_contra hcon
-  have hcon' : q * C ≤ p * O + b := by omega
   rw [Nat.add_one_mul] at hpO
   have hOb : O ≤ b + q * I := by omega
-  have : p * O ≤ p * (b + q * I) := Nat.mul_le_mul_left p hOb
-  have hq : 0 < q := Nat.pos_of_ne_zero fun h => by rw [h, Nat.mul_zero] at hpq; omega
-  have hqC : C ≤ q * C := Nat.le_mul_of_pos_left C hq
+  have := Nat.mul_le_mul_left p hOb
+  have := Nat.le_mul_of_pos_left C (Nat.pos_of_ne_zero (by rintro rfl; omega) : 0 < q)
   omega
 
 /-- **Manasse–McGeoch–Sleator lower bound.** From `k` distinct initial positions avoiding some

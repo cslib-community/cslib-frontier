@@ -52,14 +52,10 @@ theorem progressValue_natAbs_le {p k A B j : ℕ} (phase : Fin 7) (done : Fin 4 
     (hv : ∀ i < 4 ^ (k + 1) * p, (v i).natAbs ≤ B) (hj : j < 4 ^ k * p) :
     (progressValue p k phase done u v s j).natAbs ≤
       4 * (p * ((2 * A) * (2 * B)) * 16 ^ k) := by
-  have hchild := fun t =>
-    Cslib.Algorithms.MatrixMultiplication.Strassen.childProduct_natAbs_le u v t hu hv hj
   unfold progressValue
-  split
-  · exact Cslib.Algorithms.MatrixMultiplication.Strassen.partialValue_natAbs_le
-      u v s (by omega) hchild
-  · exact Cslib.Algorithms.MatrixMultiplication.Strassen.partialValue_natAbs_le
-      u v s (by omega) hchild
+  split <;> exact Cslib.Algorithms.MatrixMultiplication.Strassen.partialValue_natAbs_le
+    u v s (by omega) fun t =>
+      Cslib.Algorithms.MatrixMultiplication.Strassen.childProduct_natAbs_le u v t hu hv hj
 
 /-- One actual returned-child update advances exactly one not-yet-updated output quarter.
 The child product and complete high-bank header survive the real in-place loop. -/
@@ -90,21 +86,17 @@ theorem exec_accumulate_progress {w p k A B a b out scratch frames frame : ℕ}
       ∀ d, (d < out + t.val * (4 ^ k * p) ∨
         out + t.val * (4 ^ k * p) + 4 ^ k * p ≤ d) → y.mem d = x.mem d := by
   let C := p * ((2 * A) * (2 * B)) * 16 ^ k
-  have hfit : GenericRAM.Signed.Fits w ((4 * C + C : ℕ) : ℤ) :=
-    hmag.of_natAbs_le (by
-      rw [Int.natAbs_natCast]
-      have hm := accumulation_le_magnitudeBound p A B k
-      change 4 * C + C ≤ magnitudeBound p A B (k + 1)
-      omega)
+  have hfit : GenericRAM.Signed.Fits w ((4 * C + C : ℕ) : ℤ) := hmag.of_natAbs_le (by
+    have := accumulation_le_magnitudeBound p A B k
+    rw [Int.natAbs_natCast]; omega)
   obtain ⟨y, hy, yh, yc, values, memory⟩ := exec_accumulate_quarters t subtract x
     (progressValue p k phase done u v)
     (Cslib.Algorithms.MatrixMultiplication.Strassen.childProduct p k u v phase)
     hx hc hl (fun s j hj => progressValue_natAbs_le phase done u v s hu hv hj)
     (fun j hj => Cslib.Algorithms.MatrixMultiplication.Strassen.childProduct_natAbs_le
       u v phase hu hv hj) hout hprod hfit haddr
-  refine ⟨y, hy, yh, yc, ?_, ?_, memory⟩
-  · intro s j hj
-    rw [values s j hj]
+  refine ⟨y, hy, yh, yc, fun s j hj => ?_, fun j hj => ?_, memory⟩
+  · rw [values s j hj]
     congr 1
     by_cases he : s = t
     · subst s
@@ -113,13 +105,10 @@ theorem exec_accumulate_progress {w p k A B a b out scratch frames frame : ℕ}
         Cslib.Algorithms.MatrixMultiplication.Strassen.partialValue_succ, hsign]
       cases subtract <;> simp [sub_eq_add_neg]
     · simp only [he, ite_false, progressValue, Function.update_of_ne he]
-  · intro j hj
-    rw [memory _ (Or.inr ?_), hprod j hj]
-    have ht : t.val * (4 ^ k * p) + 4 ^ k * p ≤ 4 * (4 ^ k * p) := by
-      have hm := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t.isLt)
-      simpa only [Nat.succ_mul] using hm
+  · rw [memory _ (Or.inr ?_), hprod j hj]
+    have ht := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t.isLt)
     have ho := hl.output_before
-    rw [pow_succ] at ho
-    nlinarith
+    rw [Nat.succ_mul] at ht
+    rw [pow_succ, Nat.mul_comm (4 ^ k) 4, Nat.mul_assoc] at ho; omega
 
 end Cslib.Algorithms.WordRAM.Strassen

@@ -709,10 +709,16 @@ theorem partrec_name : Partrec₂ Φ.name := by
   exact hr.map (computable_val Φ (Computable.fst.comp Computable.fst)
     (Computable.snd.comp Computable.fst) Computable.snd).to₂
 
+/-- Input argument `q.2.1` in a graph-membership triple `(code, x, y)`. -/
+abbrev nameInput (q : Code × ℕ × ℕ) : ℕ := q.2.1
+
+/-- Output candidate `q.2.2` in a graph-membership triple `(code, x, y)`. -/
+abbrev nameValue (q : Code × ℕ × ℕ) : ℕ := q.2.2
+
 /-- The graph of each name is decidable, uniformly in the program: the set of names is
 *measured*. -/
 theorem computablePred_mem_name :
-    ComputablePred fun q : Code × ℕ × ℕ => q.2.2 ∈ Φ.name q.1 q.2.1 := by
+    ComputablePred fun q : Code × ℕ × ℕ => nameValue q ∈ Φ.name q.1 (nameInput q) := by
   have hp : ComputablePred fun p : (Code × ℕ × ℕ) × ℕ =>
       Defd Φ p.1.1 p.1.2.1 p.2 ∧ val Φ p.1.1 p.1.2.1 p.2 = p.1.2.2 :=
     (computablePred_defd Φ (Computable.fst.comp Computable.fst)
@@ -728,6 +734,7 @@ theorem computablePred_mem_name :
   · rintro ⟨z, -, hz⟩
     exact ⟨z, hz⟩
   · rintro ⟨z, hd, hv⟩
+    dsimp only [nameInput, nameValue] at hv
     have := le_val (Φ := Φ) q.1 q.2.1 z
     exact ⟨z, by omega, hd, hv⟩
 
@@ -909,18 +916,16 @@ private theorem halts_iff {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n ∈ i
     (ht' : ∀ n, t' n ∈ Φ.name i n) {e S₀ : ℕ} (hS₀ : ∀ s, S₀ ≤ s → act Φ i s ≠ some e) :
     ∀ᶠ x in atTop, (Halts Φ (ofNat Code e) x (t x) ↔ Halts Φ (ofNat Code e) x (t' x)) := by
   classical
-  have heK₀ := le_key_hist (Φ := Φ) i e S₀
-  generalize hK : key (hist Φ i S₀) e S₀ = K at heK₀
+  have heK := le_key_hist (Φ := Φ) i e S₀
+  generalize hK : key (hist Φ i S₀) e S₀ = K at heK
   have hkey : ∀ s, S₀ ≤ s → key (hist Φ i s) e s = K := fun s hs =>
     (key_hist_stable hs fun b hb _ => hS₀ b hb).trans hK
-  have heK : e ≤ K := heK₀
   have hV : ∀ e', ∀ᶠ s in atTop, (Quiet Φ i K e' s ↔ ∀ᶠ s' in atTop, Quiet Φ i K e' s') := by
     intro e'
     rcases quiet_eventually_const (Φ := Φ) i K e' with h | h
+    · filter_upwards [h] with s hs using iff_of_true hs h
     · filter_upwards [h] with s hs
-      exact iff_of_true hs h
-    · filter_upwards [h] with s hs
-      exact iff_of_false hs fun h' => (h.and h').exists.elim fun _ hs' => hs'.1 hs'.2
+        using iff_of_false hs fun h' => (h.and h').exists.elim fun _ hs' => hs'.1 hs'.2
   have hall : ∀ᶠ s in atTop, ∀ e' ∈ {e' | e' < K + 1},
       (Quiet Φ i K e' s ↔ ∀ᶠ s' in atTop, Quiet Φ i K e' s') :=
     (Set.finite_lt_nat (K + 1)).eventually_all.2 fun e' _ => hV e'
@@ -1041,7 +1046,7 @@ So the measured set `{φ_{h i}}` contains a name for every complexity class `C_t
 `t`. -/
 theorem naming_theorem :
     ∃ h : Code → Code, Computable h ∧
-      ComputablePred (fun q : Code × ℕ × ℕ => q.2.2 ∈ (h q.1).eval q.2.1) ∧
+      ComputablePred (fun q : Code × ℕ × ℕ => nameValue q ∈ (h q.1).eval (nameInput q)) ∧
       ∀ i : Code, ∀ t : ℕ → ℕ, (∀ n, t n ∈ i.eval n) →
         ∃ t' : ℕ → ℕ, (∀ n, t' n ∈ (h i).eval n) ∧
           Φ.complexityClass t' = Φ.complexityClass t := by

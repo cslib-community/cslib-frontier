@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Propagate
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 
 /-!
 # An elaborator from the augmented to the kernel VeriPB format
@@ -93,7 +94,7 @@ private structure KTerm where
 
 /-- A canonical form of a constraint, for comparison up to the order of terms: its normalized
 terms, sorted by variable, and its degree. -/
-private abbrev Key := List KTerm × ℕ
+private abbrev Key := Array KTerm × ℕ
 
 /-- The canonical form of a constraint: the normal form of `Cslib.Logic.PL.PBConstr.normalize`,
 computed with a hash map, its terms sorted by variable. -/
@@ -113,10 +114,16 @@ private def keyOf (c : PBConstr) : Key := Id.run do
     else if e.2 < 0 then
       ts := ts.push ⟨e.1, false, (-e.2).toNat⟩
       d := d - e.2
-  return ((ts.qsort fun a b => a.var < b.var).toList, d.toNat)
+  return (ts.qsort fun a b => a.var < b.var, d.toNat)
+
+/-- `Cslib.Logic.PL.VeriPB.Elab.keyOf` of a constraint of the parser (`Parse.constr`), whose terms
+have positive coefficients on distinct variables: its terms sorted by variable. -/
+private def keyOfParsed (c : PBConstr) : Key :=
+  ((c.terms.toArray.map fun t => (⟨termVar t, termPos t, t.1⟩ : KTerm)).qsort
+    fun a b => a.var < b.var, c.degree)
 
 /-- The constraint of a canonical form. -/
-private def ofKey (k : Key) : PBConstr := ⟨k.1.map fun t => (t.coeff, t.var, t.pos), k.2⟩
+private def ofKey (k : Key) : PBConstr := ⟨k.1.toList.map fun t => (t.coeff, t.var, t.pos), k.2⟩
 
 /-- A constraint of the elaborator's database. -/
 private structure Entry where
@@ -133,7 +140,7 @@ private structure Entry where
   /-- Its canonical form. -/
   key : Key
 
-private instance : Inhabited Entry := ⟨⟨⟨[], 0⟩, 0, 0, false, false, ([], 0)⟩⟩
+private instance : Inhabited Entry := ⟨⟨⟨[], 0⟩, 0, 0, false, false, (#[], 0)⟩⟩
 
 /-- The state of the elaborator, as mutable references. -/
 private structure St (σ : Type) where
@@ -187,11 +194,13 @@ private def takeKid (S : St σ) : EM σ ℕ := do
 private def augNext (S : St σ) : EM σ ℕ := return (← S.db.get).size
 
 /-- Add a constraint, stored by the kernel as `c` under the kernel number `kid`: it takes the
-next augmented number, which is returned. `top` tags it with the current level. -/
-private def add (S : St σ) (c : PBConstr) (kid : ℕ) (core top : Bool) : EM σ ℕ := do
+next augmented number, which is returned. `top` tags it with the current level. Its canonical
+form `key` is computed unless given. -/
+private def add (S : St σ) (c : PBConstr) (kid : ℕ) (core top : Bool) (key? : Option Key := none) :
+    EM σ ℕ := do
   let id ← S.augNext
   let eidx ← S.eng.add c (.id kid)
-  let key := keyOf c
+  let key := key?.getD (keyOf c)
   S.db.modify (·.push ⟨c, kid, eidx, true, core, key⟩)
   S.varOcc.modify fun m => c.terms.foldl (fun m t => m.alter (termVar t) fun
     | some ids => some (ids.push id)
@@ -306,7 +315,7 @@ private def deleteRefs (S : St σ) (ids : List ℕ) : EM σ (Array TopStep) := d
 
 /-- **Deletion by specification** of `c` (§5.7.2, §5.7.3). -/
 private def deleteSpec (S : St σ) (c : PBConstr) : EM σ (Array TopStep) := do
-  let key := keyOf c
+  let key := keyOfParsed c
   match (← S.specs.get)[key]? with
   | some (l, k) =>
     if l.isEmpty then S.fail "del spec: no such constraint"
@@ -322,67 +331,107 @@ end St
 
 /-! ### Cutting planes -/
 
-/-- The cutting-planes rules on constraints with the results of the kernel checker's rules
-(`Cslib.Logic.PL.PBConstr.add`, …) up to the order of terms, computed through the canonical form
-in linear time, where the kernel's normalization is quadratic. -/
+/-- The cutting-planes rules on canonical forms, with the results of the kernel checker's rules
+(`Cslib.Logic.PL.PBConstr.add`, …) up to the order of terms, in linear time, where the kernel's
+normalization is quadratic. On canonical forms the rules keep the terms sorted by variable:
+addition merges them, cancelling opposite literals, and the other rules map or filter them. -/
 private def canon (c : PBConstr) : PBConstr := ofKey (keyOf c)
 
+/-- `Cslib.Logic.PL.PBConstr.normalize` of a constraint of the parser (`Parse.constr`), in linear
+time: its terms have positive coefficients on distinct variables, and then the normal form is the
+terms reversed, with the same degree. -/
+private def normalizeParsed (c : PBConstr) : PBConstr := ⟨c.terms.reverse, c.degree⟩
+
+/-- `Cslib.Logic.PL.PBConstr.negate` of a constraint of the parser, in linear time
+(`Cslib.Logic.PL.VeriPB.Elab.normalizeParsed`). -/
+private def negateParsed (c : PBConstr) : PBConstr :=
+  ⟨c.terms.reverse.map fun t => (t.1, Std.Sat.Literal.negate t.2), coeffSum c.terms + 1 - c.degree⟩
+
+/-- The literal axiom `ℓ ≥ 0` (`Cslib.Logic.PL.PBConstr.litAxiom`), in canonical form. -/
+private def litKey (l : Literal ℕ) : Key := (#[⟨l.1, l.2, 1⟩], 0)
+
+/-- Merge the sorted terms of `x` from `i` and `y` from `j` into `out`, adding to `dec` what the
+degree loses where opposite literals cancel: `a x + b ¬x = (a - b) x + b` for `a ≥ b`. -/
+private partial def mergeTerms (x y : Array KTerm) (i j : ℕ) (out : Array KTerm) (dec : ℕ) :
+    Array KTerm × ℕ :=
+  if h : i < x.size then
+    if h' : j < y.size then
+      let p := x[i]
+      let q := y[j]
+      if p.var < q.var then mergeTerms x y (i + 1) j (out.push p) dec
+      else if q.var < p.var then mergeTerms x y i (j + 1) (out.push q) dec
+      else if p.pos == q.pos then
+        mergeTerms x y (i + 1) (j + 1) (out.push ⟨p.var, p.pos, p.coeff + q.coeff⟩) dec
+      else if q.coeff < p.coeff then
+        mergeTerms x y (i + 1) (j + 1) (out.push ⟨p.var, p.pos, p.coeff - q.coeff⟩) (dec + q.coeff)
+      else if p.coeff < q.coeff then
+        mergeTerms x y (i + 1) (j + 1) (out.push ⟨q.var, q.pos, q.coeff - p.coeff⟩) (dec + p.coeff)
+      else mergeTerms x y (i + 1) (j + 1) out (dec + p.coeff)
+    else mergeTerms x y (i + 1) j (out.push x[i]) dec
+  else if h' : j < y.size then mergeTerms x y i (j + 1) (out.push y[j]) dec
+  else (out, dec)
+
 /-- Addition, as `Cslib.Logic.PL.PBConstr.add`. -/
-private def fadd (c d : PBConstr) : PBConstr := canon ⟨c.terms ++ d.terms, c.degree + d.degree⟩
+private def fadd (c d : Key) : Key :=
+  let (ts, dec) := mergeTerms c.1 d.1 0 0 (.mkEmpty (c.1.size + d.1.size)) 0
+  (ts, c.2 + d.2 - dec)
 
 /-- Multiplication, as `Cslib.Logic.PL.PBConstr.mul`. -/
-private def fmul (c : PBConstr) (k : ℕ) : PBConstr :=
-  canon ⟨c.terms.map fun t => (k * t.1, t.2), k * c.degree⟩
+private def fmul (c : Key) (k : ℕ) : Key :=
+  if k = 0 then (#[], 0) else (c.1.map fun t => { t with coeff := k * t.coeff }, k * c.2)
 
-/-- Division, as `Cslib.Logic.PL.PBConstr.div`. -/
-private def fdiv (c : PBConstr) (k : ℕ) : PBConstr :=
-  let n := canon c
-  canon ⟨n.terms.map fun t => (ceilDiv t.1 k, t.2), ceilDiv n.degree k⟩
+/-- Division by `k > 0`, as `Cslib.Logic.PL.PBConstr.div`. -/
+private def fdiv (c : Key) (k : ℕ) : Key :=
+  (c.1.map fun t => { t with coeff := ceilDiv t.coeff k }, ceilDiv c.2 k)
 
 /-- Saturation, as `Cslib.Logic.PL.PBConstr.saturate`. -/
-private def fsat (c : PBConstr) : PBConstr :=
-  let n := canon c
-  ⟨n.terms.map fun t => (min t.1 n.degree, t.2), n.degree⟩ |> canon
+private def fsat (c : Key) : Key :=
+  if c.2 = 0 then (#[], 0)
+  else if c.1.all (·.coeff ≤ c.2) then c
+  else (c.1.map fun t => if t.coeff ≤ c.2 then t else { t with coeff := c.2 }, c.2)
 
 /-- Weakening, as `Cslib.Logic.PL.PBConstr.weaken`. -/
-private def fweaken (c : PBConstr) (v : ℕ) : PBConstr :=
-  let n := canon c
-  canon ⟨n.terms.filter (termVar · != v),
-    n.degree - coeffSum (n.terms.filter (termVar · == v))⟩
+private def fweaken (c : Key) (v : ℕ) : Key :=
+  (c.1.filter (·.var != v), c.2 - (c.1.filter (·.var == v)).foldl (· + ·.coeff) 0)
 
-/-- An operand of a `pol` step during elaboration: its constraint, as the kernel computes it,
-and the kernel operations that push it. -/
+/-- The constraint is a contradiction: its coefficients sum to less than its degree. -/
+private def Key.isContradiction (c : Key) : Bool := c.1.foldl (· + ·.coeff) 0 < c.2
+
+/-- An operand of a `pol` step during elaboration: its constraint, as the kernel computes it up to
+the order of terms, in canonical form, and the kernel operations that push it. -/
 private structure PVal where
   /-- The constraint. -/
-  c : PBConstr
+  k : Key
   /-- The kernel operations. -/
   ops : Array PolOp
 
-private instance : Inhabited PVal := ⟨⟨⟨[], 0⟩, #[]⟩⟩
+private instance : Inhabited PVal := ⟨⟨(#[], 0), #[]⟩⟩
 
-/-- A variable not in the constraint. -/
+/-- The constraint of an operand. -/
+private def PVal.c (v : PVal) : PBConstr := ofKey v.k
+
+/-- One more than the largest variable of the constraint. -/
 private def freshVar (c : PBConstr) : ℕ := c.terms.foldl (fun m t => max m (termVar t + 1)) 0
 
-/-- `k -`: add `k x` and `k ¬x` for a variable `x` not in the constraint. -/
-private def lowerOps (v : PVal) (k : ℕ) : PVal :=
+/-- `k -`: add `k x` and `k ¬x` for a variable `x` not in the constraint
+(`Cslib.Logic.PL.VeriPB.Elab.St.lowerVar`). -/
+private def lowerOps (v : PVal) (k x : ℕ) : PVal :=
   if k = 0 then v else
-  let x := freshVar v.c
-  let c₁ := fadd v.c (fmul (litAxiom (x, true)) k)
-  ⟨fadd c₁ (fmul (litAxiom (x, false)) k),
+  let c₁ := fadd v.k (fmul (litKey (x, true)) k)
+  ⟨fadd c₁ (fmul (litKey (x, false)) k),
     v.ops ++ #[.lit (x, true), .mul k, .add, .lit (x, false), .mul k, .add]⟩
 
 /-- Add `b ℓ` for each pair `(ℓ, b)`, `b > 0`. -/
 private def addAxioms (v : PVal) (ls : List (Literal ℕ × ℕ)) : PVal :=
   ls.foldl (fun v (l, b) => if b = 0 then v else
-    ⟨fadd v.c (fmul (litAxiom l) b), v.ops ++ #[.lit l, .mul b, .add]⟩) v
+    ⟨fadd v.k (fmul (litKey l) b), v.ops ++ #[.lit l, .mul b, .add]⟩) v
 
 /-- `k c`, division in variable form: make the coefficients of negative literals multiples of
 `k`, then divide. -/
 private def vdivOps (v : PVal) (k : ℕ) : PVal :=
-  let n := v.c.normalize
-  let v := addAxioms v (n.terms.filterMap fun t =>
-    if termPos t then none else some ((termVar t, true), t.1 % k))
-  ⟨fdiv v.c k, v.ops.push (.div k)⟩
+  let v := addAxioms v (v.k.1.toList.reverse.filterMap fun t =>
+    if t.pos then none else some ((t.var, true), t.coeff % k))
+  ⟨fdiv v.k k, v.ops.push (.div k)⟩
 
 /-- The mixed-integer-rounding cut of the normalized constraint `c` with divisor `d > 0`, in
 normalized form (`vf = false`) or variable form (`vf = true`), as VeriPB 3.0.2 computes it
@@ -414,37 +463,54 @@ namespace St
 
 variable {σ : Type}
 
+/-- A variable not in the terms `ts`, for the `pol` operation `-`: the one after their largest
+variable if it has a name, else the least named variable not in them, else a new variable
+(`Cslib.Logic.PL.VeriPB.Elab.Lexer.fresh`). So the kernel proof names every variable it uses. -/
+private def lowerVar (S : St σ) (ts : List (ℕ × Literal ℕ)) : EM σ ℕ := do
+  let n ← S.L.nextVar
+  let c : PBConstr := ⟨ts, 0⟩
+  if freshVar c < n then return freshVar c
+  let vs : Std.HashSet ℕ := ts.foldl (fun m t => m.insert (termVar t)) {}
+  let mut v := 0
+  while v < n && vs.contains v do v := v + 1
+  if v < n then return v
+  S.L.fresh
+
+/-- The trivial constraint `0 ≥ 0`, as `x + ¬x`. -/
+private def trivial (S : St σ) : EM σ PVal := do
+  let x ← S.lowerVar []
+  return ⟨fadd (litKey (x, true)) (litKey (x, false)), #[.lit (x, true), .lit (x, false), .add]⟩
+
 /-- The kernel operations pushing a value, as one operation if possible: a `pol` step deriving
 it is emitted otherwise, into `pre`. -/
 private def asSingle (S : St σ) (v : PVal) (pre : Array Step) : EM σ (PVal × Array Step) := do
   if v.ops.size == 1 then return (v, pre)
   let k ← S.takeKid
-  return (⟨v.c, #[.id k]⟩, pre.push (.pol v.ops.toList))
+  return (⟨v.k, #[.id k]⟩, pre.push (.pol v.ops.toList))
 
 /-- **A mixed-integer-rounding cut** of the value `v` with divisor `d`, in variable form if
 `vf`: a `pbc` step for the cut, emitted into `pre`, whose subproof refutes its negation. -/
 private def mirStep (S : St σ) (v : PVal) (d : ℕ) (vf : Bool) (pre : Array Step) :
     EM σ (PVal × Array Step) := do
   if d = 0 then S.fail "division by 0"
-  let c := v.c.normalize
+  -- The normal form of a canonical form, as the kernel computes it, has the terms reversed.
+  let c : PBConstr := ⟨v.c.terms.reverse, v.k.2⟩
   match mir c d vf with
   | none =>
-    -- The trivial constraint `0 ≥ 0`.
-    let ax : PBConstr := fadd (litAxiom (0, true)) (litAxiom (0, false))
-    return (⟨ax, #[.lit (0, true), .lit (0, false), .add]⟩, pre)
+    return (← S.trivial, pre)
   | some (M, ax, r) =>
     let (v, pre) ← S.asSingle v pre
     let n ← S.takeKid
-    let negM := M.negate
+    let negK := keyOf M.negate
     let w := addAxioms v ax
-    let E : PVal := ⟨fdiv (fadd w.c negM) (d - r), w.ops ++ #[.id n, .add, .div (d - r)]⟩
+    let E : PVal := ⟨fdiv (fadd w.k negK) (d - r), w.ops ++ #[.id n, .add, .div (d - r)]⟩
     let e ← S.takeKid
-    let X : PBConstr := fadd (fmul E.c r) negM
+    let X := fadd (fmul E.k r) negK
     let x ← S.takeKid
-    if !decide X.IsContradiction then S.fail "internal error: MIR cut derivation"
+    if !X.isContradiction then S.fail "internal error: MIR cut derivation"
     let m ← S.takeKid
     let _ := m
-    return (⟨M.normalize, #[.id m]⟩, pre.push (.pbc M [.pol E.ops.toList,
+    return (⟨keyOf M, #[.id m]⟩, pre.push (.pbc M [.pol E.ops.toList,
       .pol [.id e, .mul r, .id n, .add]] x))
 
 /-- **Elaborate a `pol` step**: its constraint, the kernel operations of its final `pol` step,
@@ -456,28 +522,26 @@ private def polOps (S : St σ) (ops : List AOp) : EM σ (PVal × Array Step) := 
     match op with
     | .ref r =>
       let e ← S.entryOf r
-      st := st.push ⟨e.c, #[.id e.kid]⟩
-    | .lit l => st := st.push ⟨litAxiom l, #[.lit l]⟩
+      st := st.push ⟨e.key, #[.id e.kid]⟩
+    | .lit l => st := st.push ⟨litKey l, #[.lit l]⟩
     | .add =>
       let some b := st.back? | S.fail "pol: empty stack"
       st := st.pop
       let some a := st.back? | S.fail "pol: empty stack"
-      st := st.pop.push ⟨fadd a.c b.c, a.ops ++ b.ops |>.push .add⟩
+      st := st.pop.push ⟨fadd a.k b.k, a.ops ++ b.ops |>.push .add⟩
     | _ =>
       let some a := st.back? | S.fail "pol: empty stack"
       st := st.pop
       let a' ← match op with
         | .mul k =>
-          if k = 0 then
-            pure (⟨fadd (litAxiom (0, true)) (litAxiom (0, false)),
-              #[.lit (0, true), .lit (0, false), .add]⟩ : PVal)
-          else pure (⟨fmul a.c k, a.ops.push (.mul k)⟩ : PVal)
+          if k = 0 then S.trivial
+          else pure (⟨fmul a.k k, a.ops.push (.mul k)⟩ : PVal)
         | .div k => if k = 0 then S.fail "pol: division by 0" else
-          pure ⟨fdiv a.c k, a.ops.push (.div k)⟩
+          pure ⟨fdiv a.k k, a.ops.push (.div k)⟩
         | .vdiv k => if k = 0 then S.fail "pol: division by 0" else pure (vdivOps a k)
-        | .sat => pure ⟨fsat a.c, a.ops.push .sat⟩
-        | .weaken x => pure ⟨fweaken a.c x, a.ops.push (.weaken x)⟩
-        | .minus k => pure (lowerOps a k)
+        | .sat => pure ⟨fsat a.k, a.ops.push .sat⟩
+        | .weaken x => pure ⟨fweaken a.k x, a.ops.push (.weaken x)⟩
+        | .minus k => pure (lowerOps a k (← S.lowerVar a.c.terms))
         | .nmir k => do
           let (v, p) ← S.mirStep a k false pre
           pre := p
@@ -512,34 +576,33 @@ private def implies (s t : Key) : Bool := Id.run do
 premise `v`, given `implies`: weaken the terms not in `t` and lower the coefficients above those
 of `t` (below its degree), lower the degree to that of `t`, saturate, and add literal axioms up
 to the coefficients of `t`. -/
-private def impOps (v : PVal) (t : Key) : PVal := Id.run do
-  let s := keyOf v.c
+private def impOps (v : PVal) (t : Key) (x : ℕ) : PVal := Id.run do
+  let s := v.k
   let tm : Std.HashMap (ℕ × Bool) ℕ := t.1.foldl (fun m x => m.insert (x.var, x.pos) x.coeff) {}
   let mut v := v
   if (s.1.foldl (fun a x => a + x.coeff) 0) < s.2 then
     -- A contradiction: drop its terms, which leaves `0 ≥ k`, `k > 0`.
-    for x in s.1 do v := ⟨fweaken v.c x.var, v.ops.push (.weaken x.var)⟩
-    v := ⟨fmul v.c (max t.2 1), v.ops.push (.mul (max t.2 1))⟩
+    for x in s.1 do v := ⟨fweaken v.k x.var, v.ops.push (.weaken x.var)⟩
+    v := ⟨fmul v.k (max t.2 1), v.ops.push (.mul (max t.2 1))⟩
   else
     for x in s.1 do
       match tm[(x.var, x.pos)]? with
       | some b =>
         if x.coeff > b && b < t.2 then v := addAxioms v [((x.var, !x.pos), x.coeff - b)]
-      | none => v := ⟨fweaken v.c x.var, v.ops.push (.weaken x.var)⟩
-  let cur := keyOf v.c
-  if cur.2 > t.2 then v := lowerOps v (cur.2 - t.2)
-  if t.2 > 0 then v := ⟨fsat v.c, v.ops.push .sat⟩
-  let cur := keyOf v.c
+      | none => v := ⟨fweaken v.k x.var, v.ops.push (.weaken x.var)⟩
+  let cur := v.k
+  if cur.2 > t.2 then v := lowerOps v (cur.2 - t.2) x
+  if t.2 > 0 then v := ⟨fsat v.k, v.ops.push .sat⟩
+  let cur := v.k
   let cm : Std.HashMap (ℕ × Bool) ℕ :=
     cur.1.foldl (fun m x => m.insert (x.var, x.pos) x.coeff) {}
-  return addAxioms v (t.1.filterMap fun x =>
+  return addAxioms v (t.1.toList.filterMap fun x =>
     let a := (cm[(x.var, x.pos)]?).getD 0
     if a < x.coeff then some ((x.var, x.pos), x.coeff - a) else none)
 
-/-- The premise of `i` or `ia`: the given one, or a constraint of the database implying `c`,
-equal ones first (VeriPB 3.0.2, `check_implication`). -/
-private def implPremise (S : St σ) (c : PBConstr) (hint : Option Ref) : EM σ ℕ := do
-  let t := keyOf c
+/-- The premise of `i` or `ia`: the given one, or a constraint of the database implying the
+constraint of canonical form `t`, equal ones first (VeriPB 3.0.2, `check_implication`). -/
+private def implPremise (S : St σ) (t : Key) (hint : Option Ref) : EM σ ℕ := do
   match hint with
   | some r =>
     let i ← S.resolve r
@@ -561,7 +624,7 @@ private def implPremise (S : St σ) (c : PBConstr) (hint : Option Ref) : EM σ �
 /-- The hints of `rup c` with the augmented set annotation `hs` (§5.2.1): propagate the hinted
 constraints and `¬c` until a conflict or a fixpoint, and list those that propagated, in order. -/
 private def setHints (S : St σ) (c : PBConstr) (hs : List AHint) : EM σ (List Hint) := do
-  let neg := c.negate
+  let neg := negateParsed c
   let mut cs : Array (Hint × PBConstr) := #[(.neg, neg)]
   for h in hs do
     match h with
@@ -589,7 +652,7 @@ private def rupHintsOf (S : St σ) (c : PBConstr) (hs : Option (List AHint)) : E
   match hs with
   | some hs => S.setHints c hs
   | none =>
-    match ← S.eng.rupHints c.negate with
+    match ← S.eng.rupHints (negateParsed c) with
     | some h => return h.toList
     | none => S.fail "rup: propagation finds no conflict"
 
@@ -612,24 +675,25 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
   | .pol ops =>
     let (v, pre) ← S.polOps ops
     let k ← S.takeKid
-    let id ← S.add v.c k false top
+    let id ← S.add v.c k false top v.k
     return (pre.push (.pol v.ops.toList), some id)
   | .rup c hs =>
     let h ← S.rupHintsOf c hs
     let k ← S.takeKid
-    let id ← S.add c.normalize k false top
+    let id ← S.add (normalizeParsed c) k false top (keyOfParsed c)
     return (#[.rup c h], some id)
   | .imp c add hint =>
-    let i ← S.implPremise c hint
+    let t := keyOfParsed c
+    let i ← S.implPremise t hint
     if !add then return (#[], some i)
     let e ← S.entry i
-    let v := impOps ⟨e.c, #[.id e.kid]⟩ (keyOf c)
-    if keyOf v.c != keyOf c then S.fail "internal error: ia derivation"
+    let v := impOps ⟨e.key, #[.id e.kid]⟩ t (← S.lowerVar (e.c.terms ++ c.terms))
+    if v.k != t then S.fail "internal error: ia derivation"
     let k ← S.takeKid
-    let id ← S.add v.c k false top
+    let id ← S.add v.c k false top v.k
     return (#[.pol v.ops.toList], some id)
   | .equal c hint =>
-    let key := keyOf c
+    let key := keyOfParsed c
     match hint with
     | some r =>
       let i ← S.resolve r
@@ -644,20 +708,20 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
         | none => S.fail "e: no such constraint"
       | none => S.fail "e: no such constraint"
   | .isDeleted c =>
-    match (← S.specs.get)[keyOf c]? with
+    match (← S.specs.get)[keyOfParsed c]? with
     | some (l, _) => if l.isEmpty then return (#[], none) else S.fail "is_deleted: not deleted"
     | none => return (#[], none)
   | .pbc c sub q =>
     let n ← S.takeKid
     let start ← S.augNext
-    let _ ← S.add c.negate n false false
+    let _ ← S.add (negateParsed c) n false false
     let ks ← match sub with
       | some sub => S.steps false sub
       | none => pure #[]
     let (extra, qk) ← S.closing start q (some (n, c))
     S.dropFrom start
     let k ← S.takeKid
-    let id ← S.add c.normalize k false top
+    let id ← S.add (normalizeParsed c) k false top
     return (#[.pbc c (ks ++ extra).toList qk], some id)
   | .noop => return (#[], none)
   | _ => S.fail "this rule is allowed only at top level"
@@ -687,10 +751,11 @@ private partial def closing (S : St σ) (start : ℕ) (q : Option Ref) (goal : O
         return (#[.rup ⟨[], 1⟩ h], k)
       | none =>
         let some (n, G) := goal | S.fail "subproof: no contradiction"
-        let i ← try S.implPremise G none catch _ => S.fail "subproof: no contradiction"
+        let t := keyOf G
+        let i ← try S.implPremise t none catch _ => S.fail "subproof: no contradiction"
         let e ← S.entry i
-        let v := impOps ⟨e.c, #[.id e.kid]⟩ (keyOf G)
-        if !decide (fadd v.c G.negate).IsContradiction then S.fail "subproof: no contradiction"
+        let v := impOps ⟨e.key, #[.id e.kid]⟩ t (← S.lowerVar (e.c.terms ++ G.terms))
+        if !(fadd v.k (keyOf G.negate)).isContradiction then S.fail "subproof: no contradiction"
         let k ← S.takeKid
         return (#[.pol (v.ops.push (.id n) |>.push .add).toList], k)
 
@@ -963,7 +1028,7 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
     let ord ← S.order.get
     let n ← S.takeKid
     let start ← S.augNext
-    let _ ← S.add c.negate n false false
+    let _ ← S.add (negateParsed c) n false false
     let ki ← match sub with
       | some sub => S.items P sub
       | none => pure #[]
@@ -981,7 +1046,7 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
     -- augmented proof, `¬C` takes no augmented number.
     if sub.isNone then S.popTo start else S.dropFrom start
     let k ← S.takeKid
-    let _ ← S.add c.normalize k core true
+    let _ ← S.add (normalizeParsed c) k core true
     return #[if dom then .dom c ω (some ki.toList) qk else .red c ω (some ki.toList) qk]
   | .delId ids => S.deleteRefs (← ids.mapM S.resolve)
   | .delSpec c => S.deleteSpec c
@@ -1300,23 +1365,20 @@ private def trim (steps : Array (TopStep × Option ℕ)) (concl : Conclusion) (n
   return (out, conclRenum f concl)
 
 /-- The result of elaboration: the kernel proof, its output section (`none` for `NONE`, else the
-guarantee and `FILE` (`true`) or `IMPLICIT`), and the non-standard variable names. -/
+guarantee and `FILE` (`true`) or `IMPLICIT`), and the variable names. -/
 structure Result where
   /-- The kernel proof. -/
   proof : RedProof
   /-- The output section. -/
   output : Option (Guarantee × Bool)
-  /-- The non-standard variable names. -/
-  names : AuxNames
+  /-- The variable names: those of the instance, extended by those of the proof
+  (`Cslib.Logic.PL.VeriPB.Text.Names.Extends`). -/
+  names : Text.Names
 
 /-- Run the elaborator. -/
 private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
-    (pbp : String) : EM σ Result := do
-  -- The non-standard names are numbered above the variables of the instance.
-  let floor := F.foldl (fun m c => max m (freshVar c)) 0
-  let floor := obj.elim floor fun f => f.lin.foldl (fun m e => max m (e.1 + 1)) floor
-  let floor := pres.elim floor fun P => P.foldl (fun m v => max m (v + 1)) floor
-  let L ← (Lexer.new pbp floor : ST σ (Lexer σ))
+    (pbp : String) (N : Text.Names) : EM σ Result := do
+  let L ← (Lexer.new pbp N : ST σ (Lexer σ))
   let eng ← (Engine.new : ST σ (Engine σ))
   let S : St σ := ⟨L, eng, ← ST.mkRef #[default], ← ST.mkRef (F.length + 1), ← ST.mkRef {},
     ← ST.mkRef {}, ← ST.mkRef {}, ← ST.mkRef none, ← ST.mkRef obj, ← ST.mkRef pres,
@@ -1356,14 +1418,16 @@ private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres :
   let c ← S.conclusion concl
   let next ← S.kerNext.get
   let (steps, c) := if trimmable && sec.isNone then trim out c next else (out.map (·.1), c)
-  return ⟨⟨steps.toList, c⟩, sec, ⟨L.base, ← L.others.get⟩⟩
+  return ⟨⟨steps.toList, c⟩, sec, ← L.namesOf⟩
 
 /-- **The elaborator**: the kernel proof of the augmented proof text `pbp` for the formula `F`,
-the objective `obj` and the preserved set `pres`, or an error message. Untrusted: the result is
-meant to be checked by `Cslib.Logic.PL.VeriPB.checkRed`. -/
+the objective `obj` and the preserved set `pres`, whose variables are named by `N` (for an OPB
+text, `Cslib.Logic.PL.VeriPB.Text.opbNames`; by default the standard names,
+`Cslib.Logic.PL.VeriPB.Text.stdNames`), or an error message. Untrusted: the result is meant to be
+checked by `Cslib.Logic.PL.VeriPB.checkRed`. -/
 def elaborate (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
-    (pbp : String) : Except String Result :=
-  runST fun _ => (run F obj pres pbp).run
+    (pbp : String) (N : Text.Names := Text.stdNames ⟨F, obj, pres⟩) : Except String Result :=
+  runST fun _ => (run F obj pres pbp N).run
 
 end Cslib.Logic.PL.VeriPB.Elab
 

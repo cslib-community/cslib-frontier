@@ -388,20 +388,15 @@ theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanI
           (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
       set SR : Set W := {w : W | w.1 ∉ D₀ ∧ ClauseEdge p I u.1 w.1}
       set SD : Set W := {w : W | w.1 ∈ D₀ ∧ ClauseEdge p I u.1 w.1}
-      have hun : {w : W | ClauseEdge p I u.1 w.1} ⊆ SR ∪ SD := fun w hw => by
-        by_cases h : w.1 ∈ D₀
-        · exact Or.inr ⟨h, hw⟩
-        · exact Or.inl ⟨h, hw⟩
+      have hun : {w : W | ClauseEdge p I u.1 w.1} ⊆ SR ∪ SD := fun w hw =>
+        (em (w.1 ∈ D₀)).elim (fun h => Or.inr ⟨h, hw⟩) fun h => Or.inl ⟨h, hw⟩
       have hSR : SR.ncard = {w : R | ClauseEdge p I u.1 w.1}.ncard := by
         refine ncard_congr (fun (w : W) (hw : w ∈ SR) => (⟨w.1, w.2, hw.1⟩ : R))
           (fun _ hw => hw.2)
           (fun _ _ _ _ h => Subtype.ext (Subtype.mk.inj h))
           (fun w hw => ⟨⟨w.1, w.2.1⟩, ⟨w.2.2, hw⟩, Subtype.ext rfl⟩)
       have hSD : SD.ncard = (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
-        rw [← ncard_coe_finset]
-        congr 1
-        ext w
-        simp [SD, Dfin]
+        rw [← ncard_coe_finset]; congr 1; ext w; simp [SD, Dfin]
       calc {w : W | ClauseEdge p I u.1 w.1}.ncard
           ≤ (SR ∪ SD).ncard := ncard_le_ncard hun (toFinite _)
         _ ≤ SR.ncard + SD.ncard := ncard_union_le SR SD
@@ -409,9 +404,8 @@ theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanI
     have h23 : 2 ≤ (if ∃ v : R, ClauseEdge p I v.1 u.1 then 2 else 3) := by split_ifs <;> omega
     omega
   -- Sum over `Rfin ≃ R`:
-  have hR_bij : (∑ u ∈ Rfin, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2) =
-      ∑ u : R, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2 := by
-    refine Finset.sum_bij (fun u hu => (⟨u.1, u.2, (Finset.mem_filter.mp hu).2⟩ : R))
+  have hRfin (f : Wire n s → ℕ) : ∑ u ∈ Rfin, f u.1 = ∑ u : R, f u.1 :=
+    Finset.sum_bij (fun u hu => (⟨u.1, u.2, (Finset.mem_filter.mp hu).2⟩ : R))
       (fun _ _ => Finset.mem_univ _)
       (fun _ _ _ _ h => Subtype.ext (Subtype.mk.inj h))
       (fun u _ => ⟨⟨u.1, u.2.1⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, u.2.2⟩,
@@ -422,14 +416,7 @@ theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanI
       2 * D₀.ncard := by
     calc (∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card)
         ≤ ∑ u : W, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
-          have hsub_sum : (∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card) =
-              ∑ u ∈ Rfin, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
-            refine Finset.sum_bij (fun u _ => (⟨u.1, u.2.1⟩ : W))
-              (fun u _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, u.2.2⟩)
-              (fun _ _ _ _ h => Subtype.ext (Subtype.mk.inj h))
-              (fun u hu => ⟨⟨u.1, u.2, (Finset.mem_filter.mp hu).2⟩, Finset.mem_univ _, rfl⟩)
-              (fun _ _ => rfl)
-          rw [hsub_sum]
+          rw [← hRfin fun u => (Dfin.filter fun w : W => ClauseEdge p I u w.1).card]
           exact Finset.sum_le_sum_of_subset (Finset.subset_univ Rfin)
       _ = ∑ w ∈ Dfin, (Finset.univ.filter fun u : W => ClauseEdge p I u.1 w.1).card := by
           simp_rw [Finset.card_filter]
@@ -438,8 +425,7 @@ theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanI
           refine Finset.sum_le_sum fun w _ => ?_
           have hnc : (Finset.univ.filter fun u : W => ClauseEdge p I u.1 w.1).card =
               {u : W | ClauseEdge p I u.1 w.1}.ncard := by
-            rw [← ncard_coe_finset]
-            congr 1; ext u; simp
+            rw [← ncard_coe_finset]; congr 1; ext u; simp
           rw [hnc]
           exact inDeg_clauseEdge_le_two hfan I W w
       _ = 2 * D₀.ncard := by rw [Finset.sum_const, smul_eq_mul, mul_comm, hDfin_card]
@@ -459,7 +445,7 @@ theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanI
             ∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
           rw [Finset.sum_add_distrib, hcap_eq]
       _ ≤ clauseCappedEdges p I R + 2 * D₀.ncard := Nat.add_le_add_left htarget_D _
-  rw [hsplit, hR_bij]
+  rw [hsplit, hRfin fun u => min {w : W | ClauseEdge p I u w.1}.ncard 2]
   omega
 
 /-- **`D₀`-free amortized `1 / 4`-per-clause frontier state bound.** Along any layout `π` of a

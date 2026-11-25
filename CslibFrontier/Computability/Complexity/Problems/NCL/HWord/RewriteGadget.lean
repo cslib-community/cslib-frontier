@@ -223,41 +223,24 @@ theorem rule_in_window {n : ℕ} (window : Window n 5)
   rw [window.patch_eq he] at hpath
   exact hpath
 
-private theorem second_choices_rewrite (i : Fin r) (c x y : Fin q)
-    (hc : c = (rules i).first ∨ c = (rules i).first')
-    (hx : x = (rules i).second ∨ x = (rules i).second')
-    (hy : y = (rules i).second ∨ y = (rules i).second') (hne : x ≠ y) :
-    Rewrites (RuleSet rules) [c, x] [c, y] := by
-  rcases (rules i).oneChange with hf | hs
-  · have hc' : c = (rules i).first := hc.elim id (fun h => h.trans hf.symm)
-    subst c
-    rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
-    · exact False.elim (hne rfl)
-    · refine ⟨[], (rules i).domino, [], ⟨i, Or.inl rfl⟩, rfl, ?_⟩
-      simp [Rule.domino, hf]
-    · refine ⟨[], (rules i).reverse.domino, [], ⟨i, Or.inr rfl⟩, ?_, rfl⟩
-      simp [Rule.domino, Rule.reverse, hf]
-    · exact False.elim (hne rfl)
-  · rcases hx with hx | hx <;> rcases hy with hy | hy <;>
-      exact False.elim (hne (by simp_all))
+private theorem choice_pair {a a' x y : Fin q}
+    (hx : x = a ∨ x = a') (hy : y = a ∨ y = a') (hne : x ≠ y) :
+    (x = a ∧ y = a') ∨ (x = a' ∧ y = a) := by
+  rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
+  · exact absurd rfl hne
+  · exact .inl ⟨rfl, rfl⟩
+  · exact .inr ⟨rfl, rfl⟩
+  · exact absurd rfl hne
 
-private theorem first_choices_rewrite (i : Fin r) (c x y : Fin q)
-    (hc : c = (rules i).second ∨ c = (rules i).second')
-    (hx : x = (rules i).first ∨ x = (rules i).first')
-    (hy : y = (rules i).first ∨ y = (rules i).first') (hne : x ≠ y) :
-    Rewrites (RuleSet rules) [x, c] [y, c] := by
-  rcases (rules i).oneChange with hf | hs
-  · rcases hx with hx | hx <;> rcases hy with hy | hy <;>
-      exact False.elim (hne (by simp_all))
-  · have hc' : c = (rules i).second := hc.elim id (fun h => h.trans hs.symm)
-    subst c
-    rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
-    · exact False.elim (hne rfl)
-    · refine ⟨[], (rules i).domino, [], ⟨i, Or.inl rfl⟩, rfl, ?_⟩
-      simp [Rule.domino, hs]
-    · refine ⟨[], (rules i).reverse.domino, [], ⟨i, Or.inr rfl⟩, ?_, rfl⟩
-      simp [Rule.domino, Rule.reverse, hs]
-    · exact False.elim (hne rfl)
+private theorem rule_domino_rewrites (i : Fin r) {a b a' b' : Fin q}
+    (h : (a = (rules i).first ∧ b = (rules i).second ∧
+          a' = (rules i).first' ∧ b' = (rules i).second') ∨
+      (a = (rules i).first' ∧ b = (rules i).second' ∧
+          a' = (rules i).first ∧ b' = (rules i).second)) :
+    Rewrites (RuleSet rules) [a, b] [a', b'] := by
+  rcases h with ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩
+  · exact ⟨[], (rules i).domino, [], ⟨i, .inl rfl⟩, rfl, rfl⟩
+  · exact ⟨[], (rules i).reverse.domino, [], ⟨i, .inr rfl⟩, rfl, rfl⟩
 
 /-- A change immediately after a rule marker is an actual source rewrite on its two letters. -/
 theorem marker_right_rewrites (i : Fin r) (c x y : Fin q)
@@ -267,7 +250,13 @@ theorem marker_right_rewrites (i : Fin r) (c x y : Fin q)
     (hy : Compatible rules (.marker i) (.pair (some y) right')) (hne : x ≠ y) :
     Rewrites (RuleSet rules) [c, x] [c, y] := by
   simp only [Compatible, Option.some.injEq] at hc hx hy
-  exact second_choices_rewrite rules i c x y hc hx hy hne
+  rcases (rules i).oneChange with hf | hs
+  · have hc' : c = (rules i).first := hc.elim id (·.trans hf.symm)
+    exact rule_domino_rewrites rules i
+      ((choice_pair hx hy hne).imp (fun ⟨h1, h2⟩ => ⟨hc', h1, hc'.trans hf, h2⟩)
+        fun ⟨h1, h2⟩ => ⟨hc'.trans hf, h1, hc', h2⟩)
+  · exact (choice_pair hx hy hne).elim (fun ⟨h1, h2⟩ => absurd (h1.trans (hs.trans h2.symm)) hne)
+      fun ⟨h1, h2⟩ => absurd (h1.trans (hs.symm.trans h2.symm)) hne
 
 /-- A change immediately before a rule marker is an actual source rewrite on its two letters. -/
 theorem marker_left_rewrites (i : Fin r) (c x y : Fin q)
@@ -277,6 +266,12 @@ theorem marker_left_rewrites (i : Fin r) (c x y : Fin q)
     (hy : Compatible rules (.pair left' (some y)) (.marker i)) (hne : x ≠ y) :
     Rewrites (RuleSet rules) [x, c] [y, c] := by
   simp only [Compatible, Option.some.injEq] at hc hx hy
-  exact first_choices_rewrite rules i c x y hc hx hy hne
+  rcases (rules i).oneChange with hf | hs
+  · exact (choice_pair hx hy hne).elim (fun ⟨h1, h2⟩ => absurd (h1.trans (hf.trans h2.symm)) hne)
+      fun ⟨h1, h2⟩ => absurd (h1.trans (hf.symm.trans h2.symm)) hne
+  · have hc' : c = (rules i).second := hc.elim id (·.trans hs.symm)
+    exact rule_domino_rewrites rules i
+      ((choice_pair hx hy hne).imp (fun ⟨h1, h2⟩ => ⟨h1, hc', h2, hc'.trans hs⟩)
+        fun ⟨h1, h2⟩ => ⟨h1, hc'.trans hs, h2, hc'⟩)
 
 end Cslib.Complexity.NCL.HWord.RewriteGadget

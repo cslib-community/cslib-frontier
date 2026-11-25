@@ -114,11 +114,9 @@ theorem exists_isChain_and_antichain_coloring :
     have := Order.height_strictMono hab (Order.height_lt_top_of_finite a)
     rw [← hh a, ← hh b] at this
     exact_mod_cast this
-  cases isEmpty_or_nonempty α with
-  | inl _ =>
-    exact ⟨∅, fun a => isEmptyElim a, by simp, fun i x => isEmptyElim x⟩
-  | inr hne =>
-    obtain ⟨a, -, ha⟩ := Finset.exists_max_image Finset.univ h Finset.univ_nonempty
+  rcases isEmpty_or_nonempty α with _ | hne
+  · exact ⟨∅, isEmptyElim, by simp only [Finset.coe_empty, IsChain.empty], fun _ => isEmptyElim⟩
+  · obtain ⟨a, -, ha⟩ := Finset.exists_max_image Finset.univ h Finset.univ_nonempty
     obtain ⟨p, -, hp⟩ := Order.exists_series_of_height_eq_coe a (hh a).symm
     let C : Finset α := Finset.univ.image p
     have hC : C.card = h a + 1 := by
@@ -128,28 +126,19 @@ theorem exists_isChain_and_antichain_coloring :
     · rintro _ hx _ hy -
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp hx
       obtain ⟨j, -, rfl⟩ := Finset.mem_image.mp hy
-      rcases le_total i j with hij | hij
-      · exact .inl (p.monotone hij)
-      · exact .inr (p.monotone hij)
+      exact (le_total i j).imp (fun hij => p.monotone hij) fun hij => p.monotone hij
     · intro i x hx y hy hxy hle
-      have hxy' : h x = h y := by
-        have h1 : (⟨h x, _⟩ : Fin C.card) = i := hx
-        have h2 : (⟨h y, _⟩ : Fin C.card) = i := hy
-        exact Fin.mk.inj_iff.mp (h1.trans h2.symm)
-      exact (hmono (lt_of_le_of_ne hle hxy)).ne hxy'
+      exact (hmono (lt_of_le_of_ne hle hxy)).ne (Fin.mk.inj_iff.mp (hx.trans hy.symm))
 
 /-- **Mirsky's theorem**, min–max form ([Schrijver2017], Theorem 7.5): a finite poset can be
 covered by `k` antichains if and only if every chain has at most `k` elements. -/
 theorem exists_antichain_coloring_iff {k : ℕ} :
     (∃ f : α → Fin k, ∀ i, IsAntichain (· ≤ ·) (f ⁻¹' {i})) ↔
       ∀ C : Finset α, IsChain (· ≤ ·) (C : Set α) → C.card ≤ k := by
-  constructor
-  · rintro ⟨f, hf⟩ C hC
-    simpa using hC.card_le_of_isAntichain_fibre hf
-  · intro hk
-    obtain ⟨C, f, hC, hf⟩ := exists_isChain_and_antichain_coloring (α := α)
-    refine ⟨fun x => Fin.castLE (hk C hC) (f x), fun i x hx y hy => ?_⟩
-    have hxy : f x = f y := Fin.castLE_injective _ (hx.trans hy.symm)
-    exact hf (f x) rfl hxy.symm
+  refine ⟨fun ⟨f, hf⟩ C hC => by
+      simpa only [Fintype.card_fin] using hC.card_le_of_isAntichain_fibre hf, fun hk => ?_⟩
+  obtain ⟨C, f, hC, hf⟩ := exists_isChain_and_antichain_coloring (α := α)
+  exact ⟨fun x => Fin.castLE (hk C hC) (f x), fun _ _ hx _ hy =>
+    hf _ rfl (Fin.castLE_injective _ (hy.trans hx.symm))⟩
 
 end Mirsky
