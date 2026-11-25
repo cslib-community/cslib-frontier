@@ -369,9 +369,8 @@ private lemma brachaStep_echo_sat_none {v : V} (hsr : st.sentReady = none)
   dsimp only [brachaStep] at hcnt ⊢
   by_cases h1 : (st.echoFrom src).isNone = true
   · simp only [h1, ↓reduceIte] at hcnt ⊢
-    split_ifs with h2
-    · exact Or.inr rfl
-    · simp only [h2, ↓reduceIte] at hcnt; exact absurd ⟨hcnt, by simp [hsr]⟩ h2
+    split_ifs at hcnt ⊢ with h2
+    exacts [Or.inr rfl, absurd ⟨hcnt, by simp [hsr]⟩ h2]
   · simp only [h1, Bool.false_eq_true, ↓reduceIte] at hcnt; exact Or.inl hcnt
 
 private lemma brachaStep_ready_sat_none {v : V} (hsr : st.sentReady = none)
@@ -381,9 +380,8 @@ private lemma brachaStep_ready_sat_none {v : V} (hsr : st.sentReady = none)
   dsimp only [brachaStep] at hcnt ⊢
   by_cases h1 : (st.readyFrom src).isNone = true
   · simp only [h1, ↓reduceIte] at hcnt ⊢
-    split_ifs with h2
-    · exact Or.inr rfl
-    · simp only [h2, ↓reduceIte] at hcnt; exact absurd ⟨hcnt, by simp [hsr]⟩ h2
+    split_ifs at hcnt ⊢ with h2
+    exacts [Or.inr rfl, absurd ⟨hcnt, by simp [hsr]⟩ h2]
   · simp only [h1, Bool.false_eq_true, ↓reduceIte] at hcnt; exact Or.inl hcnt
 
 private lemma brachaStep_deliver_sat {v : V}
@@ -471,19 +469,17 @@ private lemma brachaInv_start (F : Finset P) (input : Option V) :
   have hmem : ∀ e ∈ ((brachaProtocol P V dealer t).start F input).msgs,
       ∃ v, e.src = dealer ∧ dealer ∉ F ∧ input = some v ∧ e.body = .initial v := by
     intro e he
-    simp only [Protocol.start, Protocol.initSend, brachaProtocol, Multiset.mem_bind,
-      Finset.mem_val, Finset.mem_univ, true_and] at he
-    obtain ⟨p, hp⟩ := he
-    by_cases hpF : p ∈ F
-    · simp [hpF] at hp
-    · by_cases hpd : p = dealer
-      · subst hpd
-        cases input with
-        | none => simp [hpF] at hp
-        | some v =>
-          simp only [hpF, ↓reduceIte, broadcastAll, Multiset.mem_map] at hp
-          obtain ⟨qm, ⟨q, _, rfl⟩, rfl⟩ := hp; exact ⟨v, rfl, hpF, rfl, rfl⟩
-      · simp [hpF, hpd] at hp
+    obtain ⟨p, -, hp⟩ := Multiset.mem_bind.mp he
+    split_ifs at hp with hpF
+    · simp at hp
+    obtain ⟨⟨q, b⟩, hqb, rfl⟩ := Multiset.mem_map.mp hp
+    simp only [Protocol.initSend, brachaProtocol] at hqb
+    split_ifs at hqb with hpd
+    · subst hpd
+      cases input with
+      | none => simp at hqb
+      | some v => obtain ⟨_, _, ⟨⟩⟩ := Multiset.mem_map.mp hqb; exact ⟨v, rfl, hpF, rfl, rfl⟩
+    · simp at hqb
   have hst : ∀ p, (((brachaProtocol P V dealer t).start F input).proc p).state = brachaInit P V :=
     fun _ => by simp [Protocol.start, Protocol.initState, brachaProtocol]
   have hthresh : 0 < echoThreshold (Fintype.card P) t := by simp [echoThreshold]
@@ -501,11 +497,9 @@ private lemma brachaInv_start (F : Finset P) (input : Option V) :
       echoSat := fun p _ v hc => by simp [hst p, echoSenders, brachaInit] at hc; omega
       readySat := fun p _ v hc => by simp [hst p, readySenders, brachaInit] at hc
       outSat := fun p _ v hc => by simp [hst p, readySenders, brachaInit] at hc
-      initLive := fun hd v hinp q _ => Or.inl (by
-        simp only [Protocol.start, Protocol.initSend, brachaProtocol, Multiset.mem_bind,
-          Finset.mem_val, Finset.mem_univ, true_and]
-        exact ⟨dealer,
-          by simpa [hd, hinp] using mem_broadcastAll_tag dealer q (BrachaMsg.initial v)⟩)
+      initLive := fun hd v hinp q _ => Or.inl (Multiset.mem_bind.mpr ⟨dealer, Finset.mem_univ _,
+        by simpa [hd, hinp, Protocol.initSend, brachaProtocol] using
+          mem_broadcastAll_tag dealer q (BrachaMsg.initial v)⟩)
       echoLive := fun p _ _ h => by simp [hst p, brachaInit] at h
       readyLive := fun p _ _ h => by simp [hst p, brachaInit] at h }
 
@@ -569,9 +563,7 @@ private lemma recvCore_live_keep {p q : P} {msg : BrachaMsg V} {v : V}
   · by_cases hbase : ⟨p, q, msg⟩ ∈ mb
     · exact Or.inl (Multiset.mem_add.mpr (Or.inl hbase))
     · right
-      obtain ⟨rfl, rfl, rfl⟩ : p = src ∧ q = dest ∧ msg = body := by
-        have h := hdrop _ hmem hbase; exact ⟨congrArg Envelope.src h, congrArg Envelope.dest h,
-          congrArg Envelope.body h⟩
+      obtain ⟨rfl, rfl, rfl⟩ := Envelope.mk.inj (hdrop _ hmem hbase)
       simp only [Protocol.recvCore, Protocol.updateProc, brachaProtocol, ↓reduceIte]
       cases hf : fld (s.proc q).state with
       | none => exact hnone hf
@@ -762,8 +754,7 @@ private lemma brachaInv_recvCore (hF : F.card ≤ t)
       initMsg := fun e he v hv => by
         rcases hmem_s' e he with he | ⟨_, ⟨_, hb, _⟩ | ⟨_, hb, _⟩⟩
         · exact hinv.initMsg e he v hv
-        · cases hv.symm.trans hb
-        · cases hv.symm.trans hb
+        all_goals cases hv.symm.trans hb
       echoMsg := fun e he v hv => by
         rcases hmem_s' e he with he | ⟨rfl, ⟨_, hb, hs⟩ | ⟨_, hb, _⟩⟩
         · exact recvCore_state_mono (Q := fun st => st.sentEcho = some v)
@@ -885,18 +876,15 @@ private lemma bracha_omega_proc_mono
     (hQ : ∀ st src m, Q st → Q (brachaStep dealer t st src m).nextState)
     {k j : ℕ} (hkj : k ≤ j) {p : P} (h : Q ((ss k).proc p).state) :
     Q ((ss j).proc p).state := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hkj
-  induction d with
-  | zero => simpa using h
-  | succ d ih =>
-    have hprev := ih (Nat.le_add_right k d)
-    have htr := hexec (k + d)
-    rw [← Nat.add_assoc]
-    cases hact : xs (k + d) with
+  induction j, hkj using Nat.le_induction with
+  | base => exact h
+  | succ j _ ih =>
+    have htr := hexec j
+    cases hact : xs j with
     | deliver _ | byzRecv _ _ _ =>
       rw [hact] at htr; obtain ⟨_, _, hnext⟩ := htr
-      exact hnext ▸ recvCore_state_mono (fun _ => hQ _ _ _) hprev
-    | stutter => rw [hact] at htr; exact htr ▸ hprev
+      exact hnext ▸ recvCore_state_mono (fun _ => hQ _ _ _) ih
+    | stutter => rw [hact] at htr; exact htr ▸ ih
 
 /-- Shared fairness-step helper: if either `e ∈ (ss k).msgs` or `Q (ss k)` already holds, and
 delivering `e` at step `j ≥ k` establishes `Q`, then `Q` holds at some step `j`. -/
@@ -909,12 +897,9 @@ private lemma eventual_of_mem_or (ha : (brachaProtocol P V dealer t).AdmissibleR
     ∃ j, Q ((ss j).proc e.dest).state := by
   rcases hor with hmem | hdone
   · obtain ⟨j, hkj, hj⟩ := ha.2.2 e hdest k hmem
-    have htr := ha.2.1 j
-    rw [hj] at htr
-    obtain ⟨_, _, hnext⟩ := htr
+    obtain ⟨_, _, hnext⟩ := hj ▸ ha.2.1 j
     refine ⟨j + 1, ?_⟩
-    rw [hnext]
-    simp only [Protocol.recvHonest, Protocol.recvCore, Protocol.updateProc, brachaProtocol,
+    simp only [hnext, Protocol.recvHonest, Protocol.recvCore, Protocol.updateProc, brachaProtocol,
       ↓reduceIte]
     exact hstep j hkj (brachaInv_run hF ha j)
   · exact ⟨k, hdone⟩
@@ -945,10 +930,9 @@ private lemma eventual_readyFrom (hF : F.card ≤ t)
   cases hrf : ((ss j).proc q).state.readyFrom p with
   | none => simp [brachaStep_readyFrom_eq, hrf]
   | some u =>
-    have hu := hinvj.readySound q hq p hp u hrf
-    have hv := bracha_omega_proc_mono ha.2.1 (fun st => st.sentReady = some v)
-      (fun _ _ _ => brachaStep_sentReady_mono) hkj hk
-    obtain rfl := Option.some.inj (hu.symm.trans hv)
+    obtain rfl := Option.some.inj ((hinvj.readySound q hq p hp u hrf).symm.trans
+      (bracha_omega_proc_mono ha.2.1 (fun st => st.sentReady = some v)
+        (fun _ _ _ => brachaStep_sentReady_mono) hkj hk))
     exact brachaStep_readyFrom_mono hrf
 
 private lemma eventual_deliver_of_all_ready (hnt : 3 * t < Fintype.card P) (hF : F.card ≤ t)
