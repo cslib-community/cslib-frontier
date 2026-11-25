@@ -168,7 +168,7 @@ private theorem sum_abs_signVal_mul_prod_le {X Seed Adv : Type*} [Fintype X] [Fi
   let inner (r : Seed) : ℝ := ∑ x : X, (p x).toReal *
     (BitString.signVal (nmExt x r a₀) *
       ∏ j : Fin m, BitString.signVal (nmExt x (f j r).1 (f j r).2))
-  show ∑ r, |inner r| ≤ _
+  change ∑ r, |inner r| ≤ _
   let s (r : Seed) : ℝ := if 0 ≤ inner r then 1 else -1
   have hs (r : Seed) : |inner r| = s r * inner r := by
     by_cases h : 0 ≤ inner r
