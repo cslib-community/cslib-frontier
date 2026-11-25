@@ -198,13 +198,11 @@ theorem configurationJustesenMembershipTally_native_firstHalting_iff
   let start := fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)
   let ctx a := configurationJustesenSubdivisionContext ntm c (enc a) (rank a)
   have hcall := configurationJustesenSubdivisionEdge_halts_and_agrees ntm c (enc a) seed
-  refine MembershipTally.retainedMachine_native_firstHalting_iff edge start callbackVerdict 3
+  exact MembershipTally.retainedMachine_native_firstHalting_iff edge start callbackVerdict 3
     (tallyWalkInitial ntm c) (configurationJustesenSubdivisionContext ntm c w₀ rank₀)
-    params₀ ctx params R a _ source target radius expected bits hparams ?_ ?_
-  · intro u v
-    simpa only [ctx, hrank] using (hcall u v).1
-  · intro u v
-    simpa only [ctx, hrank] using (hcall u v).2
+    params₀ ctx params R a _ source target radius expected bits hparams
+    (fun u v => by simpa only [ctx, hrank] using (hcall u v).1)
+    (fun u v => by simpa only [ctx, hrank] using (hcall u v).2)
 
 open NondeterministicQueryMachine in
 /-- At the exact round totals with a unique passing transcript, the compiled Justesen tally
@@ -297,14 +295,12 @@ theorem configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps
       encTally_apply, encTallyFields, length_encPair]
     dsimp only [n] at hcount hsum ⊢
     omega
-  have hlogN : Nat.log2 n ≤ (encNat n).length := by
-    rw [length_encNat_eq_size]
-    exact Nat.log2_le_size _
+  have hlogN : Nat.log2 n ≤ (encNat n).length :=
+    (Nat.log2_le_size _).trans_eq (length_encNat_eq_size _).symm
   have hlogSum : Nat.log2 (n * radius) ≤ 2 * (encNat n).length := by
     have hlen := length_encNat_mul_le n radius
-    have hlog : Nat.log2 (n * radius) ≤ (encNat (n * radius)).length := by
-      rw [length_encNat_eq_size]
-      exact Nat.log2_le_size _
+    have hlog : Nat.log2 (n * radius) ≤ (encNat (n * radius)).length :=
+      (Nat.log2_le_size _).trans_eq (length_encNat_eq_size _).symm
     dsimp only [n] at hlen hlog ⊢
     omega
   have hb : 1 ≤ b := Nat.succ_le_succ (Nat.zero_le _)
@@ -468,15 +464,11 @@ theorem configurationJustesenMembershipTally_exists_routines
   obtain ⟨A, hcall⟩ := configurationJustesenSubdivisionEdge_contract ntm c
   obtain ⟨C, hbound⟩ := configurationJustesenMembershipTally_stateBound_le_log ntm c
   let S a := (C + A + 1) * b a
-  have hlog (a : α) : b a ≤ S a := by
-    simp only [S, Nat.add_mul, Nat.one_mul]
-    exact Nat.le_add_left _ _
+  have hlog (a : α) : b a ≤ S a := Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
   have hsmall (a : α) : Nat.log2 (enc a).length ≤ S a := (Nat.le_succ _).trans (hlog a)
   have hctx : ComputableInSpace ctx enc encJustesenSubdivisionContext S :=
     (configurationJustesenSubdivisionContext_inSpace ntm c hrank hrank_lt).mono_le hsmall
-  have hsource (a : α) : (params a).source < (params a).size := by
-    rw [(hvalid a).1]
-    exact (hvalid a).2.1
+  have hsource (a : α) : (params a).source < (params a).size := (hvalid a).1 ▸ (hvalid a).2.1
   have hcallee (a : α) (u v : Fin (params a).size) (t : ℕ) (ht : t ≤ 3) :
       (encJustesenSubdivisionState (edge.runFrom (enc a) (start (ctx a) u.val v.val) t)).length ≤
         A * b a := by
@@ -501,12 +493,11 @@ theorem configurationJustesenMembershipTally_exists_routines
     simp only [S, b, Nat.add_mul, Nat.one_mul]
     exact Nat.le_add_right _ _
   obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm
-  refine ⟨C + A + 1, ?_⟩
-  exact MembershipTally.retainedMachine_exists_routines edge start callbackVerdict 3
+  exact ⟨C + A + 1, MembershipTally.retainedMachine_exists_routines edge start callbackVerdict 3
     (tallyWalkInitial ntm c) (configurationJustesenSubdivisionContext ntm c [] 0)
     encJustesenSubdivisionContext encJustesenSubdivisionState enc S ⟨0, 0, 0, 0, ⟨0, 0⟩⟩
     ctx params hctx (hparams.mono_le hsmall) hlog
     justesenSubdivisionEdgeStart_inSpace hq hn hh (callbackVerdict_inSpace _ _)
-    hsource (fun a => A * b a) hcallee hstate
+    hsource (fun a => A * b a) hcallee hstate⟩
 
 end Cslib.Complexity.STCON
