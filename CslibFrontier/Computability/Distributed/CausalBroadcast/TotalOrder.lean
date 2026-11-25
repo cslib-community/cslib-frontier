@@ -524,21 +524,14 @@ private theorem procFaulty_iff_bcastProcFaulty
     simp only [projFLPState, Multiset.mem_map] at hm_mem
     obtain ⟨e, he_mem, rfl⟩ := hm_mem
     refine ⟨k, ⟨e, he_mem, hm_dest⟩, fun j hkj e' hxs => ?_⟩
-    simp only [ωSequence.get_map] at hxs
-    cases hxj : xs j with
-    | none => simp [hxj] at hxs
-    | some m' =>
-      simp only [hxj, Option.map_some, Option.some.injEq] at hxs
-      subst hxs
-      exact hstop j hkj m' hxj
+    simp only [ωSequence.get_map, Option.map_eq_some_iff] at hxs
+    obtain ⟨m', hxj, rfl⟩ := hxs
+    exact hstop j hkj m' hxj
   · rintro ⟨k, ⟨e, he_mem, he_dest⟩, hstop⟩
     refine ⟨k, ⟨bcastEventToFLP e, ?_, he_dest⟩, fun j hkj m' hxj => ?_⟩
     · rw [hproj k]
       exact Multiset.mem_map_of_mem bcastEventToFLP he_mem
-    · have hxs : (xs.map (Option.map fun m => (⟨m.dest, m.msg⟩ : BcastEvent P M Bool))) j =
-          some ⟨m'.dest, m'.msg⟩ := by
-        simp [ωSequence.get_map, hxj]
-      exact hstop j hkj ⟨m'.dest, m'.msg⟩ hxs
+    · exact hstop j hkj ⟨m'.dest, m'.msg⟩ (by simp [ωSequence.get_map, hxj])
 
 private theorem procFair_iff_bcastProcFair
     {ss : ωSequence (Cslib.FLP.State P M S)} {xs : ωSequence (Cslib.FLP.Action P M)}
@@ -553,23 +546,15 @@ private theorem procFair_iff_bcastProcFair
       rw [hproj k]
       exact Multiset.mem_map_of_mem bcastEventToFLP he_mem
     obtain ⟨j, hkj, hxj⟩ := hfair (bcastEventToFLP e) he_dest k hm_mem
-    have he_inv : (⟨(bcastEventToFLP e).dest, (bcastEventToFLP e).msg⟩ : BcastEvent P M Bool) =
-        e := by
-      cases e; rfl
-    exact ⟨j, hkj, by simp [ωSequence.get_map, hxj, he_inv]⟩
+    exact ⟨j, hkj, by simp [ωSequence.get_map, hxj, bcastEventToFLP]⟩
   · intro hfair m hm_dest k hm_mem
     rw [hproj k] at hm_mem
     simp only [projFLPState, Multiset.mem_map] at hm_mem
     obtain ⟨e, he_mem, rfl⟩ := hm_mem
     obtain ⟨j, hkj, hxj⟩ := hfair e hm_dest k he_mem
-    simp only [ωSequence.get_map] at hxj
-    cases hx : xs j with
-    | none => simp [hx] at hxj
-    | some m' =>
-      simp only [hx, Option.map_some, Option.some.injEq] at hxj
-      have hm_eq : bcastEventToFLP e = m' := by
-        rw [← hxj]; cases m'; rfl
-      exact ⟨j, hkj, hx.trans (congrArg some hm_eq.symm)⟩
+    simp only [ωSequence.get_map, Option.map_eq_some_iff] at hxj
+    obtain ⟨m', hx, rfl⟩ := hxj
+    exact ⟨j, hkj, hx⟩
 
 private theorem exists_zero_fault_extension [Fintype P] [DecidableEq P] [DecidableEq M]
     (a : Cslib.FLP.Algorithm P M S)
@@ -656,56 +641,27 @@ theorem consensusOfTotalOrderBroadcast_consensus [Fintype P] [DecidableEq P] [De
         hagr inp ss_b xs_b hadm_b p₁ p₂ (hfair_b p₁) (hfair_b p₂) d₁ K hd₁_mem_K
       obtain ⟨K₂, hd₂_p₁⟩ :=
         hagr inp ss_b xs_b hadm_b p₂ p₁ (hfair_b p₂) (hfair_b p₁) d₂ K hd₂_mem_K
+      -- At a common later time `M_idx`, both logs start with their decided heads and contain
+      -- both heads, so total order forces `d₁ = d₂`.
       let M_idx := max K (max K₁ K₂)
-      have hpref₁_K : ((ss_b K).proc p₁).delivered <+: ((ss_b M_idx).proc p₁).delivered :=
-        π.mTr_delivered_prefix (he_b.extract_mTr (Nat.le_max_left _ _)) p₁
-      have hpref₂_K : ((ss_b K).proc p₂).delivered <+: ((ss_b M_idx).proc p₂).delivered :=
-        π.mTr_delivered_prefix (he_b.extract_mTr (Nat.le_max_left _ _)) p₂
-      have hd₂_M₁ : d₂ ∈ ((ss_b M_idx).proc p₁).delivered :=
-        (π.mTr_delivered_prefix (he_b.extract_mTr (by omega)) p₁).subset hd₂_p₁
-      have hd₁_M₂ : d₁ ∈ ((ss_b M_idx).proc p₂).delivered :=
-        (π.mTr_delivered_prefix (he_b.extract_mTr (by omega)) p₂).subset hd₁_p₂
-      have hd₁_M₁ : d₁ ∈ ((ss_b M_idx).proc p₁).delivered := hpref₁_K.subset hd₁_mem_K
-      have hd₂_M₂ : d₂ ∈ ((ss_b M_idx).proc p₂).delivered := hpref₂_K.subset hd₂_mem_K
-      have hhead₁_M : ((ss_b M_idx).proc p₁).delivered.head? = some d₁ := by
-        obtain ⟨t₁, ht₁⟩ := hpref₁_K
-        cases hl₁ : ((ss_b K).proc p₁).delivered with
-        | nil => simp [hl₁] at hd₁_head
-        | cons x xs₁ =>
-          simp only [hl₁, List.head?_cons, Option.some.injEq] at hd₁_head
-          rw [← ht₁, hl₁, hd₁_head]; rfl
-      have hhead₂_M : ((ss_b M_idx).proc p₂).delivered.head? = some d₂ := by
-        obtain ⟨t₂, ht₂⟩ := hpref₂_K
-        cases hl₂ : ((ss_b K).proc p₂).delivered with
-        | nil => simp [hl₂] at hd₂_head
-        | cons x xs₂ =>
-          simp only [hl₂, List.head?_cons, Option.some.injEq] at hd₂_head
-          rw [← ht₂, hl₂, hd₂_head]; rfl
+      have hpref : ∀ p k, k ≤ M_idx →
+          ((ss_b k).proc p).delivered <+: ((ss_b M_idx).proc p).delivered :=
+        fun p _ hk => π.mTr_delivered_prefix (he_b.extract_mTr hk) p
+      have hhead : ∀ p d, ((ss_b K).proc p).delivered.head? = some d →
+          ∃ l, ((ss_b M_idx).proc p).delivered = d :: l := fun p d h => by
+        obtain ⟨t, ht⟩ := hpref p K (Nat.le_max_left _ _)
+        obtain ⟨l, hl⟩ := List.head?_eq_some_iff.mp h
+        exact ⟨l ++ t, by rw [← ht, hl, List.cons_append]⟩
+      obtain ⟨l₁, hl₁⟩ := hhead p₁ d₁ hd₁_head
+      obtain ⟨l₂, hl₂⟩ := hhead p₂ d₂ hd₂_head
+      have hd₂_M₁ := (hpref p₁ K₂ (by omega)).subset hd₂_p₁
+      have hd₁_M₂ := (hpref p₂ K₁ (by omega)).subset hd₁_p₂
       by_cases hdeq : d₁ = d₂
       · rw [hdeq]
-      · have hidx₁_zero : ((ss_b M_idx).proc p₁).delivered.idxOf d₁ = 0 := by
-          cases hl : ((ss_b M_idx).proc p₁).delivered with
-          | nil => simp [hl] at hhead₁_M
-          | cons x xs₁ =>
-            simp only [hl, List.head?_cons, Option.some.injEq] at hhead₁_M
-            subst hhead₁_M; simp
-        have hidx₂_pos : 0 < ((ss_b M_idx).proc p₁).delivered.idxOf d₂ := by
-          cases hl : ((ss_b M_idx).proc p₁).delivered with
-          | nil => simp [hl] at hhead₁_M
-          | cons x xs₁ =>
-            simp only [hl, List.head?_cons, Option.some.injEq] at hhead₁_M
-            subst hhead₁_M
-            rw [List.idxOf_cons_ne _ hdeq]
-            omega
-        have hidx₂_zero : ((ss_b M_idx).proc p₂).delivered.idxOf d₂ = 0 := by
-          cases hl : ((ss_b M_idx).proc p₂).delivered with
-          | nil => simp [hl] at hhead₂_M
-          | cons x xs₂ =>
-            simp only [hl, List.head?_cons, Option.some.injEq] at hhead₂_M
-            subst hhead₂_M; simp
-        have hord := (htot inp ss_b xs_b hadm_b p₁ p₂ (hfair_b p₁) (hfair_b p₂)
-          d₁ d₂ M_idx M_idx hd₁_M₁ hd₂_M₁ hd₁_M₂ hd₂_M₂).mp (by omega)
-        omega
+      · have hord := htot inp ss_b xs_b hadm_b p₁ p₂ (hfair_b p₁) (hfair_b p₂)
+          d₁ d₂ M_idx M_idx (by simp [hl₁]) hd₂_M₁ hd₁_M₂ (by simp [hl₂])
+        rw [hl₁, hl₂] at hord
+        simp [List.idxOf_cons_ne, hdeq, Ne.symm hdeq] at hord
     · rintro b ⟨p, hp⟩
       obtain ⟨d, hd_head, rfl⟩ := hextract_head p b hp
       have hd_mem : d ∈ ((ss_b K).proc p).delivered := List.mem_of_head? hd_head
@@ -754,18 +710,10 @@ private theorem solvesTotalOrderBroadcast_comapBoolPayload [Fintype P]
   let mapEvt : BcastEvent P M Bool → BcastEvent P M V :=
     fun e => ⟨e.dest, e.evt.map enc id⟩
   have hmapEvt_inj : Function.Injective mapEvt := by
-    rintro ⟨d₁, b₁ | m₁⟩ ⟨d₂, b₂ | m₂⟩ h
-    · simp only [mapEvt, BcastEvent.mk.injEq, Sum.map_inl, Sum.inl.injEq] at h
-      obtain ⟨rfl, henc⟩ := h
-      have hbeq : b₁ = b₂ := by
-        have h := congrArg dec henc
-        rwa [hdec_enc, hdec_enc] at h
-      subst hbeq
-      rfl
-    · simp [mapEvt] at h
-    · simp [mapEvt] at h
-    · simp only [mapEvt, BcastEvent.mk.injEq, Sum.map_inr, id_eq, Sum.inr.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h; rfl
+    rintro ⟨d₁, e₁⟩ ⟨d₂, e₂⟩ h
+    simp only [mapEvt, BcastEvent.mk.injEq] at h
+    rw [h.1, Sum.map_injective.2 ⟨Function.LeftInverse.injective hdec_enc,
+      Function.injective_id⟩ h.2]
   let mapMsg : BcastMsg P V → BcastMsg P Bool := fun m => ⟨m.sender, dec m.payload⟩
   let πB := comapBoolPayload v₀ v₁ π
   have hlift : ∀ inp ssB xsB, πB.AdmissibleRun inp f ssB xsB →
@@ -820,6 +768,10 @@ private theorem solvesTotalOrderBroadcast_comapBoolPayload [Fintype P]
             · subst hq
               simp [hst_eq, (hproc_k e.dest).2, mapEvt, mapMsg, enc, dec]
             · simp [hq, mapEvt, hproc_k q]
+    have hmemV : ∀ k e, mapEvt e ∈ (ssV k).msgs ↔ e ∈ (ssB k).msgs := fun k e => by
+      rw [(hsim k).1]; exact Multiset.mem_map_of_injective hmapEvt_inj
+    have hxsV : ∀ j e, xsV j = some (mapEvt e) ↔ xsB j = some e := fun j e => by
+      simp [xsV, ωSequence.get_map, Option.map_eq_some_iff, hmapEvt_inj.eq_iff]
     have heV : π.lts.OmegaExecution ssV xsV := by
       intro k
       have htrB := heB k
@@ -830,52 +782,29 @@ private theorem solvesTotalOrderBroadcast_comapBoolPayload [Fintype P]
         rfl
       | some e =>
         rw [hact] at htrB
-        rcases htrB with ⟨he_mem, _⟩
-        have heV_mem : mapEvt e ∈ (ssV k).msgs := by
-          rw [(hsim k).1]
-          exact Multiset.mem_map_of_mem mapEvt he_mem
-        have hxsV_k : xsV k = some (mapEvt e) := by simp [xsV, ωSequence.get_map, hact]
-        rw [hssV_succ, hxsV_k]
-        exact ⟨heV_mem, rfl⟩
+        rw [hssV_succ, (hxsV k e).2 hact]
+        exact ⟨(hmemV k e).2 htrB.1, rfl⟩
     have hfair_iff : ∀ p, TotalOrderBroadcastAlg.BcastProcFair p ssB xsB ↔
         TotalOrderBroadcastAlg.BcastProcFair p ssV xsV := by
-      intro p
-      constructor
-      · intro hf eV heV_dest k heV_mem
-        rw [(hsim k).1, Multiset.mem_map] at heV_mem
+      refine fun p => ⟨fun hf eV heV_dest k heV_mem => ?_, fun hf eB heB_dest k heB_mem => ?_⟩
+      · rw [(hsim k).1, Multiset.mem_map] at heV_mem
         obtain ⟨eB, heB_mem, rfl⟩ := heV_mem
-        obtain ⟨j, hkj, hxj⟩ := hf eB heV_dest k heB_mem
-        exact ⟨j, hkj, by simp [xsV, ωSequence.get_map, hxj]⟩
-      · intro hf eB heB_dest k heB_mem
-        have heV_mem : mapEvt eB ∈ (ssV k).msgs := by
-          rw [(hsim k).1]
-          exact Multiset.mem_map_of_mem mapEvt heB_mem
-        obtain ⟨j, hkj, hxj⟩ := hf (mapEvt eB) heB_dest k heV_mem
-        simp only [xsV, ωSequence.get_map] at hxj
-        cases hx : xsB j with
-        | none => simp [hx] at hxj
-        | some eB' =>
-          simp only [hx, Option.map_some, Option.some.injEq] at hxj
-          exact ⟨j, hkj, hx.trans (congrArg some (hmapEvt_inj hxj))⟩
+        simpa only [hxsV] using hf eB heV_dest k heB_mem
+      · simpa only [hxsV] using hf (mapEvt eB) heB_dest k ((hmemV k eB).2 heB_mem)
     have hfault_iff : ∀ p, TotalOrderBroadcastAlg.BcastProcFaulty p ssB xsB ↔
         TotalOrderBroadcastAlg.BcastProcFaulty p ssV xsV := by
       intro p
       constructor
       · rintro ⟨k, ⟨eB, heB_mem, heB_dest⟩, hstop⟩
-        refine ⟨k, ⟨mapEvt eB, ?_, heB_dest⟩, fun j hkj eV hxj => ?_⟩
-        · rw [(hsim k).1]; exact Multiset.mem_map_of_mem mapEvt heB_mem
-        · simp only [xsV, ωSequence.get_map] at hxj
-          cases hx : xsB j with
-          | none => simp [hx] at hxj
-          | some eB' =>
-            simp only [hx, Option.map_some, Option.some.injEq] at hxj
-            subst hxj
-            exact hstop j hkj eB' hx
+        refine ⟨k, ⟨mapEvt eB, (hmemV k eB).2 heB_mem, heB_dest⟩, fun j hkj eV hxj => ?_⟩
+        simp only [xsV, ωSequence.get_map, Option.map_eq_some_iff] at hxj
+        obtain ⟨eB', hx, rfl⟩ := hxj
+        exact hstop j hkj eB' hx
       · rintro ⟨k, ⟨eV, heV_mem, heV_dest⟩, hstop⟩
         rw [(hsim k).1, Multiset.mem_map] at heV_mem
         obtain ⟨eB, heB_mem, rfl⟩ := heV_mem
-        refine ⟨k, ⟨eB, heB_mem, heV_dest⟩, fun j hkj eB' hxj => ?_⟩
-        exact hstop j hkj (mapEvt eB') (by simp [xsV, ωSequence.get_map, hxj])
+        exact ⟨k, ⟨eB, heB_mem, heV_dest⟩,
+          fun j hkj eB' hxj => hstop j hkj (mapEvt eB') ((hxsV j eB').2 hxj)⟩
     have hadmV : π.AdmissibleRun (enc ∘ inp) f ssV xsV := by
       refine ⟨hssV_zero, heV, fun p => ?_, ?_⟩
       · rcases hfairRunB p with hf | hfair
@@ -1109,31 +1038,21 @@ theorem uniformTotalOrder_of_solvesTotalOrderBroadcast [Fintype P] [DecidableEq 
             Multiset.mem_add.mpr (Or.inl ((Multiset.mem_erase_of_ne hne).mpr hin))
           exact ih hrest hin' (fun h => hnot (List.mem_cons_of_mem _ h))
   have hfair_full : ∀ r, TotalOrderBroadcastAlg.BcastProcFair r ss_full xs_full := by
+    -- Either `e` is processed before the tail starts, or it is still pending when the tail
+    -- starts and the fair tail processes it.
     intro r e he_dest k he_mem
-    by_cases hk : xl.length ≤ k
-    · have he_tail_mem : e ∈ (ss_tail (k - xl.length)).msgs := by
-        rw [← hdrop_ss]; simpa [Nat.add_sub_of_le hk] using he_mem
-      obtain ⟨j, hkj, hxj⟩ := hfair_tail r e he_dest (k - xl.length) he_tail_mem
+    let K := max k xl.length
+    by_cases hin_pref : some e ∈ xs_full.extract k K
+    · obtain ⟨idx, hidx, hget_idx⟩ := List.getElem_of_mem hin_pref
+      have hidx_len : idx < K - k := by simpa [ωSequence.length_extract] using hidx
+      exact ⟨k + idx, by omega, (ωSequence.get_extract hidx_len).symm.trans hget_idx⟩
+    · have he_tail : e ∈ (ss_tail (K - xl.length)).msgs := by
+        rw [← hdrop_ss, ωSequence.get_drop, Nat.add_sub_cancel' (le_max_right _ _)]
+        exact hmTr_notRcvd (he_full.extract_mTr (le_max_left _ _)) he_mem hin_pref
+      obtain ⟨j, hj, hxj⟩ := hfair_tail r e he_dest _ he_tail
       refine ⟨xl.length + j, by omega, ?_⟩
       have hget : (xs_full.drop xl.length) j = some e := by rwa [hdrop_xs]
       simpa [ωSequence.get_drop] using hget
-    · by_cases hin_pref : some e ∈ xs_full.extract k xl.length
-      · obtain ⟨idx, hidx, hget_idx⟩ := List.getElem_of_mem hin_pref
-        have hidx_len : idx < xl.length - k := by
-          simpa [ωSequence.length_extract] using hidx
-        refine ⟨k + idx, by omega, ?_⟩
-        have h1 := ωSequence.get_extract (xs := xs_full) (m := k) (n := xl.length) (k := idx)
-          hidx_len
-        exact h1.symm.trans hget_idx
-      · have he_at_len : e ∈ (ss_full xl.length).msgs :=
-          hmTr_notRcvd (he_full.extract_mTr (by omega)) he_mem hin_pref
-        have he_tail0 : e ∈ (ss_tail 0).msgs := by
-          rw [hss_tail_zero, ← hsK_full]
-          exact he_at_len
-        obtain ⟨j, _, hxj⟩ := hfair_tail r e he_dest 0 he_tail0
-        refine ⟨xl.length + j, by omega, ?_⟩
-        have hget : (xs_full.drop xl.length) j = some e := by rwa [hdrop_xs]
-        simpa [ωSequence.get_drop] using hget
   have hno_faulty : ∀ r, ¬ TotalOrderBroadcastAlg.BcastProcFaulty r ss_full xs_full := by
     rintro r ⟨k, ⟨e, he_in, he_dest⟩, hstop⟩
     obtain ⟨j, hkj, hxj⟩ := hfair_full r e he_dest k he_in
@@ -1472,32 +1391,15 @@ private theorem seqInv_step_initInput {P V : Type*} [Fintype P] [DecidableEq P] 
       simpa [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, h] using hinv.nextSlot_eq
   msg_conservation p := by
     have hc := hinv.msg_conservation p
+    have hpos := Multiset.count_pos.mpr he_mem
     simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
       Multiset.map_singleton, Multiset.count_add, Multiset.count_singleton]
     by_cases hpp₀ : p = p₀
     · subst hpp₀
-      have he_cnt : Multiset.count ⟨p, Sum.inl (inp p)⟩ s.msgs ≥ 1 :=
-        Multiset.count_pos.mpr he_mem
-      have hne_msg :
-          (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-            ⟨p, Sum.inl (inp p)⟩ := by simp
-      rw [Multiset.count_erase_self, Multiset.count_erase_of_ne hne_msg]
-      simp only [hne_msg.symm, ↓reduceIte]
-      omega
-    · have hne1 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-          ⟨p₀, Sum.inl (inp p₀)⟩ := fun h => hpp₀ (BcastEvent.mk.inj h).1
-      have hne2 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-          ⟨p₀, Sum.inl (inp p₀)⟩ := by simp
-      have hne3 : (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-          ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ := fun h => by
-        simp only [BcastEvent.mk.injEq, Sum.inr.injEq, SeqMsg.propose.injEq,
-          BcastMsg.mk.injEq] at h
-        exact hpp₀ h.2.1
-      have hne4 : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-          ⟨leader, Sum.inr (.propose ⟨p₀, inp p₀⟩)⟩ := by simp
-      rw [Multiset.count_erase_of_ne hne1, Multiset.count_erase_of_ne hne2]
-      simp only [hne3, hne4, ↓reduceIte]
-      omega
+      rw [Multiset.count_erase_self, Multiset.count_erase_of_ne (by simp)]
+      simp; omega
+    · rw [Multiset.count_erase_of_ne (by simp [hpp₀]), Multiset.count_erase_of_ne (by simp)]
+      simp [hpp₀]; omega
   msgs_wf e' he' := by
     simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent,
       Multiset.map_singleton, Multiset.mem_add, Multiset.mem_singleton] at he'
@@ -1552,45 +1454,20 @@ private theorem seqInv_step_propose {P V : Type*} [Fintype P] [DecidableEq P] [D
         simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, hinv.nextSlot_eq]
       msg_conservation := fun p => by
         have hc := hinv.msg_conservation p
+        have hpos := Multiset.count_pos.mpr he_mem
         simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte,
           Multiset.map_map, Function.comp_def, Multiset.count_add]
-        let outMsgs : Multiset (BcastEvent P (SeqMsg P V) V) :=
-          Finset.univ.val.map fun q =>
-            ⟨q, Sum.inr (.ordered (s.proc leader).state.nextSlot newItem)⟩
-        have hcnt_out1 : Multiset.count ⟨p, Sum.inl (inp p)⟩ outMsgs = 0 :=
-          Multiset.count_eq_zero.mpr (by simp [outMsgs])
-        have hcnt_out2 :
-            Multiset.count ⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ outMsgs = 0 :=
-          Multiset.count_eq_zero.mpr (by simp [outMsgs])
-        change Multiset.count _ _ + Multiset.count _ outMsgs +
-          (Multiset.count _ _ + Multiset.count _ outMsgs) + _ = 1
-        rw [hcnt_out1, hcnt_out2]
-        have hne_inl : (⟨p, Sum.inl (inp p)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-            ⟨leader, Sum.inr (.propose newItem)⟩ := by simp
-        rw [Multiset.count_erase_of_ne hne_inl]
+        rw [Multiset.count_eq_zero_of_notMem (s := Multiset.map _ _) (by simp),
+          Multiset.count_eq_zero_of_notMem (s := Multiset.map _ _) (by simp)]
         by_cases hpp₀ : p = p₀
         · subst hpp₀
-          have hpos : Multiset.count ⟨leader, Sum.inr (.propose newItem)⟩ s.msgs ≥ 1 :=
-            Multiset.count_pos.mpr he_mem
-          rw [Multiset.count_erase_self]
-          have hmem_log' : newItem ∈ log' :=
-            List.mem_append_right log (List.mem_singleton.mpr rfl)
+          rw [Multiset.count_erase_self, Multiset.count_erase_of_ne (by simp)]
           simp only [newItem, hnot_in_log, ↓reduceIte] at hc
-          simp only [log', newItem, hmem_log', ↓reduceIte] at hpos ⊢
+          simp only [List.mem_append, List.mem_singleton, or_true, ↓reduceIte]
           omega
-        · have hne_prop :
-              (⟨leader, Sum.inr (.propose ⟨p, inp p⟩)⟩ : BcastEvent P (SeqMsg P V) V) ≠
-                ⟨leader, Sum.inr (.propose newItem)⟩ := fun h => by
-            simp only [newItem, BcastEvent.mk.injEq, Sum.inr.injEq, SeqMsg.propose.injEq,
-              BcastMsg.mk.injEq] at h
-            exact hpp₀ h.2.1
-          rw [Multiset.count_erase_of_ne hne_prop]
-          have hmem_iff : (⟨p, inp p⟩ : BcastMsg P V) ∈ log' ↔ ⟨p, inp p⟩ ∈ log := by
-            simp only [log', newItem, List.mem_append, List.mem_singleton, BcastMsg.mk.injEq]
-            exact ⟨fun h => h.resolve_right (fun h2 => hpp₀ h2.1), Or.inl⟩
-          change _ + (if ⟨p, inp p⟩ ∈ log' then 1 else 0) = 1
-          simp only [hmem_iff]
-          omega
+        · rw [Multiset.count_erase_of_ne (by simp),
+            Multiset.count_erase_of_ne (by simp [hpp₀])]
+          simpa [hpp₀] using hc
       msgs_wf := fun e' he' => by
         simp only [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent, ↓reduceIte,
           Multiset.map_map, Function.comp_def, Multiset.mem_add, Multiset.mem_map] at he'

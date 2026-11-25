@@ -200,6 +200,17 @@ private theorem ofNat_val_eq_self {n : ℕ} [NeZero n] (x : Fin n) :
     Fin.ofNat n x.val = x :=
   Fin.ext (Nat.mod_eq_of_lt x.isLt)
 
+private theorem val_add_ofNat_fin {n : ℕ} [NeZero n] (a : Fin n) {k : ℕ} (h : a.val + k < n) :
+    (a + Fin.ofNat n k).val = a.val + k := by
+  change (a.val + k % n) % n = a.val + k
+  rw [Nat.mod_eq_of_lt (show k < n by omega), Nat.mod_eq_of_lt h]
+
+private theorem add_ofNat_fin_inj {n : ℕ} [NeZero n] (a : Fin n) {k₁ k₂ : ℕ} (h₁ : k₁ < n)
+    (h₂ : k₂ < n) (h : a + Fin.ofNat n k₁ = a + Fin.ofNat n k₂) : k₁ = k₂ := by
+  have hv := congrArg Fin.val (add_left_cancel h)
+  change k₁ % n = k₂ % n at hv
+  rwa [Nat.mod_eq_of_lt h₁, Nat.mod_eq_of_lt h₂] at hv
+
 private theorem fin_add_ofNat_eq_self_iff {n : ℕ} [NeZero n] (a : Fin n) {d : ℕ}
     (hd1 : 1 ≤ d) (hdn : d ≤ n) :
     a + Fin.ofNat n d = a ↔ d = n := by
@@ -720,51 +731,24 @@ theorem crAllInit_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     ∀ sched cfg, (crLTS uid).MTr (crAllInit uid) sched cfg → (crLTS uid).IsTerminal cfg →
       ∃! iStar : Fin n, cfg.isLeader iStar = true := by
   have huniq_max : ∃! iStar : Fin n, ∀ j : Fin n, uid j ≤ uid iStar := by
-    have hne : (Finset.univ : Finset (Fin n)).Nonempty :=
-      ⟨⟨0, Nat.pos_of_ne_zero (NeZero.ne n)⟩, Finset.mem_univ _⟩
-    have hne_img : (Finset.univ.image uid).Nonempty := hne.image uid
-    let m := (Finset.univ.image uid).max' hne_img
-    rcases Finset.mem_image.mp (Finset.max'_mem (Finset.univ.image uid) hne_img) with
-      ⟨iStar, _, hiStar⟩
-    refine ⟨iStar, fun j => ?_, fun k hk => ?_⟩
-    · rw [hiStar]
-      exact Finset.le_max' _ (uid j) (Finset.mem_image_of_mem uid (Finset.mem_univ j))
-    · apply huid
-      apply le_antisymm ?_ (hk iStar)
-      rw [hiStar]
-      exact Finset.le_max' _ (uid k) (Finset.mem_image_of_mem uid (Finset.mem_univ k))
+    obtain ⟨iStar, -, hmax⟩ := Finset.univ.exists_max_image uid Finset.univ_nonempty
+    exact ⟨iStar, fun j => hmax j (Finset.mem_univ j),
+      fun k hk => huid (le_antisymm (hmax k (Finset.mem_univ k)) (hk iStar))⟩
   refine ⟨?_, huniq_max, ?_⟩
   · intro sched cfg hmtr
-    suffices ∀ rem sched c,
-        crAllInitTotalMsgs uid - sched.length ≤ rem →
-        (crLTS uid).MTr (crAllInit uid) sched c →
-        ∃ tail c', (crLTS uid).MTr c tail c' ∧ (crLTS uid).IsTerminal c' from
-      this (crAllInitTotalMsgs uid - sched.length) sched cfg le_rfl hmtr
-    intro rem
-    induction rem with
-    | zero =>
-      intro sched c hrem hmtr_c
-      by_cases hterm : (crLTS uid).IsTerminal c
-      · exact ⟨[], c, LTS.MTr.refl, hterm⟩
-      · exfalso
-        simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hterm
-        obtain ⟨target, c', htr⟩ := hterm
-        have hmtr' := hmtr_c.stepR (crLTS uid) htr
-        have ⟨hlen', _⟩ := crExecMsgs_le_totalMsgs huid hmtr'
-        rw [List.length_append, List.length_singleton] at hlen'
-        omega
-    | succ r ih =>
-      intro sched c hrem hmtr_c
-      by_cases hterm : (crLTS uid).IsTerminal c
-      · exact ⟨[], c, LTS.MTr.refl, hterm⟩
-      · simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hterm
-        obtain ⟨target, c', htr⟩ := hterm
-        have hmtr' := hmtr_c.stepR (crLTS uid) htr
-        have ⟨hlen', _⟩ := crExecMsgs_le_totalMsgs huid hmtr'
-        rw [List.length_append, List.length_singleton] at hlen'
-        obtain ⟨tail, c_end, htail, hterm_end⟩ :=
-          ih (sched ++ [target]) c' (by rw [List.length_append, List.length_singleton]; omega) hmtr'
-        exact ⟨target :: tail, c_end, LTS.MTr.stepL htr htail, hterm_end⟩
+    obtain ⟨rem, hrem⟩ : ∃ rem, crAllInitTotalMsgs uid - sched.length = rem := ⟨_, rfl⟩
+    induction rem using Nat.strong_induction_on generalizing sched cfg with
+    | _ rem ih =>
+      by_cases hterm : (crLTS uid).IsTerminal cfg
+      · exact ⟨[], cfg, LTS.MTr.refl, hterm⟩
+      simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hterm
+      obtain ⟨target, c', htr⟩ := hterm
+      have hmtr' := hmtr.stepR (crLTS uid) htr
+      have hlen' := (crExecMsgs_le_totalMsgs huid hmtr').1
+      rw [List.length_append, List.length_singleton] at hlen'
+      obtain ⟨tail, c_end, htail, hterm_end⟩ := ih (crAllInitTotalMsgs uid - (sched.length + 1))
+        (by omega) (sched ++ [target]) c' hmtr' (by rw [List.length_append, List.length_singleton])
+      exact ⟨target :: tail, c_end, LTS.MTr.stepL htr htail, hterm_end⟩
   · intro sched cfg hmtr hterm
     obtain ⟨iStar, hiStar, huniq⟩ := huniq_max
     refine ⟨iStar, (crAllInit_isLeader_iff_max huid hmtr hterm iStar).mpr hiStar, fun j hj => ?_⟩
@@ -785,13 +769,10 @@ private theorem crAllInitTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [LinearOr
       rcases Finset.mem_image.mp hj with ⟨k, hk, rfl⟩
       rw [Finset.mem_Ico] at hk
       exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt k hk.1 hk.2⟩
-    have hinj : Set.InjOn (fun k : ℕ => s + Fin.ofNat n k) (Finset.Ico 1 (crHops uid s)) := by
-      intro k₁ hk₁ k₂ hk₂ heq
-      simp only [Finset.coe_Ico, Set.mem_Ico] at hk₁ hk₂
-      have hv := congrArg Fin.val (add_left_cancel heq)
-      change k₁ % n = k₂ % n at hv
-      rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hv
-      exact hv
+    have hinj : Set.InjOn (fun k : ℕ => s + Fin.ofNat n k) (Finset.Ico 1 (crHops uid s)) :=
+      fun k₁ hk₁ k₂ hk₂ => by
+        simp only [Finset.coe_Ico, Set.mem_Ico] at hk₁ hk₂
+        exact add_ofNat_fin_inj s (by omega) (by omega)
     have hcard : passed.card = crHops uid s - 1 := by
       rw [Finset.card_image_of_injOn hinj, Nat.card_Ico]
     have hle := Finset.card_le_card hsub
@@ -881,11 +862,7 @@ theorem crAllInit_totalMsgs_rev_eq (n : ℕ) [NeZero n] :
       omega
     · intro k hk1 hk2
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def, Fin.val_rev, not_le]
-      have hval : (s + Fin.ofNat n k).val = s.val + k := by
-        change (s.val + k % n) % n = s.val + k
-        have hmod : k % n = k := Nat.mod_eq_of_lt (by omega)
-        rw [hmod, Nat.mod_eq_of_lt (by omega)]
-      rw [hval]
+      rw [val_add_ofNat_fin s (by omega)]
       omega
   have hsum : crAllInitTotalMsgs (Fin.rev : Fin n → Fin n) = ∑ i ∈ Finset.range n, (n - i) := by
     rw [crAllInitTotalMsgs, ← Fin.sum_univ_eq_sum_range (fun i => n - i) n]
@@ -927,11 +904,8 @@ theorem crAllInit_totalMsgs_id_eq (n : ℕ) [NeZero n] :
         have hs_mem : s ∈ Finset.univ.filter (fun j : Fin n => s ≤ j) :=
           Finset.mem_filter.mpr ⟨Finset.mem_univ s, le_rfl⟩
         refine arcLen_eq_of_isFirst hs_mem le_rfl ?_ fun k hk1 hk2 => by omega
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def, ofNat_one_fin]
-        have hadd : (s + 1).val = s.val + 1 := by
-          change (s.val + 1 % n) % n = s.val + 1
-          have h1mod : 1 % n = 1 := Nat.mod_eq_of_lt hn2
-          rw [h1mod, Nat.mod_eq_of_lt (by omega)]
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def]
+        rw [val_add_ofNat_fin s (by omega)]
         omega
     let sLast : Fin n := ⟨n - 1, by omega⟩
     have hhop' : ∀ s : Fin n,
@@ -1054,12 +1028,9 @@ theorem sum_arcLen_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} (hA : A.Nonempty
       simp only [prevNode, show prevDist A (a + Fin.ofNat n k) = k from hpk,
         add_sub_cancel_right]
   rw [hfib, Finset.card_image_of_injOn, Finset.card_range]
-  intro k₁ hk₁ k₂ hk₂ heq
+  intro k₁ hk₁ k₂ hk₂
   simp only [Finset.coe_range, Set.mem_Iio] at hk₁ hk₂
-  have hv := congrArg Fin.val (add_left_cancel heq)
-  change k₁ % n = k₂ % n at hv
-  rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hv
-  exact hv
+  exact add_ofNat_fin_inj a (by omega) (by omega)
 
 /-- For `v ≤ u`, swapping `v` and `u` stabilizes `{w | v ≤ w}`: `v ≤ swap v u w ↔ v ≤ w`. -/
 private theorem le_swap_iff_le {n : ℕ} {v u : Fin n} (hvu : v ≤ u) (w : Fin n) :
@@ -1081,18 +1052,7 @@ private theorem mul_sum_crHops_perm_eq {n : ℕ} [NeZero n] (v : Fin n) :
       n * Nat.factorial n := by
   let S : Finset (Fin n) := Finset.univ.filter fun u : Fin n => v ≤ u
   have hS_card : S.card = n - v.val := by
-    have hbij : S = (Finset.Ico v.val n).attach.map
-        ⟨fun x => ⟨x.1, (Finset.mem_Ico.mp x.2).2⟩, fun a b h => by
-          ext; exact congrArg Fin.val h⟩ := by
-      ext u
-      simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, Fin.le_def, Finset.mem_map,
-        Finset.mem_attach, Subtype.exists, Finset.mem_Ico]
-      constructor
-      · intro hle
-        exact ⟨u.val, ⟨hle, u.isLt⟩, Fin.ext rfl⟩
-      · rintro ⟨m, ⟨hle, _⟩, rfl⟩
-        exact hle
-    rw [hbij, Finset.card_map, Finset.card_attach, Nat.card_Ico]
+    simp only [S, Finset.filter_le_eq_Ici, Fin.card_Ici]
   have hswap_sum : ∀ u ∈ S,
       (∑ σ : Equiv.Perm (Fin n), crHops (⇑σ) (σ.symm v)) =
       ∑ σ : Equiv.Perm (Fin n),

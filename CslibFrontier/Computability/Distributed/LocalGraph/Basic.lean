@@ -217,16 +217,12 @@ round-`t` outputs of `A`. -/
   output p := B.output p.2
 
 private theorem filterMap_getLeft_map_inl {α β γ : Type*} (s : Multiset α) (f : α → β) :
-    (s.map fun a => (Sum.inl (f a) : β ⊕ γ)).filterMap Sum.getLeft? = s.map f := by
-  induction s using Multiset.induction_on with
-  | empty => rfl
-  | cons a s ih => simp [Multiset.map_cons, ih]
+    (s.map fun a => (Sum.inl (f a) : β ⊕ γ)).filterMap Sum.getLeft? = s.map f :=
+  (Multiset.filterMap_map _ _ s).trans (congrFun (Multiset.filterMap_eq_map f) s)
 
 private theorem filterMap_getRight_map_inr {α β γ : Type*} (s : Multiset α) (f : α → γ) :
-    (s.map fun a => (Sum.inr (f a) : β ⊕ γ)).filterMap Sum.getRight? = s.map f := by
-  induction s using Multiset.induction_on with
-  | empty => rfl
-  | cons a s ih => simp [Multiset.map_cons, ih]
+    (s.map fun a => (Sum.inr (f a) : β ⊕ γ)).filterMap Sum.getRight? = s.map f :=
+  (Multiset.filterMap_map _ _ s).trans (congrFun (Multiset.filterMap_eq_map f) s)
 
 private theorem seq_state_le (A : BroadcastProtocol I S₁ M₁ O₁) {t : ℕ}
     (B : BroadcastProtocol O₁ S₂ M₂ O₂) (G : SimpleGraph V) [G.LocallyFinite] (x : V → I)
@@ -437,12 +433,7 @@ theorem map_neighborFinset_val [G₁.LocallyFinite] [G₂.LocallyFinite]
   have himg : (G₁.neighborFinset u).image φ = G₂.neighborFinset (φ u) := by
     ext v'
     simp only [Finset.mem_image, SimpleGraph.mem_neighborFinset]
-    constructor
-    · rintro ⟨w, hw, rfl⟩
-      exact hφ.adj hw
-    · intro hv'
-      obtain ⟨w, hw, rfl⟩ := hφ.surjOn_neighborSet u hv'
-      exact ⟨w, hw, rfl⟩
+    exact ⟨fun ⟨w, hw, h⟩ => h ▸ hφ.adj hw, fun hv' => hφ.surjOn_neighborSet u hv'⟩
   rw [← himg, Finset.image_val_of_injOn hinj]
 
 /-- A `GraphCovering` preserves vertex degrees. -/
@@ -531,18 +522,14 @@ private theorem portRecv_congr {S M : Type*} (P_recv : ℕ → (d : ℕ) → S �
     {m₁ : Fin d₁ → M} {m₂ : Fin d₂ → M}
     (hm : ∀ (i₁ : Fin d₁) (i₂ : Fin d₂), i₁.val = i₂.val → m₁ i₁ = m₂ i₂) :
     P_recv r d₁ s₁ m₁ = P_recv r d₂ s₂ m₂ := by
-  subst hd
-  subst hs
-  congr
-  funext i
-  exact hm i i rfl
+  subst hd hs
+  exact congrArg _ (funext fun i => hm i i rfl)
 
 private theorem portSend_congr {S M : Type*} (P_send : ℕ → (d : ℕ) → S → Fin d → M)
     {r d₁ d₂ : ℕ} (hd : d₁ = d₂) {s₁ s₂ : S} (hs : s₁ = s₂)
     {j₁ : Fin d₁} {j₂ : Fin d₂} (hj : j₁.val = j₂.val) :
     P_send r d₁ s₁ j₁ = P_send r d₂ s₂ j₂ := by
-  subst hd
-  subst hs
+  subst hd hs
   cases Fin.ext hj
   rfl
 

@@ -205,23 +205,13 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
         (qList.map fun a => NetAction.deliver (L := ℕ) ⟨p₀, a, Msg.phase2a b v⟩) ++
         (qList.map fun a => NetAction.deliver (L := ℕ) ⟨a, p₀, Msg.phase2b a b v⟩)
     have hmtr_all : π.lts.MTr s₀ xl s₅ :=
-      LTS.MTr.comp π.lts
-        (LTS.MTr.comp π.lts
-          (LTS.MTr.comp π.lts
-            (LTS.MTr.comp π.lts (LTS.MTr.single _ htr₀) hmtr_1a)
-            hmtr_1b)
-          hmtr_2a)
-        hmtr_2b
+      ((((LTS.MTr.single _ htr₀).comp _ hmtr_1a).comp _ hmtr_1b).comp _ hmtr_2a).comp _ hmtr_2b
     have hgroup : ∀ act ∈ xl, act.InGroup Q₀ := by
       intro act hact
       simp only [xl, qList, List.mem_append, List.mem_singleton, List.mem_map,
         Finset.mem_toList] at hact
       rcases hact with (((rfl | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩
-      · exact hp₀Q
-      · exact ⟨hp₀Q, haQ⟩
-      · exact ⟨haQ, hp₀Q⟩
-      · exact ⟨hp₀Q, haQ⟩
-      · exact ⟨haQ, hp₀Q⟩
+      exacts [hp₀Q, ⟨hp₀Q, haQ⟩, ⟨haQ, hp₀Q⟩, ⟨hp₀Q, haQ⟩, ⟨haQ, hp₀Q⟩]
     obtain ⟨hr₅, hout₅⟩ := netToSynod_reach qs ⟨xl, hmtr_all⟩
     have hlearnedAt₅ : (netToSynod s₅).LearnedAt qs p₀ b v :=
       ⟨Q₂, hQ₂, fun a haQ => hs₅_recv a (Finset.mem_toList.mpr (hQ₂_sub haQ))⟩

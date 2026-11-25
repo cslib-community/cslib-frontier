@@ -486,21 +486,16 @@ private theorem gossipInv_step (C : CvRDT S Op Q) {G : Digraph P}
         pkt_sub := fun pkt hpkt => ?_
         rep_eq := fun q => ?_
         pkt_eq := fun pkt hpkt => ?_ }
-    · simp only [CvRDT.gossipStep]
-      by_cases hqp : q = p
-      · subst hqp
-        simp only [Function.update_self]
-        exact Finset.insert_subset_insert uid (hinv.hist_sub q)
-      · simp only [Function.update_of_ne hqp]
-        exact Finset.Subset.trans (hinv.hist_sub q) (Finset.subset_insert uid s.generated)
+    · simp only [CvRDT.gossipStep, Function.update_apply]
+      split_ifs
+      · exact Finset.insert_subset_insert uid (hinv.hist_sub p)
+      · exact (hinv.hist_sub q).trans (Finset.subset_insert uid s.generated)
     · exact Finset.Subset.trans (hinv.pkt_sub pkt hpkt) (Finset.subset_insert uid s.generated)
-    · simp only [CvRDT.gossipStep]
-      by_cases hqp : q = p
-      · subst hqp
-        simp only [Function.update_self, evalHistory_insert, hcongr_hist q, ← hinv.rep_eq q]
+    · rcases eq_or_ne q p with rfl | hqp
+      · simp only [CvRDT.gossipStep, Function.update_self, evalHistory_insert, hcongr_hist q,
+          ← hinv.rep_eq q]
         exact (sup_of_le_left (C.update_infl op (s.replica q))).symm
-      · simp only [Function.update_of_ne hqp, hcongr_hist q]
-        exact hinv.rep_eq q
+      · simpa only [CvRDT.gossipStep, Function.update_of_ne hqp, hcongr_hist q] using hinv.rep_eq q
     · rw [hinv.pkt_eq pkt hpkt]
       exact evalHistory_congr C.init fun u hu =>
         (Function.update_of_ne
@@ -512,11 +507,9 @@ private theorem gossipInv_step (C : CvRDT S Op Q) {G : Digraph P}
         rep_eq := hinv.rep_eq
         pkt_eq := fun pkt hpkt => ?_ }
     · rcases Multiset.mem_cons.mp hpkt with rfl | hmem
-      · exact hinv.hist_sub src
-      · exact hinv.pkt_sub pkt hmem
+      exacts [hinv.hist_sub src, hinv.pkt_sub pkt hmem]
     · rcases Multiset.mem_cons.mp hpkt with rfl | hmem
-      · exact hinv.rep_eq src
-      · exact hinv.pkt_eq pkt hmem
+      exacts [hinv.rep_eq src, hinv.pkt_eq pkt hmem]
   | mergeConsume pkt =>
     exact
       { hist_sub := (hmerge_local pkt hen).1
@@ -588,31 +581,15 @@ private theorem gossip_edge_hop (C : CvRDT S Op Q) {G : Digraph P}
   have htr₂ : (C.gossipLTS G).Tr s₁ (.mergeConsume pkt) s₂ :=
     ⟨Multiset.mem_cons_self pkt s.inFlight, rfl⟩
   refine ⟨[.send u v, .mergeConsume pkt], s₂,
-    LTS.MTr.stepL htr₁ (LTS.MTr.stepL htr₂ LTS.MTr.refl), rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro w
-    simp only [s₂, s₁, CvRDT.gossipStep, pkt]
-    by_cases hwv : w = v
-    · subst hwv; simp [le_sup_left]
-    · simp [Function.update_of_ne hwv]
-  · intro w
-    simp only [s₂, s₁, CvRDT.gossipStep, pkt]
-    by_cases hwv : w = v
-    · subst hwv; simp only [Function.update_self]; exact Finset.subset_union_left
-    · simp [Function.update_of_ne hwv]
-  · simp only [s₂, s₁, CvRDT.gossipStep, pkt, Function.update_self]
-    exact le_sup_right
-  · simp only [s₂, s₁, CvRDT.gossipStep, pkt, Function.update_self]
-    exact Finset.subset_union_right
-  · intro b hb w
-    simp only [s₂, s₁, CvRDT.gossipStep, pkt]
-    by_cases hwv : w = v
-    · subst hwv; simp [sup_le (hb w) (hb u)]
-    · simp [Function.update_of_ne hwv, hb w]
-  · intro H hH w
-    simp only [s₂, s₁, CvRDT.gossipStep, pkt]
-    by_cases hwv : w = v
-    · subst hwv; simp [Finset.union_subset (hH w) (hH u)]
-    · simp [Function.update_of_ne hwv, hH w]
+    LTS.MTr.stepL htr₁ (LTS.MTr.stepL htr₂ LTS.MTr.refl), rfl, fun w => ?_, fun w => ?_, ?_, ?_,
+    fun b hb w => ?_, fun H hH w => ?_⟩
+  all_goals simp only [s₂, s₁, CvRDT.gossipStep, pkt, Function.update_apply]
+  · split_ifs with hwv <;> simp [hwv]
+  · split_ifs with hwv <;> simp [hwv]
+  · exact le_sup_right
+  · exact Finset.subset_union_right
+  · split_ifs <;> simp [hb]
+  · split_ifs <;> simp [hH]
 
 private theorem gossip_walk_propagate (C : CvRDT S Op Q) {G : Digraph P}
     {u v : P} (hpath : Relation.ReflTransGen G.Adj u v) (s : GossipState P UId S) :
@@ -839,21 +816,15 @@ private theorem foldl_eq_of_perm_pairwise {S Ev Eff : Type*}
       obtain ⟨hpw_a_t₁, hpw_t₁⟩ := List.pairwise_cons.mp hpw₁
       have hperm_rem : t₁.Perm (pre ++ suf) :=
         (hperm.trans List.perm_middle).cons_inv
-      have ha_not_pre : a ∉ pre := by
-        rw [List.nodup_append] at hnodup₂
-        intro hmem
-        exact hnodup₂.2.2 a hmem a List.mem_cons_self rfl
+      have ha_not_pre : a ∉ pre := fun hmem =>
+        (List.nodup_append.mp hnodup₂).2.2 a hmem a List.mem_cons_self rfl
       have hcomm_pre : ∀ x ∈ pre, ∀ s,
           effect (effOf a) (effect (effOf x) s) = effect (effOf x) (effect (effOf a) s) := by
         intro x hx s
         have hx_t₁ : x ∈ t₁ := hperm_rem.symm.subset (List.mem_append_left suf hx)
         have hne : a ≠ x := fun heq => ha_not_pre (heq ▸ hx)
-        have hnot_xa : ¬ prec x a := hpw_a_t₁ x hx_t₁
-        have hnot_ax : ¬ prec a x := by
-          rw [List.pairwise_append] at hpw₂
-          exact hpw₂.2.2 x hx a List.mem_cons_self
         exact hcomm a (hsub₁ a List.mem_cons_self) x (hsub₁ x (List.mem_cons_of_mem a hx_t₁))
-          hne hnot_ax hnot_xa s
+          hne ((List.pairwise_append.mp hpw₂).2.2 x hx a List.mem_cons_self) (hpw_a_t₁ x hx_t₁) s
       have hpw_rem : (pre ++ suf).Pairwise (fun u v => ¬ prec v u) :=
         hpw₂.sublist (List.Sublist.append (List.Sublist.refl pre) (List.sublist_cons_self a suf))
       simp only [List.foldl_cons, List.foldl_append]
@@ -972,29 +943,26 @@ theorem CmRDT.bss_quiescent_convergence (C : CmRDT S Op Eff Q) {F : Set P}
       idx.2 ∉ F → ∀ b, emittedPacket (ss idx.1.val) (xs idx.1.val) = some b →
         b ∈ ((ss m).proc idx.2).delivered := by
     rintro ⟨⟨i, _⟩, q⟩
-    by_cases hq : q ∉ F
-    · cases hem : emittedPacket (ss i) (xs i) with
-      | none => exact ⟨0, fun _ _ h => by cases h⟩
-      | some b =>
-        obtain ⟨m, hm⟩ := bss_live_of_atomic_multicast hinit he hfair hatomic hq hem
-        exact ⟨m, fun _ b' hb' => by
-          cases Option.some.inj hb'
-          exact hm⟩
-    · exact ⟨0, fun hq' => absurd hq' hq⟩
+    by_cases hq : q ∈ F
+    · exact ⟨0, fun hq' => absurd hq hq'⟩
+    cases hem : emittedPacket (ss i) (xs i) with
+    | none => exact ⟨0, fun _ _ h => by cases h⟩
+    | some b =>
+      obtain ⟨m, hm⟩ := bss_live_of_atomic_multicast hinit he hfair hatomic hq hem
+      exact ⟨m, fun _ b' hb' => Option.some.inj hb' ▸ hm⟩
   choose mFn hmFn using hlive_pair
   let M := max K ((Finset.univ : Finset (Fin K × P)).sup mFn)
   refine ⟨M, Nat.le_max_left _ _, fun k hkM p hp q hq => ?_⟩
-  have hK_le_k : K ≤ k := le_trans (Nat.le_max_left _ _) hkM
-  have hmtr_k : (bssLTS F).MTr (bssInit P Eff) (xs.extract 0 k) (ss k) := by
+  have hmtr (n : ℕ) : (bssLTS F).MTr (bssInit P Eff) (xs.extract 0 n) (ss n) := by
     rw [← hinit]
-    exact he.extract_mTr (Nat.zero_le k)
+    exact he.extract_mTr (Nat.zero_le n)
   -- Every broadcast in `xs.extract 0 k` occurred at some step `i < K` (by quiescence from `K`),
   -- hence has already been delivered by step `M ≤ k` at every non-faulty process.
   have hall_deliv : ∀ r : P, r ∉ F → ∀ pkt,
       pkt ∈ ((ss k).proc r).delivered ↔ pkt ∈ BroadcastIn (xs.extract 0 k) := by
     intro r hr pkt
     constructor
-    · exact bss_integrity hmtr_k r
+    · exact bss_integrity (hmtr k) r
     · rintro ⟨i, hi_len, hbi⟩
       have hi_lt_k : i < k := by
         simpa [ωSequence.length_extract] using hi_len
@@ -1003,24 +971,19 @@ theorem CmRDT.bss_quiescent_convergence (C : CmRDT S Op Eff Q) {F : Set P}
           List.take_left' (by simp [ωSequence.length_extract])]
       have hget : (xs.extract 0 k)[i] = xs i := by
         rw [ωSequence.get_extract (by omega), Nat.zero_add]
-      have hmtr_i : (bssLTS F).MTr (bssInit P Eff) (xs.extract 0 i) (ss i) := by
-        rw [← hinit]
-        exact he.extract_mTr (Nat.zero_le i)
-      obtain ⟨_, hrun_i⟩ := (bssLTS_mTr_iff F (bssInit P Eff) (xs.extract 0 i) (ss i)).mp hmtr_i
+      obtain ⟨_, hrun_i⟩ := (bssLTS_mTr_iff F (bssInit P Eff) (xs.extract 0 i) (ss i)).mp (hmtr i)
       have hem_i : emittedPacket (ss i) (xs i) = some pkt := by
         simpa [bssStateAt, htake, ← hrun_i, hget] using hbi
       have hi_lt_K : i < K := by
         by_contra hge
-        have hnone := hquiesce i (by omega)
-        rw [hnone] at hem_i
-        cases hem_i
+        simp [hquiesce i (by omega)] at hem_i
       let idx : Fin K × P := (⟨i, hi_lt_K⟩, r)
       have hmem_m : pkt ∈ ((ss (mFn idx)).proc r).delivered := hmFn idx hr pkt hem_i
       have hm_le_k : mFn idx ≤ k :=
         le_trans (Finset.le_sup (f := mFn) (Finset.mem_univ idx))
           (le_trans (Nat.le_max_right K _) hkM)
       exact bss_omega_delivered_mono he hm_le_k hmem_m
-  exact (C.bss_strong_convergence hmtr_k (hcomm k) fun pkt =>
+  exact (C.bss_strong_convergence (hmtr k) (hcomm k) fun pkt =>
     (hall_deliv p hp pkt).trans (hall_deliv q hq pkt).symm).1
 
 end CausalBroadcastBridge
@@ -1100,42 +1063,19 @@ causal linearization `l : List Ev` (`IsCausalLinearization prec H l`). -/
 theorem exists_causalLinearization {Ev : Type*} [DecidableEq Ev]
     (prec : Ev → Ev → Prop) [IsStrictOrder Ev prec] (H : Finset Ev) :
     ∃ l : List Ev, IsCausalLinearization prec H l := by
-  suffices h : ∀ n (H : Finset Ev), H.card = n → ∃ l : List Ev, IsCausalLinearization prec H l from
-    h H.card H rfl
-  intro n
-  induction n with
-  | zero =>
-    intro H hcard
-    rw [Finset.card_eq_zero.mp hcard]
-    exact ⟨[], List.nodup_nil, by simp, by simp⟩
-  | succ n ih =>
-    intro H hcard
-    have hne : H.Nonempty := Finset.card_pos.mp (by omega)
+  induction H using Finset.strongInduction with
+  | H H ih =>
+    rcases H.eq_empty_or_nonempty with rfl | hne
+    · exact ⟨[], List.nodup_nil, by simp, by simp⟩
     obtain ⟨m, hmH, hmin⟩ := exists_minimal_of_nonempty prec hne
-    have hcard_erase : (H.erase m).card = n := by
-      rw [Finset.card_erase_of_mem hmH, hcard]
-      rfl
-    obtain ⟨tl, htl_nodup, htl_mem, htl_ord⟩ := ih (H.erase m) hcard_erase
-    have hm_not_tl : m ∉ tl := fun hm => (Finset.mem_erase.mp ((htl_mem m).mp hm)).1 rfl
-    have hnodup_cons : (m :: tl).Nodup := List.nodup_cons.mpr ⟨hm_not_tl, htl_nodup⟩
-    have hmem_cons : ∀ e, e ∈ m :: tl ↔ e ∈ H := by
-      intro e
-      rw [List.mem_cons, htl_mem, Finset.mem_erase]
-      constructor
-      · rintro (rfl | ⟨_, heH⟩)
-        · exact hmH
-        · exact heH
-      · intro heH
-        by_cases hem : e = m
-        · exact Or.inl hem
-        · exact Or.inr ⟨hem, heH⟩
-    have hpw_tl : tl.Pairwise (fun a b => ¬ prec b a) :=
-      pairwise_not_prec_of_idxOf_lt htl_nodup htl_ord
+    obtain ⟨tl, htl_nodup, htl_mem, htl_ord⟩ := ih (H.erase m) (Finset.erase_ssubset hmH)
+    have hmem_cons : ∀ e, e ∈ m :: tl ↔ e ∈ H := fun e => by
+      rw [List.mem_cons, htl_mem, ← Finset.mem_insert, Finset.insert_erase hmH]
     have hpw_cons : (m :: tl).Pairwise (fun a b => ¬ prec b a) :=
       List.pairwise_cons.mpr ⟨fun b hb => hmin b ((hmem_cons b).mp (List.mem_cons_of_mem m hb)),
-        hpw_tl⟩
-    exact ⟨m :: tl, hnodup_cons, hmem_cons,
-      idxOf_lt_of_pairwise_not_prec hpw_cons⟩
+        pairwise_not_prec_of_idxOf_lt htl_nodup htl_ord⟩
+    exact ⟨m :: tl, List.nodup_cons.mpr ⟨fun hm => (Finset.mem_erase.mp ((htl_mem m).mp hm)).1 rfl,
+      htl_nodup⟩, hmem_cons, idxOf_lt_of_pairwise_not_prec hpw_cons⟩
 
 /-- Evaluate `C : CmRDT S Op Eff Q` on a finite event set `H : Finset Ev` ordered by strict
 partial order `prec` via causal linearization ([ShapiroPreguicaBaqueroZawirski2011], §3.2.2
@@ -1286,21 +1226,16 @@ theorem deliverableEvents_eq_self_of_closed {Ev : Type*} [DecidableEq Ev]
       set D := deliverableIter deps M k
       have hnot_D : ¬ M ⊆ D := fun hsub =>
         hnot_sub (Finset.Subset.trans hsub (deliverableIter_mono_nat deps M (Nat.le_of_succ_le hk)))
-      obtain ⟨x, hxM, hxNotD⟩ := Finset.not_subset.mp hnot_D
-      have hrem_ne : (M \ D).Nonempty := ⟨x, Finset.mem_sdiff.mpr ⟨hxM, hxNotD⟩⟩
-      obtain ⟨m, hm_sdiff, hm_min⟩ := exists_minimal_of_nonempty prec hrem_ne
+      obtain ⟨m, hm_sdiff, hm_min⟩ :=
+        exists_minimal_of_nonempty prec (Finset.sdiff_nonempty.mpr hnot_D)
       obtain ⟨hmM, hmNotD⟩ := Finset.mem_sdiff.mp hm_sdiff
-      have hdeps_in_D : deps m ⊆ D := by
-        intro y hy
-        have hyM : y ∈ M := hclosed m hmM hy
+      have hdeps_in_D : deps m ⊆ D := fun y hy => by
         by_contra hyNotD
-        exact hm_min y (Finset.mem_sdiff.mpr ⟨hyM, hyNotD⟩) (hdeps_prec m y hy)
+        exact hm_min y (Finset.mem_sdiff.mpr ⟨hclosed m hmM hy, hyNotD⟩) (hdeps_prec m y hy)
       have hm_in_next : m ∈ deliverableIter deps M (k + 1) :=
         Finset.mem_union_right _ (Finset.mem_filter.mpr ⟨hmM, hdeps_in_D⟩)
-      have hssub : D ⊂ deliverableIter deps M (k + 1) :=
-        Finset.ssubset_iff_of_subset (deliverableIter_step_mono deps M k) |>.mpr
-          ⟨m, hm_in_next, hmNotD⟩
-      have hlt_card := Finset.card_lt_card hssub
+      have : D.card < _ := Finset.card_lt_card <| Finset.ssubset_iff_of_subset
+        (deliverableIter_step_mono deps M k) |>.mpr ⟨m, hm_in_next, hmNotD⟩
       omega
   have hge_full : M.card ≤ (deliverableEvents deps M).card := hcard_ge M.card le_rfl
   exact hnot_sub (Finset.eq_of_subset_of_card_le (deliverableEvents_subset deps M) hge_full).ge
