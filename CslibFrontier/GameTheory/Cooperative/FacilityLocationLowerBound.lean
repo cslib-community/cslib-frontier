@@ -157,23 +157,14 @@ private theorem flTightInstance_planCost {m k : ℕ} (F' : Finset (Fin m)) (hF' 
   have hconn_l : ∀ j : Fin m, F'.inf' hF' (fun i => (flTightInstance m k).connCost i (.inl j)) =
       if j ∈ F' then 1 else 3 := by
     intro j
-    by_cases hj : j ∈ F'
-    · rw [ite_eq_left hj]
-      refine le_antisymm ?_ ?_
-      · exact (Finset.inf'_le (fun i => (flTightInstance m k).connCost i (.inl j)) hj).trans
-          (by simp [flTightInstance])
-      · refine Finset.le_inf' _ _ fun i _ => ?_
-        dsimp only [flTightInstance]
-        split_ifs <;> norm_num
-    · rw [ite_eq_right hj]
-      refine le_antisymm ?_ ?_
-      · obtain ⟨i₀, hi₀⟩ := hF'
-        have hne : i₀ ≠ j := fun h => hj (h ▸ hi₀)
-        exact (Finset.inf'_le (fun i => (flTightInstance m k).connCost i (.inl j)) hi₀).trans
-          (by simp [flTightInstance, hne])
-      · refine Finset.le_inf' _ _ fun i hi => ?_
-        have hne : i ≠ j := fun h => hj (h ▸ hi)
-        simp [flTightInstance, hne]
+    refine le_antisymm ?_ (Finset.le_inf' _ _ fun i hi => ?_)
+    · obtain ⟨i₀, hi₀⟩ := hF'
+      split_ifs with hj
+      · exact (Finset.inf'_le _ hj).trans (by simp [flTightInstance])
+      · exact (Finset.inf'_le _ hi₀).trans
+          (by simp [flTightInstance, show i₀ ≠ j from fun h => hj (h ▸ hi₀)])
+    · dsimp only [flTightInstance]
+      split_ifs <;> first | (subst_vars; contradiction) | norm_num
   have hconn_r : ∀ r : Fin k,
       F'.inf' hF' (fun i => (flTightInstance m k).connCost i (.inr r)) = 1 := by
     intro r
@@ -226,16 +217,8 @@ theorem flTightInstance_flCostShareScheme_sum (m k : ℕ) [NeZero m] (hk : 1 ≤
       ⟨.inl 0, Finset.mem_univ _⟩ (by norm_num [flTightInstance]) ?_
     rw [Fintype.sum_sum_type]
     have hl : ∑ j : Fin m, max 0 (t - (flTightInstance m k).connCost i (.inl j)) = t - 1 := by
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-      have hi : max 0 (t - (flTightInstance m k).connCost i (.inl i)) = t - 1 := by
-        simp [flTightInstance, ht_gt.le]
-      have hrest : ∑ j ∈ Finset.univ.erase i,
-          max 0 (t - (flTightInstance m k).connCost i (.inl j)) = 0 :=
-        Finset.sum_eq_zero fun j hj => by
-          have hne : i ≠ j := (Finset.ne_of_mem_erase hj).symm
-          simp [flTightInstance, hne]
-          linarith
-      linarith
+      rw [Fintype.sum_eq_single i fun j hj => by simp [flTightInstance, Ne.symm hj]; linarith]
+      simp [flTightInstance, ht_gt.le]
     have hr : ∑ r : Fin k, max 0 (t - (flTightInstance m k).connCost i (.inr r)) =
         (k : ℝ) * (t - 1) := by
       have hconst : ∀ r : Fin k,
@@ -332,66 +315,43 @@ private theorem diagCoalition_update_subset_slice {k m : ℕ} (i : Fin k) (b : F
   · exact Finset.mem_union_left _ (Finset.mem_image_of_mem _ (Finset.mem_univ x))
   · exact Finset.mem_union_right _ hmem
 
+private theorem card_punctureCoalition {k m : ℕ} [NeZero k] (i : Fin k) (b : Fin k → Fin m) :
+    ((punctureCoalition i b).card : ℝ) = k - 1 := by
+  rw [punctureCoalition, Finset.card_image_of_injective _ fun _ _ h => congrArg Prod.fst h,
+    Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ, Fintype.card_fin,
+    Nat.cast_sub NeZero.one_le, Nat.cast_one]
+
+/-- A coalition inside the cross-section of `b` is served by `f_b` alone at cost `3 + |S|`. -/
+private theorem cost_le_of_subset_diag {k m : ℕ} [NeZero m] (b : Fin k → Fin m)
+    {S : Finset (Fin k × Fin m)} (hS : S ⊆ diagCoalition b) :
+    (flHardInstance k m).toCostSharingGame.cost S ≤ 3 + S.card := by
+  refine ((flHardInstance k m).toCostSharingGame_cost_le_planCost S {b}
+    (Finset.singleton_nonempty b)).trans_eq ?_
+  rw [planCost_eq, Finset.sum_singleton, Finset.card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]
+  refine congrArg (3 + ·) (Finset.sum_congr rfl fun a ha => ?_)
+  obtain ⟨j, _, rfl⟩ := Finset.mem_image.1 (hS ha)
+  simp [flHardInstance]
+
 private theorem diagCoalition_cost_le {k m : ℕ} [NeZero m] (b : Fin k → Fin m) :
     (flHardInstance k m).toCostSharingGame.cost (diagCoalition b) ≤ (k : ℝ) + 3 := by
-  refine ((flHardInstance k m).toCostSharingGame_cost_le_planCost
-    (diagCoalition b) {b} (Finset.singleton_nonempty b)).trans ?_
-  rw [planCost_eq, Finset.sum_singleton]
-  have hconn : ∀ a ∈ diagCoalition b, ({b} : Finset (Fin k → Fin m)).inf'
-      (Finset.singleton_nonempty b) (fun c => (flHardInstance k m).connCost c a) = 1 := by
-    intro a ha
-    obtain ⟨j, _, rfl⟩ := Finset.mem_image.1 ha
-    simp [flHardInstance]
-  rw [Finset.sum_congr rfl hconn, Finset.sum_const, nsmul_eq_mul, mul_one]
-  have hcard : (diagCoalition b).card = k := by
-    rw [diagCoalition, Finset.card_image_of_injective _ (fun j₁ j₂ h => congrArg Prod.fst h),
-      Finset.card_univ, Fintype.card_fin]
-  rw [hcard]
-  have hopen : (flHardInstance k m).openCost b = 3 := rfl
-  linarith
+  refine (cost_le_of_subset_diag b subset_rfl).trans_eq ?_
+  rw [diagCoalition, Finset.card_image_of_injective _ fun _ _ h => congrArg Prod.fst h,
+    Finset.card_univ, Fintype.card_fin, add_comm]
 
 private theorem punctureCoalition_cost_le {k m : ℕ} [NeZero k] [NeZero m]
     (i : Fin k) (b : Fin k → Fin m) :
-    (flHardInstance k m).toCostSharingGame.cost (punctureCoalition i b) ≤ (k : ℝ) + 2 := by
-  have hk_pos : (1 : ℝ) ≤ k := by exact_mod_cast Nat.one_le_iff_ne_zero.2 (NeZero.ne k)
-  by_cases hne : (punctureCoalition i b).Nonempty
-  · refine ((flHardInstance k m).toCostSharingGame_cost_le_planCost
-      (punctureCoalition i b) {b} (Finset.singleton_nonempty b)).trans ?_
-    rw [planCost_eq, Finset.sum_singleton]
-    have hconn : ∀ a ∈ punctureCoalition i b, ({b} : Finset (Fin k → Fin m)).inf'
-        (Finset.singleton_nonempty b) (fun c => (flHardInstance k m).connCost c a) = 1 := by
-      intro a ha
-      obtain ⟨j, _, rfl⟩ := Finset.mem_image.1 ha
-      simp [flHardInstance]
-    rw [Finset.sum_congr rfl hconn, Finset.sum_const, nsmul_eq_mul, mul_one]
-    have hcard : (punctureCoalition i b).card = k - 1 := by
-      rw [punctureCoalition,
-        Finset.card_image_of_injective _ (fun j₁ j₂ h => congrArg Prod.fst h),
-        Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ, Fintype.card_fin]
-    have hsub : ((k - 1 : ℕ) : ℝ) = (k : ℝ) - 1 := by
-      have : 1 ≤ k := Nat.one_le_iff_ne_zero.2 (NeZero.ne k)
-      rw [Nat.cast_sub this, Nat.cast_one]
-    rw [hcard, hsub]
-    have hopen : (flHardInstance k m).openCost b = 3 := rfl
-    linarith
-  · rw [Finset.not_nonempty_iff_eq_empty.1 hne,
-      (flHardInstance k m).toCostSharingGame.cost_empty]
-    linarith
+    (flHardInstance k m).toCostSharingGame.cost (punctureCoalition i b) ≤ (k : ℝ) + 2 :=
+  (cost_le_of_subset_diag (S := punctureCoalition i b) b
+    (Finset.image_subset_image (Finset.erase_subset i _))).trans
+    (by rw [card_punctureCoalition]; linarith)
 
 /-- Lower and upper optimal cost of each sample slice `S(i, b) = Aᵢ ∪ T(i, b)` in
 `flHardInstance k m`: exact optimal cost **`3 * m + k`** (`= 3 * m + (k - 1) + 1`). -/
 private theorem sliceCoalition_cost {k m : ℕ} [NeZero k] [NeZero m]
     (i : Fin k) (b : Fin k → Fin m) :
     (flHardInstance k m).toCostSharingGame.cost (sliceCoalition i b) = 3 * (m : ℝ) + (k : ℝ) := by
-  have hk_ge : 1 ≤ k := Nat.one_le_iff_ne_zero.2 (NeZero.ne k)
-  have hm_ge : 1 ≤ m := Nat.one_le_iff_ne_zero.2 (NeZero.ne m)
   have hS_ne : (sliceCoalition i b).Nonempty :=
     ⟨(i, 0), Finset.mem_union_left _ (Finset.mem_image_of_mem _ (Finset.mem_univ 0))⟩
-  have hcard_p : (punctureCoalition i b).card = k - 1 := by
-    rw [punctureCoalition,
-      Finset.card_image_of_injective _ (fun j₁ j₂ h => congrArg Prod.fst h),
-      Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ, Fintype.card_fin]
-  have hcast_k : ((k - 1 : ℕ) : ℝ) = (k : ℝ) - 1 := by rw [Nat.cast_sub hk_ge, Nat.cast_one]
   refine le_antisymm ?_ ?_
   · refine ((flHardInstance k m).toCostSharingGame_cost_le_planCost
       (sliceCoalition i b) {b} (Finset.singleton_nonempty b)).trans ?_
@@ -401,16 +361,7 @@ private theorem sliceCoalition_cost {k m : ℕ} [NeZero k] [NeZero m]
         (Finset.singleton_nonempty b) (fun c => (flHardInstance k m).connCost c a) =
         3 * (m : ℝ) - 2 := by
       rw [rowCoalition, Finset.sum_image (fun x₁ _ x₂ _ h => congrArg Prod.snd h)]
-      have hterm : ∀ x : Fin m, ({b} : Finset (Fin k → Fin m)).inf'
-          (Finset.singleton_nonempty b) (fun c => (flHardInstance k m).connCost c (i, x)) =
-          3 - (if x = b i then (2 : ℝ) else 0) := fun x => by
-        simp only [Finset.inf'_singleton, flHardInstance]
-        by_cases h : x = b i
-        · subst h; simp; norm_num
-        · simp [h, Ne.symm h]
-      simp_rw [hterm, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
-        nsmul_eq_mul, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
-      ring
+      simpa [flHardInstance, eq_comm] using sum_ite_one_three (m := m) {b i}
     have hpunc : ∑ a ∈ punctureCoalition i b, ({b} : Finset (Fin k → Fin m)).inf'
         (Finset.singleton_nonempty b) (fun c => (flHardInstance k m).connCost c a) =
         (k : ℝ) - 1 := by
@@ -419,7 +370,8 @@ private theorem sliceCoalition_cost {k m : ℕ} [NeZero k] [NeZero m]
         intro a ha
         obtain ⟨j, _, rfl⟩ := Finset.mem_image.1 ha
         simp [flHardInstance]
-      rw [Finset.sum_congr rfl hc, Finset.sum_const, nsmul_eq_mul, mul_one, hcard_p, hcast_k]
+      rw [Finset.sum_congr rfl hc, Finset.sum_const, nsmul_eq_mul, mul_one,
+        card_punctureCoalition]
     have hopen : (flHardInstance k m).openCost b = 3 := rfl
     rw [hrow, hpunc, hopen]; ring_nf; exact le_rfl
   · refine (flHardInstance k m).le_toCostSharingGame_cost_of_nonempty hS_ne fun F' hF' => ?_
@@ -452,7 +404,7 @@ private theorem sliceCoalition_cost {k m : ℕ} [NeZero k] [NeZero m]
           dsimp only [flHardInstance]; split_ifs <;> norm_num
       calc
         (k : ℝ) - 1 = ∑ _a ∈ punctureCoalition i b, (1 : ℝ) := by
-            rw [Finset.sum_const, nsmul_eq_mul, mul_one, hcard_p, hcast_k]
+            rw [Finset.sum_const, nsmul_eq_mul, mul_one, card_punctureCoalition]
         _ ≤ _ := Finset.sum_le_sum hterm
     have hF_ge1 : (1 : ℝ) ≤ (F'.card : ℝ) := by exact_mod_cast hF'.card_pos
     have hm_le : (matched.card : ℝ) ≤ (F'.card : ℝ) := by exact_mod_cast hmatched_card
@@ -463,18 +415,8 @@ private def swapCoordEquiv {k m : ℕ} (i : Fin k) :
     (Fin k → Fin m) × Fin m ≃ (Fin k → Fin m) × Fin m where
   toFun p := (Function.update p.1 i p.2, p.1 i)
   invFun q := (Function.update q.1 i q.2, q.1 i)
-  left_inv p := by
-    ext j
-    · by_cases h : j = i
-      · subst h; simp [Function.update_self]
-      · simp [Function.update_of_ne h]
-    · simp [Function.update_self]
-  right_inv q := by
-    ext j
-    · by_cases h : j = i
-      · subst h; simp [Function.update_self]
-      · simp [Function.update_of_ne h]
-    · simp [Function.update_self]
+  left_inv _ := by simp [Function.update_idem]
+  right_inv _ := by simp [Function.update_idem]
 
 /-- **Exact finite double-counting inequality `(15.6)`** ([JainMahdian2007], p. 402): for every
 `k ≥ 1`, `m ≥ 1`, and every cross-monotonic `γ`-budget-balanced cost-sharing scheme `ξ` on
@@ -541,66 +483,31 @@ theorem flHardInstance_budgetBalance_le {k m : ℕ} [NeZero k] [NeZero m]
     rw [Finset.sum_comm]
   -- Bound `∑ i, ξ.share (diagCoalition c) (i, c i) ≤ k + 3` for each cross-section `c`.
   have hdiag_le : ∀ c : Fin k → Fin m,
-      ∑ i : Fin k, ξ.share (diagCoalition c) (i, c i) ≤ (k : ℝ) + 3 := by
-    intro c
-    have heq : ∑ i : Fin k, ξ.share (diagCoalition c) (i, c i) =
-        ∑ a ∈ diagCoalition c, ξ.share (diagCoalition c) a := by
-      rw [diagCoalition, Finset.sum_image (fun j₁ _ j₂ _ h => congrArg Prod.fst h)]
-    rw [heq]
-    exact ((hbb (diagCoalition c)).2).trans (diagCoalition_cost_le c)
+      ∑ i : Fin k, ξ.share (diagCoalition c) (i, c i) ≤ (k : ℝ) + 3 := fun c =>
+    calc _ = ∑ a ∈ diagCoalition c, ξ.share (diagCoalition c) a := by
+          rw [diagCoalition, Finset.sum_image fun _ _ _ _ h => congrArg Prod.fst h]
+      _ ≤ _ := (hbb (diagCoalition c)).2.trans (diagCoalition_cost_le c)
   have hlhs_ge :
       (k : ℝ) * (m : ℝ) ^ k * (γ * (3 * (m : ℝ) + (k : ℝ))) ≤
         ∑ i : Fin k, ∑ b : Fin k → Fin m,
           ∑ a ∈ sliceCoalition i b, ξ.share (sliceCoalition i b) a := by
-    have hpt : ∀ (i : Fin k) (b : Fin k → Fin m),
-        γ * (3 * (m : ℝ) + (k : ℝ)) ≤
-          ∑ a ∈ sliceCoalition i b, ξ.share (sliceCoalition i b) a := fun i b => by
-      rw [← sliceCoalition_cost i b]
-      exact (hbb (sliceCoalition i b)).1
-    calc
-      (k : ℝ) * (m : ℝ) ^ k * (γ * (3 * (m : ℝ) + (k : ℝ)))
-          = ∑ _i : Fin k, ∑ _b : Fin k → Fin m, (γ * (3 * (m : ℝ) + (k : ℝ))) := by
-              simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-                hpi_card]
-              ring
-      _ ≤ _ := Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun b _ => hpt i b
+    calc _ = ∑ _i : Fin k, ∑ _b : Fin k → Fin m, (γ * (3 * (m : ℝ) + (k : ℝ))) := by
+          simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, hpi_card]
+          ring
+      _ ≤ _ := Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun b _ => by
+          rw [← sliceCoalition_cost i b]; exact (hbb (sliceCoalition i b)).1
   have hrhs_le :
       ∑ i : Fin k, ∑ b : Fin k → Fin m,
         ∑ a ∈ sliceCoalition i b, ξ.share (sliceCoalition i b) a ≤
       (m : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 3) + (k : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 2) := by
-    calc
-      ∑ i : Fin k, ∑ b : Fin k → Fin m,
-          ∑ a ∈ sliceCoalition i b, ξ.share (sliceCoalition i b) a
-          ≤ ∑ i : Fin k, ∑ b : Fin k → Fin m,
-              ((∑ x : Fin m, ξ.share (diagCoalition (Function.update b i x)) (i, x)) +
-                ((k : ℝ) + 2)) :=
-            Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun b _ => hslice_le i b
-      _ = (∑ i : Fin k, ∑ b : Fin k → Fin m,
-              ∑ x : Fin m, ξ.share (diagCoalition (Function.update b i x)) (i, x)) +
-            ∑ _i : Fin k, ∑ _b : Fin k → Fin m, ((k : ℝ) + 2) := by
-            simp_rw [Finset.sum_add_distrib]
-      _ = (m : ℝ) * (∑ c : Fin k → Fin m, ∑ i : Fin k, ξ.share (diagCoalition c) (i, c i)) +
-            (k : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 2) := by
-            rw [hfirst_sum]
-            simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, hpi_card]
-            ring
-      _ ≤ (m : ℝ) * (∑ _c : Fin k → Fin m, ((k : ℝ) + 3)) +
-            (k : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 2) := by
-            exact add_le_add (mul_le_mul_of_nonneg_left
-              (Finset.sum_le_sum fun c _ => hdiag_le c) hm_pos.le) le_rfl
-      _ = (m : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 3) +
-            (k : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 2) := by
-            simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hpi_card]
-            ring
-  have hcomb : (k : ℝ) * (m : ℝ) ^ k * (γ * (3 * (m : ℝ) + (k : ℝ))) ≤
-      (k : ℝ) * (m : ℝ) ^ k * ((m : ℝ) * (((k : ℝ) + 3) / (k : ℝ)) + ((k : ℝ) + 2)) := by
-    calc
-      (k : ℝ) * (m : ℝ) ^ k * (γ * (3 * (m : ℝ) + (k : ℝ)))
-          ≤ (m : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 3) +
-              (k : ℝ) * (m : ℝ) ^ k * ((k : ℝ) + 2) := hlhs_ge.trans hrhs_le
-      _ = (k : ℝ) * (m : ℝ) ^ k * ((m : ℝ) * (((k : ℝ) + 3) / (k : ℝ)) + ((k : ℝ) + 2)) := by
-            field_simp [hk_pos.ne']
-  exact le_of_mul_le_mul_left hcomb (mul_pos hk_pos hmk_pos)
+    have hsum := mul_le_mul_of_nonneg_left
+      (Finset.sum_le_sum (s := Finset.univ) fun c _ => hdiag_le c) hm_pos.le
+    refine (Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun b _ => hslice_le i b).trans ?_
+    simp only [Finset.sum_add_distrib, hfirst_sum, Finset.sum_const, Finset.card_univ,
+      Fintype.card_fin, nsmul_eq_mul, hpi_card] at hsum ⊢
+    linarith
+  refine le_of_mul_le_mul_left ((hlhs_ge.trans hrhs_le).trans_eq ?_) (mul_pos hk_pos hmk_pos)
+  field_simp [hk_pos.ne']
 
 /-- **Theorem 15.23** ([JainMahdian2007], Section 15.5, pp. 401–402; Immorlica–Mahdian–Mirrokni
 2005): any cross-monotonic cost-sharing scheme for metric facility location is at most

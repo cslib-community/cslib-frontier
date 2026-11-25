@@ -130,9 +130,7 @@ private def Beats (θ : ι → AgentType (Fin T)) (i j : ι) : Prop :=
   (θ j).value < (θ i).value ∨ ((θ j).value = (θ i).value ∧ i < j)
 
 private theorem beats_irrefl (θ : ι → AgentType (Fin T)) (i : ι) : ¬ Beats θ i i := by
-  rintro (h | ⟨_, h⟩)
-  · exact lt_irrefl _ h
-  · exact lt_irrefl _ h
+  rintro (h | ⟨_, h⟩) <;> exact lt_irrefl _ h
 
 private theorem beats_trans {θ : ι → AgentType (Fin T)} {i j k : ι}
     (h1 : Beats θ i j) (h2 : Beats θ j k) : Beats θ i k := by
@@ -153,9 +151,7 @@ private theorem beats_trichotomy (θ : ι → AgentType (Fin T)) {i j : ι} (hne
 
 private theorem value_le_of_beats {θ : ι → AgentType (Fin T)} {i j : ι} (h : Beats θ i j) :
     (θ j).value ≤ (θ i).value := by
-  rcases h with h | ⟨h, _⟩
-  · exact h.le
-  · exact h.le
+  rcases h with h | ⟨h, _⟩ <;> exact h.le
 
 open Classical in
 /-- The rank of agent `i` inside candidate set `A`: the number of agents in `A` that strictly
@@ -249,45 +245,39 @@ private theorem topK_eq_erase_of_not_mem {θ : ι → AgentType (Fin T)} {k : �
     {i : ι} (hni : i ∉ topK θ k A) :
     topK θ k A = topK θ k (A.erase i) := by
   classical
+  by_cases hiA : i ∈ A
+  swap
+  · rw [Finset.erase_eq_of_notMem hiA]
+  have hri : k ≤ rankIn θ A i := not_lt.1 fun h => hni (Finset.mem_filter.2 ⟨hiA, h⟩)
   ext j
-  unfold topK
-  simp only [Finset.mem_filter, Finset.mem_erase]
-  constructor
-  · rintro ⟨hjA, hlt⟩
-    have hne : j ≠ i := fun h => hni (h ▸ Finset.mem_filter.mpr ⟨hjA, hlt⟩)
-    refine ⟨⟨hne, hjA⟩, ?_⟩
-    unfold rankIn at hlt ⊢
-    exact lt_of_le_of_lt (Finset.card_le_card (Finset.filter_subset_filter _
-      (Finset.erase_subset i A))) hlt
-  · rintro ⟨⟨hne, hjA⟩, hlt⟩
-    refine ⟨hjA, ?_⟩
-    by_cases hiA : i ∈ A
-    · have hnb : ¬ Beats θ i j := by
-        intro hbi
-        have hlt_ij := rankIn_lt_of_beats hiA hbi
-        have hsub : A.filter (fun x => Beats θ x j) ⊆
-            insert i ((A.erase i).filter (fun x => Beats θ x j)) := by
-          intro x hx
-          rw [Finset.mem_filter] at hx
-          by_cases hxi : x = i
-          · subst hxi; exact Finset.mem_insert_self x _
-          · exact Finset.mem_insert_of_mem
-              (Finset.mem_filter.mpr ⟨Finset.mem_erase.mpr ⟨hxi, hx.1⟩, hx.2⟩)
-        have hcard_le : rankIn θ A j ≤ rankIn θ (A.erase i) j + 1 :=
-          (Finset.card_le_card hsub).trans (Finset.card_insert_le _ _)
-        have hri_lt : rankIn θ A i < k := by omega
-        exact hni (Finset.mem_filter.mpr ⟨hiA, hri_lt⟩)
-      have heq : A.filter (fun x => Beats θ x j) = (A.erase i).filter (fun x => Beats θ x j) := by
-        ext x
-        simp only [Finset.mem_filter, Finset.mem_erase]
-        constructor
-        · rintro ⟨hxA, hbx⟩
-          exact ⟨⟨fun hxi => hnb (hxi ▸ hbx), hxA⟩, hbx⟩
-        · rintro ⟨⟨_, hxA⟩, hbx⟩
-          exact ⟨hxA, hbx⟩
-      unfold rankIn at hlt ⊢
-      rwa [heq]
-    · rwa [Finset.erase_eq_of_notMem hiA] at hlt
+  by_cases hji : j = i
+  · subst hji
+    simp only [topK, Finset.mem_filter, Finset.mem_erase, ne_eq, not_true_eq_false, false_and,
+      iff_false, not_and, not_lt]
+    exact fun _ => hri
+  -- Erasing `i` lowers the rank of `j` by one exactly when `i` beats `j`.
+  have hrank : rankIn θ (A.erase i) j + (if Beats θ i j then 1 else 0) = rankIn θ A j := by
+    unfold rankIn
+    rw [Finset.filter_erase]
+    split_ifs with h
+    · exact Finset.card_erase_add_one (Finset.mem_filter.2 ⟨hiA, h⟩)
+    · rw [add_zero]
+      exact congrArg Finset.card (Finset.erase_eq_of_notMem fun hm => h (Finset.mem_filter.1 hm).2)
+  have hlt : Beats θ i j → rankIn θ A i < rankIn θ A j := rankIn_lt_of_beats hiA
+  simp only [topK, Finset.mem_filter, Finset.mem_erase, ne_eq, hji, not_false_eq_true, true_and]
+  refine and_congr_right fun _ => ?_
+  split_ifs at hrank with h
+  · have := hlt h
+    omega
+  · omega
+
+/-- `topK` only depends on the reported values of the candidates. -/
+private theorem topK_congr {θ θ' : ι → AgentType (Fin T)} {k : ℕ} {A : Finset ι}
+    (h : ∀ j ∈ A, θ j = θ' j) : topK θ k A = topK θ' k A := by
+  classical
+  have hr : ∀ j ∈ A, rankIn θ A j = rankIn θ' A j := fun j hj =>
+    congrArg Finset.card (Finset.filter_congr fun x hx => by simp only [Beats, h x hx, h j hj])
+  exact Finset.filter_congr fun j hj => by rw [hr j hj]
 
 end TopKHelpers
 
@@ -351,17 +341,11 @@ private theorem greedyWinnersAt_unique (cap : Fin T → ℕ) (θ : ι → AgentT
     {t₁ t₂ : Fin T} {i : ι} (h₁ : i ∈ greedyWinnersAt cap θ t₁)
     (h₂ : i ∈ greedyWinnersAt cap θ t₂) : t₁ = t₂ := by
   by_contra hne
-  rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with hlt | hgt
-  · have hmem : i ∈ greedyAllocatedBefore cap θ t₂.val :=
-      greedyAllocatedBefore_mono cap θ hlt (by
-        rw [greedyAllocatedBefore_succ_eq]
-        exact Finset.mem_union_right _ h₁)
-    exact greedyWinnersAt_disjoint_before cap θ t₂ h₂ hmem
-  · have hmem : i ∈ greedyAllocatedBefore cap θ t₁.val :=
-      greedyAllocatedBefore_mono cap θ hgt (by
-        rw [greedyAllocatedBefore_succ_eq]
-        exact Finset.mem_union_right _ h₂)
-    exact greedyWinnersAt_disjoint_before cap θ t₁ h₁ hmem
+  wlog hlt : t₁ < t₂ generalizing t₁ t₂
+  · exact this h₂ h₁ (Ne.symm hne) ((not_lt.1 hlt).lt_of_ne (Ne.symm hne))
+  refine greedyWinnersAt_disjoint_before cap θ t₂ h₂ (greedyAllocatedBefore_mono cap θ hlt ?_)
+  rw [greedyAllocatedBefore_succ_eq]
+  exact Finset.mem_union_right _ h₁
 
 private theorem mem_greedyAllocatedBefore_iff (cap : Fin T → ℕ) (θ : ι → AgentType (Fin T))
     (s : ℕ) (i : ι) :
@@ -375,20 +359,13 @@ private theorem mem_greedyAllocatedBefore_iff (cap : Fin T → ℕ) (θ : ι →
     · rw [Finset.mem_union, ih]
       constructor
       · rintro (⟨t, hlt, ht⟩ | hnow)
-        · exact ⟨t, Nat.lt_succ_of_lt hlt, ht⟩
+        · exact ⟨t, by omega, ht⟩
         · exact ⟨⟨k, hk⟩, Nat.lt_succ_self k, hnow⟩
       · rintro ⟨t, hlt, ht⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | heq
-        · exact Or.inl ⟨t, hlt', ht⟩
-        · have htk : (⟨k, hk⟩ : Fin T) = t := Fin.ext heq.symm
-          rw [← htk] at ht
-          exact Or.inr ht
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
+        exacts [Or.inl ⟨t, hlt', ht⟩, Or.inr ht]
     · rw [ih]
-      constructor
-      · rintro ⟨t, hlt, ht⟩
-        exact ⟨t, Nat.lt_succ_of_lt hlt, ht⟩
-      · rintro ⟨t, hlt, ht⟩
-        exact ⟨t, by omega, ht⟩
+      exact exists_congr fun t => and_congr_left fun _ => by omega
 
 open Classical in
 /-- The Lavi–Nisan / Parkes greedy expiring-items online allocation policy (`Auction 2`):
@@ -411,16 +388,10 @@ private theorem greedyPolicy_alloc_eq_some_iff (cap : Fin T → ℕ) (θ : ι �
     (greedyPolicy cap).alloc θ i = some t ↔ i ∈ greedyWinnersAt cap θ t := by
   classical
   simp only [greedyPolicy]
-  constructor
-  · intro h
-    split_ifs at h with hex
-    · have ht := Option.some.inj h
-      rw [← ht]
-      exact Classical.choose_spec hex
-  · intro ht
-    have hex : ∃ s : Fin T, i ∈ greedyWinnersAt cap θ s := ⟨t, ht⟩
-    simp only [hex, ↓reduceDIte, Option.some.injEq]
-    exact greedyWinnersAt_unique cap θ (Classical.choose_spec hex) ht
+  split_ifs with hex
+  · exact ⟨fun h => Option.some.inj h ▸ Classical.choose_spec hex,
+      fun ht => congrArg some (greedyWinnersAt_unique cap θ (Classical.choose_spec hex) ht)⟩
+  · exact ⟨nofun, fun ht => absurd ⟨t, ht⟩ hex⟩
 
 open Classical in
 /-- Period-by-period specification of `greedyPolicy`: agent `i` is allocated at period `t` if and
@@ -483,35 +454,14 @@ private theorem greedyWinnersAt_eq_of_agree {ι : Type*} [Fintype ι] [LinearOrd
       (Finset.univ.filter fun j => j ∉ greedyAllocatedBefore cap θ t.val ∧ (θ j).InWindow t) =
         (Finset.univ.filter fun j =>
           j ∉ greedyAllocatedBefore cap θ' t.val ∧ (θ' j).InWindow t) := by
-    ext j
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, hprev]
-    constructor
-    · rintro ⟨hn, hw⟩
-      exact ⟨hn, hagree j (Or.inl hw.1) ▸ hw⟩
-    · rintro ⟨hn, hw⟩
-      exact ⟨hn, (hagree j (Or.inr hw.1)).symm ▸ hw⟩
+    refine Finset.filter_congr fun j _ => ?_
+    rw [hprev]
+    exact and_congr_right fun _ =>
+      ⟨fun hw => hagree j (.inl hw.1) ▸ hw, fun hw => (hagree j (.inr hw.1)).symm ▸ hw⟩
   unfold greedyWinnersAt
   dsimp only
   rw [hactive]
-  ext j
-  unfold topK rankIn
-  rw [Finset.mem_filter]
-  conv_rhs => rw [Finset.mem_filter]
-  refine and_congr_right fun hj => ?_
-  have hj_eq : θ j = θ' j := hagree j (Or.inr (Finset.mem_filter.mp hj).2.2.1)
-  have hfilt :
-      ((Finset.univ.filter fun x =>
-          x ∉ greedyAllocatedBefore cap θ' t.val ∧ (θ' x).InWindow t).filter
-        fun x => Beats θ x j) =
-      ((Finset.univ.filter fun x =>
-          x ∉ greedyAllocatedBefore cap θ' t.val ∧ (θ' x).InWindow t).filter
-        fun x => Beats θ' x j) := by
-    ext x
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    refine and_congr_right fun hx => ?_
-    have hx_eq : θ x = θ' x := hagree x (Or.inr hx.2.1)
-    simp only [Beats, hx_eq, hj_eq]
-  rw [hfilt]
+  exact topK_congr fun j hj => hagree j (.inr (Finset.mem_filter.mp hj).2.2.1)
 
 /-- Greedy `Auction 2` is online-causal: allocations at period `t` depend only on agents whose
 reported arrival is at most `t`. -/
@@ -583,26 +533,10 @@ theorem greedyPolicy_isMonotone (cap : Fin T → ℕ) : (greedyPolicy (ι := ι)
               j ∉ greedyAllocatedBefore cap θ'₂ k ∧ (θ'₂ j).InWindow tk).erase i := by
           ext j
           simp only [Finset.mem_erase, Finset.mem_filter, Finset.mem_univ, true_and, hprev]
-          refine and_congr_right fun hne => ?_
-          simp only [θ'₁, θ'₂, Function.update_of_ne hne]
+          exact and_congr_right fun hne => by simp only [θ'₁, θ'₂, Function.update_of_ne hne]
         rw [herase]
-        ext j
-        unfold topK rankIn
-        rw [Finset.mem_filter, Finset.mem_filter]
-        refine and_congr_right fun hj => ?_
-        have hjne : j ≠ i := (Finset.mem_erase.mp hj).1
-        have hfilt :
-            ((Finset.univ.filter fun x =>
-                x ∉ greedyAllocatedBefore cap θ'₂ k ∧ (θ'₂ x).InWindow tk).erase i |>.filter
-              fun x => Beats θ'₁ x j) =
-            ((Finset.univ.filter fun x =>
-                x ∉ greedyAllocatedBefore cap θ'₂ k ∧ (θ'₂ x).InWindow tk).erase i |>.filter
-              fun x => Beats θ'₂ x j) := by
-          ext x
-          simp only [Finset.mem_filter, Finset.mem_erase]
-          refine and_congr_right fun hx => ?_
-          simp only [Beats, θ'₁, θ'₂, Function.update_of_ne hx.1, Function.update_of_ne hjne]
-        rw [hfilt]
+        exact topK_congr fun j hj => by
+          simp only [θ'₁, θ'₂, Function.update_of_ne (Finset.mem_erase.mp hj).1]
       rw [greedyAllocatedBefore_succ_eq cap θ'₁ tk, greedyAllocatedBefore_succ_eq cap θ'₂ tk,
         hprev, hwin_eq]
   have hprev_star := hprev_eq tstar.val le_rfl
@@ -634,13 +568,9 @@ theorem greedyPolicy_isMonotone (cap : Fin T → ℕ) : (greedyPolicy (ι := ι)
     rw [Finset.mem_filter] at hjA ⊢
     refine ⟨⟨Finset.mem_univ j, hprev_star.symm ▸ hjA.2.1, ?_⟩, ?_⟩
     · simpa only [θ'₁, θ'₂, Function.update_of_ne hne] using hjA.2.2
-    · rcases hbj with hlt | ⟨heq, hji⟩
-      · left
-        simp only [θ'₁, θ'₂, Function.update_self, Function.update_of_ne hne] at hlt ⊢
-        linarith
-      · left
-        simp only [θ'₁, θ'₂, Function.update_self, Function.update_of_ne hne] at heq ⊢
-        linarith
+    · have hle := value_le_of_beats hbj
+      simp only [Beats, θ'₁, θ'₂, Function.update_self, Function.update_of_ne hne] at hle ⊢
+      exact Or.inl (hv.trans_le hle)
   have hi_wins₂ : i ∈ greedyWinnersAt cap θ'₂ tstar :=
     Finset.mem_filter.mpr ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ i, hi_not_prev₂, hi_in_win₂⟩,
       lt_of_le_of_lt hrank₂_le hrank₁⟩
@@ -682,15 +612,15 @@ theorem optWelfare_le_two_mul_welfare_greedy (cap : Fin T → ℕ) (θ : ι → 
     welfare_eq_sum_filter ((greedyPolicy (ι := ι) cap).alloc_in_window θ)]
   set G := Finset.univ.filter fun i => ((greedyPolicy cap).alloc θ i).isSome
   set F := Finset.univ.filter fun i => (f i).isSome
-  have hsplit :
-      ∑ i ∈ F, (θ i).value =
-        ∑ i ∈ F.filter (fun i => i ∈ G), (θ i).value +
-        ∑ i ∈ F.filter (fun i => i ∉ G), (θ i).value :=
-    (Finset.sum_filter_add_sum_filter_not F (fun i => i ∈ G) (fun i => (θ i).value)).symm
+  have hG : ∀ {i t}, i ∈ greedyWinnersAt cap θ t → i ∈ G := fun h =>
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+      Option.isSome_iff_exists.mpr ⟨_, (greedyPolicy_alloc_eq_some_iff cap θ _ _).mpr h⟩⟩
+  rw [← Finset.sum_filter_add_sum_filter_not F (fun i => i ∈ G)]
   have hpart1 : ∑ i ∈ F.filter (fun i => i ∈ G), (θ i).value ≤ ∑ i ∈ G, (θ i).value :=
     Finset.sum_le_sum_of_subset_of_nonneg (fun i hi => (Finset.mem_filter.mp hi).2)
       fun i _ _ => (θ i).value_nonneg
   set U := F.filter fun i => i ∉ G
+  -- Split `U` by the period at which the optimum serves each agent, and `G` by the greedy period.
   have hU_eq :
       ∑ i ∈ U, (θ i).value =
         ∑ t : Fin T, ∑ i ∈ U.filter (fun i => f i = some t), (θ i).value := by
@@ -699,90 +629,51 @@ theorem optWelfare_le_two_mul_welfare_greedy (cap : Fin T → ℕ) (θ : ι → 
     refine Finset.sum_congr rfl fun i hi => ?_
     obtain ⟨t, ht⟩ :=
       Option.isSome_iff_exists.mp (Finset.mem_filter.mp (Finset.mem_filter.mp hi).1).2
-    rw [Finset.sum_eq_single t]
-    · simp only [ht, ↓reduceIte]
-    · intro s _ hne
-      simp only [ht, Option.some.injEq, hne.symm, ↓reduceIte]
-    · intro hnt
-      exact absurd (Finset.mem_univ t) hnt
+    simp only [ht, Option.some.injEq, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
   have hG_eq :
       ∑ i ∈ G, (θ i).value =
         ∑ t : Fin T, ∑ i ∈ greedyWinnersAt cap θ t, (θ i).value := by
-    have hdisj :
-        Set.PairwiseDisjoint (↑(Finset.univ : Finset (Fin T)) : Set (Fin T))
-          (greedyWinnersAt cap θ) := by
-      intro t₁ _ t₂ _ hne
-      dsimp only [Function.onFun]
-      rw [Finset.disjoint_left]
-      intro i h₁ h₂
-      exact hne (greedyWinnersAt_unique cap θ h₁ h₂)
     have hunion : Finset.univ.biUnion (greedyWinnersAt cap θ) = G := by
       ext i
       simp only [Finset.mem_biUnion, Finset.mem_univ, true_and, G, Finset.mem_filter,
         Option.isSome_iff_exists, greedyPolicy_alloc_eq_some_iff]
-    rw [← hunion, Finset.sum_biUnion hdisj]
+    rw [← hunion, Finset.sum_biUnion fun t₁ _ t₂ _ hne =>
+      Finset.disjoint_left.2 fun _ h₁ h₂ => hne (greedyWinnersAt_unique cap θ h₁ h₂)]
   have hpart2 : ∑ i ∈ U, (θ i).value ≤ ∑ i ∈ G, (θ i).value := by
     rw [hU_eq, hG_eq]
     refine Finset.sum_le_sum fun t _ => ?_
     set Ut := U.filter fun i => f i = some t
-    set Gt := greedyWinnersAt cap θ t
-    by_cases hne : Ut.Nonempty
-    · obtain ⟨i₀, hi₀⟩ := hne
-      have hi₀_f : f i₀ = some t := (Finset.mem_filter.mp hi₀).2
-      have hi₀_notG : i₀ ∉ G := (Finset.mem_filter.mp (Finset.mem_filter.mp hi₀).1).2
-      set prev := greedyAllocatedBefore cap θ t.val
-      set active := Finset.univ.filter fun i => i ∉ prev ∧ (θ i).InWindow t
-      have hmem_active : ∀ i ∈ Ut, i ∈ active := by
-        intro i hi
-        have hfi : f i = some t := (Finset.mem_filter.mp hi).2
-        have hnotG : i ∉ G := (Finset.mem_filter.mp (Finset.mem_filter.mp hi).1).2
-        refine Finset.mem_filter.mpr ⟨Finset.mem_univ i, ?_, hf.1 i t hfi⟩
-        intro hmem_prev
-        obtain ⟨s, _, hs⟩ := (mem_greedyAllocatedBefore_iff cap θ t.val i).mp hmem_prev
-        apply hnotG
-        rw [Finset.mem_filter]
-        exact ⟨Finset.mem_univ i, by
-          rw [Option.isSome_iff_exists]
-          exact ⟨s, (greedyPolicy_alloc_eq_some_iff cap θ i s).mpr hs⟩⟩
-      have hnot_topK : ∀ i ∈ Ut, i ∉ Gt := by
-        intro i hi hgt
-        have hnotG : i ∉ G := (Finset.mem_filter.mp (Finset.mem_filter.mp hi).1).2
-        apply hnotG
-        rw [Finset.mem_filter]
-        exact ⟨Finset.mem_univ i, by
-          rw [Option.isSome_iff_exists]
-          exact ⟨t, (greedyPolicy_alloc_eq_some_iff cap θ i t).mpr hgt⟩⟩
-      have hGt_card : Gt.card = cap t := by
-        have hcard := card_topK θ (cap t) active
-        change Gt.card = min (cap t) active.card at hcard
-        have hrank_ge : cap t ≤ rankIn θ active i₀ := by
-          have hni₀ : i₀ ∉ topK θ (cap t) active := hnot_topK i₀ hi₀
-          have hmem₀ : i₀ ∈ active := hmem_active i₀ hi₀
-          have : ¬ rankIn θ active i₀ < cap t := fun h =>
-            hni₀ (Finset.mem_filter.mpr ⟨hmem₀, h⟩)
-          omega
-        have hlt_card : rankIn θ active i₀ < active.card := rankIn_lt_card (hmem_active i₀ hi₀)
-        rw [hcard, min_eq_left (by omega)]
-      have hUt_card : Ut.card ≤ Gt.card := by
-        rw [hGt_card]
-        refine le_trans (Finset.card_le_card ?_) (hf.2 t)
-        intro i hi
-        exact Finset.mem_filter.mpr ⟨Finset.mem_univ i, (Finset.mem_filter.mp hi).2⟩
-      obtain ⟨i_max, hi_max_mem, hi_max⟩ :=
-        Finset.exists_max_image Ut (fun i => (θ i).value) ⟨i₀, hi₀⟩
-      have hsum_Ut : ∑ i ∈ Ut, (θ i).value ≤ Ut.card • (θ i_max).value :=
-        Finset.sum_le_card_nsmul Ut _ (θ i_max).value hi_max
-      have hmax_le_Gt : ∀ g ∈ Gt, (θ i_max).value ≤ (θ g).value := fun g hg =>
-        value_le_of_beats (beats_of_mem_topK_of_not_mem hg (hmem_active i_max hi_max_mem)
-          (hnot_topK i_max hi_max_mem))
-      have hGt_sum : Gt.card • (θ i_max).value ≤ ∑ g ∈ Gt, (θ g).value :=
-        Finset.card_nsmul_le_sum Gt _ (θ i_max).value hmax_le_Gt
-      have hcard_mul : Ut.card • (θ i_max).value ≤ Gt.card • (θ i_max).value := by
-        simp only [nsmul_eq_mul]
-        exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hUt_card) (θ i_max).value_nonneg
-      exact (hsum_Ut.trans hcard_mul).trans hGt_sum
-    · rw [Finset.not_nonempty_iff_eq_empty.mp hne, Finset.sum_empty]
+    set active :=
+      Finset.univ.filter fun i => i ∉ greedyAllocatedBefore cap θ t.val ∧ (θ i).InWindow t
+    -- An agent served at `t` by the optimum but never by greedy was active at `t` and lost.
+    have hUt : ∀ i ∈ Ut, i ∈ active ∧ i ∉ greedyWinnersAt cap θ t := by
+      intro i hi
+      simp only [Ut, U, F, Finset.mem_filter, Finset.mem_univ, true_and] at hi
+      refine ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ i, fun hprev => ?_, hf.1 i t hi.2⟩,
+        fun h => hi.1.2 (hG h)⟩
+      obtain ⟨s, _, hs⟩ := (mem_greedyAllocatedBefore_iff cap θ t.val i).mp hprev
+      exact hi.1.2 (hG hs)
+    rcases Ut.eq_empty_or_nonempty with hempty | ⟨i₀, hi₀⟩
+    · rw [hempty, Finset.sum_empty]
       exact Finset.sum_nonneg fun g _ => (θ g).value_nonneg
+    -- Some active agent lost at `t`, so greedy filled all `cap t` units.
+    have hGt_card : (greedyWinnersAt cap θ t).card = cap t := by
+      have hrank : cap t ≤ rankIn θ active i₀ := not_lt.1 fun h =>
+        (hUt i₀ hi₀).2 (Finset.mem_filter.mpr ⟨(hUt i₀ hi₀).1, h⟩)
+      exact (card_topK θ (cap t) active).trans
+        (min_eq_left (hrank.trans (rankIn_lt_card (hUt i₀ hi₀).1).le))
+    have hUt_card : Ut.card ≤ (greedyWinnersAt cap θ t).card :=
+      hGt_card ▸ (Finset.card_le_card fun i hi =>
+        Finset.mem_filter.mpr ⟨Finset.mem_univ i, (Finset.mem_filter.mp hi).2⟩).trans (hf.2 t)
+    obtain ⟨i_max, hi_max_mem, hi_max⟩ :=
+      Finset.exists_max_image Ut (fun i => (θ i).value) ⟨i₀, hi₀⟩
+    calc ∑ i ∈ Ut, (θ i).value ≤ Ut.card • (θ i_max).value :=
+          Finset.sum_le_card_nsmul Ut _ _ hi_max
+      _ ≤ (greedyWinnersAt cap θ t).card • (θ i_max).value :=
+          nsmul_le_nsmul_left (θ i_max).value_nonneg hUt_card
+      _ ≤ ∑ g ∈ greedyWinnersAt cap θ t, (θ g).value :=
+          Finset.card_nsmul_le_sum _ _ _ fun g hg => value_le_of_beats
+            (beats_of_mem_topK_of_not_mem hg (hUt i_max hi_max_mem).1 (hUt i_max hi_max_mem).2)
   linarith
 
 end GreedyAuction
@@ -804,20 +695,55 @@ private abbrev intervalType {T : ℕ} (a d : Fin T) (had : a ≤ d) (v : ℝ) (h
 private theorem eq_of_alloc_eq_some_unit {ι : Type*} [Fintype ι] {T : ℕ}
     {θ : ι → AgentType (Fin T)} {f : ι → Option (Fin T)}
     (hf : IsExpiringAllocation (fun _ => 1) θ f) {i j : ι} {t : Fin T}
-    (hi : f i = some t) (hj : f j = some t) : i = j := by
+    (hi : f i = some t) (hj : f j = some t) : i = j :=
+  Finset.card_le_one.1 (hf.2 t) i (Finset.mem_filter.2 ⟨Finset.mem_univ _, hi⟩) j
+    (Finset.mem_filter.2 ⟨Finset.mem_univ _, hj⟩)
+
+/-- A window-feasible allocation that serves at most one agent per period is unit-capacity
+feasible. -/
+private theorem isExpiringAllocation_unit {ι : Type*} [Fintype ι] {T : ℕ}
+    {θ : ι → AgentType (Fin T)} {f : ι → Option (Fin T)}
+    (hwin : ∀ i t, f i = some t → (θ i).InWindow t)
+    (hinj : ∀ i j t, f i = some t → f j = some t → i = j) :
+    IsExpiringAllocation (fun _ => 1) θ f :=
+  ⟨hwin, fun t => Finset.card_le_one.2 fun i hi j hj =>
+    hinj i j t (Finset.mem_filter.1 hi).2 (Finset.mem_filter.1 hj).2⟩
+
+/-- An agent whose window is the single period `t` is either unallocated or allocated at `t`. -/
+private theorem alloc_eq_none_or_eq_some_of_point {ι : Type*} {T : ℕ} (π : Policy ι (Fin T))
+    {θ : ι → AgentType (Fin T)} {i : ι} {t : Fin T} (ha : t ≤ (θ i).arrival)
+    (hd : (θ i).departure ≤ t) : π.alloc θ i = none ∨ π.alloc θ i = some t := by
+  cases h : π.alloc θ i with
+  | none => exact .inl rfl
+  | some s =>
+    have hs := π.alloc_in_window θ i s h
+    exact .inr (congrArg some (le_antisymm (hs.2.trans hd) (ha.trans hs.1)))
+
+/-- Under unit capacities, an agent whose window is the single period `t` loses whenever another
+agent wins `t`. -/
+private theorem alloc_eq_none_of_point_of_eq_some {ι : Type*} [Fintype ι] {T : ℕ}
+    {π : Policy ι (Fin T)} (hfeas : π.IsExpiringFeasible (fun _ => 1))
+    {θ : ι → AgentType (Fin T)} {i w : ι} {t : Fin T} (ha : t ≤ (θ i).arrival)
+    (hd : (θ i).departure ≤ t) (hw : π.alloc θ w = some t) (hne : i ≠ w) :
+    π.alloc θ i = none :=
+  (alloc_eq_none_or_eq_some_of_point π ha hd).resolve_right fun h =>
+    hne (eq_of_alloc_eq_some_unit (hfeas θ) h hw)
+
+/-- If every agent outside `S` is unallocated or has value `0`, welfare is at most the total
+value of `S`. -/
+private theorem welfare_le_sum_value {ι : Type*} [Fintype ι] {T : ℕ}
+    {θ : ι → AgentType (Fin T)} {f : ι → Option (Fin T)} (S : Finset ι)
+    (h : ∀ j ∉ S, f j = none ∨ (θ j).value = 0) : welfare θ f ≤ ∑ j ∈ S, (θ j).value := by
   classical
-  by_contra hne
-  have hsub : ({i, j} : Finset ι) ⊆ Finset.univ.filter fun x => f x = some t := by
-    intro x hx
-    rw [Finset.mem_insert, Finset.mem_singleton] at hx
-    rcases hx with rfl | rfl
-    · exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩
-    · exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hj⟩
-  have hcard : 2 ≤ (Finset.univ.filter fun x => f x = some t).card := by
-    have := Finset.card_le_card hsub
-    rwa [Finset.card_pair hne] at this
-  have hle : (Finset.univ.filter fun x => f x = some t).card ≤ 1 := hf.2 t
-  omega
+  unfold welfare
+  rw [← Finset.sum_add_sum_compl S]
+  have hS : ∑ j ∈ S, (θ j).realizedValue (f j) ≤ ∑ j ∈ S, (θ j).value :=
+    Finset.sum_le_sum fun j _ => (θ j).realizedValue_le_value _
+  have hSc : ∑ j ∈ Sᶜ, (θ j).realizedValue (f j) ≤ 0 := Finset.sum_nonpos fun j hj => by
+    rcases h j (Finset.mem_compl.1 hj) with h | h
+    · rw [h, AgentType.realizedValue_none]
+    · exact h ▸ (θ j).realizedValue_le_value _
+  linarith
 
 /-- Helper: single-agent allocation feasibility for bounding `optWelfare` from below. -/
 private theorem value_le_optWelfare_of_single {ι : Type*} [Fintype ι] {T : ℕ}
@@ -825,30 +751,19 @@ private theorem value_le_optWelfare_of_single {ι : Type*} [Fintype ι] {T : ℕ
     (θ i).value ≤ optWelfare (fun _ => 1) θ := by
   classical
   let f : ι → Option (Fin T) := fun j => if j = i then some (θ i).arrival else none
+  have hwin : (θ i).InWindow (θ i).arrival := ⟨le_rfl, (θ i).arrival_le_departure⟩
   have hf : IsExpiringAllocation (fun _ => 1) θ f := by
-    refine ⟨fun j t h => ?_, fun t => ?_⟩
-    · simp only [f] at h
-      split_ifs at h with hj
-      · subst hj
-        have ht := Option.some.inj h
-        rw [← ht]
-        exact ⟨le_rfl, (θ j).arrival_le_departure⟩
-    · have hsub : (Finset.univ.filter fun j => f j = some t) ⊆ {i} := by
-        intro j hj
-        have hfj := (Finset.mem_filter.mp hj).2
-        simp only [f] at hfj
-        split_ifs at hfj with hji
-        · exact Finset.mem_singleton.mpr hji
-      exact (Finset.card_le_card hsub).trans (by simp)
+    refine isExpiringAllocation_unit (fun j t h => ?_) fun x y t hx hy => ?_
+    · simp only [f, Option.ite_none_right_eq_some, Option.some.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact hwin
+    · simp only [f, Option.ite_none_right_eq_some] at hx hy
+      exact hx.1.trans hy.1.symm
   have hwf : welfare θ f = (θ i).value := by
     unfold welfare
-    rw [Finset.sum_eq_single i]
-    · simp only [f, ↓reduceIte]
-      exact AgentType.realizedValue_some_of_inWindow ⟨le_rfl, (θ i).arrival_le_departure⟩
-    · intro j _ hne
-      simp only [f, hne, ↓reduceIte, AgentType.realizedValue_none]
-    · intro hi
-      exact absurd (Finset.mem_univ i) hi
+    rw [Fintype.sum_eq_single i fun j hne => by
+      simp only [f, hne, ↓reduceIte, AgentType.realizedValue_none]]
+    simp only [f, ↓reduceIte, AgentType.realizedValue_some_of_inWindow hwin]
   exact hwf ▸ welfare_le_optWelfare hf
 
 /-- Helper: two-agent allocation on distinct periods `t₀ ≠ t₁` gives a lower bound on
@@ -860,51 +775,19 @@ private theorem add_le_optWelfare_of_pair {ι : Type*} [Fintype ι] {T : ℕ}
   classical
   let f : ι → Option (Fin T) := fun x => if x = i then some t₀ else if x = j then some t₁ else none
   have hf : IsExpiringAllocation (fun _ => 1) θ f := by
-    refine ⟨fun x t h => ?_, fun t => ?_⟩
+    refine isExpiringAllocation_unit (fun x t h => ?_) fun x y t hx hy => ?_
     · simp only [f] at h
       split_ifs at h with hxi hxj
       · subst hxi; exact (Option.some.inj h) ▸ hi
       · subst hxj; exact (Option.some.inj h) ▸ hj
-    · by_cases ht0 : t = t₀
-      · subst ht0
-        have hsub : (Finset.univ.filter fun x => f x = some t) ⊆ {i} := by
-          intro x hx
-          have hfx := (Finset.mem_filter.mp hx).2
-          simp only [f] at hfx
-          split_ifs at hfx with hxi hxj
-          · exact Finset.mem_singleton.mpr hxi
-          · exact absurd (Option.some.inj hfx).symm ht
-        exact (Finset.card_le_card hsub).trans (by simp)
-      · by_cases ht1 : t = t₁
-        · subst ht1
-          have hsub : (Finset.univ.filter fun x => f x = some t) ⊆ {j} := by
-            intro x hx
-            have hfx := (Finset.mem_filter.mp hx).2
-            simp only [f] at hfx
-            split_ifs at hfx with hxi hxj
-            · exact absurd (Option.some.inj hfx) ht
-            · exact Finset.mem_singleton.mpr hxj
-          exact (Finset.card_le_card hsub).trans (by simp)
-        · have hempty : (Finset.univ.filter fun x => f x = some t) = ∅ := by
-            ext x
-            simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty,
-              iff_false, f]
-            split_ifs with hxi hxj
-            · exact fun h => ht0 (Option.some.inj h).symm
-            · exact fun h => ht1 (Option.some.inj h).symm
-            · exact not_false
-          rw [hempty]; simp
+    · simp only [f] at hx hy
+      split_ifs at hx hy <;> grind
   have hwf : welfare θ f = (θ i).value + (θ j).value := by
     unfold welfare
-    have hsub : ({i, j} : Finset ι) ⊆ Finset.univ := Finset.subset_univ _
-    rw [← Finset.sum_subset hsub]
-    · rw [Finset.sum_pair hij]
-      simp only [f, ↓reduceIte, hij.symm]
-      rw [AgentType.realizedValue_some_of_inWindow hi,
-        AgentType.realizedValue_some_of_inWindow hj]
-    · intro x _ hx
-      rw [Finset.mem_insert, Finset.mem_singleton, not_or] at hx
-      simp only [f, hx.1, hx.2, ↓reduceIte, AgentType.realizedValue_none]
+    rw [Fintype.sum_eq_add i j hij fun x hx => by
+      simp only [f, hx.1, hx.2, ↓reduceIte, AgentType.realizedValue_none]]
+    simp only [f, ↓reduceIte, hij.symm, AgentType.realizedValue_some_of_inWindow hi,
+      AgentType.realizedValue_some_of_inWindow hj]
   exact hwf ▸ welfare_le_optWelfare hf
 
 /-- Lower bound for deterministic truthful expiring-items auctions: no deterministic, causal,
@@ -922,27 +805,15 @@ theorem no_lt_two_competitive_truthful_expiring
   have hmono : M.policy.IsMonotone := hdsic.isMonotone hir hlz
   set δ : ℝ := (2 - c) / (4 * (|c| + 1))
   have hδpos : 0 < δ := by positivity
+  have hδle : ∀ x ≤ |c| + 1, δ * x ≤ (2 - c) / 4 := fun x hx => by
+    have hδc : δ * (|c| + 1) = (2 - c) / 4 := by
+      dsimp only [δ]
+      field_simp
+    exact hδc ▸ mul_le_mul_of_nonneg_left hx hδpos.le
   have hδc1 : c * (1 + 2 * δ) < 2 + 2 * δ := by
-    have h1 : c - 1 ≤ |c| + 1 := by linarith [le_abs_self c]
-    have h2 : 2 * (c - 1) * δ ≤ (2 - c) / 2 := by
-      have : 2 * (c - 1) * δ ≤ 2 * (|c| + 1) * δ := by nlinarith [hδpos]
-      have hsimp : 2 * (|c| + 1) * δ = (2 - c) / 2 := by
-        dsimp only [δ]
-        have hne : (4 * (|c| + 1) : ℝ) ≠ 0 := by positivity
-        field_simp [hne]
-        ring
-      linarith
-    linarith
+    linarith [hδle (c - 1) (by linarith [le_abs_self c])]
   have hδc2 : c * (1 + δ) < 2 + 2 * δ := by
-    have h1 : c - 2 ≤ |c| + 1 := by linarith [le_abs_self c]
-    have h2 : (c - 2) * δ ≤ (2 - c) / 4 := by
-      have : (c - 2) * δ ≤ (|c| + 1) * δ := by nlinarith [hδpos]
-      have hsimp : (|c| + 1) * δ = (2 - c) / 4 := by
-        dsimp only [δ]
-        have hne : (4 * (|c| + 1) : ℝ) ≠ 0 := by positivity
-        field_simp [hne]
-      linarith
-    linarith
+    linarith [hδle (c - 2) (by linarith [le_abs_self c])]
   set B : ℝ := (|c| + 1) * (2 + 2 * δ) + 1
   have hBpos : 0 < B := by positivity
   have h01 : (0 : Fin 2) ≤ (1 : Fin 2) := by decide
@@ -951,13 +822,6 @@ theorem no_lt_two_competitive_truthful_expiring
   set t1_0 : AgentType (Fin 2) := pointType 1 0 le_rfl
   set t1_B : AgentType (Fin 2) := pointType 1 B hBpos.le
   set θA : Fin 3 → AgentType (Fin 2) := ![t0_1, t0_1d, t1_0]
-  have hbound_three :
-      ∀ (θ : Fin 3 → AgentType (Fin 2)),
-        welfare θ (M.policy.alloc θ) =
-          (θ 0).realizedValue (M.policy.alloc θ 0) +
-          (θ 1).realizedValue (M.policy.alloc θ 1) +
-          (θ 2).realizedValue (M.policy.alloc θ 2) := fun θ => by
-    simp only [welfare, Fin.sum_univ_three]
   -- Shared argument when agent `w ∈ {0, 1}` wins period `0` in `θA` and `o` is the other one.
   have hwin0_case :
       ∀ (w o : Fin 3), w ≠ o → w ≠ 2 → o ≠ 2 →
@@ -969,19 +833,10 @@ theorem no_lt_two_competitive_truthful_expiring
           ∃ θ : Fin 3 → AgentType (Fin 2),
             c * welfare θ (M.policy.alloc θ) < optWelfare (fun _ => 1) θ := by
     intro w o hwo hw2 ho2 v_ext hv_ext hgt hsum_val hc_lt hwA
-    have hθA_w_arr : (θA w).arrival = 0 := by fin_cases w <;> simp_all [θA, t0_1, t0_1d]
-    have hθA_w_dep : (θA w).departure = 0 := by fin_cases w <;> simp_all [θA, t0_1, t0_1d]
-    have hθA_o_arr : (θA o).arrival = 0 := by fin_cases o <;> simp_all [θA, t0_1, t0_1d]
-    have hθA_o_dep : (θA o).departure = 0 := by fin_cases o <;> simp_all [θA, t0_1, t0_1d]
-    have hbound_wo2 : ∀ (θ : Fin 3 → AgentType (Fin 2)),
-        welfare θ (M.policy.alloc θ) =
-          (θ w).realizedValue (M.policy.alloc θ w) +
-          (θ o).realizedValue (M.policy.alloc θ o) +
-          (θ 2).realizedValue (M.policy.alloc θ 2) := by
-      intro θ
-      rw [hbound_three θ]
-      fin_cases w <;> fin_cases o <;> simp_all
-      ring
+    have hcover : ∀ j : Fin 3, j ≠ w → j ≠ o → j = 2 := by
+      intro j; fin_cases w <;> fin_cases o <;> fin_cases j <;> simp_all
+    have hθA_dep : ∀ x : Fin 3, x ≠ 2 → (θA x).departure = 0 := by
+      intro x hx; fin_cases x <;> simp_all [θA, t0_1, t0_1d]
     have hcausal_upd2 : ∀ (θ : Fin 3 → AgentType (Fin 2)) (τ₂ : AgentType (Fin 2)),
         (θ 2).arrival = 1 → τ₂.arrival = 1 →
         M.policy.alloc θ w = some 0 →
@@ -1000,113 +855,83 @@ theorem no_lt_two_competitive_truthful_expiring
     have hwC_some : (M.policy.alloc θC w).isSome := by
       have hθBw : θB w = θA w := Function.update_of_ne hw2 _ _
       exact hmono w θB (θA w) (intervalType 0 1 h01 v_ext hv_ext)
-        (by rw [hθA_w_arr]) (by rw [hθA_w_dep]; exact h01) hgt
+        (Fin.zero_le _) (by rw [hθA_dep w hw2]; exact h01) hgt
         (by rw [← hθBw, Function.update_eq_self, hwB]; rfl)
+    have hθCo : θC o = θA o := by
+      simp only [θC, θB, Function.update_of_ne hwo.symm, Function.update_of_ne ho2]
+    have hθCw : θC w = intervalType 0 1 h01 v_ext hv_ext := Function.update_self w _ _
     obtain ⟨tC, htC⟩ := Option.isSome_iff_exists.mp hwC_some
     fin_cases tC
-    · set θD : Fin 3 → AgentType (Fin 2) := Function.update θC 2 t1_0
+    · -- `w` keeps period `0` with the wider window; lowering agent `2` leaves `o` unserved.
+      set θD : Fin 3 → AgentType (Fin 2) := Function.update θC 2 t1_0
       have hwD : M.policy.alloc θD w = some 0 :=
         hcausal_upd2 θC t1_0
           (by dsimp only [θC, θB]; rw [Function.update_of_ne hw2.symm, Function.update_self])
           rfl htC
-      have hθDo : θD o = θA o := by
-        simp only [θD, θC, θB, Function.update_of_ne ho2, Function.update_of_ne hwo.symm]
+      have hθDo : θD o = θA o := by simp only [θD, Function.update_of_ne ho2, hθCo]
       have hθDw : θD w = intervalType 0 1 h01 v_ext hv_ext := by
-        simp only [θD, θC, Function.update_of_ne hw2, Function.update_self]
+        simp only [θD, Function.update_of_ne hw2, hθCw]
       have hθD2 : θD 2 = t1_0 := Function.update_self 2 _ _
-      have hoD_none : M.policy.alloc θD o = none := by
-        cases ho : M.policy.alloc θD o with
-        | none => rfl
-        | some s =>
-          have hs0 : s = 0 := le_antisymm
-            (by simpa only [hθDo, hθA_o_dep] using (M.policy.alloc_in_window θD o s ho).2)
-            (Fin.zero_le s)
-          rw [hs0] at ho
-          exact absurd (eq_of_alloc_eq_some_unit (hfeas θD) ho hwD) hwo.symm
+      have hoD_none : M.policy.alloc θD o = none :=
+        alloc_eq_none_of_point_of_eq_some hfeas (Fin.zero_le _)
+          (by rw [hθDo, hθA_dep o ho2]) hwD hwo.symm
       have hwD_le : welfare θD (M.policy.alloc θD) ≤ v_ext := by
-        rw [hbound_wo2 θD, hoD_none, AgentType.realizedValue_none, add_zero]
-        have hwv : (θD w).realizedValue (M.policy.alloc θD w) ≤ v_ext := by
-          have := (θD w).realizedValue_le_value (M.policy.alloc θD w)
-          rwa [show (θD w).value = v_ext from congrArg AgentType.value hθDw] at this
-        have h2v : (θD 2).realizedValue (M.policy.alloc θD 2) ≤ 0 := by
-          have := (θD 2).realizedValue_le_value (M.policy.alloc θD 2)
-          rwa [show (θD 2).value = 0 from congrArg AgentType.value hθD2] at this
-        linarith
+        refine (welfare_le_sum_value {w} fun j hj => ?_).trans_eq
+          (by rw [Finset.sum_singleton, hθDw])
+        rcases eq_or_ne j o with rfl | hjo
+        · exact .inl hoD_none
+        · exact .inr (by rw [hcover j (Finset.notMem_singleton.1 hj) hjo, hθD2])
       have hoptD : 2 + 2 * δ ≤ optWelfare (fun _ => 1) θD := by
-        have h := add_le_optWelfare_of_pair θD (i := o) (j := w) (t₀ := 0) (t₁ := 1)
-          hwo.symm (by decide)
-          (by rw [hθDo]; exact ⟨le_of_eq hθA_o_arr, le_of_eq hθA_o_dep.symm⟩)
+        have h := add_le_optWelfare_of_pair θD (t₀ := 0) (t₁ := 1) hwo.symm (by decide)
+          (by rw [hθDo]; exact ⟨(θA o).arrival_le_departure.trans (hθA_dep o ho2).le,
+            Fin.zero_le _⟩)
           (by rw [hθDw]; exact ⟨h01, le_rfl⟩)
         rw [hθDo, hθDw] at h
         dsimp only [intervalType] at h
         linarith
       refine ⟨θD, ?_⟩
-      by_cases hc0 : 0 ≤ c
-      · exact lt_of_le_of_lt (mul_le_mul_of_nonneg_left hwD_le hc0) (lt_of_lt_of_le hc_lt hoptD)
-      · have hneg : c * welfare θD (M.policy.alloc θD) ≤ 0 :=
-          mul_nonpos_of_nonpos_of_nonneg (le_of_not_ge hc0) (welfare_nonneg _ _)
-        linarith
-    · have hθC2 : θC 2 = t1_B := by
+      rcases le_or_gt 0 c with hc0 | hc0
+      · linarith [mul_le_mul_of_nonneg_left hwD_le hc0]
+      · nlinarith [welfare_nonneg θD (M.policy.alloc θD)]
+    · -- `w` moves to period `1`, so the high-value agent `2` arriving at period `1` loses.
+      have hθC2 : θC 2 = t1_B := by
         simp only [θC, θB, Function.update_of_ne hw2.symm, Function.update_self]
-      have hθCo : θC o = θA o := by
-        simp only [θC, θB, Function.update_of_ne hwo.symm, Function.update_of_ne ho2]
-      have hθCw : θC w = intervalType 0 1 h01 v_ext hv_ext := Function.update_self w _ _
-      have h2C_none : M.policy.alloc θC 2 = none := by
-        cases h2 : M.policy.alloc θC 2 with
-        | none => rfl
-        | some s =>
-          have hs1 : s = 1 := le_antisymm (Fin.le_last s)
-            (by simpa only [hθC2, pointType] using (M.policy.alloc_in_window θC 2 s h2).1)
-          rw [hs1] at h2
-          exact absurd (eq_of_alloc_eq_some_unit (hfeas θC) h2 htC) hw2.symm
+      have h2C_none : M.policy.alloc θC 2 = none :=
+        alloc_eq_none_of_point_of_eq_some hfeas (by rw [hθC2]; exact le_rfl) (Fin.le_last _) htC
+          hw2.symm
       have hwC : welfare θC (M.policy.alloc θC) ≤ 2 + 2 * δ := by
-        rw [hbound_wo2 θC, h2C_none, AgentType.realizedValue_none, add_zero]
-        have hwv : (θC w).realizedValue (M.policy.alloc θC w) ≤ v_ext := by
-          have := (θC w).realizedValue_le_value (M.policy.alloc θC w)
-          rwa [show (θC w).value = v_ext from congrArg AgentType.value hθCw] at this
-        have hov : (θC o).realizedValue (M.policy.alloc θC o) ≤ (θA o).value := by
-          have := (θC o).realizedValue_le_value (M.policy.alloc θC o)
-          rwa [show (θC o).value = (θA o).value from congrArg AgentType.value hθCo] at this
-        linarith
+        refine (welfare_le_sum_value {w, o} fun j hj => .inl ?_).trans ?_
+        · simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hj
+          rw [hcover j hj.1 hj.2, h2C_none]
+        · rw [Finset.sum_pair hwo, hθCw, hθCo]
+          dsimp only [intervalType]
+          linarith
       have hoptC : B ≤ optWelfare (fun _ => 1) θC := by
         simpa only [hθC2, pointType] using value_le_optWelfare_of_single θC 2
       refine ⟨θC, ?_⟩
-      have hcwC : c * welfare θC (M.policy.alloc θC) ≤ |c| * (2 + 2 * δ) := by
-        calc c * welfare θC (M.policy.alloc θC)
-            ≤ |c| * welfare θC (M.policy.alloc θC) :=
-              mul_le_mul_of_nonneg_right (le_abs_self c) (welfare_nonneg _ _)
-          _ ≤ |c| * (2 + 2 * δ) := mul_le_mul_of_nonneg_left hwC (abs_nonneg c)
+      have hcwC : c * welfare θC (M.policy.alloc θC) ≤ |c| * (2 + 2 * δ) :=
+        (mul_le_mul_of_nonneg_right (le_abs_self c) (welfare_nonneg _ _)).trans
+          (mul_le_mul_of_nonneg_left hwC (abs_nonneg c))
       dsimp only [B] at hoptC
       linarith
   by_cases h1A : M.policy.alloc θA 1 = some 0
   · exact hwin0_case 1 0 (by decide) (by decide) (by decide) (1 + 2 * δ) (by linarith)
       (by dsimp [θA, t0_1d]; linarith) (by dsimp [θA, t0_1]; ring) hδc1 h1A
-  · by_cases h0A : M.policy.alloc θA 0 = some 0
-    · exact hwin0_case 0 1 (by decide) (by decide) (by decide) (1 + δ) (by linarith)
-        (by dsimp [θA, t0_1]; linarith) (by dsimp [θA, t0_1d]; ring) hδc2 h0A
-    · -- Case 3: Neither Agent 0 nor Agent 1 wins t = 0 in θA.
-      have hnone_of_dep0 : ∀ i : Fin 3, (θA i).departure = 0 →
-          M.policy.alloc θA i ≠ some 0 → M.policy.alloc θA i = none := by
-        intro i hdep hne
-        cases hi : M.policy.alloc θA i with
-        | none => rfl
-        | some s =>
-          have hs0 : s = 0 := le_antisymm
-            (hdep ▸ (M.policy.alloc_in_window θA i s hi).2) (Fin.zero_le s)
-          exact absurd (hs0 ▸ hi) hne
-      have h0A_none : M.policy.alloc θA 0 = none := hnone_of_dep0 0 rfl h0A
-      have h1A_none : M.policy.alloc θA 1 = none := hnone_of_dep0 1 rfl h1A
-      have hwA : welfare θA (M.policy.alloc θA) = 0 := by
-        rw [hbound_three θA, h0A_none, h1A_none, AgentType.realizedValue_none,
-          AgentType.realizedValue_none, zero_add, zero_add]
-        have hge := (θA 2).realizedValue_nonneg (M.policy.alloc θA 2)
-        have hle := (θA 2).realizedValue_le_value (M.policy.alloc θA 2)
-        have hv2 : (θA 2).value = 0 := rfl
-        linarith
-      have hoptA : 1 + δ ≤ optWelfare (fun _ => 1) θA := value_le_optWelfare_of_single θA 1
-      refine ⟨θA, ?_⟩
-      rw [hwA, mul_zero]
-      linarith
+  by_cases h0A : M.policy.alloc θA 0 = some 0
+  · exact hwin0_case 0 1 (by decide) (by decide) (by decide) (1 + δ) (by linarith)
+      (by dsimp [θA, t0_1]; linarith) (by dsimp [θA, t0_1d]; ring) hδc2 h0A
+  -- Neither agent `0` nor agent `1` wins period `0` in `θA`, so nobody realizes value.
+  have hwA : welfare θA (M.policy.alloc θA) = 0 := by
+    refine le_antisymm ((welfare_le_sum_value ∅ fun j _ => ?_).trans_eq Finset.sum_empty)
+      (welfare_nonneg _ _)
+    fin_cases j
+    · exact .inl ((alloc_eq_none_or_eq_some_of_point M.policy le_rfl le_rfl).resolve_right h0A)
+    · exact .inl ((alloc_eq_none_or_eq_some_of_point M.policy le_rfl le_rfl).resolve_right h1A)
+    · exact .inr rfl
+  have hoptA : 1 + δ ≤ optWelfare (fun _ => 1) θA := value_le_optWelfare_of_single θA 1
+  refine ⟨θA, ?_⟩
+  rw [hwA, mul_zero]
+  linarith
 
 /-- Impossibility under arbitrary departure misreports: for every `c : ℝ`, there exist a finite
 horizon `T` and agent count `n` such that no deterministic, causal, unit-capacity expiring-items
@@ -1124,19 +949,16 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
   have hc'_pos : 0 < c' := lt_of_lt_of_le zero_lt_one (le_max_right c 1)
   have hc_le : c ≤ c' := le_max_left c 1
   obtain ⟨m, hm⟩ := exists_nat_gt (2 * c' ^ 2)
-  have hm_pos : 0 < m := by
-    by_contra h0
-    have hm0 : m = 0 := by omega
-    subst hm0
-    simp only [Nat.cast_zero] at hm
-    have : (0 : ℝ) < 2 * c' ^ 2 := by positivity
-    linarith
   refine ⟨2 * m + 1, m + 1, fun M hfeas hcausal hdsic_nea hir hnpt hlz => ?_⟩
   by_contra hcomp_not
   push Not at hcomp_not
-  have hcomp : ∀ θ : Fin (2 * m + 1) → AgentType (Fin (m + 1)),
-      optWelfare (fun _ => 1) θ ≤ c' * welfare θ (M.policy.alloc θ) := fun θ =>
-    (hcomp_not θ).trans (mul_le_mul_of_nonneg_right hc_le (welfare_nonneg _ _))
+  -- `c'`-competitiveness as used below: no profile has welfare at most `w` and optimal welfare at
+  -- least `o` with `c' * w < o`.
+  have hcomp : ∀ (θ : Fin (2 * m + 1) → AgentType (Fin (m + 1))) {w o : ℝ},
+      welfare θ (M.policy.alloc θ) ≤ w → o ≤ optWelfare (fun _ => 1) θ → c' * w < o → False :=
+    fun θ _ _ hw ho hlt => by
+      linarith [hcomp_not θ, mul_le_mul_of_nonneg_right hc_le (welfare_nonneg θ (M.policy.alloc θ)),
+        mul_le_mul_of_nonneg_left hw hc'_pos.le]
   have hdsic : M.IsDSIC := hdsic_nea.isDSIC
   have hmono : M.policy.IsMonotone := hdsic.isMonotone hir hlz
   have hpay_eq : ∀ θ i, M.payment θ i = M.policy.criticalPayment θ i :=
@@ -1161,10 +983,6 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
       omega
   let mainAgent : Fin m → Fin (2 * m + 1) := fun k => ⟨k.val + 1, by omega⟩
   let blockerAgent : Fin m → Fin (2 * m + 1) := fun k => ⟨m + k.val + 1, by omega⟩
-  have hmain_period : ∀ k : Fin m, periodOf (mainAgent k) = ⟨k.val + 1, by omega⟩ := by
-    intro k
-    have hle : k.val + 1 ≤ m := k.isLt
-    simp only [periodOf, mainAgent, hle, ↓reduceDIte]
   have hblocker_period : ∀ k : Fin m, periodOf (blockerAgent k) = ⟨k.val + 1, by omega⟩ := by
     intro k
     have hnot : ¬ (m + k.val + 1 ≤ m) := by omega
@@ -1181,24 +999,19 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
   let θBase : Fin (2 * m + 1) → AgentType (Fin (m + 1)) := fun j =>
     if j.val = 0 then pointType 0 1 (by norm_num)
     else pointType (periodOf j) 0 le_rfl
-  -- Helper: if agent 0 has value 1 and every other agent either loses or has value 0, welfare ≤ 1.
-  have hw_le_one :
-      ∀ (θ : Fin (2 * m + 1) → AgentType (Fin (m + 1))),
-        (θ 0).value = 1 →
-        (∀ j : Fin (2 * m + 1), j ≠ 0 → M.policy.alloc θ j = none ∨ (θ j).value = 0) →
-        welfare θ (M.policy.alloc θ) ≤ 1 := by
-    intro θ h0v hrest_cond
-    unfold welfare
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (2 * m + 1)))]
-    have h0le : (θ 0).realizedValue (M.policy.alloc θ 0) ≤ 1 :=
-      h0v ▸ (θ 0).realizedValue_le_value (M.policy.alloc θ 0)
-    have hrest : ∑ j ∈ Finset.univ.erase (0 : Fin (2 * m + 1)),
-        (θ j).realizedValue (M.policy.alloc θ j) ≤ 0 := by
-      refine Finset.sum_nonpos fun j hj => ?_
-      rcases hrest_cond j (Finset.mem_erase.mp hj).1 with hnone | hv0
-      · rw [hnone, AgentType.realizedValue_none]
-      · linarith [(θ j).realizedValue_le_value (M.policy.alloc θ j)]
-    linarith
+  have hStar0 : θStar 0 = pointType 0 1 (by norm_num) := by
+    simp only [θStar, Fin.val_zero, ↓reduceIte]
+  have hBase0 : θBase 0 = pointType 0 1 (by norm_num) := by
+    simp only [θBase, Fin.val_zero, ↓reduceIte]
+  have hBase : ∀ x, x ≠ 0 → θBase x = pointType (periodOf x) 0 le_rfl := fun x hx => by
+    simp only [θBase, show x.val ≠ 0 from fun h => hx (Fin.ext h), ↓reduceIte]
+  have hStar_arr : ∀ x, x ≠ 0 → (θStar x).arrival = periodOf x := fun x hx => by
+    simp only [θStar, show x.val ≠ 0 from fun h => hx (Fin.ext h), ↓reduceIte]
+    split_ifs <;> rfl
+  have hStar_main : ∀ k : Fin m, θStar (mainAgent k) = pointType ⟨k.val + 1, by omega⟩ vlow
+      hvlow_pos.le := fun k => by
+    have hle : k.val + 1 ≤ m := k.isLt
+    simp only [θStar, mainAgent, Nat.add_one_ne_zero, hle, ↓reduceIte, periodOf, ↓reduceDIte]
   -- Every mainAgent k loses in θStar!
   have hmain_loses : ∀ k : Fin m, M.policy.alloc θStar (mainAgent k) = none := by
     intro k
@@ -1208,11 +1021,35 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
       intro h
       have := congrArg Fin.val h
       simp [i, mainAgent] at this
-    have hθStar_i : θStar i = pointType tk vlow hvlow_pos.le := by
-      have h1 : i.val ≠ 0 := by simp [i, mainAgent]
-      have h2 : i.val ≤ m := k.isLt
-      simp only [θStar, h1, h2, ↓reduceIte, i, hmain_period]
-      rfl
+    -- Agent `i` reporting the single period `t` can only win at `t`.
+    have hpoint : ∀ (θ : Fin (2 * m + 1) → AgentType (Fin (m + 1))) (t : Fin (m + 1)) (v : ℝ)
+        (hv : 0 ≤ v), M.policy.alloc (Function.update θ i (pointType t v hv)) i = none ∨
+          M.policy.alloc (Function.update θ i (pointType t v hv)) i = some t := fun θ t v hv =>
+      alloc_eq_none_or_eq_some_of_point M.policy (by rw [Function.update_self])
+        (by rw [Function.update_self])
+    -- Profiles giving agent `0` the same type and every other agent except `i` its positive
+    -- period as arrival agree, after a common report of `i`, on all agents arrived by period `0`.
+    have hagree0 : ∀ (θ θ' : Fin (2 * m + 1) → AgentType (Fin (m + 1)))
+        (τ : AgentType (Fin (m + 1))),
+        θ 0 = θ' 0 →
+        (∀ x, x ≠ 0 → x ≠ i → (θ x).arrival = periodOf x ∧ (θ' x).arrival = periodOf x) →
+        ∀ x, (Function.update θ i τ x).arrival ≤ 0 ∨ (Function.update θ' i τ x).arrival ≤ 0 →
+          Function.update θ i τ x = Function.update θ' i τ x := by
+      intro θ θ' τ h0 harr x hx
+      by_cases hxi : x = i
+      · subst hxi
+        simp only [Function.update_self]
+      simp only [Function.update_of_ne hxi] at hx ⊢
+      by_cases hx0 : x = 0
+      · subst hx0
+        exact h0
+      rw [(harr x hx0 hxi).1, (harr x hx0 hxi).2, or_self] at hx
+      exact absurd hx (not_le_of_gt (hperiod_pos x hx0))
+    have hagreeSB : ∀ τ x, (Function.update θStar i τ x).arrival ≤ 0 ∨
+        (Function.update θBase i τ x).arrival ≤ 0 →
+          Function.update θStar i τ x = Function.update θBase i τ x := fun τ =>
+      hagree0 θStar θBase τ (hStar0.trans hBase0.symm) fun x hx0 _ =>
+        ⟨hStar_arr x hx0, by rw [hBase x hx0]⟩
     -- Step 1: criticalValue θStar i 0 0 ≥ ENNReal.ofReal (1 / c')
     have hcv00_ge : ENNReal.ofReal (1 / c') ≤ M.policy.criticalValue θStar i 0 0 le_rfl := by
       refine le_sInf fun w hw => ?_
@@ -1220,70 +1057,23 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
       apply ENNReal.ofReal_le_ofReal
       by_contra hlt
       push Not at hlt
-      have hwin0 : M.policy.alloc (Function.update θStar i (pointType 0 z hz)) i = some 0 := by
-        obtain ⟨t, ht⟩ := Option.isSome_iff_exists.mp hwin_z
-        have ht0 : t = 0 := le_antisymm
-          (by simpa only [Function.update_self, pointType] using
-            (M.policy.alloc_in_window _ i t ht).2)
-          (Fin.zero_le t)
-        exact ht0 ▸ ht
+      have hwin0 := (hpoint θStar 0 z hz).resolve_left (Option.isSome_iff_ne_none.mp hwin_z)
       set θz := Function.update θBase i (pointType 0 z hz)
-      have hagree : ∀ j, ((Function.update θStar i (pointType 0 z hz)) j).arrival ≤ 0 ∨
-          (θz j).arrival ≤ 0 → Function.update θStar i (pointType 0 z hz) j = θz j := by
-        intro j hj
-        by_cases hji : j = i
-        · subst hji; simp only [θz, Function.update_self]
-        · by_cases hj0 : j = 0
-          · subst hj0
-            simp only [θz, Function.update_of_ne hji, θStar, θBase, Fin.val_zero, ↓reduceIte]
-          · exfalso
-            have hp := hperiod_pos j hj0
-            have h1 : j.val ≠ 0 := fun h => hj0 (Fin.ext h)
-            simp only [θz, Function.update_of_ne hji, θStar, θBase, h1, ↓reduceIte] at hj
-            rcases hj with h | h
-            · split_ifs at h <;> exact not_lt_of_ge h hp
-            · exact not_lt_of_ge h hp
-      have hwin_θz : M.policy.alloc θz i = some 0 := (hcausal 0 _ θz hagree i).mp hwin0
-      have h0_none : M.policy.alloc θz 0 = none := by
-        cases h0 : M.policy.alloc θz 0 with
-        | none => rfl
-        | some s =>
-          have hs0 : s = 0 := le_antisymm
-            (by simpa only [θz, Function.update_of_ne hi0.symm, θBase, Fin.val_zero, ↓reduceIte,
-              pointType] using (M.policy.alloc_in_window θz 0 s h0).2)
-            (Fin.zero_le s)
-          exact absurd (eq_of_alloc_eq_some_unit (hfeas θz) (hs0 ▸ h0) hwin_θz) hi0.symm
+      have hwin_θz : M.policy.alloc θz i = some 0 := (hcausal 0 _ θz (hagreeSB _) i).mp hwin0
+      have hθz0 : θz 0 = pointType 0 1 (by norm_num) := by
+        simp only [θz, Function.update_of_ne hi0.symm, hBase0]
+      have h0_none : M.policy.alloc θz 0 = none :=
+        alloc_eq_none_of_point_of_eq_some hfeas (Fin.zero_le _) (by rw [hθz0]) hwin_θz hi0.symm
       have hw_le : welfare θz (M.policy.alloc θz) ≤ z := by
-        unfold welfare
-        have hsum : ∑ j : Fin (2 * m + 1), (θz j).realizedValue (M.policy.alloc θz j) ≤
-            (θz i).realizedValue (M.policy.alloc θz i) := by
-          rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-          have hrest :
-              ∑ j ∈ Finset.univ.erase i, (θz j).realizedValue (M.policy.alloc θz j) ≤ 0 := by
-            refine Finset.sum_nonpos fun j hj => ?_
-            have hji : j ≠ i := (Finset.mem_erase.mp hj).1
-            by_cases hj0 : j = 0
-            · subst hj0; rw [h0_none, AgentType.realizedValue_none]
-            · have hle := (θz j).realizedValue_le_value (M.policy.alloc θz j)
-              have hval0 : (θz j).value = 0 := by
-                have h1 : j.val ≠ 0 := fun h => hj0 (Fin.ext h)
-                simp only [θz, Function.update_of_ne hji, θBase, h1, ↓reduceIte, pointType]
-              linarith
-          linarith
-        have hival : (θz i).realizedValue (M.policy.alloc θz i) ≤ z := by
-          have := (θz i).realizedValue_le_value (M.policy.alloc θz i)
-          simpa only [θz, Function.update_self, pointType] using this
-        exact hsum.trans hival
+        refine (welfare_le_sum_value {i} fun j hj => ?_).trans_eq
+          (by simp only [θz, Finset.sum_singleton, Function.update_self, pointType])
+        rcases eq_or_ne j 0 with rfl | hj0
+        · exact .inl h0_none
+        · exact .inr (by simp only [θz, Function.update_of_ne (Finset.notMem_singleton.1 hj),
+            hBase j hj0, pointType])
       have hopt1 : 1 ≤ optWelfare (fun _ => 1) θz := by
-        have := value_le_optWelfare_of_single θz 0
-        simpa only [θz, Function.update_of_ne hi0.symm, θBase, Fin.val_zero, ↓reduceIte,
-          pointType] using this
-      have hcz : c' * z < 1 := by
-        have := (lt_div_iff₀ hc'_pos).mp hlt
-        linarith
-      have hccomp := hcomp θz
-      have := mul_le_mul_of_nonneg_left hw_le hc'_pos.le
-      linarith
+        simpa only [hθz0, pointType] using value_le_optWelfare_of_single θz 0
+      exact hcomp θz hw_le hopt1 (by rwa [lt_div_iff₀ hc'_pos, mul_comm] at hlt)
     -- Step 2: For Y := 2 * c' + 1, agent i wins at t = 0 under (0, 0, Y - 1) and (0, tk, Y)
     set Y : ℝ := 2 * c' + 1
     have hY1_nonneg : 0 ≤ Y - 1 := by dsimp [Y]; linarith
@@ -1291,58 +1081,27 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
     have h0tk : (0 : Fin (m + 1)) ≤ tk := Fin.zero_le tk
     have hwin_big0_base :
         M.policy.alloc (Function.update θBase i (pointType 0 (Y - 1) hY1_nonneg)) i = some 0 := by
+      refine (hpoint θBase 0 (Y - 1) hY1_nonneg).resolve_left fun hi_none => ?_
       set θbig := Function.update θBase i (pointType 0 (Y - 1) hY1_nonneg)
-      by_contra hne
-      have hi_none : M.policy.alloc θbig i = none := by
-        cases h : M.policy.alloc θbig i with
-        | none => rfl
-        | some s =>
-          have hs0 : s = 0 := le_antisymm
-            (by simpa only [θbig, Function.update_self, pointType] using
-              (M.policy.alloc_in_window θbig i s h).2)
-            (Fin.zero_le s)
-          exact absurd (hs0 ▸ h) hne
       have hw_le : welfare θbig (M.policy.alloc θbig) ≤ 1 := by
-        refine hw_le_one θbig ?_ fun j hj0 => ?_
-        · simp only [θbig, Function.update_of_ne hi0.symm, θBase, Fin.val_zero, ↓reduceIte,
-            pointType]
-        · by_cases hji : j = i
-          · exact Or.inl (hji ▸ hi_none)
-          · right
-            have h1 : j.val ≠ 0 := fun h => hj0 (Fin.ext h)
-            simp only [θbig, Function.update_of_ne hji, θBase, h1, ↓reduceIte, pointType]
+        refine (welfare_le_sum_value {0} fun j hj => ?_).trans_eq (by
+          simp only [θbig, Finset.sum_singleton, Function.update_of_ne hi0.symm, hBase0, pointType])
+        rcases eq_or_ne j i with rfl | hji
+        · exact .inl hi_none
+        · exact .inr (by simp only [θbig, Function.update_of_ne hji,
+            hBase j (Finset.notMem_singleton.1 hj), pointType])
       have hoptY : Y - 1 ≤ optWelfare (fun _ => 1) θbig := by
-        have := value_le_optWelfare_of_single θbig i
-        simpa only [θbig, Function.update_self, pointType] using this
-      have hccomp := hcomp θbig
-      have := mul_le_mul_of_nonneg_left hw_le hc'_pos.le
-      dsimp only [Y] at hoptY
-      linarith
+        simpa only [θbig, Function.update_self, pointType] using
+          value_le_optWelfare_of_single θbig i
+      exact hcomp θbig hw_le hoptY (by dsimp only [Y]; linarith)
     -- Claim 2: Agent i MUST win at t = 0 in update θStar i (0, tk, Y)!
     have hwin_tk_at_0 :
         M.policy.alloc (Function.update θStar i (intervalType 0 tk h0tk Y hY_nonneg)) i =
           some 0 := by
       by_contra hnot0
       set θ0 := Function.update θBase i (intervalType 0 tk h0tk Y hY_nonneg)
-      have hagree0 :
-          ∀ j, ((Function.update θStar i (intervalType 0 tk h0tk Y hY_nonneg)) j).arrival ≤ 0 ∨
-            (θ0 j).arrival ≤ 0 →
-            Function.update θStar i (intervalType 0 tk h0tk Y hY_nonneg) j = θ0 j := by
-        intro j hj
-        by_cases hji : j = i
-        · subst hji; simp only [θ0, Function.update_self]
-        · by_cases hj0 : j = 0
-          · subst hj0
-            simp only [θ0, Function.update_of_ne hji, θStar, θBase, Fin.val_zero, ↓reduceIte]
-          · exfalso
-            have hp := hperiod_pos j hj0
-            have h1 : j.val ≠ 0 := fun h => hj0 (Fin.ext h)
-            simp only [θ0, Function.update_of_ne hji, θStar, θBase, h1, ↓reduceIte] at hj
-            rcases hj with h | h
-            · split_ifs at h <;> exact not_lt_of_ge h hp
-            · exact not_lt_of_ge h hp
       have hθ0_not0 : M.policy.alloc θ0 i ≠ some 0 := fun h =>
-        hnot0 ((hcausal 0 _ θ0 hagree0 i).mpr h)
+        hnot0 ((hcausal 0 _ θ0 (hagreeSB _) i).mpr h)
       -- Inductively build profiles θ_j where agent i does not win at any period ≤ j
       have hind :
           ∀ j : ℕ, j ≤ tk.val →
@@ -1356,14 +1115,12 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
         | zero =>
           intro _
           refine ⟨θ0, ?_, ?_, ?_, ?_⟩
-          · simp only [θ0, Function.update_of_ne hi0.symm, θBase, Fin.val_zero, ↓reduceIte]
+          · simp only [θ0, Function.update_of_ne hi0.symm, hBase0]
           · simp only [θ0, Function.update_self]
           · intro x hx0 hxi
-            have h1 : x.val ≠ 0 := fun h => hx0 (Fin.ext h)
-            simp only [θ0, Function.update_of_ne hxi, θBase, h1, ↓reduceIte, pointType, and_self]
+            simp only [θ0, Function.update_of_ne hxi, hBase x hx0, pointType, and_self]
           · intro t ht
-            have ht0 : t = 0 := Fin.ext (Nat.le_zero.mp ht)
-            exact ht0 ▸ hθ0_not0
+            rwa [show t = 0 from Fin.ext (Nat.le_zero.mp ht)]
         | succ r ih =>
           intro hr_le
           obtain ⟨θr, hθr0, hθri, hθr_rest, hθr_no⟩ := ih (Nat.le_of_succ_le hr_le)
@@ -1396,160 +1153,91 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
             rcases Nat.eq_or_lt_of_le ht with ht_eq | ht_lt
             · -- At period t = r + 1: if agent i wins, blocker br loses, contradicting c'-comp!
               intro hi_wins_t
-              have ht_fin : t = ⟨r + 1, by omega⟩ := Fin.ext ht_eq
-              have hbr_none : M.policy.alloc θnext br = none := by
-                cases hbr : M.policy.alloc θnext br with
-                | none => rfl
-                | some s =>
-                  have hs_win := M.policy.alloc_in_window θnext br s hbr
-                  simp only [θnext, Function.update_self, pointType, AgentType.InWindow] at hs_win
-                  have hs_eq : s = ⟨r + 1, by omega⟩ := le_antisymm hs_win.2 hs_win.1
-                  rw [hs_eq, ← ht_fin] at hbr
-                  exact absurd (eq_of_alloc_eq_some_unit (hfeas θnext) hbr hi_wins_t) hbr_nei
+              obtain rfl : t = ⟨r + 1, Nat.succ_lt_succ hr_lt_m⟩ := Fin.ext ht_eq
+              have hbr_none : M.policy.alloc θnext br = none :=
+                alloc_eq_none_of_point_of_eq_some hfeas
+                  (by simp only [θnext, Function.update_self, pointType, le_refl])
+                  (by simp only [θnext, Function.update_self, pointType, le_refl]) hi_wins_t hbr_nei
               have hw_le : welfare θnext (M.policy.alloc θnext) ≤ Sval := by
-                unfold welfare
-                rw [← Finset.add_sum_erase _ _ (Finset.mem_univ br), hbr_none,
-                  AgentType.realizedValue_none, zero_add]
-                calc ∑ x ∈ Finset.univ.erase br, (θnext x).realizedValue (M.policy.alloc θnext x)
-                    ≤ ∑ x ∈ Finset.univ.erase br, (θnext x).value :=
-                      Finset.sum_le_sum fun x _ => (θnext x).realizedValue_le_value _
-                  _ = ∑ x ∈ Finset.univ.erase br, (θr x).value :=
-                      Finset.sum_congr rfl fun x hx => by
-                        simp only [θnext, Function.update_of_ne (Finset.mem_erase.mp hx).1]
-                  _ ≤ ∑ x : Fin (2 * m + 1), (θr x).value :=
-                      Finset.sum_le_sum_of_subset_of_nonneg (Finset.erase_subset _ _)
+                refine (welfare_le_sum_value (Finset.univ.erase br) fun j hj => .inl ?_).trans ?_
+                · simp only [Finset.mem_erase, Finset.mem_univ, and_true, not_not] at hj
+                  rwa [hj]
+                · calc ∑ x ∈ Finset.univ.erase br, (θnext x).value
+                      = ∑ x ∈ Finset.univ.erase br, (θr x).value :=
+                        Finset.sum_congr rfl fun x hx => by
+                          simp only [θnext, Function.update_of_ne (Finset.mem_erase.mp hx).1]
+                    _ ≤ Sval := Finset.sum_le_sum_of_subset_of_nonneg (Finset.erase_subset _ _)
                         fun x _ _ => (θr x).value_nonneg
               have hopt_ge : Bnext ≤ optWelfare (fun _ => 1) θnext := by
-                have := value_le_optWelfare_of_single θnext br
-                simpa only [θnext, Function.update_self, pointType] using this
-              have hccomp := hcomp θnext
-              have := mul_le_mul_of_nonneg_left hw_le hc'_pos.le
-              dsimp only [Bnext] at hopt_ge
-              linarith
+                simpa only [θnext, Function.update_self, pointType] using
+                  value_le_optWelfare_of_single θnext br
+              exact hcomp θnext hw_le hopt_ge (by dsimp only [Bnext]; linarith)
             · -- At period t ≤ r: causality from θr!
               have ht_le : t.val ≤ r := Nat.lt_succ_iff.mp ht_lt
               have hagree : ∀ x, (θr x).arrival ≤ t ∨ (θnext x).arrival ≤ t → θr x = θnext x := by
                 intro x hx
                 by_cases hxbr : x = br
                 · subst hxbr
-                  exfalso
                   have h1 : (θr br).arrival = ⟨r + 1, by omega⟩ :=
                     (hθr_rest br hbr_ne0 hbr_nei).1.trans hbr_per
                   have h2 : (θnext br).arrival = ⟨r + 1, by omega⟩ := by
                     simp only [θnext, Function.update_self, pointType]
-                  rcases hx with h | h
-                  · rw [h1] at h; exact not_lt_of_ge h (Nat.lt_succ_of_le ht_le)
-                  · rw [h2] at h; exact not_lt_of_ge h (Nat.lt_succ_of_le ht_le)
+                  rw [h1, h2, or_self] at hx
+                  exact absurd hx (not_le_of_gt (Nat.lt_succ_of_le ht_le))
                 · simp only [θnext, Function.update_of_ne hxbr]
-              intro hwin
-              exact hθr_no t ht_le ((hcausal t θr θnext hagree i).mpr hwin)
+              exact fun hwin => hθr_no t ht_le ((hcausal t θr θnext hagree i).mpr hwin)
       obtain ⟨θk, hθk0, hθki, hθk_rest, hθk_no⟩ := hind tk.val le_rfl
       have hθk_none : M.policy.alloc θk i = none := by
         cases h : M.policy.alloc θk i with
         | none => rfl
         | some t =>
-          have ht_le : t.val ≤ tk.val := by
-            have := (M.policy.alloc_in_window θk i t h).2
-            rw [hθki] at this
-            exact this
-          exact absurd h (hθk_no t ht_le)
+          have ht := (M.policy.alloc_in_window θk i t h).2
+          rw [hθki] at ht
+          exact absurd h (hθk_no t ht)
       -- Yet updating i in θk to (0, 0, Y - 1) agrees with θbig at t = 0, so i wins at t = 0!
-      set θk_small := Function.update θk i (pointType 0 (Y - 1) hY1_nonneg)
-      have hagree_small :
-          ∀ x, ((Function.update θBase i (pointType 0 (Y - 1) hY1_nonneg)) x).arrival ≤ 0 ∨
-            (θk_small x).arrival ≤ 0 →
-            Function.update θBase i (pointType 0 (Y - 1) hY1_nonneg) x = θk_small x := by
-        intro x hx
-        by_cases hxi : x = i
-        · subst hxi; simp only [θk_small, Function.update_self]
-        · by_cases hx0 : x = 0
-          · subst hx0
-            simp only [θk_small, Function.update_of_ne hxi, θBase, Fin.val_zero, ↓reduceIte, hθk0]
-          · exfalso
-            have hp := hperiod_pos x hx0
-            have h1 : x.val ≠ 0 := fun h => hx0 (Fin.ext h)
-            simp only [θk_small, Function.update_of_ne hxi, θBase, h1, ↓reduceIte, pointType] at hx
-            rcases hx with h | h
-            · exact not_lt_of_ge h hp
-            · rw [(hθk_rest x hx0 hxi).1] at h
-              exact not_lt_of_ge h hp
-      have hsmall_wins : M.policy.alloc θk_small i = some 0 :=
-        (hcausal 0 _ θk_small hagree_small i).mp hwin_big0_base
+      have hsmall_wins :
+          M.policy.alloc (Function.update θk i (pointType 0 (Y - 1) hY1_nonneg)) i = some 0 :=
+        (hcausal 0 _ _ (hagree0 θBase θk _ (hBase0.trans hθk0.symm) fun x hx0 hxi =>
+          ⟨by rw [hBase x hx0], (hθk_rest x hx0 hxi).1⟩) i).mp hwin_big0_base
       have hθk_some : (M.policy.alloc θk i).isSome := by
         have := hmono i θk (pointType 0 (Y - 1) hY1_nonneg) (intervalType 0 tk h0tk Y hY_nonneg)
           le_rfl h0tk (by dsimp [pointType, intervalType]; linarith)
           (by rw [hsmall_wins]; rfl)
         rwa [← hθki, Function.update_eq_self] at this
-      rw [hθk_none] at hθk_some
-      simp only [Option.isSome_none, Bool.false_eq_true] at hθk_some
+      simp [hθk_none] at hθk_some
     -- Step 3: Late-departure truthfulness gives `cv(0, 0) ≤ cv(0, tk) ≤ cv(tk, tk)`
     have hwin_00_Y :
         M.policy.alloc (Function.update θStar i (pointType 0 Y hY_nonneg)) i = some 0 := by
       have hwin_00_small :
-          M.policy.alloc (Function.update θStar i (pointType 0 (Y - 1) hY1_nonneg)) i = some 0 := by
-        have hagree :
-            ∀ x, ((Function.update θBase i (pointType 0 (Y - 1) hY1_nonneg)) x).arrival ≤ 0 ∨
-              ((Function.update θStar i (pointType 0 (Y - 1) hY1_nonneg)) x).arrival ≤ 0 →
-              Function.update θBase i (pointType 0 (Y - 1) hY1_nonneg) x =
-                Function.update θStar i (pointType 0 (Y - 1) hY1_nonneg) x := by
-          intro x hx
-          by_cases hxi : x = i
-          · subst hxi; simp only [Function.update_self]
-          · by_cases hx0 : x = 0
-            · subst hx0
-              simp only [Function.update_of_ne hxi, θBase, θStar, Fin.val_zero, ↓reduceIte]
-            · exfalso
-              have hp := hperiod_pos x hx0
-              have h1 : x.val ≠ 0 := fun h => hx0 (Fin.ext h)
-              simp only [Function.update_of_ne hxi, θBase, θStar, h1, ↓reduceIte, pointType] at hx
-              rcases hx with h | h
-              · exact not_lt_of_ge h hp
-              · split_ifs at h <;> exact not_lt_of_ge h hp
-        exact (hcausal 0 _ _ hagree i).mp hwin_big0_base
-      have hsome := hmono i θStar (pointType 0 (Y - 1) hY1_nonneg) (pointType 0 Y hY_nonneg)
-        le_rfl le_rfl (by dsimp [pointType]; linarith) (by rw [hwin_00_small]; rfl)
-      obtain ⟨t, ht⟩ := Option.isSome_iff_exists.mp hsome
-      have ht0 : t = 0 := le_antisymm
-        (by simpa only [Function.update_self, pointType] using
-          (M.policy.alloc_in_window _ i t ht).2)
-        (Fin.zero_le t)
-      exact ht0 ▸ ht
+          M.policy.alloc (Function.update θStar i (pointType 0 (Y - 1) hY1_nonneg)) i = some 0 :=
+        (hcausal 0 _ _ (fun x hx => (hagreeSB _ x hx.symm).symm) i).mp hwin_big0_base
+      exact (hpoint θStar 0 Y hY_nonneg).resolve_left (Option.isSome_iff_ne_none.mp
+        (hmono i θStar (pointType 0 (Y - 1) hY1_nonneg) (pointType 0 Y hY_nonneg) le_rfl le_rfl
+          (by dsimp [pointType]; linarith) (by rw [hwin_00_small]; rfl)))
     have hcv00_le_0tk :
         M.policy.criticalValue θStar i 0 0 le_rfl ≤ M.policy.criticalValue θStar i 0 tk h0tk := by
+      -- Utility of the true type `(0, 0, Y)` when `i` reports `τ` and wins at period `0`.
+      have hutil : ∀ τ : AgentType (Fin (m + 1)),
+          M.policy.alloc (Function.update θStar i τ) i = some 0 →
+          M.utility i (pointType 0 Y hY_nonneg) (Function.update θStar i τ) =
+            Y - (M.policy.criticalValue θStar i τ.arrival τ.departure
+              τ.arrival_le_departure).toReal := by
+        intro τ hτ
+        unfold Mechanism.utility
+        rw [hτ, AgentType.realizedValue_some_of_inWindow ⟨le_rfl, le_rfl⟩, hpay_eq]
+        unfold Policy.criticalPayment
+        simp only [hτ, Option.isSome_some, ↓reduceIte, Function.update_self,
+          Policy.criticalValue_update]
       have hds := hdsic_nea i (Function.update θStar i (intervalType 0 tk h0tk Y hY_nonneg))
         (pointType 0 Y hY_nonneg) (by simp [AgentType.NoEarlyArrival])
-      rw [Function.update_idem] at hds
-      have hutil_rep :
-          M.utility i (pointType 0 Y hY_nonneg)
-            (Function.update θStar i (intervalType 0 tk h0tk Y hY_nonneg)) =
-          Y - (M.policy.criticalValue θStar i 0 tk h0tk).toReal := by
-        unfold Mechanism.utility
-        rw [hwin_tk_at_0, AgentType.realizedValue_some_of_inWindow ⟨le_rfl, le_rfl⟩, hpay_eq]
-        unfold Policy.criticalPayment
-        rw [hwin_tk_at_0]
-        simp only [Option.isSome_some, ↓reduceIte, Function.update_self,
-          Policy.criticalValue_update]
-      have hutil_true :
-          M.utility i (pointType 0 Y hY_nonneg)
-            (Function.update θStar i (pointType 0 Y hY_nonneg)) =
-          Y - (M.policy.criticalValue θStar i 0 0 le_rfl).toReal := by
-        unfold Mechanism.utility
-        rw [hwin_00_Y, AgentType.realizedValue_some_of_inWindow ⟨le_rfl, le_rfl⟩, hpay_eq]
-        unfold Policy.criticalPayment
-        rw [hwin_00_Y]
-        simp only [Option.isSome_some, ↓reduceIte, Function.update_self,
-          Policy.criticalValue_update]
-      rw [hutil_rep, hutil_true] at hds
-      have htoReal :
-          (M.policy.criticalValue θStar i 0 0 le_rfl).toReal ≤
-            (M.policy.criticalValue θStar i 0 tk h0tk).toReal := by linarith
+      rw [Function.update_idem, hutil _ hwin_tk_at_0, hutil _ hwin_00_Y] at hds
       have hfin00 : M.policy.criticalValue θStar i 0 0 le_rfl ≠ ⊤ :=
         ne_top_of_le_ne_top ENNReal.ofReal_ne_top
           (M.policy.criticalValue_le_of_isSome hY_nonneg (by rw [hwin_00_Y]; rfl))
       have hfin0tk : M.policy.criticalValue θStar i 0 tk h0tk ≠ ⊤ :=
         ne_top_of_le_ne_top ENNReal.ofReal_ne_top
           (M.policy.criticalValue_le_of_isSome hY_nonneg (by rw [hwin_tk_at_0]; rfl))
-      exact (ENNReal.toReal_le_toReal hfin00 hfin0tk).mp htoReal
+      exact (ENNReal.toReal_le_toReal hfin00 hfin0tk).mp (by linarith)
     have hcv0tk_le_tktk :
         M.policy.criticalValue θStar i 0 tk h0tk ≤ M.policy.criticalValue θStar i tk tk le_rfl :=
       M.policy.criticalValue_antitone hmono le_rfl h0tk h0tk le_rfl
@@ -1561,94 +1249,63 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
         linarith
       exact lt_of_lt_of_le hlt ((hcv00_ge.trans hcv00_le_0tk).trans hcv0tk_le_tktk)
     by_contra hne
-    have hsome : (M.policy.alloc θStar i).isSome := Option.isSome_iff_ne_none.mpr hne
-    have hle := M.policy.criticalValue_le_self hsome
-    rw [hθStar_i] at hle
+    have hle := M.policy.criticalValue_le_self (Option.isSome_iff_ne_none.mpr hne)
+    rw [hStar_main k] at hle
     exact not_le_of_gt hvlow_lt hle
   -- Step 4: In θStar, welfare ≤ 1 while optWelfare ≥ 1 + m * vlow > c'!
   have hwStar : welfare θStar (M.policy.alloc θStar) ≤ 1 := by
-    refine hw_le_one θStar ?_ fun j hj0 => ?_
-    · simp only [θStar, Fin.val_zero, ↓reduceIte, pointType]
-    · have hj0v : j.val ≠ 0 := fun h => hj0 (Fin.ext h)
-      by_cases hjm : j.val ≤ m
-      · left
-        have hj_eq : j = mainAgent ⟨j.val - 1, by omega⟩ := by
-          ext; simp [mainAgent]; omega
-        rw [hj_eq, hmain_loses]
-      · right
-        simp only [θStar, hj0v, hjm, ↓reduceIte, pointType]
+    refine (welfare_le_sum_value {0} fun j hj => ?_).trans_eq (by rw [Finset.sum_singleton, hStar0])
+    have hj0v : j.val ≠ 0 := fun h => Finset.notMem_singleton.1 hj (Fin.ext h)
+    by_cases hjm : j.val ≤ m
+    · left
+      have hj_eq : j = mainAgent ⟨j.val - 1, by omega⟩ := by
+        ext; simp [mainAgent]; omega
+      rw [hj_eq, hmain_loses]
+    · right
+      simp only [θStar, hj0v, hjm, ↓reduceIte, pointType]
   have hoptStar : 1 + (m : ℝ) * vlow ≤ optWelfare (fun _ => 1) θStar := by
     let fStar : Fin (2 * m + 1) → Option (Fin (m + 1)) := fun j =>
       if h : j.val ≤ m then some ⟨j.val, Nat.lt_succ_of_le h⟩ else none
     have hfStar : IsExpiringAllocation (fun _ => 1) θStar fStar := by
-      refine ⟨fun j t h => ?_, fun t => ?_⟩
+      refine isExpiringAllocation_unit (fun j t h => ?_) fun x y t hx hy => ?_
       · simp only [fStar] at h
         split_ifs at h with hjm
-        · have ht := Option.some.inj h
-          rw [← ht]
-          by_cases hj0 : j.val = 0
-          · simp only [θStar, hj0, ↓reduceIte, pointType, AgentType.InWindow]
-            exact ⟨le_rfl, le_rfl⟩
-          · simp only [θStar, hj0, hjm, ↓reduceIte, pointType, periodOf, AgentType.InWindow]
-            exact ⟨le_rfl, le_rfl⟩
-      · have hsub :
-            (Finset.univ.filter fun j : Fin (2 * m + 1) => fStar j = some t) ⊆
-              {⟨t.val, by omega⟩} := by
-          intro j hj
-          have hfj := (Finset.mem_filter.mp hj).2
-          simp only [fStar] at hfj
-          split_ifs at hfj with hjm
-          · have ht := congrArg Fin.val (Option.some.inj hfj)
-            exact Finset.mem_singleton.mpr (Fin.ext ht)
-        exact (Finset.card_le_card hsub).trans (by simp)
-    have hwfStar : welfare θStar fStar = 1 + (m : ℝ) * vlow := by
-      unfold welfare
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (2 * m + 1)))]
-      have h0v : (θStar 0).realizedValue (fStar 0) = 1 := by
-        simp only [fStar, Fin.val_zero, Nat.zero_le, ↓reduceDIte, θStar, ↓reduceIte, pointType]
-        exact AgentType.realizedValue_some_of_inWindow ⟨le_rfl, le_rfl⟩
-      rw [h0v]
-      congr 1
-      have hmain_sub :
-          (Finset.univ.image mainAgent) ⊆ Finset.univ.erase (0 : Fin (2 * m + 1)) := by
-        intro j hj
-        obtain ⟨k, _, rfl⟩ := Finset.mem_image.mp hj
-        exact Finset.mem_erase.mpr ⟨fun h => by
-          have := congrArg Fin.val h; simp [mainAgent] at this, Finset.mem_univ _⟩
-      rw [← Finset.sum_subset hmain_sub]
-      · rw [Finset.sum_image (fun a _ b _ h => by
-          ext; have := congrArg Fin.val h; simp [mainAgent] at this; omega)]
-        have hterm :
-            ∀ k : Fin m, (θStar (mainAgent k)).realizedValue (fStar (mainAgent k)) = vlow := by
-          intro k
-          have hk1 : (mainAgent k).val ≠ 0 := by simp [mainAgent]
-          have hkm : (mainAgent k).val ≤ m := k.isLt
-          simp only [fStar, hkm, ↓reduceDIte, θStar, hk1, ↓reduceIte, hmain_period, pointType]
-          exact AgentType.realizedValue_some_of_inWindow ⟨le_rfl, le_rfl⟩
-        simp only [hterm, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
-      · intro j hj hnot
-        have hj0 : j ≠ 0 := (Finset.mem_erase.mp hj).1
-        have hnotm : ¬ j.val ≤ m := by
-          intro hle
-          apply hnot
-          refine Finset.mem_image.mpr ⟨⟨j.val - 1, by
-            have : 0 < j.val := Nat.pos_of_ne_zero (fun h => hj0 (Fin.ext h))
-            omega⟩, Finset.mem_univ _, ?_⟩
-          ext
-          simp only [mainAgent]
-          have : 0 < j.val := Nat.pos_of_ne_zero (fun h => hj0 (Fin.ext h))
-          omega
-        simp only [fStar, hnotm, ↓reduceDIte, AgentType.realizedValue_none]
-    exact hwfStar ▸ welfare_le_optWelfare hfStar
-  have hstrict : c' < 1 + (m : ℝ) * vlow := by
-    have h1 : c' < (m : ℝ) * vlow := by
-      dsimp only [vlow]
-      rw [mul_one_div, lt_div_iff₀ (by positivity)]
-      linarith
+        rw [← Option.some.inj h]
+        by_cases hj0 : j.val = 0
+        · simp only [θStar, hj0, ↓reduceIte, pointType, AgentType.InWindow]
+          exact ⟨le_rfl, le_rfl⟩
+        · simp only [θStar, hj0, hjm, ↓reduceIte, pointType, periodOf, AgentType.InWindow]
+          exact ⟨le_rfl, le_rfl⟩
+      · simp only [fStar] at hx hy
+        split_ifs at hx hy
+        exact Fin.ext ((congrArg Fin.val (Option.some.inj hx)).trans
+          (congrArg Fin.val (Option.some.inj hy)).symm)
+    have hrv : ∀ j : Fin (2 * m + 1), j.val ≤ m →
+        (θStar j).realizedValue (fStar j) = (θStar j).value := fun j hj => by
+      have h : fStar j = some ⟨j.val, Nat.lt_succ_of_le hj⟩ := by simp [fStar, hj]
+      rw [h, AgentType.realizedValue_some_of_inWindow (hfStar.1 j _ h)]
+    have hmain_inj : Function.Injective mainAgent := fun a b h => Fin.ext (by
+      have := congrArg Fin.val h; simp only [mainAgent] at this; omega)
+    have h0_notin : (0 : Fin (2 * m + 1)) ∉ Finset.univ.image mainAgent := by
+      simp only [Finset.mem_image, Finset.mem_univ, true_and, not_exists]
+      intro k h
+      have := congrArg Fin.val h
+      simp [mainAgent] at this
+    -- The anchor and the main agents alone already realize `1 + m * vlow` under `fStar`.
+    calc 1 + (m : ℝ) * vlow
+        = ∑ j ∈ insert 0 (Finset.univ.image mainAgent), (θStar j).realizedValue (fStar j) := by
+          rw [Finset.sum_insert h0_notin, Finset.sum_image fun a _ b _ h => hmain_inj h,
+            hrv 0 (by simp), hStar0, Fintype.sum_congr _ _ fun k => hrv (mainAgent k) k.isLt]
+          simp only [hStar_main, pointType, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+            nsmul_eq_mul]
+      _ ≤ welfare θStar fStar := Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+          fun j _ _ => (θStar j).realizedValue_nonneg _
+      _ ≤ optWelfare (fun _ => 1) θStar := welfare_le_optWelfare hfStar
+  have hstrict : c' < (m : ℝ) * vlow := by
+    dsimp only [vlow]
+    rw [mul_one_div, lt_div_iff₀ (by positivity)]
     linarith
-  have hccomp := hcomp θStar
-  have := mul_le_mul_of_nonneg_left hwStar hc'_pos.le
-  linarith
+  exact hcomp θStar hwStar hoptStar (by linarith)
 
 end LowerBounds
 

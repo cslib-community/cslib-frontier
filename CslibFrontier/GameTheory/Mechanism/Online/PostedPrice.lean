@@ -108,13 +108,7 @@ theorem policy_alloc_isSome_iff (q : PriceSchedule ι T) (θ : ι → AgentType 
       ∃ t : Fin T, (θ i).InWindow t ∧ q.price i t θ ≤ (θ i).value := by
   classical
   simp only [policy]
-  split_ifs with h
-  · simp only [Option.isSome_some, true_iff]
-    obtain ⟨t, ht⟩ := h
-    exact ⟨t, (Finset.mem_filter.mp ht).2⟩
-  · simp only [Option.isSome_none, Bool.false_eq_true, false_iff]
-    rintro ⟨t, hwin, hle⟩
-    exact h ⟨t, Finset.mem_filter.mpr ⟨Finset.mem_univ t, hwin, hle⟩⟩
+  split_ifs with h <;> simpa [Finset.Nonempty] using h
 
 /-- Any agent-independent price schedule induces an online-monotone policy. -/
 theorem policy_isMonotone (q : PriceSchedule ι T) : q.policy.IsMonotone := by
@@ -169,11 +163,8 @@ theorem arrivalMechanism_isDSICNoEarlyArrival (q : PriceSchedule ι T)
       (q.policy.alloc θ i).isSome ↔ q.price i (θ i).arrival θ ≤ (θ i).value := by
     intro θ i
     rw [q.policy_alloc_isSome_iff]
-    constructor
-    · rintro ⟨t, ht, hle⟩
-      exact (hinc i θ (θ i).arrival t ht.1).trans hle
-    · intro hle
-      exact ⟨(θ i).arrival, ⟨le_rfl, (θ i).arrival_le_departure⟩, hle⟩
+    exact ⟨fun ⟨t, ht, hle⟩ => (hinc i θ _ t ht.1).trans hle,
+      fun hle => ⟨_, ⟨le_rfl, (θ i).arrival_le_departure⟩, hle⟩⟩
   have halloc_eq : ∀ θ i,
       q.price i (θ i).arrival θ ≤ (θ i).value →
       q.policy.alloc θ i = some (θ i).arrival := by
@@ -185,64 +176,40 @@ theorem arrivalMechanism_isDSICNoEarlyArrival (q : PriceSchedule ι T)
       Finset.mem_filter.mpr ⟨Finset.mem_univ _, ⟨le_rfl, (θ i).arrival_le_departure⟩, hle⟩
     have hne : S.Nonempty := ⟨(θ i).arrival, hmem⟩
     simp only [hne, ↓reduceDIte, Option.some.injEq]
-    apply le_antisymm
-    · exact Finset.min'_le S _ hmem
-    · exact (Finset.mem_filter.mp (Finset.min'_mem S hne)).2.1.1
+    exact le_antisymm (Finset.min'_le S _ hmem) (Finset.mem_filter.mp (Finset.min'_mem S hne)).2.1.1
   intro i θ θ_true ha
   set θ_t := Function.update θ i θ_true
-  have htrue_ir : 0 ≤ q.arrivalMechanism.utility i θ_true θ_t := by
+  -- Truthful utility is at least `max 0 (value - arrival price)`.
+  have htrue : 0 ≤ q.arrivalMechanism.utility i θ_true θ_t ∧
+      θ_true.value - q.price i θ_true.arrival θ ≤ q.arrivalMechanism.utility i θ_true θ_t := by
     by_cases hle : q.price i θ_true.arrival θ ≤ θ_true.value
     · have hle' : q.price i (θ_t i).arrival θ_t ≤ (θ_t i).value := by
         simpa only [θ_t, Function.update_self, q.price_update] using hle
-      have hsome := halloc_eq θ_t i hle'
-      simp only [Mechanism.utility, arrivalMechanism, hsome, θ_t, Function.update_self,
-        AgentType.realizedValue_some_of_inWindow (show θ_true.InWindow θ_true.arrival from
-          ⟨le_rfl, θ_true.arrival_le_departure⟩),
-        Option.isSome_some, ↓reduceIte, q.price_update]
+      simp only [Mechanism.utility, arrivalMechanism, halloc_eq θ_t i hle', θ_t,
+        Function.update_self, AgentType.realizedValue_some_of_inWindow
+          (show θ_true.InWindow θ_true.arrival from ⟨le_rfl, θ_true.arrival_le_departure⟩),
+        Option.isSome_some, ↓reduceIte, q.price_update, le_refl, and_true]
       linarith
     · have hnone : q.policy.alloc θ_t i = none := by
         rw [← Option.not_isSome_iff_eq_none, halloc_arr]
         simpa only [θ_t, Function.update_self, q.price_update] using hle
       simp only [Mechanism.utility, arrivalMechanism, hnone, AgentType.realizedValue_none,
-        Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self, le_rfl]
+        Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self, le_rfl, true_and]
+      linarith
   by_cases hrep_win : q.price i (θ i).arrival θ ≤ (θ i).value
-  · have hrep_some := halloc_eq θ i hrep_win
-    have hprice_le : q.price i θ_true.arrival θ ≤ q.price i (θ i).arrival θ :=
-      hinc i θ θ_true.arrival (θ i).arrival ha
-    by_cases hin : θ_true.InWindow (θ i).arrival
-    · have hutil_rep :
-          q.arrivalMechanism.utility i θ_true θ = θ_true.value - q.price i (θ i).arrival θ := by
-        simp only [Mechanism.utility, arrivalMechanism, hrep_some,
-          AgentType.realizedValue_some_of_inWindow hin, Option.isSome_some, ↓reduceIte]
-      by_cases ht_win : q.price i θ_true.arrival θ ≤ θ_true.value
-      · have ht_win' : q.price i (θ_t i).arrival θ_t ≤ (θ_t i).value := by
-          simpa only [θ_t, Function.update_self, q.price_update] using ht_win
-        have ht_some := halloc_eq θ_t i ht_win'
-        have hutil_true :
-            q.arrivalMechanism.utility i θ_true θ_t =
-              θ_true.value - q.price i θ_true.arrival θ := by
-          simp only [Mechanism.utility, arrivalMechanism, ht_some, θ_t, Function.update_self,
-            AgentType.realizedValue_some_of_inWindow (show θ_true.InWindow θ_true.arrival from
-              ⟨le_rfl, θ_true.arrival_le_departure⟩),
-            Option.isSome_some, ↓reduceIte, q.price_update]
-        rw [hutil_rep, hutil_true]
-        linarith
-      · push Not at ht_win
-        rw [hutil_rep]
-        linarith
-    · have hutil_rep :
-          q.arrivalMechanism.utility i θ_true θ = -q.price i (θ i).arrival θ := by
-        simp only [Mechanism.utility, arrivalMechanism, hrep_some,
-          AgentType.realizedValue_some_of_not_inWindow hin, Option.isSome_some, ↓reduceIte,
-          zero_sub]
-      rw [hutil_rep]
-      linarith [q.price_nonneg i (θ i).arrival θ]
+  · have hutil_rep : q.arrivalMechanism.utility i θ_true θ =
+        θ_true.realizedValue (some (θ i).arrival) - q.price i (θ i).arrival θ := by
+      simp only [Mechanism.utility, arrivalMechanism, halloc_eq θ i hrep_win, Option.isSome_some,
+        ↓reduceIte]
+    rw [hutil_rep]
+    linarith [θ_true.realizedValue_le_value (some (θ i).arrival),
+      hinc i θ θ_true.arrival (θ i).arrival ha, htrue.2]
   · have hrep_none : q.policy.alloc θ i = none := by
       rw [← Option.not_isSome_iff_eq_none, halloc_arr]
       exact hrep_win
     simp only [Mechanism.utility, arrivalMechanism, hrep_none, AgentType.realizedValue_none,
       Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self]
-    exact htrue_ir
+    exact htrue.1
 
 end PriceSchedule
 
@@ -297,56 +264,39 @@ theorem thresholdSingleItemPolicy_atMostOne (p : ℝ) (θ : ι → AgentType (Fi
   split_ifs at hj with hwj
   exact hwi.unique hwj
 
+private theorem thresholdSingleItemPolicy_alloc_of_agree {p : ℝ} {t : Fin T}
+    {θ θ' : ι → AgentType (Fin T)}
+    (hagree : ∀ j, (θ j).arrival ≤ t ∨ (θ' j).arrival ≤ t → θ j = θ' j) {i : ι}
+    (h : (thresholdSingleItemPolicy p).alloc θ i = some t) :
+    (thresholdSingleItemPolicy p).alloc θ' i = some t := by
+  classical
+  simp only [thresholdSingleItemPolicy] at h ⊢
+  split_ifs at h with hwi
+  have hta : (θ i).arrival = t := Option.some.inj h
+  have hi_eq : θ i = θ' i := hagree i (Or.inl hta.le)
+  have hwi' : ThresholdWins p θ' i := by
+    refine ⟨hi_eq ▸ hwi.1, fun j hj hba => ?_⟩
+    have hja : (θ' j).arrival ≤ t := by
+      rw [← hta, hi_eq]
+      exact hba.elim le_of_lt fun h => h.1.le
+    have hj_eq : θ j = θ' j := hagree j (Or.inr hja)
+    rw [← hj_eq, ← hi_eq] at hba
+    exact hwi.2 j (by rwa [hj_eq]) hba
+  simp only [hwi', ↓reduceIte, ← hi_eq, hta]
+
 /-- `thresholdSingleItemPolicy p` is online-causal: whether `i` is allocated at period `t` depends
 only on agents who have arrived by period `t`. -/
 theorem thresholdSingleItemPolicy_isCausal (p : ℝ) :
-    (thresholdSingleItemPolicy (ι := ι) (T := T) p).IsCausal := by
-  classical
-  intro t θ θ' hagree i
-  simp only [thresholdSingleItemPolicy]
-  constructor
-  · intro h
-    split_ifs at h with hwi
-    have hta : (θ i).arrival = t := Option.some.inj h
-    have hi_eq : θ i = θ' i := hagree i (Or.inl (le_of_eq hta))
-    have hwi' : ThresholdWins p θ' i := by
-      refine ⟨hi_eq ▸ hwi.1, fun j hj hba => ?_⟩
-      have hja : (θ' j).arrival ≤ t := by
-        rw [← hta, hi_eq]
-        rcases hba with hlt | ⟨heq, _⟩
-        · exact le_of_lt hlt
-        · exact le_of_eq heq
-      have hj_eq : θ j = θ' j := hagree j (Or.inr hja)
-      exact hwi.2 j (hj_eq.symm ▸ hj) (by
-        rcases hba with hlt | ⟨heq, hji⟩
-        · exact Or.inl (by rwa [hj_eq, hi_eq])
-        · exact Or.inr ⟨by rwa [hj_eq, hi_eq], hji⟩)
-    simp only [hwi', ↓reduceIte, ← hi_eq, hta]
-  · intro h
-    split_ifs at h with hwi'
-    have hta : (θ' i).arrival = t := Option.some.inj h
-    have hi_eq : θ i = θ' i := hagree i (Or.inr (le_of_eq hta))
-    have hwi : ThresholdWins p θ i := by
-      refine ⟨hi_eq.symm ▸ hwi'.1, fun j hj hba => ?_⟩
-      have hja : (θ j).arrival ≤ t := by
-        rw [← hta, ← hi_eq]
-        rcases hba with hlt | ⟨heq, _⟩
-        · exact le_of_lt hlt
-        · exact le_of_eq heq
-      have hj_eq : θ j = θ' j := hagree j (Or.inl hja)
-      exact hwi'.2 j (hj_eq ▸ hj) (by
-        rcases hba with hlt | ⟨heq, hji⟩
-        · exact Or.inl (by rwa [← hj_eq, ← hi_eq])
-        · exact Or.inr ⟨by rwa [← hj_eq, ← hi_eq], hji⟩)
-    simp only [hwi, ↓reduceIte, hi_eq, hta]
+    (thresholdSingleItemPolicy (ι := ι) (T := T) p).IsCausal := fun _ _ _ hagree _ =>
+  ⟨thresholdSingleItemPolicy_alloc_of_agree hagree,
+    thresholdSingleItemPolicy_alloc_of_agree fun j hj => (hagree j hj.symm).symm⟩
 
 theorem thresholdSingleItemMechanism_isNPT {p : ℝ} (hp : 0 ≤ p) :
     (thresholdSingleItemMechanism (ι := ι) (T := T) p).IsNPT := by
   intro i θ
   simp only [thresholdSingleItemMechanism]
   split_ifs
-  · exact hp
-  · exact le_rfl
+  exacts [hp, le_rfl]
 
 theorem thresholdSingleItemMechanism_isLoserZero (p : ℝ) :
     (thresholdSingleItemMechanism (ι := ι) (T := T) p).IsLoserZero := by
@@ -375,42 +325,34 @@ theorem thresholdSingleItemMechanism_isDSICNoEarlyArrival {p : ℝ} (hp : 0 ≤ 
   intro i θ θ_true ha
   set θ_t := Function.update θ i θ_true
   have htrue_ir : 0 ≤ (thresholdSingleItemMechanism p).utility i θ_true θ_t := by
-    have := thresholdSingleItemMechanism_isIR (ι := ι) (T := T) p i θ_t
-    simpa only [θ_t, Function.update_self] using this
+    simpa only [θ_t, Function.update_self] using
+      thresholdSingleItemMechanism_isIR (ι := ι) (T := T) p i θ_t
   by_cases hw_rep : ThresholdWins p θ i
   · by_cases hin : θ_true.InWindow (θ i).arrival
     · have hutil_rep :
           (thresholdSingleItemMechanism p).utility i θ_true θ = θ_true.value - p := by
         simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
           hw_rep, ↓reduceIte, AgentType.realizedValue_some_of_inWindow hin, Option.isSome_some]
+      rw [hutil_rep]
       by_cases hv : p ≤ θ_true.value
       · have hw_true : ThresholdWins p θ_t i := by
           refine ⟨by simpa only [θ_t, Function.update_self] using hv, fun j hj hba => ?_⟩
           by_cases hji : j = i
           · subst hji
             rcases hba with hlt | ⟨_, hlt⟩ <;> exact lt_irrefl _ hlt
-          · have hj' : p ≤ (θ j).value := by
-              simpa only [θ_t, Function.update_of_ne hji] using hj
-            have hba' :
-                (θ j).arrival < (θ i).arrival ∨ ((θ j).arrival = (θ i).arrival ∧ j < i) := by
-              simp only [θ_t, Function.update_self, Function.update_of_ne hji] at hba
-              rcases hba with hlt | ⟨heq, hji_lt⟩
-              · exact Or.inl (lt_of_lt_of_le hlt ha)
-              · rcases lt_or_eq_of_le ha with halt | haeq
-                · exact Or.inl (heq ▸ halt)
-                · exact Or.inr ⟨heq.trans haeq, hji_lt⟩
-            exact hw_rep.2 j hj' hba'
-        have hutil_true :
-            (thresholdSingleItemMechanism p).utility i θ_true θ_t = θ_true.value - p := by
-          simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
-            hw_true, ↓reduceIte, θ_t, Function.update_self,
-            AgentType.realizedValue_some_of_inWindow
-              (show θ_true.InWindow θ_true.arrival from ⟨le_rfl, θ_true.arrival_le_departure⟩),
-            Option.isSome_some]
-        rw [hutil_rep, hutil_true]
-      · push Not at hv
-        rw [hutil_rep]
-        linarith
+          · simp only [θ_t, Function.update_self, Function.update_of_ne hji] at hj hba
+            refine hw_rep.2 j hj ?_
+            rcases hba with hlt | ⟨heq, hji_lt⟩
+            · exact Or.inl (lt_of_lt_of_le hlt ha)
+            · rcases lt_or_eq_of_le ha with halt | haeq
+              · exact Or.inl (heq ▸ halt)
+              · exact Or.inr ⟨heq.trans haeq, hji_lt⟩
+        simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
+          hw_true, ↓reduceIte, θ_t, Function.update_self, Option.isSome_some,
+          AgentType.realizedValue_some_of_inWindow
+            (show θ_true.InWindow θ_true.arrival from ⟨le_rfl, θ_true.arrival_le_departure⟩),
+          le_refl]
+      · linarith
     · have hutil_rep : (thresholdSingleItemMechanism p).utility i θ_true θ = -p := by
         simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
           hw_rep, ↓reduceIte, AgentType.realizedValue_some_of_not_inWindow hin, Option.isSome_some,
@@ -473,18 +415,11 @@ theorem le_welfare_and_revenue_threshold {p : ℝ} (hp : 0 ≤ p)
   have hw_pay : (thresholdSingleItemMechanism p).payment θ w = p := by
     simp only [thresholdSingleItemMechanism, hw_alloc, Option.isSome_some, ↓reduceIte]
   constructor
-  · unfold welfare
-    have hterm : (θ w).realizedValue ((thresholdSingleItemPolicy p).alloc θ w) ≤
-        ∑ i : ι, (θ i).realizedValue ((thresholdSingleItemPolicy p).alloc θ i) :=
-      Finset.single_le_sum (fun i _ => (θ i).realizedValue_nonneg _) (Finset.mem_univ w)
-    rw [hw_val] at hterm
-    exact hw.1.trans hterm
-  · unfold revenue
-    have hterm : (thresholdSingleItemMechanism p).payment θ w ≤
-        ∑ i : ι, (thresholdSingleItemMechanism p).payment θ i :=
-      Finset.single_le_sum
-        (fun i _ => thresholdSingleItemMechanism_isNPT hp i θ) (Finset.mem_univ w)
-    rwa [hw_pay] at hterm
+  · exact (hw.1.trans_eq hw_val.symm).trans
+      (Finset.single_le_sum (fun i _ => (θ i).realizedValue_nonneg _) (Finset.mem_univ w))
+  · exact hw_pay.symm.le.trans
+      (Finset.single_le_sum (fun i _ => thresholdSingleItemMechanism_isNPT hp i θ)
+        (Finset.mem_univ w))
 
 /-- Helper: every real `v ∈ [L, L · 2^m)` falls in a geometric bucket
 `[L · 2^k, L · 2^(k + 1))` for some `k : Fin m`. -/
@@ -510,15 +445,11 @@ private theorem geometricThreshold_expected_bound {L v : ℝ} (hL : 0 < L) {m : 
     v ≤ (2 * (m : ℝ)) * ((∑ k : Fin m, f (L * (2 : ℝ) ^ k.val)) / (m : ℝ)) := by
   obtain ⟨kstar, hkle, hklt⟩ := exists_geometric_bucket hlo hhi
   have hp_nonneg : ∀ k : Fin m, 0 ≤ L * (2 : ℝ) ^ k.val := fun k => by positivity
-  have hsingle : L * (2 : ℝ) ^ kstar.val ≤ f (L * (2 : ℝ) ^ kstar.val) :=
-    hf_ge _ (hp_nonneg kstar) hkle
   have hsum_ge : L * (2 : ℝ) ^ kstar.val ≤ ∑ k : Fin m, f (L * (2 : ℝ) ^ k.val) :=
-    hsingle.trans (Finset.single_le_sum (fun k _ => hf_nonneg _ (hp_nonneg k))
-      (Finset.mem_univ kstar))
+    (hf_ge _ (hp_nonneg kstar) hkle).trans (Finset.single_le_sum
+      (fun k _ => hf_nonneg _ (hp_nonneg k)) (Finset.mem_univ kstar))
   have hm_ne : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp hm)
-  have hpow : L * (2 : ℝ) ^ (kstar.val + 1) = 2 * (L * (2 : ℝ) ^ kstar.val) := by
-    rw [pow_succ]
-    ring
+  have hpow : L * (2 : ℝ) ^ (kstar.val + 1) = 2 * (L * (2 : ℝ) ^ kstar.val) := by ring
   have hmul :
       (2 * (m : ℝ)) * ((∑ k : Fin m, f (L * (2 : ℝ) ^ k.val)) / (m : ℝ)) =
         2 * ∑ k : Fin m, f (L * (2 : ℝ) ^ k.val) := by

@@ -142,28 +142,6 @@ private noncomputable def eatingDuration {n : ℕ} (p : Profile n) (rem : Fin n 
     (demanded_nonempty p rem h)
     fun o => rem o / (eatingDemand p rem h o : ℝ)
 
-private lemma eatingDuration_pos {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
-    (h : ∃ o : Fin n, 0 < rem o) : 0 < eatingDuration p rem h := by
-  obtain ⟨o, ho, heq⟩ := Finset.exists_mem_eq_inf' (demanded_nonempty p rem h)
-    (fun o => rem o / (eatingDemand p rem h o : ℝ))
-  have hd_pos : 0 < eatingDemand p rem h o := (Finset.mem_filter.mp ho).2
-  obtain ⟨i, hi⟩ := Finset.card_pos.mp hd_pos
-  have hrem : 0 < rem o := by
-    rw [← (Finset.mem_filter.mp hi).2]
-    exact favObject_rem_pos p rem h i
-  rw [eatingDuration, heq]
-  exact div_pos hrem (Nat.cast_pos.mpr hd_pos)
-
-private lemma eatingDuration_le {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
-    (h : ∃ o : Fin n, 0 < rem o) (o : Fin n) (hd : 0 < eatingDemand p rem h o) :
-    (eatingDemand p rem h o : ℝ) * eatingDuration p rem h ≤ rem o := by
-  have hmem : o ∈ Finset.univ.filter fun o : Fin n => 0 < eatingDemand p rem h o :=
-    Finset.mem_filter.mpr ⟨Finset.mem_univ _, hd⟩
-  have hle : eatingDuration p rem h ≤ rem o / (eatingDemand p rem h o : ℝ) :=
-    Finset.inf'_le _ hmem
-  have hdp : (0 : ℝ) < (eatingDemand p rem h o : ℝ) := Nat.cast_pos.mpr hd
-  exact (le_div_iff₀' hdp).mp hle
-
 private lemma exists_exhausted_of_eatingDuration {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
     (h : ∃ o : Fin n, 0 < rem o) :
     ∃ o : Fin n, 0 < rem o ∧
@@ -172,13 +150,18 @@ private lemma exists_exhausted_of_eatingDuration {n : ℕ} (p : Profile n) (rem 
     (fun o => rem o / (eatingDemand p rem h o : ℝ))
   have hd_pos : 0 < eatingDemand p rem h o := (Finset.mem_filter.mp ho).2
   obtain ⟨i, hi⟩ := Finset.card_pos.mp hd_pos
-  have hrem : 0 < rem o := by
-    rw [← (Finset.mem_filter.mp hi).2]
-    exact favObject_rem_pos p rem h i
-  refine ⟨o, hrem, ?_⟩
-  rw [eatingDuration, heq]
-  have hd_ne : (eatingDemand p rem h o : ℝ) ≠ 0 := (Nat.cast_pos.mpr hd_pos).ne'
-  rw [mul_div_cancel₀ _ hd_ne, sub_self]
+  refine ⟨o, (Finset.mem_filter.mp hi).2 ▸ favObject_rem_pos p rem h i, ?_⟩
+  rw [eatingDuration, heq, mul_div_cancel₀ _ (Nat.cast_pos.mpr hd_pos).ne', sub_self]
+
+private lemma eatingDuration_pos {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
+    (h : ∃ o : Fin n, 0 < rem o) : 0 < eatingDuration p rem h := by
+  obtain ⟨o, ho, h0⟩ := exists_exhausted_of_eatingDuration p rem h
+  exact pos_of_mul_pos_right (by linarith) (Nat.cast_nonneg (eatingDemand p rem h o))
+
+private lemma eatingDuration_le {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
+    (h : ∃ o : Fin n, 0 < rem o) (o : Fin n) (hd : 0 < eatingDemand p rem h o) :
+    (eatingDemand p rem h o : ℝ) * eatingDuration p rem h ≤ rem o :=
+  (le_div_iff₀' (Nat.cast_pos.mpr hd)).mp (Finset.inf'_le _ (by simpa using hd))
 
 /-- One discrete phase of the simultaneous eating algorithm. If no object has strictly positive
 remaining mass, the state is left unchanged. -/
@@ -196,52 +179,22 @@ noncomputable def eatingStep {n : ℕ} (p : Profile n) (s : EatingState n) : Eat
             (s.elapsed + dt) (s.exhaustTime o) })
     (fun _ => s)
 
-private lemma dite_pos_classical {α : Sort*} {P : Prop} {t : P → α} {e : ¬ P → α} (h : P) :
-    @dite α P (Classical.propDecidable P) t e = t h := by
-  cases Classical.propDecidable P with
-  | isTrue _ => rfl
-  | isFalse hneg => exact absurd h hneg
-
-private lemma dite_neg_classical {α : Sort*} {P : Prop} {t : P → α} {e : ¬ P → α} (h : ¬ P) :
-    @dite α P (Classical.propDecidable P) t e = e h := by
-  cases Classical.propDecidable P with
-  | isTrue hpos => exact absurd hpos h
-  | isFalse _ => rfl
-
-private lemma ite_pos_classical {α : Sort*} {P : Prop} {t e : α} (h : P) :
-    @ite α P (Classical.propDecidable P) t e = t := by
-  cases Classical.propDecidable P with
-  | isTrue _ => rfl
-  | isFalse hneg => exact absurd h hneg
-
-private lemma ite_neg_classical {α : Sort*} {P : Prop} {t e : α} (h : ¬ P) :
-    @ite α P (Classical.propDecidable P) t e = e := by
-  cases Classical.propDecidable P with
-  | isTrue hpos => exact absurd hpos h
-  | isFalse _ => rfl
-
 private lemma eatingStep_pos_rem {n : ℕ} (p : Profile n) (s : EatingState n)
     (h : ∃ o : Fin n, 0 < s.rem o) (o : Fin n) :
     (eatingStep p s).rem o =
-      s.rem o - (eatingDemand p s.rem h o : ℝ) * eatingDuration p s.rem h := by
-  have heq : (eatingStep p s).rem =
-      fun o => s.rem o - (eatingDemand p s.rem h o : ℝ) * eatingDuration p s.rem h :=
-    congrArg EatingState.rem (dite_pos_classical h)
-  exact congrFun heq o
+      s.rem o - (eatingDemand p s.rem h o : ℝ) * eatingDuration p s.rem h :=
+  congrFun (congrArg EatingState.rem (dite_eq_left h)) o
 
 private lemma eatingStep_pos_alloc {n : ℕ} (p : Profile n) (s : EatingState n)
     (h : ∃ o : Fin n, 0 < s.rem o) (i o : Fin n) :
     (eatingStep p s).alloc i o =
-      s.alloc i o + if favObject p s.rem h i = o then eatingDuration p s.rem h else 0 := by
-  have heq : (eatingStep p s).alloc = Matrix.of fun i o =>
       s.alloc i o + if favObject p s.rem h i = o then eatingDuration p s.rem h else 0 :=
-    congrArg EatingState.alloc (dite_pos_classical h)
-  exact congrArg (fun M : Matrix (Fin n) (Fin n) ℝ => M i o) heq
+  congrFun (congrFun (congrArg EatingState.alloc (dite_eq_left h)) i) o
 
 private lemma eatingStep_pos_elapsed {n : ℕ} (p : Profile n) (s : EatingState n)
     (h : ∃ o : Fin n, 0 < s.rem o) :
     (eatingStep p s).elapsed = s.elapsed + eatingDuration p s.rem h :=
-  congrArg EatingState.elapsed (dite_pos_classical h)
+  congrArg EatingState.elapsed (dite_eq_left h)
 
 private lemma eatingStep_pos_exhaust {n : ℕ} (p : Profile n) (s : EatingState n)
     (h : ∃ o : Fin n, 0 < s.rem o) (o : Fin n) :
@@ -250,7 +203,7 @@ private lemma eatingStep_pos_exhaust {n : ℕ} (p : Profile n) (s : EatingState 
           s.rem o - (eatingDemand p s.rem h o : ℝ) * eatingDuration p s.rem h = 0)
         (Classical.propDecidable _)
         (s.elapsed + eatingDuration p s.rem h) (s.exhaustTime o) :=
-  congrFun (congrArg EatingState.exhaustTime (dite_pos_classical h)) o
+  congrFun (congrArg EatingState.exhaustTime (dite_eq_left h)) o
 
 /-- **Probabilistic Serial (PS)** random assignment rule ([BogomolnaiaMoulin2001], locator
 unverified): run `eatingStep` for `n` discrete event rounds from `initEatingState n`. -/
@@ -283,8 +236,7 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
     EatingInv p (eatingStep p s) := by
   by_cases h : ∃ o : Fin n, 0 < s.rem o
   swap
-  · have hfix : eatingStep p s = s := dite_neg_classical h
-    rwa [hfix]
+  · rwa [show eatingStep p s = s from dite_eq_right h]
   set dt := eatingDuration p s.rem h
   have hdt_pos : 0 < dt := eatingDuration_pos p s.rem h
   have hrem_eq : ∀ o : Fin n,
@@ -301,12 +253,16 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
     intro o ho
     have hd0 : eatingDemand p s.rem h o = 0 := by
       rw [eatingDemand, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro i _ hfav
-      have hpos := favObject_rem_pos p s.rem h i
-      rw [hfav, ho] at hpos
-      exact lt_irrefl _ hpos
-    rw [hrem_eq o, ho, hd0]
-    simp
+      exact fun i _ hfav => by simpa [hfav, ho] using favObject_rem_pos p s.rem h i
+    simp [hrem_eq o, ho, hd0]
+  have hz : ∀ o : Fin n, ¬ 0 < s.rem o → s.rem o = 0 := fun o ho =>
+    le_antisymm (not_lt.mp ho) (hinv.rem_nonneg o)
+  have hexh_old : ∀ x : Fin n, s.rem x = 0 →
+      (eatingStep p s).exhaustTime x = s.exhaustTime x := fun x hx =>
+    (hexh_eq x).trans (ite_eq_right fun hc => hc.1.ne' hx)
+  have hexh_new : ∀ x : Fin n, 0 < s.rem x → (eatingStep p s).rem x = 0 →
+      (eatingStep p s).exhaustTime x = s.elapsed + dt := fun x hx hx0 =>
+    (hexh_eq x).trans (ite_eq_left ⟨hx, (hrem_eq x).symm.trans hx0⟩)
   have hcard_sum : ∀ o : Fin n,
       (∑ i : Fin n, if favObject p s.rem h i = o then dt else 0) =
         (eatingDemand p s.rem h o : ℝ) * dt := by
@@ -316,24 +272,14 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro o
     rw [hrem_eq o]
-    by_cases hd : 0 < eatingDemand p s.rem h o
+    rcases Nat.eq_zero_or_pos (eatingDemand p s.rem h o) with hd0 | hd
+    · simp [hd0, hinv.rem_nonneg o]
     · exact sub_nonneg.mpr (eatingDuration_le p s.rem h o hd)
-    · have hd0 : eatingDemand p s.rem h o = 0 := by omega
-      simp only [hd0, Nat.cast_zero, zero_mul, sub_zero]
-      exact hinv.rem_nonneg o
   · intro i o
     rw [halloc_eq i o]
-    refine add_nonneg (hinv.alloc_nonneg i o) ?_
-    split_ifs
-    · exact hdt_pos.le
-    · exact le_rfl
+    exact add_nonneg (hinv.alloc_nonneg i o) (ite_nonneg hdt_pos.le le_rfl)
   · intro i
-    simp_rw [halloc_eq i, Finset.sum_add_distrib, hinv.row_sum i, hel_eq]
-    congr 1
-    rw [Finset.sum_eq_single (favObject p s.rem h i)]
-    · simp
-    · intro o _ ho; simp [ho.symm]
-    · intro hm; exact absurd (Finset.mem_univ _) hm
+    simp [halloc_eq i, Finset.sum_add_distrib, hinv.row_sum i, hel_eq]
   · intro o
     simp_rw [hrem_eq o, halloc_eq _ o, Finset.sum_add_distrib, hcard_sum o]
     linarith [hinv.col_sum o]
@@ -346,47 +292,24 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
         (fun o => if o = favObject p s.rem h i then dt else 0)
         (fun o => if o = favObject p s.rem h j then dt else 0) :=
       (sdDominates_single_iff (p i) _ _ hdt_pos).mpr hi_le
-    have hadd := SDDominates.add (hinv.envyFree i j) hstep_dom
     have hrow : ∀ a : Fin n, (eatingStep p s).alloc a =
         s.alloc a + fun o => if o = favObject p s.rem h a then dt else 0 := by
       intro a; funext o; rw [halloc_eq a o]; simp [eq_comm]
     rw [hrow i, hrow j]
-    exact hadd
+    exact (hinv.envyFree i j).add hstep_dom
   · intro o ho
-    rw [hexh_eq o, hel_eq]
-    have ho' : s.rem o - (eatingDemand p s.rem h o : ℝ) * dt = 0 := by
-      rw [← hrem_eq o]; exact ho
     by_cases hpos : 0 < s.rem o
-    · rw [ite_pos_classical ⟨hpos, ho'⟩]
-    · have hnot : ¬ (0 < s.rem o ∧
-          s.rem o - (eatingDemand p s.rem h o : ℝ) * dt = 0) := fun hc => hpos hc.1
-      rw [ite_neg_classical hnot]
-      have hz : s.rem o = 0 := le_antisymm (not_lt.mp hpos) (hinv.rem_nonneg o)
-      linarith [hinv.exhaust_le o hz]
+    · rw [hexh_new o hpos ho, hel_eq]
+    · rw [hexh_old o (hz o hpos), hel_eq]
+      linarith [hinv.exhaust_le o (hz o hpos)]
   · intro i a b hpos' hlt
     rw [halloc_eq i b] at hpos'
-    have hexh_old : ∀ x : Fin n, s.rem x = 0 →
-        (eatingStep p s).exhaustTime x = s.exhaustTime x := by
-      intro x hx
-      rw [hexh_eq x]
-      have hnot : ¬ (0 < s.rem x ∧
-          s.rem x - (eatingDemand p s.rem h x : ℝ) * dt = 0) := fun hc => by
-        rw [hx] at hc; exact lt_irrefl _ hc.1
-      exact ite_neg_classical hnot
-    have hexh_new : ∀ x : Fin n, 0 < s.rem x → (eatingStep p s).rem x = 0 →
-        (eatingStep p s).exhaustTime x = s.elapsed + dt := by
-      intro x hx hx0
-      rw [hexh_eq x]
-      have hx0' : s.rem x - (eatingDemand p s.rem h x : ℝ) * dt = 0 := by
-        rw [← hrem_eq x]; exact hx0
-      exact ite_pos_classical ⟨hx, hx0'⟩
     rcases (hinv.alloc_nonneg i b).eq_or_lt with hzero | hold
     · have hfav : favObject p s.rem h i = b := by
         by_contra hne
-        simp only [← hzero, hne, ↓reduceIte, add_zero] at hpos'
-        exact lt_irrefl _ hpos'
-      have ha_le : s.rem a ≤ 0 := favObject_lt_le_zero p s.rem h i a (by rwa [hfav])
-      have ha0 : s.rem a = 0 := le_antisymm ha_le (hinv.rem_nonneg a)
+        simp [← hzero, hne] at hpos'
+      have ha0 : s.rem a = 0 := le_antisymm
+        (favObject_lt_le_zero p s.rem h i a (by rwa [hfav])) (hinv.rem_nonneg a)
       refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
       rw [hexh_old a ha0, hexh_new b (hfav ▸ favObject_rem_pos p s.rem h i) hb0']
       linarith [hinv.exhaust_le a ha0]
@@ -396,9 +319,8 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
       by_cases hb_pos : 0 < s.rem b
       · rw [hexh_new b hb_pos hb0']
         linarith [hinv.exhaust_le a ha0]
-      · have hb0 : s.rem b = 0 := le_antisymm (not_lt.mp hb_pos) (hinv.rem_nonneg b)
-        rw [hexh_old b hb0]
-        exact horder hb0
+      · rw [hexh_old b (hz b hb_pos)]
+        exact horder (hz b hb_pos)
 
 private noncomputable def activeObjs {n : ℕ} (s : EatingState n) : Finset (Fin n) :=
   @Finset.filter (Fin n) (fun o => 0 < s.rem o) (Classical.decPred _) Finset.univ
@@ -416,20 +338,17 @@ private lemma activeCard_step_le {n : ℕ} (p : Profile n) (s : EatingState n) :
     · intro o ho
       rw [mem_activeObjs, eatingStep_pos_rem p s h o] at ho
       rw [mem_activeObjs]
-      have hterm : 0 ≤ (eatingDemand p s.rem h o : ℝ) * eatingDuration p s.rem h :=
-        mul_nonneg (Nat.cast_nonneg _) (eatingDuration_pos p s.rem h).le
-      linarith
+      linarith [mul_nonneg (Nat.cast_nonneg (eatingDemand p s.rem h o))
+        (eatingDuration_pos p s.rem h).le]
     · intro heq
       obtain ⟨o₀, ho_pos, ho_zero⟩ := exists_exhausted_of_eatingDuration p s.rem h
-      have hmem : o₀ ∈ activeObjs (eatingStep p s) := by
-        rw [heq, mem_activeObjs]; exact ho_pos
-      rw [mem_activeObjs, eatingStep_pos_rem p s h o₀] at hmem
+      have hmem := (mem_activeObjs _ o₀).mp (heq ▸ (mem_activeObjs s o₀).mpr ho_pos)
+      rw [eatingStep_pos_rem p s h o₀] at hmem
       linarith
   · left
-    have hfix : eatingStep p s = s := dite_neg_classical h
-    rw [hfix, Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
-    intro o ho
-    exact h ⟨o, (mem_activeObjs s o).mp ho⟩
+    rw [show eatingStep p s = s from dite_eq_right h]
+    exact Finset.card_eq_zero.mpr
+      (Finset.eq_empty_of_forall_notMem fun o ho => h ⟨o, (mem_activeObjs s o).mp ho⟩)
 
 private lemma eatingStep_iter_inv {n : ℕ} (p : Profile n) (k : ℕ) :
     EatingInv p ((eatingStep p)^[k] (initEatingState n)) := by
@@ -442,45 +361,31 @@ private lemma eatingStep_iter_inv {n : ℕ} (p : Profile n) (k : ℕ) :
 private lemma eatingStep_iter_activeCard_le {n : ℕ} (p : Profile n) (k : ℕ) :
     (activeObjs ((eatingStep p)^[k] (initEatingState n))).card ≤ n - k := by
   induction k with
-  | zero =>
-    calc (activeObjs (initEatingState n)).card
-        ≤ (Finset.univ : Finset (Fin n)).card := Finset.card_filter_le _ _
-      _ = n := Fintype.card_fin n
+  | zero => exact (Finset.card_le_univ _).trans_eq (Fintype.card_fin n)
   | succ k ih =>
     rw [Function.iterate_succ_apply']
-    rcases activeCard_step_le p ((eatingStep p)^[k] (initEatingState n)) with h0 | hlt
-    · omega
-    · omega
+    rcases activeCard_step_le p ((eatingStep p)^[k] (initEatingState n)) with h0 | hlt <;> omega
 
 private lemma eatingStep_rem_eq_zero {n : ℕ} (p : Profile n) (o : Fin n) :
     ((eatingStep p)^[n] (initEatingState n)).rem o = 0 := by
-  have hle := eatingStep_iter_activeCard_le p n
-  rw [Nat.sub_self] at hle
-  have h0 : activeObjs ((eatingStep p)^[n] (initEatingState n)) = ∅ :=
-    Finset.card_eq_zero.mp (Nat.eq_zero_of_le_zero hle)
-  have hnpos : ¬ 0 < ((eatingStep p)^[n] (initEatingState n)).rem o := fun h => by
-    have : o ∈ (∅ : Finset (Fin n)) := h0 ▸ (mem_activeObjs _ o).mpr h
-    exact (Finset.notMem_empty o) this
-  exact le_antisymm (not_lt.mp hnpos) ((eatingStep_iter_inv p n).rem_nonneg o)
+  refine le_antisymm (not_lt.mp fun h => ?_) ((eatingStep_iter_inv p n).rem_nonneg o)
+  have := eatingStep_iter_activeCard_le p n
+  have := Finset.card_pos.mpr ⟨o, (mem_activeObjs _ o).mpr h⟩
+  omega
 
 private lemma eatingStep_elapsed_eq_one {n : ℕ} (hn : 0 < n) (p : Profile n) :
     ((eatingStep p)^[n] (initEatingState n)).elapsed = 1 := by
   set s := (eatingStep p)^[n] (initEatingState n)
-  have hinv := eatingStep_iter_inv p n
-  have hsum_col : ∑ o : Fin n, (s.rem o + ∑ i : Fin n, s.alloc i o) = (n : ℝ) := by
-    calc ∑ o : Fin n, (s.rem o + ∑ i : Fin n, s.alloc i o)
-        = ∑ _o : Fin n, (1 : ℝ) := Finset.sum_congr rfl fun o _ => hinv.col_sum o
-      _ = (n : ℝ) := by simp
-  have hrem_zero : ∑ o : Fin n, s.rem o = 0 :=
+  have hinv : EatingInv p s := eatingStep_iter_inv p n
+  have hrem : ∑ o : Fin n, s.rem o = 0 :=
     Finset.sum_eq_zero fun o _ => eatingStep_rem_eq_zero p o
-  have hsum_row : ∑ o : Fin n, ∑ i : Fin n, s.alloc i o = (n : ℝ) * s.elapsed := by
-    rw [Finset.sum_comm]
-    calc ∑ i : Fin n, ∑ o : Fin n, s.alloc i o
-        = ∑ _i : Fin n, s.elapsed := Finset.sum_congr rfl fun i _ => hinv.row_sum i
-      _ = (n : ℝ) * s.elapsed := by simp
-  rw [Finset.sum_add_distrib, hrem_zero, zero_add, hsum_row] at hsum_col
-  have hn_ne : (n : ℝ) ≠ 0 := (Nat.cast_pos.mpr hn).ne'
-  exact mul_left_cancel₀ hn_ne (by simpa [mul_one] using hsum_col)
+  have hsum : ∑ o : Fin n, (s.rem o + ∑ i : Fin n, s.alloc i o) = ∑ _o : Fin n, (1 : ℝ) :=
+    Finset.sum_congr rfl fun o _ => hinv.col_sum o
+  rw [Finset.sum_add_distrib, hrem, Finset.sum_comm,
+    Finset.sum_congr rfl fun i _ => hinv.row_sum i] at hsum
+  simp only [zero_add, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+    nsmul_eq_mul] at hsum
+  exact mul_left_cancel₀ (Nat.cast_pos.mpr hn).ne' hsum
 
 /-- The Probabilistic Serial assignment is always a doubly stochastic matrix. -/
 theorem probabilisticSerial_mem_doublyStochastic {n : ℕ} (p : Profile n) :
@@ -492,8 +397,7 @@ theorem probabilisticSerial_mem_doublyStochastic {n : ℕ} (p : Profile n) :
     change ∑ o : Fin n, ((eatingStep p)^[n] (initEatingState n)).alloc i o = 1
     rw [hinv.row_sum i, eatingStep_elapsed_eq_one hn p]
   · have hcol := hinv.col_sum o
-    rw [eatingStep_rem_eq_zero p o, zero_add] at hcol
-    exact hcol
+    rwa [eatingStep_rem_eq_zero p o, zero_add] at hcol
 
 /-- **Probabilistic Serial is `sd`-envy-free** ([BogomolnaiaMoulin2001], locator unverified). -/
 theorem probabilisticSerial_isSDEnvyFree {n : ℕ} (p : Profile n) :
@@ -514,17 +418,15 @@ theorem probabilisticSerial_isSDEfficient {n : ℕ} (p : Profile n) :
   refine ⟨probabilisticSerial_mem_doublyStochastic p, ⟨fun a ha => ?_⟩⟩
   set s := (eatingStep p)^[n] (initEatingState n)
   have hinv := eatingStep_iter_inv p n
+  have hstep : ∀ {x y : Fin n}, tradeRel p (probabilisticSerial p) x y →
+      s.exhaustTime x < s.exhaustTime y := fun ⟨i, hpos, hpref⟩ =>
+    (hinv.trade_order i _ _ hpos hpref).2 (eatingStep_rem_eq_zero p _)
   have hmono : ∀ {x y : Fin n},
       Relation.TransGen (tradeRel p (probabilisticSerial p)) x y →
-        s.exhaustTime x < s.exhaustTime y := by
-    intro x y hxy
+        s.exhaustTime x < s.exhaustTime y := fun hxy => by
     induction hxy with
-    | @single b hr =>
-      obtain ⟨i, hpos, hpref⟩ := hr
-      exact (hinv.trade_order i x b hpos hpref).2 (eatingStep_rem_eq_zero p b)
-    | @tail b c _ hbc ih =>
-      obtain ⟨i, hpos, hpref⟩ := hbc
-      exact lt_trans ih ((hinv.trade_order i b c hpos hpref).2 (eatingStep_rem_eq_zero p c))
+    | single hr => exact hstep hr
+    | tail _ hbc ih => exact ih.trans (hstep hbc)
   exact lt_irrefl _ (hmono ha)
 
 /-- Probabilistic Serial is ex-post efficient (corollary of `sd`-efficiency via Birkhoff's
@@ -534,10 +436,8 @@ theorem probabilisticSerial_isExPostEfficient {n : ℕ} (p : Profile n) :
   (probabilisticSerial_isSDEfficient p).isExPostEfficient
 
 private lemma eatingStep_eq_self_of_rem_zero {n : ℕ} (p : Profile n) (s : EatingState n)
-    (h0 : ∀ o : Fin n, s.rem o = 0) : eatingStep p s = s := by
-  have hnot : ¬ ∃ o : Fin n, 0 < s.rem o := by
-    rintro ⟨o, ho⟩; rw [h0 o] at ho; exact lt_irrefl _ ho
-  exact dite_neg_classical hnot
+    (h0 : ∀ o : Fin n, s.rem o = 0) : eatingStep p s = s :=
+  dite_eq_right fun ⟨o, ho⟩ => ho.ne' (h0 o)
 
 private lemma eatingStep_iter_of_rem_zero {n : ℕ} (p : Profile n) (s : EatingState n)
     (h0 : ∀ o : Fin n, s.rem o = 0) (k : ℕ) : (eatingStep p)^[k] s = s := by
@@ -548,12 +448,9 @@ private lemma eatingStep_iter_of_rem_zero {n : ℕ} (p : Profile n) (s : EatingS
 private lemma favObject_eq_of_lt_nonpos {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
     (h : ∃ o : Fin n, 0 < rem o) (i o : Fin n) (hpos : 0 < rem o)
     (hprev : ∀ a : Fin n, (p i).symm a < (p i).symm o → rem a ≤ 0) :
-    favObject p rem h i = o := by
-  have hle : (p i).symm (favObject p rem h i) ≤ (p i).symm o :=
-    favObject_rank_le p rem h i o hpos
-  have hge : ¬ (p i).symm (favObject p rem h i) < (p i).symm o := fun hlt =>
-    (hprev _ hlt).not_gt (favObject_rem_pos p rem h i)
-  exact (p i).symm.injective (le_antisymm hle (not_lt.mp hge))
+    favObject p rem h i = o :=
+  (p i).symm.injective <| (favObject_rank_le p rem h i o hpos).antisymm <|
+    not_lt.mp fun hlt => (hprev _ hlt).not_gt (favObject_rem_pos p rem h i)
 
 private lemma eatingDuration_eq_of_le {n : ℕ} (p : Profile n) (rem : Fin n → ℝ)
     (h : ∃ o : Fin n, 0 < rem o) (d : ℝ)
@@ -562,15 +459,9 @@ private lemma eatingDuration_eq_of_le {n : ℕ} (p : Profile n) (rem : Fin n →
     (hle : ∀ o : Fin n, 0 < eatingDemand p rem h o →
       d ≤ rem o / (eatingDemand p rem h o : ℝ)) :
     eatingDuration p rem h = d := by
-  obtain ⟨o₀, hd₀, heq₀⟩ := hmem
-  refine le_antisymm ?_ ?_
-  · have hmem : o₀ ∈ Finset.univ.filter fun o : Fin n => 0 < eatingDemand p rem h o :=
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, hd₀⟩
-    exact (Finset.inf'_le (fun o => rem o / (eatingDemand p rem h o : ℝ)) hmem).trans_eq heq₀
-  · rw [eatingDuration]
-    refine Finset.le_inf' (demanded_nonempty p rem h)
-      (fun o => rem o / (eatingDemand p rem h o : ℝ)) fun o ho =>
-        hle o (Finset.mem_filter.mp ho).2
+  obtain ⟨o₀, hd₀, rfl⟩ := hmem
+  exact le_antisymm (Finset.inf'_le _ (by simpa using hd₀))
+    (Finset.le_inf' _ _ fun o ho => hle o (by simpa using ho))
 
 /-- Remaining-supply vector assigning `(r 0, r 1, r 2)` to the first three objects and uniform
 supply `d` to every dummy object `o ≥ 3`. -/
@@ -600,11 +491,9 @@ private lemma eatingStep_padded {n : ℕ} (hn : 3 ≤ n) (p : Profile n) (s : Ea
   have hex : ∃ o : Fin n, 0 < s.rem o := ⟨⟨2, by omega⟩, by simpa [hs, padVec] using hpos⟩
   have hfav_all : ∀ i : Fin n, favObject p s.rem hex i =
       if h : i.val < 3 then ⟨(f ⟨i.val, h⟩).val, by omega⟩ else i := fun i => by
-    by_cases hi : i.val < 3
-    · simp only [hi, ↓reduceDIte]
-      exact hfav ⟨i.val, hi⟩
-    · simp only [hi, ↓reduceDIte]
-      refine favObject_eq_of_lt_nonpos p s.rem hex i i
+    split_ifs with hi
+    · exact hfav ⟨i.val, hi⟩
+    · refine favObject_eq_of_lt_nonpos p s.rem hex i i
         (by simpa [hs, padVec, hi] using hdpos) fun _ ha => by
           rw [hdum i (by omega)] at ha; exact absurd ha (by simp [Fin.lt_def])
   have hdem : ∀ o : Fin n, eatingDemand p s.rem hex o =
@@ -612,39 +501,24 @@ private lemma eatingStep_padded {n : ℕ} (hn : 3 ≤ n) (p : Profile n) (s : Ea
     unfold eatingDemand; simp_rw [hfav_all]
     by_cases ho : o.val < 3
     · simp only [ho, ↓reduceDIte, coreCount]
-      refine Finset.card_bij (fun i hi => ⟨i.val, by
-        by_contra hnot
-        have h' := (Finset.mem_filter.mp hi).2
-        simp only [hnot, ↓reduceDIte] at h'
-        subst h'; exact hnot ho⟩) ?_ ?_ ?_
-      · intro i hi
-        have heq := (Finset.mem_filter.mp hi).2
-        have hi3 : i.val < 3 := by
-          by_contra hnot; simp only [hnot, ↓reduceDIte] at heq; subst heq; exact hnot ho
-        simp only [hi3, ↓reduceDIte] at heq
-        exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, Fin.ext (Fin.mk.injEq .. ▸ heq)⟩
-      · intro i₁ _ i₂ _ h; exact Fin.ext (Fin.mk.injEq .. ▸ h)
-      · intro a ha
-        have hfa : f a = ⟨o.val, ho⟩ := (Finset.mem_filter.mp ha).2
-        refine ⟨⟨a.val, by omega⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, rfl⟩
-        simp only [a.isLt, ↓reduceDIte]
-        have hfv : (f a).val = o.val := congrArg Fin.val hfa
-        exact Fin.ext hfv
+      symm
+      refine Finset.card_bij (fun a _ => Fin.castLE hn a) (fun a ha => ?_)
+        (fun a _ b _ h => Fin.castLE_injective hn h) fun i hi => ?_
+      · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha ⊢
+        simp [ha]
+      · have hi3 : i.val < 3 := by
+          by_contra hnot
+          simp [hnot, Fin.ext_iff] at hi
+          omega
+        exact ⟨⟨i.val, hi3⟩, by simpa [hi3, Fin.ext_iff] using hi, rfl⟩
     · simp only [ho, ↓reduceDIte]
-      have hsing : Finset.univ.filter (fun i : Fin n =>
-          (if h : i.val < 3 then (⟨(f ⟨i.val, h⟩).val, by omega⟩ : Fin n) else i) = o) =
-          {o} := by
-        ext i; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-        by_cases hi : i.val < 3
-        · simp only [hi, ↓reduceDIte]
-          constructor
-          · intro heq
-            have hv : (f ⟨i.val, hi⟩).val = o.val := congrArg Fin.val heq
-            have hlt : (f ⟨i.val, hi⟩).val < 3 := (f ⟨i.val, hi⟩).isLt
-            omega
-          · intro heq; subst heq; exact absurd hi ho
-        · simp only [hi, ↓reduceDIte]
-      rw [hsing, Finset.card_singleton]
+      refine Finset.card_eq_one.mpr ⟨o, Finset.ext fun i => ?_⟩
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+      split_ifs with hi
+      · have := (f ⟨i.val, hi⟩).isLt
+        simp only [Fin.ext_iff]
+        omega
+      · rfl
   have hdt : eatingDuration p s.rem hex = dt := by
     refine eatingDuration_eq_of_le p s.rem hex dt ?_ fun o hd => ?_
     · obtain ⟨j, hj_pos, hj_eq⟩ := hdt_mem
@@ -706,37 +580,19 @@ private lemma eq_iter_three_of_rem_zero {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
     _ = (eatingStep p)^[3] (initEatingState n) := eatingStep_iter_of_rem_zero p _ h0 (n - 3)
 
 private lemma swap01_lt {n : ℕ} (hn : 3 ≤ n) (x : Fin n)
-    (h : ((Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm x).val < 2) :
+    (h : (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm x <
+      (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm ⟨2, by omega⟩) :
     x.val = 0 ∨ x.val = 1 := by
-  by_contra hnot
-  have heq : (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm x = x := by
-    rw [Equiv.symm_apply_eq]
-    exact (Equiv.swap_apply_of_ne_of_ne
-      (fun he => hnot (Or.inl (congrArg Fin.val he)))
-      (fun he => hnot (Or.inr (congrArg Fin.val he)))).symm
-  rw [heq] at h; omega
-
-private lemma swap12_symm_r2 {n : ℕ} (hn : 3 ≤ n) :
-    (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨2, by omega⟩ = ⟨1, by omega⟩ := by
-  rw [Equiv.symm_apply_eq]
-  exact (Equiv.swap_apply_left (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm
-
-private lemma swap12_symm_r0 {n : ℕ} (hn : 3 ≤ n) :
-    (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨0, by omega⟩ = ⟨0, by omega⟩ := by
-  rw [Equiv.symm_apply_eq]
-  exact (Equiv.swap_apply_of_ne_of_ne (by simp [Fin.ext_iff]) (by simp [Fin.ext_iff])).symm
+  simp only [Equiv.symm_swap, Equiv.swap_apply_def, Fin.lt_def, Fin.ext_iff, apply_ite Fin.val] at h
+  split_ifs at h <;> omega
 
 private lemma swap12_lt_two {n : ℕ} (hn : 3 ≤ n) (x : Fin n)
     (hx : (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x <
       (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨2, by omega⟩) :
     x.val = 0 := by
-  rw [swap12_symm_r2 hn] at hx
-  have hlt : ((Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x).val < 1 := hx
-  have h01eq : (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x =
-      (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨0, by omega⟩ := by
-    rw [swap12_symm_r0 hn]; exact Fin.ext (by change _ = 0; omega)
-  exact congrArg Fin.val
-    ((Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm.injective h01eq)
+  simp only [Equiv.symm_swap, Equiv.swap_apply_def, Fin.lt_def, Fin.ext_iff,
+    apply_ite Fin.val] at hx
+  split_ifs at hx <;> omega
 
 private lemma psManip_eq_swap01 {n : ℕ} (hn : 3 ≤ n) (i : Fin n) (hi : i.val = 2) :
     psManipProfile hn i = Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ := by
@@ -791,9 +647,7 @@ private lemma eval_psManip_three {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
           rw [hf0_0, hp0] at hx; exact absurd hx (by simp [Fin.lt_def])
       · exact fav_core hn p s0 hs0 _ _ (f₀ 1) zero_lt_one fun x hx => by
           rw [hf0_1, hp1] at hx
-          change (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm x <
-            (Equiv.swap (⟨1, by omega⟩ : Fin n) ⟨2, by omega⟩).symm ⟨0, by omega⟩ at hx
-          rw [swap12_symm_r0 hn] at hx; exact absurd hx (by simp [Fin.lt_def])
+          simp [Equiv.swap_apply_def, Fin.lt_def] at hx
       · exact fav_core hn p s0 hs0 _ _ (f₀ 2) zero_lt_one fun x hx => by
           rw [h0_p2] at hx; exact absurd hx (by simp [Fin.lt_def]))
     hdt₀.1 hdt₀.2.1 hdt₀.2.2
@@ -816,10 +670,8 @@ private lemma eval_psManip_three {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
       fin_cases a
       · exact fav_core hn p s2 hs2_rem _ _ 2 hr₂_2 fun x hx => by
           rw [hp0] at hx
-          have hlt : x.val < 2 := hx
-          rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hlt) with h0 | h1
-          · exact ⟨0, by omega, hr₂_0⟩
-          · exact ⟨1, by omega, hr₂_1⟩
+          obtain h | h : x.val = 0 ∨ x.val = 1 := by change x.val < 2 at hx; omega
+          exacts [⟨0, h, hr₂_0⟩, ⟨1, h, hr₂_1⟩]
       · exact fav_core hn p s2 hs2_rem _ _ 2 hr₂_2 fun x hx => by
           rw [hp1] at hx; exact ⟨0, swap12_lt_two hn x hx, hr₂_0⟩
       · exact fav_core hn p s2 hs2_rem _ _ 2 hr₂_2 fun x hx =>
@@ -832,11 +684,7 @@ private lemma eval_psManip_three {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
   rw [eq_iter_three_of_rem_zero hn p hs3_zero]
   change s3.alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ = _
   rw [hs3_a a, hs2_a a, hs1_a a]
-  have hs0_zero : s0.alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ = 0 := rfl
-  rw [hs0_zero, zero_add]
-  have h1eq : (![1, 2, 1] : Fin 3 → Fin 3) 2 = 1 := rfl
-  have h2eq : (![2, 2, 2] : Fin 3 → Fin 3) 2 = 2 := rfl
-  rw [h1eq, h2eq]
+  exact congrArg (· + _ + _) (zero_add _)
 
 private lemma coreCount_t0 (j : Fin 3) : coreCount ![0, 0, 1] j = ![2, 1, 0] j := by
   fin_cases j <;> decide
@@ -869,29 +717,15 @@ private lemma psManip_truthful_row2 {n : ℕ} (hn : 3 ≤ n) :
       fun j hj => by fin_cases j <;> simp [coreCount_t0] at hj ⊢; norm_num, by norm_num⟩
     (by norm_num) (by norm_num) (by norm_num) (by norm_num)
     (fun x hx => by
-      have hp2 : psManipProfile hn ⟨2, by omega⟩ =
-          Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ := by simp [psManipProfile]
-      rw [hp2, show (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm ⟨1, by omega⟩ =
-        ⟨0, by omega⟩ from by rw [Equiv.symm_apply_eq]; simp] at hx
-      exact absurd hx (by simp [Fin.lt_def]))
+      rw [psManip_eq_swap01 hn _ rfl] at hx
+      simp [Equiv.swap_apply_def, Fin.lt_def] at hx)
     ⟨⟨1, by decide, by simp [coreCount_r1]; norm_num⟩,
       fun j hj => by fin_cases j <;> simp [coreCount_r1] at hj ⊢ <;> norm_num, by norm_num⟩
     (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-    (fun x hx => by
-      have hp2 : psManipProfile hn ⟨2, by omega⟩ =
-          Equiv.swap ⟨0, by omega⟩ ⟨1, by omega⟩ := by simp [psManipProfile]
-      rw [hp2] at hx
-      have h2 : (Equiv.swap (⟨0, by omega⟩ : Fin n) ⟨1, by omega⟩).symm ⟨2, by omega⟩ =
-          ⟨2, by omega⟩ := by
-        rw [Equiv.symm_apply_eq]
-        exact (Equiv.swap_apply_of_ne_of_ne (by simp [Fin.ext_iff]) (by simp [Fin.ext_iff])).symm
-      rw [h2] at hx; exact swap01_lt hn x hx)
+    (fun x hx => by rw [psManip_eq_swap01 hn _ rfl] at hx; exact swap01_lt hn x hx)
     ⟨⟨2, by decide, by simp [coreCount_r2]; norm_num⟩,
       fun j hj => by fin_cases j <;> simp [coreCount_r2] at hj ⊢; norm_num, by norm_num⟩
-  refine ⟨?_, ?_, ?_⟩
-  · have h0 := heval 0; simpa using h0
-  · have h1 := heval 1; norm_num at h1; exact h1
-  · have h2 := heval 2; simpa using h2
+  exact ⟨by simpa using heval 0, (heval 1).trans (by norm_num), by simpa using heval 2⟩
 
 private lemma psManip_misreport_row2 {n : ℕ} (hn : 3 ≤ n) :
     let p' := Function.update (psManipProfile hn) ⟨2, by omega⟩ (Equiv.refl (Fin n))
@@ -925,10 +759,7 @@ private lemma psManip_misreport_row2 {n : ℕ} (hn : 3 ≤ n) :
     (fun x hx => by rw [hp2] at hx; change x.val < 2 at hx; omega)
     ⟨⟨2, by decide, by simp [coreCount_r2]; norm_num⟩,
       fun j hj => by fin_cases j <;> simp [coreCount_r2] at hj ⊢; norm_num, by norm_num⟩
-  refine ⟨?_, ?_, ?_⟩
-  · simpa using heval 0
-  · simpa using heval 1
-  · simpa using heval 2
+  exact ⟨by simpa using heval 0, by simpa using heval 1, by simpa using heval 2⟩
 
 /-- Exact values of agent `2`'s lottery under `probabilisticSerial` on `psManipProfile hn`:
 truthful `(0, 3/4, 1/4)` vs misreported `(1/3, 1/2, 1/6)`. -/

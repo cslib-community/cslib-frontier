@@ -97,21 +97,14 @@ theorem sum_pi_mul_sum_sq (μ : PMF S) (g : S → ℝ) :
         (fun k a => if k = i then g a else if k = j then g a else 1)
       have hl : ∀ x : ι → S, ∏ k, (if k = i then g (x k) else if k = j then g (x k) else 1) =
           g (x i) * g (x j) := fun x => by
-        rw [Finset.prod_eq_mul i j hij]
-        · simp [Ne.symm hij]
-        · intro c _ hc
-          simp [hc.1, hc.2]
-        · simp
-        · simp
+        rw [Finset.prod_eq_mul i j hij (fun c _ hc => by simp [hc.1, hc.2]) (by simp) (by simp)]
+        simp [Ne.symm hij]
       have hr : ∏ k, ∑ a, (μ a).toReal *
           (if k = i then g a else if k = j then g a else 1) =
           (∑ a, (μ a).toReal * g a) ^ 2 := by
-        rw [Finset.prod_eq_mul i j hij]
-        · simp [Ne.symm hij, sq]
-        · intro c _ hc
-          simp [hc.1, hc.2, sum_toReal]
-        · simp
-        · simp
+        rw [Finset.prod_eq_mul i j hij (fun c _ hc => by simp [hc.1, hc.2, sum_toReal]) (by simp)
+          (by simp)]
+        simp [Ne.symm hij, sq]
       simp only [hl] at h
       rw [h, hr]
   calc ∑ x : ι → S, ((pi fun _ => μ) x).toReal * (∑ i, g (x i)) ^ 2
@@ -266,11 +259,7 @@ theorem le_toOuterMeasure_productEstimate (μ : κ → PMF S) (A : κ → Set S)
     rw [← hn]
     exact_mod_cast Fintype.card_pos
   have hn0 : (0 : ℝ) < n := by linarith
-  have ha0 : 0 < a := by
-    rcases Nat.eq_zero_or_pos a with h | h
-    · rw [h, Nat.cast_zero] at ha
-      linarith
-    · exact h
+  have ha0 : 0 < a := Nat.pos_of_ne_zero fun h => by simp [h] at ha; linarith
   have ha0' : (0 : ℝ) < a := Nat.cast_pos.2 ha0
   obtain ⟨δ, hδ⟩ : ∃ δ, δ = ε / (6 * n) := ⟨_, rfl⟩
   rw [← hδ] at hp
@@ -289,12 +278,8 @@ theorem le_toOuterMeasure_productEstimate (μ : κ → PMF S) (A : κ → Set S)
     rw [← hpk]
     exact toOuterMeasure_toReal_le_one (μ k) (A k)
   have hr0 (k : κ) : 0 < r k := hb.trans_le (hr k)
-  have hplo (k : κ) : (1 - δ) * r k ≤ p k := by
-    have := (abs_le.1 (hp k)).1
-    linarith
-  have hphi (k : κ) : p k ≤ (1 + δ) * r k := by
-    have := (abs_le.1 (hp k)).2
-    linarith
+  have hplo (k : κ) : (1 - δ) * r k ≤ p k := by linarith [(abs_le.1 (hp k)).1]
+  have hphi (k : κ) : p k ≤ (1 + δ) * r k := by linarith [(abs_le.1 (hp k)).2]
   have hpb (k : κ) : 5 / 6 * b ≤ p k := by
     have := mul_le_mul_of_nonneg_right hδ1 (hr0 k).le
     linarith [hplo k, hr k]
@@ -325,9 +310,7 @@ theorem le_toOuterMeasure_productEstimate (μ : κ → PMF S) (A : κ → Set S)
       _ = (1 + δ) ^ n * R := by
           rw [Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, hn, hR]
       _ ≤ (1 + ε / 3) * R := mul_le_mul_of_nonneg_right h1 hR0.le
-  have hm0 : 0 < m := by
-    have := mul_pos (by linarith : (0 : ℝ) < 1 - ε / 6) hR0
-    linarith
+  have hm0 : 0 < m := by nlinarith
   -- The second moment: `E W² ≤ (1 + 2 n y) m²` with `y = 6 / (5 a b)`.
   obtain ⟨y, hy⟩ : ∃ y : ℝ, y = 6 / (5 * a * b) := ⟨_, rfl⟩
   have hy0 : 0 ≤ y := by rw [hy]; positivity
@@ -345,10 +328,8 @@ theorem le_toOuterMeasure_productEstimate (μ : κ → PMF S) (A : κ → Set S)
       linarith [hpb k]
     have h2 : p k * (1 - p k) / a ≤ p k / a :=
       div_le_div_of_nonneg_right (by nlinarith [sq_nonneg (p k)]) ha0'.le
-    have h3 : p k / a ≤ y * p k ^ 2 := by
-      calc p k / a = p k * (1 / a) := by ring
-        _ ≤ p k * (p k * y) := mul_le_mul_of_nonneg_left h1 (hp0 k)
-        _ = y * p k ^ 2 := by ring
+    have h3 := mul_le_mul_of_nonneg_left h1 (hp0 k)
+    rw [← div_eq_mul_one_div] at h3
     linarith
   obtain ⟨P, hP⟩ : ∃ P : PMF (κ → Fin a → S), P = pi fun k => pi fun _ : Fin a => μ k :=
     ⟨_, rfl⟩

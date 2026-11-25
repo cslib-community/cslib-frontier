@@ -390,8 +390,7 @@ private theorem isX_natAdd (k : Fin n) : isX (Fin.natAdd n k) = false := by
 private theorem eq_var_iff {v : Fin (n + n)} {k : Fin n} {b : Bool} :
     v = var k b ↔ pair v = k ∧ isX v = b := by
   constructor
-  · rintro rfl
-    exact ⟨pair_var k b, isX_var k b⟩
+  · rintro rfl; exact ⟨pair_var k b, isX_var k b⟩
   · rintro ⟨rfl, rfl⟩
     induction v using Fin.addCases with
     | left i => rw [pair_castAdd, isX_castAdd, var, ite_eq_left rfl]
@@ -406,9 +405,7 @@ theorem not_basic_var_not (N : ℕ) (j : Fin n) : ¬Basic N (var j (!flipped N j
 private theorem eq_var_self_iff {N : ℕ} {j : Fin n} {v : Fin (n + n)} :
     v = var j (flipped N j) ↔ pair v = j ∧ Basic N v := by
   rw [eq_var_iff, Basic]
-  constructor
-  · rintro ⟨rfl, h⟩; exact ⟨rfl, h⟩
-  · rintro ⟨rfl, h⟩; exact ⟨rfl, h⟩
+  constructor <;> rintro ⟨rfl, h⟩ <;> exact ⟨rfl, h⟩
 
 private theorem eq_var_not_iff {N : ℕ} {j : Fin n} {v : Fin (n + n)} :
     v = var j (!flipped N j) ↔ pair v = j ∧ ¬Basic N v := by
@@ -486,14 +483,10 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     · by_cases hb : Basic N v
       · exact .inl (hr ▸ eq_var_self_iff.2 ⟨h, hb⟩)
       · exact .inr (.inl (hs ▸ eq_var_not_iff.2 ⟨h, hb⟩))
-    · refine .inr (.inr ⟨h, ?_, ?_⟩) <;> rintro rfl
-      · exact h hpr
-      · exact h hps
+    · exact .inr (.inr ⟨h, fun e => h (e ▸ hpr), fun e => h (e ▸ hps)⟩)
   have hne : ∀ v : Fin (n + n), pair v ≠ j → (pair v : ℕ) ≠ j := fun v h e => h (Fin.ext e)
-  have hb1 : ∀ v : Fin (n + n), pair v ≠ j → (Basic (N + 1) v ↔ Basic N v) := by
-    intro v h
-    rw [basic_succ_iff hj hlow]
-    simp [h]
+  have hb1 : ∀ v : Fin (n + n), pair v ≠ j → (Basic (N + 1) v ↔ Basic N v) := fun v h => by
+    rw [basic_succ_iff hj hlow]; simp [h]
   apply Dictionary.ext
   · ext v
     simp only [Dictionary.mem_pivot_basis, mem_dict_basis]
@@ -567,13 +560,7 @@ private theorem zVal_nonneg_and (N k : ℕ) :
     obtain ⟨h0, h1⟩ := ih
     have hp : (0 : K) ≤ 100 ^ k := by positivity
     rw [zVal_succ]
-    split_ifs
-    · constructor
-      · nlinarith
-      · rw [pow_succ]; nlinarith
-    · constructor
-      · nlinarith
-      · rw [pow_succ]; nlinarith
+    split_ifs <;> exact ⟨by nlinarith, by rw [pow_succ]; nlinarith⟩
 
 private theorem rowConst_bounds (N k : ℕ) :
     4 * (100 : K) ^ k ≤ 5 * rowConst N k ∧ (rowConst N k : K) ≤ 100 ^ k := by
@@ -620,14 +607,10 @@ theorem dantzigEntering_dict {N : ℕ} (hN : N < 2 ^ n) {j : Fin n} (hj : N.test
         _ < 10 ^ (n - 1 - (j : ℕ)) := by rw [mul_one]; exact hle
   rw [Dictionary.dantzigEntering_eq_some_iff, mem_dict_basis]
   refine ⟨hsb, by rw [hcs]; positivity, fun u hu => ?_, fun u hu heq => ?_⟩
-  · rw [mem_dict_basis] at hu
-    by_cases hus : u = var j (!flipped N j)
-    · rw [hus]
-    · exact (hlt u hu hus).le
-  · rw [mem_dict_basis] at hu
-    by_cases hus : u = var j (!flipped N j)
-    · exact hus.symm.le
-    · exact absurd heq (hlt u hu hus).ne
+  · rcases eq_or_ne u (var j (!flipped N j)) with rfl | hus
+    exacts [le_rfl, (hlt u (mem_dict_basis.not.mp hu) hus).le]
+  · rcases eq_or_ne u (var j (!flipped N j)) with rfl | hus
+    exacts [le_rfl, absurd heq (hlt u (mem_dict_basis.not.mp hu) hus).ne]
 
 /-- At vertex `N` with lowest zero bit `j`, the ratio test leaves the basic variable of pair
 `j`: its ratio is strictly smallest. -/
@@ -649,10 +632,8 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     rw [dict_coeff hi hsb, pair_var] at hneg
     rw [hratio, Dictionary.ratio, dict_coeff hi hsb, dict_rhs hi, pair_var]
     have hPj : pair i ≠ j := fun h => hir (eq_var_self_iff.2 ⟨h, hi⟩)
-    have hjP : (j : ℕ) < pair i := by
-      rcases lt_or_gt_of_ne (fun e => hPj (Fin.ext e)) with h | h
-      · rw [rowCoeff_of_gt h] at hneg; exact absurd hneg (lt_irrefl 0)
-      · exact h
+    have hjP : (j : ℕ) < pair i := (lt_or_gt_of_ne fun e => hPj (Fin.ext e)).resolve_left fun h =>
+      by rw [rowCoeff_of_gt h] at hneg; exact lt_irrefl 0 hneg
     rw [rowCoeff_of_lt hjP] at hneg ⊢
     rw [lt_div_iff₀ (by linarith)]
     obtain ⟨d, hd⟩ : ∃ d, (pair i : ℕ) = j + (d + 1) := ⟨pair i - j - 1, by omega⟩
@@ -682,14 +663,10 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     nlinarith
   rw [Dictionary.blandLeaving_eq_some_iff, mem_dict_basis]
   refine ⟨hrb, by rw [hcrs]; norm_num, fun i hi hneg => ?_, fun i hi hneg heq => ?_⟩
-  · rw [mem_dict_basis] at hi
-    by_cases hir : i = var j (flipped N j)
-    · rw [hir]
-    · exact (hlt i hi hir hneg).le
-  · rw [mem_dict_basis] at hi
-    by_cases hir : i = var j (flipped N j)
-    · exact hir.symm.le
-    · exact absurd heq (hlt i hi hir hneg).ne'
+  · rcases eq_or_ne i (var j (flipped N j)) with rfl | hir
+    exacts [le_rfl, (hlt i (mem_dict_basis.mp hi) hir hneg).le]
+  · rcases eq_or_ne i (var j (flipped N j)) with rfl | hir
+    exacts [le_rfl, absurd heq (hlt i (mem_dict_basis.mp hi) hir hneg).ne']
 
 /-- Below the last vertex, one step of Dantzig's rule moves from vertex `N` to vertex `N + 1`. -/
 theorem dantzigStep_dict {N : ℕ} (hN : N < 2 ^ n - 1) :

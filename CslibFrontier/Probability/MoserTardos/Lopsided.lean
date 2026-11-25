@@ -638,48 +638,24 @@ private theorem isLog_canonList {A : ι → Set (∀ v, α v)}
         omega)
       S.toList).imp fun {a b} hab => of_decide_eq_true hab
   have hroot : RootedRel R i S := hS₁ ▸ rooted_witnessRel R i (L.map Prod.fst)
-  have hne : sorted ≠ [] := by
-    intro h
-    have : (i, 0) ∈ sorted := hpermS.symm.subset (mem_toList.2 hroot.root)
-    rw [h] at this
-    simp at this
-  obtain ⟨p₀, t, hsorted⟩ := List.exists_cons_of_ne_nil hne
-  have hp₀ : p₀ = (i, 0) := by
-    have hp₀S : p₀ ∈ S := mem_toList.1 (hpermS.subset (by simp [hsorted]))
-    have hi0 : (i, 0) ∈ t ∨ p₀ = (i, 0) := by
-      have hmem : (i, 0) ∈ p₀ :: t := hsorted ▸ hpermS.symm.subset (mem_toList.2 hroot.root)
-      rcases List.mem_cons.1 hmem with h | h
-      · exact Or.inr h.symm
-      · exact Or.inl h
-    rcases hi0 with hit | rfl
-    · have hle := (List.pairwise_cons.1 (hsorted ▸ hpairS)).1 (i, 0) hit
-      exact hroot.zero p₀ hp₀S (Nat.eq_zero_of_le_zero hle)
-    · rfl
-  subst hp₀
-  have hnod_sorted : ((i, 0) :: t).Nodup := hsorted ▸ hpermS.nodup_iff.2 S.nodup_toList
-  have hpair_t : t.Pairwise (fun a b => a.2 ≤ b.2) := (List.pairwise_cons.1 (hsorted ▸ hpairS)).2
-  have hnod_t : t.Nodup := (List.nodup_cons.1 hnod_sorted).2
-  have hperm_ins : ((i, 0) :: L).Perm S.toList := by
-    rw [List.perm_iff_count]
-    intro q
-    have hnod1 : ((i, 0) :: L).Nodup := List.nodup_cons.2 ⟨hnot_root, hnodL⟩
-    have hnod2 : S.toList.Nodup := S.nodup_toList
-    by_cases hq : q ∈ (i, 0) :: L
-    · have hq2 : q ∈ S.toList := by
-        rw [mem_toList, hfold, mem_union, mem_singleton]
-        simpa [List.mem_cons, List.mem_toFinset] using hq
-      rw [List.count_eq_one_of_mem hnod1 hq, List.count_eq_one_of_mem hnod2 hq2]
-    · have hq2 : q ∉ S.toList := by
-        rw [mem_toList, hfold, mem_union, mem_singleton]
-        simpa [List.mem_cons, List.mem_toFinset] using hq
-      rw [List.count_eq_zero.2 hq, List.count_eq_zero.2 hq2]
-  have hperm_t : L.Perm t :=
-    (hperm_ins.trans (hsorted ▸ hpermS.symm)).cons_inv
-  have hres := phase2_sort_perm vbl hA t [(i, 0)] {(i, 0)} (L.map Prod.fst) L
-    hlog₁ htr hperm_t hpair_t hnod_t
+  have hmem : (i, 0) ∈ sorted := hpermS.symm.subset (mem_toList.2 hroot.root)
+  obtain ⟨p₀, t, hsorted⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem hmem)
+  rw [hsorted] at hmem hpairS hpermS
+  obtain ⟨hle, hpair_t⟩ := List.pairwise_cons.1 hpairS
+  obtain rfl : p₀ = (i, 0) := by
+    rcases List.mem_cons.1 hmem with h | hit
+    · exact h.symm
+    · exact hroot.zero p₀ (mem_toList.1 (hpermS.subset List.mem_cons_self))
+        (Nat.eq_zero_of_le_zero (hle _ hit))
+  have hnod_t : t.Nodup := (List.nodup_cons.1 (hpermS.nodup_iff.2 S.nodup_toList)).2
+  have hperm_ins : ((i, 0) :: L).Perm S.toList :=
+    (List.perm_ext_iff_of_nodup (List.nodup_cons.2 ⟨hnot_root, hnodL⟩) S.nodup_toList).2
+      fun q => by simp [hfold]
+  have hperm_t : L.Perm t := (hperm_ins.trans hpermS.symm).cons_inv
   change IsLog vbl A T (sorted.map Prod.fst)
   rw [hsorted, List.map_cons]
-  exact hres
+  exact phase2_sort_perm vbl hA t [(i, 0)] {(i, 0)} (L.map Prod.fst) L
+    hlog₁ htr hperm_t hpair_t hnod_t
 
 end CanonicalLog
 

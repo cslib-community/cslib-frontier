@@ -313,15 +313,11 @@ theorem exists_isPrefixFree_iff_kraft_le_one {α : Type*} (s : Finset α) (ℓ :
           rw [Finset.sum_insert ha, Nat.cast_add, Finset.sum_insert ha,
             ih fun x hx => ht x (Finset.mem_insert_of_mem hx), mul_add]
           congr 1
-          have hpow : (2 : ℝ) ^ L = (2 : ℝ) ^ (L - ℓ a) * (2 : ℝ) ^ ℓ a := by
-            rw [← pow_add, Nat.sub_add_cancel (ht a (Finset.mem_insert_self a t))]
-          push_cast
-          rw [hpow, mul_assoc, ← mul_pow]
-          norm_num
+          rw [Nat.cast_pow, Nat.cast_ofNat, pow_sub₀ _ two_ne_zero
+            (ht a (Finset.mem_insert_self a t)), one_div_pow, one_div]
       have hreal : ((∑ a ∈ s, 2 ^ (L - ℓ a) : ℕ) : ℝ) ≤ ((2 ^ L : ℕ) : ℝ) := by
-        rw [hcast_mul s hL]
-        push_cast
-        nlinarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 2) L]
+        rw [hcast_mul s hL, Nat.cast_pow, Nat.cast_ofNat]
+        exact mul_le_of_le_one_right (by positivity) hkraft
       exact_mod_cast hreal
     exact exists_isPrefixFree_of_kraft_nat s ℓ L hL hnat
 
@@ -379,23 +375,23 @@ private theorem codebookBitLength_filterMap_add_le {α : Type*} (bit : Bool)
     rcases p with ⟨a, _ | ⟨b, bs⟩⟩
     · simp only [List.filterMap_cons, codebookBitLength, List.map_cons, List.sum_cons] at ih ⊢
       omega
-    · by_cases hb : b = bit
-      · simp only [List.filterMap_cons, hb, beq_self_eq_true, ↓reduceIte, codebookBitLength,
-          List.map_cons, List.sum_cons, List.length_cons] at ih ⊢
-        omega
-      · simp only [List.filterMap_cons, beq_false_of_ne hb, Bool.false_eq_true, ↓reduceIte,
-          codebookBitLength, List.map_cons, List.sum_cons] at ih ⊢
-        omega
+    · by_cases hb : b = bit <;> simp [hb, codebookBitLength] at ih ⊢ <;> omega
 
-private theorem codebookBitLength_leftChildren_add_le {α : Type*} (ps : List (α × List Bool)) :
-    codebookBitLength (leftChildren ps) + (leftChildren ps).length ≤ codebookBitLength ps := by
-  rw [leftChildren_eq_filterMap]
-  exact codebookBitLength_filterMap_add_le false ps
+private theorem codebookBitLength_lt_of_leftChildren_eq {α : Type*} {ps : List (α × List Bool)}
+    {p : α × List Bool} {l : List (α × List Bool)} (h : leftChildren ps = p :: l) :
+    codebookBitLength (p :: l) < codebookBitLength ps := by
+  have := codebookBitLength_filterMap_add_le false ps
+  rw [← leftChildren_eq_filterMap, h] at this
+  simp only [List.length_cons] at this
+  omega
 
-private theorem codebookBitLength_rightChildren_add_le {α : Type*} (ps : List (α × List Bool)) :
-    codebookBitLength (rightChildren ps) + (rightChildren ps).length ≤ codebookBitLength ps := by
-  rw [rightChildren_eq_filterMap]
-  exact codebookBitLength_filterMap_add_le true ps
+private theorem codebookBitLength_lt_of_rightChildren_eq {α : Type*} {ps : List (α × List Bool)}
+    {p : α × List Bool} {l : List (α × List Bool)} (h : rightChildren ps = p :: l) :
+    codebookBitLength (p :: l) < codebookBitLength ps := by
+  have := codebookBitLength_filterMap_add_le true ps
+  rw [← rightChildren_eq_filterMap, h] at this
+  simp only [List.length_cons] at this
+  omega
 
 /-- Compact a binary codebook `pairs : List (α × List Bool)` into a full binary `CodeTree α` by
 recursively branching on first bits and contracting unary internal nodes. -/
@@ -406,30 +402,14 @@ def treeOfCodebook {α : Type*} : List (α × List Bool) → Option (CodeTree α
     match hL : leftChildren (p₁ :: p₂ :: rest), hR : rightChildren (p₁ :: p₂ :: rest) with
     | [], [] => foldLeaves ((p₁ :: p₂ :: rest).map Prod.fst)
     | l₁ :: ls, [] =>
-      have : codebookBitLength (l₁ :: ls) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_leftChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hL] at h
-        simp only [List.length_cons] at h
-        omega
+      have := codebookBitLength_lt_of_leftChildren_eq hL
       treeOfCodebook (l₁ :: ls)
     | [], r₁ :: rs =>
-      have : codebookBitLength (r₁ :: rs) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_rightChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hR] at h
-        simp only [List.length_cons] at h
-        omega
+      have := codebookBitLength_lt_of_rightChildren_eq hR
       treeOfCodebook (r₁ :: rs)
     | l₁ :: ls, r₁ :: rs => do
-      have : codebookBitLength (l₁ :: ls) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_leftChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hL] at h
-        simp only [List.length_cons] at h
-        omega
-      have : codebookBitLength (r₁ :: rs) < codebookBitLength (p₁ :: p₂ :: rest) := by
-        have h := codebookBitLength_rightChildren_add_le (p₁ :: p₂ :: rest)
-        rw [hR] at h
-        simp only [List.length_cons] at h
-        omega
+      have := codebookBitLength_lt_of_leftChildren_eq hL
+      have := codebookBitLength_lt_of_rightChildren_eq hR
       let tl ← treeOfCodebook (l₁ :: ls)
       let tr ← treeOfCodebook (r₁ :: rs)
       pure (.branch tl tr)

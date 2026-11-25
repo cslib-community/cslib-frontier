@@ -182,9 +182,7 @@ private theorem exists_chain_covering {m : ℕ} {prec : J → J → Prop} {p s :
   · push Not at hex
     refine ⟨[j], rfl, List.isChain_singleton j,
       fun t ht hm => ⟨j, List.mem_singleton_self j, ?_, ht⟩⟩
-    by_contra h
-    push Not at h
-    exact absurd (hex t h) (not_le.mpr hm)
+    exact not_lt.mp fun h => absurd hm (not_lt.mpr (hex t h))
 
 /-- **Graham's critical-chain bound** ([Graham1966], §II, proofs of the Proposition and Theorem;
 [CLRS2009], Theorem 27.1): for a greedy schedule on `m` machines with well-founded precedences
@@ -332,6 +330,11 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
   have hs'D : ∀ j ∈ D, s' j = s j := fun j hj => by simp [s', hj]
   have hs'A : ∀ j ∈ A, s' j = N := fun j hj => by simp [s', hj, hAs j hj]
   have hs'out : ∀ j, j ∉ D → j ∉ A → s' j = N + 1 := fun j h1 h2 => by simp [s', h1, h2]
+  -- Jobs outside `D` start at `N` under `s` and at `N` or later under `s'`.
+  have hs'N : ∀ j ∉ D, s j = N ∧ N ≤ s' j := fun j hj => by
+    have := h.eq_of_notMem j hj
+    simp only [s']
+    split_ifs <;> omega
   have hrD : r ≤ m := h.card_le N
   have hrun_lt : ∀ t < N, running p s' t = running p s t := by
     intro t ht
@@ -339,11 +342,8 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
     simp only [mem_running]
     by_cases hj : j ∈ D
     · rw [hs'D j hj]
-    · rw [h.eq_of_notMem j hj]
-      by_cases hjA : j ∈ A
-      · rw [hs'A j hjA]
-      · rw [hs'out j hj hjA]
-        omega
+    · have := hs'N j hj
+      omega
   have hrun_ge : ∀ t, N ≤ t → running p s' t ∩ (D ∪ A) ⊆ (running p s N ∩ D) ∪ A := by
     intro t ht j hj
     rw [mem_inter, mem_running] at hj
@@ -356,21 +356,15 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
   have hdisj : Disjoint (running p s N ∩ D) A :=
     disjoint_left.mpr fun j hj hjA => hAD j hjA (mem_inter.mp hj).2
   have hrunN : running p s' N = (running p s N ∩ D) ∪ A := by
-    ext j
-    constructor
-    · intro hj
-      have hjDA : j ∈ D ∪ A := by
-        by_contra hn
-        rw [mem_union, not_or] at hn
-        rw [mem_running, hs'out j hn.1 hn.2] at hj
-        omega
-      exact hrun_ge N le_rfl (mem_inter.mpr ⟨hj, hjDA⟩)
-    · intro hj
-      rw [mem_running]
+    refine Subset.antisymm (fun j hj => hrun_ge N le_rfl (mem_inter.mpr ⟨hj, ?_⟩)) fun j hj => ?_
+    · by_contra hn
+      rw [mem_union, not_or] at hn
+      rw [mem_running, hs'out j hn.1 hn.2] at hj
+      omega
+    · rw [mem_running]
       rcases mem_union.mp hj with hj | hj
-      · rw [mem_inter, mem_running] at hj
-        rw [hs'D j hj.2]
-        exact hj.1
+      · rw [hs'D j (mem_inter.mp hj).2]
+        exact mem_running.mp (mem_inter.mp hj).1
       · rw [hs'A j hj]
         have := hp j
         omega
@@ -390,19 +384,15 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       omega
     · rw [hs'A j hj]
       omega
-  · intro j hj
-    rw [mem_union, not_or] at hj
-    exact hs'out j hj.1 hj.2
+  · exact fun j hj => hs'out j (hj ∘ mem_union_left _) (hj ∘ mem_union_right _)
   · intro i j hij hj
     rcases mem_union.mp hj with hjD | hjA
     · obtain ⟨hiD, hle⟩ := h.prec_le i j hij hjD
       refine ⟨mem_union_left _ hiD, ?_⟩
-      rw [hs'D i hiD, hs'D j hjD]
-      exact hle
+      rwa [hs'D i hiD, hs'D j hjD]
     · obtain ⟨hiD, hle⟩ := (mem_filter.mp (hAR hjA)).2.2 i hij
       refine ⟨mem_union_left _ hiD, ?_⟩
-      rw [hs'D i hiD, hs'A j hjA]
-      exact hle
+      rwa [hs'D i hiD, hs'A j hjA]
   · intro t
     by_cases ht : t < N
     · have hsub : running p s' t ∩ (D ∪ A) ⊆ running p s t ∩ D := by
@@ -426,18 +416,13 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       have htj' : t < s j := by
         by_cases hj : j ∈ D
         · rwa [← hs'D j hj]
-        · rw [h.eq_of_notMem j hj]
-          exact ht
+        · exact (hs'N j hj).1 ▸ ht
       obtain ⟨i, hij, hi⟩ := h.ready t ht j hm htj'
       refine ⟨i, hij, ?_⟩
       by_cases hiD : i ∈ D
       · rwa [hs'D i hiD]
-      · have h1 := h.eq_of_notMem i hiD
-        by_cases hiA : i ∈ A
-        · rw [hs'A i hiA]
-          omega
-        · rw [hs'out i hiD hiA]
-          omega
+      · have := hs'N i hiD
+        omega
     · have hjD : j ∉ D := fun hjD => by
         rw [hs'D j hjD] at htj
         have := h.lt_of_mem j hjD
@@ -451,14 +436,10 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       obtain ⟨i, hij, hi⟩ := hjR hjD
       refine ⟨i, hij, ?_⟩
       by_cases hiD : i ∈ D
-      · rw [hs'D i hiD]
-        exact not_le.mp (hi hiD)
+      · exact hs'D i hiD ▸ not_le.mp (hi hiD)
       · have := hp i
-        by_cases hiA : i ∈ A
-        · rw [hs'A i hiA]
-          omega
-        · rw [hs'out i hiD hiA]
-          omega
+        have := hs'N i hiD
+        omega
   · intro t ht hDA
     have hD : D ≠ univ := fun hD =>
       hDA (eq_univ_iff_forall.mpr fun x => mem_union_left _ (hD ▸ mem_univ x))
@@ -470,26 +451,14 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
     · rw [ht]
       suffices hne : (running p s N ∩ D ∪ A).Nonempty by
         obtain ⟨k, hk⟩ := hne
-        refine ⟨k, mem_inter.mpr ⟨hrunN ▸ hk, ?_⟩⟩
-        rcases mem_union.mp hk with hk | hk
-        · exact mem_union_left _ (mem_inter.mp hk).2
-        · exact mem_union_right _ hk
-      by_cases hAne : A.Nonempty
-      · obtain ⟨a, ha⟩ := hAne
-        exact ⟨a, mem_union_right _ ha⟩
-      · rw [not_nonempty_iff_eq_empty] at hAne
-        obtain ⟨k, hkD, hkmin⟩ := hwf.has_min {j | j ∉ D} (by
-          by_contra hcon
-          exact hD (eq_univ_iff_forall.mpr fun x => by
-            by_contra hx
-            exact hcon ⟨x, hx⟩))
-        have hpred : ∀ i, prec i k → i ∈ D := fun i hik => by
-          by_contra hiD
-          exact hkmin i hiD hik
+        exact ⟨k, mem_inter.mpr ⟨hrunN ▸ hk, union_subset_union inter_subset_right subset_rfl hk⟩⟩
+      rcases A.eq_empty_or_nonempty with hAne | ⟨a, ha⟩
+      · obtain ⟨k, hkD, hkmin⟩ :=
+          hwf.has_min {j | j ∉ D} (by simpa [eq_univ_iff_forall, Set.Nonempty] using hD)
+        have hpred : ∀ i, prec i k → i ∈ D := fun i hik => by_contra fun hiD => hkmin i hiD hik
         by_cases hready : ∀ i, prec i k → s i + p i ≤ N
-        · have hkR : k ∈ R := by
-            rw [hR, mem_filter]
-            exact ⟨mem_univ _, hkD, fun i hik => ⟨hpred i hik, hready i hik⟩⟩
+        · have hkR : k ∈ R :=
+            mem_filter.mpr ⟨mem_univ _, hkD, fun i hik => ⟨hpred i hik, hready i hik⟩⟩
           have hR0 : 0 < #R := card_pos.mpr ⟨k, hkR⟩
           rw [hAne, card_empty] at hA
           have hmr : m ≤ r := by
@@ -501,6 +470,7 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
           have hiD := hpred i hik
           have := h.lt_of_mem i hiD
           exact ⟨i, mem_union_left _ (mem_inter.mpr ⟨mem_running.mpr ⟨by omega, hi⟩, hiD⟩)⟩
+      · exact ⟨a, mem_union_right _ ha⟩
 
 omit [DecidableEq J] in
 /-- Counting the running jobs over any `N` slots counts each job at most `p j` times. -/
@@ -542,8 +512,7 @@ theorem exists_isGreedy (m : ℕ) (hm : 0 < m) (prec : J → J → Prop) (hwf : 
   subst hD
   refine ⟨s, ⟨⟨fun i j hij => (h.prec_le i j hij (mem_univ j)).2, fun t => ?_⟩, ?_⟩⟩
   · simpa using h.card_le t
-  · intro t j hlt htj
-    exact h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj
+  · exact fun t j hlt htj => h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj
 
 end Existence
 
