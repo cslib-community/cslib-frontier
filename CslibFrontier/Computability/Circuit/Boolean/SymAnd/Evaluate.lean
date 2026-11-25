@@ -510,10 +510,8 @@ private theorem mem_radixStep_iff {α : Type*} {k i : ℕ} {L : List (List Bool 
   | succ k ih => rw [Function.iterate_succ_apply, radixStep, ih, mem_radixPass_iff]
 
 private theorem streamState_const {α σ : Type*} (s : σ) (xs : List α) (j : ℕ) :
-    streamState s (fun p : σ × α => p.1) xs j = s := by
-  have htake : ∀ (l : List α) (st : σ), l.foldl (fun p _ => p) st = st := by
-    intro l st; induction l with | nil => rfl | cons _ _ ih => exact ih
-  exact htake (xs.take j) s
+    streamState s (fun p : σ × α => p.1) xs j = s :=
+  List.foldl_fixed (xs.take j)
 
 private theorem computableInO_streamFold {α σ β γ : Type}
     {encA : α ↪ List Bool} {encS : σ ↪ List Bool} {encB : β ↪ List Bool}
