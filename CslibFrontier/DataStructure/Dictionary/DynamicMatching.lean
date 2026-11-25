@@ -634,28 +634,18 @@ private theorem matchAux_spec {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin 
         have hm := roundMatchOpt_mem_bins hab
         exact ⟨stateAt_bins_subset h A B k hm.2,
           fun h' => h'.2 (mem_filter.mpr ⟨hm.2, a, hm.1, hab⟩)⟩
-    · have hdisj {x y} (hx : matchAux h A B k x = some b) (hy : matchAux h A B k y = none)
-          (hy' : matchAux h A B (k + 1) y = some b) : False := by
-        dsimp only [matchAux] at hy'; rw [hy] at hy'; split_ifs at hy'
-        exact (mem_sdiff.mp (hran x b hx)).2 (roundMatchOpt_mem_bins hy').2
-      cases hm₁ : matchAux h A B k a₁ with
-      | none =>
-        cases hm₂ : matchAux h A B k a₂ with
-        | none =>
-          dsimp only [matchAux] at h₁ h₂; rw [hm₁] at h₁; rw [hm₂] at h₂
-          split_ifs at h₁ h₂ with hk; exact roundMatchOpt_injective (h ⟨k, hk⟩) _ _ h₁ h₂
-        | some b₂ =>
-          have hb₂ : b₂ = b := by simpa [matchAux, hm₂] using h₂
-          exact (hdisj (hb₂ ▸ hm₂) hm₁ h₁).elim
-      | some b₁ =>
-        cases hm₂ : matchAux h A B k a₂ with
-        | none =>
-          have hb₁ : b₁ = b := by simpa [matchAux, hm₁] using h₁
-          exact (hdisj (hb₁ ▸ hm₁) hm₂ h₂).elim
-        | some b₂ =>
-          have hb₁ : b₁ = b := by simpa [matchAux, hm₁] using h₁
-          have hb₂ : b₂ = b := by simpa [matchAux, hm₂] using h₂
-          exact hinj a₁ a₂ b (hb₁ ▸ hm₁) (hb₂ ▸ hm₂)
+    · have hcase {x} (hx : matchAux h A B (k + 1) x = some b) : matchAux h A B k x = some b ∨
+          ∃ hk : k < U',
+            roundMatchOpt (h ⟨k, hk⟩) (stateAt h A B k).1 (stateAt h A B k).2 x = some b := by
+        dsimp only [matchAux] at hx
+        cases hm : matchAux h A B k x <;> simp only [hm] at hx
+        · split_ifs at hx with hk; exact .inr ⟨hk, hx⟩
+        · exact .inl hx
+      rcases hcase h₁ with h₁ | ⟨hk, h₁⟩ <;> rcases hcase h₂ with h₂ | ⟨_, h₂⟩
+      · exact hinj a₁ a₂ b h₁ h₂
+      · exact ((mem_sdiff.mp (hran a₁ b h₁)).2 (roundMatchOpt_mem_bins h₂).2).elim
+      · exact ((mem_sdiff.mp (hran a₂ b h₂)).2 (roundMatchOpt_mem_bins h₁).2).elim
+      · exact roundMatchOpt_injective (h ⟨k, hk⟩) _ _ h₁ h₂
 
 theorem matchOptOn_isSome_iff {U' n' : ℕ} (h : Scheme U' n')
     {A : Finset (Fin U')} {B : Finset (Fin n')} (hle : A.card ≤ B.card)
@@ -729,11 +719,8 @@ private theorem two_mul_sum_card_balls_roundStep_le {U' n' : ℕ} {A : Finset (F
     2 * ∑ π : RoundPerm U' n', (roundStep π (A, B)).1.card ≤
       A.card * Fintype.card (RoundPerm U' n') := by
   have hpoint (π : RoundPerm U' n') : (roundStep π (A, B)).1.card =
-      ∑ a ∈ A, if (roundMatchOpt π A B a).isSome then 0 else 1 := by
-    have : (roundStep π (A, B)).1 = A.filter fun a => ¬(roundMatchOpt π A B a).isSome := by
-      ext a; simp only [roundStep, mem_sdiff, mem_filter]; tauto
-    rw [this, card_filter]
-    exact sum_congr rfl fun a _ => by cases roundMatchOpt π A B a <;> rfl
+      ∑ a ∈ A, if roundMatchOpt π A B a = none then 1 else 0 := by
+    rw [← card_filter]; congr 1; ext a; simp +contextual [roundStep]
   simp_rw [hpoint]; rw [sum_comm, mul_sum, ← sum_const_nat
     (f := fun _ => Fintype.card (RoundPerm U' n')) fun _ _ => rfl]
   refine sum_le_sum fun a ha => ?_
@@ -767,16 +754,13 @@ private theorem two_mul_sum_card_balls_roundStep_le {U' n' : ℕ} {A : Finset (F
     obtain ⟨a', ha', rfl⟩ := mem_map.mp hy
     exact mem_erase.mpr ⟨fun h => (mem_erase.mp ha').1 (ballItem_injective U' n' h),
       ballItem_mem_activeItems.mpr (mem_of_mem_erase ha')⟩
-  set badP := Finset.univ.filter fun π : RoundPerm U' n' => ¬(roundMatchOpt π A B a).isSome
-  have hsum_eq : (∑ π : RoundPerm U' n', if (roundMatchOpt π A B a).isSome then 0 else 1) =
-      badP.card := by
-    rw [card_filter]; exact sum_congr rfl fun π _ => by cases roundMatchOpt π A B a <;> rfl
+  set badP := Finset.univ.filter fun π : RoundPerm U' n' => roundMatchOpt π A B a = none
   have hbad_maps : ∀ π ∈ badP, nextItem π S x ∈ badY := fun π hπ => by
     have hmem := nextItem_mem_erase π hScard hxS
     rcases mem_activeItems_iff.mp (mem_of_mem_erase hmem) with ⟨a', ha', heq⟩ | ⟨b, _, heq⟩
     · exact heq ▸ mem_map.mpr ⟨a', mem_erase.mpr ⟨fun h => (mem_erase.mp hmem).1
         (by simp [heq, x, h]), ha'⟩, rfl⟩
-    · exact absurd (by simp [roundMatchOpt, ha, S, x, heq]) (mem_filter.mp hπ).2
+    · exact absurd (mem_filter.mp hπ).2 (by simp [roundMatchOpt, ha, S, x, heq])
   have hbad_le : badP.card ≤ (A.card - 1) * (fiber y₀).card := by
     rw [card_eq_sum_card_fiberwise hbad_maps]
     calc ∑ y ∈ badY, (badP.filter fun π => nextItem π S x = y).card
@@ -785,7 +769,7 @@ private theorem two_mul_sum_card_balls_roundStep_le {U' n' : ℕ} {A : Finset (F
       _ = badY.card * (fiber y₀).card := by
           rw [sum_congr rfl fun y hy => hfiber_card y (hbadY_sub hy), sum_const, smul_eq_mul]
       _ = (A.card - 1) * (fiber y₀).card := by rw [card_map, card_erase_of_mem ha]
-  rw [hsum_eq, htot]
+  rw [← card_filter, htot]
   calc 2 * badP.card ≤ (2 * (A.card - 1)) * (fiber y₀).card := by
         rw [mul_assoc]; exact Nat.mul_le_mul_left 2 hbad_le
     _ ≤ (A.card + B.card - 1) * (fiber y₀).card := Nat.mul_le_mul_right _ (by omega)
@@ -890,34 +874,16 @@ theorem expect_roundsOn_le {U' n' : ℕ} {A : Finset (Fin U')} {B : Finset (Fin 
               rw [← pow_add, Nat.add_sub_of_le hLi], div_mul_eq_div_div,
               div_self (by positivity), one_div_pow, one_div]
   refine (sum_le_sum hterm).trans ?_
-  rw [← sum_filter_add_sum_filter_not (Finset.range U') (· < L)]
-  set S₂ := (Finset.range U').filter (fun i => ¬i < L)
-  have h1 : ∑ i ∈ (Finset.range U').filter (· < L), bound i ≤ (L : ℝ) := by
-    calc ∑ i ∈ (Finset.range U').filter (· < L), bound i
-        = ∑ _i ∈ (Finset.range U').filter (· < L), (1 : ℝ) :=
-          sum_congr rfl fun i hi => by simp [bound, (mem_filter.mp hi).2]
-      _ ≤ (L : ℝ) := by
-          rw [sum_const, nsmul_eq_mul, mul_one]
-          exact_mod_cast (card_le_card fun i hi => mem_range.mpr (mem_filter.mp hi).2).trans_eq
-            (card_range L)
-  have h2 : ∑ i ∈ S₂, bound i ≤ 2 := by
-    have hinj : Set.InjOn (· - L) (S₂ : Set ℕ) := fun i₁ hi₁ i₂ hi₂ h => by
-      have := Nat.le_of_not_lt (mem_filter.mp hi₁).2
-      have := Nat.le_of_not_lt (mem_filter.mp hi₂).2; dsimp only at h; omega
-    have hsub : S₂.image (· - L) ⊆ Finset.range U' := fun _ hj => by
-      obtain ⟨i, hi, rfl⟩ := mem_image.mp hj
-      exact mem_range.mpr (Nat.lt_of_le_of_lt (Nat.sub_le i L) (mem_range.mp (mem_filter.mp hi).1))
-    have hgeom : ∑ j ∈ Finset.range U', (1 / 2 : ℝ) ^ j ≤ 2 := by
-      have : ∑ j ∈ Finset.range U', (1 / 2 : ℝ) ^ j = 2 - 2 * (1 / 2 : ℝ) ^ U' := by
-        rw [geom_sum_eq (by norm_num)]; ring
-      linarith [show (0 : ℝ) ≤ 2 * (1 / 2 : ℝ) ^ U' by positivity]
-    calc ∑ i ∈ S₂, bound i = ∑ i ∈ S₂, (1 / 2 : ℝ) ^ (i - L) :=
-          sum_congr rfl fun i hi => by simp [bound, (mem_filter.mp hi).2]
-      _ = ∑ j ∈ S₂.image (· - L), (1 / 2 : ℝ) ^ j := (sum_image hinj).symm
-      _ ≤ ∑ j ∈ Finset.range U', (1 / 2 : ℝ) ^ j :=
-          sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
-      _ ≤ 2 := hgeom
-  linarith
+  have hgeom : ∑ j ∈ Finset.range U', (1 / 2 : ℝ) ^ j = 2 - 2 * (1 / 2 : ℝ) ^ U' := by
+    rw [geom_sum_eq (by norm_num)]; ring
+  calc ∑ i ∈ Finset.range U', bound i ≤ ∑ i ∈ Finset.range (L + U'), bound i :=
+        sum_le_sum_of_subset_of_nonneg (range_mono (by omega)) fun i _ _ => by
+          dsimp only [bound]; split_ifs <;> positivity
+    _ = L + (2 - 2 * (1 / 2 : ℝ) ^ U') := by
+        rw [sum_range_add, ← hgeom, sum_congr rfl fun i hi => show bound i = 1 by
+          simp [bound, mem_range.mp hi]]
+        simp [bound]
+    _ ≤ L + 2 := by linarith [show (0 : ℝ) ≤ 2 * (1 / 2 : ℝ) ^ U' by positivity]
 
 /-- Specialization of **Claim 3.3** to all `n'` slots (`B = Finset.univ`): for `A.card ≤ n'`,
 `𝔼[rounds h A] ≤ ⌈log₂ |A|⌉ + 2 ≤ 3 * ⌈log₂ (max |A| 2)⌉`. -/
