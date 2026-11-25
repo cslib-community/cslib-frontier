@@ -1345,12 +1345,7 @@ theorem outer_node_lower_bound (withQueries : Bool) {U V n cells w : ℕ} {R_out
   have hclaim41 := T.quarter_fanout_le_sum_prob_isGoodSeg D_det n stride μ
     (HardKeyValSeed.modeOps withQueries) hγ ht ℓ b hcost_lt.le hprobe_lt.le
   have hhalf_card : (halfSet.card : ℝ) ≤ (F : ℝ) / 2 := by
-    have hc : halfSet.card = F / 2 := by
-      refine (Finset.card_bij (s := halfSet) (t := Finset.range (F / 2))
-        (fun i _ => i.val) (fun _ hi => Finset.mem_range.mpr (Finset.mem_filter.mp hi).2)
-        (fun _ _ _ _ h => Fin.ext h) fun r hr => ?_).trans (Finset.card_range _)
-      exact ⟨⟨r, by have := Finset.mem_range.mp hr; omega⟩,
-        Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hr⟩, rfl⟩
+    have hc : halfSet.card = F / 2 := Fin.card_filter_val_lt.trans (by omega)
     obtain ⟨q, hq⟩ := hF_even
     rw [hc, hq, Nat.mul_div_cancel_left q (by omega)]; push_cast; linarith
   have hclaim42_sum : (∑ i ∈ halfSet, ∑ s, (μ s).toReal *
@@ -1442,31 +1437,10 @@ theorem outer_lemma_insertQueryDelete {U V n cells w : ℕ} {R_outer R_inner γ 
           Nat.mul_le_mul_right _ hFh
         classical
         dsimp only
-        have hfilt (s : HardKeyValSeed U V n) :
-            ((((s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
-              ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
-              (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard
-              (T.blockSize ℓ)).filter fun B =>
-              (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) ∩ B).card <
-                T.blockSize ℓ / 2).filter
-              (IsModeSeedConsistent true D_det
-                (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) γ t s)) =
-            ((((s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
-              ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
-              (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard
-              (T.blockSize ℓ)).filter fun B =>
-              (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) ∩ B).card <
-                T.blockSize ℓ / 2).filter
-              (IsSeedConsistent D_det
-                (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
-                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) γ t s)) :=
+        have hfilt (t₀ m : ℕ) (h : t₀ + m ≤ n) (s : HardKeyValSeed U V n)
+            (P : Finset (Finset (Fin U))) :
+            P.filter (IsModeSeedConsistent true D_det t₀ m h γ t s) =
+              P.filter (IsSeedConsistent D_det t₀ m h γ t s) :=
           Finset.filter_congr fun B _ => isModeSeedConsistent_true_iff D_det _ _ _ γ t s B
         simp_rw [hfilt]
         exact expected_card_cappedConsistent_segmentRest_lt_half_le hU hV hm_n hγ hm_lo
