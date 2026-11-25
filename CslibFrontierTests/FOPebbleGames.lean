@@ -11,7 +11,7 @@ public import CslibFrontier.Foundations.ModelTheory.Graph
 public import CslibFrontier.Logics.FirstOrder.FiniteVariable.Hintikka
 public import Mathlib.Combinatorics.SimpleGraph.CycleGraph
 public import Mathlib.ModelTheory.Order
-import Mathlib.Data.Fin.Tuple.Reflection
+import CslibFrontier.Foundations.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 
 /-! # Pebble games and finite-variable logic: checked instances
@@ -36,9 +36,6 @@ namespace Cslib.Tests.FOPebbleGames
 
 open FirstOrder Language Structure
 open Cslib.Logic.FO
-
-private theorem comp_vec_two {α β : Type*} (a : α → β) (i j : α) : a ∘ ![i, j] = ![a i, a j] :=
-  (FinVec.map_eq a ![i, j]).symm
 
 /-! ### Linear orders: variable reuse -/
 
@@ -70,9 +67,9 @@ theorem realize_chain {n : ℕ} : ∀ (m : ℕ) (i : Fin 2) (a : Fin 2 → Fin n
   | m + 1, i, a => by
     simp only [chain, lt, FiniteVariable.GenFormula.realize_ex,
       FiniteVariable.GenFormula.realize_inf, FiniteVariable.GenFormula.realize_not,
-      FiniteVariable.GenFormula.realize_rel, realize_chain m, comp_vec_two, relMap_leSymb,
-      Matrix.cons_val_zero, Matrix.cons_val_one, Function.update_self,
-      Function.update_of_ne (add_one_ne_self i).symm, not_le, Fin.lt_def]
+      FiniteVariable.GenFormula.realize_rel, realize_chain m, Matrix.comp_vecCons,
+      Matrix.comp_vecEmpty, relMap_leSymb, Matrix.cons_val_zero, Matrix.cons_val_one,
+      Function.update_self, Function.update_of_ne (add_one_ne_self i).symm, not_le, Fin.lt_def]
     constructor
     · rintro ⟨c, hc, hm⟩
       omega
@@ -163,12 +160,14 @@ theorem partialIsoOn_graph_iff {S : Set (Fin 2)} {a : Fin 2 → V} {b : Fin 2 �
   · intro h i hi j hj
     refine ⟨h.eq_iff i hi j hj, ?_⟩
     have := h.relMap_iff adj ![i, j] (by intro t; fin_cases t <;> assumption)
-    rwa [comp_vec_two, comp_vec_two] at this
+    simp only [Matrix.comp_vecCons, Matrix.comp_vecEmpty] at this
+    exact this
   · intro h
     refine ⟨fun i hi j hj => (h i hi j hj).1, fun {l} R f hf => ?_⟩
     cases R
     have hf' : f = ![f 0, f 1] := funext fun t => by fin_cases t <;> rfl
-    rw [hf', comp_vec_two, comp_vec_two]
+    rw [hf']
+    simp only [Matrix.comp_vecCons, Matrix.comp_vecEmpty]
     exact (h _ (hf 0) _ (hf 1)).2
 
 private theorem eq_add_one_of_ne {i p : Fin 2} (h : p ≠ i) : p = i + 1 := by
@@ -284,7 +283,8 @@ theorem realize_triangle_iff (a : Fin 3 → V) :
     triangle.Realize a ↔ ∃ x y z : V,
       RelMap adj ![x, y] ∧ RelMap adj ![y, z] ∧ RelMap adj ![x, z] := by
   simp only [triangle, FiniteVariable.GenFormula.realize_ex, FiniteVariable.GenFormula.realize_inf,
-    FiniteVariable.GenFormula.realize_rel, comp_vec_two, Function.update_self,
+    FiniteVariable.GenFormula.realize_rel, Matrix.comp_vecCons, Matrix.comp_vecEmpty,
+    Function.update_self,
     Function.update_of_ne (show (0 : Fin 3) ≠ 2 by decide),
     Function.update_of_ne (show (0 : Fin 3) ≠ 1 by decide),
     Function.update_of_ne (show (1 : Fin 3) ≠ 2 by decide), and_assoc]
