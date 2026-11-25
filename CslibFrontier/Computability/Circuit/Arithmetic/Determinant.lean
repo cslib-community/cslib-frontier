@@ -102,10 +102,9 @@ theorem totalDegree_det_genericMatrix_le (n : ℕ) : (genericMatrix K n).det.tot
   rw [Matrix.det_apply']
   refine totalDegree_finsetSum_le fun σ _ => (totalDegree_mul _ _).trans ?_
   rw [← map_intCast (C : K →+* MvPolynomial (Fin (n * n)) K), totalDegree_C, zero_add]
-  refine (totalDegree_finsetProd _ _).trans ?_
-  calc _ ≤ ∑ _i : Fin n, 1 :=
-        Finset.sum_le_sum fun i _ => (totalDegree_monomial_le _ _).trans (by simp)
-    _ = n := by simp
+  exact ((totalDegree_finsetProd _ _).trans
+    (Finset.sum_le_sum (g := fun _ => 1) fun _ _ =>
+      (totalDegree_monomial_le _ _).trans (by simp))).trans_eq (by simp)
 
 /-! ### The permanent family -/
 
@@ -119,11 +118,10 @@ noncomputable def permFamily (K : Type u) [CommSemiring K] : PolynomialFamily K 
 theorem totalDegree_permanent_genericMatrix_le (n : ℕ) :
     (genericMatrix K n).permanent.totalDegree ≤ n := by
   rw [Matrix.permanent]
-  refine totalDegree_finsetSum_le fun σ _ => ?_
-  refine (totalDegree_finsetProd _ _).trans ?_
-  calc _ ≤ ∑ _i : Fin n, 1 :=
-        Finset.sum_le_sum fun i _ => (totalDegree_monomial_le _ _).trans (by simp)
-    _ = n := by simp
+  refine totalDegree_finsetSum_le fun _ _ => ?_
+  exact ((totalDegree_finsetProd _ _).trans
+    (Finset.sum_le_sum (g := fun _ => 1) fun _ _ =>
+      (totalDegree_monomial_le _ _).trans (by simp))).trans_eq (by simp)
 
 /-- The permanent family over `K` is a p-family (`vars n = n ^ 2` and `totalDegree ≤ n`). -/
 theorem isPFamily_permFamily : (permFamily K).IsPFamily :=
@@ -170,33 +168,31 @@ private theorem synthesis_stage_succ (t : ℕ) :
     Synthesis (interp K n) (inputs (n * n) ∪ (constants K n ∪ stageSet K n t))
       (stageSet K n (t + 1)) (n * n * (3 * n + 3)) := by
   set s := inputs (n * n) ∪ (constants K n ∪ stageSet K n t)
-  have hA (i j : Fin n) : (fun x => entries x i j) ∈ s := Or.inl ⟨finProdFinEquiv (i, j), rfl⟩
-  have hF (i j : Fin n) : (fun x => stage t x i j) ∈ s := Or.inr (Or.inr ⟨(i, j), rfl⟩)
-  have h0 : (fun _ => 0) ∈ s := Or.inr (Or.inl (Or.inl rfl))
-  have hm1 : (fun _ => -1) ∈ s := Or.inr (Or.inl (Or.inr rfl))
   have hentry (p : Fin n × Fin n) :
       Synthesis (interp K n) s {fun x => stage (t + 1) x p.1 p.2} (3 * n + 3) := by
     obtain ⟨i, j⟩ := p
+    have h0 : (fun _ => 0) ∈ s := Or.inr (Or.inl (Or.inl rfl))
     have hD := Synthesis.arith_sum (constant := C) (Finset.Ioi i) (fun k x => stage t x k k)
-      (fun _ => 0) h0 fun k _ => Synthesis.of_mem (hF k k)
-    have hnegD := Synthesis.combine (Synthesis.of_mem (I := interp K n) hm1) hD
+      (fun _ => 0) h0 fun k _ => Synthesis.of_mem (Or.inr (Or.inr ⟨(k, k), rfl⟩))
+    have hnegD := Synthesis.combine
+      (Synthesis.of_mem (I := interp K n) (Or.inr (Or.inl (Or.inr rfl)))) hD
       (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
-    have hP := Synthesis.combine hnegD (Synthesis.of_mem (I := interp K n) (hA i j))
+    have hP := Synthesis.combine hnegD
+      (Synthesis.of_mem (I := interp K n) (Or.inl ⟨finProdFinEquiv (i, j), rfl⟩))
       (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
     have hT := Synthesis.arith_sum (constant := C) (Finset.Ioi i)
-      (fun k x => stage t x i k * entries x k j) (fun _ => 1) h0
-      fun k _ => Synthesis.arith_mul (hF i k) (hA k j)
-    have hE := Synthesis.combine hP hT
-      (Synthesis.arith_add (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
-    refine hE.mono Set.Subset.rfl (Set.singleton_subset_iff.mpr (funext fun x => ?_)) ?_
+      (fun k x => stage t x i k * entries x k j) (fun _ => 1) h0 fun k _ =>
+        Synthesis.arith_mul (Or.inr (Or.inr ⟨(i, k), rfl⟩)) (Or.inl ⟨finProdFinEquiv (k, j), rfl⟩)
+    refine (Synthesis.combine hP hT
+      (Synthesis.arith_add (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))).mono Set.Subset.rfl
+      (Set.singleton_subset_iff.mpr (funext fun x => ?_)) ?_
     · simp only [Function.iterate_succ_apply', BirdDet.Spec.stepEntry_eq, Matrix.of_apply]
       ring
-    · have hcard : (Finset.Ioi i).card ≤ n := (Finset.card_le_univ _).trans (by simp)
+    · have : (Finset.Ioi i).card ≤ n := (Finset.card_le_univ _).trans_eq (Fintype.card_fin n)
       simp only [Finset.sum_const, smul_eq_mul]
       lia
-  have := Synthesis.family _ _ hentry
   simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_prod, Fintype.card_fin,
-    smul_eq_mul] using this
+    smul_eq_mul] using Synthesis.family _ _ hentry
 
 /-- The first `t` stages of Bird's algorithm, with the constants zero and minus one. -/
 private theorem synthesis_stages (t : ℕ) :
@@ -208,12 +204,11 @@ private theorem synthesis_stages (t : ℕ) :
       simpa only [map_zero] using synthesis_const (n := n) (0 : K)
     have hm1 : Synthesis (interp K n) (inputs (n * n)) {fun _ => -1} 1 := by
       simpa only [map_neg, map_one] using synthesis_const (n := n) (-1 : K)
-    have hA : Synthesis (interp K n) (inputs (n * n)) (stageSet K n 0) 0 :=
-      Synthesis.of_subset (by rintro _ ⟨⟨i, j⟩, rfl⟩; exact ⟨finProdFinEquiv (i, j), rfl⟩)
-    exact ((h0.union hm1).union hA).mono Set.Subset.rfl
-      (by rw [constants, Set.insert_eq]) (by simp)
+    exact ((h0.union hm1).union (Synthesis.of_subset (t := stageSet K n 0)
+      (by rintro _ ⟨⟨i, j⟩, rfl⟩; exact ⟨finProdFinEquiv (i, j), rfl⟩))).mono
+      Set.Subset.rfl (by rw [constants, Set.insert_eq]) (by simp)
   | succ t ih =>
-    refine (ih.comp (synthesis_stage_succ t)).mono Set.Subset.rfl
+    exact (ih.comp (synthesis_stage_succ t)).mono Set.Subset.rfl
       (Set.union_subset (Set.subset_union_left.trans Set.subset_union_left) Set.subset_union_right)
       (le_of_eq (by ring))
 
@@ -222,21 +217,16 @@ private theorem synthesis_det (n : ℕ) :
     Synthesis (interp K n) (inputs (n * n)) {fun x => (entries x).det} (3 * n ^ 4 + 4) := by
   cases n with
   | zero =>
-    refine (synthesis_const (n := 0) (1 : K)).mono Set.Subset.rfl
-      (Set.singleton_subset_iff.mpr (funext fun x => ?_)) (by simp)
-    simp
+    exact (synthesis_const (n := 0) (1 : K)).mono Set.Subset.rfl
+      (Set.singleton_subset_iff.mpr (funext fun _ => by simp)) (by simp)
   | succ k =>
-    have hlast : Synthesis (interp K (k + 1))
-        (inputs ((k + 1) * (k + 1)) ∪ (constants K (k + 1) ∪ stageSet K (k + 1) k))
-        {fun x => C ((-1) ^ k) * stage k x 0 0} 2 :=
-      Synthesis.combine (synthesis_const _) (Synthesis.of_mem (Or.inr (Or.inr ⟨(0, 0), rfl⟩)))
-        (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
-    refine ((synthesis_stages k).trans hlast).mono Set.Subset.rfl
-      (Set.singleton_subset_iff.mpr (funext fun x => ?_)) ?_
-    · rw [← Bird.spec_eq_det, BirdDet.Spec.birdDetSpec_succ]
-      simp
-    · have : k * (k + 2) ≤ (k + 1) ^ 2 := by nlinarith
-      nlinarith
+    refine ((synthesis_stages k).trans (Synthesis.combine (synthesis_const ((-1 : K) ^ k))
+      (Synthesis.of_mem (f := fun x => stage k x 0 0) (Or.inr (Or.inr ⟨(0, 0), rfl⟩)))
+      (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl)))).mono Set.Subset.rfl
+      (Set.singleton_subset_iff.mpr (funext fun _ => by
+        rw [← Bird.spec_eq_det, BirdDet.Spec.birdDetSpec_succ]
+        simp))
+      (by nlinarith [show k * (k + 2) ≤ (k + 1) ^ 2 by nlinarith])
 
 /-- **The determinant has small circuits** [Bird2011]: the generic `n × n` determinant is computed
 by an arithmetic circuit with at most `3 * n ^ 4 + 4` gates, over every commutative ring `K`. -/
@@ -267,9 +257,8 @@ generic determinants has `n * n` variables, degree at most `n` and arithmetic ci
 `3 * n ^ 4 + 4` gates. -/
 theorem detFamily_mem_VP : detFamily K ∈ VP K := by
   choose c hc hsize using exists_circuit_det (K := K)
-  refine ⟨⟨?_, PolynomiallyBounded.id.mono_of_le fun n =>
-    totalDegree_det_genericMatrix_le n⟩, c, PolynomiallyBounded.mono_of_le (by fun_prop) hsize, hc⟩
-  change PolynomiallyBounded (fun n : ℕ => n * n)
-  fun_prop
+  exact ⟨⟨PolynomiallyBounded.id.mul PolynomiallyBounded.id,
+    PolynomiallyBounded.id.mono_of_le totalDegree_det_genericMatrix_le⟩,
+    c, PolynomiallyBounded.mono_of_le (by fun_prop) hsize, hc⟩
 
 end Cslib.Circuits.Arithmetic

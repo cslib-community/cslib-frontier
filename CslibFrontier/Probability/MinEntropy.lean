@@ -92,14 +92,11 @@ theorem le_minEntropy_iff (p : PMF α) {k : ℝ} :
     k ≤ minEntropy p ↔ ∀ a, (p a).toReal ≤ 2 ^ (-k) := by
   have : Nonempty p.support := p.support_nonempty.to_subtype
   rw [minEntropy, le_ciInf_iff (bddBelow_surprisal p)]
-  constructor
-  · intro h a
-    by_cases ha : a ∈ p.support
-    · exact (le_surprisal_iff_mass_le p ha).mp (h ⟨a, ha⟩)
-    · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero]
-      positivity
-  · rintro h ⟨a, ha⟩
-    exact (le_surprisal_iff_mass_le p ha).mpr (h a)
+  refine ⟨fun h a => ?_, fun h ⟨a, ha⟩ => (le_surprisal_iff_mass_le p ha).mpr (h a)⟩
+  by_cases ha : a ∈ p.support
+  · exact (le_surprisal_iff_mass_le p ha).mp (h ⟨a, ha⟩)
+  · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero]
+    positivity
 
 /-- Every outcome has probability at most `2` to the power of minus the min-entropy. -/
 theorem toReal_apply_le_rpow_neg_minEntropy (p : PMF α) (a : α) :
@@ -121,15 +118,12 @@ theorem exists_surprisal_eq_minEntropy [Finite α] (p : PMF α) :
 /-- Min-entropy is at most Shannon entropy, which averages the information content. -/
 theorem minEntropy_le_entropy [Finite α] (p : PMF α) : minEntropy p ≤ entropy p := by
   let := Fintype.ofFinite α
-  rw [entropy_eq_sum_surprisal]
-  calc
-    minEntropy p = ∑ a, (p a).toReal * minEntropy p := by
-      rw [← Finset.sum_mul, sum_toReal, one_mul]
-    _ ≤ ∑ a, (p a).toReal * surprisal p a := by
-      refine Finset.sum_le_sum fun a _ => ?_
-      by_cases ha : a ∈ p.support
-      · exact mul_le_mul_of_nonneg_left (minEntropy_le_surprisal p ha) ENNReal.toReal_nonneg
-      · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero, zero_mul, zero_mul]
+  rw [entropy_eq_sum_surprisal, show minEntropy p = ∑ a, (p a).toReal * minEntropy p by
+    rw [← Finset.sum_mul, sum_toReal, one_mul]]
+  refine Finset.sum_le_sum fun a _ => ?_
+  by_cases ha : a ∈ p.support
+  · exact mul_le_mul_of_nonneg_left (minEntropy_le_surprisal p ha) ENNReal.toReal_nonneg
+  · simp [(p.apply_eq_zero_iff a).mpr ha]
 
 /-- Min-entropy is at most the logarithm of the size of a finite type. -/
 theorem minEntropy_le_logb_card [Fintype α] (p : PMF α) :
@@ -140,22 +134,15 @@ theorem minEntropy_le_logb_card [Fintype α] (p : PMF α) :
 theorem minEntropy_uniformOfFinset (s : Finset α) (hs : s.Nonempty) :
     minEntropy (uniformOfFinset s hs) = Real.logb 2 s.card := by
   classical
-  have hcard : (0 : ℝ) < s.card := by exact_mod_cast hs.card_pos
-  have hmass : (2 : ℝ) ^ (-Real.logb 2 s.card) = (s.card : ℝ)⁻¹ := by
-    rw [Real.rpow_neg (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hcard]
   obtain ⟨a, ha⟩ := id hs
   apply le_antisymm
-  · have hsupport : a ∈ (uniformOfFinset s hs).support :=
-      (mem_support_uniformOfFinset_iff hs a).mpr ha
-    refine (minEntropy_le_surprisal _ hsupport).trans_eq ?_
+  · refine (minEntropy_le_surprisal _ ((mem_support_uniformOfFinset_iff hs a).mpr ha)).trans_eq ?_
     rw [surprisal, uniformOfFinset_apply, ite_eq_left ha, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, Real.logb_inv, neg_neg]
-  · rw [le_minEntropy_iff, hmass]
+  · rw [le_minEntropy_iff, Real.rpow_neg (by norm_num),
+      Real.rpow_logb (by norm_num) (by norm_num) (by exact_mod_cast hs.card_pos)]
     intro b
-    by_cases hb : b ∈ s
-    · rw [uniformOfFinset_apply, ite_eq_left hb, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-    · rw [uniformOfFinset_apply, ite_eq_right hb, ENNReal.toReal_zero]
-      positivity
+    by_cases hb : b ∈ s <;> simp [uniformOfFinset_apply, hb]
 
 /-- The uniform distribution on a finite type has min-entropy the logarithm of its size. -/
 @[simp] theorem minEntropy_uniformOfFintype [Fintype α] [Nonempty α] :
@@ -174,17 +161,15 @@ theorem le_minEntropy_bind (μ : PMF β) (f : β → PMF α) {k : ℝ}
   rw [le_minEntropy_iff]
   intro a
   have hk : (0 : ℝ) ≤ 2 ^ (-k) := by positivity
-  have hcomponent (b : β) : μ b * f b a ≤ μ b * ENNReal.ofReal (2 ^ (-k)) := by
-    by_cases hb : b ∈ μ.support
-    · gcongr
-      exact (ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _) hk).mpr
-        ((le_minEntropy_iff (f b)).mp (h b hb) a)
+  refine ENNReal.toReal_le_of_le_ofReal hk ?_
+  rw [PMF.bind_apply]
+  refine (tsum_le_tsum (g := fun b => μ b * ENNReal.ofReal (2 ^ (-k))) fun b => ?_).trans_eq ?_
+  · by_cases hb : b ∈ μ.support
+    · exact mul_le_mul_of_nonneg_left
+        ((ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _) hk).mpr
+          ((le_minEntropy_iff (f b)).mp (h b hb) a)) zero_le
     · simp [(μ.apply_eq_zero_iff b).mpr hb]
-  apply ENNReal.toReal_le_of_le_ofReal hk
-  calc
-    μ.bind f a = ∑' b, μ b * f b a := PMF.bind_apply μ f a
-    _ ≤ ∑' b, μ b * ENNReal.ofReal (2 ^ (-k)) := tsum_le_tsum hcomponent
-    _ = ENNReal.ofReal (2 ^ (-k)) := by rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
+  · rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
 
 /-! ### Weak random sources -/
 
@@ -196,10 +181,8 @@ def IsSource [Fintype α] (p : PMF α) (k : ℝ) (ε : ℝ≥0) : Prop :=
 /-- A `(k, 0)`-source is exactly a distribution of min-entropy at least `k`. -/
 @[simp] theorem isSource_zero_iff [Fintype α] (p : PMF α) {k : ℝ} :
     IsSource p k 0 ↔ k ≤ minEntropy p := by
-  constructor
-  · rintro ⟨q, hq, hclose⟩
-    rwa [(statisticallyClose_zero_iff p q).mp hclose]
-  · exact fun h => ⟨p, h, StatisticallyClose.refl p⟩
+  exact ⟨fun ⟨q, hq, hclose⟩ => (statisticallyClose_zero_iff p q).mp hclose ▸ hq,
+    fun h => ⟨p, h, StatisticallyClose.refl p⟩⟩
 
 /-- A distribution of min-entropy at least `k` is a `(k, ε)`-source for every `ε`. -/
 theorem isSource_of_le_minEntropy [Fintype α] {p : PMF α} {k : ℝ} (h : k ≤ minEntropy p)
