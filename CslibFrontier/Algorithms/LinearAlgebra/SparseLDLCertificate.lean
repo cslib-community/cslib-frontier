@@ -456,22 +456,28 @@ private theorem cast_sparseGet_scaleSparse {s : ℕ} {r : List (ℕ × ℚ)}
     · rw [Int.cast_add, ih', mul_add, Rat.clearDenom_entry (hs e List.mem_cons_self)]
     · exact ih'
 
+/-- An entry of row `i`, read with `getD`, is an entry of the flattened rows. -/
+private theorem mem_flatten_of_mem_getD {β : Type*} {rows : List (List β)} {i : ℕ} {e : β}
+    (he : e ∈ rows.getD i []) : e ∈ rows.flatten := by
+  rw [List.getD_eq_getElem?_getD] at he
+  rcases h : rows[i]? with _ | r
+  · simp [h] at he
+  · rw [h, Option.getD_some] at he
+    exact List.mem_flatten.2 ⟨r, List.mem_of_getElem? h, he⟩
+
+private theorem getD_map_of_nil {β γ : Type*} {f : List β → List γ} (hf : f [] = [])
+    (l : List (List β)) (i : ℕ) : (l.map f).getD i [] = f (l.getD i []) := by
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
+  cases l[i]? <;> simp [hf]
+
 /-- Scaling every row by a common multiple `s` of the denominators scales the matrix. -/
 theorem map_ofSparse_scaleSparse {m n s : ℕ} {rows : List (List (ℕ × ℚ))}
     (hs : ∀ e ∈ rows.flatten, e.2.den ∣ s) :
     (ofSparse m n (rows.map (scaleSparse s))).map ((↑) : ℤ → ℚ) = (s : ℚ) • ofSparse m n rows := by
   ext i j
-  have hrow : (rows.map (scaleSparse s)).getD i [] = scaleSparse s (rows.getD i []) := by
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
-    cases rows[(i : ℕ)]? <;> rfl
-  have hs' : ∀ e ∈ rows.getD i [], e.2.den ∣ s := by
-    intro e he
-    rcases Nat.lt_or_ge i rows.length with hi | hi
-    · rw [List.getD_eq_getElem _ _ hi] at he
-      exact hs e (List.mem_flatten.2 ⟨_, List.getElem_mem hi, he⟩)
-    · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none hi] at he
   simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofSparse_apply]
-  rw [hrow, cast_sparseGet_scaleSparse hs']
+  rw [getD_map_of_nil rfl,
+    cast_sparseGet_scaleSparse fun e he => hs e (mem_flatten_of_mem_getD he)]
 
 theorem den_dvd_sparseDenLcm {rows : List (List (ℕ × ℚ))} :
     ∀ e ∈ rows.flatten, e.2.den ∣ sparseDenLcm rows :=
@@ -1114,11 +1120,6 @@ their denominators. -/
 @[expose] def sparseResidual (A At P : List (List (ℕ × ℚ))) : List (List (ℕ × ℚ)) :=
   let σ := sparseLyapunovScale A At P
   (sparseScaledResidual A At P).map (sparseMap fun z : ℤ => (z : ℚ) / σ)
-
-private theorem getD_map_of_nil {β γ : Type*} {f : List β → List γ} (hf : f [] = [])
-    (l : List (List β)) (i : ℕ) : (l.map f).getD i [] = f (l.getD i []) := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
-  cases l[i]? <;> simp [hf]
 
 /-- The rational sparse residual reads as `-(Aᵀ * P + P * A)`. -/
 theorem ofSparse_sparseResidual {n : ℕ} {A At P : List (List (ℕ × ℚ))} (hAl : A.length = n)
