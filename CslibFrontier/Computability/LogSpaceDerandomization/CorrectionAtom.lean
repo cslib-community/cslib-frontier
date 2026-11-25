@@ -299,20 +299,13 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
   have hSxr : (0 : ℝ) < #Sx := by exact_mod_cast hSx.card_pos
   have hSyr : (0 : ℝ) < #Sy := by exact_mod_cast hSy.card_pos
   have hM : 0 ≤ M := (sum_nonneg fun w _ => hG0 w).trans hGM
-  have hKr : (0 : ℝ) < K := by
-    have : 0 ≤ c * M / η := by positivity
-    linarith
-  have hBnn : 0 ≤ B := (by positivity : (0 : ℝ) ≤ p * #({w | e < G w y / f} : Finset V)).trans
-    (hB hg0)
-  have hKcr : (0 : ℝ) < Kc := by linarith
+  have hKr : (0 : ℝ) < K := by linarith [show 0 ≤ c * M / η by positivity]
+  have hKcr : (0 : ℝ) < Kc := by
+    linarith [hB hg0, show (0 : ℝ) ≤ p * #({w | e < G w y / f} : Finset V) by positivity]
   -- the row gate fails on at most a quarter of the terminal draws
   have hR : (#{t ∈ Sy | rowGate ρ K f G {w | Y t w} x < 1} : ℝ) * 4 ≤ #Sy := by
-    have h := card_filter_rowGate_lt_one_mul_le Sy x hf hη hρη hG0 hGM (by exact_mod_cast hKr) hc
-      fun w hwy => by
-        have hset : ({t ∈ Sy | Y t w} : Finset κ) = ({t | Yt t y ∧ Y t w} : Finset κ) := by
-          ext t; simp only [Sy, mem_filter, mem_univ, true_and]
-        rw [hset]
-        exact hpairY w hwy
+    have h := card_filter_rowGate_lt_one_mul_le (Y := Y) Sy x hf hη hρη hG0 hGM
+      (by exact_mod_cast hKr) hc fun w hwy => by simpa only [Sy, filter_filter] using hpairY w hwy
     nlinarith
   -- the incoming gate fails on at most a quarter of the start draws, for every terminal set
   have hT : ∀ T : Finset V,
@@ -320,15 +313,8 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
     intro T
     have h := card_filter_incomingGate_lt_one_mul_le (τ := τ) (K := K) (f := f) (G := G) X Sx T x
       y (by exact_mod_cast hKcr) hτ₀ hττ
-      hI hp fun w _ hwx => by
-        have hset : ({s ∈ Sx | X s w} : Finset ι) = ({s | X s x ∧ X s w} : Finset ι) := by
-          ext s; simp only [Sx, mem_filter, mem_univ, true_and]
-        rw [hset]
-        exact hpairX w hwx
-    have h1 : #Sx * (1 + p * #({w | e < G w y / f} : Finset V)) ≤ #Sx * (1 + B) := by
-      have := hB hg0
-      gcongr
-    nlinarith
+      hI hp fun w _ hwx => by simpa only [Sx, filter_filter] using hpairX w hwx
+    nlinarith [mul_le_mul_of_nonneg_left (hB hg0) hSxr.le]
   -- so the product gate fails on at most half of the conditioning draws
   have hfail : 2 * (#{d ∈ C | γ d < 1} : ℝ) ≤ #C := by
     have hsplit : ∀ d, (if γ d < 1 then (1 : ℝ) else 0) ≤
@@ -339,11 +325,9 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
       · split_ifs <;> norm_num
       by_cases h2 : incomingGate I τ K Kc f G {w | X d.1 w} {w | Y d.2 w} y < 1
       · split_ifs <;> norm_num
-      have hr : rowGate ρ K f G {w | Y d.2 w} x = 1 := le_antisymm (hρ1 _) (not_lt.mp h1)
-      have ht : incomingGate I τ K Kc f G {w | X d.1 w} {w | Y d.2 w} y = 1 :=
-        le_antisymm (hτ1 _) (not_lt.mp h2)
-      simp only [γ, hr, ht, mul_one, lt_irrefl, ↓reduceIte]
-      norm_num
+      have hγ : ¬γ d < 1 :=
+        not_lt.mpr (one_le_mul_of_one_le_of_one_le (not_lt.mp h1) (not_lt.mp h2))
+      simp only [hγ, h1, h2, ↓reduceIte, add_zero, le_refl]
     have hcount : (#{d ∈ C | γ d < 1} : ℝ) ≤
         #Sx * #{t ∈ Sy | rowGate ρ K f G {w | Y t w} x < 1} +
           ∑ t ∈ Sy, (#{s ∈ Sx | incomingGate I τ K Kc f G {w | X s w} {w | Y t w} y < 1} : ℝ) := by
@@ -355,9 +339,7 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
         (#{s ∈ Sx | incomingGate I τ K Kc f G {w | X s w} {w | Y t w} y < 1} : ℝ)) * 4 ≤
           #Sy * #Sx := by
       rw [sum_mul]
-      calc ∑ t ∈ Sy, (#{s ∈ Sx | incomingGate I τ K Kc f G {w | X s w} {w | Y t w} y < 1} :
-            ℝ) * 4 ≤ ∑ _t ∈ Sy, (#Sx : ℝ) := sum_le_sum fun t _ => hT _
-        _ = #Sy * #Sx := by rw [sum_const, nsmul_eq_mul]
+      exact (sum_le_sum fun t _ => hT _).trans_eq (by rw [sum_const, nsmul_eq_mul])
     have hC : (#C : ℝ) = #Sx * #Sy := by rw [card_product]; push_cast; ring
     rw [hC]
     nlinarith [mul_le_mul_of_nonneg_left hR hSxr.le]

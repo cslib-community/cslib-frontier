@@ -93,10 +93,7 @@ theorem pow_expect_mul_prod_le (T : Finset ι) (F : (∀ i, X i) → ℝ)
     (𝔼 x, F x * ∏ i ∈ T, g i x) ^ (2 ^ #T) ≤
       𝔼 a, 𝔼 b, ∏ S ∈ T.powerset, F (S.piecewise b a) := by
   induction T using Finset.induction_on generalizing F g with
-  | empty =>
-    rcases isEmpty_or_nonempty (∀ i, X i) with h | h
-    · simp
-    · simp
+  | empty => rcases isEmpty_or_nonempty (∀ i, X i) with h | h <;> simp
   | @insert j T hj ih =>
     rw [card_insert_of_notMem hj, pow_succ', pow_mul]
     -- Resample player `j`'s part, on which `g j` does not depend.
@@ -135,12 +132,11 @@ theorem pow_expect_mul_prod_le (T : Finset ι) (F : (∀ i, X i) → ℝ)
         _ = _ := Finset.expect_congr rfl fun c _ => Finset.expect_comm _ _ _
     -- The induction hypothesis, for the pair `F (x[j := c]) F (x[j := d])` and the functions
     -- `g i (x[j := c]) g i (x[j := d])`.
-    have hih : ∀ c d : X j,
+    have hih (c d : X j) :
         (𝔼 x, (F (update x j c) * F (update x j d)) *
           ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) ≤
         𝔼 a, 𝔼 b, ∏ S ∈ T.powerset,
           (F (update (S.piecewise b a) j c) * F (update (S.piecewise b a) j d)) := by
-      intro c d
       refine ih (fun x => F (update x j c) * F (update x j d))
         (fun i x => g i (update x j c) * g i (update x j d)) (fun i hi x e => ?_)
         (fun i hi x => ?_)
@@ -176,9 +172,8 @@ theorem pow_expect_mul_prod_le (T : Finset ι) (F : (∀ i, X i) → ℝ)
             rw [piecewise_update_update hjS, piecewise_insert_update_update hjS]
     calc ((𝔼 x, F x * ∏ i ∈ insert j T, g i x) ^ 2) ^ (2 ^ #T)
         ≤ (𝔼 c : X j, 𝔼 d : X j, 𝔼 x, (F (update x j c) * F (update x j d)) *
-            ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) := by
-          rw [← hexp]
-          exact pow_le_pow_left₀ (sq_nonneg _) hcs _
+            ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) :=
+          hexp ▸ pow_le_pow_left₀ (sq_nonneg _) hcs _
       _ ≤ 𝔼 c : X j, 𝔼 d : X j, (𝔼 x, (F (update x j c) * F (update x j d)) *
             ∏ i ∈ T, (g i (update x j c) * g i (update x j d))) ^ (2 ^ #T) := by
           refine (pow_two_pow_expect_le_expect_pow_two_pow _ _ _).trans ?_

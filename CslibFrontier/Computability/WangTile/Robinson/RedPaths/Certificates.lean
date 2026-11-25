@@ -800,42 +800,15 @@ private theorem link_translate
       quadrantAt (offsetX + x) (offsetY + y) = quadrantAt x y := by
     intro x y
     simp [quadrantAt, Nat.add_mod, hx, hy]
-  induction link with
-  | horizontalMatch x y =>
+  induction link
+  case horizontalMatch x y =>
     simpa only [translatePort, Nat.add_assoc] using
       Link.horizontalMatch (indexGrid := other) (offsetX + x) (offsetY + y)
-  | verticalMatch x y =>
+  case verticalMatch x y =>
     simpa only [translatePort, Nat.add_assoc] using
       Link.verticalMatch (indexGrid := other) (offsetX + x) (offsetY + y)
-  | horizontal x y hpath =>
-    apply Link.horizontal
-    rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    exact hpath
-  | vertical x y hpath =>
-    apply Link.vertical
-    rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    exact hpath
-  | westNorth x y hwest hnorth =>
-    apply Link.westNorth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact hwest
-    · exact hnorth
-  | westSouth x y hwest hsouth =>
-    apply Link.westSouth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact hwest
-    · exact hsouth
-  | eastNorth x y heast hnorth =>
-    apply Link.eastNorth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact heast
-    · exact hnorth
-  | eastSouth x y heast hsouth =>
-    apply Link.eastSouth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact heast
-    · exact hsouth
-  | crossing x y hhorizontal hvertical =>
-    apply Link.crossing <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact hhorizontal
-    · exact hvertical
-  | symm _ ih => exact Link.symm (ih hsecond hfirst)
+  case symm _ ih => exact Link.symm (ih hsecond hfirst)
+  all_goals constructor! <;> rwa [← componentsEq _ _ hfirst.1 hfirst.2, quadrant]
 
 /-- Transport a bounded path to any even translate with the same local components. -/
 theorem boundedPath_translate
@@ -1005,56 +978,21 @@ private theorem path_of_sparseLink {grid : Nat → Nat → Index} {first second 
 theorem Link.refine {grid : Nat → Nat → Index} {first second : Port} {parity : Bool}
     (link : Link grid first second parity) :
     Path (iterateRefine 2 grid) (refinedPort first) (refinedPort second) parity := by
-  induction link with
-  | horizontalMatch x y =>
+  induction link
+  case horizontalMatch x y =>
     simpa only [refinedPort, sparsePort, exitCoordinate_succ] using
       Path.ofLink (Link.horizontalMatch (indexGrid := iterateRefine 2 grid)
         (exitCoordinate x) (sparseCoordinate y))
-  | verticalMatch x y =>
+  case verticalMatch x y =>
     simpa only [refinedPort, sparsePort, exitCoordinate_succ] using
       Path.ofLink (Link.verticalMatch (indexGrid := iterateRefine 2 grid)
         (sparseCoordinate x) (exitCoordinate y))
-  | horizontal x y h =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, h])
-      (by simp [portPresent, hasEast, h])
-    apply Link.horizontal
-    simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using h
-  | vertical x y h =>
-    apply path_of_sparseLink (by simp [portPresent, hasSouth, h])
-      (by simp [portPresent, hasNorth, h])
-    apply Link.vertical
-    simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using h
-  | westNorth x y hw hn =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, hw])
-      (by simp [portPresent, hasNorth, hn])
-    apply Link.westNorth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hw
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hn
-  | westSouth x y hw hs =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, hw])
-      (by simp [portPresent, hasSouth, hs])
-    apply Link.westSouth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hw
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hs
-  | eastNorth x y he hn =>
-    apply path_of_sparseLink (by simp [portPresent, hasEast, he])
-      (by simp [portPresent, hasNorth, hn])
-    apply Link.eastNorth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using he
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hn
-  | eastSouth x y he hs =>
-    apply path_of_sparseLink (by simp [portPresent, hasEast, he])
-      (by simp [portPresent, hasSouth, hs])
-    apply Link.eastSouth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using he
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hs
-  | crossing x y hh hv =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, hh])
-      (by simp [portPresent, hasSouth, hv])
-    apply Link.crossing
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hh
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hv
-  | symm _ ih => exact ih.symm
+  case symm _ ih => exact ih.symm
+  all_goals
+    apply path_of_sparseLink (by simp [portPresent, hasWest, hasEast, hasSouth, *])
+      (by simp [portPresent, hasEast, hasSouth, hasNorth, *])
+    constructor! <;>
+      (simp only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse]; assumption)
 
 /-- Two substitutions preserve the crossing parity of every red path. -/
 theorem Path.refine {grid : Nat → Nat → Index} {first second : Port} {parity : Bool}

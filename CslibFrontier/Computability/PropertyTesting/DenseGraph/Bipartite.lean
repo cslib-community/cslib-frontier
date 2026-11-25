@@ -228,17 +228,10 @@ private theorem eq_forcedColor {u : Fin s → V} {χ : Fin s → Bool} {w : V} {
   unfold forcedColor
   by_cases hex : ∃ j, G.Adj w (u j) ∧ χ j = false
   · obtain ⟨j, hj, hχ⟩ := hex
-    have h₁ := hθ j hj
-    rw [hχ] at h₁
+    have := hθ j hj
     rw [decide_eq_true ⟨j, hj, hχ⟩]
     cases θ <;> simp_all
-  · have hχi : χ i = true := by
-      cases h : χ i
-      · exact absurd ⟨i, hi, h⟩ hex
-      · rfl
-    have h₁ := hθ i hi
-    rw [hχi] at h₁
-    rw [decide_eq_false hex]
+  · have := hθ i hi
     cases θ <;> simp_all
 
 omit [Fintype V] [DecidableEq V] in
@@ -261,18 +254,12 @@ private theorem bipAccept_of_colorable (hG : G.Colorable 2) {m : ℕ} (u : Fin s
       (fun k => decide (G.Adj (x k) (y k))) = true := by
   obtain ⟨C⟩ := hG
   let f : V → Bool := fun v => decide (C v = 0)
-  have hf : ∀ v w, G.Adj v w → f v ≠ f w := by
-    intro v w hvw
+  have hf : ∀ v w, G.Adj v w → f v ≠ f w := fun v w hvw => by
     have hne := C.valid hvw
-    simp only [f]
-    revert hne
-    generalize C v = a
-    generalize C w = b
-    fin_cases a <;> fin_cases b <;> decide
-  refine decide_eq_true ⟨fun i => f (u i), fun k => f (x k), fun k => f (y k), ?_, ?_, ?_⟩
-  · exact fun k i h => hf _ _ (of_decide_eq_true h)
-  · exact fun k i h => hf _ _ (of_decide_eq_true h)
-  · exact fun k h => hf _ _ (of_decide_eq_true h)
+    simp only [f, ne_eq, decide_eq_decide]
+    omega
+  refine decide_eq_true ⟨fun i => f (u i), fun k => f (x k), fun k => f (y k), ?_, ?_, ?_⟩ <;>
+    intros <;> exact hf _ _ (of_decide_eq_true ‹_›)
 
 omit [DecidableEq V] in
 /-- Monochromatic pairs of the forced colouring are bad or have an uncovered endpoint. -/
@@ -296,18 +283,8 @@ private theorem sum_mono_le (u : Fin s → V) (χ : Fin s → Bool) :
           (if ¬ Covered G u v ∧ G.Adj v w then (1 : ℝ) else 0) +
           (if ¬ Covered G u w ∧ G.Adj v w then (1 : ℝ) else 0)) := by
         gcongr with v _ w _
-        by_cases ha : G.Adj v w ∧ forcedColor G u χ v = forcedColor G u χ w
-        · rw [ite_eq_left ha]
-          by_cases hv : Covered G u v
-          · by_cases hw : Covered G u w
-            · rw [ite_eq_left (show IsBadPair G u χ v w from ⟨ha.1, hv, hw, ha.2⟩)]
-              split_ifs <;> norm_num
-            · rw [ite_eq_left (show ¬Covered G u w ∧ G.Adj v w from ⟨hw, ha.1⟩)]
-              split_ifs <;> norm_num
-          · rw [ite_eq_left (show ¬Covered G u v ∧ G.Adj v w from ⟨hv, ha.1⟩)]
-            split_ifs <;> norm_num
-        · rw [ite_eq_right ha]
-          split_ifs <;> norm_num
+        split_ifs <;> norm_num
+        tauto
     _ = _ := by
         simp only [sum_add_distrib, h₁, h₂]
         ring
@@ -389,9 +366,7 @@ private theorem card_filter_lt_uncoveredDegree_le {ε : ℝ} (hε : 0 < ε) (hV 
   have h₃ := sum_uncoveredDegree_le (G := G) s
   rw [le_div_iff₀ (by positivity)]
   have h₄ : (#B : ℝ) * (ε * N ^ 2 / 2) ≤ N ^ (s + 2) / (s + 1) := h₁.trans (h₂.trans h₃)
-  rw [le_div_iff₀ (by positivity)] at h₄
-  have h₅ : N ^ (s + 2) = N ^ s * N ^ 2 := by ring
-  rw [h₅] at h₄
+  rw [le_div_iff₀ (by positivity), show N ^ (s + 2) = N ^ s * N ^ 2 by ring] at h₄
   have hN2 : 0 < N ^ 2 := by positivity
   nlinarith
 
@@ -416,8 +391,7 @@ private theorem lt_half_of_isFar {ε : ℝ} (h : IsFar G (fun H => H.IsBipartite
           gcongr with v _ w _
           split_ifs <;> norm_num
       _ = _ := by simp only [sum_const, card_univ, nsmul_eq_mul, mul_one]; push_cast; ring
-  by_contra hε
-  have := not_lt.mp hε
+  by_contra! hε
   nlinarith [Nat.cast_nonneg (α := ℝ) (Fintype.card V ^ 2)]
 
 omit [DecidableEq V] in
@@ -432,21 +406,15 @@ private theorem sum_accept_le_sum_pow (u : Fin s → V) {m : ℕ} :
         gcongr with x _ y _
         split_ifs with hacc
         · obtain ⟨χ, hχ⟩ := exists_forall_not_isBadPair hacc
-          calc (1 : ℝ) = ∏ k, (if IsBadPair G u χ (x k) (y k) then (0 : ℝ) else 1) := by
-                rw [prod_eq_one]
-                intro k _
-                rw [ite_eq_right (hχ k)]
-            _ ≤ _ := single_le_sum (f := fun χ => ∏ k,
-                (if IsBadPair G u χ (x k) (y k) then (0 : ℝ) else 1))
-                (fun χ _ => prod_nonneg fun k _ => by split_ifs <;> norm_num) (mem_univ χ)
+          refine (prod_eq_one fun k _ => ite_eq_right (hχ k)).symm.trans_le <|
+            single_le_sum (f := fun χ => ∏ k, (if IsBadPair G u χ (x k) (y k) then (0 : ℝ) else 1))
+              (fun χ _ => prod_nonneg fun k _ => by split_ifs <;> norm_num) (mem_univ χ)
         · exact sum_nonneg fun χ _ => prod_nonneg fun k _ => by split_ifs <;> norm_num
     _ = ∑ χ : Fin s → Bool, ∑ x : Fin m → V, ∑ y : Fin m → V,
-        ∏ k, (if IsBadPair G u χ (x k) (y k) then (0 : ℝ) else 1) := by
-        rw [sum_congr rfl fun x _ => sum_comm]
-        exact sum_comm
-    _ = _ := by
-        refine sum_congr rfl fun χ _ => ?_
-        exact sum_sum_prod_eq_pow (fun a b => if IsBadPair G u χ a b then (0 : ℝ) else 1)
+        ∏ k, (if IsBadPair G u χ (x k) (y k) then (0 : ℝ) else 1) :=
+        (sum_congr rfl fun x _ => sum_comm).trans sum_comm
+    _ = _ := sum_congr rfl fun χ _ =>
+        sum_sum_prod_eq_pow fun a b => if IsBadPair G u χ a b then (0 : ℝ) else 1
 
 omit [DecidableEq V] in
 /-- With small uncovered mass, every colouring has more than `ε n²` bad pairs. -/
@@ -518,18 +486,14 @@ private theorem two_pow_mul_one_sub_pow_le {ε : ℝ} (hε : ε ≤ 1) {s m : �
     linarith [Real.add_one_le_exp (1 : ℝ)]
   have h₄ : Real.exp (-1) ^ (s + 3) ≤ (1 / 2) ^ (s + 3) :=
     pow_le_pow_left₀ (Real.exp_pos _).le h₃ _
-  have h₅ : (2 : ℝ) ^ s * (1 / 2) ^ (s + 3) = 1 / 8 := by
-    rw [pow_add, ← mul_assoc, ← mul_pow]
-    norm_num
   calc (2 : ℝ) ^ s * (1 - ε) ^ m ≤ 2 ^ s * (1 / 2) ^ (s + 3) :=
         mul_le_mul_of_nonneg_left (h₁.trans (h₂.trans h₄)) (by positivity)
-    _ = 1 / 8 := h₅
+    _ = 1 / 8 := by rw [pow_add, ← mul_assoc, ← mul_pow]; norm_num
 
 omit [Fintype V] [DecidableEq V] in
 /-- Positivity of the proximity parameter from the sample-size condition. -/
 private theorem pos_of_twelve_le {ε : ℝ} {s : ℕ} (hs : 12 ≤ ε * s) : 0 < ε := by
-  by_contra hε
-  have := not_lt.mp hε
+  by_contra! hε
   nlinarith [Nat.cast_nonneg (α := ℝ) s]
 
 omit [DecidableEq V] in
@@ -543,11 +507,9 @@ private theorem sum_accept_le {ε : ℝ} (h : IsFar G (fun H => H.IsBipartite) �
   classical
   have hhalf := lt_half_of_isFar h
   have hε : 0 < ε := pos_of_twelve_le hs
-  have hV : 0 < Fintype.card V := by
-    rcases Nat.eq_zero_or_pos (Fintype.card V) with hV | hV
-    · have : IsEmpty V := Fintype.card_eq_zero_iff.mp hV
-      exact absurd h (not_isFar_of_property (Colorable.of_isEmpty 2) hε.le)
-    · exact hV
+  have hV : 0 < Fintype.card V := Nat.pos_of_ne_zero fun hV =>
+    have := Fintype.card_eq_zero_iff.mp hV
+    not_isFar_of_property (Colorable.of_isEmpty 2) hε.le h
   have hB := card_filter_lt_uncoveredDegree_le (G := G) hε hV s
   have h8 := two_pow_mul_one_sub_pow_le (by linarith) hm
   have hN : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr hV

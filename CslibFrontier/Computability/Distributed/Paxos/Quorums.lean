@@ -185,25 +185,12 @@ theorem thresholdQuorums_availableFor_iff (hPrepare : qPrepare ≤ Fintype.card 
     (thresholdQuorums hPrepare hAccept hInter).AvailableFor prepareFaults acceptFaults ↔
       (∀ F ∈ prepareFaults, qPrepare + F.card ≤ Fintype.card P) ∧
       (∀ F ∈ acceptFaults, qAccept + F.card ≤ Fintype.card P) := by
-  constructor
-  · intro h
-    constructor
-    · intro F hF
-      obtain ⟨Q, hQ, hd⟩ := h.prepare F hF
-      exact (exists_disjoint_threshold_iff qPrepare F).mp
-        ⟨Q, (mem_thresholdQuorums_prepare_iff _ _ _ Q).mp hQ, hd⟩
-    · intro F hF
-      obtain ⟨Q, hQ, hd⟩ := h.accept F hF
-      exact (exists_disjoint_threshold_iff qAccept F).mp
-        ⟨Q, (mem_thresholdQuorums_accept_iff _ _ _ Q).mp hQ, hd⟩
-  · rintro ⟨hp, ha⟩
-    constructor
-    · intro F hF
-      obtain ⟨Q, hQ, hd⟩ := (exists_disjoint_threshold_iff qPrepare F).mpr (hp F hF)
-      exact ⟨Q, (mem_thresholdQuorums_prepare_iff _ _ _ Q).mpr hQ, hd⟩
-    · intro F hF
-      obtain ⟨Q, hQ, hd⟩ := (exists_disjoint_threshold_iff qAccept F).mpr (ha F hF)
-      exact ⟨Q, (mem_thresholdQuorums_accept_iff _ _ _ Q).mpr hQ, hd⟩
+  have key {q : ℕ} {S : Finset (Finset P)} (hS : ∀ Q, Q ∈ S ↔ q ≤ Q.card) (B : Set (Finset P)) :
+      (∀ F ∈ B, ∃ Q ∈ S, Disjoint Q F) ↔ ∀ F ∈ B, q + F.card ≤ Fintype.card P :=
+    forall₂_congr fun F _ => by simp only [hS]; exact exists_disjoint_threshold_iff q F
+  have kp := key (mem_thresholdQuorums_prepare_iff hPrepare hAccept hInter) prepareFaults
+  have ka := key (mem_thresholdQuorums_accept_iff hPrepare hAccept hInter) acceptFaults
+  exact ⟨fun h => ⟨kp.mp h.prepare, ka.mp h.accept⟩, fun h => ⟨kp.mpr h.1, ka.mpr h.2⟩⟩
 
 /-- Equal strict-majority families recover classical Paxos: each quorum contains at least
 `Fintype.card P - t` acceptors, with `2 * t < Fintype.card P`. -/
@@ -244,8 +231,7 @@ theorem exists_availableFor_iff (prepareFaults acceptFaults : Set (Finset P))
     obtain ⟨Q₂, hQ₂, hd₂⟩ := hav.accept F₂ hF₂
     obtain ⟨p, hp⟩ := qs.inter_nonempty Q₁ hQ₁ Q₂ hQ₂
     obtain ⟨hp₁, hp₂⟩ := Finset.mem_inter.mp hp
-    have hpF : p ∈ F₁ ∪ F₂ := hcover ▸ Finset.mem_univ p
-    rcases Finset.mem_union.mp hpF with hpF | hpF
+    rcases Finset.mem_union.mp (hcover ▸ Finset.mem_univ p : p ∈ F₁ ∪ F₂) with hpF | hpF
     · exact Finset.disjoint_left.mp hd₁ hp₁ hpF
     · exact Finset.disjoint_left.mp hd₂ hp₂ hpF
   · intro hcover
@@ -272,11 +258,7 @@ theorem exists_availableFor_iff (prepareFaults acceptFaults : Set (Finset P))
           obtain ⟨p, hp⟩ := Finset.sdiff_nonempty.mpr hnot
           exact ⟨p, by simpa only [Finset.mem_inter, Finset.mem_sdiff, Finset.mem_univ,
             true_and, Finset.mem_union, not_or] using hp⟩ }
-    refine ⟨qs, ?_⟩
-    constructor
-    · intro F hF
-      exact ⟨Finset.univ \ F, (hmem _ _).mpr ⟨F, hF, rfl⟩, Finset.sdiff_disjoint⟩
-    · intro F hF
+    refine ⟨qs, fun F hF => ?_, fun F hF => ?_⟩ <;>
       exact ⟨Finset.univ \ F, (hmem _ _).mpr ⟨F, hF, rfl⟩, Finset.sdiff_disjoint⟩
 
 /-- Sharp asymmetric crash-availability threshold: prepare quorums can tolerate `fPrepare`

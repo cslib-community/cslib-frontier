@@ -79,19 +79,12 @@ private theorem exists_extension {n k : ℕ} (hn : 0 < n) (hk : k ≤ n) {a : Fi
     (ha : StrictMono a) (han : ∀ i, a i < n) :
     ∃ x : ZMod n → ℕ, Function.Injective x ∧ (∀ v, x v < n) ∧ ∀ i : Fin k, x (i : ℕ) = a i := by
   have : NeZero n := ⟨hn.ne'⟩
-  have hf : Function.Injective fun i : Fin k => ((i : ℕ) : ZMod n) := by
-    intro i j h
-    have := congrArg ZMod.val h
-    rw [ZMod.val_natCast, ZMod.val_natCast, Nat.mod_eq_of_lt (by omega),
-      Nat.mod_eq_of_lt (by omega)] at this
-    exact Fin.val_injective this
-  have hg : Function.Injective fun i : Fin k => ((a i : ℕ) : ZMod n) := by
-    intro i j h
-    have := congrArg ZMod.val h
-    rw [ZMod.val_natCast, ZMod.val_natCast, Nat.mod_eq_of_lt (han i),
-      Nat.mod_eq_of_lt (han j)] at this
-    exact ha.injective this
-  obtain ⟨σ, hσ⟩ := Equiv.Perm.exists_extending_pair _ _ hf hg
+  have key {f : Fin k → ℕ} (hfi : Function.Injective f) (hfn : ∀ i, f i < n) :
+      Function.Injective fun i => ((f i : ℕ) : ZMod n) := fun i j h => hfi <| by
+    simpa only [ZMod.val_natCast, Nat.mod_eq_of_lt (hfn i), Nat.mod_eq_of_lt (hfn j)] using
+      congrArg ZMod.val h
+  obtain ⟨σ, hσ⟩ := Equiv.Perm.exists_extending_pair _ _
+    (key Fin.val_injective fun i => by omega) (key ha.injective han)
   refine ⟨fun v => (σ v).val, ?_, fun v => ZMod.val_lt _, fun i => ?_⟩
   · intro v w h
     exact σ.injective (ZMod.val_injective n h)

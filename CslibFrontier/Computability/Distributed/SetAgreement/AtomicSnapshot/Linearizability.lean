@@ -59,8 +59,7 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
     intro x hx
     obtain ⟨t, -, hxt⟩ := List.mem_flatMap.mp hx
     rcases List.mem_append.mp hxt with hxt | hxt
-    · exact ((τ.mem_linScansAt_iff t x).mp hxt).1
-    · exact ((τ.mem_linUpdatesAt_iff t x).mp hxt).1
+    exacts [((τ.mem_linScansAt_iff t x).mp hxt).1, ((τ.mem_linUpdatesAt_iff t x).mp hxt).1]
   · -- Every completed operation appears in some chunk `t < T + 1`.
     intro id hId hcomp
     simp only [SnapshotTrace.linPrefix, List.mem_flatMap, List.mem_range]
@@ -82,18 +81,15 @@ private theorem snapshotLinearizable_of_trace {P Data : Type*} [Fintype P] [Deci
     obtain ⟨t₂, ht₂_lt, hj_chunk⟩ : ∃ t₂ < T + 1, j ∈ τ.linChunk t₂ := by
       simpa only [SnapshotTrace.linPrefix, List.mem_flatMap, List.mem_range] using hj
     have ht₁_lt_t₂ := τ.linChunk_lt_of_realTime inv hi_chunk hj_chunk hresp_i hget_j hr_le
-    have hsplit_range : List.range (T + 1) = List.range t₂ ++ (List.range (T + 1)).drop t₂ :=
-      (List.take_append_drop t₂ (List.range (T + 1))).symm.trans
-        (by rw [List.take_range, Nat.min_eq_left (by omega)])
     have hseq_split : τ.linPrefix (T + 1) =
         (List.range t₂).flatMap τ.linChunk ++
           ((List.range (T + 1)).drop t₂).flatMap τ.linChunk := by
-      dsimp only [SnapshotTrace.linPrefix]
-      conv_lhs => rw [hsplit_range]; exact List.flatMap_append
+      rw [← List.flatMap_append, show List.range t₂ = (List.range (T + 1)).take t₂ by
+        rw [List.take_range, Nat.min_eq_left (by omega)], List.take_append_drop]
+      rfl
     have hi_left : i ∈ (List.range t₂).flatMap τ.linChunk :=
       List.mem_flatMap.mpr ⟨t₁, List.mem_range.mpr ht₁_lt_t₂, hi_chunk⟩
-    have hj_not_left : j ∉ (List.range t₂).flatMap τ.linChunk := by
-      intro hj_in
+    have hj_not_left : j ∉ (List.range t₂).flatMap τ.linChunk := fun hj_in => by
       obtain ⟨t', ht'_lt, hj_t'⟩ := List.mem_flatMap.mp hj_in
       have heq := τ.eq_of_mem_linChunk hj_t' hj_chunk
       have := List.mem_range.mp ht'_lt
