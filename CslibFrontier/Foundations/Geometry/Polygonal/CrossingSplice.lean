@@ -323,6 +323,8 @@ Inside the disk its support is precisely the two chords, and neither contains th
 Its indexed intersection parity against every route disjoint from the disk is preserved.
 Both outgoing germs are positive multiples of their originals. Every pair of distinct segments
 meeting in their open interiors gives an original crossing point outside the closed disk.
+At each exterior point, the open segments through the point embed into the original
+open segments through that point.
 Inside the disk, equal evaluations have equal positions along the spliced route, including
 at the four cut endpoints. Outside the disk, a point reached at distinct positions of the
 splice is also reached at distinct original positions, with each visit preserving whether
@@ -357,6 +359,9 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
           (s ∈ Set.Ioo 0 1 ↔ u ∈ Set.Ioo 0 1) ∧ (t ∈ Set.Ioo 0 1 ↔ v ∈ Set.Ioo 0 1)) ∧
       ((∀ k : Fin p.segments, p.point k.castSucc ≠ p.point k.succ) →
         ∀ k : Fin q.segments, q.point k.castSucc ≠ q.point k.succ) ∧
+      (∀ w ∉ Metric.closedBall z ρ, Nonempty
+        ({k : Fin q.segments // w ∈ openSegment ℝ (q.point k.castSucc) (q.point k.succ)} ↪
+          {k : Fin p.segments // w ∈ openSegment ℝ (p.point k.castSucc) (p.point k.succ)})) ∧
       ∃ li ui lj uj : ℝ, 0 < li ∧ li < ui ∧ ui < 1 ∧ 0 < lj ∧ lj < uj ∧ uj < 1 ∧
         p.eval i li ∈ Metric.sphere z ρ ∧ p.eval i ui ∈ Metric.sphere z ρ ∧
         p.eval j lj ∈ Metric.sphere z ρ ∧ p.eval j uj ∈ Metric.sphere z ρ ∧
@@ -658,38 +663,59 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     · subst k
       rw [hcut_injective j hzj he]
     simp [indexAt, inPrefix, inMiddle, hi, hj]
+  let through (P : Route) (w : ℂ) :=
+    {k : Fin P.segments // w ∈ openSegment ℝ (P.point k.castSucc) (P.point k.succ)}
+  have hthrough (w : ℂ) (k : through q w) :
+      (∃ l : through p w, ∃ v, p.eval l.val v = w ∧ indexAt l.val v = k.val ∧ w ∉ B) ∨
+        ((k.val : ℕ) = A.segments ∧ w ∈ segment ℝ a c) ∨
+        ((k.val : ℕ) = ((A.concat L).concat M.reverse).segments ∧ w ∈ segment ℝ b d) := by
+    have ht := k.property
+    rw [openSegment_eq_image_lineMap] at ht
+    obtain ⟨u, hu, he⟩ := ht
+    change q.eval k.val u = w at he
+    rcases hlocation k.val hu with ⟨l, v, hv, hi, hvEq, hout⟩ | hc | hd
+    · have hw : p.eval l v = w := hvEq.symm.trans he
+      exact Or.inl ⟨⟨l, hw ▸ lineMap_mem_openSegment ℝ _ _ hv⟩, v, hw, hi, he ▸ hout⟩
+    · exact Or.inr (Or.inl ⟨hc.1, he ▸ hc.2⟩)
+    · exact Or.inr (Or.inr ⟨hd.1, he ▸ hd.2⟩)
+  have hexterior_open (w : ℂ) (hw : w ∉ B) : Nonempty (through q w ↪ through p w) := by
+    have ht (k : through q w) :
+        ∃ l : through p w, ∃ v, p.eval l.val v = w ∧ indexAt l.val v = k.val ∧ w ∉ B :=
+      (hthrough w k).resolve_right (fun h => hw (hNew (h.elim
+        (fun h => Or.inl h.2) (fun h => Or.inr h.2))))
+    choose f v he hi _ using ht
+    refine ⟨⟨f, ?_⟩⟩
+    intro k l hkl
+    have hf := congrArg Subtype.val hkl
+    have he' : p.eval (f k).val (v k) = p.eval (f k).val (v l) := by
+      rw [he k, hf, he l]
+    apply Subtype.ext
+    apply Fin.ext
+    calc
+      _ = indexAt (f k).val (v k) := (hi k).symm
+      _ = indexAt (f k).val (v l) := hindexAt (f k).val he'
+      _ = _ := by rw [hf, hi l]
   have hCross : openSegmentCrossings (fun k : Fin q.segments => q.point k.castSucc)
       (fun k => q.point k.succ) ⊆ openSegmentCrossings
         (fun k : Fin p.segments => p.point k.castSucc) (fun k => p.point k.succ) \ B := by
     rintro w ⟨k, l, hkl, hk, hl⟩
-    rw [openSegment_eq_image_lineMap] at hk hl
-    obtain ⟨u, hu, he⟩ := hk
-    obtain ⟨v, hv, he'⟩ := hl
-    change q.eval k u = w at he
-    change q.eval l v = w at he'
-    have hk := hlocation k hu
-    have hl := hlocation l hv
-    rw [he] at hk
-    rw [he'] at hl
+    let k' : through q w := ⟨k, hk⟩
+    let l' : through q w := ⟨l, hl⟩
+    have hkl' : k' ≠ l' := fun h => hkl (congrArg Subtype.val h)
     have hw : w ∉ B := by
       intro hw
-      rcases hk.resolve_left (by rintro ⟨_, _, _, _, _, h⟩; exact h hw) with hk | hk <;>
-        rcases hl.resolve_left (by rintro ⟨_, _, _, _, _, h⟩; exact h hw) with hl | hl
+      have chord (m : through q w) :
+          ((m.val : ℕ) = A.segments ∧ w ∈ segment ℝ a c) ∨
+            ((m.val : ℕ) = ((A.concat L).concat M.reverse).segments ∧ w ∈ segment ℝ b d) :=
+        (hthrough w m).resolve_left (by rintro ⟨_, _, _, _, h⟩; exact h hw)
+      rcases chord k' with hk | hk <;> rcases chord l' with hl | hl
       · exact hkl (Fin.ext (hk.1.trans hl.1.symm))
       · exact Set.disjoint_left.mp hdisjoint hk.2 hl.2
       · exact Set.disjoint_left.mp hdisjoint hl.2 hk.2
       · exact hkl (Fin.ext (hk.1.trans hl.1.symm))
-    have hnotChord (n : ℕ) : ¬ ((n = A.segments ∧ w ∈ segment ℝ a c) ∨
-        (n = ((A.concat L).concat M.reverse).segments ∧ w ∈ segment ℝ b d)) :=
-      fun h => hw (hNew (h.elim (fun h => Or.inl h.2) (fun h => Or.inr h.2)))
-    obtain ⟨k', u', hu', hidx, he₁, _⟩ := hk.resolve_right (hnotChord k.val)
-    obtain ⟨l', v', hv', hidx', he₂, _⟩ := hl.resolve_right (hnotChord l.val)
-    have hne : k' ≠ l' := by
-      rintro rfl
-      exact hkl (Fin.ext (hidx.symm.trans ((hindexAt k' (he₁.symm.trans he₂)).trans hidx')))
-    refine ⟨⟨k', l', hne, ?_, ?_⟩, hw⟩
-    · exact he₁.symm ▸ lineMap_mem_openSegment ℝ _ _ hu'
-    · exact he₂.symm ▸ lineMap_mem_openSegment ℝ _ _ hv'
+    obtain ⟨f⟩ := hexterior_open w hw
+    exact ⟨⟨(f k').val, (f l').val, fun h => hkl' (f.injective (Subtype.ext h)),
+      (f k').property, (f l').property⟩, hw⟩
   have hshift (P : Route) (k : Fin q.segments) (l : Fin P.segments) {n : ℕ}
       (hk : k.val = n + l.val) (u : ℝ) : q.position k u = (n : ℝ) + P.position l u := by
     simp only [position, hk, Nat.cast_add]
@@ -860,7 +886,7 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
     rw [hDisk] at hzB
     exact hcenter hzB
   refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, hCross, hpositions, hExteriorContact, hnondeg,
-    li, ui, lj, uj,
+    hexterior_open, li, ui, lj, uj,
     hli, hi₀, hui, hlj, hj₀, huj, ha, hb, hc, hd, hDisk, hdisjoint⟩
   · change q.support \ B = p.support \ B
     rw [hq]
