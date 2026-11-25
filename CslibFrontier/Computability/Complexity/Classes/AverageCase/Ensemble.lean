@@ -108,41 +108,32 @@ theorem cdf_eq_cdfLo_add (D : Ensemble) (x : List Bool) :
   have hset : {y : List Bool | BitString.binaryValue y ≤ BitString.binaryValue x} =
       {y | BitString.binaryValue y < BitString.binaryValue x} ∪
         {y | BitString.binaryValue y = BitString.binaryValue x} := by
-    ext y
-    simp only [Set.mem_ofPred_eq, Set.mem_union]
-    omega
+    ext
+    simp only [Set.mem_ofPred_eq, Set.mem_union]; omega
   have hdisj : Disjoint {y : List Bool | BitString.binaryValue y < BitString.binaryValue x}
-      {y | BitString.binaryValue y = BitString.binaryValue x} := by
-    rw [Set.disjoint_left]
-    intro y h1 h2
-    simp only [Set.mem_ofPred_eq] at h1 h2
-    omega
+      {y | BitString.binaryValue y = BitString.binaryValue x} :=
+    Set.disjoint_left.mpr fun _ h1 h2 => by simp only [Set.mem_ofPred_eq] at h1 h2; omega
   rw [cdf, cdfLo, hset, Probability.PMF.toOuterMeasure_union_of_disjoint _ hdisj]
   congr 1
   rw [PMF.toOuterMeasure_apply, tsum_eq_single x]
   · simp
   · intro y hy
     by_cases hyx : BitString.binaryValue y = BitString.binaryValue x
-    · rw [Set.indicator_of_mem (by exact hyx)]
-      by_contra hne
-      have hsupp : y ∈ (D.dist x.length).support := (PMF.mem_support_iff _ _).mpr hne
-      exact hy (BitString.binaryValue_injective_of_length_eq (D.length_eq _ _ hsupp) hyx)
-    · rw [Set.indicator_of_notMem (by exact hyx)]
+    · rw [Set.indicator_of_mem hyx]
+      exact by_contra fun hne => hy (BitString.binaryValue_injective_of_length_eq
+        (D.length_eq _ _ ((PMF.mem_support_iff _ _).mpr hne)) hyx)
+    · rw [Set.indicator_of_notMem hyx]
 
 /-- Nothing lies below a word of value `0`. -/
 theorem cdfLo_of_binaryValue_eq_zero (D : Ensemble) {x : List Bool}
-    (h : BitString.binaryValue x = 0) : D.cdfLo x = 0 := by
-  rw [cdfLo, h]
-  simp
+    (h : BitString.binaryValue x = 0) : D.cdfLo x = 0 := by simp [cdfLo, h]
 
 /-- Below a word of nonzero value lies the cumulative distribution of its predecessor. -/
 theorem cdfLo_eq_cdf_predWord (D : Ensemble) {x : List Bool}
     (h : BitString.binaryValue x ≠ 0) : D.cdfLo x = D.cdf (BitString.predWord x) := by
   rw [cdfLo, cdf, BitString.length_predWord, BitString.binaryValue_predWord]
-  congr 1
-  ext y
-  simp only [Set.mem_ofPred_eq]
-  omega
+  congr 1; ext
+  simp only [Set.mem_ofPred_eq]; omega
 
 /-- The cumulative distribution at `x` is at most the probability below any later word of the same
 length. -/
@@ -182,38 +173,26 @@ noncomputable def uniform : Ensemble where
 theorem uniform_apply (x : List Bool) : uniform.dist x.length x = (2 ^ x.length)⁻¹ := by
   have h := BitString.uniformList_map_apply id x.length x
   simp only [PMF.map_id, id_eq] at h
-  rw [uniform_dist, h, div_eq_mul_inv]
-  have hcard : (Finset.univ.filter fun r : Fin x.length → Bool => List.ofFn r = x).card = 1 := by
-    rw [Finset.card_eq_one]
-    refine ⟨x.get, Finset.ext fun r => ?_⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-    constructor
-    · intro hr
-      exact List.ofFn_injective (hr.trans (List.ofFn_get x).symm)
-    · rintro rfl
-      exact List.ofFn_get x
-  rw [hcard, Nat.cast_one, one_mul]
+  rw [uniform_dist, h, div_eq_mul_inv, Finset.card_eq_one.mpr ⟨x.get, Finset.ext fun r => ?_⟩,
+    Nat.cast_one, one_mul]
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+  exact ⟨fun hr => List.ofFn_injective (hr.trans (List.ofFn_get x).symm),
+    fun e => e ▸ List.ofFn_get x⟩
 
 private theorem card_le_binaryValue (x : List Bool) :
     (Finset.univ.filter (fun u : Fin x.length → Bool =>
       List.ofFn u ∈ {y | BitString.binaryValue y ≤ BitString.binaryValue x})).card =
       BitString.binaryValue x + 1 := by
-  rw [show BitString.binaryValue x + 1 =
-    (Finset.range (BitString.binaryValue x + 1)).card from (Finset.card_range _).symm]
-  refine Finset.card_bij (fun u _ => BitString.binaryValue (List.ofFn u)) ?_ ?_ ?_
-  · intro u hu
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hu
-    exact Finset.mem_range.mpr (Nat.lt_succ_of_le hu)
-  · intro u _ v _ h
-    exact List.ofFn_injective
-      (BitString.binaryValue_injective_of_length_eq (by simp only [List.length_ofFn]) h)
-  · intro k hk
-    have hk' : k ≤ BitString.binaryValue x := Nat.lt_succ_iff.mp (Finset.mem_range.mp hk)
-    obtain ⟨u, hu⟩ := BitString.exists_binaryValue_eq
-      (lt_of_le_of_lt hk' (BitString.binaryValue_lt_two_pow x))
-    refine ⟨u, ?_, hu⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, hu]
-    exact hk'
+  rw [← Finset.card_range (BitString.binaryValue x + 1)]
+  refine Finset.card_bij (fun u _ => BitString.binaryValue (List.ofFn u))
+    (fun u hu => Finset.mem_range.mpr (Nat.lt_succ_of_le (Finset.mem_filter.mp hu).2))
+    (fun u _ v _ h => List.ofFn_injective
+      (BitString.binaryValue_injective_of_length_eq (by simp only [List.length_ofFn]) h))
+    fun k hk => ?_
+  have hk' := Nat.lt_succ_iff.mp (Finset.mem_range.mp hk)
+  obtain ⟨u, hu⟩ :=
+    BitString.exists_binaryValue_eq (hk'.trans_lt (BitString.binaryValue_lt_two_pow x))
+  exact ⟨u, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hu.trans_le hk'⟩, hu⟩
 
 /-- The uniform cumulative distribution of `x` is `(binaryValue x + 1) / 2^{|x|}`. -/
 theorem cdf_uniform (x : List Bool) :
@@ -236,10 +215,8 @@ theorem uniform_toOuterMeasure_binaryValue_lt {N K : ℕ} (hK : K ≤ 2 ^ N) :
     have h := cdf_uniform (List.ofFn u)
     rw [cdf, List.length_ofFn, hu, show K - 1 + 1 = K by omega] at h
     rw [← h]
-    congr 1
-    ext r
-    simp only [Set.mem_ofPred_eq]
-    omega
+    congr 1; ext
+    simp only [Set.mem_ofPred_eq]; omega
 
 /-- The uniform ensemble is polynomial-time computable. -/
 theorem uniform_pComp : uniform.PComp :=

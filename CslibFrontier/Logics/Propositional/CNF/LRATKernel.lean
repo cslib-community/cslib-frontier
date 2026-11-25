@@ -141,6 +141,7 @@ private theorem get_succ (t : ClauseTrie) (n : ℕ) :
 private theorem get_setAux (x : Option (Clause ℕ)) :
     ∀ (fuel : ℕ) (t : ClauseTrie) (n m : ℕ), n ≤ fuel →
       (setAux x fuel t n).get m = if m = n then x else t.get m := by
+  -- storing under `0` replaces the root
   have h0 (fuel : ℕ) (t : ClauseTrie) (m : ℕ) :
       (setAux x fuel t 0).get m = if m = 0 then x else t.get m := by
     rw [show setAux x fuel t 0 = node x t.zero t.one by cases fuel <;> cases t <;> rfl]

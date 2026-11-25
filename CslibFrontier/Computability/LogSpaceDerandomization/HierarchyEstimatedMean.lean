@@ -70,23 +70,20 @@ theorem estimated_residual_bins_mean_error
     ss sm st b.binExponent hbH C hC hC1 hCf c.binCutoff c.cutoff_one b.preparationCutoff
     c.requestGate c.requestRank hkh c.requestGate_nonneg c.requestGate_le_one
     c.gateThreshold_pos c.gate_one c.rank_bound x y hcover
-  dsimp only at hm
-  rw [← hm]
+  dsimp only at hm; rw [← hm]
   apply HierarchyTask.residual_bins_sub_le
   · intro i _ σ _ z
-    exact incomingChildren_final_range HP D ident Kc _ (raw i) (prep i) (maximum i)
-      _ l rfl σ x z
+    exact incomingChildren_final_range HP D ident Kc _ (raw i) (prep i) (maximum i) _ l rfl σ x z
   · intro i _ σ _ z
     change |denseChild D ident _ _ (b.preparationCutoff i) c.requestGate c.requestRank C σ z y| ≤
       2 * max b.densityCap 16
     let r := (HierarchyTask.rawRequests (k := HP.k) l i .residual
       (gridChannel R.source ks ss) (gridChannel R.midpoint km sm)
       (gridChannel R.terminal kt st) (b.rates i)).right
-    have heq := denseChild_congr_cutoff D ident r C (b.cutoff c i) (b.bounded c i)
+    rw [denseChild_congr_cutoff D ident r C (b.cutoff c i) (b.bounded c i)
       (b.preparationCutoff i) c.requestGate c.requestRank
       (fun u w => (boundedRoutedBinCutoff_div_eq
-        (fun j => rate_pos (b.binExponent j)) (hC u w) (hCcap u w) i).symm) σ
-    rw [heq]
+        (fun j => rate_pos (b.binExponent j)) (hC u w) (hCcap u w) i).symm) σ]
     exact denseChild_range D ident r C _ (b.preparationCutoff i) c.requestGate c.requestRank
       (b.densityCap_nonneg.trans (le_max_left _ _))
       (b.bounded_mem_Icc c i) c.requestGate_mem_Icc σ z y
@@ -107,34 +104,14 @@ theorem ResidualStage.mean_sub_le {HP : FourthRootHierarchyParams 16 1 16 32 8}
     (children.raw (j + 1)) (children.prep (j + 1)) (children.maximum (j + 1)) x y
     fun z => s.kernel_cover z y
   dsimp only at he
-  have hL : rowSliceMean s.sourceMask s.terminalMask
-      (s.input children (j + 1)) x y =
-      𝔼 σ ∈ ({σ : Environment P J | s.source.retains (channels s.direction) σ (id x) ∧
-        s.terminal.retains (channels s.direction) σ (id y)} : Finset _),
-        estimatedResidualInput HP s.direction id s.roles s.level s.sourceExponent
-          s.midpointExponent s.terminalExponent s.bins.lastBin s.sourceSuffix s.midpointSuffix
-          s.terminalSuffix s.bins.binExponent s.correctionRank s.bounded
-          (fun _ => children.raw (j + 1)) (fun _ => children.prep (j + 1))
-          (fun _ => children.maximum (j + 1)) 0 σ x y := by
-    unfold rowSliceMean ResidualStage.input
+  refine Eq.trans_le (congrArg (|· - s.residual x y|) ?_) (he.trans_eq ?_)
+  · unfold rowSliceMean ResidualStage.input
     refine expect_congr ?_ fun _ _ => rfl
     ext σ
     simp only [mem_filter, mem_univ, true_and, ← s.source_retains_iff, ← s.terminal_retains_iff]
-  have hR : s.cost children j x y =
-      𝔼 σ ∈ ({σ : Environment P J | s.source.retains (channels s.direction) σ (id x) ∧
-        s.terminal.retains (channels s.direction) σ (id y)} : Finset _),
-        ((∑ i ∈ s.bins.activeBins, HierarchyTask.positiveChildError s.channelsV
-          s.level i .residual s.source s.midpoint s.terminal (s.bins.rates i)
-          (2 * HP.Q HP.toHierarchyParams.atomCap) (2 * max s.bins.densityCap 16)
-          (s.estimated children (j + 1) i σ) (s.canonical i σ) x y) +
-        HierarchyTask.negativeChildError s.channelsV s.level 0 .residual s.source s.midpoint
-          s.terminal (s.bins.rates 0) (s.estimated children (j + 1) 0 σ)
-          (s.canonical 0 σ) x y) := by
+  · symm
     unfold ResidualStage.cost HierarchyTask.conditionalChildCost rowSliceMean
     refine expect_congr ?_ fun _ _ => rfl
-    ext σ
-    simp only [mem_filter, mem_univ, true_and]
-  rw [hL, hR]
-  exact he
+    ext σ; simp only [mem_filter, mem_univ, true_and]
 
 end Matrix.HierarchyParams.H4RankEnvironment

@@ -117,9 +117,11 @@ theorem decryptNat_eq {N c m r : ℕ} (hN : 1 < N) (hcop : N.Coprime N.totient)
     (hr : r.Coprime N) (hc : (c : ZMod (N ^ 2)) = (1 + N) ^ m * (r : ZMod (N ^ 2)) ^ N) :
     decryptNat N N.totient c = m % N := by
   have hN0 : N ≠ 0 := by lia
+  -- `φ(N) ^ (φ(N) - 1)` inverts `φ(N)` modulo `N`, by Euler's theorem.
   have heuler : (N.totient : ZMod N) ^ N.totient = 1 := by
     simpa only [Units.val_pow_eq_pow_val, ZMod.coe_unitOfCoprime, Units.val_one] using
       congrArg Units.val (ZMod.pow_totient (ZMod.unitOfCoprime N.totient hcop.symm))
+  -- Raising `c` to the power `φ(N)` leaves `1 + (m * φ(N) mod N) * N`.
   rw [decryptNat, powMod_of_ne_zero (pow_ne_zero 2 hN0), powMod_of_ne_zero hN0,
     show c ^ N.totient % N ^ 2 = 1 + m * N.totient % N * N by
       rw [← ZMod.val_one_add_natCast_mul hN, ← one_add_pow_mul_pow_pow_totient m hr, ← hc,

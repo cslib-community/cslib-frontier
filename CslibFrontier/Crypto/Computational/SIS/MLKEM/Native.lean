@@ -169,11 +169,10 @@ section Agreement
 division `⌈p x / q⌋` reduced modulo `p`. -/
 theorem modulusSwitchResidue_natCast (q p x : ℕ) :
     ZMod.modulusSwitchResidue q p (x : ℤ) = roundDiv (p * x) q % p := by
-  have h : (2 * (p : ℤ) * x + q) / (2 * (q : ℤ)) = ((roundDiv (p * x) q : ℕ) : ℤ) := by
-    rw [roundDiv]
-    push_cast
-    ring_nf
-  rw [ZMod.modulusSwitchResidue, h, ← Int.natCast_mod, Int.toNat_natCast]
+  rw [ZMod.modulusSwitchResidue, show (2 * (p : ℤ) * x + q) / (2 * (q : ℤ)) =
+      ((roundDiv (p * x) q : ℕ) : ℤ) by
+    rw [roundDiv]; push_cast
+    ring_nf, ← Int.natCast_mod, Int.toNat_natCast]
 
 /-- Native compression computes `compressPoly`. -/
 theorem compressResidues_polyResidues {n q : ℕ} (d : ℕ) (f : Fin n → ZMod q) :
@@ -191,11 +190,9 @@ theorem decompressResidues_polyResidues {n : ℕ} (q d : ℕ) (f : Fin n → ZMo
 theorem messageResidues_eq (P : Params) (m : List Bool) :
     messageResidues P.n P.q m = polyResidues (messagePoly P fun i => m.getD i false) := by
   rw [messagePoly, ← decompressResidues_polyResidues, messageResidues]
-  congr 1
-  apply List.ext_getElem (by simp [polyResidues])
-  intro i h₁ h₂
-  simp only [List.getElem_map, List.getElem_range, polyResidues, List.getElem_ofFn]
-  cases m.getD i false <;> rfl
+  exact congrArg _ (List.ext_getElem (by simp [polyResidues]) fun i _ _ => by
+    simp only [List.getElem_map, List.getElem_range, polyResidues, List.getElem_ofFn]
+    cases m.getD i false <;> rfl)
 
 private theorem toNat_emod_eq_val {q : ℕ} [NeZero q] (z : ℤ) :
     (z % (q : ℤ)).toNat = (z : ZMod q).val := by
@@ -211,9 +208,8 @@ theorem uniformList_map_cbdResidues (n q η : ℕ) [NeZero q] :
   rw [← OracleComp.map_ofFn_replicateFin, ProbComp.eval_map] at hlaw
   have hmap := congrArg (PMF.map (List.map fun z : ℤ => (z % (q : ℤ)).toNat)) hlaw
   simp only [PMF.map_comp, Function.comp_def, List.map_map] at hmap
-  rw [show cbdResidues n q η = fun tape =>
-      (BitString.listRows n (2 * η) tape).map fun row => (cbdValue η row % (q : ℤ)).toNat from rfl,
-    ← hmap, samplePolyCBD, ProbComp.eval_bind]
+  unfold cbdResidues
+  rw [← hmap, samplePolyCBD, ProbComp.eval_bind]
   simp only [ProbComp.eval_pure, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
     List.map_ofFn, polyResidues, toNat_emod_eq_val]
 
@@ -222,15 +218,13 @@ bits. -/
 theorem uniformList_map_cbdVecResidues (k n q η : ℕ) [NeZero q] :
     (BitString.uniformList (k * (n * (2 * η)))).map (cbdVecResidues k n q η) =
       (ProbComp.eval (sampleVecCBD k n q η)).map polyVecResidues := by
-  have hpoly := uniformList_map_cbdResidues n q η
   have hlaw := ProbComp.eval_replicate_of_uniformList k (n * (2 * η))
     (polyResidues <$> samplePolyCBD n q η) (cbdResidues n q η)
-    (by rw [ProbComp.eval_map, hpoly])
+    (by rw [ProbComp.eval_map, uniformList_map_cbdResidues])
   rw [ProbComp.eval_replicate_map (ProbComp.eval_map _ _) k, ← OracleComp.map_ofFn_replicateFin,
     ProbComp.eval_map, PMF.map_comp] at hlaw
-  rw [show cbdVecResidues k n q η = fun tape =>
-      (BitString.listRows k (n * (2 * η)) tape).map (cbdResidues n q η) from rfl, ← hlaw,
-    sampleVecCBD]
+  unfold cbdVecResidues
+  rw [← hlaw, sampleVecCBD]
   simp only [Function.comp_def, List.map_ofFn]
   rfl
 
@@ -260,13 +254,12 @@ theorem encryptResidues_eq (pk : PublicKey P) (m : List Bool)
   obtain ⟨A, b⟩ := pk
   simp only [encryptResidues, encrypt, compressCiphertext, encryptRaw]
   congr 1
-  · apply List.ext_getElem (by simp [polyVecResidues])
-    intro i h₁ h₂
+  · refine List.ext_getElem (by simp [polyVecResidues]) fun i h₁ _ => ?_
     have hi : i < P.k := by simpa using h₁
     simp only [List.getElem_map, List.getElem_range]
     rw [column_matrixResidues P A hi, getD_polyVecResidues e₁ hi,
-      negacyclicInnerResidues_polyVecResidues,
-      addResidues_polyResidues, compressResidues_polyResidues]
+      negacyclicInnerResidues_polyVecResidues, addResidues_polyResidues,
+      compressResidues_polyResidues]
     simp [polyVecResidues, moduleSISMap, innerPoly]
   · rw [negacyclicInnerResidues_polyVecResidues, addResidues_polyResidues, messageResidues_eq,
       addResidues_polyResidues, compressResidues_polyResidues]
@@ -275,14 +268,12 @@ theorem encryptResidues_eq (pk : PublicKey P) (m : List Bool)
 theorem decryptResidues_eq (s : SecretKey P) (ct : Ciphertext P) :
     decryptResidues P (polyVecResidues s) (polyVecResidues ct.1) (polyResidues ct.2) =
       List.ofFn (decrypt P s ct) := by
-  have hu : (polyVecResidues ct.1).map (decompressResidues P.q P.du) =
-      polyVecResidues (decompressCiphertext P ct).1 := by
+  rw [decryptResidues, show (polyVecResidues ct.1).map (decompressResidues P.q P.du) =
+      polyVecResidues (decompressCiphertext P ct).1 by
     simp only [polyVecResidues, List.map_ofFn, Function.comp_def, decompressResidues_polyResidues]
-    rfl
-  rw [decryptResidues, hu, negacyclicInnerResidues_polyVecResidues,
-    decompressResidues_polyResidues, show decompressPoly P.q P.dv ct.2 =
-      (decompressCiphertext P ct).2 from rfl, subResidues_polyResidues,
-    compressResidues_polyResidues]
+    rfl, negacyclicInnerResidues_polyVecResidues, decompressResidues_polyResidues,
+    show decompressPoly P.q P.dv ct.2 = (decompressCiphertext P ct).2 from rfl,
+    subResidues_polyResidues, compressResidues_polyResidues]
   simp only [polyResidues, List.map_ofFn, Function.comp_def, compressPoly_apply]
   rfl
 
@@ -291,14 +282,11 @@ theorem publicKeyResidues_eq (A : Matrix (Fin P.k) (Fin P.k) (Fin P.n → ZMod P
     (s e : Fin P.k → Fin P.n → ZMod P.q) :
     publicKeyResidues P (matrixResidues A) (polyVecResidues s) (polyVecResidues e) =
       polyVecResidues (moduleSISMap A s + e) := by
-  apply List.ext_getElem (by simp [publicKeyResidues, polyVecResidues])
-  intro i h₁ h₂
+  refine List.ext_getElem (by simp [publicKeyResidues, polyVecResidues]) fun i h₁ _ => ?_
   have hi : i < P.k := by simpa [publicKeyResidues] using h₁
   simp only [publicKeyResidues, List.getElem_map, List.getElem_range]
-  rw [show (matrixResidues A).getD i [] = polyVecResidues (A ⟨i, hi⟩) by
-      simp [matrixResidues, hi],
-    getD_polyVecResidues e hi, negacyclicInnerResidues_polyVecResidues,
-    addResidues_polyResidues]
+  rw [show (matrixResidues A).getD i [] = polyVecResidues (A ⟨i, hi⟩) by simp [matrixResidues, hi],
+    getD_polyVecResidues e hi, negacyclicInnerResidues_polyVecResidues, addResidues_polyResidues]
   simp [polyVecResidues, moduleSISMap, innerPoly]
 
 end SchemeAgreement
@@ -328,10 +316,9 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.compressResidues {q d : �
     ComputableInPolyTime (fun x => compressResidues (q x) (d x) (a x)) input (encList encNat) := by
   unfold Cslib.Crypto.MLKEM.compressResidues
   have hfst := ComputableInPolyTime.fst input encNat
-  have h := ComputableInPolyTime.modulusSwitchResidue_natCast (hq.comp hfst)
-    (ComputableInPolyTime.binary_two_pow.comp (hd.comp hfst))
-    (ComputableInPolyTime.snd input encNat)
-  exact ComputableInPolyTime.mapWithInput ha h
+  exact ComputableInPolyTime.mapWithInput ha
+    (ComputableInPolyTime.modulusSwitchResidue_natCast (hq.comp hfst)
+      (ComputableInPolyTime.binary_two_pow.comp (hd.comp hfst)) (.snd input encNat))
 
 /-- Decompression of a computed residue list, with a computed binary modulus and unary width. -/
 @[fun_prop]
@@ -343,10 +330,9 @@ theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.decompressResidues {q d :
       (encList encNat) := by
   unfold Cslib.Crypto.MLKEM.decompressResidues
   have hfst := ComputableInPolyTime.fst input encNat
-  have h := ComputableInPolyTime.modulusSwitchResidue_natCast
-    (ComputableInPolyTime.binary_two_pow.comp (hd.comp hfst)) (hq.comp hfst)
-    (ComputableInPolyTime.snd input encNat)
-  exact ComputableInPolyTime.mapWithInput ha h
+  exact ComputableInPolyTime.mapWithInput ha
+    (ComputableInPolyTime.modulusSwitchResidue_natCast
+      (ComputableInPolyTime.binary_two_pow.comp (hd.comp hfst)) (hq.comp hfst) (.snd input encNat))
 
 /-- The message polynomial of a computed word, with a computed unary degree and binary modulus. -/
 @[fun_prop]

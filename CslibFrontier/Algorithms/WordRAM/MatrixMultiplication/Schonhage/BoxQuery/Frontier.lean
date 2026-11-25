@@ -44,13 +44,11 @@ open Finset Cslib.Algorithms.MatrixMultiplication.Schonhage
 /-- The initial frontier's value is the original allowed-leaf sum. -/
 @[simp] theorem frontierValue_root {G : Type*} [AddCommMonoid G] {L : ℕ}
     (η : OutStr L) (t : ℕ) (f : Leaf L → G) :
-    frontierValue η t f [[]] = ∑ τ ∈ possibleLeaves η t [], f τ := by
-  simp [frontierValue]
+    frontierValue η t f [[]] = ∑ τ ∈ possibleLeaves η t [], f τ := by simp [frontierValue]
 
 /-- Initial finite depth potential charges at most one full-depth path per allowed leaf. -/
 @[simp] theorem frontierWork_root {L : ℕ} (η : OutStr L) (t : ℕ) :
-    frontierWork η t [[]] = (L + 1) * (possibleLeaves η t []).card := by
-  simp [frontierWork]
+    frontierWork η t [[]] = (L + 1) * (possibleLeaves η t []).card := by simp [frontierWork]
 
 /-- Each pending leaf contributes at least one unit of finite depth potential. -/
 theorem leafMass_le_frontierWork {L : ℕ} (η : OutStr L) (t : ℕ)
@@ -58,10 +56,8 @@ theorem leafMass_le_frontierWork {L : ℕ} (η : OutStr L) (t : ℕ)
   induction tasks with
   | nil => simp [leafMass, frontierWork]
   | cons xs tasks ih =>
-    have hp : (possibleLeaves η t xs).card ≤ potential η t xs :=
-      Nat.le_mul_of_pos_left _ (by omega)
-    simpa only [leafMass, frontierWork, List.map_cons, List.sum_cons] using
-      Nat.add_le_add hp ih
+    simp only [leafMass, frontierWork, List.map_cons, List.sum_cons]
+    exact Nat.add_le_add (Nat.le_mul_of_pos_left _ (by omega)) ih
 
 /-- Replacing a task with its real children preserves the represented leaf count. -/
 theorem leafMass_expand {L t : ℕ} {η : OutStr L} {xs : List Term}
@@ -121,14 +117,10 @@ structure FrontierInvariant {G : Type*} [AddCommMonoid G] {L : ℕ}
 /-- The actual initial empty prefix satisfies the finite conservation invariant. -/
 theorem FrontierInvariant.initial {G : Type*} [AddCommMonoid G] {L : ℕ}
     (η : OutStr L) (t : ℕ) (f : Leaf L → G) : FrontierInvariant η t f [] [[]] := by
-  constructor
-  · intro xs hx
-    have hxs : xs = [] := by simpa only [List.mem_singleton] using hx
-    subst xs
-    simp [Good, Compatible, usedFrom]
-  · simp
-  · simp
-  · exact Nat.le_refl _
+  refine ⟨?_, by simp, by simp, Nat.le_refl _⟩
+  intro xs hx
+  obtain rfl : xs = [] := by simpa only [List.mem_singleton] using hx
+  simp [Good, Compatible, usedFrom]
 
 /-- Actual child expansion preserves conservation while advancing finite work. -/
 theorem FrontierInvariant.expand {G : Type*} [AddCommMonoid G] {L t : ℕ}
@@ -137,16 +129,12 @@ theorem FrontierInvariant.expand {G : Type*} [AddCommMonoid G] {L t : ℕ}
     (h : FrontierInvariant η t f finished (xs :: tasks)) (hk : xs.length < L) :
     FrontierInvariant η t f finished (children η t xs ++ tasks) := by
   have hx : Good η t xs := h.good xs (by simp)
-  constructor
-  · intro ys hy
-    rcases List.mem_append.mp hy with hy | hy
-    · exact good_of_mem_children hx hk hy
-    · exact h.good ys (by simp [hy])
-  · rw [leafMass_expand hx hk]
-    exact h.mass
-  · rw [frontierValue_expand hx hk]
-    exact h.value
-  · exact (frontierWork_expand_lt hx hk tasks).le.trans h.work
+  refine ⟨fun ys hy => ?_, by rw [leafMass_expand hx hk]; exact h.mass,
+    by rw [frontierValue_expand hx hk]; exact h.value,
+    (frontierWork_expand_lt hx hk tasks).le.trans h.work⟩
+  rcases List.mem_append.mp hy with hy | hy
+  · exact good_of_mem_children hx hk hy
+  · exact h.good ys (by simp [hy])
 
 /-- Finishing one actual leaf transfers its occurrence and value to the completed prefix. -/
 theorem FrontierInvariant.finish {G : Type*} [AddCommMonoid G] {L t : ℕ}
@@ -155,19 +143,13 @@ theorem FrontierInvariant.finish {G : Type*} [AddCommMonoid G] {L t : ℕ}
     (h : FrontierInvariant η t f finished (List.ofFn τ :: tasks)) :
     FrontierInvariant η t f (finished ++ [τ]) tasks := by
   have hτ : Good η t (List.ofFn τ) := h.good _ (by simp)
-  constructor
-  · intro xs hx
-    exact h.good xs (by simp [hx])
-  · have hm := h.mass
-    rw [leafMass_finish τ hτ] at hm
-    simpa only [List.length_append, List.length_singleton, Nat.add_assoc] using hm
-  · have hv := h.value
-    rw [frontierValue_finish τ hτ] at hv
-    simpa only [List.map_append, List.map_singleton, List.sum_append,
-      List.sum_singleton, add_assoc] using hv
+  refine ⟨fun xs hx => h.good xs (by simp [hx]), ?_, ?_, ?_⟩
+  · simpa only [leafMass_finish τ hτ, List.length_append, List.length_singleton,
+      Nat.add_assoc] using h.mass
+  · simpa only [frontierValue_finish τ hτ, List.map_append, List.map_singleton,
+      List.sum_append, List.sum_singleton, add_assoc] using h.value
   · have hw := h.work
-    rw [frontierWork_finish τ hτ] at hw
-    omega
+    rw [frontierWork_finish τ hτ] at hw; omega
 
 /-- At the empty frontier the accumulated original leaf values equal the exact root sum. -/
 theorem FrontierInvariant.finished_value {G : Type*} [AddCommMonoid G] {L t : ℕ}
@@ -182,15 +164,13 @@ theorem FrontierInvariant.finished_length_le {G : Type*} [AddCommMonoid G] {L t 
     {tasks : List (List Term)} (h : FrontierInvariant η t f finished tasks) :
     finished.length ≤ (possibleLeaves η t []).card := by
   have hm := h.mass
-  rw [leafMass_root] at hm
-  omega
+  rw [leafMass_root] at hm; omega
 
 /-- The pending native record count fits below the same original finite root potential. -/
 theorem FrontierInvariant.pending_length_le {G : Type*} [AddCommMonoid G] {L t : ℕ}
     {η : OutStr L} {f : Leaf L → G} {finished : List (Leaf L)}
     {tasks : List (List Term)} (h : FrontierInvariant η t f finished tasks) :
     tasks.length ≤ (L + 1) * (possibleLeaves η t []).card := by
-  have hlen : tasks.length ≤ frontierWork η t tasks := length_le_sum_potential tasks h.good
-  exact hlen.trans (by simpa only [frontierWork_root] using h.work)
+  exact (length_le_sum_potential tasks h.good).trans (h.work.trans_eq (frontierWork_root η t))
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery

@@ -129,14 +129,13 @@ theorem setOf_mem_iUnion_DTIME_of_mem_SharpTIME (hT : TimeConstructible T)
   -- `(2 ^ x + 1) ^ e ≤ 2 ^ e * 2 ^ (e * x)`
   refine Set.mem_iUnion.mpr ⟨e * C, DTIME_mono_of_le_mul_add (C := 2 ^ e) (fun n => ?_) he⟩
   have h1 : 1 ≤ 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) := Nat.one_le_two_pow
-  calc (2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 1) ^ e
-      ≤ (2 * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n)))) ^ e := Nat.pow_le_pow_left (by omega) e
-    _ = 2 ^ e * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n)) * e) := by rw [mul_pow, ← pow_mul]
-    _ ≤ 2 ^ e * 2 ^ (e * C * T n / Nat.sqrt (Nat.log 2 (T n))) := by
-        refine Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num) ?_)
-        rw [mul_comm _ e, mul_assoc]
-        exact Nat.mul_div_le_mul_div_assoc _ _ _
-    _ ≤ _ := Nat.le_add_right _ _
+  refine ((Nat.pow_le_pow_left
+    (by omega : 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) + 1 ≤
+      2 * 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n)))) e).trans_eq
+    (by rw [mul_pow, ← pow_mul])).trans ((Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num)
+      ?_)).trans (Nat.le_add_right _ _))
+  rw [mul_comm _ e, mul_assoc]
+  exact Nat.mul_div_le_mul_div_assoc _ _ _
 
 /-- **Strict containment in `DTIME[2 ^ T]` of every class decided by tests of counts.** For
 time-constructible `T` with `n ≤ T n` and time-constructible `t` with `max n 2 ≤ t n` and
@@ -207,45 +206,42 @@ private theorem computableInPolyTime_eq :
 private theorem ModTIME_forall_mem_SharpTIME {k : ℕ} {A : Set α} (hA : A ∈ ModTIME k enc T) :
     ∃ f ∈ SharpTIME enc T, ∃ g ∈ SharpTIME enc T, ∃ rule : ℕ × ℕ → Bool,
       ComputableInPolyTime rule (encPair encNat encNat) encBool ∧
-        ∀ x, x ∈ A ↔ rule (f x, g x) = true := by
-  obtain ⟨f, hf, hA⟩ := hA
-  exact ⟨f, hf, f, hf, _, computableInPolyTime_mod_ne_zero k, fun x => by simp [hA x]⟩
+        ∀ x, x ∈ A ↔ rule (f x, g x) = true :=
+  let ⟨f, hf, hA⟩ := hA
+  ⟨f, hf, f, hf, _, computableInPolyTime_mod_ne_zero k, fun x => by simp [hA x]⟩
 
 /-- `C₌TIME[T]` problems are decided by tests of counts in `SharpTIME enc T`. -/
 private theorem CeqTIME_forall_mem_SharpTIME {A : Set α} (hA : A ∈ CeqTIME enc T) :
     ∃ f ∈ SharpTIME enc T, ∃ g ∈ SharpTIME enc T, ∃ rule : ℕ × ℕ → Bool,
       ComputableInPolyTime rule (encPair encNat encNat) encBool ∧
-        ∀ x, x ∈ A ↔ rule (f x, g x) = true := by
-  obtain ⟨f, hf, g, hg, hA⟩ := hA
-  exact ⟨f, hf, g, hg, _, computableInPolyTime_eq, fun x => by simp [hA x]⟩
+        ∀ x, x ∈ A ↔ rule (f x, g x) = true :=
+  let ⟨f, hf, g, hg, hA⟩ := hA
+  ⟨f, hf, g, hg, _, computableInPolyTime_eq, fun x => by simp [hA x]⟩
 
 /-- **`Mod_kTIME[T] ⊆ ⋃ C, DTIME[2 ^ (C T / √⌊log₂ T⌋)]`** for every fixed `k` and
 time-constructible `T` with `max n 2 ≤ T n`. -/
 theorem ModTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (k : ℕ) (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     ModTIME k enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun A hA => by
-    obtain ⟨f, hf, g, hg, rule, hrule, hA⟩ := ModTIME_forall_mem_SharpTIME hA
-    rw [show A = {x | rule (f x, g x) = true} from Set.ext hA]
-    exact setOf_mem_iUnion_DTIME_of_mem_SharpTIME hT hTn hf hg hrule
+  fun A hA => let ⟨f, hf, g, hg, rule, hrule, hA⟩ := ModTIME_forall_mem_SharpTIME hA
+    (show A = {x | rule (f x, g x) = true} from Set.ext hA) ▸
+      setOf_mem_iUnion_DTIME_of_mem_SharpTIME hT hTn hf hg hrule
 
 /-- **`⊕TIME[T] ⊆ ⋃ C, DTIME[2 ^ (C T / √⌊log₂ T⌋)]`** for time-constructible `T` with
 `max n 2 ≤ T n`. -/
 theorem ParityTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     ParityTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) := by
-  rw [← ModTIME_two]
-  exact ModTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two 2 hT hTn
+  rw [← ModTIME_two]; exact ModTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two 2 hT hTn
 
 /-- **`C₌TIME[T] ⊆ ⋃ C, DTIME[2 ^ (C T / √⌊log₂ T⌋)]`** for time-constructible `T` with
 `max n 2 ≤ T n`. -/
 theorem CeqTIME_subset_iUnion_DTIME_two_pow_div_sqrt_log_two (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     CeqTIME enc T ⊆ ⋃ C, DTIME enc fun n => 2 ^ (C * T n / Nat.sqrt (Nat.log 2 (T n))) :=
-  fun A hA => by
-    obtain ⟨f, hf, g, hg, rule, hrule, hA⟩ := CeqTIME_forall_mem_SharpTIME hA
-    rw [show A = {x | rule (f x, g x) = true} from Set.ext hA]
-    exact setOf_mem_iUnion_DTIME_of_mem_SharpTIME hT hTn hf hg hrule
+  fun A hA => let ⟨f, hf, g, hg, rule, hrule, hA⟩ := CeqTIME_forall_mem_SharpTIME hA
+    (show A = {x | rule (f x, g x) = true} from Set.ext hA) ▸
+      setOf_mem_iUnion_DTIME_of_mem_SharpTIME hT hTn hf hg hrule
 
 /-- **`Mod_kTIME[T] ⊊ DTIME[2 ^ T]`** for every fixed `k` and time-constructible `T` with
 `max n 2 ≤ T n`. -/
@@ -256,8 +252,7 @@ theorem ModTIME_ssubset_DTIME_two_pow (k : ℕ) (hT : TimeConstructible T)
 /-- **`⊕TIME[T] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with `max n 2 ≤ T n`. -/
 theorem ParityTIME_ssubset_DTIME_two_pow (hT : TimeConstructible T) (hTn : ∀ n, max n 2 ≤ T n) :
     ParityTIME encBits T ⊂ DTIME encBits fun n => 2 ^ T n := by
-  rw [← ModTIME_two]
-  exact ModTIME_ssubset_DTIME_two_pow 2 hT hTn
+  rw [← ModTIME_two]; exact ModTIME_ssubset_DTIME_two_pow 2 hT hTn
 
 /-- **`C₌TIME[T] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with `max n 2 ≤ T n`. -/
 theorem CeqTIME_ssubset_DTIME_two_pow (hT : TimeConstructible T) (hTn : ∀ n, max n 2 ≤ T n) :
@@ -332,8 +327,7 @@ theorem ParityTIME_mul_ssubset_DTIME_two_pow {h : ℕ → ℕ} (hT : TimeConstru
     (hTn : ∀ n, max n 2 ≤ T n) (hTh : TimeConstructible fun n => T n * h n)
     (hh₁ : ∀ n, 1 ≤ h n) (hh : ∀ C, ∀ᶠ n in atTop, C * h n ≤ Nat.sqrt (Nat.log 2 (T n))) :
     ParityTIME encBits (fun n => T n * h n) ⊂ DTIME encBits fun n => 2 ^ T n := by
-  rw [← ModTIME_two]
-  exact ModTIME_mul_ssubset_DTIME_two_pow 2 hT hTn hTh hh₁ hh
+  rw [← ModTIME_two]; exact ModTIME_mul_ssubset_DTIME_two_pow 2 hT hTn hTh hh₁ hh
 
 /-- **`C₌TIME[T h] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with `max n 2 ≤ T n` and a factor
 `h ≥ 1` with `h = o(√⌊log₂ T⌋)` and `T h` time-constructible. -/
@@ -391,26 +385,26 @@ private theorem sqrt_sqrt_log_two_factor (hT : TimeConstructible T) (hTn : ∀ n
 theorem NTIME_mul_sqrt_sqrt_log_two_ssubset_DTIME_two_pow (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     NTIME encBits (fun n => T n * Nat.sqrt (Nat.sqrt (Nat.log 2 (T n)))) ⊂
-      DTIME encBits fun n => 2 ^ T n := by
-  obtain ⟨hTh, hh₁, hh⟩ := sqrt_sqrt_log_two_factor hT hTn
-  exact NTIME_mul_ssubset_DTIME_two_pow hT hTn hTh hh₁ hh
+      DTIME encBits fun n => 2 ^ T n :=
+  let ⟨hTh, hh₁, hh⟩ := sqrt_sqrt_log_two_factor hT hTn
+  NTIME_mul_ssubset_DTIME_two_pow hT hTn hTh hh₁ hh
 
 /-- **`BPTIME[T ⌊√⌊√⌊log₂ T⌋⌋⌋] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with
 `max n 2 ≤ T n`. -/
 theorem BPTIME_mul_sqrt_sqrt_log_two_ssubset_DTIME_two_pow (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     BPTIME encBits (fun n => T n * Nat.sqrt (Nat.sqrt (Nat.log 2 (T n)))) ⊂
-      DTIME encBits fun n => 2 ^ T n := by
-  obtain ⟨hTh, hh₁, hh⟩ := sqrt_sqrt_log_two_factor hT hTn
-  exact BPTIME_mul_ssubset_DTIME_two_pow hT hTn hTh hh₁ hh
+      DTIME encBits fun n => 2 ^ T n :=
+  let ⟨hTh, hh₁, hh⟩ := sqrt_sqrt_log_two_factor hT hTn
+  BPTIME_mul_ssubset_DTIME_two_pow hT hTn hTh hh₁ hh
 
 /-- **`PPTIME[T ⌊√⌊√⌊log₂ T⌋⌋⌋] ⊊ DTIME[2 ^ T]`** for time-constructible `T` with
 `max n 2 ≤ T n`. -/
 theorem PPTIME_mul_sqrt_sqrt_log_two_ssubset_DTIME_two_pow (hT : TimeConstructible T)
     (hTn : ∀ n, max n 2 ≤ T n) :
     PPTIME encBits (fun n => T n * Nat.sqrt (Nat.sqrt (Nat.log 2 (T n)))) ⊂
-      DTIME encBits fun n => 2 ^ T n := by
-  obtain ⟨hTh, hh₁, hh⟩ := sqrt_sqrt_log_two_factor hT hTn
-  exact PPTIME_mul_ssubset_DTIME_two_pow hT hTn hTh hh₁ hh
+      DTIME encBits fun n => 2 ^ T n :=
+  let ⟨hTh, hh₁, hh⟩ := sqrt_sqrt_log_two_factor hT hTn
+  PPTIME_mul_ssubset_DTIME_two_pow hT hTn hTh hh₁ hh
 
 end Cslib.Complexity.CountingSimulation

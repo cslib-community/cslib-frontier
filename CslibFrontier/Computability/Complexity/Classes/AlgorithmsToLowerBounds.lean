@@ -150,24 +150,16 @@ theorem smallWitnessLanguage_mem_NTIME
       (enc x).length + Tℓ x + (TB (x, w) + TS (certificateQuery D s (x, w))) ≤
         C * t (enc x).length + C) :
     smallWitnessLanguage D s ∈ NTIME enc t := by
-  have hV := (hsat.comp hbuild).not'
-  have hsim := setOf_exists_mem_NTIME hℓ hV ht
-  have heq : smallWitnessLanguage D s =
+  suffices smallWitnessLanguage D s =
       {x | ∃ w : List Bool, w.length = certLength (r x) (s x) ∧
-        !sat (certificateQuery D s (x, w)) = true} := by
-    ext x
-    rw [show x ∈ smallWitnessLanguage D s ↔
-      ∃ w : List Bool, w.length = certLength (r x) (s x) ∧
-        certificateQuery D s (x, w) ∉ CircuitSAT from
-      (exists_not_mem_CircuitSAT_certificateCircuit_iff (D x) (s x)).symm]
-    apply exists_congr
-    intro w
-    apply and_congr_right
-    intro _
-    rw [← hspec]
-    cases sat (certificateQuery D s (x, w)) <;> simp
-  rw [heq]
-  exact hsim
+        !sat (certificateQuery D s (x, w)) = true} by
+    rw [this]; exact setOf_exists_mem_NTIME hℓ (hsat.comp hbuild).not' ht
+  ext x
+  refine (exists_not_mem_CircuitSAT_certificateCircuit_iff (D x) (s x)).symm.trans
+    (exists_congr fun w => and_congr_right fun _ => ?_)
+  change certificateQuery D s (x, w) ∉ CircuitSAT ↔ _
+  rw [← hspec]
+  cases sat (certificateQuery D s (x, w)) <;> simp
 
 /-- **Polynomial preprocessing plus the SAT time.** For a uniformly polynomial-time decoder
 family, widths, and witness gate budget, the small-witness language is in nondeterministic time
@@ -190,25 +182,19 @@ theorem smallWitnessLanguage_mem_NTIME_of_polyTime
     ∃ p : ℕ → ℕ, PolynomiallyBounded p ∧
       smallWitnessLanguage D s ∈ NTIME enc (fun n => p n + t n) := by
   have hℓpoly : ComputableInPolyTime (fun x => certLength (r x) (s x)) enc encUnary := by
-    unfold certLength
-    fun_prop
+    unfold certLength; fun_prop
   obtain ⟨dℓ, eℓ, hℓ⟩ := hℓpoly.exists_degree
   obtain ⟨cℓ, hlen⟩ := hℓ.2
   obtain ⟨dB, _, hbuild⟩ := (computableInPolyTime_certificateQuery hq hr hs hD).exists_degree
-  let p : ℕ → ℕ := fun n => n + (n + 1) ^ dℓ +
-    (2 * n + cℓ * (n + 1) ^ eℓ + 2) ^ dB
-  refine ⟨p, by dsimp [p]; fun_prop, ?_⟩
-  apply smallWitnessLanguage_mem_NTIME (C := 1) hℓ.inO hbuild.inO hsat hspec
-  intro x w hw
+  let p : ℕ → ℕ := fun n => n + (n + 1) ^ dℓ + (2 * n + cℓ * (n + 1) ^ eℓ + 2) ^ dB
+  refine ⟨p, by dsimp [p]; fun_prop,
+    smallWitnessLanguage_mem_NTIME (C := 1) hℓ.inO hbuild.inO hsat hspec fun x w hw => ?_⟩
   have hlength : certLength (r x) (s x) ≤ cℓ * ((enc x).length + 1) ^ eℓ := by
     simpa only [encUnary_apply, List.length_replicate] using hlen x
-  have hpair : (encPair enc encBits (x, w)).length + 1 ≤
-      2 * (enc x).length + cℓ * ((enc x).length + 1) ^ eℓ + 2 := by
-    simp only [length_encPair, encBits_apply, hw]
-    omega
-  have hbuildTime := Nat.pow_le_pow_left hpair dB
-  have hsatTime := ht x (certificateQuery D s (x, w)) rfl
-    (size_certificateQuery_le D s (x, w))
+  have hbuildTime := Nat.pow_le_pow_left (show (encPair enc encBits (x, w)).length + 1 ≤
+      2 * (enc x).length + cℓ * ((enc x).length + 1) ^ eℓ + 2 by
+    simp only [length_encPair, encBits_apply, hw]; omega) dB
+  have hsatTime := ht x (certificateQuery D s (x, w)) rfl (size_certificateQuery_le D s (x, w))
   simp only [p, encPair_apply, encBits_apply] at hbuildTime ⊢
   omega
 
@@ -234,24 +220,14 @@ theorem exists_hard_satisfyingAssignment_of_notMem_NTIME
       ∀ a : BitString (r x) → Bool, (toCNF (D x)).eval a = true →
         s x < complexity interpretation (single a) := by
   classical
-  have hsim := smallWitnessLanguage_mem_NTIME hℓ hbuild hsat hspec ht
   by_contra! h
-  apply hhard
-  have heq : {x | (toCNF (D x)).Satisfiable} = smallWitnessLanguage D s := by
-    ext x
-    constructor
-    · intro hx
-      obtain ⟨a, ha, hsize⟩ := h x hx
-      obtain ⟨W, hW, hWsize⟩ := complexity_le_iff.mp hsize
-      refine ⟨W, hWsize, ?_⟩
-      have heval : (fun y => W.eval interpretation y 0) = a :=
-        funext (Circuit.computes_single_iff.mp hW)
-      rw [heval]
-      exact ha
-    · rintro ⟨W, _, hW⟩
-      exact ⟨_, hW⟩
-  rw [heq]
-  exact hsim
+  refine hhard ?_
+  convert smallWitnessLanguage_mem_NTIME hℓ hbuild hsat hspec ht using 1
+  ext x
+  refine ⟨fun hx => ?_, fun ⟨W, _, hW⟩ => ⟨_, hW⟩⟩
+  obtain ⟨a, ha, hsize⟩ := h x hx
+  obtain ⟨W, hW, hWsize⟩ := complexity_le_iff.mp hsize
+  exact ⟨W, hWsize, by rwa [funext (Circuit.computes_single_iff.mp hW)]⟩
 
 /-- A supplied uniform succinct reduction of the explicit exponential diagonal gives the
 preceding witness-circuit lower bound with the hardness premise proved by the native hierarchy.
@@ -273,12 +249,10 @@ theorem exists_hard_satisfyingAssignment_of_expLazyDiagonal
         C * 2 ^ (k * x.length) + C) :
     ∃ x, (toCNF (D x)).Satisfiable ∧
       ∀ a : BitString (r x) → Bool, (toCNF (D x)).eval a = true →
-        s x < complexity interpretation (single a) := by
-  apply exists_hard_satisfyingAssignment_of_notMem_NTIME
-    (t := fun n => 2 ^ (k * n)) ?_ hℓ hbuild hsat hspec
+        s x < complexity interpretation (single a) :=
+  exists_hard_satisfyingAssignment_of_notMem_NTIME (t := fun n => 2 ^ (k * n))
+    ((Set.ext hred : {x | (toCNF (D x)).Satisfiable} = expLazyDiagonal k) ▸
+      expLazyDiagonal_notMem_NTIME k) hℓ hbuild hsat hspec
     (by simpa only [encBits_apply] using ht)
-  have heq : {x | (toCNF (D x)).Satisfiable} = expLazyDiagonal k := Set.ext hred
-  rw [heq]
-  exact expLazyDiagonal_notMem_NTIME k
 
 end Cslib.Complexity.AlgorithmsToLowerBounds

@@ -116,10 +116,9 @@ theorem Circuit.aeval_polynomial {R : Type*} [CommSemiring R] [Algebra K R]
     aeval x (c.polynomial j) = c.eval (arithInterpretationWith K (algebraMap K R)) x j := by
   let h : Homomorphism (arithInterpretationWith K (C : K → MvPolynomial (Fin n) K))
       (arithInterpretationWith K (algebraMap K R)) :=
-    ⟨aeval x, fun op args => by cases op <;> simp [arithInterpretationWith]⟩
+    ⟨aeval x, fun op _ => by cases op <;> simp [arithInterpretationWith]⟩
   refine (congrFun (c.map_eval h X) j).trans ?_
-  congr 1 with i : 1
-  exact aeval_X x i
+  congr 1 with i : 1; exact aeval_X x i
 
 /-- Substituting polynomials for the variables of the polynomial computed by a circuit is
 evaluating the circuit at those polynomials. -/
@@ -197,8 +196,7 @@ substituted in turn, and a constant stays. -/
 theorem projection_projection (ρ : σ → υ ⊕ K) (ρ' : τ → σ ⊕ K) (P : MvPolynomial τ K) :
     projection ρ (projection ρ' P) = projection (fun i => Sum.elim ρ Sum.inr (ρ' i)) P := by
   change ((projection ρ).comp (projection ρ')) P = _
-  congr 1
-  refine algHom_ext fun i => ?_
+  congr 1; refine algHom_ext fun i => ?_
   rcases h : ρ' i with k | a <;> simp [h]
 
 /-- `P` is a *projection* of `Q` [Valiant1979Algebra]: substituting for each variable of `Q` a
@@ -213,17 +211,14 @@ theorem IsProjection.refl (P : MvPolynomial σ K) : IsProjection P P :=
 /-- A projection of a projection is a projection. -/
 theorem IsProjection.trans {P : MvPolynomial υ K} {Q : MvPolynomial σ K} {R : MvPolynomial τ K}
     (hPQ : IsProjection P Q) (hQR : IsProjection Q R) : IsProjection P R := by
-  obtain ⟨ρ, rfl⟩ := hPQ
-  obtain ⟨ρ', rfl⟩ := hQR
+  rcases hPQ, hQR with ⟨⟨ρ, rfl⟩, ⟨ρ', rfl⟩⟩
   exact ⟨_, (projection_projection ρ ρ' R).symm⟩
 
 /-- Projections do not raise the total degree. -/
 theorem totalDegree_projection_le (ρ : τ → σ ⊕ K) (P : MvPolynomial τ K) :
     (projection ρ P).totalDegree ≤ P.totalDegree :=
   totalDegree_aeval_le (fun i => by
-    rcases ρ i with k | a
-    · exact (totalDegree_monomial_le _ _).trans (by simp)
-    · simp) P
+    rcases ρ i with k | a; exacts [(totalDegree_monomial_le _ _).trans (by simp), by simp]) P
 
 end Projection
 
@@ -241,8 +236,7 @@ theorem IsPProjection.refl (f : PolynomialFamily K) : f.IsPProjection f :=
 /-- A p-projection of a p-projection is a p-projection. -/
 theorem IsPProjection.trans {f g h : PolynomialFamily K} (hfg : f.IsPProjection g)
     (hgh : g.IsPProjection h) : f.IsPProjection h := by
-  obtain ⟨t, ht, hf⟩ := hfg
-  obtain ⟨t', ht', hg⟩ := hgh
+  rcases hfg, hgh with ⟨⟨t, ht, hf⟩, ⟨t', ht', hg⟩⟩
   exact ⟨fun n => t' (t n), ht'.comp ht, fun n => (hf n).trans (hg (t n))⟩
 
 end PolynomialFamily
@@ -262,16 +256,15 @@ omit [CommSemiring K] in
     (ρ : Fin m → Fin n ⊕ K) (x : Fin n → R) (i : Fin m) :
     (projectionCircuit ρ).eval (arithInterpretationWith K constant) x i =
       Sum.elim x constant (ρ i) := by
-  rw [projectionCircuit, Circuit.eval_pi]
-  dsimp only
+  rw [projectionCircuit, Circuit.eval_pi]; dsimp only
   rcases ρ i with k | a <;> rfl
 
 omit [CommSemiring K] in
 /-- The substitution of a projection needs at most one gate per substituted variable. -/
 theorem size_projectionCircuit_le (ρ : Fin m → Fin n ⊕ K) : (projectionCircuit ρ).size ≤ m := by
   rw [projectionCircuit, Circuit.size_pi]
-  calc _ ≤ ∑ _i : Fin m, 1 := Finset.sum_le_sum fun i _ => by rcases ρ i with k | a <;> simp
-    _ = m := by simp
+  exact (Finset.sum_le_sum (g := fun _ => 1) fun i _ => by
+    rcases ρ i with k | a <;> simp).trans_eq (by simp)
 
 /-- Feeding the substitution of a projection to a circuit computes the projection of its
 polynomial. -/
@@ -279,8 +272,7 @@ theorem polynomial_comp_projectionCircuit (c : Circuit (arithSignature K) m p)
     (ρ : Fin m → Fin n ⊕ K) (j : Fin p) :
     (c.comp (projectionCircuit ρ)).polynomial j = projection ρ (c.polynomial j) := by
   rw [projection, Circuit.aeval_polynomial_mvPolynomial, Circuit.polynomial, Circuit.eval_comp]
-  congr 1 with i : 1
-  exact eval_projectionCircuit _ ρ X i
+  congr 1 with i : 1; exact eval_projectionCircuit _ ρ X i
 
 /-! ### The class VP -/
 
@@ -305,13 +297,10 @@ theorem VP.of_isPProjection {f g : PolynomialFamily K} (hg : g ∈ VP K)
   obtain ⟨⟨hgvars, hgdeg⟩, c, hc, hcg⟩ := hg
   obtain ⟨t, ht, hproj⟩ := hfg
   choose ρ hρ using hproj
-  refine ⟨⟨hvars, (hgdeg.comp ht).mono_of_le fun n => ?_⟩,
+  refine ⟨⟨hvars, (hgdeg.comp ht).mono_of_le fun n => hρ n ▸ totalDegree_projection_le _ _⟩,
     fun n => (c (t n)).comp (projectionCircuit (ρ n)),
     ((hgvars.comp ht).add (hc.comp ht)).mono_of_le fun n => ?_, fun n => ?_⟩
-  · rw [← hρ n]
-    exact totalDegree_projection_le _ _
-  · rw [Circuit.size_comp]
-    exact Nat.add_le_add_right (size_projectionCircuit_le _) _
+  · rw [Circuit.size_comp]; exact Nat.add_le_add_right (size_projectionCircuit_le _) _
   · rw [polynomial_comp_projectionCircuit, hcg, hρ]
 
 /-- A p-family is in `VP` when, within a polynomially bounded budget, each member `f.poly n` is
@@ -335,21 +324,18 @@ noncomputable def powTwoPowFamily (K : Type u) [CommSemiring K] : PolynomialFami
 /-- Repeated squaring computes `X ^ 2 ^ n` with at most `n` gates. -/
 theorem exists_circuit_pow_two_pow (n : ℕ) : ∃ c : Circuit (arithSignature K) 1 1,
     c.polynomial 0 = (powTwoPowFamily K).poly n ∧ c.size ≤ n := by
-  have h : ∀ t, Synthesis (arithInterpretationWith K C) (inputs 1)
-      {fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ t} t := by
-    intro t
-    induction t with
-    | zero =>
-      simpa using Synthesis.of_mem (I := arithInterpretationWith K C)
-        (show (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0) ∈ inputs 1 from ⟨0, rfl⟩)
-    | succ t ih =>
-      have hsq : (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ (t + 1)) =
-          fun x => x 0 ^ 2 ^ t * x 0 ^ 2 ^ t := by
-        funext x
-        rw [pow_succ, pow_mul, sq]
-      rw [hsq]
-      exact ih.trans (Synthesis.arith_mul (Set.mem_union_right _ rfl) (Set.mem_union_right _ rfl))
-  exact (h n).exists_circuit_polynomial
+  suffices ∀ t, Synthesis (arithInterpretationWith K C) (inputs 1)
+      {fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ t} t from
+    (this n).exists_circuit_polynomial
+  intro t; induction t with
+  | zero =>
+    simpa using Synthesis.of_mem (I := arithInterpretationWith K C)
+      (⟨0, rfl⟩ : (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0) ∈ inputs 1)
+  | succ t ih =>
+    have hsq : (fun x : Fin 1 → MvPolynomial (Fin 1) K => x 0 ^ 2 ^ (t + 1)) =
+        fun x => x 0 ^ 2 ^ t * x 0 ^ 2 ^ t := funext fun x => by rw [pow_succ, pow_mul, sq]
+    exact hsq ▸ ih.trans
+      (Synthesis.arith_mul (Set.mem_union_right _ rfl) (Set.mem_union_right _ rfl))
 
 /-- **VP bounds the degree.** Over a nontrivial `K`, the family `X ^ 2 ^ n` has circuits with `n`
 gates (`exists_circuit_pow_two_pow`) but is not in `VP`: its degree `2 ^ n` is not polynomially

@@ -41,39 +41,27 @@ open Finset
 private theorem flip_comm {n : ℕ} (x : BitString n) (i j : Fin n) :
     Function.update (Function.update x j (!x j)) i (!(Function.update x j (!x j)) i) =
       Function.update (Function.update x i (!x i)) j (!(Function.update x i (!x i)) j) := by
-  by_cases hij : i = j
-  · subst j
-    rfl
-  · simp only [Function.update_of_ne hij, Function.update_of_ne (Ne.symm hij)]
-    exact Function.update_comm (Ne.symm hij) _ _ _
+  rcases eq_or_ne i j with rfl | hij
+  · rfl
+  · simp only [Function.update_of_ne hij, Function.update_of_ne hij.symm]
+    exact Function.update_comm hij.symm _ _ _
 
 private theorem sensitiveInputs_boundary {n : ℕ} (f : BooleanFunction n) (i : Fin n)
     (x : BitString n) (hx : IsSensitiveCoord f x i) :
     #{j : Fin n | ¬IsSensitiveCoord f (Function.update x j (!x j)) i} ≤ 2 * sensitivity f := by
   have hsub : ({j : Fin n | ¬IsSensitiveCoord f (Function.update x j (!x j)) i} :
       Finset (Fin n)) ⊆
-      sensitiveCoords f x ∪ sensitiveCoords f (Function.update x i (!x i)) := by
-    intro j hj
+      sensitiveCoords f x ∪ sensitiveCoords f (Function.update x i (!x i)) := fun j hj => by
     by_contra hn
-    have hnot : ¬IsSensitiveCoord f x j ∧
-        ¬IsSensitiveCoord f (Function.update x i (!x i)) j := by
-      simpa only [Finset.mem_union, mem_sensitiveCoords, not_or] using hn
-    obtain ⟨hne0, hne1⟩ := hnot
-    have h0 : f (Function.update x j (!x j)) = f x := not_ne_iff.mp hne0
+    rw [Finset.mem_union, mem_sensitiveCoords, mem_sensitiveCoords, not_or] at hn
+    have h0 : f (Function.update x j (!x j)) = f x := not_ne_iff.mp hn.1
     have h1 : f (Function.update (Function.update x i (!x i)) j
-        (!(Function.update x i (!x i)) j)) = f (Function.update x i (!x i)) :=
-      not_ne_iff.mp hne1
-    have h2 : f (Function.update (Function.update x j (!x j)) i
-        (!(Function.update x j (!x j)) i)) = f (Function.update x j (!x j)) := by
-      exact not_ne_iff.mp (Finset.mem_filter.mp hj).2
+        (!(Function.update x i (!x i)) j)) = f (Function.update x i (!x i)) := not_ne_iff.mp hn.2
+    have h2 := not_ne_iff.mp (Finset.mem_filter.mp hj).2
     exact hx (h1.symm.trans ((congrArg f (flip_comm x i j).symm).trans (h2.trans h0)))
-  calc
-    _ ≤ #(sensitiveCoords f x ∪ sensitiveCoords f (Function.update x i (!x i))) := card_le_card hsub
-    _ ≤ sensitivityAt f x + sensitivityAt f (Function.update x i (!x i)) := card_union_le _ _
-    _ ≤ 2 * sensitivity f := by
-      have := sensitivityAt_le_sensitivity f x
-      have := sensitivityAt_le_sensitivity f (Function.update x i (!x i))
-      omega
+  exact (card_le_card hsub).trans <| (card_union_le _ _).trans <|
+    (Nat.add_le_add (sensitivityAt_le_sensitivity f x)
+      (sensitivityAt_le_sensitivity f (Function.update x i (!x i)))).trans_eq (Nat.two_mul _).symm
 
 /-- A Boolean function has at most `s(f) * 4 ^ s(f)` relevant coordinates. -/
 theorem card_relevant_le_sensitivity_mul_four_pow {n : ℕ} (f : BooleanFunction n) :
@@ -81,52 +69,37 @@ theorem card_relevant_le_sensitivity_mul_four_pow {n : ℕ} (f : BooleanFunction
   classical
   let A : Fin n → Finset (BitString n) := fun i => univ.filter fun x => IsSensitiveCoord f x i
   let R : Finset (Fin n) := univ.filter fun i => ∃ x, IsSensitiveCoord f x i
-  have hi (i : Fin n) (hi : i ∈ R) : 2 ^ n ≤ 2 ^ (2 * sensitivity f) * (A i).card := by
-    apply two_pow_le_two_pow_mul_card_of_boundary_bound (A i) (2 * sensitivity f)
-    · obtain ⟨x, hx⟩ := (Finset.mem_filter.mp hi).2
-      exact ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_univ x, hx⟩⟩
-    · intro x hx
-      have hxi : IsSensitiveCoord f x i := (Finset.mem_filter.mp hx).2
-      simpa only [A, Finset.mem_filter, Finset.mem_univ, true_and] using
-        sensitiveInputs_boundary f i x hxi
+  have hi (i : Fin n) (hi : i ∈ R) : 2 ^ n ≤ 2 ^ (2 * sensitivity f) * (A i).card :=
+    two_pow_le_two_pow_mul_card_of_boundary_bound (A i) (2 * sensitivity f)
+      (let ⟨x, hx⟩ := (mem_filter.mp hi).2; ⟨x, mem_filter.mpr ⟨mem_univ x, hx⟩⟩)
+      fun x hx => by
+        simpa only [A, mem_filter, mem_univ, true_and] using
+          sensitiveInputs_boundary f i x (mem_filter.mp hx).2
   have hdouble : ∑ i, (A i).card = ∑ x : BitString n, sensitivityAt f x := by
-    simp only [A, Finset.card_filter, sensitivityAt, sensitiveCoords]
-    rw [Finset.sum_comm]
-  have htotal : ∑ i, (A i).card ≤ 2 ^ n * sensitivity f := by
-    rw [hdouble]
-    calc
-      _ ≤ ∑ _x : BitString n, sensitivity f :=
-        sum_le_sum fun x _ => sensitivityAt_le_sensitivity f x
-      _ = _ := by simp [BitString]
-  have hpartial : ∑ i ∈ R, (A i).card ≤ ∑ i, (A i).card :=
-    Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _) fun _ _ _ => Nat.zero_le _
+    simp only [A, card_filter, sensitivityAt, sensitiveCoords]; exact sum_comm
+  have htotal : ∑ i ∈ R, (A i).card ≤ 2 ^ n * sensitivity f :=
+    (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => Nat.zero_le _).trans <|
+      hdouble.trans_le ((sum_le_sum fun x _ => sensitivityAt_le_sensitivity f x).trans_eq
+        (by simp [BitString]))
   have hproduct : R.card * 2 ^ n ≤ 2 ^ (2 * sensitivity f) * (2 ^ n * sensitivity f) := by
-    calc
-      _ = ∑ _i ∈ R, 2 ^ n := by simp
+    calc R.card * 2 ^ n = ∑ _i ∈ R, 2 ^ n := by simp
       _ ≤ ∑ i ∈ R, 2 ^ (2 * sensitivity f) * (A i).card := sum_le_sum hi
-      _ = 2 ^ (2 * sensitivity f) * ∑ i ∈ R, (A i).card := (Finset.mul_sum ..).symm
-      _ ≤ _ := Nat.mul_le_mul_left _ (hpartial.trans htotal)
-  have hbound : R.card * 2 ^ n ≤ (sensitivity f * 4 ^ sensitivity f) * 2 ^ n := by
-    simpa only [show 4 = 2 ^ 2 from rfl, pow_mul, Nat.mul_comm, Nat.mul_left_comm,
-      Nat.mul_assoc] using hproduct
-  exact Nat.le_of_mul_le_mul_right hbound (Nat.pow_pos (by decide))
+      _ = 2 ^ (2 * sensitivity f) * ∑ i ∈ R, (A i).card := (mul_sum ..).symm
+      _ ≤ _ := Nat.mul_le_mul_left _ htotal
+  refine Nat.le_of_mul_le_mul_right ?_ (Nat.pow_pos (by decide) : 0 < 2 ^ n)
+  simpa only [show 4 = 2 ^ 2 from rfl, pow_mul, Nat.mul_comm, Nat.mul_left_comm,
+    Nat.mul_assoc] using hproduct
 
 /-- Depending on every coordinate forces logarithmic maximum sensitivity: the ceiling of
 `log₂ n` is at most three times the sensitivity, including the empty-coordinate case. -/
 theorem clog_le_three_mul_sensitivity_of_depends_on_all {n : ℕ} (f : BooleanFunction n)
     (hdep : ∀ i : Fin n, ∃ x, IsSensitiveCoord f x i) :
     Nat.clog 2 n ≤ 3 * sensitivity f := by
-  have hcard : #{i : Fin n | ∃ x, IsSensitiveCoord f x i} = n := by simp [hdep]
   have hn : n ≤ sensitivity f * 4 ^ sensitivity f := by
-    simpa only [hcard] using card_relevant_le_sensitivity_mul_four_pow f
-  apply Nat.clog_le_of_le_pow
-  refine hn.trans ?_
-  calc
-    sensitivity f * 4 ^ sensitivity f ≤ 2 ^ sensitivity f * 4 ^ sensitivity f :=
-      Nat.mul_le_mul_right _ (Nat.le_of_lt Nat.lt_two_pow_self)
-    _ = 2 ^ (3 * sensitivity f) := by
-      rw [show 4 = 2 ^ 2 from rfl, ← pow_mul, ← pow_add]
-      congr 1
-      omega
+    simpa [hdep] using card_relevant_le_sensitivity_mul_four_pow f
+  refine Nat.clog_le_of_le_pow (hn.trans ?_)
+  refine (Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le).trans_eq ?_
+  rw [show 4 = 2 ^ 2 from rfl, ← pow_mul, ← pow_add]
+  exact congrArg (2 ^ ·) (by omega)
 
 end Cslib.BitString

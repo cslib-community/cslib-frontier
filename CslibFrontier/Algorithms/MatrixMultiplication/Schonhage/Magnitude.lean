@@ -57,6 +57,7 @@ theorem K_le_of_D_pow_le (m N : ℕ) (hN : D m ^ 18 ≤ N) : K (19 * m) m ≤ N 
 padded dimension `padN L m N`. -/
 theorem card_tiles_mul_N0_le {L m : ℕ} (hmL : m ≤ L) (N : ℕ) :
     (tiles L m N).card * N0 L m ≤ 4 * padN L m N ^ 2 := by
+  -- `N₀ ≤ K N₀² = M`, and there are at most `4N²/M` tiles.
   refine (Nat.mul_le_mul_left _ ?_).trans (card_tiles_mul_M_le L m N)
   simpa only [M, K, Nat.succ_eq_add_one, zero_add, one_mul, pow_one] using
     Nat.mul_le_mul (Nat.choose_pos hmL) (Nat.pow_le_pow_right (N0_pos L m) (by decide : 1 ≤ 2))
@@ -64,12 +65,14 @@ theorem card_tiles_mul_N0_le {L m : ℕ} (hmL : m ≤ L) (N : ℕ) :
 /-- The size condition `D m ^ 18 ≤ N` implies the real bound `2 ^ (m / 9) ≤ N`. -/
 theorem two_rpow_le_of_D_pow_le (m N : ℕ) (hN : D m ^ 18 ≤ N) :
     (2 : ℝ) ^ ((m : ℝ) / 9) ≤ (N : ℝ) :=
+  -- `2^{m/9} ≤ 2^m ≤ 4^{18m} = D^18 ≤ N`.
   (two_rpow_ninth_le m).trans <| mod_cast
     ((Nat.pow_le_pow_left (by decide : 2 ≤ 4) m).trans
       (Nat.le_self_pow (by decide) _)).trans hN
 
 /-- At `L = 19 * m`, the outer dimension is at least the real power `2 ^ (m / 9)`. -/
 theorem two_rpow_le_N0 (m : ℕ) : (2 : ℝ) ^ ((m : ℝ) / 9) ≤ (N0 (19 * m) m : ℝ) :=
+  -- `2^{m/9} ≤ 2^m ≤ 3^{18m} = N₀`.
   (two_rpow_ninth_le m).trans <| mod_cast
     (Nat.pow_le_pow_left (by decide : 2 ≤ 3) m).trans
       (Nat.pow_le_pow_right (by decide) (by omega : m ≤ 19 * m - m))
@@ -83,9 +86,11 @@ private theorem minutiae_parts (m N : ℕ) (W : Finset (Fin N × Fin N)) (hN : D
       ∧ (W.card : ℝ) ≤ saving m * (N : ℝ) ^ 2 := by
   have hc := saving_pos m
   refine ⟨?_, ?_, ?_⟩
+  -- The subsets in the table: `K ≤ N ≤ 2^{-m/9} N²`.
   · exact ((mod_cast K_le_of_D_pow_le m N hN : (K (19 * m) m : ℝ) ≤ N).trans
       (le_mul_of_one_le_left N.cast_nonneg
         (one_le_saving_mul (two_rpow_le_of_D_pow_le m N hN)))).trans_eq (by ring)
+  -- The tiles: at most `4N²/N₀ ≤ 4 · 2^{-m/9} N²`.
   · have hT : ((tiles (19 * m) m N).card : ℝ) * N0 (19 * m) m
         ≤ 4 * (padN (19 * m) m N : ℝ) ^ 2 :=
       mod_cast card_tiles_mul_N0_le (show m ≤ 19 * m by omega) N
@@ -96,6 +101,7 @@ private theorem minutiae_parts (m N : ℕ) (W : Finset (Fin N × Fin N)) (hN : D
       rw [mul_left_comm]
       exact mul_le_mul_of_nonneg_left hT hc.le
     exact (h1.trans h2).trans_eq (by ring)
+  -- The positions: `|W| ≤ 2^{-m} N² ≤ 2^{-m/9} N²`.
   · have hW' : (W.card : ℝ) * (2 : ℝ) ^ m ≤ (N : ℝ) ^ 2 := mod_cast hW
     have hle := (mul_le_mul_of_nonneg_left (two_rpow_ninth_le m) (Nat.cast_nonneg W.card)).trans hW'
     simpa only [mul_left_comm (saving m), saving_mul_two_rpow, mul_one] using
@@ -116,6 +122,7 @@ theorem minutiae_total_le (m N : ℕ) (W : Finset (Fin N × Fin N)) (hN : D m ^ 
   have hsq : saving m * (padN (19 * m) m N : ℝ) ^ 2 ≤ saving m * (2 * (N : ℝ)) ^ 2 := by gcongr
   rw [← saving_eq_D_rpow]
   push_cast
+  -- `K + |tiles| + |W| ≤ c N² + 4 c (2N)² + c N² = 18 c N²` with `c = 2^{-m/9}`.
   linarith [hK, hT, hW', hsq]
 
 /-! ### Bounds on specified integer values -/
@@ -198,6 +205,8 @@ theorem Pruned.abs_result_le {n : ℕ} (encA encB : Leaf n → ℤ) (A B : ℤ) 
     |Pruned.result n encA encB S w| ≤ 10 ^ n * (A * B) := by
   have hA0 : 0 ≤ A := (abs_nonneg _).trans (hA fun _ => Term.P0)
   have hAB : 0 ≤ A * B := mul_nonneg hA0 ((abs_nonneg _).trans (hB fun _ => Term.P0))
+  -- The value is 0, or the sum over some of the `10^n` leaves of the product of the two numbers
+  -- looked up there.
   rw [Pruned.result_eq_piecewise_sum]
   simp only [Finset.piecewise]
   split_ifs
@@ -209,6 +218,7 @@ theorem Pruned.abs_result_le {n : ℕ} (encA encB : Leaf n → ℤ) (A B : ℤ) 
 
 /-- Under `D m ^ 18 ≤ N`, the number `10 ^ (19 * m)` of leaf indices is at most `N ^ 2`. -/
 theorem ten_pow_le_sq (m N : ℕ) (hN : D m ^ 18 ≤ N) : 10 ^ (19 * m) ≤ N ^ 2 := by
+  -- `N₀ ≤ K N₀ ≤ N` and `2^{-m/9} ≤ 1`, so equation (6) gives `10^L ≤ N N₀ ≤ N²`.
   have hN0 : (N0 (19 * m) m : ℝ) ≤ N :=
     mod_cast (Nat.le_mul_of_pos_left _ (Nat.choose_pos (by omega))).trans (K_mul_N0_le m N hN)
   have hc := saving_le_one m

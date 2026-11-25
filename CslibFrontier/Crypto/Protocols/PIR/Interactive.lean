@@ -232,11 +232,13 @@ theorem injective_leaf (hcorrect : P.IsCorrect) (hprivate : P.IsPrivate) {i : ι
   intro x y hxy
   by_contra hne
   obtain ⟨j, hj⟩ := Function.ne_iff.mp hne
+  -- The leaf `t` is possible for `(x, i)` and `(y, i)`, so by privacy for `(x, j)` and `(y, j)`.
   have hpos (z : ι → β) (hz : P.protocol.leaf (z, d) (i, c) = P.protocol.leaf (x, d) (i, c)) :
       P.protocol.leaf (x, d) (i, c) ∈ (ProbComp.eval (P.transcript z j)).support :=
     hprivate z j i ▸ P.mem_support_transcript_iff.mpr ⟨c, hc, d, hd, hz⟩
   obtain ⟨c₁, hc₁, d₁, hd₁, h₁⟩ := P.mem_support_transcript_iff.mp (hpos x rfl)
   obtain ⟨c₂, _, d₂, hd₂, h₂⟩ := P.mem_support_transcript_iff.mp (hpos y hxy.symm)
+  -- By the rectangle property, `t` is also reached on `(y, d₂)` with the user's view `(j, c₁)`.
   have h₃ : P.protocol.leaf (y, d₂) (j, c₁) = P.protocol.leaf (x, d) (i, c) :=
     Protocol.leaf_eq_iff.mpr ⟨(Protocol.leaf_eq_iff.mp h₂).1, (Protocol.leaf_eq_iff.mp h₁).2⟩
   have hx := hcorrect.leafOutput_eq x hc₁ hd₁

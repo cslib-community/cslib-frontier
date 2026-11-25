@@ -185,44 +185,34 @@ private theorem mixedOp_monomial_mem (d : σ →₀ ℕ) : ∀ (a b : ℕ) (p : 
   | zero => intro a b p hp; simpa using hp
   | add f g hf hg =>
     intro a b p hp
-    have h : (monomial (f + g) 1 : MvPolynomial σ R) = monomial f 1 * monomial g 1 := by
-      simp
-    rw [h, map_mul, mul_apply_eq_comp]
+    rw [show (monomial (f + g) 1 : MvPolynomial σ R) = monomial f 1 * monomial g 1 by simp,
+      map_mul, mul_apply_eq_comp, map_add, Prod.snd_add, add_comm _ (weight (bidegWeight s) g).2,
+      ← add_assoc]
     rw [map_add, Prod.fst_add, ← add_assoc] at hp
-    rw [map_add, Prod.snd_add, add_comm _ (weight (bidegWeight s) g).2, ← add_assoc]
     exact hf _ _ _ (hg _ _ _ hp)
   | single i n =>
     induction n with
     | zero => intro a b p hp; simpa using hp
     | succ n ih =>
       intro a b p hp
-      have h : (monomial (single i (n + 1)) 1 : MvPolynomial σ R) =
-          monomial (single i n) 1 * X i := by
-        simp [X, ← single_add]
-      rw [h, map_mul, mul_apply_eq_comp]
+      rw [show (monomial (single i (n + 1)) 1 : MvPolynomial σ R) = monomial (single i n) 1 * X i
+        by simp [X, ← single_add], map_mul, mul_apply_eq_comp]
       by_cases hi : s i
-      · have hw : weight (bidegWeight s) (single i (n + 1)) = (n + 1, 0) := by
-          simp [weight_single, bidegWeight, hi]
-        have hw' : weight (bidegWeight s) (single i n) = (n, 0) := by
+      · have hw (k : ℕ) : weight (bidegWeight s) (single i k) = (k, 0) := by
           simp [weight_single, bidegWeight, hi]
         rw [hw] at hp ⊢
         rw [mixedOp_X_of_pos hi]
-        have := ih a b (pderiv i p) (by
-          rw [hw']
-          refine IsWeightedHomogeneous.pderiv hp ?_
-          simp [bidegWeight, hi, add_assoc])
-        rwa [hw'] at this
-      · have hw : weight (bidegWeight s) (single i (n + 1)) = (0, n + 1) := by
-          simp [weight_single, bidegWeight, hi]
-        have hw' : weight (bidegWeight s) (single i n) = (0, n) := by
+        simpa only [hw] using ih a b (pderiv i p) (by
+          rw [hw]
+          exact IsWeightedHomogeneous.pderiv hp (by simp [bidegWeight, hi, add_assoc]))
+      · have hw (k : ℕ) : weight (bidegWeight s) (single i k) = (0, k) := by
           simp [weight_single, bidegWeight, hi]
         rw [hw] at hp ⊢
         rw [mixedOp_X_of_neg hi]
-        have := ih a (b + 1) (X i * p) (by
-          rw [hw']
-          have hX := (isWeightedHomogeneous_X (R := R) (bidegWeight s) i).mul hp
-          simpa [bidegWeight, hi, add_comm] using hX)
-        rwa [hw', add_assoc, add_comm 1 n] at this
+        simpa only [hw, add_assoc, add_comm 1 n] using ih a (b + 1) (X i * p) (by
+          rw [hw]
+          simpa [bidegWeight, hi, add_comm] using
+            (isWeightedHomogeneous_X (R := R) (bidegWeight s) i).mul hp)
 
 /-- The operator of a polynomial of bidegree `(i, j)` maps bidegree `(a + i, b)` to bidegree
 `(a, b + j)`: it differentiates `i` times in `s` and multiplies by degree `j` outside `s`. -/
@@ -234,9 +224,8 @@ theorem mixedOp_mem_bihomogeneous {Q p : MvPolynomial σ R} {i j a b : ℕ}
   refine Submodule.sum_mem _ fun d hd => ?_
   have hd' := hQ (mem_support_iff.1 hd)
   rw [← mul_one (Q.coeff d), ← smul_eq_mul, ← smul_monomial, map_smul, LinearMap.smul_apply]
-  refine Submodule.smul_mem _ _ ?_
-  have := mixedOp_monomial_mem (s := s) d a b p (by rwa [hd'])
-  rwa [hd'] at this
+  exact Submodule.smul_mem _ _ (by
+    simpa only [hd'] using mixedOp_monomial_mem (s := s) d a b p (by rwa [hd']))
 
 /-- A homogeneous polynomial of degree `e` is the sum of its components of bidegree
 `(i, e - i)`. -/
@@ -250,15 +239,13 @@ theorem IsHomogeneous.eq_sum_bidegree_component {Q : MvPolynomial σ R} {e : ℕ
   by_cases hd : Q.coeff d = 0
   · simp [hd]
   have he : (weight (bidegWeight s) d).1 + (weight (bidegWeight s) d).2 = e := by
-    rw [weight_bidegWeight_fst_add_snd, ← hQ hd, degree_eq_weight_one]; rfl
-  rw [Finset.sum_eq_single (weight (bidegWeight s) d).1]
-  · have h : weight (bidegWeight s) d =
-        ((weight (bidegWeight s) d).1, e - (weight (bidegWeight s) d).1) :=
-      Prod.ext rfl (by change _ = e - _; omega)
-    exact (ite_eq_left h).symm
-  · intro i _ hi
-    exact ite_eq_right fun h => hi (congrArg Prod.fst h).symm
-  · intro h
-    exact absurd (Finset.mem_range.2 (by omega)) h
+    rw [weight_bidegWeight_fst_add_snd, ← hQ hd, degree_eq_weight_one]
+    rfl
+  rw [Finset.sum_eq_single (weight (bidegWeight s) d).1
+    (fun _ _ hi => ite_eq_right fun h => hi (congrArg Prod.fst h).symm)
+    fun h => absurd (Finset.mem_range.2 (by omega)) h]
+  exact (ite_eq_left (show weight (bidegWeight s) d =
+    ((weight (bidegWeight s) d).1, e - (weight (bidegWeight s) d).1) from
+      Prod.ext rfl (by change _ = e - _; omega))).symm
 
 end MvPolynomial

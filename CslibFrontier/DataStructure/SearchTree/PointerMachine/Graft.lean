@@ -44,12 +44,11 @@ private theorem graftLeaf_below (right : Bool) (h : List (Record M (layout extra
   rw [nodeAt_addresses] at freshHere
   have freshParts : label.address ≠ parent.address ∧ label.address ∉ addresses sibling := by
     simpa [addresses, BinaryTree.map, SearchTree.elements] using freshHere
-  have np : parent.address ∉ addresses (.node label .nil .nil) := by
-    simpa [addresses, BinaryTree.map, SearchTree.elements, ne_comm] using freshParts.1
-  have ns : Disjoint (addresses (.node label .nil .nil)) (addresses sibling) := by
-    simpa [addresses, BinaryTree.map, SearchTree.elements] using freshParts.2
   have changed := replaceChild right _ _ parent .nil (.node label .nil .nil) sibling
-    (contextParent cs) sub distinct.focus leafRep leafDistinct np ns (fun _ _ => rfl)
+    (contextParent cs) sub distinct.focus leafRep leafDistinct
+    (by simpa [addresses, BinaryTree.map, SearchTree.elements, ne_comm] using freshParts.1)
+    (by simpa [addresses, BinaryTree.map, SearchTree.elements] using freshParts.2)
+    (fun _ _ => rfl)
   exact extendedRep.plug_of_frame distinct changed.1 (by simp) changed.2.2
 
 /-- Appending at the old heap length and filling the context's vacant child link creates
@@ -73,37 +72,27 @@ theorem graftLeaf (h : List (Record M (layout extra regs))) (cs : List (Frame M 
       addresses tree = Insert.insert label.address (addresses (plug cs .nil)) ∧
       root tree = if contextParent cs = none then some label.address else root (plug cs .nil) := by
   let extended := h ++ [record none none (contextParent cs) label]
-  have fresh : label.address ∉ addresses (plug cs .nil) := by
-    intro mem
-    have bound := rep.address_lt mem
-    omega
+  have fresh : label.address ∉ addresses (plug cs .nil) := fun mem => by
+    have := rep.address_lt mem; omega
   have extendedRep : Represents extended none (plug cs .nil) := rep.append _
   have leafRep : Represents extended (contextParent cs) (.node label .nil .nil) := by
     simp [Represents, extended, atEnd, root]
   have leafDistinct : AddressesDistinct (.node label .nil .nil) := by
     simp [AddressesDistinct.node_iff, addresses, BinaryTree.map, SearchTree.elements]
-  have wholeDistinct : AddressesDistinct (plug cs (.node label .nil .nil)) := by
-    apply (addressesDistinct_plug_iff cs _).mpr
-    refine ⟨leafDistinct, distinct, ?_⟩
-    simpa [addresses, BinaryTree.map, SearchTree.elements] using fresh
-  refine ⟨?_, wholeDistinct, ?_, ?_⟩
-  · cases cs with
-    | nil => exact leafRep
-    | cons frame cs =>
-      cases frame with
-      | left parent sibling =>
-        subst chosen
-        exact graftLeaf_below false h cs parent label sibling extendedRep distinct fresh
-          leafRep leafDistinct
-      | right sibling parent =>
-        subst chosen
-        exact graftLeaf_below true h cs parent label sibling extendedRep distinct fresh
-          leafRep leafDistinct
+  refine ⟨?_, (addressesDistinct_plug_iff cs _).mpr ⟨leafDistinct, distinct,
+    by simpa [addresses, BinaryTree.map, SearchTree.elements] using fresh⟩, ?_, ?_⟩
+  · rcases cs with _ | ⟨⟨parent, sibling⟩ | ⟨sibling, parent⟩, cs⟩
+    · exact leafRep
+    · subst chosen
+      exact graftLeaf_below false h cs parent label sibling extendedRep distinct fresh
+        leafRep leafDistinct
+    · subst chosen
+      exact graftLeaf_below true h cs parent label sibling extendedRep distinct fresh
+        leafRep leafDistinct
   · rw [addresses_plug cs (.node label .nil .nil)]
     simp [addresses, BinaryTree.map, SearchTree.elements]
   · cases cs with
     | nil => rfl
-    | cons frame cs =>
-      cases frame <;> exact root_plug_congr cs rfl
+    | cons frame cs => cases frame <;> exact root_plug_congr cs rfl
 
 end Cslib.DataStructure.SearchTree.PointerMachine

@@ -40,9 +40,8 @@ public theorem transfer_bounds (L m N Q : ℕ) :
 
 /-- Any allocated endpoint fits without assumptions about intermediate machine states. -/
 public theorem allocated_fits {w L m N Q a : ℕ} (hfit : Fits w (wordBudget L m N Q))
-    (ha : a ≤ memoryEnd L m N Q + 16) : Fits w a := by
-  apply (caller_fits hfit).of_le
-  omega
+    (ha : a ≤ memoryEnd L m N Q + 16) : Fits w a :=
+  (caller_fits hfit).of_le (by omega)
 
 /-- Three charged argument instructions that leave source `s`, destination `d` and length `n` in
 the copy registers, followed by the native copy. The caller protocol and every register beyond the
@@ -61,16 +60,18 @@ public theorem exec_setupCopy {w L m N Q s d n : ℕ} {setup : Code .standard 16
   let z := ((x.set Reg.source s).set Reg.destination d).set Reg.length n
   have zp : Parameters L m N Q z := by regs_frame
   obtain ⟨y, he, hm, hf⟩ := exec_copyCall z (allocated_fits hfit (by omega))
-    (by dsimp only [z]; wram_simp; exact allocated_fits hfit hs)
-    (by dsimp only [z]; wram_simp; exact allocated_fits hfit hd)
-    (by dsimp only [z]; wram_simp; exact hsep)
+    (by dsimp only [z]
+        wram_simp; exact allocated_fits hfit hs)
+    (by dsimp only [z]
+        wram_simp; exact allocated_fits hfit hd)
+    (by dsimp only [z]
+        wram_simp; exact hsep)
   dsimp only [z] at he hm
   wram_simp at he hm
-  refine ⟨y, (hsetup.seq he).mono (by omega), zp.reframe (fun i hi => hf i (by omega)),
+  refine ⟨y, (hsetup.seq he).mono (by omega), zp.reframe fun i hi => hf i (by omega),
     hm, fun i hi hs hd hl => ?_⟩
   rw [hf i hi]
-  dsimp only [z]
-  wram_simp
+  dsimp only [z]; wram_simp
 
 /-- The actual input snapshot uses three argument instructions and the native copy loop. -/
 public theorem exec_saveInput {w L m N Q : ℕ} (x : Data 160)
@@ -79,15 +80,11 @@ public theorem exec_saveInput {w L m N Q : ℕ} (x : Data 160)
       Parameters L m N Q y ∧
       y.mem = ArrayCopy.copyPrefix x.mem 0 (snapshotBase L m N Q) (inputEnd m N Q) := by
   have hb := transfer_bounds L m N Q
-  have hz : ExecWithin (B := .standard) w (ram[
+  obtain ⟨y, he, hy, hm, -⟩ := exec_setupCopy x hp hfit (show ExecWithin (B := .standard) w (ram[
       Reg.source ← Reg.zero;
       Reg.destination ← Reg.snapshot;
-      Reg.length ← Reg.inputSize ]) x
-      (((x.set Reg.source 0).set Reg.destination (snapshotBase L m N Q)).set Reg.length
-        (inputEnd m N Q)) 3 := by
-    wram_exec *
-  obtain ⟨y, he, hy, hm, -⟩ :=
-    exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inl (by omega))
+      Reg.length ← Reg.inputSize ]) x _ 3 by wram_exec *)
+    (by omega) (by omega) (.inl (by omega))
   exact ⟨y, he, hy, hm⟩
 
 /-- Real coordinate words are copied from the protected original input to address five.
@@ -101,19 +98,15 @@ public theorem exec_prepareQueries {w L m N Q : ℕ} (x : Data 160)
   have hs : Fits w (snapshotBase L m N Q + queryInputBase m N) :=
     allocated_fits hfit (by omega)
   have hn : Fits w (Q * 2) := allocated_fits hfit (by
-    have h10 := Nat.zero_le (10 ^ L)
+    have := Nat.zero_le (10 ^ L)
     unfold memoryEnd stampBase scratchBase outputBase groupedBase originalBase codeBase
       offsetBase snapshotBase inputEnd
     omega)
-  have hz : ExecWithin (B := .standard) w (ram[
+  obtain ⟨y, he, hy, hm, -⟩ := exec_setupCopy x hp hfit (show ExecWithin (B := .standard) w (ram[
       Reg.source ← Reg.snapshot + Reg.queryOffset;
       Reg.destination ← Reg.five;
-      Reg.length ← Reg.queryCount * Reg.two ]) x
-      (((x.set Reg.source (snapshotBase L m N Q + queryInputBase m N)).set Reg.destination
-        5).set Reg.length (Q * 2)) 3 := by
-    wram_exec * [hs, hn]
-  obtain ⟨y, he, hy, hm, -⟩ :=
-    exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inr (Or.inl (by omega)))
+      Reg.length ← Reg.queryCount * Reg.two ]) x _ 3 by wram_exec * [hs, hn])
+    (by omega) (by omega) (.inr (.inl (by omega)))
   exact ⟨y, he.mono (by omega), hy, by rw [hm, Nat.mul_comm]⟩
 
 /-- Restore the entire original prefix through the same actual copy routine. Answers and
@@ -124,15 +117,11 @@ public theorem exec_restoreInput {w L m N Q : ℕ} (x : Data 160)
       Parameters L m N Q y ∧
       y.mem = ArrayCopy.copyPrefix x.mem (snapshotBase L m N Q) 0 (inputEnd m N Q) := by
   have hb := transfer_bounds L m N Q
-  have hz : ExecWithin (B := .standard) w (ram[
+  obtain ⟨y, he, hy, hm, -⟩ := exec_setupCopy x hp hfit (show ExecWithin (B := .standard) w (ram[
       Reg.source ← Reg.snapshot;
       Reg.destination ← Reg.zero;
-      Reg.length ← Reg.inputSize ]) x
-      (((x.set Reg.source (snapshotBase L m N Q)).set Reg.destination 0).set Reg.length
-        (inputEnd m N Q)) 3 := by
-    wram_exec *
-  obtain ⟨y, he, hy, hm, -⟩ :=
-    exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inr (Or.inl (by omega)))
+      Reg.length ← Reg.inputSize ]) x _ 3 by wram_exec *)
+    (by omega) (by omega) (.inr (.inl (by omega)))
   exact ⟨y, he, hy, hm⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
