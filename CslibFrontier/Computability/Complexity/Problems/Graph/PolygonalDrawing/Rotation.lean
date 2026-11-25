@@ -14,14 +14,14 @@ import CslibFrontier.Foundations.Geometry.Polygonal.AngleOrder
 import Mathlib.Data.Finset.Sort
 
 /-!
-# The clockwise rotation of a polygonal embedding
+# The clockwise rotation of outgoing polygonal germs
 
-The actual outgoing germs of an embedding determine one rotation at every vertex. Sorting
+Distinct outgoing directions determine one rotation at every vertex. Sorting
 their principal arguments in decreasing order chooses a cyclic start without changing their
 clockwise circular order. No rotation is supplied as an additional premise. Loops retain both
 ends, and empty fibers, arbitrary degrees and disconnected components need no special choice.
 
-This is a static construction for finite polygonal embeddings with arbitrary complex
+This is a static construction for finite polygonal drawings with arbitrary complex
 coordinates. It makes no claim about recognition, coordinate encodings or runtime.
 -/
 
@@ -31,48 +31,59 @@ namespace Cslib.Complexity.Graph.PolygonalDrawing
 
 variable {G : Graph} {D : PolygonalDrawing G}
 
-private theorem arg_injective_at (hD : D.IsEmbedding) (v : ℕ) :
+section Directions
+
+variable (hdir : ∀ a b : Dart G, a.vertex = b.vertex → D.direction a = D.direction b → a = b)
+
+include hdir
+
+private theorem arg_injective_at (v : ℕ) :
     Function.Injective (fun d : {d : Dart G // d.vertex = v} => -(D.germ d.val).arg) := by
   intro a b hab
   apply Subtype.ext
-  apply hD.directions_injective a.val b.val (a.property.trans b.property.symm)
+  apply hdir a.val b.val (a.property.trans b.property.symm)
   exact congrArg (fun x : ℝ => (x : Real.Angle)) (neg_injective hab)
 
-@[instance_reducible] private noncomputable def clockwiseOrder (hD : D.IsEmbedding) (v : ℕ) :
+@[instance_reducible] private noncomputable def clockwiseOrder (v : ℕ) :
     LinearOrder {d : Dart G // d.vertex = v} :=
-  LinearOrder.lift' (fun d => -(D.germ d.val).arg) (arg_injective_at hD v)
+  LinearOrder.lift' (fun d => -(D.germ d.val).arg) (arg_injective_at hdir v)
 
-private noncomputable def clockwiseRank (hD : D.IsEmbedding) (v : ℕ) :
+private noncomputable def clockwiseRank (v : ℕ) :
     {d : Dart G // d.vertex = v} ≃ Fin (Fintype.card {d : Dart G // d.vertex = v}) := by
   -- The dart subtype also inherits its unrelated lexicographic order.
   -- Bind the germ order's primitive relations explicitly.
-  letI := clockwiseOrder hD v
-  letI : LE {d : Dart G // d.vertex = v} := (clockwiseOrder hD v).toLE
-  letI : LT {d : Dart G // d.vertex = v} := (clockwiseOrder hD v).toLT
+  letI := clockwiseOrder hdir v
+  letI : LE {d : Dart G // d.vertex = v} := (clockwiseOrder hdir v).toLE
+  letI : LT {d : Dart G // d.vertex = v} := (clockwiseOrder hdir v).toLT
   exact (Fintype.orderIsoFinOfCardEq {d : Dart G // d.vertex = v} rfl).symm.toEquiv
 
-private theorem clockwiseRank_lt_iff (hD : D.IsEmbedding) (v : ℕ)
+private theorem clockwiseRank_lt_iff (v : ℕ)
     (a b : {d : Dart G // d.vertex = v}) :
-    clockwiseRank hD v a < clockwiseRank hD v b ↔
+    clockwiseRank hdir v a < clockwiseRank hdir v b ↔
       (D.germ b.val).arg < (D.germ a.val).arg := by
-  let := clockwiseOrder hD v
-  let : Preorder {d : Dart G // d.vertex = v} := (clockwiseOrder hD v).toPreorder
-  let : LE {d : Dart G // d.vertex = v} := (clockwiseOrder hD v).toLE
-  let : LT {d : Dart G // d.vertex = v} := (clockwiseOrder hD v).toLT
+  let := clockwiseOrder hdir v
+  let : Preorder {d : Dart G // d.vertex = v} := (clockwiseOrder hdir v).toPreorder
+  let : LE {d : Dart G // d.vertex = v} := (clockwiseOrder hdir v).toLE
+  let : LT {d : Dart G // d.vertex = v} := (clockwiseOrder hdir v).toLT
   change (Fintype.orderIsoFinOfCardEq {d : Dart G // d.vertex = v} rfl).symm a <
     (Fintype.orderIsoFinOfCardEq {d : Dart G // d.vertex = v} rfl).symm b ↔ _
   rw [OrderIso.lt_iff_lt]
   change -(D.germ a.val).arg < -(D.germ b.val).arg ↔ _
   exact neg_lt_neg_iff
 
-/-- The rotation read from an embedding's actual outgoing rays, in clockwise order. -/
-noncomputable def IsEmbedding.rotation (hD : D.IsEmbedding) : RotationSystem G :=
-  RotationSystem.ofFiberEquiv (clockwiseRank hD)
+end Directions
 
-/-- Reading the clockwise rotation of an embedding recovers its literal geometric order.
-The nonzero and distinct-ray conditions follow from full route simplicity and contacts. -/
-theorem IsEmbedding.realizes_rotation (hD : D.IsEmbedding) : D.Realizes hD.rotation := by
-  refine ⟨hD.germ_ne_zero, hD.directions_injective, ?_⟩
+/-- Read the clockwise rotation from the distinct outgoing directions at each vertex. -/
+noncomputable def rotationOfDirections (D : PolygonalDrawing G)
+    (hdir : ∀ a b : Dart G, a.vertex = b.vertex → D.direction a = D.direction b → a = b) :
+    RotationSystem G := RotationSystem.ofFiberEquiv (clockwiseRank hdir)
+
+/-- Nonzero, distinct outgoing rays realize the rotation read from their directions.
+The rest of the routes may cross. -/
+theorem realizes_rotationOfDirections (D : PolygonalDrawing G) (hnz : ∀ d, D.germ d ≠ 0)
+    (hdir : ∀ a b : Dart G, a.vertex = b.vertex → D.direction a = D.direction b → a = b) :
+    D.Realizes (D.rotationOfDirections hdir) := by
+  refine ⟨hnz, hdir, ?_⟩
   intro a b c hab hbc hneab hnebc hneac
   let a' : {d : Dart G // d.vertex = a.vertex} := ⟨a, rfl⟩
   let b' : {d : Dart G // d.vertex = a.vertex} := ⟨b, hab.symm⟩
@@ -92,14 +103,30 @@ theorem IsEmbedding.realizes_rotation (hD : D.IsEmbedding) : D.Realizes hD.rotat
   have hc := mem_turn (D.germ c) ((min_le_right _ _).trans (min_le_right _ _))
   have harg {x y : Dart G} (hxy : x.vertex = y.vertex) (hne : x ≠ y) :
       (D.germ x).arg ≠ (D.germ y).arg := fun h =>
-    hne (hD.directions_injective x y hxy (congrArg (fun t : ℝ => (t : Real.Angle)) h))
-  rw [show hD.rotation = RotationSystem.ofFiberEquiv (clockwiseRank hD) from rfl,
-    RotationSystem.mem_rotationInterval_ofFiberEquiv_iff (clockwiseRank hD) a.vertex
+    hne (hdir x y hxy (congrArg (fun t : ℝ => (t : Real.Angle)) h))
+  rw [rotationOfDirections,
+    RotationSystem.mem_rotationInterval_ofFiberEquiv_iff (clockwiseRank hdir) a.vertex
       a' b' c' (fun h => hneab (congrArg Subtype.val h))
       (fun h => hnebc (congrArg Subtype.val h)) (fun h => hneac (congrArg Subtype.val h))]
   simp only [clockwiseRank_lt_iff, a', b', c', direction]
   exact (Polygonal.sbtw_angle_iff_cyclic_lt hc hb ha
     (harg hbc.symm hnebc.symm) (harg hab.symm hneab.symm)
     (harg (hab.trans hbc).symm hneac.symm)).trans (by tauto)
+
+/-- The rotation read from an embedding's actual outgoing rays, in clockwise order. -/
+noncomputable def IsEmbedding.rotation (hD : D.IsEmbedding) : RotationSystem G :=
+  D.rotationOfDirections hD.directions_injective
+
+/-- Reading the clockwise rotation of an embedding recovers its literal geometric order.
+The nonzero and distinct-ray conditions follow from full route simplicity and contacts. -/
+theorem IsEmbedding.realizes_rotation (hD : D.IsEmbedding) : D.Realizes hD.rotation :=
+  D.realizes_rotationOfDirections hD.germ_ne_zero hD.directions_injective
+
+/-- A drawing realizes at most one literal clockwise successor at each dart. -/
+theorem Realizes.rotate_eq {r s : RotationSystem G} (hr : D.Realizes r) (hs : D.Realizes s)
+    (d : Dart G) : r.rotate d = s.rotate d :=
+  r.rotate_eq_of_same_incident_intervals s d fun e f hde hef hnde hnef hndf =>
+    (hr.clockwise d e f hde hef hnde hnef hndf).symm.trans
+      (hs.clockwise d e f hde hef hnde hnef hndf)
 
 end Cslib.Complexity.Graph.PolygonalDrawing

@@ -64,6 +64,20 @@ noncomputable def NN2 (n : Sym2 T.Fl → ℕ) : ℝ :=
 noncomputable def kap {j : ℕ} (n : T.Ed j → ℕ) : ℝ :=
   √((r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e, (n e : ℝ) ^ 2)
 
+theorem be_def {j : ℕ} (i : Fin h) (n : T.Ed j → ℕ) (c : T.X j) :
+    T.be i n c = ∑ e, if T.ty e = i ∧ (T.e0 e = c ∨ T.e1 e = c) then n e else 0 := by
+  rw [be]
+
+theorem nEnd_def {j : ℕ} (i : Fin h) (n : T.Ed j → ℕ) (ω : T.V (j + 1) i) (q : Sym2 T.Fl) :
+    T.nEnd i n ω q = ∑ c : T.X j,
+      if T.πV (T.vx i c) = ω ∧ s(T.co i (T.host i (T.vx i c)), T.co i c) = q then T.be i n c
+      else 0 := by
+  rw [nEnd]
+
+theorem NN2_def (n : Sym2 T.Fl → ℕ) :
+    T.NN2 n = ((b : ℝ) * (b - 1) / 2) * ∑ q : Sym2 T.Fl, if q.IsDiag then 0 else (n q : ℝ) ^ 2 := by
+  rw [NN2]
+
 variable {T}
 
 theorem kap_nonneg {j : ℕ} (n : T.Ed j → ℕ) : 0 ≤ T.kap n := Real.sqrt_nonneg _

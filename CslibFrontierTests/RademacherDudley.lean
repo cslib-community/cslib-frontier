@@ -308,16 +308,16 @@ example (D : PMF (Fin 3)) :
 `thresholdClass` via `empiricalCoveringNumber_bitClass_le_of_vcDim` + Dudley's polynomial entropy
 integral. -/
 example {m : ℕ} (hm : 0 < m) (S : Fin m → ℕ) :
-    empiricalRademacherComplexity (bitClass thresholdClass) S ≤
+    empiricalRademacherComplexity (bitClass (thresholdClass ℕ)) S ≤
       16 * Real.sqrt (4 * (1 + Real.log (Real.sqrt 8)) / m) := by
-  have hbound : ∀ f ∈ bitClass thresholdClass,
+  have hbound : ∀ f ∈ bitClass (thresholdClass ℕ),
       dist (empiricalL2Vec S f) (empiricalL2Vec S 0) ≤ 1 := by
     intro f hf
     refine dist_empiricalL2Vec_le_of_abs_sub_le S zero_le_one fun i => ?_
     obtain ⟨h0, h1⟩ := mem_Icc_of_mem_bitClass hf (S i)
     simp only [Pi.zero_apply, sub_zero, abs_le]
     exact ⟨by linarith, h1⟩
-  have hsh : ∀ W : Finset ℕ, SetShatters thresholdClass ↑W → W.card ≤ 1 := fun W hW => by
+  have hsh : ∀ W : Finset ℕ, SetShatters (thresholdClass ℕ) ↑W → W.card ≤ 1 := fun W hW => by
     by_contra hgt
     exact not_setShatters_thresholdClass (by omega) hW
   have h1le : (1 : ℝ) ≤ Real.sqrt 8 := by

@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.BucketWeight
 import CslibFrontier.Foundations.BooleanAnalysis.SpectralConcentration
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Computability.DecisionTree.SpectralNorm
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.PMF
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
@@ -34,42 +35,95 @@ coefficients by the bucket search of Goldreich and Levin [GoldreichLevin1989]: t
 (`BitString.bucketWeight`, O'Donnell's `W^{S | J̄}` with `J̄` the complement of `J`). Starting from
 the bucket of all sets, the search adds the coordinates one at a time, splitting each surviving
 bucket `S` of `J` into the buckets `S` and `insert i S` of `insert i J`, and keeps the buckets whose
-estimated weight is at least `θ² / 2` (`UniformLearning.bucketSearch`). A set `U` with `|f̂(U)| ≥ θ`
-contributes `θ²` to each of its buckets and is never discarded
-(`UniformLearning.inter_mem_bucketSearch`), while every surviving bucket weighs at least `θ² / 4`,
-so at most `4 / θ²` buckets survive at each level (`UniformLearning.mul_card_bucketSearch_le_one`).
+estimated weight is at least `θ² / 2` (`UniformLearning.bucketSearch`). On accurate estimates,
+the bucket search finds the heavy sets and keeps few buckets: a set `U` with `|f̂(U)| ≥ θ`
+contributes `θ²` to each of its buckets, so it is never discarded when every level's estimate of
+its bucket reaches the threshold (`UniformLearning.inter_mem_bucketSearch`), and when the
+estimates at a level are within `θ² / 4` every surviving bucket weighs at least `θ² / 4`, so at
+most `4 / θ²` buckets survive there (`UniformLearning.mul_card_bucketSearch_le_one`).
 
 The weights are estimated from samples `(x, y, z)` of three independent uniform points, as the
 average of `f (x, z) χ_S(x) f (y, z) χ_S(y)` (`UniformLearning.bucketEstimate`,
 `BitString.bucketWeight_eq_expect_sample`), where `(x, z)` takes the coordinates in `J` from `x` and
-the others from `z`. Here the same `m` samples serve every bucket of every level, so the queries are
-non-adaptive: the learner queries `f` at `x` and at the points `(x, z)`, `(y, z)` of every sample
-and every level, `m (2 n + 3)` queries for `n` coordinates
+the others from `z`. By Hoeffding's inequality one estimate from `(2 / γ²) log (2 / δ)` samples,
+reading `f` at two points each, is within `γ` except with probability `δ`
+(`UniformLearning.uniform_abs_bucketEstimate_sub_ge_le_of_log`), the sample bound in the proof of
+[O'Donnell, Proposition 3.40][ODonnell2014]. Here the same `m` samples serve every bucket of every
+level, so the queries are non-adaptive: the learner queries `f` at `x` and at the points `(x, z)`,
+`(y, z)` of every sample and every level, `m (2 n + 3)` queries for `n` coordinates
 (`UniformLearning.kmLearner_queriesAtMost`), and then runs the search on the answers. The analysis
 takes a union bound over all `2 ^ n` buckets of each level, which costs a factor `n` in the number
 of samples compared with fresh samples for each weighing. The hypothesis is the sign of the
 expansion on the found sets with coefficients estimated from the points `x`
 (`UniformLearning.kmHypothesis`, `UniformLearning.kmLearner`).
 
-If all estimates are within `θ² / 4` of their values, the hypothesis has error at most
-`θ² / 4 + θ L` for a function of spectral norm at most `L`
-(`UniformLearning.uniformError_kmHypothesis_le`): the found sets carry all coefficients of absolute
-value at least `θ`, and the others weigh at most `θ L`
-(`BitString.sum_fourierCoeff_sq_le_mul_sum_abs`). Hoeffding's inequality and the union bound
+If all estimates are within `θ² / 4` of their values, the hypothesis has error at most `θ² / 4`
+plus the weight of the coefficients of absolute value below `θ`
+(`UniformLearning.uniformError_kmHypothesis_le_add`), since the found sets carry all the others;
+for a function of spectral norm at most `L` this weight is at most `θ L`
+(`BitString.sum_fourierCoeff_sq_le_mul_sum_abs`), so the error is at most `θ² / 4 + θ L`
+(`UniformLearning.uniformError_kmHypothesis_le`). Hoeffding's inequality and the union bound
 make the estimates accurate except with probability at most `2 (n + 2) 2 ^ n exp (-m θ⁴ / 32)`
-(`UniformLearning.uniform_not_accurate_le`). With `θ = ε / (2 L)` this gives the
-**Kushilevitz–Mansour theorem**: the functions of spectral norm at most `L` are learned with error
-`ε` and confidence `1 - δ` from `m ≥ (512 L⁴ / ε⁴) log (2 (n + 2) 2 ^ n / δ)` samples, hence
-`m (2 n + 3)` membership queries, polynomial in `n`, `L`, `1 / ε` and `log (1 / δ)`
-(`UniformLearning.kmLearner_learns`) [O'Donnell, Theorem 3.38][ODonnell2014]. By the spectral
-norm bound for decision trees (`DecisionTree.sum_abs_fourierCoeff_signVal_le_leafCount`), this
-applies to the functions computed by decision trees with at most `L` leaves
-(`UniformLearning.kmLearner_learns_decisionTree`).
+(`UniformLearning.uniform_not_accurate_le`). With `θ = ε / (2 L)` this gives the query and
+sample step toward the **Kushilevitz–Mansour theorem** [O'Donnell, Theorem 3.38][ODonnell2014]:
+the functions of spectral norm at most `L` are learned with error `ε` and confidence `1 - δ` from
+`m ≥ (512 L⁴ / ε⁴) log (2 (n + 2) 2 ^ n / δ)` samples, hence `m (2 n + 3)` membership queries,
+polynomial in `n`, `L`, `1 / ε` and `log (1 / δ)` (`UniformLearning.kmLearner_learns`). The
+theorem's running time `poly(n, L, 1 / ε)` remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131) (see **Cost**). By the
+spectral norm bound for decision trees (`DecisionTree.sum_abs_fourierCoeff_signVal_le_leafCount`),
+this applies to the functions computed by decision trees with at most `L` leaves, the
+decision-tree case of Theorem 3.38 (`UniformLearning.kmLearner_learns_decisionTree`), with the
+same gap.
 
-**Cost.** Only the number of queries is certified. On accurate samples the search computes at most
-`8 / θ²` bucket estimates at each level, each from the `m` samples, and estimates at most `4 / θ²`
-coefficients; this count of arithmetic operations is informal, and the running time is not
-certified by a machine model.
+More generally, if the spectrum of `f` is `ε / 4`-concentrated on some collection of at most `M`
+sets (`UniformLearning.concentratedClass`), its coefficients below `θ` weigh at most
+`ε / 4 + M θ²` (`BitString.sum_fourierCoeff_sq_le_sum_compl_add`). With `θ² = ε / (4 M)` the
+algorithm learns such functions with error `ε` from `m ≥ (512 M² / ε²) log (2 (n + 2) 2 ^ n / δ)`
+samples, hence `m (2 n + 3)` membership queries, polynomial in `n`, `M`, `1 / ε` and `log (1 / δ)`
+(`UniformLearning.kmLearner_learns_concentrated`). This is the query and sample step toward
+[O'Donnell, Theorem 3.37][ODonnell2014]; the theorem's running time `poly(M, n, 1 / ε)` remains
+open on [#2131](https://github.com/cslib-community/cslib-frontier/issues/2131) (see **Cost**). The
+book's route (Exercise 3.39) applies the Goldreich–Levin list guarantee and then Theorem 3.29 to
+the listed sets; here the proof goes through the combined error bound on accurate samples
+(`UniformLearning.uniformError_kmHypothesis_le_add`) instead. Functions of
+spectral norm at most `L` are `ε / 4`-concentrated on about `4 L² / ε` sets, but the spectral-norm
+step above, with its own threshold, needs fewer samples.
+
+**Cost.** Only the numbers of samples and queries are certified; the running time is not certified
+by a machine model. On accurate samples the search computes at most `8 / θ²` bucket estimates at
+each level, each from the `m` samples, and estimates at most `4 / θ²` coefficients; this count of
+arithmetic operations is informal. The search has no cap on the number of buckets: the book
+bounds the active buckets by `4 / θ²` only on accurate estimates, and `UniformLearning.bucketSearch`
+keeps every bucket whose estimate passes the threshold, so on inaccurate samples it can keep up to
+`2 ^ k` buckets at level `k` and is not polynomial, even informally.
+
+## Usage
+
+Open `Cslib.MachineLearning.UniformLearning`. A class `C` of Boolean functions whose spectra, read
+as signs, are `ε / 4`-concentrated on at most `M ≥ 1` sets is a subset of
+`concentratedClass ι M (ε / 4)`; apply
+`UniformLearning.kmLearner_learns_concentrated_and_queriesAtMost` with threshold `√(ε / (4 M))`
+and any `m` at least `(512 M² / ε²) log (2 (n + 2) 2 ^ n / δ)` (for instance its ceiling), and
+restrict to `C` with `QueryLearner.Learns.mono`. This certifies the samples and queries of
+[O'Donnell, Theorem 3.37][ODonnell2014], not its running time, which remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). To bound the error of the hypothesis for another
+class, prove the samples accurate with `UniformLearning.uniform_not_accurate_le_of_log` and bound
+the weight of the small coefficients in `UniformLearning.uniformError_kmHypothesis_le_add`, for
+instance by `BitString.sum_fourierCoeff_sq_le_sum_compl_add` or
+`BitString.sum_fourierCoeff_sq_le_mul_sum_abs`. For a single bucket weight `bucketWeight F J S`,
+which is O'Donnell's `W^{S | J̄}[F]` for `S ⊆ J` and `0` otherwise,
+`UniformLearning.uniform_abs_bucketEstimate_sub_ge_le_of_log` takes `m ≥ (2 / γ²) log (2 / δ)`
+samples; the estimate reads `f` at `2 m` points, but that theorem certifies neither queries nor
+time. Turning another tail bound `c exp (-(a m))` into a sample size is
+`Real.mul_exp_neg_le_of_log`. Checked clients show that a parity is concentrated on one set and
+not on none, that the small-coefficient bound is attained by a parity, bound the hypothesis error
+for parities, instantiate the sample bound on two bits, learn the parities through `Learns.mono`,
+instantiate the query and sample step for `M = 3` on two bits and estimate two bucket weights of a
+parity, in
+[`CslibFrontierTests/KushilevitzMansourConcentrated.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/KushilevitzMansourConcentrated.lean);
+the spectral-norm and decision-tree steps are checked in
+[`CslibFrontierTests/FourierLearning.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/FourierLearning.lean).
 
 ## Main definitions
 
@@ -84,22 +138,37 @@ certified by a machine model.
 * `Cslib.MachineLearning.UniformLearning.kmHypothesis`,
   `Cslib.MachineLearning.UniformLearning.kmLearner`: the Kushilevitz–Mansour algorithm.
 * `Cslib.MachineLearning.UniformLearning.KMAccurate`: accurate samples.
+* `Cslib.MachineLearning.UniformLearning.concentratedClass`: the functions whose spectrum is
+  concentrated on few sets.
 
 ## Main results
 
 * `Cslib.MachineLearning.UniformLearning.inter_mem_bucketSearch`,
-  `Cslib.MachineLearning.UniformLearning.mul_card_bucketSearch_le_one`: the bucket search finds the
-  heavy sets and keeps few buckets.
-* `Cslib.MachineLearning.UniformLearning.uniformError_kmHypothesis_le`: the error on accurate
+  `Cslib.MachineLearning.UniformLearning.mul_card_bucketSearch_le_one`: on accurate estimates, the
+  bucket search finds the heavy sets and keeps few buckets.
+* `Cslib.MachineLearning.UniformLearning.uniformError_kmHypothesis_le_add`,
+  `Cslib.MachineLearning.UniformLearning.uniformError_kmHypothesis_le`: the error on accurate
   samples.
-* `Cslib.MachineLearning.UniformLearning.uniform_not_accurate_le`: the samples are accurate with
-  high probability.
+* `Cslib.MachineLearning.UniformLearning.uniform_abs_bucketEstimate_sub_ge_le`,
+  `Cslib.MachineLearning.UniformLearning.uniform_abs_bucketEstimate_sub_ge_le_of_log`: the
+  sample bound in the proof of Proposition 3.40, estimating one bucket weight.
+* `Cslib.MachineLearning.UniformLearning.uniform_not_accurate_le`,
+  `Cslib.MachineLearning.UniformLearning.uniform_not_accurate_le_of_log`: the samples are accurate
+  with high probability.
 * `Cslib.MachineLearning.UniformLearning.kmLearner_learns`,
-  `Cslib.MachineLearning.UniformLearning.kmLearner_learns_and_queriesAtMost`: the
-  Kushilevitz–Mansour theorem.
+  `Cslib.MachineLearning.UniformLearning.kmLearner_learns_and_queriesAtMost`: the query and sample
+  step toward the Kushilevitz–Mansour theorem, [O'Donnell, Theorem 3.38][ODonnell2014], whose
+  running time remains open on
+  [#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
 * `Cslib.MachineLearning.UniformLearning.kmLearner_learns_decisionTree`,
   `Cslib.MachineLearning.UniformLearning.kmLearner_learns_decisionTree_and_queriesAtMost`: learning
-  decision trees with membership queries.
+  decision trees with membership queries, the query and sample step toward the decision-tree case
+  of Theorem 3.38, with the same gap.
+* `Cslib.MachineLearning.UniformLearning.kmLearner_learns_concentrated`,
+  `Cslib.MachineLearning.UniformLearning.kmLearner_learns_concentrated_and_queriesAtMost`:
+  learning concentrated classes, the query and sample step toward
+  [O'Donnell, Theorem 3.37][ODonnell2014], whose running time remains open on
+  [#2131](https://github.com/cslib-community/cslib-frontier/issues/2131).
 
 ## References
 
@@ -344,13 +413,14 @@ def KMAccurate (f : (ι → Bool) → Bool) (γ : ℝ)
       |bucketEstimate f ω J S - bucketWeight (fun x => signVal (f x)) J S| < γ) ∧
     ∀ S, |sampleCoeff f ω S - fourierCoeff (fun x => signVal (f x)) S| < γ
 
-/-- **The Kushilevitz–Mansour algorithm on accurate samples.** Let the spectral norm of `f`, read
-as signs, be at most `L`, and let `θ > 0`. If the samples are accurate at precision `θ² / 4`, then
-the hypothesis has error at most `θ² / 4 + θ L`. -/
-theorem uniformError_kmHypothesis_le (f : (ι → Bool) → Bool) {L θ : ℝ} (hθ : 0 < θ)
-    (hL : ∑ S, |fourierCoeff (fun x => signVal (f x)) S| ≤ L)
+/-- **The Kushilevitz–Mansour algorithm on accurate samples.** Let `θ > 0`. If the samples are
+accurate at precision `θ² / 4`, then the hypothesis has error at most `θ² / 4` plus the Fourier
+weight of `f`, read as signs, on the sets whose coefficient has absolute value below `θ`. -/
+theorem uniformError_kmHypothesis_le_add (f : (ι → Bool) → Bool) {θ : ℝ} (hθ : 0 < θ)
     (ω : Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool)) (hω : KMAccurate f (θ ^ 2 / 4) ω) :
-    uniformError f (kmHypothesis f θ ω) ≤ θ ^ 2 / 4 + θ * L := by
+    uniformError f (kmHypothesis f θ ω) ≤
+      θ ^ 2 / 4 + ∑ S with fourierCoeff (fun x => signVal (f x)) S ^ 2 < θ ^ 2,
+        fourierCoeff (fun x => signVal (f x)) S ^ 2 := by
   obtain ⟨hW, hc⟩ := hω
   set F : (ι → Bool) → ℝ := fun x => signVal (f x)
   set T := kmCandidates f θ ω
@@ -380,13 +450,27 @@ theorem uniformError_kmHypothesis_le (f : (ι → Bool) → Bool) {L θ : ℝ} (
       _ = θ ^ 2 / 4 * #T * (θ ^ 2 / 4) := by rw [sum_const, nsmul_eq_mul]; ring
       _ ≤ 1 * (θ ^ 2 / 4) := by gcongr
       _ = θ ^ 2 / 4 := one_mul _
-  have hout : ∑ S ∈ Tᶜ, fourierCoeff F S ^ 2 ≤ θ * L :=
-    (sum_fourierCoeff_sq_le_mul_sum_abs hθ.le fun S hS => (abs_lt_of_sq_lt_sq
-      (lt_of_not_ge fun h => mem_compl.1 hS (hheavy S h)) hθ.le).le).trans (by gcongr)
+  have hout : ∑ S ∈ Tᶜ, fourierCoeff F S ^ 2 ≤
+      ∑ S with fourierCoeff F S ^ 2 < θ ^ 2, fourierCoeff F S ^ 2 :=
+    sum_le_sum_of_subset_of_nonneg (fun S hS => mem_filter.2 ⟨mem_univ S,
+      lt_of_not_ge fun h => mem_compl.1 hS (hheavy S h)⟩) fun _ _ _ => sq_nonneg _
   have : uniformError f (kmHypothesis f θ ω) ≤
       ∑ S ∈ T, (fourierCoeff F S - sampleCoeff f ω S) ^ 2 + ∑ S ∈ Tᶜ, fourierCoeff F S ^ 2 :=
     herr
   linarith
+
+/-- **The Kushilevitz–Mansour algorithm on accurate samples, for small spectral norm.** Let the
+spectral norm of `f`, read as signs, be at most `L`, and let `θ > 0`. If the samples are accurate
+at precision `θ² / 4`, then the hypothesis has error at most `θ² / 4 + θ L`. -/
+theorem uniformError_kmHypothesis_le (f : (ι → Bool) → Bool) {L θ : ℝ} (hθ : 0 < θ)
+    (hL : ∑ S, |fourierCoeff (fun x => signVal (f x)) S| ≤ L)
+    (ω : Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool)) (hω : KMAccurate f (θ ^ 2 / 4) ω) :
+    uniformError f (kmHypothesis f θ ω) ≤ θ ^ 2 / 4 + θ * L := by
+  set F : (ι → Bool) → ℝ := fun x => signVal (f x)
+  have hlight : ∑ S with fourierCoeff F S ^ 2 < θ ^ 2, fourierCoeff F S ^ 2 ≤ θ * L :=
+    (sum_fourierCoeff_sq_le_mul_sum_abs hθ.le fun S hS =>
+      (abs_lt_of_sq_lt_sq (mem_filter.1 hS).2 hθ.le).le).trans (by gcongr)
+  linarith [uniformError_kmHypothesis_le_add f hθ ω hω]
 
 omit [Fintype ι] [DecidableEq ι] in
 /-- A product of two signs and two characters has absolute value at most one. -/
@@ -394,6 +478,42 @@ private theorem abs_signVal_mul_chi_mul_le_one (a b : Bool) (S : Finset ι) (x y
     |signVal a * chi ℝ S x * (signVal b * chi ℝ S y)| ≤ 1 := by
   rw [abs_mul, abs_mul, abs_mul, abs_signVal, abs_signVal, abs_chi, abs_chi]
   norm_num
+
+/-- **Estimating a bucket weight**, the sample bound in the proof of
+[O'Donnell, Proposition 3.40][ODonnell2014]: from `m` samples of three independent uniform points,
+the empirical bucket weight of `f` on `S` with respect to `J` is off from the bucket weight of
+`f` read as signs, O'Donnell's `W^{S | J̄}[f]` when `S ⊆ J` and `0` otherwise, by at least `γ`
+with probability at most `2 exp (-m γ² / 2)`, by Hoeffding's inequality. The estimate reads `f`
+at the two points `(x, z)` and `(y, z)` of each sample. -/
+theorem uniform_abs_bucketEstimate_sub_ge_le (f : (ι → Bool) → Bool) (J S : Finset ι)
+    {γ : ℝ} (hγ : 0 ≤ γ) :
+    (PMF.uniformOfFintype (Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool))).toOuterMeasure
+      {ω | γ ≤ |bucketEstimate f ω J S - bucketWeight (fun x => signVal (f x)) J S|} ≤
+        ENNReal.ofReal (2 * Real.exp (-(m * γ ^ 2) / 2)) := by
+  have h := PMF.uniform_abs_sum_div_sub_expect_ge_le (m := m)
+    (fun ((x, y, z) : (ι → Bool) × (ι → Bool) × (ι → Bool)) =>
+      signVal (f (J.piecewise x z)) * chi ℝ S x * (signVal (f (J.piecewise y z)) * chi ℝ S y))
+    (fun (x, y, z) => abs_signVal_mul_chi_mul_le_one _ _ S _ _) hγ
+  rwa [show (𝔼 p : (ι → Bool) × (ι → Bool) × (ι → Bool),
+      let (x, y, z) := p
+      signVal (f (J.piecewise x z)) * chi ℝ S x * (signVal (f (J.piecewise y z)) * chi ℝ S y)) =
+      bucketWeight (fun x => signVal (f x)) J S by
+    rw [bucketWeight_eq_expect_sample]] at h
+
+/-- **Estimating a bucket weight with confidence**, the sample bound in the proof of
+[O'Donnell, Proposition 3.40][ODonnell2014]: from `m ≥ (2 / γ²) log (2 / δ)` samples, the
+empirical bucket weight is within `γ` of `W^{S | J̄}[f]` for `S ⊆ J` (and of `0` otherwise)
+except with probability at most `δ`. The estimate reads `f` at `2 m` points; queries and time are
+not certified here. -/
+theorem uniform_abs_bucketEstimate_sub_ge_le_of_log (f : (ι → Bool) → Bool) (J S : Finset ι)
+    {γ δ : ℝ} (hγ : 0 < γ) (hδ : 0 < δ) (hm : 2 / γ ^ 2 * Real.log (2 / δ) ≤ m) :
+    (PMF.uniformOfFintype (Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool))).toOuterMeasure
+      {ω | γ ≤ |bucketEstimate f ω J S - bucketWeight (fun x => signVal (f x)) J S|} ≤
+        ENNReal.ofReal δ := by
+  refine (uniform_abs_bucketEstimate_sub_ge_le f J S hγ.le).trans (ENNReal.ofReal_le_ofReal ?_)
+  rw [show -(m * γ ^ 2) / 2 = -(γ ^ 2 / 2 * m) by ring]
+  exact Real.mul_exp_neg_le_of_log le_rfl two_pos (by positivity) hδ
+    (hm.trans_eq' (by ring))
 
 /-- **The samples are accurate with high probability**: `m` samples fail to be accurate at
 precision `θ² / 4` with probability at most `2 (n + 2) 2 ^ n exp (-m θ⁴ / 32)` for `n`
@@ -413,16 +533,8 @@ theorem uniform_not_accurate_le (f : (ι → Bool) → Bool) (θ : ℝ) (m : ℕ
   -- one bucket estimate
   have hbucket (J S : Finset ι) :
       μ {ω | θ ^ 2 / 4 ≤ |bucketEstimate f ω J S - bucketWeight F J S|} ≤ ENNReal.ofReal c := by
-    have h := PMF.uniform_abs_sum_div_sub_expect_ge_le (m := m)
-      (fun ((x, y, z) : (ι → Bool) × (ι → Bool) × (ι → Bool)) =>
-        F (J.piecewise x z) * chi ℝ S x * (F (J.piecewise y z) * chi ℝ S y))
-      (fun (x, y, z) => abs_signVal_mul_chi_mul_le_one _ _ S _ _) hγ
-    rw [show (𝔼 p : (ι → Bool) × (ι → Bool) × (ι → Bool),
-        let (x, y, z) := p
-        F (J.piecewise x z) * chi ℝ S x * (F (J.piecewise y z) * chi ℝ S y)) =
-        bucketWeight F J S by
-      rw [bucketWeight_eq_expect_sample], hexp] at h
-    exact h
+    have h := uniform_abs_bucketEstimate_sub_ge_le (m := m) f J S hγ
+    rwa [hexp] at h
   -- one sample coefficient
   have hcoeff (S : Finset ι) :
       μ {ω | θ ^ 2 / 4 ≤ |sampleCoeff f ω S - fourierCoeff F S|} ≤ ENNReal.ofReal c := by
@@ -488,67 +600,78 @@ theorem uniform_not_accurate_le (f : (ι → Bool) → Bool) (θ : ℝ) (m : ℕ
           _ ≤ (n + 1 + 1) * (2 ^ n * c) := by gcongr
           _ = 2 * (n + 2) * 2 ^ n * Real.exp (-(m * θ ^ 4) / 32) := by rw [hcdef]; ring
 
-/-- **The Kushilevitz–Mansour theorem** [KushilevitzMansour1993]
+/-- **Enough samples are accurate**: for `n` coordinates, `θ > 0` and `δ > 0`, from
+`m ≥ (32 / θ⁴) log (2 (n + 2) 2 ^ n / δ)` samples, the samples fail to be accurate at precision
+`θ² / 4` with probability at most `δ`. -/
+theorem uniform_not_accurate_le_of_log (f : (ι → Bool) → Bool) {θ δ : ℝ} (hθ : 0 < θ)
+    (hδ : 0 < δ) {m : ℕ}
+    (hm : 32 / θ ^ 4 * Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m) :
+    (PMF.uniformOfFintype (Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool))).toOuterMeasure
+      {ω | ¬ KMAccurate f (θ ^ 2 / 4) ω} ≤ ENNReal.ofReal δ := by
+  refine (uniform_not_accurate_le f θ m).trans (ENNReal.ofReal_le_ofReal ?_)
+  rw [show -(m * θ ^ 4) / 32 = -(θ ^ 4 / 32 * m) by ring]
+  exact Real.mul_exp_neg_le_of_log le_rfl (by positivity) (by positivity) hδ
+    (hm.trans_eq' (by ring))
+
+/-- The confidence step of the learning theorems: if, for every `f ∈ C`, the threshold `θ` is
+positive, `m ≥ (32 / θ⁴) log (2 (n + 2) 2 ^ n / δ)` and the hypothesis has error at most `ε` on
+samples accurate at precision `θ² / 4`, then the algorithm learns `C` with error `ε` and
+confidence `1 - δ`. The conditions are asked of the members of `C`, so that a caller may use
+membership to bound its threshold. -/
+private theorem kmLearner_learns_of_forall_accurate {C : ConceptClass (ι → Bool) Bool}
+    {θ ε δ : ℝ} (hδ : 0 < δ) {m : ℕ}
+    (h : ∀ f ∈ C, 0 < θ ∧
+      32 / θ ^ 4 * Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m ∧
+      ∀ ω : Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool),
+        KMAccurate f (θ ^ 2 / 4) ω → uniformError f (kmHypothesis f θ ω) ≤ ε) :
+    (kmLearner ι m θ).Learns (PMF.uniformOfFintype _) C ε δ := by
+  rw [QueryLearner.learns_iff]
+  intro f hf
+  obtain ⟨hθ, hm, herr⟩ := h f hf
+  simp only [eval_kmLearner]
+  -- an error above `ε` makes the samples inaccurate
+  refine ((PMF.uniformOfFintype _).toOuterMeasure.mono ?_).trans
+    (uniform_not_accurate_le_of_log f hθ hδ hm)
+  intro ω hω hgood
+  exact (not_le.2 hω) (herr ω hgood)
+
+/-- **The query and sample step toward the Kushilevitz–Mansour theorem** [KushilevitzMansour1993],
 [O'Donnell, Theorem 3.38][ODonnell2014]: for `n` coordinates, the Kushilevitz–Mansour algorithm
 with threshold `ε / (2 L)` from `m ≥ (512 L⁴ / ε⁴) log (2 (n + 2) 2 ^ n / δ)` samples, hence
 `m (2 n + 3)` membership queries (`kmLearner_queriesAtMost`), learns the Boolean functions whose
-spectral norm, read as signs, is at most `L`, with error `ε` and confidence `1 - δ`. -/
+spectral norm, read as signs, is at most `L`, with error `ε` and confidence `1 - δ`. Only samples
+and queries are certified: the book's running time `poly(n, L, 1 / ε)` is not, and the bucket
+search has no cap on the number of buckets, so it remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
 theorem kmLearner_learns {L ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ) {m : ℕ}
     (hm : 512 * L ^ 4 / ε ^ 4 *
       Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m) :
     (kmLearner ι m (ε / (2 * L))).Learns (PMF.uniformOfFintype _) (spectralNormClass ι L) ε δ := by
-  rw [QueryLearner.learns_iff]
-  intro f hf
-  simp only [eval_kmLearner]
-  set n := Fintype.card ι
+  refine kmLearner_learns_of_forall_accurate hδ fun f hf => ?_
   have hL1 : 1 ≤ L := (one_le_sum_abs_fourierCoeff_signVal f).trans hf
   have hL : 0 < L := one_pos.trans_le hL1
-  rcases le_or_gt 1 ε with hε1 | hε1
-  · -- an error above `ε ≥ 1` is impossible
-    have hempty : {ω : Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool) |
-        ε < uniformError f (kmHypothesis f (ε / (2 * L)) ω)} = ∅ :=
-      Set.eq_empty_of_forall_notMem fun ω hω =>
-        absurd ((uniformError_le_one _ _).trans hε1) (not_le.2 hω)
-    rw [hempty, MeasureTheory.measure_empty]
-    exact zero_le
   set θ := ε / (2 * L)
   have hθ : 0 < θ := by positivity
+  refine ⟨hθ, hm.trans_eq' (by simp only [θ]; field_simp; ring), fun ω hgood => ?_⟩
   -- on accurate samples the error is at most `ε`
-  have hsub : {ω : Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool) |
-      ε < uniformError f (kmHypothesis f θ ω)} ⊆ {ω | ¬ KMAccurate f (θ ^ 2 / 4) ω} := by
-    intro ω hω hgood
-    have hω' : ε < uniformError f (kmHypothesis f θ ω) := hω
-    have h := uniformError_kmHypothesis_le f hθ hf ω hgood
-    have hθL : θ * L = ε / 2 := by simp only [θ]; field_simp
-    have hθ2 : θ ^ 2 / 4 ≤ ε / 16 := by
-      have : θ ^ 2 = ε ^ 2 / (4 * L ^ 2) := by simp only [θ]; ring
-      rw [this, div_div, div_le_div_iff₀ (by positivity) (by norm_num)]
-      nlinarith [sq_nonneg L, mul_le_mul_of_nonneg_left hL1 hL.le]
-    linarith
-  refine ((PMF.uniformOfFintype _).toOuterMeasure.mono hsub).trans
-    ((uniform_not_accurate_le f θ m).trans (ENNReal.ofReal_le_ofReal ?_))
-  -- the sample size makes the failure probability at most `δ`
-  set K : ℝ := 2 * (n + 2) * 2 ^ n
-  have hK : 0 < K := by positivity
-  have hθ4 : θ ^ 4 / 32 = ε ^ 4 / (512 * L ^ 4) := by simp only [θ]; ring
-  have hlog : Real.log (K / δ) ≤ m * ε ^ 4 / (512 * L ^ 4) := by
-    rw [le_div_iff₀ (by positivity)]
-    have := (div_mul_eq_mul_div (512 * L ^ 4) (ε ^ 4) (Real.log (K / δ))).symm.trans_le hm
-    rw [div_le_iff₀ (by positivity)] at this
-    linarith
-  have hexp : Real.exp (-(m * θ ^ 4) / 32) ≤ δ / K := by
-    calc Real.exp (-(m * θ ^ 4) / 32) = Real.exp (-(m * (θ ^ 4 / 32))) := by ring_nf
-      _ = Real.exp (-(m * ε ^ 4 / (512 * L ^ 4))) := by rw [hθ4, mul_div_assoc]
-      _ ≤ Real.exp (-Real.log (K / δ)) := Real.exp_le_exp.2 (neg_le_neg hlog)
-      _ = δ / K := by rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
-  calc K * Real.exp (-(m * θ ^ 4) / 32) ≤ K * (δ / K) := by gcongr
-    _ = δ := by field_simp
+  rcases le_or_gt 1 ε with hε1 | hε1
+  · exact (uniformError_le_one _ _).trans hε1
+  have h := uniformError_kmHypothesis_le f hθ hf ω hgood
+  have hθL : θ * L = ε / 2 := by simp only [θ]; field_simp
+  have hθ2 : θ ^ 2 / 4 ≤ ε / 16 := by
+    have : θ ^ 2 = ε ^ 2 / (4 * L ^ 2) := by simp only [θ]; ring
+    rw [this, div_div, div_le_div_iff₀ (by positivity) (by norm_num)]
+    nlinarith [sq_nonneg L, mul_le_mul_of_nonneg_left hL1 hL.le]
+  linarith
 
-/-- **Learning decision trees with membership queries** [KushilevitzMansour1993]
-[O'Donnell, Theorem 3.38][ODonnell2014]: for `n` coordinates, the Kushilevitz–Mansour algorithm
-with threshold `ε / (2 L)` from `m ≥ (512 L⁴ / ε⁴) log (2 (n + 2) 2 ^ n / δ)` samples, hence
-`m (2 n + 3)` membership queries, learns the functions computed by decision trees with at most
-`L` leaves, with error `ε` and confidence `1 - δ`. -/
+/-- **The query and sample step toward learning decision trees with membership queries**
+[KushilevitzMansour1993], the decision-tree case of [O'Donnell, Theorem 3.38][ODonnell2014]: for
+`n` coordinates, the Kushilevitz–Mansour algorithm with threshold `ε / (2 L)` from
+`m ≥ (512 L⁴ / ε⁴) log (2 (n + 2) 2 ^ n / δ)` samples, hence `m (2 n + 3)` membership queries,
+learns the functions computed by decision trees with at most `L` leaves, with error `ε` and
+confidence `1 - δ`. Only samples and queries are certified; the book's running time
+`poly(n, L, 1 / ε)` remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
 theorem kmLearner_learns_decisionTree {L : ℕ} {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ) {m : ℕ}
     (hm : 512 * (L : ℝ) ^ 4 / ε ^ 4 *
       Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m) :
@@ -559,9 +682,11 @@ theorem kmLearner_learns_decisionTree {L : ℕ} {ε δ : ℝ} (hε : 0 < ε) (h�
   exact (DecisionTree.sum_abs_fourierCoeff_signVal_le_leafCount id t).trans
     (by exact_mod_cast hL)
 
-/-- **The Kushilevitz–Mansour theorem with its query count**: under the hypotheses of
-`kmLearner_learns`, the algorithm learns the functions of spectral norm at most `L` with
-`m (2 n + 3)` membership queries for `n` coordinates. -/
+/-- **The query and sample step toward the Kushilevitz–Mansour theorem, with the query count**:
+under the hypotheses of `kmLearner_learns`, the algorithm learns the functions of spectral norm at
+most `L` with `m (2 n + 3)` membership queries for `n` coordinates, the samples and queries of
+[O'Donnell, Theorem 3.38][ODonnell2014]. Its running time remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
 theorem kmLearner_learns_and_queriesAtMost {L ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ) {m : ℕ}
     (hm : 512 * L ^ 4 / ε ^ 4 *
       Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m) :
@@ -569,10 +694,12 @@ theorem kmLearner_learns_and_queriesAtMost {L ε δ : ℝ} (hε : 0 < ε) (hδ :
       (kmLearner ι m (ε / (2 * L))).QueriesAtMost (m * (2 * Fintype.card ι + 3)) :=
   ⟨kmLearner_learns hε hδ hm, kmLearner_queriesAtMost _⟩
 
-/-- **Learning decision trees with membership queries, with the query count**: under the
-hypotheses of `kmLearner_learns_decisionTree`, the algorithm learns the functions computed by
-decision trees with at most `L` leaves with `m (2 n + 3)` membership queries for `n`
-coordinates. -/
+/-- **The query and sample step toward learning decision trees with membership queries, with the
+query count**: under the hypotheses of `kmLearner_learns_decisionTree`, the algorithm learns the
+functions computed by decision trees with at most `L` leaves with `m (2 n + 3)` membership queries
+for `n` coordinates, the samples and queries of the decision-tree case of
+[O'Donnell, Theorem 3.38][ODonnell2014]. Its running time remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
 theorem kmLearner_learns_decisionTree_and_queriesAtMost {L : ℕ} {ε δ : ℝ} (hε : 0 < ε)
     (hδ : 0 < δ) {m : ℕ}
     (hm : 512 * (L : ℝ) ^ 4 / ε ^ 4 *
@@ -580,5 +707,66 @@ theorem kmLearner_learns_decisionTree_and_queriesAtMost {L : ℕ} {ε δ : ℝ} 
     (kmLearner ι m (ε / (2 * L))).Learns (PMF.uniformOfFintype _) (decisionTreeClass ι L) ε δ ∧
       (kmLearner ι m (ε / (2 * L))).QueriesAtMost (m * (2 * Fintype.card ι + 3)) :=
   ⟨kmLearner_learns_decisionTree hε hδ hm, kmLearner_queriesAtMost _⟩
+
+/-! ### Concentrated classes -/
+
+variable (ι) in
+/-- The Boolean functions whose Fourier spectrum, read as signs, is `η`-concentrated on some
+collection of at most `M` sets: the weight off the collection is at most `η`
+[O'Donnell, Definition 3.28][ODonnell2014]. -/
+def concentratedClass (M : ℕ) (η : ℝ) : ConceptClass (ι → Bool) Bool :=
+  {f | ∃ T : Finset (Finset ι), #T ≤ M ∧
+    ∑ S ∈ Tᶜ, fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤ η}
+
+/-- **Learning concentrated classes with membership queries** [KushilevitzMansour1993], the query
+and sample step toward [O'Donnell, Theorem 3.37][ODonnell2014]: for `n` coordinates and `M ≥ 1`,
+the Kushilevitz–Mansour algorithm with threshold `√(ε / (4 M))` from
+`m ≥ (512 M² / ε²) log (2 (n + 2) 2 ^ n / δ)` samples, hence `m (2 n + 3)` membership queries
+(`kmLearner_queriesAtMost`), learns, with error `ε` and confidence `1 - δ`, the Boolean functions
+whose Fourier spectrum, read as signs, is `ε / 4`-concentrated on at most `M` sets. Only samples
+and queries are certified: the book's running time `poly(M, n, 1 / ε)` is not, and the bucket
+search has no cap on the number of buckets, so it remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
+theorem kmLearner_learns_concentrated {M : ℕ} (hM : 0 < M) {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
+    {m : ℕ} (hm : 512 * (M : ℝ) ^ 2 / ε ^ 2 *
+      Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m) :
+    (kmLearner ι m (Real.sqrt (ε / (4 * M)))).Learns (PMF.uniformOfFintype _)
+      (concentratedClass ι M (ε / 4)) ε δ := by
+  have hM' : (0 : ℝ) < M := Nat.cast_pos.2 hM
+  have hM1 : (1 : ℝ) ≤ M := Nat.one_le_cast.2 hM
+  set θ := Real.sqrt (ε / (4 * M))
+  have hθ : 0 < θ := Real.sqrt_pos.2 (by positivity)
+  have hθ2 : θ ^ 2 = ε / (4 * M) := Real.sq_sqrt (by positivity)
+  have hm' : 32 / θ ^ 4 * Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m := by
+    refine hm.trans_eq' ?_
+    rw [show θ ^ 4 = (θ ^ 2) ^ 2 by ring, hθ2]
+    field_simp
+    ring
+  refine kmLearner_learns_of_forall_accurate hδ fun f hf => ⟨hθ, hm', fun ω hgood => ?_⟩
+  -- on accurate samples the error is at most `ε`
+  have h := uniformError_kmHypothesis_le_add f hθ ω hgood
+  obtain ⟨T, hT, hη⟩ := hf
+  have hlight : ∑ S with fourierCoeff (fun x => signVal (f x)) S ^ 2 < θ ^ 2,
+      fourierCoeff (fun x => signVal (f x)) S ^ 2 ≤
+        ∑ S ∈ Tᶜ, fourierCoeff (fun x => signVal (f x)) S ^ 2 + #T * θ ^ 2 :=
+    sum_fourierCoeff_sq_le_sum_compl_add
+      (fun S hS => (abs_lt_of_sq_lt_sq (mem_filter.1 hS).2 hθ.le).le) T
+  have hTθ : (#T : ℝ) * θ ^ 2 ≤ M * θ ^ 2 := by gcongr
+  have hMθ : (M : ℝ) * θ ^ 2 = ε / 4 := by rw [hθ2]; field_simp
+  linarith [mul_le_mul_of_nonneg_right hM1 (sq_nonneg θ)]
+
+/-- **Learning concentrated classes, with the query count**: under the hypotheses of
+`kmLearner_learns_concentrated`, the algorithm learns the functions `ε / 4`-concentrated on at
+most `M` sets with `m (2 n + 3)` membership queries for `n` coordinates: the query and sample step
+toward [O'Donnell, Theorem 3.37][ODonnell2014]. Only samples and queries are certified; the book's
+running time `poly(M, n, 1 / ε)` remains open on
+[#2131](https://github.com/cslib-community/cslib-frontier/issues/2131). -/
+theorem kmLearner_learns_concentrated_and_queriesAtMost {M : ℕ} (hM : 0 < M) {ε δ : ℝ}
+    (hε : 0 < ε) (hδ : 0 < δ) {m : ℕ} (hm : 512 * (M : ℝ) ^ 2 / ε ^ 2 *
+      Real.log (2 * (Fintype.card ι + 2) * 2 ^ Fintype.card ι / δ) ≤ m) :
+    (kmLearner ι m (Real.sqrt (ε / (4 * M)))).Learns (PMF.uniformOfFintype _)
+      (concentratedClass ι M (ε / 4)) ε δ ∧
+      (kmLearner ι m (Real.sqrt (ε / (4 * M)))).QueriesAtMost (m * (2 * Fintype.card ι + 3)) :=
+  ⟨kmLearner_learns_concentrated hM hε hδ hm, kmLearner_queriesAtMost _⟩
 
 end Cslib.MachineLearning.UniformLearning

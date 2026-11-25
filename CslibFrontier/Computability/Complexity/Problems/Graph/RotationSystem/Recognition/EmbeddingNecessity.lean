@@ -61,14 +61,6 @@ private theorem endsApart_symm {E : Type*} {c d : E → ℂ} {e f : E}
     (h : EndsApart c d e f) : EndsApart c d f e :=
   ⟨h.1.symm, h.2.2.1.symm, h.2.1.symm, h.2.2.2.symm⟩
 
-private theorem node_mem_support (p : Route) (k : Fin (p.segments + 1)) :
-    p.point k ∈ p.support := by
-  refine Fin.lastCases ?_ (fun j => ?_) k
-  · have h := p.at_mem_support (Fin.last p.bends) (by norm_num : (1 : ℝ) ∈ Set.Icc 0 1)
-    simpa only [Route.eval, AffineMap.lineMap_apply_one, Fin.succ_last] using h
-  · have h := p.at_mem_support j (by norm_num : (0 : ℝ) ∈ Set.Icc 0 1)
-    simpa only [Route.eval, AffineMap.lineMap_apply_zero] using h
-
 private noncomputable def nodeSet (p : Route) : Finset ℂ :=
   Finset.univ.image p.point
 
@@ -204,9 +196,9 @@ private theorem auxiliary_reciprocal {c d w : ℂ} {points : Finset ℂ}
   · intro k
     apply auxiliary_avoids_point (hpoints k) _ _ hw
     · intro heq
-      exact hc (heq ▸ node_mem_support q k)
+      exact hc (heq ▸ Route.point_mem_support q k)
     · intro heq
-      exact hd (heq ▸ node_mem_support q k)
+      exact hd (heq ▸ Route.point_mem_support q k)
 
 /-- Private finite construction state; no comparison family is supplied to the public
 necessity result. Vertex avoidance includes isolates and every future edge endpoint. -/
@@ -544,7 +536,7 @@ private theorem nodesAvoid_of_open_contacts {p q : Route} (hp : p.IsSimple)
   intro k
   refine Fin.lastCases ?_ (fun j => ?_) k
   · intro hq
-    obtain ⟨i, t, ht, heq⟩ := hcontacts _ (node_mem_support p _) hq
+    obtain ⟨i, t, ht, heq⟩ := hcontacts _ (Route.point_mem_support p _) hq
     have heval : p.eval (Fin.last p.bends) 1 = p.point (Fin.last p.segments) := by
       simp only [Route.eval, AffineMap.lineMap_apply_one, Fin.succ_last]
     have hpos := hp.position_eq_of_eval_eq hopen (Fin.last p.bends) i
@@ -552,7 +544,7 @@ private theorem nodesAvoid_of_open_contacts {p q : Route} (hp : p.IsSimple)
     apply hno p.segments i t ht
     simpa [Route.position, Route.segments, Nat.cast_add] using hpos
   · intro hq
-    obtain ⟨i, t, ht, heq⟩ := hcontacts _ (node_mem_support p _) hq
+    obtain ⟨i, t, ht, heq⟩ := hcontacts _ (Route.point_mem_support p _) hq
     have heval : p.eval j 0 = p.point j.castSucc := by
       simp only [Route.eval, AffineMap.lineMap_apply_zero]
     have hpos := hp.position_eq_of_eval_eq hopen j i (by norm_num)
@@ -596,7 +588,7 @@ private theorem embedding_nodesAvoid {G : Graph} {D : PolygonalDrawing G}
   have hef : e ≠ f := by intro h; subst f; exact hind.1 rfl
   intro k hz
   let z := (D.route e).point k
-  obtain ⟨i, s, his, hez⟩ := ((D.route e).mem_support_iff z).mp (node_mem_support _ _)
+  obtain ⟨i, s, his, hez⟩ := ((D.route e).mem_support_iff z).mp (Route.point_mem_support _ _)
   obtain ⟨j, t, hjt, hfz⟩ := ((D.route f).mem_support_iff z).mp hz
   obtain ⟨a, b, _, _, hab⟩ := hD.edge_contacts e f hef i j s t his hjt
     (hez.trans hfz.symm)
