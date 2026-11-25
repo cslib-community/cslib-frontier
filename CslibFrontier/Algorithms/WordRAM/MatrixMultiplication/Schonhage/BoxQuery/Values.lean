@@ -59,8 +59,7 @@ private theorem slotValue_cubeSlot {L m t : ℕ} (a b : Leaf L → ℤ) (π : Cu
     (hπ : IsBox m t π) :
     BoxTable.slotValue a b (BoxTable.cubeSlot π) = boxValue a b π.starLevels.card π := by
   rw [BoxTable.slotValue, BoxTable.slotCube_cubeSlot hπ]
-  congr 1
-  exact BoxTable.recordStars_slot _ _
+  exact congrArg (boxValue a b · π) (BoxTable.recordStars_slot _ _)
 
 /-- Each exact-threshold contributing leaf selects one output box, with no repetitions. -/
 theorem sum_threshold_values {L m t : ℕ} (ht : t ≤ m) (η : OutStr L)
@@ -70,19 +69,13 @@ theorem sum_threshold_values {L m t : ℕ} (ht : t ≤ m) (η : OutStr L)
         BoxTable.slotValue a b (BoxTable.cubeSlot (starBelow η τ))) =
       ∑ π ∈ (boxLevelSets m t η).biUnion (boxesAt η),
         boxValue a b π.starLevels.card π := by
-  refine sum_bij (fun τ _ => starBelow η τ) ?_ ?_ ?_ ?_
-  · intro τ hτ
-    obtain ⟨hc, ho⟩ := (mem_filter.mp hτ).2
-    exact starBelow_mem hc ho
-  · intro τ _ τ' _ h
-    have hh := congrArg Cube.starsToP0 h
-    simpa only [starsToP0_starBelow] using hh
-  · intro π hπ
-    obtain ⟨τ, ⟨⟨hc, ho⟩, hτ⟩, _⟩ := existsUnique_starBelow_eq ht hη hπ
-    exact ⟨τ, mem_filter.mpr ⟨mem_univ _, hc, ho⟩, hτ⟩
-  · intro τ hτ
-    obtain ⟨hc, ho⟩ := (mem_filter.mp hτ).2
-    exact slotValue_cubeSlot a b _ (starBelow_isBox hc ho)
+  refine sum_bij (fun τ _ => starBelow η τ)
+    (fun _ hτ => starBelow_mem (mem_filter.mp hτ).2.1 (mem_filter.mp hτ).2.2)
+    (fun _ _ _ _ h => by simpa only [starsToP0_starBelow] using congrArg Cube.starsToP0 h)
+    (fun π hπ => let ⟨τ, ⟨⟨hc, ho⟩, hτ⟩, _⟩ := existsUnique_starBelow_eq ht hη hπ
+      ⟨τ, mem_filter.mpr ⟨mem_univ _, hc, ho⟩, hτ⟩)
+    fun _ hτ => slotValue_cubeSlot a b _
+      (starBelow_isBox (mem_filter.mp hτ).2.1 (mem_filter.mp hτ).2.2)
 
 /-- The sparse traversal's exact sum is the existing low-products-plus-box-values formula. -/
 theorem queryValue_eq_low_add_boxes {L m t : ℕ} (ht : t ≤ m) (η : OutStr L)
@@ -95,40 +88,23 @@ theorem queryValue_eq_low_add_boxes {L m t : ℕ} (ht : t ≤ m) (η : OutStr L)
     ext τ
     simp only [mem_queryLeaves, lowLeaves, thresholdLeaves, mem_filter, mem_univ,
       true_and, mem_union]
-    constructor
-    · rintro ⟨hc, ho⟩
-      by_cases hlt : order m τ < (t : ℤ)
-      · exact Or.inl ⟨hc, hlt⟩
-      · exact Or.inr ⟨hc, by omega⟩
-    · rintro (⟨hc, ho⟩ | ⟨hc, ho⟩) <;> exact ⟨hc, by omega⟩
-  have hdisj : Disjoint (lowLeaves m t η) (thresholdLeaves m t η) := by
-    rw [disjoint_left]
-    intro τ hl hh
-    have hl' := (mem_filter.mp hl).2.2
-    have hh' := (mem_filter.mp hh).2.2
-    omega
-  rw [queryValue, hsplit, sum_union hdisj]
-  congr 1
-  · apply sum_congr rfl
-    intro τ hτ
-    exact ite_eq_left (mem_filter.mp hτ).2.2
-  · rw [← sum_threshold_values ht η hη a b]
-    apply sum_congr rfl
-    intro τ hτ
-    have heq := (mem_filter.mp hτ).2.2
-    exact ite_eq_right (by omega)
+    exact ⟨fun ⟨hc, ho⟩ => (lt_or_eq_of_le ho).imp (⟨hc, ·⟩) (⟨hc, ·⟩),
+      by rintro (⟨hc, ho⟩ | ⟨hc, ho⟩) <;> exact ⟨hc, by omega⟩⟩
+  have hdisj : Disjoint (lowLeaves m t η) (thresholdLeaves m t η) :=
+    disjoint_left.mpr fun _ hl hh =>
+      ((mem_filter.mp hl).2.2.ne (mem_filter.mp hh).2.2).elim
+  rw [queryValue, hsplit, sum_union hdisj, ← sum_threshold_values ht η hη a b]
+  exact congrArg₂ (· + ·) (sum_congr rfl fun _ hτ => ite_eq_left (mem_filter.mp hτ).2.2)
+    (sum_congr rfl fun _ hτ => ite_eq_right (not_lt.mpr (mem_filter.mp hτ).2.2.ge))
 
 /-- With the existing tensor encodings, the actual query expression is the bilinear product. -/
 theorem queryValue_encoding {L m t : ℕ} (ht : t ≤ m) (η : OutStr L)
     (hη : (innerSetO η).card = m) (a : LeftStr L → ℤ) (b : RightStr L → ℤ) :
     queryValue m t η (encodingL a) (encodingR b) = bilinearProduct a b η := by
-  rw [queryValue_eq_low_add_boxes ht η hη]
-  rw [bilinearProduct_eq_boxQuery m t ht a b η hη]
-  unfold boxQuery
+  rw [queryValue_eq_low_add_boxes ht η hη, bilinearProduct_eq_boxQuery m t ht a b η hη, boxQuery]
   congr 1
   rw [← sum_biUnion (boxesAt_pairwiseDisjoint η _)]
-  apply sum_congr rfl
-  intro π hπ
+  refine sum_congr rfl fun π hπ => ?_
   obtain ⟨V, hV, hπV⟩ := mem_biUnion.mp hπ
   exact boxValue_eq_val L m t π.starLevels.card a b π
     (mem_boxesWithStars.mpr ⟨boxesAt_isBox hV hπV, rfl⟩)
@@ -141,18 +117,12 @@ theorem card_queryLeaves {L m : ℕ} (t : ℕ) (η : OutStr L)
       univ.filter fun τ : Leaf L => Leaf.Contributes τ η ∧ order m τ = (d : ℤ) := by
     ext τ
     simp only [mem_queryLeaves, mem_biUnion, mem_range, mem_filter, mem_univ, true_and]
-    constructor
-    · rintro ⟨hc, ho⟩
-      have hnonneg := order_nonneg hη hc
-      exact ⟨(order m τ).toNat, by omega, hc, (Int.toNat_of_nonneg hnonneg).symm⟩
-    · rintro ⟨d, hd, hc, ho⟩
-      exact ⟨hc, by omega⟩
-  rw [hsort, card_biUnion]
-  · exact sum_congr rfl fun d _ => card_contributing_of_order η hη d
-  · intro d _ d' _ hne
-    rw [Function.onFun, disjoint_left]
-    intro τ hd hd'
-    exact hne (by exact_mod_cast (mem_filter.mp hd).2.2.symm.trans (mem_filter.mp hd').2.2)
+    refine ⟨fun ⟨hc, ho⟩ => ⟨(order m τ).toNat, ?_, hc,
+      (Int.toNat_of_nonneg (order_nonneg hη hc)).symm⟩, fun ⟨_, _, hc, _⟩ => ⟨hc, by omega⟩⟩
+    have := order_nonneg hη hc; omega
+  rw [hsort, card_biUnion fun d _ d' _ hne => disjoint_left.mpr fun _ hd hd' =>
+    hne (by exact_mod_cast (mem_filter.mp hd).2.2.symm.trans (mem_filter.mp hd').2.2)]
+  exact sum_congr rfl fun d _ => card_contributing_of_order η hη d
 
 /-- The sparse set never exceeds the complete contributing leaf set. -/
 theorem card_queryLeaves_le {L m : ℕ} (t : ℕ) (η : OutStr L)
