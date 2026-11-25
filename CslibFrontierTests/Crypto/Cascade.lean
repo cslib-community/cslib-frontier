@@ -7,9 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Independent
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Split
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTables
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -128,6 +126,11 @@ private theorem adaptiveSides_prefixFree :
   intro _ _ _ _ _ x _ hx y _ hy hne hprefix
   exact h x (by simpa [realValid] using hx) rfl y (by simpa [realValid] using hy) rfl hne hprefix
 
+private theorem length_toggle (key block : List Bool) :
+    (toggle key block).length = key.length := by
+  unfold toggle
+  split <;> simp
+
 example :
     let Labels := {word : List Bool // word.length ≤ 1} → BitString 2
     ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 1) =
@@ -138,7 +141,22 @@ example :
           (adaptiveSides 2 []) :=
   eval_prefixHybridGame_eq_independentLabels realValid (cascadeFamily (fun _ => 1) toggle)
     adaptiveSides 2 1
-    (fun seed suffix hseed => (length_cascadeFamily (fun key block _ => by
-      unfold toggle
-      split <;> simp) seed suffix).trans hseed)
+    (fun seed suffix hseed =>
+      (length_cascadeFamily (fun key block _ => length_toggle key block) seed suffix).trans hseed)
     adaptiveSides_prefixFree
+
+example :
+    ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 1) =
+      cascadeChildTableGame realValid (fun _ => 1) toggle adaptiveSides 2 1
+        ((PMF.uniformOfFintype (BitString 1 → BitString 2)).map fun keys parent block =>
+          BitString.ofList 2 (toggle (List.ofFn (keys parent)) (List.ofFn block))) :=
+  eval_cascadePrefixHybridGame_eq_childTables_real realValid (fun _ => 1) toggle adaptiveSides 2 1
+    (by decide) (fun _ _ => Nat.one_dvd _) (fun key block _ => length_toggle key block)
+    adaptiveSides_prefixFree
+
+example :
+    ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 2) =
+      cascadeChildTableGame realValid (fun _ => 1) toggle adaptiveSides 2 1
+        (PMF.uniformOfFintype (BitString 1 → BitString 1 → BitString 2)) :=
+  eval_cascadePrefixHybridGame_succ_eq_childTables_ideal realValid (fun _ => 1) toggle adaptiveSides
+    2 1 (by decide) (fun _ _ => Nat.one_dvd _)
