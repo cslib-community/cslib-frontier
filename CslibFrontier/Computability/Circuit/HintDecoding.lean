@@ -80,6 +80,32 @@ variable {F : Type*} [Field F] [Fintype F] [DecidableEq F] {N : ℕ} {s : Set ((
 
 /-! ### Newton iteration -/
 
+omit [Fintype F] [DecidableEq F] in
+/-- A sum of terms that each cost one gate costs `2 * #S + 1` gates. -/
+private theorem full_sum_of_unit {ι : Type*} (S : Finset ι) (g : ι → (Fin N → F) → F)
+    (hg : ∀ i ∈ S, Synthesis (fullInterpretation (k := 2)) s {g i} 1) :
+    Synthesis (fullInterpretation (k := 2)) s {fun x => ∑ i ∈ S, g i x} (2 * #S + 1) := by
+  refine ((biUnion (I := fullInterpretation (k := 2)) (s := s) S (fun i => {g i}) (fun _ => 1)
+    hg).trans (full_sum (s := s ∪ ⋃ i ∈ S, {g i}) S g fun i hi =>
+      Set.mem_union_right _ (Set.mem_biUnion hi rfl))).mono Set.Subset.rfl Set.Subset.rfl ?_
+  simp only [sum_const, smul_eq_mul, mul_one]
+  omega
+
+omit [Fintype F] [DecidableEq F] in
+/-- A dot product of available functions with terms that each cost one gate costs
+`3 * #S + 1` gates. -/
+private theorem full_dot_of_unit {ι : Type*} (S : Finset ι) (c g : ι → (Fin N → F) → F)
+    (hc : ∀ i ∈ S, c i ∈ s) (hg : ∀ i ∈ S, Synthesis (fullInterpretation (k := 2)) s {g i} 1) :
+    Synthesis (fullInterpretation (k := 2)) s {fun x => ∑ i ∈ S, c i x * g i x}
+      (3 * #S + 1) := by
+  refine ((biUnion (I := fullInterpretation (k := 2)) (s := s) S (fun i => {g i}) (fun _ => 1)
+    hg).trans (full_dot (s := s ∪ ⋃ i ∈ S, {g i}) S c g
+      (fun i hi => Set.mem_union_left _ (hc i hi))
+      fun i hi => Set.mem_union_right _ (Set.mem_biUnion hi rfl))).mono Set.Subset.rfl
+    Set.Subset.rfl ?_
+  simp only [sum_const, smul_eq_mul, mul_one]
+  omega
+
 omit [DecidableEq F] in
 /-- Evaluating `Q(t + τ, ∑_{i ≤ k} h_i t^i)` at all points `t : F` costs at most
 `|F| * (2 * k + 3) + |F| * (3 * #M + 1)` gates when `c`, `τ`, and `h_0, …, h_k` are in `s`. -/
@@ -94,36 +120,20 @@ private theorem full_henselEval (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → (F
   let A : F → (Fin N → F) → F := fun t x => ∑ i ∈ range (k + 1), h i x * t ^ i
   have h₁ : Synthesis (fullInterpretation (k := 2)) s (Set.range A)
       (Fintype.card F * (2 * k + 3)) := by
-    have := family (I := fullInterpretation (k := 2)) (s := s) A (fun _ => 2 * k + 3) fun t => by
-      have hmul := biUnion (I := fullInterpretation (k := 2)) (s := s) (range (k + 1))
-        (fun i => {fun x => h i x * t ^ i}) (fun _ => 1) fun i hi =>
-          full_unary (fun v => v * t ^ i) (hh i (Nat.lt_succ_iff.1 (mem_range.1 hi)))
-      have hsum := full_sum (s := s ∪ ⋃ i ∈ range (k + 1), {fun x => h i x * t ^ i})
-        (range (k + 1)) (fun i x => h i x * t ^ i) fun i hi =>
-          Set.mem_union_right _ (Set.mem_biUnion hi rfl)
-      refine (hmul.trans hsum).mono Set.Subset.rfl Set.Subset.rfl ?_
-      simp only [sum_const, card_range, smul_eq_mul, mul_one]
-      omega
-    simpa [card_univ] using this
+    simpa [card_univ] using family (I := fullInterpretation (k := 2)) (s := s) A
+      (fun _ => 2 * k + 3) fun t => (full_sum_of_unit (range (k + 1))
+        (fun i x => h i x * t ^ i) fun i hi => full_unary (fun v => v * t ^ i)
+          (hh i (Nat.lt_succ_iff.1 (mem_range.1 hi)))).mono Set.Subset.rfl Set.Subset.rfl
+        (by have := card_range (k + 1); omega)
   -- the values `Q(t + τ, A(t))`
   let V : F → (Fin N → F) → F := fun t x => ∑ m ∈ M, c m x * ((t + τ x) ^ m.1 * A t x ^ m.2)
   have h₂ : Synthesis (fullInterpretation (k := 2)) (s ∪ Set.range A) (Set.range V)
       (Fintype.card F * (3 * #M + 1)) := by
-    have := family (I := fullInterpretation (k := 2)) (s := s ∪ Set.range A) V
-      (fun _ => 3 * #M + 1) fun t => by
-        have hg := biUnion (I := fullInterpretation (k := 2)) (s := s ∪ Set.range A) M
-          (fun m => {fun x => (t + τ x) ^ m.1 * A t x ^ m.2}) (fun _ => 1) fun m _ =>
-            full_binary_mem (fun u v => (t + u) ^ m.1 * v ^ m.2)
-              (Set.mem_union_left _ hτ) (Set.mem_union_right _ ⟨t, rfl⟩)
-        have hdot := full_dot
-          (s := (s ∪ Set.range A) ∪ ⋃ m ∈ M, {fun x => (t + τ x) ^ m.1 * A t x ^ m.2}) M c
-          (fun m x => (t + τ x) ^ m.1 * A t x ^ m.2)
-          (fun m hm => Set.mem_union_left _ (Set.mem_union_left _ (hc m hm)))
-          (fun m hm => Set.mem_union_right _ (Set.mem_biUnion hm rfl))
-        refine (hg.trans hdot).mono Set.Subset.rfl Set.Subset.rfl ?_
-        simp only [sum_const, smul_eq_mul, mul_one]
-        omega
-    simpa [card_univ] using this
+    simpa [card_univ] using family (I := fullInterpretation (k := 2)) (s := s ∪ Set.range A) V
+      (fun _ => 3 * #M + 1) fun t => full_dot_of_unit M c
+        (fun m x => (t + τ x) ^ m.1 * A t x ^ m.2) (fun m hm => Set.mem_union_left _ (hc m hm))
+        fun m _ => full_binary_mem (fun u v => (t + u) ^ m.1 * v ^ m.2)
+          (Set.mem_union_left _ hτ) (Set.mem_union_right _ ⟨t, rfl⟩)
   exact h₁.trans h₂
 
 /-- Synthesizing the `(k + 1)`-st Newton coefficient from `c`, `τ`, `a`, `lam`, and the first
@@ -145,16 +155,9 @@ private theorem full_henselStep (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → (F
   let W : (Fin N → F) → F := fun x => ∑ t, coeffWeight (k + 1) t * V t x
   have h₃ : Synthesis (fullInterpretation (k := 2)) (s ∪ Set.range V) {W}
       (2 * Fintype.card F + 1) := by
-    have hmul := biUnion (I := fullInterpretation (k := 2)) (s := s ∪ Set.range V) univ
-      (fun t => {fun x => coeffWeight (k + 1) t * V t x}) (fun _ => 1) fun t _ =>
+    simpa only [card_univ] using full_sum_of_unit (s := s ∪ Set.range V) univ
+      (fun t x => coeffWeight (k + 1) t * V t x) fun t _ =>
         full_unary (fun v => coeffWeight (k + 1) t * v) (Set.mem_union_right _ ⟨t, rfl⟩)
-    have hsum := full_sum (s := (s ∪ Set.range V) ∪ ⋃ t ∈ (univ : Finset F),
-        {fun x => coeffWeight (k + 1) t * V t x}) univ
-      (fun t x => coeffWeight (k + 1) t * V t x) fun t ht =>
-        Set.mem_union_right _ (Set.mem_biUnion ht rfl)
-    refine (hmul.trans hsum).mono Set.Subset.rfl Set.Subset.rfl ?_
-    simp only [sum_const, card_univ, smul_eq_mul, mul_one]
-    omega
   -- the new coefficient
   have h₄ : Synthesis (fullInterpretation (k := 2)) ((s ∪ Set.range V) ∪ {W})
       {fun x => -W x / lam x} 1 :=
@@ -209,16 +212,8 @@ theorem full_henselValue (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → (Fin N �
   -- the derivative `λ`
   let lam : (Fin N → F) → F := fun x => ∑ m ∈ M, c m x * (m.2 * τ x ^ m.1 * a x ^ (m.2 - 1))
   have h₁ : Synthesis (fullInterpretation (k := 2)) s {lam} (3 * #M + 1) := by
-    have hg := biUnion (I := fullInterpretation (k := 2)) (s := s) M
-      (fun m => {fun x => (m.2 : F) * τ x ^ m.1 * a x ^ (m.2 - 1)}) (fun _ => 1)
-      (fun m _ => full_binary_mem (fun u v => (m.2 : F) * u ^ m.1 * v ^ (m.2 - 1)) hτ ha)
-    have hdot := full_dot (s := s ∪ ⋃ m ∈ M, {fun x => (m.2 : F) * τ x ^ m.1 * a x ^ (m.2 - 1)})
-      M c (fun m x => (m.2 : F) * τ x ^ m.1 * a x ^ (m.2 - 1))
-      (fun m hm => Set.mem_union_left _ (hc m hm))
-      (fun m hm => Set.mem_union_right _ (Set.mem_biUnion hm rfl))
-    refine (hg.trans hdot).mono Set.Subset.rfl Set.Subset.rfl ?_
-    simp only [sum_const, smul_eq_mul, mul_one]
-    omega
+    exact full_dot_of_unit M c (fun m x => (m.2 : F) * τ x ^ m.1 * a x ^ (m.2 - 1)) hc
+      fun m _ => full_binary_mem (fun u v => (m.2 : F) * u ^ m.1 * v ^ (m.2 - 1)) hτ ha
   set s₁ := s ∪ {lam}
   have h₂ := full_henselSeq (s := s₁) M c (fun m hm => Set.mem_union_left _ (hc m hm))
     (Set.mem_union_left _ hτ) (Set.mem_union_left _ ha) (Set.mem_union_right _ rfl) d d le_rfl
@@ -229,16 +224,11 @@ theorem full_henselValue (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → (Fin N �
     henselSeq (Sudan.bivariateOf M fun m => c m x) (τ x) (a x) (lam x) i
   have h₃ : Synthesis (fullInterpretation (k := 2)) (s₁ ∪ T)
       {fun x => ∑ i ∈ range (d + 1), h i x * (-τ x) ^ i} (2 * d + 3) := by
-    have hmul := biUnion (I := fullInterpretation (k := 2)) (s := s₁ ∪ T) (range (d + 1))
-      (fun i => {fun x => h i x * (-τ x) ^ i}) (fun _ => 1)
-      (fun i hi => full_binary_mem (fun u v => u * (-v) ^ i)
+    refine (full_sum_of_unit (s := s₁ ∪ T) (range (d + 1)) (fun i x => h i x * (-τ x) ^ i)
+      fun i hi => full_binary_mem (fun u v => u * (-v) ^ i)
         (Set.mem_union_right _ ⟨⟨i, mem_range.1 hi⟩, rfl⟩)
-        (Set.mem_union_left _ (Set.mem_union_left _ hτ)))
-    have hsum := full_sum (s := (s₁ ∪ T) ∪ ⋃ i ∈ range (d + 1), {fun x => h i x * (-τ x) ^ i})
-      (range (d + 1)) (fun i x => h i x * (-τ x) ^ i)
-      (fun i hi => Set.mem_union_right _ (Set.mem_biUnion hi rfl))
-    refine (hmul.trans hsum).mono Set.Subset.rfl Set.Subset.rfl ?_
-    simp only [sum_const, card_range, smul_eq_mul, mul_one]
+        (Set.mem_union_left _ (Set.mem_union_left _ hτ))).mono Set.Subset.rfl Set.Subset.rfl ?_
+    have := card_range (d + 1)
     omega
   refine (h₁.trans (h₂.trans h₃)).mono Set.Subset.rfl ?_ ?_
   · refine Set.singleton_subset_iff.2 (funext fun x => ?_)
@@ -266,9 +256,9 @@ private theorem full_kernelVecUpTo (α : ι → F) (w : ι → (Fin N → F) →
   let E : ι × M → (Fin N → F) → F := fun tm x =>
     α tm.1 ^ (tm.2 : ℕ × ℕ).1 * w tm.1 x ^ (tm.2 : ℕ × ℕ).2
   have h₁ : Synthesis (fullInterpretation (k := 2)) s (Set.range E) (Fintype.card ι * #M) := by
-    have := family (I := fullInterpretation (k := 2)) (s := s) E (fun _ => 1) fun tm =>
-      full_unary (fun v => α tm.1 ^ (tm.2 : ℕ × ℕ).1 * v ^ (tm.2 : ℕ × ℕ).2) (hw tm.1)
-    simpa [card_univ, Fintype.card_prod, Fintype.card_coe] using this
+    simpa [card_univ, Fintype.card_prod, Fintype.card_coe] using
+      family (I := fullInterpretation (k := 2)) (s := s) E (fun _ => 1) fun tm =>
+        full_unary (fun v => α tm.1 ^ (tm.2 : ℕ × ℕ).1 * v ^ (tm.2 : ℕ × ℕ).2) (hw tm.1)
   -- the kernel vectors
   let u : (j : Fin (ℓ + 1)) → Fin #(Sudan.monomialsUpTo d D j) → (Fin N → F) → F :=
     fun j m x => Sudan.kernelVecUpTo α (fun i => w i x) d D j m
